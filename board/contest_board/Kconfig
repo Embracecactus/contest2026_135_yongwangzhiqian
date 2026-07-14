@@ -1,11 +1,10 @@
 #
-# Contest 2026 team 000 board placeholder
+# NuttX board configuration for RV1126B EVB
 #
 
-if ARCH_BOARD_CONTEST2026_000_BOARD
-
-config ARCH_BOARD_CONTEST2026_000_BOARD_TAG
-	string "Board tag"
-	default "contest2026_000_board"
-
-endif
+config ARCH_BOARD_RV1126B_EVB
+	bool "Rockchip RV1126B EVB/SportCam compatible board"
+	depends on ARCH_BOARD_CUSTOM
+	default y
+	---help---
+		Custom board wrapper for the contest RV1126B BSP.

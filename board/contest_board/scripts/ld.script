@@ -1,0 +1,96 @@
+/****************************************************************************
+ * NuttX linker script for RV1126B EVB (RISC-V RV32IMC)
+ *
+ * Memory map:
+ *   RAM: 0x48c02000, 232KB (0x3a000)
+ *
+ * Adapted from the RV1126B SDK reference linker script.
+ ****************************************************************************/
+
+OUTPUT_ARCH("riscv")
+ENTRY(__start)
+
+MEMORY
+{
+    /* RV1126B MCU SRAM: 0x48c02000, 232KB */
+    ram (rwx) : ORIGIN = 0x48c02000, LENGTH = 0x3a000
+}
+
+SECTIONS
+{
+    /* Code and read-only data */
+
+    .text : {
+        _stext = .;
+        *(.start .start.*)  /* Entry point must be first */
+        *(.text .text.*)
+        *(.gnu.linkonce.t.*)
+        *(.rodata .rodata.*)
+        *(.gnu.linkonce.r.*)
+
+        /* Constructors / destructors */
+
+        . = ALIGN(4);
+        KEEP(*(.init))
+        KEEP(*(.fini))
+
+        . = ALIGN(4);
+        _etext = .;
+    } > ram
+
+    /* Thread-local storage */
+
+    .tdata : {
+        _tls_data = .;
+        *(.tdata .tdata.*)
+        _tdata_end = .;
+    } > ram
+
+    .tbss : {
+        *(.tbss .tbss.*)
+        _tbss_end = .;
+    } > ram
+
+    /* Initialized data */
+
+    _eronly = LOADADDR(.data);
+
+    .data : {
+        _sdata = .;
+        *(.data .data.*)
+        *(.gnu.linkonce.d.*)
+        . = ALIGN(4);
+        _edata = .;
+    } > ram AT > ram
+
+    /* Small data */
+
+    .sdata : {
+        _gp = . + 0x800;
+        *(.srodata.cst16) *(.srodata.cst8) *(.srodata.cst4) *(.srodata.cst2)
+        *(.srodata .srodata.*)
+        *(.sdata .sdata.* .gnu.linkonce.s.*)
+        . = ALIGN(4);
+    } > ram
+
+    .sbss : {
+        *(.sbss .sbss.* .gnu.linkonce.sb.*)
+        *(.scommon)
+    } > ram
+
+    /* Uninitialized data (BSS) */
+
+    .bss : {
+        _sbss = .;
+        *(.bss .bss.*)
+        *(.gnu.linkonce.b.*)
+        *(COMMON)
+        . = ALIGN(4);
+        _ebss = .;
+    } > ram
+
+    /* Heap starts after BSS */
+
+    _sheap = .;
+    _eheap = ORIGIN(ram) + LENGTH(ram);
+}
