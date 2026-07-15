@@ -38,8 +38,8 @@ export FW="$SDK/output/firmware"
   - base branch：`dev-ai-contest-2026`
   - compare repository：`Embracecactus/contest2026_135_yongwangzhiqian`
   - compare branch：`submit-rv1126b-nsh-baseline`
-- PR 状态：等待 CLA 签署（邮箱 `15588296118@163.com`，需在
-  https://www.openvela.com/#/community/cla 签署后评论 `/check-cla`）
+- PR 状态：CLA 已签署并通过（邮箱 `15588296118@163.com`），
+  等待 reviewer 代码审查反馈
 - 最新 commit：`57c6738 logs: sync latest session`
 
 会话开始检查：
