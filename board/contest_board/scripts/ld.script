@@ -22,7 +22,7 @@ SECTIONS
 
     .text : {
         _stext = .;
-        *(.start .start.*)  /* Entry point must be first */
+        KEEP(*(.text.start .text.start.*))  /* Entry point must be first */
         *(.text .text.*)
         *(.gnu.linkonce.t.*)
         *(.rodata .rodata.*)
@@ -85,12 +85,13 @@ SECTIONS
         *(.bss .bss.*)
         *(.gnu.linkonce.b.*)
         *(COMMON)
-        . = ALIGN(4);
+        . = ALIGN(16);
         _ebss = .;
     } > ram
 
     /* Heap starts after BSS */
 
+    . = ALIGN(16);
     _sheap = .;
     _eheap = ORIGIN(ram) + LENGTH(ram);
 }

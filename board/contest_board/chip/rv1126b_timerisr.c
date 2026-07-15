@@ -104,6 +104,69 @@ static void rv1126b_timer_start(void)
 }
 
 /****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: rv1126b_timer_interrupt
+ *
+ * Description:
+ *   Timer interrupt handler registered via irq_attach().  Advances the
+ *   MTIMECMP register by one tick period using the safe high-low-high
+ *   sequence and processes the OS tick.
+ *
+ *   MTIME read uses high-low-high retry to handle rollover.
+ *   MTIMECMP write uses the safe sequence (high=UINT32_MAX, low,
+ *   final-high) under up_irq_save()/restore() to prevent spurious
+ *   compares during the write.
+ *
+ ****************************************************************************/
+
+static int rv1126b_timer_interrupt(int irq, void *context, void *arg)
+{
+  uint32_t mtime_hi;
+  uint32_t mtime_lo;
+  uint32_t mtime_hi2;
+  uint64_t mtime;
+  uint64_t mtimecmp;
+  irqstate_t flags;
+
+  UNUSED(irq);
+  UNUSED(context);
+  UNUSED(arg);
+
+  /* Read MTIME with high-low-high retry to handle rollover */
+
+  do
+    {
+      mtime_hi  = getreg32(CTIMER_MTIMEH);
+      mtime_lo  = getreg32(CTIMER_MTIME);
+      mtime_hi2 = getreg32(CTIMER_MTIMEH);
+    }
+  while (mtime_hi != mtime_hi2);
+
+  mtime = ((uint64_t)mtime_hi << 32) | mtime_lo;
+  mtimecmp = mtime + g_mtimecmp_step;
+
+  /* Write MTIMECMP using the safe sequence under irq_save to prevent
+   * a spurious compare during the two-step write.  Writing high first
+   * to UINT32_MAX guarantees no match until the final high write.
+   */
+
+  flags = up_irq_save();
+  putreg32(UINT32_MAX, CTIMER_MTIMECMPH);
+  putreg32((uint32_t)(mtimecmp & 0xffffffff), CTIMER_MTIMECMP);
+  putreg32((uint32_t)(mtimecmp >> 32), CTIMER_MTIMECMPH);
+  up_irq_restore(flags);
+
+  /* Process the OS tick */
+
+  nxsched_process_timer();
+
+  return OK;
+}
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -144,50 +207,19 @@ void up_timer_initialize(void)
   putreg32(RV1126B_MTIME_TICK_VALUE, CTIMER_MTIMECMP);
   putreg32(0, CTIMER_MTIMECMPH);
 
-  /* Enable machine timer interrupts in the mie CSR. */
+  /* Register the timer ISR and enable the IRQ through the NuttX
+   * IRQ framework (which handles MIE_MTIE via up_enable_irq).
+   */
 
-  set_csr(mie, MIE_MTIE);
+  if (irq_attach(RISCV_IRQ_MTIMER, rv1126b_timer_interrupt, NULL) < 0)
+    {
+      /* Cannot register timer ISR -- fatal at boot */
+      return;
+    }
+
+  up_enable_irq(RISCV_IRQ_MTIMER);
 
   /* Start the timer */
 
   rv1126b_timer_start();
-}
-
-/****************************************************************************
- * Name: up_timer_int
- *
- * Description:
- *   Advance the MTIMECMP register by one tick period.  This is called
- *   from the timer interrupt handler to acknowledge the interrupt and
- *   schedule the next tick.
- *
- ****************************************************************************/
-
-void up_timer_int(void)
-{
-  uint64_t mtime;
-  uint64_t mtimecmp;
-
-  /* Temporarily disable timer interrupt to avoid race condition */
-
-  clear_csr(mie, MIE_MTIE);
-
-  /* Read current mtime and advance compare from it (not from old mtimecmp) */
-
-  mtime = (uint64_t)getreg32(CTIMER_MTIMEH) << 32;
-  mtime |= getreg32(CTIMER_MTIME);
-  mtimecmp = mtime + g_mtimecmp_step;
-
-  /* Write new MTIMECMP value */
-
-  putreg32((uint32_t)(mtimecmp & 0xffffffff), CTIMER_MTIMECMP);
-  putreg32((uint32_t)(mtimecmp >> 32), CTIMER_MTIMECMPH);
-
-  /* Process the OS tick */
-
-  nxsched_process_timer();
-
-  /* Re-enable timer interrupt */
-
-  set_csr(mie, MIE_MTIE);
 }

@@ -48,7 +48,7 @@
 /* UART5 configuration (SDK-verified console UART) */
 
 #define CONSOLE_UART_BASE       RV1126B_UART5_BASE
-#define CONSOLE_UART_IRQ        61  /* UART5_IRQn */
+#define CONSOLE_UART_IRQ        RV1126B_IRQ_UART5
 
 /* UART register access macros */
 
@@ -363,7 +363,9 @@ static void rv1126b_uart_rxint(struct uart_dev_s *dev, bool enable)
   struct rv1126b_uart_s *priv = (struct rv1126b_uart_s *)dev->priv;
   uint32_t base = priv->base;
   uint32_t regval;
+  irqstate_t flags;
 
+  flags = up_irq_save();
   regval = getreg32(UART_IER(base));
 
   if (enable)
@@ -376,6 +378,7 @@ static void rv1126b_uart_rxint(struct uart_dev_s *dev, bool enable)
     }
 
   putreg32(regval, UART_IER(base));
+  up_irq_restore(flags);
 }
 
 /****************************************************************************
@@ -391,13 +394,16 @@ static void rv1126b_uart_txint(struct uart_dev_s *dev, bool enable)
   struct rv1126b_uart_s *priv = (struct rv1126b_uart_s *)dev->priv;
   uint32_t base = priv->base;
   uint32_t regval;
+  irqstate_t flags;
 
+  flags = up_irq_save();
   regval = getreg32(UART_IER(base));
 
   if (enable)
     {
       regval |= RV1126B_UART_IER_ETBEI;  /* Enable THR Empty */
       putreg32(regval, UART_IER(base));
+      up_irq_restore(flags);
 
       /* Prime transmission.  uart_xmitchars() may safely disable ETBEI
        * through this callback after the software TX buffer is drained.
@@ -409,6 +415,7 @@ static void rv1126b_uart_txint(struct uart_dev_s *dev, bool enable)
     {
       regval &= ~RV1126B_UART_IER_ETBEI;
       putreg32(regval, UART_IER(base));
+      up_irq_restore(flags);
     }
 }
 
@@ -495,39 +502,39 @@ static int rv1126b_uart_interrupt(int irq, void *context, void *arg)
   /* Dispatch based on interrupt type */
 
   switch (id)
+  {
+    case RV1126B_UART_IIR_RDA:    /* Received Data Available */
+    case RV1126B_UART_IIR_CTI:    /* Character Timeout */
     {
-      case RV1126B_UART_IIR_RDA:    /* Received Data Available */
-      case RV1126B_UART_IIR_CTI:    /* Character Timeout */
-        {
-          uart_recvchars(dev);
-          break;
-        }
-
-      case RV1126B_UART_IIR_THRE:   /* Transmit Holding Register Empty */
-        {
-          uart_xmitchars(dev);
-          break;
-        }
-
-      case RV1126B_UART_IIR_RLS:    /* Receiver Line Status */
-        {
-          /* Read LSR to clear the interrupt */
-
-          getreg32(UART_LSR(base));
-          break;
-        }
-
-      case RV1126B_UART_IIR_BUSY:   /* Busy Detect */
-        {
-          /* Read USR to clear the interrupt */
-
-          getreg32(UART_USR(base));
-          break;
-        }
-
-      default:
-        break;
+      uart_recvchars(dev);
+      break;
     }
+
+    case RV1126B_UART_IIR_THRE:   /* Transmit Holding Register Empty */
+    {
+      uart_xmitchars(dev);
+      break;
+    }
+
+    case RV1126B_UART_IIR_RLS:    /* Receiver Line Status */
+    {
+      /* Read LSR to clear the interrupt */
+
+      getreg32(UART_LSR(base));
+      break;
+    }
+
+    case RV1126B_UART_IIR_BUSY:   /* Busy Detect */
+    {
+      /* Read USR to clear the interrupt */
+
+      getreg32(UART_USR(base));
+      break;
+    }
+
+    default:
+      break;
+  }
 
   return OK;
 }

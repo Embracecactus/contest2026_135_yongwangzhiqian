@@ -69,12 +69,6 @@
 #define MCAUSE_INTERRUPT_BIT   ((uintptr_t)1 << (sizeof(uintptr_t) * 8 - 1))
 
 /****************************************************************************
- * Public Function Prototypes
- ****************************************************************************/
-
-void up_timer_int(void);
-
-/****************************************************************************
  * Private Functions
  ****************************************************************************/
 
@@ -126,8 +120,19 @@ static int rv1126b_get_active_irq(void)
   for (i = 0; i < INTMUX_NGROUPS; i++)
     {
       status = getreg32(RV1126B_INTMUX_BASE +
-                         RV1126B_INTMUX_STATUS_OFFSET +
-                         (i * RV1126B_INTMUX_GROUP_STRIDE));
+                        RV1126B_INTMUX_STATUS_OFFSET +
+                        (i * RV1126B_INTMUX_GROUP_STRIDE));
+
+      /* Source 0 in group 0 is reserved (collides with RISCV_IRQ_MEXT
+       * aggregate slot in M-mode).  Mask it out so it never appears
+       * as an active IRQ.
+       */
+
+      if (i == 0)
+        {
+          status &= ~1u;
+        }
+
       if (status != 0)
         {
           /* Find the lowest-numbered (highest priority) set bit */
@@ -175,8 +180,8 @@ void *riscv_dispatch_irq(uintptr_t mcause, uintreg_t *regs)
   if ((mcause & MCAUSE_INTERRUPT_BIT) == 0)
     {
       /* Synchronous exceptions must go through riscv_doirq() so NuttX can
-       * advance mepc for ecall and handle context switching properly.
-       */
+      * advance mepc for ecall and handle context switching properly.
+      */
 
       regs = riscv_doirq((int)mcause, regs);
       return regs;
@@ -188,9 +193,9 @@ void *riscv_dispatch_irq(uintptr_t mcause, uintreg_t *regs)
 
   if (cause == IRQ_M_TIMER)
     {
-      /* Machine timer interrupt -- call the NuttX timer handler */
+      /* Machine timer interrupt -- dispatch through NuttX IRQ framework */
 
-      up_timer_int();
+      regs = riscv_doirq(RISCV_IRQ_MTIMER, regs);
     }
   else if (cause == IRQ_M_EXT)
     {
@@ -202,16 +207,20 @@ void *riscv_dispatch_irq(uintptr_t mcause, uintreg_t *regs)
 
       rv1126b_ipic_soi();
 
-      /* Scan for active IRQs -- handle all pending IRQs in this group */
+      /* Scan for active IRQs -- handle all pending IRQs.
+       * Use a bounded loop to prevent infinite spinning if a handler
+       * fails to clear its interrupt source.
+       */
 
-      while ((irq = rv1126b_get_active_irq()) >= 0)
+      int max_irqs = INTMUX_NGROUPS * INTMUX_IRQS_PER_GROUP;
+
+      while ((irq = rv1126b_get_active_irq()) >= 0 && --max_irqs > 0)
         {
-          /* Dispatch through the NuttX IRQ dispatch table.
-           * riscv_doirq() handles context switch bookkeeping and
-           * returns the (possibly updated) regs pointer.
+          /* Dispatch through the NuttX IRQ dispatch table using the
+           * INTMUX-source-to-NuttX-IRQ conversion.
            */
 
-          regs = riscv_doirq(irq, regs);
+          regs = riscv_doirq(RV1126B_INTMUX_SOURCE_TO_IRQ(irq), regs);
         }
 
       /* Signal IPIC End of Interrupt */

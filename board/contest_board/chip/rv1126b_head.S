@@ -30,7 +30,7 @@
  * Based on the Rockchip RV1126B SDK CMSIS startup template and
  * NuttX RISC-V conventions.
  *
- * Register layout must match nuttx/arch/risc-v/include/irq.h
+ * Register layout comes from nuttx/arch/risc-v/include/irq.h
  * (RV32, no CLIC, no shadow stack):
  *
  *   Slot  0        (offset   0) : REG_EPC     -- mepc
@@ -39,35 +39,20 @@
  *   ...
  *   Slot 31        (offset 124) : REG_X31     -- x31 (t6)
  *   Slot 32        (offset 128) : REG_INT_CTX -- mstatus
- *   Total: XCPTCONTEXT_REGS = 33, XCPTCONTEXT_SIZE = 132
+ *   Register bytes remain canonical; stack allocation is rounded up to
+ *   STACKFRAME_ALIGN before calling C from trap context.
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-/* Register save/restore width for RV32 */
+#include <arch/irq.h>
 
-#define REGBYTES    4
-#define RV32_REGBYTES   REGBYTES
-
-/* NuttX RISC-V trap frame layout (no CLIC, no shadow stack).
- * These MUST match nuttx/arch/risc-v/include/irq.h.
- * Include <arch/irq.h> instead of redefining when the build tree
- * supports it; local defines kept for build-tree independence.
+/* Preserve the canonical register layout while keeping trap-call stack
+ * alignment required by the RISC-V psABI.
  */
 
-#define REG_EPC_NDX         0
-#define REG_X1_NDX          1
-#define REG_X2_NDX          2
-#define REG_INT_CTX_NDX    32
-#define XCPTCONTEXT_REGS    33
-#define XCPTCONTEXT_SIZE    (XCPTCONTEXT_REGS * REGBYTES)
-
-/* Assembly byte-offset aliases (INT_REG_SIZE = 4 on RV32) */
-
-#define REG_EPC         (REGBYTES * REG_EPC_NDX)
-#define REG_X1          (REGBYTES * REG_X1_NDX)
-#define REG_X2          (REGBYTES * REG_X2_NDX)
-#define REG_INT_CTX     (REGBYTES * REG_INT_CTX_NDX)
+#define RV1126B_TRAPFRAME_SIZE \
+  ((XCPTCONTEXT_SIZE + STACKFRAME_ALIGN - 1) & ~(STACKFRAME_ALIGN - 1))
 
 /* MSTATUS bits */
 
@@ -99,6 +84,7 @@ __start:
     la      sp, _ebss
     li      t0, CONFIG_IDLETHREAD_STACKSIZE
     add     sp, sp, t0
+    andi    sp, sp, -STACKFRAME_ALIGN
 
     /* Clear MIE bit in mstatus to disable all interrupts during init */
 
@@ -132,47 +118,46 @@ __start:
     .type   g_traps, %function
 
 g_traps:
-    /* Allocate space on the stack for the full register context */
+    /* Allocate aligned stack space for the full register context. */
 
-    addi    sp, sp, -XCPTCONTEXT_SIZE
+    addi    sp, sp, -RV1126B_TRAPFRAME_SIZE
 
     /* Save all general-purpose registers x1-x31 into NuttX slots 1-31.
-     * Slot layout matches nuttx/arch/risc-v/include/irq.h:
-     *   REG_X1_NDX=1 ... REG_X31_NDX=31
+     * Slot layout matches nuttx/arch/risc-v/include/irq.h.
      */
 
-    sw      x1,  1 * REGBYTES(sp)   /* ra */
-    addi    t1, sp, XCPTCONTEXT_SIZE
-    sw      t1,  2 * REGBYTES(sp)   /* sp (pre-trap value) */
-    sw      x3,  3 * REGBYTES(sp)   /* gp */
-    sw      x4,  4 * REGBYTES(sp)   /* tp */
-    sw      x5,  5 * REGBYTES(sp)   /* t0 */
-    sw      x6,  6 * REGBYTES(sp)   /* t1 */
-    sw      x7,  7 * REGBYTES(sp)   /* t2 */
-    sw      x8,  8 * REGBYTES(sp)   /* s0/fp */
-    sw      x9,  9 * REGBYTES(sp)   /* s1 */
-    sw      x10, 10 * REGBYTES(sp)  /* a0 */
-    sw      x11, 11 * REGBYTES(sp)  /* a1 */
-    sw      x12, 12 * REGBYTES(sp)  /* a2 */
-    sw      x13, 13 * REGBYTES(sp)  /* a3 */
-    sw      x14, 14 * REGBYTES(sp)  /* a4 */
-    sw      x15, 15 * REGBYTES(sp)  /* a5 */
-    sw      x16, 16 * REGBYTES(sp)  /* a6 */
-    sw      x17, 17 * REGBYTES(sp)  /* a7 */
-    sw      x18, 18 * REGBYTES(sp)  /* s2 */
-    sw      x19, 19 * REGBYTES(sp)  /* s3 */
-    sw      x20, 20 * REGBYTES(sp)  /* s4 */
-    sw      x21, 21 * REGBYTES(sp)  /* s5 */
-    sw      x22, 22 * REGBYTES(sp)  /* s6 */
-    sw      x23, 23 * REGBYTES(sp)  /* s7 */
-    sw      x24, 24 * REGBYTES(sp)  /* s8 */
-    sw      x25, 25 * REGBYTES(sp)  /* s9 */
-    sw      x26, 26 * REGBYTES(sp)  /* s10 */
-    sw      x27, 27 * REGBYTES(sp)  /* s11 */
-    sw      x28, 28 * REGBYTES(sp)  /* t3 */
-    sw      x29, 29 * REGBYTES(sp)  /* t4 */
-    sw      x30, 30 * REGBYTES(sp)  /* t5 */
-    sw      x31, 31 * REGBYTES(sp)  /* t6 */
+    sw      x1,  REG_X1(sp)        /* ra */
+    sw      x6,  REG_X6(sp)        /* t1 */
+    addi    t1, sp, RV1126B_TRAPFRAME_SIZE
+    sw      t1,  REG_X2(sp)        /* sp (pre-trap value) */
+    sw      x3,  REG_X3(sp)        /* gp */
+    sw      x4,  REG_X4(sp)        /* tp */
+    sw      x5,  REG_X5(sp)        /* t0 */
+    sw      x7,  REG_X7(sp)        /* t2 */
+    sw      x8,  REG_X8(sp)        /* s0/fp */
+    sw      x9,  REG_X9(sp)        /* s1 */
+    sw      x10, REG_X10(sp)       /* a0 */
+    sw      x11, REG_X11(sp)       /* a1 */
+    sw      x12, REG_X12(sp)       /* a2 */
+    sw      x13, REG_X13(sp)       /* a3 */
+    sw      x14, REG_X14(sp)       /* a4 */
+    sw      x15, REG_X15(sp)       /* a5 */
+    sw      x16, REG_X16(sp)       /* a6 */
+    sw      x17, REG_X17(sp)       /* a7 */
+    sw      x18, REG_X18(sp)       /* s2 */
+    sw      x19, REG_X19(sp)       /* s3 */
+    sw      x20, REG_X20(sp)       /* s4 */
+    sw      x21, REG_X21(sp)       /* s5 */
+    sw      x22, REG_X22(sp)       /* s6 */
+    sw      x23, REG_X23(sp)       /* s7 */
+    sw      x24, REG_X24(sp)       /* s8 */
+    sw      x25, REG_X25(sp)       /* s9 */
+    sw      x26, REG_X26(sp)       /* s10 */
+    sw      x27, REG_X27(sp)       /* s11 */
+    sw      x28, REG_X28(sp)       /* t3 */
+    sw      x29, REG_X29(sp)       /* t4 */
+    sw      x30, REG_X30(sp)       /* t5 */
+    sw      x31, REG_X31(sp)       /* t6 */
 
     /* Save mepc into slot 0 (REG_EPC).
      * NuttX riscv_doirq_top() reads regs[REG_EPC] to advance PC on ecall;
@@ -214,46 +199,52 @@ g_traps:
     lw      t0, REG_EPC(sp)
     csrw    mepc, t0
 
-    /* Restore mstatus from slot 32 (REG_INT_CTX) */
-
-    lw      t0, REG_INT_CTX(sp)
-    csrw    mstatus, t0
-
     /* Restore all general-purpose registers except x2/sp first.
      * Keep sp pointing at the context frame until the final load.
+     *
+     * mstatus is restored LAST, immediately before mret, to avoid
+     * re-enabling interrupts (MIE) during the GPR restore sequence.
      */
 
-    lw      x1,  1 * REGBYTES(sp)   /* ra */
-    lw      x3,  3 * REGBYTES(sp)   /* gp */
-    lw      x4,  4 * REGBYTES(sp)   /* tp */
-    lw      x5,  5 * REGBYTES(sp)   /* t0 */
-    lw      x6,  6 * REGBYTES(sp)   /* t1 */
-    lw      x7,  7 * REGBYTES(sp)   /* t2 */
-    lw      x8,  8 * REGBYTES(sp)   /* s0/fp */
-    lw      x9,  9 * REGBYTES(sp)   /* s1 */
-    lw      x10, 10 * REGBYTES(sp)  /* a0 */
-    lw      x11, 11 * REGBYTES(sp)  /* a1 */
-    lw      x12, 12 * REGBYTES(sp)  /* a2 */
-    lw      x13, 13 * REGBYTES(sp)  /* a3 */
-    lw      x14, 14 * REGBYTES(sp)  /* a4 */
-    lw      x15, 15 * REGBYTES(sp)  /* a5 */
-    lw      x16, 16 * REGBYTES(sp)  /* a6 */
-    lw      x17, 17 * REGBYTES(sp)  /* a7 */
-    lw      x18, 18 * REGBYTES(sp)  /* s2 */
-    lw      x19, 19 * REGBYTES(sp)  /* s3 */
-    lw      x20, 20 * REGBYTES(sp)  /* s4 */
-    lw      x21, 21 * REGBYTES(sp)  /* s5 */
-    lw      x22, 22 * REGBYTES(sp)  /* s6 */
-    lw      x23, 23 * REGBYTES(sp)  /* s7 */
-    lw      x24, 24 * REGBYTES(sp)  /* s8 */
-    lw      x25, 25 * REGBYTES(sp)  /* s9 */
-    lw      x26, 26 * REGBYTES(sp)  /* s10 */
-    lw      x27, 27 * REGBYTES(sp)  /* s11 */
-    lw      x28, 28 * REGBYTES(sp)  /* t3 */
-    lw      x29, 29 * REGBYTES(sp)  /* t4 */
-    lw      x30, 30 * REGBYTES(sp)  /* t5 */
-    lw      x31, 31 * REGBYTES(sp)  /* t6 */
-    lw      x2,  2 * REGBYTES(sp)   /* sp -- restore last */
+    lw      x1,  REG_X1(sp)        /* ra */
+    lw      x3,  REG_X3(sp)        /* gp */
+    lw      x4,  REG_X4(sp)        /* tp */
+    lw      x5,  REG_X5(sp)        /* t0 */
+    lw      x6,  REG_X6(sp)        /* t1 */
+    lw      x7,  REG_X7(sp)        /* t2 */
+    lw      x8,  REG_X8(sp)        /* s0/fp */
+    lw      x9,  REG_X9(sp)        /* s1 */
+    lw      x10, REG_X10(sp)       /* a0 */
+    lw      x11, REG_X11(sp)       /* a1 */
+    lw      x12, REG_X12(sp)       /* a2 */
+    lw      x13, REG_X13(sp)       /* a3 */
+    lw      x14, REG_X14(sp)       /* a4 */
+    lw      x15, REG_X15(sp)       /* a5 */
+    lw      x16, REG_X16(sp)       /* a6 */
+    lw      x17, REG_X17(sp)       /* a7 */
+    lw      x18, REG_X18(sp)       /* s2 */
+    lw      x19, REG_X19(sp)       /* s3 */
+    lw      x20, REG_X20(sp)       /* s4 */
+    lw      x21, REG_X21(sp)       /* s5 */
+    lw      x22, REG_X22(sp)       /* s6 */
+    lw      x23, REG_X23(sp)       /* s7 */
+    lw      x24, REG_X24(sp)       /* s8 */
+    lw      x25, REG_X25(sp)       /* s9 */
+    lw      x26, REG_X26(sp)       /* s10 */
+    lw      x27, REG_X27(sp)       /* s11 */
+    lw      x28, REG_X28(sp)       /* t3 */
+    lw      x29, REG_X29(sp)       /* t4 */
+    lw      x30, REG_X30(sp)       /* t5 */
+    lw      x31, REG_X31(sp)       /* t6 */
+
+    /* Restore mstatus last -- re-enables MIE only after all GPRs
+     * are restored, preventing spurious nested traps during exit.
+     */
+
+    lw      t0,  REG_INT_CTX(sp)
+    csrw    mstatus, t0
+
+    lw      x2,  REG_X2(sp)        /* sp -- restore last */
 
     /* Return from trap -- mepc and mstatus already restored above */
 
