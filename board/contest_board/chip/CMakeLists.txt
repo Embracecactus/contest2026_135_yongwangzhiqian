@@ -32,5 +32,8 @@ set(SRCS
 set(ASRCS rv1126b_head.S)
 
 if(CONFIG_ARCH_CHIP_RV1126B)
-    target_sources(arch PRIVATE ${SRCS} ${ASRCS})
+    message(FATAL_ERROR
+      "RV1126B contest board currently supports the classic Make source set only. "
+      "The common RISC-V CMake path adds riscv_mtimer.c after this chip directory, "
+      "which conflicts with rv1126b_timerisr.c; use the documented Make build.")
 endif()

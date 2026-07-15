@@ -32,4 +32,21 @@
 #define NR_INTMUX_IRQS      256
 #define NR_IRQS             (RISCV_IRQ_EXT + NR_INTMUX_IRQS)
 
+/* INTMUX source to NuttX IRQ conversion.
+ * NuttX IRQ = RISCV_IRQ_EXT + intmux_source_id.
+ * Source 0 is reserved because it collides with the RISCV_IRQ_MEXT
+ * aggregate slot in M-mode.
+ */
+
+#define RV1126B_INTMUX_SOURCE_TO_IRQ(s) (RISCV_IRQ_EXT + (s))
+#define RV1126B_INTMUX_IRQ_TO_SOURCE(i) ((i) - RISCV_IRQ_EXT)
+#define RV1126B_INTMUX_SOURCE_VALID(s)  ((s) > 0 && (s) < NR_INTMUX_IRQS)
+#define RV1126B_INTMUX_IRQ_VALID(i)     ((i) > RISCV_IRQ_EXT && \
+                                         (i) < NR_IRQS)
+
+/* UART5 interrupt (INTMUX source 61) */
+
+#define RV1126B_UART5_INTMUX_SOURCE     61
+#define RV1126B_IRQ_UART5               RV1126B_INTMUX_SOURCE_TO_IRQ(61)
+
 #endif /* __ARCH_RISCV_INCLUDE_RV1126B_IRQ_H */

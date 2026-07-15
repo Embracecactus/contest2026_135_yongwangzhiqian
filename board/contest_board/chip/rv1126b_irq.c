@@ -84,8 +84,11 @@ static void rv1126b_intmux_enable(int irq)
 {
   uintptr_t reg = RV1126B_INTMUX_ENABLE(irq);
   unsigned int bit = irq % INTMUX_IRQS_PER_GROUP;
+  irqstate_t flags;
 
+  flags = up_irq_save();
   putreg32(getreg32(reg) | (1u << bit), reg);
+  up_irq_restore(flags);
 }
 
 /****************************************************************************
@@ -104,8 +107,11 @@ static void rv1126b_intmux_disable(int irq)
 {
   uintptr_t reg = RV1126B_INTMUX_ENABLE(irq);
   unsigned int bit = irq % INTMUX_IRQS_PER_GROUP;
+  irqstate_t flags;
 
+  flags = up_irq_save();
   putreg32(getreg32(reg) & ~(1u << bit), reg);
+  up_irq_restore(flags);
 }
 
 /****************************************************************************
@@ -133,7 +139,7 @@ void up_irqinitialize(void)
   for (i = 0; i < INTMUX_NGROUPS; i++)
     {
       putreg32(0, RV1126B_INTMUX_BASE + RV1126B_INTMUX_ENABLE_OFFSET +
-                (i * RV1126B_INTMUX_GROUP_STRIDE));
+              (i * RV1126B_INTMUX_GROUP_STRIDE));
     }
 
   /* Enable all IPIC vectors before enabling MEIP.  write_csr() stringifies
@@ -142,6 +148,10 @@ void up_irqinitialize(void)
 
   for (i = 0; i < 16; i++)
     {
+      /* SCR1 IPIC: select vector via CISV (0xbf6), then set IE bit
+       * (bit 1 of CICSR, 0xbf7) to enable each interrupt vector.
+       */
+
       write_csr(0xbf6, i);
       write_csr(0xbf7, 1u << 1);
     }
@@ -172,7 +182,23 @@ void up_irqinitialize(void)
 
 void up_enable_irq(int irq)
 {
-  rv1126b_intmux_enable(irq);
+  /* Note: enabling an INTMUX source requires MIE_MEIE to be set.
+   * up_irqinitialize() sets MEIE at boot; callers that disable MEXT
+   * must re-enable it before individual INTMUX sources will fire.
+   */
+
+  if (irq == RISCV_IRQ_MTIMER)
+    {
+      set_csr(mie, MIE_MTIE);
+    }
+  else if (irq == RISCV_IRQ_MEXT)
+    {
+      set_csr(mie, MIE_MEIE);
+    }
+  else if (RV1126B_INTMUX_IRQ_VALID(irq))
+    {
+      rv1126b_intmux_enable(RV1126B_INTMUX_IRQ_TO_SOURCE(irq));
+    }
 }
 
 /****************************************************************************
@@ -188,7 +214,18 @@ void up_enable_irq(int irq)
 
 void up_disable_irq(int irq)
 {
-  rv1126b_intmux_disable(irq);
+  if (irq == RISCV_IRQ_MTIMER)
+    {
+      clear_csr(mie, MIE_MTIE);
+    }
+  else if (irq == RISCV_IRQ_MEXT)
+    {
+      clear_csr(mie, MIE_MEIE);
+    }
+  else if (RV1126B_INTMUX_IRQ_VALID(irq))
+    {
+      rv1126b_intmux_disable(RV1126B_INTMUX_IRQ_TO_SOURCE(irq));
+    }
 }
 
 /****************************************************************************
