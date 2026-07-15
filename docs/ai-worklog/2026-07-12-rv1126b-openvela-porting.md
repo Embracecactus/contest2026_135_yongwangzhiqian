@@ -48,7 +48,7 @@
 
 - 主模型（Opus）：规划、审核、决策
 - 子代理（Sonnet/Haiku）：查代码、执行构建、机械性修改
-- 查代码优先使用 CodeGraph（`projectPath=/home/lijian/project/open-vela`）
+- 查代码优先使用 CodeGraph（`projectPath=$WORKSPACE`）
 - 所有修改限制在 `contest2026_135_yongwangzhiqian/` overlay 目录内
 
 ---

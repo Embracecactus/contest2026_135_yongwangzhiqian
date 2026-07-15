@@ -11,12 +11,12 @@
 
 ## 工作区与规则
 
-- **工作区根目录**: `/home/lijian/project/open-vela`
-- **团队 overlay**: `/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian`
-- **RV1126B SDK**: `/home/lijian/project/rv1126b/rv1126bsportCam/sdk/atk_dlrv1126b_linux6.1_sdk`
+- **工作区根目录**: `$WORKSPACE`
+- **团队 overlay**: `$CONTEST`
+- **RV1126B SDK**: `$SDK`
 - **严格禁止**修改官方 `nuttx/`、`apps/`、`packages/`、非团队 `vendor/` checkout；所有修复只允许在团队 overlay 内，尤其是 `board/contest_board/`。
 - **主模型只做规划和审查**；宽泛搜索、机械修改、编译、打包、验证全部交给 Sonnet 或 Haiku 子代理。
-- 项目有 **CodeGraph**（`.codegraph/` 目录已初始化），理解/定位代码前优先使用 CodeGraph，projectPath 为 `/home/lijian/project/open-vela`。
+- 项目有 **CodeGraph**（`.codegraph/` 目录已初始化），理解/定位代码前优先使用 CodeGraph，projectPath 为 `$WORKSPACE`。
 - **不使用 Workflow**；本项目分析用普通 Agent（Sonnet/Haiku）。
 
 ## 已完成工作
@@ -32,13 +32,13 @@
    ```bash
    ./build.sh vendor/openvela/boards/contest2026_135_board/configs/nsh -j8
    ```
-4. 输出 ELF：`/home/lijian/project/open-vela/nuttx/nuttx`；objcopy 后 `nuttx.bin` 约 80680 bytes。
+4. 输出 ELF：`$WORKSPACE/nuttx/nuttx`；objcopy 后 `nuttx.bin` 约 80680 bytes。
 5. 已打包：
    - `amp.img`：SDK `output/firmware/amp.img`，约 84K
    - `update.img`：SDK `output/update/Image/update.img`，约 1.4G
 6. **打包流程**必须包含以下步骤：
    1. `riscv-none-elf-objcopy -O binary nuttx nuttx.bin`
-      （工具路径：`/home/lijian/project/open-vela/prebuilts/gcc/linux-x86_64/riscv-none-elf/bin/riscv-none-elf-objcopy`）
+      （工具路径：`$WORKSPACE/prebuilts/gcc/linux-x86_64/riscv-none-elf/bin/riscv-none-elf-objcopy`）
    2. 复制 `nuttx.bin` 到 `$SDK/rtos/bsp/rockchip/rv1126b-mcu/Image/rtt.bin`
    3. `$SDK/hal/tools/mkimage -f Image/amp.its -E -p 0xe00 Image/nuttx_amp.img`
    4. 复制为 `$SDK/output/firmware/amp.img`
