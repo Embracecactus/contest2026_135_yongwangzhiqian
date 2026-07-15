@@ -4,7 +4,7 @@
 
 ```text
 我们正在 openvela 2026 竞赛工作区继续工作。当前目标：PR 已提交，
-等待 CLA 签署和 review，同时准备后续验证和优化。
+CLA 已通过，等待 reviewer 代码审查反馈，同时准备后续验证和优化。
 
 严格交互规则：
 
@@ -109,18 +109,16 @@ ec43ebb RV1126B HPMCU NuttX port: cleanup, documentation, and AI logs
 
 推荐下一步：
 
-1. 签署 CLA（https://www.openvela.com/#/community/cla），然后在 PR 评论区
-   输入 `/check-cla` 重新检查。
-2. 等待 PR review 反馈，根据 reviewer 意见修改代码。
-3. 如果 review 通过，准备最终提交材料：
+1. 等待 PR review 反馈，根据 reviewer 意见修改代码。
+2. 如果 review 通过，准备最终提交材料：
    - 确认所有 commit 已 push
    - 确认日志验证通过
    - 确认文档完整
-4. 如果需要进一步验证：
+3. 如果需要进一步验证：
    - 从 `$WORKSPACE` 运行 build：./build.sh vendor/openvela/boards/contest2026_135_board/configs/nsh -j8
    - 按正确方式打包 amp.img：$SDK/rtos/bsp/rockchip/tools/mkimage -f amp.its -E -p 0xe00 $FW/amp.img
    - 刷写 AMP 分区验证 NSH
-5. 如果 reviewer 要求修改：
+4. 如果 reviewer 要求修改：
    - 只修改 `$CONTEST` 文件
    - 如果需要改 `$WORKSPACE/nuttx/`，停下来讨论跨仓库处理方式
 ```
