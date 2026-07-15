@@ -14,9 +14,9 @@
 - RAM：0x48c02000, 大小 0x3a000
 
 **项目结构：**
-- 工作目录：`/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/`
+- 工作目录：`$CONTEST/`
 - 这是 contest overlay，通过 manifest 链接到 openvela 构建树
-- 构建命令：`cd /home/lijian/project/open-vela && ./build.sh vendor/openvela/boards/contest2026_135_board/configs/nsh -j8`
+- 构建命令：`cd "$WORKSPACE" && ./build.sh vendor/openvela/boards/contest2026_135_board/configs/nsh -j8`
 
 ## 阶段 1 任务（进行中）
 
@@ -31,7 +31,7 @@
 ## 协作规则
 
 - 你（Opus）只做规划和审核，不要直接写代码
-- 查代码必须先用 CodeGraph：`projectPath="/home/lijian/project/open-vela"`
+- 查代码必须先用 CodeGraph：`projectPath="$WORKSPACE"`
 - 具体修改和执行交给子代理（Sonnet/Haiku）
 - 所有改动只在 `contest2026_135_yongwangzhiqian/` overlay 内
 - 每完成一个子任务，更新 `docs/ai-worklog/2026-07-12-rv1126b-openvela-porting.md`

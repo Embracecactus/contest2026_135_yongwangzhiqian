@@ -10,7 +10,7 @@ open-vela 大赛选题：将 open-vela (NuttX) 操作系统适配到 Rockchip RV
 **关键前提：**
 
 - 用户使用自有的 RV1126B 开发板（非正点原子 ATK 板），但基础 SDK 相同。
-- SDK 路径：`/home/lijian/project/rv1126b/rv1126bsportCam/sdk/atk_dlrv1126b_linux6.1_sdk`
+- SDK 路径：`$SDK`
 - SDK 中无 Zephyr RTOS，仅有 RT-Thread RTOS 的 BSP。
 - Zephyr upstream 适配是赛后独立方向，不纳入本次比赛主线。
 
@@ -387,7 +387,7 @@ contest2026_135_yongwangzhiqian/
 ### SDK 内
 
 ```
-$SDK = /home/lijian/project/rv1126b/rv1126bsportCam/sdk/atk_dlrv1126b_linux6.1_sdk
+$SDK=/absolute/path/to/rv1126b-sdk
 
 $SDK/rtos/bsp/rockchip/rv1126b-mcu/              # RT-Thread BSP（硬件参考）
 ├── link.lds                                     # 内存布局参考

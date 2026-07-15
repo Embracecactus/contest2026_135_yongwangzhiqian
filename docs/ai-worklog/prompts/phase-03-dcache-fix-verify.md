@@ -15,7 +15,7 @@
 
 **构建命令：**
 ```bash
-cd /home/lijian/project/open-vela
+cd "$WORKSPACE"
 export PATH=prebuilts/gcc/linux-x86_64/riscv-none-elf/bin:$PATH
 ./build.sh vendor/openvela/boards/contest2026_135_board/configs/nsh -j8
 ```
@@ -30,7 +30,7 @@ cp Image/nuttx_amp.img $SDK/output/firmware/amp.img
 cd $SDK && ./build.sh updateimg
 ```
 
-**SDK 路径：** `/home/lijian/project/rv1126b/rv1126bsportCam/sdk/atk_dlrv1126b_linux6.1_sdk/`
+**SDK 路径：** `$SDK/`
 
 **烧录命令：**
 ```bash
@@ -84,7 +84,7 @@ U-Boot 加载 amp.img FIT image 的 hpmcu 子镜像到 0x48c02000
 ## 协作规则
 
 - 你（Opus）只做规划和审核，不要直接写代码
-- 查代码必须先用 CodeGraph：`projectPath="/home/lijian/project/open-vela"`
+- 查代码必须先用 CodeGraph：`projectPath="$WORKSPACE"`
 - 具体修改和执行交给子代理（Sonnet/Haiku）
 - 所有改动只在 `contest2026_135_yongwangzhiqian/` overlay 内
 - 每完成一个子任务，更新 `docs/ai-worklog/2026-07-12-rv1126b-openvela-porting.md`
