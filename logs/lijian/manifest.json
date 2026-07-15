@@ -104,9 +104,9 @@
       "session_id": "1fec91da-52fb-46a4-ae4f-025cf59d2bb8",
       "tool": "claude-code",
       "started_at": "2026-07-15T08:46:51.824Z",
-      "last_event_at": "2026-07-15T08:47:01.541Z",
-      "event_count": 342,
-      "raw_event_count": 515,
+      "last_event_at": "2026-07-15T09:00:54.374Z",
+      "event_count": 456,
+      "raw_event_count": 677,
       "file_path": "logs/lijian/2026-07-15/claude-code__1fec91da-52fb-46a4-ae4f-025cf59d2bb8.jsonl",
       "collection_mode": "cli",
       "health": "ok",
@@ -1110,5 +1110,5 @@
       "health": "ok"
     }
   ],
-  "updated_at": "2026-07-15T08:47:03.342Z"
+  "updated_at": "2026-07-15T09:00:54.379Z"
 }
