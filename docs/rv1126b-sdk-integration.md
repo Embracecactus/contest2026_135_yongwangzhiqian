@@ -32,6 +32,12 @@ CONFIG_RAW_BINARY=y
 CONFIG_INTELHEX_BINARY=y
 ```
 
+2026-07-15 15:58 的 PROCFS / `ps` 复测还需要启用：
+
+```text
+CONFIG_FS_PROCFS=y
+```
+
 已验证的构建后端是 classic Make；不要把 CMake 构建视为等价验证结果。
 
 ```bash
@@ -107,11 +113,15 @@ export SDK=/absolute/path/to/rv1126b-sdk
 export OUT="$SDK/output"
 export FW="$SDK/output/firmware"
 
-cp -av "$OUT/rtt.bin" "$OUT/rtt.bin.before-openvela-ec43ebb" 2>/dev/null || true
-cp -av "$FW/amp.img" "$FW/amp.img.before-openvela-ec43ebb"
+RTT_TARGET="$(readlink -f "$OUT/rtt.bin")"
 
-cp -av "$WORKSPACE/nuttx/nuttx.bin" "$OUT/rtt.bin"
-sha256sum "$OUT/rtt.bin"
+cp -av "$RTT_TARGET" "$RTT_TARGET.before-openvela"
+cp -av "$FW/amp.img" "$FW/amp.img.before-openvela"
+
+cp -av "$WORKSPACE/nuttx/nuttx.bin" "$RTT_TARGET"
+sha256sum "$WORKSPACE/nuttx/nuttx.bin" "$OUT/rtt.bin" "$RTT_TARGET"
+ls -lh "$WORKSPACE/nuttx/nuttx.bin" "$RTT_TARGET"
+ls -lhL "$OUT/rtt.bin"
 
 cd "$OUT"
 "$SDK/rtos/bsp/rockchip/tools/mkimage" -f amp.its -E -p 0xe00 "$FW/amp.img"
@@ -119,6 +129,8 @@ cd "$OUT"
 ls -lh "$FW/amp.img"
 sha256sum "$FW/amp.img"
 ```
+
+`$OUT/rtt.bin` 在已验证 SDK 中可能是指向 SDK 内部 RTT / MCU 镜像的符号链接。保持链接不变、替换 `readlink -f "$OUT/rtt.bin"` 指向的真实目标，可以避免破坏 SDK 原有打包路径。
 
 `$OUT/amp.its` 中的关键事实：
 
@@ -197,23 +209,23 @@ $FW/update.img -> ../update/Image/update.img
 当前可以声明：
 
 - `$WORKSPACE/nuttx/nuttx.bin` 可被包装为 `$FW/amp.img`。
-- `mkimage` hash 与 `nuttx.bin` hash 一致。
-- `./build.sh updateimg` 可重新生成包含当前 `amp.img` 的 `update.img`。
-- 只更新 AMP 分区后，板端可以进入 NSH，UART RX/TX、`uname -a` 与 `help` 通过。
+- 2026-07-15 14:00 / 15:15 记录中，`mkimage` hash 与对应轮次 `nuttx.bin` hash 一致。
+- 2026-07-15 14:00 记录中，`./build.sh updateimg` 可重新生成包含当轮 `amp.img` 的 `update.img`。
+- 只更新 AMP 分区后，板端可以进入 NSH，UART RX/TX、`help` 与 `uname -a` 通过。
+- 2026-07-15 15:58 复测中，启用 `CONFIG_FS_PROCFS=y` 后，`ps` 已在板端通过，输出 `CPU0 IDLE` 与 `nsh_main`。
 
 当前不能声明：
 
 - 完整 `update.img` 已整包刷写并通过。
-- `ps` 已启用或通过。
 - RPMsg / Linux A-core 与 HPMCU 通信已完成。
 - CMake 构建与 classic Make 等价。
 - DCache 已启用或完成验证。
 
-串口验证摘录：
+### 15:15 基线串口摘录：PROCFS 未启用前
 
 ```text
 nsh> uname -a
-NuttX 0.0.0 e02f581e23 Jul 15 2026 14:00:58 risc-v rv1126b_evb
+NuttX 0.0.0 e02f581e23 Jul 15 2026 15:15:37 risc-v rv1126b_evb
 nsh> help
 ... command list printed ...
 nsh> ps
@@ -221,7 +233,27 @@ nsh: ps: command not found
 nsh>
 ```
 
-`ps: command not found` 是当前最小 defconfig 未启用 `CONFIG_FS_PROCFS` 的已知结果，不作为 L0 基线失败项。
+`ps: command not found` 是此前最小 defconfig 未启用 `CONFIG_FS_PROCFS` 的已知结果，不作为 L0 基线失败项。
+
+### 15:58 PROCFS / ps 复测串口摘录
+
+```text
+NuttShell (NSH)
+nsh> ps
+  PID GROUP PRI POLICY   TYPE    NPX STATE    EVENT     SIGMASK            STACK COMMAND
+    0     0   0 FIFO     Kthread   - Ready              0000000000000000 0002016 CPU0 IDLE
+    6     6 100 FIFO     Task      - Running            0000000000000000 0004032 nsh_main
+nsh> uname -a
+NuttX 0.0.0 e02f581e23 Jul 15 2026 15:58:19 risc-v rv1126b_evb
+```
+
+15:58 复测产物身份：
+
+| 产物 | 大小 | sha256 |
+| --- | ---: | --- |
+| `$WORKSPACE/nuttx/nuttx.bin` | 98464 bytes | `b428e9d2a259addc72574f2080c2038b9a948befa0fab29a48180e1e27619b43` |
+| `$OUT/rtt.bin` | 98464 bytes | `b428e9d2a259addc72574f2080c2038b9a948befa0fab29a48180e1e27619b43` |
+| `$FW/amp.img` | 103424 bytes | `d390e0f738507ed58d59770e3a2dd9ee236f399f95134920dcc8336f69982835` |
 
 ## 后续待补
 
