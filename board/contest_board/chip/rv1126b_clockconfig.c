@@ -49,8 +49,8 @@
  *   AUPLL_CON[5] at offset 0x0000 (5 registers, 20 bytes)
  *   GPLL_CON[5]  at offset 0x0020
  *
- * GPLL_CON0: PLL divisor, multiplier, and lock status
- *   Bit 31: LOCK (read-only, 1 = PLL is locked)
+ * GPLL_CON[2] at offset 0x0028:
+ *   Bit 10: LOCK (read-only, 1 = PLL is locked)
  *
  * PLL output = (24 MHz / refdiv) * fbdiv / postdiv1 / postdiv2
  * For 1188 MHz: refdiv=1, fbdiv=99, postdiv1=2, postdiv2=1
@@ -103,6 +103,27 @@ static bool rv1126b_wait_pll_lock(uint32_t pll_lock_addr)
 }
 
 /****************************************************************************
+ * Name: rv1126b_warn_gpll_unlocked
+ *
+ * Description:
+ *   Emit a short GPLL-not-locked warning through riscv_lowputc().
+ *   Uses character-by-character output to avoid depending on higher-level
+ *   console subsystems that may not be available this early in boot.
+ *
+ ****************************************************************************/
+
+static void rv1126b_warn_gpll_unlocked(void)
+{
+  const char *msg = "\r\nWARNING: GPLL not locked\r\n";
+  int i;
+
+  for (i = 0; msg[i] != '\0'; i++)
+    {
+      riscv_lowputc(msg[i]);
+    }
+}
+
+/****************************************************************************
  * Name: rv1126b_ensure_gpll_locked
  *
  * Description:
@@ -111,7 +132,8 @@ static bool rv1126b_wait_pll_lock(uint32_t pll_lock_addr)
  *   GPLL before the HPMCU starts.  We do NOT reconfigure GPLL here
  *   to avoid interfering with other cores that depend on it.
  *
- *   If GPLL is not locked, let the caller return without changing clocks.
+ *   If GPLL is not locked, emit a warning via riscv_lowputc() and let
+ *   the caller return without changing clocks.
  *
  ****************************************************************************/
 
@@ -119,6 +141,7 @@ static bool rv1126b_ensure_gpll_locked(void)
 {
   if (!rv1126b_wait_pll_lock(GPLL_LOCK_ADDR))
     {
+      rv1126b_warn_gpll_unlocked();
       return false;
     }
 
@@ -138,7 +161,9 @@ static bool rv1126b_ensure_gpll_locked(void)
  *   This function is called from rv1126b_start() very early in the boot
  *   sequence.  In an AMP environment, GPLL and the HPMCU clock are already
  *   configured by the Linux A-core or bootrom.  It verifies that GPLL is
- *   locked without reconfiguring either clock.
+ *   locked without reconfiguring either clock.  If GPLL is not locked, a
+ *   warning is emitted via riscv_lowputc() and the function returns with
+ *   clocks unchanged.
  *
  ****************************************************************************/
 
