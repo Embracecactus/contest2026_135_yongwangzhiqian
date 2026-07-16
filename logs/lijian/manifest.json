@@ -1119,7 +1119,19 @@
       "file_path": "logs/lijian/2026-07-15/claude-code__e3f4e0a1-83ff-4ca7-b5b2-efacc8c3f473.jsonl",
       "collection_mode": "cli",
       "health": "ok"
+    },
+    {
+      "session_id": "d20e2115-eb2a-438b-bc78-573b73107679",
+      "tool": "claude-code",
+      "started_at": "2026-07-15T16:21:36.407Z",
+      "last_event_at": "2026-07-16T02:59:57.313Z",
+      "event_count": 620,
+      "raw_event_count": 946,
+      "file_path": "logs/lijian/2026-07-16/claude-code__d20e2115-eb2a-438b-bc78-573b73107679.jsonl",
+      "collection_mode": "cli",
+      "health": "ok",
+      "model": "gpt-5.6-sol"
     }
   ],
-  "updated_at": "2026-07-15T15:58:55.781184+00:00"
+  "updated_at": "2026-07-16T03:38:51.333470+00:00"
 }

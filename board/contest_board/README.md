@@ -31,9 +31,9 @@ For the implementation-level boot and packaging flow, use the [canonical port gu
 The following route was present in the 2026-07-14 board-tested baseline. Treat it as protected behavior; changes require a separately built and board-tested candidate.
 
 - Console hardware is **UART5 M0** on **GPIO4_PA6/GPIO4_PA7** (`FUNC5`), using its 24 MHz source at **1.5 Mbaud, 8N1**.
-- The UART source is raw **IRQ 61**, routed through **INTMUX group 1, bit 29**.
-- IPIC initialization and its source-of-interrupt/EOI sequence are part of the route.
-- The dispatcher passes raw IRQ 61 to the serial path; do not apply a speculative generic external-IRQ offset or renumber it.
+- The physical UART interrupt is raw **INTMUX source 61**, routed through **group 1, bit 29**.
+- IPIC initialization and its SOI/EOI sequence are part of the route.
+- Software IRQ namespace: the serial driver attaches `RV1126B_IRQ_UART5`, which equals `RISCV_IRQ_EXT + 61`. The INTMUX dispatcher uses `RV1126B_INTMUX_SOURCE_TO_IRQ(source)` to convert each active source into a NuttX IRQ before calling `riscv_doirq()`. The IRQ controller enable/disable path converts back to raw sources via `RV1126B_INTMUX_IRQ_TO_SOURCE()` for register-level RMW.
 - RX and TX are interrupt-driven. Preserve the serial ISR, TX priming, UART register sequences, and the route above rather than restoring an idle-loop polling workaround.
 
 The immutable observation record is [the 2026-07-14 NSH baseline](../../docs/verification/2026-07-14-rv1126b-nsh-baseline.md). It is the authority for the observed behavior and artifact identities.
@@ -58,4 +58,18 @@ Never overwrite or relabel the board-tested baseline with a later build. A later
 
 ## Current validation scope
 
-The baseline confirms boot, banner, NSH prompt, interactive RX, `help`, and return to the prompt. It does not yet confirm `uname -a`, board revision, the exact flash command, or a timestamped capture. DCache remains bypassed, and RPMsg is outside the scope of this board-validation result.
+The records under [docs/verification](../../docs/verification/) directly preserve the pre-P0/P1 baseline and PROCFS validation evidence. The [post-review recovery record](../../docs/next-stage-prompt-2026-07-16-post-review-and-pr.md) reports that the NSH prompt, `help`, `uname -a`, `ps`, and UART RX/TX were re-verified after the dc9b8ed P0/P1 fixes. However, the submitted logs and documentation do not yet contain a NSH transcript bound to dc9b8ed or a later state (including mkimage/flash output tied to a specific post-fix build hash), so the recovery record cannot serve as independent runtime evidence on its own. This is an evidence-archive limitation, not a statement that board testing did not occur.
+
+Three 2026-07-16 verification records now exist for the P1 candidate:
+
+- [P1 convergence build-only record](../../docs/verification/2026-07-16-rv1126b-p1-convergence-build.md) -- confirms classic Make independently builds the current P1 working-tree candidate with exit code 0.
+- [P1 AMP FIT packaging record](../../docs/verification/2026-07-16-rv1126b-p1-amp-package.md) -- confirms the build output was packaged into `$FW/amp.img` via `mkimage` with exit code 0; records the FIT image hash and embedded payload hash.
+- [P1 board runtime record](../../docs/verification/2026-07-16-rv1126b-p1-board-runtime.md) -- confirms the P1 `amp.img` was flashed via RKDevTool.exe and boots to a responsive NSH shell with `ps`, `uname -a`, and UART RX/TX all verified. GPLL warning appeared as expected.
+
+The P1 candidate is **board-verified**: it builds, packages, flashes, and boots to NSH on real hardware.
+
+Classic Make is the only verified build backend; CMake parity is unverified. DCache remains bypassed. RPMsg and full `update.img` flashing are outside the scope of the current board-validation results. Do not reuse any pre-fix artifact hash for a post-fix build.
+
+## Known limitations
+
+- **GPIO3 base address conflict.** `chip/hardware/rv1126b_memorymap.h` defines `RV1126B_GPIO3_BASE` as `0x21E00000`, while `chip/hardware/rv1126b_gpio.h` defines it as `0x21C00000`. GPIO3 is not currently used by the BSP; do not develop or enable a GPIO3 driver until the correct address is confirmed against the SDK and TRM.

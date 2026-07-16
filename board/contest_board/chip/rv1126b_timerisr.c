@@ -53,11 +53,25 @@
  * HPMCU frequency = 396 MHz
  * Divider = 1000
  * Effective timer clock = 396 MHz / 1000 = 396 kHz
- * For 100 Hz tick: 396000 / 100 = 3960 counts per tick
+ * Counts per tick = effective_freq / TICK_PER_SEC
+ * Default (CONFIG_USEC_PER_TICK=10000): 396000 / 100 = 3960
  */
 
 #define RV1126B_MTIME_DIV_VALUE   1000
-#define RV1126B_MTIME_TICK_VALUE  (RV1126B_MTIME_FREQ / RV1126B_MTIME_DIV_VALUE / 100)
+#define RV1126B_MTIME_EFF_FREQ    (RV1126B_MTIME_FREQ / RV1126B_MTIME_DIV_VALUE)
+#define RV1126B_MTIME_TICK_VALUE  (RV1126B_MTIME_EFF_FREQ / TICK_PER_SEC)
+
+/* Compile-time sanity: TICK_PER_SEC must be positive and must not exceed
+ * the effective timer frequency, otherwise the step would truncate to 0.
+ */
+
+#if TICK_PER_SEC <= 0
+#  error "TICK_PER_SEC must be positive"
+#endif
+
+#if TICK_PER_SEC > RV1126B_MTIME_EFF_FREQ
+#  error "TICK_PER_SEC exceeds MTIME frequency"
+#endif
 
 /****************************************************************************
  * Private Data
@@ -175,7 +189,7 @@ static int rv1126b_timer_interrupt(int irq, void *context, void *arg)
  *
  * Description:
  *   Configure the MTIME timer to generate periodic system tick interrupts
- *   at 100 Hz (CONFIG_USEC_PER_TICK = 10000 usec).
+ *   at TICK_PER_SEC Hz (derived from CONFIG_USEC_PER_TICK).
  *
  *   This function is called during early OS initialization before the
  *   scheduler is started.

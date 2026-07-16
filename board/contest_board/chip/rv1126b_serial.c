@@ -137,7 +137,7 @@ static struct rv1126b_uart_s g_console_priv =
 static char g_console_rxbuffer[256];
 static char g_console_txbuffer[256];
 
-struct uart_dev_s g_console_port =
+static struct uart_dev_s g_console_port =
 {
   .isconsole = true,
   .ops       = &g_uart_ops,
