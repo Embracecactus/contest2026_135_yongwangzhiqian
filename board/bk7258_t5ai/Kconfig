@@ -1,0 +1,15 @@
+#
+# NuttX board configuration for the Beken BK7258 (T5-AI) Stage N1 target.
+#
+
+config ARCH_BOARD_BK7258_T5AI
+	bool "Beken BK7258 T5-AI (Stage N1 minimal)"
+	depends on ARCH_BOARD_CUSTOM
+	default y
+	---help---
+		Custom board wrapper for the contest BK7258 BSP.  Stage N1
+		produces a minimal NuttX image whose __start prints
+		"NUTTX N1\r\n" on UART1 and halts, proving the build chain
+		(linker, vector table, BK7236 app magic, postbuild CRC
+		expand) emits an image the on-board Tier-1 bootloader can
+		validate and jump to.

@@ -15,4 +15,8 @@ __pycache__/
 # packer metadata output
 bl_crc.json
 
+# NuttX Make dependency files (generated in source dirs by the build)
+.depend
+*.dep
+
 # NOTE: logs/ exported AI Coding logs MUST be committed (per .gitignore.example)

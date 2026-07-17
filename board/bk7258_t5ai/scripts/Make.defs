@@ -1,0 +1,53 @@
+#
+# NuttX Make.defs for Beken BK7258 (T5-AI) Stage N1 board.
+#
+# Classic Make backend (the same backend RV1126B used).  The CMake backend
+# is intentionally not enabled for N1; see board CMakeLists.txt.
+#
+
+include $(TOPDIR)/.config
+include $(TOPDIR)/tools/Config.mk
+
+# Toolchain: arm-none-eabi-gcc on /usr/bin (probe-verified).
+
+CROSSDEV = arm-none-eabi-
+
+# Reuse the common ARMv8-M toolchain flags (sets -mcpu=cortex-m33,
+# -march=armv8-m.main, -mfloat-abi, ...).  This matches what every other
+# in-tree Cortex-M33 chip does.
+
+include $(TOPDIR)/arch/arm/src/armv8-m/Toolchain.defs
+
+# Linker script: FLASH @ 0x02010000, RAM @ 0x28000000, vector table KEEP-
+# pinned at the flash origin so the BK7236 app magic lands at 0x100.
+
+ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)ld.script
+
+# Standard NuttX ARM flag assembly.
+
+CFLAGS   := $(ARCHCFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
+CXXFLAGS := $(ARCHCXXFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHXXINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
+CPICFLAGS = $(ARCHPICFLAGS) $(CFLAGS)
+CXXPICFLAGS = $(ARCHPICFLAGS) $(CXXFLAGS)
+CPPFLAGS := $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
+AFLAGS := $(CFLAGS) -D__ASSEMBLY__
+
+# NXFLAT module definitions (unused on this flat-build target but NuttX
+# expects them to be defined).
+
+NXFLATLDFLAGS1 = -r -d -warn-common
+NXFLATLDFLAGS2 = $(NXFLATLDFLAGS1) -T$(TOPDIR)/binfmt/libnxflat/gnu-nxflat-pcrel.ld -no-check-sections
+LDNXFLATFLAGS = -e main -s 2048
+
+# ELF module definitions (same caveat).
+
+LDELFFLAGS = -r -e main
+LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
+
+# POSTBUILD: once nuttx.bin exists, CRC-expand it and prepend the Tier-1
+# bootloader (bl_crc.bin) to produce all-app.bin, ready for flashing at
+# physical offset 0x0.  The script is idempotent and safe to re-run.
+
+define POSTBUILD
+	$(Q) $(BOARD_DIR)$(DELIM)scripts$(DELIM)postbuild.sh $(TOPDIR) $(BOARD_DIR)
+endef
