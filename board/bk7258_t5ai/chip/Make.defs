@@ -1,0 +1,34 @@
+############################################################################
+# contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Beken BK7258 (Cortex-M33) custom chip definitions for NuttX.
+#
+# We reuse the common armv8-m source set (which pulls in arm_m and the
+# generic ARM common files), then add only the two BK7258-specific sources:
+#
+#   bk7258_vectors.c  - chip-provided Cortex-M vector table (66 entries),
+#                       carrying the BK7236 app magic at slot 64/65 so it
+#                       lands at image offset 0x100. Selected at Kconfig
+#                       level via ARCH_HAVE_CUSTOM_VECTORS, which makes
+#                       armv8-m -> arm_m drop arm_vectors.c automatically.
+#
+#   bk7258_start.c    - __start entry: mask IRQs, set VTOR, bare-write the
+#                       "NUTTX N1" banner over UART1, spin. Stage N1 does
+#                       NOT call nx_start().
+############################################################################
+
+include armv8-m/Make.defs
+
+# Chip-specific sources (resolved via VPATH += $(CHIP_DIR) added by the
+# arch Makefile, exactly like every other in-tree ARM chip).
+
+CHIP_CSRCS  = bk7258_vectors.c
+CHIP_CSRCS += bk7258_start.c
+
+# Force the link entry point to our __start (defined in bk7258_start.c).
+# --build-id=none keeps the image deterministic and avoids leaking any
+# build-id bytes that could shift the offset of later sections.
+
+LDFLAGS += --build-id=none --entry=__start

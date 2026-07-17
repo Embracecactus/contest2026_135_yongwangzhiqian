@@ -1,0 +1,172 @@
+/****************************************************************************
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/ld.script
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Linker script for the Beken BK7258 (T5-AI, Cortex-M33) Stage N1 image.
+ *
+ * Memory map (reverse-engineered on board, shared verbatim with
+ * docs/bk7258-t5ai/probe/probe.ld):
+ *
+ *   FLASH : 0x02010000 .. 0x0201FFFF  (64 KiB app window, XIP view)
+ *           This is the logical address the Tier-1 bootloader jumps the
+ *           app Reset entry to after validating the BK7236 magic.
+ *   RAM   : 0x28000000 .. 0x2809FFFF  (640 KiB SRAM)
+ *   MSP   : 0x2809FFFC  (top of usable SRAM, also stored in vector slot 0)
+ *
+ * The .vectors section (66 entries, 0x108 bytes from bk7258_vectors.c) is
+ * KEEP-pinned first so that:
+ *   - file offset 0x000 == slot [0] == initial MSP (0x2809FFFC)
+ *   - file offset 0x004 == slot [1] == __start (Thumb entry)
+ *   - file offset 0x100 == slot [64] == app magic "BK72"
+ *   - file offset 0x104 == slot [65] == app magic "36\0\0"
+ ****************************************************************************/
+
+/* The linker script is preprocessed to .tmp before being passed to ld;
+ * include the build config so CONFIG_ARCH_INTERRUPTSTACK (used in
+ * .irq_stack below) and any other CONFIG_* values are substituted.
+ */
+
+#include <nuttx/config.h>
+
+OUTPUT_ARCH("arm")
+EXTERN(_vectors)
+ENTRY(__start)
+
+MEMORY
+{
+    FLASH (rx)  : ORIGIN = 0x02010000, LENGTH = 0x10000
+    RAM   (rwx) : ORIGIN = 0x28000000, LENGTH = 0xA0000
+}
+
+/* Initial stack pointer (top of SRAM).  Also stored in vector slot 0. */
+
+_estack = 0x2809fffc;
+
+SECTIONS
+{
+    /* Vector table FIRST, pinned at 0x02010000.  KEEP() prevents the
+     * linker from GC'ing it; . = ORIGIN(FLASH) pins the address.
+     */
+    . = ORIGIN(FLASH);
+    .vectors : ALIGN(4)
+    {
+        KEEP(*(.vectors))
+        . = ALIGN(4);
+    } > FLASH
+
+    /* Code + read-only data (XIP-readable in flash). */
+    .text : ALIGN(4)
+    {
+        _stext = ABSOLUTE(.);
+        *(.text .text.*)
+        *(.fixup)
+        *(.gnu.warning)
+        *(.rodata .rodata.*)
+        *(.gnu.linkonce.t.*)
+        *(.glue_7)
+        *(.glue_7t)
+        *(.gcc_except_table)
+        *(.gnu.linkonce.r.*)
+        . = ALIGN(4);
+        _etext = ABSOLUTE(.);
+    } > FLASH
+
+    /* Constructors / destructors (NuttX init_section convention). */
+    .init_section : ALIGN(4)
+    {
+        _sinit = ABSOLUTE(.);
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP(*(.init_array EXCLUDE_FILE(*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o) .ctors))
+        _einit = ABSOLUTE(.);
+    } > FLASH
+
+    /* ARM exception unwinding tables -- keep them out of the way. */
+    .ARM.extab : ALIGN(4)
+    {
+        *(.ARM.extab*)
+    } > FLASH
+
+    .ARM.exidx : ALIGN(4)
+    {
+        __exidx_start = ABSOLUTE(.);
+        *(.ARM.exidx*)
+        __exidx_end = ABSOLUTE(.);
+    } > FLASH
+
+    /* Thread-local storage (NuttX ARM convention). */
+    .tdata : ALIGN(4)
+    {
+        _stdata = ABSOLUTE(.);
+        *(.tdata .tdata.* .gnu.linkonce.td.*);
+        _etdata = ABSOLUTE(.);
+    } > FLASH
+
+    .tbss : ALIGN(4)
+    {
+        _stbss = ABSOLUTE(.);
+        *(.tbss .tbss.* .gnu.linkonce.tb.* .tcommon);
+        _etbss = ABSOLUTE(.);
+    } > FLASH
+
+    /* Load address of .data (LMA right after the last flash-resident
+     * section).  Reset code copies from _eronly to _sdata.._edata.
+     */
+    _eronly = LOADADDR(.data);
+
+    /* Interrupt stack in RAM (NuttX arm_getintstack.c references
+     * g_intstackalloc / g_intstacktop).  Placed at the very start of RAM
+     * so it has a fixed, predictable location.
+     */
+    .irq_stack : ALIGN(4)
+    {
+        g_intstackalloc = ABSOLUTE(.);
+        . += CONFIG_ARCH_INTERRUPTSTACK;
+        g_intstacktop = ABSOLUTE(.);
+    } > RAM
+
+    /* Initialized data: VMA in RAM, LMA in FLASH right after .tbss/.ARM. */
+    .data : ALIGN(4)
+    {
+        _sdata = ABSOLUTE(.);
+        *(.data .data.*)
+        *(.gnu.linkonce.d.*)
+        CONSTRUCTORS
+        . = ALIGN(4);
+        _edata = ABSOLUTE(.);
+    } > RAM AT > FLASH
+
+    /* Zero-initialized data. */
+    .bss (NOLOAD) : ALIGN(4)
+    {
+        _sbss = ABSOLUTE(.);
+        *(.bss .bss.*)
+        *(.gnu.linkonce.b.*)
+        *(COMMON)
+        . = ALIGN(4);
+        _ebss = ABSOLUTE(.);
+    } > RAM
+
+    /* Heap: from end of BSS up to the MSP region.  N1 never uses it but
+     * the symbols must exist for the common ARM code to link.
+     */
+    . = ALIGN(16);
+    _sheap = ABSOLUTE(.);
+    _eheap = ORIGIN(RAM) + LENGTH(RAM) - 4;
+
+    /* Stabs / debug sections -- discard nothing but keep them at VMA 0 so
+     * they don't perturb the runtime image.
+     */
+    .stab              0 : { *(.stab) }
+    .stabstr           0 : { *(.stabstr) }
+    .stab.excl         0 : { *(.stab.excl) }
+    .stab.exclstr      0 : { *(.stab.exclstr) }
+    .stab.index        0 : { *(.stab.index) }
+    .stab.indexstr     0 : { *(.stab.indexstr) }
+    .comment           0 : { *(.comment) }
+    .debug_abbrev      0 : { *(.debug_abbrev) }
+    .debug_info        0 : { *(.debug_info) }
+    .debug_line        0 : { *(.debug_line) }
+    .debug_pubnames    0 : { *(.debug_pubnames) }
+    .debug_aranges     0 : { *(.debug_aranges) }
+}
