@@ -1131,7 +1131,56 @@
       "collection_mode": "cli",
       "health": "ok",
       "model": "gpt-5.6-sol"
+    },
+    {
+      "session_id": "af160c66-f4d4-42f3-8853-a72497057dc6",
+      "tool": "claude-code",
+      "started_at": "2026-07-16T06:17:05.812Z",
+      "last_event_at": "2026-07-16T07:19:51.674Z",
+      "event_count": 607,
+      "raw_event_count": 911,
+      "file_path": "logs/lijian/2026-07-16/claude-code__af160c66-f4d4-42f3-8853-a72497057dc6.jsonl",
+      "collection_mode": "cli",
+      "health": "ok",
+      "model": "mimo-v2.5-pro"
+    },
+    {
+      "session_id": "bc691721-263c-44aa-a8e8-e26cd307be94",
+      "tool": "claude-code",
+      "started_at": "2026-07-16T07:25:47.827Z",
+      "last_event_at": "2026-07-16T12:05:11.875Z",
+      "event_count": 614,
+      "raw_event_count": 1129,
+      "file_path": "logs/lijian/2026-07-16/claude-code__bc691721-263c-44aa-a8e8-e26cd307be94.jsonl",
+      "collection_mode": "cli",
+      "health": "ok",
+      "model": "gpt-5.6-sol",
+      "redacted_count_total": 1
+    },
+    {
+      "session_id": "43a954f2-e942-4c35-9eb9-2cc6a225366c",
+      "tool": "claude-code",
+      "started_at": "2026-07-16T12:36:55.388Z",
+      "last_event_at": "2026-07-17T02:02:22.112Z",
+      "event_count": 31,
+      "raw_event_count": 1233,
+      "file_path": "logs/lijian/2026-07-17/claude-code__43a954f2-e942-4c35-9eb9-2cc6a225366c.jsonl",
+      "collection_mode": "cli",
+      "health": "ok",
+      "model": "gpt-5.6-sol"
+    },
+    {
+      "session_id": "43a954f2-e942-4c35-9eb9-2cc6a225366c",
+      "tool": "claude-code",
+      "started_at": "2026-07-16T12:05:11.701Z",
+      "last_event_at": "2026-07-17T01:53:58.974Z",
+      "event_count": 725,
+      "raw_event_count": 725,
+      "file_path": "logs/lijian/2026-07-16/claude-code__43a954f2-e942-4c35-9eb9-2cc6a225366c.jsonl",
+      "collection_mode": "cli",
+      "health": "ok",
+      "model": "gpt-5.6-sol"
     }
   ],
-  "updated_at": "2026-07-16T03:38:51.333470+00:00"
+  "updated_at": "2026-07-17T03:38:21Z"
 }
