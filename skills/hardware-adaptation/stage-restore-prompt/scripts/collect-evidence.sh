@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # collect-evidence.sh — Collect build/config/git evidence for stage restore prompts.
+# Multi-board aware: detects which board the workspace is currently built for.
 # Usage: bash collect-evidence.sh <contest_repo_path> [workspace_path]
 # Output: structured evidence to stdout (no files written)
 
-set -euo pipefail
+set -uo pipefail
 
 CONTEST="${1:?Usage: collect-evidence.sh <contest_repo_path> [workspace_path]}"
 WORKSPACE="${2:-$(cd "$CONTEST/.." && pwd)}"
@@ -13,32 +14,56 @@ if [ ! -d "$CONTEST/.git" ]; then
   exit 1
 fi
 
+# ---- Detect which board the nuttx build targets (multi-board workspace) ----
+# Reads CONFIG_ARCH_CHIP_CUSTOM_NAME / CONFIG_ARCH_BOARD_CUSTOM_NAME from .config.
+NUTTX_CONFIG="$WORKSPACE/nuttx/.config"
+BOARD_HINT="(unknown)"
+if [ -f "$NUTTX_CONFIG" ]; then
+  chip=$(grep -E '^CONFIG_ARCH_CHIP_CUSTOM_NAME=' "$NUTTX_CONFIG" 2>/dev/null | sed "s/.*=\"//;s/\"//")
+  board=$(grep -E '^CONFIG_ARCH_BOARD_CUSTOM_NAME=' "$NUTTX_CONFIG" 2>/dev/null | sed "s/.*=\"//;s/\"//")
+  [ -n "${chip:-}" ] && BOARD_HINT="chip=$chip"
+  [ -n "${board:-}" ] && BOARD_HINT="$BOARD_HINT board=$board"
+fi
+
 echo "=== Git Status ==="
 echo "Branch: $(git -C "$CONTEST" branch --show-current)"
 echo "Tracking: $(git -C "$CONTEST" rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo '(none)')"
 echo "HEAD: $(git -C "$CONTEST" rev-parse --short HEAD)"
 echo
 git -C "$CONTEST" status --short --branch
+
+echo
+echo "=== Active Board (from .config) ==="
+echo "$BOARD_HINT"
+echo "  NOTE: in a multi-board workspace, .config reflects the LAST board built."
+echo "  Confirm this matches the board you intend to restore before relying on it."
+
 echo
 echo "=== .config Key Symbols ==="
-if [ -f "$WORKSPACE/nuttx/.config" ]; then
-  grep -E '^CONFIG_(RPTUN|RPMSG|RPMSG_VIRTIO|RPMSG_CHAR|BUILTIN|NSH_BUILTIN|DEV_SIMPLE_ADDRENV|BOARD_LATE_INITIALIZE|FS_PROCFS|SYSLOG_DEVPATH)=' \
-    "$WORKSPACE/nuttx/.config" 2>/dev/null || echo "(no matching symbols)"
+if [ -f "$NUTTX_CONFIG" ]; then
+  grep -E '^CONFIG_(RPTUN|RPMSG|RPMSG_VIRTIO|RPMSG_CHAR|BUILTIN|NSH_BUILTIN|DEV_SIMPLE_ADDRENV|BOARD_LATE_INITIALIZE|FS_PROCFS|SYSLOG_DEVPATH|ARCH_CORTEXM|ARCH_RV|ARCH_CHIP)' \
+    "$NUTTX_CONFIG" 2>/dev/null | head -30 || echo "(no matching symbols)"
 else
-  echo "(no .config found)"
+  echo "(no .config found — board may not be built yet, e.g. exploration phase)"
 fi
 
 echo
 echo "=== Build Artifacts ==="
-for f in "$WORKSPACE/nuttx/nuttx" "$WORKSPACE/nuttx/nuttx.bin" "$WORKSPACE/nuttx/nuttx.map"; do
-  if [ -f "$f" ]; then
-    sz=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null)
-    hash=$(sha256sum "$f" 2>/dev/null | cut -d' ' -f1)
-    echo "$(basename "$f"): ${sz} B  sha256=${hash}"
-  else
-    echo "$(basename "$f"): (not found)"
-  fi
-done
+# Detect if any nuttx build artifact exists; if not, this is likely an exploration phase
+# for a board that hasn't been built yet (e.g., a second board in the same workspace).
+if [ -f "$WORKSPACE/nuttx/nuttx.bin" ]; then
+  for f in "$WORKSPACE/nuttx/nuttx" "$WORKSPACE/nuttx/nuttx.bin" "$WORKSPACE/nuttx/nuttx.map"; do
+    if [ -f "$f" ]; then
+      sz=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null)
+      hash=$(sha256sum "$f" 2>/dev/null | cut -d' ' -f1)
+      echo "$(basename "$f"): ${sz} B  sha256=${hash}"
+    else
+      echo "$(basename "$f"): (not found)"
+    fi
+  done
+else
+  echo "(no nuttx.bin — current .config/artifacts belong to the board above, not necessarily the restore target)"
+fi
 
 echo
 echo "=== Size (text/data/bss) ==="
@@ -49,9 +74,9 @@ else
 fi
 
 echo
-echo "=== .linux_rpmsg Section ==="
+echo "=== .linux_rpmsg Section (RV1126B-specific) ==="
 if [ -f "$WORKSPACE/nuttx/nuttx.map" ]; then
-  grep -E '_rpmsg_beg|_rpmsg_end|linux_rpmsg' "$WORKSPACE/nuttx/nuttx.map" 2>/dev/null | head -5 || echo "(not found in map)"
+  grep -E '_rpmsg_beg|_rpmsg_end|linux_rpmsg' "$WORKSPACE/nuttx/nuttx.map" 2>/dev/null | head -5 || echo "(not found in map — may be a non-RV1126B board)"
 else
   echo "(no nuttx.map)"
 fi
