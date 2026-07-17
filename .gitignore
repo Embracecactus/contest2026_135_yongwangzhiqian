@@ -1,0 +1,18 @@
+# Build artifacts (see .gitignore.example)
+build/
+out/
+*.o
+*.a
+*.elf
+*.hex
+*.map
+*.bin
+
+# Python cache
+__pycache__/
+*.pyc
+
+# packer metadata output
+bl_crc.json
+
+# NOTE: logs/ exported AI Coding logs MUST be committed (per .gitignore.example)
