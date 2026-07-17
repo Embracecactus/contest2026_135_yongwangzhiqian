@@ -3,8 +3,10 @@ name: hardware-review-gate
 description: >
   Four-dimensional static review gate for BSP/board/chip code before submission.
   Reviews concurrency safety, hardware registers, startup/linking, and build consistency.
+  Supports two modes: source-code review (default) and binary/reverse-engineering review.
   Generates Blocker/High/Medium/Low report with evidence. Use when: reviewing hardware
-  adaptation code, 提交前审查, hardware review, review gate, 审查代码, 驱动审查.
+  adaptation code, 提交前审查, hardware review, review gate, 审查代码, 驱动审查,
+  逆向分析, bootloader review, 二进制审查.
 ---
 
 # Hardware Review Gate
@@ -17,11 +19,23 @@ Four-dimensional static review for BSP/board/chip code. Complements `driver-code
 - User says "审查代码" / "review gate" / "提交前审查" / "hardware review"
 - Before creating a PR for board/BSP changes
 - After implementing a new driver or peripheral support
+- User says "逆向分析" / "bootloader review" / "二进制审查" → binary mode
 
 ## Prerequisites
 
 - CodeGraph index available (`codegraph sync` completed)
-- Changes exist in the target repository (git diff non-empty)
+- For source mode: changes exist in the target repository (git diff non-empty)
+- For binary mode: target binary (.bin) + SDK source as cross-reference
+
+## Mode Detection
+
+First determine the review mode:
+
+- **Source mode** (default): target is C/assembly source code in a git repo
+- **Binary mode**: target is a `.bin`/`.elf` (e.g., vendor bootloader, ROM dump)
+
+If the target is a binary, `collect-diff-stats.sh` is NOT useful (it reports unrelated
+repo diffs). Instead, see **Binary / Reverse-Engineering Mode** below.
 
 ## Four Review Dimensions
 
@@ -132,6 +146,47 @@ Combine all confirmed findings into a single report:
 - If no findings in a dimension, explicitly state "PASS"
 - Do not report style preferences as defects
 - Cross-reference against SDK/datasheet when available
+
+## Binary / Reverse-Engineering Mode
+
+When the target is a vendor binary (bootloader `.bin`, ROM dump), the four dimensions
+do NOT all apply. Use this reduced process instead.
+
+### Applicable Dimensions
+
+| Dimension | Applies? | Method |
+|-----------|----------|--------|
+| 1. Concurrency | No | Cannot reason from binary without full disassembly; skip |
+| 2. Hardware Registers | **Yes** | Extract MMIO constant addresses from the binary (`xxd`/`objdump`), cross-check against SDK headers |
+| 3. Startup/Linking | **Yes** | Parse vector table (offset 0x000: MSP, 0x004: Reset_Handler), entry point, magic/header fields |
+| 4. Build Consistency | No | Binary has no build system; skip |
+
+### Preferred Method: Read SDK Source, Not Pure Disassembly
+
+Pure binary reverse-engineering is slow and error-prone. **Prefer reading the SDK's app-side
+startup source to infer what the bootloader does**, because the app's Reset_Handler and boot
+helpers document the contract the bootloader must satisfy.
+
+For a vendor bootloader, locate in the SDK (use `hardware-context` scan):
+- `startup_cpuN.c` / `startup_*.S` — vector table, Reset_Handler, SystemInit
+- `system_main.c` — `start_cpuN_core()`, `reset_cpuN_core()`, boot address setup
+- `*_reg.h` / `reg_base.h` — register bases to validate MMIO constants in the binary
+- Linker scripts (`.ld`) — memory layout, section placement
+
+### Binary Analysis Steps
+
+1. `xxd -l 512 <binary>` — header: vector table, magic, version string
+2. Compare two binaries byte-by-byte (`cmp`, `xxd` diff) if doing a differential review
+3. Extract MMIO constants: `xxd <binary> | grep -E 'address patterns'`, validate against `reg_base.h`
+4. Parse vector table: offset 0x000 = initial MSP, 0x004 = Reset_Handler (Thumb bit)
+5. Locate magic/header (e.g., `BK7236\x10\x00`) and note its offset
+6. Cross-reference findings with SDK startup source
+
+### Output (Binary Mode)
+
+Same severity report, but findings are anchored to **binary offset** (e.g., `0x110`) and
+cross-referenced to SDK source (e.g., `startup_cpu0.c:360`). Mark dimension 1 and 4 as N/A.
+
 
 ## References
 
