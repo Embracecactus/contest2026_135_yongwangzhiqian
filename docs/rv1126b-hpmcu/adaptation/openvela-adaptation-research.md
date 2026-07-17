@@ -1,5 +1,5 @@
 > [!WARNING]
-> **Historical / superseded research.** This report preserves the early investigation and decision trail; it is not current implementation guidance. The verified UART5 M0/IPIC route, classic-Make policy, and current test boundary are in the [canonical RV1126B NSH port guide](rv1126b-nsh-port.md). For observed board behavior, use the immutable [2026-07-14 baseline evidence](verification/2026-07-14-rv1126b-nsh-baseline.md). In particular, the body’s UART4, polling, placeholder, and pending-status claims are historical rather than current.
+> **Historical / superseded research.** This report preserves the early investigation and decision trail; it is not current implementation guidance. The verified UART5 M0/IPIC route, classic-Make policy, and current test boundary are in the [canonical RV1126B NSH port guide](nsh-port.md). For observed board behavior, use the immutable [2026-07-14 baseline evidence](../verification/2026-07-14-rv1126b-nsh-baseline.md). In particular, the body’s UART4, polling, placeholder, and pending-status claims are historical rather than current.
 
 # RV1126B 适配 open-vela 调研报告
 

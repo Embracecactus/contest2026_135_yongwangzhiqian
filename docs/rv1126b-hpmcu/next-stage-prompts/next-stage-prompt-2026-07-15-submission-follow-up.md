@@ -59,16 +59,16 @@ PR 应该这样创建：
     - `CONFIG_INTELHEX_BINARY=y`
   - 文档路径脱敏：Markdown 中不再保留个人电脑绝对路径。
   - 新增/更新文档：
-    - `docs/next-stage-prompt-2026-07-15.md`
-    - `docs/rv1126b-sdk-integration.md`
-    - `docs/verification/2026-07-15-rv1126b-ec43ebb-amp-nsh-baseline.md`
-    - `docs/verification/2026-07-15-rv1126b-1515-amp-nsh-recheck.md`
-    - `docs/rv1126b-openvela-adaptation-research.md`
+    - `docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15.md`
+    - `docs/rv1126b-hpmcu/adaptation/sdk-integration.md`
+    - `docs/rv1126b-hpmcu/verification/2026-07-15-rv1126b-ec43ebb-amp-nsh-baseline.md`
+    - `docs/rv1126b-hpmcu/verification/2026-07-15-rv1126b-1515-amp-nsh-recheck.md`
+    - `docs/rv1126b-hpmcu/adaptation/openvela-adaptation-research.md`
     - `docs/ai-worklog/...` 旧 prompt / worklog 路径脱敏
 - `b41a694 enable ps in RV1126B NSH baseline`
   - `board/contest_board/configs/nsh/defconfig`：新增 `CONFIG_FS_PROCFS=y`。
-  - `docs/rv1126b-sdk-integration.md`：更新 SDK 侧 `$OUT/rtt.bin` 符号链接安全替换流程，并记录 15:58 `ps` 复测证据。
-  - `docs/verification/2026-07-15-rv1126b-1558-amp-ps-procfs.md`：新增 PROCFS / `ps` AMP 分区板测记录。
+  - `docs/rv1126b-hpmcu/adaptation/sdk-integration.md`：更新 SDK 侧 `$OUT/rtt.bin` 符号链接安全替换流程，并记录 15:58 `ps` 复测证据。
+  - `docs/rv1126b-hpmcu/verification/2026-07-15-rv1126b-1558-amp-ps-procfs.md`：新增 PROCFS / `ps` AMP 分区板测记录。
 
 已验证事实：
 

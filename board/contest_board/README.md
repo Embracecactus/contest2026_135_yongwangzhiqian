@@ -24,7 +24,7 @@ Develop the BSP here, in the contest overlay. Do not edit the generated `vendor/
 | `scripts/` | Linker and build-support inputs |
 | `Kconfig`, `CMakeLists.txt` | Top-level board integration metadata |
 
-For the implementation-level boot and packaging flow, use the [canonical port guide](../../docs/rv1126b-nsh-port.md).
+For the implementation-level boot and packaging flow, use the [canonical port guide](../../docs/rv1126b-hpmcu/adaptation/nsh-port.md).
 
 ## Protected UART/IPIC baseline
 
@@ -36,7 +36,7 @@ The following route was present in the 2026-07-14 board-tested baseline. Treat i
 - Software IRQ namespace: the serial driver attaches `RV1126B_IRQ_UART5`, which equals `RISCV_IRQ_EXT + 61`. The INTMUX dispatcher uses `RV1126B_INTMUX_SOURCE_TO_IRQ(source)` to convert each active source into a NuttX IRQ before calling `riscv_doirq()`. The IRQ controller enable/disable path converts back to raw sources via `RV1126B_INTMUX_IRQ_TO_SOURCE()` for register-level RMW.
 - RX and TX are interrupt-driven. Preserve the serial ISR, TX priming, UART register sequences, and the route above rather than restoring an idle-loop polling workaround.
 
-The immutable observation record is [the 2026-07-14 NSH baseline](../../docs/verification/2026-07-14-rv1126b-nsh-baseline.md). It is the authority for the observed behavior and artifact identities.
+The immutable observation record is [the 2026-07-14 NSH baseline](../../docs/rv1126b-hpmcu/verification/2026-07-14-rv1126b-nsh-baseline.md). It is the authority for the observed behavior and artifact identities.
 
 ## Build policy
 
@@ -58,13 +58,13 @@ Never overwrite or relabel the board-tested baseline with a later build. A later
 
 ## Current validation scope
 
-The records under [docs/verification](../../docs/verification/) directly preserve the pre-P0/P1 baseline and PROCFS validation evidence. The [post-review recovery record](../../docs/next-stage-prompt-2026-07-16-post-review-and-pr.md) reports that the NSH prompt, `help`, `uname -a`, `ps`, and UART RX/TX were re-verified after the dc9b8ed P0/P1 fixes. However, the submitted logs and documentation do not yet contain a NSH transcript bound to dc9b8ed or a later state (including mkimage/flash output tied to a specific post-fix build hash), so the recovery record cannot serve as independent runtime evidence on its own. This is an evidence-archive limitation, not a statement that board testing did not occur.
+The records under [docs/verification](../../docs/rv1126b-hpmcu/verification/) directly preserve the pre-P0/P1 baseline and PROCFS validation evidence. The [post-review recovery record](../../docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-16-post-review-and-pr.md) reports that the NSH prompt, `help`, `uname -a`, `ps`, and UART RX/TX were re-verified after the dc9b8ed P0/P1 fixes. However, the submitted logs and documentation do not yet contain a NSH transcript bound to dc9b8ed or a later state (including mkimage/flash output tied to a specific post-fix build hash), so the recovery record cannot serve as independent runtime evidence on its own. This is an evidence-archive limitation, not a statement that board testing did not occur.
 
 Three 2026-07-16 verification records now exist for the P1 candidate:
 
-- [P1 convergence build-only record](../../docs/verification/2026-07-16-rv1126b-p1-convergence-build.md) -- confirms classic Make independently builds the current P1 working-tree candidate with exit code 0.
-- [P1 AMP FIT packaging record](../../docs/verification/2026-07-16-rv1126b-p1-amp-package.md) -- confirms the build output was packaged into `$FW/amp.img` via `mkimage` with exit code 0; records the FIT image hash and embedded payload hash.
-- [P1 board runtime record](../../docs/verification/2026-07-16-rv1126b-p1-board-runtime.md) -- confirms the P1 `amp.img` was flashed via RKDevTool.exe and boots to a responsive NSH shell with `ps`, `uname -a`, and UART RX/TX all verified. GPLL warning appeared as expected.
+- [P1 convergence build-only record](../../docs/rv1126b-hpmcu/verification/2026-07-16-rv1126b-p1-convergence-build.md) -- confirms classic Make independently builds the current P1 working-tree candidate with exit code 0.
+- [P1 AMP FIT packaging record](../../docs/rv1126b-hpmcu/verification/2026-07-16-rv1126b-p1-amp-package.md) -- confirms the build output was packaged into `$FW/amp.img` via `mkimage` with exit code 0; records the FIT image hash and embedded payload hash.
+- [P1 board runtime record](../../docs/rv1126b-hpmcu/verification/2026-07-16-rv1126b-p1-board-runtime.md) -- confirms the P1 `amp.img` was flashed via RKDevTool.exe and boots to a responsive NSH shell with `ps`, `uname -a`, and UART RX/TX all verified. GPLL warning appeared as expected.
 
 The P1 candidate is **board-verified**: it builds, packages, flashes, and boots to NSH on real hardware.
 

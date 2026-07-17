@@ -5,7 +5,7 @@
 - **当前状态（2026-07-14）：** Phase 04 的 UART RX/interactive NSH 目标已完成并板测；Phase 05 是当前的基线保护、文档同步、候选重建与补充证据工作。
 
 > [!IMPORTANT]
-> 本文保留早期开发细节。当前技术事实以 [RV1126B NSH port guide](../rv1126b-nsh-port.md) 为准，板测结论以不可变的 [2026-07-14 NSH 基线证据](../verification/2026-07-14-rv1126b-nsh-baseline.md) 为准；不要将本文中的临时 polling、调试字符或“待验证”表述当作当前实施说明。
+> 本文保留早期开发细节。当前技术事实以 [RV1126B NSH port guide](../adaptation/nsh-port.md) 为准，板测结论以不可变的 [2026-07-14 NSH 基线证据](../verification/2026-07-14-rv1126b-nsh-baseline.md) 为准；不要将本文中的临时 polling、调试字符或“待验证”表述当作当前实施说明。
 
 ---
 

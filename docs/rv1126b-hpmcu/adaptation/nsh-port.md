@@ -1,6 +1,6 @@
 # RV1126B HPMCU NSH port guide
 
-This is the current implementation guide for the Team 135 RV1126B HPMCU OpenVela/NuttX port. The authoritative record of what was observed on hardware is the immutable [2026-07-14 NSH baseline evidence](verification/2026-07-14-rv1126b-nsh-baseline.md). This guide links to that record instead of reproducing its artifact hashes or terminal transcript.
+This is the current implementation guide for the Team 135 RV1126B HPMCU OpenVela/NuttX port. The authoritative record of what was observed on hardware is the immutable [2026-07-14 NSH baseline evidence](../verification/2026-07-14-rv1126b-nsh-baseline.md). This guide links to that record instead of reproducing its artifact hashes or terminal transcript.
 
 ## Status and terminology
 
@@ -40,7 +40,7 @@ The SDK RT-Thread SportCam BSP is a hardware reference, not the current implemen
 | UART clock and format | 24 MHz, 1.5 Mbaud, 8N1 | 24 MHz, 1.5 Mbaud, 8N1 |
 | UART delivery | INTMUX/IPIC path | raw IRQ 61 through INTMUX/IPIC |
 
-Old research statements that select UART4 or treat a polling workaround as the normal NSH path are historical only. The [adaptation research report](rv1126b-openvela-adaptation-research.md) remains available as a decision record, but this guide is the current authority.
+Old research statements that select UART4 or treat a polling workaround as the normal NSH path are historical only. The [adaptation research report](openvela-adaptation-research.md) remains available as a decision record, but this guide is the current authority.
 
 ## IPIC root cause and repair
 

@@ -4,7 +4,7 @@ This directory preserves the development chronology and recovery prompts for the
 
 ## Current reading order
 
-1. [Canonical RV1126B NSH port guide](../rv1126b-nsh-port.md) — current implementation, build/package procedure, and limits.
+1. [Canonical RV1126B NSH port guide](../adaptation/nsh-port.md) — current implementation, build/package procedure, and limits.
 2. [Immutable 2026-07-14 NSH baseline evidence](../verification/2026-07-14-rv1126b-nsh-baseline.md) — formal board-test record, separate from this worklog.
 3. [Phase 05 verified-baseline follow-up](prompts/phase-05-verified-baseline-follow-up.md) — current handoff and remaining work.
 4. [Porting stage record](2026-07-12-rv1126b-openvela-porting.md) — historical development chronology with final-status correction.

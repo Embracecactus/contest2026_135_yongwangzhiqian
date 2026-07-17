@@ -1,6 +1,6 @@
 # Phase 05 — verified-baseline follow-up
 
-> **Current handoff.** Read the [canonical RV1126B NSH port guide](../../rv1126b-nsh-port.md) and the immutable [2026-07-14 NSH baseline evidence](../../verification/2026-07-14-rv1126b-nsh-baseline.md) before making changes. This phase must preserve the distinction between the tested baseline and any later candidate.
+> **Current handoff.** Read the [canonical RV1126B NSH port guide](../../adaptation/nsh-port.md) and the immutable [2026-07-14 NSH baseline evidence](../../verification/2026-07-14-rv1126b-nsh-baseline.md) before making changes. This phase must preserve the distinction between the tested baseline and any later candidate.
 
 ## Scope and ownership
 
@@ -29,7 +29,7 @@ Do **not** replace raw IRQ 61 with an external-IRQ offset, select UART4, restore
 - Hardware register definitions: `board/contest_board/chip/hardware/`
 - Board boot and late bring-up: `board/contest_board/src/rv1126b_boot.c` and `board/contest_board/src/rv1126b_bringup.c`
 - Tested configuration: `board/contest_board/configs/nsh/defconfig`
-- Board overview: [board README](../../../board/contest_board/README.md)
+- Board overview: [board README](../../../../../board/contest_board/README.md)
 - Team mapping: [contest manifest](../../../contest2026_135_yongwangzhiqian.xml)
 
 ## Cleanup-candidate provenance
@@ -56,7 +56,7 @@ cd "$WORKSPACE"
 ./build.sh vendor/openvela/boards/contest2026_135_board/configs/nsh -j8
 ```
 
-Do not use CMake as a validation substitute. For objcopy, FIT packaging, and `updateimg`, follow the exact candidate procedure in the [canonical guide](../../rv1126b-nsh-port.md); the documented `mkimage` command is part of the protected packaging recipe.
+Do not use CMake as a validation substitute. For objcopy, FIT packaging, and `updateimg`, follow the exact candidate procedure in the [canonical guide](../../adaptation/nsh-port.md); the documented `mkimage` command is part of the protected packaging recipe.
 
 ## Required review and evidence checklist
 

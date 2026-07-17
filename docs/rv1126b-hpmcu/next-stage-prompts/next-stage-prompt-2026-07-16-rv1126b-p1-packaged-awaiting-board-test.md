@@ -215,8 +215,8 @@ Loadables:    hpmcu
 当前验证证据文档：
 
 ```text
-$CONTEST/docs/verification/2026-07-16-rv1126b-p1-convergence-build.md
-$CONTEST/docs/verification/2026-07-16-rv1126b-p1-amp-package.md
+$CONTEST/docs/rv1126b-hpmcu/verification/2026-07-16-rv1126b-p1-convergence-build.md
+$CONTEST/docs/rv1126b-hpmcu/verification/2026-07-16-rv1126b-p1-amp-package.md
 ```
 
 当前证据结论：
@@ -276,7 +276,7 @@ UART5 M0
 如果板端验证通过：
 
 1. 新增一份与当前 `amp.img` hash 绑定的 runtime verification 文档，例如：
-   `docs/verification/2026-07-16-rv1126b-p1-board-runtime.md`。
+   `docs/rv1126b-hpmcu/verification/2026-07-16-rv1126b-p1-board-runtime.md`。
 2. 只记录用户实际提供的 flash command/output、串口 transcript 和产物 hash；不得补写或猜测。
 3. 更新 `board/contest_board/README.md`，把当前 P1 candidate 从 build+packaged 提升为 board-verified。
 4. 运行 `git diff --check` 和 AI log validator。
@@ -323,9 +323,9 @@ quickapp/hello_quickapp/src/pages/index/index.ux
 ### 当前新增文档
 
 ```text
-docs/verification/2026-07-16-rv1126b-p1-convergence-build.md
-docs/verification/2026-07-16-rv1126b-p1-amp-package.md
-docs/next-stage-prompt-2026-07-16-rv1126b-p1-packaged-awaiting-board-test.md
+docs/rv1126b-hpmcu/verification/2026-07-16-rv1126b-p1-convergence-build.md
+docs/rv1126b-hpmcu/verification/2026-07-16-rv1126b-p1-amp-package.md
+docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-16-rv1126b-p1-packaged-awaiting-board-test.md
 ```
 
 ### 已通过检查

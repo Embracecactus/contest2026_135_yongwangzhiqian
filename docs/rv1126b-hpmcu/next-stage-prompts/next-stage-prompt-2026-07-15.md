@@ -34,7 +34,7 @@
    当前记录里 `ps: command not found` 是已知事实，不当作失败。
 
 5. 最新验证文档已经写入：
-   `docs/verification/2026-07-15-rv1126b-ec43ebb-amp-nsh-baseline.md`
+   `docs/rv1126b-hpmcu/verification/2026-07-15-rv1126b-ec43ebb-amp-nsh-baseline.md`
    先读它，不要重新推理全部历史。
 
 6. 2026-07-15 已验证事实：
@@ -83,13 +83,13 @@ A. 先确认当前 contest 仓状态：
    预期至少有：
    - `M README.md`
    - `M board/contest_board/configs/nsh/defconfig`
-   - 新增文档：`docs/verification/2026-07-15-rv1126b-ec43ebb-amp-nsh-baseline.md`
-   - 新增文档：`docs/next-stage-prompt-2026-07-15.md`
+   - 新增文档：`docs/rv1126b-hpmcu/verification/2026-07-15-rv1126b-ec43ebb-amp-nsh-baseline.md`
+   - 新增文档：`docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15.md`
 
 B. 不要马上改 README。
 
 C. 下一步优先整理 SDK 侧可复现说明或 patch 文档，目标文件可以是：
-   `docs/rv1126b-sdk-integration.md`
+   `docs/rv1126b-hpmcu/adaptation/sdk-integration.md`
    内容应说明：
    - SDK 路径
    - 为什么 Linux A 核要避让 UART5

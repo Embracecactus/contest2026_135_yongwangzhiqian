@@ -62,7 +62,7 @@ ec43ebb RV1126B HPMCU NuttX port: cleanup, documentation, and AI logs
 
 ```bash
 git -C "$CONTEST" status --short --branch
-git -C "$CONTEST" status --short -- logs docs/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
+git -C "$CONTEST" status --short -- logs docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
 ```
 
 上一次看到的 logs 未提交变化为：
@@ -75,21 +75,21 @@ git -C "$CONTEST" status --short -- logs docs/next-stage-prompt-2026-07-15-rv112
 本恢复提示文档本身路径：
 
 ```text
-docs/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
+docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
 ```
 
 下一阶段开始时，先检查 logs 和提示文档是否需要单独提交：
 
 ```bash
 git -C "$CONTEST" status --short --branch
-git -C "$CONTEST" status --short -- logs docs/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
+git -C "$CONTEST" status --short -- logs docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
 python3 "$WORKSPACE/.claude/skills/contest-log-collector/tools/validate-log.py" "$CONTEST/logs/"
 ```
 
 如果校验通过，再问我是否单独提交 / 推送最新会话日志和本恢复提示文档。建议命令为：
 
 ```bash
-git -C "$CONTEST" add logs/ docs/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
+git -C "$CONTEST" add logs/ docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
 git -C "$CONTEST" commit -s -m "logs: sync latest session"
 git -C "$CONTEST" push
 ```
@@ -152,16 +152,16 @@ git -C "$CONTEST" push
   - 包含 `CONFIG_RAW_BINARY=y`
   - 包含 `CONFIG_INTELHEX_BINARY=y`
   - 已新增 `CONFIG_FS_PROCFS=y`
-- `docs/rv1126b-sdk-integration.md`
+- `docs/rv1126b-hpmcu/adaptation/sdk-integration.md`
   - 记录 SDK AMP 打包主流程。
   - 已更新 `$OUT/rtt.bin` 符号链接安全替换流程。
   - 已记录 15:58 `ps` 通过的 artifact / 串口证据。
-- `docs/verification/2026-07-15-rv1126b-ec43ebb-amp-nsh-baseline.md`
-- `docs/verification/2026-07-15-rv1126b-1515-amp-nsh-recheck.md`
-- `docs/verification/2026-07-15-rv1126b-1558-amp-ps-procfs.md`
-- `docs/next-stage-prompt-2026-07-15-submission-follow-up.md`
-- `docs/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md`
-- `docs/rv1126b-openvela-adaptation-research.md`
+- `docs/rv1126b-hpmcu/verification/2026-07-15-rv1126b-ec43ebb-amp-nsh-baseline.md`
+- `docs/rv1126b-hpmcu/verification/2026-07-15-rv1126b-1515-amp-nsh-recheck.md`
+- `docs/rv1126b-hpmcu/verification/2026-07-15-rv1126b-1558-amp-ps-procfs.md`
+- `docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-submission-follow-up.md`
+- `docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md`
+- `docs/rv1126b-hpmcu/adaptation/openvela-adaptation-research.md`
 - `docs/ai-worklog/...`
 
 AI logs 当前状态：
@@ -220,14 +220,14 @@ A. 先做只读状态确认：
 git -C "$CONTEST" status --short --branch
 git -C "$CONTEST" log -5 --oneline
 git -C "$CONTEST" remote -v
-git -C "$CONTEST" status --short -- logs docs/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
+git -C "$CONTEST" status --short -- logs docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
 python3 "$WORKSPACE/.claude/skills/contest-log-collector/tools/validate-log.py" "$CONTEST/logs/"
 ```
 
 B. 如果 logs / 本恢复提示文档仍有增量且校验通过，问我是否单独提交 / 推送：
 
 ```bash
-git -C "$CONTEST" add logs/ docs/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
+git -C "$CONTEST" add logs/ docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-rv1126b-adaptation-continuation.md
 git -C "$CONTEST" commit -s -m "logs: sync latest session"
 git -C "$CONTEST" push
 ```

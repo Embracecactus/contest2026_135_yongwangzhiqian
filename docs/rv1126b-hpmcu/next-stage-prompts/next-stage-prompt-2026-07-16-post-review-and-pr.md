@@ -83,7 +83,7 @@ python3 "$WORKSPACE/.claude/skills/contest-log-collector/tools/validate-log.py" 
 
 4. 文档和日志：
    - 代码审查报告：docs/review/2026-07-15-rv1126b-board-targeted-code-review.md
-   - 恢复提示词：docs/next-stage-prompt-2026-07-15-*.md
+   - 恢复提示词：docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-*.md
    - AI 日志：93 个会话文件，26069 个事件，已验证
 
 已提交的 commit（按时间顺序）：

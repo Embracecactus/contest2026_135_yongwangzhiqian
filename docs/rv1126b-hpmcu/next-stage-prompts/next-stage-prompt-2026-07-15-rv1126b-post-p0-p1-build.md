@@ -54,7 +54,7 @@ python3 "$WORKSPACE/.claude/skills/contest-log-collector/tools/validate-log.py" 
 优先阅读文档：
 
 ```text
-$CONTEST/docs/next-stage-prompt-2026-07-15-rv1126b-post-p0-p1-build.md
+$CONTEST/docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-rv1126b-post-p0-p1-build.md
 $CONTEST/docs/review/2026-07-15-rv1126b-board-targeted-code-review.md
 ```
 
@@ -72,7 +72,7 @@ P0/P1 修复后的当前代码状态：
   - `$CONTEST/board/contest_board/chip/rv1126b_timerisr.c`
   - `$CONTEST/board/contest_board/scripts/ld.script`
 - 最终整理前还存在这些 untracked docs：
-  - `$CONTEST/docs/next-stage-prompt-2026-07-15-rv1126b-p0-p1-fix.md`
+  - `$CONTEST/docs/rv1126b-hpmcu/next-stage-prompts/next-stage-prompt-2026-07-15-rv1126b-p0-p1-fix.md`
   - `$CONTEST/docs/review/2026-07-15-rv1126b-board-targeted-code-review.md`
   - 本恢复文档
 

@@ -1,5 +1,5 @@
 > [!WARNING]
-> **Resolved / superseded historical prompt.** The RX investigation below predates the verified interrupt-driven UART5 M0/IPIC solution. Do not use its UART4, idle-loop polling, diagnostic-marker, or pending-root-cause instructions as current work. Start with the [Phase 05 verified-baseline follow-up](phase-05-verified-baseline-follow-up.md), the [canonical port guide](../../rv1126b-nsh-port.md), and the immutable [2026-07-14 baseline evidence](../../verification/2026-07-14-rv1126b-nsh-baseline.md).
+> **Resolved / superseded historical prompt.** The RX investigation below predates the verified interrupt-driven UART5 M0/IPIC solution. Do not use its UART4, idle-loop polling, diagnostic-marker, or pending-root-cause instructions as current work. Start with the [Phase 05 verified-baseline follow-up](phase-05-verified-baseline-follow-up.md), the [canonical port guide](../../adaptation/nsh-port.md), and the immutable [2026-07-14 baseline evidence](../../verification/2026-07-14-rv1126b-nsh-baseline.md).
 
 # Phase 04 -- RV1126B NSH 串口 RX 调试恢复提示词
 

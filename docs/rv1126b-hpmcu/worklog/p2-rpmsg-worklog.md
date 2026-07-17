@@ -176,4 +176,4 @@ NS channel "rpmsg-demo" addr 0x400 创建 → sysfs 设备节点出现。
 | `board/contest_board/scripts/ld.script` | 链接脚本（linux_rpmsg NOLOAD MEMORY region） |
 | `board/contest_board/configs/nsh/defconfig` | NSH defconfig（含 P2-A 选项） |
 | `board/contest_board/src/rv1126b_bringup.c` | Board bringup（rv1126b_rptun_init 调用） |
-| `docs/p2-rpmsg-next-stage-prompt.md` | Route A 恢复提示词（含全部证据） |
+| `docs/rv1126b-hpmcu/next-stage-prompts/p2-rpmsg-next-stage-prompt.md` | Route A 恢复提示词（含全部证据） |

@@ -103,7 +103,7 @@ P2-A 当前 Git 状态
   board/contest_board/chip/rv1126b_mailbox.c
   board/contest_board/chip/rv1126b_mailbox.h
   board/contest_board/chip/rv1126b_rptun.c
-  docs/p2-rpmsg-next-stage-prompt.md
+  docs/rv1126b-hpmcu/next-stage-prompts/p2-rpmsg-next-stage-prompt.md
 
 状态结论：
 - 6 tracked modified + 5 untracked P2-A files。
