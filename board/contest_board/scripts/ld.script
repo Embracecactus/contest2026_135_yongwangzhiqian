@@ -14,6 +14,13 @@ MEMORY
 {
     /* RV1126B MCU SRAM: 0x48c02000, 232KB */
     ram (rwx) : ORIGIN = 0x48c02000, LENGTH = 0x3a000
+
+    /* Linux rpmsg shared memory: 0x48c3c000, 128KB
+     * Used by RPTun for virtio/rpmsg vrings and buffers.
+     * This region is accessed by both Linux A-core and HPMCU;
+     * it must NOT be included in the NuttX heap.
+     */
+    linux_rpmsg (rwx) : ORIGIN = 0x48c3c000, LENGTH = 0x20000
 }
 
 SECTIONS
@@ -94,4 +101,33 @@ SECTIONS
     . = ALIGN(16);
     _sheap = .;
     _eheap = ORIGIN(ram) + LENGTH(ram);
+
+    /* Linux rpmsg shared memory section (not loaded, just reserved) */
+
+    .linux_rpmsg (NOLOAD) : {
+        . = ALIGN(4096);
+        *(.linux_rpmsg .linux_rpmsg.*)
+    } > linux_rpmsg
 }
+
+/*
+ * ASSERT: verify memory layout constraints.
+ * RAM must not overlap the shared-memory region.
+ * The rpmsg shared region must be exactly at 0x48c3c000 / 0x20000.
+ */
+
+_ram_end   = ORIGIN(ram) + LENGTH(ram);
+_rpmsg_beg = ORIGIN(linux_rpmsg);
+_rpmsg_end = ORIGIN(linux_rpmsg) + LENGTH(linux_rpmsg);
+
+ASSERT(_ram_end <= _rpmsg_beg,
+       "RAM region overlaps linux_rpmsg shared memory")
+
+ASSERT(_rpmsg_beg == 0x48c3c000,
+       "linux_rpmsg origin must be 0x48c3c000")
+
+ASSERT(LENGTH(linux_rpmsg) == 0x20000,
+       "linux_rpmsg length must be 128 KiB (0x20000)")
+
+/* Vring partition boundaries are checked at compile time in rv1126b_rptun.c;
+ * these ASSERTs guard the linker-level region only. */

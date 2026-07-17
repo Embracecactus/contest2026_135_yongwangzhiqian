@@ -36,4 +36,23 @@ config RV1126B_UART5_CONSOLE
 		Use UART5 M0 (1.5Mbaud, GPIO4_PA6/PA7 FUNC5) as the debug console.
 		This matches the SDK-verified AMP baseline.
 
+if RPTUN
+
+config RV1126B_RPTUN_SHM_ADDR
+	hex "RPTun shared memory address"
+	default 0x48c3c000
+	---help---
+		Start address of the Linux rpmsg shared memory region.
+		Must match the LINUX_RPMSG region in the linker script.
+		Default 0x48c3c000 matches the SDK amp.dtsi / link.lds.
+
+config RV1126B_RPTUN_SHM_SIZE
+	int "RPTun shared memory size"
+	default 131072
+	---help---
+		Size of the shared memory region in bytes.
+		Default 128KB (0x20000) matches the SDK linker script.
+
+endif # RPTUN
+
 endif # ARCH_CHIP_RV1126B

@@ -49,7 +49,15 @@ int rv1126b_bringup(void)
     }
 #endif
 
-  /* No additional board-specific drivers are registered. */
+  /* Initialize RPTun for AMP communication with Linux A-core */
+
+#ifdef CONFIG_RPTUN
+  ret = rv1126b_rptun_init("ap");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: rv1126b_rptun_init failed: %d\n", ret);
+    }
+#endif
 
   return ret;
 }

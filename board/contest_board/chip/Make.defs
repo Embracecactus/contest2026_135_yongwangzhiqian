@@ -15,6 +15,11 @@ CHIP_CSRCS += rv1126b_serial.c
 CHIP_CSRCS += rv1126b_clockconfig.c
 CHIP_CSRCS += rv1126b_allocateheap.c
 CHIP_CSRCS += rv1126b_atomic.c
+CHIP_CSRCS += rv1126b_mailbox.c
+
+ifeq ($(CONFIG_RPTUN),y)
+CHIP_CSRCS += rv1126b_rptun.c
+endif
 
 # Startup assembly
 HEAD_ASRC = rv1126b_head.S

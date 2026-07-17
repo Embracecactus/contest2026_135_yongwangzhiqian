@@ -34,4 +34,21 @@
 
 int rv1126b_bringup(void);
 
+/****************************************************************************
+ * Name: rv1126b_rptun_init
+ *
+ * Description:
+ *   Initialize the RV1126B RPTun driver for AMP communication with
+ *   the Linux A-core.  Sets up mailbox notification and shared memory.
+ *
+ * Input Parameters:
+ *   peername - Name of the remote CPU (typically "ap")
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno on failure.
+ *
+ ****************************************************************************/
+
+int rv1126b_rptun_init(const char *peername);
+
 #endif /* __SRC_RV1126B_EVB_H */
