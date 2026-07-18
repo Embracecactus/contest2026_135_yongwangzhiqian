@@ -17,14 +17,19 @@
  *   - SysTick CLKSOURCE = processor clock (no /8 divisor), so the SysTick
  *     clock equals CONFIG_CPU_FREQ_HZ.
  *
- *   Reload = CONFIG_CPU_FREQ_HZ / CLK_TCK - 1
- *          = 26000000 / (1000000 / CONFIG_USEC_PER_TICK) - 1.
- *   With CONFIG_USEC_PER_TICK=1000 (1 ms, 1000 Hz) this is 25999, well
- *   inside the 24-bit SysTick range.
+ *   Reload = cpu_hz / CLK_TCK - 1, where cpu_hz is decoded at runtime from
+ *            the live clock registers by bk7258_clockdiag_current_cpu_hz():
  *
- *   Board-side calibration TODO: if a future BSP enables the DPLL (e.g.
- *   160 MHz via 480M/3), CONFIG_CPU_FREQ_HZ must be updated to match and
- *   the reload recomputes automatically.
+ *              baseline (M1=0, dplle=0)         -> 26000000 Hz
+ *              loader --reboot 1 (M1=0x423)     -> 80000000 Hz
+ *              unknown                           -> 26000000 Hz (fallback)
+ *
+ *            No DPLL/mux/voltage/UART-divisor write is performed; only the
+ *            SysTick reload bookkeeping is recomputed.
+ *
+ *   BOARD_CPU_FREQ_HZ in board.h remains the build-time baseline / fallback
+ *   and matches the runtime baseline-case return; it is no longer used
+ *   directly in the reload path.
  ****************************************************************************/
 
 /****************************************************************************
@@ -42,17 +47,18 @@
 #include "arm_internal.h"
 #include "systick.h"
 #include "nvic.h"
+#include "bk7258_clockdiag.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* SysTick reload for one OS tick.  CLK_TCK = 1000000 / CONFIG_USEC_PER_TICK
- * (ticks per second), derived from the configured tick period.  BOARD_CPU_FREQ_HZ
- * (board.h) is the SysTick source frequency (processor clock).
+/* SysTick reload for one OS tick is computed at runtime in
+ * up_timer_initialize() from bk7258_clockdiag_current_cpu_hz() and CLK_TCK
+ * (= 1000000 / CONFIG_USEC_PER_TICK).  BOARD_CPU_FREQ_HZ (board.h) remains
+ * the documented build-time baseline and equals the baseline-case runtime
+ * return, but is no longer used directly in the reload path.
  */
-
-#define BK7258_SYSTICK_RELOAD  ((BOARD_CPU_FREQ_HZ / CLK_TCK) - 1)
 
 /* UART1 MMIO for the boot-trace marker pushed at the top of
  * up_timer_initialize().  Freestanding polled putc (polls fifo_status.bit20,
@@ -99,25 +105,49 @@ static void bk7258_timer_diag_putc(unsigned char c)
 
 void up_timer_initialize(void)
 {
+  uint32_t cpu_hz;
+  uint32_t reload;
+
   /* Boot-trace marker: reached up_timer_initialize() inside nx_start(). */
 
   bk7258_timer_diag_putc('T');
 
-  /* Program the reload for one OS tick.  systick_initialize() will then
-   * arm CLKSOURCE | TICKINT (core clock, interrupt on wrap) and attach the
-   * SysTick ISR; setting the reload first guarantees the first tick has the
-   * correct period (some QEMU/model cores ignore CTRL writes when RELOAD
-   * is zero, so follow the mps_timer.c ordering).
+  /* Decode the runtime core-clock frequency from the live M1/ANA_REG5
+   * state (read-only) and derive the SysTick reload for one OS tick.  No
+   * DPLL, mux, voltage or UART-divisor write is performed -- only the
+   * SysTick reload bookkeeping is recomputed.
+   *
+   *   Baseline (M1=0, dplle=0):      cpu_hz = 26000000  reload = 0x0027ac3f
+   *   Loader --reboot 1 (M1=0x423):  cpu_hz = 80000000  reload = 0x007a11ff
+   *
+   * systick_initialize() will then arm CLKSOURCE | TICKINT (core clock,
+   * interrupt on wrap) and attach the SysTick ISR; setting the reload first
+   * guarantees the first tick has the correct period (some QEMU/model cores
+   * ignore CTRL writes when RELOAD is zero, so follow the mps_timer.c
+   * ordering).
    */
 
-  putreg32(BK7258_SYSTICK_RELOAD, NVIC_SYSTICK_RELOAD);
+  cpu_hz = bk7258_clockdiag_current_cpu_hz();
+  reload = (cpu_hz / CLK_TCK) - 1;
 
-  /* coreclk=true  -> SysTick clocked at the processor clock (BOARD_CPU_FREQ_HZ).
+  putreg32(reload, NVIC_SYSTICK_RELOAD);
+
+  /* coreclk=true  -> SysTick clocked at the processor clock (cpu_hz).
    * minor=-1      -> do not register a /dev/timerN node; this timer is the
    *                  dedicated system clock only.
    */
 
-  up_timer_set_lowerhalf(systick_initialize(true, BOARD_CPU_FREQ_HZ, -1));
+  up_timer_set_lowerhalf(systick_initialize(true, cpu_hz, -1));
+
+  /* N4-D0 read-only SysTick baseline.  All SysTick writes inside
+   * up_timer_initialize() (the RELOAD write above + the CTRL write issued by
+   * systick_initialize()) are now committed, so read back CSR/RVR/CVR and
+   * echo the runtime reload and cpu_hz for comparison.  No new SysTick
+   * write is introduced here; the existing reload write is the only one
+   * and is not a clock-control write.
+   */
+
+  bk7258_clockdiag_systick_dump(reload, cpu_hz);
 
   /* Boot-trace marker: up_timer_initialize() is about to return normally.
    * Lower-case 't' is distinct from the entry marker 'T' above, so board-side
