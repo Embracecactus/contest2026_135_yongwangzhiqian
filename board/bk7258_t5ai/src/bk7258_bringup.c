@@ -3,16 +3,13 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Minimal board bringup for the Beken BK7258 (T5-AI) Stage N1 port.
+ * Board bringup for the Beken BK7258 (T5-AI) NuttX port.
  *
- * N1 never reaches nx_start() (the chip __start prints the banner and
- * halts), so no board-level initialisation ever runs at runtime.  We still
- * provide board_app_initialize() because NuttX's board library build
- * expects at least one board source file to exist, and the prototype in
- * include/nuttx/board.h must be satisfied for the link to succeed even if
- * the function is dead code.
- *
- * Stage N2 will replace this with a real bringup (console, MTD, etc.).
+ * board_app_initialize() is the NSH application-init hook: when
+ * CONFIG_NSH_ARCHINIT=y, nsh_initialize() issues boardctl(BOARDIOC_INIT)
+ * and the NSH init task reaches this function during nx_start().  Stage N3
+ * mounts procfs at /proc here so ps, ls /proc, and cat of /proc entries
+ * work; later stages (MTD, filesystems, SMP) extend this bring-up.
  ****************************************************************************/
 
 /****************************************************************************
@@ -22,6 +19,7 @@
 #include <nuttx/config.h>
 #include <errno.h>
 #include <stdint.h>
+#include <sys/mount.h>
 #include <nuttx/board.h>
 
 /* UART1 MMIO for the boot-trace marker pushed at the top of
@@ -61,8 +59,9 @@ static void bk7258_bringup_diag_putc(unsigned char c)
  * Name: board_app_initialize
  *
  * Description:
- *   Standard NuttX board Application-level initialization hook.  N1 has
- *   nothing to do; return OK so any future caller proceeds.
+ *   Standard NuttX board Application-level initialization hook, reached via
+ *   CONFIG_NSH_ARCHINIT from the NSH init task.  Mounts procfs at
+ *   CONFIG_NSH_PROC_MOUNTPOINT (default /proc) and returns OK.
  *
  * Input Parameters:
  *   arg - Board-specific argument (unused).
@@ -79,6 +78,20 @@ int board_app_initialize(uintptr_t arg)
    */
 
   bk7258_bringup_diag_putc('A');
+
+  /* Mount procfs at the NSH proc mountpoint so ps, ls /proc, and cat of
+   * /proc entries work.  CONFIG_NSH_ARCHINIT activates this hook;
+   * CONFIG_FS_PROCFS provides the filesystem.
+   */
+
+  if (mount(NULL, CONFIG_NSH_PROC_MOUNTPOINT, "procfs", 0, NULL) < 0)
+    {
+      bk7258_bringup_diag_putc('p');   /* procfs mount failed */
+    }
+  else
+    {
+      bk7258_bringup_diag_putc('P');   /* procfs mounted at /proc */
+    }
 
   return 0;
 }
