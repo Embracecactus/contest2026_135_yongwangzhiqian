@@ -43,6 +43,7 @@
 #include <nuttx/init.h>
 
 #include "arm_internal.h"
+#include "bk7258_clockdiag.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -217,6 +218,16 @@ void __start(void)
 #ifdef USE_EARLYSERIALINIT
   arm_earlyserialinit();
   bk7258_early_putc('E');
+
+  /* 7b. N4-D0 read-only clock baseline.  Snapshot the clock/DPLL/mux/
+   *     voltage/UART1 configuration the Tier-1 bootloader left behind.
+   *     Strictly getreg32 + diagnostic putc -- no DPLL/mux/clock-control/
+   *     voltage/flash/UART-divisor writes.  Placed after the console is up
+   *     so the trace is observable, and before nx_start() so the boot
+   *     sequence is otherwise unchanged.
+   */
+
+  bk7258_clockdiag_early_dump();
 #endif
 
   /* 8. Start NuttX.  nx_start() never returns; it brings up the scheduler,
