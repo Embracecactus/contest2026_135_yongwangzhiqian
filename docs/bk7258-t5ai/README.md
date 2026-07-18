@@ -1,13 +1,14 @@
-# BK7258（涂鸦 T5-AI）openvela / NuttX 移植
+# Beken BK7258（Tuya T5-AI）openvela / NuttX 移植
 
-把 openvela / NuttX 移植到博通 BK7258（ARM Cortex-M33 三核、Wi-Fi 6 + BLE 5.4），涂鸦 T5-AI
-开发板。**已完成**两家 bootloader 完整逆向 + 自制 Tier-1 bootloader + 最小探针，**板端验证**
-BootROM → bootloader → app 跳转链与"启动核 = CPU0"关键事实；NuttX 已完整启动到**交互式 NSH**
-（Stage N1 + N2 板端验证，2026-07-18）。
+把 openvela / NuttX 移植到 Beken BK7258（ARM Cortex-M33 三核、Wi-Fi 6 + BLE 5.4）Tuya T5-AI
+模组。**已完成**两家 bootloader 完整逆向 + 自制 Tier-1 bootloader + 最小探针，**板端验证**
+BootROM → bootloader → app 跳转链与“启动核 = CPU0”关键事实；NuttX Stage N1、N2、N3 均已
+`board-verified`（2026-07-18），Stage N4 DPLL / 480 MHz clock bring-up 为 **current / planned**。
 
 > 详细技术报告（评委请读这份）：**[porting-report.md](porting-report.md)**
-> N2 会话 worklog：[`nuttx-port/n2-nsh-console.md`](nuttx-port/n2-nsh-console.md)
-> AI 协作上下文恢复：[`next-stage-prompt.md`](next-stage-prompt.md)
+> N2 worklog：[`nuttx-port/n2-nsh-console.md`](nuttx-port/n2-nsh-console.md)
+> N3 worklog：[`nuttx-port/n3-procfs-ps.md`](nuttx-port/n3-procfs-ps.md)
+> 主 Stage 索引 / 当前恢复入口：[`next-stage-prompt.md`](next-stage-prompt.md)
 
 ## 当前状态
 
@@ -17,10 +18,13 @@ BootROM → bootloader → app 跳转链与"启动核 = CPU0"关键事实；Nutt
 | Tier-1 bootloader（asm + C + 硬化跳转） | ✅ 板端验证 |
 | 启动核 = CPU0（关键决策） | ✅ 板端坐实 |
 | 开源 CRC packer（闭源 `cmake_encrypt_crc` 等价替代） | ✅ 字节等价已证 |
-| NuttX Stage N1（bootloader 跳进 NuttX，早期 UART） | ✅ board-verified |
-| NuttX Stage N2（`nx_start` → 交互式 NSH） | ✅ board-verified（2026-07-18，4 RX bug 全修） |
-| Tier-2 bootloader（OTA / A-B failover） | 📋 规划中 |
-| 多核 SMP（CPU1 / CPU2） | 📋 规划中 |
+| NuttX Stage N1（bootloader 跳进 NuttX，早期 UART） | ✅ `board-verified` |
+| NuttX Stage N2（`nx_start` → 交互式 NSH） | ✅ `board-verified`（2026-07-18，4 RX bug 全修） |
+| NuttX Stage N3（procfs + `ps`） | ✅ `board-verified`（2026-07-18） |
+| NuttX Stage N4（DPLL / 480 MHz clock bring-up） | **CURRENT / planned**（`static-only`） |
+| MTD / 文件系统 | 后续，未编号 |
+| Tier-2 bootloader（OTA / A-B failover） | 后续，未编号 |
+| 多核 SMP（CPU1 / CPU2） | 后续，未编号 |
 
 **构建产物**：`$FW/all-app.bin`（= `bl_crc.bin` + `nuttx_crc.bin`，整体烧 @ physical `0x0`），
 其中 `$FW = $WORKSPACE/nuttx`。console UART1 460800 8N1。
@@ -47,9 +51,12 @@ BootROM → bootloader → app 跳转链与"启动核 = CPU0"关键事实；Nutt
   [bootloader.ld](../../board/bk7258_t5ai/bootloader/bootloader.ld) ·
   [bk7236_pack_min_bootloader.py](../../board/bk7258_t5ai/bootloader/bk7236_pack_min_bootloader.py)
 
-### NuttX 移植 worklog（`nuttx-port/`）
+### NuttX 移植 worklog / prompts（`nuttx-port/`）
 - [nuttx-port/n2-nsh-console.md](nuttx-port/n2-nsh-console.md) —— Stage N2 会话记录（boot trace、
-  4 个 UART RX bug 现象/定位/修法、板端 `uname -a` 证据、未决项）
+  4 个 UART RX bug 现象/定位/修法、板端 `uname -a` 证据）
+- [nuttx-port/n3-procfs-ps.md](nuttx-port/n3-procfs-ps.md) —— Stage N3 会话记录（procfs 挂载、
+  `ps` / `/proc` 与 state-C 板端证据）
+  - **当前 Stage prompt：** [nuttx-port/prompts/04-n4-clock-bringup.md](nuttx-port/prompts/04-n4-clock-bringup.md)
 
 ### 参考
 - [sdk-context-index.md](sdk-context-index.md) —— BK ARMINO SDK (`bk_avdk_smp`) 上下文索引

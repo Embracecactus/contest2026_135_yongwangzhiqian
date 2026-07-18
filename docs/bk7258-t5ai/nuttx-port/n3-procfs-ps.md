@@ -14,18 +14,18 @@ Stage N3 —— 在 BK7258 T5-AI 上**挂载 procfs 到 `/proc`**，使 `ps` / `
 
 | 项 | BK7258 芯片能力 | T5-AI 模组实例 | 本移植使用情况 |
 |---|---|---|---|
-| 核心 | ARMv8-M Star（M33F），高达 480 MHz；双精度 FPU / TrustZone / DSP-SIMD，3.84 CoreMark/MHz | 同 | **未提速**：核心跑在 26 MHz XTALH，DPLL（320/480 MHz）未启用 |
+| 核心 | ARMv8-M Star（M33F），高达 480 MHz；双精度 FPU / TrustZone / DSP-SIMD，3.84 CoreMark/MHz | 同 | overlay / Tier-1 未发现 DPLL 配置；CPU0 仍在约 26 MHz XTALH 是工作假设，须由 N4-D0 用寄存器 readback + 独立测量确认 |
 | ITCM / DTCM | 16 KB / 16 KB | 同 | 未用 |
 | Flash | 高达 16 MB | **8 MB SiP** | app @ logical 0x02010000，当前镜像 ~160 KB |
 | PSRAM | 高达 16 MB | **16 MB SiP** | **未用**（heap 仍来自 SRAM） |
 | 共享 SRAM | 640 KB | 同 | heap 来源，/proc/meminfo total ≈ 631 KB |
 | ROM / eFuse | 64 KB ROM + eFuse | 同 | — |
 
-**时钟树**：26 MHz XTALH（`board.h` 的 `BOARD_CPU_FREQ_HZ=26000000` 即此参考晶振）→ DPLL（320/480 MHz）→ 核心。移植未配 DPLL，故 `/proc/cpuinfo` 的 `cpu MHz : 0.000` / `BogoMIPS : 5.00`；启用 DPLL 提速到 480 MHz 是后续阶段（SMP / 性能敏感）的前置项。
+**时钟树**：26 MHz XTALH（`board.h` 的 `BOARD_CPU_FREQ_HZ=26000000` 即此参考晶振）→ DPLL（320/480 MHz）→ 核心。当前 overlay / Tier-1 未发现已知 DPLL init，因此“CPU0 仍在约 26 MHz”只是工作假设；`/proc/cpuinfo` 的 `cpu MHz : 0.000` / `BogoMIPS : 5.00` 不是频率证明。N4-D0 将用寄存器 readback + 独立测量确认实际频率，再推进 480 MHz bring-up。
 
 **外设 / 无线**（未来"驱动补全"范围，见 porting-report §12）：Wi-Fi 6（802.11ax）+ BLE 5.4 组合；56 GPIO、2×SPI、2×QSPI、3×UART（其一支持硬件流控 + flash 下载）、USB2.0 HS、CAN FD、LIN、SDIO、以太网 MAC、显示控制器（RGB/8080）、段式 LCD、H.264 720p 编码、JPEG 编/解码、3×I2S、12×PWM、12-bit AUX ADC 等；3 核（CPU0 boot master + CPU1/2 AP）尚未唤醒。
 
-> 8 MB SiP flash + 16 MB SiP PSRAM 是 N4 MTD/FS（掉电留存 / 大 heap）的大余量支撑。
+> 8 MB SiP flash + 16 MB SiP PSRAM 为未来尚未编号的 MTD/FS（掉电留存）与大 heap 工作提供充足余量；这些工作推迟到当前 DPLL / 480 MHz Stage 完成后，具体 MAIN Stage 编号待前序证据明确后再分配。
 
 ## 背景与关键发现
 
@@ -235,14 +235,22 @@ NuttX 把 `__DATE__` / `__TIME__` 烤进版本串（`/proc/version` 与 `uname -
 
 ## 已知小项 / 未来打磨
 
-- `/proc/cpuinfo` 的 `cpu MHz : 0.000`（`BogoMIPS : 5.00`）：官方规格核心为 **480 MHz**（26 MHz XTALH → DPLL 倍频），但 `board.h` 里 `BOARD_CPU_FREQ_HZ=26000000`（= XTALH 参考晶振），移植**未启用 DPLL**，核心跑在 26 MHz XTAL，cpuinfo 因此算不出 MHz / 显示 0。这是**时钟 bring-up 未做**（不只是显示项），留作后续阶段（SMP / 性能敏感前应先提速）。
+- `/proc/cpuinfo` 的 `cpu MHz : 0.000`（`BogoMIPS : 5.00`）不是实际频率证明。官方最高规格为 **480 MHz**（26 MHz XTALH → DPLL），当前 `board.h` 有 `BOARD_CPU_FREQ_HZ=26000000`，且 overlay / Tier-1 未发现已知 DPLL init，因此“CPU0 仍在约 26 MHz”只是工作假设。N4-D0 将用时钟寄存器 readback + 独立测量确认实际 baseline，再决定后续 480 MHz 配置；不能把 cpuinfo 数值当作因果证据。
 - 回退基线：`zephyr-bk7258-port/out/custom_bootloader/bk7236_min_bl_crc.bin` @ `0x0-0x11000`
   仍是已知良好回退镜像（N1/N2 验证沿用）。
 
-## 下一步（N4 候选）
+## 下一步：Stage N4 — DPLL / 480 MHz 时钟 bring-up
 
-- **MTD + 文件系统**（LittleFS / SmartFS）：掉电留存的持久存储，让 `/proc` 之外的 `/fs/...`
-  可写。
-- **Tier-2 bootloader OTA**：RBL 头 + A/B 分区 + failover（参考 BK 官方 bootloader 逆向 §2.12）。
-- **多核 SMP**：CPU1 / CPU2 唤醒（`sys_drv_set_cpu1_boot_address_offset` +
-  `sys_drv_set_cpu1_reset`，从 app 层发起）。
+BK7258 官方时钟树为 26 MHz XTALH → DPLL（320 / 480 MHz）→ CPU core；当前 Tier-1 bootloader
+未配置 DPLL，overlay 仍以 `BOARD_CPU_FREQ_HZ=26000000` 为 baseline。N3 已补齐运行态可观测性，
+因此下一 MAIN Stage 固定为 N4：先证明当前频率，再分段完成 DPLL lock、CPU0 480 MHz 切换和
+UART1 / SysTick / NSH / procfs 回归。
+
+- 主 Stage 顺序与 current pointer：[`../next-stage-prompt.md`](../next-stage-prompt.md)
+- 当前 N4 完整恢复提示词：[`prompts/04-n4-clock-bringup.md`](prompts/04-n4-clock-bringup.md)
+
+N4-R → N4-D0 → N4-D1 → N4-D2（optional）→ N4-D3 → N4-V 是**同一个 N4 文件内**的有序
+subsection，不拆成多个 Stage 或提示词文件。
+
+MTD / 文件系统、PSRAM、Tier-2 bootloader OTA、SMP 均推迟到 N4 完成之后；只有前一 Stage 的
+真实证据已知时，才为下一 MAIN Stage 分配编号并生成对应 prompt，现在不预分配后续 Stage 编号。
