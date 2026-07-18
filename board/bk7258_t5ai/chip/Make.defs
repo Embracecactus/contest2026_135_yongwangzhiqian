@@ -23,9 +23,33 @@ include armv8-m/Make.defs
 
 # Chip-specific sources (resolved via VPATH += $(CHIP_DIR) added by the
 # arch Makefile, exactly like every other in-tree ARM chip).
+#
+# Stage N2 adds the full bring-up set on top of the N1 vector/start pair:
+#   bk7258_lowputc.c     polled arm_lowputc()/up_putc() over UART1
+#   bk7258_serial.c      poll-based uart_ops_s console lower-half
+#   bk7258_irq.c         NVIC up_*irq*() glue
+#   bk7258_timerisr.c    SysTick up_timer_initialize()
+#   bk7258_allocateheap.c up_allocate_heap()
 
 CHIP_CSRCS  = bk7258_vectors.c
 CHIP_CSRCS += bk7258_start.c
+CHIP_CSRCS += bk7258_lowputc.c
+CHIP_CSRCS += bk7258_serial.c
+CHIP_CSRCS += bk7258_irq.c
+CHIP_CSRCS += bk7258_timerisr.c
+CHIP_CSRCS += bk7258_allocateheap.c
+
+# Compile the common Cortex-M SysTick lower half (arm_systick.c, which
+# provides systick_initialize() used by bk7258_timerisr.c).  The shared
+# arm_m/Make.defs gates this on CONFIG_ARM_M_SYSTICK, a symbol no Kconfig
+# ever defines (a latent typo -- the real symbol is CONFIG_ARM_SYSTICK,
+# which CONFIG_ARMV8M_SYSTICK selects).  VPATH already lists arm_m/, so
+# referencing the file by basename resolves to arch/arm/src/arm_m/arm_systick.c
+# without touching the upstream tree.
+
+ifeq ($(CONFIG_ARM_SYSTICK),y)
+CHIP_CSRCS += arm_systick.c
+endif
 
 # Force the link entry point to our __start (defined in bk7258_start.c).
 # --build-id=none keeps the image deterministic and avoids leaking any

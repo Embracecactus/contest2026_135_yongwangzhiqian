@@ -13,6 +13,11 @@
 set(SRCS
     bk7258_vectors.c
     bk7258_start.c
+    bk7258_lowputc.c
+    bk7258_serial.c
+    bk7258_irq.c
+    bk7258_timerisr.c
+    bk7258_allocateheap.c
 )
 
 # NOTE: The common armv8-m CMake path still adds arm_vectors.c.  When this

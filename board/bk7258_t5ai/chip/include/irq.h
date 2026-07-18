@@ -56,6 +56,13 @@
 #define BK7258_IRQ_SYSTICK              (15)
 #define BK7258_IRQ_FIRST                (16)
 
+/* UART1 peripheral sits at chip IRQ 15, which maps to NuttX vector slot
+ * [16 + 15] = [31].  The slot is already wired to exception_direct in
+ * bk7258_vectors.c, so the vector table itself needs no change.
+ */
+
+#define BK7258_IRQ_UART1                (16 + 15)   /* = 31 */
+
 /* NVIC priority encoding for the Cortex-M33 core.  The core implements
  * priority bits [7:5] (3 bits -> 8 priority levels, top 5 bits
  * implemented).  Values are identical to every other stock Cortex-M3/4/33

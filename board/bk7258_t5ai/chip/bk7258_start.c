@@ -4,28 +4,35 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Beken BK7258 (T5-AI, tri-core Cortex-M33) C reset entry for NuttX
- * Stage N1.
+ * Stage N2.
  *
- * GOAL (Stage N1, minimal):
- *   Prove that the NuttX build chain (linker script, vector table, app
- *   magic, postbuild CRC-expansion) produces an image that the on-board
- *   Tier-1 bootloader can validate and jump into.  When this __start runs,
- *   the hardware has already loaded MSP from vector slot [0]; we mask
- *   IRQs, relocate VTOR onto our flash-resident table, push the banner
- *   "NUTTX N1\r\n" out of UART1 the same way the verified probe does, and
- *   spin.  We deliberately do NOT call nx_start().
+ * GOAL (Stage N2):
+ *   Walk the full NuttX boot so that nx_start() brings up the kernel, the
+ *   SysTick-based system clock runs, UART1 becomes the polled console, and
+ *   the NSH prompt is reached.  This file replaces the N1 stub (which only
+ *   printed "NUTTX N1\r\n" and hung) with the standard Cortex-M __start
+ *   sequence used by nuttx/arch/arm/src/mps/mps_start.c:
  *
- * WHAT IS INTENTIONALLY LEFT FOR STAGE N2:
- *   - .data copy from flash LMA and .bss zero-initialisation
- *   - arm_earlyserialinit() / console bringup
- *   - heap sizing, boardinitialize(), nx_start(), NSH
- *   N1 keeps .data/.bss empty (only static-const strings and locals), so
- *   skipping those loops is safe here.  N2 will insert the standard
- *   mps_start.c-style sequence immediately before the banner.
+ *     cpsid i
+ *     VTOR <- 0x02010000  (our flash-resident vector table)
+ *     CPACR <- CP10/CP11 full access (FPU; cheap, avoids FP traps)
+ *     .data  copy  _eronly -> _sdata.._edata
+ *     .bss   zero  _sbss.._ebss
+ *     arm_earlyserialinit()   (bring up the polled console early)
+ *     nx_start()              (kernel: scheduler, SysTick, init/NSH)
  *
- * Freestanding: no libc, no NuttX headers beyond config.h.  The UART1
- * addresses and the magic value are shared verbatim with
- * docs/bk7258-t5ai/probe/probe.c (board-verified 2026-07-15).
+ *   A single bare "N2\r\n" marker is pushed out over UART1 BEFORE
+ *   arm_earlyserialinit(), using the same freestanding MMIO write the N1
+ *   stub and the verified probe use, so that board-side observation can
+ *   confirm __start was reached even if the later console bring-up fails.
+ *
+ * Memory map (shared verbatim with docs/bk7258-t5ai/probe/probe.c):
+ *   FLASH/logical app base : 0x02010000  (vector table, .text, .data LMA)
+ *   RAM                     : 0x28000000 .. 0x2809FFFF (640 KiB SRAM)
+ *   initial MSP (slot [0])  : 0x2809FFFC
+ *
+ * Freestanding note: the early marker uses a local polled putc that touches
+ * only MMIO (no .data/.bss), so it is safe to call before .data/.bss init.
  ****************************************************************************/
 
 /****************************************************************************
@@ -33,31 +40,29 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/init.h>
 
-/* We intentionally avoid <stdint.h> here to stay freestanding; the build
- * is compiled with -nostdlib/-nostdinc++ equivalents for the libcless
- * boot path.  Use compiler-builtin unsigned types.
- */
+#include "arm_internal.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Fixed memory-mapped registers / words (shared with probe.c). */
+/* SCB registers. */
 
 #define BK7258_SCB_VTOR          (*(volatile unsigned int *)0xe000ed08u)
 #define BK7258_SCB_CPACR         (*(volatile unsigned int *)0xe000ed88u)
 
 /* UART1 FIFO registers.  The Tier-1 bootloader already configured UART1
- * (pinmux, 26 MHz XTAL, clock gate, global_ctrl, config); we MUST NOT
+ * (pinmux, 26 MHz XTAL, clock gate, global_ctrl, config).  We MUST NOT
  * touch UART1_CFG (0x45830010) because that would clash with the
- * bootloader's divider.  We only push bytes into fifo_port, exactly like
+ * bootloader's divider; we only push bytes into fifo_port, exactly like
  * the Zephyr soc_reset_hook and our probe.
  */
 
 #define BK7258_UART1_FIFO_STAT   (*(volatile unsigned int *)0x45830018u)
 #define BK7258_UART1_FIFO_PORT   (*(volatile unsigned int *)0x4583001Cu)
-#define BK7258_UART1_FIFO_READY  (1u << 20)
+#define BK7258_UART1_FIFO_READY  (1u << 20)   /* fifo_status.bit20 = fifo_wr_ready */
 
 /* Our vector table lives at the very start of the app image, which the
  * bootloader maps at logical flash address 0x02010000.  Tell VTOR to
@@ -66,37 +71,35 @@
 
 #define BK7258_VTOR_VALUE        0x02010000u
 
-/* Idle-stack top symbol exported by the linker script.  The common ARM
- * code (arm_initialize, arm_getintstack) expects g_idle_topstack to exist
- * even though N1 never reaches nx_start; provide it as a read-only
- * constant so the link succeeds.  Value matches the canonical
- * "_ebss + CONFIG_IDLETHREAD_STACKSIZE" convention used by other CM33
- * chips (mps_start.c).  Because N1's .bss is empty, _ebss == _sbss ==
- * start of RAM (0x28000000) + an 0x0-length .data/.bss; the post-link
- * value is computed by ld and emitted into the const.
+/* Heap base convention shared with mps_start.c / bk7258_allocateheap.c:
+ * the IDLE thread stack sits at the top of .bss and is CONFIG_IDLETHREAD_
+ * STACKSIZE bytes; the heap begins right above it.  g_idle_topstack records
+ * that address for the common ARM code (up_get_idle_stack / up_allocate_heap).
  */
 
-extern unsigned int _ebss;
+#define HEAP_BASE  ((uintptr_t)_ebss + CONFIG_IDLETHREAD_STACKSIZE)
 
 /****************************************************************************
  * Public Data
  ****************************************************************************/
 
 /* Referenced by nuttx/arch/arm/src/common/arm_initialize.c via
- * up_get_idle_stack().  Defined here because N1 ships its own start file
- * instead of reusing mps_start.c.  Const so it lands in .rodata (flash).
+ * up_get_idle_stack().  Const so it lands in .rodata (flash).
  */
 
-const unsigned int g_idle_topstack =
-    (unsigned int)&_ebss + 2048;  /* CONFIG_IDLETHREAD_STACKSIZE=2048 */
+const uintptr_t g_idle_topstack = HEAP_BASE;
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
 
-/* Polled UART1 output -- identical to probe.c. */
+/* Bare polled UART1 output -- freestanding, MMIO-only, identical to probe.c.
+ * Used only for the very early "N2" marker before arm_earlyserialinit().
+ * After the console is up, all output goes through arm_lowputc()/the
+ * registered /dev/console.
+ */
 
-static void bk7258_uart_putc(unsigned char c)
+static void bk7258_early_putc(unsigned char c)
 {
   while ((BK7258_UART1_FIFO_STAT & BK7258_UART1_FIFO_READY) == 0)
     {
@@ -105,11 +108,11 @@ static void bk7258_uart_putc(unsigned char c)
   BK7258_UART1_FIFO_PORT = (unsigned int)(c & 0xffu);
 }
 
-static void bk7258_uart_puts(const char *s)
+static void bk7258_early_puts(const char *s)
 {
   while (*s)
     {
-      bk7258_uart_putc((unsigned char)*s);
+      bk7258_early_putc((unsigned char)*s);
       s++;
     }
 }
@@ -132,36 +135,103 @@ static void bk7258_uart_puts(const char *s)
 
 void __start(void)
 {
+#ifndef CONFIG_BUILD_PIC
+  const uint32_t *src;
+  uint32_t       *dest;
+#endif
+
   /* 1. Mask all interrupts immediately. */
 
   __asm volatile ("cpsid i");
 
   /* 2. Point VTOR at our flash-resident vector table (0x02010000).  The
    *    bootloader may or may not have set this; make it deterministic.
-   *    Barrier so subsequent exception entry (if ever enabled in N2)
-   *    observes the new VTOR.
+   *    Barrier so subsequent exception entry observes the new VTOR.
    */
 
   BK7258_SCB_VTOR = BK7258_VTOR_VALUE;
   __asm volatile ("dsb; isb");
 
-  /* 3. Enable CP10/CP11 (FPU) full access.  Cheap and matches the probe;
-   *    avoids accidental traps if the toolchain emits FP prologues.
+  /* 3. FPU: clear FPCCR.ASPEN/LSPEN (disable lazy + automatic FP context
+   *    stacking), then enable CP10/CP11.  The BootROM leaves LSPEN set; with
+   *    CPACR enabled and LSPEN still set, the first exception (SysTick) hung
+   *    inside the lazy-stacking protocol with no HardFault.  We cannot just
+   *    call arm_fpuconfig() -- with CONFIG_ARCH_FPU off (our case) it is a
+   *    no-op #define in arm_internal.h and the real impl in arm_fpuconfig.c
+   *    is compiled only under CONFIG_ARCH_FPU.  So inline the FPCCR clear,
+   *    ordered per the ARMv8-M rule "do not change ASPEN/LSPEN while CPACR
+   *    permits CP10/CP11": deny CP first, clear the bits, re-enable CP.
+   *    (FPCCR @ 0xE000EF34; ASPEN=bit31, LSPEN=bit30.)
    */
 
-  BK7258_SCB_CPACR = BK7258_SCB_CPACR | ((3u << 20) | (3u << 22));
+  BK7258_SCB_CPACR &= ~((3u << 20) | (3u << 22));             /* deny CP10/CP11 */
+  __asm volatile ("dsb; isb");
+  /* Clear ASPEN(bit31) + LSPEN(bit30, NS) + LSPENS(bit29, Secure).  We run in
+   * Secure state (the bootloader never drops to NS), so Secure lazy stacking
+   * (LSPENS, bit29) is the one that engages on Secure exceptions -- clearing
+   * only 30/31 was not enough.  All three off -> no lazy/auto FP stacking.  */
+  *(volatile uint32_t *)0xE000EF34u &= ~((1u << 31) | (1u << 30) | (1u << 29));
+  BK7258_SCB_CPACR |= ((3u << 20) | (3u << 22));             /* CP10/CP11 full access */
+  __asm volatile ("dsb; isb");
 
-  /* 4. Push the N1 banner.  This is the proof-of-life: if we see this
-   *    string on UART1 (115200 8N1, inherited from the bootloader), the
-   *    NuttX image was validated by the bootloader and __start executed.
-   *
-   *    N2 will replace this block with .data/.bss init +
-   *    arm_earlyserialinit() + nx_start().
+  /* 4. Early proof-of-life marker.  Pushed before .data/.bss init because it
+   *    touches only MMIO; lets the board-side operator confirm __start was
+   *    reached even if console bring-up later hangs.
    */
 
-  bk7258_uart_puts("NUTTX N1\r\n");
+  bk7258_early_puts("N2\r\n");
 
-  /* 5. Halt forever.  N1 does not start the scheduler. */
+#ifndef CONFIG_BUILD_PIC
+  /* 5. Copy the .data image from flash (LMA == _eronly) to its RAM VMA
+   *    (_sdata.._edata).  The BK7258 boots with a copy of NuttX kernel +
+   *    NSH, so .data is no longer empty (unlike N1) and this copy is
+   *    mandatory.
+   */
+
+  for (src = (const uint32_t *)_eronly,
+       dest = (uint32_t *)_sdata; dest < (uint32_t *)_edata; )
+    {
+      *dest++ = *src++;
+    }
+
+  bk7258_early_putc('D');
+
+  /* 6. Zero the .bss section (_sbss.._ebss). */
+
+#ifndef CONFIG_ARCH_SKIP_ZERO_BSS
+  for (dest = (uint32_t *)_sbss; dest < (uint32_t *)_ebss; )
+    {
+      *dest++ = 0;
+    }
+
+  bk7258_early_putc('B');
+#endif
+#endif /* CONFIG_BUILD_PIC */
+
+  /* 7. Perform early serial initialisation so the console is available
+   *    during the rest of boot.  arm_earlyserialinit() is only compiled
+   *    when USE_EARLYSERIALINIT is derived (CONFIG_DEV_CONSOLE + a serial
+   *    console), matching mps_start.c.
+   */
+
+#ifdef USE_EARLYSERIALINIT
+  arm_earlyserialinit();
+  bk7258_early_putc('E');
+#endif
+
+  /* 8. Start NuttX.  nx_start() never returns; it brings up the scheduler,
+   *    SysTick (via up_timer_initialize), the init task (which runs
+   *    board_app_initialize and spawns the NSH builtin), and finally the
+   *    IDLE task.  Caches/MPU are intentionally left untouched here to keep
+   *    the N2 boot minimal and MMIO-coherent; they can be added once the
+   *    NSH prompt is observed on the board.
+   */
+
+  bk7258_early_putc('S');
+
+  nx_start();
+
+  /* Shouldn't get here. */
 
   for (; ; )
     {

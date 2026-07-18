@@ -21,7 +21,37 @@
 
 #include <nuttx/config.h>
 #include <errno.h>
+#include <stdint.h>
 #include <nuttx/board.h>
+
+/* UART1 MMIO for the boot-trace marker pushed at the top of
+ * board_app_initialize().  Freestanding polled putc (polls fifo_status.bit20,
+ * writes fifo_port); identical to start.c::bk7258_early_putc and
+ * vectors.c::bk7258_fault_putc.  Local to this translation unit so it
+ * introduces no new linkage dependency.
+ */
+
+#define BK7258_BRG_UART1_FSTAT   (*(volatile uint32_t *)0x45830018u)
+#define BK7258_BRG_UART1_FPORT   (*(volatile uint32_t *)0x4583001Cu)
+#define BK7258_BRG_UART1_READY   (1u << 20)
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+/* Bare MMIO single-byte marker.  Emits 'A' at function entry of
+ * board_app_initialize() so board-side observation can confirm the NSH init
+ * task reached the board-application bring-up hook during nx_start().
+ */
+
+static void bk7258_bringup_diag_putc(unsigned char c)
+{
+  while ((BK7258_BRG_UART1_FSTAT & BK7258_BRG_UART1_READY) == 0)
+    {
+    }
+
+  BK7258_BRG_UART1_FPORT = (uint32_t)(c & 0xffu);
+}
 
 /****************************************************************************
  * Public Functions
@@ -44,5 +74,11 @@
 
 int board_app_initialize(uintptr_t arg)
 {
+  /* Boot-trace marker: reached board_app_initialize() from the NSH init
+   * task spawned by nx_start().
+   */
+
+  bk7258_bringup_diag_putc('A');
+
   return 0;
 }

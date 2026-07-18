@@ -5,12 +5,17 @@
  *
  * Linker script for the Beken BK7258 (T5-AI, Cortex-M33) Stage N1 image.
  *
- * Memory map (reverse-engineered on board, shared verbatim with
- * docs/bk7258-t5ai/probe/probe.ld):
+ * Memory map (reverse-engineered on board; the app partition size follows
+ * the armino SDK partition table for BK7258):
  *
- *   FLASH : 0x02010000 .. 0x0201FFFF  (64 KiB app window, XIP view)
- *           This is the logical address the Tier-1 bootloader jumps the
- *           app Reset entry to after validating the BK7236 magic.
+ *   FLASH : 0x02010000 .. 0x020FFFFF  (1 MiB logical/XIP window)
+ *           The on-flash primary_cp_app partition is 1360 KiB (see the
+ *           armino BK7258 partition CSVs), so a 1 MiB link window sits
+ *           comfortably inside it.  (Stage N1 used a 64 KiB placeholder
+ *           because the N1 image was tiny; the full NuttX kernel + NSH is
+ *           ~70 KiB and would not fit in 64 KiB.)  The Tier-1 bootloader
+ *           jumps the app Reset entry here after validating the BK7236
+ *           magic.
  *   RAM   : 0x28000000 .. 0x2809FFFF  (640 KiB SRAM)
  *   MSP   : 0x2809FFFC  (top of usable SRAM, also stored in vector slot 0)
  *
@@ -35,7 +40,7 @@ ENTRY(__start)
 
 MEMORY
 {
-    FLASH (rx)  : ORIGIN = 0x02010000, LENGTH = 0x10000
+    FLASH (rx)  : ORIGIN = 0x02010000, LENGTH = 0x100000
     RAM   (rwx) : ORIGIN = 0x28000000, LENGTH = 0xA0000
 }
 
