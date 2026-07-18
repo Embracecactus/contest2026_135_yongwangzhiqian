@@ -9,15 +9,18 @@
 | N1 | minimal NuttX boot | `board-verified`，commit `40495ca` | [porting report](porting-report.md) |
 | N2 | interactive NSH | `board-verified`，code `9f45bc6` + docs `e3ad3e9` | [N2 worklog](nuttx-port/n2-nsh-console.md) |
 | N3 | procfs + `ps` | `board-verified`，code `4d9198e` + docs `68badfe` | [N3 worklog](nuttx-port/n3-procfs-ps.md) |
-| **N4** | DPLL / 480 MHz clock bring-up | **CURRENT / planned**（`static-only`；执行证据尚未开始） | [N4 recovery prompt](nuttx-port/prompts/04-n4-clock-bringup.md) |
+| **N4** | DPLL / 480 MHz clock bring-up | **CURRENT**：N4-D0/D0D substage `board-verified`（feature commit `6f596b7`，2026-07-18）；N4-D1 blocked；DPLL enable / mux 切换 not attempted；整 N4 not board-verified | [N4 recovery prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md) |
 | N5+ | 暂不分配范围 | N4 板端验证后再确定 | 生成 `05-n5-<slug>.md`，追加本表并更新 CURRENT 指针；不得覆盖 N4 文件 |
 
 ## 当前 handoff
 
 - **Current Stage：N4**
 - **Current prompt：**[`nuttx-port/prompts/04-n4-clock-bringup.md`](nuttx-port/prompts/04-n4-clock-bringup.md)
-- **Prerequisite：**N3 已 `board-verified`
-- **Execution evidence：**尚未开始；N4 当前只是规划与恢复入口，不得写成已执行、已构建或已板端验证
+- **Prerequisite：**N3 已 `board-verified` ✅
+- **Execution evidence：**N4-D0/D0D（时钟诊断 baseline + runtime SysTick bookkeeping，feature commit
+  `6f596b7`）已 **substage `board-verified`**（2026-07-18）；**N4-D1（DPLL lock）blocked**；DPLL enable /
+  mux 切换 not attempted；**整 N4 not board-verified**。详见 [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md)。
+  剩余收口：`6f596b7` 精确 commit 的 state-C 重编/重刷复验尚未完成。
 
 ## 冻结的 N3 baseline
 
