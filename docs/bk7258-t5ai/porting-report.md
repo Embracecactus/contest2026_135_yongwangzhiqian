@@ -9,12 +9,12 @@
 对板上两家 bootloader（涂鸦 65 KB、BK 官方 52 KB）的完整逆向综合；自制 **Tier-1 bootloader**
 （asm 跳板 + C main + asm 硬化跳转 epilogue）并在板端跑通 BootROM → bootloader → app 完整跳转链；
 用一个最小裸探针（probe）在板端坐实了"启动核 = CPU0"这一关键事实；NuttX 内核完整启动到**交互式
-NSH**（Stage N1 跳转链 + N2 NSH console 均板端验证，2026-07-18）。**配套产出**：与 Beken 闭源
-`cmake_encrypt_crc` **字节等价**的开源 CRC 打包器。
+NSH**（Stage N1 跳转链 + N2 NSH console + N3 procfs/ps 均板端验证，2026-07-18）。**配套产出**：
+与 Beken 闭源 `cmake_encrypt_crc` **字节等价**的开源 CRC 打包器。
 
 状态速览：✅ Bootloader 逆向 / ✅ Tier-1 bootloader 板端验证 / ✅ 启动核确认 / ✅ CRC packer 等价性
 / ✅ NuttX Stage N1（bootloader 跳进 NuttX，早期 UART）/ ✅ NuttX Stage N2（NSH 交互 console）
-/ 📋 Tier-2 bootloader（OTA） / 📋 多核 SMP。
+/ ✅ NuttX Stage N3（procfs + ps）/ 📋 Tier-2 bootloader（OTA） / 📋 多核 SMP。
 
 ---
 
@@ -374,10 +374,12 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 |---|---|---|
 | **N1** | NuttX 最小镜像被 Tier-1 bootloader 跳进去，早期 UART 打印可见 | ✅ done（board-verified，commit `40495ca`） |
 | **N2** | `nx_start` kernel 起来 + UART1 console → **交互式 NSH** | ✅ done（board-verified 2026-07-18，commit `9f45bc6`） |
+| **N3** | 挂 procfs 到 `/proc` → **`ps` / `ls /proc` / `cat /proc/*` 可用** | ✅ done（board-verified 2026-07-18，工作树源码 = 已验证镜像） |
 
 N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
 UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
-全部可用。
+全部可用。N3 判据（已满足）：`ps` 列出 PID 0/1、`ls /proc` 见完整条目集、
+`cat /proc/{version,cpuinfo,meminfo}` 返回真实数据。
 
 ### 9.4 Stage N2 — 交互式 NSH console（板端验证 2026-07-18）
 
@@ -414,10 +416,41 @@ UART1 console 460800 8N1，**RX 中断驱动、TX 轮询**：NSH readline 收键
 
 详细 worklog：[`nuttx-port/n2-nsh-console.md`](nuttx-port/n2-nsh-console.md)。
 
-### 9.5 N2 未决项
+### 9.5 Stage N3 — procfs + ps（板端验证 2026-07-18）
 
-`ps` / `procfs` 未开、MTD/文件系统未接、Tier-2 bootloader OTA 未做、多核 SMP 未唤醒。这些是
-Stage N3 起的候选方向（见 §12 / `next-stage-prompt.md`）。
+在 N2 baseline 上开 procfs：NSH 的 `cmd_ps` 经 `nsh_foreach_direntry(CONFIG_NSH_PROC_MOUNTPOINT,
+...)` 枚举 `/proc`，procfs 必须显式挂载（`nsh_initialize` 不自动挂）。N2 没开 `CONFIG_NSH_ARCHINIT`
+→ `board_app_initialize()` 是死代码（N2 trace `DBESITtC` 无 `'A'`）。N3 开
+`CONFIG_NSH_ARCHINIT`（auto-select `CONFIG_BOARDCTL`，激活 bring-up 钩子）+ `CONFIG_FS_PROCFS`，
+在钩子的 `'A'` 标记后 `mount(NULL, "/proc", "procfs", 0, NULL)`，成功发 `'P'`、失败发 `'p'`。
+`CONFIG_NSH_PROC_MOUNTPOINT` 经 olddefconfig 解析为 `"/proc"`。
+
+```
+u_bootloader → JMP → N2 DBESITtCAP → NuttShell (NSH) → nsh>     ← A = bring-up 钩子入口，P = procfs mount 成功
+nsh> ps             → PID 0 IDLE (Kthread, Ready) / PID 1 nsh_main (Task, Running, CPU0)
+nsh> ls /proc       → 0/ 1/ cpuinfo fs/ memdump meminfo self/ tcbinfo uptime version
+nsh> cat /proc/cpuinfo  → processor :0 / ARMv8-M rev 0 (v8ml) / implementer 0x63 / part 0x132
+nsh> cat /proc/meminfo  → total 646144 used 7728 free 638416 maxused 8088
+nsh> uname -a       → NuttX 0.0.0 ... arm bk7258_t5ai
+```
+
+改动仅 2 文件（全在团队 overlay）：`configs/nsh/defconfig`（+3 符号）、`src/bk7258_bringup.c`
+（+`<sys/mount.h>` + `mount()` 调用 + 文件头/doc 注释更新）。`nuttx.bin`=88388 B、
+`all-app.bin`=163574 B（= `bl_crc.bin` 69632 + `nuttx_crc.bin` 93942），构建零告警。
+
+**两轮验证（证明 verified == committed 源码）**：state-A 镜像（构建时间戳 14:35:19）功能验证通过
+后，用提交源码重编 state-C 镜像（时间戳 15:11:55）重刷再验，`/proc/version` 时间戳变化即板上跑
+state-C 的证据。NuttX 把 `__DATE__/__TIME__` 烤进版本串导致每次构建哈希不同，但差异仅为构建
+时间戳，注释润色对代码生成零影响；以 state-C 复验作为最终验收。
+
+详细 worklog：[`nuttx-port/n3-procfs-ps.md`](nuttx-port/n3-procfs-ps.md)。
+
+### 9.6 N3 未决项
+
+MTD/文件系统未接（无持久存储）、Tier-2 bootloader OTA 未做、多核 SMP 未唤醒。这些是
+Stage N4 起的候选方向（见 §12 / `next-stage-prompt.md`）。
+
+`/proc/cpuinfo` 的 `cpu MHz : 0.000`：官方核心规格 480 MHz（26 MHz XTALH → DPLL 倍频），但 `board.h` `BOARD_CPU_FREQ_HZ=26000000`（= XTALH）、DPLL 未启用，核心跑在 26 MHz XTAL——是**时钟 bring-up 未做**（非仅显示项），留待后续阶段。
 
 ---
 
@@ -465,6 +498,7 @@ docs/bk7258-t5ai/
     README.md / probe.c / probe.ld / Makefile   板端验证探针
   nuttx-port/                            NuttX 移植 worklog
     n2-nsh-console.md                    Stage N2 会话记录（boot trace + 4 RX bug + 验证证据）
+    n3-procfs-ps.md                      Stage N3 会话记录（procfs 挂载 + ps/ls/cat 板端验证）
 
 board/bk7258_t5ai/bootloader/
   start.S                                asm 跳板 + 硬化 epilogue
@@ -501,7 +535,8 @@ board/bk7258_t5ai/bootloader/
 |---|---|---|---|
 | P0 | **NuttX Stage N1**：最小 NuttX 镜像被 bootloader 跳进去，早期 UART 打印可见 | ✅ done | board-verified，commit `40495ca` |
 | P0 | **NuttX Stage N2**：`nx_start` + UART1 console → **交互式 NSH** | ✅ done | board-verified 2026-07-18，commit `9f45bc6`（4 RX bug 全修） |
-| P1 | **NuttX Stage N3**：`procfs` / `ps` / MTD 文件系统 | 📋 规划中 | 在已验证 NSH baseline 上开 |
+| P0 | **NuttX Stage N3**：挂 procfs 到 `/proc` → `ps` / `ls /proc` / `cat /proc/*` | ✅ done | board-verified 2026-07-18，工作树源码 = 已验证镜像（两轮复验） |
+| P1 | **NuttX Stage N4**：MTD + 文件系统（LittleFS/SmartFS，掉电留存） | 📋 规划中 | 在已验证 NSH + procfs baseline 上开 |
 | P1 | **Tier-2 bootloader**：OTA（RBL 头 + A-B 分区 + failover） | 📋 规划中 | 需 flash 写；参考 BK 官方 §2.12 RBL 校验 |
 | P2 | **多核 SMP**：CPU1 / CPU2 唤醒 + NuttX SMP | 📋 规划中 | app 层 `start_cpu1_core()`，baseline 之后 |
 | P2 | 驱动补全：GPIO / 时钟 / 中断 / flash / Wi-Fi / BLE | 📋 规划中 | 按 NSH 之后的需求驱动 |
