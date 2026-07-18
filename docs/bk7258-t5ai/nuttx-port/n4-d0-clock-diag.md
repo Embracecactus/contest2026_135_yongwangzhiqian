@@ -80,6 +80,48 @@ manual-reset baseline，而是 loader 预配的残留：
 > 80 MHz ≠ 480 MHz，也不是 N4 的目标频率；它只是 loader 残留带来的副产物。N4-D1 将按 vendor
 > sequence 主动 enable DPLL 并切 mux，由用户逐项授权后才进行。
 
+### 3.1 CP startup attribution（面向小白：loader 路径为什么快、D0D 为什么只修 bookkeeping、D1 为什么 blocked）
+
+**问：为什么 `bk_loader --reboot 1` 后时间变快（`sleep 10` 不到 4 秒）？**
+
+loader 的软复位（`--reboot 1`）把 NuttX 交接到一个**已初始化的时钟状态**，该状态与 Beken SDK CP
+早期初始化残留一致（SDK 参考路径：`Reset_Handler_Cpu0` → `sys_drv_early_init()` →
+`sys_hal_early_init()`）。但当前 NuttX overlay **不移植也不调用** `sys_drv_early_init` 或
+`sys_hal_early_init`；它只**读取继承的寄存器状态**（M1=0x423、M2=0x05000000、dplle=1、csrc=2、
+cdiv=3 等），并据此补偿 SysTick bookkeeping。
+
+结果：CPU 实际频率从 26 MHz 变成了约 80 MHz（J-Link DWT 实测），但 NuttX 的 SysTick bookkeeping
+仍按 26 MHz 计数，导致 `sleep 10` 的 wall-clock 只有实际的约 1/3（不到 4 秒）。
+
+> 注意：80 MHz 是 J-Link DWT CYCCNT 在 2 秒窗口内的**独立测量值**（§3），不是从 SDK
+> `sys_hal_early_init` 片段直接公式推导出来的。SDK 的 `sys_hal_early_init` 包含模拟域批量配置和
+> mux/divider 副作用，没有单一的"频率公式"可以从可见片段算出最终频率。
+
+**问：为什么 D0D 只修 SysTick bookkeeping，不动硬件时钟源？**
+
+`6f596b7` 是**只读诊断 + bookkeeping 修正** commit。它读取 DPLL/mux/divider 寄存器，检测到 loader
+残留路径（`dplle=1` 且 mux 非 XTALH），然后把 SysTick 的 `RVR`、`EXP`、`SYSTEM_CYCLES_PER_SEC`
+和 `CLK` 选择切到 80 MHz 档位。硬件时钟源（DPLL、mux、divider）**不写**——这属于 N4-D1 的范围。
+
+这样做是因为：bookkeeping 修正风险极低（只改软件变量），而 DPLL/mux 写入属于硬件 mutation，
+需要在干净的 baseline（manual-reset 冷启动）上逐项授权后才能进行。
+
+**问：为什么不能把 `sys_hal_early_init` 直接照搬成 N4-D1？**
+
+`sys_hal_early_init` 是 CP SDK 的启动路径，它不是 NuttX 的 lock-only 时钟序列。它的副作用包括：
+
+- 批量写模拟域寄存器（analog batch writes）
+- 切换 mux/divider（side effects on clock domain）
+- **没有明确的 DPLL locked bit 正检查**（positive locked-bit assertion）
+
+把这段代码直接搬进 N4-D1 意味着：(1) 无法区分"本移植写的 DPLL enable"与"loader 已有残留"；
+(2) 模拟域副作用可能在 manual-reset 冷启动路径上产生未预期行为；(3) 没有 locked-bit 断言，
+无法确认 DPLL 已稳定锁定。
+
+因此 N4-D1 需要：先在 manual-reset 冷启动路径上建立干净 baseline（DPLL 全关），再按 vendor
+文档的 lock-only sequence 逐项 enable DPLL 并检查 locked bit，最后切 mux。这是独立于 SDK
+`sys_hal_early_init` 的受控路径。
+
 ## 4. D0D runtime fix（SysTick bookkeeping 适配 loader 路径）
 
 针对 §2.2 的 sleep 提前现象，`6f596b7` 在 `bk7258_timerisr.c` 增加 runtime SysTick 频率选择：
