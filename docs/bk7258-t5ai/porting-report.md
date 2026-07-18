@@ -8,12 +8,13 @@
 我们在涂鸦 T5-AI 开发板上推进 openvela / NuttX 向 BK7258 的移植。**已完成并板端验证**的工作：
 对板上两家 bootloader（涂鸦 65 KB、BK 官方 52 KB）的完整逆向综合；自制 **Tier-1 bootloader**
 （asm 跳板 + C main + asm 硬化跳转 epilogue）并在板端跑通 BootROM → bootloader → app 完整跳转链；
-用一个最小裸探针（probe）在板端坐实了"启动核 = CPU0"这一关键事实。**配套产出**：与 Beken 闭源
-`cmake_encrypt_crc` **字节等价**的开源 CRC 打包器。**进行中**：以 `open-vela/vendor_beken`
-（BK7236N，同 BootROM 家族）为结构模板的 NuttX BSP 集成，目标是最小 NSH baseline（单核先行）。
+用一个最小裸探针（probe）在板端坐实了"启动核 = CPU0"这一关键事实；NuttX 内核完整启动到**交互式
+NSH**（Stage N1 跳转链 + N2 NSH console 均板端验证，2026-07-18）。**配套产出**：与 Beken 闭源
+`cmake_encrypt_crc` **字节等价**的开源 CRC 打包器。
 
 状态速览：✅ Bootloader 逆向 / ✅ Tier-1 bootloader 板端验证 / ✅ 启动核确认 / ✅ CRC packer 等价性
-/ 🚧 NuttX BSP 集成 / 📋 Tier-2 bootloader（OTA） / 📋 多核 SMP。
+/ ✅ NuttX Stage N1（bootloader 跳进 NuttX，早期 UART）/ ✅ NuttX Stage N2（NSH 交互 console）
+/ 📋 Tier-2 bootloader（OTA） / 📋 多核 SMP。
 
 ---
 
@@ -371,11 +372,52 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 
 | 阶段 | 目标 | 状态 |
 |---|---|---|
-| **N1** | NuttX 最小镜像被 Tier-1 bootloader 跳进去，早期 UART 打印可见 | 🚧 进行中 |
-| **N2** | `nx_start` kernel 起来 + UART1 console → **NSH baseline** | 📋 规划中 |
+| **N1** | NuttX 最小镜像被 Tier-1 bootloader 跳进去，早期 UART 打印可见 | ✅ done（board-verified，commit `40495ca`） |
+| **N2** | `nx_start` kernel 起来 + UART1 console → **交互式 NSH** | ✅ done（board-verified 2026-07-18，commit `9f45bc6`） |
 
-N1 成功的判据：bootloader 跳进 NuttX 后，NuttX 的早期 console 打印出现在 UART1（复用已验证的
-UART1 路径）。N1 一旦通过，N2 基本是把 NuttX 标准 bring-up 流程在该板上走一遍。
+N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
+UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
+全部可用。
+
+### 9.4 Stage N2 — 交互式 NSH console（板端验证 2026-07-18）
+
+NuttX 完整启动到交互式 NSH：
+
+```
+u_bootloader → JMP → N2 DBESITtC → NuttShell (NSH) → nsh>
+nsh> help            （列出全部内建命令）
+nsh> uname -a        → NuttX 0.0.0 ... arm bk7258_t5ai
+nsh> echo hello      → hello
+```
+
+UART1 console 460800 8N1，**RX 中断驱动、TX 轮询**：NSH readline 收键击、解析命令、回显全部 live。
+内核侧 `__start` 完成 VTOR + FPU FPCCR（清 bit29/30/31，避免首次异常 lazy-stacking hang）+
+`.data/.bss` + `arm_earlyserialinit`，然后 `nx_start()` 起调度器（SysTick 10 Hz + PendSV + SVCall）
++ NSH init 任务。向量表 `slot[15..63] = exception_direct`（真实分派器），SysTick 探针在异常入口
+被证明 OK 后还原。NR_IRQS=48 覆盖 UART1 @ slot 31。
+
+**UART1 RX 输入打通 = 4 个叠加 bug 全在 `chip/bk7258_serial.c`，根因链**：
+
+1. **`receive()` 取位错**：原读 `fifo_port & 0xff`（bits[0:7] = TX 字段），RX 字节其实在
+   bits[8:15] → 改 `(fifo_port >> 8) & 0xff`。
+2. **`CFG.rx_enable` 未开**（`0x45830010` bit1）：Tier-1 bootloader 只 print（TX），留
+   `rx_enable=0`。`setup()` OR bit1，保 `clk_div=0x37`（460800）和 `tx_enable`。
+3. **三道中断门一道没开**（`rxint` 空函数 / `attach` no-op）：`rxint(true)` 按序开三道 ——
+   UART `int_enable`（`0x45830020` bit1）→ 片上中断控制器 `SYS_CPU0_INT_0_31_EN`
+  （`0x44010080` bit15）→ NVIC `up_enable_irq(31)`；`attach()` 做 `irq_attach(31, bk7258_uart_isr)`。
+4. **RX FIFO 阈值默认 0**（`fifo_config` `0x45830014` bits[8:15]）：`rx_fifo_need_read` 判
+   "FIFO ≥ 0" 永远成立 → 一开 RX 立刻 ISR storm。`setup()` 设阈值 = 1。
+
+**UART1 = NuttX IRQ 31**（NVIC 线 15，向量 slot 31 = `exception_direct`），三处一致：startup 向量表
+（UART1_Handler @ slot 15）、`icu_map INT_SRC_UART1 → 15`、`SYS_CPU0_INT_0_31_EN` bit15。
+注：`ICU_PRI_IRQ_UART1 = 26` 是优先级寄存器索引，**非** NVIC 线号。
+
+详细 worklog：[`nuttx-port/n2-nsh-console.md`](nuttx-port/n2-nsh-console.md)。
+
+### 9.5 N2 未决项
+
+`ps` / `procfs` 未开、MTD/文件系统未接、Tier-2 bootloader OTA 未做、多核 SMP 未唤醒。这些是
+Stage N3 起的候选方向（见 §12 / `next-stage-prompt.md`）。
 
 ---
 
@@ -421,7 +463,8 @@ docs/bk7258-t5ai/
     vendor-bootloader-comparison.md      二进制对比
   probe/
     README.md / probe.c / probe.ld / Makefile   板端验证探针
-  nuttx-port/                            (预留，目前为空)
+  nuttx-port/                            NuttX 移植 worklog
+    n2-nsh-console.md                    Stage N2 会话记录（boot trace + 4 RX bug + 验证证据）
 
 board/bk7258_t5ai/bootloader/
   start.S                                asm 跳板 + 硬化 epilogue
@@ -437,6 +480,8 @@ board/bk7258_t5ai/bootloader/
 
 | commit | 分支 | 内容 |
 |---|---|---|
+| `9f45bc6` | `contest2026-multi-board` | feat(bk7258): NuttX Stage N2 — NSH interactive console（board-verified，14 文件 +1579/-164） |
+| `40495ca` | `contest2026-multi-board` | feat(bk7258): NuttX Stage N1 — minimal image boots via Tier-1 bootloader（board-verified） |
 | `ceead19` | `contest2026-multi-board` | feat(bk7258): board-verified probe + Tier-1 bootloader（**11 文件，+1296 行**） |
 | `783e049` | `contest2026-multi-board` | docs(bk7258): complete bootloader reverse-engineering（Tuya + BK 官方） |
 
@@ -454,8 +499,9 @@ board/bk7258_t5ai/bootloader/
 
 | 优先级 | 项 | 状态 | 备注 |
 |---|---|---|---|
-| P0 | **NuttX Stage N1**：最小 NuttX 镜像被 bootloader 跳进去，早期 UART 打印可见 | 🚧 进行中 | 复用已验证 linker / 向量表 / UART1 路径 |
-| P0 | **NuttX Stage N2**：`nx_start` + UART1 console → **NSH baseline** | 📋 规划中 | N1 通过后走标准 bring-up |
+| P0 | **NuttX Stage N1**：最小 NuttX 镜像被 bootloader 跳进去，早期 UART 打印可见 | ✅ done | board-verified，commit `40495ca` |
+| P0 | **NuttX Stage N2**：`nx_start` + UART1 console → **交互式 NSH** | ✅ done | board-verified 2026-07-18，commit `9f45bc6`（4 RX bug 全修） |
+| P1 | **NuttX Stage N3**：`procfs` / `ps` / MTD 文件系统 | 📋 规划中 | 在已验证 NSH baseline 上开 |
 | P1 | **Tier-2 bootloader**：OTA（RBL 头 + A-B 分区 + failover） | 📋 规划中 | 需 flash 写；参考 BK 官方 §2.12 RBL 校验 |
 | P2 | **多核 SMP**：CPU1 / CPU2 唤醒 + NuttX SMP | 📋 规划中 | app 层 `start_cpu1_core()`，baseline 之后 |
 | P2 | 驱动补全：GPIO / 时钟 / 中断 / flash / Wi-Fi / BLE | 📋 规划中 | 按 NSH 之后的需求驱动 |
