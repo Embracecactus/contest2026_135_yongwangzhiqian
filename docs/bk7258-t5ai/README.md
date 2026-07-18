@@ -3,11 +3,14 @@
 把 openvela / NuttX 移植到 Beken BK7258（ARM Cortex-M33 三核、Wi-Fi 6 + BLE 5.4）Tuya T5-AI
 模组。**已完成**两家 bootloader 完整逆向 + 自制 Tier-1 bootloader + 最小探针，**板端验证**
 BootROM → bootloader → app 跳转链与“启动核 = CPU0”关键事实；NuttX Stage N1、N2、N3 均已
-`board-verified`（2026-07-18），Stage N4 DPLL / 480 MHz clock bring-up 为 **current / planned**。
+`board-verified`（2026-07-18），Stage N4 内的 **N4-D0 / D0D（时钟诊断 baseline + runtime SysTick
+bookkeeping）已 substage `board-verified`**（2026-07-18，feature commit `6f596b7`），N4-D1（DPLL
+lock）目前 **blocked**，整 N4（DPLL enable / mux 切换 / 480 MHz）**尚未板端验证**。
 
 > 详细技术报告（评委请读这份）：**[porting-report.md](porting-report.md)**
 > N2 worklog：[`nuttx-port/n2-nsh-console.md`](nuttx-port/n2-nsh-console.md)
 > N3 worklog：[`nuttx-port/n3-procfs-ps.md`](nuttx-port/n3-procfs-ps.md)
+> N4-D0/D0D worklog：[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md)
 > 主 Stage 索引 / 当前恢复入口：[`next-stage-prompt.md`](next-stage-prompt.md)
 
 ## 当前状态
@@ -21,7 +24,8 @@ BootROM → bootloader → app 跳转链与“启动核 = CPU0”关键事实；
 | NuttX Stage N1（bootloader 跳进 NuttX，早期 UART） | ✅ `board-verified` |
 | NuttX Stage N2（`nx_start` → 交互式 NSH） | ✅ `board-verified`（2026-07-18，4 RX bug 全修） |
 | NuttX Stage N3（procfs + `ps`） | ✅ `board-verified`（2026-07-18） |
-| NuttX Stage N4（DPLL / 480 MHz clock bring-up） | **CURRENT / planned**（`static-only`） |
+| NuttX Stage N4（DPLL / 480 MHz clock bring-up） | **CURRENT**：N4-D0/D0D `board-verified`（substage，`6f596b7`）；**N4-D1 blocked**；DPLL enable / mux 切换 not attempted；整 N4 not board-verified |
+| NuttX Stage N4 — D0/D0D（时钟诊断 baseline + runtime SysTick bookkeeping） | ✅ substage `board-verified`（2026-07-18，feature commit `6f596b7`，3 个 overlay 文件） |
 | MTD / 文件系统 | 后续，未编号 |
 | Tier-2 bootloader（OTA / A-B failover） | 后续，未编号 |
 | 多核 SMP（CPU1 / CPU2） | 后续，未编号 |
@@ -56,6 +60,9 @@ BootROM → bootloader → app 跳转链与“启动核 = CPU0”关键事实；
   4 个 UART RX bug 现象/定位/修法、板端 `uname -a` 证据）
 - [nuttx-port/n3-procfs-ps.md](nuttx-port/n3-procfs-ps.md) —— Stage N3 会话记录（procfs 挂载、
   `ps` / `/proc` 与 state-C 板端证据）
+- [nuttx-port/n4-d0-clock-diag.md](nuttx-port/n4-d0-clock-diag.md) —— Stage N4-D0/D0D 会话记录
+  （manual-reset 26 MHz baseline、loader 残留 ≈80 MHz、J-Link DWT、runtime SysTick bookkeeping、
+  N4-D1 blocker）
   - **当前 Stage prompt：** [nuttx-port/prompts/04-n4-clock-bringup.md](nuttx-port/prompts/04-n4-clock-bringup.md)
 
 ### 参考

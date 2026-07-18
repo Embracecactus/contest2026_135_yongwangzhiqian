@@ -14,8 +14,10 @@ NSH**（Stage N1 跳转链 + N2 NSH console + N3 procfs/ps 均板端验证，202
 
 状态速览：✅ Bootloader 逆向 / ✅ Tier-1 bootloader 板端验证 / ✅ 启动核确认 / ✅ CRC packer 等价性
 / ✅ NuttX Stage N1（bootloader 跳进 NuttX，早期 UART）/ ✅ NuttX Stage N2（NSH 交互 console）
-/ ✅ NuttX Stage N3（procfs + ps）/ **CURRENT / planned：Stage N4 DPLL / 480 MHz clock bring-up** /
-📋 MTD/FS、Tier-2 bootloader（OTA）、PSRAM、多核 SMP（后续未编号）。
+/ ✅ NuttX Stage N3（procfs + ps）/ **CURRENT：Stage N4 内 N4-D0/D0D（时钟诊断 baseline + runtime
+SysTick bookkeeping）substage 板端验证（feature commit `6f596b7`）；N4-D1（DPLL lock）blocked；DPLL
+enable / mux 切换 not attempted；整 N4 not board-verified** / 📋 MTD/FS、Tier-2 bootloader（OTA）、
+PSRAM、多核 SMP（后续未编号）。
 
 ---
 
@@ -376,13 +378,15 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 | **N1** | NuttX 最小镜像被 Tier-1 bootloader 跳进去，早期 UART 打印可见 | ✅ done（`board-verified`，commit `40495ca`） |
 | **N2** | `nx_start` kernel 起来 + UART1 console → **交互式 NSH** | ✅ done（`board-verified` 2026-07-18，code `9f45bc6` + docs `e3ad3e9`） |
 | **N3** | 挂 procfs 到 `/proc` → **`ps` / `ls /proc` / `cat /proc/*` 可用** | ✅ done（code `4d9198e` + docs `68badfe`；state-C `board-verified` 2026-07-18） |
-| **N4** | DPLL / 480 MHz CPU0 clock bring-up + 独立测量 + N3 regression | **CURRENT / planned**（执行尚未开始；[master](next-stage-prompt.md) / [N4 prompt](nuttx-port/prompts/04-n4-clock-bringup.md)） |
+| **N4** | DPLL / 480 MHz CPU0 clock bring-up + 独立测量 + N3 regression | **CURRENT**：N4-D0/D0D substage `board-verified`（feature commit `6f596b7`）；N4-D1 blocked；DPLL enable / mux 切换 not attempted；整 N4 not board-verified（[master](next-stage-prompt.md) / [N4 prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md)） |
 
 N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
 UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
 全部可用。N3 判据（已满足）：`ps` 列出 PID 0/1、`ls /proc` 见完整条目集、
-`cat /proc/{version,cpuinfo,meminfo}` 返回真实数据。N4 只有完成 DPLL/mux/divider readback、独立约
-480 MHz 测量、UART/SysTick/N3 回归、5 分钟 soak 与 3 次 reboot 后，才能标记 `board-verified`。
+`cat /proc/{version,cpuinfo,meminfo}` 返回真实数据。N4 内部按 subsection 分级判据：N4-D0/D0D
+（**已 substage 板端验证**）只要求 clock readback + 独立 baseline 测量 + N3 功能回归；只有 DPLL
+enable、CPU mux 切换、独立约 480 MHz 测量、UART/SysTick/N3 回归、5 分钟 soak 与 3 次 reboot 全部
+完成后，**整 N4** 才能标记 `board-verified`。substage `board-verified` 不向上传染到整 N4。
 
 ### 9.4 Stage N2 — 交互式 NSH console（板端验证 2026-07-18）
 
@@ -450,18 +454,57 @@ state-C 的证据。NuttX 把 `__DATE__/__TIME__` 烤进版本串导致每次构
 
 详细 worklog：[`nuttx-port/n3-procfs-ps.md`](nuttx-port/n3-procfs-ps.md)。
 
-### 9.6 Stage N4 handoff — DPLL / 480 MHz 时钟 bring-up
+### 9.6 Stage N4-D0 / D0D — 时钟诊断 baseline + runtime SysTick bookkeeping（substage 板端验证 2026-07-18）
+
+feature commit `6f596b7`（3 个 overlay 文件：`chip/bk7258_clockdiag.h` 新增、`chip/bk7258_start.c`
+接入、`chip/bk7258_timerisr.c` runtime SysTick 选择），**只读诊断 + runtime SysTick bookkeeping**，
+**不写** DPLL / CPU mux / clock-control / voltage / flash wait-state / UART divisor 寄存器。DPLL enable
+与 CPU mux 切换 **not attempted**（N4-D1 范围）。
+
+诊断发现 CPU0 当前频率依赖**复位路径**，存在两条 baseline：
+
+- **Manual-reset 路径**：`M1=0`、`M2=0`、`dplle=0`、`csrc=0`、`cdiv=0`，`RVR=0x0027AC3F`，板端
+  `sleep 10`≈10 s —— 约 **26 MHz XTALH** baseline（DPLL 关、mux 在 XTALH、div /1）。
+- **Loader `--reboot 1` 残留路径**（bk_loader 软复位后 D0D 修正前的现象）：`M1=0x423`、
+  `M2=0x05000000`、`csrc=2`、`cdiv=3`、`fsrc=1`、`fdiv=1`、`dplle=1`、`vcre=0xB`，`sleep 10`<4 s。
+  这些 DPLL/mux 写入**全部来自上位机 loader**（非本移植代码所写）；`6f596b7` 只读这些位。
+- **J-Link DWT 独立测频**（loader 路径，2 s 窗口）：`CYCCNT=0x098AA02F` → ≈ **80.04 MHz**，与
+  `csrc=2 / cdiv=3 / dplle=1` 残留在量纲上一致；80 MHz ≠ 480 MHz，是 loader 残留副产物，不是 N4 目标。
+
+**N4-D0D runtime fix**：`bk7258_timerisr.c` 检测 loader 残留路径时把 SysTick bookkeeping 切到 80 MHz
+档（`RVR=EXP=0x007A11FF`、`HZ=0x04C4B400`、`CLK=1`），硬件时钟源不动；manual-reset 路径保持 26 MHz
+档。修正后 loader 路径 `sleep 10` wall-clock deltas 回到 **10.10 s / 11.00 s**，`ps` PID 0/1 与
+`/proc/version`（构建时间戳 `Jul 18 2026 22:11:54`）正常。
+
+**候选 artifact**（构建时间戳 `Jul 18 2026 22:11:54`）：`$FW/all-app.bin` = 164730 B = `0x2837A`
+（sha256 `9e1d5f19b194c039521611ea495c7ba28a8c9fb90f027979d087d48b7b9b29b6`），`$FW/nuttx.bin` = 89500 B
+（sha256 `c13745eb2c86b3426b4cd41d24a17663fc1b3755e96e92cc1204077f9640d999`）。
+
+> **状态边界**：N4-D0/D0D 是 **substage `board-verified`**，仅覆盖 subsection 范围，**不**等价于
+> 整 N4 board-verified。**N4-D1（DPLL lock，CPU 保持 XTALH）目前 blocked**：当前 loader 路径已有
+> `dplle=1` 残留，无法干净区分"本移植写的 DPLL enable"与"loader 残留"，需先在 manual-reset 冷启动
+> 路径上重做 baseline 再申请 D1 mutation 授权。DPLL enable、CPU mux 切换、320/480 MHz 目标**均未
+> 执行**。
+>
+> **Caveat（exact-commit rebuild）**：上述 artifact 对应**当时构建的候选镜像**（功能 + wall-clock
+> 回归已板上验证）。**最终以精确 commit `6f596b7` 重编 + 重刷的 state-C 复验尚未完成**——这是
+> N4-D0 整体收口的剩余项；在 state-C 复验并确认 SHA-256 匹配前，不应将整 N4 标记为 board-verified。
+
+详细 worklog：[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md)。
+
+### 9.7 Stage N4 后续 handoff — DPLL / 480 MHz 时钟 bring-up
 
 BK7258 官方核心路径为 26 MHz XTALH → DPLL（320 / 480 MHz）→ CPU core；当前
 `BOARD_CPU_FREQ_HZ=26000000`，自制 Tier-1 bootloader 未配置 DPLL。`/proc/cpuinfo` 的
-`cpu MHz : 0.000` 不能证明当前频率，N4 将先用寄存器 readback + 独立测量建立 26 MHz baseline，
-再安全切到 CPU0 480 MHz，并回归 UART1、SysTick、NSH 与 procfs/ps。
+`cpu MHz : 0.000` 不能证明当前频率，N4-D0 已用寄存器 readback + 独立测量建立 baseline
+（manual-reset 约 26 MHz / loader 残留约 80 MHz）；后续 N4-D1 起才按 vendor sequence 安全切到
+CPU0 480 MHz，并回归 UART1、SysTick、NSH 与 procfs/ps。
 
 - 主 Stage 索引 / current pointer：[`next-stage-prompt.md`](next-stage-prompt.md)
 - 当前完整 Stage N4 prompt：[`nuttx-port/prompts/04-n4-clock-bringup.md`](nuttx-port/prompts/04-n4-clock-bringup.md)
 
 N4-R → N4-D0 → N4-D1 → N4-D2（optional）→ N4-D3 → N4-V 是一个 MAIN Stage 文件内的有序
-subsection。N4 当前为 planned，执行证据尚未开始。
+subsection。N4-D0/D0D 已 substage 板端验证，N4-D1 blocked，D2/D3/V 尚未开始。
 
 MTD / 文件系统、PSRAM、Tier-2 bootloader OTA、SMP 均属于 N4 之后的未编号工作；只有前一 Stage
 板端证据明确后，才确定下一 MAIN Stage 的范围与 prompt。
@@ -513,6 +556,7 @@ docs/bk7258-t5ai/
   nuttx-port/                            NuttX 移植 worklog
     n2-nsh-console.md                    Stage N2 会话记录（boot trace + 4 RX bug + 验证证据）
     n3-procfs-ps.md                      Stage N3 会话记录（procfs 挂载 + ps/ls/cat 板端验证）
+    n4-d0-clock-diag.md                  Stage N4-D0/D0D 会话记录（时钟诊断 + runtime SysTick + N4-D1 blocker）
     prompts/
       04-n4-clock-bringup.md             当前 MAIN Stage N4 完整恢复提示词
 
@@ -530,6 +574,7 @@ board/bk7258_t5ai/bootloader/
 
 | commit | 分支 | 内容 |
 |---|---|---|
+| `6f596b7` | `contest2026-multi-board` | feat(bk7258): add N4-D0 clock diagnostics（read-only 诊断 + runtime SysTick bookkeeping，3 overlay 文件；N4-D0/D0D substage 板端验证） |
 | `68badfe` | `contest2026-multi-board` | docs(bk7258): Stage N3 board-verified — procfs + ps |
 | `4d9198e` | `contest2026-multi-board` | feat(bk7258): NuttX Stage N3 — procfs + ps（board-verified） |
 | `e3ad3e9` | `contest2026-multi-board` | docs(bk7258): Stage N2 board-verified — NSH interactive console |
@@ -555,7 +600,7 @@ board/bk7258_t5ai/bootloader/
 | P0 | **NuttX Stage N1**：最小 NuttX 镜像被 bootloader 跳进去，早期 UART 打印可见 | ✅ done | `board-verified`，commit `40495ca` |
 | P0 | **NuttX Stage N2**：`nx_start` + UART1 console → **交互式 NSH** | ✅ done | `board-verified` 2026-07-18，code `9f45bc6` + docs `e3ad3e9` |
 | P0 | **NuttX Stage N3**：挂 procfs 到 `/proc` → `ps` / `ls /proc` / `cat /proc/*` | ✅ done | code `4d9198e` + docs `68badfe`；state-C `board-verified` |
-| P0 | **NuttX Stage N4**：DPLL / 480 MHz CPU0 clock bring-up | **CURRENT / planned** | N4-R → N4-D0 → N4-D1 → N4-D2（optional）→ N4-D3 → N4-V；[master](next-stage-prompt.md) / [prompt](nuttx-port/prompts/04-n4-clock-bringup.md) |
+| P0 | **NuttX Stage N4**：DPLL / 480 MHz CPU0 clock bring-up | **CURRENT**：N4-D0/D0D substage `board-verified`（`6f596b7`）；N4-D1 blocked | N4-R → N4-D0 ✅ → N4-D1（blocked）→ N4-D2（optional）→ N4-D3 → N4-V；[master](next-stage-prompt.md) / [prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [D0 worklog](nuttx-port/n4-d0-clock-diag.md)；DPLL enable / mux 切换 not attempted，整 N4 not board-verified |
 | P1 | **后续（未编号）**：MTD + 文件系统（LittleFS / SmartFS） | planned later | N4 证据完成后再决定是否成为下一 MAIN Stage |
 | P1 | **后续（未编号）**：PSRAM bring-up | planned later | T5-AI 16 MB SiP PSRAM 当前未用 |
 | P1 | **后续（未编号）**：Tier-2 bootloader OTA（RBL + A/B + failover） | planned later | 需 flash 写；参考 BK 官方 §2.12 RBL 校验 |
