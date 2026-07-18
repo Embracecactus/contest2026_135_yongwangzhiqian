@@ -486,6 +486,14 @@ feature commit `6f596b7`（3 个 overlay 文件：`chip/bk7258_clockdiag.h` 新�
 > 路径上重做 baseline 再申请 D1 mutation 授权。DPLL enable、CPU mux 切换、320/480 MHz 目标**均未
 > 执行**。
 >
+> **Loader residue 来源**：loader `--reboot 1` 的软复位把 NuttX 交接到一个**已初始化的时钟状态**，
+> 该状态与 Beken SDK CP 早期初始化残留一致（SDK 参考路径：`Reset_Handler_Cpu0` →
+> `sys_drv_early_init()` → `sys_hal_early_init()`）。当前 NuttX overlay **不移植也不调用**
+> 该初始化链；它只**读取继承的寄存器状态**（M1=0x423、M2=0x05000000、dplle=1 等），并据此补偿
+> SysTick bookkeeping。SDK 的 `sys_hal_early_init` 包含 analog batch writes 和 mux/divider
+> side effects 且没有 positive DPLL locked-bit 断言，不能直接照搬为 N4-D1 的受控 lock-only
+> sequence。
+>
 > **Caveat（exact-commit rebuild）**：上述 artifact 对应**当时构建的候选镜像**（功能 + wall-clock
 > 回归已板上验证）。**最终以精确 commit `6f596b7` 重编 + 重刷的 state-C 复验尚未完成**——这是
 > N4-D0 整体收口的剩余项；在 state-C 复验并确认 SHA-256 匹配前，不应将整 N4 标记为 board-verified。

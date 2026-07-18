@@ -47,6 +47,11 @@
 - 新会话必须运行时重新发现 current HEAD、工作树状态、push 状态和产物长度/哈希；不得把锚点误当永久现状。
 - 文档提交不得把它自身尚未知晓的 docs commit SHA 写进自身；先用描述性占位，提交后再由后续事实性更新记录。
 - 统一状态词：`static-only`、`build-verified`、`board-verified`、`skipped`、`blocked`。
+- **CP startup attribution 已由用户确认**：Beken SDK 中存在 `Reset_Handler_Cpu0` →
+  `sys_drv_early_init()` → `sys_hal_early_init()` 调用链（CP SDK early-init 路径）；loader
+  `--reboot 1` 的 80 MHz residue 与此链的执行结果一致。**当前 NuttX overlay 不移植也不调用该链**；
+  后续会话**不要把它说成 NuttX 已移植/执行**，只按 inherited loader residue 处理。遇到具体
+  blocker（如 D1 的 DPLL locked-bit 断言、analog batch 副作用范围）时再定向查看 SDK 片段。
 
 ## 目录图
 
