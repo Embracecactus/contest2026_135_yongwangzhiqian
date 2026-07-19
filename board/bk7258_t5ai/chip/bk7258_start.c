@@ -31,6 +31,10 @@
 
 #include "arm_internal.h"
 
+#ifdef CONFIG_BK7258_CLOCK_320M
+#include "bk7258_clock.h"
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -152,6 +156,18 @@ void __start(void)
 
 #ifdef USE_EARLYSERIALINIT
   arm_earlyserialinit();
+#endif
+
+#ifdef CONFIG_BK7258_CLOCK_320M
+  /* Deterministic 320 MHz core clock bring-up (mirrors the Armino SDK early
+   * init clock path).  Run after early serial init so any stall is at least
+   * distinguishable on the console, but before nx_start() so up_timer_
+   * initialize() sees the new M1 and arms the correct SysTick reload via the
+   * runtime detector.  The UART1 console runs off an independent clocking
+   * path and survives the core mux switch.
+   */
+
+  bk7258_clock_bringup_320m();
 #endif
 
   /* 7. Start NuttX.  nx_start() never returns; it brings up the scheduler,
