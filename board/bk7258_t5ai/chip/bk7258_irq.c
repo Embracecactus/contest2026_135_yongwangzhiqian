@@ -52,33 +52,9 @@
                                  NVIC_SYSH_PRIORITY_DEFAULT << 8  | \
                                  NVIC_SYSH_PRIORITY_DEFAULT)
 
-/* UART1 MMIO for the boot-trace marker pushed at the top of up_irqinitialize().
- * Freestanding polled putc (polls fifo_status.bit20, writes fifo_port);
- * identical to start.c::bk7258_early_putc and vectors.c::bk7258_fault_putc.
- * Local to this translation unit so it introduces no new linkage dependency.
- */
-
-#define BK7258_IRQ_UART1_FSTAT  (*(volatile uint32_t *)0x45830018u)
-#define BK7258_IRQ_UART1_FPORT  (*(volatile uint32_t *)0x4583001Cu)
-#define BK7258_IRQ_UART1_READY  (1u << 20)
-
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/* Bare MMIO single-byte marker.  Emits 'I' at function entry of
- * up_irqinitialize() so board-side observation can confirm the NVIC bring-up
- * was reached during the nx_start() walk.
- */
-
-static void bk7258_irq_diag_putc(unsigned char c)
-{
-  while ((BK7258_IRQ_UART1_FSTAT & BK7258_IRQ_UART1_READY) == 0)
-    {
-    }
-
-  BK7258_IRQ_UART1_FPORT = (uint32_t)(c & 0xffu);
-}
 
 /****************************************************************************
  * Name: bk7258_prioritize_syscall
@@ -159,10 +135,6 @@ void up_irqinitialize(void)
   uint32_t regaddr;
   int num_priority_registers;
   int i;
-
-  /* Boot-trace marker: reached up_irqinitialize() inside nx_start(). */
-
-  bk7258_irq_diag_putc('I');
 
   /* Disable all external interrupts. */
 

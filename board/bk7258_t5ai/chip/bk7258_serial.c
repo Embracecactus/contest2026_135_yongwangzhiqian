@@ -104,16 +104,6 @@
 #define BK7258_SYS_CPU0_INT_EN    (*(volatile uint32_t *)0x44010080u)
 #define BK7258_SYS_CPU0_INT_UART1 (1u << 15)
 
-/* Freestanding polled single-byte marker for boot tracing at the entry of
- * arm_serialinit().  Mirrors start.c::bk7258_early_putc and
- * vectors.c::bk7258_fault_putc (poll fifo_status.bit20, write fifo_port).
- * Local to this translation unit so no new linkage dependency is added.
- */
-
-#define BK7258_SIO_UART1_FSTAT   (*(volatile uint32_t *)0x45830018u)
-#define BK7258_SIO_UART1_FPORT   (*(volatile uint32_t *)0x4583001Cu)
-#define BK7258_SIO_UART1_READY   (1u << 20)
-
 /* RX/TX ring buffer sizes.  Fixed (no per-port Kconfig needed); matches the
  * CMSDK default of 256 bytes, ample for an interactive NSH console.
  */
@@ -225,20 +215,6 @@ static const struct uart_ops_s g_bk7258_uart_ops =
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/* Bare MMIO single-byte marker.  Emits 'C' at function entry of
- * arm_serialinit() so board-side observation can confirm the /dev/console
- * registration path was reached during the nx_start() walk.
- */
-
-static void bk7258_serial_diag_putc(unsigned char c)
-{
-  while ((BK7258_SIO_UART1_FSTAT & BK7258_SIO_UART1_READY) == 0)
-    {
-    }
-
-  BK7258_SIO_UART1_FPORT = (uint32_t)(c & 0xffu);
-}
 
 /****************************************************************************
  * Name: bk7258_uart_isr
@@ -517,12 +493,6 @@ void arm_earlyserialinit(void)
 #ifdef USE_SERIALDRIVER
 void arm_serialinit(void)
 {
-  /* Boot-trace marker: reached arm_serialinit() inside nx_start() -- the
-   * /dev/console registration path is being executed.
-   */
-
-  bk7258_serial_diag_putc('C');
-
   (void)uart_register("/dev/console", &CONSOLE_DEV);
 }
 #endif
