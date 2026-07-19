@@ -136,37 +136,45 @@ static inline int bk7258_clockdiag_last_clock_case(void)
   uint32_t cdiv  = BK7258_CDIAG_F_CLKDIV_CORE(m1);
   uint32_t dplle = BK7258_CDIAG_F_EN_DPLL(a5);
 
-  if (m1 == 0x00000000u && dplle == 0u)
+  /* Classify by csrc/cdiv/dplle fields only, not the full 32-bit M1.
+   * The upper bits of M1 (uart0 source, bus divider, etc.) differ between
+   * cold-reset (BootROM default) and soft-reset (loader residue) paths;
+   * matching the full word caused the 320 MHz case to miss on cold reset
+   * (M1=0x020 vs loader's 0x420), making current_cpu_hz() fall back to
+   * 26 MHz and SysTick run 12x too fast.
+   */
+
+  if (csrc == 0 && dplle == 0)
     {
       return BK7258_CDIAG_CASE_BASELINE;
     }
 
-  if (m1 == 0x00000423u && csrc == 2u && cdiv == 3u && dplle == 1u)
+  if (csrc == 2 && cdiv == 3 && dplle)
     {
       return BK7258_CDIAG_CASE_LOADER80;
     }
 
-  if (m1 == 0x00000433u && csrc == 3 && cdiv == 3 && dplle)
+  if (csrc == 3 && cdiv == 3 && dplle)
     {
       return BK7258_CDIAG_CASE_DPLL120;
     }
 
-  if (m1 == 0x00000432u && csrc == 3 && cdiv == 2 && dplle)
+  if (csrc == 3 && cdiv == 2 && dplle)
     {
       return BK7258_CDIAG_CASE_DPLL160;
     }
 
-  if (m1 == 0x00000431u && csrc == 3 && cdiv == 1 && dplle)
+  if (csrc == 3 && cdiv == 1 && dplle)
     {
       return BK7258_CDIAG_CASE_DPLL240;
     }
 
-  if (m1 == 0x00000420u && csrc == 2 && cdiv == 0 && dplle)
+  if (csrc == 2 && cdiv == 0 && dplle)
     {
       return BK7258_CDIAG_CASE_DPLL320;
     }
 
-  if (m1 == 0x00000430u && csrc == 3 && cdiv == 0 && dplle)
+  if (csrc == 3 && cdiv == 0 && dplle)
     {
       return BK7258_CDIAG_CASE_DPLL480;
     }
