@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Beken BK7258 (T5-AI, Cortex-M33) SysTick system-timer init for NuttX N2.
+ * Beken BK7258 (T5-AI, Cortex-M33) SysTick system-timer init for NuttX.
  *
  * Modelled on nuttx/arch/arm/src/mps/mps_timer.c.  up_timer_initialize()
  * loads the SysTick reload value for the configured tick rate and registers
@@ -60,35 +60,6 @@
  * return, but is no longer used directly in the reload path.
  */
 
-/* UART1 MMIO for the boot-trace marker pushed at the top of
- * up_timer_initialize().  Freestanding polled putc (polls fifo_status.bit20,
- * writes fifo_port); identical to start.c::bk7258_early_putc and
- * vectors.c::bk7258_fault_putc.  Local to this translation unit so it
- * introduces no new linkage dependency.
- */
-
-#define BK7258_TMR_UART1_FSTAT  (*(volatile uint32_t *)0x45830018u)
-#define BK7258_TMR_UART1_FPORT  (*(volatile uint32_t *)0x4583001Cu)
-#define BK7258_TMR_UART1_READY  (1u << 20)
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
-
-/* Bare MMIO single-byte marker.  Emits 'T' at function entry of
- * up_timer_initialize() so board-side observation can confirm the SysTick
- * bring-up was reached during the nx_start() walk.
- */
-
-static void bk7258_timer_diag_putc(unsigned char c)
-{
-  while ((BK7258_TMR_UART1_FSTAT & BK7258_TMR_UART1_READY) == 0)
-    {
-    }
-
-  BK7258_TMR_UART1_FPORT = (uint32_t)(c & 0xffu);
-}
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -99,7 +70,7 @@ static void bk7258_timer_diag_putc(unsigned char c)
  * Description:
  *   Called during start-up (up_initialize) to initialise the timer
  *   hardware that drives the NuttX system clock.  Registers the common
- *   Cortex-M SysTick lower half, clocked at CONFIG_CPU_FREQ_HZ.
+ *   Cortex-M SysTick lower half, clocked at the runtime-detected cpu_hz.
  *
  ****************************************************************************/
 
@@ -108,17 +79,13 @@ void up_timer_initialize(void)
   uint32_t cpu_hz;
   uint32_t reload;
 
-  /* Boot-trace marker: reached up_timer_initialize() inside nx_start(). */
-
-  bk7258_timer_diag_putc('T');
-
   /* Decode the runtime core-clock frequency from the live M1/ANA_REG5
    * state (read-only) and derive the SysTick reload for one OS tick.  No
    * DPLL, mux, voltage or UART-divisor write is performed -- only the
    * SysTick reload bookkeeping is recomputed.
    *
-   *   Baseline (M1=0, dplle=0):      cpu_hz = 26000000  reload = 0x0027ac3f
-   *   Loader --reboot 1 (M1=0x423):  cpu_hz = 80000000  reload = 0x007a11ff
+   *   Baseline (M1=0, dplle=0):      cpu_hz = 26000000
+   *   Loader --reboot 1 (M1=0x423):  cpu_hz = 80000000
    *
    * systick_initialize() will then arm CLKSOURCE | TICKINT (core clock,
    * interrupt on wrap) and attach the SysTick ISR; setting the reload first
@@ -138,23 +105,4 @@ void up_timer_initialize(void)
    */
 
   up_timer_set_lowerhalf(systick_initialize(true, cpu_hz, -1));
-
-  /* N4-D0 read-only SysTick baseline.  All SysTick writes inside
-   * up_timer_initialize() (the RELOAD write above + the CTRL write issued by
-   * systick_initialize()) are now committed, so read back CSR/RVR/CVR and
-   * echo the runtime reload and cpu_hz for comparison.  No new SysTick
-   * write is introduced here; the existing reload write is the only one
-   * and is not a clock-control write.
-   */
-
-  bk7258_clockdiag_systick_dump(reload, cpu_hz);
-
-  /* Boot-trace marker: up_timer_initialize() is about to return normally.
-   * Lower-case 't' is distinct from the entry marker 'T' above, so board-side
-   * observation can tell a function-body hang (only 'T' seen) from a clean
-   * return that hands control back to clock_initialize() (Tt seen, hang is
-   * then somewhere between here and arm_serialinit()'s 'C').
-   */
-
-  bk7258_timer_diag_putc('t');
 }

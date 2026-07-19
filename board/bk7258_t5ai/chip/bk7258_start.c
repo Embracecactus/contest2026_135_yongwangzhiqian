@@ -3,36 +3,23 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Beken BK7258 (T5-AI, tri-core Cortex-M33) C reset entry for NuttX
- * Stage N2.
+ * Beken BK7258 (T5-AI, tri-core Cortex-M33) C reset entry for NuttX.
  *
- * GOAL (Stage N2):
- *   Walk the full NuttX boot so that nx_start() brings up the kernel, the
- *   SysTick-based system clock runs, UART1 becomes the polled console, and
- *   the NSH prompt is reached.  This file replaces the N1 stub (which only
- *   printed "NUTTX N1\r\n" and hung) with the standard Cortex-M __start
- *   sequence used by nuttx/arch/arm/src/mps/mps_start.c:
+ * Standard Cortex-M __start sequence (modelled on
+ * nuttx/arch/arm/src/mps/mps_start.c):
  *
  *     cpsid i
  *     VTOR <- 0x02010000  (our flash-resident vector table)
- *     CPACR <- CP10/CP11 full access (FPU; cheap, avoids FP traps)
+ *     CPACR/FPCCR FPU setup (CP10/CP11 full access, no lazy/auto stacking)
  *     .data  copy  _eronly -> _sdata.._edata
  *     .bss   zero  _sbss.._ebss
  *     arm_earlyserialinit()   (bring up the polled console early)
  *     nx_start()              (kernel: scheduler, SysTick, init/NSH)
  *
- *   A single bare "N2\r\n" marker is pushed out over UART1 BEFORE
- *   arm_earlyserialinit(), using the same freestanding MMIO write the N1
- *   stub and the verified probe use, so that board-side observation can
- *   confirm __start was reached even if the later console bring-up fails.
- *
  * Memory map (shared verbatim with docs/bk7258-t5ai/probe/probe.c):
  *   FLASH/logical app base : 0x02010000  (vector table, .text, .data LMA)
  *   RAM                     : 0x28000000 .. 0x2809FFFF (640 KiB SRAM)
  *   initial MSP (slot [0])  : 0x2809FFFC
- *
- * Freestanding note: the early marker uses a local polled putc that touches
- * only MMIO (no .data/.bss), so it is safe to call before .data/.bss init.
  ****************************************************************************/
 
 /****************************************************************************
@@ -43,8 +30,6 @@
 #include <nuttx/init.h>
 
 #include "arm_internal.h"
-#include "bk7258_clockdiag.h"
-#include "bk7258_flashdiag.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -54,17 +39,6 @@
 
 #define BK7258_SCB_VTOR          (*(volatile unsigned int *)0xe000ed08u)
 #define BK7258_SCB_CPACR         (*(volatile unsigned int *)0xe000ed88u)
-
-/* UART1 FIFO registers.  The Tier-1 bootloader already configured UART1
- * (pinmux, 26 MHz XTAL, clock gate, global_ctrl, config).  We MUST NOT
- * touch UART1_CFG (0x45830010) because that would clash with the
- * bootloader's divider; we only push bytes into fifo_port, exactly like
- * the Zephyr soc_reset_hook and our probe.
- */
-
-#define BK7258_UART1_FIFO_STAT   (*(volatile unsigned int *)0x45830018u)
-#define BK7258_UART1_FIFO_PORT   (*(volatile unsigned int *)0x4583001Cu)
-#define BK7258_UART1_FIFO_READY  (1u << 20)   /* fifo_status.bit20 = fifo_wr_ready */
 
 /* Our vector table lives at the very start of the app image, which the
  * bootloader maps at logical flash address 0x02010000.  Tell VTOR to
@@ -90,34 +64,6 @@
  */
 
 const uintptr_t g_idle_topstack = HEAP_BASE;
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
-
-/* Bare polled UART1 output -- freestanding, MMIO-only, identical to probe.c.
- * Used only for the very early "N2" marker before arm_earlyserialinit().
- * After the console is up, all output goes through arm_lowputc()/the
- * registered /dev/console.
- */
-
-static void bk7258_early_putc(unsigned char c)
-{
-  while ((BK7258_UART1_FIFO_STAT & BK7258_UART1_FIFO_READY) == 0)
-    {
-    }
-
-  BK7258_UART1_FIFO_PORT = (unsigned int)(c & 0xffu);
-}
-
-static void bk7258_early_puts(const char *s)
-{
-  while (*s)
-    {
-      bk7258_early_putc((unsigned char)*s);
-      s++;
-    }
-}
 
 /****************************************************************************
  * Public Functions
@@ -176,18 +122,10 @@ void __start(void)
   BK7258_SCB_CPACR |= ((3u << 20) | (3u << 22));             /* CP10/CP11 full access */
   __asm volatile ("dsb; isb");
 
-  /* 4. Early proof-of-life marker.  Pushed before .data/.bss init because it
-   *    touches only MMIO; lets the board-side operator confirm __start was
-   *    reached even if console bring-up later hangs.
-   */
-
-  bk7258_early_puts("N2\r\n");
-
 #ifndef CONFIG_BUILD_PIC
-  /* 5. Copy the .data image from flash (LMA == _eronly) to its RAM VMA
+  /* 4. Copy the .data image from flash (LMA == _eronly) to its RAM VMA
    *    (_sdata.._edata).  The BK7258 boots with a copy of NuttX kernel +
-   *    NSH, so .data is no longer empty (unlike N1) and this copy is
-   *    mandatory.
+   *    NSH, so .data is non-empty and this copy is mandatory.
    */
 
   for (src = (const uint32_t *)_eronly,
@@ -196,21 +134,17 @@ void __start(void)
       *dest++ = *src++;
     }
 
-  bk7258_early_putc('D');
-
-  /* 6. Zero the .bss section (_sbss.._ebss). */
+  /* 5. Zero the .bss section (_sbss.._ebss). */
 
 #ifndef CONFIG_ARCH_SKIP_ZERO_BSS
   for (dest = (uint32_t *)_sbss; dest < (uint32_t *)_ebss; )
     {
       *dest++ = 0;
     }
-
-  bk7258_early_putc('B');
 #endif
 #endif /* CONFIG_BUILD_PIC */
 
-  /* 7. Perform early serial initialisation so the console is available
+  /* 6. Perform early serial initialisation so the console is available
    *    during the rest of boot.  arm_earlyserialinit() is only compiled
    *    when USE_EARLYSERIALINIT is derived (CONFIG_DEV_CONSOLE + a serial
    *    console), matching mps_start.c.
@@ -218,31 +152,13 @@ void __start(void)
 
 #ifdef USE_EARLYSERIALINIT
   arm_earlyserialinit();
-  bk7258_early_putc('E');
-
-  /* 7b. Bring-up diagnostics.  The clock dump is read-only; the DPLL probe is
-   *     still gated by the already-observed loader-residue state; and the N5
-   *     flash dump keeps its destructive D5 path behind a disabled-by-default
-   *     double gate.  Keep this block before nx_start() so boot sequencing stays
-   *     observable and deterministic.
-   */
-
-  bk7258_clockdiag_early_dump();
-  bk7258_clockdiag_try_dpll320();
-  bk7258_clockdiag_early_dump();
-  bk7258_clockdiag_fs_layout_dump();
-  bk7258_clockdiag_flash_dump();
 #endif
 
-  /* 8. Start NuttX.  nx_start() never returns; it brings up the scheduler,
+  /* 7. Start NuttX.  nx_start() never returns; it brings up the scheduler,
    *    SysTick (via up_timer_initialize), the init task (which runs
    *    board_app_initialize and spawns the NSH builtin), and finally the
-   *    IDLE task.  Caches/MPU are intentionally left untouched here to keep
-   *    the N2 boot minimal and MMIO-coherent; they can be added once the
-   *    NSH prompt is observed on the board.
+   *    IDLE task.
    */
-
-  bk7258_early_putc('S');
 
   nx_start();
 
