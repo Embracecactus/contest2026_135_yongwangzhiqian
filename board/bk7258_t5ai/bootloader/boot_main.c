@@ -21,6 +21,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+extern void boot_clock_cold_init(void);
+
 /* ------------------------------------------------------------------ */
 /* MMIO: BK7258 UART1 (matches the verified init in start.S).         */
 /* ------------------------------------------------------------------ */
@@ -178,6 +180,17 @@ uint32_t c_main(void)
     uint32_t app_vec;
 
     uart_puts("u_bootloader enter\r\n");
+
+    /* Cold-start DPLL enable + flash clock init.  On cold reset the BootROM
+     * leaves EN_DPLL=0; this mirrors the Armino SDK early-init sequence to
+     * bring the DPLL up and set the flash clock, using the chip-id-specific
+     * ANA_REG values for this board (MP_C = default branch).
+     * If this hangs, the watchdog or J-Link recovery restores the previous
+     * bootloader; if it succeeds the app sees DPLL on and can switch to
+     * 320 MHz via its own bring-up path.
+     */
+
+    boot_clock_cold_init();
 
     /* A: FAL partition parse -> find "app". */
     app = fal_find("app");

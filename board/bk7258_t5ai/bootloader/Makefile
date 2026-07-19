@@ -22,7 +22,7 @@ ASFLAGS  := $(CPUFLAGS) -Os -g -ffreestanding
 LDFLAGS  := $(CPUFLAGS) -T bootloader.ld -nostdlib -Wl,--gc-sections \
             -Wl,-Map=bl.map
 
-OBJS := start.o boot_main.o
+OBJS := start.o boot_main.o boot_clock.o
 
 .PHONY: all clean verify
 
@@ -32,6 +32,9 @@ start.o: start.S
 	$(CC) $(ASFLAGS) -c $< -o $@
 
 boot_main.o: boot_main.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+boot_clock.o: boot_clock.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 bl.elf: $(OBJS) bootloader.ld
