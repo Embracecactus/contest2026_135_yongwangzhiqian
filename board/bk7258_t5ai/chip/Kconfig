@@ -41,24 +41,12 @@ config BK7258_FLASH_MTD
 	depends on ARCH_CHIP_BK7258
 	select MTD
 	---help---
-		Expose the Stage N5 verified 1 MiB data partition
-		(logical 0x00100000..0x001FFFFF) as a NuttX MTD instance.
-		read + geometry are board-verified; erase/bwrite use the
+		Expose the 1 MiB data partition (logical 0x00100000..0x001FFFFF)
+		as a NuttX MTD instance.  read/erase/bwrite use the
 		option-A SR0 block-protect policy (cleared around each op,
 		restored afterwards).  No /dev node or filesystem is mounted
-		by this driver; a destructive board self-test or fs mount
-		requires separate authorisation.
-
-config BK7258_FLASH_MTD_SELFTEST
-	bool "BK7258 flash MTD write-path self-test (destructive on block 0)"
-	default n
-	depends on BK7258_FLASH_MTD
-	---help---
-		Run a one-shot erase/write/read-back/re-erase self-test on the
-		first 4 KiB of the data partition at boot, exercising the MTD
-		erase/bwrite path and the option-A SR0 clear/restore.  The
-		block is restored to 0xff on success.  Enable only for a single
-		board run, then disable.
+		by this driver; a filesystem mount requires separate
+		authorisation (see BK7258_FLASH_LITTLEFS).
 
 config BK7258_FLASH_LITTLEFS
 	bool "BK7258 data-partition LittleFS (auto-format + mount)"
@@ -68,5 +56,5 @@ config BK7258_FLASH_LITTLEFS
 	---help---
 		Register /dev/mtdblock0 (ftl) over the data-partition MTD and mount
 		LittleFS at /data with the "autoformat" option (formats on first
-		boot only).  Also runs a probe-file persistence self-check.
+		boot only).  Also runs a probe-file persistence check.
 		Destructive on the data partition; enable only when authorised.

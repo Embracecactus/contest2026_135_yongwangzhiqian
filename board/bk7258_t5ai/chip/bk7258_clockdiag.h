@@ -3,12 +3,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 Stage N4 clock/SysTick diagnostics and gated clock probes.
+ * BK7258 clock runtime detection for SysTick.
  *
- * Most helpers are read-only register snapshots used to explain the clock
- * state left by the Tier-1 bootloader.  The bk7258_clockdiag_try_dpll*()
- * helpers are explicit bring-up probes and keep their original board-tested
- * gating conditions.
+ * Read-only helpers classify the live core-clock configuration left by the
+ * Tier-1 bootloader so that up_timer_initialize() can compute the correct
+ * SysTick reload at runtime.  No clock-control register is written here.
  *
  * Contract: the including translation unit must include arm_internal.h first
  * so getreg32()/putreg32() are available.
@@ -28,18 +27,9 @@
 
 #define BK7258_CDIAG_SYS_BASE        0x44010000u   /* SOC_SYS_REG_BASE     */
 #define BK7258_CDIAG_AON_PMU_BASE    0x44000000u   /* SOC_AON_PMU_REG_BASE */
-#define BK7258_CDIAG_UART1_BASE      0x45830000u   /* SOC_UART1_REG_BASE   */
 
 /* SYS register offsets (Armino soc/bk7258/soc/sys_reg.h, ADDR == base +
  * (index << 2)).  Raw values only; never written by this header.
- */
-
-/* Per-core CPU0 clock-operating register (SYS_CPU0_INT_HALT_CLK_OP).  Note:
- * the BK7258 has NO per-core clock *divider* field -- the core divider is
- * the shared global CLKDIV_CORE in CPU_CLK_DIV_MODE1 (dumped as "cdiv"
- * below and applying to CPU0/CPU1/CPU2 alike).  The only per-core clock
- * field is CPU0_SPEED [4] here (1-bit speed select); CPU1/CPU2 mirror this
- * at indexes 0x05/0x06.  Read-only.
  */
 
 #define BK7258_CDIAG_SYS_CPU0_HALT_CLK_OP \
@@ -74,24 +64,6 @@
 #define BK7258_CDIAG_AON_PMU_R7D \
         (BK7258_CDIAG_AON_PMU_BASE + (0x7du << 2))        /* 0x440001F4 */
 
-/* UART1 config register holding clk_div (Armino uart_struct.h: config is
- * REG_0x04 -> base + 0x10, clk_div bits[8:23]).  Read-only here -- this is
- * the register the Tier-1 bootloader programmed; the N2 console contract
- * forbids writing it.
- */
-
-#define BK7258_CDIAG_UART1_CFG_REG    (BK7258_CDIAG_UART1_BASE + 0x10u) /* 0x45830010 */
-
-/* UART1 FIFO status/port for the freestanding polled putc (identical MMIO
- * offsets to bk7258_start.c / bk7258_timerisr.c / bk7258_vectors.c).
- */
-
-#define BK7258_CDIAG_UART1_FSTAT \
-        (*(volatile uint32_t *)(BK7258_CDIAG_UART1_BASE + 0x18u)) /* 0x45830018 */
-#define BK7258_CDIAG_UART1_FPORT \
-        (*(volatile uint32_t *)(BK7258_CDIAG_UART1_BASE + 0x1cu)) /* 0x4583001C */
-#define BK7258_CDIAG_UART1_READY      (1u << 20)  /* fifo_status.bit20 fifo_wr_ready */
-
 /* SysTick CSR/RVR/CVR -- standard ARMv7-M/ARMv8-M addresses (identical to
  * nuttx NVIC_SYSTICK_CTRL/RELOAD/CURRENT); inlined so this header does not
  * require nvic.h in every including translation unit.
@@ -101,353 +73,20 @@
 #define BK7258_CDIAG_SYSTICK_RVR      0xe000e014u
 #define BK7258_CDIAG_SYSTICK_CVR      0xe000e018u
 
-/* Field bit definitions for the compact decode line (source: Armino
- * soc/bk7258/soc/sys_reg.h + uart_struct.h).
+/* Field bit definitions for the clock-case classifier (source: Armino
+ * soc/bk7258/soc/sys_reg.h).
  *
  *   CPU_CLK_DIV_MODE1:
- *     CLKDIV_CORE  [0:3]   core divider (shared by all CPUs -- this IS the
- *                          CPU0 core divider; no per-core divider exists)
+ *     CLKDIV_CORE  [0:3]   core divider (shared by all CPUs)
  *     CKSEL_CORE   [4:5]   core source select
- *     CLKDIV_BUS   [6]     bus divider
- *     CLKDIV_UART1 [11:12] uart1 divider field
- *     CKSEL_UART1  [13]    uart1 source select
- *   CPU0_INT_HALT_CLK_OP:
- *     CPU0_SPEED   [4]     per-core CPU0 speed select (clock-op bit)
- *   CPU_CLK_DIV_MODE2:
- *     CKSEL_FLASH  [24:25] flash source select
- *     CKDIV_FLASH  [26:27] flash divider
  *   ANA_REG5:
  *     EN_DPLL      [5]     DPLL enable
- *   CPU0_INT_32_63_STATUS:
- *     DPLL_UNLOCK_INT_ST [19]  DPLL unlock status (sticky live read)
- *   ANA_REG9:
- *     VCOREHSEL    [16:19] core voltage select
- *   UART1 config:
- *     clk_div      [8:23]  uart clock divider (uart_clk / baud)
  */
 
 #define BK7258_CDIAG_F_CKSEL_CORE(v)   (((v) >> 4)  & 0x3u)
 #define BK7258_CDIAG_F_CLKDIV_CORE(v)  (((v) >> 0)  & 0xfu)
-#define BK7258_CDIAG_F_CLKDIV_BUS(v)   (((v) >> 6)  & 0x1u)
-#define BK7258_CDIAG_F_CLKDIV_UART1(v) (((v) >> 11) & 0x3u)
-#define BK7258_CDIAG_F_CKSEL_UART1(v)  (((v) >> 13) & 0x1u)
-#define BK7258_CDIAG_F_CKSEL_FLASH(v)  (((v) >> 24) & 0x3u)
-#define BK7258_CDIAG_F_CKDIV_FLASH(v)  (((v) >> 26) & 0x3u)
 #define BK7258_CDIAG_F_EN_DPLL(v)      (((v) >> 5)  & 0x1u)
-#define BK7258_CDIAG_F_DPLL_UNLOCK(v)  (((v) >> 19) & 0x1u)
-#define BK7258_CDIAG_F_VCOREHSEL(v)    (((v) >> 16) & 0xfu)
-#define BK7258_CDIAG_F_UART_CLKDIV(v)  (((v) >> 8)  & 0xffffu)
-#define BK7258_CDIAG_F_CPU0_SPEED(v)   (((v) >> 4)  & 0x1u)
 
-#include "bk7258_diag_uart.h"
-
-/****************************************************************************
- * Public Functions (static inline)
- ****************************************************************************/
-
-static inline void bk7258_clockdiag_early_dump(void)
-{
-  uint32_t m1  = getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  uint32_t m2  = getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE2);
-  uint32_t c0  = getreg32(BK7258_CDIAG_SYS_CPU0_HALT_CLK_OP);
-  uint32_t a0  = getreg32(BK7258_CDIAG_SYS_ANA_REG0);
-  uint32_t a1  = getreg32(BK7258_CDIAG_SYS_ANA_REG1);
-  uint32_t a5  = getreg32(BK7258_CDIAG_SYS_ANA_REG5);
-  uint32_t a8  = getreg32(BK7258_CDIAG_SYS_ANA_REG8);
-  uint32_t a9  = getreg32(BK7258_CDIAG_SYS_ANA_REG9);
-  uint32_t a10 = getreg32(BK7258_CDIAG_SYS_ANA_REG10);
-  uint32_t a11 = getreg32(BK7258_CDIAG_SYS_ANA_REG11);
-  uint32_t a12 = getreg32(BK7258_CDIAG_SYS_ANA_REG12);
-  uint32_t a13 = getreg32(BK7258_CDIAG_SYS_ANA_REG13);
-  uint32_t isr = getreg32(BK7258_CDIAG_SYS_CPU0_INT_32_63_STAT);
-  uint32_t r7  = getreg32(BK7258_CDIAG_AON_PMU_R7D);
-  uint32_t uc  = getreg32(BK7258_CDIAG_UART1_CFG_REG);
-
-  bk7258_clockdiag_puts("N4D0:E\r\n");
-
-  /* Raw-hex evidence line: every register the decode below references. */
-
-  bk7258_clockdiag_putreg("M1", m1);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("M2", m2);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("A0", a0);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("A1", a1);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("A5", a5);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("A9", a9);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("IS", isr);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("R7", r7);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("UC", uc);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("C0", c0);
-  bk7258_clockdiag_puts("\r\n");
-
-  /* Extended analog batch raw line: ANA_REG8/10/11/12/13 -- the remaining
-   * words the vendor early_init analog batch programs.  Emitted as raw hex
-   * only (these are LDO/voltage/osc-cal registers, not clock-routing), so
-   * the boot state can be diffed word-by-word against that batch.
-   */
-
-  bk7258_clockdiag_putreg("A8", a8);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("AA", a10);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("AB", a11);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("AC", a12);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("AD", a13);
-  bk7258_clockdiag_puts("\r\n");
-
-  /* Compact decode of the clock-critical fields. */
-
-  bk7258_clockdiag_putfield("csrc",  BK7258_CDIAG_F_CKSEL_CORE(m1),   1);
-  bk7258_clockdiag_putfield(" cdiv", BK7258_CDIAG_F_CLKDIV_CORE(m1),  1);
-  bk7258_clockdiag_putfield(" bdiv", BK7258_CDIAG_F_CLKDIV_BUS(m1),   1);
-  bk7258_clockdiag_putfield(" usrc", BK7258_CDIAG_F_CKSEL_UART1(m1),  1);
-  bk7258_clockdiag_putfield(" udiv", BK7258_CDIAG_F_CLKDIV_UART1(m1), 1);
-  bk7258_clockdiag_putfield(" fsrc", BK7258_CDIAG_F_CKSEL_FLASH(m2),  1);
-  bk7258_clockdiag_putfield(" fdiv", BK7258_CDIAG_F_CKDIV_FLASH(m2),  1);
-  bk7258_clockdiag_putfield(" dplle", BK7258_CDIAG_F_EN_DPLL(a5),      1);
-  bk7258_clockdiag_putfield(" unlk", BK7258_CDIAG_F_DPLL_UNLOCK(isr), 1);
-  bk7258_clockdiag_putfield(" vcre", BK7258_CDIAG_F_VCOREHSEL(a9),    1);
-  bk7258_clockdiag_putfield(" c0spd", BK7258_CDIAG_F_CPU0_SPEED(c0),   1);
-  bk7258_clockdiag_puts("\r\n");
-}
-
-
-static inline void bk7258_clockdiag_try_dpll120(void)
-{
-  uint32_t m1;
-  uint32_t a5;
-  uint32_t new_m1;
-
-  m1 = getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  a5 = getreg32(BK7258_CDIAG_SYS_ANA_REG5);  /* ANA_REG5 */
-
-  /* Only run on the already-observed loader residue path:
-    * M1=0x423 means csrc=2,cdiv=3.
-    * ANA_REG5[5] dplle must already be 1.
-    * Manual-reset baseline must not be touched.
-    */
-
-  if (m1 != 0x00000423u)
-    {
-      return;
-    }
-
-  if (((a5 >> 5) & 1u) == 0)
-    {
-      return;
-    }
-
-  bk7258_clockdiag_puts("N4D0:120S\r\n");
-
-  /* Keep clkdiv_core unchanged, only change cksel_core bits [5:4]
-    * from 2 to 3:
-    *
-    * old M1 = 0x423
-    * new M1 = 0x433
-    */
-
-  new_m1 = (m1 & ~(0x3u << 4)) | (0x3u << 4);
-
-  __asm__ volatile ("dsb 0xf" ::: "memory");
-  putreg32(new_m1, BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  __asm__ volatile ("dsb 0xf" ::: "memory");
-  __asm__ volatile ("isb 0xf" ::: "memory");
-
-  bk7258_clockdiag_putreg("N4D0:120M M1",
-                          getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1));
-  bk7258_clockdiag_puts("\r\n");
-}
-
-
-
-static inline void bk7258_clockdiag_try_dpll160(void)
-{
-  uint32_t m1;
-  uint32_t a5;
-  uint32_t new_m1;
-
-  m1 = getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  a5 = getreg32(BK7258_CDIAG_SYS_ANA_REG5);  /* ANA_REG5 */
-
-  /* Only run on the already-observed loader residue path:
-    * M1=0x423 means csrc=2,cdiv=3.
-    * ANA_REG5[5] dplle must already be 1.
-    * Manual-reset baseline must not be touched.
-    */
-
-  if (m1 != 0x00000423u)
-    {
-      return;
-    }
-
-  if (((a5 >> 5) & 1u) == 0)
-    {
-      return;
-    }
-
-  bk7258_clockdiag_puts("N4D0:160S\r\n");
-
-  /* Keep clkdiv_core unchanged, only change cksel_core bits [5:4]
-    * from 2 to 3:
-    *
-    * old M1 = 0x423
-    * new M1 = 0x433
-    */
-
-  new_m1 = (m1 & ~((0x3u << 4) | 0xfu)) | (0x3u << 4) | 0x2u;
-
-  __asm__ volatile ("dsb 0xf" ::: "memory");
-  putreg32(new_m1, BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  __asm__ volatile ("dsb 0xf" ::: "memory");
-  __asm__ volatile ("isb 0xf" ::: "memory");
-
-  bk7258_clockdiag_putreg("N4D0:160M M1",
-                          getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1));
-  bk7258_clockdiag_puts("\r\n");
-}
-
-
-
-
-static inline void bk7258_clockdiag_try_dpll240(void)
-{
-  uint32_t m1;
-  uint32_t a5;
-  uint32_t new_m1;
-
-  m1 = getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  a5 = getreg32(BK7258_CDIAG_SYS_ANA_REG5);  /* ANA_REG5 */
-
-  /* Only run on the already-observed loader residue path:
-    * M1=0x423 means csrc=2,cdiv=3.
-    * ANA_REG5[5] dplle must already be 1.
-    * Manual-reset baseline must not be touched.
-    */
-
-  if (m1 != 0x00000423u)
-    {
-      return;
-    }
-
-  if (((a5 >> 5) & 1u) == 0)
-    {
-      return;
-    }
-
-  bk7258_clockdiag_puts("N4D0:240S\r\n");
-
-  /* Keep clkdiv_core unchanged, only change cksel_core bits [5:4]
-    * from 2 to 3:
-    *
-    * old M1 = 0x423
-    * new M1 = 0x433
-    */
-
-  new_m1 = (m1 & ~((0x3u << 4) | 0xfu)) | (0x3u << 4) | 0x1u;
-
-  __asm__ volatile ("dsb 0xf" ::: "memory");
-  putreg32(new_m1, BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  __asm__ volatile ("dsb 0xf" ::: "memory");
-  __asm__ volatile ("isb 0xf" ::: "memory");
-
-  bk7258_clockdiag_putreg("N4D0:240M M1",
-                          getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1));
-  bk7258_clockdiag_puts("\r\n");
-}
-
-static inline void bk7258_clockdiag_try_dpll320(void)
-{
-  uint32_t m1;
-  uint32_t a5;
-  uint32_t new_m1;
-
-  m1 = getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  a5 = getreg32(BK7258_CDIAG_SYS_ANA_REG5);
-
-  if (m1 != 0x00000423u)
-    {
-      return;
-    }
-
-  if (((a5 >> 5) & 1u) == 0)
-    {
-      return;
-    }
-
-  bk7258_clockdiag_puts("N4D0:320S\r\n");
-
-  /* Keep csrc=2, set cdiv=0:
-    * old M1 = 0x423
-    * new M1 = 0x420
-    */
-
-  new_m1 = (m1 & ~0xfu) | 0x0u;
-
-  __asm__ volatile ("dsb 0xf" ::: "memory");
-  putreg32(new_m1, BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  __asm__ volatile ("dsb 0xf" ::: "memory");
-  __asm__ volatile ("isb 0xf" ::: "memory");
-
-  bk7258_clockdiag_putreg("N4D0:320M M1",
-                          getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1));
-  bk7258_clockdiag_puts("\r\n");
-}
-
-static inline void bk7258_clockdiag_try_dpll480(void)
-{
-  uint32_t m1;
-  uint32_t a5;
-  uint32_t new_m1;
-
-  m1 = getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  a5 = getreg32(BK7258_CDIAG_SYS_ANA_REG5);  /* ANA_REG5 */
-
-  /* Only run on the already-observed loader residue path:
-    * M1=0x423 means csrc=2,cdiv=3.
-    * ANA_REG5[5] dplle must already be 1.
-    * Manual-reset baseline must not be touched.
-    */
-
-  if (m1 != 0x00000423u)
-    {
-      return;
-    }
-
-  if (((a5 >> 5) & 1u) == 0)
-    {
-      return;
-    }
-
-  bk7258_clockdiag_puts("N4D0:480S\r\n");
-
-  /* Keep clkdiv_core unchanged, only change cksel_core bits [5:4]
-    * from 2 to 3:
-    *
-    * old M1 = 0x423
-    * new M1 = 0x433
-    */
-
-  new_m1 = (m1 & ~((0x3u << 4) | 0xfu)) | (0x3u << 4) | 0x0u;
-
-  __asm__ volatile ("dsb 0xf" ::: "memory");
-  putreg32(new_m1, BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1);
-  __asm__ volatile ("dsb 0xf" ::: "memory");
-  __asm__ volatile ("isb 0xf" ::: "memory");
-
-  bk7258_clockdiag_putreg("N4D0:480M M1",
-                          getreg32(BK7258_CDIAG_SYS_CPU_CLK_DIV_MODE1));
-  bk7258_clockdiag_puts("\r\n");
-}
 /* Runtime CPU-frequency case identifiers used by
  * bk7258_clockdiag_last_clock_case() and bk7258_clockdiag_current_cpu_hz().
  * The case is decided from a read-only snapshot of CPU_CLK_DIV_MODE1 (M1)
@@ -464,20 +103,26 @@ static inline void bk7258_clockdiag_try_dpll480(void)
 #define BK7258_CDIAG_CASE_DPLL320    5
 #define BK7258_CDIAG_CASE_DPLL480    6
 #define BK7258_CDIAG_CASE_UNKNOWN    7   /* fallback to baseline hz.        */
+
+/****************************************************************************
+ * Public Functions (static inline)
+ ****************************************************************************/
+
 /****************************************************************************
  * Name: bk7258_clockdiag_last_clock_case
  *
  * Description:
  *   Classify the live core-clock configuration from a read-only snapshot of
  *   CPU_CLK_DIV_MODE1 (M1) and ANA_REG5 (A5).  No register is written.
- *   Recognised cases:
  *
  *     BK7258_CDIAG_CASE_BASELINE  Manual-reset BootROM default: M1 = 0 with
  *                                 DPLL disabled -- 26 MHz XTAL.
  *     BK7258_CDIAG_CASE_LOADER80  Tier-1 loader `--reboot 1` residue:
  *                                 M1 = 0x00000423 with csrc = 2, cdiv = 3
- *                                 and DPLL enabled -- observed f_cpu ~80.04
- *                                 MHz (J-Link DWT, 2 s = 0x098AA02F ticks).
+ *                                 and DPLL enabled -- f_cpu ~80 MHz.
+ *     BK7258_CDIAG_CASE_DPLL*     DPLL-selected cases observed during
+ *                                 bring-up probes (kept for recognition
+ *                                 only; no probe is run by this header).
  *     BK7258_CDIAG_CASE_UNKNOWN   Any other combination; callers fall back
  *                                 to the baseline frequency.
  *
@@ -500,26 +145,32 @@ static inline int bk7258_clockdiag_last_clock_case(void)
     {
       return BK7258_CDIAG_CASE_LOADER80;
     }
+
   if (m1 == 0x00000433u && csrc == 3 && cdiv == 3 && dplle)
     {
       return BK7258_CDIAG_CASE_DPLL120;
     }
+
   if (m1 == 0x00000432u && csrc == 3 && cdiv == 2 && dplle)
     {
       return BK7258_CDIAG_CASE_DPLL160;
     }
+
   if (m1 == 0x00000431u && csrc == 3 && cdiv == 1 && dplle)
     {
       return BK7258_CDIAG_CASE_DPLL240;
     }
+
   if (m1 == 0x00000420u && csrc == 2 && cdiv == 0 && dplle)
     {
       return BK7258_CDIAG_CASE_DPLL320;
     }
+
   if (m1 == 0x00000430u && csrc == 3 && cdiv == 0 && dplle)
     {
       return BK7258_CDIAG_CASE_DPLL480;
     }
+
   return BK7258_CDIAG_CASE_UNKNOWN;
 }
 
@@ -567,53 +218,6 @@ static inline uint32_t bk7258_clockdiag_current_cpu_hz(void)
       default:
         return 26000000u;
     }
-}
-
-
-
-/****************************************************************************
- * Name: bk7258_clockdiag_systick_dump
- *
- * Description:
- *   Read-only snapshot of the Cortex-M SysTick CSR/RVR/CVR.  Intended to be
- *   called exactly once from up_timer_initialize() in bk7258_timerisr.c
- *   AFTER the reload write and systick_initialize() have programmed the
- *   SysTick, so the read-back captures the live armed state.
- *
- *   `expected_reload` is the value the caller computed at runtime (from
- *   bk7258_clockdiag_current_cpu_hz() and CLK_TCK) and wrote into RVR; the
- *   dump emits it as EXP so the read-back RVR can be compared against the
- *   design reload.  `cpu_hz` is the runtime frequency the caller used; the
- *   dump emits it as HZ plus the matched clock-case tag (CLK=x) so board-
- *   side observation can distinguish baseline / loader-residue / unknown
- *   without parsing the full early dump.  No SysTick register is written by
- *   this call -- the existing reload write in up_timer_initialize() is the
- *   only write, and is not a new clock write.
- *
- ****************************************************************************/
-
-static inline void bk7258_clockdiag_systick_dump(uint32_t expected_reload,
-                                                 uint32_t cpu_hz)
-{
-  uint32_t csr = getreg32(BK7258_CDIAG_SYSTICK_CSR);
-  uint32_t rvr = getreg32(BK7258_CDIAG_SYSTICK_RVR);
-  uint32_t cvr = getreg32(BK7258_CDIAG_SYSTICK_CVR);
-  int clk_case  = bk7258_clockdiag_last_clock_case();
-
-  bk7258_clockdiag_puts("N4D0:T\r\n");
-
-  bk7258_clockdiag_putreg("CSR", csr);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("RVR", rvr);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("CVR", cvr);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("EXP", expected_reload);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putreg("HZ", cpu_hz);
-  bk7258_clockdiag_putc(' ');
-  bk7258_clockdiag_putfield("CLK", (uint32_t)clk_case, 1);
-  bk7258_clockdiag_puts("\r\n");
 }
 
 #endif /* __ARCH_ARM_SRC_BK7258_CHIP_BK7258_CLOCKDIAG_H */
