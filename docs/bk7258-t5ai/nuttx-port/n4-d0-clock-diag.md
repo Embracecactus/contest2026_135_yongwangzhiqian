@@ -1,8 +1,9 @@
 # NuttX Stage N4-D0 / D0D — 时钟诊断 baseline + runtime SysTick bookkeeping（worklog）
 
 > 板端验证日期：2026-07-18（substage `board-verified`：仅 N4-D0/D0D；N4-D1 及整 N4 尚未板端验证）
-> 基线 commit：`4d9198e`（Stage N3 code）→ 本阶段 feature commit：`6f596b7`（3 个 overlay 文件，只读诊断 + runtime SysTick 修正）
-> 改动范围：`$CONTEST/board/bk7258_t5ai/chip/`（`bk7258_clockdiag.h` 新增、`bk7258_start.c` 接入、`bk7258_timerisr.c` runtime SysTick 选择）
+> 基线 commit：`4d9198e`（Stage N3 code）→ D0/D0D feature commit：`6f596b7`（3 个 overlay 文件，只读诊断 + runtime SysTick 修正）
+> → D0F feature commit：`8dab594`（defconfig 移除 100ms override，生效默认 10ms/100Hz tick）
+> 改动范围：D0/D0D — `$CONTEST/board/bk7258_t5ai/chip/`（`bk7258_clockdiag.h` 新增、`bk7258_start.c` 接入、`bk7258_timerisr.c` runtime SysTick 选择）；D0F — `$CONTEST/board/bk7258_t5ai/configs/nsh/defconfig`
 
 > 占位符：`$WORKSPACE`、`$CONTEST`、`$FW` 与 README / next-stage-prompt.md 一致。本 docs 提交 SHA
 > 不在本文内写出（见 [`../next-stage-prompt.md`](../next-stage-prompt.md) 命名与维护规则）。
@@ -176,20 +177,93 @@ D0D 候选镜像（构建时间戳 `Jul 18 2026 22:11:54`，对应 §4.1 板端�
 > 完成**——这是 N4-D0 整体收口的剩余项；当前 D0/D0D 的 `board-verified` 以候选镜像证据为依据。
 > 在完成 state-C 复验并确认 SHA-256 匹配前，不应将整 N4 标记为 board-verified。
 
-## 6. 状态
+## 6. D0F — 100Hz SysTick tick-rate 兼容性（`8dab594`）
+
+### 6.1 问题与动机
+
+SysTick 是 24-bit 递减计数器（`RVR` 最大 `0x00FFFFFF`）。D0/D0D 阶段使用旧的默认
+`CONFIG_USEC_PER_TICK=100000`（10ms/100Hz），实际是 100ms/10Hz override。在当前 26 MHz /
+80 MHz 路径下此值虽可用，但**未来 480 MHz 目标频率**下 10Hz 对应的 reload 值为
+`480000000/10-1 = 0x02DC6BFF`，**超过 24-bit 最大值** `0x00FFFFFF`，将导致 SysTick
+overflow。因此必须在 N4 进入更高频率前将 tick 率提升到安全范围。
+
+### 6.2 实际 patch
+
+feature commit `8dab594` 的改动是**删除 defconfig 中的 `CONFIG_USEC_PER_TICK=100000` 行**
+（100ms override），savedefconfig 同时删除与默认值相同的 `CONFIG_USEC_PER_TICK=10000` 行
+（10ms default）。生效配置为 **`CONFIG_USEC_PER_TICK=10000`（10ms / 100Hz）**。
+
+> 注意：defconfig 中**没有显式添加** `CONFIG_USEC_PER_TICK=10000`——该值是 NuttX Kconfig
+> default，删除 override 后自动生效。文档表述为 "removed 100ms override; effective default
+> 10ms/100Hz"。
+
+480 MHz 安全性验证：`480000000/100-1 = 0x00493DFF`，小于 `0x00FFFFFF`，24-bit 不溢出。
+
+### 6.3 1000Hz 尝试（rejected）
+
+`CONFIG_USEC_PER_TICK=1000`（1ms/1000Hz）曾 build + flash 测试：
+
+- Loader 80 MHz 路径基本可用（`RVR=0x0001387F`）。
+- **Manual-reset 26 MHz 路径失败**：SysTick dump 中途 / 第二次进入时出现失败重启。
+- 结论：**rejected/skipped**，不提交。100Hz 足够安全且两条路径均稳定。
+
+### 6.4 100Hz 板端证据
+
+#### Loader `--reboot 1` / 80 MHz 路径
+
+```
+CSR=00000007  RVR=000c34ff  EXP=000c34ff  HZ=04c4b400  CLK=1
+/proc/uptime 73.65 → sleep 10 → 83.72 (delta 10.07s)
+/proc/uptime 30.05 → sleep 10 → 40.12 (delta 10.07s)
+```
+
+- `RVR=0x000C34FF` = `80000000/100-1` = 799999，与 80 MHz/100Hz 一致。
+
+#### Manual-reset / 26 MHz 路径
+
+```
+CSR=00000007  RVR=0003f79f  EXP=0003f79f  HZ=018cba80  CLK=0
+/proc/uptime 2.03 → sleep 10 → 12.25 (delta 10.22s)
+/proc/uptime 2.36 → sleep 10 → 12.57 (delta 10.21s)
+```
+
+- `RVR=0x0003F79F` = `26000000/100-1` = 259999，与 26 MHz/100Hz 一致。
+- 两条路径的 wall-clock delta 均在 10.0–10.3 s 范围，tick 率正确。
+
+### 6.5 D0F artifact
+
+D0F 镜像（在 D0/D0D 基础上 + defconfig tick 修改）：
+
+| 产物 | 字节 | size（hex） | sha256 |
+|---|---|---|---|
+| `$FW/all-app.bin` | **164730 B** | `0x2837A` | `c3ca4ae21c4b2c7617bba7c430c7910ce049044d569dbffded0f17f0d8f422eb` |
+| `$FW/nuttx.bin` | **89504 B** | — | `e4269b7a8fccc0d6048d9fbe0c4021fd34d39b236601f3873391c9a399d255e7` |
+
+> D0F artifact 大小与 D0/D0D 候选相同（`all-app.bin` 164730 B），因为 defconfig 删行不改变
+> 代码段；SHA-256 不同反映构建时间戳变化。
+
+### 6.6 D0F 状态边界
+
+- **D0F `board-verified`（substage）**：两条启动路径（loader 80 MHz / manual-reset 26 MHz）
+  均已验证 100Hz tick wall-clock 正确。
+- **不改变 N4 整体状态**：D0F 是 D0/D0D 之后的兼容性修正，不涉及 DPLL enable / mux 切换；
+  N4-D1 仍 blocked（原因同 §6），整 N4 仍 not board-verified。
+
+## 7. 状态
 
 | Substage | 状态 | 依据 |
 |---|---|---|
 | **N4-D0** manual-reset baseline | ✅ `board-verified`（substage） | §2.1 readback + sleep10≈10s |
 | **N4-D0D** runtime SysTick bookkeeping（loader 路径） | ✅ `board-verified`（substage） | §3 DWT≈80 MHz + §4.1 sleep10 10.10/11.00 s + ps/version OK |
-| **N4-D1** DPLL lock（CPU 保持 XTALH） | **blocked**（未执行） | 与 §2.1 manual-reset 路径冲突：当前 loader 路径已 `dplle=1` 残留，无法干净区分“本移植写的 DPLL enable”与“loader 残留”；需先在 manual-reset 冷启动路径上重做测量并固定 baseline，再申请 D1 mutation 授权 |
-| DPLL enable / CPU mux 切换 | **not attempted** | 本 commit `6f596b7` 不写这些寄存器 |
-| **整 N4**（D0+D0D+D1+D2+D3+V） | **not board-verified** | D1 blocked，D2/D3/V 未开始 |
+| **N4-D0F** 100Hz tick-rate 兼容性 | ✅ `board-verified`（substage） | §6.4 两条路径 wall-clock delta 10.0–10.3 s；480 MHz reload 0x00493DFF < 0x00FFFFFF；1000Hz rejected |
+| **N4-D1** DPLL lock（CPU 保持 XTALH） | **blocked**（未执行） | 与 §2.1 manual-reset 路径冲突：当前 loader 路径已 `dplle=1` 残留，无法干净区分”本移植写的 DPLL enable”与”loader 残留”；需先在 manual-reset 冷启动路径上重做测量并固定 baseline，再申请 D1 mutation 授权 |
+| DPLL enable / CPU mux 切换 | **not attempted** | 本 commit `6f596b7` / `8dab594` 不写这些寄存器 |
+| **整 N4**（D0+D0D+D0F+D1+D2+D3+V） | **not board-verified** | D1 blocked，D2/D3/V 未开始 |
 
 `board-verified`（N2/N3 全 stage）与 substage `board-verified`（N4-D0/D0D）严格区分：后者只覆盖
 subsection 范围，不向上传染到整个 N4。
 
-## 7. 下一步（不预分配编号、不预授权）
+## 8. 下一步（不预分配编号、不预授权）
 
 - 完成 N4-D0 的 **state-C 精确 commit 复验**（重编 `6f596b7` + 重刷 + 重新计算长度/哈希），把
   D0/D0D 收口到"verified == 提交源码镜像"。
@@ -198,7 +272,68 @@ subsection 范围，不向上传染到整个 N4。
 - DPLL enable、CPU mux 切换、320/480 MHz 目标**均属 N4-D1/D2/D3 范围**，本 worklog 不构成对其
   的授权。
 
-## 8. 参考
+## 10. 频率阶梯证据与 SDK guard 分析（loader-residue mux/div probes）
+
+N4-D0/D0D 确认 loader 残留路径约 80 MHz 后，进一步对 loader 预配的各频率档位进行 mux/div
+组合探测。以下是**全部 loader-residue 探测结果**（NuttX 未主动写 DPLL/mux/div 寄存器，只读取
+loader 已配置的残留并测量）：
+
+### 10.1 频率阶梯表
+
+| 目标 | M1 | csrc | cdiv | RVR | HZ | sleep10 | J-Link CYCCNT 2s | 实测频率 | 状态 |
+|---|---|---|---|---|---|---|---|---|---|
+| 80 MHz（loader residue） | `0x423` | 2 | 3 | — | — | < 4 s | `0x098AA02F` | ≈ 80.04 MHz | ✅ D0/D0D verified |
+| 120 MHz | `0x433` | 3 | 3 | `0x00124F7F` | `0x07270E00` | ≈ 10 s | `0x0E503CC6` | ≈ 120.07 MHz | ✅ board-verified |
+| 160 MHz | `0x432` | 3 | 2 | `0x001869FF` | `0x09896800` | ≈ 10 s | `0x1315D658` | ≈ 160.10 MHz | ✅ board-verified |
+| 240 MHz | `0x431` | 3 | 1 | `0x00249EFF` | `0x0E4E1C00` | ≈ 10 s | `0x1C9F6A83` | ≈ 240.10 MHz | ✅ board-verified |
+| 320 MHz | `0x420` | 2 | 0 | `0x0030D3FF` | `0x1312D000` | ≈ 10 s | `0x262A8696` | ≈ 320.16 MHz | ✅ board-verified（最高） |
+| 480 MHz direct | `0x430` | 3 | 0 | — | — | — | — | — | ❌ failed / stalled |
+
+- M1 低 bits 的编码：`csrc` 和 `cdiv` 直接对应寄存器 bit field；`csrc=2` = 320M 源，
+  `csrc=3` = 480M（DPLL）源；`cdiv` = 分频系数（0 = /1，1 = /2，2 = /3，3 = /4）。
+- 80 MHz → 120 MHz → 160 MHz → 240 MHz → 320 MHz 均在 J-Link DWT CYCCNT 独立测量下确认，
+  wall-clock `sleep 10` 均约 10 s，SysTick bookkeeping 已适配。
+- **480 MHz direct（M1=0x430, csrc=3, cdiv=0）失败**：板端在 `N4D0:480S` 后 stall，
+  未到达 `480M` readback / NSH 提示符。
+
+### 10.2 SDK guard 证据（480M/1 为何失败）
+
+Beken ARMINO SDK (`$BK7258_SDK`) 中 `sys_hal_core_bus_clock_ctrl()` 包含明确的频率上限
+guard：
+
+```c
+if ((cksel_core == PM_CLKSEL_CORE_480M) && (ckdiv_core == PM_CLKDIV_CORE_0))
+    return BK_FAIL;   // unsupported
+```
+
+相关宏定义：
+- `PM_CLKSEL_CORE_320M = 2`，`PM_CLKSEL_CORE_480M = 3`
+- `PM_CLKDIV_CORE_0 = 0`（/1），`PM_CLKDIV_CORE_1 = 1`（/2）
+- `PM_VDDDIG_H_VOL_0v9 = 0xC`（320M/1 分支需拉高 VDDDIG 到 0.9V）
+- `PM_CLKDV_CPU1_1 = 0x1`（480M/2 分支有 CPU1 divider 条件）
+
+SDK `sys_hal_early_init` 的启动路径：
+```c
+sys_hal_mclk_div_set(480000000 / CONFIG_CPU_FREQ_HZ - 1);
+sys_hal_mclk_mux_set(0x3);  /* DPLL, 480M source */
+```
+证明 divider 编码为 `value + 1`（非 power-of-two）；SDK early-init 注释声称 `clk_divd 120MHz`。
+
+频率分支逻辑：
+- **320M/1**：支持，但需先检查/拉高 VDDDIG 到 0.9V。
+- **480M/2**（240 MHz）：支持，有 CPU1 divider 条件。
+- **480M/1**（480 MHz direct）：**SDK 明确 reject**（guard 返回 `BK_FAIL`）。
+
+### 10.3 结论
+
+- **480M 源存在，但 CPU core direct 480M /1 被 SDK policy 明确拒绝**，与我们的板端失败一致。
+- **当前最高板端/J-Link 验证的 loader-residue 操作点为 320 MHz**（320M 源 /1 分频）。
+- 240 MHz（480M/2）和 320 MHz（320M/1）均为 SDK 支持的操作点，已板端验证。
+- **全冷启动 DPLL enable 仍 blocked**：NuttX 未主动 enable DPLL；上述频率阶梯均为 loader-residue
+  mux/div 探测，依赖 loader 已预配的 DPLL 状态。
+- 480 MHz 操作点若要实现，需新的 SDK 证据或 vendor 指导表明安全路径；当前无此证据。
+
+## 11. 参考
 
 - 主 Stage 索引 / current handoff：[`../next-stage-prompt.md`](../next-stage-prompt.md)
 - N4 完整恢复提示词：[`prompts/04-n4-clock-bringup.md`](prompts/04-n4-clock-bringup.md)（N4-D0

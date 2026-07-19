@@ -14,9 +14,11 @@ NSH**（Stage N1 跳转链 + N2 NSH console + N3 procfs/ps 均板端验证，202
 
 状态速览：✅ Bootloader 逆向 / ✅ Tier-1 bootloader 板端验证 / ✅ 启动核确认 / ✅ CRC packer 等价性
 / ✅ NuttX Stage N1（bootloader 跳进 NuttX，早期 UART）/ ✅ NuttX Stage N2（NSH 交互 console）
-/ ✅ NuttX Stage N3（procfs + ps）/ **CURRENT：Stage N4 内 N4-D0/D0D（时钟诊断 baseline + runtime
-SysTick bookkeeping）substage 板端验证（feature commit `6f596b7`）；N4-D1（DPLL lock）blocked；DPLL
-enable / mux 切换 not attempted；整 N4 not board-verified** / 📋 MTD/FS、Tier-2 bootloader（OTA）、
+/ ✅ NuttX Stage N3（procfs + ps）/ **CURRENT：Stage N4 内 N4-D0/D0D/D0F（时钟诊断 baseline +
+runtime SysTick bookkeeping + 100Hz tick 兼容性）substage 板端验证（D0/D0D `6f596b7`，D0F
+`8dab594`）；N4-D1（DPLL lock）blocked；DPLL enable / mux 切换 not attempted；整 N4 not
+board-verified** / **Stage N5 flash filesystem：N5-D0..D4 board-observed + N5-D5 raw flash r/w + N5-D6 MTD + N5-D7 LittleFS 全链路 board-verified（2026-07-19），D7 版 `all-app.bin` = 192270 B = `0x2EF0E`**
+/ 📋 Tier-2 bootloader（OTA）、
 PSRAM、多核 SMP（后续未编号）。
 
 ---
@@ -378,7 +380,7 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 | **N1** | NuttX 最小镜像被 Tier-1 bootloader 跳进去，早期 UART 打印可见 | ✅ done（`board-verified`，commit `40495ca`） |
 | **N2** | `nx_start` kernel 起来 + UART1 console → **交互式 NSH** | ✅ done（`board-verified` 2026-07-18，code `9f45bc6` + docs `e3ad3e9`） |
 | **N3** | 挂 procfs 到 `/proc` → **`ps` / `ls /proc` / `cat /proc/*` 可用** | ✅ done（code `4d9198e` + docs `68badfe`；state-C `board-verified` 2026-07-18） |
-| **N4** | DPLL / 480 MHz CPU0 clock bring-up + 独立测量 + N3 regression | **CURRENT**：N4-D0/D0D substage `board-verified`（feature commit `6f596b7`）；N4-D1 blocked；DPLL enable / mux 切换 not attempted；整 N4 not board-verified（[master](next-stage-prompt.md) / [N4 prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md)） |
+| **N4** | DPLL / 480 MHz CPU0 clock bring-up + 独立测量 + N3 regression | **CURRENT**：N4-D0/D0D/D0F substage `board-verified`（D0/D0D `6f596b7`，D0F `8dab594`）；N4-D1 blocked；DPLL enable / mux 切换 not attempted；整 N4 not board-verified（[master](next-stage-prompt.md) / [N4 prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md)） |
 
 N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
 UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
@@ -498,6 +500,17 @@ feature commit `6f596b7`（3 个 overlay 文件：`chip/bk7258_clockdiag.h` 新�
 > 回归已板上验证）。**最终以精确 commit `6f596b7` 重编 + 重刷的 state-C 复验尚未完成**——这是
 > N4-D0 整体收口的剩余项；在 state-C 复验并确认 SHA-256 匹配前，不应将整 N4 标记为 board-verified。
 
+**N4-D0F — 100Hz SysTick tick-rate 兼容性**（feature commit `8dab594`，substage `board-verified`）：
+
+旧的 `CONFIG_USEC_PER_TICK=100000`（100ms override）在 480 MHz 下 reload 值 `0x02DC6BFF`
+超过 SysTick 24-bit 最大值 `0x00FFFFFF`。D0F patch **删除 defconfig 中的 100ms override**，
+savedefconfig 同时删除与默认值相同的行，生效配置为 `CONFIG_USEC_PER_TICK=10000`（10ms /
+100Hz）。`CONFIG_USEC_PER_TICK=1000`（1000Hz）曾测试但 manual-reset 26 MHz 路径
+SysTick dump 中途失败重启，**rejected**。100Hz 板端证据：loader 80 MHz 路径
+`sleep 10` delta 10.07 s，manual-reset 26 MHz 路径 delta 10.21–10.22 s。D0F artifact：
+`$FW/all-app.bin` 164730 B（sha256 `c3ca4ae2...`），`$FW/nuttx.bin` 89504 B
+（sha256 `e4269b7a...`）。D0F 不改变 N4 整体状态——D1 仍 blocked，整 N4 仍 not board-verified。
+
 详细 worklog：[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md)。
 
 ### 9.7 Stage N4 后续 handoff — DPLL / 480 MHz 时钟 bring-up
@@ -514,8 +527,56 @@ CPU0 480 MHz，并回归 UART1、SysTick、NSH 与 procfs/ps。
 N4-R → N4-D0 → N4-D1 → N4-D2（optional）→ N4-D3 → N4-V 是一个 MAIN Stage 文件内的有序
 subsection。N4-D0/D0D 已 substage 板端验证，N4-D1 blocked，D2/D3/V 尚未开始。
 
+### 9.8 N4 频率阶梯 / 480 MHz unsupported 摘要
+
+在 N4-D0/D0D 基础上，对 loader 预配的各频率档位进行了 mux/div 组合探测（NuttX 未主动写
+DPLL/mux/div，只读取 loader 残留并用 J-Link DWT CYCCNT 独立测量）：
+
+| 频率 | M1 | csrc | cdiv | 实测 | 状态 |
+|---|---|---|---|---|---|
+| 80 MHz | `0x423` | 2 | 3 | ≈ 80.04 MHz | ✅ D0/D0D verified |
+| 120 MHz | `0x433` | 3 | 3 | ≈ 120.07 MHz | ✅ board-verified |
+| 160 MHz | `0x432` | 3 | 2 | ≈ 160.10 MHz | ✅ board-verified |
+| 240 MHz | `0x431` | 3 | 1 | ≈ 240.10 MHz | ✅ board-verified |
+| 320 MHz | `0x420` | 2 | 0 | ≈ 320.16 MHz | ✅ board-verified（最高） |
+| 480 MHz | `0x430` | 3 | 0 | failed/stalled | ❌ SDK guard rejects |
+
+**480 MHz direct（csrc=3/cdiv=0）失败原因**：Beken SDK `sys_hal_core_bus_clock_ctrl()` 中有明确
+guard——`PM_CLKSEL_CORE_480M` + `PM_CLKDIV_CORE_0` 组合返回 `BK_FAIL`（unsupported）。板端
+`M1=0x430` 探测在 `N4D0:480S` 后 stall，与 SDK 政策一致。480M 源存在，但 CPU core 直接 480M/1
+被 SDK 策略拒绝；320M/1（320 MHz，需 VDDDIG 0.9V）和 480M/2（240 MHz）为 SDK 支持的操作点。
+
+**当前最高板端/J-Link 验证的 loader-residue 操作点为 320 MHz**。全冷启动 DPLL enable 仍 blocked；
+NuttX 未主动 enable DPLL，频率阶梯均为 loader 残留探测。详见
+[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md) §10。
+
 MTD / 文件系统、PSRAM、Tier-2 bootloader OTA、SMP 均属于 N4 之后的未编号工作；只有前一 Stage
 板端证据明确后，才确定下一 MAIN Stage 的范围与 prompt。
+
+### 9.9 Stage N5 — Flash Filesystem（全链路 board-verified 2026-07-19）
+
+N5 从 read-only flash exploration 推进到 **全链路 board-verified**：raw flash erase/write → MTD lower-half → ftl block device → LittleFS filesystem mount。
+
+N5 各 substage 板端验证摘要（详细 worklog：[`nuttx-port/n5-flash-filesystem.md`](nuttx-port/n5-flash-filesystem.md)）：
+
+| Substage | 内容 | 板端状态 |
+|---|---|---|
+| **N5-D0** layout candidate | 8 MB flash candidate；image length `0x2837A`；reserved `0x00000000..0x000FFFFF`；data candidate `0x00100000..0x001FFFFF`（1 MB） | ✅ board-observed |
+| **N5-D1** flash ID/geometry | JEDEC ID `0xC86517`（GigaDevice 8 MB NOR）；4 KB erase sector / 256 B page / 64 KB block | ✅ board-observed |
+| **N5-D2** content dump | Flash 起始 `0x00000000` 可读（bootloader + app 向量表）；`0x00100000` 全 `0xFF`（erased） | ✅ board-observed |
+| **N5-D3** magic scan | `"BK7236"` magic @ logical `0x100`（`W0=0x32374B42`, `W1=0x00103633`）；NuttX read path 表现为 logical view | ✅ board-observed |
+| **N5-D4** emptiness scan | Candidate data partition 前 16 KB（4 x 4 KB sample）全 `0xFF` | ✅ board-observed |
+| **N5-D5** raw flash r/w | Raw flash erase/write/read-back/re-erase @ `0x00100000`（第一个 4 KB sector）；SR0 protect clear/restore required | ✅ board-verified（2026-07-19） |
+| **N5-D6** MTD lower-half | MTD read/erase/bwrite，方案 A（每次 op 临时清/恢复 SR0 块保护）；CONFIG_BK7258_FLASH_MTD；新增 `chip/bk7258_flash_mtd.[ch]` | ✅ board-verified（2026-07-19） |
+| **N5-D7** LittleFS filesystem | CONFIG_BK7258_FLASH_LITTLEFS；ftl 注册 `/dev/mtdblock0`；mount 到 `/data`（autoformat 仅首次）；probe 文件重启持久化通过 | ✅ board-verified（2026-07-19） |
+
+**安全 candidate**：logical offset `0x00100000..0x001FFFFF`（1 MB），4 KB / 64 KB 对齐，远在当前
+image（`0x2837A` ≈ 163 KB）之外，距 image end 约 845 KB。
+
+**全链路**：raw flash → MTD → ftl block device → LittleFS。D7 版 `$FW/all-app.bin` = 192270 B = `0x2EF0E`
+（< `0x100000`，boot/app 区不受影响）。
+
+> **状态边界**：N5 全链路已 **board-verified**（D5 raw flash r/w + D6 MTD + D7 LittleFS）。
 
 ---
 
@@ -582,6 +643,7 @@ board/bk7258_t5ai/bootloader/
 
 | commit | 分支 | 内容 |
 |---|---|---|
+| `8dab594` | `contest2026-multi-board` | feat(bk7258): use 100Hz tick for clock bring-up（defconfig 移除 100ms override，生效 10ms/100Hz；D0F substage 板端验证） |
 | `6f596b7` | `contest2026-multi-board` | feat(bk7258): add N4-D0 clock diagnostics（read-only 诊断 + runtime SysTick bookkeeping，3 overlay 文件；N4-D0/D0D substage 板端验证） |
 | `68badfe` | `contest2026-multi-board` | docs(bk7258): Stage N3 board-verified — procfs + ps |
 | `4d9198e` | `contest2026-multi-board` | feat(bk7258): NuttX Stage N3 — procfs + ps（board-verified） |
@@ -608,8 +670,8 @@ board/bk7258_t5ai/bootloader/
 | P0 | **NuttX Stage N1**：最小 NuttX 镜像被 bootloader 跳进去，早期 UART 打印可见 | ✅ done | `board-verified`，commit `40495ca` |
 | P0 | **NuttX Stage N2**：`nx_start` + UART1 console → **交互式 NSH** | ✅ done | `board-verified` 2026-07-18，code `9f45bc6` + docs `e3ad3e9` |
 | P0 | **NuttX Stage N3**：挂 procfs 到 `/proc` → `ps` / `ls /proc` / `cat /proc/*` | ✅ done | code `4d9198e` + docs `68badfe`；state-C `board-verified` |
-| P0 | **NuttX Stage N4**：DPLL / 480 MHz CPU0 clock bring-up | **CURRENT**：N4-D0/D0D substage `board-verified`（`6f596b7`）；N4-D1 blocked | N4-R → N4-D0 ✅ → N4-D1（blocked）→ N4-D2（optional）→ N4-D3 → N4-V；[master](next-stage-prompt.md) / [prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [D0 worklog](nuttx-port/n4-d0-clock-diag.md)；DPLL enable / mux 切换 not attempted，整 N4 not board-verified |
-| P1 | **后续（未编号）**：MTD + 文件系统（LittleFS / SmartFS） | planned later | N4 证据完成后再决定是否成为下一 MAIN Stage |
+| P0 | **NuttX Stage N4**：DPLL / 480 MHz CPU0 clock bring-up | **CURRENT**：N4-D0/D0D/D0F substage `board-verified`（D0/D0D `6f596b7`，D0F `8dab594`）；N4-D1 blocked | N4-R → N4-D0 ✅ → D0D ✅ → D0F ✅ → N4-D1（blocked）→ N4-D2（optional）→ N4-D3 → N4-V；[master](next-stage-prompt.md) / [prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [D0 worklog](nuttx-port/n4-d0-clock-diag.md)；DPLL enable / mux 切换 not attempted，整 N4 not board-verified |
+| P1 | **NuttX Stage N5**：MTD + 文件系统（LittleFS） | ✅ done | N5-D5 raw flash r/w + N5-D6 MTD + N5-D7 LittleFS 全链路 `board-verified`（2026-07-19）；D7 版 `all-app.bin` = 192270 B = `0x2EF0E` |
 | P1 | **后续（未编号）**：PSRAM bring-up | planned later | T5-AI 16 MB SiP PSRAM 当前未用 |
 | P1 | **后续（未编号）**：Tier-2 bootloader OTA（RBL + A/B + failover） | planned later | 需 flash 写；参考 BK 官方 §2.12 RBL 校验 |
 | P2 | **后续（未编号）**：CPU1 / CPU2 唤醒 + NuttX SMP | planned later | app 层 `start_cpu1_core()`；N4 明确排除 SMP |
