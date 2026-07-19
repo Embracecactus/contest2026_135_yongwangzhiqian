@@ -177,39 +177,9 @@ static void bk7258_ana_wait(uint32_t idx)
     }
 }
 
-static void bk7258_ana_write_and(uint32_t addr, uint32_t idx, uint32_t mask)
-{
-  BK7258_REG(addr) = BK7258_REG(addr) & mask;
-  bk7258_ana_wait(idx);
-}
-
 static void bk7258_m1_write(uint32_t value)
 {
   BK7258_REG(BK7258_CPU_CLK_DIV_MODE1) = value;
-}
-
-/****************************************************************************
- * Private: DPLL SPI recalibration (mirrors sys_hal_cali_dpll)
- ****************************************************************************/
-
-static void bk7258_dpll_recalibrate(void)
-{
-  /* Lower the trigger and settle, then rising edge with detect off during
-   * settle, then re-enable detect and settle -- the SDK's two fixed delays.
-   */
-
-  bk7258_ana_write_and(BK7258_ANA_REG0, 0, ~BK7258_ANA0_SPITRIG);
-  bk7258_clk_sleep_us(BK7258_DPLL_TRIG_DELAY_US);
-
-  BK7258_REG(BK7258_ANA_REG0) =
-      (BK7258_REG(BK7258_ANA_REG0) & ~BK7258_ANA0_SPIDETEN) |
-      BK7258_ANA0_SPITRIG;
-  bk7258_ana_wait(0);
-  bk7258_clk_sleep_us(BK7258_DPLL_CAL_DELAY_US);
-
-  BK7258_REG(BK7258_ANA_REG0) |= BK7258_ANA0_SPIDETEN;
-  bk7258_ana_wait(0);
-  bk7258_clk_sleep_us(BK7258_DPLL_CAL_DELAY_US);
 }
 
 /****************************************************************************
@@ -274,16 +244,12 @@ void bk7258_clock_bringup_320m(void)
 {
   uint32_t a5;
   uint32_t dpll_on;
-  uint32_t did_switch = 0;
 
-  /* Only switch to 320 MHz when the DPLL is already enabled and stable, i.e.
-   * on the loader-residue path (soft reset / `u_bootloader enter`).  On a
-   * cold reset the BootROM leaves EN_DPLL=0; a NuttX-initiated DPLL cold
-   * enable (ANA_REG0/2/3 bias+softstart + SPI recalibration, chip-id
-   * dependent) is not reproduced here and is the open N4-D1 blocker.  In
-   * that case stay on the running XTAL/baseline clock and let the system
-   * come up at 26 MHz -- boot still reaches NSH.  This keeps the 320 MHz
-   * bring-up within the board-verified "DPLL already on" path.
+  /* Switch to 320 MHz when the DPLL is enabled.  The bootloader (cold
+   * reset) or loader (soft reset) has already enabled + calibrated the
+   * DPLL; the app must NOT re-calibrate it (doing so without the full
+   * ANA_REG bias/band context detunes the DPLL to the wrong frequency).
+   * The app only raises VDDIG and switches the core mux.
    */
 
   a5 = BK7258_REG(BK7258_ANA_REG5);
@@ -291,20 +257,13 @@ void bk7258_clock_bringup_320m(void)
 
   if (dpll_on)
     {
-      /* Step 1: re-run the SDK SPI recalibration (the SDK does this
-       * unconditionally; it is board-verified safe when EN_DPLL is set).
-       */
-
-      bk7258_dpll_recalibrate();
-
-      /* Step 2: raise core voltages to the SDK guard levels for 320M. */
+      /* Raise core voltages to the SDK guard levels for 320M. */
 
       bk7258_raise_vdd();
 
       /* Step 3: switch the core source/divider to 320M. */
 
       bk7258_switch_to_320m();
-      did_switch = 1;
     }
 
 #ifdef CONFIG_BK7258_CLOCK_320M_PROBE
@@ -321,8 +280,6 @@ void bk7258_clock_bringup_320m(void)
     bk7258_clk_puthex8(r9);
     bk7258_clk_puts(" DXPLL=");
     bk7258_clk_puthex8(dpll_on);
-    bk7258_clk_puts(" SW=");
-    bk7258_clk_puthex8(did_switch);
     bk7258_clk_puts("\r\n");
   }
 #endif
