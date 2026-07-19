@@ -2,15 +2,17 @@
 
 把 openvela / NuttX 移植到 Beken BK7258（ARM Cortex-M33 三核、Wi-Fi 6 + BLE 5.4）Tuya T5-AI
 模组。**已完成**两家 bootloader 完整逆向 + 自制 Tier-1 bootloader + 最小探针，**板端验证**
-BootROM → bootloader → app 跳转链与“启动核 = CPU0”关键事实；NuttX Stage N1、N2、N3 均已
+BootROM → bootloader → app 跳转链与”启动核 = CPU0”关键事实；NuttX Stage N1、N2、N3 均已
 `board-verified`（2026-07-18），Stage N4 内的 **N4-D0 / D0D（时钟诊断 baseline + runtime SysTick
-bookkeeping）已 substage `board-verified`**（2026-07-18，feature commit `6f596b7`），N4-D1（DPLL
-lock）目前 **blocked**，整 N4（DPLL enable / mux 切换 / 480 MHz）**尚未板端验证**。
+bookkeeping）+ D0F（100Hz tick-rate 兼容性）已 substage `board-verified`**（2026-07-18，D0/D0D
+feature commit `6f596b7`，D0F feature commit `8dab594`），N4-D1（DPLL lock）目前 **blocked**，
+整 N4（DPLL enable / mux 切换 / 480 MHz）**尚未板端验证**。
 
 > 详细技术报告（评委请读这份）：**[porting-report.md](porting-report.md)**
 > N2 worklog：[`nuttx-port/n2-nsh-console.md`](nuttx-port/n2-nsh-console.md)
 > N3 worklog：[`nuttx-port/n3-procfs-ps.md`](nuttx-port/n3-procfs-ps.md)
 > N4-D0/D0D worklog：[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md)
+> N5 flash filesystem worklog（D5 raw flash r/w + D6 MTD + D7 LittleFS，board-verified 2026-07-19）：[`nuttx-port/n5-flash-filesystem.md`](nuttx-port/n5-flash-filesystem.md)
 > 主 Stage 索引 / 当前恢复入口：[`next-stage-prompt.md`](next-stage-prompt.md)
 
 ## 当前状态
@@ -24,9 +26,11 @@ lock）目前 **blocked**，整 N4（DPLL enable / mux 切换 / 480 MHz）**尚�
 | NuttX Stage N1（bootloader 跳进 NuttX，早期 UART） | ✅ `board-verified` |
 | NuttX Stage N2（`nx_start` → 交互式 NSH） | ✅ `board-verified`（2026-07-18，4 RX bug 全修） |
 | NuttX Stage N3（procfs + `ps`） | ✅ `board-verified`（2026-07-18） |
-| NuttX Stage N4（DPLL / 480 MHz clock bring-up） | **CURRENT**：N4-D0/D0D `board-verified`（substage，`6f596b7`）；**N4-D1 blocked**；DPLL enable / mux 切换 not attempted；整 N4 not board-verified |
+| NuttX Stage N4（DPLL / 480 MHz clock bring-up） | **CURRENT**：N4-D0/D0D/D0F `board-verified`（substage，D0/D0D `6f596b7`，D0F `8dab594`）；**N4-D1 blocked**；DPLL enable / mux 切换 not attempted；整 N4 not board-verified |
 | NuttX Stage N4 — D0/D0D（时钟诊断 baseline + runtime SysTick bookkeeping） | ✅ substage `board-verified`（2026-07-18，feature commit `6f596b7`，3 个 overlay 文件） |
-| MTD / 文件系统 | 后续，未编号 |
+| NuttX Stage N4 — D0F（100Hz SysTick tick-rate 兼容性） | ✅ substage `board-verified`（2026-07-18，feature commit `8dab594`，defconfig 移除 100ms override） |
+| NuttX Stage N5（flash layout / ID / filesystem） | **N5-D0..D4 board-observed**（2026-07-19）；**N5-D5 raw flash r/w board-verified**（2026-07-19）；**N5-D6 MTD board-verified**（方案 A，CONFIG_BK7258_FLASH_MTD）；**N5-D7 LittleFS filesystem board-verified**（/data 挂载，probe 文件重启持久化通过）；D7 版 `all-app.bin` = 192270 B = `0x2EF0E`（< `0x100000`，boot/app 区不受影响） |
+| MTD / 文件系统 | ✅ board-verified（N5-D6 MTD + N5-D7 LittleFS，/data 挂载） |
 | Tier-2 bootloader（OTA / A-B failover） | 后续，未编号 |
 | 多核 SMP（CPU1 / CPU2） | 后续，未编号 |
 
@@ -56,13 +60,17 @@ lock）目前 **blocked**，整 N4（DPLL enable / mux 切换 / 480 MHz）**尚�
   [bk7236_pack_min_bootloader.py](../../board/bk7258_t5ai/bootloader/bk7236_pack_min_bootloader.py)
 
 ### NuttX 移植 worklog / prompts（`nuttx-port/`）
+- [nuttx-port/n5-flash-filesystem.md](nuttx-port/n5-flash-filesystem.md) —— Stage N5 flash filesystem worklog（D5 raw flash r/w + D6 MTD + D7 LittleFS，board-verified 2026-07-19）
 - [nuttx-port/n2-nsh-console.md](nuttx-port/n2-nsh-console.md) —— Stage N2 会话记录（boot trace、
   4 个 UART RX bug 现象/定位/修法、板端 `uname -a` 证据）
 - [nuttx-port/n3-procfs-ps.md](nuttx-port/n3-procfs-ps.md) —— Stage N3 会话记录（procfs 挂载、
   `ps` / `/proc` 与 state-C 板端证据）
-- [nuttx-port/n4-d0-clock-diag.md](nuttx-port/n4-d0-clock-diag.md) —— Stage N4-D0/D0D 会话记录
+- [nuttx-port/n4-d0-clock-diag.md](nuttx-port/n4-d0-clock-diag.md) —— Stage N4-D0/D0D/D0F 会话记录
   （manual-reset 26 MHz baseline、loader 残留 ≈80 MHz、J-Link DWT、runtime SysTick bookkeeping、
-  N4-D1 blocker）
+  100Hz tick 兼容性、N4-D1 blocker）
+- [nuttx-port/n5-flash-filesystem.md](nuttx-port/n5-flash-filesystem.md) —— Stage N5 flash filesystem
+  （D0 layout、D1 flash ID、D2 content dump、D3 magic scan、D4 emptiness scan、D5 raw flash r/w、
+  D6 MTD lower-half、D7 LittleFS；全链路 board-verified 2026-07-19）
   - **当前 Stage prompt：** [nuttx-port/prompts/04-n4-clock-bringup.md](nuttx-port/prompts/04-n4-clock-bringup.md)
 
 ### 参考
@@ -72,8 +80,8 @@ lock）目前 **blocked**，整 N4（DPLL enable / mux 切换 / 480 MHz）**尚�
 
 | 资源 | 路径 |
 |---|---|
-| Beken ARMINO SDK | `/home/lijian/project/armino/bk_avdk_smp` |
-| Tuya SDK | `/home/lijian/project/TuyaOpen/TuyaOpen` |
-| 已有 Zephyr port（含已验证最小 bootloader） | `/home/lijian/project/TuyaOpen/zephyr-bk7258-port` |
-| 涂鸦 bootloader（65 KB） | `zephyr-bk7258-port/tools/t5ai_bootloader.bin` |
-| BK 官方 bootloader（52 KB） | `bk_avdk_smp/cp/components/bk_libs/bk7258/bootloader/normal_bootloader/bootloader.bin` |
+| Beken ARMINO SDK | `$BK7258_SDK`（= `bk_avdk_smp`） |
+| Tuya SDK | `$TUYA_SDK`（= `TuyaOpen`） |
+| 已有 Zephyr port（含已验证最小 bootloader） | `$TUYA_SDK/zephyr-bk7258-port` |
+| 涂鸦 bootloader（65 KB） | `$TUYA_SDK/zephyr-bk7258-port/tools/t5ai_bootloader.bin` |
+| BK 官方 bootloader（52 KB） | `$BK7258_SDK/cp/components/bk_libs/bk7258/bootloader/normal_bootloader/bootloader.bin` |

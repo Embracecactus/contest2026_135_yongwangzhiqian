@@ -9,8 +9,9 @@
 | N1 | minimal NuttX boot | `board-verified`，commit `40495ca` | [porting report](porting-report.md) |
 | N2 | interactive NSH | `board-verified`，code `9f45bc6` + docs `e3ad3e9` | [N2 worklog](nuttx-port/n2-nsh-console.md) |
 | N3 | procfs + `ps` | `board-verified`，code `4d9198e` + docs `68badfe` | [N3 worklog](nuttx-port/n3-procfs-ps.md) |
-| **N4** | DPLL / 480 MHz clock bring-up | **CURRENT**：N4-D0/D0D substage `board-verified`（feature commit `6f596b7`，2026-07-18）；N4-D1 blocked；DPLL enable / mux 切换 not attempted；整 N4 not board-verified | [N4 recovery prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md) |
-| N5+ | 暂不分配范围 | N4 板端验证后再确定 | 生成 `05-n5-<slug>.md`，追加本表并更新 CURRENT 指针；不得覆盖 N4 文件 |
+| **N4** | DPLL / 480 MHz clock bring-up | **CURRENT**：N4-D0/D0D/D0F substage `board-verified`（D0/D0D `6f596b7` + D0F `8dab594`，2026-07-18）；N4-D1 blocked；DPLL enable / mux 切换 not attempted；整 N4 not board-verified | [N4 recovery prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md) |
+| **N5** | Flash layout / ID / filesystem | N5-D0..D4 board-observed（2026-07-19）；**N5-D5 raw flash r/w board-verified**（2026-07-19）；**N5-D6 MTD board-verified**（方案 A，CONFIG_BK7258_FLASH_MTD）；**N5-D7 LittleFS filesystem board-verified**（/data 挂载，probe 文件重启持久化通过）；D7 版 `all-app.bin` = 192270 B = `0x2EF0E`（< `0x100000`）；全链路 raw flash → MTD → ftl block device → LittleFS board-verified | [N5 worklog](nuttx-port/n5-flash-filesystem.md) |
+| N6+ | 暂不分配范围 | N4 板端验证后再确定（N5 filesystem 已 board-verified） | 生成 `06-nX-<slug>.md`，追加本表并更新 CURRENT 指针 |
 
 ## 当前 handoff
 
@@ -18,9 +19,20 @@
 - **Current prompt：**[`nuttx-port/prompts/04-n4-clock-bringup.md`](nuttx-port/prompts/04-n4-clock-bringup.md)
 - **Prerequisite：**N3 已 `board-verified` ✅
 - **Execution evidence：**N4-D0/D0D（时钟诊断 baseline + runtime SysTick bookkeeping，feature commit
-  `6f596b7`）已 **substage `board-verified`**（2026-07-18）；**N4-D1（DPLL lock）blocked**；DPLL enable /
+  `6f596b7`）+ D0F（100Hz tick 兼容性，feature commit `8dab594`）已 **substage `board-verified`**
+  （2026-07-18）。D0F defconfig 移除旧 100ms override，生效默认 10ms/100Hz；`CONFIG_USEC_PER_TICK=1000`
+  （1000Hz）manual-reset 路径失败重启，已 rejected。**N4-D1（DPLL lock）blocked**；DPLL enable /
   mux 切换 not attempted；**整 N4 not board-verified**。详见 [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md)。
   剩余收口：`6f596b7` 精确 commit 的 state-C 重编/重刷复验尚未完成。
+- **N5 flash filesystem（board-verified 2026-07-19）：**N5-D0..D4 board-observed（layout candidate、flash ID、content dump、magic scan、emptiness scan）；N5-D5 raw flash erase/write/read-back/re-erase board-verified（`0x00100000`，2026-07-19）；N5-D6 MTD lower-half board-verified（方案 A：每次 op 临时清/恢复 SR0 块保护，CONFIG_BK7258_FLASH_MTD，`chip/bk7258_flash_mtd.[ch]`）；N5-D7 LittleFS filesystem board-verified（CONFIG_BK7258_FLASH_LITTLEFS，ftl 注册 `/dev/mtdblock0`，mount 到 `/data`，autoformat 仅首次，probe 文件重启持久化通过）。全链路：raw flash → MTD → ftl block device → LittleFS。D7 版 `all-app.bin` = 192270 B = `0x2EF0E`（< `0x100000`，boot/app 区不受影响）。详见 [N5 worklog](nuttx-port/n5-flash-filesystem.md)。
+- **频率阶梯 / 480 MHz recovery note：**
+  - **不要重试 `M1=0x430`（480M/1）**：Beken SDK `sys_hal_core_bus_clock_ctrl()` 中
+    `PM_CLKSEL_CORE_480M` + `PM_CLKDIV_CORE_0` 组合被 guard 明确拒绝（返回 `BK_FAIL`）；板端
+    探测在 `N4D0:480S` 后 stall，与 SDK 政策一致。
+  - **当前最高板端/J-Link 验证的 loader-residue 操作点为 320 MHz**（M1=0x420, csrc=2, cdiv=0）。
+  - 240 MHz（480M/2）和 320 MHz（320M/1）均为 SDK 支持的操作点，已板端验证。
+  - **下一步只在有新证据表明安全路径时才调查 480 MHz 操作点**；当前无此证据。
+  - 详细频率阶梯表与 SDK guard 分析见 [N4-D0 worklog §10](nuttx-port/n4-d0-clock-diag.md#10-频率阶梯证据与-sdk-guard-分析loader-residue-muxdiv-probes)。
 
 ## 冻结的 N3 baseline
 
