@@ -247,9 +247,10 @@ void bk7258_clock_bringup_320m(void)
 
   /* Switch to 320 MHz when the DPLL is enabled.  The bootloader (cold
    * reset) or loader (soft reset) has already enabled + calibrated the
-   * DPLL; the app must NOT re-calibrate it (doing so without the full
-   * ANA_REG bias/band context detunes the DPLL to the wrong frequency).
-   * The app only raises VDDIG and switches the core mux.
+   * DPLL and set the voltages.  The app must NOT re-calibrate or change
+   * VDDIG (doing so without the full ANA_REG context detunes the DPLL).
+   * The app only switches the core mux, exactly like the board-verified
+   * try_dpll320 probe did.
    */
 
   a5 = BK7258_REG(BK7258_ANA_REG5);
@@ -257,12 +258,6 @@ void bk7258_clock_bringup_320m(void)
 
   if (dpll_on)
     {
-      /* Raise core voltages to the SDK guard levels for 320M. */
-
-      bk7258_raise_vdd();
-
-      /* Step 3: switch the core source/divider to 320M. */
-
       bk7258_switch_to_320m();
     }
 

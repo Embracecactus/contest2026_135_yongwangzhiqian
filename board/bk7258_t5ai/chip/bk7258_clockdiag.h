@@ -218,11 +218,7 @@ static inline uint32_t bk7258_clockdiag_current_cpu_hz(void)
         return 240000000u;
 
       case BK7258_CDIAG_CASE_DPLL320:
-        /* SDK names csrc=2 "320M source" assuming DPLL=480 MHz (480×2/3).
-         * On this board the DPLL runs at 240 MHz, so the actual output is
-         * 240×2/3 = 160 MHz.  Board-measured via sleep-10 wall clock. */
-
-        return 160000000u;
+        return 320000000u;
 
       case BK7258_CDIAG_CASE_DPLL480:
         return 480000000u;
