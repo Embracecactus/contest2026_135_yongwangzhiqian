@@ -58,3 +58,23 @@ config BK7258_FLASH_LITTLEFS
 		LittleFS at /data with the "autoformat" option (formats on first
 		boot only).  Also runs a probe-file persistence check.
 		Destructive on the data partition; enable only when authorised.
+
+config BK7258_CLOCK_320M
+	bool "BK7258 deterministic 320 MHz CPU0 clock bring-up"
+	default n
+	depends on ARCH_CHIP_BK7258
+	---help---
+		Deterministically bring the CPU0 core clock to 320 MHz (DPLL /1.5,
+		the highest board-verified point) at boot: ensure the DPLL is
+		enabled, raise VDDDIG/VDDD to the SDK guard levels, and switch the
+		core mux.  This is a real clock bring-up, not runtime detection.
+		480 MHz direct is SDK-rejected and not attempted.
+
+config BK7258_CLOCK_320M_PROBE
+	bool "BK7258 320 MHz bring-up verification probe (uart evidence line)"
+	default n
+	depends on BK7258_CLOCK_320M
+	---help---
+		Re-add a one-shot freestanding UART evidence line after the 320 MHz
+		bring-up showing M1/ANA_REG5/ANA_REG9 readback, for one
+		verification build.  Disable after board-verify.

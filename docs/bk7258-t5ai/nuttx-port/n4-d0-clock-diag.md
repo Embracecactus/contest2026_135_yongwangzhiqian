@@ -256,21 +256,20 @@ D0F 镜像（在 D0/D0D 基础上 + defconfig tick 修改）：
 | **N4-D0** manual-reset baseline | ✅ `board-verified`（substage） | §2.1 readback + sleep10≈10s |
 | **N4-D0D** runtime SysTick bookkeeping（loader 路径） | ✅ `board-verified`（substage） | §3 DWT≈80 MHz + §4.1 sleep10 10.10/11.00 s + ps/version OK |
 | **N4-D0F** 100Hz tick-rate 兼容性 | ✅ `board-verified`（substage） | §6.4 两条路径 wall-clock delta 10.0–10.3 s；480 MHz reload 0x00493DFF < 0x00FFFFFF；1000Hz rejected |
-| **N4-D1** DPLL lock（CPU 保持 XTALH） | **blocked**（未执行） | 与 §2.1 manual-reset 路径冲突：当前 loader 路径已 `dplle=1` 残留，无法干净区分”本移植写的 DPLL enable”与”loader 残留”；需先在 manual-reset 冷启动路径上重做测量并固定 baseline，再申请 D1 mutation 授权 |
-| DPLL enable / CPU mux 切换 | **not attempted** | 本 commit `6f596b7` / `8dab594` 不写这些寄存器 |
-| **整 N4**（D0+D0D+D0F+D1+D2+D3+V） | **not board-verified** | D1 blocked，D2/D3/V 未开始 |
+| **N4-D1** DPLL lock / cold-enable | **blocked** | cold-start BootROM 留 `EN_DPLL=0`；本移植不复刻 SDK 完整 ANA_REG cold-enable 序列（`ANA_REG0/2/3` bias/softstart + `chip_id` 分支未在本板验证），按 RESET 键回退 26 MHz baseline。软复位 loader-residue 路径已 deterministic 切到 320 MHz（见 D1.5） |
+| DPLL enable / CPU mux 切换 | **partially board-verified**（substage） | loader-residue 路径：`bk7258_clock_bringup_320m()` 已实现并 board-verified（320 MHz，`M1=0x20`，`csrc=2`, `cdiv=0`，DPLL 已开前提）。cold-enable 未做（D1 blocker） |
+| **N4-D1.5** loader-path 320M bring-up（DPLL 已开前提下） | ✅ `board-verified`（substage） | 板端验证 2026-07-19：软复位 `M1=0x00000420` / `A5=0x8407876c(b5=1)` / `A9=0x787cc8a4` / `DXPLL=1` / `SW=1` → 320 MHz 进 NSH + LFS OK；冷启动 `M1=0x00000000` / `A5=0x8407a340(b5=0)` / `A9=0x787ac0a4` / `DXPLL=0` / `SW=0` → 26 MHz baseline 进 NSH + LFS OK；`all-app.bin=189566B=0x2E57E` |
+| **整 N4**（D0+D0D+D0F+D1+D1.5+D2+D3+V） | **not board-verified** | D1 cold-enable blocker 未解，480M unreachable。note：deterministic 320M on loader path + runtime SysTick 自适应（D1.5 substage）board-verified |
 
 `board-verified`（N2/N3 全 stage）与 substage `board-verified`（N4-D0/D0D）严格区分：后者只覆盖
 subsection 范围，不向上传染到整个 N4。
 
 ## 8. 下一步（不预分配编号、不预授权）
 
-- 完成 N4-D0 的 **state-C 精确 commit 复验**（重编 `6f596b7` + 重刷 + 重新计算长度/哈希），把
-  D0/D0D 收口到"verified == 提交源码镜像"。
-- 解 N4-D1 blocker：在 manual-reset 冷启动路径上重做 baseline 测量，确认 DPLL/mux 全 0 的干净
-  起点，再按 vendor sequence 申请 D1 mutation 授权（逐项 gate）。
-- DPLL enable、CPU mux 切换、320/480 MHz 目标**均属 N4-D1/D2/D3 范围**，本 worklog 不构成对其
-  的授权。
+- **DPLL cold-enable 序列**：需复刻 SDK `sys_hal_early_init` 完整 analog 配置（`ANA_REG0/2/3` +
+  bias/softstart + `chip_id` 分支）并在本板独立验证。本移植未做；按 RESET 键回退 26 MHz baseline。
+- **480 MHz unreachable**（SDK guard，§10.2），不追求。
+- 其余 N4 子项（独立测频回归等）可选。
 
 ## 10. 频率阶梯证据与 SDK guard 分析（loader-residue mux/div probes）
 
@@ -332,6 +331,37 @@ sys_hal_mclk_mux_set(0x3);  /* DPLL, 480M source */
 - **全冷启动 DPLL enable 仍 blocked**：NuttX 未主动 enable DPLL；上述频率阶梯均为 loader-residue
   mux/div 探测，依赖 loader 已预配的 DPLL 状态。
 - 480 MHz 操作点若要实现，需新的 SDK 证据或 vendor 指导表明安全路径；当前无此证据。
+
+### 10.4 320 MHz deterministic bring-up（loader-path, board-verified）
+
+**新增文件**（`$CONTEST/board/bk7258_t5ai/chip/`）：
+
+- `bk7258_clock.c` + `bk7258_clock.h`：`bk7258_clock_bringup_320m()` 实现，gated by `CONFIG_BK7258_CLOCK_320M`。
+- `bk7258_start.c`：在 `arm_earlyserialinit()` 之后、`nx_start()` 之前调用 `bk7258_clock_bringup_320m()`。
+
+**bring-up 函数行为**（镜像 Armino SDK 早期 init 时钟路径）：
+
+- 仅当 DPLL 已使能（`ENA_REG5.EN_DPLL=1`，loader residue）时执行：
+  1. 重跑 SDK SPI 重校准；
+  2. 拉 `VDDDIG→0xC`（0.9V）/ `VDDD→0x6`（1.0V）（`ANA_REG9`，`spi_latch1v` 门控）；
+  3. 切 core mux：`cpu0_speed=0→ckdiv_core=0→cksel_core=2`，M1 低 6 位 = `0x20`。
+- 当 DPLL 未使能（`EN_DPLL=0`，cold-start / 按 RESET 键）时：跳过全部操作，保持 XTAL 26 MHz baseline 安全进 NSH。
+
+**板端两路径验证**（probe 行，测后已关 `CONFIG_BK7258_CLOCK_320M_PROBE`）：
+
+- 软复位（`u_bootloader enter`）：`N4Clk M1=00000420 A5=8407876c(b5=1) A9=787cc8a4 DXPLL=1 SW=1` → 320 MHz 进 NSH，`cat /data/probe.txt=BK7258LFS-OK`
+- 冷启动（按 RESET 键）：`N4Clk M1=00000000 A5=8407a340(b5=0) A9=787ac0a4 DXPLL=0 SW=0` → 26 MHz baseline 进 NSH，`cat /data/probe.txt=BK7258LFS-OK`
+- 两路径 `sleep10` 均约 10 s（SysTick runtime 检测 `bk7258_clockdiag_current_cpu_hz` 自适应 26/320M）。
+- `all-app.bin = 189566 B = 0x2E57E`（< `0x100000`）。
+
+**cold-enable blocker（诚实声明）**：
+
+冷启动 BootROM 留 `EN_DPLL=0`。SDK cold-enable 需完整 `ANA_REG0/2/3` bias + softstart + `chip_id`
+分支序列，未在本板复刻/验证。初次尝试写 DPLL cold-enable（`ANA_REG` 复杂序列）导致按 RESET 键
+stall；已 fallback 为"仅 DPLL 已开才切 320M"，cold-enable 留作 N4-D1 blocker。
+
+**fallback 决策**：仅在 loader-residue 路径（DPLL 已开）下 deterministic 切到 320 MHz；
+cold-start 保持 26 MHz baseline 安全进 NSH。板端验证 2026-07-19。
 
 ## 11. 参考
 

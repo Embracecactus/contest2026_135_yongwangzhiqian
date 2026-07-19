@@ -46,6 +46,12 @@ ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
 CHIP_CSRCS += bk7258_flash_mtd.c
 endif
 
+# Stage N4-D1: deterministic 320 MHz CPU0 clock bring-up.
+
+ifeq ($(CONFIG_BK7258_CLOCK_320M),y)
+CHIP_CSRCS += bk7258_clock.c
+endif
+
 # Compile the common Cortex-M SysTick lower half (arm_systick.c, which
 # provides systick_initialize() used by bk7258_timerisr.c).  The shared
 # arm_m/Make.defs gates this on CONFIG_ARM_M_SYSTICK, a symbol no Kconfig
