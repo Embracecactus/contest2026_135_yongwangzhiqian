@@ -44,6 +44,7 @@
 
 #include "arm_internal.h"
 #include "bk7258_clockdiag.h"
+#include "bk7258_flashdiag.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -219,15 +220,18 @@ void __start(void)
   arm_earlyserialinit();
   bk7258_early_putc('E');
 
-  /* 7b. N4-D0 read-only clock baseline.  Snapshot the clock/DPLL/mux/
-   *     voltage/UART1 configuration the Tier-1 bootloader left behind.
-   *     Strictly getreg32 + diagnostic putc -- no DPLL/mux/clock-control/
-   *     voltage/flash/UART-divisor writes.  Placed after the console is up
-   *     so the trace is observable, and before nx_start() so the boot
-   *     sequence is otherwise unchanged.
+  /* 7b. Bring-up diagnostics.  The clock dump is read-only; the DPLL probe is
+   *     still gated by the already-observed loader-residue state; and the N5
+   *     flash dump keeps its destructive D5 path behind a disabled-by-default
+   *     double gate.  Keep this block before nx_start() so boot sequencing stays
+   *     observable and deterministic.
    */
 
   bk7258_clockdiag_early_dump();
+  bk7258_clockdiag_try_dpll320();
+  bk7258_clockdiag_early_dump();
+  bk7258_clockdiag_fs_layout_dump();
+  bk7258_clockdiag_flash_dump();
 #endif
 
   /* 8. Start NuttX.  nx_start() never returns; it brings up the scheduler,
