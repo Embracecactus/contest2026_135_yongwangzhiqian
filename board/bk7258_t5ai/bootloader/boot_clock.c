@@ -3,9 +3,18 @@
  *
  * On cold reset the BootROM leaves EN_DPLL=0.  This module mirrors the
  * Armino SDK sys_hal_early_init analog-register sequence to enable and
- * calibrate the DPLL before jumping to the app, so the app can
- * deterministically switch the core mux to 320 MHz on both cold and soft
- * reset paths.
+ * calibrate the DPLL before jumping to the app, so the app inherits the
+ * same analog state the SDK app sees after early_init -- DPLL enabled and
+ * calibrated at the SDK default VCO, voltages at the SDK default level
+ * (VDDIG=0xB).  It does NOT pick a CPU frequency; that is the app's job.
+ *
+ * Per-chip frequency/voltage selection (and the VDDD->0x7 / VDDIG->0xD lift
+ * the 320 M runtime tier requires) is NOT done here -- the bootloader keeps
+ * the analog side byte-for-byte equal to sys_hal_early_init and leaves the
+ * core mux (M1) untouched, exactly as the vendor bootloader does.  The app
+ * then drives bk7258_dvfs_set_freq() (mirroring the SDK runtime
+ * sys_hal_switch_cpu_bus_freq path) to step up/down per chip operating
+ * point.  See chip/bk7258_dvfs.{c,h}.
  *
  * Board chip_id = 0x23A40910 = PM_CHIP_ID_MP_C.  The SDK has no explicit
  * MP_C branch, so the default else-branch ANA_REG values apply
@@ -22,7 +31,8 @@
  *
  * Scope: DPLL enable + SPI recalibration only.  Does NOT switch the core
  * mux (M1) or the flash clock (M2 cksel_flash) -- switching flash to the
- * 480 MHz source stalls on this board; the core mux is left for the app.
+ * 480 MHz source stalls on this board; the core mux is left for the app's
+ * DVFS path.  Does NOT raise VDDIG/VDDD above SDK early_init defaults.
  *
  * Freestanding: no libc, no .data/.bss globals, only stack locals.
  */
@@ -215,6 +225,14 @@ static int step4_latched_block(void)
 
     if (ana_or(ANA_REG9, (1u << 9)) < 0) return -1;       /* spi_latch1v = 1 */
     if (ana_write(ANA_REG8,  0x57E62F26u) < 0) return -1;
+    /* ANA_REG9: SDK default-branch value (VDDIG=0xB).  We deliberately do NOT
+     * raise VDDIG ahead of any 320/480 step here -- the bootloader only brings
+     * the DPLL up to the SDK early_init equivalent (the analog state the SDK
+     * app inherits before any runtime DVFS).  Per-chip frequency selection
+     * (incl. VDDD/VDDIG lift to 0xD for the 320 M runtime tier) is done by the
+     * app's bk7258_dvfs_set_freq() lower half, mirroring the SDK's
+     * sys_hal_switch_cpu_bus_freq() runtime path.  See chip/bk7258_dvfs.c. */
+
     if (ana_write(ANA_REG9,  0x787BC8A4u) < 0) return -1;
     if (ana_write(ANA_REG10, 0xC3D543A7u) < 0) return -1;
     if (ana_write(ANA_REG11, 0xB47E99F8u) < 0) return -1;

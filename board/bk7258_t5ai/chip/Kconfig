@@ -63,12 +63,15 @@ config BK7258_CLOCK_320M
 	bool "BK7258 deterministic 320 MHz CPU0 clock bring-up"
 	default n
 	depends on ARCH_CHIP_BK7258
+	select BK7258_DVFS
 	---help---
-		Deterministically bring the CPU0 core clock to 320 MHz (DPLL /1.5,
-		the highest board-verified point) at boot: ensure the DPLL is
-		enabled, raise VDDDIG/VDDD to the SDK guard levels, and switch the
-		core mux.  This is a real clock bring-up, not runtime detection.
-		480 MHz direct is SDK-rejected and not attempted.
+		Deterministically bring the CPU0 core clock to the 320 MHz tier
+		(DPLL /1.5, the highest board-verified operating point; CPU0
+		effective 160 MHz on this single-core port -- see BK7258_DVFS)
+		at boot.  The bootloader enables + calibrates the DPLL at the SDK
+		default analog state; this option makes the app step the core up
+		to the 320 MHz runtime tier via bk7258_dvfs_set_freq().  480 MHz
+		direct is SDK-rejected and not attempted.
 
 config BK7258_CLOCK_320M_PROBE
 	bool "BK7258 320 MHz bring-up verification probe (uart evidence line)"
@@ -78,3 +81,33 @@ config BK7258_CLOCK_320M_PROBE
 		Re-add a one-shot freestanding UART evidence line after the 320 MHz
 		bring-up showing M1/ANA_REG5/ANA_REG9 readback, for one
 		verification build.  Disable after board-verify.
+
+config BK7258_DVFS
+	bool "BK7258 runtime CPU-frequency switching (DVFS lower half)"
+	default n
+	depends on ARCH_CHIP_BK7258
+	---help---
+		Provide bk7258_dvfs_set_freq(int tier) -- a standalone NuttX
+		overlay DVFS lower half that mirrors the Armino SDK runtime
+		sys_drv_switch_cpu_bus_freq / sys_hal_switch_cpu_bus_freq path
+		(lift VDDD/VDDIG one tier at a time per the SDK operating-point
+		table, then switch the core mux, then recompute the SysTick
+		reload).  This is NOT the NuttX PM state machine: it follows the
+		lc823450 DVFS precedent of a single chip-local set_freq() with no
+		governor/HPWORK dependency.  Boot-time bring-up under
+		BK7258_CLOCK_320M selects this; runtime switching via /proc/dvfs
+		is available under BK7258_DVFS_PROCFS.
+
+config BK7258_DVFS_PROCFS
+	bool "BK7258 /proc/dvfs runtime DVFS control"
+	default n
+	depends on BK7258_DVFS
+	select FS_PROCFS
+	select FS_PROCFS_REGISTER
+	---help---
+		Register /proc/dvfs so the current CPU frequency tier can be
+		queried (`cat /proc/dvfs`) and stepped at runtime
+		(`echo "cur_freq 80" > /proc/dvfs`), exercising the full DVFS
+		lower half from userspace.  Requires FS_PROCFS +
+		FS_PROCFS_REGISTER (both selected here) for the procfs_register
+		run-time registration API.

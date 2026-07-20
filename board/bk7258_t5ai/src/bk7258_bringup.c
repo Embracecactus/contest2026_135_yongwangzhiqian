@@ -37,6 +37,10 @@
 #include <nuttx/fs/fs.h>
 #endif
 
+#if defined(CONFIG_FS_PROCFS) && defined(CONFIG_BK7258_DVFS_PROCFS)
+#include "bk7258_dvfs.h"
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -139,6 +143,15 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
 
 int board_app_initialize(uintptr_t arg)
 {
+  /* Register the BK7258 DVFS /proc/dvfs entry *before* mounting procfs: the
+   * fs_procfs NOTE requires the procfs entry table to be stable at mount
+   * time (procfs_register reallocs the table; doing it after the mount would
+   * race with concurrent procfs access). */
+
+#if defined(CONFIG_FS_PROCFS) && defined(CONFIG_BK7258_DVFS_PROCFS)
+  (void)bk7258_dvfs_procfs_register();
+#endif
+
   /* Mount procfs at the NSH proc mountpoint so ps, ls /proc, and cat of
    * /proc entries work.  CONFIG_NSH_ARCHINIT activates this hook;
    * CONFIG_FS_PROCFS provides the filesystem.

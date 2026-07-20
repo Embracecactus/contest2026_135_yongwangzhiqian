@@ -25,4 +25,28 @@ set(SRCS
 # (duplicate _vectors symbol).  We do not exercise CMake for N1; if a later
 # stage switches to CMake, filter arm_vectors.c out of the arch target here.
 
+# Conditional sources mirroring chip/Make.defs (the Make backend is the one
+# actually exercised; kept in sync here so a future CMake switch does not pull
+# an inconsistent source set).
+
+if(CONFIG_BK7258_CLOCK_320M)
+  list(APPEND SRCS bk7258_clock.c)
+endif()
+
+if(CONFIG_BK7258_FLASH_MTD)
+  list(APPEND SRCS bk7258_flash_mtd.c)
+endif()
+
+if(CONFIG_ARM_SYSTICK)
+  list(APPEND SRCS arm_systick.c)
+endif()
+
+if(CONFIG_BK7258_DVFS)
+  list(APPEND SRCS bk7258_dvfs.c)
+endif()
+
+if(CONFIG_BK7258_DVFS_PROCFS)
+  list(APPEND SRCS bk7258_dvfs_procfs.c)
+endif()
+
 target_sources(chip PRIVATE ${SRCS})
