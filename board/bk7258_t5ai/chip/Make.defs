@@ -64,6 +64,19 @@ ifeq ($(CONFIG_ARM_SYSTICK),y)
 CHIP_CSRCS += arm_systick.c
 endif
 
+# Stage N4-D2: the BK7258 DVFS lower half.  Selected by BK7258_CLOCK_320M
+# (boot-time bringup) and reachable standalone via /proc/dvfs when
+# BK7258_DVFS_PROCFS is on.  bk7258_clk_ll.h is consumed inline by both
+# bk7258_clock.c and bk7258_dvfs.c; no separate .c for it.
+
+ifeq ($(CONFIG_BK7258_DVFS),y)
+CHIP_CSRCS += bk7258_dvfs.c
+endif
+
+ifeq ($(CONFIG_BK7258_DVFS_PROCFS),y)
+CHIP_CSRCS += bk7258_dvfs_procfs.c
+endif
+
 # Force the link entry point to our __start (defined in bk7258_start.c).
 # --build-id=none keeps the image deterministic and avoids leaking any
 # build-id bytes that could shift the offset of later sections.

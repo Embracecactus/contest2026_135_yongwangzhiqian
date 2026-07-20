@@ -43,11 +43,13 @@
 #include <nuttx/clock.h>
 #include <nuttx/timers/arch_timer.h>
 #include <arch/board/board.h>
+#include <arch/irq.h>
 
 #include "arm_internal.h"
 #include "systick.h"
 #include "nvic.h"
 #include "bk7258_clockdiag.h"
+#include "bk7258_dvfs.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -106,3 +108,50 @@ void up_timer_initialize(void)
 
   up_timer_set_lowerhalf(systick_initialize(true, cpu_hz, -1));
 }
+
+/****************************************************************************
+ * Name: bk7258_systick_recalc
+ *
+ * Description:
+ *   Recompute and atomically rewrite the SysTick one-tick reload for the
+ *   live core clock, after a runtime DVFS frequency switch.  SysTick is
+ *   clocked at the CPU0 processor clock (CLKSOURCE = processor clock, no
+ *   /8 divisor), so every CPU frequency change must update RELOAD here or
+ *   the OS tick period drifts (sleep N becomes N * (old_hz / new_hz)).
+ *
+ *   Reads M1/ANA_REG5 via bk7258_clockdiag_current_cpu_hz() (read-only) and
+ *   writes only RELOAD + CVR.  Clearing CVR after touching RELOAD is the
+ *   ARMv8-M architecturally mandated sequence to apply a new reload on the
+ *   next wrap (CVR is write-to-clear).
+ *
+ *   This keeps the NuttX common arm_systick.c upstream untouched (the
+ *   systick_lowerhalf_s.freq field is NOT updated here -- it is only used
+ *   for usec/count conversions in optional timer APIs, not for the tick
+ *   cadence, which is governed by RELOAD).  If a future caller needs
+ *   accurate usec-scale timeouts after a switch, that is a separate task.
+ *
+ *   Caller (bk7258_dvfs_set_freq) holds interrupts disabled across the
+ *   whole mux+reload sequence, so no extra irqsave is taken here.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BK7258_DVFS
+void bk7258_systick_recalc(void)
+{
+  uint32_t cpu_hz;
+  uint32_t reload;
+
+  cpu_hz = bk7258_clockdiag_current_cpu_hz();
+  reload = (cpu_hz / CLK_TCK) - 1;
+
+  /* Use the BK7258_CDIAG_SYSTICK_* address macros (always present in
+   * bk7258_clockdiag.h) rather than risking a backend-specific
+   * NVIC_SYSTICK_CURRENT definition.  RVR is RELOAD, CVR is the
+   * write-to-clear current-counter register. */
+  putreg32(reload, BK7258_CDIAG_SYSTICK_RVR);
+
+  /* Write any value to CVR to clear it; the SysTick then counts down from
+   * RELOAD so the first tick is one full tick long at the new period. */
+  putreg32(0, BK7258_CDIAG_SYSTICK_CVR);
+}
+#endif /* CONFIG_BK7258_DVFS */
