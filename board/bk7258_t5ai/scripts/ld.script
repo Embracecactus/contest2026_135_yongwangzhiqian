@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Linker script for the Beken BK7258 (T5-AI, Cortex-M33) Stage N1 image.
+ * Linker script for the Beken BK7258 (T5-AI, Cortex-M33) Stage A1 image.
  *
  * Memory map (reverse-engineered on board; the app partition size follows
  * the armino SDK partition table for BK7258):
@@ -19,12 +19,14 @@
  *   RAM   : 0x28000000 .. 0x2809FFFF  (640 KiB SRAM)
  *   MSP   : 0x2809FFFC  (top of usable SRAM, also stored in vector slot 0)
  *
- * The .vectors section (66 entries, 0x108 bytes from bk7258_vectors.c) is
+ * The .vectors section (80 entries, 0x140 bytes from bk7258_vectors.c) is
  * KEEP-pinned first so that:
  *   - file offset 0x000 == slot [0] == initial MSP (0x2809FFFC)
  *   - file offset 0x004 == slot [1] == __start (Thumb entry)
  *   - file offset 0x100 == slot [64] == app magic "BK72"
  *   - file offset 0x104 == slot [65] == app magic "36\0\0"
+ *   - file offset 0x108 == slot [66] == first upper external IRQ
+ *   - file offset 0x13c == slot [79] == last upper external IRQ
  ****************************************************************************/
 
 /* The linker script is preprocessed to .tmp before being passed to ld;
@@ -59,6 +61,15 @@ SECTIONS
         KEEP(*(.vectors))
         . = ALIGN(4);
     } > FLASH
+
+    /* Permanent A1 linker gates for .vectors section.
+     * _vectors must be pinned at flash origin; size must be 0x140 (80 slots).
+     */
+
+    ASSERT(_vectors == ORIGIN(FLASH),
+           "ERROR: _vectors must be at ORIGIN(FLASH) = 0x02010000 (A1 gate)")
+    ASSERT(SIZEOF(.vectors) == 0x140,
+           "ERROR: .vectors must be 0x140 bytes (80 entries, A1 gate)")
 
     /* Code + read-only data (XIP-readable in flash). */
     .text : ALIGN(4)
@@ -129,6 +140,23 @@ SECTIONS
         . += CONFIG_ARCH_INTERRUPTSTACK;
         g_intstacktop = ABSOLUTE(.);
     } > RAM
+
+    .ram_vectors (NOLOAD) : ALIGN(512)
+    {
+        _sram_vectors = ABSOLUTE(.);
+        KEEP(*(.ram_vectors))
+        . = ALIGN(4);
+        _eram_vectors = ABSOLUTE(.);
+    } > RAM
+
+    ASSERT((_sram_vectors & 0x1ff) == 0,
+           "ERROR: .ram_vectors must be 512-byte aligned")
+
+    /* Permanent A1 gate: .ram_vectors must be 0x140 bytes (80 slots x 4).
+     */
+
+    ASSERT(_eram_vectors - _sram_vectors == 0x140,
+           "ERROR: .ram_vectors must be 0x140 bytes (80 entries, A1 gate)")
 
     /* Initialized data: VMA in RAM, LMA in FLASH right after .tbss/.ARM. */
     .data : ALIGN(4)

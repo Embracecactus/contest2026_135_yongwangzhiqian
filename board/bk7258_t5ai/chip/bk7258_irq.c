@@ -3,16 +3,19 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Beken BK7258 (T5-AI, Cortex-M33) NVIC interrupt support for NuttX N2.
+ * Beken BK7258 (T5-AI, Cortex-M33) NVIC interrupt support for NuttX A1.
  *
  * Standard Cortex-M NVIC glue, modelled on nuttx/arch/arm/src/mps/mps_irq.c.
  * Provides up_irqinitialize() / up_enable_irq() / up_disable_irq() /
  * up_prioritize_irq() / arm_ack_irq() that the common armv8-m dispatch
- * code (arm_doirq.c, arm_exception.S) expects.  The BK7258 exposes 48
- * external IRQs (NR_IRQS=48 -> vector slots [16..63]); the chip-provided
- * vector table (bk7258_vectors.c) routes SysTick + all external IRQs to
- * exception_direct and the system exceptions to exception_common, so once
- * up_irqinitialize() runs, irq_attach()/irq_dispatch() work normally.
+ * code (arm_doirq.c, arm_exception.S) expects.  The BK7258 exposes 64
+ * external IRQs (NR_IRQS=80 -> vector slots [16..79]); the chip-provided
+ * vector table (bk7258_vectors.c) routes slots [2..3] through the
+ * diagnostic bk7258_hardfault_handler and all other exceptions/IRQs through
+ * exception_common.  Slots [64]/[65] hold boot magic in flash and are
+ * runtime-repaired to exception_common via arm_ramvec_attach after VTOR
+ * switches to RAM.  Once up_irqinitialize() runs, irq_attach()/
+ * irq_dispatch() work normally.
  *
  * System-exception IRQ numbers use the canonical arm_m names from nvic.h
  * (NVIC_IRQ_HARDFAULT, NVIC_IRQ_SVCALL, NVIC_IRQ_PENDSV, ...) which equal
@@ -31,6 +34,7 @@
 
 #include <nuttx/arch.h>
 #include <arch/irq.h>
+#include <arch/barriers.h>
 
 #include "ram_vectors.h"
 #include "arm_internal.h"
@@ -136,22 +140,77 @@ void up_irqinitialize(void)
   int num_priority_registers;
   int i;
 
-  /* Disable all external interrupts. */
+  /* Step 1: Disable all 64 external NVIC lines.  BK7258_EXTERNAL_IRQS
+   * is used for the loop bound; this clears banks starting at external
+   * IRQ 0 and 32.
+   */
 
-  for (i = 0; i < NR_IRQS - BK7258_IRQ_FIRST; i += 32)
+  for (i = 0; i < BK7258_EXTERNAL_IRQS; i += 32)
     {
       putreg32(0xffffffff, NVIC_IRQ_CLEAR(i));
     }
 
-  /* Point VTOR at our flash-resident vector table (also set in __start;
-   * redundant here but deterministic).
+  /* Step 2: Point VTOR at our flash-resident vector table (also set in
+   * __start; redundant here but deterministic).
    */
 
   putreg32((uint32_t)_vectors, NVIC_VECTAB);
 
+  /* Step 3: Explicit barrier after the VTOR write. */
+
+  UP_DSB();
+  UP_ISB();
+
 #ifdef CONFIG_ARCH_RAMVECTORS
+
+  /* Step 4: Copy all 80 entries from flash to RAM and switch VTOR to
+   * g_ram_vectors.  arm_ramvec_initialize() does both.
+   */
+
   arm_ramvec_initialize();
-#endif
+
+  /* Step 5: Repair the two boot-magic slots (64/65) that the bootloader
+   * requires but that NuttX must route through exception_common.  These
+   * are logical IRQ/vector slots 64 and 65.  Do not use ordinary
+   * irq_attach() for this repair.
+   */
+
+  {
+    int ret0;
+    int ret1;
+
+    ret0 = arm_ramvec_attach(BK7258_IRQ_ETHERNET, exception_common);
+    ret1 = arm_ramvec_attach(BK7258_IRQ_SCALE0, exception_common);
+
+    /* Step 6: Capture/check both return values.  A failure must not
+     * continue to final IRQ unmasking.  Both calls must be made before
+     * the combined failure decision.
+     */
+
+    if (ret0 < 0 || ret1 < 0)
+      {
+        PANIC();
+      }
+
+    /* Step 7: Barrier after the two RAM slot writes. */
+
+    UP_DSB();
+    UP_ISB();
+
+    /* Step 8: Debug assertions before unmasking. */
+
+    DEBUGASSERT(getreg32(NVIC_VECTAB) == (uint32_t)g_ram_vectors);
+    DEBUGASSERT((uintptr_t)g_ram_vectors[BK7258_IRQ_ETHERNET] ==
+                ((uintptr_t)exception_common | 1u));
+    DEBUGASSERT((uintptr_t)g_ram_vectors[BK7258_IRQ_SCALE0] ==
+                ((uintptr_t)exception_common | 1u));
+  }
+
+#endif /* CONFIG_ARCH_RAMVECTORS */
+
+  /* Step 9: Continue the existing default priorities, system-handler
+   * attachments, IRQ stack coloring, and final up_irq_enable().
+   */
 
   /* Default-prioritise the system exceptions. */
 

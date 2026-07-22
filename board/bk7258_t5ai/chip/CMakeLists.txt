@@ -18,6 +18,7 @@ set(SRCS
     bk7258_irq.c
     bk7258_timerisr.c
     bk7258_allocateheap.c
+    bk7258_os_adapt.c
 )
 
 # NOTE: The common armv8-m CMake path still adds arm_vectors.c.  When this
@@ -49,4 +50,14 @@ if(CONFIG_BK7258_DVFS_PROCFS)
   list(APPEND SRCS bk7258_dvfs_procfs.c)
 endif()
 
+if(CONFIG_BK7258_WDT)
+  list(APPEND SRCS bk7258_wdt.c)
+endif()
+
 target_sources(chip PRIVATE ${SRCS})
+
+# Beken SDK include paths for the prebuilt library headers.
+
+target_include_directories(chip PRIVATE
+    ${BOARD_DIR}/bk_idk/armino_as_lib/cp/include
+)

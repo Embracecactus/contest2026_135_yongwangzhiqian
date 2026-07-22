@@ -37,6 +37,10 @@
 #include <nuttx/fs/fs.h>
 #endif
 
+#ifdef CONFIG_BK7258_WDT
+#include "bk7258_wdt.h"
+#endif
+
 #if defined(CONFIG_FS_PROCFS) && defined(CONFIG_BK7258_DVFS_PROCFS)
 #include "bk7258_dvfs.h"
 #endif
@@ -143,6 +147,10 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
 
 int board_app_initialize(uintptr_t arg)
 {
+#ifdef CONFIG_BK7258_WDT
+  (void)bk7258_wdt_initialize();
+#endif
+
   /* Register the BK7258 DVFS /proc/dvfs entry *before* mounting procfs: the
    * fs_procfs NOTE requires the procfs entry table to be stable at mount
    * time (procfs_register reallocs the table; doing it after the mount would

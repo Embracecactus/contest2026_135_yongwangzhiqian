@@ -20,7 +20,9 @@ config ARCH_CHIP_BK7258
 	bool "Beken BK7258 (T5-AI tri-core Cortex-M33)"
 	depends on ARCH_CHIP_CUSTOM
 	select ARCH_CORTEXM33
+	select ARCH_HAVE_FPU
 	select ARCH_HAVE_CUSTOM_VECTORS
+	select ARCH_RAMVECTORS
 	select ARCH_HAVE_MPU
 	select MTD if BK7258_FLASH_MTD
 	---help---
@@ -111,3 +113,17 @@ config BK7258_DVFS_PROCFS
 		lower half from userspace.  Requires FS_PROCFS +
 		FS_PROCFS_REGISTER (both selected here) for the procfs_register
 		run-time registration API.
+
+config BK7258_WDT
+	bool "BK7258 APB watchdog (WDT) lower-half driver"
+	default y
+	depends on ARCH_CHIP_BK7258
+	select WATCHDOG
+	---help---
+		Register /dev/watchdog0 backed by the BK7258 APB hardware
+		watchdog.  Mirrors the Armino SDK WDT BSP
+		(bk_wdt_driver_init / bk_wdt_start / bk_wdt_feed path).
+		The bootloader arms the WDT during cold-init; this driver
+		takes over after boot and feeds it via the NuttX watchdog
+		upper-half automonitor (CONFIG_WATCHDOG_AUTOMONITOR).
+		Default timeout 8 s (period=8000), matching the bootloader.
