@@ -9,15 +9,16 @@
 | N1 | minimal NuttX boot | `board-verified`，commit `40495ca` | [porting report](porting-report.md) |
 | N2 | interactive NSH | `board-verified`，code `9f45bc6` + docs `e3ad3e9` | [N2 worklog](nuttx-port/n2-nsh-console.md) |
 | N3 | procfs + `ps` | `board-verified`，code `4d9198e` + docs `68badfe` | [N3 worklog](nuttx-port/n3-procfs-ps.md) |
-| **N4** | DPLL / 480 MHz clock bring-up | **CURRENT**：N4-D0/D0D/D0F substage `board-verified`（D0/D0D `6f596b7` + D0F `8dab594`，2026-07-18）；N4-D1 blocked；DPLL enable / mux 切换 not attempted；整 N4 not board-verified | [N4 recovery prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md) |
+| **N4** | DPLL / 480 MHz clock bring-up | 历史：N4-D0/D0D/D0F substage `board-verified`（D0/D0D `6f596b7` + D0F `8dab594`，2026-07-18）；N4-D1 blocked；DPLL enable / mux 切换 not attempted；整 N4 not board-verified | [N4 recovery prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md) |
 | **N5** | Flash layout / ID / filesystem | N5-D0..D4 board-observed（2026-07-19）；**N5-D5 raw flash r/w board-verified**（2026-07-19）；**N5-D6 MTD board-verified**（方案 A，CONFIG_BK7258_FLASH_MTD）；**N5-D7 LittleFS filesystem board-verified**（/data 挂载，probe 文件重启持久化通过）；D7 版 `all-app.bin` = 192270 B = `0x2EF0E`（< `0x100000`）；全链路 raw flash → MTD → ftl block device → LittleFS board-verified | [N5 worklog](nuttx-port/n5-flash-filesystem.md) |
-| N6+ | 暂不分配范围 | N4 板端验证后再确定（N5 filesystem 已 board-verified） | 生成 `06-nX-<slug>.md`，追加本表并更新 CURRENT 指针 |
+| **N6** | Beken SDK integration / WDT / IRQ adaptation | **CURRENT**：WDT/UART RX/NSH/LittleFS `board-verified`；A0 RAM-vector plumbing **`board-verified`**（2026-07-22）；A1 Task 1-4 complete；**A1 `board-verified`**（2026-07-22）：board-flashed `all-app.bin` = 236028 B (`0x399fc`), SHA-256 `a92352...b5a5`；VTOR=`0x28000800`，flash magic slots 64/65 = `32374B42 00003633`，RAM slots 15/31/64/65 = `0x020108FD`，UART/NSH/WDT/LittleFS/DVFS tier-5 baseline all PASS；SDK bundle local/ignored + checksum-pinned（374 entries, 31 linked libs, fail-closed manifest, deterministic ordering）；**precommit build/static verification complete**（23/23 gates PASS, exit 0）；precommit `all-app.bin` = 236028 B, SHA-256 `d7b73c7...f1b0`（compile/static-only, NOT board-tested; board-flashed hash `a92352...b5a5` remains board-verified）；SDK IRQ bridge prerequisite satisfied but bridge NOT started；code commit `66b29d1` created；next action: documentation commit and push | [N6 worklog](nuttx-port/n6-sdk-integration-worklog.md) |
 
 ## 当前 handoff
 
-- **Current Stage：N4**
-- **Current prompt：**[`nuttx-port/prompts/04-n4-clock-bringup.md`](nuttx-port/prompts/04-n4-clock-bringup.md)
-- **Prerequisite：**N3 已 `board-verified` ✅
+- **Current Stage：N6 — Beken SDK integration / WDT / IRQ adaptation**
+- **Branch：**`bk7258-n6-ramvectors`
+- **Current worklog：**[`nuttx-port/n6-sdk-integration-worklog.md`](nuttx-port/n6-sdk-integration-worklog.md)
+- **Current verified point：**WDT automonitor feeding（`ABWTK`）、UART RX、NSH命令和LittleFS读取已`board-verified`（baseline不变）。A0 RAM-vector plumbing **`board-verified`**（2026-07-22）。A1 Task 1-4 complete。**A1 `board-verified`**（2026-07-22）：board-flashed `all-app.bin` = 236028 B (`0x399fc`), SHA-256 `a92352eeea5ebbab4eb4a7a95fd97a73d950816a3620242be8e8fc141030b5a5`（user confirmed 16:04 rebuild; Task 3 static artifact `33f68aa...ebc2293` is historical evidence only）；VTOR=`0x28000800`，flash magic slots 64/65 = `32374B42 00003633`，RAM slots 15/31/64/65 = `0x020108FD`，UART/NSH/WDT automonitor/LittleFS `BK7258LFS-OK`/DVFS tier-5 baseline all PASS。SDK bundle local/ignored + checksum-pinned（374 manifest entries: 341 headers + 2 config + 31 linked libs; 50 excluded libs; 4 .obj not linked; fail-closed validation; deterministic LC_ALL=C ordering; --install parent-creation fix; 6/6 tests pass）。**Precommit build/static verification complete**（Task 14, 2026-07-22）：distclean+build exit 0; 23/23 verifier gates PASS; negative G23 test PASS; `git diff --check` exit 0; 0 team-file warnings; precommit `all-app.bin` = 236028 B, SHA-256 `d7b73c7fdf1275a90621b54e0343d6de31d343f115eb6acd0173fb971a2cf1b0`（compile/static-only, NOT board-tested; board-flashed hash `a92352...b5a5` remains board-verified）。SDK IRQ bridge prerequisite satisfied but bridge NOT started。No agent-performed flash/download。Code commit `66b29d1` created。下一步：documentation commit and push。Bridge not started。
 - **Execution evidence：**N4-D0/D0D（时钟诊断 baseline + runtime SysTick bookkeeping，feature commit
   `6f596b7`）+ D0F（100Hz tick 兼容性，feature commit `8dab594`）已 **substage `board-verified`**
   （2026-07-18）。D0F defconfig 移除旧 100ms override，生效默认 10ms/100Hz；`CONFIG_USEC_PER_TICK=1000`
@@ -52,6 +53,7 @@
 
 ## 命名与维护规则
 
+- **每有一项实质性新进展，必须先更新当前Stage的`docs/` worklog，再进入下一项技术动作。** 实质性进展包括代码/配置修改、构建或板端结果、假设证实/证否、回滚、根因结论、阻塞项和下一步变化；记录日期、证据、状态标签、当前诊断代码及下一最小步骤。
 - 每个 MAIN Stage 恰好一个提示词文件，命名为 `NN-nX-<slug>.md`；两位序号必须与 MAIN Stage 编号一致。
 - 一个 Stage 内的诊断/实现/验证步骤只是有序 subsection，不拆成独立 Stage 文件。
 - Stage 完成后，其文件成为不可变历史 handoff；仅允许事实性纠错，不在原文件里续写下一 Stage 实现。
