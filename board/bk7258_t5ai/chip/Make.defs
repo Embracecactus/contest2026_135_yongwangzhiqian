@@ -21,6 +21,11 @@
 
 include armv8-m/Make.defs
 
+# Beken SDK include paths for the prebuilt library headers.
+
+INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)bk_idk$(DELIM)armino_as_lib$(DELIM)cp$(DELIM)include
+INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)bk_idk$(DELIM)armino_as_lib$(DELIM)cp$(DELIM)config
+
 # Chip-specific sources (resolved via VPATH += $(CHIP_DIR) added by the
 # arch Makefile, exactly like every other in-tree ARM chip).
 #
@@ -38,6 +43,8 @@ CHIP_CSRCS += bk7258_serial.c
 CHIP_CSRCS += bk7258_irq.c
 CHIP_CSRCS += bk7258_timerisr.c
 CHIP_CSRCS += bk7258_allocateheap.c
+CHIP_CSRCS += bk7258_os_adapt.c
+CHIP_CSRCS += bk7258_sdk_stubs.c
 
 # Stage N5-D6-A: on-chip flash data-partition MTD (read-only path).  Gated on
 # CONFIG_BK7258_FLASH_MTD; default off so normal firmware is unchanged.
@@ -80,5 +87,21 @@ endif
 # Force the link entry point to our __start (defined in bk7258_start.c).
 # --build-id=none keeps the image deterministic and avoids leaking any
 # build-id bytes that could shift the offset of later sections.
+
+# Stage B2: APB watchdog lower-half driver.  Takes over the bootloader's WDT
+# after boot and registers /dev/watchdog0.  Default y.
+
+ifeq ($(CONFIG_BK7258_WDT),y)
+CHIP_CSRCS += bk7258_wdt.c
+endif
+
+# Disable FreeRTOS assumptions in SDK headers (reference: 7236N Make.defs:110-120)
+CFLAGS += -DCONFIG_FREERTOS=0 -DCONFIG_FREERTOS_SMP=0
+# NuttX automonitor owns watchdog keepalive; the wrapper stops SDK TIMER_ID2.
+CFLAGS += -DCONFIG_INT_WDT=0 -DCONFIG_TASK_WDT=0 -DCONFIG_INT_AON_WDT=0
+CFLAGS += -DCONFIG_SYSTEM_CTRL=1 -DCONFIG_NMI_WDT_EN=1
+CFLAGS += -DCONFIG_DEBUG_VERSION=0 -DCONFIG_GPIO_RETENTION_SUPPORT=0
+CFLAGS += -DCONFIG_AON_RTC=0 -DCONFIG_AON_RTC_64BIT=0
+CFLAGS += -DCONFIG_SOC_BK7256XX=0 -DCONFIG_SOC_BK7236XX=0 -DCONFIG_SOC_BK7239XX=0
 
 LDFLAGS += --build-id=none --entry=__start

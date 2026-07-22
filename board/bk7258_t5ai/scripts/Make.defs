@@ -44,6 +44,72 @@ LDNXFLATFLAGS = -e main -s 2048
 LDELFFLAGS = -r -e main
 LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
 
+# Link Beken SDK prebuilt static libraries.
+# libdriver.a contains all peripheral drivers (UART, flash, WDT, timer, etc.)
+
+# Link Beken SDK prebuilt static libraries.
+# Exclude: cmsis startup, coredump, unity, at_server, lwip, wpa_supplicant,
+# iperf, hmac, psa_mbedtls, and duplicate bluetooth controller variants
+# (only keep libbluetooth_controller.a, exclude *_ble_*, *_bt_*, *_dual_*).
+# Unresolved symbols from other libs are stubbed in bk7258_sdk_stubs.c.
+
+BK_SDK_LIBS_DIR := $(shell readlink -f $(BOARD_DIR)/bk_idk/armino_as_lib/cp/libs)
+
+# Libraries to exclude (not needed for basic NuttX bring-up):
+# - cmsis startup (conflicts with NuttX startup)
+# - coredump, unity, at_server (testing/debug tools)
+# - lwip, wpa_supplicant, wifi (networking, not needed yet)
+# - iperf, hmac, psa_mbedtls (networking/crypto)
+# - ALL bluetooth controller/host variants (duplicate symbols, only need libbluetooth_controller.a)
+# - ble_wifi_exchange (wifi/bt coexistence)
+
+BK_EXCLUDE_LIBS := \
+  libcmsis.a libcoredump.a libunity.a libat_server.a \
+  liblwip_intf_v2_1.a libwpa_supplicant-2.10.a \
+  libiperf.a libhmac_sha_256.a libpsa_mbedtls.a \
+  libwifi.a libwifi_csi.a libwifi_csi_nspe.a libwifi_nspe.a libbk_wifi.a \
+  libble_wifi_exchange.a \
+  libbluetooth_controller_ble.a \
+  libbluetooth_controller_ble_cp_slave_observer.a \
+  libbluetooth_controller_ble_cp_slave_observer_nspe.a \
+  libbluetooth_controller_ble_cp_slave_only.a \
+  libbluetooth_controller_ble_cp_slave_only_nspe.a \
+  libbluetooth_controller_ble_nspe.a \
+  libbluetooth_controller_ble_non_calibration.a \
+  libbluetooth_controller_ble_non_calibration_nspe.a \
+  libbluetooth_controller_ble_reduce.a \
+  libbluetooth_controller_ble_reduce_nspe.a \
+  libbluetooth_controller_ble_slave_only.a \
+  libbluetooth_controller_ble_slave_only_nspe.a \
+  libbluetooth_controller_bt.a \
+  libbluetooth_controller_bt_nspe.a \
+  libbluetooth_controller_controller_only_ble.a \
+  libbluetooth_controller_controller_only_ble_nspe.a \
+  libbluetooth_controller_controller_only_dual.a \
+  libbluetooth_controller_controller_only_dual_nspe.a \
+  libbluetooth_controller_dual.a \
+  libbluetooth_controller_dual_nspe.a \
+  libbluetooth_host_ble.a \
+  libbluetooth_host_ble_only.a \
+  libbluetooth_host_ble_reduce.a \
+  libbluetooth_host_ble_slave_only.a \
+  libbluetooth_host_dm.a \
+  libbluetooth_host_dm_bt.a \
+  libbluetooth_host_dm_dual.a \
+  libbk_phy_nspe.a \
+  libate_phy_nspe.a \
+  libcom_phy_nspe.a \
+  libcom_phy.a \
+  libate_phy.a \
+  libbk_rtos.a \
+  libbk_system.a \
+  libos_source.a
+
+# Build the exclude list as full paths
+BK_EXCLUDE_PATHS := $(foreach lib,$(BK_EXCLUDE_LIBS),$(BK_SDK_LIBS_DIR)/$(lib))
+
+EXTRA_LIBS += $(filter-out $(BK_EXCLUDE_PATHS),$(wildcard $(BK_SDK_LIBS_DIR)/*.a))
+
 # POSTBUILD: once nuttx.bin exists, CRC-expand it and prepend the Tier-1
 # bootloader (bl_crc.bin) to produce all-app.bin, ready for flashing at
 # physical offset 0x0.  The script is idempotent and safe to re-run.

@@ -4,49 +4,51 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Beken BK7258 (T5-AI, tri-core Cortex-M33) Cortex-M vector table for
- * NuttX Stage N2.
+ * NuttX Stage A1.
  *
- * Stage N1 shipped every non-reset slot pointing at a spin loop, which is
- * fine when __start never calls nx_start().  Stage N2 drives the full NuttX
- * boot (scheduler, SysTick, IRQ dispatch), so the table MUST route the
- * system-exception and external-IRQ slots through the standard armv8-m
- * dispatch stubs:
+ * Stage A1 drives the full NuttX boot (scheduler, SysTick, IRQ dispatch)
+ * with 64 external IRQs (NR_IRQS=80), so the table must route the
+ * system-exception and external-IRQ slots through the full armv8-m context
+ * saving path:
  *
- *   slots [2..14]  -> exception_common   (NMI, HardFault, ..., SVCall,
- *                                         DebugMonitor, PendSV)
- *   slots [15..63] -> exception_direct   (SysTick + 48 external IRQs)
+ *   slots [2..3]   -> bk7258_hardfault_handler (temporary NMI/HardFault
+ *                                               diagnostic)
+ *   slots [4..63]  -> exception_common          (remaining exceptions,
+ *                                               SysTick, lower external IRQs)
+ *   slots [64]     -> BK7258_APP_MAGIC_WORD0    (boot magic, runtime-repaired)
+ *   slots [65]     -> BK7258_APP_MAGIC_WORD1    (boot magic, runtime-repaired)
+ *   slots [66..79] -> exception_common          (upper external IRQs)
  *
- * Both symbols live in the common armv8-m/arm_m source set that
- * chip/Make.defs pulls in via `include armv8-m/Make.defs`
- * (arm_exception.S provides exception_common, arm_doirq.c provides
- * exception_direct).  The actual handlers (arm_hardfault, arm_svcall,
- * systick_interrupt, ...) are attached at runtime via irq_attach() and
- * dispatched through g_irqvector[] by arm_doirq(), exactly as every other
- * in-tree Cortex-M chip does -- they are NOT placed in the vector table
- * directly.  This is the layout the standard nuttx/arch/arm/src/arm_m/
- * arm_vectors.c uses; we only replicate it so the BK7236 app magic can be
- * appended after slot 63.
+ * exception_common lives in the common armv8-m/arm_m source set that
+ * chip/Make.defs pulls in via `include armv8-m/Make.defs`.  The actual
+ * handlers (arm_svcall, systick_interrupt, UART ISR, ...) are attached at
+ * runtime via irq_attach() and dispatched through g_irqvector[] by
+ * arm_doirq(); they are not placed in the vector table directly.  We provide
+ * this chip-specific table so the BK7236 app magic can be placed at the
+ * fixed bootloader-validated slots [64]/[65].
  *
  * Why a chip-provided vector table (instead of the shared arm_vectors.c):
  *
  *   The on-board Tier-1 bootloader reads a 64-bit app magic "BK7236\0\0"
  *   from image byte offset 0x100 before it validates-and-jumps to the app
  *   Reset entry.  Image offset 0x100 == vector slot index 64 (0x100 / 4).
- *   The standard NuttX table is only 16 + NR_IRQS entries long (here
- *   16 + 48 = 64, i.e. slots [0..63]), so we must extend the table with two
- *   extra magic words at [64]/[65].  We therefore select
- *   ARCH_HAVE_CUSTOM_VECTORS at the chip Kconfig level (which makes
- *   armv8-m/arm_m drop arm_vectors.c) and provide this file instead.
+ *   With 64 external IRQs, the standard NuttX table is 16 + 64 = 80 entries
+ *   (slots [0..79]), so the magic words at [64]/[65] are inside the table.
+ *   We therefore select ARCH_HAVE_CUSTOM_VECTORS at the chip Kconfig level
+ *   (which makes armv8-m/arm_m drop arm_vectors.c) and provide this file
+ *   instead.  After VTOR switches to RAM, arm_ramvec_attach repairs slots
+ *   64/65 to exception_common.
  *
- * Layout (66 entries, 0x108 bytes total; the .vectors section is pinned
+ * Layout (80 entries, 0x140 bytes total; the .vectors section is pinned
  * at flash origin 0x02010000 by scripts/ld.script):
  *
  *   [0]      0x2809FFFC   initial MSP (top of 0x28000000..0x2809FFFF SRAM)
  *   [1]      __start      Reset entry (Thumb; toolchain sets bit0)
- *   [2..14]  exception_common (13 system exception slots)
- *   [15..63] exception_direct (SysTick + 48 external IRQ slots)
+ *   [2..3]   bk7258_hardfault_handler (temporary diagnostic)
+ *   [4..63]  exception_common (remaining exceptions, SysTick, lower external IRQs)
  *   [64]     0x32374B42   app magic word 0: "BK72" little-endian
  *   [65]     0x00003633   app magic word 1: "36\0\0" little-endian
+ *   [66..79] exception_common (upper external IRQs 48..63)
  *
  * Entry [64] sits at byte offset 0x100 -- exactly what the bootloader
  * validates.  This layout is shared verbatim with the bare-metal probe
@@ -96,6 +98,93 @@
 #define BK7258_FAULT_UART1_FIFO_PORT    (*(volatile unsigned int *)0x4583001Cu)
 #define BK7258_FAULT_UART1_FIFO_READY   (1u << 20)
 
+/****************************************************************************
+ * Permanent A1 compile-time invariants
+ *
+ * These assertions verify the A1 IRQ/vector definitions at compile time.
+ * They use #ifdef / _Static_assert(0) branches so the gate fires if a
+ * required macro is ever removed.
+ *
+ * Placement: after chip.h and nvic.h have exposed NR_IRQS,
+ * ARMV8M_PERIPHERAL_INTERRUPTS, and NVIC priority macros.
+ ****************************************************************************/
+
+/* --- Core IRQ count gates --- */
+
+#ifdef BK7258_EXTERNAL_IRQS
+  _Static_assert(BK7258_EXTERNAL_IRQS == 64,
+                 "A1 gate: BK7258_EXTERNAL_IRQS must be 64");
+#else
+  _Static_assert(0,
+                 "A1 gate: BK7258_EXTERNAL_IRQS not defined; expected 64");
+#endif
+
+_Static_assert(NR_IRQS == 80,
+               "A1 gate: NR_IRQS must be 80 (16 + 64 external)");
+
+_Static_assert(ARMV8M_PERIPHERAL_INTERRUPTS == 64,
+               "A1 gate: ARMV8M_PERIPHERAL_INTERRUPTS must be 64 (external IRQ count)");
+
+/* --- Vector table sizing --- */
+
+/* ARM_VECTAB_SIZE is defined by arch/arm/src/arm_m/ram_vectors.h as
+ * (ARMV8M_PERIPHERAL_INTERRUPTS + NVIC_IRQ_FIRST), i.e. 64 + 16 = 80.
+ * Assert its expected A1 value; conditional branch handles the case
+ * where the common header has not yet been included.
+ */
+
+#ifdef ARM_VECTAB_SIZE
+  _Static_assert(ARM_VECTAB_SIZE == 80,
+                 "A1 gate: ARM_VECTAB_SIZE must be 80");
+#else
+  _Static_assert(0,
+                 "A1 gate: ARM_VECTAB_SIZE not defined; expected 80");
+#endif
+
+#ifdef VECTAB_ALIGN
+  _Static_assert(VECTAB_ALIGN == 512,
+                 "A1 gate: VECTAB_ALIGN must be 512");
+#else
+  _Static_assert(0,
+                 "A1 gate: VECTAB_ALIGN not defined; expected 512");
+#endif
+
+/* --- IRQ anchor gates (future A1 production names) --- */
+
+#ifdef BK7258_IRQ_ETHERNET
+  _Static_assert(BK7258_IRQ_ETHERNET == 64,
+                 "A1 gate: ETHERNET must be NuttX IRQ 64");
+#else
+  _Static_assert(0,
+                 "A1 gate: BK7258_IRQ_ETHERNET not defined; expected 64");
+#endif
+
+#ifdef BK7258_IRQ_SCALE0
+  _Static_assert(BK7258_IRQ_SCALE0 == 65,
+                 "A1 gate: SCALE0 must be NuttX IRQ 65");
+#else
+  _Static_assert(0,
+                 "A1 gate: BK7258_IRQ_SCALE0 not defined; expected 65");
+#endif
+
+#ifdef BK7258_IRQ_MAILBOX
+  _Static_assert(BK7258_IRQ_MAILBOX == 79,
+                 "A1 gate: MAILBOX must be NuttX IRQ 79");
+#else
+  _Static_assert(0,
+                 "A1 gate: BK7258_IRQ_MAILBOX not defined; expected 79");
+#endif
+
+/* --- Magic slot / offset structural gates --- */
+
+#define BK7258_MAGIC_SLOT0      64      /* vector slot for magic word 0 */
+#define BK7258_MAGIC_SLOT1      65      /* vector slot for magic word 1 */
+
+_Static_assert(BK7258_MAGIC_SLOT0 * 4 == BK7258_MAGIC_BOOT0_OFFSET,
+               "A1 gate: magic slot 64 must be at flash offset 0x100");
+_Static_assert(BK7258_MAGIC_SLOT1 * 4 == BK7258_MAGIC_BOOT1_OFFSET,
+               "A1 gate: magic slot 65 must be at flash offset 0x104");
+
 /* Standard armv8-m exception dispatch entrypoints (assembly / C stubs that
  * save context, decode the IRQ number from IPSR, call arm_doirq(), and on
  * return perform a context switch if needed).  Provided by the common
@@ -103,7 +192,6 @@
  */
 
 extern void exception_common(void);
-extern void exception_direct(void);
 
 /* Chip entry point (defined in bk7258_start.c).  Slot [1] keeps pointing
  * at __start, exactly as N1 / the probe; NuttX expects the symbol to be
@@ -185,18 +273,18 @@ void bk7258_systick_probe(void)
  * `used` prevents the compiler from dropping the table at LTO; `aligned(4)`
  * keeps each 4-byte slot naturally aligned.
  *
- * The table is sized explicitly at 66 entries so the two app-magic words at
- * the end are unmistakable in the source and in any hex dump, and so the
- * array extends to byte offset 0x108 (slot [65] at 0x104).
+ * The table is sized explicitly at 80 entries (0x140 bytes) so the two
+ * app-magic words at [64]/[65] are inside the table and the upper external
+ * IRQ slots [66..79] are included.  After VTOR switches to RAM,
+ * arm_ramvec_attach repairs slots 64/65 to exception_common.
  *
  * GCC range designated initializers fill the dispatcher slots the same way
  * arm_vectors.c does; the magic slots [64]/[65] are then pinned explicitly
- * (they are pure data -- never indexed by the NVIC because the highest
- * supported IRQ is 63).
+ * (they are runtime-repaired after RAM vector init).
  */
 
 __attribute__((section(".vectors"), used, aligned(4)))
-const void *const _vectors[66] =
+const void *const _vectors[80] =
 {
   /* [0]    initial MSP (loaded by hardware before __start). */
   [0]  = (void *)BK7258_INITIAL_MSP,
@@ -219,14 +307,22 @@ const void *const _vectors[66] =
    */
   [4 ... 14]  = &exception_common,
 
-  /* [15..63] SysTick + 48 external IRQs -> exception_direct
-   *   15=SysTick 16..63=BK7258 external IRQs 0..47
-   */
-  [15 ... 63] = &exception_direct,
+  /* Route SysTick and lower external IRQs through the full context-saving
+   * exception path.  SysTick is board-verified on this path; routing the
+   * external slots the same way is the first UART RX IRQ recovery step. */
+
+  [15 ... 63] = &exception_common,
 
   /* [64] app magic word 0: "BK72" little-endian.  Byte offset 0x100. */
   [64] = (void *)BK7258_APP_MAGIC_WORD0,
 
   /* [65] app magic word 1: "36\0\0" little-endian. Byte offset 0x104. */
-  [65] = (void *)BK7258_APP_MAGIC_WORD1
+  [65] = (void *)BK7258_APP_MAGIC_WORD1,
+
+  /* [66..79] upper external IRQs -> exception_common
+   *   These slots correspond to external IRQs 48..63.  Slots 64/65 are
+   *   overwritten by the boot magic above and must be runtime-repaired
+   *   via arm_ramvec_attach after VTOR switches to RAM.
+   */
+  [66 ... 79] = &exception_common
 };

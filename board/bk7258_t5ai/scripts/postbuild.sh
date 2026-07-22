@@ -12,11 +12,13 @@
 # Layout of all-app.bin (matches the board-verified probe/bootloader flow):
 #
 #   physical 0x00000 .. 0x10fff  bl_crc.bin     (Tier-1 bootloader)
-#   physical 0x11000 ..          nuttx_crc.bin  (app; BK7236 magic @ 0x11100)
+#   physical 0x11000 ..          nuttx_crc.bin  (app; BK7236 magic @ 0x11110)
 #
-# The app image's internal BK7236 magic sits at nuttx.bin offset 0x100; in
-# the concatenated all-app.bin it therefore sits at 0x11000 + 0x100 =
-# 0x11100, exactly where the flashing/tooling flow expects it.
+# The app image's internal BK7236 magic sits at nuttx.bin offset 0x100; the
+# CRC expander tool inserts a 0x10-byte header before each 0x100-page, so in
+# nuttx_crc.bin the magic moves to offset 0x110.  In the concatenated
+# all-app.bin it sits at bl_crc.bin size (0x11000) + 0x110 = 0x11110,
+# exactly where the flashing/tooling flow expects it.
 #
 # Args (passed by the POSTBUILD define in Make.defs):
 #   $1 = TOPDIR  (nuttx build dir, holds nuttx.bin after the link)
@@ -84,9 +86,9 @@ NUTTX_SIZE=$(stat -c '%s' "${NUTTX_BIN}")
 
 echo "postbuild.sh: nuttx.bin       = ${NUTTX_SIZE} bytes"
 echo "postbuild.sh: nuttx_crc.bin   = ${APP_SIZE} bytes"
-echo "postbuild.sh: bl_crc.bin      = ${BL_SIZE} bytes (physical 0x0 .. 0x$((BL_SIZE - 1)))"
+echo "postbuild.sh: bl_crc.bin      = ${BL_SIZE} bytes (physical 0x0 .. 0x$(printf '%x' $((BL_SIZE - 1))))"
 echo "postbuild.sh: all-app.bin     = ${ALL_SIZE} bytes (= bl_crc.bin + nuttx_crc.bin)"
 echo "postbuild.sh: app magic in nuttx.bin      @ 0x100"
-echo "postbuild.sh: app magic in all-app.bin    @ 0x$((BL_SIZE + 0x100)) (physical)"
+echo "postbuild.sh: app magic in all-app.bin    @ 0x$(printf '%x' $((BL_SIZE + 0x110))) (physical)"
 
 exit 0

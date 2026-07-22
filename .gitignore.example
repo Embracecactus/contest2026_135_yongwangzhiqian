@@ -18,3 +18,10 @@ out/
 *.elf
 *.hex
 *.map
+
+# Beken SDK local prerequisite bundle (proprietary/restricted prebuilts).
+# Sibling tracked files under bk_idk/ (e.g. README.md) are NOT ignored.
+board/bk7258_t5ai/bk_idk/armino_as_lib/
+
+# Local backup files
+*.bak

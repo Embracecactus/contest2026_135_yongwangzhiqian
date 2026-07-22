@@ -21,6 +21,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "boot_wdt.h"
+
 extern void boot_clock_cold_init(void);
 
 /* ------------------------------------------------------------------ */
@@ -55,8 +57,9 @@ struct fal_partition {
 
 __attribute__((used))
 const struct fal_partition fal_partition_table[] = {
-    { FAL_PART_MAGIC, "bootloader", "beken_onchip_crc", 0x00000L, 0x10000L, 0u },
-    { FAL_PART_MAGIC, "app",        "beken_onchip_crc", 0x10000L, 0x10000L, 0u },
+    { FAL_PART_MAGIC, "bootloader", "beken_onchip_crc", 0x00000L, 0x10000L,  0u },
+    { FAL_PART_MAGIC, "cp_app",     "beken_onchip_crc", 0x10000L, 0x158000L, 0u },
+    { FAL_PART_MAGIC, "ap_app",     "beken_onchip_crc", 0x168000L, 0x124000L, 0u },
 };
 #define FAL_PART_COUNT  (sizeof(fal_partition_table) / sizeof(fal_partition_table[0]))
 
@@ -178,34 +181,83 @@ uint32_t c_main(void)
 {
     const struct fal_partition *app;
     uint32_t app_vec;
+    int cold_ok = 0;
+    int retry;
 
     uart_puts("u_bootloader enter\r\n");
 
-    /* Cold-start DPLL enable + flash clock init.  On cold reset the BootROM
-     * leaves EN_DPLL=0; this mirrors the Armino SDK early-init sequence to
-     * bring the DPLL up and set the flash clock, using the chip-id-specific
-     * ANA_REG values for this board (MP_C = default branch).
-     * If this hangs, the watchdog or J-Link recovery restores the previous
-     * bootloader; if it succeeds the app sees DPLL on and can switch to
-     * 320 MHz via its own bring-up path.
+    /* --- WDT (product-grade): arm both APB + AON watchdogs (~8 s timeout).
+     * Mirrors vendor bootloader sub_2000FE4: SYS_CTRL config + key unlock.
+     * If boot_clock_cold_init or app validation hangs, WDT resets the chip.
      */
 
-    boot_clock_cold_init();
+    boot_wdt_init();
+    boot_wdt_feed();
 
-    /* A: FAL partition parse -> find "app". */
-    app = fal_find("app");
+    /* --- Cold-start DPLL enable + SPI recalibration.
+     * On cold reset the BootROM leaves EN_DPLL=0; boot_clock_cold_init()
+     * mirrors the Armino SDK sys_hal_early_init analog-register sequence.
+     * If any analog-SPI write times out (ANA_SPI_TIMEOUT), the function
+     * returns early and the app sees DPLL off.
+     *
+     * Retry up to 3 times: SPI timeouts can be transient (power-on noise).
+     * Worst-case time: ~100 ms per attempt × 3 = 300 ms << 8 s WDT.
+     */
+
+    for (retry = 0; retry < 3; retry++) {
+        boot_wdt_feed();
+        boot_clock_cold_init();
+
+        /* Check DPLL enable (ANA_REG5 bit5).  If set, cold-init succeeded. */
+        if (REG32(0x44010114u) & (1u << 5)) {
+            cold_ok = 1;
+            break;
+        }
+
+        uart_puts("BClk RETRY\r\n");
+    }
+
+    boot_wdt_feed();
+
+    if (!cold_ok) {
+        /* All retries exhausted: DPLL not enabled.  Do NOT jump to app
+         * (app would see BootROM default state, DPLL off, DVFS would try
+         * to switch to cksel=2 with DPLL off — undefined behavior).
+         * Hang with WDT feed: the chip resets in ~8 s, giving a clean
+         * retry window and leaving UART output visible for debugging. */
+        uart_puts("BClk RETRY FAIL\r\n");
+        for (;;) {
+            boot_wdt_feed();
+        }
+    }
+
+    /* --- FAL partition parse -> find "app". */
+
+    boot_wdt_feed();
+    app = fal_find("cp_app");
     if (app == (const struct fal_partition *)0) {
         uart_puts("BAD\r\nno app part\r\n");
-        for (;;) { }
+        for (;;) {
+            boot_wdt_feed();
+        }
     }
     app_vec = FLASH_BASE + (uint32_t)app->offset;
     log_u32("partition app @ ", app_vec);
 
-    /* Validate app header. */
+    /* --- Validate app header. */
+
     if (!validate_app(app_vec)) {
-        for (;;) { }
+        for (;;) {
+            boot_wdt_feed();
+        }
     }
 
+    /* --- Feed WDT one last time before jumping to app.
+     * The app's DVFS bring-up runs quickly (< 1 ms), but if it ever hangs
+     * before the NuttX scheduler takes over WDT management, the hardware
+     * WDT still fires. */
+
+    boot_wdt_feed();
     log_u32("jump to:", app_vec);
     uart_puts("JMP\r\n");
     return app_vec;

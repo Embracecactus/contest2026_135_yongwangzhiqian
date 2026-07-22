@@ -1,0 +1,151 @@
+/****************************************************************************
+ * board/bk7258_t5ai/chip/bk7258_sdk_stubs.c
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Stub implementations for SDK symbols not needed in NuttX bring-up.
+ * These are referenced by prebuilt SDK libraries (libdriver.a, libbk_*.a)
+ * but not used for basic WDT/flash/clock functionality.
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+#include <stdint.h>
+#include <stddef.h>
+
+/****************************************************************************
+ * IPC Mailbox stubs
+ ****************************************************************************/
+
+/* __start_ipc_chan_reg / __stop_ipc_chan_reg are linker section symbols
+ * used by the SDK IPC mailbox driver.  Provide dummy values. */
+
+const void *__start_ipc_chan_reg = NULL;
+const void *__stop_ipc_chan_reg = NULL;
+
+/****************************************************************************
+ * FreeRTOS heap stubs
+ ****************************************************************************/
+
+/* _heap_start / _heap_end are linker symbols for the FreeRTOS heap.
+ * NuttX uses its own heap; provide dummy values. */
+
+uint8_t _heap_start_dummy[4] __attribute__((aligned(16)));
+uint8_t _heap_end_dummy[4] __attribute__((aligned(16)));
+const void *_heap_start = &_heap_start_dummy;
+const void *_heap_end = &_heap_end_dummy;
+
+/* shell_assert_out, shell_log_flush provided by libbk_cli.a */
+/* build_version provided by libbk7258.a or similar */
+/* save_net_info/get_net_info provided by libbk_system.a */
+
+/****************************************************************************
+ * SDK PHY stubs (used by libbk_phy.a)
+ ****************************************************************************/
+
+int phy_cca_busy_test(int argc, char **argv)
+{
+  (void)argc;
+  (void)argv;
+  return 0;
+}
+
+int tx_evm_cmd_test(int argc, char **argv)
+{
+  (void)argc;
+  (void)argv;
+  return 0;
+}
+
+int rx_sens_cmd_test(int argc, char **argv)
+{
+  (void)argc;
+  (void)argv;
+  return 0;
+}
+
+/****************************************************************************
+ * SDK Bluetooth stubs (used by libbluetooth_*.a)
+ ****************************************************************************/
+
+uint32_t gapc_get_conidx(uint8_t conidx)
+{
+  (void)conidx;
+  return 0;
+}
+
+void rs_deinit(void)
+{
+}
+
+/* sys_hal_aud_*, sys_hal_apll_en, sys_hal_psram_* provided by libbk7258.a */
+
+/* sys_hal_* functions provided by libbk7258.a (sys_hal.c) */
+/* mpu_soc_cfg provided by libcm33.a */
+
+/* aon_pmu_hal_set_r0 provided by libbk7258.a (aon_pmu_hal.c) */
+/* sys_hal_early_init provided by libbk7258.a (sys_hal.c) */
+
+/****************************************************************************
+ * SDK PM stubs (used by libbk_pm.a)
+ ****************************************************************************/
+
+void phy_wakeup_reinit(void)
+{
+  /* Stub: phy reinit not needed without wifi */
+}
+
+/****************************************************************************
+ * SDK reboot/timer stubs
+ ****************************************************************************/
+
+void bk_reboot_ex(uint32_t param)
+{
+  (void)param;
+  /* Stub: reboot not needed from NuttX app */
+}
+
+void delay(unsigned int ms)
+{
+  /* Stub: SDK delay, NuttX uses nxsig_usleep instead */
+  (void)ms;
+}
+
+void bk_delay_us(unsigned int us)
+{
+  (void)us;
+}
+
+/****************************************************************************
+ * CMSIS startup stubs (used by libcmsis.a if linked)
+ ****************************************************************************/
+
+/* Stack/linker symbols for CMSIS startup. NuttX provides its own stack. */
+
+uint8_t __StackLimit_dummy[4] __attribute__((aligned(16)));
+uint8_t __StackTop_dummy[4] __attribute__((aligned(16)));
+const void *__StackLimit = &__StackLimit_dummy;
+const void *__StackTop = &__StackTop_dummy;
+const void *__copy_table_start__ = NULL;
+const void *__copy_table_end__ = NULL;
+const void *__zero_table_start__ = NULL;
+const void *__zero_table_end__ = NULL;
+
+/****************************************************************************
+ * Coredump stubs (used by libcoredump.a)
+ ****************************************************************************/
+
+const void *_sstack = NULL;
+
+/****************************************************************************
+ * SDK reset_reason stubs (used by libcommon.a wdt_hal.c)
+ ****************************************************************************/
+
+void set_reboot_tag(uint32_t tag)
+{
+  (void)tag;
+}
+
+uint32_t get_reboot_tag(void)
+{
+  return 0;
+}
