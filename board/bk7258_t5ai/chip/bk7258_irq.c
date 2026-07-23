@@ -40,6 +40,8 @@
 #include "arm_internal.h"
 #include "nvic.h"
 
+#include "bk7258_sdk_irq.h"
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -82,6 +84,32 @@ static inline void bk7258_prioritize_syscall(int priority)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: bk7258_clear_pending_irq
+ *
+ * Description:
+ *   Clear one pending external NVIC line using the same logical IRQ numbering
+ *   as irq_attach() and up_enable_irq().
+ *
+ ****************************************************************************/
+
+void bk7258_clear_pending_irq(int irq)
+{
+  unsigned int external;
+
+  DEBUGASSERT(irq >= BK7258_IRQ_FIRST && irq < NR_IRQS);
+
+  if (irq < BK7258_IRQ_FIRST || irq >= NR_IRQS)
+    {
+      return;
+    }
+
+  external = (unsigned int)(irq - BK7258_IRQ_FIRST);
+  putreg32(1u << (external & 0x1f), NVIC_IRQ_CLRPEND(external));
+  UP_DSB();
+  UP_ISB();
+}
 
 /****************************************************************************
  * Name: up_prioritize_irq

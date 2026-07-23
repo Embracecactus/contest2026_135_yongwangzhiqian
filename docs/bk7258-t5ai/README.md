@@ -60,6 +60,7 @@ feature commit `6f596b7`，D0F feature commit `8dab594`），N4-D1（DPLL lock�
   [bk7236_pack_min_bootloader.py](../../board/bk7258_t5ai/bootloader/bk7236_pack_min_bootloader.py)
 
 ### NuttX 移植 worklog / prompts（`nuttx-port/`）
+- [nuttx-port/n6-bug-4295s-timer-wrap.md](nuttx-port/n6-bug-4295s-timer-wrap.md) —— 约 4295 秒后 `HF` + WDT 重启根因（32 位 `TICK2USEC` 溢出；源码与 ELF 已确认，尚未修复/板测）
 - [nuttx-port/n5-flash-filesystem.md](nuttx-port/n5-flash-filesystem.md) —— Stage N5 flash filesystem worklog（D5 raw flash r/w + D6 MTD + D7 LittleFS，board-verified 2026-07-19）
 - [nuttx-port/n2-nsh-console.md](nuttx-port/n2-nsh-console.md) —— Stage N2 会话记录（boot trace、
   4 个 UART RX bug 现象/定位/修法、板端 `uname -a` 证据）
