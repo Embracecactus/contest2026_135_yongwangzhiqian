@@ -4190,3 +4190,34 @@ Repeated downloads restart uptime. The independent 4295-second fix therefore rec
 ### Next single minimal action
 
 User performs the repeated Windows fast-download cycles and returns complete UART output for each `bkirqtest` run. Do not continue to another IRQ source until this TIMER1/source-3 bridge test is board-verified.
+
+## 2026-07-23 -- 4295-second system-time wrap fix BOARD-VERIFIED
+
+### Board evidence
+
+The user flashed the 240618-byte `all-app.bin` containing `CONFIG_SYSTEM_TIME64=y`. LittleFS remained readable:
+
+```text
+nsh> cat /data/probe.txt
+BK7258LFS-OK
+```
+
+Observed `/proc/uptime` values from the same boot were monotonically increasing:
+
+```text
+30.51, 326.00, 1306.04, 2067.79, 2747.57,
+2936.68, 2940.49, 3078.88, 3151.74, 3187.62,
+3784.40, 3830.86, 5291.51, 5834.58
+```
+
+The board crossed the old `2^32 us` wrap point at `4294.967296 s`, the predicted WDT reset window at approximately `4301..4303 s`, and the required 4400-second acceptance point. At `5834.58 s` it had remained up for approximately 1539.61 seconds beyond the old wrap point, with no `HFu_bootloader enter`, reboot, or uptime reset.
+
+### Verdict and boundary
+
+The `CONFIG_SYSTEM_TIME64=y` overlay fix is now **board-verified**. The evidence also confirms that NSH, WDT feeding and LittleFS remain functional across the former failure point. This closes the independent 4295-second timer-wrap blocker.
+
+This result does **not** mark the Stage B TIMER1/source-3 SDK IRQ bridge test board-verified: repeated `bkirqtest` output is still required for that separate gate.
+
+### Next single minimal action
+
+Complete the already-authorized repeated fast-download and `bkirqtest` cycles. If all runs print callback A, silent unregister, callback B, `restore OK` and `PASS`, close Stage B board validation before beginning GPIO foundation work.
