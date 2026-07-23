@@ -38,6 +38,17 @@
 
 OUTPUT_ARCH("arm")
 EXTERN(_vectors)
+
+#ifdef CONFIG_BK7258_SDK_IRQ_BRIDGE
+/* Force the overlay bridge member out of libarch.a before the Beken SDK
+ * archives are scanned.  Otherwise libdriver.a(interrupt_base.c.obj) can
+ * satisfy the first timer-driver reference and retain the private CM33
+ * callback table.
+ */
+
+EXTERN(bk_int_isr_register)
+#endif
+
 ENTRY(__start)
 
 MEMORY

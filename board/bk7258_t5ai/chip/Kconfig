@@ -127,3 +127,26 @@ config BK7258_WDT
 		takes over after boot and feeds it via the NuttX watchdog
 		upper-half automonitor (CONFIG_WATCHDOG_AUTOMONITOR).
 		Default timeout 8 s (period=8000), matching the bootloader.
+
+config BK7258_SDK_IRQ_BRIDGE
+	bool "Beken SDK CPU0 interrupt bridge"
+	default n
+	depends on ARCH_CHIP_BK7258
+	select ARCH_IRQPRIO
+	---help---
+		Route the Beken SDK interrupt registration APIs through the NuttX
+		IRQ subsystem on CPU0.  SDK sources 0..63 map one-to-one to
+		NuttX logical IRQs 16..79.  This option requires the A1 80-slot
+		RAM-vector table and does not provide AP/CPU1/CPU2 SMP support.
+
+config BK7258_SDK_IRQ_TIMER_TEST
+	bool "Beken SDK IRQ bridge TIMER1 manual test"
+	default n
+	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Build the manual bkirqtest NSH command. The command temporarily
+		replaces the SDK INT_SRC_TIMER callback, triggers TIMER_ID1,
+		proves unregister silence and re-registration, then restores the
+		original callback. It never runs from board bring-up.

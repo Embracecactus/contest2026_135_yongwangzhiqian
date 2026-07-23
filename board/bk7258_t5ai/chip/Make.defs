@@ -46,6 +46,18 @@ CHIP_CSRCS += bk7258_allocateheap.c
 CHIP_CSRCS += bk7258_os_adapt.c
 CHIP_CSRCS += bk7258_sdk_stubs.c
 
+# Stage B: replace the SDK private CM33 callback table with NuttX irq_attach()
+# ownership for SDK interrupt sources 0..63.  Default off outside the Stage B
+# branch so the A1 board-verified baseline remains selectable.
+
+ifeq ($(CONFIG_BK7258_SDK_IRQ_BRIDGE),y)
+CHIP_CSRCS += bk7258_sdk_irq.c
+endif
+
+ifeq ($(CONFIG_BK7258_SDK_IRQ_TIMER_TEST),y)
+CHIP_CSRCS += bk7258_sdk_irq_timer_test.c
+endif
+
 # Stage N5-D6-A: on-chip flash data-partition MTD (read-only path).  Gated on
 # CONFIG_BK7258_FLASH_MTD; default off so normal firmware is unchanged.
 

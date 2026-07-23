@@ -1,8 +1,8 @@
 # BK7258 T5-AI N6 SDK Integration Worklog
 
 > **Current Stage:** N6 — Beken SDK integration, WDT handoff, and IRQ adaptation
-> **Current status:** A1 80-slot RAM-vector board verification complete on 2026-07-22. A1 is `board-verified`. UART/boot, N4 DVFS tier 5/320 MHz, ABWTK/NSH/UART RX/WDT stability, LittleFS, VTOR-to-RAM, flash magic slots 64/65, RAM slots 15/31/64/65 all PASS. SDK IRQ bridge prerequisite satisfied but bridge NOT started; requires explicit user authorization. No flash, no commit, no push.
-> **Last updated:** 2026-07-22
+> **Current status:** A1 80-slot RAM-vector baseline is `board-verified`. Stage B CPU0 SDK IRQ bridge is authorized and implemented on branch `bk7258-n6-sdk-irq-bridge`. F1 LCD mapped-default and F2 bridge-local lifecycle serialization are `build-verified`: exact historical stale-object RED, fresh bridge 48/48 PASS, preserved A1 suite 18/18 PASS. Final focused review is being closed before preparing a user-only non-WDT timer test. Stage B is not `board-verified`. No flash, no commit, no push.
+> **Last updated:** 2026-07-23
 
 ## Documentation rule
 
@@ -2439,3 +2439,1754 @@ Precommit build/static verification complete. All 23 gates PASS. Source-scope ve
 
 Commit the synchronized N6 documentation, then push `bk7258-n6-ramvectors` to `fork`.
 SDK IRQ bridge not started.
+
+## 2026-07-22 -- Stage B CPU0 SDK IRQ bridge authorized and started
+
+### Publication baseline
+
+The completed A1 work was published to the user fork before Stage B began:
+
+- branch: `bk7258-n6-ramvectors`
+- code/tooling commit: `66b29d1`
+- documentation commit: `57558eb`
+- pushed upstream: `fork/bk7258-n6-ramvectors`
+- local `HEAD` and upstream both resolved to
+  `57558ebaae85910aa9740976c12a2d9156c02637`
+
+The ignored local SDK bundle, `*.bak`, and untracked `docs/superpowers/` were not
+committed. No push to `origin` occurred.
+
+### User authorization and branch
+
+The user explicitly authorized starting the next adaptation stage on 2026-07-22
+and explicitly prohibited use of Superpowers. Stage B work therefore proceeds
+directly on a new local branch:
+
+```text
+bk7258-n6-sdk-irq-bridge
+```
+
+No Stage B commit or push is authorized by this instruction alone. Flashing and
+download remain user-only.
+
+### Governing Stage B scope
+
+A1 is `board-verified`, so the CPU0 bridge gate is open. The first required
+technical action is the targeted archive/link-map ownership check for
+`bk_int_isr_register()` and related lifecycle APIs. Before production code:
+
+1. identify the exact archive/object and public declarations;
+2. prove whether an existing strong implementation is linked or merely present
+   in an archive;
+3. recover SDK source-number semantics (`0..63`) and callback signature;
+4. define the one-to-one NuttX mapping (`source + 16`);
+5. add RED compile/static gates before the dedicated overlay bridge module.
+
+Production bridge code must live in a dedicated overlay module (for example
+`chip/bk7258_sdk_irq.c` plus a private header), not in
+`bk7258_sdk_stubs.c`. It must remain CPU0-only and preserve the A1 RAM-vector,
+UART, WDT, LittleFS, and DVFS baselines.
+
+### Current status
+
+`static-only` research started. No Stage B source/config changes, build, flash,
+commit, push, or live SDK interrupt test have occurred yet.
+
+### Next single minimal action
+
+Inspect the local authorized SDK archives and headers to establish exact symbol
+ownership and lifecycle semantics for the CPU0 IRQ bridge. Do not build or flash
+until the corresponding gate is reached and separately authorized.
+
+## 2026-07-22 -- Stage B archive ownership and SDK IRQ semantics established
+
+### Archive/object ownership
+
+A read-only scan of all 81 local SDK archives found exactly one strong definition
+owner for the public IRQ lifecycle API:
+
+```text
+libdriver.a:interrupt_base.c.obj: bk_int_isr_register
+libdriver.a:interrupt_base.c.obj: bk_int_isr_unregister
+libdriver.a:interrupt_base.c.obj: bk_int_set_priority
+```
+
+The same object also defines `interrupt_init`, `interrupt_deinit`, and
+`icu_int_map_table`. No second strong definition of the three public APIs exists
+in any other local SDK archive.
+
+The current A1 ELF still links the SDK implementation:
+
+```text
+0x0202c550 T bk_int_isr_register
+```
+
+The link map proves why it is extracted:
+
+```text
+libdriver.a(timer_driver.c.obj) -> bk_int_isr_register
+libdriver.a(interrupt_base.c.obj) supplies bk_int_isr_register
+```
+
+`bk_timer_driver_init()` currently calls it twice for SDK sources 3 (`TIMER`) and
+13 (`TIMER1`). The SDK object then pulls `libcm33.a:arch_interrupt.c.obj`, whose
+`arch_interrupt_register_int()` writes the callback into its private
+`s_irq_handler[64]` and directly enables the NVIC. That private callback table is
+not the NuttX `g_irqvector` dispatch table, so it is not a valid runtime bridge
+when VTOR points at the A1 NuttX RAM vectors.
+
+### Source-number mapping
+
+The authoritative BK7258 `icu_map.h` contains 64 entries and maps every SDK
+source one-to-one:
+
+```text
+SDK source 0..63 -> external NVIC line 0..63
+                 -> NuttX logical IRQ 16..79
+```
+
+The linked `icu_int_map_table` bytes independently confirm each record has
+`src == int_bit` from 0 through 63. Anchors remain TIMER=3, TIMER1=13,
+UART1=15, ETH=48, SCALE0=49, MAILBOX=63.
+
+### SDK lifecycle semantics recovered
+
+The CP CM33 implementation performs:
+
+- register: validate `src < 64`, unregister/replace the old callback, install the
+  new `void (*)(void)` callback, enable the NVIC line, then apply the mapped
+  default priority: 6 for sources 0..26 and 28..63, but explicit priority 0 for
+  source 27 (`INT_SRC_LCD`);
+- unregister: validate `src < 64`, disable the NVIC line, clear its callback;
+- set-priority: apply the caller's CMSIS priority value;
+- the supplied `arg` is ignored;
+- callbacks run in ISR context and take no arguments.
+
+CMSIS uses `__NVIC_PRIO_BITS=3`; SDK logical priority 6 is encoded in the
+hardware byte as `6 << 5 == 0xc0`, while the LCD source's mapped priority 0 is
+`0x00`. NuttX `up_prioritize_irq()` accepts an already encoded priority byte, so
+the bridge must translate both mapped defaults and caller-supplied priorities
+before calling it.
+
+### Extraction/collision consequence
+
+Defining only `bk_int_isr_register()` is not robust: any later unresolved
+reference to `bk_int_isr_unregister`, `bk_int_set_priority`, `interrupt_init`, or
+`interrupt_deinit` could extract the whole original archive object and create a
+strong-symbol collision. The dedicated overlay bridge therefore needs to own
+all five callable symbols from the CM33 path. Archive-wide undefined-symbol
+inspection found no external consumer of `icu_int_map_table`, so the table need
+not be reproduced; direct `src + 16` mapping is sufficient and keeps the
+original object unextracted.
+
+### Status
+
+Task 16 scope discovery is complete at `static-only`. No production bridge code,
+build, flash, commit, or push has occurred.
+
+### Next single minimal action
+
+Define and run a source/ELF RED verifier against the current A1 artifact. It must
+fail because `bk_int_isr_register` is still supplied by
+`libdriver.a(interrupt_base.c.obj)` and the dedicated overlay bridge does not yet
+exist. Do not build or flash.
+
+## 2026-07-22 -- Stage B RED verifier installed and failing as expected
+
+### Verifier
+
+Added the tracked overlay-only verifier:
+
+```text
+board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+```
+
+It checks dedicated source/header and Make/CMake/Kconfig/defconfig integration,
+exactly-one symbol ownership, archive extraction, absence of the SDK private
+dispatch path, and disassembled NuttX lifecycle calls. It derives workspace paths
+from its own location and dynamically reads the current ELF/link map; no symbol
+addresses are hardcoded.
+
+### Syntax check
+
+```text
+PYTHONPYCACHEPREFIX=/tmp/bk7258-pycache python3 -m py_compile \
+  board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+exit=0
+```
+
+### RED run against current A1 ELF/map
+
+```text
+python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+RED_EXIT=1
+RESULT: 3 passed, 30 failed
+```
+
+The failures are the intended missing Stage B behavior, not a script/runtime
+error. Decisive RED evidence:
+
+- dedicated `bk7258_sdk_irq.c/.h` absent;
+- Kconfig/Make/CMake/defconfig gate absent;
+- current `bk_int_isr_register` owner is
+  `libdriver.a(interrupt_base.c.obj)`, not overlay `bk7258_sdk_irq.o`;
+- unregister/set-priority/init/deinit are not retained as overlay definitions;
+- the original archive object and private `arch_interrupt_*`/`icu_int_map_table`
+  path remain linked;
+- register/unregister disassembly does not call NuttX `irq_attach`,
+  `up_enable_irq`, `up_disable_irq`, `up_prioritize_irq`, or the pending-clear
+  helper.
+
+### Status
+
+RED is verified. No production bridge source, build, flash, commit, or push has
+occurred.
+
+### Next single minimal action
+
+Implement the dedicated CPU0 bridge and its private pending-clear helper in the
+team overlay. Do not run a firmware build until separately authorized.
+
+## 2026-07-22 -- Stage B minimal production source implemented (unbuilt)
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `chip/bk7258_sdk_irq.c` | New dedicated CPU0 SDK-to-NuttX lifecycle bridge |
+| `chip/bk7258_sdk_irq.h` | New private mapping constants and pending-clear declaration |
+| `chip/bk7258_irq.c` | Added `bk7258_clear_pending_irq()` using the NuttX NVIC clear-pending register definition |
+| `chip/Kconfig` | Added default-off `BK7258_SDK_IRQ_BRIDGE` gate |
+| `chip/Make.defs` | Gate classic-Make inclusion of `bk7258_sdk_irq.c` |
+| `chip/CMakeLists.txt` | Mirror the conditional source for CMake |
+| `configs/nsh/defconfig` | Enable `CONFIG_BK7258_SDK_IRQ_BRIDGE=y` on this Stage B branch |
+
+### Implemented mapping and lifecycle
+
+- SDK source `0..63` maps directly to NuttX logical IRQ `16..79`.
+- Compile-time gates require 64 sources, `INT_SRC_NONE == 64`, and final logical
+  IRQ count 80.
+- The initial `bk_int_isr_register()` implementation disabled and cleared the
+  line, detached/replaced the old NuttX handler, applied priority 6 (`0xc0`) to
+  every source, attached a NuttX wrapper, then enabled the line. Focused review
+  later found this missed the SDK map's LCD source-27 priority-0 exception; see
+  the 2026-07-23 F1 correction below.
+- The SDK callback remains `void (*)(void)` and the supplied `arg` remains
+  intentionally ignored, matching the CP CM33 implementation.
+- `bk_int_isr_unregister()` disables, clears pending state, clears the callback,
+  and detaches the NuttX handler.
+- `bk_int_set_priority()` validates the 3-bit SDK priority and translates it to
+  the raw NVIC byte expected by `up_prioritize_irq()`.
+- The ISR wrapper only loads and calls the registered callback; it performs no
+  allocation, logging, sleeping, or other blocking work.
+- `interrupt_init()` leaves VTOR/NVIC ownership with NuttX;
+  `interrupt_deinit()` unregisters only sources currently owned by this bridge.
+- Owning register/unregister/set-priority/init/deinit prevents
+  `libdriver.a(interrupt_base.c.obj)` from being extracted through any of its
+  callable CM33 entry points.
+
+### Boundary and status
+
+`static-only` / unbuilt. No full compile, link, artifact verifier, flash, board
+test, commit, or push has occurred. The A1 board-verified branch remains
+available separately as `fork/bk7258-n6-ramvectors`.
+
+### Next single minimal action
+
+Run source-level checks and the verifier against the intentionally stale A1 ELF
+to confirm the source gates now pass while ELF ownership remains RED. A firmware
+build remains a separate authorization gate.
+
+## 2026-07-22 -- Stage B source gates pass; stale artifact remains RED
+
+### Checks run
+
+```text
+git diff --check
+exit=0
+
+PYTHONPYCACHEPREFIX=/tmp/bk7258-pycache python3 -m py_compile \
+  board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+exit=0
+
+python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+STALE_ELF_EXIT=1
+```
+
+All nine source/integration gates now pass:
+
+```text
+S01..S09: PASS
+```
+
+They prove the dedicated source/header exist, Kconfig/Make/CMake/defconfig are
+synchronized, the 64-source/priority compile gates are present, and production
+symbols were not placed in `bk7258_sdk_stubs.c`.
+
+The remaining failures are expected because the verifier is deliberately reading
+the old A1 ELF/map/archive produced before `bk7258_sdk_irq.o` existed. It still
+observes the SDK archive owner and direct `arch_interrupt_*` path. The refined
+verifier now extracts exactly `bk7258_sdk_irq.o` from `libarch.a` before checking
+register/unregister disassembly, avoiding false positives from unrelated archive
+members; absence of that member is fail-closed.
+
+### Static review correction
+
+`BK7258_SDK_IRQ_BRIDGE` now selects `ARCH_IRQPRIO`. This is required because
+NuttX declares `up_prioritize_irq()` only under `CONFIG_ARCH_IRQPRIO`, while the
+BK7258 chip already provides the implementation. No firmware build has yet
+confirmed the selected `.config` value.
+
+### Status
+
+Source phase is `static-only`. RED-to-GREEN now requires a fresh firmware build
+and post-link verifier run. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Run a fresh Stage B build, then execute the verifier against its ELF/map/libarch.
+Flashing remains prohibited for the agent and user-only.
+
+## 2026-07-23 -- Stage B fresh build passes, post-link ownership remains RED
+
+### Fresh distclean/build
+
+```text
+cd /home/lijian/project/open-vela
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+```
+
+Logs:
+
+```text
+/tmp/bk7258-stageb-distclean.log
+/tmp/bk7258-stageb-build.log
+```
+
+The fresh build completed through `LD: nuttx`, `CP: nuttx.bin`, CRC expansion,
+`all-app.bin` concatenation, and final `savedefconfig` without a build error.
+Observed artifact sizes from the postbuild log:
+
+```text
+nuttx.bin       = 156604 bytes
+nuttx_crc.bin   = 166396 bytes
+bl_crc.bin      = 69632 bytes
+all-app.bin     = 236028 bytes
+```
+
+The generated `.config` confirms both required selections:
+
+```text
+CONFIG_BK7258_SDK_IRQ_BRIDGE=y
+CONFIG_ARCH_IRQPRIO=y
+```
+
+### Fresh post-link verifier result
+
+```text
+python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+exit=1
+RESULT: 25 passed, 10 failed
+log: /tmp/bk7258-stageb-verify-fresh.log
+```
+
+The dedicated bridge object is present in overlay `libarch.a`, and all register /
+unregister disassembly lifecycle gates pass. However, the final link still chooses
+`libdriver.a(interrupt_base.c.obj)` as owner of all five callable IRQ lifecycle
+symbols. Consequently:
+
+- `libdriver.a(interrupt_base.c.obj)` is still extracted;
+- `arch_interrupt_register_int`, `arch_interrupt_unregister_int`,
+  `arch_interrupt_set_priority`, and `icu_int_map_table` remain in the final ELF;
+- the fresh artifact is not yet a NuttX-owned SDK IRQ bridge.
+
+This is a link-order/archive-selection failure, not a C compile failure. Merely
+placing strong replacement definitions in `libarch.a` is insufficient because the
+SDK `libdriver.a` member is extracted before the overlay member satisfies the
+unresolved reference.
+
+### Status and boundary
+
+Stage B remains `static-only` / post-link RED. The build itself succeeds, but the
+ownership gate is not met. No flash, board test, commit, or push occurred. The A1
+board-verified baseline remains unchanged on its published branch.
+
+### Next single minimal action
+
+Change team-overlay link integration so `bk7258_sdk_irq.o` is explicitly included
+before the SDK archive can satisfy `bk_int_isr_register`, then rebuild and rerun the
+same verifier. Do not use whole-archive for all of `libarch.a`, and do not modify
+the official NuttX tree or SDK binaries.
+
+## 2026-07-23 -- Stage B archive-selection fix implemented (unrebuilt)
+
+### Root cause
+
+The final ARM link places all standard NuttX archives (`LDLIBS`, including
+`libarch.a`) and SDK `EXTRA_LIBS` inside one linker group. Before any SDK driver
+creates an unresolved `bk_int_isr_register` reference, the first `libarch.a` scan
+has no reason to extract `bk7258_sdk_irq.o`. Later in the same group,
+`libdriver.a(timer_driver.c.obj)` creates the reference and the same SDK archive
+immediately satisfies it with `interrupt_base.c.obj`. A subsequent group rescan
+cannot replace an already resolved strong definition.
+
+### Team-overlay fix
+
+Added a configuration-gated linker-script root:
+
+```ld
+#ifdef CONFIG_BK7258_SDK_IRQ_BRIDGE
+EXTERN(bk_int_isr_register)
+#endif
+```
+
+The linker script is already preprocessed with `<nuttx/config.h>`. Therefore this
+creates the unresolved bridge symbol before the archive group is scanned, causing
+the earlier NuttX `libarch.a` to extract `bk7258_sdk_irq.o`. Extracting that one
+member also supplies unregister, set-priority, init, and deinit, so the later SDK
+`interrupt_base.c.obj` should remain unextracted. This avoids whole-archiving
+`libarch.a`, direct object-path duplication, or any official-tree/SDK edit.
+
+The Stage B verifier now has source gate `S10`, requiring the conditional linker
+root and `EXTERN(bk_int_isr_register)` declaration.
+
+### Status and boundary
+
+Fix is `static-only` / unrebuilt. No claim of link ownership is made until a fresh
+build and verifier run are GREEN. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Run source syntax/whitespace checks, then a fresh distclean/build and the same
+post-link verifier. If ownership turns GREEN, run the preserved A1 vector/magic /
+partition gates before preparing the user-only timer board test.
+
+### Pre-rebuild source and stale-artifact check
+
+```text
+git diff --check: exit 0
+python3 -m py_compile verify_bk7258_sdk_irq.py: exit 0
+stale-artifact verifier: exit 1, 26 passed / 10 failed
+log: /tmp/bk7258-stageb-linkfix-stale-red.log
+```
+
+`S01..S10` all pass, including the new linker-extraction gate. The ten ELF/map
+failures are the expected stale pre-fix artifact and still identify the SDK owner.
+This preserves a clean source-pass / stale-post-link-RED transition before rebuild.
+
+### Fresh link-fix build result
+
+The first build invocation used the prior shell working directory and failed before
+configuration with `./build.sh: No such file or directory`; no artifact was touched.
+It was immediately rerun with the absolute workspace build-script path:
+
+```text
+/home/lijian/project/open-vela/build.sh \
+  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
+/home/lijian/project/open-vela/build.sh \
+  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+```
+
+Logs:
+
+```text
+/tmp/bk7258-stageb-linkfix-distclean.log
+/tmp/bk7258-stageb-linkfix-build.log
+```
+
+The absolute-path rebuild completed through link, postbuild, and savedefconfig.
+Observed sizes:
+
+```text
+nuttx.bin       = 156052 bytes
+nuttx_crc.bin   = 165818 bytes
+bl_crc.bin      = 69632 bytes
+all-app.bin     = 235450 bytes
+```
+
+Compared with the pre-fix build, `nuttx.bin` decreased by 552 bytes and
+`all-app.bin` by 578 bytes, consistent with removing the SDK private interrupt
+object; ownership is still unclaimed until the post-link verifier runs.
+
+## 2026-07-23 -- Stage B link ownership GREEN
+
+### Command and result
+
+```text
+python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+exit=0
+RESULT: 36 passed, 0 failed
+log: /tmp/bk7258-stageb-linkfix-green.log
+```
+
+### Decisive ownership evidence
+
+All five callable CM33 IRQ lifecycle symbols now resolve to the overlay archive
+member:
+
+```text
+nuttx/staging/libarch.a(bk7258_sdk_irq.o)
+```
+
+This includes:
+
+```text
+bk_int_isr_register
+bk_int_isr_unregister
+bk_int_set_priority
+interrupt_init
+interrupt_deinit
+```
+
+The final ELF has exactly one active `bk_int_isr_register` definition and no
+lifecycle duplicates. `libdriver.a(interrupt_base.c.obj)` is not extracted.
+The obsolete private CM33 dispatch symbols are absent:
+
+```text
+arch_interrupt_register_int
+arch_interrupt_unregister_int
+arch_interrupt_set_priority
+icu_int_map_table
+```
+
+The exact extracted bridge object disassembly confirms register calls
+`irq_attach`, `up_disable_irq`, `bk7258_clear_pending_irq`,
+`up_prioritize_irq`, and `up_enable_irq`; unregister calls `irq_attach`
+(`irq_detach` expansion), `up_disable_irq`, and the pending-clear helper.
+
+### Status and boundary
+
+The CPU0 SDK IRQ bridge is now `build-verified` for compile, link ownership, and
+lifecycle call-path gates. It is not `board-verified`; no live SDK timer IRQ has
+been exercised. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Re-run the preserved A1 vector/magic/partition checks against this fresh artifact,
+record exact hashes and warning scope, then perform a focused code/verifier review.
+Only after those gates pass should a user-only non-WDT SDK timer board-test image
+be prepared.
+
+## 2026-07-23 -- Stage B preserved A1 invariants GREEN
+
+### Result
+
+A dynamic ELF/binary/build-log check was run against the fresh link-fix artifact:
+
+```text
+log: /tmp/bk7258-stageb-a1-invariants.log
+exit=0
+RESULT: 18 passed, 0 failed
+```
+
+### Preserved gates
+
+- `.config`: `CONFIG_ARCH_RAMVECTORS=y`, `CONFIG_NCPUS=1`, no `CONFIG_SMP=y`;
+  bridge and `ARCH_IRQPRIO` remain enabled.
+- `_vectors`: `0x02010000`, size `0x140` (80 entries).
+- `.ram_vectors` / `g_ram_vectors`: `0x28000800`, size `0x140`, 512-byte aligned.
+- Flash slots 64/65: `32374b42 00003633` (`BK7236\0\0`).
+- Flash slots 66..79: all `exception_common|1 = 0x020109bd`.
+- Anchor slots 15/31: both `0x020109bd`.
+- `up_irqinitialize()`: one call to `arm_ramvec_initialize()` and two calls to
+  `arm_ramvec_attach()`.
+- `nuttx.bin` fits the 1 MiB app link window.
+- `all-app.bin` is byte-exact `bl_crc.bin + nuttx_crc.bin`.
+- Combined-image magic remains at physical offset `0x11110`.
+- Team-source warnings excluding local SDK headers: 0.
+- Build-log error lines: 0.
+
+### Fresh artifact identities (compile/static-only)
+
+| Artifact | Size | SHA-256 |
+|---|---:|---|
+| ELF `nuttx` | 1417688 (`0x15a1d8`) | `44d8f973604b7d6e29c2916600dbed59d0739be24f270dc0ce22ad64beca32fd` |
+| `nuttx.bin` | 156052 (`0x26194`) | `ceed4b42634f351e086294359f8e46354b2f00611be595a95a7fbc92f78faa05` |
+| `nuttx_crc.bin` | 165818 (`0x287ba`) | `a1010f473399a3a52d781a4cdc73013a44da740337daa01aab3f1ef92bc5edbc` |
+| `all-app.bin` | 235450 (`0x397ba`) | `45d7b9868365265830508067e1c26e5bf210b21e9a2dda43b00eedf5b6db9725` |
+| `bl_crc.bin` | 69632 (`0x11000`) | `c4b46405a59504dd14b45ba25f95e271ea5d695c87da0a6d50220aede39fb86f` |
+
+These hashes identify only the fresh Stage B compile/static artifact. They are not
+board-verified and do not replace the published A1 board-flashed identity.
+
+### Status and boundary
+
+Stage B remains `build-verified`, not `board-verified`. The A1 layout/magic /
+partition baselines are statically preserved. No flash, board test, commit, or
+push occurred.
+
+### Next single minimal action
+
+Perform focused bridge/verifier code review and a negative ownership test that
+removes the linker root from a temporary linker-script copy or otherwise proves
+the verifier fails closed. Then prepare, but do not flash, the minimal user-only
+non-WDT SDK timer register/trigger/unregister/re-register board test.
+
+## 2026-07-23 -- Focused review finds per-source default-priority defect
+
+### Finding F1 (`Important`)
+
+The authoritative BK7258 `ICU_DEV_MAP` is one-to-one for source/line numbers, but
+its default priority is not uniform:
+
+```text
+sources 0..26, 28..63: IQR_PRI_DEFAULT = 6 -> raw 0xc0
+source 27 (INT_SRC_LCD): explicit priority 0 -> raw 0x00
+```
+
+The current bridge instead uses `BK7258_SDK_IRQ_DEFAULT_PRIORITY` (`6`) for every
+source. Registering `INT_SRC_LCD` would therefore change the SDK-defined default
+from logical priority 0 to 6. This violates the required mapped-default lifecycle
+semantics even though archive ownership and all current verifier gates are GREEN.
+
+The earlier statement that all 64 sources use default priority 6 is retracted.
+The existing verifier also has a coverage gap: it checks the register call path
+but not the per-source mapped default or `bk_int_set_priority()` call path.
+
+### Status
+
+Overall Stage B returns to `blocked` pending this semantic correction and verifier
+hardening. The link-order fix and A1 invariant results remain valid evidence, but
+the current artifact must not be board-tested. No flash, commit, or push occurred.
+
+### Next single minimal action
+
+Implement a pinned `INT_SRC_LCD == 27` priority exception (0; all other sources 6),
+harden the verifier for mapped defaults, generated config, and the custom-priority
+call path, then rebuild and rerun all Stage B/A1 gates.
+
+## 2026-07-23 -- F1 mapped-default correction implemented (unrebuilt)
+
+### Production correction
+
+- Added `BK7258_SDK_IRQ_LCD_PRIORITY = 0` while retaining the normal mapped
+  default 6.
+- Added compile-time `INT_SRC_LCD == 27` and priority-range assertions.
+- Added `bk7258_sdk_irq_default_priority()` so register selects priority 0 only
+  for `INT_SRC_LCD`; all other sources retain priority 6.
+- Register still encodes the selected logical value through the common 3-bit
+  shift (`0 -> 0x00`, `6 -> 0xc0`) before calling `up_prioritize_irq()`.
+
+### Verifier hardening
+
+Added source/config gates:
+
+- `S11`: pinned LCD source-27 priority-zero exception;
+- `S12`: Kconfig selects `ARCH_IRQPRIO`;
+- `S13`: generated `.config` enables bridge and IRQ priority support;
+- `S14`: exact source-to-IRQ mapping and no-argument callback semantics.
+
+Added object-disassembly gates:
+
+- `E07`: `bk_int_set_priority()` calls `up_prioritize_irq()`;
+- `E08`: the compiled register path contains both the LCD source-27 decision and
+  the normal encoded-priority-6 (`0xc0`) path, so a stale uniform-priority object
+  cannot pass on source text alone.
+
+### Status and boundary
+
+Correction is `static-only` / unrebuilt. The previous 36/36 artifact is historical
+link-ownership evidence only and remains invalid for board testing because it
+contains F1. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Run source checks and confirm the source gates pass while the hardened verifier
+rejects the stale F1 object at `E08`, then fresh distclean/build and rerun all
+bridge/A1 gates.
+
+### F1 RED proof before rebuild
+
+```text
+git diff --check: exit 0
+python3 -m py_compile verify_bk7258_sdk_irq.py: exit 0
+verifier: exit 1
+RESULT: 41 passed, 1 failed
+log: /tmp/bk7258-stageb-f1-stale-red.log
+```
+
+All fourteen source/config gates pass. All prior ownership/lifecycle gates remain
+GREEN. The sole failure is `E08`, because the stale object still has the old
+uniform `0xc0` register path and no source-27 decision. This proves the hardened
+verifier is fail-closed against the exact F1 artifact rather than accepting the
+new source text with stale binary code.
+
+## 2026-07-23 -- F1-corrected fresh build completes
+
+### Commands and logs
+
+```text
+/home/lijian/project/open-vela/build.sh \
+  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
+/home/lijian/project/open-vela/build.sh \
+  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+```
+
+```text
+distclean log: /tmp/bk7258-stageb-f1-distclean.log
+build log:     /tmp/bk7258-stageb-f1-build.log
+```
+
+The fresh build completed through `LD: nuttx`, `CP: nuttx.bin`, CRC expansion,
+combined-image packaging, and final `savedefconfig`; no build error is present in
+the final output.
+
+### Postbuild output
+
+```text
+nuttx.bin       = 156068 bytes (logical 0x261a4)
+nuttx_crc.bin   = 165852 bytes (physical 0x287dc)
+bl_crc.bin      = 69632 bytes (0x11000)
+all-app.bin     = 235484 bytes
+combined magic  = physical offset 0x11110
+```
+
+Compared with the pre-F1 link-fix artifact, `nuttx.bin` increased by 16 bytes and
+`all-app.bin` by 34 bytes, consistent with adding the source-27 priority decision.
+This size change alone is not semantic proof; the hardened object gate remains
+authoritative.
+
+### Evidence boundary and status
+
+The F1-corrected source now has a successful fresh compile/link/package result.
+The hardened Stage B verifier has not yet been run against this new object, and
+the preserved 18-gate A1 vector/magic/partition suite has not yet been rerun.
+Therefore Stage B remains `blocked` for board testing. No flash, board test,
+commit, or push occurred.
+
+### Next single minimal action
+
+Run `verify_bk7258_sdk_irq.py` against the fresh ELF/map/archive and require all
+42 gates, including object gate `E08`, to pass before any further artifact claim.
+
+## 2026-07-23 -- Fresh F1 artifact remains RED at object gate E08
+
+### Command and result
+
+```text
+python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+exit=1
+RESULT: 41 passed, 1 failed
+log: /tmp/bk7258-stageb-f1-green.log
+```
+
+All source/config gates (`S01..S14`), archive/link ownership gates, lifecycle-call
+gates, obsolete-SDK-symbol absence checks, and custom-priority gate `E07` pass.
+The five public lifecycle owners remain
+`libarch.a(bk7258_sdk_irq.o)`; `libdriver.a(interrupt_base.c.obj)` remains
+unextracted and the four private SDK direct-dispatch symbols remain absent.
+
+The sole failure is still:
+
+```text
+E08: register object contains LCD source-27 and normal-priority paths
+```
+
+Unlike the deliberate stale-object RED run, this result is from the freshly built
+F1-corrected archive. Therefore one of two bounded explanations remains to be
+proven: either the compiler emitted the mapped-default decision outside the
+`bk_int_isr_register` symbol slice inspected by E08, or the production correction
+was not represented as intended in the object. No conclusion is claimed until the
+exact extracted object and relocations are inspected.
+
+### Status and boundary
+
+Stage B remains `blocked`; the fresh artifact must not be board-tested. No A1
+invariant rerun, flash, board test, commit, or push occurred after this RED result.
+
+### Next single minimal action
+
+Extract `bk7258_sdk_irq.o` from the fresh `libarch.a` and inspect the complete
+symbol/disassembly boundaries for `bk_int_isr_register`,
+`bk7258_sdk_irq_default_priority`, and priority encoding. Correct production code
+only if the compiled semantics are wrong; otherwise replace brittle E08 text
+matching with a fail-closed object-level semantic predicate and rerun the stale and
+fresh negative/positive pair.
+
+## 2026-07-23 -- E08 root cause: correct inlined semantics, brittle immediate check
+
+### Fresh object evidence
+
+The exact fresh archive member was extracted from
+`nuttx/staging/libarch.a(bk7258_sdk_irq.o)` and inspected with `nm -S -n` and
+`objdump -dr`. The two static helpers were inlined, so they have no standalone
+symbols. `bk_int_isr_register` contains the complete corrected decision:
+
+```asm
+cmp      r0, #27
+ite      ne
+movne.w  r8, #6
+moveq.w  r8, #0
+...
+mov.w    r8, r8, lsl #5
+...
+bl       up_prioritize_irq
+```
+
+This is the intended compiled mapping:
+
+```text
+source == 27 -> logical 0 -> raw 0x00
+source != 27 -> logical 6 -> shift left 5 -> raw 0xc0
+```
+
+The production correction is therefore present in the fresh object. No production
+source change is required for this finding.
+
+### Verifier defect
+
+E08 currently requires `#27` plus a literal `#192`/`0xc0` in the register-symbol
+disassembly. GCC instead retained logical constant `#6` and emitted a later
+`lsl #5`; the raw value exists semantically but not as a literal immediate. E08 is
+therefore a false negative caused by brittle constant-shape matching.
+
+### Status and boundary
+
+Production F1 semantics are object-confirmed, but Stage B remains `blocked` until
+E08 is replaced with a predicate that recognizes the source-27 conditional 0/6
+selection and priority-bit shift while still rejecting the historical uniform-6
+object. No A1 invariant rerun, flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Harden E08 around the compiled semantic sequence (`cmp #27`, conditional 6/0
+selection, `lsl #5`, and the `up_prioritize_irq` relocation), then prove the new
+predicate against both a stale/uniform-priority object and the fresh corrected
+object before accepting 42/42 GREEN.
+
+## 2026-07-23 -- E08 compiled-semantic predicate implemented (unverified)
+
+The verifier now uses `has_mapped_default_priority()` instead of requiring a
+literal raw `#192`/`0xc0`. The predicate requires all of the following within the
+compiled `bk_int_isr_register` symbol:
+
+- comparison against source `27`;
+- conditional selection of logical priority `6` for non-LCD and `0` for LCD into
+  the same register;
+- left shift of that selected register by the pinned priority shift (`5` bits);
+- propagation of the shifted value as argument `r1` to a register path containing
+  the `up_prioritize_irq` relocation.
+
+This is a verifier-only correction; production bridge source is unchanged. The
+predicate has not yet been run against either artifact, so no GREEN claim is made.
+
+### Next single minimal action
+
+Run syntax/whitespace checks, then execute the verifier once with a temporary
+archive whose bridge member is the exact historical uniform-priority object
+(`/tmp/bk7258-sdk-irq-stale-f1.o`) and once with the current fresh archive. Require
+stale E08 RED and fresh 42/42 GREEN.
+
+## 2026-07-23 -- E08 stale/fresh pair proves RED-to-GREEN
+
+### Pre-checks
+
+```text
+python3 -m py_compile verify_bk7258_sdk_irq.py: exit 0
+git diff --check: exit 0
+historical stale object exists and is non-empty: PASS
+```
+
+### Exact stale-object negative test
+
+A temporary copy of the current `libarch.a` was created and only its
+`bk7258_sdk_irq.o` member was replaced with the exact historical uniform-priority
+object `/tmp/bk7258-sdk-irq-stale-f1.o`. The production archive was not modified.
+
+```text
+log: /tmp/bk7258-stageb-e08-stale-red-v2.log
+exit=1
+FAIL E08: register object selects LCD priority 0 and shifts normal priority 6
+RESULT: 41 passed, 1 failed
+```
+
+All other gates pass. This proves the revised predicate still rejects the exact
+pre-F1 compiled behavior.
+
+### Fresh corrected-object positive test
+
+```text
+log: /tmp/bk7258-stageb-f1-green-v2.log
+exit=0
+PASS E08: register object selects LCD priority 0 and shifts normal priority 6
+RESULT: 42 passed, 0 failed
+```
+
+The fresh artifact now passes all source/config, ownership, obsolete-symbol
+absence, register/replace/unregister lifecycle, mapped-default, and custom-priority
+gates. The previous E08 false negative is resolved without changing production
+bridge code.
+
+### Status and boundary
+
+Stage B returns to `build-verified` for the F1-corrected bridge. It is not
+`board-verified`; the preserved A1 invariant suite and final artifact identities
+still need to be rerun/recorded before preparing any board-test image. No flash,
+board test, commit, or push occurred.
+
+### Next single minimal action
+
+Rerun the preserved 18-gate A1 vector/RAM-vector/magic/partition/packaging/warning
+suite against the F1-corrected artifact, then record fresh hashes and sizes.
+
+## 2026-07-23 -- F1-corrected artifact preserves all A1 invariants
+
+### Command and result
+
+```text
+log: /tmp/bk7258-stageb-f1-a1-invariants.log
+exit=0
+RESULT: 18 passed, 0 failed
+```
+
+### Preserved evidence
+
+- generated config: RAM vectors enabled, `CONFIG_NCPUS=1`, no SMP, bridge and
+  `ARCH_IRQPRIO` enabled;
+- flash `_vectors`: `0x02010000`, size `0x140` (80 entries);
+- `g_ram_vectors`: `0x28000800`, size `0x140`, 512-byte aligned;
+- flash slots 64/65 retain `32374b42 00003633` (`BK7236\0\0`);
+- slots 66..79 and anchor slots 15/31 equal the new
+  `exception_common|1 = 0x020109cd`;
+- `up_irqinitialize()` calls `arm_ramvec_initialize()` once and
+  `arm_ramvec_attach()` twice;
+- `nuttx.bin` remains inside the 1 MiB app window;
+- `all-app.bin` is byte-exact `bl_crc.bin + nuttx_crc.bin`;
+- combined-image magic remains at physical offset `0x11110`;
+- team-source warnings excluding local SDK headers: 0;
+- build-log error lines: 0.
+
+### F1-corrected artifact identities (compile/static-only)
+
+| Artifact | Size | SHA-256 |
+|---|---:|---|
+| ELF `nuttx` | 1417688 (`0x15a1d8`) | `6786c645d8550e43154697365b3b6bbcdbaf89cfd70ecfa0bf255547e03dad3a` |
+| `nuttx.bin` | 156068 (`0x261a4`) | `f736d4f2a881311bb6f538a2971629219ce68342360dc44693fc231b02566c2c` |
+| `nuttx_crc.bin` | 165852 (`0x287dc`) | `87889ca6359efc846166f1d93d4fa01b56efa2c783bdb8c4dff0a7288731d46e` |
+| `all-app.bin` | 235484 (`0x397dc`) | `5ff2ce0027750ef7f5d34d92dd6628581267fde322118b09a40ac4d9b4cf89ce` |
+| `bl_crc.bin` | 69632 (`0x11000`) | `c4b46405a59504dd14b45ba25f95e271ea5d695c87da0a6d50220aede39fb86f` |
+
+These identities are compile/static evidence only. They are not board-verified and
+do not replace the published A1 board-flashed artifact identity.
+
+### Status and boundary
+
+Stage B is `build-verified`: hardened bridge verifier 42/42 PASS and preserved A1
+suite 18/18 PASS. It remains not `board-verified`; no live SDK interrupt has been
+exercised. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Perform one final focused bridge/verifier review for concrete lifecycle or
+concurrency defects. If no blocker survives, prepare (but do not flash) the
+minimal user-only non-WDT SDK timer register/trigger/unregister/re-register test.
+
+## 2026-07-23 -- Focused review finds lifecycle serialization defect F2
+
+### Finding F2 (`Important`)
+
+The callback dispatch path is nonblocking and the target NVIC line is disabled
+during each individual lifecycle operation, but the complete bridge lifecycle is
+not serialized. `bk_int_isr_register()`, `bk_int_isr_unregister()`,
+`bk_int_set_priority()`, and `interrupt_deinit()` access the shared callback table
+and NuttX IRQ ownership through multi-step sequences without a bridge-local
+critical section/spinlock.
+
+Concrete same-source replacement race on CPU0:
+
+1. task/ISR A attaches the wrapper for handler A and is preempted before storing A;
+2. task/ISR B completes replacement with handler B and enables the line;
+3. A resumes, overwrites the callback with A and enables the line;
+4. final state violates completion order: the later completed replacement B is
+   lost even though both calls returned success.
+
+A similar interleaving can make a concurrent custom-priority call lose to the
+register path's default-priority write. `interrupt_deinit()` also reads the table
+without serialization before calling unregister.
+
+The current extracted object confirms there is no bridge-level PRIMASK save /
+interrupt-disable / restore sequence in register, unregister, set-priority, or
+deinit. The nested lock inside `irq_attach()` protects only `g_irqvector[]`; it
+does not protect the bridge callback table or the complete lifecycle transaction.
+
+### Required correction
+
+Use a bridge-local `spinlock_t` with `spin_lock_irqsave()` /
+`spin_unlock_irqrestore()` around complete lifecycle transactions. In the current
+CPU0 configuration (`CONFIG_NCPUS=1`, no `CONFIG_SPINLOCK`) these APIs reduce to
+`up_irq_save()` / `up_irq_restore()`, which prevents interrupt-driven preemption
+without adding blocking work to dispatch. Keep dispatch lock-free. Use an internal
+locked unregister helper so `interrupt_deinit()` can serialize its scan without
+recursive locking.
+
+### Status and boundary
+
+Stage B returns to `blocked` pending F2. The prior 42/42 bridge and 18/18 A1 results
+remain valid for their covered semantics but do not cover lifecycle serialization.
+The current artifact must not be board-tested. No flash, board test, commit, or
+push occurred.
+
+### Next single minimal action
+
+Add fail-closed source/object verifier gates for bridge-local lifecycle
+serialization and demonstrate RED against the current artifact before changing
+production bridge code.
+
+## 2026-07-23 -- F2 lifecycle-serialization RED gates installed (unrun)
+
+Verifier additions:
+
+- `S15` requires a bridge-local `spinlock_t`, at least four lifecycle lock/unlock
+  sites, and an internal locked-unregister helper;
+- `E09` disassembles register, unregister, set-priority, and deinit separately and
+  requires each path to contain local IRQ save/disable/restore semantics (PRIMASK
+  sequence or explicit `up_irq_save`/`up_irq_restore`).
+
+These are verifier-only changes. Production bridge code and the current artifact
+remain unchanged, so `S15` and all four `E09` instances are expected to fail.
+No RED result is claimed until syntax checks and the verifier run complete.
+
+### Next single minimal action
+
+Run `py_compile`, `git diff --check`, and the hardened verifier against the current
+F1-corrected but unlocked artifact. Require the five new gates to fail while all
+prior 42 gates remain GREEN.
+
+### F2 RED result
+
+```text
+python3 -m py_compile verify_bk7258_sdk_irq.py: exit 0
+git diff --check: exit 0
+verifier log: /tmp/bk7258-stageb-f2-lock-red.log
+verifier exit=1
+RESULT: 42 passed, 5 failed
+```
+
+The only failures are the five newly introduced F2 gates:
+
+```text
+S15: bridge-local lock serializes lifecycle transactions
+E09: register path saves, disables, and restores local IRQs
+E09: unregister path saves, disables, and restores local IRQs
+E09: set-priority path saves, disables, and restores local IRQs
+E09: deinit path saves, disables, and restores local IRQs
+```
+
+All prior F1 mapping, ownership, lifecycle-call, obsolete-SDK-symbol, custom
+priority, and stale/fresh E08 gates remain GREEN. This is the intended focused RED
+and proves the verifier isolates the missing lifecycle serialization.
+
+### Status and next action
+
+Stage B remains `blocked`. Implement the bridge-local lock and internal locked
+unregister helper without adding any lock or blocking operation to dispatch, then
+run source checks against the stale object before rebuilding.
+
+## 2026-07-23 -- F2 bridge-local lifecycle serialization implemented (unbuilt)
+
+### Production changes
+
+- included `<nuttx/spinlock.h>` and added
+  `g_bk7258_sdk_irq_lock = SP_UNLOCKED`;
+- added `bk7258_sdk_irq_unregister_locked(index, irq)` for the common
+  disable / clear-pending / callback-clear / barrier / NuttX detach sequence;
+- `bk_int_isr_register()` now holds the bridge lock from replacement teardown
+  through default priority, wrapper attach, callback publication, barriers, and
+  final line enable; every error/NULL-handler path releases the lock through one
+  `out` path;
+- `bk_int_isr_unregister()` serializes the complete internal unregister helper;
+- `bk_int_set_priority()` serializes custom priority against registration and
+  unregistration;
+- `interrupt_deinit()` holds the lock while scanning bridge-owned callbacks and
+  uses the internal helper, avoiding recursive locking and an unlocked table read;
+- `bk7258_sdk_irq_dispatch()` remains unchanged, lock-free, allocation-free, and
+  nonblocking.
+
+In the current CPU0/no-`CONFIG_SPINLOCK` configuration, the lock APIs compile to
+local IRQ save/restore. The implementation does not add a sleeping primitive or
+lock acquisition to ISR dispatch.
+
+### Status and boundary
+
+Source change is `static-only` / unbuilt. No claim is made that S15/E09 pass until
+the object is rebuilt. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Run source syntax/whitespace checks and the verifier against the intentionally
+stale unlocked object. Require S15 to turn GREEN while all four E09 object gates
+remain RED, proving source/object separation before the fresh rebuild.
+
+### F2 source-pass / stale-object RED result
+
+```text
+python3 -m py_compile verify_bk7258_sdk_irq.py: exit 0
+git diff --check: exit 0
+log: /tmp/bk7258-stageb-f2-stale-object-red.log
+exit=1
+RESULT: 43 passed, 4 failed
+```
+
+Observed transition:
+
+```text
+PASS S15: bridge-local lock serializes lifecycle transactions
+FAIL E09: register path saves, disables, and restores local IRQs
+FAIL E09: unregister path saves, disables, and restores local IRQs
+FAIL E09: set-priority path saves, disables, and restores local IRQs
+FAIL E09: deinit path saves, disables, and restores local IRQs
+```
+
+This is the expected source/object split: the production source contains the lock
+and helper, while the archive still contains the prior unlocked object. All prior
+43 gates pass. No stale binary is accepted as F2-corrected.
+
+### Status and next action
+
+Stage B remains `blocked` pending a fresh distclean/build and full 47-gate verifier
+run. No flash, board test, commit, or push occurred.
+
+## 2026-07-23 -- F2 fresh distclean/build succeeds
+
+### Commands and logs
+
+```text
+/home/lijian/project/open-vela/build.sh \
+  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
+/home/lijian/project/open-vela/build.sh \
+  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+```
+
+```text
+distclean log: /tmp/bk7258-stageb-f2-distclean.log
+build log:     /tmp/bk7258-stageb-f2-build.log
+DISTCLEAN_EXIT=0
+BUILD_EXIT=0
+```
+
+The build completed through link, binary copy, CRC expansion, combined-image
+packaging, and `savedefconfig`.
+
+### Postbuild output
+
+```text
+nuttx.bin       = 156108 bytes (logical 0x261cc)
+nuttx_crc.bin   = 165886 bytes (physical 0x287fe)
+bl_crc.bin      = 69632 bytes (0x11000)
+all-app.bin     = 235518 bytes
+combined magic  = physical offset 0x11110
+```
+
+Compared with the F1-only artifact, the lifecycle-lock implementation adds 40
+logical bytes to `nuttx.bin` and 34 physical bytes to `all-app.bin`. Size delta is
+not a correctness claim; the 47-gate verifier remains authoritative.
+
+### Status and boundary
+
+Fresh compile/link/package succeeded, but S15/E09 and preserved A1 gates have not
+yet been run against this object. Stage B remains `blocked` for board testing. No
+flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Run the full Stage B verifier and require 47/47 PASS, including all four E09
+lifecycle serialization paths.
+
+## 2026-07-23 -- F2 fresh verifier RED after helper refactor
+
+### Result
+
+```text
+log: /tmp/bk7258-stageb-f2-green.log
+exit=1
+RESULT: 37 passed, 10 failed
+```
+
+Source/integration/ownership gates, SDK-object exclusion, obsolete-symbol absence,
+custom priority, wrapper attach, default priority call, and final enable remain
+GREEN. Failures:
+
+```text
+E09 x4: register/unregister/set-priority/deinit serialization shape not recognized
+E05 x2: register no longer directly calls up_disable_irq / clear-pending
+E08: mapped-default compiled sequence not recognized
+E06 x3: unregister no longer directly calls irq_attach / up_disable_irq /
+         clear-pending
+```
+
+The E05/E06 failures are expected consequences of moving teardown into
+`bk7258_sdk_irq_unregister_locked()`; the verifier still inspects only the public
+symbol slices. E08/E09 may likewise reflect compiler factoring/instruction shape,
+but production correctness is not assumed. The exact fresh object, internal helper,
+relocations, and PRIMASK sequence must be inspected before deciding whether this is
+a verifier-only adaptation or a production defect.
+
+### Status and boundary
+
+Stage B remains `blocked`; the fresh F2 artifact must not be board-tested. No A1
+invariant rerun, flash, board test, commit, or push occurred after this RED result.
+
+### Next single minimal action
+
+Inspect the complete fresh `bk7258_sdk_irq.o`, including
+`bk7258_sdk_irq_unregister_locked`, all four public lifecycle symbols, and their
+relocations. Update verifier call-graph predicates only if the object proves the
+full serialized behavior.
+
+## 2026-07-23 -- F2 object inspection proves production semantics; verifier is stale
+
+### Internal helper
+
+The fresh object contains a retained local symbol:
+
+```text
+bk7258_sdk_irq_unregister_locked: size 0x34
+```
+
+Its disassembly/relocations contain the complete teardown sequence:
+
+```text
+up_disable_irq
+bk7258_clear_pending_irq
+callback-table store of NULL
+DSB / ISB
+irq_attach (irq_detach expansion)
+```
+
+Both public register and unregister contain an
+`R_ARM_THM_CALL bk7258_sdk_irq_unregister_locked` relocation. Register separately
+retains wrapper `irq_attach`, `up_prioritize_irq`, callback publication/barriers,
+and `up_enable_irq`.
+
+### Lifecycle serialization shape
+
+All four lifecycle paths contain the NuttX CPU0 IRQ-save implementation:
+
+```text
+mrs ..., BASEPRI
+msr BASEPRI, 0x80-equivalent register
+...
+msr BASEPRI, saved register
+```
+
+This is the compiled form of `spin_lock_irqsave()` / restore in the current
+Cortex-M33 configuration. The verifier incorrectly recognized only PRIMASK /
+`cpsid` or external `up_irq_save` symbols. Register, unregister, custom priority,
+and deinit all show the BASEPRI save/mask/restore sequence.
+
+### Mapped-default shape after F2
+
+Register still contains:
+
+```text
+cmp source, #27
+movne logical_priority, #6
+moveq logical_priority, #0
+mov r1, logical_priority, lsl #5
+bl up_prioritize_irq
+```
+
+E08 failed only because the shift is now fused into the move to argument `r1`,
+rather than performed in place and then copied.
+
+### Conclusion
+
+The ten failures are verifier shape/call-graph defects introduced by the legitimate
+internal-helper refactor; the fresh production object implements F1 and F2 as
+intended. No production correction is required from this inspection.
+
+### Status and next action
+
+Stage B remains `blocked` until the verifier is made helper-aware, recognizes
+BASEPRI serialization and fused shift-to-argument, and proves stale/fresh
+RED-to-GREEN. No flash, board test, commit, or push occurred.
+
+## 2026-07-23 -- F2 verifier adapted to compiled call graph (unrun)
+
+Verifier changes:
+
+- E08 now accepts both in-place priority shifts and GCC's fused
+  `mov r1, priority_reg, lsl #5` argument formation;
+- E09 now recognizes PRIMASK, BASEPRI, or explicit external IRQ-save/restore
+  implementations;
+- E05/E06 now require teardown calls either directly in the public symbol or via
+  a verified relocation to `bk7258_sdk_irq_unregister_locked` plus the callee in
+  the helper body;
+- new E10 requires register, unregister, and deinit all to call the locked helper,
+  and requires the helper to contain detach, disable, and pending-clear calls.
+
+The suite now contains 48 gates. These are verifier-only changes and have not yet
+been run, so no GREEN claim is made.
+
+### Next single minimal action
+
+Run syntax/whitespace checks, then prove the exact historical unlocked F1 object
+still fails F2 while the fresh F2 object passes all 48 gates.
+
+## 2026-07-23 -- F2 historical/fresh pair proves RED-to-GREEN
+
+### Pre-checks
+
+```text
+python3 -m py_compile verify_bk7258_sdk_irq.py: exit 0
+git diff --check: exit 0
+```
+
+### Exact historical unlocked-object RED
+
+A temporary archive copy replaced only `bk7258_sdk_irq.o` with
+`/tmp/bk7258-sdk-irq-stale-f1.o`; the production archive was not modified.
+
+```text
+log: /tmp/bk7258-stageb-f2-historical-stale-red.log
+exit=1
+RESULT: 42 passed, 6 failed
+```
+
+Expected failures:
+
+- four E09 lifecycle serialization paths;
+- E10 locked-helper call graph;
+- E08 LCD mapped-default correction.
+
+S15 passes because source is current, while object gates reject the historical
+binary. This proves the suite remains fail-closed across both F1 and F2.
+
+### Fresh F2 object GREEN
+
+```text
+log: /tmp/bk7258-stageb-f2-green-v2.log
+exit=0
+RESULT: 48 passed, 0 failed
+```
+
+All source/config, archive/link ownership, obsolete-SDK-symbol absence,
+helper-aware register/unregister lifecycle, mapped-default/custom-priority,
+BASEPRI lifecycle serialization, and helper call-graph gates pass.
+
+### Status and boundary
+
+The F2 bridge is `build-verified` by the complete 48-gate suite. It is not
+`board-verified`; the preserved A1 suite and final F2 artifact hashes still need to
+be rerun/recorded. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Rerun the preserved 18-gate A1 suite against the F2 artifact and record exact
+hashes, sizes, warning scope, and error scope.
+
+## 2026-07-23 -- F2 artifact preserves all A1 invariants
+
+### Result
+
+```text
+log: /tmp/bk7258-stageb-f2-a1-invariants.log
+exit=0
+RESULT: 18 passed, 0 failed
+```
+
+### Preserved evidence
+
+- generated config: RAM vectors enabled, CPU0-only (`CONFIG_NCPUS=1`, no SMP),
+  bridge and `ARCH_IRQPRIO` enabled;
+- `_vectors`: `0x02010000`, size `0x140`;
+- `g_ram_vectors`: `0x28000800`, size `0x140`, 512-byte aligned;
+- flash slots 64/65 retain `32374b42 00003633`;
+- slots 66..79 and anchors 15/31 equal
+  `exception_common|1 = 0x020109f9`;
+- one `arm_ramvec_initialize()` and two `arm_ramvec_attach()` calls remain;
+- app partition/concatenation/magic gates pass;
+- team-source warnings excluding local SDK headers: 0;
+- build-log error lines: 0.
+
+### F2 artifact identities (compile/static-only)
+
+| Artifact | Size | SHA-256 |
+|---|---:|---|
+| ELF `nuttx` | 1417768 (`0x15a228`) | `275f20328a21e2a01d1b991d9b9d4ea7b14c04d4235b45f1ad1653ba4cc61569` |
+| `nuttx.bin` | 156108 (`0x261cc`) | `539e178149f911cd5f76dcb137c254d5ea9a51d64f799e2ffb09f42cb9d18690` |
+| `nuttx_crc.bin` | 165886 (`0x287fe`) | `40ac66347dfc14fecc998e2b068c44f0bc0a906cb983a08d3b264b219ac56b53` |
+| `all-app.bin` | 235518 (`0x397fe`) | `6de61d949c7a8a66689407ac9ae7dc2e9740a7b7ba98af4827a9dadbefba7c0b` |
+| `bl_crc.bin` | 69632 (`0x11000`) | `c4b46405a59504dd14b45ba25f95e271ea5d695c87da0a6d50220aede39fb86f` |
+
+These are compile/static identities only and are not board-verified.
+
+### Status and boundary
+
+Stage B F1+F2 is `build-verified`: bridge suite 48/48 PASS and preserved A1 suite
+18/18 PASS. It remains not `board-verified`; no live SDK interrupt has been
+exercised. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Complete the focused review verdict. If no further blocker survives, prepare the
+minimal user-only non-WDT timer register/trigger/unregister/re-register test without
+flashing it.
+
+## 2026-07-23 -- Final focused bridge review closes with no further blocker
+
+### Reviewed dimensions
+
+- source `0..63` to NuttX IRQ `16..79` bounds and negative-enum rejection;
+- LCD source-27 mapped default and 3-bit custom-priority encoding;
+- replacement/unregister failure-safe ordering (disable, clear pending, detach,
+  priority, attach, callback publication, barriers, enable);
+- shared callback lifecycle serialization and helper call graph;
+- NULL callback behavior and ignored SDK `arg` compatibility;
+- lock-free/no-allocation/no-logging dispatch;
+- NuttX `irq_attach()` internal `g_irqvector[]` lock versus bridge-local callback
+  transaction lock;
+- linker ownership and garbage-collection behavior;
+- verifier stale-object failure behavior after F1 and F2.
+
+### Verdict
+
+No additional concrete blocker survives review. F1 and F2 are resolved in source
+and fresh object evidence. Lifecycle APIs remain subject to the normal NuttX rule
+that callers must use a context permitted to invoke IRQ-management APIs; the ISR
+dispatch callback itself remains nonblocking and does not acquire the lifecycle
+lock.
+
+Stage B remains `build-verified`, not `board-verified`, until a live non-WDT SDK
+interrupt source is exercised. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Design the smallest gated non-WDT SDK timer board test that can prove callback A,
+unregister silence, callback B after re-register, and baseline preservation. Build
+and statically verify it, but do not flash.
+
+## 2026-07-23 -- Timer-test channel and manual-command design fixed
+
+### Timer channel selection
+
+The localized CP SDK configuration disproves the earlier TIMER4/TIMER5 candidate:
+
+```text
+CONFIG_TIMER_SUPPORT_ID_BITS = 7  -> only TIMER_ID0..2 are accepted
+CONFIG_TIMER_US = 1               -> TIMER_ID0 is reserved for the us timer
+SDK timer API warning             -> TIMER_ID2 is used for time calibration
+```
+
+`bk_timer_start()` rejects IDs 3..5 through
+`TIMER_RETURN_TIMER_ID_IS_ERR()`. A bounded source search found TIMER_ID1 users only
+in the optional touch demo/driver, and none of the touch timer callbacks/entry points
+are retained in the current final ELF. Therefore the test candidate is:
+
+```text
+SDK timer channel : TIMER_ID1
+SDK IRQ source    : INT_SRC_TIMER (source 3)
+NuttX logical IRQ : 19
+status bit        : BIT(TIMER_ID1) = 0x2
+```
+
+The command will fail closed at runtime unless `bk_timer_get_enable_status()` reports
+all six timer channels idle. This is stricter than checking group 0 alone because the
+exported `timer_clear_isr_status()` reads and clears the six-bit status word for both
+timer groups.
+
+### Restoration and integration design
+
+`bk_timer_driver_deinit()` is not a safe restoration primitive: it stops and resets
+all six channels and does not unregister the two top-level IRQ sources. The test will
+instead add a test-gated, lock-protected snapshot helper to the overlay bridge, save
+the existing `INT_SRC_TIMER` callback, and restore it through the normal
+`bk_int_isr_register()` path on every exit.
+
+The test remains manual and non-booting:
+
+- a gated chip-local runner owns SDK headers, timer status acknowledgement, callback
+  counters, cleanup, and saved-handler restoration;
+- the linked contest app contributes only a small NSH built-in wrapper named
+  `bkirqtest`;
+- the gate selects NSH built-in-app support, but no bring-up path invokes the test;
+- TIMER_ID1 starts only after the all-channel-idle guard passes.
+
+Planned live sequence:
+
+```text
+snapshot original INT_SRC_TIMER owner
+register callback A -> start TIMER1 -> require callback/status bit
+unregister source -> start TIMER1 -> require hardware status but unchanged counters
+register callback B -> start TIMER1 -> require callback/status bit
+stop/clear TIMER1 -> restore original owner
+```
+
+### Status and boundary
+
+This is a source-backed design result only. The timer test has not yet been
+implemented or built. The existing F2 artifact remains `build-verified` (bridge
+48/48, A1 invariants 18/18) and not `board-verified`. No flash, board test, commit,
+or push occurred.
+
+### Next single minimal action
+
+Implement the gated bridge snapshot helper, chip-local TIMER1 test runner, and manual
+`bkirqtest` wrapper; then update this worklog before the first build.
+
+## 2026-07-23 -- Manual TIMER1 bridge test implemented (unbuilt)
+
+### Source/config implementation
+
+The default-off `CONFIG_BK7258_SDK_IRQ_TIMER_TEST` gate now depends on the production
+bridge plus NSH and selects NuttX built-in-app support. The BK7258 NSH defconfig
+explicitly enables the gate.
+
+New/updated implementation layers:
+
+- `bk7258_sdk_irq.c/.h`: test-gated, bridge-lock-protected handler snapshot; it reads
+  the current callback without changing NVIC/NuttX ownership, while normal dispatch
+  remains lock-free;
+- `bk7258_sdk_irq_timer_test.c`: chip-local SDK-aware runner, selected in both classic
+  Make and CMake only under the test gate;
+- `board.h`: exposes only the runner entry to the app layer;
+- `app/hello_app/bk7258_sdk_irq_test_main.c`: thin manual built-in wrapper named
+  `bkirqtest`; existing `hello_app` remains selectable and no bring-up path calls the
+  test;
+- app Make/CMake integration supports both commands without exposing private SDK
+  headers to the app target.
+
+### Fail-closed runtime sequence
+
+The runner compile-time pins TIMER_ID1/source 3 and verifies that the pinned SDK
+support mask includes TIMER1. At runtime it:
+
+1. rejects concurrent command invocation;
+2. snapshots and requires the existing `INT_SRC_TIMER` owner;
+3. refuses to run unless all six SDK timer enable bits are zero;
+4. stops/clears TIMER1, installs callback A, triggers the 50 ms hardware timer, and
+   requires status bit `0x2` plus an A count;
+5. unregisters source 3, triggers TIMER1 again, and requires status bit `0x2` while
+   both callback counters remain unchanged;
+6. installs callback B, triggers again, and requires B/status while A stays unchanged;
+7. on every path after ownership is touched, stops/clears TIMER1 and restores the
+   saved SDK owner through `bk_int_isr_register()`.
+
+ISR callbacks only acknowledge status and update volatile counters. They do not log,
+allocate, block, or call watchdog APIs. The test does not use
+`bk_timer_driver_deinit()`.
+
+### Status and boundary
+
+Implementation is complete in source but is **unbuilt and unverified**. The only
+verified firmware remains the earlier F2 compile/static artifact. No build, flash,
+board test, commit, or push occurred for this timer-test change.
+
+### Next single minimal action
+
+Review the exact new source/config diff, run whitespace/config prechecks, then perform
+the authorized fresh distclean/build and static verification. Do not flash.
+
+## 2026-07-23 -- Timer-test source review and prechecks pass
+
+### Review corrections and verdict
+
+The focused source review retained the TIMER1/source-3 design and made two bounded
+robustness corrections before build:
+
+- function-pointer diagnostics now print through `uintptr_t`, avoiding an invalid
+  `%p` vararg type for the saved ISR callback;
+- the idle guard explicitly recognizes the SDK's unsigned
+  `BK_ERR_TIMER_NOT_INIT` return before interpreting timer enable bits, and a restore
+  failure is attributed to the `restore` phase.
+
+No remaining source-level blocker was found. The runner clears peripheral status
+before ownership replacement, proves the disabled phase with both a hardware status
+bit and stable counters, clears peripheral/NVIC state before re-registration, and
+restores the saved callback on every path after the source is touched.
+
+### Prechecks
+
+```text
+git diff --check: exit 0
+boot-call search for bk7258_sdk_irq_timer_test: no matches
+forbidden-call search: no bk_timer_driver_deinit or bk_wdt call
+ISR callbacks: status acknowledge + volatile counters only
+```
+
+### Status and boundary
+
+The timer test remains unbuilt. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Run the authorized fresh distclean/build. If it succeeds, inspect generated config,
+built-in registration, final symbol/call ownership, bridge 48-gate results, and the
+preserved A1 invariant suite. Do not flash.
+
+## 2026-07-23 -- Fresh timer-test distclean/build succeeds
+
+### Build result
+
+```text
+distclean log: /tmp/bk7258-stageb-timer-test-distclean.log
+build log:     /tmp/bk7258-stageb-timer-test-build.log
+distclean + build combined exit: 0
+```
+
+The normal configuration step removed the now-redundant explicit `CONFIG_BUILTIN=y`
+line from the saved defconfig because `BK7258_SDK_IRQ_TIMER_TEST` selects BUILTIN;
+the test gate itself remains explicitly enabled. Generated-config confirmation and
+all post-link/static gates are still pending and no correctness claim is made from
+build exit alone.
+
+### Status and boundary
+
+The timer-test artifact is freshly built but not yet statically accepted and not
+board-verified. No flash, board test, commit, or push occurred.
+
+### Next single minimal action
+
+Verify generated config, NSH built-in registration, exact runner/snapshot call graph,
+absence of forbidden test calls, bridge ownership/invariants, A1 preservation,
+warnings/errors, and artifact identities. Do not flash.
+
+## 2026-07-23 -- First post-build timer-test gate is RED: command absent
+
+### Passing evidence
+
+```text
+CONFIG_BK7258_SDK_IRQ_TIMER_TEST=y
+CONFIG_BK7258_SDK_IRQ_BRIDGE=y
+CONFIG_BUILTIN=y
+CONFIG_NSH_BUILTIN_APPS=y
+CONFIG_ARCH_IRQPRIO=y
+CONFIG_ARCH_RAMVECTORS=y
+CONFIG_NCPUS=1
+bridge verifier: RESULT 48 passed, 0 failed
+build-log error lines: 0
+```
+
+### Blocking evidence
+
+The final ELF contains the SDK `timer_clear_isr_status` symbol but none of the new
+manual-test entry points:
+
+```text
+bkirqtest_main                         absent
+bk7258_sdk_irq_timer_test             absent
+bk7258_sdk_irq_test_snapshot_handler  absent
+bk7258_irqtest_callback_a/b           absent
+```
+
+No `bkirqtest` registration was found under generated apps output or `nuttx.map`.
+Therefore config selection alone did not place the app/runner in the final link. The
+new artifact is post-build **RED** and must not be board-tested. Raw build-log warning
+count is 103 and still requires scope analysis; it is not yet a team-warning result.
+
+### Status and boundary
+
+Stage B production bridge remains 48/48 build-verified, but the timer-test addition is
+`blocked` on missing build/link integration. No flash, board test, commit, or push
+occurred.
+
+### Next single minimal action
+
+Inspect whether the chip test object entered `libarch.a`, whether the linked app
+package's Make.defs/Makefile were traversed, and how generated built-in registration
+selects package apps. Fix only the proven missing integration, then rebuild.
+
+## 2026-07-23 -- Missing-command root cause isolated to package category traversal
+
+### Exact split
+
+The chip side is correct: `libarch.a` contains `bk7258_sdk_irq_timer_test.o`, and the
+archive exports the runner, both callbacks, and the bridge snapshot helper. They are
+removed from the final ELF only because no app references the runner.
+
+The app side is never traversed. Root `packages/Make.defs` includes only:
+
+```make
+include $(wildcard $(APPDIR)/packages/*/Make.defs)
+```
+
+The manifest links the team app at
+`packages/demos/contest2026_135_hello_app`, but `packages/demos/Make.defs` does not
+exist. Therefore the root wildcard never reaches the app's own `Make.defs`; no app
+object or built-in registration is generated.
+
+### Fix boundary
+
+Do not edit the official `packages/` checkout. Add team-owned `packages/demos`
+category aggregators through new manifest `linkfile` entries, so classic Make reaches
+child `Make.defs` and the CMake/Kconfig backends have equivalent category traversal.
+Then apply the manifest links locally and rebuild.
+
+### Status and next action
+
+Timer test remains post-build RED and not board-testable. No flash, commit, or push
+occurred. Next: add the team-owned category aggregators + manifest links, refresh
+linkfiles locally, and rebuild once.
+
+## 2026-07-23 -- Team-owned package category aggregators added (unverified)
+
+Added `app/demos/Make.defs`, `CMakeLists.txt`, and `Kconfig`, plus manifest linkfiles
+targeting `packages/demos/`. Classic Make now has an intended category include for
+child demo `Make.defs`; CMake and Kconfig have matching traversal. No official
+`packages/` file was edited directly.
+
+The links have not yet been refreshed into the generated workspace and no rebuild has
+run. Next: apply linkfiles locally, confirm all three generated symlinks, then rebuild.
+
+### Local link refresh blocker
+
+`repo sync -l contest2026_135_yongwangzhiqian` failed before link creation because
+repo rejects this project's current `.git` checkout state as unsupported. The
+manifest remains the authoritative persistent fix. For this existing workspace only,
+create the three exact manifest-owned symlinks manually (without editing tracked
+`packages/` content), verify their targets, and continue the rebuild.
+
+All three symlinks were created and resolve to the team-owned aggregator files. Next:
+one fresh distclean/build and post-link verification.
+
+## 2026-07-23 -- TIMER1 IRQ bridge test is build/static GREEN; user fast-download board test authorized
+
+### Fresh artifact and timer-test integration
+
+The package-category links are active. After enabling `CONFIG_SYSTEM_TIME64=y` for the independent 4295-second system-time fix and replacing the timer-test include with `<nuttx/spinlock.h>`, the full BK7258 target links successfully. The include correction only resolves the test's `enter_critical_section()` / `leave_critical_section()` declarations; it does not change production bridge behavior.
+
+Final post-link evidence:
+
+```text
+CONFIG_BK7258_SDK_IRQ_BRIDGE=y
+CONFIG_BK7258_SDK_IRQ_TIMER_TEST=y
+CONFIG_SYSTEM_TIME64=y
+bkirqtest_main                         present @ 0x0202a3c4
+bk7258_sdk_irq_timer_test             present @ 0x0202aa34
+bk7258_sdk_irq_test_snapshot_handler  present @ 0x02010608
+bk7258_irqtest_callback_a/b           present
+builtin_list -> bkirqtest_main        present in nuttx.map
+bridge verifier                       48 PASS / 0 FAIL
+```
+
+Current immutable handoff artifact until the next rebuild:
+
+```text
+path:    /home/lijian/project/open-vela/nuttx/all-app.bin
+size:    240618 bytes (0x3abea)
+sha256:  21a4f281cccf87500bd7c67a31d6aa097cfe0bb175ab9730d5a0bf5f44f589e9
+build:   exit 0
+log:     /tmp/bk7258-4295s-build-after-irq-fix.log
+verify:  /tmp/bk7258-stageb-current-verify.log
+```
+
+The previous post-build RED condition (missing app traversal / absent command) is resolved. Stage B production bridge plus the manual TIMER1 test is now **build-verified/static GREEN**, but not yet board-verified.
+
+### Authorized quick-download validation
+
+The user will perform Windows BKFIL/bk_loader downloads; no agent-side download is required. Use full-image fast download at physical offset `0x0`, then run the manual command from NSH. Repeat at least three independent download/boot cycles to exercise cold initialization and handler restoration repeatedly.
+
+Per cycle:
+
+1. fast-download this exact `all-app.bin` and boot to NSH;
+2. confirm baseline NSH/UART/WDT/LittleFS remains alive;
+3. run `bkirqtest` three consecutive times;
+4. require every invocation to print callback A, silent-unregistered phase, callback B, `restore OK`, and final `PASS`;
+5. reject any `FAIL`, spontaneous `HF`/reset, lost NSH input, or failure to restore the original TIMER owner.
+
+Repeated downloads restart uptime. The independent 4295-second fix therefore receives its final `>4400 s` validation only after the last IRQ download/test cycle, using the final retained firmware.
+
+### Next single minimal action
+
+User performs the repeated Windows fast-download cycles and returns complete UART output for each `bkirqtest` run. Do not continue to another IRQ source until this TIMER1/source-3 bridge test is board-verified.

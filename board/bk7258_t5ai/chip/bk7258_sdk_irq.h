@@ -1,0 +1,48 @@
+/****************************************************************************
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_sdk_irq.h
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Private definitions for the CPU0 Beken SDK-to-NuttX IRQ bridge.
+ ****************************************************************************/
+
+#ifndef __ARCH_ARM_SRC_BK7258_BK7258_SDK_IRQ_H
+#define __ARCH_ARM_SRC_BK7258_BK7258_SDK_IRQ_H
+
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+#include <arch/chip/irq.h>
+
+#ifdef CONFIG_BK7258_SDK_IRQ_TIMER_TEST
+#  include <driver/int_types.h>
+#endif
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#define BK7258_SDK_IRQ_FIRST           BK7258_IRQ_FIRST
+#define BK7258_SDK_IRQ_COUNT           BK7258_EXTERNAL_IRQS
+#define BK7258_SDK_IRQ_PRIORITY_BITS   3
+#define BK7258_SDK_IRQ_PRIORITY_SHIFT  (8 - BK7258_SDK_IRQ_PRIORITY_BITS)
+#define BK7258_SDK_IRQ_DEFAULT_PRIORITY 6
+#define BK7258_SDK_IRQ_LCD_PRIORITY     0
+
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
+
+void bk7258_clear_pending_irq(int irq);
+void interrupt_init(void);
+void interrupt_deinit(void);
+
+#ifdef CONFIG_BK7258_SDK_IRQ_TIMER_TEST
+bk_err_t bk7258_sdk_irq_test_snapshot_handler(icu_int_src_t source,
+                                               int_group_isr_t *handler);
+#endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_BK7258_SDK_IRQ_H */

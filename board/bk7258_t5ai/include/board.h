@@ -56,4 +56,12 @@
 
 #define BOARD_CPU_FREQ_HZ    26000000u
 
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
+
+#ifdef CONFIG_BK7258_SDK_IRQ_TIMER_TEST
+int bk7258_sdk_irq_timer_test(void);
+#endif
+
 #endif /* __ARCH_BOARD_BK7258_T5AI_BOARD_H */

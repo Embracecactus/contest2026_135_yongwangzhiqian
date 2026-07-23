@@ -54,6 +54,14 @@ if(CONFIG_BK7258_WDT)
   list(APPEND SRCS bk7258_wdt.c)
 endif()
 
+if(CONFIG_BK7258_SDK_IRQ_BRIDGE)
+  list(APPEND SRCS bk7258_sdk_irq.c)
+endif()
+
+if(CONFIG_BK7258_SDK_IRQ_TIMER_TEST)
+  list(APPEND SRCS bk7258_sdk_irq_timer_test.c)
+endif()
+
 target_sources(chip PRIVATE ${SRCS})
 
 # Beken SDK include paths for the prebuilt library headers.
