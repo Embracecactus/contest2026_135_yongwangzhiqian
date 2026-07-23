@@ -2,7 +2,7 @@
 
 日期：2026-07-23
 
-状态：**根因已由源码与旧 ELF 反汇编确认；团队 overlay 已启用 `CONFIG_SYSTEM_TIME64=y`，干净构建及最终 ELF 反汇编均已验证通过；尚未烧录及完成越过 4400 秒的板测。**
+状态：**BOARD-VERIFIED（2026-07-23）。团队 overlay 已启用 `CONFIG_SYSTEM_TIME64=y`；干净构建、最终 ELF 反汇编及越过 4400 秒的板测均通过，最高观测 `/proc/uptime` 为 5834.58 秒，未再发生 `HF`/WDT 复位。**
 
 ## 现象
 
@@ -156,9 +156,50 @@ CONFIG_USEC_PER_TICK=10000
 /home/lijian/project/open-vela/nuttx/all-app.bin
 ```
 
-`all-app.bin` 大小为 240618 字节，SHA-256 为 `21a4f281cccf87500bd7c67a31d6aa097cfe0bb175ab9730d5a0bf5f44f589e9`。静态检查 `git diff --check` 退出码为 0。尚未执行烧录和超过 4400 秒的板测。
+`all-app.bin` 大小为 240618 字节，SHA-256 为 `21a4f281cccf87500bd7c67a31d6aa097cfe0bb175ab9730d5a0bf5f44f589e9`。静态检查 `git diff --check` 退出码为 0。
 
 建议同时在 BK7258 Kconfig/构建门禁中约束：使用 `CONFIG_TIMER_ARCH` 时必须启用 `CONFIG_SYSTEM_TIME64`，防止以后 defconfig 回退。
+
+## 板端验证（2026-07-23）
+
+用户烧录上述固件后确认 LittleFS 基线正常：
+
+```text
+nsh> cat /data/probe.txt
+BK7258LFS-OK
+```
+
+同一启动周期内连续读取 `/proc/uptime`，得到：
+
+```text
+30.51
+326.00
+1306.04
+2067.79
+2747.57
+2936.68
+2940.49
+3078.88
+3151.74
+3187.62
+3784.40
+3830.86
+5291.51
+5834.58
+```
+
+系统成功越过旧算术折返点 `4294.967296 s`、旧预计复位窗口 `4301～4303 s` 以及要求的 4400 秒门槛。最高观测值 `5834.58 s` 比旧折返点多运行约 1539.61 秒，其间 uptime 持续单调增长，未出现 `HFu_bootloader enter` 或重新从低 uptime 启动。
+
+因此以下故障链已由板端证否：
+
+```text
+32 位 current_usec 折返
+  -> 软件 watchdog 队列停止调度 automonitor
+  -> APB WDT 失去喂狗
+  -> NMI/HF + 重启
+```
+
+`CONFIG_SYSTEM_TIME64=y` 修复正式标记为 **board-verified**。同时确认 LittleFS 在该固件和长时间运行下无回归。TIMER1 SDK IRQ bridge 的 `bkirqtest` 多轮验证属于独立门禁，不由本次 uptime 日志代替。
 
 ## 上游正确修复
 
@@ -181,9 +222,8 @@ nxsig_usleep(milliseconds * 1000);
 
 其 32 位毫秒转微秒也会在大参数时溢出，应后续单独修复。但本次无需任何“大延时调用”：系统基础 tick 转微秒本身就会在 4294.967296 秒必然折返，因此它才是当前稳定重启的直接根因。
 
-## 待验证
+## 后续事项
 
-1. 烧录新生成的 `nuttx/all-app.bin`。
-2. 连续运行越过 4400 秒；在 4280、4310、4400 秒附近读取 `/proc/uptime`，确认单调递增。
-3. 确认不再出现 `HFu_bootloader enter`，且 WDT、LittleFS、DVFS、UART/NSH 无回归。
-4. 后续把 NMI 与 HardFault 日志拆分，避免 `HF` 二义性。
+1. 将 NMI 与 HardFault 日志拆分，避免 `HF` 二义性。
+2. 如向 NuttX 上游修复通用实现，单独提交乘法前显式扩展为 `uint64_t` 的补丁。
+3. `bk7258_os_adapt.c` 的大毫秒参数乘以 1000 的潜在溢出作为独立问题处理。
