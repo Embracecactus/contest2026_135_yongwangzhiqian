@@ -4221,3 +4221,55 @@ This result does **not** mark the Stage B TIMER1/source-3 SDK IRQ bridge test bo
 ### Next single minimal action
 
 Complete the already-authorized repeated fast-download and `bkirqtest` cycles. If all runs print callback A, silent unregister, callback B, `restore OK` and `PASS`, close Stage B board validation before beginning GPIO foundation work.
+
+## 2026-07-23 -- Stage B TIMER1/source-3 SDK IRQ bridge BOARD-VERIFIED
+
+### Boot and repetition evidence
+
+The user provided UART logs from two independent boot/download cycles. Both boots reached the established product baseline:
+
+```text
+u_bootloader enter
+partition app @ 0x02010000
+jump to:0x02010000
+JMP
+N4Clk tier=00000005 ... VDDD=00000007 VDDIG=0000000d hz=1312d000
+ABWT
+NuttShell (NSH)
+K
+```
+
+The first boot ran `bkirqtest` twice consecutively; the second boot ran it once. All three invocations produced the same result:
+
+```text
+bkirqtest: BEGIN timer=1 source=3 irq=19 period=50ms
+bkirqtest: A count=1 status=0x00000002
+bkirqtest: SILENT a=1 b=0 status=0x00000002
+bkirqtest: B count=1 status=0x00000002
+bkirqtest: restore OK
+bkirqtest: PASS
+```
+
+### What the board result proves
+
+- SDK source 3 maps to and dispatches through NuttX IRQ 19 on CPU0.
+- TIMER1 produces the expected hardware status bit `0x2`.
+- Callback A receives the first hardware interrupt.
+- After unregister, hardware status still appears while both callback counters remain unchanged.
+- Callback B receives the interrupt after re-registration.
+- The saved original TIMER owner is restored successfully on every run.
+- Immediate repeated invocation works after restoration.
+- A fresh boot/download cycle reproduces the same result.
+- The bootloader, 320 MHz tier-5 clock state, WDT startup and NSH remain operational.
+
+The observed `[ipc_svr] create_socket failed.` message did not prevent NSH or the IRQ test and is outside this TIMER1 bridge acceptance result.
+
+### Verdict
+
+Stage B production SDK IRQ bridge, exercised through TIMER1 / `INT_SRC_TIMER` / IRQ19, is now **board-verified**. The earlier three-download-by-three-command matrix was a conservative stress recommendation; the user accepted the observed two independent boots and three identical PASS runs as the Stage B board gate.
+
+Static scope remains explicit: the 48/48 verifier covers lifecycle ownership and mapping for sources `0..63`, while live board evidence directly exercises source 3. This result does not claim that every individual SDK peripheral source has been physically triggered.
+
+### Next single minimal action
+
+Begin GPIO foundation adaptation without changing the IRQ bridge core: first establish one safe pin's pinmux, pull, input/output and polling loopback. Add GPIO edge interrupt validation only after that non-IRQ GPIO baseline passes.

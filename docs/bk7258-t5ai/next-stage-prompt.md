@@ -15,7 +15,7 @@
 
 ## 当前 handoff
 
-> **最新覆盖状态（2026-07-23）：**`CONFIG_SYSTEM_TIME64=y` 的 4295 秒系统时间折返修复已 **board-verified**：同一启动周期 `/proc/uptime` 从 30.51 单调增长到 5834.58 秒，越过旧折返点 `4294.967296 s`、预计 WDT 复位窗口 `4301～4303 s` 和 4400 秒验收门槛，未出现 `HF`/复位；`cat /data/probe.txt` 仍为 `BK7258LFS-OK`。Stage B TIMER1/source-3 手动 IRQ bridge 测试已完成全量构建和 post-link 静态验收，`bkirqtest_main`、runner、snapshot、callback A/B 及 built-in registry 均进入最终 ELF/map，production bridge verifier 为 **48/48 PASS**；但 `bkirqtest` 多轮板测仍是独立待办。测试固件为 `/home/lijian/project/open-vela/nuttx/all-app.bin`，240618 B（`0x3abea`），SHA-256 `21a4f281cccf87500bd7c67a31d6aa097cfe0bb175ab9730d5a0bf5f44f589e9`。完整证据与判据见 N6 worklog 最新条目。
+> **最新覆盖状态（2026-07-23）：**`CONFIG_SYSTEM_TIME64=y` 的 4295 秒系统时间折返修复已 **board-verified**：同一启动周期 `/proc/uptime` 从 30.51 单调增长到 5834.58 秒，越过旧折返点、预计 WDT 复位窗口和 4400 秒门槛，未出现 `HF`/复位，LittleFS 仍为 `BK7258LFS-OK`。Stage B TIMER1/source-3 SDK IRQ bridge 也已 **board-verified**：两次独立 boot/download、共三次 `bkirqtest` 全部得到 `A count=1/status=0x2`、unregister 后 `SILENT a=1 b=0/status=0x2`、`B count=1/status=0x2`、`restore OK`、`PASS`；production bridge 静态 verifier 仍为 **48/48 PASS**。该板验直接覆盖 source 3 / IRQ19，不宣称 64 个 SDK source 均已逐一物理触发。当前下一阶段切换为 GPIO foundation：先完成一个安全引脚的 pinmux、pull、input/output 和轮询回环，再叠加 GPIO edge IRQ。测试固件为 `/home/lijian/project/open-vela/nuttx/all-app.bin`，240618 B（`0x3abea`），SHA-256 `21a4f281cccf87500bd7c67a31d6aa097cfe0bb175ab9730d5a0bf5f44f589e9`。完整证据见 N6 worklog 最新条目。
 
 - **Current Stage：N6 — Beken SDK integration / WDT / IRQ adaptation**
 - **Branch：**`bk7258-n6-sdk-irq-bridge-clean`（基于最新 `origin/dev-ai-contest-2026` 重放纯 BK7258 历史；不含暂停的 RV1126B P2 diff）
