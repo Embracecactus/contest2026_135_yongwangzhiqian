@@ -17,6 +17,8 @@
 
 > **最新覆盖状态（2026-07-23）：**`CONFIG_SYSTEM_TIME64=y` 的 4295 秒系统时间折返修复已 **board-verified**：同一启动周期 `/proc/uptime` 从 30.51 单调增长到 5834.58 秒，越过旧折返点、预计 WDT 复位窗口和 4400 秒门槛，未出现 `HF`/复位，LittleFS 仍为 `BK7258LFS-OK`。Stage B TIMER1/source-3 SDK IRQ bridge 也已 **board-verified**：两次独立 boot/download、共三次 `bkirqtest` 全部得到 `A count=1/status=0x2`、unregister 后 `SILENT a=1 b=0/status=0x2`、`B count=1/status=0x2`、`restore OK`、`PASS`；production bridge 静态 verifier 仍为 **48/48 PASS**。该板验直接覆盖 source 3 / IRQ19，不宣称 64 个 SDK source 均已逐一物理触发。当前下一阶段切换为 GPIO foundation：先完成一个安全引脚的 pinmux、pull、input/output 和轮询回环，再叠加 GPIO edge IRQ。测试固件为 `/home/lijian/project/open-vela/nuttx/all-app.bin`，240618 B（`0x3abea`），SHA-256 `21a4f281cccf87500bd7c67a31d6aa097cfe0bb175ab9730d5a0bf5f44f589e9`。完整证据见 N6 worklog 最新条目。
 
+> **GPIO foundation C0 门禁：**当前 SDK `bk_gpio_*` public API 与 GPIO archive 已进入最终链接，不需要重写寄存器驱动；GPIO0/1 为 UART1 NSH console，GPIO10/11 保留 boot UART 状态，必须避开。仓内尚无可靠的 T5-AI 模组外引 pad/header 到 BK7258 GPIO 号映射，因此 C0 暂停在安全引脚选择，不猜 pin、不写 GPIO。下一动作是取得模组 pinout/原理图，或由用户确认一对外引且空闲的 OUT/IN GPIO 号和物理排针标签；随后实现默认关闭、保存/恢复状态的轮询回环命令，不做 IRQ。
+
 - **Current Stage：N6 — Beken SDK integration / WDT / IRQ adaptation**
 - **Branch：**`bk7258-n6-sdk-irq-bridge-clean`（基于最新 `origin/dev-ai-contest-2026` 重放纯 BK7258 历史；不含暂停的 RV1126B P2 diff）
 - **Current worklog：**[`nuttx-port/n6-sdk-integration-worklog.md`](nuttx-port/n6-sdk-integration-worklog.md)
