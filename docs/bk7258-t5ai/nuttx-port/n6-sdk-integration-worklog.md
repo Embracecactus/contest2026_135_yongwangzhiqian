@@ -4273,3 +4273,49 @@ Static scope remains explicit: the 48/48 verifier covers lifecycle ownership and
 ### Next single minimal action
 
 Begin GPIO foundation adaptation without changing the IRQ bridge core: first establish one safe pin's pinmux, pull, input/output and polling loopback. Add GPIO edge interrupt validation only after that non-IRQ GPIO baseline passes.
+
+## 2026-07-23 -- GPIO foundation C0 scoped; blocked on safe external-pin evidence
+
+### Existing SDK capability
+
+The imported and currently linked Beken SDK already provides the required public GPIO foundation APIs through `driver/gpio.h`:
+
+```text
+bk_gpio_driver_init / bk_gpio_driver_deinit
+bk_gpio_get_value / bk_gpio_set_value
+bk_gpio_set_config
+bk_gpio_set_output_low / bk_gpio_set_output_high
+bk_gpio_get_input
+```
+
+`libdriver.a(gpio_driver.c.obj)` and `libdriver.a(gpio_driver_base.c.obj)` are already present in the final link. No board-local `bk_gpio_*` stub or symbol ownership conflict was found. Stage C0 therefore does not need a new register-level GPIO driver; it needs a fail-closed board-owned test layer over the existing SDK API.
+
+### Confirmed reserved pins
+
+Current source evidence requires the following pins to remain untouched:
+
+```text
+GPIO0 / GPIO1   UART1 NSH console
+GPIO10 / GPIO11 boot UART state preserved by the Tier-1 bootloader
+```
+
+BOOT/download UART0, SWD/JTAG, QSPI flash, PSRAM and crystal domains must also be excluded, but the current repository does not contain a reliable T5-AI module pad/header to BK7258 GPIO-number map for those domains.
+
+### Minimal C0 design after pin approval
+
+The planned default-off C0 gate will add only a manual board test command, with no GPIO IRQ and no official-tree edits. Given a proven-safe OUT/IN pair physically shorted by the user, it will:
+
+1. initialize the SDK GPIO driver;
+2. save both pin register states with `bk_gpio_get_value()`;
+3. configure OUT and IN as GPIO with second-function disabled and no pull;
+4. drive OUT low and require IN low;
+5. drive OUT high and require IN high;
+6. print expected/observed values;
+7. restore both saved states on every exit;
+8. deinitialize the GPIO driver.
+
+The runner will reject equal pins, reserved pins, pins outside a compile-time allowlist, and `BK_ERR_GPIO_INTERNAL_USED`; it will never forcibly unmap an SDK-owned peripheral.
+
+### Blocker and next action
+
+No GPIO number will be guessed. Before code implementation, obtain either the T5-AI module pinout/schematic or two user-confirmed externally accessible, unused BK7258 GPIO numbers plus their physical header labels. The loopback test requires a physical OUT-to-IN jumper.
