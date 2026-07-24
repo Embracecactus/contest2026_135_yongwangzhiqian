@@ -18,6 +18,20 @@ STACKSIZE += 2048
 MAINSRC   += bk7258_sdk_irq_test_main.c
 endif
 
+ifeq ($(CONFIG_BK7258_GPIO_FOUNDATION_TEST),y)
+PROGNAME  += bkgpioc0
+PRIORITY  += SCHED_PRIORITY_DEFAULT
+STACKSIZE += 2048
+MAINSRC   += bk7258_gpio_foundation_test_main.c
+endif
+
+ifeq ($(CONFIG_BK7258_GPIO_IRQ_TEST),y)
+PROGNAME  += bkgpioirq
+PRIORITY  += SCHED_PRIORITY_DEFAULT
+STACKSIZE += 2048
+MAINSRC   += bk7258_gpio_irq_test_main.c
+endif
+
 MODULE = y
 
 include $(APPDIR)/Application.mk

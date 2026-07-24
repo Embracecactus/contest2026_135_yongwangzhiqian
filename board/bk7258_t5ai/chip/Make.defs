@@ -58,6 +58,14 @@ ifeq ($(CONFIG_BK7258_SDK_IRQ_TIMER_TEST),y)
 CHIP_CSRCS += bk7258_sdk_irq_timer_test.c
 endif
 
+ifeq ($(CONFIG_BK7258_GPIO_FOUNDATION_TEST),y)
+CHIP_CSRCS += bk7258_gpio_foundation_test.c
+endif
+
+ifeq ($(CONFIG_BK7258_GPIO_IRQ_TEST),y)
+CHIP_CSRCS += bk7258_gpio_irq_test.c
+endif
+
 # Stage N5-D6-A: on-chip flash data-partition MTD (read-only path).  Gated on
 # CONFIG_BK7258_FLASH_MTD; default off so normal firmware is unchanged.
 

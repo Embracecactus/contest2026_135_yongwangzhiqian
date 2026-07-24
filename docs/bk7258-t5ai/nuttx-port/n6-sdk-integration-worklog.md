@@ -4319,3 +4319,584 @@ The runner will reject equal pins, reserved pins, pins outside a compile-time al
 ### Blocker and next action
 
 No GPIO number will be guessed. Before code implementation, obtain either the T5-AI module pinout/schematic or two user-confirmed externally accessible, unused BK7258 GPIO numbers plus their physical header labels. The loopback test requires a physical OUT-to-IN jumper.
+
+## 2026-07-23 -- GPIO foundation C0 implemented; build and board verification pending
+
+### Board evidence and reduced C0 scope
+
+The user supplied schematic-level pin ownership and polarity, removing the earlier
+safe-pin blocker:
+
+```text
+GPIO9   board LED, active high
+GPIO29  USERKEY, released high / pressed low
+```
+
+C0 therefore uses the actual board LED and key instead of an external loopback
+pair. GPIO0/1 (UART1 NSH console) and GPIO10/11 (boot UART state) remain explicit
+compile-time exclusions. The command accepts no pin arguments, so it cannot be
+redirected to an unreviewed pin at runtime. GPIO IRQ remains outside this step.
+
+### GPIO driver lifecycle evidence
+
+The pinned `libdriver.a(gpio_driver_base.c.obj)` implementation checks the global
+`s_gpio_is_init` flag and returns `BK_OK` immediately when already initialized;
+`bk_gpio_driver_init()` is therefore idempotent in the pinned bundle. The current
+startup/bring-up path does not call it before NSH, so the manual command calls it
+unconditionally.
+
+The public API contract describes `bk_gpio_driver_deinit()` as releasing all GPIO
+resources and powering down all channels. Even though the pinned implementation
+currently only clears the global initialization flag, C0 must not depend on that
+implementation detail: it never calls global deinit. Cleanup is strictly per-pin
+through the SDK-documented `bk_gpio_get_value()` / `bk_gpio_set_value()` snapshot
+and restore path. This supersedes the earlier provisional step 8 that proposed
+calling `bk_gpio_driver_deinit()`.
+
+### Implemented overlay
+
+A default-off `CONFIG_BK7258_GPIO_FOUNDATION_TEST` gate now builds the manual NSH
+command `bkgpioc0`; the board NSH defconfig enables it for the validation image.
+The chip-local runner:
+
+1. serializes concurrent invocations;
+2. initializes the idempotent SDK GPIO driver;
+3. snapshots P9 and P29 before changing either pin;
+4. configures P9 as GPIO output with second function disabled and no pull;
+5. emits two active-high OFF/ON LED pulses and leaves the LED low;
+6. configures P29 as GPIO input with pull-up and polls for up to 10 seconds;
+7. requires both raw `1` (released) and raw `0` (pressed), logging only the
+   initial state and transitions;
+8. fails closed on `BK_ERR_GPIO_INTERNAL_USED` and other SDK errors;
+9. restores only pins whose `bk_gpio_set_config()` succeeded, on every exit;
+10. never unmaps an SDK owner, calls global GPIO deinit, or enables GPIO IRQ.
+
+Integration is contained in the team overlay: chip Kconfig/Make/CMake, board API,
+hello-app built-in registration, NSH defconfig, and the two new C files. No official
+NuttX, apps, packages, or vendor source was modified.
+
+### Status and next single action
+
+Status is **static-only / source implemented**. No successful build, ELF inspection,
+download, or board test has completed for C0 yet. The next gated action is one clean
+BK7258 build, then hand the exact `all-app.bin` path, byte length and SHA-256 to the
+user for repeated Windows fast-download testing. Board acceptance requires visible
+two-pulse LED behavior, key raw `1 -> 0` observation, `restore OK`, final `PASS`, and
+preserved NSH/UART/WDT/LittleFS/DVFS behavior across multiple independent downloads.
+
+## 2026-07-23 -- GPIO C0 first build attempt RED: transient staging omitted new files
+
+The clean branch is checked out in `.worktrees/bk7258-clean-pr`, while the generated
+openvela board/app links resolve to the preserved mixed-history main checkout. To
+build the clean worktree without changing either branch permanently, the tracked
+GPIO integration diff was temporarily applied to the linked checkout under an EXIT
+cleanup trap.
+
+`distclean` succeeded, and configuration reached both built-in registrations:
+
+```text
+Register: bkirqtest
+Register: bkgpioc0
+```
+
+The build then stopped before compilation:
+
+```text
+make[1]: *** No rule to make target 'bk7258_gpio_foundation_test.c', needed by '.depend'.  Stop.
+```
+
+Root cause is build staging, not a GPIO source/API result: plain `git diff --binary`
+does not include the two new untracked files in the clean worktree, so the temporary
+patch carried Kconfig/Make integration but omitted
+`chip/bk7258_gpio_foundation_test.c` and
+`app/hello_app/bk7258_gpio_foundation_test_main.c`. The cleanup trap restored the
+linked checkout; its pre-existing untracked `.built` and `docs/superpowers/` entries
+were not touched. Logs are `/tmp/bk7258-gpioc0-distclean.log` and
+`/tmp/bk7258-gpioc0-build.log`.
+
+Next minimal action: repeat the same clean build while staging both new files
+explicitly under the same cleanup trap. Do not change GPIO implementation semantics
+based on this infrastructure-only failure.
+
+## 2026-07-23 -- GPIO foundation C0 clean build GREEN
+
+The retry explicitly copied the two new C files into the generated workspace's linked
+team checkout while applying the tracked integration patch. All temporary changes were
+again protected by an EXIT cleanup trap. Fresh `distclean` and the full `-j8` build
+both exited 0:
+
+```text
+CONFIG_BK7258_GPIO_FOUNDATION_TEST=y
+Register: bkgpioc0
+```
+
+Resulting fast-download artifact:
+
+```text
+path:    /home/lijian/project/open-vela/nuttx/all-app.bin
+size:    244188 bytes (0x3b9dc)
+sha256:  d06cbb6a4db9b875792e8ddbb53c146ed41c549cd2086849e3ea108f0249005f
+build:   exit 0
+logs:    /tmp/bk7258-gpioc0-distclean-v2.log
+         /tmp/bk7258-gpioc0-build-v2.log
+```
+
+The temporary build staging was removed after success. The linked mixed-history
+checkout returned to its prior state; only its pre-existing untracked
+`app/hello_app/.built` and `docs/superpowers/` entries remain. Canonical GPIO changes
+remain solely in the clean PR worktree.
+
+C0 is now **build-verified** and still not board-verified. No broad verifier, flash, or
+GPIO IRQ test was run. The next single action belongs to the user: Windows
+fast-download this exact 244188-byte full image at physical offset `0x0`, run
+`bkgpioc0`, visually confirm two active-high P9 LED pulses, and press/release USERKEY
+within the 10-second window so the log contains raw `1` and raw `0`, `restore OK`, and
+`PASS`. Repeat on multiple independent download/boot cycles before accepting C0.
+
+## 2026-07-23 -- GPIO C0 first board boot: three repeated command PASS
+
+The user fast-downloaded the C0 image and ran `bkgpioc0` three consecutive times in
+one captured NSH boot. All invocations completed with `restore OK` and `PASS`.
+
+Run 1 observed the normal released-to-pressed direction:
+
+```text
+KEY P29 raw=1 RELEASED
+KEY P29 raw=0 PRESSED
+restore OK
+PASS
+```
+
+Runs 2 and 3 both started with the key held, then observed release:
+
+```text
+KEY P29 raw=0 PRESSED
+KEY P29 raw=1 RELEASED
+restore OK
+PASS
+```
+
+Every run completed both P9 command sequences (`OFF -> ON -> OFF -> ON -> OFF`) with
+no SDK error, `BK_ERR_GPIO_INTERNAL_USED`, `HF`, reset, or lost NSH prompt in the
+captured output. This directly proves P29 pull-up input polling in both transition
+directions and proves that per-pin restore permits immediate repeated invocation.
+The serial log proves successful P9 GPIO drive calls; final LED acceptance still
+requires the user's physical observation of the two visible pulses.
+
+Status is **board-pass on one boot / multi-download gate pending**, not yet final
+`board-verified`, because the requested second independent download/boot cycle has not
+been supplied. No code change or rebuild is indicated. Next minimal action: perform
+one more Windows fast-download/boot of the same SHA-256 image, visually confirm the
+LED pulses, and return at least one complete `bkgpioc0` PASS log.
+
+## 2026-07-23 -- GPIO foundation C0 BOARD-VERIFIED across repeated downloads
+
+The user supplied two additional complete boot/download captures. Each independently
+traversed the established product boot baseline:
+
+```text
+u_bootloader enter
+partition app @ 0x02010000
+jump to:0x02010000
+N4Clk tier=00000005 ... VDDD=00000007 VDDIG=0000000d hz=1312d000
+ABWT
+NuttShell (NSH)
+```
+
+Each fresh boot then ran `bkgpioc0` and produced the same complete result:
+
+```text
+LED P9 OFF
+LED P9 ON
+LED P9 OFF
+LED P9 ON
+LED P9 OFF
+KEY P29 raw=0 PRESSED
+KEY P29 raw=1 RELEASED
+restore OK
+PASS
+```
+
+Combined with the preceding boot's three consecutive PASS invocations, C0 now has
+five successful command runs across three independent boot/download captures. The
+set includes both key transition orders (`released -> pressed` and
+`pressed -> released`), successful per-pin restore after every run, and repeated
+P9 active-high drive sequences. The repeated-download board submission is accepted
+as the required physical LED observation gate.
+
+The recurring `[ipc_svr] create_socket failed.` line did not prevent NSH or GPIO C0
+and remains outside this GPIO acceptance result. No `BK_ERR_GPIO_INTERNAL_USED`, GPIO
+API failure, `HF`, spontaneous WDT reset, or lost console was observed during any
+command.
+
+### Verdict and next gate
+
+GPIO foundation C0 is now **BOARD-VERIFIED** for:
+
+- SDK GPIO driver initialization without global deinit;
+- P9 second-function disable + active-high output low/high control;
+- P29 second-function disable + pull-up input polling;
+- released raw `1` and pressed raw `0` in both transition orders;
+- per-pin snapshot/restore across repeated invocation and fresh boots;
+- preserved bootloader, 320 MHz DVFS tier, WDT startup, UART and NSH baseline.
+
+This closes the non-IRQ GPIO foundation gate. Do not change C0 or rebuild it without
+a new defect. The next separately gated stage is GPIO edge IRQ adaptation on P29;
+do not start it until explicitly authorized.
+
+## 2026-07-24 -- P29 GPIO edge IRQ C1 implemented; build/board test pending
+
+The user explicitly authorized the P29 edge-IRQ stage with the same minimal-evidence
+and repeated fast-download policy. C0 remains unchanged.
+
+### Exact pinned SDK evidence
+
+Only the public GPIO interrupt declarations and the pinned `libdriver.a` GPIO objects
+were inspected. The relevant API is:
+
+```text
+bk_gpio_set_interrupt_type
+bk_gpio_enable_interrupt / bk_gpio_disable_interrupt
+bk_gpio_clear_interrupt
+bk_gpio_register_isr(GPIO, void (*)(gpio_id_t))
+```
+
+The pinned `bk_gpio_driver_init()` object registers its top-level `gpio_isr` through
+`bk_int_isr_register` with literal source `55`. With the existing CPU0 bridge mapping,
+that is NuttX IRQ `16 + 55 = 71`. The pinned top-level ISR scans GPIO0..55, clears the
+asserted pin pending bit before invoking its per-pin callback, and passes the GPIO ID
+to that callback.
+
+A narrow SDK mismatch was also confirmed: `driver/gpio.h` declares
+`bk_gpio_unregister_isr()`, but the pinned `libdriver.a` exports no such symbol.
+Disassembly shows `bk_gpio_register_isr()` directly stores the supplied callback
+pointer in the per-pin table, including `NULL`. C1 therefore uses
+`bk_gpio_register_isr(GPIO_29, NULL)` as the exact pinned per-pin unregister path and
+documents this dependency in source; it does not invent an unresolved shim.
+
+### Implemented C1 command
+
+A default-off `CONFIG_BK7258_GPIO_IRQ_TEST` gate, enabled in the validation defconfig,
+adds the manual NSH command `bkgpioirq`. The chip-local runner:
+
+1. accepts no runtime pin argument and statically fixes USERKEY to P29;
+2. asserts `INT_SRC_GPIO == 55` and mapped NuttX IRQ `71` at compile time;
+3. initializes the idempotent SDK GPIO driver and snapshots P29 raw state;
+4. rejects P29 if its saved register already has the interrupt-enable bit set;
+5. configures P29 input + pull-up + second-function disabled;
+6. disables/clears the pin interrupt and installs a non-printing callback;
+7. requires an initial released level, arms falling edge, then asks the user to press
+   and hold the key;
+8. requires a real callback with ID 29 and stable raw `0`;
+9. arms rising edge, asks the user to release, and requires callback ID 29 plus stable
+   raw `1`;
+10. tolerates mechanical bounce by accepting callback count `>= 1` rather than exactly
+    one;
+11. on every exit disables/clears the pin interrupt, clears the callback with the
+    pinned NULL-registration path, restores the saved P29 register, and never calls
+    global GPIO deinit.
+
+Expected successful evidence is:
+
+```text
+bkgpioirq: BEGIN key=P29 source=55 irq=71
+bkgpioirq: FALL count=<n>=1 id=29 raw=0
+bkgpioirq: RISE count=<n>=1 id=29 raw=1
+bkgpioirq: restore OK
+bkgpioirq: PASS
+```
+
+Integration is limited to the team overlay: one chip runner, one NSH wrapper,
+Kconfig/Make/CMake/board prototype, hello-app registration, and defconfig. No official
+checkout or GPIO foundation C0 source was modified.
+
+### Status and next action
+
+C1 is **static-only / source implemented**. No build, ELF inspection, flash, or board
+IRQ test has run yet. Next minimal action is one clean build, then hand the exact full
+image size/hash to the user for repeated Windows fast-download testing. Do not explore
+other GPIO pins, level IRQs, wakeup IRQs, or GPIO frameworks in this stage.
+
+## 2026-07-24 -- P29 GPIO edge IRQ C1 clean build GREEN
+
+The clean-worktree GPIO integration was temporarily staged into the generated
+workspace's linked team checkout under the same EXIT cleanup trap used for C0. Both
+new C0 files and both new C1 files were copied explicitly; fresh `distclean` and the
+full `-j8` build exited 0.
+
+Minimal post-build evidence:
+
+```text
+CONFIG_BK7258_GPIO_IRQ_TEST=y
+Register: bkgpioirq
+bkgpioirq_main          0x0202a3e4
+bk7258_gpio_irq_test    0x0202b17c
+```
+
+Fast-download artifact:
+
+```text
+path:    /home/lijian/project/open-vela/nuttx/all-app.bin
+size:    246262 bytes (0x3c1f6)
+sha256:  68deda4008319e563acb83343dbe86becf00b8a242f32f913d92202c0a1a84c1
+build:   exit 0
+logs:    /tmp/bk7258-gpioirq-distclean.log
+         /tmp/bk7258-gpioirq-build.log
+```
+
+Successful compilation also closes the compile-time source/IRQ invariants:
+`INT_SRC_GPIO == 55` and mapped NuttX IRQ `71`. The cleanup trap restored the linked
+mixed-history checkout to its prior state; only its pre-existing untracked `.built`
+and `docs/superpowers/` entries remain.
+
+C1 is now **build-verified / board-test pending**. No broad verifier, agent-side flash,
+or unrelated GPIO test was run. Board validation uses this exact image at physical
+`0x0`: run `bkgpioirq`, release the key when requested, press-and-hold for FALL, then
+release for RISE. Require source 55/IRQ71, callback ID29/raw0 and ID29/raw1,
+`restore OK`, and final `PASS`. Repeat on multiple independent Windows fast-download
+boot cycles before marking C1 board-verified.
+
+## 2026-07-24 -- C1 first board test RED: FALL callback timeout
+
+The first fast-download boot reached the manual command, P29 was released, and the
+falling-edge phase armed successfully, but pressing the key produced no per-pin
+callback within 10 seconds:
+
+```text
+bkgpioirq: BEGIN key=P29 source=55 irq=71
+bkgpioirq: release USERKEY before falling-edge test
+bkgpioirq: PRESS USERKEY and hold until detected
+bkgpioirq: FAIL FALL callback timeout
+bkgpioirq: FAIL result=-110
+```
+
+The prior C0 board evidence already proves P29 input and active-low electrical
+polarity. The C1 command reached the prompt only after GPIO config, callback register,
+interrupt type, pending clear and interrupt enable all returned `BK_OK`. The failure
+is therefore localized to the top-level GPIO IRQ route rather than pin identity or
+polling input.
+
+A narrow comparison found the key distinction: the pinned GPIO driver registers its
+private `gpio_isr` on source 55 (`GPIO_S`), while the BK7236N/BK7258 platform IRQ map
+has separate lines:
+
+```text
+GPIO_S   source 55
+GPIO_NS  source 56
+```
+
+The NuttX application path is therefore likely receiving P29 on the non-secure line
+56 while only source 55/IRQ71 has a handler. This is the current focused root-cause
+candidate; it is not yet board-confirmed.
+
+Next minimal action: snapshot the already-registered source-55 `gpio_isr`, temporarily
+mirror that exact handler onto source 56/IRQ72 for the C1 command, and restore source
+56 on every exit. One fast-download PASS would confirm the S/NS routing mismatch. Do
+not inspect unrelated GPIO or IRQ subsystems.
+
+## 2026-07-24 -- Focused GPIO_S/GPIO_NS route probe implemented
+
+The C1 command now performs only the planned routing probe after
+`bk_gpio_driver_init()`:
+
+1. snapshot the non-NULL SDK `gpio_isr` already registered on GPIO_S source55;
+2. snapshot any pre-existing source56 handler;
+3. temporarily register the exact source55 handler on GPIO_NS source56/IRQ72;
+4. run the unchanged P29 FALL then RISE edge sequence;
+5. on every exit restore the original source56 handler, or unregister source56 when it
+   was originally empty.
+
+The bridge snapshot helper's test-only guard was widened from TIMER-test-only to
+TIMER-or-GPIO-IRQ-test so C1 does not depend on the timer command being enabled.
+Source55 remains registered and untouched. C0 remains unchanged.
+
+Expected new leading evidence is:
+
+```text
+bkgpioirq: BEGIN key=P29 gpio_s=55/irq71 gpio_ns=56/irq72
+bkgpioirq: mirror GPIO_S handler to GPIO_NS source=56 irq=72
+```
+
+Status is **focused source fix implemented / rebuild pending**. No other IRQ source,
+GPIO pin, interrupt type, or framework was inspected or changed. The next action is a
+single clean build and one fast-download test.
+
+## 2026-07-24 -- GPIO_NS route probe build GREEN
+
+Fresh `distclean` and full build exited 0. Minimal post-link evidence:
+
+```text
+Register: bkgpioirq
+bk7258_sdk_irq_test_snapshot_handler  0x02010608
+bkgpioirq_main                        0x0202a3e4
+bk7258_gpio_irq_test                  0x0202b17c
+```
+
+New focused probe artifact:
+
+```text
+path:    /home/lijian/project/open-vela/nuttx/all-app.bin
+size:    246704 bytes (0x3c3b0)
+sha256:  5cc51afb842c784b60cdae25146b0c3ba8bb6f7802a7401909672861d320d9e0
+build:   exit 0
+logs:    /tmp/bk7258-gpioirq-route-distclean.log
+         /tmp/bk7258-gpioirq-route-build.log
+```
+
+The temporary staging cleanup completed and the linked checkout returned to its prior
+state. Status is **route-probe build-verified / board confirmation pending**. One
+fast-download and one `bkgpioirq` run are sufficient for this focused diagnosis: PASS
+confirms GPIO_NS source56; another FALL timeout rejects this candidate and requires a
+new, separately authorized diagnostic step.
+
+## 2026-07-24 -- GPIO_NS source56 mirror DISPROVEN
+
+The user fast-downloaded the focused route-probe image. The command confirmed that the
+source55 handler was successfully snapshotted and mirrored onto source56/IRQ72, then
+again timed out in the first falling-edge phase:
+
+```text
+bkgpioirq: BEGIN key=P29 gpio_s=55/irq71 gpio_ns=56/irq72
+bkgpioirq: mirror GPIO_S handler to GPIO_NS source=56 irq=72
+bkgpioirq: release USERKEY before falling-edge test
+bkgpioirq: PRESS USERKEY and hold until detected
+bkgpioirq: FAIL FALL callback timeout
+bkgpioirq: FAIL result=-110
+```
+
+Therefore the earlier hypothesis that the GPIO event reached source56 instead of
+source55 is **disproven**. Neither GPIO_S nor GPIO_NS handler registration alone is the
+missing condition. The command cleanup still ran after timeout.
+
+The user now authorizes deeper but evidence-bounded investigation. Next action is to
+trace only the GPIO interrupt-enable path between the per-pin register and CPU0/NVIC,
+looking for a required system interrupt-route gate that the full Beken SDK initializes
+but the minimal NuttX startup does not. Stop as soon as a concrete missing gate is
+found, then validate it with one focused fast-download probe.
+
+## 2026-07-24 -- Concrete missing CPU0 GPIO route gate found
+
+The bounded trace found a complete evidence chain and stopped:
+
+1. `bk_gpio_enable_interrupt(P29)` reaches `gpio_hal_enable_interrupt()` and only sets
+   per-pin register bit 12 (`0x1000`). It does not call any system interrupt-route API.
+2. `sys_hal_int_enable(mask)` is the CPU0 route gate: it ORs `mask` into MMIO register
+   `0x44010080` (`SYS_CPU0_INT_32_63_EN`).
+3. For sources 32..63, the gate bit is `source - 32`; therefore:
+
+```text
+GPIO_S  source55  gate bit23  mask 0x00800000
+GPIO_NS source56  gate bit24  mask 0x01000000
+```
+
+4. The known-working timer driver demonstrates the required pattern. Its per-channel
+   enable helper calls `sys_drv_int_enable(1 << source)` before enabling the peripheral
+   interrupt (mask `0x8` for TIMER source3 and `0x2000` for TIMER1 source13).
+5. The pinned GPIO driver never calls `sys_drv_int_enable()` anywhere in its init,
+   per-pin enable, or HAL path.
+6. `sys_hal_init()` is a no-op and `sys_hal_early_init()` does not set the CPU0 GPIO
+   route register, so the minimal NuttX startup has no alternate path that supplies
+   this missing gate.
+
+This explains both observed timeouts: installing handlers on source55 and source56 is
+insufficient while both CPU0 route bits remain masked before the NVIC.
+
+Next minimal probe: inside `bkgpioirq`, snapshot `0x44010080`, atomically set only bits
+23/24 while the command owns the test, print before/after values, run the unchanged
+FALL/RISE test, then restore only those two bits to their saved state on every exit.
+No further code exploration is needed before this fast-download validation.
+
+## 2026-07-24 -- CPU0 GPIO route-gate probe implemented
+
+The focused diagnostic is now implemented only in
+`chip/bk7258_gpio_irq_test.c`. It defines the exact CPU0 source32..63 gate
+register and masks established above:
+
+```text
+register: 0x44010080
+GPIO_S55 bit23:  0x00800000
+GPIO_NS56 bit24: 0x01000000
+probe mask:       0x01800000
+```
+
+Before configuring or arming P29, the command enters a NuttX critical section,
+snapshots the full register, ORs only `0x01800000`, reads the value back, and
+prints the before/after values. A missing readback bit fails closed before the
+edge sequence. The existing source55 SDK handler and temporary source56 mirror
+remain installed for this diagnostic image so either GPIO route can reach the
+same pinned top-level ISR once the common system gate is open.
+
+Cleanup still disables and clears the per-pin interrupt first. It then clears
+the P29 callback and performs a second critical-section read/modify/write that
+restores only bits23/24 to their saved values while preserving all unrelated
+CPU0 route bits. The restore value is printed and checked before restoring the
+original source56 handler and P29 raw register. Global GPIO deinit is never
+called. GPIO foundation C0 and all other pins/modes remain unchanged.
+
+Expected new diagnostic evidence is:
+
+```text
+bkgpioirq: route 0x........ -> 0x........ mask=0x01800000
+bkgpioirq: FALL count=<n> id=29 raw=0
+bkgpioirq: RISE count=<n> id=29 raw=1
+bkgpioirq: route restore=0x........
+bkgpioirq: restore OK
+bkgpioirq: PASS
+```
+
+Status is **route-gate probe implemented / rebuild pending**. The previously
+built source56-mirror image does not contain this register gate and must not be
+reused. Next minimal action is one clean build, followed by one Windows
+fast-download and one `bkgpioirq` run. If FALL still times out, this hypothesis
+is board-disproven and investigation stops pending separate authorization.
+
+## 2026-07-24 -- CPU0 GPIO route-gate probe clean build GREEN
+
+A first clean build completed successfully, but pre-handoff review found that
+its cleanup restored the source56 handler before the route bits. The required
+fail-safe order is route gate first, then source56 handler, then P29 state. That
+source-only ordering correction was made and the first artifact was superseded
+without being offered for board use.
+
+The corrected probe then completed fresh `distclean` and full `-j8` build with
+exit 0. Minimal post-build evidence is:
+
+```text
+CONFIG_BK7258_GPIO_IRQ_TEST=y
+Register: bkgpioirq
+bk7258_sdk_irq_test_snapshot_handler  0x02010608
+bkgpioirq_main                        0x0202a3e4
+bk7258_gpio_irq_test                  0x0202b17c
+```
+
+The final ELF also contains both new route diagnostics:
+
+```text
+bkgpioirq: route 0x%08lx -> 0x%08lx mask=0x%08lx
+bkgpioirq: route restore=0x%08lx
+```
+
+Final fast-download artifact:
+
+```text
+path:    /home/lijian/project/open-vela/nuttx/all-app.bin
+size:    247078 bytes (0x3c526)
+sha256:  8771b2204f019b1334a155c3a051a3d40408bd9de575615e02ec388e17241505
+address: physical 0x0
+build:   exit 0
+logs:    /tmp/bk7258-gpioirq-gate-v2-distclean.log
+         /tmp/bk7258-gpioirq-gate-v2-build.log
+```
+
+The EXIT cleanup restored the generated workspace's linked mixed-history
+checkout. Its status again contains only the pre-existing untracked
+`app/hello_app/.built` and `docs/superpowers/` entries. Canonical changes remain
+in the clean PR worktree; no official NuttX/apps/packages/vendor source was
+modified.
+
+C1 is now **route-gate probe build-verified / board-test pending**. The next
+single action belongs to the user: Windows fast-download this exact full image
+at physical `0x0`, run `bkgpioirq`, and return the complete log. A FALL and RISE
+PASS with ID29/raw0 and ID29/raw1 confirms the missing CPU0 route gate. Another
+FALL timeout disproves it and ends this diagnostic path pending separate
+authorization.

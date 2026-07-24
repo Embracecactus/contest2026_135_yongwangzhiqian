@@ -34,7 +34,8 @@ feature commit `6f596b7`，D0F feature commit `8dab594`），N4-D1（DPLL lock�
 | NuttX Stage N6-A1（SDK integration + 80-slot RAM vectors） | ✅ board-verified（VTOR `0x28000800`，magic slots 64/65 与运行期 vector repair 均通过） |
 | 4295 秒系统时间折返修复 | ✅ board-verified（`CONFIG_SYSTEM_TIME64=y`，uptime 单调增长到 5834.58 秒，无 HF/WDT 复位） |
 | NuttX Stage N6-B（CPU0 SDK IRQ bridge） | ✅ TIMER1/source-3/IRQ19 board-verified（两次独立启动、三次 `bkirqtest` 全 PASS；静态 verifier 48/48 PASS） |
-| 下一阶段 | GPIO foundation：安全引脚 pinmux/pull/input/output/轮询回环，然后 GPIO edge IRQ |
+| GPIO foundation C0 | ✅ board-verified：P9 active-high LED + P29 active-low USERKEY，3 个独立 boot/download、5 次 `bkgpioc0` PASS |
+| 下一阶段 | P29 GPIO edge IRQ：`0x44010080` bits23/24 route-gate probe 已 build-verified，待 fast-download 板测 |
 | Tier-2 bootloader（OTA / A-B failover） | 后续，未编号 |
 | 多核 SMP（CPU1 / CPU2） | 后续，未编号 |
 
