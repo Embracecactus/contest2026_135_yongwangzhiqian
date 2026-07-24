@@ -251,7 +251,8 @@ bk_err_t bk_int_set_priority(icu_int_src_t source, uint32_t priority)
   return result;
 }
 
-#ifdef CONFIG_BK7258_SDK_IRQ_TIMER_TEST
+#if defined(CONFIG_BK7258_SDK_IRQ_TIMER_TEST) || \
+    defined(CONFIG_BK7258_GPIO_IRQ_TEST)
 bk_err_t bk7258_sdk_irq_test_snapshot_handler(icu_int_src_t source,
                                                int_group_isr_t *handler)
 {

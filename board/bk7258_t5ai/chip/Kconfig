@@ -150,3 +150,27 @@ config BK7258_SDK_IRQ_TIMER_TEST
 		replaces the SDK INT_SRC_TIMER callback, triggers TIMER_ID1,
 		proves unregister silence and re-registration, then restores the
 		original callback. It never runs from board bring-up.
+
+config BK7258_GPIO_FOUNDATION_TEST
+	bool "BK7258 T5-AI GPIO foundation manual test"
+	default n
+	depends on ARCH_CHIP_BK7258 && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Build the manual bkgpioc0 NSH command. The command exercises the
+		active-high board LED on GPIO9 and the active-low USERKEY on GPIO29
+		using polling only, then restores both pin states. It never runs
+		from board bring-up and does not enable GPIO interrupts.
+
+config BK7258_GPIO_IRQ_TEST
+	bool "BK7258 T5-AI P29 GPIO edge IRQ manual test"
+	default n
+	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Build the manual bkgpioirq NSH command. The command uses USERKEY
+		on GPIO29 to prove falling and rising edge callbacks. It mirrors
+		the SDK GPIO_S source-55 handler onto GPIO_NS source 56 for the
+		test, then restores both the IRQ route and original pin state.

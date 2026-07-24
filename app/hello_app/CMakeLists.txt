@@ -12,3 +12,17 @@ if(CONFIG_BK7258_SDK_IRQ_TIMER_TEST)
     SRCS bk7258_sdk_irq_test_main.c
     STACKSIZE 2048)
 endif()
+
+if(CONFIG_BK7258_GPIO_FOUNDATION_TEST)
+  nuttx_add_application(
+    NAME bkgpioc0
+    SRCS bk7258_gpio_foundation_test_main.c
+    STACKSIZE 2048)
+endif()
+
+if(CONFIG_BK7258_GPIO_IRQ_TEST)
+  nuttx_add_application(
+    NAME bkgpioirq
+    SRCS bk7258_gpio_irq_test_main.c
+    STACKSIZE 2048)
+endif()

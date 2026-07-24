@@ -17,7 +17,8 @@
 
 #include <arch/chip/irq.h>
 
-#ifdef CONFIG_BK7258_SDK_IRQ_TIMER_TEST
+#if defined(CONFIG_BK7258_SDK_IRQ_TIMER_TEST) || \
+    defined(CONFIG_BK7258_GPIO_IRQ_TEST)
 #  include <driver/int_types.h>
 #endif
 
@@ -40,7 +41,8 @@ void bk7258_clear_pending_irq(int irq);
 void interrupt_init(void);
 void interrupt_deinit(void);
 
-#ifdef CONFIG_BK7258_SDK_IRQ_TIMER_TEST
+#if defined(CONFIG_BK7258_SDK_IRQ_TIMER_TEST) || \
+    defined(CONFIG_BK7258_GPIO_IRQ_TEST)
 bk_err_t bk7258_sdk_irq_test_snapshot_handler(icu_int_src_t source,
                                                int_group_isr_t *handler);
 #endif
