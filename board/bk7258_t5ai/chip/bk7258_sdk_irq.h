@@ -15,12 +15,11 @@
 
 #include <nuttx/config.h>
 
+#include <stdint.h>
+
 #include <arch/chip/irq.h>
 
-#if defined(CONFIG_BK7258_SDK_IRQ_TIMER_TEST) || \
-    defined(CONFIG_BK7258_GPIO_IRQ_TEST)
-#  include <driver/int_types.h>
-#endif
+#include <driver/int_types.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -40,11 +39,19 @@
 void bk7258_clear_pending_irq(int irq);
 void interrupt_init(void);
 void interrupt_deinit(void);
+bk_err_t bk7258_sdk_irq_snapshot_handler(icu_int_src_t source,
+                                         int_group_isr_t *handler);
 
 #if defined(CONFIG_BK7258_SDK_IRQ_TIMER_TEST) || \
     defined(CONFIG_BK7258_GPIO_IRQ_TEST)
 bk_err_t bk7258_sdk_irq_test_snapshot_handler(icu_int_src_t source,
                                                int_group_isr_t *handler);
+#endif
+
+#ifdef CONFIG_BK7258_GPIO_IRQ_TEST
+void bk7258_sdk_irq_test_reset_dispatch_counts(void);
+bk_err_t bk7258_sdk_irq_test_snapshot_dispatch_count(icu_int_src_t source,
+                                                     uint32_t *count);
 #endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_BK7258_SDK_IRQ_H */

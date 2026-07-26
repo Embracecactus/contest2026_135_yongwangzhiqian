@@ -19,6 +19,8 @@
 
 #include <nuttx/config.h>
 #include <errno.h>
+
+#include <arch/board/board.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <string.h>
@@ -151,10 +153,15 @@ int board_app_initialize(uintptr_t arg)
   (void)bk7258_wdt_initialize();
 #endif
 
+#ifdef CONFIG_BK7258_GPIO_LOWERHALF
+  (void)bk7258_gpio_lowerhalf_initialize();
+#endif
+
   /* Register the BK7258 DVFS /proc/dvfs entry *before* mounting procfs: the
    * fs_procfs NOTE requires the procfs entry table to be stable at mount
    * time (procfs_register reallocs the table; doing it after the mount would
-   * race with concurrent procfs access). */
+   * race with concurrent procfs access).
+   */
 
 #if defined(CONFIG_FS_PROCFS) && defined(CONFIG_BK7258_DVFS_PROCFS)
   (void)bk7258_dvfs_procfs_register();

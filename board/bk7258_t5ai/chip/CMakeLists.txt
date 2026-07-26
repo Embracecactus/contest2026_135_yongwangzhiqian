@@ -70,6 +70,11 @@ if(CONFIG_BK7258_GPIO_IRQ_TEST)
   list(APPEND SRCS bk7258_gpio_irq_test.c)
 endif()
 
+if(CONFIG_BK7258_GPIO_LOWERHALF)
+  list(APPEND SRCS bk7258_gpio_cp_irq.c)
+  list(APPEND SRCS bk7258_gpio_lowerhalf.c)
+endif()
+
 target_sources(chip PRIVATE ${SRCS})
 
 # Beken SDK include paths for the prebuilt library headers.

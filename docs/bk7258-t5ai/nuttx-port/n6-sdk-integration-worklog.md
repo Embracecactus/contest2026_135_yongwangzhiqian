@@ -4900,3 +4900,682 @@ at physical `0x0`, run `bkgpioirq`, and return the complete log. A FALL and RISE
 PASS with ID29/raw0 and ID29/raw1 confirms the missing CPU0 route gate. Another
 FALL timeout disproves it and ends this diagnostic path pending separate
 authorization.
+
+## 2026-07-24 -- GPIO C1 checkpoint committed; C2 authorized
+
+The user cannot currently operate the board, so C1 board validation is deferred
+without changing its status. The complete GPIO C0 plus C1 route-gate probe
+checkpoint was committed on the clean branch as:
+
+```text
+07c6bbc feat(bk7258): add GPIO foundation and edge probe
+```
+
+C0 remains board-verified. C1 remains explicitly **build-verified / board-test
+pending**; the commit does not claim the route-gate hypothesis is confirmed.
+The exact pending artifact remains 247078 bytes (`0x3c526`), SHA-256
+`8771b2204f019b1334a155c3a051a3d40408bd9de575615e02ec388e17241505`.
+The checkpoint is local and has not been pushed.
+
+The user authorized entry into GPIO C2 while C1 waits for physical validation.
+C2 will be a separately reversible change set. Its bounded goal is to replace
+manual SDK-only application access with the standard NuttX GPIO lower-half
+interface for exactly the two board-proven resources: P9 active-high output and
+P29 active-low input/edge callback. It must remain in the team overlay, reuse
+the pinned SDK driver and CPU0 IRQ bridge, and must not add other pins, level or
+wakeup interrupts, or modify official NuttX trees. Any P29 interrupt result in
+C2 remains board-pending until the deferred C1 probe passes.
+
+## 2026-07-24 -- GPIO C2 standard NuttX lower-half source implemented
+
+A bounded check of the current NuttX contract established the exact interface:
+`struct gpio_dev_s` plus `struct gpio_operations_s`, registered with
+`gpio_pin_register()`. The stock `apps/examples/gpio` command exercises
+`GPIOC_READ`, `GPIOC_WRITE`, `GPIOC_SETPINTYPE`, signal registration and poll,
+so C2 does not add another team-specific NSH wrapper.
+
+The new team-overlay `chip/bk7258_gpio_lowerhalf.c` implements and registers:
+
+```text
+/dev/gpio0  P9   GPIO_OUTPUT_PIN             active-high board LED
+/dev/gpio1  P29  GPIO_INTERRUPT_FALLING_PIN  active-low USERKEY
+```
+
+P9 starts low/OFF, supports standard read/write, and caches the last successful
+SDK output value because the pinned SDK has no output-read API. P29 is always
+configured as input + pull-up + second function disabled. Its lower half
+supports `GPIO_INPUT_PIN_PULLUP`, `GPIO_INTERRUPT_FALLING_PIN`, and
+`GPIO_INTERRUPT_RISING_PIN`; generic `GPIO_INTERRUPT_PIN` maps to falling edge.
+The pinned GPIO hardware API has no both-edge mode, so both-edge, level, wakeup
+and debounce requests fail with `-ENOTSUP` rather than being emulated or silently
+accepted.
+
+The P29 callback path uses the standard NuttX `pin_interrupt_t` callback. It
+installs the pinned SDK per-pin trampoline only while the upper half is attached,
+and clears it with the proven `bk_gpio_register_isr(P29, NULL)` operation when
+detached. On interrupt enable, C2 temporarily mirrors the existing GPIO_S55
+handler to an otherwise-empty GPIO_NS56 source, saves/opens `0x44010080` bits
+23/24, then enables the P29 peripheral interrupt. Disable reverses the order:
+per-pin disable/clear, route-bit restore, then source56 handler restore. A
+non-empty, different source56 owner is rejected with `-EBUSY`. These route
+semantics remain **board-pending** because C1 has not yet been physically tested.
+
+`CONFIG_BK7258_GPIO_LOWERHALF` selects only its required `DEV_GPIO` upper
+half and does not depend on NSH or force a test application. The validation
+defconfig separately enables the stock `EXAMPLES_GPIO` command. Board bring-up
+calls the idempotent initializer and logs failure without preventing NSH
+startup. The initializer
+configures only P9/P29, registers `/dev/gpio0` and `/dev/gpio1`, restores both
+raw pin registers on partial failure, and never calls global GPIO deinit.
+Make/CMake, board prototype and validation defconfig integration are present.
+A production-named IRQ-bridge handler snapshot API was added while retaining
+the existing test wrapper for C1/TIMER compatibility.
+
+C2 is now **static-only / source implemented**. No build, generated config,
+ELF inspection, new firmware, flash or board test has run. The existing C1
+247078-byte artifact remains the only pending board-test image and has not been
+overwritten. Next minimal action is a clean C2 build; board acceptance must wait
+until the deferred C1 route-gate result is known.
+
+A focused source pass then corrected three lifecycle details before any build:
+repeated `go_enable(false)` now reports disable/clear failures and always closes
+residual route ownership; `go_setpintype()` commits the NuttX pintype only after
+SDK interrupt-type setup succeeds; and output reconfiguration reapplies the
+cached LED level. `git diff --check` passes. The NuttX checkpatch run has no
+remaining line-length issue; its five remaining reports are the overlay path
+header plus four `_Static_assert` mixed-case false positives already used by the
+surrounding BK7258 sources. C2 remains unbuilt and uncommitted as a separate
+change set after checkpoint `07c6bbc`.
+
+## 2026-07-24 -- GPIO C2 driver-lifecycle review complete
+
+The `nuttx-driver-development` six-dimension review was applied to the bounded
+C2 implementation without expanding the pin or interrupt scope. No build or
+board action was performed. The review found no remaining project-code FAIL;
+the remaining WARN items are explicit lifecycle or scope constraints.
+
+The final source corrections are:
+
+- P29 callback state is a volatile, fixed-lifetime pointer; thread-context P29
+  reads are serialized by the device mutex, while the SDK per-pin ISR remains
+  allocation-free and nonblocking.
+- `go_setpintype()` rejects changes while a callback is attached or the pin is
+  enabled, and commits `gp_pintype` only after the SDK configuration succeeds.
+- Repeated disable always retries per-pin disable/clear and residual route
+  cleanup. Route/source ownership flags are cleared only after successful
+  restoration, so a failed cleanup remains retryable.
+- Route teardown now preserves the GPIO_NS56 handler if the shared route-gate
+  bits cannot first be restored. This avoids leaving an open CPU0 route with no
+  valid top-level handler. An enable failure also propagates any route-cleanup
+  failure instead of discarding it.
+- Initialization no longer clears an unknown pre-existing P29 SDK callback.
+  The C2 trampoline is installed and removed only by upper-half attach/detach.
+- The driver Kconfig selects only `DEV_GPIO`; NSH and `EXAMPLES_GPIO` remain a
+  validation-defconfig choice rather than a product-driver dependency.
+
+Review result by dimension:
+
+| Dimension | Result | Evidence / bounded warning |
+|---|---|---|
+| Initialization | PASS / WARN | Scheduler-context board bring-up, small stack, idempotent success path and reverse partial cleanup. Failure is logged without blocking NSH by project policy. Fixed board devices intentionally have no runtime deinitialize path. |
+| Power management | WARN | No suspend/resume or pin-retention callback is added; C2 does not claim a low-power lifecycle. |
+| NuttX / SDK API use | PASS | Uses the stock GPIO upper/lower-half contract, checks SDK return values, allocates no memory and makes no user-space VFS calls from the lower half. |
+| Critical section / ISR | PASS | ISR only snapshots and invokes `pin_interrupt_t`; no mutex, allocation, sleep, log or bus operation occurs in interrupt context. MMIO route RMW is bounded by a critical section and SDK source ownership uses the bridge lock. |
+| Runtime environment | PASS / WARN | Static instances are justified fixed board resources needed by the ISR. GPIO_S55/GPIO_NS56 and route bits23/24 are shared resources, so this implementation is valid only while P29 is the sole GPIO-IRQ consumer. |
+| Coding style | PASS with tool false positives | Tracked `git diff --check` plus a no-index whitespace check of the new source passed. Checkpatch has no line-length finding; the remaining five reports are the team-overlay path header and four `_Static_assert` mixed-case false positives. Compiler-warning status remains unknown until the authorized clean build. |
+
+Two stock upper-half lifecycle details constrain C2 validation and are not
+worked around by modifying the official NuttX tree:
+
+1. `GPIOC_REGISTER` increments `register_count` before `go_attach()` and
+   `go_enable()` and does not roll the count back if either callback fails. The
+   stock `gpio` app then closes immediately on that error. Therefore, after any
+   registration error, reboot before retrying; repeated tests in the same boot
+   are not valid evidence.
+2. The generic GPIO driver has no `.close` cleanup. The stock signal-wait path
+   performs `GPIOC_UNREGISTER` after its bounded five-second wait, while the poll
+   path waits indefinitely. Board validation should use the signal-wait form and
+   allow normal unregister; do not terminate an active registration with
+   Ctrl-C.
+
+The manual `bkgpioc0`/`bkgpioirq` probes and `/dev/gpio0`/`/dev/gpio1` share the
+same physical resources and must be run sequentially, never concurrently. C2
+is now **static-only / lifecycle-review complete / clean-build pending**. C1
+remains **build-verified / board-test pending**, and its exact 247078-byte
+artifact remains untouched.
+
+## 2026-07-24 -- GPIO C1 route-gate probe board-tested and disproved
+
+The user flashed the exact C1 checkpoint artifact (`all-app.bin` 247078 bytes,
+SHA-256 `8771b2204f019b1334a155c3a051a3d40408bd9de575615e02ec388e17241505`)
+and ran one fresh `bkgpioirq` attempt. The complete evidence was:
+
+```text
+bkgpioirq: BEGIN key=P29 gpio_s=55/irq71 gpio_ns=56/irq72
+bkgpioirq: mirror GPIO_S handler to GPIO_NS source=56 irq=72
+bkgpioirq: route 0x00008008 -> 0x01808008 mask=0x01800000
+bkgpioirq: release USERKEY before falling-edge test
+bkgpioirq: PRESS USERKEY and hold until detected
+bkgpioirq: FAIL FALL callback timeout
+bkgpioirq: route restore=0x00008008
+bkgpioirq: FAIL result=-110
+```
+
+This result proves that the diagnostic successfully installed the source56
+mirror, wrote/read back both CPU0 route bits23/24, and restored the original
+route value exactly. Despite all three actions, P29 produced no falling-edge
+callback. Therefore the missing route-gate hypothesis is **disproved as a
+sufficient fix**. The bits may still be required, but neither GPIO_S/GPIO_NS
+handler selection nor opening `0x44010080` mask `0x01800000` explains the
+remaining failure by itself.
+
+No rising-edge phase was reached, so this test says nothing about rising-edge
+behavior. GPIO C0 polling remains board-verified and cleanup did not regress.
+C1 is now **board-tested / FALL timeout / blocked**, not board-verified. C2
+output/input polling design remains available, but its IRQ path must not be
+claimed or board-accepted from the current C1 evidence.
+
+Per the existing stop condition, the same artifact should not be repeatedly
+flashed or rerun. The next useful diagnostic, if separately authorized, is a
+new timeout-only evidence probe that distinguishes peripheral P29 pending,
+CPU0/NVIC pending/dispatch, and SDK per-pin callback-table delivery. No code
+search, patch, rebuild, or C2 build was started from this failed result.
+
+## 2026-07-24 -- GPIO C1 timeout-only layered evidence probe implemented
+
+The user authorized the next diagnostic probe. Evidence was first taken from
+the checksum-pinned `libdriver.a(gpio_driver_base.c.obj)`, not inferred from a
+public header:
+
+- `gpio_get_interrupt_status(uint32_t *h_status, uint32_t *l_status)` reads the
+  raw status words at GPIO offsets `0x104` and `0x100`, then returns high
+  channels through the first pointer and channels 0..31 through the second.
+- `gpio_isr()` snapshots the same two words, scans GPIO IDs 0..55, clears a
+  triggered channel, and invokes the registered per-pin callback when its table
+  entry is non-NULL.
+- The SDK source matching that object confirms the same prototype and behavior;
+  the public pinned `driver/gpio.h` simply omits the diagnostic declaration.
+
+The source-only probe now adds these test-gated observations:
+
+1. `bk7258_sdk_irq.c` counts dispatch entry only for GPIO_S source55 and GPIO_NS
+   source56. The counters are reset before each edge phase and add no logging,
+   sleep, allocation, or locking to ISR dispatch.
+2. On callback timeout, before any cleanup, `bkgpioirq` snapshots and prints the
+   P29 raw level, raw control word and interrupt-enable bit, current CPU0 route
+   register, low/high GPIO pending words and the P29 pending bit.
+3. The same timeout report includes IRQ71/IRQ72 NVIC enable, pending and active
+   state, source55/source56 bridge dispatch counts, callback count, and last
+   callback GPIO ID.
+4. The success path, bounded wait, edge order, and cleanup/restore sequence are
+   unchanged. No diagnostic output occurs in interrupt context.
+
+`git diff --check` passes. Focused NuttX checkpatch found and fixed the new real
+long-line/spacing issues; its only remaining reports are the known team-overlay
+path-header assumption and `_Static_assert` mixed-case false positives. Status
+is **source-implemented / static-checked / clean-build pending**. No build,
+firmware generation, flash, board test, commit, or push was performed. C1 and
+the C2 IRQ path remain blocked until a newly built diagnostic artifact is
+separately authorized and board-tested.
+
+## 2026-07-24 -- GPIO C1 layered timeout probe clean build GREEN
+
+The user authorized the build. The checkpoint C0/C1 integration plus only the
+three layered-probe source files were temporarily staged into the generated
+workspace; C2 Kconfig/lower-half changes were deliberately excluded. The
+source checkout was restored automatically after the build.
+
+```text
+distclean: PASS
+build -j8: PASS
+source restore: PASS
+CONFIG_BK7258_GPIO_IRQ_TEST=y
+Register: bkgpioirq
+```
+
+The final ELF contains `bkgpioirq_main`, `bk7258_gpio_irq_test`, the two
+source55/source56 dispatch-counter helpers, and the pinned
+`gpio_get_interrupt_status`. Its strings contain both new timeout lines,
+including the live route register and IRQ71/IRQ72 layered state.
+
+```text
+artifact: /home/lijian/project/open-vela/nuttx/all-app.bin
+size:     247792 bytes (0x3c7f0)
+sha256:   657f294a6c4e7d81b4798a427602c71fa0c172bb71b87f612037ddfd6a740fa9
+flash:    physical 0x0
+logs:     /tmp/bk7258-gpioirq-layered-distclean.log
+          /tmp/bk7258-gpioirq-layered-build.log
+```
+
+C1 is now **layered-probe build-verified / board-test pending**. The old
+247078-byte route-gate artifact must not be reused. The next action is one
+Windows flash of this exact 247792-byte image followed by one `bkgpioirq` run
+and capture of the complete timeout/PASS log. No assistant-side flash, commit,
+or push was performed; C2 remains unbuilt and its IRQ path remains blocked.
+
+## 2026-07-24 -- C1 board test RED: layered probe still times out, ITNS missing
+
+The user flashed the layered-probe artifact (247792 bytes). The complete
+timeout evidence was:
+
+```text
+bkgpioirq: timeout FALL p29 raw=1 ctrl=0x00151c3d ien=1 route=0x01808008
+  pendlo=0x20000000 pendhi=0x00000000 p29pend=1
+bkgpioirq: timeout FALL irq71 en=1 pend=0 act=0 disp=0
+  irq72 en=1 pend=0 act=0 disp=0 cb=0 id=56
+```
+
+This pins the failure at a single layer: the GPIO peripheral has P29 pending
+set (`p29pend=1`), but neither IRQ71 nor IRQ72 is pending in the NVIC
+(`pend=0`). The bridge dispatch count is zero (`disp=0`), so
+`bk7258_sdk_irq_dispatch()` was never entered. The route register
+(`0x01808008`) and per-pin enable (`ien=1`) are both correct.
+
+Root cause was identified from the SDK's `arch_interrupt.c`: on ARMv8-M with
+TrustZone, the NVIC has an **ITNS (Interrupt Target Non-Secure) register** that
+controls whether each IRQ targets the secure or non-secure state. The SDK calls
+`arch_int_set_target_state_all()` during initialization, setting all IRQs to
+non-secure. NuttX's `up_irqinitialize()` skips this step. IRQ71/72 default to
+secure-targeted, so their pending bits are invisible from NuttX's non-secure
+mode.
+
+The SDK's `arch_interrupt_register_int()` calls `NVIC_EnableIRQ()` (which works
+from non-secure mode for non-secure-targeted IRQs), and the SDK's
+`arch_int_set_target_state_all()` was already called before NuttX boots. But for
+source56 (IRQ72), which was never touched by the SDK's GPIO init, the ITNS bit
+was never set.
+
+## 2026-07-24 -- C1 ITNS-fix probe implemented and built
+
+The fix adds an ITNS configuration step before the first
+`bk_int_isr_register()` call for the GPIO IRQs. A helper function sets the
+ITNS bit for a given IRQ number using the STAR core's
+`NVIC->ITNS[bank]` register at `SCS_BASE + 0x280 + 4*bank`.
+
+```c
+static void bk7258_gpioirq_set_nvic_nonsecure(int irq)
+{
+  unsigned int bank = (unsigned int)irq >> 5;
+  uint32_t bit = 1u << ((unsigned int)irq & 31u);
+  volatile uint32_t *itns =
+    (volatile uint32_t *)(uintptr_t)(0xe000e000u + 0x280u + 4u * bank);
+  *itns |= bit;
+  UP_DSB();
+  UP_ISB();
+}
+```
+
+The test now calls this for both IRQ71 and IRQ72 after `bk_gpio_driver_init()`
+returns. The timeout diagnostic also reads and prints the ITNS bank2 register
+value for verification. `git diff --check` and focused checkpatch both pass.
+
+Build result:
+
+```text
+artifact: /home/lijian/project/open-vela/nuttx/all-app.bin
+size:     247894 bytes (0x3c856)
+sha256:   6028801f843a41e2ad5b05ac2ec61432d40d55df889eebc8b775ec195fb043d4
+flash:    physical 0x0
+```
+
+Status is **ITNS-fix-v1 build-verified / board-test pending**. The next action
+is one Windows flash of this exact 247894-byte image and one `bkgpioirq` run.
+If the ITNS fix is correct, IRQ71 should now show `pend=1` and the dispatch path
+should enter `gpio_isr` → per-pin callback → PASS. If it still fails, the
+additional `itns=` field in the timeout log will confirm the register was
+written.
+
+## 2026-07-24 -- C1 ITNS-fix-v1 board RED; register address corrected in v2
+
+The v1 artifact still timed out and reported `itns=0x00000000`, with P29
+pending set and both NVIC dispatch counts zero. Source verification then
+confirmed that NuttX runs in Secure state: `bk7258_start.c` explicitly records
+that the bootloader never drops to Non-Secure. Therefore ITNS is writable, and
+the zero readback exposed an address error rather than an access restriction.
+
+The STAR `NVIC_Type` begins at `0xE000E100`; its `ITNS[]` member is at structure
+offset `0x280`. Thus ITNS bank2 is `0xE000E388`. The v1 code incorrectly used
+SCS base `0xE000E000`, producing `0xE000E288`, a reserved location. v2 now uses
+`0xE000E100 + 0x280 + 4*bank` for both write and timeout readback.
+
+The corrected v2 source passes `git diff --check` and focused checkpatch. A
+fresh distclean and `-j8` build both pass, and the temporary source staging is
+restored. Final object disassembly confirms access as base `0xE000E000` plus
+offset `0x388`, i.e. physical register `0xE000E388`.
+
+```text
+artifact: /home/lijian/project/open-vela/nuttx/all-app.bin
+size:     247894 bytes (0x3c856)
+sha256:   64c3fa20b27536e8dcb32f7970a8d7a95f5572cde9cec2e009ff975db9ea7532
+flash:    physical 0x0
+logs:     /tmp/bk7258-gpioirq-itns-v2-distclean.log
+          /tmp/bk7258-gpioirq-itns-v2-build.log
+```
+
+Status is **ITNS-fix-v2 build-verified / board-test pending**. Do not reuse the
+v1 artifact. The next action is one Windows flash of this exact v2 image and
+one complete `bkgpioirq` log.
+
+## 2026-07-24 -- C1 source37 mapping and CPU0 source gate board-verified
+
+Subsequent SDK vector-table comparison corrected two assumptions from the ITNS
+probe:
+
+- NuttX remains in Secure state, so `ITNS=0` is expected and is not the GPIO
+  blocker.
+- `GPIO_NS_Handler` is source37 / NuttX IRQ53. Source56 is
+  `DMA1_SEC_Handler`, not GPIO.
+
+The remaining forwarding gate is `SYS_CPU0_INT_32_63_EN` at `0x44010084`.
+GPIO_S/source55 uses bit23 and GPIO_NS/source37 uses bit5. The CP SDK function
+`sys_drv_int_group2_enable()` opens this gate, but normal GPIO initialization
+never calls it; the only pinned SDK call was in `gpio_enter_low_power()`.
+Calling it before IRQ registration allowed the NVIC dispatch and the SDK
+per-pin callback to run. Both falling and rising P29 edge phases completed with
+callback count `1` and GPIO ID `29`.
+
+The exact C1 board-verified artifact was 247826 bytes with SHA-256
+`53f325eb720f450c29f4d50822870421cc0af9d90b555c79f48eb6c7d1a292b4`.
+C1 is **board-verified**. The source56 and ITNS hypotheses are rejected and
+must not be restored.
+
+## 2026-07-25 -- C2 `/dev/gpio1` falling-edge path board-verified
+
+The standard NuttX GPIO lower-half was built and exercised with the stock
+`gpio` application:
+
+```text
+gpio -w 5 /dev/gpio1
+gpio [3:100]
+nsh> Driver: /dev/gpio1
+  Interrupt pin: Value=1
+gpio1: register_isr result=0
+gpio1: snap55 handler=0x0202db41 ret=0
+gpio1: snap37 handler=0x00000000 ret=0
+gpio1: isr_register37 ret=0
+gpio1: open_route result=0
+gpio1: enable_interrupt result=0
+gpio1: enabled OK isr_count=0 disp37=0
+  Verify:        Value=0
+```
+
+This is a PASS, not a timeout. `snap37=NULL` is the expected pre-registration
+snapshot; the next `isr_register37 ret=0` installs the mirrored SDK GPIO
+handler. The zero counters are printed immediately after enable, before the
+button edge. The stock application then receives signal 5 and reaches
+`Verify: Value=0` without printing its five-second timeout message, proving the
+full P29 falling-edge chain:
+
+```text
+P29 pending -> GPIO_NS source37 / IRQ53 -> SDK top-level gpio_isr
+            -> P29 lower-half callback -> NuttX GPIO upper-half signal
+```
+
+C2 `/dev/gpio0` output and `/dev/gpio1` pull-up/falling-edge input are now
+**board-verified** for the exercised scope. No further source56 or ITNS work is
+required. The temporary `gpio1:` diagnostics may be removed in a subsequent
+production-cleanup build; that cleanup is not needed to establish this board
+result.
+
+## 2026-07-25 -- C2 repeated registration EBUSY fix implemented
+
+A second stock `gpio -w 5 /dev/gpio1` run failed at `GPIOC_REGISTER` with errno
+16 even after the first task had exited. The first falling-edge event itself
+remained successful. The persistent busy state came from the lower-half attach
+contract: `bk7258_gpio_key_attach()` rejected every attach operation while the
+pin was enabled, including the upper-half's `callback == NULL` detach during
+`GPIOC_UNREGISTER`. The stock application ignores the unregister return value,
+so the failed detach was silent and the registration remained occupied.
+
+The bounded fix changes the guard from `key->enabled` to
+`key->enabled && callback != NULL`. Active non-NULL callback replacement still
+returns `-EBUSY`, while detach is always allowed so unregister can proceed to
+disable and release the device. No IRQ mapping, routing, gate, or ISR behavior
+was changed. Status is **source-fixed / build pending**; the required regression
+is two consecutive successful `gpio -w 5 /dev/gpio1` runs without reboot.
+
+## 2026-07-25 -- C2 repeated-registration fix fresh build GREEN
+
+The authoritative clean-worktree lower-half was temporarily staged into the
+manifest-linked generated workspace after a byte-for-byte comparison confirmed
+that the only difference was the intended attach guard. The original generated
+workspace target was backed up and restored after the build.
+
+```text
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+
+distclean: PASS (exit 0)
+build:     PASS (exit 0)
+errors:    0
+artifact:  /home/lijian/project/open-vela/nuttx/all-app.bin
+size:      240618 bytes
+sha256:    8a7d743b6762acba7105b468bbedf42df97a95eb6c93e04f37b5070311cd0a7e
+log:       /tmp/gpio_fix_build_20260725_225823.log
+restore:   PASS, byte-for-byte original target restored
+```
+
+The 101 warning lines are existing SDK macro-redefinition warnings; no new
+build error was produced. The repeated-registration fix is now
+**build-verified / board-regression pending**. Flash this exact artifact at
+physical `0x0`, then run `gpio -w 5 /dev/gpio1` twice consecutively without a
+reboot. Both runs must receive the falling-edge signal and reach
+`Verify: Value=0`; the second run must not return errno 16.
+
+## 2026-07-25 -- First repeat-fix artifact rejected: stock gpio command absent
+
+After flashing the 240618-byte artifact, NSH reported:
+
+```text
+nsh> gpio -w 5 /dev/gpio1
+nsh: gpio: command not found
+```
+
+This is a build-staging error, not a board or IRQ regression. The constrained
+verification temporarily staged only `bk7258_gpio_lowerhalf.c`; the generated
+workspace still used the older linked board Kconfig/Make/CMake/defconfig and
+bring-up files. A successful compile therefore proved the one-file syntax but
+produced an artifact without the complete C2 configuration, including the
+stock `gpio` command. The 240618-byte artifact is rejected for C2 board
+validation and must not be reused.
+
+The correction is to temporarily stage the complete authoritative
+`board/bk7258_t5ai` overlay from the clean worktree, fresh-build, and restore the
+generated workspace afterward. Status returns to **source-fixed / complete C2
+build pending**.
+
+## 2026-07-25 -- C2 full-overlay rebuild GREEN
+
+The entire authoritative `board/bk7258_t5ai` from the clean worktree was
+temporarily staged into the manifest-linked generated workspace. The original
+linked directory was backed up and restored after the build. The fresh build
+confirmed:
+
+```text
+CONFIG_BK7258_GPIO_FOUNDATION_TEST=y
+CONFIG_BK7258_GPIO_IRQ_TEST=y
+CONFIG_BK7258_GPIO_LOWERHALF=y
+CONFIG_EXAMPLES_GPIO=y
+```
+
+Final ELF strings confirm `gpio_main` and `gpio_main.c` are present.
+
+```text
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+
+distclean: PASS (exit 0)
+build:     PASS (exit 0)
+errors:    0
+artifact:  /home/lijian/project/open-vela/nuttx/all-app.bin
+size:      251906 bytes
+sha256:    df94a8959e7fdc16dddb73e0457e4c8aba0957a43c2894e0d347f1af385614af
+restore:   PASS, original linked directory restored
+log:       /tmp/bk7258_c2_full_build.log
+```
+
+Flash this exact artifact at physical `0x0`, then run `gpio -w 5 /dev/gpio1`
+twice consecutively without reboot. Both runs must reach
+`Verify: Value=0`; the second must not return errno 16.
+
+## 2026-07-25 -- Second artifact still EBUSY: GPIO upper-half has no close handler
+
+The second artifact showed `gpio` present but the second run still returned
+errno 16. Root cause: the NuttX GPIO upper-half has `close = NULL`, so
+`close(fd)` never decrements `register_count` or calls `go_enable(false)`.
+The first `gpio` exits after `sigtimedwait` returns; if the unregister
+sequence is incomplete (signal delivery race or early exit), `register_count`
+stays at 1 and the next `GPIOC_REGISTER` returns silently without calling
+`go_attach` or `go_enable`.
+
+The previous fix only handled `go_attach(NULL)` allowing detach, but the
+upper-half never reaches `go_attach(NULL)` when `register_count > 0`. The
+correct fix is to also disable the interrupt and close the route inside
+`go_attach(NULL)` (detach path), so any cleanup that does reach the lower
+half fully resets device state regardless of whether `go_enable(false)` is
+called afterwards. The detach path now calls `bk_gpio_disable_interrupt`,
+`bk_gpio_clear_interrupt`, `bk7258_gpio_close_route`, and resets
+`key->enabled = false`. The `go_enable(false)` path is idempotent and
+harmless when called after this cleanup. Status is **source-fixed / complete
+C2 rebuild pending**.
+
+## 2026-07-25 -- C2 v3 full-overlay rebuild GREEN
+
+Same overlay procedure as the previous full build. The authoritative clean
+worktree board directory was staged into the generated workspace, built, and
+restored. `.config` confirms `CONFIG_BK7258_GPIO_LOWERHALF=y` and
+`CONFIG_EXAMPLES_GPIO=y`. Final ELF strings confirm `gpio_main`.
+
+```text
+distclean: PASS (exit 0)
+build:     PASS (exit 0)
+errors:    0
+artifact:  /home/lijian/project/open-vela/nuttx/all-app.bin
+size:      251940 bytes
+sha256:    82ccb488171dd489aa8e5d2b90b43af233f43c54a0880a534aeff70ed7f5fc40
+restore:   PASS
+log:       /tmp/bk7258_c2_v3_build.log
+```
+
+Flash this exact artifact at physical `0x0`, then run `gpio -w 5 /dev/gpio1`
+twice consecutively without reboot. Both runs must reach
+`Verify: Value=0`; the second must not return errno 16.
+
+## 2026-07-26 -- Repeat EBUSY root cause isolated to upstream NSIGNALS=1 bug
+
+Layered prints proved the complete lower-half unregister sequence succeeds:
+`register_count` returns to zero, `go_enable(false)` succeeds, `go_attach(NULL)`
+succeeds, callback/route state clears, and the second run begins with
+`rc=0 cb=NULL enabled=0 pintype=9`. The second `GPIOC_REGISTER` still returned
+`-EBUSY` before reaching the lower half. An upper-half diagnostic then printed:
+
+```text
+gpio_register: NSIGNALS slot full pid=4
+```
+
+The exact defect is in upstream `nuttx/drivers/ioexpander/gpio.c`:
+`GPIOC_UNREGISTER` places the code that clears `gp_signals[j].gp_pid` entirely
+inside `#if CONFIG_DEV_GPIO_NSIGNALS > 1`. With the default
+`CONFIG_DEV_GPIO_NSIGNALS=1`, the loop finds the matching PID but compiles out
+the slot-clear operation. `register_count` is decremented correctly, while
+`gp_signals[0].gp_pid` remains the exited PID and rejects every later process.
+
+The team-overlay workaround sets `CONFIG_DEV_GPIO_NSIGNALS=2`; the existing
+upstream multi-slot cleanup path then clears slot zero correctly. This avoids a
+contest change in the official NuttX tree. Status is **root-caused / workaround
+source-applied / rebuild pending**. The earlier speculative lower-half cleanup
+changes and temporary diagnostics must be removed after the two-run board gate.
+
+The complete team board overlay plus the temporary upper/lower diagnostic
+prints was fresh-built successfully:
+
+```text
+CONFIG_DEV_GPIO_NSIGNALS=2
+distclean: PASS
+build:     PASS
+artifact:  /home/lijian/project/open-vela/nuttx/all-app.bin
+size:      252722 bytes
+sha256:    ab1df17a2d1accce94d63d65cd605bbf88a49e964e46eaa2af3f7c8aa150e2d8
+logs:      /tmp/bk7258_c2_nsignals2_distclean.log
+           /tmp/bk7258_c2_nsignals2_build.log
+restore:   generated board and official NuttX gpio.c restored
+```
+
+Board gate: flash at physical `0x0`, run the stock command twice without
+reboot, and require both runs to reach `Verify: Value=0` with no
+`NSIGNALS slot full` message.
+
+## 2026-07-26 -- NSIGNALS=2 repeated-run gate board-verified
+
+The user confirmed the corrected artifact supports consecutive stock
+`gpio -w 5 /dev/gpio1` runs without reboot. Both runs received the falling-edge
+signal and the second no longer returned errno 16. The repeat-registration
+lifecycle is now **board-verified**. Root cause and retained fix remain solely:
+
+```text
+upstream NSIGNALS=1 slot-clear compile-time defect
+team defconfig workaround: CONFIG_DEV_GPIO_NSIGNALS=2
+```
+
+Production cleanup is authorized: remove all temporary upper/lower diagnostic
+prints and revert speculative lower-half lifecycle changes, while retaining the
+source37 IRQ path and `CONFIG_DEV_GPIO_NSIGNALS=2`. No unrelated code changes,
+commit, push, or flash are authorized by this cleanup step.
+
+## 2026-07-26 -- C2 production cleanup build GREEN
+
+Cleanup was limited to the verified GPIO path:
+
+- removed all runtime `gpio1:` diagnostic prints and temporary ISR/dispatch
+  counters;
+- removed the temporary diagnostic entry point and upper-half instrumentation;
+- reverted the speculative attach/detach and disable-order behavior changes;
+- disabled the manual C0/C1 diagnostic commands in production defconfig;
+- retained GPIO_S/source55, GPIO_NS/source37, the CPU0 source gate,
+  `/dev/gpio0`/`/dev/gpio1`, stock `gpio`, and
+  `CONFIG_DEV_GPIO_NSIGNALS=2`.
+
+Fresh full-overlay build:
+
+```text
+distclean: PASS
+build:     PASS
+CONFIG_BK7258_GPIO_LOWERHALF=y
+CONFIG_DEV_GPIO_NSIGNALS=2
+CONFIG_EXAMPLES_GPIO=y
+CONFIG_BK7258_GPIO_FOUNDATION_TEST=n
+CONFIG_BK7258_GPIO_IRQ_TEST=n
+artifact:  /home/lijian/project/open-vela/nuttx/all-app.bin
+size:      251532 bytes
+sha256:    987ca15ffe2c8fb167b46c0f06d306a4545c20126f68404fa285a78dc82077d6
+logs:      /tmp/bk7258_c2_cleanup_distclean.log
+           /tmp/bk7258_c2_cleanup_build.log
+```
+
+Final ELF contains `gpio_main`, contains no `gpio1:` diagnostic string, and
+contains neither `bkgpioc0` nor `bkgpioirq`. The official NuttX `gpio.c` and
+generated team-board directory were restored after the build.
+
+## 2026-07-26 -- C2 clean artifact final board regression PASS
+
+The exact production-clean artifact was flashed and the stock command was run
+twice consecutively without reboot:
+
+```text
+gpio -w 5 /dev/gpio1
+gpio [3:100]
+nsh> Driver: /dev/gpio1
+  Interrupt pin: Value=1
+  Verify:        Value=0
+gpio -w 5 /dev/gpio1
+gpio [4:100]
+nsh> Driver: /dev/gpio1
+  Interrupt pin: Value=1
+  Verify:        Value=0
+```
+
+Both runs received the falling-edge signal. There was no timeout, errno 16,
+`NSIGNALS slot full`, or diagnostic output. The production-clean artifact
+(251532 bytes, SHA-256
+`987ca15ffe2c8fb167b46c0f06d306a4545c20126f68404fa285a78dc82077d6`) is
+**board-verified**. GPIO C2 is closed. No commit or push has been performed.

@@ -174,3 +174,15 @@ config BK7258_GPIO_IRQ_TEST
 		on GPIO29 to prove falling and rising edge callbacks. It mirrors
 		the SDK GPIO_S source-55 handler onto GPIO_NS source 56 for the
 		test, then restores both the IRQ route and original pin state.
+
+config BK7258_GPIO_LOWERHALF
+	bool "BK7258 T5-AI NuttX GPIO lower-half"
+	default n
+	depends on BK7258_SDK_IRQ_BRIDGE
+	select DEV_GPIO
+	---help---
+		Register the active-high P9 board LED as /dev/gpio0 and the
+		active-low P29 USERKEY as /dev/gpio1 through the standard NuttX
+		GPIO upper half. P29 supports one selected rising or falling edge
+		at a time; level, both-edge, wakeup and debounce modes are not
+		supported. A validation application is selected separately.

@@ -25,6 +25,8 @@
 #include <driver/int.h>
 #include <driver/int_types.h>
 
+#include "arm_internal.h"
+#include "nvic.h"
 #include "bk7258_sdk_irq.h"
 
 /****************************************************************************
@@ -33,7 +35,7 @@
 
 #define BK7258_GPIOIRQ_KEY                   GPIO_29
 #define BK7258_GPIOIRQ_SECURE_SOURCE         INT_SRC_GPIO
-#define BK7258_GPIOIRQ_NONSECURE_SOURCE      ((icu_int_src_t)56)
+#define BK7258_GPIOIRQ_NONSECURE_SOURCE      ((icu_int_src_t)37)
 #define BK7258_GPIOIRQ_SECURE_IRQ            \
   (BK7258_SDK_IRQ_FIRST + BK7258_GPIOIRQ_SECURE_SOURCE)
 #define BK7258_GPIOIRQ_NONSECURE_IRQ         \
@@ -44,7 +46,7 @@
 #define BK7258_GPIOIRQ_ENABLE_BIT            (1u << 12)
 #define BK7258_GPIOIRQ_ROUTE_REG              0x44010080u
 #define BK7258_GPIOIRQ_SECURE_ROUTE_BIT       (1u << 23)
-#define BK7258_GPIOIRQ_NONSECURE_ROUTE_BIT    (1u << 24)
+#define BK7258_GPIOIRQ_NONSECURE_ROUTE_BIT    (1u << 5)
 #define BK7258_GPIOIRQ_ROUTE_MASK             \
   (BK7258_GPIOIRQ_SECURE_ROUTE_BIT |         \
    BK7258_GPIOIRQ_NONSECURE_ROUTE_BIT)
@@ -67,14 +69,35 @@ _Static_assert(INT_SRC_GPIO == 55,
                "GPIO IRQ test requires SDK GPIO_S source 55");
 _Static_assert(BK7258_GPIOIRQ_SECURE_IRQ == 71,
                "GPIO IRQ test requires GPIO_S NuttX IRQ 71");
-_Static_assert(BK7258_GPIOIRQ_NONSECURE_SOURCE == 56,
-               "GPIO IRQ test requires GPIO_NS source 56");
-_Static_assert(BK7258_GPIOIRQ_NONSECURE_IRQ == 72,
-               "GPIO IRQ test requires GPIO_NS NuttX IRQ 72");
+_Static_assert(BK7258_GPIOIRQ_NONSECURE_SOURCE == 37,
+               "GPIO IRQ test requires GPIO_NS source 37");
+_Static_assert(BK7258_GPIOIRQ_NONSECURE_IRQ == 53,
+               "GPIO IRQ test requires GPIO_NS NuttX IRQ 53");
 
 /****************************************************************************
  * Private Data
  ****************************************************************************/
+
+struct bk7258_gpioirq_nvic_diag_s
+{
+  bool enabled;
+  bool pending;
+  bool active;
+  uint32_t dispatch_count;
+};
+
+struct bk7258_gpioirq_timeout_diag_s
+{
+  uint32_t control;
+  uint32_t route;
+  uint32_t pending_low;
+  uint32_t pending_high;
+  struct bk7258_gpioirq_nvic_diag_s secure;
+  struct bk7258_gpioirq_nvic_diag_s nonsecure;
+  uint32_t callback_count;
+  gpio_id_t last_id;
+  bool raw;
+};
 
 static bool g_bk7258_gpioirq_running;
 static volatile uint32_t g_bk7258_gpioirq_count;
@@ -86,6 +109,14 @@ static const gpio_config_t g_bk7258_gpioirq_key_config =
   .pull_mode = GPIO_PULL_UP_EN,
   .func_mode = GPIO_SECOND_FUNC_DISABLE,
 };
+
+/* The pinned SDK exports this helper from gpio_driver_base.c but does not
+ * declare it in the public GPIO header. It snapshots the raw interrupt
+ * status registers as (high[55:32], low[31:0]).
+ */
+
+extern void gpio_get_interrupt_status(uint32_t *high, uint32_t *low);
+extern int sys_drv_int_group2_enable(uint32_t param);
 
 /****************************************************************************
  * Private Functions
@@ -166,6 +197,78 @@ static int bk7258_gpioirq_result(const char *operation, bk_err_t error)
   return -EIO;
 }
 
+static void bk7258_gpioirq_snapshot_nvic_diag(
+  int irq, icu_int_src_t source, FAR struct bk7258_gpioirq_nvic_diag_s *diag)
+{
+  unsigned int external = (unsigned int)(irq - BK7258_SDK_IRQ_FIRST);
+  uint32_t bit = 1u << (external & 0x1f);
+  uint32_t count = 0;
+  irqstate_t flags;
+
+  flags = enter_critical_section();
+  diag->enabled = (getreg32(NVIC_IRQ_ENABLE(external)) & bit) != 0;
+  diag->pending = (getreg32(NVIC_IRQ_PEND(external)) & bit) != 0;
+  diag->active = (getreg32(NVIC_IRQ_ACTIVE(external)) & bit) != 0;
+  if (bk7258_sdk_irq_test_snapshot_dispatch_count(source, &count) == BK_OK)
+    {
+      diag->dispatch_count = count;
+    }
+  else
+    {
+      diag->dispatch_count = 0;
+    }
+
+  leave_critical_section(flags);
+}
+
+static void bk7258_gpioirq_snapshot_timeout_diag(
+  FAR struct bk7258_gpioirq_timeout_diag_s *diag)
+{
+  irqstate_t flags;
+
+  diag->control = bk_gpio_get_value(BK7258_GPIOIRQ_KEY);
+  diag->route = getreg32(BK7258_GPIOIRQ_ROUTE_REG);
+  diag->raw = bk_gpio_get_input(BK7258_GPIOIRQ_KEY);
+  gpio_get_interrupt_status(&diag->pending_high, &diag->pending_low);
+  bk7258_gpioirq_snapshot_nvic_diag(BK7258_GPIOIRQ_SECURE_IRQ,
+                                    BK7258_GPIOIRQ_SECURE_SOURCE,
+                                    &diag->secure);
+  bk7258_gpioirq_snapshot_nvic_diag(BK7258_GPIOIRQ_NONSECURE_IRQ,
+                                    BK7258_GPIOIRQ_NONSECURE_SOURCE,
+                                    &diag->nonsecure);
+  flags = enter_critical_section();
+  diag->callback_count = g_bk7258_gpioirq_count;
+  diag->last_id = g_bk7258_gpioirq_last_id;
+  leave_critical_section(flags);
+}
+
+static void bk7258_gpioirq_report_timeout(const char *edge)
+{
+  struct bk7258_gpioirq_timeout_diag_s diag;
+
+  bk7258_gpioirq_snapshot_timeout_diag(&diag);
+  printf("bkgpioirq: timeout %s p29 raw=%u ctrl=0x%08lx ien=%u "
+         "route=0x%08lx pendlo=0x%08lx pendhi=0x%08lx p29pend=%u\n",
+         edge, diag.raw ? 1u : 0u, (unsigned long)diag.control,
+         (diag.control & BK7258_GPIOIRQ_ENABLE_BIT) != 0 ? 1u : 0u,
+         (unsigned long)diag.route, (unsigned long)diag.pending_low,
+         (unsigned long)diag.pending_high,
+         (diag.pending_low >> BK7258_GPIOIRQ_KEY) & 1u);
+  printf("bkgpioirq: timeout %s irq71 en=%u pend=%u act=%u disp=%lu "
+         "irq53 en=%u pend=%u act=%u disp=%lu cb=%lu id=%u\n",
+         edge,
+         diag.secure.enabled ? 1u : 0u,
+         diag.secure.pending ? 1u : 0u,
+         diag.secure.active ? 1u : 0u,
+         (unsigned long)diag.secure.dispatch_count,
+         diag.nonsecure.enabled ? 1u : 0u,
+         diag.nonsecure.pending ? 1u : 0u,
+         diag.nonsecure.active ? 1u : 0u,
+         (unsigned long)diag.nonsecure.dispatch_count,
+         (unsigned long)diag.callback_count,
+         (unsigned int)diag.last_id);
+}
+
 static bool bk7258_gpioirq_wait_level(bool expected, unsigned int steps)
 {
   unsigned int step;
@@ -229,6 +332,7 @@ static int bk7258_gpioirq_run_edge(gpio_int_type_t type,
 
   g_bk7258_gpioirq_count = 0;
   g_bk7258_gpioirq_last_id = GPIO_NUM;
+  bk7258_sdk_irq_test_reset_dispatch_counts();
 
   error = bk_gpio_clear_interrupt(BK7258_GPIOIRQ_KEY);
   result = bk7258_gpioirq_result("clear pending", error);
@@ -250,6 +354,7 @@ static int bk7258_gpioirq_run_edge(gpio_int_type_t type,
   if (!bk7258_gpioirq_wait_callback())
     {
       printf("bkgpioirq: FAIL %s callback timeout\n", edge);
+      bk7258_gpioirq_report_timeout(edge);
       return -ETIMEDOUT;
     }
 
@@ -324,6 +429,14 @@ int bk7258_gpio_irq_test(void)
       goto out;
     }
 
+  /* Enable GPIO interrupt forwarding to CPU0 at the system level.
+   * The SDK only calls this from the low-power entry path, never from normal
+   * GPIO init.  Without it, the GPIO pending bit stays set at the peripheral
+   * but never reaches the NVIC.
+   */
+
+  sys_drv_int_group2_enable((1u << 23) | (1u << 5));
+
   error = bk7258_sdk_irq_test_snapshot_handler(
             BK7258_GPIOIRQ_SECURE_SOURCE, &gpio_handler);
   if (error != BK_OK || gpio_handler == NULL)
@@ -354,7 +467,9 @@ int bk7258_gpio_irq_test(void)
     }
 
   nonsecure_route_touched = true;
-  printf("bkgpioirq: mirror GPIO_S handler to GPIO_NS source=56 irq=72\n");
+  printf("bkgpioirq: mirror GPIO_S handler to GPIO_NS source=%u irq=%u\n",
+         (unsigned int)BK7258_GPIOIRQ_NONSECURE_SOURCE,
+         (unsigned int)BK7258_GPIOIRQ_NONSECURE_IRQ);
 
   route_value = bk7258_gpioirq_enable_route(&saved_route);
   route_gate_touched = true;

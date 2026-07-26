@@ -35,7 +35,8 @@ feature commit `6f596b7`，D0F feature commit `8dab594`），N4-D1（DPLL lock�
 | 4295 秒系统时间折返修复 | ✅ board-verified（`CONFIG_SYSTEM_TIME64=y`，uptime 单调增长到 5834.58 秒，无 HF/WDT 复位） |
 | NuttX Stage N6-B（CPU0 SDK IRQ bridge） | ✅ TIMER1/source-3/IRQ19 board-verified（两次独立启动、三次 `bkirqtest` 全 PASS；静态 verifier 48/48 PASS） |
 | GPIO foundation C0 | ✅ board-verified：P9 active-high LED + P29 active-low USERKEY，3 个独立 boot/download、5 次 `bkgpioc0` PASS |
-| 下一阶段 | P29 GPIO edge IRQ：`0x44010080` bits23/24 route-gate probe 已 build-verified，待 fast-download 板测 |
+| GPIO C1/C2 | ✅ board-verified：GPIO_NS source37/IRQ53 与 CPU0 group2 gate 已验证；`/dev/gpio0`/`/dev/gpio1` lower-half 完成，两次连续 falling-edge 命令通过；保留 `CONFIG_DEV_GPIO_NSIGNALS=2` 规避 upstream unregister 缺陷 |
+| 下一阶段 | CP/AP 双 NuttX：先完成 team-owned AP primary image 与 CPU0→CPU1 启动链，再推进 AP SMP 和 RPTUN/RPMsg |
 | Tier-2 bootloader（OTA / A-B failover） | 后续，未编号 |
 | 多核 SMP（CPU1 / CPU2） | 后续，未编号 |
 
@@ -65,6 +66,7 @@ feature commit `6f596b7`，D0F feature commit `8dab594`），N4-D1（DPLL lock�
   [bk7236_pack_min_bootloader.py](../../board/bk7258_t5ai/bootloader/bk7236_pack_min_bootloader.py)
 
 ### NuttX 移植 worklog / prompts（`nuttx-port/`）
+- [nuttx-port/cp-ap-rptun-architecture-research.md](nuttx-port/cp-ap-rptun-architecture-research.md) —— CP NuttX UP + AP NuttX SMP 双镜像、RPTUN/RPMsg、Wi-Fi/BLE 与 mailbox 复用边界的源码探索总结
 - [nuttx-port/n6-bug-4295s-timer-wrap.md](nuttx-port/n6-bug-4295s-timer-wrap.md) —— 约 4295 秒后 `HF` + WDT 重启根因及修复（`CONFIG_SYSTEM_TIME64=y`；源码、ELF 与 5834.58 秒板测均已验证）
 - [nuttx-port/n5-flash-filesystem.md](nuttx-port/n5-flash-filesystem.md) —— Stage N5 flash filesystem worklog（D5 raw flash r/w + D6 MTD + D7 LittleFS，board-verified 2026-07-19）
 - [nuttx-port/n2-nsh-console.md](nuttx-port/n2-nsh-console.md) —— Stage N2 会话记录（boot trace、
@@ -80,6 +82,7 @@ feature commit `6f596b7`，D0F feature commit `8dab594`），N4-D1（DPLL lock�
   - **当前 Stage prompt：** [nuttx-port/prompts/04-n4-clock-bringup.md](nuttx-port/prompts/04-n4-clock-bringup.md)
 
 ### 参考
+- [git-worktree-guide.md](git-worktree-guide.md) —— Git worktree 入门、本项目 clean worktree 与 openvela 构建工作区的关系
 - [sdk-context-index.md](sdk-context-index.md) —— BK ARMINO SDK (`bk_avdk_smp`) 上下文索引
 
 ## 外部资源（不在本仓内）
