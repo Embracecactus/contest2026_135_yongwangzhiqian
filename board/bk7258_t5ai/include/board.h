@@ -72,4 +72,8 @@ int bk7258_gpio_foundation_test(void);
 int bk7258_gpio_irq_test(void);
 #endif
 
+#ifdef CONFIG_BK7258_GPIO_LOWERHALF
+int bk7258_gpio_lowerhalf_initialize(void);
+#endif
+
 #endif /* __ARCH_BOARD_BK7258_T5AI_BOARD_H */

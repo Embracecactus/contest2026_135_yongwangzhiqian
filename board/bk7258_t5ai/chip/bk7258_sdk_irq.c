@@ -33,6 +33,15 @@
 #define BK7258_SDK_IRQ_PRIORITY_MAX \
   ((1u << BK7258_SDK_IRQ_PRIORITY_BITS) - 1u)
 
+#ifdef CONFIG_BK7258_GPIO_IRQ_TEST
+#  define BK7258_SDK_IRQ_GPIO_SECURE_SOURCE \
+  ((unsigned int)INT_SRC_GPIO)
+#  define BK7258_SDK_IRQ_GPIO_NONSECURE_SOURCE  37u
+#  define BK7258_SDK_IRQ_GPIO_SOURCE_COUNT      2u
+#  define BK7258_SDK_IRQ_GPIO_SECURE_INDEX      0u
+#  define BK7258_SDK_IRQ_GPIO_NONSECURE_INDEX   1u
+#endif
+
 /****************************************************************************
  * Compile-time Invariants
  ****************************************************************************/
@@ -47,6 +56,12 @@ _Static_assert(BK7258_SDK_IRQ_PRIORITY_BITS == 3,
                "Stage B gate: STAR NVIC implements three priority bits");
 _Static_assert(INT_SRC_LCD == 27,
                "Stage B gate: LCD priority exception must remain source 27");
+#ifdef CONFIG_BK7258_GPIO_IRQ_TEST
+_Static_assert(INT_SRC_GPIO == 55,
+               "GPIO IRQ test requires GPIO_S source 55");
+_Static_assert(BK7258_SDK_IRQ_GPIO_NONSECURE_SOURCE == 37,
+               "GPIO IRQ test requires GPIO_NS source 37");
+#endif
 _Static_assert(BK7258_SDK_IRQ_DEFAULT_PRIORITY <=
                BK7258_SDK_IRQ_PRIORITY_MAX,
                "Stage B gate: SDK default priority must be encodable");
@@ -60,6 +75,10 @@ _Static_assert(BK7258_SDK_IRQ_LCD_PRIORITY <=
 
 static spinlock_t g_bk7258_sdk_irq_lock = SP_UNLOCKED;
 static int_group_isr_t g_bk7258_sdk_irq_handlers[BK7258_SDK_IRQ_COUNT];
+#ifdef CONFIG_BK7258_GPIO_IRQ_TEST
+static volatile uint32_t g_bk7258_sdk_irq_gpio_dispatch_counts[
+  BK7258_SDK_IRQ_GPIO_SOURCE_COUNT];
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -112,6 +131,20 @@ static int bk7258_sdk_irq_dispatch(int irq, void *context, void *arg)
     }
 
   handler = g_bk7258_sdk_irq_handlers[source];
+
+#ifdef CONFIG_BK7258_GPIO_IRQ_TEST
+  if (source == BK7258_SDK_IRQ_GPIO_SECURE_SOURCE)
+    {
+      g_bk7258_sdk_irq_gpio_dispatch_counts[
+        BK7258_SDK_IRQ_GPIO_SECURE_INDEX]++;
+    }
+  else if (source == BK7258_SDK_IRQ_GPIO_NONSECURE_SOURCE)
+    {
+      g_bk7258_sdk_irq_gpio_dispatch_counts[
+        BK7258_SDK_IRQ_GPIO_NONSECURE_INDEX]++;
+    }
+#endif
+
   if (handler != NULL)
     {
       handler();
@@ -161,9 +194,9 @@ bk_err_t bk_int_isr_register(icu_int_src_t source,
       bk7258_sdk_irq_default_priority(source));
   flags = spin_lock_irqsave(&g_bk7258_sdk_irq_lock);
 
-  /* Registration replaces the previous owner of this source.  Keep the line
-   * disabled and non-pending until both NuttX dispatch state and priority are
-   * complete.
+  /* Registration replaces the previous owner of this source.  Keep the
+   * line disabled and non-pending until both NuttX dispatch state and
+   * priority are complete.
    */
 
   result = bk7258_sdk_irq_unregister_locked(index, irq);
@@ -251,10 +284,8 @@ bk_err_t bk_int_set_priority(icu_int_src_t source, uint32_t priority)
   return result;
 }
 
-#if defined(CONFIG_BK7258_SDK_IRQ_TIMER_TEST) || \
-    defined(CONFIG_BK7258_GPIO_IRQ_TEST)
-bk_err_t bk7258_sdk_irq_test_snapshot_handler(icu_int_src_t source,
-                                               int_group_isr_t *handler)
+bk_err_t bk7258_sdk_irq_snapshot_handler(icu_int_src_t source,
+                                         int_group_isr_t *handler)
 {
   unsigned int index = (unsigned int)source;
   irqstate_t flags;
@@ -272,6 +303,60 @@ bk_err_t bk7258_sdk_irq_test_snapshot_handler(icu_int_src_t source,
   flags = spin_lock_irqsave(&g_bk7258_sdk_irq_lock);
   *handler = g_bk7258_sdk_irq_handlers[index];
   spin_unlock_irqrestore(&g_bk7258_sdk_irq_lock, flags);
+  return BK_OK;
+}
+
+#if defined(CONFIG_BK7258_SDK_IRQ_TIMER_TEST) || \
+    defined(CONFIG_BK7258_GPIO_IRQ_TEST)
+bk_err_t bk7258_sdk_irq_test_snapshot_handler(icu_int_src_t source,
+                                               int_group_isr_t *handler)
+{
+  return bk7258_sdk_irq_snapshot_handler(source, handler);
+}
+#endif
+
+#ifdef CONFIG_BK7258_GPIO_IRQ_TEST
+void bk7258_sdk_irq_test_reset_dispatch_counts(void)
+{
+  irqstate_t flags;
+  unsigned int index;
+
+  flags = enter_critical_section();
+  for (index = 0; index < BK7258_SDK_IRQ_GPIO_SOURCE_COUNT; index++)
+    {
+      g_bk7258_sdk_irq_gpio_dispatch_counts[index] = 0;
+    }
+
+  leave_critical_section(flags);
+}
+
+bk_err_t bk7258_sdk_irq_test_snapshot_dispatch_count(icu_int_src_t source,
+                                                     uint32_t *count)
+{
+  unsigned int index = (unsigned int)source;
+  irqstate_t flags;
+
+  if (count == NULL)
+    {
+      return BK_FAIL;
+    }
+
+  if (index == BK7258_SDK_IRQ_GPIO_SECURE_SOURCE)
+    {
+      index = BK7258_SDK_IRQ_GPIO_SECURE_INDEX;
+    }
+  else if (index == BK7258_SDK_IRQ_GPIO_NONSECURE_SOURCE)
+    {
+      index = BK7258_SDK_IRQ_GPIO_NONSECURE_INDEX;
+    }
+  else
+    {
+      return BK_ERR_INT_DEVICE_NONE;
+    }
+
+  flags = enter_critical_section();
+  *count = g_bk7258_sdk_irq_gpio_dispatch_counts[index];
+  leave_critical_section(flags);
   return BK_OK;
 }
 #endif
