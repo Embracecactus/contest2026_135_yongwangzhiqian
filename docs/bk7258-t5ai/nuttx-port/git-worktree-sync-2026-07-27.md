@@ -55,17 +55,18 @@ manifest 创建的 app、QuickApp 和 board 链接均解析到主检出目录：
 - [x] 将 `app/hello_app/.built` 单独保存到 stash，未删除、未提交
 - [x] 获取最新上游并将 clean 分支 rebase 到 `origin/dev-ai-contest-2026`
 - [x] 同步文档提交到 clean 分支：`0f4a025`
-- [ ] 同步功能增量 `6b2d98c`：发生代码/配置冲突，按“不探索代码”门禁停止
+- [x] 识别功能增量的 AP 前置依赖：旧提交 `38699e8`
+- [x] 迁移 AP 前置提交并保留 clean 分支已有 GPIO/N6 状态：`a0271af`
+- [x] 迁移功能增量 `6b2d98c`：clean 提交 `b07f949`
 - [ ] 将 clean 分支迁回主检出目录
 - [ ] 从工作区根目录验证构建
 - [ ] 推送 PR 分支（PR 由用户创建）
 
-### 当前阻塞
+### 冲突处理结果
 
-`6b2d98c` 在以下文件产生冲突：
+第一次直接迁移 `6b2d98c` 时，AP 相关 Make/defconfig 产生冲突。检查提交依赖后确认 clean 分支缺少 `38699e8` 的 CPU1 AP bring-up 前置实现。随后按依赖顺序处理：
 
-- `board/bk7258_t5ai/chip/Make.defs`
-- `board/bk7258_t5ai/configs/nsh/defconfig`
-- `board/bk7258_t5ai/scripts/Make.defs`
-
-未读取冲突内容，也未使用 `ours`/`theirs` 自动覆盖。冲突 cherry-pick 已撤销，clean worktree 恢复为干净状态；功能增量仍完整保存在旧分支和 backup 分支。完成冲突决策前，不移除 worktree、不切换主检出目录、不构建、不推送。
+1. 撤销失败的功能 cherry-pick；
+2. 迁移 `38699e8`，合并 AP 控制与 clean 分支已有 GPIO app/build 配置，并保留更新后的 N6 历史证据；
+3. 再次迁移 `6b2d98c`，自动合并成功；
+4. `git diff --check` 与 `git fsck --no-dangling` 均通过，两个 worktree 均为 clean。
