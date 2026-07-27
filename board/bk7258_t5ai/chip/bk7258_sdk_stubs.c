@@ -22,6 +22,21 @@
 const void *__start_ipc_chan_reg = NULL;
 const void *__stop_ipc_chan_reg = NULL;
 
+#ifdef CONFIG_BK7258_AP_CORE
+void crosscore_mb_rx_isr(void)
+{
+}
+
+void shell_log_flush(void)
+{
+}
+
+void shell_assert_out(const char *fmt, ...)
+{
+  (void)fmt;
+}
+#endif
+
 /****************************************************************************
  * FreeRTOS heap stubs
  ****************************************************************************/

@@ -21,10 +21,16 @@
 
 include armv8-m/Make.defs
 
-# Beken SDK include paths for the prebuilt library headers.
+# Beken SDK headers are kept separate for each firmware role.
 
-INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)bk_idk$(DELIM)armino_as_lib$(DELIM)cp$(DELIM)include
-INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)bk_idk$(DELIM)armino_as_lib$(DELIM)cp$(DELIM)config
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+BK7258_SDK_ROLE := ap
+else
+BK7258_SDK_ROLE := cp
+endif
+
+INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)bk_idk$(DELIM)armino_as_lib$(DELIM)$(BK7258_SDK_ROLE)$(DELIM)include
+INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)bk_idk$(DELIM)armino_as_lib$(DELIM)$(BK7258_SDK_ROLE)$(DELIM)config
 
 # Chip-specific sources (resolved via VPATH += $(CHIP_DIR) added by the
 # arch Makefile, exactly like every other in-tree ARM chip).
@@ -50,6 +56,8 @@ CHIP_CSRCS += bk7258_irq.c
 CHIP_CSRCS += bk7258_timerisr.c
 CHIP_CSRCS += bk7258_allocateheap.c
 CHIP_CSRCS += bk7258_ap_main.c
+CHIP_CSRCS += bk7258_os_adapt.c
+CHIP_CSRCS += bk7258_sdk_stubs.c
 
 else
 
