@@ -13,6 +13,7 @@ feature commit `6f596b7`，D0F feature commit `8dab594`），N4-D1（DPLL lock�
 > N3 worklog：[`nuttx-port/n3-procfs-ps.md`](nuttx-port/n3-procfs-ps.md)
 > N4-D0/D0D worklog：[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md)
 > N5 flash filesystem worklog（D5 raw flash r/w + D6 MTD + D7 LittleFS，board-verified 2026-07-19）：[`nuttx-port/n5-flash-filesystem.md`](nuttx-port/n5-flash-filesystem.md)
+> Git worktree 同步与 PR 交接记录：[`nuttx-port/git-worktree-sync-2026-07-27.md`](nuttx-port/git-worktree-sync-2026-07-27.md)
 > 主 Stage 索引 / 当前恢复入口：[`next-stage-prompt.md`](next-stage-prompt.md)
 
 ## 当前状态
@@ -66,6 +67,7 @@ feature commit `6f596b7`，D0F feature commit `8dab594`），N4-D1（DPLL lock�
   [bk7236_pack_min_bootloader.py](../../board/bk7258_t5ai/bootloader/bk7236_pack_min_bootloader.py)
 
 ### NuttX 移植 worklog / prompts（`nuttx-port/`）
+- [nuttx-port/git-worktree-sync-2026-07-27.md](nuttx-port/git-worktree-sync-2026-07-27.md) —— 主检出目录、clean worktree、构建链接与 PR 分支同步记录
 - [nuttx-port/cp-ap-rptun-architecture-research.md](nuttx-port/cp-ap-rptun-architecture-research.md) —— CP NuttX UP + AP NuttX SMP 双镜像、RPTUN/RPMsg、Wi-Fi/BLE 与 mailbox 复用边界的源码探索总结
 - [nuttx-port/n6-bug-4295s-timer-wrap.md](nuttx-port/n6-bug-4295s-timer-wrap.md) —— 约 4295 秒后 `HF` + WDT 重启根因及修复（`CONFIG_SYSTEM_TIME64=y`；源码、ELF 与 5834.58 秒板测均已验证）
 - [nuttx-port/n5-flash-filesystem.md](nuttx-port/n5-flash-filesystem.md) —— Stage N5 flash filesystem worklog（D5 raw flash r/w + D6 MTD + D7 LittleFS，board-verified 2026-07-19）
