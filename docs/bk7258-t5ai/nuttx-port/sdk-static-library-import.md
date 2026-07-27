@@ -92,3 +92,31 @@ nuttx/bk7258-dual/
 ```
 
 其中包括 CP `app.bin`、AP `app1.bin`、CRC 镜像、ELF 和双镜像清单。正常分区升级继续按清单中的 offset/length 写入，以保留 LittleFS。
+
+## 6. 2026-07-27 同步后构建证据
+
+在 clean PR 分支迁回主检出目录后执行完整双镜像构建，exit 0：
+
+```text
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/
+  board/bk7258_t5ai/scripts/build_dual_image.sh
+```
+
+日志：`/tmp/bk7258-dual-build-sync-2026-07-27.log`。构建完成 CP → AP → CP restore，并通过
+root CP image 与 dual manifest CP image 的 fail-closed 一致性检查。
+
+角色隔离结果：
+
+- `nuttx-cp.map` 引用 `armino_as_lib/cp`，不引用 `armino_as_lib/ap`；
+- `nuttx-ap.map` 引用 `armino_as_lib/ap`，不引用 `armino_as_lib/cp`；
+- CP/AP 均从各自 role 的 `libdriver.a` 取对象，没有跨角色静态库路径。
+
+最终 normal split-update segments：
+
+```text
+bl_crc.bin@0x0-0x11000
+app_crc.bin@0x11000-0x2c9bc
+app1_crc.bin@0x220000-0x10b16
+```
+
+本次仅完成构建和静态角色隔离验证，未烧录、未板测，状态为 `build-verified`。
