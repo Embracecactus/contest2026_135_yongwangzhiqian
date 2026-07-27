@@ -6,5 +6,11 @@
 
 add_subdirectory(src)
 
-# Pin the linker script for the CMake backend.
-set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/ld.script")
+# Pin the role-specific linker script for the CMake backend.
+if(CONFIG_BK7258_AP_CORE)
+  set_property(GLOBAL PROPERTY LD_SCRIPT
+               "${NUTTX_BOARD_DIR}/scripts/ld_ap.script")
+else()
+  set_property(GLOBAL PROPERTY LD_SCRIPT
+               "${NUTTX_BOARD_DIR}/scripts/ld.script")
+endif()

@@ -3,21 +3,19 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Linker script for the Beken BK7258 (T5-AI, Cortex-M33) Stage A1 image.
+ * Linker script for the Beken BK7258 (T5-AI, Cortex-M33) CPU0/CP image.
  *
- * Memory map (reverse-engineered on board; the app partition size follows
- * the armino SDK partition table for BK7258):
+ * Stage N7 splits flash and SRAM between two independent NuttX images while
+ * preserving the board-verified LittleFS partition:
  *
- *   FLASH : 0x02010000 .. 0x020FFFFF  (1 MiB logical/XIP window)
- *           The on-flash primary_cp_app partition is 1360 KiB (see the
- *           armino BK7258 partition CSVs), so a 1 MiB link window sits
- *           comfortably inside it.  (Stage N1 used a 64 KiB placeholder
- *           because the N1 image was tiny; the full NuttX kernel + NSH is
- *           ~70 KiB and would not fit in 64 KiB.)  The Tier-1 bootloader
- *           jumps the app Reset entry here after validating the BK7236
- *           magic.
- *   RAM   : 0x28000000 .. 0x2809FFFF  (640 KiB SRAM)
- *   MSP   : 0x2809FFFC  (top of usable SRAM, also stored in vector slot 0)
+ *   FLASH : 0x02010000 .. 0x020fffff  (CP logical offset 0x10000,
+ *                                      0x0f0000 bytes)
+ *   RAM   : 0x28000000 .. 0x2804ffff  (320 KiB CP-owned SRAM)
+ *   MSP   : 0x2804fffc
+ *
+ * Logical flash 0x00100000..0x001fffff remains the LittleFS data partition.
+ * The AP image starts at logical 0x00200000 / XIP 0x02200000.  AP RAM starts
+ * at 0x28050000 and the top 4 KiB page at 0x2809f000 is shared boot-state.
  *
  * The .vectors section (80 entries, 0x140 bytes from bk7258_vectors.c) is
  * KEEP-pinned first so that:
@@ -53,13 +51,13 @@ ENTRY(__start)
 
 MEMORY
 {
-    FLASH (rx)  : ORIGIN = 0x02010000, LENGTH = 0x100000
-    RAM   (rwx) : ORIGIN = 0x28000000, LENGTH = 0xA0000
+    FLASH (rx)  : ORIGIN = 0x02010000, LENGTH = 0x0f0000
+    RAM   (rwx) : ORIGIN = 0x28000000, LENGTH = 0x050000
 }
 
-/* Initial stack pointer (top of SRAM).  Also stored in vector slot 0. */
+/* Initial stack pointer (top of CP-owned SRAM). */
 
-_estack = 0x2809fffc;
+_estack = ORIGIN(RAM) + LENGTH(RAM) - 4;
 
 SECTIONS
 {
@@ -197,6 +195,12 @@ SECTIONS
     . = ALIGN(16);
     _sheap = ABSOLUTE(.);
     _eheap = ORIGIN(RAM) + LENGTH(RAM) - 4;
+
+    ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
+           ORIGIN(FLASH) + LENGTH(FLASH),
+           "ERROR: CP load image overlaps LittleFS at logical 0x00100000")
+    ASSERT(_eheap < 0x28050000,
+           "ERROR: CP RAM overlaps the AP RAM window")
 
     /* Stabs / debug sections -- discard nothing but keep them at VMA 0 so
      * they don't perturb the runtime image.

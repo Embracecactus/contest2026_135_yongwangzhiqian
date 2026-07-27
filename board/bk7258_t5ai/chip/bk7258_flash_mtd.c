@@ -28,6 +28,8 @@
 
 #include <nuttx/mtd/mtd.h>
 
+#include <arch/chip/bk7258_amp.h>
+
 #include "bk7258_flash_mtd.h"
 
 /* SDK API headers */
@@ -40,8 +42,8 @@
 
 /* Verified data partition layout (matches docs n5-flash-filesystem.md). */
 
-#define BK7258_DATA_PART_BASE       0x00100000u
-#define BK7258_DATA_PART_SIZE       0x00100000u
+#define BK7258_DATA_PART_BASE       BK7258_DATA_FLASH_OFFSET
+#define BK7258_DATA_PART_SIZE       BK7258_DATA_FLASH_SIZE
 
 #define BK7258_FLASH_BLOCK_SIZE     4096u
 #define BK7258_FLASH_ERASE_SIZE     4096u
