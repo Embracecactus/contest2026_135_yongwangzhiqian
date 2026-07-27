@@ -29,6 +29,8 @@
 #include <nuttx/config.h>
 #include <nuttx/init.h>
 
+#include <arch/chip/bk7258_amp.h>
+
 #include "arm_internal.h"
 
 #ifdef CONFIG_BK7258_CLOCK_320M
@@ -49,7 +51,7 @@
  * fetch exceptions from there.
  */
 
-#define BK7258_VTOR_VALUE        0x02010000u
+#define BK7258_VTOR_VALUE        BK7258_CP_FLASH_ADDR
 
 /* Heap base convention shared with mps_start.c / bk7258_allocateheap.c:
  * the IDLE thread stack sits at the top of .bss and is CONFIG_IDLETHREAD_

@@ -8,7 +8,7 @@ clean layers and adds three Tier-1 features:
 | Feature | What | Where |
 |---|---|---|
 | **I** UART1 boot logging | progress + diagnostics | `boot_main.c` |
-| **A** FAL partition table parse | locate `app`, derive logical addr | `boot_main.c` |
+| **A** FAL partition table parse | locate `cp_app`, derive logical addr | `boot_main.c` |
 | **J** Hardened jump epilogue | VTOR / dsb / isb / MSP / clear r0-r12 / bx | `start.S` |
 
 ## Files
@@ -31,7 +31,7 @@ FLASH logical base 0x02000000, logical slot 0x10000 (64 KiB)
   0x100..0x107  bl magic      "BK7236\x10\x00"  (bytes: 42 4B 37 32 33 36 10 00)
   0x108..0x1FF  vector table  (62 entries -> Reset_Handler)
   0x200..       Reset_Handler : verbatim init -> bl c_main -> hardened epilogue
-  0x4b8..       .rodata       : FAL partition table (2 entries x 64 B)
+  .rodata      FAL partition table (4 entries x 64 B; see bl.map for address)
 
 Physical image (bl_crc.bin): 32 B data + 2 B CRC16 per block -> 0x11000 bytes.
 Physical slot: 0x0 .. 0x11000 on flash.
@@ -41,12 +41,15 @@ Physical slot: 0x0 .. 0x11000 on flash.
 
 | name | flash_name | offset | len | logical addr |
 |---|---|---|---|---|
-| bootloader | beken_onchip_crc | 0x00000 | 0x10000 | 0x02000000 |
-| app | beken_onchip_crc | 0x10000 | 0x10000 | 0x02010000 |
+| bootloader | beken_onchip_crc | 0x000000 | 0x010000 | 0x02000000 |
+| cp_app | beken_onchip_crc | 0x010000 | 0x0f0000 | 0x02010000 |
+| data | beken_onchip_crc | 0x100000 | 0x100000 | 0x02100000 |
+| ap_app | beken_onchip_crc | 0x200000 | 0x200000 | 0x02200000 |
 
 magic_word `0x45503130` (`'E','P','1','0'`), matches the BK SDK
-`fal_partition.c` / `fal_def.h`. `c_main` scans the table by name, so moving
-it to a real flash partition later needs no code change here.
+`fal_partition.c` / `fal_def.h`. `c_main` scans `cp_app`; the other entries
+reserve the board-verified LittleFS data range and the independent CPU1/AP
+image slot.
 
 ## Build & pack
 
@@ -59,11 +62,11 @@ make verify     # nm + .rodata objdump sanity
 make clean
 ```
 
-Build output (verified):
-```
-text  data  bss
-1353     0    0    bl.elf
+`make verify` reports the current `bl.elf` size/map; do not reuse historical
+text-size numbers after changing the clock/WDT/FAL implementation. Stable
+packer invariants are:
 
+```
 packer:
   logical_size: 0x10000      physical_size: 0x11000
   sp: 0x2809f700             reset: 0x2000201   (Reset_Handler | 1, Thumb)
@@ -83,16 +86,21 @@ logical `0x02010000`:
 # bl-only flash into the physical bootloader slot [0x0, 0x11000)
 <tool> --mainBin-multi board/bk7258_t5ai/bootloader/bl_crc.bin@0x0-0x11000
 
-# optional bl + app combo (replace <app_crc.bin> with the CRC-packed app image)
+# normal CP + AP split update; take exact lengths from
+# nuttx/bk7258-dual/bk7258-dual-image.json
 <tool> --mainBin-multi \
     board/bk7258_t5ai/bootloader/bl_crc.bin@0x0-0x11000 \
-    <app_crc.bin>@0x11000-0x22000
+    <app_crc.bin>@0x11000-<cp_crc_length> \
+    <app1_crc.bin>@0x220000-<ap_crc_length>
 ```
 
 The bootloader physical region is exactly `0x11000` bytes
 (`(0x10000 / 32) * 34`); flashing outside `[0x0, 0x11000)` is wrong for the bl
-image. Do **not** run the commands in this repo — build/inspect only; flash on
-the board with your usual BK tooling.
+image. The CP segment starts at physical `0x11000`, the preserved LittleFS
+range starts at `0x110000`, and the AP segment starts at `0x220000`. Normal
+updates must remain sparse/multi-segment; `all-app-factory.bin` deliberately
+pads across and therefore erases LittleFS. Do **not** run the commands in this
+repo — build/inspect only; flash on the board with your usual BK tooling.
 
 ## Expected UART1 log
 

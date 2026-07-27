@@ -15,6 +15,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <arch/chip/bk7258_amp.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -29,10 +30,17 @@
  * scripts/ld.script).
  */
 
-#define BOARD_FLASH_ADDR  0x02010000u
-#define BOARD_FLASH_SIZE  0x00100000u
-#define BOARD_RAM_ADDR    0x28000000u
-#define BOARD_RAM_SIZE    0x000a0000u
+#ifdef CONFIG_BK7258_AP_CORE
+#  define BOARD_FLASH_ADDR  BK7258_AP_FLASH_ADDR
+#  define BOARD_FLASH_SIZE  BK7258_AP_FLASH_SIZE
+#  define BOARD_RAM_ADDR    BK7258_AP_RAM_BASE
+#  define BOARD_RAM_SIZE    BK7258_AP_RAM_SIZE
+#else
+#  define BOARD_FLASH_ADDR  BK7258_CP_FLASH_ADDR
+#  define BOARD_FLASH_SIZE  BK7258_CP_FLASH_SIZE
+#  define BOARD_RAM_ADDR    BK7258_CP_RAM_BASE
+#  define BOARD_RAM_SIZE    BK7258_CP_RAM_SIZE
+#endif
 
 /* UART1 (console) MMIO base and register offsets.  The console driver in
  * chip/bk7258_serial.c hardcodes these too; they are repeated here for any

@@ -42,7 +42,7 @@
  * Layout (80 entries, 0x140 bytes total; the .vectors section is pinned
  * at flash origin 0x02010000 by scripts/ld.script):
  *
- *   [0]      0x2809FFFC   initial MSP (top of 0x28000000..0x2809FFFF SRAM)
+ *   [0]      0x2804FFFC   initial MSP (top of 0x28000000..0x2809FFFF SRAM)
  *   [1]      __start      Reset entry (Thumb; toolchain sets bit0)
  *   [2..3]   bk7258_hardfault_handler (temporary diagnostic)
  *   [4..63]  exception_common (remaining exceptions, SysTick, lower external IRQs)
@@ -64,6 +64,8 @@
 
 #include <nuttx/config.h>
 
+#include <arch/chip/bk7258_amp.h>
+
 #include "chip.h"
 #include "arm_internal.h"
 #include "ram_vectors.h"
@@ -78,7 +80,7 @@
  * loads into MSP from slot [0] before jumping to slot [1].
  */
 
-#define BK7258_INITIAL_MSP              0x2809fffcu
+#define BK7258_INITIAL_MSP              BK7258_CP_INITIAL_MSP
 
 /* App magic, little-endian.  'B''K''7''2' | '3''6''\0''\0'.
  * Verified against board/bootloader behaviour; see probe.c.

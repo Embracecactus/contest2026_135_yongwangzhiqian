@@ -28,6 +28,10 @@
 #include <debug.h>
 #include <nuttx/board.h>
 
+#ifdef CONFIG_BK7258_AP_CONTROL
+#include <arch/chip/bk7258_amp.h>
+#endif
+
 #ifdef CONFIG_BK7258_FLASH_MTD
 #include <nuttx/mtd/mtd.h>
 #include "bk7258_flash_mtd.h"
@@ -147,6 +151,26 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
 
 int board_app_initialize(uintptr_t arg)
 {
+#ifdef CONFIG_BK7258_AP_CONTROL
+  int apret;
+
+  apret = bk7258_ap_control_initialize();
+  if (apret < 0)
+    {
+      _err("bk7258: AP control init failed: %d\n", apret);
+    }
+#ifdef CONFIG_BK7258_AP_AUTOSTART
+  else
+    {
+      apret = bk7258_ap_start(BK7258_AP_DEFAULT_TIMEOUT_MS);
+      if (apret < 0)
+        {
+          _err("bk7258: AP autostart failed: %d\n", apret);
+        }
+    }
+#endif
+#endif
+
 #ifdef CONFIG_BK7258_WDT
   (void)bk7258_wdt_initialize();
 #endif
@@ -165,7 +189,9 @@ int board_app_initialize(uintptr_t arg)
    * CONFIG_FS_PROCFS provides the filesystem.
    */
 
+#if defined(CONFIG_FS_PROCFS) && defined(CONFIG_NSH_PROC_MOUNTPOINT)
   (void)mount(NULL, CONFIG_NSH_PROC_MOUNTPOINT, "procfs", 0, NULL);
+#endif
 
 #ifdef CONFIG_BK7258_FLASH_MTD
   /* Create the MTD instance for the 1 MiB data partition.  When LittleFS is

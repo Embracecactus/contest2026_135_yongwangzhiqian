@@ -10,16 +10,28 @@
 ############################################################################
 
 # Sources mirror chip/Make.defs CHIP_CSRCS.
-set(SRCS
-    bk7258_vectors.c
-    bk7258_start.c
-    bk7258_lowputc.c
-    bk7258_serial.c
-    bk7258_irq.c
-    bk7258_timerisr.c
-    bk7258_allocateheap.c
-    bk7258_os_adapt.c
-)
+if(CONFIG_BK7258_AP_CORE)
+  set(SRCS
+      bk7258_ap_vectors.c
+      bk7258_ap_start.c
+      bk7258_lowputc.c
+      bk7258_serial.c
+      bk7258_irq.c
+      bk7258_timerisr.c
+      bk7258_allocateheap.c
+      bk7258_ap_main.c)
+else()
+  set(SRCS
+      bk7258_vectors.c
+      bk7258_start.c
+      bk7258_lowputc.c
+      bk7258_serial.c
+      bk7258_irq.c
+      bk7258_timerisr.c
+      bk7258_allocateheap.c
+      bk7258_os_adapt.c
+      bk7258_sdk_stubs.c)
+endif()
 
 # NOTE: The common armv8-m CMake path still adds arm_vectors.c.  When this
 # chip is built under CMake, that file would collide with bk7258_vectors.c
@@ -29,6 +41,10 @@ set(SRCS
 # Conditional sources mirroring chip/Make.defs (the Make backend is the one
 # actually exercised; kept in sync here so a future CMake switch does not pull
 # an inconsistent source set).
+
+if(CONFIG_BK7258_AP_CONTROL)
+  list(APPEND SRCS bk7258_ap_control.c)
+endif()
 
 if(CONFIG_BK7258_CLOCK_320M)
   list(APPEND SRCS bk7258_clock.c)
