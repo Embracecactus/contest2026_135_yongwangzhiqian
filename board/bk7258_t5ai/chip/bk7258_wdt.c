@@ -26,7 +26,6 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/timers/watchdog.h>
-#include <nuttx/wdog.h>
 
 #include "bk7258_wdt.h"
 
@@ -65,7 +64,6 @@ static int bk7258_wdt_getstatus(struct watchdog_lowerhalf_s *lower,
                                 struct watchdog_status_s *status);
 static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
                                  uint32_t timeout);
-static void bk7258_wdt_tick_probe(wdparm_t arg);
 
 /****************************************************************************
  * Private Data
@@ -81,17 +79,10 @@ static const struct watchdog_ops_s g_bk7258_wdt_ops =
 };
 
 static struct bk7258_wdt_lowerhalf_s g_bk7258_wdt;
-static struct wdog_s g_bk7258_wdt_probe;
 
 /****************************************************************************
  * Private: lower-half operations
  ****************************************************************************/
-
-static void bk7258_wdt_tick_probe(wdparm_t arg)
-{
-  (void)arg;
-  up_putc('T');
-}
 
 static int bk7258_wdt_start(struct watchdog_lowerhalf_s *lower)
 {
@@ -124,14 +115,6 @@ static int bk7258_wdt_stop(struct watchdog_lowerhalf_s *lower)
 
 static int bk7258_wdt_keepalive(struct watchdog_lowerhalf_s *lower)
 {
-  static int marker_printed;
-
-  if (marker_printed == 0)
-    {
-      marker_printed = 1;
-      up_putc('K');
-    }
-
   return (bk_wdt_feed() == BK_OK) ? OK : -EIO;
 }
 
@@ -210,7 +193,6 @@ int bk7258_wdt_initialize(void)
   static bool s_inited;
   struct bk7258_wdt_lowerhalf_s *priv = &g_bk7258_wdt;
   void *handle;
-  int ret;
 
   if (s_inited)
     {
@@ -240,7 +222,6 @@ int bk7258_wdt_initialize(void)
   priv->timeout    = BK7258_WDT_DEFAULT_TIMEOUT_MS;
   priv->started    = false;
 
-  up_putc('A');
   handle = watchdog_register("/dev/watchdog0",
                              (struct watchdog_lowerhalf_s *)priv);
   if (handle == NULL)
@@ -248,12 +229,6 @@ int bk7258_wdt_initialize(void)
       wderr("ERROR: watchdog_register failed\n");
       return -ENOMEM;
     }
-
-  up_putc('B');
-
-  ret = wd_start(&g_bk7258_wdt_probe, 1,
-                 bk7258_wdt_tick_probe, 0);
-  up_putc(ret == OK ? 'W' : 'E');
 
   wdinfo("BK7258 WDT registered, default timeout=%" PRIu32 " ms\n",
          priv->timeout);

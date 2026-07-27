@@ -249,22 +249,6 @@ void bk7258_hardfault_handler(void)
     }
 }
 
-/* DIAGNOSTIC SysTick probe (temporary).  Wired into slot [15] INSTEAD of
- * exception_direct so we can tell whether the SysTick exception ENTRY itself
- * works on this board.  Prints 's', disables the SysTick interrupt (clears
- * SYST_CSR.TICKINT so it does not re-fire), and returns normally (a plain
- * exception return).  If 's' shows on UART1, the CPU entered the handler =>
- * exception entry/return are fine and the real hang is inside NuttX's
- * dispatch (exception_direct -> arm_doirq -> systick_interrupt) or the
- * PendSV context switch.  If 's' does NOT appear, exception ENTRY is broken
- * (vector fetch / VTOR / stack / fault on entry).  Pure diagnostic; revert.
- */
-void bk7258_systick_probe(void)
-{
-  bk7258_fault_putc('s');
-  *(volatile unsigned int *)0xE000E010u &= ~(1u << 1);  /* SYST_CSR.TICKINT off */
-}
-
 /****************************************************************************
  * Public Data
  ****************************************************************************/
