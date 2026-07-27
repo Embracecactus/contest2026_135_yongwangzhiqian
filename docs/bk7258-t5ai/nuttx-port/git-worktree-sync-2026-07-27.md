@@ -58,8 +58,8 @@ manifest 创建的 app、QuickApp 和 board 链接均解析到主检出目录：
 - [x] 识别功能增量的 AP 前置依赖：旧提交 `38699e8`
 - [x] 迁移 AP 前置提交并保留 clean 分支已有 GPIO/N6 状态：`a0271af`
 - [x] 迁移功能增量 `6b2d98c`：clean 提交 `b07f949`
-- [ ] 将 clean 分支迁回主检出目录
-- [ ] 从工作区根目录验证构建
+- [x] 移除 secondary worktree，将 `bk7258-n6-sdk-irq-bridge-clean` 迁回主检出目录
+- [x] 从主检出目录完成 CP → AP → CP restore 构建，exit 0
 - [ ] 推送 PR 分支（PR 由用户创建）
 
 ### 冲突处理结果
@@ -70,3 +70,26 @@ manifest 创建的 app、QuickApp 和 board 链接均解析到主检出目录：
 2. 迁移 `38699e8`，合并 AP 控制与 clean 分支已有 GPIO app/build 配置，并保留更新后的 N6 历史证据；
 3. 再次迁移 `6b2d98c`，自动合并成功；
 4. `git diff --check` 与 `git fsck --no-dangling` 均通过，两个 worktree 均为 clean。
+
+### 主检出目录与构建结果
+
+secondary worktree 已在其内容全部提交后移除。当前唯一 worktree 为：
+
+```text
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian
+branch: bk7258-n6-sdk-irq-bridge-clean
+```
+
+manifest linkfile 因路径不变而自动使用 clean 分支内容。完整构建命令
+`board/bk7258_t5ai/scripts/build_dual_image.sh` exit 0，日志为
+`/tmp/bk7258-dual-build-sync-2026-07-27.log`。构建完成 bootloader → CP → AP → CP restore，
+并通过 root/manifest consistency gate。CP map 只使用 CP SDK 路径，AP map 只使用 AP SDK
+路径。最终 root CP-only `all-app.bin` 为 252348 B；normal update segments 为：
+
+```text
+bl_crc.bin@0x0-0x11000
+app_crc.bin@0x11000-0x2c9bc
+app1_crc.bin@0x220000-0x10b16
+```
+
+未执行烧录或板测，状态仅为 `build-verified`。

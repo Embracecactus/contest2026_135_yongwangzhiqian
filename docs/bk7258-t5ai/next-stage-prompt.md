@@ -16,12 +16,12 @@
 
 ## 当前 handoff
 
-> **最新覆盖状态（2026-07-27）：**Stage N7 focused review 确认的 AP SysTick config 缺失与 timeout stale-state 两个 blocker 均已修复；后续 packaging review 发现 root first-CP/final-CP artifact 混用 hazard，builder 已改为以 final restored CP 为唯一 snapshot，并增加 root/manifest/all-app fail-closed consistency gates。`/tmp/bk7258-dual-build-final-v3.log` 记录 CP→AP→CP rebuild exit 0，修复后复审无新 source-level blocker。当前只允许表述为 `build-verified`；尚未烧录 `app1`，CPU1 实际取指、AP_READY、VTOR/MSP/clock/SysTick/heap、CP NSH/Flash/GPIO 回归和重复启停均待板测。`CONFIG_BK7258_AP_AUTOSTART` 保持关闭。
+> **最新覆盖状态（2026-07-27）：**clean PR 分支已 rebase 到最新 `origin/dev-ai-contest-2026`，补入 CPU1 AP 前置实现并完成 CP/AP SDK role 静态库集成。`/tmp/bk7258-dual-build-sync-2026-07-27.log` 记录 CP→AP→CP restore exit 0，root/manifest consistency gate 与 CP/AP SDK path isolation 均通过。当前 CP 配置为 `CONFIG_BK7258_AP_CONTROL=y`、`CONFIG_BK7258_AP_AUTOSTART=y`。本轮没有烧录；CPU1 实际取指、AP_READY、VTOR/MSP/clock/SysTick/heap、CPU0 NSH/Flash/GPIO 回归和重复启停仍待板测，因此只能表述为 `build-verified`。
 
-- **Current Stage：N7 — physical CPU1 independent single-core AP NuttX**
-- **Current worklog：**[`nuttx-port/n7-ap-singlecore-bringup.md`](nuttx-port/n7-ap-singlecore-bringup.md)
-- **Current artifacts：**`/home/lijian/project/open-vela/nuttx/bk7258-dual/`；normal segments 为 `bl_crc.bin@0x0-0x11000`、`app_crc.bin@0x11000-0x2a4f2`、`app1_crc.bin@0x220000-0xc292`。禁止把 `all-app-factory.bin` 当成保留 LittleFS 的更新包。
-- **Next gate：**用户后续按 manifest 分段烧录并用 `apctl start/status/stop/restart/cycle` 验证 CPU1 和 CPU0 回归；验证后开始 AP wrapper 实现。wrapper 阶段不调用 skills、不使用 subagent；在 wrapper 收口前不进入 CPU2/AP SMP/RPTUN/Wi-Fi/BLE。
+- **Current Stage：N7 — physical CPU1 independent single-core AP NuttX + AP SDK static-library integration**
+- **Current worklog：**[`nuttx-port/n7-ap-singlecore-bringup.md`](nuttx-port/n7-ap-singlecore-bringup.md)；SDK 导入说明：[`nuttx-port/sdk-static-library-import.md`](nuttx-port/sdk-static-library-import.md)
+- **Current artifacts：**`/home/lijian/project/open-vela/nuttx/bk7258-dual/`；normal segments 为 `bl_crc.bin@0x0-0x11000`、`app_crc.bin@0x11000-0x2c9bc`、`app1_crc.bin@0x220000-0x10b16`。禁止把 `all-app-factory.bin` 当成保留 LittleFS 的更新包。
+- **Next gate：**由于 `AP_AUTOSTART=y`，板测必须把 boot/CP/AP 三个 segment 成套烧入，再验证自动启动后的 `apctl status/stop/restart/cycle` 和 CPU0 回归；验证后继续 AP wrapper 收口。在 wrapper 收口前不进入 CPU2/AP SMP/RPTUN/Wi-Fi/BLE。
 
 ### 历史 N6 handoff（保留证据，非 CURRENT）
 

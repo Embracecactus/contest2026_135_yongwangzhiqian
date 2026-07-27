@@ -260,3 +260,50 @@ NuttX -> team-owned AP wrapper -> AP SDK/HAL libraries -> BK7258 hardware
 除 linker、vector table、reset entry 等启动前必须直接实现的部分外，AP clock、mailbox、core
 identity、IRQ/timer 和后续服务应通过 wrapper 隔离。用户明确要求 wrapper 实现阶段不调用
 skills，也不使用任何 subagent；由主模型直接完成分析、实现和验证。
+
+## 11. clean PR 分支同步与 AP SDK 静态库集成
+
+日期：2026-07-27
+
+状态：`build-verified`（未板测）
+
+本节覆盖 §9.4 和 §10 中“AP 不链接 SDK libraries”及“`AP_AUTOSTART` 关闭”的旧状态。同步后的
+PR 分支先迁移 CPU1 AP 前置实现，再加入按 CP/AP role 分离的 SDK headers、config 和静态库：
+
+- AP 前置提交：`a0271af`（由旧分支 `38699e8` 迁移并与现有 GPIO/N6 状态合并）；
+- SDK role 增量：`b07f949`（由旧分支 `6b2d98c` 迁移）；
+- CP 使用 `bk_idk/armino_as_lib/cp/`，AP 使用 `bk_idk/armino_as_lib/ap/`；
+- AP 仍由 NuttX 持有 reset entry、调度、堆和同步语义，只链接选定的 AP driver/HAL/PM/common
+  archives；这不是最终 AP wrapper 收口；
+- 当前 CP defconfig 为 `CONFIG_BK7258_AP_CONTROL=y`、`CONFIG_BK7258_AP_AUTOSTART=y`。
+
+完整构建命令：
+
+```text
+board/bk7258_t5ai/scripts/build_dual_image.sh
+```
+
+构建 exit 0，日志：`/tmp/bk7258-dual-build-sync-2026-07-27.log`。CP → AP → CP restore 和
+root/manifest artifact consistency gates 全部通过。最终角色隔离检查：CP map 只引用
+`armino_as_lib/cp`，AP map 只引用 `armino_as_lib/ap`，没有跨角色 SDK 路径。
+
+| 文件 | bytes | SHA-256 |
+|---|---:|---|
+| `app.bin` | `171956` | `ab36a3b388898fb674eed78f1bcf51a14150ad7423b311fe7d9c62cd71838b29` |
+| `app_crc.bin` | `182716` | `21d64c7f9a21d367606ab3fd2176c3f9183e71c2b6009820320dbd4be0dbdce0` |
+| `app1.bin` | `64346` | `73d4842ca28a5822326d87b50a7d857962bda73b8a7618cbba04334bfc20da58` |
+| `app1_crc.bin` | `68374` | `aa45d0bc54f478f512fa25274f7dbce8e5a30a5c01c7666841d279e8fd0af7ba` |
+| root CP-only `all-app.bin` | `252348` | `28de7c4a826493b6a6bf5f4d272e799784e0bc229147b73d03078e1fadc80d46` |
+| `all-app-factory.bin` | `2296598` | `9b2ae317fc7a77349a2306f5cfae36e3981d671a93fc508168f511fd8a73c1c6` |
+
+normal split-update arguments：
+
+```text
+bl_crc.bin@0x0-0x11000
+app_crc.bin@0x11000-0x2c9bc
+app1_crc.bin@0x220000-0x10b16
+```
+
+本轮没有烧录或板测。由于 `AP_AUTOSTART=y`，板测时必须确保 CP 与 AP segment 成套烧入；仍需
+验证 CPU0 基线、CPU1 READY/runtime 状态以及 stop/restart/cycle。上述结果只能称为
+`build-verified`，不得称为 `board-verified`。
