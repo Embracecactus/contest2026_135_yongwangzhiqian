@@ -50,10 +50,22 @@ manifest 创建的 app、QuickApp 和 board 链接均解析到主检出目录：
 ## 执行记录
 
 - [x] 同步方案写入项目文档和持久记忆
-- [ ] 保存旧分支当前增量提交
-- [ ] 建立同步前 backup 分支
-- [ ] 更新 clean 分支上游基线
-- [ ] cherry-pick 增量提交
+- [x] 保存旧分支当前增量提交：`0a7574f`（同步文档）、`6b2d98c`（SDK IRQ/library integration）
+- [x] 建立同步前 backup 分支：`backup/bk7258-n6-sdk-irq-bridge-20260727` → `6b2d98c`
+- [x] 将 `app/hello_app/.built` 单独保存到 stash，未删除、未提交
+- [x] 获取最新上游并将 clean 分支 rebase 到 `origin/dev-ai-contest-2026`
+- [x] 同步文档提交到 clean 分支：`0f4a025`
+- [ ] 同步功能增量 `6b2d98c`：发生代码/配置冲突，按“不探索代码”门禁停止
 - [ ] 将 clean 分支迁回主检出目录
 - [ ] 从工作区根目录验证构建
 - [ ] 推送 PR 分支（PR 由用户创建）
+
+### 当前阻塞
+
+`6b2d98c` 在以下文件产生冲突：
+
+- `board/bk7258_t5ai/chip/Make.defs`
+- `board/bk7258_t5ai/configs/nsh/defconfig`
+- `board/bk7258_t5ai/scripts/Make.defs`
+
+未读取冲突内容，也未使用 `ours`/`theirs` 自动覆盖。冲突 cherry-pick 已撤销，clean worktree 恢复为干净状态；功能增量仍完整保存在旧分支和 backup 分支。完成冲突决策前，不移除 worktree、不切换主检出目录、不构建、不推送。
