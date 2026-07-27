@@ -149,3 +149,29 @@ uint32_t get_reboot_tag(void)
 {
   return 0;
 }
+
+/*****************************************************************************
+ * Builtin command stubs (referenced by apps/builtin/builtin_list.h)
+ *
+ * The prebuilt builtin registry lists "apctl" and "bkirqtest" commands, but
+ * neither has a usable implementation in this tree:
+ *   - apctl's source (hello_app/bk7258_apctl_main.c) exposes a plain main(),
+ *     not the apctl_main() the builtin table expects;
+ *   - bkirqtest has no source at all.
+ * Stub both so the builtin table links.  They are irrelevant to the CP
+ * console bring-up and simply return 0 when invoked from NSH.
+ ****************************************************************************/
+
+int apctl_main(int argc, char *argv[])
+{
+  (void)argc;
+  (void)argv;
+  return 0;
+}
+
+int bkirqtest_main(int argc, char *argv[])
+{
+  (void)argc;
+  (void)argv;
+  return 0;
+}
