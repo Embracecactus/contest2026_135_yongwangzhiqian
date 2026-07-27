@@ -57,9 +57,10 @@ struct fal_partition {
 
 __attribute__((used))
 const struct fal_partition fal_partition_table[] = {
-    { FAL_PART_MAGIC, "bootloader", "beken_onchip_crc", 0x00000L, 0x10000L,  0u },
-    { FAL_PART_MAGIC, "cp_app",     "beken_onchip_crc", 0x10000L, 0x158000L, 0u },
-    { FAL_PART_MAGIC, "ap_app",     "beken_onchip_crc", 0x168000L, 0x124000L, 0u },
+    { FAL_PART_MAGIC, "bootloader", "beken_onchip_crc", 0x000000L, 0x010000L, 0u },
+    { FAL_PART_MAGIC, "cp_app",     "beken_onchip_crc", 0x010000L, 0x0f0000L, 0u },
+    { FAL_PART_MAGIC, "data",       "beken_onchip_crc", 0x100000L, 0x100000L, 0u },
+    { FAL_PART_MAGIC, "ap_app",     "beken_onchip_crc", 0x200000L, 0x200000L, 0u },
 };
 #define FAL_PART_COUNT  (sizeof(fal_partition_table) / sizeof(fal_partition_table[0]))
 
@@ -149,8 +150,8 @@ static int validate_app(uint32_t app_vec)
     uint32_t msp  = vec[0];
     uint32_t rst  = vec[1];
 
-    /* MSP must land in SRAM [0x28000000 .. 0x280A0000]. */
-    if (msp < 0x28000000u || msp > 0x280A0000u) {
+    /* CP MSP must land in the CPU0-owned SRAM window. */
+    if (msp < 0x28000000u || msp >= 0x28050000u) {
         uart_puts("BAD\r\nmsp OOR\r\n");
         return 0;
     }

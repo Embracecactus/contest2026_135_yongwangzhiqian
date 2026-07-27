@@ -32,15 +32,47 @@ config ARCH_CHIP_BK7258
 		jumps to at logical flash address 0x02010000 after validating
 		the app magic "BK7236\0\0" at image offset 0x100.
 
-		The chip provides its own Cortex-M vector table (selected via
-		ARCH_HAVE_CUSTOM_VECTORS) so that the BK7236 app magic can be
-		placed at vector slot 64/65 (image offset 0x100), exactly where
-		the bootloader looks for it.
+		The chip provides its own Cortex-M vector table.  The CPU0/CP image
+		keeps the BK7236 boot magic at vector slots 64/65; the optional
+		CPU1/AP image uses a normal 80-entry __vector_core0_table.
+
+config BK7258_AP_CORE
+	bool "Build the physical CPU1 single-core AP NuttX image"
+	default n
+	depends on ARCH_CHIP_BK7258
+	select TIMER
+	select TIMER_ARCH
+	select ARMV8M_SYSTICK
+	---help---
+		Build an independent CONFIG_SMP=n NuttX image for physical CPU1.
+		Within the AP image this is logical core 0 and the vector anchor is
+		__vector_core0_table.  This role excludes CP SDK peripherals,
+		LittleFS, watchdog ownership, DVFS control, CPU2 and RPTUN.
+
+config BK7258_AP_CONTROL
+	bool "CPU0 control for the CPU1 AP NuttX image"
+	default n
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Add the CPU0 start/stop/restart wrapper and the manual apctl NSH
+		command.  The first-stage protocol uses a reserved shared SRAM page
+		and polled raw MBOX0/MBOX1 doorbells; it does not enable RPTUN.
+
+config BK7258_AP_AUTOSTART
+	bool "Start CPU1 AP during board bring-up"
+	default n
+	depends on BK7258_AP_CONTROL
+	---help---
+		Automatically start CPU1 after CPU0 board services initialize.
+		Keep this disabled until the dual image has been flashed and the
+		manual apctl start/status path is board-verified.
 
 config BK7258_FLASH_MTD
 	bool "BK7258 on-chip flash data-partition MTD"
 	default n
-	depends on ARCH_CHIP_BK7258
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	select MTD
 	---help---
 		Expose the 1 MiB data partition (logical 0x00100000..0x001FFFFF)
@@ -64,7 +96,7 @@ config BK7258_FLASH_LITTLEFS
 config BK7258_CLOCK_320M
 	bool "BK7258 deterministic 320 MHz CPU0 clock bring-up"
 	default n
-	depends on ARCH_CHIP_BK7258
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	select BK7258_DVFS
 	---help---
 		Deterministically bring the CPU0 core clock to the 320 MHz tier
@@ -87,7 +119,7 @@ config BK7258_CLOCK_320M_PROBE
 config BK7258_DVFS
 	bool "BK7258 runtime CPU-frequency switching (DVFS lower half)"
 	default n
-	depends on ARCH_CHIP_BK7258
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	---help---
 		Provide bk7258_dvfs_set_freq(int tier) -- a standalone NuttX
 		overlay DVFS lower half that mirrors the Armino SDK runtime
@@ -117,7 +149,7 @@ config BK7258_DVFS_PROCFS
 config BK7258_WDT
 	bool "BK7258 APB watchdog (WDT) lower-half driver"
 	default y
-	depends on ARCH_CHIP_BK7258
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	select WATCHDOG
 	---help---
 		Register /dev/watchdog0 backed by the BK7258 APB hardware
@@ -131,7 +163,7 @@ config BK7258_WDT
 config BK7258_SDK_IRQ_BRIDGE
 	bool "Beken SDK CPU0 interrupt bridge"
 	default n
-	depends on ARCH_CHIP_BK7258
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	select ARCH_IRQPRIO
 	---help---
 		Route the Beken SDK interrupt registration APIs through the NuttX

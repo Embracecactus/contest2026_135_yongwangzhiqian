@@ -26,3 +26,10 @@ if(CONFIG_BK7258_GPIO_IRQ_TEST)
     SRCS bk7258_gpio_irq_test_main.c
     STACKSIZE 2048)
 endif()
+
+if(CONFIG_BK7258_AP_CONTROL)
+  nuttx_add_application(
+    NAME apctl
+    SRCS bk7258_apctl_main.c
+    STACKSIZE 2048)
+endif()

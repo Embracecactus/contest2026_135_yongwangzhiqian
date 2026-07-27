@@ -98,11 +98,11 @@
 #define NVIC_SYSH_PRIORITY_STEP         0x10
 
 /****************************************************************************
- * Stage is CPU0-only; reject NuttX SMP.
+ * N7 builds two independent UP kernels.  AP SMP/physical CPU2 is later.
  ****************************************************************************/
 
 #ifdef CONFIG_SMP
-#  error "A1 gate: BK7258 Stage is CPU0-only; CONFIG_SMP must not be set"
+#  error "N7 gate: CP and CPU1 AP images require CONFIG_SMP=n"
 #endif
 
 /****************************************************************************

@@ -1,0 +1,163 @@
+/****************************************************************************
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/ld_ap.script
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Linker script for the physical CPU1 / AP logical-core-0 NuttX image.
+ *
+ *   FLASH : 0x02200000 .. 0x023fffff  (logical offset 0x00200000)
+ *   RAM   : 0x28050000 .. 0x2809efff
+ *   SHARED: 0x2809f000 .. 0x2809ffff  (not linked into this image)
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+OUTPUT_ARCH("arm")
+EXTERN(_vectors)
+EXTERN(__vector_core0_table)
+EXTERN(bk7258_ap_main)
+ENTRY(__start)
+
+MEMORY
+{
+    FLASH (rx)  : ORIGIN = 0x02200000, LENGTH = 0x200000
+    RAM   (rwx) : ORIGIN = 0x28050000, LENGTH = 0x04f000
+}
+
+_estack = ORIGIN(RAM) + LENGTH(RAM) - 4;
+
+SECTIONS
+{
+    . = ORIGIN(FLASH);
+    .vectors : ALIGN(4)
+    {
+        KEEP(*(.vectors_core0))
+        KEEP(*(.vectors))
+        . = ALIGN(4);
+    } > FLASH
+
+    ASSERT(__vector_core0_table == ORIGIN(FLASH),
+           "ERROR: AP __vector_core0_table must be at 0x02200000")
+    ASSERT(_vectors == __vector_core0_table,
+           "ERROR: AP _vectors must alias __vector_core0_table")
+    ASSERT(SIZEOF(.vectors) == 0x140,
+           "ERROR: AP vector table must contain 80 entries")
+
+    .text : ALIGN(4)
+    {
+        _stext = ABSOLUTE(.);
+        *(.text .text.*)
+        *(.fixup)
+        *(.gnu.warning)
+        *(.rodata .rodata.*)
+        *(.gnu.linkonce.t.*)
+        *(.glue_7)
+        *(.glue_7t)
+        *(.gcc_except_table)
+        *(.gnu.linkonce.r.*)
+        . = ALIGN(4);
+        _etext = ABSOLUTE(.);
+    } > FLASH
+
+    .init_section : ALIGN(4)
+    {
+        _sinit = ABSOLUTE(.);
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*)
+               SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP(*(.init_array
+               EXCLUDE_FILE(*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o)
+               .ctors))
+        _einit = ABSOLUTE(.);
+    } > FLASH
+
+    .ARM.extab : ALIGN(4)
+    {
+        *(.ARM.extab*)
+    } > FLASH
+
+    .ARM.exidx : ALIGN(4)
+    {
+        __exidx_start = ABSOLUTE(.);
+        *(.ARM.exidx*)
+        __exidx_end = ABSOLUTE(.);
+    } > FLASH
+
+    .tdata : ALIGN(4)
+    {
+        _stdata = ABSOLUTE(.);
+        *(.tdata .tdata.* .gnu.linkonce.td.*);
+        _etdata = ABSOLUTE(.);
+    } > FLASH
+
+    .tbss : ALIGN(4)
+    {
+        _stbss = ABSOLUTE(.);
+        *(.tbss .tbss.* .gnu.linkonce.tb.* .tcommon);
+        _etbss = ABSOLUTE(.);
+    } > FLASH
+
+    _eronly = LOADADDR(.data);
+
+    .irq_stack : ALIGN(4)
+    {
+        g_intstackalloc = ABSOLUTE(.);
+        . += CONFIG_ARCH_INTERRUPTSTACK;
+        g_intstacktop = ABSOLUTE(.);
+    } > RAM
+
+    .ram_vectors (NOLOAD) : ALIGN(512)
+    {
+        _sram_vectors = ABSOLUTE(.);
+        KEEP(*(.ram_vectors))
+        . = ALIGN(4);
+        _eram_vectors = ABSOLUTE(.);
+    } > RAM
+
+    ASSERT((_sram_vectors & 0x1ff) == 0,
+           "ERROR: AP .ram_vectors must be 512-byte aligned")
+    ASSERT(_eram_vectors - _sram_vectors == 0x140,
+           "ERROR: AP .ram_vectors must contain 80 entries")
+
+    .data : ALIGN(4)
+    {
+        _sdata = ABSOLUTE(.);
+        *(.data .data.*)
+        *(.gnu.linkonce.d.*)
+        CONSTRUCTORS
+        . = ALIGN(4);
+        _edata = ABSOLUTE(.);
+    } > RAM AT > FLASH
+
+    .bss (NOLOAD) : ALIGN(4)
+    {
+        _sbss = ABSOLUTE(.);
+        *(.bss .bss.*)
+        *(.gnu.linkonce.b.*)
+        *(COMMON)
+        . = ALIGN(4);
+        _ebss = ABSOLUTE(.);
+    } > RAM
+
+    . = ALIGN(16);
+    _sheap = ABSOLUTE(.);
+    _eheap = ORIGIN(RAM) + LENGTH(RAM) - 4;
+
+    ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
+           ORIGIN(FLASH) + LENGTH(FLASH),
+           "ERROR: AP image exceeds the app1 flash partition")
+    ASSERT(_eheap < 0x2809f000,
+           "ERROR: AP RAM overlaps the shared boot-state page")
+
+    .stab              0 : { *(.stab) }
+    .stabstr           0 : { *(.stabstr) }
+    .stab.excl         0 : { *(.stab.excl) }
+    .stab.exclstr      0 : { *(.stab.exclstr) }
+    .stab.index        0 : { *(.stab.index) }
+    .stab.indexstr     0 : { *(.stab.indexstr) }
+    .comment           0 : { *(.comment) }
+    .debug_abbrev      0 : { *(.debug_abbrev) }
+    .debug_info        0 : { *(.debug_info) }
+    .debug_line        0 : { *(.debug_line) }
+    .debug_pubnames    0 : { *(.debug_pubnames) }
+    .debug_aranges     0 : { *(.debug_aranges) }
+}

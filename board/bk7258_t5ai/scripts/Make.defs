@@ -21,7 +21,13 @@ include $(TOPDIR)/arch/arm/src/armv8-m/Toolchain.defs
 # Linker script: FLASH @ 0x02010000, RAM @ 0x28000000, vector table KEEP-
 # pinned at the flash origin so the BK7236 app magic lands at 0x100.
 
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)ld_ap.script
+BK7258_IMAGE_ROLE = ap
+else
 ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)ld.script
+BK7258_IMAGE_ROLE = cp
+endif
 
 # Standard NuttX ARM flag assembly.
 
@@ -52,6 +58,8 @@ LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
 # iperf, hmac, psa_mbedtls, and duplicate bluetooth controller variants
 # (only keep libbluetooth_controller.a, exclude *_ble_*, *_bt_*, *_dual_*).
 # Unresolved symbols from other libs are stubbed in bk7258_sdk_stubs.c.
+
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
 
 BK_SDK_LIBS_DIR := $(shell readlink -f $(BOARD_DIR)/bk_idk/armino_as_lib/cp/libs)
 
@@ -110,10 +118,12 @@ BK_EXCLUDE_PATHS := $(foreach lib,$(BK_EXCLUDE_LIBS),$(BK_SDK_LIBS_DIR)/$(lib))
 
 EXTRA_LIBS += $(filter-out $(BK_EXCLUDE_PATHS),$(wildcard $(BK_SDK_LIBS_DIR)/*.a))
 
+endif
+
 # POSTBUILD: once nuttx.bin exists, CRC-expand it and prepend the Tier-1
 # bootloader (bl_crc.bin) to produce all-app.bin, ready for flashing at
 # physical offset 0x0.  The script is idempotent and safe to re-run.
 
 define POSTBUILD
-	$(Q) $(BOARD_DIR)$(DELIM)scripts$(DELIM)postbuild.sh $(TOPDIR) $(BOARD_DIR)
+	$(Q) $(BOARD_DIR)$(DELIM)scripts$(DELIM)postbuild.sh $(TOPDIR) $(BOARD_DIR) $(BK7258_IMAGE_ROLE)
 endef

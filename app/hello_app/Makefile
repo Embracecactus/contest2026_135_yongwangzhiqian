@@ -32,6 +32,13 @@ STACKSIZE += 2048
 MAINSRC   += bk7258_gpio_irq_test_main.c
 endif
 
+ifeq ($(CONFIG_BK7258_AP_CONTROL),y)
+PROGNAME  += apctl
+PRIORITY  += SCHED_PRIORITY_DEFAULT
+STACKSIZE += 2048
+MAINSRC   += bk7258_apctl_main.c
+endif
+
 MODULE = y
 
 include $(APPDIR)/Application.mk
