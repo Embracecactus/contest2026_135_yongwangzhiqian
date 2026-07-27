@@ -59,7 +59,25 @@ LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
 # (only keep libbluetooth_controller.a, exclude *_ble_*, *_bt_*, *_dual_*).
 # Unresolved symbols from other libs are stubbed in bk7258_sdk_stubs.c.
 
-ifneq ($(CONFIG_BK7258_AP_CORE),y)
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+
+# The AP image links the AP-built peripheral archive only.  NuttX continues to
+# own startup, scheduling and interrupt dispatch; SDK RTOS/startup archives are
+# deliberately not linked.
+
+BK_SDK_LIBS_DIR := $(shell readlink -f $(BOARD_DIR)/bk_idk/armino_as_lib/ap/libs)
+EXTRA_LIBS += \
+  $(BK_SDK_LIBS_DIR)/libdriver.a \
+  $(BK_SDK_LIBS_DIR)/libbk7258_ap.a \
+  $(BK_SDK_LIBS_DIR)/libbk_pm.a \
+  $(BK_SDK_LIBS_DIR)/libbk_adapter.a \
+  $(BK_SDK_LIBS_DIR)/libbk_common.a \
+  $(BK_SDK_LIBS_DIR)/libcommon.a \
+  $(BK_SDK_LIBS_DIR)/libbk_log.a \
+  $(BK_SDK_LIBS_DIR)/libbk_event.a \
+  $(BK_SDK_LIBS_DIR)/libcm33.a
+
+else
 
 BK_SDK_LIBS_DIR := $(shell readlink -f $(BOARD_DIR)/bk_idk/armino_as_lib/cp/libs)
 

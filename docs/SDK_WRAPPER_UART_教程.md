@@ -3,6 +3,9 @@
 > 适用对象：嵌入式小白
 > 目标文件：`contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_serial.c`
 > 前置知识：你不用会寄存器、不用会 RTOS 内核，照着本教程一步步抄就能改完。
+>
+> AP/CP SDK 静态库的构建、UART 对象重编和项目导入流程见：
+> `docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md`。
 
 ---
 
