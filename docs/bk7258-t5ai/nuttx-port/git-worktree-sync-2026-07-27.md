@@ -60,7 +60,7 @@ manifest 创建的 app、QuickApp 和 board 链接均解析到主检出目录：
 - [x] 迁移功能增量 `6b2d98c`：clean 提交 `b07f949`
 - [x] 移除 secondary worktree，将 `bk7258-n6-sdk-irq-bridge-clean` 迁回主检出目录
 - [x] 从主检出目录完成 CP → AP → CP restore 构建，exit 0
-- [ ] 推送 PR 分支（PR 由用户创建）
+- [x] 使用精确 `--force-with-lease` 更新 fork PR 分支；PR 由用户创建
 
 ### 冲突处理结果
 
@@ -93,3 +93,9 @@ app1_crc.bin@0x220000-0x10b16
 ```
 
 未执行烧录或板测，状态仅为 `build-verified`。
+
+### 推送结果
+
+远端 clean 分支原 tip 为 `88e220f`。由于本地已 rebase，使用绑定该旧 tip 的精确
+`--force-with-lease` 推送成功，构建与文档提交 `bb33268` 已进入
+`fork/bk7258-n6-sdk-irq-bridge-clean`。没有创建 PR，PR 由用户完成。
