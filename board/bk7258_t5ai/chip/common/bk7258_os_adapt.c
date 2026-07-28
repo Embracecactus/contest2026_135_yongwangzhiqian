@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_os_adapt.c
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/common/bk7258_os_adapt.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -62,6 +62,7 @@
 #include <nuttx/sched.h>
 #include <nuttx/signal.h>
 #include <nuttx/arch.h>
+#include <nuttx/init.h>
 #include <nuttx/tls.h>
 
 #include "os/os.h"
@@ -135,6 +136,26 @@ struct mq_adpt_s
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+static void bk7258_os_delay_ms(uint32_t milliseconds)
+{
+  /* NuttX must never block the IDLE task.  SDK clock/UART setup can request
+   * delays from up_initialize(), before nx_bringup() has created any other
+   * runnable task.  Use an architecture busy wait until normal scheduling is
+   * active, and whenever this adapter is called from IDLE or interrupt context.
+   */
+
+  if (!OSINIT_IDLELOOP() ||
+      nxsched_getpid() == IDLE_PROCESS_ID ||
+      up_interrupt_context())
+    {
+      up_mdelay(milliseconds);
+    }
+  else
+    {
+      nxsig_usleep(milliseconds * 1000u);
+    }
+}
 
 static inline bk_err_t beken_errno_trans(int ret)
 {
@@ -387,7 +408,7 @@ void rtos_thread_sleep(uint32_t seconds)
 
 void rtos_thread_msleep(uint32_t milliseconds)
 {
-  nxsig_usleep(milliseconds * 1000);
+  bk7258_os_delay_ms(milliseconds);
 }
 
 bk_err_t rtos_print_thread_status(char *buffer, int length)
@@ -1392,7 +1413,7 @@ size_t os_strlcpy(char *dest, const char *src, size_t siz)
 
 bk_err_t rtos_delay_milliseconds(uint32_t num_ms)
 {
-  nxsig_usleep(num_ms * 1000);
+  bk7258_os_delay_ms(num_ms);
   return BK_OK;
 }
 
@@ -1421,7 +1442,7 @@ bool rtos_is_scheduler_suspended(void)
 
 bool rtos_is_scheduler_started(void)
 {
-  return true;
+  return OSINIT_IDLELOOP();
 }
 
 char *rtos_get_name(void)

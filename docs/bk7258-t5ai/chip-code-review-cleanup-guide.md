@@ -22,7 +22,7 @@
 | 词 | 通俗解释 | 在本文中的意义 |
 |---|---|---|
 | **Kconfig 门控** | 一个配置开关（`CONFIG_XXX=y/n`），决定某段代码是否参与编译 | 很多测试代码靠开关隔离，"关闭开关"比"删代码"更安全 |
-| **defconfig** | 板子的默认配置文件（`configs/nsh/defconfig`），决定构建时哪些开关是开的 | 改它 = 改默认行为，是清理工作的主要战场 |
+| **defconfig** | 板子的默认配置文件（`configs/cp_nsh/defconfig`），决定构建时哪些开关是开的 | 改它 = 改默认行为，是清理工作的主要战场 |
 | **死代码** | 存在但没有任何调用者的函数/变量，白白占 Flash | 可以安全删除，不影响任何功能 |
 
 ### 0.2 安全纪律（比任何单条建议都重要）
@@ -56,13 +56,13 @@
 
 ### A2. 关闭 defconfig 里的两个"验证后应关闭"的开关
 
-- **是什么**：`configs/nsh/defconfig` 里目前还开着：
+- **是什么**：`configs/cp_nsh/defconfig` 里目前还开着：
   - `CONFIG_BK7258_CLOCK_320M_PROBE=y` —— 每次开机在串口打印一行时钟寄存器十六进制转储
   - `CONFIG_BK7258_SDK_IRQ_TIMER_TEST=y` —— 一个手动 IRQ 桥测试命令
 - **为什么能关**：
   - Kconfig 帮助文本原文：`BK7258_CLOCK_320M_PROBE` 写明 "for one verification build. **Disable after board-verify**"；而 git log 里 `6b29ee8` 已记录 "N4 board-verified"。任务完成了，脚手架该拆。
   - `BK7258_SDK_IRQ_TIMER_TEST` 的 Kconfig 自述 "manual test... It never runs from board bring-up"，Stage B 验证（commit `c588afb`）早已完成。它还给固件带进一个 `bkirqtest` 命令和约 341 行测试代码。
-- **怎么做**：在 `configs/nsh/defconfig` 中把两行改成：
+- **怎么做**：在 `configs/cp_nsh/defconfig` 中把两行改成：
 
   ```text
   # CONFIG_BK7258_CLOCK_320M_PROBE is not set

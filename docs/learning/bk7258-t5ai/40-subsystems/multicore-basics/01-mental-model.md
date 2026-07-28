@@ -8,10 +8,10 @@
 > - `$CONTEST` source commit：`c588afbd8e0f1d30723f5076e585673a6ace8a4e`
 > - 实现 source：
 >   - `$BOARD/chip/include/bk7258_amp.h` — AMP 布局、mailbox、boot state
->   - `$BOARD/chip/bk7258_ap_control.c` — CPU0 侧控制逻辑
->   - `$BOARD/chip/bk7258_ap_start.c` — CPU1 复位入口
->   - `$BOARD/chip/bk7258_ap_main.c` — CPU1 NuttX 初始化
->   - `$BOARD/chip/bk7258_ap_vectors.c` — CPU1 专用向量表
+>   - `$BOARD/chip/cp/bk7258_ap_control.c` — CPU0 侧控制逻辑
+>   - `$BOARD/chip/ap/bk7258_ap_start.c` — CPU1 复位入口
+>   - `$BOARD/chip/ap/bk7258_ap_main.c` — CPU1 NuttX 初始化
+>   - `$BOARD/chip/ap/bk7258_ap_vectors.c` — CPU1 专用向量表
 > - 最后核对日期：2026-07-27
 > - 验证状态：Stage N7 build-verified（CPU0 `apctl` 命令、CPU1 独立单核镜像编译通过），未板测
 > - 教学简化：本文不展开 SMP（对称多处理）与 AMP（非对称多处理）的完整理论对比；不覆盖锁调度、cache coherency 细节

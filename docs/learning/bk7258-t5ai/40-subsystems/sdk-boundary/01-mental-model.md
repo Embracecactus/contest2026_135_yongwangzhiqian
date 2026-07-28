@@ -6,7 +6,7 @@
 >
 > - 教学主题：外部 SDK 与 NuttX RTOS 的边界管理模式
 > - `$CONTEST` source commit：`c588afbd8e0f1d30723f5076e585673a6ace8a4e`
-> - 实现 source：`$BOARD/chip/bk7258_sdk_irq.c` / `bk7258_sdk_irq.h`
+> - 实现 source：`$BOARD/chip/cp/bk7258_sdk_irq.c` / `bk7258_sdk_irq.h`
 > - 直接上游：BK7258 SDK（`bk_idk/` 下的预编译 archive）
 > - 最后核对日期：2026-07-27
 > - 验证状态：IRQ Bridge（Stage N6）build-verified；TIMER1/GPIO 通过 Bridge 通达 ISR

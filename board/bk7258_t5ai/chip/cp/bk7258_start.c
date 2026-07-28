@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_start.c
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/cp/bk7258_start.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -10,6 +10,7 @@
  *
  *     cpsid i
  *     VTOR <- 0x02010000  (our flash-resident vector table)
+ *     stop the bootloader AON watchdog
  *     CPACR/FPCCR FPU setup (CP10/CP11 full access, no lazy/auto stacking)
  *     .data  copy  _eronly -> _sdata.._edata
  *     .bss   zero  _sbss.._ebss
@@ -18,8 +19,9 @@
  *
  * Memory map (shared verbatim with docs/bk7258-t5ai/probe/probe.c):
  *   FLASH/logical app base : 0x02010000  (vector table, .text, .data LMA)
- *   RAM                     : 0x28000000 .. 0x2809FFFF (640 KiB SRAM)
- *   initial MSP (slot [0])  : 0x2809FFFC
+ *   CP RAM                  : 0x28000000 .. 0x2804FFFF (320 KiB SRAM)
+ *   reset/IDLE stack        : _ebss + CONFIG_IDLETHREAD_STACKSIZE (PSP)
+ *   interrupt stack top     : 0x28000800 (MSP)
  ****************************************************************************/
 
 /****************************************************************************
@@ -45,6 +47,15 @@
 
 #define BK7258_SCB_VTOR          (*(volatile unsigned int *)0xe000ed08u)
 #define BK7258_SCB_CPACR         (*(volatile unsigned int *)0xe000ed88u)
+
+/* The Tier-1 bootloader leaves the always-on watchdog running.  Stop it with
+ * the BK7258 two-key sequence before any SDK or NuttX initialization can
+ * fault or wait; board_app_initialize() is too late for early-boot failures.
+ */
+
+#define BK7258_AON_WDT_CTRL      (*(volatile unsigned int *)0x44000600u)
+#define BK7258_AON_WDT_KEY1      (0x5au << 16)
+#define BK7258_AON_WDT_KEY2      (0xa5u << 16)
 
 /* Our vector table lives at the very start of the app image, which the
  * bootloader maps at logical flash address 0x02010000.  Tell VTOR to
@@ -79,11 +90,10 @@ const uintptr_t g_idle_topstack = HEAP_BASE;
  * Name: __start
  *
  * Description:
- *   Cortex-M reset entry.  Reached from vector slot [1] after the
- *   bootloader validated the BK7236 magic at image offset 0x100 and jumped
- *   in.  The hardware has already loaded MSP from slot [0]; we run with
- *   interrupts whatever the bootloader left them at -- first instruction
- *   masks them.
+ *   Cortex-M C entry.  Reached from the slot [1] reset wrapper after it
+ *   preserves the slot [0] reset stack as PSP and installs the dedicated
+ *   interrupt MSP.  The bootloader has already validated the BK7236 magic at
+ *   image offset 0x100; the first C instruction masks interrupts.
  *
  ****************************************************************************/
 
@@ -106,7 +116,15 @@ void __start(void)
   BK7258_SCB_VTOR = BK7258_VTOR_VALUE;
   __asm volatile ("dsb; isb");
 
-  /* 3. FPU: clear FPCCR.ASPEN/LSPEN (disable lazy + automatic FP context
+  /* 3. Stop the bootloader AON watchdog immediately.  A later HardFault now
+   *    remains parked for inspection instead of resetting the whole SoC.
+   */
+
+  BK7258_AON_WDT_CTRL = BK7258_AON_WDT_KEY1;
+  BK7258_AON_WDT_CTRL = BK7258_AON_WDT_KEY2;
+  __asm volatile ("dsb sy" ::: "memory");
+
+  /* 4. FPU: clear FPCCR.ASPEN/LSPEN (disable lazy + automatic FP context
    *    stacking), then enable CP10/CP11.  The BootROM leaves LSPEN set; with
    *    CPACR enabled and LSPEN still set, the first exception (SysTick) hung
    *    inside the lazy-stacking protocol with no HardFault.  We cannot just
@@ -129,7 +147,7 @@ void __start(void)
   __asm volatile ("dsb; isb");
 
 #ifndef CONFIG_BUILD_PIC
-  /* 4. Copy the .data image from flash (LMA == _eronly) to its RAM VMA
+  /* 5. Copy the .data image from flash (LMA == _eronly) to its RAM VMA
    *    (_sdata.._edata).  The BK7258 boots with a copy of NuttX kernel +
    *    NSH, so .data is non-empty and this copy is mandatory.
    */
@@ -140,7 +158,7 @@ void __start(void)
       *dest++ = *src++;
     }
 
-  /* 5. Zero the .bss section (_sbss.._ebss). */
+  /* 6. Zero the .bss section (_sbss.._ebss). */
 
 #ifndef CONFIG_ARCH_SKIP_ZERO_BSS
   for (dest = (uint32_t *)_sbss; dest < (uint32_t *)_ebss; )
@@ -150,7 +168,7 @@ void __start(void)
 #endif
 #endif /* CONFIG_BUILD_PIC */
 
-  /* 6. Perform early serial initialisation so the console is available
+  /* 7. Perform early serial initialisation so the console is available
    *    during the rest of boot.  arm_earlyserialinit() is only compiled
    *    when USE_EARLYSERIALINIT is derived (CONFIG_DEV_CONSOLE + a serial
    *    console), matching mps_start.c.
@@ -172,7 +190,7 @@ void __start(void)
   bk7258_clock_bringup_320m();
 #endif
 
-  /* 7. Start NuttX.  nx_start() never returns; it brings up the scheduler,
+  /* 8. Start NuttX.  nx_start() never returns; it brings up the scheduler,
    *    SysTick (via up_timer_initialize), the init task (which runs
    *    board_app_initialize and spawns the NSH builtin), and finally the
    *    IDLE task.

@@ -108,7 +108,7 @@ Contains libdriver.a, libbk_system.a, libbk_pm.a, etc."
 ### Task 2: 创建 OS 适配层
 
 **Files:**
-- Create: `board/bk7258_t5ai/chip/bk7258_os_adapt.c`
+- Create: `board/bk7258_t5ai/chip/common/bk7258_os_adapt.c`
 
 **Interfaces:**
 - Produces: FreeRTOS API 的 NuttX 实现（`rtos_create_thread`、`os_malloc`、`GLOBAL_INT_DISABLE` 等），供 `libdriver.a` 链接时解析符号
@@ -125,11 +125,11 @@ wc -l /home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_os_adapt.c
 
 - [ ] **Step 2: 创建 bk7258_os_adapt.c 骨架**
 
-创建 `board/bk7258_t5ai/chip/bk7258_os_adapt.c`，包含以下核心函数：
+创建 `board/bk7258_t5ai/chip/common/bk7258_os_adapt.c`，包含以下核心函数：
 
 ```c
 /****************************************************************************
- * board/bk7258_t5ai/chip/bk7258_os_adapt.c
+ * board/bk7258_t5ai/chip/common/bk7258_os_adapt.c
  *
  * BK7258 NuttX OS adaptation layer.
  * Bridges SDK prebuilt library (libdriver.a) FreeRTOS API calls to NuttX.
@@ -255,7 +255,7 @@ void GLOBAL_INT_RESTORE(unsigned int flags)
 
 ```bash
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8 2>&1 | tail -30
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8 2>&1 | tail -30
 ```
 
 Expected: 编译通过（或只有少量未定义符号需要补桩）
@@ -263,7 +263,7 @@ Expected: 编译通过（或只有少量未定义符号需要补桩）
 - [ ] **Step 5: 提交**
 
 ```bash
-git add board/bk7258_t5ai/chip/bk7258_os_adapt.c
+git add board/bk7258_t5ai/chip/common/bk7258_os_adapt.c
 git commit -m "feat(bk7258): add OS adaptation layer for SDK prebuilt libraries
 
 FreeRTOS→NuttX shim: rtos_*→nxsem/nxmutex/kthread, os_malloc→kmm_malloc,
@@ -275,7 +275,7 @@ bk_get_tick→clock_systime_ticks, GLOBAL_INT_*→irqsave/irqrestore."
 ### Task 3: WDT 驱动转 SDK wrapper（修 AON 根因）
 
 **Files:**
-- Modify: `board/bk7258_t5ai/chip/bk7258_wdt.c`（完全重写）
+- Modify: `board/bk7258_t5ai/chip/cp/bk7258_wdt.c`（完全重写）
 - Modify: `board/bk7258_t5ai/src/bk7258_bringup.c:171-173`（WDT 调用时机）
 
 **Interfaces:**
@@ -285,16 +285,16 @@ bk_get_tick→clock_systime_ticks, GLOBAL_INT_*→irqsave/irqrestore."
 - [ ] **Step 1: 备份当前实现**
 
 ```bash
-cp board/bk7258_t5ai/chip/bk7258_wdt.c board/bk7258_t5ai/chip/bk7258_wdt.c.bak
+cp board/bk7258_t5ai/chip/cp/bk7258_wdt.c board/bk7258_t5ai/chip/cp/bk7258_wdt.c.bak
 ```
 
 - [ ] **Step 2: 重写 bk7258_wdt.c 为 SDK wrapper**
 
-完全替换 `board/bk7258_t5ai/chip/bk7258_wdt.c`，内容如下：
+完全替换 `board/bk7258_t5ai/chip/cp/bk7258_wdt.c`，内容如下：
 
 ```c
 /****************************************************************************
- * board/bk7258_t5ai/chip/bk7258_wdt.c
+ * board/bk7258_t5ai/chip/cp/bk7258_wdt.c
  *
  * BK7258 WDT NuttX lower-half driver — SDK wrapper.
  * Calls bk_wdt_* / bk_aon_wdt_* SDK APIs. Zero register access.
@@ -516,7 +516,7 @@ int bk7258_bringup(void)
 
 ```bash
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8 2>&1 | tail -30
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8 2>&1 | tail -30
 ```
 
 Expected: 编译通过（`bk_wdt_*` / `bk_aon_wdt_*` 符号从 `libdriver.a` 解析）
@@ -524,7 +524,7 @@ Expected: 编译通过（`bk_wdt_*` / `bk_aon_wdt_*` 符号从 `libdriver.a` 解
 - [ ] **Step 6: 提交**
 
 ```bash
-git add board/bk7258_t5ai/chip/bk7258_wdt.c board/bk7258_t5ai/src/bk7258_bringup.c
+git add board/bk7258_t5ai/chip/cp/bk7258_wdt.c board/bk7258_t5ai/src/bk7258_bringup.c
 git commit -m "fix(bk7258): rewrite WDT driver as SDK wrapper, fix AON reboot
 
 Root cause: bootloader arms both APB+AON WDTs, app only managed APB via
@@ -540,7 +540,7 @@ access replaced by SDK API calls (bk_wdt_*/bk_aon_wdt_*)."
 ### Task 4: Flash MTD 驱动转 SDK wrapper
 
 **Files:**
-- Modify: `board/bk7258_t5ai/chip/bk7258_flash_mtd.c`（完全重写）
+- Modify: `board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.c`（完全重写）
 
 **Interfaces:**
 - Consumes: `bk_flash_read_bytes()`, `bk_flash_write_bytes()`, `bk_flash_erase_sector()`, `bk_flash_set_protect_type()`, `bk_flash_driver_init()`（来自 `libdriver.a`）
@@ -549,7 +549,7 @@ access replaced by SDK API calls (bk_wdt_*/bk_aon_wdt_*)."
 - [ ] **Step 1: 备份当前实现**
 
 ```bash
-cp board/bk7258_t5ai/chip/bk7258_flash_mtd.c board/bk7258_t5ai/chip/bk7258_flash_mtd.c.bak
+cp board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.c board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.c.bak
 ```
 
 - [ ] **Step 2: 重写 bk7258_flash_mtd.c 为 SDK wrapper**
@@ -565,13 +565,13 @@ cp board/bk7258_t5ai/chip/bk7258_flash_mtd.c board/bk7258_t5ai/chip/bk7258_flash
 
 ```bash
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8 2>&1 | tail -30
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8 2>&1 | tail -30
 ```
 
 - [ ] **Step 4: 提交**
 
 ```bash
-git add board/bk7258_t5ai/chip/bk7258_flash_mtd.c
+git add board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.c
 git commit -m "refactor(bk7258): rewrite flash MTD driver as SDK wrapper
 
 Replace register-level flash controller access with SDK API calls:
@@ -642,7 +642,7 @@ config BK7258_WDT
 
 ```bash
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8 2>&1 | tail -30
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8 2>&1 | tail -30
 ```
 
 Expected: 编译通过，`EXTRA_LIBS` 链接成功
@@ -721,7 +721,7 @@ auto_partitions.csv layout. Bootloader jumps to cp_app (CPU0)."
 
 ```bash
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 Expected: `nuttx.bin` 生成成功

@@ -3,7 +3,7 @@
 > 板端验证日期：2026-07-18（substage `board-verified`：仅 N4-D0/D0D；N4-D1 及整 N4 尚未板端验证）
 > 基线 commit：`4d9198e`（Stage N3 code）→ D0/D0D feature commit：`6f596b7`（3 个 overlay 文件，只读诊断 + runtime SysTick 修正）
 > → D0F feature commit：`8dab594`（defconfig 移除 100ms override，生效默认 10ms/100Hz tick）
-> 改动范围：D0/D0D — `$CONTEST/board/bk7258_t5ai/chip/`（`bk7258_clockdiag.h` 新增、`bk7258_start.c` 接入、`bk7258_timerisr.c` runtime SysTick 选择）；D0F — `$CONTEST/board/bk7258_t5ai/configs/nsh/defconfig`
+> 改动范围：D0/D0D — `$CONTEST/board/bk7258_t5ai/chip/`（`chip/common/bk7258_clockdiag.h` 新增、`chip/cp/bk7258_start.c` 接入、`chip/common/bk7258_timerisr.c` runtime SysTick 选择）；D0F — `$CONTEST/board/bk7258_t5ai/configs/cp_nsh/defconfig`
 
 > 占位符：`$WORKSPACE`、`$CONTEST`、`$FW` 与 README / next-stage-prompt.md 一致。本 docs 提交 SHA
 > 不在本文内写出（见 [`../next-stage-prompt.md`](../next-stage-prompt.md) 命名与维护规则）。

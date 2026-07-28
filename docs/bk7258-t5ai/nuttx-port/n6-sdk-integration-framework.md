@@ -61,8 +61,9 @@ SDK 已解决的坑（见各 N2/N4/N5 记忆）。决定全面转 SDK 后，若�
 │ NuttX upper-half（drivers/timers/watchdog.c, mtd, serial…） │
 │   ↑ automonitor / VFS / ioctl 分发                          │
 ├─────────────────────────────────────────────────────────────┤
-│ NuttX lower-half wrapper（board/bk7258_t5ai/chip/bk7258_*）  │
-│   bk7258_wdt.c  bk7258_flash_mtd.c  bk7258_serial.c …       │
+│ NuttX lower-half wrapper（chip/common/ + chip/cp/）            │
+│   common/: serial, wdt, lowputc, os_adapt, sdk_stubs …        │
+│   cp/: flash_mtd, wdt, sdk_irq, gpio …                        │
 │   ↑ 薄转发：ops->start = bk_wdt_start(timeout) 等            │
 ├─────────────────────────────────────────────────────────────┤
 │ Beken SDK（board/bk7258_t5ai/sdk/，从 $BK_AVDK/cp 拷入）     │
@@ -77,7 +78,7 @@ SDK 已解决的坑（见各 N2/N4/N5 记忆）。决定全面转 SDK 后，若�
 ```
 
 **分层职责**：
-- **NuttX wrapper（chip/bk7258_*.c）**：只做 `struct *_ops_s` 契约 → `bk_*` API 转发，零寄存器操作
+- **NuttX wrapper（chip/common/ + chip/cp/）**：只做 `struct *_ops_s` 契约 → `bk_*` API 转发，零寄存器操作
 - **Beken SDK（sdk/）**：硬件实现，按模块增量拷入，宏隔离裁剪
 - **OS 适配层（sdk/os/）**：把 SDK 内部 FreeRTOS/OS 抽象重定向到 NuttX 原语
 
@@ -161,7 +162,7 @@ $CONTEST/board/bk7258_t5ai/
 │       │   ├── config/sdkconfig.h
 │       │   └── config/sdkconfig.h.properties
 │       └── include/             # SDK 全局头
-├── configs/nsh/defconfig
+├── configs/cp_nsh/defconfig
 ├── scripts/
 │   ├── Make.defs                # EXTRA_LIBS 链接 libs/*.a
 │   └── ld.script
@@ -458,7 +459,7 @@ SDK_INCLUDES = -I$(SDKDIR)/include \
 - 推荐 (i)（保留 SDK API 完整性，wrapper 仍薄转发）。实施时验证链接通过。
 - 复核确认点：`soc/bk7258/hal/wdt_ll.c` 是否空文件（LL 多为头内 static inline，.c 可能仅占位）
 
-## 8. NuttX wrapper 规范（`chip/bk7258_*.c`）
+## 8. NuttX wrapper 规范（`chip/common/` + `chip/cp/`）
 
 每个模块的 NuttX lower-half 遵循 `nuttx-driver-development` skill 对应 pattern
 （WDT→`wdg_pattern.md`，flash→mtd，serial→serial_pattern 等）：

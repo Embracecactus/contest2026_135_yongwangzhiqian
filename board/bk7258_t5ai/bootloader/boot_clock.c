@@ -14,7 +14,7 @@
  * core mux (M1) untouched, exactly as the vendor bootloader does.  The app
  * then drives bk7258_dvfs_set_freq() (mirroring the SDK runtime
  * sys_hal_switch_cpu_bus_freq path) to step up/down per chip operating
- * point.  See chip/bk7258_dvfs.{c,h}.
+ * point.  See chip/cp/bk7258_dvfs.{c,h}.
  *
  * Board chip_id = 0x23A40910 = PM_CHIP_ID_MP_C.  The SDK has no explicit
  * MP_C branch, so the default else-branch ANA_REG values apply
@@ -231,7 +231,7 @@ static int step4_latched_block(void)
      * app inherits before any runtime DVFS).  Per-chip frequency selection
      * (incl. VDDD/VDDIG lift to 0xD for the 320 M runtime tier) is done by the
      * app's bk7258_dvfs_set_freq() lower half, mirroring the SDK's
-     * sys_hal_switch_cpu_bus_freq() runtime path.  See chip/bk7258_dvfs.c. */
+     * sys_hal_switch_cpu_bus_freq() runtime path.  See chip/cp/bk7258_dvfs.c. */
 
     if (ana_write(ANA_REG9,  0x787BC8A4u) < 0) return -1;
     if (ana_write(ANA_REG10, 0xC3D543A7u) < 0) return -1;

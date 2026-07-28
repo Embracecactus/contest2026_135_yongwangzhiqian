@@ -28,7 +28,7 @@ hello
 
 键盘输入、字符回显、Enter 提交、命令解析全部 live。
 
-## 内核侧 bring-up 要点（`chip/bk7258_start.c`）
+## 内核侧 bring-up 要点（`chip/cp/bk7258_start.c`）
 
 `__start` 不再停在 N1，而是走完整 bring-up：
 
@@ -42,7 +42,7 @@ hello
 向量表（`bk7258_vectors.c`）：`slot[15..63] = exception_direct`（真实分派器）。调试期临时塞过的
 SysTick 探针，在异常入口被证明 OK 后还原成 `exception_direct`。NR_IRQS=48 覆盖 UART1 @ slot 31。
 
-## UART1 RX 输入：4 个叠加 bug（全在 `chip/bk7258_serial.c`）
+## UART1 RX 输入：4 个叠加 bug（全在 `chip/common/bk7258_serial.c`）
 
 NSH 提示符能打印（TX 路径 OK），但敲键没反应。逐层排查发现 4 个独立 bug 叠加，必须全修才能通。
 
@@ -111,19 +111,19 @@ NuttX 0.0.0 ... arm bk7258_t5ai
 
 代码 14 文件，全在 `$CONTEST/board/bk7258_t5ai/`：
 
-- `chip/bk7258_start.c`（`__start` 全 bring-up + FPCCR 清位）
-- `chip/bk7258_vectors.c`（slot[15..63] = exception_direct）
-- `chip/bk7258_serial.c`（新，console lower half + 4 RX bug 全修）
-- `chip/bk7258_lowputc.c`（新，polled `arm_lowputc`/`up_putc`）
-- `chip/bk7258_irq.c`（新，NVIC glue；删了局部 `#define BK7258_IRQ_FIRST`，改从 `irq.h` 取）
-- `chip/bk7258_timerisr.c`（新，SysTick 10 Hz）
-- `chip/bk7258_allocateheap.c`（新，`up_allocate_heap`）
+- `chip/cp/bk7258_start.c`（`__start` 全 bring-up + FPCCR 清位）
+- `chip/cp/bk7258_vectors.c`（slot[15..63] = exception_direct）
+- `chip/common/bk7258_serial.c`（新，console lower half + 4 RX bug 全修）
+- `chip/common/bk7258_lowputc.c`（新，polled `arm_lowputc`/`up_putc`）
+- `chip/common/bk7258_irq.c`（新，NVIC glue；删了局部 `#define BK7258_IRQ_FIRST`，改从 `irq.h` 取）
+- `chip/common/bk7258_timerisr.c`（新，SysTick 10 Hz）
+- `chip/common/bk7258_allocateheap.c`（新，`up_allocate_heap`）
 - `chip/include/irq.h`（+ `BK7258_IRQ_UART1 = 31`）
 - `chip/CMakeLists.txt` / `chip/Make.defs`（编入新源文件）
-- `configs/nsh/defconfig`（NSH readline、`INIT_ENTRYPOINT=nsh_main`、ARMV8M_SYSTICK、FLASH 1 MiB）
+- `configs/cp_nsh/defconfig`（NSH readline、`INIT_ENTRYPOINT=nsh_main`、ARMV8M_SYSTICK、FLASH 1 MiB）
 - `scripts/ld.script` / `include/board.h` / `src/bk7258_bringup.c`
 
-构建：`./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8`
+构建：`./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8`
 烧录：`$FW/all-app.bin`（= `bl_crc.bin` + `nuttx_crc.bin`）@ physical `0x0`，console UART1 460800 8N1。
 
 ## 未决项（Stage N3 候选）

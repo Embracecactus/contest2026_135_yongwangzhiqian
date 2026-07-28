@@ -139,7 +139,7 @@ struct mtd_dev_s
 
 ### 初始化过程
 
-`$BOARD/chip/bk7258_flash_mtd.c:209`
+`$BOARD/chip/cp/bk7258_flash_mtd.c:209`
 
 ```c
 FAR struct mtd_dev_s *bk7258_flash_mtd_initialize(void)

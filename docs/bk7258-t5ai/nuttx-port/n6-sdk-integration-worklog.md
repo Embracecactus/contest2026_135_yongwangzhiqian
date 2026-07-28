@@ -45,7 +45,7 @@ SysTick (10 ms)
 
 ### Controlled SDK WDT initialization
 
-Current overlay sequence in `board/bk7258_t5ai/chip/bk7258_wdt.c`:
+Current overlay sequence in `board/bk7258_t5ai/chip/cp/bk7258_wdt.c`:
 
 ```text
 bk_timer_driver_init()
@@ -220,7 +220,7 @@ runtime vector layout design.
 ### Change
 
 Changed the BK7258 custom vector table in
-`board/bk7258_t5ai/chip/bk7258_vectors.c` from:
+`board/bk7258_t5ai/chip/cp/bk7258_vectors.c` from:
 
 ```c
 [15]         = &exception_common;
@@ -399,11 +399,11 @@ The following earlier conclusions are explicitly retracted:
 
 ## Current code and diagnostic state
 
-- `board/bk7258_t5ai/chip/bk7258_vectors.c`
+- `board/bk7258_t5ai/chip/cp/bk7258_vectors.c`
   - SysTick slot 15 and external IRQ slots 16 through 63 use `exception_common`.
   - the external-IRQ entry change and UART RX are `board-verified`.
   - the unused temporary `bk7258_systick_probe()` remains and must be removed during cleanup.
-- `board/bk7258_t5ai/chip/bk7258_wdt.c`
+- `board/bk7258_t5ai/chip/cp/bk7258_wdt.c`
   - temporary `A/B/K` markers remain;
   - the temporary one-tick `W/T` probe remains;
   - controlled SDK initialization and TIMER_ID2 stop remain.
@@ -478,7 +478,7 @@ start A1/SDK bridge or flash.
 
 ```text
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 Workspace root: `/home/lijian/project/open-vela`
@@ -668,8 +668,8 @@ config (from distclean) correctly evaluates the existing `select` statement.
 Only these two commands are authorized for the next action:
 
 ```text
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 ### Scope boundary
@@ -695,15 +695,15 @@ further action.
 
 ```text
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 Workspace root: `/home/lijian/project/open-vela`
 
 ### Distclean
 
-- Command: `./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean`
+- Command: `./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean`
 - Exit code: **0** (success)
 - Log: `/tmp/bk7258-a0-distclean-20260722.log`
 - Observed final lines:
@@ -721,7 +721,7 @@ inspection) is the authoritative check.
 
 ### Fresh rebuild
 
-- Command: `./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8`
+- Command: `./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8`
 - Exit code: **0** (success)
 - Log: `/tmp/bk7258-a0-clean-rebuild-20260722.log`
 
@@ -1234,7 +1234,7 @@ Run the authorized build to confirm the RED gates fail as expected.
 
 ```text
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 Workspace root: `/home/lijian/project/open-vela`
@@ -1314,7 +1314,7 @@ Independent review found 5 issues with the v1 RED gates:
 
 ```bash
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 ### Exit code and log
@@ -1325,14 +1325,14 @@ Full build log: `/tmp/bk7258-a1-red-build-20260722-v2.log`
 ### Decisive failure lines
 
 ```text
-chip/bk7258_vectors.c:117:3: error: static assertion failed: "A1 gate: BK7258_EXTERNAL_IRQS not defined; expected 64"
-chip/bk7258_vectors.c:121:1: error: static assertion failed: "A1 gate: NR_IRQS must be 80 (16 + 64 external)"
-chip/bk7258_vectors.c:124:1: error: static assertion failed: "A1 gate: ARMV8M_PERIPHERAL_INTERRUPTS must be 64 (external IRQ count)"
-chip/bk7258_vectors.c:129:1: error: static assertion failed: "A1 gate: vector table must be 80 entries (0x140 bytes)"
-chip/bk7258_vectors.c:138:3: error: static assertion failed: "A1 gate: ARM_VECTAB_SIZE must be 80"
-chip/bk7258_vectors.c:154:3: error: static assertion failed: "A1 gate: BK7258_IRQ_ETHERNET not defined; expected 64"
-chip/bk7258_vectors.c:162:3: error: static assertion failed: "A1 gate: BK7258_IRQ_SCALE0 not defined; expected 65"
-chip/bk7258_vectors.c:170:3: error: static assertion failed: "A1 gate: BK7258_IRQ_MAILBOX not defined; expected 79"
+chip/cp/bk7258_vectors.c:117:3: error: static assertion failed: "A1 gate: BK7258_EXTERNAL_IRQS not defined; expected 64"
+chip/cp/bk7258_vectors.c:121:1: error: static assertion failed: "A1 gate: NR_IRQS must be 80 (16 + 64 external)"
+chip/cp/bk7258_vectors.c:124:1: error: static assertion failed: "A1 gate: ARMV8M_PERIPHERAL_INTERRUPTS must be 64 (external IRQ count)"
+chip/cp/bk7258_vectors.c:129:1: error: static assertion failed: "A1 gate: vector table must be 80 entries (0x140 bytes)"
+chip/cp/bk7258_vectors.c:138:3: error: static assertion failed: "A1 gate: ARM_VECTAB_SIZE must be 80"
+chip/cp/bk7258_vectors.c:154:3: error: static assertion failed: "A1 gate: BK7258_IRQ_ETHERNET not defined; expected 64"
+chip/cp/bk7258_vectors.c:162:3: error: static assertion failed: "A1 gate: BK7258_IRQ_SCALE0 not defined; expected 65"
+chip/cp/bk7258_vectors.c:170:3: error: static assertion failed: "A1 gate: BK7258_IRQ_MAILBOX not defined; expected 79"
 ```
 
 All 8 errors are from the v2 RED gates in `bk7258_vectors.c`. No syntax, environment, or toolchain errors. No errors from `irq.h` (production IRQ names removed). No errors from linker (compilation fails first).
@@ -1436,7 +1436,7 @@ This file is included by `arm_internal.h` after the public `chip/include/chip.h`
 Both now define the same value (64); the public one uses `#ifndef` guard to
 prevent preprocessor redefinition warning.
 
-#### `board/bk7258_t5ai/chip/bk7258_vectors.c`
+#### `board/bk7258_t5ai/chip/cp/bk7258_vectors.c`
 
 | Item | Old (A0) | New (A1) |
 |---|---|---|
@@ -1448,7 +1448,7 @@ prevent preprocessor redefinition warning.
 
 All RED gates retained. Diagnostic handlers and markers preserved.
 
-#### `board/bk7258_t5ai/chip/bk7258_irq.c`
+#### `board/bk7258_t5ai/chip/common/bk7258_irq.c`
 
 | Item | Old (A0) | New (A1) |
 |---|---|---|
@@ -1551,8 +1551,8 @@ Task 2 independent review. Then Task 3 artifact inspection.
 
 ```text
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 Workspace root: `/home/lijian/project/open-vela`
@@ -1648,8 +1648,8 @@ Rebuild to confirm F1 pointer/integer warnings are eliminated.
 
 ```text
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 Workspace root: `/home/lijian/project/open-vela`
@@ -1783,7 +1783,7 @@ Rebuild v3, then run corrected verifier against v3 artifacts.
 
 ### v3 build
 
-- Command: `./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8`
+- Command: `./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8`
 - Log: `/tmp/bk7258-a1-green-build-20260722-v3.log`
 - Exit: 0
 - Postbuild output now correct:
@@ -2353,10 +2353,10 @@ SDK IRQ bridge not started.
 
 ```text
 $ cd /home/lijian/project/open-vela
-$ ./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
+$ ./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
 exit=0
 
-$ ./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+$ ./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 exit=0
 ```
 
@@ -2483,7 +2483,7 @@ technical action is the targeted archive/link-map ownership check for
 5. add RED compile/static gates before the dedicated overlay bridge module.
 
 Production bridge code must live in a dedicated overlay module (for example
-`chip/bk7258_sdk_irq.c` plus a private header), not in
+`chip/cp/bk7258_sdk_irq.c` plus a private header), not in
 `bk7258_sdk_stubs.c`. It must remain CPU0-only and preserve the A1 RAM-vector,
 UART, WDT, LittleFS, and DVFS baselines.
 
@@ -2653,13 +2653,13 @@ team overlay. Do not run a firmware build until separately authorized.
 
 | File | Change |
 |---|---|
-| `chip/bk7258_sdk_irq.c` | New dedicated CPU0 SDK-to-NuttX lifecycle bridge |
-| `chip/bk7258_sdk_irq.h` | New private mapping constants and pending-clear declaration |
-| `chip/bk7258_irq.c` | Added `bk7258_clear_pending_irq()` using the NuttX NVIC clear-pending register definition |
+| `chip/cp/bk7258_sdk_irq.c` | New dedicated CPU0 SDK-to-NuttX lifecycle bridge |
+| `chip/common/bk7258_sdk_irq.h` | New private mapping constants and pending-clear declaration |
+| `chip/common/bk7258_irq.c` | Added `bk7258_clear_pending_irq()` using the NuttX NVIC clear-pending register definition |
 | `chip/Kconfig` | Added default-off `BK7258_SDK_IRQ_BRIDGE` gate |
 | `chip/Make.defs` | Gate classic-Make inclusion of `bk7258_sdk_irq.c` |
 | `chip/CMakeLists.txt` | Mirror the conditional source for CMake |
-| `configs/nsh/defconfig` | Enable `CONFIG_BK7258_SDK_IRQ_BRIDGE=y` on this Stage B branch |
+| `configs/cp_nsh/defconfig` | Enable `CONFIG_BK7258_SDK_IRQ_BRIDGE=y` on this Stage B branch |
 
 ### Implemented mapping and lifecycle
 
@@ -2753,8 +2753,8 @@ Flashing remains prohibited for the agent and user-only.
 
 ```text
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 Logs:
@@ -2883,9 +2883,9 @@ It was immediately rerun with the absolute workspace build-script path:
 
 ```text
 /home/lijian/project/open-vela/build.sh \
-  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
+  vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
 /home/lijian/project/open-vela/build.sh \
-  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+  vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 Logs:
@@ -3118,9 +3118,9 @@ new source text with stale binary code.
 
 ```text
 /home/lijian/project/open-vela/build.sh \
-  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
+  vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
 /home/lijian/project/open-vela/build.sh \
-  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+  vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 ```text
@@ -3553,9 +3553,9 @@ run. No flash, board test, commit, or push occurred.
 
 ```text
 /home/lijian/project/open-vela/build.sh \
-  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
+  vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
 /home/lijian/project/open-vela/build.sh \
-  vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+  vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
 ```text
@@ -4408,7 +4408,7 @@ make[1]: *** No rule to make target 'bk7258_gpio_foundation_test.c', needed by '
 Root cause is build staging, not a GPIO source/API result: plain `git diff --binary`
 does not include the two new untracked files in the clean worktree, so the temporary
 patch carried Kconfig/Make integration but omitted
-`chip/bk7258_gpio_foundation_test.c` and
+`chip/cp/bk7258_gpio_foundation_test.c` and
 `app/hello_app/bk7258_gpio_foundation_test_main.c`. The cleanup trap restored the
 linked checkout; its pre-existing untracked `.built` and `docs/superpowers/` entries
 were not touched. Logs are `/tmp/bk7258-gpioc0-distclean.log` and
@@ -4809,7 +4809,7 @@ No further code exploration is needed before this fast-download validation.
 ## 2026-07-24 -- CPU0 GPIO route-gate probe implemented
 
 The focused diagnostic is now implemented only in
-`chip/bk7258_gpio_irq_test.c`. It defines the exact CPU0 source32..63 gate
+`chip/cp/bk7258_gpio_irq_test.c`. It defines the exact CPU0 source32..63 gate
 register and masks established above:
 
 ```text
@@ -4934,7 +4934,7 @@ A bounded check of the current NuttX contract established the exact interface:
 `GPIOC_READ`, `GPIOC_WRITE`, `GPIOC_SETPINTYPE`, signal registration and poll,
 so C2 does not add another team-specific NSH wrapper.
 
-The new team-overlay `chip/bk7258_gpio_lowerhalf.c` implements and registers:
+The new team-overlay `chip/cp/bk7258_gpio_lowerhalf.c` implements and registers:
 
 ```text
 /dev/gpio0  P9   GPIO_OUTPUT_PIN             active-high board LED
@@ -5342,8 +5342,8 @@ that the only difference was the intended attach guard. The original generated
 workspace target was backed up and restored after the build.
 
 ```text
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 
 distclean: PASS (exit 0)
 build:     PASS (exit 0)
@@ -5401,8 +5401,8 @@ CONFIG_EXAMPLES_GPIO=y
 Final ELF strings confirm `gpio_main` and `gpio_main.c` are present.
 
 ```text
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 
 distclean: PASS (exit 0)
 build:     PASS (exit 0)

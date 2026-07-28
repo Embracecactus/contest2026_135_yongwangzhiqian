@@ -189,7 +189,7 @@ Bridge 的意义是让 SDK 驱动（例如 GPIO、I2C、SPI 等）可以使用�
 
 ### 数学映射
 
-`$BOARD/chip/bk7258_sdk_irq.c:68`
+`$BOARD/chip/cp/bk7258_sdk_irq.c:68`
 
 ```c
 static int bk7258_sdk_source_to_irq(icu_int_src_t source)
@@ -229,7 +229,7 @@ _Static_assert(BK7258_SDK_IRQ_FIRST + BK7258_SDK_IRQ_COUNT == NR_IRQS,
 
 ### UART 的具体实现
 
-`$BOARD/chip/bk7258_serial.c:298`
+`$BOARD/chip/common/bk7258_serial.c:298`
 
 ```c
 static int bk7258_uart_attach(struct uart_dev_s *dev)

@@ -257,7 +257,7 @@ NuttX automonitor 在 register 时自动 `WD_START` APB WDT 并每 4s 喂，APB 
 
 ## 5. 验证
 
-1. 编译：`./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8`
+1. 编译：`./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8`
 2. 烧录：`all-app.bin` @ 0x0（BKFIL/bk_loader，见 [[bk7258-flash-flow-bkfil]]）
 3. 板端回归（关键指标：**不再 8s 重启**）：
    - 进 NSH 后 `sleep 12`（>8s）→ 仍存活不复位 ✅
@@ -271,8 +271,8 @@ NuttX automonitor 在 register 时自动 `WD_START` APB WDT 并每 4s 喂，APB 
 ## 6. 相关文件索引
 
 **当前实现**：
-- `$CONTEST/board/bk7258_t5ai/chip/bk7258_wdt.c`（待修：加 AON 关狗 + 输入校验 + guard）
-- `$CONTEST/board/bk7258_t5ai/chip/bk7258_wdt.h`
+- `$CONTEST/board/bk7258_t5ai/chip/cp/bk7258_wdt.c`（待修：加 AON 关狗 + 输入校验 + guard）
+- `$CONTEST/board/bk7258_t5ai/chip/cp/bk7258_wdt.h`
 - `$CONTEST/board/bk7258_t5ai/src/bk7258_bringup.c:166-173`（待修：wdt_initialize 前移）
 - `$CONTEST/board/bk7258_t5ai/bootloader/boot_wdt.h`（AON key 协议参考，不改）
 

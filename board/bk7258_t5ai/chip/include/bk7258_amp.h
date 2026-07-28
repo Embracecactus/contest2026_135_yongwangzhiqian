@@ -63,9 +63,9 @@
 #define BK7258_SHARED_RAM_BASE           0x2809f000u
 #define BK7258_SHARED_RAM_SIZE           0x00001000u
 
-#define BK7258_CP_INITIAL_MSP            \
+#define BK7258_CP_HEAP_END               \
   (BK7258_CP_RAM_BASE + BK7258_CP_RAM_SIZE - 4u)
-#define BK7258_AP_INITIAL_MSP            \
+#define BK7258_AP_HEAP_END               \
   (BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE - 4u)
 
 /* The SDK uses a per-core DTCM word as its local core-ID cell.  AP logical
@@ -101,6 +101,22 @@
 #define BK7258_AP_DOORBELL_MAGIC         0x524f4f44u /* "DOOR" */
 #define BK7258_AP_DEFAULT_TIMEOUT_MS     3000u
 #define BK7258_AP_RESTART_DELAY_MS       6u
+
+/* Keep the 0x80-byte boot-state ABI stable.  A fault-only extension lives
+ * immediately after it in the otherwise unused shared page.
+ */
+
+#define BK7258_AP_FAULT_STATE_OFFSET     0x00000080u
+#define BK7258_AP_FAULT_STATE_MAGIC      0x544c4641u /* "AFLT" */
+#define BK7258_AP_FAULT_STATE_VERSION    1u
+
+/* CPU0 owns a separate record so an AP-side peripheral or mailbox operation
+ * that faults CP cannot overwrite the AP exception evidence.
+ */
+
+#define BK7258_CP_FAULT_STATE_OFFSET     0x00000100u
+#define BK7258_CP_FAULT_STATE_MAGIC      0x544c4643u /* "CFLT" */
+#define BK7258_CP_FAULT_STATE_VERSION    1u
 
 /****************************************************************************
  * Public Types
@@ -140,7 +156,9 @@ enum bk7258_ap_error_e
   BK7258_AP_ERROR_BAD_VTOR,
   BK7258_AP_ERROR_BAD_SYSTICK,
   BK7258_AP_ERROR_HEAP,
-  BK7258_AP_ERROR_TIMEOUT
+  BK7258_AP_ERROR_TIMEOUT,
+  BK7258_AP_ERROR_NMI,
+  BK7258_AP_ERROR_HARDFAULT
 };
 
 struct bk7258_ap_boot_state_s
@@ -176,6 +194,54 @@ struct bk7258_ap_boot_state_s
   uint32_t reserved[4];
 };
 
+struct bk7258_ap_fault_state_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t generation;
+  uint32_t exception;
+  uint32_t error;
+  uint32_t exc_return;
+  uint32_t stack_pointer;
+  uint32_t hfsr;
+  uint32_t cfsr;
+  uint32_t mmfar;
+  uint32_t bfar;
+  uint32_t stacked_r0;
+  uint32_t stacked_r1;
+  uint32_t stacked_r2;
+  uint32_t stacked_r3;
+  uint32_t stacked_r12;
+  uint32_t stacked_lr;
+  uint32_t stacked_pc;
+  uint32_t stacked_xpsr;
+};
+
+struct bk7258_cp_fault_state_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t generation;
+  uint32_t exception;
+  uint32_t reserved;
+  uint32_t exc_return;
+  uint32_t stack_pointer;
+  uint32_t hfsr;
+  uint32_t cfsr;
+  uint32_t mmfar;
+  uint32_t bfar;
+  uint32_t stacked_r0;
+  uint32_t stacked_r1;
+  uint32_t stacked_r2;
+  uint32_t stacked_r3;
+  uint32_t stacked_r12;
+  uint32_t stacked_lr;
+  uint32_t stacked_pc;
+  uint32_t stacked_xpsr;
+};
+
 static_assert(BK7258_CP_FLASH_OFFSET + BK7258_CP_FLASH_SIZE ==
               BK7258_DATA_FLASH_OFFSET,
               "CP flash must end at the LittleFS boundary");
@@ -185,9 +251,17 @@ static_assert(BK7258_DATA_FLASH_OFFSET + BK7258_DATA_FLASH_SIZE ==
 static_assert(BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE ==
               BK7258_SHARED_RAM_BASE,
               "AP RAM must end at the shared page");
-static_assert(sizeof(struct bk7258_ap_boot_state_s) <=
+static_assert(sizeof(struct bk7258_ap_boot_state_s) ==
+              BK7258_AP_FAULT_STATE_OFFSET,
+              "AP boot-state ABI must remain 0x80 bytes");
+static_assert(BK7258_AP_FAULT_STATE_OFFSET +
+              sizeof(struct bk7258_ap_fault_state_s) <=
+              BK7258_CP_FAULT_STATE_OFFSET,
+              "AP and CP fault states overlap");
+static_assert(BK7258_CP_FAULT_STATE_OFFSET +
+              sizeof(struct bk7258_cp_fault_state_s) <=
               BK7258_SHARED_RAM_SIZE,
-              "AP boot state exceeds the shared page");
+              "CP fault state exceeds the shared page");
 
 /****************************************************************************
  * Public Function Prototypes
@@ -202,6 +276,20 @@ static inline volatile struct bk7258_ap_boot_state_s *
 bk7258_ap_boot_state(void)
 {
   return (volatile struct bk7258_ap_boot_state_s *)BK7258_SHARED_RAM_BASE;
+}
+
+static inline volatile struct bk7258_ap_fault_state_s *
+bk7258_ap_fault_state(void)
+{
+  return (volatile struct bk7258_ap_fault_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_AP_FAULT_STATE_OFFSET);
+}
+
+static inline volatile struct bk7258_cp_fault_state_s *
+bk7258_cp_fault_state(void)
+{
+  return (volatile struct bk7258_cp_fault_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_CP_FAULT_STATE_OFFSET);
 }
 
 #ifdef CONFIG_BK7258_AP_CONTROL

@@ -5,6 +5,8 @@
 # You can then do "make savedefconfig" to generate a new defconfig file that includes your
 # modifications.
 #
+# CONFIG_DEV_CONSOLE is not set
+# CONFIG_SERIAL is not set
 CONFIG_ARCH="arm"
 CONFIG_ARCH_BOARD_CUSTOM=y
 CONFIG_ARCH_BOARD_CUSTOM_DIR="../contest2026_135_yongwangzhiqian/board/bk7258_t5ai"

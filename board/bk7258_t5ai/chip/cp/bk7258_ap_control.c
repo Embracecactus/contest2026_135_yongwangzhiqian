@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_ap_control.c
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/cp/bk7258_ap_control.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -135,6 +135,7 @@ static void bk7258_ap_state_prepare(void)
 
   memset((void *)(uintptr_t)state, 0,
          sizeof(struct bk7258_ap_boot_state_s));
+  bk7258_ap_fault_state()->magic = 0;
   state->magic       = BK7258_AP_BOOT_STATE_MAGIC;
   state->version     = BK7258_AP_BOOT_STATE_VERSION;
   state->size        = sizeof(struct bk7258_ap_boot_state_s);

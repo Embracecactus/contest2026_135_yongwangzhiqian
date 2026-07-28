@@ -80,7 +80,7 @@ API 桥接到 NuttX 的 lower-half 接口。
 │ NuttX upper-half                                             │
 │   netdev (WiFi)          BLE stack (NuttX native or SDK)    │
 ├──────────────────────────────────────────────────────────────┤
-│ Wrapper Layer（chip/bk7258_wifi.c, chip/bk7258_ble.c）       │
+│ Wrapper Layer（chip/cp/bk7258_wifi.c, chip/cp/bk7258_ble.c）  │
 │   WiFi: bk_wifi_* / bk_event_*    BLE: bk_ble_* / bk_dm_*  │
 ├──────────────────────────────────────────────────────────────┤
 │ Beken SDK 预编译库 ($SDK_LIBS/*.a)                           │
@@ -88,14 +88,14 @@ API 桥接到 NuttX 的 lower-half 接口。
 │   libbluetooth_controller_ble.a  libbluetooth_host_ble.a    │
 │   libbk_bluetooth.a  libbk_coex.a  libcom_phy.a             │
 ├──────────────────────────────────────────────────────────────┤
-│ OS 适配层（chip/bk7258_os_adapt.c）                          │
+│ OS 适配层（chip/common/bk7258_os_adapt.c）                          │
 │   rtos_create_thread → kthread_create                        │
 │   rtos_init_semaphore → nxsem_init                           │
 │   rtos_init_queue → file_mq_open                             │
 │   rtos_init_timer → wd_start                                 │
 │   os_malloc → kmm_malloc                                     │
 ├──────────────────────────────────────────────────────────────┤
-│ SDK IRQ 桥（chip/bk7258_sdk_irq.c）                          │
+│ SDK IRQ 桥（chip/cp/bk7258_sdk_irq.c）                          │
 │   bk_int_isr_register → irq_attach → NuttX NVIC             │
 ├──────────────────────────────────────────────────────────────┤
 │ NuttX Kernel                                                 │
@@ -478,7 +478,7 @@ WiFi + BLE 库链接后，代码段和数据段将增大 ~650 KB。需确认链�
 cd $NUTTX_ROOT
 
 # 配置（在现有 nsh defconfig 基础上启用 WiFi/BLE）
-./tools/configure.sh -l contest2026_135_yongwangzhiqian/board/bk7258_t5ai/configs/nsh
+./tools/configure.sh -l contest2026_135_yongwangzhiqian/board/bk7258_t5ai/configs/cp_nsh
 
 # 启用 WiFi（可选）
 kconfig-tweak --enable CONFIG_BK7258_WIFI
@@ -595,7 +595,7 @@ Phase 1: 修正链接配置（前置条件）
   └─ 添加 CONFIG_BK7258_WIFI / CONFIG_BK7258_BLE Kconfig 选项
 
 Phase 2: BLE 基础 wrapper
-  ├─ 创建 chip/bk7258_ble.c
+  ├─ 创建 chip/cp/bk7258_ble.c
   ├─ bk_bluetooth_init() + bk_ble_set_event_callback()
   ├─ GAP 扫描（Observer 角色验证）
   └─ NSH 测试命令（blescan）

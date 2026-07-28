@@ -73,7 +73,7 @@ flowchart TD
 
 BK7258 reset entry：
 
-`$BOARD/chip/bk7258_start.c:88`
+`$BOARD/chip/cp/bk7258_start.c:88`
 
 硬件从向量表获得：
 
