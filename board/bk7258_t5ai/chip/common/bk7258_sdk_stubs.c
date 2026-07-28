@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258_t5ai/chip/bk7258_sdk_stubs.c
+ * board/bk7258_t5ai/chip/common/bk7258_sdk_stubs.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

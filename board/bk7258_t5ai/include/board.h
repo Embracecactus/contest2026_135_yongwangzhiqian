@@ -43,7 +43,7 @@
 #endif
 
 /* UART1 (console) MMIO base and register offsets.  The console driver in
- * chip/bk7258_serial.c hardcodes these too; they are repeated here for any
+ * chip/common/bk7258_serial.c hardcodes these too; they are repeated here for any
  * board-level code that needs them.  See bk7258_serial.c / probe.c for the
  * register/bit definitions and the bootloader-inherited baud (~460800).
  */

@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_clock.c
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/cp/bk7258_clock.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -26,7 +26,7 @@
  *
  * Shared low-level register helpers (ANA_REG9 field/latch, M1 writes, the
  * analog-SPI wait, the bus-independent microsecond delay) live in
- * chip/bk7258_clk_ll.h and are shared with bk7258_dvfs.c so boot-time and
+ * chip/cp/bk7258_clk_ll.h and are shared with bk7258_dvfs.c so boot-time and
  * runtime use byte-for-byte the same write/wait protocol.
  *
  * This file keeps only: the optional CONFIG_BK7258_CLOCK_320M_PROBE UART

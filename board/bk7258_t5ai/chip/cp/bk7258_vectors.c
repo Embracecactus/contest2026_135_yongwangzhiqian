@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_vectors.c
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/cp/bk7258_vectors.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -11,8 +11,8 @@
  * system-exception and external-IRQ slots through the full armv8-m context
  * saving path:
  *
- *   slots [2..3]   -> bk7258_hardfault_handler (temporary NMI/HardFault
- *                                               diagnostic)
+ *   slots [2..3]   -> bk7258_hardfault_handler (CPU0 NMI/HardFault
+ *                                               recorder)
  *   slots [4..63]  -> exception_common          (remaining exceptions,
  *                                               SysTick, lower external IRQs)
  *   slots [64]     -> BK7258_APP_MAGIC_WORD0    (boot magic, runtime-repaired)
@@ -42,9 +42,9 @@
  * Layout (80 entries, 0x140 bytes total; the .vectors section is pinned
  * at flash origin 0x02010000 by scripts/ld.script):
  *
- *   [0]      0x2804FFFC   initial MSP (top of 0x28000000..0x2809FFFF SRAM)
- *   [1]      __start      Reset entry (Thumb; toolchain sets bit0)
- *   [2..3]   bk7258_hardfault_handler (temporary diagnostic)
+ *   [0]      IDLE stack top       reset stack, later preserved as PSP
+ *   [1]      bk7258_reset_entry   installs interrupt MSP, then enters __start
+ *   [2..3]   bk7258_hardfault_handler (CPU0 fault recorder)
  *   [4..63]  exception_common (remaining exceptions, SysTick, lower external IRQs)
  *   [64]     0x32374B42   app magic word 0: "BK72" little-endian
  *   [65]     0x00003633   app magic word 1: "36\0\0" little-endian
@@ -53,9 +53,9 @@
  * Entry [64] sits at byte offset 0x100 -- exactly what the bootloader
  * validates.  This layout is shared verbatim with the bare-metal probe
  * (docs/bk7258-t5ai/probe/probe.c) that has already been boot-verified
- * on the T5-AI board.  Slots [0], [1], [64], [65] are UNCHANGED from N1
- * (the bootloader's hard requirements); only the dispatcher slots in the
- * middle were upgraded from spin loops to the real NuttX handlers.
+ * on the T5-AI board.  Slots [64]/[65] keep the bootloader magic unchanged;
+ * slots [0]/[1] now follow the standard NuttX PSP/MSP reset contract, while
+ * dispatcher slots route through the real NuttX handlers.
  ****************************************************************************/
 
 /****************************************************************************
@@ -75,12 +75,13 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Top of usable SRAM (0x28000000 + 0xA0000 = 0x280A0000; keep the last
- * word free for safety, matching the probe).  This is what the hardware
- * loads into MSP from slot [0] before jumping to slot [1].
+/* Match the common ARM reset contract.  Hardware first loads the IDLE stack
+ * into MSP; the reset wrapper preserves it as PSP and moves handler mode to
+ * the dedicated interrupt stack before entering __start().
  */
 
-#define BK7258_INITIAL_MSP              BK7258_CP_INITIAL_MSP
+#define BK7258_CP_IDLE_STACK            \
+  (_ebss + CONFIG_IDLETHREAD_STACKSIZE)
 
 /* App magic, little-endian.  'B''K''7''2' | '3''6''\0''\0'.
  * Verified against board/bootloader behaviour; see probe.c.
@@ -99,6 +100,23 @@
 #define BK7258_FAULT_UART1_FIFO_STAT    (*(volatile unsigned int *)0x45830018u)
 #define BK7258_FAULT_UART1_FIFO_PORT    (*(volatile unsigned int *)0x4583001Cu)
 #define BK7258_FAULT_UART1_FIFO_READY   (1u << 20)
+
+#define BK7258_SCB_CFSR                 (*(volatile uint32_t *)0xe000ed28u)
+#define BK7258_SCB_HFSR                 (*(volatile uint32_t *)0xe000ed2cu)
+#define BK7258_SCB_MMFAR                (*(volatile uint32_t *)0xe000ed34u)
+#define BK7258_SCB_BFAR                 (*(volatile uint32_t *)0xe000ed38u)
+
+#define BK7258_EXCEPTION_FRAME_WORDS    8u
+#define BK7258_EXCEPTION_FP_FRAME_WORDS 18u
+#define BK7258_EXC_RETURN_BASIC_FRAME   (1u << 4)
+#define BK7258_FAULT_INVALID_VALUE      UINT32_MAX
+
+#define BK7258_FAULT_AON_WDT_CTRL       (*(volatile uint32_t *)0x44000600u)
+#define BK7258_FAULT_WDT_RESET_CTRL     (*(volatile uint32_t *)0x44800008u)
+#define BK7258_FAULT_WDT_CTRL           (*(volatile uint32_t *)0x44800010u)
+#define BK7258_FAULT_WDT_RESET_BIT      (1u << 1)
+#define BK7258_FAULT_WDT_KEY1           (0x5au << 16)
+#define BK7258_FAULT_WDT_KEY2           (0xa5u << 16)
 
 /****************************************************************************
  * Permanent A1 compile-time invariants
@@ -195,17 +213,15 @@ _Static_assert(BK7258_MAGIC_SLOT1 * 4 == BK7258_MAGIC_BOOT1_OFFSET,
 
 extern void exception_common(void);
 
-/* Chip entry point (defined in bk7258_start.c).  Slot [1] keeps pointing
- * at __start, exactly as N1 / the probe; NuttX expects the symbol to be
- * called __start (see nuttx/arch/arm/src/arm_m/arm_vectors.c).
+/* Chip C entry point (defined in bk7258_start.c).  Slot [1] enters the local
+ * reset wrapper, which establishes PSP/MSP and then branches to __start.
  */
 
 extern void __start(void);
 
-/* Diagnostic HardFault/NMI handler (defined below).  Replaces the silent
- * exception_common spin on slots [2] (NMI) and [3] (HardFault) only, so a
- * trap during early boot is visible on UART1.  Pure diagnostic: it prints
- * "HF" and parks; it does NOT decode the fault frame and does NOT recover.
+/* Diagnostic HardFault/NMI entry (defined below).  Replaces the silent
+ * exception_common spin on slots [2] (NMI) and [3] (HardFault), captures the
+ * hardware frame in shared SRAM, prints the key registers, and then parks.
  */
 
 void bk7258_hardfault_handler(void);
@@ -213,6 +229,20 @@ void bk7258_hardfault_handler(void);
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+static void bk7258_reset_entry(void)
+{
+  /* Preserve the reset/IDLE stack as PSP and dedicate MSP to exceptions,
+   * matching the common NuttX ARM reset wrapper and the AP image.
+   */
+
+  arm_initialize_stack();
+
+  __asm volatile ("mov lr, %0\n\t"
+                  "bx %1\n\t"
+                  :
+                  : "r"(0), "r"(__start));
+}
 
 /* Bare polled UART1 output -- freestanding, MMIO-only, identical to the
  * bk7258_early_putc() in bk7258_start.c.  Duplicated here because vectors.c
@@ -229,26 +259,154 @@ static void bk7258_fault_putc(unsigned char c)
   BK7258_FAULT_UART1_FIFO_PORT = (unsigned int)(c & 0xffu);
 }
 
+static void bk7258_fault_puthex(uint32_t value)
+{
+  static const char hex[] = "0123456789abcdef";
+  int shift;
+
+  for (shift = 28; shift >= 0; shift -= 4)
+    {
+      bk7258_fault_putc(hex[(value >> shift) & 0x0fu]);
+    }
+}
+
+static void bk7258_fault_putfield(unsigned char tag, uint32_t value)
+{
+  bk7258_fault_putc(' ');
+  bk7258_fault_putc(tag);
+  bk7258_fault_putc('=');
+  bk7258_fault_puthex(value);
+}
+
+static void bk7258_fault_stop_watchdogs(void)
+{
+  /* Stop both the bootloader AON watchdog and the NuttX automonitor watchdog.
+   * Otherwise the parked diagnostic handler becomes another reset loop.
+   */
+
+  BK7258_FAULT_AON_WDT_CTRL = BK7258_FAULT_WDT_KEY1;
+  BK7258_FAULT_AON_WDT_CTRL = BK7258_FAULT_WDT_KEY2;
+  BK7258_FAULT_WDT_RESET_CTRL |= BK7258_FAULT_WDT_RESET_BIT;
+  BK7258_FAULT_WDT_CTRL = BK7258_FAULT_WDT_KEY1;
+  BK7258_FAULT_WDT_CTRL = BK7258_FAULT_WDT_KEY2;
+  __asm volatile ("dsb sy" ::: "memory");
+}
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
-/* Diagnostic HardFault/NMI handler.  Pushes "HF" out over UART1 using the
- * same bare-MMIO write as the N2 marker, then parks forever.  NO fault
- * frame decode, NO recovery, NO lockup-safe spin -- pure visibility for
- * board-side bring-up.  Wired into vector slots [2] (NMI) and [3]
- * (HardFault) so either a faulting instruction or an escalated exception
- * becomes observable; all other system-exception slots ([4..14]) keep
- * routing through exception_common.
+/* Capture CPU0 NMI/HardFault state independently from the AP record.  The
+ * UART line is deliberately compact so the complete PC/LR/CFSR evidence is
+ * emitted before any external reset source can fire.  The same record remains
+ * debugger-readable at 0x2809f100.
  */
 
-void bk7258_hardfault_handler(void)
+static void __attribute__((noinline, noreturn, used))
+bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
+                     uint32_t exception)
 {
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+  volatile struct bk7258_cp_fault_state_s *fault = bk7258_cp_fault_state();
+  uintptr_t frame_addr = (uintptr_t)stack;
+  const volatile uint32_t *frame;
+  uint32_t stacked_r0 = BK7258_FAULT_INVALID_VALUE;
+  uint32_t stacked_r1 = BK7258_FAULT_INVALID_VALUE;
+  uint32_t stacked_r2 = BK7258_FAULT_INVALID_VALUE;
+  uint32_t stacked_r3 = BK7258_FAULT_INVALID_VALUE;
+  uint32_t stacked_r12 = BK7258_FAULT_INVALID_VALUE;
+  uint32_t stacked_lr = BK7258_FAULT_INVALID_VALUE;
+  uint32_t stacked_pc = BK7258_FAULT_INVALID_VALUE;
+  uint32_t stacked_xpsr = BK7258_FAULT_INVALID_VALUE;
+  uint32_t hfsr;
+  uint32_t cfsr;
+  uint32_t mmfar;
+  uint32_t bfar;
+
+  bk7258_fault_stop_watchdogs();
+
+  hfsr = BK7258_SCB_HFSR;
+  cfsr = BK7258_SCB_CFSR;
+  mmfar = BK7258_SCB_MMFAR;
+  bfar = BK7258_SCB_BFAR;
+
+  if ((exc_return & BK7258_EXC_RETURN_BASIC_FRAME) == 0)
+    {
+      frame_addr += BK7258_EXCEPTION_FP_FRAME_WORDS * sizeof(uint32_t);
+    }
+
+  if ((frame_addr & (sizeof(uint32_t) - 1u)) == 0 &&
+      frame_addr >= BK7258_CP_RAM_BASE &&
+      frame_addr <= BK7258_CP_RAM_BASE + BK7258_CP_RAM_SIZE -
+                    BK7258_EXCEPTION_FRAME_WORDS * sizeof(uint32_t))
+    {
+      frame = (const volatile uint32_t *)frame_addr;
+      stacked_r0   = frame[0];
+      stacked_r1   = frame[1];
+      stacked_r2   = frame[2];
+      stacked_r3   = frame[3];
+      stacked_r12  = frame[4];
+      stacked_lr   = frame[5];
+      stacked_pc   = frame[6];
+      stacked_xpsr = frame[7];
+    }
+
+  fault->magic         = 0;
+  fault->version       = BK7258_CP_FAULT_STATE_VERSION;
+  fault->size          = sizeof(*fault);
+  fault->generation    = state->magic == BK7258_AP_BOOT_STATE_MAGIC ?
+                         state->generation : 0;
+  fault->exception     = exception;
+  fault->reserved      = 0;
+  fault->exc_return    = exc_return;
+  fault->stack_pointer = (uint32_t)(uintptr_t)stack;
+  fault->hfsr          = hfsr;
+  fault->cfsr          = cfsr;
+  fault->mmfar         = mmfar;
+  fault->bfar          = bfar;
+  fault->stacked_r0    = stacked_r0;
+  fault->stacked_r1    = stacked_r1;
+  fault->stacked_r2    = stacked_r2;
+  fault->stacked_r3    = stacked_r3;
+  fault->stacked_r12   = stacked_r12;
+  fault->stacked_lr    = stacked_lr;
+  fault->stacked_pc    = stacked_pc;
+  fault->stacked_xpsr  = stacked_xpsr;
+  __asm volatile ("dmb sy" ::: "memory");
+  fault->magic = BK7258_CP_FAULT_STATE_MAGIC;
+
   bk7258_fault_putc('H');
   bk7258_fault_putc('F');
+  bk7258_fault_putfield('E', exception);
+  bk7258_fault_putfield('X', exc_return);
+  bk7258_fault_putfield('S', (uint32_t)(uintptr_t)stack);
+  bk7258_fault_putfield('H', hfsr);
+  bk7258_fault_putfield('C', cfsr);
+  bk7258_fault_putfield('P', stacked_pc);
+  bk7258_fault_putfield('L', stacked_lr);
+  bk7258_fault_putfield('Q', stacked_xpsr);
+  bk7258_fault_putc('\r');
+  bk7258_fault_putc('\n');
+
   for (; ; )
     {
+      __asm volatile ("wfe");
     }
+}
+
+void __attribute__((naked, noreturn, used))
+bk7258_hardfault_handler(void)
+{
+  __asm volatile
+    (
+      "tst lr, #4\n"
+      "ite eq\n"
+      "mrseq r0, msp\n"
+      "mrsne r0, psp\n"
+      "mov r1, lr\n"
+      "mrs r2, ipsr\n"
+      "b bk7258_fault_handler\n"
+    );
 }
 
 /****************************************************************************
@@ -272,17 +430,15 @@ void bk7258_hardfault_handler(void)
 __attribute__((section(".vectors"), used, aligned(4)))
 const void *const _vectors[80] =
 {
-  /* [0]    initial MSP (loaded by hardware before __start). */
-  [0]  = (void *)BK7258_INITIAL_MSP,
+  /* [0]    reset/IDLE stack top, preserved as PSP by the wrapper. */
+  [0]  = (void *)BK7258_CP_IDLE_STACK,
 
-  /* [1]    Reset entry (Thumb; toolchain sets bit0). */
-  [1]  = (void *)__start,
+  /* [1]    reset wrapper; installs the dedicated interrupt MSP. */
+  [1]  = (void *)bk7258_reset_entry,
 
   /* [2..3] NMI + HardFault -> diagnostic bk7258_hardfault_handler.
-   *   Replaces the silent exception_common spin on these two slots so a
-   *   trap during early boot is visible (prints "HF" on UART1 then parks).
-   *   NMI ([2]) is wired the same way so an escalated fault is observable.
-   *   Pure diagnostic -- no frame decode, no recovery.
+   *   Capture the frame at 0x2809f100, print key registers on UART1, then
+   *   park.  NMI ([2]) uses the same path so escalated faults are observable.
    */
   [2]  = &bk7258_hardfault_handler,
   [3]  = &bk7258_hardfault_handler,

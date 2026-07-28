@@ -407,7 +407,7 @@ UART1 console 460800 8N1，**RX 中断驱动、TX 轮询**：NSH readline 收键
 + NSH init 任务。向量表 `slot[15..63] = exception_direct`（真实分派器），SysTick 探针在异常入口
 被证明 OK 后还原。NR_IRQS=48 覆盖 UART1 @ slot 31。
 
-**UART1 RX 输入打通 = 4 个叠加 bug 全在 `chip/bk7258_serial.c`，根因链**：
+**UART1 RX 输入打通 = 4 个叠加 bug 全在 `chip/common/bk7258_serial.c`，根因链**：
 
 1. **`receive()` 取位错**：原读 `fifo_port & 0xff`（bits[0:7] = TX 字段），RX 字节其实在
    bits[8:15] → 改 `(fifo_port >> 8) & 0xff`。
@@ -443,7 +443,7 @@ nsh> cat /proc/meminfo  → total 646144 used 7728 free 638416 maxused 8088
 nsh> uname -a       → NuttX 0.0.0 ... arm bk7258_t5ai
 ```
 
-改动仅 2 文件（全在团队 overlay）：`configs/nsh/defconfig` 新增两行（`CONFIG_FS_PROCFS`、
+改动仅 2 文件（全在团队 overlay）：`configs/cp_nsh/defconfig` 新增两行（`CONFIG_FS_PROCFS`、
 `CONFIG_NSH_ARCHINIT`；`CONFIG_NSH_PROC_MOUNTPOINT="/proc"` 由默认值解析），
 `src/bk7258_bringup.c` 增加 `<sys/mount.h>`、`mount()` 调用与文件头/doc 注释更新。
 `nuttx.bin`=88388 B、`all-app.bin`=163574 B（= `bl_crc.bin` 69632 + `nuttx_crc.bin` 93942），
@@ -458,8 +458,8 @@ state-C 的证据。NuttX 把 `__DATE__/__TIME__` 烤进版本串导致每次构
 
 ### 9.6 Stage N4-D0 / D0D — 时钟诊断 baseline + runtime SysTick bookkeeping（substage 板端验证 2026-07-18）
 
-feature commit `6f596b7`（3 个 overlay 文件：`chip/bk7258_clockdiag.h` 新增、`chip/bk7258_start.c`
-接入、`chip/bk7258_timerisr.c` runtime SysTick 选择），**只读诊断 + runtime SysTick bookkeeping**，
+feature commit `6f596b7`（3 个 overlay 文件：`chip/common/bk7258_clockdiag.h` 新增、`chip/cp/bk7258_start.c`
+接入、`chip/common/bk7258_timerisr.c` runtime SysTick 选择），**只读诊断 + runtime SysTick bookkeeping**，
 **不写** DPLL / CPU mux / clock-control / voltage / flash wait-state / UART divisor 寄存器。DPLL enable
 与 CPU mux 切换 **not attempted**（N4-D1 范围）。
 
@@ -567,7 +567,7 @@ N5 各 substage 板端验证摘要（详细 worklog：[`nuttx-port/n5-flash-file
 | **N5-D3** magic scan | `"BK7236"` magic @ logical `0x100`（`W0=0x32374B42`, `W1=0x00103633`）；NuttX read path 表现为 logical view | ✅ board-observed |
 | **N5-D4** emptiness scan | Candidate data partition 前 16 KB（4 x 4 KB sample）全 `0xFF` | ✅ board-observed |
 | **N5-D5** raw flash r/w | Raw flash erase/write/read-back/re-erase @ `0x00100000`（第一个 4 KB sector）；SR0 protect clear/restore required | ✅ board-verified（2026-07-19） |
-| **N5-D6** MTD lower-half | MTD read/erase/bwrite，方案 A（每次 op 临时清/恢复 SR0 块保护）；CONFIG_BK7258_FLASH_MTD；新增 `chip/bk7258_flash_mtd.[ch]` | ✅ board-verified（2026-07-19） |
+| **N5-D6** MTD lower-half | MTD read/erase/bwrite，方案 A（每次 op 临时清/恢复 SR0 块保护）；CONFIG_BK7258_FLASH_MTD；新增 `chip/cp/bk7258_flash_mtd.[ch]` | ✅ board-verified（2026-07-19） |
 | **N5-D7** LittleFS filesystem | CONFIG_BK7258_FLASH_LITTLEFS；ftl 注册 `/dev/mtdblock0`；mount 到 `/data`（autoformat 仅首次）；probe 文件重启持久化通过 | ✅ board-verified（2026-07-19） |
 
 **安全 candidate**：logical offset `0x00100000..0x001FFFFF`（1 MB），4 KB / 64 KB 对齐，远在当前

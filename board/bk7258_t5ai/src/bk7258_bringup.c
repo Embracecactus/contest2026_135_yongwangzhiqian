@@ -153,6 +153,15 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
 
 int board_app_initialize(uintptr_t arg)
 {
+#ifdef CONFIG_BK7258_WDT
+  /* AP autostart may wait up to three seconds.  Stop the bootloader AON WDT
+   * before entering that wait or it resets the entire SoC before AP failure
+   * diagnostics can be consumed.
+   */
+
+  (void)bk7258_wdt_initialize();
+#endif
+
 #ifdef CONFIG_BK7258_AP_CONTROL
   int apret;
 
@@ -171,10 +180,6 @@ int board_app_initialize(uintptr_t arg)
         }
     }
 #endif
-#endif
-
-#ifdef CONFIG_BK7258_WDT
-  (void)bk7258_wdt_initialize();
 #endif
 
 #ifdef CONFIG_BK7258_GPIO_LOWERHALF

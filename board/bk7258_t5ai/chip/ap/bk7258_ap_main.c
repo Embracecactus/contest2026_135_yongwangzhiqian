@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_ap_main.c
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/ap/bk7258_ap_main.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -111,7 +111,7 @@ static int bk7258_ap_validate_runtime(void)
   state->systick_reload  = BK7258_SYSTICK_RELOAD;
   state->systick_current = BK7258_SYSTICK_CURRENT;
   state->heap_start      = (uint32_t)g_idle_topstack;
-  state->heap_end        = BK7258_AP_INITIAL_MSP;
+  state->heap_end        = BK7258_AP_HEAP_END;
   state->ram_start       = BK7258_AP_RAM_BASE;
   state->ram_end         = BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE;
   state->flash_start     = BK7258_AP_FLASH_ADDR;

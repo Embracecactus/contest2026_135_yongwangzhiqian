@@ -3,3 +3,7 @@
 # for forward compatibility with the CMake backend.
 
 target_sources(board PRIVATE bk7258_bringup.c)
+
+target_include_directories(board PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../chip/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/../chip/cp)

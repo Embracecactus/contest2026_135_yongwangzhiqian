@@ -1,7 +1,7 @@
 # 手把手教程：把 BK7258 串口从「寄存器版」改成「SDK Wrapper 版」
 
 > 适用对象：嵌入式小白
-> 目标文件：`contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_serial.c`
+> 目标文件：`contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/common/bk7258_serial.c`
 > 前置知识：你不用会寄存器、不用会 RTOS 内核，照着本教程一步步抄就能改完。
 >
 > AP/CP SDK 静态库的构建、UART 对象重编和项目导入流程见：
@@ -81,12 +81,12 @@ BK7258 不是单核芯片，它是一个 **AP/CP 双核（实际是三核 Cortex
 
 证据链（都在你工程里）：
 1. 构建目标是 CP 镜像，打包的 SDK 头**只有** `armino_as_lib/cp/include/`（没有 `ap/`）；
-2. 活跃配置 `configs/nsh/defconfig` 里是 `CONFIG_BK7258_AP_CONTROL=y`（即 Beken 术语里的 CP 角色），入口 `nsh_main`——这才是带串口的镜像；
+2. 活跃配置 `configs/cp_nsh/defconfig` 里是 `CONFIG_BK7258_AP_CONTROL=y`（即 Beken 术语里的 CP 角色），入口 `nsh_main`——这才是带串口的镜像；
 3. 原 `bk7258_serial.c` 直接在 CP 地址 `0x45830000` 上戳寄存器、用 `irq_attach(BK7258_IRQ_UART1,…)` 挂**原生**中断，说明 UART1 硬件对 CP 核是直接可访问的，没走跨核 RPC。
 
 还有一个开关对我们有**实质影响**：
 
-```27:27:.../configs/nsh/defconfig
+```27:27:.../configs/cp_nsh/defconfig
 CONFIG_BK7258_SDK_IRQ_BRIDGE=y
 ```
 `SDK_IRQ_BRIDGE`（SDK 中断桥）开着，意味着「SDK 接管中断、再桥接到 NuttX」是预期路径——正好和我们的 wrapper 写法（不自己 `irq_attach`、用 `bk_uart_register_rx_isr`）对上。**这个开关千万别随手关掉，否则 RX 中断投不进 NuttX，控制台收不到键盘输入。**
@@ -412,7 +412,7 @@ void arm_serialinit(void)
 
 ```c
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_serial.c
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/common/bk7258_serial.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -859,7 +859,7 @@ ar r "$LIBS/libdriver.a" /tmp/uart_rebuild/uart_driver.c.obj
 
 # --- 步骤 3：删掉 bk7258_sdk_stubs.c 里那个 bk_printf_init 空桩 ---
 #     （保留 apctl_main / bkirqtest_main 两个，它们跟 UART 无关，见 8.5）
-$EDITOR ../chip/bk7258_sdk_stubs.c   # 删除 int bk_printf_init(void){...} 那一段
+$EDITOR ../chip/common/bk7258_sdk_stubs.c   # 删除 int bk_printf_init(void){...} 那一段
 ```
 
 ### 8.4 验证新库真的去掉了引用

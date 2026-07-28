@@ -6,7 +6,7 @@
 >
 > - 教学主题：NuttX GPIO upper/lower half 架构与 BK7258 C0/C1/C2 用户态 GPIO 驱动
 > - `$CONTEST` source commit：`c588afbd8e0f1d30723f5076e585673a6ace8a4e`
-> - 实现 source：`$BOARD/chip/bk7258_gpio_lowerhalf.c`
+> - 实现 source：`$BOARD/chip/cp/bk7258_gpio_lowerhalf.c`
 > - 最后核对日期：2026-07-27
 > - 验证状态：C0（LED 轮询）/ C1（USERKEY route gate）/ C2（USERKEY 边沿中断）均已 board-verified
 > - 教学简化：本文复用 NuttX 标准 GPIO upper-half 概念，不展开其内部 `ioctl` 转发链的完整实现
@@ -27,7 +27,7 @@ NuttX 将 GPIO 子系统分成两层：
             │  struct gpio_operations_s 的六个函数指针
             ▼
    ┌───────────────────┐
-   │  GPIO lower-half   │  $BOARD/chip/bk7258_gpio_lowerhalf.c
+   │  GPIO lower-half   │  $BOARD/chip/cp/bk7258_gpio_lowerhalf.c
    │  (芯片/板相关)     │  实现 go_read / go_write / go_attach / go_enable ...
    └───────────────────┘
             │  调用 SDK API

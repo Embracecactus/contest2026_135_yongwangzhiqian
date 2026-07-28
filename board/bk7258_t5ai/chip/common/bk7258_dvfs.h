@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_dvfs.h
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/common/bk7258_dvfs.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -25,7 +25,7 @@
  * arch/arm/src/lc823450/lc823450_dvfs2.c for the OSS precedent.
  *
  * SysTick reload is recomputed after every switch via bk7258_systick_recalc()
- * (chip/bk7258_timerisr.c) because SysTick is clocked at the processor clock.
+ * (chip/common/bk7258_timerisr.c) because SysTick is clocked at the processor clock.
  *
  * Tier table (from sys_hal.c:548-686 case comments; fields = cksel_core,
  * clkdiv_core, cpu0_speed, VDDD vdighsel, VDDDIG vcorehsel):
@@ -123,7 +123,7 @@ int bk7258_dvfs_set_freq(int tier);
 int bk7258_dvfs_get_freq(void);
 
 /* Recompute and write the SysTick one-tick reload for the live core clock.
- * Implemented in chip/bk7258_timerisr.c, called by bk7258_dvfs_set_freq()
+ * Implemented in chip/common/bk7258_timerisr.c, called by bk7258_dvfs_set_freq()
  * after each switch (SysTick is clocked at the CPU0 processor clock). */
 void bk7258_systick_recalc(void);
 

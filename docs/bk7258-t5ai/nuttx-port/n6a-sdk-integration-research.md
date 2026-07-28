@@ -162,7 +162,7 @@ TuyaOpen 的 `tuyaos_adapter` 多一层抽象，初期无收益。
 
 ### 3.1 当前 flash 驱动现状
 
-`chip/bk7258_flash_mtd.c`（630 行）寄存器级实现：
+`chip/cp/bk7258_flash_mtd.c`（630 行）寄存器级实现：
 - 直接定义 flash 控制器 MMIO（`0x44030000` + 各寄存器偏移）
 - 手写 `bk7258_flash_swop()`（OP_CMD + OP_SW 触发控制器操作）
 - 手写 `bk7258_flash_read_sr()` / `bk7258_flash_write_sr()`（RDSR/WRSR）
@@ -286,7 +286,7 @@ contest2026_135_yongwangzhiqian/board/bk7258_t5ai/
 │   ├── include/...
 │   ├── os/os_adapt.c            # NuttX RTOS shim（见 §3.4）
 │   └── Make.defs                # SDK 编译规则
-├── configs/nsh/defconfig       # ← 加 CONFIG_BK7258_FLASH_MTD_SDK=y
+├── configs/cp_nsh/defconfig    # ← 加 CONFIG_BK7258_FLASH_MTD_SDK=y
 ├── scripts/
 └── src/
 ```
@@ -332,7 +332,7 @@ endif
 
 ### 3.7 验证
 
-1. **编译**：`./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8`
+1. **编译**：`./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8`
    —— 先确保 SDK flash 源码在 NuttX 编译环境下过编（逐个补缺失头/符号/桩）。
 2. **链接**：确认 `bk_flash_*` 符号全部解析，无未定义引用。
 3. **板端回归**（用 N5 已有验证基线）：
@@ -449,7 +449,7 @@ armino_as_lib.sh <soc> <armino_dir> <build_dir> <project>
 
 1. **建 `sdk/` 目录骨架**：按 §3.3 创建目录树，从 `bk_avdk_smp` 拷 flash 最小源码集。
 2. **写 `sdk/os/os_adapt.c`**：NuttX RTOS shim 最小集（malloc/free/mutex/tick）+ 空桩。
-3. **改写 `chip/bk7258_flash_mtd.c`**（或拆 `_sdk.c`）：erase/bread/bwrite/init 调 `bk_flash_*`。
+3. **改写 `chip/cp/bk7258_flash_mtd.c`**（或拆 `_sdk.c`）：erase/bread/bwrite/init 调 `bk_flash_*`。
 4. **更新 `chip/Kconfig`** + `chip/Make.defs`：加 `BK7258_FLASH_MTD_SDK` choice + SDK 编译规则。
 5. **编译收敛**：`build.sh ... nsh -j8`，逐个补缺失头/符号/桩直到过编。
 6. **板端回归**：按 §3.7 烧录验证，对齐 N5-D7 证据。
@@ -461,8 +461,8 @@ armino_as_lib.sh <soc> <armino_dir> <build_dir> <project>
 ## 7. 相关文件索引
 
 **当前实现**：
-- `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_flash_mtd.c` — 寄存器级 flash MTD（待改写）
-- `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_flash_mtd.h`
+- `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.c` — 寄存器级 flash MTD（待改写）
+- `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.h`
 - `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/Make.defs` — 编译规则（待加 SDK 项）
 - `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/Kconfig`
 - `contest2026_135_yongwangzhiqian/docs/bk7258-t5ai/nuttx-port/n5-flash-filesystem.md` — N5 板端验证证据

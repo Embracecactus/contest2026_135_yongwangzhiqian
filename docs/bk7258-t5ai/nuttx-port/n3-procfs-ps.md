@@ -2,7 +2,7 @@
 
 > 板端验证日期：2026-07-18
 > 基线 commit：`9f45bc6`（Stage N2）→ 本阶段：`4d9198e`（code，procfs+ps）+ 本 docs 提交
-> 改动范围：`$CONTEST/board/bk7258_t5ai/`（configs/nsh/defconfig + src/bk7258_bringup.c）
+> 改动范围：`$CONTEST/board/bk7258_t5ai/`（configs/cp_nsh/defconfig + src/bk7258_bringup.c）
 
 ## 目标
 
@@ -44,7 +44,7 @@ N2 已经能在 UART1 上跑交互式 NSH，但 `ps` 等命令不可用——根
 
 ## 改动（全部在团队 overlay）
 
-### 3.1 `configs/nsh/defconfig`
+### 3.1 `configs/cp_nsh/defconfig`
 
 新增两行（CONFIG_NSH_PROC_MOUNTPOINT 由 olddefconfig 从默认值解析为 "/proc"，无需在 defconfig 里写）：
 
@@ -89,10 +89,10 @@ return 0;
 从 workspace 根 `/home/lijian/project/open-vela` 执行：
 
 ```bash
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 ```
 
-产物（`out/vendor/openvela/boards/contest2026_135_bk7258/configs/nsh/`）：
+产物（`out/vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh/`）：
 
 - `nuttx.bin` = **88388 B**
 - `all-app.bin` = **163574 B = 0x27EF6**（= `bl_crc.bin` 69632 B + `nuttx_crc.bin` 93942 B）

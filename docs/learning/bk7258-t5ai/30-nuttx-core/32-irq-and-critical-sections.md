@@ -18,11 +18,11 @@
 
 | 顺序 | 函数 | 谁调用它 | 源码位置 |
 |---|---|---|---|
-| 1 | `up_allocate_heap()` | `memory_initialize()` | `$BOARD/chip/bk7258_allocateheap.c:65` |
-| 2 | `up_irqinitialize()` | `irq_initialize()` | `$BOARD/chip/bk7258_irq.c:165` |
-| 3 | `up_timer_initialize()` | `clock_initialize()` | `$BOARD/chip/bk7258_timerisr.c:79` |
-| 4 | `arm_earlyserialinit()` | `__start()` | `$BOARD/chip/bk7258_serial.c:477` |
-| 5 | `arm_serialinit()` | `up_initialize()` | `$BOARD/chip/bk7258_serial.c:494` |
+| 1 | `up_allocate_heap()` | `memory_initialize()` | `$BOARD/chip/common/bk7258_allocateheap.c:65` |
+| 2 | `up_irqinitialize()` | `irq_initialize()` | `$BOARD/chip/common/bk7258_irq.c:165` |
+| 3 | `up_timer_initialize()` | `clock_initialize()` | `$BOARD/chip/common/bk7258_timerisr.c:79` |
+| 4 | `arm_earlyserialinit()` | `__start()` | `$BOARD/chip/common/bk7258_serial.c:477` |
+| 5 | `arm_serialinit()` | `up_initialize()` | `$BOARD/chip/common/bk7258_serial.c:494` |
 
 注意 `arm_earlyserialinit()` 实际出现在 `__start()` 中，比其余四个都早；上表按"名字第一次出现"排序，不是严格按调用时间。精确调用链见下文。
 
@@ -97,7 +97,7 @@ weak_function up_allocate_heap(void **heap_start, size_t *heap_size)
 
 ### BK7258 的覆盖
 
-`$BOARD/chip/bk7258_allocateheap.c:65`
+`$BOARD/chip/common/bk7258_allocateheap.c:65`
 
 ```c
 void up_allocate_heap(void **heap_start, size_t *heap_size)
@@ -121,7 +121,7 @@ g_idle_topstack
 _eheap      0x2809FFFC       SRAM 顶端减一个 word
 ```
 
-`g_idle_topstack` 定义在 `$BOARD/chip/bk7258_start.c:70`：
+`g_idle_topstack` 定义在 `$BOARD/chip/cp/bk7258_start.c:70`：
 
 ```c
 const uintptr_t g_idle_topstack = HEAP_BASE;
@@ -170,7 +170,7 @@ void irq_initialize(void)
 
 ### BK7258 实现做了什么
 
-`$BOARD/chip/bk7258_irq.c:165`
+`$BOARD/chip/common/bk7258_irq.c:165`
 
 按执行顺序：
 
@@ -238,7 +238,7 @@ void clock_initialize(void)
 
 ### BK7258 实现
 
-`$BOARD/chip/bk7258_timerisr.c:79`
+`$BOARD/chip/common/bk7258_timerisr.c:79`
 
 ```c
 void up_timer_initialize(void)
@@ -315,7 +315,7 @@ void arm_earlyserialinit(void);
 
 ### 真实调用者
 
-`$BOARD/chip/bk7258_start.c:157`
+`$BOARD/chip/cp/bk7258_start.c:157`
 
 ```c
 #ifdef USE_EARLYSERIALINIT
@@ -327,7 +327,7 @@ void arm_earlyserialinit(void);
 
 ### BK7258 实现
 
-`$BOARD/chip/bk7258_serial.c:477`
+`$BOARD/chip/common/bk7258_serial.c:477`
 
 ```c
 void arm_earlyserialinit(void)
@@ -395,7 +395,7 @@ void arm_serialinit(void);
 
 ### BK7258 实现
 
-`$BOARD/chip/bk7258_serial.c:494`
+`$BOARD/chip/common/bk7258_serial.c:494`
 
 ```c
 void arm_serialinit(void)

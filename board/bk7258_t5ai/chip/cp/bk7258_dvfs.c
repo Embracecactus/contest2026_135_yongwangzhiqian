@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_dvfs.c
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/cp/bk7258_dvfs.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

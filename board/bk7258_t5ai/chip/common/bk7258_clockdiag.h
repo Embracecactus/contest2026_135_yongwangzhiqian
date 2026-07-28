@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/bk7258_clockdiag.h
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/common/bk7258_clockdiag.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *

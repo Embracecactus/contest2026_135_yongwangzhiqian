@@ -24,7 +24,7 @@ u_bootloader enter
 
 位于 `board/bk7258_t5ai/bootloader/boot_main.c:187`。
 
-`HF` 来自 `board/bk7258_t5ai/chip/bk7258_vectors.c:243-249` 的临时故障处理器。该处理器同时占用向量槽 2（NMI）和槽 3（HardFault），因此当前日志不能区分 NMI 与 HardFault。结合后述喂狗链，最可能是 APB WDT 超时产生的 NMI；`F` 与下一次启动的 `u_bootloader enter` 相连，形成 `Fu_bootloader enter`。
+`HF` 来自 `board/bk7258_t5ai/chip/cp/bk7258_vectors.c:243-249` 的临时故障处理器。该处理器同时占用向量槽 2（NMI）和槽 3（HardFault），因此当前日志不能区分 NMI 与 HardFault。结合后述喂狗链，最可能是 APB WDT 超时产生的 NMI；`F` 与下一次启动的 `u_bootloader enter` 相连，形成 `Fu_bootloader enter`。
 
 ## 已确认根因
 
@@ -72,7 +72,7 @@ return TICK2USEC(timebase) + (status.timeout - status.timeleft);
 
 ## 已实施的最小 overlay 修复
 
-未修改官方 `nuttx/` 树，已在团队板级 `board/bk7258_t5ai/configs/nsh/defconfig` 中启用：
+未修改官方 `nuttx/` 树，已在团队板级 `board/bk7258_t5ai/configs/cp_nsh/defconfig` 中启用：
 
 ```text
 CONFIG_SYSTEM_TIME64=y
@@ -121,11 +121,11 @@ TICK2USEC(timebase)  /* timebase * 10000 */
 
 ```sh
 cd /home/lijian/project/open-vela
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh distclean  # exit 0
-./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8       # 首次 exit 2
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean  # exit 0
+./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8       # 首次 exit 2
 ```
 
-首次链接失败是 IRQ timer test 只包含 `<nuttx/irq.h>`，导致 `enter_critical_section()` / `leave_critical_section()` 被隐式声明为外部函数。最小修复仅把团队 overlay 文件 `board/bk7258_t5ai/chip/bk7258_sdk_irq_timer_test.c` 的包含头替换为 `<nuttx/spinlock.h>`，使这两个 NuttX API 在当前单核配置下正确展开为 `up_irq_save()` / `up_irq_restore()`。随后执行同一构建命令，退出码为 0，完整日志保存在 `/tmp/bk7258-4295s-build-after-irq-fix.log`。
+首次链接失败是 IRQ timer test 只包含 `<nuttx/irq.h>`，导致 `enter_critical_section()` / `leave_critical_section()` 被隐式声明为外部函数。最小修复仅把团队 overlay 文件 `board/bk7258_t5ai/chip/cp/bk7258_sdk_irq_timer_test.c` 的包含头替换为 `<nuttx/spinlock.h>`，使这两个 NuttX API 在当前单核配置下正确展开为 `up_irq_save()` / `up_irq_restore()`。随后执行同一构建命令，退出码为 0，完整日志保存在 `/tmp/bk7258-4295s-build-after-irq-fix.log`。
 
 最终 `/home/lijian/project/open-vela/nuttx/.config` 实测为：
 

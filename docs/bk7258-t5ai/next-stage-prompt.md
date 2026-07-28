@@ -39,7 +39,7 @@
   （1000Hz）manual-reset 路径失败重启，已 rejected。**N4-D1（DPLL lock）blocked**；DPLL enable /
   mux 切换 not attempted；**整 N4 not board-verified**。详见 [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md)。
   剩余收口：`6f596b7` 精确 commit 的 state-C 重编/重刷复验尚未完成。
-- **N5 flash filesystem（board-verified 2026-07-19）：**N5-D0..D4 board-observed（layout candidate、flash ID、content dump、magic scan、emptiness scan）；N5-D5 raw flash erase/write/read-back/re-erase board-verified（`0x00100000`，2026-07-19）；N5-D6 MTD lower-half board-verified（方案 A：每次 op 临时清/恢复 SR0 块保护，CONFIG_BK7258_FLASH_MTD，`chip/bk7258_flash_mtd.[ch]`）；N5-D7 LittleFS filesystem board-verified（CONFIG_BK7258_FLASH_LITTLEFS，ftl 注册 `/dev/mtdblock0`，mount 到 `/data`，autoformat 仅首次，probe 文件重启持久化通过）。全链路：raw flash → MTD → ftl block device → LittleFS。D7 版 `all-app.bin` = 192270 B = `0x2EF0E`（< `0x100000`，boot/app 区不受影响）。详见 [N5 worklog](nuttx-port/n5-flash-filesystem.md)。
+- **N5 flash filesystem（board-verified 2026-07-19）：**N5-D0..D4 board-observed（layout candidate、flash ID、content dump、magic scan、emptiness scan）；N5-D5 raw flash erase/write/read-back/re-erase board-verified（`0x00100000`，2026-07-19）；N5-D6 MTD lower-half board-verified（方案 A：每次 op 临时清/恢复 SR0 块保护，CONFIG_BK7258_FLASH_MTD，`chip/cp/bk7258_flash_mtd.[ch]`）；N5-D7 LittleFS filesystem board-verified（CONFIG_BK7258_FLASH_LITTLEFS，ftl 注册 `/dev/mtdblock0`，mount 到 `/data`，autoformat 仅首次，probe 文件重启持久化通过）。全链路：raw flash → MTD → ftl block device → LittleFS。D7 版 `all-app.bin` = 192270 B = `0x2EF0E`（< `0x100000`，boot/app 区不受影响）。详见 [N5 worklog](nuttx-port/n5-flash-filesystem.md)。
 - **频率阶梯 / 480 MHz recovery note：**
   - **不要重试 `M1=0x430`（480M/1）**：Beken SDK `sys_hal_core_bus_clock_ctrl()` 中
     `PM_CLKSEL_CORE_480M` + `PM_CLKDIV_CORE_0` 组合被 guard 明确拒绝（返回 `BK_FAIL`）；板端

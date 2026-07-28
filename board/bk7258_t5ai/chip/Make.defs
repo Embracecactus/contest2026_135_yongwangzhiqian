@@ -5,21 +5,28 @@
 #
 # Beken BK7258 (Cortex-M33) custom chip definitions for NuttX.
 #
-# We reuse the common armv8-m source set (which pulls in arm_m and the
-# generic ARM common files), then add only the two BK7258-specific sources:
+# The chip port has one root build entry and three implementation groups:
 #
-#   bk7258_vectors.c  - chip-provided Cortex-M vector table (66 entries),
-#                       carrying the BK7236 app magic at slot 64/65 so it
-#                       lands at image offset 0x100. Selected at Kconfig
-#                       level via ARCH_HAVE_CUSTOM_VECTORS, which makes
-#                       armv8-m -> arm_m drop arm_vectors.c automatically.
+#   common/  sources used by both CP and the N7 AP-UP baseline
+#   cp/      CPU0/CP-only startup, peripherals and SDK integration
+#   ap/      physical CPU1 AP-UP startup and main path
 #
-#   bk7258_start.c    - __start entry: mask IRQs, set VTOR, bare-write the
-#                       "NUTTX N1" banner over UART1, spin. Stage N1 does
-#                       NOT call nx_start().
+# AP-SMP will add a separate source group without duplicating the root Kconfig,
+# Make.defs or public include directory.
 ############################################################################
 
 include armv8-m/Make.defs
+
+# The arch Makefile already adds chip/ itself.  Add the role subdirectories for
+# source lookup and chip-private quoted includes.
+
+VPATH += chip$(DELIM)common
+VPATH += chip$(DELIM)cp
+VPATH += chip$(DELIM)ap
+
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)common
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)cp
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)ap
 
 # Beken SDK headers are kept separate for each firmware role.
 
@@ -32,86 +39,64 @@ endif
 INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)bk_idk$(DELIM)armino_as_lib$(DELIM)$(BK7258_SDK_ROLE)$(DELIM)include
 INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)bk_idk$(DELIM)armino_as_lib$(DELIM)$(BK7258_SDK_ROLE)$(DELIM)config
 
-# Chip-specific sources (resolved via VPATH += $(CHIP_DIR) added by the
-# arch Makefile, exactly like every other in-tree ARM chip).
-#
-# Stage N2 adds the full bring-up set on top of the N1 vector/start pair:
-#   bk7258_lowputc.c     polled arm_lowputc()/up_putc() over UART1
-#   bk7258_serial.c      poll-based uart_ops_s console lower-half
-#   bk7258_irq.c         NVIC up_*irq*() glue
-#   bk7258_timerisr.c    SysTick up_timer_initialize()
-#   bk7258_allocateheap.c up_allocate_heap()
+# Shared N7 sources.  lowputc/serial remain shared in this structural-only
+# move: the current AP ELF still exports arm_lowputc()/up_putc(), so making
+# them CP-only would change the verified AP baseline.
 
-ifeq ($(CONFIG_BK7258_AP_CORE),y)
+BK7258_COMMON_CSRCS  = bk7258_lowputc.c
+BK7258_COMMON_CSRCS += bk7258_serial.c
+BK7258_COMMON_CSRCS += bk7258_irq.c
+BK7258_COMMON_CSRCS += bk7258_timerisr.c
+BK7258_COMMON_CSRCS += bk7258_allocateheap.c
+BK7258_COMMON_CSRCS += bk7258_os_adapt.c
+BK7258_COMMON_CSRCS += bk7258_sdk_stubs.c
 
-# Physical CPU1 runs a separate UP NuttX image.  It owns no CP SDK peripheral
-# libraries in N7; only SysTick, NVIC, heap, shared state and raw mailbox
-# doorbells are enabled.
+# CPU0/CP sources.  Preserve the pre-refactor source order so archive/link
+# ordering and vector handler addresses remain unchanged.
 
-CHIP_CSRCS  = bk7258_ap_vectors.c
-CHIP_CSRCS += bk7258_ap_start.c
-CHIP_CSRCS += bk7258_lowputc.c
-CHIP_CSRCS += bk7258_serial.c
-CHIP_CSRCS += bk7258_irq.c
-CHIP_CSRCS += bk7258_timerisr.c
-CHIP_CSRCS += bk7258_allocateheap.c
-CHIP_CSRCS += bk7258_ap_main.c
-CHIP_CSRCS += bk7258_os_adapt.c
-CHIP_CSRCS += bk7258_sdk_stubs.c
-
-else
-
-CHIP_CSRCS  = bk7258_vectors.c
-CHIP_CSRCS += bk7258_start.c
-CHIP_CSRCS += bk7258_lowputc.c
-CHIP_CSRCS += bk7258_serial.c
-CHIP_CSRCS += bk7258_irq.c
-CHIP_CSRCS += bk7258_timerisr.c
-CHIP_CSRCS += bk7258_allocateheap.c
-CHIP_CSRCS += bk7258_os_adapt.c
-CHIP_CSRCS += bk7258_sdk_stubs.c
+BK7258_CP_CSRCS  = bk7258_vectors.c
+BK7258_CP_CSRCS += bk7258_start.c
+BK7258_CP_CSRCS += $(BK7258_COMMON_CSRCS)
 
 ifeq ($(CONFIG_BK7258_AP_CONTROL),y)
-CHIP_CSRCS += bk7258_ap_control.c
+BK7258_CP_CSRCS += bk7258_ap_control.c
 endif
 
 # Stage B: replace the SDK private CM33 callback table with NuttX irq_attach()
 # ownership for SDK interrupt sources 0..63.
 
 ifeq ($(CONFIG_BK7258_SDK_IRQ_BRIDGE),y)
-CHIP_CSRCS += bk7258_sdk_irq.c
+BK7258_CP_CSRCS += bk7258_sdk_irq.c
 endif
 
 ifeq ($(CONFIG_BK7258_SDK_IRQ_TIMER_TEST),y)
-CHIP_CSRCS += bk7258_sdk_irq_timer_test.c
+BK7258_CP_CSRCS += bk7258_sdk_irq_timer_test.c
 endif
 
 ifeq ($(CONFIG_BK7258_GPIO_FOUNDATION_TEST),y)
-CHIP_CSRCS += bk7258_gpio_foundation_test.c
+BK7258_CP_CSRCS += bk7258_gpio_foundation_test.c
 endif
 
 ifeq ($(CONFIG_BK7258_GPIO_IRQ_TEST),y)
-CHIP_CSRCS += bk7258_gpio_irq_test.c
+BK7258_CP_CSRCS += bk7258_gpio_irq_test.c
 endif
 
 ifeq ($(CONFIG_BK7258_GPIO_LOWERHALF),y)
-CHIP_CSRCS += bk7258_gpio_cp_irq.c
-CHIP_CSRCS += bk7258_gpio_lowerhalf.c
+BK7258_CP_CSRCS += bk7258_gpio_cp_irq.c
+BK7258_CP_CSRCS += bk7258_gpio_lowerhalf.c
 endif
 
-endif
-
-# Stage N5-D6-A: on-chip flash data-partition MTD (read-only path).  Gated on
-# CONFIG_BK7258_FLASH_MTD; default off so normal firmware is unchanged.
+# Stage N5-D6-A: on-chip flash data-partition MTD.  Default off so normal
+# firmware is unchanged.
 
 ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
-CHIP_CSRCS += bk7258_flash_mtd.c
+BK7258_CP_CSRCS += bk7258_flash_mtd.c
 endif
 
 # Stage N4-D1: deterministic 320 MHz CPU0 clock bring-up.
 
 ifeq ($(CONFIG_BK7258_CLOCK_320M),y)
-CHIP_CSRCS += bk7258_clock.c
+BK7258_CP_CSRCS += bk7258_clock.c
 endif
 
 # Compile the common Cortex-M SysTick lower half (arm_systick.c, which
@@ -123,31 +108,44 @@ endif
 # without touching the upstream tree.
 
 ifeq ($(CONFIG_ARM_SYSTICK),y)
-CHIP_CSRCS += arm_systick.c
+BK7258_CP_CSRCS += arm_systick.c
 endif
 
-# Stage N4-D2: the BK7258 DVFS lower half.  Selected by BK7258_CLOCK_320M
-# (boot-time bringup) and reachable standalone via /proc/dvfs when
-# BK7258_DVFS_PROCFS is on.  bk7258_clk_ll.h is consumed inline by both
-# bk7258_clock.c and bk7258_dvfs.c; no separate .c for it.
+# Stage N4-D2: BK7258 DVFS lower half and optional procfs control.
 
 ifeq ($(CONFIG_BK7258_DVFS),y)
-CHIP_CSRCS += bk7258_dvfs.c
+BK7258_CP_CSRCS += bk7258_dvfs.c
 endif
 
 ifeq ($(CONFIG_BK7258_DVFS_PROCFS),y)
-CHIP_CSRCS += bk7258_dvfs_procfs.c
+BK7258_CP_CSRCS += bk7258_dvfs_procfs.c
 endif
-
-# Force the link entry point to our __start (defined in bk7258_start.c).
-# --build-id=none keeps the image deterministic and avoids leaking any
-# build-id bytes that could shift the offset of later sections.
 
 # Stage B2: APB watchdog lower-half driver.  Takes over the bootloader's WDT
 # after boot and registers /dev/watchdog0.  Default y.
 
 ifeq ($(CONFIG_BK7258_WDT),y)
-CHIP_CSRCS += bk7258_wdt.c
+BK7258_CP_CSRCS += bk7258_wdt.c
+endif
+
+# Physical CPU1 runs the independently linked N7 AP-UP image.  ap_main was
+# historically placed between allocateheap and os_adapt; keep that order for
+# byte-identical AP output.
+
+BK7258_AP_UP_CSRCS  = bk7258_ap_vectors.c
+BK7258_AP_UP_CSRCS += bk7258_ap_start.c
+BK7258_AP_UP_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
+BK7258_AP_UP_CSRCS += bk7258_ap_main.c
+BK7258_AP_UP_CSRCS += $(wordlist 6,7,$(BK7258_COMMON_CSRCS))
+
+ifeq ($(CONFIG_ARM_SYSTICK),y)
+BK7258_AP_UP_CSRCS += arm_systick.c
+endif
+
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+CHIP_CSRCS = $(BK7258_AP_UP_CSRCS)
+else
+CHIP_CSRCS = $(BK7258_CP_CSRCS)
 endif
 
 # Disable FreeRTOS assumptions in SDK headers (reference: 7236N Make.defs:110-120)
@@ -158,5 +156,8 @@ CFLAGS += -DCONFIG_SYSTEM_CTRL=1 -DCONFIG_NMI_WDT_EN=1
 CFLAGS += -DCONFIG_DEBUG_VERSION=0 -DCONFIG_GPIO_RETENTION_SUPPORT=0
 CFLAGS += -DCONFIG_AON_RTC=0 -DCONFIG_AON_RTC_64BIT=0
 CFLAGS += -DCONFIG_SOC_BK7256XX=0 -DCONFIG_SOC_BK7236XX=0 -DCONFIG_SOC_BK7239XX=0
+
+# Force the link entry point to our __start.  --build-id=none keeps the image
+# deterministic and avoids build-id bytes shifting later sections.
 
 LDFLAGS += --build-id=none --entry=__start

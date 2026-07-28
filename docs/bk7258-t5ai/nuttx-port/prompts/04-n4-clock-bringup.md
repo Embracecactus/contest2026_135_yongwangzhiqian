@@ -323,7 +323,7 @@ K. Build 与 Windows flash gate
 获得 build 授权后，只从 $WORKSPACE 执行：
 
   cd "$WORKSPACE"
-  ./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/nsh -j8
+  ./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8
 
 获得 package/artifact 检查授权后，对实际 N4 产物重新计算：
 

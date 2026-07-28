@@ -198,15 +198,15 @@ def main() -> int:
     parser.add_argument("--objdump", default="arm-none-eabi-objdump")
     args = parser.parse_args()
 
-    bridge_c = board / "chip" / "bk7258_sdk_irq.c"
-    bridge_h = board / "chip" / "bk7258_sdk_irq.h"
+    bridge_c = board / "chip" / "cp" / "bk7258_sdk_irq.c"
+    bridge_h = board / "chip" / "common" / "bk7258_sdk_irq.h"
     make_defs = board / "chip" / "Make.defs"
     cmake = board / "chip" / "CMakeLists.txt"
     kconfig = board / "chip" / "Kconfig"
-    defconfig = board / "configs" / "nsh" / "defconfig"
+    defconfig = board / "configs" / "cp_nsh" / "defconfig"
     ldscript = board / "scripts" / "ld.script"
     build_config = workspace / "nuttx" / ".config"
-    stubs = board / "chip" / "bk7258_sdk_stubs.c"
+    stubs = board / "chip" / "common" / "bk7258_sdk_stubs.c"
 
     verifier = Verifier()
 
