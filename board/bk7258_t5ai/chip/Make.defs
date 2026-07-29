@@ -157,6 +157,14 @@ CFLAGS += -DCONFIG_DEBUG_VERSION=0 -DCONFIG_GPIO_RETENTION_SUPPORT=0
 CFLAGS += -DCONFIG_AON_RTC=0 -DCONFIG_AON_RTC_64BIT=0
 CFLAGS += -DCONFIG_SOC_BK7256XX=0 -DCONFIG_SOC_BK7236XX=0 -DCONFIG_SOC_BK7239XX=0
 
+# CPU0 wraps the common dispatcher to enforce non-nested IRQ dispatch and
+# retain the selected context across the STAR no-switch return path.  AP
+# remains unchanged.
+
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=arm_doirq --wrap=nxsched_resume_scheduler
+endif
+
 # Force the link entry point to our __start.  --build-id=none keeps the image
 # deterministic and avoids build-id bytes shifting later sections.
 

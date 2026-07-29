@@ -103,6 +103,15 @@ static int bk7258_sdk_irq_encode_priority(uint32_t priority)
       return -1;
     }
 
+#ifndef CONFIG_ARCH_HIPRI_INTERRUPT
+  /* The common ARMv8-M dispatcher is not re-entrant in this configuration.
+   * Keep SDK device IRQs at the same logical priority as SysTick so neither
+   * can preempt the other while arm_doirq owns a TCB exception context.
+   */
+
+  priority = BK7258_SDK_IRQ_DEFAULT_PRIORITY;
+#endif
+
   return (int)(priority << BK7258_SDK_IRQ_PRIORITY_SHIFT);
 }
 
