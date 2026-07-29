@@ -15,6 +15,7 @@
 OUTPUT_ARCH("arm")
 EXTERN(_vectors)
 EXTERN(__vector_core0_table)
+EXTERN(__vector_core1_table)
 EXTERN(bk7258_ap_main)
 ENTRY(__start)
 
@@ -42,6 +43,22 @@ SECTIONS
            "ERROR: AP _vectors must alias __vector_core0_table")
     ASSERT(SIZEOF(.vectors) == 0x140,
            "ERROR: AP vector table must contain 80 entries")
+
+    /* N8-A physical CPU2 executes the AP-local logical-core-1 probe vector.
+     * Keep it in the same XIP image, independently 512-byte aligned.
+     */
+
+    . = ALIGN(512);
+    .cpu2_vectors : ALIGN(4)
+    {
+        KEEP(*(.vectors_core1))
+        . = ALIGN(4);
+    } > FLASH
+
+    ASSERT((__vector_core1_table & 0x1ff) == 0,
+           "ERROR: CPU2 probe vector must be 512-byte aligned")
+    ASSERT(SIZEOF(.cpu2_vectors) == 0x140,
+           "ERROR: CPU2 probe vector must contain 80 entries")
 
     .text : ALIGN(4)
     {
@@ -140,8 +157,21 @@ SECTIONS
 
     . = ALIGN(16);
     _sheap = ABSOLUTE(.);
-    _eheap = ORIGIN(RAM) + LENGTH(RAM) - 4;
 
+    /* Reserve the top 1 KiB of AP-owned SRAM for the freestanding physical
+     * CPU2 probe.  The probe stack grows down from the shared-page boundary;
+     * NuttX heap allocation stops below it.
+     */
+
+    _bk7258_cpu2_probe_stack_top = ORIGIN(RAM) + LENGTH(RAM);
+    _bk7258_cpu2_probe_stack_base =
+      _bk7258_cpu2_probe_stack_top - 0x400;
+    _eheap = _bk7258_cpu2_probe_stack_base - 4;
+
+    ASSERT(_bk7258_cpu2_probe_stack_top == 0x2809f000,
+           "ERROR: CPU2 probe stack must end at the shared-page boundary")
+    ASSERT(_ebss + CONFIG_IDLETHREAD_STACKSIZE <= _eheap,
+           "ERROR: AP data/IDLE stack overlaps the CPU2 probe stack")
     ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
            ORIGIN(FLASH) + LENGTH(FLASH),
            "ERROR: AP image exceeds the app1 flash partition")

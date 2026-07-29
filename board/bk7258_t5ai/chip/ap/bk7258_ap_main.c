@@ -159,6 +159,7 @@ int bk7258_ap_main(int argc, char *argv[])
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
   uint32_t event;
   int error;
+  int ret;
 
   (void)argc;
   (void)argv;
@@ -182,6 +183,15 @@ int bk7258_ap_main(int argc, char *argv[])
       goto parked;
     }
 
+  ret = bk7258_cpu2_probe_start(BK7258_CPU2_PROBE_TIMEOUT_MS);
+  if (ret < 0)
+    {
+      state->state = BK7258_AP_STATE_FAILED;
+      state->error = BK7258_AP_ERROR_CPU2_PROBE;
+      bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+      goto parked;
+    }
+
   state->error      = BK7258_AP_ERROR_NONE;
   state->last_event = BK7258_AP_EVENT_READY;
   state->state      = BK7258_AP_STATE_READY;
@@ -201,6 +211,17 @@ int bk7258_ap_main(int argc, char *argv[])
         {
           state->state = BK7258_AP_STATE_STOPPING;
           __asm volatile ("dmb sy" ::: "memory");
+          ret = bk7258_cpu2_probe_stop(
+            BK7258_CPU2_PROBE_STOP_TIMEOUT_MS);
+          if (ret < 0)
+            {
+              state->error = BK7258_AP_ERROR_CPU2_PROBE;
+              state->state = BK7258_AP_STATE_FAILED;
+              state->last_event = BK7258_AP_EVENT_FAILED;
+              bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+              break;
+            }
+
           state->state = BK7258_AP_STATE_STOPPED;
           state->last_event = BK7258_AP_EVENT_STOPPED;
           bk7258_ap_mbox_send(BK7258_AP_EVENT_STOPPED);
@@ -208,6 +229,7 @@ int bk7258_ap_main(int argc, char *argv[])
         }
 
       state->heartbeat++;
+      __asm volatile ("dmb sy; sev" ::: "memory");
       nxsig_usleep(BK7258_AP_HEARTBEAT_US);
     }
 

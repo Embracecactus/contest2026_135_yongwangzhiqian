@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 CP/AP image layout and the Stage N7 shared boot-state protocol.
+ * BK7258 CP/AP image layout and the N7/N8 shared boot-state protocol.
  ****************************************************************************/
 
 #ifndef __ARCH_ARM_INCLUDE_BK7258_BK7258_AMP_H
@@ -63,10 +63,15 @@
 #define BK7258_SHARED_RAM_BASE           0x2809f000u
 #define BK7258_SHARED_RAM_SIZE           0x00001000u
 
+#define BK7258_CPU2_PROBE_STACK_SIZE     0x00000400u
+#define BK7258_CPU2_PROBE_STACK_TOP      BK7258_SHARED_RAM_BASE
+#define BK7258_CPU2_PROBE_STACK_BASE     \
+  (BK7258_CPU2_PROBE_STACK_TOP - BK7258_CPU2_PROBE_STACK_SIZE)
+
 #define BK7258_CP_HEAP_END               \
   (BK7258_CP_RAM_BASE + BK7258_CP_RAM_SIZE - 4u)
 #define BK7258_AP_HEAP_END               \
-  (BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE - 4u)
+  (BK7258_CPU2_PROBE_STACK_BASE - 4u)
 
 /* The SDK uses a per-core DTCM word as its local core-ID cell.  AP logical
  * core 0 writes zero there and reports SoC physical CPU1 as local + 1.
@@ -82,6 +87,13 @@
 #define BK7258_SYS_CPU1_POWER_DOWN       (1u << 1)
 #define BK7258_SYS_CPU1_RXEVT_SEL        (1u << 5)
 #define BK7258_SYS_CPU1_BOOT_MASK        0xffffff00u
+
+#define BK7258_SYS_CPU2_CONTROL          0x44010018u
+#define BK7258_SYS_CPU2_RESET            (1u << 0)
+#define BK7258_SYS_CPU2_POWER_DOWN       (1u << 1)
+#define BK7258_SYS_CPU2_HALT             (1u << 3)
+#define BK7258_SYS_CPU2_RXEVT_SEL        (1u << 5)
+#define BK7258_SYS_CPU2_BOOT_MASK        0xffffff00u
 
 #define BK7258_MBOX0_BASE                0x41000000u /* CPU0 -> CPU1 */
 #define BK7258_MBOX1_BASE                0x41020000u /* CPU1 -> CPU0 */
@@ -117,6 +129,16 @@
 #define BK7258_CP_FAULT_STATE_OFFSET     0x00000100u
 #define BK7258_CP_FAULT_STATE_MAGIC      0x544c4643u /* "CFLT" */
 #define BK7258_CP_FAULT_STATE_VERSION    1u
+
+/* N8-A physical CPU2 probe state.  The AP image contains a second vector
+ * table and a freestanding probe which reports through this shared record.
+ */
+
+#define BK7258_CPU2_PROBE_STATE_OFFSET   0x00000180u
+#define BK7258_CPU2_PROBE_STATE_MAGIC    0x32555043u /* "CPU2" */
+#define BK7258_CPU2_PROBE_STATE_VERSION  1u
+#define BK7258_CPU2_PROBE_TIMEOUT_MS     1000u
+#define BK7258_CPU2_PROBE_STOP_TIMEOUT_MS 100u
 
 /****************************************************************************
  * Public Types
@@ -158,7 +180,37 @@ enum bk7258_ap_error_e
   BK7258_AP_ERROR_HEAP,
   BK7258_AP_ERROR_TIMEOUT,
   BK7258_AP_ERROR_NMI,
-  BK7258_AP_ERROR_HARDFAULT
+  BK7258_AP_ERROR_HARDFAULT,
+  BK7258_AP_ERROR_CPU2_PROBE
+};
+
+enum bk7258_cpu2_probe_command_e
+{
+  BK7258_CPU2_PROBE_COMMAND_NONE = 0,
+  BK7258_CPU2_PROBE_COMMAND_START,
+  BK7258_CPU2_PROBE_COMMAND_STOP
+};
+
+enum bk7258_cpu2_probe_state_e
+{
+  BK7258_CPU2_PROBE_STATE_OFF = 0,
+  BK7258_CPU2_PROBE_STATE_STARTING,
+  BK7258_CPU2_PROBE_STATE_READY,
+  BK7258_CPU2_PROBE_STATE_STOPPING,
+  BK7258_CPU2_PROBE_STATE_STOPPED,
+  BK7258_CPU2_PROBE_STATE_FAILED
+};
+
+enum bk7258_cpu2_probe_error_e
+{
+  BK7258_CPU2_PROBE_ERROR_NONE = 0,
+  BK7258_CPU2_PROBE_ERROR_BAD_BOOT_STATE,
+  BK7258_CPU2_PROBE_ERROR_BAD_CORE_ID,
+  BK7258_CPU2_PROBE_ERROR_BAD_VTOR,
+  BK7258_CPU2_PROBE_ERROR_BAD_MSP,
+  BK7258_CPU2_PROBE_ERROR_TIMEOUT,
+  BK7258_CPU2_PROBE_ERROR_NMI,
+  BK7258_CPU2_PROBE_ERROR_HARDFAULT
 };
 
 struct bk7258_ap_boot_state_s
@@ -242,6 +294,34 @@ struct bk7258_cp_fault_state_s
   uint32_t stacked_xpsr;
 };
 
+struct bk7258_cpu2_probe_state_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t generation;
+  uint32_t command;
+  uint32_t state;
+  uint32_t error;
+  uint32_t local_core_id;
+  uint32_t physical_core_id;
+  uint32_t vector;
+  uint32_t initial_msp;
+  uint32_t runtime_vtor;
+  uint32_t runtime_msp;
+  uint32_t heartbeat;
+  uint32_t control;
+  uint32_t fault_exception;
+  uint32_t fault_hfsr;
+  uint32_t fault_cfsr;
+  uint32_t fault_lr;
+  uint32_t fault_pc;
+  uint32_t fault_xpsr;
+  uint32_t control_before;
+  uint32_t control_after;
+  uint32_t reserved[9];
+};
+
 static_assert(BK7258_CP_FLASH_OFFSET + BK7258_CP_FLASH_SIZE ==
               BK7258_DATA_FLASH_OFFSET,
               "CP flash must end at the LittleFS boundary");
@@ -260,8 +340,18 @@ static_assert(BK7258_AP_FAULT_STATE_OFFSET +
               "AP and CP fault states overlap");
 static_assert(BK7258_CP_FAULT_STATE_OFFSET +
               sizeof(struct bk7258_cp_fault_state_s) <=
+              BK7258_CPU2_PROBE_STATE_OFFSET,
+              "CP fault state overlaps the CPU2 probe state");
+static_assert(sizeof(struct bk7258_cpu2_probe_state_s) == 0x80,
+              "CPU2 probe-state ABI must remain 0x80 bytes");
+static_assert(BK7258_CPU2_PROBE_STATE_OFFSET +
+              sizeof(struct bk7258_cpu2_probe_state_s) <=
               BK7258_SHARED_RAM_SIZE,
-              "CP fault state exceeds the shared page");
+              "CPU2 probe state exceeds the shared page");
+static_assert(BK7258_CPU2_PROBE_STACK_BASE >= BK7258_AP_RAM_BASE,
+              "CPU2 probe stack must remain in AP-owned RAM");
+static_assert(BK7258_CPU2_PROBE_STACK_TOP == BK7258_SHARED_RAM_BASE,
+              "CPU2 probe stack must end at the shared-page boundary");
 
 /****************************************************************************
  * Public Function Prototypes
@@ -292,6 +382,13 @@ bk7258_cp_fault_state(void)
     (BK7258_SHARED_RAM_BASE + BK7258_CP_FAULT_STATE_OFFSET);
 }
 
+static inline volatile struct bk7258_cpu2_probe_state_s *
+bk7258_cpu2_probe_state(void)
+{
+  return (volatile struct bk7258_cpu2_probe_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_CPU2_PROBE_STATE_OFFSET);
+}
+
 #ifdef CONFIG_BK7258_AP_CONTROL
 int bk7258_ap_control_initialize(void);
 int bk7258_ap_start(uint32_t timeout_ms);
@@ -302,6 +399,8 @@ void bk7258_ap_get_status(struct bk7258_ap_boot_state_s *status);
 
 #ifdef CONFIG_BK7258_AP_CORE
 int bk7258_ap_main(int argc, char *argv[]);
+int bk7258_cpu2_probe_start(uint32_t timeout_ms);
+int bk7258_cpu2_probe_stop(uint32_t timeout_ms);
 #endif
 
 #ifdef __cplusplus

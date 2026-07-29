@@ -44,6 +44,27 @@ static const char *apctl_state_name(uint32_t state)
     }
 }
 
+static const char *apctl_cpu2_state_name(uint32_t state)
+{
+  switch (state)
+    {
+      case BK7258_CPU2_PROBE_STATE_OFF:
+        return "OFF";
+      case BK7258_CPU2_PROBE_STATE_STARTING:
+        return "STARTING";
+      case BK7258_CPU2_PROBE_STATE_READY:
+        return "READY";
+      case BK7258_CPU2_PROBE_STATE_STOPPING:
+        return "STOPPING";
+      case BK7258_CPU2_PROBE_STATE_STOPPED:
+        return "STOPPED";
+      case BK7258_CPU2_PROBE_STATE_FAILED:
+        return "FAILED";
+      default:
+        return "UNKNOWN";
+    }
+}
+
 static uint32_t apctl_u32(const char *value, uint32_t fallback)
 {
   char *end;
@@ -66,8 +87,14 @@ static uint32_t apctl_u32(const char *value, uint32_t fallback)
 static void apctl_status(void)
 {
   struct bk7258_ap_boot_state_s state;
+  struct bk7258_cpu2_probe_state_s cpu2;
+  volatile struct bk7258_cpu2_probe_state_s *shared_cpu2 =
+    bk7258_cpu2_probe_state();
 
   bk7258_ap_get_status(&state);
+  __asm volatile ("dmb sy" ::: "memory");
+  memcpy(&cpu2, (const void *)(uintptr_t)shared_cpu2, sizeof(cpu2));
+  __asm volatile ("dmb sy" ::: "memory");
   printf("AP state=%s(%" PRIu32 ") error=%" PRIu32
          " generation=%" PRIu32 " heartbeat=%" PRIu32 "\n",
          apctl_state_name(state.state), state.state, state.error,
@@ -86,6 +113,41 @@ static void apctl_status(void)
          " test=%08" PRIx32 " doorbells cp/ap=%" PRIu32 "/%" PRIu32
          "\n", state.heap_start, state.heap_end, state.heap_test,
          state.cp_to_ap_doorbells, state.ap_to_cp_doorbells);
+
+  if (cpu2.magic == BK7258_CPU2_PROBE_STATE_MAGIC &&
+      cpu2.version == BK7258_CPU2_PROBE_STATE_VERSION &&
+      cpu2.size == sizeof(cpu2))
+    {
+      printf("CPU2 state=%s(%" PRIu32 ") error=%" PRIu32
+             " generation=%" PRIu32 " heartbeat=%" PRIu32 "\n",
+             apctl_cpu2_state_name(cpu2.state), cpu2.state, cpu2.error,
+             cpu2.generation, cpu2.heartbeat);
+      printf("CPU2 core local=%" PRIu32 " physical=%" PRIu32
+             " vector=%08" PRIx32 " VTOR=%08" PRIx32
+             " MSP(init/run)=%08" PRIx32 "/%08" PRIx32 "\n",
+             cpu2.local_core_id, cpu2.physical_core_id, cpu2.vector,
+             cpu2.runtime_vtor, cpu2.initial_msp, cpu2.runtime_msp);
+      printf("CPU2 control=%08" PRIx32
+             " SYS(before/after)=%08" PRIx32 "/%08" PRIx32 "\n",
+             cpu2.control, cpu2.control_before, cpu2.control_after);
+
+      if (cpu2.error != BK7258_CPU2_PROBE_ERROR_NONE)
+        {
+          printf("CPU2 fault exception=%" PRIu32
+                 " HFSR/CFSR=%08" PRIx32 "/%08" PRIx32
+                 " PC/LR/xPSR=%08" PRIx32 "/%08" PRIx32
+                 "/%08" PRIx32 "\n",
+                 cpu2.fault_exception, cpu2.fault_hfsr,
+                 cpu2.fault_cfsr, cpu2.fault_pc, cpu2.fault_lr,
+                 cpu2.fault_xpsr);
+        }
+    }
+  else
+    {
+      printf("CPU2 probe unavailable magic/version/size=%08" PRIx32
+             "/%" PRIu32 "/%" PRIu32 "\n",
+             cpu2.magic, cpu2.version, cpu2.size);
+    }
 }
 
 static void apctl_usage(void)

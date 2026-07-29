@@ -128,14 +128,14 @@ ifeq ($(CONFIG_BK7258_WDT),y)
 BK7258_CP_CSRCS += bk7258_wdt.c
 endif
 
-# Physical CPU1 runs the independently linked N7 AP-UP image.  ap_main was
-# historically placed between allocateheap and os_adapt; keep that order for
-# byte-identical AP output.
+# Physical CPU1 runs the independently linked AP-UP image.  N8-A adds a
+# freestanding physical CPU2 probe without enabling the NuttX SMP scheduler.
 
 BK7258_AP_UP_CSRCS  = bk7258_ap_vectors.c
 BK7258_AP_UP_CSRCS += bk7258_ap_start.c
 BK7258_AP_UP_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
 BK7258_AP_UP_CSRCS += bk7258_ap_main.c
+BK7258_AP_UP_CSRCS += bk7258_cpu2_probe.c
 BK7258_AP_UP_CSRCS += $(wordlist 6,7,$(BK7258_COMMON_CSRCS))
 
 ifeq ($(CONFIG_ARM_SYSTICK),y)
