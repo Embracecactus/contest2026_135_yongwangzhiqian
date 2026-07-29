@@ -700,7 +700,12 @@ create_socket failed.
 
 不影响 AP READY、doorbell 或 heartbeat，单独归入后续 CP IPC service 整理，不作为 N7 阻塞项。
 当前结论：**N7 AP 单核独立 NuttX bring-up 已板端通过**；CPU0 首次下载后的单次 task-exit fault
-保留观察，若再次出现应读取 `mem32 0x2809f100, 20` 获取完整 `CFLT` frame 后再决定是否改动。
+在本阶段当时先保留观察。
+
+> **2026-07-29 更新：**该 CPU0 fault 后续已稳定复现、通过 UART/J-Link 收敛到
+> `arm_doirq()` NULL context restore 与非 HIPRI IRQ 嵌套，并在清除所有无关实验后以四文件
+> team-overlay 最小修复重新板测通过。完整复盘见
+> [`n7-bug-cpu0-task-exit-hardfault.md`](n7-bug-cpu0-task-exit-hardfault.md)。
 
 ## 19. 进入 AP-SMP 前的配置目录归一化
 
@@ -839,3 +844,38 @@ CP 产物包含编译时间戳（`g_version`）等变化字节，不同构建不
 是跨构建等价性的权威判据。
 
 状态：**build/static verified only**；未进行 flash 或板端测试。
+
+## 21. CPU0 间歇性 task-exit HardFault 最终闭环
+
+日期：2026-07-29
+
+状态：`board-verified`（清理无关实验后的四文件最小 team-overlay 修复）
+
+§18 中首次观察到的 CPU0 task-exit fault 后续变为可重复的低概率故障。最终证据链为：
+
+```text
+arm_doirq() no-switch 路径返回 NULL
+  -> exception_common 从地址 0 恢复寄存器
+  -> PC/LR = 0xaaaaaaaa
+  -> IACCVIOL / FORCED HardFault
+```
+
+保存 NULL fallback 后，又通过 `CFSR.INVPC`、`EXC_RETURN=0xfffffff1` 和 UART1/SysTick
+优先级确认当前非 HIPRI dispatcher 被嵌套调用。最终修复在 team overlay 中包装
+`arm_doirq()` / `nxsched_resume_scheduler()`，保存清空前的最终 TCB context、对 NULL 返回
+fail closed，并通过 BASEPRI 与统一 SDK IRQ 优先级禁止不受支持的普通 IRQ 嵌套。
+
+Flash 时钟、Cache、FPU、SecureFault、RAM vector、4 KiB/顶部 interrupt stack、PRIMASK adapter
+以及官方 `arm_schedulesigaction.c` 修改均被板端证据否定并已撤销。最终只保留：
+
+```text
+chip/Make.defs
+chip/common/bk7258_sdk_irq.h
+chip/cp/bk7258_sdk_irq.c
+chip/cp/bk7258_vectors.c
+```
+
+用户重新编译、下载后确认多次提示符和 `apctl status` 正常，AP 继续保持 READY 且 heartbeat
+增长。完整的初学者向解释、UART/J-Link 证据、错误假设时间线和最终代码说明见：
+
+- [`n7-bug-cpu0-task-exit-hardfault.md`](n7-bug-cpu0-task-exit-hardfault.md)
