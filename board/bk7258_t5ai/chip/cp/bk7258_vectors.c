@@ -63,6 +63,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/sched.h>
 
 #include <arch/chip/bk7258_amp.h>
 
@@ -108,6 +109,7 @@
 
 #define BK7258_EXCEPTION_FRAME_WORDS    8u
 #define BK7258_EXCEPTION_FP_FRAME_WORDS 18u
+#define BK7258_EXC_RETURN_THREAD_MODE   (1u << 3)
 #define BK7258_EXC_RETURN_BASIC_FRAME   (1u << 4)
 #define BK7258_FAULT_INVALID_VALUE      UINT32_MAX
 
@@ -292,9 +294,98 @@ static void bk7258_fault_stop_watchdogs(void)
   __asm volatile ("dsb sy" ::: "memory");
 }
 
+/* arm_doirq clears the selected TCB's xcp.regs before returning.  Preserve
+ * that pointer at nxsched_resume_scheduler() so the STAR no-switch path can
+ * recover it if the function return register is unexpectedly zero.
+ */
+
+static volatile uint32_t g_bk7258_doirq_active;
+static volatile uint32_t g_bk7258_doirq_resume_regs;
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+extern void __real_nxsched_resume_scheduler(struct tcb_s *tcb);
+
+void __wrap_nxsched_resume_scheduler(struct tcb_s *tcb)
+{
+  if (g_bk7258_doirq_active != 0)
+    {
+      uint32_t *regs = tcb != NULL ? tcb->xcp.regs : NULL;
+
+      if (regs != NULL &&
+          (regs[REG_EXC_RETURN] & BK7258_EXC_RETURN_THREAD_MODE) != 0)
+        {
+          regs[REG_CONTROL] |= 1u << 1; /* CONTROL.SPSEL */
+#ifdef CONFIG_ARCH_FPU
+          if ((regs[REG_EXC_RETURN] & BK7258_EXC_RETURN_BASIC_FRAME) == 0)
+            {
+              regs[REG_CONTROL] |= 1u << 2; /* CONTROL.FPCA */
+            }
+#endif
+        }
+
+      g_bk7258_doirq_resume_regs = (uint32_t)(uintptr_t)regs;
+      __asm volatile ("dmb sy" ::: "memory");
+    }
+
+  __real_nxsched_resume_scheduler(tcb);
+}
+
+extern uint32_t *__real_arm_doirq(int irq, uint32_t *regs);
+
+uint32_t *__wrap_arm_doirq(int irq, uint32_t *regs)
+{
+  uint32_t basepri = NVIC_SYSH_DISABLE_PRIORITY;
+
+  /* The common dispatcher is not re-entrant without HIPRI support.  The
+   * exception frame already contains the original BASEPRI value, which
+   * exception_common restores immediately before returning.
+   */
+
+  __asm volatile
+    (
+      "msr basepri, %0\n"
+      "dsb sy\n"
+      "isb sy\n"
+      :
+      : "r" (basepri)
+      : "memory"
+    );
+
+  g_bk7258_doirq_resume_regs = 0;
+  g_bk7258_doirq_active = 1;
+  __asm volatile ("dmb sy" ::: "memory");
+
+  regs = __real_arm_doirq(irq, regs);
+
+  g_bk7258_doirq_active = 0;
+  __asm volatile ("dmb sy" ::: "memory");
+
+  if (regs == NULL)
+    {
+      regs = (uint32_t *)(uintptr_t)g_bk7258_doirq_resume_regs;
+    }
+
+  if (regs == NULL)
+    {
+      __asm volatile ("cpsid i" ::: "memory");
+      bk7258_fault_stop_watchdogs();
+      bk7258_fault_putc('H');
+      bk7258_fault_putc('F');
+      bk7258_fault_putfield('D', 0);
+      bk7258_fault_putc('\r');
+      bk7258_fault_putc('\n');
+
+      for (; ; )
+        {
+          __asm volatile ("wfe");
+        }
+    }
+
+  return regs;
+}
 
 /* Capture CPU0 NMI/HardFault state independently from the AP record.  The
  * UART line is deliberately compact so the complete PC/LR/CFSR evidence is

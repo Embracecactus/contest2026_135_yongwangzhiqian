@@ -29,7 +29,7 @@
 #define BK7258_SDK_IRQ_COUNT           BK7258_EXTERNAL_IRQS
 #define BK7258_SDK_IRQ_PRIORITY_BITS   3
 #define BK7258_SDK_IRQ_PRIORITY_SHIFT  (8 - BK7258_SDK_IRQ_PRIORITY_BITS)
-#define BK7258_SDK_IRQ_DEFAULT_PRIORITY 6
+#define BK7258_SDK_IRQ_DEFAULT_PRIORITY 4
 #define BK7258_SDK_IRQ_LCD_PRIORITY     0
 
 /****************************************************************************
