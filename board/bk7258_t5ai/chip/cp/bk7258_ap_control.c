@@ -54,6 +54,15 @@ static inline volatile uint32_t *bk7258_ap_mbox(uint32_t base)
   return (volatile uint32_t *)(uintptr_t)base;
 }
 
+static void bk7258_cpu2_force_reset(void)
+{
+  volatile uint32_t *control =
+    (volatile uint32_t *)(uintptr_t)BK7258_SYS_CPU2_CONTROL;
+
+  *control &= ~BK7258_SYS_CPU2_RESET;
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+}
+
 static void bk7258_ap_mbox_ack(volatile uint32_t *mbox)
 {
   mbox[BK7258_MBOX_CLEAR_OFFSET / 4] = BK7258_MBOX_BOX0_BIT;
@@ -136,6 +145,7 @@ static void bk7258_ap_state_prepare(void)
   memset((void *)(uintptr_t)state, 0,
          sizeof(struct bk7258_ap_boot_state_s));
   bk7258_ap_fault_state()->magic = 0;
+  bk7258_cpu2_probe_state()->magic = 0;
   state->magic       = BK7258_AP_BOOT_STATE_MAGIC;
   state->version     = BK7258_AP_BOOT_STATE_VERSION;
   state->size        = sizeof(struct bk7258_ap_boot_state_s);
@@ -200,6 +210,9 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
   /* Hold CPU1 while replacing shared state and the boot address. */
 
   sys_drv_set_cpu1_reset(0);
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+  bk7258_cpu2_force_reset();
+  up_mdelay(BK7258_AP_RESTART_DELAY_MS);
   bk7258_ap_mbox_initialize();
   bk7258_ap_state_prepare();
 
@@ -216,6 +229,8 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
   if (ret < 0)
     {
       sys_drv_set_cpu1_reset(0);
+      __asm volatile ("dsb sy; isb sy" ::: "memory");
+      bk7258_cpu2_force_reset();
       up_mdelay(BK7258_AP_RESTART_DELAY_MS);
       sys_drv_set_cpu1_pwr_dw(1);
 
@@ -247,10 +262,11 @@ static int bk7258_ap_stop_locked(uint32_t timeout_ms)
       ret = bk7258_ap_wait(BK7258_AP_STATE_STOPPED, timeout_ms);
     }
 
-  /* A timeout still ends in a deterministic forced stop. */
+  /* A timeout still ends in a deterministic forced stop of both AP cores. */
 
   sys_drv_set_cpu1_reset(0);
   __asm volatile ("dsb sy; isb sy" ::: "memory");
+  bk7258_cpu2_force_reset();
   up_mdelay(BK7258_AP_RESTART_DELAY_MS);
   sys_drv_set_cpu1_pwr_dw(1);
 
