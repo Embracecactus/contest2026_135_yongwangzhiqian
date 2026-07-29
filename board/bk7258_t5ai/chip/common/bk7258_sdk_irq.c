@@ -1,9 +1,9 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/cp/bk7258_sdk_irq.c
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/common/bk7258_sdk_irq.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * CPU0 Beken SDK-to-NuttX IRQ bridge for the BK7258.
+ * Beken SDK-to-NuttX IRQ bridge for BK7258 CP and AP wrapper paths.
  ****************************************************************************/
 
 /****************************************************************************
@@ -191,7 +191,7 @@ bk_err_t bk_int_isr_register(icu_int_src_t source,
   int irq;
   int ret;
 
-  (void)arg; /* The CP CM33 SDK implementation also ignores this argument. */
+  (void)arg; /* The Beken CM33 SDK implementation ignores this argument. */
 
   irq = bk7258_sdk_source_to_irq(source);
   if (irq < 0)

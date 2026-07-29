@@ -9,8 +9,13 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+
+#ifdef CONFIG_BK7258_AP_CORE
+#  include <driver/mailbox_types.h>
+#endif
 
 /****************************************************************************
  * IPC Mailbox stubs
@@ -23,17 +28,20 @@ const void *__start_ipc_chan_reg = NULL;
 const void *__stop_ipc_chan_reg = NULL;
 
 #ifdef CONFIG_BK7258_AP_CORE
-void crosscore_mb_rx_isr(void)
+void __attribute__((weak)) crosscore_mb_rx_isr(mailbox_data_t *data)
 {
+  (void)data;
 }
 
 void shell_log_flush(void)
 {
 }
 
-void shell_assert_out(const char *fmt, ...)
+int shell_assert_out(bool bContinue, char *format, ...)
 {
-  (void)fmt;
+  (void)bContinue;
+  (void)format;
+  return 0;
 }
 #endif
 

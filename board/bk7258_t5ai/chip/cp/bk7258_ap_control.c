@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * CPU0 control wrapper for the physical CPU1 single-core AP NuttX image.
+ * CPU0 control wrapper for the physical CPU1 AP NuttX image.
  ****************************************************************************/
 
 /****************************************************************************
@@ -146,6 +146,8 @@ static void bk7258_ap_state_prepare(void)
          sizeof(struct bk7258_ap_boot_state_s));
   bk7258_ap_fault_state()->magic = 0;
   bk7258_cpu2_probe_state()->magic = 0;
+  bk7258_ap_ipi_state()->magic = 0;
+  bk7258_ap_smp_state()->magic = 0;
   state->magic       = BK7258_AP_BOOT_STATE_MAGIC;
   state->version     = BK7258_AP_BOOT_STATE_VERSION;
   state->size        = sizeof(struct bk7258_ap_boot_state_s);
@@ -157,6 +159,21 @@ static void bk7258_ap_state_prepare(void)
   state->flash_start = BK7258_AP_FLASH_ADDR;
   state->flash_end   = BK7258_AP_FLASH_ADDR + BK7258_AP_FLASH_SIZE;
   __asm volatile ("dmb sy" ::: "memory");
+}
+
+static bool bk7258_ap_scheduler_online(void)
+{
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+  volatile struct bk7258_cpu2_probe_state_s *cpu2 =
+    bk7258_cpu2_probe_state();
+
+  __asm volatile ("dmb sy" ::: "memory");
+  return cpu2->magic == BK7258_CPU2_PROBE_STATE_MAGIC &&
+         cpu2->version == BK7258_CPU2_PROBE_STATE_VERSION &&
+         cpu2->size == sizeof(struct bk7258_cpu2_probe_state_s) &&
+         cpu2->generation == state->generation &&
+         cpu2->state == BK7258_CPU2_PROBE_STATE_SCHEDULER_ONLINE &&
+         cpu2->online_mask == 0x3u;
 }
 
 static int bk7258_ap_wait(uint32_t wanted, uint32_t timeout_ms)
@@ -252,6 +269,11 @@ static int bk7258_ap_stop_locked(uint32_t timeout_ms)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
   int ret = OK;
+
+  if (bk7258_ap_scheduler_online())
+    {
+      return -ENOTSUP;
+    }
 
   if (state->state == BK7258_AP_STATE_READY ||
       state->state == BK7258_AP_STATE_STARTING)
@@ -359,6 +381,99 @@ int bk7258_ap_restart(uint32_t timeout_ms)
       ret = bk7258_ap_start_locked(timeout_ms);
     }
 
+  nxmutex_unlock(&g_bk7258_ap_lock);
+  return ret;
+}
+
+int bk7258_ap_ipi_test(uint32_t count, uint32_t timeout_ms)
+{
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+  volatile struct bk7258_ap_ipi_state_s *ipi = bk7258_ap_ipi_state();
+  uint32_t elapsed;
+  uint32_t event;
+  int ret;
+
+  if (count == 0)
+    {
+      count = BK7258_AP_IPI_DEFAULT_COUNT;
+    }
+
+  if (timeout_ms == 0)
+    {
+      timeout_ms = BK7258_AP_IPI_DEFAULT_TIMEOUT_MS;
+    }
+
+  if (count > BK7258_AP_IPI_MAX_COUNT)
+    {
+      return -ERANGE;
+    }
+
+  ret = nxmutex_lock(&g_bk7258_ap_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  __asm volatile ("dmb sy" ::: "memory");
+  if (bk7258_ap_scheduler_online())
+    {
+      ret = -ENOTSUP;
+      goto out;
+    }
+
+  if (state->state != BK7258_AP_STATE_READY ||
+      ipi->magic != BK7258_AP_IPI_STATE_MAGIC ||
+      ipi->version != BK7258_AP_IPI_STATE_VERSION ||
+      ipi->size != sizeof(struct bk7258_ap_ipi_state_s) ||
+      ipi->generation != state->generation)
+    {
+      ret = -EAGAIN;
+      goto out;
+    }
+
+  if (ipi->state == BK7258_AP_IPI_STATE_RUNNING ||
+      ipi->state == BK7258_AP_IPI_STATE_REQUESTED)
+    {
+      ret = -EBUSY;
+      goto out;
+    }
+
+  ipi->requested_count = count;
+  ipi->completed_count = 0;
+  ipi->timeout_ms = timeout_ms;
+  ipi->error = BK7258_AP_IPI_ERROR_NONE;
+  ipi->state = BK7258_AP_IPI_STATE_REQUESTED;
+  state->command = BK7258_AP_COMMAND_IPI_TEST;
+  __asm volatile ("dmb sy" ::: "memory");
+  bk7258_ap_mbox_send(BK7258_AP_EVENT_IPI_TEST);
+
+  ret = -ETIMEDOUT;
+  for (elapsed = 0; elapsed < timeout_ms; elapsed++)
+    {
+      event = bk7258_ap_mbox_receive();
+      if (event != BK7258_AP_EVENT_NONE)
+        {
+          state->last_event = event;
+        }
+
+      __asm volatile ("dmb sy" ::: "memory");
+      if (ipi->state == BK7258_AP_IPI_STATE_PASSED)
+        {
+          ret = OK;
+          break;
+        }
+
+      if (ipi->state == BK7258_AP_IPI_STATE_FAILED ||
+          state->state == BK7258_AP_STATE_FAILED)
+        {
+          ret = -EIO;
+          break;
+        }
+
+      nxsig_usleep(1000);
+    }
+
+out:
   nxmutex_unlock(&g_bk7258_ap_lock);
   return ret;
 }

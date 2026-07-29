@@ -98,11 +98,14 @@
 #define NVIC_SYSH_PRIORITY_STEP         0x10
 
 /****************************************************************************
- * N7 builds two independent UP kernels.  AP SMP/physical CPU2 is later.
+ * CP and the board-verified AP-UP fallback remain independent UP kernels.
+ * CONFIG_SMP is permitted only for the explicit N8-B AP bootstrap config.
  ****************************************************************************/
 
-#ifdef CONFIG_SMP
-#  error "N7 gate: CP and CPU1 AP images require CONFIG_SMP=n"
+#if defined(CONFIG_SMP) && \
+    (!defined(CONFIG_BK7258_AP_CORE) || \
+     !defined(CONFIG_BK7258_AP_SMP_BOOTSTRAP))
+#  error "BK7258 SMP is permitted only for the N8-B AP bootstrap config"
 #endif
 
 /****************************************************************************

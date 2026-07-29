@@ -10,7 +10,17 @@ WORKSPACE="$(cd "${CONTEST_DIR}/.." && pwd)"
 TOPDIR="${WORKSPACE}/nuttx"
 BUILD="${WORKSPACE}/build.sh"
 CP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh"
-AP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/ap_up"
+AP_CONFIG_NAME="${AP_CONFIG_NAME:-ap_smp}"
+case "${AP_CONFIG_NAME}" in
+    ap_up|ap_smp|ap_smp_online)
+        ;;
+    *)
+        printf 'build_dual_image: unsupported AP_CONFIG_NAME=%s\n' \
+            "${AP_CONFIG_NAME}" >&2
+        exit 2
+        ;;
+esac
+AP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${AP_CONFIG_NAME}"
 JOBS="${JOBS:-8}"
 OUTPUT="${TOPDIR}/bk7258-dual"
 TMPDIR="$(mktemp -d)"
@@ -49,7 +59,8 @@ printf '%s\n' "build_dual_image: building CPU0/CP"
 build_config "${CP_CONFIG}"
 save_role cp app.bin app_crc.bin
 
-printf '%s\n' "build_dual_image: building physical CPU1/AP"
+printf 'build_dual_image: building physical CPU1/AP (%s)\n' \
+    "${AP_CONFIG_NAME}"
 build_config "${AP_CONFIG}"
 save_role ap app1.bin app1_crc.bin
 

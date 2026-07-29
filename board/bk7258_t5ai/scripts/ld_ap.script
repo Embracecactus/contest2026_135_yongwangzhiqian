@@ -17,6 +17,9 @@ EXTERN(_vectors)
 EXTERN(__vector_core0_table)
 EXTERN(__vector_core1_table)
 EXTERN(bk7258_ap_main)
+#ifdef CONFIG_BK7258_AP_IPI
+EXTERN(bk_int_isr_register)
+#endif
 ENTRY(__start)
 
 MEMORY
@@ -44,7 +47,8 @@ SECTIONS
     ASSERT(SIZEOF(.vectors) == 0x140,
            "ERROR: AP vector table must contain 80 entries")
 
-    /* N8-A physical CPU2 executes the AP-local logical-core-1 probe vector.
+    /* Physical CPU2 executes the AP-local logical-core-1 vector.  N8-A uses
+     * it for the freestanding probe; N8-B1 uses it for secondary bootstrap.
      * Keep it in the same XIP image, independently 512-byte aligned.
      */
 
@@ -56,9 +60,9 @@ SECTIONS
     } > FLASH
 
     ASSERT((__vector_core1_table & 0x1ff) == 0,
-           "ERROR: CPU2 probe vector must be 512-byte aligned")
+           "ERROR: CPU2 vector must be 512-byte aligned")
     ASSERT(SIZEOF(.cpu2_vectors) == 0x140,
-           "ERROR: CPU2 probe vector must contain 80 entries")
+           "ERROR: CPU2 vector must contain 80 entries")
 
     .text : ALIGN(4)
     {
@@ -158,20 +162,26 @@ SECTIONS
     . = ALIGN(16);
     _sheap = ABSOLUTE(.);
 
-    /* Reserve the top 1 KiB of AP-owned SRAM for the freestanding physical
-     * CPU2 probe.  The probe stack grows down from the shared-page boundary;
-     * NuttX heap allocation stops below it.
+    /* Reserve the AP SRAM top for physical CPU2.  AP-UP preserves the N8-A
+     * 1 KiB freestanding probe stack.  AP-SMP reserves one full architecture
+     * interrupt stack for the N8-B1 secondary bootstrap; CPU2's future IDLE
+     * stack is allocated independently by up_cpu_idlestack().
      */
 
     _bk7258_cpu2_probe_stack_top = ORIGIN(RAM) + LENGTH(RAM);
+#ifdef CONFIG_BK7258_AP_SMP_BOOTSTRAP
+    _bk7258_cpu2_probe_stack_base =
+      _bk7258_cpu2_probe_stack_top - CONFIG_ARCH_INTERRUPTSTACK;
+#else
     _bk7258_cpu2_probe_stack_base =
       _bk7258_cpu2_probe_stack_top - 0x400;
+#endif
     _eheap = _bk7258_cpu2_probe_stack_base - 4;
 
     ASSERT(_bk7258_cpu2_probe_stack_top == 0x2809f000,
-           "ERROR: CPU2 probe stack must end at the shared-page boundary")
+           "ERROR: CPU2 boot stack must end at the shared-page boundary")
     ASSERT(_ebss + CONFIG_IDLETHREAD_STACKSIZE <= _eheap,
-           "ERROR: AP data/IDLE stack overlaps the CPU2 probe stack")
+           "ERROR: AP data/IDLE stack overlaps the CPU2 boot stack")
     ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
            ORIGIN(FLASH) + LENGTH(FLASH),
            "ERROR: AP image exceeds the app1 flash partition")
