@@ -2,11 +2,11 @@
 
 把 openvela / NuttX 移植到 Beken BK7258（ARM Cortex-M33 三核、Wi-Fi 6 + BLE 5.4）Tuya T5-AI
 模组。BootROM → Tier-1 bootloader → CPU0/CP NuttX、NSH、LittleFS、CPU0 IRQ/GPIO 等既有
-阶段已有板端证据。当前 **Stage N7** 已完成物理 CPU1 独立单核 AP NuttX 板级启动：
-AP READY、运行期 VTOR/MSP、320 MHz、SysTick、heap 和持续 heartbeat 均已验证。随后发现的
-CPU0 间歇性 task-exit HardFault 已定位为 `arm_doirq()` NULL context restore 与非 HIPRI IRQ
-嵌套问题；清理所有错误假设后，最终四文件 team-overlay 最小修复于 2026-07-29 再次
-`board-verified`。CPU2、AP SMP、RPTUN/RPMsg 和最终 AP wrapper 收口仍属于后续阶段。
+阶段已有板端证据。Stage N7 已完成物理 CPU1 独立单核 AP NuttX 板级启动，并完成 CPU0
+间歇性 task-exit HardFault 的四文件 team-overlay 最小修复。当前 **Stage N8-A** 已把物理
+CPU2 作为 AP logical CPU1 freestanding probe 启动：CPU2 身份、secondary vector/VTOR、MSP、
+持续 heartbeat、AP restart generation 联动以及 CPU0 task-exit 回归均于 2026-07-29
+`board-verified`。CPU2 尚未加入 NuttX scheduler；AP SMP、RPTUN/RPMsg 和服务层仍属于后续阶段。
 
 > 详细技术报告（评委请读这份）：**[porting-report.md](porting-report.md)**
 > N2 worklog：[`nuttx-port/n2-nsh-console.md`](nuttx-port/n2-nsh-console.md)
@@ -15,6 +15,7 @@ CPU0 间歇性 task-exit HardFault 已定位为 `arm_doirq()` NULL context resto
 > N5 flash filesystem worklog（D5 raw flash r/w + D6 MTD + D7 LittleFS，board-verified 2026-07-19）：[`nuttx-port/n5-flash-filesystem.md`](nuttx-port/n5-flash-filesystem.md)
 > N7 CPU1/AP 单核启动链 worklog：[`nuttx-port/n7-ap-singlecore-bringup.md`](nuttx-port/n7-ap-singlecore-bringup.md)
 > N7 CPU0 task-exit HardFault 根因与最小修复（board-verified 2026-07-29）：[`nuttx-port/n7-bug-cpu0-task-exit-hardfault.md`](nuttx-port/n7-bug-cpu0-task-exit-hardfault.md)
+> N8-A 物理 CPU2 freestanding probe bring-up（board-verified 2026-07-29）：[`nuttx-port/n8-a-cpu2-probe-bringup.md`](nuttx-port/n8-a-cpu2-probe-bringup.md)
 > Git worktree 同步与 PR 交接记录：[`nuttx-port/git-worktree-sync-2026-07-27.md`](nuttx-port/git-worktree-sync-2026-07-27.md)
 > 主 Stage 索引 / 当前恢复入口：[`next-stage-prompt.md`](next-stage-prompt.md)
 
@@ -34,17 +35,18 @@ CPU0 间歇性 task-exit HardFault 已定位为 `arm_doirq()` NULL context resto
 | NuttX Stage N4 — D0F（100Hz SysTick tick-rate 兼容性） | ✅ substage `board-verified`（2026-07-18，feature commit `8dab594`，defconfig 移除 100ms override） |
 | NuttX Stage N5（flash layout / ID / filesystem） | **N5-D0..D4 board-observed**（2026-07-19）；**N5-D5 raw flash r/w board-verified**（2026-07-19）；**N5-D6 MTD board-verified**（方案 A，CONFIG_BK7258_FLASH_MTD）；**N5-D7 LittleFS filesystem board-verified**（/data 挂载，probe 文件重启持久化通过）；D7 版 `all-app.bin` = 192270 B = `0x2EF0E`（< `0x100000`，boot/app 区不受影响） |
 | NuttX Stage N6（CPU0 SDK IRQ/GPIO） | CPU0 vectors、TIMER1 IRQ 与 GPIO C0/C1/C2 已有板端验证；作为 N7 回归基线保留 |
-| **NuttX Stage N7（CPU1 独立单核 AP NuttX）** | ✅ `board-verified`：physical CPU1、AP READY、runtime VTOR/MSP、320 MHz、SysTick、heap 与 heartbeat 已通过；最终 wrapper/AP-SMP 仍后续 |
+| **NuttX Stage N7（CPU1 独立单核 AP NuttX）** | ✅ `board-verified`：physical CPU1、AP READY、runtime VTOR/MSP、320 MHz、SysTick、heap 与 heartbeat 已通过 |
 | **N7 CPU0 间歇性 task-exit HardFault** | ✅ `board-verified`（2026-07-29）：NULL context restore + 非 HIPRI IRQ 嵌套；官方 NuttX 无修改，最终仅 4 个 team-overlay 文件 |
+| **NuttX Stage N8-A（CPU2 freestanding probe）** | ✅ `board-verified`（2026-07-29，code `7ffd05b`）：physical CPU2 = AP logical CPU1，vector/VTOR `0x02200200`、MSP、heartbeat、restart generation 联动及 CPU0 task-exit 回归通过；尚非 SMP |
 | MTD / 文件系统 | ✅ board-verified（N5-D6 MTD + N5-D7 LittleFS，/data 挂载） |
 | NuttX Stage N6-A1（SDK integration + 80-slot RAM vectors） | ✅ board-verified（VTOR `0x28000800`，magic slots 64/65 与运行期 vector repair 均通过） |
 | 4295 秒系统时间折返修复 | ✅ board-verified（`CONFIG_SYSTEM_TIME64=y`，uptime 单调增长到 5834.58 秒，无 HF/WDT 复位） |
 | NuttX Stage N6-B（CPU0 SDK IRQ bridge） | ✅ TIMER1/source-3/IRQ19 board-verified（两次独立启动、三次 `bkirqtest` 全 PASS；静态 verifier 48/48 PASS） |
 | GPIO foundation C0 | ✅ board-verified：P9 active-high LED + P29 active-low USERKEY，3 个独立 boot/download、5 次 `bkgpioc0` PASS |
 | GPIO C1/C2 | ✅ board-verified：GPIO_NS source37/IRQ53 与 CPU0 group2 gate 已验证；`/dev/gpio0`/`/dev/gpio1` lower-half 完成，两次连续 falling-edge 命令通过；保留 `CONFIG_DEV_GPIO_NSIGNALS=2` 规避 upstream unregister 缺陷 |
-| 下一阶段 | 保持 CPU0 task-exit 与 AP-UP READY/heartbeat 回归门禁，继续 AP wrapper、CPU2/AP-SMP 和后续 RPTUN/RPMsg 收口 |
+| 下一阶段 | N8-A 独立 PR 合并后，另建分支从 `configs/ap_smp/` 开始 AP SMP；保持 `configs/ap_up/` 为稳定回退基线 |
 | Tier-2 bootloader（OTA / A-B failover） | 后续，未编号 |
-| 多核后续 | CPU1 单核 AP 为 N7 build-verified；物理 CPU2、AP SMP、RPTUN 与服务层均后续 |
+| 多核后续 | CPU1 NuttX UP + CPU2 freestanding probe 已通过；CPU2 加入 NuttX SMP scheduler、IPI、RPTUN 与服务层均后续 |
 
 **N7 构建产物**：`$FW/bk7258-dual/app.bin`（CP，171956 B）、`app1.bin`（AP，64346 B）及
 `bk7258-dual-image.json`。正常更新使用 `bl_crc.bin@0x0-0x11000`、
@@ -80,6 +82,7 @@ bootloader + CP 的兼容镜像，不包含 AP；builder 已验证它与 root/ma
 - [nuttx-port/git-worktree-sync-2026-07-27.md](nuttx-port/git-worktree-sync-2026-07-27.md) —— 主检出目录、clean worktree、构建链接与 PR 分支同步记录
 - [nuttx-port/n7-ap-singlecore-bringup.md](nuttx-port/n7-ap-singlecore-bringup.md) —— Stage N7：物理 CPU1 独立单核 AP NuttX 启动链与板端 READY/heartbeat 闭环
 - [nuttx-port/n7-bug-cpu0-task-exit-hardfault.md](nuttx-port/n7-bug-cpu0-task-exit-hardfault.md) —— CPU0 间歇性 task-exit HardFault：从误导性的 PSP frame、J-Link `0xaaaaaaaa` 到 NULL context restore 和 IRQ 嵌套的完整复盘
+- [nuttx-port/n8-a-cpu2-probe-bringup.md](nuttx-port/n8-a-cpu2-probe-bringup.md) —— Stage N8-A：物理 CPU2 freestanding probe、UART 原始板测证据与 `board-verified` 收口
 - [nuttx-port/cp-ap-rptun-architecture-research.md](nuttx-port/cp-ap-rptun-architecture-research.md) —— CP NuttX UP + AP NuttX SMP 双镜像、RPTUN/RPMsg、Wi-Fi/BLE 与 mailbox 复用边界的源码探索总结
 - [nuttx-port/n6-bug-4295s-timer-wrap.md](nuttx-port/n6-bug-4295s-timer-wrap.md) —— 约 4295 秒后 `HF` + WDT 重启根因及修复（`CONFIG_SYSTEM_TIME64=y`；源码、ELF 与 5834.58 秒板测均已验证）
 - [nuttx-port/n5-flash-filesystem.md](nuttx-port/n5-flash-filesystem.md) —— Stage N5 flash filesystem worklog（D5 raw flash r/w + D6 MTD + D7 LittleFS，board-verified 2026-07-19）
@@ -93,7 +96,7 @@ bootloader + CP 的兼容镜像，不包含 AP；builder 已验证它与 root/ma
 - [nuttx-port/n5-flash-filesystem.md](nuttx-port/n5-flash-filesystem.md) —— Stage N5 flash filesystem
   （D0 layout、D1 flash ID、D2 content dump、D3 magic scan、D4 emptiness scan、D5 raw flash r/w、
   D6 MTD lower-half、D7 LittleFS；全链路 board-verified 2026-07-19）
-  - **当前 Stage handoff：** [nuttx-port/n7-ap-singlecore-bringup.md](nuttx-port/n7-ap-singlecore-bringup.md)
+  - **当前 Stage handoff：** [nuttx-port/n8-a-cpu2-probe-bringup.md](nuttx-port/n8-a-cpu2-probe-bringup.md)
 
 ### 参考
 - [git-worktree-guide.md](git-worktree-guide.md) —— Git worktree 入门、本项目 clean worktree 与 openvela 构建工作区的关系
