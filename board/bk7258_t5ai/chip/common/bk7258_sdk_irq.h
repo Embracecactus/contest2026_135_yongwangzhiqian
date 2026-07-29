@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Private definitions for the CPU0 Beken SDK-to-NuttX IRQ bridge.
+ * Private definitions for the Beken SDK-to-NuttX IRQ bridge.
  ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_BK7258_BK7258_SDK_IRQ_H

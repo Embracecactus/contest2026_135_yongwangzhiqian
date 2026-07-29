@@ -11,7 +11,7 @@
 #   cp/      CPU0/CP-only startup, peripherals and SDK integration
 #   ap/      physical CPU1 AP-UP startup and main path
 #
-# AP-SMP will add a separate source group without duplicating the root Kconfig,
+# AP-SMP uses a separate source group without duplicating the root Kconfig,
 # Make.defs or public include directory.
 ############################################################################
 
@@ -63,7 +63,8 @@ BK7258_CP_CSRCS += bk7258_ap_control.c
 endif
 
 # Stage B: replace the SDK private CM33 callback table with NuttX irq_attach()
-# ownership for SDK interrupt sources 0..63.
+# ownership for SDK interrupt sources 0..63.  The implementation lives in
+# common/; this gate activates it for the CP image.
 
 ifeq ($(CONFIG_BK7258_SDK_IRQ_BRIDGE),y)
 BK7258_CP_CSRCS += bk7258_sdk_irq.c
@@ -128,22 +129,39 @@ ifeq ($(CONFIG_BK7258_WDT),y)
 BK7258_CP_CSRCS += bk7258_wdt.c
 endif
 
-# Physical CPU1 runs the independently linked AP-UP image.  N8-A adds a
-# freestanding physical CPU2 probe without enabling the NuttX SMP scheduler.
+# Physical CPU1 runs the independently linked AP image.  Keep AP-UP and AP-SMP
+# source selection explicit so the board-verified N8-A probe remains an exact
+# fallback while N8-B1 replaces only the CPU2 implementation.
 
-BK7258_AP_UP_CSRCS  = bk7258_ap_vectors.c
-BK7258_AP_UP_CSRCS += bk7258_ap_start.c
-BK7258_AP_UP_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
-BK7258_AP_UP_CSRCS += bk7258_ap_main.c
+BK7258_AP_BASE_CSRCS  = bk7258_ap_vectors.c
+BK7258_AP_BASE_CSRCS += bk7258_ap_start.c
+BK7258_AP_BASE_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
+BK7258_AP_BASE_CSRCS += bk7258_ap_main.c
+
+BK7258_AP_UP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
 BK7258_AP_UP_CSRCS += bk7258_cpu2_probe.c
 BK7258_AP_UP_CSRCS += $(wordlist 6,7,$(BK7258_COMMON_CSRCS))
 
+BK7258_AP_SMP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
+BK7258_AP_SMP_CSRCS += bk7258_ap_smp.c
+# N8-B2 activates the same common SDK IRQ bridge for AP mailbox source 63.
+ifeq ($(CONFIG_BK7258_AP_IPI),y)
+BK7258_AP_SMP_CSRCS += bk7258_sdk_irq.c
+BK7258_AP_SMP_CSRCS += bk7258_ap_ipi.c
+endif
+BK7258_AP_SMP_CSRCS += $(wordlist 6,7,$(BK7258_COMMON_CSRCS))
+
 ifeq ($(CONFIG_ARM_SYSTICK),y)
 BK7258_AP_UP_CSRCS += arm_systick.c
+BK7258_AP_SMP_CSRCS += arm_systick.c
 endif
 
 ifeq ($(CONFIG_BK7258_AP_CORE),y)
+ifeq ($(CONFIG_BK7258_AP_SMP_BOOTSTRAP),y)
+CHIP_CSRCS = $(BK7258_AP_SMP_CSRCS)
+else
 CHIP_CSRCS = $(BK7258_AP_UP_CSRCS)
+endif
 else
 CHIP_CSRCS = $(BK7258_CP_CSRCS)
 endif
@@ -157,11 +175,14 @@ CFLAGS += -DCONFIG_DEBUG_VERSION=0 -DCONFIG_GPIO_RETENTION_SUPPORT=0
 CFLAGS += -DCONFIG_AON_RTC=0 -DCONFIG_AON_RTC_64BIT=0
 CFLAGS += -DCONFIG_SOC_BK7256XX=0 -DCONFIG_SOC_BK7236XX=0 -DCONFIG_SOC_BK7239XX=0
 
-# CPU0 wraps the common dispatcher to enforce non-nested IRQ dispatch and
-# retain the selected context across the STAR no-switch return path.  AP
-# remains unchanged.
+# Wrap the common dispatcher to enforce non-nested IRQ dispatch and retain
+# the selected context across the STAR no-switch return path.  Keep the
+# board-verified AP-UP/AP-parked fallbacks unchanged; N8-C1 scheduler-online
+# provides an SMP-safe per-core wrapper from bk7258_ap_vectors.c.
 
 ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=arm_doirq --wrap=nxsched_resume_scheduler
+else ifeq ($(CONFIG_BK7258_AP_SMP_SCHED_ONLINE),y)
 LDFLAGS += --wrap=arm_doirq --wrap=nxsched_resume_scheduler
 endif
 

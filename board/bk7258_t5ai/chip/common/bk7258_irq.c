@@ -36,6 +36,10 @@
 #include <arch/irq.h>
 #include <arch/barriers.h>
 
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+#  include <arch/chip/bk7258_amp.h>
+#endif
+
 #include "ram_vectors.h"
 #include "arm_internal.h"
 #include "nvic.h"
@@ -415,4 +419,22 @@ void up_enable_irq(int irq)
 
 void arm_ack_irq(int irq)
 {
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  if (irq == NVIC_IRQ_SYSTICK)
+    {
+      volatile struct bk7258_ap_smp_state_s *smp =
+        bk7258_ap_smp_state();
+      int cpu = up_cpu_index();
+
+      if (cpu >= 0 && cpu < CONFIG_SMP_NCPUS &&
+          smp->magic == BK7258_AP_SMP_STATE_MAGIC &&
+          smp->version == BK7258_AP_SMP_STATE_VERSION &&
+          smp->size == sizeof(*smp) &&
+          smp->generation == bk7258_ap_boot_state()->generation)
+        {
+          smp->systick_irq_count[cpu]++;
+          __asm volatile ("dmb sy" ::: "memory");
+        }
+    }
+#endif
 }

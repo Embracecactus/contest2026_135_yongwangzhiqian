@@ -35,6 +35,16 @@
 #define BK7258_SYSTICK_TICKINT      (1u << 1)
 #define BK7258_AP_HEARTBEAT_US      100000u
 
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+#  define BK7258_CPU2_EXPECTED_STATE \
+    BK7258_CPU2_PROBE_STATE_SCHEDULER_ONLINE
+#  define BK7258_CPU2_EXPECTED_MASK  0x3u
+#else
+#  define BK7258_CPU2_EXPECTED_STATE \
+    BK7258_CPU2_PROBE_STATE_SECONDARY_READY
+#  define BK7258_CPU2_EXPECTED_MASK  0x1u
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -150,6 +160,69 @@ static int bk7258_ap_validate_runtime(void)
   return BK7258_AP_ERROR_NONE;
 }
 
+#ifdef CONFIG_BK7258_AP_SMP_BOOTSTRAP
+static int bk7258_ap_validate_secondary_bootstrap(void)
+{
+  volatile struct bk7258_cpu2_probe_state_s *cpu2 =
+    bk7258_cpu2_probe_state();
+#ifdef CONFIG_BK7258_AP_IPI
+  volatile struct bk7258_ap_ipi_state_s *ipi = bk7258_ap_ipi_state();
+#endif
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  volatile struct bk7258_ap_smp_state_s *smp = bk7258_ap_smp_state();
+#endif
+
+  __asm volatile ("dmb sy" ::: "memory");
+
+  if (cpu2->magic != BK7258_CPU2_PROBE_STATE_MAGIC ||
+      cpu2->version != BK7258_CPU2_PROBE_STATE_VERSION ||
+      cpu2->size != sizeof(struct bk7258_cpu2_probe_state_s) ||
+      cpu2->generation != bk7258_ap_boot_state()->generation ||
+      cpu2->state != BK7258_CPU2_EXPECTED_STATE ||
+      cpu2->error != BK7258_CPU2_PROBE_ERROR_NONE ||
+      cpu2->secondary_ready != 1 ||
+      cpu2->online_mask != BK7258_CPU2_EXPECTED_MASK ||
+      cpu2->local_core_id != 1 ||
+      cpu2->physical_core_id != 2 ||
+      cpu2->runtime_vtor != cpu2->vector ||
+      cpu2->runtime_msp <= BK7258_CPU2_BOOT_STACK_BASE ||
+      cpu2->runtime_msp > BK7258_CPU2_BOOT_STACK_TOP ||
+      cpu2->idle_stack_base < BK7258_AP_RAM_BASE ||
+      cpu2->idle_stack_base >= cpu2->idle_stack_top ||
+      cpu2->idle_stack_top > BK7258_CPU2_BOOT_STACK_BASE)
+    {
+      return BK7258_AP_ERROR_CPU2_SMP_BOOTSTRAP;
+    }
+
+#ifdef CONFIG_BK7258_AP_IPI
+  if (ipi->magic != BK7258_AP_IPI_STATE_MAGIC ||
+      ipi->version != BK7258_AP_IPI_STATE_VERSION ||
+      ipi->size != sizeof(struct bk7258_ap_ipi_state_s) ||
+      ipi->generation != bk7258_ap_boot_state()->generation ||
+      ipi->state != BK7258_AP_IPI_STATE_READY ||
+      ipi->error != BK7258_AP_IPI_ERROR_NONE)
+    {
+      return BK7258_AP_ERROR_CPU2_IPI;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  if (smp->magic != BK7258_AP_SMP_STATE_MAGIC ||
+      smp->version != BK7258_AP_SMP_STATE_VERSION ||
+      smp->size != sizeof(struct bk7258_ap_smp_state_s) ||
+      smp->generation != bk7258_ap_boot_state()->generation ||
+      smp->state != BK7258_AP_SMP_STATE_ONLINE ||
+      smp->error != BK7258_AP_SMP_ERROR_NONE ||
+      smp->online_mask != BK7258_CPU2_EXPECTED_MASK)
+    {
+      return BK7258_AP_ERROR_CPU2_SMP_SCHEDULER;
+    }
+#endif
+
+  return BK7258_AP_ERROR_NONE;
+}
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -157,6 +230,9 @@ static int bk7258_ap_validate_runtime(void)
 int bk7258_ap_main(int argc, char *argv[])
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  volatile struct bk7258_ap_smp_state_s *smp = bk7258_ap_smp_state();
+#endif
   uint32_t event;
   int error;
   int ret;
@@ -183,6 +259,16 @@ int bk7258_ap_main(int argc, char *argv[])
       goto parked;
     }
 
+#ifdef CONFIG_BK7258_AP_SMP_BOOTSTRAP
+  error = bk7258_ap_validate_secondary_bootstrap();
+  if (error != BK7258_AP_ERROR_NONE)
+    {
+      state->state = BK7258_AP_STATE_FAILED;
+      state->error = (uint32_t)error;
+      bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+      goto parked;
+    }
+#else
   ret = bk7258_cpu2_probe_start(BK7258_CPU2_PROBE_TIMEOUT_MS);
   if (ret < 0)
     {
@@ -191,6 +277,19 @@ int bk7258_ap_main(int argc, char *argv[])
       bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
       goto parked;
     }
+#endif
+
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  ret = bk7258_ap_smp_scheduler_selftest(
+    BK7258_AP_SMP_DEFAULT_TIMEOUT_MS);
+  if (ret < 0)
+    {
+      state->state = BK7258_AP_STATE_FAILED;
+      state->error = BK7258_AP_ERROR_CPU2_SMP_SCHEDULER;
+      bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+      goto parked;
+    }
+#endif
 
   state->error      = BK7258_AP_ERROR_NONE;
   state->last_event = BK7258_AP_EVENT_READY;
@@ -211,11 +310,20 @@ int bk7258_ap_main(int argc, char *argv[])
         {
           state->state = BK7258_AP_STATE_STOPPING;
           __asm volatile ("dmb sy" ::: "memory");
+#ifdef CONFIG_BK7258_AP_SMP_BOOTSTRAP
+          ret = bk7258_ap_smp_secondary_stop(
+            BK7258_CPU2_PROBE_STOP_TIMEOUT_MS);
+#else
           ret = bk7258_cpu2_probe_stop(
             BK7258_CPU2_PROBE_STOP_TIMEOUT_MS);
+#endif
           if (ret < 0)
             {
+#ifdef CONFIG_BK7258_AP_SMP_BOOTSTRAP
+              state->error = BK7258_AP_ERROR_CPU2_SMP_BOOTSTRAP;
+#else
               state->error = BK7258_AP_ERROR_CPU2_PROBE;
+#endif
               state->state = BK7258_AP_STATE_FAILED;
               state->last_event = BK7258_AP_EVENT_FAILED;
               bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
@@ -228,9 +336,42 @@ int bk7258_ap_main(int argc, char *argv[])
           break;
         }
 
+#ifdef CONFIG_BK7258_AP_IPI
+      if (event == BK7258_AP_EVENT_IPI_TEST ||
+          state->command == BK7258_AP_COMMAND_IPI_TEST)
+        {
+          volatile struct bk7258_ap_ipi_state_s *ipi =
+            bk7258_ap_ipi_state();
+
+          state->command = BK7258_AP_COMMAND_NONE;
+          __asm volatile ("dmb sy" ::: "memory");
+          ret = bk7258_ap_ipi_selftest(ipi->requested_count,
+                                       ipi->timeout_ms);
+          if (ret < 0)
+            {
+              state->error = BK7258_AP_ERROR_CPU2_IPI;
+              state->last_event = BK7258_AP_EVENT_IPI_TEST_FAILED;
+              bk7258_ap_mbox_send(BK7258_AP_EVENT_IPI_TEST_FAILED);
+            }
+          else
+            {
+              state->error = BK7258_AP_ERROR_NONE;
+              state->last_event = BK7258_AP_EVENT_IPI_TEST_PASSED;
+              bk7258_ap_mbox_send(BK7258_AP_EVENT_IPI_TEST_PASSED);
+            }
+        }
+#endif
+
       state->heartbeat++;
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+      smp->sleep_enter_count++;
+#endif
       __asm volatile ("dmb sy; sev" ::: "memory");
       nxsig_usleep(BK7258_AP_HEARTBEAT_US);
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+      smp->sleep_return_count++;
+      __asm volatile ("dmb sy" ::: "memory");
+#endif
     }
 
 parked:

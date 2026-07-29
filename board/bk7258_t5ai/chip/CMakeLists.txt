@@ -33,8 +33,11 @@ if(CONFIG_BK7258_AP_CONTROL)
   list(APPEND BK7258_CP_SRCS cp/bk7258_ap_control.c)
 endif()
 
+# The role-neutral SDK IRQ bridge lives in common/ and is selected separately
+# by the CP bridge option or the AP N8-B2 IPI option.
+
 if(CONFIG_BK7258_SDK_IRQ_BRIDGE)
-  list(APPEND BK7258_CP_SRCS cp/bk7258_sdk_irq.c)
+  list(APPEND BK7258_CP_SRCS common/bk7258_sdk_irq.c)
 endif()
 
 if(CONFIG_BK7258_SDK_IRQ_TIMER_TEST)
@@ -79,19 +82,40 @@ if(CONFIG_BK7258_WDT)
   list(APPEND BK7258_CP_SRCS cp/bk7258_wdt.c)
 endif()
 
-set(BK7258_AP_UP_SRCS
+set(BK7258_AP_BASE_SRCS
     ap/bk7258_ap_vectors.c
     ap/bk7258_ap_start.c
     ${BK7258_COMMON_EARLY_SRCS}
-    ap/bk7258_ap_main.c
+    ap/bk7258_ap_main.c)
+
+set(BK7258_AP_UP_SRCS
+    ${BK7258_AP_BASE_SRCS}
+    ap/bk7258_cpu2_probe.c
     ${BK7258_COMMON_LATE_SRCS})
+
+set(BK7258_AP_SMP_SRCS
+    ${BK7258_AP_BASE_SRCS}
+    ap/bk7258_ap_smp.c)
+
+if(CONFIG_BK7258_AP_IPI)
+  list(APPEND BK7258_AP_SMP_SRCS
+       common/bk7258_sdk_irq.c
+       ap/bk7258_ap_ipi.c)
+endif()
+
+list(APPEND BK7258_AP_SMP_SRCS ${BK7258_COMMON_LATE_SRCS})
 
 if(CONFIG_ARM_SYSTICK)
   list(APPEND BK7258_AP_UP_SRCS arm_systick.c)
+  list(APPEND BK7258_AP_SMP_SRCS arm_systick.c)
 endif()
 
 if(CONFIG_BK7258_AP_CORE)
-  set(SRCS ${BK7258_AP_UP_SRCS})
+  if(CONFIG_BK7258_AP_SMP_BOOTSTRAP)
+    set(SRCS ${BK7258_AP_SMP_SRCS})
+  else()
+    set(SRCS ${BK7258_AP_UP_SRCS})
+  endif()
   set(BK7258_SDK_ROLE ap)
 else()
   set(SRCS ${BK7258_CP_SRCS})

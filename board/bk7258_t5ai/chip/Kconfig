@@ -37,17 +37,55 @@ config ARCH_CHIP_BK7258
 		CPU1/AP image uses a normal 80-entry __vector_core0_table.
 
 config BK7258_AP_CORE
-	bool "Build the physical CPU1 single-core AP NuttX image"
+	bool "Build the physical CPU1 AP NuttX image"
 	default n
 	depends on ARCH_CHIP_BK7258
 	select TIMER
 	select TIMER_ARCH
 	select ARMV8M_SYSTICK
 	---help---
-		Build an independent CONFIG_SMP=n NuttX image for physical CPU1.
-		Within the AP image this is logical core 0 and the vector anchor is
-		__vector_core0_table.  This role excludes CP SDK peripherals,
-		LittleFS, watchdog ownership, DVFS control, CPU2 and RPTUN.
+		Build the independent AP NuttX image whose primary is physical CPU1 /
+		AP logical CPU0.  The ap_up configuration remains a single-core NuttX
+		baseline with a freestanding CPU2 probe.  AP SMP is enabled only by the
+		separate BK7258_AP_SMP_BOOTSTRAP option and configs/ap_smp.
+
+config BK7258_AP_SMP_BOOTSTRAP
+	bool "N8-B1 AP SMP secondary bootstrap"
+	default n
+	depends on BK7258_AP_CORE
+	select ARCH_HAVE_MULTICPU
+	---help---
+		Enable the first AP SMP bring-up boundary.  NuttX creates logical CPU1's
+		IDLE TCB and calls up_cpu_start(); physical CPU2 enters the NuttX-aware
+		secondary bootstrap, validates its vector/VTOR/MSP and allocated IDLE
+		stack, publishes secondary_ready, then remains parked before scheduler
+		online.  Ordinary tasks remain restricted to logical CPU0.
+
+config BK7258_AP_IPI
+	bool "N8-B2 AP bidirectional IPI wrapper"
+	default n
+	depends on BK7258_AP_SMP_BOOTSTRAP
+	select ARCH_IRQPRIO
+	---help---
+		Enable the AP-local logical CPU0 to logical CPU1 mailbox IPI wrapper.
+		The wrapper uses the Beken SDK cross-core mailbox APIs while the
+		team-owned SDK IRQ bridge routes source 63 through NuttX IRQ 79.  CPU2
+		remains parked in WFI with scheduler online_mask 0x1; this option only
+		proves bidirectional IRQ delivery and does not enable task scheduling on
+		logical CPU1.
+
+config BK7258_AP_SMP_SCHED_ONLINE
+	bool "N8-C1 AP secondary scheduler-online idle"
+	default n
+	depends on BK7258_AP_IPI && SMP
+	---help---
+		Move physical CPU2 / AP logical CPU1 from the N8-B2 private WFI
+		park loop into the NuttX nx_idle_trampoline path.  Scheduler and SMP
+		call IPIs continue through the team wrapper and Beken SDK cross-core
+		mailbox path; no direct MBOX0 data plane is added.  The first gate keeps
+		CONFIG_SMP_DEFAULT_CPUSET=0x1, so ordinary tasks remain on logical CPU0.
+		Graceful CPU hot-unplug is not provided; stop/restart/cycle are rejected
+		while this scheduler-online mode is active.
 
 config BK7258_AP_CONTROL
 	bool "CPU0 control for the CPU1 AP NuttX image"
@@ -166,10 +204,10 @@ config BK7258_SDK_IRQ_BRIDGE
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	select ARCH_IRQPRIO
 	---help---
-		Route the Beken SDK interrupt registration APIs through the NuttX
-		IRQ subsystem on CPU0.  SDK sources 0..63 map one-to-one to
-		NuttX logical IRQs 16..79.  This option requires the A1 80-slot
-		RAM-vector table and does not provide AP/CPU1/CPU2 SMP support.
+		Enable the common Beken SDK-to-NuttX IRQ bridge for the CPU0 image.
+		SDK sources 0..63 map one-to-one to NuttX logical IRQs 16..79.
+		The AP-SMP image selects the same common bridge implementation through
+		BK7258_AP_IPI; this activation option remains CP-only.
 
 config BK7258_SDK_IRQ_TIMER_TEST
 	bool "Beken SDK IRQ bridge TIMER1 manual test"
