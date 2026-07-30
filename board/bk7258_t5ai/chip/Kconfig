@@ -87,6 +87,99 @@ config BK7258_AP_SMP_SCHED_ONLINE
 		Graceful CPU hot-unplug is not provided; stop/restart/cycle are rejected
 		while this scheduler-online mode is active.
 
+config BK7258_AP_SMP_CPU1_AFFINITY
+	bool "N8-C2 AP explicit CPU1 affinity one-task gate"
+	default n
+	depends on BK7258_AP_SMP_SCHED_ONLINE && !DISABLE_PTHREAD
+	---help---
+		Create exactly one detached diagnostic pthread whose initial affinity
+		mask is logical CPU1 only (0x2).  The task must remote-dispatch through
+		the existing scheduler IPI wrapper, wake CPU1 from IDLE, run its body
+		once and release its PID before AP READY is published.
+		CONFIG_SMP_DEFAULT_CPUSET remains
+		0x1; this option does not enable default CPU1 placement, free migration,
+		load balancing or a second CPU1 task.
+
+config BK7258_AP_SMP_CPU1_SEM_WAKE
+	bool "N8-C3 AP CPU1 semaphore block/wake gate"
+	default n
+	depends on BK7258_AP_SMP_CPU1_AFFINITY
+	---help---
+		Extend the single N8-C2 CPU1-affinity pthread so it blocks on one
+		NuttX semaphore.  Logical CPU0 proves the exact task is in
+		TSTATE_WAIT_SEM on that semaphore, posts exactly once, and requires the
+		existing scheduler IPI path to wake the task on logical CPU1.
+		CONFIG_SMP_DEFAULT_CPUSET remains 0x1; no second diagnostic task is
+		created and ordinary tasks remain restricted to logical CPU0.
+
+config BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+	bool "N8-C4 AP CPU1 fixed semaphore wake loop gate"
+	default n
+	depends on BK7258_AP_SMP_CPU1_SEM_WAKE
+	---help---
+		Reuse the single detached N8-C3 CPU1-affinity pthread and semaphore for
+		exactly eight ordered block/wake cycles.  The first cycle preserves the
+		N8-C3 BSEM proof while the separate BSWL record proves all eight wakes.
+		CONFIG_SMP_DEFAULT_CPUSET remains 0x1; no second task, semaphore or
+		runtime-configurable cycle count is added.
+
+choice
+	prompt "N8-C5..D1 advanced SMP gate (one at a time)"
+	default BK7258_AP_SMP_ADVANCED_NONE
+	depends on BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+	---help---
+		Select exactly one N8-C5..D1 advanced SMP diagnostic gate.
+		All options share the generic 32-word advanced-stage ABI struct.
+		CONFIG_SMP_DEFAULT_CPUSET remains 0x1.
+
+config BK7258_AP_SMP_ADVANCED_NONE
+	bool "None (N8-C4 baseline only)"
+	---help---
+		No advanced gate.  Only N8-C4 behavior is active.
+
+config BK7258_AP_SMP_BIDIR_PINGPONG
+	bool "N8-C5 bidirectional semaphore pingpong"
+	---help---
+		Two detached tasks: initiator on CPU0 (mask 0x1) and responder on
+		CPU1 (mask 0x2).  Two zero-count static semaphores.  Fixed 8 round
+		trips.  Each poster must prove exact counterpart waiter before post.
+		Expected: CPU0->CPU1 +9, CPU1->CPU0 +8, calls +17.  Failures
+		coalesced/stale/spurious zero.
+
+config BK7258_AP_SMP_CPU1_DUALTASK
+	bool "N8-C6 dual CPU1 local scheduling"
+	---help---
+		Two detached tasks both mask 0x2 and two zero-count semaphores.
+		Both first block; CPU0 posts task A once.  Fixed 8 A and 8 B
+		executions; A posts B each round, B posts A rounds 1..7.
+		Expected: CPU0->CPU1 +3, CPU1->CPU0 +0, calls +3.
+
+config BK7258_AP_SMP_CONTROLLED_MIGRATION
+	bool "N8-C7 controlled migration"
+	---help---
+		One detached task created with mask 0x1.  Exactly 8 self-affinity
+		transitions using pthread_setaffinity_np: odd->0x2/CPU1,
+		even->0x1/CPU0.  Expected: tx/rx +4 each direction, calls +8.
+
+config BK7258_AP_SMP_CPU1_TIMED_WAKE
+	bool "N8-C8 timed wake"
+	---help---
+		One detached task created with mask 0x2.  Exactly 8 nxsig_usleep
+		(20000us) cycles, returning on CPU1 each time.  Expected:
+		CPU0->CPU1 +8, CPU1->CPU0 +0, calls +8.
+
+config BK7258_AP_SMP_LIFECYCLE_QUIESCE
+	bool "N8-D1 CPU1 scheduler quiesce/resume foundation"
+	---help---
+		Dispatch one asynchronous SMP callback to CPU1, hold that callback in
+		a bounded WFE loop, and resume it from CPU0 with a shared sequence plus
+		SEV.  CPU1 remains scheduler-online throughout.  The scheduler-online
+		secondary-stop API must remain fail-closed with -ENOTSUP.  This is not
+		CPU hot-unplug and does not reset or power down physical CPU2.
+		Expected: CPU0->CPU1 +1, CPU1->CPU0 +0, calls +1.
+
+endchoice
+
 config BK7258_AP_CONTROL
 	bool "CPU0 control for the CPU1 AP NuttX image"
 	default n

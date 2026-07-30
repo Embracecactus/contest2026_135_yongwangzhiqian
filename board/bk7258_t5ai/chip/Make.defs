@@ -144,6 +144,7 @@ BK7258_AP_UP_CSRCS += $(wordlist 6,7,$(BK7258_COMMON_CSRCS))
 
 BK7258_AP_SMP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
 BK7258_AP_SMP_CSRCS += bk7258_ap_smp.c
+BK7258_AP_SMP_CSRCS += bk7258_ap_smp_advanced.c
 # N8-B2 activates the same common SDK IRQ bridge for AP mailbox source 63.
 ifeq ($(CONFIG_BK7258_AP_IPI),y)
 BK7258_AP_SMP_CSRCS += bk7258_sdk_irq.c

@@ -95,7 +95,8 @@ set(BK7258_AP_UP_SRCS
 
 set(BK7258_AP_SMP_SRCS
     ${BK7258_AP_BASE_SRCS}
-    ap/bk7258_ap_smp.c)
+    ap/bk7258_ap_smp.c
+    ap/bk7258_ap_smp_advanced.c)
 
 if(CONFIG_BK7258_AP_IPI)
   list(APPEND BK7258_AP_SMP_SRCS

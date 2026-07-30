@@ -28,6 +28,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <debug.h>
+#include <nuttx/arch.h>
 #include <nuttx/board.h>
 
 #ifdef CONFIG_BK7258_AP_CONTROL
@@ -131,6 +132,24 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
 }
 #endif /* CONFIG_BK7258_FLASH_LITTLEFS */
 
+/* TEMP cold-reset diagnostic: emit a short raw-UART tag so the last
+ * completed startup checkpoint remains visible without /dev/console,
+ * printf or syslog.  Delete after diagnosis.
+ */
+
+static void cold_ckpt(const char *tag)
+{
+  up_putc('\r');
+  up_putc('\n');
+  while (*tag)
+    {
+      up_putc(*tag++);
+    }
+
+  up_putc('\r');
+  up_putc('\n');
+}
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -153,6 +172,8 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
 
 int board_app_initialize(uintptr_t arg)
 {
+  cold_ckpt("C0"); /* board_app_initialize entry */
+
 #ifdef CONFIG_BK7258_WDT
   /* AP autostart may wait up to three seconds.  Stop the bootloader AON WDT
    * before entering that wait or it resets the entire SoC before AP failure
@@ -161,11 +182,13 @@ int board_app_initialize(uintptr_t arg)
 
   (void)bk7258_wdt_initialize();
 #endif
+  cold_ckpt("C1"); /* WDT init done */
 
 #ifdef CONFIG_BK7258_AP_CONTROL
   int apret;
 
   apret = bk7258_ap_control_initialize();
+  cold_ckpt("C2"); /* AP control init returned */
   if (apret < 0)
     {
       _err("bk7258: AP control init failed: %d\n", apret);
@@ -173,11 +196,14 @@ int board_app_initialize(uintptr_t arg)
 #ifdef CONFIG_BK7258_AP_AUTOSTART
   else
     {
+      cold_ckpt("C3"); /* AP autostart begins */
       apret = bk7258_ap_start(BK7258_AP_DEFAULT_TIMEOUT_MS);
       if (apret < 0)
         {
           _err("bk7258: AP autostart failed: %d\n", apret);
         }
+
+      cold_ckpt("C4"); /* AP autostart returned */
     }
 #endif
 #endif
@@ -185,6 +211,7 @@ int board_app_initialize(uintptr_t arg)
 #ifdef CONFIG_BK7258_GPIO_LOWERHALF
   (void)bk7258_gpio_lowerhalf_initialize();
 #endif
+  cold_ckpt("C5"); /* GPIO lower-half done */
 
   /* Register the BK7258 DVFS /proc/dvfs entry *before* mounting procfs: the
    * fs_procfs NOTE requires the procfs entry table to be stable at mount
@@ -204,6 +231,7 @@ int board_app_initialize(uintptr_t arg)
 #if defined(CONFIG_FS_PROCFS) && defined(CONFIG_NSH_PROC_MOUNTPOINT)
   (void)mount(NULL, CONFIG_NSH_PROC_MOUNTPOINT, "procfs", 0, NULL);
 #endif
+  cold_ckpt("C6"); /* procfs registration/mount done */
 
 #ifdef CONFIG_BK7258_FLASH_MTD
   /* Create the MTD instance for the 1 MiB data partition.  When LittleFS is
@@ -219,6 +247,8 @@ int board_app_initialize(uintptr_t arg)
 #endif
     }
 #endif
+  cold_ckpt("C7"); /* flash MTD / LittleFS done */
+  cold_ckpt("C8"); /* board_app_initialize return */
 
   return 0;
 }
