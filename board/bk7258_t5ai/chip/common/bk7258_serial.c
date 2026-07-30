@@ -32,6 +32,7 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/serial/serial.h>
 
+#include <driver/gpio.h>
 #include <driver/uart.h>
 #include <driver/uart_types.h>
 
@@ -41,10 +42,19 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BK7258_UART_RXBUFSIZE   256
-#define BK7258_UART_TXBUFSIZE   256
-#define BK7258_CONSOLE_UART_ID  UART_ID_1
-#define BK7258_UART_BAUD_RATE   460800u
+#define BK7258_UART_RXBUFSIZE       256
+#define BK7258_UART_TXBUFSIZE       256
+#define BK7258_CONSOLE_UART_ID      UART_ID_1
+#define BK7258_UART_BAUD_RATE       460800u
+
+#define BK7258_SYS_CLK_SELECT_REG   0x44010020u
+#define BK7258_SYS_CLK_ENABLE_REG   0x44010030u
+#define BK7258_SYS_UART1_CLK_SELECT (1u << 13)
+#define BK7258_SYS_UART1_CLK_ENABLE (1u << 10)
+#define BK7258_UART1_GLOBAL_CTRL    0x45830008u
+#define BK7258_UART1_CONFIG         0x45830010u
+#define BK7258_UART1_GLOBAL_ENABLE  0x00000001u
+#define BK7258_UART1_CONFIG_460800  0x0000371bu
 
 /****************************************************************************
  * Private Types
@@ -93,6 +103,49 @@ static struct uart_dev_s g_uart1port =
 };
 
 #define CONSOLE_DEV  g_uart1port
+
+/* TEMP cold-reset diagnostic: emit a short raw-UART tag so the last
+ * completed startup checkpoint remains visible without /dev/console,
+ * printf or syslog.  Delete after diagnosis.
+ */
+
+static void cold_ckpt(const char *tag)
+{
+  up_putc('\r');
+  up_putc('\n');
+  while (*tag)
+    {
+      up_putc(*tag++);
+    }
+
+  up_putc('\r');
+  up_putc('\n');
+}
+
+/* The Tier-1 bootloader establishes the board-verified UART1 console at
+ * 26 MHz / 56 ~= 460800 baud.  The generic SDK init rewrites the UART clock
+ * and configuration after its GPIO messages; on a physical cold boot that
+ * can make every later diagnostic byte disappear even if bk_uart_init()
+ * returns.  Reassert the board console invariant after the SDK has created
+ * its software state, before emitting the return checkpoint.
+ */
+
+static void bk7258_uart_restore_console(void)
+{
+  uint32_t regval;
+
+  regval = getreg32(BK7258_SYS_CLK_ENABLE_REG);
+  regval |= BK7258_SYS_UART1_CLK_ENABLE;
+  putreg32(regval, BK7258_SYS_CLK_ENABLE_REG);
+
+  regval = getreg32(BK7258_SYS_CLK_SELECT_REG);
+  regval &= ~BK7258_SYS_UART1_CLK_SELECT;
+  putreg32(regval, BK7258_SYS_CLK_SELECT_REG);
+
+  putreg32(BK7258_UART1_GLOBAL_ENABLE, BK7258_UART1_GLOBAL_CTRL);
+  putreg32(BK7258_UART1_CONFIG_460800, BK7258_UART1_CONFIG);
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+}
 
 /****************************************************************************
  * Private Function Prototypes
@@ -162,6 +215,7 @@ static int bk7258_uart_setup(struct uart_dev_s *dev)
 {
   static bool initialized;
   struct bk7258_uart_s *priv = dev->priv;
+  bk_err_t result;
   const uart_config_t config =
     {
       .baud_rate = BK7258_UART_BAUD_RATE,
@@ -174,20 +228,45 @@ static int bk7258_uart_setup(struct uart_dev_s *dev)
       .tx_dma_en = UART_DMA_DISABLE,
     };
 
+  cold_ckpt("U0"); /* UART setup entry */
+
   if (initialized)
     {
+      cold_ckpt("U4"); /* Already initialized */
       return OK;
     }
 
-  if (bk_uart_driver_init() != BK_OK)
+  /* The SDK UART pinmux path uses GPIO HAL state initialized only by
+   * bk_gpio_driver_init().  Initializing UART first can dereference the
+   * uninitialized GPIO peripheral-mode table on a true cold boot, while a
+   * retained warm state can hide the ordering defect.
+   */
+
+  if (bk_gpio_driver_init() != BK_OK)
     {
+      cold_ckpt("EG"); /* GPIO driver init failed */
       return -EIO;
     }
 
-  if (bk_uart_init(priv->id, &config) != BK_OK)
+  cold_ckpt("G1"); /* GPIO HAL/pinmux state initialized */
+
+  if (bk_uart_driver_init() != BK_OK)
     {
+      cold_ckpt("E1"); /* Driver init failed */
       return -EIO;
     }
+
+  cold_ckpt("U1"); /* Driver init returned */
+
+  result = bk_uart_init(priv->id, &config);
+  bk7258_uart_restore_console();
+  if (result != BK_OK)
+    {
+      cold_ckpt("E2"); /* UART init failed */
+      return -EIO;
+    }
+
+  cold_ckpt("U2"); /* UART init returned and console restored */
 
   /* NuttX owns the receive ring.  Keep bytes in the hardware FIFO so the SDK
    * callback can hand them directly to uart_recvchars().
@@ -195,16 +274,21 @@ static int bk7258_uart_setup(struct uart_dev_s *dev)
 
   if (bk_uart_disable_sw_fifo(priv->id) != BK_OK)
     {
+      cold_ckpt("E3"); /* FIFO disable failed */
       return -EIO;
     }
 
+  cold_ckpt("U3"); /* FIFO disabled */
+
   if (bk_uart_set_rx_full_threshold(priv->id, 1) != BK_OK)
     {
+      cold_ckpt("E4"); /* RX threshold failed */
       return -EIO;
     }
 
   priv->rxbyte = -1;
   initialized = true;
+  cold_ckpt("U4"); /* UART setup done */
   return OK;
 }
 
@@ -383,13 +467,16 @@ void arm_earlyserialinit(void)
 #ifdef USE_SERIALDRIVER
 void arm_serialinit(void)
 {
+  cold_ckpt("S0"); /* arm_serialinit entry */
   CONSOLE_DEV.isconsole = true;
 
   if (bk7258_uart_setup(&CONSOLE_DEV) < 0)
     {
+      cold_ckpt("SE"); /* UART setup rejected */
       return;
     }
 
   (void)uart_register("/dev/console", &CONSOLE_DEV);
+  cold_ckpt("U5"); /* /dev/console registered */
 }
 #endif

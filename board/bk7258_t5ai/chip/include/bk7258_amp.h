@@ -172,6 +172,70 @@
 #define BK7258_AP_SMP_STATE_VERSION      1u
 #define BK7258_AP_SMP_DEFAULT_TIMEOUT_MS 3000u
 
+/* N8-C2 keeps the explicit CPU1-affinity task gate separate from the
+ * board-verified N8-C1 scheduler-online ABI.
+ */
+
+#define BK7258_AP_AFFINITY_STATE_OFFSET  0x00000300u
+#define BK7258_AP_AFFINITY_STATE_MAGIC   0x46464142u /* "BAFF" */
+#define BK7258_AP_AFFINITY_STATE_VERSION 1u
+#define BK7258_AP_AFFINITY_TIMEOUT_MS    3000u
+
+/* N8-C3 keeps the CPU1 semaphore-block/wake proof separate from the
+ * board-verified N8-C2 affinity ABI.
+ */
+
+#define BK7258_AP_SEM_WAKE_STATE_OFFSET  0x00000380u
+#define BK7258_AP_SEM_WAKE_STATE_MAGIC   0x4d455342u /* "BSEM" */
+#define BK7258_AP_SEM_WAKE_STATE_VERSION 1u
+#define BK7258_AP_SEM_WAKE_TIMEOUT_MS    3000u
+
+/* N8-C4 preserves the N8-C3 first-wake proof and records the fixed
+ * eight-cycle semaphore wake loop in the next shared-state slot.
+ */
+
+#define BK7258_AP_SEM_WAKE_LOOP_STATE_OFFSET  0x00000400u
+#define BK7258_AP_SEM_WAKE_LOOP_STATE_MAGIC   0x4c575342u /* "BSWL" */
+#define BK7258_AP_SEM_WAKE_LOOP_STATE_VERSION 1u
+#define BK7258_AP_SEM_WAKE_LOOP_TIMEOUT_MS    3000u
+#define BK7258_AP_SEM_WAKE_LOOP_CYCLES        8u
+
+/* N8-C5 through N8-D1 share one generic exact-0x80 advanced-stage ABI struct
+ * used at five separate shared-page offsets:
+ *
+ *   0x480  BP2P  bidirectional pingpong
+ *   0x500  BDUL  dual CPU1 tasks
+ *   0x580  BMIG  controlled migration
+ *   0x600  BTIM  timed wake
+ *   0x680  BLCY  scheduler quiesce/resume foundation
+ *
+ * A useful 32-word layout is defined below.
+ */
+
+#define BK7258_AP_ADV_CYCLES                 8u
+#define BK7258_AP_ADV_TIMEOUT_MS             3000u
+#define BK7258_AP_ADV_TIMED_INTERVAL_US      20000u
+
+#define BK7258_AP_BP2P_STATE_OFFSET          0x00000480u
+#define BK7258_AP_BP2P_STATE_MAGIC           0x50325042u /* "BP2P" */
+#define BK7258_AP_BP2P_STATE_VERSION         1u
+
+#define BK7258_AP_BDUL_STATE_OFFSET          0x00000500u
+#define BK7258_AP_BDUL_STATE_MAGIC           0x4c554442u /* "BDUL" */
+#define BK7258_AP_BDUL_STATE_VERSION         1u
+
+#define BK7258_AP_BMIG_STATE_OFFSET          0x00000580u
+#define BK7258_AP_BMIG_STATE_MAGIC           0x47494d42u /* "BMIG" */
+#define BK7258_AP_BMIG_STATE_VERSION         1u
+
+#define BK7258_AP_BTIM_STATE_OFFSET          0x00000600u
+#define BK7258_AP_BTIM_STATE_MAGIC           0x4d495442u /* "BTIM" */
+#define BK7258_AP_BTIM_STATE_VERSION         1u
+
+#define BK7258_AP_BLCY_STATE_OFFSET          0x00000680u
+#define BK7258_AP_BLCY_STATE_MAGIC           0x59434c42u /* "BLCY" */
+#define BK7258_AP_BLCY_STATE_VERSION         1u
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -220,7 +284,15 @@ enum bk7258_ap_error_e
   BK7258_AP_ERROR_CPU2_PROBE,
   BK7258_AP_ERROR_CPU2_SMP_BOOTSTRAP,
   BK7258_AP_ERROR_CPU2_IPI,
-  BK7258_AP_ERROR_CPU2_SMP_SCHEDULER
+  BK7258_AP_ERROR_CPU2_SMP_SCHEDULER,
+  BK7258_AP_ERROR_CPU2_AFFINITY,
+  BK7258_AP_ERROR_CPU2_SEM_WAKE,
+  BK7258_AP_ERROR_CPU2_SEM_WAKE_LOOP,
+  BK7258_AP_ERROR_CPU2_BP2P,
+  BK7258_AP_ERROR_CPU2_BDUL,
+  BK7258_AP_ERROR_CPU2_BMIG,
+  BK7258_AP_ERROR_CPU2_BTIM,
+  BK7258_AP_ERROR_CPU2_BLCY
 };
 
 enum bk7258_cpu2_probe_command_e
@@ -304,6 +376,219 @@ enum bk7258_ap_smp_error_e
   BK7258_AP_SMP_ERROR_CALL,
   BK7258_AP_SMP_ERROR_TIMEOUT,
   BK7258_AP_SMP_ERROR_COUNT_MISMATCH
+};
+
+enum bk7258_ap_affinity_state_e
+{
+  BK7258_AP_AFFINITY_STATE_OFF = 0,
+  BK7258_AP_AFFINITY_STATE_INITIALIZING,
+  BK7258_AP_AFFINITY_STATE_DISPATCHING,
+  BK7258_AP_AFFINITY_STATE_RUNNING,
+  BK7258_AP_AFFINITY_STATE_PASSED,
+  BK7258_AP_AFFINITY_STATE_FAILED
+};
+
+enum bk7258_ap_affinity_error_e
+{
+  BK7258_AP_AFFINITY_ERROR_NONE = 0,
+  BK7258_AP_AFFINITY_ERROR_BAD_STATE,
+  BK7258_AP_AFFINITY_ERROR_ATTR,
+  BK7258_AP_AFFINITY_ERROR_CREATE,
+  BK7258_AP_AFFINITY_ERROR_TIMEOUT,
+  BK7258_AP_AFFINITY_ERROR_BAD_CPU,
+  BK7258_AP_AFFINITY_ERROR_BAD_MASK,
+  BK7258_AP_AFFINITY_ERROR_COUNT_MISMATCH
+};
+
+enum bk7258_ap_sem_wake_state_e
+{
+  BK7258_AP_SEM_WAKE_STATE_OFF = 0,
+  BK7258_AP_SEM_WAKE_STATE_INITIALIZING,
+  BK7258_AP_SEM_WAKE_STATE_WAITING,
+  BK7258_AP_SEM_WAKE_STATE_BLOCKED,
+  BK7258_AP_SEM_WAKE_STATE_POSTED,
+  BK7258_AP_SEM_WAKE_STATE_WOKEN,
+  BK7258_AP_SEM_WAKE_STATE_PASSED,
+  BK7258_AP_SEM_WAKE_STATE_FAILED
+};
+
+enum bk7258_ap_sem_wake_error_e
+{
+  BK7258_AP_SEM_WAKE_ERROR_NONE = 0,
+  BK7258_AP_SEM_WAKE_ERROR_BAD_STATE,
+  BK7258_AP_SEM_WAKE_ERROR_SEM_INIT,
+  BK7258_AP_SEM_WAKE_ERROR_WAIT_TIMEOUT,
+  BK7258_AP_SEM_WAKE_ERROR_SEM_WAIT,
+  BK7258_AP_SEM_WAKE_ERROR_SEM_POST,
+  BK7258_AP_SEM_WAKE_ERROR_BAD_CPU,
+  BK7258_AP_SEM_WAKE_ERROR_COUNT_MISMATCH
+};
+
+enum bk7258_ap_sem_wake_loop_state_e
+{
+  BK7258_AP_SEM_WAKE_LOOP_STATE_OFF = 0,
+  BK7258_AP_SEM_WAKE_LOOP_STATE_INITIALIZING,
+  BK7258_AP_SEM_WAKE_LOOP_STATE_WAITING,
+  BK7258_AP_SEM_WAKE_LOOP_STATE_BLOCKED,
+  BK7258_AP_SEM_WAKE_LOOP_STATE_POSTED,
+  BK7258_AP_SEM_WAKE_LOOP_STATE_WOKEN,
+  BK7258_AP_SEM_WAKE_LOOP_STATE_CONTINUE,
+  BK7258_AP_SEM_WAKE_LOOP_STATE_PASSED,
+  BK7258_AP_SEM_WAKE_LOOP_STATE_FAILED
+};
+
+enum bk7258_ap_sem_wake_loop_error_e
+{
+  BK7258_AP_SEM_WAKE_LOOP_ERROR_NONE = 0,
+  BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE,
+  BK7258_AP_SEM_WAKE_LOOP_ERROR_WAIT_TIMEOUT,
+  BK7258_AP_SEM_WAKE_LOOP_ERROR_WAKE_TIMEOUT,
+  BK7258_AP_SEM_WAKE_LOOP_ERROR_SEM_WAIT,
+  BK7258_AP_SEM_WAKE_LOOP_ERROR_SEM_POST,
+  BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_CPU,
+  BK7258_AP_SEM_WAKE_LOOP_ERROR_SEQUENCE,
+  BK7258_AP_SEM_WAKE_LOOP_ERROR_COUNT_MISMATCH
+};
+
+/* N8-C5/C6/C7/C8 generic advanced-stage state and error enums. */
+
+enum bk7258_ap_bp2p_state_e
+{
+  BK7258_AP_BP2P_STATE_OFF = 0,
+  BK7258_AP_BP2P_STATE_INITIALIZING,
+  BK7258_AP_BP2P_STATE_RUNNING,
+  BK7258_AP_BP2P_STATE_PASSED,
+  BK7258_AP_BP2P_STATE_FAILED
+};
+
+enum bk7258_ap_bp2p_error_e
+{
+  BK7258_AP_BP2P_ERROR_NONE = 0,
+  BK7258_AP_BP2P_ERROR_BAD_STATE,
+  BK7258_AP_BP2P_ERROR_SEM_INIT,
+  BK7258_AP_BP2P_ERROR_CREATE,
+  BK7258_AP_BP2P_ERROR_WAIT_TIMEOUT,
+  BK7258_AP_BP2P_ERROR_SEM_POST,
+  BK7258_AP_BP2P_ERROR_BAD_CPU,
+  BK7258_AP_BP2P_ERROR_SEQUENCE,
+  BK7258_AP_BP2P_ERROR_COUNT_MISMATCH
+};
+
+enum bk7258_ap_bdul_state_e
+{
+  BK7258_AP_BDUL_STATE_OFF = 0,
+  BK7258_AP_BDUL_STATE_INITIALIZING,
+  BK7258_AP_BDUL_STATE_RUNNING,
+  BK7258_AP_BDUL_STATE_PASSED,
+  BK7258_AP_BDUL_STATE_FAILED
+};
+
+enum bk7258_ap_bdul_error_e
+{
+  BK7258_AP_BDUL_ERROR_NONE = 0,
+  BK7258_AP_BDUL_ERROR_BAD_STATE,
+  BK7258_AP_BDUL_ERROR_SEM_INIT,
+  BK7258_AP_BDUL_ERROR_CREATE,
+  BK7258_AP_BDUL_ERROR_WAIT_TIMEOUT,
+  BK7258_AP_BDUL_ERROR_SEM_POST,
+  BK7258_AP_BDUL_ERROR_BAD_CPU,
+  BK7258_AP_BDUL_ERROR_SEQUENCE,
+  BK7258_AP_BDUL_ERROR_COUNT_MISMATCH
+};
+
+enum bk7258_ap_bmig_state_e
+{
+  BK7258_AP_BMIG_STATE_OFF = 0,
+  BK7258_AP_BMIG_STATE_INITIALIZING,
+  BK7258_AP_BMIG_STATE_RUNNING,
+  BK7258_AP_BMIG_STATE_PASSED,
+  BK7258_AP_BMIG_STATE_FAILED
+};
+
+enum bk7258_ap_bmig_error_e
+{
+  BK7258_AP_BMIG_ERROR_NONE = 0,
+  BK7258_AP_BMIG_ERROR_BAD_STATE,
+  BK7258_AP_BMIG_ERROR_CREATE,
+  BK7258_AP_BMIG_ERROR_SETAFFINITY,
+  BK7258_AP_BMIG_ERROR_GETAFFINITY,
+  BK7258_AP_BMIG_ERROR_BAD_CPU,
+  BK7258_AP_BMIG_ERROR_TIMEOUT,
+  BK7258_AP_BMIG_ERROR_COUNT_MISMATCH
+};
+
+enum bk7258_ap_btim_state_e
+{
+  BK7258_AP_BTIM_STATE_OFF = 0,
+  BK7258_AP_BTIM_STATE_INITIALIZING,
+  BK7258_AP_BTIM_STATE_RUNNING,
+  BK7258_AP_BTIM_STATE_PASSED,
+  BK7258_AP_BTIM_STATE_FAILED
+};
+
+enum bk7258_ap_btim_error_e
+{
+  BK7258_AP_BTIM_ERROR_NONE = 0,
+  BK7258_AP_BTIM_ERROR_BAD_STATE,
+  BK7258_AP_BTIM_ERROR_CREATE,
+  BK7258_AP_BTIM_ERROR_SLEEP,
+  BK7258_AP_BTIM_ERROR_BAD_CPU,
+  BK7258_AP_BTIM_ERROR_TIMEOUT,
+  BK7258_AP_BTIM_ERROR_COUNT_MISMATCH
+};
+
+enum bk7258_ap_blcy_state_e
+{
+  BK7258_AP_BLCY_STATE_OFF = 0,
+  BK7258_AP_BLCY_STATE_INITIALIZING,
+  BK7258_AP_BLCY_STATE_RUNNING,
+  BK7258_AP_BLCY_STATE_PASSED,
+  BK7258_AP_BLCY_STATE_FAILED
+};
+
+enum bk7258_ap_blcy_error_e
+{
+  BK7258_AP_BLCY_ERROR_NONE = 0,
+  BK7258_AP_BLCY_ERROR_BAD_STATE,
+  BK7258_AP_BLCY_ERROR_CALL,
+  BK7258_AP_BLCY_ERROR_QUIESCE_TIMEOUT,
+  BK7258_AP_BLCY_ERROR_RESUME_TIMEOUT,
+  BK7258_AP_BLCY_ERROR_BAD_CPU,
+  BK7258_AP_BLCY_ERROR_STOP_GATE,
+  BK7258_AP_BLCY_ERROR_COUNT_MISMATCH
+};
+
+/* N8-C5/C6/C7/C8/D1 shared generic 32-word stage ABI.  Used at five offsets:
+ * 0x480 BP2P, 0x500 BDUL, 0x580 BMIG, 0x600 BTIM, 0x680 BLCY.
+ */
+
+struct bk7258_ap_advanced_state_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t generation;
+  uint32_t state;
+  uint32_t error;
+  uint32_t requested;
+  uint32_t completed;
+  uint32_t task_id[2];
+  uint32_t task_cpu[2];
+  uint32_t task_started[2];
+  uint32_t task_completed[2];
+  uint32_t sequence[2];
+  int32_t  value[2];
+  uint32_t smp_tx0_before;
+  uint32_t smp_tx0_after;
+  uint32_t smp_rx1_before;
+  uint32_t smp_rx1_after;
+  uint32_t smp_tx1_before;
+  uint32_t smp_tx1_after;
+  uint32_t smp_rx0_before;
+  uint32_t smp_rx0_after;
+  uint32_t calls_before;
+  uint32_t calls_after;
+  uint32_t aux[2];
 };
 
 struct bk7258_ap_boot_state_s
@@ -475,6 +760,109 @@ struct bk7258_ap_smp_state_s
   uint32_t sleep_return_count;
 };
 
+struct bk7258_ap_affinity_state_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t generation;
+  uint32_t state;
+  uint32_t error;
+  uint32_t requested_mask;
+  uint32_t observed_mask;
+  uint32_t task_id;
+  uint32_t task_cpu;
+  uint32_t task_started;
+  uint32_t task_completed;
+  uint32_t test_runs;
+  uint32_t timeout_ms;
+  uint32_t smp_tx_before;
+  uint32_t smp_tx_after;
+  uint32_t smp_rx_before;
+  uint32_t smp_rx_after;
+  uint32_t smp_fail_before;
+  uint32_t smp_fail_after;
+  uint32_t ipi_irq_before;
+  uint32_t ipi_irq_after;
+  uint32_t ipi_wake_before;
+  uint32_t ipi_wake_after;
+  uint32_t cpu2_calls_before;
+  uint32_t cpu2_calls_after;
+  uint32_t pid_released;
+  uint32_t reserved[5];
+};
+
+struct bk7258_ap_sem_wake_state_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t generation;
+  uint32_t state;
+  uint32_t error;
+  uint32_t task_id;
+  uint32_t test_runs;
+  uint32_t timeout_ms;
+  uint32_t wait_entered;
+  uint32_t waiter_observed;
+  int32_t waiter_sem_value;
+  uint32_t post_count;
+  uint32_t post_cpu;
+  int32_t post_result;
+  uint32_t wait_returned;
+  int32_t wait_result;
+  uint32_t wake_cpu;
+  uint32_t smp_tx_before;
+  uint32_t smp_tx_after;
+  uint32_t smp_rx_before;
+  uint32_t smp_rx_after;
+  uint32_t smp_fail_before;
+  uint32_t smp_fail_after;
+  uint32_t ipi_irq_before;
+  uint32_t ipi_irq_after;
+  uint32_t ipi_wake_before;
+  uint32_t ipi_wake_after;
+  uint32_t cpu2_calls_before;
+  uint32_t cpu2_calls_after;
+  uint32_t reserved[2];
+};
+
+struct bk7258_ap_sem_wake_loop_state_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t generation;
+  uint32_t state;
+  uint32_t error;
+  uint32_t requested_cycles;
+  uint32_t completed_cycles;
+  uint32_t wait_entered;
+  uint32_t waiter_observed;
+  uint32_t post_count;
+  uint32_t wait_returned;
+  int32_t waiter_sem_value;
+  uint32_t post_cpu;
+  int32_t post_result;
+  int32_t wait_result;
+  uint32_t wake_cpu;
+  uint32_t wait_sequence;
+  uint32_t post_sequence;
+  uint32_t wake_sequence;
+  uint32_t smp_tx_before;
+  uint32_t smp_tx_after;
+  uint32_t smp_rx_before;
+  uint32_t smp_rx_after;
+  uint32_t smp_fail_before;
+  uint32_t smp_fail_after;
+  uint32_t ipi_irq_before;
+  uint32_t ipi_irq_after;
+  uint32_t ipi_wake_before;
+  uint32_t ipi_wake_after;
+  uint32_t cpu2_calls_before;
+  uint32_t cpu2_calls_after;
+};
+
 static_assert(BK7258_CP_FLASH_OFFSET + BK7258_CP_FLASH_SIZE ==
               BK7258_DATA_FLASH_OFFSET,
               "CP flash must end at the LittleFS boundary");
@@ -511,8 +899,67 @@ static_assert(sizeof(struct bk7258_ap_smp_state_s) == 0x80,
               "AP SMP state ABI must remain 0x80 bytes");
 static_assert(BK7258_AP_SMP_STATE_OFFSET +
               sizeof(struct bk7258_ap_smp_state_s) <=
+              BK7258_AP_AFFINITY_STATE_OFFSET,
+              "AP SMP state overlaps the AP affinity state");
+static_assert(sizeof(struct bk7258_ap_affinity_state_s) == 0x80,
+              "AP affinity state ABI must remain 0x80 bytes");
+static_assert(BK7258_AP_AFFINITY_STATE_OFFSET +
+              sizeof(struct bk7258_ap_affinity_state_s) ==
+              BK7258_AP_SEM_WAKE_STATE_OFFSET,
+              "AP affinity state must end at the AP semaphore-wake state");
+static_assert(BK7258_AP_SEM_WAKE_STATE_OFFSET == 0x00000380u,
+              "AP semaphore-wake state must start at shared offset 0x380");
+static_assert(sizeof(struct bk7258_ap_sem_wake_state_s) == 0x80,
+              "AP semaphore-wake state ABI must remain 0x80 bytes");
+static_assert(BK7258_AP_SEM_WAKE_STATE_OFFSET +
+              sizeof(struct bk7258_ap_sem_wake_state_s) ==
+              BK7258_AP_SEM_WAKE_LOOP_STATE_OFFSET,
+              "AP semaphore-wake state must end at the loop state");
+static_assert(BK7258_AP_SEM_WAKE_LOOP_STATE_OFFSET == 0x00000400u,
+              "AP semaphore-wake loop state must start at offset 0x400");
+static_assert(sizeof(struct bk7258_ap_sem_wake_loop_state_s) == 0x80,
+              "AP semaphore-wake loop state ABI must remain 0x80 bytes");
+static_assert(BK7258_AP_SEM_WAKE_LOOP_STATE_OFFSET +
+              sizeof(struct bk7258_ap_sem_wake_loop_state_s) == 0x00000480u,
+              "AP semaphore-wake loop state must end at shared offset 0x480");
+static_assert(BK7258_AP_SEM_WAKE_LOOP_STATE_OFFSET +
+              sizeof(struct bk7258_ap_sem_wake_loop_state_s) <=
               BK7258_SHARED_RAM_SIZE,
-              "AP SMP state exceeds the shared page");
+              "AP semaphore-wake loop state exceeds the shared page");
+
+/* N8-C5..D1 advanced-stage ABI size and non-overlap checks. */
+
+static_assert(sizeof(struct bk7258_ap_advanced_state_s) == 0x80,
+              "AP advanced-stage ABI must be exactly 0x80 bytes (32 words)");
+static_assert(BK7258_AP_SEM_WAKE_LOOP_STATE_OFFSET +
+              sizeof(struct bk7258_ap_sem_wake_loop_state_s) ==
+              BK7258_AP_BP2P_STATE_OFFSET,
+              "AP semaphore-wake loop state must end at the BP2P state");
+static_assert(BK7258_AP_BP2P_STATE_OFFSET == 0x00000480u,
+              "AP BP2P state must start at shared offset 0x480");
+static_assert(BK7258_AP_BP2P_STATE_OFFSET +
+              sizeof(struct bk7258_ap_advanced_state_s) ==
+              BK7258_AP_BDUL_STATE_OFFSET,
+              "BP2P and BDUL states must be contiguous");
+static_assert(BK7258_AP_BDUL_STATE_OFFSET +
+              sizeof(struct bk7258_ap_advanced_state_s) ==
+              BK7258_AP_BMIG_STATE_OFFSET,
+              "BDUL and BMIG states must be contiguous");
+static_assert(BK7258_AP_BMIG_STATE_OFFSET +
+              sizeof(struct bk7258_ap_advanced_state_s) ==
+              BK7258_AP_BTIM_STATE_OFFSET,
+              "BMIG and BTIM states must be contiguous");
+static_assert(BK7258_AP_BTIM_STATE_OFFSET +
+              sizeof(struct bk7258_ap_advanced_state_s) ==
+              BK7258_AP_BLCY_STATE_OFFSET,
+              "BTIM and BLCY states must be contiguous");
+static_assert(BK7258_AP_BLCY_STATE_OFFSET +
+              sizeof(struct bk7258_ap_advanced_state_s) == 0x00000700u,
+              "AP BLCY state must end at shared offset 0x700");
+static_assert(BK7258_AP_BLCY_STATE_OFFSET +
+              sizeof(struct bk7258_ap_advanced_state_s) <=
+              BK7258_SHARED_RAM_SIZE,
+              "AP advanced-stage states exceed the shared page");
 static_assert(BK7258_CPU2_PROBE_STACK_BASE >= BK7258_AP_RAM_BASE,
               "CPU2 probe stack must remain in AP-owned RAM");
 static_assert(BK7258_CPU2_PROBE_STACK_TOP == BK7258_SHARED_RAM_BASE,
@@ -568,6 +1015,62 @@ bk7258_ap_smp_state(void)
     (BK7258_SHARED_RAM_BASE + BK7258_AP_SMP_STATE_OFFSET);
 }
 
+static inline volatile struct bk7258_ap_affinity_state_s *
+bk7258_ap_affinity_state(void)
+{
+  return (volatile struct bk7258_ap_affinity_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_AP_AFFINITY_STATE_OFFSET);
+}
+
+static inline volatile struct bk7258_ap_sem_wake_state_s *
+bk7258_ap_sem_wake_state(void)
+{
+  return (volatile struct bk7258_ap_sem_wake_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_AP_SEM_WAKE_STATE_OFFSET);
+}
+
+static inline volatile struct bk7258_ap_sem_wake_loop_state_s *
+bk7258_ap_sem_wake_loop_state(void)
+{
+  return (volatile struct bk7258_ap_sem_wake_loop_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_AP_SEM_WAKE_LOOP_STATE_OFFSET);
+}
+
+static inline volatile struct bk7258_ap_advanced_state_s *
+bk7258_ap_bp2p_state(void)
+{
+  return (volatile struct bk7258_ap_advanced_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_AP_BP2P_STATE_OFFSET);
+}
+
+static inline volatile struct bk7258_ap_advanced_state_s *
+bk7258_ap_bdul_state(void)
+{
+  return (volatile struct bk7258_ap_advanced_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_AP_BDUL_STATE_OFFSET);
+}
+
+static inline volatile struct bk7258_ap_advanced_state_s *
+bk7258_ap_bmig_state(void)
+{
+  return (volatile struct bk7258_ap_advanced_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_AP_BMIG_STATE_OFFSET);
+}
+
+static inline volatile struct bk7258_ap_advanced_state_s *
+bk7258_ap_btim_state(void)
+{
+  return (volatile struct bk7258_ap_advanced_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_AP_BTIM_STATE_OFFSET);
+}
+
+static inline volatile struct bk7258_ap_advanced_state_s *
+bk7258_ap_blcy_state(void)
+{
+  return (volatile struct bk7258_ap_advanced_state_s *)
+    (BK7258_SHARED_RAM_BASE + BK7258_AP_BLCY_STATE_OFFSET);
+}
+
 #ifdef CONFIG_BK7258_AP_CONTROL
 int bk7258_ap_control_initialize(void);
 int bk7258_ap_start(uint32_t timeout_ms);
@@ -591,6 +1094,24 @@ void bk7258_ap_ipi_mark_stopped(void);
 int bk7258_ap_ipi_send_smp(int target_cpu);
 void bk7258_ap_ipi_mark_scheduler_online(void);
 int bk7258_ap_smp_scheduler_selftest(uint32_t timeout_ms);
+#        ifdef CONFIG_BK7258_AP_SMP_CPU1_AFFINITY
+int bk7258_ap_smp_affinity_selftest(uint32_t timeout_ms);
+#        endif
+#        ifdef CONFIG_BK7258_AP_SMP_BIDIR_PINGPONG
+int bk7258_ap_smp_bp2p_selftest(uint32_t timeout_ms);
+#        endif
+#        ifdef CONFIG_BK7258_AP_SMP_CPU1_DUALTASK
+int bk7258_ap_smp_bdul_selftest(uint32_t timeout_ms);
+#        endif
+#        ifdef CONFIG_BK7258_AP_SMP_CONTROLLED_MIGRATION
+int bk7258_ap_smp_bmig_selftest(uint32_t timeout_ms);
+#        endif
+#        ifdef CONFIG_BK7258_AP_SMP_CPU1_TIMED_WAKE
+int bk7258_ap_smp_btim_selftest(uint32_t timeout_ms);
+#        endif
+#        ifdef CONFIG_BK7258_AP_SMP_LIFECYCLE_QUIESCE
+int bk7258_ap_smp_blcy_selftest(uint32_t timeout_ms);
+#        endif
 #      endif
 #    endif
 #  else

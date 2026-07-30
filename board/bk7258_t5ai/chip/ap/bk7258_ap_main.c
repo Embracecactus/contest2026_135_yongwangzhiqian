@@ -106,6 +106,17 @@ static void bk7258_ap_mbox_send(uint32_t event)
   __asm volatile ("dsb sy; sev" ::: "memory");
 }
 
+static void bk7258_ap_publish_failure(uint32_t error)
+{
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+
+  state->error = error;
+  __asm volatile ("dmb sy" ::: "memory");
+  state->state = BK7258_AP_STATE_FAILED;
+  __asm volatile ("dmb sy" ::: "memory");
+  bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+}
+
 static int bk7258_ap_validate_runtime(void)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
@@ -244,18 +255,14 @@ int bk7258_ap_main(int argc, char *argv[])
       state->version != BK7258_AP_BOOT_STATE_VERSION ||
       state->size != sizeof(struct bk7258_ap_boot_state_s))
     {
-      state->state = BK7258_AP_STATE_FAILED;
-      state->error = BK7258_AP_ERROR_BAD_BOOT_STATE;
-      bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
       goto parked;
     }
 
   error = bk7258_ap_validate_runtime();
   if (error != BK7258_AP_ERROR_NONE)
     {
-      state->state = BK7258_AP_STATE_FAILED;
-      state->error = (uint32_t)error;
-      bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+      bk7258_ap_publish_failure((uint32_t)error);
       goto parked;
     }
 
@@ -263,18 +270,14 @@ int bk7258_ap_main(int argc, char *argv[])
   error = bk7258_ap_validate_secondary_bootstrap();
   if (error != BK7258_AP_ERROR_NONE)
     {
-      state->state = BK7258_AP_STATE_FAILED;
-      state->error = (uint32_t)error;
-      bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+      bk7258_ap_publish_failure((uint32_t)error);
       goto parked;
     }
 #else
   ret = bk7258_cpu2_probe_start(BK7258_CPU2_PROBE_TIMEOUT_MS);
   if (ret < 0)
     {
-      state->state = BK7258_AP_STATE_FAILED;
-      state->error = BK7258_AP_ERROR_CPU2_PROBE;
-      bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_PROBE);
       goto parked;
     }
 #endif
@@ -284,9 +287,68 @@ int bk7258_ap_main(int argc, char *argv[])
     BK7258_AP_SMP_DEFAULT_TIMEOUT_MS);
   if (ret < 0)
     {
-      state->state = BK7258_AP_STATE_FAILED;
-      state->error = BK7258_AP_ERROR_CPU2_SMP_SCHEDULER;
-      bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_SMP_SCHEDULER);
+      goto parked;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_AFFINITY
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+  ret = bk7258_ap_smp_affinity_selftest(
+    BK7258_AP_SEM_WAKE_LOOP_TIMEOUT_MS);
+#  elif defined(CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE)
+  ret = bk7258_ap_smp_affinity_selftest(
+    BK7258_AP_SEM_WAKE_TIMEOUT_MS);
+#  else
+  ret = bk7258_ap_smp_affinity_selftest(
+    BK7258_AP_AFFINITY_TIMEOUT_MS);
+#  endif
+  if (ret < 0)
+    {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_SEM_WAKE_LOOP);
+#elif defined(CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE)
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_SEM_WAKE);
+#else
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_AFFINITY);
+#endif
+      goto parked;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_AP_SMP_BIDIR_PINGPONG
+  ret = bk7258_ap_smp_bp2p_selftest(BK7258_AP_ADV_TIMEOUT_MS);
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BP2P);
+      goto parked;
+    }
+#elif defined(CONFIG_BK7258_AP_SMP_CPU1_DUALTASK)
+  ret = bk7258_ap_smp_bdul_selftest(BK7258_AP_ADV_TIMEOUT_MS);
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BDUL);
+      goto parked;
+    }
+#elif defined(CONFIG_BK7258_AP_SMP_CONTROLLED_MIGRATION)
+  ret = bk7258_ap_smp_bmig_selftest(BK7258_AP_ADV_TIMEOUT_MS);
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BMIG);
+      goto parked;
+    }
+#elif defined(CONFIG_BK7258_AP_SMP_CPU1_TIMED_WAKE)
+  ret = bk7258_ap_smp_btim_selftest(BK7258_AP_ADV_TIMEOUT_MS);
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BTIM);
+      goto parked;
+    }
+#elif defined(CONFIG_BK7258_AP_SMP_LIFECYCLE_QUIESCE)
+  ret = bk7258_ap_smp_blcy_selftest(BK7258_AP_ADV_TIMEOUT_MS);
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BLCY);
       goto parked;
     }
 #endif

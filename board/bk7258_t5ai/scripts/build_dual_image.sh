@@ -9,10 +9,20 @@ CONTEST_DIR="$(cd "${BOARD_DIR}/../.." && pwd)"
 WORKSPACE="$(cd "${CONTEST_DIR}/.." && pwd)"
 TOPDIR="${WORKSPACE}/nuttx"
 BUILD="${WORKSPACE}/build.sh"
-CP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh"
+CP_CONFIG_NAME="${CP_CONFIG_NAME:-cp_nsh}"
+case "${CP_CONFIG_NAME}" in
+    cp_nsh|cp_nsh_manual)
+        ;;
+    *)
+        printf 'build_dual_image: unsupported CP_CONFIG_NAME=%s\n' \
+            "${CP_CONFIG_NAME}" >&2
+        exit 2
+        ;;
+esac
+CP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${CP_CONFIG_NAME}"
 AP_CONFIG_NAME="${AP_CONFIG_NAME:-ap_smp}"
 case "${AP_CONFIG_NAME}" in
-    ap_up|ap_smp|ap_smp_online)
+    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle)
         ;;
     *)
         printf 'build_dual_image: unsupported AP_CONFIG_NAME=%s\n' \
@@ -55,7 +65,7 @@ save_role()
 printf '%s\n' "build_dual_image: rebuilding Tier-1 bootloader"
 make -C "${BOARD_DIR}/bootloader" clean all
 
-printf '%s\n' "build_dual_image: building CPU0/CP"
+printf 'build_dual_image: building CPU0/CP (%s)\n' "${CP_CONFIG_NAME}"
 build_config "${CP_CONFIG}"
 save_role cp app.bin app_crc.bin
 
@@ -90,6 +100,13 @@ python3 "${SCRIPT_DIR}/pack_dual_image.py" \
     --ap-raw "${TMPDIR}/app1.bin" \
     --ap-crc "${TMPDIR}/app1_crc.bin" \
     --output "${OUTPUT}"
+
+cat > "${OUTPUT}/build-profile.txt" <<EOF
+CP_CONFIG_NAME=${CP_CONFIG_NAME}
+AP_CONFIG_NAME=${AP_CONFIG_NAME}
+CP_CONFIG=${CP_CONFIG}
+AP_CONFIG=${AP_CONFIG}
+EOF
 
 cp "${OUTPUT}/app.bin" "${TOPDIR}/app.bin"
 cp "${OUTPUT}/app_crc.bin" "${TOPDIR}/app_crc.bin"

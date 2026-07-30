@@ -4,10 +4,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * N8-B1/N8-B2 physical CPU2 secondary bootstrap.  NuttX creates the logical
- * CPU1 IDLE TCB and calls up_cpu_start(), but CPU2 remains parked before
- * nx_idle_trampoline().  N8-B2 optionally enables only the SDK-wrapped
- * bidirectional mailbox IPI path while the scheduler stays on logical CPU0.
+ * N8-B1 through N8-C4 physical CPU2 secondary bootstrap.  N8-C1 enters the
+ * logical CPU1 scheduler IDLE path through the SDK-wrapped mailbox IPI data
+ * plane.  N8-C2 remote-dispatches exactly one CPU1-affinity pthread; N8-C3
+ * proves its first semaphore block/wake and N8-C4 reuses that same task and
+ * semaphore for a fixed eight-cycle wake loop.
  ****************************************************************************/
 
 /****************************************************************************
@@ -19,11 +20,18 @@
 #ifdef CONFIG_BK7258_AP_SMP_BOOTSTRAP
 
 #include <errno.h>
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_AFFINITY
+#  include <pthread.h>
+#endif
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
 
 #include <nuttx/arch.h>
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+#  include <nuttx/irq.h>
+#  include <nuttx/semaphore.h>
+#endif
 #include <nuttx/sched.h>
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
 #  include <nuttx/sched_note.h>
@@ -52,12 +60,27 @@
 #endif
 
 #if CONFIG_SMP_DEFAULT_CPUSET != 0x1
-#  error N8-C1 must keep ordinary tasks restricted to AP logical CPU0
+#  error N8-C1/N8-C2/N8-C3/N8-C4 must keep ordinary tasks on AP logical CPU0
 #endif
 
 #if defined(CONFIG_BK7258_AP_SMP_SCHED_ONLINE) && \
     !defined(CONFIG_BK7258_AP_IPI)
 #  error BK7258 scheduler-online mode requires the SDK-wrapped AP IPI
+#endif
+
+#if defined(CONFIG_BK7258_AP_SMP_CPU1_AFFINITY) && \
+    !defined(CONFIG_BK7258_AP_SMP_SCHED_ONLINE)
+#  error BK7258 CPU1 affinity gate requires scheduler-online mode
+#endif
+
+#if defined(CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE) && \
+    !defined(CONFIG_BK7258_AP_SMP_CPU1_AFFINITY)
+#  error BK7258 CPU1 semaphore-wake gate requires the affinity gate
+#endif
+
+#if defined(CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP) && \
+    !defined(CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE)
+#  error BK7258 CPU1 semaphore-wake loop requires the N8-C3 wake gate
 #endif
 
 #define BK7258_SCB_VTOR             (*(volatile uint32_t *)0xe000ed08u)
@@ -92,6 +115,10 @@ extern const void *const
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
 static struct smp_call_data_s g_bk7258_ap_smp_forward_call;
 static struct smp_call_data_s g_bk7258_ap_smp_reverse_call;
+#endif
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+static sem_t g_bk7258_ap_cpu1_sem;
 #endif
 
 /****************************************************************************
@@ -245,6 +272,510 @@ static int bk7258_ap_smp_secondary_callback(FAR void *arg)
   return nxsched_smp_call_single_async(BK7258_AP_PRIMARY_CPU,
                                       &g_bk7258_ap_smp_reverse_call);
 }
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_AFFINITY
+static void bk7258_ap_affinity_fail(
+  volatile struct bk7258_ap_affinity_state_s *state, uint32_t error)
+{
+  if (state->error == BK7258_AP_AFFINITY_ERROR_NONE)
+    {
+      state->error = error;
+    }
+
+  __asm volatile ("dmb sy" ::: "memory");
+  state->state = BK7258_AP_AFFINITY_STATE_FAILED;
+  __asm volatile ("dmb sy; sev" ::: "memory");
+}
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+static void bk7258_ap_sem_wake_fail(
+  volatile struct bk7258_ap_sem_wake_state_s *state, uint32_t error)
+{
+  if (state->error == BK7258_AP_SEM_WAKE_ERROR_NONE)
+    {
+      state->error = error;
+    }
+
+  __asm volatile ("dmb sy" ::: "memory");
+  state->state = BK7258_AP_SEM_WAKE_STATE_FAILED;
+  __asm volatile ("dmb sy; sev" ::: "memory");
+}
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+static void bk7258_ap_sem_wake_loop_fail(
+  volatile struct bk7258_ap_sem_wake_loop_state_s *state,
+  uint32_t error)
+{
+  if (state->error == BK7258_AP_SEM_WAKE_LOOP_ERROR_NONE)
+    {
+      state->error = error;
+    }
+
+  __asm volatile ("dmb sy" ::: "memory");
+  state->state = BK7258_AP_SEM_WAKE_LOOP_STATE_FAILED;
+  __asm volatile ("dmb sy; sev" ::: "memory");
+}
+
+static uint32_t bk7258_ap_sem_wake_loop_sem_error(uint32_t error)
+{
+  switch (error)
+    {
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_WAIT_TIMEOUT:
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_WAKE_TIMEOUT:
+        return BK7258_AP_SEM_WAKE_ERROR_WAIT_TIMEOUT;
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_SEM_WAIT:
+        return BK7258_AP_SEM_WAKE_ERROR_SEM_WAIT;
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_SEM_POST:
+        return BK7258_AP_SEM_WAKE_ERROR_SEM_POST;
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_CPU:
+        return BK7258_AP_SEM_WAKE_ERROR_BAD_CPU;
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_COUNT_MISMATCH:
+        return BK7258_AP_SEM_WAKE_ERROR_COUNT_MISMATCH;
+      default:
+        return BK7258_AP_SEM_WAKE_ERROR_BAD_STATE;
+    }
+}
+
+static uint32_t bk7258_ap_sem_wake_loop_affinity_error(uint32_t error)
+{
+  switch (error)
+    {
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_WAIT_TIMEOUT:
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_WAKE_TIMEOUT:
+        return BK7258_AP_AFFINITY_ERROR_TIMEOUT;
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_CPU:
+        return BK7258_AP_AFFINITY_ERROR_BAD_CPU;
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_SEQUENCE:
+      case BK7258_AP_SEM_WAKE_LOOP_ERROR_COUNT_MISMATCH:
+        return BK7258_AP_AFFINITY_ERROR_COUNT_MISMATCH;
+      default:
+        return BK7258_AP_AFFINITY_ERROR_BAD_STATE;
+    }
+}
+#endif
+
+static int32_t bk7258_ap_sem_exact_waiter_value(
+  pthread_t thread, cpu_set_t cpuset)
+{
+  FAR struct tcb_s *tcb;
+  irqstate_t flags;
+  int32_t observed = INT32_MAX;
+  int value = 0;
+  int ret;
+
+  tcb = nxsched_get_tcb((pid_t)thread);
+  if (tcb == NULL)
+    {
+      return observed;
+    }
+
+  flags = enter_critical_section();
+  ret = nxsem_get_value(&g_bk7258_ap_cpu1_sem, &value);
+  if (ret >= 0 &&
+      tcb->task_state == TSTATE_WAIT_SEM &&
+      tcb->waitobj == (FAR void *)&g_bk7258_ap_cpu1_sem &&
+      value == -1 && tcb->affinity == cpuset)
+    {
+      observed = (int32_t)value;
+    }
+
+  leave_critical_section(flags);
+  nxsched_put_tcb(tcb);
+  __asm volatile ("dmb sy" ::: "memory");
+  return observed;
+}
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+static void bk7258_ap_sem_wake_loop_task_fail(
+  volatile struct bk7258_ap_affinity_state_s *affinity,
+  volatile struct bk7258_ap_sem_wake_state_s *sem_state,
+  volatile struct bk7258_ap_sem_wake_loop_state_s *loop_state,
+  uint32_t error, uint32_t cycle)
+{
+  bk7258_ap_sem_wake_loop_fail(loop_state, error);
+  if (cycle == 1 && loop_state->completed_cycles == 0)
+    {
+      bk7258_ap_sem_wake_fail(
+        sem_state, bk7258_ap_sem_wake_loop_sem_error(error));
+    }
+
+  bk7258_ap_affinity_fail(
+    affinity, bk7258_ap_sem_wake_loop_affinity_error(error));
+  __asm volatile ("dmb sy; sev" ::: "memory");
+}
+
+static int bk7258_ap_sem_wake_loop_abort(
+  volatile struct bk7258_ap_affinity_state_s *affinity,
+  volatile struct bk7258_ap_sem_wake_state_s *sem_state,
+  volatile struct bk7258_ap_sem_wake_loop_state_s *loop_state,
+  uint32_t error, int first_cycle_completed, int sem_initialized,
+  int ret)
+{
+  bk7258_ap_sem_wake_loop_fail(loop_state, error);
+  if (!first_cycle_completed)
+    {
+      bk7258_ap_sem_wake_fail(
+        sem_state, bk7258_ap_sem_wake_loop_sem_error(error));
+    }
+
+  bk7258_ap_affinity_fail(
+    affinity, bk7258_ap_sem_wake_loop_affinity_error(error));
+  if (sem_initialized && affinity->task_completed == 0)
+    {
+      (void)nxsem_post(&g_bk7258_ap_cpu1_sem);
+    }
+
+  __asm volatile ("dmb sy; sev" ::: "memory");
+  return ret;
+}
+#endif
+
+/* Do not take a TCB reference here.  If CPU1 is already in
+ * nxsched_release_pid(), CPU0 releasing that reference can wake exit_sem and
+ * add an extra scheduler IPI to the N8-C3/N8-C4 measurement window.
+ */
+
+static int bk7258_ap_pid_released(pthread_t thread)
+{
+  pid_t pid = (pid_t)thread;
+  irqstate_t flags;
+  int released = 1;
+  int hash_ndx;
+
+  flags = spin_lock_irqsave_notrace(&g_pidhashlock);
+  if (g_pidhash != NULL && g_npidhash > 0 && pid >= 0)
+    {
+      hash_ndx = PIDHASH(pid);
+      if (g_pidhash[hash_ndx] != NULL &&
+          g_pidhash[hash_ndx]->pid == pid)
+        {
+          released = 0;
+        }
+    }
+
+  spin_unlock_irqrestore_notrace(&g_pidhashlock, flags);
+  return released;
+}
+#endif
+
+static FAR void *bk7258_ap_cpu1_affinity_task(FAR void *arg)
+{
+  volatile struct bk7258_ap_affinity_state_s *state = arg;
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+  volatile struct bk7258_ap_sem_wake_state_s *sem_state =
+    bk7258_ap_sem_wake_state();
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+  volatile struct bk7258_ap_sem_wake_loop_state_s *loop_state =
+    bk7258_ap_sem_wake_loop_state();
+  uint32_t cycle;
+  uint32_t elapsed;
+  uint32_t loop_wait_state;
+  uint32_t sem_wait_state;
+  uint32_t post_sequence;
+  uint32_t published_error;
+  uint32_t published_sem_error;
+  int continued;
+#  else
+  uint32_t wait_state;
+#  endif
+#endif
+  cpu_set_t observed = 0;
+  pthread_t self = pthread_self();
+  int ret;
+
+  if (state == NULL)
+    {
+      return NULL;
+    }
+
+  state->task_id = (uint32_t)self;
+  state->task_cpu = (uint32_t)up_cpu_index();
+  state->task_started++;
+  __asm volatile ("dmb sy" ::: "memory");
+
+  if (state->magic != BK7258_AP_AFFINITY_STATE_MAGIC ||
+      state->version != BK7258_AP_AFFINITY_STATE_VERSION ||
+      state->size != sizeof(struct bk7258_ap_affinity_state_s) ||
+      state->generation != bk7258_ap_boot_state()->generation ||
+      state->state != BK7258_AP_AFFINITY_STATE_DISPATCHING)
+    {
+      bk7258_ap_affinity_fail(state,
+                             BK7258_AP_AFFINITY_ERROR_BAD_STATE);
+      goto done;
+    }
+
+  state->state = BK7258_AP_AFFINITY_STATE_RUNNING;
+  __asm volatile ("dmb sy" ::: "memory");
+
+  ret = pthread_getaffinity_np(self, sizeof(observed), &observed);
+  state->observed_mask = (uint32_t)observed;
+
+  if (ret != 0)
+    {
+      bk7258_ap_affinity_fail(state,
+                             BK7258_AP_AFFINITY_ERROR_BAD_MASK);
+    }
+  else if (state->task_cpu != BK7258_AP_SECONDARY_CPU)
+    {
+      bk7258_ap_affinity_fail(state,
+                             BK7258_AP_AFFINITY_ERROR_BAD_CPU);
+    }
+  else if (state->observed_mask != state->requested_mask)
+    {
+      bk7258_ap_affinity_fail(state,
+                             BK7258_AP_AFFINITY_ERROR_BAD_MASK);
+    }
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+  else if (sem_state->magic != BK7258_AP_SEM_WAKE_STATE_MAGIC ||
+           sem_state->version != BK7258_AP_SEM_WAKE_STATE_VERSION ||
+           sem_state->size != sizeof(struct bk7258_ap_sem_wake_state_s) ||
+           sem_state->generation != state->generation ||
+           sem_state->state != BK7258_AP_SEM_WAKE_STATE_INITIALIZING ||
+           sem_state->error != BK7258_AP_SEM_WAKE_ERROR_NONE ||
+           loop_state->magic != BK7258_AP_SEM_WAKE_LOOP_STATE_MAGIC ||
+           loop_state->version != BK7258_AP_SEM_WAKE_LOOP_STATE_VERSION ||
+           loop_state->size !=
+             sizeof(struct bk7258_ap_sem_wake_loop_state_s) ||
+           loop_state->generation != state->generation ||
+           loop_state->state !=
+             BK7258_AP_SEM_WAKE_LOOP_STATE_INITIALIZING ||
+           loop_state->error != BK7258_AP_SEM_WAKE_LOOP_ERROR_NONE ||
+           loop_state->requested_cycles !=
+             BK7258_AP_SEM_WAKE_LOOP_CYCLES)
+    {
+      bk7258_ap_sem_wake_loop_task_fail(
+        state, sem_state, loop_state,
+        BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE, 1);
+    }
+  else
+    {
+      sem_state->task_id = (uint32_t)self;
+      for (cycle = 1; cycle <= BK7258_AP_SEM_WAKE_LOOP_CYCLES;
+           cycle++)
+        {
+          __asm volatile ("dmb sy" ::: "memory");
+          if (loop_state->state !=
+                (cycle == 1 ?
+                   BK7258_AP_SEM_WAKE_LOOP_STATE_INITIALIZING :
+                   BK7258_AP_SEM_WAKE_LOOP_STATE_CONTINUE) ||
+              loop_state->completed_cycles != cycle - 1 ||
+              loop_state->wait_entered != cycle - 1 ||
+              loop_state->waiter_observed != cycle - 1 ||
+              loop_state->post_count != cycle - 1 ||
+              loop_state->wait_returned != cycle - 1)
+            {
+              bk7258_ap_sem_wake_loop_task_fail(
+                state, sem_state, loop_state,
+                BK7258_AP_SEM_WAKE_LOOP_ERROR_SEQUENCE, cycle);
+              goto done;
+            }
+
+          loop_state->wait_sequence = cycle;
+          loop_state->wait_entered++;
+          if (cycle == 1)
+            {
+              sem_state->wait_entered = 1;
+              sem_state->state = BK7258_AP_SEM_WAKE_STATE_WAITING;
+            }
+
+          __asm volatile ("dmb sy" ::: "memory");
+          loop_state->state = BK7258_AP_SEM_WAKE_LOOP_STATE_WAITING;
+          __asm volatile ("dmb sy; sev" ::: "memory");
+
+          ret = nxsem_wait_uninterruptible(&g_bk7258_ap_cpu1_sem);
+          __asm volatile ("dmb sy" ::: "memory");
+          loop_wait_state = loop_state->state;
+          post_sequence = loop_state->post_sequence;
+          sem_wait_state = cycle == 1 ? sem_state->state :
+            BK7258_AP_SEM_WAKE_STATE_POSTED;
+          loop_state->wait_result = (int32_t)ret;
+          loop_state->wake_cpu = (uint32_t)up_cpu_index();
+          loop_state->wait_returned++;
+          if (cycle == 1)
+            {
+              sem_state->wait_result = (int32_t)ret;
+              sem_state->wait_returned = 1;
+              sem_state->wake_cpu = loop_state->wake_cpu;
+            }
+
+          __asm volatile ("dmb sy" ::: "memory");
+          if (ret < 0)
+            {
+              bk7258_ap_sem_wake_loop_task_fail(
+                state, sem_state, loop_state,
+                BK7258_AP_SEM_WAKE_LOOP_ERROR_SEM_WAIT, cycle);
+              goto done;
+            }
+          else if (loop_wait_state !=
+                     BK7258_AP_SEM_WAKE_LOOP_STATE_POSTED ||
+                   sem_wait_state != BK7258_AP_SEM_WAKE_STATE_POSTED)
+            {
+              bk7258_ap_sem_wake_loop_task_fail(
+                state, sem_state, loop_state,
+                BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE, cycle);
+              goto done;
+            }
+          else if (post_sequence != cycle)
+            {
+              bk7258_ap_sem_wake_loop_task_fail(
+                state, sem_state, loop_state,
+                BK7258_AP_SEM_WAKE_LOOP_ERROR_SEQUENCE, cycle);
+              goto done;
+            }
+          else if (loop_state->post_count != cycle)
+            {
+              bk7258_ap_sem_wake_loop_task_fail(
+                state, sem_state, loop_state,
+                BK7258_AP_SEM_WAKE_LOOP_ERROR_COUNT_MISMATCH, cycle);
+              goto done;
+            }
+          else if (loop_state->wake_cpu != BK7258_AP_SECONDARY_CPU)
+            {
+              bk7258_ap_sem_wake_loop_task_fail(
+                state, sem_state, loop_state,
+                BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_CPU, cycle);
+              goto done;
+            }
+
+          loop_state->completed_cycles++;
+          loop_state->wake_sequence = cycle;
+          if (cycle == 1)
+            {
+              sem_state->state = BK7258_AP_SEM_WAKE_STATE_WOKEN;
+            }
+
+          __asm volatile ("dmb sy" ::: "memory");
+          loop_state->state = BK7258_AP_SEM_WAKE_LOOP_STATE_WOKEN;
+          __asm volatile ("dmb sy" ::: "memory");
+
+          /* CPU0 publishes the loop error before FAILED.  If its bounded
+           * abort raced this wake publication, restore terminal FAILED after
+           * the task's last normal state writes instead of leaving
+           * error != NONE paired with WOKEN.
+           */
+
+          published_error = loop_state->error;
+          if (published_error != BK7258_AP_SEM_WAKE_LOOP_ERROR_NONE)
+            {
+              bk7258_ap_sem_wake_loop_fail(loop_state, published_error);
+              published_sem_error = sem_state->error;
+              if (published_sem_error != BK7258_AP_SEM_WAKE_ERROR_NONE)
+                {
+                  bk7258_ap_sem_wake_fail(sem_state,
+                                         published_sem_error);
+                }
+
+              bk7258_ap_affinity_fail(
+                state,
+                bk7258_ap_sem_wake_loop_affinity_error(published_error));
+              goto done;
+            }
+
+          __asm volatile ("sev" ::: "memory");
+
+          if (cycle < BK7258_AP_SEM_WAKE_LOOP_CYCLES)
+            {
+              continued = 0;
+              for (elapsed = 0;
+                   elapsed < BK7258_AP_SEM_WAKE_LOOP_TIMEOUT_MS;
+                   elapsed++)
+                {
+                  __asm volatile ("dmb sy" ::: "memory");
+                  if (loop_state->state ==
+                        BK7258_AP_SEM_WAKE_LOOP_STATE_CONTINUE &&
+                      loop_state->completed_cycles == cycle &&
+                      loop_state->wake_sequence == cycle)
+                    {
+                      continued = 1;
+                      break;
+                    }
+
+                  if (loop_state->state ==
+                        BK7258_AP_SEM_WAKE_LOOP_STATE_FAILED ||
+                      state->state == BK7258_AP_AFFINITY_STATE_FAILED)
+                    {
+                      goto done;
+                    }
+
+                  if (loop_state->state !=
+                        BK7258_AP_SEM_WAKE_LOOP_STATE_WOKEN)
+                    {
+                      bk7258_ap_sem_wake_loop_task_fail(
+                        state, sem_state, loop_state,
+                        BK7258_AP_SEM_WAKE_LOOP_ERROR_SEQUENCE, cycle);
+                      goto done;
+                    }
+
+                  __asm volatile ("wfe" ::: "memory");
+                }
+
+              if (!continued)
+                {
+                  bk7258_ap_sem_wake_loop_task_fail(
+                    state, sem_state, loop_state,
+                    BK7258_AP_SEM_WAKE_LOOP_ERROR_WAKE_TIMEOUT, cycle);
+                  goto done;
+                }
+            }
+        }
+    }
+#  else
+  else if (sem_state->magic != BK7258_AP_SEM_WAKE_STATE_MAGIC ||
+           sem_state->version != BK7258_AP_SEM_WAKE_STATE_VERSION ||
+           sem_state->size != sizeof(struct bk7258_ap_sem_wake_state_s) ||
+           sem_state->generation != state->generation ||
+           sem_state->state != BK7258_AP_SEM_WAKE_STATE_INITIALIZING ||
+           sem_state->error != BK7258_AP_SEM_WAKE_ERROR_NONE)
+    {
+      bk7258_ap_sem_wake_fail(sem_state,
+                             BK7258_AP_SEM_WAKE_ERROR_BAD_STATE);
+    }
+  else
+    {
+      sem_state->task_id = (uint32_t)self;
+      sem_state->wait_entered = 1;
+      sem_state->state = BK7258_AP_SEM_WAKE_STATE_WAITING;
+      __asm volatile ("dmb sy; sev" ::: "memory");
+
+      ret = nxsem_wait_uninterruptible(&g_bk7258_ap_cpu1_sem);
+      __asm volatile ("dmb sy" ::: "memory");
+      wait_state = sem_state->state;
+      sem_state->wait_result = (int32_t)ret;
+      sem_state->wait_returned = 1;
+      sem_state->wake_cpu = (uint32_t)up_cpu_index();
+      __asm volatile ("dmb sy" ::: "memory");
+
+      if (ret < 0)
+        {
+          bk7258_ap_sem_wake_fail(sem_state,
+                                 BK7258_AP_SEM_WAKE_ERROR_SEM_WAIT);
+        }
+      else if (wait_state != BK7258_AP_SEM_WAKE_STATE_POSTED)
+        {
+          bk7258_ap_sem_wake_fail(sem_state,
+                                 BK7258_AP_SEM_WAKE_ERROR_BAD_STATE);
+        }
+      else if (sem_state->wake_cpu != BK7258_AP_SECONDARY_CPU)
+        {
+          bk7258_ap_sem_wake_fail(sem_state,
+                                 BK7258_AP_SEM_WAKE_ERROR_BAD_CPU);
+        }
+      else
+        {
+          sem_state->state = BK7258_AP_SEM_WAKE_STATE_WOKEN;
+          __asm volatile ("dmb sy; sev" ::: "memory");
+        }
+    }
+#  endif
+#endif
+
+done:
+  state->task_completed++;
+  __asm volatile ("dmb sy; sev" ::: "memory");
+  return NULL;
+}
+#endif
 
 static void __attribute__((noinline, noreturn, used))
 bk7258_ap_secondary_scheduler_entry(void)
@@ -807,6 +1338,908 @@ int bk7258_ap_smp_scheduler_selftest(uint32_t timeout_ms)
   state->error = BK7258_AP_SMP_ERROR_NONE;
   __asm volatile ("dmb sy" ::: "memory");
   state->state = BK7258_AP_SMP_STATE_PASSED;
+  __asm volatile ("dmb sy; sev" ::: "memory");
+  return OK;
+}
+#endif
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_AFFINITY
+int bk7258_ap_smp_affinity_selftest(uint32_t timeout_ms)
+{
+  volatile struct bk7258_ap_affinity_state_s *state =
+    bk7258_ap_affinity_state();
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+  volatile struct bk7258_ap_sem_wake_state_s *sem_state =
+    bk7258_ap_sem_wake_state();
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+  volatile struct bk7258_ap_sem_wake_loop_state_s *loop_state =
+    bk7258_ap_sem_wake_loop_state();
+#  endif
+#endif
+  volatile struct bk7258_ap_smp_state_s *smp = bk7258_ap_smp_state();
+  volatile struct bk7258_ap_ipi_state_s *ipi = bk7258_ap_ipi_state();
+  volatile struct bk7258_cpu2_probe_state_s *cpu2 =
+    bk7258_cpu2_probe_state();
+#ifndef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+  FAR struct tcb_s *tcb;
+#endif
+  pthread_attr_t attr;
+  pthread_t thread;
+  cpu_set_t cpuset = (cpu_set_t)1u << BK7258_AP_SECONDARY_CPU;
+  uint32_t elapsed;
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+  int32_t waiter_value;
+  int blocked;
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+  uint32_t callback_cpu0_before;
+  uint32_t callback_cpu1_before;
+  uint32_t cycle;
+  uint32_t loop_error;
+  int first_cycle_completed = 0;
+  int sem_initialized = 0;
+  int woken;
+#  endif
+#endif
+  int ret;
+
+  if (timeout_ms == 0)
+    {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+      timeout_ms = BK7258_AP_SEM_WAKE_LOOP_TIMEOUT_MS;
+#elif defined(CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE)
+      timeout_ms = BK7258_AP_SEM_WAKE_TIMEOUT_MS;
+#else
+      timeout_ms = BK7258_AP_AFFINITY_TIMEOUT_MS;
+#endif
+    }
+
+  memset((void *)(uintptr_t)state, 0, sizeof(*state));
+  state->version = BK7258_AP_AFFINITY_STATE_VERSION;
+  state->size = sizeof(*state);
+  state->generation = bk7258_ap_boot_state()->generation;
+  state->state = BK7258_AP_AFFINITY_STATE_INITIALIZING;
+  state->requested_mask = (uint32_t)cpuset;
+  state->test_runs = 1;
+  state->timeout_ms = timeout_ms;
+  state->smp_tx_before = smp->tx_count[BK7258_AP_PRIMARY_CPU];
+  state->smp_rx_before = smp->rx_count[BK7258_AP_SECONDARY_CPU];
+  state->smp_fail_before = smp->send_failures[BK7258_AP_PRIMARY_CPU];
+  state->ipi_irq_before = ipi->irq_count[BK7258_AP_SECONDARY_CPU];
+  state->ipi_wake_before = ipi->wake_count[BK7258_AP_SECONDARY_CPU];
+  state->cpu2_calls_before = cpu2->smp_call_requests;
+  __asm volatile ("dmb sy" ::: "memory");
+  state->magic = BK7258_AP_AFFINITY_STATE_MAGIC;
+  __asm volatile ("dmb sy" ::: "memory");
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+  memset((void *)(uintptr_t)sem_state, 0, sizeof(*sem_state));
+  sem_state->version = BK7258_AP_SEM_WAKE_STATE_VERSION;
+  sem_state->size = sizeof(*sem_state);
+  sem_state->generation = state->generation;
+  sem_state->state = BK7258_AP_SEM_WAKE_STATE_INITIALIZING;
+  sem_state->test_runs = 1;
+  sem_state->timeout_ms = timeout_ms;
+  __asm volatile ("dmb sy" ::: "memory");
+  sem_state->magic = BK7258_AP_SEM_WAKE_STATE_MAGIC;
+  __asm volatile ("dmb sy" ::: "memory");
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+  memset((void *)(uintptr_t)loop_state, 0, sizeof(*loop_state));
+  loop_state->version = BK7258_AP_SEM_WAKE_LOOP_STATE_VERSION;
+  loop_state->size = sizeof(*loop_state);
+  loop_state->generation = state->generation;
+  loop_state->state = BK7258_AP_SEM_WAKE_LOOP_STATE_INITIALIZING;
+  loop_state->requested_cycles = BK7258_AP_SEM_WAKE_LOOP_CYCLES;
+  __asm volatile ("dmb sy" ::: "memory");
+  loop_state->magic = BK7258_AP_SEM_WAKE_LOOP_STATE_MAGIC;
+  __asm volatile ("dmb sy" ::: "memory");
+
+  callback_cpu0_before = smp->callback_count[BK7258_AP_PRIMARY_CPU];
+  callback_cpu1_before = smp->callback_count[BK7258_AP_SECONDARY_CPU];
+#endif
+
+  ret = nxsem_init(&g_bk7258_ap_cpu1_sem, 0, 0);
+  if (ret < 0)
+    {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+      bk7258_ap_sem_wake_loop_fail(
+        loop_state, BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE);
+#endif
+      bk7258_ap_sem_wake_fail(sem_state,
+                             BK7258_AP_SEM_WAKE_ERROR_SEM_INIT);
+      bk7258_ap_affinity_fail(state,
+                             BK7258_AP_AFFINITY_ERROR_BAD_STATE);
+      return ret;
+    }
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+  sem_initialized = 1;
+#endif
+
+#ifdef CONFIG_PRIORITY_INHERITANCE
+  ret = nxsem_set_protocol(&g_bk7258_ap_cpu1_sem, SEM_PRIO_NONE);
+  if (ret < 0)
+    {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+      bk7258_ap_sem_wake_loop_fail(
+        loop_state, BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE);
+#endif
+      bk7258_ap_sem_wake_fail(sem_state,
+                             BK7258_AP_SEM_WAKE_ERROR_SEM_INIT);
+      bk7258_ap_affinity_fail(state,
+                             BK7258_AP_AFFINITY_ERROR_BAD_STATE);
+      return ret;
+    }
+#endif
+#endif
+
+  if (smp->magic != BK7258_AP_SMP_STATE_MAGIC ||
+      smp->version != BK7258_AP_SMP_STATE_VERSION ||
+      smp->size != sizeof(struct bk7258_ap_smp_state_s) ||
+      smp->generation != state->generation ||
+      smp->state != BK7258_AP_SMP_STATE_PASSED ||
+      smp->error != BK7258_AP_SMP_ERROR_NONE ||
+      smp->online_mask != BK7258_AP_ONLINE_MASK ||
+      ipi->magic != BK7258_AP_IPI_STATE_MAGIC ||
+      ipi->version != BK7258_AP_IPI_STATE_VERSION ||
+      ipi->size != sizeof(struct bk7258_ap_ipi_state_s) ||
+      ipi->generation != state->generation ||
+      ipi->state != BK7258_AP_IPI_STATE_READY ||
+      ipi->error != BK7258_AP_IPI_ERROR_NONE ||
+      cpu2->state != BK7258_CPU2_PROBE_STATE_SCHEDULER_ONLINE ||
+      cpu2->online_mask != BK7258_AP_ONLINE_MASK)
+    {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+      bk7258_ap_sem_wake_loop_fail(
+        loop_state, BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE);
+#  endif
+      bk7258_ap_sem_wake_fail(sem_state,
+                             BK7258_AP_SEM_WAKE_ERROR_BAD_STATE);
+#endif
+      bk7258_ap_affinity_fail(state,
+                             BK7258_AP_AFFINITY_ERROR_BAD_STATE);
+      return -EAGAIN;
+    }
+
+  ret = pthread_attr_init(&attr);
+  if (ret != 0)
+    {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+      bk7258_ap_sem_wake_loop_fail(
+        loop_state, BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE);
+#  endif
+      bk7258_ap_sem_wake_fail(sem_state,
+                             BK7258_AP_SEM_WAKE_ERROR_BAD_STATE);
+#endif
+      bk7258_ap_affinity_fail(state, BK7258_AP_AFFINITY_ERROR_ATTR);
+      return -ret;
+    }
+
+  ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  if (ret == 0)
+    {
+      ret = pthread_attr_setaffinity_np(&attr, sizeof(cpuset), &cpuset);
+    }
+
+  if (ret != 0)
+    {
+      (void)pthread_attr_destroy(&attr);
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+      bk7258_ap_sem_wake_loop_fail(
+        loop_state, BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE);
+#  endif
+      bk7258_ap_sem_wake_fail(sem_state,
+                             BK7258_AP_SEM_WAKE_ERROR_BAD_STATE);
+#endif
+      bk7258_ap_affinity_fail(state, BK7258_AP_AFFINITY_ERROR_ATTR);
+      return -ret;
+    }
+
+  state->state = BK7258_AP_AFFINITY_STATE_DISPATCHING;
+  __asm volatile ("dmb sy" ::: "memory");
+  ret = pthread_create(&thread, &attr, bk7258_ap_cpu1_affinity_task,
+                       (FAR void *)state);
+  (void)pthread_attr_destroy(&attr);
+  if (ret != 0)
+    {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+      bk7258_ap_sem_wake_loop_fail(
+        loop_state, BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE);
+#  endif
+      bk7258_ap_sem_wake_fail(sem_state,
+                             BK7258_AP_SEM_WAKE_ERROR_BAD_STATE);
+#endif
+      bk7258_ap_affinity_fail(state, BK7258_AP_AFFINITY_ERROR_CREATE);
+      return -ret;
+    }
+
+  state->task_id = (uint32_t)thread;
+  __asm volatile ("dmb sy" ::: "memory");
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+  for (cycle = 1; cycle <= BK7258_AP_SEM_WAKE_LOOP_CYCLES; cycle++)
+    {
+      blocked = 0;
+      waiter_value = INT32_MAX;
+      ret = OK;
+      for (elapsed = 0; elapsed < timeout_ms; elapsed++)
+        {
+          __asm volatile ("dmb sy" ::: "memory");
+          if (loop_state->state ==
+                BK7258_AP_SEM_WAKE_LOOP_STATE_WAITING &&
+              loop_state->wait_sequence == cycle &&
+              loop_state->wait_entered == cycle &&
+              loop_state->waiter_observed == cycle - 1 &&
+              loop_state->post_count == cycle - 1 &&
+              loop_state->wait_returned == cycle - 1 &&
+              loop_state->completed_cycles == cycle - 1 &&
+              state->task_id == (uint32_t)thread &&
+              (cycle != 1 ||
+               (sem_state->state == BK7258_AP_SEM_WAKE_STATE_WAITING &&
+                sem_state->task_id == (uint32_t)thread &&
+                sem_state->wait_entered == 1)))
+            {
+              waiter_value =
+                bk7258_ap_sem_exact_waiter_value(thread, cpuset);
+              if (waiter_value == -1)
+                {
+                  blocked = 1;
+                  break;
+                }
+            }
+
+          if (state->state == BK7258_AP_AFFINITY_STATE_FAILED ||
+              loop_state->state ==
+                BK7258_AP_SEM_WAKE_LOOP_STATE_FAILED ||
+              sem_state->state == BK7258_AP_SEM_WAKE_STATE_FAILED ||
+              state->task_completed != 0)
+            {
+              ret = -EIO;
+              break;
+            }
+
+          up_mdelay(1);
+        }
+
+      if (!blocked)
+        {
+          if (elapsed == timeout_ms)
+            {
+              loop_error = BK7258_AP_SEM_WAKE_LOOP_ERROR_WAIT_TIMEOUT;
+              ret = -ETIMEDOUT;
+            }
+          else
+            {
+              loop_error = loop_state->error !=
+                             BK7258_AP_SEM_WAKE_LOOP_ERROR_NONE ?
+                             loop_state->error :
+                             BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE;
+              ret = -EIO;
+            }
+
+          return bk7258_ap_sem_wake_loop_abort(
+            state, sem_state, loop_state, loop_error,
+            first_cycle_completed, sem_initialized, ret);
+        }
+
+      loop_state->waiter_sem_value = waiter_value;
+      loop_state->waiter_observed++;
+      if (cycle == 1)
+        {
+          sem_state->waiter_sem_value = waiter_value;
+          sem_state->waiter_observed = 1;
+        }
+
+      __asm volatile ("dmb sy" ::: "memory");
+      if (loop_state->waiter_observed != cycle)
+        {
+          return bk7258_ap_sem_wake_loop_abort(
+            state, sem_state, loop_state,
+            BK7258_AP_SEM_WAKE_LOOP_ERROR_COUNT_MISMATCH,
+            first_cycle_completed, sem_initialized, -EIO);
+        }
+
+      if (cycle == 1)
+        {
+          sem_state->state = BK7258_AP_SEM_WAKE_STATE_BLOCKED;
+        }
+
+      loop_state->state = BK7258_AP_SEM_WAKE_LOOP_STATE_BLOCKED;
+      __asm volatile ("dmb sy" ::: "memory");
+
+      if (cycle == 1)
+        {
+          sem_state->smp_tx_before =
+            smp->tx_count[BK7258_AP_PRIMARY_CPU];
+          sem_state->smp_rx_before =
+            smp->rx_count[BK7258_AP_SECONDARY_CPU];
+          sem_state->smp_fail_before =
+            smp->send_failures[BK7258_AP_PRIMARY_CPU];
+          sem_state->ipi_irq_before =
+            ipi->irq_count[BK7258_AP_SECONDARY_CPU];
+          sem_state->ipi_wake_before =
+            ipi->wake_count[BK7258_AP_SECONDARY_CPU];
+          sem_state->cpu2_calls_before = cpu2->smp_call_requests;
+
+          loop_state->smp_tx_before = sem_state->smp_tx_before;
+          loop_state->smp_rx_before = sem_state->smp_rx_before;
+          loop_state->smp_fail_before = sem_state->smp_fail_before;
+          loop_state->ipi_irq_before = sem_state->ipi_irq_before;
+          loop_state->ipi_wake_before = sem_state->ipi_wake_before;
+          loop_state->cpu2_calls_before = sem_state->cpu2_calls_before;
+        }
+
+      loop_state->post_cpu = (uint32_t)up_cpu_index();
+      loop_state->post_count++;
+      loop_state->post_sequence = cycle;
+      if (cycle == 1)
+        {
+          sem_state->post_cpu = loop_state->post_cpu;
+          sem_state->post_count = 1;
+          sem_state->state = BK7258_AP_SEM_WAKE_STATE_POSTED;
+        }
+
+      __asm volatile ("dmb sy" ::: "memory");
+      loop_state->state = BK7258_AP_SEM_WAKE_LOOP_STATE_POSTED;
+      __asm volatile ("dmb sy" ::: "memory");
+
+      ret = nxsem_post(&g_bk7258_ap_cpu1_sem);
+      loop_state->post_result = (int32_t)ret;
+      if (cycle == 1)
+        {
+          sem_state->post_result = (int32_t)ret;
+        }
+
+      __asm volatile ("dmb sy" ::: "memory");
+      if (ret < 0)
+        {
+          return bk7258_ap_sem_wake_loop_abort(
+            state, sem_state, loop_state,
+            BK7258_AP_SEM_WAKE_LOOP_ERROR_SEM_POST,
+            first_cycle_completed, sem_initialized, ret);
+        }
+
+      if (loop_state->post_cpu != BK7258_AP_PRIMARY_CPU)
+        {
+          return bk7258_ap_sem_wake_loop_abort(
+            state, sem_state, loop_state,
+            BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_CPU,
+            first_cycle_completed, sem_initialized, -EIO);
+        }
+
+      woken = 0;
+      ret = OK;
+      for (elapsed = 0; elapsed < timeout_ms; elapsed++)
+        {
+          __asm volatile ("dmb sy" ::: "memory");
+          if (loop_state->state ==
+                BK7258_AP_SEM_WAKE_LOOP_STATE_WOKEN &&
+              loop_state->completed_cycles == cycle &&
+              loop_state->wait_returned == cycle &&
+              loop_state->wake_sequence == cycle)
+            {
+              woken = 1;
+              break;
+            }
+
+          if (state->state == BK7258_AP_AFFINITY_STATE_FAILED ||
+              loop_state->state ==
+                BK7258_AP_SEM_WAKE_LOOP_STATE_FAILED ||
+              sem_state->state == BK7258_AP_SEM_WAKE_STATE_FAILED ||
+              state->task_completed != 0)
+            {
+              ret = -EIO;
+              break;
+            }
+
+          up_mdelay(1);
+        }
+
+      if (!woken)
+        {
+          if (elapsed == timeout_ms)
+            {
+              loop_error = BK7258_AP_SEM_WAKE_LOOP_ERROR_WAKE_TIMEOUT;
+              ret = -ETIMEDOUT;
+            }
+          else
+            {
+              loop_error = loop_state->error !=
+                             BK7258_AP_SEM_WAKE_LOOP_ERROR_NONE ?
+                             loop_state->error :
+                             BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE;
+              ret = -EIO;
+            }
+
+          return bk7258_ap_sem_wake_loop_abort(
+            state, sem_state, loop_state, loop_error,
+            first_cycle_completed, sem_initialized, ret);
+        }
+
+      if (cycle == 1)
+        {
+          sem_state->smp_tx_after =
+            smp->tx_count[BK7258_AP_PRIMARY_CPU];
+          sem_state->smp_rx_after =
+            smp->rx_count[BK7258_AP_SECONDARY_CPU];
+          sem_state->smp_fail_after =
+            smp->send_failures[BK7258_AP_PRIMARY_CPU];
+          sem_state->ipi_irq_after =
+            ipi->irq_count[BK7258_AP_SECONDARY_CPU];
+          sem_state->ipi_wake_after =
+            ipi->wake_count[BK7258_AP_SECONDARY_CPU];
+          sem_state->cpu2_calls_after = cpu2->smp_call_requests;
+          __asm volatile ("dmb sy" ::: "memory");
+
+          if (sem_state->magic != BK7258_AP_SEM_WAKE_STATE_MAGIC ||
+              sem_state->version != BK7258_AP_SEM_WAKE_STATE_VERSION ||
+              sem_state->size !=
+                sizeof(struct bk7258_ap_sem_wake_state_s) ||
+              sem_state->generation != state->generation ||
+              sem_state->state != BK7258_AP_SEM_WAKE_STATE_WOKEN ||
+              sem_state->error != BK7258_AP_SEM_WAKE_ERROR_NONE ||
+              sem_state->task_id != state->task_id ||
+              sem_state->test_runs != 1 ||
+              sem_state->timeout_ms != timeout_ms ||
+              sem_state->wait_entered != 1 ||
+              sem_state->waiter_observed != 1 ||
+              sem_state->waiter_sem_value != -1 ||
+              sem_state->post_cpu != BK7258_AP_PRIMARY_CPU ||
+              sem_state->post_count != 1 ||
+              sem_state->post_result != 0 ||
+              sem_state->wait_returned != 1 ||
+              sem_state->wait_result != 0 ||
+              sem_state->wake_cpu != BK7258_AP_SECONDARY_CPU ||
+              sem_state->smp_tx_after != sem_state->smp_tx_before + 1 ||
+              sem_state->smp_rx_after != sem_state->smp_rx_before + 1 ||
+              sem_state->smp_fail_after != sem_state->smp_fail_before ||
+              sem_state->ipi_irq_after != sem_state->ipi_irq_before + 1 ||
+              sem_state->ipi_wake_after !=
+                sem_state->ipi_wake_before + 1 ||
+              sem_state->cpu2_calls_after !=
+                sem_state->cpu2_calls_before + 1)
+            {
+              return bk7258_ap_sem_wake_loop_abort(
+                state, sem_state, loop_state,
+                BK7258_AP_SEM_WAKE_LOOP_ERROR_COUNT_MISMATCH,
+                first_cycle_completed, sem_initialized, -EIO);
+            }
+
+          first_cycle_completed = 1;
+        }
+
+      if (cycle == BK7258_AP_SEM_WAKE_LOOP_CYCLES)
+        {
+          loop_state->smp_tx_after =
+            smp->tx_count[BK7258_AP_PRIMARY_CPU];
+          loop_state->smp_rx_after =
+            smp->rx_count[BK7258_AP_SECONDARY_CPU];
+          loop_state->smp_fail_after =
+            smp->send_failures[BK7258_AP_PRIMARY_CPU];
+          loop_state->ipi_irq_after =
+            ipi->irq_count[BK7258_AP_SECONDARY_CPU];
+          loop_state->ipi_wake_after =
+            ipi->wake_count[BK7258_AP_SECONDARY_CPU];
+          loop_state->cpu2_calls_after = cpu2->smp_call_requests;
+          __asm volatile ("dmb sy" ::: "memory");
+        }
+      else
+        {
+          loop_state->state = BK7258_AP_SEM_WAKE_LOOP_STATE_CONTINUE;
+          __asm volatile ("dmb sy; sev" ::: "memory");
+        }
+    }
+#  else
+  blocked = 0;
+  ret = OK;
+  for (elapsed = 0; elapsed < timeout_ms; elapsed++)
+    {
+      __asm volatile ("dmb sy" ::: "memory");
+      if (state->state == BK7258_AP_AFFINITY_STATE_FAILED ||
+          sem_state->state == BK7258_AP_SEM_WAKE_STATE_FAILED ||
+          state->task_completed != 0)
+        {
+          ret = -EIO;
+          break;
+        }
+
+      if (sem_state->state == BK7258_AP_SEM_WAKE_STATE_WAITING)
+        {
+          waiter_value = bk7258_ap_sem_exact_waiter_value(thread, cpuset);
+          sem_state->waiter_sem_value = waiter_value;
+          if (sem_state->task_id == (uint32_t)thread &&
+              waiter_value == -1)
+            {
+              blocked = 1;
+              break;
+            }
+        }
+
+      up_mdelay(1);
+    }
+
+  if (!blocked)
+    {
+      if (elapsed == timeout_ms)
+        {
+          bk7258_ap_sem_wake_fail(
+            sem_state, BK7258_AP_SEM_WAKE_ERROR_WAIT_TIMEOUT);
+          bk7258_ap_affinity_fail(state,
+                                 BK7258_AP_AFFINITY_ERROR_TIMEOUT);
+          ret = -ETIMEDOUT;
+        }
+      else
+        {
+          bk7258_ap_sem_wake_fail(sem_state,
+                                 BK7258_AP_SEM_WAKE_ERROR_BAD_STATE);
+          bk7258_ap_affinity_fail(state,
+                                 BK7258_AP_AFFINITY_ERROR_BAD_STATE);
+          ret = -EIO;
+        }
+
+      (void)nxsem_post(&g_bk7258_ap_cpu1_sem);
+      return ret;
+    }
+
+  sem_state->waiter_observed = 1;
+  __asm volatile ("dmb sy" ::: "memory");
+  sem_state->state = BK7258_AP_SEM_WAKE_STATE_BLOCKED;
+  __asm volatile ("dmb sy" ::: "memory");
+  sem_state->smp_tx_before = smp->tx_count[BK7258_AP_PRIMARY_CPU];
+  sem_state->smp_rx_before = smp->rx_count[BK7258_AP_SECONDARY_CPU];
+  sem_state->smp_fail_before =
+    smp->send_failures[BK7258_AP_PRIMARY_CPU];
+  sem_state->ipi_irq_before = ipi->irq_count[BK7258_AP_SECONDARY_CPU];
+  sem_state->ipi_wake_before =
+    ipi->wake_count[BK7258_AP_SECONDARY_CPU];
+  sem_state->cpu2_calls_before = cpu2->smp_call_requests;
+  sem_state->post_cpu = (uint32_t)up_cpu_index();
+  sem_state->post_count = 1;
+  __asm volatile ("dmb sy" ::: "memory");
+  sem_state->state = BK7258_AP_SEM_WAKE_STATE_POSTED;
+  __asm volatile ("dmb sy" ::: "memory");
+
+  ret = nxsem_post(&g_bk7258_ap_cpu1_sem);
+  sem_state->post_result = (int32_t)ret;
+  __asm volatile ("dmb sy" ::: "memory");
+  if (ret < 0)
+    {
+      bk7258_ap_sem_wake_fail(sem_state,
+                             BK7258_AP_SEM_WAKE_ERROR_SEM_POST);
+      bk7258_ap_affinity_fail(state,
+                             BK7258_AP_AFFINITY_ERROR_BAD_STATE);
+      return ret;
+    }
+#  endif
+#endif
+
+  for (elapsed = 0; elapsed < timeout_ms; elapsed++)
+    {
+      __asm volatile ("dmb sy" ::: "memory");
+      if (state->task_completed == 1)
+        {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+          if (bk7258_ap_pid_released(thread))
+#else
+          tcb = nxsched_get_tcb((pid_t)thread);
+          if (tcb == NULL)
+#endif
+            {
+              state->pid_released = 1;
+              __asm volatile ("dmb sy" ::: "memory");
+              break;
+            }
+
+#ifndef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+          nxsched_put_tcb(tcb);
+#endif
+        }
+
+      up_mdelay(1);
+    }
+
+  if (elapsed == timeout_ms)
+    {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+      return bk7258_ap_sem_wake_loop_abort(
+        state, sem_state, loop_state,
+        BK7258_AP_SEM_WAKE_LOOP_ERROR_WAKE_TIMEOUT,
+        first_cycle_completed, sem_initialized, -ETIMEDOUT);
+#elif defined(CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE)
+      bk7258_ap_sem_wake_fail(sem_state,
+                             BK7258_AP_SEM_WAKE_ERROR_WAIT_TIMEOUT);
+#endif
+      bk7258_ap_affinity_fail(state,
+                             BK7258_AP_AFFINITY_ERROR_TIMEOUT);
+      return -ETIMEDOUT;
+    }
+
+  __asm volatile ("dmb sy" ::: "memory");
+  state->smp_tx_after = smp->tx_count[BK7258_AP_PRIMARY_CPU];
+  state->smp_rx_after = smp->rx_count[BK7258_AP_SECONDARY_CPU];
+  state->smp_fail_after = smp->send_failures[BK7258_AP_PRIMARY_CPU];
+  state->ipi_irq_after = ipi->irq_count[BK7258_AP_SECONDARY_CPU];
+  state->ipi_wake_after = ipi->wake_count[BK7258_AP_SECONDARY_CPU];
+  state->cpu2_calls_after = cpu2->smp_call_requests;
+#if defined(CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE) && \
+    !defined(CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP)
+  sem_state->smp_tx_after = smp->tx_count[BK7258_AP_PRIMARY_CPU];
+  sem_state->smp_rx_after = smp->rx_count[BK7258_AP_SECONDARY_CPU];
+  sem_state->smp_fail_after =
+    smp->send_failures[BK7258_AP_PRIMARY_CPU];
+  sem_state->ipi_irq_after = ipi->irq_count[BK7258_AP_SECONDARY_CPU];
+  sem_state->ipi_wake_after =
+    ipi->wake_count[BK7258_AP_SECONDARY_CPU];
+  sem_state->cpu2_calls_after = cpu2->smp_call_requests;
+#endif
+  __asm volatile ("dmb sy" ::: "memory");
+
+  if (state->state == BK7258_AP_AFFINITY_STATE_FAILED)
+    {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+      loop_error = loop_state->error !=
+                     BK7258_AP_SEM_WAKE_LOOP_ERROR_NONE ?
+                     loop_state->error :
+                     BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE;
+      return bk7258_ap_sem_wake_loop_abort(
+        state, sem_state, loop_state, loop_error,
+        first_cycle_completed, sem_initialized, -EIO);
+#else
+      return -EIO;
+#endif
+    }
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+#  ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+  if (loop_state->state == BK7258_AP_SEM_WAKE_LOOP_STATE_FAILED ||
+      sem_state->state == BK7258_AP_SEM_WAKE_STATE_FAILED)
+    {
+      loop_error = loop_state->error !=
+                     BK7258_AP_SEM_WAKE_LOOP_ERROR_NONE ?
+                     loop_state->error :
+                     BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_STATE;
+      return bk7258_ap_sem_wake_loop_abort(
+        state, sem_state, loop_state, loop_error,
+        first_cycle_completed, sem_initialized, -EIO);
+    }
+
+  if (sem_state->post_cpu != BK7258_AP_PRIMARY_CPU ||
+      sem_state->wake_cpu != BK7258_AP_SECONDARY_CPU ||
+      loop_state->post_cpu != BK7258_AP_PRIMARY_CPU ||
+      loop_state->wake_cpu != BK7258_AP_SECONDARY_CPU)
+    {
+      return bk7258_ap_sem_wake_loop_abort(
+        state, sem_state, loop_state,
+        BK7258_AP_SEM_WAKE_LOOP_ERROR_BAD_CPU,
+        first_cycle_completed, sem_initialized, -EIO);
+    }
+#  else
+  if (sem_state->state == BK7258_AP_SEM_WAKE_STATE_FAILED)
+    {
+      bk7258_ap_affinity_fail(state,
+                             BK7258_AP_AFFINITY_ERROR_BAD_STATE);
+      return -EIO;
+    }
+
+  if (sem_state->post_cpu != BK7258_AP_PRIMARY_CPU ||
+      sem_state->wake_cpu != BK7258_AP_SECONDARY_CPU)
+    {
+      bk7258_ap_sem_wake_fail(sem_state,
+                             BK7258_AP_SEM_WAKE_ERROR_BAD_CPU);
+      bk7258_ap_affinity_fail(
+        state, BK7258_AP_AFFINITY_ERROR_COUNT_MISMATCH);
+      return -EIO;
+    }
+#  endif
+#endif
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
+  if (loop_state->wait_sequence != BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->post_sequence != BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->wake_sequence != BK7258_AP_SEM_WAKE_LOOP_CYCLES)
+    {
+      return bk7258_ap_sem_wake_loop_abort(
+        state, sem_state, loop_state,
+        BK7258_AP_SEM_WAKE_LOOP_ERROR_SEQUENCE,
+        first_cycle_completed, sem_initialized, -EIO);
+    }
+
+  if (sem_state->magic != BK7258_AP_SEM_WAKE_STATE_MAGIC ||
+      sem_state->version != BK7258_AP_SEM_WAKE_STATE_VERSION ||
+      sem_state->size != sizeof(struct bk7258_ap_sem_wake_state_s) ||
+      sem_state->generation != state->generation ||
+      sem_state->state != BK7258_AP_SEM_WAKE_STATE_WOKEN ||
+      sem_state->error != BK7258_AP_SEM_WAKE_ERROR_NONE ||
+      sem_state->task_id != state->task_id ||
+      sem_state->test_runs != 1 ||
+      sem_state->timeout_ms != timeout_ms ||
+      sem_state->wait_entered != 1 ||
+      sem_state->waiter_observed != 1 ||
+      sem_state->waiter_sem_value != -1 ||
+      sem_state->post_cpu != BK7258_AP_PRIMARY_CPU ||
+      sem_state->post_count != 1 ||
+      sem_state->post_result != 0 ||
+      sem_state->wait_returned != 1 ||
+      sem_state->wait_result != 0 ||
+      sem_state->wake_cpu != BK7258_AP_SECONDARY_CPU ||
+      sem_state->smp_tx_after != sem_state->smp_tx_before + 1 ||
+      sem_state->smp_rx_after != sem_state->smp_rx_before + 1 ||
+      sem_state->smp_fail_after != sem_state->smp_fail_before ||
+      sem_state->ipi_irq_after != sem_state->ipi_irq_before + 1 ||
+      sem_state->ipi_wake_after != sem_state->ipi_wake_before + 1 ||
+      sem_state->cpu2_calls_after != sem_state->cpu2_calls_before + 1)
+    {
+      bk7258_ap_sem_wake_fail(
+        sem_state, BK7258_AP_SEM_WAKE_ERROR_COUNT_MISMATCH);
+      return bk7258_ap_sem_wake_loop_abort(
+        state, sem_state, loop_state,
+        BK7258_AP_SEM_WAKE_LOOP_ERROR_COUNT_MISMATCH,
+        first_cycle_completed, sem_initialized, -EIO);
+    }
+
+  if (state->magic != BK7258_AP_AFFINITY_STATE_MAGIC ||
+      state->version != BK7258_AP_AFFINITY_STATE_VERSION ||
+      state->size != sizeof(struct bk7258_ap_affinity_state_s) ||
+      state->generation != bk7258_ap_boot_state()->generation ||
+      state->state != BK7258_AP_AFFINITY_STATE_RUNNING ||
+      state->error != BK7258_AP_AFFINITY_ERROR_NONE ||
+      state->task_id != (uint32_t)thread ||
+      state->task_started != 1 || state->task_completed != 1 ||
+      state->pid_released != 1 ||
+      state->test_runs != 1 || state->timeout_ms != timeout_ms ||
+      state->task_cpu != BK7258_AP_SECONDARY_CPU ||
+      state->requested_mask !=
+        ((uint32_t)1u << BK7258_AP_SECONDARY_CPU) ||
+      state->observed_mask != state->requested_mask ||
+      state->smp_tx_after != state->smp_tx_before +
+        BK7258_AP_SEM_WAKE_LOOP_CYCLES + 1u ||
+      state->smp_rx_after != state->smp_rx_before +
+        BK7258_AP_SEM_WAKE_LOOP_CYCLES + 1u ||
+      state->ipi_irq_after != state->ipi_irq_before +
+        BK7258_AP_SEM_WAKE_LOOP_CYCLES + 1u ||
+      state->ipi_wake_after != state->ipi_wake_before +
+        BK7258_AP_SEM_WAKE_LOOP_CYCLES + 1u ||
+      state->cpu2_calls_after != state->cpu2_calls_before +
+        BK7258_AP_SEM_WAKE_LOOP_CYCLES + 1u ||
+      state->smp_fail_after != state->smp_fail_before ||
+      loop_state->magic != BK7258_AP_SEM_WAKE_LOOP_STATE_MAGIC ||
+      loop_state->version != BK7258_AP_SEM_WAKE_LOOP_STATE_VERSION ||
+      loop_state->size !=
+        sizeof(struct bk7258_ap_sem_wake_loop_state_s) ||
+      loop_state->generation != state->generation ||
+      loop_state->state != BK7258_AP_SEM_WAKE_LOOP_STATE_WOKEN ||
+      loop_state->error != BK7258_AP_SEM_WAKE_LOOP_ERROR_NONE ||
+      loop_state->requested_cycles != BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->completed_cycles != BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->wait_entered != BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->waiter_observed != BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->post_count != BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->wait_returned != BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->waiter_sem_value != -1 ||
+      loop_state->post_cpu != BK7258_AP_PRIMARY_CPU ||
+      loop_state->post_result != 0 ||
+      loop_state->wait_result != 0 ||
+      loop_state->wake_cpu != BK7258_AP_SECONDARY_CPU ||
+      loop_state->smp_tx_after != loop_state->smp_tx_before +
+        BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->smp_rx_after != loop_state->smp_rx_before +
+        BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->smp_fail_after != loop_state->smp_fail_before ||
+      loop_state->ipi_irq_after != loop_state->ipi_irq_before +
+        BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->ipi_wake_after != loop_state->ipi_wake_before +
+        BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      loop_state->cpu2_calls_after != loop_state->cpu2_calls_before +
+        BK7258_AP_SEM_WAKE_LOOP_CYCLES ||
+      smp->state != BK7258_AP_SMP_STATE_PASSED ||
+      smp->error != BK7258_AP_SMP_ERROR_NONE ||
+      smp->online_mask != BK7258_AP_ONLINE_MASK ||
+      smp->callback_count[BK7258_AP_PRIMARY_CPU] !=
+        callback_cpu0_before ||
+      smp->callback_count[BK7258_AP_SECONDARY_CPU] !=
+        callback_cpu1_before ||
+      smp->coalesced_count[BK7258_AP_PRIMARY_CPU] != 0 ||
+      smp->coalesced_count[BK7258_AP_SECONDARY_CPU] != 0 ||
+      smp->send_failures[BK7258_AP_PRIMARY_CPU] != 0 ||
+      smp->send_failures[BK7258_AP_SECONDARY_CPU] != 0 ||
+      ipi->state != BK7258_AP_IPI_STATE_READY ||
+      ipi->error != BK7258_AP_IPI_ERROR_NONE ||
+      ipi->send_failures[BK7258_AP_PRIMARY_CPU] != 0 ||
+      ipi->send_failures[BK7258_AP_SECONDARY_CPU] != 0 ||
+      ipi->stale_count != 0 || ipi->spurious_count != 0 ||
+      cpu2->state != BK7258_CPU2_PROBE_STATE_SCHEDULER_ONLINE ||
+      cpu2->online_mask != BK7258_AP_ONLINE_MASK)
+    {
+      return bk7258_ap_sem_wake_loop_abort(
+        state, sem_state, loop_state,
+        BK7258_AP_SEM_WAKE_LOOP_ERROR_COUNT_MISMATCH,
+        first_cycle_completed, sem_initialized, -EIO);
+    }
+
+  sem_state->error = BK7258_AP_SEM_WAKE_ERROR_NONE;
+  __asm volatile ("dmb sy" ::: "memory");
+  sem_state->state = BK7258_AP_SEM_WAKE_STATE_PASSED;
+  __asm volatile ("dmb sy" ::: "memory");
+
+  loop_state->error = BK7258_AP_SEM_WAKE_LOOP_ERROR_NONE;
+  __asm volatile ("dmb sy" ::: "memory");
+  loop_state->state = BK7258_AP_SEM_WAKE_LOOP_STATE_PASSED;
+  __asm volatile ("dmb sy" ::: "memory");
+#else
+  if (state->state != BK7258_AP_AFFINITY_STATE_RUNNING ||
+      state->task_started != 1 || state->task_completed != 1 ||
+      state->pid_released != 1 ||
+      state->task_cpu != BK7258_AP_SECONDARY_CPU ||
+      state->requested_mask !=
+        ((uint32_t)1u << BK7258_AP_SECONDARY_CPU) ||
+      state->observed_mask != state->requested_mask ||
+      state->smp_tx_after <= state->smp_tx_before ||
+      state->smp_rx_after <= state->smp_rx_before ||
+      state->ipi_irq_after <= state->ipi_irq_before ||
+      state->ipi_wake_after <= state->ipi_wake_before ||
+      state->cpu2_calls_after <= state->cpu2_calls_before ||
+      state->smp_fail_after != state->smp_fail_before ||
+      smp->state != BK7258_AP_SMP_STATE_PASSED ||
+      smp->error != BK7258_AP_SMP_ERROR_NONE ||
+      cpu2->state != BK7258_CPU2_PROBE_STATE_SCHEDULER_ONLINE
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+      || sem_state->magic != BK7258_AP_SEM_WAKE_STATE_MAGIC
+      || sem_state->version != BK7258_AP_SEM_WAKE_STATE_VERSION
+      || sem_state->size != sizeof(struct bk7258_ap_sem_wake_state_s)
+      || sem_state->generation != state->generation
+      || sem_state->state != BK7258_AP_SEM_WAKE_STATE_WOKEN
+      || sem_state->error != BK7258_AP_SEM_WAKE_ERROR_NONE
+      || sem_state->task_id != state->task_id
+      || sem_state->test_runs != 1
+      || sem_state->timeout_ms != timeout_ms
+      || sem_state->wait_entered != 1
+      || sem_state->waiter_observed != 1
+      || sem_state->waiter_sem_value != -1
+      || sem_state->post_count != 1
+      || sem_state->post_result != 0
+      || sem_state->wait_returned != 1
+      || sem_state->wait_result != 0
+      || sem_state->smp_tx_after != sem_state->smp_tx_before + 1
+      || sem_state->smp_rx_after != sem_state->smp_rx_before + 1
+      || sem_state->smp_fail_after != sem_state->smp_fail_before
+      || sem_state->ipi_irq_after != sem_state->ipi_irq_before + 1
+      || sem_state->ipi_wake_after != sem_state->ipi_wake_before + 1
+      || sem_state->cpu2_calls_after !=
+         sem_state->cpu2_calls_before + 1
+      || smp->coalesced_count[BK7258_AP_PRIMARY_CPU] != 0
+      || smp->coalesced_count[BK7258_AP_SECONDARY_CPU] != 0
+      || ipi->state != BK7258_AP_IPI_STATE_READY
+      || ipi->error != BK7258_AP_IPI_ERROR_NONE
+      || ipi->stale_count != 0
+      || ipi->spurious_count != 0
+#endif
+      )
+    {
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+      bk7258_ap_sem_wake_fail(
+        sem_state, BK7258_AP_SEM_WAKE_ERROR_COUNT_MISMATCH);
+#endif
+      bk7258_ap_affinity_fail(
+        state, BK7258_AP_AFFINITY_ERROR_COUNT_MISMATCH);
+      return -EIO;
+    }
+
+#ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
+  sem_state->error = BK7258_AP_SEM_WAKE_ERROR_NONE;
+  __asm volatile ("dmb sy" ::: "memory");
+  sem_state->state = BK7258_AP_SEM_WAKE_STATE_PASSED;
+  __asm volatile ("dmb sy" ::: "memory");
+#endif
+#endif
+
+  state->error = BK7258_AP_AFFINITY_ERROR_NONE;
+  __asm volatile ("dmb sy" ::: "memory");
+  state->state = BK7258_AP_AFFINITY_STATE_PASSED;
   __asm volatile ("dmb sy; sev" ::: "memory");
   return OK;
 }

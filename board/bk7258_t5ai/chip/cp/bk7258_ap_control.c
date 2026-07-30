@@ -23,6 +23,24 @@
 
 #include <arch/chip/bk7258_amp.h>
 
+/* TEMP cold-reset diagnostic: emit a short raw-UART tag so the last
+ * completed startup checkpoint remains visible without /dev/console,
+ * printf or syslog.  Delete after diagnosis.
+ */
+
+static void cold_ckpt(const char *tag)
+{
+  up_putc('\r');
+  up_putc('\n');
+  while (*tag)
+    {
+      up_putc(*tag++);
+    }
+
+  up_putc('\r');
+  up_putc('\n');
+}
+
 /****************************************************************************
  * External Function Prototypes
  ****************************************************************************/
@@ -148,6 +166,14 @@ static void bk7258_ap_state_prepare(void)
   bk7258_cpu2_probe_state()->magic = 0;
   bk7258_ap_ipi_state()->magic = 0;
   bk7258_ap_smp_state()->magic = 0;
+  bk7258_ap_affinity_state()->magic = 0;
+  bk7258_ap_sem_wake_state()->magic = 0;
+  bk7258_ap_sem_wake_loop_state()->magic = 0;
+  bk7258_ap_bp2p_state()->magic = 0;
+  bk7258_ap_bdul_state()->magic = 0;
+  bk7258_ap_bmig_state()->magic = 0;
+  bk7258_ap_btim_state()->magic = 0;
+  bk7258_ap_blcy_state()->magic = 0;
   state->magic       = BK7258_AP_BOOT_STATE_MAGIC;
   state->version     = BK7258_AP_BOOT_STATE_VERSION;
   state->size        = sizeof(struct bk7258_ap_boot_state_s);
@@ -181,6 +207,7 @@ static int bk7258_ap_wait(uint32_t wanted, uint32_t timeout_ms)
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
   uint32_t elapsed;
   uint32_t event;
+  bool first_iter = true;
 
   if (timeout_ms == 0)
     {
@@ -206,7 +233,17 @@ static int bk7258_ap_wait(uint32_t wanted, uint32_t timeout_ms)
           return -EIO;
         }
 
+      if (first_iter)
+        {
+          cold_ckpt("W0"); /* Before first 1 ms sleep */
+        }
+
       nxsig_usleep(1000);
+      if (first_iter)
+        {
+          cold_ckpt("W1"); /* First 1 ms sleep returned */
+          first_iter = false;
+        }
     }
 
   return -ETIMEDOUT;
@@ -216,6 +253,8 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
   int ret;
+
+  cold_ckpt("A0"); /* Enter start_locked */
 
   if (state->magic == BK7258_AP_BOOT_STATE_MAGIC &&
       (state->state == BK7258_AP_STATE_READY ||
@@ -228,10 +267,15 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
 
   sys_drv_set_cpu1_reset(0);
   __asm volatile ("dsb sy; isb sy" ::: "memory");
+  cold_ckpt("A1"); /* CPU1 reset hold done */
+
   bk7258_cpu2_force_reset();
   up_mdelay(BK7258_AP_RESTART_DELAY_MS);
+  cold_ckpt("A2"); /* CPU2 force-reset + delay done */
+
   bk7258_ap_mbox_initialize();
   bk7258_ap_state_prepare();
+  cold_ckpt("A3"); /* Mailbox/shared state prepared */
 
   /* Exact BK7258 CPU1 release order from the CP SDK. */
 
@@ -239,17 +283,25 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
   sys_drv_set_cpu1_rxevt_sel(1);
   sys_drv_set_cpu1_boot_address_offset(BK7258_AP_FLASH_ADDR >> 8);
   __asm volatile ("dsb sy; isb sy" ::: "memory");
+  cold_ckpt("A4"); /* CPU1 power/RXEVT/boot address done */
+
   sys_drv_set_cpu1_reset(1);
   __asm volatile ("dsb sy; sev" ::: "memory");
+  cold_ckpt("A5"); /* CPU1 reset released */
+  cold_ckpt("A6"); /* Entering AP READY wait */
 
   ret = bk7258_ap_wait(BK7258_AP_STATE_READY, timeout_ms);
+  cold_ckpt("A7"); /* AP wait returned */
   if (ret < 0)
     {
       sys_drv_set_cpu1_reset(0);
       __asm volatile ("dsb sy; isb sy" ::: "memory");
       bk7258_cpu2_force_reset();
       up_mdelay(BK7258_AP_RESTART_DELAY_MS);
+      cold_ckpt("F1"); /* Failure cleanup: AP cores held reset */
+
       sys_drv_set_cpu1_pwr_dw(1);
+      cold_ckpt("F2"); /* Failure cleanup: CPU1 power-down done */
 
       if (state->state != BK7258_AP_STATE_FAILED)
         {
