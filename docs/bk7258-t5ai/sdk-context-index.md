@@ -4,6 +4,13 @@ Generated: 2026-07-17T09:03:31Z
 SDK path: /home/lijian/project/armino/bk_avdk_smp
 
 > Detected layout: **armino-embedded**
+>
+> **2026-07-31 版本说明：** 本索引是迁移前 legacy SDK 的历史上下文快照，不应再
+> 被理解为当前默认链接来源。项目当前默认使用
+> `/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9` 编译导出的
+> `v3.1.1.9` CP/AP bundle；legacy source tree 与本索引继续保留作逆向对照。
+> 最新来源、哈希、ABI 差异和板测证据见
+> [`nuttx-port/sdk-v3.1.1.9-migration-report.md`](nuttx-port/sdk-v3.1.1.9-migration-report.md)。
 
 ## Register / CMSIS Headers
 

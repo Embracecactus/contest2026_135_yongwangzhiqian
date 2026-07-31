@@ -101,6 +101,7 @@
 #define BK7258_FAULT_UART1_FIFO_STAT    (*(volatile unsigned int *)0x45830018u)
 #define BK7258_FAULT_UART1_FIFO_PORT    (*(volatile unsigned int *)0x4583001Cu)
 #define BK7258_FAULT_UART1_FIFO_READY   (1u << 20)
+#define BK7258_FAULT_UART1_POLL_LIMIT   100000u
 
 #define BK7258_SCB_CFSR                 (*(volatile uint32_t *)0xe000ed28u)
 #define BK7258_SCB_HFSR                 (*(volatile uint32_t *)0xe000ed2cu)
@@ -254,8 +255,15 @@ static void bk7258_reset_entry(void)
 
 static void bk7258_fault_putc(unsigned char c)
 {
-  while ((BK7258_FAULT_UART1_FIFO_STAT & BK7258_FAULT_UART1_FIFO_READY) == 0)
+  uint32_t count;
+
+  for (count = 0; count < BK7258_FAULT_UART1_POLL_LIMIT; count++)
     {
+      if ((BK7258_FAULT_UART1_FIFO_STAT &
+           BK7258_FAULT_UART1_FIFO_READY) != 0)
+        {
+          break;
+        }
     }
 
   BK7258_FAULT_UART1_FIFO_PORT = (unsigned int)(c & 0xffu);

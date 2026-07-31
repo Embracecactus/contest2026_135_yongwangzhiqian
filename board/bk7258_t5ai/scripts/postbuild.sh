@@ -85,7 +85,7 @@ if [ "${ROLE}" = "cp" ]; then
 
     cp "${CRC_BIN}" "${TOPDIR}/nuttx_crc.bin"
     cat "${BL_CRC_BIN}" "${CRC_BIN}" > "${TOPDIR}/all-app.bin"
-    printf 'postbuild.sh: legacy CP all-app.bin=%s bytes\n' \
+    printf 'postbuild.sh: CP-only all-app.bin=%s bytes\n' \
            "$(stat -c '%s' "${TOPDIR}/all-app.bin")"
 else
     rm -f "${TOPDIR}/all-app.bin" "${TOPDIR}/nuttx_crc.bin"

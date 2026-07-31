@@ -7,6 +7,7 @@
 
 include $(TOPDIR)/.config
 include $(TOPDIR)/tools/Config.mk
+include $(BOARD_DIR)$(DELIM)bk_idk$(DELIM)sdk-bundles.mk
 
 # Toolchain: arm-none-eabi-gcc on /usr/bin (probe-verified).
 
@@ -65,7 +66,10 @@ ifeq ($(CONFIG_BK7258_AP_CORE),y)
 # own startup, scheduling and interrupt dispatch; SDK RTOS/startup archives are
 # deliberately not linked.
 
-BK_SDK_LIBS_DIR := $(shell readlink -f $(BOARD_DIR)/bk_idk/armino_as_lib/ap/libs)
+BK_SDK_LIBS_DIR := $(shell readlink -f $(BK7258_SDK_BUNDLE_ROOT)/ap/libs)
+ifeq ($(BK_SDK_LIBS_DIR),)
+$(error BK7258 AP SDK bundle '$(BK7258_SDK_BUNDLE_VERSION)' has no libs directory)
+endif
 EXTRA_LIBS += \
   $(BK_SDK_LIBS_DIR)/libdriver.a \
   $(BK_SDK_LIBS_DIR)/libbk7258_ap.a \
@@ -79,7 +83,10 @@ EXTRA_LIBS += \
 
 else
 
-BK_SDK_LIBS_DIR := $(shell readlink -f $(BOARD_DIR)/bk_idk/armino_as_lib/cp/libs)
+BK_SDK_LIBS_DIR := $(shell readlink -f $(BK7258_SDK_BUNDLE_ROOT)/cp/libs)
+ifeq ($(BK_SDK_LIBS_DIR),)
+$(error BK7258 CP SDK bundle '$(BK7258_SDK_BUNDLE_VERSION)' has no libs directory)
+endif
 
 # Libraries to exclude (not needed for basic NuttX bring-up):
 # - cmsis startup (conflicts with NuttX startup)

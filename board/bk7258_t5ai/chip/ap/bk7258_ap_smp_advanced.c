@@ -174,35 +174,26 @@ static int bp2p_attr_initialize(pthread_attr_t *attr, cpu_set_t cpuset,
   return ret;
 }
 
-/* Exact waiter proof for a specific semaphore, thread, and cpuset. */
+/* Each BP2P semaphore is private to this test and has exactly one waiter.
+ * A count of -1 therefore proves that the corresponding task is blocked on
+ * that exact semaphore.  Do not inspect the remote CPU's TCB here: acquiring
+ * a TCB reference and then entering the global scheduler critical section can
+ * contend with the semaphore block/context-switch path that this test is
+ * trying to observe.
+ */
 
-static int32_t bp2p_exact_waiter(sem_t *sem, pthread_t thread,
-                                  cpu_set_t cpuset)
+static int32_t bp2p_private_waiter(sem_t *sem)
 {
-  FAR struct tcb_s *tcb;
-  irqstate_t flags;
   int32_t observed = INT32_MAX;
   int value = 0;
   int ret;
 
-  tcb = nxsched_get_tcb((pid_t)thread);
-  if (tcb == NULL)
-    {
-      return observed;
-    }
-
-  flags = enter_critical_section();
   ret = nxsem_get_value(sem, &value);
-  if (ret >= 0 &&
-      tcb->task_state == TSTATE_WAIT_SEM &&
-      tcb->waitobj == (FAR void *)sem &&
-      value == -1 && tcb->affinity == cpuset)
+  if (ret >= 0 && value == -1)
     {
       observed = (int32_t)value;
     }
 
-  leave_critical_section(flags);
-  nxsched_put_tcb(tcb);
   __asm volatile ("dmb sy" ::: "memory");
   return observed;
 }
@@ -289,9 +280,9 @@ static FAR void *bp2p_initiator_task(FAR void *arg)
       for (elapsed = 0; elapsed < BK7258_AP_ADV_TIMEOUT_MS; elapsed++)
         {
           if (state->task_id[1] != 0 &&
-              bp2p_exact_waiter(
-                &g_bp2p_sem[1], (pthread_t)state->task_id[1],
-                (cpu_set_t)(1u << BK7258_AP_SECONDARY_CPU)) == -1)
+              state->task_started[1] != 0 &&
+              state->task_cpu[1] == BK7258_AP_SECONDARY_CPU &&
+              bp2p_private_waiter(&g_bp2p_sem[1]) == -1)
             {
               break;
             }
@@ -354,9 +345,9 @@ static FAR void *bp2p_responder_task(FAR void *arg)
       for (elapsed = 0; elapsed < BK7258_AP_ADV_TIMEOUT_MS; elapsed++)
         {
           if (state->task_id[0] != 0 &&
-              bp2p_exact_waiter(
-                &g_bp2p_sem[0], (pthread_t)state->task_id[0],
-                (cpu_set_t)(1u << BK7258_AP_PRIMARY_CPU)) == -1)
+              state->task_started[0] != 0 &&
+              state->task_cpu[0] == BK7258_AP_PRIMARY_CPU &&
+              bp2p_private_waiter(&g_bp2p_sem[0]) == -1)
             {
               break;
             }
@@ -604,11 +595,16 @@ int bk7258_ap_smp_bp2p_selftest(uint32_t timeout_ms)
           return -EIO;
         }
 
-      /* The controller and initiator are both CPU0-bound.  Sleep instead of
-       * busy-delaying so the newly created initiator can run on this CPU.
+      /* The diagnostic tasks outrank this CPU0 controller, so task creation
+       * and each remote semaphore post can preempt it directly.  Keep the
+       * controller out of the scheduler-locked sleep path, but explicitly
+       * re-enter local scheduling after each bounded poll.  A CPU1 scheduler
+       * IPI can make the CPU0 initiator ready just before exception return;
+       * sched_yield() closes that missed-switch window without sleeping.
        */
 
-      (void)nxsig_usleep(1000);
+      up_mdelay(1);
+      (void)sched_yield();
     }
 
   if (elapsed == timeout_ms * 3)

@@ -19,11 +19,11 @@
  * feeding via work queue once /dev/watchdog0 is opened and started.
  * The lower-half only implements the hardware operations.
  *
- * The Tier-1 bootloader arms the APB WDT during cold-init to recover from
- * DPLL / SPI hangs.  This driver takes over after boot: it reinitializes
- * the WDT with the configured period (default 8 s) and registers as
- * /dev/watchdog0.  The bootloader's WDT remains armed during the handoff
- * (the vendor bootloader also does not close WDT before jumping to app).
+ * The Tier-1 bootloader arms both watchdogs during cold-init to recover from
+ * DPLL / SPI hangs.  The CP reset entry closes them before nx_start(), and
+ * board_app_initialize() registers this driver after bounded AP autostart
+ * returns.  It then reinitializes the APB WDT with the configured period
+ * (default 8 s) and exposes /dev/watchdog0.
  *
  * WDT register layout (wdt_struct.h, wdt_reg.h):
  *   APB_WDT base = 0x44800000

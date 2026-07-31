@@ -123,6 +123,34 @@ else()
   set(BK7258_SDK_ROLE cp)
 endif()
 
+set(BK7258_SDK_SUPPORTED_BUNDLE_VERSIONS legacy v3.1.1.9)
+if(DEFINED ENV{BK7258_SDK_BUNDLE_VERSION} AND
+   NOT "$ENV{BK7258_SDK_BUNDLE_VERSION}" STREQUAL "")
+  set(BK7258_SDK_BUNDLE_VERSION "$ENV{BK7258_SDK_BUNDLE_VERSION}")
+else()
+  set(BK7258_SDK_BUNDLE_VERSION v3.1.1.9)
+endif()
+
+if(NOT BK7258_SDK_BUNDLE_VERSION IN_LIST
+   BK7258_SDK_SUPPORTED_BUNDLE_VERSIONS)
+  message(FATAL_ERROR
+    "Unsupported BK7258_SDK_BUNDLE_VERSION='${BK7258_SDK_BUNDLE_VERSION}'; "
+    "supported: ${BK7258_SDK_SUPPORTED_BUNDLE_VERSIONS}")
+endif()
+
+set(BK7258_SDK_BUNDLE_BASE ${BOARD_DIR}/bk_idk/armino_as_lib)
+set(BK7258_SDK_BUNDLE_ROOT
+    ${BK7258_SDK_BUNDLE_BASE}/versions/${BK7258_SDK_BUNDLE_VERSION})
+set(BK7258_SDK_ROLE_DIR
+    ${BK7258_SDK_BUNDLE_ROOT}/${BK7258_SDK_ROLE})
+
+if(NOT IS_DIRECTORY ${BK7258_SDK_ROLE_DIR}/include OR
+   NOT IS_DIRECTORY ${BK7258_SDK_ROLE_DIR}/config)
+  message(FATAL_ERROR
+    "BK7258 ${BK7258_SDK_ROLE} SDK bundle "
+    "'${BK7258_SDK_BUNDLE_VERSION}' is missing: ${BK7258_SDK_ROLE_DIR}")
+endif()
+
 # NOTE: The common armv8-m CMake path still adds arm_vectors.c.  When this
 # chip is built under CMake, that file would collide with bk7258_vectors.c
 # (duplicate _vectors symbol).  The classic Make backend remains authoritative
@@ -134,5 +162,5 @@ target_include_directories(chip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/cp
     ${CMAKE_CURRENT_SOURCE_DIR}/ap
-    ${BOARD_DIR}/bk_idk/armino_as_lib/${BK7258_SDK_ROLE}/include
-    ${BOARD_DIR}/bk_idk/armino_as_lib/${BK7258_SDK_ROLE}/config)
+    ${BK7258_SDK_ROLE_DIR}/include
+    ${BK7258_SDK_ROLE_DIR}/config)

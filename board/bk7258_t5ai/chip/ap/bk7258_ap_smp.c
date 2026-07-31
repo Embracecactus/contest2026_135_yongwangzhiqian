@@ -23,16 +23,19 @@
 #ifdef CONFIG_BK7258_AP_SMP_CPU1_AFFINITY
 #  include <pthread.h>
 #endif
+#include <sched.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/clock.h>
 #ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
 #  include <nuttx/irq.h>
 #  include <nuttx/semaphore.h>
 #endif
 #include <nuttx/sched.h>
+#include <nuttx/spinlock.h>
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
 #  include <nuttx/sched_note.h>
 #endif
@@ -84,11 +87,16 @@
 #endif
 
 #define BK7258_SCB_VTOR             (*(volatile uint32_t *)0xe000ed08u)
+#define BK7258_SCB_CCR              (*(volatile uint32_t *)0xe000ed14u)
 #define BK7258_SCB_CFSR             (*(volatile uint32_t *)0xe000ed28u)
 #define BK7258_SCB_HFSR             (*(volatile uint32_t *)0xe000ed2cu)
 #define BK7258_SCB_CPACR            (*(volatile uint32_t *)0xe000ed88u)
+#define BK7258_MPU_CTRL             (*(volatile uint32_t *)0xe000ed94u)
 #define BK7258_FPU_FPCCR            (*(volatile uint32_t *)0xe000ef34u)
-
+#define BK7258_SYSTICK_CTRL          (*(volatile uint32_t *)0xe000e010u)
+#define BK7258_SYSTICK_RELOAD        (*(volatile uint32_t *)0xe000e014u)
+#define BK7258_SYSTICK_CURRENT       (*(volatile uint32_t *)0xe000e018u)
+#define BK7258_SYSTICK_CTRL_ENABLE   (1u << 0)
 #define BK7258_AP_PRIMARY_CPU       0
 #define BK7258_AP_SECONDARY_CPU     1
 #define BK7258_CPU2_LOCAL_CORE_ID   1u
@@ -99,12 +107,19 @@
 #define BK7258_AP_PRIMARY_MASK      (1u << BK7258_AP_PRIMARY_CPU)
 #define BK7258_AP_ONLINE_MASK       ((1u << BK7258_AP_PRIMARY_CPU) | \
                                      (1u << BK7258_AP_SECONDARY_CPU))
+#define BK7258_CPU2_ONLINE_VECTOR_XOR (1u << 8)
+#define BK7258_CPU2_IDLE_VECTOR_XOR   (1u << 9)
+#define BK7258_CPU2_UNLOCK_VECTOR_XOR (1u << 10)
 
 /****************************************************************************
  * External Function Prototypes / Data
  ****************************************************************************/
 
 extern void exception_common(void);
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+extern void __real_nx_bringup(void);
+#endif
+extern void bk7258_ap_smp_memory_initialize(void);
 extern const void *const
   __vector_core1_table[BK7258_CPU2_VECTOR_COUNT];
 
@@ -127,6 +142,10 @@ static sem_t g_bk7258_ap_cpu1_sem;
 
 static void bk7258_cpu2_fpu_initialize(void)
 {
+  /* Match CPU0's reset contract before touching any cross-core state. */
+
+  bk7258_ap_smp_memory_initialize();
+
   /* Match the primary AP core before CPU2 can enter exception_common. */
 
   BK7258_SCB_CPACR &= ~((3u << 20) | (3u << 22));
@@ -140,6 +159,140 @@ static inline volatile uint32_t *bk7258_cpu2_control(void)
 {
   return (volatile uint32_t *)(uintptr_t)BK7258_SYS_CPU2_CONTROL;
 }
+
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+static void bk7258_cpu2_signal_boot_ready(void)
+{
+  volatile uint32_t *control = bk7258_cpu2_control();
+  uint32_t value = *control;
+
+  /* Tell CPU0 that CPU2 has completed all bootstrap work which must run
+   * before up_cpu_start() releases NuttX's scheduler critical section.
+   * Entering the secondary scheduler first would deadlock: CPU0 waits for
+   * CPU2 while arm_initialize_stack()/this_cpu() waits for CPU0.
+   */
+
+  value &= ~BK7258_SYS_CPU2_BOOT_MASK;
+  value |=
+    ((uint32_t)(uintptr_t)__vector_core1_table &
+     BK7258_SYS_CPU2_BOOT_MASK) ^ BK7258_CPU2_ONLINE_VECTOR_XOR;
+  *control = value;
+  __asm volatile ("dsb sy; sev" ::: "memory");
+}
+
+static void bk7258_cpu2_wait_idle_release(void)
+{
+  volatile uint32_t *control = bk7258_cpu2_control();
+  uint32_t expected_vector =
+    (uint32_t)(uintptr_t)__vector_core1_table &
+    BK7258_SYS_CPU2_BOOT_MASK;
+  uint32_t idle_vector =
+    expected_vector ^ BK7258_CPU2_IDLE_VECTOR_XOR;
+  uint32_t value;
+
+  /* CPU0 publishes this token only after nx_bringup() has returned.  Use the
+   * uncached system-control register for the handoff because a CPU-only reset
+   * can leave each STAR core with a different private copy of NuttX's global
+   * initialization state.
+   */
+
+  for (;;)
+    {
+      value = *control;
+      if ((value & BK7258_SYS_CPU2_BOOT_MASK) == idle_vector)
+        {
+          break;
+        }
+
+      __asm volatile ("wfe" ::: "memory");
+    }
+
+  value &= ~BK7258_SYS_CPU2_BOOT_MASK;
+  value |= expected_vector;
+  *control = value;
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+}
+
+static void bk7258_cpu2_signal_idle_release(void)
+{
+  volatile uint32_t *control = bk7258_cpu2_control();
+  uint32_t value = *control;
+
+  value &= ~BK7258_SYS_CPU2_BOOT_MASK;
+  value |=
+    ((uint32_t)(uintptr_t)__vector_core1_table &
+     BK7258_SYS_CPU2_BOOT_MASK) ^ BK7258_CPU2_IDLE_VECTOR_XOR;
+  *control = value;
+  __asm volatile ("dsb sy; sev" ::: "memory");
+}
+
+static void bk7258_cpu2_signal_scheduler_unlocked(void)
+{
+  volatile uint32_t *control = bk7258_cpu2_control();
+  uint32_t expected_vector =
+    (uint32_t)(uintptr_t)__vector_core1_table &
+    BK7258_SYS_CPU2_BOOT_MASK;
+  uint32_t value = *control;
+
+  value &= ~BK7258_SYS_CPU2_BOOT_MASK;
+  value |= expected_vector ^ BK7258_CPU2_UNLOCK_VECTOR_XOR;
+  *control = value;
+  __asm volatile ("dsb sy; sev" ::: "memory");
+
+  /* CPU0 clears the token after it has left the nx_bringup() wrapper.
+   * Keep CPU2's interrupts disabled until that acknowledgement arrives.
+   * Otherwise sched_unlock() may send a scheduler IPI which switches CPU0
+   * away while it is still waiting for this token.
+   */
+
+  for (;;)
+    {
+      value = *control;
+      if ((value & BK7258_SYS_CPU2_BOOT_MASK) == expected_vector)
+        {
+          break;
+        }
+
+      __asm volatile ("wfe" ::: "memory");
+    }
+
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+}
+
+static void bk7258_cpu2_wait_scheduler_unlocked(void)
+{
+  volatile uint32_t *control = bk7258_cpu2_control();
+  uint32_t expected_vector =
+    (uint32_t)(uintptr_t)__vector_core1_table &
+    BK7258_SYS_CPU2_BOOT_MASK;
+  uint32_t unlocked_vector =
+    expected_vector ^ BK7258_CPU2_UNLOCK_VECTOR_XOR;
+  uint32_t value;
+
+  /* Do not let CPU0 and CPU2 release their startup scheduler locks at the
+   * same time.  On a cold CPU-only reset, the private data caches can make
+   * that lock handoff invisible even though both cores execute the normal
+   * NuttX unlock path.
+   */
+
+  for (;;)
+    {
+      value = *control;
+      if ((value & BK7258_SYS_CPU2_BOOT_MASK) == unlocked_vector)
+        {
+          break;
+        }
+
+      __asm volatile ("wfe" ::: "memory");
+    }
+
+  value &= ~BK7258_SYS_CPU2_BOOT_MASK;
+  value |= expected_vector;
+  *control = value;
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+
+}
+#endif
 
 static void bk7258_cpu2_hold_reset(
   volatile struct bk7258_cpu2_probe_state_s *state)
@@ -160,13 +313,65 @@ static void bk7258_cpu2_hold_reset(
 
 static int bk7258_cpu2_wait(uint32_t wanted, uint32_t timeout_ms)
 {
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  volatile uint32_t *control = bk7258_cpu2_control();
+  uint32_t expected_vector =
+    (uint32_t)(uintptr_t)__vector_core1_table &
+    BK7258_SYS_CPU2_BOOT_MASK;
+  uint32_t online_vector =
+    expected_vector ^ BK7258_CPU2_ONLINE_VECTOR_XOR;
+  uint32_t sys_control;
+
+  (void)wanted;
+#else
   volatile struct bk7258_cpu2_probe_state_s *state =
     bk7258_cpu2_probe_state();
   uint32_t current;
-  uint32_t elapsed;
+#endif
+  uint64_t elapsed_cycles = 0;
+  uint64_t timeout_cycles;
+  uint32_t period;
+  uint32_t last;
+  uint32_t now;
 
-  for (elapsed = 0; elapsed < timeout_ms; elapsed++)
+  /* nx_start() calls this while CPU0 owns the scheduler critical section and
+   * CPU2 is becoming online.  NuttX clock access reaches up_irq_save(), which
+   * can try to acquire the same SMP scheduler lock.  Scheduler sleeps are not
+   * available either.  Read the already-running SysTick counter directly so
+   * this bootstrap wait depends on neither facility nor delay-loop clock
+   * calibration left by the loader.
+   */
+
+  period = BK7258_SYSTICK_RELOAD + 1u;
+  if ((BK7258_SYSTICK_CTRL & BK7258_SYSTICK_CTRL_ENABLE) == 0 ||
+      period == 0)
     {
+      return -ETIMEDOUT;
+    }
+
+  timeout_cycles = (uint64_t)period * MSEC2TICK(timeout_ms);
+  last = BK7258_SYSTICK_CURRENT;
+
+  for (;;)
+    {
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+      /* A cold CPU-only reset can retain a CPU0 cache line even after the
+       * architectural cache and MPU controls have been changed.  CPU2
+       * therefore acknowledges scheduler entry through its uncached system
+       * control register.  The boot-vector field only takes effect on a
+       * future CPU2 reset, so one bit is a safe transient online token.
+       */
+
+      sys_control = *control;
+      if ((sys_control & BK7258_SYS_CPU2_BOOT_MASK) == online_vector)
+        {
+          sys_control &= ~BK7258_SYS_CPU2_BOOT_MASK;
+          sys_control |= expected_vector;
+          *control = sys_control;
+          __asm volatile ("dsb sy; isb sy" ::: "memory");
+          return OK;
+        }
+#else
       current = state->state;
       __asm volatile ("dmb sy" ::: "memory");
       if (current == wanted)
@@ -178,8 +383,23 @@ static int bk7258_cpu2_wait(uint32_t wanted, uint32_t timeout_ms)
         {
           return -EIO;
         }
+#endif
 
-      up_mdelay(1);
+      now = BK7258_SYSTICK_CURRENT;
+      if (last >= now)
+        {
+          elapsed_cycles += last - now;
+        }
+      else
+        {
+          elapsed_cycles += last + (period - now);
+        }
+
+      last = now;
+      if (elapsed_cycles >= timeout_cycles)
+        {
+          break;
+        }
     }
 
   return -ETIMEDOUT;
@@ -791,6 +1011,8 @@ bk7258_ap_secondary_scheduler_entry(void)
 
   state->runtime_msp = msp;
   state->control = control;
+  state->reserved[0] = BK7258_SCB_CCR;
+  state->reserved[1] = BK7258_MPU_CTRL;
   state->online_mask = BK7258_AP_ONLINE_MASK;
   state->secondary_ready = 1;
 
@@ -799,16 +1021,45 @@ bk7258_ap_secondary_scheduler_entry(void)
 #endif
 
   bk7258_ap_ipi_mark_scheduler_online();
-  __asm volatile ("cpsie i; dsb sy; isb sy" ::: "memory");
   state->state = BK7258_CPU2_PROBE_STATE_SCHEDULER_ONLINE;
-  __asm volatile ("dmb sy; sev" ::: "memory");
+  __asm volatile ("dmb sy" ::: "memory");
 
-  nx_idle_trampoline();
+  /* CPU0 still owns NuttX's scheduler critical section here.  Publish the
+   * boot-ready token only after the secondary idle context is complete, but
+   * before enabling interrupts: a pending scheduler interrupt can otherwise
+   * enter code that waits for CPU0 and deadlock the bootstrap handshake.
+   */
 
-  bk7258_cpu2_fail(BK7258_CPU2_PROBE_ERROR_BAD_BOOT_STATE);
+  bk7258_cpu2_signal_boot_ready();
+
+  /* nx_idle_trampoline() waits on g_nx_initstate.  The CPU0 reset path can
+   * retain a stale private cache line on CPU2, so wait for CPU0's exact
+   * post-bringup token and publish the same state into CPU2's local view.
+   * CPU0 performs the normal assignment immediately after the wrapper
+   * returns.
+   */
+
+  bk7258_cpu2_wait_idle_release();
+  g_nx_initstate = OSINIT_IDLELOOP;
+  __asm volatile ("dmb sy" ::: "memory");
+
+  /* This is the architecture-owned tail of nx_idle_trampoline().  Keeping
+   * the first CPU2 sched_unlock() here preserves NuttX's normal secondary
+   * idle semantics.  Complete the device-register handshake while interrupts
+   * are still disabled, then allow either core's pending scheduler work.
+   */
+
+#ifdef CONFIG_SCHED_INSTRUMENTATION_SWITCH
+  sched_note_start(this_task());
+#endif
+
+  bk7258_cpu2_signal_scheduler_unlocked();
+  __asm volatile ("cpsie i; dsb sy; isb sy" ::: "memory");
+  sched_unlock();
+
   for (; ; )
     {
-      __asm volatile ("wfe");
+      up_idle();
     }
 }
 
@@ -1037,6 +1288,15 @@ bk7258_ap_secondary_fault_entry(void)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+void __wrap_nx_bringup(void)
+{
+  __real_nx_bringup();
+  bk7258_cpu2_signal_idle_release();
+  bk7258_cpu2_wait_scheduler_unlocked();
+}
+#endif
 
 int up_cpu_index(void)
 {
@@ -1308,6 +1568,7 @@ int bk7258_ap_smp_scheduler_selftest(uint32_t timeout_ms)
         }
 
       up_mdelay(1);
+      (void)sched_yield();
     }
 
   if (elapsed == timeout_ms)
@@ -1604,6 +1865,7 @@ int bk7258_ap_smp_affinity_selftest(uint32_t timeout_ms)
             }
 
           up_mdelay(1);
+          (void)sched_yield();
         }
 
       if (!blocked)
@@ -1738,6 +2000,7 @@ int bk7258_ap_smp_affinity_selftest(uint32_t timeout_ms)
             }
 
           up_mdelay(1);
+          (void)sched_yield();
         }
 
       if (!woken)
@@ -1861,6 +2124,7 @@ int bk7258_ap_smp_affinity_selftest(uint32_t timeout_ms)
         }
 
       up_mdelay(1);
+      (void)sched_yield();
     }
 
   if (!blocked)
@@ -1941,6 +2205,7 @@ int bk7258_ap_smp_affinity_selftest(uint32_t timeout_ms)
         }
 
       up_mdelay(1);
+      (void)sched_yield();
     }
 
   if (elapsed == timeout_ms)

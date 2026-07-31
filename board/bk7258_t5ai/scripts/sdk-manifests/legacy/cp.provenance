@@ -1,0 +1,13 @@
+bundle_version=legacy
+role=cp
+sdk_source_tree=/home/lijian/project/armino/bk_avdk_smp
+sdk_git_commit=not-a-git-tree
+source_archive=not-recorded
+source_archive_sha256=not-recorded
+compiler=arm-none-eabi-gcc (15:10.3-2021.07-4) 10.3.1 20210621 (release)
+uart_patch_define=CONFIG_BK_PRINTF_DISABLE
+uart_patched_object_sha256=not-recorded
+libdriver_original_sha256=af4816dc5216edb23789b71a310567734d5629981adb2073c0a4c8bdf6d8a8df
+libdriver_final_sha256=90bf7113ab00176bb928409aed7101135e52839141408584646356bae8c52d51
+final_manifest_sha256=9366420db842c327b6a1d772fc3c056299bdb2f2a7228082fdbf4d875387fbbf
+note=original hash comes from the preserved pre-UART-patch CP manifest

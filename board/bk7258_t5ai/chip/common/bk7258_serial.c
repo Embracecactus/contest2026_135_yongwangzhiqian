@@ -57,6 +57,14 @@
 #define BK7258_UART1_CONFIG_460800  0x0000371bu
 
 /****************************************************************************
+ * External Function Prototypes
+ ****************************************************************************/
+
+/* Board-private early-console ownership handoff from bk7258_lowputc.c. */
+
+void bk7258_lowputc_handoff(bool enable);
+
+/****************************************************************************
  * Private Types
  ****************************************************************************/
 
@@ -104,30 +112,12 @@ static struct uart_dev_s g_uart1port =
 
 #define CONSOLE_DEV  g_uart1port
 
-/* TEMP cold-reset diagnostic: emit a short raw-UART tag so the last
- * completed startup checkpoint remains visible without /dev/console,
- * printf or syslog.  Delete after diagnosis.
- */
-
-static void cold_ckpt(const char *tag)
-{
-  up_putc('\r');
-  up_putc('\n');
-  while (*tag)
-    {
-      up_putc(*tag++);
-    }
-
-  up_putc('\r');
-  up_putc('\n');
-}
-
 /* The Tier-1 bootloader establishes the board-verified UART1 console at
  * 26 MHz / 56 ~= 460800 baud.  The generic SDK init rewrites the UART clock
  * and configuration after its GPIO messages; on a physical cold boot that
  * can make every later diagnostic byte disappear even if bk_uart_init()
  * returns.  Reassert the board console invariant after the SDK has created
- * its software state, before emitting the return checkpoint.
+ * its software state, before continuing console initialization.
  */
 
 static void bk7258_uart_restore_console(void)
@@ -228,11 +218,8 @@ static int bk7258_uart_setup(struct uart_dev_s *dev)
       .tx_dma_en = UART_DMA_DISABLE,
     };
 
-  cold_ckpt("U0"); /* UART setup entry */
-
   if (initialized)
     {
-      cold_ckpt("U4"); /* Already initialized */
       return OK;
     }
 
@@ -244,29 +231,30 @@ static int bk7258_uart_setup(struct uart_dev_s *dev)
 
   if (bk_gpio_driver_init() != BK_OK)
     {
-      cold_ckpt("EG"); /* GPIO driver init failed */
       return -EIO;
     }
-
-  cold_ckpt("G1"); /* GPIO HAL/pinmux state initialized */
 
   if (bk_uart_driver_init() != BK_OK)
     {
-      cold_ckpt("E1"); /* Driver init failed */
       return -EIO;
     }
 
-  cold_ckpt("U1"); /* Driver init returned */
+  /* The SDK logs a GPIO-busy warning and then immediately removes GPIO0's
+   * current UART1 mapping.  Fully drain those handoff messages before each
+   * pinmux write; otherwise a retained warm-reset FIFO can be unmapped while
+   * transmitting and leave the console silent.  The official SDK's normal
+   * boot sequence gets this serialization from its already-owned printf
+   * UART, while our bootloader-to-NuttX transition must request it explicitly.
+   */
 
+  bk7258_lowputc_handoff(true);
   result = bk_uart_init(priv->id, &config);
+  bk7258_lowputc_handoff(false);
   bk7258_uart_restore_console();
   if (result != BK_OK)
     {
-      cold_ckpt("E2"); /* UART init failed */
       return -EIO;
     }
-
-  cold_ckpt("U2"); /* UART init returned and console restored */
 
   /* NuttX owns the receive ring.  Keep bytes in the hardware FIFO so the SDK
    * callback can hand them directly to uart_recvchars().
@@ -274,21 +262,16 @@ static int bk7258_uart_setup(struct uart_dev_s *dev)
 
   if (bk_uart_disable_sw_fifo(priv->id) != BK_OK)
     {
-      cold_ckpt("E3"); /* FIFO disable failed */
       return -EIO;
     }
 
-  cold_ckpt("U3"); /* FIFO disabled */
-
   if (bk_uart_set_rx_full_threshold(priv->id, 1) != BK_OK)
     {
-      cold_ckpt("E4"); /* RX threshold failed */
       return -EIO;
     }
 
   priv->rxbyte = -1;
   initialized = true;
-  cold_ckpt("U4"); /* UART setup done */
   return OK;
 }
 
@@ -467,16 +450,13 @@ void arm_earlyserialinit(void)
 #ifdef USE_SERIALDRIVER
 void arm_serialinit(void)
 {
-  cold_ckpt("S0"); /* arm_serialinit entry */
   CONSOLE_DEV.isconsole = true;
 
   if (bk7258_uart_setup(&CONSOLE_DEV) < 0)
     {
-      cold_ckpt("SE"); /* UART setup rejected */
       return;
     }
 
   (void)uart_register("/dev/console", &CONSOLE_DEV);
-  cold_ckpt("U5"); /* /dev/console registered */
 }
 #endif

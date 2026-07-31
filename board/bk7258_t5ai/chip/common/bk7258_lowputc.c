@@ -13,10 +13,10 @@
  * lower-half in bk7258_serial.c reuses the same MMIO via its own send/txready
  * ops and calls arm_lowputc() for the console's poll path.
  *
- * UART1 configuration (pinmux, 26 MHz XTAL, clock gate, global_ctrl, CFG
- * divider) is INHERITED from the Tier-1 bootloader and is never reprogrammed
- * here; the observed CFG is 0x00003719 (clk_div=0x37=55) which yields
- * 26 MHz / (clk_div + 1) = 26 MHz / 56 = 464286 Hz ~= 460800 baud.
+ * UART1 starts from the Tier-1 bootloader's 26 MHz XTAL/clock/pinmux setup.
+ * The SDK serial lower-half later takes ownership and restores its
+ * board-verified 0x0000371b configuration for 460800 8N1.  This file only
+ * performs bounded FIFO polling and never changes those clock/config values.
  *
  * Register layout (cp/middleware/soc/bk7258/soc/uart_struct.h):
  *   0x45830018  fifo_status   bit20 fifo_wr_ready (TX FIFO not full)
@@ -30,6 +30,8 @@
 
 #include <nuttx/config.h>
 
+#include <stdbool.h>
+
 #include "arm_internal.h"
 
 /****************************************************************************
@@ -39,10 +41,39 @@
 #define BK7258_UART1_FIFO_STAT   (*(volatile unsigned int *)0x45830018u)
 #define BK7258_UART1_FIFO_PORT   (*(volatile unsigned int *)0x4583001Cu)
 #define BK7258_UART1_TX_READY    (1u << 20)   /* fifo_status.bit20 = fifo_wr_ready */
+#define BK7258_UART1_TX_EMPTY    (1u << 17)   /* fifo_status.bit17 = tx_fifo_empty */
+#define BK7258_UART1_TX_POLL_LIMIT 100000u
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+/* bk_uart_init() logs through arm_lowputc() immediately before it removes
+ * and recreates the GPIO0 UART1 pin mapping.  During that short ownership
+ * handoff, wait for each byte to leave the FIFO so the SDK cannot unmap TX
+ * with a byte still in flight.  Normal runtime lowputc keeps the cheaper
+ * FIFO-write-ready behavior.
+ */
+
+static bool g_bk7258_uart_handoff;
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: bk7258_lowputc_handoff
+ *
+ * Description:
+ *   Select fully drained writes while the SDK takes UART1 ownership from the
+ *   bootloader/early-console path.  This is intentionally board-private.
+ *
+ ****************************************************************************/
+
+void bk7258_lowputc_handoff(bool enable)
+{
+  g_bk7258_uart_handoff = enable;
+}
 
 /****************************************************************************
  * Name: arm_lowputc
@@ -56,11 +87,37 @@
 
 void arm_lowputc(char ch)
 {
-  while ((BK7258_UART1_FIFO_STAT & BK7258_UART1_TX_READY) == 0)
+  unsigned int count;
+
+  /* The SDK UART initialization path temporarily rewrites the UART clock and
+   * configuration while it is still emitting syslog output through this
+   * function.  During that transition TX_READY can remain low.  Use the same
+   * bounded write-through policy as the board-verified Tier-1 bootloader so a
+   * transient console failure cannot trap startup until the NMI watchdog
+   * fires; bk7258_uart_setup() restores the board console immediately after
+   * the SDK call returns.
+   */
+
+  for (count = 0; count < BK7258_UART1_TX_POLL_LIMIT; count++)
     {
+      if ((BK7258_UART1_FIFO_STAT & BK7258_UART1_TX_READY) != 0)
+        {
+          break;
+        }
     }
 
   BK7258_UART1_FIFO_PORT = (unsigned int)((unsigned char)ch);
+
+  if (g_bk7258_uart_handoff)
+    {
+      for (count = 0; count < BK7258_UART1_TX_POLL_LIMIT; count++)
+        {
+          if ((BK7258_UART1_FIFO_STAT & BK7258_UART1_TX_EMPTY) != 0)
+            {
+              break;
+            }
+        }
+    }
 }
 
 /****************************************************************************

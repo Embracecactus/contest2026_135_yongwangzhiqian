@@ -5,16 +5,13 @@
  *   0x000 .. 0x0FF  initial vector table (64 entries)
  *   0x100 .. 0x107  bootloader magic  "BK7236\x10\x00"
  *   0x108 .. 0x1FF  vector table continuation (62 entries)
- *   0x200 ..        Reset_Handler: verified init sequence (verbatim from
- *                   bk7236_min_bl.S) -> bl c_main -> hardened jump epilogue.
+ *   0x200 ..        Reset_Handler: cache-safe reset entry, verified board
+ *                   init, C main, then the official-style jump epilogue.
  *
- * The pre-`bl c_main` init block is reproduced VERBATIM from the known-good
- * minimal bootloader (do not change register values); only the label was
- * renamed reset_handler -> Reset_Handler. App-header validation, FAL partition
- * parsing and UART logging live in C (boot_main.c:c_main). c_main returns the
- * app logical vector address in r0 (and does not return on validation
- * failure). The hardened epilogue then switches VTOR/MSP, clears the
- * register file and bx'es to the app Reset_Handler.
+ * The board-specific WDT/UART register values remain reproduced verbatim from
+ * the known-good minimal bootloader.  The cache/MPU operations are recovered
+ * from the official BK7258 normal bootloader v3.1.1.9; see boot_runtime.c.
+ * App-header validation, FAL parsing and UART logging live in boot_main.c.
  *
  * Reference: docs/bk7258-t5ai/bootloader/bk-official-bootloader-reverse.md S2.7.
  */
@@ -59,6 +56,30 @@
     .thumb_func
 Reset_Handler:
     cpsid i
+
+    /*
+     * Always invalidate I-cache before executing any mutable boot image.
+     *
+     * This must be in the first reset cache line rather than in C.  BK7258
+     * downloader/SYSRESETREQ resets can leave CPU0's private I-cache alive;
+     * without this sequence the core can execute a previously flashed
+     * bootloader even though XIP reads already show the new bytes.
+     */
+    ldr  r0, =0xE000EF50     /* SCB_ICIALLU */
+    movs r1, #0
+    dsb  sy
+    str  r1, [r0]
+    dsb  sy
+    isb  sy
+
+    /*
+     * Official v3.1.1.9 reset/runtime normalization:
+     *   - early flash/SYS register repair;
+     *   - VTOR + ITCM/DTCM setup;
+     *   - I-cache enable and D-cache invalidate;
+     *   - hold CPU1/CPU2 reset and power them down.
+     */
+    bl   boot_reset_prepare
 
     /* Enable SWD/debug. (verbatim) */
     ldr  r0, =0x440100E0
@@ -126,6 +147,16 @@ Reset_Handler:
      * validation failure c_main prints BAD + reason and loops forever.
      */
     bl   c_main
+    mov  r4, r0
+
+    /*
+     * Match the official jump_to_app() cache/MPU contract before changing
+     * VTOR/MSP.  This disables D-cache, cleans+invalidates every set/way and
+     * disables/clears all MPU regions.  It also invalidates I-cache as a
+     * BK7258 reset-residue hardening step.
+     */
+    bl   boot_prepare_app_handoff
+    mov  r0, r4
 
     /*
      * Hardened jump epilogue (BK official S2.7):
@@ -162,16 +193,6 @@ Reset_Handler:
     mov  r11, r0
     mov  r12, r0
 
-    /*
-     * flash_cache_disable SKIPPED: the BK private cache-control block
-     * (S2.9, base 0xED00E000 with offsets 0x80/0x84/0x274) is not confirmed
-     * against the BK7258 register map, and the standard SCB (0xE000ED00)
-     * cache-disabling bits are not exercised by the verified minimal
-     * bootloader. Cache disable is an optimization (avoids stale instruction
-     * fetch after VTOR rebase), not a correctness requirement on a clean
-     * cold-boot handoff; the dsb/isb barriers above already serialize the
-     * VTOR + MSP writes before the branch.
-     */
     dsb  sy
     isb  sy
     bx   r2                  /* jump to app Reset_Handler             */

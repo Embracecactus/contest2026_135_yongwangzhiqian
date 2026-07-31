@@ -2,13 +2,19 @@
 
 > Generated via `hardware-review-gate` binary/reverse-engineering mode.
 > Mode: dimension 2 (registers) + dimension 3 (startup/linking); dimensions 1 & 4 N/A.
+>
+> **2026-07-31 update:** the original BK row used an older SDK sample. The current
+> support SDK v3.1.1.9 official normal bootloader is 52,352 bytes, SHA-256
+> `105161bb603eedafbffcb5efb8f7c06a0c8503e42ba4da46490c2c21ed813de6`,
+> version `bc31115`. Ghidra review also disproved the old implication that
+> header check plus branch is the complete cold-reset contract.
 
 ## Targets
 
 | Bootloader | Size | SHA-256 (first 8) | Source |
 |---|---|---|---|
 | Tuya T5-AI | 65,536 B | `21563b36` | `zephyr-bk7258-port/tools/t5ai_bootloader.bin` |
-| BK official | 52,352 B | `53120001` | `bk_avdk_smp/cp/components/bk_libs/bk7258/bootloader/normal_bootloader/bootloader.bin` |
+| BK official v3.1.1.9 | 52,352 B | `105161bb` | support SDK `bk_avdk_smp-release-v3.1.1.9` normal bootloader |
 
 ## SDK Cross-Reference (preferred over pure disassembly)
 
@@ -43,12 +49,19 @@ No register discrepancies found between the two beyond the header-layout differe
 
 ## Conclusion
 
-1. **Same code lineage**: Tuya bootloader = BK official core + Tuya-specific header extension (partition pointers, extra vectors). Code section is near-identical.
-2. **Only the magic offset differs** (0x110 vs 0x100) — this is the one adaptation point for app images.
+1. **Shared lineage and many shared primitives** are visible, but this comparison does not
+   prove full semantic equivalence between the Tuya and current v3.1.1.9 binaries.
+2. Header/magic layout is one important adaptation point, not the only cold-reset contract.
+   Cache/MPU, WDT, UART, runtime initialization and app handoff state are also material.
 3. **CRC does not need bootloader handling** — flash controller does it in hardware. This overturns the earlier assumption that a custom bootloader must do CRC expansion.
 
 ## Implication for Custom Bootloader
 
-- A custom bootloader only needs: header check (MSP/Reset/magic) → VTOR → MSP → branch.
+- A custom bootloader must preserve its chosen partition/header contract and also leave
+  cache, MPU, watchdog, core-power, UART/runtime and interrupt state in a deterministic
+  form before VTOR/MSP/branch.
 - The CRC-expanded app image format is a **build/packaging** concern, not a bootloader concern.
-- The existing minimal bootloader (`bk7236_min_bl.S`) is already functionally complete; it does not need CRC logic added.
+- The existing minimal bootloader was not functionally complete for repeatable cold reset.
+  The current Tier-1 adds clean-room reset/cache/MPU/core hardening while deliberately not
+  copying official RBL/OTA/download protocols. See
+  [current synthesis](full-reverse-synthesis.md).

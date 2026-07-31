@@ -6,6 +6,13 @@
 
 > 本仓既是「代码仓」，又内置了一键拉取整套 openvela 工程的 `repo` 清单（manifest）。你只需跟它打交道，**自始至终只动一个文件夹**。
 
+## 当前 BK7258 作品入口
+
+- [BK7258/T5-AI 当前状态与文档索引](docs/bk7258-t5ai/README.md)
+- [完整移植技术报告](docs/bk7258-t5ai/porting-report.md)
+- [SDK v3.1.1.9 迁移、legacy 回退与板测报告](docs/bk7258-t5ai/nuttx-port/sdk-v3.1.1.9-migration-report.md)
+- [SDK CP/AP 静态库编译与导入 SOP](docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md)
+
 ---
 
 ## 一、先读这些官方文档

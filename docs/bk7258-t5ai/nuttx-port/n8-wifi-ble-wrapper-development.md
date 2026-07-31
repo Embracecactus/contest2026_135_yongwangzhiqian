@@ -8,8 +8,9 @@
 > **路径约定**（与 n6-sdk-integration-framework.md 一致）：
 > - `$CONTEST` = 本团队 overlay 根（含 `board/bk7258_t5ai/`）
 > - `$BK_AVDK` = Beken 官方 SDK（bk_avdk_smp，`cp/` 与 `ap/` 两套独立编译路径）
-> - `$SDK_INC` = `$CONTEST/board/bk7258_t5ai/bk_idk/armino_as_lib/cp/include`
-> - `$SDK_LIBS` = `$CONTEST/board/bk7258_t5ai/bk_idk/armino_as_lib/cp/libs`
+> - `$SDK_VERSION` = `v3.1.1.9`（当前默认；回退验证可设为 `legacy`）
+> - `$SDK_INC` = `$CONTEST/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/$SDK_VERSION/cp/include`
+> - `$SDK_LIBS` = `$CONTEST/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/$SDK_VERSION/cp/libs`
 
 ---
 

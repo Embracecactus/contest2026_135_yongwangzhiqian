@@ -25,10 +25,29 @@
 | **N8-C7** | controlled migration (8 affinity transitions) | **LATEST VERIFIED：`board-verified`（2026-07-30）**；BMIG `PASSED/error=0`、requested/completed=`8/8`，final CPU0、sequence=`8`、callback=`8/8`、PID released；CPU0→CPU1 `+4`、CPU1→CPU0 `+4`、calls `+8` 精确命中，handler fully delivered，coalesced/fail/stale/spurious=0 | [N8-C7 worklog](nuttx-port/n8-c7-controlled-migration.md) |
 | **N8-C8** | CPU1 timed wake (8 sleep cycles) | `board-verified`（2026-07-30）；corrected image generation2 retry 中 BTIM PASSED `8/8`，task CPU1 sequence8/value8/0/aux20000/1，exact initial-dispatch + eight-wake attribution `+9/+0/+9`，handler fully delivered，failure/coalesced/stale/spurious=0 | [N8-C8 worklog](nuttx-port/n8-c8-cpu1-timed-wake.md) |
 | **N8-D1** | CPU1 scheduler quiesce/resume foundation | **LATEST VERIFIED：`board-verified`（2026-07-30）**；normal autostart BLCY PASSED `1/1`，entry/exit CPU1、sequence/aux `1/1`、value `0/-138` (`-ENOTSUP`)，exact `+1/+0/+1`，online=`0x3`，handler fully delivered，failure/coalesced/stale/spurious=0；not hot-unplug | [N8-D1 worklog](nuttx-port/n8-d1-smp-lifecycle-quiesce.md) |
+| **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | **CURRENT：`static-only` planning（2026-07-31）**；架构、SMP/BMP 方案对比、IRQ deferred-worker、32 KiB carveout candidate、分阶段 gate 已确定；尚未实现、构建或板测 | [N9 prompt / plan](nuttx-port/prompts/09-n9-rptun-rpmsg.md) |
 
 ## 当前 handoff
 
-> **N8 physical cold-reset NSH closure（2026-07-30）：**原始“手动 RESET 经 `BClk` 后在 GPIO 日志处永久静默、NSH 不出现”问题已首次真实板端修复通过。最终 cold trace 为 `BClk→JMP→S0/U0/G1/U1→U2/U3/U4/U5→C0..C3→A0..A7/F1/F2→C4..C8→NuttShell`。根因是两层叠加：UART 使用 GPIO pinmux 前缺少 `bk_gpio_driver_init()`，以及 SDK `bk_uart_init()` 重写 UART1 clock/divider/config 后未恢复板级 26 MHz/460800 invariant。当前 `ap_smp_bidir` 仍可能在 CP 默认 READY timeout 内未完成高级 gate，`error=6` 为 CP timeout cleanup；这与已解决的 UART cold blocker 独立。完整复盘见 [`nuttx-port/n8-cold-reset-resolution-report.md`](nuttx-port/n8-cold-reset-resolution-report.md)，自动化 SOP 见 [`nuttx-port/bk7258-build-flash-debug-sop.md`](nuttx-port/bk7258-build-flash-debug-sop.md)。当前待办是 physical RESET×3、power-cycle×3、checkpoint 清理和独立 AP timeout follow-up。
+> **N9 selected（2026-07-31）：**保持 AP native SMP，不切换 BMP；在 CP 与整个 AP
+> SMP cluster 之间建立一套 RPTUN/OpenAMP/RPMsg link。AP CP↔AP mailbox IRQ 仅由
+> logical CPU0/physical CPU1 接收，ISR 只 ack/capture/post semaphore，由固定在
+> logical CPU0 的 kthread 调用 RPTUN callback；logical CPU1/physical CPU2 不是第二个
+> RPTUN peer。第一步为 N9-R source/role verification 和 N9-A shared-memory/linker gate；
+> 尚无实现、构建或板端结果。完整计划见
+> [`nuttx-port/prompts/09-n9-rptun-rpmsg.md`](nuttx-port/prompts/09-n9-rptun-rpmsg.md)。
+
+> **N8 physical cold-reset/AP SMP closure（2026-07-31）：**最终无 checkpoint
+> `cp_nsh + ap_smp_bidir` 镜像连续 warm 3/3、COM7 RTS physical-reset 3/3，
+> 全部进入 NSH；cold 均有 `BClk`。AP `READY/error=0`、CPU2
+> `SCHEDULER_ONLINE/error=0`、online=`0x3`，BSMP/affinity/semaphore/
+> semaphore-loop/BP2P 均 `PASSED/error=0`。最终根因集合包括 UART
+> GPIO-before-UART、post-SDK clock/config restore、GPIO0/1 ownership 前
+> `TX_EMPTY` handoff，以及 boot/cache/MPU、WDT ownership、CPU2 三阶段 handshake
+> 和 AP self-test local scheduling。physical power cut 尚未执行；CPU2
+> post-bringup/scheduler-unlock 的底层 WFE handshake 也未做故障注入 recovery。
+> 完整复盘见 [`nuttx-port/n8-cold-reset-resolution-report.md`](nuttx-port/n8-cold-reset-resolution-report.md)，
+> 入门版见 [`nuttx-port/cold-reset-smp-repair-guide.md`](nuttx-port/cold-reset-smp-repair-guide.md)。
 
 > **最新覆盖状态（2026-07-30）：**N8-C4 已在用户真实 T5-AI 当前 download/warm-start path 闭环。AP 为 `READY(2)/error=0`，CPU2 为 `SCHEDULER_ONLINE(8)/error=0`、ready=`1`、online=`0x3`；`BSMP`、`BAFF`、`BSEM`、`BSWL` 全部 `PASSED/error=0`。唯一 `task id=3` requested/observed affinity=`0x2/0x2`、CPU=`1`、started/completed/pid-released=`1/1/1`。BAFF tx/rx、IRQ/wake 为 `1→10`、calls=`2→11`（`+9`：initial dispatch + 8 wakes）；BSEM 为 `2→3`、calls=`3→4`（首轮 `+1`）；BSWL 为 `2→10`、calls=`3→11`（完整 8 轮 `+8`）。wait/observe/post/return 与 sequence 均为 `8`，sem value=`-1`，CPU0 post、CPU1 return，global SMP tx/rx=`10/1, 1/10`，coalesced/fail/stale/spurious 均为 0。AP heartbeat=`85`、CPU0 SysTick=`1026`、sleep enter/return=`85/84` 证明 gate 后持续运行。
 
@@ -60,11 +79,16 @@
 
 > **N8-D1 closure（2026-07-30）：**`ap_smp_lifecycle` normal autostart 在真实 T5-AI 一次闭环。AP `READY/error=0`、heartbeat=`727`；CPU2 `SCHEDULER_ONLINE/error=0`、online=`0x3`。BLCY `PASSED/error=0`、requested/completed=`1/1`；callback entry/exit CPU=`1/1`、started/completed=`1/1`、quiesce/resume sequence=`1/1`、value=`0/-138`（该 NuttX 配置的 `-ENOTSUP`）、aux=`1/1`。隔离窗口 CPU0→CPU1 `10→11`=`+1`、CPU1→CPU0 `1→1`=`+0`、calls `11→12`=`+1`；handler CPU0=`1/1`、CPU1=`11/11`，coalesced/fail/stale/spurious=0。CPU0 SysTick=`8090`、sleep enter/return=`727/726` 证明 gate 后持续运行。CPU1 全程保持 online=`0x3`，没有 CPU2 reset/power transition；这是 bounded scheduler quiesce/resume foundation，不是 CPU hot-unplug。
 
-- **Current maintenance task：**N8 physical cold-reset closure；首次 `BClk→U2..U5→C8→NSH` 已通过，重复性矩阵、checkpoint 清理和 AP timeout follow-up 待完成。没有自动扩展到新的 MAIN Stage。
-- **Authorized implementation set：**N8-C5、N8-C6、N8-C7、N8-C8、N8-D1 全部 `board-verified`；不自动扩展到新的 Stage 或代码评审。
+- **Current Stage：**N9 RPTUN/OpenAMP/RPMsg，当前仅 `static-only` planning；下一动作是
+  N9-R source/role verification 与 N9-A shared-memory/linker gate。
+- **Authorized implementation set：**N8-C5、N8-C6、N8-C7、N8-C8、N8-D1 全部
+  `board-verified`；N9 已选择，但本文更新未实施、构建或烧录 N9 代码。
 - **Latest verified baseline：**N8-D1 `board-verified`（2026-07-30，normal autostart path）。
 - **Latest verified worklog：**[`nuttx-port/n8-d1-smp-lifecycle-quiesce.md`](nuttx-port/n8-d1-smp-lifecycle-quiesce.md)
-- **Current worklog：**[`nuttx-port/n8-cold-reset-resolution-report.md`](nuttx-port/n8-cold-reset-resolution-report.md)；执行流程见 [`nuttx-port/bk7258-build-flash-debug-sop.md`](nuttx-port/bk7258-build-flash-debug-sop.md)。
+- **Current prompt / plan：**[`nuttx-port/prompts/09-n9-rptun-rpmsg.md`](nuttx-port/prompts/09-n9-rptun-rpmsg.md)；
+  N8 closure 见 [`nuttx-port/n8-cold-reset-resolution-report.md`](nuttx-port/n8-cold-reset-resolution-report.md)；
+  新手说明见 [`nuttx-port/cold-reset-smp-repair-guide.md`](nuttx-port/cold-reset-smp-repair-guide.md)；
+  执行流程见 [`nuttx-port/bk7258-build-flash-debug-sop.md`](nuttx-port/bk7258-build-flash-debug-sop.md)。
 - **Verified implementation：**一个 asynchronous SMP callback 在 CPU1 call-handler context 发布 quiesce handshake，bounded `wfe` 等待 CPU0 sequence + `sev`，随后仍在 CPU1 恢复并返回；scheduler-online secondary-stop 继续 fail-closed 为 `-ENOTSUP`。
 - **Verified counter attribution：**BLCY CPU0→CPU1 `10→11`=`+1`，CPU1→CPU0 `1→1`=`+0`，calls `11→12`=`+1`；entry/exit CPU=`1/1`、sequence=`1/1`、value=`0/-138`、aux=`1/1`。
 - **Verified lifecycle：**AP `READY/error=0`；CPU2 `SCHEDULER_ONLINE/error=0`、ready=`1`、online=`0x3`；BSMP/BAFF/BSEM/BSWL/BLCY 全部 `PASSED/error=0`，global coalesced/fail、IPI stale/spurious、duplicate/lost 均为 0。CPU2 未 reset/power-down，D1 不构成 CPU hot-unplug。
@@ -72,7 +96,9 @@
 - **Preserved boundary：**`CONFIG_SMP_DEFAULT_CPUSET=0x1`；C5/C6/C7/C8/D1 仅执行各自固定次数、显式 affinity 和互斥配置的诊断流程；不开放运行时可变/无限循环、默认 CPU1 placement、非受控迁移、负载均衡或 stress test。
 - **Architecture：**NuttX semaphore/scheduler → team wrapper → Beken SDK `bk_mailbox_cc_*` / `bk_mailbox_master_send` → MBOX0 FIFO/source63 → NuttX IRQ79；不新增寄存器级 IPI 数据面。
 - **Lifecycle boundary：**N8-D1 只通过 asynchronous SMP callback + WFE/SEV 实现 bounded scheduler quiesce/resume，CPU1 始终保持 online=`0x3`，不 reset/power-down CPU2，也不声称 CPU hot-unplug；`apctl stop/restart/cycle/ipitest` 和 scheduler-online secondary-stop 继续 fail-closed 为 `-ENOTSUP`。
-- **Not selected or authorized：**默认 cpuset `0x3`、非受控迁移/负载均衡、运行时可变/无限循环、stress test、spinlock 压力、RPTUN/RPMsg 实现、Wi-Fi 或 BLE。
+- **Historical N8 exclusion：**N8 当时未授权 RPTUN/RPMsg；该项现已由 N9 计划取代。
+  仍未选择默认 cpuset `0x3`、非受控迁移/负载均衡、运行时可变/无限循环、stress test、
+  spinlock 压力、Wi-Fi 或 BLE。
 
 ### 历史 N6 handoff（保留证据，非 CURRENT）
 

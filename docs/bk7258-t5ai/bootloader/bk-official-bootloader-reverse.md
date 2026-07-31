@@ -5,6 +5,20 @@
 > 分析工具: arm-none-eabi-objdump, xxd, strings
 > 反汇编: `arm-none-eabi-objdump -D -b binary -m arm -M force-thumb --adjust-vma=0x02000000`
 
+> **2026-07-31 Ghidra 复核说明：** 本文最初基于线性 objdump，标题中的“完整”只表示
+> 当时覆盖了整个文件，不代表已经语义等价复刻所有 52 KB 功能。技术支持 SDK
+> v3.1.1.9 的 exact binary 为 52352 bytes，SHA-256
+> `105161bb603eedafbffcb5efb8f7c06a0c8503e42ba4da46490c2c21ed813de6`，
+> version `bc31115`，base `0x02000000`、SP `0x28030000`、reset
+> `0x020001c1`。Ghidra 当前识别 134 个函数、224 条调用边，并确认 reset/handoff
+> 包含早期 SoC、flash、WDT、UART、clock、MSPLIM、runtime、cache/MPU 清理和 app
+> 跳转。项目只 clean-room 复现 raw NuttX 启动必需的硬件契约，没有移植官方
+> RBL/OTA/download 全部协议。
+>
+> **地址勘误：SCB 正确基址是 `0xE000ED00`。** 旧版文档中的
+> `0xED00E000` 是字节顺序写错，以下内容已统一更正。对函数边界和语义有疑问时，
+> 以 Ghidra 工程、exact binary 和当前源码交叉验证结果为准。
+
 ---
 
 ## 1. 完整启动流程图
@@ -132,7 +146,7 @@ BootROM 校验此 magic 来确认 bootloader 合法性。格式: 8 字节, `BK72
 020001D8: 83f3 0a88    msr     MSPLIM, r3   ; 设置栈下限保护
 020001DC: f000 50f8    bl      0x2000280    ; flash_ctrl_config
 020001E0: 2000         movs    r0, #0
-020001E2: 2149         ldr     r1, =0xED00E000  ; SCB base
+020001E2: 2149         ldr     r1, =0xE000ED00  ; SCB base
 020001E4: c1f8 8400    str.w   r0, [r1,#0x84]   ; SCB->CCR = 0
 020001E8: bff3 4f8f    dsb     sy
 ...
@@ -286,7 +300,7 @@ done:
 0200177C: f7ff f884    bl      uart_deinit
 02001780: 2000         movs    r0, #0
 02001782: f000 f8ad    bl      flash_cache_disable
-02001786: 4b11         ldr     r3, =0xED00E000     ; SCB base
+02001786: 4b11         ldr     r3, =0xE000ED00     ; SCB base
 02001788: 609c         str     r4, [r3, #8]        ; SCB->VTOR = app_vec
 0200178A: f3bf 8f4f    dsb     sy
 0200178E: f3bf 8f6f    isb     sy
@@ -337,7 +351,7 @@ done:
 ; sub_20018E0: 配置 flash cache
 ; 参数: r0 = 0 (disable) 或 1 (enable+configure)
 020018E0: b538         push    {r3,r4,r5,lr}
-020018E2: 4c38         ldr     r4, =0xED00E000     ; SCB base
+020018E2: 4c38         ldr     r4, =0xE000ED00     ; SCB base
 020018E4: bb30         cbnz    r0, enable_path
 ; disable path:
 020018E6: f8c4 0084    str.w   r0, [r4, #0x84]     ; SCB->CCR = 0
@@ -536,7 +550,7 @@ crc_ok:
 |------|--------|------|----------------|
 | 0x10 | WDT_UNLOCK | 解锁寄存器 | 写 0x005A0000 + 0x00A50000 |
 
-### 3.5 SCB (0xED00E000)
+### 3.5 SCB (0xE000ED00)
 
 | 偏移 | 寄存器 | 用途 | bootloader 操作 |
 |------|--------|------|----------------|
@@ -805,7 +819,7 @@ void reset_cpu1_core(uint32 offset, uint32_t start_flag) {
 #define WDT_UNLOCK        (WDT_BASE + 0x10)
 
 // SCB (Cortex-M33)
-#define SCB_BASE          0xED00E000
+#define SCB_BASE          0xE000ED00
 #define SCB_VTOR          (SCB_BASE + 0x08)
 ```
 
