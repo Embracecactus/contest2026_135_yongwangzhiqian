@@ -40,6 +40,7 @@
 
 #include <stdint.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/clock.h>
 #include <nuttx/timers/arch_timer.h>
 #include <arch/board/board.h>
@@ -99,6 +100,15 @@ void up_timer_initialize(void)
   cpu_hz = bk7258_clockdiag_current_cpu_hz();
   reload = (cpu_hz / CLK_TCK) - 1;
 
+#ifdef CONFIG_ARCH_PERF_EVENTS
+  /* Armv8-M perf_gettime() reads DWT_CYCCNT.  Initialize it with the same
+   * live clock value used for SysTick so RPMsg latency and other performance
+   * measurements report real time instead of a permanently zero counter.
+   */
+
+  up_perf_init((void *)(uintptr_t)cpu_hz);
+#endif
+
   putreg32(reload, NVIC_SYSTICK_RELOAD);
 
   /* coreclk=true  -> SysTick clocked at the processor clock (cpu_hz).
@@ -143,6 +153,12 @@ void bk7258_systick_recalc(void)
 
   cpu_hz = bk7258_clockdiag_current_cpu_hz();
   reload = (cpu_hz / CLK_TCK) - 1;
+
+#ifdef CONFIG_ARCH_PERF_EVENTS
+  /* Keep cycle-to-time conversion correct after changing the CPU clock. */
+
+  up_perf_init((void *)(uintptr_t)cpu_hz);
+#endif
 
   /* Use the BK7258_CDIAG_SYSTICK_* address macros (always present in
    * bk7258_clockdiag.h) rather than risking a backend-specific

@@ -188,8 +188,9 @@ config BK7258_AP_CONTROL
 	select NSH_BUILTIN_APPS
 	---help---
 		Add the CPU0 start/stop/restart wrapper and the manual apctl NSH
-		command.  The first-stage protocol uses a reserved shared SRAM page
-		and polled raw MBOX0/MBOX1 doorbells; it does not enable RPTUN.
+		command.  The baseline protocol uses a reserved shared SRAM page;
+		BK7258_RPTUN_MBOX replaces the raw doorbell path with the SDK mailbox
+		channel wrapper when the RPTUN profile is selected.
 
 config BK7258_AP_AUTOSTART
 	bool "Start CPU1 AP during board bring-up"
@@ -199,6 +200,86 @@ config BK7258_AP_AUTOSTART
 		Automatically start CPU1 after CPU0 board services initialize.
 		Keep this disabled until the dual image has been flashed and the
 		manual apctl start/status path is board-verified.
+
+config BK7258_AP_AUTOSTART_TIMEOUT_MS
+	int "CPU1 AP autostart timeout (milliseconds)"
+	default 30000 if BK7258_RPTUN
+	default 15000
+	range 1000 60000
+	depends on BK7258_AP_AUTOSTART
+	---help---
+		Bound the board bring-up wait for AP READY.  RPTUN profiles run the
+		preserved N8 SMP gates before registering the AP RPTUN endpoint, so
+		they need a longer cold-reset deadline than the non-RPTUN baseline.
+
+config BK7258_RPTUN_LAYOUT
+	bool "N9 CP/AP RPTUN shared-memory layout"
+	default n
+	depends on ARCH_CHIP_BK7258
+	---help---
+		Reserve 0x28097000..0x2809efff for the CP/AP RPTUN control,
+		resource table, vrings and RPMsg buffers.  On the AP image this
+		shrinks the linked RAM window and moves the physical CPU2 boot stack
+		down by 32 KiB.  This option is layout-only: it does not enable the
+		NuttX RPTUN/OpenAMP transport or change the N7/N8 baseline profiles.
+
+config BK7258_RPTUN_MBOX
+	bool "N9 unified CP/AP MBOX0 transport"
+	default n
+	depends on BK7258_RPTUN_LAYOUT
+	depends on !BK7258_AP_CORE || BK7258_AP_IPI
+	select ARCH_IRQPRIO
+	select BK7258_SDK_IRQ_BRIDGE if !BK7258_AP_CORE
+	---help---
+		Use the Beken SDK MBOX0 FIFO as the single owner for AP-local SMP
+		commands and CP/AP lifecycle/RPTUN notifications.  Raw data[1] == 0
+		remains reserved for AP SMP; CP/AP traffic uses the SDK adapter's
+		16-byte message format.  The IRQ callback only coalesces messages and
+		wakes a pinned bk7258-rptun-rx kthread.
+
+config BK7258_RPTUN
+	bool "N9 CP/AP NuttX RPTUN and RPMsg link"
+	default n
+	depends on BK7258_RPTUN_MBOX
+	select DEV_SIMPLE_ADDRENV
+	select RPTUN
+	select RPMSG_PING
+	---help---
+		Instantiate one CP-master/AP-remote RPTUN link over the reserved
+		shared SRAM and the SDK mailbox-channel wrapper.  CP is the virtio
+		driver, AP is the virtio device, and the built-in RPMsg ping endpoint
+		is enabled for the N9 functional and performance gates.
+
+config BK7258_RPMSG_TEST
+	bool "N9 AP-SMP RPMsg bounded concurrency test"
+	default n
+	depends on BK7258_RPTUN && !DISABLE_PTHREAD
+	depends on !BK7258_AP_CORE || SMP
+	select BUILTIN if !BK7258_AP_CORE
+	select NSH_BUILTIN_APPS if !BK7258_AP_CORE
+	---help---
+		Register a board-local RPMsg endpoint on both images.  The CP-side
+		bkrpmsgtest command asks two AP pthreads, pinned to logical CPU0 and
+		CPU1, to send concurrent echo traffic with bounded non-blocking sends
+		and bounded waits.  The result records sender CPU, AP callback CPU,
+		generation, loss and cycle-count latency percentiles using machine-
+		parsable BRPT lines.  The RPTUN RX worker remains the only transport
+		owner and keeps its higher real-time priority.
+
+config BK7258_RPTUN_RX_PRIORITY
+	int "N9 RPTUN mailbox RX worker priority"
+	default 225
+	range 1 255
+	depends on BK7258_RPTUN_MBOX
+	---help---
+		SCHED_FIFO priority of the deferred MBOX0 receive worker.  The N9
+		baseline keeps this one level above RPTUN/RPMsg's default 224.
+
+config BK7258_RPTUN_RX_STACKSIZE
+	int "N9 RPTUN mailbox RX worker stack size"
+	default 2048
+	range 1024 16384
+	depends on BK7258_RPTUN_MBOX
 
 config BK7258_FLASH_MTD
 	bool "BK7258 on-chip flash data-partition MTD"

@@ -17,8 +17,9 @@ NSH**（Stage N1 跳转链 + N2 NSH console + N3 procfs/ps 均板端验证，202
 / ✅ NuttX Stage N1（bootloader 跳进 NuttX，早期 UART）/ ✅ NuttX Stage N2（NSH 交互 console）
 / ✅ NuttX Stage N3（procfs + ps）/ ✅ Stage N5 raw flash + MTD + LittleFS /
 ✅ Stage N7 AP single-core / ✅ Stage N8 AP native SMP 与 warm/physical RESET closure /
-**CURRENT：Stage N9 CP/AP RPTUN/OpenAMP/RPMsg（`static-only` planning，尚未实现、构建或板测）**
-/ 📋 Tier-2 bootloader（OTA）、PSRAM、Wi-Fi/BLE 服务层。
+✅ **Stage N9 CP/AP RPTUN/OpenAMP/RPMsg wrapper（`board-verified`）** /
+**NEXT：heartbeat/AP crash supervision 与后续 RPMsg 服务选择** /
+📋 Tier-2 bootloader（OTA）、PSRAM、Wi-Fi/BLE 服务层。
 
 ---
 
@@ -390,7 +391,7 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 | **N6** | Beken SDK integration / WDT / IRQ / GPIO | ✅ CPU0 baseline `board-verified` |
 | **N7** | physical CPU1 independent AP NuttX | ✅ done / `board-verified` |
 | **N8** | AP physical CPU1+CPU2 native SMP | ✅ done / `board-verified`，含 warm/physical RESET 3/3 closure |
-| **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | **CURRENT：`static-only` planning**；见 [N9 plan](nuttx-port/prompts/09-n9-rptun-rpmsg.md) |
+| **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | ✅ done / `board-verified`；官方 SDK/NuttX 只读 wrapper，Name Service、SMP 双 producer、reconnect、syslog、兼容构建与 cold RESET closure；见 [N9 completion](nuttx-port/prompts/09-n9-rptun-rpmsg.md) |
 
 N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
 UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
@@ -675,10 +676,9 @@ board/bk7258_t5ai/bootloader/
 
 ## 12. 下一步 Roadmap
 
-> **2026-07-31 路线勘误：**本报告前文的 N4 CURRENT / SMP planned later 是历史快照。
-> 当前 latest verified baseline 已推进至 N8 AP SMP 与 physical RESET closure；用户已选择
-> **N9 CP/AP RPTUN/OpenAMP/RPMsg** 为 CURRENT，当前状态仅 `static-only` planning。
-> 权威执行计划见 [N9 prompt / plan](nuttx-port/prompts/09-n9-rptun-rpmsg.md)。
+> **2026-07-31 路线更新：**本报告前文的 N4 CURRENT / SMP planned later 是历史快照。
+> latest verified baseline 已推进至 **N9 CP/AP RPTUN/OpenAMP/RPMsg wrapper**；N9 已
+> `board-verified`。权威完成记录见 [N9 prompt / completion](nuttx-port/prompts/09-n9-rptun-rpmsg.md)。
 
 | 优先级 | 项 | 状态 | 备注 |
 |---|---|---|---|
@@ -688,7 +688,8 @@ board/bk7258_t5ai/bootloader/
 | P0 | **NuttX Stage N4**：DPLL / 480 MHz CPU0 clock bring-up | historical | D0/D0D/D0F substage `board-verified`；N4-D1 blocked；产品路径采用已验证 320 MHz runtime DVFS，不继续追 480 MHz |
 | P1 | **NuttX Stage N5**：MTD + 文件系统（LittleFS） | ✅ done | N5-D5 raw flash r/w + N5-D6 MTD + N5-D7 LittleFS 全链路 `board-verified`（2026-07-19）；D7 版 `all-app.bin` = 192270 B = `0x2EF0E` |
 | P0 | **NuttX Stage N8**：AP physical CPU1+CPU2 native SMP | ✅ done | scheduler-online、双向 IPI/wake、affinity、controlled migration、timed wake、bounded lifecycle 与 warm/RESET 3/3 已 `board-verified` |
-| P0 | **NuttX Stage N9**：CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | **CURRENT：`static-only` planning** | 保持 AP SMP；单一 CP↔AP cluster RPTUN peer；先 N9-R role/source verification 与 N9-A 32 KiB carveout/linker gate，再实现 mailbox transport |
+| P0 | **NuttX Stage N9**：CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | ✅ done / `board-verified` | 官方 wrapper 模式；单一 CP↔AP link、32 KiB carveout、Name Service、CPU0 gateway、generation reconnect、syslog、physical RESET 与 legacy/latest/baseline 构建均闭环 |
+| P0 | **下一 Stage**：heartbeat / AP crash supervision | candidate | 复用 N9 lifecycle/generation；定义 peer timeout、pending request fail-closed、restart policy 与独立验收证据 |
 | P1 | **后续（未编号）**：PSRAM bring-up | planned later | T5-AI 16 MB SiP PSRAM 当前未用 |
 | P1 | **后续（未编号）**：Tier-2 bootloader OTA（RBL + A/B + failover） | planned later | 需 flash 写；参考 BK 官方 §2.12 RBL 校验 |
 | P2 | **后续（未编号）**：GPIO / flash / Wi-Fi / BLE 等驱动补全 | planned later | 根据 N4 后的板端证据与竞赛优先级再排序 |

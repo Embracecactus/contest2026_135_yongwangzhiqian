@@ -164,7 +164,7 @@ int board_app_initialize(uintptr_t arg)
 #ifdef CONFIG_BK7258_AP_AUTOSTART
   else
     {
-      apret = bk7258_ap_start(BK7258_AP_DEFAULT_TIMEOUT_MS);
+      apret = bk7258_ap_start(CONFIG_BK7258_AP_AUTOSTART_TIMEOUT_MS);
       if (apret < 0)
         {
           _err("bk7258: AP autostart failed: %d\n", apret);

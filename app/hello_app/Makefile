@@ -39,6 +39,15 @@ STACKSIZE += 2048
 MAINSRC   += bk7258_apctl_main.c
 endif
 
+ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+PROGNAME  += bkrpmsgtest
+PRIORITY  += SCHED_PRIORITY_DEFAULT
+STACKSIZE += 3072
+MAINSRC   += bk7258_rpmsg_test_main.c
+endif
+endif
+
 MODULE = y
 
 include $(APPDIR)/Application.mk
