@@ -6,6 +6,9 @@
 >
 > AP/CP SDK 静态库的构建、UART 对象重编和项目导入流程见：
 > `docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md`。
+> 当前 SDK bundle 统一放在
+> `bk_idk/armino_as_lib/versions/<version>/{cp,ap}`，默认版本是
+> `v3.1.1.9`；本文后续命令均按该默认版本书写。
 
 ---
 
@@ -80,7 +83,8 @@ BK7258 不是单核芯片，它是一个 **AP/CP 双核（实际是三核 Cortex
 **我们核实完的结论：NuttX 跑在 CP 核，UART1 在 CP 上直连，wrapper 用 CP 的 SDK 完全自洽。**
 
 证据链（都在你工程里）：
-1. 构建目标是 CP 镜像，打包的 SDK 头**只有** `armino_as_lib/cp/include/`（没有 `ap/`）；
+1. 构建目标是 CP 镜像，使用的 SDK 头位于
+   `armino_as_lib/versions/v3.1.1.9/cp/include/`；
 2. 活跃配置 `configs/cp_nsh/defconfig` 里是 `CONFIG_BK7258_AP_CONTROL=y`（即 Beken 术语里的 CP 角色），入口 `nsh_main`——这才是带串口的镜像；
 3. 原 `bk7258_serial.c` 直接在 CP 地址 `0x45830000` 上戳寄存器、用 `irq_attach(BK7258_IRQ_UART1,…)` 挂**原生**中断，说明 UART1 硬件对 CP 核是直接可访问的，没走跨核 RPC。
 
@@ -824,13 +828,14 @@ armino 官方完整构建是跑在 Docker 里的（你机器没装 docker，也�
 1. armino 源码树（例如 `/home/lijian/project/armino/bk_avdk_smp`），且之前跑过一次
    bk7258 构建，所以 `build/bk7258/app/bk7258/compile_commands.json` 存在；
 2. `arm-none-eabi-gcc` 在 `PATH` 上；
-3. 要打补丁的库 `bk_idk/armino_as_lib/cp/libs/libdriver.a`。
+3. 要打补丁的库
+   `bk_idk/armino_as_lib/versions/v3.1.1.9/cp/libs/libdriver.a`。
 
 ### 8.3 操作（照抄即可）
 
 ```bash
 ARMINO=/home/lijian/project/armino/bk_avdk_smp
-LIBS=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/cp/libs
+LIBS=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9/cp/libs
 
 # --- 步骤 1：提取 armino 编 uart_driver.c 的原始命令，加宏后重编到 /tmp ---
 mkdir -p /tmp/uart_rebuild

@@ -16,6 +16,7 @@
 ############################################################################
 
 include armv8-m/Make.defs
+include $(BOARD_DIR)$(DELIM)bk_idk$(DELIM)sdk-bundles.mk
 
 # The arch Makefile already adds chip/ itself.  Add the role subdirectories for
 # source lookup and chip-private quoted includes.
@@ -36,8 +37,14 @@ else
 BK7258_SDK_ROLE := cp
 endif
 
-INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)bk_idk$(DELIM)armino_as_lib$(DELIM)$(BK7258_SDK_ROLE)$(DELIM)include
-INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)bk_idk$(DELIM)armino_as_lib$(DELIM)$(BK7258_SDK_ROLE)$(DELIM)config
+BK7258_SDK_ROLE_DIR := $(BK7258_SDK_BUNDLE_ROOT)$(DELIM)$(BK7258_SDK_ROLE)
+
+ifeq ($(wildcard $(BK7258_SDK_ROLE_DIR)$(DELIM)include),)
+$(error BK7258 $(BK7258_SDK_ROLE) SDK bundle '$(BK7258_SDK_BUNDLE_VERSION)' is missing: $(BK7258_SDK_ROLE_DIR))
+endif
+
+INCLUDES += ${INCDIR_PREFIX}$(BK7258_SDK_ROLE_DIR)$(DELIM)include
+INCLUDES += ${INCDIR_PREFIX}$(BK7258_SDK_ROLE_DIR)$(DELIM)config
 
 # Shared N7 sources.  lowputc/serial remain shared in this structural-only
 # move: the current AP ELF still exports arm_lowputc()/up_putc(), so making
@@ -185,6 +192,7 @@ ifneq ($(CONFIG_BK7258_AP_CORE),y)
 LDFLAGS += --wrap=arm_doirq --wrap=nxsched_resume_scheduler
 else ifeq ($(CONFIG_BK7258_AP_SMP_SCHED_ONLINE),y)
 LDFLAGS += --wrap=arm_doirq --wrap=nxsched_resume_scheduler
+LDFLAGS += --wrap=nx_bringup
 endif
 
 # Force the link entry point to our __start.  --build-id=none keeps the image

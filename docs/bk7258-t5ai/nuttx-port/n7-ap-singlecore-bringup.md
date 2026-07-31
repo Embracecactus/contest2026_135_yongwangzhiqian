@@ -270,6 +270,11 @@ skills，也不使用任何 subagent；由主模型直接完成分析、实现�
 本节覆盖 §9.4 和 §10 中“AP 不链接 SDK libraries”及“`AP_AUTOSTART` 关闭”的旧状态。同步后的
 PR 分支先迁移 CPU1 AP 前置实现，再加入按 CP/AP role 分离的 SDK headers、config 和静态库：
 
+> 本节中的 `armino_as_lib/{cp,ap}` 是 2026-07-27 构建时的历史真实路径。
+> 2026-07-31 目录已规范化为
+> `armino_as_lib/versions/legacy/{cp,ap}`，当前默认则为
+> `armino_as_lib/versions/v3.1.1.9/{cp,ap}`；下方历史 map 证据不改写。
+
 - AP 前置提交：`a0271af`（由旧分支 `38699e8` 迁移并与现有 GPIO/N6 状态合并）；
 - SDK role 增量：`b07f949`（由旧分支 `6b2d98c` 迁移）；
 - CP 使用 `bk_idk/armino_as_lib/cp/`，AP 使用 `bk_idk/armino_as_lib/ap/`；

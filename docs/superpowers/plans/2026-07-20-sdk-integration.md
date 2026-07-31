@@ -8,6 +8,12 @@
 
 **Tech Stack:** arm-none-eabi-gcc 10.3.1, Beken bk_avdk_smp SDK, NuttX RTOS, armino_as_lib.sh 打包工具
 
+> **归档说明（2026-07-31）：** 本计划中的单层 `armino_as_lib/{cp,ap}` 是当时路径，
+> 不再作为当前操作说明。现目录为
+> `armino_as_lib/versions/<version>/{cp,ap}`，默认 `v3.1.1.9`，legacy 同样位于
+> `versions/legacy/`。请使用当前导入脚本和
+> `docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md`。
+
 ## Global Constraints
 
 - 不修改 nuttx 官方树，所有改动在 `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/` overlay 内

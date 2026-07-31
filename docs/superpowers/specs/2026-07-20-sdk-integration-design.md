@@ -5,6 +5,11 @@
 > **范围**：定义 BK7258 NuttX 适配引入 Beken SDK 的完整架构——三核 AMP 编译模型、
 > armino_as_lib 预编译库集成、OS 适配层、Wrapper 层、构建系统、镜像组装。
 > **核心决策**：全面转 SDK——底层不再从零手写寄存器，NuttX 侧只写薄 wrapper 调 `bk_*` API。
+>
+> **归档说明（2026-07-31）：** 本文保留最初设计时的单层
+> `armino_as_lib/{cp,ap}` 路径用于追溯；当前实现已统一为
+> `armino_as_lib/versions/<version>/{cp,ap}`，默认 `v3.1.1.9`。当前操作请以
+> `docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md` 为准。
 
 ---
 

@@ -15,6 +15,7 @@ CP_PHYSICAL_OFFSET = 0x011000
 DATA_PHYSICAL_OFFSET = 0x110000
 AP_PHYSICAL_OFFSET = 0x220000
 AP_PHYSICAL_END = 0x440000
+FLASH_ERASE_SIZE = 0x1000
 
 
 def sha256(path: Path) -> str:
@@ -40,6 +41,20 @@ def copy(path: Path, output: Path) -> Path:
     return destination
 
 
+def align_up(value: int, alignment: int) -> int:
+    return (value + alignment - 1) & ~(alignment - 1)
+
+
+def copy_flash_segment(path: Path, output: Path, name: str) -> Path:
+    """Copy a physical image and pad it to a complete erase sector."""
+
+    destination = output / name
+    payload = path.read_bytes()
+    padded_size = align_up(len(payload), FLASH_ERASE_SIZE)
+    destination.write_bytes(payload + b"\xff" * (padded_size - len(payload)))
+    return destination
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--boot", type=Path, required=True)
@@ -56,9 +71,11 @@ def main() -> None:
 
     if args.boot.stat().st_size != BOOT_PHYSICAL_SIZE:
         raise SystemExit("bl_crc.bin must be exactly 0x11000 bytes")
-    if CP_PHYSICAL_OFFSET + args.cp_crc.stat().st_size > DATA_PHYSICAL_OFFSET:
+    cp_flash_size = align_up(args.cp_crc.stat().st_size, FLASH_ERASE_SIZE)
+    ap_flash_size = align_up(args.ap_crc.stat().st_size, FLASH_ERASE_SIZE)
+    if CP_PHYSICAL_OFFSET + cp_flash_size > DATA_PHYSICAL_OFFSET:
         raise SystemExit("CP image overlaps the LittleFS physical boundary")
-    if AP_PHYSICAL_OFFSET + args.ap_crc.stat().st_size > AP_PHYSICAL_END:
+    if AP_PHYSICAL_OFFSET + ap_flash_size > AP_PHYSICAL_END:
         raise SystemExit("AP image exceeds its 2 MiB logical slot")
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -67,16 +84,24 @@ def main() -> None:
     cp_crc = copy(args.cp_crc, args.output)
     ap_raw = copy(args.ap_raw, args.output)
     ap_crc = copy(args.ap_crc, args.output)
+    cp_flash = copy_flash_segment(
+        args.cp_crc, args.output, "app_crc_flash.bin"
+    )
+    ap_flash = copy_flash_segment(
+        args.ap_crc, args.output, "app1_crc_flash.bin"
+    )
 
     segments = [
         segment("bootloader", boot, BOOT_PHYSICAL_OFFSET),
-        segment("cp_app", cp_crc, CP_PHYSICAL_OFFSET),
-        segment("ap_app", ap_crc, AP_PHYSICAL_OFFSET),
+        segment("cp_app", cp_flash, CP_PHYSICAL_OFFSET),
+        segment("ap_app", ap_flash, AP_PHYSICAL_OFFSET),
     ]
 
-    factory_size = AP_PHYSICAL_OFFSET + ap_crc.stat().st_size
+    factory_size = AP_PHYSICAL_OFFSET + ap_flash.stat().st_size
     factory = bytearray(b"\xff" * factory_size)
-    for item, path in zip(segments, (boot, cp_crc, ap_crc), strict=True):
+    for item, path in zip(
+        segments, (boot, cp_flash, ap_flash), strict=True
+    ):
         start = int(item["physical_offset"])
         payload = path.read_bytes()
         factory[start : start + len(payload)] = payload
@@ -102,9 +127,14 @@ def main() -> None:
             "cp": {"file": cp_raw.name, "sha256": sha256(cp_raw)},
             "ap": {"file": ap_raw.name, "sha256": sha256(ap_raw)},
         },
+        "crc_images": {
+            "cp": {"file": cp_crc.name, "sha256": sha256(cp_crc)},
+            "ap": {"file": ap_crc.name, "sha256": sha256(ap_crc)},
+        },
         "normal_update": {
             "preserves_littlefs": True,
             "mode": "BKFIL/bk_loader multi-segment offset-length writes",
+            "flash_erase_alignment": FLASH_ERASE_SIZE,
             "arguments": [item["bkfil"] for item in segments],
         },
         "factory_image": {

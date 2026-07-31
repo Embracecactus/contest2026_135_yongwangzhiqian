@@ -1,64 +1,94 @@
-# BK7258 T5-AI SDK Bundle (bk_idk)
+# BK7258 T5-AI SDK bundles
 
-## Overview
+`armino_as_lib/` 保存从已授权 Beken SDK 本地编译、导出的 CP/AP 头文件和静态库。
+这些文件含受限预编译内容，已由 Git 忽略，不在本仓库分发；仓库只跟踪版本选择器、
+导入脚本、校验清单和来源记录。
 
-`armino_as_lib/` is the Beken BK7258 SDK prebuilt static library bundle. It is
-generated/copied locally from an authorized Beken or Tuya SDK distribution and
-is **intentionally not versioned** in this repository because it contains
-BEKEN proprietary/restricted prebuilts that are not authorized for
-redistribution here.
+## 版本布局
 
-## Expected layout
-
-The expected root for the SDK bundle is:
+项目默认使用官方技术支持提供并已完成板测的 `v3.1.1.9`，同时原样保留迁移前的
+`legacy` 作为回退：
 
 ```text
-bk_idk/armino_as_lib/cp/
-  include/   -- 341 SDK header files
-  config/    -- 2 SDK configuration headers
-  libs/      -- 81 static library archives (.a) + 4 .obj object files
+bk_idk/
+  sdk-bundles.mk
+  armino_as_lib/
+    versions/
+      legacy/
+        cp/{include,config,libs} # 迁移前 CP，不覆盖
+        ap/{include,config,libs} # 迁移前 AP，不覆盖
+      v3.1.1.9/
+        cp/{include,config,libs}
+        ap/{include,config,libs}
 ```
 
-## Linked libraries
+当前 bundle 文件数：
 
-`scripts/Make.defs` links **31 of the 81** local `.a` libraries after
-`BK_EXCLUDE_LIBS` filtering. The 50 excluded libraries include CMSIS startup,
-coredump/unity test tools, networking (lwip, wpa_supplicant, wifi), crypto
-(psa_mbedtls, hmac), and duplicate Bluetooth controller/host variants. None
-of the excluded or included libraries are redistributed in this repository.
+| 版本 / 角色 | include | config | `.a` | loose `.obj` |
+|---|---:|---:|---:|---:|
+| `legacy/cp` | 341 | 2 | 81 | 4 |
+| `legacy/ap` | 603 | 2 | 101 | 0 |
+| `v3.1.1.9/cp` | 341 | 2 | 81 | 0 |
+| `v3.1.1.9/ap` | 603 | 2 | 101 | 0 |
 
-The 4 `.obj` files (`port.c.obj`, `portasm.c.obj`, `rtos_init.c.obj`,
-`startup_bk7236.c.obj`) are also not linked or redistributed.
+CP 的 4 个 legacy loose object 不参与 NuttX 链接。
 
-## Setup script
+## 选择版本
 
-Use `scripts/setup_bk7258_sdk.sh` to validate or install the SDK bundle:
+普通构建不设置变量时使用 `v3.1.1.9`：
 
 ```bash
-# Validate the default installed bundle against the tracked checksum manifest
-scripts/setup_bk7258_sdk.sh --check
-
-# Validate a specific cp directory
-scripts/setup_bk7258_sdk.sh --check /path/to/authorized/cp
-
-# Install from an authorized Beken/Tuya SDK cp bundle
-# (refuses if destination already exists; does not overwrite)
-scripts/setup_bk7258_sdk.sh --install /path/to/authorized/armino_as_lib/cp
+JOBS=8 board/bk7258_t5ai/scripts/build_dual_image.sh
 ```
 
-The script performs **no network download**. The source must be an authorized
-Beken/Tuya SDK `armino_as_lib/cp` bundle obtained separately.
+需要回退时只对该次构建显式选择 legacy：
 
-## Checksum manifest
+```bash
+BK7258_SDK_BUNDLE_VERSION=legacy JOBS=8 \
+  board/bk7258_t5ai/scripts/build_dual_image.sh
+```
 
-`scripts/bk7258_sdk_manifest.sha256` contains SHA-256 checksums for all 374
-tracked files (341 headers + 2 config files + 31 linked libraries). This pins
-the exact binary content of the local bundle for reproducibility.
+Classic Make 与 CMake 都只接受 `legacy` 或 `v3.1.1.9`，未知版本会立即报错，不会
+静默链接到其他目录。构建产物中的 `build-profile.txt` 会记录所选版本、CP/AP 实际
+目录、manifest 和 provenance 哈希。
 
-## Future self-contained distribution
+## 校验
 
-A future self-contained distribution of the SDK bundle (committed directly or
-via submodule) requires **explicit Beken redistribution approval** and is
-preferably housed in a separate vendor-owned repository/manifest project, as
-demonstrated by the BK7236N `vendor_beken` precedent (dedicated vendor repo,
-plain Git blobs, explicit `LICENSE-NOTES.md`).
+默认校验最新 CP，完整校验应显式检查两个角色：
+
+```bash
+board/bk7258_t5ai/scripts/setup_bk7258_sdk.sh \
+  --check --version v3.1.1.9 --role cp
+board/bk7258_t5ai/scripts/setup_bk7258_sdk.sh \
+  --check --version v3.1.1.9 --role ap
+```
+
+legacy 回退包也有完整清单：
+
+```bash
+for role in cp ap; do
+  board/bk7258_t5ai/scripts/setup_bk7258_sdk.sh \
+    --check --version legacy --role "${role}"
+done
+```
+
+清单和来源记录位于：
+
+```text
+scripts/sdk-manifests/<version>/<role>.sha256
+scripts/sdk-manifests/<version>/<role>.provenance
+```
+
+## 重新编译和导入
+
+完整命令及官方 archive/source 路径见
+[`docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md`](../../../docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md)。
+脚本会重新编译 SDK UART 对象并加入 `CONFIG_BK_PRINTF_DISABLE`，避免 SDK 初始化接管
+NuttX console。`legacy` 被设为不可替换；`--replace` 只允许显式替换非 legacy
+版本，旧的 `--force` 已移除。
+
+## 分发边界
+
+若未来要把 bundle 自包含分发，必须先取得 Beken 的明确再分发授权。可参考
+BK7236N `vendor_beken` 的独立 vendor 仓、许可证说明和普通 Git blob 模式；在取得
+授权前，本仓只保留可复现的导入流程和 SHA-256 证据。

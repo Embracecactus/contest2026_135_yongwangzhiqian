@@ -122,7 +122,7 @@
 #define BK7258_AP_BOOT_STATE_MAGIC       0x53425041u /* "APBS" */
 #define BK7258_AP_BOOT_STATE_VERSION     1u
 #define BK7258_AP_DOORBELL_MAGIC         0x524f4f44u /* "DOOR" */
-#define BK7258_AP_DEFAULT_TIMEOUT_MS     3000u
+#define BK7258_AP_DEFAULT_TIMEOUT_MS     15000u
 #define BK7258_AP_RESTART_DELAY_MS       6u
 
 /* Keep the 0x80-byte boot-state ABI stable.  A fault-only extension lives

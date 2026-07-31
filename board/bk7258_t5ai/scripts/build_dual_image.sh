@@ -33,6 +33,22 @@ esac
 AP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${AP_CONFIG_NAME}"
 JOBS="${JOBS:-8}"
 OUTPUT="${TOPDIR}/bk7258-dual"
+BK7258_SDK_BUNDLE_VERSION="${BK7258_SDK_BUNDLE_VERSION:-v3.1.1.9}"
+
+case "${BK7258_SDK_BUNDLE_VERSION}" in
+    legacy|v3.1.1.9)
+        ;;
+    *)
+        printf "build_dual_image: unsupported SDK bundle version '%s'\n" \
+            "${BK7258_SDK_BUNDLE_VERSION}" >&2
+        exit 2
+        ;;
+esac
+
+SDK_BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
+SDK_BUNDLE_ROOT="${SDK_BUNDLE_BASE}/versions/${BK7258_SDK_BUNDLE_VERSION}"
+SDK_MANIFEST_DIR="${SCRIPT_DIR}/sdk-manifests/${BK7258_SDK_BUNDLE_VERSION}"
+export BK7258_SDK_BUNDLE_VERSION
 TMPDIR="$(mktemp -d)"
 
 cleanup()
@@ -40,6 +56,36 @@ cleanup()
     rm -rf "${TMPDIR}"
 }
 trap cleanup EXIT
+
+for role in cp ap; do
+    "${SCRIPT_DIR}/setup_bk7258_sdk.sh" --check \
+        --version "${BK7258_SDK_BUNDLE_VERSION}" --role "${role}"
+done
+
+CP_SDK_ROLE_DIR="$(readlink -f "${SDK_BUNDLE_ROOT}/cp")"
+AP_SDK_ROLE_DIR="$(readlink -f "${SDK_BUNDLE_ROOT}/ap")"
+CP_SDK_MANIFEST="${SDK_MANIFEST_DIR}/cp.sha256"
+AP_SDK_MANIFEST="${SDK_MANIFEST_DIR}/ap.sha256"
+CP_SDK_MANIFEST_SHA256="$(sha256sum "${CP_SDK_MANIFEST}" | awk '{print $1}')"
+AP_SDK_MANIFEST_SHA256="$(sha256sum "${AP_SDK_MANIFEST}" | awk '{print $1}')"
+
+file_sha256_or_missing()
+{
+    local path="$1"
+
+    if [[ -f "${path}" ]]; then
+        sha256sum "${path}" | awk '{print $1}'
+    else
+        printf 'missing\n'
+    fi
+}
+
+CP_SDK_PROVENANCE_SHA256="$(
+    file_sha256_or_missing "${SDK_MANIFEST_DIR}/cp.provenance"
+)"
+AP_SDK_PROVENANCE_SHA256="$(
+    file_sha256_or_missing "${SDK_MANIFEST_DIR}/ap.provenance"
+)"
 
 build_config()
 {
@@ -62,6 +108,8 @@ save_role()
     fi
 }
 
+printf 'build_dual_image: SDK bundle version: %s\n' \
+    "${BK7258_SDK_BUNDLE_VERSION}"
 printf '%s\n' "build_dual_image: rebuilding Tier-1 bootloader"
 make -C "${BOARD_DIR}/bootloader" clean all
 
@@ -106,6 +154,16 @@ CP_CONFIG_NAME=${CP_CONFIG_NAME}
 AP_CONFIG_NAME=${AP_CONFIG_NAME}
 CP_CONFIG=${CP_CONFIG}
 AP_CONFIG=${AP_CONFIG}
+BK7258_SDK_BUNDLE_VERSION=${BK7258_SDK_BUNDLE_VERSION}
+BK7258_SDK_BUNDLE_ROOT=${SDK_BUNDLE_ROOT}
+CP_SDK_ROLE_DIR=${CP_SDK_ROLE_DIR}
+AP_SDK_ROLE_DIR=${AP_SDK_ROLE_DIR}
+CP_SDK_MANIFEST=${CP_SDK_MANIFEST}
+AP_SDK_MANIFEST=${AP_SDK_MANIFEST}
+CP_SDK_MANIFEST_SHA256=${CP_SDK_MANIFEST_SHA256}
+AP_SDK_MANIFEST_SHA256=${AP_SDK_MANIFEST_SHA256}
+CP_SDK_PROVENANCE_SHA256=${CP_SDK_PROVENANCE_SHA256}
+AP_SDK_PROVENANCE_SHA256=${AP_SDK_PROVENANCE_SHA256}
 EOF
 
 cp "${OUTPUT}/app.bin" "${TOPDIR}/app.bin"

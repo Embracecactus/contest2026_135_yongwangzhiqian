@@ -28,3 +28,7 @@ board/bk7258_t5ai/bk_idk/armino_as_lib/
 
 # Local backup files
 *.bak
+
+# Local Claude Code state
+memory/
+.claude/settings.local.json

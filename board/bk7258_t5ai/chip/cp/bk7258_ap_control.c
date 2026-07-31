@@ -18,28 +18,11 @@
 #include <string.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/signal.h>
 
 #include <arch/chip/bk7258_amp.h>
-
-/* TEMP cold-reset diagnostic: emit a short raw-UART tag so the last
- * completed startup checkpoint remains visible without /dev/console,
- * printf or syslog.  Delete after diagnosis.
- */
-
-static void cold_ckpt(const char *tag)
-{
-  up_putc('\r');
-  up_putc('\n');
-  while (*tag)
-    {
-      up_putc(*tag++);
-    }
-
-  up_putc('\r');
-  up_putc('\n');
-}
 
 /****************************************************************************
  * External Function Prototypes
@@ -78,6 +61,8 @@ static void bk7258_cpu2_force_reset(void)
     (volatile uint32_t *)(uintptr_t)BK7258_SYS_CPU2_CONTROL;
 
   *control &= ~BK7258_SYS_CPU2_RESET;
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+  *control |= BK7258_SYS_CPU2_POWER_DOWN;
   __asm volatile ("dsb sy; isb sy" ::: "memory");
 }
 
@@ -205,16 +190,19 @@ static bool bk7258_ap_scheduler_online(void)
 static int bk7258_ap_wait(uint32_t wanted, uint32_t timeout_ms)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
-  uint32_t elapsed;
+  clock_t start;
+  clock_t timeout_ticks;
   uint32_t event;
-  bool first_iter = true;
 
   if (timeout_ms == 0)
     {
       timeout_ms = BK7258_AP_DEFAULT_TIMEOUT_MS;
     }
 
-  for (elapsed = 0; elapsed < timeout_ms; elapsed++)
+  timeout_ticks = MSEC2TICK(timeout_ms);
+  start = clock_systime_ticks();
+
+  for (;;)
     {
       event = bk7258_ap_mbox_receive();
       if (event != BK7258_AP_EVENT_NONE)
@@ -233,17 +221,19 @@ static int bk7258_ap_wait(uint32_t wanted, uint32_t timeout_ms)
           return -EIO;
         }
 
-      if (first_iter)
+      if ((clock_t)(clock_systime_ticks() - start) >= timeout_ticks)
         {
-          cold_ckpt("W0"); /* Before first 1 ms sleep */
+          break;
         }
 
+      /* Yield to the CP idle thread while waiting.  A pure busy-poll at the
+       * NSH task priority prevents the board task watchdog from being fed and
+       * can reset CP before the 15-second AP timeout expires.  This mirrors
+       * the SDK's scheduled millisecond-delay model while the absolute tick
+       * comparison above remains the authoritative timeout.
+       */
+
       nxsig_usleep(1000);
-      if (first_iter)
-        {
-          cold_ckpt("W1"); /* First 1 ms sleep returned */
-          first_iter = false;
-        }
     }
 
   return -ETIMEDOUT;
@@ -253,8 +243,6 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
   int ret;
-
-  cold_ckpt("A0"); /* Enter start_locked */
 
   if (state->magic == BK7258_AP_BOOT_STATE_MAGIC &&
       (state->state == BK7258_AP_STATE_READY ||
@@ -267,41 +255,36 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
 
   sys_drv_set_cpu1_reset(0);
   __asm volatile ("dsb sy; isb sy" ::: "memory");
-  cold_ckpt("A1"); /* CPU1 reset hold done */
 
   bk7258_cpu2_force_reset();
+  sys_drv_set_cpu1_pwr_dw(1);
   up_mdelay(BK7258_AP_RESTART_DELAY_MS);
-  cold_ckpt("A2"); /* CPU2 force-reset + delay done */
 
   bk7258_ap_mbox_initialize();
   bk7258_ap_state_prepare();
-  cold_ckpt("A3"); /* Mailbox/shared state prepared */
 
-  /* Exact BK7258 CPU1 release order from the CP SDK. */
+  /* Release order matches the BK7258 CP SDK.  The reset+power-down pulse
+   * above is an intentional cold-start normalization step: unlike the SDK's
+   * one-shot boot path, this controller must also survive downloader reset
+   * residue and repeated AP restart attempts with private caches populated.
+   */
 
   sys_drv_set_cpu1_pwr_dw(0);
   sys_drv_set_cpu1_rxevt_sel(1);
   sys_drv_set_cpu1_boot_address_offset(BK7258_AP_FLASH_ADDR >> 8);
   __asm volatile ("dsb sy; isb sy" ::: "memory");
-  cold_ckpt("A4"); /* CPU1 power/RXEVT/boot address done */
 
   sys_drv_set_cpu1_reset(1);
   __asm volatile ("dsb sy; sev" ::: "memory");
-  cold_ckpt("A5"); /* CPU1 reset released */
-  cold_ckpt("A6"); /* Entering AP READY wait */
 
   ret = bk7258_ap_wait(BK7258_AP_STATE_READY, timeout_ms);
-  cold_ckpt("A7"); /* AP wait returned */
   if (ret < 0)
     {
       sys_drv_set_cpu1_reset(0);
       __asm volatile ("dsb sy; isb sy" ::: "memory");
       bk7258_cpu2_force_reset();
       up_mdelay(BK7258_AP_RESTART_DELAY_MS);
-      cold_ckpt("F1"); /* Failure cleanup: AP cores held reset */
-
       sys_drv_set_cpu1_pwr_dw(1);
-      cold_ckpt("F2"); /* Failure cleanup: CPU1 power-down done */
 
       if (state->state != BK7258_AP_STATE_FAILED)
         {

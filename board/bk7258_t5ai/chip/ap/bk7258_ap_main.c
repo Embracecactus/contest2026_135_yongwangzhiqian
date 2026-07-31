@@ -33,6 +33,19 @@
 #define BK7258_SYSTICK_CURRENT      (*(volatile uint32_t *)0xe000e018u)
 #define BK7258_SYSTICK_ENABLE       (1u << 0)
 #define BK7258_SYSTICK_TICKINT      (1u << 1)
+#define BK7258_SCB_CCR              (*(volatile uint32_t *)0xe000ed14u)
+#define BK7258_SCB_CCR_DCACHE       (1u << 16)
+#define BK7258_MPU_CTRL             (*(volatile uint32_t *)0xe000ed94u)
+#define BK7258_MPU_RNR              (*(volatile uint32_t *)0xe000ed98u)
+#define BK7258_MPU_RBAR             (*(volatile uint32_t *)0xe000ed9cu)
+#define BK7258_MPU_RLAR             (*(volatile uint32_t *)0xe000eda0u)
+#define BK7258_MPU_MAIR0            (*(volatile uint32_t *)0xe000edc0u)
+#define BK7258_MPU_SRAM_REGION      15u
+#define BK7258_MPU_SRAM_RBAR        0x2800001au
+#define BK7258_MPU_SRAM_RLAR        0x3fffffe3u
+#define BK7258_MPU_ATTR1_MASK       0x0000ff00u
+#define BK7258_MPU_ATTR1_NOCACHE    0x00004400u
+#define BK7258_MPU_CTRL_EXPECTED    0x7u
 #define BK7258_AP_HEARTBEAT_US      100000u
 
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
@@ -121,6 +134,7 @@ static int bk7258_ap_validate_runtime(void)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
   void *test;
+  uint32_t mpu_rnr;
   uint32_t msp;
 
   __asm volatile ("mrs %0, msp" : "=r"(msp));
@@ -138,10 +152,37 @@ static int bk7258_ap_validate_runtime(void)
   state->flash_start     = BK7258_AP_FLASH_ADDR;
   state->flash_end       = BK7258_AP_FLASH_ADDR + BK7258_AP_FLASH_SIZE;
 
+  /* Publish the cache/MPU handoff contract in the normal-boot reserved
+   * words.  The fault handler intentionally reuses these words if a later
+   * exception occurs, so a debugger can distinguish normal telemetry from
+   * fault evidence through state->state/error.
+   */
+
+  mpu_rnr = BK7258_MPU_RNR;
+  BK7258_MPU_RNR = BK7258_MPU_SRAM_REGION;
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+  state->reserved[0] = BK7258_SCB_CCR;
+  state->reserved[1] = BK7258_MPU_CTRL;
+  state->reserved[2] = BK7258_MPU_RBAR;
+  state->reserved[3] = BK7258_MPU_RLAR;
+  BK7258_MPU_RNR = mpu_rnr;
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+
   if (*(volatile uint32_t *)BK7258_LOCAL_CORE_ID_ADDR != 0 ||
       state->physical_core_id != 1)
     {
       return BK7258_AP_ERROR_BAD_CORE_ID;
+    }
+
+  if ((state->reserved[0] & BK7258_SCB_CCR_DCACHE) != 0 ||
+      (state->reserved[1] & BK7258_MPU_CTRL_EXPECTED) !=
+        BK7258_MPU_CTRL_EXPECTED ||
+      state->reserved[2] != BK7258_MPU_SRAM_RBAR ||
+      state->reserved[3] != BK7258_MPU_SRAM_RLAR ||
+      (BK7258_MPU_MAIR0 & BK7258_MPU_ATTR1_MASK) !=
+        BK7258_MPU_ATTR1_NOCACHE)
+    {
+      return BK7258_AP_ERROR_BAD_BOOT_STATE;
     }
 
   if (state->runtime_vtor < BK7258_AP_RAM_BASE ||

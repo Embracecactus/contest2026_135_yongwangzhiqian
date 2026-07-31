@@ -7,9 +7,9 @@
  *
  * Calls bk_wdt_* / bk_aon_wdt_* SDK APIs.  Zero register access.
  *
- * Fixes: AON WDT orphaned by bootloader → infinite reboot (F-01).
- * The bootloader arms both APB + AON WDTs (~8 s); this driver stops
- * AON WDT immediately on init and manages APB WDT via NuttX automonitor.
+ * The bootloader arms both APB + AON WDTs (~8 s).  The CP reset entry closes
+ * both before nx_start(); this driver is registered after bounded AP
+ * autostart and manages the APB WDT through the NuttX automonitor.
  ****************************************************************************/
 
 /****************************************************************************
@@ -179,9 +179,9 @@ static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
  * Description:
  *   Initialize the BK7258 WDT and register as /dev/watchdog0.
  *
- *   ★ Root cause fix: stops AON WDT immediately.  Bootloader arms both
- *   APB + AON WDTs; AON is not managed by NuttX watchdog framework and
- *   would expire ~8 s after boot → reboot loop.
+ *   Keep AON WDT disabled and register the APB WDT for NuttX automonitor.
+ *   The CP reset entry has already closed both bootloader watchdogs before
+ *   nx_start(), so registration establishes a fresh OS-owned timeout.
  *
  *   APB WDT is managed by NuttX automonitor (CONFIG_WATCHDOG_AUTOMONITOR):
  *   register triggers start + periodic keepalive via work queue.

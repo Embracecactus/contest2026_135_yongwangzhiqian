@@ -6,7 +6,8 @@
 ## 摘要
 
 我们在涂鸦 T5-AI 开发板上推进 openvela / NuttX 向 BK7258 的移植。**已完成并板端验证**的工作：
-对板上两家 bootloader（涂鸦 65 KB、BK 官方 52 KB）的完整逆向综合；自制 **Tier-1 bootloader**
+对板上两家 bootloader（涂鸦 65 KB、BK 官方 52 KB）进行二进制/SDK/Ghidra 交叉分析，
+并复现当前 raw NuttX 启动所需契约；自制 **Tier-1 bootloader**
 （asm 跳板 + C main + asm 硬化跳转 epilogue）并在板端跑通 BootROM → bootloader → app 完整跳转链；
 用一个最小裸探针（probe）在板端坐实了"启动核 = CPU0"这一关键事实；NuttX 内核完整启动到**交互式
 NSH**（Stage N1 跳转链 + N2 NSH console + N3 procfs/ps 均板端验证，2026-07-18）。**配套产出**：
@@ -14,12 +15,10 @@ NSH**（Stage N1 跳转链 + N2 NSH console + N3 procfs/ps 均板端验证，202
 
 状态速览：✅ Bootloader 逆向 / ✅ Tier-1 bootloader 板端验证 / ✅ 启动核确认 / ✅ CRC packer 等价性
 / ✅ NuttX Stage N1（bootloader 跳进 NuttX，早期 UART）/ ✅ NuttX Stage N2（NSH 交互 console）
-/ ✅ NuttX Stage N3（procfs + ps）/ **CURRENT：Stage N4 内 N4-D0/D0D/D0F（时钟诊断 baseline +
-runtime SysTick bookkeeping + 100Hz tick 兼容性）substage 板端验证（D0/D0D `6f596b7`，D0F
-`8dab594`）；N4-D1（DPLL lock）blocked；DPLL enable / mux 切换 not attempted；整 N4 not
-board-verified** / **Stage N5 flash filesystem：N5-D0..D4 board-observed + N5-D5 raw flash r/w + N5-D6 MTD + N5-D7 LittleFS 全链路 board-verified（2026-07-19），D7 版 `all-app.bin` = 192270 B = `0x2EF0E`**
-/ 📋 Tier-2 bootloader（OTA）、
-PSRAM、多核 SMP（后续未编号）。
+/ ✅ NuttX Stage N3（procfs + ps）/ ✅ Stage N5 raw flash + MTD + LittleFS /
+✅ Stage N7 AP single-core / ✅ Stage N8 AP native SMP 与 warm/physical RESET closure /
+**CURRENT：Stage N9 CP/AP RPTUN/OpenAMP/RPMsg（`static-only` planning，尚未实现、构建或板测）**
+/ 📋 Tier-2 bootloader（OTA）、PSRAM、Wi-Fi/BLE 服务层。
 
 ---
 
@@ -32,7 +31,8 @@ XIP FLASH，集成 Wi-Fi 6 + BLE 5.4。属 BK7236 启动家族（同 BootROM 协
 FAL 分区），app 区由涂鸦私有用例占用。
 
 **竞赛任务**：移植到新硬件。**本阶段目标**：在 BK7258 上打通 BootROM → bootloader → NuttX app
-的最小跳转链，先以单核（CPU0）跑出 NSH baseline；多核（CPU1/CPU2 SMP）与 OTA 列入后续路线。
+的最小跳转链，先以单核（CPU0）跑出 NSH baseline；当时列入后续路线的 AP
+CPU1/CPU2 SMP 现已在 N8 完成，OTA 仍保留为后续路线。
 
 **技术路线选型**：不直接复用涂鸦或 BK 官方的预编译 bootloader binary（vendor blob 不可审计、
 带私有 OTA 依赖），而是基于两家共有的 BootROM 启动协议**自制 Tier-1 bootloader**，完全可控
@@ -53,8 +53,9 @@ clock / GPIO / WDT / debug / UART，并贴合"移植新硬件"的本意。详见
 | CPU1 | AP 副核：被 CPU0 的 app 通过 sys_ctrl 寄存器唤醒 | `sys_drv_set_cpu1_boot_address_offset(offset >> 8)` + `sys_drv_set_cpu1_reset(start_flag)`；`startup_cpu1.c` 标 "app@cpu1" |
 | CPU2 | AP 副核（可选，`CONFIG_CPU_CNT > 2`） | `startup_cpu2.c` 的 `multicore_launch_core2` |
 
-> 两家 bootloader **都不负责多核唤醒**——这是 app 层 `start_cpu1_core()` 的责任。自制 bootloader
-> 因此只需单核跳转即可，显著简化设计。
+> 两家 bootloader **都不负责释放多核进入 app**——这是 app 层 `start_cpu1_core()` 的责任。
+> 但 bootloader 仍必须把 secondary-core power/reset、cache/MPU、WDT 和 handoff 状态确定化，
+> 不能简化成只执行一次单核 branch。
 
 ### 2.2 内存地图
 
@@ -93,7 +94,9 @@ BootROM (mask ROM)
 
 ## 3. Bootloader 逆向
 
-对板上两家 bootloader 做了完整反汇编 + SDK 源码交叉引用（`hardware-review-gate` 二进制模式）。
+对板上两家 bootloader 做了全文件反汇编 + SDK 源码交叉引用；2026-07-31 又用技术支持
+v3.1.1.9 exact binary 和 Ghidra 复核 reset/handoff call graph。这里的“全文件”不表示已
+证明官方 52 KB 全部 134 个函数语义等价；当前交付范围是 raw NuttX 启动契约。
 详细文档：
 
 - 综合结论：[`bootloader/full-reverse-synthesis.md`](bootloader/full-reverse-synthesis.md)
@@ -188,7 +191,7 @@ bootloader 把它当 CPU0 的 app 跳进来了**。运行时 core-id 字 `0x2000
 Tier-1 bootloader **不基于某一家 binary**，而是实现 BootROM 期望的**通用 app 格式**（两家共有
 的启动契约），具体细节取长补短：
 
-- **硬化跳转 epilogue** 学 BK 官方 §2.7（`flash_cache_disable` 除外，见 §5.5）：VTOR → dsb → isb
+- **硬化跳转 epilogue** 学 BK 官方 §2.7，并已在 §5.5 补齐 cache/MPU handoff：VTOR → dsb → isb
   → MSP → 清 r0-r12 → `bx`，最严谨的切换序列。
 - **FAL 分区表** 用 BK SDK `fal_def.h` 的 `struct fal_partition` 格式（`magic_word=0x45503130`，
   两家通用），按名找 `app`，从 `partition.offset` 推导 app 逻辑地址（非硬编码 `0x02010000`）。
@@ -201,6 +204,7 @@ Tier-1 bootloader **不基于某一家 binary**，而是实现 BootROM 期望的
 | 层 | 文件 | 职责 |
 |---|---|---|
 | asm 跳板 | [`start.S`](../../board/bk7258_t5ai/bootloader/start.S) | 向量表（64 项）+ bl magic `"BK7236\x10\x00"` @ `.org 0x100` + 逐字保留已验证 init 序列（cpsid / SWD / WDT key / GPIO0/1+GPIO10/11 pinmux / UART1 clk+cfg）+ `bl c_main` + 硬化跳转 epilogue |
+| reset runtime | [`boot_runtime.c`](../../board/bk7258_t5ai/bootloader/boot_runtime.c) | v3.1.1.9 clean-room reset/cache/MPU/core-power normalization 和 app handoff |
 | C main | [`boot_main.c`](../../board/bk7258_t5ai/bootloader/boot_main.c) | FAL 分区表解析（按名找 `app`）→ app header 校验（MSP 范围 / Reset Thumb / magic 双 word）→ UART1 日志 |
 | asm epilogue | （`start.S` 尾部） | `r1=app MSP`、`r2=app Reset`；`VTOR ← app_vec`；`dsb/isb`；`MSP ← app SP`；`dsb/isb`；清 r0,r1,r3..r12（保留 r2）；`dsb/isb`；`bx r2` |
 | 链接 | [`bootloader.ld`](../../board/bk7258_t5ai/bootloader/bootloader.ld) | FLASH @ `0x02000000` slot 0x10000；RAM @ `0x28000000` |
@@ -219,10 +223,11 @@ Tier-1 bootloader **不基于某一家 binary**，而是实现 BootROM 期望的
 
 ### 5.5 刻意偏离规范的地方（有注释、可追溯）
 
-- **`flash_cache_disable` 跳过**：BK 私有 cache 控制块（§2.9，base `0xED00E000`，offsets
-  `0x80`/`0x84`/`0x274`）未对照 BK7258 register map 确认，且已验证的最小 bootloader 从不碰
-  cache。cache disable 是优化（避免 VTOR 重基后的 stale 取指），不是冷启动交接的正确性要求；
-  epilogue 里的 `dsb/isb` 已足够串行化 VTOR + MSP 写。详见 `start.S` 注释块。
+- **历史实现曾跳过 `flash_cache_disable`**：SCB base 应为 `0xE000ED00`
+  （旧文档中的 `0xED00E000` 是笔误）。后续 v3.1.1.9 官方 bootloader 复核和 physical-reset
+  板测已证明 cache/MPU 清理属于可靠冷启动交接的一部分，当前 Tier-1 已在
+  `boot_runtime.c`/`start.S` 补齐；不能再把它只描述成可选优化。`dsb/isb` 只负责
+  顺序保证，不能替代 stale cache line 清理。详见 `start.S` 注释块。
 - **UART TX poll 有界**：UART1 status (`0x45830018`) bit20 作 "TX-FIFO-not-full" 轮询，busy-wait
   有界（最多 100000 次迭代），若硅片位极性反转则降级为已验证最小 bootloader 的 write-through
   行为，不挂死启动。
@@ -380,7 +385,12 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 | **N1** | NuttX 最小镜像被 Tier-1 bootloader 跳进去，早期 UART 打印可见 | ✅ done（`board-verified`，commit `40495ca`） |
 | **N2** | `nx_start` kernel 起来 + UART1 console → **交互式 NSH** | ✅ done（`board-verified` 2026-07-18，code `9f45bc6` + docs `e3ad3e9`） |
 | **N3** | 挂 procfs 到 `/proc` → **`ps` / `ls /proc` / `cat /proc/*` 可用** | ✅ done（code `4d9198e` + docs `68badfe`；state-C `board-verified` 2026-07-18） |
-| **N4** | DPLL / 480 MHz CPU0 clock bring-up + 独立测量 + N3 regression | **CURRENT**：N4-D0/D0D/D0F substage `board-verified`（D0/D0D `6f596b7`，D0F `8dab594`）；N4-D1 blocked；DPLL enable / mux 切换 not attempted；整 N4 not board-verified（[master](next-stage-prompt.md) / [N4 prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md)） |
+| **N4** | DPLL / 480 MHz CPU0 clock bring-up + 独立测量 + N3 regression | historical：N4-D0/D0D/D0F substage `board-verified`；N4-D1 blocked；产品路径采用已验证 320 MHz runtime DVFS |
+| **N5** | raw flash + MTD + LittleFS | ✅ done / `board-verified` |
+| **N6** | Beken SDK integration / WDT / IRQ / GPIO | ✅ CPU0 baseline `board-verified` |
+| **N7** | physical CPU1 independent AP NuttX | ✅ done / `board-verified` |
+| **N8** | AP physical CPU1+CPU2 native SMP | ✅ done / `board-verified`，含 warm/physical RESET 3/3 closure |
+| **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | **CURRENT：`static-only` planning**；见 [N9 plan](nuttx-port/prompts/09-n9-rptun-rpmsg.md) |
 
 N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
 UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
@@ -665,16 +675,22 @@ board/bk7258_t5ai/bootloader/
 
 ## 12. 下一步 Roadmap
 
+> **2026-07-31 路线勘误：**本报告前文的 N4 CURRENT / SMP planned later 是历史快照。
+> 当前 latest verified baseline 已推进至 N8 AP SMP 与 physical RESET closure；用户已选择
+> **N9 CP/AP RPTUN/OpenAMP/RPMsg** 为 CURRENT，当前状态仅 `static-only` planning。
+> 权威执行计划见 [N9 prompt / plan](nuttx-port/prompts/09-n9-rptun-rpmsg.md)。
+
 | 优先级 | 项 | 状态 | 备注 |
 |---|---|---|---|
 | P0 | **NuttX Stage N1**：最小 NuttX 镜像被 bootloader 跳进去，早期 UART 打印可见 | ✅ done | `board-verified`，commit `40495ca` |
 | P0 | **NuttX Stage N2**：`nx_start` + UART1 console → **交互式 NSH** | ✅ done | `board-verified` 2026-07-18，code `9f45bc6` + docs `e3ad3e9` |
 | P0 | **NuttX Stage N3**：挂 procfs 到 `/proc` → `ps` / `ls /proc` / `cat /proc/*` | ✅ done | code `4d9198e` + docs `68badfe`；state-C `board-verified` |
-| P0 | **NuttX Stage N4**：DPLL / 480 MHz CPU0 clock bring-up | **CURRENT**：N4-D0/D0D/D0F substage `board-verified`（D0/D0D `6f596b7`，D0F `8dab594`）；N4-D1 blocked | N4-R → N4-D0 ✅ → D0D ✅ → D0F ✅ → N4-D1（blocked）→ N4-D2（optional）→ N4-D3 → N4-V；[master](next-stage-prompt.md) / [prompt](nuttx-port/prompts/04-n4-clock-bringup.md) / [D0 worklog](nuttx-port/n4-d0-clock-diag.md)；DPLL enable / mux 切换 not attempted，整 N4 not board-verified |
+| P0 | **NuttX Stage N4**：DPLL / 480 MHz CPU0 clock bring-up | historical | D0/D0D/D0F substage `board-verified`；N4-D1 blocked；产品路径采用已验证 320 MHz runtime DVFS，不继续追 480 MHz |
 | P1 | **NuttX Stage N5**：MTD + 文件系统（LittleFS） | ✅ done | N5-D5 raw flash r/w + N5-D6 MTD + N5-D7 LittleFS 全链路 `board-verified`（2026-07-19）；D7 版 `all-app.bin` = 192270 B = `0x2EF0E` |
+| P0 | **NuttX Stage N8**：AP physical CPU1+CPU2 native SMP | ✅ done | scheduler-online、双向 IPI/wake、affinity、controlled migration、timed wake、bounded lifecycle 与 warm/RESET 3/3 已 `board-verified` |
+| P0 | **NuttX Stage N9**：CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | **CURRENT：`static-only` planning** | 保持 AP SMP；单一 CP↔AP cluster RPTUN peer；先 N9-R role/source verification 与 N9-A 32 KiB carveout/linker gate，再实现 mailbox transport |
 | P1 | **后续（未编号）**：PSRAM bring-up | planned later | T5-AI 16 MB SiP PSRAM 当前未用 |
 | P1 | **后续（未编号）**：Tier-2 bootloader OTA（RBL + A/B + failover） | planned later | 需 flash 写；参考 BK 官方 §2.12 RBL 校验 |
-| P2 | **后续（未编号）**：CPU1 / CPU2 唤醒 + NuttX SMP | planned later | app 层 `start_cpu1_core()`；N4 明确排除 SMP |
 | P2 | **后续（未编号）**：GPIO / flash / Wi-Fi / BLE 等驱动补全 | planned later | 根据 N4 后的板端证据与竞赛优先级再排序 |
 
 ---

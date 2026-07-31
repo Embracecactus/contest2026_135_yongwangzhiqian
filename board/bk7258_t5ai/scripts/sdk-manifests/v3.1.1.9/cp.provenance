@@ -1,0 +1,13 @@
+bundle_version=v3.1.1.9
+role=cp
+sdk_target=bk7258_cp
+sdk_source_tree=/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9
+sdk_git_commit=not-a-git-tree
+source_archive=/mnt/c/Users/lijian/Downloads/BK7258_SMP/bk_avdk_smp-release-v3.1.1.9.tar.gz
+source_archive_sha256=39ae282d6d20f77734b7eed3ceb1c679427180d697b12ab3f61fcc39959efcbd
+compiler=arm-none-eabi-gcc (15:10.3-2021.07-4) 10.3.1 20210621 (release)
+uart_patch_define=CONFIG_BK_PRINTF_DISABLE
+uart_patched_object_sha256=af149a660edd3529c378eef5160b4b0ae4ca98e0a0687149a4b8ec78824832ec
+libdriver_original_sha256=e7265a69bd3404fc916bb37dc2ff1f1189fd6850152b20ad1d14e8bbb729489f
+libdriver_final_sha256=e1b399eaef05878e3465a16cd9fdfcc0a340325bc46bc335e437096f1d17be88
+final_manifest_sha256=438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be

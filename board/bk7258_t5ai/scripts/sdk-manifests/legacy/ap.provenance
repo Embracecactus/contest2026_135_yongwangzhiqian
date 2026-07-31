@@ -1,0 +1,13 @@
+bundle_version=legacy
+role=ap
+sdk_source_tree=/home/lijian/project/armino/bk_avdk_smp
+sdk_git_commit=not-a-git-tree
+source_archive=not-recorded
+source_archive_sha256=not-recorded
+compiler=arm-none-eabi-gcc (15:10.3-2021.07-4) 10.3.1 20210621 (release)
+uart_patch_define=CONFIG_BK_PRINTF_DISABLE
+uart_patched_object_sha256=not-recorded
+libdriver_original_sha256=not-recorded
+libdriver_final_sha256=9b34454c286849a868283079801b238d3208b3ec411ab7ddb184b400e5160dc5
+final_manifest_sha256=3fa5bd719d8d4e8c16ff535a8a25da9c2d86724ca5577c36a3bd1d4293fede82
+note=no AP pre-patch manifest existed; the final installed bundle is now pinned

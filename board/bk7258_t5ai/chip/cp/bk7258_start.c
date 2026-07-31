@@ -10,7 +10,7 @@
  *
  *     cpsid i
  *     VTOR <- 0x02010000  (our flash-resident vector table)
- *     stop the bootloader AON watchdog
+ *     stop the bootloader AON + APB watchdogs
  *     CPACR/FPCCR FPU setup (CP10/CP11 full access, no lazy/auto stacking)
  *     .data  copy  _eronly -> _sdata.._edata
  *     .bss   zero  _sbss.._ebss
@@ -48,14 +48,21 @@
 #define BK7258_SCB_VTOR          (*(volatile unsigned int *)0xe000ed08u)
 #define BK7258_SCB_CPACR         (*(volatile unsigned int *)0xe000ed88u)
 
-/* The Tier-1 bootloader leaves the always-on watchdog running.  Stop it with
- * the BK7258 two-key sequence before any SDK or NuttX initialization can
- * fault or wait; board_app_initialize() is too late for early-boot failures.
+/* The Tier-1 bootloader arms both watchdogs while it validates flash and the
+ * cold-start clocks.  The application must close both with the BK7258
+ * two-key sequence before entering nx_start(): AP autostart performs bounded
+ * SMP gates whose aggregate window is intentionally longer than the
+ * bootloader's eight-second watchdog period.  board_app_initialize() later
+ * registers the NuttX watchdog only after that bounded AP startup returns.
  */
 
 #define BK7258_AON_WDT_CTRL      (*(volatile unsigned int *)0x44000600u)
+#define BK7258_APB_WDT_GLOBAL    (*(volatile unsigned int *)0x44800008u)
+#define BK7258_APB_WDT_CTRL      (*(volatile unsigned int *)0x44800010u)
 #define BK7258_AON_WDT_KEY1      (0x5au << 16)
 #define BK7258_AON_WDT_KEY2      (0xa5u << 16)
+#define BK7258_APB_WDT_KEY1      (0x5au << 16)
+#define BK7258_APB_WDT_KEY2      (0xa5u << 16)
 
 /* Our vector table lives at the very start of the app image, which the
  * bootloader maps at logical flash address 0x02010000.  Tell VTOR to
@@ -116,12 +123,18 @@ void __start(void)
   BK7258_SCB_VTOR = BK7258_VTOR_VALUE;
   __asm volatile ("dsb; isb");
 
-  /* 3. Stop the bootloader AON watchdog immediately.  A later HardFault now
+  /* 3. Stop both bootloader watchdogs immediately.  Preserve the APB WDT
+   *    clock-gate bypass bit used by the official SDK close path, then apply
+   *    period zero with the required two-key sequence.  A later HardFault now
    *    remains parked for inspection instead of resetting the whole SoC.
    */
 
   BK7258_AON_WDT_CTRL = BK7258_AON_WDT_KEY1;
   BK7258_AON_WDT_CTRL = BK7258_AON_WDT_KEY2;
+
+  BK7258_APB_WDT_GLOBAL |= 1u << 1;
+  BK7258_APB_WDT_CTRL = BK7258_APB_WDT_KEY1;
+  BK7258_APB_WDT_CTRL = BK7258_APB_WDT_KEY2;
   __asm volatile ("dsb sy" ::: "memory");
 
   /* 4. FPU: clear FPCCR.ASPEN/LSPEN (disable lazy + automatic FP context
