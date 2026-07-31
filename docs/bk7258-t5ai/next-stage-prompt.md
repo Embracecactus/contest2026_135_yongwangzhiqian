@@ -25,17 +25,18 @@
 | **N8-C7** | controlled migration (8 affinity transitions) | **LATEST VERIFIED：`board-verified`（2026-07-30）**；BMIG `PASSED/error=0`、requested/completed=`8/8`，final CPU0、sequence=`8`、callback=`8/8`、PID released；CPU0→CPU1 `+4`、CPU1→CPU0 `+4`、calls `+8` 精确命中，handler fully delivered，coalesced/fail/stale/spurious=0 | [N8-C7 worklog](nuttx-port/n8-c7-controlled-migration.md) |
 | **N8-C8** | CPU1 timed wake (8 sleep cycles) | `board-verified`（2026-07-30）；corrected image generation2 retry 中 BTIM PASSED `8/8`，task CPU1 sequence8/value8/0/aux20000/1，exact initial-dispatch + eight-wake attribution `+9/+0/+9`，handler fully delivered，failure/coalesced/stale/spurious=0 | [N8-C8 worklog](nuttx-port/n8-c8-cpu1-timed-wake.md) |
 | **N8-D1** | CPU1 scheduler quiesce/resume foundation | **LATEST VERIFIED：`board-verified`（2026-07-30）**；normal autostart BLCY PASSED `1/1`，entry/exit CPU1、sequence/aux `1/1`、value `0/-138` (`-ENOTSUP`)，exact `+1/+0/+1`，online=`0x3`，handler fully delivered，failure/coalesced/stale/spurious=0；not hot-unplug | [N8-D1 worklog](nuttx-port/n8-d1-smp-lifecycle-quiesce.md) |
-| **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | **CURRENT：`static-only` planning（2026-07-31）**；架构、SMP/BMP 方案对比、IRQ deferred-worker、32 KiB carveout candidate、分阶段 gate 已确定；尚未实现、构建或板测 | [N9 prompt / plan](nuttx-port/prompts/09-n9-rptun-rpmsg.md) |
+| **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | **LATEST VERIFIED：`board-verified`（2026-07-31）**；官方 SDK/NuttX 只读 wrapper；32 KiB carveout、single peer、CPU0 gateway、Name Service、双 producer、generation reconnect、syslog 与 legacy/latest/baseline build 全部闭环 | [N9 completion](nuttx-port/prompts/09-n9-rptun-rpmsg.md) / [source verification](nuttx-port/n9-rptun-source-verification.md) |
 
 ## 当前 handoff
 
-> **N9 selected（2026-07-31）：**保持 AP native SMP，不切换 BMP；在 CP 与整个 AP
-> SMP cluster 之间建立一套 RPTUN/OpenAMP/RPMsg link。AP CP↔AP mailbox IRQ 仅由
-> logical CPU0/physical CPU1 接收，ISR 只 ack/capture/post semaphore，由固定在
-> logical CPU0 的 kthread 调用 RPTUN callback；logical CPU1/physical CPU2 不是第二个
-> RPTUN peer。第一步为 N9-R source/role verification 和 N9-A shared-memory/linker gate；
-> 尚无实现、构建或板端结果。完整计划见
-> [`nuttx-port/prompts/09-n9-rptun-rpmsg.md`](nuttx-port/prompts/09-n9-rptun-rpmsg.md)。
+> **N9 completed（2026-07-31）：**保持 AP native SMP，不切换 BMP；CP 与整个 AP SMP
+> cluster 之间已建立一套 RPTUN/OpenAMP/RPMsg link。实现采用官方 SDK wrapper 模式，
+> SDK/NuttX 均只读。AP logical CPU0/physical CPU1 独占 mailbox IRQ 与 OpenAMP TX/RX
+> gateway；logical CPU1/physical CPU2 是第二个业务 producer，但不是第二个 RPTUN peer。
+> shared pending level state、动态 Name Service、满帧 load 1000 次、generation 2/3/4
+> reconnect 和显式 `syslog_rpmsg` 均已实板通过。下一 MAIN Stage 尚未冻结；优先候选是
+> heartbeat/AP crash supervision，随后再独立评估 `rpmsgfs`、BLE HCI 或 Wi-Fi control。
+> 完成记录见 [`nuttx-port/prompts/09-n9-rptun-rpmsg.md`](nuttx-port/prompts/09-n9-rptun-rpmsg.md)。
 
 > **N8 physical cold-reset/AP SMP closure（2026-07-31）：**最终无 checkpoint
 > `cp_nsh + ap_smp_bidir` 镜像连续 warm 3/3、COM7 RTS physical-reset 3/3，
@@ -79,13 +80,13 @@
 
 > **N8-D1 closure（2026-07-30）：**`ap_smp_lifecycle` normal autostart 在真实 T5-AI 一次闭环。AP `READY/error=0`、heartbeat=`727`；CPU2 `SCHEDULER_ONLINE/error=0`、online=`0x3`。BLCY `PASSED/error=0`、requested/completed=`1/1`；callback entry/exit CPU=`1/1`、started/completed=`1/1`、quiesce/resume sequence=`1/1`、value=`0/-138`（该 NuttX 配置的 `-ENOTSUP`）、aux=`1/1`。隔离窗口 CPU0→CPU1 `10→11`=`+1`、CPU1→CPU0 `1→1`=`+0`、calls `11→12`=`+1`；handler CPU0=`1/1`、CPU1=`11/11`，coalesced/fail/stale/spurious=0。CPU0 SysTick=`8090`、sleep enter/return=`727/726` 证明 gate 后持续运行。CPU1 全程保持 online=`0x3`，没有 CPU2 reset/power transition；这是 bounded scheduler quiesce/resume foundation，不是 CPU hot-unplug。
 
-- **Current Stage：**N9 RPTUN/OpenAMP/RPMsg，当前仅 `static-only` planning；下一动作是
-  N9-R source/role verification 与 N9-A shared-memory/linker gate。
-- **Authorized implementation set：**N8-C5、N8-C6、N8-C7、N8-C8、N8-D1 全部
-  `board-verified`；N9 已选择，但本文更新未实施、构建或烧录 N9 代码。
-- **Latest verified baseline：**N8-D1 `board-verified`（2026-07-30，normal autostart path）。
-- **Latest verified worklog：**[`nuttx-port/n8-d1-smp-lifecycle-quiesce.md`](nuttx-port/n8-d1-smp-lifecycle-quiesce.md)
-- **Current prompt / plan：**[`nuttx-port/prompts/09-n9-rptun-rpmsg.md`](nuttx-port/prompts/09-n9-rptun-rpmsg.md)；
+- **Current Stage：**N9 已 `board-verified` 完成；下一 MAIN Stage 尚未冻结，优先候选为
+  heartbeat/AP crash supervision。
+- **Authorized implementation set：**N8-C5..N8-D1 与 N9-R..N9-V 全部完成；N9
+  wrapper、Name Service、双 producer、reconnect 和 syslog 已构建、烧录并实板闭环。
+- **Latest verified baseline：**N9 `cp_nsh_rptun + ap_smp_rptun`（2026-07-31）。
+- **Latest verified worklog：**[`nuttx-port/prompts/09-n9-rptun-rpmsg.md`](nuttx-port/prompts/09-n9-rptun-rpmsg.md)
+- **Source verification：**[`nuttx-port/n9-rptun-source-verification.md`](nuttx-port/n9-rptun-source-verification.md)；
   N8 closure 见 [`nuttx-port/n8-cold-reset-resolution-report.md`](nuttx-port/n8-cold-reset-resolution-report.md)；
   新手说明见 [`nuttx-port/cold-reset-smp-repair-guide.md`](nuttx-port/cold-reset-smp-repair-guide.md)；
   执行流程见 [`nuttx-port/bk7258-build-flash-debug-sop.md`](nuttx-port/bk7258-build-flash-debug-sop.md)。

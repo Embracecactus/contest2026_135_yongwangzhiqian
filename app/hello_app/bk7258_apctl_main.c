@@ -18,6 +18,9 @@
 #include <string.h>
 
 #include <arch/chip/bk7258_amp.h>
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+#  include <arch/chip/bk7258_rptun.h>
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -43,6 +46,31 @@ static const char *apctl_state_name(uint32_t state)
         return "UNKNOWN";
     }
 }
+
+#ifdef CONFIG_BK7258_RPTUN
+static const char *apctl_rptun_state_name(uint32_t state)
+{
+  switch (state)
+    {
+      case BK7258_RPTUN_STATE_OFFLINE:
+        return "OFFLINE";
+      case BK7258_RPTUN_STATE_PREPARING:
+        return "PREPARING";
+      case BK7258_RPTUN_STATE_TABLE_READY:
+        return "TABLE_READY";
+      case BK7258_RPTUN_STATE_CONNECTING:
+        return "CONNECTING";
+      case BK7258_RPTUN_STATE_CONNECTED:
+        return "CONNECTED";
+      case BK7258_RPTUN_STATE_QUIESCING:
+        return "QUIESCING";
+      case BK7258_RPTUN_STATE_FAULTED:
+        return "FAULTED";
+      default:
+        return "UNKNOWN";
+    }
+}
+#endif
 
 static const char *apctl_cpu2_state_name(uint32_t state)
 {
@@ -278,6 +306,9 @@ static uint32_t apctl_u32(const char *value, uint32_t fallback)
 static void apctl_status(void)
 {
   struct bk7258_ap_boot_state_s state;
+#ifdef CONFIG_BK7258_RPTUN
+  struct bk7258_rptun_control_s rptun;
+#endif
   struct bk7258_cpu2_probe_state_s cpu2;
   struct bk7258_ap_ipi_state_s ipi;
   struct bk7258_ap_smp_state_s smp;
@@ -296,8 +327,15 @@ static void apctl_status(void)
     bk7258_ap_sem_wake_state();
   volatile struct bk7258_ap_sem_wake_loop_state_s *shared_sem_loop =
     bk7258_ap_sem_wake_loop_state();
+#ifdef CONFIG_BK7258_RPTUN
+  volatile struct bk7258_rptun_control_s *shared_rptun =
+    bk7258_rptun_control();
+#endif
 
   bk7258_ap_get_status(&state);
+#ifdef CONFIG_BK7258_RPTUN
+  memset(&rptun, 0, sizeof(rptun));
+#endif
   memset(&sem_wake, 0, sizeof(sem_wake));
   memset(&sem_loop, 0, sizeof(sem_loop));
   __asm volatile ("dmb sy" ::: "memory");
@@ -306,6 +344,14 @@ static void apctl_status(void)
   memcpy(&smp, (const void *)(uintptr_t)shared_smp, sizeof(smp));
   memcpy(&affinity, (const void *)(uintptr_t)shared_affinity,
          sizeof(affinity));
+#ifdef CONFIG_BK7258_RPTUN
+  if (shared_rptun->magic == BK7258_RPTUN_CONTROL_MAGIC &&
+      shared_rptun->version == BK7258_RPTUN_CONTROL_VERSION &&
+      shared_rptun->size == sizeof(rptun))
+    {
+      memcpy(&rptun, (const void *)(uintptr_t)shared_rptun, sizeof(rptun));
+    }
+#endif
   if (shared_sem_wake->magic == BK7258_AP_SEM_WAKE_STATE_MAGIC &&
       shared_sem_wake->version == BK7258_AP_SEM_WAKE_STATE_VERSION &&
       shared_sem_wake->size == sizeof(sem_wake))
@@ -341,6 +387,30 @@ static void apctl_status(void)
          " test=%08" PRIx32 " doorbells cp/ap=%" PRIu32 "/%" PRIu32
          "\n", state.heap_start, state.heap_end, state.heap_test,
          state.cp_to_ap_doorbells, state.ap_to_cp_doorbells);
+
+#ifdef CONFIG_BK7258_RPTUN
+  if (rptun.magic == BK7258_RPTUN_CONTROL_MAGIC &&
+      rptun.version == BK7258_RPTUN_CONTROL_VERSION &&
+      rptun.size == sizeof(rptun))
+    {
+      printf("RPTUN state=%s(%" PRIu32 ") error=%" PRIu32
+             " generation=%" PRIu32 " flags=%08" PRIx32 "\n",
+             apctl_rptun_state_name(rptun.state), rptun.state,
+             rptun.error, rptun.generation, rptun.flags);
+      printf("RPTUN pending cp/ap=%08" PRIx32 "/%08" PRIx32
+             " heartbeat cp/ap=%" PRIu32 "/%" PRIu32
+             " epoch cp/ap=%" PRIu32 "/%" PRIu32 "\n",
+             rptun.cp_to_ap_pending, rptun.ap_to_cp_pending,
+             rptun.cp_heartbeat, rptun.ap_heartbeat,
+             rptun.cp_epoch, rptun.ap_epoch);
+    }
+  else
+    {
+      printf("RPTUN state unavailable magic/version/size=%08" PRIx32
+             "/%" PRIu32 "/%" PRIu32 "\n",
+             rptun.magic, rptun.version, rptun.size);
+    }
+#endif
 
   if (cpu2.magic == BK7258_CPU2_PROBE_STATE_MAGIC &&
       cpu2.version == BK7258_CPU2_PROBE_STATE_VERSION &&
@@ -588,6 +658,9 @@ static void apctl_usage(void)
   printf("usage: apctl start|stop|restart|status [timeout_ms]\n");
   printf("       apctl cycle [count] [timeout_ms]\n");
   printf("       apctl ipitest [count] [timeout_ms]\n");
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+  printf("       apctl mbox [count] [timeout_ms]\n");
+#endif
 }
 
 /****************************************************************************
@@ -635,6 +708,19 @@ int main(int argc, char *argv[])
                           BK7258_AP_IPI_DEFAULT_TIMEOUT_MS);
       ret = bk7258_ap_ipi_test(count, timeout);
     }
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+  else if (strcmp(argv[1], "mbox") == 0)
+    {
+      count = apctl_u32(argc > 2 ? argv[2] : NULL, 32);
+      timeout = apctl_u32(argc > 3 ? argv[3] : NULL, 1000);
+      ret = bk7258_rptun_mbox_probe(count, timeout);
+      if (ret >= 0)
+        {
+          printf("MBOX probe passed count=%" PRIu32
+                 " timeout=%" PRIu32 " ms\n", count, timeout);
+        }
+    }
+#endif
   else if (strcmp(argv[1], "cycle") == 0)
     {
       count = apctl_u32(argc > 2 ? argv[2] : NULL, 3);

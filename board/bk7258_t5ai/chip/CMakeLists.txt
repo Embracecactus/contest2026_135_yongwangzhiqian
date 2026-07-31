@@ -33,6 +33,18 @@ if(CONFIG_BK7258_AP_CONTROL)
   list(APPEND BK7258_CP_SRCS cp/bk7258_ap_control.c)
 endif()
 
+if(CONFIG_BK7258_RPTUN_MBOX)
+  list(APPEND BK7258_CP_SRCS common/bk7258_rptun_mbox.c)
+endif()
+
+if(CONFIG_BK7258_RPTUN)
+  list(APPEND BK7258_CP_SRCS common/bk7258_rptun.c)
+endif()
+
+if(CONFIG_BK7258_RPMSG_TEST)
+  list(APPEND BK7258_CP_SRCS common/bk7258_rpmsg_test.c)
+endif()
+
 # The role-neutral SDK IRQ bridge lives in common/ and is selected separately
 # by the CP bridge option or the AP N8-B2 IPI option.
 
@@ -87,6 +99,18 @@ set(BK7258_AP_BASE_SRCS
     ap/bk7258_ap_start.c
     ${BK7258_COMMON_EARLY_SRCS}
     ap/bk7258_ap_main.c)
+
+if(CONFIG_BK7258_RPTUN_MBOX)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rptun_mbox.c)
+endif()
+
+if(CONFIG_BK7258_RPTUN)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rptun.c)
+endif()
+
+if(CONFIG_BK7258_RPMSG_TEST)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rpmsg_test.c)
+endif()
 
 set(BK7258_AP_UP_SRCS
     ${BK7258_AP_BASE_SRCS}

@@ -12,6 +12,7 @@
 - [完整移植技术报告](docs/bk7258-t5ai/porting-report.md)
 - [SDK v3.1.1.9 迁移、legacy 回退与板测报告](docs/bk7258-t5ai/nuttx-port/sdk-v3.1.1.9-migration-report.md)
 - [SDK CP/AP 静态库编译与导入 SOP](docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md)
+- [Windows/WSL2 通用串口与 J-Link 调试 SOP](tools/windows-hardware-debug/README.md)
 
 ---
 

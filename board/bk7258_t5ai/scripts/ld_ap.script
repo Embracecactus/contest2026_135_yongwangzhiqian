@@ -25,8 +25,19 @@ ENTRY(__start)
 MEMORY
 {
     FLASH (rx)  : ORIGIN = 0x02200000, LENGTH = 0x200000
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+    RAM   (rwx) : ORIGIN = 0x28050000, LENGTH = 0x047000
+#else
     RAM   (rwx) : ORIGIN = 0x28050000, LENGTH = 0x04f000
+#endif
 }
+
+_bk7258_rptun_shmem_start = 0x28097000;
+_bk7258_rptun_shmem_end = 0x2809f000;
+_bk7258_rptun_control = 0x28097000;
+_bk7258_rptun_resource = 0x28097040;
+_bk7258_rptun_carveout_start = 0x28097180;
+_bk7258_rptun_carveout_end = 0x2809f000;
 
 _estack = ORIGIN(RAM) + LENGTH(RAM) - 4;
 
@@ -144,6 +155,10 @@ SECTIONS
         _sdata = ABSOLUTE(.);
         *(.data .data.*)
         *(.gnu.linkonce.d.*)
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+        *(.swap_data)
+        *(.dtcm_sec_data)
+#endif
         CONSTRUCTORS
         . = ALIGN(4);
         _edata = ABSOLUTE(.);
@@ -154,6 +169,9 @@ SECTIONS
         _sbss = ABSOLUTE(.);
         *(.bss .bss.*)
         *(.gnu.linkonce.b.*)
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+        *(.sram_spinlock_section)
+#endif
         *(COMMON)
         . = ALIGN(4);
         _ebss = ABSOLUTE(.);
@@ -178,15 +196,24 @@ SECTIONS
 #endif
     _eheap = _bk7258_cpu2_probe_stack_base - 4;
 
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+    ASSERT(_bk7258_cpu2_probe_stack_top == 0x28097000,
+           "ERROR: N9 CPU2 boot stack must end at RPTUN shared memory")
+    ASSERT(_bk7258_rptun_shmem_end == 0x2809f000,
+           "ERROR: RPTUN shared memory overlaps telemetry")
+    ASSERT(_bk7258_rptun_carveout_start == 0x28097180,
+           "ERROR: RPTUN carveout ABI drift")
+#else
     ASSERT(_bk7258_cpu2_probe_stack_top == 0x2809f000,
            "ERROR: CPU2 boot stack must end at the shared-page boundary")
+#endif
     ASSERT(_ebss + CONFIG_IDLETHREAD_STACKSIZE <= _eheap,
            "ERROR: AP data/IDLE stack overlaps the CPU2 boot stack")
     ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
            ORIGIN(FLASH) + LENGTH(FLASH),
            "ERROR: AP image exceeds the app1 flash partition")
-    ASSERT(_eheap < 0x2809f000,
-           "ERROR: AP RAM overlaps the shared boot-state page")
+    ASSERT(_eheap < _bk7258_cpu2_probe_stack_top,
+           "ERROR: AP RAM overlaps the CPU2 boot stack")
 
     .stab              0 : { *(.stab) }
     .stabstr           0 : { *(.stabstr) }

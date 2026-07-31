@@ -52,6 +52,9 @@
 
 /* The 640 KiB SRAM window is split between two independent NuttX kernels.
  * The top 4 KiB page is excluded from both linkers and remains shared.
+ * N9 layout-only/RPTUN profiles additionally reserve the preceding 32 KiB
+ * from the AP window.  The baseline N7/N8 profiles retain their exact linker
+ * layout when CONFIG_BK7258_RPTUN_LAYOUT is disabled.
  */
 
 #define BK7258_SRAM_BASE                 0x28000000u
@@ -59,9 +62,18 @@
 #define BK7258_CP_RAM_BASE               0x28000000u
 #define BK7258_CP_RAM_SIZE               0x00050000u
 #define BK7258_AP_RAM_BASE               0x28050000u
-#define BK7258_AP_RAM_SIZE               0x0004f000u
+#define BK7258_RPTUN_SHMEM_BASE          0x28097000u
+#define BK7258_RPTUN_SHMEM_SIZE          0x00008000u
 #define BK7258_SHARED_RAM_BASE           0x2809f000u
 #define BK7258_SHARED_RAM_SIZE           0x00001000u
+
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+#  define BK7258_AP_RAM_SIZE             0x00047000u
+#  define BK7258_AP_RAM_END              BK7258_RPTUN_SHMEM_BASE
+#else
+#  define BK7258_AP_RAM_SIZE             0x0004f000u
+#  define BK7258_AP_RAM_END              BK7258_SHARED_RAM_BASE
+#endif
 
 #ifdef CONFIG_BK7258_AP_SMP_BOOTSTRAP
 #  define BK7258_CPU2_BOOT_STACK_SIZE    CONFIG_ARCH_INTERRUPTSTACK
@@ -69,7 +81,7 @@
 #  define BK7258_CPU2_BOOT_STACK_SIZE    0x00000400u
 #endif
 
-#define BK7258_CPU2_BOOT_STACK_TOP       BK7258_SHARED_RAM_BASE
+#define BK7258_CPU2_BOOT_STACK_TOP       BK7258_AP_RAM_END
 #define BK7258_CPU2_BOOT_STACK_BASE      \
   (BK7258_CPU2_BOOT_STACK_TOP - BK7258_CPU2_BOOT_STACK_SIZE)
 
@@ -870,8 +882,8 @@ static_assert(BK7258_DATA_FLASH_OFFSET + BK7258_DATA_FLASH_SIZE ==
               BK7258_AP_FLASH_OFFSET,
               "AP flash must start after LittleFS");
 static_assert(BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE ==
-              BK7258_SHARED_RAM_BASE,
-              "AP RAM must end at the shared page");
+              BK7258_AP_RAM_END,
+              "AP RAM must end at its configured boundary");
 static_assert(sizeof(struct bk7258_ap_boot_state_s) ==
               BK7258_AP_FAULT_STATE_OFFSET,
               "AP boot-state ABI must remain 0x80 bytes");
@@ -962,8 +974,19 @@ static_assert(BK7258_AP_BLCY_STATE_OFFSET +
               "AP advanced-stage states exceed the shared page");
 static_assert(BK7258_CPU2_PROBE_STACK_BASE >= BK7258_AP_RAM_BASE,
               "CPU2 probe stack must remain in AP-owned RAM");
+static_assert(BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE ==
+              BK7258_AP_RAM_END,
+              "AP RAM size/end constants disagree");
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+static_assert(BK7258_CPU2_PROBE_STACK_TOP == BK7258_RPTUN_SHMEM_BASE,
+              "N9 CPU2 stack must end at the RPTUN carveout boundary");
+static_assert(BK7258_RPTUN_SHMEM_BASE + BK7258_RPTUN_SHMEM_SIZE ==
+              BK7258_SHARED_RAM_BASE,
+              "RPTUN carveout must end at the telemetry-page boundary");
+#else
 static_assert(BK7258_CPU2_PROBE_STACK_TOP == BK7258_SHARED_RAM_BASE,
               "CPU2 probe stack must end at the shared-page boundary");
+#endif
 
 /****************************************************************************
  * Public Function Prototypes

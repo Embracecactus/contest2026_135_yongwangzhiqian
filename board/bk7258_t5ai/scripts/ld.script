@@ -55,6 +55,17 @@ MEMORY
     RAM   (rwx) : ORIGIN = 0x28000000, LENGTH = 0x050000
 }
 
+/* N9 shared-memory ABI is outside CP RAM.  Export the same absolute symbols
+ * from both images so the post-link verifier can reject any drift.
+ */
+
+_bk7258_rptun_shmem_start = 0x28097000;
+_bk7258_rptun_shmem_end = 0x2809f000;
+_bk7258_rptun_control = 0x28097000;
+_bk7258_rptun_resource = 0x28097040;
+_bk7258_rptun_carveout_start = 0x28097180;
+_bk7258_rptun_carveout_end = 0x2809f000;
+
 /* Initial stack pointer (top of CP-owned SRAM). */
 
 _estack = ORIGIN(RAM) + LENGTH(RAM) - 4;
@@ -173,6 +184,14 @@ SECTIONS
         _sdata = ABSOLUTE(.);
         *(.data .data.*)
         *(.gnu.linkonce.d.*)
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+        /* Explicitly consume vendor ABI sections that GNU ld would otherwise
+         * emit as orphan output sections outside the _sdata.._edata copy.
+         */
+
+        *(.swap_data)
+        *(.dtcm_sec_data)
+#endif
         CONSTRUCTORS
         . = ALIGN(4);
         _edata = ABSOLUTE(.);
@@ -184,6 +203,9 @@ SECTIONS
         _sbss = ABSOLUTE(.);
         *(.bss .bss.*)
         *(.gnu.linkonce.b.*)
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+        *(.sram_spinlock_section)
+#endif
         *(COMMON)
         . = ALIGN(4);
         _ebss = ABSOLUTE(.);
@@ -201,6 +223,14 @@ SECTIONS
            "ERROR: CP load image overlaps LittleFS at logical 0x00100000")
     ASSERT(_eheap < 0x28050000,
            "ERROR: CP RAM overlaps the AP RAM window")
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+    ASSERT(_bk7258_rptun_shmem_start >= 0x28050000,
+           "ERROR: RPTUN shared memory overlaps CP RAM")
+    ASSERT(_bk7258_rptun_shmem_end == 0x2809f000,
+           "ERROR: RPTUN shared memory overlaps telemetry")
+    ASSERT(_bk7258_rptun_carveout_start == 0x28097180,
+           "ERROR: RPTUN carveout ABI drift")
+#endif
 
     /* Stabs / debug sections -- discard nothing but keep them at VMA 0 so
      * they don't perturb the runtime image.

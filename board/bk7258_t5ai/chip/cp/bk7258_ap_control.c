@@ -24,16 +24,28 @@
 
 #include <arch/chip/bk7258_amp.h>
 
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+#  include <arch/chip/bk7258_rptun.h>
+#  include "bk7258_rptun_mbox.h"
+#endif
+#ifdef CONFIG_BK7258_RPTUN
+#  include "bk7258_rptun.h"
+#endif
+
 /****************************************************************************
  * External Function Prototypes
  ****************************************************************************/
 
-/* These four routines are provided by the pinned Beken CP SDK archives. */
+/* These routines are provided by the pinned Beken CP SDK archives. */
 
 extern void sys_drv_set_cpu1_pwr_dw(uint32_t is_pwr_down);
 extern void sys_drv_set_cpu1_rxevt_sel(uint32_t value);
 extern void sys_drv_set_cpu1_boot_address_offset(uint32_t address_offset);
 extern void sys_drv_set_cpu1_reset(uint32_t reset_value);
+extern void sys_drv_set_cpu2_pwr_dw(uint32_t is_pwr_down);
+extern void sys_drv_set_cpu2_rxevt_sel(uint32_t value);
+extern void sys_drv_set_cpu2_boot_address_offset(uint32_t address_offset);
+extern void sys_drv_set_cpu2_reset(uint32_t reset_value);
 
 /****************************************************************************
  * Private Data
@@ -50,20 +62,61 @@ static bool g_bk7258_ap_initialized;
  * Private Functions
  ****************************************************************************/
 
+static void bk7258_cpu1_sdk_stop(void)
+{
+  /* Match SDK reset_cpu1_core(0, 0), which is also the hardware part of
+   * stop_cpu1_core().  Keep the SDK's power-up-before-reset ordering: the
+   * pwr_dw bit is not a reliable substitute for asserting the CPU reset.
+   */
+
+  sys_drv_set_cpu1_pwr_dw(0);
+  sys_drv_set_cpu1_rxevt_sel(1);
+  sys_drv_set_cpu1_boot_address_offset(0);
+  sys_drv_set_cpu1_reset(0);
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+}
+
+static void bk7258_cpu2_sdk_stop(void)
+{
+  /* Match SDK reset_cpu2_core(0, 0), which is also stop_cpu2_core().  Use
+   * the SDK system-driver wrappers so their register critical sections and
+   * bitfield ownership remain authoritative.
+   */
+
+  sys_drv_set_cpu2_pwr_dw(0);
+  sys_drv_set_cpu2_rxevt_sel(1);
+  sys_drv_set_cpu2_boot_address_offset(0);
+  sys_drv_set_cpu2_reset(0);
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+}
+
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+static int bk7258_ap_mbox_initialize(void)
+{
+  return bk7258_rptun_mbox_initialize();
+}
+
+static void bk7258_ap_mbox_send(uint32_t event)
+{
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+
+  if (bk7258_rptun_mbox_send(BK7258_RPTUN_MBOX_LIFECYCLE,
+                             state->generation, event) >= 0)
+    {
+      state->cp_to_ap_doorbells++;
+    }
+
+  __asm volatile ("dmb sy" ::: "memory");
+}
+
+static uint32_t bk7258_ap_mbox_receive(void)
+{
+  return bk7258_rptun_mbox_take_lifecycle();
+}
+#else
 static inline volatile uint32_t *bk7258_ap_mbox(uint32_t base)
 {
   return (volatile uint32_t *)(uintptr_t)base;
-}
-
-static void bk7258_cpu2_force_reset(void)
-{
-  volatile uint32_t *control =
-    (volatile uint32_t *)(uintptr_t)BK7258_SYS_CPU2_CONTROL;
-
-  *control &= ~BK7258_SYS_CPU2_RESET;
-  __asm volatile ("dsb sy; isb sy" ::: "memory");
-  *control |= BK7258_SYS_CPU2_POWER_DOWN;
-  __asm volatile ("dsb sy; isb sy" ::: "memory");
 }
 
 static void bk7258_ap_mbox_ack(volatile uint32_t *mbox)
@@ -75,7 +128,7 @@ static void bk7258_ap_mbox_ack(volatile uint32_t *mbox)
   __asm volatile ("dsb sy" ::: "memory");
 }
 
-static void bk7258_ap_mbox_initialize(void)
+static int bk7258_ap_mbox_initialize(void)
 {
   volatile uint32_t *to_ap = bk7258_ap_mbox(BK7258_MBOX0_BASE);
   volatile uint32_t *to_cp = bk7258_ap_mbox(BK7258_MBOX1_BASE);
@@ -89,6 +142,7 @@ static void bk7258_ap_mbox_initialize(void)
 
   bk7258_ap_mbox_ack(to_ap);
   bk7258_ap_mbox_ack(to_cp);
+  return OK;
 }
 
 static void bk7258_ap_mbox_send(uint32_t event)
@@ -133,10 +187,14 @@ static uint32_t bk7258_ap_mbox_receive(void)
 
   return event;
 }
+#endif
 
 static void bk7258_ap_state_prepare(void)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+  volatile struct bk7258_rptun_control_s *rptun = bk7258_rptun_control();
+#endif
   uint32_t generation = 1;
 
   if (state->magic == BK7258_AP_BOOT_STATE_MAGIC &&
@@ -159,6 +217,17 @@ static void bk7258_ap_state_prepare(void)
   bk7258_ap_bmig_state()->magic = 0;
   bk7258_ap_btim_state()->magic = 0;
   bk7258_ap_blcy_state()->magic = 0;
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+  memset((void *)(uintptr_t)BK7258_RPTUN_SHMEM_BASE, 0,
+         BK7258_RPTUN_SHMEM_SIZE);
+  rptun->version = BK7258_RPTUN_CONTROL_VERSION;
+  rptun->size = sizeof(*rptun);
+  rptun->generation = generation;
+  rptun->state = BK7258_RPTUN_STATE_OFFLINE;
+  rptun->cp_epoch = generation;
+  __asm volatile ("dmb sy" ::: "memory");
+  rptun->magic = BK7258_RPTUN_CONTROL_MAGIC;
+#endif
   state->magic       = BK7258_AP_BOOT_STATE_MAGIC;
   state->version     = BK7258_AP_BOOT_STATE_VERSION;
   state->size        = sizeof(struct bk7258_ap_boot_state_s);
@@ -251,17 +320,42 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
       return -EBUSY;
     }
 
-  /* Hold CPU1 while replacing shared state and the boot address. */
+  /* Stop the AP SMP secondary before its primary.  Resetting physical CPU1
+   * first would leave scheduler-online physical CPU2 running without the
+   * primary CPU, a state NuttX SMP does not support.
+   */
 
-  sys_drv_set_cpu1_reset(0);
-  __asm volatile ("dsb sy; isb sy" ::: "memory");
-
-  bk7258_cpu2_force_reset();
-  sys_drv_set_cpu1_pwr_dw(1);
+  bk7258_cpu2_sdk_stop();
+  bk7258_cpu1_sdk_stop();
   up_mdelay(BK7258_AP_RESTART_DELAY_MS);
 
-  bk7258_ap_mbox_initialize();
+  ret = bk7258_ap_mbox_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+#ifdef CONFIG_BK7258_RPTUN
+  /* Stop the persistent CP-side RPTUN worker before state_prepare() clears
+   * the shared table/carveout.  This is a no-op on the initial boot.
+   */
+
+  ret = bk7258_rptun_quiesce();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
   bk7258_ap_state_prepare();
+
+#ifdef CONFIG_BK7258_RPTUN
+  ret = bk7258_rptun_initialize(state->generation);
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
 
   /* Release order matches the BK7258 CP SDK.  The reset+power-down pulse
    * above is an intentional cold-start normalization step: unlike the SDK's
@@ -280,11 +374,9 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
   ret = bk7258_ap_wait(BK7258_AP_STATE_READY, timeout_ms);
   if (ret < 0)
     {
-      sys_drv_set_cpu1_reset(0);
-      __asm volatile ("dsb sy; isb sy" ::: "memory");
-      bk7258_cpu2_force_reset();
+      bk7258_cpu2_sdk_stop();
+      bk7258_cpu1_sdk_stop();
       up_mdelay(BK7258_AP_RESTART_DELAY_MS);
-      sys_drv_set_cpu1_pwr_dw(1);
 
       if (state->state != BK7258_AP_STATE_FAILED)
         {
@@ -303,15 +395,32 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
 static int bk7258_ap_stop_locked(uint32_t timeout_ms)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+  bool scheduler_online = bk7258_ap_scheduler_online();
   int ret = OK;
 
-  if (bk7258_ap_scheduler_online())
-    {
-      return -ENOTSUP;
-    }
+#ifdef CONFIG_BK7258_RPTUN
+  /* Tear down endpoints and unregister the mailbox callback before either a
+   * graceful stop or the SMP force-reset path.  This makes stale-generation
+   * mailbox events harmless and leaves the registered CP lower half ready
+   * for rptun_boot() on the next generation.
+   */
 
-  if (state->state == BK7258_AP_STATE_READY ||
-      state->state == BK7258_AP_STATE_STARTING)
+  ret = bk7258_rptun_quiesce();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+  /* NuttX SMP has no supported logical-CPU hot-unplug sequence here.  When
+   * CPU2 is scheduler-online, skip the in-band STOP command and reset both AP
+   * physical cores after the transport is quiesced.  Non-SMP/probe builds
+   * retain the original graceful handshake.
+   */
+
+  if (!scheduler_online &&
+      (state->state == BK7258_AP_STATE_READY ||
+       state->state == BK7258_AP_STATE_STARTING))
     {
       state->command = BK7258_AP_COMMAND_STOP;
       __asm volatile ("dmb sy" ::: "memory");
@@ -319,13 +428,14 @@ static int bk7258_ap_stop_locked(uint32_t timeout_ms)
       ret = bk7258_ap_wait(BK7258_AP_STATE_STOPPED, timeout_ms);
     }
 
-  /* A timeout still ends in a deterministic forced stop of both AP cores. */
+  /* A timeout still ends in a deterministic forced stop of both AP cores.
+   * Stop the SMP secondary first so it cannot execute after its primary is
+   * held in reset.
+   */
 
-  sys_drv_set_cpu1_reset(0);
-  __asm volatile ("dsb sy; isb sy" ::: "memory");
-  bk7258_cpu2_force_reset();
+  bk7258_cpu2_sdk_stop();
+  bk7258_cpu1_sdk_stop();
   up_mdelay(BK7258_AP_RESTART_DELAY_MS);
-  sys_drv_set_cpu1_pwr_dw(1);
 
   if (ret < 0 && state->state != BK7258_AP_STATE_FAILED)
     {
@@ -355,12 +465,15 @@ int bk7258_ap_control_initialize(void)
 
   if (!g_bk7258_ap_initialized)
     {
-      bk7258_ap_mbox_initialize();
-      g_bk7258_ap_initialized = true;
+      ret = bk7258_ap_mbox_initialize();
+      if (ret >= 0)
+        {
+          g_bk7258_ap_initialized = true;
+        }
     }
 
   nxmutex_unlock(&g_bk7258_ap_lock);
-  return OK;
+  return ret;
 }
 
 int bk7258_ap_start(uint32_t timeout_ms)
@@ -375,7 +488,13 @@ int bk7258_ap_start(uint32_t timeout_ms)
 
   if (!g_bk7258_ap_initialized)
     {
-      bk7258_ap_mbox_initialize();
+      ret = bk7258_ap_mbox_initialize();
+      if (ret < 0)
+        {
+          nxmutex_unlock(&g_bk7258_ap_lock);
+          return ret;
+        }
+
       g_bk7258_ap_initialized = true;
     }
 

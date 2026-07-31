@@ -1,8 +1,8 @@
 # BK7258 双核自动编译、下载与板端调试 SOP
 
-日期：2026-07-30
+日期：2026-07-31
 
-状态：`usable / COM7-COM11 verified / manual cold-reset verified / J-Link reset experimental`
+状态：`usable / COM7-COM11 verified / N9 physical cold-reset 3-of-3 verified / J-Link reset experimental`
 
 适用项目：
 
@@ -61,6 +61,27 @@ AP 默认：ap_smp
 ```
 
 默认值与 `build_dual_image.sh` 一致，但正式验证建议始终显式指定，避免误刷上一次 Stage 的 AP image。
+
+### 1.2 边调试边维护 SOP
+
+调试工具和 SOP 不等到 Stage 结束后一次性补写，按以下两层维护：
+
+- `实验步骤`：正在定位的问题、只读寄存器/共享内存取证、尚未通过重复性验证的判据；
+- `正式流程`：已在目标板上重复通过、可作为后续回归门禁的命令和判据。
+
+每次实验必须保留原始日志路径、镜像 profile 和失败现象。单次成功不能直接提升为正式流程；至少完成对应验收矩阵并在清理诊断代码后复测一次。永久保留无串口副作用的共享状态字段是允许的，临时 UART checkpoint 则按第 16 节清理。
+
+### 1.3 通用工具与 BK7258 板级流程的边界
+
+可独立复用的 UART 原始采集、DTR/RTS 同步和 J-Link 保守诊断已经抽到：
+
+```text
+../../../tools/windows-hardware-debug/
+```
+
+入口：[Windows/WSL2 通用串口与 J-Link 调试 SOP](../../../tools/windows-hardware-debug/README.md)。该目录不包含 BK7258 地址、COM 号、复位极性、loader 或烧录动作，并提供 Claude/Codex 可读取的 `SKILL.md`。
+
+本文件和 `bk7258_auto_debug.sh` 仍是 BK7258 的板级事实来源，负责 CP/AP profile、镜像打包、BK loader、COM7/COM11 映射和 BK marker 判据。不要在未完成 BK 板端回归前用通用脚本替换现有已验证流程；新调试动作可先在通用层沉淀，再由本 SOP 固定板级参数和验收证据。
 
 ## 2. 固定环境
 
@@ -483,7 +504,7 @@ S0
 
 没有 `BClk`，不得把该次运行记为 physical cold reset。
 
-### 9.2 当前 cold-reset 成功门禁
+### 9.2 第一级：CP/NSH cold-reset 门禁
 
 ```text
 BClk
@@ -496,6 +517,29 @@ A7 F1 F2
 C4 C5 C6 C7 C8
 NuttShell (NSH)
 ```
+
+这一级只证明 bootloader、CP NuttX 和 NSH 可用。`PASS_NSH` **不证明** AP 已 READY，也不证明 RPTUN/RPMsg 已连接。
+
+### 9.3 第二级：当前 profile 的功能门禁
+
+使用 `cp_nsh_rptun + ap_smp_rptun` 时，物理复位后还必须在 NSH 执行：
+
+```text
+apctl status
+bkrpmsgtest run 100 64 idle 10000
+```
+
+RPTUN profile 的成功条件是：
+
+```text
+AP state=READY
+RPTUN state=CONNECTED
+BRPT ... CPU0 sent=100 received=100 errors=0
+BRPT ... CPU1 sent=100 received=100 errors=0
+BRPT PASS
+```
+
+若得到 `transport=-107`（`ENOTCONN`），即使自动脚本已经输出 `PASS_NSH`，本次 N9 cold-reset 仍判定失败。
 
 ## 10. J-Link reset：实验流程
 
@@ -531,6 +575,45 @@ Go
 - 未出现 `BClk` 时，本次 J-Link 运行不计入 cold-reset 矩阵；
 - 当前探针固件对带 I/D-cache 的单步调试有兼容性警告，但 RESET pin 操作与此分开。
 
+### 10.1 N9 RPTUN 共享控制块只读取证（实验步骤）
+
+当 NSH 可用但 RPMsg 未连接时，先保留失败现场，再读取 `0x28097000` 的 16 个 word：
+
+```bash
+/bin/bash -lc "printf 'halt\nmem32 0x28097000,16\ngo\nexit\n' | \
+  '/mnt/c/Program Files/SEGGER/JLink/JLink.exe' \
+  -device CORTEX-M33 -if SWD -speed 1000 -autoconnect 1"
+```
+
+控制块按 word 解释：
+
+| 偏移 | 字段 | 说明 |
+|---:|---|---|
+| `0x00` | magic | 期望 `0x54505242` |
+| `0x0c` | generation | CP/AP 生命周期代际 |
+| `0x10` | state | `0..6` = OFFLINE/PREPARING/TABLE_READY/CONNECTING/CONNECTED/QUIESCING/FAULTED |
+| `0x14` | flags | AP 初始化进度位，见下表 |
+| `0x18` | error | RPTUN wrapper 错误 |
+| `0x20/0x24` | pending | CP→AP / AP→CP 待处理通知位图 |
+| `0x30/0x34` | epoch | CP / AP 已接受的 generation |
+
+`flags` 当前定义：
+
+| 位 | 名称 | 已完成阶段 |
+|---:|---|---|
+| `0x01` | AP_MBOX_ENTER | 进入 SDK mailbox wrapper |
+| `0x02` | AP_MBOX_READY | SDK mailbox wrapper 已返回 |
+| `0x04` | AP_RPTUN_ENTER | 进入 board RPTUN wrapper |
+| `0x20` | AP_CORE_READY | NuttX `rptun_initialize()` 已返回 |
+| `0x40` | AP_TEST_ENTER | 进入 RPMsg 测试服务初始化 |
+| `0x80` | AP_TEST_READY | RPMsg 测试服务初始化已返回 |
+| `0x08` | AP_RPTUN_READY | board RPTUN wrapper 已返回 |
+| `0x10` | AP_READY | AP READY 已发布 |
+
+mailbox wrapper 内部细分位为：`0x100` semaphore ready、`0x200` worker created、`0x400` worker pinned、`0x800` SDK logical channel initialized、`0x1000` channel opened、`0x2000` callbacks installed。正常完成后的 flags 为 `0x00003fff`。
+
+例如，物理复位失败现场的 `state=3, flags=0x7, cp_to_ap_pending=3, ap_epoch=0` 表示：mailbox wrapper 已完成，AP 已进入 RPTUN wrapper，但尚未完成其内部初始化；不能再归因于 mailbox 初始化或单纯增加 AP 启动超时。
+
 ## 11. 在 NSH 下采集状态
 
 COM11 空闲且 NSH 已出现时，可以使用 PowerShell capture 脚本发送命令：
@@ -560,6 +643,20 @@ ps
 ls /dev
 cat /data/probe.txt
 ```
+
+N9 配置下，`apctl status` 会直接输出：
+
+```text
+RPTUN state=CONNECTED(4) error=0 generation=...
+RPTUN pending cp/ap=... heartbeat cp/ap=... epoch cp/ap=...
+```
+
+`apctl restart` 命令会在 AP READY 后立即打印一次状态；Name Service callback 尚未调度时，
+这一次允许短暂看到 `CONNECTING(3)`。随后单独执行 `apctl status` 必须转为
+`CONNECTED(4)`。迁移点是 CP 成功绑定 AP endpoint，不是单纯 lower-half 初始化完成；
+若持续停在 CONNECTING，再执行 `bkrpmsgtest` 和第 10.1 节控制块读取。
+
+只有 CP 无法继续执行 NSH 命令时，才需要退回第 10.1 节的 J-Link 共享内存读取。
 
 ## 12. 自动日志目录
 
@@ -593,7 +690,9 @@ jlink-reset.log             J-Link 输出，仅 jlink-reset 模式
 | `W1` 后数秒出现 `A7/F1/F2` | AP READY timeout cleanup | 继续看是否 fail-open 到 NSH |
 | `F1/F2` 后到 `C8/NSH` | AP timeout，但 CP 启动成功 | AP 作为独立问题 |
 | `C8` 后无 NSH | board init 已返回，NSH session/stdio 问题 | 查 NSH console |
-| `PASS_NSH` | 本次启动进入 NSH | 记录 cold/warm 属性 |
+| `PASS_NSH` | 本次启动进入 NSH，仅证明 CP shell | 记录 cold/warm 属性，再执行当前 profile 功能门禁 |
+| `PASS_NSH` 后 `ENOTCONN` | CP 正常但 RPTUN 未连接 | `apctl status`，再按 10.1 读取控制块 |
+| `BRPT PASS` | 当前 RPMsg 功能用例通过 | 记录 count/payload/load/generation |
 
 当前 summary 额外输出：
 
@@ -650,6 +749,34 @@ Writing Flash OK
 
 若它出现在 `NuttShell (NSH)` 之后，不是启动 blocker。本 Stage 不处理。
 
+### 14.6 N9 cold reset 后 `ENOTCONN`
+
+已验证的故障签名：
+
+```text
+PASS_NSH
+bkrpmsgtest ... -> transport=-107
+RPTUN state=CONNECTING
+flags=0x00000001 或 0x00000007
+```
+
+根因不是 SDK/NuttX 源码错误，也不是单纯启动超时：AP init task 优先级 100，在同步 `kthread_create()` 激活优先级 225 的 mailbox RX worker、优先级 224 的 stock RPTUN worker后，冷启动时初始化协调者可能无法可靠返回。warm restart 的成功会掩盖这个问题。
+
+board wrapper 的已验证处理是：
+
+- SDK 物理 MBOX0 仍在 AP SMP bootstrap 早期初始化；
+- N8 AP-local SMP gate 先完成，避免 logical RPMsg traffic 干扰零长度 IPI 自测；
+- 创建 logical mailbox/RPTUN workers 期间，AP 初始化协调者临时使用优先级 226；
+- 发布 AP/RPTUN READY 后恢复原优先级；
+- 不修改官方 NuttX，也不修改 SDK 源码。
+
+对应板端证据为 3 次独立 physical RESET 均 `BRPT PASS`。最终正式打包产物又通过一次
+physical RESET（`logs/bk7258-auto-debug/20260731-215631/`，`cold_path=yes`），随后
+`logs/n9-final-packaged-apctl-status.raw` 得到 generation 1、flags `0x3fff`、
+`CONNECTED(4)`；`logs/n9-final-packaged-rpmsg-run100.raw` 中双 AP CPU 各 100/100。
+warm restart 后 generation 2 再次 CONNECTED、各 100/100，并由
+`logs/n9-final-connected-warm-syslog.raw` 证明 `syslog_rpmsg` 继续通过。
+
 ## 15. 重复性验收矩阵
 
 | 启动方式 | 次数 | 必须检查 |
@@ -659,6 +786,8 @@ Writing Flash OK
 | 手动 physical RESET | 3 | 每次有 `BClk/U2/C8/NSH` |
 | 断电重上电 | 3 | 与 physical RESET 相同 |
 | NSH `apctl status` | 每类至少 1 | 区分 CP 成功与 AP timeout |
+| N9 physical RESET 后 RPMsg | 3 | `AP READY`、`RPTUN CONNECTED`、双 AP CPU 各 100/100、`BRPT PASS` |
+| N9 AP warm restart | 3+ | generation 递增、旧事件不误判、重连后 `BRPT PASS` |
 | LittleFS | 1+ | factory 擦除语义或 split update 保持语义符合预期 |
 
 ## 16. 调试结束后的清理
@@ -706,6 +835,8 @@ BClk -> U2 等价功能 -> C8 -> NSH
 [ ] 手动按 RESET
 [ ] 检查 BClk/U2/C8/NSH
 [ ] NSH 下执行 apctl status
+[ ] RPTUN profile 下执行 bkrpmsgtest，不能用 PASS_NSH 代替 BRPT PASS
+[ ] 失败现场先归档，再只读采集 0x28097000 控制块
 [ ] 归档 logs/bk7258-auto-debug/<timestamp>
 [ ] 更新当前 Stage worklog
 [ ] 重复性矩阵通过后再清理 checkpoint

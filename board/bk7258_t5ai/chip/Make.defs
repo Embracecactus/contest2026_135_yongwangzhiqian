@@ -69,6 +69,17 @@ ifeq ($(CONFIG_BK7258_AP_CONTROL),y)
 BK7258_CP_CSRCS += bk7258_ap_control.c
 endif
 
+ifeq ($(CONFIG_BK7258_RPTUN_MBOX),y)
+BK7258_CP_CSRCS += bk7258_rptun_mbox.c
+endif
+
+ifeq ($(CONFIG_BK7258_RPTUN),y)
+BK7258_CP_CSRCS += bk7258_rptun.c
+ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
+BK7258_CP_CSRCS += bk7258_rpmsg_test.c
+endif
+endif
+
 # Stage B: replace the SDK private CM33 callback table with NuttX irq_attach()
 # ownership for SDK interrupt sources 0..63.  The implementation lives in
 # common/; this gate activates it for the CP image.
@@ -144,6 +155,17 @@ BK7258_AP_BASE_CSRCS  = bk7258_ap_vectors.c
 BK7258_AP_BASE_CSRCS += bk7258_ap_start.c
 BK7258_AP_BASE_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
 BK7258_AP_BASE_CSRCS += bk7258_ap_main.c
+
+ifeq ($(CONFIG_BK7258_RPTUN_MBOX),y)
+BK7258_AP_BASE_CSRCS += bk7258_rptun_mbox.c
+endif
+
+ifeq ($(CONFIG_BK7258_RPTUN),y)
+BK7258_AP_BASE_CSRCS += bk7258_rptun.c
+ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsg_test.c
+endif
+endif
 
 BK7258_AP_UP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
 BK7258_AP_UP_CSRCS += bk7258_cpu2_probe.c

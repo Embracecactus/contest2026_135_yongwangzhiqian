@@ -33,3 +33,10 @@ if(CONFIG_BK7258_AP_CONTROL)
     SRCS bk7258_apctl_main.c
     STACKSIZE 2048)
 endif()
+
+if(CONFIG_BK7258_RPMSG_TEST AND NOT CONFIG_BK7258_AP_CORE)
+  nuttx_add_application(
+    NAME bkrpmsgtest
+    SRCS bk7258_rpmsg_test_main.c
+    STACKSIZE 3072)
+endif()

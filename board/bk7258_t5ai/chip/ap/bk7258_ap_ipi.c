@@ -333,10 +333,13 @@ int bk7258_ap_ipi_primary_initialize(void)
       return -EIO;
     }
 
-  /* The vendor AP init configures the CPU1/CPU2 endpoints but deliberately
-   * leaves the device-wide FIFO layout to endpoint CPU0.  The independent AP
-   * image has no vendor CPU0 mailbox owner, so finish that SDK-owned global
-   * initialization here before either AP logical CPU sends a message.
+  /* Keep the SDK's complete MBOX0 initialization sequence on AP.  The
+   * mailbox-channel wrapper installs one shared physical ISR which routes
+   * zero-length frames to the SMP cross-core handler and nonzero frames to
+   * logical channels.  This CPU0 step also performs the AP-side device/FIFO
+   * setup; it is therefore required even when CP initialized the same
+   * hardware first.  Both images use the official 2/3/3 FIFO partition, so
+   * repeating that idempotent setup does not create a second ISR owner.
    */
 
   ret = bk_mailbox_cc_init_on_current_core(MAILBOX_CPU0);

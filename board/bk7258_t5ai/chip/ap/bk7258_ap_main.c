@@ -12,6 +12,8 @@
 
 #include <nuttx/config.h>
 
+#include <stdbool.h>
+#include <sched.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -19,6 +21,14 @@
 #include <nuttx/signal.h>
 
 #include <arch/chip/bk7258_amp.h>
+
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+#  include <arch/chip/bk7258_rptun.h>
+#  include "bk7258_rptun_mbox.h"
+#endif
+#ifdef CONFIG_BK7258_RPTUN
+#  include "bk7258_rptun.h"
+#endif
 
 #include "arm_internal.h"
 #include "bk7258_clockdiag.h"
@@ -48,6 +58,15 @@
 #define BK7258_MPU_CTRL_EXPECTED    0x7u
 #define BK7258_AP_HEARTBEAT_US      100000u
 
+#ifdef CONFIG_BK7258_RPTUN
+#  define BK7258_AP_RPTUN_INIT_PRIORITY  226
+static_assert(BK7258_AP_RPTUN_INIT_PRIORITY >
+              CONFIG_BK7258_RPTUN_RX_PRIORITY,
+              "AP RPTUN init coordinator must outrank RX worker");
+static_assert(BK7258_AP_RPTUN_INIT_PRIORITY > CONFIG_RPTUN_PRIORITY,
+              "AP RPTUN init coordinator must outrank RPTUN worker");
+#endif
+
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
 #  define BK7258_CPU2_EXPECTED_STATE \
     BK7258_CPU2_PROBE_STATE_SCHEDULER_ONLINE
@@ -62,6 +81,25 @@
  * Private Functions
  ****************************************************************************/
 
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+static uint32_t bk7258_ap_mbox_receive(void)
+{
+  return bk7258_rptun_mbox_take_lifecycle();
+}
+
+static void bk7258_ap_mbox_send(uint32_t event)
+{
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+
+  if (bk7258_rptun_mbox_send(BK7258_RPTUN_MBOX_LIFECYCLE,
+                             state->generation, event) >= 0)
+    {
+      state->ap_to_cp_doorbells++;
+    }
+
+  __asm volatile ("dmb sy" ::: "memory");
+}
+#else
 static inline volatile uint32_t *bk7258_ap_mbox(uint32_t base)
 {
   return (volatile uint32_t *)(uintptr_t)base;
@@ -118,6 +156,7 @@ static void bk7258_ap_mbox_send(uint32_t event)
   state->ap_to_cp_doorbells++;
   __asm volatile ("dsb sy; sev" ::: "memory");
 }
+#endif
 
 static void bk7258_ap_publish_failure(uint32_t error)
 {
@@ -223,7 +262,6 @@ static int bk7258_ap_validate_secondary_bootstrap(void)
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
   volatile struct bk7258_ap_smp_state_s *smp = bk7258_ap_smp_state();
 #endif
-
   __asm volatile ("dmb sy" ::: "memory");
 
   if (cpu2->magic != BK7258_CPU2_PROBE_STATE_MAGIC ||
@@ -282,6 +320,13 @@ static int bk7258_ap_validate_secondary_bootstrap(void)
 int bk7258_ap_main(int argc, char *argv[])
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+#ifdef CONFIG_BK7258_RPTUN
+  volatile struct bk7258_rptun_control_s *rptun =
+    bk7258_rptun_control();
+  struct sched_param saved_priority;
+  struct sched_param startup_priority;
+  bool priority_raised = false;
+#endif
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
   volatile struct bk7258_ap_smp_state_s *smp = bk7258_ap_smp_state();
 #endif
@@ -306,6 +351,34 @@ int bk7258_ap_main(int argc, char *argv[])
       bk7258_ap_publish_failure((uint32_t)error);
       goto parked;
     }
+
+#ifdef CONFIG_BK7258_RPTUN
+  /* kthread_create() activates the new task before returning.  Both the
+   * mailbox RX worker and stock RPTUN worker intentionally outrank normal
+   * applications, but they must not outrank the coordinator which is still
+   * constructing and pinning them.  Otherwise a cold-start context switch
+   * can leave this init path inside kthread_create() indefinitely.  Restore
+   * the original init-task priority only after READY has been published.
+   */
+
+  ret = sched_getparam(0, &saved_priority);
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
+      goto parked;
+    }
+
+  startup_priority = saved_priority;
+  startup_priority.sched_priority = BK7258_AP_RPTUN_INIT_PRIORITY;
+  ret = sched_setparam(0, &startup_priority);
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
+      goto parked;
+    }
+
+  priority_raised = true;
+#endif
 
 #ifdef CONFIG_BK7258_AP_SMP_BOOTSTRAP
   error = bk7258_ap_validate_secondary_bootstrap();
@@ -394,11 +467,63 @@ int bk7258_ap_main(int argc, char *argv[])
     }
 #endif
 
+  /* Keep AP-local N8 validation ahead of logical transport ownership so its
+   * zero-length SMP IPI gates run without RPMsg traffic.  The SDK physical
+   * MBOX0 driver was already initialized by the AP SMP bootstrap.  The
+   * temporarily elevated coordinator priority above is what makes the later
+   * synchronous worker creation deterministic; changing the SDK/NuttX source
+   * or moving logical transport ahead of the N8 gates is unnecessary.
+   */
+
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+#ifdef CONFIG_BK7258_RPTUN
+  __atomic_fetch_or((uint32_t *)(uintptr_t)&rptun->flags,
+                    BK7258_RPTUN_FLAG_AP_MBOX_ENTER, __ATOMIC_RELEASE);
+#endif
+  ret = bk7258_rptun_mbox_initialize();
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
+      goto parked;
+    }
+
+#ifdef CONFIG_BK7258_RPTUN
+  __atomic_fetch_or((uint32_t *)(uintptr_t)&rptun->flags,
+                    BK7258_RPTUN_FLAG_AP_MBOX_READY, __ATOMIC_RELEASE);
+#endif
+#endif
+
+#ifdef CONFIG_BK7258_RPTUN
+  __atomic_fetch_or((uint32_t *)(uintptr_t)&rptun->flags,
+                    BK7258_RPTUN_FLAG_AP_RPTUN_ENTER, __ATOMIC_RELEASE);
+  ret = bk7258_rptun_initialize(state->generation);
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
+      goto parked;
+    }
+
+  __atomic_fetch_or((uint32_t *)(uintptr_t)&rptun->flags,
+                    BK7258_RPTUN_FLAG_AP_RPTUN_READY, __ATOMIC_RELEASE);
+#endif
+
   state->error      = BK7258_AP_ERROR_NONE;
   state->last_event = BK7258_AP_EVENT_READY;
   state->state      = BK7258_AP_STATE_READY;
+#ifdef CONFIG_BK7258_RPTUN
+  rptun->ap_epoch   = state->generation;
+  __atomic_fetch_or((uint32_t *)(uintptr_t)&rptun->flags,
+                    BK7258_RPTUN_FLAG_AP_READY, __ATOMIC_RELEASE);
+#endif
   __asm volatile ("dmb sy" ::: "memory");
   bk7258_ap_mbox_send(BK7258_AP_EVENT_READY);
+
+#ifdef CONFIG_BK7258_RPTUN
+  if (priority_raised)
+    {
+      (void)sched_setparam(0, &saved_priority);
+    }
+#endif
 
   for (; ; )
     {

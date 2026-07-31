@@ -1,9 +1,9 @@
 # BK7258 CP/AP 双 NuttX 与 RPTUN/RPMsg 架构探索总结
 
 > 日期：2026-07-26
-> 状态：architecture research / source-verified，尚未实现、构建或板端验证
-> 权威工作树：`/home/lijian/project/open-vela/.worktrees/bk7258-clean-pr`
-> 外部参考：`/home/lijian/project/armino/bk_avdk_smp`、`/home/lijian/project/armino/vendor_beken`
+> 状态：architecture research + N9 implementation closure；RPTUN/RPMsg wrapper 已 `board-verified`
+> 权威工作树：`/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian`
+> 外部参考：`/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9`、`/home/lijian/project/armino/vendor_beken`
 
 ## 1. 目标与边界
 
@@ -75,7 +75,8 @@ NuttX lower-half / netdev wrapper
 openvela board/chip build integration
 ```
 
-它以 BK7236N 为目标，主要价值是提供“厂商 SDK/HAL 如何进入 NuttX”的参考模式，而不是直接提供 BK7258 CP/AP 实现。
+它以 BK7236N 为目标，主要价值是提供“厂商 SDK/HAL 如何进入 NuttX”的参考模式，而不是直接提供 BK7258 CP/AP 实现。N9 已按这个官方 wrapper 边界落地：SDK 和 NuttX
+保持只读，BK7258 特有的 mailbox/shared-memory/RPTUN 适配全部放在 contest board overlay。
 
 ### 3.2 构建注入
 
@@ -552,17 +553,35 @@ AP log/remote CLI 同样直接使用 `MB_CHNL_LOG`：
 
 ### 6.5 AP SMP mailbox 冲突
 
-官方 AP mailbox driver会把特定零长度消息解释为 SMP cross-core command：
+官方 AP mailbox driver 会把 `mbox0_message_t.data[1] == 0` 的消息解释为 SMP
+cross-core command：
 
 - `ap/middleware/driver/mailbox/mbox0_drv.c:59-70`
 - `ap/middleware/driver/mailbox/mbox0_cross_core.c:34-45`
 
+v3.1.1.9 还明确给出：
+
+```text
+MBOX0 base       0x41000000
+CPU channels     0 / 1 / 2
+total FIFO       8 entries
+SMP FIFO split   2 / 3 / 3
+```
+
+当前团队 N7 lifecycle raw-register path 与 N8 SDK FIFO path 都访问该 MBOX0
+控制器。因此 N9 不只是“另分一个逻辑 channel”，还必须先解决同一硬件被两套
+初始化/寄存器 ABI 同时拥有的问题。
+
 所以 AP NuttX 必须：
 
 1. 将 CPU1↔CPU2 SMP IPI 与 CPU0↔CPU1 RPTUN notify 分离。
-2. 为 RPTUN 分配独立 channel、message type 或非零 notify ID。
-3. 将 CP/AP mailbox IRQ affinity 固定到 AP logical core0/physical CPU1。
-4. 不让 CPU2 成为第二个 RPMsg peer。
+2. 冻结唯一的 MBOX0 init/FIFO/IRQ owner，将 lifecycle 迁移到统一 FIFO ABI，或
+   定义严格的 pre-FIFO handoff。
+3. 永久保留 `data[1] == 0` 给 SMP IPI；CP/AP control/RPTUN 使用非零 type tag。
+4. 在共享 control header 中保存完整 generation/pending bit，mailbox 只作 edge。
+5. 定义 FIFO full、coalescing、重复 kick 和 ISR drain policy。
+6. 将 CP/AP mailbox IRQ affinity 固定到 AP logical core0/physical CPU1。
+7. 不让 CPU2 成为第二个 RPMsg peer。
 
 ---
 
@@ -635,6 +654,16 @@ CPU1+CPU2 AP NuttX SMP  = 一个 RPTUN remote peer
 - shared table ready phase。
 
 第一版建议由 CPU0 在启动 AP 前初始化固定地址的静态 resource table，AP 从同一共享地址读取；实际 role flag 在实现阶段对照 NuttX reference driver 验证。
+
+当前 checkout 的补充结论：
+
+- `rptun_do_start()` 在两端都会调用 lower-half `get_resource()`；
+- `is_master()` 控制 lower-half `config/start/stop`；
+- virtio role 由 `is_master()` 与 resource table `reserved[0]` 异或计算；
+- 当前 RPTUN core 没有评审所称的 `rptun_init_mem()` 调用。
+
+因此 table 唯一 author、ready/generation/CRC polling 和 warm-restart stale 防护必须由
+BK7258 lower-half/control header 明确定义，不能假设 RPTUN core 自动处理。
 
 ### 7.3 可参考 lower-half
 
@@ -749,7 +778,7 @@ CPU2 / AP local logical core1
 
 ## 10. SRAM、PSRAM 与 cache
 
-官方生成布局：
+官方 v3.1.1.9 FreeRTOS 镜像生成布局：
 
 ```text
 AP_SPINLOCK  0x28000000 size 0x10000
@@ -763,19 +792,35 @@ AP_PSRAM_HEAP     0x60720000 size 0xA0000
 AP_PSRAM_SECTION  0x607C0000 size 0x40000
 ```
 
-- `/home/lijian/project/armino/bk_avdk_smp/build/bk7258/app/partitions/ram_regions.h:6-29`
+- `/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9/build/bk7258/app/partitions/ram_regions.h:6-29`
 
-### 10.1 必须保留的现有区域
+### 10.1 与团队双 NuttX linker 的关系
 
-早期阶段不得把以下区域加入任何 heap 或普通 BSS：
+当前团队双 NuttX 镜像采用自己的明确重分区：
 
-- `AP_SPINLOCK`
-- `PWR_MNG`
-- `SWAP`
+```text
+CP RAM             0x28000000..0x2804ffff
+AP RAM             0x28050000..0x2809efff
+team telemetry     0x2809f000..0x2809f6ff
+PWR_MNG reserve    0x2809f700..0x2809f7ff
+SWAP/tail reserve  0x2809f800..0x2809ffff
+```
 
-`PWR_MNG` 后半还包含 flash shared-lock state：
+官方和团队的 `AP_RAM/CP_RAM` 是不同固件体系的 linker ABI；因为最终不运行官方
+FreeRTOS CP/AP 镜像，分区不同本身不是冲突。
 
-- `/home/lijian/project/armino/bk_avdk_smp/cp/include/driver/pwr_clk.h:46-67`
+必须保留/审计的是：
+
+- `PWR_MNG`：SDK 固定地址 PM state，当前 `pwr_clk.h` 字段覆盖 PSRAM、wake/reset、
+  exception 和 PM vote。未发现所谓 flash shared-lock 字段。
+- `SWAP`：官方 `.swap_data`/mailbox exchange buffer 区；团队首版保留尾区，同时
+  审计最终 ELF 中 `.swap_data` 的实际落点。
+- `AP_SPINLOCK`：官方 linker 给 `.sram_spinlock_section` 的 section，不是硬件寄存器
+  保留区。团队无需照搬 64 KiB 地址，但 SDK archive 若仍带该 section，team linker
+  必须显式映射到 AP-owned region 或拒绝链接，不能由 orphan section 落入 CP RAM。
+
+N9-A 必须产出 official/team compatibility matrix、SDK absolute-address allowlist 和
+最终 ELF section/literal verifier。
 
 ### 10.2 RPMsg carveout
 
@@ -792,11 +837,17 @@ CP_AP_RPMSG
 └── ready/generation state
 ```
 
-具体地址和大小需要在 dual-image linker/partition 阶段确定，不在本轮拍定。
+具体地址和大小需要由使用当前 `sizeof(struct rptun_rsc_s)`、`vring_size()`、
+descriptor/buffer constants 的 layout calculator 确定，不能靠估算拍定。
 
 ### 10.3 cache
 
-官方当前 app 配置两侧均关闭 `CONFIG_CACHE_ENABLE`，但 mailbox 源码已包含条件 cache 操作。NuttX 若启用 cache，必须实现：
+官方当前 app 配置两侧均关闭 `CONFIG_CACHE_ENABLE`，但 mailbox 源码已包含条件 cache
+操作。当前团队 AP 还进一步验证了 `CCR.DC=0`，并用 MPU region 15 将
+`0x28000000..0x3fffffff` 映射为 Inner Shareable Normal Non-cacheable。N9 首版沿用
+这个明确 contract，不再混写成“non-cacheable 或 cache-off”。
+
+未来 NuttX 若启用 cache，必须实现：
 
 ```text
 sender:
@@ -972,18 +1023,14 @@ AP:
 
 ---
 
-## 14. 当前未决项
+## 14. N9 后续未决项
 
 1. BK7258 Wi-Fi/BLE/PHY/controller 的最终 source/archive/firmware 清单和许可。
-2. CP/AP flash 新分区和现有 LittleFS 的迁移方案。
-3. CP、AP SRAM/heap 收缩量及 `CP_AP_RPMSG` carveout 地址/大小。
-4. AP NuttX SMP 的 architecture hooks、IPI 和 per-core timer 具体实现。
-5. RPTUN resource table 的唯一初始化方及 virtio DRIVER/DEVICE role。
-6. mailbox channel/notify ID 分配，避免 AP SMP zero-length command 冲突。
-7. cache-off 首版与 cache-on 正式版的 MPU/cache policy。
-8. Wi-Fi 最终选择纯 RPMsg copy、`rpmsgdrv` 还是 shared packet ring。
-9. CP/AP heartbeat timeout 后采用 AP restart 还是整机 WDT reset。
-10. AP secure-only 初版之后是否需要 TrustZone/Non-Secure 分层。
+2. N9 以后新增服务、无线固件和文件系统需求对现有 CP/AP flash 分区的容量影响。
+3. 当前 non-cacheable 首版之后，cache-on 正式版的 MPU/cache maintenance policy。
+4. Wi-Fi 最终选择纯 RPMsg copy、`rpmsgdrv` 还是 shared packet ring。
+5. CP/AP heartbeat timeout 后采用 AP restart 还是整机 WDT reset。
+6. AP secure-only 初版之后是否需要 TrustZone/Non-Secure 分层。
 
 ---
 
@@ -1000,4 +1047,11 @@ AP:
 9. BLE 最适合使用 CP controller + AP NuttX host + `bt_rpmsghci`。
 10. Wi-Fi 最终推荐 CP controller/backend + AP NuttX netdev/network stack，并在 RPMsg 上实现 BK7258 专用 control/data service。
 
-下一项最合理的工程工作是先完成 **Phase A：team-owned AP primary image 与 CPU0→CPU1 启动链设计**，在其稳定后再进入 AP SMP 和 RPTUN。
+Phase A、N7 AP primary、N8 AP SMP 和 N9 RPTUN/RPMsg wrapper 均已完成并取得板端证据。
+N9 冻结结果为：32 KiB carveout、CP resource/master + AP remote、SDK mailbox channel
+wrapper、AP CPU0-only OpenAMP gateway、shared pending level state、动态 Name Service、
+generation reconnect 和 `syslog_rpmsg`。下一项工程工作应在这个 transport 基线上选择
+独立服务，不再回到 N9-R/N9-A 规划状态。详细实现和 gate 见
+[N9 正式计划/完成记录](prompts/09-n9-rptun-rpmsg.md)、
+[source verification](n9-rptun-source-verification.md)及
+[17 项评审处置](n9-plan-review-2026-07-31.md)。
