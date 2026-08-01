@@ -107,7 +107,8 @@
 #define BK7258_RPTUN_NOTIFY_ALL            (1u << 31)
 
 #define BK7258_RPMSG_TEST_RESULT_MAGIC      0x54535242u /* "BRST" */
-#define BK7258_RPMSG_TEST_RESULT_VERSION    1u
+#define BK7258_RPMSG_TEST_RESULT_VERSION    2u
+#define BK7258_RPMSG_TEST_RESULT_SIZE       240u
 #define BK7258_RPMSG_TEST_FRAME_SIZE        \
   (BK7258_RPTUN_BUFFER_SIZE - 16u)
 #define BK7258_RPMSG_TEST_WIRE_HEADER_SIZE  32u
@@ -119,6 +120,22 @@
 #define BK7258_RPMSG_TEST_VALID_FLAGS        \
   (BK7258_RPMSG_TEST_FLAG_CPU0_LOAD |       \
    BK7258_RPMSG_TEST_FLAG_SYSLOG_PROBE)
+
+/* Wrapper-only diagnostics distinguish pthread attribute/create failures
+ * during permanent worker setup from a per-run semaphore dispatch failure.
+ * Target and stage remain numeric in BRPT output so automated soak parsers
+ * can gate on them without locale-sensitive strings.
+ */
+
+#define BK7258_RPMSG_TEST_SPAWN_TARGET_NONE    0u
+#define BK7258_RPMSG_TEST_SPAWN_TARGET_LOAD    1u
+#define BK7258_RPMSG_TEST_SPAWN_TARGET_CPU0    2u
+#define BK7258_RPMSG_TEST_SPAWN_TARGET_CPU1    3u
+
+#define BK7258_RPMSG_TEST_SPAWN_STAGE_NONE     0u
+#define BK7258_RPMSG_TEST_SPAWN_STAGE_ATTR     1u
+#define BK7258_RPMSG_TEST_SPAWN_STAGE_CREATE   2u
+#define BK7258_RPMSG_TEST_SPAWN_STAGE_DISPATCH 3u
 
 /****************************************************************************
  * Public Types
@@ -178,6 +195,16 @@ struct bk7258_rpmsg_test_cpu_result_s
   uint64_t total_cycles;
 };
 
+struct bk7258_rpmsg_test_heap_result_s
+{
+  uint32_t arena;
+  uint32_t allocated_blocks;
+  uint32_t free_blocks;
+  uint32_t largest_free;
+  uint32_t allocated_bytes;
+  uint32_t free_bytes;
+};
+
 struct bk7258_rpmsg_test_result_s
 {
   uint32_t magic;
@@ -193,6 +220,14 @@ struct bk7258_rpmsg_test_result_s
   int32_t status;
   uint32_t controller_cpu;
   struct bk7258_rpmsg_test_cpu_result_s cpu[2];
+  struct bk7258_rpmsg_test_heap_result_s heap_start;
+  struct bk7258_rpmsg_test_heap_result_s heap_after_spawn;
+  struct bk7258_rpmsg_test_heap_result_s heap_report;
+  int32_t spawn_status;
+  uint32_t spawn_target;
+  uint32_t spawn_stage;
+  uint32_t workers_expected;
+  uint32_t workers_done;
 };
 
 /****************************************************************************
@@ -221,6 +256,11 @@ static_assert(BK7258_RPMSG_TEST_WIRE_HEADER_SIZE +
               BK7258_RPMSG_TEST_MAX_PAYLOAD ==
               BK7258_RPMSG_TEST_FRAME_SIZE,
               "BK7258 RPMsg test frame ABI is inconsistent");
+static_assert(sizeof(struct bk7258_rpmsg_test_heap_result_s) == 24u,
+              "BK7258 RPMsg heap diagnostic ABI changed");
+static_assert(sizeof(struct bk7258_rpmsg_test_result_s) ==
+              BK7258_RPMSG_TEST_RESULT_SIZE,
+              "BK7258 RPMsg result diagnostic ABI changed");
 static_assert(sizeof(struct bk7258_rpmsg_test_result_s) <=
               BK7258_RPMSG_TEST_MAX_PAYLOAD,
               "BK7258 RPMsg test result cannot fit one frame");
