@@ -60,6 +60,17 @@ static void bkrpmsgtest_print_latency(const char *name, uint32_t cycles,
          name, cycles, name, scaled / 1000u, scaled % 1000u);
 }
 
+static void bkrpmsgtest_print_heap(
+  const char *name, const struct bk7258_rpmsg_test_heap_result_s *heap)
+{
+  printf(" %s_arena=%" PRIu32 " %s_used=%" PRIu32
+         " %s_free=%" PRIu32 " %s_largest=%" PRIu32
+         " %s_alloc_blocks=%" PRIu32 " %s_free_blocks=%" PRIu32,
+         name, heap->arena, name, heap->allocated_bytes,
+         name, heap->free_bytes, name, heap->largest_free,
+         name, heap->allocated_blocks, name, heap->free_blocks);
+}
+
 static int bkrpmsgtest_one(uint32_t count, uint32_t payload,
                            uint32_t flags, uint32_t timeout_ms)
 {
@@ -121,6 +132,17 @@ static int bkrpmsgtest_one(uint32_t count, uint32_t payload,
                                 result.frequency);
       printf(" total_cycles=%" PRIu64 "\n", cpu->total_cycles);
     }
+
+  printf("BRPT HEAP");
+  bkrpmsgtest_print_heap("start", &result.heap_start);
+  bkrpmsgtest_print_heap("spawn", &result.heap_after_spawn);
+  bkrpmsgtest_print_heap("report", &result.heap_report);
+  printf("\n");
+  printf("BRPT SPAWN target=%" PRIu32 " stage=%" PRIu32
+         " status=%" PRId32 " workers_expected=%" PRIu32
+         " workers_done=%" PRIu32 "\n",
+         result.spawn_target, result.spawn_stage, result.spawn_status,
+         result.workers_expected, result.workers_done);
 
   elapsed_cycles = result.cpu[0].total_cycles >
                    result.cpu[1].total_cycles ?

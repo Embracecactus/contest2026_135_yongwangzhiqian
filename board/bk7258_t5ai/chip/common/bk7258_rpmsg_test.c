@@ -16,6 +16,9 @@
 #ifdef CONFIG_BK7258_RPMSG_TEST
 
 #include <errno.h>
+#ifdef CONFIG_BK7258_AP_CORE
+#  include <malloc.h>
+#endif
 #include <pthread.h>
 #include <sched.h>
 #include <stdbool.h>
@@ -115,7 +118,9 @@ struct bk7258_rpmsg_test_dev_s
 #ifdef CONFIG_BK7258_AP_CORE
   sem_t start_sem;
   sem_t done_sem;
+  sem_t worker_start_sem[2];
   sem_t reply_sem[2];
+  sem_t load_start_sem;
   sem_t load_done_sem;
   sem_t tx_sem;
   sem_t tx_done_sem[2];
@@ -498,12 +503,11 @@ static int bk7258_rpmsg_test_attr_initialize(pthread_attr_t *attr,
   return ret;
 }
 
-static FAR void *bk7258_rpmsg_test_worker(FAR void *arg)
+static void bk7258_rpmsg_test_run_worker(uint32_t slot)
 {
   struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
   struct bk7258_rpmsg_test_cpu_result_s *cpu;
   struct bk7258_rpmsg_test_wire_s msg;
-  uint32_t slot = (uint32_t)(uintptr_t)arg;
   uint32_t reply_timeout;
   uint32_t sequence;
   uint32_t elapsed_cycles;
@@ -613,6 +617,34 @@ done:
     {
       (void)nxsem_post(&priv->done_sem);
     }
+}
+
+static FAR void *bk7258_rpmsg_test_worker(FAR void *arg)
+{
+  struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
+  uint32_t slot = (uint32_t)(uintptr_t)arg;
+  int ret;
+
+  /* A detached pthread that exits on AP logical CPU1 leaves its stack/TCB
+   * allocation pending in this board's current SMP lifecycle path.  The
+   * stress test used to create two fresh workers per request and therefore
+   * consumed one 4360-byte allocation on every run until pthread_create()
+   * returned ENOMEM.  Keep one pinned worker per logical CPU for the AP
+   * lifetime and dispatch requests with counting semaphores instead.  This
+   * stays entirely in the board wrapper and does not alter NuttX or the SDK.
+   */
+
+  for (; ; )
+    {
+      ret = nxsem_wait_uninterruptible(&priv->worker_start_sem[slot]);
+      if (ret < 0)
+        {
+          continue;
+        }
+
+      __asm volatile ("dmb sy" ::: "memory");
+      bk7258_rpmsg_test_run_worker(slot);
+    }
 
   return NULL;
 }
@@ -622,39 +654,71 @@ static FAR void *bk7258_rpmsg_test_load_worker(FAR void *arg)
   struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
   volatile uint32_t value = 0;
   uint32_t i;
+  int ret;
 
   (void)arg;
-  while (!__atomic_load_n(&priv->load_stop, __ATOMIC_ACQUIRE))
+  for (; ; )
     {
-      for (i = 0; i < 4096; i++)
+      ret = nxsem_wait_uninterruptible(&priv->load_start_sem);
+      if (ret < 0)
         {
-          value = value * 1664525u + 1013904223u;
+          continue;
         }
 
-      sched_yield();
+      while (!__atomic_load_n(&priv->load_stop, __ATOMIC_ACQUIRE))
+        {
+          for (i = 0; i < 4096; i++)
+            {
+              value = value * 1664525u + 1013904223u;
+            }
+
+          sched_yield();
+        }
+
+      (void)nxsem_post(&priv->load_done_sem);
     }
 
   (void)value;
-  (void)nxsem_post(&priv->load_done_sem);
   return NULL;
+}
+
+static void bk7258_rpmsg_test_heap_snapshot(
+  struct bk7258_rpmsg_test_heap_result_s *snapshot)
+{
+  struct mallinfo info = mallinfo();
+
+  snapshot->arena = info.arena;
+  snapshot->allocated_blocks = info.aordblks;
+  snapshot->free_blocks = info.ordblks;
+  snapshot->largest_free = info.mxordblk;
+  snapshot->allocated_bytes = info.uordblks;
+  snapshot->free_bytes = info.fordblks;
 }
 
 static int bk7258_rpmsg_test_spawn(pthread_t *thread, uint32_t cpu,
                                     int priority,
                                     pthread_startroutine_t entry,
-                                    FAR void *arg)
+                                    FAR void *arg,
+                                    uint32_t *failure_stage)
 {
   pthread_attr_t attr;
   int ret;
 
+  *failure_stage = BK7258_RPMSG_TEST_SPAWN_STAGE_ATTR;
   ret = bk7258_rpmsg_test_attr_initialize(&attr, cpu, priority);
   if (ret != 0)
     {
       return -ret;
     }
 
+  *failure_stage = BK7258_RPMSG_TEST_SPAWN_STAGE_CREATE;
   ret = pthread_create(thread, &attr, entry, arg);
   (void)pthread_attr_destroy(&attr);
+  if (ret == 0)
+    {
+      *failure_stage = BK7258_RPMSG_TEST_SPAWN_STAGE_NONE;
+    }
+
   return ret == 0 ? OK : -ret;
 }
 
@@ -675,6 +739,7 @@ static void bk7258_rpmsg_test_prepare_result(void)
   priv->result.flags = priv->flags;
   priv->result.frequency = up_perf_getfreq();
   priv->result.controller_cpu = (uint32_t)up_cpu_index();
+  bk7258_rpmsg_test_heap_snapshot(&priv->result.heap_start);
 }
 
 static int bk7258_rpmsg_test_send_report(int status, bool release)
@@ -711,15 +776,13 @@ static int bk7258_rpmsg_test_send_report(int status, bool release)
 static int bk7258_rpmsg_test_controller(int argc, FAR char *argv[])
 {
   struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
-  pthread_t workers[2];
-  pthread_t load_thread;
   uint32_t expected;
   uint32_t i;
   clock_t wait_start;
   clock_t wait_limit;
   clock_t wait_slice;
   clock_t elapsed;
-  int load_created;
+  int load_started;
   int status;
   int ret;
 
@@ -749,39 +812,58 @@ static int bk7258_rpmsg_test_controller(int argc, FAR char *argv[])
       __atomic_store_n(&priv->abort, false, __ATOMIC_RELEASE);
       __atomic_store_n(&priv->load_stop, false, __ATOMIC_RELEASE);
       bk7258_rpmsg_test_prepare_result();
+      __asm volatile ("dmb sy" ::: "memory");
 
-      load_created = 0;
+      load_started = 0;
       status = OK;
       if ((priv->flags & BK7258_RPMSG_TEST_FLAG_CPU0_LOAD) != 0)
         {
-          ret = bk7258_rpmsg_test_spawn(&load_thread, 0,
-                                        BK7258_RPMSG_TEST_LOAD_PRIO,
-                                        bk7258_rpmsg_test_load_worker, NULL);
+          priv->result.spawn_target =
+            BK7258_RPMSG_TEST_SPAWN_TARGET_LOAD;
+          priv->result.spawn_stage =
+            BK7258_RPMSG_TEST_SPAWN_STAGE_DISPATCH;
+          ret = nxsem_post(&priv->load_start_sem);
           if (ret < 0)
             {
               status = ret;
+              priv->result.spawn_status = ret;
             }
           else
             {
-              load_created = 1;
+              load_started = 1;
+              priv->result.spawn_target =
+                BK7258_RPMSG_TEST_SPAWN_TARGET_NONE;
+              priv->result.spawn_stage =
+                BK7258_RPMSG_TEST_SPAWN_STAGE_NONE;
             }
         }
 
       expected = 0;
       for (i = 0; i < 2 && status >= 0; i++)
         {
-          ret = bk7258_rpmsg_test_spawn(
-                  &workers[i], i, BK7258_RPMSG_TEST_WORKER_PRIO,
-                  bk7258_rpmsg_test_worker, (FAR void *)(uintptr_t)i);
+          priv->result.spawn_target =
+            i == 0 ? BK7258_RPMSG_TEST_SPAWN_TARGET_CPU0 :
+                     BK7258_RPMSG_TEST_SPAWN_TARGET_CPU1;
+          priv->result.spawn_stage =
+            BK7258_RPMSG_TEST_SPAWN_STAGE_DISPATCH;
+          ret = nxsem_post(&priv->worker_start_sem[i]);
           if (ret < 0)
             {
               status = ret;
+              priv->result.spawn_status = ret;
               __atomic_store_n(&priv->abort, true, __ATOMIC_RELEASE);
               break;
             }
 
           expected++;
+          priv->result.spawn_target =
+            BK7258_RPMSG_TEST_SPAWN_TARGET_NONE;
+          priv->result.spawn_stage =
+            BK7258_RPMSG_TEST_SPAWN_STAGE_NONE;
         }
+
+      priv->result.workers_expected = expected;
+      bk7258_rpmsg_test_heap_snapshot(&priv->result.heap_after_spawn);
 
       wait_start = clock_systime_ticks();
       wait_limit = MSEC2TICK(
@@ -847,7 +929,7 @@ static int bk7258_rpmsg_test_controller(int argc, FAR char *argv[])
         }
 
       __atomic_store_n(&priv->load_stop, true, __ATOMIC_RELEASE);
-      if (load_created)
+      if (load_started)
         {
           ret = nxsem_tickwait_uninterruptible(
                   &priv->load_done_sem, MSEC2TICK(1000));
@@ -856,6 +938,10 @@ static int bk7258_rpmsg_test_controller(int argc, FAR char *argv[])
               status = ret;
             }
         }
+
+      priv->result.workers_done =
+        __atomic_load_n(&priv->workers_done, __ATOMIC_ACQUIRE);
+      bk7258_rpmsg_test_heap_snapshot(&priv->result.heap_report);
 
       for (i = 0; i < 2; i++)
         {
@@ -1156,7 +1242,9 @@ int bk7258_rpmsg_test_initialize(void)
 {
   struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
 #ifdef CONFIG_BK7258_AP_CORE
-  pthread_t tx_thread;
+  pthread_t thread;
+  uint32_t i;
+  uint32_t spawn_stage;
 #endif
   bool expected = false;
   int ret;
@@ -1178,12 +1266,27 @@ int bk7258_rpmsg_test_initialize(void)
 
   if (ret >= 0)
     {
+      ret = bk7258_rpmsg_test_sem_init(&priv->worker_start_sem[0]);
+    }
+
+  if (ret >= 0)
+    {
+      ret = bk7258_rpmsg_test_sem_init(&priv->worker_start_sem[1]);
+    }
+
+  if (ret >= 0)
+    {
       ret = bk7258_rpmsg_test_sem_init(&priv->reply_sem[0]);
     }
 
   if (ret >= 0)
     {
       ret = bk7258_rpmsg_test_sem_init(&priv->reply_sem[1]);
+    }
+
+  if (ret >= 0)
+    {
+      ret = bk7258_rpmsg_test_sem_init(&priv->load_start_sem);
     }
 
   if (ret >= 0)
@@ -1209,8 +1312,23 @@ int bk7258_rpmsg_test_initialize(void)
   if (ret >= 0)
     {
       ret = bk7258_rpmsg_test_spawn(
-              &tx_thread, 0, BK7258_RPMSG_TEST_TX_PRIO,
-              bk7258_rpmsg_test_tx_gateway, NULL);
+              &thread, 0, BK7258_RPMSG_TEST_TX_PRIO,
+              bk7258_rpmsg_test_tx_gateway, NULL, &spawn_stage);
+    }
+
+  for (i = 0; i < 2 && ret >= 0; i++)
+    {
+      ret = bk7258_rpmsg_test_spawn(
+              &thread, i, BK7258_RPMSG_TEST_WORKER_PRIO,
+              bk7258_rpmsg_test_worker, (FAR void *)(uintptr_t)i,
+              &spawn_stage);
+    }
+
+  if (ret >= 0)
+    {
+      ret = bk7258_rpmsg_test_spawn(
+              &thread, 0, BK7258_RPMSG_TEST_LOAD_PRIO,
+              bk7258_rpmsg_test_load_worker, NULL, &spawn_stage);
     }
 
   if (ret >= 0)
