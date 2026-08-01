@@ -69,12 +69,19 @@ ifeq ($(CONFIG_BK7258_AP_CONTROL),y)
 BK7258_CP_CSRCS += bk7258_ap_control.c
 endif
 
+ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
+BK7258_CP_CSRCS += bk7258_ap_supervisor.c
+endif
+
 ifeq ($(CONFIG_BK7258_RPTUN_MBOX),y)
 BK7258_CP_CSRCS += bk7258_rptun_mbox.c
 endif
 
 ifeq ($(CONFIG_BK7258_RPTUN),y)
 BK7258_CP_CSRCS += bk7258_rptun.c
+ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
+BK7258_CP_CSRCS += bk7258_rpmsg_health.c
+endif
 ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
 BK7258_CP_CSRCS += bk7258_rpmsg_test.c
 endif
@@ -162,6 +169,10 @@ endif
 
 ifeq ($(CONFIG_BK7258_RPTUN),y)
 BK7258_AP_BASE_CSRCS += bk7258_rptun.c
+ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsg_health.c
+BK7258_AP_BASE_CSRCS += bk7258_ap_health.c
+endif
 ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
 BK7258_AP_BASE_CSRCS += bk7258_rpmsg_test.c
 endif

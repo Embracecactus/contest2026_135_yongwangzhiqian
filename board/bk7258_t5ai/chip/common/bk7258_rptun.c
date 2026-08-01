@@ -31,6 +31,9 @@
 #include <arch/chip/bk7258_rptun.h>
 
 #include "bk7258_rptun.h"
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+#  include "bk7258_rpmsg_health.h"
+#endif
 #include "bk7258_rptun_mbox.h"
 
 /****************************************************************************
@@ -124,6 +127,16 @@ static volatile uint32_t *bk7258_rptun_incoming_pending(
 #endif
 }
 
+static volatile uint32_t *bk7258_rptun_local_rx_sequence(
+  volatile struct bk7258_rptun_control_s *control)
+{
+#ifdef CONFIG_BK7258_AP_CORE
+  return &control->ap_rx_sequence;
+#else
+  return &control->cp_rx_sequence;
+#endif
+}
+
 static uint32_t bk7258_rptun_vqid_mask(uint32_t vqid)
 {
   if (vqid == RPTUN_NOTIFY_ALL || vqid >= 31u)
@@ -153,6 +166,13 @@ static void bk7258_rptun_receive(uint32_t generation, uint32_t notify)
                                 __ATOMIC_ACQ_REL);
   __asm volatile ("dmb sy" ::: "memory");
   pending |= notify & BK7258_RPTUN_NOTIFY_VALID;
+  if ((pending & BK7258_RPTUN_NOTIFY_VALID) != 0)
+    {
+      __atomic_fetch_add(
+        (uint32_t *)(uintptr_t)bk7258_rptun_local_rx_sequence(control),
+        1u, __ATOMIC_RELEASE);
+    }
+
   callback = priv->callback;
   if (callback == NULL)
     {
@@ -239,6 +259,8 @@ static void bk7258_rptun_prepare_resource(uint32_t generation)
   control->resource_crc32 = 0;
   control->cp_to_ap_pending = 0;
   control->ap_to_cp_pending = 0;
+  control->cp_rx_sequence = 0;
+  control->ap_rx_sequence = 0;
   __asm volatile ("dmb sy" ::: "memory");
   control->state = BK7258_RPTUN_STATE_TABLE_READY;
   __asm volatile ("dmb sy; sev" ::: "memory");
@@ -379,16 +401,29 @@ void bk7258_rptun_mark_connected(void)
   volatile struct bk7258_rptun_control_s *control =
     bk7258_rptun_control();
   uint32_t expected = BK7258_RPTUN_STATE_CONNECTING;
+  bool connected;
 
   /* Name Service binding is the first bidirectional proof that the remote
    * RPMsg stack consumed the shared table.  Do not overwrite a concurrent
    * lifecycle transition such as QUIESCING or FAULTED.
    */
 
-  (void)__atomic_compare_exchange_n(
-           (uint32_t *)(uintptr_t)&control->state, &expected,
-           BK7258_RPTUN_STATE_CONNECTED, false,
-           __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+  connected = __atomic_compare_exchange_n(
+                (uint32_t *)(uintptr_t)&control->state, &expected,
+                BK7258_RPTUN_STATE_CONNECTED, false,
+                __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+  if (connected || expected == BK7258_RPTUN_STATE_CONNECTED)
+    {
+      /* Preserve proof that the vdev completed its asynchronous probe even
+       * if the supervisor subsequently changes CONNECTED to FAULTED.  A
+       * FAULTED instance that never reached this point is not safe to remove
+       * with the pinned NuttX RPTUN implementation.
+       */
+
+      __atomic_fetch_or((uint32_t *)(uintptr_t)&control->flags,
+                        BK7258_RPTUN_FLAG_CONNECTED_ONCE,
+                        __ATOMIC_RELEASE);
+    }
 }
 
 int bk7258_rptun_initialize(uint32_t generation)
@@ -446,6 +481,23 @@ int bk7258_rptun_initialize(uint32_t generation)
     }
 #endif
 
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  /* Register the board health service before creating the RPTUN device.
+   * rpmsg_register_callback() also handles already-created devices, but this
+   * order keeps an allocation failure from leaving a partially initialized
+   * RPTUN instance that cannot be unregistered by this NuttX version.
+   */
+
+  ret = bk7258_rpmsg_health_initialize();
+  if (ret < 0)
+    {
+      control->error = (uint32_t)-ret;
+      control->state = BK7258_RPTUN_STATE_FAULTED;
+      __asm volatile ("dmb sy" ::: "memory");
+      return ret;
+    }
+#endif
+
   memset(priv, 0, sizeof(*priv));
   priv->rptun.ops = &g_bk7258_rptun_ops;
   priv->generation = generation;
@@ -500,6 +552,33 @@ int bk7258_rptun_quiesce(void)
 #ifdef CONFIG_BK7258_AP_CORE
   return -EPERM;
 #else
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
+  uint32_t flags;
+  uint32_t state;
+
+  state = __atomic_load_n((uint32_t *)(uintptr_t)&control->state,
+                          __ATOMIC_ACQUIRE);
+  flags = __atomic_load_n((uint32_t *)(uintptr_t)&control->flags,
+                          __ATOMIC_ACQUIRE);
+
+  /* rptun_initialize()/rptun_boot() complete in a worker.  Killing that
+   * worker after remoteproc linked a vdev but before rpmsg_virtio_probe()
+   * installed its private data makes rpmsg_virtio_remove() dereference a
+   * partial vdev.  Refuse teardown until a Name Service bind proves that the
+   * asynchronous probe completed.  This guard also protects callers other
+   * than the AP lifecycle wrapper.
+   */
+
+  if (state == BK7258_RPTUN_STATE_PREPARING ||
+      state == BK7258_RPTUN_STATE_TABLE_READY ||
+      state == BK7258_RPTUN_STATE_CONNECTING ||
+      (state == BK7258_RPTUN_STATE_FAULTED &&
+       (flags & BK7258_RPTUN_FLAG_CONNECTED_ONCE) == 0))
+    {
+      return -EBUSY;
+    }
+
   return rptun_poweroff(BK7258_RPTUN_REMOTE_NAME);
 #endif
 }

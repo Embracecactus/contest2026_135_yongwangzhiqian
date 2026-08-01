@@ -27,4 +27,8 @@ int bk7258_rptun_quiesce(void);
 int bk7258_rpmsg_test_initialize(void);
 #endif
 
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+int bk7258_rpmsg_health_initialize(void);
+#endif
+
 #endif /* __ARCH_ARM_SRC_BK7258_COMMON_BK7258_RPTUN_H */

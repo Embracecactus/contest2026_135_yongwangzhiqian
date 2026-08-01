@@ -70,6 +70,7 @@
 #define BK7258_RPTUN_FLAG_AP_MBOX_INIT    (1u << 11)
 #define BK7258_RPTUN_FLAG_AP_MBOX_OPEN    (1u << 12)
 #define BK7258_RPTUN_FLAG_AP_MBOX_CBS     (1u << 13)
+#define BK7258_RPTUN_FLAG_CONNECTED_ONCE  (1u << 14)
 #define BK7258_RPTUN_MM_RESERVE           0x1000u
 #define BK7258_RPTUN_MIN_CARVEOUT         \
   (BK7258_RPTUN_VRING_COUNT * BK7258_RPTUN_VRING_SPAN + \
@@ -177,7 +178,8 @@ struct bk7258_rptun_control_s
   uint32_t ap_heartbeat;
   uint32_t cp_epoch;
   uint32_t ap_epoch;
-  uint32_t reserved[2];
+  uint32_t cp_rx_sequence;
+  uint32_t ap_rx_sequence;
 };
 
 struct bk7258_rpmsg_test_cpu_result_s

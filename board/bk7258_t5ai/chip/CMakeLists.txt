@@ -33,12 +33,19 @@ if(CONFIG_BK7258_AP_CONTROL)
   list(APPEND BK7258_CP_SRCS cp/bk7258_ap_control.c)
 endif()
 
+if(CONFIG_BK7258_AP_SUPERVISOR)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_ap_supervisor.c)
+endif()
+
 if(CONFIG_BK7258_RPTUN_MBOX)
   list(APPEND BK7258_CP_SRCS common/bk7258_rptun_mbox.c)
 endif()
 
 if(CONFIG_BK7258_RPTUN)
   list(APPEND BK7258_CP_SRCS common/bk7258_rptun.c)
+  if(CONFIG_BK7258_AP_SUPERVISOR)
+    list(APPEND BK7258_CP_SRCS common/bk7258_rpmsg_health.c)
+  endif()
 endif()
 
 if(CONFIG_BK7258_RPMSG_TEST)
@@ -106,6 +113,11 @@ endif()
 
 if(CONFIG_BK7258_RPTUN)
   list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rptun.c)
+  if(CONFIG_BK7258_AP_SUPERVISOR)
+    list(APPEND BK7258_AP_BASE_SRCS
+         common/bk7258_rpmsg_health.c
+         ap/bk7258_ap_health.c)
+  endif()
 endif()
 
 if(CONFIG_BK7258_RPMSG_TEST)

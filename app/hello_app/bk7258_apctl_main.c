@@ -72,6 +72,120 @@ static const char *apctl_rptun_state_name(uint32_t state)
 }
 #endif
 
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+static const char *apctl_supervisor_state_name(uint32_t state)
+{
+  switch (state)
+    {
+      case BK7258_AP_SUPERVISOR_OFFLINE:
+        return "OFFLINE";
+      case BK7258_AP_SUPERVISOR_ARMING:
+        return "ARMING";
+      case BK7258_AP_SUPERVISOR_HEALTHY:
+        return "HEALTHY";
+      case BK7258_AP_SUPERVISOR_SUSPECT:
+        return "SUSPECT";
+      case BK7258_AP_SUPERVISOR_FAULTED:
+        return "FAULTED";
+      case BK7258_AP_SUPERVISOR_RECOVERING:
+        return "RECOVERING";
+      case BK7258_AP_SUPERVISOR_LOCKOUT:
+        return "LOCKOUT";
+      default:
+        return "UNKNOWN";
+    }
+}
+
+static const char *apctl_supervisor_reason_name(uint32_t reason)
+{
+  switch (reason)
+    {
+      case BK7258_AP_SUPERVISOR_REASON_NONE:
+        return "NONE";
+      case BK7258_AP_SUPERVISOR_REASON_BAD_SHARED_STATE:
+        return "BAD_SHARED_STATE";
+      case BK7258_AP_SUPERVISOR_REASON_AP_REPORTED_FAILURE:
+        return "AP_REPORTED_FAILURE";
+      case BK7258_AP_SUPERVISOR_REASON_AP_EXCEPTION:
+        return "AP_EXCEPTION";
+      case BK7258_AP_SUPERVISOR_REASON_PRIMARY_TIMEOUT:
+        return "PRIMARY_TIMEOUT";
+      case BK7258_AP_SUPERVISOR_REASON_SECONDARY_TIMEOUT:
+        return "SECONDARY_TIMEOUT";
+      case BK7258_AP_SUPERVISOR_REASON_RPTUN_DISCONNECTED:
+        return "RPTUN_DISCONNECTED";
+      case BK7258_AP_SUPERVISOR_REASON_RPMSG_TIMEOUT:
+        return "RPMSG_TIMEOUT";
+      case BK7258_AP_SUPERVISOR_REASON_RECOVERY_FAILED:
+        return "RECOVERY_FAILED";
+      default:
+        return "UNKNOWN";
+    }
+}
+
+static const char *apctl_supervisor_injection_name(uint32_t injection)
+{
+  switch (injection)
+    {
+      case BK7258_AP_SUPERVISOR_INJECT_NONE:
+        return "NONE";
+      case BK7258_AP_SUPERVISOR_INJECT_PRIMARY:
+        return "PRIMARY";
+      case BK7258_AP_SUPERVISOR_INJECT_SECONDARY:
+        return "SECONDARY";
+      case BK7258_AP_SUPERVISOR_INJECT_RPMSG:
+        return "RPMSG";
+      default:
+        return "UNKNOWN";
+    }
+}
+
+static int apctl_supervisor_status(void)
+{
+  struct bk7258_ap_supervisor_status_s status;
+  int ret;
+
+  memset(&status, 0, sizeof(status));
+  ret = bk7258_ap_supervisor_get_status(&status);
+  if (ret < 0)
+    {
+      printf("AP supervisor unavailable: %d\n", ret);
+      return ret;
+    }
+
+  printf("AP supervisor state=%s(%" PRIu32 ") reason=%s(%" PRIu32
+         ") generation=%" PRIu32 " flags=%08" PRIx32 "\n",
+         apctl_supervisor_state_name(status.state), status.state,
+         apctl_supervisor_reason_name(status.reason), status.reason,
+         status.generation, status.flags);
+  printf("Supervisor heartbeat primary/secondary=%" PRIu32 "/%" PRIu32
+         " age=%" PRIu32 "/%" PRIu32
+         " ms transport seq/age=%" PRIu32 "/%" PRIu32 " ms\n",
+         status.primary_heartbeat, status.secondary_heartbeat,
+         status.primary_age_ms, status.secondary_age_ms,
+         status.transport_sequence, status.transport_age_ms);
+  printf("Supervisor faults/recoveries/consecutive=%" PRIu32 "/%" PRIu32
+         "/%" PRIu32 " injection=%s(%" PRIu32
+         ") last_error=%" PRId32 "\n",
+         status.fault_count, status.recovery_count,
+         status.consecutive_failures,
+         apctl_supervisor_injection_name(status.injection),
+         status.injection, status.last_error);
+
+  if ((status.flags & BK7258_AP_SUPERVISOR_FLAG_FAULT_SAVED) != 0)
+    {
+      printf("Supervisor fault generation/exception=%" PRIu32 "/%" PRIu32
+             " HFSR/CFSR=%08" PRIx32 "/%08" PRIx32
+             " PC/LR=%08" PRIx32 "/%08" PRIx32 "\n",
+             status.fault_generation, status.fault_exception,
+             status.fault_hfsr, status.fault_cfsr,
+             status.fault_pc, status.fault_lr);
+    }
+
+  return status.state == BK7258_AP_SUPERVISOR_HEALTHY ? OK : -EHOSTDOWN;
+}
+#endif
+
 static const char *apctl_cpu2_state_name(uint32_t state)
 {
   switch (state)
@@ -403,6 +517,8 @@ static void apctl_status(void)
              rptun.cp_to_ap_pending, rptun.ap_to_cp_pending,
              rptun.cp_heartbeat, rptun.ap_heartbeat,
              rptun.cp_epoch, rptun.ap_epoch);
+      printf("RPTUN rx sequence cp/ap=%" PRIu32 "/%" PRIu32 "\n",
+             rptun.cp_rx_sequence, rptun.ap_rx_sequence);
     }
   else
     {
@@ -410,6 +526,10 @@ static void apctl_status(void)
              "/%" PRIu32 "/%" PRIu32 "\n",
              rptun.magic, rptun.version, rptun.size);
     }
+#endif
+
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  (void)apctl_supervisor_status();
 #endif
 
   if (cpu2.magic == BK7258_CPU2_PROBE_STATE_MAGIC &&
@@ -656,6 +776,13 @@ static void apctl_status(void)
 static void apctl_usage(void)
 {
   printf("usage: apctl start|stop|restart|status [timeout_ms]\n");
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  printf("       apctl health\n");
+  printf("       apctl recover [timeout_ms]\n");
+#  ifdef CONFIG_BK7258_AP_SUPERVISOR_FAULT_INJECTION
+  printf("       apctl inject primary|secondary|rpmsg|clear\n");
+#  endif
+#endif
   printf("       apctl cycle [count] [timeout_ms]\n");
   printf("       apctl ipitest [count] [timeout_ms]\n");
 #ifdef CONFIG_BK7258_RPTUN_MBOX
@@ -700,6 +827,52 @@ int main(int argc, char *argv[])
       apctl_status();
       return 0;
     }
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  else if (strcmp(argv[1], "health") == 0)
+    {
+      return apctl_supervisor_status() < 0 ? 1 : 0;
+    }
+  else if (strcmp(argv[1], "recover") == 0)
+    {
+      ret = bk7258_ap_supervisor_recover(timeout);
+    }
+#  ifdef CONFIG_BK7258_AP_SUPERVISOR_FAULT_INJECTION
+  else if (strcmp(argv[1], "inject") == 0)
+    {
+      uint32_t injection;
+
+      if (argc < 3)
+        {
+          apctl_usage();
+          return 1;
+        }
+
+      if (strcmp(argv[2], "primary") == 0)
+        {
+          injection = BK7258_AP_SUPERVISOR_INJECT_PRIMARY;
+        }
+      else if (strcmp(argv[2], "secondary") == 0)
+        {
+          injection = BK7258_AP_SUPERVISOR_INJECT_SECONDARY;
+        }
+      else if (strcmp(argv[2], "rpmsg") == 0)
+        {
+          injection = BK7258_AP_SUPERVISOR_INJECT_RPMSG;
+        }
+      else if (strcmp(argv[2], "clear") == 0)
+        {
+          injection = BK7258_AP_SUPERVISOR_INJECT_NONE;
+        }
+      else
+        {
+          apctl_usage();
+          return 1;
+        }
+
+      ret = bk7258_ap_supervisor_inject(injection);
+    }
+#  endif
+#endif
   else if (strcmp(argv[1], "ipitest") == 0)
     {
       count = apctl_u32(argc > 2 ? argv[2] : NULL,
