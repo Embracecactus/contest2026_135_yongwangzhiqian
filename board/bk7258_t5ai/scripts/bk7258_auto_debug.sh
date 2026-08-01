@@ -280,7 +280,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PS1_WIN" \
   >"$SERIAL_STDOUT" 2>&1 &
 CAPTURE_PID=$!
 
-for _ in $(seq 1 100); do
+# A cold Windows PowerShell/interop startup can exceed five seconds even
+# though COM11 is healthy.  Keep the flash gate fail-closed, but allow up to
+# 30 seconds for the capture process to create its ready marker.
+
+for _ in $(seq 1 600); do
   [[ -f "$READY_FILE" ]] && break
   if ! kill -0 "$CAPTURE_PID" 2>/dev/null; then
     wait "$CAPTURE_PID" || true
