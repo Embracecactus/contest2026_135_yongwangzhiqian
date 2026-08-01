@@ -158,6 +158,13 @@ SECTIONS
 #ifdef CONFIG_BK7258_RPTUN_LAYOUT
         *(.swap_data)
         *(.dtcm_sec_data)
+        /* The SDK emits SMP spinlocks with owner=SPIN_LOCK_FREE in this
+         * section.  Preserve that FLASH initializer just like the official
+         * BK7258 AP linker script; placing it in NOLOAD .bss turns the owner
+         * into CPU0 and trips the first recursive-lock assertion.
+         */
+
+        *(.sram_spinlock_section)
 #endif
         CONSTRUCTORS
         . = ALIGN(4);
@@ -169,9 +176,6 @@ SECTIONS
         _sbss = ABSOLUTE(.);
         *(.bss .bss.*)
         *(.gnu.linkonce.b.*)
-#ifdef CONFIG_BK7258_RPTUN_LAYOUT
-        *(.sram_spinlock_section)
-#endif
         *(COMMON)
         . = ALIGN(4);
         _ebss = ABSOLUTE(.);

@@ -281,6 +281,106 @@ config BK7258_RPTUN_RX_STACKSIZE
 	range 1024 16384
 	depends on BK7258_RPTUN_MBOX
 
+config BK7258_AP_SUPERVISOR
+	bool "N10 AP SMP liveness and RPTUN health supervisor"
+	default n
+	depends on BK7258_RPTUN
+	depends on BK7258_AP_CORE || BK7258_AP_CONTROL
+	depends on !BK7258_AP_CORE || (SMP && BK7258_AP_SMP_SCHED_ONLINE)
+	---help---
+		Enable the board-owned N10 management plane without modifying NuttX or
+		the Beken SDK.  The AP publishes independent physical-CPU1 and logical-
+		CPU1 progress counters and a small RPMsg health endpoint.  The CP owns a
+		persistent supervisor thread which applies generation checks, bounded
+		peer deadlines, fail-closed fault classification and manual recovery
+		through apctl.  Automatic recovery is a separate opt-in gate.
+
+config BK7258_AP_SUPERVISOR_PRIORITY
+	int "N10 AP supervisor/heartbeat thread priority"
+	default 200
+	range 1 223
+	depends on BK7258_AP_SUPERVISOR
+	---help---
+		SCHED_FIFO priority used by the CP supervisor, the AP primary
+		management/heartbeat loop and the AP logical-CPU1 heartbeat task.  Keep
+		it below the RPTUN/RPMsg workers (224/225) while remaining above
+		ordinary application and board-test tasks.
+
+config BK7258_AP_SUPERVISOR_STACKSIZE
+	int "N10 AP supervisor/heartbeat thread stack size"
+	default 2048
+	range 1024 8192
+	depends on BK7258_AP_SUPERVISOR
+
+config BK7258_AP_HEARTBEAT_PERIOD_MS
+	int "N10 AP heartbeat period (milliseconds)"
+	default 100
+	range 50 5000
+	depends on BK7258_AP_SUPERVISOR
+
+config BK7258_AP_SUPERVISOR_POLL_MS
+	int "N10 CP supervisor sampling period (milliseconds)"
+	default 250
+	range 50 5000
+	depends on BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
+
+config BK7258_AP_SUPERVISOR_SUSPECT_MS
+	int "N10 peer suspect deadline (milliseconds)"
+	default 1000
+	range 250 30000
+	depends on BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
+
+config BK7258_AP_SUPERVISOR_TIMEOUT_MS
+	int "N10 peer fault deadline (milliseconds)"
+	default 2500
+	range 500 60000
+	depends on BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
+
+config BK7258_AP_HEALTH_PROBE_INTERVAL_MS
+	int "N10 RPMsg health probe interval (milliseconds)"
+	default 500
+	range 100 10000
+	depends on BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
+
+config BK7258_AP_HEALTH_PROBE_TIMEOUT_MS
+	int "N10 RPMsg health probe timeout (milliseconds)"
+	default 750
+	range 100 10000
+	depends on BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
+
+config BK7258_AP_SUPERVISOR_AUTO_RECOVER
+	bool "N10 automatically restart a faulted AP"
+	default n
+	depends on BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
+	---help---
+		Automatically invoke the existing generation-safe AP restart path after
+		a confirmed supervisor fault.  Keep this disabled until passive fault
+		detection and manual recovery have completed board fault-injection soak.
+
+config BK7258_AP_SUPERVISOR_FAULT_INJECTION
+	bool "N10 synthetic supervisor fault injection"
+	default n
+	depends on BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
+	---help---
+		Add explicit apctl injection commands for primary-heartbeat,
+		secondary-heartbeat and RPMsg-timeout classification.  Injection is
+		CP-local: it suppresses one observation without modifying the AP,
+		NuttX or SDK.  It never runs unless requested and is cleared by an AP
+		lifecycle transition or supervisor recovery.  Enable only in validation
+		profiles.
+
+config BK7258_AP_SUPERVISOR_MAX_RECOVERIES
+	int "N10 automatic recovery budget"
+	default 3
+	range 1 10
+	depends on BK7258_AP_SUPERVISOR_AUTO_RECOVER
+
+config BK7258_AP_SUPERVISOR_STABLE_MS
+	int "N10 healthy interval before recovery budget reset (milliseconds)"
+	default 60000
+	range 5000 600000
+	depends on BK7258_AP_SUPERVISOR_AUTO_RECOVER
+
 config BK7258_FLASH_MTD
 	bool "BK7258 on-chip flash data-partition MTD"
 	default n

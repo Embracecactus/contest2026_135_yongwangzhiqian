@@ -53,7 +53,6 @@
 #include <irq/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mqueue.h>
-#include <nuttx/spinlock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/kthread.h>
@@ -109,6 +108,11 @@
 
 #define BEKEN_WAIT_FOREVER  (0xFFFFFFFF)
 
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+#  define BK7258_OS_SDK_LOCK_FREE 0xf2eef2eeu
+#  define BK7258_OS_SDK_LOCK_MAX_NEST 0xffu
+#endif
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -133,9 +137,131 @@ struct mq_adpt_s
   char        cname[32];    /* Display name for debug */
 };
 
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+/* Match the SDK SMP implementation of rtos_enter_critical(): first mask
+ * interrupts on the current core, then serialize callers across cores with
+ * a dedicated recursive-by-core lock.  The SDK spinlock is not equivalent to
+ * NuttX spinlock_t: it records owner + nesting count, and SDK drivers legally
+ * nest critical sections on one core.  This lock must remain independent
+ * from NuttX's scheduler lock because rtos_disable_int() is an interrupt-mask
+ * API, not a NuttX scheduler critical section.
+ */
+
+struct bk7258_os_sdk_lock_s
+{
+  uint32_t owner;
+  uint32_t count;
+};
+
+static volatile struct bk7258_os_sdk_lock_s
+  g_bk7258_sdk_critical_lock =
+{
+  .owner = BK7258_OS_SDK_LOCK_FREE,
+  .count = 0
+};
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/* The official BK7258 SMP SDK implements port_disable_interrupts_flag() with
+ * PRIMASK (__get_PRIMASK() + __disable_irq()) and restores the saved PRIMASK
+ * verbatim.  NuttX up_irq_save() uses BASEPRI on ARMv8-M, so use the exact
+ * SDK contract here instead of substituting enter_critical_section().
+ */
+
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+static inline irqstate_t bk7258_os_local_irq_save(void)
+{
+  irqstate_t flags;
+
+  __asm volatile
+    (
+      "mrs %0, primask\n"
+      "cpsid i\n"
+      : "=r" (flags)
+      :
+      : "memory"
+    );
+
+  return flags;
+}
+
+static inline void bk7258_os_local_irq_restore(irqstate_t flags)
+{
+  __asm volatile
+    (
+      "msr primask, %0\n"
+      :
+      : "r" (flags)
+      : "memory"
+    );
+}
+
+static void bk7258_os_sdk_lock(void)
+{
+  uint32_t cpu = (uint32_t)up_cpu_index();
+  uint32_t expected;
+  uint32_t owner;
+
+  for (;;)
+    {
+      owner = __atomic_load_n(&g_bk7258_sdk_critical_lock.owner,
+                              __ATOMIC_ACQUIRE);
+      if (owner == cpu)
+        {
+          /* Local PRIMASK is already set, so another context on this core
+           * cannot race the recursive count update.
+           */
+
+          DEBUGASSERT(g_bk7258_sdk_critical_lock.count > 0 &&
+                      g_bk7258_sdk_critical_lock.count <
+                        BK7258_OS_SDK_LOCK_MAX_NEST);
+          g_bk7258_sdk_critical_lock.count++;
+          return;
+        }
+
+      if (owner == BK7258_OS_SDK_LOCK_FREE)
+        {
+          expected = BK7258_OS_SDK_LOCK_FREE;
+          if (__atomic_compare_exchange_n(
+                &g_bk7258_sdk_critical_lock.owner, &expected, cpu, false,
+                __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+            {
+              g_bk7258_sdk_critical_lock.count = 1;
+              __asm volatile ("dmb sy" ::: "memory");
+              return;
+            }
+        }
+
+      /* Match the SDK spin_lock() wait model.  The owner releases with SEV,
+       * so this does not consume CPU while the other AP core owns the lock.
+       */
+
+      __asm volatile ("wfe" ::: "memory");
+    }
+}
+
+static void bk7258_os_sdk_unlock(void)
+{
+  uint32_t cpu = (uint32_t)up_cpu_index();
+
+  DEBUGASSERT(__atomic_load_n(&g_bk7258_sdk_critical_lock.owner,
+                              __ATOMIC_RELAXED) == cpu);
+  DEBUGASSERT(g_bk7258_sdk_critical_lock.count > 0 &&
+              g_bk7258_sdk_critical_lock.count <=
+                BK7258_OS_SDK_LOCK_MAX_NEST);
+
+  g_bk7258_sdk_critical_lock.count--;
+  if (g_bk7258_sdk_critical_lock.count == 0)
+    {
+      __atomic_store_n(&g_bk7258_sdk_critical_lock.owner,
+                       BK7258_OS_SDK_LOCK_FREE, __ATOMIC_RELEASE);
+      __asm volatile ("dsb sy; sev" ::: "memory");
+    }
+}
+#endif
 
 static void bk7258_os_delay_ms(uint32_t milliseconds)
 {
@@ -198,32 +324,60 @@ static void os_timer_callback(wdparm_t arg)
 
 uint32_t rtos_disable_int(void)
 {
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+  return (uint32_t)bk7258_os_local_irq_save();
+#else
   return enter_critical_section();
+#endif
 }
 
 void rtos_enable_int(uint32_t int_level)
 {
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+  bk7258_os_local_irq_restore((irqstate_t)int_level);
+#else
   leave_critical_section(int_level);
+#endif
 }
 
 uint32_t rtos_enter_critical(void)
 {
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+  irqstate_t flags = bk7258_os_local_irq_save();
+
+  bk7258_os_sdk_lock();
+  return (uint32_t)flags;
+#else
   return enter_critical_section();
+#endif
 }
 
 void rtos_exit_critical(uint32_t int_level)
 {
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+  bk7258_os_sdk_unlock();
+  bk7258_os_local_irq_restore((irqstate_t)int_level);
+#else
   leave_critical_section(int_level);
+#endif
 }
 
 uint32_t rtos_before_sleep(void)
 {
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+  return rtos_disable_int();
+#else
   return enter_critical_section();
+#endif
 }
 
 void rtos_after_sleep(uint32_t int_level)
 {
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+  rtos_enable_int(int_level);
+#else
   leave_critical_section(int_level);
+#endif
 }
 
 /****************************************************************************

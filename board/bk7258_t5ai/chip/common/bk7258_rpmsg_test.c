@@ -60,7 +60,7 @@
 #define BK7258_RPMSG_TEST_CONTROLLER_PRIO 110
 #define BK7258_RPMSG_TEST_WORKER_PRIO    120
 #define BK7258_RPMSG_TEST_LOAD_PRIO      80
-#define BK7258_RPMSG_TEST_TX_PRIO        220
+#define BK7258_RPMSG_TEST_TX_PRIO        190
 #define BK7258_RPMSG_TEST_TX_POLL_MS     1u
 #define BK7258_RPMSG_TEST_DONE_POLL_MS   1u
 #define BK7258_RPMSG_TEST_THREAD_STACK   4096
@@ -101,7 +101,7 @@ struct bk7258_rpmsg_test_wire_s
 #ifdef CONFIG_BK7258_AP_CORE
 struct bk7258_rpmsg_test_tx_request_s
 {
-  FAR const void *data;
+  uint8_t data[BK7258_RPMSG_TEST_FRAME_SIZE];
   size_t len;
   uint32_t timeout_ms;
   volatile int status;
@@ -125,6 +125,7 @@ struct bk7258_rpmsg_test_dev_s
   sem_t tx_sem;
   sem_t tx_done_sem[2];
   volatile uint32_t tx_pending;
+  volatile uint32_t worker_dispatch[2];
   struct bk7258_rpmsg_test_tx_request_s tx_request[2];
   volatile bool busy;
   volatile bool abort;
@@ -160,6 +161,18 @@ static_assert(offsetof(struct bk7258_rpmsg_test_wire_s, data) ==
 static_assert(sizeof(struct bk7258_rpmsg_test_wire_s) ==
               BK7258_RPMSG_TEST_FRAME_SIZE,
               "BK7258 RPMsg test wire frame changed");
+
+#if defined(CONFIG_BK7258_AP_CORE) && \
+    defined(CONFIG_BK7258_AP_SUPERVISOR)
+/* The test gateway must not suppress the N10 primary management heartbeat.
+ * Transport workers still own priorities 224/225, followed by the N10
+ * heartbeat at its default 200, then this board-only traffic generator.
+ */
+
+static_assert(BK7258_RPMSG_TEST_TX_PRIO <
+              CONFIG_BK7258_AP_SUPERVISOR_PRIORITY,
+              "RPMsg test TX must remain below the AP heartbeat");
+#endif
 
 /****************************************************************************
  * Private Data
@@ -201,8 +214,15 @@ static int bk7258_rpmsg_test_sem_init(sem_t *sem)
 static bool bk7258_rpmsg_test_endpoint_ready(void)
 {
   struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
 
   return __atomic_load_n(&priv->endpoint_created, __ATOMIC_ACQUIRE) &&
+         control->magic == BK7258_RPTUN_CONTROL_MAGIC &&
+         control->version == BK7258_RPTUN_CONTROL_VERSION &&
+         control->size == sizeof(*control) &&
+         control->generation != 0 &&
+         control->state == BK7258_RPTUN_STATE_CONNECTED &&
          is_rpmsg_ept_ready(&priv->ept);
 }
 
@@ -268,19 +288,23 @@ static int bk7258_rpmsg_test_submit(uint32_t slot, FAR const void *data,
 {
   struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
   struct bk7258_rpmsg_test_tx_request_s *request;
+  uint32_t frequency;
+  uint32_t start;
+  uint32_t timeout_ticks;
+  int status;
   int ret;
 
-  if (slot >= 2)
+  if (slot >= 2 || data == NULL || len > BK7258_RPMSG_TEST_FRAME_SIZE)
     {
       return -EINVAL;
     }
 
   request = &priv->tx_request[slot];
   bk7258_rpmsg_test_flush_sem(&priv->tx_done_sem[slot]);
-  request->data = data;
+  memcpy(request->data, data, len);
   request->len = len;
   request->timeout_ms = timeout_ms;
-  request->status = -EINPROGRESS;
+  __atomic_store_n(&request->status, -EINPROGRESS, __ATOMIC_RELEASE);
   __asm volatile ("dmb sy" ::: "memory");
   __atomic_fetch_or(&priv->tx_pending, 1u << slot, __ATOMIC_RELEASE);
 
@@ -295,21 +319,51 @@ static int bk7258_rpmsg_test_submit(uint32_t slot, FAR const void *data,
   if (up_cpu_index() == 0)
     {
       (void)nxsem_post(&priv->tx_sem);
+      ret = nxsem_wait_uninterruptible(&priv->tx_done_sem[slot]);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      __asm volatile ("dmb sy" ::: "memory");
+      return __atomic_load_n(&request->status, __ATOMIC_ACQUIRE);
     }
 
-  /* CPU2 has no local SysTick, but the CPU0 gateway owns an AON-bounded
-   * non-blocking send.  A plain semaphore wait is therefore the safe SMP
-   * handoff; endpoint teardown also makes the gateway return -ENOTCONN.
+  /* CPU2 has no local SysTick and its current board bootstrap cannot make
+   * repeated cross-core semaphore wakeups a reliable transport primitive.
+   * The request payload lives in the fixed gateway slot above, so CPU2 can
+   * wait on the release/acquire status without exposing a stack pointer to a
+   * late gateway.  The shared AON RTC supplies the timeout boundary without
+   * entering the SMP scheduler on every RPMsg frame.
    */
 
-  ret = nxsem_wait_uninterruptible(&priv->tx_done_sem[slot]);
-  if (ret < 0)
-    {
-      return ret;
-    }
+  frequency = bk_rtc_get_clock_freq();
+  start = bk7258_rpmsg_test_aon_tick();
+  timeout_ticks =
+    (uint32_t)(((uint64_t)timeout_ms * frequency + 999u) / 1000u);
 
-  __asm volatile ("dmb sy" ::: "memory");
-  return request->status;
+  do
+    {
+      status = __atomic_load_n(&request->status, __ATOMIC_ACQUIRE);
+      if (status != -EINPROGRESS)
+        {
+          return status;
+        }
+
+      if (__atomic_load_n(&priv->abort, __ATOMIC_ACQUIRE))
+        {
+          return -ECANCELED;
+        }
+
+      up_udelay(50);
+    }
+  while ((uint32_t)(bk7258_rpmsg_test_aon_tick() - start) < timeout_ticks);
+
+  status = -EINPROGRESS;
+  (void)__atomic_compare_exchange_n(&request->status, &status,
+                                    -ETIMEDOUT, false,
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+  return __atomic_load_n(&request->status, __ATOMIC_ACQUIRE);
 }
 
 static FAR void *bk7258_rpmsg_test_tx_gateway(FAR void *arg)
@@ -317,6 +371,7 @@ static FAR void *bk7258_rpmsg_test_tx_gateway(FAR void *arg)
   struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
   uint32_t pending;
   uint32_t slot;
+  int ret;
 
   (void)arg;
   for (; ; )
@@ -347,11 +402,24 @@ static FAR void *bk7258_rpmsg_test_tx_gateway(FAR void *arg)
             }
 
           request = &priv->tx_request[slot];
-          request->status = bk7258_rpmsg_test_send_bounded(
-                              request->data, request->len,
-                              request->timeout_ms);
+          if (__atomic_load_n(&request->status, __ATOMIC_ACQUIRE) ==
+              -EINPROGRESS)
+            {
+              ret = bk7258_rpmsg_test_send_bounded(
+                      request->data, request->len,
+                      request->timeout_ms);
+              __atomic_store_n(&request->status, ret, __ATOMIC_RELEASE);
+            }
+
           __asm volatile ("dmb sy" ::: "memory");
-          (void)nxsem_post(&priv->tx_done_sem[slot]);
+          if (slot == 0)
+            {
+              (void)nxsem_post(&priv->tx_done_sem[slot]);
+            }
+          else
+            {
+              __asm volatile ("sev" ::: "memory");
+            }
         }
     }
 
@@ -415,6 +483,9 @@ static int bk7258_rpmsg_test_wait_reply(uint32_t slot,
                                         uint32_t timeout_ms)
 {
   struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
+  uint32_t frequency;
+  uint32_t start;
+  uint32_t timeout_ticks;
 
   if (up_cpu_index() == 0)
     {
@@ -422,14 +493,39 @@ static int bk7258_rpmsg_test_wait_reply(uint32_t slot,
                                              MSEC2TICK(timeout_ms));
     }
 
-  /* CPU2 does not own a SysTick source in this port.  A semaphore post can
-   * wake it, but a tick-based timeout is not a safe boundary when a reply is
-   * lost.  Let the CPU0 controller own the global AON-independent timeout;
-   * it posts both reply semaphores before bounded worker cleanup.  This keeps
-   * CPU2 blocked instead of spinning on the SMP scheduler lock.
+  /* Avoid a scheduler-mediated CPU0 -> CPU2 semaphore wake for every echo.
+   * The callback publishes reply_status with release ordering and the AON
+   * RTC gives CPU2 a real timeout even though it has no local SysTick.
    */
 
-  return nxsem_wait_uninterruptible(&priv->reply_sem[slot]);
+  frequency = bk_rtc_get_clock_freq();
+  start = bk7258_rpmsg_test_aon_tick();
+  timeout_ticks =
+    (uint32_t)(((uint64_t)timeout_ms * frequency + 999u) / 1000u);
+
+  do
+    {
+      if (__atomic_load_n(&priv->reply_status[slot], __ATOMIC_ACQUIRE) !=
+          -EINPROGRESS)
+        {
+          return OK;
+        }
+
+      if (__atomic_load_n(&priv->abort, __ATOMIC_ACQUIRE))
+        {
+          return -ECANCELED;
+        }
+
+      if (!bk7258_rpmsg_test_endpoint_ready())
+        {
+          return -ENOTCONN;
+        }
+
+      up_udelay(50);
+    }
+  while ((uint32_t)(bk7258_rpmsg_test_aon_tick() - start) < timeout_ticks);
+
+  return -ETIMEDOUT;
 }
 
 static void bk7258_rpmsg_test_finalize_cpu(uint32_t slot)
@@ -550,7 +646,8 @@ static void bk7258_rpmsg_test_run_worker(uint32_t slot)
           msg.data[i] = (uint8_t)(sequence + slot + i);
         }
 
-      priv->reply_status[slot] = -EINPROGRESS;
+      __atomic_store_n(&priv->reply_status[slot], -EINPROGRESS,
+                       __ATOMIC_RELEASE);
       priv->awaiting[slot] = sequence;
       __asm volatile ("dmb sy" ::: "memory");
       /* DWT_CYCCNT is banked per physical Cortex-M33 and CPU2 does not run
@@ -623,6 +720,7 @@ static FAR void *bk7258_rpmsg_test_worker(FAR void *arg)
 {
   struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
   uint32_t slot = (uint32_t)(uintptr_t)arg;
+  uint32_t dispatch = 0;
   int ret;
 
   /* A detached pthread that exits on AP logical CPU1 leaves its stack/TCB
@@ -636,10 +734,31 @@ static FAR void *bk7258_rpmsg_test_worker(FAR void *arg)
 
   for (; ; )
     {
-      ret = nxsem_wait_uninterruptible(&priv->worker_start_sem[slot]);
-      if (ret < 0)
+      if (slot == 0)
         {
-          continue;
+          ret = nxsem_wait_uninterruptible(&priv->worker_start_sem[slot]);
+          if (ret < 0)
+            {
+              continue;
+            }
+        }
+      else
+        {
+          /* Keep CPU2 out of the fragile cross-core semaphore wake path.
+           * The controller publishes all request fields before incrementing
+           * this sequence and executes SEV.  WFE is only an acceleration;
+           * the AP heartbeat also emits SEV periodically, so a missed event
+           * cannot hide a changed level value.
+           */
+
+          while (__atomic_load_n(&priv->worker_dispatch[slot],
+                                  __ATOMIC_ACQUIRE) == dispatch)
+            {
+              __asm volatile ("wfe" ::: "memory");
+            }
+
+          dispatch = __atomic_load_n(&priv->worker_dispatch[slot],
+                                     __ATOMIC_ACQUIRE);
         }
 
       __asm volatile ("dmb sy" ::: "memory");
@@ -672,7 +791,14 @@ static FAR void *bk7258_rpmsg_test_load_worker(FAR void *arg)
               value = value * 1664525u + 1013904223u;
             }
 
-          sched_yield();
+          /* This task is pinned to CPU0 below every transport, health and
+           * test-control priority.  Preemption therefore gives those tasks
+           * bounded progress while this loop consumes otherwise idle CPU0
+           * cycles.  sched_yield() would only rotate equal-priority tasks;
+           * with no such peer it repeatedly enters NuttX's global SMP
+           * scheduler without yielding useful work and can turn this load
+           * generator into a scheduler/IPI storm.
+           */
         }
 
       (void)nxsem_post(&priv->load_done_sem);
@@ -846,7 +972,18 @@ static int bk7258_rpmsg_test_controller(int argc, FAR char *argv[])
                      BK7258_RPMSG_TEST_SPAWN_TARGET_CPU1;
           priv->result.spawn_stage =
             BK7258_RPMSG_TEST_SPAWN_STAGE_DISPATCH;
-          ret = nxsem_post(&priv->worker_start_sem[i]);
+          if (i == 1)
+            {
+              __atomic_fetch_add(&priv->worker_dispatch[i], 1u,
+                                 __ATOMIC_RELEASE);
+              __asm volatile ("dmb sy; sev" ::: "memory");
+              ret = OK;
+            }
+          else
+            {
+              ret = nxsem_post(&priv->worker_start_sem[i]);
+            }
+
           if (ret < 0)
             {
               status = ret;
@@ -905,7 +1042,7 @@ static int bk7258_rpmsg_test_controller(int argc, FAR char *argv[])
 
           __atomic_store_n(&priv->abort, true, __ATOMIC_RELEASE);
           (void)nxsem_post(&priv->reply_sem[0]);
-          (void)nxsem_post(&priv->reply_sem[1]);
+          __asm volatile ("dmb sy; sev" ::: "memory");
 
           while (__atomic_load_n(&priv->workers_done,
                                  __ATOMIC_ACQUIRE) < expected)
@@ -1087,9 +1224,18 @@ static int bk7258_rpmsg_test_ept_cb(FAR struct rpmsg_endpoint *ept,
 
       __atomic_fetch_or(&priv->result.cpu[msg->slot].callback_cpu_mask,
                         1u << up_cpu_index(), __ATOMIC_RELAXED);
-      priv->reply_status[msg->slot] = status;
+      __atomic_store_n(&priv->reply_status[msg->slot], status,
+                       __ATOMIC_RELEASE);
       __asm volatile ("dmb sy" ::: "memory");
-      (void)nxsem_post(&priv->reply_sem[msg->slot]);
+      if (msg->slot == 0)
+        {
+          (void)nxsem_post(&priv->reply_sem[msg->slot]);
+        }
+      else
+        {
+          __asm volatile ("sev" ::: "memory");
+        }
+
       return OK;
     }
 #else
@@ -1224,7 +1370,7 @@ static void bk7258_rpmsg_test_device_destroy(FAR struct rpmsg_device *rdev,
   __atomic_store_n(&priv->abort, true, __ATOMIC_RELEASE);
   (void)nxsem_post(&priv->start_sem);
   (void)nxsem_post(&priv->reply_sem[0]);
-  (void)nxsem_post(&priv->reply_sem[1]);
+  __asm volatile ("dmb sy; sev" ::: "memory");
 #else
   (void)nxsem_post(&priv->report_sem);
 #endif

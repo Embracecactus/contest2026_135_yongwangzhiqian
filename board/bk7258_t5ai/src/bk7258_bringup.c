@@ -161,8 +161,18 @@ int board_app_initialize(uintptr_t arg)
     {
       _err("bk7258: AP control init failed: %d\n", apret);
     }
-#ifdef CONFIG_BK7258_AP_AUTOSTART
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
   else
+    {
+      apret = bk7258_ap_supervisor_initialize();
+      if (apret < 0)
+        {
+          _err("bk7258: AP supervisor init failed: %d\n", apret);
+        }
+    }
+#endif
+#ifdef CONFIG_BK7258_AP_AUTOSTART
+  if (apret >= 0)
     {
       apret = bk7258_ap_start(CONFIG_BK7258_AP_AUTOSTART_TIMEOUT_MS);
       if (apret < 0)

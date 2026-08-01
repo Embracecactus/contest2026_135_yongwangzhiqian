@@ -304,7 +304,84 @@ enum bk7258_ap_error_e
   BK7258_AP_ERROR_CPU2_BDUL,
   BK7258_AP_ERROR_CPU2_BMIG,
   BK7258_AP_ERROR_CPU2_BTIM,
-  BK7258_AP_ERROR_CPU2_BLCY
+  BK7258_AP_ERROR_CPU2_BLCY,
+  BK7258_AP_ERROR_SUPERVISOR
+};
+
+/* N10 supervisor state is CP-private.  Only the existing heartbeat/epoch
+ * words cross the CP/AP boundary, so this status structure consumes neither
+ * the fixed 0x40-byte RPTUN control ABI nor the vendor-reserved PWR_MNG/SWAP
+ * tail at shared offset 0x700.
+ */
+
+#define BK7258_AP_SUPERVISOR_STATUS_VERSION 1u
+
+#define BK7258_AP_SUPERVISOR_FLAG_ARMED       (1u << 0)
+#define BK7258_AP_SUPERVISOR_FLAG_PRIMARY     (1u << 1)
+#define BK7258_AP_SUPERVISOR_FLAG_SECONDARY   (1u << 2)
+#define BK7258_AP_SUPERVISOR_FLAG_RPMSG_READY (1u << 3)
+#define BK7258_AP_SUPERVISOR_FLAG_RPMSG_OK    (1u << 4)
+#define BK7258_AP_SUPERVISOR_FLAG_FAULT_SAVED (1u << 5)
+#define BK7258_AP_SUPERVISOR_FLAG_AUTO_RECOVER (1u << 6)
+#define BK7258_AP_SUPERVISOR_FLAG_INJECTED     (1u << 7)
+
+enum bk7258_ap_supervisor_state_e
+{
+  BK7258_AP_SUPERVISOR_OFFLINE = 0,
+  BK7258_AP_SUPERVISOR_ARMING,
+  BK7258_AP_SUPERVISOR_HEALTHY,
+  BK7258_AP_SUPERVISOR_SUSPECT,
+  BK7258_AP_SUPERVISOR_FAULTED,
+  BK7258_AP_SUPERVISOR_RECOVERING,
+  BK7258_AP_SUPERVISOR_LOCKOUT
+};
+
+enum bk7258_ap_supervisor_reason_e
+{
+  BK7258_AP_SUPERVISOR_REASON_NONE = 0,
+  BK7258_AP_SUPERVISOR_REASON_BAD_SHARED_STATE,
+  BK7258_AP_SUPERVISOR_REASON_AP_REPORTED_FAILURE,
+  BK7258_AP_SUPERVISOR_REASON_AP_EXCEPTION,
+  BK7258_AP_SUPERVISOR_REASON_PRIMARY_TIMEOUT,
+  BK7258_AP_SUPERVISOR_REASON_SECONDARY_TIMEOUT,
+  BK7258_AP_SUPERVISOR_REASON_RPTUN_DISCONNECTED,
+  BK7258_AP_SUPERVISOR_REASON_RPMSG_TIMEOUT,
+  BK7258_AP_SUPERVISOR_REASON_RECOVERY_FAILED
+};
+
+enum bk7258_ap_supervisor_injection_e
+{
+  BK7258_AP_SUPERVISOR_INJECT_NONE = 0,
+  BK7258_AP_SUPERVISOR_INJECT_PRIMARY,
+  BK7258_AP_SUPERVISOR_INJECT_SECONDARY,
+  BK7258_AP_SUPERVISOR_INJECT_RPMSG
+};
+
+struct bk7258_ap_supervisor_status_s
+{
+  uint32_t version;
+  uint32_t size;
+  uint32_t state;
+  uint32_t reason;
+  uint32_t generation;
+  uint32_t flags;
+  uint32_t primary_heartbeat;
+  uint32_t secondary_heartbeat;
+  uint32_t transport_sequence;
+  uint32_t primary_age_ms;
+  uint32_t secondary_age_ms;
+  uint32_t transport_age_ms;
+  uint32_t fault_count;
+  uint32_t recovery_count;
+  uint32_t consecutive_failures;
+  uint32_t injection;
+  int32_t  last_error;
+  uint32_t fault_generation;
+  uint32_t fault_exception;
+  uint32_t fault_hfsr;
+  uint32_t fault_cfsr;
+  uint32_t fault_pc;
+  uint32_t fault_lr;
 };
 
 enum bk7258_cpu2_probe_command_e
@@ -1101,6 +1178,17 @@ int bk7258_ap_stop(uint32_t timeout_ms);
 int bk7258_ap_restart(uint32_t timeout_ms);
 int bk7258_ap_ipi_test(uint32_t count, uint32_t timeout_ms);
 void bk7258_ap_get_status(struct bk7258_ap_boot_state_s *status);
+#  ifdef CONFIG_BK7258_AP_SUPERVISOR
+int bk7258_ap_supervisor_initialize(void);
+int bk7258_ap_supervisor_get_status(
+  struct bk7258_ap_supervisor_status_s *status);
+int bk7258_ap_supervisor_recover(uint32_t timeout_ms);
+void bk7258_ap_supervisor_lifecycle_begin(void);
+void bk7258_ap_supervisor_lifecycle_end(void);
+#    ifdef CONFIG_BK7258_AP_SUPERVISOR_FAULT_INJECTION
+int bk7258_ap_supervisor_inject(uint32_t injection);
+#    endif
+#  endif
 #endif
 
 #ifdef CONFIG_BK7258_AP_CORE

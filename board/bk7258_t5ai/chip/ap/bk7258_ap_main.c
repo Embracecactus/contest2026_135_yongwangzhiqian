@@ -29,6 +29,9 @@
 #ifdef CONFIG_BK7258_RPTUN
 #  include "bk7258_rptun.h"
 #endif
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+#  include "bk7258_ap_health.h"
+#endif
 
 #include "arm_internal.h"
 #include "bk7258_clockdiag.h"
@@ -56,7 +59,12 @@
 #define BK7258_MPU_ATTR1_MASK       0x0000ff00u
 #define BK7258_MPU_ATTR1_NOCACHE    0x00004400u
 #define BK7258_MPU_CTRL_EXPECTED    0x7u
-#define BK7258_AP_HEARTBEAT_US      100000u
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+#  define BK7258_AP_HEARTBEAT_US \
+    ((uint32_t)CONFIG_BK7258_AP_HEARTBEAT_PERIOD_MS * 1000u)
+#else
+#  define BK7258_AP_HEARTBEAT_US    100000u
+#endif
 
 #ifdef CONFIG_BK7258_RPTUN
 #  define BK7258_AP_RPTUN_INIT_PRIORITY  226
@@ -357,8 +365,9 @@ int bk7258_ap_main(int argc, char *argv[])
    * mailbox RX worker and stock RPTUN worker intentionally outrank normal
    * applications, but they must not outrank the coordinator which is still
    * constructing and pinning them.  Otherwise a cold-start context switch
-   * can leave this init path inside kthread_create() indefinitely.  Restore
-   * the original init-task priority only after READY has been published.
+   * can leave this init path inside kthread_create() indefinitely.  After
+   * READY, N10 keeps this primary management/heartbeat loop at its reserved
+   * supervisor priority; profiles without N10 restore the init priority.
    */
 
   ret = sched_getparam(0, &saved_priority);
@@ -467,6 +476,21 @@ int bk7258_ap_main(int argc, char *argv[])
     }
 #endif
 
+  /* Publish a second, independently scheduled liveness source only after all
+   * N8 SMP gates have passed.  The task is permanent for this AP generation
+   * and pinned to logical CPU1; a failed first increment is a startup failure,
+   * not a degraded READY state.
+   */
+
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  ret = bk7258_ap_health_initialize();
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_SUPERVISOR);
+      goto parked;
+    }
+#endif
+
   /* Keep AP-local N8 validation ahead of logical transport ownership so its
    * zero-length SMP IPI gates run without RPMsg traffic.  The SDK physical
    * MBOX0 driver was already initialized by the AP SMP bootstrap.  The
@@ -521,7 +545,19 @@ int bk7258_ap_main(int argc, char *argv[])
 #ifdef CONFIG_BK7258_RPTUN
   if (priority_raised)
     {
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+      startup_priority = saved_priority;
+      startup_priority.sched_priority =
+        CONFIG_BK7258_AP_SUPERVISOR_PRIORITY;
+      ret = sched_setparam(0, &startup_priority);
+      if (ret < 0)
+        {
+          bk7258_ap_publish_failure(BK7258_AP_ERROR_SUPERVISOR);
+          goto parked;
+        }
+#else
       (void)sched_setparam(0, &saved_priority);
+#endif
     }
 #endif
 
@@ -591,6 +627,15 @@ int bk7258_ap_main(int argc, char *argv[])
 #endif
 
       state->heartbeat++;
+#if defined(CONFIG_BK7258_AP_SUPERVISOR) && defined(CONFIG_BK7258_RPTUN)
+      if (rptun->generation == state->generation)
+        {
+          rptun->ap_epoch = state->generation;
+          __atomic_fetch_add(
+            (uint32_t *)(uintptr_t)&rptun->ap_heartbeat, 1u,
+            __ATOMIC_RELEASE);
+        }
+#endif
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
       smp->sleep_enter_count++;
 #endif

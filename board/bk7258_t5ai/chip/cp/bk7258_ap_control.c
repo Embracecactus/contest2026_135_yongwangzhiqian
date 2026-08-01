@@ -308,6 +308,73 @@ static int bk7258_ap_wait(uint32_t wanted, uint32_t timeout_ms)
   return -ETIMEDOUT;
 }
 
+#ifdef CONFIG_BK7258_RPTUN
+static int bk7258_rptun_wait_quiesce_ready(uint32_t generation,
+                                          uint32_t timeout_ms)
+{
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
+  clock_t start;
+  clock_t timeout_ticks;
+  uint32_t flags;
+  uint32_t state;
+
+  if (timeout_ms == 0)
+    {
+      timeout_ms = BK7258_AP_DEFAULT_TIMEOUT_MS;
+    }
+
+  timeout_ticks = MSEC2TICK(timeout_ms);
+  start = clock_systime_ticks();
+
+  for (;;)
+    {
+      __asm volatile ("dmb sy" ::: "memory");
+      if (control->magic != BK7258_RPTUN_CONTROL_MAGIC ||
+          control->version != BK7258_RPTUN_CONTROL_VERSION ||
+          control->size != sizeof(*control) ||
+          control->generation != generation)
+        {
+          return -EPROTO;
+        }
+
+      state = control->state;
+      flags = control->flags;
+      if (state == BK7258_RPTUN_STATE_CONNECTED ||
+          state == BK7258_RPTUN_STATE_OFFLINE ||
+          (state == BK7258_RPTUN_STATE_FAULTED &&
+           (flags & BK7258_RPTUN_FLAG_CONNECTED_ONCE) != 0))
+        {
+          return OK;
+        }
+
+      if (state == BK7258_RPTUN_STATE_FAULTED)
+        {
+          return -EIO;
+        }
+
+      if (state != BK7258_RPTUN_STATE_PREPARING &&
+          state != BK7258_RPTUN_STATE_TABLE_READY &&
+          state != BK7258_RPTUN_STATE_CONNECTING)
+        {
+          return -EBUSY;
+        }
+
+      if ((clock_t)(clock_systime_ticks() - start) >= timeout_ticks)
+        {
+          /* Do not return -ETIMEDOUT: bk7258_ap_restart() deliberately
+           * continues after an AP stop timeout, while this condition means
+           * the CP RPTUN vdev is still unsafe to destroy or replace.
+           */
+
+          return -EBUSY;
+        }
+
+      nxsig_usleep(1000);
+    }
+}
+#endif
+
 static int bk7258_ap_start_locked(uint32_t timeout_ms)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
@@ -399,11 +466,24 @@ static int bk7258_ap_stop_locked(uint32_t timeout_ms)
   int ret = OK;
 
 #ifdef CONFIG_BK7258_RPTUN
-  /* Tear down endpoints and unregister the mailbox callback before either a
-   * graceful stop or the SMP force-reset path.  This makes stale-generation
-   * mailbox events harmless and leaves the registered CP lower half ready
-   * for rptun_boot() on the next generation.
+  /* NuttX starts RPTUN in a worker, so AP READY can precede completion of
+   * rpmsg_virtio_probe().  Wait for the Name Service connection proof before
+   * asking NuttX to remove the vdev.  Otherwise a rapid cycle can tear down a
+   * partially probed vdev and fault inside rpmsg_virtio_remove().
    */
+
+  if (state->magic == BK7258_AP_BOOT_STATE_MAGIC &&
+      state->version == BK7258_AP_BOOT_STATE_VERSION &&
+      state->size == sizeof(*state) &&
+      state->state != BK7258_AP_STATE_OFF &&
+      state->state != BK7258_AP_STATE_STOPPED)
+    {
+      ret = bk7258_rptun_wait_quiesce_ready(state->generation, timeout_ms);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
 
   ret = bk7258_rptun_quiesce();
   if (ret < 0)
@@ -498,7 +578,13 @@ int bk7258_ap_start(uint32_t timeout_ms)
       g_bk7258_ap_initialized = true;
     }
 
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  bk7258_ap_supervisor_lifecycle_begin();
+#endif
   ret = bk7258_ap_start_locked(timeout_ms);
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  bk7258_ap_supervisor_lifecycle_end();
+#endif
   nxmutex_unlock(&g_bk7258_ap_lock);
   return ret;
 }
@@ -513,7 +599,13 @@ int bk7258_ap_stop(uint32_t timeout_ms)
       return ret;
     }
 
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  bk7258_ap_supervisor_lifecycle_begin();
+#endif
   ret = bk7258_ap_stop_locked(timeout_ms);
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  bk7258_ap_supervisor_lifecycle_end();
+#endif
   nxmutex_unlock(&g_bk7258_ap_lock);
   return ret;
 }
@@ -528,12 +620,18 @@ int bk7258_ap_restart(uint32_t timeout_ms)
       return ret;
     }
 
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  bk7258_ap_supervisor_lifecycle_begin();
+#endif
   ret = bk7258_ap_stop_locked(timeout_ms);
   if (ret == OK || ret == -ETIMEDOUT)
     {
       up_mdelay(BK7258_AP_RESTART_DELAY_MS);
       ret = bk7258_ap_start_locked(timeout_ms);
     }
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  bk7258_ap_supervisor_lifecycle_end();
+#endif
 
   nxmutex_unlock(&g_bk7258_ap_lock);
   return ret;
