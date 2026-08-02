@@ -19,9 +19,10 @@
  *
  * Memory map (shared verbatim with docs/bk7258-t5ai/probe/probe.c):
  *   FLASH/logical app base : 0x02010000  (vector table, .text, .data LMA)
- *   CP RAM                  : 0x28000000 .. 0x2804FFFF (320 KiB SRAM)
+ *   AP SMP spinlocks        : 0x28000000 .. 0x2800FFFF (reserved)
+ *   CP RAM                  : 0x28010000 .. 0x2804FFFF (256 KiB SRAM)
  *   reset/IDLE stack        : _ebss + CONFIG_IDLETHREAD_STACKSIZE (PSP)
- *   interrupt stack top     : 0x28000800 (MSP)
+ *   interrupt stack top     : 0x28010800 (MSP)
  ****************************************************************************/
 
 /****************************************************************************

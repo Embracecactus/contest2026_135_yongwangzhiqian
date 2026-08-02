@@ -26,17 +26,31 @@
 | **N8-C8** | CPU1 timed wake (8 sleep cycles) | `board-verified`（2026-07-30）；corrected image generation2 retry 中 BTIM PASSED `8/8`，task CPU1 sequence8/value8/0/aux20000/1，exact initial-dispatch + eight-wake attribution `+9/+0/+9`，handler fully delivered，failure/coalesced/stale/spurious=0 | [N8-C8 worklog](nuttx-port/n8-c8-cpu1-timed-wake.md) |
 | **N8-D1** | CPU1 scheduler quiesce/resume foundation | **LATEST VERIFIED：`board-verified`（2026-07-30）**；normal autostart BLCY PASSED `1/1`，entry/exit CPU1、sequence/aux `1/1`、value `0/-138` (`-ENOTSUP`)，exact `+1/+0/+1`，online=`0x3`，handler fully delivered，failure/coalesced/stale/spurious=0；not hot-unplug | [N8-D1 worklog](nuttx-port/n8-d1-smp-lifecycle-quiesce.md) |
 | **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | **LATEST VERIFIED：`board-verified`（2026-07-31）**；官方 SDK/NuttX 只读 wrapper；32 KiB carveout、single peer、CPU0 gateway、Name Service、双 producer、generation reconnect、syslog 与 legacy/latest/baseline build 全部闭环 | [N9 completion](nuttx-port/prompts/09-n9-rptun-rpmsg.md) / [source verification](nuttx-port/n9-rptun-source-verification.md) |
-| **N10** | AP SMP liveness / RPMsg health supervision | **CURRENT：部分 `board-verified`（2026-08-01）**；三路健康信号、双向 vring activity、CP 私有状态机与 RPMsg fail-closed 已落地；重复满载、warm restart、primary 注入及 generation-safe 人工恢复实板通过；自动恢复默认关闭，secondary/RPMsg 注入与长稳仍待验证 | [N10 worklog](nuttx-port/prompts/10-n10-ap-supervision.md) |
+| **N10** | AP SMP liveness / RPMsg health supervision | **LATEST VERIFIED：`board-verified`（检测与人工恢复基线，2026-08-01）**；三路健康信号、双向 vring activity、三类独立注入与旧链路 fail-closed 全部实板通过；manual recovery 连续推进到 generation=5，恢复后两轮无注入 full suite 12/12 PASS；自动恢复默认关闭，仍是独立可选门禁 | [N10 worklog](nuttx-port/prompts/10-n10-ap-supervision.md) |
+| **N11** | AP access to CP LittleFS through RPMsgFS | **LATEST VERIFIED：`board-verified`（受限 stock RPMsgFS worker 基线，2026-08-02）**；四档文件测试各 20/20、RPMsg 6×100、syslog、LittleFS local probe、故障态 bounded fail-closed 与 generation 1→2 manual recovery 全部通过；在途 stock POSIX 调用仍由 AP restart 回收 | [N11 worklog](nuttx-port/prompts/11-n11-rpmsgfs.md) |
 
 ## 当前 handoff
 
-> **N10 CURRENT（2026-08-01）：**已从稳定 N9 基线开始 AP crash supervision。
+> **N11 completed（2026-08-02）：**CP 继续独占 flash/MTD/LittleFS `/data` 并使用
+> stock RPMsgFS server；AP stock client 挂载 `/cpdata`，文件调用隔离在 logical CPU0
+> 专用 worker。BK7258 静态独占对象已按官方 SDK 约束集中到 `0x28000000` 专用 64 KiB，
+> CP RAM 相应从 `0x28010000` 开始，NuttX/SDK 均未修改。实板已完成四档 RPMsgFS
+> 20/20、RPMsg 6×100、syslog、本地 LittleFS、RPMsg fault bounded fail-closed 和
+> generation 1→2 manual recovery；最终为 `READY/CONNECTED/HEALTHY`、CPU2 online、
+> fault/recovery=`1/1`、pending=`0/0`。未直接覆盖“故障恰在 stock POSIX 调用进行中”，
+> 在途调用仍以 AP restart 为回收边界。下一 MAIN Stage 尚未冻结；禁止修改 NuttX/SDK，
+> QEMU 工作继续完全排除。完整证据见
+> [N11 worklog](nuttx-port/prompts/11-n11-rpmsgfs.md)。
+>
+> **N10 completed（2026-08-01）：**已从稳定 N9 基线完成 AP crash supervision。
 > 当前 wrapper 监测 AP primary、AP logical CPU1、generation-safe RPMsg probe 与真实
 > 双向 vring 进展，并提供 `apctl health/recover`。实板已完成 4 次最大帧 load、两轮
 > 6 场景完整套件（累计 run=16）、generation 1→2 warm restart、primary timeout
-> fail-closed 和 generation 2→3 人工恢复；恢复后 RPMsg 再次 PASS。当前可标记正常、
-> primary 注入和人工恢复路径 `board-verified`；secondary/RPMsg 注入、长稳和自动恢复
-> 仍是门禁，自动恢复保持默认关闭。当前证据与门禁见
+> 及 generation 2→3 人工恢复；随后 secondary/RPMsg timeout 均准确分类，旧 endpoint
+> 均立即以 `-107/ENOTCONN` fail-closed，并分别恢复 generation 3→4、4→5。每次恢复后
+> RPMsg 均再次 PASS；generation=5 又连续完成两轮无注入 full suite，12/12 场景、
+> 2400 次双路 request/reply 零错误且 heap 无漂移。检测与人工恢复基线整体为
+> `board-verified`；自动恢复保持默认关闭，仍需独立设计评审和专项实板门禁。完整证据见
 > [N10 worklog](nuttx-port/prompts/10-n10-ap-supervision.md)。
 >
 > **N9 completed（2026-07-31）：**保持 AP native SMP，不切换 BMP；CP 与整个 AP SMP
@@ -91,14 +105,18 @@
 
 > **N8-D1 closure（2026-07-30）：**`ap_smp_lifecycle` normal autostart 在真实 T5-AI 一次闭环。AP `READY/error=0`、heartbeat=`727`；CPU2 `SCHEDULER_ONLINE/error=0`、online=`0x3`。BLCY `PASSED/error=0`、requested/completed=`1/1`；callback entry/exit CPU=`1/1`、started/completed=`1/1`、quiesce/resume sequence=`1/1`、value=`0/-138`（该 NuttX 配置的 `-ENOTSUP`）、aux=`1/1`。隔离窗口 CPU0→CPU1 `10→11`=`+1`、CPU1→CPU0 `1→1`=`+0`、calls `11→12`=`+1`；handler CPU0=`1/1`、CPU1=`11/11`，coalesced/fail/stale/spurious=0。CPU0 SysTick=`8090`、sleep enter/return=`727/726` 证明 gate 后持续运行。CPU1 全程保持 online=`0x3`，没有 CPU2 reset/power transition；这是 bounded scheduler quiesce/resume foundation，不是 CPU hot-unplug。
 
-- **Current Stage：**N10 AP SMP liveness / RPMsg health supervision，当前正常链路、
-  primary 注入与人工恢复路径已 `board-verified`；secondary/RPMsg 注入与长稳待完成。
+- **Current Stage：**N11 AP access to CP LittleFS through RPMsgFS 已按受限方案 B
+  `board-verified`；下一 MAIN Stage 尚未选择。
 - **Authorized implementation set：**N8-C5..N8-D1 与 N9-R..N9-V 全部完成并实板
-  闭环；N10 wrapper、重复满载、warm restart、primary fail-closed 与人工恢复已实板
-  通过，剩余注入和自动恢复继续按独立 gate 推进。
-- **Latest board-verified baseline：**N10 `cp_nsh_rptun + ap_smp_rptun` 正常链路、
-  primary 注入与人工恢复路径（2026-08-01）。
-- **Current worklog：**[`nuttx-port/prompts/10-n10-ap-supervision.md`](nuttx-port/prompts/10-n10-ap-supervision.md)
+  闭环；N10 wrapper、重复满载、warm restart、primary/secondary/RPMsg 三类注入、
+  fail-closed、三次人工恢复与 generation=5 无注入重复 full suite 均已实板通过；N11
+  stock RPMsgFS wrapper、exclusive-state 内存修复、故障态 bounded wait 与 generation
+  recovery 也已实板通过。
+- **Latest board-verified baseline：**N11 `cp_nsh_rptun + ap_smp_rptun` generation=2：
+  `READY/CONNECTED/HEALTHY`、CPU2 online、fault/recovery=`1/1`、pending=`0/0`；
+  RPMsgFS 四档 20/20、RPMsg 6×100、syslog 与 CP local LittleFS 全部 PASS
+  （2026-08-02）。
+- **Current worklog：**[`nuttx-port/prompts/11-n11-rpmsgfs.md`](nuttx-port/prompts/11-n11-rpmsgfs.md)
 - **Source verification：**[`nuttx-port/n9-rptun-source-verification.md`](nuttx-port/n9-rptun-source-verification.md)；
   N8 closure 见 [`nuttx-port/n8-cold-reset-resolution-report.md`](nuttx-port/n8-cold-reset-resolution-report.md)；
   新手说明见 [`nuttx-port/cold-reset-smp-repair-guide.md`](nuttx-port/cold-reset-smp-repair-guide.md)；

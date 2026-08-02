@@ -5,6 +5,7 @@
  *
  * Linker script for the physical CPU1 / AP logical-core-0 NuttX image.
  *
+ *   SPINLOCK: 0x28000000 .. 0x2800ffff (official BK7258 SMP region)
  *   FLASH : 0x02200000 .. 0x023fffff  (logical offset 0x00200000)
  *   RAM   : 0x28050000 .. 0x2809efff
  *   SHARED: 0x2809f000 .. 0x2809ffff  (not linked into this image)
@@ -25,6 +26,7 @@ ENTRY(__start)
 MEMORY
 {
     FLASH (rx)  : ORIGIN = 0x02200000, LENGTH = 0x200000
+    SPINLOCK (rwx) : ORIGIN = 0x28000000, LENGTH = 0x010000
 #ifdef CONFIG_BK7258_RPTUN_LAYOUT
     RAM   (rwx) : ORIGIN = 0x28050000, LENGTH = 0x047000
 #else
@@ -128,6 +130,33 @@ SECTIONS
         _etbss = ABSOLUTE(.);
     } > FLASH
 
+    /* BK7258 has only two SRAM-port exclusive monitors.  The official SDK
+     * isolates AP SMP locks in the first 64 KiB instead of ordinary AP RAM.
+     * Preserve initialized vendor/board locks in FLASH and collect every
+     * static global lock emitted with -fdata-sections.  The AP scheduler IPI
+     * pending words also use LDREX/STREX through atomic_xchg(), so keep them
+     * on the same exclusive-safe SRAM port.
+     */
+
+    .spinlock_data : ALIGN(4)
+    {
+        _sspinlock_data = ABSOLUTE(.);
+        *(.sram_spinlock_section)
+        *(.data.g_bk7258_sdk_critical_lock)
+        . = ALIGN(4);
+        _espinlock_data = ABSOLUTE(.);
+    } > SPINLOCK AT > FLASH
+    _lspinlock_data = LOADADDR(.spinlock_data);
+
+    .spinlock_bss (NOLOAD) : ALIGN(4)
+    {
+        _sspinlock_bss = ABSOLUTE(.);
+        *(.bss.g_*lock*)
+        *(.bss.g_bk7258_ap_smp_pending)
+        . = ALIGN(4);
+        _espinlock_bss = ABSOLUTE(.);
+    } > SPINLOCK
+
     _eronly = LOADADDR(.data);
 
     .irq_stack : ALIGN(4)
@@ -158,13 +187,6 @@ SECTIONS
 #ifdef CONFIG_BK7258_RPTUN_LAYOUT
         *(.swap_data)
         *(.dtcm_sec_data)
-        /* The SDK emits SMP spinlocks with owner=SPIN_LOCK_FREE in this
-         * section.  Preserve that FLASH initializer just like the official
-         * BK7258 AP linker script; placing it in NOLOAD .bss turns the owner
-         * into CPU0 and trips the first recursive-lock assertion.
-         */
-
-        *(.sram_spinlock_section)
 #endif
         CONSTRUCTORS
         . = ALIGN(4);
@@ -213,6 +235,14 @@ SECTIONS
 #endif
     ASSERT(_ebss + CONFIG_IDLETHREAD_STACKSIZE <= _eheap,
            "ERROR: AP data/IDLE stack overlaps the CPU2 boot stack")
+    ASSERT(ORIGIN(SPINLOCK) == 0x28000000 &&
+           ORIGIN(SPINLOCK) + LENGTH(SPINLOCK) == 0x28010000,
+           "ERROR: AP spinlock region must match the official BK7258 ABI")
+    ASSERT(_espinlock_bss <= ORIGIN(SPINLOCK) + LENGTH(SPINLOCK),
+           "ERROR: AP SMP spinlocks exceed the dedicated region")
+    ASSERT(g_schedlock >= ORIGIN(SPINLOCK) &&
+           g_schedlock + 4 <= ORIGIN(SPINLOCK) + LENGTH(SPINLOCK),
+           "ERROR: NuttX g_schedlock is outside the AP spinlock region")
     ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
            ORIGIN(FLASH) + LENGTH(FLASH),
            "ERROR: AP image exceeds the app1 flash partition")

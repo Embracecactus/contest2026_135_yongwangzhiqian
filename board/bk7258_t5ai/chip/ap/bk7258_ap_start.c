@@ -50,6 +50,14 @@
  * Public Data
  ****************************************************************************/
 
+#ifndef CONFIG_BUILD_PIC
+extern uint32_t _lspinlock_data[];
+extern uint32_t _sspinlock_data[];
+extern uint32_t _espinlock_data[];
+extern uint32_t _sspinlock_bss[];
+extern uint32_t _espinlock_bss[];
+#endif
+
 const uintptr_t g_idle_topstack = HEAP_BASE;
 
 /****************************************************************************
@@ -203,6 +211,25 @@ void __start(void)
   while (dest < (uint32_t *)_edata)
     {
       *dest++ = *src++;
+    }
+
+  /* Initialize the official AP SMP exclusive-state region before CPU2 is
+   * released.  Vendor and board recursive locks carry nonzero free-owner
+   * initializers; NuttX static locks and the scheduler IPI pending words are
+   * zero-initialized independently of the ordinary AP .bss range.
+   */
+
+  src = (const uint32_t *)_lspinlock_data;
+  dest = (uint32_t *)_sspinlock_data;
+  while (dest < (uint32_t *)_espinlock_data)
+    {
+      *dest++ = *src++;
+    }
+
+  dest = (uint32_t *)_sspinlock_bss;
+  while (dest < (uint32_t *)_espinlock_bss)
+    {
+      *dest++ = 0;
     }
 
 #ifndef CONFIG_ARCH_SKIP_ZERO_BSS

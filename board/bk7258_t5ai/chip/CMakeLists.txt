@@ -52,6 +52,10 @@ if(CONFIG_BK7258_RPMSG_TEST)
   list(APPEND BK7258_CP_SRCS common/bk7258_rpmsg_test.c)
 endif()
 
+if(CONFIG_BK7258_RPMSGFS_TEST)
+  list(APPEND BK7258_CP_SRCS common/bk7258_rpmsgfs_test.c)
+endif()
+
 # The role-neutral SDK IRQ bridge lives in common/ and is selected separately
 # by the CP bridge option or the AP N8-B2 IPI option.
 
@@ -79,6 +83,9 @@ endif()
 
 if(CONFIG_BK7258_FLASH_MTD)
   list(APPEND BK7258_CP_SRCS cp/bk7258_flash_mtd.c)
+  target_link_options(
+    nuttx PRIVATE
+    "LINKER:--wrap=bk_flash_partition_write_perm_check_by_addr")
 endif()
 
 if(CONFIG_BK7258_CLOCK_320M)
@@ -122,6 +129,14 @@ endif()
 
 if(CONFIG_BK7258_RPMSG_TEST)
   list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rpmsg_test.c)
+endif()
+
+if(CONFIG_BK7258_RPMSGFS)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rpmsgfs.c)
+endif()
+
+if(CONFIG_BK7258_RPMSGFS_TEST)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rpmsgfs_test.c)
 endif()
 
 set(BK7258_AP_UP_SRCS
