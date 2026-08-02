@@ -85,6 +85,9 @@ endif
 ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
 BK7258_CP_CSRCS += bk7258_rpmsg_test.c
 endif
+ifeq ($(CONFIG_BK7258_RPMSGFS_TEST),y)
+BK7258_CP_CSRCS += bk7258_rpmsgfs_test.c
+endif
 endif
 
 # Stage B: replace the SDK private CM33 callback table with NuttX irq_attach()
@@ -117,6 +120,7 @@ endif
 
 ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
 BK7258_CP_CSRCS += bk7258_flash_mtd.c
+LDFLAGS += --wrap=bk_flash_partition_write_perm_check_by_addr
 endif
 
 # Stage N4-D1: deterministic 320 MHz CPU0 clock bring-up.
@@ -175,6 +179,12 @@ BK7258_AP_BASE_CSRCS += bk7258_ap_health.c
 endif
 ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
 BK7258_AP_BASE_CSRCS += bk7258_rpmsg_test.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSGFS),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsgfs.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSGFS_TEST),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsgfs_test.c
 endif
 endif
 

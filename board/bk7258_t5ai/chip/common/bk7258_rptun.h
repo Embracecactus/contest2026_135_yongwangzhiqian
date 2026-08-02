@@ -27,6 +27,14 @@ int bk7258_rptun_quiesce(void);
 int bk7258_rpmsg_test_initialize(void);
 #endif
 
+#ifdef CONFIG_BK7258_RPMSGFS
+int bk7258_rpmsgfs_initialize(void);
+#endif
+
+#ifdef CONFIG_BK7258_RPMSGFS_TEST
+int bk7258_rpmsgfs_test_initialize(void);
+#endif
+
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
 int bk7258_rpmsg_health_initialize(void);
 #endif

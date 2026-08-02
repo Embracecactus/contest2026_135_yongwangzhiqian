@@ -122,6 +122,12 @@
   (BK7258_RPMSG_TEST_FLAG_CPU0_LOAD |       \
    BK7258_RPMSG_TEST_FLAG_SYSLOG_PROBE)
 
+#define BK7258_RPMSGFS_TEST_RESULT_MAGIC     0x53465242u /* "BRFS" */
+#define BK7258_RPMSGFS_TEST_RESULT_VERSION   1u
+#define BK7258_RPMSGFS_TEST_RESULT_SIZE      96u
+#define BK7258_RPMSGFS_TEST_MAX_PAYLOAD      1024u
+#define BK7258_RPMSGFS_TEST_MAX_ITERATIONS   100u
+
 /* Wrapper-only diagnostics distinguish pthread attribute/create failures
  * during permanent worker setup from a per-run semaphore dispatch failure.
  * Target and stage remain numeric in BRPT output so automated soak parsers
@@ -232,6 +238,55 @@ struct bk7258_rpmsg_test_result_s
   uint32_t workers_done;
 };
 
+enum bk7258_rpmsgfs_test_step_e
+{
+  BK7258_RPMSGFS_TEST_STEP_NONE = 0,
+  BK7258_RPMSGFS_TEST_STEP_GENERATION,
+  BK7258_RPMSGFS_TEST_STEP_CLEANUP,
+  BK7258_RPMSGFS_TEST_STEP_MKDIR,
+  BK7258_RPMSGFS_TEST_STEP_OPEN_WRITE,
+  BK7258_RPMSGFS_TEST_STEP_WRITE,
+  BK7258_RPMSGFS_TEST_STEP_SYNC,
+  BK7258_RPMSGFS_TEST_STEP_STAT,
+  BK7258_RPMSGFS_TEST_STEP_OPEN_READ,
+  BK7258_RPMSGFS_TEST_STEP_SEEK,
+  BK7258_RPMSGFS_TEST_STEP_READ,
+  BK7258_RPMSGFS_TEST_STEP_VERIFY,
+  BK7258_RPMSGFS_TEST_STEP_RENAME,
+  BK7258_RPMSGFS_TEST_STEP_OPENDIR,
+  BK7258_RPMSGFS_TEST_STEP_READDIR,
+  BK7258_RPMSGFS_TEST_STEP_UNLINK,
+  BK7258_RPMSGFS_TEST_STEP_RMDIR,
+  BK7258_RPMSGFS_TEST_STEP_REPORT
+};
+
+struct bk7258_rpmsgfs_test_result_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t generation;
+  uint32_t sequence;
+  uint32_t iterations_requested;
+  uint32_t iterations_completed;
+  uint32_t payload_size;
+  int32_t  status;
+  uint32_t step;
+  uint32_t worker_cpu;
+  uint32_t bytes_written;
+  uint32_t bytes_read;
+  uint32_t expected_checksum;
+  uint32_t actual_checksum;
+  uint32_t dir_entries;
+  uint32_t heap_before_used;
+  uint32_t heap_before_free;
+  uint32_t heap_before_largest;
+  uint32_t heap_after_used;
+  uint32_t heap_after_free;
+  uint32_t heap_after_largest;
+  uint32_t reserved[2];
+};
+
 /****************************************************************************
  * Compile-time ABI Gates
  ****************************************************************************/
@@ -266,6 +321,12 @@ static_assert(sizeof(struct bk7258_rpmsg_test_result_s) ==
 static_assert(sizeof(struct bk7258_rpmsg_test_result_s) <=
               BK7258_RPMSG_TEST_MAX_PAYLOAD,
               "BK7258 RPMsg test result cannot fit one frame");
+static_assert(sizeof(struct bk7258_rpmsgfs_test_result_s) ==
+              BK7258_RPMSGFS_TEST_RESULT_SIZE,
+              "BK7258 RPMsgFS test result diagnostic ABI changed");
+static_assert(sizeof(struct bk7258_rpmsgfs_test_result_s) + 32u <=
+              BK7258_RPMSG_TEST_FRAME_SIZE,
+              "BK7258 RPMsgFS report cannot fit one RPMsg frame");
 
 /****************************************************************************
  * Public Inline Functions
@@ -294,6 +355,12 @@ int bk7258_rptun_mbox_probe(uint32_t count, uint32_t timeout_ms);
 int bk7258_rpmsg_test_run(uint32_t count, uint32_t payload_size,
                           uint32_t flags, uint32_t timeout_ms,
                           struct bk7258_rpmsg_test_result_s *result);
+#endif
+
+#if defined(CONFIG_BK7258_RPMSGFS_TEST) && !defined(CONFIG_BK7258_AP_CORE)
+int bk7258_rpmsgfs_test_run(uint32_t iterations, uint32_t payload_size,
+                            uint32_t timeout_ms,
+                            struct bk7258_rpmsgfs_test_result_s *result);
 #endif
 
 #endif /* __ARCH_ARM_INCLUDE_BK7258_BK7258_RPTUN_H */

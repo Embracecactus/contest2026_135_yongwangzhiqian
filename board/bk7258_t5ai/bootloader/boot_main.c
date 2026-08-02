@@ -151,7 +151,7 @@ static int validate_app(uint32_t app_vec)
     uint32_t rst  = vec[1];
 
     /* CP MSP must land in the CPU0-owned SRAM window. */
-    if (msp < 0x28000000u || msp >= 0x28050000u) {
+    if (msp < 0x28010000u || msp >= 0x28050000u) {
         uart_puts("BAD\r\nmsp OOR\r\n");
         return 0;
     }

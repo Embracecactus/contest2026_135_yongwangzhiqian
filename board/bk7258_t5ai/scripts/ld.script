@@ -10,7 +10,8 @@
  *
  *   FLASH : 0x02010000 .. 0x020fffff  (CP logical offset 0x10000,
  *                                      0x0f0000 bytes)
- *   RAM   : 0x28000000 .. 0x2804ffff  (320 KiB CP-owned SRAM)
+ *   AP SMP spinlocks: 0x28000000 .. 0x2800ffff (official reserved region)
+ *   RAM   : 0x28010000 .. 0x2804ffff  (256 KiB CP-owned SRAM)
  *   MSP   : 0x2804fffc
  *
  * Logical flash 0x00100000..0x001fffff remains the LittleFS data partition.
@@ -52,7 +53,7 @@ ENTRY(__start)
 MEMORY
 {
     FLASH (rx)  : ORIGIN = 0x02010000, LENGTH = 0x0f0000
-    RAM   (rwx) : ORIGIN = 0x28000000, LENGTH = 0x050000
+    RAM   (rwx) : ORIGIN = 0x28010000, LENGTH = 0x040000
 }
 
 /* N9 shared-memory ABI is outside CP RAM.  Export the same absolute symbols
@@ -223,6 +224,8 @@ SECTIONS
            "ERROR: CP load image overlaps LittleFS at logical 0x00100000")
     ASSERT(_eheap < 0x28050000,
            "ERROR: CP RAM overlaps the AP RAM window")
+    ASSERT(ORIGIN(RAM) == 0x28010000,
+           "ERROR: CP RAM overlaps the official AP spinlock region")
 #ifdef CONFIG_BK7258_RPTUN_LAYOUT
     ASSERT(_bk7258_rptun_shmem_start >= 0x28050000,
            "ERROR: RPTUN shared memory overlaps CP RAM")

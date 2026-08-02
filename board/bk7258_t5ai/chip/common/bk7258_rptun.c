@@ -537,6 +537,17 @@ int bk7258_rptun_initialize(uint32_t generation)
 #endif
 #endif
 
+#ifdef CONFIG_BK7258_RPMSGFS_TEST
+  ret = bk7258_rpmsgfs_test_initialize();
+  if (ret < 0)
+    {
+      control->error = (uint32_t)-ret;
+      control->state = BK7258_RPTUN_STATE_FAULTED;
+      __asm volatile ("dmb sy" ::: "memory");
+      return ret;
+    }
+#endif
+
   return OK;
 }
 

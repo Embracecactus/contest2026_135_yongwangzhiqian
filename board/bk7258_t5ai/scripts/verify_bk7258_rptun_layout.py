@@ -246,6 +246,18 @@ def verify_source_contract(board: Path, compatibility: dict[str, object]) -> Non
                     f"{script_name} does not explicitly place {section}"
                 )
 
+    ap_linker = (board / "scripts" / "ld_ap.script").read_text()
+    for input_pattern in (
+        "*(.data.g_bk7258_sdk_critical_lock)",
+        "*(.bss.g_*lock*)",
+        "*(.bss.g_bk7258_ap_smp_pending)",
+    ):
+        if input_pattern not in ap_linker:
+            raise VerificationError(
+                f"ld_ap.script does not collect {input_pattern} into the "
+                "exclusive-state region"
+            )
+
 
 def verify_layout_values(
     layout: dict[str, int], compatibility: dict[str, object]
@@ -274,6 +286,16 @@ def verify_layout_values(
             )
 
     sram = compatibility["sram"]
+    if [parse_int(item) for item in sram["ap_spinlock"]] != [
+        0x28000000,
+        0x28010000,
+    ]:
+        raise VerificationError("compatibility JSON AP spinlock range drift")
+    if [parse_int(item) for item in sram["cp_owned"]] != [
+        0x28010000,
+        0x28050000,
+    ]:
+        raise VerificationError("compatibility JSON CP range drift")
     if [parse_int(item) for item in sram["rptun_shared"]] != [
         layout["shmem_base"],
         layout["shmem_base"] + layout["shmem_size"],
@@ -383,17 +405,64 @@ def main() -> int:
         if ap_symbols.get("_ebss", 0xFFFFFFFF) >= shared - 0x800:
             raise VerificationError("AP BSS reaches the CPU2 boot stack")
 
+        spinlock_range = tuple(
+            parse_int(item) for item in compatibility["sram"]["ap_spinlock"]
+        )
+        cp_ram_range = tuple(
+            parse_int(item) for item in compatibility["sram"]["cp_owned"]
+        )
+        ap_ram_range = tuple(
+            parse_int(item) for item in compatibility["sram"]["ap_owned_n9"]
+        )
+        spinlock_start, spinlock_end = spinlock_range
+        if ap_symbols.get("_sspinlock_data") != spinlock_start:
+            raise VerificationError(
+                "AP initialized spinlocks do not start at 0x28000000"
+            )
+        for symbol in ("_espinlock_data", "_sspinlock_bss",
+                       "_espinlock_bss"):
+            value = ap_symbols.get(symbol)
+            if value is None or not spinlock_start <= value <= spinlock_end:
+                raise VerificationError(
+                    f"AP symbol {symbol} is outside the spinlock region"
+                )
+
+        exclusive_state = compatibility["ap_exclusive_state"]
+        exclusive_symbols: dict[str, int] = {}
+        for group, section_start, section_end in (
+            ("initialized", "_sspinlock_data", "_espinlock_data"),
+            ("zero_initialized", "_sspinlock_bss", "_espinlock_bss"),
+        ):
+            low = ap_symbols[section_start]
+            high = ap_symbols[section_end]
+            if low > high:
+                raise VerificationError(
+                    f"AP exclusive-state section {group} has inverted bounds"
+                )
+            for symbol in exclusive_state[group]:
+                value = ap_symbols.get(symbol)
+                if value is None:
+                    raise VerificationError(
+                        f"AP required exclusive-state symbol {symbol} is missing"
+                    )
+                if not low <= value < high:
+                    raise VerificationError(
+                        f"AP symbol {symbol} is outside {group} "
+                        f"exclusive-state section"
+                    )
+                exclusive_symbols[symbol] = value
+
         cp_sections = parse_alloc_sections(args.objdump, args.cp_elf)
         ap_sections = parse_alloc_sections(args.objdump, args.ap_elf)
         verify_sections(
             "CP",
             cp_sections,
-            [(0x02010000, 0x02100000), (0x28000000, 0x28050000)],
+            [(0x02010000, 0x02100000), cp_ram_range],
         )
         verify_sections(
             "AP",
             ap_sections,
-            [(0x02200000, 0x02400000), (0x28050000, shared)],
+            [(0x02200000, 0x02400000), spinlock_range, ap_ram_range],
         )
 
         for role, map_path in (("CP", args.cp_map), ("AP", args.ap_map)):
@@ -414,6 +483,10 @@ def main() -> int:
                 "status": "elf-verified",
                 "symbols": {
                     "cp_eheap": cp_symbols["_eheap"],
+                    "ap_spinlock_start": spinlock_start,
+                    "ap_spinlock_end": spinlock_end,
+                    "ap_g_schedlock": ap_symbols["g_schedlock"],
+                    "ap_exclusive_symbols": exclusive_symbols,
                     "ap_ebss": ap_symbols["_ebss"],
                     "ap_eheap": ap_symbols["_eheap"],
                     "cpu2_stack_base":

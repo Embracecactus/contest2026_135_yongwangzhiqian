@@ -12,7 +12,8 @@
  *
  * Resulting RAM layout (flat build), matching scripts/ld.script:
  *
- *   0x28000000  g_intstackalloc  .irq_stack (CONFIG_ARCH_INTERRUPTSTACK)
+ *   0x28000000  AP SMP spinlocks (official 64 KiB reserved region)
+ *   0x28010000  g_intstackalloc  .irq_stack (CONFIG_ARCH_INTERRUPTSTACK)
  *   ...         .data / .bss
  *   _ebss       IDLE thread stack (CONFIG_IDLETHREAD_STACKSIZE)
  *   g_idle_topstack

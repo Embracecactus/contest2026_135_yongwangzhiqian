@@ -381,6 +381,47 @@ config BK7258_AP_SUPERVISOR_STABLE_MS
 	range 5000 600000
 	depends on BK7258_AP_SUPERVISOR_AUTO_RECOVER
 
+config BK7258_RPMSGFS
+	bool "N11 AP access to CP LittleFS through RPMsgFS"
+	default n
+	depends on BK7258_RPTUN
+	depends on BK7258_AP_CORE || BK7258_FLASH_LITTLEFS
+	select FS_RPMSGFS if BK7258_AP_CORE
+	select FS_RPMSGFS_SERVER if !BK7258_AP_CORE
+	---help---
+		Keep flash, MTD and LittleFS ownership on CP.  CP enables the stock
+		NuttX RPMsgFS server; AP enables the stock client and mounts CP /data
+		at /cpdata.  The board wrapper never modifies the NuttX protocol or
+		the Beken SDK.
+
+config BK7258_RPMSGFS_TEST
+	bool "N11 bounded RPMsgFS functional and recovery test"
+	default n
+	depends on BK7258_RPMSGFS && !DISABLE_PTHREAD
+	depends on !BK7258_AP_CORE || SMP
+	select BUILTIN if !BK7258_AP_CORE
+	select NSH_BUILTIN_APPS if !BK7258_AP_CORE
+	---help---
+		Add a board-owned control endpoint and bkrpmsgfstest command.  The AP
+		endpoint callback only queues work; one permanent logical-CPU0 worker
+		performs bounded-size operations below /cpdata/rpmsgfs-n11.  CP waits
+		with an explicit deadline and validates generation-tagged results.
+
+config BK7258_RPMSGFS_TEST_PRIORITY
+	int "N11 AP RPMsgFS test worker priority"
+	default 100
+	range 1 199
+	depends on BK7258_RPMSGFS_TEST && BK7258_AP_CORE
+	---help---
+		SCHED_FIFO priority of the AP logical-CPU0 file worker.  It remains
+		below the AP supervisor and all RPTUN/RPMsg transport workers.
+
+config BK7258_RPMSGFS_TEST_STACKSIZE
+	int "N11 AP RPMsgFS test worker stack size"
+	default 8192
+	range 4096 16384
+	depends on BK7258_RPMSGFS_TEST && BK7258_AP_CORE
+
 config BK7258_FLASH_MTD
 	bool "BK7258 on-chip flash data-partition MTD"
 	default n

@@ -21,12 +21,16 @@
 
 #include <nuttx/config.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
 #include <debug.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/mtd/mtd.h>
+#include <nuttx/mutex.h>
+#include <nuttx/sched.h>
 
 #include <arch/chip/bk7258_amp.h>
 
@@ -49,6 +53,16 @@
 #define BK7258_FLASH_ERASE_SIZE     4096u
 #define BK7258_FLASH_NBLOCKS        (BK7258_DATA_PART_SIZE / BK7258_FLASH_BLOCK_SIZE)
 
+/* The v3.1.1.9 SDK enables CONFIG_FLASH_PARTITION_CHECK_VALID and its
+ * generated partition table still describes the vendor application layout.
+ * That table classifies this project's 0x00100000..0x001fffff data window as
+ * part of a read-only application partition.  Keep the SDK permission gate
+ * for every other caller and use the linker's --wrap hook to grant only the
+ * board MTD owner access to this exact range.
+ */
+
+#define BK7258_FLASH_API_MAGIC_CODE 0x12345678u
+
 /* Known JEDEC IDs for 8 MiB GD25Q64-class parts on this board. */
 
 #define BK7258_FLASH_ID_GD25Q64     0x00c86517u
@@ -70,6 +84,66 @@ struct bk7258_flash_mtd_s
  ****************************************************************************/
 
 static struct bk7258_flash_mtd_s g_bk7258_flash_mtd;
+static mutex_t g_bk7258_flash_mtd_lock = NXMUTEX_INITIALIZER;
+static volatile pid_t g_bk7258_flash_mtd_owner = (pid_t)-1;
+
+/****************************************************************************
+ * SDK Partition-Permission Wrapper
+ ****************************************************************************/
+
+extern bk_err_t
+__real_bk_flash_partition_write_perm_check_by_addr(uint32_t addr,
+                                                    uint32_t size,
+                                                    uint32_t magic_code);
+
+static bool bk7258_flash_data_range(uint32_t addr, uint32_t size)
+{
+  uint32_t offset;
+
+  if (size == 0 || addr < BK7258_DATA_PART_BASE)
+    {
+      return false;
+    }
+
+  offset = addr - BK7258_DATA_PART_BASE;
+  return offset < BK7258_DATA_PART_SIZE &&
+         size <= BK7258_DATA_PART_SIZE - offset;
+}
+
+bk_err_t __wrap_bk_flash_partition_write_perm_check_by_addr(
+  uint32_t addr, uint32_t size, uint32_t magic_code)
+{
+  if (!up_interrupt_context() &&
+      magic_code == BK7258_FLASH_API_MAGIC_CODE &&
+      g_bk7258_flash_mtd_owner == nxsched_getpid() &&
+      bk7258_flash_data_range(addr, size))
+    {
+      return BK_OK;
+    }
+
+  return __real_bk_flash_partition_write_perm_check_by_addr(addr, size,
+                                                             magic_code);
+}
+
+static int bk7258_flash_mtd_lock(bool write)
+{
+  int ret = nxmutex_lock(&g_bk7258_flash_mtd_lock);
+
+  if (ret >= 0 && write)
+    {
+      g_bk7258_flash_mtd_owner = nxsched_getpid();
+      __asm volatile ("dmb sy" ::: "memory");
+    }
+
+  return ret;
+}
+
+static void bk7258_flash_mtd_unlock(void)
+{
+  __asm volatile ("dmb sy" ::: "memory");
+  g_bk7258_flash_mtd_owner = (pid_t)-1;
+  nxmutex_unlock(&g_bk7258_flash_mtd_lock);
+}
 
 /****************************************************************************
  * MTD Methods
@@ -91,11 +165,18 @@ static ssize_t bk7258_flash_bread(FAR struct mtd_dev_s *dev, off_t startblock,
       return -EINVAL;
     }
 
+  if (bk7258_flash_mtd_lock(false) < 0)
+    {
+      return -EINTR;
+    }
+
   if (bk_flash_read_bytes(offset, buffer, nbytes) != BK_OK)
     {
+      bk7258_flash_mtd_unlock();
       return -EIO;
     }
 
+  bk7258_flash_mtd_unlock();
   return (ssize_t)nblocks;
 }
 
@@ -114,6 +195,11 @@ static int bk7258_flash_erase(FAR struct mtd_dev_s *dev, off_t startblock,
       return -EINVAL;
     }
 
+  if (bk7258_flash_mtd_lock(true) < 0)
+    {
+      return -EINTR;
+    }
+
   bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 
   for (block = 0; block < nblocks; block++)
@@ -124,11 +210,13 @@ static int bk7258_flash_erase(FAR struct mtd_dev_s *dev, off_t startblock,
       if (bk_flash_erase_sector(addr) != BK_OK)
         {
           bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
+          bk7258_flash_mtd_unlock();
           return -EIO;
         }
     }
 
   bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
+  bk7258_flash_mtd_unlock();
   return OK;
 }
 
@@ -149,15 +237,22 @@ static ssize_t bk7258_flash_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
       return -EINVAL;
     }
 
+  if (bk7258_flash_mtd_lock(true) < 0)
+    {
+      return -EINTR;
+    }
+
   bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 
   if (bk_flash_write_bytes(offset, buffer, nbytes) != BK_OK)
     {
       bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
+      bk7258_flash_mtd_unlock();
       return -EIO;
     }
 
   bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
+  bk7258_flash_mtd_unlock();
   return (ssize_t)nblocks;
 }
 

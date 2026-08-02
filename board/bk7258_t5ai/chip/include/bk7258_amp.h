@@ -51,7 +51,10 @@
   BK7258_CRC_PHYSICAL_OFFSET(BK7258_AP_FLASH_OFFSET)
 
 /* The 640 KiB SRAM window is split between two independent NuttX kernels.
- * The top 4 KiB page is excluded from both linkers and remains shared.
+ * Keep the first 64 KiB as the AP SMP spinlock region used by the official
+ * BK7258 SDK.  CP starts at 0x28010000 and still ends at 0x28050000, so the
+ * AP/RPTUN/shared-page addresses remain unchanged.  The top 4 KiB page is
+ * excluded from both linkers and remains shared.
  * N9 layout-only/RPTUN profiles additionally reserve the preceding 32 KiB
  * from the AP window.  The baseline N7/N8 profiles retain their exact linker
  * layout when CONFIG_BK7258_RPTUN_LAYOUT is disabled.
@@ -59,8 +62,10 @@
 
 #define BK7258_SRAM_BASE                 0x28000000u
 #define BK7258_SRAM_SIZE                 0x000a0000u
-#define BK7258_CP_RAM_BASE               0x28000000u
-#define BK7258_CP_RAM_SIZE               0x00050000u
+#define BK7258_AP_SPINLOCK_BASE          0x28000000u
+#define BK7258_AP_SPINLOCK_SIZE          0x00010000u
+#define BK7258_CP_RAM_BASE               0x28010000u
+#define BK7258_CP_RAM_SIZE               0x00040000u
 #define BK7258_AP_RAM_BASE               0x28050000u
 #define BK7258_RPTUN_SHMEM_BASE          0x28097000u
 #define BK7258_RPTUN_SHMEM_SIZE          0x00008000u
@@ -305,7 +310,8 @@ enum bk7258_ap_error_e
   BK7258_AP_ERROR_CPU2_BMIG,
   BK7258_AP_ERROR_CPU2_BTIM,
   BK7258_AP_ERROR_CPU2_BLCY,
-  BK7258_AP_ERROR_SUPERVISOR
+  BK7258_AP_ERROR_SUPERVISOR,
+  BK7258_AP_ERROR_RPMSGFS
 };
 
 /* N10 supervisor state is CP-private.  Only the existing heartbeat/epoch
@@ -958,6 +964,14 @@ static_assert(BK7258_CP_FLASH_OFFSET + BK7258_CP_FLASH_SIZE ==
 static_assert(BK7258_DATA_FLASH_OFFSET + BK7258_DATA_FLASH_SIZE ==
               BK7258_AP_FLASH_OFFSET,
               "AP flash must start after LittleFS");
+static_assert(BK7258_AP_SPINLOCK_BASE == BK7258_SRAM_BASE,
+              "AP spinlock region must start at the official SRAM base");
+static_assert(BK7258_AP_SPINLOCK_BASE + BK7258_AP_SPINLOCK_SIZE ==
+              BK7258_CP_RAM_BASE,
+              "AP spinlock region must end at CP RAM");
+static_assert(BK7258_CP_RAM_BASE + BK7258_CP_RAM_SIZE ==
+              BK7258_AP_RAM_BASE,
+              "CP RAM must end at AP RAM");
 static_assert(BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE ==
               BK7258_AP_RAM_END,
               "AP RAM must end at its configured boundary");

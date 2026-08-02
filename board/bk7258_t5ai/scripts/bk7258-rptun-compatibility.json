@@ -1,7 +1,8 @@
 {
   "format": 1,
   "sram": {
-    "cp_owned": ["0x28000000", "0x28050000"],
+    "ap_spinlock": ["0x28000000", "0x28010000"],
+    "cp_owned": ["0x28010000", "0x28050000"],
     "ap_owned_n9": ["0x28050000", "0x28097000"],
     "rptun_shared": ["0x28097000", "0x2809f000"],
     "team_telemetry": ["0x2809f000", "0x2809f700"],
@@ -11,7 +12,27 @@
   "vendor_input_sections": {
     ".swap_data": [".data"],
     ".dtcm_sec_data": [".data"],
-    ".sram_spinlock_section": [".bss"]
+    ".sram_spinlock_section": [".spinlock_data"]
+  },
+  "ap_exclusive_state": {
+    "initialized": [
+      "mb_chnl_spin_lock",
+      "g_bk7258_sdk_critical_lock"
+    ],
+    "zero_initialized": [
+      "g_schedlock",
+      "g_irqlock",
+      "g_assert_lock.0",
+      "g_pidhashlock",
+      "g_smp_call_lock",
+      "g_sigspinlock",
+      "g_locktimers",
+      "g_bk7258_rptun_mbox_lock",
+      "g_bk7258_sdk_irq_lock",
+      "g_modifyreg_lock",
+      "g_ramvec_lock",
+      "g_bk7258_ap_smp_pending"
+    ]
   },
   "mailbox": {
     "controller": "MBOX0",

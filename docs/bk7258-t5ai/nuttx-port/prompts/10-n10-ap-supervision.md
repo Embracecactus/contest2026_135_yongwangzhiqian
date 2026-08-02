@@ -1,10 +1,10 @@
 # N10 — AP SMP liveness and RPMsg health supervision
 
-> 状态：**CURRENT / board-verified（正常链路、primary 注入、人工恢复）**
+> 状态：**CURRENT / board-verified（正常链路、三类故障注入、人工恢复、无注入重复压力）**
 >
 > 日期：2026-08-01
 >
-> 基线：`feat/bk7258-ap-smp`，启动时 HEAD `308d42c`
+> 基线：`feat/bk7258-ap-smp`，启动时 HEAD `308d42c`，实现提交 `1bda1e8`
 
 ## 1. 目标与边界
 
@@ -231,21 +231,60 @@ v3.1.1.9 checksum、split manifest 与 ELF layout verifier 全部通过，layout
 - generation=3 最终为 `READY/CONNECTED/HEALTHY`，fault/recovery=`1/1`、
   consecutive=0、injection=`NONE`，恢复后的双核 `20×464/load` 再次 PASS。
 
+### 4.5 三类故障注入收口与恢复后 soak
+
+同一已刷写镜像继续完成剩余的 secondary/RPMsg 分类、fail-closed、人工恢复和无注入
+重复压力门禁。原始串口日志保存在工作区
+`logs/n10-closure-20260801/`（主仓库外，不纳入提交）。
+
+Secondary 路径从健康的 generation=3 开始：
+
+- `apctl inject secondary` 后收敛到 supervisor
+  `FAULTED/SECONDARY_TIMEOUT`，secondary age=`2710 ms`，primary age=`0`；RPTUN 同步
+  `FAULTED/error=110`，AP primary 与 CPU2 live heartbeat 仍持续推进，证明注入仅抑制
+  CP 侧的一路观察；
+- FAULTED 后执行 `bkrpmsgtest run 1 1 idle 5000` 立即返回
+  `BRPT FAIL transport=-107`，没有等待命令的 5 s deadline，旧 generation 确实
+  fail-closed；
+- `apctl recover 30000` 使 generation 3→4。收敛后 AP/RPTUN/supervisor 分别为
+  `READY/CONNECTED/HEALTHY`，fault/recovery=`2/2`、consecutive=0、
+  injection=`NONE`；随后双核 `20×464/load` 两路均 `20/20`、`errors=0`。
+
+RPMsg 路径从健康的 generation=4 开始：
+
+- `apctl inject rpmsg` 后收敛到 supervisor `FAULTED/RPMSG_TIMEOUT`，transport
+  age=`2520 ms`，primary/secondary age 均为 `0`；RPTUN 为
+  `FAULTED/error=110`，AP 与 CPU2 heartbeat 正常推进；
+- 旧链路上的 `bkrpmsgtest run 1 1 idle 5000` 同样立即返回
+  `BRPT FAIL transport=-107`；
+- `apctl recover 30000` 使 generation 4→5。收敛后为
+  `READY/CONNECTED/HEALTHY`，fault/recovery=`3/3`、consecutive=0、
+  injection=`NONE`；恢复后的双核 `20×464/load` 两路均 `20/20`、`errors=0`，
+  heap snapshot 前后相同。
+
+在 generation=5 上不再注入故障，连续执行两轮
+`bkrpmsgtest all 100 60000`。每轮均覆盖 payload `1/64/464` × idle/load 六种组合，
+两轮分别为 run=21..26 和 run=27..32：
+
+- 12/12 场景 PASS，每个场景的两个发送端均 `sent=received=100`、`errors=0`，
+  合计完成 2400 次双路 request/reply；
+- 12 组 heap 的 start/spawn/report 均保持 used=`44352`、free=`219696`、
+  largest=`216024`、alloc/free blocks=`53/2`，没有泄漏或碎片漂移；
+- 最终状态保持 generation=5：AP `READY`、RPTUN `CONNECTED`、supervisor
+  `HEALTHY`、CPU2 `SCHEDULER_ONLINE`、pending=`0/0`；fault/recovery=`3/3`、
+  consecutive=0、injection=`NONE`。CP/AP RX sequence=`6026/3212`，AP/CPU2
+  heartbeat=`3124/6280`，证明数据面和两路 scheduler liveness 均继续推进。
+
 ## 5. 当前门禁与下一最小动作
 
-当前可标记为正常路径、primary timeout 分类与人工恢复路径 `board-verified`。Focused
-source review、默认/反向 Kconfig、fresh 双镜像、ELF symbol/layout、重复满载、warm
-restart、fail-closed 与 generation-safe manual recovery 均已闭环。自动恢复继续保持
-默认关闭。
+当前检测与人工恢复基线可整体标记为 `board-verified`。Focused source review、
+默认/反向 Kconfig、fresh 双镜像、ELF symbol/layout、重复满载、warm restart、三路
+独立故障分类、旧链路 fail-closed、连续三次 generation-safe manual recovery，以及
+恢复后的两轮无注入 full-suite soak 均已闭环。
 
-剩余门禁按顺序完成：
-
-1. 分别执行 `apctl inject secondary|rpmsg`，确认 reason 分类正确且旧 RPMsg 发送
-   fail-closed；
-2. 每类故障后执行 `apctl recover`，确认新 generation 的
-   `CONNECTED/HEALTHY` 与 `bkrpmsgtest` PASS；
-3. 完成人工恢复多轮和无注入长稳测试；
-4. 单独评审自动恢复预算、退避和 lockout 后，再决定是否在非验证 profile 启用。
+自动恢复仍是独立的可选能力，当前默认关闭且不属于上述已验证基线。后续若决定启用，
+必须先单独评审恢复预算、退避和 `LOCKOUT` 语义，再使用专用 profile 重跑三类注入、
+重试耗尽和无注入 soak；更长时间的小时级 soak 可作为发布前运行可靠性门禁继续扩展。
 
 ## 6. 禁止事项
 
@@ -253,4 +292,4 @@ restart、fail-closed 与 generation-safe manual recovery 均已闭环。自动�
 - 不把 supervisor callback 放进 mailbox ISR；
 - 不在 RPMsg callback 中阻塞、restart 或等待 TX buffer；
 - 不把 CPU2 heartbeat 与 primary heartbeat 合并成单一“AP 活着”结论；
-- 不在未做 fault-injection soak 前启用默认自动恢复。
+- 不在自动恢复预算/退避/lockout 专项评审和实板验证前启用默认自动恢复。

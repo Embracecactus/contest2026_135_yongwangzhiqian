@@ -527,6 +527,15 @@ int bk7258_ap_main(int argc, char *argv[])
       goto parked;
     }
 
+#ifdef CONFIG_BK7258_RPMSGFS
+  ret = bk7258_rpmsgfs_initialize();
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_RPMSGFS);
+      goto parked;
+    }
+#endif
+
   __atomic_fetch_or((uint32_t *)(uintptr_t)&rptun->flags,
                     BK7258_RPTUN_FLAG_AP_RPTUN_READY, __ATOMIC_RELEASE);
 #endif
