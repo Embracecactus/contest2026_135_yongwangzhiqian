@@ -548,6 +548,17 @@ int bk7258_rptun_initialize(uint32_t generation)
     }
 #endif
 
+#ifdef CONFIG_BK7258_BT_IPC_TEST
+  ret = bk7258_bt_test_initialize();
+  if (ret < 0)
+    {
+      control->error = (uint32_t)-ret;
+      control->state = BK7258_RPTUN_STATE_FAULTED;
+      __asm volatile ("dmb sy" ::: "memory");
+      return ret;
+    }
+#endif
+
   return OK;
 }
 

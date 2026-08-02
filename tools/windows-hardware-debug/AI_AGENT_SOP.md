@@ -1,16 +1,16 @@
-# Claude / Codex 硬件调试执行规范
+# Claude / Codex 串口、J-Link 与 BLE 调试执行规范
 
 本文件约束 AI 如何调用本目录工具。完整参数和故障处理见 [SOP.zh-CN.md](SOP.zh-CN.md)。
 
 ## 1. 每次任务的固定流程
 
 1. **确认环境**：判断当前在 Windows 还是 WSL2；确认脚本绝对路径和日志目录。
-2. **确认板级事实**：Console COM、baud、目标型号，以及任务涉及的 reset port、DTR/RTS 极性、J-Link device/address。不能可靠推断时询问用户。
+2. **确认板级事实**：Console COM、baud、目标型号，以及任务涉及的 reset port、DTR/RTS 极性、J-Link device/address；BLE 任务还要确认 Windows adapter 的 peripheral-role 能力和目标侧 scan 命令。不能可靠推断时询问用户。
 3. **分类动作**：按下表判断现有授权是否足够。不要把“诊断问题”扩大成“复位、停核或烧录”。
 4. **先建基线**：列端口，做短时纯串口采集；需要 J-Link 时先运行 `-DryRun` 检查命令。
 5. **先采集后触发**：复位场景必须用 `debug_session`；看到 `SERIAL_READY` 后才允许目标控制动作发生。
 6. **验证目标证据**：优先设置 `ExpectedRegex` 和 `FailRegex`；必要时结合启动计数、generation、寄存器或其他目标端事实。
-7. **归档和报告**：给出执行命令、`serial.raw`、`session.json`、命中的证据和未知项。不得只报告 `PULSE_OK` 或 `JLINK_OK`。
+7. **归档和报告**：给出执行命令、`serial.raw`、`session.json`、BLE advertiser log/ready file、命中的目标证据和未知项。不得只报告 `PULSE_OK`、`JLINK_OK` 或 `BLEADV READY`。
 
 ## 2. 授权矩阵
 
@@ -19,6 +19,7 @@
 | 主机只读 | 列举 COM、查看帮助、J-Link `-DryRun`、读取现有日志 | 可直接执行 |
 | 目标保守诊断 | 纯 UART 采集、无 Halt 的 J-Link memory/register read | 在用户要求诊断且目标明确时执行；说明 debugger attach 可能影响时序 |
 | 可逆目标控制 | DTR/RTS pulse、reset、halt、resume | 仅当用户明确把该动作放入范围；传入 `-AllowTargetControl` |
+| 有界无线发射 | Windows BLE test advertisement | 仅在用户要求真实 RF/scan 验证时执行；使用非敏感测试 payload 和有限时长，目标侧必须精确验收 |
 | 高风险/破坏性 | flash、erase、loadfile、内存写、Option Byte、Fuse、安全状态修改 | 本 skill 不执行；转到芯片专用、经评审的 SOP |
 | 任意命令文件 | J-Link `CommandFile` | 仅执行用户明确要求且逐行评审过的文件；否则拒绝传入 `-AllowUnsafeCommands` |
 
@@ -31,6 +32,8 @@
 - 同一 USB-UART 同时承担 console 和 reset line 时，不设置 `ResetPort`，由 `serial_capture.ps1` 内联切换 DTR/RTS。
 - Console 与 reset control 是两个适配器时，设置不同的 `ConsolePort` 和 `ResetPort`。
 - 不确定线路有效电平时，不试遍所有组合；先查原理图或请用户确认。
+- WSL2 不直接把 Windows 内置蓝牙当作 Linux HCI；使用
+  `ble-advertiser/scripts/advertise_wsl.sh` 调用 Windows 原生 radio。
 
 ## 4. 命令选择
 
@@ -58,6 +61,19 @@ J-Link 先审查 dry run：
 
 只使用从芯片文档、linker map、当前源码或用户给定证据确认的地址。不要从相似芯片猜地址。
 
+BLE 实射频源先探测再发射：
+
+```bash
+./ble-advertiser/scripts/advertise_wsl.sh --probe --build
+./ble-advertiser/scripts/advertise_wsl.sh \
+  --company-id 0xFFFE --payload-hex 4e31325601020304 \
+  --duration 30 --ready-file ./logs/ble-advertiser.ready.json
+```
+
+在另一个受控串口会话中运行目标 scan。要求目标返回 address、RSSI、company ID 和
+完整 payload；Windows 同一适配器可能混入系统广播，因此必须遍历结果并按 payload
+匹配，不能固定取第一条。
+
 ## 5. 证据和结论规则
 
 - `serial.raw` 是不可改写的原始证据；解码、筛选或脱敏应生成新文件。
@@ -67,16 +83,20 @@ J-Link 先审查 dry run：
 - 空日志默认失败。只有任务明确预期目标静默时才使用 `AllowEmptyCapture`，并解释依据。
 - 串口打开失败时，不要循环复位目标；先解决端口占用、驱动或参数问题。
 - J-Link 连接失败时，不要用 erase、unlock 或写寄存器探测连接。
+- `BLEADV STATUS Started` 和 ready file 只证明 Windows 接受了广播请求；只有目标侧
+  收到逐字节匹配的 advertisement 才是 RF PASS。Windows 隐私地址可能变化，不把地址
+  固定值当作身份 gate。
 
 ## 6. AI 最终报告模板
 
 ```text
 环境：Windows PowerShell / WSL2 -> Windows PowerShell
-动作：<capture/manual reset/serial pulse/J-Link read/reset>
+动作：<capture/manual reset/serial pulse/J-Link read/reset/BLE advertisement>
 授权依据：<用户原始要求；无目标控制则写“不涉及”>
 命令：<完整命令，敏感内容脱敏>
 原始日志：<绝对路径>/serial.raw
-结构化结果：<绝对路径>/session.json
+结构化结果：<绝对路径>/session.json；不涉及则写“不涉及”
+BLE 主机证据：<advertiser.log/ready JSON/进程退出码；不涉及则写“不涉及”>
 目标端证据：<命中/未命中的表达式、计数器或状态>
 结论：passed / completed_unverified / error
 未知项：<复位极性、地址来源、调试器时序影响等>
@@ -107,4 +127,13 @@ flash/erase/write。要求日志命中 "boot complete" 且不出现 "HardFault|A
 使用 windows-hardware-debug skill，先 dry-run，再从 0x20000000 读取 16 个
 32-bit word。不要 halt、reset、resume 或写内存。保存生成的 J-Link 命令和日志，
 并说明 debugger attach 对实时性的潜在影响。
+```
+
+BLE 实射频验证：
+
+```text
+使用 windows-hardware-debug skill，从 WSL2 调用 Windows 蓝牙适配器广播 company ID
+0xFFFE、payload 4e31325601020304，持续 30 秒。先 probe peripheral role，不广播任何
+敏感信息；同时通过目标串口执行 scan。只有目标返回相同 manufacturer data、真实
+RSSI 和地址才判 PASS，保存 advertiser log、ready JSON 和目标 raw 串口证据。
 ```

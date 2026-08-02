@@ -1,4 +1,4 @@
 interface:
   display_name: "Windows Hardware Debug"
-  short_description: "Capture serial logs and run guarded J-Link diagnostics"
-  default_prompt: "Use $windows-hardware-debug to capture a target boot log and verify the result safely."
+  short_description: "Capture UART, inspect J-Link, and validate BLE RF"
+  default_prompt: "Use $windows-hardware-debug to capture target evidence or validate a bounded BLE RF scan safely."

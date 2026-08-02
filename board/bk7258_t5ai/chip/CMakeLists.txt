@@ -37,6 +37,16 @@ if(CONFIG_BK7258_AP_SUPERVISOR)
   list(APPEND BK7258_CP_SRCS cp/bk7258_ap_supervisor.c)
 endif()
 
+if(CONFIG_BK7258_BT_IPC)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_bt_controller.c)
+  if(NOT CONFIG_BK7258_AP_CORE)
+    target_link_options(
+      nuttx PRIVATE
+      "LINKER:--wrap=bk_bluetooth_init"
+      "LINKER:--wrap=bk_bluetooth_deinit")
+  endif()
+endif()
+
 if(CONFIG_BK7258_RPTUN_MBOX)
   list(APPEND BK7258_CP_SRCS common/bk7258_rptun_mbox.c)
 endif()
@@ -54,6 +64,10 @@ endif()
 
 if(CONFIG_BK7258_RPMSGFS_TEST)
   list(APPEND BK7258_CP_SRCS common/bk7258_rpmsgfs_test.c)
+endif()
+
+if(CONFIG_BK7258_BT_IPC_TEST)
+  list(APPEND BK7258_CP_SRCS common/bk7258_bt_test.c)
 endif()
 
 # The role-neutral SDK IRQ bridge lives in common/ and is selected separately
@@ -114,6 +128,10 @@ set(BK7258_AP_BASE_SRCS
     ${BK7258_COMMON_EARLY_SRCS}
     ap/bk7258_ap_main.c)
 
+if(CONFIG_BK7258_BT_IPC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_bt_hci.c)
+endif()
+
 if(CONFIG_BK7258_RPTUN_MBOX)
   list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rptun_mbox.c)
 endif()
@@ -137,6 +155,10 @@ endif()
 
 if(CONFIG_BK7258_RPMSGFS_TEST)
   list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rpmsgfs_test.c)
+endif()
+
+if(CONFIG_BK7258_BT_IPC_TEST)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_bt_test.c)
 endif()
 
 set(BK7258_AP_UP_SRCS

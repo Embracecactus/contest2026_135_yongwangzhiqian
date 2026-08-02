@@ -13,6 +13,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <nuttx/arch.h>
+
 #ifdef CONFIG_BK7258_AP_CORE
 #  include <driver/mailbox_types.h>
 #endif
@@ -58,19 +60,26 @@ const void *_heap_start = &_heap_start_dummy;
 const void *_heap_end = &_heap_end_dummy;
 
 /* shell_assert_out, shell_log_flush provided by libbk_cli.a */
-/* build_version provided by libbk7258.a or similar */
+/* SDK exception reporting expects the application-generated build string.
+ * NuttX has no SDK project_elf_src.c, so publish a board-owned equivalent.
+ */
+
+volatile const uint8_t build_version[] = "openvela-bk7258";
+
 /* save_net_info/get_net_info provided by libbk_system.a */
 
 /****************************************************************************
  * SDK PHY stubs (used by libbk_phy.a)
  ****************************************************************************/
 
+#if !defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_AP_CORE)
 int phy_cca_busy_test(int argc, char **argv)
 {
   (void)argc;
   (void)argv;
   return 0;
 }
+#endif
 
 int tx_evm_cmd_test(int argc, char **argv)
 {
@@ -96,9 +105,11 @@ uint32_t gapc_get_conidx(uint8_t conidx)
   return 0;
 }
 
+#if !defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_AP_CORE)
 void rs_deinit(void)
 {
 }
+#endif
 
 /* sys_hal_aud_*, sys_hal_apll_en, sys_hal_psram_* provided by libbk7258.a */
 
@@ -112,10 +123,12 @@ void rs_deinit(void)
  * SDK PM stubs (used by libbk_pm.a)
  ****************************************************************************/
 
+#if !defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_AP_CORE)
 void phy_wakeup_reinit(void)
 {
   /* Stub: phy reinit not needed without wifi */
 }
+#endif
 
 /****************************************************************************
  * SDK reboot/timer stubs
@@ -124,7 +137,12 @@ void phy_wakeup_reinit(void)
 void bk_reboot_ex(uint32_t param)
 {
   (void)param;
-  /* Stub: reboot not needed from NuttX app */
+  up_systemreset();
+}
+
+void bk_reboot(void)
+{
+  bk_reboot_ex(1); /* RESET_SOURCE_REBOOT in the SDK ABI */
 }
 
 void delay(unsigned int ms)

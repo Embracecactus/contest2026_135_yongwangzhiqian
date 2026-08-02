@@ -33,7 +33,6 @@
 #define BK7258_EXCEPTION_NMI              2u
 #define BK7258_EXCEPTION_HARDFAULT        3u
 #define BK7258_EXCEPTION_FRAME_WORDS      8u
-#define BK7258_EXCEPTION_FP_FRAME_WORDS   18u
 #define BK7258_EXC_RETURN_THREAD_MODE     (1u << 3)
 #define BK7258_EXC_RETURN_BASIC_FRAME     (1u << 4)
 #define BK7258_FAULT_INVALID_VALUE        UINT32_MAX
@@ -124,12 +123,10 @@ bk7258_ap_fault_handler(uint32_t *stack, uint32_t exc_return,
   uint32_t mmfar = BK7258_SCB_MMFAR;
   uint32_t bfar = BK7258_SCB_BFAR;
 
-  /* Hardware places the basic frame after the optional FP frame. */
-
-  if ((exc_return & BK7258_EXC_RETURN_BASIC_FRAME) == 0)
-    {
-      frame_addr += BK7258_EXCEPTION_FP_FRAME_WORDS * sizeof(uint32_t);
-    }
+  /* ARMv8-M stacks R0..xPSR first; an extended exception frame appends
+   * S0..S15/FPSCR after those eight words.  The raw SP therefore
+   * always addresses the basic frame.  This also matches NuttX arm_m/irq.h.
+   */
 
   if ((frame_addr & (sizeof(uint32_t) - 1u)) == 0 &&
       frame_addr >= BK7258_AP_RAM_BASE &&

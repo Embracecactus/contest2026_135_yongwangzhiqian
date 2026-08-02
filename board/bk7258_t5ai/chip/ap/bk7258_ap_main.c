@@ -32,6 +32,9 @@
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
 #  include "bk7258_ap_health.h"
 #endif
+#ifdef CONFIG_BK7258_BT_IPC
+#  include <arch/chip/bk7258_bt_ipc.h>
+#endif
 
 #include "arm_internal.h"
 #include "bk7258_clockdiag.h"
@@ -538,6 +541,15 @@ int bk7258_ap_main(int argc, char *argv[])
 
   __atomic_fetch_or((uint32_t *)(uintptr_t)&rptun->flags,
                     BK7258_RPTUN_FLAG_AP_RPTUN_READY, __ATOMIC_RELEASE);
+#endif
+
+#ifdef CONFIG_BK7258_BT_IPC
+  ret = bk7258_bt_hci_initialize();
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_BLUETOOTH);
+      goto parked;
+    }
 #endif
 
   state->error      = BK7258_AP_ERROR_NONE;
