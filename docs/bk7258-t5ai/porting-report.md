@@ -676,9 +676,11 @@ board/bk7258_t5ai/bootloader/
 
 ## 12. 下一步 Roadmap
 
-> **2026-07-31 路线更新：**本报告前文的 N4 CURRENT / SMP planned later 是历史快照。
-> latest verified baseline 已推进至 **N9 CP/AP RPTUN/OpenAMP/RPMsg wrapper**；N9 已
-> `board-verified`。权威完成记录见 [N9 prompt / completion](nuttx-port/prompts/09-n9-rptun-rpmsg.md)。
+> **2026-08-02 路线更新：**本报告前文的 N4 CURRENT / SMP planned later 是历史快照。
+> latest fully closed baseline 已推进至 N12 Bluetooth IPC；冷启动、HCI info、MAC 持久化、
+> UART 恢复、通用 IPC 共存和 Windows legacy advertiser 的真实 RF report 均已实板通过；
+> `bkbttest n12v` 会精确筛选 company ID/payload，不受同适配器系统广播的顺序影响。
+> 权威记录见 [N12 worklog](nuttx-port/n12-beken-bt-ipc-wrapper.md)。
 
 | 优先级 | 项 | 状态 | 备注 |
 |---|---|---|---|
@@ -689,7 +691,10 @@ board/bk7258_t5ai/bootloader/
 | P1 | **NuttX Stage N5**：MTD + 文件系统（LittleFS） | ✅ done | N5-D5 raw flash r/w + N5-D6 MTD + N5-D7 LittleFS 全链路 `board-verified`（2026-07-19）；D7 版 `all-app.bin` = 192270 B = `0x2EF0E` |
 | P0 | **NuttX Stage N8**：AP physical CPU1+CPU2 native SMP | ✅ done | scheduler-online、双向 IPI/wake、affinity、controlled migration、timed wake、bounded lifecycle 与 warm/RESET 3/3 已 `board-verified` |
 | P0 | **NuttX Stage N9**：CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | ✅ done / `board-verified` | 官方 wrapper 模式；单一 CP↔AP link、32 KiB carveout、Name Service、CPU0 gateway、generation reconnect、syslog、physical RESET 与 legacy/latest/baseline 构建均闭环 |
-| P0 | **下一 Stage**：heartbeat / AP crash supervision | candidate | 复用 N9 lifecycle/generation；定义 peer timeout、pending request fail-closed、restart policy 与独立验收证据 |
+| P0 | **NuttX Stage N10**：heartbeat / AP crash supervision | ✅ done / `board-verified` | 三路健康信号、双向 vring activity、三类故障注入、旧链路 fail-closed 与 generation 5 人工恢复闭环；自动恢复默认关闭 |
+| P0 | **NuttX Stage N11**：AP 通过 RPMsgFS 访问 CP LittleFS | ✅ done / `board-verified` | stock RPMsgFS、CPU0 worker、四档 payload、故障态有界失败与 generation recovery 均闭环 |
+| P0 | **NuttX Stage N12**：official Beken Bluetooth IPC + NuttX HCI wrapper | ✅ done / `board-verified` | CP Controller、AP stock Host、HCI info、MAC 持久化、UART self-heal、RPMsg/RPMsgFS 共存以及真实 advertising report 均已实板通过 |
+| P0 | **下一 Stage** | not frozen | 建议优先评审 Bluetooth GAP/GATT 端到端功能；Wi-Fi 数据面和自动恢复仍是并列候选，不因 N12 完成而自动授权 |
 | P1 | **后续（未编号）**：PSRAM bring-up | planned later | T5-AI 16 MB SiP PSRAM 当前未用 |
 | P1 | **后续（未编号）**：Tier-2 bootloader OTA（RBL + A/B + failover） | planned later | 需 flash 写；参考 BK 官方 §2.12 RBL 校验 |
 | P2 | **后续（未编号）**：GPIO / flash / Wi-Fi / BLE 等驱动补全 | planned later | 根据 N4 后的板端证据与竞赛优先级再排序 |

@@ -47,3 +47,10 @@ if(CONFIG_BK7258_RPMSGFS_TEST AND NOT CONFIG_BK7258_AP_CORE)
     SRCS bk7258_rpmsgfs_test_main.c
     STACKSIZE 3072)
 endif()
+
+if(CONFIG_BK7258_BT_IPC_TEST AND NOT CONFIG_BK7258_AP_CORE)
+  nuttx_add_application(
+    NAME bkbttest
+    SRCS bk7258_bt_test_main.c
+    STACKSIZE 3072)
+endif()

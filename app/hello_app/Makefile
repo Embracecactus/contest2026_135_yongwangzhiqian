@@ -57,6 +57,15 @@ MAINSRC   += bk7258_rpmsgfs_test_main.c
 endif
 endif
 
+ifeq ($(CONFIG_BK7258_BT_IPC_TEST),y)
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+PROGNAME  += bkbttest
+PRIORITY  += SCHED_PRIORITY_DEFAULT
+STACKSIZE += 3072
+MAINSRC   += bk7258_bt_test_main.c
+endif
+endif
+
 MODULE = y
 
 include $(APPDIR)/Application.mk

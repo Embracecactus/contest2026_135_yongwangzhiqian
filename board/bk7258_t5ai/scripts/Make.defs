@@ -70,6 +70,9 @@ BK_SDK_LIBS_DIR := $(shell readlink -f $(BK7258_SDK_BUNDLE_ROOT)/ap/libs)
 ifeq ($(BK_SDK_LIBS_DIR),)
 $(error BK7258 AP SDK bundle '$(BK7258_SDK_BUNDLE_VERSION)' has no libs directory)
 endif
+ifeq ($(CONFIG_BK7258_BT_IPC),y)
+EXTRA_LIBS += $(BK_SDK_LIBS_DIR)/libbk_bluetooth.a
+endif
 EXTRA_LIBS += \
   $(BK_SDK_LIBS_DIR)/libdriver.a \
   $(BK_SDK_LIBS_DIR)/libbk7258_ap.a \
@@ -93,7 +96,9 @@ endif
 # - coredump, unity, at_server (testing/debug tools)
 # - lwip, wpa_supplicant, wifi (networking, not needed yet)
 # - iperf, hmac, psa_mbedtls (networking/crypto)
-# - ALL bluetooth controller/host variants (duplicate symbols, only need libbluetooth_controller.a)
+# - ALL bluetooth controller/host variants (duplicate symbols).  The BT IPC
+#   profile adds only the controller-only BLE archive selected by the official
+#   CP SDK build.
 # - ble_wifi_exchange (wifi/bt coexistence)
 
 BK_EXCLUDE_LIBS := \
@@ -102,6 +107,7 @@ BK_EXCLUDE_LIBS := \
   libiperf.a libhmac_sha_256.a libpsa_mbedtls.a \
   libwifi.a libwifi_csi.a libwifi_csi_nspe.a libwifi_nspe.a libbk_wifi.a \
   libble_wifi_exchange.a \
+  libbluetooth_controller.a \
   libbluetooth_controller_ble.a \
   libbluetooth_controller_ble_cp_slave_observer.a \
   libbluetooth_controller_ble_cp_slave_observer_nspe.a \
@@ -142,6 +148,26 @@ BK_EXCLUDE_LIBS := \
 BK_EXCLUDE_PATHS := $(foreach lib,$(BK_EXCLUDE_LIBS),$(BK_SDK_LIBS_DIR)/$(lib))
 
 EXTRA_LIBS += $(filter-out $(BK_EXCLUDE_PATHS),$(wildcard $(BK_SDK_LIBS_DIR)/*.a))
+
+# Match the official CP controller-only build instead of pulling the generic
+# controller archive.  libcom_phy.a is the exported full PHY/calibration
+# archive (the bundle's libbk_phy.a name is occupied by the SDK component
+# archive).  The v3.1.1.9 PHY adapter was built with CONFIG_WIFI_ENABLE=y and
+# its immutable function table consequently needs the Wi-Fi/lwIP archive
+# closure.  These archives are linked as the PHY backend; the NuttX wrapper
+# does not call the SDK Wi-Fi or lwIP startup paths.  SDK bk_system remains
+# excluded because its FreeRTOS tick/printf runtime conflicts with the NuttX
+# board adapters.  Keep the additions scoped to the BT IPC profile so the
+# established CP baseline link remains unchanged.
+
+ifeq ($(CONFIG_BK7258_BT_IPC),y)
+EXTRA_LIBS += \
+  $(BK_SDK_LIBS_DIR)/libbluetooth_controller_controller_only_ble.a \
+  $(BK_SDK_LIBS_DIR)/libcom_phy.a \
+  $(BK_SDK_LIBS_DIR)/libwifi.a \
+  $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
+  $(BK_SDK_LIBS_DIR)/liblwip_intf_v2_1.a
+endif
 
 endif
 

@@ -422,6 +422,52 @@ config BK7258_RPMSGFS_TEST_STACKSIZE
 	range 4096 16384
 	depends on BK7258_RPMSGFS_TEST && BK7258_AP_CORE
 
+config BK7258_BT_IPC
+	bool "N12 official Beken Bluetooth mailbox IPC wrapper"
+	default n
+	depends on BK7258_RPTUN_MBOX
+	depends on !BK7258_AP_CORE || (DRIVERS_BLUETOOTH && NET_BLUETOOTH && WIRELESS_BLUETOOTH)
+	---help---
+		Use the official SDK MB_CHNL_BT_CMD protocol without modifying either
+		NuttX or the SDK.  The CP image starts the Beken controller-side IPC
+		worker.  The AP image registers a board-owned bt_driver_s lower half,
+		translates NuttX HCI command/ACL packets to bt_ipc_* calls and copies
+		SDK event/ACL callbacks into the stock NuttX Bluetooth Host.
+
+		This is independent of the generic RPTUN/RPMsg services: both share the
+		SDK physical mailbox dispatcher but reserve different logical channels.
+		The initial profile supports HCI command, event and ACL traffic; SCO and
+		ISO are deliberately out of scope.
+
+config BK7258_BT_IPC_TEST
+	bool "N12 bounded Bluetooth IPC hardware test"
+	default n
+	depends on BK7258_BT_IPC && BK7258_RPTUN && !DISABLE_PTHREAD
+	depends on !BK7258_AP_CORE || NETDEV_IOCTL
+	select BUILTIN if !BK7258_AP_CORE
+	select NSH_BUILTIN_APPS if !BK7258_AP_CORE
+	---help---
+		Add a board-owned diagnostic endpoint and bkbttest command.  The AP
+		endpoint callback only queues requests; a permanent logical-CPU0 worker
+		uses the stock NuttX Bluetooth socket ioctls to report the Controller
+		address/features and perform a bounded LE scan.  CP waits with an
+		explicit deadline and validates generation-tagged results.
+
+config BK7258_BT_IPC_TEST_PRIORITY
+	int "N12 AP Bluetooth test worker priority"
+	default 100
+	range 1 199
+	depends on BK7258_BT_IPC_TEST && BK7258_AP_CORE
+	---help---
+		SCHED_FIFO priority of the AP logical-CPU0 Bluetooth diagnostic worker.
+		It remains below the AP supervisor and RPTUN transport workers.
+
+config BK7258_BT_IPC_TEST_STACKSIZE
+	int "N12 AP Bluetooth test worker stack size"
+	default 8192
+	range 4096 16384
+	depends on BK7258_BT_IPC_TEST && BK7258_AP_CORE
+
 config BK7258_FLASH_MTD
 	bool "BK7258 on-chip flash data-partition MTD"
 	default n

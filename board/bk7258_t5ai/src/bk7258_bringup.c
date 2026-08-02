@@ -34,6 +34,10 @@
 #include <arch/chip/bk7258_amp.h>
 #endif
 
+#ifdef CONFIG_BK7258_BT_IPC
+#include <arch/chip/bk7258_bt_ipc.h>
+#endif
+
 #ifdef CONFIG_BK7258_FLASH_MTD
 #include <nuttx/mtd/mtd.h>
 #include "bk7258_flash_mtd.h"
@@ -161,8 +165,21 @@ int board_app_initialize(uintptr_t arg)
     {
       _err("bk7258: AP control init failed: %d\n", apret);
     }
+
+#ifdef CONFIG_BK7258_BT_IPC
+  if (apret >= 0)
+    {
+      apret = bk7258_bt_controller_ipc_initialize();
+      if (apret < 0)
+        {
+          _err("bk7258: Bluetooth controller IPC init failed: %d\n",
+               apret);
+        }
+    }
+
+#endif
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
-  else
+  if (apret >= 0)
     {
       apret = bk7258_ap_supervisor_initialize();
       if (apret < 0)
@@ -170,6 +187,7 @@ int board_app_initialize(uintptr_t arg)
           _err("bk7258: AP supervisor init failed: %d\n", apret);
         }
     }
+
 #endif
 #ifdef CONFIG_BK7258_AP_AUTOSTART
   if (apret >= 0)
@@ -180,6 +198,7 @@ int board_app_initialize(uintptr_t arg)
           _err("bk7258: AP autostart failed: %d\n", apret);
         }
     }
+
 #endif
 #endif
 

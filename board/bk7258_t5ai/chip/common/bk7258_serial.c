@@ -47,15 +47,6 @@
 #define BK7258_CONSOLE_UART_ID      UART_ID_1
 #define BK7258_UART_BAUD_RATE       460800u
 
-#define BK7258_SYS_CLK_SELECT_REG   0x44010020u
-#define BK7258_SYS_CLK_ENABLE_REG   0x44010030u
-#define BK7258_SYS_UART1_CLK_SELECT (1u << 13)
-#define BK7258_SYS_UART1_CLK_ENABLE (1u << 10)
-#define BK7258_UART1_GLOBAL_CTRL    0x45830008u
-#define BK7258_UART1_CONFIG         0x45830010u
-#define BK7258_UART1_GLOBAL_ENABLE  0x00000001u
-#define BK7258_UART1_CONFIG_460800  0x0000371bu
-
 /****************************************************************************
  * External Function Prototypes
  ****************************************************************************/
@@ -63,6 +54,8 @@
 /* Board-private early-console ownership handoff from bk7258_lowputc.c. */
 
 void bk7258_lowputc_handoff(bool enable);
+void bk7258_lowputc_restore_console(void);
+void bk7258_lowputc_ensure_console(void);
 
 /****************************************************************************
  * Private Types
@@ -122,19 +115,7 @@ static struct uart_dev_s g_uart1port =
 
 static void bk7258_uart_restore_console(void)
 {
-  uint32_t regval;
-
-  regval = getreg32(BK7258_SYS_CLK_ENABLE_REG);
-  regval |= BK7258_SYS_UART1_CLK_ENABLE;
-  putreg32(regval, BK7258_SYS_CLK_ENABLE_REG);
-
-  regval = getreg32(BK7258_SYS_CLK_SELECT_REG);
-  regval &= ~BK7258_SYS_UART1_CLK_SELECT;
-  putreg32(regval, BK7258_SYS_CLK_SELECT_REG);
-
-  putreg32(BK7258_UART1_GLOBAL_ENABLE, BK7258_UART1_GLOBAL_CTRL);
-  putreg32(BK7258_UART1_CONFIG_460800, BK7258_UART1_CONFIG);
-  __asm volatile ("dsb sy; isb sy" ::: "memory");
+  bk7258_lowputc_restore_console();
 }
 
 /****************************************************************************
@@ -195,6 +176,44 @@ static void bk7258_uart_sdk_isr(uart_id_t id, void *param)
 
   (void)id;
   uart_recvchars(dev);
+}
+
+/****************************************************************************
+ * Name: bk7258_uart_recover_console
+ *
+ * Description:
+ *   Reassert the board UART1 ownership after an SDK subsystem performs a
+ *   private peripheral reset.  The Beken PHY/RF/calibration and Bluetooth
+ *   lifecycle paths can clear the UART registers without going through
+ *   bk_uart_deinit(), while the SDK driver state still reports the port as
+ *   initialized.  Rebuild the hardware invariant and reinstall the NuttX RX
+ *   callback in that order.
+ *
+ ****************************************************************************/
+
+void bk7258_uart_recover_console(void)
+{
+  /* PHY/controller startup can leave UART1 reset while its interrupt enable
+   * and a latched RX status survive.  Enabling the peripheral before
+   * masking that source lets the stale IRQ preempt this recovery half-way
+   * through and starve NuttX in uart_isr_common().
+   */
+
+  (void)bk_uart_disable_rx_interrupt(BK7258_CONSOLE_UART_ID);
+  bk7258_uart_restore_console();
+  (void)bk_uart_disable_sw_fifo(BK7258_CONSOLE_UART_ID);
+  (void)bk_uart_set_rx_full_threshold(BK7258_CONSOLE_UART_ID, 1);
+  (void)bk_uart_register_rx_isr(BK7258_CONSOLE_UART_ID,
+                                bk7258_uart_sdk_isr, &CONSOLE_DEV);
+
+  /* Clear once more after restoring the FIFO threshold.  A status bit can
+   * latch while the peripheral is being brought out of reset even though the
+   * CPU interrupt is still masked.
+   */
+
+  (void)bk_uart_disable_rx_interrupt(BK7258_CONSOLE_UART_ID);
+  (void)bk_uart_enable_rx_interrupt(BK7258_CONSOLE_UART_ID);
+  g_bk7258_uart1priv.rxbyte = -1;
 }
 
 /****************************************************************************
@@ -380,6 +399,13 @@ static void bk7258_uart_send(struct uart_dev_s *dev, int ch)
   struct bk7258_uart_s *priv = dev->priv;
   uint8_t byte = (uint8_t)ch;
 
+  /* SDK Bluetooth/PHY workers can reset UART1 after their public entry point
+   * has returned while the SDK UART software state still says initialized.
+   * Verify the hardware at the final full-console TX boundary; this also
+   * makes the first NSH prompt after such a reset restore RX configuration.
+   */
+
+  bk7258_lowputc_ensure_console();
   (void)bk_uart_write_bytes(priv->id, &byte, 1);
 }
 

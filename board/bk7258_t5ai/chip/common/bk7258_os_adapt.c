@@ -108,6 +108,17 @@
 
 #define BEKEN_WAIT_FOREVER  (0xFFFFFFFF)
 
+#ifndef CONFIG_BK7258_AP_CORE
+/* The official CP SDK profile prints on UART0, while this board's NuttX
+ * console is UART1 (GPIO0/1).  Bluetooth uses bk_get_printf_port() to avoid
+ * deinitializing the active console when its temporary DUT UART ownership is
+ * released, so this wrapper must report the board wiring rather than the
+ * SDK build-time default.
+ */
+
+#  define BK7258_NUTTX_CONSOLE_UART_PORT 1
+#endif
+
 #if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
 #  define BK7258_OS_SDK_LOCK_FREE 0xf2eef2eeu
 #  define BK7258_OS_SDK_LOCK_MAX_NEST 0xffu
@@ -164,6 +175,8 @@ static volatile struct bk7258_os_sdk_lock_s
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+static volatile bool g_bk7258_sdk_printf_enabled = true;
 
 /* The official BK7258 SMP SDK implements port_disable_interrupts_flag() with
  * PRIMASK (__get_PRIMASK() + __disable_irq()) and restores the saved PRIMASK
@@ -338,6 +351,38 @@ void rtos_enable_int(uint32_t int_level)
 #else
   leave_critical_section(int_level);
 #endif
+}
+
+/* These two entry points are part of the SDK ARM_CM33 port ABI.  Unlike
+ * NuttX's normal critical-section API, the SDK contract saves and restores
+ * PRIMASK verbatim.  Controller and exception objects call them directly.
+ */
+
+int port_disable_interrupts_flag(void)
+{
+  irqstate_t flags;
+
+  __asm volatile
+    (
+      "mrs %0, primask\n"
+      "cpsid i\n"
+      : "=r" (flags)
+      :
+      : "memory"
+    );
+
+  return (int)flags;
+}
+
+void port_enable_interrupts_flag(int int_level)
+{
+  __asm volatile
+    (
+      "msr primask, %0\n"
+      :
+      : "r" ((irqstate_t)int_level)
+      : "memory"
+    );
 }
 
 uint32_t rtos_enter_critical(void)
@@ -1696,6 +1741,11 @@ void bk_printf_ext(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
+  if (!g_bk7258_sdk_printf_enabled)
+    {
+      return;
+    }
+
   (void)level;
 
   if (tag)
@@ -1712,6 +1762,11 @@ void bk_printf_raw(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
+  if (!g_bk7258_sdk_printf_enabled)
+    {
+      return;
+    }
+
   (void)level;
   (void)tag;
 
@@ -1724,6 +1779,11 @@ void bk_printf(const char *fmt, ...)
 {
   va_list ap;
 
+  if (!g_bk7258_sdk_printf_enabled)
+    {
+      return;
+    }
+
   va_start(ap, fmt);
   vsyslog(LOG_INFO, fmt, ap);
   va_end(ap);
@@ -1732,6 +1792,36 @@ void bk_printf(const char *fmt, ...)
 void bk_null_printf(const char *fmt, ...)
 {
   /* Intentionally empty - suppress output */
+}
+
+void bk_set_printf_enable(uint8_t enable)
+{
+  g_bk7258_sdk_printf_enabled = enable != 0;
+}
+
+/* NuttX syslog writes synchronously from these SDK adapter callbacks.  The
+ * official implementation only changes its async-shell policy, which is not
+ * present in this image, so the NuttX equivalent is deliberately a no-op and
+ * always reports synchronous mode.
+ */
+
+void bk_set_printf_sync(uint8_t enable)
+{
+  (void)enable;
+}
+
+int bk_get_printf_sync(void)
+{
+  return 1;
+}
+
+int bk_get_printf_port(void)
+{
+#ifndef CONFIG_BK7258_AP_CORE
+  return BK7258_NUTTX_CONSOLE_UART_PORT;
+#else
+  return CONFIG_UART_PRINT_PORT;
+#endif
 }
 
 void bk_mem_dump(const char *title, uint32_t start, uint32_t len)

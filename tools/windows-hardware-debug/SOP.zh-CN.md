@@ -2,11 +2,13 @@
 
 ## 1. 目标与边界
 
-本 SOP 解决三类可重复问题：
+本 SOP 解决四类可重复问题：
 
 1. 完整保留设备上电、复位和运行期的 UART 原始字节；
 2. 保证“先打开串口，再触发复位”，避免丢失早期启动日志；
 3. 对 J-Link 的寄存器、内存读取和复位操作生成可审计的命令、日志和 JSON 结果。
+4. 从 Windows 或 WSL2 启动有界 BLE manufacturer-data 广播，为目标 scan 提供可重复的
+   真实 RF 信号源。
 
 工具不包含烧录、擦除、内存写入、Option Byte、Fuse 或安全状态修改。
 如果确实需要这些操作，应由具体芯片项目另行编写和评审 SOP，不要把它们加入通用诊断流程。
@@ -40,6 +42,10 @@ wslpath -w "$PWD"
 ```
 
 如果企业策略关闭了 WSL Windows-executable interop，应直接在 Windows PowerShell 中运行脚本。
+
+WSL2 默认不会把 Windows 正在使用的内置蓝牙适配器呈现为 Linux HCI。本工具通过
+Windows 原生 Bluetooth Runtime 发射，WSL2 只负责调用和保存证据。若坚持使用 BlueZ，
+应准备独立 USB 蓝牙适配器并另行评审 USB/IP 归属和权限，不要与本流程混用。
 
 ## 3. 建立端口和目标基线
 
@@ -211,7 +217,59 @@ WSL 包装器负责把输出路径转换为 Windows 路径，并以参数数组�
 
 参数中包含空格或正则特殊字符时保持单引号。脚本不会通过 WSL 直接打开 `/dev/ttyS*`。
 
-## 8. 结果判定
+## 8. BLE 实射频广播与 scan 验证
+
+### 8.1 环境与能力探测
+
+Windows 需要支持 BLE peripheral role 的适配器。首次从源码构建还需要 Visual Studio
+Build Tools C++ workload 和 Windows 10/11 SDK；构建不下载 NuGet 包。
+
+WSL2：
+
+```bash
+./ble-advertiser/scripts/advertise_wsl.sh --probe --build
+```
+
+Windows PowerShell：
+
+```powershell
+.\ble-advertiser\scripts\advertise.ps1 -Probe -Build
+```
+
+只有输出同时包含 `low_energy=1 peripheral=1` 和 `BLEADV RESULT PASS` 才进入发射步骤。
+
+### 8.2 有界测试广播
+
+```bash
+./ble-advertiser/scripts/advertise_wsl.sh \
+  --company-id 0xFFFE \
+  --payload-hex 4e31325601020304 \
+  --duration 30 \
+  --ready-file ./hardware-debug-logs/ble-001/advertiser-ready.json
+```
+
+广播 payload 对附近设备公开，不得携带凭据、私钥、序列号或个人信息。使用测试 company
+ID 和可唯一识别的 payload，并保持有限时长。ready file 会在每次调用开始时清除，只有
+publisher 到达 `Started` 后才重新创建；同时仍须要求进程退出码为 0。
+
+### 8.3 目标侧验收
+
+在 advertiser 到达 `Started` 后，通过独立串口会话执行目标 scan 并保留 raw capture。
+PASS 至少要求目标输出：
+
+- 非空 BLE address 和真实 RSSI；
+- 预期的 manufacturer AD type、company ID 和完整 payload；
+- scan/transport 没有 timeout 或 controller error。
+
+`BLEADV READY` 只证明 Windows 接受了发布请求，不是 RF 证据。Windows 可能在同一
+适配器上交错发送系统 manufacturer data，目标测试应遍历全部 report 按 company ID 和
+payload 精确匹配，而不是固定选择 index 0。Windows 还可能使用随机隐私地址，因此地址
+用于证明收到真实 report，但不作为固定设备身份。
+
+广告工具的完整参数、退出码与 BK7258 示例见
+[`ble-advertiser/README.md`](ble-advertiser/README.md)。
+
+## 9. 结果判定
 
 查看 `session.json`：
 
@@ -241,7 +299,7 @@ WSL 包装器负责把输出路径转换为 Windows 路径，并以参数数组�
 未知项：例如 reset type 尚未做示波器验证
 ```
 
-## 9. 常见故障
+## 10. 常见故障
 
 ### Port is busy / Access denied
 
@@ -275,7 +333,14 @@ WSL 包装器负责把输出路径转换为 Windows 路径，并以参数数组�
 - 或设置专用变量 `HARDWARE_DEBUG_POWERSHELL` 指向 Windows PowerShell；
 - 无法启用 interop 时改在 Windows PowerShell 运行 `debug_session.ps1`。
 
-## 10. 板级扩展原则
+### BLE probe 不支持 peripheral role
+
+- 更新 Windows 蓝牙驱动后重新 probe；
+- 确认不是仅支持 Central 的旧适配器；
+- 不把 `Started` timeout 改成无限等待；
+- 需要 Linux BlueZ 时使用独立 USB 蓝牙适配器，不抢占 Windows 内置 radio。
+
+## 11. 板级扩展原则
 
 通用目录只接受参数，不收录芯片专用地址、私有 SDK、固件或硬编码 COM 号。板级仓库可以额外保存：
 

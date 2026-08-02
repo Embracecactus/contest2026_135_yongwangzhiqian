@@ -1,8 +1,15 @@
 # Stage N8 — WiFi + BLE Wrapper 适配：开发指南
 
+> **BLE 架构更新（2026-08-02）**：本文的 BLE 章节是早期 CP-local Host 草案，已由
+> [N12 — Beken Bluetooth IPC 的 NuttX HCI Wrapper](n12-beken-bt-ipc-wrapper.md)
+> 取代。当前决策是 CP 运行官方 Beken BLE Controller，AP 运行 stock NuttX Bluetooth
+> Host，二者通过官方 `MB_CHNL_BT_CMD` 和 board-owned `bt_driver_s` wrapper 连接。
+> 本文 WiFi 部分仍作为历史调研参考。
+
 > **范围**：定义 BK7258 NuttX 适配中 WiFi（802.11ax）和 BLE（5.4）协议栈通过 SDK Wrapper
 > 模式接入的完整开发指南——架构设计、API 接口规范、环境配置、部署验证。
-> **状态**：框架设计；WiFi Stage 1（扫描验证）已落地，BLE 尚未开始。
+> **状态**：本文 WiFi Stage 1 仍为历史开发基线；BLE 已在 N12 以 CP official
+> Controller + AP stock NuttX Host + official mailbox IPC 的方案落地，本文原 BLE 草案不再执行。
 > **决策**：WiFi 和 BLE 均使用 SDK 预编译库 + 薄 wrapper 转发，不做寄存器级实现。
 
 > **路径约定**（与 n6-sdk-integration-framework.md 一致）：
@@ -54,7 +61,7 @@ API 桥接到 NuttX 的 lower-half 接口。
 | SDK Stubs | ✅ 完成 | `bk7258_sdk_stubs.c`（184 行），空实现 |
 | WiFi 控制面 | ✅ Stage 1 | `bk7258_wifi.c`（307 行），扫描验证可用 |
 | WiFi 数据路径 | ❌ 未开始 | `ethernetif_input()` 等 12 个函数为空 Stub |
-| BLE Wrapper | ❌ 未开始 | 无 wrapper 文件，仅有 stub |
+| BLE Wrapper | ✅ N12 board-verified | `bk7258_bt_controller.c` + `bk7258_bt_hci.c`；`bkbttest n12v` 已从多条 report 中精确选择 Windows legacy advertiser 的真实 address/RSSI/manufacturer payload |
 | WiFi/BT 共存 | ❌ 未开始 | `libble_wifi_exchange.a` 已排除 |
 
 ### 1.5 固件大小数据

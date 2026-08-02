@@ -28,9 +28,29 @@
 | **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | **LATEST VERIFIED：`board-verified`（2026-07-31）**；官方 SDK/NuttX 只读 wrapper；32 KiB carveout、single peer、CPU0 gateway、Name Service、双 producer、generation reconnect、syslog 与 legacy/latest/baseline build 全部闭环 | [N9 completion](nuttx-port/prompts/09-n9-rptun-rpmsg.md) / [source verification](nuttx-port/n9-rptun-source-verification.md) |
 | **N10** | AP SMP liveness / RPMsg health supervision | **LATEST VERIFIED：`board-verified`（检测与人工恢复基线，2026-08-01）**；三路健康信号、双向 vring activity、三类独立注入与旧链路 fail-closed 全部实板通过；manual recovery 连续推进到 generation=5，恢复后两轮无注入 full suite 12/12 PASS；自动恢复默认关闭，仍是独立可选门禁 | [N10 worklog](nuttx-port/prompts/10-n10-ap-supervision.md) |
 | **N11** | AP access to CP LittleFS through RPMsgFS | **LATEST VERIFIED：`board-verified`（受限 stock RPMsgFS worker 基线，2026-08-02）**；四档文件测试各 20/20、RPMsg 6×100、syslog、LittleFS local probe、故障态 bounded fail-closed 与 generation 1→2 manual recovery 全部通过；在途 stock POSIX 调用仍由 AP restart 回收 | [N11 worklog](nuttx-port/prompts/11-n11-rpmsgfs.md) |
+| **N12** | official Beken Bluetooth IPC + AP NuttX HCI wrapper | **LATEST VERIFIED：`board-verified`（2026-08-02）**；CP official controller-only BLE、AP stock NuttX Host、HCI info、SDK-equivalent MAC 持久化、UART lifecycle self-heal、RPMsg/RPMsgFS/SMP 共存以及 Windows legacy advertiser 的真实 RF report 均实板通过 | [N12 worklog](nuttx-port/n12-beken-bt-ipc-wrapper.md) |
 
 ## 当前 handoff
 
+> **N12 completed / board-verified（2026-08-02）：**保持 SDK/NuttX 源码只读，在 board overlay
+> 中接入官方 `MB_CHNL_BT_CMD`：CP 运行 controller-only BLE，AP 通过 `bt_driver_s`
+> lower-half 运行 stock NuttX Host。空白板按官方策略生成并双份持久化 base MAC
+> `c8:47:8c:47:47:47`，重启后的 BD_ADDR 稳定为 `c8:47:8c:47:47:48`、
+> `fallback=0`；sys_rf record 的 magic/CRC 与 sys_net 均经 BKFIL 回读确认。PHY/RF/
+> Controller 对 UART1 的异步 reset 已由 wrapper 的最终使用点校验、RX callback 恢复和
+> stale FIFO byte drain 修复，冷启动第一条 `bkbttest info` 无乱码直接 PASS。完整
+> RPMsg 6×100、RPMsgFS 四档×2，以及最终 patch 后短回归均 PASS，AP heap 稳定。
+> 此外两轮独立 COM7 RTS physical reset 均为 `cold_path=yes`/`PASS_NSH`，且每轮未经
+> 预热的首条 `bkbttest info` 均无垃圾前缀并 PASS。
+> N12-V 使用仓内 Windows/WSL2 advertiser 发出 company ID `0xfffe`、payload
+> `4e31325601020304` 的 legacy 广播；`bkbttest n12v 10000 15000` 得到
+> `results=2 selected=1 n12v_match=1`，选中 address `01:43:94:1f:ea:e4`、RSSI
+> `-49`，完整 AD `0b ff fe ff 4e 31 32 56 01 02 03 04`，`BBTT SUITE PASS
+> info=1 scan=1`。精确 filter 已排除同一 Windows 适配器的系统广播，真实 RF gate
+> 确定性闭环；随后 RPMsg 6/6 与 RPMsgFS 4/4 回归也 PASS。
+> AP-only warm restart 仍禁止，直到 pointer quiesce 协议单独设计并验证。完整证据见
+> [N12 worklog](nuttx-port/n12-beken-bt-ipc-wrapper.md)。
+>
 > **N11 completed（2026-08-02）：**CP 继续独占 flash/MTD/LittleFS `/data` 并使用
 > stock RPMsgFS server；AP stock client 挂载 `/cpdata`，文件调用隔离在 logical CPU0
 > 专用 worker。BK7258 静态独占对象已按官方 SDK 约束集中到 `0x28000000` 专用 64 KiB，
@@ -105,18 +125,19 @@
 
 > **N8-D1 closure（2026-07-30）：**`ap_smp_lifecycle` normal autostart 在真实 T5-AI 一次闭环。AP `READY/error=0`、heartbeat=`727`；CPU2 `SCHEDULER_ONLINE/error=0`、online=`0x3`。BLCY `PASSED/error=0`、requested/completed=`1/1`；callback entry/exit CPU=`1/1`、started/completed=`1/1`、quiesce/resume sequence=`1/1`、value=`0/-138`（该 NuttX 配置的 `-ENOTSUP`）、aux=`1/1`。隔离窗口 CPU0→CPU1 `10→11`=`+1`、CPU1→CPU0 `1→1`=`+0`、calls `11→12`=`+1`；handler CPU0=`1/1`、CPU1=`11/11`，coalesced/fail/stale/spurious=0。CPU0 SysTick=`8090`、sleep enter/return=`727/726` 证明 gate 后持续运行。CPU1 全程保持 online=`0x3`，没有 CPU2 reset/power transition；这是 bounded scheduler quiesce/resume foundation，不是 CPU hot-unplug。
 
-- **Current Stage：**N11 AP access to CP LittleFS through RPMsgFS 已按受限方案 B
-  `board-verified`；下一 MAIN Stage 尚未选择。
+- **Current Stage：**N12 official Beken Bluetooth IPC wrapper 已完整
+  `board-verified`；下一 MAIN Stage 尚未冻结，建议优先评审 BLE GAP/GATT 端到端功能。
 - **Authorized implementation set：**N8-C5..N8-D1 与 N9-R..N9-V 全部完成并实板
   闭环；N10 wrapper、重复满载、warm restart、primary/secondary/RPMsg 三类注入、
   fail-closed、三次人工恢复与 generation=5 无注入重复 full suite 均已实板通过；N11
   stock RPMsgFS wrapper、exclusive-state 内存修复、故障态 bounded wait 与 generation
   recovery 也已实板通过。
-- **Latest board-verified baseline：**N11 `cp_nsh_rptun + ap_smp_rptun` generation=2：
-  `READY/CONNECTED/HEALTHY`、CPU2 online、fault/recovery=`1/1`、pending=`0/0`；
-  RPMsgFS 四档 20/20、RPMsg 6×100、syslog 与 CP local LittleFS 全部 PASS
-  （2026-08-02）。
-- **Current worklog：**[`nuttx-port/prompts/11-n11-rpmsgfs.md`](nuttx-port/prompts/11-n11-rpmsgfs.md)
+- **Latest board-verified baseline：**N12 `cp_nsh_btipc + ap_smp_btipc` generation=1：
+  `READY/CONNECTED/HEALTHY`、CPU2 online；`bkbttest info` PASS，BD_ADDR 持久化且
+  非 fallback；RPMsg 6×100 与 RPMsgFS 四档×2 全部 PASS，最终 UART patch 后短回归
+  仍全 PASS；Windows legacy advertiser 的真实 address/RSSI/payload 已由
+  `bkbttest n12v` 精确匹配并 PASS，系统广播不会再影响选择（2026-08-02）。
+- **Current worklog：**[`nuttx-port/n12-beken-bt-ipc-wrapper.md`](nuttx-port/n12-beken-bt-ipc-wrapper.md)
 - **Source verification：**[`nuttx-port/n9-rptun-source-verification.md`](nuttx-port/n9-rptun-source-verification.md)；
   N8 closure 见 [`nuttx-port/n8-cold-reset-resolution-report.md`](nuttx-port/n8-cold-reset-resolution-report.md)；
   新手说明见 [`nuttx-port/cold-reset-smp-repair-guide.md`](nuttx-port/cold-reset-smp-repair-guide.md)；

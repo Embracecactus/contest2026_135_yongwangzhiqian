@@ -1,8 +1,9 @@
 # Windows / WSL2 Hardware Debug SOP
 
-A board-independent toolkit for collecting exact UART logs and running guarded
-SEGGER J-Link diagnostics from Windows PowerShell or WSL2. It is designed for
-both humans and coding agents such as Claude Code and Codex.
+A board-independent toolkit for collecting exact UART logs, running guarded
+SEGGER J-Link diagnostics, and publishing bounded BLE test advertisements from
+Windows PowerShell or WSL2. It is designed for both humans and coding agents
+such as Claude Code and Codex.
 
 The toolkit deliberately does **not** implement flashing, erase, memory writes,
 fuse/option-byte changes, or security-state changes. A successful host command
@@ -12,13 +13,18 @@ must be checked separately.
 - 中文操作手册：[SOP.zh-CN.md](SOP.zh-CN.md)
 - Claude/Codex 操作约束：[AI_AGENT_SOP.md](AI_AGENT_SOP.md)
 - Agent Skill entry point: [SKILL.md](SKILL.md)
+- Optional real-RF BLE beacon for Windows/WSL2:
+  [BLE test advertiser](ble-advertiser/README.md)
 
 ## Requirements
 
 - Windows 10/11 with Windows PowerShell 5.1 or PowerShell 7
-- A Windows-visible USB serial adapter
+- A Windows-visible USB serial adapter, only for UART actions
 - WSL2 with Windows executable interop, only when running from Linux
 - SEGGER J-Link Software, only for J-Link actions
+- A Windows BLE adapter with peripheral-role support, only for RF advertising
+- Visual Studio Build Tools with C++ and a Windows SDK, only when rebuilding
+  the BLE advertiser
 
 No third-party PowerShell module is required. SEGGER software and drivers are
 not distributed by this project and remain subject to SEGGER's terms.

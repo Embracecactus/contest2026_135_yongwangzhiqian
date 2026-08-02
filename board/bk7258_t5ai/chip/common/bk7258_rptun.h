@@ -35,6 +35,10 @@ int bk7258_rpmsgfs_initialize(void);
 int bk7258_rpmsgfs_test_initialize(void);
 #endif
 
+#ifdef CONFIG_BK7258_BT_IPC_TEST
+int bk7258_bt_test_initialize(void);
+#endif
+
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
 int bk7258_rpmsg_health_initialize(void);
 #endif
