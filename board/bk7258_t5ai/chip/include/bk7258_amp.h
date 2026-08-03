@@ -139,7 +139,11 @@
 #define BK7258_AP_BOOT_STATE_MAGIC       0x53425041u /* "APBS" */
 #define BK7258_AP_BOOT_STATE_VERSION     1u
 #define BK7258_AP_DOORBELL_MAGIC         0x524f4f44u /* "DOOR" */
-#define BK7258_AP_DEFAULT_TIMEOUT_MS     15000u
+#ifdef CONFIG_BK7258_PSRAM_TEST
+#  define BK7258_AP_DEFAULT_TIMEOUT_MS   60000u
+#else
+#  define BK7258_AP_DEFAULT_TIMEOUT_MS   15000u
+#endif
 #define BK7258_AP_RESTART_DELAY_MS       6u
 
 /* Keep the 0x80-byte boot-state ABI stable.  A fault-only extension lives
@@ -312,7 +316,8 @@ enum bk7258_ap_error_e
   BK7258_AP_ERROR_CPU2_BLCY,
   BK7258_AP_ERROR_SUPERVISOR,
   BK7258_AP_ERROR_RPMSGFS,
-  BK7258_AP_ERROR_BLUETOOTH
+  BK7258_AP_ERROR_BLUETOOTH,
+  BK7258_AP_ERROR_PSRAM
 };
 
 /* N10 supervisor state is CP-private.  Only the existing heartbeat/epoch

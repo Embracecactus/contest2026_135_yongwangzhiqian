@@ -62,7 +62,7 @@ struct bk7258_dvfs_step_s
 {
   uint8_t  cksel_core;    /* M1 cksel_core [5:4]                */
   uint8_t  clkdiv_core;   /* M1 clkdiv_core [3:0]               */
-  uint8_t  cpu0_speed;    /* CPU0_INT_HALT_CLK_OP cpu0_speed [4]: 0=/1, 1=/2 */
+  uint8_t  cpu0_speed;    /* CPU0_INT_HALT_CLK_OP cpu0_speed [4]: 0=/2, 1=/1 */
   uint8_t  vddd;          /* vdighsel raw (VDDD)                */
   uint8_t  vddig;         /* vcorehsel raw (VDDIG)              */
 };
@@ -78,11 +78,11 @@ struct bk7258_dvfs_step_s
  * for PM_CPU_FRQ_26M..480M), unconditionally the non-DCO / non-ATE branch
  * because our port does not enable DCO_CLK.  The cpu0_speed field value
  * matches sys_hal_cpu_clk_div_set(0, ckdiv_cpu0): for every tier the SDK
- * passes ckdiv_cpu0 = 0x1 to set cpu0_speed = 1 (/2 halt divider at high
- * tiers to keep the bus < 240 MHz); the 26 MHz tier sets ckdiv_cpu0 = 0x1
- * too.  We keep cpu0_speed = 1 throughout (SysTick runs at the resulting
- * CPU0 processor clock; bk7258_clockdiag_current_cpu_hz() reports the
- * effective frequency for these M1/cpu0_speed combinations).
+ * passes ckdiv_cpu0 = 0x1 to set cpu0_speed = 1 (/1) for the 26..240 MHz
+ * tiers.  The 320 MHz tier is the exception: the SDK passes ckdiv_cpu0 = 0,
+ * selecting /2 so physical CPU0 runs at 160 MHz while CPU1/CPU2 run at the
+ * full 320 MHz core clock.  SysTick runs at the resulting CPU processor
+ * clock; bk7258_clockdiag_current_cpu_hz() reports the role-specific value.
  *
  * Note (the "SDK 320 tier -> cpu0=160m" caveat, see bk7258_dvfs.h): the
  * 320 tier here yields CPU0 = 160 MHz at runtime; this is the SDK-aligned
@@ -99,8 +99,8 @@ static const struct bk7258_dvfs_step_s g_bk7258_dvfs_steps[] =
   [BK7258_FREQ_120M] = { 0x3, 0x3, 0x1, 0x6, 0xC },
   /* tier 4: 240 MHz  cksel=0x3 clkdiv=0x1  VDDD=0x6 VDDIG=0xD */
   [BK7258_FREQ_240M] = { 0x3, 0x1, 0x1, 0x6, 0xD },
-  /* tier 5: 320 MHz (CPU0=160)  cksel=0x2 clkdiv=0x0  VDDD=0x7 VDDIG=0xD */
-  [BK7258_FREQ_320M] = { 0x2, 0x0, 0x1, 0x7, 0xD },
+  /* tier 5: 320 MHz (CPU0=160)  cksel=0x2 clkdiv=0x0  VDDD=0x7 VDDIG=0xE */
+  [BK7258_FREQ_320M] = { 0x2, 0x0, 0x0, 0x7, 0xE },
 };
 
 /* Current tier.  Initialised to 26 MHz -- the boot_clock.c / loader residue
@@ -128,15 +128,23 @@ static int g_bk7258_dvfs_cur = BK7258_FREQ_26M;
 static void bk7258_ctrl_vddd_h_vol(uint8_t v)
 {
   uint32_t set = (uint32_t)v << BK7258_ANA9_VDDD_SHIFT;
-  bk7258_ana9_set_field(BK7258_ANA9_VDDD_MASK, set);
-  bk7258_clk_sleep_us(BK7258_VDD_SETTLE_US);
+
+  if ((BK7258_REG(BK7258_ANA_REG9) & BK7258_ANA9_VDDD_MASK) != set)
+    {
+      bk7258_ana9_set_field(BK7258_ANA9_VDDD_MASK, set);
+      bk7258_clk_delay(BK7258_VDD_SETTLE_ITERS);
+    }
 }
 
 static void bk7258_ctrl_vdddig_h_vol(uint8_t v)
 {
   uint32_t set = (uint32_t)v << BK7258_ANA9_VDDDIG_SHIFT;
-  bk7258_ana9_set_field(BK7258_ANA9_VDDDIG_MASK, set);
-  bk7258_clk_sleep_us(BK7258_VDD_SETTLE_US);
+
+  if ((BK7258_REG(BK7258_ANA_REG9) & BK7258_ANA9_VDDDIG_MASK) != set)
+    {
+      bk7258_ana9_set_field(BK7258_ANA9_VDDDIG_MASK, set);
+      bk7258_clk_delay(BK7258_VDD_SETTLE_ITERS);
+    }
 }
 
 /****************************************************************************
@@ -148,28 +156,38 @@ static void bk7258_ctrl_vdddig_h_vol(uint8_t v)
  * that for the up direction; the down mirror reorders exactly the SDK way
  * (sys_hal_high_to_low cortex-low-to-high handles low_to_high separately).
  *
- * Our port is single-core CPU0 (cpu1 not used), so the cpu1 divider write is
- * omitted and cpu0_speed comes from the tier table.
+ * CP is physical CPU0 and AP uses physical CPU1/CPU2.  Match the SDK by
+ * programming CPU0 from the tier table and keeping CPU1/CPU2 at /1.
  ****************************************************************************/
 
-static void bk7258_write_cpu0_speed(uint8_t cpu0_speed)
+static void bk7258_write_cpu_speed(uintptr_t reg, uint8_t speed)
 {
-  uint32_t v = BK7258_REG(BK7258_CPU0_HALT_CLK_OP);
-  if (cpu0_speed)
+  uint32_t v = BK7258_REG(reg);
+
+  if (speed)
     {
-      v |= BK7258_CPU0_SPEED_BIT;
+      v |= BK7258_CPU_SPEED_BIT;
     }
   else
     {
-      v &= ~BK7258_CPU0_SPEED_BIT;
+      v &= ~BK7258_CPU_SPEED_BIT;
     }
-  BK7258_REG(BK7258_CPU0_HALT_CLK_OP) = v;
+
+  BK7258_REG(reg) = v;
 }
 
-static void bk7258_write_m1(uint8_t cksel_core, uint8_t clkdiv_core)
+static void bk7258_write_clkdiv_core(uint8_t clkdiv_core)
 {
   uint32_t v = BK7258_REG(BK7258_CPU_CLK_DIV_MODE1);
+
   v = (v & ~BK7258_M1_CLKDIV_MASK) | (clkdiv_core & BK7258_M1_CLKDIV_MASK);
+  BK7258_REG(BK7258_CPU_CLK_DIV_MODE1) = v;
+}
+
+static void bk7258_write_cksel_core(uint8_t cksel_core)
+{
+  uint32_t v = BK7258_REG(BK7258_CPU_CLK_DIV_MODE1);
+
   v = (v & ~BK7258_M1_CKSEL_MASK)  |
       ((uint32_t)cksel_core << BK7258_M1_CKSEL_SHIFT);
   BK7258_REG(BK7258_CPU_CLK_DIV_MODE1) = v;
@@ -188,15 +206,19 @@ static void bk7258_dvfs_step_low_to_high(const struct bk7258_dvfs_step_s *s)
    * divider first (avoid bus > 240 M), then clkdiv_core, then cksel. */
   if (s->clkdiv_core == 0)
     {
-      bk7258_write_cpu0_speed(s->cpu0_speed);
+      bk7258_write_cpu_speed(BK7258_CPU0_HALT_CLK_OP, s->cpu0_speed);
     }
 
-  bk7258_write_m1(s->cksel_core, s->clkdiv_core);
+  bk7258_write_clkdiv_core(s->clkdiv_core);
 
   if (s->clkdiv_core != 0)
     {
-      bk7258_write_cpu0_speed(s->cpu0_speed);
+      bk7258_write_cpu_speed(BK7258_CPU0_HALT_CLK_OP, s->cpu0_speed);
     }
+
+  bk7258_write_cpu_speed(BK7258_CPU1_HALT_CLK_OP, 1);
+  bk7258_write_cpu_speed(BK7258_CPU2_HALT_CLK_OP, 1);
+  bk7258_write_cksel_core(s->cksel_core);
 
   __asm__ volatile ("dsb 0xf" ::: "memory");
   __asm__ volatile ("isb 0xf" ::: "memory");
@@ -207,8 +229,11 @@ static void bk7258_dvfs_step_low_to_high(const struct bk7258_dvfs_step_s *s)
 static void bk7258_dvfs_step_high_to_low(const struct bk7258_dvfs_step_s *s)
 {
   /* SDK high_to_low ordering: cksel first, then dividers, then voltages. */
-  bk7258_write_cpu0_speed(s->cpu0_speed);
-  bk7258_write_m1(s->cksel_core, s->clkdiv_core);
+  bk7258_write_cksel_core(s->cksel_core);
+  bk7258_write_clkdiv_core(s->clkdiv_core);
+  bk7258_write_cpu_speed(BK7258_CPU0_HALT_CLK_OP, s->cpu0_speed);
+  bk7258_write_cpu_speed(BK7258_CPU1_HALT_CLK_OP, 1);
+  bk7258_write_cpu_speed(BK7258_CPU2_HALT_CLK_OP, 1);
 
   __asm__ volatile ("dsb 0xf" ::: "memory");
   __asm__ volatile ("isb 0xf" ::: "memory");

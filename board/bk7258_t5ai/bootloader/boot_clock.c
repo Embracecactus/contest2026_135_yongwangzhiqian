@@ -8,7 +8,7 @@
  * calibrated at the SDK default VCO, voltages at the SDK default level
  * (VDDIG=0xB).  It does NOT pick a CPU frequency; that is the app's job.
  *
- * Per-chip frequency/voltage selection (and the VDDD->0x7 / VDDIG->0xD lift
+ * Per-chip frequency/voltage selection (and the VDDD->0x7 / VDDIG->0xE lift
  * the 320 M runtime tier requires) is NOT done here -- the bootloader keeps
  * the analog side byte-for-byte equal to sys_hal_early_init and leaves the
  * core mux (M1) untouched, exactly as the vendor bootloader does.  The app
@@ -229,7 +229,7 @@ static int step4_latched_block(void)
      * raise VDDIG ahead of any 320/480 step here -- the bootloader only brings
      * the DPLL up to the SDK early_init equivalent (the analog state the SDK
      * app inherits before any runtime DVFS).  Per-chip frequency selection
-     * (incl. VDDD/VDDIG lift to 0xD for the 320 M runtime tier) is done by the
+     * (incl. VDDDIG lift to 0xE for the 320 M runtime tier) is done by the
      * app's bk7258_dvfs_set_freq() lower half, mirroring the SDK's
      * sys_hal_switch_cpu_bus_freq() runtime path.  See chip/cp/bk7258_dvfs.c. */
 

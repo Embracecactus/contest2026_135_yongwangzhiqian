@@ -6,9 +6,11 @@ ifneq ($(strip $(CONFIG_LVX_USE_DEMO_CONTEST2026_135_HELLO_APP) \
                  $(CONFIG_BK7258_GPIO_FOUNDATION_TEST) \
                  $(CONFIG_BK7258_GPIO_IRQ_TEST) \
                  $(CONFIG_BK7258_SDK_IRQ_TIMER_TEST) \
+                 $(CONFIG_BK7258_SDK_TIMER_SELFTEST) \
                  $(CONFIG_BK7258_AP_CONTROL) \
                  $(CONFIG_BK7258_RPMSG_TEST) \
                  $(CONFIG_BK7258_RPMSGFS_TEST) \
-                 $(CONFIG_BK7258_BT_IPC_TEST)),)
+                 $(CONFIG_BK7258_BT_IPC_TEST) \
+                 $(CONFIG_BK7258_PSRAM_TEST)),)
 CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_135_hello_app
 endif

@@ -18,15 +18,18 @@ NSH**（Stage N1 跳转链 + N2 NSH console + N3 procfs/ps 均板端验证，202
 / ✅ NuttX Stage N3（procfs + ps）/ ✅ Stage N5 raw flash + MTD + LittleFS /
 ✅ Stage N7 AP single-core / ✅ Stage N8 AP native SMP 与 warm/physical RESET closure /
 ✅ **Stage N9 CP/AP RPTUN/OpenAMP/RPMsg wrapper（`board-verified`）** /
-**NEXT：heartbeat/AP crash supervision 与后续 RPMsg 服务选择** /
-📋 Tier-2 bootloader（OTA）、PSRAM、Wi-Fi/BLE 服务层。
+✅ Stage N10 AP supervision / ✅ Stage N11 RPMsgFS / ✅ Stage N12 Bluetooth IPC /
+✅ Stage N13 BLE GAP/GATT / ✅ **Stage N14 16 MiB PSRAM + SDK timer wrapper（`board-verified`）**。
+下一 MAIN Stage 尚未批准；Tier-2 bootloader（OTA）、Wi-Fi 与 security 需另行讨论。
 
 ---
 
 ## 1. 背景与目标
 
-**芯片**：BK7258，ARM Cortex-M33 三核（CPU0/1/2），片内 640 KB SRAM、外挂 8 MB PSRAM、
-XIP FLASH，集成 Wi-Fi 6 + BLE 5.4。属 BK7236 启动家族（同 BootROM 协议、同 flash CRC 格式）。
+**芯片**：BK7258，ARM Cortex-M33 三核（CPU0/1/2），片内 640 KB SRAM、外挂 PSRAM、
+XIP FLASH，集成 Wi-Fi 6 + BLE 5.4。[官方产品页](https://www.bekencorp.com/index/goods/detail/cid/60.html)
+标称最高支持 16 MB PSRAM；当前 T5-AI 实板在 N14 独立识别并全容量测试为 16 MiB。芯片属
+BK7236 启动家族（同 BootROM 协议、同 flash CRC 格式）。
 
 **板**：涂鸦 T5-AI 开发板。板上出厂烧的是涂鸦定制 bootloader（基于 BK 官方 core 扩展 OTA +
 FAL 分区），app 区由涂鸦私有用例占用。
@@ -64,7 +67,7 @@ clock / GPIO / WDT / debug / UART，并贴合"移植新硬件"的本意。详见
 |---|---|---|
 | FLASH XIP | `0x02000000` + | bootloader @ `0x02000000`，app @ `0x02010000` |
 | SRAM | `0x28000000` – `0x280A0000` | 640 KB，MSP 顶 = `0x2809FFFC` |
-| PSRAM | `0x60000000` | 外挂 8 MB |
+| PSRAM | `0x60000000` – `0x61000000` | T5-AI 实板 16 MiB；首版保留 official 低8 MiB ABI，上8 MiB boot-tested/reserved |
 | ROM | `0x06000000` | BootROM |
 | DTCM | `0x20000000` | 含软件 core-id 约定字（见 §4） |
 
@@ -361,7 +364,7 @@ BK7258 PROBE ... HALT           ← 硬化跳转 epilogue 落到现有探针
 
 ---
 
-## 9. NuttX BSP 路线（进行中 🚧）
+## 9. NuttX BSP 路线
 
 ### 9.1 结构模板：`open-vela/vendor_beken`
 
@@ -392,6 +395,11 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 | **N7** | physical CPU1 independent AP NuttX | ✅ done / `board-verified` |
 | **N8** | AP physical CPU1+CPU2 native SMP | ✅ done / `board-verified`，含 warm/physical RESET 3/3 closure |
 | **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | ✅ done / `board-verified`；官方 SDK/NuttX 只读 wrapper，Name Service、SMP 双 producer、reconnect、syslog、兼容构建与 cold RESET closure；见 [N9 completion](nuttx-port/prompts/09-n9-rptun-rpmsg.md) |
+| **N10** | AP heartbeat/crash supervision | ✅ done / `board-verified`；三路健康信号、故障注入、fail-closed与人工恢复闭环 |
+| **N11** | AP经RPMsgFS访问CP LittleFS | ✅ done / `board-verified`；stock RPMsgFS wrapper、四档payload与generation recovery闭环 |
+| **N12** | official Beken Bluetooth IPC + AP stock NuttX Host | ✅ done / `board-verified`；真实RF report与RPMsg/RPMsgFS/SMP共存闭环 |
+| **N13** | BLE GAP/GATT Peripheral end-to-end | ✅ done / `board-verified`；negative、20/20重连、主动并发与connection ref closure |
+| **N14** | 16 MiB PSRAM + SDK software-timer wrapper | ✅ done / **LATEST `board-verified`**；full-capacity boot gate、CP/AP private heap、AP双核allocator、warm/cold/factory闭环；见 [N14 completion](nuttx-port/prompts/14-n14-psram.md) |
 
 N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
 UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
@@ -566,8 +574,8 @@ guard——`PM_CLKSEL_CORE_480M` + `PM_CLKDIV_CORE_0` 组合返回 `BK_FAIL`（u
 NuttX 未主动 enable DPLL，频率阶梯均为 loader 残留探测。详见
 [`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md) §10。
 
-MTD / 文件系统、PSRAM、Tier-2 bootloader OTA、SMP 均属于 N4 之后的未编号工作；只有前一 Stage
-板端证据明确后，才确定下一 MAIN Stage 的范围与 prompt。
+本段是 N4 时期的历史路线说明。其后 MTD/文件系统已由N5完成、SMP由N8完成、PSRAM由N14完成；
+Tier-2 bootloader OTA仍未编号。下一 MAIN Stage仍只在用户明确批准后建立prompt。
 
 ### 9.9 Stage N5 — Flash Filesystem（全链路 board-verified 2026-07-19）
 
@@ -593,6 +601,26 @@ image（`0x2837A` ≈ 163 KB）之外，距 image end 约 845 KB。
 （< `0x100000`，boot/app 区不受影响）。
 
 > **状态边界**：N5 全链路已 **board-verified**（D5 raw flash r/w + D6 MTD + D7 LittleFS）。
+
+### 9.10 Stage N14 — 16 MiB PSRAM 与 SDK timer wrapper（board-verified 2026-08-03）
+
+N14 沿用 official v3.1.1.9 wrapper/owner模式：CP在PHY/RF首次校准leaf之后调用
+`bk_pm_module_vote_psram_ctrl(AS_MEM=10, ON=0)`，完成ID、anti-alias和一次全容量破坏性boot gate，
+再建立CP heap并释放AP；AP不初始化硬件，只建立自身heap。实板为APS128XXO，
+`id=0x8d08/config=0x8d1a/capacity=16777216`。
+
+首版保留official低8 MiB布局：CP heap 128 KiB、AP heap 640 KiB、AP section 256 KiB保留；
+上8 MiB虽经全容量测试，仍不开放allocator。三个core均使用MPU region6 non-cacheable contract。
+`mm_heap_s`和lock放在内部SRAM；AP两核通过board outer spinlock串行进入NuttX private heap，realloc按
+official AP `mem_arch.c`采用bounded allocate-copy-free。SDK software timer callback由
+`bk-sdk-timer` task延迟执行，queued self-delete entry拥有final free。
+
+实板闭环包括AP CPU0/CPU1各16轮、CP heap 256轮、timer 256轮、AP warm cycle 10、RPMsg六场景
+各100、Bluetooth info、physical RESET 3/3、final clean cold、factory首次校准与校准后cold；heap
+free均恢复，AP/RPTUN/supervisor/SMP保持健康。完整记录见
+[N14 plan](nuttx-port/prompts/14-n14-psram.md)、
+[source verification](nuttx-port/n14-psram-source-verification.md)和
+[evidence index](nuttx-port/n14-evidence-index.md)。official NuttX/apps/SDK source及SDK archive零改动。
 
 ---
 
@@ -681,10 +709,10 @@ board/bk7258_t5ai/bootloader/
 
 ## 12. 下一步 Roadmap
 
-> **2026-08-02 路线更新：**本报告前文的 N4 CURRENT / SMP planned later 是历史快照。
-> latest fully closed baseline 已推进至 N13 BLE GAP/GATT Peripheral；N12 Bluetooth IPC仍是
-> transport回退基线。权威记录见[N13 plan](nuttx-port/prompts/13-n13-ble-gap-gatt.md)和
-> [N13 evidence index](nuttx-port/n13-evidence-index.md)。
+> **2026-08-03 路线更新：**本报告前文的 N4 CURRENT / SMP planned later 是历史快照。
+> latest fully closed baseline 已推进至 N14 PSRAM + SDK timer wrapper；N13仍是不含PSRAM的
+> BLE service回退基线。权威记录见[N14 plan](nuttx-port/prompts/14-n14-psram.md)和
+> [N14 evidence index](nuttx-port/n14-evidence-index.md)。
 >
 > **N13完成：**board wrapper实现combined GAP+custom GATT、20-byte echo/notify和无GUI WinRT
 > client。最终还定位并修复stock inbound ACL connection reference未释放：旧镜像
@@ -695,6 +723,13 @@ board/bk7258_t5ai/bootloader/
 > online、pending 0/0且heap稳定。RPMsg满载时BLE总会话45.41秒，在显式90秒deadline内完成，
 > 作为性能基线记录。physical cold 3/3、latest/legacy回退、final build/flash/verifier和官方树零diff
 > 均通过，N13现为`board-verified`。按用户要求始终未启动`BLEDebug.EXE`。
+>
+> **N14完成：**T5-AI实板识别16 MiB PSRAM并通过一次全容量boot gate；CP/AP按official低8 MiB
+> ABI建立128 KiB/640 KiB private heap，上8 MiB保持boot-tested/reserved。AP CPU0/CPU1各16轮
+> allocator gate、CP heap 256、SDK timer 256与queued self-delete、AP cycle10、RPMsg六场景×100、
+> Bluetooth、physical RESET 3/3、final clean/factory首次校准/post-calibration cold全部PASS。
+> allocator control/lock留在SRAM，outer spinlock与bounded allocate-copy-free修复双核realloc stall；
+> CPU1 official PM vote修复AP nonstart。official NuttX/apps/SDK source与static libraries保持零改动。
 
 | 优先级 | 项 | 状态 | 备注 |
 |---|---|---|---|
@@ -709,9 +744,9 @@ board/bk7258_t5ai/bootloader/
 | P0 | **NuttX Stage N11**：AP 通过 RPMsgFS 访问 CP LittleFS | ✅ done / `board-verified` | stock RPMsgFS、CPU0 worker、四档 payload、故障态有界失败与 generation recovery 均闭环 |
 | P0 | **NuttX Stage N12**：official Beken Bluetooth IPC + NuttX HCI wrapper | ✅ done / `board-verified` | CP Controller、AP stock Host、HCI info、MAC 持久化、UART self-heal、RPMsg/RPMsgFS 共存以及真实 advertising report 均已实板通过 |
 | P0 | **NuttX Stage N13**：BLE GAP/GATT Peripheral end-to-end | ✅ done / `board-verified` | 四类negative、20/20 uncached重连、BLE+RPMsg/RPMsgFS主动并发、3/3 cold、ref=0、final build/flash与零官方树改动全部闭环 |
-| P1 | **后续（未编号）**：PSRAM bring-up | planned later | T5-AI 16 MB SiP PSRAM 当前未用 |
+| P0 | **NuttX Stage N14**：16 MiB PSRAM + SDK software-timer wrapper | ✅ done / **LATEST `board-verified`** | full-capacity boot gate、CP/AP private heap、AP双核allocator、timer self-delete、warm/cold/factory与既有功能回归全部闭环 |
 | P1 | **后续（未编号）**：Tier-2 bootloader OTA（RBL + A/B + failover） | planned later | 需 flash 写；参考 BK 官方 §2.12 RBL 校验 |
-| P2 | **后续（未编号）**：GPIO / flash / Wi-Fi / BLE 等驱动补全 | planned later | 根据 N4 后的板端证据与竞赛优先级再排序 |
+| P2 | **后续（未编号）**：Wi-Fi / security / PSRAM upper-8 runtime policy等 | planned later | 下一MAIN Stage尚未批准；先讨论owner、资源和验收边界 |
 
 ---
 

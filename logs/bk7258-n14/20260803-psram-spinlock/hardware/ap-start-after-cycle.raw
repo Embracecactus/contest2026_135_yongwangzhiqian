@@ -1,0 +1,47 @@
+apctl start 60000
+[bluetooth] 
+bk_bluetooth_init bluetooth already initialised
+AP state=READY(2) error=0 generation=12 heartbeat=1
+AP core local=0 physical=1 VTOR(init/run)=02200000/28050800 MSP(init/run)=28050800/28050800
+AP clock=320000000 SysTick ctrl/load/current=00000007/0030d3ff/001c3317
+AP heap=28058b88..280967fc test=2805a868 doorbells cp/ap=0/1
+RPTUN state=CONNECTED(4) error=0 generation=12 flags=00007fff
+RPTUN pending cp/ap=00000000/00000000 heartbeat cp/ap=0/1 epoch cp/ap=12/12
+RPTUN rx sequence cp/ap=24/11
+AP supervisor state=ARMING(1) reason=NONE(0) generation=11 flags=00000000
+Supervisor heartbeat primary/secondary=0/0 age=0/0 ms transport seq/age=0/0 ms
+Supervisor faults/recoveries/consecutive=0/0/0 injection=NONE(0) last_error=0
+CPU2 state=SCHEDULER_ONLINE(8) error=0 generation=12 heartbeat=23
+CPU2 core local=1 physical=2 vector=02200200 VTOR=02200200 MSP(init/run)=28097000/28097000
+CPU2 control=00000002 SYS(before/after)=00000030/02200231
+CPU2 bootstrap entry=02205ccd idle=28059060..28059848 ready=1 online=00000003 calls=19 boots=1
+AP IPI state=READY(2) error=0 generation=12 requested=0 completed=0 runs=0
+IPI 0->1 tx/rx/pending=0/0/0 seq=0/0 dup/lost/fail=0/0/0
+IPI 1->0 tx/rx/pending=0/0/0 seq=0/0 dup/lost/fail=0/0/0
+IPI irq/wake cpu0=1/1 cpu1=18/18 stale/spurious=0/0
+AP SMP state=PASSED(4) error=0 generation=12 online=00000003 boots=1 runs=1 requested/completed=2/2
+SMP tx/rx cpu0=18/1 cpu1=1/18 coalesced=0/0 fail=0/0
+SMP handler call/delivered cpu0=1/1 cpu1=18/18 callbacks=1/1 lastcpu=0
+SMP SysTick cpu0/cpu1=57/0 sleep enter/return=1/0
+AP affinity state=PASSED(4) error=0 generation=12 runs=1 timeout=3000
+Affinity requested/observed=00000002/00000002 task id/cpu=5/1 started/completed/pid-released=1/1/1
+Affinity SMP tx0=1->10 rx1=1->10 fail0=0->0
+Affinity IPI irq1=1->10 wake1=1->10 calls=2->11
+AP sem-wake state=PASSED(6) error=0 generation=12 runs=1 timeout=3000
+Sem-wake task id=5 wait entered/observed/value=1/1/-1
+Sem-wake post cpu/count/result=0/1/0 wait returned/result/cpu=1/0/1
+Sem-wake SMP tx0=2->3 rx1=2->3 fail0=0->0
+Sem-wake IPI irq1=2->3 wake1=2->3 calls=3->4
+AP sem-loop state=PASSED(7) error=0 generation=12 requested/completed=8/8
+Sem-loop waits entered/observed/returned=8/8/8 value=-1
+Sem-loop posts cpu/count/result=0/8/0 wait result/cpu=0/1
+Sem-loop sequence wait/post/wake=8/8/8
+Sem-loop SMP tx0=2->10 rx1=2->10 fail0=0->0
+Sem-loop IPI irq1=2->10 wake1=2->10 calls=3->11
+AP BLCY state=PASSED(3) error=0 generation=12 req/compl=1/1
+BLCY task[0] id/cpu=0/1 started/completed=1/1 seq=1 val=0/-138
+BLCY task[1] id/cpu=0/1 started/completed=0/0 seq=1
+BLCY SMP tx0=10->11 rx1=10->11 tx1=1->1 rx0=1->1
+BLCY calls=11->12 aux=1/1
+nsh> [K
+nsh> [K

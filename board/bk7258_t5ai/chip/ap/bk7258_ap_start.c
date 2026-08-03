@@ -40,6 +40,11 @@
 #define BK7258_MPU_SRAM_REGION   15u
 #define BK7258_MPU_SRAM_RBAR     0x2800001au
 #define BK7258_MPU_SRAM_RLAR     0x3fffffe3u
+#ifdef CONFIG_BK7258_PSRAM
+#  define BK7258_MPU_PSRAM_REGION 6u
+#  define BK7258_MPU_PSRAM_RBAR   0x60000002u
+#  define BK7258_MPU_PSRAM_RLAR   0x63ffffe3u
+#endif
 #define BK7258_MPU_ATTR1_MASK    0x0000ff00u
 #define BK7258_MPU_ATTR1_NOCACHE 0x00004400u
 #define BK7258_MPU_CTRL_ENABLE   0x7u
@@ -74,6 +79,12 @@ bk7258_ap_smp_memory_initialize(void)
    *   RBAR = ARM_MPU_RBAR(0x28000000, ARM_MPU_SH_INNER, 0, 1, 0)
    *   RLAR = ARM_MPU_RLAR(0x3fffffe0, 1)
    *   MAIR attribute 1 = ARM_MPU_ATTR(0x4, 0x4)
+   *
+   * N14 additionally installs the official v3.1.1.9 PSRAM entry verbatim:
+   * region 6 maps 0x60000000..0x63ffffff as Non-shareable Normal
+   * Non-cacheable through attribute 1.  The physical capacity is still
+   * discovered and bounded by CP; the wider architectural aperture keeps
+   * both AP logical CPUs aligned with the immutable SDK MPU table.
    *
    * Keep D-cache allocation disabled for this NuttX port.  A CPU-only reset
    * can retain private lines even though CCR.DC is cleared, so invalidate
@@ -134,6 +145,17 @@ bk7258_ap_smp_memory_initialize(void)
       "ldr r2, =%c[attr_nocache]\n"
       "orr r1, r1, r2\n"
       "str r1, [r0]\n"
+#ifdef CONFIG_BK7258_PSRAM
+      "ldr r0, =%c[rnr]\n"
+      "movs r1, %c[psram_region]\n"
+      "str r1, [r0]\n"
+      "ldr r0, =%c[rbar]\n"
+      "ldr r1, =%c[psram_rbar]\n"
+      "str r1, [r0]\n"
+      "ldr r0, =%c[rlar]\n"
+      "ldr r1, =%c[psram_rlar]\n"
+      "str r1, [r0]\n"
+#endif
       "ldr r0, =%c[rnr]\n"
       "movs r1, %c[region]\n"
       "str r1, [r0]\n"
@@ -161,6 +183,11 @@ bk7258_ap_smp_memory_initialize(void)
         [rbar] "i" (BK7258_MPU_RBAR),
         [rlar] "i" (BK7258_MPU_RLAR),
         [mair0] "i" (BK7258_MPU_MAIR0),
+#ifdef CONFIG_BK7258_PSRAM
+        [psram_region] "i" (BK7258_MPU_PSRAM_REGION),
+        [psram_rbar] "i" (BK7258_MPU_PSRAM_RBAR),
+        [psram_rlar] "i" (BK7258_MPU_PSRAM_RLAR),
+#endif
         [region] "i" (BK7258_MPU_SRAM_REGION),
         [sram_rbar] "i" (BK7258_MPU_SRAM_RBAR),
         [sram_rlar] "i" (BK7258_MPU_SRAM_RLAR),

@@ -36,12 +36,12 @@
  *   80M    80  MHz     0x3   0x5    0x1   0x6   0xB
  *   120M   120 MHz     0x3   0x3    0x1   0x6   0xC
  *   240M   240 MHz     0x3   0x1    0x1   0x6   0xD
- *   320M   160 MHz(*)  0x2   0x0    0x1   0x7   0xD
- *   480M   240 MHz(*)  0x3   0x0    0x1   0x7   0xE   (SDK-guarded, not used)
+ *   320M   160 MHz(*)  0x2   0x0    0x0   0x7   0xE
+ *   480M   240 MHz(*)  0x3   0x0    0x0   0x7   0xE   (SDK-guarded, not used)
  *
- * (*) The SDK's 320/480 tiers give CPU0 only 160/240 MHz respectively (the
- *     2/3 / 1/2 divider path); 320/480 are CPU1/CPU2.  In this single-core
- *     NuttX port CPU0 therefore tops out at 160 MHz on the 320 tier (chosen
+ * (*) The SDK's 320/480 tiers set cpu0_speed=0 (/2), giving CPU0 only
+ *     160/240 MHz respectively; CPU1/CPU2 retain the full core clock.  In the
+ *     CP NuttX image CPU0 therefore tops out at 160 MHz on the 320 tier (chosen
  *     as the "SDK-aligned stable" point).  Reaching CPU0=320 is a separate,
  *     future task.  This API stays the same regardless.
  *

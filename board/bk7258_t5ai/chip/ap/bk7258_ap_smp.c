@@ -902,7 +902,8 @@ static FAR void *bk7258_ap_cpu1_affinity_task(FAR void *arg)
                    elapsed++)
                 {
                   __asm volatile ("dmb sy" ::: "memory");
-                  if (loop_state->state ==
+                  loop_wait_state = loop_state->state;
+                  if (loop_wait_state ==
                         BK7258_AP_SEM_WAKE_LOOP_STATE_CONTINUE &&
                       loop_state->completed_cycles == cycle &&
                       loop_state->wake_sequence == cycle)
@@ -911,14 +912,21 @@ static FAR void *bk7258_ap_cpu1_affinity_task(FAR void *arg)
                       break;
                     }
 
-                  if (loop_state->state ==
+                  if (loop_wait_state ==
                         BK7258_AP_SEM_WAKE_LOOP_STATE_FAILED ||
                       state->state == BK7258_AP_AFFINITY_STATE_FAILED)
                     {
                       goto done;
                     }
 
-                  if (loop_state->state !=
+                  /* Use the same state snapshot for all decisions in this
+                   * iteration.  CPU0 may publish CONTINUE at any point after
+                   * WOKEN; re-reading here could observe that legal
+                   * transition after the first comparison and falsely report
+                   * a sequence error.
+                   */
+
+                  if (loop_wait_state !=
                         BK7258_AP_SEM_WAKE_LOOP_STATE_WOKEN)
                     {
                       bk7258_ap_sem_wake_loop_task_fail(

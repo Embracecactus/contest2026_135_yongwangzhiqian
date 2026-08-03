@@ -138,16 +138,15 @@ void __start(void)
   BK7258_APB_WDT_CTRL = BK7258_APB_WDT_KEY2;
   __asm volatile ("dsb sy" ::: "memory");
 
-  /* 4. FPU: clear FPCCR.ASPEN/LSPEN (disable lazy + automatic FP context
-   *    stacking), then enable CP10/CP11.  The BootROM leaves LSPEN set; with
-   *    CPACR enabled and LSPEN still set, the first exception (SysTick) hung
-   *    inside the lazy-stacking protocol with no HardFault.  We cannot just
-   *    call arm_fpuconfig() -- with CONFIG_ARCH_FPU off (our case) it is a
-   *    no-op #define in arm_internal.h and the real impl in arm_fpuconfig.c
-   *    is compiled only under CONFIG_ARCH_FPU.  So inline the FPCCR clear,
+  /* 4. FPU: clear FPCCR.ASPEN/LSPEN/LSPENS (disable lazy + automatic FP
+   *    context stacking), then enable CP10/CP11.  The BootROM leaves lazy
+   *    stacking enabled; with CPACR enabled, the first exception (SysTick)
+   *    hung inside that protocol without raising HardFault.  This reset-state
+   *    normalization cannot rely on arm_fpuconfig(): that helper is available
+   *    only when CONFIG_ARCH_FPU is enabled.  Keep the sequence explicit and
    *    ordered per the ARMv8-M rule "do not change ASPEN/LSPEN while CPACR
    *    permits CP10/CP11": deny CP first, clear the bits, re-enable CP.
-   *    (FPCCR @ 0xE000EF34; ASPEN=bit31, LSPEN=bit30.)
+   *    (FPCCR @ 0xE000EF34; ASPEN=bit31, LSPEN=bit30, LSPENS=bit29.)
    */
 
   BK7258_SCB_CPACR &= ~((3u << 20) | (3u << 22));             /* deny CP10/CP11 */

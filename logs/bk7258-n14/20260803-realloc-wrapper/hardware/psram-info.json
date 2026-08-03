@@ -1,0 +1,26 @@
+{
+    "format":  1,
+    "tool":  "serial_capture",
+    "status":  "ok",
+    "error":  null,
+    "port":  "COM11",
+    "baud":  460800,
+    "data_bits":  8,
+    "parity":  "None",
+    "stop_bits":  "One",
+    "handshake":  "None",
+    "duration_sec":  12,
+    "control_pulse":  {
+                          "mode":  "None",
+                          "active_level":  "Asserted",
+                          "pulse_ms":  150,
+                          "delay_ms":  200,
+                          "settle_ms":  200
+                      },
+    "bytes":  441,
+    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n14\\20260803-realloc-wrapper\\hardware\\psram-info.raw",
+    "sha256":  "b86bea73a2e5cb7efe5d57fcd7373b69c435743c33e1f6e42861b63dae01ce8a",
+    "ready_file":  null,
+    "started_utc":  "2026-08-03T09:11:15.2783063Z",
+    "ended_utc":  "2026-08-03T09:11:27.3961932Z"
+}

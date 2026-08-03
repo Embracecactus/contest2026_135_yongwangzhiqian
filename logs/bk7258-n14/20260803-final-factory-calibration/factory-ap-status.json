@@ -1,0 +1,26 @@
+{
+    "format":  1,
+    "tool":  "serial_capture",
+    "status":  "ok",
+    "error":  null,
+    "port":  "COM11",
+    "baud":  460800,
+    "data_bits":  8,
+    "parity":  "None",
+    "stop_bits":  "One",
+    "handshake":  "None",
+    "duration_sec":  20,
+    "control_pulse":  {
+                          "mode":  "None",
+                          "active_level":  "Asserted",
+                          "pulse_ms":  150,
+                          "delay_ms":  200,
+                          "settle_ms":  200
+                      },
+    "bytes":  2714,
+    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n14\\20260803-final-factory-calibration\\factory-ap-status.raw",
+    "sha256":  "b474f1e6b04294be90493da28d18d40be398b65423f7e3e892072165357e4277",
+    "ready_file":  null,
+    "started_utc":  "2026-08-03T09:40:52.2112857Z",
+    "ended_utc":  "2026-08-03T09:41:12.3319815Z"
+}

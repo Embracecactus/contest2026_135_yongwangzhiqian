@@ -22,6 +22,10 @@
 
 #include <arch/chip/bk7258_amp.h>
 
+#ifdef CONFIG_BK7258_PSRAM
+#  include <arch/chip/bk7258_psram.h>
+#endif
+
 #ifdef CONFIG_BK7258_RPTUN_MBOX
 #  include <arch/chip/bk7258_rptun.h>
 #  include "bk7258_rptun_mbox.h"
@@ -62,6 +66,11 @@
 #define BK7258_MPU_SRAM_REGION      15u
 #define BK7258_MPU_SRAM_RBAR        0x2800001au
 #define BK7258_MPU_SRAM_RLAR        0x3fffffe3u
+#ifdef CONFIG_BK7258_PSRAM
+#  define BK7258_MPU_PSRAM_REGION   6u
+#  define BK7258_MPU_PSRAM_RBAR     0x60000002u
+#  define BK7258_MPU_PSRAM_RLAR     0x63ffffe3u
+#endif
 #define BK7258_MPU_ATTR1_MASK       0x0000ff00u
 #define BK7258_MPU_ATTR1_NOCACHE    0x00004400u
 #define BK7258_MPU_CTRL_EXPECTED    0x7u
@@ -188,6 +197,10 @@ static int bk7258_ap_validate_runtime(void)
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
   void *test;
   uint32_t mpu_rnr;
+#ifdef CONFIG_BK7258_PSRAM
+  uint32_t psram_rbar;
+  uint32_t psram_rlar;
+#endif
   uint32_t msp;
 
   __asm volatile ("mrs %0, msp" : "=r"(msp));
@@ -218,6 +231,12 @@ static int bk7258_ap_validate_runtime(void)
   state->reserved[1] = BK7258_MPU_CTRL;
   state->reserved[2] = BK7258_MPU_RBAR;
   state->reserved[3] = BK7258_MPU_RLAR;
+#ifdef CONFIG_BK7258_PSRAM
+  BK7258_MPU_RNR = BK7258_MPU_PSRAM_REGION;
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+  psram_rbar = BK7258_MPU_RBAR;
+  psram_rlar = BK7258_MPU_RLAR;
+#endif
   BK7258_MPU_RNR = mpu_rnr;
   __asm volatile ("dsb sy; isb sy" ::: "memory");
 
@@ -232,6 +251,10 @@ static int bk7258_ap_validate_runtime(void)
         BK7258_MPU_CTRL_EXPECTED ||
       state->reserved[2] != BK7258_MPU_SRAM_RBAR ||
       state->reserved[3] != BK7258_MPU_SRAM_RLAR ||
+#ifdef CONFIG_BK7258_PSRAM
+      psram_rbar != BK7258_MPU_PSRAM_RBAR ||
+      psram_rlar != BK7258_MPU_PSRAM_RLAR ||
+#endif
       (BK7258_MPU_MAIR0 & BK7258_MPU_ATTR1_MASK) !=
         BK7258_MPU_ATTR1_NOCACHE)
     {
@@ -347,6 +370,9 @@ int bk7258_ap_main(int argc, char *argv[])
 #ifdef CONFIG_BK7258_BLE_GATT
   struct bk7258_ble_gatt_stats_s ble_gatt;
 #endif
+#ifdef CONFIG_BK7258_PSRAM_TEST
+  struct bk7258_psram_test_result_s psram_test;
+#endif
   uint32_t event;
   int error;
   int ret;
@@ -368,6 +394,28 @@ int bk7258_ap_main(int argc, char *argv[])
       bk7258_ap_publish_failure((uint32_t)error);
       goto parked;
     }
+
+#ifdef CONFIG_BK7258_PSRAM
+  ret = bk7258_psram_initialize();
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_PSRAM);
+      goto parked;
+    }
+
+  state->reserved[BK7258_PSRAM_AP_RESERVED_HEAP] =
+    BK7258_PSRAM_AP_HEAP_BASE;
+  state->reserved[BK7258_PSRAM_AP_RESERVED_GATE] =
+    BK7258_PSRAM_AP_HEAP_READY;
+#ifdef CONFIG_BK7258_PSRAM_TEST
+  memset(&psram_test, 0, sizeof(psram_test));
+  state->reserved[BK7258_PSRAM_AP_RESERVED_RESULT] =
+    (uint32_t)(uintptr_t)&psram_test;
+  state->reserved[BK7258_PSRAM_AP_RESERVED_MAGIC] =
+    BK7258_PSRAM_AP_RESULT_READY;
+#endif
+  __asm volatile ("dmb sy" ::: "memory");
+#endif
 
 #ifdef CONFIG_BK7258_RPTUN
   /* kthread_create() activates the new task before returning.  Both the
@@ -483,6 +531,24 @@ int bk7258_ap_main(int argc, char *argv[])
       bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BLCY);
       goto parked;
     }
+#endif
+
+#ifdef CONFIG_BK7258_PSRAM_TEST
+  ret = bk7258_psram_heap_test(CONFIG_BK7258_PSRAM_TEST_ITERATIONS,
+                               true, &psram_test);
+  if (ret < 0 || psram_test.status < 0 ||
+      psram_test.completed[0] != CONFIG_BK7258_PSRAM_TEST_ITERATIONS ||
+      psram_test.completed[1] != CONFIG_BK7258_PSRAM_TEST_ITERATIONS ||
+      psram_test.observed_cpu[0] != 0u ||
+      psram_test.observed_cpu[1] != 1u)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_PSRAM);
+      goto parked;
+    }
+
+  state->reserved[BK7258_PSRAM_AP_RESERVED_GATE] =
+    BK7258_PSRAM_AP_TEST_PASSED;
+  __asm volatile ("dmb sy" ::: "memory");
 #endif
 
   /* Publish a second, independently scheduled liveness source only after all

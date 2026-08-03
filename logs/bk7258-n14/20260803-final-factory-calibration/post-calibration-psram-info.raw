@@ -1,0 +1,8 @@
+bkpsramtest info
+BPSR INFO status=0 ready=1 id=8d08 config=8d1a capacity=16777216 heap=60700000+131072 total=131072 free=131056 minfree=131072 mpu=1
+BPSR RAW runs=1 passes=1 fail=00000000 expected=00000000 actual=00000000
+BPSR AP generation=1 state=2 error=0 heap=60720000 gate=50535254
+BPSR APTEST status=0 requested=16 completed=16/16 active=16/16 stage=12/12 errors=0/0 cpu=0/1 free=655344->655344
+BPSR INFO PASS
+nsh> [K
+nsh> [K

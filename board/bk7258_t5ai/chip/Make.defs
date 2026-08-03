@@ -65,6 +65,10 @@ BK7258_CP_CSRCS  = bk7258_vectors.c
 BK7258_CP_CSRCS += bk7258_start.c
 BK7258_CP_CSRCS += $(BK7258_COMMON_CSRCS)
 
+ifeq ($(CONFIG_BK7258_PSRAM),y)
+BK7258_CP_CSRCS += bk7258_psram.c
+endif
+
 ifeq ($(CONFIG_BK7258_AP_CONTROL),y)
 BK7258_CP_CSRCS += bk7258_ap_control.c
 endif
@@ -110,6 +114,10 @@ endif
 
 ifeq ($(CONFIG_BK7258_SDK_IRQ_TIMER_TEST),y)
 BK7258_CP_CSRCS += bk7258_sdk_irq_timer_test.c
+endif
+
+ifeq ($(CONFIG_BK7258_SDK_TIMER_SELFTEST),y)
+BK7258_CP_CSRCS += bk7258_sdk_timer_selftest.c
 endif
 
 ifeq ($(CONFIG_BK7258_GPIO_FOUNDATION_TEST),y)
@@ -176,6 +184,10 @@ BK7258_AP_BASE_CSRCS  = bk7258_ap_vectors.c
 BK7258_AP_BASE_CSRCS += bk7258_ap_start.c
 BK7258_AP_BASE_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
 BK7258_AP_BASE_CSRCS += bk7258_ap_main.c
+
+ifeq ($(CONFIG_BK7258_PSRAM),y)
+BK7258_AP_BASE_CSRCS += bk7258_psram.c
+endif
 
 ifeq ($(CONFIG_BK7258_BT_IPC),y)
 BK7258_AP_BASE_CSRCS += bk7258_bt_hci.c

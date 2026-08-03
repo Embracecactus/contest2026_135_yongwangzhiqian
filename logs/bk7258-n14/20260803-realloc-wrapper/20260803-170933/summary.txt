@@ -1,0 +1,8 @@
+serial_bytes=426
+verdict=PASS_NSH
+last_checkpoint=none
+checkpoints=none
+cold_path=yes
+uart_init_returned=no
+ap_timeout_cleanup=no
+nsh=yes

@@ -1,0 +1,9 @@
+bkbttest info 10000
+BBTT BEGIN operation=info duration_ms=0 timeout_ms=10000
+BBTT RESULT gen=1 sequence=1 operation=info status=0 worker_cpu=0
+BBTT INFO bdaddr=c8:47:8c:47:47:48 valid=1 fallback=0 acl_mtu=70 acl_buffers=20
+BBTT FEATURES br=00 00 00 00 60 00 00 00 le=ff 59 01 fc 00 00 00 00
+BBTT PASS operation=info gen=1 sequence=1
+BBTT SUITE PASS info=1 scan=0
+nsh> [K
+nsh> [K

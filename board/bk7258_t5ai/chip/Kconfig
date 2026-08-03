@@ -542,6 +542,59 @@ config BK7258_BLE_GATT_NOTIFY_INTERVAL_MS
 	---help---
 		Fixed pacing interval for the bounded one-to-100 frame validation burst.
 
+config BK7258_PSRAM
+	bool "N14 official-driver PSRAM wrapper and role-local heaps"
+	default n
+	depends on ARCH_CHIP_BK7258
+	---help---
+		Initialize PSRAM only from CP through the official Beken bk_psram_init
+		API, then expose disjoint board-owned NuttX MM heaps to the SDK
+		psram_* ABI.  The heap ranges exactly preserve the v3.1.1.9 default
+		8 MiB ram_regions.csv contract: CP 0x60700000+0x20000 and AP
+		0x60720000+0xa0000.  Matching the official v3.1.1.9 MPU table,
+		region 6 maps the 0x60000000..0x63ffffff PSRAM aperture as
+		Non-shareable Normal Non-cacheable on CP plus both AP logical CPUs.
+		PSRAM remains powered for the complete N14 boot generation;
+		sleep/power-down ownership is out of scope.
+
+config BK7258_PSRAM_BOOT_TEST
+	bool "N14 destructive full-capacity PSRAM boot test"
+	default n
+	depends on BK7258_PSRAM && !BK7258_AP_CORE
+	---help---
+		After the official CP driver detects the device and before either
+		role-local heap or AP starts, run walking-data, address-alias,
+		address-derived, inverse and final-zero passes over the complete
+		detected 8 MiB or 16 MiB device.  This is safe only at that boot
+		boundary and deliberately has no runtime command that could overwrite
+		live heaps or future media slabs.  Enable in the N14 validation
+		profile, not in a latency-sensitive production profile.
+
+config BK7258_PSRAM_TEST
+	bool "N14 bounded PSRAM allocator and AP SMP test"
+	default n
+	depends on BK7258_PSRAM
+	depends on !BK7258_AP_CORE || (SMP && !DISABLE_PTHREAD)
+	select BUILTIN if !BK7258_AP_CORE
+	select NSH_BUILTIN_APPS if !BK7258_AP_CORE
+	---help---
+		Add the CP bkpsramtest NSH command and run the AP allocator gate before
+		AP READY.  The AP gate creates joinable SRAM-stack workers pinned to
+		logical CPU0 and CPU1, performs concurrent alloc/zero/realloc/check/free
+		loops and requires the heap free count to return to its baseline.
+
+config BK7258_PSRAM_TEST_ITERATIONS
+	int "N14 allocator iterations per worker"
+	default 128
+	range 16 4096
+	depends on BK7258_PSRAM_TEST
+
+config BK7258_PSRAM_TEST_STACKSIZE
+	int "N14 AP PSRAM test worker SRAM stack size"
+	default 2048
+	range 2048 8192
+	depends on BK7258_PSRAM_TEST
+
 config BK7258_FLASH_MTD
 	bool "BK7258 on-chip flash data-partition MTD"
 	default n
@@ -655,6 +708,19 @@ config BK7258_SDK_IRQ_TIMER_TEST
 		replaces the SDK INT_SRC_TIMER callback, triggers TIMER_ID1,
 		proves unregister silence and re-registration, then restores the
 		original callback. It never runs from board bring-up.
+
+config BK7258_SDK_TIMER_SELFTEST
+	bool "Beken SDK software-timer lifecycle regression test"
+	default n
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Build the bktimertest NSH command.  It repeatedly deletes a periodic
+		SDK timer from inside its own callback and proves that callbacks run
+		in the board timer-service task rather than the NuttX watchdog ISR.
+		This is the regression gate for the SDK wrapper's deferred-free
+		lifecycle and never runs automatically during board bring-up.
 
 config BK7258_GPIO_FOUNDATION_TEST
 	bool "BK7258 T5-AI GPIO foundation manual test"

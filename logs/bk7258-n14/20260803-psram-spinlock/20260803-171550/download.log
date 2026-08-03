@@ -1,0 +1,81 @@
+cmdline: |bk_loader.exe download -p 7 -b 6000000 --uart-type OTHER --mainBin-multi //wsl.localhost/Ubuntu-22.04/home/lijian/project/open-vela/nuttx/bk7258-dual/bl_crc.bin@0x0-0x11000,//wsl.localhost/Ubuntu-22.04/home/lijian/project/open-vela/nuttx/bk7258-dual/app_crc_flash.bin@0x11000-0xb0000,//wsl.localhost/Ubuntu-22.04/home/lijian/project/open-vela/nuttx/bk7258-dual/app1_crc_flash.bin@0x220000-0x2e000 --reboot 1 --fast-link 1 |
+bk_loader version 2.1.11.15: build @Nov 14 2024 19:17:41
+2026-08-03 17:15:51.532    Current port : COM7 + BaudRate : 115200 connect success
+2026-08-03 17:15:51.532    do_reset_signal
+2026-08-03 17:15:51.532    Getting Bus...
+2026-08-03 17:15:51.807    Gotten Bus...
+2026-08-03 17:15:51.812    Current Chip is : BK7236
+2026-08-03 17:15:51.845    Current baudrate : 6000000 success
+2026-08-03 17:15:51.845    Unprotecting Flash
+2026-08-03 17:15:51.869    Unprotected Flash ->pass
+2026-08-03 17:15:51.869    [ 0 ] file_startAddr : 0x00000000
+2026-08-03 17:15:51.869    [ 0 ] file_path : //wsl.localhost/Ubuntu-22.04/home/lijian/project/open-vela/nuttx/bk7258-dual/bl_crc.bin
+2026-08-03 17:15:51.869    [ 0 ] file_length : 0x11000 (68 KB)
+2026-08-03 17:15:51.869    [ 0 ] file_crc : 0x109dd6a0
+2026-08-03 17:15:51.869    Begin EraseFlash
+2026-08-03 17:15:51.869    Start 4K Erase
+2026-08-03 17:15:51.869    End 4K Erase
+2026-08-03 17:15:51.869    Start 64K Erase
+Erasing Flash ... 0%Erasing Flash ... 94%2026-08-03 17:15:52.214    End 64K Erase
+2026-08-03 17:15:52.214    EraseFlash ->pass
+2026-08-03 17:15:52.216    [ 1 ] file_startAddr : 0x00011000
+2026-08-03 17:15:52.216    [ 1 ] file_path : //wsl.localhost/Ubuntu-22.04/home/lijian/project/open-vela/nuttx/bk7258-dual/app_crc_flash.bin
+2026-08-03 17:15:52.216    [ 1 ] file_length : 0xb0000 (704 KB)
+2026-08-03 17:15:52.216    [ 1 ] file_crc : 0xc50050b
+2026-08-03 17:15:52.216    Begin EraseFlash
+2026-08-03 17:15:52.216    Start 4K Erase
+2026-08-03 17:15:53.553    End 4K Erase
+2026-08-03 17:15:53.553    Start 64K Erase
+Erasing Flash ... 16%Erasing Flash ... 24%Erasing Flash ... 33%Erasing Flash ... 41%Erasing Flash ... 49%Erasing Flash ... 58%Erasing Flash ... 66%Erasing Flash ... 74%Erasing Flash ... 82%Erasing Flash ... 91%Erasing Flash ... 99%2026-08-03 17:15:55.690    End 64K Erase
+2026-08-03 17:15:55.690    EraseFlash ->pass
+2026-08-03 17:15:55.693    [ 2 ] file_startAddr : 0x00220000
+2026-08-03 17:15:55.693    [ 2 ] file_path : //wsl.localhost/Ubuntu-22.04/home/lijian/project/open-vela/nuttx/bk7258-dual/app1_crc_flash.bin
+2026-08-03 17:15:55.693    [ 2 ] file_length : 0x2e000 (184 KB)
+2026-08-03 17:15:55.693    [ 2 ] file_crc : 0x46345587
+2026-08-03 17:15:55.693    Begin EraseFlash
+2026-08-03 17:15:55.693    Start 4K Erase
+2026-08-03 17:15:55.693    End 4K Erase
+2026-08-03 17:15:55.693    Start 64K Erase
+Erasing Flash ... 92%Erasing Flash ... 94%Erasing Flash ... 97%Erasing Flash ... 97%Erasing Flash ... 97%Erasing Flash ... 98%Erasing Flash ... 98%Erasing Flash ... 98%Erasing Flash ... 98%Erasing Flash ... 98%Erasing Flash ... 98%Erasing Flash ... 99%Erasing Flash ... 99%Erasing Flash ... 99%Erasing Flash ... 99%Erasing Flash ... 99%2026-08-03 17:15:56.850    End 64K Erase
+2026-08-03 17:15:56.850    EraseFlash ->pass
+2026-08-03 17:15:56.899    sys_hal_early_init success
+2026-08-03 17:15:56.906    REG_SPI_CTRL_ARMINO=0xc20100, div=0
+2026-08-03 17:15:56.907    REG_SPI_CTRL_ARMINO=0xc20000
+2026-08-03 17:15:56.908    REG_SPI_CTRL_ARMINO=0x0, div=0
+2026-08-03 17:15:56.958    write 0x44820010=0x2c1b, retry 0
+2026-08-03 17:15:57.030    write 0x44010020=0x423, retry 0
+2026-08-03 17:15:57.050    use_apll_set_baudrate success
+2026-08-03 17:15:57.050    [ 0 ] Begin write to flash...
+Writing Flash ... 0%Writing Flash ... 5%Writing Flash ... 11%Writing Flash ... 17%2026-08-03 17:15:58.110    do_reset_signal
+2026-08-03 17:15:58.110    Getting Bus...
+2026-08-03 17:15:58.110    Getting Bus...
+2026-08-03 17:15:58.385    Gotten Bus...
+2026-08-03 17:15:58.435    read 0x440001f0 failed, retry 0
+2026-08-03 17:15:58.613    sys_hal_early_init success
+2026-08-03 17:15:58.657    REG_SPI_CTRL_ARMINO=0xc20100, div=0
+2026-08-03 17:15:58.662    REG_SPI_CTRL_ARMINO=0xc20000
+2026-08-03 17:15:58.665    REG_SPI_CTRL_ARMINO=0x0, div=0
+2026-08-03 17:15:58.718    write 0x44820010=0x2c1b, retry 0
+2026-08-03 17:15:58.789    write 0x44010020=0x423, retry 0
+2026-08-03 17:15:58.811    use_apll_set_baudrate success
+Writing Flash ... 23%Writing Flash ... 29%Writing Flash ... 35%Writing Flash ... 41%Writing Flash ... 47%Writing Flash ... 52%Writing Flash ... 58%Writing Flash ... 64%Writing Flash ... 70%Writing Flash ... 76%Writing Flash ... 82%Writing Flash ... 88%Writing Flash ... 94%2026-08-03 17:15:59.149    WriteFlash ->pass
+2026-08-03 17:15:59.149    [ 1 ] Begin write to flash...
+Writing Flash ... 0%Writing Flash ... 1%Writing Flash ... 2%Writing Flash ... 3%Writing Flash ... 4%Writing Flash ... 5%Writing Flash ... 6%Writing Flash ... 7%Writing Flash ... 8%Writing Flash ... 9%Writing Flash ... 10%Writing Flash ... 11%Writing Flash ... 12%Writing Flash ... 13%Writing Flash ... 14%Writing Flash ... 15%Writing Flash ... 16%Writing Flash ... 17%Writing Flash ... 18%Writing Flash ... 19%Writing Flash ... 20%Writing Flash ... 21%Writing Flash ... 22%Writing Flash ... 23%Writing Flash ... 24%Writing Flash ... 25%Writing Flash ... 26%Writing Flash ... 27%Writing Flash ... 28%Writing Flash ... 29%Writing Flash ... 30%Writing Flash ... 31%Writing Flash ... 32%Writing Flash ... 33%Writing Flash ... 34%Writing Flash ... 35%Writing Flash ... 36%Writing Flash ... 37%Writing Flash ... 38%Writing Flash ... 39%Writing Flash ... 40%Writing Flash ... 41%Writing Flash ... 42%Writing Flash ... 43%Writing Flash ... 44%Writing Flash ... 45%Writing Flash ... 46%Writing Flash ... 47%Writing Flash ... 48%Writing Flash ... 49%Writing Flash ... 50%Writing Flash ... 51%Writing Flash ... 52%Writing Flash ... 53%Writing Flash ... 54%Writing Flash ... 55%Writing Flash ... 56%Writing Flash ... 57%Writing Flash ... 58%Writing Flash ... 59%Writing Flash ... 60%Writing Flash ... 61%Writing Flash ... 62%Writing Flash ... 63%Writing Flash ... 64%Writing Flash ... 65%Writing Flash ... 66%Writing Flash ... 67%Writing Flash ... 68%Writing Flash ... 69%Writing Flash ... 70%Writing Flash ... 71%Writing Flash ... 72%Writing Flash ... 73%Writing Flash ... 74%Writing Flash ... 75%Writing Flash ... 76%Writing Flash ... 77%Writing Flash ... 78%Writing Flash ... 79%Writing Flash ... 80%Writing Flash ... 81%Writing Flash ... 82%Writing Flash ... 83%Writing Flash ... 84%Writing Flash ... 85%Writing Flash ... 86%Writing Flash ... 87%Writing Flash ... 88%Writing Flash ... 89%Writing Flash ... 90%Writing Flash ... 91%Writing Flash ... 92%Writing Flash ... 93%Writing Flash ... 94%Writing Flash ... 95%Writing Flash ... 96%Writing Flash ... 97%Writing Flash ... 98%Writing Flash ... 99%2026-08-03 17:16:03.489    WriteFlash ->pass
+2026-08-03 17:16:03.489    [ 2 ] Begin write to flash...
+Writing Flash ... 0%Writing Flash ... 2%Writing Flash ... 4%Writing Flash ... 6%Writing Flash ... 8%Writing Flash ... 10%Writing Flash ... 13%Writing Flash ... 15%Writing Flash ... 17%Writing Flash ... 19%Writing Flash ... 21%Writing Flash ... 23%Writing Flash ... 26%Writing Flash ... 28%Writing Flash ... 30%Writing Flash ... 32%Writing Flash ... 34%Writing Flash ... 36%Writing Flash ... 39%Writing Flash ... 41%Writing Flash ... 43%Writing Flash ... 45%Writing Flash ... 47%Writing Flash ... 50%Writing Flash ... 52%Writing Flash ... 54%Writing Flash ... 56%Writing Flash ... 58%Writing Flash ... 60%Writing Flash ... 63%Writing Flash ... 65%Writing Flash ... 67%Writing Flash ... 69%Writing Flash ... 71%Writing Flash ... 73%Writing Flash ... 76%Writing Flash ... 78%Writing Flash ... 80%Writing Flash ... 82%Writing Flash ... 84%Writing Flash ... 86%Writing Flash ... 89%Writing Flash ... 91%Writing Flash ... 93%Writing Flash ... 95%Writing Flash ... 97%2026-08-03 17:16:04.624    WriteFlash ->pass
+2026-08-03 17:16:04.646    Enprotect pass
+2026-08-03 17:16:04.678    Boot_Reboot
+
+2026-08-03 17:16:04.745    Total Test Time : 12.938 s
+2026-08-03 17:16:04.745    Writing Flash OK                             
+
+2026-08-03 17:16:04.745    
+==============================================================
+     _             (done)
+    | |                 
+  __| | ___  _ __   ___ 
+ / _  |/ _ \|  _ \ / _ \
+| (_| | (_) | | | |  __/
+ \__,_|\___/|_| |_|\___|
+{All Finished Successfully}
+
