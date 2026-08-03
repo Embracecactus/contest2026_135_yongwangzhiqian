@@ -1,53 +1,104 @@
 # Current Progress
 
-Last updated: 2026-08-03T18:29:39+08:00
+Last updated: 2026-08-03T23:08:16+08:00
 Updated by: Codex (`maintain-project-memory` checkpoint)
 
 ## Snapshot
 
-- Branch: `feat/bk7258-n14-psram`
-- N14 feature commit: `36fc6a282efe787dff18630bdc77b245cb5d2514` (`feat(bk7258): add board-verified PSRAM and timer wrappers`).
-- Initial checkpoint commit: `cecb84e62bc9b2e315584aa9676fb8d39c80be60`; resolve the current metadata refresh with `git log -1 -- progress/CURRENT.md`.
-- Remote state: N14 is published to `fork/feat/bk7258-n14-psram`; `origin/dev-ai-contest-2026` remains the PR base at `c6afd6f9b73dcf862f17bd31f5b2dc90820b9bb0`.
-- Deployed version: N14 factory artifact SHA-256 `3b34edc5d86343dcb0a3f479d71eb1271c49157eb93c51b5bb6da13fafcef253`; post-calibration physical cold boot passed.
-- Environment: physical Tuya T5-AI, CP `cp_nsh_psram`, AP `ap_smp_psram`, Beken SDK bundle v3.1.1.9.
+- Branch: `feat/bk7258-n15-ota`.
+- Base: `origin/dev-ai-contest-2026` at
+  `6de4962147e5ee180def704d219ace9ae11f6e4e`.
+- N15-M implementation commit:
+  `39732de94af6f715ec50536a2521ea811795c5b4`, pushed to
+  `fork/feat/bk7258-n15-ota`.
+- Sole active SDK: official Beken v3.1.1.9. Legacy bundles are preserved but
+  unused until N15 is complete and the owner opens separate validation.
+- Latest deployed board state: **N15-M contiguous-layout migration
+  `board-verified`** with `cp_nsh_psram + ap_smp_psram`.
+- Full N15 OTA is still `in-progress`: B is seeded but not selectable and all
+  runtime OTA mutations remain disabled.
 
 ## Active work
 
-- Objective: preserve the published N14 checkpoint and await owner PR/next-stage direction.
-- Scope: team-owned board/app/build wrappers, N14 configs/verifier, documentation, logs, and project-memory checkpoint.
-- Status: N14 is `board-verified`, committed, and pushed to the fork; no next MAIN Stage is approved.
+N15 remains active after the completed N15-M migration. The immediate scope is
+N15-A host-only RBL/pair-bundle work; all runtime OTA and board-write gates
+remain closed.
 
 ## Recently completed
 
-- N14 16 MiB PSRAM and SDK software-timer wrapper completed on 2026-08-03; see [milestone](milestones/2026-08-03-n14-psram-board-verified.md).
-- Project-memory protocol initialized without replacing legacy local memory notes.
-- N14 plan, source verification, evidence index, project README, porting report, and stage handoff now point to the N14 baseline.
+- Accepted [ADR-004](../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md)
+  and retired ADR-003 before any sector-swap code reached hardware.
+- Replaced the N14 flash geometry with the exact v3.1.1.9-style contiguous
+  primary CP/AP plus `s_app` layout in team-owned linker, boot, MTD, packer,
+  debug and verifier code. Official NuttX/apps/SDK source and SDK libraries
+  remain unchanged.
+- Moved AP XIP to `0x02150000` and LittleFS to raw
+  `0x600000..0x700000`.
+- Added a canonical layout model plus independent source/layout and byte-exact
+  factory verifiers. The factory path rejects old layout IDs and uses two
+  bounded loader ranges instead of one dense image.
+- Per owner authorization, migrated the board once, discarded old LittleFS,
+  and completed the retained N14 regression plus three physical resets.
 
 ## Verification
 
-- Tests: AP PSRAM CPU0/CPU1 `16/16`; CP heap 256; timer 256; AP cycle 10; RPMsg six scenarios ×100; Bluetooth info; physical cold and factory gates passed.
-- Type/static checks: N14 source/ELF verifier PASS; 216 local documentation links PASS; source and documentation whitespace checks PASS. Raw Windows capture logs retain their original CRLF bytes.
-- Build: final clean paired dual build completed; PSRAM/RPTUN/BLE/dual-image gates PASS; CP/AP SDK bundle checks PASS.
-- Deployment health: final sparse flash, final cold, factory first-calibration, and post-calibration cold reached `PASS_NSH`; AP/RPTUN/supervisor/SMP/PSRAM health passed.
-- Evidence: [verification record](verification/2026-08-03-n14-psram-board-verification.md) and [canonical raw evidence index](../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md).
+- Factory prefix: `0x4fc000`, SHA-256
+  `4722e2a81504e5e321f67850c518b0b919b79e796214481d1e0dd01bf9cf8e4b`.
+- LittleFS clear image: `0x100000`, SHA-256
+  `f5fb04aa5b882706b9309e885f19477261336ef76a150c3b4d3489dfac3953ec`.
+- Loader write set: `0x000000..0x4fc000` and
+  `0x600000..0x700000`; no chip erase and no `usr_config`, reserved or tail
+  range in the command.
+- Board gates PASS: NSH; AP READY; CPU2 scheduler-online; RPTUN CONNECTED;
+  supervisor HEALTHY; relocated LittleFS; PSRAM; SDK timer; RPMsg; RPMsgFS;
+  Bluetooth; physical reset 3/3.
+- Final host gates PASS: exact SDK CP/AP checksums; bootloader rebuild/verify;
+  RBL self-test; layout/factory, RPTUN, BLE-GATT and PSRAM verifiers; two
+  factory negative fixtures; Python/shell/format checks.
+- Canonical evidence:
+  [N15-M board verification](verification/2026-08-03-n15-migration-board-verification.md).
+
+## Read-back rule
+
+The pre-migration 8 MiB BKFIL read at 6 Mbps contains occasional inserted
+128-byte zero blocks and is forensic evidence only, not a recovery image.
+Critical Flash acceptance reads must use 115200 and two byte-identical
+captures. Post-migration `usr_config` and official-tail repeats meet that
+rule; the loader's range list independently proves neither was targeted.
 
 ## Next actions
 
-1. Owner opens and reviews the N14 PR from `fork/feat/bk7258-n14-psram` to `origin/dev-ai-contest-2026`.
-2. After merge, update this checkpoint with the merge commit and remote base.
-3. Discuss and approve the next MAIN Stage before implementing OTA, Wi-Fi, security, Bluetooth warm restart, or upper-8 PSRAM runtime use.
+Start N15-A without changing the deployed layout:
+
+1. reproduce the exact v3.1.1.9 `s_app` RBL container and 96-byte parser;
+2. define a deterministic CP/AP pair manifest with layout, generation,
+   version, length and digest checks;
+3. add positive and corruption/address/size/layout/version negative tests;
+4. keep B writer, remap, trial metadata mutation and board writes disabled;
+5. separately decide publisher signature/key provisioning and anti-rollback
+   policy before any security claim.
 
 ## Risks and blockers
 
-- The worktree contains unrelated untracked `board/bk7258_qemu/`, `board/bk7258_t5ai/tests/`, `docs/assets/`, and `qemu-bk7258/`; preserve them and do not include them by inference.
-- N14 upper 8 MiB is boot-tested/reserved, not a runtime allocator.
-- Factory flashing erases data/calibration regions; normal updates must remain sparse.
-- Physical power-cut, cacheable/DMA PSRAM, temperature/voltage stress, and product performance SLA remain unverified.
+- A-only Tier-1 boot remains the deployed behavior. The B seed has no RBL
+  header and is explicitly `boot_selectable=false`.
+- N15 has not verified candidate staging, trial, confirm, rollback,
+  mixed-generation rejection or power-loss recovery.
+- Pre- and post-migration sparse artifacts are incompatible. Never use the
+  old CP/AP offsets on the migrated board.
+- Never chip erase or write `0x7fa000..0x800000`; factory and OTA commands
+  must also exclude `usr_config` and unallocated ranges.
+- CRC32/FNV/SHA provide integrity, not publisher authenticity or
+  anti-rollback.
+- Preserve unrelated untracked `board/bk7258_qemu/`,
+  `board/bk7258_t5ai/tests/`, `docs/assets/`, and `qemu-bk7258/`.
 
-## Relevant context
+## Resume pointers
 
-- Decisions: [wrapper-only boundary](../memory/decisions/ADR-001-wrapper-only-official-source-boundary.md), [N14 PSRAM ownership/layout](../memory/decisions/ADR-002-n14-psram-ownership-and-layout.md).
-- Tasks: none active; next MAIN Stage requires owner approval.
-- Verification records: [N14 verification](verification/2026-08-03-n14-psram-board-verification.md).
-- Rollback point: commit `c6afd6f9b73dcf862f17bd31f5b2dc90820b9bb0` with N13 `cp_nsh_ble_gatt + ap_smp_ble_gatt` profiles.
+- Active worklog: [N15 stage](../docs/bk7258-t5ai/nuttx-port/prompts/15-n15-tier2-ota.md).
+- Task packet: [N15 task](tasks/2026-08-03-n15-tier2-ota.md).
+- Current architecture: [ADR-004](../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md).
+- Historical rejected option: [ADR-003](../memory/decisions/ADR-003-n15-paired-sector-swap.md).
+- Previous completed stage: [N14 milestone](milestones/2026-08-03-n14-psram-board-verified.md).
+- Source rollback point: merged N14 commit
+  `6de4962147e5ee180def704d219ace9ae11f6e4e`.
