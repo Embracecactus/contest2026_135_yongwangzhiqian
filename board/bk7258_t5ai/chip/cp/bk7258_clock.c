@@ -105,8 +105,9 @@ void bk7258_clock_bringup_320m(void)
 
   /* Stepping the core clock to the 320 MHz runtime tier is the DVFS lower
    * half's job: it walks the SDK per-tier voltage/mux program one step at a
-   * time (VDDD -> 0x7, VDDIG -> 0xD, then M1 cksel=2/clkdiv=0) and finally
-   * recomputes the SysTick reload.  The DPLL was already enabled by the
+   * time (VDDD -> 0x7, VDDIG -> 0xE, CPU0 /2, then M1
+   * cksel=2/clkdiv=0) and finally recomputes the SysTick reload.  The DPLL
+   * was already enabled by the
    * bootloader's boot_clock.c cold-init (cold path) or is already running
    * (loader --reboot 1 residue on the soft path). */
 

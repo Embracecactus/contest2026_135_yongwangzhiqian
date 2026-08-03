@@ -1,0 +1,25 @@
+ACTION_BUILD=0
+PACKAGED_CP_CONFIG_NAME=cp_nsh_psram
+PACKAGED_AP_CONFIG_NAME=ap_smp_psram
+3f366b422e492231ffe5d68f2910208b7f3ded2ab325bf6bd357c8a2ba24d576  /home/lijian/project/open-vela/nuttx/bk7258-dual/all-app-factory.bin
+2026-08-03 17:14:56.683568276 +0800 2416640 /home/lijian/project/open-vela/nuttx/bk7258-dual/all-app-factory.bin
+b9711ba288ba5c8c074a7b438c0cd701ee4405d7a41f23ec3be3295bf78f754e  /home/lijian/project/open-vela/nuttx/bk7258-dual/bl_crc.bin
+b8041e1b85f629930b32652daf660928583b3985b2c27b8440d070332addb118  /home/lijian/project/open-vela/nuttx/bk7258-dual/app_crc_flash.bin
+bc9087fd135ad0f62b53aed11e53f9d49eaa738ccbf044b8d5ee4e0532b30cfe  /home/lijian/project/open-vela/nuttx/bk7258-dual/app1_crc_flash.bin
+2026-08-03 17:13:54.762415678 +0800 69632 /home/lijian/project/open-vela/nuttx/bk7258-dual/bl_crc.bin
+2026-08-03 17:14:56.683568276 +0800 720896 /home/lijian/project/open-vela/nuttx/bk7258-dual/app_crc_flash.bin
+2026-08-03 17:14:56.683568276 +0800 188416 /home/lijian/project/open-vela/nuttx/bk7258-dual/app1_crc_flash.bin
+CP_CONFIG_NAME=cp_nsh_psram
+AP_CONFIG_NAME=ap_smp_psram
+CP_CONFIG=vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh_psram
+AP_CONFIG=vendor/openvela/boards/contest2026_135_bk7258/configs/ap_smp_psram
+BK7258_SDK_BUNDLE_VERSION=v3.1.1.9
+BK7258_SDK_BUNDLE_ROOT=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9
+CP_SDK_ROLE_DIR=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9/cp
+AP_SDK_ROLE_DIR=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9/ap
+CP_SDK_MANIFEST=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/sdk-manifests/v3.1.1.9/cp.sha256
+AP_SDK_MANIFEST=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/sdk-manifests/v3.1.1.9/ap.sha256
+CP_SDK_MANIFEST_SHA256=438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be
+AP_SDK_MANIFEST_SHA256=5d4b7908fd21201a5f5ec3537915209aaed0273dc9779d8ba72a40ab82056edc
+CP_SDK_PROVENANCE_SHA256=3c370abc6622d57bd6005682931a33df139dc5c2911294af65fdee7038ceea36
+AP_SDK_PROVENANCE_SHA256=3e2879c0ca2c836c3ce3b556d1f4188d3ef36f1a6104cd84521e85b645f299e1

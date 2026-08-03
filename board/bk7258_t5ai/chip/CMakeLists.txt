@@ -29,6 +29,10 @@ set(BK7258_CP_SRCS
     cp/bk7258_start.c
     ${BK7258_COMMON_SRCS})
 
+if(CONFIG_BK7258_PSRAM)
+  list(APPEND BK7258_CP_SRCS common/bk7258_psram.c)
+endif()
+
 if(CONFIG_BK7258_AP_CONTROL)
   list(APPEND BK7258_CP_SRCS cp/bk7258_ap_control.c)
 endif()
@@ -81,6 +85,10 @@ if(CONFIG_BK7258_SDK_IRQ_TIMER_TEST)
   list(APPEND BK7258_CP_SRCS cp/bk7258_sdk_irq_timer_test.c)
 endif()
 
+if(CONFIG_BK7258_SDK_TIMER_SELFTEST)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_sdk_timer_selftest.c)
+endif()
+
 if(CONFIG_BK7258_GPIO_FOUNDATION_TEST)
   list(APPEND BK7258_CP_SRCS cp/bk7258_gpio_foundation_test.c)
 endif()
@@ -127,6 +135,10 @@ set(BK7258_AP_BASE_SRCS
     ap/bk7258_ap_start.c
     ${BK7258_COMMON_EARLY_SRCS}
     ap/bk7258_ap_main.c)
+
+if(CONFIG_BK7258_PSRAM)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_psram.c)
+endif()
 
 if(CONFIG_BK7258_BT_IPC)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_bt_hci.c)

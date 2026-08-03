@@ -1,0 +1,1 @@
+PULSE_OK port=COM7 mode=RTS pulse_ms=150

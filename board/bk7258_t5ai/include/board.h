@@ -72,6 +72,10 @@
 int bk7258_sdk_irq_timer_test(void);
 #endif
 
+#ifdef CONFIG_BK7258_SDK_TIMER_SELFTEST
+int bk7258_sdk_timer_selftest(uint32_t iterations);
+#endif
+
 #ifdef CONFIG_BK7258_GPIO_FOUNDATION_TEST
 int bk7258_gpio_foundation_test(void);
 #endif

@@ -1,0 +1,52 @@
+bkrpmsgtest all 100 60000
+BRPT BEGIN count=100 payload=1 frame=33 load=0 timeout_ms=60000
+BRPT RESULT gen=1 run=1 status=0 controller_cpu=0 count=100 payload=1 frame=33 load=0 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=3580000 min_us=11187.500 p50_cycles=10000000 p50_us=31250.000 p95_cycles=12610000 p95_us=39406.250 p99_cycles=12940000 p99_us=40437.500 max_cycles=13150000 max_us=41093.750 total_cycles=1024180000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=6310000 min_us=19718.750 p50_cycles=9630000 p50_us=30093.750 p95_cycles=12890000 p95_us=40281.250 p99_cycles=13350000 p99_us=41718.750 max_cycles=15790000 max_us=49343.750 total_cycles=1040610000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=13200 approx_bytes_per_sec=4059
+BRPT PASS gen=1 run=1 count=100 payload=1 load=0
+BRPT BEGIN count=100 payload=64 frame=96 load=0 timeout_ms=60000
+BRPT RESULT gen=1 run=2 status=0 controller_cpu=0 count=100 payload=64 frame=96 load=0 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=4340000 min_us=13562.500 p50_cycles=10450000 p50_us=32656.250 p95_cycles=13650000 p95_us=42656.250 p99_cycles=13880000 p99_us=43375.000 max_cycles=13930000 max_us=43531.250 total_cycles=1071670000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=6170000 min_us=19281.250 p50_cycles=9630000 p50_us=30093.750 p95_cycles=13040000 p95_us=40750.000 p99_cycles=15950000 p99_us=49843.750 max_cycles=16520000 max_us=51625.000 total_cycles=1099220000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=38400 approx_bytes_per_sec=11178
+BRPT PASS gen=1 run=2 count=100 payload=64 load=0
+BRPT BEGIN count=100 payload=464 frame=496 load=0 timeout_ms=60000
+BRPT RESULT gen=1 run=3 status=0 controller_cpu=0 count=100 payload=464 frame=496 load=0 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=7220000 min_us=22562.500 p50_cycles=14880000 p50_us=46500.000 p95_cycles=15870000 p95_us=49593.750 p99_cycles=16310000 p99_us=50968.750 max_cycles=16390000 max_us=51218.750 total_cycles=1453680000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=10420000 min_us=32562.500 p50_cycles=14770000 p50_us=46156.250 p95_cycles=18130000 p95_us=56656.250 p99_cycles=18350000 p99_us=57343.750 max_cycles=18360000 max_us=57375.000 total_cycles=1515800000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=198400 approx_bytes_per_sec=41884
+BRPT PASS gen=1 run=3 count=100 payload=464 load=0
+BRPT BEGIN count=100 payload=1 frame=33 load=1 timeout_ms=60000
+BRPT RESULT gen=1 run=4 status=0 controller_cpu=0 count=100 payload=1 frame=33 load=1 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=4130000 min_us=12906.250 p50_cycles=10120000 p50_us=31625.000 p95_cycles=12750000 p95_us=39843.750 p99_cycles=13400000 p99_us=41875.000 max_cycles=13710000 max_us=42843.750 total_cycles=1029150000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=6540000 min_us=20437.500 p50_cycles=9610000 p50_us=30031.250 p95_cycles=12960000 p95_us=40500.000 p99_cycles=13400000 p99_us=41875.000 max_cycles=15970000 max_us=49906.250 total_cycles=1040960000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=13200 approx_bytes_per_sec=4057
+BRPT PASS gen=1 run=4 count=100 payload=1 load=1
+BRPT BEGIN count=100 payload=64 frame=96 load=1 timeout_ms=60000
+BRPT RESULT gen=1 run=5 status=0 controller_cpu=0 count=100 payload=64 frame=96 load=1 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=4250000 min_us=13281.250 p50_cycles=10480000 p50_us=32750.000 p95_cycles=13720000 p95_us=42875.000 p99_cycles=13820000 p99_us=43187.500 max_cycles=13980000 max_us=43687.500 total_cycles=1074930000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=8130000 min_us=25406.250 p50_cycles=9650000 p50_us=30156.250 p95_cycles=12910000 p95_us=40343.750 p99_cycles=13120000 p99_us=41000.000 max_cycles=16620000 max_us=51937.500 total_cycles=1095610000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=38400 approx_bytes_per_sec=11215
+BRPT PASS gen=1 run=5 count=100 payload=64 load=1
+BRPT BEGIN count=100 payload=464 frame=496 load=1 timeout_ms=60000
+BRPT RESULT gen=1 run=6 status=0 controller_cpu=0 count=100 payload=464 frame=496 load=1 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=3590000 min_us=11218.750 p50_cycles=14710000 p50_us=45968.750 p95_cycles=16120000 p95_us=50375.000 p99_cycles=17630000 p99_us=55093.750 max_cycles=21410000 max_us=66906.250 total_cycles=1465950000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=100 received=100 errors=0 min_cycles=8410000 min_us=26281.250 p50_cycles=14760000 p50_us=46125.000 p95_cycles=17950000 p95_us=56093.750 p99_cycles=18120000 p99_us=56625.000 max_cycles=18370000 max_us=57406.250 total_cycles=1500820000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=198400 approx_bytes_per_sec=42302
+BRPT PASS gen=1 run=6 count=100 payload=464 load=1
+BRPT SUITE PASS runs=6 count=100
+nsh> [K
+nsh> [K

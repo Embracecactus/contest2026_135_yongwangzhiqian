@@ -86,6 +86,7 @@
 #define BK7258_CDIAG_F_CKSEL_CORE(v)   (((v) >> 4)  & 0x3u)
 #define BK7258_CDIAG_F_CLKDIV_CORE(v)  (((v) >> 0)  & 0xfu)
 #define BK7258_CDIAG_F_EN_DPLL(v)      (((v) >> 5)  & 0x1u)
+#define BK7258_CDIAG_F_CPU0_SPEED(v)   (((v) >> 4)  & 0x1u)
 
 /* Runtime CPU-frequency case identifiers used by
  * bk7258_clockdiag_last_clock_case() and bk7258_clockdiag_current_cpu_hz().
@@ -200,32 +201,60 @@ static inline int bk7258_clockdiag_last_clock_case(void)
 
 static inline uint32_t bk7258_clockdiag_current_cpu_hz(void)
 {
-  switch (bk7258_clockdiag_last_clock_case())
+  int clock_case = bk7258_clockdiag_last_clock_case();
+  uint32_t cpu_hz;
+
+  switch (clock_case)
     {
       case BK7258_CDIAG_CASE_BASELINE:
-        return 26000000u;
+        cpu_hz = 26000000u;
+        break;
 
       case BK7258_CDIAG_CASE_LOADER80:
-        return 80000000u;
+        cpu_hz = 80000000u;
+        break;
 
       case BK7258_CDIAG_CASE_DPLL120:
-        return 120000000u;
+        cpu_hz = 120000000u;
+        break;
 
       case BK7258_CDIAG_CASE_DPLL160:
-        return 160000000u;
+        cpu_hz = 160000000u;
+        break;
 
       case BK7258_CDIAG_CASE_DPLL240:
-        return 240000000u;
+        cpu_hz = 240000000u;
+        break;
 
       case BK7258_CDIAG_CASE_DPLL320:
-        return 320000000u;
+        cpu_hz = 320000000u;
+        break;
 
       case BK7258_CDIAG_CASE_DPLL480:
-        return 480000000u;
+        cpu_hz = 480000000u;
+        break;
 
       default:
-        return 26000000u;
+        cpu_hz = 26000000u;
+        break;
     }
+
+#ifndef CONFIG_BK7258_AP_CORE
+  /* The CP image executes on physical CPU0.  In the SDK 320/480 operating
+   * points cpu0_speed=0 selects /2, while AP physical CPU1/CPU2 retain the
+   * full core clock.  Keep the AP result unchanged and apply the divider
+   * only to the CP role. */
+
+  if ((clock_case == BK7258_CDIAG_CASE_DPLL320 ||
+       clock_case == BK7258_CDIAG_CASE_DPLL480) &&
+      BK7258_CDIAG_F_CPU0_SPEED(
+        getreg32(BK7258_CDIAG_SYS_CPU0_HALT_CLK_OP)) == 0)
+    {
+      cpu_hz >>= 1;
+    }
+#endif
+
+  return cpu_hz;
 }
 
 #endif /* __ARCH_ARM_SRC_BK7258_CHIP_BK7258_CLOCKDIAG_H */

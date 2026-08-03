@@ -1,0 +1,19 @@
+u_bootloader enter
+BClk A5=8407A76C A9=787BC8A4
+partition app @ 0x02010000
+jump to:0x02010000
+JMP
+[hal] 
+[gpio_log]:gpio:0 was busy: device num:0x21!
+[hal] 
+gpio: 0 is used.Please confirm unmap isn't impact is working module.!�[cal] 
+get rfcali_mode:1
+[cal] 
+cali bias(f)
+[ipc_svr] 
+create_socket failed.
+[cal] 
+retry_count=4,dlypc_i=0,stateI=[18,0,0,0],dlypc_q=0,stateQ=[13,0,0,0]
+
+NuttShell (NSH)
+nsh> [K

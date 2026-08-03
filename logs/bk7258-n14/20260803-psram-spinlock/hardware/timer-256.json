@@ -1,0 +1,26 @@
+{
+    "format":  1,
+    "tool":  "serial_capture",
+    "status":  "ok",
+    "error":  null,
+    "port":  "COM11",
+    "baud":  460800,
+    "data_bits":  8,
+    "parity":  "None",
+    "stop_bits":  "One",
+    "handshake":  "None",
+    "duration_sec":  30,
+    "control_pulse":  {
+                          "mode":  "None",
+                          "active_level":  "Asserted",
+                          "pulse_ms":  150,
+                          "delay_ms":  200,
+                          "settle_ms":  200
+                      },
+    "bytes":  203,
+    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n14\\20260803-psram-spinlock\\hardware\\timer-256.raw",
+    "sha256":  "a83c099f31171e4e603c8b1ceb36f703b8fca2b011de9d7cf26abbc3f2f450e5",
+    "ready_file":  null,
+    "started_utc":  "2026-08-03T09:27:01.1367274Z",
+    "ended_utc":  "2026-08-03T09:27:31.2429902Z"
+}

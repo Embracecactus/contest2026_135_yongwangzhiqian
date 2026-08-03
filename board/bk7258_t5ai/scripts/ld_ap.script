@@ -89,6 +89,7 @@ SECTIONS
         *(.glue_7t)
         *(.gcc_except_table)
         *(.gnu.linkonce.r.*)
+        KEEP(*(.psram_boot_text))
         . = ALIGN(4);
         _etext = ABSOLUTE(.);
     } > FLASH

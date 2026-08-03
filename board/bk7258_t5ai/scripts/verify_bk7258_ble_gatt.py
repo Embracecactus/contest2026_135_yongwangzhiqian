@@ -425,7 +425,12 @@ def verify_source(board: Path) -> dict[str, object]:
 
 
 def verify_elf(
-    ap_elf: Path, cp_elf: Path, ap_map: Path, nm: str
+    ap_elf: Path,
+    cp_elf: Path,
+    ap_map: Path,
+    nm: str,
+    expected_device_name: str,
+    expected_local_name: str,
 ) -> dict[str, object]:
     ap_symbols = parse_symbols(nm, ap_elf)
     missing = sorted(REQUIRED_AP_SYMBOLS - ap_symbols)
@@ -456,7 +461,11 @@ def verify_elf(
         raise VerificationError("N13 AP map does not contain bk7258_ble_gatt.o")
 
     elf_bytes = ap_elf.read_bytes()
-    for value in (b"BK7258 N13", b"BK7258-N13", b"bk7258-ble-gatt"):
+    for value in (
+        expected_device_name.encode(),
+        expected_local_name.encode(),
+        b"bk7258-ble-gatt",
+    ):
         if value not in elf_bytes:
             raise VerificationError(
                 f"N13 AP ELF is missing string payload {value!r}"
@@ -478,6 +487,8 @@ def verify_elf(
         "uuid_wire_occurrences": wire_occurrences,
         "cp_gatt_symbols": leaked,
         "cp_timing_symbols": sorted(REQUIRED_CP_TIMING_SYMBOLS),
+        "expected_device_name": expected_device_name,
+        "expected_local_name": expected_local_name,
     }
 
 
@@ -488,13 +499,22 @@ def main() -> int:
     parser.add_argument("--ap-map", required=True, type=Path)
     parser.add_argument("--json", type=Path)
     parser.add_argument("--nm", default="arm-none-eabi-nm")
+    parser.add_argument("--expected-device-name", default="BK7258 N13")
+    parser.add_argument("--expected-local-name", default="BK7258-N13")
     args = parser.parse_args()
 
     board = Path(__file__).resolve().parent.parent
     result = {
         "format": 1,
         "source": verify_source(board),
-        "elf": verify_elf(args.ap_elf, args.cp_elf, args.ap_map, args.nm),
+        "elf": verify_elf(
+            args.ap_elf,
+            args.cp_elf,
+            args.ap_map,
+            args.nm,
+            args.expected_device_name,
+            args.expected_local_name,
+        ),
     }
 
     if args.json is not None:

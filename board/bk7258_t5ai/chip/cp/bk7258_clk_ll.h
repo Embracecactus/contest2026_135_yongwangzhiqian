@@ -38,6 +38,8 @@
 #define BK7258_SYS_BASE            0x44010000u
 #define BK7258_ANA_SPI_STATE       (BK7258_SYS_BASE + 0x00e8u)
 #define BK7258_CPU0_HALT_CLK_OP    (BK7258_SYS_BASE + 0x0010u)
+#define BK7258_CPU1_HALT_CLK_OP    (BK7258_SYS_BASE + 0x0014u)
+#define BK7258_CPU2_HALT_CLK_OP    (BK7258_SYS_BASE + 0x0018u)
 #define BK7258_CPU_CLK_DIV_MODE1   (BK7258_SYS_BASE + 0x0020u)  /* M1 */
 #define BK7258_ANA_REG0            (BK7258_SYS_BASE + 0x0100u)
 #define BK7258_ANA_REG5            (BK7258_SYS_BASE + 0x0114u)
@@ -48,9 +50,10 @@
 #define BK7258_M1_CKSEL_MASK       (0x3u << 4)         /* cksel_core [5:4] */
 #define BK7258_M1_CKSEL_SHIFT      4
 
-/* CPU0_INT_HALT_CLK_OP: cpu0_speed [4] (1 = /2 of the core clock for CPU0;
- * SysTick is on the CPU0 processor clock). */
-#define BK7258_CPU0_SPEED_BIT      (1u << 4)
+/* CPU0_INT_HALT_CLK_OP: cpu0_speed [4] (0 = /2, 1 = /1 of the core clock
+ * for CPU0; SysTick is on the CPU0 processor clock).  This follows the
+ * latest SDK's sys_hal_core_bus_clock_ctrl() operating-point table. */
+#define BK7258_CPU_SPEED_BIT       (1u << 4)
 
 /* ANA_REG5: EN_DPLL [5]. */
 #define BK7258_ANA5_EN_DPLL        (1u << 5)
@@ -67,14 +70,10 @@
  * ANA_REG5 -> 5, ANA_REG9 -> 9). */
 #define BK7258_ANA_SPI_BUSY(idx)   (1u << (idx))
 
-/* Settle delay after a VDDD/VDDIG change.  The SDK sits at the
- * SYS_SWITCH_VDDDIG_VOL_DELAY_TIME constant (~10 us for "cpu0 max freq
- * 240m").  We approximate with a bus-independent busy loop; this low-level
- * helper is shared by early boot (CPU ~26 MHz) and post-boot DVFS, so the
- * iteration count below is a conservative lower bound that covers the SDK's
- * 10 us even at the slowest relevant path. */
-#define BK7258_CLK_DELAY_ITERS_PER_US  32u
-#define BK7258_VDD_SETTLE_US          10u
+/* Exact latest-SDK SYS_SWITCH_VDDDIG_VOL_DELAY_TIME loop count.  The SDK's
+ * sys_hal_delay() is a volatile decrement loop and documents 2600 iterations
+ * as about 10 us at the highest CPU0 operating point. */
+#define BK7258_VDD_SETTLE_ITERS       2600u
 
 /* Raw MMIO. */
 #define BK7258_REG(a)               (*(volatile uint32_t *)(uintptr_t)(a))
@@ -99,12 +98,10 @@ static inline void bk7258_ana_wait(unsigned idx)
  * relevant path (26 MHz cold residue); at higher post-switch clocks the
  * same count is a longer real wait, which is safe (it is a conservative
  * minimum settle). */
-static inline void bk7258_clk_sleep_us(uint32_t us)
+static inline void bk7258_clk_delay(volatile uint32_t times)
 {
-  uint32_t iters = us * BK7258_CLK_DELAY_ITERS_PER_US;
-  while (iters-- != 0)
+  while (times-- != 0)
     {
-      (void)BK7258_REG(BK7258_ANA_SPI_STATE);
     }
 }
 

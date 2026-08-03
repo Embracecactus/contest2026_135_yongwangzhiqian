@@ -11,7 +11,7 @@ TOPDIR="${WORKSPACE}/nuttx"
 BUILD="${WORKSPACE}/build.sh"
 CP_CONFIG_NAME="${CP_CONFIG_NAME:-cp_nsh}"
 case "${CP_CONFIG_NAME}" in
-    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt)
+    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram)
         ;;
     *)
         printf 'build_dual_image: unsupported CP_CONFIG_NAME=%s\n' \
@@ -22,7 +22,7 @@ esac
 CP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${CP_CONFIG_NAME}"
 AP_CONFIG_NAME="${AP_CONFIG_NAME:-ap_smp}"
 case "${AP_CONFIG_NAME}" in
-    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt)
+    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram)
         ;;
     *)
         printf 'build_dual_image: unsupported AP_CONFIG_NAME=%s\n' \
@@ -60,6 +60,17 @@ if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
           "${AP_CONFIG_NAME}" != "ap_smp_ble_gatt" ]]; then
         printf '%s\n' \
             'build_dual_image: N13 BLE GATT configs must be selected as a pair' \
+            >&2
+        exit 2
+    fi
+fi
+
+if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
+      "${AP_CONFIG_NAME}" == "ap_smp_psram" ]]; then
+    if [[ "${CP_CONFIG_NAME}" != "cp_nsh_psram" ||
+          "${AP_CONFIG_NAME}" != "ap_smp_psram" ]]; then
+        printf '%s\n' \
+            'build_dual_image: N14 PSRAM configs must be selected as a pair' \
             >&2
         exit 2
     fi
@@ -207,7 +218,8 @@ cp "${OUTPUT}/bk7258-dual-image.json" "${TOPDIR}/"
 
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_btipc" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ]]; then
+      "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
     python3 "${SCRIPT_DIR}/verify_bk7258_rptun_layout.py" \
         --cp-elf "${OUTPUT}/nuttx-cp.elf" \
         --cp-map "${OUTPUT}/nuttx-cp.map" \
@@ -216,12 +228,45 @@ if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
         --json "${OUTPUT}/bk7258-rptun-layout.json"
 fi
 
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ]]; then
+if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
+    BLE_VERIFY_IDENTITY_ARGS=()
+    if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
+        BLE_VERIFY_IDENTITY_ARGS+=(
+            --expected-device-name "BK7258 N14"
+            --expected-local-name "BK7258-N14"
+        )
+    fi
+
     python3 "${SCRIPT_DIR}/verify_bk7258_ble_gatt.py" \
         --cp-elf "${OUTPUT}/nuttx-cp.elf" \
         --ap-elf "${OUTPUT}/nuttx-ap.elf" \
         --ap-map "${OUTPUT}/nuttx-ap.map" \
-        --json "${OUTPUT}/bk7258-ble-gatt.json"
+        --json "${OUTPUT}/bk7258-ble-gatt.json" \
+        "${BLE_VERIFY_IDENTITY_ARGS[@]}"
+fi
+
+if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
+    PSRAM_VERIFY_ARGS=(
+        --cp-elf "${OUTPUT}/nuttx-cp.elf"
+        --cp-map "${OUTPUT}/nuttx-cp.map"
+        --ap-elf "${OUTPUT}/nuttx-ap.elf"
+        --ap-map "${OUTPUT}/nuttx-ap.map"
+        --expected-bundle "${BK7258_SDK_BUNDLE_VERSION}"
+        --json "${OUTPUT}/bk7258-psram.json"
+    )
+
+    # Source verification is deliberately opt-in because the immutable SDK
+    # bundle is sufficient to build, while the matching full SDK source tree
+    # normally lives outside this repository.  CI and local acceptance can
+    # add BK7258_SDK_SOURCE without embedding a developer-specific path.
+
+    if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+        PSRAM_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+    fi
+
+    python3 "${SCRIPT_DIR}/verify_bk7258_psram.py" \
+        "${PSRAM_VERIFY_ARGS[@]}"
 fi
 
 verify_equal()

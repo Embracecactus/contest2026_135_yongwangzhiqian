@@ -29,10 +29,25 @@
 | **N10** | AP SMP liveness / RPMsg health supervision | **LATEST VERIFIED：`board-verified`（检测与人工恢复基线，2026-08-01）**；三路健康信号、双向 vring activity、三类独立注入与旧链路 fail-closed 全部实板通过；manual recovery 连续推进到 generation=5，恢复后两轮无注入 full suite 12/12 PASS；自动恢复默认关闭，仍是独立可选门禁 | [N10 worklog](nuttx-port/prompts/10-n10-ap-supervision.md) |
 | **N11** | AP access to CP LittleFS through RPMsgFS | **LATEST VERIFIED：`board-verified`（受限 stock RPMsgFS worker 基线，2026-08-02）**；四档文件测试各 20/20、RPMsg 6×100、syslog、LittleFS local probe、故障态 bounded fail-closed 与 generation 1→2 manual recovery 全部通过；在途 stock POSIX 调用仍由 AP restart 回收 | [N11 worklog](nuttx-port/prompts/11-n11-rpmsgfs.md) |
 | **N12** | official Beken Bluetooth IPC + AP NuttX HCI wrapper | **LATEST VERIFIED：`board-verified`（2026-08-02）**；CP official controller-only BLE、AP stock NuttX Host、HCI info、SDK-equivalent MAC 持久化、UART lifecycle self-heal、RPMsg/RPMsgFS/SMP 共存以及 Windows legacy advertiser 的真实 RF report 均实板通过 | [N12 worklog](nuttx-port/n12-beken-bt-ipc-wrapper.md) |
-| **N13** | BLE GAP/GATT Peripheral end-to-end | **LATEST VERIFIED：`board-verified`（2026-08-03）**；四类negative、20/20 uncached重连、BLE 100帧与RPMsg六场景×100/RPMsgFS四档×20主动并发、3/3 cold、最终`25/25/25`与connection ref=0全部闭环 | [N13 completion](nuttx-port/prompts/13-n13-ble-gap-gatt.md) / [source verification](nuttx-port/n13-ble-gap-gatt-source-verification.md) / [evidence](nuttx-port/n13-evidence-index.md) |
+| **N13** | BLE GAP/GATT Peripheral end-to-end | `board-verified`（2026-08-03）；四类negative、20/20 uncached重连、BLE 100帧与RPMsg六场景×100/RPMsgFS四档×20主动并发、3/3 cold、最终`25/25/25`与connection ref=0全部闭环 | [N13 completion](nuttx-port/prompts/13-n13-ble-gap-gatt.md) / [source verification](nuttx-port/n13-ble-gap-gatt-source-verification.md) / [evidence](nuttx-port/n13-evidence-index.md) |
+| **N14** | 16 MiB PSRAM + SDK software-timer wrapper | **LATEST VERIFIED：`board-verified`（2026-08-03）**；CP official PM owner、全容量boot gate、CP/AP private heap、AP CPU0/CPU1 allocator 16/16、timer 256、warm cycle10、physical cold/factory及RPMsg/Bluetooth回归全部闭环 | [N14 completion](nuttx-port/prompts/14-n14-psram.md) / [source verification](nuttx-port/n14-psram-source-verification.md) / [evidence](nuttx-port/n14-evidence-index.md) |
 
 ## 当前 handoff
 
+> **N14 completed / board-verified（2026-08-03）：**T5-AI实板PSRAM为APS128XXO，
+> `id=0x8d08/config=0x8d1a/capacity=16777216`。CP在official PHY/RF首次校准leaf之后、AP
+> release之前调用official `bk_pm_module_vote_psram_ctrl(AS_MEM=10, ON=0)`并执行一次全容量
+> destructive boot gate；AP不初始化PSRAM硬件。首版保留official低8 MiB ABI：CP heap 128 KiB、
+> AP heap 640 KiB、AP section 256 KiB保留；upper 8 MiB只boot-tested/reserved。heap control和
+> allocator outer spinlock均在内部SRAM，realloc为bounded allocate-copy-free；AP CPU0/CPU1各
+> 16轮全部完成、free稳定。SDK timer callback由`bk-sdk-timer` task执行，queued self-delete
+> final-free已在256轮门禁中通过。AP cycle10、RPMsg六场景×100、Bluetooth info、physical
+> RESET 3/3、final clean cold、factory首次校准及post-calibration cold全部PASS。official
+> NuttX/apps/SDK source和SDK static libraries零改动。下一MAIN Stage尚未批准。详见
+> [N14 completion](nuttx-port/prompts/14-n14-psram.md)、
+> [source verification](nuttx-port/n14-psram-source-verification.md)和
+> [evidence index](nuttx-port/n14-evidence-index.md)。
+>
 > **N13 completed / board-verified（2026-08-03）：**AP stock NuttX Host仍是唯一Host owner，
 > CP运行official v3.1.1.9 Controller；官方NuttX/SDK源码和静态库均未修改。最终根因是stock
 > inbound ACL connection reference未释放，旧镜像`ref=19 == HOST conn_rx=19`；board link wrapper
@@ -140,18 +155,22 @@
 
 > **N8-D1 closure（2026-07-30）：**`ap_smp_lifecycle` normal autostart 在真实 T5-AI 一次闭环。AP `READY/error=0`、heartbeat=`727`；CPU2 `SCHEDULER_ONLINE/error=0`、online=`0x3`。BLCY `PASSED/error=0`、requested/completed=`1/1`；callback entry/exit CPU=`1/1`、started/completed=`1/1`、quiesce/resume sequence=`1/1`、value=`0/-138`（该 NuttX 配置的 `-ENOTSUP`）、aux=`1/1`。隔离窗口 CPU0→CPU1 `10→11`=`+1`、CPU1→CPU0 `1→1`=`+0`、calls `11→12`=`+1`；handler CPU0=`1/1`、CPU1=`11/11`，coalesced/fail/stale/spurious=0。CPU0 SysTick=`8090`、sleep enter/return=`727/726` 证明 gate 后持续运行。CPU1 全程保持 online=`0x3`，没有 CPU2 reset/power transition；这是 bounded scheduler quiesce/resume foundation，不是 CPU hot-unplug。
 
-- **Current Stage：**无；N13 BLE GAP/GATT Peripheral已完成并`board-verified`。下一MAIN Stage
-  尚未由用户批准，不应自动把PSRAM、Wi-Fi、security或Bluetooth warm restart纳入范围。
+- **Current Stage：**无；N14 PSRAM + SDK timer wrapper已完成并`board-verified`。下一MAIN Stage
+  尚未由用户批准，不应自动把OTA、Wi-Fi、security、upper-8 runtime allocator或Bluetooth
+  warm restart纳入范围。
 - **Authorized implementation set：**N8-C5..N8-D1 与 N9-R..N9-V 全部完成并实板
   闭环；N10 wrapper、重复满载、warm restart、primary/secondary/RPMsg 三类注入、
   fail-closed、三次人工恢复与 generation=5 无注入重复 full suite 均已实板通过；N11
   stock RPMsgFS wrapper、exclusive-state 内存修复、故障态 bounded wait 与 generation
-  recovery 也已实板通过。
-- **Latest board-verified baseline：**N13 `cp_nsh_ble_gatt + ap_smp_ble_gatt` generation=1：
-  四类negative、20/20 uncached重连、BLE 100帧与RPMsg/RPMsgFS主动并发、最终
-  `READY/CONNECTED/HEALTHY`、CPU2 online、Host/HCI/N13=`25/25/25`、ref=0（2026-08-03）。
-- **Latest worklog：**[`nuttx-port/prompts/13-n13-ble-gap-gatt.md`](nuttx-port/prompts/13-n13-ble-gap-gatt.md)
-- **Source verification：**[`nuttx-port/n13-ble-gap-gatt-source-verification.md`](nuttx-port/n13-ble-gap-gatt-source-verification.md)；
+  recovery 也已实板通过；N12/N13 Bluetooth与N14 PSRAM/timer全套wrapper均已完成。
+- **Latest board-verified baseline：**N14 `cp_nsh_psram + ap_smp_psram` generation=1：16 MiB
+  raw `1/1`、CP heap 128 KiB、AP heap 640 KiB、AP CPU0/CPU1 `16/16`、error0/free稳定，
+  `READY/CONNECTED/HEALTHY`、CPU2 online；另有generation12 warm restart复验、physical
+  cold/factory first-calibration closure（2026-08-03）。
+- **Latest worklog：**[`nuttx-port/prompts/14-n14-psram.md`](nuttx-port/prompts/14-n14-psram.md)
+- **Source verification：**[`nuttx-port/n14-psram-source-verification.md`](nuttx-port/n14-psram-source-verification.md)；
+  最终证据见 [`nuttx-port/n14-evidence-index.md`](nuttx-port/n14-evidence-index.md)；N13 BLE复核见
+  [`nuttx-port/n13-ble-gap-gatt-source-verification.md`](nuttx-port/n13-ble-gap-gatt-source-verification.md)；
   N9 transport复核见 [`nuttx-port/n9-rptun-source-verification.md`](nuttx-port/n9-rptun-source-verification.md)；
   N8 closure 见 [`nuttx-port/n8-cold-reset-resolution-report.md`](nuttx-port/n8-cold-reset-resolution-report.md)；
   新手说明见 [`nuttx-port/cold-reset-smp-repair-guide.md`](nuttx-port/cold-reset-smp-repair-guide.md)；

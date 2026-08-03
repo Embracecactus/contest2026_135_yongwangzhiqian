@@ -13,6 +13,13 @@ if(CONFIG_BK7258_SDK_IRQ_TIMER_TEST)
     STACKSIZE 2048)
 endif()
 
+if(CONFIG_BK7258_SDK_TIMER_SELFTEST)
+  nuttx_add_application(
+    NAME bktimertest
+    SRCS bk7258_sdk_timer_selftest_main.c
+    STACKSIZE 2048)
+endif()
+
 if(CONFIG_BK7258_GPIO_FOUNDATION_TEST)
   nuttx_add_application(
     NAME bkgpioc0
@@ -52,5 +59,12 @@ if(CONFIG_BK7258_BT_IPC_TEST AND NOT CONFIG_BK7258_AP_CORE)
   nuttx_add_application(
     NAME bkbttest
     SRCS bk7258_bt_test_main.c
+    STACKSIZE 3072)
+endif()
+
+if(CONFIG_BK7258_PSRAM_TEST AND NOT CONFIG_BK7258_AP_CORE)
+  nuttx_add_application(
+    NAME bkpsramtest
+    SRCS bk7258_psram_test_main.c
     STACKSIZE 3072)
 endif()

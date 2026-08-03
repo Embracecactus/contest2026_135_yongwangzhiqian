@@ -18,6 +18,13 @@ STACKSIZE += 2048
 MAINSRC   += bk7258_sdk_irq_test_main.c
 endif
 
+ifeq ($(CONFIG_BK7258_SDK_TIMER_SELFTEST),y)
+PROGNAME  += bktimertest
+PRIORITY  += SCHED_PRIORITY_DEFAULT
+STACKSIZE += 2048
+MAINSRC   += bk7258_sdk_timer_selftest_main.c
+endif
+
 ifeq ($(CONFIG_BK7258_GPIO_FOUNDATION_TEST),y)
 PROGNAME  += bkgpioc0
 PRIORITY  += SCHED_PRIORITY_DEFAULT
@@ -63,6 +70,15 @@ PROGNAME  += bkbttest
 PRIORITY  += SCHED_PRIORITY_DEFAULT
 STACKSIZE += 3072
 MAINSRC   += bk7258_bt_test_main.c
+endif
+endif
+
+ifeq ($(CONFIG_BK7258_PSRAM_TEST),y)
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+PROGNAME  += bkpsramtest
+PRIORITY  += SCHED_PRIORITY_DEFAULT
+STACKSIZE += 3072
+MAINSRC   += bk7258_psram_test_main.c
 endif
 endif
 

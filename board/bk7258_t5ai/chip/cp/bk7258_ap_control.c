@@ -24,6 +24,10 @@
 
 #include <arch/chip/bk7258_amp.h>
 
+#ifdef CONFIG_BK7258_PSRAM
+#  include <arch/chip/bk7258_psram.h>
+#endif
+
 #ifdef CONFIG_BK7258_RPTUN_MBOX
 #  include <arch/chip/bk7258_rptun.h>
 #  include "bk7258_rptun_mbox.h"
@@ -38,6 +42,11 @@
 
 /* These routines are provided by the pinned Beken CP SDK archives. */
 
+#define BK7258_SDK_PM_POWER_MODULE_CPU1 17u
+#define BK7258_SDK_PM_POWER_ON          0u
+
+extern int bk_pm_module_vote_power_ctrl(unsigned int module,
+                                        unsigned int power_state);
 extern void sys_drv_set_cpu1_pwr_dw(uint32_t is_pwr_down);
 extern void sys_drv_set_cpu1_rxevt_sel(uint32_t value);
 extern void sys_drv_set_cpu1_boot_address_offset(uint32_t address_offset);
@@ -380,6 +389,18 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
   int ret;
 
+#ifdef CONFIG_BK7258_PSRAM
+  /* AP is a direct-memory consumer, never a PSRAM hardware owner.  Refuse
+   * manual as well as automatic release unless the CP driver and heap gate
+   * completed successfully for this SoC boot.
+   */
+
+  if (!bk7258_psram_ready())
+    {
+      return -ENODEV;
+    }
+#endif
+
   if (state->magic == BK7258_AP_BOOT_STATE_MAGIC &&
       (state->state == BK7258_AP_STATE_READY ||
        state->state == BK7258_AP_STATE_STARTING))
@@ -428,7 +449,16 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
    * above is an intentional cold-start normalization step: unlike the SDK's
    * one-shot boot path, this controller must also survive downloader reset
    * residue and repeated AP restart attempts with private caches populated.
+   * The official PM vote is not equivalent to pwr_dw=0: it also clears the
+   * CPU1 halt bit, restores its clock, and waits for that clock to settle.
    */
+
+  ret = bk_pm_module_vote_power_ctrl(BK7258_SDK_PM_POWER_MODULE_CPU1,
+                                     BK7258_SDK_PM_POWER_ON);
+  if (ret != 0)
+    {
+      return -EIO;
+    }
 
   sys_drv_set_cpu1_pwr_dw(0);
   sys_drv_set_cpu1_rxevt_sel(1);

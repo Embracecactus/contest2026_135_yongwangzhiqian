@@ -1,0 +1,5 @@
+bktimertest 256
+BTMR BEGIN iterations=256 period_ms=5 caller_pid=12
+BTMR PASS iterations=256 callbacks=256 service_pid=13 cpu=0 isr=0 handle=0 long_callback_us=20000 queued_delete=1
+nsh> [K
+nsh> [K

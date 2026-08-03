@@ -24,11 +24,16 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <string.h>
+#include <syslog.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <debug.h>
 #include <nuttx/board.h>
+
+#ifdef CONFIG_BK7258_PSRAM
+#include <arch/chip/bk7258_psram.h>
+#endif
 
 #ifdef CONFIG_BK7258_AP_CONTROL
 #include <arch/chip/bk7258_amp.h>
@@ -158,9 +163,8 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
 int board_app_initialize(uintptr_t arg)
 {
 #ifdef CONFIG_BK7258_AP_CONTROL
-  int apret;
+  int apret = bk7258_ap_control_initialize();
 
-  apret = bk7258_ap_control_initialize();
   if (apret < 0)
     {
       _err("bk7258: AP control init failed: %d\n", apret);
@@ -178,6 +182,57 @@ int board_app_initialize(uintptr_t arg)
     }
 
 #endif
+#endif
+
+#ifdef CONFIG_BK7258_PSRAM
+  struct bk7258_psram_info_s psram;
+  int psramret;
+
+  /* Match the official CP startup order: finish the PHY/RF calibration and
+   * Bluetooth IPC leaf sequence before PSRAM is powered and configured.
+   * CP remains the sole PSRAM hardware owner, and AP is still held in reset
+   * until this destructive gate and the CP-local heap are both complete.
+   *
+   * In particular, do not move this back to __start().  A factory image
+   * takes the long first-calibration path, whose final analog programming is
+   * allowed to precede PSRAM initialization in the immutable SDK.
+   */
+
+  psramret = bk7258_psram_initialize();
+  (void)bk7258_psram_get_info(&psram);
+  if (psramret < 0)
+    {
+      syslog(LOG_ERR,
+             "BPSR BOOT FAIL status=%d id=%04lx config=%04lx fail=%08lx expected=%08lx actual=%08lx\n",
+             psramret, (unsigned long)psram.chip_id,
+             (unsigned long)psram.config_value,
+             (unsigned long)psram.boot_test_fail_address,
+             (unsigned long)psram.boot_test_expected,
+             (unsigned long)psram.boot_test_actual);
+    }
+  else
+    {
+      syslog(LOG_INFO,
+             "BPSR BOOT PASS id=%04lx config=%04lx capacity=%lu heap=%08lx+%lu raw=%lu/%lu mpu=%lu\n",
+             (unsigned long)psram.chip_id,
+             (unsigned long)psram.config_value,
+             (unsigned long)psram.capacity,
+             (unsigned long)psram.heap_base,
+             (unsigned long)psram.heap_size,
+             (unsigned long)psram.boot_test_passes,
+             (unsigned long)psram.boot_test_runs,
+             (unsigned long)psram.mpu_valid);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_AP_CONTROL
+#ifdef CONFIG_BK7258_PSRAM
+  if (apret >= 0 && psramret < 0)
+    {
+      apret = psramret;
+    }
+#endif
+
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
   if (apret >= 0)
     {

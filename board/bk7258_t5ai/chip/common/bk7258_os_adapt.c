@@ -35,6 +35,7 @@
  ****************************************************************************/
 
 #include <inttypes.h>
+#include <errno.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -43,6 +44,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <pthread.h>
+#include <sched.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <clock/clock.h>
@@ -54,6 +56,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/mqueue.h>
 #include <nuttx/mutex.h>
+#include <nuttx/queue.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/kthread.h>
 #include <nuttx/wdog.h>
@@ -63,6 +66,10 @@
 #include <nuttx/arch.h>
 #include <nuttx/init.h>
 #include <nuttx/tls.h>
+
+#ifdef CONFIG_BK7258_PSRAM
+#  include <arch/chip/bk7258_psram.h>
+#endif
 
 #include "os/os.h"
 #include "os/mem.h"
@@ -108,6 +115,17 @@
 
 #define BEKEN_WAIT_FOREVER  (0xFFFFFFFF)
 
+/* The official FreeRTOS port dispatches software-timer callbacks from its
+ * highest-priority timer daemon task, never from the tick ISR.  Keep the same
+ * contract here: the watchdog only timestamps an expiry and a board-owned
+ * kthread invokes the SDK callback.  The 3072-byte stack matches Beken's
+ * configTIMER_TASK_STACK_DEPTH setting.
+ */
+
+#define BK7258_TIMER_SERVICE_NAME       "bk-sdk-timer"
+#define BK7258_TIMER_SERVICE_PRIORITY   (SCHED_PRIORITY_DEFAULT + 10)
+#define BK7258_TIMER_SERVICE_STACKSIZE  3072
+
 #ifndef CONFIG_BK7258_AP_CORE
 /* The official CP SDK profile prints on UART0, while this board's NuttX
  * console is UART1 (GPIO0/1).  Bluetooth uses bk_get_printf_port() to avoid
@@ -132,10 +150,17 @@
 
 struct timer_adpt
 {
-  struct wdog_s wdog;       /* NuttX watchdog handle */
-  bool          repeat;     /* True if periodic timer */
-  uint32_t      delay;      /* Timeout in ticks */
-  void          *priv;      /* Pointer back to beken_timer_t / beken2_timer_t */
+  sq_entry_t    queue;             /* Timer-service queue linkage */
+  struct wdog_s wdog;              /* NuttX watchdog handle */
+  bool          repeat;            /* True if periodic timer */
+  bool          enabled;           /* Logical SDK active state */
+  bool          queued;            /* Queued to timer service */
+  bool          deliver_pending;   /* Deliver the expired callback */
+  bool          callback_running;  /* SDK callback is executing */
+  bool          restart_pending;   /* Arm after queued/running callback */
+  bool          delete_pending;    /* Free only in timer-service context */
+  uint32_t      delay;             /* Timeout in ticks */
+  void          *priv;             /* beken_timer_t / beken2_timer_t */
 };
 
 /* Message queue adapter */
@@ -177,6 +202,10 @@ static volatile struct bk7258_os_sdk_lock_s
  ****************************************************************************/
 
 static volatile bool g_bk7258_sdk_printf_enabled = true;
+static sq_queue_t g_bk7258_timer_queue;
+static sem_t g_bk7258_timer_sem = SEM_INITIALIZER(0);
+static mutex_t g_bk7258_timer_init_lock = NXMUTEX_INITIALIZER;
+static pid_t g_bk7258_timer_service_pid = -1;
 
 /* The official BK7258 SMP SDK implements port_disable_interrupts_flag() with
  * PRIMASK (__get_PRIMASK() + __disable_irq()) and restores the saved PRIMASK
@@ -306,28 +335,272 @@ static inline bk_err_t beken_errno_trans(int ret)
   return BK_FAIL;
 }
 
-static void os_timer_callback(wdparm_t arg)
+/* All state and queue changes below are serialized with NuttX's scheduler
+ * critical section.  wd_timer() already holds that recursive lock while it
+ * invokes bk7258_timer_expiry(), which also makes the object lifetime safe
+ * on the AP SMP image.
+ */
+
+static void bk7258_timer_expiry(wdparm_t arg);
+
+static void bk7258_timer_queue_locked(struct timer_adpt *timer_apt,
+                                      bool deliver)
 {
-  struct timer_adpt *timer_apt = (struct timer_adpt *)arg;
-
-  if (timer_apt->repeat)
+  timer_apt->deliver_pending |= deliver;
+  if (!timer_apt->queued)
     {
-      beken_timer_t *timer = (beken_timer_t *)timer_apt->priv;
-      if (timer->function)
-        {
-          timer->function(timer->arg);
-        }
+      timer_apt->queued = true;
+      sq_addlast(&timer_apt->queue, &g_bk7258_timer_queue);
+      (void)nxsem_post(&g_bk7258_timer_sem);
+    }
+}
 
-      wd_start(&timer_apt->wdog, timer_apt->delay,
-               os_timer_callback, arg);
+static int bk7258_timer_start_locked(struct timer_adpt *timer_apt)
+{
+  int ret;
+
+  if (WDOG_ISACTIVE(&timer_apt->wdog))
+    {
+      (void)wd_cancel(&timer_apt->wdog);
+    }
+
+  ret = wd_start(&timer_apt->wdog, timer_apt->delay,
+                 bk7258_timer_expiry, (wdparm_t)timer_apt);
+  if (ret == OK)
+    {
+      timer_apt->restart_pending = false;
     }
   else
     {
-      beken2_timer_t *timer = (beken2_timer_t *)timer_apt->priv;
-      if (timer->function)
+      timer_apt->enabled = false;
+    }
+
+  return ret;
+}
+
+static void bk7258_timer_expiry(wdparm_t arg)
+{
+  struct timer_adpt *timer_apt = (struct timer_adpt *)arg;
+  irqstate_t flags;
+
+  flags = enter_critical_section();
+
+  if (!timer_apt->delete_pending && timer_apt->enabled)
+    {
+      /* A one-shot becomes inactive at expiry.  A periodic timer remains
+       * logically active and is rearmed by the service before its callback,
+       * matching the official FreeRTOS timer-daemon cadence.
+       */
+
+      if (!timer_apt->repeat)
         {
-          timer->function(timer->left_arg, timer->right_arg);
+          timer_apt->enabled = false;
         }
+
+      bk7258_timer_queue_locked(timer_apt, true);
+    }
+
+  leave_critical_section(flags);
+}
+
+static int bk7258_timer_service(int argc, char *argv[])
+{
+  (void)argc;
+  (void)argv;
+
+  for (;;)
+    {
+      struct timer_adpt *timer_apt;
+      timer_handler_t periodic = NULL;
+      timer_2handler_t oneshot = NULL;
+      void *arg = NULL;
+      void *left_arg = NULL;
+      void *right_arg = NULL;
+      sq_entry_t *entry;
+      irqstate_t flags;
+      bool deliver;
+      bool free_timer = false;
+
+      (void)nxsem_wait_uninterruptible(&g_bk7258_timer_sem);
+
+      flags = enter_critical_section();
+      entry = sq_remfirst(&g_bk7258_timer_queue);
+      if (entry == NULL)
+        {
+          leave_critical_section(flags);
+          continue;
+        }
+
+      /* queue is the first member of timer_adpt. */
+
+      timer_apt = (struct timer_adpt *)entry;
+      timer_apt->queued = false;
+
+      if (timer_apt->delete_pending)
+        {
+          free_timer = true;
+          deliver = false;
+        }
+      else
+        {
+          deliver = timer_apt->deliver_pending;
+          timer_apt->deliver_pending = false;
+
+          if (deliver)
+            {
+              timer_apt->callback_running = true;
+              if (timer_apt->repeat)
+                {
+                  beken_timer_t *timer = timer_apt->priv;
+
+                  periodic = timer->function;
+                  arg = timer->arg;
+
+                  if (timer_apt->enabled)
+                    {
+                      (void)bk7258_timer_start_locked(timer_apt);
+                    }
+                }
+              else
+                {
+                  beken2_timer_t *timer = timer_apt->priv;
+
+                  if (timer->beken_magic == BEKEN_MAGIC_WORD)
+                    {
+                      oneshot = timer->function;
+                      left_arg = timer->left_arg;
+                      right_arg = timer->right_arg;
+                    }
+                }
+            }
+          else if (timer_apt->enabled && timer_apt->restart_pending)
+            {
+              /* A stop/reload raced an expiry already queued to this
+               * service.  Suppress the stale callback and start the new
+               * period from the explicit reload operation.
+               */
+
+              (void)bk7258_timer_start_locked(timer_apt);
+            }
+        }
+
+      leave_critical_section(flags);
+
+      if (free_timer)
+        {
+          kmm_free(timer_apt);
+          continue;
+        }
+
+      if (periodic != NULL)
+        {
+          periodic(arg);
+        }
+      else if (oneshot != NULL)
+        {
+          oneshot(left_arg, right_arg);
+        }
+
+      if (deliver)
+        {
+          flags = enter_critical_section();
+          timer_apt->callback_running = false;
+
+          if (timer_apt->delete_pending)
+            {
+              /* A periodic timer can expire again while its callback runs.
+               * In that case the queued delete entry owns the final free;
+               * freeing here would leave a dangling timer-service node.
+               */
+
+              if (!timer_apt->queued)
+                {
+                  free_timer = true;
+                }
+            }
+          else if (timer_apt->enabled && timer_apt->restart_pending)
+            {
+              /* One-shot callbacks and periodic callbacks that explicitly
+               * reload/retime themselves defer the new arm until the old
+               * callback has returned.
+               */
+
+              (void)bk7258_timer_start_locked(timer_apt);
+            }
+
+          leave_critical_section(flags);
+
+          if (free_timer)
+            {
+              kmm_free(timer_apt);
+            }
+        }
+    }
+
+  return EXIT_SUCCESS;
+}
+
+static int bk7258_timer_service_initialize(void)
+{
+  int ret;
+  pid_t pid;
+
+  ret = nxmutex_lock(&g_bk7258_timer_init_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bk7258_timer_service_pid > 0)
+    {
+      nxmutex_unlock(&g_bk7258_timer_init_lock);
+      return OK;
+    }
+
+  pid = kthread_create(BK7258_TIMER_SERVICE_NAME,
+                       BK7258_TIMER_SERVICE_PRIORITY,
+                       BK7258_TIMER_SERVICE_STACKSIZE,
+                       bk7258_timer_service, NULL);
+  if (pid <= 0)
+    {
+      nxmutex_unlock(&g_bk7258_timer_init_lock);
+      return pid < 0 ? (int)pid : -ENOMEM;
+    }
+
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+  {
+    cpu_set_t cpuset = (cpu_set_t)1u;
+
+    /* The AP's SDK-facing services are owned by logical CPU0. */
+
+    ret = sched_setaffinity(pid, sizeof(cpuset), &cpuset);
+    if (ret < 0)
+      {
+        wlerr("WARN: Failed to pin SDK timer service: %d\n", ret);
+      }
+  }
+#endif
+
+  g_bk7258_timer_service_pid = pid;
+  nxmutex_unlock(&g_bk7258_timer_init_lock);
+  return OK;
+}
+
+static void bk7258_timer_delete_locked(struct timer_adpt *timer_apt)
+{
+  timer_apt->enabled = false;
+  timer_apt->deliver_pending = false;
+  timer_apt->restart_pending = false;
+  timer_apt->delete_pending = true;
+
+  if (WDOG_ISACTIVE(&timer_apt->wdog))
+    {
+      (void)wd_cancel(&timer_apt->wdog);
+    }
+
+  if (!timer_apt->queued && !timer_apt->callback_running)
+    {
+      bk7258_timer_queue_locked(timer_apt, false);
     }
 }
 
@@ -1126,16 +1399,28 @@ bk_err_t rtos_deinit_event_flags(beken_event_t *event_flags)
 bk_err_t rtos_init_timer(beken_timer_t *timer, uint32_t time_ms,
                          timer_handler_t function, void *arg)
 {
-  struct timer_adpt *timer_apt = NULL;
+  struct timer_adpt *timer_apt;
+  int ret;
 
-  timer_apt = kmm_malloc(sizeof(struct timer_adpt));
+  if (timer == NULL)
+    {
+      return BK_FAIL;
+    }
+
+  ret = bk7258_timer_service_initialize();
+  if (ret < 0)
+    {
+      wlerr("ERROR: Failed to create SDK timer service: %d\n", ret);
+      return BK_FAIL;
+    }
+
+  timer_apt = kmm_zalloc(sizeof(struct timer_adpt));
   if (!timer_apt)
     {
       wlerr("ERROR: Failed to malloc struct timer_adpt\n");
       return BK_FAIL;
     }
 
-  memset(timer_apt, 0x0, sizeof(struct timer_adpt));
   memset(timer, 0x0, sizeof(beken_timer_t));
 
   timer_apt->delay  = MSEC2TICK(time_ms);
@@ -1151,11 +1436,33 @@ bk_err_t rtos_init_timer(beken_timer_t *timer, uint32_t time_ms,
 
 bk_err_t rtos_start_timer(beken_timer_t *timer)
 {
-  int ret;
-  struct timer_adpt *timer_apt = (struct timer_adpt *)timer->handle;
+  struct timer_adpt *timer_apt;
+  irqstate_t flags;
+  int ret = -EINVAL;
 
-  ret = wd_start(&timer_apt->wdog, timer_apt->delay,
-                 os_timer_callback, (wdparm_t)timer_apt);
+  flags = enter_critical_section();
+  timer_apt = timer != NULL ? timer->handle : NULL;
+  if (timer_apt != NULL && !timer_apt->delete_pending)
+    {
+      timer_apt->enabled = true;
+      if (timer_apt->queued || timer_apt->callback_running)
+        {
+          if (WDOG_ISACTIVE(&timer_apt->wdog))
+            {
+              (void)wd_cancel(&timer_apt->wdog);
+            }
+
+          timer_apt->restart_pending = true;
+          ret = OK;
+        }
+      else
+        {
+          ret = bk7258_timer_start_locked(timer_apt);
+        }
+    }
+
+  leave_critical_section(flags);
+
   if (ret != OK)
     {
       wlerr("ERROR: Failed to start timer:%d\n", ret);
@@ -1166,69 +1473,117 @@ bk_err_t rtos_start_timer(beken_timer_t *timer)
 
 bk_err_t rtos_stop_timer(beken_timer_t *timer)
 {
-  int ret = OK;
   struct timer_adpt *timer_apt;
+  irqstate_t flags;
 
-  if (timer && timer->handle)
+  flags = enter_critical_section();
+  timer_apt = timer != NULL ? timer->handle : NULL;
+  if (timer_apt != NULL && !timer_apt->delete_pending)
     {
-      timer_apt = (struct timer_adpt *)timer->handle;
+      timer_apt->enabled = false;
+      timer_apt->deliver_pending = false;
+      timer_apt->restart_pending = false;
       if (WDOG_ISACTIVE(&timer_apt->wdog))
         {
-          ret = wd_cancel(&timer_apt->wdog);
-          if (ret != OK)
-            {
-              wlerr("WARN: Failed to cancel timer:%d\n", ret);
-            }
+          (void)wd_cancel(&timer_apt->wdog);
         }
     }
 
+  leave_critical_section(flags);
   return BK_OK;
 }
 
 bk_err_t rtos_reload_timer(beken_timer_t *timer)
 {
-  rtos_stop_timer(timer);
-  rtos_start_timer(timer);
+  bk_err_t ret;
 
-  return OK;
+  (void)rtos_stop_timer(timer);
+  ret = rtos_start_timer(timer);
+  return ret;
 }
 
 bk_err_t rtos_deinit_timer(beken_timer_t *timer)
 {
-  rtos_stop_timer(timer);
-  kmm_free(timer->handle);
+  struct timer_adpt *timer_apt;
+  irqstate_t flags;
 
-  return OK;
+  if (timer == NULL)
+    {
+      return BK_OK;
+    }
+
+  flags = enter_critical_section();
+  timer_apt = timer->handle;
+  if (timer_apt != NULL)
+    {
+      /* Detach first, exactly as the official wrapper does before it queues
+       * xTimerDelete().  The service owns the final free so self-deinit from
+       * a callback cannot reinsert or free a live NuttX watchdog node.
+       */
+
+      timer->handle = NULL;
+      bk7258_timer_delete_locked(timer_apt);
+    }
+
+  leave_critical_section(flags);
+
+  return BK_OK;
 }
 
 bool rtos_is_timer_init(beken_timer_t *timer)
 {
-  return (timer->handle) ? true : false;
+  irqstate_t flags;
+  bool initialized;
+
+  flags = enter_critical_section();
+  initialized = timer != NULL && timer->handle != NULL;
+  leave_critical_section(flags);
+  return initialized;
 }
 
 bool rtos_is_timer_running(beken_timer_t *timer)
 {
   struct timer_adpt *timer_apt;
+  irqstate_t flags;
+  bool running = false;
 
-  timer_apt = timer->handle;
+  flags = enter_critical_section();
+  timer_apt = timer != NULL ? timer->handle : NULL;
+  if (timer_apt != NULL && !timer_apt->delete_pending)
+    {
+      running = timer_apt->enabled;
+    }
 
-  return (wd_gettime(&timer_apt->wdog) > 0);
+  leave_critical_section(flags);
+  return running;
 }
 
 bk_err_t rtos_init_oneshot_timer(beken2_timer_t *timer, uint32_t time_ms,
                                  timer_2handler_t function,
                                  void *larg, void *rarg)
 {
-  struct timer_adpt *timer_apt = NULL;
+  struct timer_adpt *timer_apt;
+  int ret;
 
-  timer_apt = kmm_malloc(sizeof(struct timer_adpt));
+  if (timer == NULL)
+    {
+      return BK_FAIL;
+    }
+
+  ret = bk7258_timer_service_initialize();
+  if (ret < 0)
+    {
+      wlerr("ERROR: Failed to create SDK timer service: %d\n", ret);
+      return BK_FAIL;
+    }
+
+  timer_apt = kmm_zalloc(sizeof(struct timer_adpt));
   if (!timer_apt)
     {
       wlerr("ERROR: Failed to malloc struct timer_adpt\n");
       return BK_FAIL;
     }
 
-  memset(timer_apt, 0x0, sizeof(struct timer_adpt));
   memset(timer, 0x0, sizeof(beken2_timer_t));
 
   timer_apt->delay  = MSEC2TICK(time_ms);
@@ -1239,17 +1594,40 @@ bk_err_t rtos_init_oneshot_timer(beken2_timer_t *timer, uint32_t time_ms,
   timer->function = function;
   timer->left_arg = larg;
   timer->right_arg = rarg;
+  timer->beken_magic = BEKEN_MAGIC_WORD;
 
   return BK_OK;
 }
 
 bk_err_t rtos_start_oneshot_timer(beken2_timer_t *timer)
 {
-  int ret;
-  struct timer_adpt *timer_apt = (struct timer_adpt *)timer->handle;
+  struct timer_adpt *timer_apt;
+  irqstate_t flags;
+  int ret = -EINVAL;
 
-  ret = wd_start(&timer_apt->wdog, timer_apt->delay,
-                 os_timer_callback, (wdparm_t)timer_apt);
+  flags = enter_critical_section();
+  timer_apt = timer != NULL ? timer->handle : NULL;
+  if (timer_apt != NULL && !timer_apt->delete_pending)
+    {
+      timer_apt->enabled = true;
+      if (timer_apt->queued || timer_apt->callback_running)
+        {
+          if (WDOG_ISACTIVE(&timer_apt->wdog))
+            {
+              (void)wd_cancel(&timer_apt->wdog);
+            }
+
+          timer_apt->restart_pending = true;
+          ret = OK;
+        }
+      else
+        {
+          ret = bk7258_timer_start_locked(timer_apt);
+        }
+    }
+
+  leave_critical_section(flags);
+
   if (ret != OK)
     {
       wlerr("ERROR: Failed to start timer:%d\n", ret);
@@ -1260,42 +1638,50 @@ bk_err_t rtos_start_oneshot_timer(beken2_timer_t *timer)
 
 bk_err_t rtos_stop_oneshot_timer(beken2_timer_t *timer)
 {
-  int ret = OK;
   struct timer_adpt *timer_apt;
+  irqstate_t flags;
 
-  if (timer && timer->handle)
+  flags = enter_critical_section();
+  timer_apt = timer != NULL ? timer->handle : NULL;
+  if (timer_apt != NULL && !timer_apt->delete_pending)
     {
-      timer_apt = (struct timer_adpt *)timer->handle;
+      timer_apt->enabled = false;
+      timer_apt->deliver_pending = false;
+      timer_apt->restart_pending = false;
       if (WDOG_ISACTIVE(&timer_apt->wdog))
         {
-          ret = wd_cancel(&timer_apt->wdog);
-          if (ret != OK)
-            {
-              wlerr("WARN: Failed to stop one-shot timer:%d\n", ret);
-            }
+          (void)wd_cancel(&timer_apt->wdog);
         }
     }
 
+  leave_critical_section(flags);
   return BK_OK;
 }
 
 bk_err_t rtos_oneshot_reload_timer(beken2_timer_t *timer)
 {
-  rtos_stop_oneshot_timer(timer);
-  rtos_start_oneshot_timer(timer);
+  bk_err_t ret;
 
-  return OK;
+  (void)rtos_stop_oneshot_timer(timer);
+  ret = rtos_start_oneshot_timer(timer);
+  return ret;
 }
 
 bk_err_t rtos_change_period(beken_timer_t *timer, uint32_t time_ms)
 {
-  struct timer_adpt *timer_apt = (struct timer_adpt *)timer->handle;
+  struct timer_adpt *timer_apt;
+  irqstate_t flags;
 
-  rtos_stop_timer(timer);
-  timer_apt->delay = MSEC2TICK(time_ms);
-  rtos_start_timer(timer);
+  (void)rtos_stop_timer(timer);
+  flags = enter_critical_section();
+  timer_apt = timer != NULL ? timer->handle : NULL;
+  if (timer_apt != NULL)
+    {
+      timer_apt->delay = MSEC2TICK(time_ms);
+    }
 
-  return OK;
+  leave_critical_section(flags);
+  return timer_apt != NULL ? rtos_start_timer(timer) : BK_FAIL;
 }
 
 bk_err_t rtos_oneshot_reload_timer_ex(beken2_timer_t *timer,
@@ -1303,28 +1689,53 @@ bk_err_t rtos_oneshot_reload_timer_ex(beken2_timer_t *timer,
                                       timer_2handler_t function,
                                       void *larg, void *rarg)
 {
-  struct timer_adpt *timer_apt = (struct timer_adpt *)timer->handle;
+  struct timer_adpt *timer_apt;
+  irqstate_t flags;
 
-  rtos_stop_oneshot_timer(timer);
+  (void)rtos_stop_oneshot_timer(timer);
 
-  timer_apt->delay  = MSEC2TICK(time_ms);
-  timer_apt->priv   = timer;
-  timer_apt->repeat = false;
+  flags = enter_critical_section();
+  timer_apt = timer != NULL ? timer->handle : NULL;
+  if (timer_apt != NULL)
+    {
+      timer_apt->delay  = MSEC2TICK(time_ms);
+      timer_apt->priv   = timer;
+      timer_apt->repeat = false;
 
-  timer->handle   = timer_apt;
-  timer->function = function;
-  timer->left_arg = larg;
-  timer->right_arg = rarg;
+      timer->function = function;
+      timer->left_arg = larg;
+      timer->right_arg = rarg;
+      timer->beken_magic = BEKEN_MAGIC_WORD;
+    }
 
-  rtos_start_oneshot_timer(timer);
+  leave_critical_section(flags);
 
-  return OK;
+  return timer_apt != NULL ? rtos_start_oneshot_timer(timer) : BK_FAIL;
 }
 
 bk_err_t rtos_deinit_oneshot_timer(beken2_timer_t *timer)
 {
-  rtos_stop_oneshot_timer(timer);
-  kmm_free(timer->handle);
+  struct timer_adpt *timer_apt;
+  irqstate_t flags;
+
+  if (timer == NULL)
+    {
+      return BK_OK;
+    }
+
+  flags = enter_critical_section();
+  timer_apt = timer->handle;
+  if (timer_apt != NULL)
+    {
+      timer->handle = NULL;
+      timer->function = NULL;
+      timer->left_arg = NULL;
+      timer->right_arg = NULL;
+      timer->beken_magic = 0;
+      bk7258_timer_delete_locked(timer_apt);
+    }
+
+  leave_critical_section(flags);
 
   return BK_OK;
 }
@@ -1332,34 +1743,46 @@ bk_err_t rtos_deinit_oneshot_timer(beken2_timer_t *timer)
 bool rtos_is_oneshot_timer_running(beken2_timer_t *timer)
 {
   struct timer_adpt *timer_apt;
+  irqstate_t flags;
+  bool running = false;
 
-  if (!timer || !timer->handle)
+  flags = enter_critical_section();
+  timer_apt = timer != NULL ? timer->handle : NULL;
+  if (timer_apt != NULL && !timer_apt->delete_pending)
     {
-      return false;
+      running = timer_apt->enabled;
     }
 
-  timer_apt = timer->handle;
-
-  return (wd_gettime(&timer_apt->wdog) > 0);
+  leave_critical_section(flags);
+  return running;
 }
 
 bool rtos_is_oneshot_timer_init(beken2_timer_t *timer)
 {
-  return (timer && timer->handle) ? true : false;
+  irqstate_t flags;
+  bool initialized;
+
+  flags = enter_critical_section();
+  initialized = timer != NULL && timer->handle != NULL;
+  leave_critical_section(flags);
+  return initialized;
 }
 
 uint32_t rtos_get_timer_expiry_time(beken_timer_t *timer)
 {
   struct timer_adpt *timer_apt;
+  irqstate_t flags;
+  uint32_t remaining = 0;
 
-  if (!timer || !timer->handle)
+  flags = enter_critical_section();
+  timer_apt = timer != NULL ? timer->handle : NULL;
+  if (timer_apt != NULL && WDOG_ISACTIVE(&timer_apt->wdog))
     {
-      return 0;
+      remaining = (uint32_t)wd_gettime(&timer_apt->wdog);
     }
 
-  timer_apt = timer->handle;
-
-  return wd_gettime(&timer_apt->wdog);
+  leave_critical_section(flags);
+  return remaining;
 }
 
 /* Memory functions — provided here for NuttX (libbk_rtos.a excluded to
@@ -1378,6 +1801,22 @@ void *os_malloc(size_t size)
 
 void os_free(void *ptr)
 {
+#ifdef CONFIG_BK7258_PSRAM
+  if (bk7258_psram_address(ptr))
+    {
+      if (bk7258_psram_heap_contains(ptr))
+        {
+          bk7258_psram_free(ptr);
+        }
+      else
+        {
+          wlerr("ERROR: Refusing foreign PSRAM free %p\n", ptr);
+        }
+
+      return;
+    }
+#endif
+
   kmm_free(ptr);
 }
 
@@ -1403,17 +1842,46 @@ void *os_sram_zalloc(size_t size)
 
 void *os_realloc(void *ptr, size_t size)
 {
+#ifdef CONFIG_BK7258_PSRAM
+  if (bk7258_psram_address(ptr))
+    {
+      return bk7258_psram_realloc(ptr, size);
+    }
+#endif
+
   return kmm_realloc(ptr, size);
 }
 
 void *psram_malloc(size_t size)
 {
+#ifdef CONFIG_BK7258_PSRAM
+  return bk7258_psram_malloc(size);
+#else
   return kmm_malloc(size);
+#endif
 }
 
 void *psram_zalloc(size_t size)
 {
+#ifdef CONFIG_BK7258_PSRAM
+  return bk7258_psram_zalloc(size);
+#else
   return kmm_zalloc(size);
+#endif
+}
+
+void *psram_realloc(void *ptr, size_t size)
+{
+#ifdef CONFIG_BK7258_PSRAM
+  return bk7258_psram_realloc(ptr, size);
+#else
+  return kmm_realloc(ptr, size);
+#endif
+}
+
+void *bk_psram_realloc(void *ptr, size_t size)
+{
+  return psram_realloc(ptr, size);
 }
 
 void *os_malloc_debug(const char *func_name, int line, size_t size,
@@ -1440,7 +1908,7 @@ void *psram_malloc_debug(const char *func_name, int line, size_t size,
   (void)func_name;
   (void)line;
 
-  return need_zero ? kmm_zalloc(size) : kmm_malloc(size);
+  return need_zero ? psram_zalloc(size) : psram_malloc(size);
 }
 
 void *os_free_debug(const char *func_name, int line, void *ptr)
@@ -1448,7 +1916,7 @@ void *os_free_debug(const char *func_name, int line, void *ptr)
   (void)func_name;
   (void)line;
 
-  kmm_free(ptr);
+  os_free(ptr);
   return NULL;
 }
 
@@ -1467,7 +1935,11 @@ void *os_malloc_wifi_buffer(size_t size)
 
 uint32_t bk_psram_heap_get_used_count(void)
 {
+#ifdef CONFIG_BK7258_PSRAM
+  return (uint32_t)bk7258_psram_used_size();
+#else
   return 0;
+#endif
 }
 
 void bk_psram_heap_get_used_state(void)
@@ -1698,22 +2170,34 @@ size_t rtos_get_minimum_free_heap_size(void)
 
 size_t rtos_get_psram_total_heap_size(void)
 {
-  /* No PSRAM heap on this port */
-
+#ifdef CONFIG_BK7258_PSRAM
+  return bk7258_psram_total_size();
+#else
   return 0;
+#endif
 }
 
 size_t rtos_get_psram_free_heap_size(void)
 {
+#ifdef CONFIG_BK7258_PSRAM
+  return bk7258_psram_free_size();
+#else
   return 0;
+#endif
 }
 
 size_t rtos_get_psram_minimum_free_heap_size(void)
 {
+#ifdef CONFIG_BK7258_PSRAM
+  return bk7258_psram_minimum_free_size();
+#else
   return 0;
+#endif
 }
 
-/* bk_psram_heap_* provided by libos_source.a — do not define here */
+/* libos_source.a remains excluded; the N14 board heap supplies the SDK
+ * psram statistics ABI above.
+ */
 
 /****************************************************************************
  * Public Functions - Scheduler Lock (FreeRTOS vTaskSuspendAll equivalent)
@@ -1738,6 +2222,32 @@ int xTaskResumeAll(void)
  ****************************************************************************/
 
 void bk_printf_ext(int level, char *tag, const char *fmt, ...)
+{
+  va_list ap;
+
+  if (!g_bk7258_sdk_printf_enabled)
+    {
+      return;
+    }
+
+  (void)level;
+
+  if (tag)
+    {
+      syslog(LOG_INFO, "[%s] ", tag);
+    }
+
+  va_start(ap, fmt);
+  vsyslog(LOG_INFO, fmt, ap);
+  va_end(ap);
+}
+
+/* The official PSRAM driver uses the early/static logging entry point while
+ * it is bringing the controller up.  NuttX syslog is already synchronous,
+ * so its wrapper has the same behavior as bk_printf_ext().
+ */
+
+void bk_printf_static_block(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
