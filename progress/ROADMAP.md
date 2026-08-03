@@ -4,7 +4,7 @@ Last reviewed: 2026-08-03
 
 ## Now
 
-- N14 is complete and board-verified. Preserve the uncommitted checkpoint and obtain owner approval for commit/push scope.
+- N14 is complete, board-verified, and published to `fork/feat/bk7258-n14-psram`; owner PR review and merge remain pending.
 - Keep `progress/CURRENT.md` aligned with any commit, push, rollback, or new stage approval.
 
 ## Next
