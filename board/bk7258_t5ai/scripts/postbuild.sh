@@ -26,17 +26,19 @@ case "${ROLE}" in
         RAW_NAME="app.bin"
         CRC_NAME="app_crc.bin"
         XIP_BASE="0x02010000"
-        MAX_SIZE="0x000f0000"
+        # Official primary_cp_app: raw 0x11000..0x165000 maps to logical
+        # XIP 0x02010000..0x02150000.
+        MAX_SIZE="0x00140000"
         MAGIC_ARG="--require-magic"
         PHYSICAL_OFFSET="0x00011000"
         ;;
     ap)
         RAW_NAME="app1.bin"
         CRC_NAME="app1_crc.bin"
-        XIP_BASE="0x02200000"
-        MAX_SIZE="0x00200000"
+        XIP_BASE="0x02150000"
+        MAX_SIZE="0x00110000"
         MAGIC_ARG=""
-        PHYSICAL_OFFSET="0x00220000"
+        PHYSICAL_OFFSET="0x00165000"
         ;;
     *)
         printf 'postbuild.sh: ERROR: unknown role %s\n' "${ROLE}" >&2

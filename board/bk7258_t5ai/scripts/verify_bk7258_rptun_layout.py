@@ -457,12 +457,12 @@ def main() -> int:
         verify_sections(
             "CP",
             cp_sections,
-            [(0x02010000, 0x02100000), cp_ram_range],
+            [(0x02010000, 0x02150000), cp_ram_range],
         )
         verify_sections(
             "AP",
             ap_sections,
-            [(0x02200000, 0x02400000), spinlock_range, ap_ram_range],
+            [(0x02150000, 0x02260000), spinlock_range, ap_ram_range],
         )
 
         for role, map_path in (("CP", args.cp_map), ("AP", args.ap_map)):

@@ -42,12 +42,12 @@ Usage: $(basename "$0") [options]
 
 Actions:
   --build                 Build the selected CP_CONFIG_NAME/AP_CONFIG_NAME pair
-  --flash                 Download all-app-factory.bin using Windows bk_loader.exe
-  --sparse-flash          With --flash, update boot/CP/AP and preserve LittleFS
+  --flash                 Download through Windows bk_loader.exe
+  --sparse-flash          With --flash, update boot/CP/AP and preserve all data (recommended)
   --cold-capture          Capture COM11 and ask for a manual physical RESET; no download
   --rts-reset             Capture COM11, then pulse COM7 RTS (verified physical reset)
   --jlink-reset           Capture COM11, then try J-Link RSetType 2 (experimental)
-  --yes                   Skip the factory-image erase confirmation
+  --yes                   Skip the destructive factory-rewrite confirmation
 
 Options:
   --cp-config NAME        CP config (default: $CP_CONFIG_NAME)
@@ -61,10 +61,13 @@ Options:
   -h, --help              Show this help
 
 Examples:
-  # Build an explicit CP/AP profile, flash, and capture the warm path:
-  $(basename "$0") --build --flash --cp-config cp_nsh --ap-config ap_smp_bidir
+  # Build an explicit CP/AP profile, sparse-flash, and capture the warm path:
+  $(basename "$0") --build --flash --sparse-flash --cp-config cp_nsh --ap-config ap_smp_bidir
 
-  # Flash an already built image and capture:
+  # Sparse-flash an already built image and capture:
+  $(basename "$0") --flash --sparse-flash
+
+  # Destructive factory rewrite; only with fresh owner authorization:
   $(basename "$0") --flash
 
   # Capture a physical RESET performed manually after the prompt:
@@ -145,9 +148,20 @@ fi
 [[ -f "$FIRMWARE" ]] || { echo "ERROR: missing firmware $FIRMWARE" >&2; exit 1; }
 
 DUAL_DIR="$OPENVELA_ROOT/nuttx/bk7258-dual"
+MANIFEST="$DUAL_DIR/bk7258-dual-image.json"
 BOOT_IMAGE="$DUAL_DIR/bl_crc.bin"
 CP_IMAGE="$DUAL_DIR/app_crc_flash.bin"
 AP_IMAGE="$DUAL_DIR/app1_crc_flash.bin"
+LITTLEFS_CLEAR_IMAGE="$DUAL_DIR/littlefs_factory_clear.bin"
+if ((DO_FLASH)); then
+  [[ -f "$MANIFEST" ]] || { echo "ERROR: missing image manifest $MANIFEST" >&2; exit 1; }
+  grep -q '"layout_id": "bk7258-v3.1.1.9-contiguous-ab-v1"' "$MANIFEST" || {
+    echo "ERROR: image manifest is not the accepted ADR-004 layout" >&2
+    exit 1
+  }
+  python3 "$SCRIPT_DIR/verify_bk7258_ota_layout.py"
+  python3 "$SCRIPT_DIR/verify_bk7258_factory_layout.py" --package "$DUAL_DIR"
+fi
 if ((SPARSE_FLASH)); then
   for image in "$BOOT_IMAGE" "$CP_IMAGE" "$AP_IMAGE"; do
     [[ -f "$image" ]] || { echo "ERROR: missing sparse image $image" >&2; exit 1; }
@@ -157,9 +171,9 @@ if ((SPARSE_FLASH)); then
   CP_IMAGE_SIZE=$(stat -c %s "$CP_IMAGE")
   AP_IMAGE_SIZE=$(stat -c %s "$AP_IMAGE")
 
-  # Physical flash uses Beken's 34-byte-for-32-byte coding expansion:
-  # boot 0x000000..0x011000, CP 0x011000..0x110000,
-  # LittleFS 0x110000..0x220000, AP 0x220000..0x440000.
+  # ADR-004 uses the exact official v3.1.1.9 primary A boundaries:
+  # boot 0x000000..0x011000, CP 0x011000..0x165000,
+  # AP 0x165000..0x286000. LittleFS is raw 0x600000..0x700000.
   # Refuse malformed/oversized artifacts before bk_loader can erase across a
   # partition boundary.  This is the hard guarantee behind "preserve
   # LittleFS", independent of the build script's own size checks.
@@ -168,12 +182,27 @@ if ((SPARSE_FLASH)); then
     echo "ERROR: sparse boot image length $BOOT_IMAGE_SIZE exceeds 0x11000" >&2
     exit 1
   }
-  ((CP_IMAGE_SIZE > 0 && 0x11000 + CP_IMAGE_SIZE <= 0x110000)) || {
-    echo "ERROR: sparse CP image length $CP_IMAGE_SIZE crosses LittleFS at 0x110000" >&2
+  ((CP_IMAGE_SIZE > 0 && 0x11000 + CP_IMAGE_SIZE <= 0x165000)) || {
+    echo "ERROR: sparse CP image length $CP_IMAGE_SIZE exceeds primary_cp_app" >&2
     exit 1
   }
-  ((AP_IMAGE_SIZE > 0 && 0x220000 + AP_IMAGE_SIZE <= 0x440000)) || {
-    echo "ERROR: sparse AP image length $AP_IMAGE_SIZE exceeds its partition" >&2
+  ((AP_IMAGE_SIZE > 0 && 0x165000 + AP_IMAGE_SIZE <= 0x286000)) || {
+    echo "ERROR: sparse AP image length $AP_IMAGE_SIZE exceeds primary_ap_app" >&2
+    exit 1
+  }
+elif ((DO_FLASH)); then
+  [[ $(readlink -f "$FIRMWARE") == $(readlink -f "$DUAL_DIR/all-app-factory.bin") ]] || {
+    echo "ERROR: destructive factory rewrite requires the verified packaged prefix" >&2
+    exit 1
+  }
+  [[ -f "$LITTLEFS_CLEAR_IMAGE" ]] || {
+    echo "ERROR: missing LittleFS factory-clear segment $LITTLEFS_CLEAR_IMAGE" >&2
+    exit 1
+  }
+  FIRMWARE_SIZE=$(stat -c %s "$FIRMWARE")
+  LITTLEFS_CLEAR_SIZE=$(stat -c %s "$LITTLEFS_CLEAR_IMAGE")
+  ((FIRMWARE_SIZE == 0x4fc000 && LITTLEFS_CLEAR_SIZE == 0x100000)) || {
+    echo "ERROR: factory segments violate the ADR-004 bounds" >&2
     exit 1
   }
 fi
@@ -203,7 +232,8 @@ if ((!DO_BUILD)); then
 fi
 
 if ((DO_FLASH && !SPARSE_FLASH && !ASSUME_YES)); then
-  echo "WARNING: all-app-factory.bin pads the LittleFS region with 0xff."
+  echo "WARNING: factory download rewrites A/B/metadata and clears LittleFS."
+  echo "WARNING: the one-time ADR-004 migration is complete; require fresh owner authorization."
   if [[ -t 0 ]]; then
     read -r -p "Type FLASH to continue: " answer
     [[ $answer == FLASH ]] || { echo "Cancelled"; exit 3; }
@@ -252,6 +282,9 @@ ARTIFACT_FILE="$RUN_DIR/artifacts.sha256"
   if ((SPARSE_FLASH)); then
     sha256sum "$BOOT_IMAGE" "$CP_IMAGE" "$AP_IMAGE"
     stat -c '%y %s %n' "$BOOT_IMAGE" "$CP_IMAGE" "$AP_IMAGE"
+  elif ((DO_FLASH)); then
+    sha256sum "$LITTLEFS_CLEAR_IMAGE"
+    stat -c '%y %s %n' "$LITTLEFS_CLEAR_IMAGE"
   fi
   if [[ -f "$PROFILE_FILE" ]]; then
     cat "$PROFILE_FILE"
@@ -313,12 +346,14 @@ if ((DO_FLASH)); then
     printf -v AP_LENGTH_HEX '0x%x' "$(stat -c %s "$AP_IMAGE")"
     MAIN_BIN_MULTI="${BOOT_IMAGE_WIN}@0x0-${BOOT_LENGTH_HEX},"
     MAIN_BIN_MULTI+="${CP_IMAGE_WIN}@0x11000-${CP_LENGTH_HEX},"
-    MAIN_BIN_MULTI+="${AP_IMAGE_WIN}@0x220000-${AP_LENGTH_HEX}"
+    MAIN_BIN_MULTI+="${AP_IMAGE_WIN}@0x165000-${AP_LENGTH_HEX}"
     echo "==> Sparse download through COM${DOWNLOAD_PORT}; LittleFS preserved"
   else
     FIRMWARE_WIN=$(wslpath -m "$FIRMWARE")
-    MAIN_BIN_MULTI="${FIRMWARE_WIN}@0x0"
-    echo "==> Factory download through COM${DOWNLOAD_PORT}: $FIRMWARE_WIN"
+    LITTLEFS_CLEAR_WIN=$(wslpath -m "$LITTLEFS_CLEAR_IMAGE")
+    MAIN_BIN_MULTI="${FIRMWARE_WIN}@0x0-0x4fc000,"
+    MAIN_BIN_MULTI+="${LITTLEFS_CLEAR_WIN}@0x600000-0x100000"
+    echo "==> Bounded factory rewrite through COM${DOWNLOAD_PORT}; usr_config/tail preserved"
   fi
   set +e
   (

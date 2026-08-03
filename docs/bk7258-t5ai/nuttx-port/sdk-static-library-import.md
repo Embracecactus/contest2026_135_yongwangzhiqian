@@ -4,8 +4,9 @@
 
 ## 1. 当前版本策略
 
-- 默认版本：`v3.1.1.9`，来自官方技术支持提供的最新压缩包；
-- 回退版本：`legacy`，保留迁移前 CP/AP bundle，不覆盖、不删除；
+- 唯一active版本：`v3.1.1.9`，来自官方技术支持提供的最新压缩包；
+- preserved版本：`legacy`，保留迁移前CP/AP bundle，不覆盖、不删除，但当前不参与分析、
+  构建或验证；只有当前功能完整完成并在v3.1.1.9实板闭环后，才能由owner另开任务验证；
 - GitHub 历史参考：`/home/lijian/project/armino/vendor_beken`，继续保留，不作为当前
   BK7258 链接输入；
 - 旧 SDK 源码：`/home/lijian/project/armino/bk_avdk_smp`，继续保留；
@@ -39,7 +40,7 @@ CPU0/CP NuttX -> armino_as_lib/versions/v3.1.1.9/cp/{include,config,libs}
 CPU1/AP NuttX -> armino_as_lib/versions/v3.1.1.9/ap/{include,config,libs}
 ```
 
-legacy 回退仍映射到：
+legacy历史映射仍保留如下，但当前禁止选择：
 
 ```text
 CPU0/CP NuttX -> armino_as_lib/versions/legacy/cp/{include,config,libs}

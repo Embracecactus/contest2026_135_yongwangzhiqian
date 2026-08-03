@@ -6,8 +6,9 @@
 
 ## 版本布局
 
-项目默认使用官方技术支持提供并已完成板测的 `v3.1.1.9`，同时原样保留迁移前的
-`legacy` 作为回退：
+项目只使用官方技术支持提供并已完成板测的`v3.1.1.9`。迁移前的`legacy`仍原样保留，
+但当前不参与分析、构建或验证；只有当前功能完整完成并在v3.1.1.9实板闭环后，才能由owner另开
+任务决定是否验证旧版本：
 
 ```text
 bk_idk/
@@ -41,7 +42,7 @@ CP 的 4 个 legacy loose object 不参与 NuttX 链接。
 JOBS=8 board/bk7258_t5ai/scripts/build_dual_image.sh
 ```
 
-需要回退时只对该次构建显式选择 legacy：
+下列legacy选择方式只作为历史恢复说明保留，当前规则禁止执行：
 
 ```bash
 BK7258_SDK_BUNDLE_VERSION=legacy JOBS=8 \
@@ -63,7 +64,7 @@ board/bk7258_t5ai/scripts/setup_bk7258_sdk.sh \
   --check --version v3.1.1.9 --role ap
 ```
 
-legacy 回退包也有完整清单：
+legacy回退包保留有完整清单；下列命令当前禁止执行，仅供未来另行批准的兼容性任务参考：
 
 ```bash
 for role in cp ap; do

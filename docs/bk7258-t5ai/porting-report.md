@@ -20,7 +20,9 @@ NSH**（Stage N1 跳转链 + N2 NSH console + N3 procfs/ps 均板端验证，202
 ✅ **Stage N9 CP/AP RPTUN/OpenAMP/RPMsg wrapper（`board-verified`）** /
 ✅ Stage N10 AP supervision / ✅ Stage N11 RPMsgFS / ✅ Stage N12 Bluetooth IPC /
 ✅ Stage N13 BLE GAP/GATT / ✅ **Stage N14 16 MiB PSRAM + SDK timer wrapper（`board-verified`）**。
-下一 MAIN Stage 尚未批准；Tier-2 bootloader（OTA）、Wi-Fi 与 security 需另行讨论。
+**Stage N15 Tier-2 paired OTA进行中，N15-M迁移已`board-verified`**：official-style连续A/B、
+AP新XIP和LittleFS新位置已部署，两段式factory、完整保留功能回归与physical reset 3/3通过；
+B仍不可选择，candidate staging、trial、confirm与rollback尚未实现。
 
 ---
 
@@ -36,7 +38,7 @@ FAL 分区），app 区由涂鸦私有用例占用。
 
 **竞赛任务**：移植到新硬件。**本阶段目标**：在 BK7258 上打通 BootROM → bootloader → NuttX app
 的最小跳转链，先以单核（CPU0）跑出 NSH baseline；当时列入后续路线的 AP
-CPU1/CPU2 SMP 现已在 N8 完成，OTA 仍保留为后续路线。
+CPU1/CPU2 SMP 现已在 N8 完成；OTA现由N15按成对generation、trial和failover路线推进。
 
 **技术路线选型**：不直接复用涂鸦或 BK 官方的预编译 bootloader binary（vendor blob 不可审计、
 带私有 OTA 依赖），而是基于两家共有的 BootROM 启动协议**自制 Tier-1 bootloader**，完全可控
@@ -118,7 +120,7 @@ v3.1.1.9 exact binary 和 Ghidra 复核 reset/handoff call graph。这里的“�
 | App magic | `BK7236\0\0` @ logical 0x100 | 同 |
 | 分区表 | 末尾 MPC 配置 + 运行时 `partition_get_info()` 查询 | 内嵌 FAL 分区表（`fal_partition` 结构，`bootloader`/`app`/`app1`/`app2`/`download`） |
 | 跳转严谨度 | **更严谨**：`flash_cache_disable` + `uart_deinit` + `dsb/isb` + 清 r0-r12 + `bx` | 较朴素 |
-| OTA | RBL 头校验（字段完整：magic_ver / header_crc32 / payload_crc32 / sha256） | diff2ya / bspatch 增量 OTA（私有、无源码） |
+| OTA | v3.1.1.9 96-byte RBL：header/body CRC32 + 32-bit FNV-1a；AB另用统一Flash offset和trial flags，不是签名认证 | diff2ya / bspatch 增量 OTA（私有、无源码） |
 | 多核唤醒 | **不做**（app 层负责） | **不做**（app 层负责） |
 
 ### 3.2 共通的核心启动契约（自制 bootloader 必须复用）
@@ -399,7 +401,8 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 | **N11** | AP经RPMsgFS访问CP LittleFS | ✅ done / `board-verified`；stock RPMsgFS wrapper、四档payload与generation recovery闭环 |
 | **N12** | official Beken Bluetooth IPC + AP stock NuttX Host | ✅ done / `board-verified`；真实RF report与RPMsg/RPMsgFS/SMP共存闭环 |
 | **N13** | BLE GAP/GATT Peripheral end-to-end | ✅ done / `board-verified`；negative、20/20重连、主动并发与connection ref closure |
-| **N14** | 16 MiB PSRAM + SDK software-timer wrapper | ✅ done / **LATEST `board-verified`**；full-capacity boot gate、CP/AP private heap、AP双核allocator、warm/cold/factory闭环；见 [N14 completion](nuttx-port/prompts/14-n14-psram.md) |
+| **N14** | 16 MiB PSRAM + SDK software-timer wrapper | ✅ done / `board-verified`；full-capacity boot gate、CP/AP private heap、AP双核allocator、warm/cold/factory闭环；见 [N14 completion](nuttx-port/prompts/14-n14-psram.md) |
+| **N15** | Tier-2 paired CP/AP OTA + rollback | **CURRENT / N15-M `board-verified`**；ADR-004连续布局已部署，LittleFS与完整N14功能回归、reset 3/3 PASS；B不可选择，N15-A RBL/pair bundle next，完整OTA未完成；见 [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) |
 
 N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
 UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
@@ -574,8 +577,8 @@ guard——`PM_CLKSEL_CORE_480M` + `PM_CLKDIV_CORE_0` 组合返回 `BK_FAIL`（u
 NuttX 未主动 enable DPLL，频率阶梯均为 loader 残留探测。详见
 [`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md) §10。
 
-本段是 N4 时期的历史路线说明。其后 MTD/文件系统已由N5完成、SMP由N8完成、PSRAM由N14完成；
-Tier-2 bootloader OTA仍未编号。下一 MAIN Stage仍只在用户明确批准后建立prompt。
+本段是 N4 时期的历史路线说明。其后 MTD/文件系统已由N5完成、SMP由N8完成、PSRAM由N14完成。
+原先“Tier-2 bootloader OTA未编号”的状态已在2026-08-03被用户批准的N15取代，当前状态见§9.11。
 
 ### 9.9 Stage N5 — Flash Filesystem（全链路 board-verified 2026-07-19）
 
@@ -586,7 +589,7 @@ N5 各 substage 板端验证摘要（详细 worklog：[`nuttx-port/n5-flash-file
 | Substage | 内容 | 板端状态 |
 |---|---|---|
 | **N5-D0** layout candidate | 8 MB flash candidate；image length `0x2837A`；reserved `0x00000000..0x000FFFFF`；data candidate `0x00100000..0x001FFFFF`（1 MB） | ✅ board-observed |
-| **N5-D1** flash ID/geometry | JEDEC ID `0xC86517`（GigaDevice 8 MB NOR）；4 KB erase sector / 256 B page / 64 KB block | ✅ board-observed |
+| **N5-D1** flash ID/geometry | BK7258集成Flash接口ID `0xC86517`（与GD25WQ64E身份兼容）；8 MB / 4 KB erase sector / 256 B page / 64 KB block | ✅ board-observed |
 | **N5-D2** content dump | Flash 起始 `0x00000000` 可读（bootloader + app 向量表）；`0x00100000` 全 `0xFF`（erased） | ✅ board-observed |
 | **N5-D3** magic scan | `"BK7236"` magic @ logical `0x100`（`W0=0x32374B42`, `W1=0x00103633`）；NuttX read path 表现为 logical view | ✅ board-observed |
 | **N5-D4** emptiness scan | Candidate data partition 前 16 KB（4 x 4 KB sample）全 `0xFF` | ✅ board-observed |
@@ -621,6 +624,41 @@ free均恢复，AP/RPTUN/supervisor/SMP保持健康。完整记录见
 [N14 plan](nuttx-port/prompts/14-n14-psram.md)、
 [source verification](nuttx-port/n14-psram-source-verification.md)和
 [evidence index](nuttx-port/n14-evidence-index.md)。official NuttX/apps/SDK source及SDK archive零改动。
+
+### 9.11 Stage N15 — Tier-2 成对 OTA（N15-M board-verified，2026-08-03）
+
+N15只使用official Beken SDK v3.1.1.9。R1从official packager/source及normal/AB binary确认：
+RBL header固定96 bytes，使用CRC32和32-bit FNV-1a完整性检查；它没有签名、公钥或
+anti-rollback属性。Ghidra与源码也确认official AB用一个Flash-controller offset将连续primary
+CP/AP映到同尺寸连续`s_app`，并提供一次未确认trial回退语义。
+
+早期ADR-003尝试在N14分散布局上做journaled physical-sector swap。其read-only模型虽通过，
+但复杂度、启动写放大和scratch热点均不适合作为长期方案。owner在其上板前否决该路线，接受
+[ADR-004](../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md)并允许一次性清空
+LittleFS的布局迁移。ADR-003代码和验证只保留为历史证据，不再进入active build。
+
+ADR-004冻结raw布局：boot `0..0x011000`、CP A `0x011000..0x165000`、AP A
+`0x165000..0x286000`、B/`s_app` `0x286000..0x4fb000`、metadata
+`0x4fb000..0x4fc000`、LittleFS `0x600000..0x700000`，official tail
+`0x7fa000..0x800000`永不写入。CP/AP XIP分别为`0x02010000`和`0x02150000`。
+team-owned linker、boot FAL、AP release、MTD、packer、debug preflight和两个独立verifier已统一
+到一个canonical layout；official NuttX/apps/SDK source及static libraries零改动。
+
+N15-M factory先在A/B放入同一CP/AP pair，但B明确
+`boot_selectable=false/rbl_header_present=false`，metadata保持erased/unarmed，当前Tier-1仍只启动A。
+为避免loader误写`usr_config`和reserved区，迁移不是一个稠密7 MiB文件，而只写
+`all-app-factory.bin@0x0-0x4fc000`与
+`littlefs_factory_clear.bin@0x600000-0x100000`，没有chip erase。
+
+实板迁移后NSH、AP READY/CPU2 scheduler-online、RPTUN CONNECTED、supervisor HEALTHY、
+LittleFS autoformat/persistence、PSRAM、SDK timer、RPMsg六场景、RPMsgFS四档、Bluetooth info和
+physical reset 3/3全部PASS。迁移前8 MiB读取使用6 Mbps，后续发现该模式偶发插入128-byte
+全零块，因此只作forensic reference，禁止直接回刷；关键区验收改为115200连续两次byte-identical。
+完整证据见[N15 plan](nuttx-port/prompts/15-n15-tier2-ota.md)和
+[N15-M verification](../../progress/verification/2026-08-03-n15-migration-board-verification.md)。
+
+下一步N15-A只实现deterministic pair manifest、exact v3.1.1.9 RBL container/parser和host负例。
+B writer、remap、trial metadata mutation及任何新板写继续关闭；完整OTA仍未完成。
 
 ---
 
@@ -730,6 +768,10 @@ board/bk7258_t5ai/bootloader/
 > Bluetooth、physical RESET 3/3、final clean/factory首次校准/post-calibration cold全部PASS。
 > allocator control/lock留在SRAM，outer spinlock与bounded allocate-copy-free修复双核realloc stall；
 > CPU1 official PM vote修复AP nonstart。official NuttX/apps/SDK source与static libraries保持零改动。
+>
+> **N15进行中：**ADR-004连续A/B布局和N15-M一次性迁移已`board-verified`；AP新XIP、
+> relocated LittleFS、N14完整功能回归和physical reset 3/3均PASS。B只是不可选择seed，runtime
+> OTA仍关闭。下一步N15-A host-only RBL/pair bundle；后续B writer、trial和rollback各自设门禁。
 
 | 优先级 | 项 | 状态 | 备注 |
 |---|---|---|---|
@@ -744,9 +786,9 @@ board/bk7258_t5ai/bootloader/
 | P0 | **NuttX Stage N11**：AP 通过 RPMsgFS 访问 CP LittleFS | ✅ done / `board-verified` | stock RPMsgFS、CPU0 worker、四档 payload、故障态有界失败与 generation recovery 均闭环 |
 | P0 | **NuttX Stage N12**：official Beken Bluetooth IPC + NuttX HCI wrapper | ✅ done / `board-verified` | CP Controller、AP stock Host、HCI info、MAC 持久化、UART self-heal、RPMsg/RPMsgFS 共存以及真实 advertising report 均已实板通过 |
 | P0 | **NuttX Stage N13**：BLE GAP/GATT Peripheral end-to-end | ✅ done / `board-verified` | 四类negative、20/20 uncached重连、BLE+RPMsg/RPMsgFS主动并发、3/3 cold、ref=0、final build/flash与零官方树改动全部闭环 |
-| P0 | **NuttX Stage N14**：16 MiB PSRAM + SDK software-timer wrapper | ✅ done / **LATEST `board-verified`** | full-capacity boot gate、CP/AP private heap、AP双核allocator、timer self-delete、warm/cold/factory与既有功能回归全部闭环 |
-| P1 | **后续（未编号）**：Tier-2 bootloader OTA（RBL + A/B + failover） | planned later | 需 flash 写；参考 BK 官方 §2.12 RBL 校验 |
-| P2 | **后续（未编号）**：Wi-Fi / security / PSRAM upper-8 runtime policy等 | planned later | 下一MAIN Stage尚未批准；先讨论owner、资源和验收边界 |
+| P0 | **NuttX Stage N14**：16 MiB PSRAM + SDK software-timer wrapper | ✅ done / `board-verified` | full-capacity boot gate、CP/AP private heap、AP双核allocator、timer self-delete、warm/cold/factory与既有功能回归全部闭环 |
+| P1 | **NuttX Stage N15**：Tier-2 paired CP/AP OTA（RBL + trial + rollback） | CURRENT / N15-M `board-verified` | ADR-004布局迁移与完整功能回归PASS；B不可选择，N15-A RBL/pair bundle next，trial/rollback未实现 |
+| P2 | **后续（未编号）**：Wi-Fi / signed update security / PSRAM upper-8 runtime policy等 | planned later | 先讨论owner、资源和验收边界 |
 
 ---
 

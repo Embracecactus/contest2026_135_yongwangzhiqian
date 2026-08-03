@@ -79,15 +79,11 @@ JOBS="${JOBS:-8}"
 OUTPUT="${TOPDIR}/bk7258-dual"
 BK7258_SDK_BUNDLE_VERSION="${BK7258_SDK_BUNDLE_VERSION:-v3.1.1.9}"
 
-case "${BK7258_SDK_BUNDLE_VERSION}" in
-    legacy|v3.1.1.9)
-        ;;
-    *)
-        printf "build_dual_image: unsupported SDK bundle version '%s'\n" \
-            "${BK7258_SDK_BUNDLE_VERSION}" >&2
-        exit 2
-        ;;
-esac
+if [[ "${BK7258_SDK_BUNDLE_VERSION}" != "v3.1.1.9" ]]; then
+    printf "build_dual_image: N15 requires official SDK v3.1.1.9, got '%s'\n" \
+        "${BK7258_SDK_BUNDLE_VERSION}" >&2
+    exit 2
+fi
 
 SDK_BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
 SDK_BUNDLE_ROOT="${SDK_BUNDLE_BASE}/versions/${BK7258_SDK_BUNDLE_VERSION}"
@@ -154,8 +150,16 @@ save_role()
 
 printf 'build_dual_image: SDK bundle version: %s\n' \
     "${BK7258_SDK_BUNDLE_VERSION}"
+LAYOUT_VERIFY_ARGS=(
+    --output "${TMPDIR}/bk7258-ab-layout.json"
+)
+if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+    LAYOUT_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+fi
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_layout.py" \
+    "${LAYOUT_VERIFY_ARGS[@]}"
 printf '%s\n' "build_dual_image: rebuilding Tier-1 bootloader"
-make -C "${BOARD_DIR}/bootloader" clean all
+make -C "${BOARD_DIR}/bootloader" clean all verify
 
 printf 'build_dual_image: building CPU0/CP (%s)\n' "${CP_CONFIG_NAME}"
 build_config "${CP_CONFIG}"
@@ -179,6 +183,7 @@ save_role cp app.bin app_crc.bin
 rm -rf "${OUTPUT}"
 mkdir -p "${OUTPUT}"
 cp "${TMPDIR}"/nuttx-*.elf "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-ab-layout.json" "${OUTPUT}/"
 for map in "${TMPDIR}"/nuttx-*.map; do
     if [ -f "${map}" ]; then
         cp "${map}" "${OUTPUT}/"
@@ -192,6 +197,10 @@ python3 "${SCRIPT_DIR}/pack_dual_image.py" \
     --ap-raw "${TMPDIR}/app1.bin" \
     --ap-crc "${TMPDIR}/app1_crc.bin" \
     --output "${OUTPUT}"
+
+python3 "${SCRIPT_DIR}/verify_bk7258_factory_layout.py" \
+    --package "${OUTPUT}" \
+    --json "${OUTPUT}/bk7258-factory-layout.json"
 
 cat > "${OUTPUT}/build-profile.txt" <<EOF
 CP_CONFIG_NAME=${CP_CONFIG_NAME}
@@ -293,4 +302,6 @@ printf '%s\n' "build_dual_image: root CP artifacts match the manifest CP image"
 printf '%s\n' "build_dual_image: root all-app.bin remains CP-only (bootloader + CP)"
 printf '%s\n' "build_dual_image: normal split updates preserve LittleFS;"
 printf '%s\n' "  use the offset-length segments in bk7258-dual-image.json"
-printf '%s\n' "build_dual_image: all-app-factory.bin erases/pads the LittleFS region"
+printf '%s\n' "build_dual_image: destructive factory rewrite requires fresh owner authorization"
+printf '%s\n' "build_dual_image: factory ranges preserve usr_config/reserved/tail"
+printf '%s\n' "  all-app-factory.bin@0x0-0x4fc000 + littlefs_factory_clear.bin@0x600000-0x100000"

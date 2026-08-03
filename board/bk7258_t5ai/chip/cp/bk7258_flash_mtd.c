@@ -6,10 +6,10 @@
  * BK7258 (T5-AI) on-chip flash data-partition MTD lower-half — SDK wrapper.
  *
  * Calls bk_flash_* SDK APIs.  Zero register access.
- * Exposes the 1 MiB data partition (logical 0x00100000..0x001FFFFF) as a
- * NuttX MTD.
+ * Exposes the 1 MiB data partition (raw physical
+ * 0x00600000..0x006fffff) as a NuttX MTD.
  *
- * Geometry is fixed for the GD25Q64-class part:
+ * Geometry is fixed for the BK7258 integrated 8 MiB Flash interface:
  *   blocksize  = 4096  (read/write block unit)
  *   erasesize  = 4096  (sector erase unit)
  *   neraseblocks = 256 (1 MiB / 4 KiB)
@@ -46,8 +46,8 @@
 
 /* Verified data partition layout (matches docs n5-flash-filesystem.md). */
 
-#define BK7258_DATA_PART_BASE       BK7258_DATA_FLASH_OFFSET
-#define BK7258_DATA_PART_SIZE       BK7258_DATA_FLASH_SIZE
+#define BK7258_DATA_PART_BASE       BK7258_DATA_RAW_PHYSICAL_OFFSET
+#define BK7258_DATA_PART_SIZE       BK7258_DATA_RAW_PHYSICAL_SIZE
 
 #define BK7258_FLASH_BLOCK_SIZE     4096u
 #define BK7258_FLASH_ERASE_SIZE     4096u
@@ -55,18 +55,20 @@
 
 /* The v3.1.1.9 SDK enables CONFIG_FLASH_PARTITION_CHECK_VALID and its
  * generated partition table still describes the vendor application layout.
- * That table classifies this project's 0x00100000..0x001fffff data window as
- * part of a read-only application partition.  Keep the SDK permission gate
- * for every other caller and use the linker's --wrap hook to grant only the
- * board MTD owner access to this exact range.
+ * The team LittleFS range is outside the generated vendor partitions.  Keep
+ * the SDK permission gate for every other caller and use the linker's --wrap
+ * hook to grant only the board MTD owner access to this exact range.
  */
 
 #define BK7258_FLASH_API_MAGIC_CODE 0x12345678u
 
-/* Known JEDEC IDs for 8 MiB GD25Q64-class parts on this board. */
+/* Known compatible IDs accepted by the official driver.  The T5-AI board's
+ * integrated Flash reports 0xc86517, which matches the GD25WQ64E command-set
+ * identity.  This does not imply a separate board-level SPI NOR package.
+ */
 
-#define BK7258_FLASH_ID_GD25Q64     0x00c86517u
-#define BK7258_FLASH_ID_GD25Q64B    0x00c84017u
+#define BK7258_FLASH_ID_GD25WQ64E   0x00c86517u
+#define BK7258_FLASH_ID_GD25Q64E    0x00c84017u
 #define BK7258_FLASH_ID_W25Q64      0x000b4017u
 #define BK7258_FLASH_ID_TH25Q64     0x00cd6017u
 
@@ -333,8 +335,8 @@ FAR struct mtd_dev_s *bk7258_flash_mtd_initialize(void)
 
   id = bk_flash_get_id() & 0x00ffffffu;
 
-  if (id != BK7258_FLASH_ID_GD25Q64 &&
-      id != BK7258_FLASH_ID_GD25Q64B &&
+  if (id != BK7258_FLASH_ID_GD25WQ64E &&
+      id != BK7258_FLASH_ID_GD25Q64E &&
       id != BK7258_FLASH_ID_W25Q64 &&
       id != BK7258_FLASH_ID_TH25Q64)
     {

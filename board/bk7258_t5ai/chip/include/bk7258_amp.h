@@ -22,20 +22,19 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Logical flash layout.  CPU-visible XIP addresses are FLASH_XIP_BASE plus
- * the logical offsets below.  CRC-packed physical offsets use the 34/32
- * expansion because all partition boundaries are 32-byte aligned.
+/* ADR-004 official-style contiguous A/B layout.  CPU-visible executable
+ * addresses are FLASH_XIP_BASE plus logical offsets.  Executable images use
+ * the 34/32 CRC expansion; bk_flash_* data accesses use raw physical offsets.
+ * Never apply the executable-image conversion to LittleFS.
  */
 
 #define BK7258_FLASH_XIP_BASE            0x02000000u
 #define BK7258_BOOT_FLASH_OFFSET         0x00000000u
 #define BK7258_BOOT_FLASH_SIZE           0x00010000u
 #define BK7258_CP_FLASH_OFFSET           0x00010000u
-#define BK7258_CP_FLASH_SIZE             0x000f0000u
-#define BK7258_DATA_FLASH_OFFSET         0x00100000u
-#define BK7258_DATA_FLASH_SIZE           0x00100000u
-#define BK7258_AP_FLASH_OFFSET           0x00200000u
-#define BK7258_AP_FLASH_SIZE             0x00200000u
+#define BK7258_CP_FLASH_SIZE             0x00140000u
+#define BK7258_AP_FLASH_OFFSET           0x00150000u
+#define BK7258_AP_FLASH_SIZE             0x00110000u
 
 #define BK7258_CP_FLASH_ADDR             \
   (BK7258_FLASH_XIP_BASE + BK7258_CP_FLASH_OFFSET)
@@ -45,10 +44,33 @@
 #define BK7258_CRC_PHYSICAL_OFFSET(n)    (((n) / 32u) * 34u)
 #define BK7258_CP_PHYSICAL_OFFSET        \
   BK7258_CRC_PHYSICAL_OFFSET(BK7258_CP_FLASH_OFFSET)
-#define BK7258_DATA_PHYSICAL_OFFSET      \
-  BK7258_CRC_PHYSICAL_OFFSET(BK7258_DATA_FLASH_OFFSET)
 #define BK7258_AP_PHYSICAL_OFFSET        \
   BK7258_CRC_PHYSICAL_OFFSET(BK7258_AP_FLASH_OFFSET)
+
+/* Exact official v3.1.1.9 raw physical A/B envelopes. */
+
+#define BK7258_BOOT_RAW_PHYSICAL_START   0x00000000u
+#define BK7258_BOOT_RAW_PHYSICAL_SIZE    0x00011000u
+#define BK7258_CP_RAW_PHYSICAL_START     0x00011000u
+#define BK7258_CP_RAW_PHYSICAL_SIZE      0x00154000u
+#define BK7258_AP_RAW_PHYSICAL_START     0x00165000u
+#define BK7258_AP_RAW_PHYSICAL_SIZE      0x00121000u
+#define BK7258_AB_SECONDARY_START        0x00286000u
+#define BK7258_AB_SECONDARY_SIZE         0x00275000u
+#define BK7258_AB_METADATA_START         0x004fb000u
+#define BK7258_AB_METADATA_SIZE          0x00001000u
+#define BK7258_USR_CONFIG_START          0x004fc000u
+#define BK7258_USR_CONFIG_SIZE           0x0000e000u
+
+/* The official bk_flash_* API consumes raw physical offsets.  ADR-004 moves
+ * the one-MiB LittleFS window away from both executable pairs.  The owner
+ * approved clearing the old data during the one-time migration.
+ */
+
+#define BK7258_DATA_RAW_PHYSICAL_OFFSET  0x00600000u
+#define BK7258_DATA_RAW_PHYSICAL_SIZE    0x00100000u
+#define BK7258_CALIBRATION_TAIL_START    0x007fa000u
+#define BK7258_FLASH_RAW_SIZE            0x00800000u
 
 /* The 640 KiB SRAM window is split between two independent NuttX kernels.
  * Keep the first 64 KiB as the AP SMP spinlock region used by the official
@@ -965,11 +987,35 @@ struct bk7258_ap_sem_wake_loop_state_s
 };
 
 static_assert(BK7258_CP_FLASH_OFFSET + BK7258_CP_FLASH_SIZE ==
-              BK7258_DATA_FLASH_OFFSET,
-              "CP flash must end at the LittleFS boundary");
-static_assert(BK7258_DATA_FLASH_OFFSET + BK7258_DATA_FLASH_SIZE ==
               BK7258_AP_FLASH_OFFSET,
-              "AP flash must start after LittleFS");
+              "primary CP/AP logical windows must be contiguous");
+static_assert(BK7258_CP_PHYSICAL_OFFSET ==
+              BK7258_CP_RAW_PHYSICAL_START,
+              "CP logical/raw address conversion drift");
+static_assert(BK7258_CRC_PHYSICAL_OFFSET(BK7258_CP_FLASH_SIZE) ==
+              BK7258_CP_RAW_PHYSICAL_SIZE,
+              "CP logical/raw size conversion drift");
+static_assert(BK7258_AP_PHYSICAL_OFFSET ==
+              BK7258_AP_RAW_PHYSICAL_START,
+              "AP logical/raw address conversion drift");
+static_assert(BK7258_CRC_PHYSICAL_OFFSET(BK7258_AP_FLASH_SIZE) ==
+              BK7258_AP_RAW_PHYSICAL_SIZE,
+              "AP logical/raw size conversion drift");
+static_assert(BK7258_AP_RAW_PHYSICAL_START +
+              BK7258_AP_RAW_PHYSICAL_SIZE == BK7258_AB_SECONDARY_START,
+              "primary pair must end at s_app");
+static_assert(BK7258_CP_RAW_PHYSICAL_SIZE +
+              BK7258_AP_RAW_PHYSICAL_SIZE == BK7258_AB_SECONDARY_SIZE,
+              "primary and secondary pair sizes must match");
+static_assert(BK7258_USR_CONFIG_START + BK7258_USR_CONFIG_SIZE <=
+              BK7258_DATA_RAW_PHYSICAL_OFFSET,
+              "vendor user config overlaps LittleFS");
+static_assert(BK7258_DATA_RAW_PHYSICAL_OFFSET +
+              BK7258_DATA_RAW_PHYSICAL_SIZE <=
+              BK7258_CALIBRATION_TAIL_START,
+              "LittleFS overlaps calibration tail");
+static_assert(BK7258_CALIBRATION_TAIL_START < BK7258_FLASH_RAW_SIZE,
+              "calibration tail must be inside Flash");
 static_assert(BK7258_AP_SPINLOCK_BASE == BK7258_SRAM_BASE,
               "AP spinlock region must start at the official SRAM base");
 static_assert(BK7258_AP_SPINLOCK_BASE + BK7258_AP_SPINLOCK_SIZE ==

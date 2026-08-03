@@ -45,10 +45,12 @@
 | LittleFS | `0x100000` | SDK flash offset `0x100000` | `0x100000` |
 | AP `app1.bin` | `0x200000` | `0x02200000` | `0x200000` |
 
-CRC-packed physical offset 使用 `physical = logical * 34 / 32`（所有 partition
-边界均 32-byte aligned）：CP 为 `0x11000`，LittleFS 为 `0x110000`，AP 为
-`0x220000`。正常更新必须用 BKFIL/bk_loader multi-segment 分别写 boot/CP/AP，
-不得用 padding 跨过 LittleFS。可选 factory image 会显式标为会擦除数据区。
+2026-08-03 N15地址域复核纠正：CRC-packed executable offset使用
+`physical = logical * 34 / 32`，所以CP为`0x11000`、AP为`0x220000`；但official
+`bk_flash_*`数据API使用raw physical offset，LittleFS实际为
+`0x100000..0x200000`。`0x110000`只是logical `0x100000`的CRC-expanded坐标，不能作为
+MTD边界。正常更新必须用BKFIL/bk_loader multi-segment分别写boot/CP/AP，且CP segment必须在
+raw `0x100000`前结束。可选factory image会显式标为会擦除数据区。
 
 ### 3.2 SRAM layout
 
@@ -133,7 +135,7 @@ CRC-packed physical offset 使用 `physical = logical * 34 / 32`（所有 partit
   证明 linker 已限制在 CPU0-owned SRAM。
 - `app.bin`=`162964` B，`app_crc.bin`=`173162` B，legacy CP-only
   `all-app.bin`=`242794` B；CP physical segment 为 `0x11000 + 0x2a46a`，远低于
-  LittleFS physical boundary `0x110000`。
+  corrected raw LittleFS physical boundary `0x100000`。
 - final ELF 含 `bk7258_ap_control_initialize/start/stop/restart/get_status`；
   built-in registry/strings 含 `apctl`、usage 和 AP status 输出。
 - generated config 保留 `BK7258_FLASH_MTD/LITTLEFS`、SDK IRQ bridge/timer test，并启用
@@ -208,8 +210,9 @@ app_crc.bin@0x11000-0x2a4f2
 app1_crc.bin@0x220000-0xc292
 ```
 
-CP physical end `0x3b4f2` 低于 LittleFS physical start `0x110000`；AP 从 LittleFS
-physical end `0x220000` 开始。manifest gate PASS：normal split update 保留 LittleFS；
+CP physical end `0x3b4f2` 低于LittleFS raw physical start `0x100000`；LittleFS在
+`0x200000`结束，`0x200000..0x220000`为未分配CRC-address gap，AP从`0x220000`开始。
+manifest gate PASS：normal split update保留LittleFS；
 `all-app-factory.bin` 以 `0xff` 跨过数据区，明确不保留 LittleFS。
 
 ### 9.3 最终静态检查
