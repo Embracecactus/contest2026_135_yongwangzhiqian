@@ -58,9 +58,8 @@ struct fal_partition {
 __attribute__((used))
 const struct fal_partition fal_partition_table[] = {
     { FAL_PART_MAGIC, "bootloader", "beken_onchip_crc", 0x000000L, 0x010000L, 0u },
-    { FAL_PART_MAGIC, "cp_app",     "beken_onchip_crc", 0x010000L, 0x0f0000L, 0u },
-    { FAL_PART_MAGIC, "data",       "beken_onchip_crc", 0x100000L, 0x100000L, 0u },
-    { FAL_PART_MAGIC, "ap_app",     "beken_onchip_crc", 0x200000L, 0x200000L, 0u },
+    { FAL_PART_MAGIC, "cp_app",     "beken_onchip_crc", 0x010000L, 0x140000L, 0u },
+    { FAL_PART_MAGIC, "ap_app",     "beken_onchip_crc", 0x150000L, 0x110000L, 0u },
 };
 #define FAL_PART_COUNT  (sizeof(fal_partition_table) / sizeof(fal_partition_table[0]))
 

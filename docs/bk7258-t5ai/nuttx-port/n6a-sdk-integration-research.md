@@ -169,7 +169,7 @@ TuyaOpen 的 `tuyaos_adapter` 多一层抽象，初期无收益。
 - 手写 `bk7258_flash_unprotect()` / `bk7258_flash_restore()`（option-A SR0 清/恢复）
 - 手写 `bk7258_flash_program32()`（WREN + 8 words to DATA_SW_FLASH + PP）
 - `bread` 32 字节 burst 读、`erase` 逐扇区 SE、`bwrite` 逐 32B PP
-- `bk7258_flash_mtd_initialize()` 读 JEDEC ID 校验 GD25Q64-class
+- `bk7258_flash_mtd_initialize()`读取BK7258集成Flash接口ID，校验8 MiB compatible geometry
 
 板端已验证（见 `n5-flash-filesystem.md`）：raw r/w → MTD → ftl → LittleFS 全链路通过。
 
@@ -430,12 +430,12 @@ armino_as_lib.sh <soc> <armino_dir> <build_dir> <project>
    与现有 LittleFS 链路兼容）。
 
 4. **JEDEC ID 校验**：当前 `bk7258_flash_mtd_initialize` 用自写 `read_id` 校验
-   GD25Q64-class。SDK 的 `bk_flash_driver_init` 内部也会读 ID 设配置。需确认两者不冲突，
+   BK7258集成8 MiB Flash。SDK 的 `bk_flash_driver_init` 内部也会读 ID 设配置。需确认两者不冲突，
    或直接信任 SDK 的探测。
 
 5. **保护策略差异**：当前是 option-A「每 op 清/恢复 SR0」；SDK 是
    `set_protect_type(FLASH_PROTECT_NONE)` ... `set_protect_type(FLASH_UNPROTECT_LAST_BLOCK)`。
-   需确认 SDK 的保护切换在 BK7258 + GD25Q64 上与 option-A 等价（板端回归验证）。
+   需确认 SDK 的保护切换在 BK7258集成Flash上与 option-A 等价（板端回归验证）。
 
 6. **不修改 nuttx 官方树**（团队规矩，见 `do-not-modify-nuttx-official-tree` 记忆）：
    所有改动只在 `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/` overlay 内。

@@ -601,7 +601,7 @@ config BK7258_FLASH_MTD
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	select MTD
 	---help---
-		Expose the 1 MiB data partition (logical 0x00100000..0x001FFFFF)
+		Expose the 1 MiB data partition (raw 0x00600000..0x006FFFFF)
 		as a NuttX MTD instance.  read/erase/bwrite use the
 		option-A SR0 block-protect policy (cleared around each op,
 		restored afterwards).  No /dev node or filesystem is mounted

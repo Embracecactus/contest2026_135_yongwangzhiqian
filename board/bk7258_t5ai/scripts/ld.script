@@ -5,18 +5,17 @@
  *
  * Linker script for the Beken BK7258 (T5-AI, Cortex-M33) CPU0/CP image.
  *
- * Stage N7 splits flash and SRAM between two independent NuttX images while
- * preserving the board-verified LittleFS partition:
+ * ADR-004 aligns the executable pair with the official v3.1.1.9 A/B layout:
  *
- *   FLASH : 0x02010000 .. 0x020fffff  (CP logical offset 0x10000,
- *                                      0x0f0000 bytes)
+ *   FLASH : 0x02010000 .. 0x0214ffff  (CP logical offset 0x10000,
+ *                                      0x140000 bytes)
  *   AP SMP spinlocks: 0x28000000 .. 0x2800ffff (official reserved region)
  *   RAM   : 0x28010000 .. 0x2804ffff  (256 KiB CP-owned SRAM)
  *   MSP   : 0x2804fffc
  *
- * Logical flash 0x00100000..0x001fffff remains the LittleFS data partition.
- * The AP image starts at logical 0x00200000 / XIP 0x02200000.  AP RAM starts
- * at 0x28050000 and the top 4 KiB page at 0x2809f000 is shared boot-state.
+ * The AP image follows contiguously at logical 0x00150000 / XIP 0x02150000.
+ * LittleFS is raw-only at 0x00600000..0x006fffff.  AP RAM starts at
+ * 0x28050000 and the top 4 KiB page at 0x2809f000 is shared boot-state.
  *
  * The .vectors section (80 entries, 0x140 bytes from bk7258_vectors.c) is
  * KEEP-pinned first so that:
@@ -52,7 +51,7 @@ ENTRY(__start)
 
 MEMORY
 {
-    FLASH (rx)  : ORIGIN = 0x02010000, LENGTH = 0x0f0000
+    FLASH (rx)  : ORIGIN = 0x02010000, LENGTH = 0x140000
     RAM   (rwx) : ORIGIN = 0x28010000, LENGTH = 0x040000
 }
 
@@ -222,7 +221,7 @@ SECTIONS
 
     ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
            ORIGIN(FLASH) + LENGTH(FLASH),
-           "ERROR: CP load image overlaps LittleFS at logical 0x00100000")
+           "ERROR: CP image exceeds official primary_cp_app")
     ASSERT(_eheap < 0x28050000,
            "ERROR: CP RAM overlaps the AP RAM window")
     ASSERT(ORIGIN(RAM) == 0x28010000,

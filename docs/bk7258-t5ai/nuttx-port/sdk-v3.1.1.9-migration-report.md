@@ -5,6 +5,10 @@
 默认 bundle：`v3.1.1.9`
 回退 bundle：`legacy`
 
+> 2026-08-03 active policy：本文保留的legacy比较、产物和命令均为历史证据。当前及后续功能开发
+> 只允许official v3.1.1.9；待功能完整完成并在v3.1.1.9实板闭环后，才可由owner另开任务验证
+> legacy，不得在当前stage重跑双版本矩阵。
+
 ## 1. 结论
 
 官方技术支持提供的 `bk_avdk_smp-release-v3.1.1.9` 已完成 CP/AP 编译、静态库导入、

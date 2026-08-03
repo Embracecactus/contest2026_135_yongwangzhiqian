@@ -430,80 +430,34 @@ loop:
 02001F16: e7f1         b       0x2000efc           ; next byte
 ```
 
-### 2.12 RBL 头校验函数 (0x2001F1C)
+### 2.12 v3.1.1.9 RBL body校验函数 (0x2001F1C)
 
-```asm
-; sub_2001F1C: 校验 RBL (ROM Boot Loader) 头
-; 参数: r0 = partition_addr
-; RBL 头格式:
-;   +0x00: version_flags (4B)
-;   +0x04: header_crc32 (4B)
-;   +0x08: "RBL\0" magic (4B)
-;   +0x0C: header_size (1B)
-;   +0x0D: header_version (1B)
-;   +0x0E: signature_type (1B)
-;   +0x0F: padding (1B)
-;   +0x10: payload_size (4B)
-;   +0x14: payload_crc32 (4B)
-;   +0x18: sha256_hash (32B)
-;   +0x38: signature (variable)
-;   +0x60: payload data starts
-02001F1C: e92d 41f0    stmdb   sp!, {r4-r8,lr}
-02001F20: 4606         mov     r6, r0
-02001F22: b0a0         sub     sp, #0x80           ; local buffer
-02001F24: b928         cbnz    r0, valid
-02001F26: ...          ; error: "not diff-fota header!"
-valid:
-02001F32: 1d04         adds    r4, r0, #4          ; skip version
-02001F34: 4620         mov     r0, r4
-02001F36: a908         add     r1, sp, #0x20       ; buffer
-02001F38: f7ff fdd0    bl      partition_read_header ; 读取头
-02001F3C: 2800         cmp     r0, #0
-02001F3E: db29         blt     error
-; 校验 magic
-02001F40: 4620         mov     r0, r4
-02001F42: 4923         ldr     r1, =0x02006E7B     ; "download"
-02001F44: f004 fa88    bl      strcmp
-02001F48: 4604         mov     r4, r0
-02001F4A: bba0         cbnz    r0, magic_ok
-; ... error handling
-magic_ok:
-02001F4C: 9b1e         ldr     r3, [sp, #0x78]    ; header_size
-02001F4E: 2b1f         cmp     r3, #0x1F           ; min header size
-02001F50: d805         bhi     size_ok
-; ... error: header too small
-size_ok:
-; 校验 CRC32 of header
-02001F5E: 2760         movs    r7, #0x60           ; payload offset
-02001F60: f103 0560    add.w   r5, r3, #0x60      ; total = hdr_size + 0x60
-02001F64: f103 0840    add.w   r8, r3, #0x40      ; CRC region
-02001F68: 45b8         cmp     r8, r7
-02001F6A: d216         bcs     crc_check
-; 读取并计算 CRC
-02001F6C: 1bed         subs    r5, r5, r7
-02001F6E: fa5f f885    uxtb.w  r8, r5
-02001F72: 4643         mov     r3, r8
-02001F74: 466a         mov     r2, sp
-02001F76: 4639         mov     r1, r7
-02001F78: 4630         mov     r0, r6
-02001F7A: f001 fc2b    bl      partition_read      ; 读取数据
-02001F7E: 4669         mov     r1, sp
-02001F80: 4642         mov     r2, r8
-02001F82: 4620         mov     r0, r4              ; initial CRC
-02001F84: f7ff ffb6    bl      crc32_calculate     ; 计算 CRC32
-02001F88: 991b         ldr     r1, [sp, #0x6C]    ; stored CRC
-02001F8A: 4281         cmp     r1, r0              ; 比较
-02001F8C: d013         beq     crc_ok
-; CRC 不匹配
-02001F8E: 4812         ldr     r0, =0x02006F09     ; "ota header crc error %x %x!"
-02001F90: f7ff f84e    bl      uart_printf
-02001F94: f04f 30ff    mov.w   r0, #0xFFFFFFFF     ; return -1
-; ... return
-crc_ok:
-02001FB6: 4809         ldr     r0, =0x02006F35     ; "Verify ota body partition success."
-02001FB8: f7ff f83a    bl      uart_printf
-02001FBC: 2000         movs    r0, #0              ; return 0 (success)
-```
+> **2026-08-03 N15勘误：**旧稿把这一格式误写成`magic@+0x08`、SHA-256和variable
+> signature。对exact v3.1.1.9 packager source与normal/AB binary重新交叉验证后，确认该描述
+> 不成立。下面是当前可复现的准确结构。
+
+| offset | size | field |
+|---:|---:|---|
+| `0x00` | 4 | `RBL\0` |
+| `0x04` | 2 | algorithm |
+| `0x06` | 6 | timestamp bytes |
+| `0x0c` | 16 | application partition name |
+| `0x1c` | 24 | download version |
+| `0x34` | 24 | current version |
+| `0x4c` | 4 | stored-body CRC32 |
+| `0x50` | 4 | raw-body FNV-1a |
+| `0x54` | 4 | raw size |
+| `0x58` | 4 | stored-body size |
+| `0x5c` | 4 | header CRC32 over前92 bytes |
+
+`0x02001adc`读取完整`0x60` bytes header。`0x02001f1c`本身是normal download partition的
+stored-body CRC32 verifier：从payload offset `0x60`分块读取，和header `+0x4c`比较；它不是
+此前所称的header结构解析器。`0x02002050/0x02002070`计算32-bit FNV-1a，并按header
+`+0x54` raw size与`+0x50` expected hash比较。
+
+该格式没有SHA-256字段、公钥或签名。CRC32/FNV-1a只能用于非加密完整性检查，不得表述为
+publisher authenticity。exact source与工具复核见
+[N15 OTA source verification](../nuttx-port/n15-ota-source-verification.md)。
 
 ---
 
@@ -719,14 +673,15 @@ bootloader 使用两种 CRC:
 ### 6.4 OTA 校验流程
 
 ```
-1. 读取 RBL 头 (64 字节)
-2. 校验 magic "RBL\0" (偏移 +0x08)
-3. 校验 header CRC32 (偏移 +0x04)
-4. 读取 payload (从偏移 +0x60 开始)
-5. 计算 payload CRC32, 与存储值 (偏移 +0x14) 比较
-6. 计算 payload SHA256, 与存储值 (偏移 +0x18) 比较
-7. 全部通过 → 返回 0 (成功)
-8. 任一失败 → 返回 -1 (失败)
+1. 读取 RBL 头 (96 字节)
+2. 校验 magic `RBL\0` (偏移 `+0x00`)
+3. 计算前92 bytes header CRC32，与`+0x5c`比较
+4. normal RBL从`+0x60`读取stored payload；AB容器的payload从partition开头读取，header位于
+   logical容器结束前4 KiB
+5. 计算stored-body CRC32，与`+0x4c`比较
+6. algorithm 0时raw body等于stored body，按`+0x54`长度计算FNV-1a并与`+0x50`比较
+7. encoded算法需要先解密/解压再验证raw hash；不能把FNV误称SHA-256
+8. 任一校验失败 → fail-closed；全部通过只证明完整性，不证明签名真实性
 ```
 
 ---
@@ -941,12 +896,12 @@ bootloader 包含完整的 OTA (Over-The-Air) 更新能力:
 ├─ 差分更新 (diff-fota)
 ├─ AES 解密 (aes_decrypt_inflate_handler)
 ├─ LZ 压缩解压 (inflate)
-└─ SHA256 哈希校验
+└─ v3.1.1.9 RBL CRC32 + 32-bit FNV-1a 完整性校验
 
 OTA 流程:
 1. 检测 OTA 标志 (download 分区)
 2. 读取 OTA 头, 校验 CRC32
-3. 读取 OTA 体, 校验 SHA256 + CRC32
+3. 读取 OTA 体，校验stored-body CRC32，并对raw body校验FNV-1a
 4. 擦除目标 app 分区
 5. 解压 (如果压缩) 并写入目标分区
 6. 清除 OTA 标志

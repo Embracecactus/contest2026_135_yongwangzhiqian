@@ -60,14 +60,16 @@ FID=00c86517 FSIZ=00800000; ESZ=00001000 PSZ=00000100 B64=00010000
 
 | 字段 | 值 | 含义 |
 |---|---|---|
-| `FID` | `0x00C86517` | JEDEC ID（C8=manufacturer=GigaDevice, 6517=device）；命中 8 MB NOR flash |
+| `FID` | `0x00C86517` | BK7258集成Flash接口返回的JEDEC兼容ID；命中8 MB NOR geometry |
 | `FSIZ` | `0x00800000` | 8 MB（与 D0 layout candidate 一致） |
 | `ESZ` | `0x00001000` | 4 KB erase sector |
 | `PSZ` | `0x00000100` | 256 B page candidate |
 | `B64` | `0x00010000` | 64 KB block |
 
-> JEDEC ID `0xC86517` 对应 GigaDevice GD25Q64 或兼容型号，8 MB 容量、4 KB sector erase、
-> 256 B page program、64 KB block erase，符合 T5-AI 标称规格。
+> BK7258的Flash集成在芯片/封装内，不应描述成板上另焊的独立SPI NOR。实板接口返回的
+> `0xC86517`与GigaDevice GD25WQ64E的`C8 65 17`身份及8 MB/4 KB sector/256 B page
+> geometry相符，但这里只把外部datasheet作为命令集兼容性旁证；硬约束仍以Beken BK7258
+> 文档、official v3.1.1.9 driver和实板验证为准。
 
 ---
 
@@ -137,7 +139,7 @@ OFF=00103000 W0=ffffffff W1=ffffffff W2=ffffffff W3=ffffffff
 | Alignment | 4 KB（sector）/ 64 KB（block） |
 | 当前 image 占用 | `0x2837A`（≈ 163 KB），candidate 起始距 image end 约 845 KB |
 | Emptiness | 前 16 KB 全 `0xFF`（board-observed） |
-| Flash ID | `0xC86517`（GigaDevice 8 MB NOR） |
+| Flash ID | `0xC86517`（BK7258集成8 MB Flash接口；与GD25WQ64E身份兼容） |
 | Erase unit | 4 KB sector / 64 KB block |
 | Page program | 256 B |
 | **D5 destructive 验证** | ✅ board-verified（erase/write/read-back/re-erase） |

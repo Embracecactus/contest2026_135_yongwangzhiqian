@@ -2,7 +2,7 @@
 
 日期：2026-07-31
 
-状态：`usable / COM7-COM11 verified / N9 physical cold-reset 3-of-3 verified / J-Link reset experimental`
+状态：`usable / COM7-COM11 verified / N15-M bounded migration and physical reset 3-of-3 verified / J-Link reset experimental`
 
 适用项目：
 
@@ -296,6 +296,9 @@ nuttx/bk7258-dual/nuttx-ap.elf
 nuttx/bk7258-dual/bk7258-dual-image.json
 nuttx/bk7258-dual/build-profile.txt
 nuttx/bk7258-dual/all-app-factory.bin
+nuttx/bk7258-dual/littlefs_factory_clear.bin
+nuttx/bk7258-dual/bk7258-ab-layout.json
+nuttx/bk7258-dual/bk7258-factory-layout.json
 ```
 
 ### 4.4 产物代际检查
@@ -312,7 +315,8 @@ sha256sum \
   nuttx/bk7258-dual/app_crc.bin \
   nuttx/bk7258-dual/app1.bin \
   nuttx/bk7258-dual/app1_crc.bin \
-  nuttx/bk7258-dual/all-app-factory.bin
+  nuttx/bk7258-dual/all-app-factory.bin \
+  nuttx/bk7258-dual/littlefs_factory_clear.bin
 ```
 
 同时检查 profile：
@@ -337,16 +341,16 @@ AP_CONFIG_NAME=...
 - 不允许拿旧哈希代替新产物验证；
 - 烧录日志中的路径必须与刚检查的 factory 路径一致。
 
-### 4.5 本次 cold-reset 已验证 factory
+### 4.5 历史 pre-N15 cold-reset factory
 
 ```text
 size:   2298910 bytes
 sha256: d83c8e38bec19160f9d54d0832a4f553dab85bd568173f2a1ebe4fc9e860d405
 ```
 
-只对当前源码快照有效。后续重编必须重新计算。
+该哈希只属于历史源码快照，不得用于当前ADR-004布局。后续重编必须重新计算。
 
-## 5. 自动 Build + 下载 + warm capture
+## 5. 自动 Build + sparse 下载 + warm capture
 
 推荐一条命令完成：
 
@@ -356,6 +360,7 @@ cd /home/lijian/project/open-vela
 ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
   --build \
   --flash \
+  --sparse-flash \
   --cp-config cp_nsh \
   --ap-config ap_smp_bidir \
   --capture-seconds 30
@@ -366,7 +371,7 @@ cd /home/lijian/project/open-vela
 流程：
 
 1. 按显式 `--cp-config/--ap-config` 构建 CP/AP；
-2. 记录 factory SHA-256 和 stat；
+2. 记录本轮 sparse artifacts 的 SHA-256 和 stat；
 3. 打开 COM11；
 4. 创建 `serial.ready`；
 5. 通过 COM7 调用 Windows loader；
@@ -374,7 +379,9 @@ cd /home/lijian/project/open-vela
 7. COM11 继续捕获；
 8. 生成 marker summary。
 
-factory 会用 `0xff` 覆盖 LittleFS 区。交互执行时必须输入：
+N15-M之后，普通开发/回归必须使用`--sparse-flash`，它只更新boot/CP/AP并保留B、metadata、
+LittleFS、`usr_config`、reserved和official tail。省略`--sparse-flash`会进入destructive factory
+rewrite并清空LittleFS，只能在owner重新明确授权后使用。该路径交互执行时必须输入：
 
 ```text
 FLASH
@@ -386,7 +393,7 @@ FLASH
 --yes
 ```
 
-不要在不了解 LittleFS 影响时随意使用 `--yes`。
+不要把`--yes`用于普通开发，也不要在没有当前破坏性授权时使用。
 
 ## 6. 只下载已构建镜像
 
@@ -403,6 +410,7 @@ nuttx/bk7258-dual/build-profile.txt
 ```bash
 ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
   --flash \
+  --sparse-flash \
   --cp-config cp_nsh \
   --ap-config ap_smp_bidir \
   --capture-seconds 30
@@ -415,17 +423,21 @@ cd /home/lijian/project/open-vela
 
 ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
   --flash \
+  --sparse-flash \
   --capture-seconds 30
 ```
 
-无人值守：
+无人值守的普通sparse更新不需要`--yes`：
 
 ```bash
 ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
-  --flash --yes --capture-seconds 30
+  --flash --sparse-flash --capture-seconds 30
 ```
 
-## 7. Windows CMD 手动下载备用命令
+## 7. Windows CMD 手动 factory 下载备用命令
+
+下列命令是N15-M已经执行过的一次性破坏性迁移/后续factory rewrite模板，不是日常更新命令。
+再次执行前必须取得新的owner授权；普通固件更新用第5/6节的`sparse-flash`。
 
 在 Windows CMD 中：
 
@@ -433,9 +445,24 @@ cd /home/lijian/project/open-vela
 cd /d C:\Users\lijian\Downloads\BEKEN_BKFIL_V2.1.11.15_20241114\BEKEN_BKFIL_V2.1.11.15_20241114
 
 bk_loader.exe download -p 7 -b 6000000 --uart-type OTHER ^
-  --mainBin-multi //wsl.localhost/Ubuntu-22.04/home/lijian/project/open-vela/nuttx/bk7258-dual/all-app-factory.bin@0x0 ^
+  --mainBin-multi //wsl.localhost/Ubuntu-22.04/home/lijian/project/open-vela/nuttx/bk7258-dual/all-app-factory.bin@0x0-0x4fc000,//wsl.localhost/Ubuntu-22.04/home/lijian/project/open-vela/nuttx/bk7258-dual/littlefs_factory_clear.bin@0x600000-0x100000 ^
   --reboot 1 --fast-link 1
 ```
+
+factory命令只覆盖上述两段。`usr_config` `0x4fc000..0x50a000`、两段之间的
+reserved区域以及`0x7fa000..0x800000`校准尾区都不能出现在loader参数中；禁止使用chip erase。
+
+### 7.1 BKFIL read-back验收规则
+
+不要使用6 Mbps Flash read作为位精确备份。N15-M取证证明该模式可能偶发插入128-byte全零块。
+需要验证`usr_config`、calibration tail或其他关键区时：
+
+1. 将BKFIL read baud固定为115200；
+2. 对完全相同的offset/length连续读取两次；
+3. 用`cmp`和SHA-256确认两份byte-identical；
+4. 只有满足重复一致的文件才可作为验收证据；恢复镜像还需单独验证布局和完整性。
+
+迁移前的6 Mbps 8 MiB dump只作forensic reference，禁止直接回刷。
 
 成功标志：
 
@@ -829,7 +856,7 @@ BClk -> U2 等价功能 -> C8 -> NSH
 [ ] 使用显式 profile 运行 build_dual_image.sh
 [ ] 检查 bk7258-dual/build-profile.txt
 [ ] stat + sha256sum 新产物
-[ ] auto_debug.sh --flash --capture-seconds 30
+[ ] 日常更新：auto_debug.sh --flash --sparse-flash --capture-seconds 30
 [ ] 检查 U2/U5/C8/NSH
 [ ] auto_debug.sh --cold-capture --capture-seconds 30
 [ ] 手动按 RESET

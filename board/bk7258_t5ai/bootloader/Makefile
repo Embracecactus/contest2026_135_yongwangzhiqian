@@ -55,4 +55,4 @@ verify: bl_crc.bin
 	$(OBJDUMP) -s -j .rodata bl.elf | sed -n '1,40p'
 
 clean:
-	rm -f *.o bl.elf bl.bin bl.map bl_crc.bin bl_crc.json
+	rm -f *.o *.su bl.elf bl.bin bl.map bl_crc.bin bl_crc.json

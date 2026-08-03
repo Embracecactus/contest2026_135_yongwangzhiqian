@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * BK7258 (T5-AI) on-chip flash data-partition MTD lower-half
- * (logical 0x00100000..0x001FFFFF, 1 MiB).
+ * (raw physical 0x00600000..0x006fffff, 1 MiB).
  *
  * read/erase/bwrite use the board-verified flash-controller sequence with an
  * option-A SR0 block-protect policy (cleared around each op, restored

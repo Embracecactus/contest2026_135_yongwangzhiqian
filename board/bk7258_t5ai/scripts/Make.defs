@@ -19,8 +19,8 @@ CROSSDEV = arm-none-eabi-
 
 include $(TOPDIR)/arch/arm/src/armv8-m/Toolchain.defs
 
-# Linker script: FLASH @ 0x02010000, RAM @ 0x28000000, vector table KEEP-
-# pinned at the flash origin so the BK7236 app magic lands at 0x100.
+# ADR-004 linker scripts: CP FLASH @ 0x02010000, AP FLASH @ 0x02150000;
+# vector tables remain KEEP-pinned at each role's official primary origin.
 
 ifeq ($(CONFIG_BK7258_AP_CORE),y)
 ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)ld_ap.script
