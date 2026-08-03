@@ -19,7 +19,7 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 
 ## Current verified baseline
 
-- Read [Current Progress](../progress/CURRENT.md) for the branch, uncommitted state, next action, and rollback point.
+- Read [Current Progress](../progress/CURRENT.md) for the branch, publication/merge state, next action, and rollback point.
 - N14 completion is archived in [the N14 milestone](../progress/milestones/2026-08-03-n14-psram-board-verified.md).
 - Detailed N14 test output and hashes are canonical in [the N14 evidence index](../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md).
 

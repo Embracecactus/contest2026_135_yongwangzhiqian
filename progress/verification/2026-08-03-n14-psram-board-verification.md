@@ -46,7 +46,7 @@ allocate-copy-free realloc. No unresolved functional failure remains in N14.
 
 - Upper 8 MiB runtime ownership and cache/DMA semantics are undefined by design.
 - Physical power-cut, temperature/voltage memory stress, and product performance SLA were not tested.
-- The implementation is board-verified and committed locally but remains unpushed at this checkpoint.
+- The implementation was unpushed when verification completed and was subsequently published to `fork/feat/bk7258-n14-psram`; see the current checkpoint for merge state.
 
 ## Evidence locations
 

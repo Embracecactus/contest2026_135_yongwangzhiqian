@@ -39,6 +39,6 @@ Normal updates should use sparse flashing; factory flashing erases data/calibrat
 
 ## Remaining work
 
-- Push the locally committed N14 checkpoint only when authorized.
+- Complete owner PR review/merge, then record the merge commit in the current checkpoint.
 - Select no next MAIN Stage by inference; owner discussion is required.
 - Upper-8 runtime allocation, cache/DMA, power-cut, and product stress remain outside N14.
