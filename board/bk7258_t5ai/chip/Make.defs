@@ -181,6 +181,17 @@ ifeq ($(CONFIG_BK7258_BT_IPC),y)
 BK7258_AP_BASE_CSRCS += bk7258_bt_hci.c
 endif
 
+ifeq ($(CONFIG_BK7258_BLE_GATT),y)
+BK7258_AP_BASE_CSRCS += bk7258_ble_gatt.c
+endif
+
+ifeq ($(CONFIG_BK7258_BT_IPC_TRACE),y)
+LDFLAGS += --wrap=bt_conn_receive --wrap=bt_l2cap_receive
+LDFLAGS += --wrap=bt_l2cap_send --wrap=bt_conn_send --wrap=bt_send
+LDFLAGS += --wrap=bt_gatt_connected --wrap=bt_gatt_disconnected
+LDFLAGS += --wrap=bt_l2cap_create_pdu
+endif
+
 ifeq ($(CONFIG_BK7258_RPTUN_MBOX),y)
 BK7258_AP_BASE_CSRCS += bk7258_rptun_mbox.c
 endif

@@ -132,6 +132,23 @@ if(CONFIG_BK7258_BT_IPC)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_bt_hci.c)
 endif()
 
+if(CONFIG_BK7258_BLE_GATT)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_ble_gatt.c)
+endif()
+
+if(CONFIG_BK7258_BT_IPC_TRACE)
+  target_link_options(
+    nuttx PRIVATE
+    "LINKER:--wrap=bt_conn_receive"
+    "LINKER:--wrap=bt_l2cap_receive"
+    "LINKER:--wrap=bt_l2cap_send"
+    "LINKER:--wrap=bt_conn_send"
+    "LINKER:--wrap=bt_send"
+    "LINKER:--wrap=bt_gatt_connected"
+    "LINKER:--wrap=bt_gatt_disconnected"
+    "LINKER:--wrap=bt_l2cap_create_pdu")
+endif()
+
 if(CONFIG_BK7258_RPTUN_MBOX)
   list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rptun_mbox.c)
 endif()

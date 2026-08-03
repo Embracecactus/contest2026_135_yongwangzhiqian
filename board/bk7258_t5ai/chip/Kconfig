@@ -468,6 +468,80 @@ config BK7258_BT_IPC_TEST_STACKSIZE
 	range 4096 16384
 	depends on BK7258_BT_IPC_TEST && BK7258_AP_CORE
 
+config BK7258_BT_IPC_TRACE
+	bool "N13 Bluetooth host stack boundary counters"
+	default n
+	depends on BK7258_BT_IPC_TEST && BK7258_AP_CORE
+	---help---
+		Wrap the stock NuttX Bluetooth host boundary functions and expose
+		monotonic counters through the existing bkbttest stats operation.
+		Except for separately selected compatibility fixes, the wrappers call
+		the original implementation unchanged.  They are a board-owned
+		diagnostic aid for the HCI, L2CAP/ATT and connection-TX path and do not
+		modify NuttX or the Beken SDK.
+
+config BK7258_BT_CONN_RX_REF_COMPAT
+	bool "N13 inbound ACL connection-reference compatibility wrapper"
+	default n
+	depends on BK7258_BT_IPC_TRACE
+	---help---
+		Release the caller-owned bt_conn reference after the stock
+		bt_conn_receive implementation returns.  The current NuttX hci_acl
+		path obtains one reference with bt_conn_lookup_handle for every inbound
+		ACL packet but does not release it, so a completed GATT session leaves
+		the single connection slot permanently occupied.
+
+		This board-owned link wrapper keeps NuttX unmodified.  The N13 verifier
+		checks the exact upstream ownership pattern and fails closed if the
+		NuttX implementation changes, preventing a future double release.
+
+config BK7258_BT_ATT_MTU_COMPAT
+	bool "N13 oversized peer ATT MTU compatibility wrapper"
+	default n
+	depends on BK7258_BT_IPC_TRACE
+	---help---
+		Clamp an inbound ATT Exchange MTU request above the stock NuttX host
+		limit to that limit before passing it to the unmodified host stack.
+		This preserves the normal server-side minimum negotiation while working
+		around the stock host rejecting newer peers that advertise a larger
+		receive capability.  The wrapper is board-owned and exposes a hit count
+		through bkbttest stats.
+
+config BK7258_BLE_GATT
+	bool "N13 board BLE GAP/GATT peripheral service"
+	default n
+	depends on BK7258_BT_IPC && BK7258_AP_CORE
+	depends on WIRELESS_BLUETOOTH_HOST
+	---help---
+		Replace the stock startup-only GAP database with one static combined
+		GAP plus N13 service table, advertise the N13 UUID/name, and run all
+		lifecycle and notification work in a logical-CPU0 kernel thread.  This
+		is a board wrapper over the unmodified NuttX Host; the Beken SDK remains
+		Controller-only.
+
+config BK7258_BLE_GATT_PRIORITY
+	int "N13 BLE GATT worker priority"
+	default 96
+	range 1 199
+	depends on BK7258_BLE_GATT
+	---help---
+		SCHED_FIFO priority of bk7258-ble-gatt.  It must remain below the
+		Bluetooth LPWORK priority so ATT and disconnection cleanup finish first.
+
+config BK7258_BLE_GATT_STACKSIZE
+	int "N13 BLE GATT worker stack size"
+	default 8192
+	range 4096 16384
+	depends on BK7258_BLE_GATT
+
+config BK7258_BLE_GATT_NOTIFY_INTERVAL_MS
+	int "N13 notification burst interval (ms)"
+	default 20
+	range 5 1000
+	depends on BK7258_BLE_GATT
+	---help---
+		Fixed pacing interval for the bounded one-to-100 frame validation burst.
+
 config BK7258_FLASH_MTD
 	bool "BK7258 on-chip flash data-partition MTD"
 	default n

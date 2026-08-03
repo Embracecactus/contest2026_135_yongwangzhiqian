@@ -29,9 +29,24 @@
 | **N10** | AP SMP liveness / RPMsg health supervision | **LATEST VERIFIED：`board-verified`（检测与人工恢复基线，2026-08-01）**；三路健康信号、双向 vring activity、三类独立注入与旧链路 fail-closed 全部实板通过；manual recovery 连续推进到 generation=5，恢复后两轮无注入 full suite 12/12 PASS；自动恢复默认关闭，仍是独立可选门禁 | [N10 worklog](nuttx-port/prompts/10-n10-ap-supervision.md) |
 | **N11** | AP access to CP LittleFS through RPMsgFS | **LATEST VERIFIED：`board-verified`（受限 stock RPMsgFS worker 基线，2026-08-02）**；四档文件测试各 20/20、RPMsg 6×100、syslog、LittleFS local probe、故障态 bounded fail-closed 与 generation 1→2 manual recovery 全部通过；在途 stock POSIX 调用仍由 AP restart 回收 | [N11 worklog](nuttx-port/prompts/11-n11-rpmsgfs.md) |
 | **N12** | official Beken Bluetooth IPC + AP NuttX HCI wrapper | **LATEST VERIFIED：`board-verified`（2026-08-02）**；CP official controller-only BLE、AP stock NuttX Host、HCI info、SDK-equivalent MAC 持久化、UART lifecycle self-heal、RPMsg/RPMsgFS/SMP 共存以及 Windows legacy advertiser 的真实 RF report 均实板通过 | [N12 worklog](nuttx-port/n12-beken-bt-ipc-wrapper.md) |
+| **N13** | BLE GAP/GATT Peripheral end-to-end | **LATEST VERIFIED：`board-verified`（2026-08-03）**；四类negative、20/20 uncached重连、BLE 100帧与RPMsg六场景×100/RPMsgFS四档×20主动并发、3/3 cold、最终`25/25/25`与connection ref=0全部闭环 | [N13 completion](nuttx-port/prompts/13-n13-ble-gap-gatt.md) / [source verification](nuttx-port/n13-ble-gap-gatt-source-verification.md) / [evidence](nuttx-port/n13-evidence-index.md) |
 
 ## 当前 handoff
 
+> **N13 completed / board-verified（2026-08-03）：**AP stock NuttX Host仍是唯一Host owner，
+> CP运行official v3.1.1.9 Controller；官方NuttX/SDK源码和静态库均未修改。最终根因是stock
+> inbound ACL connection reference未释放，旧镜像`ref=19 == HOST conn_rx=19`；board link wrapper
+> 现精确配对release，source verifier监测upstream ownership变化并防double release。四类negative
+> 全部被真实ATT拒绝，post-reject合法echo仍可用；20轮uncached重连20/20。BLE 100帧分别与
+> RPMsg六场景×100、RPMsgFS四档×20主动并发PASS，最终Host/HCI/N13=`25/25/25`、ref=0、
+> AP READY、RPTUN CONNECTED、supervisor HEALTHY、CPU2 online且pending 0/0。RPMsg满载下BLE
+> 会话45.41秒，在显式90秒deadline内完成，作为性能基线保留。3/3 physical cold、latest/legacy
+> rollback、final build/flash/verifier与官方树zero-diff均PASS。下一MAIN Stage尚未批准；用户明确
+> 禁止启动会使Windows卡顿的`BLEDebug.EXE`。详见
+> [N13 completion](nuttx-port/prompts/13-n13-ble-gap-gatt.md)、
+> [source verification](nuttx-port/n13-ble-gap-gatt-source-verification.md)和
+> [evidence index](nuttx-port/n13-evidence-index.md)。
+>
 > **N12 completed / board-verified（2026-08-02）：**保持 SDK/NuttX 源码只读，在 board overlay
 > 中接入官方 `MB_CHNL_BT_CMD`：CP 运行 controller-only BLE，AP 通过 `bt_driver_s`
 > lower-half 运行 stock NuttX Host。空白板按官方策略生成并双份持久化 base MAC
@@ -125,20 +140,19 @@
 
 > **N8-D1 closure（2026-07-30）：**`ap_smp_lifecycle` normal autostart 在真实 T5-AI 一次闭环。AP `READY/error=0`、heartbeat=`727`；CPU2 `SCHEDULER_ONLINE/error=0`、online=`0x3`。BLCY `PASSED/error=0`、requested/completed=`1/1`；callback entry/exit CPU=`1/1`、started/completed=`1/1`、quiesce/resume sequence=`1/1`、value=`0/-138`（该 NuttX 配置的 `-ENOTSUP`）、aux=`1/1`。隔离窗口 CPU0→CPU1 `10→11`=`+1`、CPU1→CPU0 `1→1`=`+0`、calls `11→12`=`+1`；handler CPU0=`1/1`、CPU1=`11/11`，coalesced/fail/stale/spurious=0。CPU0 SysTick=`8090`、sleep enter/return=`727/726` 证明 gate 后持续运行。CPU1 全程保持 online=`0x3`，没有 CPU2 reset/power transition；这是 bounded scheduler quiesce/resume foundation，不是 CPU hot-unplug。
 
-- **Current Stage：**N12 official Beken Bluetooth IPC wrapper 已完整
-  `board-verified`；下一 MAIN Stage 尚未冻结，建议优先评审 BLE GAP/GATT 端到端功能。
+- **Current Stage：**无；N13 BLE GAP/GATT Peripheral已完成并`board-verified`。下一MAIN Stage
+  尚未由用户批准，不应自动把PSRAM、Wi-Fi、security或Bluetooth warm restart纳入范围。
 - **Authorized implementation set：**N8-C5..N8-D1 与 N9-R..N9-V 全部完成并实板
   闭环；N10 wrapper、重复满载、warm restart、primary/secondary/RPMsg 三类注入、
   fail-closed、三次人工恢复与 generation=5 无注入重复 full suite 均已实板通过；N11
   stock RPMsgFS wrapper、exclusive-state 内存修复、故障态 bounded wait 与 generation
   recovery 也已实板通过。
-- **Latest board-verified baseline：**N12 `cp_nsh_btipc + ap_smp_btipc` generation=1：
-  `READY/CONNECTED/HEALTHY`、CPU2 online；`bkbttest info` PASS，BD_ADDR 持久化且
-  非 fallback；RPMsg 6×100 与 RPMsgFS 四档×2 全部 PASS，最终 UART patch 后短回归
-  仍全 PASS；Windows legacy advertiser 的真实 address/RSSI/payload 已由
-  `bkbttest n12v` 精确匹配并 PASS，系统广播不会再影响选择（2026-08-02）。
-- **Current worklog：**[`nuttx-port/n12-beken-bt-ipc-wrapper.md`](nuttx-port/n12-beken-bt-ipc-wrapper.md)
-- **Source verification：**[`nuttx-port/n9-rptun-source-verification.md`](nuttx-port/n9-rptun-source-verification.md)；
+- **Latest board-verified baseline：**N13 `cp_nsh_ble_gatt + ap_smp_ble_gatt` generation=1：
+  四类negative、20/20 uncached重连、BLE 100帧与RPMsg/RPMsgFS主动并发、最终
+  `READY/CONNECTED/HEALTHY`、CPU2 online、Host/HCI/N13=`25/25/25`、ref=0（2026-08-03）。
+- **Latest worklog：**[`nuttx-port/prompts/13-n13-ble-gap-gatt.md`](nuttx-port/prompts/13-n13-ble-gap-gatt.md)
+- **Source verification：**[`nuttx-port/n13-ble-gap-gatt-source-verification.md`](nuttx-port/n13-ble-gap-gatt-source-verification.md)；
+  N9 transport复核见 [`nuttx-port/n9-rptun-source-verification.md`](nuttx-port/n9-rptun-source-verification.md)；
   N8 closure 见 [`nuttx-port/n8-cold-reset-resolution-report.md`](nuttx-port/n8-cold-reset-resolution-report.md)；
   新手说明见 [`nuttx-port/cold-reset-smp-repair-guide.md`](nuttx-port/cold-reset-smp-repair-guide.md)；
   执行流程见 [`nuttx-port/bk7258-build-flash-debug-sop.md`](nuttx-port/bk7258-build-flash-debug-sop.md)。
