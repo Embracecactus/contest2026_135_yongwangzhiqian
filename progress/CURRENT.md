@@ -1,22 +1,22 @@
 # Current Progress
 
-Last updated: 2026-08-03T18:16:17+08:00
+Last updated: 2026-08-03T18:29:39+08:00
 Updated by: Codex (`maintain-project-memory` checkpoint)
 
 ## Snapshot
 
 - Branch: `feat/bk7258-n14-psram`
 - N14 feature commit: `36fc6a282efe787dff18630bdc77b245cb5d2514` (`feat(bk7258): add board-verified PSRAM and timer wrappers`).
-- Checkpoint commit: the metadata-only commit containing this file; resolve it with `git log -1 -- progress/CURRENT.md`.
-- Remote state: `origin/dev-ai-contest-2026` remains at `c6afd6f9b73dcf862f17bd31f5b2dc90820b9bb0`; the N14 feature and memory checkpoint commits are local and unpushed.
+- Initial checkpoint commit: `cecb84e62bc9b2e315584aa9676fb8d39c80be60`; resolve the current metadata refresh with `git log -1 -- progress/CURRENT.md`.
+- Remote state: N14 is published to `fork/feat/bk7258-n14-psram`; `origin/dev-ai-contest-2026` remains the PR base at `c6afd6f9b73dcf862f17bd31f5b2dc90820b9bb0`.
 - Deployed version: N14 factory artifact SHA-256 `3b34edc5d86343dcb0a3f479d71eb1271c49157eb93c51b5bb6da13fafcef253`; post-calibration physical cold boot passed.
 - Environment: physical Tuya T5-AI, CP `cp_nsh_psram`, AP `ap_smp_psram`, Beken SDK bundle v3.1.1.9.
 
 ## Active work
 
-- Objective: preserve the completed N14 checkpoint and await explicit push or next-stage authorization.
+- Objective: preserve the published N14 checkpoint and await owner PR/next-stage direction.
 - Scope: team-owned board/app/build wrappers, N14 configs/verifier, documentation, logs, and project-memory checkpoint.
-- Status: N14 is `board-verified` and committed locally; no next MAIN Stage is approved.
+- Status: N14 is `board-verified`, committed, and pushed to the fork; no next MAIN Stage is approved.
 
 ## Recently completed
 
@@ -34,9 +34,9 @@ Updated by: Codex (`maintain-project-memory` checkpoint)
 
 ## Next actions
 
-1. Push the two local commits only after explicit user authorization, then update this file with the remote state.
-2. Discuss and approve the next MAIN Stage before implementing OTA, Wi-Fi, security, Bluetooth warm restart, or upper-8 PSRAM runtime use.
-3. Keep unrelated untracked directories outside this branch unless they receive a separate scope decision.
+1. Owner opens and reviews the N14 PR from `fork/feat/bk7258-n14-psram` to `origin/dev-ai-contest-2026`.
+2. After merge, update this checkpoint with the merge commit and remote base.
+3. Discuss and approve the next MAIN Stage before implementing OTA, Wi-Fi, security, Bluetooth warm restart, or upper-8 PSRAM runtime use.
 
 ## Risks and blockers
 
