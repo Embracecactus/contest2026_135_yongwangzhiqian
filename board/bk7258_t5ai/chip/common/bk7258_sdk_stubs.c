@@ -153,7 +153,12 @@ void delay(unsigned int ms)
 
 void bk_delay_us(unsigned int us)
 {
-  (void)us;
+  /* The SDK Bluetooth/PHY libraries use this as a real busy-wait primitive.
+   * Keep the wrapper semantics equivalent when those prebuilt libraries run
+   * on NuttX instead of silently dropping timing-sensitive delays.
+   */
+
+  up_udelay(us);
 }
 
 /****************************************************************************

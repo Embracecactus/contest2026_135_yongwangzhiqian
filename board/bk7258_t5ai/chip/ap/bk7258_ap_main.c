@@ -35,6 +35,9 @@
 #ifdef CONFIG_BK7258_BT_IPC
 #  include <arch/chip/bk7258_bt_ipc.h>
 #endif
+#ifdef CONFIG_BK7258_BLE_GATT
+#  include <arch/chip/bk7258_ble_gatt.h>
+#endif
 
 #include "arm_internal.h"
 #include "bk7258_clockdiag.h"
@@ -341,6 +344,9 @@ int bk7258_ap_main(int argc, char *argv[])
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
   volatile struct bk7258_ap_smp_state_s *smp = bk7258_ap_smp_state();
 #endif
+#ifdef CONFIG_BK7258_BLE_GATT
+  struct bk7258_ble_gatt_stats_s ble_gatt;
+#endif
   uint32_t event;
   int error;
   int ret;
@@ -546,6 +552,24 @@ int bk7258_ap_main(int argc, char *argv[])
 #ifdef CONFIG_BK7258_BT_IPC
   ret = bk7258_bt_hci_initialize();
   if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_BLUETOOTH);
+      goto parked;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_BLE_GATT
+  ret = bk7258_ble_gatt_initialize();
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_BLUETOOTH);
+      goto parked;
+    }
+
+  ret = bk7258_ble_gatt_get_stats(&ble_gatt);
+  if (ret < 0 ||
+      ble_gatt.state != BK7258_BLE_GATT_STATE_ADVERTISING ||
+      ble_gatt.worker_cpu != 0u)
     {
       bk7258_ap_publish_failure(BK7258_AP_ERROR_BLUETOOTH);
       goto parked;

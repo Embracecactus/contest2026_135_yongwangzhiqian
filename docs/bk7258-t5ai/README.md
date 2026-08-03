@@ -44,6 +44,13 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 > N9 CP/AP RPTUN/OpenAMP/RPMsg wrapper 完成记录（LATEST VERIFIED，`board-verified`）：[`nuttx-port/prompts/09-n9-rptun-rpmsg.md`](nuttx-port/prompts/09-n9-rptun-rpmsg.md)；
 > source verification：[`nuttx-port/n9-rptun-source-verification.md`](nuttx-port/n9-rptun-source-verification.md)；
 > 17 项评审处置：[`nuttx-port/n9-plan-review-2026-07-31.md`](nuttx-port/n9-plan-review-2026-07-31.md)
+> N10 AP health supervision（`board-verified`）：[`nuttx-port/prompts/10-n10-ap-supervision.md`](nuttx-port/prompts/10-n10-ap-supervision.md)
+> N11 RPMsgFS（`board-verified`）：[`nuttx-port/prompts/11-n11-rpmsgfs.md`](nuttx-port/prompts/11-n11-rpmsgfs.md)
+> N12 official Bluetooth IPC + NuttX HCI wrapper（`board-verified`）：[`nuttx-port/n12-beken-bt-ipc-wrapper.md`](nuttx-port/n12-beken-bt-ipc-wrapper.md)
+> N13 BLE GAP/GATT（`board-verified`）：[`nuttx-port/prompts/13-n13-ble-gap-gatt.md`](nuttx-port/prompts/13-n13-ble-gap-gatt.md)；
+> 最终证据：[`nuttx-port/n13-evidence-index.md`](nuttx-port/n13-evidence-index.md)；
+> source verification：[`nuttx-port/n13-ble-gap-gatt-source-verification.md`](nuttx-port/n13-ble-gap-gatt-source-verification.md)；
+> evidence index：[`nuttx-port/n13-evidence-index.md`](nuttx-port/n13-evidence-index.md)
 > 小白入门版修复过程：[`nuttx-port/cold-reset-smp-repair-guide.md`](nuttx-port/cold-reset-smp-repair-guide.md)
 > SDK v3.1.1.9 迁移、legacy 回退、ABI 与实板证据：[`nuttx-port/sdk-v3.1.1.9-migration-report.md`](nuttx-port/sdk-v3.1.1.9-migration-report.md)
 > SDK CP/AP 静态库编译、导入与校验 SOP：[`nuttx-port/sdk-static-library-import.md`](nuttx-port/sdk-static-library-import.md)
@@ -85,15 +92,19 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 | **NuttX Stage N8-D1（scheduler quiesce/resume foundation）** | ✅ **LATEST VERIFIED：`board-verified`**（2026-07-30，normal autostart path）：BLCY PASSED、requested/completed=`1/1`；callback entry/exit CPU=`1/1`、started/completed=`1/1`、sequence=`1/1`、value=`0/-138` (`-ENOTSUP`)、aux=`1/1`；CPU0→CPU1 `10→11`=`+1`、反向 `1→1`=`+0`、calls `11→12`=`+1`，online=`0x3`，handler fully delivered，coalesced/fail/stale/spurious=0；不实现或声称 hot-unplug，未进行新评审 |
 | **N8 physical cold-reset 启动覆盖** | ✅ 2026-07-31 最终无 checkpoint 镜像连续 warm 3/3、COM7 RTS physical-reset 3/3，均到 NSH；cold 均有 `BClk`。AP `READY/error=0`、CPU2 `SCHEDULER_ONLINE/error=0`、已启用 SMP gates 全 `PASSED/error=0`。修复覆盖 UART GPIO/clock/TX-empty handoff、boot/cache/MPU、WDT ownership、CPU2 handshake 和 bounded poll scheduling；power cut 尚未执行 |
 | **NuttX Stage N9（CP/AP RPTUN/OpenAMP/RPMsg）** | ✅ **LATEST VERIFIED：`board-verified`（2026-07-31）**。官方 SDK/NuttX 只读 wrapper；32 KiB carveout、AP CPU0 gateway、动态 Name Service、双 producer、满帧 load、generation reconnect、syslog 与三类兼容构建闭环 |
+| **NuttX Stage N10（AP health supervision）** | ✅ `board-verified`：三路健康信号、三类故障注入、旧链路 fail-closed、人工恢复与 generation=5回归闭环；自动恢复默认关闭 |
+| **NuttX Stage N11（RPMsgFS）** | ✅ `board-verified`：CP独占 LittleFS、AP stock RPMsgFS client、四档 payload、故障态有界失败与 generation recovery闭环 |
+| **NuttX Stage N12（official Bluetooth IPC + NuttX HCI）** | ✅ **LATEST VERIFIED：`board-verified`（2026-08-02）**：Controller/Host初始化、MAC持久化、真实 RF scan report与RPMsg/RPMsgFS/SMP共存闭环 |
+| **NuttX Stage N13（BLE GAP/GATT Peripheral）** | ✅ **LATEST VERIFIED：`board-verified`（2026-08-03）**：四类negative、20/20 uncached重连、BLE 100帧与RPMsg六场景×100/RPMsgFS四档×20主动并发、3/3 cold、最终`25/25/25` lifecycle与`bt_conn.ref=0`全部闭环 |
 | MTD / 文件系统 | ✅ board-verified（N5-D6 MTD + N5-D7 LittleFS，/data 挂载） |
 | NuttX Stage N6-A1（SDK integration + 80-slot RAM vectors） | ✅ board-verified（VTOR `0x28000800`，magic slots 64/65 与运行期 vector repair 均通过） |
 | 4295 秒系统时间折返修复 | ✅ board-verified（`CONFIG_SYSTEM_TIME64=y`，uptime 单调增长到 5834.58 秒，无 HF/WDT 复位） |
 | NuttX Stage N6-B（CPU0 SDK IRQ bridge） | ✅ TIMER1/source-3/IRQ19 board-verified（两次独立启动、三次 `bkirqtest` 全 PASS；静态 verifier 48/48 PASS） |
 | GPIO foundation C0 | ✅ board-verified：P9 active-high LED + P29 active-low USERKEY，3 个独立 boot/download、5 次 `bkgpioc0` PASS |
 | GPIO C1/C2 | ✅ board-verified：GPIO_NS source37/IRQ53 与 CPU0 group2 gate 已验证；`/dev/gpio0`/`/dev/gpio1` lower-half 完成，两次连续 falling-edge 命令通过；保留 `CONFIG_DEV_GPIO_NSIGNALS=2` 规避 upstream unregister 缺陷 |
-| 当前门禁 | N9 是 latest verified CP/AP baseline；后续服务必须独立 Kconfig/timeout/backpressure/回退。官方 NuttX 与 SDK 源码继续保持零改动 |
+| 当前门禁 | N13已是latest完整`board-verified` baseline；下一MAIN Stage尚未批准。主动RPMsg满载下BLE会话45.41秒作为首版性能基线保留。禁止启动会导致Windows卡顿的`BLEDebug.EXE`；官方NuttX与SDK源码继续保持零改动 |
 | Tier-2 bootloader（OTA / A-B failover） | 后续，未编号 |
-| 多核后续 | N8 AP SMP 全基线已板端通过。N9 已选择为 CP↔AP cluster 的 RPTUN/RPMsg transport；不切换 BMP、不建立 CPU2 第二 peer。RPTUN/RPMsg 仍未实现或验证，Wi-Fi/BLE 服务层仍未启用 |
+| 多核后续 | N8 AP SMP、N9 RPTUN/RPMsg与N13 BLE服务层均已板端通过；不切换 BMP、不建立 CPU2第二 peer。Wi-Fi数据面仍未进入已批准范围 |
 
 **N7 构建产物**：`$FW/bk7258-dual/app.bin`（CP，171956 B）、`app1.bin`（AP，64346 B）及
 `bk7258-dual-image.json`。正常更新使用 `bl_crc.bin@0x0-0x11000`、

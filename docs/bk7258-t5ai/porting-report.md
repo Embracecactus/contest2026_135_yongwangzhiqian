@@ -522,6 +522,11 @@ SysTick dump 中途失败重启，**rejected**。100Hz 板端证据：loader 80 
 `$FW/all-app.bin` 164730 B（sha256 `c3ca4ae2...`），`$FW/nuttx.bin` 89504 B
 （sha256 `e4269b7a...`）。D0F 不改变 N4 整体状态——D1 仍 blocked，整 N4 仍 not board-verified。
 
+这条`rejected`只描述2026-07-18的N4早期26 MHz/manual-reset候选。N13的独立CP Bluetooth
+profile在成熟320 MHz启动链上重新选择`CONFIG_USEC_PER_TICK=1000`以匹配official SDK
+FreeRTOS 1 ms tick，并已随N13 50 ms GATT镜像通过独立RTS物理冷复位；N12及其他历史profile
+不被全局改成1 ms。
+
 详细 worklog：[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md)。
 
 ### 9.7 Stage N4 后续 handoff — DPLL / 480 MHz 时钟 bring-up
@@ -677,10 +682,19 @@ board/bk7258_t5ai/bootloader/
 ## 12. 下一步 Roadmap
 
 > **2026-08-02 路线更新：**本报告前文的 N4 CURRENT / SMP planned later 是历史快照。
-> latest fully closed baseline 已推进至 N12 Bluetooth IPC；冷启动、HCI info、MAC 持久化、
-> UART 恢复、通用 IPC 共存和 Windows legacy advertiser 的真实 RF report 均已实板通过；
-> `bkbttest n12v` 会精确筛选 company ID/payload，不受同适配器系统广播的顺序影响。
-> 权威记录见 [N12 worklog](nuttx-port/n12-beken-bt-ipc-wrapper.md)。
+> latest fully closed baseline 已推进至 N13 BLE GAP/GATT Peripheral；N12 Bluetooth IPC仍是
+> transport回退基线。权威记录见[N13 plan](nuttx-port/prompts/13-n13-ble-gap-gatt.md)和
+> [N13 evidence index](nuttx-port/n13-evidence-index.md)。
+>
+> **N13完成：**board wrapper实现combined GAP+custom GATT、20-byte echo/notify和无GUI WinRT
+> client。最终还定位并修复stock inbound ACL connection reference未释放：旧镜像
+> `ref=19 == HOST conn_rx=19`，现由board link wrapper精确配对release，构建verifier监测upstream
+> ownership变化，官方NuttX/SDK保持零改动。四类negative全部真实ATT拒绝，post-reject link可用；
+> 正式20轮uncached重连20/20。BLE 100帧分别与RPMsg六场景×100及RPMsgFS四档×20主动并发PASS，
+> 最终Host/HCI/N13=`25/25/25`、ref=0、AP READY、RPTUN CONNECTED、supervisor HEALTHY、CPU2
+> online、pending 0/0且heap稳定。RPMsg满载时BLE总会话45.41秒，在显式90秒deadline内完成，
+> 作为性能基线记录。physical cold 3/3、latest/legacy回退、final build/flash/verifier和官方树零diff
+> 均通过，N13现为`board-verified`。按用户要求始终未启动`BLEDebug.EXE`。
 
 | 优先级 | 项 | 状态 | 备注 |
 |---|---|---|---|
@@ -694,7 +708,7 @@ board/bk7258_t5ai/bootloader/
 | P0 | **NuttX Stage N10**：heartbeat / AP crash supervision | ✅ done / `board-verified` | 三路健康信号、双向 vring activity、三类故障注入、旧链路 fail-closed 与 generation 5 人工恢复闭环；自动恢复默认关闭 |
 | P0 | **NuttX Stage N11**：AP 通过 RPMsgFS 访问 CP LittleFS | ✅ done / `board-verified` | stock RPMsgFS、CPU0 worker、四档 payload、故障态有界失败与 generation recovery 均闭环 |
 | P0 | **NuttX Stage N12**：official Beken Bluetooth IPC + NuttX HCI wrapper | ✅ done / `board-verified` | CP Controller、AP stock Host、HCI info、MAC 持久化、UART self-heal、RPMsg/RPMsgFS 共存以及真实 advertising report 均已实板通过 |
-| P0 | **下一 Stage** | not frozen | 建议优先评审 Bluetooth GAP/GATT 端到端功能；Wi-Fi 数据面和自动恢复仍是并列候选，不因 N12 完成而自动授权 |
+| P0 | **NuttX Stage N13**：BLE GAP/GATT Peripheral end-to-end | ✅ done / `board-verified` | 四类negative、20/20 uncached重连、BLE+RPMsg/RPMsgFS主动并发、3/3 cold、ref=0、final build/flash与零官方树改动全部闭环 |
 | P1 | **后续（未编号）**：PSRAM bring-up | planned later | T5-AI 16 MB SiP PSRAM 当前未用 |
 | P1 | **后续（未编号）**：Tier-2 bootloader OTA（RBL + A/B + failover） | planned later | 需 flash 写；参考 BK 官方 §2.12 RBL 校验 |
 | P2 | **后续（未编号）**：GPIO / flash / Wi-Fi / BLE 等驱动补全 | planned later | 根据 N4 后的板端证据与竞赛优先级再排序 |

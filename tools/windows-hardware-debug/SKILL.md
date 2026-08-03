@@ -1,6 +1,6 @@
 ---
 name: windows-hardware-debug
-description: Capture and verify embedded-device UART logs, perform guarded SEGGER J-Link diagnostics, and publish bounded Windows BLE test advertisements from Windows or WSL2. Use for serial boot-log collection, reset-synchronized capture, DTR/RTS reset diagnosis, J-Link register or memory inspection, real-RF BLE scan validation, and reproducible hardware-debug evidence. Do not use it for flashing, erasing, fuse/security changes, unreviewed arbitrary J-Link commands, or treating host-side BLE Started status as target-side RF proof.
+description: Capture and verify embedded-device UART logs, perform guarded SEGGER J-Link diagnostics, publish bounded Windows BLE test advertisements, and run bounded no-GUI Windows BLE Central/GATT probes from Windows or WSL2. Use for serial boot-log collection, reset-synchronized capture, DTR/RTS reset diagnosis, J-Link register or memory inspection, real-RF BLE scan validation, GATT read/write/notify validation, and reproducible hardware-debug evidence. Do not use it for flashing, erasing, fuse/security changes, unreviewed arbitrary J-Link commands, pairing-state changes, or treating host-side BLE status as complete target proof.
 ---
 
 # Windows Hardware Debug
@@ -12,8 +12,9 @@ COM port, baud rate, CPU, address, or reset polarity.
 
 1. Identify whether the shell is Windows PowerShell or WSL2. In WSL2, run
    `scripts/debug_session_wsl.sh` for UART/J-Link sessions or
-   `ble-advertiser/scripts/advertise_wsl.sh` for BLE; in Windows, run the
-   corresponding PowerShell scripts.
+   `ble-advertiser/scripts/advertise_wsl.sh` for BLE publication, or
+   `ble-gatt-client/scripts/gatt_client_wsl.sh` for BLE Central/GATT; in
+   Windows, run the corresponding PowerShell scripts.
 2. List Windows serial ports with `serial_capture.ps1 -ListPorts`. Ask for the
    port mapping if it cannot be inferred safely. Never open one COM port from
    two processes at once.
@@ -65,5 +66,13 @@ only; retain the target's raw address, RSSI, and advertising bytes as RF proof.
   troubleshooting.
 - Read `ble-advertiser/README.md` before generating a real BLE RF source; use
   its scripts rather than reimplementing Windows Runtime publication ad hoc.
+- Read `ble-gatt-client/README.md` before connecting to a target; use an exact
+  address/name, bounded deadlines, and a fresh result path. Do not pair a peer
+  or accept a cached service index/read as uncached board-level GATT discovery
+  proof. The client's explicit cached N13-negative recovery may only supply
+  already-frozen handles; require its uncached reads, real ATT rejections,
+  valid echo, JSON cache marker, and matching board counters. The separate
+  UUID-targeted mode is uncached, but it is evidence only after the complete
+  requested gate succeeds; a Controller link or timed-out query is not.
 - Use `scripts/jlink_debug.ps1 -DryRun` to review generated J-Link commands
   without connecting to hardware.

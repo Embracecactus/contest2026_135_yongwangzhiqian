@@ -43,6 +43,9 @@
 #include <nuttx/signal.h>
 
 #include <arch/chip/bk7258_bt_ipc.h>
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_BLE_GATT)
+#  include <arch/chip/bk7258_ble_gatt.h>
+#endif
 #include <arch/chip/bk7258_rptun.h>
 
 #include "bk7258_rptun.h"
@@ -124,6 +127,9 @@ static_assert(offsetof(struct bk7258_bt_test_wire_s, result) == 32u,
 static_assert(sizeof(struct bk7258_bt_test_wire_s) <=
               BK7258_RPMSG_TEST_FRAME_SIZE,
               "BK7258 Bluetooth report cannot fit one RPMsg frame");
+static_assert(sizeof(struct bk7258_bt_test_wire_s) ==
+              BK7258_RPMSG_TEST_FRAME_SIZE,
+              "BK7258 Bluetooth report must account for the full frame");
 
 #if defined(CONFIG_BK7258_AP_CORE) && \
     defined(CONFIG_BK7258_AP_SUPERVISOR)
@@ -457,8 +463,46 @@ static int bk7258_bt_test_execute(uint32_t operation,
                                   uint32_t scan_duration_ms,
                                   struct bk7258_bt_test_result_s *result)
 {
+#ifdef CONFIG_BK7258_BLE_GATT
+  struct bk7258_ble_gatt_stats_s gatt;
+#endif
   int socket_fd;
   int ret;
+
+  if (operation == BK7258_BT_TEST_OPERATION_STATS)
+    {
+      ret = bk7258_bt_hci_get_stats(&result->hci);
+#ifdef CONFIG_BK7258_BLE_GATT
+      if (ret >= 0)
+        {
+          ret = bk7258_ble_gatt_get_stats(&gatt);
+        }
+
+      if (ret >= 0)
+        {
+          result->gatt.state = gatt.state > UINT8_MAX ?
+                               UINT8_MAX : (uint8_t)gatt.state;
+          result->gatt.worker_cpu = gatt.worker_cpu > UINT8_MAX ?
+                                    UINT8_MAX : (uint8_t)gatt.worker_cpu;
+          result->gatt.last_error = gatt.last_error > INT16_MAX ?
+                                    INT16_MAX :
+                                    gatt.last_error < INT16_MIN ?
+                                    INT16_MIN : (int16_t)gatt.last_error;
+          result->gatt.connected = gatt.connected > UINT16_MAX ?
+                                   UINT16_MAX : (uint16_t)gatt.connected;
+          result->gatt.disconnected = gatt.disconnected > UINT16_MAX ?
+                                      UINT16_MAX :
+                                      (uint16_t)gatt.disconnected;
+          result->gatt.readvertised = gatt.readvertised > UINT16_MAX ?
+                                      UINT16_MAX :
+                                      (uint16_t)gatt.readvertised;
+          result->gatt.queue_full = gatt.queue_full > UINT16_MAX ?
+                                    UINT16_MAX :
+                                    (uint16_t)gatt.queue_full;
+        }
+#endif
+      return ret;
+    }
 
   socket_fd = socket(PF_BLUETOOTH, SOCK_RAW, BTPROTO_L2CAP);
   if (socket_fd < 0)
@@ -491,6 +535,7 @@ static void bk7258_bt_test_result_init(
   result->operation = operation;
   result->worker_cpu = cpu >= 0 ? (uint32_t)cpu : UINT32_MAX;
   result->scan_duration_ms = scan_duration_ms;
+  result->gatt.worker_cpu = UINT8_MAX;
 }
 
 static FAR void *bk7258_bt_test_worker(FAR void *arg)
@@ -676,10 +721,12 @@ static int bk7258_bt_test_ept_cb(FAR struct rpmsg_endpoint *ept,
         }
 
       if ((message->operation != BK7258_BT_TEST_OPERATION_INFO &&
-           message->operation != BK7258_BT_TEST_OPERATION_SCAN) ||
+           message->operation != BK7258_BT_TEST_OPERATION_SCAN &&
+           message->operation != BK7258_BT_TEST_OPERATION_STATS) ||
           message->timeout_ms < BK7258_BT_TEST_TIMEOUT_MIN_MS ||
           message->timeout_ms > BK7258_BT_TEST_TIMEOUT_MAX_MS ||
-          (message->operation == BK7258_BT_TEST_OPERATION_INFO &&
+          ((message->operation == BK7258_BT_TEST_OPERATION_INFO ||
+            message->operation == BK7258_BT_TEST_OPERATION_STATS) &&
            message->scan_duration_ms != 0) ||
           (message->operation == BK7258_BT_TEST_OPERATION_SCAN &&
            (message->scan_duration_ms < BK7258_BT_TEST_SCAN_MIN_MS ||
@@ -880,10 +927,12 @@ int bk7258_bt_test_run(enum bk7258_bt_test_operation_e operation,
 
   if (result == NULL ||
       (operation != BK7258_BT_TEST_OPERATION_INFO &&
-       operation != BK7258_BT_TEST_OPERATION_SCAN) ||
+       operation != BK7258_BT_TEST_OPERATION_SCAN &&
+       operation != BK7258_BT_TEST_OPERATION_STATS) ||
       timeout_ms < BK7258_BT_TEST_TIMEOUT_MIN_MS ||
       timeout_ms > BK7258_BT_TEST_TIMEOUT_MAX_MS ||
-      (operation == BK7258_BT_TEST_OPERATION_INFO &&
+      ((operation == BK7258_BT_TEST_OPERATION_INFO ||
+        operation == BK7258_BT_TEST_OPERATION_STATS) &&
        scan_duration_ms != 0) ||
       (operation == BK7258_BT_TEST_OPERATION_SCAN &&
        (scan_duration_ms < BK7258_BT_TEST_SCAN_MIN_MS ||

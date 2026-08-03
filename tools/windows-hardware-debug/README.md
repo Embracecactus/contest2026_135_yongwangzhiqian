@@ -1,9 +1,9 @@
 # Windows / WSL2 Hardware Debug SOP
 
 A board-independent toolkit for collecting exact UART logs, running guarded
-SEGGER J-Link diagnostics, and publishing bounded BLE test advertisements from
-Windows PowerShell or WSL2. It is designed for both humans and coding agents
-such as Claude Code and Codex.
+SEGGER J-Link diagnostics, publishing bounded BLE test advertisements, and
+running bounded BLE Central/GATT probes from Windows PowerShell or WSL2. It is
+designed for both humans and coding agents such as Claude Code and Codex.
 
 The toolkit deliberately does **not** implement flashing, erase, memory writes,
 fuse/option-byte changes, or security-state changes. A successful host command
@@ -15,6 +15,8 @@ must be checked separately.
 - Agent Skill entry point: [SKILL.md](SKILL.md)
 - Optional real-RF BLE beacon for Windows/WSL2:
   [BLE test advertiser](ble-advertiser/README.md)
+- Optional no-GUI BLE Central/GATT probe for Windows/WSL2:
+  [BLE GATT client](ble-gatt-client/README.md)
 
 ## Requirements
 
