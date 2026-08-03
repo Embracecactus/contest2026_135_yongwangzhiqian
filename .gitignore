@@ -29,6 +29,14 @@ board/bk7258_t5ai/bk_idk/armino_as_lib/
 # Local backup files
 *.bak
 
-# Local Claude Code state
-memory/
+# Local Claude Code state.  Keep legacy per-session notes local, while the
+# maintain-project-memory protocol files below are repository-versioned.
+memory/*
+!memory/ARCHITECTURE.md
+!memory/INDEX.md
+!memory/OPERATIONS.md
+!memory/PROJECT.md
+!memory/RULES.md
+!memory/decisions/
+!memory/decisions/*.md
 .claude/settings.local.json
