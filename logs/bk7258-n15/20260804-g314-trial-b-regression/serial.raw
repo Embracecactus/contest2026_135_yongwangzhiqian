@@ -1,0 +1,140 @@
+apctl status
+AP state=READY(2) error=0 generation=1 heartbeat=916
+AP core local=0 physical=1 VTOR(init/run)=02150000/28050800 MSP(init/run)=28050800/28050800
+AP clock=320000000 SysTick ctrl/load/current=00000007/0030d3ff/001dbefb
+AP heap=28058b88..280967fc test=2805a868 doorbells cp/ap=0/1
+RPTUN state=CONNECTED(4) error=0 generation=1 flags=00007fff
+RPTUN pending cp/ap=00000000/00000000 heartbeat cp/ap=397/916 epoch cp/ap=1/1
+RPTUN rx sequence cp/ap=290/280
+AP supervisor state=HEALTHY(2) reason=NONE(0) generation=1 flags=0000001f
+Supervisor heartbeat primary/secondary=916/1905 age=0/0 ms transport seq/age=0/251 ms
+Supervisor faults/recoveries/consecutive=0/0/0 injection=NONE(0) last_error=0
+CPU2 state=SCHEDULER_ONLINE(8) error=0 generation=1 heartbeat=1905
+CPU2 core local=1 physical=2 vector=02150200 VTOR=02150200 MSP(init/run)=28097000/28097000
+CPU2 control=00000002 SYS(before/after)=00000030/02150231
+CPU2 bootstrap entry=02155cd1 idle=28059060..28059848 ready=1 online=00000003 calls=961 boots=1
+AP IPI state=READY(2) error=0 generation=1 requested=0 completed=0 runs=0
+IPI 0->1 tx/rx/pending=0/0/0 seq=0/0 dup/lost/fail=0/0/0
+IPI 1->0 tx/rx/pending=0/0/0 seq=0/0 dup/lost/fail=0/0/0
+IPI irq/wake cpu0=2/2 cpu1=959/959 stale/spurious=0/0
+AP SMP state=PASSED(4) error=0 generation=1 online=00000003 boots=1 runs=1 requested/completed=2/2
+SMP tx/rx cpu0=959/2 cpu1=2/959 coalesced=0/0 fail=0/0
+SMP handler call/delivered cpu0=2/2 cpu1=959/959 callbacks=1/1 lastcpu=0
+SMP SysTick cpu0/cpu1=10407/0 sleep enter/return=916/915
+AP affinity state=PASSED(4) error=0 generation=1 runs=1 timeout=3000
+Affinity requested/observed=00000002/00000002 task id/cpu=5/1 started/completed/pid-released=1/1/1
+Affinity SMP tx0=1->10 rx1=1->10 fail0=0->0
+Affinity IPI irq1=1->10 wake1=1->10 calls=2->11
+AP sem-wake state=PASSED(6) error=0 generation=1 runs=1 timeout=3000
+Sem-wake task id=5 wait entered/observed/value=1/1/-1
+Sem-wake post cpu/count/result=0/1/0 wait returned/result/cpu=1/0/1
+Sem-wake SMP tx0=2->3 rx1=2->3 fail0=0->0
+Sem-wake IPI irq1=2->3 wake1=2->3 calls=3->4
+AP sem-loop state=PASSED(7) error=0 generation=1 requested/completed=8/8
+Sem-loop waits entered/observed/returned=8/8/8 value=-1
+Sem-loop posts cpu/count/result=0/8/0 wait result/cpu=0/1
+Sem-loop sequence wait/post/wake=8/8/8
+Sem-loop SMP tx0=2->10 rx1=2->10 fail0=0->0
+Sem-loop IPI irq1=2->10 wake1=2->10 calls=3->11
+AP BLCY state=PASSED(3) error=0 generation=1 req/compl=1/1
+BLCY task[0] id/cpu=0/1 started/completed=1/1 seq=1 val=0/-138
+BLCY task[1] id/cpu=0/1 started/completed=0/0 seq=1
+BLCY SMP tx0=10->11 rx1=10->11 tx1=1->1 rx0=1->1
+BLCY calls=11->12 aux=1/1
+nsh> [K
+nsh> [Kcat /data/probe.txt
+BK7258LFS-OKnsh> [K
+nsh> [Kbkpsramtest info
+BPSR INFO status=0 ready=1 id=8d08 config=8d1a capacity=16777216 heap=60700000+131072 total=131072 free=131056 minfree=131072 mpu=1
+BPSR RAW runs=1 passes=1 fail=00000000 expected=00000000 actual=00000000
+BPSR AP generation=1 state=2 error=0 heap=60720000 gate=50535254
+BPSR APTEST status=0 requested=16 completed=16/16 active=16/16 stage=12/12 errors=0/0 cpu=0/1 free=655344->655344
+BPSR INFO PASS
+nsh> [K
+nsh> [Kbktimertest 32
+BTMR BEGIN iterations=32 period_ms=5 caller_pid=14
+BTMR PASS iterations=32 callbacks=32 service_pid=15 cpu=0 isr=0 handle=0 long_callback_us=20000 queued_delete=1
+nsh> [K
+nsh> [Kbkrpmsgtest all 5 3000
+BRPT BEGIN count=5 payload=1 frame=33 load=0 timeout_ms=3000
+BRPT RESULT gen=1 run=1 status=0 controller_cpu=0 count=5 payload=1 frame=33 load=0 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=3960000 min_us=12375.000 p50_cycles=10090000 p50_us=31531.250 p95_cycles=10280000 p95_us=32125.000 p99_cycles=10280000 p99_us=32125.000 max_cycles=10280000 max_us=32125.000 total_cycles=43120000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=6340000 min_us=19812.500 p50_cycles=9570000 p50_us=29906.250 p95_cycles=13540000 p95_us=42312.500 p99_cycles=13540000 p99_us=42312.500 max_cycles=13540000 max_us=42312.500 total_cycles=51640000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=660 approx_bytes_per_sec=4089
+BRPT PASS gen=1 run=1 count=5 payload=1 load=0
+BRPT BEGIN count=5 payload=64 frame=96 load=0 timeout_ms=3000
+BRPT RESULT gen=1 run=2 status=0 controller_cpu=0 count=5 payload=64 frame=96 load=0 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=4130000 min_us=12906.250 p50_cycles=10370000 p50_us=32406.250 p95_cycles=13210000 p95_us=41281.250 p99_cycles=13210000 p99_us=41281.250 max_cycles=13210000 max_us=41281.250 total_cycles=48240000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=6260000 min_us=19562.500 p50_cycles=12600000 p50_us=39375.000 p95_cycles=13410000 p95_us=41906.250 p99_cycles=13410000 p99_us=41906.250 max_cycles=13410000 max_us=41906.250 total_cycles=54400000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=1920 approx_bytes_per_sec=11294
+BRPT PASS gen=1 run=2 count=5 payload=64 load=0
+BRPT BEGIN count=5 payload=464 frame=496 load=0 timeout_ms=3000
+BRPT RESULT gen=1 run=3 status=0 controller_cpu=0 count=5 payload=464 frame=496 load=0 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=7430000 min_us=23218.750 p50_cycles=14920000 p50_us=46625.000 p95_cycles=15910000 p95_us=49718.750 p99_cycles=15910000 p99_us=49718.750 max_cycles=15910000 max_us=49718.750 total_cycles=68300000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=11080000 min_us=34625.000 p50_cycles=15140000 p50_us=47312.500 p95_cycles=18460000 p95_us=57687.500 p99_cycles=18460000 p99_us=57687.500 max_cycles=18460000 max_us=57687.500 total_cycles=74300000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=9920 approx_bytes_per_sec=42724
+BRPT PASS gen=1 run=3 count=5 payload=464 load=0
+BRPT BEGIN count=5 payload=1 frame=33 load=1 timeout_ms=3000
+BRPT RESULT gen=1 run=4 status=0 controller_cpu=0 count=5 payload=1 frame=33 load=1 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=4380000 min_us=13687.500 p50_cycles=9670000 p50_us=30218.750 p95_cycles=10410000 p95_us=32531.250 p99_cycles=10410000 p99_us=32531.250 max_cycles=10410000 max_us=32531.250 total_cycles=43040000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=6390000 min_us=19968.750 p50_cycles=9500000 p50_us=29687.500 p95_cycles=13690000 p95_us=42781.250 p99_cycles=13690000 p99_us=42781.250 max_cycles=13690000 max_us=42781.250 total_cycles=51740000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=660 approx_bytes_per_sec=4081
+BRPT PASS gen=1 run=4 count=5 payload=1 load=1
+BRPT BEGIN count=5 payload=64 frame=96 load=1 timeout_ms=3000
+BRPT RESULT gen=1 run=5 status=0 controller_cpu=0 count=5 payload=64 frame=96 load=1 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=2140000 min_us=6687.500 p50_cycles=9370000 p50_us=29281.250 p95_cycles=14080000 p95_us=44000.000 p99_cycles=14080000 p99_us=44000.000 max_cycles=14080000 max_us=44000.000 total_cycles=40210000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=9410000 min_us=29406.250 p50_cycles=12570000 p50_us=39281.250 p95_cycles=13950000 p95_us=43593.750 p99_cycles=13950000 p99_us=43593.750 max_cycles=13950000 max_us=43593.750 total_cycles=57910000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=1920 approx_bytes_per_sec=10609
+BRPT PASS gen=1 run=5 count=5 payload=64 load=1
+BRPT BEGIN count=5 payload=464 frame=496 load=1 timeout_ms=3000
+BRPT RESULT gen=1 run=6 status=0 controller_cpu=0 count=5 payload=464 frame=496 load=1 frequency=320000000
+BRPT CPU slot=0 sender_cpu=0 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=14290000 min_us=44656.250 p50_cycles=14750000 p50_us=46093.750 p95_cycles=16200000 p95_us=50625.000 p99_cycles=16200000 p99_us=50625.000 max_cycles=16200000 max_us=50625.000 total_cycles=75900000
+BRPT CPU slot=1 sender_cpu=1 callback_mask=0x00000001 sent=5 received=5 errors=0 min_cycles=11380000 min_us=35562.500 p50_cycles=15180000 p50_us=47437.500 p95_cycles=18360000 p95_us=57375.000 p99_cycles=18360000 p99_us=57375.000 max_cycles=18360000 max_us=57375.000 total_cycles=75290000
+BRPT HEAP start_arena=253040 start_used=76456 start_free=176584 start_largest=173144 start_alloc_blocks=81 start_free_blocks=3 spawn_arena=253040 spawn_used=76456 spawn_free=176584 spawn_largest=173144 spawn_alloc_blocks=81 spawn_free_blocks=3 report_arena=253040 report_used=76456 report_free=176584 report_largest=173144 report_alloc_blocks=81 report_free_blocks=3
+BRPT SPAWN target=0 stage=0 status=0 workers_expected=2 workers_done=2
+BRPT THROUGHPUT wire_bytes=9920 approx_bytes_per_sec=41823
+BRPT PASS gen=1 run=6 count=5 payload=464 load=1
+BRPT SUITE PASS runs=6 count=5
+nsh> [K
+nsh> [Kbkrpmsgfstest all 1 30000
+BRFS BEGIN iterations=1 payload=1 timeout_ms=30000
+BRFS RESULT gen=1 sequence=1 status=0 step=0 worker_cpu=0 iterations=1/1 payload=1 written=1 read=1 checksum=040c5b8c/040c5b8c dir_entries=3
+BRFS AP_HEAP before_used=76456 before_free=176584 before_largest=173144 after_used=76456 after_free=176584 after_largest=173144
+BRFS CP_HEAP before_used=44840 before_free=80624 before_largest=78256 after_used=45064 after_free=80400 after_largest=78256
+BRFS PASS gen=1 sequence=1 iterations=1 payload=1
+BRFS BEGIN iterations=1 payload=64 timeout_ms=30000
+BRFS RESULT gen=1 sequence=2 status=0 step=0 worker_cpu=0 iterations=1/1 payload=64 written=64 read=64 checksum=ba524945/ba524945 dir_entries=3
+BRFS AP_HEAP before_used=76456 before_free=176584 before_largest=173144 after_used=76456 after_free=176584 after_largest=173144
+BRFS CP_HEAP before_used=45064 before_free=80400 before_largest=78256 after_used=45064 after_free=80400 after_largest=78256
+BRFS PASS gen=1 sequence=2 iterations=1 payload=64
+BRFS BEGIN iterations=1 payload=464 timeout_ms=30000
+BRFS RESULT gen=1 sequence=3 status=0 step=0 worker_cpu=0 iterations=1/1 payload=464 written=464 read=464 checksum=deee6055/deee6055 dir_entries=3
+BRFS AP_HEAP before_used=76456 before_free=176584 before_largest=173144 after_used=76456 after_free=176584 after_largest=173144
+BRFS CP_HEAP before_used=45064 before_free=80400 before_largest=78256 after_used=45064 after_free=80400 after_largest=78256
+BRFS PASS gen=1 sequence=3 iterations=1 payload=464
+BRFS BEGIN iterations=1 payload=1024 timeout_ms=30000
+BRFS RESULT gen=1 sequence=4 status=0 step=0 worker_cpu=0 iterations=1/1 payload=1024 written=1024 read=1024 checksum=1aa331c5/1aa331c5 dir_entries=3
+BRFS AP_HEAP before_used=76456 before_free=176584 before_largest=173144 after_used=76456 after_free=176584 after_largest=173144
+BRFS CP_HEAP before_used=45064 before_free=80400 before_largest=78256 after_used=45064 after_free=80400 after_largest=78256
+BRFS PASS gen=1 sequence=4 iterations=1 payload=1024
+BRFS SUITE PASS runs=4 iterations=1
+nsh> [K
+nsh> [Kbkbttest info 10000
+BBTT BEGIN operation=info duration_ms=0 timeout_ms=10000
+BBTT RESULT gen=1 sequence=1 operation=info status=0 worker_cpu=0
+BBTT INFO bdaddr=c8:47:8c:47:47:48 valid=1 fallback=0 acl_mtu=70 acl_buffers=20
+BBTT FEATURES br=00 00 00 00 60 00 00 00 le=ff 59 01 fc 00 00 00 00
+BBTT PASS operation=info gen=1 sequence=1
+BBTT SUITE PASS info=1 scan=0
+nsh> [K
+nsh> [K

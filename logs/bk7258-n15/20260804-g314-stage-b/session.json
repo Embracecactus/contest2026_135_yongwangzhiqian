@@ -1,0 +1,71 @@
+{
+    "format":  1,
+    "tool":  "debug_session",
+    "status":  "passed",
+    "error":  null,
+    "action":  "CaptureOnly",
+    "console_port":  "COM11",
+    "reset_port":  "",
+    "baud":  460800,
+    "duration_sec":  300,
+    "output_directory":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-stage-b",
+    "raw_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-stage-b\\serial.raw",
+    "text_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-stage-b\\serial.txt",
+    "capture_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-stage-b\\serial-tool.log",
+    "action_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-stage-b\\action.log",
+    "capture":  {
+                    "format":  1,
+                    "tool":  "serial_capture",
+                    "status":  "ok",
+                    "error":  null,
+                    "port":  "COM11",
+                    "baud":  460800,
+                    "data_bits":  8,
+                    "parity":  "None",
+                    "stop_bits":  "One",
+                    "handshake":  "None",
+                    "duration_sec":  300,
+                    "elapsed_ms":  82371.87,
+                    "stop_regex":  "BKOTA STAGE-MEM",
+                    "stop_regex_matched":  true,
+                    "stop_settle_ms":  1000,
+                    "control_pulse":  {
+                                          "mode":  "None",
+                                          "active_level":  "Asserted",
+                                          "pulse_ms":  150,
+                                          "delay_ms":  200,
+                                          "settle_ms":  200
+                                      },
+                    "bytes":  314,
+                    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-stage-b\\serial.raw",
+                    "sha256":  "3a36a6869518c202277176761502945c16bc0486dd46d3e50dd55ae18d57eb95",
+                    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-stage-b\\serial.ready",
+                    "started_utc":  "2026-08-04T10:30:18.9697689Z",
+                    "ended_utc":  "2026-08-04T10:31:41.4579653Z"
+                },
+    "target_action":  {
+                          "status":  "not_requested"
+                      },
+    "requested_expected_regex":  [
+                                     "BKOTA STAGE-MEM ret=0.*target=1 generation=314.*programmed=2576384 readback=2576384 sha256=7fc083a258ee3b848e356d3adc0e7bc350234a821942a7b4e115755753689b63"
+                                 ],
+    "requested_stop_regex":  "BKOTA STAGE-MEM",
+    "stop_regex_matched":  true,
+    "requested_fail_regex":  [
+                                 "BKOTA STAGE-MEM ret=-|BKOTA FAIL|BKOTA DENY|HardFault|PANIC|ASSERT"
+                             ],
+    "expected_regex_results":  [
+                                   {
+                                       "pattern":  "BKOTA STAGE-MEM ret=0.*target=1 generation=314.*programmed=2576384 readback=2576384 sha256=7fc083a258ee3b848e356d3adc0e7bc350234a821942a7b4e115755753689b63",
+                                       "matched":  true
+                                   }
+                               ],
+    "fail_regex_results":  [
+                               {
+                                   "pattern":  "BKOTA STAGE-MEM ret=-|BKOTA FAIL|BKOTA DENY|HardFault|PANIC|ASSERT",
+                                   "matched":  false
+                               }
+                           ],
+    "started_utc":  "2026-08-04T10:30:18.5173701Z",
+    "ended_utc":  "2026-08-04T10:31:41.6650971Z"
+}

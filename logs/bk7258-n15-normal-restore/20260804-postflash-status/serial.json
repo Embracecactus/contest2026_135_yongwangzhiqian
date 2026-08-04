@@ -1,0 +1,30 @@
+{
+    "format":  1,
+    "tool":  "serial_capture",
+    "status":  "ok",
+    "error":  null,
+    "port":  "COM11",
+    "baud":  460800,
+    "data_bits":  8,
+    "parity":  "None",
+    "stop_bits":  "One",
+    "handshake":  "None",
+    "duration_sec":  15,
+    "elapsed_ms":  832.305,
+    "stop_regex":  "bkota: command not found",
+    "stop_regex_matched":  true,
+    "stop_settle_ms":  300,
+    "control_pulse":  {
+                          "mode":  "None",
+                          "active_level":  "Asserted",
+                          "pulse_ms":  150,
+                          "delay_ms":  200,
+                          "settle_ms":  200
+                      },
+    "bytes":  3255,
+    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15-normal-restore\\20260804-postflash-status\\serial.raw",
+    "sha256":  "0f325f07da02e052591a31f0848ae3be46699d0e851e6ee96bf71e280068cd97",
+    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15-normal-restore\\20260804-postflash-status\\serial.ready",
+    "started_utc":  "2026-08-04T11:55:52.3122412Z",
+    "ended_utc":  "2026-08-04T11:55:53.2578280Z"
+}

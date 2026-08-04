@@ -31,7 +31,7 @@
 | **N12** | official Beken Bluetooth IPC + AP NuttX HCI wrapper | **LATEST VERIFIED：`board-verified`（2026-08-02）**；CP official controller-only BLE、AP stock NuttX Host、HCI info、SDK-equivalent MAC 持久化、UART lifecycle self-heal、RPMsg/RPMsgFS/SMP 共存以及 Windows legacy advertiser 的真实 RF report 均实板通过 | [N12 worklog](nuttx-port/n12-beken-bt-ipc-wrapper.md) |
 | **N13** | BLE GAP/GATT Peripheral end-to-end | `board-verified`（2026-08-03）；四类negative、20/20 uncached重连、BLE 100帧与RPMsg六场景×100/RPMsgFS四档×20主动并发、3/3 cold、最终`25/25/25`与connection ref=0全部闭环 | [N13 completion](nuttx-port/prompts/13-n13-ble-gap-gatt.md) / [source verification](nuttx-port/n13-ble-gap-gatt-source-verification.md) / [evidence](nuttx-port/n13-evidence-index.md) |
 | **N14** | 16 MiB PSRAM + SDK software-timer wrapper | `board-verified`（2026-08-03）；CP official PM owner、全容量boot gate、CP/AP private heap、AP CPU0/CPU1 allocator 16/16、timer 256、warm cycle10、physical cold/factory及RPMsg/Bluetooth回归全部闭环 | [N14 completion](nuttx-port/prompts/14-n14-psram.md) / [source verification](nuttx-port/n14-psram-source-verification.md) / [evidence](nuttx-port/n14-evidence-index.md) |
-| **N15** | Tier-2 paired CP/AP OTA + rollback | **CURRENT：N15-M `board-verified`；ADR-006 format-2双bank A→B→A `host/source/ELF/dry-run-verified`**；16份独立包、独立verifier和16次loader dry-run完成；实板仍A-only，physical OTA需fresh authority | [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) / [symmetric host evidence](../../progress/verification/2026-08-04-n15-format2-symmetric-host.md) / [N15-V host evidence](../../progress/verification/2026-08-04-n15-v-host-fault-injection.md) / [ADR-006](../../memory/decisions/ADR-006-n15-symmetric-dual-bank-ota.md) / [ADR-004](../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md) |
+| **N15** | Tier-2 paired CP/AP OTA + rollback | **COMPLETE：批准的最小physical范围 `board-verified`**；generation 314 confirmed B、generation 315 confirmed A、双bank/两槽回归、RTS和post-confirm完整掉电恢复PASS | [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) / [physical evidence](../../progress/verification/2026-08-04-n15-physical-symmetric-lifecycle.md) / [symmetric host evidence](../../progress/verification/2026-08-04-n15-format2-symmetric-host.md) / [ADR-006](../../memory/decisions/ADR-006-n15-symmetric-dual-bank-ota.md) / [ADR-004](../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md) |
 
 ## 当前 handoff
 
@@ -52,14 +52,14 @@
 >
 > **N15 current（2026-08-04）：**owner接受ADR-004并授权一次性迁移。official v3.1.1.9
 > contiguous primary CP/AP + `s_app` 已由team linker/boot/MTD/packer/debug/verifier落地；AP XIP
-> 为`0x02150000`，LittleFS为raw `0x600000..0x700000`。loader只写
-> `0..0x4fc000`和`0x600000..0x700000`，迁移后LittleFS、AP SMP、RPTUN、RPMsgFS、Bluetooth、
-> PSRAM、timer和physical reset 3/3全部PASS。N15-A..F的pair 2/13、staging 2/21、selector
-> 5/28、trial 4/113、publication 5/142、health 7/15、fixed-PSRAM transport、validation与normal
-> full build均PASS，且没有写板。实板B仍是`boot_selectable=false` seed；normal runtime
-> mutation关闭。ADR-006 format-2双bank A→B→A与独立verifier host closure已完成；实板流程
-> 需在fresh authority后另行定义。见
+> 为`0x02150000`，LittleFS为raw `0x600000..0x700000`。迁移后的保留功能与host/source/ELF
+> 门禁均PASS。实板generation 314已从A经bank 0 trial/confirm B，generation 315再从B经bank 1
+> trial/confirm A；两次2576384-byte inactive write均通过完整read-back/SHA，两槽AP SMP、RPTUN、
+> LittleFS/PSRAM、timer、RPMsg/RPMsgFS和Bluetooth回归通过，confirmed-A RTS恢复保持generation
+> 315且runtime gates为0。post-confirm同时移除USB/J-Link供电并重连后，capture-only状态仍为
+> generation 315 confirmed A，AP/CPU2/RPTUN健康。physical rollback没有在本轮confirm路径中执行。见
 > [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md)、
+> [N15 physical evidence](../../progress/verification/2026-08-04-n15-physical-symmetric-lifecycle.md)、
 > [N15-V host evidence](../../progress/verification/2026-08-04-n15-v-host-fault-injection.md)、
 > [N15-F evidence](../../progress/verification/2026-08-04-n15-f-host-validation.md)、
 > [N15-E evidence](../../progress/verification/2026-08-04-n15-e-host-publication.md)、
@@ -176,20 +176,18 @@
 
 > **N8-D1 closure（2026-07-30）：**`ap_smp_lifecycle` normal autostart 在真实 T5-AI 一次闭环。AP `READY/error=0`、heartbeat=`727`；CPU2 `SCHEDULER_ONLINE/error=0`、online=`0x3`。BLCY `PASSED/error=0`、requested/completed=`1/1`；callback entry/exit CPU=`1/1`、started/completed=`1/1`、quiesce/resume sequence=`1/1`、value=`0/-138`（该 NuttX 配置的 `-ENOTSUP`）、aux=`1/1`。隔离窗口 CPU0→CPU1 `10→11`=`+1`、CPU1→CPU0 `1→1`=`+0`、calls `11→12`=`+1`；handler CPU0=`1/1`、CPU1=`11/11`，coalesced/fail/stale/spurious=0。CPU0 SysTick=`8090`、sleep enter/return=`727/726` 证明 gate 后持续运行。CPU1 全程保持 online=`0x3`，没有 CPU2 reset/power transition；这是 bounded scheduler quiesce/resume foundation，不是 CPU hot-unplug。
 
-- **Current Stage：**N15 Tier-2 paired CP/AP OTA。N15-M contiguous-layout迁移已经
-  `board-verified`，N15-A已经`host-verified`，N15-B/C/D/E/F已经
-  `host/source/ELF-verified`，ADR-006 format-2双bank A→B→A campaign已经
-  `host/source/ELF/dry-run-verified`；完整OTA仍未完成。下一步需要fresh owner authority执行
-  ordered physical staging、publication、trial/confirm/rollback、controlled complete-power-cycle和retained regression。
+- **Current Stage：**N15批准的最小范围已完成。N15-M、format-2 physical A→B→A、两槽回归、
+  RTS和post-confirm完整掉电恢复均已`board-verified`；host/source/ELF fault与rollback模型也已收口。
+  板端已恢复normal gates-zero sparse镜像；下一步由owner另行选择新Stage。
 - **Authorized implementation set：**N8-C5..N8-D1 与 N9-R..N9-V 全部完成并实板
   闭环；N10 wrapper、重复满载、warm restart、primary/secondary/RPMsg 三类注入、
   fail-closed、三次人工恢复与 generation=5 无注入重复 full suite 均已实板通过；N11
   stock RPMsgFS wrapper、exclusive-state 内存修复、故障态 bounded wait 与 generation
   recovery 也已实板通过；N12/N13 Bluetooth与N14 PSRAM/timer全套wrapper均已完成。
-- **Latest board-verified baseline：**N15-M新布局上的 `cp_nsh_psram + ap_smp_psram` generation=1：16 MiB
-  raw `1/1`、CP heap 128 KiB、AP heap 640 KiB、AP CPU0/CPU1 `16/16`、error0/free稳定，
-  `READY/CONNECTED/HEALTHY`、CPU2 online；另有generation12 warm restart复验、physical
-  cold/factory first-calibration功能保持，并完成新布局physical reset 3/3（2026-08-03）。
+- **Latest board-verified baseline：**完整掉电后最后直接读取的metadata为generation 315、bank 1、
+  confirmed/active A；随后三个有界segment把板端恢复为normal `cp_nsh_psram + ap_smp_psram`。
+  AP READY、CPU2 online、RPTUN connected、LittleFS探针和PSRAM均PASS，`bkota`命令不存在；
+  sparse写集合不含B或metadata bank。
 - **Latest worklog：**[`nuttx-port/prompts/15-n15-tier2-ota.md`](nuttx-port/prompts/15-n15-tier2-ota.md)
 - **Source verification：**[`nuttx-port/n15-ota-source-verification.md`](nuttx-port/n15-ota-source-verification.md)；
   N14完成记录见[`nuttx-port/n14-psram-source-verification.md`](nuttx-port/n14-psram-source-verification.md)；

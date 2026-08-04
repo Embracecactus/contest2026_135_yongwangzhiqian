@@ -1,0 +1,30 @@
+{
+    "format":  1,
+    "tool":  "serial_capture",
+    "status":  "ok",
+    "error":  null,
+    "port":  "COM11",
+    "baud":  460800,
+    "data_bits":  8,
+    "parity":  "None",
+    "stop_bits":  "One",
+    "handshake":  "None",
+    "duration_sec":  120,
+    "elapsed_ms":  8082.839,
+    "stop_regex":  "BBTT SUITE PASS",
+    "stop_regex_matched":  true,
+    "stop_settle_ms":  1000,
+    "control_pulse":  {
+                          "mode":  "None",
+                          "active_level":  "Asserted",
+                          "pulse_ms":  150,
+                          "delay_ms":  200,
+                          "settle_ms":  200
+                      },
+    "bytes":  13726,
+    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-trial-b-regression\\serial.raw",
+    "sha256":  "ac39e5a0c08147ae99f4dc2fb6c9b8b9e9e11fdf05a7f66408835076b77e27fb",
+    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-trial-b-regression\\serial.ready",
+    "started_utc":  "2026-08-04T10:39:40.1854118Z",
+    "ended_utc":  "2026-08-04T10:39:48.3846419Z"
+}

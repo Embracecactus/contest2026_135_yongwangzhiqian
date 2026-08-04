@@ -1,0 +1,6 @@
+bkota status
+BKOTA STATUS ret=0 format=2 state=7 records=3 sequence=3 generation=315 bank=1 base=1 target=0 stable=0 active=0 valid=1 trusted=1 erased=0 degraded=0 secondary=0 stage_gate=0 metadata_gate=0
+BKOTA HEALTH ret=0 state=2 reason=0 generation=1 faults=0 recoveries=0 flags=0x0000001f injection=0 last_error=0
+BKOTA FAULT STATUS point=none ordinal=0 seen=0 generation=0 configured=0 active=0 triggered=0
+nsh> [K
+nsh> [K

@@ -1,7 +1,7 @@
 # BK7258 Stage N15：成对 CP/AP OTA、回退与掉电恢复
 
 > 日期：2026-08-04
-> 状态：**IN PROGRESS / N15-M 已 board-verified，N15-A 已 host-verified，N15-B/C/D/E/F 已 host/source/ELF-verified，N15-V fault/campaign 已 host/source/ELF/dry-run-verified，完整 OTA 尚未板端验证**
+> 状态：**COMPLETE / 批准的N15最小范围已board-verified：N15-M、format-2 physical A→B→A、两槽回归、RTS与post-confirm完整掉电恢复均通过**
 > SDK：只使用 official Beken v3.1.1.9
 > 架构决策：[ADR-004](../../../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md) / [ADR-005（历史format 1）](../../../../memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md) / [ADR-006（当前format 2）](../../../../memory/decisions/ADR-006-n15-symmetric-dual-bank-ota.md)
 > 历史被否决方案：[ADR-003](../../../../memory/decisions/ADR-003-n15-paired-sector-swap.md)
@@ -14,13 +14,12 @@ loader preflight 和 verifier 完成；official NuttX、apps、SDK source 和 SD
 libraries 没有修改。
 
 N15-M 已完成一次经 owner 明确授权的破坏性迁移。旧 LittleFS 内容已清空，新 LittleFS
-已在 `0x600000..0x700000` 自动格式化、挂载并通过重启持久化探针。当前 bootloader 仍只启动
-A；B 中只是与 A 同 generation 的 seed，manifest 明确为
-`boot_selectable=false`、`rbl_header_present=false`。因此：
+已在 `0x600000..0x700000` 自动格式化、挂载并通过重启持久化探针。迁移完成时B只是与A同
+generation的不可选择seed；随后format-2 validation profile已经在同一布局上完成真实双向生命周期。因此：
 
 - 新布局基线已经 `board-verified`；
 - N15-A exact RBL/pair bundle 已 `host-verified`；
-- N15-B candidate staging 已 `host/source/ELF-verified`，但未写板；
+- N15-B candidate staging 已 `host/source/ELF-verified`，随后由实板双向流程验证；
 - N15-C boot pair selector/one-offset remap 已 `host/source/ELF-verified`；
 - N15-D one-trial append/read-back、confirm和rollback已
   `host/source/ELF-verified`；
@@ -32,19 +31,22 @@ A；B 中只是与 A 同 generation 的 seed，manifest 明确为
   terminal generation 57从已确认B回切并确认A；
 - normal profile六个Boot门为零且没有可启用写入的CLI/runtime路径；validation profile才编入写路径，runtime gate仍
   从false开始并要求generation token；
-- 板端candidate写入、metadata mutation、remap、trial/confirm/rollback和掉电矩阵仍未执行。
+- generation 314已从A写入B并经bank 0进入confirmed B；generation 315再从B写回A并经bank 1进入confirmed A；两个方向的full-slot read-back/SHA、trial boot和保留服务回归均PASS；
+- physical run没有专门触发未confirm rollback；rollback仍是host reset-boundary/fault证据；
+- confirmed-A RTS和完整移除USB/J-Link供电后的恢复均通过；两次都读取到同一generation 315 confirmed-A状态，完整掉电后AP/CPU2/RPTUN也健康。
+- 板端随后通过三个有界segment恢复normal `cp_nsh_psram + ap_smp_psram`；B、双metadata、LittleFS、`usr_config`和tail未进入写集合，post-flash AP/CPU2/RPTUN、LittleFS探针和PSRAM均PASS，`bkota`命令不存在。
 
 ## 2. 已冻结布局
 
 | 区域 | raw physical range | 大小 | 当前策略 |
 |---|---:|---:|---|
 | bootloader | `0x000000..0x011000` | `0x011000` | team source，official envelope |
-| CP A | `0x011000..0x165000` | `0x154000` | primary active |
-| AP A | `0x165000..0x286000` | `0x121000` | primary active |
-| CP/AP B (`s_app`) | `0x286000..0x4fb000` | `0x275000` | same-pair seed，当前不可选择 |
-| trial metadata bank 0 | `0x4fb000..0x4fc000` | `0x001000` | 当前板上 erased/unarmed |
+| CP A | `0x011000..0x165000` | `0x154000` | generation 315，最后观测为active/stable |
+| AP A | `0x165000..0x286000` | `0x121000` | generation 315，最后观测为active/stable |
+| CP/AP B (`s_app`) | `0x286000..0x4fb000` | `0x275000` | generation 314，当前inactive |
+| trial metadata bank 0 | `0x4fb000..0x4fc000` | `0x001000` | generation 314 confirmed-B历史bank |
 | vendor `usr_config` | `0x4fc000..0x50a000` | `0x00e000` | loader migration 不覆盖 |
-| trial metadata bank 1 | `0x50a000..0x50b000` | `0x001000` | format 2 mirror；尚未板写 |
+| trial metadata bank 1 | `0x50a000..0x50b000` | `0x001000` | generation 315 confirmed-A当前selected bank |
 | reserved | `0x50b000..0x600000` | `0x0f5000` | 不覆盖 |
 | CP LittleFS | `0x600000..0x700000` | `0x100000` | 已清空并重新建立 |
 | reserved | `0x700000..0x7fa000` | `0x0fa000` | 不覆盖 |
@@ -243,8 +245,9 @@ gate保持BSS false。每个mutation命令要求exact `N15-WRITE-<generation>`�
 `0x60a76000`、end `0x60a76200`。normal profile仍是upper-8 boot-tested/unallocated。
 
 WSL2 loader默认dry-run，实际运行还要求target先完成`prepare-transfer`并显式传
-`--watchdog-stopped --execute`；J-Link命令块只有halt/load/verify/go/exit，无reset和Flash命令。
-板端流程不属于当前实现闭环，需在取得明确授权后另行制定；host证据见
+`--watchdog-stopped --execute`；J-Link命令块只有halt/load/verify/go/exit，无Flash命令。
+实板暴露的大块/同进程连续load不可靠问题已经通过64 KiB candidate chunk、每块fresh Commander
+process、`noreset`和逐块`verifybin`关闭。host基础证据见
 [N15-F verification](../../../../progress/verification/2026-08-04-n15-f-host-validation.md)。
 
 N15-V host准备已完成：target failure points覆盖stage/publish/trial read/write/erase，另有
@@ -262,11 +265,21 @@ ADR-006 format 2现为当前实现：bank 0 `0x4fb000..0x4fc000`与bank 1
 `PENDING_B/TRIAL_B/CONFIRMED_B/ROLLBACK_A`和
 `PENDING_A/TRIAL_A/CONFIRMED_A/ROLLBACK_B`。portable rotation、selector、trial、publish、
 control和health矩阵分别通过22/8、9/4、2/6、5/10、4/8、2/6正/负例或恢复例，Boot/CP共用
-slot-neutral core，validation完整构建通过。上述均为host/source/ELF证据，两个方向仍需板测。
+slot-neutral core，validation完整构建通过。
 
-下一步取得fresh owner authority后按既定顺序执行physical staging、publication、remap、
-trial/confirm/rollback、controlled power cycle、timing/wear与retained N14矩阵，再恢复normal
-gates-zero A。授权必须明确完整断电方法；随机时机或Flash pulse中途断电不在当前SOP内。
+实板使用generation 314完成A→B、bank 0、trial B、N14保留服务与confirmed B；再用generation
+315完成B→A、bank 1、trial A、相同回归与confirmed A。两次inactive pair均写入2576384 bytes并
+通过完整Flash read-back/SHA；confirmed-A RTS恢复仍保持generation 315、active A和runtime gates 0。
+实板记录见[N15 physical symmetric lifecycle](../../../../progress/verification/2026-08-04-n15-physical-symmetric-lifecycle.md)。
+
+confirmed A之后，owner同时移除USB/J-Link全部供电并重新连接；capture-only COM11验收读取到
+generation 315、bank 1、confirmed A、secondary/gates 0，AP/CPU2/RPTUN健康。随机时机或Flash
+pulse中途断电不在当前SOP内；physical rollback也没有在这轮最小confirm路径中执行，不能与host
+rollback模型混写。
+
+验收完成后，owner批准刷回normal gates-zero镜像。COM7 sparse loader仅写Boot
+`0x000000+0x11000`、CP A `0x011000+0xb4000`和AP A `0x165000+0x2e000`，三段erase/write及NSH
+启动均PASS；只读回归确认AP/CPU2/RPTUN、LittleFS与PSRAM健康，并确认normal没有`bkota` CLI。
 
 后续门禁：
 
@@ -278,7 +291,7 @@ gates-zero A。授权必须明确完整断电方法；随机时机或Flash pulse
 | N15-D | one-trial confirm/revert | **DONE / host/source/ELF-verified**：4/113、48 reset boundaries；六门为零；无板写 |
 | N15-E | pending publication/reclamation + fault injection | **DONE / host/source/ELF-verified**：5/142、8 erase、112 program/reset；无板写 |
 | N15-F | health policy + gated validation/transport | **DONE / host/source/ELF-verified**：7/15、5 continuity resets、完整validation与normal rebuild；无板写 |
-| N15-V | deterministic fault campaign + full board regression | **HOST DONE**：7/12、format-2 16 identities、A→B→A独立campaign verifier、16 loader dry-runs；physical reset/power-cycle matrix需fresh authority，全部通过后才标完整N15 `board-verified` |
+| N15-V | deterministic fault campaign + full board regression | **APPROVED MINIMAL PHYSICAL SCOPE DONE**：7/12 host fault、16 identities与dry-run保留；generation 314/315双向trial/confirm、两槽回归、RTS和post-confirm完整VDD removal均实板PASS；analog pulse brownout不在本阶段声明内 |
 
 ## 11. 不变量
 
@@ -288,5 +301,5 @@ gates-zero A。授权必须明确完整断电方法；随机时机或Flash pulse
 - normal sparse update必须使用新 offset，并保留B、LittleFS、`usr_config`与tail。
 - 禁止 chip erase，禁止把历史 ADR-003 journal/scratch 地址重新接回 active build。
 - 禁止运行会使 Windows 卡顿的 `BLEDebug.EXE`。
-- ADR-005 metadata v1只保留为历史回归证据；当前ADR-006 format 2支持双bank、多代inactive-slot
-  A/B轮换，但在两个方向完成实板验证前不得宣称`board-verified`。
+- ADR-005 metadata v1只保留为历史回归证据；当前ADR-006 format 2的双bank、多代inactive-slot
+  A/B轮换已完成最小双向实板验证，完整VDD removal也已通过；physical rollback与analog brownout仍必须按各自证据标签单独声明。

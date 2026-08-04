@@ -18,7 +18,7 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 - [ADR-002](decisions/ADR-002-n14-psram-ownership-and-layout.md): CP owns PSRAM hardware; lower 8 MiB ABI is retained and the upper 8 MiB remains reserved.
 - [ADR-004](decisions/ADR-004-n15-official-contiguous-ab-layout.md): migrate once to the official-style contiguous CP/AP A/B layout, relocate/clear LittleFS, and preserve the calibration tail.
 - [ADR-005](decisions/ADR-005-n15-boot-selector-metadata-v1.md): freeze the append-only metadata v1 ABI, fail-closed A/B validation, and the boundary between a pending candidate and one-trial permission.
-- [ADR-006](decisions/ADR-006-n15-symmetric-dual-bank-ota.md): use two metadata banks and slot-neutral states for safe inactive-slot A/B rotation; board validation remains a separate gate.
+- [ADR-006](decisions/ADR-006-n15-symmetric-dual-bank-ota.md): use two metadata banks and slot-neutral states for safe inactive-slot A/B rotation; the approved minimal board gate now passes, while future writes remain separately authorized.
 
 ## Superseded decisions
 
@@ -27,12 +27,14 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 ## Current verified baseline
 
 - Read [Current Progress](../progress/CURRENT.md) for the branch, publication/merge state, next action, and rollback point.
+- New contributors should start with the
+  [BK7258/T5-AI beginner porting guide](../docs/bk7258-t5ai/beginner-porting-guide/README.md),
+  then return here for durable decisions and to Current Progress for live state.
 - N14 completion is archived in [the N14 milestone](../progress/milestones/2026-08-03-n14-psram-board-verified.md).
 - Detailed N14 test output and hashes are canonical in [the N14 evidence index](../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md).
-- N15 is active. N15-M migrated the board to the ADR-004 contiguous layout and
-  re-verified the N14 runtime matrix. Read the
-  [N15-M verification record](../progress/verification/2026-08-03-n15-migration-board-verification.md)
-  and [Current Progress](../progress/CURRENT.md) before any Flash action.
+- N15-M migrated the board to the ADR-004 contiguous layout and re-verified
+  the N14 runtime matrix. Read the
+  [N15-M verification record](../progress/verification/2026-08-03-n15-migration-board-verification.md).
 - R1/R2 sector-swap material is historical rejected-option evidence only.
   [N15-A](../progress/verification/2026-08-03-n15-a-host-pair-bundle.md)
   is host-verified and
@@ -47,10 +49,12 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
   format-2 workflow. The
   [symmetric host closure](../progress/verification/2026-08-04-n15-format2-symmetric-host.md)
   adds independently checked A-to-B-to-A packaging with 16 unique identities.
-  Current work is the N15-V
-  board gate under fresh authority. The
-  deployed B seed remains unselectable; the gates-on validation artifact has
-  not been flashed.
+  The [physical symmetric lifecycle](../progress/verification/2026-08-04-n15-physical-symmetric-lifecycle.md)
+  verifies generation 314 A-to-B through confirmed B and generation 315
+  B-to-A through confirmed A, including both metadata banks and retained N14
+  services. A subsequent complete post-confirm removal of both USB and J-Link
+  power recovered the same generation-315 confirmed-A state with AP, CPU2 and
+  RPTUN healthy. Read Current Progress before any target action.
 
 ## Memory rules
 

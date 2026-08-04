@@ -1,0 +1,4 @@
+bkota validate-mem 314 1014 n15v314-confirm n15-base
+BKOTA VALIDATE-MEM ret=0 phase=6 target=1 generation=314 elapsed_ms=24896 sectors=0 programmed=0 readback=0 sha256=0000000000000000000000000000000000000000000000000000000000000000
+nsh> [K
+nsh> [K

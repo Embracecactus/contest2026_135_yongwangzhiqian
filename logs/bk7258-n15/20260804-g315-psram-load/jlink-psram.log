@@ -1,0 +1,3369 @@
+J-Link PSRAM batch 1/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.108V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 8DB216F6
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0000.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0000.bin
+Reading 65536 bytes data from target memory @ 0x60800000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 2/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.095V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 8E0C4205
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0001.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0001.bin
+Reading 65536 bytes data from target memory @ 0x60810000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 3/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.088V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 8E597680
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0002.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0002.bin
+Reading 65536 bytes data from target memory @ 0x60820000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 4/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.077V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 8EB858B6
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0003.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0003.bin
+Reading 65536 bytes data from target memory @ 0x60830000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 5/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.101V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 8F0688F9
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0004.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0004.bin
+Reading 65536 bytes data from target memory @ 0x60840000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 6/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.093V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 8F6159E4
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0005.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0005.bin
+Reading 65536 bytes data from target memory @ 0x60850000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 7/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.069V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 8FBDB2C6
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0006.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0006.bin
+Reading 65536 bytes data from target memory @ 0x60860000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 8/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.076V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 9019F360
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0007.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0007.bin
+Reading 65536 bytes data from target memory @ 0x60870000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 9/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.077V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 907A5671
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0008.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0008.bin
+Reading 65536 bytes data from target memory @ 0x60880000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 10/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.080V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 02011802, CycleCnt = 90CB71F3
+R0 = 280109E0, R1 = 280332F4, R2 = 00000002, R3 = 00000003
+R4 = 280332F4, R5 = 280109E0, R6 = 00000080, R7 = E000E000
+R8 = 28032AE8, R9 = 000F4240, R10= 2809F000, R11= 280308AC
+R12= FA000000
+SP(R13)= 280332D0, MSP= 28010800, PSP= 280332D0, R14(LR) = 0201AD99
+XPSR = 21000000: APSR = nzCvq, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 06008000, CONTROL = 06, FAULTMASK = 00, BASEPRI = 80, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0009.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0009.bin
+Reading 65536 bytes data from target memory @ 0x60890000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 11/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.096V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 9119DBF2
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0010.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0010.bin
+Reading 65536 bytes data from target memory @ 0x608A0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 12/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.059V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 916846EB
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0011.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0011.bin
+Reading 65536 bytes data from target memory @ 0x608B0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 13/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.085V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 91CAAACA
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0012.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0012.bin
+Reading 65536 bytes data from target memory @ 0x608C0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 14/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.080V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 9221BCCB
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0013.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0013.bin
+Reading 65536 bytes data from target memory @ 0x608D0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 15/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.077V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 926D4ECA
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0014.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0014.bin
+Reading 65536 bytes data from target memory @ 0x608E0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 16/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.098V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020156CC, CycleCnt = 92C7F8FD
+R0 = 2803088C, R1 = 28032AE8, R2 = 00045458, R3 = 00000000
+R4 = 2803088C, R5 = 2803088C, R6 = 28032B40, R7 = 28010A40
+R8 = FFFFFF92, R9 = 280308B0, R10= 2809F000, R11= 280308AC
+R12= 2801B310
+SP(R13)= 28033328, MSP= 28010800, PSP= 28033328, R14(LR) = 02065F93
+XPSR = 61000000: APSR = nZCvq, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 06008000, CONTROL = 06, FAULTMASK = 00, BASEPRI = 80, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0015.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0015.bin
+Reading 65536 bytes data from target memory @ 0x608F0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 17/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.093V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 931D1C81
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0016.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0016.bin
+Reading 65536 bytes data from target memory @ 0x60900000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 18/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.098V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 937A4FDB
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0017.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0017.bin
+Reading 65536 bytes data from target memory @ 0x60910000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 19/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.093V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 93DAC12C
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0018.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0018.bin
+Reading 65536 bytes data from target memory @ 0x60920000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 20/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.072V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 94309690
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0019.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0019.bin
+Reading 65536 bytes data from target memory @ 0x60930000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 21/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.087V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 94802943
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0020.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0020.bin
+Reading 65536 bytes data from target memory @ 0x60940000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 22/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.079V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020151CC, CycleCnt = 94D6FC0B
+R0 = 0000000B, R1 = 28033250, R2 = 28019C1C, R3 = 02011B31
+R4 = 28032AE8, R5 = 0000000B, R6 = 28019B70, R7 = 28033250
+R8 = FFFFFF92, R9 = 280308B0, R10= 2809F000, R11= 28033250
+R12= 00000000
+SP(R13)= 280107D8, MSP= 280107D8, PSP= 280332C0, R14(LR) = 02011247
+XPSR = 8100000B: APSR = Nzcvq, EPSR = 01000000, IPSR = 00B (SVCall)
+CFBP = 00008000, CONTROL = 00, FAULTMASK = 00, BASEPRI = 80, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0021.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0021.bin
+Reading 65536 bytes data from target memory @ 0x60950000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 23/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.069V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 952EC2E5
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0022.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0022.bin
+Reading 65536 bytes data from target memory @ 0x60960000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 24/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.088V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 95850163
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0023.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0023.bin
+Reading 65536 bytes data from target memory @ 0x60970000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 25/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.077V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 95D05294
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0024.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0024.bin
+Reading 65536 bytes data from target memory @ 0x60980000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 26/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.090V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 96237CEE
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0025.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0025.bin
+Reading 65536 bytes data from target memory @ 0x60990000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 27/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.074V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 9670CC9C
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0026.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0026.bin
+Reading 65536 bytes data from target memory @ 0x609A0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 28/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.069V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 96D45616
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0027.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0027.bin
+Reading 65536 bytes data from target memory @ 0x609B0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 29/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.103V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 971FDC39
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0028.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0028.bin
+Reading 65536 bytes data from target memory @ 0x609C0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 30/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.076V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 9775EAA4
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0029.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0029.bin
+Reading 65536 bytes data from target memory @ 0x609D0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 31/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.093V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 97D27B1E
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0030.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0030.bin
+Reading 65536 bytes data from target memory @ 0x609E0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 32/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.096V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 982312AA
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0031.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0031.bin
+Reading 65536 bytes data from target memory @ 0x609F0000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 33/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.084V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 987E8335
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0032.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0032.bin
+Reading 65536 bytes data from target memory @ 0x60A00000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 34/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.077V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 98D70679
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0033.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0033.bin
+Reading 65536 bytes data from target memory @ 0x60A10000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 35/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.098V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201F1C8, CycleCnt = 99375713
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0034.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0034.bin
+Reading 65536 bytes data from target memory @ 0x60A20000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 36/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.090V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 998DEB80
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0035.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0035.bin
+Reading 65536 bytes data from target memory @ 0x60A30000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 37/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.084V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 99EF23D5
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0036.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0036.bin
+Reading 65536 bytes data from target memory @ 0x60A40000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 38/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.098V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C8, CycleCnt = 9A4B438C
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0037.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0037.bin
+Reading 65536 bytes data from target memory @ 0x60A50000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 39/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.084V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 0201AE2A, CycleCnt = 9AA9AA3F
+R0 = 28010790, R1 = 00000000, R2 = 00000000, R3 = 2801B510
+R4 = 28010790, R5 = E000E000, R6 = 00000000, R7 = 000003E8
+R8 = 0201AD65, R9 = 00000005, R10= 00000000, R11= 28031510
+R12= 98968000
+SP(R13)= 28010788, MSP= 28010788, PSP= 28031580, R14(LR) = 02016099
+XPSR = 4900000F: APSR = nZcvQ, EPSR = 01000000, IPSR = 00F (SysTick)
+CFBP = 00008000, CONTROL = 00, FAULTMASK = 00, BASEPRI = 80, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0038.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0038.bin
+Reading 65536 bytes data from target memory @ 0x60A60000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 40/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.096V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 9AFB6DCE
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0039.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\candidate.0039.bin
+Reading 20480 bytes data from target memory @ 0x60A70000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>J-Link PSRAM batch 41/41
+SEGGER J-Link Commander V9.54 (Compiled Jun 25 2026 17:33:49)
+DLL version V9.54, compiled Jun 25 2026 17:32:47
+
+J-Link Commander will now exit on Error
+Connecting to J-Link ...O.K.
+Firmware: J-Link V9 compiled May  7 2021 16:26:12
+Hardware version: V9.70
+J-Link uptime (since boot): N/A (Not supported by this model)
+S/N: 20790067
+License(s): RDI,FlashBP,FlashDL,JFlash,GDB
+VTref=3.071V
+Device "CORTEX-M33" selected.
+
+
+Connecting to target via SWD
+Found SW-DP with ID 0x1BE12AEB
+DPIDR: 0x1BE12AEB
+CoreSight SoC-400 or earlier
+Scanning AP map to find all available APs
+AP[1]: Stopped AP scan as end of AP map has been reached
+AP[0]: AHB-AP (IDR: 0x1AEB0015, ADDR: 0x00000000)
+Iterating through AP map to find AHB-AP to use
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x631F1320. Implementer code: 0x63 (ARM China)
+Feature set: Mainline
+Cache: L1 I/D-cache present
+Found STAR r1p0, Little endian.
+
+**************************
+WARNING: Identified core does not match configuration. (Found: STAR, Configured: Cortex-M33)
+**************************
+
+
+**************************
+WARNING: Cortex-M (ARMv8-M and later): The connected J-Link (S/N 20790067) uses an old firmware module that does not handle I/D-cache correctly. Proper debugging functionality cannot be guaranteed if cache is enabled
+**************************
+
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 001F5132 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 001F5132 DEVARCH 47702A04 DEVTYPE 00 ???
+[1][1]: E0001000 CID B105900D PID 000F5132 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000F5132 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000F5132 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][6]: E0042000 CID B105900D PID 000F5132 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000F5132 DEVARCH 00000000 DEVTYPE 11 TPIU
+I-Cache L1: 32 KB, 512 Sets, 32 Bytes/Line, 2-Way
+D-Cache L1: 16 KB, 128 Sets, 32 Bytes/Line, 4-Way
+Memory zones:
+  Zone: "Default" Description: Default access mode
+STAR identified.
+J-Link>PC = 020150C4, CycleCnt = 9B580216
+R0 = 00000002, R1 = 28019A68, R2 = 28031E08, R3 = 00000001
+R4 = 28019A68, R5 = 00000000, R6 = 28019B60, R7 = 28010A40
+R8 = 00000003, R9 = 00000005, R10= 00000000, R11= 00000000
+R12= 00000000
+SP(R13)= 280315A4, MSP= 28010800, PSP= 280315A4, R14(LR) = 020150C9
+XPSR = 89000000: APSR = NzcvQ, EPSR = 01000000, IPSR = 000 (NoException)
+CFBP = 02000000, CONTROL = 02, FAULTMASK = 00, BASEPRI = 00, PRIMASK = 00
+
+FPS0 = 00000000, FPS1 = 00000000, FPS2 = 00000000, FPS3 = 00000000
+FPS4 = 00000000, FPS5 = 00000000, FPS6 = 00000000, FPS7 = 00000000
+FPS8 = 00000000, FPS9 = 00000000, FPS10= 00000000, FPS11= 00000000
+FPS12= 00000000, FPS13= 00000000, FPS14= 00000000, FPS15= 00000000
+FPS16= 00000000, FPS17= 00000000, FPS18= 00000000, FPS19= 00000000
+FPS20= 00000000, FPS21= 00000000, FPS22= 00000000, FPS23= 00000000
+FPS24= 00000000, FPS25= 00000000, FPS26= 00000000, FPS27= 00000000
+FPS28= 00000000, FPS29= 00000000, FPS30= 00000000, FPS31= 00000000
+FPSCR= 00000000
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\bk7258-ota-stage.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\bk7258-ota-stage.bin
+Reading 384 bytes data from target memory @ 0x60A75000.
+Verify successful.
+J-Link>'loadfile': Skipping reset & halt of MCU before download.
+Downloading file [C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\bk7258-ota-pending-record.bin]...
+O.K.
+J-Link>Loading binary file C:\Users\lijian\AppData\Local\Temp\bk7258-ota-psram.IBONS7\bk7258-ota-pending-record.bin
+Reading 512 bytes data from target memory @ 0x60A76000.
+Verify successful.
+J-Link>Memory map 'after startup completion point' is active
+J-Link>

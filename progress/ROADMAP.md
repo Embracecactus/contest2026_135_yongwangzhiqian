@@ -37,17 +37,24 @@ Last reviewed: 2026-08-04
   dual metadata banks and inactive-slot A/B rotation pass their core matrices;
   16 unique A-to-B-to-A packages pass the independent verifier and loader
   dry-runs.
-- Current gate: N15-V physical staging/remap/confirm/rollback, controlled
-  interruption matrix and retained regression require fresh owner authority.
+- The minimal physical symmetric lifecycle is `board-verified`: generation 314
+  reached confirmed B through metadata bank 0, generation 315 returned to
+  confirmed A through bank 1, both full-slot read-backs and retained-service
+  regressions passed, and both confirmed-A RTS and complete-power-removal
+  recovery retained the same state with AP, CPU2 and RPTUN healthy.
+- The approved N15 minimal physical scope is complete. Physical rollback and
+  analog mid-pulse brownout are not claimed by the confirm-path run.
+- The board has been restored with the verified normal
+  `cp_nsh_psram + ap_smp_psram` sparse image. Boot/CP A/AP A writes passed;
+  retained LittleFS, AP/CPU2/RPTUN and PSRAM checks passed; `bkota` is absent.
 - Keep `progress/CURRENT.md` aligned with each material result, blocker, architecture decision, commit, push, or deployment.
 
 ## Next
 
-- N15-V: after fresh, range-specific owner authority, run one minimal physical
-  A-to-B lifecycle and one B-to-A lifecycle, retain raw evidence, verify the
-  retained N14 services and restore the normal gates-zero A profile.
-- ADR-006 symmetric inactive-slot rotation is host/source/ELF verified; the
-  remaining question is physical validation, not another OTA architecture.
+- Review and commit only the intended N15 implementation/evidence files; do not
+  mix unrelated dirty worktree content.
+- Select the next MAIN Stage with the owner; do not implicitly start legacy SDK
+  qualification or another destructive board workflow.
 
 ## Later
 

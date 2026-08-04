@@ -1,0 +1,5 @@
+bkota stage-mem 315 1015 n15v315-return-a n15v314-confirm 180000 N15-WRITE-315
+nsh: bkota: too many arguments
+BKOTA STAGE-MEM ret=0 phase=6 target=0 generation=315 elapsed_ms=47525 sectors=629 programmed=2576384 readback=2576384 sha256=ab516eb737299e15ece2948b46ae07e7e505a53db7492a4f65173a2c4dc5fa0f
+nsh> [K
+nsh> [K

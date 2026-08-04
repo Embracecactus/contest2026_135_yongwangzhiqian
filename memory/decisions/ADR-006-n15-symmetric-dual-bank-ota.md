@@ -1,6 +1,6 @@
 # ADR-006: Add symmetric inactive-slot OTA with dual metadata banks
 
-- Status: Accepted; host/source/ELF implemented, board validation pending
+- Status: Accepted; host/source/ELF and approved minimal board scope verified
 - Date: 2026-08-04
 - Decision owner: Project owner
 
@@ -85,14 +85,16 @@ normal API.
 
 ## Compatibility and rollout
 
-- Format 1 remains the historical N15-A-to-B evidence format.  The physical
-  board currently has erased metadata, so no live format-1 migration is
-  required before format 2 is deployed.
+- Format 1 remains the historical N15-A-to-B evidence format. The board moved
+  directly from the erased migration baseline to format 2; no live format-1
+  conversion was required.
 - The format-2 core, Boot/CP adapters, packers, host fault matrices and final
-  validation ELFs pass. No format-2 bank or executable slot has been written
-  on hardware by this implementation step.
-- Bank 1 and inactive-A writes remain disabled until the owner grants fresh
-  exact Flash-range authority for the format-2 board campaign.
+  validation ELFs pass. Under exact owner authority, generation 314 used bank
+  0 for A-to-confirmed-B and generation 315 used bank 1 for
+  B-to-confirmed-A; both inactive executable pairs passed full read-back/SHA.
+- The confirmed-A state survived RTS and complete removal of both USB and
+  J-Link power. The board was then restored with a bounded normal gates-zero
+  sparse image that excludes both banks and slot B.
 - The ordered format-2 campaign now contains 16 identities: generations
   42..56 retain the interruption/A-to-B coverage and generation 57 stages the
   inactive A pair from confirmed B, confirms A and proves the symmetric
@@ -108,12 +110,14 @@ normal API.
 3. **PASS (source/ELF):** Boot and CP use the same bank-selection and state-transition core.
 4. **PASS (host/source/ELF):** a transport-neutral normal wrapper passes tests without a
    validation command or fault-injection symbol.
-5. **PENDING (board):** one minimal A-to-B and one B-to-A lifecycle pass on hardware before the
-   exhaustive interruption campaign is regenerated.
+5. **PASS (board):** one minimal A-to-B and one B-to-A lifecycle, retained
+   services, RTS recovery and post-confirm complete-power-removal recovery pass
+   on hardware.
 
 The 16-package host campaign and independent verifier both pass. This accepts
-the architecture and implementation baseline; it does not mark N15
-`board-verified` or authorize Flash writes.
+the architecture and implementation baseline; the approved minimal N15 board
+scope is `board-verified`. It does not authorize future Flash writes or claim
+physical rollback/analog mid-pulse brownout.
 
 ## Reversal signals
 

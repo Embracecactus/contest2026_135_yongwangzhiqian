@@ -1,0 +1,71 @@
+{
+    "format":  1,
+    "tool":  "debug_session",
+    "status":  "passed",
+    "error":  null,
+    "action":  "CaptureOnly",
+    "console_port":  "COM11",
+    "reset_port":  "",
+    "baud":  460800,
+    "duration_sec":  20,
+    "output_directory":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-confirmed-a-status",
+    "raw_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-confirmed-a-status\\serial.raw",
+    "text_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-confirmed-a-status\\serial.txt",
+    "capture_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-confirmed-a-status\\serial-tool.log",
+    "action_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-confirmed-a-status\\action.log",
+    "capture":  {
+                    "format":  1,
+                    "tool":  "serial_capture",
+                    "status":  "ok",
+                    "error":  null,
+                    "port":  "COM11",
+                    "baud":  460800,
+                    "data_bits":  8,
+                    "parity":  "None",
+                    "stop_bits":  "One",
+                    "handshake":  "None",
+                    "duration_sec":  20,
+                    "elapsed_ms":  749.466,
+                    "stop_regex":  "BKOTA STATUS",
+                    "stop_regex_matched":  true,
+                    "stop_settle_ms":  500,
+                    "control_pulse":  {
+                                          "mode":  "None",
+                                          "active_level":  "Asserted",
+                                          "pulse_ms":  150,
+                                          "delay_ms":  200,
+                                          "settle_ms":  200
+                                      },
+                    "bytes":  434,
+                    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-confirmed-a-status\\serial.raw",
+                    "sha256":  "919c4a715346d11ea12a41d472f80a9348a23f36619c33394da8be5e48539e6f",
+                    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-confirmed-a-status\\serial.ready",
+                    "started_utc":  "2026-08-04T10:51:27.2014780Z",
+                    "ended_utc":  "2026-08-04T10:51:28.0659330Z"
+                },
+    "target_action":  {
+                          "status":  "not_requested"
+                      },
+    "requested_expected_regex":  [
+                                     "BKOTA STATUS ret=0.*state=7.*records=3.*generation=315.*bank=1.*base=1 target=0 stable=0 active=0.*trusted=1 erased=0.*secondary=0.*stage_gate=0 metadata_gate=0"
+                                 ],
+    "requested_stop_regex":  "BKOTA STATUS",
+    "stop_regex_matched":  true,
+    "requested_fail_regex":  [
+                                 "BKOTA FAIL|BKOTA DENY|HardFault|PANIC|ASSERT"
+                             ],
+    "expected_regex_results":  [
+                                   {
+                                       "pattern":  "BKOTA STATUS ret=0.*state=7.*records=3.*generation=315.*bank=1.*base=1 target=0 stable=0 active=0.*trusted=1 erased=0.*secondary=0.*stage_gate=0 metadata_gate=0",
+                                       "matched":  true
+                                   }
+                               ],
+    "fail_regex_results":  [
+                               {
+                                   "pattern":  "BKOTA FAIL|BKOTA DENY|HardFault|PANIC|ASSERT",
+                                   "matched":  false
+                               }
+                           ],
+    "started_utc":  "2026-08-04T10:51:26.7384717Z",
+    "ended_utc":  "2026-08-04T10:51:28.2489438Z"
+}

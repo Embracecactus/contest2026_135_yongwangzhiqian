@@ -1,0 +1,111 @@
+{
+    "format":  1,
+    "tool":  "debug_session",
+    "status":  "passed",
+    "error":  null,
+    "action":  "CaptureOnly",
+    "console_port":  "COM11",
+    "reset_port":  "",
+    "baud":  460800,
+    "duration_sec":  120,
+    "output_directory":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-trial-b-regression",
+    "raw_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-trial-b-regression\\serial.raw",
+    "text_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-trial-b-regression\\serial.txt",
+    "capture_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-trial-b-regression\\serial-tool.log",
+    "action_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-trial-b-regression\\action.log",
+    "capture":  {
+                    "format":  1,
+                    "tool":  "serial_capture",
+                    "status":  "ok",
+                    "error":  null,
+                    "port":  "COM11",
+                    "baud":  460800,
+                    "data_bits":  8,
+                    "parity":  "None",
+                    "stop_bits":  "One",
+                    "handshake":  "None",
+                    "duration_sec":  120,
+                    "elapsed_ms":  8082.839,
+                    "stop_regex":  "BBTT SUITE PASS",
+                    "stop_regex_matched":  true,
+                    "stop_settle_ms":  1000,
+                    "control_pulse":  {
+                                          "mode":  "None",
+                                          "active_level":  "Asserted",
+                                          "pulse_ms":  150,
+                                          "delay_ms":  200,
+                                          "settle_ms":  200
+                                      },
+                    "bytes":  13726,
+                    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-trial-b-regression\\serial.raw",
+                    "sha256":  "ac39e5a0c08147ae99f4dc2fb6c9b8b9e9e11fdf05a7f66408835076b77e27fb",
+                    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-trial-b-regression\\serial.ready",
+                    "started_utc":  "2026-08-04T10:39:40.1854118Z",
+                    "ended_utc":  "2026-08-04T10:39:48.3846419Z"
+                },
+    "target_action":  {
+                          "status":  "not_requested"
+                      },
+    "requested_expected_regex":  [
+                                     "AP state=READY\\(2\\) error=0",
+                                     "CPU2 state=SCHEDULER_ONLINE",
+                                     "RPTUN state=CONNECTED\\(4\\) error=0",
+                                     "BK7258LFS-OK",
+                                     "BPSR INFO PASS",
+                                     "BTMR PASS iterations=32",
+                                     "BRPT SUITE PASS runs=6 count=5",
+                                     "BRFS SUITE PASS runs=4 iterations=1",
+                                     "BBTT SUITE PASS info=1 scan=0"
+                                 ],
+    "requested_stop_regex":  "BBTT SUITE PASS",
+    "stop_regex_matched":  true,
+    "requested_fail_regex":  [
+                                 "BPSR .* FAIL|BTMR FAIL|BRPT (FAIL|SUITE FAIL)|BRFS (FAIL|SUITE FAIL)|BBTT (FAIL|SUITE FAIL)|HardFault|PANIC|ASSERT"
+                             ],
+    "expected_regex_results":  [
+                                   {
+                                       "pattern":  "AP state=READY\\(2\\) error=0",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "CPU2 state=SCHEDULER_ONLINE",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "RPTUN state=CONNECTED\\(4\\) error=0",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "BK7258LFS-OK",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "BPSR INFO PASS",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "BTMR PASS iterations=32",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "BRPT SUITE PASS runs=6 count=5",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "BRFS SUITE PASS runs=4 iterations=1",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "BBTT SUITE PASS info=1 scan=0",
+                                       "matched":  true
+                                   }
+                               ],
+    "fail_regex_results":  [
+                               {
+                                   "pattern":  "BPSR .* FAIL|BTMR FAIL|BRPT (FAIL|SUITE FAIL)|BRFS (FAIL|SUITE FAIL)|BBTT (FAIL|SUITE FAIL)|HardFault|PANIC|ASSERT",
+                                   "matched":  false
+                               }
+                           ],
+    "started_utc":  "2026-08-04T10:39:39.7200695Z",
+    "ended_utc":  "2026-08-04T10:39:48.6023726Z"
+}

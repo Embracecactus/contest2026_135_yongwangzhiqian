@@ -1,0 +1,71 @@
+{
+    "format":  1,
+    "tool":  "debug_session",
+    "status":  "error",
+    "error":  "Target-side serial evidence did not satisfy the requested regex checks.",
+    "action":  "CaptureOnly",
+    "console_port":  "COM11",
+    "reset_port":  "",
+    "baud":  460800,
+    "duration_sec":  60,
+    "output_directory":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-publish-pending",
+    "raw_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-publish-pending\\serial.raw",
+    "text_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-publish-pending\\serial.txt",
+    "capture_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-publish-pending\\serial-tool.log",
+    "action_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-publish-pending\\action.log",
+    "capture":  {
+                    "format":  1,
+                    "tool":  "serial_capture",
+                    "status":  "ok",
+                    "error":  null,
+                    "port":  "COM11",
+                    "baud":  460800,
+                    "data_bits":  8,
+                    "parity":  "None",
+                    "stop_bits":  "One",
+                    "handshake":  "None",
+                    "duration_sec":  60,
+                    "elapsed_ms":  35072.106,
+                    "stop_regex":  "BKOTA PUBLISH-MEM",
+                    "stop_regex_matched":  true,
+                    "stop_settle_ms":  1000,
+                    "control_pulse":  {
+                                          "mode":  "None",
+                                          "active_level":  "Asserted",
+                                          "pulse_ms":  150,
+                                          "delay_ms":  200,
+                                          "settle_ms":  200
+                                      },
+                    "bytes":  346,
+                    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-publish-pending\\serial.raw",
+                    "sha256":  "ec423d1771d676002337fde0652d8bbb8ebc131cf0e5f9bd2f1f7b3cbbb6c2de",
+                    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g314-publish-pending\\serial.ready",
+                    "started_utc":  "2026-08-04T10:32:40.6816580Z",
+                    "ended_utc":  "2026-08-04T10:33:15.8696469Z"
+                },
+    "target_action":  {
+                          "status":  "not_requested"
+                      },
+    "requested_expected_regex":  [
+                                     "BKOTA PUBLISH-MEM ret=0.*generation=314.*previous_state=0.*published_bank=0.*stable=0 target=1.*base=1 candidate=1.*readback=1"
+                                 ],
+    "requested_stop_regex":  "BKOTA PUBLISH-MEM",
+    "stop_regex_matched":  true,
+    "requested_fail_regex":  [
+                                 "BKOTA PUBLISH-MEM ret=-|BKOTA FAIL|BKOTA DENY|HardFault|PANIC|ASSERT"
+                             ],
+    "expected_regex_results":  [
+                                   {
+                                       "pattern":  "BKOTA PUBLISH-MEM ret=0.*generation=314.*previous_state=0.*published_bank=0.*stable=0 target=1.*base=1 candidate=1.*readback=1",
+                                       "matched":  false
+                                   }
+                               ],
+    "fail_regex_results":  [
+                               {
+                                   "pattern":  "BKOTA PUBLISH-MEM ret=-|BKOTA FAIL|BKOTA DENY|HardFault|PANIC|ASSERT",
+                                   "matched":  true
+                               }
+                           ],
+    "started_utc":  "2026-08-04T10:32:40.2300564Z",
+    "ended_utc":  "2026-08-04T10:33:16.0771517Z"
+}
