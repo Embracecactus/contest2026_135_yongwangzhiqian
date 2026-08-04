@@ -1,0 +1,20 @@
+layout_id: bk7258-v3119-ab-c1c42aeac25e712b
+layout_sha256: c1c42aeac25e712ba0f5e74a910806488e21470d9a8c37cc2587b610fb9b1b42
+sdk_release: v3.1.1.9
+
+kind       offset     end        size       name / role
+---------- ---------- ---------- ---------- ------------------------------
+code       0x000000   0x011000   0x011000   primary_bootloader / boot
+code       0x011000   0x165000   0x154000   primary_cp_app / slot_a_cp
+code       0x165000   0x286000   0x121000   primary_ap_app / slot_a_ap
+data       0x286000   0x4fb000   0x275000   s_app / slot_b_pair
+data       0x4fb000   0x4fc000   0x001000   ota_fina_executive / ota_metadata_primary
+data       0x4fc000   0x50a000   0x00e000   usr_config / vendor_config
+data       0x50a000   0x50b000   0x001000   ota_fina_mirror / ota_metadata_mirror
+unused     0x50b000   0x600000   0x0f5000   -
+data       0x600000   0x700000   0x100000   littlefs / littlefs
+unused     0x700000   0x7fa000   0x0fa000   -
+data       0x7fa000   0x7fc000   0x002000   easyflash / easyflash_cp
+data       0x7fc000   0x7fe000   0x002000   easyflash_ap / easyflash_ap
+data       0x7fe000   0x7ff000   0x001000   sys_rf / calibration_rf
+data       0x7ff000   0x800000   0x001000   sys_net / calibration_net

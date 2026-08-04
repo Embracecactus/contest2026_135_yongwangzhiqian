@@ -144,7 +144,7 @@ def verify(package: Path) -> dict[str, object]:
     factory = check_manifest_file(package, factory_entry, "all-app-factory.bin")
     require(
         len(factory) == FACTORY_PREFIX_END,
-        "factory prefix must end before usr_config at 0x4fc000",
+        f"factory prefix must end before usr_config at 0x{FACTORY_PREFIX_END:x}",
     )
     require(factory_entry.get("length") == len(factory), "factory length drift")
     require(

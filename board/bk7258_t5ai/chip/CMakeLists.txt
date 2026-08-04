@@ -27,7 +27,18 @@ set(BK7258_COMMON_SRCS
 set(BK7258_CP_SRCS
     cp/bk7258_vectors.c
     cp/bk7258_start.c
-    ${BK7258_COMMON_SRCS})
+    ${BK7258_COMMON_SRCS}
+    cp/bk7258_sdk_partition.c)
+
+if(NOT CONFIG_BK7258_AP_CORE)
+  target_link_options(
+    nuttx PRIVATE
+    "LINKER:--wrap=bk_flash_partition_get_info"
+    "LINKER:--wrap=bk_flash_partition_read"
+    "LINKER:--wrap=bk_flash_partition_write"
+    "LINKER:--wrap=bk_flash_partition_erase"
+    "LINKER:--wrap=bk_flash_partition_write_perm_check_by_addr")
+endif()
 
 if(CONFIG_BK7258_PSRAM)
   list(APPEND BK7258_CP_SRCS common/bk7258_psram.c)
@@ -104,10 +115,31 @@ if(CONFIG_BK7258_GPIO_LOWERHALF)
 endif()
 
 if(CONFIG_BK7258_FLASH_MTD)
-  list(APPEND BK7258_CP_SRCS cp/bk7258_flash_mtd.c)
-  target_link_options(
-    nuttx PRIVATE
-    "LINKER:--wrap=bk_flash_partition_write_perm_check_by_addr")
+  list(APPEND BK7258_CP_SRCS
+       cp/bk7258_flash_mtd.c
+       cp/bk7258_flash_guard.c)
+endif()
+
+if(CONFIG_BK7258_OTA_STAGING)
+  list(APPEND BK7258_CP_SRCS
+       cp/bk7258_ota_staging_core.c
+       cp/bk7258_ota_staging.c)
+endif()
+
+if(CONFIG_BK7258_OTA_TRIAL)
+  list(APPEND BK7258_CP_SRCS
+       ../bootloader/boot_ota_select_core.c
+       ../bootloader/boot_ota_rotation_core.c
+       ../bootloader/boot_ota_rotation_publish_core.c
+       ../bootloader/boot_ota_rotation_control_core.c
+       ../bootloader/boot_ota_rotation_health_core.c
+       cp/bk7258_ota_trial.c)
+endif()
+
+if(CONFIG_BK7258_OTA_FAULT_INJECTION)
+  list(APPEND BK7258_CP_SRCS
+       cp/bk7258_ota_fault_core.c
+       cp/bk7258_ota_fault.c)
 endif()
 
 if(CONFIG_BK7258_CLOCK_320M)

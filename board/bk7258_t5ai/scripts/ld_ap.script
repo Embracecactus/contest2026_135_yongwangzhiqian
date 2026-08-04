@@ -12,6 +12,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include "../chip/include/bk7258_partition_layout.h"
 
 OUTPUT_ARCH("arm")
 EXTERN(_vectors)
@@ -25,7 +26,8 @@ ENTRY(__start)
 
 MEMORY
 {
-    FLASH (rx)  : ORIGIN = 0x02150000, LENGTH = 0x110000
+    FLASH (rx)  : ORIGIN = BK7258_ROLE_SLOT_A_AP_XIP_START,
+                  LENGTH = BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE
     SPINLOCK (rwx) : ORIGIN = 0x28000000, LENGTH = 0x010000
 #ifdef CONFIG_BK7258_RPTUN_LAYOUT
     RAM   (rwx) : ORIGIN = 0x28050000, LENGTH = 0x047000
@@ -54,7 +56,7 @@ SECTIONS
     } > FLASH
 
     ASSERT(__vector_core0_table == ORIGIN(FLASH),
-           "ERROR: AP __vector_core0_table must be at 0x02150000")
+           "ERROR: AP __vector_core0_table must be at generated FLASH origin")
     ASSERT(_vectors == __vector_core0_table,
            "ERROR: AP _vectors must alias __vector_core0_table")
     ASSERT(SIZEOF(.vectors) == 0x140,
