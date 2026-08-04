@@ -6,22 +6,32 @@ from __future__ import annotations
 import argparse
 import json
 import struct
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR.parent / "scripts"))
+
+from gen_bk7258_partitions import DEFAULT_INPUT, load_layout
+
+
+LAYOUT = load_layout(DEFAULT_INPUT)
+BOOT_PARTITION = LAYOUT.by_role("boot")
 MAGIC = b'BK7236\x10\x00'
 MAGIC_LOGICAL_OFFSET = 0x100
-FLASH_BASE = 0x02000000
-BOOTLOADER_LOGICAL_SIZE = 0x10000
-CRC_PACKET = 32
-CRC_TOTAL = 34
-BOOTLOADER_PHYSICAL_SIZE = (BOOTLOADER_LOGICAL_SIZE // CRC_PACKET) * CRC_TOTAL
+FLASH_BASE = LAYOUT.xip_base + LAYOUT.logical_offset(BOOT_PARTITION)
+BOOTLOADER_LOGICAL_SIZE = LAYOUT.logical_size(BOOT_PARTITION)
+CRC_PACKET = LAYOUT.crc_data_size
+CRC_TOTAL = LAYOUT.crc_total_size
+BOOTLOADER_PHYSICAL_SIZE = BOOT_PARTITION.size
 DEFAULT_IN = Path('/home/lijian/project/TuyaOpen/zephyr-bk7258-port/out/custom_bootloader/bk7236_min_bl.bin')
 DEFAULT_OUT = Path('/home/lijian/project/TuyaOpen/zephyr-bk7258-port/out/custom_bootloader/bk7236_min_bl_crc.bin')
 
 
 @dataclass
 class BootloaderInfo:
+    layout_id: str
     input_size: int
     logical_size: int
     physical_size: int
@@ -100,6 +110,7 @@ def build_image(args: argparse.Namespace) -> BootloaderInfo:
     args.out.write_bytes(encoded)
 
     info = BootloaderInfo(
+        layout_id=LAYOUT.layout_id,
         input_size=input_size,
         logical_size=len(raw),
         physical_size=len(encoded),

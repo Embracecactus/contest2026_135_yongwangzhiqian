@@ -1,46 +1,72 @@
 #!/usr/bin/env python3
-"""Canonical host model for the accepted BK7258 v3.1.1.9 A/B layout."""
+"""Compatibility API backed by the generated BK7258 partition CSV model.
+
+New code should prefer roles from :mod:`gen_bk7258_partitions`.  The exported
+constants remain stable for existing N15 packers and verifiers while their
+values now come from the repository-owned CSV instead of a second hand-written
+layout table.
+"""
 
 from __future__ import annotations
 
 import argparse
-import csv
-import hashlib
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-
-LAYOUT_ID = "bk7258-v3.1.1.9-contiguous-ab-v1"
-FLASH_SIZE = 0x800000
-ERASE_SIZE = 0x1000
-
-BOOT_START = 0x000000
-BOOT_SIZE = 0x011000
-CP_A_START = 0x011000
-CP_A_SIZE = 0x154000
-AP_A_START = 0x165000
-AP_A_SIZE = 0x121000
-PAIR_B_START = 0x286000
-PAIR_B_SIZE = 0x275000
-OTA_METADATA_START = 0x4FB000
-OTA_METADATA_SIZE = 0x001000
-USR_CONFIG_START = 0x4FC000
-USR_CONFIG_SIZE = 0x00E000
-LITTLEFS_START = 0x600000
-LITTLEFS_SIZE = 0x100000
-CALIBRATION_TAIL_START = 0x7FA000
-FACTORY_PREFIX_END = OTA_METADATA_START + OTA_METADATA_SIZE
-MIGRATION_WRITE_END = LITTLEFS_START + LITTLEFS_SIZE
-
-CP_XIP_START = 0x02010000
-CP_XIP_SIZE = 0x140000
-AP_XIP_START = 0x02150000
-AP_XIP_SIZE = 0x110000
+from gen_bk7258_partitions import (
+    DEFAULT_INPUT,
+    PartitionLayoutError,
+    load_layout,
+    parse_size,
+    verify_sdk_compatibility,
+)
 
 
-class LayoutError(RuntimeError):
-    """Raised when an address-domain or official-layout contract drifts."""
+class LayoutError(PartitionLayoutError):
+    """Backward-compatible name for partition/layout validation failures."""
+
+
+_LAYOUT = load_layout(DEFAULT_INPUT)
+_BOOT = _LAYOUT.by_role("boot")
+_CP_A = _LAYOUT.by_role("slot_a_cp")
+_AP_A = _LAYOUT.by_role("slot_a_ap")
+_PAIR_B = _LAYOUT.by_role("slot_b_pair")
+_METADATA_PRIMARY = _LAYOUT.by_role("ota_metadata_primary")
+_USR_CONFIG = _LAYOUT.by_role("vendor_config")
+_METADATA_MIRROR = _LAYOUT.by_role("ota_metadata_mirror")
+_LITTLEFS = _LAYOUT.by_role("littlefs")
+_EASYFLASH = _LAYOUT.by_role("easyflash_cp")
+
+LAYOUT_ID = _LAYOUT.layout_id
+LAYOUT_SHA256 = _LAYOUT.layout_sha256
+FLASH_SIZE = _LAYOUT.flash_size
+ERASE_SIZE = _LAYOUT.erase_size
+
+BOOT_START = _BOOT.offset
+BOOT_SIZE = _BOOT.size
+CP_A_START = _CP_A.offset
+CP_A_SIZE = _CP_A.size
+AP_A_START = _AP_A.offset
+AP_A_SIZE = _AP_A.size
+PAIR_B_START = _PAIR_B.offset
+PAIR_B_SIZE = _PAIR_B.size
+OTA_METADATA_START = _METADATA_PRIMARY.offset
+OTA_METADATA_SIZE = _METADATA_PRIMARY.size
+USR_CONFIG_START = _USR_CONFIG.offset
+USR_CONFIG_SIZE = _USR_CONFIG.size
+OTA_METADATA_MIRROR_START = _METADATA_MIRROR.offset
+OTA_METADATA_MIRROR_SIZE = _METADATA_MIRROR.size
+LITTLEFS_START = _LITTLEFS.offset
+LITTLEFS_SIZE = _LITTLEFS.size
+CALIBRATION_TAIL_START = _EASYFLASH.offset
+FACTORY_PREFIX_END = _METADATA_PRIMARY.end
+MIGRATION_WRITE_END = _LITTLEFS.end
+
+CP_XIP_START = _LAYOUT.xip_base + _LAYOUT.logical_offset(_CP_A)
+CP_XIP_SIZE = _LAYOUT.logical_size(_CP_A)
+AP_XIP_START = _LAYOUT.xip_base + _LAYOUT.logical_offset(_AP_A)
+AP_XIP_SIZE = _LAYOUT.logical_size(_AP_A)
 
 
 @dataclass(frozen=True)
@@ -68,72 +94,85 @@ class Region:
 
 
 REGIONS = (
-    Region("primary_bootloader", BOOT_START, BOOT_SIZE, "official-envelope"),
-    Region("primary_cp_app", CP_A_START, CP_A_SIZE, "primary-a"),
-    Region("primary_ap_app", AP_A_START, AP_A_SIZE, "primary-a"),
-    Region("s_app", PAIR_B_START, PAIR_B_SIZE, "paired-b"),
+    Region(_BOOT.name, _BOOT.offset, _BOOT.size, "official-envelope"),
+    Region(_CP_A.name, _CP_A.offset, _CP_A.size, "primary-a"),
+    Region(_AP_A.name, _AP_A.offset, _AP_A.size, "primary-a"),
+    Region(_PAIR_B.name, _PAIR_B.offset, _PAIR_B.size, "paired-b"),
     Region(
-        "ota_fina_executive",
-        OTA_METADATA_START,
-        OTA_METADATA_SIZE,
-        "trial-metadata",
+        _METADATA_PRIMARY.name,
+        _METADATA_PRIMARY.offset,
+        _METADATA_PRIMARY.size,
+        "trial-metadata-primary",
     ),
-    Region("usr_config", USR_CONFIG_START, USR_CONFIG_SIZE, "vendor-reserved"),
+    Region(
+        _USR_CONFIG.name,
+        _USR_CONFIG.offset,
+        _USR_CONFIG.size,
+        "vendor-reserved",
+    ),
+    Region(
+        _METADATA_MIRROR.name,
+        _METADATA_MIRROR.offset,
+        _METADATA_MIRROR.size,
+        "trial-metadata-mirror",
+    ),
     Region(
         "reserved_before_littlefs",
-        USR_CONFIG_START + USR_CONFIG_SIZE,
-        LITTLEFS_START - (USR_CONFIG_START + USR_CONFIG_SIZE),
+        _METADATA_MIRROR.end,
+        _LITTLEFS.offset - _METADATA_MIRROR.end,
         "unallocated",
     ),
-    Region("littlefs", LITTLEFS_START, LITTLEFS_SIZE, "cp-raw-owner"),
+    Region(_LITTLEFS.name, _LITTLEFS.offset, _LITTLEFS.size, "cp-raw-owner"),
     Region(
         "reserved_after_littlefs",
-        LITTLEFS_START + LITTLEFS_SIZE,
-        CALIBRATION_TAIL_START - (LITTLEFS_START + LITTLEFS_SIZE),
+        _LITTLEFS.end,
+        _EASYFLASH.offset - _LITTLEFS.end,
         "unallocated",
     ),
     Region(
         "official_tail",
-        CALIBRATION_TAIL_START,
-        FLASH_SIZE - CALIBRATION_TAIL_START,
+        _EASYFLASH.offset,
+        FLASH_SIZE - _EASYFLASH.offset,
         "immutable-to-project-flash",
     ),
 )
 
-
-OFFICIAL_ROWS = (
-    ("primary_bootloader", BOOT_START, BOOT_SIZE),
-    ("primary_cp_app", CP_A_START, CP_A_SIZE),
-    ("primary_ap_app", AP_A_START, AP_A_SIZE),
-    ("s_app", PAIR_B_START, PAIR_B_SIZE),
-    ("ota_fina_executive", OTA_METADATA_START, OTA_METADATA_SIZE),
-    ("usr_config", USR_CONFIG_START, USR_CONFIG_SIZE),
-    ("easyflash", 0x7FA000, 0x2000),
-    ("easyflash_ap", 0x7FC000, 0x2000),
-    ("sys_rf", 0x7FE000, 0x1000),
-    ("sys_net", 0x7FF000, 0x1000),
+OFFICIAL_ROWS = tuple(
+    (name, _LAYOUT.by_name(name).offset, _LAYOUT.by_name(name).size)
+    for name in (
+        "primary_bootloader",
+        "primary_cp_app",
+        "primary_ap_app",
+        "s_app",
+        "ota_fina_executive",
+        "usr_config",
+        "easyflash",
+        "easyflash_ap",
+        "sys_rf",
+        "sys_net",
+    )
 )
 
 
 def crc_physical_size(logical_size: int) -> int:
-    if logical_size < 0 or logical_size % 32:
-        raise LayoutError("CRC-expanded logical sizes must be 32-byte aligned")
-    return logical_size // 32 * 34
-
-
-def parse_size(value: str) -> int:
-    normalized = value.strip().lower()
-    multiplier = 1
-    if normalized.endswith("k"):
-        multiplier = 1024
-        normalized = normalized[:-1]
-    elif normalized.endswith("m"):
-        multiplier = 1024 * 1024
-        normalized = normalized[:-1]
-    return int(normalized, 0) * multiplier
+    if logical_size < 0 or logical_size % _LAYOUT.crc_data_size:
+        raise LayoutError(
+            "CRC-expanded logical sizes must be 32-byte aligned"
+        )
+    return (
+        logical_size // _LAYOUT.crc_data_size * _LAYOUT.crc_total_size
+    )
 
 
 def verify_layout() -> None:
+    """Re-evaluate the CSV and compatibility aliases before packaging."""
+
+    try:
+        observed = load_layout(DEFAULT_INPUT)
+    except PartitionLayoutError as error:
+        raise LayoutError(str(error)) from error
+    if observed.layout_id != LAYOUT_ID or observed.layout_sha256 != LAYOUT_SHA256:
+        raise LayoutError("partition CSV changed after this module was imported")
     expected_start = 0
     for region in REGIONS:
         if region.start != expected_start:
@@ -141,76 +180,33 @@ def verify_layout() -> None:
                 f"layout gap/overlap before {region.name}: "
                 f"0x{expected_start:x} != 0x{region.start:x}"
             )
-        if region.start % ERASE_SIZE or region.size % ERASE_SIZE:
-            raise LayoutError(f"{region.name} is not erase-sector aligned")
         expected_start = region.end
     if expected_start != FLASH_SIZE:
-        raise LayoutError("layout does not cover the exact 8 MiB Flash")
-    if CP_A_START != crc_physical_size(CP_XIP_START - 0x02000000):
-        raise LayoutError("CP logical/raw start conversion drift")
-    if CP_A_SIZE != crc_physical_size(CP_XIP_SIZE):
-        raise LayoutError("CP logical/raw size conversion drift")
-    if AP_A_START != crc_physical_size(AP_XIP_START - 0x02000000):
-        raise LayoutError("AP logical/raw start conversion drift")
-    if AP_A_SIZE != crc_physical_size(AP_XIP_SIZE):
-        raise LayoutError("AP logical/raw size conversion drift")
-    if CP_A_SIZE + AP_A_SIZE != PAIR_B_SIZE:
-        raise LayoutError("primary pair and s_app sizes differ")
+        raise LayoutError("layout does not cover the exact Flash capacity")
 
 
 def verify_official_sdk(source: Path) -> dict[str, object]:
-    if source.name != "bk_avdk_smp-release-v3.1.1.9":
-        raise LayoutError("SDK source must be the exact v3.1.1.9 release directory")
-    csv_path = source / "projects/app_ab/partitions/bk7258/auto_partitions.csv"
-    position_path = (
-        source / "projects/app_ab/partitions/bk7258/ab_position_independent.csv"
-    )
     try:
-        lines = [
-            line
-            for line in csv_path.read_text(encoding="utf-8").splitlines()
-            if line and not line.startswith("#")
-        ]
-        position_text = position_path.read_text(encoding="utf-8")
-    except OSError as error:
-        raise LayoutError(f"cannot read official app_ab inputs: {error}") from error
-
-    rows = list(
-        csv.DictReader(
-            lines, fieldnames=("name", "offset", "size", "type", "read", "write")
-        )
-    )
-    cursor = 0
-    observed: list[tuple[str, int, int]] = []
-    for row in rows:
-        offset_text = row["offset"].strip()
-        start = int(offset_text, 0) if offset_text else cursor
-        size = parse_size(row["size"])
-        observed.append((row["name"].strip(), start, size))
-        cursor = start + size
-    if tuple(observed) != OFFICIAL_ROWS:
-        raise LayoutError(f"official app_ab partition rows drifted: {observed!r}")
-    if "pos_independent,TRUE" not in position_text.replace("\r", ""):
-        raise LayoutError("official position-independent AB switch is not TRUE")
-
-    return {
-        "release": "v3.1.1.9",
-        "source": str(source.resolve()),
-        "partition_csv": str(csv_path.resolve()),
-        "partition_csv_sha256": hashlib.sha256(csv_path.read_bytes()).hexdigest(),
-        "position_csv_sha256": hashlib.sha256(position_path.read_bytes()).hexdigest(),
-        "position_independent": True,
-    }
+        result = verify_sdk_compatibility(_LAYOUT, source)
+    except PartitionLayoutError as error:
+        raise LayoutError(str(error)) from error
+    # Keep historical result keys for callers and archived evidence readers.
+    result["partition_csv"] = result["reference_csv"]
+    result["partition_csv_sha256"] = result["reference_csv_sha256"]
+    return result
 
 
 def report(sdk_source: Path | None = None) -> dict[str, object]:
     verify_layout()
     result: dict[str, object] = {
-        "format": 1,
+        "format": 2,
         "layout_id": LAYOUT_ID,
+        "layout_sha256": LAYOUT_SHA256,
+        "layout_source": "board/bk7258_t5ai/partitions/bk7258/auto_partitions.csv",
         "flash_size": FLASH_SIZE,
         "erase_size": ERASE_SIZE,
         "regions": [region.report() for region in REGIONS],
+        "partitions": _LAYOUT.report()["partitions"],
         "xip": {
             "cp": [CP_XIP_START, CP_XIP_START + CP_XIP_SIZE],
             "ap": [AP_XIP_START, AP_XIP_START + AP_XIP_SIZE],
@@ -222,6 +218,13 @@ def report(sdk_source: Path | None = None) -> dict[str, object]:
             "size": PAIR_B_SIZE,
             "single_offset_compatible": True,
         },
+        "metadata_banks": [
+            [OTA_METADATA_START, OTA_METADATA_START + OTA_METADATA_SIZE],
+            [
+                OTA_METADATA_MIRROR_START,
+                OTA_METADATA_MIRROR_START + OTA_METADATA_MIRROR_SIZE,
+            ],
+        ],
         "migration": {
             "write_ranges": [
                 [BOOT_START, FACTORY_PREFIX_END],
@@ -231,9 +234,10 @@ def report(sdk_source: Path | None = None) -> dict[str, object]:
             "calibration_tail_start": CALIBRATION_TAIL_START,
             "chip_erase_allowed": False,
             "preserve_usr_config": True,
+            "preserve_metadata_mirror_until_n15_o": True,
             "destructive_factory_requires_fresh_owner_authority": True,
         },
-        "status": "accepted-layout-host-verified",
+        "status": "accepted-layout-csv-host-verified",
         "writes_enabled": False,
     }
     if sdk_source is not None:

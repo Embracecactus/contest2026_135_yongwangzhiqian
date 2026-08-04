@@ -21,7 +21,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "boot_ota_select.h"
 #include "boot_wdt.h"
+#include "../chip/include/bk7258_partition_layout.h"
 
 extern void boot_clock_cold_init(void);
 
@@ -44,7 +46,7 @@ extern void boot_clock_cold_init(void);
 #define FAL_DEV_NAME_MAX  24
 #define FAL_PART_MAGIC    0x45503130u   /* 'E','P','1','0' (fal_partition.c) */
 
-#define FLASH_BASE        0x02000000u
+#define FLASH_BASE        BK7258_FLASH_XIP_BASE
 
 struct fal_partition {
     uint32_t magic_word;
@@ -57,9 +59,14 @@ struct fal_partition {
 
 __attribute__((used))
 const struct fal_partition fal_partition_table[] = {
-    { FAL_PART_MAGIC, "bootloader", "beken_onchip_crc", 0x000000L, 0x010000L, 0u },
-    { FAL_PART_MAGIC, "cp_app",     "beken_onchip_crc", 0x010000L, 0x140000L, 0u },
-    { FAL_PART_MAGIC, "ap_app",     "beken_onchip_crc", 0x150000L, 0x110000L, 0u },
+    { FAL_PART_MAGIC, "bootloader", "beken_onchip_crc",
+      BK7258_ROLE_BOOT_LOGICAL_OFFSET, BK7258_ROLE_BOOT_LOGICAL_SIZE, 0u },
+    { FAL_PART_MAGIC, "cp_app",     "beken_onchip_crc",
+      BK7258_ROLE_SLOT_A_CP_LOGICAL_OFFSET,
+      BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE, 0u },
+    { FAL_PART_MAGIC, "ap_app",     "beken_onchip_crc",
+      BK7258_ROLE_SLOT_A_AP_LOGICAL_OFFSET,
+      BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE, 0u },
 };
 #define FAL_PART_COUNT  (sizeof(fal_partition_table) / sizeof(fal_partition_table[0]))
 
@@ -243,6 +250,20 @@ uint32_t c_main(void)
     }
     app_vec = FLASH_BASE + (uint32_t)app->offset;
     log_u32("partition app @ ", app_vec);
+
+    /* N15-C selection is linked and auditable but all compile/runtime
+     * selection/remap gates remain immutable zero.  With those gates closed
+     * this call returns the same Tier-1 primary vector without touching
+     * metadata or remap registers.
+     */
+
+    app_vec = boot_ota_select_app(app_vec);
+    if (app_vec == 0u) {
+        uart_puts("BAD\r\nota select\r\n");
+        for (;;) {
+            boot_wdt_feed();
+        }
+    }
 
     /* --- Validate app header. */
 

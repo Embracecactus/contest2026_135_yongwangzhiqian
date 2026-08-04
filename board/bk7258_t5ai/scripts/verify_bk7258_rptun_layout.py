@@ -12,6 +12,13 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from bk7258_ab_layout import (
+    AP_XIP_SIZE,
+    AP_XIP_START,
+    CP_XIP_SIZE,
+    CP_XIP_START,
+)
+
 
 class VerificationError(RuntimeError):
     """Raised when an N9 layout gate is not satisfied."""
@@ -49,7 +56,11 @@ def parse_probe(
         chip_include = tmpdir / "include" / "arch" / "chip"
         chip_include.mkdir(parents=True)
 
-        for name in ("bk7258_amp.h", "bk7258_rptun.h"):
+        for name in (
+            "bk7258_amp.h",
+            "bk7258_partition_layout.h",
+            "bk7258_rptun.h",
+        ):
             shutil.copy2(board / "chip" / "include" / name, chip_include / name)
 
         run(
@@ -457,12 +468,13 @@ def main() -> int:
         verify_sections(
             "CP",
             cp_sections,
-            [(0x02010000, 0x02150000), cp_ram_range],
+            [(CP_XIP_START, CP_XIP_START + CP_XIP_SIZE), cp_ram_range],
         )
         verify_sections(
             "AP",
             ap_sections,
-            [(0x02150000, 0x02260000), spinlock_range, ap_ram_range],
+            [(AP_XIP_START, AP_XIP_START + AP_XIP_SIZE),
+             spinlock_range, ap_ram_range],
         )
 
         for role, map_path in (("CP", args.cp_map), ("AP", args.ap_map)):

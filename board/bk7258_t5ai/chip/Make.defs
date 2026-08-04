@@ -24,6 +24,10 @@ include $(BOARD_DIR)$(DELIM)bk_idk$(DELIM)sdk-bundles.mk
 VPATH += chip$(DELIM)common
 VPATH += chip$(DELIM)cp
 VPATH += chip$(DELIM)ap
+# Keep this path relative to arch/arm/src.  NuttX mkdeps accepts a source
+# found through a relative VPATH, but treats an absolute VPATH result as a
+# new filename to search and emits a false "not found at any location" rule.
+VPATH += chip$(DELIM)..$(DELIM)bootloader
 
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)common
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)cp
@@ -64,6 +68,18 @@ BK7258_COMMON_CSRCS += bk7258_sdk_stubs.c
 BK7258_CP_CSRCS  = bk7258_vectors.c
 BK7258_CP_CSRCS += bk7258_start.c
 BK7258_CP_CSRCS += $(BK7258_COMMON_CSRCS)
+BK7258_CP_CSRCS += bk7258_sdk_partition.c
+
+# Keep the official v3.1.1.9 archives immutable while replacing their
+# build-time partition table with the repository-generated CSV ABI.
+
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=bk_flash_partition_get_info
+LDFLAGS += --wrap=bk_flash_partition_read
+LDFLAGS += --wrap=bk_flash_partition_write
+LDFLAGS += --wrap=bk_flash_partition_erase
+LDFLAGS += --wrap=bk_flash_partition_write_perm_check_by_addr
+endif
 
 ifeq ($(CONFIG_BK7258_PSRAM),y)
 BK7258_CP_CSRCS += bk7258_psram.c
@@ -138,7 +154,26 @@ endif
 
 ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
 BK7258_CP_CSRCS += bk7258_flash_mtd.c
-LDFLAGS += --wrap=bk_flash_partition_write_perm_check_by_addr
+BK7258_CP_CSRCS += bk7258_flash_guard.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA_STAGING),y)
+BK7258_CP_CSRCS += bk7258_ota_staging_core.c
+BK7258_CP_CSRCS += bk7258_ota_staging.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA_TRIAL),y)
+BK7258_CP_CSRCS += boot_ota_select_core.c
+BK7258_CP_CSRCS += boot_ota_rotation_core.c
+BK7258_CP_CSRCS += boot_ota_rotation_publish_core.c
+BK7258_CP_CSRCS += boot_ota_rotation_control_core.c
+BK7258_CP_CSRCS += boot_ota_rotation_health_core.c
+BK7258_CP_CSRCS += bk7258_ota_trial.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA_FAULT_INJECTION),y)
+BK7258_CP_CSRCS += bk7258_ota_fault_core.c
+BK7258_CP_CSRCS += bk7258_ota_fault.c
 endif
 
 # Stage N4-D1: deterministic 320 MHz CPU0 clock bring-up.

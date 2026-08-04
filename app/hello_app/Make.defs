@@ -11,6 +11,7 @@ ifneq ($(strip $(CONFIG_LVX_USE_DEMO_CONTEST2026_135_HELLO_APP) \
                  $(CONFIG_BK7258_RPMSG_TEST) \
                  $(CONFIG_BK7258_RPMSGFS_TEST) \
                  $(CONFIG_BK7258_BT_IPC_TEST) \
-                 $(CONFIG_BK7258_PSRAM_TEST)),)
+                 $(CONFIG_BK7258_PSRAM_TEST) \
+                 $(CONFIG_BK7258_OTA_VALIDATION)),)
 CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_135_hello_app
 endif

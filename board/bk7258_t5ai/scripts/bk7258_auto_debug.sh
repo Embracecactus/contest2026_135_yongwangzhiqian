@@ -7,6 +7,7 @@ set -Eeuo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 OPENVELA_ROOT=$(cd "$SCRIPT_DIR/../../../.." && pwd)
 BUILD_SCRIPT="$SCRIPT_DIR/build_dual_image.sh"
+PARTITION_GENERATOR="$SCRIPT_DIR/gen_bk7258_partitions.py"
 CAPTURE_PS1="$SCRIPT_DIR/capture_windows_serial.ps1"
 PULSE_PS1="$SCRIPT_DIR/pulse_windows_serial.ps1"
 LOADER_DIR_DEFAULT='/mnt/c/Users/lijian/Downloads/BEKEN_BKFIL_V2.1.11.15_20241114/BEKEN_BKFIL_V2.1.11.15_20241114'
@@ -140,6 +141,26 @@ if ((JLINK_RESET)); then
   [[ -x "$JLINK_EXE" || -f "$JLINK_EXE" ]] || { echo "ERROR: missing $JLINK_EXE" >&2; exit 1; }
 fi
 
+[[ -f "$PARTITION_GENERATOR" ]] || {
+  echo "ERROR: missing partition generator $PARTITION_GENERATOR" >&2
+  exit 1
+}
+
+# Resolve every destructive range from the project CSV.  This keeps the WSL2
+# debug/download SOP synchronized with the firmware build and fails closed if
+# the partition source is invalid.
+
+EXPECTED_LAYOUT_ID=$(python3 "$PARTITION_GENERATOR" --get layout_id)
+BOOT_OFFSET=$(python3 "$PARTITION_GENERATOR" --get boot.offset)
+BOOT_SIZE=$(python3 "$PARTITION_GENERATOR" --get boot.size)
+CP_OFFSET=$(python3 "$PARTITION_GENERATOR" --get slot_a_cp.offset)
+CP_SIZE=$(python3 "$PARTITION_GENERATOR" --get slot_a_cp.size)
+AP_OFFSET=$(python3 "$PARTITION_GENERATOR" --get slot_a_ap.offset)
+AP_SIZE=$(python3 "$PARTITION_GENERATOR" --get slot_a_ap.size)
+FACTORY_PREFIX_SIZE=$(python3 "$PARTITION_GENERATOR" --get ota_metadata_primary.end)
+LITTLEFS_OFFSET=$(python3 "$PARTITION_GENERATOR" --get littlefs.offset)
+LITTLEFS_SIZE=$(python3 "$PARTITION_GENERATOR" --get littlefs.size)
+
 if ((DO_BUILD)); then
   echo "==> Building CP=$CP_CONFIG_NAME AP=$AP_CONFIG_NAME"
   CP_CONFIG_NAME="$CP_CONFIG_NAME" AP_CONFIG_NAME="$AP_CONFIG_NAME" "$BUILD_SCRIPT"
@@ -155,8 +176,8 @@ AP_IMAGE="$DUAL_DIR/app1_crc_flash.bin"
 LITTLEFS_CLEAR_IMAGE="$DUAL_DIR/littlefs_factory_clear.bin"
 if ((DO_FLASH)); then
   [[ -f "$MANIFEST" ]] || { echo "ERROR: missing image manifest $MANIFEST" >&2; exit 1; }
-  grep -q '"layout_id": "bk7258-v3.1.1.9-contiguous-ab-v1"' "$MANIFEST" || {
-    echo "ERROR: image manifest is not the accepted ADR-004 layout" >&2
+  grep -Fq "\"layout_id\": \"${EXPECTED_LAYOUT_ID}\"" "$MANIFEST" || {
+    echo "ERROR: image manifest does not match CSV layout $EXPECTED_LAYOUT_ID" >&2
     exit 1
   }
   python3 "$SCRIPT_DIR/verify_bk7258_ota_layout.py"
@@ -171,22 +192,19 @@ if ((SPARSE_FLASH)); then
   CP_IMAGE_SIZE=$(stat -c %s "$CP_IMAGE")
   AP_IMAGE_SIZE=$(stat -c %s "$AP_IMAGE")
 
-  # ADR-004 uses the exact official v3.1.1.9 primary A boundaries:
-  # boot 0x000000..0x011000, CP 0x011000..0x165000,
-  # AP 0x165000..0x286000. LittleFS is raw 0x600000..0x700000.
   # Refuse malformed/oversized artifacts before bk_loader can erase across a
-  # partition boundary.  This is the hard guarantee behind "preserve
-  # LittleFS", independent of the build script's own size checks.
+  # CSV-defined partition boundary.  This is the hard guarantee behind
+  # "preserve LittleFS", independent of the build script's own size checks.
 
-  ((BOOT_IMAGE_SIZE > 0 && BOOT_IMAGE_SIZE <= 0x11000)) || {
-    echo "ERROR: sparse boot image length $BOOT_IMAGE_SIZE exceeds 0x11000" >&2
+  ((BOOT_IMAGE_SIZE > 0 && BOOT_IMAGE_SIZE <= BOOT_SIZE)) || {
+    echo "ERROR: sparse boot image length $BOOT_IMAGE_SIZE exceeds boot size $BOOT_SIZE" >&2
     exit 1
   }
-  ((CP_IMAGE_SIZE > 0 && 0x11000 + CP_IMAGE_SIZE <= 0x165000)) || {
+  ((CP_IMAGE_SIZE > 0 && CP_IMAGE_SIZE <= CP_SIZE)) || {
     echo "ERROR: sparse CP image length $CP_IMAGE_SIZE exceeds primary_cp_app" >&2
     exit 1
   }
-  ((AP_IMAGE_SIZE > 0 && 0x165000 + AP_IMAGE_SIZE <= 0x286000)) || {
+  ((AP_IMAGE_SIZE > 0 && AP_IMAGE_SIZE <= AP_SIZE)) || {
     echo "ERROR: sparse AP image length $AP_IMAGE_SIZE exceeds primary_ap_app" >&2
     exit 1
   }
@@ -201,8 +219,8 @@ elif ((DO_FLASH)); then
   }
   FIRMWARE_SIZE=$(stat -c %s "$FIRMWARE")
   LITTLEFS_CLEAR_SIZE=$(stat -c %s "$LITTLEFS_CLEAR_IMAGE")
-  ((FIRMWARE_SIZE == 0x4fc000 && LITTLEFS_CLEAR_SIZE == 0x100000)) || {
-    echo "ERROR: factory segments violate the ADR-004 bounds" >&2
+  ((FIRMWARE_SIZE == FACTORY_PREFIX_SIZE && LITTLEFS_CLEAR_SIZE == LITTLEFS_SIZE)) || {
+    echo "ERROR: factory segments violate the CSV-defined bounds" >&2
     exit 1
   }
 fi
@@ -344,15 +362,15 @@ if ((DO_FLASH)); then
     printf -v BOOT_LENGTH_HEX '0x%x' "$(stat -c %s "$BOOT_IMAGE")"
     printf -v CP_LENGTH_HEX '0x%x' "$(stat -c %s "$CP_IMAGE")"
     printf -v AP_LENGTH_HEX '0x%x' "$(stat -c %s "$AP_IMAGE")"
-    MAIN_BIN_MULTI="${BOOT_IMAGE_WIN}@0x0-${BOOT_LENGTH_HEX},"
-    MAIN_BIN_MULTI+="${CP_IMAGE_WIN}@0x11000-${CP_LENGTH_HEX},"
-    MAIN_BIN_MULTI+="${AP_IMAGE_WIN}@0x165000-${AP_LENGTH_HEX}"
+    MAIN_BIN_MULTI="${BOOT_IMAGE_WIN}@${BOOT_OFFSET}-${BOOT_LENGTH_HEX},"
+    MAIN_BIN_MULTI+="${CP_IMAGE_WIN}@${CP_OFFSET}-${CP_LENGTH_HEX},"
+    MAIN_BIN_MULTI+="${AP_IMAGE_WIN}@${AP_OFFSET}-${AP_LENGTH_HEX}"
     echo "==> Sparse download through COM${DOWNLOAD_PORT}; LittleFS preserved"
   else
     FIRMWARE_WIN=$(wslpath -m "$FIRMWARE")
     LITTLEFS_CLEAR_WIN=$(wslpath -m "$LITTLEFS_CLEAR_IMAGE")
-    MAIN_BIN_MULTI="${FIRMWARE_WIN}@0x0-0x4fc000,"
-    MAIN_BIN_MULTI+="${LITTLEFS_CLEAR_WIN}@0x600000-0x100000"
+    MAIN_BIN_MULTI="${FIRMWARE_WIN}@${BOOT_OFFSET}-${FACTORY_PREFIX_SIZE},"
+    MAIN_BIN_MULTI+="${LITTLEFS_CLEAR_WIN}@${LITTLEFS_OFFSET}-${LITTLEFS_SIZE}"
     echo "==> Bounded factory rewrite through COM${DOWNLOAD_PORT}; usr_config/tail preserved"
   fi
   set +e

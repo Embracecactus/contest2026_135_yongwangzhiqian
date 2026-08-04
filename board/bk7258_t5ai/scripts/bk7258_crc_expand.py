@@ -14,6 +14,10 @@ PACKET_TOTAL = 34
 APP_MAGIC = b"BK7236\0\0"
 
 
+class ExpansionError(ValueError):
+    """Raised when a 32+2 encoded image is malformed."""
+
+
 def crc16(data: bytes) -> int:
     crc = 0xFFFFFFFF
     for byte in data:
@@ -30,6 +34,29 @@ def expand(data: bytes) -> bytes:
         block = block.ljust(PACKET_DATA, b"\xff")
         output += block
         output += struct.pack(">H", crc16(block))
+    return bytes(output)
+
+
+def decode(data: bytes) -> bytes:
+    """Verify and remove every BK7258 32-byte + CRC16 packet."""
+
+    if len(data) % PACKET_TOTAL:
+        raise ExpansionError(
+            f"encoded image size 0x{len(data):x} is not a multiple of "
+            f"{PACKET_TOTAL}"
+        )
+
+    output = bytearray()
+    for offset in range(0, len(data), PACKET_TOTAL):
+        block = data[offset : offset + PACKET_DATA]
+        stored_crc = struct.unpack_from(">H", data, offset + PACKET_DATA)[0]
+        observed_crc = crc16(block)
+        if stored_crc != observed_crc:
+            raise ExpansionError(
+                f"CRC16 mismatch at encoded offset 0x{offset:x}: "
+                f"expected 0x{stored_crc:04x}, got 0x{observed_crc:04x}"
+            )
+        output.extend(block)
     return bytes(output)
 
 

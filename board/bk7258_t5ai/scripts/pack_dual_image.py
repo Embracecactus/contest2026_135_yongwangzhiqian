@@ -103,7 +103,7 @@ def main() -> None:
 
     layout_report()
     if args.boot.stat().st_size != BOOT_SIZE:
-        raise SystemExit("bl_crc.bin must be exactly 0x11000 bytes")
+        raise SystemExit(f"bl_crc.bin must be exactly 0x{BOOT_SIZE:x} bytes")
     cp_flash_size = align_up(args.cp_crc.stat().st_size, ERASE_SIZE)
     ap_flash_size = align_up(args.ap_crc.stat().st_size, ERASE_SIZE)
     if cp_flash_size > CP_A_SIZE:

@@ -9,9 +9,10 @@ CONTEST_DIR="$(cd "${BOARD_DIR}/../.." && pwd)"
 WORKSPACE="$(cd "${CONTEST_DIR}/.." && pwd)"
 TOPDIR="${WORKSPACE}/nuttx"
 BUILD="${WORKSPACE}/build.sh"
+PARTITION_GENERATOR="${SCRIPT_DIR}/gen_bk7258_partitions.py"
 CP_CONFIG_NAME="${CP_CONFIG_NAME:-cp_nsh}"
 case "${CP_CONFIG_NAME}" in
-    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram)
+    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_ota)
         ;;
     *)
         printf 'build_dual_image: unsupported CP_CONFIG_NAME=%s\n' \
@@ -66,8 +67,10 @@ if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
 fi
 
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_ota" ||
       "${AP_CONFIG_NAME}" == "ap_smp_psram" ]]; then
-    if [[ "${CP_CONFIG_NAME}" != "cp_nsh_psram" ||
+    if [[ ("${CP_CONFIG_NAME}" != "cp_nsh_psram" &&
+           "${CP_CONFIG_NAME}" != "cp_nsh_ota") ||
           "${AP_CONFIG_NAME}" != "ap_smp_psram" ]]; then
         printf '%s\n' \
             'build_dual_image: N14 PSRAM configs must be selected as a pair' \
@@ -83,6 +86,75 @@ if [[ "${BK7258_SDK_BUNDLE_VERSION}" != "v3.1.1.9" ]]; then
     printf "build_dual_image: N15 requires official SDK v3.1.1.9, got '%s'\n" \
         "${BK7258_SDK_BUNDLE_VERSION}" >&2
     exit 2
+fi
+
+# A normal dual build never arms OTA.  A deterministic host-only candidate
+# bundle is emitted only when the caller supplies the complete four-field
+# identity.  Partial identities fail closed instead of inventing versions.
+
+N15_OTA_GENERATION="${N15_OTA_GENERATION:-}"
+N15_OTA_VERSION="${N15_OTA_VERSION:-}"
+N15_OTA_BASE_VERSION="${N15_OTA_BASE_VERSION:-}"
+N15_OTA_TIMESTAMP="${N15_OTA_TIMESTAMP:-}"
+N15_OTA_HOST_BUNDLE_ENABLED=false
+if [[ -n "${N15_OTA_GENERATION}${N15_OTA_VERSION}${N15_OTA_BASE_VERSION}${N15_OTA_TIMESTAMP}" ]]; then
+    for field in N15_OTA_GENERATION N15_OTA_VERSION \
+        N15_OTA_BASE_VERSION N15_OTA_TIMESTAMP; do
+        if [[ -z "${!field}" ]]; then
+            printf 'build_dual_image: host OTA bundle requires %s\n' \
+                "${field}" >&2
+            exit 2
+        fi
+    done
+    N15_OTA_HOST_BUNDLE_ENABLED=true
+fi
+
+# Building a validation package is separate from authorizing any board write.
+# The explicit value prevents a typo or merely selecting cp_nsh_ota from
+# silently producing a bootloader with live selector/remap/trial gates.
+
+N15_OTA_VALIDATION="${N15_OTA_VALIDATION:-NO}"
+N15_OTA_VALIDATION_ENABLED=false
+BOOT_GATE_VALUE=0
+case "${N15_OTA_VALIDATION}" in
+    NO)
+        if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ota" ]]; then
+            printf '%s\n' \
+                'build_dual_image: cp_nsh_ota requires N15_OTA_VALIDATION=YES' \
+                >&2
+            exit 2
+        fi
+        ;;
+    YES)
+        if [[ "${CP_CONFIG_NAME}" != "cp_nsh_ota" ||
+              "${AP_CONFIG_NAME}" != "ap_smp_psram" ]]; then
+            printf '%s\n' \
+                'build_dual_image: validation requires cp_nsh_ota + ap_smp_psram' \
+                >&2
+            exit 2
+        fi
+        if [[ "${N15_OTA_HOST_BUNDLE_ENABLED}" != "true" ]]; then
+            printf '%s\n' \
+                'build_dual_image: validation requires a complete N15 OTA identity' \
+                >&2
+            exit 2
+        fi
+        N15_OTA_VALIDATION_ENABLED=true
+        BOOT_GATE_VALUE=1
+        ;;
+    *)
+        printf "build_dual_image: N15_OTA_VALIDATION must be YES or NO, got '%s'\n" \
+            "${N15_OTA_VALIDATION}" >&2
+        exit 2
+        ;;
+esac
+
+# Keep validation artifacts physically separate from the normal dual-image
+# package.  A later normal build must not silently overwrite the candidate,
+# and a validation build must not masquerade as the default package.
+
+if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
+    OUTPUT="${TOPDIR}/bk7258-dual-ota-validation"
 fi
 
 SDK_BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
@@ -143,6 +215,7 @@ save_role()
     cp "${TOPDIR}/${raw}" "${TMPDIR}/${raw}"
     cp "${TOPDIR}/${crc}" "${TMPDIR}/${crc}"
     cp "${TOPDIR}/nuttx" "${TMPDIR}/nuttx-${role}.elf"
+    cp "${TOPDIR}/.config" "${TMPDIR}/nuttx-${role}.config"
     if [ -f "${TOPDIR}/nuttx.map" ]; then
         cp "${TOPDIR}/nuttx.map" "${TMPDIR}/nuttx-${role}.map"
     fi
@@ -150,6 +223,19 @@ save_role()
 
 printf 'build_dual_image: SDK bundle version: %s\n' \
     "${BK7258_SDK_BUNDLE_VERSION}"
+PARTITION_GENERATE_ARGS=(--check)
+PARTITION_VERIFY_ARGS=(
+    --output "${TMPDIR}/bk7258-partitions.json"
+)
+if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+    PARTITION_GENERATE_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+    PARTITION_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+fi
+python3 "${PARTITION_GENERATOR}" \
+    "${PARTITION_GENERATE_ARGS[@]}"
+python3 "${SCRIPT_DIR}/verify_bk7258_partitions.py" \
+    "${PARTITION_VERIFY_ARGS[@]}"
+python3 "${SCRIPT_DIR}/verify_bk7258_sdk_partition_wrapper.py"
 LAYOUT_VERIFY_ARGS=(
     --output "${TMPDIR}/bk7258-ab-layout.json"
 )
@@ -158,8 +244,74 @@ if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
 fi
 python3 "${SCRIPT_DIR}/verify_bk7258_ota_layout.py" \
     "${LAYOUT_VERIFY_ARGS[@]}"
+PAIR_SELF_TEST_ARGS=(--self-test)
+if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+    PAIR_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+fi
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_pair.py" \
+    "${PAIR_SELF_TEST_ARGS[@]}"
+STAGING_SELF_TEST_ARGS=(--self-test)
+if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+    STAGING_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+fi
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_staging.py" \
+    "${STAGING_SELF_TEST_ARGS[@]}"
+BOOT_SELF_TEST_ARGS=(--self-test)
+if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+    BOOT_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+fi
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_boot.py" \
+    "${BOOT_SELF_TEST_ARGS[@]}"
+TRIAL_SELF_TEST_ARGS=(--self-test)
+if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+    TRIAL_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+fi
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_trial.py" \
+    "${TRIAL_SELF_TEST_ARGS[@]}"
+FORMAT2_SDK_ARGS=()
+if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+    FORMAT2_SDK_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+fi
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation.py" \
+    --report "${TMPDIR}/bk7258-ota-rotation.json" \
+    "${FORMAT2_SDK_ARGS[@]}"
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_select.py" \
+    --report "${TMPDIR}/bk7258-ota-rotation-select.json" \
+    "${FORMAT2_SDK_ARGS[@]}"
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_trial.py" \
+    --report "${TMPDIR}/bk7258-ota-rotation-trial.json" \
+    "${FORMAT2_SDK_ARGS[@]}"
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_publish.py" \
+    --report "${TMPDIR}/bk7258-ota-publish.json" \
+    "${FORMAT2_SDK_ARGS[@]}"
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_control.py" \
+    --report "${TMPDIR}/bk7258-ota-rotation-control.json" \
+    "${FORMAT2_SDK_ARGS[@]}"
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_health.py" \
+    --report "${TMPDIR}/bk7258-ota-health.json" \
+    "${FORMAT2_SDK_ARGS[@]}"
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_fault.py" \
+    --self-test \
+    --output "${TMPDIR}/bk7258-ota-fault.json"
 printf '%s\n' "build_dual_image: rebuilding Tier-1 bootloader"
-make -C "${BOARD_DIR}/bootloader" clean all verify
+make -C "${BOARD_DIR}/bootloader" clean all verify \
+    N15_OTA_VALIDATION="${BOOT_GATE_VALUE}"
+BOOT_ELF_VERIFY_ARGS=(
+    --elf-only
+    --boot-elf "${BOARD_DIR}/bootloader/bl.elf"
+    --boot-bin "${BOARD_DIR}/bootloader/bl.bin"
+    --boot-crc "${BOARD_DIR}/bootloader/bl_crc.bin"
+    --expected-gate-value "${BOOT_GATE_VALUE}"
+    --output "${TMPDIR}/bk7258-ota-boot.json"
+)
+if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+    BOOT_ELF_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+fi
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_boot.py" \
+    "${BOOT_ELF_VERIFY_ARGS[@]}"
+cp "${BOARD_DIR}/bootloader/bl.elf" "${TMPDIR}/bootloader.elf"
+cp "${BOARD_DIR}/bootloader/bl.bin" "${TMPDIR}/bootloader.bin"
+cp "${BOARD_DIR}/bootloader/bl.map" "${TMPDIR}/bootloader.map"
 
 printf 'build_dual_image: building CPU0/CP (%s)\n' "${CP_CONFIG_NAME}"
 build_config "${CP_CONFIG}"
@@ -172,6 +324,48 @@ save_role ap app1.bin app1_crc.bin
 
 printf '%s\n' "build_dual_image: restoring CPU0/CP build tree"
 build_config "${CP_CONFIG}"
+STAGING_ELF_VERIFY_ARGS=(
+    --elf-only
+    --elf "${TOPDIR}/nuttx"
+    --config "${TOPDIR}/.config"
+)
+if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
+    STAGING_ELF_VERIFY_ARGS+=(--validation-profile)
+fi
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_staging.py" \
+    "${STAGING_ELF_VERIFY_ARGS[@]}"
+TRIAL_ELF_VERIFY_ARGS=(
+    --elf-only
+    --boot-elf "${BOARD_DIR}/bootloader/bl.elf"
+    --boot-bin "${BOARD_DIR}/bootloader/bl.bin"
+    --boot-crc "${BOARD_DIR}/bootloader/bl_crc.bin"
+    --cp-elf "${TOPDIR}/nuttx"
+    --cp-config "${TOPDIR}/.config"
+    --output "${TMPDIR}/bk7258-ota-trial.json"
+)
+if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+    TRIAL_ELF_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+fi
+if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
+    TRIAL_ELF_VERIFY_ARGS+=(--validation-profile)
+fi
+python3 "${SCRIPT_DIR}/verify_bk7258_ota_trial.py" \
+    "${TRIAL_ELF_VERIFY_ARGS[@]}"
+if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
+    VALIDATION_VERIFY_ARGS=(
+        --boot-elf "${BOARD_DIR}/bootloader/bl.elf"
+        --boot-bin "${BOARD_DIR}/bootloader/bl.bin"
+        --boot-crc "${BOARD_DIR}/bootloader/bl_crc.bin"
+        --cp-elf "${TOPDIR}/nuttx"
+        --cp-config "${TOPDIR}/.config"
+        --output "${TMPDIR}/bk7258-ota-validation.json"
+    )
+    if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+        VALIDATION_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+    fi
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_validation.py" \
+        "${VALIDATION_VERIFY_ARGS[@]}"
+fi
 
 # The restored CP build is authoritative for both the normal build tree and
 # the dual-image package.  Overwrite the first CP snapshot so app.bin,
@@ -183,7 +377,24 @@ save_role cp app.bin app_crc.bin
 rm -rf "${OUTPUT}"
 mkdir -p "${OUTPUT}"
 cp "${TMPDIR}"/nuttx-*.elf "${OUTPUT}/"
+cp "${TMPDIR}"/nuttx-*.config "${OUTPUT}/"
+cp "${TMPDIR}"/bootloader.elf "${OUTPUT}/"
+cp "${TMPDIR}"/bootloader.bin "${OUTPUT}/"
+cp "${TMPDIR}"/bootloader.map "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-partitions.json" "${OUTPUT}/"
 cp "${TMPDIR}/bk7258-ab-layout.json" "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-ota-boot.json" "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-ota-trial.json" "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-ota-publish.json" "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-ota-health.json" "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-ota-fault.json" "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-ota-rotation.json" "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-ota-rotation-select.json" "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-ota-rotation-trial.json" "${OUTPUT}/"
+cp "${TMPDIR}/bk7258-ota-rotation-control.json" "${OUTPUT}/"
+if [[ -f "${TMPDIR}/bk7258-ota-validation.json" ]]; then
+    cp "${TMPDIR}/bk7258-ota-validation.json" "${OUTPUT}/"
+fi
 for map in "${TMPDIR}"/nuttx-*.map; do
     if [ -f "${map}" ]; then
         cp "${map}" "${OUTPUT}/"
@@ -202,6 +413,66 @@ python3 "${SCRIPT_DIR}/verify_bk7258_factory_layout.py" \
     --package "${OUTPUT}" \
     --json "${OUTPUT}/bk7258-factory-layout.json"
 
+if [[ "${N15_OTA_HOST_BUNDLE_ENABLED}" == "true" ]]; then
+    N15_OTA_OUTPUT="${OUTPUT}/n15-ota-host-candidate"
+    N15_OTA_SOURCE_ARGS=()
+    if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+        N15_OTA_SOURCE_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+    fi
+
+    python3 "${SCRIPT_DIR}/pack_bk7258_ota_pair.py" \
+        --cp-raw "${TMPDIR}/app.bin" \
+        --ap-raw "${TMPDIR}/app1.bin" \
+        --output "${N15_OTA_OUTPUT}" \
+        --generation "${N15_OTA_GENERATION}" \
+        --version "${N15_OTA_VERSION}" \
+        --base-version "${N15_OTA_BASE_VERSION}" \
+        --timestamp "${N15_OTA_TIMESTAMP}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_pair.py" \
+        --bundle "${N15_OTA_OUTPUT}" \
+        --expected-generation "${N15_OTA_GENERATION}" \
+        --expected-version "${N15_OTA_VERSION}" \
+        --expected-base-version "${N15_OTA_BASE_VERSION}" \
+        --expected-timestamp "${N15_OTA_TIMESTAMP}" \
+        "${N15_OTA_SOURCE_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/pack_bk7258_ota_rotation.py" \
+        --bundle "${N15_OTA_OUTPUT}" \
+        --base-cp-crc "${TMPDIR}/app_crc.bin" \
+        --base-ap-crc "${TMPDIR}/app1_crc.bin" \
+        --target-slot b \
+        --bank 0 \
+        --output "${N15_OTA_OUTPUT}/bk7258-ota-metadata.bin" \
+        --record-output "${N15_OTA_OUTPUT}/bk7258-ota-pending-record.bin" \
+        --descriptor-output "${N15_OTA_OUTPUT}/bk7258-ota-stage.bin" \
+        --generation "${N15_OTA_GENERATION}" \
+        --version "${N15_OTA_VERSION}" \
+        --base-version "${N15_OTA_BASE_VERSION}" \
+        --timestamp "${N15_OTA_TIMESTAMP}" \
+        "${N15_OTA_SOURCE_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_boot.py" \
+        --bundle "${N15_OTA_OUTPUT}" \
+        --cp-crc "${TMPDIR}/app_crc.bin" \
+        --ap-crc "${TMPDIR}/app1_crc.bin" \
+        --metadata "${N15_OTA_OUTPUT}/bk7258-ota-metadata.bin" \
+        --expected-target-slot b \
+        --expected-generation "${N15_OTA_GENERATION}" \
+        --expected-version "${N15_OTA_VERSION}" \
+        --expected-base-version "${N15_OTA_BASE_VERSION}" \
+        --expected-timestamp "${N15_OTA_TIMESTAMP}" \
+        --boot-elf "${BOARD_DIR}/bootloader/bl.elf" \
+        --boot-bin "${BOARD_DIR}/bootloader/bl.bin" \
+        --boot-crc "${BOARD_DIR}/bootloader/bl_crc.bin" \
+        --expected-gate-value "${BOOT_GATE_VALUE}" \
+        --output "${N15_OTA_OUTPUT}/bk7258-ota-boot-candidate.json" \
+        "${N15_OTA_SOURCE_ARGS[@]}"
+    if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
+        python3 "${SCRIPT_DIR}/verify_bk7258_ota_transfer.py" \
+            --package "${N15_OTA_OUTPUT}" \
+            --expected-target-slot b \
+            --expected-bank 0
+    fi
+fi
+
 cat > "${OUTPUT}/build-profile.txt" <<EOF
 CP_CONFIG_NAME=${CP_CONFIG_NAME}
 AP_CONFIG_NAME=${AP_CONFIG_NAME}
@@ -217,6 +488,19 @@ CP_SDK_MANIFEST_SHA256=${CP_SDK_MANIFEST_SHA256}
 AP_SDK_MANIFEST_SHA256=${AP_SDK_MANIFEST_SHA256}
 CP_SDK_PROVENANCE_SHA256=${CP_SDK_PROVENANCE_SHA256}
 AP_SDK_PROVENANCE_SHA256=${AP_SDK_PROVENANCE_SHA256}
+N15_OTA_HOST_BUNDLE_ENABLED=${N15_OTA_HOST_BUNDLE_ENABLED}
+N15_OTA_GENERATION=${N15_OTA_GENERATION}
+N15_OTA_VERSION=${N15_OTA_VERSION}
+N15_OTA_BASE_VERSION=${N15_OTA_BASE_VERSION}
+N15_OTA_TIMESTAMP=${N15_OTA_TIMESTAMP}
+N15_OTA_VALIDATION_ENABLED=${N15_OTA_VALIDATION_ENABLED}
+N15_OTA_BOOT_GATE_VALUE=${BOOT_GATE_VALUE}
+N15_OTA_SELECTION_ENABLED=${N15_OTA_VALIDATION_ENABLED}
+N15_OTA_REMAP_ENABLED=${N15_OTA_VALIDATION_ENABLED}
+N15_OTA_TRIAL_METADATA_MUTATION_ENABLED=${N15_OTA_VALIDATION_ENABLED}
+N15_OTA_CP_RUNTIME_GATES_INITIAL=false
+N15_OTA_FAULT_INJECTION_ENABLED=${N15_OTA_VALIDATION_ENABLED}
+N15_OTA_BOARD_WRITE_AUTHORIZED=false
 EOF
 
 cp "${OUTPUT}/app.bin" "${TOPDIR}/app.bin"
@@ -225,10 +509,16 @@ cp "${OUTPUT}/app1.bin" "${TOPDIR}/app1.bin"
 cp "${OUTPUT}/app1_crc.bin" "${TOPDIR}/app1_crc.bin"
 cp "${OUTPUT}/bk7258-dual-image.json" "${TOPDIR}/"
 
+python3 "${SCRIPT_DIR}/verify_bk7258_sdk_partition_wrapper.py" \
+    --elf "${OUTPUT}/nuttx-cp.elf" \
+    --map "${OUTPUT}/nuttx-cp.map" \
+    --output "${OUTPUT}/bk7258-sdk-partition-wrapper.json"
+
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_btipc" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
+      "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_ota" ]]; then
     python3 "${SCRIPT_DIR}/verify_bk7258_rptun_layout.py" \
         --cp-elf "${OUTPUT}/nuttx-cp.elf" \
         --cp-map "${OUTPUT}/nuttx-cp.map" \
@@ -238,9 +528,11 @@ if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
 fi
 
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
+      "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_ota" ]]; then
     BLE_VERIFY_IDENTITY_ARGS=()
-    if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
+    if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
+          "${CP_CONFIG_NAME}" == "cp_nsh_ota" ]]; then
         BLE_VERIFY_IDENTITY_ARGS+=(
             --expected-device-name "BK7258 N14"
             --expected-local-name "BK7258-N14"
@@ -255,7 +547,8 @@ if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
         "${BLE_VERIFY_IDENTITY_ARGS[@]}"
 fi
 
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
+if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_ota" ]]; then
     PSRAM_VERIFY_ARGS=(
         --cp-elf "${OUTPUT}/nuttx-cp.elf"
         --cp-map "${OUTPUT}/nuttx-cp.map"
@@ -272,6 +565,9 @@ if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
 
     if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
         PSRAM_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+    fi
+    if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
+        PSRAM_VERIFY_ARGS+=(--validation-profile)
     fi
 
     python3 "${SCRIPT_DIR}/verify_bk7258_psram.py" \
@@ -304,4 +600,8 @@ printf '%s\n' "build_dual_image: normal split updates preserve LittleFS;"
 printf '%s\n' "  use the offset-length segments in bk7258-dual-image.json"
 printf '%s\n' "build_dual_image: destructive factory rewrite requires fresh owner authorization"
 printf '%s\n' "build_dual_image: factory ranges preserve usr_config/reserved/tail"
-printf '%s\n' "  all-app-factory.bin@0x0-0x4fc000 + littlefs_factory_clear.bin@0x600000-0x100000"
+printf '  all-app-factory.bin@%s-%s + littlefs_factory_clear.bin@%s-%s\n' \
+    "$(python3 "${PARTITION_GENERATOR}" --get boot.offset)" \
+    "$(python3 "${PARTITION_GENERATOR}" --get ota_metadata_primary.end)" \
+    "$(python3 "${PARTITION_GENERATOR}" --get littlefs.offset)" \
+    "$(python3 "${PARTITION_GENERATOR}" --get littlefs.size)"

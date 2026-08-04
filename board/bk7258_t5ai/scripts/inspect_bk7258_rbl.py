@@ -17,6 +17,7 @@ AB_HEADER_TAIL_DISTANCE = 0x1000
 RBL_MAGIC = b"RBL\0"
 FNV1A_OFFSET_BASIS = 0x811C9DC5
 FNV1A_PRIME = 0x01000193
+RBL_TIMESTAMP_PREFIX = b"\0\0"
 
 
 class VerificationError(RuntimeError):
@@ -48,6 +49,30 @@ class RblHeader:
 
 def c_string(value: bytes) -> str:
     return value.split(b"\0", 1)[0].decode("ascii", errors="strict")
+
+
+def encode_c_string(value: str, size: int, field: str) -> bytes:
+    try:
+        encoded = value.encode("ascii")
+    except UnicodeEncodeError as error:
+        raise VerificationError(f"{field} must contain ASCII only") from error
+    if not encoded:
+        raise VerificationError(f"{field} must not be empty")
+    if b"\0" in encoded:
+        raise VerificationError(f"{field} must not contain NUL")
+    if len(encoded) >= size:
+        raise VerificationError(
+            f"{field} must be at most {size - 1} ASCII bytes"
+        )
+    return encoded.ljust(size, b"\0")
+
+
+def encode_timestamp(timestamp: int) -> bytes:
+    if isinstance(timestamp, bool) or not isinstance(timestamp, int):
+        raise VerificationError("timestamp must be an integer")
+    if not 0 <= timestamp <= 0xFFFFFFFF:
+        raise VerificationError("timestamp must fit the official uint32 field")
+    return RBL_TIMESTAMP_PREFIX + struct.pack("<I", timestamp)
 
 
 def fnv1a(data: bytes) -> int:
@@ -82,16 +107,28 @@ def inspect(data: bytes, mode: str, allow_encoded: bool) -> dict[str, object]:
     header = RblHeader.from_bytes(header_bytes)
     if header.magic != RBL_MAGIC:
         raise VerificationError(f"bad RBL magic: {header.magic!r}")
+    if header.timestamp_raw[:2] != RBL_TIMESTAMP_PREFIX:
+        raise VerificationError("RBL timestamp prefix is not the official zero pair")
+    timestamp = struct.unpack("<I", header.timestamp_raw[2:])[0]
     if header.algorithm != 0 and not allow_encoded:
         raise VerificationError(
             f"algorithm 0x{header.algorithm:04x} is encoded; "
             "N15 first release accepts plain algorithm 0 only"
         )
+    if header.body_size == 0 or header.raw_size == 0:
+        raise VerificationError("RBL body/raw size must be non-zero")
     body_end = body_offset + header.body_size
     if body_end > len(data):
         raise VerificationError("RBL body extends past the input")
-    if detected_mode == "ab" and body_end > header_offset:
-        raise VerificationError("AB RBL body overlaps its tail header")
+    if detected_mode == "ab":
+        if len(data) % AB_HEADER_TAIL_DISTANCE:
+            raise VerificationError("AB RBL container is not 4 KiB aligned")
+        if body_end >= header_offset:
+            raise VerificationError(
+                "AB RBL body must leave erased space before its tail header"
+            )
+    elif body_end != len(data):
+        raise VerificationError("prefix RBL contains trailing bytes after its body")
     body = data[body_offset:body_end]
 
     observed_header_crc = (
@@ -126,6 +163,9 @@ def inspect(data: bytes, mode: str, allow_encoded: bool) -> dict[str, object]:
         padding = data[body_end:header_offset]
         if any(byte != 0xFF for byte in padding):
             raise VerificationError("AB padding before the tail header is not erased")
+        tail = data[header_offset + HEADER.size :]
+        if any(byte != 0xFF for byte in tail):
+            raise VerificationError("AB padding after the tail header is not erased")
 
     result = asdict(header)
     for name in (
@@ -143,6 +183,7 @@ def inspect(data: bytes, mode: str, allow_encoded: bool) -> dict[str, object]:
             "header_size": HEADER.size,
             "header_offset": header_offset,
             "body_offset": body_offset,
+            "timestamp": timestamp,
             "app_partition_text": c_string(header.app_partition),
             "download_version_text": c_string(header.download_version),
             "current_version_text": c_string(header.current_version),
@@ -160,14 +201,21 @@ def inspect(data: bytes, mode: str, allow_encoded: bool) -> dict[str, object]:
     return result
 
 
-def make_plain_rbl(body: bytes, mode: str) -> bytes:
+def make_plain_header(
+    body: bytes,
+    *,
+    app_partition: str,
+    download_version: str,
+    current_version: str,
+    timestamp: int,
+) -> bytes:
     prefix = HEADER.pack(
         RBL_MAGIC,
         0,
-        b"\0" * 6,
-        b"app".ljust(16, b"\0"),
-        b"n15-test".ljust(24, b"\0"),
-        b"current".ljust(24, b"\0"),
+        encode_timestamp(timestamp),
+        encode_c_string(app_partition, 16, "app_partition"),
+        encode_c_string(download_version, 24, "download_version"),
+        encode_c_string(current_version, 24, "current_version"),
         binascii.crc32(body) & 0xFFFFFFFF,
         fnv1a(body),
         len(body),
@@ -175,15 +223,46 @@ def make_plain_rbl(body: bytes, mode: str) -> bytes:
         0,
     )
     header_crc = binascii.crc32(prefix[:HEADER_WITHOUT_CRC_SIZE]) & 0xFFFFFFFF
-    header = prefix[:-4] + struct.pack("<I", header_crc)
-    if mode == "prefix":
-        return header + body
-    container_size = (
-        (len(body) + AB_HEADER_TAIL_DISTANCE * 2 - 1)
-        // AB_HEADER_TAIL_DISTANCE
-        * AB_HEADER_TAIL_DISTANCE
+    return prefix[:-4] + struct.pack("<I", header_crc)
+
+
+def make_plain_rbl(
+    body: bytes,
+    mode: str,
+    *,
+    container_size: int | None = None,
+    app_partition: str = "app",
+    download_version: str = "n15-test",
+    current_version: str = "current",
+    timestamp: int = 0,
+) -> bytes:
+    if not body:
+        raise VerificationError("RBL body must not be empty")
+    header = make_plain_header(
+        body,
+        app_partition=app_partition,
+        download_version=download_version,
+        current_version=current_version,
+        timestamp=timestamp,
     )
+    if mode == "prefix":
+        if container_size is not None:
+            raise VerificationError("prefix RBL does not accept a container size")
+        return header + body
+    if mode != "ab":
+        raise VerificationError(f"unsupported RBL mode: {mode}")
+    minimum_size = len(body) + AB_HEADER_TAIL_DISTANCE + 1
+    if container_size is None:
+        container_size = (
+            (minimum_size + AB_HEADER_TAIL_DISTANCE - 1)
+            // AB_HEADER_TAIL_DISTANCE
+            * AB_HEADER_TAIL_DISTANCE
+        )
+    if container_size % AB_HEADER_TAIL_DISTANCE:
+        raise VerificationError("AB RBL container size must be 4 KiB aligned")
     header_offset = container_size - AB_HEADER_TAIL_DISTANCE
+    if len(body) >= header_offset:
+        raise VerificationError("AB RBL body leaves no erased pre-header space")
     image = bytearray(b"\xff" * container_size)
     image[: len(body)] = body
     image[header_offset : header_offset + HEADER.size] = header
@@ -192,6 +271,22 @@ def make_plain_rbl(body: bytes, mode: str) -> bytes:
 
 def self_test() -> None:
     body = bytes(range(251)) * 3
+    # Generated independently with the checksum-pinned official v3.1.1.9
+    # gethead() implementation using timestamp 0x12345678 and algorithm 0.
+    official_header = bytes.fromhex(
+        "52424c000000000078563412617070000000000000000000000000006e31352d"
+        "7465737400000000000000000000000000000000303030313032303330343035"
+        "3036303730383039000000007fc74b7b26dc6258f1020000f102000041f48570"
+    )
+    generated_header = make_plain_header(
+        body,
+        app_partition="app",
+        download_version="n15-test",
+        current_version="00010203040506070809",
+        timestamp=0x12345678,
+    )
+    if generated_header != official_header:
+        raise VerificationError("official v3.1.1.9 RBL header vector drift")
     for mode in ("prefix", "ab"):
         image = make_plain_rbl(body, mode)
         result = inspect(image, mode, allow_encoded=False)

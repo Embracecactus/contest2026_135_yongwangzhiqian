@@ -25,26 +25,31 @@ case "${ROLE}" in
     cp)
         RAW_NAME="app.bin"
         CRC_NAME="app_crc.bin"
-        XIP_BASE="0x02010000"
-        # Official primary_cp_app: raw 0x11000..0x165000 maps to logical
-        # XIP 0x02010000..0x02150000.
-        MAX_SIZE="0x00140000"
+        PARTITION_ROLE="slot_a_cp"
         MAGIC_ARG="--require-magic"
-        PHYSICAL_OFFSET="0x00011000"
         ;;
     ap)
         RAW_NAME="app1.bin"
         CRC_NAME="app1_crc.bin"
-        XIP_BASE="0x02150000"
-        MAX_SIZE="0x00110000"
+        PARTITION_ROLE="slot_a_ap"
         MAGIC_ARG=""
-        PHYSICAL_OFFSET="0x00165000"
         ;;
     *)
         printf 'postbuild.sh: ERROR: unknown role %s\n' "${ROLE}" >&2
         exit 2
         ;;
 esac
+
+PARTITION_GENERATOR="${BOARD_DIR}/scripts/gen_bk7258_partitions.py"
+if [ ! -f "${PARTITION_GENERATOR}" ]; then
+    printf 'postbuild.sh: ERROR: %s not found\n' "${PARTITION_GENERATOR}" >&2
+    exit 3
+fi
+
+python3 "${PARTITION_GENERATOR}" --check
+XIP_BASE="$(python3 "${PARTITION_GENERATOR}" --get "${PARTITION_ROLE}.xip_start")"
+MAX_SIZE="$(python3 "${PARTITION_GENERATOR}" --get "${PARTITION_ROLE}.logical_size")"
+PHYSICAL_OFFSET="$(python3 "${PARTITION_GENERATOR}" --get "${PARTITION_ROLE}.offset")"
 
 NUTTX_BIN="${TOPDIR}/nuttx.bin"
 RAW_BIN="${TOPDIR}/${RAW_NAME}"
@@ -53,12 +58,12 @@ PACKER="${BOARD_DIR}/scripts/bk7258_crc_expand.py"
 
 if [ ! -f "${NUTTX_BIN}" ]; then
     printf 'postbuild.sh: ERROR: %s not found\n' "${NUTTX_BIN}" >&2
-    exit 3
+    exit 4
 fi
 
 if [ ! -f "${PACKER}" ]; then
     printf 'postbuild.sh: ERROR: %s not found\n' "${PACKER}" >&2
-    exit 4
+    exit 5
 fi
 
 cp "${NUTTX_BIN}" "${RAW_BIN}"
@@ -82,7 +87,7 @@ if [ "${ROLE}" = "cp" ]; then
     if [ ! -f "${BL_CRC_BIN}" ]; then
         printf 'postbuild.sh: ERROR: %s not found; rebuild bootloader\n' \
                "${BL_CRC_BIN}" >&2
-        exit 5
+        exit 6
     fi
 
     cp "${CRC_BIN}" "${TOPDIR}/nuttx_crc.bin"

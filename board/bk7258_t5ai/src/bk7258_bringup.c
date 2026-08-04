@@ -52,6 +52,18 @@
 #include <nuttx/fs/fs.h>
 #endif
 
+#ifdef CONFIG_BK7258_OTA_STAGING
+#include <arch/chip/bk7258_ota_staging.h>
+#endif
+
+#ifdef CONFIG_BK7258_OTA_TRIAL
+#include <arch/chip/bk7258_ota_trial.h>
+#endif
+
+#ifdef CONFIG_BK7258_OTA_FAULT_INJECTION
+#include <arch/chip/bk7258_ota_fault.h>
+#endif
+
 #ifdef CONFIG_BK7258_WDT
 #include "bk7258_wdt.h"
 #endif
@@ -302,6 +314,24 @@ int board_app_initialize(uintptr_t arg)
     {
 #ifdef CONFIG_BK7258_FLASH_LITTLEFS
       bk7258_fs_probe(mtd);
+#endif
+#ifdef CONFIG_BK7258_OTA_STAGING
+      if (bk7258_ota_staging_initialize() < 0)
+        {
+          _err("bk7258: N15-B staging init failed\n");
+        }
+#endif
+#ifdef CONFIG_BK7258_OTA_FAULT_INJECTION
+      if (bk7258_ota_fault_initialize() < 0)
+        {
+          _err("bk7258: N15-V fault injection init failed\n");
+        }
+#endif
+#ifdef CONFIG_BK7258_OTA_TRIAL
+      if (bk7258_ota_trial_initialize() < 0)
+        {
+          _err("bk7258: N15-D trial init failed\n");
+        }
 #endif
     }
 #endif

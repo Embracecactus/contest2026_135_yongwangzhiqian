@@ -33,6 +33,7 @@
  */
 
 #include <nuttx/config.h>
+#include "../chip/include/bk7258_partition_layout.h"
 
 OUTPUT_ARCH("arm")
 EXTERN(_vectors)
@@ -51,7 +52,8 @@ ENTRY(__start)
 
 MEMORY
 {
-    FLASH (rx)  : ORIGIN = 0x02010000, LENGTH = 0x140000
+    FLASH (rx)  : ORIGIN = BK7258_ROLE_SLOT_A_CP_XIP_START,
+                  LENGTH = BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE
     RAM   (rwx) : ORIGIN = 0x28010000, LENGTH = 0x040000
 }
 
@@ -87,7 +89,7 @@ SECTIONS
      */
 
     ASSERT(_vectors == ORIGIN(FLASH),
-           "ERROR: _vectors must be at ORIGIN(FLASH) = 0x02010000 (A1 gate)")
+           "ERROR: _vectors must be at generated CP FLASH origin (A1 gate)")
     ASSERT(SIZEOF(.vectors) == 0x140,
            "ERROR: .vectors must be 0x140 bytes (80 entries, A1 gate)")
 
