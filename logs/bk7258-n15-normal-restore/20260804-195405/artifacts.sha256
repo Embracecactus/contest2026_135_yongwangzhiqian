@@ -1,0 +1,38 @@
+ACTION_BUILD=0
+PACKAGED_CP_CONFIG_NAME=cp_nsh_psram
+PACKAGED_AP_CONFIG_NAME=ap_smp_psram
+b6aaa5cd5ac08918a0e3ff44f6a02a9fbac8f5a8069385579e5af5be4afe2cf5  /home/lijian/project/open-vela/nuttx/bk7258-dual/all-app-factory.bin
+2026-08-04 19:17:39.033433657 +0800 5226496 /home/lijian/project/open-vela/nuttx/bk7258-dual/all-app-factory.bin
+3042fb32a0e61f8f3289355a2ba7ae116a65771f9a1ceb4fb3eaf17558b173fb  /home/lijian/project/open-vela/nuttx/bk7258-dual/bl_crc.bin
+ac40ea2e90904384c1ce3e9b2b3216d28977437b6077284fe7b14eb58195dc57  /home/lijian/project/open-vela/nuttx/bk7258-dual/app_crc_flash.bin
+da640e333416477c42e387213f7d73638ebbf9e206008e8d03ec6a318678573e  /home/lijian/project/open-vela/nuttx/bk7258-dual/app1_crc_flash.bin
+2026-08-04 19:16:20.993433061 +0800 69632 /home/lijian/project/open-vela/nuttx/bk7258-dual/bl_crc.bin
+2026-08-04 19:17:39.023433654 +0800 737280 /home/lijian/project/open-vela/nuttx/bk7258-dual/app_crc_flash.bin
+2026-08-04 19:17:39.023433654 +0800 188416 /home/lijian/project/open-vela/nuttx/bk7258-dual/app1_crc_flash.bin
+CP_CONFIG_NAME=cp_nsh_psram
+AP_CONFIG_NAME=ap_smp_psram
+CP_CONFIG=vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh_psram
+AP_CONFIG=vendor/openvela/boards/contest2026_135_bk7258/configs/ap_smp_psram
+BK7258_SDK_BUNDLE_VERSION=v3.1.1.9
+BK7258_SDK_BUNDLE_ROOT=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9
+CP_SDK_ROLE_DIR=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9/cp
+AP_SDK_ROLE_DIR=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9/ap
+CP_SDK_MANIFEST=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/sdk-manifests/v3.1.1.9/cp.sha256
+AP_SDK_MANIFEST=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/sdk-manifests/v3.1.1.9/ap.sha256
+CP_SDK_MANIFEST_SHA256=438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be
+AP_SDK_MANIFEST_SHA256=5d4b7908fd21201a5f5ec3537915209aaed0273dc9779d8ba72a40ab82056edc
+CP_SDK_PROVENANCE_SHA256=3c370abc6622d57bd6005682931a33df139dc5c2911294af65fdee7038ceea36
+AP_SDK_PROVENANCE_SHA256=3e2879c0ca2c836c3ce3b556d1f4188d3ef36f1a6104cd84521e85b645f299e1
+N15_OTA_HOST_BUNDLE_ENABLED=false
+N15_OTA_GENERATION=
+N15_OTA_VERSION=
+N15_OTA_BASE_VERSION=
+N15_OTA_TIMESTAMP=
+N15_OTA_VALIDATION_ENABLED=false
+N15_OTA_BOOT_GATE_VALUE=0
+N15_OTA_SELECTION_ENABLED=false
+N15_OTA_REMAP_ENABLED=false
+N15_OTA_TRIAL_METADATA_MUTATION_ENABLED=false
+N15_OTA_CP_RUNTIME_GATES_INITIAL=false
+N15_OTA_FAULT_INJECTION_ENABLED=false
+N15_OTA_BOARD_WRITE_AUTHORIZED=false

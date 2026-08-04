@@ -1,0 +1,86 @@
+{
+    "format":  1,
+    "tool":  "debug_session",
+    "status":  "passed",
+    "error":  null,
+    "action":  "CaptureOnly",
+    "console_port":  "COM11",
+    "reset_port":  "",
+    "baud":  460800,
+    "duration_sec":  25,
+    "output_directory":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-post-confirm-reset-status",
+    "raw_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-post-confirm-reset-status\\serial.raw",
+    "text_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-post-confirm-reset-status\\serial.txt",
+    "capture_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-post-confirm-reset-status\\serial-tool.log",
+    "action_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-post-confirm-reset-status\\action.log",
+    "capture":  {
+                    "format":  1,
+                    "tool":  "serial_capture",
+                    "status":  "ok",
+                    "error":  null,
+                    "port":  "COM11",
+                    "baud":  460800,
+                    "data_bits":  8,
+                    "parity":  "None",
+                    "stop_bits":  "One",
+                    "handshake":  "None",
+                    "duration_sec":  25,
+                    "elapsed_ms":  906.369,
+                    "stop_regex":  "AP BLCY state=",
+                    "stop_regex_matched":  true,
+                    "stop_settle_ms":  500,
+                    "control_pulse":  {
+                                          "mode":  "None",
+                                          "active_level":  "Asserted",
+                                          "pulse_ms":  150,
+                                          "delay_ms":  200,
+                                          "settle_ms":  200
+                                      },
+                    "bytes":  3132,
+                    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-post-confirm-reset-status\\serial.raw",
+                    "sha256":  "4faf2ec3b73ed6792b401c2082841e131a650cb7c6edd60f840534142abfc8b7",
+                    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-post-confirm-reset-status\\serial.ready",
+                    "started_utc":  "2026-08-04T10:53:40.6582604Z",
+                    "ended_utc":  "2026-08-04T10:53:41.6776455Z"
+                },
+    "target_action":  {
+                          "status":  "not_requested"
+                      },
+    "requested_expected_regex":  [
+                                     "BKOTA STATUS ret=0.*state=7.*records=3.*generation=315.*bank=1.*stable=0 active=0.*secondary=0.*stage_gate=0 metadata_gate=0",
+                                     "AP state=READY\\(2\\) error=0",
+                                     "CPU2 state=SCHEDULER_ONLINE",
+                                     "RPTUN state=CONNECTED\\(4\\) error=0"
+                                 ],
+    "requested_stop_regex":  "AP BLCY state=",
+    "stop_regex_matched":  true,
+    "requested_fail_regex":  [
+                                 "BKOTA FAIL|BKOTA DENY|HardFault|PANIC|ASSERT"
+                             ],
+    "expected_regex_results":  [
+                                   {
+                                       "pattern":  "BKOTA STATUS ret=0.*state=7.*records=3.*generation=315.*bank=1.*stable=0 active=0.*secondary=0.*stage_gate=0 metadata_gate=0",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "AP state=READY\\(2\\) error=0",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "CPU2 state=SCHEDULER_ONLINE",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "RPTUN state=CONNECTED\\(4\\) error=0",
+                                       "matched":  true
+                                   }
+                               ],
+    "fail_regex_results":  [
+                               {
+                                   "pattern":  "BKOTA FAIL|BKOTA DENY|HardFault|PANIC|ASSERT",
+                                   "matched":  false
+                               }
+                           ],
+    "started_utc":  "2026-08-04T10:53:40.2167423Z",
+    "ended_utc":  "2026-08-04T10:53:41.8716981Z"
+}

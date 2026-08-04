@@ -1,0 +1,96 @@
+{
+    "format":  1,
+    "tool":  "debug_session",
+    "status":  "passed",
+    "error":  null,
+    "action":  "CaptureOnly",
+    "console_port":  "COM11",
+    "reset_port":  "",
+    "baud":  460800,
+    "duration_sec":  15,
+    "output_directory":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15-normal-restore\\20260804-postflash-status",
+    "raw_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15-normal-restore\\20260804-postflash-status\\serial.raw",
+    "text_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15-normal-restore\\20260804-postflash-status\\serial.txt",
+    "capture_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15-normal-restore\\20260804-postflash-status\\serial-tool.log",
+    "action_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15-normal-restore\\20260804-postflash-status\\action.log",
+    "capture":  {
+                    "format":  1,
+                    "tool":  "serial_capture",
+                    "status":  "ok",
+                    "error":  null,
+                    "port":  "COM11",
+                    "baud":  460800,
+                    "data_bits":  8,
+                    "parity":  "None",
+                    "stop_bits":  "One",
+                    "handshake":  "None",
+                    "duration_sec":  15,
+                    "elapsed_ms":  832.305,
+                    "stop_regex":  "bkota: command not found",
+                    "stop_regex_matched":  true,
+                    "stop_settle_ms":  300,
+                    "control_pulse":  {
+                                          "mode":  "None",
+                                          "active_level":  "Asserted",
+                                          "pulse_ms":  150,
+                                          "delay_ms":  200,
+                                          "settle_ms":  200
+                                      },
+                    "bytes":  3255,
+                    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15-normal-restore\\20260804-postflash-status\\serial.raw",
+                    "sha256":  "0f325f07da02e052591a31f0848ae3be46699d0e851e6ee96bf71e280068cd97",
+                    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15-normal-restore\\20260804-postflash-status\\serial.ready",
+                    "started_utc":  "2026-08-04T11:55:52.3122412Z",
+                    "ended_utc":  "2026-08-04T11:55:53.2578280Z"
+                },
+    "target_action":  {
+                          "status":  "not_requested"
+                      },
+    "requested_expected_regex":  [
+                                     "AP state=READY\\(2\\) error=0",
+                                     "CPU2 state=SCHEDULER_ONLINE",
+                                     "RPTUN state=CONNECTED\\(4\\) error=0",
+                                     "BK7258LFS-OK",
+                                     "BPSR INFO PASS",
+                                     "bkota: command not found"
+                                 ],
+    "requested_stop_regex":  "bkota: command not found",
+    "stop_regex_matched":  true,
+    "requested_fail_regex":  [
+                                 "HardFault|PANIC|ASSERT|BPSR .* FAIL"
+                             ],
+    "expected_regex_results":  [
+                                   {
+                                       "pattern":  "AP state=READY\\(2\\) error=0",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "CPU2 state=SCHEDULER_ONLINE",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "RPTUN state=CONNECTED\\(4\\) error=0",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "BK7258LFS-OK",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "BPSR INFO PASS",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "bkota: command not found",
+                                       "matched":  true
+                                   }
+                               ],
+    "fail_regex_results":  [
+                               {
+                                   "pattern":  "HardFault|PANIC|ASSERT|BPSR .* FAIL",
+                                   "matched":  false
+                               }
+                           ],
+    "started_utc":  "2026-08-04T11:55:51.8794006Z",
+    "ended_utc":  "2026-08-04T11:55:53.4428648Z"
+}

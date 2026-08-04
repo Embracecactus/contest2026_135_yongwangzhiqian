@@ -1,0 +1,30 @@
+{
+    "format":  1,
+    "tool":  "serial_capture",
+    "status":  "ok",
+    "error":  null,
+    "port":  "COM11",
+    "baud":  460800,
+    "data_bits":  8,
+    "parity":  "None",
+    "stop_bits":  "One",
+    "handshake":  "None",
+    "duration_sec":  25,
+    "elapsed_ms":  25004.962,
+    "stop_regex":  "AP BLCY state=",
+    "stop_regex_matched":  false,
+    "stop_settle_ms":  500,
+    "control_pulse":  {
+                          "mode":  "None",
+                          "active_level":  "Asserted",
+                          "pulse_ms":  150,
+                          "delay_ms":  200,
+                          "settle_ms":  200
+                      },
+    "bytes":  27,
+    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-post-confirm-full-power-recovery\\serial.raw",
+    "sha256":  "bbc9df8fea6e409318eabfe808778ce16b0d012b67c749530a5982376d85fb7d",
+    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-post-confirm-full-power-recovery\\serial.ready",
+    "started_utc":  "2026-08-04T11:38:50.9739343Z",
+    "ended_utc":  "2026-08-04T11:39:16.1088584Z"
+}

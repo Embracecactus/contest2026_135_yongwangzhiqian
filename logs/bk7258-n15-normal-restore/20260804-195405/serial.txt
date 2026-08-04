@@ -1,0 +1,18 @@
+u_bootloader enter
+partition app @ 0x02010000
+jump to:0x02010000
+JMP
+[hal] 
+[gpio_log]:gpio:0 was busy: device num:0x21!
+[hal] 
+gpio: 0 is used.Please confirm unmap isn't impact is working module.!�[cal] 
+get rfcali_mode:1
+[cal] 
+cali bias(e)
+[ipc_svr] 
+create_socket failed.
+[cal] 
+retry_count=4,dlypc_i=0,stateI=[14,0,0,0],dlypc_q=0,stateQ=[11,0,0,0]
+
+NuttShell (NSH)
+nsh> [K

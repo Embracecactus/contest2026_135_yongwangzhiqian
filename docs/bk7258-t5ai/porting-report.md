@@ -20,11 +20,13 @@ NSH**（Stage N1 跳转链 + N2 NSH console + N3 procfs/ps 均板端验证，202
 ✅ **Stage N9 CP/AP RPTUN/OpenAMP/RPMsg wrapper（`board-verified`）** /
 ✅ Stage N10 AP supervision / ✅ Stage N11 RPMsgFS / ✅ Stage N12 Bluetooth IPC /
 ✅ Stage N13 BLE GAP/GATT / ✅ **Stage N14 16 MiB PSRAM + SDK timer wrapper（`board-verified`）**。
-**Stage N15 Tier-2 paired OTA进行中，N15-M迁移已`board-verified`**：official-style连续A/B、
-AP新XIP和LittleFS新位置已部署，两段式factory、完整保留功能回归与physical reset 3/3通过；
-B仍不可选择且未写candidate；N15-A..F的pack/stage/select/trial/publish/health与独立validation
-transport已完成host/source/ELF门禁；N15-V target fault 7/12、format-2双bank A→B→A的16份独立
-campaign、独立verifier和loader dry-run也已收口，physical实板矩阵尚未授权执行。
+**Stage N15 Tier-2 paired OTA的最小双向生命周期已`board-verified`**：official-style连续A/B、
+AP新XIP和LittleFS新位置已部署；generation 314完成A→B、bank 0、trial/confirm B，generation 315
+完成B→A、bank 1、trial/confirm A，两次全slot read-back/SHA及两槽保留服务回归均PASS，confirmed-A
+RTS和post-confirm完整移除USB/J-Link供电后的恢复也通过。host fault/rollback模型、16份format-2
+campaign和独立verifier继续作为边界证据；physical rollback与analog pulse brownout没有在这轮
+实板confirm路径中执行，不作已完成声明。验收后板端已用三个不覆盖B/metadata/data区的sparse
+segment恢复normal gates-zero固件，AP/CPU2/RPTUN、LittleFS探针和PSRAM复验通过。
 
 ---
 
@@ -405,7 +407,7 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 | **N12** | official Beken Bluetooth IPC + AP stock NuttX Host | ✅ done / `board-verified`；真实RF report与RPMsg/RPMsgFS/SMP共存闭环 |
 | **N13** | BLE GAP/GATT Peripheral end-to-end | ✅ done / `board-verified`；negative、20/20重连、主动并发与connection ref closure |
 | **N14** | 16 MiB PSRAM + SDK software-timer wrapper | ✅ done / `board-verified`；full-capacity boot gate、CP/AP private heap、AP双核allocator、warm/cold/factory闭环；见 [N14 completion](nuttx-port/prompts/14-n14-psram.md) |
-| **N15** | Tier-2 paired CP/AP OTA + rollback | **CURRENT / N15-M `board-verified`；ADR-006 format-2双bank A→B→A `host/source/ELF/dry-run-verified`**；16 identities/independent verifier/loader dry-run PASS；实板A-only；见 [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) |
+| **N15** | Tier-2 paired CP/AP OTA + rollback | **COMPLETE / 批准的最小physical范围 `board-verified`**；generation 314 confirmed B、generation 315 confirmed A、双bank/两槽回归、RTS及post-confirm完整掉电恢复PASS；板端已恢复normal gates-zero；见 [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) / [physical evidence](../../progress/verification/2026-08-04-n15-physical-symmetric-lifecycle.md) |
 
 N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
 UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
@@ -707,8 +709,11 @@ pair/transfer/loader dry-run，全部PASS；每个case要求controlled complete-
 case从已确认B回切并确认A。详见
 [N15-V host verification](../../progress/verification/2026-08-04-n15-v-host-fault-injection.md)。
 
-板端流程已从当前实现范围移除；如后续开启，需要先申请fresh authority并另行评审最小
-A→B→A验证计划。ADR-006双bank轮换已host/source/ELF验证，完整OTA仍未板端验证。
+随后获批的最小板端流程已经完成generation 314 A→confirmed B和generation 315 B→confirmed A，
+包括双metadata bank、两次完整slot read-back/SHA、两槽N14保留服务回归及confirmed-A RTS恢复。
+详见[N15 physical evidence](../../progress/verification/2026-08-04-n15-physical-symmetric-lifecycle.md)。
+post-confirm完整VDD removal后的状态读取也已PASS；host rollback模型仍不冒充physical rollback。
+随后normal sparse恢复的三段erase/write、NSH和轻量保留功能回归也全部PASS。
 
 ---
 
@@ -841,7 +846,7 @@ board/bk7258_t5ai/bootloader/
 | P0 | **NuttX Stage N12**：official Beken Bluetooth IPC + NuttX HCI wrapper | ✅ done / `board-verified` | CP Controller、AP stock Host、HCI info、MAC 持久化、UART self-heal、RPMsg/RPMsgFS 共存以及真实 advertising report 均已实板通过 |
 | P0 | **NuttX Stage N13**：BLE GAP/GATT Peripheral end-to-end | ✅ done / `board-verified` | 四类negative、20/20 uncached重连、BLE+RPMsg/RPMsgFS主动并发、3/3 cold、ref=0、final build/flash与零官方树改动全部闭环 |
 | P0 | **NuttX Stage N14**：16 MiB PSRAM + SDK software-timer wrapper | ✅ done / `board-verified` | full-capacity boot gate、CP/AP private heap、AP双核allocator、timer self-delete、warm/cold/factory与既有功能回归全部闭环 |
-| P1 | **NuttX Stage N15**：Tier-2 paired CP/AP OTA（RBL + trial + rollback） | CURRENT / N15-M `board-verified`；ADR-006 format-2双bank A→B→A `host/source/ELF/dry-run-verified` | fault 7/12、format-2 16 identities、独立verifier与loader dry-run PASS；实板A-only |
+| P1 | **NuttX Stage N15**：Tier-2 paired CP/AP OTA（RBL + trial + rollback） | COMPLETE / 批准的最小physical范围 `board-verified` | generation 314/315双向trial/confirm、双bank、read-back/SHA、两槽回归、RTS与完整移除USB/J-Link供电恢复PASS；板端已恢复normal gates-zero |
 | P2 | **后续（未编号）**：Wi-Fi / signed update security / PSRAM upper-8 runtime policy等 | planned later | 先讨论owner、资源和验收边界 |
 
 ---

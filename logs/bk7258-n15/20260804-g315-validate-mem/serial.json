@@ -1,0 +1,30 @@
+{
+    "format":  1,
+    "tool":  "serial_capture",
+    "status":  "ok",
+    "error":  null,
+    "port":  "COM11",
+    "baud":  460800,
+    "data_bits":  8,
+    "parity":  "None",
+    "stop_bits":  "One",
+    "handshake":  "None",
+    "duration_sec":  60,
+    "elapsed_ms":  25641.075,
+    "stop_regex":  "BKOTA VALIDATE-MEM",
+    "stop_regex_matched":  true,
+    "stop_settle_ms":  500,
+    "control_pulse":  {
+                          "mode":  "None",
+                          "active_level":  "Asserted",
+                          "pulse_ms":  150,
+                          "delay_ms":  200,
+                          "settle_ms":  200
+                      },
+    "bytes":  261,
+    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-validate-mem\\serial.raw",
+    "sha256":  "cb447aa51199e06cb6ef4237c91d730afa197eecfd1af9fa57abe79d433ca7aa",
+    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-g315-validate-mem\\serial.ready",
+    "started_utc":  "2026-08-04T10:44:43.7874878Z",
+    "ended_utc":  "2026-08-04T10:45:09.5469641Z"
+}

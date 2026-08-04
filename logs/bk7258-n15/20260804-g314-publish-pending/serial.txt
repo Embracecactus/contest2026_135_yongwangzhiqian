@@ -1,0 +1,4 @@
+bkota publish-mem 314 10000 N15-WRITE-314
+BKOTA PUBLISH-MEM ret=-110 phase=5 generation=314 previous_generation=0 previous_state=0 elapsed_ms=33822 previous_bank=4294967295 published_bank=0 stable=0 target=1 programmed=0 verified=0 base=1 candidate=1 degraded=0 mutation=0 reclaimed=0 erase_verified=0 readback=0 idempotent=0
+nsh> [K
+nsh> [K

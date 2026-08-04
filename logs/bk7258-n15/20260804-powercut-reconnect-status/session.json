@@ -1,0 +1,81 @@
+{
+    "format":  1,
+    "tool":  "debug_session",
+    "status":  "error",
+    "error":  "Target-side serial evidence did not satisfy the requested regex checks.",
+    "action":  "CaptureOnly",
+    "console_port":  "COM11",
+    "reset_port":  "",
+    "baud":  460800,
+    "duration_sec":  12,
+    "output_directory":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-powercut-reconnect-status",
+    "raw_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-powercut-reconnect-status\\serial.raw",
+    "text_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-powercut-reconnect-status\\serial.txt",
+    "capture_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-powercut-reconnect-status\\serial-tool.log",
+    "action_log":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-powercut-reconnect-status\\action.log",
+    "capture":  {
+                    "format":  1,
+                    "tool":  "serial_capture",
+                    "status":  "ok",
+                    "error":  null,
+                    "port":  "COM11",
+                    "baud":  460800,
+                    "data_bits":  8,
+                    "parity":  "None",
+                    "stop_bits":  "One",
+                    "handshake":  "None",
+                    "duration_sec":  12,
+                    "elapsed_ms":  12014.094,
+                    "stop_regex":  "",
+                    "stop_regex_matched":  false,
+                    "stop_settle_ms":  100,
+                    "control_pulse":  {
+                                          "mode":  "None",
+                                          "active_level":  "Asserted",
+                                          "pulse_ms":  150,
+                                          "delay_ms":  200,
+                                          "settle_ms":  200
+                                      },
+                    "bytes":  3145,
+                    "output_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-powercut-reconnect-status\\serial.raw",
+                    "sha256":  "99cde734adb980f56828b4a6c6ba27c89fdf07be21847ab0df1c6fd2918ed761",
+                    "ready_file":  "\\\\wsl.localhost\\Ubuntu-22.04\\home\\lijian\\project\\open-vela\\contest2026_135_yongwangzhiqian\\logs\\bk7258-n15\\20260804-powercut-reconnect-status\\serial.ready",
+                    "started_utc":  "2026-08-04T09:55:21.8333145Z",
+                    "ended_utc":  "2026-08-04T09:55:33.9638073Z"
+                },
+    "target_action":  {
+                          "status":  "not_requested"
+                      },
+    "requested_expected_regex":  [
+                                     "BKOTA STATUS ret=0 state=0.*erased=1.*secondary=0.*stage_gate=0 metadata_gate=0",
+                                     "AP state=READY",
+                                     "RPTUN state=CONNECTED"
+                                 ],
+    "requested_stop_regex":  "",
+    "stop_regex_matched":  false,
+    "requested_fail_regex":  [
+                                 "HardFault|HFu_bootloader|PANIC|ASSERT"
+                             ],
+    "expected_regex_results":  [
+                                   {
+                                       "pattern":  "BKOTA STATUS ret=0 state=0.*erased=1.*secondary=0.*stage_gate=0 metadata_gate=0",
+                                       "matched":  false
+                                   },
+                                   {
+                                       "pattern":  "AP state=READY",
+                                       "matched":  true
+                                   },
+                                   {
+                                       "pattern":  "RPTUN state=CONNECTED",
+                                       "matched":  true
+                                   }
+                               ],
+    "fail_regex_results":  [
+                               {
+                                   "pattern":  "HardFault|HFu_bootloader|PANIC|ASSERT",
+                                   "matched":  false
+                               }
+                           ],
+    "started_utc":  "2026-08-04T09:55:21.1931356Z",
+    "ended_utc":  "2026-08-04T09:55:34.2139956Z"
+}
