@@ -21,7 +21,8 @@
  *   1st write: (0x5A << 16) | period   — unlock
  *   2nd write: (0xA5 << 16) | period   — apply (WDT armed)
  *
- * Feed: clear APB_WDT status bit[1:0], then reinit (same key+period).
+ * Feed: clear APB_WDT status bit[1:0], then re-arm both watchdogs with the
+ * same key+period sequence.  AON_WDT has no separate status-clear register.
  */
 
 #ifndef __BOOTLOADER_BOOT_WDT_H
@@ -94,8 +95,8 @@ static inline void boot_wdt_init(void)
     REG32(WDT_AON_CTRL) = ctrl2;
 }
 
-/* Feed (kick) the WDT.  Clears the APB_WDT status and re-arms with the
- * same period, mirroring vendor sub_2001010 (clear status + reinit).
+/* Feed (kick) both WDTs.  Clears the APB_WDT status and re-arms APB_WDT and
+ * AON_WDT with the same period, matching the official v3.1.1.9 key sequence.
  * Call this at key points in c_main to prevent premature reset. */
 static inline void boot_wdt_feed(void)
 {
@@ -111,6 +112,11 @@ static inline void boot_wdt_feed(void)
     /* Re-arm APB_WDT (= feed). */
     REG32(WDT_APB_CTRL) = ctrl1;
     REG32(WDT_APB_CTRL) = ctrl2;
+
+    /* AON_WDT counts independently and must be fed as well.  This matters
+     * when OTA pair validation takes longer than one watchdog period. */
+    REG32(WDT_AON_CTRL) = ctrl1;
+    REG32(WDT_AON_CTRL) = ctrl2;
 }
 
 #endif /* __BOOTLOADER_BOOT_WDT_H */

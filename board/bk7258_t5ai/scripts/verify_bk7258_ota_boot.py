@@ -232,6 +232,7 @@ def source_contract(repo: Path) -> None:
         "packer": repo / "board/bk7258_t5ai/scripts/pack_bk7258_ota_rotation.py",
         "adapter": repo / "board/bk7258_t5ai/bootloader/boot_ota_select.c",
         "main": repo / "board/bk7258_t5ai/bootloader/boot_main.c",
+        "wdt": repo / "board/bk7258_t5ai/bootloader/boot_wdt.h",
         "make": repo / "board/bk7258_t5ai/bootloader/Makefile",
         "linker": repo / "board/bk7258_t5ai/bootloader/bootloader.ld",
     }
@@ -273,6 +274,10 @@ def source_contract(repo: Path) -> None:
             "boot_select_slot",
         ),
         "main": ("app_vec = boot_ota_select_app(app_vec);", "ota select"),
+        "wdt": (
+            "REG32(WDT_APB_CTRL) = ctrl1;",
+            "REG32(WDT_AON_CTRL) = ctrl1;",
+        ),
         "make": (
             "boot_ota_select_core.o",
             "boot_ota_rotation_core.o",
@@ -290,6 +295,12 @@ def source_contract(repo: Path) -> None:
     for name, fragments in required.items():
         for fragment in fragments:
             require(fragment in texts[name], f"N15-C source closure missing: {name}: {fragment}")
+
+    require(
+        texts["wdt"].count("REG32(WDT_AON_CTRL) = ctrl1;") == 2
+        and texts["wdt"].count("REG32(WDT_AON_CTRL) = ctrl2;") == 2,
+        "both boot WDT init and feed must re-arm AON_WDT",
+    )
 
     require("set_write_enabled" not in texts["adapter"], "boot selector must have no gate setter")
 

@@ -102,6 +102,7 @@ def source_contract(repo: Path) -> None:
         "CONFIG_BK7258_OTA_TRIAL_WRITE=y",
         "CONFIG_BK7258_OTA_VALIDATION=y",
         "CONFIG_BK7258_OTA_FAULT_INJECTION=y",
+        "CONFIG_NSH_MAXARGUMENTS=10",
     ):
         require(setting in text["validation"], f"validation defconfig omits {setting}")
         require(setting not in text["normal"], f"normal defconfig leaks {setting}")
@@ -223,29 +224,44 @@ def source_contract(repo: Path) -> None:
         "verify_bk7258_ota_transfer.py",
         '[[ $TOKEN == "N15-WRITE-${GENERATION}" ]]',
         "((WATCHDOG_STOPPED == 1))",
-        '"loadfile \\"${CANDIDATE_WIN}\\" 0x60800000 noreset"',
-        '"verifybin \\"${CANDIDATE_WIN}\\", 0x60800000"',
-        '"loadfile \\"${DESCRIPTOR_WIN}\\" 0x60a75000 noreset"',
-        '"verifybin \\"${DESCRIPTOR_WIN}\\", 0x60a75000"',
-        '"loadfile \\"${RECORD_WIN}\\" 0x60a76000 noreset"',
-        '"verifybin \\"${RECORD_WIN}\\", 0x60a76000"',
+        "CANDIDATE_CHUNK_SIZE=$((64 * 1024))",
+        "CANDIDATE_BATCH_CHUNKS=1",
+        "CANDIDATE_CAPACITY=$((DESCRIPTOR_ADDRESS - CANDIDATE_ADDRESS))",
+        '[[ $CANDIDATE_SIZE -eq $CANDIDATE_CAPACITY ]]',
+        "--additional-suffix=.bin",
+        'for COMMAND_FILE in "${COMMAND_DIR}"/batch-*.jlink',
+        '-ExitOnError 1 < "$COMMAND_FILE"',
+        "JLINK_STATUS=$?",
+        '[[ $BATCH_INDEX -eq $BATCH_COUNT ]]',
         "DRY RUN:",
         "Do not reset before validate-mem/stage-mem/publish-mem",
     ):
         require(token in loader, f"transfer loader safety contract missing {token}")
+
+    load_format = "printf 'loadfile \"%s\" 0x%08x noreset\\n'"
+    verify_format = "printf 'verifybin \"%s\", 0x%08x\\n'"
     require(
-        "printf '%s\\n'" in loader and '> "$COMMAND_FILE"' in loader,
-        "transfer loader J-Link command block markers are missing",
+        loader.count(load_format) == 3,
+        "loader must build one candidate and two control-artifact load commands",
     )
-    command_block = loader.split("printf '%s\\n'", 1)[1].split(
-        '> "$COMMAND_FILE"', 1
-    )[0]
-    require(command_block.count('"loadfile ') == 3, "loader must have three loadfile commands")
-    require(command_block.count(' noreset"') == 3,
-            "every loader write must explicitly suppress reset")
-    require(command_block.count('"verifybin ') == 3, "loader must have three verifybin commands")
-    for forbidden in (" erase ", " loadbin ", " reset ", " rsettype ", " mem32 ", " w4 "):
-        require(forbidden not in command_block.lower(), f"loader command block contains {forbidden.strip()}")
+    require(
+        loader.count(verify_format) == 3,
+        "loader must verify every generated PSRAM load command",
+    )
+    require(
+        "printf '%s\\n' go exit |" in loader,
+        "loader error path must resume the target without reset",
+    )
+    for line in loader.splitlines():
+        command_line = line.strip().lower()
+        if not command_line.startswith("printf "):
+            continue
+        command_line = command_line.replace("noreset", "")
+        for forbidden in ("erase", "loadbin", "reset", "rsettype", "mem32", "w4"):
+            require(
+                forbidden not in command_line,
+                f"loader command construction contains forbidden {forbidden}",
+            )
 
 
 def verify_runtime_bss(cp_elf: Path) -> dict[str, object]:
