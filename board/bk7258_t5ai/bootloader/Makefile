@@ -69,7 +69,7 @@ bootloader.tmp: bootloader.ld $(PARTITION_HEADER)
 start.o: start.S
 	$(CC) $(ASFLAGS) -c $< -o $@
 
-boot_main.o: boot_main.c
+boot_main.o: boot_main.c boot_wdt.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 boot_clock.o: boot_clock.c

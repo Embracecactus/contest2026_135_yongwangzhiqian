@@ -23,6 +23,7 @@ CAMPAIGN_FILE = "bk7258-n15v-campaign.json"
 CAMPAIGN_FORMAT = 2
 SDK_RELEASE = "v3.1.1.9"
 MAX_U64 = (1 << 64) - 1
+PUBLISH_TIMEOUT_MS = 180_000
 
 
 class CampaignError(RuntimeError):
@@ -262,7 +263,10 @@ def workflow(
         f"bkota stage-mem {generation} {timestamp} {version} {base_version} "
         f"180000 {token}"
     )
-    publish = f"bkota publish-mem {generation} 10000 {token}"
+    # Publication re-hashes both complete executable pairs before touching
+    # metadata.  The physical BK7258 path takes about 34 seconds, so the
+    # former 10-second workflow value always timed out before mutation.
+    publish = f"bkota publish-mem {generation} {PUBLISH_TIMEOUT_MS} {token}"
     common = [
         host_step(dry_run, "PASS; writes_enabled=false and board_authorized=false"),
         target_step(
