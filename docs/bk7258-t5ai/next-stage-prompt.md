@@ -31,7 +31,7 @@
 | **N12** | official Beken Bluetooth IPC + AP NuttX HCI wrapper | **LATEST VERIFIED：`board-verified`（2026-08-02）**；CP official controller-only BLE、AP stock NuttX Host、HCI info、SDK-equivalent MAC 持久化、UART lifecycle self-heal、RPMsg/RPMsgFS/SMP 共存以及 Windows legacy advertiser 的真实 RF report 均实板通过 | [N12 worklog](nuttx-port/n12-beken-bt-ipc-wrapper.md) |
 | **N13** | BLE GAP/GATT Peripheral end-to-end | `board-verified`（2026-08-03）；四类negative、20/20 uncached重连、BLE 100帧与RPMsg六场景×100/RPMsgFS四档×20主动并发、3/3 cold、最终`25/25/25`与connection ref=0全部闭环 | [N13 completion](nuttx-port/prompts/13-n13-ble-gap-gatt.md) / [source verification](nuttx-port/n13-ble-gap-gatt-source-verification.md) / [evidence](nuttx-port/n13-evidence-index.md) |
 | **N14** | 16 MiB PSRAM + SDK software-timer wrapper | `board-verified`（2026-08-03）；CP official PM owner、全容量boot gate、CP/AP private heap、AP CPU0/CPU1 allocator 16/16、timer 256、warm cycle10、physical cold/factory及RPMsg/Bluetooth回归全部闭环 | [N14 completion](nuttx-port/prompts/14-n14-psram.md) / [source verification](nuttx-port/n14-psram-source-verification.md) / [evidence](nuttx-port/n14-evidence-index.md) |
-| **N15** | Tier-2 paired CP/AP OTA + rollback | **CURRENT：`in-progress` / N15-M `board-verified`**；ADR-004 contiguous布局、LittleFS迁移、两段factory和N14功能回归/RESET 3/3完成；B seed不可选择，runtime OTA/trial/rollback关闭；N15-A host RBL/pair bundle next | [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) / [N15-M evidence](../../progress/verification/2026-08-03-n15-migration-board-verification.md) / [ADR-004](../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md) |
+| **N15** | Tier-2 paired CP/AP OTA + rollback | **CURRENT：N15-M `board-verified`；ADR-006 format-2双bank A→B→A `host/source/ELF/dry-run-verified`**；16份独立包、独立verifier和16次loader dry-run完成；实板仍A-only，physical OTA需fresh authority | [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) / [symmetric host evidence](../../progress/verification/2026-08-04-n15-format2-symmetric-host.md) / [N15-V host evidence](../../progress/verification/2026-08-04-n15-v-host-fault-injection.md) / [ADR-006](../../memory/decisions/ADR-006-n15-symmetric-dual-bank-ota.md) / [ADR-004](../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md) |
 
 ## 当前 handoff
 
@@ -39,7 +39,8 @@
 > `id=0x8d08/config=0x8d1a/capacity=16777216`。CP在official PHY/RF首次校准leaf之后、AP
 > release之前调用official `bk_pm_module_vote_psram_ctrl(AS_MEM=10, ON=0)`并执行一次全容量
 > destructive boot gate；AP不初始化PSRAM硬件。首版保留official低8 MiB ABI：CP heap 128 KiB、
-> AP heap 640 KiB、AP section 256 KiB保留；upper 8 MiB只boot-tested/reserved。heap control和
+> AP heap 640 KiB、AP section 256 KiB保留；normal profile的upper 8 MiB只boot-tested/reserved，
+> N15-F validation profile另有固定volatile transfer窗口但不开放allocator。heap control和
 > allocator outer spinlock均在内部SRAM，realloc为bounded allocate-copy-free；AP CPU0/CPU1各
 > 16轮全部完成、free稳定。SDK timer callback由`bk-sdk-timer` task执行，queued self-delete
 > final-free已在256轮门禁中通过。AP cycle10、RPMsg六场景×100、Bluetooth info、physical
@@ -49,13 +50,23 @@
 > [source verification](nuttx-port/n14-psram-source-verification.md)和
 > [evidence index](nuttx-port/n14-evidence-index.md)。
 >
-> **N15 current（2026-08-03）：**owner接受ADR-004并授权一次性迁移。official v3.1.1.9
+> **N15 current（2026-08-04）：**owner接受ADR-004并授权一次性迁移。official v3.1.1.9
 > contiguous primary CP/AP + `s_app` 已由team linker/boot/MTD/packer/debug/verifier落地；AP XIP
 > 为`0x02150000`，LittleFS为raw `0x600000..0x700000`。loader只写
 > `0..0x4fc000`和`0x600000..0x700000`，迁移后LittleFS、AP SMP、RPTUN、RPMsgFS、Bluetooth、
-> PSRAM、timer和physical reset 3/3全部PASS。B仅为`boot_selectable=false` seed，runtime OTA
-> mutation仍关闭。下一步N15-A只做exact RBL/pair bundle与host负例，不写板。
-> 见[N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md)和
+> PSRAM、timer和physical reset 3/3全部PASS。N15-A..F的pair 2/13、staging 2/21、selector
+> 5/28、trial 4/113、publication 5/142、health 7/15、fixed-PSRAM transport、validation与normal
+> full build均PASS，且没有写板。实板B仍是`boot_selectable=false` seed；normal runtime
+> mutation关闭。ADR-006 format-2双bank A→B→A与独立verifier host closure已完成；实板流程
+> 需在fresh authority后另行定义。见
+> [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md)、
+> [N15-V host evidence](../../progress/verification/2026-08-04-n15-v-host-fault-injection.md)、
+> [N15-F evidence](../../progress/verification/2026-08-04-n15-f-host-validation.md)、
+> [N15-E evidence](../../progress/verification/2026-08-04-n15-e-host-publication.md)、
+> [N15-D evidence](../../progress/verification/2026-08-04-n15-d-host-trial.md)、
+> [N15-C evidence](../../progress/verification/2026-08-04-n15-c-host-boot-selection.md)、
+> [N15-B evidence](../../progress/verification/2026-08-04-n15-b-host-staging.md)、
+> [N15-A evidence](../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md)和
 > [N15-M evidence](../../progress/verification/2026-08-03-n15-migration-board-verification.md)。
 >
 > **N13 completed / board-verified（2026-08-03）：**AP stock NuttX Host仍是唯一Host owner，
@@ -166,8 +177,10 @@
 > **N8-D1 closure（2026-07-30）：**`ap_smp_lifecycle` normal autostart 在真实 T5-AI 一次闭环。AP `READY/error=0`、heartbeat=`727`；CPU2 `SCHEDULER_ONLINE/error=0`、online=`0x3`。BLCY `PASSED/error=0`、requested/completed=`1/1`；callback entry/exit CPU=`1/1`、started/completed=`1/1`、quiesce/resume sequence=`1/1`、value=`0/-138`（该 NuttX 配置的 `-ENOTSUP`）、aux=`1/1`。隔离窗口 CPU0→CPU1 `10→11`=`+1`、CPU1→CPU0 `1→1`=`+0`、calls `11→12`=`+1`；handler CPU0=`1/1`、CPU1=`11/11`，coalesced/fail/stale/spurious=0。CPU0 SysTick=`8090`、sleep enter/return=`727/726` 证明 gate 后持续运行。CPU1 全程保持 online=`0x3`，没有 CPU2 reset/power transition；这是 bounded scheduler quiesce/resume foundation，不是 CPU hot-unplug。
 
 - **Current Stage：**N15 Tier-2 paired CP/AP OTA。N15-M contiguous-layout迁移已经
-  `board-verified`；完整OTA仍未完成。下一步N15-A实现exact v3.1.1.9 RBL/pair bundle和host
-  正负例，继续保持B writer、remap、trial metadata与板写关闭。
+  `board-verified`，N15-A已经`host-verified`，N15-B/C/D/E/F已经
+  `host/source/ELF-verified`，ADR-006 format-2双bank A→B→A campaign已经
+  `host/source/ELF/dry-run-verified`；完整OTA仍未完成。下一步需要fresh owner authority执行
+  ordered physical staging、publication、trial/confirm/rollback、controlled complete-power-cycle和retained regression。
 - **Authorized implementation set：**N8-C5..N8-D1 与 N9-R..N9-V 全部完成并实板
   闭环；N10 wrapper、重复满载、warm restart、primary/secondary/RPMsg 三类注入、
   fail-closed、三次人工恢复与 generation=5 无注入重复 full suite 均已实板通过；N11

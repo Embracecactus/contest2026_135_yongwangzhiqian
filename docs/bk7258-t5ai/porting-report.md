@@ -22,7 +22,9 @@ NSH**（Stage N1 跳转链 + N2 NSH console + N3 procfs/ps 均板端验证，202
 ✅ Stage N13 BLE GAP/GATT / ✅ **Stage N14 16 MiB PSRAM + SDK timer wrapper（`board-verified`）**。
 **Stage N15 Tier-2 paired OTA进行中，N15-M迁移已`board-verified`**：official-style连续A/B、
 AP新XIP和LittleFS新位置已部署，两段式factory、完整保留功能回归与physical reset 3/3通过；
-B仍不可选择，candidate staging、trial、confirm与rollback尚未实现。
+B仍不可选择且未写candidate；N15-A..F的pack/stage/select/trial/publish/health与独立validation
+transport已完成host/source/ELF门禁；N15-V target fault 7/12、format-2双bank A→B→A的16份独立
+campaign、独立verifier和loader dry-run也已收口，physical实板矩阵尚未授权执行。
 
 ---
 
@@ -69,7 +71,7 @@ clock / GPIO / WDT / debug / UART，并贴合"移植新硬件"的本意。详见
 |---|---|---|
 | FLASH XIP | `0x02000000` + | bootloader @ `0x02000000`，app @ `0x02010000` |
 | SRAM | `0x28000000` – `0x280A0000` | 640 KB，MSP 顶 = `0x2809FFFC` |
-| PSRAM | `0x60000000` – `0x61000000` | T5-AI 实板 16 MiB；首版保留 official 低8 MiB ABI，上8 MiB boot-tested/reserved |
+| PSRAM | `0x60000000` – `0x61000000` | T5-AI 实板 16 MiB；normal保留official低8 MiB ABI、上8 MiB boot-tested/unallocated；N15-F只开固定volatile transfer窗口 |
 | ROM | `0x06000000` | BootROM |
 | DTCM | `0x20000000` | 含软件 core-id 约定字（见 §4） |
 
@@ -189,7 +191,8 @@ bootloader 把它当 CPU0 的 app 跳进来了**。运行时 core-id 字 `0x2000
 - **完全可控**：clock / GPIO / WDT / SWD debug / UART 全部源码可见，便于 NuttX 联调。
 - **无 vendor blob 依赖**：涂鸦 bootloader 带 diff2ya 私有 OTA 引擎（无源码），BK 官方是预编译
   binary；自制摆脱两家私有依赖。
-- **小而可审计**：Tier-1 bootloader `text=1353 B`（不含填充），整盘逻辑一个下午可人工复核。
+- **小而可审计**：加入 N15-C 完整 A/B 验证、SHA-256 与 gated remap 后，Tier-1
+  bootloader `text=10170 B`、`.data=0`，仍受 64 KiB logical slot 和 `-Werror` 约束。
 - **贴合赛题本意**："移植新硬件"要求选手掌握启动链每一环，而非把 vendor 黑盒搬上去。
 
 ### 5.2 设计哲学：实现两家共有的协议，细节取长补短
@@ -402,7 +405,7 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 | **N12** | official Beken Bluetooth IPC + AP stock NuttX Host | ✅ done / `board-verified`；真实RF report与RPMsg/RPMsgFS/SMP共存闭环 |
 | **N13** | BLE GAP/GATT Peripheral end-to-end | ✅ done / `board-verified`；negative、20/20重连、主动并发与connection ref closure |
 | **N14** | 16 MiB PSRAM + SDK software-timer wrapper | ✅ done / `board-verified`；full-capacity boot gate、CP/AP private heap、AP双核allocator、warm/cold/factory闭环；见 [N14 completion](nuttx-port/prompts/14-n14-psram.md) |
-| **N15** | Tier-2 paired CP/AP OTA + rollback | **CURRENT / N15-M `board-verified`**；ADR-004连续布局已部署，LittleFS与完整N14功能回归、reset 3/3 PASS；B不可选择，N15-A RBL/pair bundle next，完整OTA未完成；见 [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) |
+| **N15** | Tier-2 paired CP/AP OTA + rollback | **CURRENT / N15-M `board-verified`；ADR-006 format-2双bank A→B→A `host/source/ELF/dry-run-verified`**；16 identities/independent verifier/loader dry-run PASS；实板A-only；见 [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) |
 
 N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
 UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
@@ -625,7 +628,7 @@ free均恢复，AP/RPTUN/supervisor/SMP保持健康。完整记录见
 [source verification](nuttx-port/n14-psram-source-verification.md)和
 [evidence index](nuttx-port/n14-evidence-index.md)。official NuttX/apps/SDK source及SDK archive零改动。
 
-### 9.11 Stage N15 — Tier-2 成对 OTA（N15-M board-verified，2026-08-03）
+### 9.11 Stage N15 — Tier-2 成对 OTA（N15-M board-verified / N15-A host-verified / N15-B/C/D/E/F host/source/ELF-verified，2026-08-04）
 
 N15只使用official Beken SDK v3.1.1.9。R1从official packager/source及normal/AB binary确认：
 RBL header固定96 bytes，使用CRC32和32-bit FNV-1a完整性检查；它没有签名、公钥或
@@ -657,8 +660,55 @@ physical reset 3/3全部PASS。迁移前8 MiB读取使用6 Mbps，后续发现�
 完整证据见[N15 plan](nuttx-port/prompts/15-n15-tier2-ota.md)和
 [N15-M verification](../../progress/verification/2026-08-03-n15-migration-board-verification.md)。
 
-下一步N15-A只实现deterministic pair manifest、exact v3.1.1.9 RBL container/parser和host负例。
-B writer、remap、trial metadata mutation及任何新板写继续关闭；完整OTA仍未完成。
+N15-A随后在team-owned host wrapper中完成`bk7258-cp-ap-pair-v1`：CP/AP raw image按逻辑
+`0/0x140000`合成一个generation，构造exact algorithm-0 96-byte RBL并放在logical
+`0x24f000`，再以official-compatible 32+2 CRC展开成恰好`0x275000`的`s_app`候选。
+verifier解码每个CRC packet并重新构造canonical bundle，交叉检查vector、address、size、layout、
+version、digest和CP/AP generation。official header/CRC golden vector、exact v3.1.1.9 source hash、
+两次deterministic build、2 positive/13 negative与真实clean-build bundle全部PASS；完整证据见
+[N15-A verification](../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md)。
+
+N15-B随后实现CP-only staging wrapper与portable core。deterministic 384-byte descriptor在任何
+mutation前绑定并验证完整physical/logical CP/AP pair；shared Flash guard与MTD/LittleFS owner串行化，
+每个4 KiB sector执行erase/program/read-back，最后校验full-slot SHA-256。portable harness通过
+2 positive/21 negative，target incremental、exact v3.1.1.9完整dual build与final ELF gate/symbol
+closure均PASS。compile/runtime gate仍为零，最终ELF无enable setter/command，且未写板。完整证据见
+[N15-B verification](../../progress/verification/2026-08-04-n15-b-host-staging.md)。
+
+N15-C再由[ADR-005](../../memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md)冻结
+`BKOTA15C` append-only metadata ABI。portable selector对trusted A执行全部CRC16、padding、vectors、
+CP magic和full-pair SHA-256，并复用N15-B core完整验证B；坏metadata/candidate fail-closed，
+`PENDING_B`只报告candidate有效而不remap。team Tier-1 raw read和one-offset remap与exact v3.1.1.9
+source/binary交叉验证，5 positive/28 negative、4 SHA vectors、`-Werror`、`-fanalyzer`、final boot
+ELF workspace/symbol/四个zero gate及完整dual build均PASS。generation-17 pending metadata只存在host
+artifact，factory metadata仍erased，未写板。完整证据见
+[N15-C verification](../../progress/verification/2026-08-04-n15-c-host-boot-selection.md)。
+
+N15-D实现append/read-back `TRIAL_STARTED`和one-trial confirm/revert：4 positive/113 negative、
+48 reset boundaries、SRAM writer与final Boot/CP ELF均PASS。N15-E再完成pending publication与
+bounded metadata reclamation：完整live A/B验证先于mutation，5 positive/142 negative、8 erase、
+112 program/reset boundaries和static analyzer均PASS。详见
+[N15-D verification](../../progress/verification/2026-08-04-n15-d-host-trial.md)和
+[N15-E verification](../../progress/verification/2026-08-04-n15-e-host-publication.md)。
+
+N15-F冻结目标侧5000 ms health-confirm policy（250 ms轮询）：trusted trial generation、secondary
+mapping、AP supervisor healthy/fault-free、generation/fault count continuity和monotonic time必须
+同时满足；host模型中的1000 ms窗口只是加速测试fixture。独立
+`cp_nsh_ota + ap_smp_psram` profile将Boot六门置1但CP runtime gate从false开始，每个mutation
+命令还要求exact generation token。validation candidate通过固定upper-PSRAM
+`0x60800000..0x60a76200`传输；normal profile仍upper-8 unallocated且无`bkota`。health 7/15、
+5 continuity resets、validation/normal full build、transfer verifier和loader dry-run均PASS。详见
+[N15-F verification](../../progress/verification/2026-08-04-n15-f-host-validation.md)。
+
+N15-V host closure新增generation/operation-bound one-shot target failpoint与单字节candidate PSRAM
+corruption；7 positive/12 negative harness PASS。format-2 campaign生成16份独立
+RBL/version/timestamp/metadata身份，独立verifier重查path/fault/hash/identity并重跑逐包
+pair/transfer/loader dry-run，全部PASS；每个case要求controlled complete-power-cycle，terminal
+case从已确认B回切并确认A。详见
+[N15-V host verification](../../progress/verification/2026-08-04-n15-v-host-fault-injection.md)。
+
+板端流程已从当前实现范围移除；如后续开启，需要先申请fresh authority并另行评审最小
+A→B→A验证计划。ADR-006双bank轮换已host/source/ELF验证，完整OTA仍未板端验证。
 
 ---
 
@@ -763,15 +813,19 @@ board/bk7258_t5ai/bootloader/
 > 均通过，N13现为`board-verified`。按用户要求始终未启动`BLEDebug.EXE`。
 >
 > **N14完成：**T5-AI实板识别16 MiB PSRAM并通过一次全容量boot gate；CP/AP按official低8 MiB
-> ABI建立128 KiB/640 KiB private heap，上8 MiB保持boot-tested/reserved。AP CPU0/CPU1各16轮
+> ABI建立128 KiB/640 KiB private heap；normal上8 MiB保持boot-tested/unallocated，N15-F仅使用
+> 固定volatile transfer窗口且不开放allocator。AP CPU0/CPU1各16轮
 > allocator gate、CP heap 256、SDK timer 256与queued self-delete、AP cycle10、RPMsg六场景×100、
 > Bluetooth、physical RESET 3/3、final clean/factory首次校准/post-calibration cold全部PASS。
 > allocator control/lock留在SRAM，outer spinlock与bounded allocate-copy-free修复双核realloc stall；
 > CPU1 official PM vote修复AP nonstart。official NuttX/apps/SDK source与static libraries保持零改动。
 >
-> **N15进行中：**ADR-004连续A/B布局和N15-M一次性迁移已`board-verified`；AP新XIP、
-> relocated LittleFS、N14完整功能回归和physical reset 3/3均PASS。B只是不可选择seed，runtime
-> OTA仍关闭。下一步N15-A host-only RBL/pair bundle；后续B writer、trial和rollback各自设门禁。
+> **N15进行中：**ADR-004连续A/B布局和N15-M一次性迁移已`board-verified`；N15-A exact
+> RBL/pair bundle已`host-verified`，N15-B/C/D/E/F staging、selector、trial、publication、health与
+> validation transport已`host/source/ELF-verified`，N15-V fault/campaign已
+> `host/source/ELF/dry-run-verified`；7/12、format-2 16 identities/independent verifier/loader dry-run和normal/validation full
+> build均PASS。实板B仍只是不可选择seed，未写candidate。下一步需fresh authority执行ordered
+> physical write、metadata、remap、trial/rollback和controlled complete-power-cycle矩阵。
 
 | 优先级 | 项 | 状态 | 备注 |
 |---|---|---|---|
@@ -787,7 +841,7 @@ board/bk7258_t5ai/bootloader/
 | P0 | **NuttX Stage N12**：official Beken Bluetooth IPC + NuttX HCI wrapper | ✅ done / `board-verified` | CP Controller、AP stock Host、HCI info、MAC 持久化、UART self-heal、RPMsg/RPMsgFS 共存以及真实 advertising report 均已实板通过 |
 | P0 | **NuttX Stage N13**：BLE GAP/GATT Peripheral end-to-end | ✅ done / `board-verified` | 四类negative、20/20 uncached重连、BLE+RPMsg/RPMsgFS主动并发、3/3 cold、ref=0、final build/flash与零官方树改动全部闭环 |
 | P0 | **NuttX Stage N14**：16 MiB PSRAM + SDK software-timer wrapper | ✅ done / `board-verified` | full-capacity boot gate、CP/AP private heap、AP双核allocator、timer self-delete、warm/cold/factory与既有功能回归全部闭环 |
-| P1 | **NuttX Stage N15**：Tier-2 paired CP/AP OTA（RBL + trial + rollback） | CURRENT / N15-M `board-verified` | ADR-004布局迁移与完整功能回归PASS；B不可选择，N15-A RBL/pair bundle next，trial/rollback未实现 |
+| P1 | **NuttX Stage N15**：Tier-2 paired CP/AP OTA（RBL + trial + rollback） | CURRENT / N15-M `board-verified`；ADR-006 format-2双bank A→B→A `host/source/ELF/dry-run-verified` | fault 7/12、format-2 16 identities、独立verifier与loader dry-run PASS；实板A-only |
 | P2 | **后续（未编号）**：Wi-Fi / signed update security / PSRAM upper-8 runtime policy等 | planned later | 先讨论owner、资源和验收边界 |
 
 ---
