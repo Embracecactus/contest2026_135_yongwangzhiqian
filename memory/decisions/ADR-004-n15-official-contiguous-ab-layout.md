@@ -133,6 +133,10 @@ The initial B content is a same-pair seed only. It has no RBL header, is
 marked `boot_selectable=false`, and cannot be selected by the current
 bootloader. Runtime OTA writes remain disabled until later N15 gates.
 
+N15-C later froze the team metadata and read-only boot-decision contract in
+[ADR-005](ADR-005-n15-boot-selector-metadata-v1.md). It is
+host/source/ELF-verified but has not replaced the deployed A-only bootloader.
+
 The pre-migration full-Flash read was taken at 6 Mbps and later shown to
 contain occasional inserted 128-byte zero blocks. It is forensic-only, not a
 bit-exact recovery image. Post-migration critical-region acceptance reads use
@@ -152,5 +156,9 @@ bit-exact recovery image. Post-migration critical-region acceptance reads use
 - Publisher signatures, key provisioning, and hardware-backed anti-rollback
   remain a separate security decision; no current RBL field may be described
   as authentication.
-- Exact team metadata ABI and health-confirmation policy must be frozen before
-  enabling any B-slot write.
+- The metadata ABI is frozen by ADR-005. N15-D/E/F trial mutation,
+  publication/reclamation, health confirmation and validation transport are
+  host/source/ELF-verified, but no B-slot or metadata write has been authorized
+  on the board. N15-V remains the physical gate.
+- Confirmed B is currently terminal for metadata v1. Repeated confirmed
+  generations require a future symmetric inactive-A staging design.

@@ -1,104 +1,98 @@
 # Current Progress
 
-Last updated: 2026-08-03T23:08:16+08:00
+Last updated: 2026-08-04T15:45:33+08:00
 Updated by: Codex (`maintain-project-memory` checkpoint)
 
 ## Snapshot
 
 - Branch: `feat/bk7258-n15-ota`.
-- Base: `origin/dev-ai-contest-2026` at
-  `6de4962147e5ee180def704d219ace9ae11f6e4e`.
-- N15-M implementation commit:
-  `39732de94af6f715ec50536a2521ea811795c5b4`, pushed to
-  `fork/feat/bk7258-n15-ota`.
-- Sole active SDK: official Beken v3.1.1.9. Legacy bundles are preserved but
-  unused until N15 is complete and the owner opens separate validation.
-- Latest deployed board state: **N15-M contiguous-layout migration
-  `board-verified`** with `cp_nsh_psram + ap_smp_psram`.
-- Full N15 OTA is still `in-progress`: B is seeded but not selectable and all
-  runtime OTA mutations remain disabled.
+- N15 OTA implementation commit:
+  `6fef975b75d7773f55a00b8deff6ad3968cf7dfb`; this documentation checkpoint
+  accompanies it on `fork/feat/bk7258-n15-ota`.
+- Upstream baseline: `origin/dev-ai-contest-2026` at
+  `8738f07aef3756880c460f7434f8a9aa18fa40d3`.
+- No board write or physical OTA campaign was performed during implementation
+  or publication.
+- Sole active SDK: official Beken v3.1.1.9 at
+  `/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9`. Older SDKs remain
+  preserved and unused.
+- The workspace build tree is restored to the normal
+  `cp_nsh_psram + ap_smp_psram` profile. All OTA selection/write gates are zero.
+- Last known deployed board state remains the earlier N15 validation sparse
+  image with erased metadata and A mapping. No format-2 campaign generation has
+  been written to the board.
+
+## Implemented
+
+- ADR-004 contiguous CP/AP A/B Flash layout generated from the project-owned
+  partition CSV and consumed through SDK wrappers. Official SDK, NuttX and apps
+  source trees are not permanent integration points.
+- Deterministic paired CP/AP package generation with bounds, generation,
+  version, vector, CRC and SHA-256 validation.
+- CP-only bounded inactive-slot staging under the shared Flash guard.
+- ADR-006 format-2 symmetric OTA with two metadata banks:
+  - bank 0: `0x4fb000..0x4fc000`;
+  - bank 1: `0x50a000..0x50b000`;
+  - `usr_config`: preserved at `0x4fc000..0x50a000`.
+- Slot-neutral A-to-B and B-to-A selection, one-trial boot, health confirmation
+  and rollback. Candidate data and both live pairs are verified before the
+  inactive metadata bank is published.
+- A separate `cp_nsh_ota + ap_smp_psram` validation profile. Boot mutation is
+  compile-time gated; CP mutation starts disabled and additionally requires an
+  exact generation-bound authorization token.
+- Validation-only bounded PSRAM transfer and one-shot fault-injection hooks.
+  The loader is dry-run-first and contains no Flash or reset command.
+- Symmetric campaign packaging/verifying supports 16 ordered identities,
+  including a terminal return from confirmed B to confirmed A.
+
+## Verification checkpoint
+
+- All format-2 core host matrices pass: rotation, selection/recovery, trial,
+  publication, control, health and target fault handling.
+- A one-time host-only qualification set for generations 300..315 passed all
+  16 pack, independent verify and loader dry-run checks. It was not loaded onto
+  hardware and will not be regenerated as routine validation.
+- The final normal integration build passed with official SDK v3.1.1.9:
+  - Boot ELF SHA-256:
+    `b4e199d4fcb9135a307171301ccd79b3dfeb23c2f8e3da9274d98e9f94ab0531`;
+  - CP ELF SHA-256:
+    `2d562c02b39362c26231662531fe6b0aca1af02a6161aa01b74b75891f59d933`;
+  - AP ELF SHA-256:
+    `6b8e102870e82d971a028cc560f18e67fc9a10d429fd33a555485fbb9086e5cc`.
+- Normal-profile facts: validation disabled, all Boot OTA gates zero, both CP
+  runtime gates initially false, board-write authorization false, and no
+  `bkota_main` or `bk7258_ota_fault` symbol in the produced ELF files.
+- The obsolete board-validation SOP was deleted, and build/source verification
+  no longer depends on prose documentation.
+
+Primary evidence:
+
+- [N15 format-2 symmetric host closure](verification/2026-08-04-n15-format2-symmetric-host.md)
+- [N15-F validation foundation](verification/2026-08-04-n15-f-host-validation.md)
+- [N15-M board migration](verification/2026-08-03-n15-migration-board-verification.md)
 
 ## Active work
 
-N15 remains active after the completed N15-M migration. The immediate scope is
-N15-A host-only RBL/pair-bundle work; all runtime OTA and board-write gates
-remain closed.
-
-## Recently completed
-
-- Accepted [ADR-004](../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md)
-  and retired ADR-003 before any sector-swap code reached hardware.
-- Replaced the N14 flash geometry with the exact v3.1.1.9-style contiguous
-  primary CP/AP plus `s_app` layout in team-owned linker, boot, MTD, packer,
-  debug and verifier code. Official NuttX/apps/SDK source and SDK libraries
-  remain unchanged.
-- Moved AP XIP to `0x02150000` and LittleFS to raw
-  `0x600000..0x700000`.
-- Added a canonical layout model plus independent source/layout and byte-exact
-  factory verifiers. The factory path rejects old layout IDs and uses two
-  bounded loader ranges instead of one dense image.
-- Per owner authorization, migrated the board once, discarded old LittleFS,
-  and completed the retained N14 regression plus three physical resets.
-
-## Verification
-
-- Factory prefix: `0x4fc000`, SHA-256
-  `4722e2a81504e5e321f67850c518b0b919b79e796214481d1e0dd01bf9cf8e4b`.
-- LittleFS clear image: `0x100000`, SHA-256
-  `f5fb04aa5b882706b9309e885f19477261336ef76a150c3b4d3489dfac3953ec`.
-- Loader write set: `0x000000..0x4fc000` and
-  `0x600000..0x700000`; no chip erase and no `usr_config`, reserved or tail
-  range in the command.
-- Board gates PASS: NSH; AP READY; CPU2 scheduler-online; RPTUN CONNECTED;
-  supervisor HEALTHY; relocated LittleFS; PSRAM; SDK timer; RPMsg; RPMsgFS;
-  Bluetooth; physical reset 3/3.
-- Final host gates PASS: exact SDK CP/AP checksums; bootloader rebuild/verify;
-  RBL self-test; layout/factory, RPTUN, BLE-GATT and PSRAM verifiers; two
-  factory negative fixtures; Python/shell/format checks.
-- Canonical evidence:
-  [N15-M board verification](verification/2026-08-03-n15-migration-board-verification.md).
-
-## Read-back rule
-
-The pre-migration 8 MiB BKFIL read at 6 Mbps contains occasional inserted
-128-byte zero blocks and is forensic evidence only, not a recovery image.
-Critical Flash acceptance reads must use 115200 and two byte-identical
-captures. Post-migration `usr_config` and official-tail repeats meet that
-rule; the loader's range list independently proves neither was targeted.
+N15 is host/source/ELF verified, but it is not board-verified. Under fresh,
+explicit board-write authority:
 
 ## Next actions
 
-Start N15-A without changing the deployed layout:
+1. Run one minimal physical A-to-B lifecycle and one B-to-A lifecycle.
+2. Verify retained N14 services after confirmation in each slot.
+3. Record a real complete power-removal test separately; COM7 RTS or J-Link RST
+   is reset evidence, not proof of VDD removal.
+4. Restore and record the normal gates-zero A state.
 
-1. reproduce the exact v3.1.1.9 `s_app` RBL container and 96-byte parser;
-2. define a deterministic CP/AP pair manifest with layout, generation,
-   version, length and digest checks;
-3. add positive and corruption/address/size/layout/version negative tests;
-4. keep B writer, remap, trial metadata mutation and board writes disabled;
-5. separately decide publisher signature/key provisioning and anti-rollback
-   policy before any security claim.
+The exhaustive historical campaign and generic hardware-debug automation are
+not part of the active OTA closure unless separately authorized.
 
 ## Risks and blockers
 
-- A-only Tier-1 boot remains the deployed behavior. The B seed has no RBL
-  header and is explicitly `boot_selectable=false`.
-- N15 has not verified candidate staging, trial, confirm, rollback,
-  mixed-generation rejection or power-loss recovery.
-- Pre- and post-migration sparse artifacts are incompatible. Never use the
-  old CP/AP offsets on the migrated board.
-- Never chip erase or write `0x7fa000..0x800000`; factory and OTA commands
-  must also exclude `usr_config` and unallocated ranges.
-- CRC32/FNV/SHA provide integrity, not publisher authenticity or
-  anti-rollback.
-- Preserve unrelated untracked `board/bk7258_qemu/`,
-  `board/bk7258_t5ai/tests/`, `docs/assets/`, and `qemu-bk7258/`.
-
-## Resume pointers
-
-- Active worklog: [N15 stage](../docs/bk7258-t5ai/nuttx-port/prompts/15-n15-tier2-ota.md).
-- Task packet: [N15 task](tasks/2026-08-03-n15-tier2-ota.md).
-- Current architecture: [ADR-004](../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md).
-- Historical rejected option: [ADR-003](../memory/decisions/ADR-003-n15-paired-sector-swap.md).
-- Previous completed stage: [N14 milestone](milestones/2026-08-03-n14-psram-board-verified.md).
-- Source rollback point: merged N14 commit
-  `6de4962147e5ee180def704d219ace9ae11f6e4e`.
+- Physical inactive-A writes, metadata-bank-1 mutation, remap, Flash wear and
+  power-loss recovery have not yet been observed on hardware.
+- Package hashes provide integrity, not publisher authentication or
+  anti-rollback; key provisioning remains out of scope.
+- The one-time factory migration authority is consumed. Chip erase,
+  calibration-tail writes and any new board-write range remain forbidden
+  without explicit approval.

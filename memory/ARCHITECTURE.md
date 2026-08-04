@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-08-03
+Last reviewed: 2026-08-04
 
 ## System context
 
@@ -21,7 +21,7 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | AP NuttX SMP on CPU1+CPU2 | Stock NuttX scheduling/Host/services; logical CPU0 owns transport gateway, logical CPU1 is a business producer |
 | Beken SDK v3.1.1.9 | Immutable CP/AP archives reached through minimal board ABI wrappers |
 | Windows/WSL2 tools | Build, sparse/factory download, UART/J-Link evidence, and no-GUI BLE client |
-| N15 OTA (accepted architecture) | Official-style contiguous CP/AP A/B geometry is deployed; team clean-room RBL/staging/remap/trial control remains gated |
+| N15 OTA (accepted architecture) | Official-style contiguous CP/AP A/B geometry is deployed; ADR-006 dual-bank inactive-slot A/B rotation and validation-only fault controls are host/source/ELF-verified with an independently checked 16-case A-to-B-to-A campaign pending board authority |
 
 ## Primary data flows
 
@@ -41,15 +41,24 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   persistence probe passed three physical resets.
 - Bluetooth base MAC/calibration records are created through the official first-calibration path and persist in flash.
 - RPMsg endpoints and AP-local state are generation-scoped; AP restart invalidates stale transport state.
-- The N14 upper PSRAM half is tested at boot but has no runtime allocator or persistence semantics.
+- The N14 upper PSRAM half is tested at boot but has no general runtime
+  allocator or persistence semantics. The N15-F validation profile alone may
+  use fixed volatile range `0x60800000..0x60a76200` to transfer one candidate,
+  descriptor and pending record after a generation-bound operator gate.
 - ADR-003's append-only logs, scratch sector, metadata ABI, and SRAM copy
   closure are retired research artifacts. Their 32,915-case model remains
   evidence for the rejected alternative; the mutation gate is zero and no
   board consumed that ABI.
 - ADR-004 freezes primary CP/AP at raw `0x011000..0x286000`, paired B at
-  `0x286000..0x4fb000`, metadata/user config through `0x50a000`, LittleFS at
+  `0x286000..0x4fb000`, metadata bank 0/user config through `0x50a000`, LittleFS at
   `0x600000..0x700000`, and the immutable official tail at
   `0x7fa000..0x800000`.
+- ADR-005 freezes metadata format 1 as historical one-direction evidence.
+  ADR-006 is current: eight append-only 512-byte records per bank at
+  `0x4fb000..0x4fc000` and `0x50a000..0x50b000`, with slot-neutral
+  `PENDING_*/TRIAL_*/CONFIRMED_*/ROLLBACK_*` states. The selected bank remains
+  durable until an inactive-bank record is completely read back; pending alone
+  is never permission to remap.
 
 ## External dependencies
 
@@ -75,7 +84,14 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 - Executable images use 32+2 CRC-expanded physical coordinates, while
   `bk_flash_*` data APIs use raw offsets. The canonical layout/verifier must
   cross-check every conversion and reject old/new layout mixing.
-- N15 R1/R2 sector-swap evidence is historical. Current open work starts at
-  N15-A: exact RBL/pair bundle parsing and host negative tests. B-slot writes,
-  remap, trial state and rollback remain disabled.
+- N15 R1/R2 sector-swap evidence is historical. N15-A through N15-F packaging,
+  staging, metadata, remap/trial, publication, health and validation transport
+  plus N15-V target failpoints/format-2 16-case campaign and independent campaign
+  verifier are host/source/ELF/dry-run-verified. Physical B-slot writes,
+  metadata mutation, remap, trial and controlled power cycles remain
+  unexecuted pending N15-V authority. N15-V covers fail-before callback
+  operation boundaries; it does not claim an analog mid-Flash-pulse brownout.
+- ADR-006 symmetric confirmed A/B rotation is implemented and host/source/ELF
+  verified. Inactive-A Flash writes, bank-1 mutation and both physical
+  directions remain unverified pending exact board authority.
 - CPU0 480 MHz is not supported by the verified SDK policy; the product path uses the SDK-aligned 320 tier with CPU0 effectively 160 MHz and AP at 320 MHz.

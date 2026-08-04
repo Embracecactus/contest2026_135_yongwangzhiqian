@@ -1,9 +1,9 @@
 # BK7258 Stage N15：成对 CP/AP OTA、回退与掉电恢复
 
-> 日期：2026-08-03
-> 状态：**IN PROGRESS / N15-M 布局迁移已 board-verified，完整 OTA 尚未实现**
+> 日期：2026-08-04
+> 状态：**IN PROGRESS / N15-M 已 board-verified，N15-A 已 host-verified，N15-B/C/D/E/F 已 host/source/ELF-verified，N15-V fault/campaign 已 host/source/ELF/dry-run-verified，完整 OTA 尚未板端验证**
 > SDK：只使用 official Beken v3.1.1.9
-> 架构决策：[ADR-004](../../../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md)
+> 架构决策：[ADR-004](../../../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md) / [ADR-005（历史format 1）](../../../../memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md) / [ADR-006（当前format 2）](../../../../memory/decisions/ADR-006-n15-symmetric-dual-bank-ota.md)
 > 历史被否决方案：[ADR-003](../../../../memory/decisions/ADR-003-n15-paired-sector-swap.md)
 
 ## 1. 当前结论
@@ -19,9 +19,20 @@ A；B 中只是与 A 同 generation 的 seed，manifest 明确为
 `boot_selectable=false`、`rbl_header_present=false`。因此：
 
 - 新布局基线已经 `board-verified`；
-- 成对 OTA、candidate staging、trial、confirm、rollback 和掉电恢复仍未实现；
-- `writes_enabled=false` 现在表示 runtime OTA writer/slot selection 仍关闭，不否定已经完成的
-  一次性外部 loader 迁移。
+- N15-A exact RBL/pair bundle 已 `host-verified`；
+- N15-B candidate staging 已 `host/source/ELF-verified`，但未写板；
+- N15-C boot pair selector/one-offset remap 已 `host/source/ELF-verified`；
+- N15-D one-trial append/read-back、confirm和rollback已
+  `host/source/ELF-verified`；
+- N15-E pending publication和metadata sector reclamation已
+  `host/source/ELF-verified`，N15-F health-confirm、独立validation profile和volatile PSRAM
+  transport也已完成host/source/ELF收口；
+- N15-V target-only one-shot failpoint 7/12和ordered generation 42..57的16份独立
+  artifact、format-2 campaign独立校验和16次loader dry-run均PASS；generation 56确认B，
+  terminal generation 57从已确认B回切并确认A；
+- normal profile六个Boot门为零且没有可启用写入的CLI/runtime路径；validation profile才编入写路径，runtime gate仍
+  从false开始并要求generation token；
+- 板端candidate写入、metadata mutation、remap、trial/confirm/rollback和掉电矩阵仍未执行。
 
 ## 2. 已冻结布局
 
@@ -31,9 +42,10 @@ A；B 中只是与 A 同 generation 的 seed，manifest 明确为
 | CP A | `0x011000..0x165000` | `0x154000` | primary active |
 | AP A | `0x165000..0x286000` | `0x121000` | primary active |
 | CP/AP B (`s_app`) | `0x286000..0x4fb000` | `0x275000` | same-pair seed，当前不可选择 |
-| trial metadata | `0x4fb000..0x4fc000` | `0x001000` | 当前为 erased/unarmed |
+| trial metadata bank 0 | `0x4fb000..0x4fc000` | `0x001000` | 当前板上 erased/unarmed |
 | vendor `usr_config` | `0x4fc000..0x50a000` | `0x00e000` | loader migration 不覆盖 |
-| reserved | `0x50a000..0x600000` | `0x0f6000` | 不覆盖 |
+| trial metadata bank 1 | `0x50a000..0x50b000` | `0x001000` | format 2 mirror；尚未板写 |
+| reserved | `0x50b000..0x600000` | `0x0f5000` | 不覆盖 |
 | CP LittleFS | `0x600000..0x700000` | `0x100000` | 已清空并重新建立 |
 | reserved | `0x700000..0x7fa000` | `0x0fa000` | 不覆盖 |
 | official tail | `0x7fa000..0x800000` | `0x006000` | loader/OTA 禁止覆盖 |
@@ -105,28 +117,170 @@ bootloader、RPTUN layout、BLE GATT、PSRAM 与 factory byte verifier 全部 PA
 `d078e2a2...e79acf` 与 `fa92844a...58c77`。完整证据见
 [N15-M verification](../../../../progress/verification/2026-08-03-n15-migration-board-verification.md)。
 
-## 5. 下一阶段
+## 5. N15-A host pair bundle
 
-下一阶段是 N15-A，不再改布局：
+N15-A 已在 team-owned Python wrapper 中完成，不修改或复制 official SDK/NuttX
+源码：
 
-1. 复刻 exact v3.1.1.9 `s_app` RBL container、96-byte header 与 FNV/CRC validation；
-2. 定义 team pair manifest、generation/version policy 与 deterministic pack；
-3. 增加 size/hash/layout/version/corruption 负例；
-4. 保持 B writer、remap 和 trial metadata mutation 关闭；
-5. 评审签名与 anti-rollback。CRC/FNV/SHA 只能称为 integrity，不能称为 authenticity。
+- `pack_bk7258_ota_pair.py` 生成 deterministic CP/AP pair body、exact 96-byte
+  v3.1.1.9 algorithm-0 RBL、完整 `0x250000` logical container、32+2 CRC 展开后的
+  exact `0x275000` `s_app-candidate.bin` 和规范化 manifest；
+- `verify_bk7258_ota_pair.py` 解码并逐 packet 验证 CRC16，重新构造 canonical
+  bundle，再交叉检查 layout、address、size、vector、digest、version 和 CP/AP
+  generation；
+- RBL header 位于 logical `0x24f000`，保留 official `app` 和固定
+  `current_version=00010203040506070809`；timestamp 必须显式传入，保证相同输入字节确定；
+- manifest schema 为 `bk7258-cp-ap-pair-v1`。当前所有 write/select/remap/trial/board
+  gate 均为 `false`，bundle 不能直接授权烧写或启动；
+- official header/CRC 独立 golden vector、exact v3.1.1.9 source hash、两次 deterministic
+  build、真实 `cp_nsh_psram + ap_smp_psram` bundle，以及 2 positive/13 negative
+  self-test 全部 PASS；
+- clean dual build 同时通过 factory、RPTUN、BLE GATT、PSRAM 和 SDK checksum gates，
+  official NuttX/apps 无 tracked diff。
+
+Host 用法（generation/version/timestamp 必须由调用者显式给出）：
+
+```bash
+python3 board/bk7258_t5ai/scripts/pack_bk7258_ota_pair.py \
+  --cp-raw "$WORKSPACE/nuttx/bk7258-dual/app.bin" \
+  --ap-raw "$WORKSPACE/nuttx/bk7258-dual/app1.bin" \
+  --output "$WORKSPACE/nuttx/bk7258-dual/n15-pair" \
+  --generation 16 --version 1.0.1 --base-version 1.0.0 --timestamp 0
+
+python3 board/bk7258_t5ai/scripts/verify_bk7258_ota_pair.py \
+  --bundle "$WORKSPACE/nuttx/bk7258-dual/n15-pair" \
+  --expected-generation 16 --expected-version 1.0.1 \
+  --expected-base-version 1.0.0 --expected-timestamp 0 \
+  --sdk-source "$BK7258_SDK_SOURCE"
+```
+
+完整记录见
+[N15-A host verification](../../../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md)。
+
+## 6. N15-B CP-only staging
+
+N15-B 已在 team-owned wrapper/core 中完成主机、源码和最终 ELF 收口：
+
+- deterministic 384-byte descriptor 固定 schema、layout、generation、timestamp、version、
+  base-version、地址、长度及 physical/logical/CP/AP digests；
+- mutation 前完整验证 `0x275000` candidate：32+2 CRC、RBL、vectors、CP magic、所有
+  padding 与 digest 任一不符都 fail-closed；
+- CP-only shared Flash guard 将 staging 与 MTD/LittleFS owner 串行化，read-only MTD 不获得
+  SDK write permission；
+- 每个 4 KiB sector 执行 source-read、erase、erased-readback、256-byte program/read-back，
+  最后再验证 full-slot SHA-256；
+- portable harness 通过 2 positive + 21 negative，覆盖 gate、timeout、lock、erase/program/read、
+  source mutation、descriptor/address/size/generation/version/CRC/RBL corruption；
+- exact v3.1.1.9 `cp_nsh_psram + ap_smp_psram` 完整构建和 final ELF verifier PASS；
+- compile/runtime staging gate 为零，最终 ELF 无 runtime enable setter/NSH command；未写板，
+  metadata 与 remap 均未触碰。
+
+完整记录见
+[N15-B host/source/ELF verification](../../../../progress/verification/2026-08-04-n15-b-host-staging.md)。
+
+## 7. N15-C boot selector 与 gated remap（历史 format 1 基线）
+
+N15-C 已在 team-owned Tier-1 中完成主机、源码和最终 ELF 收口：
+
+- [ADR-005](../../../../memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md)
+  固定 `BKOTA15C` format 1：4 KiB sector 内 8 个 append-only 512-byte record；
+- 首 record 必须为 `PENDING_B`，后续只允许
+  `PENDING_B -> TRIAL_STARTED -> CONFIRMED_B | ROLLBACK_A`，identity 不可漂移；
+- trusted metadata 对 A 执行 actual CP/AP encoded length、所有CRC16、erased padding、vector、
+  CP magic和full-pair SHA-256；B复用N15-B完整descriptor/RBL/digest验证；
+- team raw-Flash reader与one-offset remap严格对照exact v3.1.1.9 source/binary；
+- `PENDING_B`只表示validated candidate，不允许N15-C remap；只有`CONFIRMED_B`可到remap分支；
+- portable harness 通过5 positive + 28 negative、4个SHA-256 vector、`-Werror`与
+  GCC `-fanalyzer`；
+- exact v3.1.1.9完整dual build、final boot ELF symbol/workspace/四个zero gate全部PASS；
+- generation 17 pending metadata只生成在host candidate目录，factory metadata仍全`0xff`；未写板。
+
+完整记录见
+[N15-C host/source/ELF verification](../../../../progress/verification/2026-08-04-n15-c-host-boot-selection.md)。
+
+## 8. N15-D one-trial confirm/revert（历史 format 1 基线）
+
+N15-D已完成，不改布局或当前板状态：
+
+1. 在N15-C只读selector之上实现portable one-trial controller；
+2. pending A/B完整验证后才append `TRIAL_STARTED`，并必须逐字节read-back成功，才给当前一次boot
+   临时B权限；
+3. reset看到`TRIAL_STARTED`必须回A，`CONFIRMED_B`才稳定选B，`ROLLBACK_A`明确选A；
+4. fault matrix覆盖erase/program/read-back timeout、torn record、dirty gap、sequence overflow和
+   每个mutation边界reset；
+5. physical staging、metadata mutation、selection/remap gate在host/source/ELF收口中保持零；
+   任何板写或remap仍需另行申请owner授权；
+6. 签名、key provisioning 与 anti-rollback 仍需单独决策。
+
+portable harness通过4 positive、113 negative和48个逐chunk reset边界；Boot SRAM writer
+为`0x284` bytes，零XIP literal escape；final Boot/CP ELF及完整exact-v3.1.1.9 dual build均PASS。
+完整记录见
+[N15-D verification](../../../../progress/verification/2026-08-04-n15-d-host-trial.md)。
+
+## 9. N15-E pending publication 与 reclamation（历史 format 1 基线）
+
+N15-E在CP Flash guard下实现portable publication controller：完整验证live A/B和规范化
+`PENDING_B`后才允许mutation；erased、consumed trial、rollback或结构损坏sector可被有界回收，
+trusted旧生命周期要求generation严格递增。4 KiB erase必须read-back全`0xff`，512-byte record按
+16个32-byte chunk逐个program/read-back，最后再次解析并逐字节确认。已有pending/confirmed不会
+被擦除。
+
+host矩阵通过5 positive、142 negative、8个erase和112个program/reset边界，以及`-Werror`、
+GCC `-fanalyzer`、exact v3.1.1.9 contract和normal/validation最终ELF。详见
+[N15-E verification](../../../../progress/verification/2026-08-04-n15-e-host-publication.md)。
+
+## 10. N15-F health policy 与 validation transport
+
+confirm要求trusted `TRIAL_STARTED`、expected uint64 generation、secondary mapping active、AP
+supervisor healthy/fault-free，并让同一supervisor generation/fault count在目标侧连续稳定
+5000 ms（250 ms轮询）；host模型可用1000 ms fixture缩短确定性测试。clock regression、状态
+变化或fault会重置窗口。矩阵通过7 positive、15 negative及5次continuity reset。
+
+独立`cp_nsh_ota + ap_smp_psram` profile把Boot六门置1、CP compile write gate打开，但runtime
+gate保持BSS false。每个mutation命令要求exact `N15-WRITE-<generation>`并在返回时disarm。
+由于0x275000 candidate装不进1 MiB LittleFS，validation profile只在检测到16 MiB PSRAM后使用
+固定volatile窗口：candidate `0x60800000..0x60a75000`、descriptor `0x60a75000`、record
+`0x60a76000`、end `0x60a76200`。normal profile仍是upper-8 boot-tested/unallocated。
+
+WSL2 loader默认dry-run，实际运行还要求target先完成`prepare-transfer`并显式传
+`--watchdog-stopped --execute`；J-Link命令块只有halt/load/verify/go/exit，无reset和Flash命令。
+板端流程不属于当前实现闭环，需在取得明确授权后另行制定；host证据见
+[N15-F verification](../../../../progress/verification/2026-08-04-n15-f-host-validation.md)。
+
+N15-V host准备已完成：target failure points覆盖stage/publish/trial read/write/erase，另有
+candidate PSRAM单字节受限corruption；7 positive/12 negative harness PASS。campaign packer为
+generation 42..57生成16个不同RBL/version/timestamp/metadata身份，逐包verification和loader
+dry-run均PASS；独立campaign verifier再次检查exact fault、path containment、三类unique
+identity并重跑16份pair/transfer/loader dry-run。format 2要求每个case执行controlled power
+cycle；fault case按fail-before callback、quiescent return后断电，明确不声称Flash pulse中途
+brownout。generation 56确认B；generation 57以该B pair/version为base，stage inactive A并确认
+A，固定为terminal case。独立host资格测试另用generation 300..315，未消耗板端generation。见
+[N15-V host verification](../../../../progress/verification/2026-08-04-n15-v-host-fault-injection.md)。
+
+ADR-006 format 2现为当前实现：bank 0 `0x4fb000..0x4fc000`与bank 1
+`0x50a000..0x50b000`交替发布，旧selected bank在新record完整read-back前保持有效；状态族为
+`PENDING_B/TRIAL_B/CONFIRMED_B/ROLLBACK_A`和
+`PENDING_A/TRIAL_A/CONFIRMED_A/ROLLBACK_B`。portable rotation、selector、trial、publish、
+control和health矩阵分别通过22/8、9/4、2/6、5/10、4/8、2/6正/负例或恢复例，Boot/CP共用
+slot-neutral core，validation完整构建通过。上述均为host/source/ELF证据，两个方向仍需板测。
+
+下一步取得fresh owner authority后按既定顺序执行physical staging、publication、remap、
+trial/confirm/rollback、controlled power cycle、timing/wear与retained N14矩阵，再恢复normal
+gates-zero A。授权必须明确完整断电方法；随机时机或Flash pulse中途断电不在当前SOP内。
 
 后续门禁：
 
 | 子阶段 | 工作 | 退出条件 |
 |---|---|---|
-| N15-A | pair bundle + exact RBL/parser | host positive/negative tests PASS；无板写 |
-| N15-B | CP-only `s_app` staging wrapper | 有界写/read-back；A/data/tail零触碰 |
-| N15-C | team boot remap + pair validation | A/B pair均可验证；坏candidate fail-closed |
-| N15-D | one-trial confirm/revert | 未确认自动回退；确认后稳定 |
-| N15-E | reset/corruption/power-loss injection | 固定矩阵无mixed generation |
-| N15-V | full regression + security boundary | 全部通过后才标完整N15 `board-verified` |
+| N15-A | pair bundle + exact RBL/parser | **DONE / host-verified**：2 positive + 13 negative PASS；无板写 |
+| N15-B | CP-only `s_app` staging wrapper | **DONE / host/source/ELF-verified**：2 positive + 21 negative；无板写 |
+| N15-C | team boot remap + pair validation | **DONE / host/source/ELF-verified**：5 positive + 28 negative；四门为零；无板写 |
+| N15-D | one-trial confirm/revert | **DONE / host/source/ELF-verified**：4/113、48 reset boundaries；六门为零；无板写 |
+| N15-E | pending publication/reclamation + fault injection | **DONE / host/source/ELF-verified**：5/142、8 erase、112 program/reset；无板写 |
+| N15-F | health policy + gated validation/transport | **DONE / host/source/ELF-verified**：7/15、5 continuity resets、完整validation与normal rebuild；无板写 |
+| N15-V | deterministic fault campaign + full board regression | **HOST DONE**：7/12、format-2 16 identities、A→B→A独立campaign verifier、16 loader dry-runs；physical reset/power-cycle matrix需fresh authority，全部通过后才标完整N15 `board-verified` |
 
-## 6. 不变量
+## 11. 不变量
 
 - 只使用 official v3.1.1.9；legacy 仅保留，N15 完成后另行决定是否验证。
 - 不修改 official NuttX/apps/SDK source 或 SDK static libraries。
@@ -134,3 +288,5 @@ bootloader、RPTUN layout、BLE GATT、PSRAM 与 factory byte verifier 全部 PA
 - normal sparse update必须使用新 offset，并保留B、LittleFS、`usr_config`与tail。
 - 禁止 chip erase，禁止把历史 ADR-003 journal/scratch 地址重新接回 active build。
 - 禁止运行会使 Windows 卡顿的 `BLEDebug.EXE`。
+- ADR-005 metadata v1只保留为历史回归证据；当前ADR-006 format 2支持双bank、多代inactive-slot
+  A/B轮换，但在两个方向完成实板验证前不得宣称`board-verified`。

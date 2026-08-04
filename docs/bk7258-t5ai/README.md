@@ -6,11 +6,15 @@
 识别 APS128XXO `id=0x8d08/config=0x8d1a` 16 MiB PSRAM，全容量 boot gate、CP/AP 独立 heap、
 AP logical CPU0/CPU1 并发 allocator、SDK deferred timer/self-delete、warm cycle、physical cold、
 factory 首次校准与既有 RPMsg/Bluetooth 回归均闭环；官方 NuttX/apps/SDK 及 SDK 静态库保持只读。
-**当前 Stage N15 进行中，N15-M 已 `board-verified`**：项目采用 ADR-004 official-style
+**当前 Stage N15 进行中，N15-M 已 `board-verified`、N15-A 已 `host-verified`、N15-B/C/D/E/F
+已 `host/source/ELF-verified`、N15-V fault/campaign 已 `host/source/ELF/dry-run-verified`**：项目采用 ADR-004 official-style
 连续 CP/AP A/B 布局，AP XIP 迁至 `0x02150000`，LittleFS 迁至
 `0x600000..0x700000`。一次性两段式迁移和完整保留功能回归、physical RESET 3/3 均通过；
-B 目前只是不可选择 seed，runtime OTA、trial、confirm、rollback 尚未实现。ADR-003
-sector-swap 只保留为历史研究。
+B 目前只是不可选择 seed，新 staging/publication/trial代码尚未写板；normal image六门为零且无
+`bkota`，独立validation profile、目标侧5000 ms health gate（250 ms轮询）和fixed-PSRAM
+transport已通过host/ELF门禁；host模型中的1000 ms仅为加速测试参数。
+target fault 7/12、format-2双bank A→B→A的16份独立包、独立campaign verifier与16次
+loader dry-run均PASS；实板验证需fresh authority后另行定义。ADR-003 sector-swap只保留为历史研究。
 Stage N7 已完成物理 CPU1 独立单核 AP NuttX 板级启动，并完成 CPU0
 间歇性 task-exit HardFault 的四文件 team-overlay 最小修复。Stage N8-A 已把物理 CPU2 作为
 AP logical CPU1 freestanding probe 启动并于 2026-07-29 `board-verified`。Stage N8-B1 也已完成
@@ -31,7 +35,8 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 > 3/3，AP READY/CPU2/SMP gates 全部通过；仅 power cut 未验证。
 >
 > **2026-08-03 N14 closure：**CP 按 official v3.1.1.9 PM vote成为唯一PSRAM硬件owner，AP只
-> 建立role-local heap；保留official低8 MiB布局，实测新增的上8 MiB只做boot-tested/reserved。
+> 建立role-local heap；normal保留official低8 MiB布局，上8 MiB只做boot-tested/unallocated；
+> N15-F另以固定地址做volatile validation transport，不开放allocator。
 > AP双核固定16/16分配回归、CP heap 256/256、timer 256、AP cycle10、physical RESET 3/3、
 > final clean/factory first-calibration/post-calibration cold均PASS。详见
 > [`nuttx-port/prompts/14-n14-psram.md`](nuttx-port/prompts/14-n14-psram.md)。
@@ -71,6 +76,13 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 > evidence index：[`nuttx-port/n14-evidence-index.md`](nuttx-port/n14-evidence-index.md)
 > N15 paired CP/AP OTA（CURRENT，N15-M layout migration `board-verified`）：[`nuttx-port/prompts/15-n15-tier2-ota.md`](nuttx-port/prompts/15-n15-tier2-ota.md)；
 > N15-M evidence：[`../../progress/verification/2026-08-03-n15-migration-board-verification.md`](../../progress/verification/2026-08-03-n15-migration-board-verification.md)；
+> N15-A evidence：[`../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md`](../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md)；
+> N15-B evidence：[`../../progress/verification/2026-08-04-n15-b-host-staging.md`](../../progress/verification/2026-08-04-n15-b-host-staging.md)；
+> N15-C evidence：[`../../progress/verification/2026-08-04-n15-c-host-boot-selection.md`](../../progress/verification/2026-08-04-n15-c-host-boot-selection.md)；
+> N15-D evidence：[`../../progress/verification/2026-08-04-n15-d-host-trial.md`](../../progress/verification/2026-08-04-n15-d-host-trial.md)；
+> N15-E evidence：[`../../progress/verification/2026-08-04-n15-e-host-publication.md`](../../progress/verification/2026-08-04-n15-e-host-publication.md)；
+> N15-F evidence：[`../../progress/verification/2026-08-04-n15-f-host-validation.md`](../../progress/verification/2026-08-04-n15-f-host-validation.md)；
+> N15-V host evidence：[`../../progress/verification/2026-08-04-n15-v-host-fault-injection.md`](../../progress/verification/2026-08-04-n15-v-host-fault-injection.md)；
 > historical ADR-003 source verification：[`nuttx-port/n15-ota-source-verification.md`](nuttx-port/n15-ota-source-verification.md)
 > 小白入门版修复过程：[`nuttx-port/cold-reset-smp-repair-guide.md`](nuttx-port/cold-reset-smp-repair-guide.md)
 > SDK v3.1.1.9 迁移、legacy 回退、ABI 与实板证据：[`nuttx-port/sdk-v3.1.1.9-migration-report.md`](nuttx-port/sdk-v3.1.1.9-migration-report.md)
@@ -118,7 +130,7 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 | **NuttX Stage N12（official Bluetooth IPC + NuttX HCI）** | ✅ **LATEST VERIFIED：`board-verified`（2026-08-02）**：Controller/Host初始化、MAC持久化、真实 RF scan report与RPMsg/RPMsgFS/SMP共存闭环 |
 | **NuttX Stage N13（BLE GAP/GATT Peripheral）** | ✅ `board-verified`（2026-08-03）：四类negative、20/20 uncached重连、BLE 100帧与RPMsg六场景×100/RPMsgFS四档×20主动并发、3/3 cold、最终`25/25/25` lifecycle与`bt_conn.ref=0`全部闭环 |
 | **NuttX Stage N14（PSRAM + SDK timer wrapper）** | ✅ `board-verified`（2026-08-03）：实板16 MiB识别与全容量boot gate；CP 128 KiB/AP 640 KiB独立heap；AP CPU0/CPU1 `16/16`、free稳定；timer 256、AP cycle10、physical cold/factory校准与RPMsg/Bluetooth回归全部闭环 |
-| **NuttX Stage N15（paired CP/AP OTA + rollback）** | **CURRENT / N15-M `board-verified`**：ADR-004 contiguous A/B 已迁移到实板，AP `0x02150000`、LittleFS `0x600000..0x700000`；两段 loader、完整回归和 reset 3/3 PASS。B 仍不可选择，OTA/trial/rollback未实现；下一步 N15-A host bundle/RBL parser |
+| **NuttX Stage N15（paired CP/AP OTA + rollback）** | **CURRENT / N15-M `board-verified`；ADR-006 format-2双bank A→B→A `host/source/ELF/dry-run-verified`**：16份独立包、独立verifier与loader dry-run均PASS。实板仍A-only；physical OTA需fresh authority |
 | MTD / 文件系统 | ✅ board-verified（N5-D6 MTD + N5-D7 LittleFS，/data 挂载） |
 | NuttX Stage N6-A1（SDK integration + 80-slot RAM vectors） | ✅ board-verified（VTOR `0x28000800`，magic slots 64/65 与运行期 vector repair 均通过） |
 | 4295 秒系统时间折返修复 | ✅ board-verified（`CONFIG_SYSTEM_TIME64=y`，uptime 单调增长到 5834.58 秒，无 HF/WDT 复位） |
@@ -126,14 +138,16 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 | GPIO foundation C0 | ✅ board-verified：P9 active-high LED + P29 active-low USERKEY，3 个独立 boot/download、5 次 `bkgpioc0` PASS |
 | GPIO C1/C2 | ✅ board-verified：GPIO_NS source37/IRQ53 与 CPU0 group2 gate 已验证；`/dev/gpio0`/`/dev/gpio1` lower-half 完成，两次连续 falling-edge 命令通过；保留 `CONFIG_DEV_GPIO_NSIGNALS=2` 规避 upstream unregister 缺陷 |
 | 当前门禁 | 新布局已刷板；normal update只能 sparse 写boot/CP/AP并保留B、metadata、LittleFS、`usr_config`、reserved与`0x7fa000`尾区。factory重写需重新授权；只用SDK v3.1.1.9；禁止`BLEDebug.EXE`；官方NuttX/apps/SDK源码与静态库零改动 |
-| Tier-2 bootloader（OTA / A-B failover） | N15进行中；N15-M迁移完成，N15-A RBL/pair bundle是下一步；B writer/remap/trial/rollback仍关闭 |
+| Tier-2 bootloader（OTA / A-B failover） | N15进行中；N15-M、N15-A..F和N15-V format-2 fault/campaign主机/ELF/dry-run收口完成，normal门关闭、validation独立；下一步ordered physical staging/metadata/remap/trial/rollback与受控完整断电矩阵 |
 | 多核后续 | N8 AP SMP、N9 RPTUN/RPMsg与N13 BLE服务层均已板端通过；不切换 BMP、不建立 CPU2第二 peer。Wi-Fi数据面仍未进入已批准范围 |
 
-**N7 构建产物**：`$FW/bk7258-dual/app.bin`（CP，171956 B）、`app1.bin`（AP，64346 B）及
-`bk7258-dual-image.json`。正常更新使用 `bl_crc.bin@0x0-0x11000`、
-`app_crc.bin@0x11000-0x2c9bc`、`app1_crc.bin@0x220000-0x10b16` 三个 segment，保留
-logical `0x100000..0x1fffff` 的 LittleFS；
-`all-app-factory.bin` 会 padding/擦除该数据区。root `$FW/all-app.bin` 继续只是
+**当前 N15 构建产物**：`$FW/bk7258-dual/app.bin`（CP）、`app1.bin`（AP）及
+`bk7258-dual-image.json`。正常 sparse 更新必须以本次 manifest 的 `segments[].bkfil`
+为准；2026-08-04 normal rebuild 为 `bl_crc.bin@0x0-0x11000`、
+`app_crc_flash.bin@0x11000-0xb3000`、`app1_crc_flash.bin@0x165000-0x2e000`，并保留
+B/`s_app`、metadata、`usr_config`、LittleFS `0x600000..0x700000`、reserved 区与
+`0x7fa000..0x800000` official tail。`all-app-factory.bin` 只用于获得 fresh authority
+后的破坏性迁移/恢复，不能替代 normal sparse 更新。root `$FW/all-app.bin` 继续只是
 bootloader + CP 的兼容镜像，不包含 AP；builder 已验证它与 root/manifest CP 一致。
 `$FW = $WORKSPACE/nuttx`，console UART1 460800 8N1。
 
@@ -191,6 +205,13 @@ bootloader + CP 的兼容镜像，不包含 AP；builder 已验证它与 root/ma
 - [nuttx-port/n14-evidence-index.md](nuttx-port/n14-evidence-index.md) —— N14 build、artifact hash、warm/cold/factory及回归原始证据索引
 - [nuttx-port/prompts/15-n15-tier2-ota.md](nuttx-port/prompts/15-n15-tier2-ota.md) —— N15 paired OTA stage、门禁、候选布局和当前handoff
 - [nuttx-port/n15-ota-source-verification.md](nuttx-port/n15-ota-source-verification.md) —— exact v3.1.1.9 RBL/AB/Ghidra/remap/layout源码复核
+- [../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md](../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md) —— N15-A deterministic pair bundle、官方golden vector、真实clean build与负例证据
+- [../../progress/verification/2026-08-04-n15-b-host-staging.md](../../progress/verification/2026-08-04-n15-b-host-staging.md) —— N15-B CP-only staging、2/21故障注入、final ELF与完整构建证据
+- [../../progress/verification/2026-08-04-n15-c-host-boot-selection.md](../../progress/verification/2026-08-04-n15-c-host-boot-selection.md) —— N15-C metadata ABI、A/B selector 5/28、exact remap source/binary与final boot ELF证据
+- [../../progress/verification/2026-08-04-n15-d-host-trial.md](../../progress/verification/2026-08-04-n15-d-host-trial.md) —— N15-D one-trial、confirm/rollback、4/113与48 reset boundaries
+- [../../progress/verification/2026-08-04-n15-e-host-publication.md](../../progress/verification/2026-08-04-n15-e-host-publication.md) —— N15-E publication/reclamation、5/142与mutation边界
+- [../../progress/verification/2026-08-04-n15-f-host-validation.md](../../progress/verification/2026-08-04-n15-f-host-validation.md) —— N15-F health、validation profile与volatile PSRAM transport
+- [../../progress/verification/2026-08-04-n15-format2-symmetric-host.md](../../progress/verification/2026-08-04-n15-format2-symmetric-host.md) —— format-2双bank A→B→A、16份独立包与独立verifier
 - [nuttx-port/n6-bug-4295s-timer-wrap.md](nuttx-port/n6-bug-4295s-timer-wrap.md) —— 约 4295 秒后 `HF` + WDT 重启根因及修复（`CONFIG_SYSTEM_TIME64=y`；源码、ELF 与 5834.58 秒板测均已验证）
 - [nuttx-port/n5-flash-filesystem.md](nuttx-port/n5-flash-filesystem.md) —— Stage N5 flash filesystem worklog（D5 raw flash r/w + D6 MTD + D7 LittleFS，board-verified 2026-07-19）
 - [nuttx-port/n2-nsh-console.md](nuttx-port/n2-nsh-console.md) —— Stage N2 会话记录（boot trace、
@@ -203,7 +224,7 @@ bootloader + CP 的兼容镜像，不包含 AP；builder 已验证它与 root/ma
 - [nuttx-port/n5-flash-filesystem.md](nuttx-port/n5-flash-filesystem.md) —— Stage N5 flash filesystem
   （D0 layout、D1 flash ID、D2 content dump、D3 magic scan、D4 emptiness scan、D5 raw flash r/w、
   D6 MTD lower-half、D7 LittleFS；全链路 board-verified 2026-07-19）
-  - **Current CP/AP Stage handoff：** [nuttx-port/prompts/15-n15-tier2-ota.md](nuttx-port/prompts/15-n15-tier2-ota.md)（N15-M layout migration `board-verified`，N15-A next）；N14功能基线见 [nuttx-port/prompts/14-n14-psram.md](nuttx-port/prompts/14-n14-psram.md)
+  - **Current CP/AP Stage handoff：** [nuttx-port/prompts/15-n15-tier2-ota.md](nuttx-port/prompts/15-n15-tier2-ota.md)（N15-M `board-verified`，N15-A `host-verified`，N15-B/C/D/E/F `host/source/ELF-verified`，N15-V fault/campaign `host/source/ELF/dry-run-verified`，physical board gate next）；N14功能基线见 [nuttx-port/prompts/14-n14-psram.md](nuttx-port/prompts/14-n14-psram.md)
 
 ### 参考
 - [git-worktree-guide.md](git-worktree-guide.md) —— Git worktree 入门、本项目 clean worktree 与 openvela 构建工作区的关系
