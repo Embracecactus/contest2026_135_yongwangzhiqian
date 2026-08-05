@@ -304,13 +304,14 @@ static int bk7258_rptun_mbox_worker(int argc, char *argv[])
             }
         }
 
-      /* The SDK mailbox is an edge-triggered, one-deep transport.  Shared
-       * RPTUN pending words are the level-triggered delivery truth.  Polling
-       * the registered callback from this pinned worker closes the race in
-       * which an accepted mailbox edge is coalesced or missed: a zero notify
-       * consumes any shared incoming bits and also gives the RPTUN wrapper a
-       * chance to re-arm outstanding outgoing bits.  The callback returns
-       * immediately when neither direction is pending.
+      /* The SDK mailbox uses an edge notification over a bounded hardware
+       * FIFO.  Shared RPTUN pending words are the level-triggered delivery
+       * truth.  Polling the registered callback from this pinned worker
+       * closes the race in which an accepted mailbox edge is coalesced or
+       * missed: a zero notify consumes any shared incoming bits and also
+       * gives the RPTUN wrapper a chance to re-arm outstanding outgoing
+       * bits.  The callback returns immediately when neither direction is
+       * pending.
        */
 
       if (ret == -ETIMEDOUT)

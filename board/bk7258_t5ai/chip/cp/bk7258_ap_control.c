@@ -24,6 +24,13 @@
 
 #include <arch/chip/bk7258_amp.h>
 
+#if defined(CONFIG_BK7258_BT_IPC) && defined(CONFIG_BK7258_RPTUN_MBOX)
+#  include <arch/chip/bk7258_bt_ipc.h>
+#endif
+#ifdef CONFIG_BK7258_WIFI_VNET
+#  include <arch/chip/bk7258_wifi.h>
+#endif
+
 #ifdef CONFIG_BK7258_PSRAM
 #  include <arch/chip/bk7258_psram.h>
 #endif
@@ -265,6 +272,61 @@ static bool bk7258_ap_scheduler_online(void)
          cpu2->online_mask == 0x3u;
 }
 
+#ifdef CONFIG_BK7258_WIFI_VNET
+static bool bk7258_ap_wifi_generation_started(void)
+{
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+
+  __asm volatile ("dmb sy" ::: "memory");
+  return bk7258_wifi_controller_active() &&
+         state->magic == BK7258_AP_BOOT_STATE_MAGIC &&
+         state->version == BK7258_AP_BOOT_STATE_VERSION &&
+         state->size == sizeof(*state) && state->generation != 0;
+}
+#endif
+
+#if defined(CONFIG_BK7258_BT_IPC) && defined(CONFIG_BK7258_RPTUN_MBOX)
+static int bk7258_ap_bt_controller_service(uint32_t wanted)
+{
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
+  uint32_t flags;
+
+  if (wanted != BK7258_AP_STATE_READY)
+    {
+      return OK;
+    }
+
+  __asm volatile ("dmb sy" ::: "memory");
+  if (control->magic != BK7258_RPTUN_CONTROL_MAGIC ||
+      control->version != BK7258_RPTUN_CONTROL_VERSION ||
+      control->size != sizeof(*control) ||
+      control->generation != state->generation)
+    {
+      return -EPROTO;
+    }
+
+  flags = __atomic_load_n(&control->flags, __ATOMIC_ACQUIRE);
+  if ((flags & BK7258_RPTUN_FLAG_AP_BT_IPC_READY) == 0 ||
+      (flags & BK7258_RPTUN_FLAG_CP_BT_READY) != 0)
+    {
+      return OK;
+    }
+
+  /* CP bt_ipc was initialized before AP release.  Once AP publishes its
+   * endpoint, acknowledge that both mailbox workers are ready and let AP
+   * issue the official vendor-init command.  The CP SDK bt_ipc worker must
+   * remain the sole caller that starts the Controller; pre-starting it here
+   * creates early HCI/free traffic outside the SDK's ownership sequence.
+   */
+
+  __atomic_fetch_or(&control->flags, BK7258_RPTUN_FLAG_CP_BT_READY,
+                    __ATOMIC_RELEASE);
+  return OK;
+}
+#endif
+
 static int bk7258_ap_wait(uint32_t wanted, uint32_t timeout_ms)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
@@ -287,6 +349,17 @@ static int bk7258_ap_wait(uint32_t wanted, uint32_t timeout_ms)
         {
           state->last_event = event;
         }
+
+#if defined(CONFIG_BK7258_BT_IPC) && defined(CONFIG_BK7258_RPTUN_MBOX)
+      {
+        int ret = bk7258_ap_bt_controller_service(wanted);
+
+        if (ret < 0)
+          {
+            return ret;
+          }
+      }
+#endif
 
       __asm volatile ("dmb sy" ::: "memory");
       if (state->state == wanted)
@@ -608,6 +681,14 @@ int bk7258_ap_start(uint32_t timeout_ms)
       g_bk7258_ap_initialized = true;
     }
 
+#ifdef CONFIG_BK7258_WIFI_VNET
+  if (bk7258_ap_wifi_generation_started())
+    {
+      nxmutex_unlock(&g_bk7258_ap_lock);
+      return -EBUSY;
+    }
+#endif
+
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
   bk7258_ap_supervisor_lifecycle_begin();
 #endif
@@ -629,6 +710,19 @@ int bk7258_ap_stop(uint32_t timeout_ms)
       return ret;
     }
 
+#ifdef CONFIG_BK7258_WIFI_VNET
+  /* The official v3.1.1.9 controller has no supported Wi-Fi deinit path.
+   * Resetting AP alone can therefore strand CP-owned vnet pointers and open
+   * mailbox channels.  Whole-chip reset is the bounded recovery operation.
+   */
+
+  if (bk7258_wifi_controller_active())
+    {
+      nxmutex_unlock(&g_bk7258_ap_lock);
+      return -EBUSY;
+    }
+#endif
+
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
   bk7258_ap_supervisor_lifecycle_begin();
 #endif
@@ -649,6 +743,14 @@ int bk7258_ap_restart(uint32_t timeout_ms)
     {
       return ret;
     }
+
+#ifdef CONFIG_BK7258_WIFI_VNET
+  if (bk7258_wifi_controller_active())
+    {
+      nxmutex_unlock(&g_bk7258_ap_lock);
+      return -EBUSY;
+    }
+#endif
 
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
   bk7258_ap_supervisor_lifecycle_begin();

@@ -167,6 +167,7 @@ int bk7258_bt_hci_initialize(void);
 int bk7258_bt_hci_get_stats(struct bk7258_bt_hci_stats_s *stats);
 #else
 int bk7258_bt_controller_ipc_initialize(void);
+int bk7258_bt_controller_initialize(void);
 #endif
 
 #if defined(CONFIG_BK7258_BT_IPC_TEST) && \

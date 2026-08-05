@@ -73,6 +73,11 @@ endif
 ifeq ($(CONFIG_BK7258_BT_IPC),y)
 EXTRA_LIBS += $(BK_SDK_LIBS_DIR)/libbk_bluetooth.a
 endif
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+EXTRA_LIBS += \
+  $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
+  $(BK_SDK_LIBS_DIR)/libbk_wifi_driver.a
+endif
 EXTRA_LIBS += \
   $(BK_SDK_LIBS_DIR)/libdriver.a \
   $(BK_SDK_LIBS_DIR)/libbk7258_ap.a \
@@ -166,6 +171,17 @@ EXTRA_LIBS += \
   $(BK_SDK_LIBS_DIR)/libcom_phy.a \
   $(BK_SDK_LIBS_DIR)/libwifi.a \
   $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
+  $(BK_SDK_LIBS_DIR)/liblwip_intf_v2_1.a
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+EXTRA_LIBS += \
+  $(BK_SDK_LIBS_DIR)/libcom_phy.a \
+  $(BK_SDK_LIBS_DIR)/libwifi.a \
+  $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
+  $(BK_SDK_LIBS_DIR)/libcontroller_if.a \
+  $(BK_SDK_LIBS_DIR)/libwpa_supplicant-2.10.a \
+  $(BK_SDK_LIBS_DIR)/libpsa_mbedtls.a \
   $(BK_SDK_LIBS_DIR)/liblwip_intf_v2_1.a
 endif
 

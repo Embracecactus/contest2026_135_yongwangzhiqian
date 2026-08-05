@@ -15,7 +15,7 @@
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_BK7258_BT_IPC
+#if defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_WIFI_VNET)
 
 #include <assert.h>
 #include <errno.h>
@@ -32,6 +32,23 @@
 #include <common/bk_err.h>
 #include <components/system.h>
 
+#ifdef CONFIG_BK7258_WIFI_VNET
+#  include <components/event.h>
+#  include <components/netif.h>
+#  include <modules/wifi.h>
+
+/* The public v3.1.1.9 wifi_types.h macro takes the addresses of these
+ * archive-owned objects but the generated declarations were not exported in
+ * the official armino_as_lib header bundle.  Only their addresses cross this
+ * wrapper boundary, so their private structure definitions remain in SDK.
+ */
+
+extern uint8_t g_wifi_os_funcs;
+extern uint8_t g_wifi_os_variable;
+extern void bk7258_os_wifi_malloc_zero_begin(void);
+extern void bk7258_os_wifi_malloc_zero_end(void);
+#endif
+
 /****************************************************************************
  * External Function Prototypes
  ****************************************************************************/
@@ -40,9 +57,13 @@
  * types.  This declaration matches the CP archive selected for this image.
  */
 
+#ifdef CONFIG_BK7258_BT_IPC
 extern int32_t bt_ipc_init(void);
 extern int __real_bk_bluetooth_init(void);
 extern int __real_bk_bluetooth_deinit(void);
+extern void bk7258_os_bt_ipc_init_begin(void);
+extern void bk7258_os_bt_ipc_init_end(void);
+#endif
 
 /* Board-private console ownership recovery from bk7258_serial.c. */
 
@@ -135,16 +156,25 @@ extern int bk_rand(void);
  ****************************************************************************/
 
 static mutex_t g_bk7258_bt_controller_lock = NXMUTEX_INITIALIZER;
+#ifdef CONFIG_BK7258_BT_IPC
 static bool g_bk7258_bt_controller_ipc_ready;
+static bool g_bk7258_bt_controller_ready;
+#endif
+#ifdef CONFIG_BK7258_WIFI_VNET
+static mutex_t g_bk7258_wifi_controller_lock = NXMUTEX_INITIALIZER;
+static bool g_bk7258_wifi_controller_ready;
+#endif
 static bool g_bk7258_bt_phy_adapter_ready;
 static bool g_bk7258_bt_wifi_adapter_ready;
 static bool g_bk7258_bt_calibration_ready;
 static bool g_bk7258_bt_mac_ready;
 static uint8_t g_bk7258_bt_base_mac[BK_MAC_ADDR_LEN];
+#ifdef CONFIG_BK7258_BT_IPC
 static volatile uint32_t g_bk7258_bt_vendor_init_calls;
 static volatile uint32_t g_bk7258_bt_vendor_deinit_calls;
 static volatile int g_bk7258_bt_vendor_init_result;
 static volatile int g_bk7258_bt_vendor_deinit_result;
+#endif
 
 /****************************************************************************
  * Private Types
@@ -253,6 +283,7 @@ static_assert(offsetof(struct bk7258_bt_wifi_phy_funcs_s, exit_low_analog) ==
  * SDK Bluetooth Lifecycle Wrappers
  ****************************************************************************/
 
+#ifdef CONFIG_BK7258_BT_IPC
 int __wrap_bk_bluetooth_init(void)
 {
   int ret;
@@ -286,6 +317,7 @@ int __wrap_bk_bluetooth_deinit(void)
 
   return ret;
 }
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -652,14 +684,132 @@ bk_err_t bk_get_mac(uint8_t *mac, mac_type_t type)
   return BK_OK;
 }
 
+bk_err_t bk_set_base_mac(const uint8_t *mac)
+{
+  bool backup_written;
+  bool net_written;
+
+  if (mac == NULL)
+    {
+      return BK_ERR_NULL_PARAM;
+    }
+
+  if (!bk7258_bt_mac_is_valid(mac))
+    {
+      return BK_ERR_GROUP_MAC;
+    }
+
+  bk7258_bt_mac_initialize();
+  memcpy(g_bk7258_bt_base_mac, mac, BK_MAC_ADDR_LEN);
+  net_written = bk7258_bt_sysnet_write(mac);
+  backup_written = bk7258_bt_mac_write_backup(mac);
+
+  return net_written && backup_written ? BK_OK : BK_FAIL;
+}
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
+#ifdef CONFIG_BK7258_WIFI_VNET
+int bk7258_wifi_controller_initialize(void)
+{
+  wifi_init_config_t config = WIFI_DEFAULT_INIT_CONFIG();
+  bk_err_t sdkret;
+  int ret;
+
+  ret = nxmutex_lock(&g_bk7258_wifi_controller_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bk7258_wifi_controller_ready)
+    {
+      nxmutex_unlock(&g_bk7258_wifi_controller_lock);
+      return OK;
+    }
+
+  /* Follow the official v3.1.1.9 CP startup leaves, but keep NuttX in
+   * charge of startup, scheduling and interrupts.  bk_wifi_init() installs
+   * the complete SDK callback table; the Bluetooth-only reduced callback
+   * table below must never replace it in a Wi-Fi build.
+   */
+
+  if (bk_flash_driver_init() != BK_OK || bk_adc_driver_init() != BK_OK)
+    {
+      ret = -EIO;
+      goto out;
+    }
+
+  if (!g_bk7258_bt_phy_adapter_ready)
+    {
+      bk_phy_adapter_init();
+      bk_rf_adapter_init();
+      g_bk7258_bt_phy_adapter_ready = true;
+    }
+
+  sdkret = bk_event_init();
+  if (sdkret != BK_OK)
+    {
+      ret = -EIO;
+      goto recover_console;
+    }
+
+  sdkret = bk_netif_init();
+  if (sdkret != BK_OK)
+    {
+      ret = -EIO;
+      goto recover_console;
+    }
+
+  bk7258_os_wifi_malloc_zero_begin();
+  sdkret = bk_wifi_init(&config);
+  bk7258_os_wifi_malloc_zero_end();
+  if (sdkret != BK_OK)
+    {
+      ret = -EIO;
+      goto recover_console;
+    }
+
+  g_bk7258_bt_wifi_adapter_ready = true;
+  g_bk7258_bt_calibration_ready = true;
+  __atomic_store_n(&g_bk7258_wifi_controller_ready, true,
+                   __ATOMIC_RELEASE);
+  ret = OK;
+
+recover_console:
+  bk7258_uart_recover_console();
+out:
+  nxmutex_unlock(&g_bk7258_wifi_controller_lock);
+  return ret;
+}
+
+bool bk7258_wifi_controller_active(void)
+{
+  return __atomic_load_n(&g_bk7258_wifi_controller_ready,
+                         __ATOMIC_ACQUIRE);
+}
+#endif
+
+#ifdef CONFIG_BK7258_BT_IPC
 int bk7258_bt_controller_ipc_initialize(void)
 {
   int32_t sdkret;
   int ret;
+
+#ifdef CONFIG_BK7258_WIFI_VNET
+  /* Wi-Fi owns the complete shared RF callback table and must be ready before
+   * Bluetooth controller IPC starts.  This also makes the combined profile's
+   * initialization order independent of the AP boot timing.
+   */
+
+  ret = bk7258_wifi_controller_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
 
   ret = nxmutex_lock(&g_bk7258_bt_controller_lock);
   if (ret < 0)
@@ -680,6 +830,7 @@ int bk7258_bt_controller_ipc_initialize(void)
    * controller asks for its MAC only after RF/calibration startup.
    */
 
+#ifndef CONFIG_BK7258_WIFI_VNET
   if (bk_flash_driver_init() != BK_OK)
     {
       nxmutex_unlock(&g_bk7258_bt_controller_lock);
@@ -718,8 +869,11 @@ int bk7258_bt_controller_ipc_initialize(void)
       (void)bk_cal_if_init();
       g_bk7258_bt_calibration_ready = true;
     }
+#endif
 
+  bk7258_os_bt_ipc_init_begin();
   sdkret = bt_ipc_init();
+  bk7258_os_bt_ipc_init_end();
 
   /* The official CP startup performs the PHY/RF/calibration leaf sequence
    * before it hands the UART to the application.  In the NuttX wrapper the
@@ -744,4 +898,49 @@ int bk7258_bt_controller_ipc_initialize(void)
   return ret;
 }
 
-#endif /* CONFIG_BK7258_BT_IPC */
+int bk7258_bt_controller_initialize(void)
+{
+  int sdkret;
+  int ret;
+
+  ret = nxmutex_lock(&g_bk7258_bt_controller_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bk7258_bt_controller_ready)
+    {
+      ret = OK;
+      goto out;
+    }
+
+  if (!g_bk7258_bt_controller_ipc_ready)
+    {
+      ret = -EAGAIN;
+      goto out;
+    }
+
+  /* This is the official v3.1.1.9 controller startup, delayed only until
+   * the AP has published that its SDK BT mailbox endpoint is ready.  The AP
+   * still issues the normal vendor-init request afterwards; the SDK handles
+   * that second call idempotently and returns through its original ABI.
+   */
+
+  sdkret = __wrap_bk_bluetooth_init();
+  if (sdkret != 0)
+    {
+      ret = -EIO;
+      goto out;
+    }
+
+  g_bk7258_bt_controller_ready = true;
+  ret = OK;
+
+out:
+  nxmutex_unlock(&g_bk7258_bt_controller_lock);
+  return ret;
+}
+#endif
+
+#endif /* CONFIG_BK7258_BT_IPC || CONFIG_BK7258_WIFI_VNET */

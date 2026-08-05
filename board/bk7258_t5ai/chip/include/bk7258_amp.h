@@ -343,7 +343,8 @@ enum bk7258_ap_error_e
   BK7258_AP_ERROR_SUPERVISOR,
   BK7258_AP_ERROR_RPMSGFS,
   BK7258_AP_ERROR_BLUETOOTH,
-  BK7258_AP_ERROR_PSRAM
+  BK7258_AP_ERROR_PSRAM,
+  BK7258_AP_ERROR_WIFI
 };
 
 /* N10 supervisor state is CP-private.  Only the existing heartbeat/epoch

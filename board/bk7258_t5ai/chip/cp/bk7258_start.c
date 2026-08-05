@@ -81,6 +81,12 @@
 #define HEAP_BASE  ((uintptr_t)_ebss + CONFIG_IDLETHREAD_STACKSIZE)
 
 /****************************************************************************
+ * External Data
+ ****************************************************************************/
+
+extern uint32_t _eheap[];
+
+/****************************************************************************
  * Public Data
  ****************************************************************************/
 
@@ -175,6 +181,20 @@ void __start(void)
 
 #ifndef CONFIG_ARCH_SKIP_ZERO_BSS
   for (dest = (uint32_t *)_sbss; dest < (uint32_t *)_ebss; )
+    {
+      *dest++ = 0;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_WIFI_VNET
+  /* The immutable BK7258 v3.1.1.9 Wi-Fi library allocates its LMAC station
+   * table with malloc() and expects the first-use heap contents to be zero.
+   * The official bk7258_bsp.ld therefore includes the complete heap in its
+   * startup zero table.  Reproduce that board-startup ABI before NuttX
+   * initializes the allocator; _eheap is the CP-only 0x2804fffc boundary.
+   */
+
+  for (dest = (uint32_t *)HEAP_BASE; dest < _eheap; )
     {
       *dest++ = 0;
     }

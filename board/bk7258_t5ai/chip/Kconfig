@@ -439,6 +439,38 @@ config BK7258_BT_IPC
 		The initial profile supports HCI command, event and ACL traffic; SCO and
 		ISO are deliberately out of scope.
 
+config BK7258_WIFI_VNET
+	bool "N16 official Beken CP Wi-Fi with AP NuttX network"
+	default n
+	depends on BK7258_RPTUN_MBOX && BK7258_RPTUN
+	depends on !BK7258_AP_CORE || (SMP && NET)
+	select BUILTIN if !BK7258_AP_CORE
+	select NSH_BUILTIN_APPS if !BK7258_AP_CORE
+	---help---
+		Keep the official Beken v3.1.1.9 Wi-Fi controller, RF/PHY,
+		supplicant and mailbox data plane on CP.  On AP, use the official
+		vendor vnet proxy only below a board-owned NuttX wlan0 adapter; the
+		SDK lwIP and FreeRTOS runtimes remain unlinked.
+
+		The first profile is STA-only.  Wi-Fi initialization and all AP-side
+		SDK-facing workers are owned by AP logical CPU0.
+
+config BK7258_WIFI_CONTROL_PRIORITY
+	int "N16 AP Wi-Fi control worker priority"
+	default 100
+	range 1 199
+	depends on BK7258_WIFI_VNET && BK7258_AP_CORE
+	---help---
+		SCHED_FIFO priority for the logical-CPU0 STA control and DHCP worker.
+
+config BK7258_WIFI_CONTROL_STACKSIZE
+	int "N16 AP Wi-Fi control worker stack size"
+	default 6144
+	range 3072 16384
+	depends on BK7258_WIFI_VNET && BK7258_AP_CORE
+	---help---
+		Stack size for the STA control and native NuttX DHCP worker.
+
 config BK7258_BT_IPC_TEST
 	bool "N12 bounded Bluetooth IPC hardware test"
 	default n

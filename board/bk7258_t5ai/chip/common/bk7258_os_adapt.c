@@ -126,6 +126,12 @@
 #define BK7258_TIMER_SERVICE_PRIORITY   (SCHED_PRIORITY_DEFAULT + 10)
 #define BK7258_TIMER_SERVICE_STACKSIZE  3072
 
+/* Official v3.1.1.9 AP sdkconfig value.  NuttX owns the actual allocation;
+ * this is only the requested stack size passed through the SDK static-task
+ * compatibility entry points.
+ */
+
+
 #ifndef CONFIG_BK7258_AP_CORE
 /* The official CP SDK profile prints on UART0, while this board's NuttX
  * console is UART1 (GPIO0/1).  Bluetooth uses bk_get_printf_port() to avoid
@@ -206,6 +212,61 @@ static sq_queue_t g_bk7258_timer_queue;
 static sem_t g_bk7258_timer_sem = SEM_INITIALIZER(0);
 static mutex_t g_bk7258_timer_init_lock = NXMUTEX_INITIALIZER;
 static pid_t g_bk7258_timer_service_pid = -1;
+
+#ifdef CONFIG_BK7258_BT_IPC
+/* The immutable CP and AP BT IPC objects each create one long-lived binary
+ * semaphore during bt_ipc_init().  Keep those objects out of the packet
+ * heaps: a first raw-pointer HCI allocation can otherwise alias the matching
+ * semaphore during the cold generation-1 startup sequence.  The init-scope
+ * flag is asserted only around bt_ipc_init(), so every other SDK semaphore
+ * keeps normal NuttX heap ownership.
+ */
+
+static sem_t g_bk7258_bt_ipc_send_sem;
+static bool g_bk7258_bt_ipc_init_scope;
+static bool g_bk7258_bt_ipc_send_sem_active;
+static pid_t g_bk7258_bt_ipc_init_pid;
+
+/* BT IPC exchanges heap pointers between processors and returns ownership
+ * with HCI_FREE_PKT.  Keep a small, allocation-free tracker around that
+ * narrow SDK call path while Wi-Fi/BT coexistence is being brought up.  It
+ * turns a stale or duplicate cross-core free into evidence instead of
+ * allowing the NuttX heap free list to be corrupted first.
+ */
+
+#define BK7258_BT_HEAP_TRACK_MAGIC  0x42544850u /* "BTHP" */
+#define BK7258_BT_HEAP_TRACK_SLOTS  32u
+
+struct bk7258_bt_heap_track_entry_s
+{
+  void    *pointer;
+  uint32_t size;
+  uint32_t alloc_line;
+  uint32_t free_line;
+  uint32_t alloc_sequence;
+  uint32_t free_sequence;
+  bool     active;
+};
+
+struct bk7258_bt_heap_track_s
+{
+  uint32_t magic;
+  uint32_t sequence;
+  uint32_t active;
+  uint32_t high_water;
+  uint32_t invalid_frees;
+  uint32_t duplicate_allocations;
+  void    *last_invalid_pointer;
+  uint32_t last_invalid_line;
+  struct bk7258_bt_heap_track_entry_s
+    entries[BK7258_BT_HEAP_TRACK_SLOTS];
+};
+
+struct bk7258_bt_heap_track_s g_bk7258_bt_heap_track =
+{
+  .magic = BK7258_BT_HEAP_TRACK_MAGIC
+};
+#endif
 
 /* The official BK7258 SMP SDK implements port_disable_interrupts_flag() with
  * PRIMASK (__get_PRIMASK() + __disable_irq()) and restores the saved PRIMASK
@@ -792,6 +853,49 @@ bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
   return BK_OK;
 }
 
+bk_err_t rtos_smp_create_thread(beken_thread_t *thread, uint8_t priority,
+                                const char *name,
+                                beken_thread_function_t function,
+                                uint32_t stack_size,
+                                beken_thread_arg_t arg)
+{
+  beken_thread_t created = NULL;
+  bk_err_t ret;
+
+  ret = rtos_create_thread(&created, priority, name, function, stack_size,
+                           arg);
+  if (ret != BK_OK)
+    {
+      return ret;
+    }
+
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+  {
+    cpu_set_t cpuset = (cpu_set_t)1u;
+    pid_t pid = (pid_t)(uintptr_t)created;
+
+    /* Vendor AP Wi-Fi callbacks and mailbox queues have one logical owner.
+     * Keep them on AP logical CPU0 while native NuttX networking remains
+     * free to schedule its own work on either logical CPU.
+     */
+
+    if (sched_setaffinity(pid, sizeof(cpuset), &cpuset) < 0)
+      {
+        wlerr("ERROR: Failed to pin SDK thread(%s) to AP CPU0\n", name);
+        task_delete(pid);
+        return BK_FAIL;
+      }
+  }
+#endif
+
+  if (thread)
+    {
+      *thread = created;
+    }
+
+  return BK_OK;
+}
+
 bk_err_t rtos_create_sram_thread(beken_thread_t *thread, uint8_t priority,
                                  const char *name,
                                  beken_thread_function_t function,
@@ -811,6 +915,17 @@ bk_err_t rtos_create_psram_thread(beken_thread_t *thread,
 {
   return rtos_create_thread(thread, priority, name, function,
                             stack_size, arg);
+}
+
+bk_err_t rtos_thread_set_priority(beken_thread_t *thread, int priority)
+{
+  struct sched_param param;
+  pid_t pid;
+
+  pid = thread ? (pid_t)(uintptr_t)*thread : nxsched_getpid();
+  param.sched_priority = SCHED_PRIORITY_DEFAULT + 2 - priority;
+
+  return sched_setparam(pid, &param) == OK ? BK_OK : BK_FAIL;
 }
 
 bk_err_t rtos_delete_thread(beken_thread_t *thread)
@@ -925,8 +1040,28 @@ bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
 {
   sem_t *sem = NULL;
   int ret;
+#ifdef CONFIG_BK7258_BT_IPC
+  bool static_sem = false;
+  bool expected = false;
 
-  sem = kmm_malloc(sizeof(sem_t));
+  if (max_count == 1 && init_count == 1 &&
+      __atomic_load_n(&g_bk7258_bt_ipc_init_scope, __ATOMIC_ACQUIRE) &&
+      __atomic_load_n(&g_bk7258_bt_ipc_init_pid, __ATOMIC_RELAXED) ==
+        nxsched_getpid() &&
+      __atomic_compare_exchange_n(&g_bk7258_bt_ipc_send_sem_active,
+                                  &expected, true, false,
+                                  __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+    {
+      sem = &g_bk7258_bt_ipc_send_sem;
+      static_sem = true;
+    }
+#endif
+
+  if (sem == NULL)
+    {
+      sem = kmm_malloc(sizeof(sem_t));
+    }
+
   if (!sem)
     {
       wlerr("ERROR: Failed to malloc semaphore\n");
@@ -941,7 +1076,17 @@ bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
   else
     {
       wlerr("ERROR: Failed to create semaphore:%d\n", ret);
-      kmm_free(sem);
+#ifdef CONFIG_BK7258_BT_IPC
+      if (static_sem)
+        {
+          __atomic_store_n(&g_bk7258_bt_ipc_send_sem_active, false,
+                           __ATOMIC_RELEASE);
+        }
+      else
+#endif
+        {
+          kmm_free(sem);
+        }
     }
 
   return beken_errno_trans(ret);
@@ -1009,9 +1154,102 @@ bk_err_t rtos_deinit_semaphore(beken_semaphore_t *semaphore)
       wlerr("ERROR: Failed to destroy semaphore:%d\n", ret);
     }
 
-  kmm_free(sem);
+#ifdef CONFIG_BK7258_BT_IPC
+  if (sem == &g_bk7258_bt_ipc_send_sem)
+    {
+      __atomic_store_n(&g_bk7258_bt_ipc_send_sem_active, false,
+                       __ATOMIC_RELEASE);
+    }
+  else
+#endif
+    {
+      kmm_free(sem);
+    }
 
   return beken_errno_trans(ret);
+}
+
+#ifdef CONFIG_BK7258_BT_IPC
+void bk7258_os_bt_ipc_init_begin(void)
+{
+  __atomic_store_n(&g_bk7258_bt_ipc_init_pid, nxsched_getpid(),
+                   __ATOMIC_RELAXED);
+  __atomic_store_n(&g_bk7258_bt_ipc_init_scope, true, __ATOMIC_RELEASE);
+}
+
+void bk7258_os_bt_ipc_init_end(void)
+{
+  __atomic_store_n(&g_bk7258_bt_ipc_init_scope, false, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_bk7258_bt_ipc_init_pid, 0, __ATOMIC_RELAXED);
+}
+#endif
+
+/* The immutable SDK lwIP port uses FreeRTOS binary-semaphore creation only
+ * for its per-thread socket semaphore.  Map that narrow ABI to the same
+ * NuttX semaphore object used by the normal rtos_* wrapper; reject any wider
+ * FreeRTOS queue request instead of linking the SDK FreeRTOS kernel.
+ */
+
+void *xQueueGenericCreate(uint32_t length, uint32_t item_size,
+                          uint8_t queue_type)
+{
+  beken_semaphore_t sem = NULL;
+
+  (void)queue_type;
+  if (length != 1 || item_size != 0 ||
+      rtos_init_semaphore(&sem, 1) != BK_OK)
+    {
+      return NULL;
+    }
+
+  return sem;
+}
+
+void *xQueueCreateMutex(uint8_t queue_type)
+{
+  beken_semaphore_t sem = NULL;
+
+  (void)queue_type;
+  if (rtos_init_semaphore_ex(&sem, 1, 1) != BK_OK)
+    {
+      return NULL;
+    }
+
+  return sem;
+}
+
+int xQueueSemaphoreTake(void *queue, uint32_t ticks_to_wait)
+{
+  beken_semaphore_t sem = queue;
+  uint32_t timeout_ms = ticks_to_wait;
+
+  if (ticks_to_wait == UINT32_MAX)
+    {
+      timeout_ms = BEKEN_WAIT_FOREVER;
+    }
+
+  return rtos_get_semaphore(&sem, timeout_ms) == BK_OK ? 1 : 0;
+}
+
+int xQueueGenericSend(void *queue, const void *item,
+                      uint32_t ticks_to_wait, int copy_position)
+{
+  beken_semaphore_t sem = queue;
+
+  (void)item;
+  (void)ticks_to_wait;
+  (void)copy_position;
+  return rtos_set_semaphore(&sem) == BK_OK ? 1 : 0;
+}
+
+void vQueueDelete(void *queue)
+{
+  beken_semaphore_t sem = queue;
+
+  if (sem)
+    {
+      (void)rtos_deinit_semaphore(&sem);
+    }
 }
 
 /****************************************************************************
@@ -1188,13 +1426,29 @@ bk_err_t rtos_push_to_queue(beken_queue_t *queue, void *message,
   int ret;
   struct mq_adpt_s *mq_adpt = (struct mq_adpt_s *)*queue;
 
-  if (timeout_ms == BEKEN_WAIT_FOREVER || timeout_ms == 0)
+  if (timeout_ms == BEKEN_WAIT_FOREVER)
     {
       ret = file_mq_send(&mq_adpt->mq, (const char *)message,
                          mq_adpt->msgsize, 0);
       if (ret < 0)
         {
           wlerr("Failed to send message to mqueue error=%d\n", ret);
+        }
+    }
+  else if (timeout_ms == 0)
+    {
+      /* BEKEN_NO_WAIT is zero in the official SDK.  file_mq_send() blocks
+       * in task context when the queue is full, so use the tick-based kernel
+       * API with a zero budget.  In interrupt context NuttX also fails with
+       * -EAGAIN instead of sleeping.
+       */
+
+      ret = file_mq_ticksend(&mq_adpt->mq, (const char *)message,
+                             mq_adpt->msgsize, 0, 0);
+      if (ret < 0)
+        {
+          wlerr("Failed to send message to mqueue without waiting error=%d\n",
+                ret);
         }
     }
   else
@@ -1785,8 +2039,190 @@ uint32_t rtos_get_timer_expiry_time(beken_timer_t *timer)
   return remaining;
 }
 
+#if defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE)
+static bool g_bk7258_wifi_zero_malloc;
+static pid_t g_bk7258_wifi_malloc_owner_pid;
+
+extern void *__real_malloc(size_t size);
+
+void *__wrap_malloc(size_t size)
+{
+  void *mem = __real_malloc(size);
+
+  /* The official v3.1.1.9 CP starts Wi-Fi against a fresh, zero-filled
+   * FreeRTOS heap.  Some of its Wi-Fi objects, including the station table,
+   * use malloc() and consume embedded list heads as the previous state
+   * without first clearing the allocation.  NuttX starts Wi-Fi later, so a
+   * returned block can contain payload left by an earlier allocation.
+   * Preserve the official startup contract only for the thread executing
+   * bk_wifi_init().  Other CP threads retain normal NuttX malloc semantics
+   * even while that short initialization window is active.
+   */
+
+  if (mem != NULL &&
+      __atomic_load_n(&g_bk7258_wifi_zero_malloc, __ATOMIC_ACQUIRE) &&
+      __atomic_load_n(&g_bk7258_wifi_malloc_owner_pid,
+                      __ATOMIC_RELAXED) == nxsched_getpid())
+    {
+      memset(mem, 0, size);
+    }
+
+  return mem;
+}
+
+void bk7258_os_wifi_malloc_zero_begin(void)
+{
+  __atomic_store_n(&g_bk7258_wifi_malloc_owner_pid, nxsched_getpid(),
+                   __ATOMIC_RELAXED);
+  __atomic_store_n(&g_bk7258_wifi_zero_malloc, true, __ATOMIC_RELEASE);
+}
+
+void bk7258_os_wifi_malloc_zero_end(void)
+{
+  __atomic_store_n(&g_bk7258_wifi_zero_malloc, false, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_bk7258_wifi_malloc_owner_pid, 0,
+                   __ATOMIC_RELAXED);
+}
+#endif
+
 /* Memory functions — provided here for NuttX (libbk_rtos.a excluded to
  * avoid FreeRTOS-based implementations conflicting with ours). */
+
+#ifdef CONFIG_BK7258_BT_IPC
+static bool bk7258_os_bt_heap_call(const char *func_name)
+{
+  return func_name != NULL && strncmp(func_name, "bt_ipc_", 7) == 0;
+}
+
+static void bk7258_os_bt_heap_alloc(void *pointer, size_t size,
+                                    uint32_t line)
+{
+  struct bk7258_bt_heap_track_entry_s *entry = NULL;
+  struct bk7258_bt_heap_track_entry_s *free_entry = NULL;
+  irqstate_t flags;
+  uint32_t sequence;
+  unsigned int i;
+  bool duplicate = false;
+
+  if (pointer == NULL)
+    {
+      return;
+    }
+
+  flags = enter_critical_section();
+  sequence = ++g_bk7258_bt_heap_track.sequence;
+
+  for (i = 0; i < BK7258_BT_HEAP_TRACK_SLOTS; i++)
+    {
+      struct bk7258_bt_heap_track_entry_s *candidate =
+        &g_bk7258_bt_heap_track.entries[i];
+
+      if (candidate->active && candidate->pointer == pointer)
+        {
+          entry = candidate;
+          duplicate = true;
+          break;
+        }
+
+      if (!candidate->active &&
+          (free_entry == NULL || candidate->pointer == pointer))
+        {
+          free_entry = candidate;
+          if (candidate->pointer == pointer)
+            {
+              /* Prefer the previous slot for the same recycled address. */
+
+              continue;
+            }
+        }
+    }
+
+  if (entry == NULL)
+    {
+      entry = free_entry;
+    }
+
+  if (entry != NULL)
+    {
+      if (!entry->active)
+        {
+          g_bk7258_bt_heap_track.active++;
+          if (g_bk7258_bt_heap_track.active >
+              g_bk7258_bt_heap_track.high_water)
+            {
+              g_bk7258_bt_heap_track.high_water =
+                g_bk7258_bt_heap_track.active;
+            }
+        }
+
+      entry->pointer = pointer;
+      entry->size = (uint32_t)size;
+      entry->alloc_line = line;
+      entry->free_line = 0;
+      entry->alloc_sequence = sequence;
+      entry->free_sequence = 0;
+      entry->active = true;
+    }
+
+  if (duplicate)
+    {
+      g_bk7258_bt_heap_track.duplicate_allocations++;
+    }
+
+  leave_critical_section(flags);
+
+  if (duplicate)
+    {
+      wlerr("ERROR: BT IPC duplicate allocation %p at line %" PRIu32 "\n",
+            pointer, line);
+    }
+}
+
+static bool bk7258_os_bt_heap_free(void *pointer, uint32_t line)
+{
+  struct bk7258_bt_heap_track_entry_s *entry = NULL;
+  irqstate_t flags;
+  uint32_t sequence;
+  unsigned int i;
+
+  if (pointer == NULL)
+    {
+      return true;
+    }
+
+  flags = enter_critical_section();
+  sequence = ++g_bk7258_bt_heap_track.sequence;
+
+  for (i = 0; i < BK7258_BT_HEAP_TRACK_SLOTS; i++)
+    {
+      if (g_bk7258_bt_heap_track.entries[i].active &&
+          g_bk7258_bt_heap_track.entries[i].pointer == pointer)
+        {
+          entry = &g_bk7258_bt_heap_track.entries[i];
+          break;
+        }
+    }
+
+  if (entry != NULL)
+    {
+      entry->free_line = line;
+      entry->free_sequence = sequence;
+      entry->active = false;
+      g_bk7258_bt_heap_track.active--;
+      leave_critical_section(flags);
+      return true;
+    }
+
+  g_bk7258_bt_heap_track.invalid_frees++;
+  g_bk7258_bt_heap_track.last_invalid_pointer = pointer;
+  g_bk7258_bt_heap_track.last_invalid_line = line;
+  leave_critical_section(flags);
+
+  wlerr("ERROR: Refusing stale BT IPC free %p at line %" PRIu32 "\n",
+        pointer, line);
+  return false;
+}
+#endif
 
 void *os_malloc(size_t size)
 {
@@ -1887,10 +2323,20 @@ void *bk_psram_realloc(void *ptr, size_t size)
 void *os_malloc_debug(const char *func_name, int line, size_t size,
                       int need_zero)
 {
+  void *pointer;
+
+  pointer = need_zero ? kmm_zalloc(size) : kmm_malloc(size);
+#ifdef CONFIG_BK7258_BT_IPC
+  if (bk7258_os_bt_heap_call(func_name))
+    {
+      bk7258_os_bt_heap_alloc(pointer, size, (uint32_t)line);
+    }
+#else
   (void)func_name;
   (void)line;
+#endif
 
-  return need_zero ? kmm_zalloc(size) : kmm_malloc(size);
+  return pointer;
 }
 
 void *os_sram_malloc_debug(const char *func_name, int line, size_t size,
@@ -1913,8 +2359,16 @@ void *psram_malloc_debug(const char *func_name, int line, size_t size,
 
 void *os_free_debug(const char *func_name, int line, void *ptr)
 {
+#ifdef CONFIG_BK7258_BT_IPC
+  if (bk7258_os_bt_heap_call(func_name) &&
+      !bk7258_os_bt_heap_free(ptr, (uint32_t)line))
+    {
+      return NULL;
+    }
+#else
   (void)func_name;
   (void)line;
+#endif
 
   os_free(ptr);
   return NULL;
@@ -2221,11 +2675,22 @@ int xTaskResumeAll(void)
  * bk_printf_raw().  Provide NuttX-backed implementations.
  ****************************************************************************/
 
+static bool bk7258_sdk_log_is_sensitive(const char *fmt)
+{
+  return fmt != NULL &&
+         (strstr(fmt, "password") != NULL ||
+          strstr(fmt, "Password") != NULL ||
+          strstr(fmt, "ssid") != NULL ||
+          strstr(fmt, "SSID") != NULL ||
+          strstr(fmt, "psk") != NULL ||
+          strstr(fmt, "PSK") != NULL);
+}
+
 void bk_printf_ext(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
-  if (!g_bk7258_sdk_printf_enabled)
+  if (!g_bk7258_sdk_printf_enabled || bk7258_sdk_log_is_sensitive(fmt))
     {
       return;
     }
@@ -2242,6 +2707,28 @@ void bk_printf_ext(int level, char *tag, const char *fmt, ...)
   va_end(ap);
 }
 
+void bk_vprintf_ext(int level, char *tag, const char *fmt, va_list ap)
+{
+  if (!g_bk7258_sdk_printf_enabled || bk7258_sdk_log_is_sensitive(fmt))
+    {
+      return;
+    }
+
+  (void)level;
+
+  if (tag)
+    {
+      syslog(LOG_INFO, "[%s] ", tag);
+    }
+
+  vsyslog(LOG_INFO, fmt, ap);
+}
+
+char *vTaskName(void)
+{
+  return (char *)getprogname();
+}
+
 /* The official PSRAM driver uses the early/static logging entry point while
  * it is bringing the controller up.  NuttX syslog is already synchronous,
  * so its wrapper has the same behavior as bk_printf_ext().
@@ -2251,7 +2738,7 @@ void bk_printf_static_block(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
-  if (!g_bk7258_sdk_printf_enabled)
+  if (!g_bk7258_sdk_printf_enabled || bk7258_sdk_log_is_sensitive(fmt))
     {
       return;
     }
@@ -2272,7 +2759,7 @@ void bk_printf_raw(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
-  if (!g_bk7258_sdk_printf_enabled)
+  if (!g_bk7258_sdk_printf_enabled || bk7258_sdk_log_is_sensitive(fmt))
     {
       return;
     }
@@ -2289,7 +2776,7 @@ void bk_printf(const char *fmt, ...)
 {
   va_list ap;
 
-  if (!g_bk7258_sdk_printf_enabled)
+  if (!g_bk7258_sdk_printf_enabled || bk7258_sdk_log_is_sensitive(fmt))
     {
       return;
     }

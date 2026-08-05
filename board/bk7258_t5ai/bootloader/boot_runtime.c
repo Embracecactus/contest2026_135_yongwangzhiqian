@@ -32,10 +32,17 @@
 #define REG32(addr) (*(volatile uint32_t *)(uintptr_t)(addr))
 
 #define SYS_BASE                 0x44010000u
+#define SYS_CPU_RUN_STATUS       (SYS_BASE + 0x0cu)
 #define SYS_CPU1_CONTROL         (SYS_BASE + 0x14u)
 #define SYS_CPU2_CONTROL         (SYS_BASE + 0x18u)
 #define SYS_CPU_RESET            (1u << 0)
 #define SYS_CPU_POWER_DOWN       (1u << 1)
+#define SYS_CPU_HALT             (1u << 3)
+#define SYS_CPU1_RUNNING         (1u << 5)
+#define SYS_CPU2_RUNNING         (1u << 6)
+
+#define AP_BOOT_STATE_MAGIC      0x2809f000u
+#define CORE_STOP_WAIT_LOOPS     10000u
 
 #define FLASH_CTRL_BASE          0x4b100000u
 #define FLASH_CONFIG_2C4         (FLASH_CTRL_BASE + 0x2c4u)
@@ -201,22 +208,86 @@ static void boot_early_soc_init(void)
         }
 }
 
-static void boot_secondary_cores_power_down(void)
+static int boot_secondary_core_power_down(uint32_t control,
+                                          uint32_t running_status)
 {
     uint32_t value;
+    uint32_t count;
 
-    value = REG32(SYS_CPU1_CONTROL);
-    value &= ~SYS_CPU_RESET;
-    value |= SYS_CPU_POWER_DOWN;
-    REG32(SYS_CPU1_CONTROL) = value;
+    /* Match the official v3.1.1.9 control ordering instead of combining
+     * reset and power-down in one write.  A power-down request issued while
+     * the core clock is still running can be ignored by BK7258, including
+     * the reset-bit update in the same register transaction.
+     *
+     * reset=0 holds the secondary core in reset; reset=1 releases it.  The
+     * generated SDK field comments state the opposite, but reset_cpuN_core()
+     * and the observed run-status bits make the hardware convention clear.
+     */
 
-    value = REG32(SYS_CPU2_CONTROL);
+    value = REG32(control);
     value &= ~SYS_CPU_RESET;
+    REG32(control) = value;
+    boot_dsb();
+
+    /* The SDK power-off path then gates the core clock before requesting
+     * power-down.  Retain its bounded settling delay in this freestanding
+     * boot context, where no scheduler-backed delay is available.
+     */
+
+    value |= SYS_CPU_HALT;
+    REG32(control) = value;
+    for (count = 0; count < 1000u; count++)
+        {
+            __asm volatile ("nop");
+        }
+
     value |= SYS_CPU_POWER_DOWN;
-    REG32(SYS_CPU2_CONTROL) = value;
+    REG32(control) = value;
+    boot_dsb();
+
+    /* Do not invalidate the old AP session until hardware confirms that the
+     * core is no longer released.  Leaving the session valid is fail-closed:
+     * CP will refuse to overlay a still-running AP generation.
+     */
+
+    for (count = 0; count < CORE_STOP_WAIT_LOOPS; count++)
+        {
+            if ((REG32(SYS_CPU_RUN_STATUS) & running_status) == 0)
+                {
+                    return 1;
+                }
+        }
+
+    return 0;
+}
+
+static void boot_secondary_cores_power_down(void)
+{
+    int cpu1_stopped;
+    int cpu2_stopped;
+
+    /* Stop the SMP secondary before its primary. */
+
+    cpu2_stopped = boot_secondary_core_power_down(SYS_CPU2_CONTROL,
+                                                   SYS_CPU2_RUNNING);
+    cpu1_stopped = boot_secondary_core_power_down(SYS_CPU1_CONTROL,
+                                                   SYS_CPU1_RUNNING);
 
     boot_dsb();
     boot_isb();
+
+    if (cpu1_stopped && cpu2_stopped)
+        {
+            /* A CPU0-only reset preserves shared SRAM.  Once both old AP
+             * cores are held, invalidate the stale APBS generation so the
+             * freshly booted CP may initialize a new RPTUN/BT/Wi-Fi session.
+             * bk7258_ap_state_prepare() clears the remaining shared ABI
+             * before releasing CPU1.
+             */
+
+            REG32(AP_BOOT_STATE_MAGIC) = 0;
+            boot_dsb();
+        }
 }
 
 void boot_reset_prepare(void)

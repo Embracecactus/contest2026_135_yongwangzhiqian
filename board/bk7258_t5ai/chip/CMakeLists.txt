@@ -52,13 +52,22 @@ if(CONFIG_BK7258_AP_SUPERVISOR)
   list(APPEND BK7258_CP_SRCS cp/bk7258_ap_supervisor.c)
 endif()
 
-if(CONFIG_BK7258_BT_IPC)
+if(CONFIG_BK7258_BT_IPC OR CONFIG_BK7258_WIFI_VNET)
   list(APPEND BK7258_CP_SRCS cp/bk7258_bt_controller.c)
-  if(NOT CONFIG_BK7258_AP_CORE)
+  if(CONFIG_BK7258_BT_IPC AND NOT CONFIG_BK7258_AP_CORE)
     target_link_options(
       nuttx PRIVATE
       "LINKER:--wrap=bk_bluetooth_init"
       "LINKER:--wrap=bk_bluetooth_deinit")
+  endif()
+endif()
+
+if(CONFIG_BK7258_WIFI_VNET)
+  list(APPEND BK7258_CP_SRCS common/bk7258_wifi_control.c)
+  if(NOT CONFIG_BK7258_AP_CORE)
+    target_link_options(
+      nuttx PRIVATE
+      "LINKER:--wrap=malloc")
   endif()
 endif()
 
@@ -178,6 +187,12 @@ endif()
 
 if(CONFIG_BK7258_BLE_GATT)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_ble_gatt.c)
+endif()
+
+if(CONFIG_BK7258_WIFI_VNET)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ap/bk7258_wifi.c
+       common/bk7258_wifi_control.c)
 endif()
 
 if(CONFIG_BK7258_BT_IPC_TRACE)

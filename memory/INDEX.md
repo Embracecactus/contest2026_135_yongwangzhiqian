@@ -19,6 +19,7 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 - [ADR-004](decisions/ADR-004-n15-official-contiguous-ab-layout.md): migrate once to the official-style contiguous CP/AP A/B layout, relocate/clear LittleFS, and preserve the calibration tail.
 - [ADR-005](decisions/ADR-005-n15-boot-selector-metadata-v1.md): freeze the append-only metadata v1 ABI, fail-closed A/B validation, and the boundary between a pending candidate and one-trial permission.
 - [ADR-006](decisions/ADR-006-n15-symmetric-dual-bank-ota.md): use two metadata banks and slot-neutral states for safe inactive-slot A/B rotation; the approved minimal board gate now passes, while future writes remain separately authorized.
+- [ADR-007](decisions/ADR-007-n16-cp-radio-ap-nuttx-network.md): keep official Wi-Fi RF/MAC/WPA control on CP and connect the AP proxy to the native NuttX network stack through a repository-owned netdev adapter.
 
 ## Superseded decisions
 

@@ -333,16 +333,16 @@ int bk7258_ap_ipi_primary_initialize(void)
       return -EIO;
     }
 
-  /* Keep the SDK's complete MBOX0 initialization sequence on AP.  The
-   * mailbox-channel wrapper installs one shared physical ISR which routes
-   * zero-length frames to the SMP cross-core handler and nonzero frames to
-   * logical channels.  This CPU0 step also performs the AP-side device/FIFO
-   * setup; it is therefore required even when CP initialized the same
-   * hardware first.  Both images use the official 2/3/3 FIFO partition, so
-   * repeating that idempotent setup does not create a second ISR owner.
+  /* Keep the SDK's complete MBOX0 initialization sequence on the AP primary
+   * physical core.  AP logical CPU0 is BK7258 physical CPU1, so the mailbox
+   * endpoint must be MAILBOX_CPU1.  Passing MAILBOX_CPU0 here would execute
+   * the CP-only global device/FIFO reset after CP has already initialized its
+   * logical channels, which can strand a CP-to-AP response during cold boot.
+   * The mailbox-channel wrapper's shared ISR continues to route zero-length
+   * frames to the SMP handler and nonzero frames to logical channels.
    */
 
-  ret = bk_mailbox_cc_init_on_current_core(MAILBOX_CPU0);
+  ret = bk_mailbox_cc_init_on_current_core(MAILBOX_CPU1);
   if (ret != BK_OK)
     {
       bk7258_ap_ipi_fail(BK7258_AP_IPI_ERROR_SDK_MAILBOX);

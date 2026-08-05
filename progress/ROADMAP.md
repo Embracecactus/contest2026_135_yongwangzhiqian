@@ -2,74 +2,61 @@
 
 Last reviewed: 2026-08-04
 
-## Now
+## Now: N16 Wi-Fi STA data plane
 
-- N15 Tier-2 paired CP/AP OTA is the accepted active MAIN Stage.
-- N15-R1 is source-verified/read-only: exact v3.1.1.9 RBL/AB behavior and remap incompatibility are documented and tool-checked.
-- N15-R2 completed the rejected sector-swap feasibility work. The owner then
-  approved a one-time destructive LittleFS migration and accepted ADR-004:
-  align with the official contiguous primary CP/AP + `s_app` layout instead.
-- N15-M is `board-verified`: the new linker/packer/boot/MTD layout was built,
-  migrated with two bounded loader segments, and passed LittleFS plus the
-  retained N14 board matrix and physical reset 3/3.
-- N15-A is `host-verified`: deterministic pair manifest, exact v3.1.1.9 RBL
-  container/parser, official golden vectors, 2 positive/13 negative cases and
-  a real clean-build bundle all passed without board writes.
-- N15-B is `host/source/ELF-verified`: full-candidate preflight, CP-only Flash
-  guard/staging wrapper, exact-bound sector transactions, final digest, 2
-  positive/21 negative cases and the full dual build passed without board writes.
-- N15-C is `host/source/ELF-verified`: fixed append-only metadata ABI, full
-  A/B pair validation, exact clean-room one-offset remap path, 5 positive/28
-  negative cases, final boot ELF closure and the full dual build passed
-  without board writes.
-- N15-D is `host/source/ELF-verified`: one-trial append/read-back,
-  confirm/rollback, 4 positive/113 negative cases, 48 reset boundaries and
-  final Boot/CP ELF closure passed with all mutation gates closed.
-- N15-E is `host/source/ELF-verified`: pending publication, bounded metadata
-  reclamation, 5 positive/142 negative cases, 8 erase and 112 program/reset
-  boundaries passed without board access.
-- N15-F validation foundation is `host/source/ELF-verified`: the target-side
-  5000 ms AP-supervisor health window with 250 ms polling (the host model uses
-  a 1000 ms fixture), separate gates-on profile, fixed volatile upper-PSRAM
-  transfer ABI, exact-token `bkota` path and dry-run-first WSL2 loader passed.
-  Normal firmware was rebuilt with gates zero and no `bkota`.
-- N15 format-2 symmetric host closure is `host/source/ELF/dry-run-verified`:
-  dual metadata banks and inactive-slot A/B rotation pass their core matrices;
-  16 unique A-to-B-to-A packages pass the independent verifier and loader
-  dry-runs.
-- The minimal physical symmetric lifecycle is `board-verified`: generation 314
-  reached confirmed B through metadata bank 0, generation 315 returned to
-  confirmed A through bank 1, both full-slot read-backs and retained-service
-  regressions passed, and both confirmed-A RTS and complete-power-removal
-  recovery retained the same state with AP, CPU2 and RPTUN healthy.
-- The approved N15 minimal physical scope is complete. Physical rollback and
-  analog mid-pulse brownout are not claimed by the confirm-path run.
-- The board has been restored with the verified normal
-  `cp_nsh_psram + ap_smp_psram` sparse image. Boot/CP A/AP A writes passed;
-  retained LittleFS, AP/CPU2/RPTUN and PSRAM checks passed; `bkota` is absent.
-- Keep `progress/CURRENT.md` aligned with each material result, blocker, architecture decision, commit, push, or deployment.
+- ADR-007 is accepted: CP owns official v3.1.1.9 RF/PHY/MAC/WPA/controller;
+  AP logical CPU0 owns the official Wi-Fi proxy plus a repository-owned
+  adapter to native NuttX `wlan0`, DHCP and sockets.
+- N16-R is active and board-read-only. It must close the exact archive/object
+  dependency graph, vendor pbuf/cpdu/headroom ABI, callback context, pointer
+  ownership, credential-log audit and forbidden-symbol link gates.
+- N16-A will add an idempotent CP shared-radio/controller wrapper without
+  double-initializing the N12 Bluetooth PHY/RF/calibration path.
+- N16-B/C will add the AP CPU0 command worker, minimal pbuf compatibility and
+  NuttX Ethernet netdev seam. The vendor AP lwIP/socket and SDK FreeRTOS
+  implementations must remain absent.
+- N16-D will add dedicated validation profiles and verify STA association,
+  NuttX DHCP, gateway ICMP and local TCP/UDP exchange.
+- N16-E/V will verify AP SMP socket producers and Wi-Fi coexistence with
+  RPTUN/RPMsg, RPMsgFS and Bluetooth, then close the finite board matrix.
 
-## Next
+## Latest completed baseline: N15
 
-- Review and commit only the intended N15 implementation/evidence files; do not
-  mix unrelated dirty worktree content.
-- Select the next MAIN Stage with the owner; do not implicitly start legacy SDK
-  qualification or another destructive board workflow.
+- The official-style contiguous CP/AP A/B layout and ADR-006 symmetric
+  dual-bank selector are merged and board-verified for the approved scope.
+- Generation 314 completed A-to-confirmed-B through bank 0; generation 315
+  completed B-to-confirmed-A through bank 1. Both inactive pairs passed full
+  Flash read-back/SHA and retained N14 services.
+- Confirmed A survived RTS and complete removal of USB and J-Link power. The
+  board was restored with a bounded normal gates-zero sparse image; AP SMP,
+  RPTUN, LittleFS and PSRAM passed and `bkota` is absent.
+- Physical rollback and analog mid-program brownout were not part of the
+  approved minimal N15 board run. Future Flash writes require fresh authority.
 
-## Later
+## Next after N16
 
-- Only after N15 is complete and board-verified on v3.1.1.9 may a separately approved task validate preserved legacy SDK versions.
-- Wi-Fi data plane, signed/authenticated update policy, Bluetooth warm restart,
-  and general upper-8 PSRAM allocator ownership remain separate candidates.
-- Product hardening may include uncontrolled physical power cuts, temperature/voltage stress, long-duration wear, and cache/DMA PSRAM design.
+1. N17: authenticated update policy—signature format, key provisioning,
+   anti-rollback and recovery-key design—after a separate architecture review.
+2. N18: network OTA transport over the N16 native socket path, reusing N15's
+   transport-neutral staging/publication API and N17 authentication policy.
+
+These numbers are planning anchors, not authorization to start either stage.
+
+## Later candidates
+
+- Bluetooth/Wi-Fi warm restart with pointer quiesce and mailbox teardown.
+- General upper-8 MiB PSRAM allocator ownership and cache/DMA policy.
+- Product hardening: uncontrolled power cuts, voltage/temperature stress,
+  long-duration networking and Flash wear characterization.
+- Legacy SDK validation only after the v3.1.1.9 product path is fully complete
+  and the owner requests it explicitly.
 
 ## Explicitly deferred
 
-- The ADR-003 physical-sector swap, scratch/journal ABI, and SRAM copy engine
-  are superseded and must not be enabled.
-- Repeating the N15-M factory migration without fresh owner authority is out
-  of scope; normal development uses bounded sparse updates.
-- Network OTA transport, bootloader self-update, key provisioning, signatures, and anti-rollback are outside N15's first implementation boundary.
-- CPU0 direct 480 MHz, upper-8 PSRAM allocator exposure, and QEMU work remain separate scope.
-
-Priorities beyond the active stage are proposals until the project owner accepts them. Move completed phase detail to `milestones/`.
+- Linking the vendor AP lwIP/socket stack into NuttX.
+- CP-hosted remote sockets or a new RPMsg Ethernet protocol.
+- SoftAP, bridge/repeater, monitor mode, raw injection and Wi-Fi power-save in
+  the first N16 release.
+- Repeating the N15 migration, chip erase, future OTA mutation or destructive
+  board workflow without explicit owner authority.
+- ADR-003 sector-swap, CPU0 direct 480 MHz, QEMU and unrelated debug-SOP work.

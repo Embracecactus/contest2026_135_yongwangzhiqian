@@ -93,8 +93,18 @@ ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
 BK7258_CP_CSRCS += bk7258_ap_supervisor.c
 endif
 
-ifeq ($(CONFIG_BK7258_BT_IPC),y)
+ifneq ($(filter y,$(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
 BK7258_CP_CSRCS += bk7258_bt_controller.c
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+BK7258_CP_CSRCS += bk7258_wifi_control.c
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=malloc
+endif
+endif
+
+ifeq ($(CONFIG_BK7258_BT_IPC),y)
 ifneq ($(CONFIG_BK7258_AP_CORE),y)
 LDFLAGS += --wrap=bk_bluetooth_init --wrap=bk_bluetooth_deinit
 endif
@@ -230,6 +240,11 @@ endif
 
 ifeq ($(CONFIG_BK7258_BLE_GATT),y)
 BK7258_AP_BASE_CSRCS += bk7258_ble_gatt.c
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+BK7258_AP_BASE_CSRCS += bk7258_wifi.c
+BK7258_AP_BASE_CSRCS += bk7258_wifi_control.c
 endif
 
 ifeq ($(CONFIG_BK7258_BT_IPC_TRACE),y)

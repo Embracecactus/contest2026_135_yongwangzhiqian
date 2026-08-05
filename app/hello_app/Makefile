@@ -73,6 +73,15 @@ MAINSRC   += bk7258_bt_test_main.c
 endif
 endif
 
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+PROGNAME  += bkwifi
+PRIORITY  += SCHED_PRIORITY_DEFAULT
+STACKSIZE += 4096
+MAINSRC   += bk7258_wifi_main.c
+endif
+endif
+
 ifeq ($(CONFIG_BK7258_PSRAM_TEST),y)
 ifneq ($(CONFIG_BK7258_AP_CORE),y)
 PROGNAME  += bkpsramtest

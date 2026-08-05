@@ -26,9 +26,13 @@
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
+#include <nuttx/signal.h>
 #include <nuttx/wireless/bluetooth/bt_driver.h>
 
 #include <arch/chip/bk7258_bt_ipc.h>
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+#  include <arch/chip/bk7258_rptun.h>
+#endif
 #ifdef CONFIG_BK7258_BLE_GATT
 #  include <arch/chip/bk7258_ble_gatt.h>
 #endif
@@ -44,7 +48,8 @@
 
 #define BK7258_BT_VENDOR_INIT            0x0001u
 #define BK7258_BT_VENDOR_DEINIT          0x0002u
-#define BK7258_BT_CONTROL_TIMEOUT_MS     5000u
+#define BK7258_BT_CONTROL_TIMEOUT_MS     25000u
+#define BK7258_BT_CP_IPC_READY_MS        30000u
 
 #define BK7258_BT_COMMAND_HEADER_SIZE    3u
 #define BK7258_BT_EVENT_HEADER_SIZE      2u
@@ -103,6 +108,8 @@ extern void bt_ipc_hci_send_acl_data(uint16_t handle_flags, uint8_t *data,
                                      uint16_t length);
 extern void bt_ipc_register_hci_send_callback(
   bk7258_bt_sdk_callback_t callback);
+extern void bk7258_os_bt_ipc_init_begin(void);
+extern void bk7258_os_bt_ipc_init_end(void);
 
 #ifdef CONFIG_BK7258_BT_IPC_TRACE
 struct bt_conn_s;
@@ -225,6 +232,60 @@ static void bk7258_bt_control_sem_drain(struct bk7258_bt_hci_s *priv)
     {
     }
 }
+
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+static int bk7258_bt_wait_cp_ipc_ready(void)
+{
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
+  clock_t start = clock_systime_ticks();
+  clock_t timeout = MSEC2TICK(BK7258_BT_CP_IPC_READY_MS);
+  uint32_t flags;
+
+  __asm volatile ("dmb sy" ::: "memory");
+  if (control->magic != BK7258_RPTUN_CONTROL_MAGIC ||
+      control->version != BK7258_RPTUN_CONTROL_VERSION ||
+      control->size != sizeof(*control) ||
+      control->generation != state->generation)
+    {
+      return -EPROTO;
+    }
+
+  /* Publish the AP endpoint only after bt_ipc_init() and its receive callback
+   * are installed.  CP acknowledges that its matching IPC worker is ready;
+   * the vendor-init request below then starts the Controller through the
+   * official CP bt_ipc message path.
+   */
+
+  __atomic_fetch_or(&control->flags,
+                    BK7258_RPTUN_FLAG_AP_BT_IPC_READY,
+                    __ATOMIC_RELEASE);
+
+  for (;;)
+    {
+      flags = __atomic_load_n(&control->flags, __ATOMIC_ACQUIRE);
+      if ((flags & BK7258_RPTUN_FLAG_CP_BT_READY) != 0)
+        {
+          return OK;
+        }
+
+      __asm volatile ("dmb sy" ::: "memory");
+      if (control->magic != BK7258_RPTUN_CONTROL_MAGIC ||
+          control->generation != state->generation)
+        {
+          return -EPROTO;
+        }
+
+      if ((clock_t)(clock_systime_ticks() - start) >= timeout)
+        {
+          return -ETIMEDOUT;
+        }
+
+      nxsig_usleep(1000);
+    }
+}
+#endif
 
 static int bk7258_bt_control_request(struct bk7258_bt_hci_s *priv,
                                      uint16_t subopcode)
@@ -412,7 +473,19 @@ static int bk7258_bt_open(struct bt_driver_s *driver)
     }
 
   bt_ipc_register_hci_send_callback(bk7258_bt_sdk_receive);
+  bk7258_os_bt_ipc_init_begin();
   bt_ipc_init();
+  bk7258_os_bt_ipc_init_end();
+
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+  ret = bk7258_bt_wait_cp_ipc_ready();
+  if (ret < 0)
+    {
+      bt_ipc_register_hci_send_callback(NULL);
+      nxmutex_unlock(&priv->lock);
+      return ret;
+    }
+#endif
 
   ret = bk7258_bt_control_request(priv, BK7258_BT_VENDOR_INIT);
   if (ret < 0)

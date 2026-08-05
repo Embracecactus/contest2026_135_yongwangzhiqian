@@ -43,6 +43,10 @@
 #include <arch/chip/bk7258_bt_ipc.h>
 #endif
 
+#ifdef CONFIG_BK7258_WIFI_VNET
+#include <arch/chip/bk7258_wifi.h>
+#endif
+
 #ifdef CONFIG_BK7258_FLASH_MTD
 #include <nuttx/mtd/mtd.h>
 #include "bk7258_flash_mtd.h"
@@ -174,15 +178,31 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
 
 int board_app_initialize(uintptr_t arg)
 {
-#ifdef CONFIG_BK7258_AP_CONTROL
-  int apret = bk7258_ap_control_initialize();
+#if defined(CONFIG_BK7258_AP_CONTROL) || \
+    (defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE))
+  int apret = OK;
+#endif
 
+#if defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE)
+  /* CP owns RF/PHY/MAC and must publish the official Wi-Fi controller
+   * mailbox endpoints before AP starts its vnet proxy.
+   */
+
+  apret = bk7258_wifi_controller_initialize();
   if (apret < 0)
     {
-      _err("bk7258: AP control init failed: %d\n", apret);
+      _err("bk7258: Wi-Fi controller init failed: %d\n", apret);
     }
+#endif
 
+#ifdef CONFIG_BK7258_AP_CONTROL
 #ifdef CONFIG_BK7258_BT_IPC
+  /* CP owns the controller side of Bluetooth IPC.  Publish it before AP is
+   * released, just like the Wi-Fi controller endpoints above.  Otherwise a
+   * cold AP can reach its synchronous HCI open while CP is still creating
+   * the peer endpoint; a warm AP restart hides that ordering bug.
+   */
+
   if (apret >= 0)
     {
       apret = bk7258_bt_controller_ipc_initialize();
@@ -194,6 +214,15 @@ int board_app_initialize(uintptr_t arg)
     }
 
 #endif
+
+  if (apret >= 0)
+    {
+      apret = bk7258_ap_control_initialize();
+      if (apret < 0)
+        {
+          _err("bk7258: AP control init failed: %d\n", apret);
+        }
+    }
 #endif
 
 #ifdef CONFIG_BK7258_PSRAM
@@ -266,6 +295,17 @@ int board_app_initialize(uintptr_t arg)
         }
     }
 
+#endif
+
+#ifdef CONFIG_BK7258_WIFI_VNET
+  if (apret >= 0)
+    {
+      apret = bk7258_wifi_control_initialize();
+      if (apret < 0)
+        {
+          _err("bk7258: Wi-Fi control init failed: %d\n", apret);
+        }
+    }
 #endif
 #endif
 

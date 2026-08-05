@@ -1,86 +1,69 @@
 # Current Progress
 
-Last updated: 2026-08-04T19:56:05+08:00
+Last updated: 2026-08-05T21:55:00+08:00
 Updated by: Codex (`maintain-project-memory` checkpoint)
 
 ## Snapshot
 
-- Branch: `feat/bk7258-n15-ota`; published HEAD before this uncommitted
-  checkpoint: `68b943615838eea6a79b25431183c154fee73727`.
-- Sole active SDK: official Beken v3.1.1.9. Its CP/AP wrapper bundles passed
-  their checksum manifests; older SDKs remain preserved and unused.
-- N15 symmetric OTA is physically verified for one complete A-to-B-to-A
-  lifecycle, including both metadata banks, both inactive-pair Flash ranges,
-  trial boots, service regressions, confirmation, COM7 RTS recovery and one
-  post-confirm removal of both USB and J-Link power.
-- The last direct OTA metadata read, after complete power removal, was
-  generation 315, bank 1, confirmed/active A, secondary 0 and runtime gates 0.
-- The board and shared host build tree now both use normal
-  `cp_nsh_psram + ap_smp_psram`. A bounded sparse restore wrote only Boot, CP A
-  and AP A; the ranges exclude B, both metadata banks, `usr_config`, LittleFS,
-  reserved space and the calibration tail. Normal firmware has every OTA gate
-  0 and no `bkota` command.
-- Post-restore AP, logical CPU2, RPTUN, the existing LittleFS probe and PSRAM
-  info all passed. Metadata generation 315 is preserved by the non-overlapping
-  write-set contract; normal firmware intentionally cannot query it by CLI.
-- The final durability gate passed in a capture-only COM11 session after the
-  owner removed both USB and J-Link power. The same generation-315 record and
-  all AP/CPU2/RPTUN health predicates matched; no reset, J-Link Commander or
-  Flash command ran before the acceptance read.
+- Branch: `feat/bk7258-n16-wifi`, based on merged upstream N15 commit
+  `6cee7839cac5b4e1f688a86b1496d67b1bc4608f`.
+- Sole active SDK: official Beken v3.1.1.9. Older SDKs remain preserved and
+  unused.
+- N15's approved physical A-to-B-to-A scope remains complete and merged.
+- N16 is the current MAIN Stage. The owner accepted ADR-007: CP keeps official
+  RF/PHY/MAC/WPA/controller ownership; AP connects the official Wi-Fi proxy to
+  native NuttX `wlan0`, DHCP and sockets through a repository-owned adapter.
+- Dedicated `cp_nsh_wifi + ap_smp_wifi` images now build from checksum-pinned
+  official v3.1.1.9 archives and boot on hardware. The current board runs the
+  Wi-Fi-owner-scoped malloc compatibility image after sparse flash and COM7
+  RTS verification.
+- This checkpoint verifies controller initialization and retained AP/RPTUN
+  health, not STA association, DHCP or socket data-plane closure. `bkwifi
+  status` currently reports `status=0`, `link=0`.
 
-## Implemented and verified
+## N16 verified facts
 
-- ADR-004 contiguous CP/AP A/B layout generated from the project-owned CSV;
-  `usr_config`, relocated LittleFS and the official calibration tail remain
-  outside normal sparse update writes.
-- ADR-006 slot-neutral format-2 rotation with two metadata banks, inactive-pair
-  staging, fail-closed publication, one-trial selection, confirmation and
-  rollback.
-- Separate dry-run-first validation profile with generation-bound operator
-  tokens, initially closed CP runtime gates, bounded upper-PSRAM transfer and
-  deterministic fault hooks.
-- Physical generation 314 A-to-B:
-  full candidate read-back/SHA pass, bank-0 publication, trial B, retained N14
-  service matrix, and confirmed B.
-- Physical generation 315 B-to-A:
-  full candidate read-back/SHA pass, bank-1 publication, trial A, retained N14
-  service matrix, confirmed A, and confirmed-A RTS recovery.
-- Physical defects closed in project-owned code:
-  both Tier-1 watchdogs are fed; J-Link uses independently verified 64 KiB
-  no-reset chunks; publication timeout is 180 seconds; the validation NSH
-  argument limit is 10. Official NuttX/apps/SDK sources were not changed.
-- Full validation and normal builds pass with official v3.1.1.9. Current
-  normal ELF SHA-256 values:
-  - Boot: `04e193c0db43f8c8ee5d361f3e91c8036aa5d5f4f78871eff2bd611e2d43a793`;
-  - CP: `76f17d1a68f5ffb3b89c249c2a8a2a16232c3c9399cb80cd0c6fc78cbbc4c272`;
-  - AP: `6b8e102870e82d971a028cc560f18e67fc9a10d429fd33a555485fbb9086e5cc`.
-- The normal profile is deployed on the board. Its encoded sparse segment
-  SHA-256 values are Boot `3042fb32...173fb`, CP `ac40ea2e...5dc57`, and AP
-  `da640e33...8573e`; all three loader erase/write operations passed.
+- Official vnet roles and mailbox channels remain as recorded in ADR-007 and
+  the N16 worklog. Vendor AP lwIP/socket and SDK FreeRTOS remain excluded;
+  NuttX is the sole intended IP/socket owner.
+- The immutable CP archive assumes selected `malloc()` blocks are zero.
+  Observation-only A/B firmware proved dirty station-table allocations and an
+  RTS-path HardFault with stacked PC `0xaaaaaaaa` and LR in
+  `sta_mgmt_entry_init()` when clearing was disabled.
+- The permanent workaround is now limited to the PID executing
+  `bk_wifi_init()`. Other concurrent CP threads retain normal malloc
+  semantics. The full dual build, loader reboot, COM7 RTS, AP/RPTUN status and
+  a 20-message two-CPU RPMsg run passed after this narrowing.
+- Official CP `wifi_deinit()` is unsupported and AP mailbox deinit is
+  incomplete. AP-only restart while Wi-Fi is active must initially fail closed;
+  whole-chip reset is the recovery boundary.
 
-Primary evidence:
+Canonical documents:
 
+- [N16 worklog and plan](../docs/bk7258-t5ai/nuttx-port/prompts/16-n16-wifi-data-plane.md)
+- [N16 malloc compatibility evidence](verification/2026-08-05-n16-wifi-malloc-compatibility.md)
+- [ADR-007 Wi-Fi ownership](../memory/decisions/ADR-007-n16-cp-radio-ap-nuttx-network.md)
 - [N15 physical symmetric lifecycle](verification/2026-08-04-n15-physical-symmetric-lifecycle.md)
 - [N15 format-2 symmetric host closure](verification/2026-08-04-n15-format2-symmetric-host.md)
-- [N15-M board migration](verification/2026-08-03-n15-migration-board-verification.md)
-
-Onboarding:
-
-- [BK7258/T5-AI beginner porting guide](../docs/bk7258-t5ai/beginner-porting-guide/README.md)
 
 ## Next actions
 
-1. Review the bounded N15 changes/evidence, then commit and push only the
-   intended project files.
-2. Select the next MAIN Stage separately; legacy SDK validation remains
-   deferred until explicitly requested.
+1. Resume the N16 STA path from the verified controller baseline: associate
+   using runtime-only credentials and prove AP-side native NuttX link state.
+2. Close DHCP and native socket traffic without importing vendor AP lwIP.
+3. Run the retained RPMsg/RPMsgFS/Bluetooth coexistence gates under Wi-Fi
+   traffic, then decide the next N16 substage.
 
 ## Open boundaries
 
-- RTS reset and complete VDD removal remain separately labelled evidence; both
-  now pass for the generation-315 confirmed-A state.
-- Hashes, CRC and read-back prove integrity; publisher authentication, key
-  provisioning and anti-rollback are not implemented.
-- No chip erase occurred. The authorized normal restore did not write
-  `usr_config`, LittleFS, B, either metadata bank, reserved spans or the
-  calibration tail.
+- Official NuttX/apps/SDK source and static libraries remain read-only;
+  permanent changes belong to project wrappers. Temporary debug edits must be
+  restored.
+- Wi-Fi-disabled normal profiles must remain unchanged in behavior and link
+  ownership.
+- N16 is STA data-plane work only. Network OTA, publisher authentication,
+  signatures, key provisioning and anti-rollback are outside this stage.
+- SoftAP, Wi-Fi power-save, warm restart, legacy SDK validation, upper-8 PSRAM
+  allocation and QEMU remain deferred.
+- Existing unrelated dirty tools, QEMU, logs and N15 scratch files are owner
+  work and must not be staged with N16.

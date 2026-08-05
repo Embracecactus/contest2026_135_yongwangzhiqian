@@ -12,7 +12,7 @@ BUILD="${WORKSPACE}/build.sh"
 PARTITION_GENERATOR="${SCRIPT_DIR}/gen_bk7258_partitions.py"
 CP_CONFIG_NAME="${CP_CONFIG_NAME:-cp_nsh}"
 case "${CP_CONFIG_NAME}" in
-    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_ota)
+    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_ota|cp_nsh_wifi)
         ;;
     *)
         printf 'build_dual_image: unsupported CP_CONFIG_NAME=%s\n' \
@@ -23,7 +23,7 @@ esac
 CP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${CP_CONFIG_NAME}"
 AP_CONFIG_NAME="${AP_CONFIG_NAME:-ap_smp}"
 case "${AP_CONFIG_NAME}" in
-    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram)
+    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi)
         ;;
     *)
         printf 'build_dual_image: unsupported AP_CONFIG_NAME=%s\n' \
@@ -61,6 +61,17 @@ if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
           "${AP_CONFIG_NAME}" != "ap_smp_ble_gatt" ]]; then
         printf '%s\n' \
             'build_dual_image: N13 BLE GATT configs must be selected as a pair' \
+            >&2
+        exit 2
+    fi
+fi
+
+if [[ "${CP_CONFIG_NAME}" == "cp_nsh_wifi" ||
+      "${AP_CONFIG_NAME}" == "ap_smp_wifi" ]]; then
+    if [[ "${CP_CONFIG_NAME}" != "cp_nsh_wifi" ||
+          "${AP_CONFIG_NAME}" != "ap_smp_wifi" ]]; then
+        printf '%s\n' \
+            'build_dual_image: N16 Wi-Fi configs must be selected as a pair' \
             >&2
         exit 2
     fi
@@ -148,6 +159,12 @@ case "${N15_OTA_VALIDATION}" in
         exit 2
         ;;
 esac
+
+N15_OTA_RUNTIME_PROFILE=false
+if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_ota" ]]; then
+    N15_OTA_RUNTIME_PROFILE=true
+fi
 
 # Keep validation artifacts physically separate from the normal dual-image
 # package.  A later normal build must not silently overwrite the candidate,
@@ -244,55 +261,49 @@ if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
 fi
 python3 "${SCRIPT_DIR}/verify_bk7258_ota_layout.py" \
     "${LAYOUT_VERIFY_ARGS[@]}"
-PAIR_SELF_TEST_ARGS=(--self-test)
-if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
-    PAIR_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+if [[ "${N15_OTA_RUNTIME_PROFILE}" == "true" ]]; then
+    PAIR_SELF_TEST_ARGS=(--self-test)
+    STAGING_SELF_TEST_ARGS=(--self-test)
+    BOOT_SELF_TEST_ARGS=(--self-test)
+    TRIAL_SELF_TEST_ARGS=(--self-test)
+    FORMAT2_SDK_ARGS=()
+    if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+        PAIR_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+        STAGING_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+        BOOT_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+        TRIAL_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+        FORMAT2_SDK_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+    fi
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_pair.py" \
+        "${PAIR_SELF_TEST_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_staging.py" \
+        "${STAGING_SELF_TEST_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_boot.py" \
+        "${BOOT_SELF_TEST_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_trial.py" \
+        "${TRIAL_SELF_TEST_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation.py" \
+        --report "${TMPDIR}/bk7258-ota-rotation.json" \
+        "${FORMAT2_SDK_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_select.py" \
+        --report "${TMPDIR}/bk7258-ota-rotation-select.json" \
+        "${FORMAT2_SDK_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_trial.py" \
+        --report "${TMPDIR}/bk7258-ota-rotation-trial.json" \
+        "${FORMAT2_SDK_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_publish.py" \
+        --report "${TMPDIR}/bk7258-ota-publish.json" \
+        "${FORMAT2_SDK_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_control.py" \
+        --report "${TMPDIR}/bk7258-ota-rotation-control.json" \
+        "${FORMAT2_SDK_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_health.py" \
+        --report "${TMPDIR}/bk7258-ota-health.json" \
+        "${FORMAT2_SDK_ARGS[@]}"
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_fault.py" \
+        --self-test \
+        --output "${TMPDIR}/bk7258-ota-fault.json"
 fi
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_pair.py" \
-    "${PAIR_SELF_TEST_ARGS[@]}"
-STAGING_SELF_TEST_ARGS=(--self-test)
-if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
-    STAGING_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
-fi
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_staging.py" \
-    "${STAGING_SELF_TEST_ARGS[@]}"
-BOOT_SELF_TEST_ARGS=(--self-test)
-if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
-    BOOT_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
-fi
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_boot.py" \
-    "${BOOT_SELF_TEST_ARGS[@]}"
-TRIAL_SELF_TEST_ARGS=(--self-test)
-if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
-    TRIAL_SELF_TEST_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
-fi
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_trial.py" \
-    "${TRIAL_SELF_TEST_ARGS[@]}"
-FORMAT2_SDK_ARGS=()
-if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
-    FORMAT2_SDK_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
-fi
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation.py" \
-    --report "${TMPDIR}/bk7258-ota-rotation.json" \
-    "${FORMAT2_SDK_ARGS[@]}"
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_select.py" \
-    --report "${TMPDIR}/bk7258-ota-rotation-select.json" \
-    "${FORMAT2_SDK_ARGS[@]}"
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_trial.py" \
-    --report "${TMPDIR}/bk7258-ota-rotation-trial.json" \
-    "${FORMAT2_SDK_ARGS[@]}"
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_publish.py" \
-    --report "${TMPDIR}/bk7258-ota-publish.json" \
-    "${FORMAT2_SDK_ARGS[@]}"
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_control.py" \
-    --report "${TMPDIR}/bk7258-ota-rotation-control.json" \
-    "${FORMAT2_SDK_ARGS[@]}"
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_rotation_health.py" \
-    --report "${TMPDIR}/bk7258-ota-health.json" \
-    "${FORMAT2_SDK_ARGS[@]}"
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_fault.py" \
-    --self-test \
-    --output "${TMPDIR}/bk7258-ota-fault.json"
 printf '%s\n' "build_dual_image: rebuilding Tier-1 bootloader"
 make -C "${BOARD_DIR}/bootloader" clean all verify \
     N15_OTA_VALIDATION="${BOOT_GATE_VALUE}"
@@ -324,33 +335,35 @@ save_role ap app1.bin app1_crc.bin
 
 printf '%s\n' "build_dual_image: restoring CPU0/CP build tree"
 build_config "${CP_CONFIG}"
-STAGING_ELF_VERIFY_ARGS=(
-    --elf-only
-    --elf "${TOPDIR}/nuttx"
-    --config "${TOPDIR}/.config"
-)
-if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
-    STAGING_ELF_VERIFY_ARGS+=(--validation-profile)
+if [[ "${N15_OTA_RUNTIME_PROFILE}" == "true" ]]; then
+    STAGING_ELF_VERIFY_ARGS=(
+        --elf-only
+        --elf "${TOPDIR}/nuttx"
+        --config "${TOPDIR}/.config"
+    )
+    if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
+        STAGING_ELF_VERIFY_ARGS+=(--validation-profile)
+    fi
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_staging.py" \
+        "${STAGING_ELF_VERIFY_ARGS[@]}"
+    TRIAL_ELF_VERIFY_ARGS=(
+        --elf-only
+        --boot-elf "${BOARD_DIR}/bootloader/bl.elf"
+        --boot-bin "${BOARD_DIR}/bootloader/bl.bin"
+        --boot-crc "${BOARD_DIR}/bootloader/bl_crc.bin"
+        --cp-elf "${TOPDIR}/nuttx"
+        --cp-config "${TOPDIR}/.config"
+        --output "${TMPDIR}/bk7258-ota-trial.json"
+    )
+    if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+        TRIAL_ELF_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+    fi
+    if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
+        TRIAL_ELF_VERIFY_ARGS+=(--validation-profile)
+    fi
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_trial.py" \
+        "${TRIAL_ELF_VERIFY_ARGS[@]}"
 fi
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_staging.py" \
-    "${STAGING_ELF_VERIFY_ARGS[@]}"
-TRIAL_ELF_VERIFY_ARGS=(
-    --elf-only
-    --boot-elf "${BOARD_DIR}/bootloader/bl.elf"
-    --boot-bin "${BOARD_DIR}/bootloader/bl.bin"
-    --boot-crc "${BOARD_DIR}/bootloader/bl_crc.bin"
-    --cp-elf "${TOPDIR}/nuttx"
-    --cp-config "${TOPDIR}/.config"
-    --output "${TMPDIR}/bk7258-ota-trial.json"
-)
-if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
-    TRIAL_ELF_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
-fi
-if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
-    TRIAL_ELF_VERIFY_ARGS+=(--validation-profile)
-fi
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_trial.py" \
-    "${TRIAL_ELF_VERIFY_ARGS[@]}"
 if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
     VALIDATION_VERIFY_ARGS=(
         --boot-elf "${BOARD_DIR}/bootloader/bl.elf"
@@ -383,18 +396,11 @@ cp "${TMPDIR}"/bootloader.bin "${OUTPUT}/"
 cp "${TMPDIR}"/bootloader.map "${OUTPUT}/"
 cp "${TMPDIR}/bk7258-partitions.json" "${OUTPUT}/"
 cp "${TMPDIR}/bk7258-ab-layout.json" "${OUTPUT}/"
-cp "${TMPDIR}/bk7258-ota-boot.json" "${OUTPUT}/"
-cp "${TMPDIR}/bk7258-ota-trial.json" "${OUTPUT}/"
-cp "${TMPDIR}/bk7258-ota-publish.json" "${OUTPUT}/"
-cp "${TMPDIR}/bk7258-ota-health.json" "${OUTPUT}/"
-cp "${TMPDIR}/bk7258-ota-fault.json" "${OUTPUT}/"
-cp "${TMPDIR}/bk7258-ota-rotation.json" "${OUTPUT}/"
-cp "${TMPDIR}/bk7258-ota-rotation-select.json" "${OUTPUT}/"
-cp "${TMPDIR}/bk7258-ota-rotation-trial.json" "${OUTPUT}/"
-cp "${TMPDIR}/bk7258-ota-rotation-control.json" "${OUTPUT}/"
-if [[ -f "${TMPDIR}/bk7258-ota-validation.json" ]]; then
-    cp "${TMPDIR}/bk7258-ota-validation.json" "${OUTPUT}/"
-fi
+for report in "${TMPDIR}"/bk7258-ota-*.json; do
+    if [[ -f "${report}" ]]; then
+        cp "${report}" "${OUTPUT}/"
+    fi
+done
 for map in "${TMPDIR}"/nuttx-*.map; do
     if [ -f "${map}" ]; then
         cp "${map}" "${OUTPUT}/"
@@ -518,7 +524,8 @@ if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_btipc" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_ota" ]]; then
+      "${CP_CONFIG_NAME}" == "cp_nsh_ota" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_wifi" ]]; then
     python3 "${SCRIPT_DIR}/verify_bk7258_rptun_layout.py" \
         --cp-elf "${OUTPUT}/nuttx-cp.elf" \
         --cp-map "${OUTPUT}/nuttx-cp.map" \
