@@ -43,6 +43,7 @@ static mutex_t g_bk7258_flash_guard = NXMUTEX_INITIALIZER;
 static volatile pid_t g_bk7258_flash_guard_pid = (pid_t)-1;
 static volatile enum bk7258_flash_guard_owner_e
   g_bk7258_flash_guard_owner;
+static volatile unsigned int g_bk7258_flash_guard_depth;
 
 /****************************************************************************
  * Private Functions
@@ -100,6 +101,24 @@ static bool bk7258_flash_guard_range(
     }
 #endif
 
+#ifdef CONFIG_BK7258_OTA_N17_WRITE
+  if (owner == BK7258_FLASH_GUARD_OTA_N17_METADATA)
+    {
+      return bk7258_flash_range(
+               addr, size, BK7258_ROLE_OTA_METADATA_PRIMARY_OFFSET,
+               BK7258_ROLE_OTA_METADATA_PRIMARY_SIZE) ||
+             bk7258_flash_range(
+               addr, size, BK7258_ROLE_OTA_METADATA_MIRROR_OFFSET,
+               BK7258_ROLE_OTA_METADATA_MIRROR_SIZE) ||
+             bk7258_flash_range(
+               addr, size, BK7258_ROLE_OTA_MANIFEST_A_OFFSET,
+               BK7258_ROLE_OTA_MANIFEST_A_SIZE) ||
+             bk7258_flash_range(
+               addr, size, BK7258_ROLE_OTA_MANIFEST_B_OFFSET,
+               BK7258_ROLE_OTA_MANIFEST_B_SIZE);
+    }
+#endif
+
   return false;
 }
 
@@ -125,9 +144,25 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
   if (up_interrupt_context() ||
       (owner != BK7258_FLASH_GUARD_DATA &&
        owner != BK7258_FLASH_GUARD_OTA_STAGING &&
-       owner != BK7258_FLASH_GUARD_OTA_METADATA))
+       owner != BK7258_FLASH_GUARD_OTA_METADATA &&
+       owner != BK7258_FLASH_GUARD_OTA_N17_METADATA))
     {
       return -EINVAL;
+    }
+
+  /* The OTA staging core deliberately holds the guard across one complete
+   * erase/program/readback sector transaction.  Its NuttX MTD child then
+   * enters the same lower-half for the individual operations.  Permit only
+   * this same-task, same-owner nesting; other tasks still block on mutex.
+   */
+
+  if (g_bk7258_flash_guard_pid == nxsched_getpid() &&
+      g_bk7258_flash_guard_owner == owner &&
+      g_bk7258_flash_guard_depth != 0)
+    {
+      g_bk7258_flash_guard_depth++;
+      __asm volatile ("dmb sy" ::: "memory");
+      return OK;
     }
 
 #ifndef CONFIG_BK7258_OTA_STAGING_WRITE
@@ -139,6 +174,13 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
 
 #ifndef CONFIG_BK7258_OTA_TRIAL_WRITE
   if (write_access && owner == BK7258_FLASH_GUARD_OTA_METADATA)
+    {
+      return -EACCES;
+    }
+#endif
+
+#ifndef CONFIG_BK7258_OTA_N17_WRITE
+  if (write_access && owner == BK7258_FLASH_GUARD_OTA_N17_METADATA)
     {
       return -EACCES;
     }
@@ -161,6 +203,7 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
   g_bk7258_flash_guard_owner = write_access ? owner :
                                BK7258_FLASH_GUARD_NONE;
   g_bk7258_flash_guard_pid = nxsched_getpid();
+  g_bk7258_flash_guard_depth = 1;
   __asm volatile ("dmb sy" ::: "memory");
   return OK;
 }
@@ -169,8 +212,17 @@ void bk7258_flash_guard_unlock(void)
 {
   DEBUGASSERT(g_bk7258_flash_guard_pid == nxsched_getpid());
 
+  DEBUGASSERT(g_bk7258_flash_guard_depth != 0);
+  if (g_bk7258_flash_guard_depth > 1)
+    {
+      g_bk7258_flash_guard_depth--;
+      __asm volatile ("dmb sy" ::: "memory");
+      return;
+    }
+
   __asm volatile ("dmb sy" ::: "memory");
   g_bk7258_flash_guard_pid = (pid_t)-1;
   g_bk7258_flash_guard_owner = 0;
+  g_bk7258_flash_guard_depth = 0;
   nxmutex_unlock(&g_bk7258_flash_guard);
 }

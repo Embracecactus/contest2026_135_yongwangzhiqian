@@ -48,6 +48,7 @@
 #endif
 
 #ifdef CONFIG_BK7258_FLASH_MTD
+#include <nuttx/fs/fs.h>
 #include <nuttx/mtd/mtd.h>
 #include "bk7258_flash_mtd.h"
 #endif
@@ -58,6 +59,7 @@
 
 #ifdef CONFIG_BK7258_OTA_STAGING
 #include <arch/chip/bk7258_ota_staging.h>
+#include <arch/chip/bk7258_ota_n17_publish.h>
 #endif
 
 #ifdef CONFIG_BK7258_OTA_TRIAL
@@ -356,9 +358,48 @@ int board_app_initialize(uintptr_t arg)
       bk7258_fs_probe(mtd);
 #endif
 #ifdef CONFIG_BK7258_OTA_STAGING
-      if (bk7258_ota_staging_initialize() < 0)
+      /* Build the two private NuttX MTD image-pair children before exposing
+       * the staging API.  They remain internal (no /dev node); this only
+       * checks the board wrapper's geometry/allocation path and performs no
+       * Flash mutation.
+       */
+
+      if (bk7258_ota_mtd_get(BK7258_OTA_MTD_SLOT_A) == NULL ||
+          bk7258_ota_mtd_get(BK7258_OTA_MTD_SLOT_B) == NULL)
+        {
+          _err("bk7258: N17 OTA MTD partition init failed\n");
+        }
+#ifdef CONFIG_MCUBOOT_BOOTLOADER
+      /* The upstream NuttX MCUboot flash-map backend opens named MTD
+       * devices.  Publish the two already bounds-checked pair partitions
+       * only in the BL2 profile; normal firmware retains its private OTA
+       * interfaces and does not expose executable flash as /dev nodes.
+       */
+      else if (register_mtddriver(CONFIG_MCUBOOT_PRIMARY_SLOT_PATH,
+                                  bk7258_ota_mtd_get(BK7258_OTA_MTD_SLOT_A),
+                                  0600, NULL) < 0 ||
+               register_mtddriver(CONFIG_MCUBOOT_SECONDARY_SLOT_PATH,
+                                  bk7258_ota_mtd_get(BK7258_OTA_MTD_SLOT_B),
+                                  0600, NULL) < 0)
+        {
+          _err("bk7258: MCUboot MTD node registration failed\n");
+        }
+#endif
+      else if (bk7258_ota_staging_initialize() < 0)
         {
           _err("bk7258: N15-B staging init failed\n");
+        }
+      else if (bk7258_ota_n17_mtd_get(
+                 BK7258_OTA_N17_MTD_JOURNAL_PRIMARY) == NULL ||
+               bk7258_ota_n17_mtd_get(
+                 BK7258_OTA_N17_MTD_JOURNAL_MIRROR) == NULL ||
+               bk7258_ota_n17_mtd_get(
+                 BK7258_OTA_N17_MTD_MANIFEST_A) == NULL ||
+               bk7258_ota_n17_mtd_get(
+                 BK7258_OTA_N17_MTD_MANIFEST_B) == NULL ||
+               bk7258_ota_n17_publish_initialize() < 0)
+        {
+          _err("bk7258: N17 format-3 metadata init failed\n");
         }
 #endif
 #ifdef CONFIG_BK7258_OTA_FAULT_INJECTION

@@ -17,6 +17,7 @@
 #include "boot_ota_flash_program.h"
 #include "boot_ota_rotation_select_core.h"
 #include "boot_ota_rotation_trial_core.h"
+#include "boot_n17_select.h"
 #include "boot_sha256.h"
 #include "boot_wdt.h"
 #include "../chip/include/bk7258_partition_layout.h"
@@ -43,6 +44,14 @@
 
 #ifndef BK7258_BOOT_OTA_TRIAL_RUNTIME_GATE
 #  define BK7258_BOOT_OTA_TRIAL_RUNTIME_GATE 0u
+#endif
+
+#ifndef BK7258_BOOT_N17_SELECT_COMPILE_GATE
+#  define BK7258_BOOT_N17_SELECT_COMPILE_GATE 0u
+#endif
+
+#ifndef BK7258_BOOT_N17_SELECT_RUNTIME_GATE
+#  define BK7258_BOOT_N17_SELECT_RUNTIME_GATE 0u
 #endif
 
 #define OTA_REG32(address) (*(volatile uint32_t *)(uintptr_t)(address))
@@ -104,6 +113,14 @@ const uint32_t g_bk7258_boot_ota_trial_compile_gate =
 __attribute__((used))
 const uint32_t g_bk7258_boot_ota_trial_runtime_gate =
   BK7258_BOOT_OTA_TRIAL_RUNTIME_GATE;
+
+__attribute__((used))
+const uint32_t g_bk7258_boot_n17_select_compile_gate =
+  BK7258_BOOT_N17_SELECT_COMPILE_GATE;
+
+__attribute__((used))
+const uint32_t g_bk7258_boot_n17_select_runtime_gate =
+  BK7258_BOOT_N17_SELECT_RUNTIME_GATE;
 
 /* 0x2800d000..0x2800ffff is below the CP application SRAM window and is
  * used only before handoff.  The linker fixes and bounds this 12 KiB area;
@@ -403,6 +420,8 @@ uint32_t boot_ota_select_app(uint32_t primary_app_vector)
   enum bk7258_boot_ota_rotation_state_e next_state;
   uint32_t bank_address;
   uint32_t selected = primary_app_vector;
+  uint8_t n17_slot;
+  int n17_ret;
   int ret;
 
   if (primary_app_vector != CP_APP_VECTOR)
@@ -410,9 +429,56 @@ uint32_t boot_ota_select_app(uint32_t primary_app_vector)
       return 0;
     }
 
+  raw_ops.arg = NULL;
+  raw_ops.read = boot_ota_raw_read;
+  hash_ops.context_size = sizeof(struct boot_sha256_context_s);
+  hash_ops.init = boot_sha256_init;
+  hash_ops.update = boot_sha256_update;
+  hash_ops.final = boot_sha256_final;
+
+  /* N17 observes the policy and both metadata banks before format-2 is
+   * allowed to run.  An erased policy plus no format-3 journal returns zero
+   * and keeps the deployed N15 behavior unchanged.  Any present N17 state
+   * requires its own two gates, cryptographic wrapper and pair hash to pass;
+   * it may never be interpreted as format-2 data.
+   */
+
+  n17_ret = bk7258_boot_n17_select(
+    &raw_ops, g_boot_ota_metadata, g_boot_ota_scratch,
+    g_boot_ota_scratch + BK7258_BOOT_OTA_METADATA_SIZE,
+    sizeof(g_boot_ota_scratch) - BK7258_BOOT_OTA_METADATA_SIZE,
+    boot_gate_read(&g_bk7258_boot_n17_select_compile_gate) != 0 &&
+    boot_gate_read(&g_bk7258_boot_n17_select_runtime_gate) != 0,
+    &n17_slot);
+  if (n17_ret < 0)
+    {
+      boot_ota_clear_workspace();
+      return 0;
+    }
+
+  if (n17_ret > 0)
+    {
+      boot_remap_disable();
+      if (boot_select_slot((enum bk7258_boot_ota_slot_e)n17_slot) < 0)
+        {
+          selected = 0;
+        }
+
+      boot_ota_clear_workspace();
+      return selected;
+    }
+
+  /* N15 and N17 share the fixed pre-handoff workspace.  The N17 probe must
+   * not leave journal bytes that a later format-2 validation could mistake
+   * for scratch state.
+   */
+
+  boot_ota_clear_workspace();
+
   if (boot_gate_read(&g_bk7258_boot_ota_select_compile_gate) == 0 ||
       boot_gate_read(&g_bk7258_boot_ota_select_runtime_gate) == 0)
     {
+      boot_ota_clear_workspace();
       return primary_app_vector;
     }
 
@@ -422,12 +488,6 @@ uint32_t boot_ota_select_app(uint32_t primary_app_vector)
    */
 
   boot_remap_disable();
-  raw_ops.arg = NULL;
-  raw_ops.read = boot_ota_raw_read;
-  hash_ops.context_size = sizeof(struct boot_sha256_context_s);
-  hash_ops.init = boot_sha256_init;
-  hash_ops.update = boot_sha256_update;
-  hash_ops.final = boot_sha256_final;
   ret = bk7258_boot_ota_rotation_select_core(
     &raw_ops, &hash_ops, g_boot_ota_metadata, g_boot_ota_scratch,
     sizeof(g_boot_ota_scratch), &result);

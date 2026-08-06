@@ -21,6 +21,7 @@
 #include <crypto/sha2.h>
 #include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/mtd/mtd.h>
 
 #include <arch/chip/bk7258_ota_staging.h>
 
@@ -28,8 +29,7 @@
 #include <arch/chip/bk7258_ota_fault.h>
 #endif
 
-#include <driver/flash.h>
-
+#include "bk7258_flash_mtd.h"
 #include "bk7258_flash_guard.h"
 #include "bk7258_ota_staging_core.h"
 
@@ -113,6 +113,8 @@ static void bk7258_ota_flash_unlock(void *arg)
 
 static int bk7258_ota_flash_erase(void *arg, uint32_t address)
 {
+  FAR struct mtd_dev_s *mtd;
+  uint32_t offset;
   int ret;
 
   (void)arg;
@@ -125,12 +127,28 @@ static int bk7258_ota_flash_erase(void *arg, uint32_t address)
 #else
   (void)ret;
 #endif
-  return bk_flash_erase_sector(address) == BK_OK ? 0 : -EIO;
+  mtd = address < BK7258_ROLE_SLOT_B_PAIR_OFFSET ?
+    bk7258_ota_mtd_get(BK7258_OTA_MTD_SLOT_A) :
+    bk7258_ota_mtd_get(BK7258_OTA_MTD_SLOT_B);
+  offset = address < BK7258_ROLE_SLOT_B_PAIR_OFFSET ?
+    address - BK7258_ROLE_SLOT_A_CP_OFFSET :
+    address - BK7258_ROLE_SLOT_B_PAIR_OFFSET;
+
+  if (mtd == NULL || offset >= BK7258_ROLE_SLOT_B_PAIR_SIZE ||
+      offset % BK7258_FLASH_ERASE_SIZE != 0)
+    {
+      return -EINVAL;
+    }
+
+  return MTD_ERASE(mtd, offset / BK7258_FLASH_ERASE_SIZE, 1);
 }
 
 static int bk7258_ota_flash_write(void *arg, uint32_t address,
                                   const uint8_t *data, size_t len)
 {
+  FAR struct mtd_dev_s *mtd;
+  uint32_t offset;
+  ssize_t written;
   int ret;
 
   (void)arg;
@@ -143,13 +161,30 @@ static int bk7258_ota_flash_write(void *arg, uint32_t address,
 #else
   (void)ret;
 #endif
-  return bk_flash_write_bytes(address, data, (uint32_t)len) == BK_OK ?
-         0 : -EIO;
+  mtd = address < BK7258_ROLE_SLOT_B_PAIR_OFFSET ?
+    bk7258_ota_mtd_get(BK7258_OTA_MTD_SLOT_A) :
+    bk7258_ota_mtd_get(BK7258_OTA_MTD_SLOT_B);
+  offset = address < BK7258_ROLE_SLOT_B_PAIR_OFFSET ?
+    address - BK7258_ROLE_SLOT_A_CP_OFFSET :
+    address - BK7258_ROLE_SLOT_B_PAIR_OFFSET;
+
+  if (mtd == NULL || offset > BK7258_ROLE_SLOT_B_PAIR_SIZE ||
+      len > BK7258_ROLE_SLOT_B_PAIR_SIZE - offset)
+    {
+      return -EINVAL;
+    }
+
+  written = MTD_WRITE(mtd, offset, len, data);
+  return written == (ssize_t)len ? 0 :
+         written < 0 ? (int)written : -EIO;
 }
 
 static int bk7258_ota_flash_read(void *arg, uint32_t address, uint8_t *data,
                                  size_t len)
 {
+  FAR struct mtd_dev_s *mtd;
+  uint32_t offset;
+  ssize_t read;
   int ret;
 
   (void)arg;
@@ -162,8 +197,21 @@ static int bk7258_ota_flash_read(void *arg, uint32_t address, uint8_t *data,
 #else
   (void)ret;
 #endif
-  return bk_flash_read_bytes(address, data, (uint32_t)len) == BK_OK ?
-         0 : -EIO;
+  mtd = address < BK7258_ROLE_SLOT_B_PAIR_OFFSET ?
+    bk7258_ota_mtd_get(BK7258_OTA_MTD_SLOT_A) :
+    bk7258_ota_mtd_get(BK7258_OTA_MTD_SLOT_B);
+  offset = address < BK7258_ROLE_SLOT_B_PAIR_OFFSET ?
+    address - BK7258_ROLE_SLOT_A_CP_OFFSET :
+    address - BK7258_ROLE_SLOT_B_PAIR_OFFSET;
+
+  if (mtd == NULL || offset > BK7258_ROLE_SLOT_B_PAIR_SIZE ||
+      len > BK7258_ROLE_SLOT_B_PAIR_SIZE - offset)
+    {
+      return -EINVAL;
+    }
+
+  read = MTD_READ(mtd, offset, len, data);
+  return read == (ssize_t)len ? 0 : read < 0 ? (int)read : -EIO;
 }
 
 static const struct bk7258_ota_flash_ops_s g_bk7258_ota_flash_ops =
