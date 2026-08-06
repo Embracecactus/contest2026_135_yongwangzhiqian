@@ -29,6 +29,16 @@ SECTIONS
 
     .rodata : {
         *(.rodata*)
+
+        /* NuttX crypto/ecc.c declares its four P-256 domain constants
+         * without const, although the verifier only reads them.  Keep these
+         * exact, source-verified tables in XIP Flash so Tier-1 still has no
+         * initialized RAM requirement.  No NuttX source is changed.
+         */
+        *(.data.g_curve_p)
+        *(.data.g_curve_b)
+        *(.data.g_curve_n)
+        *(.data.g_curve_g)
     } > FLASH
 
     /* The only raw program primitive executes from SRAM while the on-chip

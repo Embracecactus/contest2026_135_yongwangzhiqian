@@ -28,6 +28,9 @@ LDFLAGS  := $(CPUFLAGS) -T bootloader.tmp -nostdlib -Wl,--gc-sections \
 PARTITION_CSV := ../partitions/bk7258/auto_partitions.csv
 PARTITION_GENERATOR := ../scripts/gen_bk7258_partitions.py
 PARTITION_HEADER := ../chip/include/bk7258_partition_layout.h
+NUTTX_ROOT ?= ../../../../nuttx
+N17_ECC_SOURCE := $(NUTTX_ROOT)/crypto/ecc.c
+N17_ECC_CFLAGS := $(CFLAGS) -I$(NUTTX_ROOT)/include -DFAR=
 
 # The normal image is immutable and fail-closed.  Only the separately named
 # N15 validation package may build a selector whose six const gates are one.
@@ -36,6 +39,15 @@ PARTITION_HEADER := ../chip/include/bk7258_partition_layout.h
 N15_OTA_VALIDATION ?= 0
 ifneq ($(filter $(N15_OTA_VALIDATION),0 1),$(N15_OTA_VALIDATION))
 $(error N15_OTA_VALIDATION must be exactly 0 or 1)
+endif
+
+# This development-only probe executes the N17 reader while leaving the
+# older selector, Flash remap and all programming paths closed.  It is useful
+# on an erased/format-2 board to prove the target-side parser returns to the
+# primary handoff; it is not an authorization to arm N17 metadata.
+N17_READ_PROBE ?= 0
+ifneq ($(filter $(N17_READ_PROBE),0 1),$(N17_READ_PROBE))
+$(error N17_READ_PROBE must be exactly 0 or 1)
 endif
 
 ifeq ($(N15_OTA_VALIDATION),1)
@@ -47,11 +59,19 @@ CFLAGS += -DBK7258_BOOT_OTA_SELECT_COMPILE_GATE=1u \
           -DBK7258_BOOT_OTA_TRIAL_RUNTIME_GATE=1u
 endif
 
+ifeq ($(N17_READ_PROBE),1)
+CFLAGS += -DBK7258_BOOT_N17_SELECT_COMPILE_GATE=1u \
+          -DBK7258_BOOT_N17_SELECT_RUNTIME_GATE=1u \
+          -DBK7258_BOOT_N17_ECC_VECTOR_SELFTEST=1u
+endif
+
 OBJS := start.o boot_main.o boot_clock.o boot_runtime.o boot_ota_select.o \
 	        boot_ota_select_core.o boot_ota_trial_core.o \
 	        boot_ota_rotation_core.o boot_ota_rotation_select_core.o \
 	        boot_ota_rotation_trial_core.o \
 	        boot_ota_flash_program.o boot_ota_staging_core.o boot_sha256.o \
+	        boot_n17_manifest_core.o boot_n17_journal_core.o boot_n17_select.o \
+        boot_n17_ecc_wrapper.o bk7258_ota_n17_release_keys.o nuttx_ecc.o \
 	        boot_libc.o
 
 $(OBJS): $(PARTITION_HEADER)
@@ -114,6 +134,42 @@ boot_ota_staging_core.o: ../chip/cp/bk7258_ota_staging_core.c \
 
 boot_sha256.o: boot_sha256.c boot_sha256.h
 	$(CC) $(CFLAGS) -c $< -o $@
+
+boot_n17_manifest_core.o: boot_n17_manifest_core.c \
+		boot_n17_manifest_core.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+boot_n17_journal_core.o: boot_n17_journal_core.c \
+		boot_n17_journal_core.h boot_n17_manifest_core.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+boot_n17_select.o: boot_n17_select.c boot_n17_select.h \
+		boot_n17_journal_core.h boot_n17_manifest_core.h boot_sha256.h \
+		boot_n17_ecc_wrapper.h boot_ota_select_core.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+boot_n17_ecc_wrapper.o: boot_n17_ecc_wrapper.c boot_n17_ecc_wrapper.h \
+		boot_sha256.h
+	$(CC) $(N17_ECC_CFLAGS) -c $< -o $@
+
+bk7258_ota_n17_release_keys.o: ../chip/common/bk7258_ota_n17_release_keys.c \
+		../chip/include/bk7258_ota_n17_auth.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+nuttx_ecc.raw.o: $(N17_ECC_SOURCE)
+	$(CC) $(N17_ECC_CFLAGS) -c $< -o $@
+
+# NuttX ecc.c keeps the P-256 domain tables as mutable objects even though
+# Tier-1 only reads them.  Relabel just those input sections while producing
+# the repository-local wrapper object: this preserves NuttX source intact and
+# prevents their writable flags from tainting the bootloader .rodata segment.
+nuttx_ecc.o: nuttx_ecc.raw.o
+	$(OBJCOPY) \
+	  --rename-section .data.g_curve_p=.rodata.nuttx_ecc_curve_p,alloc,load,readonly,data,contents \
+	  --rename-section .data.g_curve_b=.rodata.nuttx_ecc_curve_b,alloc,load,readonly,data,contents \
+	  --rename-section .data.g_curve_n=.rodata.nuttx_ecc_curve_n,alloc,load,readonly,data,contents \
+	  --rename-section .data.g_curve_g=.rodata.nuttx_ecc_curve_g,alloc,load,readonly,data,contents \
+	  $< $@
 
 boot_libc.o: boot_libc.c
 	$(CC) $(CFLAGS) -c $< -o $@
