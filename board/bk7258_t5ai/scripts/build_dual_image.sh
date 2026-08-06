@@ -160,6 +160,32 @@ case "${N15_OTA_VALIDATION}" in
         ;;
 esac
 
+# N17_READ_PROBE is deliberately narrower than N15_OTA_VALIDATION: it opens
+# only the N17 reader gates.  Neither B-slot remap nor metadata programming
+# is enabled, and its package is kept separate from the normal image.
+N17_READ_PROBE="${N17_READ_PROBE:-NO}"
+N17_READ_PROBE_ENABLED=false
+N17_READ_PROBE_VALUE=0
+case "${N17_READ_PROBE}" in
+    NO)
+        ;;
+    YES)
+        if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
+            printf '%s\n' \
+                'build_dual_image: N17_READ_PROBE cannot combine with N15 validation' \
+                >&2
+            exit 2
+        fi
+        N17_READ_PROBE_ENABLED=true
+        N17_READ_PROBE_VALUE=1
+        ;;
+    *)
+        printf "build_dual_image: N17_READ_PROBE must be YES or NO, got '%s'\n" \
+            "${N17_READ_PROBE}" >&2
+        exit 2
+        ;;
+esac
+
 N15_OTA_RUNTIME_PROFILE=false
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_ota" ]]; then
@@ -172,6 +198,9 @@ fi
 
 if [[ "${N15_OTA_VALIDATION_ENABLED}" == "true" ]]; then
     OUTPUT="${TOPDIR}/bk7258-dual-ota-validation"
+fi
+if [[ "${N17_READ_PROBE_ENABLED}" == "true" ]]; then
+    OUTPUT="${TOPDIR}/bk7258-dual-n17-read-probe"
 fi
 
 SDK_BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
@@ -306,7 +335,8 @@ if [[ "${N15_OTA_RUNTIME_PROFILE}" == "true" ]]; then
 fi
 printf '%s\n' "build_dual_image: rebuilding Tier-1 bootloader"
 make -C "${BOARD_DIR}/bootloader" clean all verify \
-    N15_OTA_VALIDATION="${BOOT_GATE_VALUE}"
+    N15_OTA_VALIDATION="${BOOT_GATE_VALUE}" \
+    N17_READ_PROBE="${N17_READ_PROBE_VALUE}"
 BOOT_ELF_VERIFY_ARGS=(
     --elf-only
     --boot-elf "${BOARD_DIR}/bootloader/bl.elf"
@@ -507,6 +537,11 @@ N15_OTA_TRIAL_METADATA_MUTATION_ENABLED=${N15_OTA_VALIDATION_ENABLED}
 N15_OTA_CP_RUNTIME_GATES_INITIAL=false
 N15_OTA_FAULT_INJECTION_ENABLED=${N15_OTA_VALIDATION_ENABLED}
 N15_OTA_BOARD_WRITE_AUTHORIZED=false
+N17_READ_PROBE_ENABLED=${N17_READ_PROBE_ENABLED}
+N17_READ_PROBE_GATES=${N17_READ_PROBE_VALUE}
+N17_METADATA_WRITE_ENABLED=false
+N17_POLICY_WRITE_ENABLED=false
+N17_B_SLOT_REMAP_ENABLED=false
 EOF
 
 cp "${OUTPUT}/app.bin" "${TOPDIR}/app.bin"

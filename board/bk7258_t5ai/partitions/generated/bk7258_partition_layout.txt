@@ -1,5 +1,5 @@
-layout_id: bk7258-v3119-ab-c1c42aeac25e712b
-layout_sha256: c1c42aeac25e712ba0f5e74a910806488e21470d9a8c37cc2587b610fb9b1b42
+layout_id: bk7258-v3119-ab-7f14d67587a17bf9
+layout_sha256: 7f14d67587a17bf9d586dd822645c33035ee11015b6c895312d8b09bf55524ed
 sdk_release: v3.1.1.9
 
 kind       offset     end        size       name / role
@@ -11,7 +11,12 @@ data       0x286000   0x4fb000   0x275000   s_app / slot_b_pair
 data       0x4fb000   0x4fc000   0x001000   ota_fina_executive / ota_metadata_primary
 data       0x4fc000   0x50a000   0x00e000   usr_config / vendor_config
 data       0x50a000   0x50b000   0x001000   ota_fina_mirror / ota_metadata_mirror
-unused     0x50b000   0x600000   0x0f5000   -
+data       0x50b000   0x50c000   0x001000   ota_manifest_a / ota_manifest_a
+data       0x50c000   0x50d000   0x001000   ota_manifest_b / ota_manifest_b
+data       0x50d000   0x50e000   0x001000   ota_auth_policy / ota_auth_policy
+unused     0x50e000   0x51d000   0x00f000   -
+code       0x51d000   0x53f000   0x022000   bl2 / bl2
+unused     0x53f000   0x600000   0x0c1000   -
 data       0x600000   0x700000   0x100000   littlefs / littlefs
 unused     0x700000   0x7fa000   0x0fa000   -
 data       0x7fa000   0x7fc000   0x002000   easyflash / easyflash_cp

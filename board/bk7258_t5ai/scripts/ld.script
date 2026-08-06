@@ -50,10 +50,36 @@ EXTERN(bk_int_isr_register)
 
 ENTRY(__start)
 
+/* A MCUboot payload stores its header before the Cortex-M vector table.
+ * Normal BL1-direct images retain the historical origin unchanged.
+ */
+
+#ifdef CONFIG_BK7258_BL2_IMAGE
+#  define BK7258_CP_IMAGE_HEADER_SIZE 0
+#  define BK7258_CP_IMAGE_FLASH_BASE BK7258_ROLE_BL2_XIP_START
+#  define BK7258_CP_IMAGE_FLASH_SIZE BK7258_ROLE_BL2_LOGICAL_SIZE
+#elif defined(CONFIG_BK7258_MCUBOOT_IMAGE)
+#  /* The Cortex-M VTOR masks its low bits according to the vector-table
+#   * size.  This board has 80 entries, so the table needs 0x200-byte
+#   * alignment.  Keep the entire MCUboot header in that alignment gap. */
+#  define BK7258_CP_IMAGE_HEADER_SIZE 0x200
+#  define BK7258_CP_IMAGE_FLASH_BASE BK7258_ROLE_SLOT_A_CP_XIP_START
+#  define BK7258_CP_IMAGE_FLASH_SIZE BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE
+#else
+#  define BK7258_CP_IMAGE_HEADER_SIZE 0
+#  define BK7258_CP_IMAGE_FLASH_BASE BK7258_ROLE_SLOT_A_CP_XIP_START
+#  define BK7258_CP_IMAGE_FLASH_SIZE BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE
+#endif
+
+#define BK7258_CP_IMAGE_FLASH_ORIGIN \
+  (BK7258_CP_IMAGE_FLASH_BASE + BK7258_CP_IMAGE_HEADER_SIZE)
+#define BK7258_CP_IMAGE_FLASH_LENGTH \
+  (BK7258_CP_IMAGE_FLASH_SIZE - BK7258_CP_IMAGE_HEADER_SIZE)
+
 MEMORY
 {
-    FLASH (rx)  : ORIGIN = BK7258_ROLE_SLOT_A_CP_XIP_START,
-                  LENGTH = BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE
+    FLASH (rx)  : ORIGIN = BK7258_CP_IMAGE_FLASH_ORIGIN,
+                  LENGTH = BK7258_CP_IMAGE_FLASH_LENGTH
     RAM   (rwx) : ORIGIN = 0x28010000, LENGTH = 0x040000
 }
 
@@ -74,7 +100,8 @@ _estack = ORIGIN(RAM) + LENGTH(RAM) - 4;
 
 SECTIONS
 {
-    /* Vector table FIRST, pinned at 0x02010000.  KEEP() prevents the
+    /* Vector table FIRST, pinned at the direct-BL1 address or immediately
+     * after the MCUboot header.  KEEP() prevents the
      * linker from GC'ing it; . = ORIGIN(FLASH) pins the address.
      */
     . = ORIGIN(FLASH);

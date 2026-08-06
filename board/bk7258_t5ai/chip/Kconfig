@@ -20,6 +20,7 @@ config ARCH_CHIP_BK7258
 	bool "Beken BK7258 (T5-AI tri-core Cortex-M33)"
 	depends on ARCH_CHIP_CUSTOM
 	select ARCH_CORTEXM33
+	select ARCH_HAVE_TRUSTZONE
 	select ARCH_HAVE_FPU
 	select ARCH_HAVE_CUSTOM_VECTORS
 	select ARCH_RAMVECTORS
@@ -36,6 +37,12 @@ config ARCH_CHIP_BK7258
 		keeps the BK7236 boot magic at vector slots 64/65; the optional
 		CPU1/AP image uses a normal 80-entry __vector_core0_table.
 
+		TrustZone remains disabled for the ordinary direct-boot layout.  The
+		board selects the generic NuttX capability so a separate secureboot
+		profile can build CP as a Non-Secure image after Beken BL2/TF-M has
+		configured the platform.  Enabling the choice alone neither changes
+		the current image nor programs any security fuse.
+
 config BK7258_AP_CORE
 	bool "Build the physical CPU1 AP NuttX image"
 	default n
@@ -48,6 +55,27 @@ config BK7258_AP_CORE
 		AP logical CPU0.  The ap_up configuration remains a single-core NuttX
 		baseline with a freestanding CPU2 probe.  AP SMP is enabled only by the
 		separate BK7258_AP_SMP_BOOTSTRAP option and configs/ap_smp.
+
+config BK7258_MCUBOOT_IMAGE
+	bool "Build CP application as an MCUboot payload"
+	default n
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && !MCUBOOT_BOOTLOADER
+	---help---
+		Reserve the standard 32-byte MCUboot header before the CP vector table.
+		The resulting NuttX binary is a payload, not a direct BL1 application:
+		it must be signed by MCUboot imgtool and is entered through
+		board_boot_image().  This changes neither the Beken SDK nor NuttX
+		sources and is deliberately separate from the MCUboot BL2 profile.
+
+config BK7258_BL2_IMAGE
+	bool "Relocate the NuttX MCUboot BL2 to its dedicated partition"
+	default n
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && MCUBOOT_BOOTLOADER
+	---help---
+		Link the NuttX MCUboot bootloader at the project-owned ``bl2``
+		partition rather than at the primary CP application address.  BL1 then
+		validates and enters this ordinary BK7236-magic NuttX image, while BL2
+		owns the separate primary/secondary CP application slots.
 
 config BK7258_AP_SMP_BOOTSTRAP
 	bool "N8-B1 AP SMP secondary bootstrap"
@@ -658,9 +686,14 @@ config BK7258_OTA_STAGING
 	default n
 	depends on BK7258_FLASH_MTD && !BK7258_AP_CORE
 	select CRYPTO
+	select MTD_PARTITION
+	select MTD_BYTE_WRITE
 	---help---
 		Compile the team-owned N15-B descriptor/RBL/CRC/SHA-256 validator and
-		bounded inactive-slot staging state machine.  The CP Flash guard
+		bounded inactive-slot staging state machine.  The SDK Flash lower-half
+		is split by NuttX mtd_partition() into private A/B CP/AP-pair MTD
+		children, so staging does not use raw SDK address writes.  The CP Flash
+		guard
 		serializes each 4 KiB transaction with LittleFS and dynamically admits
 		exactly A or B according to the current remap state.  This option cannot
 		write Flash: the separate compile write gate is still off and the
@@ -715,6 +748,17 @@ config BK7258_OTA_TRIAL_WRITE
 		runtime gate still initializes false and no normal-profile NSH command
 		enables it.  Keep disabled through host/source/ELF closure and require
 		fresh owner authority before any board-write build or test.
+
+config BK7258_OTA_N17_WRITE
+	bool "N17 compile gate for signed Manifest and journal mutation"
+	default n
+	depends on BK7258_OTA_STAGING && BK7258_OTA_STAGING_WRITE
+	---help---
+		Allow the private N17 MTD children to mutate only the two lifecycle
+		journal sectors and two signed-Manifest sectors.  It never admits the
+		one-way authentication-policy sector.  Runtime publication remains
+		disabled until a later, explicitly authorised release path exists.
+		Keep this disabled for normal builds and all current board tests.
 
 config BK7258_OTA_VALIDATION
 	bool "N15-F validation-only OTA command (destructive)"

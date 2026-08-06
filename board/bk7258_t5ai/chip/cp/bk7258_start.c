@@ -65,12 +65,18 @@
 #define BK7258_APB_WDT_KEY1      (0x5au << 16)
 #define BK7258_APB_WDT_KEY2      (0xa5u << 16)
 
-/* Our vector table lives at the very start of the app image, which the
- * bootloader maps at logical flash address 0x02010000.  Tell VTOR to
- * fetch exceptions from there.
+/* The direct BL1 image starts at CP flash base.  A MCUboot payload reserves
+ * its standard header before the vector table, and the linker uses the same
+ * offset.  Tell VTOR to fetch exceptions from the actual vector location.
  */
 
-#define BK7258_VTOR_VALUE        BK7258_CP_FLASH_ADDR
+#ifdef CONFIG_BK7258_BL2_IMAGE
+#  define BK7258_VTOR_VALUE      BK7258_ROLE_BL2_XIP_START
+#elif defined(CONFIG_BK7258_MCUBOOT_IMAGE)
+#  define BK7258_VTOR_VALUE      (BK7258_CP_FLASH_ADDR + 0x200u)
+#else
+#  define BK7258_VTOR_VALUE      BK7258_CP_FLASH_ADDR
+#endif
 
 /* Heap base convention shared with mps_start.c / bk7258_allocateheap.c:
  * the IDLE thread stack sits at the top of .bss and is CONFIG_IDLETHREAD_
@@ -122,8 +128,9 @@ void __start(void)
 
   __asm volatile ("cpsid i");
 
-  /* 2. Point VTOR at our flash-resident vector table (0x02010000).  The
-   *    bootloader may or may not have set this; make it deterministic.
+  /* 2. Point VTOR at our flash-resident vector table.  The MCUboot image
+   *    reserves a 0x200-byte, VTOR-alignment-sized header before that table.
+   *    The bootloader may or may not have set this; make it deterministic.
    *    Barrier so subsequent exception entry observes the new VTOR.
    */
 

@@ -47,9 +47,29 @@ if [ ! -f "${PARTITION_GENERATOR}" ]; then
 fi
 
 python3 "${PARTITION_GENERATOR}" --check
+
+# BL2 is an ordinary, direct-BL1 NuttX image in its own sparse partition.
+# Unlike a CP application payload it has no MCUboot header and cannot be
+# concatenated after BL1: the two physical segments are deliberately apart.
+IS_BL2=0
+if [ "${ROLE}" = "cp" ] && grep -qx 'CONFIG_BK7258_BL2_IMAGE=y' "${TOPDIR}/.config"; then
+    PARTITION_ROLE="bl2"
+    IS_BL2=1
+fi
+
 XIP_BASE="$(python3 "${PARTITION_GENERATOR}" --get "${PARTITION_ROLE}.xip_start")"
 MAX_SIZE="$(python3 "${PARTITION_GENERATOR}" --get "${PARTITION_ROLE}.logical_size")"
 PHYSICAL_OFFSET="$(python3 "${PARTITION_GENERATOR}" --get "${PARTITION_ROLE}.offset")"
+
+# A payload is signed later with a 0x200-byte MCUboot header.  That size keeps
+# the 80-entry Cortex-M vector table VTOR-aligned.  Its raw NuttX binary
+# therefore begins at slot base + 0x200 and intentionally carries no
+# direct-BL1 BK7236 magic at raw byte 0x100.
+if [ "${ROLE}" = "cp" ] && grep -qx 'CONFIG_BK7258_MCUBOOT_IMAGE=y' "${TOPDIR}/.config"; then
+    XIP_BASE=$(printf '0x%x' "$((XIP_BASE + 0x200))")
+    MAX_SIZE=$((MAX_SIZE - 0x200))
+    MAGIC_ARG=""
+fi
 
 NUTTX_BIN="${TOPDIR}/nuttx.bin"
 RAW_BIN="${TOPDIR}/${RAW_NAME}"
@@ -82,7 +102,7 @@ printf 'postbuild.sh: role=%s %s=%s bytes %s=%s bytes\n' \
 printf 'postbuild.sh: %s physical flash segment @ %s length 0x%x\n' \
        "${CRC_NAME}" "${PHYSICAL_OFFSET}" "${CRC_SIZE}"
 
-if [ "${ROLE}" = "cp" ]; then
+if [ "${ROLE}" = "cp" ] && [ "${IS_BL2}" = 0 ]; then
     BL_CRC_BIN="${BOARD_DIR}/bootloader/bl_crc.bin"
     if [ ! -f "${BL_CRC_BIN}" ]; then
         printf 'postbuild.sh: ERROR: %s not found; rebuild bootloader\n' \

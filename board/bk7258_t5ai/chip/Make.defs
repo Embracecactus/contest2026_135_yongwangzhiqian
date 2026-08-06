@@ -24,10 +24,6 @@ include $(BOARD_DIR)$(DELIM)bk_idk$(DELIM)sdk-bundles.mk
 VPATH += chip$(DELIM)common
 VPATH += chip$(DELIM)cp
 VPATH += chip$(DELIM)ap
-# Keep this path relative to arch/arm/src.  NuttX mkdeps accepts a source
-# found through a relative VPATH, but treats an absolute VPATH result as a
-# new filename to search and emits a false "not found at any location" rule.
-VPATH += chip$(DELIM)..$(DELIM)bootloader
 
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)common
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)cp
@@ -167,17 +163,45 @@ BK7258_CP_CSRCS += bk7258_flash_mtd.c
 BK7258_CP_CSRCS += bk7258_flash_guard.c
 endif
 
+# NuttX MCUboot BL2 reaches the selected Direct-XIP image through the board
+# handoff hook.  Keep this adapter in the board port: neither NuttX nor the
+# immutable Beken SDK is changed.
+
+ifeq ($(CONFIG_MCUBOOT_BOOTLOADER),y)
+BK7258_CP_CSRCS += bk7258_mcuboot_boot.c
+# The upstream NuttX MCUboot application deliberately leaves the signing
+# algorithm and platform key to each board port.  Keep that glue here rather
+# than carrying a local change to apps/ or MCUboot itself.  The public key
+# below is MCUboot's published development key; production must replace only
+# this board-owned public-key translation unit with the project release key.
+INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
+CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
+INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
+CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
+BK7258_CP_CSRCS += bk7258_mcuboot_ecdsa.c
+BK7258_CP_CSRCS += bk7258_mcuboot_ecc.c
+BK7258_CP_CSRCS += bk7258_mcuboot_ecc_dsa.c
+BK7258_CP_CSRCS += bk7258_mcuboot_asn1.c
+BK7258_CP_CSRCS += bk7258_mcuboot_keys.c
+endif
+
 ifeq ($(CONFIG_BK7258_OTA_STAGING),y)
 BK7258_CP_CSRCS += bk7258_ota_staging_core.c
 BK7258_CP_CSRCS += bk7258_ota_staging.c
+BK7258_CP_CSRCS += bk7258_ota_n17_auth.c
+BK7258_CP_CSRCS += bk7258_ota_n17_release_keys.c
+BK7258_CP_CSRCS += bk7258_ota_n17_journal_core.c
+BK7258_CP_CSRCS += bk7258_ota_n17_publish.c
 endif
 
 ifeq ($(CONFIG_BK7258_OTA_TRIAL),y)
-BK7258_CP_CSRCS += boot_ota_select_core.c
-BK7258_CP_CSRCS += boot_ota_rotation_core.c
-BK7258_CP_CSRCS += boot_ota_rotation_publish_core.c
-BK7258_CP_CSRCS += boot_ota_rotation_control_core.c
-BK7258_CP_CSRCS += boot_ota_rotation_health_core.c
+BK7258_CP_CSRCS += bk7258_ota_trial_core_select.c
+BK7258_CP_CSRCS += bk7258_ota_trial_core_rotation.c
+BK7258_CP_CSRCS += bk7258_ota_trial_core_publish.c
+BK7258_CP_CSRCS += bk7258_ota_trial_core_control.c
+BK7258_CP_CSRCS += bk7258_ota_trial_core_health.c
 BK7258_CP_CSRCS += bk7258_ota_trial.c
 endif
 

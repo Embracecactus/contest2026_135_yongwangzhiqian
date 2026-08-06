@@ -14,6 +14,12 @@ s_app,,2516K,data,TRUE,TRUE,slot_b_pair
 ota_fina_executive,,4K,data,TRUE,TRUE,ota_metadata_primary
 usr_config,,56K,data,TRUE,TRUE,vendor_config
 ota_fina_mirror,,4K,data,TRUE,TRUE,ota_metadata_mirror
+ota_manifest_a,,4K,data,TRUE,TRUE,ota_manifest_a
+ota_manifest_b,,4K,data,TRUE,TRUE,ota_manifest_b
+ota_auth_policy,,4K,data,TRUE,FALSE,ota_auth_policy
+# NuttX-owned BL2 in the spare pre-LittleFS gap.  136 KiB physical is 128 KiB
+# logical after the BK7236 34/32 CRC transform and remains executable-aligned.
+bl2,0x51d000,136K,code,TRUE,FALSE,bl2
 littlefs,0x600000,1M,data,TRUE,TRUE,littlefs
 easyflash,0x7fa000,8K,data,TRUE,TRUE,easyflash_cp
 easyflash_ap,0x7fc000,8K,data,TRUE,TRUE,easyflash_ap

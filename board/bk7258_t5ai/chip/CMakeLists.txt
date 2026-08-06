@@ -129,19 +129,27 @@ if(CONFIG_BK7258_FLASH_MTD)
        cp/bk7258_flash_guard.c)
 endif()
 
+if(CONFIG_MCUBOOT_BOOTLOADER)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_mcuboot_boot.c)
+endif()
+
 if(CONFIG_BK7258_OTA_STAGING)
   list(APPEND BK7258_CP_SRCS
        cp/bk7258_ota_staging_core.c
-       cp/bk7258_ota_staging.c)
+       cp/bk7258_ota_staging.c
+       cp/bk7258_ota_n17_auth.c
+       common/bk7258_ota_n17_release_keys.c
+       cp/bk7258_ota_n17_journal_core.c
+       cp/bk7258_ota_n17_publish.c)
 endif()
 
 if(CONFIG_BK7258_OTA_TRIAL)
   list(APPEND BK7258_CP_SRCS
-       ../bootloader/boot_ota_select_core.c
-       ../bootloader/boot_ota_rotation_core.c
-       ../bootloader/boot_ota_rotation_publish_core.c
-       ../bootloader/boot_ota_rotation_control_core.c
-       ../bootloader/boot_ota_rotation_health_core.c
+       cp/bk7258_ota_trial_core_select.c
+       cp/bk7258_ota_trial_core_rotation.c
+       cp/bk7258_ota_trial_core_publish.c
+       cp/bk7258_ota_trial_core_control.c
+       cp/bk7258_ota_trial_core_health.c
        cp/bk7258_ota_trial.c)
 endif()
 

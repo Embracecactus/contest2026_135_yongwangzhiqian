@@ -8,12 +8,20 @@
   "format": 1,
   "gaps": [
     {
+      "end": 5361664,
+      "end_hex": "0x51d000",
+      "offset": 5300224,
+      "offset_hex": "0x50e000",
+      "size": 61440,
+      "size_hex": "0xf000"
+    },
+    {
       "end": 6291456,
       "end_hex": "0x600000",
-      "offset": 5287936,
-      "offset_hex": "0x50b000",
-      "size": 1003520,
-      "size_hex": "0xf5000"
+      "offset": 5500928,
+      "offset_hex": "0x53f000",
+      "size": 790528,
+      "size_hex": "0xc1000"
     },
     {
       "end": 8364032,
@@ -24,9 +32,9 @@
       "size_hex": "0xfa000"
     }
   ],
-  "layout_id": "bk7258-v3119-ab-c1c42aeac25e712b",
+  "layout_id": "bk7258-v3119-ab-7f14d67587a17bf9",
   "layout_name": "bk7258-contiguous-ab",
-  "layout_sha256": "c1c42aeac25e712ba0f5e74a910806488e21470d9a8c37cc2587b610fb9b1b42",
+  "layout_sha256": "7f14d67587a17bf9d586dd822645c33035ee11015b6c895312d8b09bf55524ed",
   "partitions": [
     {
       "end": 69632,
@@ -160,16 +168,88 @@
       "write": true
     },
     {
+      "end": 5292032,
+      "end_hex": "0x50c000",
+      "index": 7,
+      "name": "ota_manifest_a",
+      "offset": 5287936,
+      "offset_hex": "0x50b000",
+      "offset_source": "auto",
+      "read": true,
+      "role": "ota_manifest_a",
+      "sdk_id": 12,
+      "sdk_name": "ota_manifest_a",
+      "size": 4096,
+      "size_hex": "0x1000",
+      "type": "data",
+      "write": true
+    },
+    {
+      "end": 5296128,
+      "end_hex": "0x50d000",
+      "index": 8,
+      "name": "ota_manifest_b",
+      "offset": 5292032,
+      "offset_hex": "0x50c000",
+      "offset_source": "auto",
+      "read": true,
+      "role": "ota_manifest_b",
+      "sdk_id": 13,
+      "sdk_name": "ota_manifest_b",
+      "size": 4096,
+      "size_hex": "0x1000",
+      "type": "data",
+      "write": true
+    },
+    {
+      "end": 5300224,
+      "end_hex": "0x50e000",
+      "index": 9,
+      "name": "ota_auth_policy",
+      "offset": 5296128,
+      "offset_hex": "0x50d000",
+      "offset_source": "auto",
+      "read": true,
+      "role": "ota_auth_policy",
+      "sdk_id": 14,
+      "sdk_name": "ota_auth_policy",
+      "size": 4096,
+      "size_hex": "0x1000",
+      "type": "data",
+      "write": false
+    },
+    {
+      "end": 5500928,
+      "end_hex": "0x53f000",
+      "index": 10,
+      "logical_offset": 5046272,
+      "logical_size": 131072,
+      "name": "bl2",
+      "offset": 5361664,
+      "offset_hex": "0x51d000",
+      "offset_source": "explicit",
+      "read": true,
+      "role": "bl2",
+      "sdk_id": 15,
+      "sdk_name": "application2",
+      "size": 139264,
+      "size_hex": "0x22000",
+      "type": "code",
+      "write": false,
+      "xip_end": 38731776,
+      "xip_start": 38600704
+    },
+    {
       "end": 7340032,
       "end_hex": "0x700000",
-      "index": 7,
+      "index": 11,
       "name": "littlefs",
       "offset": 6291456,
       "offset_hex": "0x600000",
       "offset_source": "explicit",
       "read": true,
       "role": "littlefs",
-      "sdk_id": 12,
+      "sdk_id": 16,
       "sdk_name": "littlefs",
       "size": 1048576,
       "size_hex": "0x100000",
@@ -179,7 +259,7 @@
     {
       "end": 8372224,
       "end_hex": "0x7fc000",
-      "index": 8,
+      "index": 12,
       "name": "easyflash",
       "offset": 8364032,
       "offset_hex": "0x7fa000",
@@ -196,7 +276,7 @@
     {
       "end": 8380416,
       "end_hex": "0x7fe000",
-      "index": 9,
+      "index": 13,
       "name": "easyflash_ap",
       "offset": 8372224,
       "offset_hex": "0x7fc000",
@@ -213,7 +293,7 @@
     {
       "end": 8384512,
       "end_hex": "0x7ff000",
-      "index": 10,
+      "index": 14,
       "name": "sys_rf",
       "offset": 8380416,
       "offset_hex": "0x7fe000",
@@ -230,7 +310,7 @@
     {
       "end": 8388608,
       "end_hex": "0x800000",
-      "index": 11,
+      "index": 15,
       "name": "sys_net",
       "offset": 8384512,
       "offset_hex": "0x7ff000",

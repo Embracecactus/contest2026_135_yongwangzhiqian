@@ -137,6 +137,12 @@ static bool bk7258_sdk_partition_guarded(
          partition ==
            &g_bk7258_sdk_partitions[BK7258_ROLE_OTA_METADATA_MIRROR_SDK_ID] ||
          partition ==
+           &g_bk7258_sdk_partitions[BK7258_ROLE_OTA_MANIFEST_A_SDK_ID] ||
+         partition ==
+           &g_bk7258_sdk_partitions[BK7258_ROLE_OTA_MANIFEST_B_SDK_ID] ||
+         partition ==
+           &g_bk7258_sdk_partitions[BK7258_ROLE_OTA_AUTH_POLICY_SDK_ID] ||
+         partition ==
            &g_bk7258_sdk_partitions[BK7258_ROLE_LITTLEFS_SDK_ID];
 }
 
@@ -159,13 +165,6 @@ static bk_err_t bk7258_sdk_partition_write_by_addr_allowed(uint32_t addr,
   const struct bk7258_sdk_partition_s *info;
   uint32_t offset;
 
-#ifdef CONFIG_BK7258_FLASH_MTD
-  if (bk7258_flash_guard_write_authorized(addr, size))
-    {
-      return BK_OK;
-    }
-#endif
-
   info = bk7258_sdk_partition_info_by_addr(addr);
   if (info == NULL)
     {
@@ -177,6 +176,24 @@ static bk_err_t bk7258_sdk_partition_write_by_addr_allowed(uint32_t addr,
     {
       return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
     }
+
+  /* The arming marker is deliberately outside every normal or guarded SDK
+   * write path.  A future reviewed migration primitive must own its one-time
+   * raw-Flash protocol explicitly rather than inheriting an OTA/data guard.
+   */
+
+  if (info ==
+      &g_bk7258_sdk_partitions[BK7258_ROLE_OTA_AUTH_POLICY_SDK_ID])
+    {
+      return BK_FAIL;
+    }
+
+#ifdef CONFIG_BK7258_FLASH_MTD
+  if (bk7258_flash_guard_write_authorized(addr, size))
+    {
+      return BK_OK;
+    }
+#endif
 
   return bk7258_sdk_partition_write_allowed(info);
 }

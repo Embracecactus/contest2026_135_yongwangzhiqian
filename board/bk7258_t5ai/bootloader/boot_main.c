@@ -22,6 +22,7 @@
 #include <stddef.h>
 
 #include "boot_ota_select.h"
+#include "boot_n17_ecc_wrapper.h"
 #include "boot_wdt.h"
 #include "../chip/include/bk7258_partition_layout.h"
 
@@ -33,6 +34,10 @@ extern void boot_clock_cold_init(void);
 #define UART1_FIFO_ADDR   0x4583001Cu
 #define UART1_STATUS_ADDR 0x45830018u
 #define UART1_TX_READY    (1u << 20)   /* bit20: TX-FIFO-not-full (assumed) */
+
+#ifndef BK7258_BOOT_N17_ECC_VECTOR_SELFTEST
+#  define BK7258_BOOT_N17_ECC_VECTOR_SELFTEST 0u
+#endif
 
 #define REG32(addr)       (*(volatile uint32_t *)(addr))
 #define UART1_FIFO        REG32(UART1_FIFO_ADDR)
@@ -67,6 +72,9 @@ const struct fal_partition fal_partition_table[] = {
     { FAL_PART_MAGIC, "ap_app",     "beken_onchip_crc",
       BK7258_ROLE_SLOT_A_AP_LOGICAL_OFFSET,
       BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE, 0u },
+    { FAL_PART_MAGIC, "bl2",        "beken_onchip_crc",
+      BK7258_ROLE_BL2_LOGICAL_OFFSET,
+      BK7258_ROLE_BL2_LOGICAL_SIZE, 0u },
 };
 #define FAL_PART_COUNT  (sizeof(fal_partition_table) / sizeof(fal_partition_table[0]))
 
@@ -238,32 +246,31 @@ uint32_t c_main(void)
         }
     }
 
-    /* --- FAL partition parse -> find "app". */
+    /* N17 probe-only target check: the vector has no release secret. */
+#if BK7258_BOOT_N17_ECC_VECTOR_SELFTEST
+    if (bk7258_boot_n17_ecc_vector_selftest() < 0) {
+        uart_puts("BAD\r\nn17 ecc\r\n");
+        for (;;) {
+            boot_wdt_feed();
+        }
+    }
+    uart_puts("N17E1\r\n");
+#endif
+
+    /* --- FAL partition parse -> find the dedicated NuttX MCUboot BL2.
+     * BL1 must never enter CP slot A directly once BL2 owns A/B selection.
+     */
 
     boot_wdt_feed();
-    app = fal_find("cp_app");
+    app = fal_find("bl2");
     if (app == (const struct fal_partition *)0) {
-        uart_puts("BAD\r\nno app part\r\n");
+        uart_puts("BAD\r\nno bl2 part\r\n");
         for (;;) {
             boot_wdt_feed();
         }
     }
     app_vec = FLASH_BASE + (uint32_t)app->offset;
-    log_u32("partition app @ ", app_vec);
-
-    /* N15-C selection is linked and auditable but all compile/runtime
-     * selection/remap gates remain immutable zero.  With those gates closed
-     * this call returns the same Tier-1 primary vector without touching
-     * metadata or remap registers.
-     */
-
-    app_vec = boot_ota_select_app(app_vec);
-    if (app_vec == 0u) {
-        uart_puts("BAD\r\nota select\r\n");
-        for (;;) {
-            boot_wdt_feed();
-        }
-    }
+    log_u32("partition bl2 @ ", app_vec);
 
     /* --- Validate app header. */
 
