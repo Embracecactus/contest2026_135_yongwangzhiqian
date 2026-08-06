@@ -64,6 +64,35 @@ REQUIRED_ROLES = frozenset(
         "ota_metadata_primary",
         "vendor_config",
         "ota_metadata_mirror",
+        "ota_manifest_a",
+        "ota_manifest_b",
+        "ota_auth_policy",
+        "bl2",
+        "littlefs",
+        "easyflash_cp",
+        "easyflash_ap",
+        "calibration_rf",
+        "calibration_net",
+    }
+)
+SECUREBOOT_XIP_LAYOUT = "bk7258-secureboot-xip-cp-ap"
+SECUREBOOT_XIP_REQUIRED_ROLES = frozenset(
+    {
+        "bl1_control",
+        "bl1_boot_flag",
+        "sdk_partition_table",
+        "bl1_primary_manifest",
+        "bl2",
+        "tfm_its",
+        "tfm_ps",
+        "primary_tfm_s",
+        "primary_cp_app",
+        "primary_ap_app",
+        "secondary_tfm_s",
+        "secondary_cp_app",
+        "secondary_ap_app",
+        "vendor_config",
+        "ota_scratch",
         "littlefs",
         "easyflash_cp",
         "easyflash_ap",
@@ -212,6 +241,19 @@ class PartitionLayout:
     layout_sha256: str
     layout_id: str
 
+    @property
+    def uses_sdk_crc_translation(self) -> bool:
+        """Whether this profile uses the legacy v3 application CRC mapping.
+
+        The normal project image is linked and packed as 32 bytes of payload
+        followed by two CRC bytes.  A Beken secureboot image is placed by the
+        official BL1/BL2 packer, which owns AES, CRC and padding for every
+        image in the verified group.  Keep it out of the legacy address
+        calculation until that packer is integrated.
+        """
+
+        return self.layout_name != SECUREBOOT_XIP_LAYOUT
+
     def by_name(self, name: str) -> Partition:
         for partition in self.partitions:
             if partition.name == name:
@@ -278,7 +320,7 @@ class PartitionLayout:
                 "sdk_name": sdk_partition.sdk_name,
             }
         )
-        if partition.executable:
+        if partition.executable and self.uses_sdk_crc_translation:
             logical_offset = self.logical_offset(partition)
             logical_size = self.logical_size(partition)
             result.update(
@@ -292,9 +334,12 @@ class PartitionLayout:
         return result
 
     def report(self) -> dict[str, object]:
+        source_label = SOURCE_LABEL
+        if self.layout_name == SECUREBOOT_XIP_LAYOUT:
+            source_label = str(self.source.relative_to(BOARD_DIR.parent.parent))
         return {
             "format": 1,
-            "source": SOURCE_LABEL,
+            "source": source_label,
             "sdk_release": self.sdk_release,
             "layout_name": self.layout_name,
             "layout_id": self.layout_id,
@@ -400,7 +445,7 @@ def _validate_layout(layout: PartitionLayout) -> None:
             )
         if partition.size <= 0 or partition.end > layout.flash_size:
             raise PartitionLayoutError(f"{partition.name} is outside Flash")
-        if partition.executable and (
+        if layout.uses_sdk_crc_translation and partition.executable and (
             partition.offset % executable_alignment
             or partition.size % executable_alignment
         ):
@@ -408,6 +453,10 @@ def _validate_layout(layout: PartitionLayout) -> None:
                 f"{partition.name} violates the SDK 34 KiB executable alignment"
             )
         previous_end = partition.end
+
+    if layout.layout_name == SECUREBOOT_XIP_LAYOUT:
+        _validate_secureboot_xip_layout(layout)
+        return
 
     missing_roles = REQUIRED_ROLES - roles
     if missing_roles:
@@ -422,13 +471,28 @@ def _validate_layout(layout: PartitionLayout) -> None:
     metadata0 = layout.by_role("ota_metadata_primary")
     usr_config = layout.by_role("vendor_config")
     metadata1 = layout.by_role("ota_metadata_mirror")
+    manifest_a = layout.by_role("ota_manifest_a")
+    manifest_b = layout.by_role("ota_manifest_b")
+    auth_policy = layout.by_role("ota_auth_policy")
+    bl2 = layout.by_role("bl2")
     littlefs = layout.by_role("littlefs")
     easyflash = layout.by_role("easyflash_cp")
     easyflash_ap = layout.by_role("easyflash_ap")
     sys_rf = layout.by_role("calibration_rf")
     sys_net = layout.by_role("calibration_net")
 
-    chain = (boot, cp, ap, slot_b, metadata0, usr_config, metadata1)
+    chain = (
+        boot,
+        cp,
+        ap,
+        slot_b,
+        metadata0,
+        usr_config,
+        metadata1,
+        manifest_a,
+        manifest_b,
+        auth_policy,
+    )
     if boot.offset != 0:
         raise PartitionLayoutError("boot partition must start at raw offset zero")
     for left, right in zip(chain, chain[1:]):
@@ -440,8 +504,34 @@ def _validate_layout(layout: PartitionLayout) -> None:
         raise PartitionLayoutError("slot B must equal the combined CP/AP slot A span")
     if metadata0.size != layout.erase_size or metadata1.size != layout.erase_size:
         raise PartitionLayoutError("each metadata bank must occupy exactly one sector")
-    if metadata1.end > littlefs.offset:
-        raise PartitionLayoutError("metadata mirror overlaps LittleFS")
+    if (
+        manifest_a.size != layout.erase_size
+        or manifest_b.size != layout.erase_size
+    ):
+        raise PartitionLayoutError("each signed Manifest must occupy exactly one sector")
+    if (
+        not manifest_a.readable
+        or not manifest_a.writable
+        or not manifest_b.readable
+        or not manifest_b.writable
+    ):
+        raise PartitionLayoutError(
+            "signed Manifest sectors must be readable and lifecycle-writable"
+        )
+    if (
+        auth_policy.size != layout.erase_size
+        or not auth_policy.readable
+        or auth_policy.writable
+    ):
+        raise PartitionLayoutError(
+            "auth policy must be one readable, normal-read-only sector"
+        )
+    if auth_policy.end > littlefs.offset:
+        raise PartitionLayoutError("N17 authorization regions overlap LittleFS")
+    if bl2.offset < auth_policy.end or bl2.end > littlefs.offset:
+        raise PartitionLayoutError("BL2 must occupy the pre-LittleFS spare gap")
+    if layout.logical_size(bl2) < 0x20000:
+        raise PartitionLayoutError("BL2 requires at least 128 KiB logical space")
     if littlefs.end > easyflash.offset:
         raise PartitionLayoutError("LittleFS reaches the immutable vendor tail")
     if easyflash.offset != 0x7FA000:
@@ -464,6 +554,100 @@ def _validate_layout(layout: PartitionLayout) -> None:
         raise PartitionLayoutError("SDK partition names are not unique")
     if not sdk_ids or sdk_ids[-1] >= 32:
         raise PartitionLayoutError("SDK partition wrapper supports IDs 0..31")
+
+
+def _validate_secureboot_xip_layout(layout: PartitionLayout) -> None:
+    """Validate the project-owned BK7236/BK7258 secureboot XIP staging profile.
+
+    The ordinary NuttX build remains on ``bk7258-contiguous-ab``.  This
+    profile instead follows Beken's BL1 -> BL2 (MCUboot) ->
+    primary_all/secondary_all convention.  The official secure packer is the
+    sole authority for final AES, CRC, padding and signed-image placement.
+    """
+
+    roles = {partition.role for partition in layout.partitions}
+    missing_roles = SECUREBOOT_XIP_REQUIRED_ROLES - roles
+    if missing_roles:
+        raise PartitionLayoutError(
+            "missing secureboot XIP roles: " + ", ".join(sorted(missing_roles))
+        )
+
+    ordered = (
+        "bl1_control",
+        "bl1_boot_flag",
+        "sdk_partition_table",
+        "bl1_primary_manifest",
+        "bl2",
+        "tfm_its",
+        "tfm_ps",
+        "primary_tfm_s",
+        "primary_cp_app",
+        "primary_ap_app",
+        "secondary_tfm_s",
+        "secondary_cp_app",
+        "secondary_ap_app",
+    )
+    chain = tuple(layout.by_role(role) for role in ordered)
+    if chain[0].offset != 0:
+        raise PartitionLayoutError("secureboot bl1_control must start at raw offset zero")
+    for left, right in zip(chain, chain[1:]):
+        if left.end != right.offset:
+            raise PartitionLayoutError(
+                f"secureboot required contiguous boundary drift: {left.name} -> {right.name}"
+            )
+
+    if layout.by_role("bl2").name != "bl2":
+        raise PartitionLayoutError("secureboot BL2 partition must use the official bl2 name")
+    if layout.by_role("bl1_control").name != "bl1_control":
+        raise PartitionLayoutError(
+            "secureboot BL1 control partition must use the official bl1_control name"
+        )
+    if layout.by_role("bl1_primary_manifest").name != "primary_manifest":
+        raise PartitionLayoutError(
+            "secureboot primary manifest must use the official primary_manifest name"
+        )
+
+    primary = (
+        layout.by_role("primary_tfm_s"),
+        layout.by_role("primary_cp_app"),
+        layout.by_role("primary_ap_app"),
+    )
+    secondary = (
+        layout.by_role("secondary_tfm_s"),
+        layout.by_role("secondary_cp_app"),
+        layout.by_role("secondary_ap_app"),
+    )
+    for left, right in zip(primary, secondary):
+        if left.size != right.size:
+            raise PartitionLayoutError(
+                f"secureboot paired image size drift: {left.name} != {right.name}"
+            )
+    if any(not partition.executable for partition in (*primary, *secondary)):
+        raise PartitionLayoutError("secureboot primary/secondary image members must be code")
+
+    littlefs = layout.by_role("littlefs")
+    ota_scratch = layout.by_role("ota_scratch")
+    if chain[-1].end > littlefs.offset:
+        raise PartitionLayoutError("secureboot image groups overlap LittleFS")
+    if ota_scratch.end > littlefs.offset:
+        raise PartitionLayoutError("secureboot OTA scratch overlaps LittleFS")
+    tail = (
+        layout.by_role("easyflash_cp"),
+        layout.by_role("easyflash_ap"),
+        layout.by_role("calibration_rf"),
+        layout.by_role("calibration_net"),
+    )
+    if littlefs.end > tail[0].offset:
+        raise PartitionLayoutError("LittleFS reaches the immutable vendor tail")
+    if tail[0].offset != 0x7FA000:
+        raise PartitionLayoutError("official calibration tail must start at 0x7fa000")
+    for left, right in zip(tail, tail[1:]):
+        if left.end != right.offset:
+            raise PartitionLayoutError(
+                f"official tail is not contiguous: {left.name} -> {right.name}"
+            )
+    if tail[-1].end != layout.flash_size:
+        raise PartitionLayoutError("official calibration tail must end at Flash end")
 
 
 def load_layout(path: Path = DEFAULT_INPUT) -> PartitionLayout:
@@ -532,7 +716,11 @@ def load_layout(path: Path = DEFAULT_INPUT) -> PartitionLayout:
         partitions=tuple(partitions),
         gaps=_build_gaps(partitions, flash_size),
         layout_sha256=digest,
-        layout_id=f"bk7258-v3119-ab-{digest[:16]}",
+        layout_id=(
+            f"bk7258-v3119-"
+            f"{'secureboot-xip' if layout_name == SECUREBOOT_XIP_LAYOUT else 'ab'}-"
+            f"{digest[:16]}"
+        ),
     )
     _validate_layout(layout)
     return layout
@@ -552,6 +740,8 @@ def render_header(layout: PartitionLayout) -> str:
     sdk_partitions = layout.sdk_partitions()
     sdk_table_size = sdk_partitions[-1].sdk_id + 1
     sdk_valid_mask = sum(1 << partition.sdk_id for partition in sdk_partitions)
+    layout_digest = bytes.fromhex(layout.layout_sha256)
+    layout_digest_bytes = ", ".join(f"0x{value:02x}" for value in layout_digest)
     lines = [
         "/* Auto-generated by gen_bk7258_partitions.py. Do not edit. */",
         "#ifndef __BK7258_PARTITION_LAYOUT_H",
@@ -559,6 +749,7 @@ def render_header(layout: PartitionLayout) -> str:
         "",
         f'#define BK7258_PARTITION_LAYOUT_ID "{layout.layout_id}"',
         f'#define BK7258_PARTITION_LAYOUT_SHA256 "{layout.layout_sha256}"',
+        f"#define BK7258_PARTITION_LAYOUT_SHA256_BYTES {{{layout_digest_bytes}}}",
         f"#define BK7258_FLASH_SIZE 0x{layout.flash_size:08x}",
         f"#define BK7258_FLASH_ERASE_SIZE 0x{layout.erase_size:08x}",
         f"#define BK7258_FLASH_CRC_DATA_SIZE {layout.crc_data_size}",
@@ -592,7 +783,7 @@ def render_header(layout: PartitionLayout) -> str:
                 f"#define BK7258_PARTITION_{name}_{suffix} 0x{value:08x}"
             )
             lines.append(f"#define BK7258_ROLE_{role}_{suffix} 0x{value:08x}")
-        if partition.executable:
+        if partition.executable and layout.uses_sdk_crc_translation:
             logical_offset = layout.logical_offset(partition)
             logical_size = layout.logical_size(partition)
             lines.extend(
@@ -681,7 +872,7 @@ def query_layout(layout: PartitionLayout, query: str) -> str:
         "size": partition.size,
         "end": partition.end,
     }
-    if partition.executable:
+    if partition.executable and layout.uses_sdk_crc_translation:
         logical_offset = layout.logical_offset(partition)
         logical_size = layout.logical_size(partition)
         values.update(

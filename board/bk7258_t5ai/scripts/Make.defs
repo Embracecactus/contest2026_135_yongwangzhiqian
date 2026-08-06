@@ -39,6 +39,20 @@ CXXPICFLAGS = $(ARCHPICFLAGS) $(CXXFLAGS)
 CPPFLAGS := $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
 AFLAGS := $(CFLAGS) -D__ASSEMBLY__
 
+# NuttX Apps owns MCUboot's core sources, while this board owns the platform
+# signing policy.  Put the board overlay ahead of the upstream NuttX MCUboot
+# configuration for every compilation unit; the overlay includes the upstream
+# header and adds only the BK7258 P-256 policy.
+
+ifeq ($(CONFIG_MCUBOOT_BOOTLOADER),y)
+CFLAGS += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)chip$(DELIM)include
+CXXFLAGS += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)chip$(DELIM)include
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
+CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
+CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
+endif
+
 # NXFLAT module definitions (unused on this flat-build target but NuttX
 # expects them to be defined).
 

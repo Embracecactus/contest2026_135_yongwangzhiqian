@@ -8,6 +8,10 @@ s_app,0x286000,2516K,data,TRUE,TRUE
 ota_fina_executive,0x4fb000,4K,data,TRUE,TRUE
 usr_config,0x4fc000,56K,data,TRUE,TRUE
 ota_fina_mirror,0x50a000,4K,data,TRUE,TRUE
+ota_manifest_a,0x50b000,4K,data,TRUE,TRUE
+ota_manifest_b,0x50c000,4K,data,TRUE,TRUE
+ota_auth_policy,0x50d000,4K,data,TRUE,FALSE
+bl2,0x51d000,136K,code,TRUE,FALSE
 littlefs,0x600000,1M,data,TRUE,TRUE
 easyflash,0x7fa000,8K,data,TRUE,TRUE
 easyflash_ap,0x7fc000,8K,data,TRUE,TRUE
