@@ -461,7 +461,9 @@ config BK7258_WIFI_CONTROL_PRIORITY
 	range 1 199
 	depends on BK7258_WIFI_VNET && BK7258_AP_CORE
 	---help---
-		SCHED_FIFO priority for the logical-CPU0 STA control and DHCP worker.
+		SCHED_FIFO priority for the logical-CPU0 STA control and CP-lease
+		synchronization worker.  The official VNET controller performs DHCP
+		on CP; AP must not start a second DHCP client.
 
 config BK7258_WIFI_CONTROL_STACKSIZE
 	int "N16 AP Wi-Fi control worker stack size"
@@ -469,7 +471,7 @@ config BK7258_WIFI_CONTROL_STACKSIZE
 	range 3072 16384
 	depends on BK7258_WIFI_VNET && BK7258_AP_CORE
 	---help---
-		Stack size for the STA control and native NuttX DHCP worker.
+		Stack size for the STA control and native NuttX lease-sync worker.
 
 config BK7258_BT_IPC_TEST
 	bool "N12 bounded Bluetooth IPC hardware test"

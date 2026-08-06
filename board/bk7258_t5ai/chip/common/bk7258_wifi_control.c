@@ -65,6 +65,9 @@
 #define BK7258_WIFI_LINK_SYNC_MS               250u
 #define BK7258_WIFI_IFNAME                    "wlan0"
 #define BK7258_WIFI_SECURITY_AUTO             12
+#define BK7258_WIFI_STA_STOP_COMMAND           0x312u
+#define BK7258_WIFI_VENDOR_TIMEOUT             (-0x1006)
+#define BK7258_WIFI_STOP_BARRIER_MS            8000u
 #define BK7258_WIFI_PING_DATALEN              32u
 #define BK7258_WIFI_PING_REPLY_SIZE           128u
 
@@ -187,6 +190,8 @@ _Static_assert(sizeof(struct bk7258_wifi_control_wire_s) <=
 extern int bk_wifi_sta_set_config(
   FAR const struct bk7258_wifi_sta_config_s *config);
 extern int bk_wifi_sta_start(void);
+extern int bk_wifi_sta_stop(void);
+extern int wifi_send_com_api_cmd(uint32_t command, uint32_t argc, ...);
 
 static int bk7258_wifi_sync_native_link(
   FAR struct bk7258_wifi_result_s *result);
@@ -264,6 +269,50 @@ struct bk7258_wifi_ping_packet_s
 static int bk7258_wifi_vendor_result(int ret)
 {
   return ret == 0 ? OK : (ret < 0 ? ret : -EIO);
+}
+
+static int bk7258_wifi_stop_sta(void)
+{
+  clock_t started;
+  int ret;
+
+  /* The official AP proxy returns success even when its two-second
+   * STA_STOP confirmation wait expires.  Repeat the same no-argument SDK
+   * command as a completion barrier: once it is confirmed, every earlier
+   * stop request has completed on the serial CP control worker.  No pointer
+   * argument is queued here, so a late confirmation cannot outlive an AP
+   * buffer.
+   */
+
+  (void)bk_wifi_sta_stop();
+  started = clock_systime_ticks();
+  for (;;)
+    {
+      ret = bk7258_wifi_vendor_result(
+        wifi_send_com_api_cmd(BK7258_WIFI_STA_STOP_COMMAND, 0));
+      if (ret == OK)
+        {
+          /* Let any already-queued indication reach the AP RX worker before
+           * retiring the immutable archive's stale link snapshot.
+           */
+
+          nxsig_usleep(BK7258_WIFI_LINK_SYNC_MS * 1000u);
+          return bk7258_wifi_retire_link();
+        }
+
+      if (ret != BK7258_WIFI_VENDOR_TIMEOUT)
+        {
+          return ret;
+        }
+
+      if ((clock_systime_ticks() - started) >=
+          MSEC2TICK(BK7258_WIFI_STOP_BARRIER_MS))
+        {
+          return -ETIMEDOUT;
+        }
+
+      nxsig_usleep(BK7258_WIFI_CONTROL_POLL_MS * 1000u);
+    }
 }
 
 static uint16_t bk7258_wifi_icmp_checksum(FAR const void *buffer,
@@ -905,6 +954,7 @@ static int bk7258_wifi_connect(
 {
   struct bk7258_wifi_sta_config_s config;
   clock_t started;
+  bool started_sta = false;
   int ret;
 
   if (request->ssid_len == 0 ||
@@ -921,6 +971,52 @@ static int bk7258_wifi_connect(
   memcpy(config.password, request->password, request->password_len);
   config.security = BK7258_WIFI_SECURITY_AUTO;
 
+  /* The official v3.1.1.9 API requires stop-before-restart.  In particular,
+   * bk_wifi_sta_start() returns success without issuing another controller
+   * command when STA is already marked started.  Always stop first so a
+   * failed password attempt cannot prevent the next runtime credential set
+   * from taking effect.
+   */
+
+  started = clock_systime_ticks();
+  ret = bk7258_wifi_stop_sta();
+  if (ret < 0)
+    {
+      explicit_bzero(&config, sizeof(config));
+      return ret;
+    }
+
+  /* A previously connected indication is asynchronous to STA_STOP.  Wait
+   * until it is withdrawn before starting the new generation; otherwise an
+   * old lease could make the new CONNECT request report a false success.
+   */
+
+  for (;;)
+    {
+      ret = bk7258_wifi_read_link(result);
+      if (ret == OK &&
+          result->link_state != BK7258_WIFI_LINK_CONNECTED)
+        {
+          break;
+        }
+
+      if ((clock_systime_ticks() - started) >=
+          MSEC2TICK(request->timeout_ms))
+        {
+          explicit_bzero(&config, sizeof(config));
+          return -ETIMEDOUT;
+        }
+
+      nxsig_usleep(BK7258_WIFI_CONTROL_POLL_MS * 1000u);
+    }
+
+  ret = bk7258_wifi_sync_native_link(result);
+  if (ret < 0)
+    {
+      explicit_bzero(&config, sizeof(config));
+      return ret;
+    }
+
   ret = bk7258_wifi_vendor_result(bk_wifi_sta_set_config(&config));
   explicit_bzero(&config, sizeof(config));
   if (ret < 0)
@@ -934,7 +1030,7 @@ static int bk7258_wifi_connect(
       return ret;
     }
 
-  started = clock_systime_ticks();
+  started_sta = true;
   for (;;)
     {
       ret = bk7258_wifi_read_link(result);
@@ -948,13 +1044,29 @@ static int bk7258_wifi_connect(
       if ((clock_systime_ticks() - started) >=
           MSEC2TICK(request->timeout_ms))
         {
-          return -ETIMEDOUT;
+          ret = -ETIMEDOUT;
+          break;
         }
 
       nxsig_usleep(BK7258_WIFI_CONTROL_POLL_MS * 1000u);
     }
 
-  return bk7258_wifi_sync_native_link(result);
+  if (ret == OK)
+    {
+      ret = bk7258_wifi_sync_native_link(result);
+    }
+
+  if (ret < 0 && started_sta)
+    {
+      /* Leave a failed attempt stopped and carrier-down.  The next CONNECT
+       * can then install new runtime credentials deterministically.
+       */
+
+      (void)bk7258_wifi_stop_sta();
+      (void)bk7258_wifi_sync_native_link(result);
+    }
+
+  return ret;
 }
 
 static void bk7258_wifi_control_report_immediate(

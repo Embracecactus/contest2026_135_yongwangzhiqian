@@ -1,7 +1,7 @@
 # BK7258 Stage N16: Wi-Fi STA control and NuttX data plane
 
 > Date: 2026-08-05
-> Status: **CURRENT / controller and command-plane firmware board-running; STA data-plane closure pending**
+> Status: **COMPLETE / STA data plane, retained-service coexistence and bounded lifecycle matrix board-verified**
 > SDK: official Beken v3.1.1.9 only
 > Decision: [ADR-007](../../../../memory/decisions/ADR-007-n16-cp-radio-ap-nuttx-network.md)
 
@@ -13,7 +13,8 @@ NuttX, apps, SDK source or SDK static libraries:
 1. CP owns the official RF/PHY/MAC/WPA/controller path;
 2. AP logical CPU0 owns the official Wi-Fi proxy and mailbox gateway;
 3. a board-owned adapter exposes `wlan0` to the native NuttX network stack;
-4. NuttX performs DHCP and provides TCP/UDP/socket APIs to AP applications;
+4. the official CP vnet controller performs DHCP, AP synchronizes that lease
+   into `wlan0`, and native NuttX provides IPv4/TCP/UDP/socket APIs;
 5. Wi-Fi traffic coexists with AP SMP, RPTUN/RPMsg, RPMsgFS and Bluetooth.
 
 N16 is not network OTA. N15 remains the update/rollback baseline; signatures,
@@ -28,7 +29,7 @@ anti-rollback and network delivery are later independent stages.
   +----------------------------------------------------+
   | shared radio platform init                         |
   | official RF / PHY / MAC / WPA supplicant           |
-  | official Wi-Fi vnet controller (cif)               |
+  | official Wi-Fi vnet controller (cif) + DHCP client |
   +-------------------+--------------------------------+
                       | MB_CHNL_WIFI_CMD  (index 4)
                       | MB_CHNL_WIFI_DATA (index 5)
@@ -39,7 +40,7 @@ anti-rollback and network delivery are later independent stages.
   | logical CPU0: official wdrv + team pbuf/netdev gate |
   |                     |                              |
   |                     v                              |
-  |                 NuttX wlan0                        |
+  |          lease sync -> NuttX wlan0                 |
   |           IPv4 / DHCP / TCP / UDP / sockets        |
   |                     |                              |
   | logical CPU0/1: application socket users            |
@@ -48,6 +49,10 @@ anti-rollback and network delivery are later independent stages.
 
 The official AP lwIP stack is not linked. The official vendor command/data
 protocol remains intact; only its AP network-interface boundary is replaced.
+The exact v3.1.1.9 controller performs DHCP on CP and reports its lease through
+the command channel. AP does not start a competing DHCP client: it applies the
+reported address, mask and router to native NuttX `wlan0`. NuttX remains the
+sole AP IPv4/TCP/UDP/socket implementation.
 
 ## 3. Source-verified baseline
 
@@ -265,7 +270,9 @@ image.
 ### N16-D: STA, DHCP and native sockets
 
 - create dedicated `cp_nsh_wifi + ap_smp_wifi` validation profiles;
-- enable the minimal NuttX IPv4, ARP, DHCP client, ICMP, TCP and UDP features;
+- enable the minimal NuttX IPv4, ARP, ICMP, TCP and UDP features;
+- synchronize the CP vnet controller's DHCP lease into AP `wlan0`; do not run
+  a second AP DHCP client;
 - accept test SSID/password only at runtime; do not place credentials in
   defconfig, repository logs or project memory;
 - verify scan -> association -> link-up -> DHCP lease -> gateway ping;
@@ -274,6 +281,10 @@ image.
 
 Exit: NuttX applications use normal sockets over `wlan0`; the vendor lwIP
 socket layer remains absent from the ELF.
+
+Board status: complete for the agreed STA matrix. Runtime-only association,
+bounded wrong-password failure followed by correct-password recovery, lease
+synchronization, gateway ICMP, and local TCP/UDP exchange all passed.
 
 ### N16-E: SMP, service coexistence and failure behavior
 
@@ -288,6 +299,18 @@ socket layer remains absent from the ELF.
 
 Exit: no stale pointer, deadlock, unbounded wait, heap drift or retained-service
 failure in the agreed finite matrix.
+
+Board status: the bounded retained-service matrix passed while Wi-Fi remained
+associated. `bkrpmsgfstest` initially exposed reuse of a live VFS file object
+by a nested small allocation in the shared AP main heap. The permanent,
+NuttX-supported boundary is `CONFIG_FS_HEAPSIZE=16384` in `ap_smp_wifi`, which
+places VFS/RPMsgFS/socket metadata in the independent FS heap. The final clean
+image passed all 1/64/464/1024-byte RPMsgFS cases with unchanged AP/CP heap
+measurements, plus the two-CPU RPMsg, Bluetooth-info and AP/RPTUN/SMP health
+gates under an active Wi-Fi link. No official NuttX source was changed.
+
+Canonical evidence:
+[N16 STA and coexistence board verification](../../../../progress/verification/2026-08-06-n16-wifi-sta-coexistence.md).
 
 ### N16-V: board closure
 
@@ -305,8 +328,24 @@ Minimum board evidence:
 | lifecycle | 3/3 controlled RTS resets return cleanly; complete power removal remains separately labelled |
 | regression | N15 layout, LittleFS, PSRAM and OTA gates-zero normal baseline remain intact |
 
-Board validation will need an operator-provided test SSID/password and a local
-endpoint address. Those values are ephemeral inputs and must not be committed.
+Board result: complete for the agreed finite scope.
+
+- `apctl restart 3000` returned `-EBUSY` while Wi-Fi was active, before any AP
+  reset action. AP generation remained unchanged, AP/RPTUN/SMP stayed healthy,
+  and Wi-Fi status plus gateway ICMP still passed.
+- Three consecutive COM7 RTS resets each reached NSH with AP `READY`, RPTUN
+  `CONNECTED`, CPU2 `SCHEDULER_ONLINE`, SMP gates `PASSED` and supervisor
+  fault count zero. Runtime credentials were absent after reset as designed;
+  one final hidden-input reconnect and gateway ICMP passed.
+- Final host checks passed dynamic partition generation, factory boundaries
+  and all six Tier-1 Boot OTA gates at zero.
+- A post-reset 64-byte RPMsgFS write/read passed against CP LittleFS. The Wi-Fi
+  profiles intentionally do not enable the separate N14 PSRAM validation
+  profile, so N16 does not claim a new PSRAM run; the previously verified N14/
+  N15 PSRAM baseline and its profile boundary are unchanged.
+
+Operator-provided SSID/password and local endpoint values were ephemeral inputs
+and were not committed.
 
 ## 7. Planned repository organization
 
@@ -343,12 +382,10 @@ No file is added under official NuttX, apps or SDK source trees.
 - upper-8 MiB general PSRAM allocator work;
 - QEMU or unrelated hardware-debug SOP changes.
 
-## 9. Current next action
+## 9. Completion and next stage boundary
 
-Complete N16-R without touching the board:
-
-1. produce the exact archive/object dependency closure;
-2. add the pbuf/headroom ABI compile probe and negative fixture;
-3. link a minimal AP seam and assert the forbidden vendor lwIP/FreeRTOS/socket
-   symbols remain absent;
-4. only then add production Kconfig and CP/AP wrapper code.
+N16 is complete for the accepted STA scope. The implementation changes remain
+to be committed and published. N17 authenticated-update policy is the proposed
+next MAIN Stage, but it requires a separate architecture review before code.
+SoftAP, warm Wi-Fi teardown/recovery, performance tuning and network OTA remain
+outside N16.

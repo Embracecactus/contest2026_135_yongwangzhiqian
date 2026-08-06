@@ -60,6 +60,7 @@
 
 #define BK7258_WIFI_WDRV_MAC_LENGTH        6u
 #define BK7258_WIFI_MAC_READY_TIMEOUT_MS    5000u
+#define BK7258_WIFI_LINK_DISCONNECTED          2u
 #define BK7258_WIFI_LINK_CONNECTED             3u
 
 /****************************************************************************
@@ -526,25 +527,26 @@ int host_wlan_add_netif(FAR uint8_t *mac)
 int host_wlan_remove_netif(void)
 {
   FAR struct bk7258_wifi_driver_s *priv = &g_bk7258_wifi;
-  int ret;
 
   if (!priv->registered)
     {
       return OK;
     }
 
+  /* The immutable AP API calls this hook from bk_wifi_sta_stop().  N16 uses
+   * stop-before-restart to replace runtime credentials, but the native NuttX
+   * netdev belongs to the whole AP generation rather than one STA attempt.
+   * Keep wlan0 registered and only withdraw link/carrier state.  Full Wi-Fi
+   * teardown is deliberately unsupported until the vendor mailbox driver has
+   * a complete deinit path.
+   */
+
   priv->ifup = false;
   net_lock();
   bk7258_wifi_sync_carrier_locked(priv);
   net_unlock();
   work_cancel_sync(LPWORK, &priv->pollwork);
-  ret = netdev_unregister(&priv->dev);
-  if (ret >= 0)
-    {
-      priv->registered = false;
-    }
-
-  return ret;
+  return OK;
 }
 
 int host_wlan_remove_sap_netif(void)
@@ -711,6 +713,38 @@ int bk7258_wifi_refresh_carrier(void)
 
   net_lock();
   bk7258_wifi_sync_carrier_locked(priv);
+  net_unlock();
+  return OK;
+}
+
+int bk7258_wifi_retire_link(void)
+{
+  FAR struct bk7258_wifi_driver_s *priv = &g_bk7258_wifi;
+
+  if (!priv->registered)
+    {
+      return -ENODEV;
+    }
+
+  /* v3.1.1.9 STA_STOP clears the AP-local Wi-Fi state bits, but it does not
+   * publish BK_EVT_DISCONNECT_IND.  Retire the cached IPv4 indication only
+   * after the control layer has observed a completed CP-side STA_STOP.
+   */
+
+  __atomic_store_n(&wdrv_host_env.wlan_link_sta_status,
+                   BK7258_WIFI_LINK_DISCONNECTED, __ATOMIC_RELEASE);
+  __atomic_store_n(&wdrv_host_env.wlan_mode, 0, __ATOMIC_RELEASE);
+  __asm volatile ("dmb sy" ::: "memory");
+  explicit_bzero(&wdrv_host_env.connect_ind,
+                 sizeof(wdrv_host_env.connect_ind));
+  __asm volatile ("dmb sy" ::: "memory");
+
+  net_lock();
+  if (priv->ifup)
+    {
+      netdev_carrier_off(&priv->dev);
+    }
+
   net_unlock();
   return OK;
 }

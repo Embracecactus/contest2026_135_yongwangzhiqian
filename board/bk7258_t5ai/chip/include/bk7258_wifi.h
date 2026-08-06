@@ -69,6 +69,7 @@ struct bk7258_wifi_result_s
 int bk7258_wifi_initialize(void);
 int bk7258_wifi_read_link(struct bk7258_wifi_result_s *result);
 int bk7258_wifi_refresh_carrier(void);
+int bk7258_wifi_retire_link(void);
 #  else
 int bk7258_wifi_controller_initialize(void);
 bool bk7258_wifi_controller_active(void);

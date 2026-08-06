@@ -1,69 +1,59 @@
 # Current Progress
 
-Last updated: 2026-08-05T21:55:00+08:00
+Last updated: 2026-08-06T01:14:35+08:00
 Updated by: Codex (`maintain-project-memory` checkpoint)
 
 ## Snapshot
 
-- Branch: `feat/bk7258-n16-wifi`, based on merged upstream N15 commit
-  `6cee7839cac5b4e1f688a86b1496d67b1bc4608f`.
-- Sole active SDK: official Beken v3.1.1.9. Older SDKs remain preserved and
-  unused.
-- N15's approved physical A-to-B-to-A scope remains complete and merged.
-- N16 is the current MAIN Stage. The owner accepted ADR-007: CP keeps official
-  RF/PHY/MAC/WPA/controller ownership; AP connects the official Wi-Fi proxy to
-  native NuttX `wlan0`, DHCP and sockets through a repository-owned adapter.
-- Dedicated `cp_nsh_wifi + ap_smp_wifi` images now build from checksum-pinned
-  official v3.1.1.9 archives and boot on hardware. The current board runs the
-  Wi-Fi-owner-scoped malloc compatibility image after sparse flash and COM7
-  RTS verification.
-- This checkpoint verifies controller initialization and retained AP/RPTUN
-  health, not STA association, DHCP or socket data-plane closure. `bkwifi
-  status` currently reports `status=0`, `link=0`.
+- Branch: `feat/bk7258-n16-wifi`; base checkpoint `0af5efe`. N16 completion
+  changes are local and not yet committed or published.
+- Sole active SDK: checksum-pinned official Beken v3.1.1.9. Official SDK,
+  NuttX and apps source remain unmodified.
+- N15's physical A-to-B-to-A OTA baseline remains complete and merged.
+- N16 is complete for the accepted STA scope. CP owns official RF/PHY/MAC/WPA,
+  vnet control and DHCP; AP synchronizes the lease into native NuttX `wlan0`
+  and owns IPv4/TCP/UDP/sockets. Vendor AP lwIP/socket and SDK FreeRTOS remain
+  excluded.
+- Runtime-only association, bounded wrong-password recovery, gateway ICMP,
+  local TCP/UDP, active-Wi-Fi RPMsg/RPMsgFS/Bluetooth coexistence, AP-restart
+  rejection and 3/3 controlled RTS recovery are board-verified.
+- Dynamic partitions, factory boundaries and Tier-1 Boot OTA gates-zero passed;
+  post-reset RPMsgFS/LittleFS write/read passed. The separate N14 PSRAM profile
+  was not rerun and was not modified by N16.
 
-## N16 verified facts
+Canonical evidence:
 
-- Official vnet roles and mailbox channels remain as recorded in ADR-007 and
-  the N16 worklog. Vendor AP lwIP/socket and SDK FreeRTOS remain excluded;
-  NuttX is the sole intended IP/socket owner.
-- The immutable CP archive assumes selected `malloc()` blocks are zero.
-  Observation-only A/B firmware proved dirty station-table allocations and an
-  RTS-path HardFault with stacked PC `0xaaaaaaaa` and LR in
-  `sta_mgmt_entry_init()` when clearing was disabled.
-- The permanent workaround is now limited to the PID executing
-  `bk_wifi_init()`. Other concurrent CP threads retain normal malloc
-  semantics. The full dual build, loader reboot, COM7 RTS, AP/RPTUN status and
-  a 20-message two-CPU RPMsg run passed after this narrowing.
-- Official CP `wifi_deinit()` is unsupported and AP mailbox deinit is
-  incomplete. AP-only restart while Wi-Fi is active must initially fail closed;
-  whole-chip reset is the recovery boundary.
-
-Canonical documents:
-
-- [N16 worklog and plan](../docs/bk7258-t5ai/nuttx-port/prompts/16-n16-wifi-data-plane.md)
+- [N16 completion worklog](../docs/bk7258-t5ai/nuttx-port/prompts/16-n16-wifi-data-plane.md)
+- [N16 board verification](verification/2026-08-06-n16-wifi-sta-coexistence.md)
 - [N16 malloc compatibility evidence](verification/2026-08-05-n16-wifi-malloc-compatibility.md)
 - [ADR-007 Wi-Fi ownership](../memory/decisions/ADR-007-n16-cp-radio-ap-nuttx-network.md)
-- [N15 physical symmetric lifecycle](verification/2026-08-04-n15-physical-symmetric-lifecycle.md)
-- [N15 format-2 symmetric host closure](verification/2026-08-04-n15-format2-symmetric-host.md)
+
+## Durable implementation boundaries
+
+- CP Wi-Fi initialization uses a PID-scoped zeroing malloc compatibility
+  window because the immutable archive assumes selected fresh-heap objects
+  are zero. Other CP threads keep normal malloc semantics.
+- AP `wlan0` persists across runtime STA stop/start attempts. The control
+  worker waits for CP stop completion, withdraws stale carrier/lease state,
+  then applies new runtime credentials.
+- `ap_smp_wifi` uses NuttX's independent 16 KiB FS heap for VFS/RPMsgFS/socket
+  metadata, fixing the observed live-file overwrite without modifying NuttX.
+- Official Wi-Fi teardown is incomplete. AP-only restart fails closed while
+  Wi-Fi is active; whole-chip reset remains the recovery boundary.
 
 ## Next actions
 
-1. Resume the N16 STA path from the verified controller baseline: associate
-   using runtime-only credentials and prove AP-side native NuttX link state.
-2. Close DHCP and native socket traffic without importing vendor AP lwIP.
-3. Run the retained RPMsg/RPMsgFS/Bluetooth coexistence gates under Wi-Fi
-   traffic, then decide the next N16 substage.
+1. Review and commit only the N16-owned implementation, documentation and
+   memory changes; publish them when the owner requests it.
+2. Proposed next MAIN Stage: N17 authenticated update policy. Start with a
+   separate architecture review covering signatures, key provisioning,
+   anti-rollback and recovery keys before implementation.
 
-## Open boundaries
+## Open constraints
 
-- Official NuttX/apps/SDK source and static libraries remain read-only;
-  permanent changes belong to project wrappers. Temporary debug edits must be
-  restored.
-- Wi-Fi-disabled normal profiles must remain unchanged in behavior and link
-  ownership.
-- N16 is STA data-plane work only. Network OTA, publisher authentication,
-  signatures, key provisioning and anti-rollback are outside this stage.
-- SoftAP, Wi-Fi power-save, warm restart, legacy SDK validation, upper-8 PSRAM
-  allocation and QEMU remain deferred.
-- Existing unrelated dirty tools, QEMU, logs and N15 scratch files are owner
-  work and must not be staged with N16.
+- Credentials remain runtime-only and must never enter source, config, logs or
+  project memory.
+- SoftAP, warm Wi-Fi recovery, network OTA and legacy SDK validation remain
+  outside the completed N16 scope.
+- Existing unrelated dirty debug tools, QEMU trees, logs and N15 scratch files
+  are owner work and must not be staged with N16.

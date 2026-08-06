@@ -1,6 +1,6 @@
 # ADR-007: Keep Wi-Fi radio control on CP and use the NuttX network stack on AP
 
-- Status: Accepted; implementation pending N16-R ABI/link closure
+- Status: Accepted; N16 STA scope complete and board-verified
 - Date: 2026-08-04
 - Decision owner: Project owner
 
@@ -33,7 +33,7 @@ CP NuttX / CPU0
              v
 AP NuttX SMP / logical CPU0 gateway
   official AP Wi-Fi proxy/driver
-  repository-owned pbuf compatibility + wlan0 netdev adapter
+  repository-owned pbuf + CP-lease + wlan0 netdev adapter
              |
              v
   native NuttX IPv4 / DHCP / TCP / UDP / sockets
@@ -47,6 +47,12 @@ The initial implementation is STA-only. AP logical CPU0 owns the Wi-Fi
 mailbox callbacks, vendor worker, pbuf compatibility boundary and NuttX
 netdev ingress/egress. Logical CPU1 may run applications and use sockets but
 does not directly own the vendor transport.
+
+The exact v3.1.1.9 vnet controller performs DHCP on CP. AP therefore does not
+start a second DHCP client; the board adapter synchronizes the reported lease
+into native NuttX `wlan0`. Native NuttX remains the sole AP-side
+IPv4/TCP/UDP/socket stack, and the vendor AP lwIP/socket archive remains
+excluded.
 
 ## Rejected alternatives
 
@@ -81,6 +87,9 @@ does not directly own the vendor transport.
   closed; the initial recovery boundary is a whole-chip reset.
 - SSIDs and passwords must never be compiled into a defconfig, persisted in
   project memory, or emitted unredacted to logs.
+- The `ap_smp_wifi` profile gives VFS/RPMsgFS/socket metadata NuttX's
+  independent 16 KiB FS heap. This profile-scoped isolation is required by
+  board evidence and does not authorize changes to NuttX allocator source.
 
 ## Acceptance gates
 

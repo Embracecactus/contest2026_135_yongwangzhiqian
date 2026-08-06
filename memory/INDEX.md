@@ -1,6 +1,6 @@
 # Project Memory Index
 
-Last reviewed: 2026-08-04
+Last reviewed: 2026-08-06
 
 Read `../progress/CURRENT.md` after this file, then load only the documents relevant to the active task.
 
@@ -33,6 +33,9 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
   then return here for durable decisions and to Current Progress for live state.
 - N14 completion is archived in [the N14 milestone](../progress/milestones/2026-08-03-n14-psram-board-verified.md).
 - Detailed N14 test output and hashes are canonical in [the N14 evidence index](../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md).
+- N16 STA association, native NuttX sockets, active-Wi-Fi retained-service
+  coexistence and bounded lifecycle closure are recorded in the
+  [N16 board verification](../progress/verification/2026-08-06-n16-wifi-sta-coexistence.md).
 - N15-M migrated the board to the ADR-004 contiguous layout and re-verified
   the N14 runtime matrix. Read the
   [N15-M verification record](../progress/verification/2026-08-03-n15-migration-board-verification.md).

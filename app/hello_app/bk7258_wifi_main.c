@@ -98,6 +98,14 @@ static int bkwifi_read_hidden(const char *prompt, char *buffer,
       return -errno;
     }
 
+  /* NSH consumes the command-ending carriage return but can leave the
+   * paired line-feed pending on the shared console.  Discard pending input
+   * before displaying the prompt so it cannot be mistaken for an empty
+   * credential.  The operator enters credentials only after the prompt.
+   */
+
+  (void)tcflush(STDIN_FILENO, TCIFLUSH);
+
   printf("%s", prompt);
   fflush(stdout);
   errno = 0;

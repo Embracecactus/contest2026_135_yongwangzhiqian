@@ -1,26 +1,18 @@
 # Roadmap
 
-Last reviewed: 2026-08-04
+Last reviewed: 2026-08-06
 
-## Now: N16 Wi-Fi STA data plane
+## Latest completed baseline: N16 Wi-Fi STA data plane
 
-- ADR-007 is accepted: CP owns official v3.1.1.9 RF/PHY/MAC/WPA/controller;
-  AP logical CPU0 owns the official Wi-Fi proxy plus a repository-owned
-  adapter to native NuttX `wlan0`, DHCP and sockets.
-- N16-R is active and board-read-only. It must close the exact archive/object
-  dependency graph, vendor pbuf/cpdu/headroom ABI, callback context, pointer
-  ownership, credential-log audit and forbidden-symbol link gates.
-- N16-A will add an idempotent CP shared-radio/controller wrapper without
-  double-initializing the N12 Bluetooth PHY/RF/calibration path.
-- N16-B/C will add the AP CPU0 command worker, minimal pbuf compatibility and
-  NuttX Ethernet netdev seam. The vendor AP lwIP/socket and SDK FreeRTOS
-  implementations must remain absent.
-- N16-D will add dedicated validation profiles and verify STA association,
-  NuttX DHCP, gateway ICMP and local TCP/UDP exchange.
-- N16-E/V will verify AP SMP socket producers and Wi-Fi coexistence with
-  RPTUN/RPMsg, RPMsgFS and Bluetooth, then close the finite board matrix.
+- CP owns official v3.1.1.9 RF/PHY/MAC/WPA/controller and DHCP. AP logical CPU0
+  owns the official proxy plus a repository adapter into native NuttX `wlan0`
+  and sockets; vendor AP lwIP/socket and SDK FreeRTOS remain excluded.
+- Runtime STA, wrong-password recovery, local TCP/UDP, retained-service
+  coexistence, AP-restart refusal and 3/3 RTS recovery are board-verified.
+- Official SDK/NuttX/apps source remains unmodified. Read the N16 worklog and
+  phase verification before changing the accepted lifecycle boundaries.
 
-## Latest completed baseline: N15
+## Prior completed baseline: N15
 
 - The official-style contiguous CP/AP A/B layout and ADR-006 symmetric
   dual-bank selector are merged and board-verified for the approved scope.
@@ -33,7 +25,7 @@ Last reviewed: 2026-08-04
 - Physical rollback and analog mid-program brownout were not part of the
   approved minimal N15 board run. Future Flash writes require fresh authority.
 
-## Next after N16
+## Proposed next MAIN stages
 
 1. N17: authenticated update policy—signature format, key provisioning,
    anti-rollback and recovery-key design—after a separate architecture review.

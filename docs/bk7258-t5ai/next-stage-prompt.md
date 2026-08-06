@@ -32,7 +32,7 @@
 | **N13** | BLE GAP/GATT Peripheral end-to-end | `board-verified`（2026-08-03）；四类negative、20/20 uncached重连、BLE 100帧与RPMsg六场景×100/RPMsgFS四档×20主动并发、3/3 cold、最终`25/25/25`与connection ref=0全部闭环 | [N13 completion](nuttx-port/prompts/13-n13-ble-gap-gatt.md) / [source verification](nuttx-port/n13-ble-gap-gatt-source-verification.md) / [evidence](nuttx-port/n13-evidence-index.md) |
 | **N14** | 16 MiB PSRAM + SDK software-timer wrapper | `board-verified`（2026-08-03）；CP official PM owner、全容量boot gate、CP/AP private heap、AP CPU0/CPU1 allocator 16/16、timer 256、warm cycle10、physical cold/factory及RPMsg/Bluetooth回归全部闭环 | [N14 completion](nuttx-port/prompts/14-n14-psram.md) / [source verification](nuttx-port/n14-psram-source-verification.md) / [evidence](nuttx-port/n14-evidence-index.md) |
 | **N15** | Tier-2 paired CP/AP OTA + rollback | **COMPLETE：批准的最小physical范围 `board-verified`**；generation 314 confirmed B、generation 315 confirmed A、双bank/两槽回归、RTS和post-confirm完整掉电恢复PASS | [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) / [physical evidence](../../progress/verification/2026-08-04-n15-physical-symmetric-lifecycle.md) / [symmetric host evidence](../../progress/verification/2026-08-04-n15-format2-symmetric-host.md) / [ADR-006](../../memory/decisions/ADR-006-n15-symmetric-dual-bank-ota.md) / [ADR-004](../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md) |
-| **N16** | official Wi-Fi controller + native NuttX STA data plane | **CURRENT：controller/control firmware board-running**；CP Wi-Fi初始化与owner-PID malloc兼容层、AP/RPTUN/SMP回归已实板通过；STA关联、DHCP与socket数据面尚未闭环 | [N16 worklog](nuttx-port/prompts/16-n16-wifi-data-plane.md) / [malloc evidence](../../progress/verification/2026-08-05-n16-wifi-malloc-compatibility.md) / [ADR-007](../../memory/decisions/ADR-007-n16-cp-radio-ap-nuttx-network.md) |
+| **N16** | official Wi-Fi controller + native NuttX STA data plane | **COMPLETE：`board-verified`（2026-08-06）**；runtime STA、wrong-password recovery、native TCP/UDP、active-Wi-Fi RPMsg/RPMsgFS/Bluetooth coexistence、AP restart `-EBUSY` 与 RTS 3/3 全部闭环 | [N16 worklog](nuttx-port/prompts/16-n16-wifi-data-plane.md) / [board evidence](../../progress/verification/2026-08-06-n16-wifi-sta-coexistence.md) / [malloc evidence](../../progress/verification/2026-08-05-n16-wifi-malloc-compatibility.md) / [ADR-007](../../memory/decisions/ADR-007-n16-cp-radio-ap-nuttx-network.md) |
 
 ## 当前 handoff
 
@@ -70,13 +70,14 @@
 > [N15-A evidence](../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md)和
 > [N15-M evidence](../../progress/verification/2026-08-03-n15-migration-board-verification.md)。
 >
-> **N16 current（2026-08-05）：**owner接受ADR-007。official v3.1.1.9 CP继续拥有
-> RF/PHY/MAC/WPA与Wi-Fi vnet controller；AP logical CPU0保留official command/data proxy，
-> 通过team-owned pbuf/netdev adapter接入native NuttX `wlan0`、DHCP和socket。vendor AP lwIP
-> 与SDK FreeRTOS实现禁止进入最终ELF。dedicated Wi-Fi双镜像已实板启动，CP immutable archive
-> 的zero-on-first-use malloc假设由Wi-Fi init owner PID专用scope兼容；其他CP线程不受影响。
-> 当前`bkwifi status=0/link=0`，STA关联、DHCP和native socket数据面仍待闭环。见
-> [N16 worklog](nuttx-port/prompts/16-n16-wifi-data-plane.md)和
+> **N16 completed（2026-08-06）：**owner接受ADR-007。official v3.1.1.9 CP继续拥有
+> RF/PHY/MAC/WPA、Wi-Fi vnet controller和DHCP；AP logical CPU0保留official proxy，通过
+> team-owned lease/pbuf/netdev adapter接入native NuttX `wlan0`和socket。vendor AP lwIP与SDK
+> FreeRTOS未进入最终ELF。runtime STA、wrong-password bounded recovery、gateway ICMP、local
+> TCP/UDP、active-Wi-Fi RPMsg/RPMsgFS/Bluetooth、AP restart fail-closed及RTS 3/3均实板通过。
+> live VFS object重复分配由profile-scoped 16 KiB NuttX FS heap隔离；official源码未修改。见
+> [N16 worklog](nuttx-port/prompts/16-n16-wifi-data-plane.md)、
+> [board evidence](../../progress/verification/2026-08-06-n16-wifi-sta-coexistence.md)和
 > [ADR-007](../../memory/decisions/ADR-007-n16-cp-radio-ap-nuttx-network.md)。
 >
 > **N13 completed / board-verified（2026-08-03）：**AP stock NuttX Host仍是唯一Host owner，
@@ -186,18 +187,18 @@
 
 > **N8-D1 closure（2026-07-30）：**`ap_smp_lifecycle` normal autostart 在真实 T5-AI 一次闭环。AP `READY/error=0`、heartbeat=`727`；CPU2 `SCHEDULER_ONLINE/error=0`、online=`0x3`。BLCY `PASSED/error=0`、requested/completed=`1/1`；callback entry/exit CPU=`1/1`、started/completed=`1/1`、quiesce/resume sequence=`1/1`、value=`0/-138`（该 NuttX 配置的 `-ENOTSUP`）、aux=`1/1`。隔离窗口 CPU0→CPU1 `10→11`=`+1`、CPU1→CPU0 `1→1`=`+0`、calls `11→12`=`+1`；handler CPU0=`1/1`、CPU1=`11/11`，coalesced/fail/stale/spurious=0。CPU0 SysTick=`8090`、sleep enter/return=`727/726` 证明 gate 后持续运行。CPU1 全程保持 online=`0x3`，没有 CPU2 reset/power transition；这是 bounded scheduler quiesce/resume foundation，不是 CPU hot-unplug。
 
-- **Current Stage：**N16 Wi-Fi STA data plane。dedicated Wi-Fi双镜像、CP controller初始化、
-  owner-PID malloc兼容层和AP/RPTUN/SMP保留服务已实板通过；下一步是STA关联、DHCP与
-  native socket数据面，不宣称N16完成。
+- **Current Stage：**N16 Wi-Fi STA data plane 已完成并实板闭环。下一 MAIN Stage 尚未批准；
+  路线图候选为先做 N17 authenticated-update policy 架构评审，再做 N18 network OTA transport。
 - **Authorized implementation set：**N8-C5..N8-D1 与 N9-R..N9-V 全部完成并实板
   闭环；N10 wrapper、重复满载、warm restart、primary/secondary/RPMsg 三类注入、
   fail-closed、三次人工恢复与 generation=5 无注入重复 full suite 均已实板通过；N11
   stock RPMsgFS wrapper、exclusive-state 内存修复、故障态 bounded wait 与 generation
   recovery 也已实板通过；N12/N13 Bluetooth与N14 PSRAM/timer全套wrapper均已完成。
 - **Latest board-verified baseline：**N15 metadata仍为generation 315、bank 1、confirmed/active A；
-  当前板端运行`cp_nsh_wifi + ap_smp_wifi`。COM7 RTS后AP READY、CPU2 online、RPTUN connected、
-  Supervisor healthy、AP SMP passed，RPMsg双CPU各20/20且0错误；`bkwifi status=0/link=0`。
-  sparse写集合不含B或metadata bank。
+  当前板端运行`cp_nsh_wifi + ap_smp_wifi`并已runtime关联。STA、gateway ICMP、local TCP/UDP、
+  active-Wi-Fi RPMsg/RPMsgFS/Bluetooth、AP restart `-EBUSY`及COM7 RTS 3/3通过；AP READY、
+  CPU2 online、RPTUN connected、Supervisor healthy、AP SMP passed。sparse写集合不含B或
+  metadata bank。
 - **Latest worklog：**[`nuttx-port/prompts/16-n16-wifi-data-plane.md`](nuttx-port/prompts/16-n16-wifi-data-plane.md)
 - **Source verification：**[`nuttx-port/n15-ota-source-verification.md`](nuttx-port/n15-ota-source-verification.md)；
   N14完成记录见[`nuttx-port/n14-psram-source-verification.md`](nuttx-port/n14-psram-source-verification.md)；

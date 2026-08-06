@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-08-05
+Last reviewed: 2026-08-06
 
 ## System context
 
@@ -22,7 +22,7 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | Beken SDK v3.1.1.9 | Immutable CP/AP archives reached through minimal board ABI wrappers |
 | Windows/WSL2 tools | Build, sparse/factory download, UART/J-Link evidence, and no-GUI BLE client |
 | N15 OTA (accepted architecture) | Official-style contiguous CP/AP A/B geometry is deployed; ADR-006 dual-bank inactive-slot A/B rotation completed the approved physical A-to-B-to-A lifecycle |
-| N16 Wi-Fi (accepted architecture, implementation current) | Official v3.1.1.9 radio/controller remains on CP; AP uses the official vnet proxy plus a repository-owned adapter to native NuttX `wlan0`/IPv4/sockets; vendor AP lwIP is excluded |
+| N16 Wi-Fi (accepted architecture, complete for STA scope) | Official v3.1.1.9 radio/controller and DHCP client remain on CP; AP uses the official vnet proxy plus a repository-owned lease/netdev adapter to native NuttX `wlan0`/IPv4/sockets; vendor AP lwIP is excluded |
 
 ## Primary data flows
 
@@ -30,11 +30,12 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 - IPC: one CP↔AP RPTUN/OpenAMP/RPMsg link; AP logical CPU0 is the mailbox/OpenAMP gateway.
 - Storage: CP exclusively owns raw flash/MTD/LittleFS; AP reaches it through RPMsgFS.
 - Bluetooth: CP owns the official Controller; AP owns the stock NuttX Host/GAP/GATT through official pointer IPC and a board lower-half.
-- Wi-Fi: CP owns official RF/PHY/MAC/WPA and the vnet controller; AP logical
-  CPU0 owns the official command/data proxy and a repository netdev seam into
-  native NuttX networking. The dedicated CP/AP Wi-Fi profiles now boot the
-  controller/control path on hardware; STA association, DHCP and socket data
-  plane remain the unfinished N16 boundary.
+- Wi-Fi: CP owns official RF/PHY/MAC/WPA, the vnet controller and its DHCP
+  client; AP logical CPU0 owns the official command/data proxy and a
+  repository lease/netdev seam into native NuttX networking. AP does not run
+  a second DHCP client. Runtime STA association, lease synchronization,
+  gateway ICMP, local TCP/UDP sockets, bounded retained-service coexistence,
+  AP-restart rejection and 3/3 controlled RTS recovery are board-verified.
 - PSRAM: CP takes the official PM vote and performs the one-shot capacity gate; CP and AP use disjoint role-local heaps.
 - OTA: CP/AP are one generation. Primary CP/AP and `s_app` are equal-length
   contiguous pairs selected by one official-style Flash remap decision;
@@ -106,4 +107,8 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   allocations only for the PID executing `bk_wifi_init()`; concurrent CP
   threads retain normal NuttX allocation semantics. This boundary must not be
   broadened for another component without separate allocation evidence.
+- The AP Wi-Fi profile uses NuttX's independent 16 KiB FS heap for
+  VFS/RPMsgFS/socket metadata. This prevents nested filesystem allocations
+  from sharing the vendor Wi-Fi/general AP heap; it is profile-scoped and
+  requires no NuttX source modification.
 - CPU0 480 MHz is not supported by the verified SDK policy; the product path uses the SDK-aligned 320 tier with CPU0 effectively 160 MHz and AP at 320 MHz.
