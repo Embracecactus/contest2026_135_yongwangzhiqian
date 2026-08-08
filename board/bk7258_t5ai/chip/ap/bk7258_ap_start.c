@@ -219,9 +219,9 @@ void __start(void)
   state->local_core_id  = 0;
   state->physical_core_id = BK7258_AP_PHYSICAL_ID_OFFSET;
   state->initial_msp    = msp;
-  state->initial_vtor   = BK7258_AP_FLASH_ADDR;
+  state->initial_vtor   = BK7258_AP_VECTOR_ADDR;
 
-  BK7258_SCB_VTOR = BK7258_AP_FLASH_ADDR;
+  BK7258_SCB_VTOR = BK7258_AP_VECTOR_ADDR;
   __asm volatile ("dsb sy; isb sy" ::: "memory");
 
   /* Disable automatic/lazy FP context stacking before enabling CP10/CP11. */

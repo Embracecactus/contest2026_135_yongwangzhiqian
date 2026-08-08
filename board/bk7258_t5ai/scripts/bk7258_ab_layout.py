@@ -35,6 +35,10 @@ _PAIR_B = _LAYOUT.by_role("slot_b_pair")
 _METADATA_PRIMARY = _LAYOUT.by_role("ota_metadata_primary")
 _USR_CONFIG = _LAYOUT.by_role("vendor_config")
 _METADATA_MIRROR = _LAYOUT.by_role("ota_metadata_mirror")
+_MANIFEST_A = _LAYOUT.by_role("ota_manifest_a")
+_MANIFEST_B = _LAYOUT.by_role("ota_manifest_b")
+_AUTH_POLICY = _LAYOUT.by_role("ota_auth_policy")
+_BL2 = _LAYOUT.by_role("bl2")
 _LITTLEFS = _LAYOUT.by_role("littlefs")
 _EASYFLASH = _LAYOUT.by_role("easyflash_cp")
 
@@ -57,6 +61,17 @@ USR_CONFIG_START = _USR_CONFIG.offset
 USR_CONFIG_SIZE = _USR_CONFIG.size
 OTA_METADATA_MIRROR_START = _METADATA_MIRROR.offset
 OTA_METADATA_MIRROR_SIZE = _METADATA_MIRROR.size
+OTA_MANIFEST_A_START = _MANIFEST_A.offset
+OTA_MANIFEST_A_SIZE = _MANIFEST_A.size
+OTA_MANIFEST_B_START = _MANIFEST_B.offset
+OTA_MANIFEST_B_SIZE = _MANIFEST_B.size
+OTA_AUTH_POLICY_START = _AUTH_POLICY.offset
+OTA_AUTH_POLICY_SIZE = _AUTH_POLICY.size
+BL2_START = _BL2.offset
+BL2_SIZE = _BL2.size
+BL2_SECONDARY_START = BL2_START + BL2_SIZE
+BL2_SECONDARY_SIZE = BL2_SIZE
+BL2_SECONDARY_END = BL2_SECONDARY_START + BL2_SECONDARY_SIZE
 LITTLEFS_START = _LITTLEFS.offset
 LITTLEFS_SIZE = _LITTLEFS.size
 CALIBRATION_TAIL_START = _EASYFLASH.offset
@@ -117,9 +132,27 @@ REGIONS = (
         "trial-metadata-mirror",
     ),
     Region(
+        _MANIFEST_A.name,
+        _MANIFEST_A.offset,
+        _MANIFEST_A.size,
+        "signed-manifest-a",
+    ),
+    Region(
+        _MANIFEST_B.name,
+        _MANIFEST_B.offset,
+        _MANIFEST_B.size,
+        "signed-manifest-b",
+    ),
+    Region(
+        _AUTH_POLICY.name,
+        _AUTH_POLICY.offset,
+        _AUTH_POLICY.size,
+        "one-way-auth-policy",
+    ),
+    Region(
         "reserved_before_littlefs",
-        _METADATA_MIRROR.end,
-        _LITTLEFS.offset - _METADATA_MIRROR.end,
+        _AUTH_POLICY.end,
+        _LITTLEFS.offset - _AUTH_POLICY.end,
         "unallocated",
     ),
     Region(_LITTLEFS.name, _LITTLEFS.offset, _LITTLEFS.size, "cp-raw-owner"),
@@ -224,6 +257,14 @@ def report(sdk_source: Path | None = None) -> dict[str, object]:
                 OTA_METADATA_MIRROR_START,
                 OTA_METADATA_MIRROR_START + OTA_METADATA_MIRROR_SIZE,
             ],
+        ],
+        "manifest_sectors": [
+            [OTA_MANIFEST_A_START, OTA_MANIFEST_A_START + OTA_MANIFEST_A_SIZE],
+            [OTA_MANIFEST_B_START, OTA_MANIFEST_B_START + OTA_MANIFEST_B_SIZE],
+        ],
+        "auth_policy": [
+            OTA_AUTH_POLICY_START,
+            OTA_AUTH_POLICY_START + OTA_AUTH_POLICY_SIZE,
         ],
         "migration": {
             "write_ranges": [

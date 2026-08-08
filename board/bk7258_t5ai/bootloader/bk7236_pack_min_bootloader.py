@@ -22,6 +22,10 @@ MAGIC = b'BK7236\x10\x00'
 MAGIC_LOGICAL_OFFSET = 0x100
 FLASH_BASE = LAYOUT.xip_base + LAYOUT.logical_offset(BOOT_PARTITION)
 BOOTLOADER_LOGICAL_SIZE = LAYOUT.logical_size(BOOT_PARTITION)
+BL1_MANIFEST_SIZE = 0x100
+BL1_MANIFEST_TAIL_SIZE = 0x200
+BL1_MANIFEST_PRIMARY_LOGICAL_OFFSET = BOOTLOADER_LOGICAL_SIZE - BL1_MANIFEST_SIZE
+BL1_MANIFEST_SECONDARY_LOGICAL_OFFSET = BOOTLOADER_LOGICAL_SIZE - BL1_MANIFEST_TAIL_SIZE
 CRC_PACKET = LAYOUT.crc_data_size
 CRC_TOTAL = LAYOUT.crc_total_size
 BOOTLOADER_PHYSICAL_SIZE = BOOT_PARTITION.size
@@ -70,7 +74,8 @@ def physical_offset_for_logical(logical_offset: int) -> int:
     return (logical_offset // CRC_PACKET) * CRC_TOTAL + (logical_offset % CRC_PACKET)
 
 
-def prepare_bootloader(data: bytearray) -> tuple[int, int]:
+def prepare_bootloader(data: bytearray, manifest_primary: bytes | None,
+                       manifest_secondary: bytes | None) -> tuple[int, int]:
     min_size = MAGIC_LOGICAL_OFFSET + len(MAGIC)
     if len(data) < min_size:
         data.extend(b'\xff' * (min_size - len(data)))
@@ -90,6 +95,37 @@ def prepare_bootloader(data: bytearray) -> tuple[int, int]:
 
     if len(data) > BOOTLOADER_LOGICAL_SIZE:
         raise ValueError(f'bootloader 0x{len(data):x} exceeds logical slot 0x{BOOTLOADER_LOGICAL_SIZE:x}')
+    if manifest_primary is not None or manifest_secondary is not None:
+        if len(data) > BL1_MANIFEST_SECONDARY_LOGICAL_OFFSET:
+            raise ValueError(
+                f'bootloader 0x{len(data):x} leaves no reserved BL1 Manifest tail'
+            )
+    # The SDK-shaped experiment stores the same 256-byte signed record in a
+    # separate 4 KiB raw data page.  The bootloader tail remains two 256-byte
+    # records, so accept that page as input but embed only its first record.
+    if manifest_primary is not None:
+        if len(manifest_primary) == 0x1000:
+            if any(byte != 0xff for byte in manifest_primary[0x100:]):
+                raise ValueError('primary 4 KiB BL1 Manifest tail is not erased')
+            manifest_primary = manifest_primary[:BL1_MANIFEST_SIZE]
+        elif len(manifest_primary) != BL1_MANIFEST_SIZE:
+            raise ValueError(f'primary BL1 Manifest must be 0x{BL1_MANIFEST_SIZE:x} or 0x1000 bytes')
+    if manifest_secondary is not None:
+        if len(manifest_secondary) == 0x1000:
+            if any(byte != 0xff for byte in manifest_secondary[0x100:]):
+                raise ValueError('secondary 4 KiB BL1 Manifest tail is not erased')
+            manifest_secondary = manifest_secondary[:BL1_MANIFEST_SIZE]
+        elif len(manifest_secondary) != BL1_MANIFEST_SIZE:
+            raise ValueError(f'secondary BL1 Manifest must be 0x{BL1_MANIFEST_SIZE:x} or 0x1000 bytes')
+    if manifest_primary is not None or manifest_secondary is not None:
+        data.extend(b'\xff' * (BOOTLOADER_LOGICAL_SIZE - len(data)))
+        if manifest_primary is not None:
+            data[BL1_MANIFEST_PRIMARY_LOGICAL_OFFSET:
+                 BL1_MANIFEST_PRIMARY_LOGICAL_OFFSET + BL1_MANIFEST_SIZE] = manifest_primary
+        if manifest_secondary is not None:
+            data[BL1_MANIFEST_SECONDARY_LOGICAL_OFFSET:
+                 BL1_MANIFEST_SECONDARY_LOGICAL_OFFSET + BL1_MANIFEST_SIZE] = manifest_secondary
+        return sp, reset
     data.extend(b'\xff' * (BOOTLOADER_LOGICAL_SIZE - len(data)))
     return sp, reset
 
@@ -97,7 +133,15 @@ def prepare_bootloader(data: bytearray) -> tuple[int, int]:
 def build_image(args: argparse.Namespace) -> BootloaderInfo:
     raw = bytearray(args.input.read_bytes())
     input_size = len(raw)
-    sp, reset = prepare_bootloader(raw)
+    manifest_primary = None
+    manifest_secondary = None
+    if args.manifest is not None:
+        manifest_primary = args.manifest.read_bytes()
+    if args.manifest_primary is not None:
+        manifest_primary = args.manifest_primary.read_bytes()
+    if args.manifest_secondary is not None:
+        manifest_secondary = args.manifest_secondary.read_bytes()
+    sp, reset = prepare_bootloader(raw, manifest_primary, manifest_secondary)
     encoded = crc_expand(raw)
     if len(encoded) != BOOTLOADER_PHYSICAL_SIZE:
         raise ValueError(f'encoded size 0x{len(encoded):x} != expected 0x{BOOTLOADER_PHYSICAL_SIZE:x}')
@@ -136,6 +180,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--in', dest='input', type=existing_path, default=DEFAULT_IN)
     parser.add_argument('--out', type=Path, default=DEFAULT_OUT)
+    parser.add_argument('--manifest', type=existing_path,
+                        help='compatibility alias for --manifest-primary')
+    parser.add_argument('--manifest-primary', type=existing_path,
+                        help='optional 256-byte primary self-owned BL1 Manifest')
+    parser.add_argument('--manifest-secondary', type=existing_path,
+                        help='optional 256-byte secondary self-owned BL1 Manifest')
     return parser.parse_args()
 
 

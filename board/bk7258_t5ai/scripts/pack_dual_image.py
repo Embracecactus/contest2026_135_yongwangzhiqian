@@ -14,6 +14,11 @@ from bk7258_ab_layout import (
     AP_A_START,
     AP_XIP_SIZE,
     AP_XIP_START,
+    BL2_SECONDARY_END,
+    BL2_SECONDARY_SIZE,
+    BL2_SECONDARY_START,
+    BL2_SIZE,
+    BL2_START,
     BOOT_SIZE,
     BOOT_START,
     CALIBRATION_TAIL_START,
@@ -74,15 +79,17 @@ def copy_flash_segment(path: Path, output: Path, name: str) -> Path:
     return destination
 
 
-def make_secondary_seed(cp: Path, ap: Path, output: Path) -> Path:
-    """Place the same A-generation bytes in the official contiguous B slot."""
+def make_secondary_pair(
+    cp: Path, ap: Path, output: Path, file_name: str
+) -> Path:
+    """Place the same CP/AP generation in the official contiguous B slot."""
 
     image = bytearray(b"\xff" * PAIR_B_SIZE)
     cp_data = cp.read_bytes()
     ap_data = ap.read_bytes()
     image[: len(cp_data)] = cp_data
     image[CP_A_SIZE : CP_A_SIZE + len(ap_data)] = ap_data
-    destination = output / "s_app_seed.bin"
+    destination = output / file_name
     destination.write_bytes(image)
     return destination
 
@@ -94,12 +101,19 @@ def main() -> None:
     parser.add_argument("--cp-crc", type=Path, required=True)
     parser.add_argument("--ap-raw", type=Path, required=True)
     parser.add_argument("--ap-crc", type=Path, required=True)
+    parser.add_argument("--bl2-primary-crc", type=Path)
+    parser.add_argument("--bl2-secondary-crc", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
-    for path in (args.boot, args.cp_raw, args.cp_crc, args.ap_raw, args.ap_crc):
+    for path in (args.boot, args.cp_raw, args.cp_crc, args.ap_raw, args.ap_crc,
+                 args.bl2_primary_crc, args.bl2_secondary_crc):
+        if path is None:
+            continue
         if not path.is_file():
             raise SystemExit(f"missing input: {path}")
+    if (args.bl2_primary_crc is None) != (args.bl2_secondary_crc is None):
+        raise SystemExit("primary and secondary BL2 images must be supplied together")
 
     layout_report()
     if args.boot.stat().st_size != BOOT_SIZE:
@@ -119,14 +133,35 @@ def main() -> None:
     ap_crc = copy(args.ap_crc, args.output)
     cp_flash = copy_flash_segment(args.cp_crc, args.output, "app_crc_flash.bin")
     ap_flash = copy_flash_segment(args.ap_crc, args.output, "app1_crc_flash.bin")
-    secondary_seed = make_secondary_seed(cp_flash, ap_flash, args.output)
+    mcuboot_profile = args.bl2_primary_crc is not None
+    secondary_file = "s_app_mcuboot.bin" if mcuboot_profile else "s_app_seed.bin"
+    secondary_name = "s_app_mcuboot" if mcuboot_profile else "s_app_seed"
+    secondary_pair = make_secondary_pair(
+        cp_flash, ap_flash, args.output, secondary_file
+    )
+
+    bl2_segments = []
+    if args.bl2_primary_crc is not None:
+        for image, name, offset in (
+            (args.bl2_primary_crc, "bl2_crc.bin", BL2_START),
+            (args.bl2_secondary_crc, "bl2_secondary_crc.bin", BL2_SECONDARY_START),
+        ):
+            if image.stat().st_size == 0 or image.stat().st_size > BL2_SIZE:
+                raise SystemExit(
+                    f"{name} exceeds its 136 KiB physical BL2 envelope"
+                )
+            packed = copy_flash_segment(image, args.output, name)
+            bl2_segments.append(segment(
+                "primary_bl2" if offset == BL2_START else "secondary_bl2",
+                packed, offset,
+            ))
 
     primary_segments = [
         segment("primary_bootloader", boot, BOOT_START),
         segment("primary_cp_app", cp_flash, CP_A_START),
         segment("primary_ap_app", ap_flash, AP_A_START),
     ]
-    secondary_segment = segment("s_app_seed", secondary_seed, PAIR_B_START)
+    secondary_segment = segment(secondary_name, secondary_pair, PAIR_B_START)
 
     # Keep the vendor-owned usr_config envelope and all reserved ranges out of
     # the migration write set.  The prefix initializes boot/A/B/metadata; a
@@ -135,7 +170,7 @@ def main() -> None:
     migration = bytearray(b"\xff" * FACTORY_PREFIX_END)
     for item, path in zip(
         (*primary_segments, secondary_segment),
-        (boot, cp_flash, ap_flash, secondary_seed),
+        (boot, cp_flash, ap_flash, secondary_pair),
         strict=True,
     ):
         start = int(item["physical_offset"])
@@ -168,16 +203,22 @@ def main() -> None:
                 OTA_METADATA_START + OTA_METADATA_SIZE,
             ],
             "usr_config": [USR_CONFIG_START, USR_CONFIG_START + USR_CONFIG_SIZE],
+            "primary_bl2": [BL2_START, BL2_START + BL2_SIZE],
+            "secondary_bl2": [BL2_SECONDARY_START, BL2_SECONDARY_END],
             "littlefs": [LITTLEFS_START, LITTLEFS_START + LITTLEFS_SIZE],
             "calibration_tail_start": CALIBRATION_TAIL_START,
         },
         "segments": primary_segments,
-        "secondary_seed": {
+        "bl2_segments": bl2_segments,
+        ("secondary_pair" if mcuboot_profile else "secondary_seed"): {
             **secondary_segment,
             "same_pair_as_primary": True,
             "rbl_header_present": False,
-            "boot_selectable": False,
+            "boot_selectable": mcuboot_profile,
+            "format": "mcuboot-cp-ap-pair" if mcuboot_profile else "seed",
             "reason": (
+                "board-owned BL2 may select the validated CP/AP pair"
+                if mcuboot_profile else
                 "layout-migration seed only; N15-A must add exact RBL and "
                 "trial metadata before B selection is enabled"
             ),
@@ -197,7 +238,8 @@ def main() -> None:
             "preserves_calibration_tail": True,
             "mode": "BKFIL/bk_loader primary sparse segments",
             "flash_erase_alignment": ERASE_SIZE,
-            "arguments": [item["bkfil"] for item in primary_segments],
+            "arguments": [item["bkfil"] for item in
+                          (*primary_segments, *bl2_segments)],
         },
         "factory_image": {
             "file": factory_path.name,
@@ -216,6 +258,9 @@ def main() -> None:
             "preserves_usr_config": True,
             "preserves_reserved_ranges": True,
             "requires_explicit_owner_gate": True,
+            "bl2_segments": bl2_segments,
+            "bl2_write_range": [BL2_START, BL2_SECONDARY_END]
+            if bl2_segments else None,
         },
         "writes_enabled": False,
     }

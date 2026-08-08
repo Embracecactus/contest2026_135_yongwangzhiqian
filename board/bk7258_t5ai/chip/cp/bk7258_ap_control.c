@@ -535,7 +535,12 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
 
   sys_drv_set_cpu1_pwr_dw(0);
   sys_drv_set_cpu1_rxevt_sel(1);
-  sys_drv_set_cpu1_boot_address_offset(BK7258_AP_FLASH_ADDR >> 8);
+  /* A MCUboot-signed AP slot starts with its 0x200-byte image header.  CPU1
+   * has no MCUboot parser of its own: BL2 validated the pair before it
+   * launched CP, and CP must release CPU1 at the AP vector table itself.
+   */
+
+  sys_drv_set_cpu1_boot_address_offset(BK7258_AP_VECTOR_ADDR >> 8);
   __asm volatile ("dsb sy; isb sy" ::: "memory");
 
   sys_drv_set_cpu1_reset(1);

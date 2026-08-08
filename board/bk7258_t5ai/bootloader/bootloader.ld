@@ -10,6 +10,7 @@
  */
 
 #include "../chip/include/bk7258_partition_layout.h"
+#include "boot_bl2_contract.h"
 
 ENTRY(Reset_Handler)
 
@@ -41,6 +42,7 @@ SECTIONS
         *(.data.g_curve_g)
     } > FLASH
 
+#if !BK7258_BL1_MINIMAL
     /* The only raw program primitive executes from SRAM while the on-chip
      * Flash controller is busy.  Its load image remains inside the 64 KiB
      * boot slot and is copied only after every N15-D gate has passed.
@@ -63,6 +65,7 @@ SECTIONS
         KEEP(*(.boot_ota_workspace))
         KEEP(*(.boot_ota_workspace.*))
     } > RAM
+#endif
 
     .data : {
         *(.data*)
@@ -79,6 +82,7 @@ SECTIONS
         *(.comment)
     }
 
+#if !BK7258_BL1_MINIMAL
     ASSERT(SIZEOF(.boot_ota_workspace) <= 0x3000,
            "N15 boot OTA workspace exceeds 12 KiB")
     ASSERT((ADDR(.boot_ota_workspace) + SIZEOF(.boot_ota_workspace)) <= 0x28010000,
@@ -87,9 +91,16 @@ SECTIONS
            "N15 boot OTA SRAM writer exceeds 4 KiB")
     ASSERT((ADDR(.boot_ota_ramfunc) + SIZEOF(.boot_ota_ramfunc)) <= 0x2800D000,
            "N15 boot OTA SRAM writer overlaps validation workspace")
+#endif
     ASSERT(SIZEOF(.data) == 0, "bootloader must not require initialized RAM data")
     ASSERT(SIZEOF(.bss) == 0, "bootloader must not retain hidden BSS state")
+#if BK7258_BL1_MINIMAL
+    ASSERT((ADDR(.rodata) + SIZEOF(.rodata)) <=
+           (BK7258_ROLE_BOOT_XIP_END - BK7258_BL1_MANIFEST_TAIL_SIZE),
+           "minimal bootloader overlaps the reserved BL1 Manifest tail")
+#else
     ASSERT((LOADADDR(.boot_ota_ramfunc) + SIZEOF(.boot_ota_ramfunc)) <=
-           BK7258_ROLE_BOOT_XIP_END,
-           "bootloader exceeds its 64 KiB logical slot")
+           (BK7258_ROLE_BOOT_XIP_END - BK7258_BL1_MANIFEST_TAIL_SIZE),
+           "bootloader overlaps the reserved BL1 Manifest tail")
+#endif
 }

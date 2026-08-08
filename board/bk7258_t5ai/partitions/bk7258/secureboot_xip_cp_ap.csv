@@ -1,0 +1,42 @@
+# BK7258 project-owned secureboot XIP staging profile.
+#
+# This file is separate from auto_partitions.csv.  The latter remains the
+# active v3.1.1.9 / legacy-N17 build layout until this BK7258 staging chain
+# has a recoverable full-image handoff and board validation.
+#
+# Geometry follows Beken's public BK7258 secure-boot convention:
+#   BL1 ROM -> primary/secondary Manifest + BL2 -> primary_all/secondary_all
+# This project does not use TF-M in the current boot-chain phase, so each
+# signed application group contains CP NuttX and AP NuttX only.  The official
+# Beken tool remains a read-only format reference; repository-owned adapters
+# perform the BK7258 CP/AP extension without modifying the SDK.
+# Do not feed this profile to pack_dual_image.py.
+#
+# The public BK7236 example places sys_rf/sys_net/easyflash before TF-M.  This
+# staging profile deliberately retains the v3.1.1.9 calibration tail until the
+# matching BK7258 secure packer confirms its runtime-data placement.  It is not
+# an authorization to migrate a board or program secure-boot OTP.
+# SDK_RELEASE=v3.1.1.9
+# LAYOUT_NAME=bk7258-secureboot-xip-cp-ap
+# ERASE_SIZE=4K
+# CRC_DATA_SIZE=32
+# CRC_TOTAL_SIZE=34
+# XIP_BASE=0x02000000
+# Name,Offset,Size,Type,Read,Write,Role
+FLASH_CAPACITY=8M
+bl1_control,0x000000,12K,data,TRUE,TRUE,bl1_control
+primary_manifest,,4K,data,TRUE,TRUE,bl1_primary_manifest
+secondary_manifest,,4K,data,TRUE,TRUE,bl1_secondary_manifest
+primary_bl2,,136K,code,TRUE,FALSE,bl1_primary_bl2
+secondary_bl2,,136K,code,TRUE,FALSE,bl1_secondary_bl2
+primary_cp_app,,1360K,code,TRUE,FALSE,primary_cp_app
+primary_ap_app,,1156K,code,TRUE,FALSE,primary_ap_app
+secondary_cp_app,,1360K,code,TRUE,FALSE,secondary_cp_app
+secondary_ap_app,,1156K,code,TRUE,FALSE,secondary_ap_app
+usr_config,,60K,data,TRUE,TRUE,vendor_config
+ota,,760K,data,TRUE,TRUE,ota_scratch
+littlefs,0x600000,1M,data,TRUE,TRUE,littlefs
+easyflash,0x7fa000,8K,data,TRUE,TRUE,easyflash_cp
+easyflash_ap,,8K,data,TRUE,TRUE,easyflash_ap
+sys_rf,,4K,data,TRUE,TRUE,calibration_rf
+sys_net,,4K,data,TRUE,TRUE,calibration_net

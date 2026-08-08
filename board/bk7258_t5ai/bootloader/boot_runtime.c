@@ -29,7 +29,7 @@
 
 #include <stdint.h>
 
-#define REG32(addr) (*(volatile uint32_t *)(uintptr_t)(addr))
+#include "boot_wdt.h"
 
 #define SYS_BASE                 0x44010000u
 #define SYS_CPU_RUN_STATUS       (SYS_BASE + 0x0cu)
@@ -41,14 +41,47 @@
 #define SYS_CPU1_RUNNING         (1u << 5)
 #define SYS_CPU2_RUNNING         (1u << 6)
 
+#define UART1_BASE               0x45830000u
+#define UART1_CONFIG             (UART1_BASE + 0x10u)
+#define UART1_FIFO_CONFIG        (UART1_BASE + 0x14u)
+#define UART1_FIFO_STATUS        (UART1_BASE + 0x18u)
+#define UART1_INT_ENABLE         (UART1_BASE + 0x20u)
+#define UART1_TX_FINISHED        (1u << 17)
+#define UART1_TX_DRAIN_LOOPS     1000000u
+#define SYS_UART1_DEVICE_CLK     (SYS_BASE + 0x80u)
+#define SYS_UART1_DEVICE_CLK_EN  (1u << 15)
+#define SYS_UART1_CLOCK          (SYS_BASE + 0x30u)
+#define SYS_UART1_CLOCK_EN       (1u << 10)
+
 #define AP_BOOT_STATE_MAGIC      0x2809f000u
 #define CORE_STOP_WAIT_LOOPS     10000u
 
-#define FLASH_CTRL_BASE          0x4b100000u
-#define FLASH_CONFIG_2C4         (FLASH_CTRL_BASE + 0x2c4u)
-#define FLASH_CONFIG_2C8         (FLASH_CTRL_BASE + 0x2c8u)
-#define FLASH_STATUS_7C8         (FLASH_CTRL_BASE + 0x7c8u)
-#define FLASH_AUX_BASE           0x44890000u
+#define OTP_APB_BASE             0x4b100000u
+#define OTP_PUF_BUSY             (OTP_APB_BASE + 0x2c4u)
+#define OTP_MEM_REPAIR_CTRL      (OTP_APB_BASE + 0x2c8u)
+#define OTP_MEM_REPAIR_VALUE     (OTP_APB_BASE + 0x7c8u)
+#define MEM_CHECK_BASE           0x44890000u
+
+#define FLASH_CTRL_BASE          0x44030000u
+#define FLASH_OP_CTRL            (FLASH_CTRL_BASE + 0x10u)
+#define FLASH_ID                 (FLASH_CTRL_BASE + 0x20u)
+#define FLASH_CONFIG             (FLASH_CTRL_BASE + 0x28u)
+#define FLASH_OP_CMD             (FLASH_CTRL_BASE + 0x54u)
+#define FLASH_BUSY               (1u << 31)
+#define FLASH_OP_SW              (1u << 29)
+#define FLASH_OP_TYPE_MASK       (0x1fu << 24)
+#define FLASH_OP_TYPE_RDID       (20u << 24)
+#define FLASH_WAIT_LOOPS         1000000u
+
+#define SYS_FLASH_CLOCK          (SYS_BASE + 0x24u)
+#define SYS_FLASH_DIV_MASK       (0x3u << 26)
+#define SYS_FLASH_DIV_FAST       (0x1u << 26)
+#define SYS_FLASH_DIV_SAFE       (0x3u << 26)
+
+#define FLASH_ID_GD25WQ32E       0x00c86516u
+#define FLASH_ID_GD25WQ64E       0x00c86517u
+#define FLASH_ID_GD25Q32C        0x00c84016u
+#define FLASH_ID_GD25LQ128E      0x00c86018u
 
 #define SCB_BASE                 0xe000ed00u
 #define SCB_VTOR                 (SCB_BASE + 0x008u)
@@ -195,17 +228,95 @@ static void boot_early_soc_init(void)
             REG32(SYS_BASE + 0x30u) = value | (1u << 15);
         }
 
-    value = REG32(FLASH_CONFIG_2C8);
+    value = REG32(OTP_MEM_REPAIR_CTRL);
     if ((value & 0x3u) != 0x3u)
         {
-            REG32(FLASH_CONFIG_2C8) = value | 0x3u;
+            REG32(OTP_MEM_REPAIR_CTRL) = value | 0x3u;
         }
 
-    if ((REG32(FLASH_CONFIG_2C4) & 1u) == 0 &&
-        (REG32(FLASH_STATUS_7C8) & 0x0fu) == 7u)
+    if ((REG32(OTP_PUF_BUSY) & 1u) == 0 &&
+        (REG32(OTP_MEM_REPAIR_VALUE) & 0x0fu) == 7u)
         {
-            REG32(FLASH_AUX_BASE + 0x08u) = 7u;
+            REG32(MEM_CHECK_BASE + 0x08u) = 7u;
         }
+}
+
+/* Reset-path semantics of official A/B FUN_02000358(1).  The official binary
+ * consumes a private pre-runtime JEDEC-ID cache at 0x28000118, but our image
+ * does not own its unseen producer.  Obtain the same input with the public
+ * v3.1.1.9 flash_ll_get_id() RDID operation after controller normalization.
+ *
+ * The operation returns the XIP controller to two-line continuous-read mode
+ * and chooses the Flash divider before the later clock helper selects DPLL.
+ * No erase/program/status-register command is issued and no Flash contents
+ * are changed.  The official unbounded busy wait is capped for fail-closed
+ * bootloader operation.
+ */
+
+void boot_flash_reset_prepare(void)
+{
+    uint32_t flash_id;
+    uint32_t value;
+    uint32_t count;
+
+    REG32(SYS_CPU_RUN_STATUS) &= ~(1u << 9);
+
+    value = REG32(FLASH_CONFIG);
+    REG32(FLASH_CONFIG) = (value & 0xfc00000fu) | 0x10u;
+    REG32(FLASH_OP_CMD) |= 0x36000000u;
+    REG32(FLASH_OP_CTRL) &= 0x40000000u;
+
+    for (count = 0; count < FLASH_WAIT_LOOPS; count++)
+        {
+            if ((REG32(FLASH_OP_CTRL) & FLASH_BUSY) == 0)
+                {
+                    break;
+                }
+        }
+
+    if (count == FLASH_WAIT_LOOPS)
+        {
+            boot_wdt_fail_reset();
+        }
+
+    /* flash_ll_get_id(): select RDID, assert op_sw, wait for busy_sw to
+     * deassert, then consume rd_flash_id.  Keep the bounded wait used by the
+     * board BL1 instead of importing the SDK's unbounded loop. */
+
+    value = REG32(FLASH_OP_CMD);
+    REG32(FLASH_OP_CMD) = (value & ~FLASH_OP_TYPE_MASK) | FLASH_OP_TYPE_RDID;
+    REG32(FLASH_OP_CTRL) |= FLASH_OP_SW;
+
+    for (count = 0; count < FLASH_WAIT_LOOPS; count++)
+        {
+            if ((REG32(FLASH_OP_CTRL) & FLASH_BUSY) == 0)
+                {
+                    break;
+                }
+        }
+
+    if (count == FLASH_WAIT_LOOPS)
+        {
+            boot_wdt_fail_reset();
+        }
+
+    flash_id = REG32(FLASH_ID) & 0x00ffffffu;
+
+    value = REG32(SYS_FLASH_CLOCK) & ~SYS_FLASH_DIV_MASK;
+    if (flash_id == FLASH_ID_GD25WQ32E ||
+        flash_id == FLASH_ID_GD25WQ64E ||
+        flash_id == FLASH_ID_GD25Q32C ||
+        flash_id == FLASH_ID_GD25LQ128E)
+        {
+            value |= SYS_FLASH_DIV_FAST;
+        }
+    else
+        {
+            value |= SYS_FLASH_DIV_SAFE;
+        }
+
+    REG32(SYS_FLASH_CLOCK) = value;
+    boot_dsb();
 }
 
 static int boot_secondary_core_power_down(uint32_t control,
@@ -336,4 +447,35 @@ void boot_prepare_app_handoff(void)
      * reset or same-session reflash. */
 
     boot_icache_invalidate_all();
+}
+
+void boot_uart1_prepare_app_handoff(void)
+{
+    uint32_t count;
+
+    /* Exact v3.1.1.9 A/B handoff ordering calls the console deinit routine
+     * before configure_dcache_mpu(0), VTOR/MSP and the final branch.  This
+     * project must keep UART1 alive across BL1 -> SRAM BL2 for BL2 diagnostics,
+     * so quiesce it only at the final BL2 -> CP boundary.
+     *
+     * Official function 0x02000a7c waits indefinitely for FIFO status bit 17.
+     * Bound that wait here: a damaged UART must not prevent a verified image
+     * from booting forever.  The following masks and clock bits reproduce the
+     * UART1 branch at 0x02000a1c in the official A/B binary. */
+
+    for (count = 0; count < UART1_TX_DRAIN_LOOPS; count++)
+        {
+            if ((REG32(UART1_FIFO_STATUS) & UART1_TX_FINISHED) != 0)
+                {
+                    break;
+                }
+        }
+
+    REG32(UART1_CONFIG) &= ~0x1bu;
+    REG32(UART1_FIFO_CONFIG) &= ~0x3040u;
+    REG32(UART1_INT_ENABLE) &= ~0x42u;
+    REG32(SYS_UART1_DEVICE_CLK) &= ~SYS_UART1_DEVICE_CLK_EN;
+    REG32(SYS_UART1_CLOCK) &= ~SYS_UART1_CLOCK_EN;
+    boot_dsb();
+    boot_isb();
 }

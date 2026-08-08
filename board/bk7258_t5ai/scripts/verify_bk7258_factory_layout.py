@@ -11,6 +11,9 @@ from pathlib import Path
 from bk7258_ab_layout import (
     AP_A_SIZE,
     AP_A_START,
+    BL2_SECONDARY_START,
+    BL2_SIZE,
+    BL2_START,
     BOOT_SIZE,
     BOOT_START,
     CALIBRATION_TAIL_START,
@@ -120,9 +123,16 @@ def verify(package: Path) -> dict[str, object]:
     ap = primary_payloads["primary_ap_app"]
     require(len(boot) == BOOT_SIZE, "bootloader must fill its exact envelope")
 
-    secondary_entry = manifest.get("secondary_seed")
-    require(isinstance(secondary_entry, dict), "secondary_seed manifest entry missing")
-    secondary = check_manifest_file(package, secondary_entry, "s_app_seed.bin")
+    # Older packages may already contain BL2 segments while still carrying the
+    # migration-only `secondary_seed` metadata.  The explicit key is the
+    # profile discriminator so a rebuild can validate an old package before
+    # replacing it.
+    mcuboot_profile = manifest.get("secondary_pair") is not None
+    secondary_key = "secondary_pair" if mcuboot_profile else "secondary_seed"
+    secondary_file = "s_app_mcuboot.bin" if mcuboot_profile else "s_app_seed.bin"
+    secondary_entry = manifest.get(secondary_key)
+    require(isinstance(secondary_entry, dict), f"{secondary_key} manifest entry missing")
+    secondary = check_manifest_file(package, secondary_entry, secondary_file)
     require(len(secondary) == PAIR_B_SIZE, "secondary seed size drift")
     require(secondary_entry.get("physical_offset") == PAIR_B_START, "B offset drift")
     require(
@@ -131,12 +141,48 @@ def verify(package: Path) -> dict[str, object]:
     require(secondary_entry.get("same_pair_as_primary") is True, "B pair marker drift")
     require(secondary_entry.get("rbl_header_present") is False, "unexpected RBL marker")
     require(
-        secondary_entry.get("boot_selectable") is False, "unsafe B selection enabled"
+        secondary_entry.get("boot_selectable") is mcuboot_profile,
+        "B selection metadata does not match package profile",
     )
+    require(
+        secondary_entry.get("format") ==
+        ("mcuboot-cp-ap-pair" if mcuboot_profile else "seed"),
+        "B format metadata drift",
+    )
+
+    # MCUboot packages carry two board-owned BL2 copies.  Older non-MCUboot
+    # packages legitimately omit this optional list, so keep the check
+    # conditional while making a present pair byte/offset bounded.
+    bl2_entries = manifest.get("bl2_segments")
+    if bl2_entries is not None:
+        require(
+            isinstance(bl2_entries, list) and len(bl2_entries) == 2,
+            "expected primary and secondary BL2 segments",
+        )
+        for entry, expected_name, expected_file, expected_offset in (
+            (bl2_entries[0], "primary_bl2", "bl2_crc.bin", BL2_START),
+            (bl2_entries[1], "secondary_bl2", "bl2_secondary_crc.bin",
+             BL2_SECONDARY_START),
+        ):
+            require(isinstance(entry, dict), f"invalid {expected_name} entry")
+            payload = check_manifest_file(package, entry, expected_file)
+            require(entry.get("name") == expected_name, f"{expected_name} name drift")
+            require(entry.get("physical_offset") == expected_offset,
+                    f"{expected_name} offset drift")
+            require(entry.get("length") == len(payload),
+                    f"{expected_name} length drift")
+            require(entry.get("physical_end") == expected_offset + len(payload),
+                    f"{expected_name} end drift")
+            require(0 < len(payload) <= BL2_SIZE,
+                    f"{expected_name} exceeds its envelope")
+            require(len(payload) % ERASE_SIZE == 0,
+                    f"{expected_name} is not erase aligned")
 
     expected_secondary = bytearray(b"\xff" * PAIR_B_SIZE)
     expected_secondary[: len(cp)] = cp
     expected_secondary[CP_A_SIZE : CP_A_SIZE + len(ap)] = ap
+    # Keep the historical diagnostic text for the source-level layout gate;
+    # it applies to both the migration seed and the MCUboot B pair.
     require(secondary == expected_secondary, "B seed is not a byte-exact A pair copy")
 
     factory_entry = manifest.get("factory_image")
@@ -267,7 +313,7 @@ def verify(package: Path) -> dict[str, object]:
         "secondary": {
             "length": len(secondary),
             "same_pair_as_primary": True,
-            "boot_selectable": False,
+            "boot_selectable": mcuboot_profile,
         },
         "calibration_tail": {
             "start": CALIBRATION_TAIL_START,
@@ -291,10 +337,13 @@ def main() -> int:
 
     if args.json is not None:
         args.json.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    mcuboot_profile = bool(result["secondary"]["boot_selectable"])
     print(
         "PASS bk7258-factory-layout: "
         f"prefix=0x{FACTORY_PREFIX_END:x} fs-clear=0x{LITTLEFS_SIZE:x} "
-        "B=same-pair/non-selectable usr_config=preserved "
+        + ("B=mcuboot-selectable " if mcuboot_profile else
+           "B=same-pair/non-selectable ")
+        + "usr_config=preserved "
         f"tail=0x{CALIBRATION_TAIL_START:x} untouched"
     )
     return 0

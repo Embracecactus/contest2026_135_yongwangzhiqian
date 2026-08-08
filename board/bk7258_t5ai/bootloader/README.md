@@ -25,6 +25,78 @@ board/bk7258_t5ai/bootloader/
   README.md                          this file
 ```
 
+## MCUboot BL2 chain (MCUBOOT profile)
+
+The `cp_nsh_mcuboot` / `ap_smp_mcuboot` profile changes the handoff to:
+
+```text
+BL1 -> primary Manifest + BL2 @ 0x024d0000
+                  \\ on failure
+                   -> secondary Manifest + BL2 @ 0x024f0000
+                      -> lifecycle journal slot order in SRAM
+                      -> NuttX MCUboot validates one CP/AP pair at a time
+                      -> CP/AP
+```
+
+Both BL2 copies reserve 128 KiB logical (136 KiB after the official 32+2
+CRC expansion). The primary uses the CSV `bl2` row at raw `0x51d000`; the
+secondary uses the immediately following board-reserved span at raw
+`0x53f000`, ending before LittleFS. The two 256-byte board-owned Manifest
+records are stored in the boot logical tail at `0x0200ff00` (primary) and
+`0x0200fe00` (secondary). These records are a recoverable development
+authorization layer, not a claim about the unpublished BK7258 BootROM ABI.
+
+There is one application boot-state owner. BL1 reads the existing N15/N17
+lifecycle journal and, when required, completes the pending-to-trial append;
+it does not accept or launch an application image. BL1 publishes only the
+preferred slot and an explicitly permitted fallback through the checked SRAM
+record at `0x2801ffd0`. BL2 consumes that record once and runs the pinned
+upstream MCUboot `boot_go()` against each permitted physical CP/AP pair in
+order. It never performs an independent both-slot highest-version scan, so a
+valid but consumed/rejected trial cannot bypass rollback policy.
+
+The package emits `bl2_crc.bin` and `bl2_secondary_crc.bin`, and the WSL2
+download SOP writes both ranges. Existing `--manifest` invocations remain an
+alias for the primary record. No NuttX or SDK source is modified and no
+OTP/eFuse write is part of this path.
+
+### Official-shaped XIP control-page artifact (opt-in)
+
+The public BK7236/Armino XIP packer creates a separate 4 KiB
+`bl1_control.bin`: it fills the page with `0xff` and copies the first 64
+bytes of `bl2.bin` (the vector hand-off) to offset zero. The repository-owned
+adapter reproduces that packaging rule without changing the active layout:
+
+```bash
+make bl1-control                 # reads bl2/bl2.bin
+# or: make bl1-control BL2_IMAGE=/path/to/bl2.bin \
+#                    BL1_CONTROL_IMAGE=/tmp/bl1_control.bin
+```
+
+This target is not part of the default `make` and must not be flashed as a
+claim that BK7258 BootROM accepts the undocumented secure-boot ABI. It is a
+reversible artifact for the ongoing BL1/BL2 reverse-engineering work; the
+generator performs no signing, device I/O, OTP, or eFuse operation.
+
+The same page-size rule is available for the candidate Manifest generator:
+
+```bash
+python3 make_bl1_manifest.py --format beken-candidate-v1 \
+  --container-size 0x1000 --bl2 /path/to/bl2.bin \
+  --private-key /tmp/bk7258-bl1-manifest-dev-key.pem --out primary_manifest.bin
+```
+
+Use the same command with the secondary BL2 XIP address and output name for
+`secondary_manifest.bin`. Without `--container-size`, the existing 256-byte
+boot-tail record is unchanged.
+
+The generator checks that the private key derives to the board-owned
+development root compiled into `boot_bl1_manifest_key.c`. A random EC256 key
+is intentionally rejected at packaging time; otherwise BL1 would reject the
+resulting page with the root-anchor error (`rc=0x4`). This root is only a
+reversible software test root and is not the unpublished BK7258 BootROM/OTP
+root.
+
 ## Logical / physical layout
 
 ```
@@ -97,10 +169,12 @@ logical `0x02010000`:
 # normal CP + AP split update; take exact lengths from
 # nuttx/bk7258-dual/bk7258-dual-image.json
 <tool> --mainBin-multi \
-    board/bk7258_t5ai/bootloader/bl_crc.bin@0x0-0x11000 \
-    <app_crc.bin>@0x11000-<cp_crc_length> \
-    <app1_crc.bin>@0x165000-<ap_crc_length>
+    'board/bk7258_t5ai/bootloader/bl_crc.bin@0x0-0x11000,<app_crc.bin>@0x11000-<cp_crc_length>,<app1_crc.bin>@0x165000-<ap_crc_length>'
 ```
+
+`bk_loader.exe` requires the complete multi-image list as one comma-separated
+argument. Passing each segment as a separate shell argument is invalid and
+can make later lengths apply to the first segment.
 
 The bootloader physical region is exactly `0x11000` bytes
 (`(0x10000 / 32) * 34`); flashing outside `[0x0, 0x11000)` is wrong for the bl

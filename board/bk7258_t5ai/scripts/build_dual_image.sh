@@ -12,7 +12,7 @@ BUILD="${WORKSPACE}/build.sh"
 PARTITION_GENERATOR="${SCRIPT_DIR}/gen_bk7258_partitions.py"
 CP_CONFIG_NAME="${CP_CONFIG_NAME:-cp_nsh}"
 case "${CP_CONFIG_NAME}" in
-    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_ota|cp_nsh_wifi)
+    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_ota|cp_nsh_wifi|cp_nsh_mcuboot)
         ;;
     *)
         printf 'build_dual_image: unsupported CP_CONFIG_NAME=%s\n' \
@@ -23,7 +23,7 @@ esac
 CP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${CP_CONFIG_NAME}"
 AP_CONFIG_NAME="${AP_CONFIG_NAME:-ap_smp}"
 case "${AP_CONFIG_NAME}" in
-    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi)
+    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi|ap_smp_mcuboot)
         ;;
     *)
         printf 'build_dual_image: unsupported AP_CONFIG_NAME=%s\n' \
@@ -32,6 +32,120 @@ case "${AP_CONFIG_NAME}" in
         ;;
 esac
 AP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${AP_CONFIG_NAME}"
+
+if [[ "${CP_CONFIG_NAME}" == "cp_nsh_mcuboot" ||
+      "${AP_CONFIG_NAME}" == "ap_smp_mcuboot" ]]; then
+    if [[ "${CP_CONFIG_NAME}" != "cp_nsh_mcuboot" ||
+          "${AP_CONFIG_NAME}" != "ap_smp_mcuboot" ]]; then
+        printf '%s\n' \
+            'build_dual_image: MCUboot AP-start configs must be selected as a pair' \
+            >&2
+        exit 2
+    fi
+fi
+
+# MCUboot is an explicit, signed build profile.  Do not silently turn a
+# cp_nsh_mcuboot/ap_smp_mcuboot build into the unsigned raw-image pipeline:
+# the signing key and BL1 authorization key must be supplied from outside the
+# repository (normally from /tmp or a developer-owned secure key store).
+MCUBOOT_PROFILE=false
+MCUBOOT_SIGNING_KEY="${MCUBOOT_SIGNING_KEY:-}"
+MCUBOOT_VERSION="${MCUBOOT_VERSION:-}"
+MCUBOOT_SECURITY_COUNTER="${MCUBOOT_SECURITY_COUNTER:-auto}"
+MCUBOOT_OFFICIAL_PIPELINE="${MCUBOOT_OFFICIAL_PIPELINE:-YES}"
+SECUREBOOT_AES_TOOL="${SECUREBOOT_AES_TOOL:-}"
+SECUREBOOT_AES_KEY_FILE="${SECUREBOOT_AES_KEY_FILE:-}"
+BL1_MANIFEST_KEY="${BL1_MANIFEST_KEY:-}"
+BL1_MANIFEST_FORMAT="${BL1_MANIFEST_FORMAT:-beken-candidate-v1}"
+BL1_MANIFEST_RAW_PAGE="${BL1_MANIFEST_RAW_PAGE:-false}"
+BL2_LOGICAL_SIZE="${BL2_LOGICAL_SIZE:-0x3000}"
+BL2_SECURITY_COUNTER_FLOOR="${BL2_SECURITY_COUNTER_FLOOR:-0}"
+BL2_XIP_ADDRESS="${BL2_XIP_ADDRESS:-0x024d0000}"
+BL2_SECONDARY_XIP_ADDRESS="${BL2_SECONDARY_XIP_ADDRESS:-0x024f0000}"
+BL2_LOAD_ADDRESS="${BL2_LOAD_ADDRESS:-0x28020000}"
+MCUBOOT_BL2_FLASH_SEGMENT=
+case "${BL1_MANIFEST_RAW_PAGE}" in
+    false)
+        BL1_MANIFEST_RAW_PAGE_VALUE=0
+        ;;
+    true)
+        BL1_MANIFEST_RAW_PAGE_VALUE=1
+        ;;
+    *)
+        printf "build_dual_image: BL1_MANIFEST_RAW_PAGE must be false or true, got '%s'\n" \
+            "${BL1_MANIFEST_RAW_PAGE}" >&2
+        exit 2
+        ;;
+esac
+if [[ "${CP_CONFIG_NAME}" == "cp_nsh_mcuboot" ]]; then
+    MCUBOOT_PROFILE=true
+    MCUBOOT_BL2_FLASH_SEGMENT="bl2_crc.bin@0x51d000,bl2_secondary_crc.bin@0x53f000"
+    if [[ -z "${MCUBOOT_SIGNING_KEY}" || ! -f "${MCUBOOT_SIGNING_KEY}" ]]; then
+        printf '%s\n' \
+            'build_dual_image: cp_nsh_mcuboot requires an external MCUBOOT_SIGNING_KEY' \
+            >&2
+        exit 2
+    fi
+    if [[ -z "${MCUBOOT_VERSION}" ]]; then
+        printf '%s\n' \
+            'build_dual_image: cp_nsh_mcuboot requires MCUBOOT_VERSION' \
+            >&2
+        exit 2
+    fi
+    if [[ -z "${BL1_MANIFEST_KEY}" || ! -f "${BL1_MANIFEST_KEY}" ]]; then
+        printf '%s\n' \
+            'build_dual_image: cp_nsh_mcuboot requires an external BL1_MANIFEST_KEY' \
+            >&2
+        exit 2
+    fi
+    case "${BL1_MANIFEST_FORMAT}" in
+        custom-v2|beken-candidate-v1)
+            ;;
+        *)
+            printf 'build_dual_image: unsupported BL1_MANIFEST_FORMAT=%s\n' \
+                "${BL1_MANIFEST_FORMAT}" >&2
+            exit 2
+            ;;
+    esac
+    if [[ "${BL1_MANIFEST_RAW_PAGE}" == "true" &&
+          "${BL1_MANIFEST_FORMAT}" != "beken-candidate-v1" ]]; then
+        printf '%s\n' \
+            'build_dual_image: BL1_MANIFEST_RAW_PAGE requires beken-candidate-v1' \
+            >&2
+        exit 2
+    fi
+    if ! [[ "${BL2_SECURITY_COUNTER_FLOOR}" =~ ^(0[xX][0-9a-fA-F]+|[0-9]+)$ ]]; then
+        printf "build_dual_image: BL2_SECURITY_COUNTER_FLOOR must be an integer, got '%s'\n" \
+            "${BL2_SECURITY_COUNTER_FLOOR}" >&2
+        exit 2
+    fi
+    case "${MCUBOOT_OFFICIAL_PIPELINE}" in
+        NO|YES)
+            ;;
+        *)
+            printf "build_dual_image: MCUBOOT_OFFICIAL_PIPELINE must be YES or NO, got '%s'\n" \
+                "${MCUBOOT_OFFICIAL_PIPELINE}" >&2
+            exit 2
+            ;;
+    esac
+    if [[ -n "${SECUREBOOT_AES_TOOL}" || -n "${SECUREBOOT_AES_KEY_FILE}" ]]; then
+        if [[ "${MCUBOOT_OFFICIAL_PIPELINE}" != "YES" ]]; then
+            printf '%s\n' \
+                'build_dual_image: SECUREBOOT_AES_* requires MCUBOOT_OFFICIAL_PIPELINE=YES' \
+                >&2
+            exit 2
+        fi
+        if [[ -z "${SECUREBOOT_AES_TOOL}" ||
+              ! -f "${SECUREBOOT_AES_TOOL}" ||
+              -z "${SECUREBOOT_AES_KEY_FILE}" ||
+              ! -f "${SECUREBOOT_AES_KEY_FILE}" ]]; then
+            printf '%s\n' \
+                'build_dual_image: SECUREBOOT_AES_TOOL and SECUREBOOT_AES_KEY_FILE must both name existing files' \
+                >&2
+            exit 2
+        fi
+    fi
+fi
 
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
       "${AP_CONFIG_NAME}" == "ap_smp_rptun" ]]; then
@@ -334,25 +448,86 @@ if [[ "${N15_OTA_RUNTIME_PROFILE}" == "true" ]]; then
         --output "${TMPDIR}/bk7258-ota-fault.json"
 fi
 printf '%s\n' "build_dual_image: rebuilding Tier-1 bootloader"
-make -C "${BOARD_DIR}/bootloader" clean all verify \
-    N15_OTA_VALIDATION="${BOOT_GATE_VALUE}" \
-    N17_READ_PROBE="${N17_READ_PROBE_VALUE}"
-BOOT_ELF_VERIFY_ARGS=(
-    --elf-only
-    --boot-elf "${BOARD_DIR}/bootloader/bl.elf"
-    --boot-bin "${BOARD_DIR}/bootloader/bl.bin"
-    --boot-crc "${BOARD_DIR}/bootloader/bl_crc.bin"
-    --expected-gate-value "${BOOT_GATE_VALUE}"
-    --output "${TMPDIR}/bk7258-ota-boot.json"
+
+# Build the SRAM MCUboot BL2 and its two board-owned BL1 authorization records
+# before linking Tier-1.  The records occupy the fixed bootloader tail; the
+# primary and secondary BL2 copies are separate CRC streams in the
+# pre-LittleFS gap.  Neither step writes OTP/eFuse.
+BL1_BOOT_ARGS=(
+    "N15_OTA_VALIDATION=${BOOT_GATE_VALUE}"
+    "N17_READ_PROBE=${N17_READ_PROBE_VALUE}"
+    "BL1_MANIFEST_RAW_PAGE=${BL1_MANIFEST_RAW_PAGE_VALUE}"
 )
-if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
-    BOOT_ELF_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    BL1_BOOT_ARGS+=("BL1_MINIMAL=1")
+    printf '%s\n' "build_dual_image: building MCUboot BL2"
+    make -C "${BOARD_DIR}/bootloader/bl2" clean all \
+        "BL2_LOGICAL_SIZE=${BL2_LOGICAL_SIZE}" \
+        "BL2_SECURITY_COUNTER_FLOOR=${BL2_SECURITY_COUNTER_FLOOR}"
+    BL1_MANIFEST_CONTAINER_ARGS=()
+    if [[ "${BL1_MANIFEST_RAW_PAGE}" == "true" ]]; then
+        BL1_MANIFEST_CONTAINER_ARGS+=(--container-size 0x1000)
+    fi
+    python3 "${BOARD_DIR}/bootloader/make_bl1_manifest.py" \
+        --format "${BL1_MANIFEST_FORMAT}" \
+        --bl2 "${BOARD_DIR}/bootloader/bl2/bl2.bin" \
+        --private-key "${BL1_MANIFEST_KEY}" \
+        --generated-root-c "${TMPDIR}/boot_bl1_manifest_key.c" \
+        --bl2-xip "${BL2_XIP_ADDRESS}" \
+        --bl2-size "${BL2_LOGICAL_SIZE}" \
+        --bl2-load "${BL2_LOAD_ADDRESS}" \
+        "${BL1_MANIFEST_CONTAINER_ARGS[@]}" \
+        --out "${TMPDIR}/bl1-manifest-primary.bin"
+    python3 "${BOARD_DIR}/bootloader/make_bl1_manifest.py" \
+        --format "${BL1_MANIFEST_FORMAT}" \
+        --bl2 "${BOARD_DIR}/bootloader/bl2/bl2.bin" \
+        --private-key "${BL1_MANIFEST_KEY}" \
+        --generated-root-c "${TMPDIR}/boot_bl1_manifest_key.c" \
+        --bl2-xip "${BL2_SECONDARY_XIP_ADDRESS}" \
+        --bl2-size "${BL2_LOGICAL_SIZE}" \
+        --bl2-load "${BL2_LOAD_ADDRESS}" \
+        "${BL1_MANIFEST_CONTAINER_ARGS[@]}" \
+        --out "${TMPDIR}/bl1-manifest-secondary.bin"
+    cp "${TMPDIR}/bl1-manifest-primary.bin" "${TMPDIR}/bl1-manifest.bin"
+    BL1_BOOT_ARGS+=(
+        'BL1_MANIFEST_ENFORCE=1'
+        "BL1_MANIFEST_PRIMARY=${TMPDIR}/bl1-manifest-primary.bin"
+        "BL1_MANIFEST_SECONDARY=${TMPDIR}/bl1-manifest-secondary.bin"
+        "BL1_MANIFEST_KEY_SOURCE=${TMPDIR}/boot_bl1_manifest_key.c"
+        "BL2_LOGICAL_SIZE=${BL2_LOGICAL_SIZE}"
+    )
 fi
-python3 "${SCRIPT_DIR}/verify_bk7258_ota_boot.py" \
-    "${BOOT_ELF_VERIFY_ARGS[@]}"
+BOOT_MAKE_TARGETS=(clean all verify)
+make -C "${BOARD_DIR}/bootloader" "${BOOT_MAKE_TARGETS[@]}" \
+    "${BL1_BOOT_ARGS[@]}"
+if [[ "${CP_CONFIG_NAME}" != "cp_nsh_mcuboot" ]]; then
+    BOOT_ELF_VERIFY_ARGS=(
+        --elf-only
+        --boot-elf "${BOARD_DIR}/bootloader/bl.elf"
+        --boot-bin "${BOARD_DIR}/bootloader/bl.bin"
+        --boot-crc "${BOARD_DIR}/bootloader/bl_crc.bin"
+        --expected-gate-value "${BOOT_GATE_VALUE}"
+        --output "${TMPDIR}/bk7258-ota-boot.json"
+    )
+    if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
+        BOOT_ELF_VERIFY_ARGS+=(--sdk-source "${BK7258_SDK_SOURCE}")
+    fi
+    python3 "${SCRIPT_DIR}/verify_bk7258_ota_boot.py" \
+        "${BOOT_ELF_VERIFY_ARGS[@]}"
+fi
 cp "${BOARD_DIR}/bootloader/bl.elf" "${TMPDIR}/bootloader.elf"
 cp "${BOARD_DIR}/bootloader/bl.bin" "${TMPDIR}/bootloader.bin"
 cp "${BOARD_DIR}/bootloader/bl.map" "${TMPDIR}/bootloader.map"
+if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    cp "${BOARD_DIR}/bootloader/bl_crc.bin" "${TMPDIR}/bootloader_crc.bin"
+    cp "${BOARD_DIR}/bootloader/bl_crc.json" "${TMPDIR}/bootloader_crc.json"
+    cp "${BOARD_DIR}/bootloader/bl2/bl2.bin" "${TMPDIR}/bl2.bin"
+    cp "${BOARD_DIR}/bootloader/bl2/bl2.elf" "${TMPDIR}/bl2.elf"
+    cp "${BOARD_DIR}/bootloader/bl2/bl2.map" "${TMPDIR}/bl2.map"
+    cp "${BOARD_DIR}/bootloader/bl2/bl2_crc.bin" "${TMPDIR}/bl2_crc.bin"
+    cp "${BOARD_DIR}/bootloader/bl2/bl2_crc.bin" "${TMPDIR}/bl2_secondary_crc.bin"
+    cp "${BOARD_DIR}/bootloader/bl2/bl2_crc.bin.json" "${TMPDIR}/bl2_crc.bin.json"
+fi
 
 printf 'build_dual_image: building CPU0/CP (%s)\n' "${CP_CONFIG_NAME}"
 build_config "${CP_CONFIG}"
@@ -417,6 +592,48 @@ fi
 
 save_role cp app.bin app_crc.bin
 
+if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    printf '%s\n' "build_dual_image: signing CP/AP with pinned NuttX MCUboot imgtool"
+    cp "${TMPDIR}/app.bin" "${TMPDIR}/cp-raw.bin"
+    cp "${TMPDIR}/app_crc.bin" "${TMPDIR}/cp-raw-crc.bin"
+    cp "${TMPDIR}/app1.bin" "${TMPDIR}/ap-raw.bin"
+    cp "${TMPDIR}/app1_crc.bin" "${TMPDIR}/ap-raw-crc.bin"
+    MCUBOOT_PAIR_OUTPUT="${TMPDIR}/mcuboot-pair"
+    python3 "${SCRIPT_DIR}/pack_bk7258_mcuboot_pair.py" \
+        --cp-raw "${TMPDIR}/cp-raw.bin" \
+        --ap-raw "${TMPDIR}/ap-raw.bin" \
+        --key "${MCUBOOT_SIGNING_KEY}" \
+        --output "${MCUBOOT_PAIR_OUTPUT}" \
+        --version "${MCUBOOT_VERSION}" \
+        --security-counter "${MCUBOOT_SECURITY_COUNTER}"
+    cp "${MCUBOOT_PAIR_OUTPUT}/cp_signed.bin" "${TMPDIR}/app.bin"
+    cp "${MCUBOOT_PAIR_OUTPUT}/cp_signed_crc.bin" "${TMPDIR}/app_crc.bin"
+    cp "${MCUBOOT_PAIR_OUTPUT}/ap_signed.bin" "${TMPDIR}/app1.bin"
+    cp "${MCUBOOT_PAIR_OUTPUT}/ap_signed_crc.bin" "${TMPDIR}/app1_crc.bin"
+    if [[ "${MCUBOOT_OFFICIAL_PIPELINE}" == "YES" ]]; then
+        printf '%s\n' \
+            "build_dual_image: emitting v3.1.1.9 merge/sign/AES/CRC reference"
+        SECUREBOOT_PIPELINE_OUTPUT="${TMPDIR}/secureboot-pipeline"
+        SECUREBOOT_AES_ARGS=()
+        if [[ -n "${SECUREBOOT_AES_TOOL}" ]]; then
+            SECUREBOOT_AES_ARGS+=(
+                --aes-tool "${SECUREBOOT_AES_TOOL}"
+                --aes-key-file "${SECUREBOOT_AES_KEY_FILE}"
+            )
+        fi
+        python3 "${SCRIPT_DIR}/pack_bk7258_secureboot.py" \
+            --cp-raw "${TMPDIR}/cp-raw.bin" \
+            --ap-raw "${TMPDIR}/ap-raw.bin" \
+            --key "${MCUBOOT_SIGNING_KEY}" \
+            --imgtool "${WORKSPACE}/apps/boot/mcuboot/mcuboot/scripts/imgtool.py" \
+            --output "${SECUREBOOT_PIPELINE_OUTPUT}" \
+            --version "${MCUBOOT_VERSION}" \
+            --security-counter "${MCUBOOT_SECURITY_COUNTER}" \
+            "${SECUREBOOT_AES_ARGS[@]}" \
+            > "${TMPDIR}/secureboot-pipeline.json"
+    fi
+fi
+
 rm -rf "${OUTPUT}"
 mkdir -p "${OUTPUT}"
 cp "${TMPDIR}"/nuttx-*.elf "${OUTPUT}/"
@@ -436,14 +653,56 @@ for map in "${TMPDIR}"/nuttx-*.map; do
         cp "${map}" "${OUTPUT}/"
     fi
 done
+if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    cp "${TMPDIR}/cp-raw.bin" "${OUTPUT}/cp-raw.bin"
+    cp "${TMPDIR}/cp-raw-crc.bin" "${OUTPUT}/cp-raw-crc.bin"
+    cp "${TMPDIR}/ap-raw.bin" "${OUTPUT}/ap-raw.bin"
+    cp "${TMPDIR}/ap-raw-crc.bin" "${OUTPUT}/ap-raw-crc.bin"
+    cp "${TMPDIR}/bl1-manifest.bin" "${OUTPUT}/bl1-manifest.bin"
+    cp "${TMPDIR}/bl1-manifest-primary.bin" "${OUTPUT}/bl1-manifest-primary.bin"
+    cp "${TMPDIR}/bl1-manifest-secondary.bin" "${OUTPUT}/bl1-manifest-secondary.bin"
+    cp "${TMPDIR}/boot_bl1_manifest_key.c" "${OUTPUT}/boot_bl1_manifest_key.c"
+    cp "${TMPDIR}/bl2.bin" "${OUTPUT}/bl2.bin"
+    cp "${TMPDIR}/bl2.elf" "${OUTPUT}/bl2.elf"
+    cp "${TMPDIR}/bl2.map" "${OUTPUT}/bl2.map"
+    cp "${TMPDIR}/bl2_crc.bin" "${OUTPUT}/bl2_crc.bin"
+    cp "${TMPDIR}/bl2_secondary_crc.bin" "${OUTPUT}/bl2_secondary_crc.bin"
+    cp "${TMPDIR}/bl2_crc.bin.json" "${OUTPUT}/bl2_crc.bin.json"
+    cp "${TMPDIR}/bootloader_crc.json" "${OUTPUT}/bootloader_crc.json"
+    cp "${TMPDIR}/mcuboot-pair"/* "${OUTPUT}/"
+    if [[ "${MCUBOOT_OFFICIAL_PIPELINE}" == "YES" ]]; then
+        cp "${TMPDIR}/secureboot-pipeline"/* "${OUTPUT}/"
+    fi
+fi
 
-python3 "${SCRIPT_DIR}/pack_dual_image.py" \
-    --boot "${BOARD_DIR}/bootloader/bl_crc.bin" \
-    --cp-raw "${TMPDIR}/app.bin" \
-    --cp-crc "${TMPDIR}/app_crc.bin" \
-    --ap-raw "${TMPDIR}/app1.bin" \
-    --ap-crc "${TMPDIR}/app1_crc.bin" \
+PACK_DUAL_ARGS=(
+    --boot "${BOARD_DIR}/bootloader/bl_crc.bin"
+    --cp-raw "${TMPDIR}/app.bin"
+    --cp-crc "${TMPDIR}/app_crc.bin"
+    --ap-raw "${TMPDIR}/app1.bin"
+    --ap-crc "${TMPDIR}/app1_crc.bin"
     --output "${OUTPUT}"
+)
+if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    PACK_DUAL_ARGS+=(
+        --bl2-primary-crc "${TMPDIR}/bl2_crc.bin"
+        --bl2-secondary-crc "${TMPDIR}/bl2_secondary_crc.bin"
+    )
+fi
+python3 "${SCRIPT_DIR}/pack_dual_image.py" "${PACK_DUAL_ARGS[@]}"
+
+if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    # Keep the root NuttX artifacts consistent with the signed package.  The
+    # CP/AP ELF and .config files remain the unsigned build inputs; only the
+    # flash-facing binaries are replaced by the deterministic imgtool output.
+    cp "${TMPDIR}/app.bin" "${TOPDIR}/app.bin"
+    cp "${TMPDIR}/app_crc.bin" "${TOPDIR}/app_crc.bin"
+    cp "${TMPDIR}/app1.bin" "${TOPDIR}/app1.bin"
+    cp "${TMPDIR}/app1_crc.bin" "${TOPDIR}/app1_crc.bin"
+    cp "${TMPDIR}/app_crc.bin" "${TOPDIR}/nuttx_crc.bin"
+    cat "${BOARD_DIR}/bootloader/bl_crc.bin" "${TOPDIR}/app_crc.bin" \
+        > "${TOPDIR}/all-app.bin"
+fi
 
 python3 "${SCRIPT_DIR}/verify_bk7258_factory_layout.py" \
     --package "${OUTPUT}" \
@@ -542,6 +801,22 @@ N17_READ_PROBE_GATES=${N17_READ_PROBE_VALUE}
 N17_METADATA_WRITE_ENABLED=false
 N17_POLICY_WRITE_ENABLED=false
 N17_B_SLOT_REMAP_ENABLED=false
+MCUBOOT_PROFILE=${MCUBOOT_PROFILE}
+MCUBOOT_VERSION=${MCUBOOT_VERSION}
+MCUBOOT_SECURITY_COUNTER=${MCUBOOT_SECURITY_COUNTER}
+MCUBOOT_OFFICIAL_PIPELINE=${MCUBOOT_OFFICIAL_PIPELINE}
+MCUBOOT_SIGNING_KEY_REQUIRED=${MCUBOOT_PROFILE}
+BL1_MANIFEST_ENABLED=${MCUBOOT_PROFILE}
+BL1_MANIFEST_FORMAT=${BL1_MANIFEST_FORMAT}
+BL1_MANIFEST_RAW_PAGE=${BL1_MANIFEST_RAW_PAGE}
+BL2_LOGICAL_SIZE=${BL2_LOGICAL_SIZE}
+BL2_SECURITY_COUNTER_FLOOR=${BL2_SECURITY_COUNTER_FLOOR}
+BL2_BOOT_POLICY_ENABLED=${MCUBOOT_PROFILE}
+BL1_MINIMAL=${MCUBOOT_PROFILE}
+BL2_XIP_ADDRESS=${BL2_XIP_ADDRESS}
+BL2_SECONDARY_XIP_ADDRESS=${BL2_SECONDARY_XIP_ADDRESS}
+BL2_LOAD_ADDRESS=${BL2_LOAD_ADDRESS}
+BL2_FLASH_SEGMENT=${MCUBOOT_BL2_FLASH_SEGMENT}
 EOF
 
 cp "${OUTPUT}/app.bin" "${TOPDIR}/app.bin"
@@ -550,10 +825,19 @@ cp "${OUTPUT}/app1.bin" "${TOPDIR}/app1.bin"
 cp "${OUTPUT}/app1_crc.bin" "${TOPDIR}/app1_crc.bin"
 cp "${OUTPUT}/bk7258-dual-image.json" "${TOPDIR}/"
 
-python3 "${SCRIPT_DIR}/verify_bk7258_sdk_partition_wrapper.py" \
-    --elf "${OUTPUT}/nuttx-cp.elf" \
-    --map "${OUTPUT}/nuttx-cp.map" \
-    --output "${OUTPUT}/bk7258-sdk-partition-wrapper.json"
+if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    # The MCUboot CP profile has no runtime SDK partition call site in its
+    # minimal handoff path, so --gc-sections legitimately removes unused
+    # wrapper entry points.  The host ABI test above still runs; defer the
+    # ELF call-site assertion to a runtime profile that exercises the SDK API.
+    printf '%s\n' \
+        "build_dual_image: skipping unused SDK wrapper ELF check for MCUboot"
+else
+    python3 "${SCRIPT_DIR}/verify_bk7258_sdk_partition_wrapper.py" \
+        --elf "${OUTPUT}/nuttx-cp.elf" \
+        --map "${OUTPUT}/nuttx-cp.map" \
+        --output "${OUTPUT}/bk7258-sdk-partition-wrapper.json"
+fi
 
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_btipc" ||

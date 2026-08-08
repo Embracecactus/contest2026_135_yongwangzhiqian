@@ -9,20 +9,21 @@
  * fragment of the Armino SDK early-init path.  The product-grade model now
  * matches the SDK exactly:
  *
- *   - the bootloader's boot_clock.c mirrors sys_hal_early_init verbatim and
- *     leaves the analog side at the SDK default (VDDIG=0xB).  It does NOT
- *     pick a CPU frequency;
+ *   - the bootloader's boot_clock.c leaves BL2/NuttX at the recovered
+ *     official 120 MHz safe handoff point;
  *   - per-tier frequency selection is a *runtime* concern solved by
  *     bk7258_dvfs.c, the NuttX overlay lower half that mirrors the SDK
  *     sys_drv_switch_cpu_bus_freq / sys_hal_switch_cpu_bus_freq path
  *     (lift VDDD/VDDIG one tier at a time, then switch the core mux).
  *
- * bk7258_clock_bringup_320m() therefore becomes a single
+ * CONFIG_BK7258_CLOCK_320M is only the current bring-up profile.  Its helper
+ * is a single
  * bk7258_dvfs_set_freq(BK7258_FREQ_320M) call, which steps the CPU0 core one
  * tier at a time from the 26 MHz boot residue up to the 320 MHz tier
  * (CPU0 effective 160 MHz on this single-core port; see bk7258_dvfs.h for the
  * SDK "cpu0:160m" note).  The DVFS lower half recomputes the SysTick reload
- * after the switch.
+ * after the switch.  It is not a permanent governor decision: later runtime
+ * policy uses the same set_freq() lower half to move between SDK tiers.
  *
  * Shared low-level register helpers (ANA_REG9 field/latch, M1 writes, the
  * analog-SPI wait, the bus-independent microsecond delay) live in
@@ -103,9 +104,10 @@ void bk7258_clock_bringup_320m(void)
 {
   int tier;
 
-  /* Stepping the core clock to the 320 MHz runtime tier is the DVFS lower
-   * half's job: it walks the SDK per-tier voltage/mux program one step at a
-   * time (VDDD -> 0x7, VDDIG -> 0xE, CPU0 /2, then M1
+  /* Stepping the core clock from the BL1 120 MHz handoff to the 320 MHz
+   * runtime tier is the DVFS lower half's job: it walks the remaining SDK
+   * per-tier voltage/mux program one step at a time (VDDD -> 0x7,
+   * VDDIG -> 0xE, CPU0 /2, then M1
    * cksel=2/clkdiv=0) and finally recomputes the SysTick reload.  The DPLL
    * was already enabled by the
    * bootloader's boot_clock.c cold-init (cold path) or is already running

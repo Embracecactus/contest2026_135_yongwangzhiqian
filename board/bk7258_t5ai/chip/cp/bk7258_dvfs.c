@@ -14,9 +14,9 @@
  *                   core_bus_clock_ctrl(cksel, clkdiv_core, ckdiv_bus,
  *                                       ckdiv_cpu0, ckdiv_cpu1)
  *
- * This is a *runtime* API: the bootloader's boot_clock.c deliberately
- * mirrors only sys_hal_early_init (DPLL enable + SPI recalibration, analog
- * side left at SDK default VDDIG=0xB) and does NOT pick a CPU frequency.
+ * This is a *runtime* API: the bootloader's boot_clock.c mirrors
+ * sys_hal_early_init (DPLL enable + SPI recalibration, analog side left at
+ * SDK default VDDIG=0xB) and the official A/B bootloader's 120 MHz handoff.
  * Any per-tier lift of VDDD/VDDIG happens here, one tier at a time, so the
  * voltage rails move monotonically (no abrupt jump), exactly as the SDK
  * sys_drv_switch_cpu_bus_freq models.
@@ -103,21 +103,12 @@ static const struct bk7258_dvfs_step_s g_bk7258_dvfs_steps[] =
   [BK7258_FREQ_320M] = { 0x2, 0x0, 0x0, 0x7, 0xE },
 };
 
-/* Current tier.  Initialised to 26 MHz -- the boot_clock.c / loader residue
- * leaves the DPLL off and the core on the 26 MHz XTALH on cold reset; the
- * loader's --reboot 1 residue (M1=0x423, cksel=2/cdiv=3, DPLL on, ~80 MHz)
- * is a different entry state but the offset of the 80 MHz tier makes the
- * first up-step from 26 -> 80 still monotone once bk7258_dvfs_set_freq()
- * reads the case from bk7258_clockdiag_last_clock_case() on first call.
- *
- * We avoid trusting an unknown entry residue by NOT updating this from a
- * probe; the first caller (bk7258_clock_bringup_320m via
- * bk7258_dvfs_set_freq(320M)) explicitly declares the boot-time target and
- * we step from BK7258_FREQ_26M upward.  If the live clock is already higher
- * (loader residue) the up-steps are no-ops as far as the voltage program is
- * concerned -- a same-tier step is short-circuited in set_freq. */
+/* BL1 now enforces the recovered official 120 MHz handoff on cold and warm
+ * paths before BL2/NuttX runs.  Start the runtime state machine from that
+ * real operating point; the normal 320 MHz bring-up therefore walks only
+ * 120 -> 240 -> 320 instead of first detouring through lower tiers. */
 
-static int g_bk7258_dvfs_cur = BK7258_FREQ_26M;
+static int g_bk7258_dvfs_cur = BK7258_FREQ_120M;
 
 /****************************************************************************
  * Private: ANA_REG9 voltage setters (mirror SDK sys_hal_ctrl_vddd(_ig)_h_vol)
