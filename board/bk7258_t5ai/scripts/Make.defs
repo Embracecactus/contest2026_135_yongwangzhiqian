@@ -92,6 +92,12 @@ EXTRA_LIBS += \
   $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
   $(BK_SDK_LIBS_DIR)/libbk_wifi_driver.a
 endif
+# libavdk_utils.a exports hnd_crc8 only.  The SDK GPIO driver calls
+# bk_ipc_send, which drags in bk_api_ipc.c.obj and with it the IPC frame
+# checksum, so the archive must be linked whenever a driver reaches the SDK
+# IPC path.  Stubbing hnd_crc8 is not an option: a wrong checksum would be
+# accepted silently by the peer.
+
 EXTRA_LIBS += \
   $(BK_SDK_LIBS_DIR)/libdriver.a \
   $(BK_SDK_LIBS_DIR)/libbk7258_ap.a \
@@ -101,6 +107,7 @@ EXTRA_LIBS += \
   $(BK_SDK_LIBS_DIR)/libcommon.a \
   $(BK_SDK_LIBS_DIR)/libbk_log.a \
   $(BK_SDK_LIBS_DIR)/libbk_event.a \
+  $(BK_SDK_LIBS_DIR)/libavdk_utils.a \
   $(BK_SDK_LIBS_DIR)/libcm33.a
 
 else
