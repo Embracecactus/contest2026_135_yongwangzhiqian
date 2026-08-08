@@ -1,59 +1,91 @@
 # Current Progress
 
-Last updated: 2026-08-06T01:14:35+08:00
+Last updated: 2026-08-08 16:52 GMT+8
 Updated by: Codex (`maintain-project-memory` checkpoint)
 
-## Snapshot
+## Active scope
 
-- Branch: `feat/bk7258-n16-wifi`; base checkpoint `0af5efe`. N16 completion
-  changes are local and not yet committed or published.
-- Sole active SDK: checksum-pinned official Beken v3.1.1.9. Official SDK,
-  NuttX and apps source remain unmodified.
-- N15's physical A-to-B-to-A OTA baseline remains complete and merged.
-- N16 is complete for the accepted STA scope. CP owns official RF/PHY/MAC/WPA,
-  vnet control and DHCP; AP synchronizes the lease into native NuttX `wlan0`
-  and owns IPv4/TCP/UDP/sockets. Vendor AP lwIP/socket and SDK FreeRTOS remain
-  excluded.
-- Runtime-only association, bounded wrong-password recovery, gateway ICMP,
-  local TCP/UDP, active-Wi-Fi RPMsg/RPMsgFS/Bluetooth coexistence, AP-restart
-  rejection and 3/3 controlled RTS recovery are board-verified.
-- Dynamic partitions, factory boundaries and Tier-1 Boot OTA gates-zero passed;
-  post-reset RPMsgFS/LittleFS write/read passed. The separate N14 PSRAM profile
-  was not rerun and was not modified by N16.
+The active objective is a recoverable BK7258 chain:
 
-Canonical evidence:
+```text
+legacy BootROM -> board-owned minimal BL1 -> signed Manifest
+-> pinned NuttX MCUboot BL2 -> signed same-slot CP/AP pair -> NuttShell
+```
 
-- [N16 completion worklog](../docs/bk7258-t5ai/nuttx-port/prompts/16-n16-wifi-data-plane.md)
-- [N16 board verification](verification/2026-08-06-n16-wifi-sta-coexistence.md)
-- [N16 malloc compatibility evidence](verification/2026-08-05-n16-wifi-malloc-compatibility.md)
-- [ADR-007 Wi-Fi ownership](../memory/decisions/ADR-007-n16-cp-radio-ap-nuttx-network.md)
+Official BK7258 v3.1.1.9 has no buildable Secure Boot adaptation. BK7236
+security material is used only as a same-architecture semantic/source
+reference; its single-core addresses, OTP/eFuse ABI and TF-M mapping are not
+treated as BK7258 facts. NuttX and SDK source trees remain unchanged.
 
-## Durable implementation boundaries
+## Current board baseline
 
-- CP Wi-Fi initialization uses a PID-scoped zeroing malloc compatibility
-  window because the immutable archive assumes selected fresh-heap objects
-  are zero. Other CP threads keep normal malloc semantics.
-- AP `wlan0` persists across runtime STA stop/start attempts. The control
-  worker waits for CP stop completion, withdraws stale carrier/lease state,
-  then applies new runtime credentials.
-- `ap_smp_wifi` uses NuttX's independent 16 KiB FS heap for VFS/RPMsgFS/socket
-  metadata, fixing the observed live-file overwrite without modifying NuttX.
-- Official Wi-Fi teardown is incomplete. AP-only restart fails closed while
-  Wi-Fi is active; whole-chip reset remains the recovery boundary.
+- MCUboot version: `18.1.3`; protected security counter: `20`.
+- BL1 profile: `BL1_MINIMAL=1`, fixed Primary -> Secondary BL2 ordering.
+- BL1 responsibilities: clock/reset normalization, watchdog fail-closed,
+  Manifest P-256/SHA-256 verification, BL2 vector/copy validation, checked
+  SRAM policy publication and BL2 handoff.
+- The final BL1 does not link N15/N17 lifecycle selectors, OTA Flash writer,
+  N17 release keys or NuttX ECC. Historical validation profiles remain
+  separate and are not part of the MCUboot image.
+- BL2 remains the only component that validates and launches a signed CP/AP
+  pair. It uses the pinned NuttX MCUboot sources and board-owned Flash/AP
+  handoff adapters.
+- Final BL1 ELF: `.text + .rodata = 9,878` bytes, `.data = 0`, `.bss = 0`.
 
-## Next actions
+Artifact SHA-256:
 
-1. Review and commit only the N16-owned implementation, documentation and
-   memory changes; publish them when the owner requests it.
-2. Proposed next MAIN Stage: N17 authenticated update policy. Start with a
-   separate architecture review covering signatures, key provisioning,
-   anti-rollback and recovery keys before implementation.
+- `bl_crc.bin`: `b13e9946d0120a170836bef0bf97c2de953ae78db71016c8c6ae8ba9412a49ea`
+- `all-app-factory.bin`: `bb80db82a1631112602902069d691a65a99710f74d7f2ac9d537cae796009cbe`
+- `bl2_crc.bin`: `535571b677f0ced7d2c8a49b2495fbc0b2778657dfab50cb732c56a106204f17`
+
+## Verification
+
+- Full `JOBS=32` CP/AP MCUboot build passed using immutable SDK v3.1.1.9.
+  The build now runs the profile-aware BL1 symbol verifier.
+- Host mailbox/BL1-policy tests passed: `0/31` failures.
+- Valid factory package reached
+  `B1PRIMARY -> BL2RAM -> B2GOOK -> B2SELA -> B2APOK -> B2HANDOFF -> NSH`:
+  `logs/bk7258-secureboot-minimal-primary/20260808-164835`.
+- Corrupting byte `0x40` of only the Primary Manifest digest, then rebuilding
+  its valid 32+2 CRC envelope, produced
+  `rc=2 -> B1PRIMARY BAD -> B1SECONDARY -> B2HANDOFF -> NSH`:
+  `logs/bk7258-secureboot-minimal-negative/20260808-165028`.
+- The valid boot envelope was restored and passed:
+  `logs/bk7258-secureboot-minimal-restored/20260808-165102`.
+- Independent 150 ms COM7 RTS physical reset passed the Primary path with
+  `cold_path=yes`:
+  `logs/bk7258-secureboot-minimal-rts/20260808-165125`.
+- The board is currently restored to the valid Primary image. No OTP/eFuse,
+  secure lifecycle or debug-lock bit was written.
+
+Canonical detail:
+[Secure Boot remaining-gates verification](verification/2026-08-08-bk7258-secureboot-remaining-gates.md).
+
+## Honest boundary
+
+This proves a repository-owned, software-rooted Secure Boot chain on BK7258.
+It does not prove that BK7258 BootROM consumes the candidate Manifest, and it
+does not provide an immutable hardware root or persistent hardware-backed
+anti-rollback. The board remains recoverable for unfinished driver work.
+
+## Next step
+
+1. Review the published Secure Boot commits and merge them through a PR.
+   Temporary private keys, generated images and raw hardware logs remain
+   outside the commits.
+2. Resume ordinary driver/N17 work on this recoverable baseline. Reintroduce
+   OTA slot policy only through a separately authenticated, fail-closed
+   interface; do not put historical N15/N17 writers back into minimal BL1.
+3. Hardware Secure Boot provisioning is the final gate, after signed OTA and
+   recovery matrices are stable and preferably on a second board. It requires
+   separate authorization before any OTP/eFuse or lifecycle operation.
 
 ## Open constraints
 
-- Credentials remain runtime-only and must never enter source, config, logs or
+- Official runtime SDK is fixed to v3.1.1.9; BK7259/v4 artifacts are excluded.
+- Do not modify NuttX or SDK sources except temporary debugging that is fully
+  restored.
+- Private signing keys must never enter the repository, firmware logs or
   project memory.
-- SoftAP, warm Wi-Fi recovery, network OTA and legacy SDK validation remain
-  outside the completed N16 scope.
-- Existing unrelated dirty debug tools, QEMU trees, logs and N15 scratch files
-  are owner work and must not be staged with N16.
+- Existing runtime warnings `gpio: 0 is used` and
+  `[ipc_svr] create_socket failed` are outside this boot-chain verification.

@@ -1,6 +1,6 @@
 # Operations
 
-Last reviewed: 2026-08-04
+Last reviewed: 2026-08-06
 
 Do not place credentials, tokens, private keys, or sensitive production data in this file.
 
@@ -17,11 +17,28 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
   COM7 RTS pulse is the proven reset method because its resulting `BClk` cold
   boot was captured on COM11; use it for the automated reset-recovery matrix
   until the J-Link RST command path is separately demonstrated.
+- 2026-08-07 host access check: Windows exposes the J-Link as USB `8-4`
+  (S/N `20790067`, VTref about `3.30 V`) and WSL can invoke the Windows
+  Commander directly; no usbipd attach is needed and the Windows UART path is
+  preserved. SWD read-only discovery reached STAR r1p0 (`CPUID=0x631F1320`).
+  Commander warns that this J-Link V9 firmware does not reliably handle an
+  enabled I/D-cache. Treat breakpoint/single-step observations with cache
+  enabled as diagnostic-only; use bounded register/memory reads and UART for
+  acceptance evidence.
 - USB and J-Link can power the target simultaneously. Removing only J-Link
   target power while USB remains connected does not remove BK7258 VDD and must
   not be recorded as a complete power cycle.
-- Sole active SDK bundle: `board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9` (ignored, checksum-pinned). Do not run legacy-version checks until N15 completes on v3.1.1.9 and the owner opens a separate task.
-- Matching SDK source is external and read-only; supply it through `BK7258_SDK_SOURCE` for source verification.
+- SDK workspace locations are recorded as follows:
+  - `/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9` is the active,
+    read-only BK7258 SDK source snapshot.
+  - `/tmp/bk-idk-v201` is a disposable read-only checkout of Beken
+    `bk_idk release/v2.0.1` (`650e754e12fe1e43c37ce2316a973668b033fd48`) for
+    BK7236 secureboot source review only.
+  - `/home/lijian/project/armino/vendor_beken` is a third-party Git mirror,
+    not an official SDK implementation input.
+- The active compatible SDK bundle remains v3.1.1.9. Matching SDK source is
+  external and read-only; supply it through `BK7258_SDK_SOURCE` for source
+  verification. BK7259 and v4 are retired and cannot replace it.
 
 ## Required verification
 
@@ -40,9 +57,19 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 
 ## Build and release
 
-- Build paired CP/AP profiles with `board/bk7258_t5ai/scripts/build_dual_image.sh`; N14 uses `cp_nsh_psram + ap_smp_psram` and v3.1.1.9.
+- A future compatible SDK update is a fresh export, never a rename or reuse
+  of v3 archives: resolve the official tag to a commit, confirm BK7258 CP/AP
+  profiles, build clean role outputs, import them into a new versioned bundle,
+  record manifests/provenance, then run the bounded ABI/link review before
+  changing the default selector.
+- Build paired CP/AP profiles with `board/bk7258_t5ai/scripts/build_dual_image.sh`; the historical N14 profile uses `cp_nsh_psram + ap_smp_psram` and v3.1.1.9.
 - Follow [the build/flash/debug SOP](../docs/bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md) rather than reconstructing commands from memory.
 - The build wrapper rejects mismatched CP/AP feature-profile pairs and runs post-link verification.
+- For the MCUboot host-reference pipeline, leave `MCUBOOT_OFFICIAL_PIPELINE=YES`
+  and omit `SECUREBOOT_AES_TOOL`/`SECUREBOOT_AES_KEY_FILE` for the no-AES
+  branch.  Supplying both external paths opts into the SDK v3.1.1.9 AES step;
+  no key is stored in this repository and the resulting stream remains
+  host-reference-only until the BK7258 BootROM consumer is proven.
 - A host OTA candidate is generated only when `N15_OTA_GENERATION`,
   `N15_OTA_VERSION`, `N15_OTA_BASE_VERSION`, and `N15_OTA_TIMESTAMP` are all
   explicitly supplied. Normal host-only output lives under

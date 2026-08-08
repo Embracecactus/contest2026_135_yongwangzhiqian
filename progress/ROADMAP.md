@@ -1,6 +1,6 @@
 # Roadmap
 
-Last reviewed: 2026-08-06
+Last reviewed: 2026-08-08
 
 ## Latest completed baseline: N16 Wi-Fi STA data plane
 
@@ -25,14 +25,70 @@ Last reviewed: 2026-08-06
 - Physical rollback and analog mid-program brownout were not part of the
   approved minimal N15 board run. Future Flash writes require fresh authority.
 
-## Proposed next MAIN stages
+## Active MAIN stage: N17-SB Secure Boot reverse/port
 
-1. N17: authenticated update policy—signature format, key provisioning,
-   anti-rollback and recovery-key design—after a separate architecture review.
-2. N18: network OTA transport over the N16 native socket path, reusing N15's
-   transport-neutral staging/publication API and N17 authentication policy.
+The official BK7258 v3.1.1.9 SDK has no buildable Secure Boot adaptation.
+Technical support confirmed that BK7236 and BK7258 share the security
+architecture, while BK7236 is single-core. Therefore BK7236 `bk_idk`
+documentation/source is the semantic reference; BK7258 addresses, Manifest
+bytes, OTP/eFuse ABI and CP/AP mapping must still be source- or board-verified.
 
-These numbers are planning anchors, not authorization to start either stage.
+The active objective is a complete recoverable board-owned BL1 -> NuttX
+MCUboot BL2 -> CP/AP SMP chain. No NuttX/SDK source changes, OTP/eFuse writes,
+secure-boot enable, lifecycle transition or debug lock are allowed.
+
+The current raw-page candidate proof (`B1PAGE -> BL2RAM -> MCUboot -> NSH`)
+is an implementation checkpoint, not proof of BK7258 BootROM acceptance.
+
+## N17-SB phases and gates
+
+1. **SB0 — scope/evidence freeze**: separate BK7236 reusable semantics from
+   unproven BK7258 facts; freeze the recoverable development boundary.
+2. **SB1 — BK7236 reference extraction**: record the reference BL1 sequence,
+   MCUboot 1.9 behavior, Manifest semantics, partition/security tables and
+   AES/CRC/padding/merge/signing order.
+3. **SB2 — BK7258 read-only boundary**: confirm raw Flash reads, CRC-XIP
+   conversion, Manifest sectors, TrustEngine/OTP shadow state and CP/AP
+   placement using source review and minimal J-Link/UART evidence.
+4. **SB3 — BL1**: finish Manifest A/B parsing, root-hash policy, version floor,
+   BL2 digest/signature verification, fallback and SRAM handoff.
+5. **SB4 — BL2**: finish the pinned NuttX MCUboot integration, CP/AP same-slot
+   validation, image/TLV signature checks, security-counter policy and vector
+   handoff.
+6. **SB5 — packaging**: implement the BK7258-specific CRC and optional AES
+   stages and represent the documented padding/merge/signing order without
+   forcing BK7236 single-core layout onto the CP/AP pair.
+7. **SB6 — A/B recovery**: verify normal boot, invalid Manifest/BL2, slot
+   fallback, mismatched CP/AP pair and software rollback floor with only the
+   existing download/UART/J-Link tools. Do not create a campaign framework
+   before a recurring test need exists.
+8. **SB-H — hardware root (deferred)**: only after new authority and real
+   BK7258 material are available, bind the implementation to OTP/eFuse and
+   BootROM Secure Boot. This is not part of the current board work.
+
+### Gate status at 2026-08-08
+
+- **SB0-SB2: complete for the reversible evidence boundary.**  BK7236
+  semantics, BK7258 read-only TrustEngine/OTP shadow state, the 128 KiB BL2
+  capacity and the two-stage source crosswalk are recorded.  BK7236 addresses
+  and undocumented ABI values remain explicitly excluded.
+- **SB3-SB4: implementation and board regression complete.**  The board-owned
+  BL1 candidate page, primary/secondary BL2 fallback, pinned NuttX MCUboot
+  validation, CP/AP same-slot/version/counter gate and vector handoff all pass
+  the normal and negative captures.  This is not proof of the BootROM ABI.
+- **SB5: host-reference complete, hardware exactness open.**  The v3.1.1.9
+  source order (logical merge -> MCUboot sign/pad -> optional AES -> 32+2
+  CRC -> physical tail/status placement) is emitted as a separately labelled
+  artifact.  The exact BK7258 AES key/consumer and BootROM CRC read view are
+  not available, so that artifact is not flashed.
+- **SB6: recoverable development matrix complete.**  Manifest/key rejection,
+  BL2 fallback, A/B selection, cross-slot/version/vector rejection and the
+  compile-time security-counter floor are covered.  Persistent OTP/NV
+  rollback is intentionally not claimed.
+- **SB-H: blocked by missing BK7258 BootROM Manifest/OTP ABI and by the
+  explicit no-irreversible-write rule.**
+
+Network OTA transport (old N18 proposal) is paused until SB6 exits.
 
 ## Later candidates
 

@@ -1,0 +1,9 @@
+serial_bytes=363
+verdict=PASS_NSH
+last_checkpoint=B2HANDOFF
+checkpoints=B2INIT B2GO B2GORET B2GOOK B2SELA B2APOK B2HANDOFF
+cold_path=no
+uart_init_returned=no
+bl2_handoff=yes
+ap_timeout_cleanup=no
+nsh=yes

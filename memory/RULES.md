@@ -1,11 +1,16 @@
 # Project Rules
 
-Last reviewed: 2026-08-04
+Last reviewed: 2026-08-08
 
 ## Domain invariants
 
 - Official NuttX/apps/SDK source and SDK static libraries are read-only deliverable inputs. Use team-owned wrappers; see [ADR-001](decisions/ADR-001-wrapper-only-official-source-boundary.md).
-- Use the official Beken SDK v3.1.1.9 as the sole active baseline for analysis, implementation, builds, verification, and board testing. Preserve older SDK bundles without using or changing them; consider legacy-version compatibility only after the current stage is complete and board-verified on v3.1.1.9, under a separate owner decision.
+- BK7259 and Beken `release/v4.0.1` are retired for this project. Do not use
+  them as source, build input, test input, validation target or architecture
+  precedent. The only active BK7258 runtime SDK is official v3.1.1.9. The
+  official BK7236/BK7258 `bk_idk release/v2.0.1` secureboot material may be
+  inspected as a read-only BL1/BL2/TF-M reference; it is not a replacement
+  runtime SDK or static-library bundle.
 - CP is the sole owner of flash/LittleFS, the Beken Bluetooth Controller, AP lifecycle, and PSRAM hardware initialization.
 - AP is the sole stock NuttX Bluetooth Host/GAP/GATT owner and a PSRAM consumer only.
 - AP remains one native SMP cluster and one RPTUN peer; physical CPU2 is not a second peer.
@@ -17,6 +22,12 @@ Last reviewed: 2026-08-04
   [ADR-004](decisions/ADR-004-n15-official-contiguous-ab-layout.md). The
   ADR-003 sector-swap addresses, metadata ABI, and scratch path are retired
   and must never be enabled or flashed.
+- N17 reserves Manifest A at `0x50b000..0x50c000`, Manifest B at
+  `0x50c000..0x50d000`, and the one-way authentication policy at
+  `0x50d000..0x50e000`. The generic partition wrapper must reject writes and
+  erases to all three. Only future dedicated lifecycle code may update the
+  inactive slot's Manifest under ADR-009; normal firmware must never mutate
+  the policy sector.
 
 ## Permissions and ownership
 
@@ -35,12 +46,34 @@ Last reviewed: 2026-08-04
   not board-write authority. Physical OTA validation requires a separately
   reviewed, range-specific plan; reset-only evidence must not be reported as
   complete power removal.
+- N17 must keep the development board recoverable while later drivers are
+  adapted. OTP/eFuse writes, secure-boot enable, lifecycle-state changes,
+  public-key-hash/security-counter provisioning and JTAG/debug locking are
+  forbidden unless the owner later grants a new field-specific irreversible
+  operation scope after the N17-H evidence gates in
+  [ADR-008](decisions/ADR-008-n17-phased-ota-authentication.md) pass. Read-only
+  capability/source inspection is allowed. No normal build, script or test
+  may perform these writes implicitly.
+- The BL1 development manifest packer must reject a private key that does not
+  derive to the compiled board-owned development root. Any merged
+  secure-boot image produced for pipeline comparison remains a
+  host-reference-only artifact until BK7258 BootROM acceptance and the exact
+  AES/CRC consumer are independently proven; it must not trigger OTP/eFuse
+  writes or be described as production-bootable.
+- The accepted N17 CSV/generated layout and public vector are host artifacts,
+  not firmware or board-write authority. The current board remains unarmed and
+  runs N15 format 2 until a separately reviewed implementation and migration
+  are explicitly authorized.
 
 ## Failure and recovery behavior
 
 - Initialization, transport, allocator, or AP startup failures fail closed and must not be converted into READY with a warning.
 - Every wait in board diagnostics and lifecycle control is bounded.
 - Stale AP/RPMsg state is generation-scoped; rollback uses a verified prior profile/artifact rather than reusing stale state.
+- After a future authorized N17 migration, any non-`0xff` byte anywhere in the
+  policy sector means armed. Armed boot accepts only format 3 and a matching
+  signed Manifest plus verified CP/AP payload; it must never fall back to
+  format 2 or header-only slot A.
 - BKFIL Flash read-back used as acceptance evidence must run at 115200 and be
   repeated until two captures are byte-identical. A 6 Mbps read may contain
   injected 128-byte zero blocks and is never a bit-exact recovery image.
@@ -50,6 +83,11 @@ Last reviewed: 2026-08-04
 - Never record passwords, tokens, private keys, session cookies, or personal data in repository memory.
 - Proprietary SDK archives remain ignored and must not be redistributed; only manifests/provenance metadata are versioned.
 - Do not claim secure BLE, power-loss safety, cache coherency, or production SLA without a dedicated accepted stage and evidence.
+- N17-S may claim signed OTA publisher authentication and software downgrade
+  prevention only after its implementation gates pass. Until BootROM secure
+  boot, OTP trust anchoring and a trusted monotonic counter are separately
+  provisioned and verified, do not claim hardware-rooted secure boot,
+  complete-Flash attack resistance or hardware-backed anti-rollback.
 
 ## User-experience conventions
 

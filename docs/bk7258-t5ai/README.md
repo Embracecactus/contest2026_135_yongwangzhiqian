@@ -206,6 +206,7 @@ bootloader + CP 的兼容镜像，不包含 AP；builder 已验证它与 root/ma
 - [nuttx-port/n14-evidence-index.md](nuttx-port/n14-evidence-index.md) —— N14 build、artifact hash、warm/cold/factory及回归原始证据索引
 - [nuttx-port/prompts/15-n15-tier2-ota.md](nuttx-port/prompts/15-n15-tier2-ota.md) —— N15 paired OTA stage、门禁、候选布局和当前handoff
 - [nuttx-port/n15-ota-source-verification.md](nuttx-port/n15-ota-source-verification.md) —— exact v3.1.1.9 RBL/AB/Ghidra/remap/layout源码复核
+- [nuttx-port/beken-support-bk7258-mcuboot-material-request.md](nuttx-port/beken-support-bk7258-mcuboot-material-request.md) —— 可直接发给 Beken 技术支持的 BK7258 MCUboot/BL2/secureboot 资料索取单
 - [../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md](../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md) —— N15-A deterministic pair bundle、官方golden vector、真实clean build与负例证据
 - [../../progress/verification/2026-08-04-n15-b-host-staging.md](../../progress/verification/2026-08-04-n15-b-host-staging.md) —— N15-B CP-only staging、2/21故障注入、final ELF与完整构建证据
 - [../../progress/verification/2026-08-04-n15-c-host-boot-selection.md](../../progress/verification/2026-08-04-n15-c-host-boot-selection.md) —— N15-C metadata ABI、A/B selector 5/28、exact remap source/binary与final boot ELF证据
