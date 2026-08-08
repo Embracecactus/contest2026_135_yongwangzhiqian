@@ -22,11 +22,11 @@
  *     IOEXPANDER_DIRECTION_IN_PULLUP    -> GPIO_INPUT_ENABLE,  pull up
  *     IOEXPANDER_DIRECTION_IN_PULLDOWN  -> GPIO_INPUT_ENABLE,  pull down
  *     IOEXPANDER_DIRECTION_OUT          -> GPIO_OUTPUT_ENABLE, pull disabled
- *     IOEXPANDER_DIRECTION_OUT_OPENDRAIN-> GPIO_OUTPUT_ENABLE, pull disabled
  *   ioe_option:
  *     IOEXPANDER_OPTION_INVERT          -> stored, XOR'ed on read/write
  *     IOEXPANDER_OPTION_INTCFG          -> bk_gpio_set_interrupt_type()
  *     IOEXPANDER_OPTION_WAKEUPCFG       -> bk_gpio_register_wakeup_source()
+ *       using the last explicit interrupt polarity for the pin
  *   ioe_writepin / ioe_readpin / ioe_readbuf -> bk_gpio_set_output_value /
  *       bk_gpio_get_input() with invert applied
  *   ioe_attach / ioe_detach -> per-pin bk_gpio_register_isr() slots
@@ -109,6 +109,8 @@ struct bk7258_gpioe_priv_s
   uint8_t npins;                    /* exposed pin count */
   bool driver_inited;               /* bk_gpio_driver_init() done */
   bool invert[CONFIG_BK7258_GPIOE_NPINS];   /* per-pin invert flag */
+  bool intcfg_valid[CONFIG_BK7258_GPIOE_NPINS];
+  gpio_int_type_t intcfg[CONFIG_BK7258_GPIOE_NPINS];
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
   struct bk7258_gpioe_isr_s isr[CONFIG_BK7258_GPIOE_NPINS]; /* ISR slots */
 #endif
@@ -128,6 +130,17 @@ static int bk7258_gpioe_readpin(FAR struct ioexpander_dev_s *dev,
                                 uint8_t pin, FAR bool *value);
 static int bk7258_gpioe_readbuf(FAR struct ioexpander_dev_s *dev,
                                 uint8_t pin, FAR bool *value);
+#ifdef CONFIG_IOEXPANDER_MULTIPIN
+static int bk7258_gpioe_multiwritepin(FAR struct ioexpander_dev_s *dev,
+                                      FAR const uint8_t *pins,
+                                      FAR const bool *values, int count);
+static int bk7258_gpioe_multireadpin(FAR struct ioexpander_dev_s *dev,
+                                     FAR const uint8_t *pins,
+                                     FAR bool *values, int count);
+static int bk7258_gpioe_multireadbuf(FAR struct ioexpander_dev_s *dev,
+                                     FAR const uint8_t *pins,
+                                     FAR bool *values, int count);
+#endif
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
 static FAR void *bk7258_gpioe_attach(FAR struct ioexpander_dev_s *dev,
                                      ioe_pinset_t pinset,
@@ -147,6 +160,11 @@ static const struct ioexpander_ops_s g_bk7258_gpioe_ops =
   .ioe_writepin  = bk7258_gpioe_writepin,
   .ioe_readpin   = bk7258_gpioe_readpin,
   .ioe_readbuf   = bk7258_gpioe_readbuf,
+#ifdef CONFIG_IOEXPANDER_MULTIPIN
+  .ioe_multiwritepin = bk7258_gpioe_multiwritepin,
+  .ioe_multireadpin  = bk7258_gpioe_multireadpin,
+  .ioe_multireadbuf  = bk7258_gpioe_multireadbuf,
+#endif
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
   .ioe_attach    = bk7258_gpioe_attach,
   .ioe_detach    = bk7258_gpioe_detach,
@@ -257,9 +275,17 @@ static int bk7258_gpioe_direction(FAR struct ioexpander_dev_s *dev,
         cfg.pull_mode = GPIO_PULL_DOWN_EN;
         break;
 
-      case IOEXPANDER_DIRECTION_OUT:
       case IOEXPANDER_DIRECTION_OUT_OPENDRAIN:
       case IOEXPANDER_DIRECTION_OUT_LED:
+        /* The SDK API used here exposes neither open-drain drive nor LED
+         * current semantics.  Silently selecting push-pull can damage a
+         * shared bus, so unsupported electrical modes must fail closed.
+         */
+
+        rc = -ENOTSUP;
+        goto out;
+
+      case IOEXPANDER_DIRECTION_OUT:
         cfg.io_mode = GPIO_OUTPUT_ENABLE;
         break;
 
@@ -320,35 +346,58 @@ static int bk7258_gpioe_option(FAR struct ioexpander_dev_s *dev,
               ret = bk_gpio_disable_interrupt((gpio_id_t)pin);
               break;
 
-            case IOEXPANDER_VAL_LEVEL:
             case IOEXPANDER_VAL_HIGH:
               ret = bk_gpio_set_interrupt_type((gpio_id_t)pin,
                                                GPIO_INT_TYPE_HIGH_LEVEL);
+              if (ret == BK_OK)
+                {
+                  priv->intcfg[pin] = GPIO_INT_TYPE_HIGH_LEVEL;
+                  priv->intcfg_valid[pin] = true;
+                }
               break;
 
             case IOEXPANDER_VAL_LOW:
               ret = bk_gpio_set_interrupt_type((gpio_id_t)pin,
                                                GPIO_INT_TYPE_LOW_LEVEL);
+              if (ret == BK_OK)
+                {
+                  priv->intcfg[pin] = GPIO_INT_TYPE_LOW_LEVEL;
+                  priv->intcfg_valid[pin] = true;
+                }
               break;
 
-            case IOEXPANDER_VAL_EDGE:
             case IOEXPANDER_VAL_RISING:
               ret = bk_gpio_set_interrupt_type((gpio_id_t)pin,
                                                GPIO_INT_TYPE_RISING_EDGE);
+              if (ret == BK_OK)
+                {
+                  priv->intcfg[pin] = GPIO_INT_TYPE_RISING_EDGE;
+                  priv->intcfg_valid[pin] = true;
+                }
               break;
 
             case IOEXPANDER_VAL_FALLING:
               ret = bk_gpio_set_interrupt_type((gpio_id_t)pin,
                                                GPIO_INT_TYPE_FALLING_EDGE);
+              if (ret == BK_OK)
+                {
+                  priv->intcfg[pin] = GPIO_INT_TYPE_FALLING_EDGE;
+                  priv->intcfg_valid[pin] = true;
+                }
               break;
 
             case IOEXPANDER_VAL_BOTH:
-              /* SDK has no both-edge mode; fall through to rising as the
-               * closest supported edge.
+              rc = -ENOTSUP;
+              goto out;
+
+            case IOEXPANDER_VAL_LEVEL:
+            case IOEXPANDER_VAL_EDGE:
+              /* These values omit polarity and cannot be mapped without
+               * inventing a trigger mode.
                */
-              ret = bk_gpio_set_interrupt_type((gpio_id_t)pin,
-                                               GPIO_INT_TYPE_RISING_EDGE);
-              break;
+
+              rc = -EINVAL;
+              goto out;
 
             default:
               rc = -EINVAL;
@@ -364,15 +413,23 @@ static int bk7258_gpioe_option(FAR struct ioexpander_dev_s *dev,
       case IOEXPANDER_OPTION_WAKEUPCFG:
         if (ival == IOEXPANDER_WAKEUP_ENABLE)
           {
-            /* The SDK needs an explicit trigger type for a wake source;
-             * rising edge is the least surprising default for a wake pin.
-             */
+            if (!priv->intcfg_valid[pin])
+              {
+                rc = -EAGAIN;
+                goto out;
+              }
+
             ret = bk_gpio_register_wakeup_source((gpio_id_t)pin,
-                                                 GPIO_INT_TYPE_RISING_EDGE);
+                                                 priv->intcfg[pin]);
+          }
+        else if (ival == IOEXPANDER_WAKEUP_DISABLE)
+          {
+            ret = bk_gpio_unregister_wakeup_source((gpio_id_t)pin);
           }
         else
           {
-            ret = bk_gpio_unregister_wakeup_source((gpio_id_t)pin);
+            rc = -EINVAL;
+            goto out;
           }
 
         if (ret != BK_OK)
@@ -382,10 +439,7 @@ static int bk7258_gpioe_option(FAR struct ioexpander_dev_s *dev,
         break;
 
       default:
-        /* LEDCFG / NONGENERIC / SETDEBOUNCE / SETMASK are not supported by
-         * the BK7258 GPIO block; silently accept to keep generic callers
-         * working.
-         */
+        rc = -ENOTSUP;
         break;
     }
 
@@ -412,13 +466,29 @@ static int bk7258_gpioe_writepin(FAR struct ioexpander_dev_s *dev,
       return rc;
     }
 
+  rc = nxmutex_lock(&priv->lock);
+  if (rc < 0)
+    {
+      return rc;
+    }
+
+  rc = bk7258_gpioe_ensure_driver(priv);
+  if (rc < 0)
+    {
+      goto out;
+    }
+
   if (priv->invert[pin])
     {
       value = !value;
     }
 
   ret = bk_gpio_set_output_value((gpio_id_t)pin, value);
-  return (ret == BK_OK) ? OK : -EIO;
+  rc = (ret == BK_OK) ? OK : -EIO;
+
+out:
+  nxmutex_unlock(&priv->lock);
+  return rc;
 }
 
 /****************************************************************************
@@ -443,13 +513,27 @@ static int bk7258_gpioe_readpin(FAR struct ioexpander_dev_s *dev,
       return -EINVAL;
     }
 
+  rc = nxmutex_lock(&priv->lock);
+  if (rc < 0)
+    {
+      return rc;
+    }
+
+  rc = bk7258_gpioe_ensure_driver(priv);
+  if (rc < 0)
+    {
+      goto out;
+    }
+
   *value = (bk_gpio_get_input((gpio_id_t)pin) != 0);
   if (priv->invert[pin])
     {
       *value = !*value;
     }
 
-  return OK;
+out:
+  nxmutex_unlock(&priv->lock);
+  return rc;
 }
 
 /****************************************************************************
@@ -464,6 +548,63 @@ static int bk7258_gpioe_readbuf(FAR struct ioexpander_dev_s *dev,
 {
   return bk7258_gpioe_readpin(dev, pin, value);
 }
+
+#ifdef CONFIG_IOEXPANDER_MULTIPIN
+static int bk7258_gpioe_multiwritepin(FAR struct ioexpander_dev_s *dev,
+                                      FAR const uint8_t *pins,
+                                      FAR const bool *values, int count)
+{
+  int ret;
+  int i;
+
+  if (pins == NULL || values == NULL || count < 0)
+    {
+      return -EINVAL;
+    }
+
+  for (i = 0; i < count; i++)
+    {
+      ret = bk7258_gpioe_writepin(dev, pins[i], values[i]);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
+  return OK;
+}
+
+static int bk7258_gpioe_multireadpin(FAR struct ioexpander_dev_s *dev,
+                                     FAR const uint8_t *pins,
+                                     FAR bool *values, int count)
+{
+  int ret;
+  int i;
+
+  if (pins == NULL || values == NULL || count < 0)
+    {
+      return -EINVAL;
+    }
+
+  for (i = 0; i < count; i++)
+    {
+      ret = bk7258_gpioe_readpin(dev, pins[i], &values[i]);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
+  return OK;
+}
+
+static int bk7258_gpioe_multireadbuf(FAR struct ioexpander_dev_s *dev,
+                                     FAR const uint8_t *pins,
+                                     FAR bool *values, int count)
+{
+  return bk7258_gpioe_multireadpin(dev, pins, values, count);
+}
+#endif
 
 /****************************************************************************
  * Name: bk7258_gpioe_sdk_isr
@@ -521,7 +662,14 @@ static FAR void *bk7258_gpioe_attach(FAR struct ioexpander_dev_s *dev,
   FAR struct bk7258_gpioe_priv_s *priv =
     (FAR struct bk7258_gpioe_priv_s *)dev;
   uint8_t pin;
+  ioe_pinset_t attached = 0;
+  ioe_pinset_t remaining = pinset;
   int rc;
+
+  if (pinset == 0 || callback == NULL)
+    {
+      return NULL;
+    }
 
   rc = nxmutex_lock(&priv->lock);
   if (rc < 0)
@@ -545,6 +693,8 @@ static FAR void *bk7258_gpioe_attach(FAR struct ioexpander_dev_s *dev,
           continue;
         }
 
+      remaining &= ~((ioe_pinset_t)1 << pin);
+
       flags = enter_critical_section();
       priv->isr[pin].callback = callback;
       priv->isr[pin].arg      = arg;
@@ -557,6 +707,8 @@ static FAR void *bk7258_gpioe_attach(FAR struct ioexpander_dev_s *dev,
           flags = enter_critical_section();
           priv->isr[pin].active = false;
           leave_critical_section(flags);
+          rc = -EIO;
+          break;
         }
       else if (bk_gpio_enable_interrupt((gpio_id_t)pin) != BK_OK)
         {
@@ -567,13 +719,46 @@ static FAR void *bk7258_gpioe_attach(FAR struct ioexpander_dev_s *dev,
           priv->isr[pin].arg = NULL;
           leave_critical_section(flags);
           (void)bk_gpio_register_isr((gpio_id_t)pin, NULL);
+          rc = -EIO;
+          break;
+        }
+
+      else
+        {
+          attached |= (ioe_pinset_t)1 << pin;
+        }
+    }
+
+  if (remaining != 0)
+    {
+      rc = -EINVAL;
+    }
+
+  if (rc < 0)
+    {
+      for (pin = 0; pin < priv->npins; pin++)
+        {
+          irqstate_t flags;
+
+          if ((attached & ((ioe_pinset_t)1 << pin)) == 0)
+            {
+              continue;
+            }
+
+          (void)bk_gpio_disable_interrupt((gpio_id_t)pin);
+          (void)bk_gpio_register_isr((gpio_id_t)pin, NULL);
+          flags = enter_critical_section();
+          priv->isr[pin].active = false;
+          priv->isr[pin].callback = NULL;
+          priv->isr[pin].arg = NULL;
+          leave_critical_section(flags);
         }
     }
 
   nxmutex_unlock(&priv->lock);
 
   /* The caller uses this as an opaque handle for detach(). */
-  return (FAR void *)(uintptr_t)(pinset);
+  return rc < 0 ? NULL : (FAR void *)(uintptr_t)pinset;
 }
 #endif
 

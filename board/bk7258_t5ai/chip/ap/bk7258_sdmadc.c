@@ -107,6 +107,7 @@ static struct bk7258_sdmadc_priv_s g_bk7258_sdmadc =
   .bound      = false,
   .inited     = false,
 };
+static bool g_bk7258_sdmadc_registered;
 
 /****************************************************************************
  * Private Functions
@@ -268,7 +269,20 @@ static int bk7258_sdmadc_ioctl(FAR struct adc_dev_s *dev, int cmd,
 
 int bk7258_sdmadc_initialize(void)
 {
-  return adc_register(CONFIG_BK7258_SDMADC_DEVNAME, &g_bk7258_sdmadc.dev);
+  int ret;
+
+  if (g_bk7258_sdmadc_registered)
+    {
+      return OK;
+    }
+
+  ret = adc_register(CONFIG_BK7258_SDMADC_DEVNAME, &g_bk7258_sdmadc.dev);
+  if (ret >= 0)
+    {
+      g_bk7258_sdmadc_registered = true;
+    }
+
+  return ret;
 }
 
 #endif /* CONFIG_BK7258_SDMADC */

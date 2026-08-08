@@ -248,6 +248,10 @@ ifeq ($(CONFIG_BK7258_WDT),y)
 BK7258_CP_CSRCS += bk7258_wdt.c
 endif
 
+ifeq ($(CONFIG_BK7258_SARADC_SERVER),y)
+BK7258_CP_CSRCS += bk7258_saradc_server.c
+endif
+
 # Physical CPU1 runs the independently linked AP image.  Keep AP-UP and AP-SMP
 # source selection explicit so the board-verified N8-A probe remains an exact
 # fallback while N8-B1 replaces only the CPU2 implementation.
@@ -256,6 +260,7 @@ BK7258_AP_BASE_CSRCS  = bk7258_ap_vectors.c
 BK7258_AP_BASE_CSRCS += bk7258_ap_start.c
 BK7258_AP_BASE_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
 BK7258_AP_BASE_CSRCS += bk7258_ap_main.c
+BK7258_AP_BASE_CSRCS += bk7258_peripherals.c
 
 ifeq ($(CONFIG_BK7258_PSRAM),y)
 BK7258_AP_BASE_CSRCS += bk7258_psram.c

@@ -185,11 +185,16 @@ if(CONFIG_BK7258_WDT)
   list(APPEND BK7258_CP_SRCS cp/bk7258_wdt.c)
 endif()
 
+if(CONFIG_BK7258_SARADC_SERVER)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_saradc_server.c)
+endif()
+
 set(BK7258_AP_BASE_SRCS
     ap/bk7258_ap_vectors.c
     ap/bk7258_ap_start.c
     ${BK7258_COMMON_EARLY_SRCS}
-    ap/bk7258_ap_main.c)
+    ap/bk7258_ap_main.c
+    ap/bk7258_peripherals.c)
 
 if(CONFIG_BK7258_PSRAM)
   list(APPEND BK7258_AP_BASE_SRCS common/bk7258_psram.c)

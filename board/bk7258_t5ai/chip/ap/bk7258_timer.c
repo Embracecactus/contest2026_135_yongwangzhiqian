@@ -61,10 +61,6 @@
 
 #define BK7258_TIMER_US_PER_MS         1000u
 
-/* SDK rejects a 0 ms period. */
-
-#define BK7258_TIMER_MS_MIN            1u
-
 /* The SDK's 32-bit ms period. */
 
 #define BK7258_TIMER_MAX_MS            UINT32_MAX
@@ -80,6 +76,7 @@ struct bk7258_timer_priv_s
   uint32_t timeout_us;            /* NuttX timeout in microseconds */
   tccb_t callback;                /* NuttX timeout callback (tccb_t) */
   FAR void *callback_arg;         /* NuttX callback argument */
+  bool driver_inited;             /* bk_timer_driver_init() done */
   bool running;                   /* hardware channel armed */
 };
 
@@ -99,13 +96,6 @@ static int bk7258_timer_ioctl(FAR struct timer_lowerhalf_s *lower, int cmd,
                               unsigned long arg);
 static int bk7258_timer_maxtimeout(FAR struct timer_lowerhalf_s *lower,
                                    FAR uint32_t *maxtimeout);
-static int bk7258_timer_tick_getstatus(FAR struct timer_lowerhalf_s *lower,
-                                       FAR struct timer_status_s *status);
-static int bk7258_timer_tick_settimeout(FAR struct timer_lowerhalf_s *lower,
-                                        uint32_t timeout);
-static int bk7258_timer_tick_maxtimeout(FAR struct timer_lowerhalf_s *lower,
-                                        FAR uint32_t *maxtimeout);
-
 static void bk7258_timer_sdk_isr(timer_id_t timer_id);
 
 /****************************************************************************
@@ -121,9 +111,9 @@ static const struct timer_ops_s g_bk7258_timer_ops =
   .setcallback     = bk7258_timer_setcallback,
   .ioctl           = bk7258_timer_ioctl,
   .maxtimeout      = bk7258_timer_maxtimeout,
-  .tick_getstatus  = bk7258_timer_tick_getstatus,
-  .tick_settimeout = bk7258_timer_tick_settimeout,
-  .tick_maxtimeout = bk7258_timer_tick_maxtimeout,
+  .tick_getstatus  = NULL,
+  .tick_settimeout = NULL,
+  .tick_maxtimeout = NULL,
 };
 
 static struct bk7258_timer_priv_s g_bk7258_timer =
@@ -133,8 +123,10 @@ static struct bk7258_timer_priv_s g_bk7258_timer =
   .timeout_us   = 0,
   .callback     = NULL,
   .callback_arg = NULL,
+  .driver_inited = false,
   .running      = false,
 };
+static bool g_bk7258_timer_registered;
 
 /****************************************************************************
  * Private Functions
@@ -155,26 +147,42 @@ static int bk7258_timer_start(FAR struct timer_lowerhalf_s *lower)
   irqstate_t flags;
   bk_err_t ret;
 
+  if (priv->timeout_us == 0 || priv->running)
+    {
+      return priv->running ? -EBUSY : -EINVAL;
+    }
+
+  if (!priv->driver_inited)
+    {
+      ret = bk_timer_driver_init();
+      if (ret != BK_OK)
+        {
+          return -EIO;
+        }
+
+      priv->driver_inited = true;
+    }
+
   timeout_ms = priv->timeout_us / BK7258_TIMER_US_PER_MS;
-  if (timeout_ms < BK7258_TIMER_MS_MIN)
-    {
-      timeout_ms = BK7258_TIMER_MS_MIN;
-    }
+  timeout_ms += (priv->timeout_us % BK7258_TIMER_US_PER_MS) != 0;
 
-  ret = bk_timer_start((timer_id_t)priv->chan, timeout_ms,
-                       bk7258_timer_sdk_isr);
-  if (ret != BK_OK)
-    {
-      return -EIO;
-    }
-
-  /* Publish running=true under a critical section so an ISR that fires
-   * immediately after the hardware start observes the correct state.
+  /* Set the software state before enabling hardware so an immediate expiry
+   * cannot be mistaken for a stale interrupt.  Roll it back on failure.
    */
 
   flags = enter_critical_section();
   priv->running = true;
   leave_critical_section(flags);
+
+  ret = bk_timer_start((timer_id_t)priv->chan, timeout_ms,
+                       bk7258_timer_sdk_isr);
+  if (ret != BK_OK)
+    {
+      flags = enter_critical_section();
+      priv->running = false;
+      leave_critical_section(flags);
+      return -EIO;
+    }
   return OK;
 }
 
@@ -186,6 +194,11 @@ static int bk7258_timer_stop(FAR struct timer_lowerhalf_s *lower)
 {
   FAR struct bk7258_timer_priv_s *priv =
     (FAR struct bk7258_timer_priv_s *)lower;
+  uint32_t count;
+  uint32_t period;
+  bool driver_inited;
+  bool running;
+  irqstate_t flags;
   irqstate_t flags;
 
   /* Clear running under a critical section BEFORE stopping the hardware:
@@ -220,7 +233,10 @@ static int bk7258_timer_getstatus(FAR struct timer_lowerhalf_s *lower,
 
   memset(status, 0, sizeof(*status));
 
-  if (priv->running)
+  flags = enter_critical_section();
+  running = priv->running;
+  driver_inited = priv->driver_inited;
+  if (running)
     {
       status->flags |= TCFLAGS_ACTIVE;
     }
@@ -231,11 +247,23 @@ static int bk7258_timer_getstatus(FAR struct timer_lowerhalf_s *lower,
     }
 
   status->timeout = priv->timeout_us;
+  leave_critical_section(flags);
 
-  /* timeleft in microseconds: the SDK counter counts down in ms. */
+  /* The SDK exposes raw increasing hardware count and end-count values,
+   * not milliseconds.  Scale the remaining count fraction by the requested
+   * timeout instead of treating raw clock cycles as milliseconds.
+   */
 
-  status->timeleft = bk_timer_get_cnt((timer_id_t)priv->chan) *
-                     BK7258_TIMER_US_PER_MS;
+  if (driver_inited && running)
+    {
+      count = bk_timer_get_cnt((timer_id_t)priv->chan);
+      period = bk_timer_get_period((timer_id_t)priv->chan);
+      if (period != 0 && count < period)
+        {
+          status->timeleft = (uint32_t)
+            (((uint64_t)(period - count) * status->timeout) / period);
+        }
+    }
 
   return OK;
 }
@@ -254,9 +282,18 @@ static int bk7258_timer_settimeout(FAR struct timer_lowerhalf_s *lower,
     (FAR struct bk7258_timer_priv_s *)lower;
   irqstate_t flags;
 
-  /* ISR reads timeout_us; write under a critical section. */
+  if (timeout == 0)
+    {
+      return -EINVAL;
+    }
 
   flags = enter_critical_section();
+  if (priv->running)
+    {
+      leave_critical_section(flags);
+      return -EPERM;
+    }
+
   priv->timeout_us = timeout;
   leave_critical_section(flags);
   return OK;
@@ -343,10 +380,7 @@ static void bk7258_timer_sdk_isr(timer_id_t timer_id)
           uint32_t timeout_ms;
 
           timeout_ms = timeout_us / BK7258_TIMER_US_PER_MS;
-          if (timeout_ms < BK7258_TIMER_MS_MIN)
-            {
-              timeout_ms = BK7258_TIMER_MS_MIN;
-            }
+          timeout_ms += (timeout_us % BK7258_TIMER_US_PER_MS) != 0;
 
           flags = enter_critical_section();
           running = priv->running;
@@ -415,29 +449,6 @@ static int bk7258_timer_maxtimeout(FAR struct timer_lowerhalf_s *lower,
 }
 
 /****************************************************************************
- * Tick variants: delegate to the ms/us implementation (the SDK is ms
- * based, so a "tick" here is still handled in us).
- ****************************************************************************/
-
-static int bk7258_timer_tick_getstatus(FAR struct timer_lowerhalf_s *lower,
-                                       FAR struct timer_status_s *status)
-{
-  return bk7258_timer_getstatus(lower, status);
-}
-
-static int bk7258_timer_tick_settimeout(FAR struct timer_lowerhalf_s *lower,
-                                        uint32_t timeout)
-{
-  return bk7258_timer_settimeout(lower, timeout);
-}
-
-static int bk7258_timer_tick_maxtimeout(FAR struct timer_lowerhalf_s *lower,
-                                        FAR uint32_t *maxtimeout)
-{
-  return bk7258_timer_maxtimeout(lower, maxtimeout);
-}
-
-/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -445,8 +456,19 @@ int bk7258_timer_initialize(void)
 {
   FAR void *handle;
 
+  if (g_bk7258_timer_registered)
+    {
+      return OK;
+    }
+
   handle = timer_register(CONFIG_BK7258_TIMER_DEVNAME, &g_bk7258_timer.dev);
-  return (handle != NULL) ? OK : -ENODEV;
+  if (handle == NULL)
+    {
+      return -ENODEV;
+    }
+
+  g_bk7258_timer_registered = true;
+  return OK;
 }
 
 #endif /* CONFIG_BK7258_TIMER */

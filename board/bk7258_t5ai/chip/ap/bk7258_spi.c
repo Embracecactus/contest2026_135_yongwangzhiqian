@@ -252,23 +252,21 @@ static void bk7258_spi_setmode(FAR struct spi_dev_s *dev,
 {
   FAR struct bk7258_spi_priv_s *priv =
     (FAR struct bk7258_spi_priv_s *)dev;
-  spi_mode_t sdk_mode = (spi_mode_t)mode;
-
   if ((unsigned int)mode > BK7258_SPI_MODE_MAX)
     {
-      sdk_mode = SPI_POL_MODE_0;
+      return;
     }
 
   if (!priv->initialized)
     {
-      priv->mode = (uint8_t)sdk_mode;
+      priv->mode = (uint8_t)mode;
       return;
     }
 
-  if ((uint8_t)sdk_mode != priv->mode)
+  if ((uint8_t)mode != priv->mode &&
+      bk_spi_set_mode(priv->id, (spi_mode_t)mode) == BK_OK)
     {
-      bk_spi_set_mode(priv->id, sdk_mode);
-      priv->mode = (uint8_t)sdk_mode;
+      priv->mode = (uint8_t)mode;
     }
 }
 
@@ -276,8 +274,14 @@ static void bk7258_spi_setbits(FAR struct spi_dev_s *dev, int nbits)
 {
   FAR struct bk7258_spi_priv_s *priv =
     (FAR struct bk7258_spi_priv_s *)dev;
-  spi_bit_width_t width = (nbits == 16) ? SPI_BIT_WIDTH_16BITS
-                                        : SPI_BIT_WIDTH_8BITS;
+  spi_bit_width_t width;
+
+  if (nbits != 8 && nbits != 16)
+    {
+      return;
+    }
+
+  width = nbits == 16 ? SPI_BIT_WIDTH_16BITS : SPI_BIT_WIDTH_8BITS;
 
   if (!priv->initialized)
     {
@@ -285,9 +289,9 @@ static void bk7258_spi_setbits(FAR struct spi_dev_s *dev, int nbits)
       return;
     }
 
-  if ((uint8_t)nbits != priv->bits)
+  if ((uint8_t)nbits != priv->bits &&
+      bk_spi_set_bit_width(priv->id, width) == BK_OK)
     {
-      bk_spi_set_bit_width(priv->id, width);
       priv->bits = (uint8_t)nbits;
     }
 }
@@ -307,27 +311,36 @@ static void bk7258_spi_exchange(FAR struct spi_dev_s *dev,
 {
   FAR struct bk7258_spi_priv_s *priv =
     (FAR struct bk7258_spi_priv_s *)dev;
+  size_t nbytes;
   bk_err_t err;
 
-  if (!priv->initialized || nwords == 0)
+  if (!priv->initialized || nwords == 0 ||
+      (txbuffer == NULL && rxbuffer == NULL))
     {
       return;
     }
+
+  if (nwords > UINT32_MAX / (priv->bits / 8u))
+    {
+      return;
+    }
+
+  nbytes = nwords * (priv->bits / 8u);
 
   if (txbuffer != NULL && rxbuffer != NULL)
     {
       /* Full duplex: SDK requires equal tx/rx sizes, which matches. */
 
-      err = bk_spi_transmit(priv->id, txbuffer, (uint32_t)nwords,
-                           rxbuffer, (uint32_t)nwords);
+      err = bk_spi_transmit(priv->id, txbuffer, (uint32_t)nbytes,
+                           rxbuffer, (uint32_t)nbytes);
     }
   else if (txbuffer != NULL)
     {
-      err = bk_spi_write_bytes(priv->id, txbuffer, (uint32_t)nwords);
+      err = bk_spi_write_bytes(priv->id, txbuffer, (uint32_t)nbytes);
     }
   else
     {
-      err = bk_spi_read_bytes(priv->id, rxbuffer, (uint32_t)nwords);
+      err = bk_spi_read_bytes(priv->id, rxbuffer, (uint32_t)nbytes);
     }
 
   /* exchange() has no error return; mismatches surface on the next
@@ -344,10 +357,13 @@ static void bk7258_spi_sndblock(FAR struct spi_dev_s *dev,
 {
   FAR struct bk7258_spi_priv_s *priv =
     (FAR struct bk7258_spi_priv_s *)dev;
+  size_t nbytes;
 
-  if (priv->initialized && nwords > 0)
+  if (priv->initialized && nwords > 0 &&
+      nwords <= UINT32_MAX / (priv->bits / 8u))
     {
-      bk_spi_write_bytes(priv->id, buffer, (uint32_t)nwords);
+      nbytes = nwords * (priv->bits / 8u);
+      bk_spi_write_bytes(priv->id, buffer, (uint32_t)nbytes);
     }
 }
 
@@ -356,10 +372,13 @@ static void bk7258_spi_recvblock(FAR struct spi_dev_s *dev,
 {
   FAR struct bk7258_spi_priv_s *priv =
     (FAR struct bk7258_spi_priv_s *)dev;
+  size_t nbytes;
 
-  if (priv->initialized && nwords > 0)
+  if (priv->initialized && nwords > 0 &&
+      nwords <= UINT32_MAX / (priv->bits / 8u))
     {
-      bk_spi_read_bytes(priv->id, buffer, (uint32_t)nwords);
+      nbytes = nwords * (priv->bits / 8u);
+      bk_spi_read_bytes(priv->id, buffer, (uint32_t)nbytes);
     }
 }
 #endif

@@ -692,18 +692,46 @@ int bk7258_aud_initialize(void)
 
   priv->running = true;
 
-  pthread_attr_init(&tattr);
-  pthread_attr_setstacksize(&tattr, BK7258_AUD_WORKER_STACK);
-  ret = pthread_create(&priv->threadid, &tattr, bk7258_aud_worker, priv);
+  ret = pthread_attr_init(&tattr);
   if (ret != OK)
     {
       file_mq_close(&priv->mq);
       file_mq_unlink(priv->mqname);
       priv->mqname[0] = '\0';
+      priv->running = false;
+      return -ret;
+    }
+
+  ret = pthread_attr_setstacksize(&tattr, BK7258_AUD_WORKER_STACK);
+  if (ret != OK)
+    {
+      pthread_attr_destroy(&tattr);
+      file_mq_close(&priv->mq);
+      file_mq_unlink(priv->mqname);
+      priv->mqname[0] = '\0';
+      priv->running = false;
+      return -ret;
+    }
+
+  ret = pthread_create(&priv->threadid, &tattr, bk7258_aud_worker, priv);
+  pthread_attr_destroy(&tattr);
+  if (ret != OK)
+    {
+      file_mq_close(&priv->mq);
+      file_mq_unlink(priv->mqname);
+      priv->mqname[0] = '\0';
+      priv->running = false;
+      return -ret;
+    }
+
+  ret = audio_register(CONFIG_BK7258_AUD_DEVNAME, &priv->dev);
+  if (ret < 0)
+    {
+      (void)bk7258_aud_shutdown(&priv->dev);
       return ret;
     }
 
-  return audio_register(CONFIG_BK7258_AUD_DEVNAME, &priv->dev);
+  return OK;
 }
 
 #endif /* CONFIG_BK7258_AUD */

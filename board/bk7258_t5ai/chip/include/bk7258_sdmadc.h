@@ -51,7 +51,7 @@
 /* Default /dev/adcN device name. */
 
 #ifndef CONFIG_BK7258_SDMADC_DEVNAME
-#  define CONFIG_BK7258_SDMADC_DEVNAME  "adc1"
+#  define CONFIG_BK7258_SDMADC_DEVNAME  "/dev/adc1"
 #endif
 
 /****************************************************************************

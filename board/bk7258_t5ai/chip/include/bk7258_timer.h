@@ -53,7 +53,7 @@
 /* Default /dev/timerN device name. */
 
 #ifndef CONFIG_BK7258_TIMER_DEVNAME
-#  define CONFIG_BK7258_TIMER_DEVNAME   "timer0"
+#  define CONFIG_BK7258_TIMER_DEVNAME   "/dev/timer0"
 #endif
 
 /****************************************************************************
