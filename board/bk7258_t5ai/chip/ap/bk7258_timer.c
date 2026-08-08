@@ -194,11 +194,6 @@ static int bk7258_timer_stop(FAR struct timer_lowerhalf_s *lower)
 {
   FAR struct bk7258_timer_priv_s *priv =
     (FAR struct bk7258_timer_priv_s *)lower;
-  uint32_t count;
-  uint32_t period;
-  bool driver_inited;
-  bool running;
-  irqstate_t flags;
   irqstate_t flags;
 
   /* Clear running under a critical section BEFORE stopping the hardware:
@@ -225,6 +220,11 @@ static int bk7258_timer_getstatus(FAR struct timer_lowerhalf_s *lower,
 {
   FAR struct bk7258_timer_priv_s *priv =
     (FAR struct bk7258_timer_priv_s *)lower;
+  uint32_t count;
+  uint32_t period;
+  bool driver_inited;
+  bool running;
+  irqstate_t flags;
 
   if (status == NULL)
     {

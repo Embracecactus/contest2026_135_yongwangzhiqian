@@ -34,17 +34,15 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
-#include <time.h>
 
 #include <nuttx/audio/audio.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/irq.h>
 #include <nuttx/mqueue.h>
-#include <nuttx/kmalloc.h>
-#include <nuttx/mutex.h>
+#include <nuttx/signal.h>
 #include <nuttx/spinlock.h>
-#include <nuttx/wqueue.h>
 
 #include <fcntl.h>
 #include <pthread.h>
@@ -80,11 +78,12 @@
 
 /* FIFO ready retry budget. */
 
-#define BK7258_AUD_FIFO_RETRIES        1000000u
+#define BK7258_AUD_FIFO_RETRIES        1000u
+#define BK7258_AUD_FIFO_POLL_US        100u
 
-/* 32-bit samples per PCM word. */
+/* The board wrapper exposes mono, signed 16-bit PCM. */
 
-#define BK7258_AUD_SAMPLE_BYTES        4u
+#define BK7258_AUD_SAMPLE_BYTES        2u
 
 /* Message queue depth (also the max number of concurrently cancelled
  * buffers we need to track).
@@ -106,9 +105,12 @@ struct bk7258_aud_priv_s
   bool started;                     /* audio started */
   bool dac_inited;                  /* bk_aud_dac_init() done */
   bool adc_inited;                  /* bk_aud_adc_init() done */
+  bool capture;                     /* current direction is input */
+  bool configured;                  /* PCM parameters validated */
+  bool registered;                  /* audio_register() completed */
+  bool reserved;                    /* single hardware session owned */
   uint32_t samplerate;              /* configured sample rate (Hz) */
   uint8_t channels;                 /* configured channel count */
-  uint32_t *dac_fifo;               /* DAC FIFO register address */
 
   /* Cancelled-buffer set.  The POSIX mqueue used for audio_msg_s cannot
    * remove a specific message, so a buffer that was cancelled (via
@@ -126,24 +128,43 @@ struct bk7258_aud_priv_s
 
 static int bk7258_aud_getcaps(FAR struct audio_lowerhalf_s *dev, int type,
                               FAR struct audio_caps_s *caps);
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+static int bk7258_aud_configure(FAR struct audio_lowerhalf_s *dev,
+                                FAR void *session,
+                                FAR const struct audio_caps_s *caps);
+static int bk7258_aud_start(FAR struct audio_lowerhalf_s *dev,
+                            FAR void *session);
+static int bk7258_aud_stop(FAR struct audio_lowerhalf_s *dev,
+                           FAR void *session);
+static int bk7258_aud_pause(FAR struct audio_lowerhalf_s *dev,
+                            FAR void *session);
+static int bk7258_aud_resume(FAR struct audio_lowerhalf_s *dev,
+                             FAR void *session);
+static int bk7258_aud_reserve(FAR struct audio_lowerhalf_s *dev,
+                              FAR void **session);
+static int bk7258_aud_release(FAR struct audio_lowerhalf_s *dev,
+                              FAR void *session);
+#else
 static int bk7258_aud_configure(FAR struct audio_lowerhalf_s *dev,
                                 FAR const struct audio_caps_s *caps);
-static int bk7258_aud_shutdown(FAR struct audio_lowerhalf_s *dev);
 static int bk7258_aud_start(FAR struct audio_lowerhalf_s *dev);
 static int bk7258_aud_stop(FAR struct audio_lowerhalf_s *dev);
 static int bk7258_aud_pause(FAR struct audio_lowerhalf_s *dev);
 static int bk7258_aud_resume(FAR struct audio_lowerhalf_s *dev);
+static int bk7258_aud_reserve(FAR struct audio_lowerhalf_s *dev);
+static int bk7258_aud_release(FAR struct audio_lowerhalf_s *dev);
+#endif
+static int bk7258_aud_shutdown(FAR struct audio_lowerhalf_s *dev);
 static int bk7258_aud_enqueuebuffer(FAR struct audio_lowerhalf_s *dev,
                                     FAR struct ap_buffer_s *apb);
 static int bk7258_aud_cancelbuffer(FAR struct audio_lowerhalf_s *dev,
                                    FAR struct ap_buffer_s *apb);
 static int bk7258_aud_ioctl(FAR struct audio_lowerhalf_s *dev, int cmd,
                             unsigned long arg);
-static int bk7258_aud_reserve(FAR struct audio_lowerhalf_s *dev);
-static int bk7258_aud_release(FAR struct audio_lowerhalf_s *dev);
 
 static FAR void *bk7258_aud_worker(FAR void *arg);
 static int bk7258_aud_ensure_init(FAR struct bk7258_aud_priv_s *priv);
+static int bk7258_aud_start_worker(FAR struct bk7258_aud_priv_s *priv);
 
 /****************************************************************************
  * Private Data
@@ -155,9 +176,13 @@ static const struct audio_ops_s g_bk7258_aud_ops =
   .configure      = bk7258_aud_configure,
   .shutdown       = bk7258_aud_shutdown,
   .start          = bk7258_aud_start,
+#ifndef CONFIG_AUDIO_EXCLUDE_STOP
   .stop           = bk7258_aud_stop,
+#endif
+#ifndef CONFIG_AUDIO_EXCLUDE_PAUSE_RESUME
   .pause          = bk7258_aud_pause,
   .resume         = bk7258_aud_resume,
+#endif
   .allocbuffer    = NULL,           /* upper half default pool */
   .freebuffer     = NULL,
   .enqueuebuffer  = bk7258_aud_enqueuebuffer,
@@ -178,9 +203,12 @@ static struct bk7258_aud_priv_s g_bk7258_aud =
   .started      = false,
   .dac_inited   = false,
   .adc_inited   = false,
+  .capture      = false,
+  .configured   = false,
+  .registered   = false,
+  .reserved     = false,
   .samplerate   = 16000,
   .channels     = 1,
-  .dac_fifo     = NULL,
 };
 
 /****************************************************************************
@@ -200,7 +228,8 @@ static int bk7258_aud_ensure_init(FAR struct bk7258_aud_priv_s *priv)
   aud_adc_config_t adc_cfg = DEFAULT_AUD_ADC_CONFIG();
   bk_err_t ret;
 
-  if (priv->dac_inited && priv->adc_inited)
+  if ((priv->capture && priv->adc_inited) ||
+      (!priv->capture && priv->dac_inited))
     {
       return OK;
     }
@@ -211,19 +240,7 @@ static int bk7258_aud_ensure_init(FAR struct bk7258_aud_priv_s *priv)
       return -EIO;
     }
 
-  if (!priv->dac_inited)
-    {
-      ret = bk_aud_dac_init(&dac_cfg);
-      if (ret != BK_OK)
-        {
-          return -EIO;
-        }
-
-      (void)bk_aud_dac_set_samp_rate(priv->samplerate);
-      priv->dac_inited = true;
-    }
-
-  if (!priv->adc_inited)
+  if (priv->capture)
     {
       ret = bk_aud_adc_init(&adc_cfg);
       if (ret != BK_OK)
@@ -231,12 +248,92 @@ static int bk7258_aud_ensure_init(FAR struct bk7258_aud_priv_s *priv)
           return -EIO;
         }
 
-      (void)bk_aud_adc_set_samp_rate(priv->samplerate);
+      ret = bk_aud_adc_set_samp_rate(priv->samplerate);
+      if (ret != BK_OK)
+        {
+          bk_aud_adc_deinit();
+          return -ERANGE;
+        }
+
       priv->adc_inited = true;
     }
+  else
+    {
+      ret = bk_aud_dac_init(&dac_cfg);
+      if (ret != BK_OK)
+        {
+          return -EIO;
+        }
 
-  (void)bk_aud_dac_get_fifo_addr((uint32_t *)&priv->dac_fifo);
+      ret = bk_aud_dac_set_samp_rate(priv->samplerate);
+      if (ret != BK_OK)
+        {
+          bk_aud_dac_deinit();
+          return -ERANGE;
+        }
+
+      priv->dac_inited = true;
+    }
+
   return OK;
+}
+
+static int bk7258_aud_start_worker(FAR struct bk7258_aud_priv_s *priv)
+{
+  struct mq_attr attr;
+  pthread_attr_t tattr;
+  int ret;
+
+  if (priv->running && priv->threadid != 0)
+    {
+      return OK;
+    }
+
+  snprintf(priv->mqname, sizeof(priv->mqname), "%s", BK7258_AUD_MQNAME);
+  file_mq_unlink(priv->mqname);
+
+  attr.mq_maxmsg  = BK7258_AUD_MQ_DEPTH;
+  attr.mq_msgsize = sizeof(struct audio_msg_s);
+  attr.mq_flags   = 0;
+
+  ret = file_mq_open(&priv->mq, priv->mqname, O_RDWR | O_CREAT, 0644,
+                     &attr);
+  if (ret < 0)
+    {
+      priv->mqname[0] = '\0';
+      return ret;
+    }
+
+  priv->running = true;
+  ret = pthread_attr_init(&tattr);
+  if (ret != OK)
+    {
+      goto errout_queue;
+    }
+
+  ret = pthread_attr_setstacksize(&tattr, BK7258_AUD_WORKER_STACK);
+  if (ret != OK)
+    {
+      pthread_attr_destroy(&tattr);
+      goto errout_queue;
+    }
+
+  ret = pthread_create(&priv->threadid, &tattr, bk7258_aud_worker, priv);
+  pthread_attr_destroy(&tattr);
+  if (ret != OK)
+    {
+      goto errout_queue;
+    }
+
+  return OK;
+
+errout_queue:
+  file_mq_close(&priv->mq);
+  file_mq_unlink(priv->mqname);
+  priv->mqname[0] = '\0';
+  priv->running = false;
+  priv->threadid = 0;
+  return ret > 0 ? -ret : ret;
 }
 
 /****************************************************************************
@@ -246,42 +343,66 @@ static int bk7258_aud_ensure_init(FAR struct bk7258_aud_priv_s *priv)
 static int bk7258_aud_getcaps(FAR struct audio_lowerhalf_s *dev, int type,
                               FAR struct audio_caps_s *caps)
 {
-  if (caps == NULL)
+  if (caps == NULL || caps->ac_len < sizeof(*caps))
     {
       return -EINVAL;
     }
 
-  caps->ac_len = sizeof(*caps);
-  caps->ac_type = type;
-  caps->ac_channels = 1 << 4 | 1;      /* 1..1 channel */
+  caps->ac_channels = 1;
   caps->ac_chmap = 0;
   caps->ac_format.hw = 0;
+  caps->ac_controls.w = 0;
 
-  switch (type)
+  switch (caps->ac_type)
     {
       case AUDIO_TYPE_QUERY:
-        caps->ac_controls.w = AUDIO_TYPE_OUTPUT | AUDIO_TYPE_INPUT;
+        if (caps->ac_subtype == AUDIO_TYPE_QUERY)
+          {
+            caps->ac_controls.b[0] = AUDIO_TYPE_OUTPUT | AUDIO_TYPE_INPUT;
+            caps->ac_format.hw = 1 << (AUDIO_FMT_PCM - 1);
+          }
+        else
+          {
+            caps->ac_controls.b[0] = AUDIO_SUBFMT_END;
+          }
         break;
 
       case AUDIO_TYPE_OUTPUT:
       case AUDIO_TYPE_INPUT:
-        caps->ac_format.hw = AUDIO_FMT_PCM;
-        caps->ac_controls.b[0] = 16;    /* 16-bit */
+        if (caps->ac_subtype == AUDIO_TYPE_QUERY)
+          {
+            caps->ac_controls.hw[0] = AUDIO_SAMP_RATE_8K |
+                                      AUDIO_SAMP_RATE_12K |
+                                      AUDIO_SAMP_RATE_16K |
+                                      AUDIO_SAMP_RATE_22K |
+                                      AUDIO_SAMP_RATE_24K |
+                                      AUDIO_SAMP_RATE_32K |
+                                      AUDIO_SAMP_RATE_44K |
+                                      AUDIO_SAMP_RATE_48K;
+          }
         break;
 
       default:
         return -ENOTTY;
     }
 
-  return OK;
+  (void)dev;
+  (void)type;
+  return caps->ac_len;
 }
 
 /****************************************************************************
  * Name: bk7258_aud_configure
  ****************************************************************************/
 
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+static int bk7258_aud_configure(FAR struct audio_lowerhalf_s *dev,
+                                FAR void *session,
+                                FAR const struct audio_caps_s *caps)
+#else
 static int bk7258_aud_configure(FAR struct audio_lowerhalf_s *dev,
                                 FAR const struct audio_caps_s *caps)
+#endif
 {
   FAR struct bk7258_aud_priv_s *priv =
     (FAR struct bk7258_aud_priv_s *)dev;
@@ -291,15 +412,49 @@ static int bk7258_aud_configure(FAR struct audio_lowerhalf_s *dev,
       return -EINVAL;
     }
 
-  if (caps->ac_channels > 0)
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  if (session != priv)
     {
-      priv->channels = caps->ac_channels & 0x0f;
+      return -EINVAL;
+    }
+#endif
+
+  if (priv->started)
+    {
+      return -EBUSY;
     }
 
-  if (caps->ac_controls.hw[0] > 0)
+  if (caps->ac_type != AUDIO_TYPE_OUTPUT &&
+      caps->ac_type != AUDIO_TYPE_INPUT)
     {
-      priv->samplerate = caps->ac_controls.hw[0];
+      return -ENOTTY;
     }
+
+  if (caps->ac_channels != 1 || caps->ac_controls.b[2] != 16)
+    {
+      return -ERANGE;
+    }
+
+  switch (caps->ac_controls.hw[0])
+    {
+      case 8000:
+      case 12000:
+      case 16000:
+      case 22050:
+      case 24000:
+      case 32000:
+      case 44100:
+      case 48000:
+        break;
+
+      default:
+        return -ERANGE;
+    }
+
+  priv->capture = caps->ac_type == AUDIO_TYPE_INPUT;
+  priv->channels = 1;
+  priv->samplerate = caps->ac_controls.hw[0];
+  priv->configured = true;
 
   return OK;
 }
@@ -308,11 +463,39 @@ static int bk7258_aud_configure(FAR struct audio_lowerhalf_s *dev,
  * Name: bk7258_aud_start
  ****************************************************************************/
 
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+static int bk7258_aud_start(FAR struct audio_lowerhalf_s *dev,
+                            FAR void *session)
+#else
 static int bk7258_aud_start(FAR struct audio_lowerhalf_s *dev)
+#endif
 {
   FAR struct bk7258_aud_priv_s *priv =
     (FAR struct bk7258_aud_priv_s *)dev;
   int ret;
+
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  if (session != priv)
+    {
+      return -EINVAL;
+    }
+#endif
+
+  if (priv->started)
+    {
+      return -EBUSY;
+    }
+
+  if (!priv->configured)
+    {
+      return -EAGAIN;
+    }
+
+  ret = bk7258_aud_start_worker(priv);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
   ret = bk7258_aud_ensure_init(priv);
   if (ret < 0)
@@ -320,8 +503,12 @@ static int bk7258_aud_start(FAR struct audio_lowerhalf_s *dev)
       return ret;
     }
 
-  (void)bk_aud_dac_start();
-  (void)bk_aud_adc_start();
+  ret = priv->capture ? bk_aud_adc_start() : bk_aud_dac_start();
+  if (ret != BK_OK)
+    {
+      return -EIO;
+    }
+
   priv->started = true;
   return OK;
 }
@@ -330,13 +517,31 @@ static int bk7258_aud_start(FAR struct audio_lowerhalf_s *dev)
  * Name: bk7258_aud_stop
  ****************************************************************************/
 
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+static int bk7258_aud_stop(FAR struct audio_lowerhalf_s *dev,
+                           FAR void *session)
+#else
 static int bk7258_aud_stop(FAR struct audio_lowerhalf_s *dev)
+#endif
 {
   FAR struct bk7258_aud_priv_s *priv =
     (FAR struct bk7258_aud_priv_s *)dev;
 
-  (void)bk_aud_dac_stop();
-  (void)bk_aud_adc_stop();
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  if (session != priv)
+    {
+      return -EINVAL;
+    }
+#endif
+
+  if (priv->capture)
+    {
+      (void)bk_aud_adc_stop();
+    }
+  else
+    {
+      (void)bk_aud_dac_stop();
+    }
   priv->started = false;
   return OK;
 }
@@ -345,15 +550,35 @@ static int bk7258_aud_stop(FAR struct audio_lowerhalf_s *dev)
  * Name: bk7258_aud_pause / resume
  ****************************************************************************/
 
+#ifndef CONFIG_AUDIO_EXCLUDE_PAUSE_RESUME
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+static int bk7258_aud_pause(FAR struct audio_lowerhalf_s *dev,
+                            FAR void *session)
+#else
 static int bk7258_aud_pause(FAR struct audio_lowerhalf_s *dev)
+#endif
 {
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  return bk7258_aud_stop(dev, session);
+#else
   return bk7258_aud_stop(dev);
+#endif
 }
 
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+static int bk7258_aud_resume(FAR struct audio_lowerhalf_s *dev,
+                             FAR void *session)
+#else
 static int bk7258_aud_resume(FAR struct audio_lowerhalf_s *dev)
+#endif
 {
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  return bk7258_aud_start(dev, session);
+#else
   return bk7258_aud_start(dev);
+#endif
 }
+#endif
 
 /****************************************************************************
  * Name: bk7258_aud_enqueuebuffer
@@ -368,11 +593,15 @@ static int bk7258_aud_enqueuebuffer(FAR struct audio_lowerhalf_s *dev,
     (FAR struct bk7258_aud_priv_s *)dev;
   struct audio_msg_s msg;
 
-  if (apb == NULL || priv->mqname[0] == '\0')
+  if (apb == NULL || apb->samp == NULL || priv->mqname[0] == '\0' ||
+      !priv->running || !priv->reserved ||
+      apb->curbyte > apb->nbytes ||
+      ((apb->nbytes - apb->curbyte) & 1u) != 0)
     {
       return -EINVAL;
     }
 
+  memset(&msg, 0, sizeof(msg));
   msg.msg_id = AUDIO_MSG_ENQUEUE;
   msg.u.ptr = apb;
 
@@ -389,6 +618,13 @@ static int bk7258_aud_cancelbuffer(FAR struct audio_lowerhalf_s *dev,
   FAR struct bk7258_aud_priv_s *priv =
     (FAR struct bk7258_aud_priv_s *)dev;
   irqstate_t flags;
+  uint8_t i;
+  int ret = OK;
+
+  if (apb == NULL)
+    {
+      return -EINVAL;
+    }
 
   /* The POSIX mqueue cannot remove a specific queued message, so record
    * the buffer in the cancelled set instead.  The worker checks this set
@@ -398,14 +634,26 @@ static int bk7258_aud_cancelbuffer(FAR struct audio_lowerhalf_s *dev,
 
   flags = enter_critical_section();
 
-  if (apb != NULL && priv->ncancelled < BK7258_AUD_MQ_DEPTH)
+  for (i = 0; i < priv->ncancelled; i++)
     {
-      priv->cancelled[priv->ncancelled] = apb;
-      priv->ncancelled++;
+      if (priv->cancelled[i] == apb)
+        {
+          leave_critical_section(flags);
+          return OK;
+        }
+    }
+
+  if (priv->ncancelled < BK7258_AUD_MQ_DEPTH)
+    {
+      priv->cancelled[priv->ncancelled++] = apb;
+    }
+  else
+    {
+      ret = -ENOMEM;
     }
 
   leave_critical_section(flags);
-  return OK;
+  return ret;
 }
 
 /****************************************************************************
@@ -429,13 +677,79 @@ static int bk7258_aud_ioctl(FAR struct audio_lowerhalf_s *dev, int cmd,
  * Name: bk7258_aud_reserve / release
  ****************************************************************************/
 
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+static int bk7258_aud_reserve(FAR struct audio_lowerhalf_s *dev,
+                              FAR void **session)
+#else
 static int bk7258_aud_reserve(FAR struct audio_lowerhalf_s *dev)
+#endif
 {
+  FAR struct bk7258_aud_priv_s *priv =
+    (FAR struct bk7258_aud_priv_s *)dev;
+  irqstate_t flags;
+  int ret;
+
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  if (session == NULL)
+    {
+      return -EINVAL;
+    }
+
+  *session = NULL;
+#endif
+
+  flags = enter_critical_section();
+  if (priv->reserved)
+    {
+      leave_critical_section(flags);
+      return -EBUSY;
+    }
+
+  priv->reserved = true;
+  leave_critical_section(flags);
+
+  ret = bk7258_aud_start_worker(priv);
+  if (ret < 0)
+    {
+      flags = enter_critical_section();
+      priv->reserved = false;
+      leave_critical_section(flags);
+      return ret;
+    }
+
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  *session = priv;
+#endif
+
   return OK;
 }
 
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+static int bk7258_aud_release(FAR struct audio_lowerhalf_s *dev,
+                              FAR void *session)
+#else
 static int bk7258_aud_release(FAR struct audio_lowerhalf_s *dev)
+#endif
 {
+  FAR struct bk7258_aud_priv_s *priv =
+    (FAR struct bk7258_aud_priv_s *)dev;
+  irqstate_t flags;
+
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  if (session != priv)
+    {
+      return -EINVAL;
+    }
+#endif
+
+  if (priv->threadid != 0 || priv->dac_inited || priv->adc_inited)
+    {
+      (void)bk7258_aud_shutdown(dev);
+    }
+
+  flags = enter_critical_section();
+  priv->reserved = false;
+  leave_critical_section(flags);
   return OK;
 }
 
@@ -460,6 +774,52 @@ static bool bk7258_aud_is_cancelled(FAR struct bk7258_aud_priv_s *priv,
     }
 
   return false;
+}
+
+static int bk7258_aud_wait_dac_space(void)
+{
+  uint32_t status;
+  unsigned int retry;
+
+  for (retry = 0; retry < BK7258_AUD_FIFO_RETRIES; retry++)
+    {
+      if (bk_aud_dac_get_status(&status) != BK_OK)
+        {
+          return -EIO;
+        }
+
+      if ((status & AUD_DACL_FIFO_FULL_MASK) == 0)
+        {
+          return OK;
+        }
+
+      nxsig_usleep(BK7258_AUD_FIFO_POLL_US);
+    }
+
+  return -ETIMEDOUT;
+}
+
+static int bk7258_aud_wait_adc_data(void)
+{
+  uint32_t status;
+  unsigned int retry;
+
+  for (retry = 0; retry < BK7258_AUD_FIFO_RETRIES; retry++)
+    {
+      if (bk_aud_adc_get_status(&status) != BK_OK)
+        {
+          return -EIO;
+        }
+
+      if ((status & AUD_ADCL_FIFO_EMPTY_MASK) == 0)
+        {
+          return OK;
+        }
+
+      nxsig_usleep(BK7258_AUD_FIFO_POLL_US);
+    }
+
+  return -ETIMEDOUT;
 }
 
 /****************************************************************************
@@ -491,9 +851,11 @@ static FAR void *bk7258_aud_worker(FAR void *arg)
       if (msg.msg_id == AUDIO_MSG_ENQUEUE)
         {
           FAR struct ap_buffer_s *apb = msg.u.ptr;
-          FAR uint32_t *samp;
+          FAR int16_t *samp;
           uint32_t nsamples;
           uint32_t i;
+          uint32_t fifo;
+          bool final;
           int result = OK;
 
           /* If this buffer was cancelled while queued, do not touch its
@@ -526,7 +888,7 @@ static FAR void *bk7258_aud_worker(FAR void *arg)
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
               priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE,
-                              apb, OK, NULL);
+                              apb, OK, priv);
 #else
               priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE,
                               apb, OK);
@@ -537,38 +899,97 @@ static FAR void *bk7258_aud_worker(FAR void *arg)
 
           leave_critical_section(flags);
 
-          samp = (FAR uint32_t *)apb->samp;
-          nsamples = apb->nbytes / BK7258_AUD_SAMPLE_BYTES;
+          final = (apb->flags & AUDIO_APB_FINAL) != 0;
 
-          if (priv->started && samp != NULL)
+          if (priv->capture)
             {
-              /* Playback: write each 32-bit sample via the SDK's
-               * single-sample DAC write (the SDK manages the FIFO).
-               */
-
-              for (i = 0; i < nsamples; i++)
+              if (apb->curbyte > apb->nmaxbytes)
                 {
-                  if (bk_aud_dac_write(samp[i]) != BK_OK)
-                    {
-                      result = -EIO;
-                      break;
-                    }
+                  result = -EINVAL;
+                  nsamples = 0;
+                  samp = NULL;
+                }
+              else
+                {
+                  samp = (FAR int16_t *)(apb->samp + apb->curbyte);
+                  nsamples = (apb->nmaxbytes - apb->curbyte) /
+                             BK7258_AUD_SAMPLE_BYTES;
                 }
             }
+          else if (apb->curbyte > apb->nbytes)
+            {
+              result = -EINVAL;
+              nsamples = 0;
+              samp = NULL;
+            }
           else
+            {
+              samp = (FAR int16_t *)(apb->samp + apb->curbyte);
+              nsamples = (apb->nbytes - apb->curbyte) /
+                         BK7258_AUD_SAMPLE_BYTES;
+            }
+
+          if (result == OK && priv->started && samp != NULL)
+            {
+              for (i = 0; i < nsamples; i++)
+                {
+                  if (priv->capture)
+                    {
+                      result = bk7258_aud_wait_adc_data();
+                      if (result < 0 ||
+                          bk_aud_adc_get_fifo_data(&fifo) != BK_OK)
+                        {
+                          result = result < 0 ? result : -EIO;
+                          break;
+                        }
+
+                      samp[i] = (int16_t)(fifo & 0xffffu);
+                    }
+                  else
+                    {
+                      result = bk7258_aud_wait_dac_space();
+                      if (result < 0 ||
+                          bk_aud_dac_write((uint16_t)samp[i]) != BK_OK)
+                        {
+                          result = result < 0 ? result : -EIO;
+                          break;
+                        }
+                    }
+                }
+
+              apb->curbyte += i * BK7258_AUD_SAMPLE_BYTES;
+              if (priv->capture)
+                {
+                  apb->nbytes = apb->curbyte;
+                }
+            }
+          else if (result == OK)
             {
               result = -EAGAIN;
             }
 
-          /* Report completion to the upper half. */
+          /* Ownership of every processed buffer returns with DEQUEUE.
+           * COMPLETE denotes the end of a stream, not one buffer.
+           */
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
-          priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE,
-                          apb, result, NULL);
+          priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE,
+                          apb, result, priv);
 #else
-          priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE,
+          priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE,
                           apb, result);
 #endif
+
+          if (final)
+            {
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+              priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE,
+                              NULL, result, priv);
+#else
+              priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE,
+                              NULL, result);
+#endif
+            }
         }
       else if (msg.msg_id == AUDIO_MSG_STOP)
         {
@@ -614,26 +1035,11 @@ static int bk7258_aud_shutdown(FAR struct audio_lowerhalf_s *dev)
     {
       if (priv->mqname[0] != '\0')
         {
-          struct timespec ts;
-
+          memset(&term_msg, 0, sizeof(term_msg));
           term_msg.msg_id = AUDIO_MSG_STOP;
           term_msg.u.ptr = NULL;
-
-          /* Use a bounded send so a full queue cannot block shutdown
-           * forever; the worker keeps draining and will reach the STOP.
-           */
-
-          clock_gettime(CLOCK_REALTIME, &ts);
-          ts.tv_nsec += 100 * 1000 * 1000;   /* +100 ms */
-          if (ts.tv_nsec >= 1000 * 1000 * 1000)
-            {
-              ts.tv_sec++;
-              ts.tv_nsec -= 1000 * 1000 * 1000;
-            }
-
-          (void)file_mq_timedsend(&priv->mq,
-                                  (FAR const char *)&term_msg,
-                                  sizeof(term_msg), 1, &ts);
+          (void)file_mq_send(&priv->mq, (FAR const char *)&term_msg,
+                             sizeof(term_msg), 1);
         }
 
       pthread_join(priv->threadid, NULL);
@@ -656,6 +1062,7 @@ static int bk7258_aud_shutdown(FAR struct audio_lowerhalf_s *dev)
   bk_aud_driver_deinit();
   priv->running = false;
   priv->started = false;
+  priv->configured = false;
   return OK;
 }
 
@@ -666,71 +1073,20 @@ static int bk7258_aud_shutdown(FAR struct audio_lowerhalf_s *dev)
 int bk7258_aud_initialize(void)
 {
   FAR struct bk7258_aud_priv_s *priv = &g_bk7258_aud;
-  struct mq_attr attr;
-  pthread_attr_t tattr;
   int ret;
 
-  if (priv->mqname[0] != '\0')
+  if (priv->registered)
     {
-      return OK;      /* already initialized */
-    }
-
-  snprintf(priv->mqname, sizeof(priv->mqname), "%s", BK7258_AUD_MQNAME);
-  file_mq_unlink(priv->mqname);
-
-  attr.mq_maxmsg  = BK7258_AUD_MQ_DEPTH;
-  attr.mq_msgsize = sizeof(struct audio_msg_s);
-  attr.mq_flags   = 0;
-
-  ret = file_mq_open(&priv->mq, priv->mqname, O_RDWR | O_CREAT, 0644,
-                     &attr);
-  if (ret < 0)
-    {
-      priv->mqname[0] = '\0';
-      return ret;
-    }
-
-  priv->running = true;
-
-  ret = pthread_attr_init(&tattr);
-  if (ret != OK)
-    {
-      file_mq_close(&priv->mq);
-      file_mq_unlink(priv->mqname);
-      priv->mqname[0] = '\0';
-      priv->running = false;
-      return -ret;
-    }
-
-  ret = pthread_attr_setstacksize(&tattr, BK7258_AUD_WORKER_STACK);
-  if (ret != OK)
-    {
-      pthread_attr_destroy(&tattr);
-      file_mq_close(&priv->mq);
-      file_mq_unlink(priv->mqname);
-      priv->mqname[0] = '\0';
-      priv->running = false;
-      return -ret;
-    }
-
-  ret = pthread_create(&priv->threadid, &tattr, bk7258_aud_worker, priv);
-  pthread_attr_destroy(&tattr);
-  if (ret != OK)
-    {
-      file_mq_close(&priv->mq);
-      file_mq_unlink(priv->mqname);
-      priv->mqname[0] = '\0';
-      priv->running = false;
-      return -ret;
+      return OK;
     }
 
   ret = audio_register(CONFIG_BK7258_AUD_DEVNAME, &priv->dev);
   if (ret < 0)
     {
-      (void)bk7258_aud_shutdown(&priv->dev);
       return ret;
     }
 
+  priv->registered = true;
   return OK;
 }
 
