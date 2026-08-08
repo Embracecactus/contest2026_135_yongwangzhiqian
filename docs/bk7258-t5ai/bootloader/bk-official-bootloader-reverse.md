@@ -10,7 +10,7 @@
 > v3.1.1.9 的 exact binary 为 52352 bytes，SHA-256
 > `105161bb603eedafbffcb5efb8f7c06a0c8503e42ba4da46490c2c21ed813de6`，
 > version `bc31115`，base `0x02000000`、SP `0x28030000`、reset
-> `0x020001c1`。Ghidra 当前识别 134 个函数、224 条调用边，并确认 reset/handoff
+> `0x020001c1`。Ghidra 当前在另行种入 FAL 入口后识别 140 个函数，并确认 reset/handoff
 > 包含早期 SoC、flash、WDT、UART、clock、MSPLIM、runtime、cache/MPU 清理和 app
 > 跳转。项目只 clean-room 复现 raw NuttX 启动必需的硬件契约，没有移植官方
 > RBL/OTA/download 全部协议。
@@ -18,10 +18,18 @@
 > **地址勘误：SCB 正确基址是 `0xE000ED00`。** 旧版文档中的
 > `0xED00E000` 是字节顺序写错，以下内容已统一更正。对函数边界和语义有疑问时，
 > 以 Ghidra 工程、exact binary 和当前源码交叉验证结果为准。
+>
+> **2026-08-07 Reset-path 勘误：** 从 `0x020001c0` 强制建立 Cortex-M reset
+> 入口后可直接确认：初始 MSP 是 vector[0] 的 `0x28030000`，而 MSPLIM literal 是
+> `0x2802f800`，不是旧文写的 `0x28000000`。normal boot 的默认 reset 路径完成
+> early init 后直接以 `0x02010000` 调用 `0x02001720`，由该函数设置 VTOR/MSP 并跳入
+> CP vector；`0x02001444` 的 FAL/FOTA entry 不在这条直接 Reset call graph 中。下文
+> 将它描述为默认启动流程的旧段落只能作为历史反汇编笔记，不能据此声称 normal boot
+> 会在每次 cold reset 先运行完整 FOTA/RBL 分区选择。
 
 ---
 
-## 1. 完整启动流程图
+## 1. 已直接确认的默认 cold-reset 流程
 
 ```
 上电 / 复位
@@ -45,7 +53,7 @@ Reset_Handler (0x020001C1, Thumb bit set)
 │  ├─ 设置 flash 时钟分频
 │  └─ 配置 flash 读取模式 (single/quad)
 │
-├─ [3] uart_init (0x20003B0, UART0) 或 (0x20009F0, UART1)
+├─ [3] uart_init (0x20003B0, UART1)
 │  ├─ 配置 GPIO pinmux
 │  ├─ 设置波特率 115200
 │  └─ 使能 UART 发送
@@ -55,55 +63,29 @@ Reset_Handler (0x020001C1, Thumb bit set)
 │  ├─ 等待 PLL 锁定
 │  └─ 切换系统时钟到 PLL
 │
-├─ [5] 设置 MSPLIM (0x28000000)
-│  └─ msr MSPLIM, #0x28000000
+├─ [5] 设置 MSPLIM (0x2802F800)
+│  └─ msr MSPLIM, #0x2802F800
 │
 ├─ [6] flash_ctrl_config (0x2000280)
 │  ├─ 配置 flash 控制器寄存器
 │  └─ 使能 flash cache
 │
-├─ [7] flash_cache_config (0x20018E0)
-│  ├─ 清除 cache (写 0 到 cache control)
-│  ├─ DSB + ISB
-│  ├─ 配置 cache 区域 (起始/结束地址)
-│  └─ 使能 cache
+├─ [7] cache/runtime 初始化表
+│  ├─ `check_xip_mode()` 决定是否执行 data/bss init tables
+│  └─ 这条路径没有调用 FAL/FOTA entry
 │
-├─ [8] check_xip_mode (0x2000330)
-│  └─ 读 0x44000008, bit16 → 返回 0 (非XIP) 或 1 (XIP)
+└─ [8] fixed_handoff (0x2001720, r0 = 0x02010000)
+   ├─ SCB->VTOR = 0x02010000
+   ├─ ldrd MSP, Reset_Handler from [0x02010000]
+   ├─ 清空 r0-r12
+   └─ bx Reset_Handler → 进入 CP app
 │
-├─ [9] heap_init (0x20013C0)
-│  └─ 初始化堆管理结构
-│
-├─ [10] flash_partition_init (0x20019C8)
-│  ├─ flash_device_init (0x20019F0): 初始化 flash 设备驱动
-│  ├─ 读取 flash ID
-│  ├─ 注册 flash 设备到分区系统
-│  └─ 分区表初始化
-│
-├─ [11] crc16_table_init (0x2001414)
-│  └─ 生成 CRC16 查找表 (多项式 0x8320, 256 项)
-│
-├─ [12] boot_main (0x2001444)
-│  ├─ flash_id_read (0x2001460): 打印 "flash id:" + JEDEC ID
-│  ├─ 检查是否进入下载模式
-│  │  ├─ 是 → 进入 OTA 下载流程 (UART/XMODEM)
-│  │  └─ 否 → 继续正常启动
-│  │
-│  └─ load_and_jump_app (0x20017D0)
-│     ├─ partition_get_info (0x2003774): 获取 app 分区信息
-│     ├─ CRC 地址转换: real_addr = (offset * 32) / 34 + 0x02000000
-│     └─ jump_to_app (0x200176C)
-│        ├─ 打印 " jump toxx:0x%x"
-│        ├─ ldrd MSP, Reset_Handler from [app_vector_table]
-│        ├─ UART deinit
-│        ├─ flash cache disable
-│        ├─ SCB->VTOR = app_vector_table
-│        ├─ msr MSP, app_MSP
-│        ├─ 清空 r0-r12
-│        └─ bx Reset_Handler → 进入 app
-│
-└─ 完成, app 开始执行
+└─ 完成, CP app 开始执行
 ```
+
+`0x02001444`（FAL/download entry）与 `0x020017d0`（分区读取后 handoff）确实存在，
+但并不在上述 Reset Handler 的直接调用链上。它们的触发条件、下载协议和完整错误
+分支仍是独立的逆向课题，不能冒充 normal cold reset 的默认启动逻辑。
 
 ---
 
@@ -142,7 +124,7 @@ BootROM 校验此 magic 来确认 bootloader 合法性。格式: 8 字节, `BK72
 020001CC: f000 f0f0    bl      0x20003b0    ; uart_init(1)
 020001D0: 2002         movs    r0, #2       ; clock source = 2
 020001D2: f000 b3fa    bl      0x200073c    ; sys_clk_init(2)
-020001D6: 234b         ldr     r3, =0x28000000
+020001D6: 4b23         ldr     r3, =0x2802F800
 020001D8: 83f3 0a88    msr     MSPLIM, r3   ; 设置栈下限保护
 020001DC: f000 50f8    bl      0x2000280    ; flash_ctrl_config
 020001E0: 2000         movs    r0, #0
@@ -458,6 +440,23 @@ stored-body CRC32 verifier：从payload offset `0x60`分块读取，和header `+
 该格式没有SHA-256字段、公钥或签名。CRC32/FNV-1a只能用于非加密完整性检查，不得表述为
 publisher authenticity。exact source与工具复核见
 [N15 OTA source verification](../nuttx-port/n15-ota-source-verification.md)。
+
+### 2.13 normal FAL 差分下载头不是 RBL，也不是 `FOTAL`
+
+仅在独立的 `0x02001444` FAL/download 入口所调用的 `0x02002970` 中，binary 从
+`download` 分区读取另一个固定 `0x44` bytes 的 diff-FOTA 头。首 4 bytes 必须是
+ASCII `bkbl`，`+0x40` 是前 `0x40` bytes 的 CRC32，`+0x1c/+0x20` 分别是 payload
+长度及其 CRC32。`+0x04/+0x08` 在应用前校验现有 preimage 的长度/CRC32（失败输出
+`file version not match!`）；`+0x10` 约束目标产生文件的大小。`+0x24` 必须为
+`0x48000`，同时用作 delta 解码工作页窗口的参数。
+
+`FOTAL\0` 位于不同的 binary literal，用作 FAL 重启恢复记录的前 6 bytes，后续
+2 bytes 为阶段字；它不是这个 `0x44` bytes 文件头的 magic。journal 轮转中
+`0xfcfc` 表示新副本准备、`0xf0f0` 是唯一接受的稳定副本、`0xc0c0` 表示旧副本待擦；
+其页内记录的阶段字节在代码中按 `0xfc -> 0xf0 -> 0xc0 -> 0x00` 写入。字段未命名
+部分及 FAL 的外部进入条件仍未恢复，不能将此 normal-FAL 私有 journal 与 A/B 的
+`ota_fina_executive` 状态扇区混为一谈。可复现证据见
+[normal bootloader Ghidra 记录](../../../progress/verification/2026-08-07-ghidra-bk7258-normal-bootloader.md)。
 
 ---
 

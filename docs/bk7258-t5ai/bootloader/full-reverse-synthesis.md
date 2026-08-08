@@ -52,15 +52,16 @@ CRC expansion 是构建/烧录格式；CPU 经 flash controller 读取时看到�
 Reset_Handler
   -> early SoC/clock/flash preparation
   -> WDT and UART setup
-  -> MSPLIM and runtime data initialization
+  -> MSPLIM (`0x2802f800`) and runtime data initialization
   -> cache/MPU/system control preparation
-  -> boot source / partition / app validation
-  -> jump_to_app
-       -> disable and clean/invalidate D-cache
-       -> clear MPU state
-       -> set VTOR/MSP and sanitize registers
-       -> branch to app reset entry
+  -> normal boot: direct `0x02001720(0x02010000)` handoff
+       -> set VTOR/MSP, sanitize registers, branch to CP reset entry
 ```
+
+The FAL/RBL/FOTA code also found in the normal binary is not on this direct
+cold-reset path. The separately recovered A/B bootloader, not normal boot,
+contains the observed `appa`/`s_app` selection, trial/confirm state and Flash
+offset remap.
 
 SCB 正确基址是：
 
