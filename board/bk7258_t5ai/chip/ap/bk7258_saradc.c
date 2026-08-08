@@ -234,6 +234,7 @@ static int bk7258_saradc_ioctl(FAR struct adc_dev_s *dev, int cmd,
   FAR struct bk7258_saradc_priv_s *priv =
     (FAR struct bk7258_saradc_priv_s *)dev;
   uint16_t raw;
+  bool deliver = false;
   bk_err_t ret;
   int rc = OK;
 
@@ -259,11 +260,20 @@ static int bk7258_saradc_ioctl(FAR struct adc_dev_s *dev, int cmd,
             }
           else
             {
-              priv->cb->au_receive(dev, (uint8_t)priv->chan,
-                                   (int32_t)raw);
+              deliver = true;
             }
 
           nxmutex_unlock(&priv->lock);
+
+          /* The upper-half callback may wake readers or re-enter control
+           * paths.  Never invoke it while holding the conversion mutex.
+           */
+
+          if (deliver)
+            {
+              priv->cb->au_receive(dev, (uint8_t)priv->chan,
+                                   (int32_t)raw);
+            }
         }
         break;
 
@@ -272,6 +282,7 @@ static int bk7258_saradc_ioctl(FAR struct adc_dev_s *dev, int cmd,
         break;
     }
 
+  (void)arg;
   return rc;
 }
 

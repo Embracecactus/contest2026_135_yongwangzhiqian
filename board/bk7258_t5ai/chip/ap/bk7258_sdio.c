@@ -29,19 +29,12 @@
  *     bk_sdio_host_init(config) powers up the unit and applies GPIO mapping.
  *     Both are one-shot; we call driver_init once and host_init once at
  *     bk7258_sdio_initialize(), then re-init only on reset()/widebus().
- *  2. The Beken SDIO host API is BLOCKING/polling: bk_sdio_host_send_command
- *     + bk_sdio_host_wait_cmd_response() and bk_sdio_host_read_blks_fifo() +
- *     bk_sdio_host_wait_receive_data() complete the transfer synchronously
- *     inside the call (the SDK internally blocks on its own semaphores).  It
- *     exposes NO command-complete / transfer-complete interrupt to the
- *     caller (only init/deinit callbacks).  Therefore the NuttX event model
- *     (waitenable/eventwait/callbackenable/registercallback) is implemented
- *     as a documented polling shim: the data transfer already finished inside
- *     recvsetup()/sendsetup(), so eventwait() simply replays the cached
- *     completion status.  This is correct for a polling SDIO host and keeps
- *     the framework compilable and functional; an interrupt-driven path
- *     (wiring the SDK ISR to NuttX SDIO_WAITENABLE events) is a later
- *     enhancement, not required for card bring-up.
+ *  2. The Beken SDIO host API is blocking.  NuttX, however, calls
+ *     recvsetup() before it sends the read command.  recvsetup() therefore
+ *     only configures the data path and records the buffer; sendcmd() drains
+ *     the FIFO after the matching read command has completed.  Write setup
+ *     occurs after the command and can finish synchronously in sendsetup().
+ *     eventwait() then replays only the resulting completion/error bits.
  *  3. Command response type maps from the NuttX 32-bit cmd field: no-response
  *     -> SDIO_HOST_CMD_RSP_NONE; R2 (128-bit) -> SDIO_HOST_CMD_RSP_LONG;
  *     R1/R3/R4/R5/R6/R7 (48-bit) -> SDIO_HOST_CMD_RSP_SHORT.  CRC is checked
@@ -98,16 +91,21 @@ struct bk7258_sdio_priv_s
   bool widebus_enabled;           /* 4-bit mode active */
   bool initialized;                /* bk_sdio_host_init() done */
   bool driver_init;                /* bk_sdio_host_driver_init() done */
+  bool interface_init;             /* dev vtable copied exactly once */
 
   /* Cached data-transfer setup (used by recv/send setup). */
 
   FAR uint8_t *xfer_buf;
   size_t xfer_nbytes;
+  size_t blocklen;
+  size_t nblocks;
   bool xfer_is_read;
+  bool xfer_pending;
 
   /* Cached completion status for the polling event shim. */
 
   sdio_eventset_t events;
+  sdio_eventset_t waitset;
   int xfer_result;
 
 #if defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_HPWORK)
@@ -227,6 +225,77 @@ static int bk7258_sdio_map_err(bk_err_t err)
       default:
         return -EIO;
     }
+}
+
+/****************************************************************************
+ * Name: bk7258_sdio_complete_read
+ *
+ * Description:
+ *   Finish the read configured by recvsetup().  The SDK's convenience
+ *   bk_sdio_host_read_blks_fifo() hard-codes 512-byte blocks, while NuttX
+ *   also requests short protocol records such as the 8-byte SCR.  Drain the
+ *   public word FIFO directly so the configured block geometry is honoured.
+ ****************************************************************************/
+
+static int bk7258_sdio_complete_read(
+  FAR struct bk7258_sdio_priv_s *priv)
+{
+  size_t offset = 0;
+  size_t block;
+  size_t chunk;
+  size_t copied;
+  uint32_t word;
+  bk_err_t err;
+
+  if (!priv->xfer_pending || !priv->xfer_is_read ||
+      priv->xfer_buf == NULL || priv->blocklen == 0 ||
+      priv->nblocks == 0)
+    {
+      return -EINVAL;
+    }
+
+  for (block = 0; block < priv->nblocks && offset < priv->xfer_nbytes;
+       block++)
+    {
+      err = bk_sdio_host_wait_receive_data();
+      if (err != BK_OK)
+        {
+          priv->xfer_pending = false;
+          return bk7258_sdio_map_err(err);
+        }
+
+      chunk = priv->blocklen;
+      if (chunk > priv->xfer_nbytes - offset)
+        {
+          chunk = priv->xfer_nbytes - offset;
+        }
+
+      copied = 0;
+      while (copied < chunk)
+        {
+          size_t bytes = chunk - copied;
+
+          err = bk_sdio_host_read_fifo(&word);
+          if (err != BK_OK)
+            {
+              priv->xfer_pending = false;
+              return bk7258_sdio_map_err(err);
+            }
+
+          if (bytes > sizeof(word))
+            {
+              bytes = sizeof(word);
+            }
+
+          memcpy(priv->xfer_buf + offset + copied, &word, bytes);
+          copied += bytes;
+        }
+
+      offset += chunk;
+    }
+
+  priv->xfer_pending = false;
+  return offset == priv->xfer_nbytes ? OK : -EIO;
 }
 
 /****************************************************************************
@@ -415,6 +484,11 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
     {
       priv->xfer_result = bk7258_sdio_map_err(err);
       priv->events = SDIOWAIT_ERROR;
+      if ((cmd & MMCSD_DATAXFR_MASK) != 0)
+        {
+          priv->xfer_pending = false;
+        }
+
       return priv->xfer_result;
     }
 
@@ -424,7 +498,39 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
 
   err = bk_sdio_host_wait_cmd_response(host_cmd.cmd_index);
   priv->xfer_result = bk7258_sdio_map_err(err);
-  priv->events = (err == BK_OK) ? SDIOWAIT_CMDDONE : SDIOWAIT_ERROR;
+  if (err != BK_OK)
+    {
+      priv->events = SDIOWAIT_ERROR;
+      if ((cmd & MMCSD_DATAXFR_MASK) != 0)
+        {
+          priv->xfer_pending = false;
+        }
+
+      return priv->xfer_result;
+    }
+
+  priv->events |= SDIOWAIT_CMDDONE | SDIOWAIT_RESPONSEDONE;
+
+  /* recvsetup() must precede the command in the NuttX contract.  Complete
+   * only on the actual read-data command; an intervening CMD55 must leave
+   * the pending SCR/ACMD transfer armed.
+   */
+
+  if (priv->xfer_pending && priv->xfer_is_read &&
+      (cmd & MMCSD_DATAXFR_MASK) != 0 &&
+      (cmd & MMCSD_WRXFR) == 0)
+    {
+      priv->xfer_result = bk7258_sdio_complete_read(priv);
+      if (priv->xfer_result < 0)
+        {
+          priv->events |= SDIOWAIT_ERROR;
+        }
+      else
+        {
+          priv->events |= SDIOWAIT_TRANSFERDONE;
+        }
+    }
+
   return priv->xfer_result;
 }
 
@@ -433,14 +539,11 @@ static void bk7258_sdio_blocksetup(FAR struct sdio_dev_s *dev,
                                    unsigned int blocklen,
                                    unsigned int nblocks)
 {
-  /* Block geometry is captured at data config time inside recv/send setup;
-   * nothing to cache separately for the polling FIFO path.  Reserved for
-   * symmetry with the NuttX interface.
-   */
+  FAR struct bk7258_sdio_priv_s *priv =
+    (FAR struct bk7258_sdio_priv_s *)dev;
 
-  (void)dev;
-  (void)blocklen;
-  (void)nblocks;
+  priv->blocklen = blocklen;
+  priv->nblocks = nblocks;
 }
 #endif
 
@@ -452,18 +555,37 @@ static int bk7258_sdio_recvsetup(FAR struct sdio_dev_s *dev,
   sdio_host_data_config_t dcfg;
   bk_err_t err;
 
-  if (!priv->initialized || buffer == NULL || nbytes == 0)
+  if (!priv->initialized)
+    {
+      return -EAGAIN;
+    }
+
+  if (buffer == NULL || nbytes == 0 || nbytes > UINT32_MAX)
     {
       return -EINVAL;
     }
 
+#ifdef CONFIG_SDIO_BLOCKSETUP
+  if (priv->blocklen == 0 || priv->nblocks == 0 ||
+      priv->nblocks > SIZE_MAX / priv->blocklen ||
+      priv->blocklen * priv->nblocks != nbytes ||
+      priv->blocklen > UINT32_MAX)
+    {
+      return -EINVAL;
+    }
+#else
+  priv->blocklen = nbytes;
+  priv->nblocks = 1;
+#endif
+
   priv->xfer_buf = buffer;
   priv->xfer_nbytes = nbytes;
   priv->xfer_is_read = true;
+  priv->xfer_pending = true;
 
   dcfg.data_timeout    = CONFIG_BK7258_SDIO_TIMEOUT_MS;
   dcfg.data_len        = (uint32_t)nbytes;
-  dcfg.data_block_size = 512;
+  dcfg.data_block_size = (uint32_t)priv->blocklen;
   dcfg.data_dir        = SDIO_HOST_DATA_DIR_RD;
 
   err = bk_sdio_host_config_data(&dcfg);
@@ -471,26 +593,14 @@ static int bk7258_sdio_recvsetup(FAR struct sdio_dev_s *dev,
     {
       priv->xfer_result = bk7258_sdio_map_err(err);
       priv->events = SDIOWAIT_ERROR;
+      priv->xfer_pending = false;
       return priv->xfer_result;
     }
 
-  /* Read is always a whole number of 512-byte blocks per the SDK FIFO API. */
+  /* Do not touch the FIFO here.  NuttX has not sent the read command yet. */
 
-  err = bk_sdio_host_read_blks_fifo(buffer,
-                                    (uint32_t)nbytes / 512u);
-  if (err != BK_OK)
-    {
-      priv->xfer_result = bk7258_sdio_map_err(err);
-      priv->events = SDIOWAIT_ERROR;
-      return priv->xfer_result;
-    }
-
-  err = bk_sdio_host_wait_receive_data();
-  priv->xfer_result = bk7258_sdio_map_err(err);
-  priv->events = (err == BK_OK)
-                 ? (SDIOWAIT_CMDDONE | SDIOWAIT_TRANSFERDONE)
-                 : SDIOWAIT_ERROR;
-  return priv->xfer_result;
+  priv->xfer_result = OK;
+  return OK;
 }
 
 static int bk7258_sdio_sendsetup(FAR struct sdio_dev_s *dev,
@@ -501,18 +611,46 @@ static int bk7258_sdio_sendsetup(FAR struct sdio_dev_s *dev,
   sdio_host_data_config_t dcfg;
   bk_err_t err;
 
-  if (!priv->initialized || buffer == NULL || nbytes == 0)
+  if (!priv->initialized)
+    {
+      return -EAGAIN;
+    }
+
+  if (buffer == NULL || nbytes == 0 || nbytes > UINT32_MAX)
     {
       return -EINVAL;
+    }
+
+#ifdef CONFIG_SDIO_BLOCKSETUP
+  if (priv->blocklen == 0 || priv->nblocks == 0 ||
+      priv->nblocks > SIZE_MAX / priv->blocklen ||
+      priv->blocklen * priv->nblocks != nbytes ||
+      priv->blocklen > UINT32_MAX)
+    {
+      return -EINVAL;
+    }
+#else
+  priv->blocklen = nbytes;
+  priv->nblocks = 1;
+#endif
+
+  /* The v3.1.1.9 CPU FIFO writer loads 32-bit words.  Reject a partial word
+   * instead of reading beyond the caller's buffer.
+   */
+
+  if ((nbytes & 3u) != 0 || (nbytes % 512u) != 0)
+    {
+      return -ENOTSUP;
     }
 
   priv->xfer_buf = (FAR uint8_t *)buffer;
   priv->xfer_nbytes = nbytes;
   priv->xfer_is_read = false;
+  priv->xfer_pending = true;
 
   dcfg.data_timeout    = CONFIG_BK7258_SDIO_TIMEOUT_MS;
   dcfg.data_len        = (uint32_t)nbytes;
-  dcfg.data_block_size = 512;
+  dcfg.data_block_size = (uint32_t)priv->blocklen;
   dcfg.data_dir        = SDIO_HOST_DATA_DIR_WR;
 
   err = bk_sdio_host_config_data(&dcfg);
@@ -520,6 +658,7 @@ static int bk7258_sdio_sendsetup(FAR struct sdio_dev_s *dev,
     {
       priv->xfer_result = bk7258_sdio_map_err(err);
       priv->events = SDIOWAIT_ERROR;
+      priv->xfer_pending = false;
       return priv->xfer_result;
     }
 
@@ -529,15 +668,23 @@ static int bk7258_sdio_sendsetup(FAR struct sdio_dev_s *dev,
 
   err = bk_sdio_host_write_fifo(buffer, (uint32_t)nbytes);
   priv->xfer_result = bk7258_sdio_map_err(err);
-  priv->events = (err == BK_OK)
-                 ? (SDIOWAIT_CMDDONE | SDIOWAIT_TRANSFERDONE)
-                 : SDIOWAIT_ERROR;
+  priv->xfer_pending = false;
+  priv->events |= (err == BK_OK) ? SDIOWAIT_TRANSFERDONE : SDIOWAIT_ERROR;
   return priv->xfer_result;
 }
 
 static int bk7258_sdio_cancel(FAR struct sdio_dev_s *dev)
 {
-  /* Polling FIFO path has no in-flight async transfer to cancel. */
+  FAR struct bk7258_sdio_priv_s *priv =
+    (FAR struct bk7258_sdio_priv_s *)dev;
+
+  /* A blocking SDK call cannot be interrupted, but an armed read that has
+   * not yet received its command can be cancelled safely.
+   */
+
+  priv->xfer_pending = false;
+  priv->xfer_buf = NULL;
+  priv->xfer_nbytes = 0;
 
   return OK;
 }
@@ -658,15 +805,14 @@ static void bk7258_sdio_waitenable(FAR struct sdio_dev_s *dev,
 
   (void)timeout;
 
-  /* Polling shim: transfers complete synchronously inside sendcmd /
-   * recvsetup / sendsetup, so priv->events already reflects the real
-   * completion (SDIOWAIT_CMDDONE | SDIOWAIT_TRANSFERDONE, or
-   * SDIOWAIT_ERROR).  Do NOT overwrite that with the upper half's wanted
-   * eventset — the wanted bits are about which events to wait for, not the
-   * completion state.  OR the request in so eventwait() can report both.
+  /* This arms a new wait.  Requested bits are not completion bits; keep
+   * them separate and discard stale completion from the preceding command.
+   * The SDK applies its own bounded command/data waits, so timeout is only
+   * represented by the mapped SDIOWAIT_TIMEOUT result below.
    */
 
-  priv->events |= eventset;
+  priv->waitset = eventset;
+  priv->events = 0;
 }
 
 static sdio_eventset_t bk7258_sdio_eventwait(FAR struct sdio_dev_s *dev)
@@ -678,8 +824,21 @@ static sdio_eventset_t bk7258_sdio_eventwait(FAR struct sdio_dev_s *dev)
    * SDIOWAIT_CMDDONE | SDIOWAIT_TRANSFERDONE; on error SDIOWAIT_ERROR.
    */
 
-  sdio_eventset_t ev = priv->events;
+  sdio_eventset_t ev = priv->events & priv->waitset;
+
+  if ((priv->events & SDIOWAIT_ERROR) != 0)
+    {
+      ev |= priv->xfer_result == -ETIMEDOUT ? SDIOWAIT_TIMEOUT
+                                            : SDIOWAIT_ERROR;
+    }
+
+  if (ev == 0)
+    {
+      ev = SDIOWAIT_ERROR;
+    }
+
   priv->events = 0;
+  priv->waitset = 0;
   return ev;
 }
 
@@ -723,18 +882,27 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
       return -EINVAL;
     }
 
-  priv->dev = g_bk7258_sdio_ops;   /* copy vtable into the instance */
-  priv->events = 0;
-  priv->xfer_result = OK;
-  priv->xfer_buf = NULL;
-  priv->xfer_nbytes = 0;
-  priv->xfer_is_read = false;
+  if (!priv->interface_init)
+    {
+      priv->dev = g_bk7258_sdio_ops;
+      priv->interface_init = true;
+    }
 
   if (priv->initialized)
     {
       *sdio_dev = &priv->dev;
       return OK;
     }
+
+  priv->events = 0;
+  priv->waitset = 0;
+  priv->xfer_result = OK;
+  priv->xfer_buf = NULL;
+  priv->xfer_nbytes = 0;
+  priv->blocklen = 0;
+  priv->nblocks = 0;
+  priv->xfer_is_read = false;
+  priv->xfer_pending = false;
 
   if (!priv->driver_init)
     {

@@ -199,6 +199,7 @@ struct bk7258_mic_dev_s
   volatile bool     streaming;
 
   enum bk7258_mic_state_e state;
+  bool reserved;
 
   /* Buffers queued by the upper half awaiting capture payload */
 
@@ -428,12 +429,13 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
       goto err_ring_mem;
     }
 
-  /* bk_dma_alloc() documents "> DMA_ID_MAX" as the exhausted marker, so
-   * DMA_ID_MAX itself is a usable channel id.
+  /* The API comment says "> DMA_ID_MAX", but every official v3.1.1.9
+   * audio caller treats DMA_ID_MAX as the failure sentinel.  Follow the
+   * executable SDK usage, not the inconsistent prose.
    */
 
   priv->dma_id = bk_dma_alloc(DMA_DEV_AUDIO);
-  if (priv->dma_id > DMA_ID_MAX)
+  if (priv->dma_id < DMA_ID_0 || priv->dma_id >= DMA_ID_MAX)
     {
       auderr("ERROR: bk_dma_alloc(DMA_DEV_AUDIO) exhausted\n");
       ret = -EBUSY;
@@ -554,17 +556,21 @@ err_adc:
 
 static void bk7258_mic_hw_teardown(struct bk7258_mic_dev_s *priv)
 {
+  if (priv->ring_valid)
+    {
+      /* ring_buffer_clear() updates DMA producer/pause pointers.  It must
+       * run before the DMA channel is deinitialized and returned.
+       */
+
+      ring_buffer_clear(&priv->ring);
+      priv->ring_valid = false;
+    }
+
   if (priv->dma_allocated)
     {
       bk_dma_deinit(priv->dma_id);
       bk_dma_free(DMA_DEV_AUDIO, priv->dma_id);
       priv->dma_allocated = false;
-    }
-
-  if (priv->ring_valid)
-    {
-      ring_buffer_clear(&priv->ring);
-      priv->ring_valid = false;
     }
 
   /* bk_aud_adc_deinit() stops the ADC first, then drops the audio power
@@ -671,7 +677,7 @@ static void bk7258_mic_flush_pending(struct bk7258_mic_dev_s *priv)
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
       priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb, OK,
-                      NULL);
+                      priv);
 #else
       priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb, OK);
 #endif
@@ -777,12 +783,27 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
       apb->curbyte  = 0;
       apb->nsamples = frames;
 
+      {
+        bool final = (apb->flags & AUDIO_APB_FINAL) != 0;
+
 #ifdef CONFIG_AUDIO_MULTI_SESSION
-      priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb, OK,
-                      NULL);
+        priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb, OK,
+                        priv);
 #else
-      priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb, OK);
+        priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb, OK);
 #endif
+
+        if (final)
+          {
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+            priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE,
+                            NULL, OK, priv);
+#else
+            priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE,
+                            NULL, OK);
+#endif
+          }
+      }
     }
 
   bk7258_mic_flush_pending(priv);
@@ -838,7 +859,10 @@ static void bk7258_mic_stop_thread(struct bk7258_mic_dev_s *priv)
 static int bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
                               struct audio_caps_s *caps)
 {
-  DEBUGASSERT(caps != NULL && caps->ac_len >= sizeof(struct audio_caps_s));
+  if (caps == NULL || caps->ac_len < sizeof(struct audio_caps_s))
+    {
+      return -EINVAL;
+    }
 
   caps->ac_format.hw  = 0;
   caps->ac_controls.w = 0;
@@ -855,6 +879,7 @@ static int bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
           {
             case AUDIO_TYPE_QUERY:
               caps->ac_controls.b[0] = AUDIO_TYPE_INPUT;
+              caps->ac_format.hw = 1 << (AUDIO_FMT_PCM - 1);
               break;
 
             default:
@@ -870,16 +895,15 @@ static int bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
           {
             case AUDIO_TYPE_QUERY:
 
-              /* Natively supported rates.  The remaining SDK rates go
-               * through the fractional divider and are omitted here.
-               */
-
               caps->ac_controls.hw[0] = AUDIO_SAMP_RATE_8K |
+                                        AUDIO_SAMP_RATE_11K |
+                                        AUDIO_SAMP_RATE_12K |
                                         AUDIO_SAMP_RATE_16K |
+                                        AUDIO_SAMP_RATE_22K |
+                                        AUDIO_SAMP_RATE_24K |
                                         AUDIO_SAMP_RATE_32K |
                                         AUDIO_SAMP_RATE_44K |
                                         AUDIO_SAMP_RATE_48K;
-              caps->ac_format.hw      = (1 << (AUDIO_FMT_PCM - 1));
               break;
 
             default:
@@ -893,6 +917,8 @@ static int bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
         break;
     }
 
+  (void)dev;
+  (void)type;
   return caps->ac_len;
 }
 
@@ -1195,13 +1221,40 @@ static int bk7258_mic_enqueuebuffer(struct audio_lowerhalf_s *dev,
                                     struct ap_buffer_s *apb)
 {
   struct bk7258_mic_dev_s *priv = (struct bk7258_mic_dev_s *)dev;
+  struct dq_entry_s *entry;
 
-  DEBUGASSERT(priv != NULL && apb != NULL);
+  if (priv == NULL || apb == NULL || apb->samp == NULL ||
+      apb->nmaxbytes < BK7258_MIC_BYTES_PER_SAMPLE)
+    {
+      return -EINVAL;
+    }
+
+  if (!priv->reserved)
+    {
+      return -EACCES;
+    }
 
   apb->nbytes  = 0;
   apb->curbyte = 0;
 
   nxmutex_lock(&priv->lock);
+
+  if (!priv->reserved)
+    {
+      nxmutex_unlock(&priv->lock);
+      return -EACCES;
+    }
+
+  for (entry = dq_peek(&priv->pendq); entry != NULL;
+       entry = dq_next(entry))
+    {
+      if (entry == &apb->dq_entry)
+        {
+          nxmutex_unlock(&priv->lock);
+          return -EALREADY;
+        }
+    }
+
   dq_addlast(&apb->dq_entry, &priv->pendq);
   nxmutex_unlock(&priv->lock);
 
@@ -1216,12 +1269,41 @@ static int bk7258_mic_cancelbuffer(struct audio_lowerhalf_s *dev,
                                    struct ap_buffer_s *apb)
 {
   struct bk7258_mic_dev_s *priv = (struct bk7258_mic_dev_s *)dev;
+  struct dq_entry_s *entry;
+  bool found = false;
 
-  DEBUGASSERT(priv != NULL);
+  if (priv == NULL || apb == NULL)
+    {
+      return -EINVAL;
+    }
 
   nxmutex_lock(&priv->lock);
-  dq_rem(&apb->dq_entry, &priv->pendq);
+
+  for (entry = dq_peek(&priv->pendq); entry != NULL;
+       entry = dq_next(entry))
+    {
+      if (entry == &apb->dq_entry)
+        {
+          dq_rem(entry, &priv->pendq);
+          found = true;
+          break;
+        }
+    }
+
   nxmutex_unlock(&priv->lock);
+
+  if (!found)
+    {
+      return -ENOENT;
+    }
+
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb,
+                  OK, priv);
+#else
+  priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb,
+                  OK);
+#endif
 
   return OK;
 }
@@ -1278,11 +1360,30 @@ static int bk7258_mic_reserve(struct audio_lowerhalf_s *dev)
     {
       *psession = NULL;
     }
+  else
+    {
+      return -EINVAL;
+    }
 #endif
 
   nxmutex_lock(&priv->lock);
+
+  if (priv->reserved)
+    {
+      nxmutex_unlock(&priv->lock);
+      return -EBUSY;
+    }
+
+  priv->reserved = true;
   dq_init(&priv->pendq);
   nxmutex_unlock(&priv->lock);
+
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  if (psession != NULL)
+    {
+      *psession = priv;
+    }
+#endif
 
   return OK;
 }
@@ -1298,6 +1399,10 @@ static int bk7258_mic_release(struct audio_lowerhalf_s *dev)
   DEBUGASSERT(priv != NULL);
 
   bk7258_mic_flush_pending(priv);
+
+  nxmutex_lock(&priv->lock);
+  priv->reserved = false;
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 
@@ -1331,6 +1436,7 @@ int bk7258_mic_initialize(void)
   priv->dma_id     = DMA_ID_MAX + 1;   /* Not a valid channel */
   priv->pid        = -1;
   priv->state      = BK7258_MIC_STATE_RESET;
+  priv->reserved   = false;
 
   if (priv->ana_gain > BK7258_MIC_ANA_GAIN_MAX)
     {
@@ -1347,8 +1453,18 @@ int bk7258_mic_initialize(void)
     }
 
   dq_init(&priv->pendq);
-  nxsem_init(&priv->dmasem, 0, 0);
-  nxsem_init(&priv->donesem, 0, 0);
+  ret = nxsem_init(&priv->dmasem, 0, 0);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = nxsem_init(&priv->donesem, 0, 0);
+  if (ret < 0)
+    {
+      nxsem_destroy(&priv->dmasem);
+      return ret;
+    }
 
   ret = audio_register(CONFIG_BK7258_MIC_DEVNAME, &priv->dev);
   if (ret < 0)

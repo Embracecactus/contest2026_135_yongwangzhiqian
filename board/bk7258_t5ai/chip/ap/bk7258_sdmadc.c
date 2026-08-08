@@ -222,6 +222,7 @@ static int bk7258_sdmadc_ioctl(FAR struct adc_dev_s *dev, int cmd,
   FAR struct bk7258_sdmadc_priv_s *priv =
     (FAR struct bk7258_sdmadc_priv_s *)dev;
   int16_t raw;
+  bool deliver = false;
   bk_err_t ret;
   int rc = OK;
 
@@ -247,11 +248,16 @@ static int bk7258_sdmadc_ioctl(FAR struct adc_dev_s *dev, int cmd,
             }
           else
             {
-              priv->cb->au_receive(dev, (uint8_t)priv->chan,
-                                   (int32_t)raw);
+              deliver = true;
             }
 
           nxmutex_unlock(&priv->lock);
+
+          if (deliver)
+            {
+              priv->cb->au_receive(dev, (uint8_t)priv->chan,
+                                   (int32_t)raw);
+            }
         }
         break;
 
@@ -260,6 +266,7 @@ static int bk7258_sdmadc_ioctl(FAR struct adc_dev_s *dev, int cmd,
         break;
     }
 
+  (void)arg;
   return rc;
 }
 

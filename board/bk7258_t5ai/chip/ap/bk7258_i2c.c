@@ -30,13 +30,10 @@
  *     "write-N-byte-register-address then (re)start read/write" combined
  *     transaction internally.  We therefore route the typical
  *     {write(reg), read(data)} pair through bk_i2c_memory_read/write.
- *  3. Limitation: a combined transaction whose write prefix is longer than
- *     2 bytes (mem_addr_size only supports 8/16 bit) cannot use the repeated
- *     start path and falls back to two independent START/STOP transfers.
- *     Likewise a bare I2C_M_NOSTART read not preceded by a handled write is
- *     issued as a standalone read.  Both deviations are documented and only
- *     affect exotic multi-segment sequences, not the sensor/codec register
- *     access that is the board's real use case.
+ *  3. A sequence that requests NOSTOP/NOSTART but cannot be represented by
+ *     bk_i2c_memory_read/write() is rejected with -ENOTSUP.  It must never
+ *     be silently split into independent START/STOP transactions because
+ *     that changes the wire protocol seen by the peripheral.
  *  4. dev_addr is the raw 7-bit slave address (unshifted), matching NuttX
  *     i2c_msg_s::addr.  Verified in the v3.1.1.9 sources: bk_i2c_master_read/
  *     write() do `dev_addr << 1 | rw` themselves (i2c_driver.c:374 / the write
@@ -216,7 +213,7 @@ static int bk7258_i2c_transfer(FAR struct i2c_master_s *dev,
   int ret = OK;
   int i;
 
-  if (count <= 0 || count > BK7258_I2C_MAX_MSG)
+  if (msgs == NULL || count <= 0 || count > BK7258_I2C_MAX_MSG)
     {
       return -EINVAL;
     }
@@ -236,6 +233,12 @@ static int bk7258_i2c_transfer(FAR struct i2c_master_s *dev,
     {
       FAR struct i2c_msg_s *msg = &msgs[i];
       bool is_read = (msg->flags & I2C_M_READ) != 0;
+
+      if (msg->buffer == NULL || msg->length == 0)
+        {
+          ret = -EINVAL;
+          break;
+        }
 
       /* 10-bit addressing is not implemented by the Beken I2C driver
        * (see file header note 4); reject instead of mis-addressing.
@@ -261,13 +264,26 @@ static int bk7258_i2c_transfer(FAR struct i2c_master_s *dev,
        * supported by i2c_mem_addr_size_t.
        */
 
-      if (!is_read && (msg->flags & I2C_M_NOSTOP) && (i + 1) < count &&
-          (msgs[i + 1].flags & I2C_M_READ) &&
-          !(msgs[i + 1].flags & I2C_M_NOSTART) &&
+      if (!is_read && (i + 1) < count &&
+          ((msg->flags & I2C_M_NOSTOP) != 0 ||
+           (msgs[i + 1].flags & I2C_M_NOSTART) != 0) &&
           (msg->length == 1 || msg->length == 2))
         {
           i2c_mem_param_t mem;
-          FAR struct i2c_msg_s *rd = &msgs[i + 1];
+          FAR struct i2c_msg_s *next = &msgs[i + 1];
+          bool next_read = (next->flags & I2C_M_READ) != 0;
+
+          if (next->buffer == NULL || next->length == 0 ||
+              (next->flags & (I2C_M_TEN | I2C_M_NOSTOP)) != 0 ||
+              next->addr != msg->addr ||
+              (next->frequency != 0 && msg->frequency != 0 &&
+               next->frequency != msg->frequency) ||
+              (next_read && (next->flags & I2C_M_NOSTART) != 0) ||
+              (!next_read && (next->flags & I2C_M_NOSTART) == 0))
+            {
+              ret = -ENOTSUP;
+              break;
+            }
 
           mem.dev_addr      = msg->addr;
           mem.mem_addr      = (msg->length == 2)
@@ -277,11 +293,13 @@ static int bk7258_i2c_transfer(FAR struct i2c_master_s *dev,
           mem.mem_addr_size = (msg->length == 2)
                               ? I2C_MEM_ADDR_SIZE_16BIT
                               : I2C_MEM_ADDR_SIZE_8BIT;
-          mem.data          = rd->buffer;
-          mem.data_size     = (uint32_t)rd->length;
+          mem.data          = next->buffer;
+          mem.data_size     = (uint32_t)next->length;
           mem.timeout_ms    = CONFIG_BK7258_I2C_TIMEOUT_MS;
 
-          ret = bk7258_i2c_map_err(bk_i2c_memory_read(priv->id, &mem));
+          ret = next_read
+                ? bk7258_i2c_map_err(bk_i2c_memory_read(priv->id, &mem))
+                : bk7258_i2c_map_err(bk_i2c_memory_write(priv->id, &mem));
           if (ret < 0)
             {
               break;
@@ -289,6 +307,14 @@ static int bk7258_i2c_transfer(FAR struct i2c_master_s *dev,
 
           i++;   /* consume the paired read */
           continue;
+        }
+
+      /* The SDK single-segment calls always emit START and STOP. */
+
+      if ((msg->flags & (I2C_M_NOSTOP | I2C_M_NOSTART)) != 0)
+        {
+          ret = -ENOTSUP;
+          break;
         }
 
       /* Plain single-segment write or read. */
