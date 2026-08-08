@@ -274,6 +274,46 @@ BK7258_AP_BASE_CSRCS += bk7258_wifi.c
 BK7258_AP_BASE_CSRCS += bk7258_wifi_control.c
 endif
 
+# AP-owned NuttX peripheral wrappers.  Keep these in AP_BASE so AP-UP and
+# AP-SMP use the same lower-half implementations.
+
+ifeq ($(CONFIG_BK7258_AUD),y)
+BK7258_AP_BASE_CSRCS += bk7258_aud.c
+endif
+ifeq ($(CONFIG_BK7258_GPIOE),y)
+BK7258_AP_BASE_CSRCS += bk7258_gpioe.c
+endif
+ifeq ($(CONFIG_BK7258_I2C),y)
+BK7258_AP_BASE_CSRCS += bk7258_i2c.c
+endif
+ifeq ($(CONFIG_BK7258_I2S),y)
+BK7258_AP_BASE_CSRCS += bk7258_i2s.c
+endif
+ifeq ($(CONFIG_BK7258_LCD),y)
+BK7258_AP_BASE_CSRCS += bk7258_lcd.c
+endif
+ifeq ($(CONFIG_BK7258_MIC),y)
+BK7258_AP_BASE_CSRCS += bk7258_mic.c
+endif
+ifeq ($(CONFIG_BK7258_RTC),y)
+BK7258_AP_BASE_CSRCS += bk7258_rtc.c
+endif
+ifeq ($(CONFIG_BK7258_SARADC),y)
+BK7258_AP_BASE_CSRCS += bk7258_saradc.c
+endif
+ifeq ($(CONFIG_BK7258_SDIO),y)
+BK7258_AP_BASE_CSRCS += bk7258_sdio.c
+endif
+ifeq ($(CONFIG_BK7258_SDMADC),y)
+BK7258_AP_BASE_CSRCS += bk7258_sdmadc.c
+endif
+ifeq ($(CONFIG_BK7258_SPI),y)
+BK7258_AP_BASE_CSRCS += bk7258_spi.c
+endif
+ifeq ($(CONFIG_BK7258_TIMER),y)
+BK7258_AP_BASE_CSRCS += bk7258_timer.c
+endif
+
 ifeq ($(CONFIG_BK7258_BT_IPC_TRACE),y)
 LDFLAGS += --wrap=bt_conn_receive --wrap=bt_l2cap_receive
 LDFLAGS += --wrap=bt_l2cap_send --wrap=bt_conn_send --wrap=bt_send

@@ -209,6 +209,24 @@ if(CONFIG_BK7258_WIFI_VNET)
        common/bk7258_wifi_control.c)
 endif()
 
+# AP-owned NuttX peripheral wrappers.  Add these to AP_BASE rather than the
+# UP-only list so the normal AP-SMP image and the reduced AP-UP diagnostic
+# image compile the same lower halves.
+
+if(CONFIG_BK7258_AUD AND CONFIG_BK7258_MIC)
+  message(FATAL_ERROR
+    "BK7258_AUD and BK7258_MIC cannot both own the AUD ADC block")
+endif()
+
+foreach(BK7258_AP_PERIPHERAL AUD GPIOE I2C I2S LCD MIC RTC SARADC SDIO SDMADC
+                              SPI TIMER)
+  if(CONFIG_BK7258_${BK7258_AP_PERIPHERAL})
+    string(TOLOWER ${BK7258_AP_PERIPHERAL} BK7258_AP_PERIPHERAL_FILE)
+    list(APPEND BK7258_AP_BASE_SRCS
+         ap/bk7258_${BK7258_AP_PERIPHERAL_FILE}.c)
+  endif()
+endforeach()
+
 if(CONFIG_BK7258_BT_IPC_TRACE)
   target_link_options(
     nuttx PRIVATE

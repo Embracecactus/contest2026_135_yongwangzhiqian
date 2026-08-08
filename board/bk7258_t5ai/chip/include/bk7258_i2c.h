@@ -1,0 +1,88 @@
+/****************************************************************************
+ * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/include/
+ * bk7258_i2c.h
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * BK7258 (T5-AI) I2C master — NuttX i2c_master_s lower-half wrapping the
+ * official Beken bk_i2c_* SDK API.
+ *
+ * The I2C block is an AP-role peripheral: bk_i2c_* are only defined in the
+ * AP libdriver.a (21 symbols).  The CP archive exports the headers but zero
+ * symbols, so this driver is AP-only, exactly like the MIC driver.  Verified
+ * with `nm ap/libs/libdriver.a` (21 T bk_i2c_*) vs `nm cp/libs/libdriver.a`
+ * (0).
+ ****************************************************************************/
+
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_I2C_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_I2C_H
+
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+#include <stdbool.h>
+#include <stdint.h>
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* Hardware I2C unit used.  When CONFIG_SIM_I2C is disabled (the board
+ * default) only hardware units 0..(SOC_I2C_UNIT_NUM-1) exist, so we drive
+ * I2C_ID_0.  A second unit (I2C_ID_1) is available on BK7258 if wired.
+ */
+
+#define BK7258_I2C_UNIT                0
+
+/* Default bus speed.  The NuttX I2C_SPEED_* macros and the Beken
+ * I2C_BAUD_RATE_* macros use the same numeric kHz values, so the per-transfer
+ * i2c_msg_s::frequency maps directly onto bk_i2c_set_baud_rate().
+ */
+
+#define BK7258_I2C_BAUD_RATE_DEFAULT   100000u  /* I2C_SPEED_STANDARD */
+
+/* Default per-call blocking timeout handed to the Beken SDK (ms). */
+
+#define BK7258_I2C_TIMEOUT_MS_DEFAULT  1000u
+
+/* Maximum number of i2c_msg_s segments handled in one transfer().  Kept
+ * small: the SDK has no multi-message batched API, so each segment is a
+ * separate SDK call.
+ */
+
+#define BK7258_I2C_MAX_MSG             8
+
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
+
+#ifdef CONFIG_BK7258_I2C
+#ifdef CONFIG_BK7258_AP_CORE
+
+/****************************************************************************
+ * Name: bk7258_i2c_initialize
+ *
+ * Description:
+ *   Probe/register the BK7258 I2C master as a NuttX I2C character device at
+ *   /dev/i2cN (N = CONFIG_BK7258_I2C_BUS).  No hardware is touched until the
+ *   upper half calls setup(); this only constructs the lower-half and
+ *   publishes the node.
+ *
+ *   The underlying Beken I2C driver (bk_i2c_driver_init) is reference counted
+ *   so multiple busses could share it; here we own exactly one unit.
+ *
+ * Returned Value:
+ *   OK on success; a negated errno value on failure.  Calling it twice is
+ *   harmless and returns OK.
+ *
+ ****************************************************************************/
+
+int bk7258_i2c_initialize(void);
+
+#endif /* CONFIG_BK7258_AP_CORE */
+#endif /* CONFIG_BK7258_I2C */
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_I2C_H */

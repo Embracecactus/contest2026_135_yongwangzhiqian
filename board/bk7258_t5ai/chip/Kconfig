@@ -930,3 +930,207 @@ config BK7258_GPIO_LOWERHALF
 		GPIO upper half. P29 supports one selected rising or falling edge
 		at a time; level, both-edge, wakeup and debounce modes are not
 		supported. A validation application is selected separately.
+
+menu "BK7258 AP peripheral wrappers"
+	depends on BK7258_AP_CORE
+
+config BK7258_AUD
+	bool "Analog audio DAC/ADC lower half"
+	default n
+	select AUDIO
+	help
+		Expose the SDK analog DAC/ADC block through the NuttX audio lower-
+		half interface.  This generic wrapper and the dedicated microphone
+		wrapper are mutually exclusive because both own the AUD ADC block.
+
+config BK7258_AUD_DEVNAME
+	string "Analog audio device name"
+	default "audio0"
+	depends on BK7258_AUD
+
+config BK7258_MIC
+	bool "On-board analog microphone capture"
+	default n
+	depends on !BK7258_AUD && BK7258_PSRAM
+	select AUDIO
+	help
+		Expose the board differential microphone through a NuttX capture
+		audio lower half.  DMA buffers are allocated only after AP PSRAM is
+		ready; this wrapper owns the AUD ADC block while enabled.
+
+config BK7258_MIC_DEVNAME
+	string "Microphone device name"
+	default "pcm0c"
+	depends on BK7258_MIC
+
+config BK7258_MIC_SAMPLE_RATE
+	int "Microphone sample rate"
+	default 16000
+	depends on BK7258_MIC
+
+config BK7258_MIC_CHANNELS
+	int "Microphone channels"
+	default 1
+	range 1 2
+	depends on BK7258_MIC
+
+config BK7258_MIC_FRAME_SAMPLES
+	int "Samples per DMA frame"
+	default 320
+	range 80 2048
+	depends on BK7258_MIC
+
+config BK7258_MIC_RING_FRAMES
+	int "DMA ring frame count"
+	default 4
+	range 2 16
+	depends on BK7258_MIC
+
+config BK7258_GPIOE
+	bool "Multi-pin GPIO ioexpander lower half"
+	default n
+	select IOEXPANDER
+	help
+		Expose a bounded AP-owned GPIO range through the NuttX ioexpander
+		lower-half API.  Individual board pins still need explicit ownership
+		and upper-half registration; this option does not claim CP-owned pins.
+
+config BK7258_GPIOE_NPINS
+	int "Number of GPIO pins exposed"
+	default 16
+	range 1 48
+	depends on BK7258_GPIOE
+
+config BK7258_I2C
+	bool "I2C master lower half"
+	default n
+	select I2C
+	select I2C_DRIVER
+
+config BK7258_I2C_BUS
+	int "I2C device minor"
+	default 0
+	range 0 15
+	depends on BK7258_I2C
+
+config BK7258_I2S
+	bool "I2S lower half"
+	default n
+	select AUDIO
+	select I2S
+
+config BK7258_I2S_GPIO_GROUP
+	int "I2S GPIO group"
+	default 0
+	range 0 2
+	depends on BK7258_I2S
+
+config BK7258_LCD
+	bool "ILI9488 RGB LCD lower half"
+	default n
+	depends on BK7258_PSRAM
+	select LCD
+	select LCD_FRAMEBUFFER
+	select LCD_EXTERNINIT
+	help
+		Enable the board ILI9488 expansion-panel wrapper.  The RGB565 frame
+		buffer is allocated from AP PSRAM; enabling this option without the
+		matching expansion module is unsupported.
+
+config BK7258_RTC
+	bool "AON RTC lower half"
+	default n
+	select RTC
+	select RTC_DATETIME
+	select RTC_DRIVER
+
+config BK7258_SARADC
+	bool "SAR ADC lower half"
+	default n
+	select ANALOG
+	select ADC
+
+config BK7258_SARADC_CHAN
+	int "SAR ADC channel"
+	default 0
+	range 0 15
+	depends on BK7258_SARADC
+
+config BK7258_SARADC_BUS
+	int "SAR ADC device minor"
+	default 0
+	range 0 15
+	depends on BK7258_SARADC
+
+config BK7258_SDIO
+	bool "SDIO host lower half"
+	default n
+	select ARCH_HAVE_SDIO
+	help
+		Expose the SDK blocking SDIO host API as a NuttX SDIO lower half.
+		A board MMC/SD upper-half binding is intentionally separate.
+
+config BK7258_SDIO_4BIT
+	bool "Use four-bit SDIO bus"
+	default y
+	depends on BK7258_SDIO
+
+config BK7258_SDIO_TIMEOUT_MS
+	int "SDIO transfer timeout (ms)"
+	default 1000
+	range 100 10000
+	depends on BK7258_SDIO
+
+config BK7258_SDMADC
+	bool "Sigma-delta ADC lower half"
+	default n
+	select ANALOG
+	select ADC
+
+config BK7258_SDMADC_CHAN
+	int "Sigma-delta ADC channel"
+	default 1
+	range 1 13
+	depends on BK7258_SDMADC
+
+config BK7258_SDMADC_BUS
+	int "Sigma-delta ADC device minor"
+	default 1
+	range 0 15
+	depends on BK7258_SDMADC
+
+config BK7258_SPI
+	bool "SPI master lower half"
+	default n
+	select SPI
+
+config BK7258_SPI_BUS
+	int "SPI controller"
+	default 0
+	range 0 1
+	depends on BK7258_SPI
+
+config BK7258_SPI_TIMEOUT_MS
+	int "SPI transfer timeout (ms)"
+	default 1000
+	range 1 10000
+	depends on BK7258_SPI
+
+config BK7258_TIMER
+	bool "General-purpose timer lower half"
+	default n
+	select TIMER
+
+config BK7258_TIMER_CHAN
+	int "Timer channel"
+	default 1
+	range 1 5
+	depends on BK7258_TIMER
+
+config BK7258_TIMER_BUS
+	int "Timer device minor"
+	default 0
+	range 0 15
+	depends on BK7258_TIMER
+
+endmenu
