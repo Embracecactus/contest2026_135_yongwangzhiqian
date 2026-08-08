@@ -1,7 +1,7 @@
 # Current Progress
 
-Last updated: 2026-08-08 20:30 GMT+8
-Updated by: Codex (`maintain-project-memory` checkpoint)
+Last updated: 2026-08-09 GMT+8
+Updated by: Qoder (takeover of codex session 019fb3ff)
 
 ## Active scope
 
@@ -87,11 +87,24 @@ anti-rollback. The board remains recoverable for unfinished driver work.
 Canonical detail:
 [AP driver compile verification](verification/2026-08-08-bk7258-ap-drivers.md).
 
+- The object-returning lower halves (GPIOE, I2S, SDIO, SPI, LCD) are now
+  bound to their NuttX upper halves in `bk7258_peripherals_initialize()` so
+  the devices are reachable from user space; bindings are best-effort and log
+  instead of parking the AP. AP link now includes `libavdk_utils.a` for the
+  SDK GPIO IPC checksum path, and `chip/Make.defs` adds the `arm_m` include
+  directory for post-distclean dependency passes.
+- AP-SMP `ap_smp_drivercheck` profile (AUD, GPIOE, I2S, LCD, SDIO, SPI)
+  passed configure/compile/link/postbuild: `app1.bin=179888`,
+  `app1_crc.bin=191148`.
+
+Canonical detail:
+[AP lower-half bindings compile gate](verification/2026-08-09-bk7258-ap-lowerhalf-bindings.md).
+
 ## Next step
 
-1. Merge the compile-gated AP lower halves, then bind and verify one peripheral
-   at a time in board startup or its owning upper-half; do not enable all
-   devices by default.
+1. Hardware-verify the bound peripherals one at a time (GPIO pinmux, SD card
+   detect, I2S clocking, LCD panel timing, SPI chip select); do not enable
+   all devices by default in shipped configs.
 2. Implement PWM only after its v3.1.1.9 hardware/API boundary is source
    verified; do not add missing symbols to the immutable SDK bundle.
 3. Resume N17 OTA policy on the recoverable Secure Boot baseline. Do not put
