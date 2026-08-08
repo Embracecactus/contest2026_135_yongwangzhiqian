@@ -32,6 +32,14 @@ INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)cp
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)ap
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)armv8-m
 
+# Upstream moved the Cortex-M headers (exc_return.h, ram_vectors.h,
+# systick.h) to arm_m/ but armv8-m/Make.defs only extends VPATH, which
+# governs source lookup and not quoted #include resolution.  Add the
+# directory explicitly so a clean (post-distclean) dependency pass finds
+# them.
+
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)arm_m
+
 # Beken SDK headers are kept separate for each firmware role.
 
 ifeq ($(CONFIG_BK7258_AP_CORE),y)
