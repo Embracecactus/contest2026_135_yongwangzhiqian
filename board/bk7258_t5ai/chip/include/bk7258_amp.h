@@ -42,6 +42,36 @@
 #define BK7258_AP_FLASH_ADDR             \
   (BK7258_FLASH_XIP_BASE + BK7258_AP_FLASH_OFFSET)
 
+/* A signed MCUboot image owns the first 0x200 bytes of each application
+ * slot.  Hardware CPU1 boot and VTOR must therefore use the vector-table
+ * address, not the image-header address.  Keep the distinction central so
+ * the AP image linker, CP lifecycle controller, and AP reset entry cannot
+ * drift apart again.
+ */
+
+#ifdef CONFIG_BK7258_MCUBOOT_IMAGE
+#  define BK7258_AP_VECTOR_ADDR          (BK7258_AP_FLASH_ADDR + 0x200u)
+#else
+#  define BK7258_AP_VECTOR_ADDR          BK7258_AP_FLASH_ADDR
+#endif
+
+/* BL2 is a transient loader, not a CP application image.  Its stored bytes
+ * live in the dedicated flash role.  The current standalone build keeps text,
+ * data and stack inside a conservative 64 KiB execution window.  A complete
+ * CRC-expanded 128 KiB source image was also board-verified across the next
+ * SRAM boundary; the earlier apparent bank limit was an invalid XIP CRC tail,
+ * not an SRAM ownership restriction.
+ */
+
+#define BK7258_BL2_FLASH_ADDR            BK7258_ROLE_BL2_XIP_START
+#define BK7258_BL2_EXEC_RAM_BASE         0x28020000u
+#define BK7258_BL2_COPY_SIZE             0x00002000u
+#define BK7258_BL2_EXEC_RAM_SIZE         0x00010000u
+#define BK7258_BL2_EXEC_RAM_END          \
+  (BK7258_BL2_EXEC_RAM_BASE + BK7258_BL2_EXEC_RAM_SIZE)
+#define BK7258_BL2_DATA_RAM_BASE         BK7258_BL2_EXEC_RAM_BASE
+#define BK7258_BL2_DATA_RAM_SIZE         BK7258_BL2_EXEC_RAM_SIZE
+
 #define BK7258_CRC_PHYSICAL_OFFSET(n)    \
   (((n) / BK7258_FLASH_CRC_DATA_SIZE) * BK7258_FLASH_CRC_TOTAL_SIZE)
 #define BK7258_CP_PHYSICAL_OFFSET        \

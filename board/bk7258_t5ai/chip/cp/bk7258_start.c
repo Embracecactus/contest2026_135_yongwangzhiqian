@@ -71,7 +71,7 @@
  */
 
 #ifdef CONFIG_BK7258_BL2_IMAGE
-#  define BK7258_VTOR_VALUE      BK7258_ROLE_BL2_XIP_START
+#  define BK7258_VTOR_VALUE      BK7258_BL2_EXEC_RAM_BASE
 #elif defined(CONFIG_BK7258_MCUBOOT_IMAGE)
 #  define BK7258_VTOR_VALUE      (BK7258_CP_FLASH_ADDR + 0x200u)
 #else
@@ -219,8 +219,10 @@ void __start(void)
 #endif
 
 #ifdef CONFIG_BK7258_CLOCK_320M
-  /* Deterministic 320 MHz core clock bring-up (mirrors the Armino SDK early
-   * init clock path).  Run after early serial init so any stall is at least
+  /* Optional bring-up-only 320 MHz override.  The v3.1.1.9 normal startup
+   * policy keeps PM_DEV_ID_DEFAULT at 120 MHz and lets modules vote upward;
+   * production profiles should therefore leave this disabled.  When enabled
+   * for a performance experiment, run after early serial init so any stall is
    * distinguishable on the console, but before nx_start() so up_timer_
    * initialize() sees the new M1 and arms the correct SysTick reload via the
    * runtime detector.  The UART1 console runs off an independent clocking

@@ -1,0 +1,16 @@
+/* Bare-metal board configuration for the NuttX-pinned MCUboot source. */
+#ifndef __BK7258_BL2_MCUBOOT_CONFIG_H
+#define __BK7258_BL2_MCUBOOT_CONFIG_H
+
+#define MCUBOOT_SIGN_EC256
+#define MCUBOOT_USE_TINYCRYPT
+#define MCUBOOT_DIRECT_XIP
+#define MCUBOOT_VALIDATE_PRIMARY_SLOT
+#define MCUBOOT_USE_FLASH_AREA_GET_SECTORS
+#define MCUBOOT_MAX_IMG_SECTORS 1
+#define MCUBOOT_IMAGE_NUMBER 2
+#define MCUBOOT_HW_ROLLBACK_PROT
+#define MCUBOOT_HAVE_ASSERT_H
+#define MCUBOOT_WATCHDOG_FEED() do { } while (0)
+
+#endif

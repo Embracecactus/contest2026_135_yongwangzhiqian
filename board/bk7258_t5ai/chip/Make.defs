@@ -24,10 +24,13 @@ include $(BOARD_DIR)$(DELIM)bk_idk$(DELIM)sdk-bundles.mk
 VPATH += chip$(DELIM)common
 VPATH += chip$(DELIM)cp
 VPATH += chip$(DELIM)ap
+VPATH += $(BOARD_DIR)$(DELIM)bootloader$(DELIM)bl2
+VPATH += armv8-m
 
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)common
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)cp
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)ap
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)armv8-m
 
 # Beken SDK headers are kept separate for each firmware role.
 
@@ -168,7 +171,7 @@ endif
 # immutable Beken SDK is changed.
 
 ifeq ($(CONFIG_MCUBOOT_BOOTLOADER),y)
-BK7258_CP_CSRCS += bk7258_mcuboot_boot.c
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_boot.c
 # The upstream NuttX MCUboot application deliberately leaves the signing
 # algorithm and platform key to each board port.  Keep that glue here rather
 # than carrying a local change to apps/ or MCUboot itself.  The public key
@@ -180,11 +183,11 @@ CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$
 INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
 CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
-BK7258_CP_CSRCS += bk7258_mcuboot_ecdsa.c
-BK7258_CP_CSRCS += bk7258_mcuboot_ecc.c
-BK7258_CP_CSRCS += bk7258_mcuboot_ecc_dsa.c
-BK7258_CP_CSRCS += bk7258_mcuboot_asn1.c
-BK7258_CP_CSRCS += bk7258_mcuboot_keys.c
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_ecdsa.c
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_ecc.c
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_ecc_dsa.c
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_asn1.c
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_keys.c
 endif
 
 ifeq ($(CONFIG_BK7258_OTA_STAGING),y)

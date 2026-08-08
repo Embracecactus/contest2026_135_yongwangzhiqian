@@ -54,6 +54,14 @@
 #  define BK7258_BOOT_N17_SELECT_RUNTIME_GATE 0u
 #endif
 
+#ifndef BK7258_BL2_BOOT_POLICY_COMPILE_GATE
+#  define BK7258_BL2_BOOT_POLICY_COMPILE_GATE 0u
+#endif
+
+#ifndef BK7258_BL2_BOOT_POLICY_RUNTIME_GATE
+#  define BK7258_BL2_BOOT_POLICY_RUNTIME_GATE 0u
+#endif
+
 #define OTA_REG32(address) (*(volatile uint32_t *)(uintptr_t)(address))
 
 #define FLASH_CONTROLLER_BASE       0x44030000u
@@ -121,6 +129,14 @@ const uint32_t g_bk7258_boot_n17_select_compile_gate =
 __attribute__((used))
 const uint32_t g_bk7258_boot_n17_select_runtime_gate =
   BK7258_BOOT_N17_SELECT_RUNTIME_GATE;
+
+__attribute__((used))
+const uint32_t g_bk7258_bl2_boot_policy_compile_gate =
+  BK7258_BL2_BOOT_POLICY_COMPILE_GATE;
+
+__attribute__((used))
+const uint32_t g_bk7258_bl2_boot_policy_runtime_gate =
+  BK7258_BL2_BOOT_POLICY_RUNTIME_GATE;
 
 /* 0x2800d000..0x2800ffff is below the CP application SRAM window and is
  * used only before handoff.  The linker fixes and bounds this 12 KiB area;
@@ -270,8 +286,8 @@ static int flash_read_aligned(uint32_t address,
   return 0;
 }
 
-static int boot_ota_raw_read(void *arg, uint32_t address, uint8_t *buffer,
-                             size_t len)
+int boot_ota_raw_read(void *arg, uint32_t address, uint8_t *buffer,
+                      size_t len)
 {
   uint8_t block[FLASH_READ_GRANULE];
 
@@ -315,13 +331,15 @@ static int boot_ota_raw_read(void *arg, uint32_t address, uint8_t *buffer,
 static bool boot_ota_trial_compile_write(void *arg)
 {
   (void)arg;
-  return boot_gate_read(&g_bk7258_boot_ota_trial_compile_gate) != 0;
+  return boot_gate_read(&g_bk7258_boot_ota_trial_compile_gate) != 0 ||
+         boot_gate_read(&g_bk7258_bl2_boot_policy_compile_gate) != 0;
 }
 
 static bool boot_ota_trial_runtime_write(void *arg)
 {
   (void)arg;
-  return boot_gate_read(&g_bk7258_boot_ota_trial_runtime_gate) != 0;
+  return boot_gate_read(&g_bk7258_boot_ota_trial_runtime_gate) != 0 ||
+         boot_gate_read(&g_bk7258_bl2_boot_policy_runtime_gate) != 0;
 }
 
 static int boot_ota_trial_lock(void *arg, uint32_t timeout_ms)
@@ -409,32 +427,167 @@ static int boot_select_slot(enum bk7258_boot_ota_slot_e slot)
   return boot_remap_secondary();
 }
 
-uint32_t boot_ota_select_app(uint32_t primary_app_vector)
+static void boot_ota_policy_init(struct bk7258_boot_ota_policy_s *policy)
 {
-  struct bk7258_boot_ota_raw_ops_s raw_ops;
-  struct bk7258_ota_hash_ops_s hash_ops;
-  struct bk7258_boot_ota_rotation_result_s result;
+  policy->preferred_slot = BK7258_BOOT_OTA_SLOT_A;
+  policy->fallback_slot = BK7258_BOOT_OTA_POLICY_SLOT_NONE;
+  policy->source = BK7258_BOOT_OTA_POLICY_FIXED;
+  policy->state = BK7258_BOOT_OTA_ROTATION_ERASED;
+  policy->generation = 0;
+}
+
+static void boot_ota_bank_init(struct bk7258_boot_ota_rotation_bank_s *bank)
+{
+  bank->state = BK7258_BOOT_OTA_ROTATION_ERASED;
+  bank->base_slot = BK7258_BOOT_OTA_SLOT_A;
+  bank->target_slot = BK7258_BOOT_OTA_SLOT_B;
+  bank->valid_records = 0;
+  bank->last_record_index = 0;
+  bank->sequence = 0;
+  bank->generation = 0;
+  bank->erased = false;
+  bank->trusted = false;
+}
+
+static bool boot_ota_bl2_policy_enabled(void)
+{
+  return boot_gate_read(&g_bk7258_bl2_boot_policy_compile_gate) != 0 &&
+         boot_gate_read(&g_bk7258_bl2_boot_policy_runtime_gate) != 0;
+}
+
+static bool boot_ota_legacy_policy_enabled(void)
+{
+  return boot_gate_read(&g_bk7258_boot_ota_select_compile_gate) != 0 &&
+         boot_gate_read(&g_bk7258_boot_ota_select_runtime_gate) != 0;
+}
+
+static int boot_ota_resolve_n15_policy(
+  const struct bk7258_boot_ota_raw_ops_s *raw_ops,
+  struct bk7258_boot_ota_policy_s *policy)
+{
+  struct bk7258_boot_ota_rotation_bank_s banks[2];
+  struct bk7258_boot_ota_rotation_view_s view;
+  struct bk7258_boot_ota_rotation_identity_s identity;
   struct bk7258_boot_ota_trial_ops_s trial_ops;
   struct bk7258_boot_ota_rotation_trial_result_s trial_result;
-  enum bk7258_boot_ota_slot_e boot_slot;
   enum bk7258_boot_ota_rotation_state_e next_state;
-  uint32_t bank_address;
-  uint32_t selected = primary_app_vector;
-  uint8_t n17_slot;
-  int n17_ret;
+  const uint32_t bank_addresses[2] =
+  {
+    BK7258_ROLE_OTA_METADATA_PRIMARY_OFFSET,
+    BK7258_ROLE_OTA_METADATA_MIRROR_OFFSET
+  };
+  uint32_t index;
   int ret;
 
-  if (primary_app_vector != CP_APP_VECTOR)
+  for (index = 0; index < 2; index++)
+    {
+      boot_ota_bank_init(&banks[index]);
+      ret = raw_ops->read(raw_ops->arg, bank_addresses[index],
+                          g_boot_ota_metadata,
+                          BK7258_BOOT_OTA_ROTATION_BANK_SIZE);
+      if (ret < 0 ||
+          bk7258_boot_ota_rotation_inspect(g_boot_ota_metadata,
+                                            &banks[index]) < 0)
+        {
+          boot_ota_bank_init(&banks[index]);
+        }
+    }
+
+  ret = bk7258_boot_ota_rotation_select(banks, &view);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (!view.metadata_present)
     {
       return 0;
     }
 
+  ret = raw_ops->read(raw_ops->arg, bank_addresses[view.selected_bank],
+                      g_boot_ota_metadata,
+                      BK7258_BOOT_OTA_ROTATION_BANK_SIZE);
+  if (ret < 0 ||
+      bk7258_boot_ota_rotation_latest(g_boot_ota_metadata, &identity) < 0 ||
+      identity.state != view.state ||
+      identity.generation != view.generation ||
+      identity.base_slot == identity.target_slot)
+    {
+      return -1;
+    }
+
+  policy->source = BK7258_BOOT_OTA_POLICY_N15;
+  policy->state = (uint8_t)identity.state;
+  policy->generation = identity.generation;
+
+  if (view.trial_required)
+    {
+      /* The pending -> trial append must complete before the new pair is
+       * attempted.  If the append cannot be proven by readback, remain on the
+       * stable base pair.  MCUboot will authenticate whichever pair is passed
+       * to it; the legacy descriptor hash is deliberately not a second image
+       * acceptance authority in this chain. */
+      trial_ops.arg = NULL;
+      trial_ops.compile_write_enabled = boot_ota_trial_compile_write;
+      trial_ops.runtime_write_enabled = boot_ota_trial_runtime_write;
+      trial_ops.lock = boot_ota_trial_lock;
+      trial_ops.unlock = boot_ota_trial_unlock;
+      trial_ops.read = boot_ota_raw_read;
+      trial_ops.write = boot_ota_trial_write;
+      next_state = identity.target_slot == BK7258_BOOT_OTA_SLOT_A ?
+        BK7258_BOOT_OTA_ROTATION_TRIAL_A :
+        BK7258_BOOT_OTA_ROTATION_TRIAL_B;
+      if (boot_ota_install_ramfunc() == 0 &&
+          bk7258_boot_ota_rotation_trial_transition(
+            bank_addresses[view.selected_bank], identity.generation,
+            identity.state, next_state, &trial_ops, 1,
+            g_boot_ota_metadata, g_boot_ota_scratch, &trial_result) == 0 &&
+          trial_result.current_boot_trial)
+        {
+          policy->preferred_slot = (uint8_t)identity.target_slot;
+          policy->fallback_slot = (uint8_t)identity.base_slot;
+          policy->state = (uint8_t)next_state;
+        }
+      else
+        {
+          policy->preferred_slot = (uint8_t)identity.base_slot;
+          policy->fallback_slot = BK7258_BOOT_OTA_POLICY_SLOT_NONE;
+        }
+    }
+  else if (identity.state == BK7258_BOOT_OTA_ROTATION_CONFIRMED_A ||
+           identity.state == BK7258_BOOT_OTA_ROTATION_CONFIRMED_B)
+    {
+      policy->preferred_slot = (uint8_t)identity.target_slot;
+      policy->fallback_slot = (uint8_t)identity.base_slot;
+    }
+  else
+    {
+      /* TRIAL means the one allowed trial boot was already consumed;
+       * ROLLBACK explicitly chooses the base.  Neither state may fall back to
+       * the rejected target merely because its signature remains valid. */
+      policy->preferred_slot = (uint8_t)identity.base_slot;
+      policy->fallback_slot = BK7258_BOOT_OTA_POLICY_SLOT_NONE;
+    }
+
+  return 0;
+}
+
+int boot_ota_resolve_policy(struct bk7258_boot_ota_policy_s *policy)
+{
+  struct bk7258_boot_ota_raw_ops_s raw_ops;
+  uint8_t n17_slot;
+  int n17_ret;
+  int ret;
+
+  if (policy == NULL)
+    {
+      return -1;
+    }
+
+  boot_ota_policy_init(policy);
+
   raw_ops.arg = NULL;
   raw_ops.read = boot_ota_raw_read;
-  hash_ops.context_size = sizeof(struct boot_sha256_context_s);
-  hash_ops.init = boot_sha256_init;
-  hash_ops.update = boot_sha256_update;
-  hash_ops.final = boot_sha256_final;
 
   /* N17 observes the policy and both metadata banks before format-2 is
    * allowed to run.  An erased policy plus no format-3 journal returns zero
@@ -453,19 +606,23 @@ uint32_t boot_ota_select_app(uint32_t primary_app_vector)
   if (n17_ret < 0)
     {
       boot_ota_clear_workspace();
-      return 0;
+      return -1;
     }
 
   if (n17_ret > 0)
     {
-      boot_remap_disable();
-      if (boot_select_slot((enum bk7258_boot_ota_slot_e)n17_slot) < 0)
+      if (n17_slot != BK7258_BOOT_OTA_SLOT_A &&
+          n17_slot != BK7258_BOOT_OTA_SLOT_B)
         {
-          selected = 0;
+          boot_ota_clear_workspace();
+          return -1;
         }
 
+      policy->preferred_slot = n17_slot;
+      policy->source = BK7258_BOOT_OTA_POLICY_N17;
       boot_ota_clear_workspace();
-      return selected;
+      boot_remap_disable();
+      return 0;
     }
 
   /* N15 and N17 share the fixed pre-handoff workspace.  The N17 probe must
@@ -475,66 +632,31 @@ uint32_t boot_ota_select_app(uint32_t primary_app_vector)
 
   boot_ota_clear_workspace();
 
-  if (boot_gate_read(&g_bk7258_boot_ota_select_compile_gate) == 0 ||
-      boot_gate_read(&g_bk7258_boot_ota_select_runtime_gate) == 0)
+  if (!boot_ota_bl2_policy_enabled() && !boot_ota_legacy_policy_enabled())
     {
       boot_ota_clear_workspace();
-      return primary_app_vector;
+      boot_remap_disable();
+      return 0;
     }
-
-  /* A warm reset may retain the previous offset bit.  Raw reads are physical,
-   * but handoff always starts with remap disabled and enables it only after
-   * the selected format-2 lifecycle and executable pair pass validation.
-   */
 
   boot_remap_disable();
-  ret = bk7258_boot_ota_rotation_select_core(
-    &raw_ops, &hash_ops, g_boot_ota_metadata, g_boot_ota_scratch,
-    sizeof(g_boot_ota_scratch), &result);
-  if (ret < 0)
-    {
-      selected = 0;
-    }
-  else
-    {
-      boot_slot = result.boot_slot;
-
-      if (result.trial_required &&
-          boot_gate_read(&g_bk7258_boot_ota_trial_compile_gate) != 0 &&
-          boot_gate_read(&g_bk7258_boot_ota_trial_runtime_gate) != 0 &&
-          boot_gate_read(&g_bk7258_boot_ota_remap_compile_gate) != 0 &&
-          boot_gate_read(&g_bk7258_boot_ota_remap_runtime_gate) != 0 &&
-          boot_ota_install_ramfunc() == 0)
-        {
-          trial_ops.arg = NULL;
-          trial_ops.compile_write_enabled = boot_ota_trial_compile_write;
-          trial_ops.runtime_write_enabled = boot_ota_trial_runtime_write;
-          trial_ops.lock = boot_ota_trial_lock;
-          trial_ops.unlock = boot_ota_trial_unlock;
-          trial_ops.read = boot_ota_raw_read;
-          trial_ops.write = boot_ota_trial_write;
-          bank_address = result.selected_bank == 0 ?
-            BK7258_ROLE_OTA_METADATA_PRIMARY_OFFSET :
-            BK7258_ROLE_OTA_METADATA_MIRROR_OFFSET;
-          next_state = result.target_slot == BK7258_BOOT_OTA_SLOT_A ?
-            BK7258_BOOT_OTA_ROTATION_TRIAL_A :
-            BK7258_BOOT_OTA_ROTATION_TRIAL_B;
-          ret = bk7258_boot_ota_rotation_trial_transition(
-            bank_address, result.generation, result.state, next_state,
-            &trial_ops, 1, g_boot_ota_metadata, g_boot_ota_scratch,
-            &trial_result);
-          if (ret == 0 && trial_result.current_boot_trial)
-            {
-              boot_slot = result.target_slot;
-            }
-        }
-
-      if (boot_select_slot(boot_slot) < 0)
-        {
-          selected = 0;
-        }
-    }
-
+  ret = boot_ota_resolve_n15_policy(&raw_ops, policy);
   boot_ota_clear_workspace();
-  return selected;
+  boot_remap_disable();
+  return ret;
+}
+
+uint32_t boot_ota_select_app(uint32_t primary_app_vector)
+{
+  struct bk7258_boot_ota_policy_s policy;
+
+  if (primary_app_vector != CP_APP_VECTOR ||
+      boot_ota_resolve_policy(&policy) < 0 ||
+      boot_select_slot((enum bk7258_boot_ota_slot_e)
+                       policy.preferred_slot) < 0)
+    {
+      return 0;
+    }
+
+  return primary_app_vector;
 }

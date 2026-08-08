@@ -48,13 +48,15 @@ fi
 
 python3 "${PARTITION_GENERATOR}" --check
 
-# BL2 is an ordinary, direct-BL1 NuttX image in its own sparse partition.
-# Unlike a CP application payload it has no MCUboot header and cannot be
-# concatenated after BL1: the two physical segments are deliberately apart.
+# BL2 is stored in its own sparse partition, but BL1 loads its CRC-decoded
+# logical bytes into the official RAM execution window before entering it.
+# It cannot be concatenated after BL1: the two physical segments are apart.
 IS_BL2=0
+EXECUTION_BASE_ARG=""
 if [ "${ROLE}" = "cp" ] && grep -qx 'CONFIG_BK7258_BL2_IMAGE=y' "${TOPDIR}/.config"; then
     PARTITION_ROLE="bl2"
     IS_BL2=1
+    EXECUTION_BASE_ARG="--execution-base 0x28020000"
 fi
 
 XIP_BASE="$(python3 "${PARTITION_GENERATOR}" --get "${PARTITION_ROLE}.xip_start")"
@@ -65,7 +67,7 @@ PHYSICAL_OFFSET="$(python3 "${PARTITION_GENERATOR}" --get "${PARTITION_ROLE}.off
 # the 80-entry Cortex-M vector table VTOR-aligned.  Its raw NuttX binary
 # therefore begins at slot base + 0x200 and intentionally carries no
 # direct-BL1 BK7236 magic at raw byte 0x100.
-if [ "${ROLE}" = "cp" ] && grep -qx 'CONFIG_BK7258_MCUBOOT_IMAGE=y' "${TOPDIR}/.config"; then
+if grep -qx 'CONFIG_BK7258_MCUBOOT_IMAGE=y' "${TOPDIR}/.config"; then
     XIP_BASE=$(printf '0x%x' "$((XIP_BASE + 0x200))")
     MAX_SIZE=$((MAX_SIZE - 0x200))
     MAGIC_ARG=""
@@ -92,6 +94,7 @@ python3 "${PACKER}" \
     --out "${CRC_BIN}" \
     --xip-base "${XIP_BASE}" \
     --max-size "${MAX_SIZE}" \
+    ${EXECUTION_BASE_ARG} \
     ${MAGIC_ARG}
 
 RAW_SIZE=$(stat -c '%s' "${RAW_BIN}")

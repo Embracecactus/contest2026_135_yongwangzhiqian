@@ -57,6 +57,15 @@
 Reset_Handler:
     cpsid i
 
+    /* Both public v3.1.1.9 BK7258 bootloaders program this exact lower limit
+     * before entering C.  BL2 installs its own temporary SRAM-window limit
+     * immediately after the BL1-to-BL2 handoff, then restores this CP limit
+     * before jumping to the selected NuttX image. */
+    ldr  r0, =0x2802F800     /* public CP handoff MSPLIM */
+    msr  msplim, r0
+    dsb  sy
+    isb  sy
+
     /*
      * Always invalidate I-cache before executing any mutable boot image.
      *
@@ -103,6 +112,11 @@ Reset_Handler:
     str  r1, [r0]
     ldr  r1, =0x00A50000     /* key2, period=0 */
     str  r1, [r0]
+
+    /* Official reset path next restores the Flash controller's two-line
+     * continuous-read state and selects a divider from the JEDEC ID.  The
+     * later clock helper switches the already-divided Flash clock to DPLL. */
+    bl   boot_flash_reset_prepare
 
     /* Configure GPIO0/1 like the known-good UART1 probe state. (verbatim) */
     ldr  r0, =0x440100C0     /* GPIO0..7 peripheral mode */

@@ -79,16 +79,12 @@ SECUREBOOT_XIP_LAYOUT = "bk7258-secureboot-xip-cp-ap"
 SECUREBOOT_XIP_REQUIRED_ROLES = frozenset(
     {
         "bl1_control",
-        "bl1_boot_flag",
-        "sdk_partition_table",
         "bl1_primary_manifest",
-        "bl2",
-        "tfm_its",
-        "tfm_ps",
-        "primary_tfm_s",
+        "bl1_secondary_manifest",
+        "bl1_primary_bl2",
+        "bl1_secondary_bl2",
         "primary_cp_app",
         "primary_ap_app",
-        "secondary_tfm_s",
         "secondary_cp_app",
         "secondary_ap_app",
         "vendor_config",
@@ -557,7 +553,7 @@ def _validate_layout(layout: PartitionLayout) -> None:
 
 
 def _validate_secureboot_xip_layout(layout: PartitionLayout) -> None:
-    """Validate the project-owned BK7236/BK7258 secureboot XIP staging profile.
+    """Validate the project-owned BK7258 secureboot XIP staging profile.
 
     The ordinary NuttX build remains on ``bk7258-contiguous-ab``.  This
     profile instead follows Beken's BL1 -> BL2 (MCUboot) ->
@@ -574,16 +570,12 @@ def _validate_secureboot_xip_layout(layout: PartitionLayout) -> None:
 
     ordered = (
         "bl1_control",
-        "bl1_boot_flag",
-        "sdk_partition_table",
         "bl1_primary_manifest",
-        "bl2",
-        "tfm_its",
-        "tfm_ps",
-        "primary_tfm_s",
+        "bl1_secondary_manifest",
+        "bl1_primary_bl2",
+        "bl1_secondary_bl2",
         "primary_cp_app",
         "primary_ap_app",
-        "secondary_tfm_s",
         "secondary_cp_app",
         "secondary_ap_app",
     )
@@ -596,24 +588,43 @@ def _validate_secureboot_xip_layout(layout: PartitionLayout) -> None:
                 f"secureboot required contiguous boundary drift: {left.name} -> {right.name}"
             )
 
-    if layout.by_role("bl2").name != "bl2":
-        raise PartitionLayoutError("secureboot BL2 partition must use the official bl2 name")
-    if layout.by_role("bl1_control").name != "bl1_control":
+    control = layout.by_role("bl1_control")
+    primary_manifest = layout.by_role("bl1_primary_manifest")
+    secondary_manifest = layout.by_role("bl1_secondary_manifest")
+    primary_bl2 = layout.by_role("bl1_primary_bl2")
+    secondary_bl2 = layout.by_role("bl1_secondary_bl2")
+    if control.name != "bl1_control":
         raise PartitionLayoutError(
             "secureboot BL1 control partition must use the official bl1_control name"
         )
-    if layout.by_role("bl1_primary_manifest").name != "primary_manifest":
+    if control.size != 12 * 1024:
+        raise PartitionLayoutError(
+            "secureboot bl1_control must contain the three official 4 KiB control pages"
+        )
+    if primary_manifest.name != "primary_manifest":
         raise PartitionLayoutError(
             "secureboot primary manifest must use the official primary_manifest name"
         )
+    if secondary_manifest.name != "secondary_manifest":
+        raise PartitionLayoutError(
+            "secureboot secondary manifest must use the official secondary_manifest name"
+        )
+    if primary_bl2.name != "primary_bl2" or secondary_bl2.name != "secondary_bl2":
+        raise PartitionLayoutError(
+            "secureboot BL2 slots must use the official primary_bl2/secondary_bl2 names"
+        )
+    if primary_manifest.size != 4 * 1024 or secondary_manifest.size != 4 * 1024:
+        raise PartitionLayoutError("secureboot Manifest partitions must be exactly 4 KiB")
+    if primary_bl2.size != secondary_bl2.size:
+        raise PartitionLayoutError("secureboot primary/secondary BL2 sizes differ")
+    if not primary_bl2.executable or not secondary_bl2.executable:
+        raise PartitionLayoutError("secureboot BL2 slots must be executable")
 
     primary = (
-        layout.by_role("primary_tfm_s"),
         layout.by_role("primary_cp_app"),
         layout.by_role("primary_ap_app"),
     )
     secondary = (
-        layout.by_role("secondary_tfm_s"),
         layout.by_role("secondary_cp_app"),
         layout.by_role("secondary_ap_app"),
     )

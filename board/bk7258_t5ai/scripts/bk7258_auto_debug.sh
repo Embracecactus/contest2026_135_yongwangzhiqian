@@ -15,7 +15,8 @@ LOADER_DIR=${BK_LOADER_DIR:-$LOADER_DIR_DEFAULT}
 LOADER_EXE="$LOADER_DIR/bk_loader.exe"
 JLINK_EXE_DEFAULT='/mnt/c/Program Files/SEGGER/JLink/JLink.exe'
 JLINK_EXE=${JLINK_EXE:-$JLINK_EXE_DEFAULT}
-FIRMWARE="$OPENVELA_ROOT/nuttx/bk7258-dual/all-app-factory.bin"
+DUAL_DIR="${BK7258_DUAL_DIR:-$OPENVELA_ROOT/nuttx/bk7258-dual}"
+FIRMWARE="${BK7258_FIRMWARE:-}"
 LOG_ROOT="$OPENVELA_ROOT/logs/bk7258-auto-debug"
 
 CP_CONFIG_NAME=${CP_CONFIG_NAME:-cp_nsh}
@@ -29,6 +30,7 @@ CAPTURE_SECONDS=${BK_CAPTURE_SECONDS:-25}
 DO_BUILD=0
 DO_FLASH=0
 SPARSE_FLASH=0
+BOOT_ONLY=0
 COLD_CAPTURE=0
 JLINK_RESET=0
 RTS_RESET=0
@@ -44,7 +46,8 @@ Usage: $(basename "$0") [options]
 Actions:
   --build                 Build the selected CP_CONFIG_NAME/AP_CONFIG_NAME pair
   --flash                 Download through Windows bk_loader.exe
-  --sparse-flash          With --flash, update boot/CP/AP and preserve all data (recommended)
+  --sparse-flash          With --flash, update boot/BL2/CP/AP when MCUboot profile is packaged; preserve data
+  --boot-only             With --flash --sparse-flash, update only the boot segment
   --cold-capture          Capture COM11 and ask for a manual physical RESET; no download
   --rts-reset             Capture COM11, then pulse COM7 RTS (verified physical reset)
   --jlink-reset           Capture COM11, then try J-Link RSetType 2 (experimental)
@@ -57,7 +60,8 @@ Options:
   --download-port N       bk_loader port number (default: $DOWNLOAD_PORT / COM$DOWNLOAD_PORT)
   --console-port COMN     Windows console port (default: $CONSOLE_PORT)
   --console-baud N        Console baud (default: $CONSOLE_BAUD)
-  --firmware PATH         Factory image path (default: $FIRMWARE)
+  --firmware PATH         Factory image path (default: PACKAGE/all-app-factory.bin)
+  --package DIR           Dual-image package directory (default: $DUAL_DIR)
   --log-root PATH         Output directory (default: $LOG_ROOT)
   -h, --help              Show this help
 
@@ -91,6 +95,7 @@ while (($#)); do
     --build) DO_BUILD=1 ;;
     --flash) DO_FLASH=1 ;;
     --sparse-flash) SPARSE_FLASH=1 ;;
+    --boot-only) BOOT_ONLY=1 ;;
     --cold-capture) COLD_CAPTURE=1 ;;
     --rts-reset) RTS_RESET=1 ;;
     --jlink-reset) JLINK_RESET=1 ;;
@@ -102,12 +107,17 @@ while (($#)); do
     --console-port) CONSOLE_PORT=${2:?missing value}; shift ;;
     --console-baud) CONSOLE_BAUD=${2:?missing value}; shift ;;
     --firmware) FIRMWARE=${2:?missing value}; shift ;;
+    --package) DUAL_DIR=${2:?missing value}; shift ;;
     --log-root) LOG_ROOT=${2:?missing value}; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
   shift
 done
+
+if [[ -z "$FIRMWARE" ]]; then
+  FIRMWARE="$DUAL_DIR/all-app-factory.bin"
+fi
 
 action_count=$((DO_FLASH + COLD_CAPTURE + RTS_RESET + JLINK_RESET))
 if ((action_count != 1)); then
@@ -118,6 +128,11 @@ fi
 
 if ((SPARSE_FLASH && !DO_FLASH)); then
   echo "ERROR: --sparse-flash requires --flash" >&2
+  exit 2
+fi
+
+if ((BOOT_ONLY && (!DO_FLASH || !SPARSE_FLASH))); then
+  echo "ERROR: --boot-only requires --flash --sparse-flash" >&2
   exit 2
 fi
 
@@ -157,6 +172,14 @@ CP_OFFSET=$(python3 "$PARTITION_GENERATOR" --get slot_a_cp.offset)
 CP_SIZE=$(python3 "$PARTITION_GENERATOR" --get slot_a_cp.size)
 AP_OFFSET=$(python3 "$PARTITION_GENERATOR" --get slot_a_ap.offset)
 AP_SIZE=$(python3 "$PARTITION_GENERATOR" --get slot_a_ap.size)
+BL2_OFFSET=$(python3 "$PARTITION_GENERATOR" --get bl2.offset)
+BL2_SIZE=$(python3 "$PARTITION_GENERATOR" --get bl2.size)
+BL2_SECONDARY_OFFSET=$((BL2_OFFSET + BL2_SIZE))
+printf -v BL2_SECONDARY_OFFSET_HEX '0x%x' "$BL2_SECONDARY_OFFSET"
+MANIFEST_A_OFFSET=$(python3 "$PARTITION_GENERATOR" --get ota_manifest_a.offset)
+MANIFEST_A_SIZE=$(python3 "$PARTITION_GENERATOR" --get ota_manifest_a.size)
+MANIFEST_B_OFFSET=$(python3 "$PARTITION_GENERATOR" --get ota_manifest_b.offset)
+MANIFEST_B_SIZE=$(python3 "$PARTITION_GENERATOR" --get ota_manifest_b.size)
 FACTORY_PREFIX_SIZE=$(python3 "$PARTITION_GENERATOR" --get ota_metadata_primary.end)
 LITTLEFS_OFFSET=$(python3 "$PARTITION_GENERATOR" --get littlefs.offset)
 LITTLEFS_SIZE=$(python3 "$PARTITION_GENERATOR" --get littlefs.size)
@@ -168,12 +191,32 @@ fi
 
 [[ -f "$FIRMWARE" ]] || { echo "ERROR: missing firmware $FIRMWARE" >&2; exit 1; }
 
-DUAL_DIR="$OPENVELA_ROOT/nuttx/bk7258-dual"
 MANIFEST="$DUAL_DIR/bk7258-dual-image.json"
 BOOT_IMAGE="$DUAL_DIR/bl_crc.bin"
 CP_IMAGE="$DUAL_DIR/app_crc_flash.bin"
 AP_IMAGE="$DUAL_DIR/app1_crc_flash.bin"
+BL2_IMAGE="$DUAL_DIR/bl2_crc.bin"
+BL2_SECONDARY_IMAGE="$DUAL_DIR/bl2_secondary_crc.bin"
+MANIFEST_PRIMARY_IMAGE="$DUAL_DIR/bl1-manifest-primary.bin"
+MANIFEST_SECONDARY_IMAGE="$DUAL_DIR/bl1-manifest-secondary.bin"
 LITTLEFS_CLEAR_IMAGE="$DUAL_DIR/littlefs_factory_clear.bin"
+
+PROFILE_FILE="$DUAL_DIR/build-profile.txt"
+PACKAGED_CP_CONFIG=unknown
+PACKAGED_AP_CONFIG=unknown
+PACKAGED_MCUBOOT_PROFILE=false
+PACKAGED_BL1_MANIFEST_RAW_PAGE=false
+if [[ -f "$PROFILE_FILE" ]]; then
+  PACKAGED_CP_CONFIG=$(sed -n 's/^CP_CONFIG_NAME=//p' "$PROFILE_FILE" | head -1)
+  PACKAGED_AP_CONFIG=$(sed -n 's/^AP_CONFIG_NAME=//p' "$PROFILE_FILE" | head -1)
+  if grep -qx 'MCUBOOT_PROFILE=true' "$PROFILE_FILE"; then
+    PACKAGED_MCUBOOT_PROFILE=true
+  fi
+  if grep -qx 'BL1_MANIFEST_RAW_PAGE=true' "$PROFILE_FILE"; then
+    PACKAGED_BL1_MANIFEST_RAW_PAGE=true
+  fi
+fi
+
 if ((DO_FLASH)); then
   [[ -f "$MANIFEST" ]] || { echo "ERROR: missing image manifest $MANIFEST" >&2; exit 1; }
   grep -Fq "\"layout_id\": \"${EXPECTED_LAYOUT_ID}\"" "$MANIFEST" || {
@@ -184,13 +227,36 @@ if ((DO_FLASH)); then
   python3 "$SCRIPT_DIR/verify_bk7258_factory_layout.py" --package "$DUAL_DIR"
 fi
 if ((SPARSE_FLASH)); then
-  for image in "$BOOT_IMAGE" "$CP_IMAGE" "$AP_IMAGE"; do
+  sparse_images=("$BOOT_IMAGE")
+  if ((!BOOT_ONLY)); then
+    sparse_images+=("$CP_IMAGE" "$AP_IMAGE")
+    if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+      sparse_images+=("$BL2_IMAGE" "$BL2_SECONDARY_IMAGE")
+      if [[ "$PACKAGED_BL1_MANIFEST_RAW_PAGE" == true ]]; then
+        sparse_images+=("$MANIFEST_PRIMARY_IMAGE" "$MANIFEST_SECONDARY_IMAGE")
+      fi
+    fi
+  fi
+
+  for image in "${sparse_images[@]}"; do
     [[ -f "$image" ]] || { echo "ERROR: missing sparse image $image" >&2; exit 1; }
   done
 
   BOOT_IMAGE_SIZE=$(stat -c %s "$BOOT_IMAGE")
   CP_IMAGE_SIZE=$(stat -c %s "$CP_IMAGE")
   AP_IMAGE_SIZE=$(stat -c %s "$AP_IMAGE")
+  BL2_IMAGE_SIZE=0
+  BL2_SECONDARY_IMAGE_SIZE=0
+  MANIFEST_PRIMARY_SIZE=0
+  MANIFEST_SECONDARY_SIZE=0
+  if [[ "$PACKAGED_MCUBOOT_PROFILE" == true && $BOOT_ONLY -eq 0 ]]; then
+    BL2_IMAGE_SIZE=$(stat -c %s "$BL2_IMAGE")
+    BL2_SECONDARY_IMAGE_SIZE=$(stat -c %s "$BL2_SECONDARY_IMAGE")
+    if [[ "$PACKAGED_BL1_MANIFEST_RAW_PAGE" == true ]]; then
+      MANIFEST_PRIMARY_SIZE=$(stat -c %s "$MANIFEST_PRIMARY_IMAGE")
+      MANIFEST_SECONDARY_SIZE=$(stat -c %s "$MANIFEST_SECONDARY_IMAGE")
+    fi
+  fi
 
   # Refuse malformed/oversized artifacts before bk_loader can erase across a
   # CSV-defined partition boundary.  This is the hard guarantee behind
@@ -208,6 +274,26 @@ if ((SPARSE_FLASH)); then
     echo "ERROR: sparse AP image length $AP_IMAGE_SIZE exceeds primary_ap_app" >&2
     exit 1
   }
+  if [[ "$PACKAGED_MCUBOOT_PROFILE" == true && $BOOT_ONLY -eq 0 ]]; then
+    ((BL2_IMAGE_SIZE > 0 && BL2_IMAGE_SIZE <= BL2_SIZE)) || {
+      echo "ERROR: sparse BL2 image length $BL2_IMAGE_SIZE exceeds bl2 partition" >&2
+      exit 1
+    }
+    ((BL2_SECONDARY_IMAGE_SIZE > 0 && BL2_SECONDARY_IMAGE_SIZE <= BL2_SIZE)) || {
+      echo "ERROR: sparse secondary BL2 image length $BL2_SECONDARY_IMAGE_SIZE exceeds secondary envelope" >&2
+      exit 1
+    }
+    if [[ "$PACKAGED_BL1_MANIFEST_RAW_PAGE" == true ]]; then
+      ((MANIFEST_PRIMARY_SIZE == MANIFEST_A_SIZE)) || {
+        echo "ERROR: primary BL1 Manifest page must exactly fill ota_manifest_a" >&2
+        exit 1
+      }
+      ((MANIFEST_SECONDARY_SIZE == MANIFEST_B_SIZE)) || {
+        echo "ERROR: secondary BL1 Manifest page must exactly fill ota_manifest_b" >&2
+        exit 1
+      }
+    fi
+  fi
 elif ((DO_FLASH)); then
   [[ $(readlink -f "$FIRMWARE") == $(readlink -f "$DUAL_DIR/all-app-factory.bin") ]] || {
     echo "ERROR: destructive factory rewrite requires the verified packaged prefix" >&2
@@ -223,14 +309,20 @@ elif ((DO_FLASH)); then
     echo "ERROR: factory segments violate the CSV-defined bounds" >&2
     exit 1
   }
-fi
-
-PROFILE_FILE="$OPENVELA_ROOT/nuttx/bk7258-dual/build-profile.txt"
-PACKAGED_CP_CONFIG=unknown
-PACKAGED_AP_CONFIG=unknown
-if [[ -f "$PROFILE_FILE" ]]; then
-  PACKAGED_CP_CONFIG=$(sed -n 's/^CP_CONFIG_NAME=//p' "$PROFILE_FILE" | head -1)
-  PACKAGED_AP_CONFIG=$(sed -n 's/^AP_CONFIG_NAME=//p' "$PROFILE_FILE" | head -1)
+  if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+    [[ -f "$BL2_IMAGE" ]] || { echo "ERROR: missing MCUboot BL2 image $BL2_IMAGE" >&2; exit 1; }
+    [[ -f "$BL2_SECONDARY_IMAGE" ]] || { echo "ERROR: missing secondary MCUboot BL2 image $BL2_SECONDARY_IMAGE" >&2; exit 1; }
+    BL2_IMAGE_SIZE=$(stat -c %s "$BL2_IMAGE")
+    BL2_SECONDARY_IMAGE_SIZE=$(stat -c %s "$BL2_SECONDARY_IMAGE")
+    ((BL2_IMAGE_SIZE > 0 && BL2_IMAGE_SIZE <= BL2_SIZE)) || {
+      echo "ERROR: factory BL2 image length $BL2_IMAGE_SIZE exceeds bl2 partition" >&2
+      exit 1
+    }
+    ((BL2_SECONDARY_IMAGE_SIZE > 0 && BL2_SECONDARY_IMAGE_SIZE <= BL2_SIZE)) || {
+      echo "ERROR: factory secondary BL2 image length $BL2_SECONDARY_IMAGE_SIZE exceeds secondary envelope" >&2
+      exit 1
+    }
+  fi
 fi
 
 if ((!DO_BUILD)); then
@@ -298,11 +390,17 @@ ARTIFACT_FILE="$RUN_DIR/artifacts.sha256"
   sha256sum "$FIRMWARE"
   stat -c '%y %s %n' "$FIRMWARE"
   if ((SPARSE_FLASH)); then
-    sha256sum "$BOOT_IMAGE" "$CP_IMAGE" "$AP_IMAGE"
-    stat -c '%y %s %n' "$BOOT_IMAGE" "$CP_IMAGE" "$AP_IMAGE"
+    sha256sum "${sparse_images[@]}"
+    stat -c '%y %s %n' "${sparse_images[@]}"
   elif ((DO_FLASH)); then
     sha256sum "$LITTLEFS_CLEAR_IMAGE"
     stat -c '%y %s %n' "$LITTLEFS_CLEAR_IMAGE"
+    if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+      sha256sum "$BL2_IMAGE"
+      stat -c '%y %s %n' "$BL2_IMAGE"
+      sha256sum "$BL2_SECONDARY_IMAGE"
+      stat -c '%y %s %n' "$BL2_SECONDARY_IMAGE"
+    fi
   fi
   if [[ -f "$PROFILE_FILE" ]]; then
     cat "$PROFILE_FILE"
@@ -363,15 +461,52 @@ if ((DO_FLASH)); then
     printf -v CP_LENGTH_HEX '0x%x' "$(stat -c %s "$CP_IMAGE")"
     printf -v AP_LENGTH_HEX '0x%x' "$(stat -c %s "$AP_IMAGE")"
     MAIN_BIN_MULTI="${BOOT_IMAGE_WIN}@${BOOT_OFFSET}-${BOOT_LENGTH_HEX},"
-    MAIN_BIN_MULTI+="${CP_IMAGE_WIN}@${CP_OFFSET}-${CP_LENGTH_HEX},"
-    MAIN_BIN_MULTI+="${AP_IMAGE_WIN}@${AP_OFFSET}-${AP_LENGTH_HEX}"
-    echo "==> Sparse download through COM${DOWNLOAD_PORT}; LittleFS preserved"
+    if ((BOOT_ONLY)); then
+      MAIN_BIN_MULTI=${MAIN_BIN_MULTI%,}
+      echo "==> Boot-only sparse download through COM${DOWNLOAD_PORT}; all application/data regions preserved"
+    else
+      if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+        BL2_IMAGE_WIN=$(wslpath -m "$BL2_IMAGE")
+        BL2_SECONDARY_IMAGE_WIN=$(wslpath -m "$BL2_SECONDARY_IMAGE")
+        printf -v BL2_LENGTH_HEX '0x%x' "$BL2_IMAGE_SIZE"
+        printf -v BL2_SECONDARY_LENGTH_HEX '0x%x' "$BL2_SECONDARY_IMAGE_SIZE"
+        MAIN_BIN_MULTI+="${BL2_IMAGE_WIN}@${BL2_OFFSET}-${BL2_LENGTH_HEX},"
+        MAIN_BIN_MULTI+="${BL2_SECONDARY_IMAGE_WIN}@${BL2_SECONDARY_OFFSET_HEX}-${BL2_SECONDARY_LENGTH_HEX},"
+        if [[ "$PACKAGED_BL1_MANIFEST_RAW_PAGE" == true ]]; then
+          MANIFEST_PRIMARY_WIN=$(wslpath -m "$MANIFEST_PRIMARY_IMAGE")
+          MANIFEST_SECONDARY_WIN=$(wslpath -m "$MANIFEST_SECONDARY_IMAGE")
+          printf -v MANIFEST_PRIMARY_LENGTH_HEX '0x%x' "$MANIFEST_PRIMARY_SIZE"
+          printf -v MANIFEST_SECONDARY_LENGTH_HEX '0x%x' "$MANIFEST_SECONDARY_SIZE"
+          MAIN_BIN_MULTI+="${MANIFEST_PRIMARY_WIN}@${MANIFEST_A_OFFSET}-${MANIFEST_PRIMARY_LENGTH_HEX},"
+          MAIN_BIN_MULTI+="${MANIFEST_SECONDARY_WIN}@${MANIFEST_B_OFFSET}-${MANIFEST_SECONDARY_LENGTH_HEX},"
+        fi
+      fi
+      MAIN_BIN_MULTI+="${CP_IMAGE_WIN}@${CP_OFFSET}-${CP_LENGTH_HEX},"
+      MAIN_BIN_MULTI+="${AP_IMAGE_WIN}@${AP_OFFSET}-${AP_LENGTH_HEX}"
+      if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+        echo "==> Sparse MCUboot download through COM${DOWNLOAD_PORT}; BL2/CP/AP updated, LittleFS preserved"
+      else
+        echo "==> Sparse download through COM${DOWNLOAD_PORT}; LittleFS preserved"
+      fi
+    fi
   else
     FIRMWARE_WIN=$(wslpath -m "$FIRMWARE")
     LITTLEFS_CLEAR_WIN=$(wslpath -m "$LITTLEFS_CLEAR_IMAGE")
     MAIN_BIN_MULTI="${FIRMWARE_WIN}@${BOOT_OFFSET}-${FACTORY_PREFIX_SIZE},"
+    if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+      BL2_IMAGE_WIN=$(wslpath -m "$BL2_IMAGE")
+      BL2_SECONDARY_IMAGE_WIN=$(wslpath -m "$BL2_SECONDARY_IMAGE")
+      printf -v BL2_LENGTH_HEX '0x%x' "$BL2_IMAGE_SIZE"
+      printf -v BL2_SECONDARY_LENGTH_HEX '0x%x' "$BL2_SECONDARY_IMAGE_SIZE"
+      MAIN_BIN_MULTI+="${BL2_IMAGE_WIN}@${BL2_OFFSET}-${BL2_LENGTH_HEX},"
+      MAIN_BIN_MULTI+="${BL2_SECONDARY_IMAGE_WIN}@${BL2_SECONDARY_OFFSET_HEX}-${BL2_SECONDARY_LENGTH_HEX},"
+    fi
     MAIN_BIN_MULTI+="${LITTLEFS_CLEAR_WIN}@${LITTLEFS_OFFSET}-${LITTLEFS_SIZE}"
-    echo "==> Bounded factory rewrite through COM${DOWNLOAD_PORT}; usr_config/tail preserved"
+    if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+      echo "==> Bounded MCUboot factory rewrite through COM${DOWNLOAD_PORT}; BL2 added, usr_config/tail preserved"
+    else
+      echo "==> Bounded factory rewrite through COM${DOWNLOAD_PORT}; usr_config/tail preserved"
+    fi
   fi
   set +e
   (
@@ -443,6 +578,10 @@ text = data.decode("utf-8", errors="replace").replace("\x00", "")
 text_path.write_text(text)
 
 ordered = [
+    "B1PAGE", "B2INIT", "B2GO", "B2GENBAD", "B2GORET", "B2TRYA", "B2ARET",
+    "B2TRYB", "B2BRET", "B2GOOK", "B2SELA", "B2SELB",
+    "B2APHDR", "B2APMSP", "B2APTHUMB", "B2APRST", "B2APOK",
+    "B2APBAD", "B2HANDOFF",
     "BClk", "S0", "U0", "G1", "U1", "U2", "U3", "U4", "U5",
     "C0", "C1", "C2", "C3", "A0", "A1", "A2", "A3", "A4",
     "A5", "A6", "W0", "W1", "A7", "F1", "F2", "C4", "C5", "C6", "C7", "C8",
@@ -468,6 +607,7 @@ lines = [
     f"checkpoints={' '.join(present) if present else 'none'}",
     f"cold_path={'yes' if any(line.startswith('BClk ') for line in checkpoint_lines) else 'no'}",
     f"uart_init_returned={'yes' if 'U2' in checkpoint_lines else 'no'}",
+    f"bl2_handoff={'yes' if 'B2HANDOFF' in checkpoint_lines else 'no'}",
     f"ap_timeout_cleanup={'yes' if 'F1' in checkpoint_lines and 'F2' in checkpoint_lines else 'no'}",
     f"nsh={'yes' if verdict == 'PASS_NSH' else 'no'}",
 ]

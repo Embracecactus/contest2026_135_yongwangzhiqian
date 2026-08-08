@@ -130,7 +130,13 @@ if(CONFIG_BK7258_FLASH_MTD)
 endif()
 
 if(CONFIG_MCUBOOT_BOOTLOADER)
-  list(APPEND BK7258_CP_SRCS cp/bk7258_mcuboot_boot.c)
+  list(APPEND BK7258_CP_SRCS
+       ../bootloader/bl2/bk7258_bl2_mcuboot_boot.c
+       ../bootloader/bl2/bk7258_bl2_mcuboot_ecdsa.c
+       ../bootloader/bl2/bk7258_bl2_mcuboot_ecc.c
+       ../bootloader/bl2/bk7258_bl2_mcuboot_ecc_dsa.c
+       ../bootloader/bl2/bk7258_bl2_mcuboot_asn1.c
+       ../bootloader/bl2/bk7258_bl2_mcuboot_keys.c)
 endif()
 
 if(CONFIG_BK7258_OTA_STAGING)

@@ -6,13 +6,14 @@
  * calibrate the DPLL before jumping to the app, so the app inherits the
  * same analog state the SDK app sees after early_init -- DPLL enabled and
  * calibrated at the SDK default VCO, voltages at the SDK default level
- * (VDDIG=0xB).  It does NOT pick a CPU frequency; that is the app's job.
+ * (VDDIG=0xB).  The final handoff profile mirrors the official v3.1.1.9
+ * A/B bootloader's clock selector argument 2: DPLL/4 = 120 MHz.
  *
- * Per-chip frequency/voltage selection (and the VDDD->0x7 / VDDIG->0xE lift
- * the 320 M runtime tier requires) is NOT done here -- the bootloader keeps
- * the analog side byte-for-byte equal to sys_hal_early_init and leaves the
- * core mux (M1) untouched, exactly as the vendor bootloader does.  The app
- * then drives bk7258_dvfs_set_freq() (mirroring the SDK runtime
+ * Per-chip runtime frequency/voltage selection (and the VDDD->0x7 /
+ * VDDIG->0xE lift the 320 M runtime tier requires) is NOT done here.  The
+ * bootloader keeps the analog side byte-for-byte equal to sys_hal_early_init,
+ * installs the recovered vendor 120 MHz BL1 handoff profile, and the app then
+ * drives bk7258_dvfs_set_freq() (mirroring the SDK runtime
  * sys_hal_switch_cpu_bus_freq path) to step up/down per chip operating
  * point.  See chip/cp/bk7258_dvfs.{c,h}.
  *
@@ -29,10 +30,11 @@
  *     where the DPLL ends up not enabled.
  *   - No step can hang the bootloader indefinitely.
  *
- * Scope: DPLL enable + SPI recalibration only.  Does NOT switch the core
- * mux (M1) or the flash clock (M2 cksel_flash) -- switching flash to the
- * 480 MHz source stalls on this board; the core mux is left for the app's
- * DVFS path.  Does NOT raise VDDIG/VDDD above SDK early_init defaults.
+ * Scope: DPLL enable + SPI recalibration + the official 120 MHz core handoff.
+ * Reset preparation has already selected a Flash divider from the JEDEC ID;
+ * this helper then switches M2.cksel_flash [25:24] to DPLL exactly where the
+ * vendor path does.  It does not raise VDDIG/VDDD above SDK early_init
+ * defaults.
  *
  * Freestanding: no libc, no .data/.bss globals, only stack locals.
  */
@@ -59,6 +61,27 @@
 #define ANA_REG12          0x44010130u
 #define ANA_REG13          0x44010134u
 #define ANA_REG25          0x44010164u
+
+/* Recovered from official v3.1.1.9 A/B bootloader FUN_020006e4(2):
+ *
+ *   M1.clkdiv_core = 3, CPU1 speed = 1, M1.cksel_core = 3
+ *   M2.cksel_flash = 1
+ *
+ * M1 therefore selects the 480 MHz DPLL divided by four (120 MHz).  The
+ * official minimal bootloader writes CPU1_INT_HALT_CLK_OP at +0x14; retain
+ * that exact operation here rather than silently substituting the later SDK
+ * application's three-core DVFS sequence.
+ */
+
+#define CPU1_HALT_CLK_OP   0x44010014u
+#define CPU_CLK_DIV_MODE1  0x44010020u
+#define CPU_CLK_DIV_MODE2  0x44010024u
+#define CPU_SPEED_BIT      (1u << 4)
+#define M1_CLKDIV_MASK     0x0fu
+#define M1_CKSEL_MASK      (0x3u << 4)
+#define M1_CKSEL_DPLL480   (0x3u << 4)
+#define M2_FLASH_CKSEL_MASK (0x3u << 24)
+#define M2_FLASH_CKSEL_DPLL (0x1u << 24)
 
 #define EN_DPLL_BIT        (1u << 5)
 
@@ -250,6 +273,32 @@ static int step5_recalibrate(void)
     return boot_cali_dpll();
 }
 
+/* Install the official A/B bootloader's argument-2 clock profile.  Its
+ * lower-to-higher order is divider -> CPU speed -> source mux, so the core
+ * never observes an undivided 480 MHz intermediate state. */
+
+static void boot_clock_vendor_handoff_120m(void)
+{
+    uint32_t v;
+
+    v = REG32(CPU_CLK_DIV_MODE1);
+    v = (v & ~M1_CLKDIV_MASK) | 3u;
+    REG32(CPU_CLK_DIV_MODE1) = v;
+
+    REG32(CPU1_HALT_CLK_OP) |= CPU_SPEED_BIT;
+
+    v = REG32(CPU_CLK_DIV_MODE1);
+    v = (v & ~M1_CKSEL_MASK) | M1_CKSEL_DPLL480;
+    REG32(CPU_CLK_DIV_MODE1) = v;
+
+    v = REG32(CPU_CLK_DIV_MODE2);
+    v = (v & ~M2_FLASH_CKSEL_MASK) | M2_FLASH_CKSEL_DPLL;
+    REG32(CPU_CLK_DIV_MODE2) = v;
+
+    __asm__ volatile ("dsb 0xf" ::: "memory");
+    __asm__ volatile ("isb 0xf" ::: "memory");
+}
+
 /* ------------------------------------------------------------------ */
 /* Public: cold-start DPLL enable.                                    */
 /*                                                                    */
@@ -261,28 +310,42 @@ static int step5_recalibrate(void)
 
 void boot_clock_cold_init(void)
 {
-    /* Guard: skip if DPLL already enabled (soft-reset / loader residue). */
+    int cold_init = 0;
 
-    if (REG32(ANA_REG5) & EN_DPLL_BIT)
-        return;
+    /* Guard only the analog sequence when DPLL is already enabled.  The
+     * official 120 MHz handoff profile below is deterministic on both cold
+     * reset and soft-reset/loader-residue entry paths. */
 
-    /* Run the cold-init sequence.  Abort on any SPI-write timeout. */
-
-    if (step1_dpll_power() < 0 ||
-        step2_band_dsptrig() < 0 ||
-        step3_xtal_bias() < 0 ||
-        step4_latched_block() < 0 ||
-        step5_recalibrate() < 0)
+    if ((REG32(ANA_REG5) & EN_DPLL_BIT) == 0)
     {
-        clk_puts("BClk FAIL\r\n");
-        return;
+        if (step1_dpll_power() < 0 ||
+            step2_band_dsptrig() < 0 ||
+            step3_xtal_bias() < 0 ||
+            step4_latched_block() < 0 ||
+            step5_recalibrate() < 0)
+        {
+            clk_puts("BClk FAIL\r\n");
+            return;
+        }
+
+        cold_init = 1;
     }
 
-    /* Evidence: confirm EN_DPLL landed. */
+    boot_clock_vendor_handoff_120m();
 
-    clk_puts("BClk A5=");
-    clk_puthex(REG32(ANA_REG5));
-    clk_puts(" A9=");
-    clk_puthex(REG32(ANA_REG9));
-    clk_puts("\r\n");
+    /* Preserve the established cold-path evidence without adding log noise
+     * to every warm boot. */
+
+    if (cold_init)
+    {
+        clk_puts("BClk A5=");
+        clk_puthex(REG32(ANA_REG5));
+        clk_puts(" A9=");
+        clk_puthex(REG32(ANA_REG9));
+        clk_puts(" M1=");
+        clk_puthex(REG32(CPU_CLK_DIV_MODE1));
+        clk_puts(" M2=");
+        clk_puthex(REG32(CPU_CLK_DIV_MODE2));
+        clk_puts("\r\n");
+    }
 }

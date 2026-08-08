@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) deterministic 320 MHz CPU0 clock bring-up.
+ * BK7258 (T5-AI) temporary 320 MHz CPU0 bring-up target.
  *
  * bk7258_clock_bringup_320m() mirrors the Armino SDK early-init clock path
  * (sys_hal_early_init -> sys_hal_dpll_cpu_flash_time_early_init ->
@@ -11,10 +11,10 @@
  * drives the core clock to 320 MHz (DPLL /1.5, the highest board-verified
  * operating point on this chip; 480 MHz direct is SDK-rejected).
  *
- * It raises VDDDIG to 0x0c (0.9 V) and VDDD to 0x06 (1.0 V) and completes a
- * DPLL SPI recalibration before switching the core mux, matching the SDK.  It
- * does not perform any runtime DVFS: it sets a single fixed 320 MHz target
- * once at boot.
+ * BL1 supplies the recovered 120 MHz safe handoff.  This helper asks the
+ * runtime DVFS lower half for the current bring-up target; it is not the
+ * final power policy.  Runtime clients and a later NuttX PM governor use the
+ * same bk7258_dvfs_set_freq() path to change SDK operating points safely.
  *
  * Called early in __start(), before nx_start(), so bk7258_clockdiag_current
  * _cpu_hz() observes M1 low bits = 0x20 (csrc=2, cdiv=0) and up_timer_

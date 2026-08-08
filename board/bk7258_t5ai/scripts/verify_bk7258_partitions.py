@@ -67,10 +67,24 @@ def verify(sdk_source: Path | None = None) -> dict[str, object]:
         "generated C header omits the metadata mirror role",
     )
     require(
+        all(
+            role in outputs["bk7258_partition_layout.h"]
+            for role in (
+                "BK7258_ROLE_OTA_MANIFEST_A_OFFSET",
+                "BK7258_ROLE_OTA_MANIFEST_B_OFFSET",
+                "BK7258_ROLE_OTA_AUTH_POLICY_OFFSET",
+            )
+        ),
+        "generated C header omits an N17 authorization role",
+    )
+    require(
         "#define BK7258_ROLE_SLOT_A_AP_SDK_ID 2" in outputs[
             "bk7258_partition_layout.h"
         ]
-        and "#define BK7258_SDK_PARTITIONS_TABLE_SIZE 13" in outputs[
+        and "#define BK7258_ROLE_LITTLEFS_SDK_ID 16" in outputs[
+            "bk7258_partition_layout.h"
+        ]
+        and "#define BK7258_SDK_PARTITIONS_TABLE_SIZE 17" in outputs[
             "bk7258_partition_layout.h"
         ],
         "generated C header omits the pinned SDK partition ABI",
@@ -157,6 +171,27 @@ def verify(sdk_source: Path | None = None) -> dict[str, object]:
             fixture(
                 source,
                 (("ota_fina_mirror,,4K", "ota_fina_mirror,,8K"),),
+            ),
+        )
+        negative["manifest-size"] = expect_rejected(
+            root,
+            "manifest-size",
+            fixture(
+                source,
+                (("ota_manifest_a,,4K", "ota_manifest_a,,8K"),),
+            ),
+        )
+        negative["auth-policy-writable"] = expect_rejected(
+            root,
+            "auth-policy-writable",
+            fixture(
+                source,
+                (
+                    (
+                        "ota_auth_policy,,4K,data,TRUE,FALSE",
+                        "ota_auth_policy,,4K,data,TRUE,TRUE",
+                    ),
+                ),
             ),
         )
 

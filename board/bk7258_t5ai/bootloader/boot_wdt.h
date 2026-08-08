@@ -57,6 +57,13 @@
  * the register is approximately milliseconds.  8 s covers cold-init
  * (worst-case ~100 ms) with 80× margin; a real hang resets in ≤ 8 s. */
 #define WDT_PERIOD        8000u
+#define BL2_WDT_PERIOD    60000u
+#define APP_HANDOFF_WDT_PERIOD 0xa000u
+#define FAIL_RESET_WDT_PERIOD  6u
+
+/* Official v3.1.1.9 A/B function 0x02001014 clears these reset-status bits
+ * before arming both watchdogs with the short failure period. */
+#define SYS_WDT_RESET_STATUS   0x44000104u
 
 /* SYS_CTRL bits[5:0] = 0x26: vendor bootloader's WDT clock/reset config
  * (bk-official-bootloader-reverse.md §2.4, sub_2000FE4: bic.w r1,r3,#0x3F
@@ -98,7 +105,7 @@ static inline void boot_wdt_init(void)
 /* Feed (kick) both WDTs.  Clears the APB_WDT status and re-arms APB_WDT and
  * AON_WDT with the same period, matching the official v3.1.1.9 key sequence.
  * Call this at key points in c_main to prevent premature reset. */
-static inline void boot_wdt_feed(void)
+static inline void boot_wdt_feed_period(uint32_t period)
 {
     uint32_t ctrl1;
     uint32_t ctrl2;
@@ -106,8 +113,8 @@ static inline void boot_wdt_feed(void)
     /* Clear APB_WDT status bit[1:0]. */
     REG32(WDT_APB_STATUS) = REG32(WDT_APB_STATUS) & ~0x3u;
 
-    ctrl1 = (uint32_t)(WDT_KEY1 << 16) | (WDT_PERIOD & 0xFFFFu);
-    ctrl2 = (uint32_t)(WDT_KEY2 << 16) | (WDT_PERIOD & 0xFFFFu);
+    ctrl1 = (uint32_t)(WDT_KEY1 << 16) | (period & 0xFFFFu);
+    ctrl2 = (uint32_t)(WDT_KEY2 << 16) | (period & 0xFFFFu);
 
     /* Re-arm APB_WDT (= feed). */
     REG32(WDT_APB_CTRL) = ctrl1;
@@ -117,6 +124,37 @@ static inline void boot_wdt_feed(void)
      * when OTA pair validation takes longer than one watchdog period. */
     REG32(WDT_AON_CTRL) = ctrl1;
     REG32(WDT_AON_CTRL) = ctrl2;
+}
+
+static inline void boot_wdt_feed(void)
+{
+    boot_wdt_feed_period(WDT_PERIOD);
+}
+
+/* Fail closed through the same bounded reset path used by the official
+ * BK7258 A/B bootloader.  Do not feed after installing the six-tick period:
+ * callers must never remain permanently stuck in a boot-stage error loop. */
+static inline __attribute__((noreturn)) void boot_wdt_fail_reset(void)
+{
+    uint32_t ctrl1;
+    uint32_t ctrl2;
+
+    __asm volatile ("cpsid i" ::: "memory");
+    REG32(SYS_WDT_RESET_STATUS) &= ~0x3u;
+
+    ctrl1 = (uint32_t)(WDT_KEY1 << 16) | FAIL_RESET_WDT_PERIOD;
+    ctrl2 = (uint32_t)(WDT_KEY2 << 16) | FAIL_RESET_WDT_PERIOD;
+    REG32(SYS_CTRL_REG) = (REG32(SYS_CTRL_REG) & ~WDT_SYSCTRL_MASK) |
+                          WDT_SYSCTRL_VAL;
+    REG32(WDT_APB_CTRL) = ctrl1;
+    REG32(WDT_APB_CTRL) = ctrl2;
+    REG32(WDT_AON_CTRL) = ctrl1;
+    REG32(WDT_AON_CTRL) = ctrl2;
+
+    for (;;)
+        {
+            __asm volatile ("nop");
+        }
 }
 
 #endif /* __BOOTLOADER_BOOT_WDT_H */

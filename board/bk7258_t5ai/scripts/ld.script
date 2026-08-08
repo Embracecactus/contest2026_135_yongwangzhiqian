@@ -56,8 +56,10 @@ ENTRY(__start)
 
 #ifdef CONFIG_BK7258_BL2_IMAGE
 #  define BK7258_CP_IMAGE_HEADER_SIZE 0
-#  define BK7258_CP_IMAGE_FLASH_BASE BK7258_ROLE_BL2_XIP_START
+#  define BK7258_CP_IMAGE_FLASH_BASE 0x28020000
 #  define BK7258_CP_IMAGE_FLASH_SIZE BK7258_ROLE_BL2_LOGICAL_SIZE
+#  define BK7258_CP_IMAGE_RAM_BASE   0x28010000
+#  define BK7258_CP_IMAGE_RAM_SIZE   0x00010000
 #elif defined(CONFIG_BK7258_MCUBOOT_IMAGE)
 #  /* The Cortex-M VTOR masks its low bits according to the vector-table
 #   * size.  This board has 80 entries, so the table needs 0x200-byte
@@ -71,6 +73,11 @@ ENTRY(__start)
 #  define BK7258_CP_IMAGE_FLASH_SIZE BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE
 #endif
 
+#ifndef BK7258_CP_IMAGE_RAM_BASE
+#  define BK7258_CP_IMAGE_RAM_BASE   0x28010000
+#  define BK7258_CP_IMAGE_RAM_SIZE   0x040000
+#endif
+
 #define BK7258_CP_IMAGE_FLASH_ORIGIN \
   (BK7258_CP_IMAGE_FLASH_BASE + BK7258_CP_IMAGE_HEADER_SIZE)
 #define BK7258_CP_IMAGE_FLASH_LENGTH \
@@ -80,7 +87,8 @@ MEMORY
 {
     FLASH (rx)  : ORIGIN = BK7258_CP_IMAGE_FLASH_ORIGIN,
                   LENGTH = BK7258_CP_IMAGE_FLASH_LENGTH
-    RAM   (rwx) : ORIGIN = 0x28010000, LENGTH = 0x040000
+    RAM   (rwx) : ORIGIN = BK7258_CP_IMAGE_RAM_BASE,
+                  LENGTH = BK7258_CP_IMAGE_RAM_SIZE
 }
 
 /* N9 shared-memory ABI is outside CP RAM.  Export the same absolute symbols
@@ -94,14 +102,16 @@ _bk7258_rptun_resource = 0x28097040;
 _bk7258_rptun_carveout_start = 0x28097180;
 _bk7258_rptun_carveout_end = 0x2809f000;
 
-/* Initial stack pointer (top of CP-owned SRAM). */
+/* The CPU0 BL2 profile reserves SRAM1 for data/stack and 0x28020000 onward for
+ * copied executable text.  Ordinary CP profiles retain their original RAM.
+ */
 
 _estack = ORIGIN(RAM) + LENGTH(RAM) - 4;
 
 SECTIONS
 {
-    /* Vector table FIRST, pinned at the direct-BL1 address or immediately
-     * after the MCUboot header.  KEEP() prevents the
+    /* Vector table FIRST, pinned at the image execution address or immediately
+     * after the MCUboot payload header.  KEEP() prevents the
      * linker from GC'ing it; . = ORIGIN(FLASH) pins the address.
      */
     . = ORIGIN(FLASH);
@@ -120,7 +130,8 @@ SECTIONS
     ASSERT(SIZEOF(.vectors) == 0x140,
            "ERROR: .vectors must be 0x140 bytes (80 entries, A1 gate)")
 
-    /* Code + read-only data (XIP-readable in flash). */
+    /* Code + read-only data.  BL2 stores these bytes in flash but executes
+     * them from RAM after BL1's complete logical-image copy. */
     .text : ALIGN(4)
     {
         _stext = ABSOLUTE(.);
@@ -251,8 +262,8 @@ SECTIONS
     ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
            ORIGIN(FLASH) + LENGTH(FLASH),
            "ERROR: CP image exceeds official primary_cp_app")
-    ASSERT(_eheap < 0x28050000,
-           "ERROR: CP RAM overlaps the AP RAM window")
+    ASSERT(_eheap < BK7258_CP_IMAGE_RAM_BASE + BK7258_CP_IMAGE_RAM_SIZE,
+           "ERROR: image RAM exceeds its reserved window")
     ASSERT(ORIGIN(RAM) == 0x28010000,
            "ERROR: CP RAM overlaps the official AP spinlock region")
 #ifdef CONFIG_BK7258_RPTUN_LAYOUT
