@@ -1,6 +1,6 @@
 # Current Progress
 
-Last updated: 2026-08-08 16:52 GMT+8
+Last updated: 2026-08-08 20:30 GMT+8
 Updated by: Codex (`maintain-project-memory` checkpoint)
 
 ## Active scope
@@ -68,15 +68,35 @@ It does not prove that BK7258 BootROM consumes the candidate Manifest, and it
 does not provide an immutable hardware root or persistent hardware-backed
 anti-rollback. The board remains recoverable for unfinished driver work.
 
+## AP peripheral wrapper checkpoint
+
+- Reviewed CodeBuddy lower-half candidates were moved into the board-owned AP
+  layer; NuttX and SDK sources remain unchanged.
+- AP-SMP/AP-UP source selection and Kconfig now cover AUD, GPIO expander,
+  I2C, I2S, LCD, microphone capture, RTC, SARADC, SDIO, SDMADC, SPI and timer.
+  AUD and microphone capture are mutually exclusive owners of the AUD ADC.
+- LCD framebuffer storage now comes from the established AP PSRAM heap rather
+  than consuming about 300 KiB of AP SRAM `.bss`.
+- Two AP-SMP compile/link profiles passed: all non-PWM wrappers plus AUD, and
+  all non-PWM wrappers plus microphone capture. Both completed board CRC
+  post-processing. This is compile evidence, not peripheral hardware proof.
+- PWM is intentionally excluded: immutable v3.1.1.9 `libdriver.a` exports no
+  `bk_pwm_*` API required by the candidate. A board-owned register wrapper or
+  a source-verified SDK adaptation is still required.
+
+Canonical detail:
+[AP driver compile verification](verification/2026-08-08-bk7258-ap-drivers.md).
+
 ## Next step
 
-1. Review the published Secure Boot commits and merge them through a PR.
-   Temporary private keys, generated images and raw hardware logs remain
-   outside the commits.
-2. Resume ordinary driver/N17 work on this recoverable baseline. Reintroduce
-   OTA slot policy only through a separately authenticated, fail-closed
-   interface; do not put historical N15/N17 writers back into minimal BL1.
-3. Hardware Secure Boot provisioning is the final gate, after signed OTA and
+1. Merge the compile-gated AP lower halves, then bind and verify one peripheral
+   at a time in board startup or its owning upper-half; do not enable all
+   devices by default.
+2. Implement PWM only after its v3.1.1.9 hardware/API boundary is source
+   verified; do not add missing symbols to the immutable SDK bundle.
+3. Resume N17 OTA policy on the recoverable Secure Boot baseline. Do not put
+   historical N15/N17 writers back into minimal BL1.
+4. Hardware Secure Boot provisioning is the final gate, after signed OTA and
    recovery matrices are stable and preferably on a second board. It requires
    separate authorization before any OTP/eFuse or lifecycle operation.
 
