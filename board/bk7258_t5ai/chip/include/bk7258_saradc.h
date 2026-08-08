@@ -52,7 +52,7 @@
 /* Default /dev/adcN device name. */
 
 #ifndef CONFIG_BK7258_SARADC_DEVNAME
-#  define CONFIG_BK7258_SARADC_DEVNAME   "adc0"
+#  define CONFIG_BK7258_SARADC_DEVNAME   "/dev/adc0"
 #endif
 
 /****************************************************************************

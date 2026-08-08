@@ -931,6 +931,15 @@ config BK7258_GPIO_LOWERHALF
 		at a time; level, both-edge, wakeup and debounce modes are not
 		supported. A validation application is selected separately.
 
+config BK7258_SARADC_SERVER
+	bool "CP SAR ADC mailbox server"
+	default n
+	depends on !BK7258_AP_CORE
+	help
+		Start the official v3.1.1.9 CP ADC driver and SARADC mailbox server.
+		Enable this in the CP image paired with an AP image that enables
+		BK7258_SARADC.
+
 menu "BK7258 AP peripheral wrappers"
 	depends on BK7258_AP_CORE
 
@@ -951,12 +960,13 @@ config BK7258_AUD_DEVNAME
 config BK7258_MIC
 	bool "On-board analog microphone capture"
 	default n
-	depends on !BK7258_AUD && BK7258_PSRAM
+	depends on !BK7258_AUD
 	select AUDIO
 	help
 		Expose the board differential microphone through a NuttX capture
-		audio lower half.  DMA buffers are allocated only after AP PSRAM is
-		ready; this wrapper owns the AUD ADC block while enabled.
+		audio lower half.  The SDK DMA engine targets AP DTCM and the small
+		DMA ring is allocated from the NuttX kernel heap.  This wrapper owns
+		the AUD ADC block while enabled.
 
 config BK7258_MIC_DEVNAME
 	string "Microphone device name"
@@ -1025,6 +1035,24 @@ config BK7258_I2S_GPIO_GROUP
 	range 0 2
 	depends on BK7258_I2S
 
+config BK7258_I2S_WORKER_PRIORITY
+	int "I2S worker priority"
+	default 120
+	range 1 255
+	depends on BK7258_I2S
+
+config BK7258_I2S_WORKER_STACKSIZE
+	int "I2S worker stack size"
+	default 2048
+	range 1024 8192
+	depends on BK7258_I2S
+
+config BK7258_I2S_QUEUE_DEPTH
+	int "Maximum queued I2S transfers"
+	default 8
+	range 1 32
+	depends on BK7258_I2S
+
 config BK7258_LCD
 	bool "ILI9488 RGB LCD lower half"
 	default n
@@ -1047,8 +1075,13 @@ config BK7258_RTC
 config BK7258_SARADC
 	bool "SAR ADC lower half"
 	default n
+	depends on BK7258_AP_CORE
 	select ANALOG
 	select ADC
+	help
+		Expose the AP-side NuttX ADC device.  The matching CP image must
+		enable BK7258_SARADC_SERVER because the v3.1.1.9 bk_adc_* client
+		uses the SDK mailbox service rather than touching SARADC locally.
 
 config BK7258_SARADC_CHAN
 	int "SAR ADC channel"

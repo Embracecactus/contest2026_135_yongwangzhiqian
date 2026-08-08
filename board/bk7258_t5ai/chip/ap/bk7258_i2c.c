@@ -94,6 +94,7 @@ struct bk7258_i2c_priv_s
   uint32_t baud;                  /* Last baud rate applied */
   bool initialized;               /* bk_i2c_init() done for this unit */
   bool driver_init;               /* bk_i2c_driver_init() done */
+  bool registered;                /* /dev/i2cN upper half registered */
 };
 
 /****************************************************************************
@@ -427,25 +428,25 @@ int bk7258_i2c_initialize(void)
 {
   int ret;
 
-  nxmutex_init(&g_bk7258_i2c.lock);
-
-  ret = bk7258_i2c_setup(&g_bk7258_i2c.dev);
-  if (ret < 0)
+  if (g_bk7258_i2c.registered)
     {
-      nxmutex_destroy(&g_bk7258_i2c.lock);
-      return ret;
+      return OK;
     }
 
 #ifdef CONFIG_I2C_DRIVER
+  /* i2c_register() only publishes /dev/i2cN.  Its upper half calls setup()
+   * on the first open and shutdown() on the last close, so registration
+   * must not claim or initialize the hardware eagerly during AP boot.
+   */
+
   ret = i2c_register(&g_bk7258_i2c.dev, CONFIG_BK7258_I2C_BUS);
   if (ret < 0)
     {
-      bk7258_i2c_shutdown(&g_bk7258_i2c.dev);
-      nxmutex_destroy(&g_bk7258_i2c.lock);
       return ret;
     }
 #endif
 
+  g_bk7258_i2c.registered = true;
   return OK;
 }
 

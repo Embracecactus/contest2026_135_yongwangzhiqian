@@ -5,10 +5,8 @@
  *
  * BK7258 (T5-AI) RTC — NuttX rtc_lowerhalf_s wrapper.
  *
- * Wraps the Beken AON RTC driver (bk_rtc_*) as a NuttX RTC lower half.
- * The AON RTC keeps time across low-power states; the SDK anchors it to a
- * boot-time offset (s_boot_time_us) so bk_rtc_gettimeofday() returns epoch
- * seconds + microseconds.
+ * Wraps the Beken AON RTC free-running counter as a NuttX RTC lower half.
+ * Epoch time is represented as an AP-local signed offset from that counter.
  *
  * AP role — the 4 bk_rtc_* symbols live exclusively in the AP libdriver.a
  * (verified with `nm`), so this wrapper is AP-only like I2C/SPI/SDIO.
@@ -19,10 +17,11 @@
  * and use NuttX's struct timeval (include/sys/time.h), which is layout
  * compatible with the SDK's.
  *
- * SDK call mapping:
- *   rdtime()      -> bk_rtc_gettimeofday(&tv, NULL); gmtime_r(&tv.tv_sec)
- *   settime()     -> timegm((struct tm *)rtctime); bk_rtc_settimeofday(&tv)
- *   havesettime() -> local flag (SDK exposes no such query)
+ * The SDK bk_rtc_settimeofday() implementation persists its offset through
+ * EasyFlash.  Flash is CP-owned in this port, so calling that API from AP
+ * would violate the ownership boundary.  This lower half deliberately uses
+ * bk_aon_rtc_get_us() plus an AP-RAM offset and does not persist across an AP
+ * restart.  A future persistent-time service must cross RPMsg to CP.
  ****************************************************************************/
 
 /****************************************************************************
@@ -36,13 +35,10 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
-#include <sys/time.h>
 #include <time.h>
 
 #include <nuttx/timers/rtc.h>
-
-#include <common/bk_err.h>
+#include <nuttx/spinlock.h>
 
 #include <arch/chip/bk7258_rtc.h>
 
@@ -56,9 +52,7 @@
  * The symbols themselves are present in the AP libdriver.a.
  */
 
-extern bk_err_t bk_rtc_gettimeofday(struct timeval *tv, void *ptz);
-extern bk_err_t bk_rtc_settimeofday(const struct timeval *tv,
-                                    const struct timezone *tz);
+extern uint64_t bk_aon_rtc_get_us(void);
 
 /****************************************************************************
  * Private Types
@@ -67,6 +61,8 @@ extern bk_err_t bk_rtc_settimeofday(const struct timeval *tv,
 struct bk7258_rtc_priv_s
 {
   struct rtc_lowerhalf_s dev;   /* NuttX RTC lower-half anchor */
+  spinlock_t lock;              /* protect the 64-bit epoch offset */
+  int64_t epoch_offset_us;      /* epoch usec minus AON counter usec */
   bool settime_called;          /* SDK has no "time set" query */
 };
 
@@ -94,8 +90,56 @@ static const struct rtc_ops_s g_bk7258_rtc_ops =
 static struct bk7258_rtc_priv_s g_bk7258_rtc =
 {
   .dev.ops          = &g_bk7258_rtc_ops,
+  .lock             = SP_UNLOCKED,
+  .epoch_offset_us  = 0,
   .settime_called   = false,
 };
+static bool g_bk7258_rtc_registered;
+
+static int bk7258_rtc_getepoch(FAR struct bk7258_rtc_priv_s *priv,
+                               FAR time_t *seconds)
+{
+  irqstate_t flags;
+  int64_t epoch_us;
+  int64_t offset;
+
+  if (seconds == NULL)
+    {
+      return -EINVAL;
+    }
+
+  flags = spin_lock_irqsave(&priv->lock);
+  offset = priv->epoch_offset_us;
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  epoch_us = (int64_t)bk_aon_rtc_get_us() + offset;
+  if (epoch_us < 0)
+    {
+      return -ERANGE;
+    }
+
+  *seconds = (time_t)(epoch_us / 1000000ll);
+  return OK;
+}
+
+static int bk7258_rtc_setepoch(FAR struct bk7258_rtc_priv_s *priv,
+                               time_t seconds, long nanoseconds)
+{
+  irqstate_t flags;
+  int64_t desired_us;
+
+  if (seconds < 0 || nanoseconds < 0 || nanoseconds >= 1000000000l)
+    {
+      return -EINVAL;
+    }
+
+  desired_us = (int64_t)seconds * 1000000ll + nanoseconds / 1000;
+  flags = spin_lock_irqsave(&priv->lock);
+  priv->epoch_offset_us = desired_us - (int64_t)bk_aon_rtc_get_us();
+  priv->settime_called = true;
+  spin_unlock_irqrestore(&priv->lock, flags);
+  return OK;
+}
 
 /****************************************************************************
  * Private Functions
@@ -111,23 +155,20 @@ static struct bk7258_rtc_priv_s g_bk7258_rtc =
 static int bk7258_rtc_rdtime(FAR struct rtc_lowerhalf_s *lower,
                              FAR struct rtc_time *rtctime)
 {
-  struct timeval tv;
   time_t sec;
-  bk_err_t ret;
+  int ret;
 
   if (rtctime == NULL)
     {
       return -EINVAL;
     }
 
-  memset(&tv, 0, sizeof(tv));
-  ret = bk_rtc_gettimeofday(&tv, NULL);
-  if (ret != BK_OK)
+  ret = bk7258_rtc_getepoch((FAR struct bk7258_rtc_priv_s *)lower,
+                            &sec);
+  if (ret < 0)
     {
-      return -EIO;
+      return ret;
     }
-
-  sec = tv.tv_sec;
 
   /* rtc_time is required to be cast-compatible with struct tm. */
   if (gmtime_r(&sec, (FAR struct tm *)rtctime) == NULL)
@@ -148,9 +189,7 @@ static int bk7258_rtc_rdtime(FAR struct rtc_lowerhalf_s *lower,
 static int bk7258_rtc_settime(FAR struct rtc_lowerhalf_s *lower,
                               FAR const struct rtc_time *rtctime)
 {
-  struct timeval tv;
   time_t sec;
-  bk_err_t ret;
 
   if (rtctime == NULL)
     {
@@ -159,17 +198,8 @@ static int bk7258_rtc_settime(FAR struct rtc_lowerhalf_s *lower,
 
   sec = timegm((FAR struct tm *)(uintptr_t)rtctime);
 
-  tv.tv_sec  = sec;
-  tv.tv_usec = 0;
-
-  ret = bk_rtc_settimeofday(&tv, NULL);
-  if (ret != BK_OK)
-    {
-      return -EIO;
-    }
-
-  ((FAR struct bk7258_rtc_priv_s *)lower)->settime_called = true;
-  return OK;
+  return bk7258_rtc_setepoch((FAR struct bk7258_rtc_priv_s *)lower,
+                             sec, 0);
 }
 
 /****************************************************************************
@@ -190,7 +220,20 @@ static bool bk7258_rtc_havesettime(FAR struct rtc_lowerhalf_s *lower)
 
 int bk7258_rtc_initialize(void)
 {
-  return rtc_initialize(0, &g_bk7258_rtc.dev);
+  int ret;
+
+  if (g_bk7258_rtc_registered)
+    {
+      return OK;
+    }
+
+  ret = rtc_initialize(0, &g_bk7258_rtc.dev);
+  if (ret >= 0)
+    {
+      g_bk7258_rtc_registered = true;
+    }
+
+  return ret;
 }
 
 /* CONFIG_RTC is a system clock source as well as the /dev/rtc upper half.
@@ -205,30 +248,31 @@ int up_rtc_initialize(void)
 
 int up_rtc_getdatetime(FAR struct tm *tp)
 {
-  struct timeval tv;
   time_t sec;
-
-  if (tp == NULL || bk_rtc_gettimeofday(&tv, NULL) != BK_OK)
-    {
-      return -EIO;
-    }
-
-  sec = tv.tv_sec;
-  return gmtime_r(&sec, tp) == NULL ? -EINVAL : OK;
-}
-
-int up_rtc_settime(FAR const struct timespec *tp)
-{
-  struct timeval tv;
+  int ret;
 
   if (tp == NULL)
     {
       return -EINVAL;
     }
 
-  tv.tv_sec = tp->tv_sec;
-  tv.tv_usec = tp->tv_nsec / 1000;
-  return bk_rtc_settimeofday(&tv, NULL) == BK_OK ? OK : -EIO;
+  ret = bk7258_rtc_getepoch(&g_bk7258_rtc, &sec);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return gmtime_r(&sec, tp) == NULL ? -EINVAL : OK;
+}
+
+int up_rtc_settime(FAR const struct timespec *tp)
+{
+  if (tp == NULL)
+    {
+      return -EINVAL;
+    }
+
+  return bk7258_rtc_setepoch(&g_bk7258_rtc, tp->tv_sec, tp->tv_nsec);
 }
 
 #endif /* CONFIG_BK7258_RTC */

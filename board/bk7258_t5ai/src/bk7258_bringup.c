@@ -21,6 +21,10 @@
 #include <errno.h>
 
 #include <arch/board/board.h>
+
+#ifdef CONFIG_BK7258_SARADC_SERVER
+#  include <arch/chip/bk7258_saradc_server.h>
+#endif
 #include <fcntl.h>
 #include <stdint.h>
 #include <string.h>
@@ -181,8 +185,17 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
 int board_app_initialize(uintptr_t arg)
 {
 #if defined(CONFIG_BK7258_AP_CONTROL) || \
+    defined(CONFIG_BK7258_SARADC_SERVER) || \
     (defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE))
   int apret = OK;
+#endif
+
+#ifdef CONFIG_BK7258_SARADC_SERVER
+  apret = bk7258_saradc_server_initialize();
+  if (apret < 0)
+    {
+      _err("bk7258: SARADC server init failed: %d\n", apret);
+    }
 #endif
 
 #if defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE)
@@ -190,7 +203,10 @@ int board_app_initialize(uintptr_t arg)
    * mailbox endpoints before AP starts its vnet proxy.
    */
 
-  apret = bk7258_wifi_controller_initialize();
+  if (apret >= 0)
+    {
+      apret = bk7258_wifi_controller_initialize();
+    }
   if (apret < 0)
     {
       _err("bk7258: Wi-Fi controller init failed: %d\n", apret);

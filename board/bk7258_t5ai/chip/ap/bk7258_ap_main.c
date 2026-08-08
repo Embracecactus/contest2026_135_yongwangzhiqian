@@ -22,6 +22,7 @@
 #include <nuttx/signal.h>
 
 #include <arch/chip/bk7258_amp.h>
+#include <arch/chip/bk7258_peripherals.h>
 
 #ifdef CONFIG_BK7258_PSRAM
 #  include <arch/chip/bk7258_psram.h>
@@ -661,6 +662,18 @@ int bk7258_ap_main(int argc, char *argv[])
       goto parked;
     }
 #endif
+
+  /* Publish AP-owned NuttX character devices only after the transport and
+   * shared radio services are ready.  Registration itself remains lazy:
+   * drivers such as I2C do not touch hardware until their first open.
+   */
+
+  ret = bk7258_peripherals_initialize();
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_PERIPHERALS);
+      goto parked;
+    }
 
   state->error      = BK7258_AP_ERROR_NONE;
   state->last_event = BK7258_AP_EVENT_READY;
