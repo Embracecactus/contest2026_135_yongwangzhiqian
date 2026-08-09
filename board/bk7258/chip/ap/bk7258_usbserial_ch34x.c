@@ -18,23 +18,30 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <sched.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <syslog.h>
+#include <unistd.h>
 
 #include <debug.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/fs/ioctl.h>
+#include <nuttx/kthread.h>
 #include <nuttx/mutex.h>
 #include <nuttx/serial/serial.h>
+#include <nuttx/signal.h>
 #include <nuttx/spinlock.h>
 #include <nuttx/usb/usb.h>
 #include <nuttx/usb/usbhost.h>
 #include <nuttx/wqueue.h>
 
-#include "bk7258_usbserial_ch34x.h"
+#include <arch/chip/bk7258_usbserial_ch34x.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -182,6 +189,9 @@ static int bk7258_ch34x_configure(
 
 static void bk7258_ch34x_rxwork(FAR void *arg);
 static void bk7258_ch34x_txwork(FAR void *arg);
+#ifdef CONFIG_BK7258_USBHOST_CH34X_VALIDATION
+static int bk7258_ch34x_validation_thread(int argc, FAR char *argv[]);
+#endif
 
 /****************************************************************************
  * Private Data
@@ -777,6 +787,83 @@ static void bk7258_ch34x_txwork(FAR void *arg)
   bk7258_ch34x_queue_tx(priv, BK7258_CH34X_XFERDELAY);
 }
 
+#ifdef CONFIG_BK7258_USBHOST_CH34X_VALIDATION
+static int bk7258_ch34x_validation_thread(int argc, FAR char *argv[])
+{
+  static const uint8_t pattern[] = "BK7258-CH34X-LOOP";
+  uint8_t received[sizeof(pattern) - 1];
+  struct pollfd pfd;
+  size_t offset = 0;
+  ssize_t nbytes;
+  int fd;
+  int ret;
+
+  (void)argc;
+  (void)argv;
+  nxsig_usleep(300 * 1000);
+
+  fd = open(BK7258_CH34X_DEVNAME, O_RDWR | O_NONBLOCK);
+  if (fd < 0)
+    {
+      syslog(LOG_ERR, "bk7258-ch34x: open failed: %d\n", errno);
+      return -errno;
+    }
+
+  nbytes = write(fd, pattern, sizeof(pattern) - 1);
+  if (nbytes != sizeof(pattern) - 1)
+    {
+      syslog(LOG_ERR, "bk7258-ch34x: TX failed: %d/%ld\n",
+             errno, (long)nbytes);
+      close(fd);
+      return nbytes < 0 ? -errno : -EIO;
+    }
+
+  syslog(LOG_INFO, "bk7258-ch34x: TX PASS bytes=%u\n",
+         (unsigned int)(sizeof(pattern) - 1));
+
+  pfd.fd = fd;
+  pfd.events = POLLIN;
+  while (offset < sizeof(received))
+    {
+      pfd.revents = 0;
+      ret = poll(&pfd, 1, 10000);
+      if (ret <= 0)
+        {
+          syslog(LOG_ERR, "bk7258-ch34x: RX timeout/error: %d\n",
+                 ret < 0 ? errno : ETIMEDOUT);
+          close(fd);
+          return ret < 0 ? -errno : -ETIMEDOUT;
+        }
+
+      nbytes = read(fd, received + offset, sizeof(received) - offset);
+      if (nbytes < 0)
+        {
+          if (errno == EAGAIN)
+            {
+              continue;
+            }
+
+          syslog(LOG_ERR, "bk7258-ch34x: RX failed: %d\n", errno);
+          close(fd);
+          return -errno;
+        }
+
+      offset += nbytes;
+    }
+
+  close(fd);
+  if (memcmp(pattern, received, sizeof(received)) != 0)
+    {
+      syslog(LOG_ERR, "bk7258-ch34x: loopback mismatch\n");
+      return -EIO;
+    }
+
+  syslog(LOG_INFO, "bk7258-ch34x: LOOPBACK PASS bytes=%u\n",
+         (unsigned int)sizeof(received));
+  return OK;
+}
+#endif
+
 static FAR struct usbhost_class_s *bk7258_ch34x_create(
   FAR struct usbhost_hubport_s *hport,
   FAR const struct usbhost_id_s *id)
@@ -844,13 +931,26 @@ static int bk7258_ch34x_connect(FAR struct usbhost_class_s *usbclass,
   priv->crefs++;
   spin_unlock_irqrestore(&g_bk7258_ch34x_alloc_lock, flags);
   ret = bk7258_ch34x_cfgdesc(priv, configdesc, desclen);
+  if (ret < 0)
+    {
+      uerr("CH34x descriptor/endpoint setup failed: %d\n", ret);
+    }
+
   if (ret >= 0)
     {
       ret = bk7258_ch34x_alloc_buffers(priv);
+      if (ret < 0)
+        {
+          uerr("CH34x transfer-buffer allocation failed: %d\n", ret);
+        }
     }
   if (ret >= 0)
     {
       ret = bk7258_ch34x_configure(priv);
+      if (ret < 0)
+        {
+          uerr("CH34x device configuration failed: %d\n", ret);
+        }
     }
   if (ret >= 0)
     {
@@ -864,6 +964,11 @@ static int bk7258_ch34x_connect(FAR struct usbhost_class_s *usbclass,
       if (ret >= 0)
         {
           ret = uart_register(BK7258_CH34X_DEVNAME, &priv->uartdev);
+          if (ret < 0)
+            {
+              uerr("CH34x UART registration failed: %d\n", ret);
+            }
+
           if (ret >= 0)
             {
               priv->registered = true;
@@ -871,6 +976,19 @@ static int bk7258_ch34x_connect(FAR struct usbhost_class_s *usbclass,
                     BK7258_CH34X_DEVNAME, priv->version);
 #ifdef CONFIG_SERIAL_REMOVABLE
               uart_connected(&priv->uartdev, true);
+#endif
+#ifdef CONFIG_BK7258_USBHOST_CH34X_VALIDATION
+              ret = kthread_create("bk7258-ch34x", SCHED_PRIORITY_DEFAULT,
+                                   2048, bk7258_ch34x_validation_thread,
+                                   NULL);
+              if (ret < 0)
+                {
+                  uerr("CH34x validation worker failed: %d\n", ret);
+                }
+              else
+                {
+                  ret = OK;
+                }
 #endif
             }
         }
