@@ -12,7 +12,7 @@ Capture tooling: `board/bk7258_t5ai/scripts/bk7258_auto_debug.sh`
 
 Board-level verification of the AP peripheral wrappers that reached the
 compile/link gate in `2026-08-09-bk7258-ap-lowerhalf-bindings.md`:
-AUD, GPIOE, I2C, I2S, LCD, RTC, SARADC, SDIO, SDMADC, SPI, timer.
+AUD, GPIOE, I2C, I2S, LCD, RTC, SARADC, SDIO, SDMADC, SPI, timer and TRNG.
 Microphone capture is config-excluded (AUD owns the AUD ADC).
 
 ## AP health at capture time
@@ -205,6 +205,23 @@ character device.  Hardware transfer tests must therefore use one
 pin-compatible peripheral profile at a time.  Remaining busy/DMA messages in
 the all-driver boot log are profile resource conflicts, not an AP boot
 failure.
+
+## TRNG hardware random-device proof
+
+The AP drivercheck profile enables `BK7258_TRNG`, which selects NuttX
+`ARCH_HAVE_RNG` and `DEV_RANDOM`.  Link-map evidence shows
+`devrandom_register()` coming from the board wrapper and `bk_fill_rand()` /
+`bk_trng_driver_init()` coming from the immutable v3.1.1.9 AP
+`libdriver.a`.
+
+A temporary fail-closed bring-up probe opened the standard `/dev/random`
+node, read two 32-byte samples and rejected short reads or identical samples.
+The AP published `READY(2), error=0` only after both reads passed; capture:
+`logs/jlink/trng_probe_status.bin`.  The probe was then removed from source,
+the clean CP/AP MCUboot package was rebuilt and sparse-flashed, and permanent
+telemetry again reported AP READY, CPU2 SECONDARY_READY and AP IPI READY:
+`logs/jlink/trng_clean_status.bin` and
+`logs/bk7258-auto-debug/20260809-101729`.
 
 ## Final cleaned-image proof
 
