@@ -131,6 +131,8 @@
  * compatibility entry points.
  */
 
+#define BK7258_EVENT_TASK_STACKSIZE   3072u
+
 
 #ifndef CONFIG_BK7258_AP_CORE
 /* The official CP SDK profile prints on UART0, while this board's NuttX
@@ -375,7 +377,7 @@ static void bk7258_os_delay_ms(uint32_t milliseconds)
    */
 
   if (!OSINIT_IDLELOOP() ||
-      nxsched_getpid() == IDLE_PROCESS_ID ||
+      nxsched_gettid() == IDLE_PROCESS_ID ||
       up_interrupt_context())
     {
       up_mdelay(milliseconds);
@@ -853,6 +855,77 @@ bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
   return BK_OK;
 }
 
+bk_err_t rtos_create_thread_static(beken_thread_t *thread, uint8_t priority,
+                                   const char *name,
+                                   beken_thread_function_t function,
+                                   uint32_t stack_size,
+                                   beken_thread_arg_t arg,
+                                   void * const task_stack_buffer,
+                                   void * const task_tcb_buffer,
+                                   uint32_t core_id)
+{
+  bk_err_t ret;
+
+  /* StaticTask_t and StackType_t are FreeRTOS-private storage types.  NuttX
+   * owns its TCB and stack allocation, so the compatibility ABI intentionally
+   * ignores those buffers while preserving the SDK-requested stack size.
+   */
+
+  (void)task_stack_buffer;
+  (void)task_tcb_buffer;
+
+  ret = rtos_create_thread(thread, priority, name, function, stack_size, arg);
+  if (ret != BK_OK)
+    {
+      return ret;
+    }
+
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
+  if (thread != NULL && core_id < CONFIG_SMP_NCPUS)
+    {
+      cpu_set_t cpuset = (cpu_set_t)1u << core_id;
+      pid_t pid = (pid_t)(uintptr_t)*thread;
+
+      if (sched_setaffinity(pid, sizeof(cpuset), &cpuset) < 0)
+        {
+          task_delete(pid);
+          *thread = NULL;
+          return BK_FAIL;
+        }
+    }
+#else
+  (void)core_id;
+#endif
+
+  return BK_OK;
+}
+
+#ifdef CONFIG_BK7258_AP_CORE
+void rtos_get_event_task_memory(void **task_tcb_buffer,
+                                void **task_stack_buffer,
+                                uint32_t *stack_size)
+{
+  /* See rtos_create_thread_static(): the two FreeRTOS storage pointers are
+   * ABI placeholders only; the size remains the official AP v3.1.1.9 value.
+   */
+
+  if (task_tcb_buffer != NULL)
+    {
+      *task_tcb_buffer = NULL;
+    }
+
+  if (task_stack_buffer != NULL)
+    {
+      *task_stack_buffer = NULL;
+    }
+
+  if (stack_size != NULL)
+    {
+      *stack_size = BK7258_EVENT_TASK_STACKSIZE;
+    }
+}
+#endif
+
 bk_err_t rtos_smp_create_thread(beken_thread_t *thread, uint8_t priority,
                                 const char *name,
                                 beken_thread_function_t function,
@@ -922,7 +995,7 @@ bk_err_t rtos_thread_set_priority(beken_thread_t *thread, int priority)
   struct sched_param param;
   pid_t pid;
 
-  pid = thread ? (pid_t)(uintptr_t)*thread : nxsched_getpid();
+  pid = thread ? (pid_t)(uintptr_t)*thread : nxsched_gettid();
   param.sched_priority = SCHED_PRIORITY_DEFAULT + 2 - priority;
 
   return sched_setparam(pid, &param) == OK ? BK_OK : BK_FAIL;
@@ -944,14 +1017,14 @@ bk_err_t rtos_delete_thread(beken_thread_t *thread)
 
 bool rtos_is_current_thread(beken_thread_t *thread)
 {
-  pid_t pid = nxsched_getpid();
+  pid_t tid = nxsched_gettid();
 
-  return (pid == (pid_t)((uintptr_t)*thread));
+  return thread != NULL && tid == (pid_t)(uintptr_t)*thread;
 }
 
 beken_thread_t *rtos_get_current_thread(void)
 {
-  return (beken_thread_t *)(uintptr_t)nxsched_getpid();
+  return (beken_thread_t *)(uintptr_t)nxsched_gettid();
 }
 
 bk_err_t rtos_thread_join(beken_thread_t *thread)
@@ -1047,7 +1120,7 @@ bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
   if (max_count == 1 && init_count == 1 &&
       __atomic_load_n(&g_bk7258_bt_ipc_init_scope, __ATOMIC_ACQUIRE) &&
       __atomic_load_n(&g_bk7258_bt_ipc_init_pid, __ATOMIC_RELAXED) ==
-        nxsched_getpid() &&
+        nxsched_gettid() &&
       __atomic_compare_exchange_n(&g_bk7258_bt_ipc_send_sem_active,
                                   &expected, true, false,
                                   __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
@@ -1172,7 +1245,7 @@ bk_err_t rtos_deinit_semaphore(beken_semaphore_t *semaphore)
 #ifdef CONFIG_BK7258_BT_IPC
 void bk7258_os_bt_ipc_init_begin(void)
 {
-  __atomic_store_n(&g_bk7258_bt_ipc_init_pid, nxsched_getpid(),
+  __atomic_store_n(&g_bk7258_bt_ipc_init_pid, nxsched_gettid(),
                    __ATOMIC_RELAXED);
   __atomic_store_n(&g_bk7258_bt_ipc_init_scope, true, __ATOMIC_RELEASE);
 }
@@ -2062,7 +2135,7 @@ void *__wrap_malloc(size_t size)
   if (mem != NULL &&
       __atomic_load_n(&g_bk7258_wifi_zero_malloc, __ATOMIC_ACQUIRE) &&
       __atomic_load_n(&g_bk7258_wifi_malloc_owner_pid,
-                      __ATOMIC_RELAXED) == nxsched_getpid())
+                      __ATOMIC_RELAXED) == nxsched_gettid())
     {
       memset(mem, 0, size);
     }
@@ -2072,7 +2145,7 @@ void *__wrap_malloc(size_t size)
 
 void bk7258_os_wifi_malloc_zero_begin(void)
 {
-  __atomic_store_n(&g_bk7258_wifi_malloc_owner_pid, nxsched_getpid(),
+  __atomic_store_n(&g_bk7258_wifi_malloc_owner_pid, nxsched_gettid(),
                    __ATOMIC_RELAXED);
   __atomic_store_n(&g_bk7258_wifi_zero_malloc, true, __ATOMIC_RELEASE);
 }

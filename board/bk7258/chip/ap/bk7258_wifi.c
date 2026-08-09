@@ -31,6 +31,8 @@
 #include <nuttx/spinlock.h>
 #include <nuttx/wqueue.h>
 
+#include <components/event.h>
+
 #ifdef CONFIG_NET_PKT
 #  include <nuttx/net/pkt.h>
 #endif
@@ -677,6 +679,18 @@ int bk7258_wifi_initialize(void)
 {
   uint8_t mac[BK7258_WIFI_WDRV_MAC_LENGTH];
   int ret;
+
+  /* The official v3.1.1.9 AP startup initializes the event service before
+   * Wi-Fi.  The vnet archive deliberately omits that top-level startup step,
+   * so provide it here before any link event can be posted.  bk_event_init()
+   * is idempotent for sequential callers.
+   */
+
+  ret = bk_event_init();
+  if (ret != 0)
+    {
+      return ret < 0 ? ret : -EIO;
+    }
 
   ret = bk_wifi_init();
   if (ret != 0)

@@ -132,7 +132,7 @@ bool bk7258_flash_guard_write_authorized(uint32_t addr, uint32_t size)
 
   owner = g_bk7258_flash_guard_owner;
   return !up_interrupt_context() &&
-         g_bk7258_flash_guard_pid == nxsched_getpid() &&
+         g_bk7258_flash_guard_pid == nxsched_gettid() &&
          bk7258_flash_guard_range(owner, addr, size);
 }
 
@@ -156,7 +156,7 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
    * this same-task, same-owner nesting; other tasks still block on mutex.
    */
 
-  if (g_bk7258_flash_guard_pid == nxsched_getpid() &&
+  if (g_bk7258_flash_guard_pid == nxsched_gettid() &&
       g_bk7258_flash_guard_owner == owner &&
       g_bk7258_flash_guard_depth != 0)
     {
@@ -202,7 +202,7 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
 
   g_bk7258_flash_guard_owner = write_access ? owner :
                                BK7258_FLASH_GUARD_NONE;
-  g_bk7258_flash_guard_pid = nxsched_getpid();
+  g_bk7258_flash_guard_pid = nxsched_gettid();
   g_bk7258_flash_guard_depth = 1;
   __asm volatile ("dmb sy" ::: "memory");
   return OK;
@@ -210,7 +210,7 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
 
 void bk7258_flash_guard_unlock(void)
 {
-  DEBUGASSERT(g_bk7258_flash_guard_pid == nxsched_getpid());
+  DEBUGASSERT(g_bk7258_flash_guard_pid == nxsched_gettid());
 
   DEBUGASSERT(g_bk7258_flash_guard_depth != 0);
   if (g_bk7258_flash_guard_depth > 1)
