@@ -1,6 +1,6 @@
 # Project Rules
 
-Last reviewed: 2026-08-08
+Last reviewed: 2026-08-09
 
 ## Domain invariants
 
@@ -33,6 +33,12 @@ Last reviewed: 2026-08-08
 
 - Temporary diagnostic edits to official trees are allowed only for debugging and must be removed before a checkpoint.
 - Do not commit, push, open a PR, flash a destructive factory image, or mutate external repositories unless the user grants the corresponding authority.
+- The owner grants the primary agent standing authority for bounded,
+  recoverable hardware validation: accepted-layout sparse firmware updates,
+  UART capture/commands, read-only J-Link inspection, and normal hardware
+  reset may run without asking again.  This does not authorize chip/factory
+  erase, layout migration, calibration/LittleFS destruction, OTP/eFuse or
+  security-lifecycle writes, debug locking, or any other irreversible action.
 - Preserve unrelated dirty or untracked work. Resolve exact targets before any destructive operation.
 - The owner-authorized one-time N15 layout migration and LittleFS reset was
   consumed successfully on 2026-08-03. It did not authorize chip erase or

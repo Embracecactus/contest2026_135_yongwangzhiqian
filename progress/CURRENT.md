@@ -1,7 +1,7 @@
 # Current Progress
 
 Last updated: 2026-08-09 GMT+8
-Updated by: Qoder (takeover of codex session 019fb3ff)
+Updated by: Codex
 
 ## Active scope
 
@@ -34,8 +34,8 @@ treated as BK7258 facts. NuttX and SDK source trees remain unchanged.
 
 Artifact SHA-256:
 
-- `bl_crc.bin`: `bcd112a3135b6123a646945d87d5e52481b55ae5af68021714b4d37e3dd4fb64`
-- `all-app-factory.bin`: `70d91d8dd863febe8647c50659381a86c8e30aacb5496d5c3dccc378e10b171f`
+- `bl_crc.bin`: `64dd6e4ab75801d97c4e297a576bb98dd01196483dd5c377e57105e8bed44fcb`
+- `all-app-factory.bin`: `cafafea8947eb974d5ecc59faae4bfb7ac7d4b7245c8402dc11cade0ad570464`
 - `bl2_crc.bin`: `535571b677f0ced7d2c8a49b2495fbc0b2778657dfab50cb732c56a106204f17`
 
 ## Verification
@@ -131,10 +131,14 @@ Root causes fixed and board-verified this pass:
 6. GPIO/bus conflicts: the GPIOE integration no longer auto-registers and
    configures GPIO0..15.  Consumers must explicitly claim each pin; I2C,
    I2S, SPI, SDIO and LCD hardware tests use pin-compatible profiles.
+7. TRNG: the standard NuttX `/dev/random` path is backed by the AP-owned
+   v3.1.1.9 `bk_fill_rand()` implementation.  A temporary fail-closed probe
+   read two independent 32-byte samples and AP reached READY; the probe was
+   then removed and the clean image was rebuilt, reflashed and rechecked.
 
 All temporary shared-SRAM/device-list/allocation probes and temporary
 `apctl` debug commands have been removed.  The final 32-job MCUboot build and
-sparse flash passed (`logs/bk7258-auto-debug/20260809-095035`); permanent
+sparse flash passed (`logs/bk7258-auto-debug/20260809-101729`); permanent
 `apctl status` telemetry shows AP READY, CPU2 SECONDARY_READY and AP IPI READY
 with zero loss/failure.  RPTUN remains CONNECTING in this drivercheck profile.
 
@@ -143,9 +147,9 @@ Canonical detail:
 
 ## Next step
 
-1. Continue the isolated background driver queue (TRNG accepted; QSPI next),
-   with one reviewed commit per driver and no hardware access from the child
-   Agent.
+1. Continue the isolated background driver queue (TRNG integrated and
+   hardware-verified; QSPI in progress), with one reviewed commit per driver
+   and no hardware access from the child Agent.
 2. Hardware-verify existing peripherals one at a time using pin-compatible
    profiles (SD card detect, I2S clocking, LCD pixels, SPI chip select); do
    not enable conflicting devices by default in shipped configs.
