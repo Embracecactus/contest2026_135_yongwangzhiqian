@@ -1,5 +1,5 @@
 > **事实截止日期**：2026-08-04
-> **权威来源**：[移植报告](../porting-report.md)、[逆向综合](../bootloader/full-reverse-synthesis.md)、[Tier-1 README](../../../board/bk7258_t5ai/bootloader/README.md)、[打包器源码](../../../board/bk7258_t5ai/bootloader/bk7236_pack_min_bootloader.py)
+> **权威来源**：[移植报告](../porting-report.md)、[逆向综合](../bootloader/full-reverse-synthesis.md)、[Tier-1 README](../../../board/bk7258/bootloader/README.md)、[打包器源码](../../../board/bk7258/bootloader/bk7236_pack_min_bootloader.py)
 > **证据边界**：本章解释已验证的 raw NuttX 启动契约、team-owned Tier-1 与 32+2 CRC；不声称复刻官方 bootloader 的全部 OTA、分区和安全功能。动态状态见[第 11 章](11-current-status-and-next-steps.md)。
 
 # 03 Tier-1 Bootloader 与 32+2 CRC
@@ -50,11 +50,11 @@ flowchart TD
 
 | 文件 | 职责 |
 |---|---|
-| [start.S](../../../board/bk7258_t5ai/bootloader/start.S) | 向量、boot magic、最早 reset 路径和最终汇编 handoff |
-| [boot_runtime.c](../../../board/bk7258_t5ai/bootloader/boot_runtime.c) | clean-room 重建的 cache/MPU/core-power 规范化 |
-| [boot_main.c](../../../board/bk7258_t5ai/bootloader/boot_main.c) | 查分区、读 MSP/reset/magic、打印有界日志 |
-| [bootloader.ld](../../../board/bk7258_t5ai/bootloader/bootloader.ld) | 固定 logical Flash/RAM 链接布局 |
-| [bk7236_pack_min_bootloader.py](../../../board/bk7258_t5ai/bootloader/bk7236_pack_min_bootloader.py) | 把 logical binary 变为带 CRC 的 physical binary |
+| [start.S](../../../board/bk7258/bootloader/start.S) | 向量、boot magic、最早 reset 路径和最终汇编 handoff |
+| [boot_runtime.c](../../../board/bk7258/bootloader/boot_runtime.c) | clean-room 重建的 cache/MPU/core-power 规范化 |
+| [boot_main.c](../../../board/bk7258/bootloader/boot_main.c) | 查分区、读 MSP/reset/magic、打印有界日志 |
+| [bootloader.ld](../../../board/bk7258/bootloader/bootloader.ld) | 固定 logical Flash/RAM 链接布局 |
+| [bk7236_pack_min_bootloader.py](../../../board/bk7258/bootloader/bk7236_pack_min_bootloader.py) | 把 logical binary 变为带 CRC 的 physical binary |
 
 当前 Tier-1 后来又增加了受 gate 保护的 N15 A/B 选择逻辑，但基础 handoff 契约没有改变；OTA 部分在第 09 章单独解释。
 
@@ -129,7 +129,7 @@ for off in range(0, len(data), CRC_PACKET):
 这些命令只构建/检查，不会操作开发板：
 
 ```bash
-cd board/bk7258_t5ai/bootloader
+cd board/bk7258/bootloader
 make
 make verify
 ```

@@ -1,6 +1,6 @@
 # Project Memory Index
 
-Last reviewed: 2026-08-08
+Last reviewed: 2026-08-09
 
 Read `../progress/CURRENT.md` after this file, then load only the documents relevant to the active task.
 
@@ -33,6 +33,7 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 - [ADR-020](decisions/ADR-020-mcuboot-cp-ap-same-generation-binding.md): bind CP/AP image versions and protected security counters within one launchable generation.
 - [ADR-021](decisions/ADR-021-mcuboot-version-aware-cp-ap-selection.md): let upstream MCUboot order both slots first, then enforce the board-owned same-slot CP/AP launch gate and isolate-slot fallback.
 - [ADR-022](decisions/ADR-022-bk7258-secureboot-bk7236-semantic-port.md): use BK7236 Secure Boot as a read-only semantic reference for the active BK7258 BL1/BL2 port, while keeping BK7258-specific ABI unknowns and OTP/eFuse operations gated.
+- [ADR-023](decisions/ADR-023-bk7258-platform-board-variants.md): keep one generic BK7258 platform root and select T5AI-Core or T5-Board wiring as physical-board variants, with Core as the compatibility default.
 
 ## Superseded decisions
 

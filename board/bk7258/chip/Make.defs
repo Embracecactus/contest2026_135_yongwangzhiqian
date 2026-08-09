@@ -1,0 +1,432 @@
+############################################################################
+# contest2026_135_yongwangzhiqian/board/bk7258/chip/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Beken BK7258 (Cortex-M33) custom chip definitions for NuttX.
+#
+# The chip port has one root build entry and three implementation groups:
+#
+#   common/  sources used by both CP and the N7 AP-UP baseline
+#   cp/      CPU0/CP-only startup, peripherals and SDK integration
+#   ap/      physical CPU1 AP-UP startup and main path
+#
+# AP-SMP uses a separate source group without duplicating the root Kconfig,
+# Make.defs or public include directory.
+############################################################################
+
+include armv8-m/Make.defs
+include $(BOARD_DIR)$(DELIM)bk_idk$(DELIM)sdk-bundles.mk
+
+# The arch Makefile already adds chip/ itself.  Add the role subdirectories for
+# source lookup and chip-private quoted includes.
+
+VPATH += chip$(DELIM)common
+VPATH += chip$(DELIM)cp
+VPATH += chip$(DELIM)ap
+VPATH += $(BOARD_DIR)$(DELIM)bootloader$(DELIM)bl2
+VPATH += armv8-m
+
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)common
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)cp
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)ap
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)armv8-m
+
+# Upstream moved the Cortex-M headers (exc_return.h, ram_vectors.h,
+# systick.h) to arm_m/ but armv8-m/Make.defs only extends VPATH, which
+# governs source lookup and not quoted #include resolution.  Add the
+# directory explicitly so a clean (post-distclean) dependency pass finds
+# them.
+
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)arm_m
+
+# Beken SDK headers are kept separate for each firmware role.
+
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+BK7258_SDK_ROLE := ap
+else
+BK7258_SDK_ROLE := cp
+endif
+
+BK7258_SDK_ROLE_DIR := $(BK7258_SDK_BUNDLE_ROOT)$(DELIM)$(BK7258_SDK_ROLE)
+
+ifeq ($(wildcard $(BK7258_SDK_ROLE_DIR)$(DELIM)include),)
+$(error BK7258 $(BK7258_SDK_ROLE) SDK bundle '$(BK7258_SDK_BUNDLE_VERSION)' is missing: $(BK7258_SDK_ROLE_DIR))
+endif
+
+INCLUDES += ${INCDIR_PREFIX}$(BK7258_SDK_ROLE_DIR)$(DELIM)include
+INCLUDES += ${INCDIR_PREFIX}$(BK7258_SDK_ROLE_DIR)$(DELIM)config
+
+# Shared N7 sources.  lowputc/serial remain shared in this structural-only
+# move: the current AP ELF still exports arm_lowputc()/up_putc(), so making
+# them CP-only would change the verified AP baseline.
+
+BK7258_COMMON_CSRCS  = bk7258_lowputc.c
+BK7258_COMMON_CSRCS += bk7258_serial.c
+BK7258_COMMON_CSRCS += bk7258_irq.c
+BK7258_COMMON_CSRCS += bk7258_timerisr.c
+BK7258_COMMON_CSRCS += bk7258_allocateheap.c
+BK7258_COMMON_CSRCS += bk7258_os_adapt.c
+BK7258_COMMON_CSRCS += bk7258_sdk_stubs.c
+
+# CPU0/CP sources.  Preserve the pre-refactor source order so archive/link
+# ordering and vector handler addresses remain unchanged.
+
+BK7258_CP_CSRCS  = bk7258_vectors.c
+BK7258_CP_CSRCS += bk7258_start.c
+BK7258_CP_CSRCS += $(BK7258_COMMON_CSRCS)
+BK7258_CP_CSRCS += bk7258_sdk_partition.c
+
+ifeq ($(CONFIG_BK7258_SDK_IPC_RUNTIME),y)
+BK7258_CP_CSRCS += bk7258_sdk_runtime.c
+endif
+
+# Keep the official v3.1.1.9 archives immutable while replacing their
+# build-time partition table with the repository-generated CSV ABI.
+
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=bk_flash_partition_get_info
+LDFLAGS += --wrap=bk_flash_partition_read
+LDFLAGS += --wrap=bk_flash_partition_write
+LDFLAGS += --wrap=bk_flash_partition_erase
+LDFLAGS += --wrap=bk_flash_partition_write_perm_check_by_addr
+endif
+
+ifeq ($(CONFIG_BK7258_PSRAM),y)
+BK7258_CP_CSRCS += bk7258_psram.c
+endif
+
+ifeq ($(CONFIG_BK7258_AP_CONTROL),y)
+BK7258_CP_CSRCS += bk7258_ap_control.c
+endif
+
+ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
+BK7258_CP_CSRCS += bk7258_ap_supervisor.c
+endif
+
+ifneq ($(filter y,$(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
+BK7258_CP_CSRCS += bk7258_bt_controller.c
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+BK7258_CP_CSRCS += bk7258_wifi_control.c
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=malloc
+endif
+endif
+
+ifeq ($(CONFIG_BK7258_BT_IPC),y)
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=bk_bluetooth_init --wrap=bk_bluetooth_deinit
+endif
+endif
+
+ifeq ($(CONFIG_BK7258_RPTUN_MBOX),y)
+BK7258_CP_CSRCS += bk7258_rptun_mbox.c
+endif
+
+ifeq ($(CONFIG_BK7258_RPTUN),y)
+BK7258_CP_CSRCS += bk7258_rptun.c
+ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
+BK7258_CP_CSRCS += bk7258_rpmsg_health.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
+BK7258_CP_CSRCS += bk7258_rpmsg_test.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSGFS_TEST),y)
+BK7258_CP_CSRCS += bk7258_rpmsgfs_test.c
+endif
+ifeq ($(CONFIG_BK7258_BT_IPC_TEST),y)
+BK7258_CP_CSRCS += bk7258_bt_test.c
+endif
+endif
+
+# Stage B: replace the SDK private CM33 callback table with NuttX irq_attach()
+# ownership for SDK interrupt sources 0..63.  The implementation lives in
+# common/; this gate activates it for the CP image.
+
+ifeq ($(CONFIG_BK7258_SDK_IRQ_BRIDGE),y)
+BK7258_CP_CSRCS += bk7258_sdk_irq.c
+endif
+
+ifeq ($(CONFIG_BK7258_SDK_IRQ_TIMER_TEST),y)
+BK7258_CP_CSRCS += bk7258_sdk_irq_timer_test.c
+endif
+
+ifeq ($(CONFIG_BK7258_SDK_TIMER_SELFTEST),y)
+BK7258_CP_CSRCS += bk7258_sdk_timer_selftest.c
+endif
+
+ifeq ($(CONFIG_BK7258_GPIO_FOUNDATION_TEST),y)
+BK7258_CP_CSRCS += bk7258_gpio_foundation_test.c
+endif
+
+ifeq ($(CONFIG_BK7258_GPIO_IRQ_TEST),y)
+BK7258_CP_CSRCS += bk7258_gpio_irq_test.c
+endif
+
+ifeq ($(CONFIG_BK7258_GPIO_LOWERHALF),y)
+BK7258_CP_CSRCS += bk7258_gpio_cp_irq.c
+BK7258_CP_CSRCS += bk7258_gpio_lowerhalf.c
+endif
+
+# Stage N5-D6-A: on-chip flash data-partition MTD.  Default off so normal
+# firmware is unchanged.
+
+ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
+BK7258_CP_CSRCS += bk7258_flash_mtd.c
+BK7258_CP_CSRCS += bk7258_flash_guard.c
+endif
+
+# NuttX MCUboot BL2 reaches the selected Direct-XIP image through the board
+# handoff hook.  Keep this adapter in the board port: neither NuttX nor the
+# immutable Beken SDK is changed.
+
+ifeq ($(CONFIG_MCUBOOT_BOOTLOADER),y)
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_boot.c
+# The upstream NuttX MCUboot application deliberately leaves the signing
+# algorithm and platform key to each board port.  Keep that glue here rather
+# than carrying a local change to apps/ or MCUboot itself.  The public key
+# below is MCUboot's published development key; production must replace only
+# this board-owned public-key translation unit with the project release key.
+INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
+CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
+INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
+CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_ecdsa.c
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_ecc.c
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_ecc_dsa.c
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_asn1.c
+BK7258_CP_CSRCS += bk7258_bl2_mcuboot_keys.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA_STAGING),y)
+BK7258_CP_CSRCS += bk7258_ota_staging_core.c
+BK7258_CP_CSRCS += bk7258_ota_staging.c
+BK7258_CP_CSRCS += bk7258_ota_n17_auth.c
+BK7258_CP_CSRCS += bk7258_ota_n17_release_keys.c
+BK7258_CP_CSRCS += bk7258_ota_n17_journal_core.c
+BK7258_CP_CSRCS += bk7258_ota_n17_publish.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA_TRIAL),y)
+BK7258_CP_CSRCS += bk7258_ota_trial_core_select.c
+BK7258_CP_CSRCS += bk7258_ota_trial_core_rotation.c
+BK7258_CP_CSRCS += bk7258_ota_trial_core_publish.c
+BK7258_CP_CSRCS += bk7258_ota_trial_core_control.c
+BK7258_CP_CSRCS += bk7258_ota_trial_core_health.c
+BK7258_CP_CSRCS += bk7258_ota_trial.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA_FAULT_INJECTION),y)
+BK7258_CP_CSRCS += bk7258_ota_fault_core.c
+BK7258_CP_CSRCS += bk7258_ota_fault.c
+endif
+
+# Stage N4-D1: deterministic 320 MHz CPU0 clock bring-up.
+
+ifeq ($(CONFIG_BK7258_CLOCK_320M),y)
+BK7258_CP_CSRCS += bk7258_clock.c
+endif
+
+# Compile the common Cortex-M SysTick lower half (arm_systick.c, which
+# provides systick_initialize() used by bk7258_timerisr.c).  The shared
+# arm_m/Make.defs gates this on CONFIG_ARM_M_SYSTICK, a symbol no Kconfig
+# ever defines (a latent typo -- the real symbol is CONFIG_ARM_SYSTICK,
+# which CONFIG_ARMV8M_SYSTICK selects).  VPATH already lists arm_m/, so
+# referencing the file by basename resolves to arch/arm/src/arm_m/arm_systick.c
+# without touching the upstream tree.
+
+ifeq ($(CONFIG_ARM_SYSTICK),y)
+BK7258_CP_CSRCS += arm_systick.c
+endif
+
+# Stage N4-D2: BK7258 DVFS lower half and optional procfs control.
+
+ifeq ($(CONFIG_BK7258_DVFS),y)
+BK7258_CP_CSRCS += bk7258_dvfs.c
+endif
+
+ifeq ($(CONFIG_BK7258_DVFS_PROCFS),y)
+BK7258_CP_CSRCS += bk7258_dvfs_procfs.c
+endif
+
+# Stage B2: APB watchdog lower-half driver.  Takes over the bootloader's WDT
+# after boot and registers /dev/watchdog0.  Default y.
+
+ifeq ($(CONFIG_BK7258_WDT),y)
+BK7258_CP_CSRCS += bk7258_wdt.c
+endif
+
+ifeq ($(CONFIG_BK7258_SARADC_SERVER),y)
+BK7258_CP_CSRCS += bk7258_saradc_server.c
+endif
+
+ifeq ($(CONFIG_BK7258_TOUCH),y)
+BK7258_CP_CSRCS += bk7258_touch.c
+endif
+
+# Physical CPU1 runs the independently linked AP image.  Keep AP-UP and AP-SMP
+# source selection explicit so the board-verified N8-A probe remains an exact
+# fallback while N8-B1 replaces only the CPU2 implementation.
+
+BK7258_AP_BASE_CSRCS  = bk7258_ap_vectors.c
+BK7258_AP_BASE_CSRCS += bk7258_ap_start.c
+BK7258_AP_BASE_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
+BK7258_AP_BASE_CSRCS += bk7258_ap_main.c
+BK7258_AP_BASE_CSRCS += bk7258_peripherals.c
+
+ifeq ($(CONFIG_BK7258_SDK_IPC_RUNTIME),y)
+BK7258_AP_BASE_CSRCS += bk7258_sdk_runtime.c
+endif
+
+ifeq ($(CONFIG_BK7258_PSRAM),y)
+BK7258_AP_BASE_CSRCS += bk7258_psram.c
+endif
+
+ifeq ($(CONFIG_BK7258_BT_IPC),y)
+BK7258_AP_BASE_CSRCS += bk7258_bt_hci.c
+endif
+
+ifeq ($(CONFIG_BK7258_BLE_GATT),y)
+BK7258_AP_BASE_CSRCS += bk7258_ble_gatt.c
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+BK7258_AP_BASE_CSRCS += bk7258_wifi.c
+BK7258_AP_BASE_CSRCS += bk7258_wifi_control.c
+endif
+
+# AP-owned NuttX peripheral wrappers.  Keep these in AP_BASE so AP-UP and
+# AP-SMP use the same lower-half implementations.
+
+ifeq ($(CONFIG_BK7258_AUD),y)
+BK7258_AP_BASE_CSRCS += bk7258_aud.c
+endif
+ifeq ($(CONFIG_BK7258_GPIOE),y)
+BK7258_AP_BASE_CSRCS += bk7258_gpioe.c
+endif
+ifeq ($(CONFIG_BK7258_I2C),y)
+BK7258_AP_BASE_CSRCS += bk7258_i2c.c
+endif
+ifeq ($(CONFIG_BK7258_I2S),y)
+BK7258_AP_BASE_CSRCS += bk7258_i2s.c
+endif
+ifeq ($(CONFIG_BK7258_LCD),y)
+BK7258_AP_BASE_CSRCS += bk7258_lcd.c
+endif
+ifeq ($(CONFIG_BK7258_MIC),y)
+BK7258_AP_BASE_CSRCS += bk7258_mic.c
+endif
+ifeq ($(CONFIG_BK7258_RTC),y)
+BK7258_AP_BASE_CSRCS += bk7258_rtc.c
+endif
+ifeq ($(CONFIG_BK7258_SARADC),y)
+BK7258_AP_BASE_CSRCS += bk7258_saradc.c
+endif
+ifeq ($(CONFIG_BK7258_SDIO),y)
+BK7258_AP_BASE_CSRCS += bk7258_sdio.c
+endif
+ifeq ($(CONFIG_BK7258_SDMADC),y)
+BK7258_AP_BASE_CSRCS += bk7258_sdmadc.c
+endif
+ifeq ($(CONFIG_BK7258_SPI),y)
+BK7258_AP_BASE_CSRCS += bk7258_spi.c
+endif
+ifeq ($(CONFIG_BK7258_QSPI),y)
+BK7258_AP_BASE_CSRCS += bk7258_qspi.c
+endif
+ifeq ($(CONFIG_BK7258_TIMER),y)
+BK7258_AP_BASE_CSRCS += bk7258_timer.c
+endif
+ifeq ($(CONFIG_BK7258_TRNG),y)
+BK7258_AP_BASE_CSRCS += bk7258_trng.c
+endif
+
+ifeq ($(CONFIG_BK7258_BT_IPC_TRACE),y)
+LDFLAGS += --wrap=bt_conn_receive --wrap=bt_l2cap_receive
+LDFLAGS += --wrap=bt_l2cap_send --wrap=bt_conn_send --wrap=bt_send
+LDFLAGS += --wrap=bt_gatt_connected --wrap=bt_gatt_disconnected
+LDFLAGS += --wrap=bt_l2cap_create_pdu
+endif
+
+ifeq ($(CONFIG_BK7258_RPTUN_MBOX),y)
+BK7258_AP_BASE_CSRCS += bk7258_rptun_mbox.c
+endif
+
+ifeq ($(CONFIG_BK7258_RPTUN),y)
+BK7258_AP_BASE_CSRCS += bk7258_rptun.c
+ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsg_health.c
+BK7258_AP_BASE_CSRCS += bk7258_ap_health.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsg_test.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSGFS),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsgfs.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSGFS_TEST),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsgfs_test.c
+endif
+ifeq ($(CONFIG_BK7258_BT_IPC_TEST),y)
+BK7258_AP_BASE_CSRCS += bk7258_bt_test.c
+endif
+endif
+
+BK7258_AP_UP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
+BK7258_AP_UP_CSRCS += bk7258_cpu2_probe.c
+BK7258_AP_UP_CSRCS += $(wordlist 6,7,$(BK7258_COMMON_CSRCS))
+
+BK7258_AP_SMP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
+BK7258_AP_SMP_CSRCS += bk7258_ap_smp.c
+BK7258_AP_SMP_CSRCS += bk7258_ap_smp_advanced.c
+# N8-B2 activates the same common SDK IRQ bridge for AP mailbox source 63.
+ifeq ($(CONFIG_BK7258_AP_IPI),y)
+BK7258_AP_SMP_CSRCS += bk7258_sdk_irq.c
+BK7258_AP_SMP_CSRCS += bk7258_ap_ipi.c
+endif
+BK7258_AP_SMP_CSRCS += $(wordlist 6,7,$(BK7258_COMMON_CSRCS))
+
+ifeq ($(CONFIG_ARM_SYSTICK),y)
+BK7258_AP_UP_CSRCS += arm_systick.c
+BK7258_AP_SMP_CSRCS += arm_systick.c
+endif
+
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+ifeq ($(CONFIG_BK7258_AP_SMP_BOOTSTRAP),y)
+CHIP_CSRCS = $(BK7258_AP_SMP_CSRCS)
+else
+CHIP_CSRCS = $(BK7258_AP_UP_CSRCS)
+endif
+else
+CHIP_CSRCS = $(BK7258_CP_CSRCS)
+endif
+
+# Disable FreeRTOS assumptions in SDK headers (reference: 7236N Make.defs:110-120)
+CFLAGS += -DCONFIG_FREERTOS=0 -DCONFIG_FREERTOS_SMP=0
+# NuttX automonitor owns watchdog keepalive; the wrapper stops SDK TIMER_ID2.
+CFLAGS += -DCONFIG_INT_WDT=0 -DCONFIG_TASK_WDT=0 -DCONFIG_INT_AON_WDT=0
+CFLAGS += -DCONFIG_SYSTEM_CTRL=1 -DCONFIG_NMI_WDT_EN=1
+CFLAGS += -DCONFIG_DEBUG_VERSION=0 -DCONFIG_GPIO_RETENTION_SUPPORT=0
+CFLAGS += -DCONFIG_AON_RTC=0 -DCONFIG_AON_RTC_64BIT=0
+CFLAGS += -DCONFIG_SOC_BK7256XX=0 -DCONFIG_SOC_BK7236XX=0 -DCONFIG_SOC_BK7239XX=0
+
+# Wrap the common dispatcher to enforce non-nested IRQ dispatch and retain
+# the selected context across the STAR no-switch return path.  Keep the
+# board-verified AP-UP/AP-parked fallbacks unchanged; N8-C1 scheduler-online
+# provides an SMP-safe per-core wrapper from bk7258_ap_vectors.c.
+
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=arm_doirq --wrap=nxsched_resume_scheduler
+else ifeq ($(CONFIG_BK7258_AP_SMP_SCHED_ONLINE),y)
+LDFLAGS += --wrap=arm_doirq --wrap=nxsched_resume_scheduler
+LDFLAGS += --wrap=nx_bringup
+endif
+
+# Force the link entry point to our __start.  --build-id=none keeps the image
+# deterministic and avoids build-id bytes shifting later sections.
+
+LDFLAGS += --build-id=none --entry=__start

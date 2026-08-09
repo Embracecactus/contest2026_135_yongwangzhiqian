@@ -169,10 +169,10 @@ bootloader + CP 的兼容镜像，不包含 AP；builder 已验证它与 root/ma
 - [probe/probe.c](probe/probe.c) · [probe/probe.ld](probe/probe.ld)
 
 ### Tier-1 Bootloader 源码（`board/`）
-- [board/bk7258_t5ai/bootloader/README.md](../../board/bk7258_t5ai/bootloader/README.md) —— Tier-1 bootloader 说明
-- [start.S](../../board/bk7258_t5ai/bootloader/start.S) · [boot_main.c](../../board/bk7258_t5ai/bootloader/boot_main.c) ·
-  [bootloader.ld](../../board/bk7258_t5ai/bootloader/bootloader.ld) ·
-  [bk7236_pack_min_bootloader.py](../../board/bk7258_t5ai/bootloader/bk7236_pack_min_bootloader.py)
+- [board/bk7258/bootloader/README.md](../../board/bk7258/bootloader/README.md) —— Tier-1 bootloader 说明
+- [start.S](../../board/bk7258/bootloader/start.S) · [boot_main.c](../../board/bk7258/bootloader/boot_main.c) ·
+  [bootloader.ld](../../board/bk7258/bootloader/bootloader.ld) ·
+  [bk7236_pack_min_bootloader.py](../../board/bk7258/bootloader/bk7236_pack_min_bootloader.py)
 
 ### NuttX 移植 worklog / prompts（`nuttx-port/`）
 - [nuttx-port/git-worktree-sync-2026-07-27.md](nuttx-port/git-worktree-sync-2026-07-27.md) —— 主检出目录、clean worktree、构建链接与 PR 分支同步记录

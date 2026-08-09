@@ -2,7 +2,7 @@
 
 > **来源记录**
 >
-> - 评审对象：`$BOARD/chip/`（contest 仓库 `board/bk7258_t5ai/chip/`，共 33 个文件，约 8400 行）
+> - 评审对象：`$BOARD/chip/`（contest 仓库 `board/bk7258/chip/`，共 33 个文件，约 8400 行）
 > - 评审方式：静态阅读（未编译、未烧录）
 > - 撰写日期：2026-07-27
 > - 评审基线：`$CONTEST` 的 `HEAD`（N7 提交 `38699e8` + 未提交的 UART/GPIO wrapper 工作）

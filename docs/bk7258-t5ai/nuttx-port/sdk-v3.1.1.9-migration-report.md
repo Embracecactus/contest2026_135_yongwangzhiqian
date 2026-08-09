@@ -202,7 +202,7 @@ nsh>
 
 ```bash
 BK7258_SDK_BUNDLE_VERSION=legacy JOBS=8 \
-  ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 legacy 目录不可由导入脚本覆盖。任何未知版本都会 fail closed。每次双镜像构建在

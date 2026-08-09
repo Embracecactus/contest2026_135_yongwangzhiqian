@@ -23,7 +23,7 @@ export WORKSPACE="$PWD"
 export CONTEST="$WORKSPACE/contest2026_135_yongwangzhiqian"
 export IMPL="$CONTEST/docs/bk7258-t5ai"
 export LEARN="$CONTEST/docs/learning/bk7258-t5ai"
-export BOARD="$CONTEST/board/bk7258_t5ai"
+export BOARD="$CONTEST/board/bk7258"
 ```
 
 先记住三个逻辑区：
@@ -63,7 +63,7 @@ L0 方向感
 
 - [`$IMPL/README.md`](../../../bk7258-t5ai/README.md)；
 - [`$IMPL/next-stage-prompt.md`](../../../bk7258-t5ai/next-stage-prompt.md)；
-- [`$BOARD`](../../../../board/bk7258_t5ai/)；
+- [`$BOARD`](../../../../board/bk7258/)；
 - [contest manifest](../../../../contest2026_135_yongwangzhiqian.xml)。
 
 ### 退出条件

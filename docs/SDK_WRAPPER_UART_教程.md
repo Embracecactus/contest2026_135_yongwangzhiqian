@@ -1,7 +1,7 @@
 # 手把手教程：把 BK7258 串口从「寄存器版」改成「SDK Wrapper 版」
 
 > 适用对象：嵌入式小白
-> 目标文件：`contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/common/bk7258_serial.c`
+> 目标文件：`contest2026_135_yongwangzhiqian/board/bk7258/chip/common/bk7258_serial.c`
 > 前置知识：你不用会寄存器、不用会 RTOS 内核，照着本教程一步步抄就能改完。
 >
 > AP/CP SDK 静态库的构建、UART 对象重编和项目导入流程见：
@@ -416,7 +416,7 @@ void arm_serialinit(void)
 
 ```c
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/common/bk7258_serial.c
+ * contest2026_135_yongwangzhiqian/board/bk7258/chip/common/bk7258_serial.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -835,7 +835,7 @@ armino 官方完整构建是跑在 Docker 里的（你机器没装 docker，也�
 
 ```bash
 ARMINO=/home/lijian/project/armino/bk_avdk_smp
-LIBS=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9/cp/libs
+LIBS=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258/bk_idk/armino_as_lib/versions/v3.1.1.9/cp/libs
 
 # --- 步骤 1：提取 armino 编 uart_driver.c 的原始命令，加宏后重编到 /tmp ---
 mkdir -p /tmp/uart_rebuild

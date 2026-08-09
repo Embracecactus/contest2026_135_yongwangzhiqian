@@ -29,13 +29,13 @@ The terminal metadata records:
 ## Commands
 
 ```bash
-python3 board/bk7258_t5ai/scripts/pack_bk7258_ota_campaign.py \
+python3 board/bk7258/scripts/pack_bk7258_ota_campaign.py \
   --validation-package /home/lijian/project/open-vela/nuttx/bk7258-dual-ota-validation \
   --output /tmp/bk7258-ota-symmetric.Q7krkf/campaign \
   --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9 \
   --start-generation 300 --base-version n15-base --start-timestamp 1000
 
-python3 board/bk7258_t5ai/scripts/verify_bk7258_ota_campaign.py \
+python3 board/bk7258/scripts/verify_bk7258_ota_campaign.py \
   --campaign /tmp/bk7258-ota-symmetric.Q7krkf/campaign \
   --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9 \
   --expected-start-generation 300 \

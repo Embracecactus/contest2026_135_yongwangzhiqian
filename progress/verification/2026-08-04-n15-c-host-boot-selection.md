@@ -52,34 +52,34 @@ remap path, and final-ELF gates still prevent that path from executing.
 Host/source fault matrix and exact official contract:
 
 ```bash
-python3 board/bk7258_t5ai/scripts/verify_bk7258_ota_boot.py \
+python3 board/bk7258/scripts/verify_bk7258_ota_boot.py \
   --self-test \
   --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9 \
-  --boot-elf board/bk7258_t5ai/bootloader/bl.elf \
-  --boot-bin board/bk7258_t5ai/bootloader/bl.bin \
-  --boot-crc board/bk7258_t5ai/bootloader/bl_crc.bin --json
+  --boot-elf board/bk7258/bootloader/bl.elf \
+  --boot-bin board/bk7258/bootloader/bl.bin \
+  --boot-crc board/bk7258/bootloader/bl_crc.bin --json
 ```
 
 Team bootloader warning-clean build and ELF closure:
 
 ```bash
-make -C board/bk7258_t5ai/bootloader clean all verify
-python3 board/bk7258_t5ai/scripts/verify_bk7258_ota_boot.py \
+make -C board/bk7258/bootloader clean all verify
+python3 board/bk7258/scripts/verify_bk7258_ota_boot.py \
   --elf-only \
   --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9 \
-  --boot-elf board/bk7258_t5ai/bootloader/bl.elf \
-  --boot-bin board/bk7258_t5ai/bootloader/bl.bin \
-  --boot-crc board/bk7258_t5ai/bootloader/bl_crc.bin --json
+  --boot-elf board/bk7258/bootloader/bl.elf \
+  --boot-bin board/bk7258/bootloader/bl.bin \
+  --boot-crc board/bk7258/bootloader/bl_crc.bin --json
 ```
 
 Portable core static analysis:
 
 ```bash
 cc -std=c11 -Wall -Wextra -Werror -fanalyzer \
-  -Iboard/bk7258_t5ai/bootloader -Iboard/bk7258_t5ai/chip/cp \
-  board/bk7258_t5ai/chip/cp/bk7258_ota_staging_core.c \
-  board/bk7258_t5ai/bootloader/boot_ota_select_core.c \
-  board/bk7258_t5ai/scripts/host/bk7258_boot_ota_select_harness.c \
+  -Iboard/bk7258/bootloader -Iboard/bk7258/chip/cp \
+  board/bk7258/chip/cp/bk7258_ota_staging_core.c \
+  board/bk7258/bootloader/boot_ota_select_core.c \
+  board/bk7258/scripts/host/bk7258_boot_ota_select_harness.c \
   -lssl -lcrypto -o /tmp/bk7258-n15c-analyzer
 ```
 
@@ -90,7 +90,7 @@ BK7258_SDK_SOURCE=/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9 \
 CP_CONFIG_NAME=cp_nsh_psram AP_CONFIG_NAME=ap_smp_psram \
 N15_OTA_GENERATION=17 N15_OTA_VERSION=n15-c-host \
 N15_OTA_BASE_VERSION=n15-b-host N15_OTA_TIMESTAMP=0 JOBS=8 \
-board/bk7258_t5ai/scripts/build_dual_image.sh
+board/bk7258/scripts/build_dual_image.sh
 ```
 
 The wrapper was also invoked with only `N15_OTA_GENERATION=17`; it rejected
@@ -204,8 +204,8 @@ set.
   `nuttx/bk7258-dual/bk7258-ota-boot.json` and
   `nuttx/bk7258-dual/n15-ota-host-candidate/` (ignored build artifacts).
 - Source entry points:
-  `board/bk7258_t5ai/bootloader/boot_ota_select_core.c`,
+  `board/bk7258/bootloader/boot_ota_select_core.c`,
   `boot_ota_select.c`, `boot_sha256.c`, and
-  `board/bk7258_t5ai/scripts/verify_bk7258_ota_boot.py`.
+  `board/bk7258/scripts/verify_bk7258_ota_boot.py`.
 - Architecture decision:
   [ADR-005](../../memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md).

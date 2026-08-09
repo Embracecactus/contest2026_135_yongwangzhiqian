@@ -17,7 +17,7 @@ N12 使用官方 SDK 已有的 CP/AP Bluetooth mailbox IPC，并在 AP 侧实现
 AP NuttX Bluetooth Host
         │ bt_driver_s: command / ACL
         ▼
-board/bk7258_t5ai/chip/ap/bk7258_bt_hci.c
+board/bk7258/chip/ap/bk7258_bt_hci.c
         │ bt_ipc_hci_send_cmd() / bt_ipc_hci_send_acl_data()
         ▼
 official MB_CHNL_BT_CMD mailbox IPC
@@ -89,7 +89,7 @@ NuttX Host/Controller 分核边界、RPTUN/RPMsg transport 和 `bt_driver_s` 接
 
 ### 4.1 AP HCI lower-half
 
-实现文件：`board/bk7258_t5ai/chip/ap/bk7258_bt_hci.c`。
+实现文件：`board/bk7258/chip/ap/bk7258_bt_hci.c`。
 
 | NuttX 输入 | SDK 调用 | 校验 |
 |---|---|---|
@@ -107,7 +107,7 @@ deinit，最后注销 callback。
 
 ### 4.2 CP bootstrap 和系统服务
 
-实现文件：`board/bk7258_t5ai/chip/cp/bk7258_bt_controller.c`。
+实现文件：`board/bk7258/chip/cp/bk7258_bt_controller.c`。
 
 CP 在释放 AP 前初始化官方 `bt_ipc` worker。Controller 本体不在 CP boot 时立即启动，
 而是在收到 AP vendor-init 后由官方 IPC object 调用 `bk_bluetooth_init()`。
@@ -290,7 +290,7 @@ vendor-init handler 还会忽略 `bk_bluetooth_init()` 的返回值并固定发�
 CP_CONFIG_NAME=cp_nsh_btipc \
 AP_CONFIG_NAME=ap_smp_btipc \
 JOBS=8 \
-./board/bk7258_t5ai/scripts/build_dual_image.sh
+./board/bk7258/scripts/build_dual_image.sh
 ```
 
 2026-08-02 最终实板镜像的本机构建结果：

@@ -5,7 +5,7 @@
 
 - 固件基线：`ecea356`（`feat/bk7258-ap-smp`）之上的当前 wrapper 修复工作区，AP 启动代际 `generation=1` 起
 - 板级连接：COM11（460800 8N1）＋ Windows interop（powershell.exe）＋ `capture_windows_serial.ps1`
-- 测试驱动：`board/bk7258_t5ai/scripts/bk7258_stress_test.sh`
+- 测试驱动：`board/bk7258/scripts/bk7258_stress_test.sh`
 - 原始日志：`logs/stress-20260801-102037/`（首轮）；人工重判复核：`logs/stress-20260801-142356/`（见 §7）；脚本修复后自动判读闭环：`logs/stress-20260801-155637/`（见 §8）
 
 > **2026-08-01 勘误：**本报告初版把 RPMsg 的 `ENOMEM` 归因于 vring
@@ -97,7 +97,7 @@ BK7258 当前固件中**所有可被无人值守压测覆盖的非 RPMsg 功能�
 ## 6. 产物
 
 - SOP：`docs/bk7258-t5ai/nuttx-port/bk7258-stress-test-sop.md`
-- 驱动脚本：`board/bk7258_t5ai/scripts/bk7258_stress_test.sh`
+- 驱动脚本：`board/bk7258/scripts/bk7258_stress_test.sh`
 - 原始日志：`logs/stress-20260801-102037/`（p0/pA…pF 各阶段 `.raw` + `stress-master-summary.txt`）
 - 本次复核运行原始日志：`logs/stress-20260801-142356/`（p0/pA…pF 各阶段 `.raw` + `stress-master-summary.txt`）
 - 修复后自动判读闭环：`logs/stress-20260801-155637/`（28 个 `.raw` + `stress-master-summary.txt`，最终 `verdict=PASS`）

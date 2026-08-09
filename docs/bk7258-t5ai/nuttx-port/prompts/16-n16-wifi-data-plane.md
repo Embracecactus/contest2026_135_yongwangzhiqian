@@ -352,7 +352,7 @@ and were not committed.
 The exact filenames may be refined during N16-R, but ownership remains:
 
 ```text
-board/bk7258_t5ai/
+board/bk7258/
   chip/cp/       shared radio init + CP Wi-Fi controller wrapper
   chip/ap/       AP Wi-Fi control + pbuf/netdev adapter
   chip/common/   only genuinely role-shared OS/ABI helpers

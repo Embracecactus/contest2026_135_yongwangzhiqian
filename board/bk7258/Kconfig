@@ -1,0 +1,33 @@
+#
+# NuttX board configuration for the Beken BK7258 T5-AI board family.
+#
+
+config ARCH_BOARD_BK7258
+	bool "Beken BK7258 platform"
+	depends on ARCH_BOARD_CUSTOM
+	default y
+	---help---
+		Shared BK7258 CP/AP, boot-chain and peripheral integration. Select
+		the physical carrier below so
+		board-level GPIOs and capabilities match the assembled hardware.
+
+choice
+	prompt "BK7258 physical board"
+	default BK7258_BOARD_T5AI_CORE
+	depends on ARCH_BOARD_BK7258
+
+config BK7258_BOARD_T5AI_CORE
+	bool "T5AI-Core V1.0.1"
+	help
+		Compact T5-E1 core board with battery management, dual USB-UART,
+		P9 user LED, P29 user key, microphone and speaker amplifier.  This
+		is the existing board-verified target and remains the default.
+
+config BK7258_BOARD_T5_BOARD
+	bool "T5-Board V1.0.2"
+	help
+		Full T5-E1-IPEX development board with TF card, RGB LCD and DVP
+		camera connectors, P1 user LED and P28 ADC key.  Selecting this
+		changes board wiring only; chip, CP/AP and boot code remain shared.
+
+endchoice

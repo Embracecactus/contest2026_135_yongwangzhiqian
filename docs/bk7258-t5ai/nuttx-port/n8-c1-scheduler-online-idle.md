@@ -76,7 +76,7 @@ scheduler doorbell 使用 per-target atomic pending bit进行 coalescing。接�
 cd /home/lijian/project/open-vela
 
 AP_CONFIG_NAME=ap_smp_online JOBS=8 \
-  contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 下载：

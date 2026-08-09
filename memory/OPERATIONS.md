@@ -62,7 +62,7 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
   profiles, build clean role outputs, import them into a new versioned bundle,
   record manifests/provenance, then run the bounded ABI/link review before
   changing the default selector.
-- Build paired CP/AP profiles with `board/bk7258_t5ai/scripts/build_dual_image.sh`; the historical N14 profile uses `cp_nsh_psram + ap_smp_psram` and v3.1.1.9.
+- Build paired CP/AP profiles with `board/bk7258/scripts/build_dual_image.sh`; the historical N14 profile uses `cp_nsh_psram + ap_smp_psram` and v3.1.1.9.
 - Follow [the build/flash/debug SOP](../docs/bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md) rather than reconstructing commands from memory.
 - The build wrapper rejects mismatched CP/AP feature-profile pairs and runs post-link verification.
 - For the MCUboot host-reference pipeline, leave `MCUBOOT_OFFICIAL_PIPELINE=YES`

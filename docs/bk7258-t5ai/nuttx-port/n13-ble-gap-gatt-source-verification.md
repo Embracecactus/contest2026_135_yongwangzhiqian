@@ -214,7 +214,7 @@ NuttX Host 同时拥有 HCI、connection 和 attribute database，明确禁止�
 
 ### 3.1 AP → CP/Controller
 
-`board/bk7258_t5ai/chip/ap/bk7258_bt_hci.c` 的 `bk7258_bt_send()` 已实现：
+`board/bk7258/chip/ap/bk7258_bt_hci.c` 的 `bk7258_bt_send()` 已实现：
 
 | NuttX type | wrapper validation | SDK call |
 |---|---|---|

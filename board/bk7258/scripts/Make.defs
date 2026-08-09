@@ -1,0 +1,235 @@
+#
+# NuttX Make.defs for Beken BK7258 (T5-AI) Stage N1 board.
+#
+# Classic Make backend (the same backend RV1126B used).  The CMake backend
+# is intentionally not enabled for N1; see board CMakeLists.txt.
+#
+
+include $(TOPDIR)/.config
+include $(TOPDIR)/tools/Config.mk
+include $(BOARD_DIR)$(DELIM)bk_idk$(DELIM)sdk-bundles.mk
+
+# Toolchain: arm-none-eabi-gcc on /usr/bin (probe-verified).
+
+CROSSDEV = arm-none-eabi-
+
+# Reuse the common ARMv8-M toolchain flags (sets -mcpu=cortex-m33,
+# -march=armv8-m.main, -mfloat-abi, ...).  This matches what every other
+# in-tree Cortex-M33 chip does.
+
+include $(TOPDIR)/arch/arm/src/armv8-m/Toolchain.defs
+
+# Select exactly one physical-board description.  The fallback preserves
+# compatibility with an already-configured build tree created before the
+# board-variant Kconfig choice was introduced; a fresh configuration always
+# resolves the choice explicitly.
+
+ifeq ($(CONFIG_BK7258_BOARD_T5_BOARD),y)
+BK7258_BOARD_VARIANT_DIR := $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board
+else
+BK7258_BOARD_VARIANT_DIR := $(BOARD_DIR)$(DELIM)boards$(DELIM)t5ai_core
+endif
+
+BK7258_BOARD_VARIANT_INCLUDE := $(BK7258_BOARD_VARIANT_DIR)$(DELIM)include
+
+# ADR-004 linker scripts: CP FLASH @ 0x02010000, AP FLASH @ 0x02150000;
+# vector tables remain KEEP-pinned at each role's official primary origin.
+
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)ld_ap.script
+BK7258_IMAGE_ROLE = ap
+else
+ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)ld.script
+BK7258_IMAGE_ROLE = cp
+endif
+
+# Standard NuttX ARM flag assembly.
+
+CFLAGS   := $(ARCHCFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
+CXXFLAGS := $(ARCHCXXFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHXXINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
+CPICFLAGS = $(ARCHPICFLAGS) $(CFLAGS)
+CXXPICFLAGS = $(ARCHPICFLAGS) $(CXXFLAGS)
+CPPFLAGS := $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
+AFLAGS := $(CFLAGS) -D__ASSEMBLY__
+
+CFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
+CXXFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
+CPPFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
+AFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
+
+# NuttX Apps owns MCUboot's core sources, while this board owns the platform
+# signing policy.  Put the board overlay ahead of the upstream NuttX MCUboot
+# configuration for every compilation unit; the overlay includes the upstream
+# header and adds only the BK7258 P-256 policy.
+
+ifeq ($(CONFIG_MCUBOOT_BOOTLOADER),y)
+CFLAGS += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)chip$(DELIM)include
+CXXFLAGS += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)chip$(DELIM)include
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
+CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
+CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
+endif
+
+# NXFLAT module definitions (unused on this flat-build target but NuttX
+# expects them to be defined).
+
+NXFLATLDFLAGS1 = -r -d -warn-common
+NXFLATLDFLAGS2 = $(NXFLATLDFLAGS1) -T$(TOPDIR)/binfmt/libnxflat/gnu-nxflat-pcrel.ld -no-check-sections
+LDNXFLATFLAGS = -e main -s 2048
+
+# ELF module definitions (same caveat).
+
+LDELFFLAGS = -r -e main
+LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
+
+# Link Beken SDK prebuilt static libraries.
+# libdriver.a contains all peripheral drivers (UART, flash, WDT, timer, etc.)
+
+# Link Beken SDK prebuilt static libraries.
+# Exclude: cmsis startup, coredump, unity, at_server, lwip, wpa_supplicant,
+# iperf, hmac, psa_mbedtls, and duplicate bluetooth controller variants
+# (only keep libbluetooth_controller.a, exclude *_ble_*, *_bt_*, *_dual_*).
+# Unresolved symbols from other libs are stubbed in bk7258_sdk_stubs.c.
+
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+
+# The AP image links the AP-built peripheral archive only.  NuttX continues to
+# own startup, scheduling and interrupt dispatch; SDK RTOS/startup archives are
+# deliberately not linked.
+
+BK_SDK_LIBS_DIR := $(shell readlink -f $(BK7258_SDK_BUNDLE_ROOT)/ap/libs)
+ifeq ($(BK_SDK_LIBS_DIR),)
+$(error BK7258 AP SDK bundle '$(BK7258_SDK_BUNDLE_VERSION)' has no libs directory)
+endif
+ifeq ($(CONFIG_BK7258_BT_IPC),y)
+EXTRA_LIBS += $(BK_SDK_LIBS_DIR)/libbk_bluetooth.a
+endif
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+EXTRA_LIBS += \
+  $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
+  $(BK_SDK_LIBS_DIR)/libbk_wifi_driver.a
+endif
+# libavdk_utils.a exports hnd_crc8 only.  The SDK GPIO driver calls
+# bk_ipc_send, which drags in bk_api_ipc.c.obj and with it the IPC frame
+# checksum, so the archive must be linked whenever a driver reaches the SDK
+# IPC path.  Stubbing hnd_crc8 is not an option: a wrong checksum would be
+# accepted silently by the peer.
+
+EXTRA_LIBS += \
+  $(BK_SDK_LIBS_DIR)/libdriver.a \
+  $(BK_SDK_LIBS_DIR)/libbk7258_ap.a \
+  $(BK_SDK_LIBS_DIR)/libbk_pm.a \
+  $(BK_SDK_LIBS_DIR)/libbk_adapter.a \
+  $(BK_SDK_LIBS_DIR)/libbk_common.a \
+  $(BK_SDK_LIBS_DIR)/libcommon.a \
+  $(BK_SDK_LIBS_DIR)/libbk_log.a \
+  $(BK_SDK_LIBS_DIR)/libbk_event.a \
+  $(BK_SDK_LIBS_DIR)/libavdk_utils.a \
+  $(BK_SDK_LIBS_DIR)/libcm33.a
+
+else
+
+BK_SDK_LIBS_DIR := $(shell readlink -f $(BK7258_SDK_BUNDLE_ROOT)/cp/libs)
+ifeq ($(BK_SDK_LIBS_DIR),)
+$(error BK7258 CP SDK bundle '$(BK7258_SDK_BUNDLE_VERSION)' has no libs directory)
+endif
+
+# Libraries to exclude (not needed for basic NuttX bring-up):
+# - cmsis startup (conflicts with NuttX startup)
+# - coredump, unity, at_server (testing/debug tools)
+# - lwip, wpa_supplicant, wifi (networking, not needed yet)
+# - iperf, hmac, psa_mbedtls (networking/crypto)
+# - ALL bluetooth controller/host variants (duplicate symbols).  The BT IPC
+#   profile adds only the controller-only BLE archive selected by the official
+#   CP SDK build.
+# - ble_wifi_exchange (wifi/bt coexistence)
+
+BK_EXCLUDE_LIBS := \
+  libcmsis.a libcoredump.a libunity.a libat_server.a \
+  liblwip_intf_v2_1.a libwpa_supplicant-2.10.a \
+  libiperf.a libhmac_sha_256.a libpsa_mbedtls.a \
+  libwifi.a libwifi_csi.a libwifi_csi_nspe.a libwifi_nspe.a libbk_wifi.a \
+  libble_wifi_exchange.a \
+  libbluetooth_controller.a \
+  libbluetooth_controller_ble.a \
+  libbluetooth_controller_ble_cp_slave_observer.a \
+  libbluetooth_controller_ble_cp_slave_observer_nspe.a \
+  libbluetooth_controller_ble_cp_slave_only.a \
+  libbluetooth_controller_ble_cp_slave_only_nspe.a \
+  libbluetooth_controller_ble_nspe.a \
+  libbluetooth_controller_ble_non_calibration.a \
+  libbluetooth_controller_ble_non_calibration_nspe.a \
+  libbluetooth_controller_ble_reduce.a \
+  libbluetooth_controller_ble_reduce_nspe.a \
+  libbluetooth_controller_ble_slave_only.a \
+  libbluetooth_controller_ble_slave_only_nspe.a \
+  libbluetooth_controller_bt.a \
+  libbluetooth_controller_bt_nspe.a \
+  libbluetooth_controller_controller_only_ble.a \
+  libbluetooth_controller_controller_only_ble_nspe.a \
+  libbluetooth_controller_controller_only_dual.a \
+  libbluetooth_controller_controller_only_dual_nspe.a \
+  libbluetooth_controller_dual.a \
+  libbluetooth_controller_dual_nspe.a \
+  libbluetooth_host_ble.a \
+  libbluetooth_host_ble_only.a \
+  libbluetooth_host_ble_reduce.a \
+  libbluetooth_host_ble_slave_only.a \
+  libbluetooth_host_dm.a \
+  libbluetooth_host_dm_bt.a \
+  libbluetooth_host_dm_dual.a \
+  libbk_phy_nspe.a \
+  libate_phy_nspe.a \
+  libcom_phy_nspe.a \
+  libcom_phy.a \
+  libate_phy.a \
+  libbk_rtos.a \
+  libbk_system.a \
+  libos_source.a
+
+# Build the exclude list as full paths
+BK_EXCLUDE_PATHS := $(foreach lib,$(BK_EXCLUDE_LIBS),$(BK_SDK_LIBS_DIR)/$(lib))
+
+EXTRA_LIBS += $(filter-out $(BK_EXCLUDE_PATHS),$(wildcard $(BK_SDK_LIBS_DIR)/*.a))
+
+# Match the official CP controller-only build instead of pulling the generic
+# controller archive.  libcom_phy.a is the exported full PHY/calibration
+# archive (the bundle's libbk_phy.a name is occupied by the SDK component
+# archive).  The v3.1.1.9 PHY adapter was built with CONFIG_WIFI_ENABLE=y and
+# its immutable function table consequently needs the Wi-Fi/lwIP archive
+# closure.  These archives are linked as the PHY backend; the NuttX wrapper
+# does not call the SDK Wi-Fi or lwIP startup paths.  SDK bk_system remains
+# excluded because its FreeRTOS tick/printf runtime conflicts with the NuttX
+# board adapters.  Keep the additions scoped to the BT IPC profile so the
+# established CP baseline link remains unchanged.
+
+ifeq ($(CONFIG_BK7258_BT_IPC),y)
+EXTRA_LIBS += \
+  $(BK_SDK_LIBS_DIR)/libbluetooth_controller_controller_only_ble.a \
+  $(BK_SDK_LIBS_DIR)/libcom_phy.a \
+  $(BK_SDK_LIBS_DIR)/libwifi.a \
+  $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
+  $(BK_SDK_LIBS_DIR)/liblwip_intf_v2_1.a
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+EXTRA_LIBS += \
+  $(BK_SDK_LIBS_DIR)/libcom_phy.a \
+  $(BK_SDK_LIBS_DIR)/libwifi.a \
+  $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
+  $(BK_SDK_LIBS_DIR)/libcontroller_if.a \
+  $(BK_SDK_LIBS_DIR)/libwpa_supplicant-2.10.a \
+  $(BK_SDK_LIBS_DIR)/libpsa_mbedtls.a \
+  $(BK_SDK_LIBS_DIR)/liblwip_intf_v2_1.a
+endif
+
+endif
+
+# POSTBUILD: once nuttx.bin exists, CRC-expand it and prepend the Tier-1
+# bootloader (bl_crc.bin) to produce all-app.bin, ready for flashing at
+# physical offset 0x0.  The script is idempotent and safe to re-run.
+
+define POSTBUILD
+	$(Q) $(BOARD_DIR)$(DELIM)scripts$(DELIM)postbuild.sh $(TOPDIR) $(BOARD_DIR) $(BK7258_IMAGE_ROLE)
+endef

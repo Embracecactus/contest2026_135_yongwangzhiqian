@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-08-08
+Last reviewed: 2026-08-09
 
 ## System context
 
@@ -15,6 +15,7 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 
 | Component | Owner and responsibility |
 |---|---|
+| BK7258 platform and physical boards | `board/bk7258` owns shared SoC, CP/AP, boot-chain, wrapper, partition and build code. Physical wiring is selected from `boards/t5ai_core` or `boards/t5_board`; T5AI-Core remains the default. See [ADR-023](decisions/ADR-023-bk7258-platform-board-variants.md). |
 | Tier-1 bootloader | Team source; normalizes boot/cache/MPU/watchdog state and transfers to CP |
 | BK7258 integrated Flash | 8 MiB on the current T5-AI; interface reports `0xc86517`, compatible with the GD25WQ64E command identity but not evidence of a separate board-level chip |
 | CP NuttX on CPU0 | Flash/LittleFS owner, AP lifecycle supervisor, RPMsg peer, Beken Bluetooth Controller owner, Wi-Fi RF/PHY/MAC/WPA/controller owner, PSRAM hardware/PM owner |
@@ -115,6 +116,10 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 
 ## Known constraints and technical debt
 
+- T5AI-Core V1.0.1 remains the hardware-verified default board. T5-Board
+  V1.0.2 pin mappings are schematic-verified and compile-verified only; its
+  board-level GPIO, TF, RGB LCD and DVP connections still need physical tests
+  in mutually compatible driver profiles.
 - N14 exposes only 128 KiB CP and 640 KiB AP role-local PSRAM heaps. The remaining regions are reserved by policy.
 - PSRAM is non-cacheable; DMA/cache-coherency and performance tuning are deferred.
 - AP automatic recovery is disabled by default; the verified baseline is detection plus bounded manual recovery.

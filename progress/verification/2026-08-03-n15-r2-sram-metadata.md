@@ -110,15 +110,15 @@ used read-only and bound by the verifier's exact hashes.
 ## Commands
 
 ```bash
-make -C board/bk7258_t5ai/bootloader verify \
+make -C board/bk7258/bootloader verify \
   BK7258_SDK_SOURCE=/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9
 
-python3 board/bk7258_t5ai/scripts/bk7258_ota_metadata.py \
+python3 board/bk7258/scripts/bk7258_ota_metadata.py \
   --self-test --json
 
-python3 board/bk7258_t5ai/scripts/simulate_bk7258_ota_journal.py --json
+python3 board/bk7258/scripts/simulate_bk7258_ota_journal.py --json
 
-python3 board/bk7258_t5ai/scripts/verify_bk7258_ota_layout.py \
+python3 board/bk7258/scripts/verify_bk7258_ota_layout.py \
   --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9 \
   --json
 ```

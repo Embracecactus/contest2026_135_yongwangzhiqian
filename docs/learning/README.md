@@ -21,7 +21,7 @@ export WORKSPACE="$PWD"
 export CONTEST="$WORKSPACE/contest2026_135_yongwangzhiqian"
 export IMPL="$CONTEST/docs/bk7258-t5ai"
 export LEARN="$CONTEST/docs/learning/bk7258-t5ai"
-export BOARD="$CONTEST/board/bk7258_t5ai"
+export BOARD="$CONTEST/board/bk7258"
 ```
 
 其中：

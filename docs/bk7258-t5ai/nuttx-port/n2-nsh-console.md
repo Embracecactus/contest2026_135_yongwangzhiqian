@@ -2,7 +2,7 @@
 
 > 板端验证日期：2026-07-18
 > 基线 commit：`40495ca`（Stage N1）→ 本阶段产出 commit：`9f45bc6`
-> 改动范围：`$CONTEST/board/bk7258_t5ai/`（chip/ 8 改 + 5 新、board/ 配置、include/irq.h、scripts）
+> 改动范围：`$CONTEST/board/bk7258/`（chip/ 8 改 + 5 新、board/ 配置、include/irq.h、scripts）
 
 ## 目标
 
@@ -109,7 +109,7 @@ NuttX 0.0.0 ... arm bk7258_t5ai
 
 ## 改动清单（commit `9f45bc6`）
 
-代码 14 文件，全在 `$CONTEST/board/bk7258_t5ai/`：
+代码 14 文件，全在 `$CONTEST/board/bk7258/`：
 
 - `chip/cp/bk7258_start.c`（`__start` 全 bring-up + FPCCR 清位）
 - `chip/cp/bk7258_vectors.c`（slot[15..63] = exception_direct）

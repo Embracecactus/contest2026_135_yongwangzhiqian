@@ -354,7 +354,7 @@ configs/ap_smp_rptun/
 计划中的 overlay 文件边界：
 
 ```text
-board/bk7258_t5ai/bk_idk/
+board/bk7258/bk_idk/
 ├── chip/include/bk7258_rptun.h
 ├── chip/common/bk7258_rptun_common.c   # resource ABI / notify common code
 ├── chip/cp/bk7258_rptun_cp.c           # master / CP mailbox endpoint

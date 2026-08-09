@@ -3,7 +3,7 @@
 > 日期：2026-08-03
 > 状态：**source-verified + build-verified + board-verified**
 > 对应 Stage：[14-n14-psram.md](prompts/14-n14-psram.md)
-> 自动门禁：`board/bk7258_t5ai/scripts/verify_bk7258_psram.py`
+> 自动门禁：`board/bk7258/scripts/verify_bk7258_psram.py`
 
 ## 1. 结论先行
 
@@ -30,7 +30,7 @@ v3.1.1.9 archive并通过最小 ABI调用 PSRAM/CPU1 PM vote；AP只通过 board
 |---|---|---|
 | Beken product page | [BK7258 product page](https://www.bekencorp.com/index/goods/detail/cid/60.html) | 芯片宣称最高 16 MB PSRAM；不替代板端容量识别 |
 | latest SDK source | `/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9` | PM、PSRAM、MPU、clock、AP SMP allocator语义 |
-| immutable SDK bundle | `board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9` | CP/AP最终链接输入 |
+| immutable SDK bundle | `board/bk7258/bk_idk/armino_as_lib/versions/v3.1.1.9` | CP/AP最终链接输入 |
 | CP manifest | `scripts/sdk-manifests/v3.1.1.9/cp.sha256` | SHA-256 `438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be` |
 | AP manifest | `scripts/sdk-manifests/v3.1.1.9/ap.sha256` | SHA-256 `5d4b7908fd21201a5f5ec3537915209aaed0273dc9779d8ba72a40ab82056edc` |
 | official NuttX/apps checkout | workspace sibling repos | wrapper兼容性与最终 zero-diff边界 |

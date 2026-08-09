@@ -8,7 +8,7 @@
 > - source branch：`bk7258-n6-sdk-irq-bridge-clean`
 > - source commit：`07c6bbc7e2722f78b5abc5cec9a66d3f091b501b`
 > - snapshot：committed Git objects；未提交工作树内容未进入输入
-> - 输入文件：`board/bk7258_t5ai/include/board.h`、`board/bk7258_t5ai/src/bk7258_bringup.c`
+> - 输入文件：`board/bk7258/include/board.h`、`board/bk7258/src/bk7258_bringup.c`
 > - Graphify：`0.9.25`，AST-only，`python -m graphify extract .`
 > - 原始结果：4 nodes、4 edges、2 communities
 > - 最后核对日期：2026-07-24

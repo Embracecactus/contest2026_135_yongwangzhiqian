@@ -210,16 +210,16 @@ Tier-1 bootloader **不基于某一家 binary**，而是实现 BootROM 期望的
 
 ### 5.3 三层混合结构
 
-落盘：[`board/bk7258_t5ai/bootloader/`](../../board/bk7258_t5ai/bootloader/)
+落盘：[`board/bk7258/bootloader/`](../../board/bk7258/bootloader/)
 
 | 层 | 文件 | 职责 |
 |---|---|---|
-| asm 跳板 | [`start.S`](../../board/bk7258_t5ai/bootloader/start.S) | 向量表（64 项）+ bl magic `"BK7236\x10\x00"` @ `.org 0x100` + 逐字保留已验证 init 序列（cpsid / SWD / WDT key / GPIO0/1+GPIO10/11 pinmux / UART1 clk+cfg）+ `bl c_main` + 硬化跳转 epilogue |
-| reset runtime | [`boot_runtime.c`](../../board/bk7258_t5ai/bootloader/boot_runtime.c) | v3.1.1.9 clean-room reset/cache/MPU/core-power normalization 和 app handoff |
-| C main | [`boot_main.c`](../../board/bk7258_t5ai/bootloader/boot_main.c) | FAL 分区表解析（按名找 `app`）→ app header 校验（MSP 范围 / Reset Thumb / magic 双 word）→ UART1 日志 |
+| asm 跳板 | [`start.S`](../../board/bk7258/bootloader/start.S) | 向量表（64 项）+ bl magic `"BK7236\x10\x00"` @ `.org 0x100` + 逐字保留已验证 init 序列（cpsid / SWD / WDT key / GPIO0/1+GPIO10/11 pinmux / UART1 clk+cfg）+ `bl c_main` + 硬化跳转 epilogue |
+| reset runtime | [`boot_runtime.c`](../../board/bk7258/bootloader/boot_runtime.c) | v3.1.1.9 clean-room reset/cache/MPU/core-power normalization 和 app handoff |
+| C main | [`boot_main.c`](../../board/bk7258/bootloader/boot_main.c) | FAL 分区表解析（按名找 `app`）→ app header 校验（MSP 范围 / Reset Thumb / magic 双 word）→ UART1 日志 |
 | asm epilogue | （`start.S` 尾部） | `r1=app MSP`、`r2=app Reset`；`VTOR ← app_vec`；`dsb/isb`；`MSP ← app SP`；`dsb/isb`；清 r0,r1,r3..r12（保留 r2）；`dsb/isb`；`bx r2` |
-| 链接 | [`bootloader.ld`](../../board/bk7258_t5ai/bootloader/bootloader.ld) | FLASH @ `0x02000000` slot 0x10000；RAM @ `0x28000000` |
-| 打包 | [`bk7236_pack_min_bootloader.py`](../../board/bk7258_t5ai/bootloader/bk7236_pack_min_bootloader.py) | 32+2 CRC 扩展，输出 `bl_crc.bin` + `.json` 元数据 |
+| 链接 | [`bootloader.ld`](../../board/bk7258/bootloader/bootloader.ld) | FLASH @ `0x02000000` slot 0x10000；RAM @ `0x28000000` |
+| 打包 | [`bk7236_pack_min_bootloader.py`](../../board/bk7258/bootloader/bk7236_pack_min_bootloader.py) | 32+2 CRC 扩展，输出 `bl_crc.bin` + `.json` 元数据 |
 
 > `bss=0` 是刻意设计：`c_main` 只用 `const`（`.rodata`）和栈局部，无需 C runtime 的 `.bss`
 > 清零，`start.S` 可直接 `bl c_main`。
@@ -339,7 +339,7 @@ BK7258 PROBE ... HALT           ← 硬化跳转 epilogue 落到现有探针
 | 项 | 开源 packer | Beken 闭源 |
 |---|---|---|
 | app 打包 | `bk7258_crc_expand_app.py`（位于 `zephyr-bk7258-port/tools/`，未入本仓） | `cmake_encrypt_crc` |
-| bootloader 打包 | [`bk7236_pack_min_bootloader.py`](../../board/bk7258_t5ai/bootloader/bk7236_pack_min_bootloader.py) | 同上 |
+| bootloader 打包 | [`bk7236_pack_min_bootloader.py`](../../board/bk7258/bootloader/bk7236_pack_min_bootloader.py) | 同上 |
 | 源码 | 可审计 | 闭源 |
 | 加密 (`-enc`) | **不实现**（baseline 不需要） | 支持 |
 
@@ -766,7 +766,7 @@ docs/bk7258-t5ai/
     prompts/
       04-n4-clock-bringup.md             当前 MAIN Stage N4 完整恢复提示词
 
-board/bk7258_t5ai/bootloader/
+board/bk7258/bootloader/
   start.S                                asm 跳板 + 硬化 epilogue
   boot_main.c                            C main：FAL 解析 + header 校验 + 日志
   bootloader.ld                          FLASH @ 0x02000000
@@ -852,5 +852,5 @@ board/bk7258_t5ai/bootloader/
 ---
 
 *本报告所有技术断言可追溯：逆向结论指向 `docs/bk7258-t5ai/bootloader/*.md`，源码指向
-`board/bk7258_t5ai/bootloader/*` 与 `docs/bk7258-t5ai/probe/*`，提交指向 git 历史。板端 UART
+`board/bk7258/bootloader/*` 与 `docs/bk7258-t5ai/probe/*`，提交指向 git 历史。板端 UART
 输出为照抄原文，未做修饰。*

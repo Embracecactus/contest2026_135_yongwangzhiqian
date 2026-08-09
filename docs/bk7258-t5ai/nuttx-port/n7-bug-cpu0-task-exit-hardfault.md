@@ -30,10 +30,10 @@ CPU0/CP 运行 NuttX 和 NSH，CPU1/AP 运行独立的 NuttX 镜像。系统大�
 最终只保留以下团队文件的修改：
 
 ```text
-board/bk7258_t5ai/chip/Make.defs
-board/bk7258_t5ai/chip/common/bk7258_sdk_irq.h
-board/bk7258_t5ai/chip/cp/bk7258_sdk_irq.c
-board/bk7258_t5ai/chip/cp/bk7258_vectors.c
+board/bk7258/chip/Make.defs
+board/bk7258/chip/common/bk7258_sdk_irq.h
+board/bk7258/chip/cp/bk7258_sdk_irq.c
+board/bk7258/chip/cp/bk7258_vectors.c
 ```
 
 官方文件 `nuttx/arch/arm/src/arm_m/arm_schedulesigaction.c` 的临时修改已经完全撤销。
@@ -495,7 +495,7 @@ CONFIG_ARCH_HIPRI_INTERRUPT
 文件：
 
 ```text
-board/bk7258_t5ai/chip/Make.defs
+board/bk7258/chip/Make.defs
 ```
 
 CPU0 链接参数：
@@ -532,7 +532,7 @@ exception_common
 文件：
 
 ```text
-board/bk7258_t5ai/chip/cp/bk7258_vectors.c
+board/bk7258/chip/cp/bk7258_vectors.c
 ```
 
 使用两个最小状态变量：
@@ -687,7 +687,7 @@ LR  = 0xaaaaaaaa
 文件：
 
 ```text
-board/bk7258_t5ai/chip/common/bk7258_sdk_irq.h
+board/bk7258/chip/common/bk7258_sdk_irq.h
 ```
 
 默认逻辑优先级从 6 调整为 4：
@@ -707,7 +707,7 @@ STAR 实现 3 个优先级位，逻辑优先级 4 编码后为：
 文件：
 
 ```text
-board/bk7258_t5ai/chip/cp/bk7258_sdk_irq.c
+board/bk7258/chip/cp/bk7258_sdk_irq.c
 ```
 
 未启用 HIPRI dispatcher 时：
@@ -774,12 +774,12 @@ J-Link 和 D0 已经闭合：
 已恢复的文件：
 
 ```text
-board/bk7258_t5ai/bootloader/start.S
-board/bk7258_t5ai/chip/common/bk7258_allocateheap.c
-board/bk7258_t5ai/chip/common/bk7258_os_adapt.c
-board/bk7258_t5ai/chip/cp/bk7258_start.c
-board/bk7258_t5ai/configs/cp_nsh/defconfig
-board/bk7258_t5ai/scripts/ld.script
+board/bk7258/bootloader/start.S
+board/bk7258/chip/common/bk7258_allocateheap.c
+board/bk7258/chip/common/bk7258_os_adapt.c
+board/bk7258/chip/cp/bk7258_start.c
+board/bk7258/configs/cp_nsh/defconfig
+board/bk7258/scripts/ld.script
 nuttx/arch/arm/src/arm_m/arm_schedulesigaction.c
 ```
 

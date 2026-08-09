@@ -125,9 +125,9 @@ bk7258_uart_restore_console();
 ### 4.1 业务代码
 
 ```text
-board/bk7258_t5ai/chip/common/bk7258_serial.c
-board/bk7258_t5ai/chip/cp/bk7258_ap_control.c
-board/bk7258_t5ai/src/bk7258_bringup.c
+board/bk7258/chip/common/bk7258_serial.c
+board/bk7258/chip/cp/bk7258_ap_control.c
+board/bk7258/src/bk7258_bringup.c
 ```
 
 具体状态：

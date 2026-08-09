@@ -316,7 +316,7 @@ bk7258_serial.c:                    2026-07-30 23:08:39 +0800
 ```bash
 cd /home/lijian/project/open-vela
 AP_CONFIG_NAME=ap_smp_bidir \
-  ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 构建于 2026-07-30 23:35 +0800 成功退出，返回码为 0。配置组合为：
@@ -371,8 +371,8 @@ COM9  = CH340
 因此 `bk_loader.exe download -p 7` 是正确下载端口；COM11 不能替换 `-p 7`，而应被独立打开用于捕获 `S/U/G/C/A/W` 路标和 NSH。已新增：
 
 ```text
-board/bk7258_t5ai/scripts/bk7258_auto_debug.sh
-board/bk7258_t5ai/scripts/capture_windows_serial.ps1
+board/bk7258/scripts/bk7258_auto_debug.sh
+board/bk7258/scripts/capture_windows_serial.ps1
 ```
 
 自动化能力包括：

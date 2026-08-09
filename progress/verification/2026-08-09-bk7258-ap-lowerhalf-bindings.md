@@ -6,7 +6,7 @@
   parent `25fb43d`
 - Environment: WSL2, `/home/lijian/project/open-vela/nuttx` configured with
   `tools/configure.sh -e
-  ../.worktrees/bk7258-drivers/board/bk7258_t5ai/configs/ap_smp_drivercheck`,
+  ../.worktrees/bk7258-drivers/board/bk7258/configs/ap_smp_drivercheck`,
   prebuilt `arm-none-eabi` toolchain from `prebuilts/build-tools`
 
 ## Scope
@@ -27,7 +27,7 @@ the codex session:
 cd /home/lijian/project/open-vela/nuttx
 PATH=/home/lijian/project/open-vela/prebuilts/build-tools/linux-x86_64/bin:$PATH \
   ./tools/configure.sh -e \
-  ../.worktrees/bk7258-drivers/board/bk7258_t5ai/configs/ap_smp_drivercheck
+  ../.worktrees/bk7258-drivers/board/bk7258/configs/ap_smp_drivercheck
 PATH=... make olddefconfig
 PATH=... make -j32
 ```
@@ -65,5 +65,5 @@ None during this gate.
 - Build log tail: `postbuild.sh: role=ap app1.bin=179888 bytes
   app1_crc.bin=191148 bytes` (gate exit 0).
 - Configuration:
-  `board/bk7258_t5ai/configs/ap_smp_drivercheck/defconfig` (untracked
+  `board/bk7258/configs/ap_smp_drivercheck/defconfig` (untracked
   validation config, intentionally not committed).

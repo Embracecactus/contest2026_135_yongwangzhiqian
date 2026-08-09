@@ -16,7 +16,7 @@
 
 ## Global Constraints
 
-- 不修改 nuttx 官方树，所有改动在 `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/` overlay 内
+- 不修改 nuttx 官方树，所有改动在 `contest2026_135_yongwangzhiqian/board/bk7258/` overlay 内
 - SDK 源码一律取 `$BK_AVDK/cp/`（CP 路径），不碰 `ap/`
 - bootloader 保留自己的（全流程自己控制），不使用官方闭源 bootloader
 - wrapper 层零寄存器操作（不出现 `putreg32`/`getreg32`）
@@ -26,7 +26,7 @@
 ## 文件结构
 
 ```
-board/bk7258_t5ai/
+board/bk7258/
 ├── bootloader/                  # 不变
 │   └── boot_main.c              # 修改 FAL 分区表（Task 6）
 ├── chip/                        # 现有文件
@@ -49,7 +49,7 @@ board/bk7258_t5ai/
 ### Task 1: 编译 SDK 产出 armino_as_lib
 
 **Files:**
-- Create: `board/bk7258_t5ai/bk_idk/armino_as_lib/cp/` (整个目录，从 SDK 编译产出拷入)
+- Create: `board/bk7258/bk_idk/armino_as_lib/cp/` (整个目录，从 SDK 编译产出拷入)
 
 **Interfaces:**
 - Produces: `bk_idk/armino_as_lib/cp/libs/*.a`（预编译静态库）、`config/sdkconfig.h`、`include/`（SDK 头文件）
@@ -83,17 +83,17 @@ Expected: 产出 `build/armino_as_lib/bk7258/` 目录，包含 `libs/`、`config
 - [ ] **Step 4: 拷到工程**
 
 ```bash
-mkdir -p /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/
+mkdir -p /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258/bk_idk/armino_as_lib/
 cp -r /home/lijian/project/armino/bk_avdk_smp/build/armino_as_lib/bk7258 \
-      /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/cp/
+      /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258/bk_idk/armino_as_lib/cp/
 ```
 
 - [ ] **Step 5: 验证产出**
 
 ```bash
-ls /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/cp/libs/*.a | wc -l
-ls /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/cp/config/sdkconfig.h
-ls /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bk_idk/armino_as_lib/cp/include/
+ls /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258/bk_idk/armino_as_lib/cp/libs/*.a | wc -l
+ls /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258/bk_idk/armino_as_lib/cp/config/sdkconfig.h
+ls /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258/bk_idk/armino_as_lib/cp/include/
 ```
 
 Expected: `.a` 文件数量 > 10，`sdkconfig.h` 存在，`include/` 目录有内容
@@ -102,7 +102,7 @@ Expected: `.a` 文件数量 > 10，`sdkconfig.h` 存在，`include/` 目录有�
 
 ```bash
 cd /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian
-git add board/bk7258_t5ai/bk_idk/
+git add board/bk7258/bk_idk/
 git commit -m "feat(bk7258): add armino_as_lib prebuilt SDK libraries for CP
 
 Compiled from bk_avdk_smp SDK with CP configuration.
@@ -114,7 +114,7 @@ Contains libdriver.a, libbk_system.a, libbk_pm.a, etc."
 ### Task 2: 创建 OS 适配层
 
 **Files:**
-- Create: `board/bk7258_t5ai/chip/common/bk7258_os_adapt.c`
+- Create: `board/bk7258/chip/common/bk7258_os_adapt.c`
 
 **Interfaces:**
 - Produces: FreeRTOS API 的 NuttX 实现（`rtos_create_thread`、`os_malloc`、`GLOBAL_INT_DISABLE` 等），供 `libdriver.a` 链接时解析符号
@@ -131,11 +131,11 @@ wc -l /home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_os_adapt.c
 
 - [ ] **Step 2: 创建 bk7258_os_adapt.c 骨架**
 
-创建 `board/bk7258_t5ai/chip/common/bk7258_os_adapt.c`，包含以下核心函数：
+创建 `board/bk7258/chip/common/bk7258_os_adapt.c`，包含以下核心函数：
 
 ```c
 /****************************************************************************
- * board/bk7258_t5ai/chip/common/bk7258_os_adapt.c
+ * board/bk7258/chip/common/bk7258_os_adapt.c
  *
  * BK7258 NuttX OS adaptation layer.
  * Bridges SDK prebuilt library (libdriver.a) FreeRTOS API calls to NuttX.
@@ -269,7 +269,7 @@ Expected: 编译通过（或只有少量未定义符号需要补桩）
 - [ ] **Step 5: 提交**
 
 ```bash
-git add board/bk7258_t5ai/chip/common/bk7258_os_adapt.c
+git add board/bk7258/chip/common/bk7258_os_adapt.c
 git commit -m "feat(bk7258): add OS adaptation layer for SDK prebuilt libraries
 
 FreeRTOS→NuttX shim: rtos_*→nxsem/nxmutex/kthread, os_malloc→kmm_malloc,
@@ -281,8 +281,8 @@ bk_get_tick→clock_systime_ticks, GLOBAL_INT_*→irqsave/irqrestore."
 ### Task 3: WDT 驱动转 SDK wrapper（修 AON 根因）
 
 **Files:**
-- Modify: `board/bk7258_t5ai/chip/cp/bk7258_wdt.c`（完全重写）
-- Modify: `board/bk7258_t5ai/src/bk7258_bringup.c:171-173`（WDT 调用时机）
+- Modify: `board/bk7258/chip/cp/bk7258_wdt.c`（完全重写）
+- Modify: `board/bk7258/src/bk7258_bringup.c:171-173`（WDT 调用时机）
 
 **Interfaces:**
 - Consumes: `bk_wdt_driver_init()`, `bk_wdt_start(timeout_ms)`, `bk_wdt_feed()`, `bk_wdt_stop()`, `bk_aon_wdt_stop()`（来自 `libdriver.a`）
@@ -291,16 +291,16 @@ bk_get_tick→clock_systime_ticks, GLOBAL_INT_*→irqsave/irqrestore."
 - [ ] **Step 1: 备份当前实现**
 
 ```bash
-cp board/bk7258_t5ai/chip/cp/bk7258_wdt.c board/bk7258_t5ai/chip/cp/bk7258_wdt.c.bak
+cp board/bk7258/chip/cp/bk7258_wdt.c board/bk7258/chip/cp/bk7258_wdt.c.bak
 ```
 
 - [ ] **Step 2: 重写 bk7258_wdt.c 为 SDK wrapper**
 
-完全替换 `board/bk7258_t5ai/chip/cp/bk7258_wdt.c`，内容如下：
+完全替换 `board/bk7258/chip/cp/bk7258_wdt.c`，内容如下：
 
 ```c
 /****************************************************************************
- * board/bk7258_t5ai/chip/cp/bk7258_wdt.c
+ * board/bk7258/chip/cp/bk7258_wdt.c
  *
  * BK7258 WDT NuttX lower-half driver — SDK wrapper.
  * Calls bk_wdt_* / bk_aon_wdt_* SDK APIs. Zero register access.
@@ -505,7 +505,7 @@ int bk7258_wdt_initialize(void)
 
 - [ ] **Step 4: 更新 bk7258_bringup.c — WDT 调用时机前移**
 
-修改 `board/bk7258_t5ai/src/bk7258_bringup.c`，把 `bk7258_wdt_initialize()` 前移到 bringup 最开头（在 procfs/DVFS/flash 之前）：
+修改 `board/bk7258/src/bk7258_bringup.c`，把 `bk7258_wdt_initialize()` 前移到 bringup 最开头（在 procfs/DVFS/flash 之前）：
 
 ```c
 int bk7258_bringup(void)
@@ -530,7 +530,7 @@ Expected: 编译通过（`bk_wdt_*` / `bk_aon_wdt_*` 符号从 `libdriver.a` 解
 - [ ] **Step 6: 提交**
 
 ```bash
-git add board/bk7258_t5ai/chip/cp/bk7258_wdt.c board/bk7258_t5ai/src/bk7258_bringup.c
+git add board/bk7258/chip/cp/bk7258_wdt.c board/bk7258/src/bk7258_bringup.c
 git commit -m "fix(bk7258): rewrite WDT driver as SDK wrapper, fix AON reboot
 
 Root cause: bootloader arms both APB+AON WDTs, app only managed APB via
@@ -546,7 +546,7 @@ access replaced by SDK API calls (bk_wdt_*/bk_aon_wdt_*)."
 ### Task 4: Flash MTD 驱动转 SDK wrapper
 
 **Files:**
-- Modify: `board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.c`（完全重写）
+- Modify: `board/bk7258/chip/cp/bk7258_flash_mtd.c`（完全重写）
 
 **Interfaces:**
 - Consumes: `bk_flash_read_bytes()`, `bk_flash_write_bytes()`, `bk_flash_erase_sector()`, `bk_flash_set_protect_type()`, `bk_flash_driver_init()`（来自 `libdriver.a`）
@@ -555,7 +555,7 @@ access replaced by SDK API calls (bk_wdt_*/bk_aon_wdt_*)."
 - [ ] **Step 1: 备份当前实现**
 
 ```bash
-cp board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.c board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.c.bak
+cp board/bk7258/chip/cp/bk7258_flash_mtd.c board/bk7258/chip/cp/bk7258_flash_mtd.c.bak
 ```
 
 - [ ] **Step 2: 重写 bk7258_flash_mtd.c 为 SDK wrapper**
@@ -577,7 +577,7 @@ cd /home/lijian/project/open-vela
 - [ ] **Step 4: 提交**
 
 ```bash
-git add board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.c
+git add board/bk7258/chip/cp/bk7258_flash_mtd.c
 git commit -m "refactor(bk7258): rewrite flash MTD driver as SDK wrapper
 
 Replace register-level flash controller access with SDK API calls:
@@ -590,9 +590,9 @@ Zero register access in wrapper."
 ### Task 5: 更新构建系统
 
 **Files:**
-- Modify: `board/bk7258_t5ai/chip/Make.defs`
-- Modify: `board/bk7258_t5ai/chip/Kconfig`
-- Modify: `board/bk7258_t5ai/scripts/Make.defs`
+- Modify: `board/bk7258/chip/Make.defs`
+- Modify: `board/bk7258/chip/Kconfig`
+- Modify: `board/bk7258/scripts/Make.defs`
 
 **Interfaces:**
 - Produces: SDK 头文件 include 路径、`EXTRA_LIBS` 链接 `libs/*.a`、`-DCONFIG_*=0` 宏
@@ -604,7 +604,7 @@ Zero register access in wrapper."
 ```makefile
 # 在现有 Make.defs 基础上添加：
 
-BK_IDK_PATH_RELA_TO_CHIP = ../../../../board/bk7258_t5ai/bk_idk
+BK_IDK_PATH_RELA_TO_CHIP = ../../../../board/bk7258/bk_idk
 
 # SDK 头文件路径
 INCLUDES += ${INCDIR_PREFIX}$(BK_IDK_PATH_RELA_TO_CHIP)/armino_as_lib/cp/include
@@ -656,7 +656,7 @@ Expected: 编译通过，`EXTRA_LIBS` 链接成功
 - [ ] **Step 5: 提交**
 
 ```bash
-git add board/bk7258_t5ai/chip/Make.defs board/bk7258_t5ai/chip/Kconfig board/bk7258_t5ai/scripts/Make.defs
+git add board/bk7258/chip/Make.defs board/bk7258/chip/Kconfig board/bk7258/scripts/Make.defs
 git commit -m "build(bk7258): integrate armino_as_lib SDK into build system
 
 - Add SDK include paths (armino_as_lib/cp/include + config)
@@ -670,7 +670,7 @@ git commit -m "build(bk7258): integrate armino_as_lib SDK into build system
 ### Task 6: 更新 Bootloader FAL 分区表
 
 **Files:**
-- Modify: `board/bk7258_t5ai/bootloader/boot_main.c:60-64`
+- Modify: `board/bk7258/bootloader/boot_main.c:60-64`
 
 **Interfaces:**
 - Produces: 扩展的 FAL 分区表（bootloader + cp_app + ap_app）
@@ -699,7 +699,7 @@ app = fal_find("cp_app");
 - [ ] **Step 3: 编译 bootloader**
 
 ```bash
-cd /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258_t5ai/bootloader
+cd /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258/bootloader
 make clean && make
 ```
 
@@ -709,7 +709,7 @@ Expected: `bl.bin` 和 `bl_crc.bin` 重新生成
 
 ```bash
 cd /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian
-git add board/bk7258_t5ai/bootloader/boot_main.c board/bk7258_t5ai/bootloader/bl.bin board/bk7258_t5ai/bootloader/bl_crc.bin
+git add board/bk7258/bootloader/boot_main.c board/bk7258/bootloader/bl.bin board/bk7258/bootloader/bl_crc.bin
 git commit -m "feat(bk7258): extend bootloader FAL partition table for CP+AP
 
 Add cp_app (1360KB) and ap_app (1156KB) partitions matching SDK

@@ -13,10 +13,10 @@ Owner: 逆向验证（CodeBuddy 只读核查，不改代码）
 |---|---|---|---|
 | 官方 BL1（normal bootloader） | `/mnt/c/Users/lijian/Downloads/bk7258_normal_bootloader.bin` | 43744 B | 官方出厂 BL1 镜像 |
 | 官方 BL2（板上读出 2026-08-07） | `/mnt/c/Users/lijian/Downloads/bk7258-bl2-xip-read-20260807.bin` | 12288 B | J-Link 从板读出官方 BL2 XIP |
-| 自有 BL1 构建 | `board/bk7258_t5ai/bootloader/bl.bin` | 23444 B | 自有 BL1 构建产物 |
-| 自有 BL2 构建 | `board/bk7258_t5ai/bootloader/bl2/bl2.bin` | 10708 B | 自有 NuttX MCUboot BL2 |
-| 自有 BL1 CRC 产物 | `board/bk7258_t5ai/bootloader/bl_crc.bin` | 69632 B (0x11000) | CRC 块对齐打包产物 |
-| 自有 BL2 CRC 产物 | `board/bk7258_t5ai/bootloader/bl2/bl2_crc.bin` | 13056 B | CRC 块对齐打包产物 |
+| 自有 BL1 构建 | `board/bk7258/bootloader/bl.bin` | 23444 B | 自有 BL1 构建产物 |
+| 自有 BL2 构建 | `board/bk7258/bootloader/bl2/bl2.bin` | 10708 B | 自有 NuttX MCUboot BL2 |
+| 自有 BL1 CRC 产物 | `board/bk7258/bootloader/bl_crc.bin` | 69632 B (0x11000) | CRC 块对齐打包产物 |
+| 自有 BL2 CRC 产物 | `board/bk7258/bootloader/bl2/bl2_crc.bin` | 13056 B | CRC 块对齐打包产物 |
 | 板上验证 BL2 | `logs/bk7258-auto-debug/20260808-101553/validated-bl2-crc.bin` | 16384 B | 独立 RTS 复位验证通过的 BL2 |
 
 注：`/mnt/c/Users/lijian/Downloads/bk7258-bl2-xip.bin` 与
@@ -40,7 +40,7 @@ Owner: 逆向验证（CodeBuddy 只读核查，不改代码）
 
 ## 4. SDK 只读硬件证据源
 
-`board/bk7258_t5ai/bk_idk/armino_as_lib/versions/v3.1.1.9/cp/include/soc/bk7258/reg_base.h`
+`board/bk7258/bk_idk/armino_as_lib/versions/v3.1.1.9/cp/include/soc/bk7258/reg_base.h`
 提供已验证 BK7258 地址：
 - `SOC_AON_WDT_REG_BASE = 0x44000600`
 - `SOC_OTP_REG_BASE = 0x4b100000`
