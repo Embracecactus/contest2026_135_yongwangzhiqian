@@ -154,6 +154,9 @@ Root causes fixed and board-verified this pass:
    plane, owns it through another stack, or lacks the cache/error/buffer
    contract needed by the corresponding NuttX upper half.  No placeholder
    device, private character ABI or copied SDK source was added.
+11. P2 review is complete: LIN, Segment LCD, IRDA and FFT/SBC remain blocked
+   by missing immutable-bundle symbols, unresolved core ownership, absent
+   NuttX/board consumer contracts, or a combination of those constraints.
 
 All temporary shared-SRAM/device-list/allocation probes and temporary
 `apctl` debug commands have been removed.  The final 32-job MCUboot build and
@@ -166,10 +169,11 @@ Canonical detail:
 
 ## Next step
 
-1. Continue the isolated P2 background queue (LIN interface review in
-   progress, followed by Segment LCD, IRDA and FFT/SBC).  TRNG and CP touch
-   are hardware-verified; QSPI is compile/link-verified; the remaining P0/P1
-   blockers are recorded against the immutable SDK/NuttX ABI boundary.
+1. The isolated P0/P1/P2 driver queue is complete.  TRNG and CP touch are
+   hardware-verified and QSPI is compile/link-verified; all non-implementable
+   entries are recorded against an explicit immutable SDK/NuttX ABI boundary.
+   Revisit them only after a v3.1.1.9 bundle is rebuilt with the relevant
+   controller enabled and its public ownership/cache/buffer contract frozen.
 2. Hardware-verify existing peripherals one at a time using pin-compatible
    profiles (SD card detect, I2S clocking, LCD pixels, SPI chip select); do
    not enable conflicting devices by default in shipped configs.
