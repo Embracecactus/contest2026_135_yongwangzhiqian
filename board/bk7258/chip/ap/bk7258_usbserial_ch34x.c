@@ -122,6 +122,11 @@ struct bk7258_usbserial_ch34x_s
   bool                   endpoints;
   bool                   rxena;
   bool                   txena;
+  bool                   rx_active;
+  bool                   rx_pending;
+  bool                   rx_working;
+  ssize_t                rx_result;
+  uint8_t                rx_worker;
   uint8_t                version;
   uint8_t                lcr;
   uint8_t                mcr;
@@ -129,8 +134,10 @@ struct bk7258_usbserial_ch34x_s
   int16_t                crefs;
 
   struct work_s           rxwork;
+  struct work_s           rxcompletework;
   struct work_s           txwork;
   struct work_s           destroywork;
+  spinlock_t              rxlock;
   FAR uint8_t            *ctrlreq;
   FAR uint8_t            *ctrlbuf;
   FAR uint8_t            *inbuf;
@@ -188,6 +195,10 @@ static int bk7258_ch34x_configure(
   FAR struct bk7258_usbserial_ch34x_s *priv);
 
 static void bk7258_ch34x_rxwork(FAR void *arg);
+static void bk7258_ch34x_rxcompletework(FAR void *arg);
+static void bk7258_ch34x_rxcallback(FAR void *arg, ssize_t nread);
+static void bk7258_ch34x_rxwork_common(
+  FAR struct bk7258_usbserial_ch34x_s *priv, uint8_t slot);
 static void bk7258_ch34x_txwork(FAR void *arg);
 #ifdef CONFIG_BK7258_USBHOST_CH34X_VALIDATION
 static int bk7258_ch34x_validation_thread(int argc, FAR char *argv[]);
@@ -279,20 +290,54 @@ bk7258_ch34x_from_uart(FAR struct uart_dev_s *uartdev)
   return (FAR struct bk7258_usbserial_ch34x_s *)uartdev->priv;
 }
 
+static int bk7258_ch34x_queue_rx_slot(
+  FAR struct bk7258_usbserial_ch34x_s *priv, uint8_t slot, clock_t delay)
+{
+  FAR struct work_s *work;
+  worker_t worker;
+  irqstate_t flags;
+  bool enabled;
+  int ret;
+
+  if (slot == 0)
+    {
+      work = &priv->rxwork;
+      worker = bk7258_ch34x_rxwork;
+    }
+  else
+    {
+      work = &priv->rxcompletework;
+      worker = bk7258_ch34x_rxcompletework;
+    }
+
+  flags = spin_lock_irqsave(&priv->rxlock);
+  enabled = priv->rxena && !priv->disconnected;
+  spin_unlock_irqrestore(&priv->rxlock, flags);
+  if (!enabled || !work_available(work))
+    {
+      return -EBUSY;
+    }
+
+  ret = work_queue(LPWORK, work, worker, priv, delay);
+  return ret;
+}
+
 static void bk7258_ch34x_queue_rx(
   FAR struct bk7258_usbserial_ch34x_s *priv, clock_t delay)
 {
-  int ret;
+  irqstate_t flags;
+  bool idle;
+  uint8_t slot;
 
-  if (!priv->rxena || priv->disconnected || !work_available(&priv->rxwork))
-    {
-      return;
-    }
+  flags = spin_lock_irqsave(&priv->rxlock);
+  idle = priv->rxena && !priv->disconnected && !priv->rx_active &&
+         !priv->rx_working;
+  slot = priv->rx_pending ? (priv->rx_worker == 0 ? 1 : 0) : 0;
+  spin_unlock_irqrestore(&priv->rxlock, flags);
 
-  ret = work_queue(LPWORK, &priv->rxwork, bk7258_ch34x_rxwork, priv, delay);
-  if (ret < 0 && ret != -EBUSY)
+  if (idle)
     {
-      uerr("CH34x RX work_queue failed: %d\n", ret);
+      (void)bk7258_ch34x_queue_rx_slot(priv, slot, delay);
     }
 }
 
@@ -655,65 +700,197 @@ static void bk7258_ch34x_free_buffers(
     }
 }
 
-static void bk7258_ch34x_rxwork(FAR void *arg)
+static void bk7258_ch34x_rxcallback(FAR void *arg, ssize_t nread)
 {
   FAR struct bk7258_usbserial_ch34x_s *priv = arg;
-  FAR struct usbhost_hubport_s *hport;
-  FAR struct uart_dev_s *uartdev;
-  ssize_t nread;
-  size_t ndx;
-  size_t copied = 0;
+  irqstate_t flags;
+  uint8_t slot;
+  bool queue;
+  clock_t delay;
 
-  DEBUGASSERT(priv != NULL);
-  hport = priv->usbclass.hport;
-  uartdev = &priv->uartdev;
-  if (!priv->rxena || priv->disconnected || hport == NULL ||
-      priv->bulkin == NULL)
+  /* The HCD may invoke this callback from interrupt context.  In
+   * particular, do not touch the UART ring or wait for a worker here.  The
+   * callback is also the point at which ownership of inbuf returns from the
+   * HCD to this class. */
+
+  flags = spin_lock_irqsave(&priv->rxlock);
+  if (!priv->rx_active)
     {
+      spin_unlock_irqrestore(&priv->rxlock, flags);
       return;
     }
 
-  nread = DRVR_TRANSFER(hport->drvr, priv->bulkin, priv->inbuf,
-                        priv->pktsize);
-  if (nread > priv->pktsize)
+  priv->rx_active = false;
+  priv->rx_pending = true;
+  priv->rx_result = nread;
+  slot = priv->rx_worker == 0 ? 1 : 0;
+  queue = priv->rxena && !priv->disconnected && nread != -ESHUTDOWN &&
+          nread != -ENODEV;
+  delay = nread == -EAGAIN ? BK7258_CH34X_XFERDELAY : 0;
+  spin_unlock_irqrestore(&priv->rxlock, flags);
+
+  if (queue)
     {
-      uerr("CH34x RX over-length transfer: %d\n", (int)nread);
-      nread = -EIO;
-    }
+      /* The alternate item is normally free because the completion callback
+       * runs after the submitting worker returned.  If an unusual HCD calls
+       * back inline, the submitting item is the safe fallback once that
+       * worker has returned; retaining rx_pending lets a later enable retry
+       * if both items are temporarily busy. */
 
-  if (nread > 0)
-    {
-      irqstate_t flags = uart_spinlock(uartdev, false);
-      for (ndx = 0; ndx < (size_t)nread; ndx++)
+      if (bk7258_ch34x_queue_rx_slot(priv, slot, delay) == -EBUSY)
         {
-          unsigned int next = uartdev->recv.head + 1;
-          if (next >= (unsigned int)uartdev->recv.size)
-            {
-              next = 0;
-            }
-
-          if (next == (unsigned int)uartdev->recv.tail)
-            {
-              break;
-            }
-
-          uartdev->recv.buffer[uartdev->recv.head] = priv->inbuf[ndx];
-          uartdev->recv.head = next;
-          copied++;
-        }
-      uart_spinunlock(uartdev, false, flags);
-      if (copied != 0)
-        {
-          uart_datareceived(uartdev);
+          (void)bk7258_ch34x_queue_rx_slot(priv,
+                                           slot == 0 ? 1 : 0, delay);
         }
     }
-  else if (nread < 0 && nread != -EAGAIN && nread != -ESHUTDOWN &&
-           !priv->disconnected)
+}
+
+static void bk7258_ch34x_rxwork_common(
+  FAR struct bk7258_usbserial_ch34x_s *priv, uint8_t slot)
+{
+  FAR struct usbhost_hubport_s *hport;
+  FAR struct uart_dev_s *uartdev;
+  irqstate_t flags;
+  ssize_t nread = 0;
+  size_t ndx;
+  size_t copied = 0;
+  bool have_result;
+  bool retry;
+  int ret;
+
+  DEBUGASSERT(priv != NULL);
+
+  /* Mark the worker before inspecting the state.  This closes the race in
+   * which a repeated RX enable queues the other work item while this one is
+   * consuming the previous completion. */
+
+  flags = spin_lock_irqsave(&priv->rxlock);
+  if (priv->rx_working)
     {
-      uerr("CH34x RX transfer failed: %d\n", (int)nread);
+      spin_unlock_irqrestore(&priv->rxlock, flags);
+      return;
     }
 
-  bk7258_ch34x_queue_rx(priv, BK7258_CH34X_XFERDELAY);
+  priv->rx_working = true;
+  if (!priv->rxena || priv->disconnected)
+    {
+      priv->rx_pending = false;
+      priv->rx_working = false;
+      spin_unlock_irqrestore(&priv->rxlock, flags);
+      return;
+    }
+
+  have_result = priv->rx_pending;
+  if (have_result)
+    {
+      nread = priv->rx_result;
+      priv->rx_pending = false;
+    }
+  spin_unlock_irqrestore(&priv->rxlock, flags);
+
+  hport = priv->usbclass.hport;
+  uartdev = &priv->uartdev;
+  if (hport == NULL || priv->bulkin == NULL || priv->inbuf == NULL)
+    {
+      flags = spin_lock_irqsave(&priv->rxlock);
+      priv->rx_working = false;
+      spin_unlock_irqrestore(&priv->rxlock, flags);
+      return;
+    }
+
+  if (have_result)
+    {
+      if (nread > priv->pktsize)
+        {
+          uerr("CH34x RX over-length transfer: %d\n", (int)nread);
+          nread = -EIO;
+        }
+
+      if (nread > 0)
+        {
+          flags = uart_spinlock(uartdev, false);
+          for (ndx = 0; ndx < (size_t)nread; ndx++)
+            {
+              unsigned int next = uartdev->recv.head + 1;
+              if (next >= (unsigned int)uartdev->recv.size)
+                {
+                  next = 0;
+                }
+
+              if (next == (unsigned int)uartdev->recv.tail)
+                {
+                  break;
+                }
+
+              uartdev->recv.buffer[uartdev->recv.head] = priv->inbuf[ndx];
+              uartdev->recv.head = next;
+              copied++;
+            }
+          uart_spinunlock(uartdev, false, flags);
+          if (copied != 0)
+            {
+              uart_datareceived(uartdev);
+            }
+        }
+      else if (nread < 0 && nread != -EAGAIN && nread != -ESHUTDOWN &&
+               nread != -ENODEV && !priv->disconnected)
+        {
+          uerr("CH34x RX transfer failed: %d\n", (int)nread);
+        }
+    }
+
+  /* Reserve the shared DMA buffer before calling the HCD.  There can be at
+   * most one asynchronous IN request, and no worker may reuse inbuf while it
+   * is owned by that request. */
+
+  flags = spin_lock_irqsave(&priv->rxlock);
+  if (!priv->rxena || priv->disconnected || priv->rx_active ||
+      priv->rx_pending)
+    {
+      priv->rx_working = false;
+      spin_unlock_irqrestore(&priv->rxlock, flags);
+      return;
+    }
+
+  priv->rx_worker = slot;
+  priv->rx_active = true;
+  spin_unlock_irqrestore(&priv->rxlock, flags);
+
+  ret = DRVR_ASYNCH(hport->drvr, priv->bulkin, priv->inbuf, priv->pktsize,
+                    bk7258_ch34x_rxcallback, priv);
+  if (ret > 0)
+    {
+      /* The standard asynchronous contract returns zero or a negative
+       * errno.  Do not leave rx_active latched if a non-conforming HCD
+       * reports a transfer length here. */
+
+      ret = -EIO;
+    }
+
+  flags = spin_lock_irqsave(&priv->rxlock);
+  if (ret < 0)
+    {
+      priv->rx_active = false;
+    }
+  retry = ret < 0 && priv->rxena && !priv->disconnected;
+  priv->rx_working = false;
+  spin_unlock_irqrestore(&priv->rxlock, flags);
+
+  if (ret < 0 && retry && ret != -ESHUTDOWN && ret != -ENODEV)
+    {
+      (void)bk7258_ch34x_queue_rx_slot(priv, slot == 0 ? 1 : 0,
+                                       BK7258_CH34X_XFERDELAY);
+    }
+}
+
+static void bk7258_ch34x_rxwork(FAR void *arg)
+{
+  bk7258_ch34x_rxwork_common(arg, 0);
+}
+
+static void bk7258_ch34x_rxcompletework(FAR void *arg)
+{
+  bk7258_ch34x_rxwork_common(arg, 1);
 }
 
 static void bk7258_ch34x_txwork(FAR void *arg)
@@ -889,6 +1066,7 @@ static FAR struct usbhost_class_s *bk7258_ch34x_create(
 
   memset(priv, 0, sizeof(*priv));
   nxmutex_init(&priv->lock);
+  spin_lock_init(&priv->rxlock);
   priv->usbclass.hport = hport;
   priv->usbclass.connect = bk7258_ch34x_connect;
   priv->usbclass.disconnected = bk7258_ch34x_disconnected;
@@ -1022,8 +1200,10 @@ static int bk7258_ch34x_disconnected(FAR struct usbhost_class_s *usbclass)
 
   DEBUGASSERT(priv != NULL && priv->usbclass.hport != NULL);
   hport = priv->usbclass.hport;
+  irqstate_t rxflags = spin_lock_irqsave(&priv->rxlock);
   priv->disconnected = true;
   priv->rxena = false;
+  spin_unlock_irqrestore(&priv->rxlock, rxflags);
   priv->txena = false;
 #ifdef CONFIG_SERIAL_REMOVABLE
   if (priv->registered)
@@ -1033,6 +1213,7 @@ static int bk7258_ch34x_disconnected(FAR struct usbhost_class_s *usbclass)
 #endif
 
   work_cancel(LPWORK, &priv->rxwork);
+  work_cancel(LPWORK, &priv->rxcompletework);
   work_cancel(LPWORK, &priv->txwork);
   if (priv->bulkin != NULL)
     {
@@ -1077,7 +1258,25 @@ static void bk7258_ch34x_destroy(FAR void *arg)
   DEBUGASSERT(priv != NULL && priv->usbclass.hport != NULL);
   hport = priv->usbclass.hport;
   work_cancel_sync(LPWORK, &priv->rxwork);
+  work_cancel_sync(LPWORK, &priv->rxcompletework);
   work_cancel_sync(LPWORK, &priv->txwork);
+
+  /* DRVR_CANCEL completes the outstanding asynchronous callback before it
+   * returns.  The work cancellations above then guarantee that no worker can
+   * still inspect the result or inbuf before those buffers are freed.  The
+   * disconnect callback normally performs this cancellation first; repeat it
+   * here so every destroy path owns the same endpoint lifetime guarantee. */
+
+  if (priv->bulkin != NULL)
+    {
+      (void)DRVR_CANCEL(hport->drvr, priv->bulkin);
+    }
+
+  irqstate_t rxflags = spin_lock_irqsave(&priv->rxlock);
+  priv->rx_active = false;
+  priv->rx_pending = false;
+  priv->rx_working = false;
+  spin_unlock_irqrestore(&priv->rxlock, rxflags);
 
   if (priv->registered)
     {
@@ -1233,10 +1432,14 @@ static void bk7258_ch34x_rxint(FAR struct uart_dev_s *uartdev, bool enable)
 {
   FAR struct bk7258_usbserial_ch34x_s *priv =
     bk7258_ch34x_from_uart(uartdev);
-  irqstate_t flags = spin_lock_irqsave(&g_bk7258_ch34x_alloc_lock);
+  irqstate_t flags = spin_lock_irqsave(&priv->rxlock);
 
   priv->rxena = enable && !priv->disconnected;
-  spin_unlock_irqrestore(&g_bk7258_ch34x_alloc_lock, flags);
+  if (!enable)
+    {
+      priv->rx_pending = false;
+    }
+  spin_unlock_irqrestore(&priv->rxlock, flags);
   if (enable)
     {
       bk7258_ch34x_queue_rx(priv, 0);
@@ -1244,6 +1447,7 @@ static void bk7258_ch34x_rxint(FAR struct uart_dev_s *uartdev, bool enable)
   else
     {
       work_cancel(LPWORK, &priv->rxwork);
+      work_cancel(LPWORK, &priv->rxcompletework);
     }
 }
 
