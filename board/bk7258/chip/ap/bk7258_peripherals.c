@@ -19,6 +19,7 @@
 #include <errno.h>
 
 #include <arch/chip/bk7258_peripherals.h>
+#include <arch/board/board.h>
 #ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
 #  include <arch/chip/bk7258_sdk_runtime.h>
 #endif
@@ -279,6 +280,14 @@ int bk7258_peripherals_initialize(void)
   if (ret < 0)
     {
       lcderr("ERROR: LCD framebuffer registration failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_GT1151
+  ret = bk7258_board_gt1151_initialize();
+  if (ret < 0)
+    {
+      ierr("ERROR: GT1151 registration failed: %d\n", ret);
     }
 #endif
 

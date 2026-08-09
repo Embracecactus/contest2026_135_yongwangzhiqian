@@ -20,6 +20,8 @@
 #define BK7258_BOARD_HAS_TF_CARD                 1
 #define BK7258_BOARD_HAS_RGB_LCD_CONNECTOR       1
 #define BK7258_BOARD_HAS_DVP_CONNECTOR           1
+#define BK7258_BOARD_HAS_NATIVE_USB_HOST          1
+#define BK7258_BOARD_HAS_GT1151_TOUCH             1
 
 #define BK7258_BOARD_USER_LED_GPIO               1
 #define BK7258_BOARD_USER_LED_ACTIVE_HIGH        1
@@ -35,10 +37,19 @@
 
 #define BK7258_BOARD_LCD_SPI_CLK_GPIO             49
 #define BK7258_BOARD_LCD_SPI_CS_GPIO              48
-#define BK7258_BOARD_LCD_SPI_SDI_GPIO             50
+#define BK7258_BOARD_LCD_SPI_SDI_GPIO             31
 #define BK7258_BOARD_LCD_RESET_GPIO               53
 #define BK7258_BOARD_LCD_BACKLIGHT_GPIO           9
 #define BK7258_BOARD_LCD_BACKLIGHT_ACTIVE_HIGH    1
+
+/* GT1151 capacitive touch controller on the LCD sub-board. */
+
+#define BK7258_BOARD_TOUCH_I2C_BUS                0
+#define BK7258_BOARD_TOUCH_I2C_ADDRESS            0x14
+#define BK7258_BOARD_TOUCH_I2C_SCL_GPIO           13
+#define BK7258_BOARD_TOUCH_I2C_SDA_GPIO           15
+#define BK7258_BOARD_TOUCH_INTERRUPT_GPIO         50
+#define BK7258_BOARD_TOUCH_RESET_GPIO             54
 
 /* TF-card wiring source-verified from T5-Board V1.0.2. */
 

@@ -1162,6 +1162,30 @@ config BK7258_LCD_VALIDATION_PATTERN
 		registration.  This is intended only for board-level display bring-up;
 		normal applications should leave it disabled and render through fb0.
 
+config BK7258_GT1151
+	bool "T5-Board GT1151 capacitive touch panel"
+	default n
+	depends on BK7258_BOARD_T5_BOARD
+	select I2C
+	select I2C_BITBANG
+	select INPUT
+	select INPUT_GT9XX
+	help
+		Register the LCD sub-board GT1151 through NuttX's standard GT9xx
+		touchscreen driver as /dev/input0.  The T5-Board routes this bus to
+		GPIO13/GPIO15, so the board binding uses the NuttX bitbang-I2C lower
+		half rather than claiming an unsupported hardware-I2C pin mapping.
+
+config BK7258_GT1151_VALIDATION
+	bool "Continuously report GT1151 validation samples"
+	default n
+	depends on BK7258_GT1151
+	help
+		Open /dev/input0 from a kernel thread after board bring-up.  A
+		successful open proves that the product ID can be read over the real
+		T5-Board bus; subsequent touch samples are written to syslog.  This
+		option is intended for drivercheck configurations only.
+
 config BK7258_RTC
 	bool "AON RTC lower half"
 	default n

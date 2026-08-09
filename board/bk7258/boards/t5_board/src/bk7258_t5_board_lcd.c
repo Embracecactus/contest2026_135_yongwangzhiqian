@@ -120,7 +120,6 @@ static int t5_board_lcd_rgb_pins_initialize(
     { GPIO_44, GPIO_DEV_LCD_B6 },
     { GPIO_43, GPIO_DEV_LCD_B7 },
     { GPIO_14, GPIO_DEV_LCD_CLK },
-    { GPIO_15, GPIO_DEV_LCD_DISP },
     { GPIO_16, GPIO_DEV_LCD_DE },
     { GPIO_17, GPIO_DEV_LCD_HSYNC },
     { GPIO_18, GPIO_DEV_LCD_VSYNC },
