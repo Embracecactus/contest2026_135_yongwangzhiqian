@@ -148,10 +148,12 @@ Root causes fixed and board-verified this pass:
    MCUboot board image reached NSH, registered the node and returned the real
    channel-3 bit in a four-byte read.  Physical capacitive transition evidence
    still requires a suitable electrode; the module's GPIO29 is USERKEY.
-10. CAN, Ethernet, USB Host and USB Device are source-audited blockers rather
-   than implementations: the immutable SDK bundle either omits their required
-   lower-level ABI or owns the controller through CherryUSB.  No placeholder
-   device or copied SDK source was added.
+10. CAN, Ethernet, USB Host/Device, DVP, DMA2D, JPEG encode/decode,
+   Scale/Rotate and YUV/H264 are source-audited blockers rather than fake
+   implementations.  The immutable SDK bundle either omits the required data
+   plane, owns it through another stack, or lacks the cache/error/buffer
+   contract needed by the corresponding NuttX upper half.  No placeholder
+   device, private character ABI or copied SDK source was added.
 
 All temporary shared-SRAM/device-list/allocation probes and temporary
 `apctl` debug commands have been removed.  The final 32-job MCUboot build and
@@ -164,10 +166,10 @@ Canonical detail:
 
 ## Next step
 
-1. Continue the isolated background driver queue (TRNG and CP touch
-   hardware-verified; QSPI compile/link-verified; CAN/Ethernet/USB blocked by
-   the immutable SDK boundary; DVP/V4L2 under review), with one reviewed commit
-   per implementable driver and no hardware access from the child Agent.
+1. Continue the isolated P2 background queue (LIN interface review in
+   progress, followed by Segment LCD, IRDA and FFT/SBC).  TRNG and CP touch
+   are hardware-verified; QSPI is compile/link-verified; the remaining P0/P1
+   blockers are recorded against the immutable SDK/NuttX ABI boundary.
 2. Hardware-verify existing peripherals one at a time using pin-compatible
    profiles (SD card detect, I2S clocking, LCD pixels, SPI chip select); do
    not enable conflicting devices by default in shipped configs.
