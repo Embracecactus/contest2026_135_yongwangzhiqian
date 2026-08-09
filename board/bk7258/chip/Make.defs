@@ -315,7 +315,26 @@ ifeq ($(CONFIG_BK7258_I2S),y)
 BK7258_AP_BASE_CSRCS += bk7258_i2s.c
 endif
 ifeq ($(CONFIG_BK7258_LCD),y)
-BK7258_AP_BASE_CSRCS += bk7258_lcd.c
+VPATH += $(BOARD_DIR)$(DELIM)panels
+VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
+INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)panels
+BK7258_AP_BASE_CSRCS += bk7258_lcd_rgb.c
+BK7258_AP_BASE_CSRCS += ili9488_rgb.c
+BK7258_AP_BASE_CSRCS += bk7258_t5_board_lcd.c
+
+# NuttX mkdeps searches each DEPPATH itself and therefore expects a source
+# basename here.  GNU make expands $< to the absolute VPATH match for sources
+# outside arch/arm/src, which mkdeps would incorrectly prepend to every
+# DEPPATH.  Keep the panel and board binding in their owning directories and
+# override only their dependency recipes.
+
+ili9488_rgb.ddc: ili9488_rgb.c
+	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
+		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
+
+bk7258_t5_board_lcd.ddc: bk7258_t5_board_lcd.c
+	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
+		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
 endif
 ifeq ($(CONFIG_BK7258_MIC),y)
 BK7258_AP_BASE_CSRCS += bk7258_mic.c
