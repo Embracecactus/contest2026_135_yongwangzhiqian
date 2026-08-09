@@ -93,4 +93,8 @@ int bk7258_gpio_irq_test(void);
 int bk7258_gpio_lowerhalf_initialize(void);
 #endif
 
+#ifdef CONFIG_BK7258_GT1151
+int bk7258_board_gt1151_initialize(void);
+#endif
+
 #endif /* __ARCH_BOARD_BK7258_BOARD_H */
