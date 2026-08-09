@@ -10,6 +10,15 @@ WORKSPACE="$(cd "${CONTEST_DIR}/.." && pwd)"
 TOPDIR="${WORKSPACE}/nuttx"
 BUILD="${WORKSPACE}/build.sh"
 PARTITION_GENERATOR="${SCRIPT_DIR}/gen_bk7258_partitions.py"
+# A worktree validation can point this at a temporary config mirror whose
+# custom board/chip paths resolve to that worktree.  Normal builds keep using
+# the established vendor board-config mirror.
+CONFIG_ROOT="${BK7258_CONFIG_ROOT:-${WORKSPACE}/vendor/openvela/boards/contest2026_135_bk7258/configs}"
+if [[ ! -d "${CONFIG_ROOT}" ]]; then
+    printf 'build_dual_image: missing BK7258 config root: %s\n' \
+        "${CONFIG_ROOT}" >&2
+    exit 2
+fi
 CP_CONFIG_NAME="${CP_CONFIG_NAME:-cp_nsh}"
 case "${CP_CONFIG_NAME}" in
     cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_ota|cp_nsh_wifi|cp_nsh_mcuboot|cp_nsh_drivercheck|cp_nsh_drivercheck_mcuboot)
@@ -20,7 +29,7 @@ case "${CP_CONFIG_NAME}" in
         exit 2
         ;;
 esac
-CP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${CP_CONFIG_NAME}"
+CP_CONFIG="${CONFIG_ROOT}/${CP_CONFIG_NAME}"
 AP_CONFIG_NAME="${AP_CONFIG_NAME:-ap_smp}"
 case "${AP_CONFIG_NAME}" in
     ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi|ap_smp_mcuboot|ap_smp_drivercheck|ap_smp_drivercheck_mcuboot)
@@ -31,7 +40,7 @@ case "${AP_CONFIG_NAME}" in
         exit 2
         ;;
 esac
-AP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${AP_CONFIG_NAME}"
+AP_CONFIG="${CONFIG_ROOT}/${AP_CONFIG_NAME}"
 
 if [[ "${CP_CONFIG_NAME}" == *_mcuboot ||
       "${AP_CONFIG_NAME}" == *_mcuboot ]]; then
