@@ -1171,6 +1171,19 @@ config BK7258_SPI_TIMEOUT_MS
 	range 1 10000
 	depends on BK7258_SPI
 
+config BK7258_QSPI
+	bool "QSPI controller lower half"
+	default n
+	depends on BK7258_AP_CORE
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Expose the two AP-owned BK7258 QSPI controllers through the standard
+		NuttX qspi_dev_s contract.  The immutable SDK supports only a verified
+		subset of 24-bit indirect Flash commands, so the board does not bind an
+		arbitrary MTD upper half by default.  QSPI0 shares GPIO22..27 with RGB
+		LCD and QSPI1 shares GPIO2..7 with SDIO/SPI/I2S; a board consumer must
+		choose one pin-compatible owner before initializing either controller.
+
 config BK7258_TIMER
 	bool "General-purpose timer lower half"
 	default n
