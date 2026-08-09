@@ -101,6 +101,37 @@ static bool g_t5_gt1151_registered;
 static void t5_gt1151_sdk_isr(gpio_id_t gpio_id);
 
 #ifdef CONFIG_BK7258_GT1151_VALIDATION
+static bool g_t5_gt1151_product_logged;
+
+static void t5_gt1151_validation_trace(FAR struct i2c_msg_s *msgs,
+                                       int count, int ret)
+{
+  uint16_t reg;
+
+  if (ret < 0 || count != 2 || msgs[0].length != 2 ||
+      (msgs[1].flags & I2C_M_READ) == 0 || msgs[1].length == 0)
+    {
+      return;
+    }
+
+  reg = (uint16_t)msgs[0].buffer[0] << 8 | msgs[0].buffer[1];
+  if (reg == 0x8140 && msgs[1].length >= 4 &&
+      !g_t5_gt1151_product_logged)
+    {
+      FAR const uint8_t *id = msgs[1].buffer;
+
+      syslog(LOG_INFO,
+             "bk7258-touch: product-id=%02x %02x %02x %02x\n",
+             id[0], id[1], id[2], id[3]);
+      g_t5_gt1151_product_logged = true;
+    }
+  else if (reg == 0x814e && msgs[1].buffer[0] != 0)
+    {
+      syslog(LOG_INFO, "bk7258-touch: status=0x%02x\n",
+             msgs[1].buffer[0]);
+    }
+}
+
 static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
 {
   struct touch_sample_s sample;
@@ -290,6 +321,7 @@ static int t5_gt1151_i2c_transfer(FAR struct i2c_master_s *dev,
   FAR struct t5_gt1151_i2c_s *priv =
     (FAR struct t5_gt1151_i2c_s *)dev;
   struct i2c_msg_s fixed[2];
+  int ret;
 
   if (msgs == NULL || count <= 0)
     {
@@ -310,10 +342,18 @@ static int t5_gt1151_i2c_transfer(FAR struct i2c_master_s *dev,
       fixed[0] = msgs[0];
       fixed[1] = msgs[1];
       fixed[0].flags |= I2C_M_NOSTOP;
-      return I2C_TRANSFER(priv->bitbang, fixed, 2);
+      ret = I2C_TRANSFER(priv->bitbang, fixed, 2);
+#ifdef CONFIG_BK7258_GT1151_VALIDATION
+      t5_gt1151_validation_trace(fixed, 2, ret);
+#endif
+      return ret;
     }
 
-  return I2C_TRANSFER(priv->bitbang, msgs, count);
+  ret = I2C_TRANSFER(priv->bitbang, msgs, count);
+#ifdef CONFIG_BK7258_GT1151_VALIDATION
+  t5_gt1151_validation_trace(msgs, count, ret);
+#endif
+  return ret;
 }
 
 static int t5_gt1151_i2c_setup(FAR struct i2c_master_s *dev)
