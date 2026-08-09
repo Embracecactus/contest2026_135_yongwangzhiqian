@@ -25,12 +25,21 @@
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 
-#include "../include/bk7258_scale_rotate.h"
+#include <arch/chip/bk7258_scale_rotate.h>
 
 #define BK7258_SCALE_ROTATE_DEFAULT_TIMEOUT_MS 1000
 #define BK7258_SCALE_ROTATE_MAX_DIM            1280
 #define BK7258_SCALE_ROTATE_MIN_BLOCK_PIXELS  1
 #define BK7258_SCALE_ROTATE_MAX_BLOCK_PIXELS  4800
+
+/* These are the non-zero bookkeeping values used by the SDK's official
+ * BLOCK_SCALE examples.  The common scale ISR reads line_cycle and applies a
+ * modulo before it branches on FRAME_SCALE, even though FRAME_SCALE address
+ * programming does not use block addresses.  Keep both fields representable
+ * and safe for that shared ISR path; never encode src_height in line_cycle. */
+
+#define BK7258_SCALE_ROTATE_FRAME_LINE_CYCLE 16
+#define BK7258_SCALE_ROTATE_FRAME_LINE_MASK  0x1f
 
 struct bk7258_scale_rotate_s
 {
@@ -469,7 +478,10 @@ static int bk7258_scale_rotate_init_scale_locked(
   if (ret < 0)
     {
       /* The SDK may have allocated one of its records before reporting a
-       * failed init.  Its deinit API intentionally does not free them. */
+       * failed init.  Its deinit API intentionally does not free them.  If
+       * that failure occurred after SDK PM/IRQ setup but before is_init was
+       * set, the public SDK has no rollback API; mem_free is the only safe
+       * cleanup available to this wrapper. */
 
       (void)bk_hw_scale_mem_free(id);
       return ret;
@@ -721,8 +733,8 @@ int bk7258_scale(FAR struct bk7258_scale_rotate_s *priv,
     }
 
   memset(&config, 0, sizeof(config));
-  config.line_cycle = request->src_height;
-  config.line_mask = request->src_height - 1;
+  config.line_cycle = BK7258_SCALE_ROTATE_FRAME_LINE_CYCLE;
+  config.line_mask = BK7258_SCALE_ROTATE_FRAME_LINE_MASK;
   config.src_width = request->src_width;
   config.src_height = request->src_height;
   config.dst_width = request->dst_width;
