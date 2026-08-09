@@ -485,9 +485,22 @@ BL1_BOOT_ARGS=(
 if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     BL1_BOOT_ARGS+=("BL1_MINIMAL=1")
     printf '%s\n' "build_dual_image: building MCUboot BL2"
+    BL2_KEY_SOURCE="${TMPDIR}/bk7258_bl2_keys.c"
+    python3 "${WORKSPACE}/apps/boot/mcuboot/mcuboot/scripts/imgtool.py" \
+        getpub --key "${MCUBOOT_SIGNING_KEY}" --encoding lang-c \
+        > "${BL2_KEY_SOURCE}"
+    printf '%s\n' \
+        '#include <bootutil/sign_key.h>' \
+        'const struct bootutil_key bootutil_keys[] =' \
+        '{' \
+        '  { .key = ecdsa_pub_key, .len = &ecdsa_pub_key_len },' \
+        '};' \
+        'const int bootutil_key_cnt = 1;' \
+        >> "${BL2_KEY_SOURCE}"
     make -C "${BOARD_DIR}/bootloader/bl2" clean all \
         "BL2_LOGICAL_SIZE=${BL2_LOGICAL_SIZE}" \
-        "BL2_SECURITY_COUNTER_FLOOR=${BL2_SECURITY_COUNTER_FLOOR}"
+        "BL2_SECURITY_COUNTER_FLOOR=${BL2_SECURITY_COUNTER_FLOOR}" \
+        "BL2_KEY_SOURCE=${BL2_KEY_SOURCE}"
     BL1_MANIFEST_CONTAINER_ARGS=()
     if [[ "${BL1_MANIFEST_RAW_PAGE}" == "true" ]]; then
         BL1_MANIFEST_CONTAINER_ARGS+=(--container-size 0x1000)
