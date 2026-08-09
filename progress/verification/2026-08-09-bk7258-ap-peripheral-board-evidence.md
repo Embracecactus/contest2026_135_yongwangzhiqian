@@ -308,11 +308,18 @@ sensitivity evidence.
 
 - Full 32-job CP/AP MCUboot build passed with SDK v3.1.1.9 checksum gates.
 - Sparse flash passed while preserving LittleFS, slot B and calibration tail:
-  `logs/bk7258-auto-debug/20260809-095035`.
+  `logs/bk7258-auto-debug/20260809-122731`.
 - Boot reached `B2HANDOFF` and NuttShell; the LCD pulse-width warning is gone.
-- Permanent telemetry capture `logs/jlink/status_post_gpio_fix.bin` reports:
-  AP `READY(2)`, error 0, rising heartbeat; CPU2
-  `SECONDARY_READY(7)`, error 0; AP IPI `READY(2)` with zero loss/failure.
+- A subsequent read-only `apctl status` reported AP `READY(2)`, error 0,
+  heartbeat 1106; CPU2 `SECONDARY_READY(7)`, error 0; AP IPI `READY(2)` with
+  zero loss/failure.  The final package uses MCUboot version `18.1.3` and
+  protected security counter `20`.
+- Final artifact SHA-256: `bl_crc.bin`
+  `2e00debb90f720359bc78996eb79a68c1ae00aa8e2ede9626c64534ee62a51df`,
+  `app_crc_flash.bin`
+  `42bab5a33b5f49c270fc06f51a68265775cb53ca536372cdfe4cabb9e83b7b80`,
+  `app1_crc_flash.bin`
+  `db9000e2c5cc4022dffa67bcad997e6a84ecf33c9550b1e3dafbc4416a478285`.
 - RPTUN remains `CONNECTING(3)` in this drivercheck profile and is tracked
   separately from the peripheral/runtime fix.
 

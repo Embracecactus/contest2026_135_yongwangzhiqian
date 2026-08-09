@@ -34,8 +34,8 @@ treated as BK7258 facts. NuttX and SDK source trees remain unchanged.
 
 Artifact SHA-256:
 
-- `bl_crc.bin`: `64dd6e4ab75801d97c4e297a576bb98dd01196483dd5c377e57105e8bed44fcb`
-- `all-app-factory.bin`: `cafafea8947eb974d5ecc59faae4bfb7ac7d4b7245c8402dc11cade0ad570464`
+- `bl_crc.bin`: `2e00debb90f720359bc78996eb79a68c1ae00aa8e2ede9626c64534ee62a51df`
+- `all-app-factory.bin`: `b7103c3980e3557d4a544a4bb3b3ee9c3df29deaed164b5a293fab2257fda7f0`
 - `bl2_crc.bin`: `535571b677f0ced7d2c8a49b2495fbc0b2778657dfab50cb732c56a106204f17`
 
 ## Verification
@@ -160,9 +160,10 @@ Root causes fixed and board-verified this pass:
 
 All temporary shared-SRAM/device-list/allocation probes and temporary
 `apctl` debug commands have been removed.  The final 32-job MCUboot build and
-sparse flash passed (`logs/bk7258-auto-debug/20260809-101729`); permanent
-`apctl status` telemetry shows AP READY, CPU2 SECONDARY_READY and AP IPI READY
-with zero loss/failure.  RPTUN remains CONNECTING in this drivercheck profile.
+sparse flash passed (`logs/bk7258-auto-debug/20260809-122731`); a subsequent
+read-only `apctl status` reported AP `READY(2)` with heartbeat 1106, CPU2
+`SECONDARY_READY(7)` and AP IPI `READY(2)` with zero loss/failure.  RPTUN
+remains `CONNECTING(3)` in this drivercheck profile.
 
 Canonical detail:
 [AP peripheral board evidence](verification/2026-08-09-bk7258-ap-peripheral-board-evidence.md).
