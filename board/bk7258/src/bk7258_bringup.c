@@ -42,6 +42,10 @@
 #include <arch/chip/bk7258_psram.h>
 #endif
 
+#ifdef CONFIG_BK7258_PM_CLOCK
+#include <arch/chip/bk7258_pm.h>
+#endif
+
 #ifdef CONFIG_BK7258_AP_CONTROL
 #include <arch/chip/bk7258_amp.h>
 #endif
@@ -195,6 +199,7 @@ int board_app_initialize(uintptr_t arg)
 #if defined(CONFIG_BK7258_AP_CONTROL) || \
     defined(CONFIG_BK7258_SARADC_SERVER) || \
     defined(CONFIG_BK7258_SDK_IPC_RUNTIME) || \
+    defined(CONFIG_BK7258_PM_CLOCK) || \
     (defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE))
   int apret = OK;
 #endif
@@ -215,6 +220,22 @@ int board_app_initialize(uintptr_t arg)
   if (apret < 0)
     {
       _err("bk7258: SARADC server init failed: %d\n", apret);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_PM_CLOCK
+  /* Register the CP clock service before AP is released.  RPMsg transport
+   * creation is asynchronous; registering the callback early lets the AP
+   * endpoint bind as soon as its RPTUN device appears.
+   */
+
+  if (apret >= 0)
+    {
+      apret = bk7258_pm_initialize();
+    }
+  if (apret < 0)
+    {
+      _err("bk7258: PM clock service init failed: %d\n", apret);
     }
 #endif
 

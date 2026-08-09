@@ -54,7 +54,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <debug.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/irq.h>
 #include <nuttx/mutex.h>
 #include <nuttx/sdio.h>
@@ -65,20 +67,53 @@
 
 #include <driver/sdio_host.h>
 #include <driver/sdio_host_types.h>
+#include <driver/int_types.h>
+
+#include "arm_internal.h"
+#include "bk7258_sdk_irq.h"
+
+/* v3.1.1.9 uses this exported SDK helper in bk_sd_card_init(), but does not
+ * expose it from the public sdio_host.h.  Keep the private ABI declaration
+ * local to the BK7258 wrapper and do not modify or copy SDK source.
+ */
+
+#ifdef CONFIG_SDIO_V2P0
+extern void bk_sdio_clk_gate_config(uint32_t enable);
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#ifndef CONFIG_BK7258_SDIO_TIMEOUT_MS
-#  define CONFIG_BK7258_SDIO_TIMEOUT_MS 1000u
+#ifdef CONFIG_SDIO_V2P0
+#  define BK7258_SDIO_ID_CMD_TIMEOUT   2500u
+#  define BK7258_SDIO_ID_DATA_TIMEOUT  10000u
+#  define BK7258_SDIO_XFR_CMD_TIMEOUT  20000u
+#  define BK7258_SDIO_XFR_DATA_TIMEOUT 640000u
+#else
+#  define BK7258_SDIO_ID_CMD_TIMEOUT   5000u
+#  define BK7258_SDIO_ID_DATA_TIMEOUT  20000u
+#  define BK7258_SDIO_XFR_CMD_TIMEOUT  1200000u
+#  define BK7258_SDIO_XFR_DATA_TIMEOUT 12000000u
 #endif
-
-#define BK7258_SDIO_CMD_TIMEOUT_MS     2000u
 
 /* Response type bits in the NuttX 32-bit command field (see nuttx/sdio.h). */
 
 #define SDIO_NUTTX_RSP_SHIFT           6
+
+#define BK7258_SDIO_INT_STATUS         0x458d0034u
+#define BK7258_SDIO_CMD_NO_RSP_END     (1u << 0)
+#define BK7258_SDIO_CMD_RSP_END        (1u << 1)
+#define BK7258_SDIO_CMD_RSP_TIMEOUT    (1u << 2)
+#define BK7258_SDIO_CMD_CRC_OK         (1u << 10)
+#define BK7258_SDIO_CMD_CRC_FAIL       (1u << 11)
+#define BK7258_SDIO_CMD_STATUS_MASK    (BK7258_SDIO_CMD_NO_RSP_END | \
+                                        BK7258_SDIO_CMD_RSP_END | \
+                                        BK7258_SDIO_CMD_RSP_TIMEOUT | \
+                                        BK7258_SDIO_CMD_CRC_OK | \
+                                        BK7258_SDIO_CMD_CRC_FAIL)
+#define BK7258_SDIO_IRQ                (BK7258_IRQ_FIRST + INT_SRC_SDIO)
+#define BK7258_SDIO_CMD_POLL_US        100000u
 #define SDIO_NUTTX_RSP_MASK            (15 << SDIO_NUTTX_RSP_SHIFT)
 
 /****************************************************************************
@@ -92,6 +127,8 @@ struct bk7258_sdio_priv_s
   bool initialized;                /* bk_sdio_host_init() done */
   bool driver_init;                /* bk_sdio_host_driver_init() done */
   bool interface_init;             /* dev vtable copied exactly once */
+  uint32_t cmd_timeout;            /* Controller clock-cycle timeout */
+  uint32_t data_timeout;           /* Controller clock-cycle timeout */
 
   /* Cached data-transfer setup (used by recv/send setup). */
 
@@ -327,14 +364,87 @@ static int bk7258_sdio_host_init_locked(FAR struct bk7258_sdio_priv_s *priv,
   cfg.dma_tx_en = 0;
   cfg.dma_rx_en = 0;
 
+#ifdef CONFIG_SDIO_V2P0
+  /* Match the official v3.1.1.9 bk_sd_card_init() ordering.  Continuous
+   * clocking is needed while the card is leaving its power-up state; the
+   * setting survives bk_sdio_host_init()'s partial register reset.
+   */
+
+  bk_sdio_clk_gate_config(1);
+#endif
+
+  /* bk_sdio_host_init() in the fixed v3.1.1.9 SDK raises CLK_PWR_ID_SDIO
+   * through sys_drv_dev_clk_pwr_up() -> bk_pm_clock_ctrl().  The AP linker
+   * wrapper translates that existing vendor edge to the CP-owned RPMsg PM
+   * service.  Do not add a second explicit vote here: it would double the
+   * server reference count and leave the clock pinned after deinit.
+   */
+
   err = bk_sdio_host_init(&cfg);
   if (err == BK_OK)
     {
+      /* The official SD-card wrapper gives the powered controller and card
+       * 30 ms to settle before issuing CMD0.
+       */
+
+      up_mdelay(30);
       priv->widebus_enabled = widebus;
       priv->initialized = true;
+      priv->cmd_timeout = BK7258_SDIO_ID_CMD_TIMEOUT;
+      priv->data_timeout = BK7258_SDIO_ID_DATA_TIMEOUT;
+    }
+  return bk7258_sdio_map_err(err);
+}
+
+/* v3.1.1.9 waits for command completion through a FreeRTOS queue with a
+ * four-tick timeout.  Under the NuttX adapter that queue can miss the first
+ * edge and leave a completion latched, so the following command consumes
+ * stale state.  Command completion is inherently synchronous in the NuttX
+ * sdio_dev_s contract; poll the documented BK7258 status register while the
+ * SDK ISR line is masked, acknowledge only command bits, then restore the
+ * line for data-transfer completion.  This leaves the vendor data path and
+ * its semaphores unchanged.
+ */
+
+static bk_err_t bk7258_sdio_wait_command_polled(void)
+{
+  uint32_t status = 0;
+  unsigned int elapsed;
+
+  for (elapsed = 0; elapsed < BK7258_SDIO_CMD_POLL_US; elapsed += 10)
+    {
+      status = getreg32(BK7258_SDIO_INT_STATUS);
+      if ((status & (BK7258_SDIO_CMD_NO_RSP_END |
+                     BK7258_SDIO_CMD_RSP_END |
+                     BK7258_SDIO_CMD_RSP_TIMEOUT)) != 0)
+        {
+          break;
+        }
+
+      up_udelay(10);
     }
 
-  return bk7258_sdio_map_err(err);
+  if ((status & BK7258_SDIO_CMD_STATUS_MASK) != 0)
+    {
+      putreg32(status & BK7258_SDIO_CMD_STATUS_MASK,
+               BK7258_SDIO_INT_STATUS);
+    }
+
+  bk7258_clear_pending_irq(BK7258_SDIO_IRQ);
+  UP_DSB();
+
+  if ((status & BK7258_SDIO_CMD_RSP_TIMEOUT) != 0 ||
+      elapsed >= BK7258_SDIO_CMD_POLL_US)
+    {
+      return BK_ERR_SDIO_HOST_CMD_RSP_TIMEOUT;
+    }
+
+  if ((status & BK7258_SDIO_CMD_CRC_FAIL) != 0)
+    {
+      return BK_ERR_SDIO_HOST_CMD_RSP_CRC_FAIL;
+    }
+
+  return BK_OK;
 }
 
 static void bk7258_sdio_reset(FAR struct sdio_dev_s *dev)
@@ -353,25 +463,37 @@ static void bk7258_sdio_reset(FAR struct sdio_dev_s *dev)
 
 static sdio_capset_t bk7258_sdio_capabilities(FAR struct sdio_dev_s *dev)
 {
-  /* 4-bit supported; DMA not used by this framework (polling FIFO path). */
+  /* Advertise only the bus mode that this board profile can safely use.
+   * T5-Board routes D2/D3 through the CH342F switch bank, so its console-
+   * compatible validation profile deliberately runs the card in 1-bit mode.
+   * If SDIO_CAPS_4BIT were reported unconditionally, the MMC/SD upper half
+   * would switch the card and controller back to four data lines after SCR
+   * negotiation, defeating CONFIG_BK7258_SDIO_4BIT.
+   */
 
-  sdio_capset_t caps = SDIO_CAPS_4BIT;
-  return caps;
+  (void)dev;
+#ifdef CONFIG_BK7258_SDIO_4BIT
+  return SDIO_CAPS_4BIT;
+#else
+  return 0;
+#endif
 }
 
 static sdio_statset_t bk7258_sdio_status(FAR struct sdio_dev_s *dev)
 {
-  /* No hotplug detect in the Beken host API; report a card present.  The
-   * MMCSD driver will discover absence at probe time if no card is seated.
-   */
+  (void)dev;
 
-  return SDIO_STATUS_PRESENT;
+  return bk7258_board_sdio_card_present() ? SDIO_STATUS_PRESENT : 0;
 }
 
 static void bk7258_sdio_widebus(FAR struct sdio_dev_s *dev, bool enable)
 {
   FAR struct bk7258_sdio_priv_s *priv =
     (FAR struct bk7258_sdio_priv_s *)dev;
+
+#ifndef CONFIG_BK7258_SDIO_4BIT
+  enable = false;
+#endif
 
   if (priv->initialized && (enable != priv->widebus_enabled))
     {
@@ -422,14 +544,32 @@ static void bk7258_sdio_clock(FAR struct sdio_dev_s *dev,
       case CLOCK_SD_TRANSFER_4BIT:
       default:
 #ifdef CONFIG_SDIO_V2P0
-        freq = SDIO_HOST_CLK_80M;
+        /* Match the official v3.1.1.9 BK7258 SD-card profile.  Its
+         * CONFIG_SDCARD_DEFAULT_CLOCK_FREQ is enum value 14, i.e. 20 MHz.
+         * The standalone SDK SDIO CLI uses 80 MHz, but that is not the
+         * production SD-card initialization path.
+         */
+
+        freq = SDIO_HOST_CLK_20M;
 #else
         freq = SDIO_HOST_CLK_26M;
 #endif
         break;
     }
 
-  bk_sdio_host_set_clock_freq(freq);
+  if (bk_sdio_host_set_clock_freq(freq) == BK_OK)
+    {
+      if (rate == CLOCK_IDMODE)
+        {
+          priv->cmd_timeout = BK7258_SDIO_ID_CMD_TIMEOUT;
+          priv->data_timeout = BK7258_SDIO_ID_DATA_TIMEOUT;
+        }
+      else if (rate != CLOCK_SDIO_DISABLED)
+        {
+          priv->cmd_timeout = BK7258_SDIO_XFR_CMD_TIMEOUT;
+          priv->data_timeout = BK7258_SDIO_XFR_DATA_TIMEOUT;
+        }
+    }
 }
 
 static int bk7258_sdio_attach(FAR struct sdio_dev_s *dev)
@@ -455,7 +595,7 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
 
   host_cmd.cmd_index = cmd & 0x3f;
   host_cmd.argument  = arg;
-  host_cmd.wait_rsp_timeout = BK7258_SDIO_CMD_TIMEOUT_MS;
+  host_cmd.wait_rsp_timeout = priv->cmd_timeout;
   host_cmd.crc_check = true;
 
   rsp_type = (cmd & SDIO_NUTTX_RSP_MASK) >> SDIO_NUTTX_RSP_SHIFT;
@@ -479,9 +619,12 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
         break;
     }
 
+  up_disable_irq(BK7258_SDIO_IRQ);
   err = bk_sdio_host_send_command(&host_cmd);
   if (err != BK_OK)
     {
+      bk7258_clear_pending_irq(BK7258_SDIO_IRQ);
+      up_enable_irq(BK7258_SDIO_IRQ);
       priv->xfer_result = bk7258_sdio_map_err(err);
       priv->events = SDIOWAIT_ERROR;
       if ((cmd & MMCSD_DATAXFR_MASK) != 0)
@@ -492,14 +635,20 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
       return priv->xfer_result;
     }
 
-  /* Command is queued; wait for the response now so recv_rN() can read it
-   * back synchronously.  Errors are surfaced through the cached status.
+  /* Complete the synchronous NuttX command contract without the SDK's
+   * FreeRTOS-oriented command-event queue.  Re-enable the ISR immediately
+   * afterward so data completion remains interrupt-driven by the SDK.
    */
 
-  err = bk_sdio_host_wait_cmd_response(host_cmd.cmd_index);
+  err = bk7258_sdio_wait_command_polled();
+  up_enable_irq(BK7258_SDIO_IRQ);
   priv->xfer_result = bk7258_sdio_map_err(err);
   if (err != BK_OK)
     {
+      mcerr("ERROR: BK7258 SDIO CMD%lu arg=%08lx timeout=%lu sdk=%d\n",
+            (unsigned long)host_cmd.cmd_index,
+            (unsigned long)host_cmd.argument,
+            (unsigned long)host_cmd.wait_rsp_timeout, err);
       priv->events = SDIOWAIT_ERROR;
       if ((cmd & MMCSD_DATAXFR_MASK) != 0)
         {
@@ -583,7 +732,7 @@ static int bk7258_sdio_recvsetup(FAR struct sdio_dev_s *dev,
   priv->xfer_is_read = true;
   priv->xfer_pending = true;
 
-  dcfg.data_timeout    = CONFIG_BK7258_SDIO_TIMEOUT_MS;
+  dcfg.data_timeout    = priv->data_timeout;
   dcfg.data_len        = (uint32_t)nbytes;
   dcfg.data_block_size = (uint32_t)priv->blocklen;
   dcfg.data_dir        = SDIO_HOST_DATA_DIR_RD;
@@ -648,7 +797,7 @@ static int bk7258_sdio_sendsetup(FAR struct sdio_dev_s *dev,
   priv->xfer_is_read = false;
   priv->xfer_pending = true;
 
-  dcfg.data_timeout    = CONFIG_BK7258_SDIO_TIMEOUT_MS;
+  dcfg.data_timeout    = priv->data_timeout;
   dcfg.data_len        = (uint32_t)nbytes;
   dcfg.data_block_size = (uint32_t)priv->blocklen;
   dcfg.data_dir        = SDIO_HOST_DATA_DIR_WR;
@@ -903,6 +1052,11 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
   priv->nblocks = 0;
   priv->xfer_is_read = false;
   priv->xfer_pending = false;
+  err = bk7258_board_sdio_initialize(BK7258_SDIO_BUS_WIDTH_4BIT != 0);
+  if (err < 0)
+    {
+      return err;
+    }
 
   if (!priv->driver_init)
     {

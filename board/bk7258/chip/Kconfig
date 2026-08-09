@@ -282,6 +282,17 @@ config BK7258_RPTUN
 		driver, AP is the virtio device, and the built-in RPMsg ping endpoint
 		is enabled for the N9 functional and performance gates.
 
+config BK7258_PM_CLOCK
+	bool "CP-owned peripheral clock voting service"
+	default y if BK7258_RPTUN
+	depends on BK7258_RPTUN
+	---help---
+		Keep BK7258 peripheral leaf-clock ownership on CP and expose a bounded,
+		generation-safe RPMsg get/put wrapper to AP drivers.  The server maps a
+		project-owned allow-list onto the official v3.1.1.9 sys_ctrl API and
+		reference-counts each clock.  This is the clock-ownership foundation;
+		it does not yet enable NuttX system sleep states or a PM governor.
+
 config BK7258_RPMSG_TEST
 	bool "N9 AP-SMP RPMsg bounded concurrency test"
 	default n
@@ -1186,22 +1197,22 @@ config BK7258_SARADC_BUS
 config BK7258_SDIO
 	bool "SDIO host lower half"
 	default n
+	depends on BK7258_BOARD_T5_BOARD && BK7258_PM_CLOCK
 	select BK7258_SDK_IPC_RUNTIME
 	select ARCH_HAVE_SDIO
 	help
-		Expose the SDK blocking SDIO host API as a NuttX SDIO lower half.
-		A board MMC/SD upper-half binding is intentionally separate.
+		Expose the SDK blocking SDIO host API as a NuttX SDIO lower half and
+		bind it to the T5-Board TF-card wiring and card-detect input.
 
 config BK7258_SDIO_4BIT
 	bool "Use four-bit SDIO bus"
-	default y
+	default n
 	depends on BK7258_SDIO
-
-config BK7258_SDIO_TIMEOUT_MS
-	int "SDIO transfer timeout (ms)"
-	default 1000
-	range 100 10000
-	depends on BK7258_SDIO
+	help
+		Enable D1/D2/D3 in addition to CLK/CMD/D0.  T5-Board shares D2/D3
+		with the CH342F download/log path, so the safe default is the
+		hardware-validated one-bit mode.  Enable this only when the board
+		switching isolates those UART signals.
 
 config BK7258_SDMADC
 	bool "Sigma-delta ADC lower half"
@@ -1243,7 +1254,7 @@ config BK7258_SPI_TIMEOUT_MS
 config BK7258_QSPI
 	bool "QSPI controller lower half"
 	default n
-	depends on BK7258_AP_CORE
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
 	select BK7258_SDK_IPC_RUNTIME
 	help
 		Expose the two AP-owned BK7258 QSPI controllers through the standard
@@ -1252,6 +1263,7 @@ config BK7258_QSPI
 		arbitrary MTD upper half by default.  QSPI0 shares GPIO22..27 with RGB
 		LCD and QSPI1 shares GPIO2..7 with SDIO/SPI/I2S; a board consumer must
 		choose one pin-compatible owner before initializing either controller.
+		The SDK clock edge is translated by the AP PM wrapper and owned by CP.
 
 config BK7258_TIMER
 	bool "General-purpose timer lower half"

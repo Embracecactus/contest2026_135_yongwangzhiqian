@@ -134,9 +134,9 @@ static void bk7258_sdio_bind(void)
     }
 
 #ifdef CONFIG_MMCSD_SDIO
-  /* The lower half has no hotplug detect: status() always reports the card
-   * present, so mmcsd_slotinitialize() probes the slot directly and there is
-   * no sdio_mediachange() to call.
+  /* The lower half samples the T5-Board card-detect input.  Probe media that
+   * is already present; interrupt-driven hotplug notification can be added
+   * later without changing the controller lower half.
    */
 
   ret = mmcsd_slotinitialize(CONFIG_BK7258_SDIO_SLOTNO, sdio);

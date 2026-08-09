@@ -34,9 +34,17 @@
 
 #define BK7258_SDIO_UNIT               0
 
-/* Default bus width / clock applied at init (identification-speed clock). */
+/* Default bus width / clock applied at init (identification-speed clock).
+ * T5-Board shares D2/D3 with the CH342F download/log UART paths, so a
+ * console-compatible validation profile must be able to select one-bit
+ * mode without changing this driver.
+ */
 
-#define BK7258_SDIO_BUS_WIDTH_4BIT    1   /* enable 4-bit by default */
+#ifdef CONFIG_BK7258_SDIO_4BIT
+#  define BK7258_SDIO_BUS_WIDTH_4BIT  1
+#else
+#  define BK7258_SDIO_BUS_WIDTH_4BIT  0
+#endif
 #define BK7258_SDIO_CLK_IDMODE        400000u
 
 /****************************************************************************
@@ -56,8 +64,8 @@
  *   through the caller's argument; NULL on failure.
  *
  *   The Beken SDIO host driver (bk_sdio_host_driver_init) is initialised
- *   once here; the controller itself is initialised with a 4-bit,
- *   identification-speed configuration and re-configured at runtime by
+ *   once here; the controller itself is initialised with the configured bus
+ *   width at identification speed and re-configured at runtime by
  *   widebus()/clock().
  *
  * Returned Value:
@@ -66,6 +74,14 @@
  ****************************************************************************/
 
 int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev);
+
+/* Physical-board hooks.  The T5-Board implementation owns its SDIO pin
+ * group and card-detect polarity; the generic controller lower half owns
+ * only the BK7258 host protocol.
+ */
+
+int bk7258_board_sdio_initialize(bool widebus);
+bool bk7258_board_sdio_card_present(void);
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_SDIO */
