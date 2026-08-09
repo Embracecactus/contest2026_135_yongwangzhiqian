@@ -98,6 +98,7 @@ static struct t5_gt1151_i2c_s g_t5_gt1151_i2c =
 static xcpt_t g_t5_gt1151_isr;
 static FAR void *g_t5_gt1151_isr_arg;
 static bool g_t5_gt1151_registered;
+static void t5_gt1151_sdk_isr(gpio_id_t gpio_id);
 
 #ifdef CONFIG_BK7258_GT1151_VALIDATION
 static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
@@ -107,6 +108,7 @@ static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
   ssize_t nread;
   int fd;
   int ret;
+  bool poll_fallback_logged = false;
 
   (void)argc;
   (void)argv;
@@ -127,7 +129,7 @@ static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
   for (;;)
     {
       pfd.revents = 0;
-      ret = poll(&pfd, 1, -1);
+      ret = poll(&pfd, 1, 20);
       if (ret < 0)
         {
           if (errno == EINTR)
@@ -137,6 +139,30 @@ static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
 
           syslog(LOG_ERR, "bk7258-touch: poll failed: %d\n", errno);
           break;
+        }
+
+      if (ret == 0)
+        {
+          /* Drivercheck-only diagnostic: poll the NuttX GT9xx worker even
+           * when the active-low INT line is not observed.  A resulting touch
+           * sample proves that the controller and I2C path work and isolates
+           * the remaining fault to the carrier's GPIO interrupt routing.
+           * This is never compiled into production profiles.
+           */
+
+          gpio_id_t pin =
+            (gpio_id_t)BK7258_BOARD_TOUCH_INTERRUPT_GPIO;
+
+          if (!poll_fallback_logged)
+            {
+              syslog(LOG_WARNING,
+                     "bk7258-touch: validating GPIO%u with polled fallback\n",
+                     (unsigned int)pin);
+              poll_fallback_logged = true;
+            }
+
+          t5_gt1151_sdk_isr(pin);
+          continue;
         }
 
       if ((pfd.revents & POLLIN) == 0)

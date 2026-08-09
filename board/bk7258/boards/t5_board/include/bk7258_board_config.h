@@ -48,7 +48,7 @@
 #define BK7258_BOARD_TOUCH_I2C_ADDRESS            0x14
 #define BK7258_BOARD_TOUCH_I2C_SCL_GPIO           13
 #define BK7258_BOARD_TOUCH_I2C_SDA_GPIO           15
-#define BK7258_BOARD_TOUCH_INTERRUPT_GPIO         50
+#define BK7258_BOARD_TOUCH_INTERRUPT_GPIO         55
 #define BK7258_BOARD_TOUCH_RESET_GPIO             54
 
 /* TF-card wiring source-verified from T5-Board V1.0.2. */
