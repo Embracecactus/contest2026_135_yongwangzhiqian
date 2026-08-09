@@ -135,6 +135,13 @@ Root causes fixed and board-verified this pass:
    v3.1.1.9 `bk_fill_rand()` implementation.  A temporary fail-closed probe
    read two independent 32-byte samples and AP reached READY; the probe was
    then removed and the clean image was rebuilt, reflashed and rechecked.
+8. QSPI: the AP-owned v3.1.1.9 controller is exposed through NuttX
+   `qspi_dev_s`.  The drivercheck MCUboot profile compiles, links and completes
+   postbuild using only the immutable SDK bundle.  No arbitrary MTD is bound:
+   the verified SDK command subset and 256-byte program transaction limit do
+   not justify claiming general Flash compatibility.  Hardware transfer is
+   pending a known external device and a pin-compatible profile because both
+   QSPI controllers overlap active LCD/SDIO/SPI/I2S pins.
 
 All temporary shared-SRAM/device-list/allocation probes and temporary
 `apctl` debug commands have been removed.  The final 32-job MCUboot build and
@@ -147,9 +154,9 @@ Canonical detail:
 
 ## Next step
 
-1. Continue the isolated background driver queue (TRNG integrated and
-   hardware-verified; QSPI in progress), with one reviewed commit per driver
-   and no hardware access from the child Agent.
+1. Continue the isolated background driver queue (TRNG hardware-verified;
+   QSPI compile/link-verified; CP capacitive touch in progress), with one
+   reviewed commit per driver and no hardware access from the child Agent.
 2. Hardware-verify existing peripherals one at a time using pin-compatible
    profiles (SD card detect, I2S clocking, LCD pixels, SPI chip select); do
    not enable conflicting devices by default in shipped configs.

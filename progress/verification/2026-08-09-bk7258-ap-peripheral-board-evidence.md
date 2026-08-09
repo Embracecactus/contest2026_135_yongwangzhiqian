@@ -223,6 +223,24 @@ telemetry again reported AP READY, CPU2 SECONDARY_READY and AP IPI READY:
 `logs/jlink/trng_clean_status.bin` and
 `logs/bk7258-auto-debug/20260809-101729`.
 
+## QSPI compile/link boundary
+
+The AP-owned v3.1.1.9 QSPI controller is implemented as the standard NuttX
+`qspi_dev_s` lower half.  The drivercheck MCUboot configuration compiles,
+links and completes board post-processing using only public types and symbols
+exported by the immutable SDK bundle.  The bundle's public `driver/qspi.h`
+leaks a private `qspi_hal.h` dependency, so the board wrapper deliberately
+uses the exported HAL types plus a minimal declaration of the five linked SDK
+entry points instead of adding an SDK source include path.
+
+This is not hardware-transfer evidence.  The board does not bind an MTD upper
+half because the SDK's verified indirect-command subset and per-command
+256-byte program limit are insufficient to claim arbitrary Flash semantics.
+QSPI0 also overlaps RGB LCD pins and QSPI1 overlaps SDIO/SPI/I2S pins.  A
+future transfer check therefore requires a known external QSPI device and a
+dedicated pin-compatible profile; initializing QSPI in the current all-driver
+image would disrupt already verified peripherals.
+
 ## Final cleaned-image proof
 
 - Full 32-job CP/AP MCUboot build passed with SDK v3.1.1.9 checksum gates.
