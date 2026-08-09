@@ -35,6 +35,9 @@
 #ifdef CONFIG_BK7258_RPTUN
 #  include "bk7258_rptun.h"
 #endif
+#ifdef CONFIG_BK7258_PM_CLOCK
+#  include <arch/chip/bk7258_pm.h>
+#endif
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
 #  include "bk7258_ap_health.h"
 #endif
@@ -618,6 +621,15 @@ int bk7258_ap_main(int argc, char *argv[])
 
   __atomic_fetch_or((uint32_t *)(uintptr_t)&rptun->flags,
                     BK7258_RPTUN_FLAG_AP_RPTUN_READY, __ATOMIC_RELEASE);
+#endif
+
+#ifdef CONFIG_BK7258_PM_CLOCK
+  ret = bk7258_pm_initialize();
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_PERIPHERALS);
+      goto parked;
+    }
 #endif
 
 #ifdef CONFIG_BK7258_WIFI_VNET

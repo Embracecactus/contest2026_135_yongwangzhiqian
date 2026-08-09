@@ -127,6 +127,9 @@ endif
 
 ifeq ($(CONFIG_BK7258_RPTUN),y)
 BK7258_CP_CSRCS += bk7258_rptun.c
+ifeq ($(CONFIG_BK7258_PM_CLOCK),y)
+BK7258_CP_CSRCS += bk7258_pm_server.c
+endif
 ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
 BK7258_CP_CSRCS += bk7258_rpmsg_health.c
 endif
@@ -346,7 +349,15 @@ ifeq ($(CONFIG_BK7258_SARADC),y)
 BK7258_AP_BASE_CSRCS += bk7258_saradc.c
 endif
 ifeq ($(CONFIG_BK7258_SDIO),y)
+VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
 BK7258_AP_BASE_CSRCS += bk7258_sdio.c
+BK7258_AP_BASE_CSRCS += bk7258_t5_board_sdio.c
+
+# See the external board-source dependency note in the LCD block above.
+
+bk7258_t5_board_sdio.ddc: bk7258_t5_board_sdio.c
+	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
+		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
 endif
 ifeq ($(CONFIG_BK7258_SDMADC),y)
 BK7258_AP_BASE_CSRCS += bk7258_sdmadc.c
@@ -377,6 +388,12 @@ endif
 
 ifeq ($(CONFIG_BK7258_RPTUN),y)
 BK7258_AP_BASE_CSRCS += bk7258_rptun.c
+ifeq ($(CONFIG_BK7258_PM_CLOCK),y)
+BK7258_AP_BASE_CSRCS += bk7258_pm_client.c
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=bk_pm_clock_ctrl
+endif
+endif
 ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
 BK7258_AP_BASE_CSRCS += bk7258_rpmsg_health.c
 BK7258_AP_BASE_CSRCS += bk7258_ap_health.c
