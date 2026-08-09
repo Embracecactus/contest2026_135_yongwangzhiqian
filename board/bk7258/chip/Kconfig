@@ -1201,6 +1201,30 @@ config BK7258_USBHOST
 		HCD pipe/URB implementation.  This option is limited to T5-Board,
 		whose USB-A connector is wired to the native host D+/D- pins and 5 V.
 
+config BK7258_USBHOST_CH34X
+	bool "CH340/CH341 USB host serial class"
+	default n
+	depends on BK7258_USBHOST && !USBHOST_BULK_DISABLE
+	select ARCH_HAVE_SERIAL_TERMIOS
+	select SCHED_LPWORK
+	select SERIAL
+	select SERIAL_REMOVABLE
+	select SERIAL_TERMIOS
+	help
+		Register a board-owned NuttX USB host class for Winchiphead
+		VID 0x1a86/PID 0x7523 and publish the connected converter as
+		/dev/ttyUSB0.  The first implementation is deliberately limited to
+		115200 8N1 with no flow control.
+
+config BK7258_USBHOST_CH34X_VALIDATION
+	bool "Run CH34x TX/RX loopback validation"
+	default n
+	depends on BK7258_USBHOST_CH34X
+	help
+		Open /dev/ttyUSB0 after enumeration, transmit a fixed byte pattern,
+		and report whether it is received back.  Short TXD to RXD on the USB
+		serial adapter before enabling this drivercheck-only option.
+
 config BK7258_RTC
 	bool "AON RTC lower half"
 	default n

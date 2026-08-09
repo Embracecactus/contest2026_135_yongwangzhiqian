@@ -66,6 +66,9 @@
 #  include <nuttx/usb/usbhost.h>
 #  include <arch/chip/bk7258_usbhost.h>
 #endif
+#ifdef CONFIG_BK7258_USBHOST_CH34X
+#  include <arch/chip/bk7258_usbserial_ch34x.h>
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -198,6 +201,14 @@ static void bk7258_usbhost_bind(void)
    */
 
   usbhost_drivers_initialize();
+#ifdef CONFIG_BK7258_USBHOST_CH34X
+  ret = bk7258_usbserial_ch34x_initialize();
+  if (ret < 0)
+    {
+      uerr("ERROR: CH34x USB host class registration failed: %d\n", ret);
+      return;
+    }
+#endif
   conn = bk7258_usbhost_initialize();
   if (conn == NULL)
     {
