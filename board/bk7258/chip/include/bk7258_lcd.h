@@ -1,31 +1,9 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_lcd.h
+ * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/bk7258_lcd.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI Board) LCD — direct NuttX framebuffer wrapper for the
- * 3.5" ILI9488 TFT (320x480 RGB565).
- *
- * The ILI9488 is connected as an RGB parallel display whose register
- * initialization is driven by a software (bit-banged) SPI on the T5-AI
- * Board (CLK=GPIO49, CSX=GPIO48, SDA=GPIO50, RST=GPIO53; no DC line).
- * Pixel data flows over the RGB parallel bus from a memory frame buffer
- * that the SDK RGB controller refreshes continuously.
- *
- * AP role: the 34 bk_lcd_* symbols live exclusively in the AP libdriver.a
- * (verified with `nm`; CP exports zero), so this driver is AP-only.
- *
- * Architecture:
- *   - Software SPI bit-bang (modelled on TuyaOpen's tdd_disp_sw_spi.c)
- *     sends the ILI9488 initialization sequence at bring-up.
- *   - bk_lcd_driver_init() + bk_lcd_rgb_init() configure the RGB timing.
- *   - A PSRAM frame buffer holds the 320x480 RGB565 image;
- *     lcd_driver_set_display_base_addr() points the RGB hardware at it.
- *   - The same buffer is exported as /dev/fb0, avoiding the generic LCD
- *     adapter's second full-size SRAM shadow buffer.
- *
- * ILI9488 init sequence is from TuyaOpen (tdd_disp_rgb_ili9488.c).
+ * BK7258 RGB framebuffer controller and board/panel binding contract.
  ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_LCD_H
@@ -41,44 +19,83 @@
 #include <stdint.h>
 
 /****************************************************************************
- * Pre-processor Definitions
+ * Public Types
  ****************************************************************************/
 
-/* Panel geometry. */
+enum bk7258_lcd_pixel_format_e
+{
+  BK7258_LCD_PIXEL_FORMAT_RGB565 = 0,
+};
 
-#define BK7258_LCD_WIDTH                320
-#define BK7258_LCD_HEIGHT               480
-#define BK7258_LCD_BPP                  16    /* RGB565 */
+struct bk7258_lcd_board_s;
 
-/* Software SPI control pins (T5-AI Board ILI9488 module). */
+/* A panel owns its register protocol and geometry.  It does not configure
+ * the BK7258 RGB controller or choose physical RGB pins.
+ */
 
-#define BK7258_LCD_SW_SPI_CLK_PIN       49
-#define BK7258_LCD_SW_SPI_CSX_PIN       48
-#define BK7258_LCD_SW_SPI_SDA_PIN       50
-#define BK7258_LCD_SW_SPI_RST_PIN       53
+struct bk7258_lcd_panel_s
+{
+  const char *name;
+  uint16_t width;
+  uint16_t height;
+  enum bk7258_lcd_pixel_format_e format;
+  int (*initialize)(const struct bk7258_lcd_board_s *board);
+};
+
+/* RGB timing belongs to the physical board/panel combination. */
+
+struct bk7258_lcd_rgb_timing_s
+{
+  uint8_t pixel_clock_mhz;
+  bool data_changes_on_rising_edge;
+  uint16_t hsync_back_porch;
+  uint16_t hsync_front_porch;
+  uint16_t vsync_back_porch;
+  uint16_t vsync_front_porch;
+  uint8_t hsync_pulse_width;
+  uint8_t vsync_pulse_width;
+};
+
+/* The panel-control bus is board wiring, even when its protocol is owned by
+ * a reusable panel driver.
+ */
+
+struct bk7258_lcd_control_bus_s
+{
+  uint8_t clock_gpio;
+  uint8_t chip_select_gpio;
+  uint8_t data_gpio;
+  uint8_t reset_gpio;
+};
+
+/* A board binds one panel to its physical pins and timing. */
+
+struct bk7258_lcd_board_s
+{
+  const char *name;
+  const struct bk7258_lcd_panel_s *panel;
+  struct bk7258_lcd_rgb_timing_s timing;
+  struct bk7258_lcd_control_bus_s control;
+
+  int (*control_pins_initialize)(const struct bk7258_lcd_board_s *board);
+  int (*rgb_pins_initialize)(const struct bk7258_lcd_board_s *board);
+  int (*set_backlight)(const struct bk7258_lcd_board_s *board, bool on);
+};
 
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
 
-#ifdef CONFIG_BK7258_LCD
-#ifdef CONFIG_BK7258_AP_CORE
+#if defined(CONFIG_BK7258_LCD) && defined(CONFIG_BK7258_AP_CORE)
 
-/****************************************************************************
- * Name: bk7258_lcd_initialize
- *
- * Description:
- *   Bring up the ILI9488 RGB LCD: software-SPI init sequence, RGB timing
- *   configuration, and direct /dev/fb0 registration.
- *
- * Returned Value:
- *   OK on success; a negated errno value on failure.
- *
- ****************************************************************************/
+/* Implemented by the selected physical board. */
+
+const struct bk7258_lcd_board_s *bk7258_board_lcd_config(void);
+
+/* Register the selected RGB panel as the standard NuttX /dev/fb0 device. */
 
 int bk7258_lcd_initialize(void);
 
-#endif /* CONFIG_BK7258_AP_CORE */
-#endif /* CONFIG_BK7258_LCD */
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_LCD_H */

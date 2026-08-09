@@ -187,6 +187,20 @@ Canonical detail:
 Canonical detail:
 [BK7258 platform/board-variant verification](verification/2026-08-09-bk7258-platform-board-variants.md).
 
+## T5-Board RGB LCD hardware verification (2026-08-09)
+
+- The former monolithic LCD wrapper is split into a generic BK7258 RGB
+  controller, an ILI9488 panel module and a T5-Board wiring/binding layer.
+  T5-specific pins and panel commands no longer live in the chip driver.
+- A clean 32-job CP/AP MCUboot build passed with the optional validation
+  pattern enabled.  Sparse deployment reached `B2HANDOFF -> NuttShell` and
+  registered `/dev/fb0` as a 320x480 RGB565 framebuffer at 15 MHz.
+- The attached T35P128CQ-02 module continuously displayed the expected
+  red/green/blue/white bars.  This is visual hardware evidence for the
+  T5-Board/ILI9488 binding; the validation pattern remains disabled by
+  default and is not a product UI.
+- Evidence log: `logs/bk7258-t5-board-validation/20260809-224454`.
+
 ## Next step
 
 1. The isolated P0/P1/P2 driver queue is complete.  TRNG and CP touch are
@@ -196,8 +210,9 @@ Canonical detail:
    controller enabled and its public ownership/cache/buffer contract frozen.
 2. Hardware-verify existing peripherals one at a time using pin-compatible
    profiles.  Keep T5AI-Core as the default baseline; on T5-Board first verify
-   its P1 LED/P28 key and then TF card detect/data, RGB LCD and DVP wiring.  Do
-   not enable conflicting devices by default in shipped configs.
+   its P12 key and then TF card detect/data, RGB LCD and DVP wiring.  Validate
+   the P1 LED only with its shared log-UART path disconnected.  Do not enable
+   conflicting devices by default in shipped configs.
 3. Resume N17 OTA policy on the recoverable Secure Boot baseline. Do not put
    historical N15/N17 writers back into minimal BL1.
 4. Hardware Secure Boot provisioning is the final gate, after signed OTA and

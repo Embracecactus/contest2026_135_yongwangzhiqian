@@ -1130,17 +1130,26 @@ config BK7258_I2S_QUEUE_DEPTH
 	depends on BK7258_I2S
 
 config BK7258_LCD
-	bool "ILI9488 RGB framebuffer"
+	bool "BK7258 RGB framebuffer with T5-Board ILI9488 panel"
 	default n
-	depends on BK7258_PSRAM
+	depends on BK7258_BOARD_T5_BOARD && BK7258_PSRAM
 	select BK7258_SDK_IPC_RUNTIME
 	select DRIVERS_VIDEO
 	select VIDEO_FB
 	help
-		Enable the board ILI9488 expansion-panel framebuffer.  A single
-		RGB565 scanout buffer is allocated from AP PSRAM and exported directly
-		as /dev/fb0.  Enabling this option without the matching expansion
-		module is unsupported.
+		Enable the BK7258 RGB controller, T5-Board physical binding and
+		ILI9488 panel driver.  A single RGB565 scanout buffer is allocated
+		from AP PSRAM and exported directly as /dev/fb0.  Other boards and
+		panels must provide their own binding instead of reusing T5-Board pins.
+
+config BK7258_LCD_VALIDATION_PATTERN
+	bool "Fill the LCD with a startup validation pattern"
+	default n
+	depends on BK7258_LCD
+	help
+		Fill /dev/fb0 with red, green, blue and white bars after framebuffer
+		registration.  This is intended only for board-level display bring-up;
+		normal applications should leave it disabled and render through fb0.
 
 config BK7258_RTC
 	bool "AON RTC lower half"
