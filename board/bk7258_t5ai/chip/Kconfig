@@ -1189,4 +1189,15 @@ config BK7258_TIMER_BUS
 	range 0 15
 	depends on BK7258_TIMER
 
+config BK7258_TRNG
+	bool "Hardware true-random number generator"
+	default n
+	select ARCH_HAVE_RNG
+	select DEV_RANDOM
+	help
+		Expose the AP-owned BK7258 hardware TRNG through the standard NuttX
+		/dev/random interface.  If DEV_URANDOM is also enabled, NuttX selects
+		the architecture-backed /dev/urandom implementation rather than a
+		software PRNG.
+
 endmenu
