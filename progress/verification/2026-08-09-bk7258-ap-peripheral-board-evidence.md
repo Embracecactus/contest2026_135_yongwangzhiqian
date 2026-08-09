@@ -279,6 +279,17 @@ sensitivity evidence.
 - USB Device source is not compiled into the immutable bundle.  The old MUSB
   host-pipe symbols do not provide NuttX endpoint/request or class-binding
   semantics, so no fake UDC wrapper was added.
+- DVP and YUV/H264 source is present only behind disabled AP SDK feature
+  gates.  The immutable bundle has neither the DVP/sensor/frame-completion
+  chain nor the H264/YUV buffer data plane required by NuttX V4L2.
+- DMA2D and hardware scale expose some low-level AP symbols, but their public
+  contracts omit stride/capacity/cache maintenance and reliable completion
+  errors.  NuttX also has no generic DMA2D/transform upper half, so no private
+  character ABI was invented.
+- JPEG decode has hardware/software symbols but its usable modern API depends
+  on unpublished bundle types; the legacy API is a global raw-DMA singleton.
+  JPEG encode omits the hardware controller data plane entirely.  Neither can
+  satisfy NuttX V4L2 M2M queue and buffer-ownership semantics.
 
 ## Final cleaned-image proof
 
