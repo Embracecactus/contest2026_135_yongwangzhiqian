@@ -12,7 +12,7 @@ BUILD="${WORKSPACE}/build.sh"
 PARTITION_GENERATOR="${SCRIPT_DIR}/gen_bk7258_partitions.py"
 CP_CONFIG_NAME="${CP_CONFIG_NAME:-cp_nsh}"
 case "${CP_CONFIG_NAME}" in
-    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_ota|cp_nsh_wifi|cp_nsh_mcuboot)
+    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_ota|cp_nsh_wifi|cp_nsh_mcuboot|cp_nsh_drivercheck|cp_nsh_drivercheck_mcuboot)
         ;;
     *)
         printf 'build_dual_image: unsupported CP_CONFIG_NAME=%s\n' \
@@ -23,7 +23,7 @@ esac
 CP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${CP_CONFIG_NAME}"
 AP_CONFIG_NAME="${AP_CONFIG_NAME:-ap_smp}"
 case "${AP_CONFIG_NAME}" in
-    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi|ap_smp_mcuboot)
+    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi|ap_smp_mcuboot|ap_smp_drivercheck|ap_smp_drivercheck_mcuboot)
         ;;
     *)
         printf 'build_dual_image: unsupported AP_CONFIG_NAME=%s\n' \
@@ -33,15 +33,30 @@ case "${AP_CONFIG_NAME}" in
 esac
 AP_CONFIG="vendor/openvela/boards/contest2026_135_bk7258/configs/${AP_CONFIG_NAME}"
 
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_mcuboot" ||
-      "${AP_CONFIG_NAME}" == "ap_smp_mcuboot" ]]; then
-    if [[ "${CP_CONFIG_NAME}" != "cp_nsh_mcuboot" ||
-          "${AP_CONFIG_NAME}" != "ap_smp_mcuboot" ]]; then
+if [[ "${CP_CONFIG_NAME}" == *_mcuboot ||
+      "${AP_CONFIG_NAME}" == *_mcuboot ]]; then
+    if [[ "${CP_CONFIG_NAME}" != *_mcuboot ||
+          "${AP_CONFIG_NAME}" != *_mcuboot ]]; then
         printf '%s\n' \
             'build_dual_image: MCUboot AP-start configs must be selected as a pair' \
             >&2
         exit 2
     fi
+fi
+
+if [[ "${CP_CONFIG_NAME}" == cp_nsh_drivercheck* ||
+      "${AP_CONFIG_NAME}" == ap_smp_drivercheck* ]]; then
+    case "${CP_CONFIG_NAME}:${AP_CONFIG_NAME}" in
+        cp_nsh_drivercheck:ap_smp_drivercheck|\
+        cp_nsh_drivercheck_mcuboot:ap_smp_drivercheck_mcuboot)
+            ;;
+        *)
+            printf '%s\n' \
+                'build_dual_image: matching AP driver-check configs must be selected as a pair' \
+                >&2
+            exit 2
+            ;;
+    esac
 fi
 
 # MCUboot is an explicit, signed build profile.  Do not silently turn a
@@ -77,24 +92,24 @@ case "${BL1_MANIFEST_RAW_PAGE}" in
         exit 2
         ;;
 esac
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_mcuboot" ]]; then
+if [[ "${CP_CONFIG_NAME}" == *_mcuboot ]]; then
     MCUBOOT_PROFILE=true
     MCUBOOT_BL2_FLASH_SEGMENT="bl2_crc.bin@0x51d000,bl2_secondary_crc.bin@0x53f000"
     if [[ -z "${MCUBOOT_SIGNING_KEY}" || ! -f "${MCUBOOT_SIGNING_KEY}" ]]; then
         printf '%s\n' \
-            'build_dual_image: cp_nsh_mcuboot requires an external MCUBOOT_SIGNING_KEY' \
+            'build_dual_image: a *_mcuboot CP config requires an external MCUBOOT_SIGNING_KEY' \
             >&2
         exit 2
     fi
     if [[ -z "${MCUBOOT_VERSION}" ]]; then
         printf '%s\n' \
-            'build_dual_image: cp_nsh_mcuboot requires MCUBOOT_VERSION' \
+            'build_dual_image: a *_mcuboot CP config requires MCUBOOT_VERSION' \
             >&2
         exit 2
     fi
     if [[ -z "${BL1_MANIFEST_KEY}" || ! -f "${BL1_MANIFEST_KEY}" ]]; then
         printf '%s\n' \
-            'build_dual_image: cp_nsh_mcuboot requires an external BL1_MANIFEST_KEY' \
+            'build_dual_image: a *_mcuboot CP config requires an external BL1_MANIFEST_KEY' \
             >&2
         exit 2
     fi
@@ -500,7 +515,7 @@ fi
 BOOT_MAKE_TARGETS=(clean all verify)
 make -C "${BOARD_DIR}/bootloader" "${BOOT_MAKE_TARGETS[@]}" \
     "${BL1_BOOT_ARGS[@]}"
-if [[ "${CP_CONFIG_NAME}" != "cp_nsh_mcuboot" ]]; then
+if [[ "${CP_CONFIG_NAME}" != *_mcuboot ]]; then
     BOOT_ELF_VERIFY_ARGS=(
         --elf-only
         --boot-elf "${BOARD_DIR}/bootloader/bl.elf"
