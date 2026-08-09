@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI Board) LCD — NuttX lcd_dev_s lower-half wrapper for the
+ * BK7258 (T5-AI Board) LCD — direct NuttX framebuffer wrapper for the
  * 3.5" ILI9488 TFT (320x480 RGB565).
  *
  * The ILI9488 is connected as an RGB parallel display whose register
@@ -20,10 +20,10 @@
  *   - Software SPI bit-bang (modelled on TuyaOpen's tdd_disp_sw_spi.c)
  *     sends the ILI9488 initialization sequence at bring-up.
  *   - bk_lcd_driver_init() + bk_lcd_rgb_init() configure the RGB timing.
- *   - A private frame buffer holds the 320x480 RGB565 image;
+ *   - A PSRAM frame buffer holds the 320x480 RGB565 image;
  *     lcd_driver_set_display_base_addr() points the RGB hardware at it.
- *   - NuttX putrun() copies a rendered row into the frame buffer; the RGB
- *     controller continuously refreshes the panel from there.
+ *   - The same buffer is exported as /dev/fb0, avoiding the generic LCD
+ *     adapter's second full-size SRAM shadow buffer.
  *
  * ILI9488 init sequence is from TuyaOpen (tdd_disp_rgb_ili9488.c).
  ****************************************************************************/
@@ -69,8 +69,7 @@
  *
  * Description:
  *   Bring up the ILI9488 RGB LCD: software-SPI init sequence, RGB timing
- *   configuration, frame buffer registration, and publish the NuttX
- *   lcd_dev_s for the framebuffer layer.
+ *   configuration, and direct /dev/fb0 registration.
  *
  * Returned Value:
  *   OK on success; a negated errno value on failure.

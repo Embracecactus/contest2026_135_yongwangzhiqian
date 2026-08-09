@@ -940,12 +940,24 @@ config BK7258_SARADC_SERVER
 		Enable this in the CP image paired with an AP image that enables
 		BK7258_SARADC.
 
+config BK7258_SDK_IPC_RUNTIME
+	bool "Beken SDK system-resource IPC runtime"
+	default n
+	depends on ARCH_CHIP_BK7258
+	help
+		Initialize only the v3.1.1.9 system-register AMP lock and mailbox
+		layers needed by SDK-backed AP peripheral wrappers.  This is a
+		board-owned wrapper and does not call the SDK's full driver_init().
+		Enable it in the matching CP image whenever an AP peripheral selects
+		this option.
+
 menu "BK7258 AP peripheral wrappers"
 	depends on BK7258_AP_CORE
 
 config BK7258_AUD
 	bool "Analog audio DAC/ADC lower half"
 	default n
+	select BK7258_SDK_IPC_RUNTIME
 	select AUDIO
 	help
 		Expose the SDK analog DAC/ADC block through the NuttX audio lower-
@@ -961,6 +973,7 @@ config BK7258_MIC
 	bool "On-board analog microphone capture"
 	default n
 	depends on !BK7258_AUD
+	select BK7258_SDK_IPC_RUNTIME
 	select AUDIO
 	help
 		Expose the board differential microphone through a NuttX capture
@@ -999,6 +1012,7 @@ config BK7258_MIC_RING_FRAMES
 config BK7258_GPIOE
 	bool "Multi-pin GPIO ioexpander lower half"
 	default n
+	select BK7258_SDK_IPC_RUNTIME
 	select IOEXPANDER
 	help
 		Expose a bounded AP-owned GPIO range through the NuttX ioexpander
@@ -1014,6 +1028,7 @@ config BK7258_GPIOE_NPINS
 config BK7258_I2C
 	bool "I2C master lower half"
 	default n
+	select BK7258_SDK_IPC_RUNTIME
 	select I2C
 	select I2C_DRIVER
 
@@ -1026,6 +1041,7 @@ config BK7258_I2C_BUS
 config BK7258_I2S
 	bool "I2S lower half"
 	default n
+	select BK7258_SDK_IPC_RUNTIME
 	select AUDIO
 	select I2S
 
@@ -1054,20 +1070,22 @@ config BK7258_I2S_QUEUE_DEPTH
 	depends on BK7258_I2S
 
 config BK7258_LCD
-	bool "ILI9488 RGB LCD lower half"
+	bool "ILI9488 RGB framebuffer"
 	default n
 	depends on BK7258_PSRAM
-	select LCD
-	select LCD_FRAMEBUFFER
-	select LCD_EXTERNINIT
+	select BK7258_SDK_IPC_RUNTIME
+	select DRIVERS_VIDEO
+	select VIDEO_FB
 	help
-		Enable the board ILI9488 expansion-panel wrapper.  The RGB565 frame
-		buffer is allocated from AP PSRAM; enabling this option without the
-		matching expansion module is unsupported.
+		Enable the board ILI9488 expansion-panel framebuffer.  A single
+		RGB565 scanout buffer is allocated from AP PSRAM and exported directly
+		as /dev/fb0.  Enabling this option without the matching expansion
+		module is unsupported.
 
 config BK7258_RTC
 	bool "AON RTC lower half"
 	default n
+	select BK7258_SDK_IPC_RUNTIME
 	select RTC
 	select RTC_DATETIME
 	select RTC_DRIVER
@@ -1076,6 +1094,7 @@ config BK7258_SARADC
 	bool "SAR ADC lower half"
 	default n
 	depends on BK7258_AP_CORE
+	select BK7258_SDK_IPC_RUNTIME
 	select ANALOG
 	select ADC
 	help
@@ -1098,6 +1117,7 @@ config BK7258_SARADC_BUS
 config BK7258_SDIO
 	bool "SDIO host lower half"
 	default n
+	select BK7258_SDK_IPC_RUNTIME
 	select ARCH_HAVE_SDIO
 	help
 		Expose the SDK blocking SDIO host API as a NuttX SDIO lower half.
@@ -1117,6 +1137,7 @@ config BK7258_SDIO_TIMEOUT_MS
 config BK7258_SDMADC
 	bool "Sigma-delta ADC lower half"
 	default n
+	select BK7258_SDK_IPC_RUNTIME
 	select ANALOG
 	select ADC
 
@@ -1135,6 +1156,7 @@ config BK7258_SDMADC_BUS
 config BK7258_SPI
 	bool "SPI master lower half"
 	default n
+	select BK7258_SDK_IPC_RUNTIME
 	select SPI
 
 config BK7258_SPI_BUS
@@ -1152,6 +1174,7 @@ config BK7258_SPI_TIMEOUT_MS
 config BK7258_TIMER
 	bool "General-purpose timer lower half"
 	default n
+	select BK7258_SDK_IPC_RUNTIME
 	select TIMER
 
 config BK7258_TIMER_CHAN

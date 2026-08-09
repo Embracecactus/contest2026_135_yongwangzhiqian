@@ -30,6 +30,10 @@ set(BK7258_CP_SRCS
     ${BK7258_COMMON_SRCS}
     cp/bk7258_sdk_partition.c)
 
+if(CONFIG_BK7258_SDK_IPC_RUNTIME)
+  list(APPEND BK7258_CP_SRCS common/bk7258_sdk_runtime.c)
+endif()
+
 if(NOT CONFIG_BK7258_AP_CORE)
   target_link_options(
     nuttx PRIVATE
@@ -195,6 +199,10 @@ set(BK7258_AP_BASE_SRCS
     ${BK7258_COMMON_EARLY_SRCS}
     ap/bk7258_ap_main.c
     ap/bk7258_peripherals.c)
+
+if(CONFIG_BK7258_SDK_IPC_RUNTIME)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_sdk_runtime.c)
+endif()
 
 if(CONFIG_BK7258_PSRAM)
   list(APPEND BK7258_AP_BASE_SRCS common/bk7258_psram.c)

@@ -23,16 +23,33 @@
  * IPC Mailbox stubs
  ****************************************************************************/
 
-/* __start_ipc_chan_reg / __stop_ipc_chan_reg are linker section symbols
- * used by the SDK IPC mailbox driver.  Provide dummy values. */
-
-const void *__start_ipc_chan_reg = NULL;
-const void *__stop_ipc_chan_reg = NULL;
+/* __start_ipc_chan_reg / __stop_ipc_chan_reg are linker-provided boundary
+ * symbols for the kept .ipc_chan_reg section (see ld_ap.script).  Earlier
+ * revisions stubbed them as NULL globals, which masked the real boundaries
+ * and left every BK_IPC_CHANNEL_REGISTER entry unbound; they must stay
+ * linker-generated. */
 
 #ifdef CONFIG_BK7258_AP_CORE
 void __attribute__((weak)) crosscore_mb_rx_isr(mailbox_data_t *data)
 {
   (void)data;
+}
+
+/* libbk_startup.a owns the CPU-stop notification registry, but NuttX owns
+ * the AP core lifecycle; bk_ipc_init() only needs the hook to exist. */
+
+typedef int (*stop_cpu1_notification)(void *);
+
+void stop_cpu1_register_notification(stop_cpu1_notification notification,
+                                     void *param)
+{
+  (void)notification;
+  (void)param;
+}
+
+void stop_cpu1_unregister_notification(stop_cpu1_notification notification)
+{
+  (void)notification;
 }
 
 void shell_log_flush(void)
@@ -58,6 +75,21 @@ uint8_t _heap_start_dummy[4] __attribute__((aligned(16)));
 uint8_t _heap_end_dummy[4] __attribute__((aligned(16)));
 const void *_heap_start = &_heap_start_dummy;
 const void *_heap_end = &_heap_end_dummy;
+
+/****************************************************************************
+ * Log stubs
+ ****************************************************************************/
+
+/* bk_printf_nonblock() lives in libbk_system printf.c, which is not linked.
+ * pwr_clk.c references it on the CPU1 shutdown path once the CP IPC chain
+ * is pulled in.  Drop the message. */
+
+void bk_printf_nonblock(int level, char *tag, const char *fmt, ...)
+{
+  (void)level;
+  (void)tag;
+  (void)fmt;
+}
 
 /* shell_assert_out, shell_log_flush provided by libbk_cli.a */
 /* SDK exception reporting expects the application-generated build string.

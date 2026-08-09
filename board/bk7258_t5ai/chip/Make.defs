@@ -77,6 +77,10 @@ BK7258_CP_CSRCS += bk7258_start.c
 BK7258_CP_CSRCS += $(BK7258_COMMON_CSRCS)
 BK7258_CP_CSRCS += bk7258_sdk_partition.c
 
+ifeq ($(CONFIG_BK7258_SDK_IPC_RUNTIME),y)
+BK7258_CP_CSRCS += bk7258_sdk_runtime.c
+endif
+
 # Keep the official v3.1.1.9 archives immutable while replacing their
 # build-time partition table with the repository-generated CSV ABI.
 
@@ -269,6 +273,10 @@ BK7258_AP_BASE_CSRCS += bk7258_ap_start.c
 BK7258_AP_BASE_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
 BK7258_AP_BASE_CSRCS += bk7258_ap_main.c
 BK7258_AP_BASE_CSRCS += bk7258_peripherals.c
+
+ifeq ($(CONFIG_BK7258_SDK_IPC_RUNTIME),y)
+BK7258_AP_BASE_CSRCS += bk7258_sdk_runtime.c
+endif
 
 ifeq ($(CONFIG_BK7258_PSRAM),y)
 BK7258_AP_BASE_CSRCS += bk7258_psram.c

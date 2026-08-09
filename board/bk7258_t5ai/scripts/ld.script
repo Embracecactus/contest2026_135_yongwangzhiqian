@@ -171,6 +171,19 @@ SECTIONS
         __exidx_end = ABSOLUTE(.);
     } > FLASH
 
+    /* SDK bk_api_ipc channel table.  The entries live in the immutable SDK
+     * libraries and the section name is not a valid C identifier, so the
+     * linker needs explicit KEEP plus PROVIDE_HIDDEN boundary symbols or
+     * --gc-sections discards the table and bk_ipc_init() finds nothing.
+     */
+
+    .ipc_chan_reg : ALIGN(4)
+    {
+        PROVIDE_HIDDEN(__start_ipc_chan_reg = .);
+        KEEP(*(.ipc_chan_reg))
+        PROVIDE_HIDDEN(__stop_ipc_chan_reg = .);
+    } > FLASH
+
     /* Thread-local storage (NuttX ARM convention). */
     .tdata : ALIGN(4)
     {
@@ -248,7 +261,9 @@ SECTIONS
         *(.sram_spinlock_section)
 #endif
         *(COMMON)
-        . = ALIGN(4);
+        /* The reset vector's initial MSP is _ebss + IDLE stack size; AAPCS
+         * and the MCUboot packer both want it 8-byte aligned. */
+        . = ALIGN(8);
         _ebss = ABSOLUTE(.);
     } > RAM
 

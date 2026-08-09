@@ -411,32 +411,14 @@ static int bk7258_gpioe_option(FAR struct ioexpander_dev_s *dev,
         break;
 
       case IOEXPANDER_OPTION_WAKEUPCFG:
-        if (ival == IOEXPANDER_WAKEUP_ENABLE)
-          {
-            if (!priv->intcfg_valid[pin])
-              {
-                rc = -EAGAIN;
-                goto out;
-              }
+        /* Wake-source ownership belongs to the CP power-management domain.
+         * The AP-side SDK helpers issue a synchronous GPIO IPC request and
+         * wait forever when no matching CP wake-source service is present.
+         * Do not let the generic NuttX GPIO upper half block AP bring-up.
+         */
 
-            ret = bk_gpio_register_wakeup_source((gpio_id_t)pin,
-                                                 priv->intcfg[pin]);
-          }
-        else if (ival == IOEXPANDER_WAKEUP_DISABLE)
-          {
-            ret = bk_gpio_unregister_wakeup_source((gpio_id_t)pin);
-          }
-        else
-          {
-            rc = -EINVAL;
-            goto out;
-          }
-
-        if (ret != BK_OK)
-          {
-            rc = -EIO;
-          }
-        break;
+        rc = -ENOTSUP;
+        goto out;
 
       default:
         rc = -ENOTSUP;
