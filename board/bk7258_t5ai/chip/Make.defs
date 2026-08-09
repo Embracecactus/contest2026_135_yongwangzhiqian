@@ -264,6 +264,10 @@ ifeq ($(CONFIG_BK7258_SARADC_SERVER),y)
 BK7258_CP_CSRCS += bk7258_saradc_server.c
 endif
 
+ifeq ($(CONFIG_BK7258_TOUCH),y)
+BK7258_CP_CSRCS += bk7258_touch.c
+endif
+
 # Physical CPU1 runs the independently linked AP image.  Keep AP-UP and AP-SMP
 # source selection explicit so the board-verified N8-A probe remains an exact
 # fallback while N8-B1 replaces only the CPU2 implementation.

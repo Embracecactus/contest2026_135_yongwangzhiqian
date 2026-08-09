@@ -81,6 +81,11 @@
 #include "bk7258_wdt.h"
 #endif
 
+#ifdef CONFIG_BK7258_TOUCH
+#include <arch/chip/bk7258_touch.h>
+#include <nuttx/input/buttons.h>
+#endif
+
 #if defined(CONFIG_FS_PROCFS) && defined(CONFIG_BK7258_DVFS_PROCFS)
 #include "bk7258_dvfs.h"
 #endif
@@ -373,6 +378,38 @@ int board_app_initialize(uintptr_t arg)
 
 #if defined(CONFIG_BK7258_GPIO_LOWERHALF) && !defined(CONFIG_BK7258_AP_CONTROL)
   (void)bk7258_gpio_lowerhalf_initialize();
+#endif
+
+#ifdef CONFIG_BK7258_TOUCH
+  {
+    FAR struct btn_lowerhalf_s *touch_lower;
+    const struct bk7258_touch_config_s touch_config =
+    {
+      .channel_mask = 1u << CONFIG_BK7258_TOUCH_CHANNEL,
+      .poll_interval_ms = CONFIG_BK7258_TOUCH_POLL_INTERVAL_MS,
+      .sensitivity_level = CONFIG_BK7258_TOUCH_SENSITIVITY,
+      .detect_threshold = CONFIG_BK7258_TOUCH_THRESHOLD,
+      .detect_range = CONFIG_BK7258_TOUCH_RANGE,
+#ifdef CONFIG_BK7258_TOUCH_CALIBRATE
+      .calibrate = true,
+#else
+      .calibrate = false,
+#endif
+    };
+    int touchret;
+
+    touchret = bk7258_touch_initialize(&touch_lower, &touch_config);
+    if (touchret >= 0)
+      {
+        touchret = btn_register("/dev/buttons", touch_lower);
+      }
+
+    if (touchret < 0)
+      {
+        (void)bk7258_touch_deinitialize();
+        _err("bk7258: touch buttons init failed: %d\n", touchret);
+      }
+  }
 #endif
 
   /* Register the BK7258 DVFS /proc/dvfs entry *before* mounting procfs: the
