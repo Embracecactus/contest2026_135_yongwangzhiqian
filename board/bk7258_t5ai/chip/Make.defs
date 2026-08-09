@@ -334,6 +334,9 @@ endif
 ifeq ($(CONFIG_BK7258_TIMER),y)
 BK7258_AP_BASE_CSRCS += bk7258_timer.c
 endif
+ifeq ($(CONFIG_BK7258_TRNG),y)
+BK7258_AP_BASE_CSRCS += bk7258_trng.c
+endif
 
 ifeq ($(CONFIG_BK7258_BT_IPC_TRACE),y)
 LDFLAGS += --wrap=bt_conn_receive --wrap=bt_l2cap_receive
