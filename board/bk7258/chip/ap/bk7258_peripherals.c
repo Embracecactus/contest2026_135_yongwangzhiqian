@@ -62,6 +62,10 @@
 #ifdef CONFIG_BK7258_TIMER
 #  include <arch/chip/bk7258_timer.h>
 #endif
+#ifdef CONFIG_BK7258_USBHOST
+#  include <nuttx/usb/usbhost.h>
+#  include <arch/chip/bk7258_usbhost.h>
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -182,6 +186,34 @@ static void bk7258_spi_bind(void)
 }
 #endif
 
+#ifdef CONFIG_BK7258_USBHOST
+static void bk7258_usbhost_bind(void)
+{
+  FAR struct usbhost_connection_s *conn;
+  int ret;
+
+  /* Register only NuttX class drivers, then start NuttX's common waiter.
+   * The board lower half redirects the SDK open/close path to its HCD-only
+   * wrappers, so no CherryUSB hub or class thread is created here.
+   */
+
+  usbhost_drivers_initialize();
+  conn = bk7258_usbhost_initialize();
+  if (conn == NULL)
+    {
+      uerr("ERROR: BK7258 USB host initialization failed\n");
+      return;
+    }
+
+  ret = usbhost_waiter_initialize(conn);
+  if (ret < 0)
+    {
+      uerr("ERROR: USB host waiter failed: %d\n", ret);
+      (void)bk7258_usbhost_uninitialize();
+    }
+}
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -289,6 +321,10 @@ int bk7258_peripherals_initialize(void)
     {
       ierr("ERROR: GT1151 registration failed: %d\n", ret);
     }
+#endif
+
+#ifdef CONFIG_BK7258_USBHOST
+  bk7258_usbhost_bind();
 #endif
 
   (void)ret;

@@ -110,6 +110,9 @@ EXTRA_LIBS += \
   $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
   $(BK_SDK_LIBS_DIR)/libbk_wifi_driver.a
 endif
+ifeq ($(CONFIG_BK7258_USBHOST),y)
+EXTRA_LIBS += $(BK_SDK_LIBS_DIR)/libbk_usb.a
+endif
 # libavdk_utils.a exports hnd_crc8 only.  The SDK GPIO driver calls
 # bk_ipc_send, which drags in bk_api_ipc.c.obj and with it the IPC frame
 # checksum, so the archive must be linked whenever a driver reaches the SDK
