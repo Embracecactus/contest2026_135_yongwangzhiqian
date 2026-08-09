@@ -290,6 +290,19 @@ sensitivity evidence.
   on unpublished bundle types; the legacy API is a global raw-DMA singleton.
   JPEG encode omits the hardware controller data plane entirely.  Neither can
   satisfy NuttX V4L2 M2M queue and buffer-ownership semantics.
+- LIN has useful public protocol APIs in source, but both cores claim the same
+  block while neither immutable bundle exports `bk_lin_*`.  If a future bundle
+  freezes one owner, the appropriate NuttX model is CAN socket/lower-half with
+  deferred IRQ callbacks, not a private `/dev/lin` ABI.
+- Segment LCD has no current NuttX COM/SEG lower-half, no board glass mapping
+  and no exported v3.1.1.9 symbols.  It is separate from the verified RGB
+  framebuffer and was not represented as a pixel display.
+- IRDA is a CP-owned legacy NEC remote-key receiver with no transmit/byte-stream
+  contract or proven board transceiver.  It is not a NuttX UART IrDA device.
+- NuttX has an FFT lower-half, but the disabled SDK bundle exports no BK FFT
+  controller.  SBC likewise has no hardware data plane in the bundle; the
+  remaining software encoder is private to the SDK audio/Bluetooth pipeline.
+  With no typed board consumer, neither is exposed as a synthetic device.
 
 ## Final cleaned-image proof
 
