@@ -38,21 +38,15 @@
 #define BK7258_GPIOIRQ_KEY                   \
   ((gpio_id_t)BK7258_BOARD_USER_BUTTON_GPIO)
 #define BK7258_GPIOIRQ_SECURE_SOURCE         INT_SRC_GPIO
-#define BK7258_GPIOIRQ_NONSECURE_SOURCE      ((icu_int_src_t)37)
 #define BK7258_GPIOIRQ_SECURE_IRQ            \
   (BK7258_SDK_IRQ_FIRST + BK7258_GPIOIRQ_SECURE_SOURCE)
-#define BK7258_GPIOIRQ_NONSECURE_IRQ         \
-  (BK7258_SDK_IRQ_FIRST + BK7258_GPIOIRQ_NONSECURE_SOURCE)
 #define BK7258_GPIOIRQ_WAIT_STEP_US          10000u
 #define BK7258_GPIOIRQ_WAIT_STEPS            1000u
 #define BK7258_GPIOIRQ_SETTLE_STEPS          50u
 #define BK7258_GPIOIRQ_ENABLE_BIT            (1u << 12)
-#define BK7258_GPIOIRQ_ROUTE_REG              0x44010080u
+#define BK7258_GPIOIRQ_ROUTE_REG              0x44010084u
 #define BK7258_GPIOIRQ_SECURE_ROUTE_BIT       (1u << 23)
-#define BK7258_GPIOIRQ_NONSECURE_ROUTE_BIT    (1u << 5)
-#define BK7258_GPIOIRQ_ROUTE_MASK             \
-  (BK7258_GPIOIRQ_SECURE_ROUTE_BIT |         \
-   BK7258_GPIOIRQ_NONSECURE_ROUTE_BIT)
+#define BK7258_GPIOIRQ_ROUTE_MASK             BK7258_GPIOIRQ_SECURE_ROUTE_BIT
 
 #define BK7258_GPIOIRQ_RESERVED(pin) \
   ((pin) == GPIO_0 || (pin) == GPIO_1 || \
@@ -74,10 +68,6 @@ _Static_assert(INT_SRC_GPIO == 55,
                "GPIO IRQ test requires SDK GPIO_S source 55");
 _Static_assert(BK7258_GPIOIRQ_SECURE_IRQ == 71,
                "GPIO IRQ test requires GPIO_S NuttX IRQ 71");
-_Static_assert(BK7258_GPIOIRQ_NONSECURE_SOURCE == 37,
-               "GPIO IRQ test requires GPIO_NS source 37");
-_Static_assert(BK7258_GPIOIRQ_NONSECURE_IRQ == 53,
-               "GPIO IRQ test requires GPIO_NS NuttX IRQ 53");
 
 /****************************************************************************
  * Private Data
@@ -98,7 +88,6 @@ struct bk7258_gpioirq_timeout_diag_s
   uint32_t pending_low;
   uint32_t pending_high;
   struct bk7258_gpioirq_nvic_diag_s secure;
-  struct bk7258_gpioirq_nvic_diag_s nonsecure;
   uint32_t callback_count;
   gpio_id_t last_id;
   bool raw;
@@ -239,9 +228,6 @@ static void bk7258_gpioirq_snapshot_timeout_diag(
   bk7258_gpioirq_snapshot_nvic_diag(BK7258_GPIOIRQ_SECURE_IRQ,
                                     BK7258_GPIOIRQ_SECURE_SOURCE,
                                     &diag->secure);
-  bk7258_gpioirq_snapshot_nvic_diag(BK7258_GPIOIRQ_NONSECURE_IRQ,
-                                    BK7258_GPIOIRQ_NONSECURE_SOURCE,
-                                    &diag->nonsecure);
   flags = enter_critical_section();
   diag->callback_count = g_bk7258_gpioirq_count;
   diag->last_id = g_bk7258_gpioirq_last_id;
@@ -262,16 +248,12 @@ static void bk7258_gpioirq_report_timeout(const char *edge)
          (unsigned long)diag.pending_high,
          (diag.pending_low >> BK7258_GPIOIRQ_KEY) & 1u);
   printf("bkgpioirq: timeout %s irq71 en=%u pend=%u act=%u disp=%lu "
-         "irq53 en=%u pend=%u act=%u disp=%lu cb=%lu id=%u\n",
+         "cb=%lu id=%u\n",
          edge,
          diag.secure.enabled ? 1u : 0u,
          diag.secure.pending ? 1u : 0u,
          diag.secure.active ? 1u : 0u,
          (unsigned long)diag.secure.dispatch_count,
-         diag.nonsecure.enabled ? 1u : 0u,
-         diag.nonsecure.pending ? 1u : 0u,
-         diag.nonsecure.active ? 1u : 0u,
-         (unsigned long)diag.nonsecure.dispatch_count,
          (unsigned long)diag.callback_count,
          (unsigned int)diag.last_id);
 }
@@ -404,14 +386,12 @@ static int bk7258_gpioirq_run_edge(gpio_int_type_t type,
 int bk7258_gpio_irq_test(void)
 {
   int_group_isr_t gpio_handler = NULL;
-  int_group_isr_t saved_nonsecure_handler = NULL;
   uint32_t saved_key = 0;
   uint32_t saved_route = 0;
   uint32_t route_value;
   bool pin_configured = false;
   bool handler_registered = false;
   bool interrupt_enabled = false;
-  bool nonsecure_route_touched = false;
   bool route_gate_touched = false;
   bk_err_t error;
   int cleanup_result;
@@ -423,14 +403,11 @@ int bk7258_gpio_irq_test(void)
       return -EBUSY;
     }
 
-  printf("bkgpioirq: BEGIN board=%s key=P%u gpio_s=%u/irq%u "
-         "gpio_ns=%u/irq%u\n",
+  printf("bkgpioirq: BEGIN board=%s key=P%u gpio_s=%u/irq%u\n",
          BK7258_BOARD_VARIANT_NAME,
          (unsigned int)BK7258_GPIOIRQ_KEY,
          (unsigned int)BK7258_GPIOIRQ_SECURE_SOURCE,
-         (unsigned int)BK7258_GPIOIRQ_SECURE_IRQ,
-         (unsigned int)BK7258_GPIOIRQ_NONSECURE_SOURCE,
-         (unsigned int)BK7258_GPIOIRQ_NONSECURE_IRQ);
+         (unsigned int)BK7258_GPIOIRQ_SECURE_IRQ);
 
   error = bk_gpio_driver_init();
   result = bk7258_gpioirq_result("driver init", error);
@@ -445,7 +422,7 @@ int bk7258_gpio_irq_test(void)
    * but never reaches the NVIC.
    */
 
-  sys_drv_int_group2_enable((1u << 23) | (1u << 5));
+  sys_drv_int_group2_enable(BK7258_GPIOIRQ_ROUTE_MASK);
 
   error = bk7258_sdk_irq_test_snapshot_handler(
             BK7258_GPIOIRQ_SECURE_SOURCE, &gpio_handler);
@@ -456,30 +433,6 @@ int bk7258_gpio_irq_test(void)
       result = -EIO;
       goto out;
     }
-
-  error = bk7258_sdk_irq_test_snapshot_handler(
-            BK7258_GPIOIRQ_NONSECURE_SOURCE,
-            &saved_nonsecure_handler);
-  if (error != BK_OK)
-    {
-      printf("bkgpioirq: FAIL snapshot GPIO_NS ret=%d\n", (int)error);
-      result = -EIO;
-      goto out;
-    }
-
-  error = bk_int_isr_register(BK7258_GPIOIRQ_NONSECURE_SOURCE,
-                              gpio_handler, NULL);
-  if (error != BK_OK)
-    {
-      printf("bkgpioirq: FAIL mirror GPIO_NS ret=%d\n", (int)error);
-      result = -EIO;
-      goto out;
-    }
-
-  nonsecure_route_touched = true;
-  printf("bkgpioirq: mirror GPIO_S handler to GPIO_NS source=%u irq=%u\n",
-         (unsigned int)BK7258_GPIOIRQ_NONSECURE_SOURCE,
-         (unsigned int)BK7258_GPIOIRQ_NONSECURE_IRQ);
 
   route_value = bk7258_gpioirq_enable_route(&saved_route);
   route_gate_touched = true;
@@ -606,29 +559,6 @@ out:
           (saved_route & BK7258_GPIOIRQ_ROUTE_MASK))
         {
           printf("bkgpioirq: FAIL route restore readback\n");
-          if (result == 0)
-            {
-              result = -EIO;
-            }
-        }
-    }
-
-  if (nonsecure_route_touched)
-    {
-      if (saved_nonsecure_handler != NULL)
-        {
-          error = bk_int_isr_register(BK7258_GPIOIRQ_NONSECURE_SOURCE,
-                                      saved_nonsecure_handler, NULL);
-        }
-      else
-        {
-          error = bk_int_isr_unregister(BK7258_GPIOIRQ_NONSECURE_SOURCE);
-        }
-
-      if (error != BK_OK)
-        {
-          printf("bkgpioirq: FAIL restore GPIO_NS route ret=%d\n",
-                 (int)error);
           if (result == 0)
             {
               result = -EIO;

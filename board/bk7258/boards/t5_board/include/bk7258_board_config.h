@@ -23,15 +23,28 @@
 
 #define BK7258_BOARD_USER_LED_GPIO               1
 #define BK7258_BOARD_USER_LED_ACTIVE_HIGH        1
-#define BK7258_BOARD_USER_BUTTON_GPIO            28
+#define BK7258_BOARD_USER_LED_CONSOLE_SHARED     1
+#define BK7258_BOARD_USER_BUTTON_GPIO            12
 #define BK7258_BOARD_USER_BUTTON_ACTIVE_LOW      1
-#define BK7258_BOARD_SPEAKER_CONTROL_GPIO        9
+#define BK7258_BOARD_SPEAKER_CONTROL_GPIO        28
+
+/* T35P128CQ-02 RGB LCD sub-board wiring.  The serial control signals and
+ * backlight enable are source-verified against T5-Board V1.0.2 and
+ * LCD display sub-board schematics.
+ */
+
+#define BK7258_BOARD_LCD_SPI_CLK_GPIO             49
+#define BK7258_BOARD_LCD_SPI_CS_GPIO              48
+#define BK7258_BOARD_LCD_SPI_SDI_GPIO             50
+#define BK7258_BOARD_LCD_RESET_GPIO               53
+#define BK7258_BOARD_LCD_BACKLIGHT_GPIO           9
+#define BK7258_BOARD_LCD_BACKLIGHT_ACTIVE_HIGH    1
 
 /* TF-card wiring source-verified from T5-Board V1.0.2. */
 
 #define BK7258_BOARD_SDIO_D2_GPIO                10
 #define BK7258_BOARD_SDIO_D3_GPIO                11
-#define BK7258_BOARD_SDIO_CLK_GPIO               8
+#define BK7258_BOARD_SDIO_CLK_GPIO               2
 #define BK7258_BOARD_SDIO_CMD_GPIO               3
 #define BK7258_BOARD_SDIO_D0_GPIO                4
 #define BK7258_BOARD_SDIO_D1_GPIO                5

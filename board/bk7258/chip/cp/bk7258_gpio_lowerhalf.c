@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <syslog.h>
 
 #include <nuttx/ioexpander/gpio.h>
 #include <nuttx/mutex.h>
@@ -39,14 +40,16 @@
   ((gpio_id_t)BK7258_BOARD_USER_BUTTON_GPIO)
 #define BK7258_GPIO_LED_MINOR               0
 #define BK7258_GPIO_KEY_MINOR               1
+#if defined(CONFIG_DEV_CONSOLE) && \
+    BK7258_BOARD_USER_LED_CONSOLE_SHARED
+#  define BK7258_GPIO_LED_AVAILABLE          0
+#else
+#  define BK7258_GPIO_LED_AVAILABLE          1
+#endif
 #define BK7258_GPIO_SECURE_SOURCE           INT_SRC_GPIO
-#define BK7258_GPIO_NONSECURE_SOURCE        ((icu_int_src_t)37)
-#define BK7258_GPIO_ROUTE_REG               0x44010080u
+#define BK7258_GPIO_ROUTE_REG               0x44010084u
 #define BK7258_GPIO_SECURE_ROUTE_BIT        (1u << 23)
-#define BK7258_GPIO_NONSECURE_ROUTE_BIT     (1u << 5)
-#define BK7258_GPIO_ROUTE_MASK              \
-  (BK7258_GPIO_SECURE_ROUTE_BIT |           \
-   BK7258_GPIO_NONSECURE_ROUTE_BIT)
+#define BK7258_GPIO_ROUTE_MASK              BK7258_GPIO_SECURE_ROUTE_BIT
 
 /****************************************************************************
  * Compile-time Invariants
@@ -65,8 +68,6 @@ _Static_assert(BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 1,
                "GPIO lower-half currently requires an active-low button");
 _Static_assert(INT_SRC_GPIO == 55,
                "GPIO lower-half requires GPIO_S source 55");
-_Static_assert(BK7258_GPIO_NONSECURE_SOURCE == 37,
-               "GPIO lower-half requires GPIO_NS source 37");
 
 extern void bk7258_gpio_cp_irq_enable(void);
 
@@ -88,10 +89,8 @@ struct bk7258_gpio_interrupt_s
   mutex_t lock;
   gpio_id_t pin;
   volatile pin_interrupt_t callback;
-  int_group_isr_t saved_nonsecure_handler;
   uint32_t saved_route;
   bool enabled;
-  bool nonsecure_route_touched;
   bool route_gate_touched;
 };
 
@@ -243,8 +242,6 @@ static int bk7258_gpio_close_route(
   FAR struct bk7258_gpio_interrupt_s *key)
 {
   uint32_t value;
-  bk_err_t error;
-  int result = OK;
 
   if (key->route_gate_touched)
     {
@@ -260,45 +257,18 @@ static int bk7258_gpio_close_route(
       key->route_gate_touched = false;
     }
 
-  if (key->nonsecure_route_touched)
-    {
-      if (key->saved_nonsecure_handler != NULL)
-        {
-          error = bk_int_isr_register(BK7258_GPIO_NONSECURE_SOURCE,
-                                      key->saved_nonsecure_handler, NULL);
-        }
-      else
-        {
-          error = bk_int_isr_unregister(BK7258_GPIO_NONSECURE_SOURCE);
-        }
-
-      if (error != BK_OK)
-        {
-          if (result == OK)
-            {
-              result = -EIO;
-            }
-        }
-      else
-        {
-          key->nonsecure_route_touched = false;
-          key->saved_nonsecure_handler = NULL;
-        }
-    }
-
-  return result;
+  return OK;
 }
 
 static int bk7258_gpio_open_route(
   FAR struct bk7258_gpio_interrupt_s *key)
 {
   int_group_isr_t secure_handler = NULL;
-  int_group_isr_t nonsecure_handler = NULL;
   uint32_t value;
   bk_err_t error;
   int result;
 
-  if (key->route_gate_touched || key->nonsecure_route_touched)
+  if (key->route_gate_touched)
     {
       result = bk7258_gpio_close_route(key);
       if (result < 0)
@@ -318,38 +288,22 @@ static int bk7258_gpio_open_route(
                                            &secure_handler);
   if (error != BK_OK || secure_handler == NULL)
     {
+      syslog(LOG_ERR,
+             "bk7258 gpio: snapshot source=%u SDK error=%d handler=%p\n",
+             (unsigned int)BK7258_GPIO_SECURE_SOURCE, (int)error,
+             (FAR void *)(uintptr_t)secure_handler);
       return -EIO;
-    }
-
-  error = bk7258_sdk_irq_snapshot_handler(BK7258_GPIO_NONSECURE_SOURCE,
-                                           &nonsecure_handler);
-  if (error != BK_OK)
-    {
-      return -EIO;
-    }
-
-  if (nonsecure_handler != secure_handler)
-    {
-      if (nonsecure_handler != NULL)
-        {
-          return -EBUSY;
-        }
-
-      error = bk_int_isr_register(BK7258_GPIO_NONSECURE_SOURCE,
-                                  secure_handler, NULL);
-      if (error != BK_OK)
-        {
-          return -EIO;
-        }
-
-      key->saved_nonsecure_handler = nonsecure_handler;
-      key->nonsecure_route_touched = true;
     }
 
   value = bk7258_gpio_enable_route(&key->saved_route);
   key->route_gate_touched = true;
   if ((value & BK7258_GPIO_ROUTE_MASK) != BK7258_GPIO_ROUTE_MASK)
     {
+      syslog(LOG_ERR,
+             "bk7258 gpio: route readback saved=0x%08lx value=0x%08lx "
+             "mask=0x%08lx\n",
+             (unsigned long)key->saved_route, (unsigned long)value,
+             (unsigned long)BK7258_GPIO_ROUTE_MASK);
       (void)bk7258_gpio_close_route(key);
       return -EIO;
     }
@@ -539,6 +493,14 @@ static int bk7258_gpio_key_attach(FAR struct gpio_dev_s *dev,
   isr = callback != NULL ? bk7258_gpio_key_isr : NULL;
   error = bk_gpio_register_isr(key->pin, isr);
   result = bk7258_gpio_result(error);
+  if (result < 0)
+    {
+      syslog(LOG_ERR,
+             "bk7258 gpio: attach P%u callback=%p SDK error=%d\n",
+             (unsigned int)key->pin,
+             (FAR void *)(uintptr_t)callback, (int)error);
+    }
+
   if (result == OK)
     {
       key->callback = callback;
@@ -600,6 +562,23 @@ static int bk7258_gpio_key_enable(FAR struct gpio_dev_s *dev, bool enable)
       return -EINVAL;
     }
 
+  /* AP-side SDK drivers initialize their own default GPIO table after the
+   * CP lower-half has been registered.  In the v3.1.1.9 BK7258 AP table,
+   * P12 is reset to a disabled secondary-function entry.  Reassert the
+   * board-owned key configuration at the point the NuttX client enables the
+   * interrupt so the standard GPIO ABI does not depend on AP startup order.
+   */
+
+  result = bk7258_gpio_result(
+             bk_gpio_set_config(key->pin, &g_bk7258_gpio_key_config));
+  if (result < 0)
+    {
+      syslog(LOG_ERR, "bk7258 gpio: configure key P%u failed=%d\n",
+             (unsigned int)key->pin, result);
+      nxmutex_unlock(&key->lock);
+      return result;
+    }
+
   result = bk7258_gpio_key_interrupt_type(
              (enum gpio_pintype_e)key->gpio.gp_pintype, &type);
   if (result < 0)
@@ -612,6 +591,9 @@ static int bk7258_gpio_key_enable(FAR struct gpio_dev_s *dev, bool enable)
              bk_gpio_set_interrupt_type(key->pin, type));
   if (result < 0)
     {
+      syslog(LOG_ERR,
+             "bk7258 gpio: set interrupt type P%u type=%u failed=%d\n",
+             (unsigned int)key->pin, (unsigned int)type, result);
       nxmutex_unlock(&key->lock);
       return result;
     }
@@ -619,6 +601,8 @@ static int bk7258_gpio_key_enable(FAR struct gpio_dev_s *dev, bool enable)
   result = bk7258_gpio_result(bk_gpio_clear_interrupt(key->pin));
   if (result < 0)
     {
+      syslog(LOG_ERR, "bk7258 gpio: clear P%u failed=%d\n",
+             (unsigned int)key->pin, result);
       nxmutex_unlock(&key->lock);
       return result;
     }
@@ -631,6 +615,8 @@ static int bk7258_gpio_key_enable(FAR struct gpio_dev_s *dev, bool enable)
              bk_gpio_register_isr(key->pin, bk7258_gpio_key_isr));
   if (result < 0)
     {
+      syslog(LOG_ERR, "bk7258 gpio: register ISR P%u failed=%d\n",
+             (unsigned int)key->pin, result);
       nxmutex_unlock(&key->lock);
       return result;
     }
@@ -638,6 +624,10 @@ static int bk7258_gpio_key_enable(FAR struct gpio_dev_s *dev, bool enable)
   result = bk7258_gpio_open_route(key);
   if (result < 0)
     {
+      syslog(LOG_ERR,
+             "bk7258 gpio: open route P%u reg=0x%08lx failed=%d\n",
+             (unsigned int)key->pin,
+             (unsigned long)BK7258_GPIO_ROUTE_REG, result);
       (void)bk_gpio_register_isr(key->pin, NULL);
       nxmutex_unlock(&key->lock);
       return result;
@@ -646,6 +636,8 @@ static int bk7258_gpio_key_enable(FAR struct gpio_dev_s *dev, bool enable)
   result = bk7258_gpio_result(bk_gpio_enable_interrupt(key->pin));
   if (result < 0)
     {
+      syslog(LOG_ERR, "bk7258 gpio: enable P%u failed=%d\n",
+             (unsigned int)key->pin, result);
       cleanup_result = bk7258_gpio_close_route(key);
       if (cleanup_result < 0)
         {
@@ -755,7 +747,9 @@ static int bk7258_gpio_key_setmask(FAR struct gpio_dev_s *dev, bool enable)
  *
  * Description:
  *   Configure and register the selected physical board's LED and user-key
- *   devices as /dev/gpio0 and /dev/gpio1.
+ *   devices as /dev/gpio0 and /dev/gpio1.  A board whose LED shares the
+ *   active console pin omits /dev/gpio0 without touching that pin, while
+ *   keeping the independent user-key device available as /dev/gpio1.
  *
  * Returned Value:
  *   Zero on success or a negated errno value on failure.
@@ -764,7 +758,7 @@ static int bk7258_gpio_key_setmask(FAR struct gpio_dev_s *dev, bool enable)
 
 int bk7258_gpio_lowerhalf_initialize(void)
 {
-  uint32_t saved_led;
+  uint32_t saved_led = 0;
   uint32_t saved_key;
   bool led_configured = false;
   bool key_configured = false;
@@ -790,26 +784,29 @@ int bk7258_gpio_lowerhalf_initialize(void)
       goto out;
     }
 
-  saved_led = bk_gpio_get_value(BK7258_GPIO_LED_PIN);
   saved_key = bk_gpio_get_value(BK7258_GPIO_KEY_PIN);
 
-  result = bk7258_gpio_result(
-             bk_gpio_set_config(BK7258_GPIO_LED_PIN,
-                                &g_bk7258_gpio_led_config));
-  if (result < 0)
+  if (BK7258_GPIO_LED_AVAILABLE)
     {
-      goto out;
-    }
+      saved_led = bk_gpio_get_value(BK7258_GPIO_LED_PIN);
+      result = bk7258_gpio_result(
+                 bk_gpio_set_config(BK7258_GPIO_LED_PIN,
+                                    &g_bk7258_gpio_led_config));
+      if (result < 0)
+        {
+          goto out;
+        }
 
-  led_configured = true;
-  result = bk7258_gpio_result(
-             bk_gpio_set_output_low(BK7258_GPIO_LED_PIN));
-  if (result < 0)
-    {
-      goto restore;
-    }
+      led_configured = true;
+      result = bk7258_gpio_result(
+                 bk_gpio_set_output_low(BK7258_GPIO_LED_PIN));
+      if (result < 0)
+        {
+          goto restore;
+        }
 
-  g_bk7258_gpio_led.value = false;
+      g_bk7258_gpio_led.value = false;
+    }
 
   result = bk7258_gpio_result(
              bk_gpio_set_config(BK7258_GPIO_KEY_PIN,
@@ -834,14 +831,18 @@ int bk7258_gpio_lowerhalf_initialize(void)
       goto restore;
     }
 
-  result = gpio_pin_register(&g_bk7258_gpio_led.gpio,
-                             BK7258_GPIO_LED_MINOR);
-  if (result < 0)
+  if (BK7258_GPIO_LED_AVAILABLE)
     {
-      goto restore;
+      result = gpio_pin_register(&g_bk7258_gpio_led.gpio,
+                                 BK7258_GPIO_LED_MINOR);
+      if (result < 0)
+        {
+          goto restore;
+        }
+
+      led_registered = true;
     }
 
-  led_registered = true;
   result = gpio_pin_register(&g_bk7258_gpio_key.gpio,
                              BK7258_GPIO_KEY_MINOR);
   if (result < 0)

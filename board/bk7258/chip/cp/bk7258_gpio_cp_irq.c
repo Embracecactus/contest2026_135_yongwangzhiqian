@@ -12,10 +12,10 @@
  * operation, and GPIO interrupt forwarding is a power-sensitive feature.
  *
  * However, NuttX on CP needs GPIO interrupts for normal operation (e.g.,
- * the GPIO lower-half edge interrupt support).  This wrapper provides a
- * clean API to enable/disable the CPU0 source forwarding for GPIO_S
- * (source55) and GPIO_NS (source37), matching the AP SDK's behavior in
- * bk_gpio_driver_init().
+ * the GPIO lower-half edge interrupt support).  The pinned v3.1.1.9 CP
+ * configuration has CONFIG_TZ=1 and CONFIG_SPE=1, so its GPIO driver
+ * registers only GPIO_S (source55).  GPIO_NS aliases MAC_HSU at source37
+ * and must not be claimed by this CP wrapper.
  *
  * The CP SDK provides sys_drv_int_group2_enable/disable in libdriver.a
  * but does not expose the header in the pinned includes.  The extern
@@ -35,10 +35,10 @@
  ****************************************************************************/
 
 /* CPU0_INT_32_63_EN register at 0x44010084.
- * GPIO_S (source55) = bit23, GPIO_NS (source37) = bit5.
+ * GPIO_S (source55) = bit23.
  */
 
-#define BK7258_GPIO_CP_SOURCE_MASK  ((1u << 23) | (1u << 5))
+#define BK7258_GPIO_CP_SOURCE_MASK  (1u << 23)
 
 /****************************************************************************
  * Private Data
@@ -60,8 +60,8 @@ extern int sys_drv_int_group2_disable(uint32_t param);
  *
  * Description:
  *   Enable GPIO interrupt forwarding to CPU0 at the system level.
- *   This sets the CPU0 source enable bits for GPIO_S (source55) and
- *   GPIO_NS (source37) in the CPU0_INT_32_63_EN register.
+ *   This sets the CPU0 source enable bit for GPIO_S (source55) in the
+ *   CPU0_INT_32_63_EN register.
  *
  *   The CP SDK only calls this from gpio_enter_low_power(), never from
  *   normal GPIO init.  NuttX needs it for normal GPIO interrupt operation.
@@ -84,8 +84,8 @@ void bk7258_gpio_cp_irq_enable(void)
  *
  * Description:
  *   Disable GPIO interrupt forwarding to CPU0 at the system level.
- *   This clears the CPU0 source enable bits for GPIO_S (source55) and
- *   GPIO_NS (source37) in the CPU0_INT_32_63_EN register.
+ *   This clears the CPU0 source enable bit for GPIO_S (source55) in the
+ *   CPU0_INT_32_63_EN register.
  *
  * Input Parameters:
  *   None

@@ -27,7 +27,7 @@ config BK7258_BOARD_T5_BOARD
 	bool "T5-Board V1.0.2"
 	help
 		Full T5-E1-IPEX development board with TF card, RGB LCD and DVP
-		camera connectors, P1 user LED and P28 ADC key.  Selecting this
+		camera connectors, P1 user LED and P12 ADC key.  Selecting this
 		changes board wiring only; chip, CP/AP and boot code remain shared.
 
 endchoice
