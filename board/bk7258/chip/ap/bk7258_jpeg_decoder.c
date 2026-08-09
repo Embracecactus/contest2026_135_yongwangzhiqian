@@ -17,45 +17,25 @@
 
 #include <common/bk_err.h>
 #include <components/avdk_utils/avdk_error.h>
+#include <components/media_types.h>
 
 #include "../include/bk7258_jpeg_decoder.h"
 
 /*
- * The v3.1.1.9 public bk_jpeg_decode_types.h includes frame_buffer.h, but
- * that header is not exported by the immutable AP bundle.  Keep this small
- * board-owned ABI declaration instead of adding an SDK source include path
- * or copying an SDK header.  The field order and scalar widths are the public
- * media_types.h definition, and only the fields used by this wrapper are
- * populated.  The function signatures below are the public declarations for
- * the five high-level operations used here; their implementations remain in
- * immutable libbk_jpeg_decoder.a.
+ * The v3.1.1.9 public bk_jpeg_decode_types.h includes frame_buffer.h, which
+ * is not exported by the immutable AP bundle.  The complete frame_buffer_t
+ * is nevertheless exported by media_types.h, so use that public type here.
+ * Keep only the JPEG config/info/handle declarations needed to bridge the
+ * leaked public include; the implementations remain in immutable
+ * libbk_jpeg_decoder.a.  These are the six high-level operations used here.
  */
-
-struct bk7258_sdk_frame_buffer_s
-{
-  uint32_t flag;
-  uint8_t *frame;
-  uint32_t size;
-  uint8_t frame_crc;
-  uint32_t type;
-  uint32_t fmt;
-  uint8_t crc;
-  uint32_t timestamp;
-  uint16_t width;
-  uint16_t height;
-  uint32_t length;
-  uint32_t sequence;
-  uint32_t h264_type;
-};
-
-typedef struct bk7258_sdk_frame_buffer_s bk7258_sdk_frame_buffer_t;
 
 typedef struct
 {
-  bk_err_t (*in_complete)(bk7258_sdk_frame_buffer_t *in_frame);
-  bk7258_sdk_frame_buffer_t *(*out_malloc)(uint32_t size);
+  bk_err_t (*in_complete)(frame_buffer_t *in_frame);
+  frame_buffer_t *(*out_malloc)(uint32_t size);
   bk_err_t (*out_complete)(uint32_t format_type, uint32_t result,
-                           bk7258_sdk_frame_buffer_t *out_frame);
+                           frame_buffer_t *out_frame);
 } bk7258_sdk_jpeg_decode_callback_t;
 
 typedef struct
@@ -68,7 +48,7 @@ typedef struct bk7258_sdk_jpeg_decode_hw_s
 
 typedef struct
 {
-  bk7258_sdk_frame_buffer_t *frame;
+  frame_buffer_t *frame;
   uint32_t width;
   uint32_t height;
   uint32_t format;
@@ -86,8 +66,8 @@ extern avdk_err_t bk_jpeg_decode_hw_get_img_info(
   bk7258_sdk_jpeg_decode_img_info_t *info);
 extern avdk_err_t bk_jpeg_decode_hw_decode(
   bk7258_sdk_jpeg_decode_hw_handle_t handle,
-  bk7258_sdk_frame_buffer_t *in_frame,
-  bk7258_sdk_frame_buffer_t *out_frame);
+  frame_buffer_t *in_frame,
+  frame_buffer_t *out_frame);
 extern avdk_err_t bk_jpeg_decode_hw_delete(
   bk7258_sdk_jpeg_decode_hw_handle_t handle);
 
@@ -96,8 +76,6 @@ extern avdk_err_t bk_jpeg_decode_hw_delete(
 #define BK7258_JPEG_FMT_YUV422      2u
 #define BK7258_JPEG_FMT_YUV420      3u
 #define BK7258_JPEG_FMT_YUV400      4u
-#define BK7258_JPEG_PIXEL_FMT_JPEG  1u
-#define BK7258_JPEG_PIXEL_FMT_YUYV  4u
 
 struct bk7258_jpeg_decoder_s
 {
@@ -182,16 +160,56 @@ static int bk7258_jpeg_decoder_check_locked(
   return 0;
 }
 
+/* The SDK passes addresses to a 32-bit JPEG register interface.  Reject a
+ * range whose final byte cannot be represented by that interface, even when
+ * this wrapper is syntax-checked on a wider host. */
+
+static int bk7258_jpeg_decoder_validate_sdk_address(
+  FAR const uint8_t *data, uint32_t span)
+{
+  uint64_t base;
+  uint64_t last;
+
+  if (data == NULL || span == 0)
+    {
+      return -EINVAL;
+    }
+
+  base = (uint64_t)(uintptr_t)data;
+  if (base > UINT64_MAX - span)
+    {
+      return -EOVERFLOW;
+    }
+
+  last = base + span - 1;
+  if (last > UINT32_MAX)
+    {
+      return -EOVERFLOW;
+    }
+
+  return 0;
+}
+
 static int bk7258_jpeg_decoder_validate_input(
   FAR const struct bk7258_jpeg_decoder_frame_s *input)
 {
+  int ret;
+
   if (input == NULL || input->data == NULL || input->capacity == 0 ||
       input->length == 0 || input->length > input->capacity)
     {
       return -EINVAL;
     }
 
-  return 0;
+  ret = bk7258_jpeg_decoder_validate_sdk_address(input->data,
+                                                 input->length);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return bk7258_jpeg_decoder_validate_sdk_address(input->data,
+                                                   input->capacity);
 }
 
 static int bk7258_jpeg_decoder_validate_output(
@@ -202,7 +220,8 @@ static int bk7258_jpeg_decoder_validate_output(
       return -EINVAL;
     }
 
-  return 0;
+  return bk7258_jpeg_decoder_validate_sdk_address(output->data,
+                                                  output->capacity);
 }
 
 static int bk7258_jpeg_decoder_validate_no_overlap(
@@ -233,7 +252,7 @@ static int bk7258_jpeg_decoder_validate_no_overlap(
 
 static int bk7258_jpeg_decoder_make_input(
   FAR const struct bk7258_jpeg_decoder_frame_s *input,
-  FAR bk7258_sdk_frame_buffer_t *sdk_input)
+  FAR frame_buffer_t *sdk_input)
 {
   int ret = bk7258_jpeg_decoder_validate_input(input);
 
@@ -242,17 +261,17 @@ static int bk7258_jpeg_decoder_make_input(
       return ret;
     }
 
-  *sdk_input = (bk7258_sdk_frame_buffer_t){0};
+  *sdk_input = (frame_buffer_t){0};
   sdk_input->frame = input->data;
   sdk_input->size = input->capacity;
   sdk_input->length = input->length;
-  sdk_input->fmt = BK7258_JPEG_PIXEL_FMT_JPEG;
+  sdk_input->fmt = PIXEL_FMT_JPEG;
   return 0;
 }
 
 static int bk7258_jpeg_decoder_make_output(
   FAR const struct bk7258_jpeg_decoder_frame_s *output,
-  FAR bk7258_sdk_frame_buffer_t *sdk_output)
+  FAR frame_buffer_t *sdk_output)
 {
   int ret = bk7258_jpeg_decoder_validate_output(output);
 
@@ -261,10 +280,10 @@ static int bk7258_jpeg_decoder_make_output(
       return ret;
     }
 
-  *sdk_output = (bk7258_sdk_frame_buffer_t){0};
+  *sdk_output = (frame_buffer_t){0};
   sdk_output->frame = output->data;
   sdk_output->size = output->capacity;
-  sdk_output->fmt = BK7258_JPEG_PIXEL_FMT_YUYV;
+  sdk_output->fmt = PIXEL_FMT_YUYV;
   return 0;
 }
 
@@ -311,7 +330,7 @@ static int bk7258_jpeg_decoder_get_info_locked(
   FAR struct bk7258_jpeg_decoder_s *priv,
   FAR struct bk7258_jpeg_decoder_frame_s *input,
   FAR struct bk7258_jpeg_decoder_info_s *info,
-  FAR bk7258_sdk_frame_buffer_t *sdk_input,
+  FAR frame_buffer_t *sdk_input,
   FAR bk7258_sdk_jpeg_decode_img_info_t *sdk_info)
 {
   int ret;
@@ -464,7 +483,7 @@ int bk7258_jpeg_decoder_get_info(
   FAR struct bk7258_jpeg_decoder_frame_s *input,
   FAR struct bk7258_jpeg_decoder_info_s *info)
 {
-  bk7258_sdk_frame_buffer_t sdk_input;
+  frame_buffer_t sdk_input;
   bk7258_sdk_jpeg_decode_img_info_t sdk_info = {0};
   int ret;
 
@@ -495,8 +514,8 @@ int bk7258_jpeg_decoder_decode(
   FAR struct bk7258_jpeg_decoder_frame_s *input,
   FAR struct bk7258_jpeg_decoder_frame_s *output)
 {
-  bk7258_sdk_frame_buffer_t sdk_input;
-  bk7258_sdk_frame_buffer_t sdk_output;
+  frame_buffer_t sdk_input;
+  frame_buffer_t sdk_output;
   bk7258_sdk_jpeg_decode_img_info_t sdk_info = {0};
   struct bk7258_jpeg_decoder_info_s info;
   uint64_t output_bytes;
