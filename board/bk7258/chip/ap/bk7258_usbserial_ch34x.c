@@ -646,24 +646,24 @@ static int bk7258_ch34x_alloc_buffers(
       goto errout;
     }
 
-  ret = DRVR_ALLOC(hport->drvr, &priv->ctrlbuf, &maxlen);
-  if (ret < 0 || maxlen < 2)
+  ret = DRVR_IOALLOC(hport->drvr, &priv->ctrlbuf, 2);
+  if (ret < 0)
     {
-      ret = ret < 0 ? bk7258_ch34x_usbret(ret) : -ENOMEM;
+      ret = bk7258_ch34x_usbret(ret);
       goto errout;
     }
 
-  ret = DRVR_ALLOC(hport->drvr, &priv->inbuf, &maxlen);
-  if (ret < 0 || maxlen < priv->pktsize)
+  ret = DRVR_IOALLOC(hport->drvr, &priv->inbuf, priv->pktsize);
+  if (ret < 0)
     {
-      ret = ret < 0 ? bk7258_ch34x_usbret(ret) : -ENOMEM;
+      ret = bk7258_ch34x_usbret(ret);
       goto errout;
     }
 
-  ret = DRVR_ALLOC(hport->drvr, &priv->outbuf, &maxlen);
-  if (ret < 0 || maxlen < priv->pktsize)
+  ret = DRVR_IOALLOC(hport->drvr, &priv->outbuf, priv->pktsize);
+  if (ret < 0)
     {
-      ret = ret < 0 ? bk7258_ch34x_usbret(ret) : -ENOMEM;
+      ret = bk7258_ch34x_usbret(ret);
       goto errout;
     }
 
@@ -699,7 +699,7 @@ static void bk7258_ch34x_free_buffers(
 
   if (priv->ctrlreq != NULL)
     {
-      DRVR_IOFREE(hport->drvr, priv->ctrlreq);
+      DRVR_FREE(hport->drvr, priv->ctrlreq);
       priv->ctrlreq = NULL;
     }
 }
