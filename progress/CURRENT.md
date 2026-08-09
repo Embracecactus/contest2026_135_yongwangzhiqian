@@ -34,8 +34,8 @@ treated as BK7258 facts. NuttX and SDK source trees remain unchanged.
 
 Artifact SHA-256:
 
-- `bl_crc.bin`: `b13e9946d0120a170836bef0bf97c2de953ae78db71016c8c6ae8ba9412a49ea`
-- `all-app-factory.bin`: `bb80db82a1631112602902069d691a65a99710f74d7f2ac9d537cae796009cbe`
+- `bl_crc.bin`: `bcd112a3135b6123a646945d87d5e52481b55ae5af68021714b4d37e3dd4fb64`
+- `all-app-factory.bin`: `70d91d8dd863febe8647c50659381a86c8e30aacb5496d5c3dccc378e10b171f`
 - `bl2_crc.bin`: `535571b677f0ced7d2c8a49b2495fbc0b2778657dfab50cb732c56a106204f17`
 
 ## Verification
@@ -100,13 +100,55 @@ Canonical detail:
 Canonical detail:
 [AP lower-half bindings compile gate](verification/2026-08-09-bk7258-ap-lowerhalf-bindings.md).
 
+## Drivercheck MCUboot board verification pass (2026-08-09)
+
+The temporary probe baseline reached READY with 13 /dev nodes registered;
+init evidence for AUD,
+GPIOE, I2C, I2S, RTC, SARADC, SDIO, SDMADC, SPI, timer all zero;
+runtime self-check read `/dev/gpio0` (level 1) and `/dev/rtc0`
+(tm_year=70); ADC nodes open but raw reads need channel setup.
+
+Root causes fixed and board-verified this pass:
+
+1. GPIOE hang: NuttX `gplh_setpintype` issues WAKEUPCFG; the SDK wakeup
+   APIs block forever on a gpio_ipc SYNC channel with no CP responder.
+   Board wrapper now returns `-ENOTSUP` for WAKEUPCFG (permanent fix).
+2. PSRAM dead: `cp_nsh_drivercheck_mcuboot` lacked
+   `CONFIG_BK7258_PSRAM=y`, so CP never initialised the PSRAM
+   controller; every access read 0 from both cores. Config fixed
+   (vendor + board defconfigs); heap confirmed live (guard node 9,
+   free node 0x9fffe, 624 KiB free).
+3. LCD framebuf -ENOMEM: consequence of (2), now allocates.
+4. `lcd_drv_init=-4096`: the PM vote alone was insufficient.  The missing
+   prerequisite was the official SDK ordering
+   `sys_drv_init -> ipc_init -> mb_ipc_init -> bk_ipc_init`, plus a retained
+   `.ipc_chan_reg` table with real linker boundaries.  A board-owned minimal
+   runtime now supplies only that chain on CP and AP; the full SDK
+   `driver_init()` is not used.  Hardware then reported LCD driver/RGB init 0.
+5. Generic LCD framebuffer `-ENOMEM`: it allocated a second 300 KiB SRAM
+   shadow buffer.  The board driver now implements `fb_vtable_s` directly and
+   registers its existing PSRAM scanout buffer as `/dev/fb0`.
+6. GPIO/bus conflicts: the GPIOE integration no longer auto-registers and
+   configures GPIO0..15.  Consumers must explicitly claim each pin; I2C,
+   I2S, SPI, SDIO and LCD hardware tests use pin-compatible profiles.
+
+All temporary shared-SRAM/device-list/allocation probes and temporary
+`apctl` debug commands have been removed.  The final 32-job MCUboot build and
+sparse flash passed (`logs/bk7258-auto-debug/20260809-095035`); permanent
+`apctl status` telemetry shows AP READY, CPU2 SECONDARY_READY and AP IPI READY
+with zero loss/failure.  RPTUN remains CONNECTING in this drivercheck profile.
+
+Canonical detail:
+[AP peripheral board evidence](verification/2026-08-09-bk7258-ap-peripheral-board-evidence.md).
+
 ## Next step
 
-1. Hardware-verify the bound peripherals one at a time (GPIO pinmux, SD card
-   detect, I2S clocking, LCD panel timing, SPI chip select); do not enable
-   all devices by default in shipped configs.
-2. Implement PWM only after its v3.1.1.9 hardware/API boundary is source
-   verified; do not add missing symbols to the immutable SDK bundle.
+1. Continue the isolated background driver queue (TRNG accepted; QSPI next),
+   with one reviewed commit per driver and no hardware access from the child
+   Agent.
+2. Hardware-verify existing peripherals one at a time using pin-compatible
+   profiles (SD card detect, I2S clocking, LCD pixels, SPI chip select); do
+   not enable conflicting devices by default in shipped configs.
 3. Resume N17 OTA policy on the recoverable Secure Boot baseline. Do not put
    historical N15/N17 writers back into minimal BL1.
 4. Hardware Secure Boot provisioning is the final gate, after signed OTA and
@@ -120,5 +162,7 @@ Canonical detail:
   restored.
 - Private signing keys must never enter the repository, firmware logs or
   project memory.
-- Existing runtime warnings `gpio: 0 is used` and
-  `[ipc_svr] create_socket failed` are outside this boot-chain verification.
+- Remaining GPIO/SPI warnings in the all-driver image are known physical-pin
+  conflicts; transfer validation uses pin-compatible profiles.  RPTUN
+  CONNECTING/`[ipc_svr]` behavior is tracked separately from this peripheral
+  runtime checkpoint.
