@@ -1210,6 +1210,7 @@ config BK7258_USBHOST_CH34X
 	select SERIAL
 	select SERIAL_REMOVABLE
 	select SERIAL_TERMIOS
+	select USBHOST_ASYNCH
 	help
 		Register a board-owned NuttX USB host class for Winchiphead
 		VID 0x1a86/PID 0x7523 and publish the connected converter as

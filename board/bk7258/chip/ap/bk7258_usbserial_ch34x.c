@@ -51,6 +51,10 @@
 #  warning "CH34x USB serial class requires CONFIG_USBHOST"
 #endif
 
+#ifndef CONFIG_USBHOST_ASYNCH
+#  error "CH34x USB serial class requires CONFIG_USBHOST_ASYNCH"
+#endif
+
 #ifndef CONFIG_SCHED_WORKQUEUE
 #  warning "CH34x USB serial class requires CONFIG_SCHED_WORKQUEUE"
 #endif
