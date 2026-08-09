@@ -241,6 +241,45 @@ future transfer check therefore requires a known external QSPI device and a
 dedicated pin-compatible profile; initializing QSPI in the current all-driver
 image would disrupt already verified peripherals.
 
+## CP capacitive-touch button proof
+
+SDK v3.1.1.9 enables the internal touch controller on CP and includes the
+implementation in the immutable CP bundle.  Its advertised multi-channel
+scan setters are successful no-ops, so the board wrapper deliberately exposes
+one selected channel through the standard NuttX buttons lower half.  It keeps
+the SDK interrupt disabled and samples on LPWORK because the SDK ISR silently
+claims `TIMER_ID1`, which is already owned by the NuttX timer lower half.
+
+A dedicated CP configuration disabled the GPIO lower half before selecting
+touch channel 3 / GPIO29.  The 32-job CP build, link and postbuild passed.  Its
+raw image was then signed with the already provisioned development MCUboot
+key, encoded with the v3.1.1.9 32+2 CRC rule and written to both CP slots; no
+bootloader, AP, filesystem, OTP or eFuse range was changed.  BL2 accepted the
+image, selected slot A, handed off to CP/AP and reached NSH:
+`logs/bk7258-auto-debug/20260809-113338`.
+
+The standard node is present as `/dev/buttons` in
+`logs/jlink/touch_device_list.bin`.  A one-sample NuttX `dd` read returned four
+bytes `08 00 00 00`, the bit for configured channel 3, in
+`logs/jlink/touch_read_sample.bin`.  This proves initialization, upper/lower
+binding and the hardware status-read path.  A press/release transition test
+still requires a board pad wired as a capacitive electrode; GPIO29 on this
+module is the mechanical USERKEY connection and is not claimed as capacitive
+sensitivity evidence.
+
+## Immutable-bundle blockers
+
+- CAN and Ethernet source exists behind SDK feature gates, but neither the CP
+  nor AP v3.1.1.9 immutable bundle exports the required controller data-plane
+  ABI.  No placeholder lower half was added.
+- USB Host is compiled into the AP bundle as a complete CherryUSB stack.  Its
+  private root-hub thread, class enumeration and MUSB ownership cannot be
+  combined with NuttX `usbhost_driver_s` without two stacks controlling the
+  same hardware.
+- USB Device source is not compiled into the immutable bundle.  The old MUSB
+  host-pipe symbols do not provide NuttX endpoint/request or class-binding
+  semantics, so no fake UDC wrapper was added.
+
 ## Final cleaned-image proof
 
 - Full 32-job CP/AP MCUboot build passed with SDK v3.1.1.9 checksum gates.

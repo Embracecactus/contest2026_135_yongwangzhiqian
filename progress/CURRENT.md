@@ -142,6 +142,16 @@ Root causes fixed and board-verified this pass:
    not justify claiming general Flash compatibility.  Hardware transfer is
    pending a known external device and a pin-compatible profile because both
    QSPI controllers overlap active LCD/SDIO/SPI/I2S pins.
+9. Touch: the CP-owned v3.1.1.9 controller is exposed as the standard NuttX
+   `/dev/buttons` device for one selected channel.  The implementation avoids
+   the SDK ISR's hidden `TIMER_ID1` ownership by polling on LPWORK.  A signed
+   MCUboot board image reached NSH, registered the node and returned the real
+   channel-3 bit in a four-byte read.  Physical capacitive transition evidence
+   still requires a suitable electrode; the module's GPIO29 is USERKEY.
+10. CAN, Ethernet, USB Host and USB Device are source-audited blockers rather
+   than implementations: the immutable SDK bundle either omits their required
+   lower-level ABI or owns the controller through CherryUSB.  No placeholder
+   device or copied SDK source was added.
 
 All temporary shared-SRAM/device-list/allocation probes and temporary
 `apctl` debug commands have been removed.  The final 32-job MCUboot build and
@@ -154,9 +164,10 @@ Canonical detail:
 
 ## Next step
 
-1. Continue the isolated background driver queue (TRNG hardware-verified;
-   QSPI compile/link-verified; CP capacitive touch in progress), with one
-   reviewed commit per driver and no hardware access from the child Agent.
+1. Continue the isolated background driver queue (TRNG and CP touch
+   hardware-verified; QSPI compile/link-verified; CAN/Ethernet/USB blocked by
+   the immutable SDK boundary; DVP/V4L2 under review), with one reviewed commit
+   per implementable driver and no hardware access from the child Agent.
 2. Hardware-verify existing peripherals one at a time using pin-compatible
    profiles (SD card detect, I2S clocking, LCD pixels, SPI chip select); do
    not enable conflicting devices by default in shipped configs.
