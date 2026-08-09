@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
+#include <syslog.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
@@ -72,6 +73,7 @@
 #endif
 #include <components/usb.h>
 #include <components/cherryusb/usbh_core.h>
+#include <driver/int.h>
 
 #undef CONFIG_USBHOST_MAX_RHPORTS
 #undef CONFIG_USBHOST_MAX_EHPORTS
@@ -85,6 +87,25 @@
 #define BK7258_USBH_XFER_TIMEOUT 500
 #define BK7258_USBH_PIPE_LIMIT 10
 #define BK7258_USBH_MAGIC 0x42555348u
+
+/* The v3.1.1.9 MUSB port routes its interrupt to physical CPU2 because that
+ * is the SDK application's default owner.  This project's NuttX AP primary
+ * is physical CPU1.  The SDK deliberately makes its low-level HCD hooks
+ * weak, so keep the HCD itself immutable and override only IRQ ownership.
+ */
+
+#define BK7258_USB_AP_PRIMARY_CORE_ID  1u
+#define BK7258_USB_SDK_DEFAULT_CORE_ID 2u
+#define BK7258_USB_INTERRUPT_CTRL_BIT  (1u << 19)
+
+_Static_assert(INT_SRC_USB == 19,
+               "BK7258 USB IRQ routing bit must match v3.1.1.9");
+
+extern int32_t sys_drv_core_intr_group1_disable(uint32_t core_id,
+                                                uint32_t param);
+extern int32_t sys_drv_core_intr_group1_enable(uint32_t core_id,
+                                               uint32_t param);
+extern void USBH_IRQHandler(void);
 
 struct bk7258_usbhost_s;
 
@@ -149,6 +170,7 @@ static struct bk7258_usbhost_s g_bk7258_usbhost;
 static mutex_t g_bk7258_usbhost_init_lock = NXMUTEX_INITIALIZER;
 static volatile int g_bk7258_usb_hcd_init_status = -ENODEV;
 static volatile int g_bk7258_usb_hcd_deinit_status = -ENODEV;
+static volatile int g_bk7258_usb_irq_route_status = -ENODEV;
 
 static inline FAR struct bk7258_usbhost_s *bk7258_priv_from_drvr(
   FAR struct usbhost_driver_s *drvr)
@@ -223,6 +245,47 @@ static int bk7258_bk_error(int ret)
 }
 
 /*
+ * Override the SDK HCD's weak board hooks.  bk_int_isr_register() binds the
+ * vendor ISR to NuttX's external IRQ dispatch; the sys-driver call selects
+ * which physical CPU receives that interrupt source.
+ */
+
+void usb_hc_low_level_init(void)
+{
+  bk_err_t error;
+  int32_t ret;
+
+  g_bk7258_usb_irq_route_status = -EAGAIN;
+  error = bk_int_isr_register(INT_SRC_USB, USBH_IRQHandler, NULL);
+  if (error != BK_OK)
+    {
+      g_bk7258_usb_irq_route_status = -EIO;
+      return;
+    }
+
+  (void)sys_drv_core_intr_group1_disable(BK7258_USB_SDK_DEFAULT_CORE_ID,
+                                         BK7258_USB_INTERRUPT_CTRL_BIT);
+  ret = sys_drv_core_intr_group1_enable(BK7258_USB_AP_PRIMARY_CORE_ID,
+                                        BK7258_USB_INTERRUPT_CTRL_BIT);
+  if (ret != 0)
+    {
+      (void)bk_int_isr_unregister(INT_SRC_USB);
+      g_bk7258_usb_irq_route_status = -EIO;
+      return;
+    }
+
+  g_bk7258_usb_irq_route_status = 0;
+}
+
+void usb_hc_low_level_deinit(void)
+{
+  (void)sys_drv_core_intr_group1_disable(BK7258_USB_AP_PRIMARY_CORE_ID,
+                                         BK7258_USB_INTERRUPT_CTRL_BIT);
+  (void)bk_int_isr_unregister(INT_SRC_USB);
+  g_bk7258_usb_irq_route_status = -ENODEV;
+}
+
+/*
  * bk_usb_open()/bk_usb_close() call usbh_initialize()/usbh_deinitialize()
  * internally.  The immutable CherryUSB implementations would start their
  * private hub/class task, so the board link must use --wrap for these two
@@ -233,6 +296,15 @@ static int bk7258_bk_error(int ret)
 int __wrap_usbh_initialize(void)
 {
   int ret = bk7258_sdk_error(usb_hc_init());
+
+  if (ret == 0 && g_bk7258_usb_irq_route_status != 0)
+    {
+      int route_ret = g_bk7258_usb_irq_route_status;
+
+      (void)usb_hc_deinit();
+      ret = route_ret;
+    }
+
   g_bk7258_usb_hcd_init_status = ret;
   return ret;
 }
@@ -272,13 +344,14 @@ static inline FAR struct bk7258_usbep_s *bk7258_ep_from_handle(
 static void bk7258_event_worker(FAR void *arg);
 
 /*
- * This is deliberately a board-owned strong symbol.  The vendor ISR calls
- * this function, but the NuttX adapter never uses the CherryUSB hub queue or
- * usbh_initialize().  Only a bounded pointer ring and work_queue() are used
- * in the ISR path; the vendor status callback runs in the worker context.
+ * The vendor ISR calls usbh_roothub_thread_send_queue().  libbk_usb.a also
+ * contains CherryUSB's upper-layer implementation of that symbol, so the
+ * board link wraps it instead of defining a second strong copy.  Only a
+ * bounded pointer ring and work_queue() are used in the ISR path; the vendor
+ * status callback runs in the worker context.
  */
 
-void usbh_roothub_thread_send_queue(uint8_t port, FAR void *callback)
+void __wrap_usbh_roothub_thread_send_queue(uint8_t port, FAR void *callback)
 {
   FAR struct bk7258_usbhost_s *priv = &g_bk7258_usbhost;
   irqstate_t flags;
@@ -1277,11 +1350,14 @@ FAR struct usbhost_connection_s *bk7258_usbhost_initialize(void)
    * suppresses a duplicate signal if the event worker wins this race. */
 
   {
-    bool connected;
+    bool connected = false;
     uint8_t speed;
 
-    if (bk7258_read_root_status(priv, &connected, &speed) == 0 &&
-        connected)
+    ret = bk7258_read_root_status(priv, &connected, &speed);
+    syslog(LOG_INFO,
+           "BK7258 USB host: ready irq=CPU1 initial=%s status=%d\n",
+           connected ? "connected" : "disconnected", ret);
+    if (ret == 0 && connected)
       {
         bk7258_update_connection(priv, true, bk7258_vendor_speed(speed),
                                  true);

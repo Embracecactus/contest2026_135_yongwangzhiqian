@@ -1186,6 +1186,21 @@ config BK7258_GT1151_VALIDATION
 		T5-Board bus; subsequent touch samples are written to syslog.  This
 		option is intended for drivercheck configurations only.
 
+config BK7258_USBHOST
+	bool "BK7258 native USB host controller"
+	default n
+	depends on BK7258_AP_CORE && BK7258_BOARD_T5_BOARD
+	select SCHED_HPWORK
+	select USBHOST
+	select USBHOST_HAVE_ASYNCH
+	select USBHOST_WAITER
+	help
+		Expose the BK7258 MUSB controller through NuttX's standard USB host
+		controller interface.  NuttX owns enumeration and class drivers; the
+		immutable v3.1.1.9 SDK supplies only power/PHY setup and the low-level
+		HCD pipe/URB implementation.  This option is limited to T5-Board,
+		whose USB-A connector is wired to the native host D+/D- pins and 5 V.
+
 config BK7258_RTC
 	bool "AON RTC lower half"
 	default n

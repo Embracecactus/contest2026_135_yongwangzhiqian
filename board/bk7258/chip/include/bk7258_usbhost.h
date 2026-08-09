@@ -19,10 +19,10 @@ extern "C"
  * waiter/enumeration policy and registers the enabled NuttX USB host classes.
  * The BK7258 SDK CherryUSB stack is deliberately not used as an upper layer;
  * the implementation only adapts its immutable HCD/pipe/URB ABI.  Board
- * linking must pass --wrap=usbh_initialize and --wrap=usbh_deinitialize so
- * bk_usb_open()/bk_usb_close() perform the official SDK power/PHY sequence
- * while their internal CherryUSB upper-layer calls are redirected to this
- * adapter's HCD-only wrappers.
+ * linking wraps usbh_initialize(), usbh_deinitialize(), and the root-hub
+ * event queue so bk_usb_open()/bk_usb_close() perform the official SDK
+ * power/PHY sequence while CherryUSB upper-layer entry points are redirected
+ * to this adapter's HCD-only lifecycle and ISR-deferred event path.
  *
  * This controller has one physical root port.  No board VBUS or external hub
  * policy is implied by this API; that policy belongs to board integration.
