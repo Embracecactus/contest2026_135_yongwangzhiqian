@@ -376,7 +376,9 @@ ifeq ($(BL1_MINIMAL),1)
 		exit 1; \
 	fi
 else
+ifeq ($(N15_OTA_VALIDATION),1)
 	$(NM) -n bl.elf | grep -E 'boot_ota_select_app|bk7258_boot_ota_select_core'
+endif
 endif
 	$(OBJDUMP) -s -j .rodata bl.elf | sed -n '1,40p'
 
