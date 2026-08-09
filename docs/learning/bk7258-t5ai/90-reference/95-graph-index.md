@@ -51,8 +51,8 @@
 - 快照来源：committed Git objects
 - 未提交工作树内容：明确排除
 - 输入文件：
-  - `board/bk7258_t5ai/include/board.h`
-  - `board/bk7258_t5ai/src/bk7258_bringup.c`
+  - `board/bk7258/include/board.h`
+  - `board/bk7258/src/bk7258_bringup.c`
 
 ### 实际 Graphify 结果
 
@@ -86,7 +86,7 @@ $GRAPHIFY_ROOT/runs/01-board-bringup/ast-input/graphify-out/.graphify_analysis.j
 
 - 图中四个节点及其源码路径；
 - 三条 `contains`/`calls` 关系与固定 snapshot 源码一致；
-- 一条 `imports` 关系被人工驳回：Graphify 将 `bk7258_bringup.c:L29` 的 `<nuttx/board.h>` 误配为输入中的本地 `board/bk7258_t5ai/include/board.h`；
+- 一条 `imports` 关系被人工驳回：Graphify 将 `bk7258_bringup.c:L29` 的 `<nuttx/board.h>` 误配为输入中的本地 `board/bk7258/include/board.h`；
 - Mermaid 图保留该误配边为虚线教学案例，文本关系表明确给出复核结论。
 
 尚未证明：

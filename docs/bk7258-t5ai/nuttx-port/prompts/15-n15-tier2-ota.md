@@ -143,13 +143,13 @@ N15-A 已在 team-owned Python wrapper 中完成，不修改或复制 official S
 Host 用法（generation/version/timestamp 必须由调用者显式给出）：
 
 ```bash
-python3 board/bk7258_t5ai/scripts/pack_bk7258_ota_pair.py \
+python3 board/bk7258/scripts/pack_bk7258_ota_pair.py \
   --cp-raw "$WORKSPACE/nuttx/bk7258-dual/app.bin" \
   --ap-raw "$WORKSPACE/nuttx/bk7258-dual/app1.bin" \
   --output "$WORKSPACE/nuttx/bk7258-dual/n15-pair" \
   --generation 16 --version 1.0.1 --base-version 1.0.0 --timestamp 0
 
-python3 board/bk7258_t5ai/scripts/verify_bk7258_ota_pair.py \
+python3 board/bk7258/scripts/verify_bk7258_ota_pair.py \
   --bundle "$WORKSPACE/nuttx/bk7258-dual/n15-pair" \
   --expected-generation 16 --expected-version 1.0.1 \
   --expected-base-version 1.0.0 --expected-timestamp 0 \

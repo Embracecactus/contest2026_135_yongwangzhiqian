@@ -5,15 +5,15 @@
 > 的具体引入方案与目录组织，并对比两种引入路径（拷源码 vs `armino_as_lib` 打包）。
 > **状态**：调研完成，方案待用户确认后进入实现。
 > **结论**：当前方式有问题——底层不应从零重写，应引入 SDK 调用其接口；flash 模块先采用
-> **方案 1（从 bk_avdk_smp 拷 flash 源码进 `board/bk7258_t5ai/sdk/`）**，后续 UART/DVFS 照此扩大。
+> **方案 1（从 bk_avdk_smp 拷 flash 源码进 `board/bk7258/sdk/`）**，后续 UART/DVFS 照此扩大。
 
 > **路径约定**：本文所有外部 SDK 路径用占位符表示，避免暴露本机绝对路径——
-> - `$CONTEST` = 本团队 overlay 根（即含 `board/bk7258_t5ai/` 的 contest 仓）
+> - `$CONTEST` = 本团队 overlay 根（即含 `board/bk7258/` 的 contest 仓）
 > - `$BK_AVDK` = Beken 官方 SDK（bk_avdk_smp，开源，含 `cp/middleware/driver/` 与 `soc/bk7258/`）
 > - `$VENDOR_BEKEN` = 7236N 参考实现（vendor_beken 仓，含 `chips/bk7236n/`）
 > - `$TUYAOPEN` = TuyaOpen SDK（含 `platform/T5AI/tuyaos/tuyaos_adapter/`）
 >
-> 本 overlay 内部路径用相对于 `$CONTEST` 的相对路径（如 `board/bk7258_t5ai/chip/`）。
+> 本 overlay 内部路径用相对于 `$CONTEST` 的相对路径（如 `board/bk7258/chip/`）。
 
 ---
 
@@ -22,7 +22,7 @@
 ### 1.1 当前适配方式（寄存器级从零重写）
 
 BK7258（T5-AI 模组）的 NuttX 适配目前所有底层驱动都由团队**从寄存器级手工重写**，位于
-`contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/`：
+`contest2026_135_yongwangzhiqian/board/bk7258/chip/`：
 
 | 文件 | 模块 | 实现方式 | 已踩坑（板端实证） |
 |---|---|---|---|
@@ -203,7 +203,7 @@ SDK 内部自动处理：32B burst 对齐、SR0 保护、WREN/PP/SE 时序、sta
 
 ### 3.3 引入的 SDK 源码（最小集）
 
-从 `bk_avdk_smp/cp/middleware/` 拷到 `board/bk7258_t5ai/sdk/`：
+从 `bk_avdk_smp/cp/middleware/` 拷到 `board/bk7258/sdk/`：
 
 ```
 sdk/
@@ -266,7 +266,7 @@ SDK 内部用 FreeRTOS 原语（mutex/semaphore/malloc/tick）。flash 子集需
 ### 3.5 目录组织（在当前 contest 工程内）
 
 ```
-contest2026_135_yongwangzhiqian/board/bk7258_t5ai/
+contest2026_135_yongwangzhiqian/board/bk7258/
 ├── bootloader/              # 不动
 ├── chip/                    # NuttX wrapper 层
 │   ├── bk7258_flash_mtd.c       # ← 改写：调 bk_flash_* API
@@ -404,7 +404,7 @@ armino_as_lib.sh <soc> <armino_dir> <build_dir> <project>
 
 > **方案 2 的前置条件**（将来切时需要）：
 > 1. 跑 `cd bk_avdk_smp && ./tools/build_tools/build.sh bk7258` 产出 `armino_as_lib/bk7258/`；
-> 2. 把该目录拷进 `board/bk7258_t5ai/sdk/`（或软链）；
+> 2. 把该目录拷进 `board/bk7258/sdk/`（或软链）；
 > 3. `Make.defs` 改 `EXTRA_LIBS += $(wildcard .../libs/*.a)`；
 > 4. 写完整 `beken_os_adapt.c`（参考 7236N 的 1900 行，覆盖 rtos/os/mem 全套）；
 > 5. 用 `-DCONFIG_*=0` 禁用 SDK 头里的 FreeRTOS/SoC 假设。
@@ -438,7 +438,7 @@ armino_as_lib.sh <soc> <armino_dir> <build_dir> <project>
    需确认 SDK 的保护切换在 BK7258集成Flash上与 option-A 等价（板端回归验证）。
 
 6. **不修改 nuttx 官方树**（团队规矩，见 `do-not-modify-nuttx-official-tree` 记忆）：
-   所有改动只在 `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/` overlay 内。
+   所有改动只在 `contest2026_135_yongwangzhiqian/board/bk7258/` overlay 内。
 
 7. **bootloader 保留手写**：`bootloader/` 不动（SDK bootloader 不适用于自定义分区布局，
    且 B2 产品级 bootloader 已板端验证）。
@@ -461,10 +461,10 @@ armino_as_lib.sh <soc> <armino_dir> <build_dir> <project>
 ## 7. 相关文件索引
 
 **当前实现**：
-- `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.c` — 寄存器级 flash MTD（待改写）
-- `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/cp/bk7258_flash_mtd.h`
-- `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/Make.defs` — 编译规则（待加 SDK 项）
-- `contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/Kconfig`
+- `contest2026_135_yongwangzhiqian/board/bk7258/chip/cp/bk7258_flash_mtd.c` — 寄存器级 flash MTD（待改写）
+- `contest2026_135_yongwangzhiqian/board/bk7258/chip/cp/bk7258_flash_mtd.h`
+- `contest2026_135_yongwangzhiqian/board/bk7258/chip/Make.defs` — 编译规则（待加 SDK 项）
+- `contest2026_135_yongwangzhiqian/board/bk7258/chip/Kconfig`
 - `contest2026_135_yongwangzhiqian/docs/bk7258-t5ai/nuttx-port/n5-flash-filesystem.md` — N5 板端验证证据
 
 **参考实现（7236N）**：

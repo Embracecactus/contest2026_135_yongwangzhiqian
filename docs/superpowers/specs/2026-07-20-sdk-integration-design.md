@@ -124,7 +124,7 @@ cd $BK_AVDK
 
 # 拷到工程
 cp -r build/armino_as_lib/bk7258 \
-      $CONTEST/board/bk7258_t5ai/bk_idk/armino_as_lib/cp/
+      $CONTEST/board/bk7258/bk_idk/armino_as_lib/cp/
 ```
 
 ### 3.2 armino_as_lib 产出结构
@@ -161,7 +161,7 @@ AP 需要单独编译（不同的 CONFIG）：
 ./tools/build_tools/build.sh . projects/app build bk7258_ap
 ./tools/build_tools/armino_as_lib.sh bk7258_ap . build/bk7258_ap projects/app
 cp -r build/armino_as_lib/bk7258_ap \
-      $CONTEST/board/bk7258_t5ai/bk_idk/armino_as_lib/ap/
+      $CONTEST/board/bk7258/bk_idk/armino_as_lib/ap/
 ```
 
 ---
@@ -301,7 +301,7 @@ static int bk7258_flash_erase(struct mtd_dev_s *dev, off_t startblock,
 include armv8-m/Make.defs
 LDFLAGS += --build-id=none --entry=__start
 
-BK_IDK_PATH = ../../../../board/bk7258_t5ai/bk_idk
+BK_IDK_PATH = ../../../../board/bk7258/bk_idk
 
 # SDK 头文件（CP）
 INCLUDES += ${INCDIR_PREFIX}$(BK_IDK_PATH)/armino_as_lib/cp/include
@@ -413,7 +413,7 @@ RAM:   ORIGIN = 0x28010000, LENGTH = 0x58000   (352KB，AP_RAM 区域)
 ## 8. 工程目录结构
 
 ```
-board/bk7258_t5ai/
+board/bk7258/
 ├── bootloader/                  # 一个（CP+AP 共享）
 ├── chip/
 │   ├── cp/                      # CP 侧
@@ -542,7 +542,7 @@ Tuya 和 Beken 官方大小不同（31KB vs 52KB），说明它们是不同的�
 
 ### 11.2 现状
 
-当前 bootloader（`board/bk7258_t5ai/bootloader/`）是逆向工程实现，已验证的功能：
+当前 bootloader（`board/bk7258/bootloader/`）是逆向工程实现，已验证的功能：
 - UART1 日志（460800 波特率）
 - WDT 初始化（APB + AON 双狗，8s 超时）
 - 冷启动 DPLL 使能 + SPI 重校准（3 次重试）

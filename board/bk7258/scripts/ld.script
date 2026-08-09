@@ -1,0 +1,308 @@
+/****************************************************************************
+ * contest2026_135_yongwangzhiqian/board/bk7258/scripts/ld.script
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Linker script for the Beken BK7258 (T5-AI, Cortex-M33) CPU0/CP image.
+ *
+ * ADR-004 aligns the executable pair with the official v3.1.1.9 A/B layout:
+ *
+ *   FLASH : 0x02010000 .. 0x0214ffff  (CP logical offset 0x10000,
+ *                                      0x140000 bytes)
+ *   AP SMP spinlocks: 0x28000000 .. 0x2800ffff (official reserved region)
+ *   RAM   : 0x28010000 .. 0x2804ffff  (256 KiB CP-owned SRAM)
+ *   MSP   : 0x2804fffc
+ *
+ * The AP image follows contiguously at logical 0x00150000 / XIP 0x02150000.
+ * LittleFS is raw-only at 0x00600000..0x006fffff.  AP RAM starts at
+ * 0x28050000 and the top 4 KiB page at 0x2809f000 is shared boot-state.
+ *
+ * The .vectors section (80 entries, 0x140 bytes from bk7258_vectors.c) is
+ * KEEP-pinned first so that:
+ *   - file offset 0x000 == slot [0] == initial MSP (0x2809FFFC)
+ *   - file offset 0x004 == slot [1] == __start (Thumb entry)
+ *   - file offset 0x100 == slot [64] == app magic "BK72"
+ *   - file offset 0x104 == slot [65] == app magic "36\0\0"
+ *   - file offset 0x108 == slot [66] == first upper external IRQ
+ *   - file offset 0x13c == slot [79] == last upper external IRQ
+ ****************************************************************************/
+
+/* The linker script is preprocessed to .tmp before being passed to ld;
+ * include the build config so CONFIG_ARCH_INTERRUPTSTACK (used in
+ * .irq_stack below) and any other CONFIG_* values are substituted.
+ */
+
+#include <nuttx/config.h>
+#include "../chip/include/bk7258_partition_layout.h"
+
+OUTPUT_ARCH("arm")
+EXTERN(_vectors)
+
+#ifdef CONFIG_BK7258_SDK_IRQ_BRIDGE
+/* Force the overlay bridge member out of libarch.a before the Beken SDK
+ * archives are scanned.  Otherwise libdriver.a(interrupt_base.c.obj) can
+ * satisfy the first timer-driver reference and retain the private CM33
+ * callback table.
+ */
+
+EXTERN(bk_int_isr_register)
+#endif
+
+ENTRY(__start)
+
+/* A MCUboot payload stores its header before the Cortex-M vector table.
+ * Normal BL1-direct images retain the historical origin unchanged.
+ */
+
+#ifdef CONFIG_BK7258_BL2_IMAGE
+#  define BK7258_CP_IMAGE_HEADER_SIZE 0
+#  define BK7258_CP_IMAGE_FLASH_BASE 0x28020000
+#  define BK7258_CP_IMAGE_FLASH_SIZE BK7258_ROLE_BL2_LOGICAL_SIZE
+#  define BK7258_CP_IMAGE_RAM_BASE   0x28010000
+#  define BK7258_CP_IMAGE_RAM_SIZE   0x00010000
+#elif defined(CONFIG_BK7258_MCUBOOT_IMAGE)
+#  /* The Cortex-M VTOR masks its low bits according to the vector-table
+#   * size.  This board has 80 entries, so the table needs 0x200-byte
+#   * alignment.  Keep the entire MCUboot header in that alignment gap. */
+#  define BK7258_CP_IMAGE_HEADER_SIZE 0x200
+#  define BK7258_CP_IMAGE_FLASH_BASE BK7258_ROLE_SLOT_A_CP_XIP_START
+#  define BK7258_CP_IMAGE_FLASH_SIZE BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE
+#else
+#  define BK7258_CP_IMAGE_HEADER_SIZE 0
+#  define BK7258_CP_IMAGE_FLASH_BASE BK7258_ROLE_SLOT_A_CP_XIP_START
+#  define BK7258_CP_IMAGE_FLASH_SIZE BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE
+#endif
+
+#ifndef BK7258_CP_IMAGE_RAM_BASE
+#  define BK7258_CP_IMAGE_RAM_BASE   0x28010000
+#  define BK7258_CP_IMAGE_RAM_SIZE   0x040000
+#endif
+
+#define BK7258_CP_IMAGE_FLASH_ORIGIN \
+  (BK7258_CP_IMAGE_FLASH_BASE + BK7258_CP_IMAGE_HEADER_SIZE)
+#define BK7258_CP_IMAGE_FLASH_LENGTH \
+  (BK7258_CP_IMAGE_FLASH_SIZE - BK7258_CP_IMAGE_HEADER_SIZE)
+
+MEMORY
+{
+    FLASH (rx)  : ORIGIN = BK7258_CP_IMAGE_FLASH_ORIGIN,
+                  LENGTH = BK7258_CP_IMAGE_FLASH_LENGTH
+    RAM   (rwx) : ORIGIN = BK7258_CP_IMAGE_RAM_BASE,
+                  LENGTH = BK7258_CP_IMAGE_RAM_SIZE
+}
+
+/* N9 shared-memory ABI is outside CP RAM.  Export the same absolute symbols
+ * from both images so the post-link verifier can reject any drift.
+ */
+
+_bk7258_rptun_shmem_start = 0x28097000;
+_bk7258_rptun_shmem_end = 0x2809f000;
+_bk7258_rptun_control = 0x28097000;
+_bk7258_rptun_resource = 0x28097040;
+_bk7258_rptun_carveout_start = 0x28097180;
+_bk7258_rptun_carveout_end = 0x2809f000;
+
+/* The CPU0 BL2 profile reserves SRAM1 for data/stack and 0x28020000 onward for
+ * copied executable text.  Ordinary CP profiles retain their original RAM.
+ */
+
+_estack = ORIGIN(RAM) + LENGTH(RAM) - 4;
+
+SECTIONS
+{
+    /* Vector table FIRST, pinned at the image execution address or immediately
+     * after the MCUboot payload header.  KEEP() prevents the
+     * linker from GC'ing it; . = ORIGIN(FLASH) pins the address.
+     */
+    . = ORIGIN(FLASH);
+    .vectors : ALIGN(4)
+    {
+        KEEP(*(.vectors))
+        . = ALIGN(4);
+    } > FLASH
+
+    /* Permanent A1 linker gates for .vectors section.
+     * _vectors must be pinned at flash origin; size must be 0x140 (80 slots).
+     */
+
+    ASSERT(_vectors == ORIGIN(FLASH),
+           "ERROR: _vectors must be at generated CP FLASH origin (A1 gate)")
+    ASSERT(SIZEOF(.vectors) == 0x140,
+           "ERROR: .vectors must be 0x140 bytes (80 entries, A1 gate)")
+
+    /* Code + read-only data.  BL2 stores these bytes in flash but executes
+     * them from RAM after BL1's complete logical-image copy. */
+    .text : ALIGN(4)
+    {
+        _stext = ABSOLUTE(.);
+        *(.text .text.*)
+        *(.fixup)
+        *(.gnu.warning)
+        *(.rodata .rodata.*)
+        *(.gnu.linkonce.t.*)
+        *(.glue_7)
+        *(.glue_7t)
+        *(.gcc_except_table)
+        *(.gnu.linkonce.r.*)
+        KEEP(*(.psram_boot_text))
+        . = ALIGN(4);
+        _etext = ABSOLUTE(.);
+    } > FLASH
+
+    /* Constructors / destructors (NuttX init_section convention). */
+    .init_section : ALIGN(4)
+    {
+        _sinit = ABSOLUTE(.);
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP(*(.init_array EXCLUDE_FILE(*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o) .ctors))
+        _einit = ABSOLUTE(.);
+    } > FLASH
+
+    /* ARM exception unwinding tables -- keep them out of the way. */
+    .ARM.extab : ALIGN(4)
+    {
+        *(.ARM.extab*)
+    } > FLASH
+
+    .ARM.exidx : ALIGN(4)
+    {
+        __exidx_start = ABSOLUTE(.);
+        *(.ARM.exidx*)
+        __exidx_end = ABSOLUTE(.);
+    } > FLASH
+
+    /* SDK bk_api_ipc channel table.  The entries live in the immutable SDK
+     * libraries and the section name is not a valid C identifier, so the
+     * linker needs explicit KEEP plus PROVIDE_HIDDEN boundary symbols or
+     * --gc-sections discards the table and bk_ipc_init() finds nothing.
+     */
+
+    .ipc_chan_reg : ALIGN(4)
+    {
+        PROVIDE_HIDDEN(__start_ipc_chan_reg = .);
+        KEEP(*(.ipc_chan_reg))
+        PROVIDE_HIDDEN(__stop_ipc_chan_reg = .);
+    } > FLASH
+
+    /* Thread-local storage (NuttX ARM convention). */
+    .tdata : ALIGN(4)
+    {
+        _stdata = ABSOLUTE(.);
+        *(.tdata .tdata.* .gnu.linkonce.td.*);
+        _etdata = ABSOLUTE(.);
+    } > FLASH
+
+    .tbss : ALIGN(4)
+    {
+        _stbss = ABSOLUTE(.);
+        *(.tbss .tbss.* .gnu.linkonce.tb.* .tcommon);
+        _etbss = ABSOLUTE(.);
+    } > FLASH
+
+    /* Load address of .data (LMA right after the last flash-resident
+     * section).  Reset code copies from _eronly to _sdata.._edata.
+     */
+    _eronly = LOADADDR(.data);
+
+    /* Interrupt stack in RAM (NuttX arm_getintstack.c references
+     * g_intstackalloc / g_intstacktop).  Placed at the very start of RAM
+     * so it has a fixed, predictable location.
+     */
+    .irq_stack : ALIGN(4)
+    {
+        g_intstackalloc = ABSOLUTE(.);
+        . += CONFIG_ARCH_INTERRUPTSTACK;
+        g_intstacktop = ABSOLUTE(.);
+    } > RAM
+
+    .ram_vectors (NOLOAD) : ALIGN(512)
+    {
+        _sram_vectors = ABSOLUTE(.);
+        KEEP(*(.ram_vectors))
+        . = ALIGN(4);
+        _eram_vectors = ABSOLUTE(.);
+    } > RAM
+
+    ASSERT((_sram_vectors & 0x1ff) == 0,
+           "ERROR: .ram_vectors must be 512-byte aligned")
+
+    /* Permanent A1 gate: .ram_vectors must be 0x140 bytes (80 slots x 4).
+     */
+
+    ASSERT(_eram_vectors - _sram_vectors == 0x140,
+           "ERROR: .ram_vectors must be 0x140 bytes (80 entries, A1 gate)")
+
+    /* Initialized data: VMA in RAM, LMA in FLASH right after .tbss/.ARM. */
+    .data : ALIGN(4)
+    {
+        _sdata = ABSOLUTE(.);
+        *(.data .data.*)
+        *(.gnu.linkonce.d.*)
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+        /* Explicitly consume vendor ABI sections that GNU ld would otherwise
+         * emit as orphan output sections outside the _sdata.._edata copy.
+         */
+
+        *(.swap_data)
+        *(.dtcm_sec_data)
+#endif
+        CONSTRUCTORS
+        . = ALIGN(4);
+        _edata = ABSOLUTE(.);
+    } > RAM AT > FLASH
+
+    /* Zero-initialized data. */
+    .bss (NOLOAD) : ALIGN(4)
+    {
+        _sbss = ABSOLUTE(.);
+        *(.bss .bss.*)
+        *(.gnu.linkonce.b.*)
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+        *(.sram_spinlock_section)
+#endif
+        *(COMMON)
+        /* The reset vector's initial MSP is _ebss + IDLE stack size; AAPCS
+         * and the MCUboot packer both want it 8-byte aligned. */
+        . = ALIGN(8);
+        _ebss = ABSOLUTE(.);
+    } > RAM
+
+    /* Heap: from end of BSS up to the MSP region.  N1 never uses it but
+     * the symbols must exist for the common ARM code to link.
+     */
+    . = ALIGN(16);
+    _sheap = ABSOLUTE(.);
+    _eheap = ORIGIN(RAM) + LENGTH(RAM) - 4;
+
+    ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
+           ORIGIN(FLASH) + LENGTH(FLASH),
+           "ERROR: CP image exceeds official primary_cp_app")
+    ASSERT(_eheap < BK7258_CP_IMAGE_RAM_BASE + BK7258_CP_IMAGE_RAM_SIZE,
+           "ERROR: image RAM exceeds its reserved window")
+    ASSERT(ORIGIN(RAM) == 0x28010000,
+           "ERROR: CP RAM overlaps the official AP spinlock region")
+#ifdef CONFIG_BK7258_RPTUN_LAYOUT
+    ASSERT(_bk7258_rptun_shmem_start >= 0x28050000,
+           "ERROR: RPTUN shared memory overlaps CP RAM")
+    ASSERT(_bk7258_rptun_shmem_end == 0x2809f000,
+           "ERROR: RPTUN shared memory overlaps telemetry")
+    ASSERT(_bk7258_rptun_carveout_start == 0x28097180,
+           "ERROR: RPTUN carveout ABI drift")
+#endif
+
+    /* Stabs / debug sections -- discard nothing but keep them at VMA 0 so
+     * they don't perturb the runtime image.
+     */
+    .stab              0 : { *(.stab) }
+    .stabstr           0 : { *(.stabstr) }
+    .stab.excl         0 : { *(.stab.excl) }
+    .stab.exclstr      0 : { *(.stab.exclstr) }
+    .stab.index        0 : { *(.stab.index) }
+    .stab.indexstr     0 : { *(.stab.indexstr) }
+    .comment           0 : { *(.comment) }
+    .debug_abbrev      0 : { *(.debug_abbrev) }
+    .debug_info        0 : { *(.debug_info) }
+    .debug_line        0 : { *(.debug_line) }
+    .debug_pubnames    0 : { *(.debug_pubnames) }
+    .debug_aranges     0 : { *(.debug_aranges) }
+}

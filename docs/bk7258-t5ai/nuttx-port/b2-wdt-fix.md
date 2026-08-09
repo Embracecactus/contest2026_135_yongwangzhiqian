@@ -115,7 +115,7 @@ bootloader 全流程 + app early/late initialize 的时间。即使 app 8s 内�
 - 调 SDK 的 `bk_wdt_feed/start/stop` 内部已含 soft_reset + 时钟上电 + key 序列，
   NuttX wrapper 只需薄转发，符合 `wdg_pattern.md` lower-half 契约
 
-### 4.2 引入的 SDK 源码（从 `$BK_AVDK/cp/middleware/` 拷到 `$CONTEST/board/bk7258_t5ai/sdk/`）
+### 4.2 引入的 SDK 源码（从 `$BK_AVDK/cp/middleware/` 拷到 `$CONTEST/board/bk7258/sdk/`）
 
 与 flash 同一 `sdk/` 目录，增量引入：
 
@@ -271,10 +271,10 @@ NuttX automonitor 在 register 时自动 `WD_START` APB WDT 并每 4s 喂，APB 
 ## 6. 相关文件索引
 
 **当前实现**：
-- `$CONTEST/board/bk7258_t5ai/chip/cp/bk7258_wdt.c`（待修：加 AON 关狗 + 输入校验 + guard）
-- `$CONTEST/board/bk7258_t5ai/chip/cp/bk7258_wdt.h`
-- `$CONTEST/board/bk7258_t5ai/src/bk7258_bringup.c:166-173`（待修：wdt_initialize 前移）
-- `$CONTEST/board/bk7258_t5ai/bootloader/boot_wdt.h`（AON key 协议参考，不改）
+- `$CONTEST/board/bk7258/chip/cp/bk7258_wdt.c`（待修：加 AON 关狗 + 输入校验 + guard）
+- `$CONTEST/board/bk7258/chip/cp/bk7258_wdt.h`
+- `$CONTEST/board/bk7258/src/bk7258_bringup.c:166-173`（待修：wdt_initialize 前移）
+- `$CONTEST/board/bk7258/bootloader/boot_wdt.h`（AON key 协议参考，不改）
 
 **SDK 参考**：
 - `$BK_AVDK/cp/include/driver/wdt.h` — `bk_wdt_*` API（后续 APB 切 SDK 用）

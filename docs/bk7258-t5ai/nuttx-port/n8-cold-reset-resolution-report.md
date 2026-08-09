@@ -312,7 +312,7 @@ bk7258_serial.c 修改:  23:08:39
 cd /home/lijian/project/open-vela
 
 AP_CONFIG_NAME=ap_smp_bidir \
-  ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 构建成功，返回码 0。

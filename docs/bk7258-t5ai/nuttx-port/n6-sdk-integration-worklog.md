@@ -45,7 +45,7 @@ SysTick (10 ms)
 
 ### Controlled SDK WDT initialization
 
-Current overlay sequence in `board/bk7258_t5ai/chip/cp/bk7258_wdt.c`:
+Current overlay sequence in `board/bk7258/chip/cp/bk7258_wdt.c`:
 
 ```text
 bk_timer_driver_init()
@@ -220,7 +220,7 @@ runtime vector layout design.
 ### Change
 
 Changed the BK7258 custom vector table in
-`board/bk7258_t5ai/chip/cp/bk7258_vectors.c` from:
+`board/bk7258/chip/cp/bk7258_vectors.c` from:
 
 ```c
 [15]         = &exception_common;
@@ -399,11 +399,11 @@ The following earlier conclusions are explicitly retracted:
 
 ## Current code and diagnostic state
 
-- `board/bk7258_t5ai/chip/cp/bk7258_vectors.c`
+- `board/bk7258/chip/cp/bk7258_vectors.c`
   - SysTick slot 15 and external IRQ slots 16 through 63 use `exception_common`.
   - the external-IRQ entry change and UART RX are `board-verified`.
   - the unused temporary `bk7258_systick_probe()` remains and must be removed during cleanup.
-- `board/bk7258_t5ai/chip/cp/bk7258_wdt.c`
+- `board/bk7258/chip/cp/bk7258_wdt.c`
   - temporary `A/B/K` markers remain;
   - the temporary one-tick `W/T` probe remains;
   - controlled SDK initialization and TIMER_ID2 stop remain.
@@ -436,9 +436,9 @@ table, or any SDK/official NuttX source.
 
 ### Change
 
-- `board/bk7258_t5ai/chip/Kconfig`: `ARCH_CHIP_BK7258` now selects
+- `board/bk7258/chip/Kconfig`: `ARCH_CHIP_BK7258` now selects
   `ARCH_RAMVECTORS`; Cortex-M33 already provides `ARCH_HAVE_RAMVECTORS`.
-- `board/bk7258_t5ai/scripts/ld.script`: added a retained `NOLOAD`
+- `board/bk7258/scripts/ld.script`: added a retained `NOLOAD`
   `.ram_vectors` RAM section after `.irq_stack`, aligned to 512 bytes, with
   `_sram_vectors`/`_eram_vectors` boundaries and a 512-byte alignment assertion.
 - Reused the existing `CONFIG_ARCH_RAMVECTORS`-guarded
@@ -1177,7 +1177,7 @@ definitions, 66-entry flash vector table, or runtime initialization behavior.
 
 ### Invariants added
 
-#### `board/bk7258_t5ai/chip/include/irq.h` — compile-time gates
+#### `board/bk7258/chip/include/irq.h` — compile-time gates
 
 | Invariant | Expected A1 value | Current A0 value | Gate mechanism |
 |---|---|---|---|
@@ -1197,7 +1197,7 @@ New macros defined: `BK7258_IRQ_ETHERNET`, `BK7258_IRQ_SCALE0`,
 `ARM_VECTAB_SIZE` (guarded), `BK7258_MAGIC_BOOT0_OFFSET`,
 `BK7258_MAGIC_BOOT1_OFFSET`, `BK7258_MAGIC_BOOT_SIZE`.
 
-#### `board/bk7258_t5ai/scripts/ld.script` — linker ASSERT gates
+#### `board/bk7258/scripts/ld.script` — linker ASSERT gates
 
 | Invariant | Expected A1 value | Current A0 value | Gate mechanism |
 |---|---|---|---|
@@ -1403,7 +1403,7 @@ Task 1 RED gates and the required runtime-vector repair, per
 
 ### Source changes
 
-#### `board/bk7258_t5ai/chip/include/irq.h`
+#### `board/bk7258/chip/include/irq.h`
 
 | Item | Old (A0) | New (A1) |
 |---|---|---|
@@ -1418,7 +1418,7 @@ Task 1 RED gates and the required runtime-vector repair, per
 
 SMP rejection and boot-magic constants preserved unchanged.
 
-#### `board/bk7258_t5ai/chip/include/chip.h`
+#### `board/bk7258/chip/include/chip.h`
 
 | Item | Old (A0) | New (A1) |
 |---|---|---|
@@ -1426,7 +1426,7 @@ SMP rejection and boot-magic constants preserved unchanged.
 
 Comment updated from N1 to A1.
 
-#### `board/bk7258_t5ai/chip/chip.h` (internal, symlinked to `nuttx/arch/arm/src/chip/chip.h`)
+#### `board/bk7258/chip/chip.h` (internal, symlinked to `nuttx/arch/arm/src/chip/chip.h`)
 
 | Item | Old (A0) | New (A1) |
 |---|---|---|
@@ -1436,7 +1436,7 @@ This file is included by `arm_internal.h` after the public `chip/include/chip.h`
 Both now define the same value (64); the public one uses `#ifndef` guard to
 prevent preprocessor redefinition warning.
 
-#### `board/bk7258_t5ai/chip/cp/bk7258_vectors.c`
+#### `board/bk7258/chip/cp/bk7258_vectors.c`
 
 | Item | Old (A0) | New (A1) |
 |---|---|---|
@@ -1448,7 +1448,7 @@ prevent preprocessor redefinition warning.
 
 All RED gates retained. Diagnostic handlers and markers preserved.
 
-#### `board/bk7258_t5ai/chip/common/bk7258_irq.c`
+#### `board/bk7258/chip/common/bk7258_irq.c`
 
 | Item | Old (A0) | New (A1) |
 |---|---|---|
@@ -1523,10 +1523,10 @@ No interrupt unmasked between flash VTOR write and completed slot 64/65 repair.
 | v2-F2 | Fixed comment: ARM_VECTAB_SIZE source is `ram_vectors.h` as `(ARMV8M_PERIPHERAL_INTERRUPTS + NVIC_IRQ_FIRST)`, not `arch/arm_m/irq.h` | Comment-only |
 | v2-F3 | Removed duplicate `_Static_assert(NR_IRQS == 80)` (kept the one at the core IRQ count gates section) | No weakening; one assertion retained |
 
-### Additional change: `board/bk7258_t5ai/chip/chip.h` (internal)
+### Additional change: `board/bk7258/chip/chip.h` (internal)
 
 The arch-level chip.h (`nuttx/arch/arm/src/chip/chip.h`, symlink to
-`board/bk7258_t5ai/chip/chip.h`) also defined `ARMV8M_PERIPHERAL_INTERRUPTS`
+`board/bk7258/chip/chip.h`) also defined `ARMV8M_PERIPHERAL_INTERRUPTS`
 as `NR_IRQS`. Since `arm_internal.h` includes this file after the public
 `chip/include/chip.h`, its definition would override ours, producing
 `ARM_VECTAB_SIZE` = 80+16 = 96 instead of the required 80. Changed to
@@ -1614,7 +1614,7 @@ Task 2 independent review. Then Task 3 artifact inspection.
 
 ### Controller scope adjudication
 
-The extra `board/bk7258_t5ai/chip/chip.h` change is accepted and added to
+The extra `board/bk7258/chip/chip.h` change is accepted and added to
 Task-2 scope because it is technically required by the dual include paths, is
 team-overlay-owned, and the human's higher-level authorization is overlay-only
 A1 source changes. The original task brief's file list was incomplete; do not
@@ -2190,7 +2190,7 @@ separately and do not substitute one for the other.
 ### Policy decision
 
 Vendor SDK remains a local prerequisite. No file from
-`board/bk7258_t5ai/bk_idk/armino_as_lib/` is committed to this repository.
+`board/bk7258/bk_idk/armino_as_lib/` is committed to this repository.
 The existing bundle is user-authorized local content and remains in place.
 
 ### Vendor_beken precedent comparison
@@ -2207,11 +2207,11 @@ preferably the same dedicated-vendor-repo pattern.
 
 | File | Change |
 |------|--------|
-| `.gitignore` | Added `board/bk7258_t5ai/bk_idk/armino_as_lib/` and `*.bak` rules |
+| `.gitignore` | Added `board/bk7258/bk_idk/armino_as_lib/` and `*.bak` rules |
 | `.gitignore.example` | Same two rules added for documentation parity |
-| `board/bk7258_t5ai/bk_idk/README.md` | New: explains bundle provenance, layout, linked library count, setup script usage, vendor_beken comparison |
-| `board/bk7258_t5ai/scripts/setup_bk7258_sdk.sh` | New: executable Apache-2.0 shell script with `--check`, `--install`, `--help` modes |
-| `board/bk7258_t5ai/scripts/bk7258_sdk_manifest.sha256` | New: SHA-256 manifest for 374 tracked files |
+| `board/bk7258/bk_idk/README.md` | New: explains bundle provenance, layout, linked library count, setup script usage, vendor_beken comparison |
+| `board/bk7258/scripts/setup_bk7258_sdk.sh` | New: executable Apache-2.0 shell script with `--check`, `--install`, `--help` modes |
+| `board/bk7258/scripts/bk7258_sdk_manifest.sha256` | New: SHA-256 manifest for 374 tracked files |
 
 ### Manifest counts
 
@@ -2284,7 +2284,7 @@ After changes, `git status --short` confirms:
 - `docs/superpowers/` remains visible as untracked (NOT ignored, explicitly excluded at staging time)
 
 `git check-ignore -v` confirms correct rule attribution:
-- `armino_as_lib/` ignored by `.gitignore:27:board/bk7258_t5ai/bk_idk/armino_as_lib/`
+- `armino_as_lib/` ignored by `.gitignore:27:board/bk7258/bk_idk/armino_as_lib/`
 - `*.bak` files ignored by `.gitignore:30:*.bak`
 - `README.md` NOT ignored (exit 1 from `git check-ignore`)
 
@@ -2598,7 +2598,7 @@ exist. Do not build or flash.
 Added the tracked overlay-only verifier:
 
 ```text
-board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+board/bk7258/scripts/verify_bk7258_sdk_irq.py
 ```
 
 It checks dedicated source/header and Make/CMake/Kconfig/defconfig integration,
@@ -2611,14 +2611,14 @@ addresses are hardcoded.
 
 ```text
 PYTHONPYCACHEPREFIX=/tmp/bk7258-pycache python3 -m py_compile \
-  board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+  board/bk7258/scripts/verify_bk7258_sdk_irq.py
 exit=0
 ```
 
 ### RED run against current A1 ELF/map
 
 ```text
-python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+python3 board/bk7258/scripts/verify_bk7258_sdk_irq.py
 RED_EXIT=1
 RESULT: 3 passed, 30 failed
 ```
@@ -2706,10 +2706,10 @@ git diff --check
 exit=0
 
 PYTHONPYCACHEPREFIX=/tmp/bk7258-pycache python3 -m py_compile \
-  board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+  board/bk7258/scripts/verify_bk7258_sdk_irq.py
 exit=0
 
-python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+python3 board/bk7258/scripts/verify_bk7258_sdk_irq.py
 STALE_ELF_EXIT=1
 ```
 
@@ -2785,7 +2785,7 @@ CONFIG_ARCH_IRQPRIO=y
 ### Fresh post-link verifier result
 
 ```text
-python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+python3 board/bk7258/scripts/verify_bk7258_sdk_irq.py
 exit=1
 RESULT: 25 passed, 10 failed
 log: /tmp/bk7258-stageb-verify-fresh.log
@@ -2914,7 +2914,7 @@ object; ownership is still unclaimed until the post-link verifier runs.
 ### Command and result
 
 ```text
-python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+python3 board/bk7258/scripts/verify_bk7258_sdk_irq.py
 exit=0
 RESULT: 36 passed, 0 failed
 log: /tmp/bk7258-stageb-linkfix-green.log
@@ -3165,7 +3165,7 @@ Run `verify_bk7258_sdk_irq.py` against the fresh ELF/map/archive and require all
 ### Command and result
 
 ```text
-python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_irq.py
+python3 board/bk7258/scripts/verify_bk7258_sdk_irq.py
 exit=1
 RESULT: 41 passed, 1 failed
 log: /tmp/bk7258-stageb-f1-green.log
@@ -5380,13 +5380,13 @@ stock `gpio` command. The 240618-byte artifact is rejected for C2 board
 validation and must not be reused.
 
 The correction is to temporarily stage the complete authoritative
-`board/bk7258_t5ai` overlay from the clean worktree, fresh-build, and restore the
+`board/bk7258` overlay from the clean worktree, fresh-build, and restore the
 generated workspace afterward. Status returns to **source-fixed / complete C2
 build pending**.
 
 ## 2026-07-25 -- C2 full-overlay rebuild GREEN
 
-The entire authoritative `board/bk7258_t5ai` from the clean worktree was
+The entire authoritative `board/bk7258` from the clean worktree was
 temporarily staged into the manifest-linked generated workspace. The original
 linked directory was backed up and restored after the build. The fresh build
 confirmed:

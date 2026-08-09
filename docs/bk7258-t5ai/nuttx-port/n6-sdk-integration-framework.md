@@ -8,7 +8,7 @@
 > **决策**：全面转 SDK——底层不再从零手写寄存器，NuttX 侧只写薄 wrapper 调 `bk_*` API。
 
 > **路径约定**（避免暴露本机绝对路径）：
-> - `$CONTEST` = 本团队 overlay 根（含 `board/bk7258_t5ai/`）
+> - `$CONTEST` = 本团队 overlay 根（含 `board/bk7258/`）
 > - `$BK_AVDK` = Beken 官方 SDK（bk_avdk_smp，`cp/` 与 `ap/` 两套独立编译路径）
 > - `$VENDOR_BEKEN` = 7236N 参考实现（vendor_beken）
 > - `$TUYAOPEN` = TuyaOpen SDK
@@ -66,12 +66,12 @@ SDK 已解决的坑（见各 N2/N4/N5 记忆）。决定全面转 SDK 后，若�
 │   cp/: flash_mtd, wdt, sdk_irq, gpio …                        │
 │   ↑ 薄转发：ops->start = bk_wdt_start(timeout) 等            │
 ├─────────────────────────────────────────────────────────────┤
-│ Beken SDK（board/bk7258_t5ai/sdk/，从 $BK_AVDK/cp 拷入）     │
+│ Beken SDK（board/bk7258/sdk/，从 $BK_AVDK/cp 拷入）     │
 │   driver/wdt  driver/flash  driver/uart  driver/sys_ctrl…   │
 │   soc/bk7258/hal/*_ll.c  soc/bk7258/soc/*_reg.h             │
 │   ↑ 寄存器级实现（已验证）                                  │
 ├─────────────────────────────────────────────────────────────┤
-│ OS 适配层（board/bk7258_t5ai/sdk/os/os_adapt.c）             │
+│ OS 适配层（board/bk7258/sdk/os/os_adapt.c）             │
 │   os_malloc→kmm_malloc  bk_get_tick→clock_systime_ticks     │
 │   GLOBAL_INT_DISABLE→irqsave  rtos_*→NuttX 原语             │
 └─────────────────────────────────────────────────────────────┘
@@ -134,13 +134,13 @@ bk7258/
 ```bash
 # 拷进我们的工程（类似 7236N 的 bk_idk/armino_as_lib/）
 cp -r $BK_AVDK/build/armino_as_lib/bk7258 \
-      $CONTEST/board/bk7258_t5ai/bk_idk/armino_as_lib/
+      $CONTEST/board/bk7258/bk_idk/armino_as_lib/
 ```
 
 ### 4.3 工程目录组织（armino_as_lib 模式）
 
 ```
-$CONTEST/board/bk7258_t5ai/
+$CONTEST/board/bk7258/
 ├── bootloader/                  # 不动
 ├── chip/                        # NuttX 薄 wrapper（调 SDK API）
 │   ├── bk7258_start.c
@@ -177,7 +177,7 @@ $CONTEST/board/bk7258_t5ai/
 include armv8-m/Make.defs
 LDFLAGS += --build-id=none --entry=__start
 
-BK_IDK_PATH_RELA_TO_SRC = ../../../../board/bk7258_t5ai
+BK_IDK_PATH_RELA_TO_SRC = ../../../../board/bk7258
 
 # SDK 头文件路径
 INCLUDES += ${INCDIR_PREFIX}$(BK_IDK_PATH_RELA_TO_SRC)/bk_idk/armino_as_lib/include
@@ -541,7 +541,7 @@ VPATH += $(SDKDIR)/driver/wdt $(SDKDIR)/soc/common/hal ...
 4. **拷进工程**：
    ```bash
    cp -r build/armino_as_lib/bk7258 \
-         $CONTEST/board/bk7258_t5ai/bk_idk/armino_as_lib/
+         $CONTEST/board/bk7258/bk_idk/armino_as_lib/
    ```
 
 > **替代方案**：如果编译环境不便，可以问 Beken 是否有现成的 BK7258 `armino_as_lib`
@@ -578,7 +578,7 @@ VPATH += $(SDKDIR)/driver/wdt $(SDKDIR)/soc/common/hal ...
 ## 11. 不变约束
 
 - **不修改 nuttx 官方树**（见 [[do-not-modify-nuttx-official-tree]]）：所有改动只在
-  `$CONTEST/board/bk7258_t5ai/` overlay 内
+  `$CONTEST/board/bk7258/` overlay 内
 - **bootloader 保留手写**：`bootloader/` 不动（自定义分区布局，B2 产品级已板端验证）
 - **CP 路径**：SDK 源码一律取 `$BK_AVDK/cp/`，不碰 `ap/`
 - **AP/CP 三核正确**：芯片族宏显式置 0、单份资源宏按 CP 归属开、AP 专属路径关宏裁掉
@@ -586,10 +586,10 @@ VPATH += $(SDKDIR)/driver/wdt $(SDKDIR)/soc/common/hal ...
 ## 12. 相关文件索引
 
 **框架文档**：
-- `$CONTEST/board/bk7258_t5ai/sdk/`（待建，按 §4）
-- `$CONTEST/board/bk7258_t5ai/sdk/sdkconfig.h`（待建，按 §5）
-- `$CONTEST/board/bk7258_t5ai/sdk/os/os_adapt.c`（待建，按 §6）
-- `$CONTEST/board/bk7258_t5ai/sdk/Make.defs`（待建，按 §9.3）
+- `$CONTEST/board/bk7258/sdk/`（待建，按 §4）
+- `$CONTEST/board/bk7258/sdk/sdkconfig.h`（待建，按 §5）
+- `$CONTEST/board/bk7258/sdk/os/os_adapt.c`（待建，按 §6）
+- `$CONTEST/board/bk7258/sdk/Make.defs`（待建，按 §9.3）
 
 **模块文档**：
 - `$CONTEST/docs/bk7258-t5ai/nuttx-port/n6a-sdk-integration-research.md` — flash SDK 集成调研

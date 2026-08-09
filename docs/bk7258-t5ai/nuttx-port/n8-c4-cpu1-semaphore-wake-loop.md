@@ -91,7 +91,7 @@ callbacks=1/1
 cd /home/lijian/project/open-vela
 
 AP_CONFIG_NAME=ap_smp_semwake_loop JOBS=8 \
-  contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 下载 factory image，等待约 3 秒后只执行：

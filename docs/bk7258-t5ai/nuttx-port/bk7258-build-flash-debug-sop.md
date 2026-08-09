@@ -47,7 +47,7 @@ AP_CONFIG_NAME=<AP 配置>
 通用命令必须显式写出配置：
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --build --flash \
   --cp-config <cp_config> \
   --ap-config <ap_config>
@@ -133,9 +133,9 @@ WSL 路径：
 ### 2.3 自动化脚本
 
 ```text
-contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
-contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh
-contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/capture_windows_serial.ps1
+contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
+contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh
+contest2026_135_yongwangzhiqian/board/bk7258/scripts/capture_windows_serial.ps1
 ```
 
 ## 3. 每轮开始前的检查
@@ -173,7 +173,7 @@ COM11
 快速只读自检：
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --cold-capture --capture-seconds 3
 ```
 
@@ -208,7 +208,7 @@ cd /home/lijian/project/open-vela
 
 CP_CONFIG_NAME=<cp_config> \
 AP_CONFIG_NAME=<ap_config> \
-  ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 本次 cold-reset 实例：
@@ -216,7 +216,7 @@ AP_CONFIG_NAME=<ap_config> \
 ```bash
 CP_CONFIG_NAME=cp_nsh \
 AP_CONFIG_NAME=ap_smp_bidir \
-  ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 Builder 默认值：
@@ -278,7 +278,7 @@ scheduler lifecycle D1：  cp_nsh        + ap_smp_lifecycle
 配置必须来自：
 
 ```text
-contest2026_135_yongwangzhiqian/board/bk7258_t5ai/configs/
+contest2026_135_yongwangzhiqian/board/bk7258/configs/
 ```
 
 Builder 会拒绝不在白名单中的配置名。
@@ -305,7 +305,7 @@ nuttx/bk7258-dual/bk7258-factory-layout.json
 
 ```bash
 stat -c '%y %s %n' \
-  contest2026_135_yongwangzhiqian/board/bk7258_t5ai/chip/common/bk7258_serial.c \
+  contest2026_135_yongwangzhiqian/board/bk7258/chip/common/bk7258_serial.c \
   nuttx/bk7258-dual/nuttx-cp.elf \
   nuttx/bk7258-dual/app_crc.bin \
   nuttx/bk7258-dual/all-app-factory.bin
@@ -357,7 +357,7 @@ sha256: d83c8e38bec19160f9d54d0832a4f553dab85bd568173f2a1ebe4fc9e860d405
 ```bash
 cd /home/lijian/project/open-vela
 
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --build \
   --flash \
   --sparse-flash \
@@ -408,7 +408,7 @@ nuttx/bk7258-dual/build-profile.txt
 推荐：
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --flash \
   --sparse-flash \
   --cp-config cp_nsh \
@@ -421,7 +421,7 @@ nuttx/bk7258-dual/build-profile.txt
 ```bash
 cd /home/lijian/project/open-vela
 
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --flash \
   --sparse-flash \
   --capture-seconds 30
@@ -430,7 +430,7 @@ cd /home/lijian/project/open-vela
 无人值守的普通sparse更新不需要`--yes`：
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --flash --sparse-flash --capture-seconds 30
 ```
 
@@ -505,7 +505,7 @@ nsh>
 ```bash
 cd /home/lijian/project/open-vela
 
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --cold-capture \
   --capture-seconds 30
 ```
@@ -583,7 +583,7 @@ core:  STAR r1p0
 脚本命令：
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --jlink-reset --capture-seconds 30
 ```
 
@@ -649,7 +649,7 @@ COM11 空闲且 NSH 已出现时，可以使用 PowerShell capture 脚本发送�
 cd /home/lijian/project/open-vela
 
 PS1=$(wslpath -w \
-  contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/capture_windows_serial.ps1)
+  contest2026_135_yongwangzhiqian/board/bk7258/scripts/capture_windows_serial.ps1)
 OUT=$(wslpath -w /home/lijian/project/open-vela/logs/apctl-status.raw)
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass \

@@ -24,7 +24,7 @@ cd /home/lijian/project/open-vela
 CP_CONFIG_NAME=cp_nsh_psram \
 AP_CONFIG_NAME=ap_smp_psram \
 BK7258_SDK_BUNDLE_VERSION=v3.1.1.9 \
-  ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 | 行 | 含义 | 为什么显式写 | 错了会怎样 |
@@ -134,7 +134,7 @@ sequenceDiagram
 
 ```bash
 cd /home/lijian/project/open-vela
-PS1=$(wslpath -w contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/capture_windows_serial.ps1)
+PS1=$(wslpath -w contest2026_135_yongwangzhiqian/board/bk7258/scripts/capture_windows_serial.ps1)
 OUT=$(wslpath -w /home/lijian/project/open-vela/logs/apctl-status.raw)
 powershell.exe -NoProfile -ExecutionPolicy Bypass \
   -File "$PS1" -Port COM11 -Baud 460800 -DurationSec 6 \

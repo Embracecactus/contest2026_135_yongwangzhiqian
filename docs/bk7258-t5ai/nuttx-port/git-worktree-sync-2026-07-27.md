@@ -81,7 +81,7 @@ branch: bk7258-n6-sdk-irq-bridge-clean
 ```
 
 manifest linkfile 因路径不变而自动使用 clean 分支内容。完整构建命令
-`board/bk7258_t5ai/scripts/build_dual_image.sh` exit 0，日志为
+`board/bk7258/scripts/build_dual_image.sh` exit 0，日志为
 `/tmp/bk7258-dual-build-sync-2026-07-27.log`。构建完成 bootloader → CP → AP → CP restore，
 并通过 root/manifest consistency gate。CP map 只使用 CP SDK 路径，AP map 只使用 AP SDK
 路径。最终 root CP-only `all-app.bin` 为 252348 B；normal update segments 为：

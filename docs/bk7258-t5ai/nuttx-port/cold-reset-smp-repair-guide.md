@@ -288,7 +288,7 @@ cd /home/lijian/project/open-vela
 
 CP_CONFIG_NAME=cp_nsh \
 AP_CONFIG_NAME=ap_smp_bidir \
-  ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 烧录和自动采集使用项目脚本。正式执行前先阅读

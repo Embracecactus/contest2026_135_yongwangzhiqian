@@ -13,11 +13,11 @@
 > **决策**：WiFi 和 BLE 均使用 SDK 预编译库 + 薄 wrapper 转发，不做寄存器级实现。
 
 > **路径约定**（与 n6-sdk-integration-framework.md 一致）：
-> - `$CONTEST` = 本团队 overlay 根（含 `board/bk7258_t5ai/`）
+> - `$CONTEST` = 本团队 overlay 根（含 `board/bk7258/`）
 > - `$BK_AVDK` = Beken 官方 SDK（bk_avdk_smp，`cp/` 与 `ap/` 两套独立编译路径）
 > - `$SDK_VERSION` = `v3.1.1.9`（当前唯一active版本；legacy只保留，待当前stage完整板测后由owner另开验证任务）
-> - `$SDK_INC` = `$CONTEST/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/$SDK_VERSION/cp/include`
-> - `$SDK_LIBS` = `$CONTEST/board/bk7258_t5ai/bk_idk/armino_as_lib/versions/$SDK_VERSION/cp/libs`
+> - `$SDK_INC` = `$CONTEST/board/bk7258/bk_idk/armino_as_lib/versions/$SDK_VERSION/cp/include`
+> - `$SDK_LIBS` = `$CONTEST/board/bk7258/bk_idk/armino_as_lib/versions/$SDK_VERSION/cp/libs`
 
 ---
 
@@ -389,7 +389,7 @@ WiFi 事件模块为 `EVENT_MOD_WIFI`，关键事件 ID：
 
 ### 5.1 Kconfig 新增选项
 
-需在 `$CONTEST/board/bk7258_t5ai/chip/Kconfig` 中添加：
+需在 `$CONTEST/board/bk7258/chip/Kconfig` 中添加：
 
 ```
 config BK7258_WIFI
@@ -413,7 +413,7 @@ config BK7258_BLE
 
 ### 5.2 Make.defs 库配置
 
-需在 `$CONTEST/board/bk7258_t5ai/scripts/Make.defs` 中修改：
+需在 `$CONTEST/board/bk7258/scripts/Make.defs` 中修改：
 
 **WiFi**（已有条件逻辑）：
 
@@ -470,7 +470,7 @@ endif
 ### 5.5 链接脚本注意事项
 
 WiFi + BLE 库链接后，代码段和数据段将增大 ~650 KB。需确认链接脚本
-（`$CONTEST/board/bk7258_t5ai/scripts/ld.script`）中：
+（`$CONTEST/board/bk7258/scripts/ld.script`）中：
 
 - FLASH 区域有足够空间（16 MB Flash 下 978 KB 仅占 6%，无问题）
 - SRAM 区域（640 KB）需为 WiFi/BLE 运行时预留足够堆空间
@@ -486,7 +486,7 @@ WiFi + BLE 库链接后，代码段和数据段将增大 ~650 KB。需确认链�
 cd $NUTTX_ROOT
 
 # 配置（在现有 nsh defconfig 基础上启用 WiFi/BLE）
-./tools/configure.sh -l contest2026_135_yongwangzhiqian/board/bk7258_t5ai/configs/cp_nsh
+./tools/configure.sh -l contest2026_135_yongwangzhiqian/board/bk7258/configs/cp_nsh
 
 # 启用 WiFi（可选）
 kconfig-tweak --enable CONFIG_BK7258_WIFI

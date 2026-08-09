@@ -77,7 +77,7 @@ NUL and non-zero bytes after the first NUL are rejected.
 | `0x1e0` | 32 | `signature_s` | P-256 scalar `s`, unsigned big-endian and low-S |
 
 For the current partition source
-`board/bk7258_t5ai/partitions/bk7258/auto_partitions.csv`:
+`board/bk7258/partitions/bk7258/auto_partitions.csv`:
 
 - `layout_sha256` is
   `32d3519eada0a7f77a284998e785fdb1daa55c691b3bfaf1a92b4097ce398203`;
@@ -155,7 +155,7 @@ ever reissues an equivalent valid signature for the same signed payload.
 ## 5. Accepted independent vector
 
 The frozen public-only vector is
-[`vector.json`](../../../board/bk7258_t5ai/scripts/testdata/n17_manifest_v1/vector.json).
+[`vector.json`](../../../board/bk7258/scripts/testdata/n17_manifest_v1/vector.json).
 It records, without any private key, all of these values:
 
 - exact 448 signed bytes and their SHA-256;
@@ -165,7 +165,7 @@ It records, without any private key, all of these values:
 - the three payload digests and lengths.
 
 The repository verifier
-[`verify_bk7258_n17_manifest_vector.py`](../../../board/bk7258_t5ai/scripts/verify_bk7258_n17_manifest_vector.py)
+[`verify_bk7258_n17_manifest_vector.py`](../../../board/bk7258/scripts/verify_bk7258_n17_manifest_vector.py)
 uses Python's standard library for canonical parsing and payload generation,
 then OpenSSL as the independent ECDSA implementation. On 2026-08-06 it
 accepted the positive vector and rejected all 3,584 single-bit mutations of

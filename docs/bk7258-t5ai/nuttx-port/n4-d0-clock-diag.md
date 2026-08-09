@@ -3,7 +3,7 @@
 > 板端验证日期：2026-07-18（substage `board-verified`：仅 N4-D0/D0D；N4-D1 及整 N4 尚未板端验证）
 > 基线 commit：`4d9198e`（Stage N3 code）→ D0/D0D feature commit：`6f596b7`（3 个 overlay 文件，只读诊断 + runtime SysTick 修正）
 > → D0F feature commit：`8dab594`（defconfig 移除 100ms override，生效默认 10ms/100Hz tick）
-> 改动范围：D0/D0D — `$CONTEST/board/bk7258_t5ai/chip/`（`chip/common/bk7258_clockdiag.h` 新增、`chip/cp/bk7258_start.c` 接入、`chip/common/bk7258_timerisr.c` runtime SysTick 选择）；D0F — `$CONTEST/board/bk7258_t5ai/configs/cp_nsh/defconfig`
+> 改动范围：D0/D0D — `$CONTEST/board/bk7258/chip/`（`chip/common/bk7258_clockdiag.h` 新增、`chip/cp/bk7258_start.c` 接入、`chip/common/bk7258_timerisr.c` runtime SysTick 选择）；D0F — `$CONTEST/board/bk7258/configs/cp_nsh/defconfig`
 
 > 占位符：`$WORKSPACE`、`$CONTEST`、`$FW` 与 README / next-stage-prompt.md 一致。本 docs 提交 SHA
 > 不在本文内写出（见 [`../next-stage-prompt.md`](../next-stage-prompt.md) 命名与维护规则）。
@@ -13,7 +13,7 @@
 本 worklog 记录 Stage N4 内**第一个 subsection** N4-D0 的执行证据与紧随其后的 runtime SysTick
 bookkeeping 修正（记为 N4-D0D），**不是** Stage N4 整体 board-verified。
 
-- **Feature commit**：`6f596b7`，只改 3 个 overlay 文件（`board/bk7258_t5ai/chip/`）。
+- **Feature commit**：`6f596b7`，只改 3 个 overlay 文件（`board/bk7258/chip/`）。
 - **允许动作**：在 overlay 添加最小只读诊断；读取并打印 raw clock / DPLL / mux / divider / voltage /
   flash wait-state / UART clock 寄存器；实施独立测量；runtime SysTick 频率 bookkeeping 修正。
 - **明确禁止**：**不写 DPLL / CPU mux / clock-control / voltage / flash wait-state / UART divisor
@@ -334,7 +334,7 @@ sys_hal_mclk_mux_set(0x3);  /* DPLL, 480M source */
 
 ### 10.4 320 MHz deterministic bring-up（loader-path, board-verified）
 
-**新增文件**（`$CONTEST/board/bk7258_t5ai/chip/`）：
+**新增文件**（`$CONTEST/board/bk7258/chip/`）：
 
 - `bk7258_clock.c` + `bk7258_clock.h`：`bk7258_clock_bringup_320m()` 实现，gated by `CONFIG_BK7258_CLOCK_320M`。
 - `bk7258_start.c`：在 `arm_earlyserialinit()` 之后、`nx_start()` 之前调用 `bk7258_clock_bringup_320m()`。

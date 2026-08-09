@@ -15,16 +15,16 @@ bootable RBL image.
 ## Command and result
 
 ```sh
-python3 board/bk7258_t5ai/scripts/gen_bk7258_partitions.py \
+python3 board/bk7258/scripts/gen_bk7258_partitions.py \
   --check \
   --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9
-python3 board/bk7258_t5ai/scripts/verify_bk7258_partitions.py \
+python3 board/bk7258/scripts/verify_bk7258_partitions.py \
   --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9
-python3 board/bk7258_t5ai/scripts/verify_bk7258_sdk_partition_wrapper.py
-python3 board/bk7258_t5ai/scripts/verify_bk7258_ota_layout.py
-python3 board/bk7258_t5ai/scripts/verify_bk7258_ota_rotation.py \
+python3 board/bk7258/scripts/verify_bk7258_sdk_partition_wrapper.py
+python3 board/bk7258/scripts/verify_bk7258_ota_layout.py
+python3 board/bk7258/scripts/verify_bk7258_ota_rotation.py \
   --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9
-python3 board/bk7258_t5ai/scripts/verify_bk7258_n17_manifest_vector.py
+python3 board/bk7258/scripts/verify_bk7258_n17_manifest_vector.py
 ```
 
 The official v3.1.1.9 partition parser/generator accepted the project CSV.

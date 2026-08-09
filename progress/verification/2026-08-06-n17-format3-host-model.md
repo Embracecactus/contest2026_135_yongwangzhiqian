@@ -14,14 +14,14 @@ signature verification and performs no firmware or board write.
 
 Canonical sources:
 
-- [`bk7258_n17_journal.py`](../../board/bk7258_t5ai/scripts/bk7258_n17_journal.py)
-- [`verify_bk7258_n17_journal.py`](../../board/bk7258_t5ai/scripts/verify_bk7258_n17_journal.py)
+- [`bk7258_n17_journal.py`](../../board/bk7258/scripts/bk7258_n17_journal.py)
+- [`verify_bk7258_n17_journal.py`](../../board/bk7258/scripts/verify_bk7258_n17_journal.py)
 - [Accepted N17 layout/journal/migration design](../../docs/bk7258-t5ai/nuttx-port/n17-layout-journal-migration.md)
 
 ## Command and result
 
 ```sh
-python3 board/bk7258_t5ai/scripts/verify_bk7258_n17_journal.py
+python3 board/bk7258/scripts/verify_bk7258_n17_journal.py
 ```
 
 The verifier passed:

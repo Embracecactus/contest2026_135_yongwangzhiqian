@@ -121,11 +121,11 @@ remain separate work and are not silently inferred from these loader calls.
 
 ## Verification for this freeze
 
-- `make -C board/bk7258_t5ai/bootloader/bl2 -j32` passes; the current BL2 raw
+- `make -C board/bk7258/bootloader/bl2 -j32` passes; the current BL2 raw
   binary is 9,840 bytes and the CRC-expanded output is 13,056 bytes for the
   `0x3000` logical copy.  The package pads the BL2 CRC segment to 16 KiB for
   the BKFIL write range.
-- `make -C board/bk7258_t5ai/bootloader -j32` passes with the unchanged BL1
+- `make -C board/bk7258/bootloader -j32` passes with the unchanged BL1
   8-second watchdog boundary.
 - The pinned `imgtool.py verify` accepts both CP and AP images in a newly
   generated version `18.0.0` development pair.  The private test key stayed in

@@ -58,7 +58,7 @@ export ZEPHYR_PORT=/home/lijian/project/TuyaOpen/zephyr-bk7258-port
 C. 硬边界与工作方式
 ═══════════════════════════════════════════════════════════════
 
-1. Overlay-only：所有竞赛改动只允许落在 $CONTEST，主要范围是 $CONTEST/board/bk7258_t5ai/ 与 $CONTEST/docs/bk7258-t5ai/。manifest/linkfile 生成出来的 vendor 路径不是本阶段直接修改点。
+1. Overlay-only：所有竞赛改动只允许落在 $CONTEST，主要范围是 $CONTEST/board/bk7258/ 与 $CONTEST/docs/bk7258-t5ai/。manifest/linkfile 生成出来的 vendor 路径不是本阶段直接修改点。
 2. 不修改官方 nuttx/apps/packages/vendor checkout；如发现确需上游修改，停止并向用户说明，不把它混入 N4。
 3. CodeGraph first：定位或理解 workspace 内代码前，先用 codegraph_explore，projectPath=$WORKSPACE；只有索引没有覆盖时才使用针对性的只读搜索/读取。
 4. main 模型负责苏格拉底式澄清、计划、证据审核与授权门禁；广泛搜索、重复检查、机械编辑和验证运行在合适时委派普通 subagent。不要使用 Skill 或 Workflow，除非用户明确要求。

@@ -168,6 +168,25 @@ remains `CONNECTING(3)` in this drivercheck profile.
 Canonical detail:
 [AP peripheral board evidence](verification/2026-08-09-bk7258-ap-peripheral-board-evidence.md).
 
+## BK7258 physical-board split (2026-08-09)
+
+- The shared platform moved from `board/bk7258_t5ai` to `board/bk7258`.
+  Chip, CP/AP, bootloader, MCUboot, partition and SDK-wrapper code remain one
+  implementation; the refactor does not duplicate the BSP.
+- Physical wiring now lives under `boards/t5ai_core` and `boards/t5_board`.
+  Existing defconfigs select T5AI-Core by default, preserving the verified
+  Core behavior.  T5-Board is selected by `CONFIG_BK7258_BOARD_T5_BOARD`.
+- Board-owned GPIO lower halves consume the selected LED/key definitions.
+  Hardware revisions are metadata and do not form directory names unless a
+  later revision changes a software-visible electrical contract.
+- Core and T5-Board CP/AP drivercheck-MCUboot configurations all passed
+  compile, link and postbuild using immutable SDK v3.1.1.9.  T5-Board's actual
+  compile flags resolve to `boards/t5_board/include`; its electrical mappings
+  remain schematic-only until exercised on the full board.
+
+Canonical detail:
+[BK7258 platform/board-variant verification](verification/2026-08-09-bk7258-platform-board-variants.md).
+
 ## Next step
 
 1. The isolated P0/P1/P2 driver queue is complete.  TRNG and CP touch are
@@ -176,7 +195,8 @@ Canonical detail:
    Revisit them only after a v3.1.1.9 bundle is rebuilt with the relevant
    controller enabled and its public ownership/cache/buffer contract frozen.
 2. Hardware-verify existing peripherals one at a time using pin-compatible
-   profiles (SD card detect, I2S clocking, LCD pixels, SPI chip select); do
+   profiles.  Keep T5AI-Core as the default baseline; on T5-Board first verify
+   its P1 LED/P28 key and then TF card detect/data, RGB LCD and DVP wiring.  Do
    not enable conflicting devices by default in shipped configs.
 3. Resume N17 OTA policy on the recoverable Secure Boot baseline. Do not put
    historical N15/N17 writers back into minimal BL1.

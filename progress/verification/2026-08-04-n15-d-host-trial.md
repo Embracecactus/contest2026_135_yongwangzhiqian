@@ -47,7 +47,7 @@ does not claim a physical Flash write, trial boot, confirmation or rollback.
 Command:
 
 ```text
-python3 board/bk7258_t5ai/scripts/verify_bk7258_ota_trial.py \
+python3 board/bk7258/scripts/verify_bk7258_ota_trial.py \
   --self-test \
   --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9
 ```
@@ -106,7 +106,7 @@ BK7258_SDK_SOURCE=/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9
 CP_CONFIG_NAME=cp_nsh_psram AP_CONFIG_NAME=ap_smp_psram
 N15_OTA_GENERATION=18 N15_OTA_VERSION=n15-d-host
 N15_OTA_BASE_VERSION=n15-c-host N15_OTA_TIMESTAMP=0 JOBS=8
-board/bk7258_t5ai/scripts/build_dual_image.sh
+board/bk7258/scripts/build_dual_image.sh
 ```
 
 It passed exact SDK checksums, layout/factory verification, N15-A/B/C/D,

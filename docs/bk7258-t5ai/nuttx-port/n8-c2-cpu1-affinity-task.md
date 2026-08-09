@@ -65,7 +65,7 @@ AP 发布 READY 前按顺序执行：
 cd /home/lijian/project/open-vela
 
 AP_CONFIG_NAME=ap_smp_affinity JOBS=8 \
-  contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 下载 factory image 后第一步只执行：

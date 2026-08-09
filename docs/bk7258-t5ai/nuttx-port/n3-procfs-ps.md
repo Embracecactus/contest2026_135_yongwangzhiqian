@@ -2,7 +2,7 @@
 
 > 板端验证日期：2026-07-18
 > 基线 commit：`9f45bc6`（Stage N2）→ 本阶段：`4d9198e`（code，procfs+ps）+ 本 docs 提交
-> 改动范围：`$CONTEST/board/bk7258_t5ai/`（configs/cp_nsh/defconfig + src/bk7258_bringup.c）
+> 改动范围：`$CONTEST/board/bk7258/`（configs/cp_nsh/defconfig + src/bk7258_bringup.c）
 
 ## 目标
 
@@ -171,7 +171,7 @@ nsh> ls proc
  version
 
 nsh> cat /proc/version
-NuttX version 0.0.0 e02f581e23 Jul 18 2026 14:35:19 ../contest2026_135_yongwangzhiqian/board/bk7258_t5ai/configs/nsh
+NuttX version 0.0.0 e02f581e23 Jul 18 2026 14:35:19 ../contest2026_135_yongwangzhiqian/board/bk7258/configs/nsh
 
 nsh> cat /proc/cpuinfo
 processor :0
@@ -203,7 +203,7 @@ NuttX 0.0.0 e02f581e23 Jul 18 2026 14:35:19 arm bk7258_t5ai
 
 ```
 nsh> cat /proc/version
-NuttX version 0.0.0 e02f581e23 Jul 18 2026 15:11:55 ../contest2026_135_yongwangzhiqian/board/bk7258_t5ai/configs/nsh
+NuttX version 0.0.0 e02f581e23 Jul 18 2026 15:11:55 ../contest2026_135_yongwangzhiqian/board/bk7258/configs/nsh
                                       ^^^^^^^^^ 时间戳变化 = 板上跑的是 state-C 镜像
 
 nsh> cat /proc/meminfo

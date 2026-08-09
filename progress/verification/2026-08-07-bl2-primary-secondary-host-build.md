@@ -17,7 +17,7 @@ BL1_MANIFEST_KEY=/tmp/bk7258-bl1-manifest-dev-key.pem
 CP_CONFIG_NAME=cp_nsh_mcuboot
 AP_CONFIG_NAME=ap_smp_mcuboot
 BL2_LOGICAL_SIZE=0x3000
-bash board/bk7258_t5ai/scripts/build_dual_image.sh
+bash board/bk7258/scripts/build_dual_image.sh
 ```
 
 The build completed with the official checksum-verified v3.1.1.9 SDK bundle,

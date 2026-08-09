@@ -84,7 +84,7 @@ control 大小仍为 0x40 bytes，CP supervisor 的完整状态、计数和 faul
 CP_CONFIG_NAME=cp_nsh_rptun \
 AP_CONFIG_NAME=ap_smp_rptun \
 JOBS=8 \
-./board/bk7258_t5ai/scripts/build_dual_image.sh
+./board/bk7258/scripts/build_dual_image.sh
 ```
 
 结果：exit 0，CP/AP 都完成 fresh configure、compile、link、pack，最终恢复 CP build

@@ -70,9 +70,9 @@
 
 ```bash
 cd /home/lijian/project/open-vela
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_stress_test.sh
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_stress_test.sh
 # 含 RPMsg（需板子健康/已物理复位）：
-STRESS_RPMSG=1 ./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_stress_test.sh
+STRESS_RPMSG=1 ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_stress_test.sh
 ```
 
 脚本内部阶段（连续、无阶段间冷复位）：

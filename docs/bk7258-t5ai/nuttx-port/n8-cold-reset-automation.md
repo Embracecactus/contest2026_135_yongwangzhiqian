@@ -54,8 +54,8 @@ COM11 只用于日志采集，不能把 loader 的 `-p 7` 改成 `-p 11`。
 ## 3. 脚本
 
 ```text
-board/bk7258_t5ai/scripts/bk7258_auto_debug.sh
-board/bk7258_t5ai/scripts/capture_windows_serial.ps1
+board/bk7258/scripts/bk7258_auto_debug.sh
+board/bk7258/scripts/capture_windows_serial.ps1
 ```
 
 ### 3.1 Build + factory 下载 + warm capture
@@ -63,7 +63,7 @@ board/bk7258_t5ai/scripts/capture_windows_serial.ps1
 ```bash
 cd /home/lijian/project/open-vela
 
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --build --flash \
   --cp-config cp_nsh \
   --ap-config ap_smp_bidir
@@ -74,14 +74,14 @@ factory 会把 LittleFS 物理区填充为 `0xff`。交互模式必须输入 `FL
 ### 3.2 已构建镜像下载 + warm capture
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --flash
 ```
 
 ### 3.3 J-Link RESET pin 自动 physical reset
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --jlink-reset --capture-seconds 30
 ```
 
@@ -101,7 +101,7 @@ Go
 ### 3.4 人工 reset 兼容模式
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --cold-capture --capture-seconds 30
 ```
 

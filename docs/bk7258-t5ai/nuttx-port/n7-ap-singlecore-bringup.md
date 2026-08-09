@@ -167,7 +167,7 @@ raw `0x100000`前结束。可选factory image会显式标为会擦除数据区�
 最终完整构建命令：
 
 ```text
-board/bk7258_t5ai/scripts/build_dual_image.sh
+board/bk7258/scripts/build_dual_image.sh
 ```
 
 exit 0，日志：`/tmp/bk7258-dual-build-final-v3.log`。builder 完成 bootloader → CP → AP →
@@ -288,7 +288,7 @@ PR 分支先迁移 CPU1 AP 前置实现，再加入按 CP/AP role 分离的 SDK 
 完整构建命令：
 
 ```text
-board/bk7258_t5ai/scripts/build_dual_image.sh
+board/bk7258/scripts/build_dual_image.sh
 ```
 
 构建 exit 0，日志：`/tmp/bk7258-dual-build-sync-2026-07-27.log`。CP → AP → CP restore 和

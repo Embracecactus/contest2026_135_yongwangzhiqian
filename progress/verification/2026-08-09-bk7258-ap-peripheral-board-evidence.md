@@ -4,7 +4,7 @@ Date: 2026-08-09 (GMT+8)
 Board: BK7258 T5-AI, CP console COM11 @460800
 Image: `cp_nsh_drivercheck_mcuboot` + `ap_smp_drivercheck_mcuboot`
        (MCUboot 18.1.3, security counter 20, same-slot CP/AP pair)
-Capture tooling: `board/bk7258_t5ai/scripts/bk7258_auto_debug.sh`
+Capture tooling: `board/bk7258/scripts/bk7258_auto_debug.sh`
 (flash + J-Link shared-SRAM capture) and
 `scripts/capture_windows_serial.ps1` (COM11 serial, `apctl` commands).
 
@@ -81,7 +81,7 @@ CPU0 service answering that channel, so any pin-type change after
 same call fails fast, which is why only the early bind succeeded.
 
 Fix (board-owned, NuttX/SDK untouched): the WAKEUPCFG branch in
-`board/bk7258_t5ai/chip/ap/bk7258_gpioe.c` now returns `-ENOTSUP` —
+`board/bk7258/chip/ap/bk7258_gpioe.c` now returns `-ENOTSUP` —
 wakeup-source policy belongs to the CP power-management domain. With the
 fix, the real SDK `bk_gpio_driver_init()` path is used and AP reaches
 READY.
@@ -326,7 +326,7 @@ sensitivity evidence.
 ## Red lines honored
 
 - No NuttX or SDK source modifications; all changes are board-owned
-  wrappers under `board/bk7258_t5ai/` and the board app.
+  wrappers under `board/bk7258/` and the board app.
 - No OTP/eFuse or secure-lifecycle writes.
 - All temporary shared-SRAM/device-list/allocation probes and temporary
   `apctl` debug commands were removed before the final build and flash.

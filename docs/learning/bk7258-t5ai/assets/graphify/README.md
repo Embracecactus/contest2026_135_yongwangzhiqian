@@ -59,8 +59,8 @@ graphify 0.9.25
 本次首轮验证使用两个 committed snapshot 文件：
 
 ```text
-board/bk7258_t5ai/include/board.h
-board/bk7258_t5ai/src/bk7258_bringup.c
+board/bk7258/include/board.h
+board/bk7258/src/bk7258_bringup.c
 ```
 
 实际结果：

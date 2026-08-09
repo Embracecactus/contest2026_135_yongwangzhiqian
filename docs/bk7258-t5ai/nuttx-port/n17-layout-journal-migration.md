@@ -346,7 +346,7 @@ without modifying official SDK, NuttX or apps:
    `32d351...8203` layout hash; its 512-byte ABI is unchanged and the verifier
    still rejects all 3,600 negative cases.
 3. The portable
-   [`bk7258_n17_journal.py`](../../../board/bk7258_t5ai/scripts/bk7258_n17_journal.py)
+   [`bk7258_n17_journal.py`](../../../board/bk7258/scripts/bk7258_n17_journal.py)
    model implements the exact record ABI, valid-prefix bank scan, transition,
    lineage, counter, phase-specific boot and one-way policy rules. Its host
    verifier covers every record bit, every byte-level torn-record/append cut

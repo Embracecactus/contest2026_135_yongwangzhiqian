@@ -24,7 +24,7 @@ for the 2026 openvela hardware-porting contest.
 
 ## In scope
 
-- Team-owned code under `board/bk7258_t5ai/`, `app/`, `tools/`, `docs/`, and exported evidence under `logs/`.
+- Team-owned code under `board/bk7258/`, `app/`, `tools/`, `docs/`, and exported evidence under `logs/`.
 - Bootloader, BSP, flash/LittleFS, AP SMP, RPTUN/RPMsg, supervision, RPMsgFS, Bluetooth, and PSRAM wrappers approved by completed stages.
 - Active N15 work on paired CP/AP OTA. The official-style contiguous A/B
   layout and one-time LittleFS relocation are board-verified; deterministic

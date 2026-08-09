@@ -123,7 +123,7 @@ CPU2 bootstrap entry=........ idle=................. ready=1 online=00000001 cal
 ```bash
 cd /home/lijian/project/open-vela
 AP_CONFIG_NAME=ap_smp \
-  contest2026_135_yongwangzhiqian/board/bk7258_t5ai/scripts/build_dual_image.sh
+  contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 预期 builder 仍执行：CP → AP-SMP → CP restore，并把 AP-SMP 产物保存到：

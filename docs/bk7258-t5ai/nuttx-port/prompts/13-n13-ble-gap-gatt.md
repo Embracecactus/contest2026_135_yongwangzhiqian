@@ -166,14 +166,14 @@ N13 service active时不并发运行 N12 `bkbttest scan/n12v`。验证 N12 RF sc
 保留 N12 profile不变，新增 opt-in pair：
 
 ```text
-board/bk7258_t5ai/configs/cp_nsh_ble_gatt/defconfig
-board/bk7258_t5ai/configs/ap_smp_ble_gatt/defconfig
+board/bk7258/configs/cp_nsh_ble_gatt/defconfig
+board/bk7258/configs/ap_smp_ble_gatt/defconfig
 ```
 
 计划新增/修改的 team-owned文件：
 
 ```text
-board/bk7258_t5ai/
+board/bk7258/
 ├── chip/include/bk7258_ble_gatt.h
 ├── chip/ap/bk7258_ble_gatt.c
 ├── chip/ap/bk7258_bt_hci.c             # observer, flow compatibility, diagnostics
@@ -184,7 +184,7 @@ board/bk7258_t5ai/
 app/hello_app/
 └── bk7258_bt_test_main.c               # existing CP NSH built-in: bkbttest
 
-board/bk7258_t5ai/scripts/
+board/bk7258/scripts/
 └── verify_bk7258_ble_gatt.py           # config/ELF/table/owner gates
 
 tools/windows-hardware-debug/
