@@ -103,7 +103,9 @@
 #define BK7258_CDIAG_CASE_DPLL240    4
 #define BK7258_CDIAG_CASE_DPLL320    5
 #define BK7258_CDIAG_CASE_DPLL480    6
-#define BK7258_CDIAG_CASE_UNKNOWN    7   /* fallback to baseline hz.        */
+#define BK7258_CDIAG_CASE_DPLL60     7
+#define BK7258_CDIAG_CASE_DPLL80     8
+#define BK7258_CDIAG_CASE_UNKNOWN    9   /* fallback to baseline hz.        */
 
 /****************************************************************************
  * Public Functions (static inline)
@@ -153,6 +155,16 @@ static inline int bk7258_clockdiag_last_clock_case(void)
   if (csrc == 2 && cdiv == 3 && dplle)
     {
       return BK7258_CDIAG_CASE_LOADER80;
+    }
+
+  if (csrc == 3 && cdiv == 7 && dplle)
+    {
+      return BK7258_CDIAG_CASE_DPLL60;
+    }
+
+  if (csrc == 3 && cdiv == 5 && dplle)
+    {
+      return BK7258_CDIAG_CASE_DPLL80;
     }
 
   if (csrc == 3 && cdiv == 3 && dplle)
@@ -211,6 +223,14 @@ static inline uint32_t bk7258_clockdiag_current_cpu_hz(void)
         break;
 
       case BK7258_CDIAG_CASE_LOADER80:
+        cpu_hz = 80000000u;
+        break;
+
+      case BK7258_CDIAG_CASE_DPLL60:
+        cpu_hz = 60000000u;
+        break;
+
+      case BK7258_CDIAG_CASE_DPLL80:
         cpu_hz = 80000000u;
         break;
 
