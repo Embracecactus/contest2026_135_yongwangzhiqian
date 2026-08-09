@@ -98,10 +98,12 @@ static struct t5_gt1151_i2c_s g_t5_gt1151_i2c =
 static xcpt_t g_t5_gt1151_isr;
 static FAR void *g_t5_gt1151_isr_arg;
 static bool g_t5_gt1151_registered;
+static void t5_gt1151_invoke_isr(gpio_id_t gpio_id);
 static void t5_gt1151_sdk_isr(gpio_id_t gpio_id);
 
 #ifdef CONFIG_BK7258_GT1151_VALIDATION
 static bool g_t5_gt1151_product_logged;
+static volatile bool g_t5_gt1151_hw_irq_seen;
 
 static void t5_gt1151_validation_trace(FAR struct i2c_msg_s *msgs,
                                        int count, int ret)
@@ -139,6 +141,7 @@ static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
   ssize_t nread;
   int fd;
   int ret;
+  bool hw_irq_logged = false;
   bool poll_fallback_logged = false;
 
   (void)argc;
@@ -159,6 +162,13 @@ static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
 
   for (;;)
     {
+      if (g_t5_gt1151_hw_irq_seen && !hw_irq_logged)
+        {
+          syslog(LOG_INFO, "bk7258-touch: GPIO%u IRQ PASS\n",
+                 (unsigned int)BK7258_BOARD_TOUCH_INTERRUPT_GPIO);
+          hw_irq_logged = true;
+        }
+
       pfd.revents = 0;
       ret = poll(&pfd, 1, 20);
       if (ret < 0)
@@ -192,7 +202,7 @@ static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
               poll_fallback_logged = true;
             }
 
-          t5_gt1151_sdk_isr(pin);
+          t5_gt1151_invoke_isr(pin);
           continue;
         }
 
@@ -368,7 +378,7 @@ static int t5_gt1151_i2c_shutdown(FAR struct i2c_master_s *dev)
   return OK;
 }
 
-static void t5_gt1151_sdk_isr(gpio_id_t gpio_id)
+static void t5_gt1151_invoke_isr(gpio_id_t gpio_id)
 {
   xcpt_t isr;
   FAR void *arg;
@@ -383,6 +393,14 @@ static void t5_gt1151_sdk_isr(gpio_id_t gpio_id)
     {
       (void)isr((int)gpio_id, NULL, arg);
     }
+}
+
+static void t5_gt1151_sdk_isr(gpio_id_t gpio_id)
+{
+#ifdef CONFIG_BK7258_GT1151_VALIDATION
+  g_t5_gt1151_hw_irq_seen = true;
+#endif
+  t5_gt1151_invoke_isr(gpio_id);
 }
 
 static int t5_gt1151_irq_attach(const struct gt9xx_board_s *state,
