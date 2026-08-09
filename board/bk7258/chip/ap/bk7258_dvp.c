@@ -371,6 +371,17 @@ static int bk7258_dvp_stop_stream(FAR struct bk7258_dvp_s *priv)
     }
   flags = spin_lock_irqsave(&priv->lock);
   bk7258_dvp_drop_events_locked(priv);
+  if (!current_worker)
+    {
+      /* work_cancel_sync() owns the queued work after it returns.  Mirror
+       * that state in the wrapper so a later capture can schedule LPWORK
+       * again.  A callback stopping itself must leave these fields for the
+       * worker's normal empty-queue exit path. */
+
+      priv->work_queued = false;
+      priv->worker_running = false;
+      priv->worker_tid = (pid_t)-1;
+    }
   priv->stopping = false;
   spin_unlock_irqrestore(&priv->lock, flags);
   nxmutex_unlock(&priv->api_lock);
@@ -541,9 +552,17 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
     }
 
   flags = spin_lock_irqsave(&priv->lock);
+  if (priv->work_queued || priv->worker_running)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      nxmutex_unlock(&priv->api_lock);
+      return -EBUSY;
+    }
+
   memset(priv->frame_busy, 0, sizeof(priv->frame_busy));
   priv->event_head = 0;
   priv->event_count = 0;
+  priv->work_queued = false;
   priv->capture_active = false;
   priv->capture_cb = NULL;
   priv->capture_arg = NULL;
@@ -632,6 +651,12 @@ static int bk7258_dvp_data_uninit(FAR struct imgdata_s *data)
     }
   flags = spin_lock_irqsave(&priv->lock);
   bk7258_dvp_drop_events_locked(priv);
+  if (!current_worker)
+    {
+      priv->work_queued = false;
+      priv->worker_running = false;
+      priv->worker_tid = (pid_t)-1;
+    }
   if (close_ret == 0)
     {
       priv->handle = NULL;
