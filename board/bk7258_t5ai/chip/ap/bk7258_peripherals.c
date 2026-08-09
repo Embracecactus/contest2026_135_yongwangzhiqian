@@ -5,12 +5,12 @@
  *
  * Register AP-owned peripheral lower halves.  Self-registering drivers
  * (AUD, I2C, MIC, RTC, SARADC, SDMADC, TIMER) publish their character
- * device directly and are fatal on failure.  Object-returning lower halves
- * (GPIOE, I2S, LCD, SDIO, SPI) are bound here to their NuttX upper half so
- * the objects are actually reachable from user space; those bindings are
- * best-effort because an absent daughter board must not park the AP.
- * The LCD is reached indirectly: fb_register() calls up_fbinitialize(),
- * which calls board_graphics_setup() under LCD_EXTERNINIT.
+ * device directly and are fatal on failure.  I2S, SDIO and SPI objects are
+ * bound here to their NuttX upper halves; those bindings are best-effort
+ * because an absent daughter board must not park the AP.  GPIOE remains an
+ * object-only lower half: a board consumer must explicitly choose and claim
+ * each pin before publishing a GPIO character device.
+ * The LCD wrapper registers its PSRAM-backed framebuffer directly.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -19,14 +19,12 @@
 #include <errno.h>
 
 #include <arch/chip/bk7258_peripherals.h>
+#ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
+#  include <arch/chip/bk7258_sdk_runtime.h>
+#endif
 
 #ifdef CONFIG_BK7258_AUD
 #  include <arch/chip/bk7258_aud.h>
-#endif
-#ifdef CONFIG_BK7258_GPIOE
-#  include <nuttx/ioexpander/gpio.h>
-#  include <nuttx/ioexpander/ioexpander.h>
-#  include <arch/chip/bk7258_gpioe.h>
 #endif
 #ifdef CONFIG_BK7258_I2C
 #  include <arch/chip/bk7258_i2c.h>
@@ -35,8 +33,8 @@
 #  include <nuttx/audio/i2s.h>
 #  include <arch/chip/bk7258_i2s.h>
 #endif
-#if defined(CONFIG_BK7258_LCD) && defined(CONFIG_VIDEO_FB)
-#  include <nuttx/video/fb.h>
+#ifdef CONFIG_BK7258_LCD
+#  include <arch/chip/bk7258_lcd.h>
 #endif
 #ifdef CONFIG_BK7258_MIC
 #  include <arch/chip/bk7258_mic.h>
@@ -79,42 +77,6 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-#ifdef CONFIG_BK7258_GPIOE
-/****************************************************************************
- * Name: bk7258_gpioe_bind
- *
- * Description:
- *   Publish the I/O expander pins as /dev/gpioN character devices.  Pins
- *   are exposed as inputs: the caller decides the direction at runtime via
- *   the GPIO ioctl interface, so claiming an output pintype here could
- *   drive a level onto a line the board has not configured yet.
- *
- ****************************************************************************/
-
-static void bk7258_gpioe_bind(void)
-{
-  FAR struct ioexpander_dev_s *ioe;
-
-  ioe = bk7258_gpioe_initialize();
-  if (ioe == NULL)
-    {
-      gpioerr("ERROR: bk7258_gpioe_initialize failed\n");
-      return;
-    }
-
-#ifdef CONFIG_GPIO_LOWER_HALF
-  for (unsigned int pin = 0; pin < CONFIG_BK7258_GPIOE_NPINS; pin++)
-    {
-      int ret = gpio_lower_half(ioe, pin, GPIO_INPUT_PIN, (int)pin);
-      if (ret < 0)
-        {
-          gpioerr("ERROR: gpio_lower_half pin %u failed: %d\n", pin, ret);
-        }
-    }
-#endif
-}
-#endif
 
 #ifdef CONFIG_BK7258_I2S
 /****************************************************************************
@@ -227,6 +189,18 @@ int bk7258_peripherals_initialize(void)
 {
   int ret;
 
+#ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
+  /* SDK-backed AP drivers share system-register and mailbox services.
+   * Establish them before any driver can make a synchronous SDK request.
+   */
+
+  ret = bk7258_sdk_runtime_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
 #ifdef CONFIG_BK7258_AUD
   ret = bk7258_aud_initialize();
   if (ret < 0)
@@ -288,10 +262,6 @@ int bk7258_peripherals_initialize(void)
    * and continue instead of parking the core.
    */
 
-#ifdef CONFIG_BK7258_GPIOE
-  bk7258_gpioe_bind();
-#endif
-
 #ifdef CONFIG_BK7258_I2S
   bk7258_i2s_bind();
 #endif
@@ -304,16 +274,11 @@ int bk7258_peripherals_initialize(void)
   bk7258_spi_bind();
 #endif
 
-#if defined(CONFIG_BK7258_LCD) && defined(CONFIG_VIDEO_FB)
-  /* fb_register() drives up_fbinitialize(), which is what reaches the panel
-   * through board_graphics_setup() under LCD_EXTERNINIT.  Without this call
-   * nothing references the LCD lower half and the linker discards it.
-   */
-
-  ret = fb_register(0, 0);
+#ifdef CONFIG_BK7258_LCD
+  ret = bk7258_lcd_initialize();
   if (ret < 0)
     {
-      lcderr("ERROR: fb_register failed: %d\n", ret);
+      lcderr("ERROR: LCD framebuffer registration failed: %d\n", ret);
     }
 #endif
 

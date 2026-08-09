@@ -126,6 +126,17 @@ SECTIONS
         __exidx_end = ABSOLUTE(.);
     } > FLASH
 
+    /* SDK IPC channel registration table (BK_IPC_CHANNEL_REGISTER entries).
+     * bk_ipc_init() walks __start/__stop_ipc_chan_reg to bind channel
+     * handles; without this kept section the table is gc'ed and the first
+     * bk_ipc_send() dereferences an unbound handle. */
+    .ipc_chan_reg : ALIGN(4)
+    {
+        PROVIDE_HIDDEN(__start_ipc_chan_reg = .);
+        KEEP(*(.ipc_chan_reg))
+        PROVIDE_HIDDEN(__stop_ipc_chan_reg = .);
+    } > FLASH
+
     .tdata : ALIGN(4)
     {
         _stdata = ABSOLUTE(.);

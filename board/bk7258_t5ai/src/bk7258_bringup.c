@@ -25,6 +25,9 @@
 #ifdef CONFIG_BK7258_SARADC_SERVER
 #  include <arch/chip/bk7258_saradc_server.h>
 #endif
+#ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
+#  include <arch/chip/bk7258_sdk_runtime.h>
+#endif
 #include <fcntl.h>
 #include <stdint.h>
 #include <string.h>
@@ -186,12 +189,24 @@ int board_app_initialize(uintptr_t arg)
 {
 #if defined(CONFIG_BK7258_AP_CONTROL) || \
     defined(CONFIG_BK7258_SARADC_SERVER) || \
+    defined(CONFIG_BK7258_SDK_IPC_RUNTIME) || \
     (defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE))
   int apret = OK;
 #endif
 
+#ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
+  apret = bk7258_sdk_runtime_initialize();
+  if (apret < 0)
+    {
+      _err("bk7258: SDK IPC runtime init failed: %d\n", apret);
+    }
+#endif
+
 #ifdef CONFIG_BK7258_SARADC_SERVER
-  apret = bk7258_saradc_server_initialize();
+  if (apret >= 0)
+    {
+      apret = bk7258_saradc_server_initialize();
+    }
   if (apret < 0)
     {
       _err("bk7258: SARADC server init failed: %d\n", apret);
@@ -241,6 +256,24 @@ int board_app_initialize(uintptr_t arg)
           _err("bk7258: AP control init failed: %d\n", apret);
         }
     }
+
+#ifdef CONFIG_BK7258_GPIO_LOWERHALF
+  /* The AP SDK GPIO driver is a synchronous IPC client of the CP GPIO
+   * service.  Publish the service before AP is released, exactly like the
+   * Wi-Fi and Bluetooth controller endpoints above; a cold AP otherwise
+   * hangs in its first bk_gpio_* call waiting for a peer that CP has not
+   * created yet.
+   */
+
+  if (apret >= 0)
+    {
+      apret = bk7258_gpio_lowerhalf_initialize();
+      if (apret < 0)
+        {
+          _err("bk7258: GPIO lower-half init failed: %d\n", apret);
+        }
+    }
+#endif
 #endif
 
 #ifdef CONFIG_BK7258_PSRAM
@@ -338,7 +371,7 @@ int board_app_initialize(uintptr_t arg)
   (void)bk7258_wdt_initialize();
 #endif
 
-#ifdef CONFIG_BK7258_GPIO_LOWERHALF
+#if defined(CONFIG_BK7258_GPIO_LOWERHALF) && !defined(CONFIG_BK7258_AP_CONTROL)
   (void)bk7258_gpio_lowerhalf_initialize();
 #endif
 
