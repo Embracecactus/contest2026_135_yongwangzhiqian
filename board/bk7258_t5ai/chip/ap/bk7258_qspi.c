@@ -41,8 +41,22 @@
 
 #include <arch/chip/bk7258_qspi.h>
 
-#include <driver/qspi.h>
-#include <driver/qspi_types.h>
+/* The v3.1.1.9 SDK bundle exports the QSPI data types, but its public
+ * driver/qspi.h -> qspi_types.h include chain leaks the private qspi_hal.h
+ * header, which is not shipped in the immutable bundle.  Keep this wrapper
+ * on the exported types and declare only the five public ABI symbols it uses.
+ * The symbols below are provided by the immutable libdriver.a; no SDK
+ * implementation or private type is reproduced here.
+ */
+
+#include <common/bk_err.h>
+#include <driver/hal/hal_qspi_types.h>
+
+extern bk_err_t bk_qspi_driver_init(void);
+extern bk_err_t bk_qspi_init(qspi_id_t id, const qspi_config_t *config);
+extern bk_err_t bk_qspi_command(qspi_id_t id, const qspi_cmd_t *cmd);
+extern bk_err_t bk_qspi_read(qspi_id_t id, void *data, uint32_t size);
+extern bk_err_t bk_qspi_write(qspi_id_t id, const void *data, uint32_t size);
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -73,6 +87,14 @@
 #define BK7258_QSPI_CMD_WRITE_STATUS_0  0x01u
 #define BK7258_QSPI_CMD_WRITE_STATUS_1  0x31u
 #define BK7258_QSPI_CMD_WRITE_ENABLE    0x06u
+
+/* qspi_types.h owns these values, but cannot be included from the bundle
+ * because of its private qspi_hal.h dependency.  Keep the values board-owned
+ * and derive them only from the public QSPI error base.
+ */
+
+#define BK7258_SDK_ERR_QSPI_NOT_INIT    (BK_ERR_QSPI_BASE - 1)
+#define BK7258_SDK_ERR_QSPI_ID_NOT_INIT (BK_ERR_QSPI_BASE - 2)
 
 /****************************************************************************
  * Private Types
@@ -198,8 +220,8 @@ static int bk7258_qspi_map_error(bk_err_t error)
 
   switch (error)
     {
-      case BK_ERR_QSPI_NOT_INIT:
-      case BK_ERR_QSPI_ID_NOT_INIT:
+      case BK7258_SDK_ERR_QSPI_NOT_INIT:
+      case BK7258_SDK_ERR_QSPI_ID_NOT_INIT:
       case BK_ERR_NOT_INIT:
       case BK_ERR_TRY_AGAIN:
         return -EAGAIN;
@@ -255,13 +277,13 @@ static int bk7258_qspi_map_priv_error(
    * retry.
    */
 
-  if (error == BK_ERR_QSPI_NOT_INIT)
+  if (error == BK7258_SDK_ERR_QSPI_NOT_INIT)
     {
       /* A global SDK deinit invalidates every unit's cached state. */
 
       bk7258_qspi_invalidate_all();
     }
-  else if (error == BK_ERR_QSPI_ID_NOT_INIT)
+  else if (error == BK7258_SDK_ERR_QSPI_ID_NOT_INIT)
     {
       priv->initialized = false;
     }
