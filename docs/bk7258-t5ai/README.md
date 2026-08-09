@@ -1,5 +1,7 @@
 # Beken BK7258（Tuya T5-AI）openvela / NuttX 移植
 
+板级原理图和验证边界见 [hardware/README.md](hardware/README.md)。
+
 把 openvela / NuttX 移植到 Beken BK7258（ARM Cortex-M33 三核、Wi-Fi 6 + BLE 5.4）Tuya T5-AI
 模组。BootROM → Tier-1 bootloader → CPU0/CP NuttX、NSH、LittleFS、CPU0 IRQ/GPIO 等既有
 阶段已有板端证据。**Stage N14 已于 2026-08-03 完成 `board-verified`**：T5-AI 实板
