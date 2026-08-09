@@ -951,6 +951,66 @@ config BK7258_SDK_IPC_RUNTIME
 		Enable it in the matching CP image whenever an AP peripheral selects
 		this option.
 
+config BK7258_TOUCH
+	bool "CP capacitive-touch button lower half"
+	default n
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
+	select BK7258_SDK_IPC_RUNTIME
+	select BK7258_SDK_IRQ_BRIDGE
+	select INPUT
+	select INPUT_BUTTONS
+	select SCHED_LPWORK
+	help
+		Expose one CP-owned internal capacitive-touch channel through the
+		standard NuttX buttons upper/lower-half interface at /dev/buttons.
+		The immutable v3.1.1.9 BK7258 driver does not implement its advertised
+		multi-channel scan helpers, so this integration intentionally supports
+		exactly one selected channel.  It polls through LPWORK with the SDK
+		touch IRQ disabled, avoiding the SDK ISR's hidden TIMER_ID1 ownership.
+		Touch channels remap GPIO pins; the paired AP profile must not use the
+		same pin for LCD, I2S, SPI, CAN, Ethernet or another peripheral.
+
+config BK7258_TOUCH_CHANNEL
+	int "Touch channel"
+	default 3
+	range 0 15
+	depends on BK7258_TOUCH
+	help
+		Select one physical BK7258 touch channel.  Channel 3 maps to GPIO29,
+		which is the T5-AI USERKEY pin and is useful only in a dedicated touch
+		validation profile; do not combine it with BK7258_GPIO_LOWERHALF.
+
+config BK7258_TOUCH_POLL_INTERVAL_MS
+	int "Touch polling interval (ms)"
+	default 10
+	range 1 1000
+	depends on BK7258_TOUCH
+
+config BK7258_TOUCH_SENSITIVITY
+	int "Touch sensitivity level"
+	default 1
+	range 0 3
+	depends on BK7258_TOUCH
+
+config BK7258_TOUCH_THRESHOLD
+	int "Touch detection threshold"
+	default 6
+	range 0 7
+	depends on BK7258_TOUCH
+
+config BK7258_TOUCH_RANGE
+	int "Touch capacitance range"
+	default 0
+	range 0 3
+	depends on BK7258_TOUCH
+	help
+		SDK values 0..3 select 8 pF, 12 pF, 19 pF and 27 pF respectively.
+
+config BK7258_TOUCH_CALIBRATE
+	bool "Calibrate selected touch channel during bring-up"
+	default y
+	depends on BK7258_TOUCH
+
 menu "BK7258 AP peripheral wrappers"
 	depends on BK7258_AP_CORE
 

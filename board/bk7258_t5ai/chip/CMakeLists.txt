@@ -127,6 +127,10 @@ if(CONFIG_BK7258_GPIO_LOWERHALF)
        cp/bk7258_gpio_lowerhalf.c)
 endif()
 
+if(CONFIG_BK7258_TOUCH)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_touch.c)
+endif()
+
 if(CONFIG_BK7258_FLASH_MTD)
   list(APPEND BK7258_CP_SRCS
        cp/bk7258_flash_mtd.c
