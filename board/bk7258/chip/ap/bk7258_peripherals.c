@@ -27,6 +27,10 @@
 #ifdef CONFIG_BK7258_AUD
 #  include <arch/chip/bk7258_aud.h>
 #endif
+#ifdef CONFIG_BK7258_CAN
+#  include <nuttx/can/can.h>
+#  include <arch/chip/bk7258_can.h>
+#endif
 #ifdef CONFIG_BK7258_I2C
 #  include <arch/chip/bk7258_i2c.h>
 #endif
@@ -88,6 +92,29 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+#ifdef CONFIG_BK7258_CAN
+static void bk7258_can_bind(void)
+{
+  FAR struct can_dev_s *can = NULL;
+  int ret;
+
+  ret = bk7258_can_initialize(&can);
+  if (ret < 0)
+    {
+      canerr("ERROR: bk7258_can_initialize failed: %d\n", ret);
+      return;
+    }
+
+  ret = can_register("/dev/can0", can);
+  if (ret < 0)
+    {
+      canerr("ERROR: can_register failed: %d\n", ret);
+      (void)bk7258_can_uninitialize(can);
+      return;
+    }
+}
+#endif
 
 #ifdef CONFIG_BK7258_I2S
 /****************************************************************************
@@ -324,6 +351,10 @@ int bk7258_peripherals_initialize(void)
    * the peripheral is unavailable, not that the AP is unhealthy, so we log
    * and continue instead of parking the core.
    */
+
+#ifdef CONFIG_BK7258_CAN
+  bk7258_can_bind();
+#endif
 
 #ifdef CONFIG_BK7258_I2S
   bk7258_i2s_bind();

@@ -39,10 +39,10 @@ previously performed; they are not descriptions of the current firmware.
 
 ## Verification at this checkpoint
 
-Implementation commits on `feat/bk7258-sdk-peripheral-r2`:
+Implementation commits currently under review on `feat/bk7258-trng`:
 
-- `157a2c7`: reproducible v3.1.1.9 AP peripheral SDK profile and provenance.
-- `30923f9`: T5-Board GC2145/V4L2 capture and PWM lower-half integration.
+- `2e0465d`: harden the TRNG continuous-output checks.
+- `15b1e39`: add the standard NuttX CAN character lower half.
 
 On 2026-08-10, 32-job signed dual-image builds, sparse downloads and board
 validation passed without modifying NuttX or SDK sources:
@@ -63,6 +63,14 @@ validation passed without modifying NuttX or SDK sources:
   `logs/bk7258-auto-debug/20260810-193804`.  The probe was then removed; the
   clean image was rebuilt, sparse-flashed and reached NuttShell in
   `logs/bk7258-auto-debug/20260810-194950`.
+- The AP-owned CAN0 controller passed internal LBMI loopback through the
+  standard `/dev/can0` VFS interface.  The exercised path included the NuttX
+  CAN upper half, the v3.1.1.9 SDK send/receive APIs, the controller IRQ
+  callbacks and the deferred RX kthread.  The probe received and compared an
+  8-byte frame with identifier `0x325`, then was removed.  The clean signed
+  image was rebuilt, sparse-flashed and reached NuttShell.  Evidence and the
+  intentionally unverified external-bus boundary are recorded in
+  [CAN internal loopback](verification/2026-08-10-bk7258-can-internal-loopback.md).
 
 ## Other verified platform state
 
@@ -93,10 +101,12 @@ and the frozen CP/AP same-slot contract.
 
 ## Next step
 
-1. Publish and review the TRNG continuous-output hardening.
-2. The already-exported CAN lower half may be implemented and build-verified,
-   but it must not be called board-verified until a CAN transceiver and peer
-   are available.  Do not replace missing hardware with fixed or fake data.
+1. Publish and review the TRNG hardening and CAN lower-half integration.
+2. When a CAN transceiver and peer become available, validate pin mux,
+   electrical levels, termination, peer ACK, arbitration, bitrate
+   interoperability and external bus-off recovery.  Until then, describe the
+   result specifically as controller-internal loopback, not external CAN bus
+   validation.
 3. Only when field update is requested, design its transport, inactive-slot
    writer, confirmation and rollback flow directly around MCUboot; do not
    restore the retired N15/N17 custom journal.

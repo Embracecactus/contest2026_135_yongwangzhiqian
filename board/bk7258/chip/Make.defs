@@ -383,6 +383,9 @@ endif
 ifeq ($(CONFIG_BK7258_QSPI),y)
 BK7258_AP_BASE_CSRCS += bk7258_qspi.c
 endif
+ifeq ($(CONFIG_BK7258_CAN),y)
+BK7258_AP_BASE_CSRCS += bk7258_can.c
+endif
 ifeq ($(CONFIG_BK7258_TIMER),y)
 BK7258_AP_BASE_CSRCS += bk7258_timer.c
 endif

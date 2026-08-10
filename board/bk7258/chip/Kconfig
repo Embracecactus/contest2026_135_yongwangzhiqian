@@ -1302,6 +1302,26 @@ config BK7258_QSPI
 		choose one pin-compatible owner before initializing either controller.
 		The SDK clock edge is translated by the AP PM wrapper and owned by CP.
 
+config BK7258_CAN
+	bool "Classic CAN controller lower half"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	depends on !BK7258_LCD
+	depends on !BK7258_SPI || BK7258_SPI_BUS != 0
+	select BK7258_SDK_IPC_RUNTIME
+	select CAN
+	help
+		Expose the AP-owned BK7258 CAN0 controller as the standard NuttX
+		/dev/can0 character device.  The immutable v3.1.1.9 SDK FIFO preserves
+		only classic 11-bit data-frame metadata, so this first lower half does
+		not claim extended identifiers, RTR, or CAN-FD support.  NuttX
+		CONFIG_CAN_LOOPBACK selects the controller's internal LBMI path for
+		controller-only validation without an external transceiver.
+
+		CAN0 is fixed to GPIO44 (TX), GPIO45 (RX), and GPIO46 (standby).  Those
+		pins conflict with the RGB LCD and SPI0 pin groups, so Kconfig prevents
+		those owners from being enabled together.
+
 config BK7258_TIMER
 	bool "General-purpose timer lower half"
 	default n
