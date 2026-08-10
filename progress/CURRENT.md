@@ -39,34 +39,22 @@ previously performed; they are not descriptions of the current firmware.
 
 ## Verification at this checkpoint
 
-Implementation checkpoint:
+Implementation commits on `feat/bk7258-sdk-peripheral-r2`:
 
-- Commit: `86c4bae` (`refactor(bk7258): retire custom OTA lifecycle`).
-- Remote: `fork/feat/bk7258-sdk-peripheral-bundle`.
+- `157a2c7`: reproducible v3.1.1.9 AP peripheral SDK profile and provenance.
+- `30923f9`: T5-Board GC2145/V4L2 capture and PWM lower-half integration.
 
-On 2026-08-10, a clean 32-job `cp_nsh_mcuboot + ap_smp_mcuboot` build passed
-with ephemeral, non-repository signing keys and SDK v3.1.1.9 checksums:
+On 2026-08-10, 32-job signed dual-image builds, sparse downloads and board
+validation passed without modifying NuttX or SDK sources:
 
-- MCUboot version `18.1.4`, image security counter `21`.
-- Manifest-enforced BL1 and NuttX MCUboot BL2 both compiled and linked.
-- CP/AP images were signed, 32+2 CRC encoded and assembled into the final
-  factory package.
-- Generated partition validation, SDK partition-wrapper host validation and
-  final factory-layout validation passed.
-- Factory prefix ends at `0x4fb000`; LittleFS remains
-  `0x600000..0x700000`; the official tail starts at `0x7fa000`.
-
-Artifact SHA-256:
-
-- `bl_crc.bin`: `2c3f02cc91002fbcef97d00d6edd88cdde50fd732d2799a2eb07e15321d4a374`
-- `bl2_crc.bin`: `1ce5a10153e51452eb7871f7e57c009522d80c2a1850f2ab5b69ae5c2a1af79e`
-- `all-app-factory.bin`: `b483434eb51194f22d7ccc1859a53d6fc5b7561acd413739c0013531f411530b`
-
-This checkpoint is build/host evidence. The previously recorded board proof
-for Manifest rejection, secondary-BL2 fallback and signed CP/AP boot remains
-valid for the preserved chain, but the newly cleaned image has not been
-flashed in this checkpoint. Canonical board evidence:
-[Secure Boot remaining gates](verification/2026-08-08-bk7258-secureboot-remaining-gates.md).
+- `ap_smp_camera_mcuboot` captured a valid 11507-byte 640x480 MJPEG frame
+  through `/dev/video0` and reported `BKCAM PASS` after SOI/EOI checks.
+- `ap_smp_pwm_mcuboot` drove the attached RGB LCD backlight through P9/PWM3
+  at configured 100/0/10/50/90 percent levels.  Serial reported `BKPWM PASS`
+  and the owner confirmed visible brightness changes.
+- Both runs reached BL2 handoff and NuttShell with no panic or fault.
+- Partition, 32+2 CRC and factory-layout checks passed; LittleFS and the
+  official calibration tail were preserved by sparse download.
 
 ## Other verified platform state
 
@@ -77,6 +65,11 @@ flashed in this checkpoint. Canonical board evidence:
   `boards/t5_board`; its ILI9488 RGB LCD displayed the expected color bars.
 - Driver backlog conclusions and board evidence are recorded in
   [AP peripheral board evidence](verification/2026-08-09-bk7258-ap-peripheral-board-evidence.md).
+- The official v3.1.1.9 AP bundle now has a reproducible board-owned
+  `ap-peripherals-r2` profile.  PWM and generic DVP compile/link in the AP
+  drivercheck image; the T5-Board V4L2 camera captured a valid JPEG and the
+  PWM lower half visibly controlled the RGB LCD backlight.  Evidence:
+  [SDK peripheral profile, PWM and DVP](verification/2026-08-10-bk7258-sdk-peripheral-profile-pwm-dvp.md).
 
 ## Honest boundary
 
@@ -92,10 +85,9 @@ and the frozen CP/AP same-slot contract.
 
 ## Next step
 
-1. Review and commit this cleanup separately from unrelated driver/bundle
-   changes already present in the worktree.
-2. Flash and smoke-test the cleaned MCUboot image at the next safe hardware
-   checkpoint: Primary BL2, Secondary fallback negative case and CP/AP boot.
+1. Publish and review the SDK peripheral-profile, camera and PWM commits.
+2. After merge, implement the already-exported CAN lower half;
+   hardware loopback remains pending until a CAN transceiver is available.
 3. Only when field update is requested, design its transport, inactive-slot
    writer, confirmation and rollback flow directly around MCUboot; do not
    restore the retired N15/N17 custom journal.
