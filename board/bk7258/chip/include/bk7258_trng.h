@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_T5AI_CHIP_INCLUDE_BK7258_TRNG_H
-#define __BOARD_BK7258_T5AI_CHIP_INCLUDE_BK7258_TRNG_H
+#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_TRNG_H
+#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_TRNG_H
 
 /****************************************************************************
  * Included Files
@@ -36,4 +36,4 @@ int bk7258_trng_initialize(void);
 }
 #endif
 
-#endif /* __BOARD_BK7258_T5AI_CHIP_INCLUDE_BK7258_TRNG_H */
+#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_TRNG_H */

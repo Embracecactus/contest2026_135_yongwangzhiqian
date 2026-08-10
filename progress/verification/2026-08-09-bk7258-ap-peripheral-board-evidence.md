@@ -223,6 +223,19 @@ telemetry again reported AP READY, CPU2 SECONDARY_READY and AP IPI READY:
 `logs/jlink/trng_clean_status.bin` and
 `logs/bk7258-auto-debug/20260809-101729`.
 
+On 2026-08-10 the permanent lower half was hardened with an adjacent 32-bit
+continuous-output test.  One-to-three-byte requests draw and validate a full
+32-bit hardware sample before returning the requested tail, so a short read
+does not bypass the health check.  A temporary AP-local probe then opened the
+same standard node and completed reads of 64, 64 and 1 byte; the two full
+blocks differed and the short read returned exactly one byte.  The AP result
+was transported through the existing RPMsg syslog path as
+`BK7258 TRNG TEST PASS a=7479066d b=2f970cef tail=91` in
+`logs/bk7258-auto-debug/20260810-193804/serial.txt`.  The temporary probe was
+removed; only the lower-half health check remains.  The clean image was then
+rebuilt, sparse-flashed and reached `B2HANDOFF` plus NuttShell in
+`logs/bk7258-auto-debug/20260810-194950`.
+
 ## QSPI compile/link boundary
 
 The AP-owned v3.1.1.9 QSPI controller is implemented as the standard NuttX

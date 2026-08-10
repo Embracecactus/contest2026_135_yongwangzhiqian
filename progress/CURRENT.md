@@ -55,6 +55,14 @@ validation passed without modifying NuttX or SDK sources:
 - Both runs reached BL2 handoff and NuttShell with no panic or fault.
 - Partition, 32+2 CRC and factory-layout checks passed; LittleFS and the
   official calibration tail were preserved by sparse download.
+- The AP-owned hardware TRNG now applies a continuous adjacent-32-bit output
+  check, including one-to-three-byte reads.  A temporary AP-local probe read
+  `64 + 64 + 1` bytes through the standard `/dev/random` node; both 64-byte
+  blocks differed and the short read succeeded.  AP syslog reported
+  `BK7258 TRNG TEST PASS` through RPMsg in
+  `logs/bk7258-auto-debug/20260810-193804`.  The probe was then removed; the
+  clean image was rebuilt, sparse-flashed and reached NuttShell in
+  `logs/bk7258-auto-debug/20260810-194950`.
 
 ## Other verified platform state
 
@@ -85,9 +93,10 @@ and the frozen CP/AP same-slot contract.
 
 ## Next step
 
-1. Publish and review the SDK peripheral-profile, camera and PWM commits.
-2. After merge, implement the already-exported CAN lower half;
-   hardware loopback remains pending until a CAN transceiver is available.
+1. Publish and review the TRNG continuous-output hardening.
+2. The already-exported CAN lower half may be implemented and build-verified,
+   but it must not be called board-verified until a CAN transceiver and peer
+   are available.  Do not replace missing hardware with fixed or fake data.
 3. Only when field update is requested, design its transport, inactive-slot
    writer, confirmation and rollback flow directly around MCUboot; do not
    restore the retired N15/N17 custom journal.
