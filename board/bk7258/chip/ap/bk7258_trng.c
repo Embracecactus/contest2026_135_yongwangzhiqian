@@ -14,10 +14,15 @@
  *
  * The SDK TRNG is a global singleton.  Its init API is idempotent, while its
  * start/stop and data path are not documented as re-entrant.  A NuttX mutex
- * serializes all calls made through this adapter.  The SDK's own startup and
- * unrelated clients can still use the singleton; this adapter never calls
- * the global deinit API because there is no ownership-safe lower-half
- * shutdown point.
+ * serializes all calls made through this adapter.  The adapter never calls
+ * the global deinit API because the SDK startup path and other AP clients may
+ * share the singleton and NuttX has no ownership-safe global shutdown point.
+ *
+ * bk_fill_rand() discards the SDK's documented startup samples, but it does
+ * not perform a continuous output test.  The adapter therefore rejects two
+ * identical adjacent 32-bit samples.  Besides matching established NuttX
+ * hardware-TRNG practice, this detects a disabled or stuck BK7258 source
+ * instead of reporting a buffer of constant data as a successful read.
  ****************************************************************************/
 
 /****************************************************************************
@@ -32,6 +37,8 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 #include <sys/types.h>
 
 #include <nuttx/fs/fs.h>
@@ -52,6 +59,8 @@
 
 static mutex_t g_bk7258_trng_lock = NXMUTEX_INITIALIZER;
 static bool g_bk7258_trng_ready;
+static bool g_bk7258_trng_have_last;
+static uint32_t g_bk7258_trng_last;
 
 /****************************************************************************
  * Private Functions
@@ -130,6 +139,89 @@ static int bk7258_trng_initialize_locked(void)
 #if defined(CONFIG_DEV_RANDOM) || defined(CONFIG_DEV_URANDOM_ARCH)
 
 /****************************************************************************
+ * Name: bk7258_trng_check_locked
+ ****************************************************************************/
+
+static int bk7258_trng_check_locked(FAR const void *buffer, size_t buflen)
+{
+  FAR const uint8_t *bytes = buffer;
+  uint32_t sample;
+  size_t offset;
+
+  DEBUGASSERT((buflen % sizeof(sample)) == 0);
+
+  for (offset = 0; offset < buflen; offset += sizeof(sample))
+    {
+      memcpy(&sample, bytes + offset, sizeof(sample));
+
+      if (g_bk7258_trng_have_last && sample == g_bk7258_trng_last)
+        {
+          return -EIO;
+        }
+
+      g_bk7258_trng_last = sample;
+      g_bk7258_trng_have_last = true;
+    }
+
+  return OK;
+}
+
+/****************************************************************************
+ * Name: bk7258_trng_fill_locked
+ ****************************************************************************/
+
+static int bk7258_trng_fill_locked(FAR char *buffer, size_t buflen)
+{
+  uint32_t sample;
+  size_t whole;
+  size_t tail;
+  bk_err_t error;
+  int ret;
+
+  whole = buflen & ~(sizeof(sample) - 1);
+  tail = buflen - whole;
+
+  if (whole > 0)
+    {
+      error = bk_fill_rand(buffer, whole);
+      if (error != BK_OK)
+        {
+          return bk7258_trng_map_error(error);
+        }
+
+      ret = bk7258_trng_check_locked(buffer, whole);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
+  /* Generate a complete final sample even for a one-to-three byte request.
+   * This keeps the continuous test effective across short reads instead of
+   * comparing truncated output bytes.
+   */
+
+  if (tail > 0)
+    {
+      error = bk_fill_rand(&sample, sizeof(sample));
+      if (error != BK_OK)
+        {
+          return bk7258_trng_map_error(error);
+        }
+
+      ret = bk7258_trng_check_locked(&sample, sizeof(sample));
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      memcpy(buffer + whole, &sample, tail);
+    }
+
+  return OK;
+}
+
+/****************************************************************************
  * Name: bk7258_trng_read
  ****************************************************************************/
 
@@ -139,7 +231,6 @@ static ssize_t bk7258_trng_read(FAR struct file *filep,
   bool nonblock;
   int ret;
   ssize_t result;
-  bk_err_t error;
 
   if (buflen == 0)
     {
@@ -171,19 +262,19 @@ static ssize_t bk7258_trng_read(FAR struct file *filep,
       goto out;
     }
 
-  /* bk_fill_rand() either reports BK_OK after filling the requested byte
-   * count or reports an SDK error.  It has no partial-count return value, so
-   * never claim a full read after an error.
+  /* bk_fill_rand() has no partial-count return value, so the NuttX read is
+   * likewise all-or-error.  The helper also applies the continuous output
+   * test while this singleton lock is held.
    */
 
-  error = bk_fill_rand(buffer, buflen);
-  if (error == BK_OK)
+  ret = bk7258_trng_fill_locked(buffer, buflen);
+  if (ret == OK)
     {
       result = (ssize_t)buflen;
     }
   else
     {
-      result = bk7258_trng_map_error(error);
+      result = ret;
     }
 
 out:
