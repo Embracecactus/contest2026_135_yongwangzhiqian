@@ -95,6 +95,11 @@ Last reviewed: 2026-08-10
 
 - Do not launch `BLEDebug.EXE`; the project owner reports that it makes the Windows host unusably slow. Use repository no-GUI BLE tooling.
 - UART and test tools emit stable machine-readable PASS/FAIL lines with bounded timeouts.
+- For long firmware builds, flashing and hardware captures, poll in short
+  bounded intervals and report only stage transitions, the current blocker,
+  root-cause evidence and the final result. Do not replay large compiler,
+  packer or downloader logs unless a specific excerpt is needed to explain a
+  failure.
 
 ## Engineering conventions
 
