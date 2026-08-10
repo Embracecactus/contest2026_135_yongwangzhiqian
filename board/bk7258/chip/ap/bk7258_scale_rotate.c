@@ -24,6 +24,7 @@
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
+#include <nuttx/spinlock.h>
 
 #include <arch/chip/bk7258_scale_rotate.h>
 
@@ -46,8 +47,10 @@ struct bk7258_scale_rotate_s
   mutex_t lock;
   sem_t completion;
   enum bk7258_scale_rotate_engine_e engine;
-  volatile bool operation_active;
-  volatile int completion_result;
+  spinlock_t state_lock; /* protects state shared with the peripheral ISR */
+  bool operation_active;
+  bool completion_done;
+  int completion_result;
   bool initialized;
   bool faulted;
 };
@@ -56,6 +59,7 @@ static struct bk7258_scale_rotate_s g_bk7258_scale_rotate =
 {
   .lock = NXMUTEX_INITIALIZER,
   .completion = SEM_INITIALIZER(0),
+  .state_lock = SP_UNLOCKED,
 };
 
 static int bk7258_scale_rotate_sdk_error(bk_err_t error)
@@ -343,43 +347,59 @@ static int bk7258_scale_rotate_timeout(uint32_t timeout_ms,
 }
 
 /* Both SDK drivers call their registered completion callback directly from
- * the peripheral ISR.  These callbacks only publish a result and post a
- * semaphore; all locking, timeout recovery and buffer ownership remain in
- * the caller's thread context. */
+ * the peripheral ISR.  These callbacks only publish a result under the
+ * ISR-safe state lock and post a semaphore; all locking, timeout recovery
+ * and buffer ownership remain in the caller's thread context. */
+
+static void bk7258_scale_rotate_publish_completion(
+  FAR struct bk7258_scale_rotate_s *priv, bool scale, int result)
+{
+  irqstate_t flags;
+  bool post = false;
+
+  if (priv != &g_bk7258_scale_rotate)
+    {
+      return;
+    }
+
+  flags = spin_lock_irqsave(&priv->state_lock);
+  if (priv->operation_active &&
+      (scale ? bk7258_scale_rotate_is_scale(priv->engine) :
+               priv->engine == BK7258_SCALE_ROTATE_ROTATOR))
+    {
+      priv->completion_result = result;
+      priv->completion_done = true;
+      priv->operation_active = false;
+      post = true;
+    }
+
+  spin_unlock_irqrestore(&priv->state_lock, flags);
+
+  if (post)
+    {
+      (void)nxsem_post(&priv->completion);
+    }
+}
 
 static void bk7258_scale_rotate_scale_isr(FAR void *arg)
 {
   FAR struct bk7258_scale_rotate_s *priv = arg;
 
-  if (priv == &g_bk7258_scale_rotate && priv->operation_active)
-    {
-      priv->completion_result = 0;
-      (void)nxsem_post(&priv->completion);
-    }
+  bk7258_scale_rotate_publish_completion(priv, true, 0);
 }
 
 static void bk7258_scale_rotate_rotate_complete_isr(void)
 {
   FAR struct bk7258_scale_rotate_s *priv = &g_bk7258_scale_rotate;
 
-  if (priv->engine == BK7258_SCALE_ROTATE_ROTATOR &&
-      priv->operation_active)
-    {
-      priv->completion_result = 0;
-      (void)nxsem_post(&priv->completion);
-    }
+  bk7258_scale_rotate_publish_completion(priv, false, 0);
 }
 
 static void bk7258_scale_rotate_rotate_error_isr(void)
 {
   FAR struct bk7258_scale_rotate_s *priv = &g_bk7258_scale_rotate;
 
-  if (priv->engine == BK7258_SCALE_ROTATE_ROTATOR &&
-      priv->operation_active)
-    {
-      priv->completion_result = -EIO;
-      (void)nxsem_post(&priv->completion);
-    }
+  bk7258_scale_rotate_publish_completion(priv, false, -EIO);
 }
 
 static int bk7258_scale_rotate_prepare_wait_locked(
@@ -400,8 +420,15 @@ static int bk7258_scale_rotate_prepare_wait_locked(
       return ret;
     }
 
-  priv->completion_result = -EIO;
-  priv->operation_active = true;
+  {
+    irqstate_t flags = spin_lock_irqsave(&priv->state_lock);
+
+    priv->completion_result = -EIO;
+    priv->completion_done = false;
+    priv->operation_active = true;
+    spin_unlock_irqrestore(&priv->state_lock, flags);
+  }
+
   return 0;
 }
 
@@ -409,19 +436,43 @@ static int bk7258_scale_rotate_wait_locked(
   FAR struct bk7258_scale_rotate_s *priv, clock_t ticks)
 {
   int ret;
+  bool completed;
+  bool need_reset;
+  enum bk7258_scale_rotate_engine_e engine;
+  irqstate_t flags;
 
   ret = nxsem_tickwait_uninterruptible(&priv->completion, ticks);
-  priv->operation_active = false;
-  if (ret < 0)
+
+  flags = spin_lock_irqsave(&priv->state_lock);
+  engine = priv->engine;
+  completed = priv->completion_done;
+  if (completed)
     {
-      if (priv->engine == BK7258_SCALE_ROTATE_ROTATOR)
+      ret = priv->completion_result;
+    }
+  else if (ret >= 0)
+    {
+      /* A semaphore wake without a published callback violates the SDK
+       * completion contract.  Treat it like a failed operation. */
+
+      ret = -EIO;
+    }
+
+  priv->operation_active = false;
+  priv->completion_done = false;
+  need_reset = !completed;
+  spin_unlock_irqrestore(&priv->state_lock, flags);
+
+  if (need_reset)
+    {
+      if (engine == BK7258_SCALE_ROTATE_ROTATOR)
         {
           (void)bk_rott_soft_reset();
         }
       else
         {
           (void)bk_hw_scale_stop(
-            bk7258_scale_rotate_scale_id(priv->engine));
+            bk7258_scale_rotate_scale_id(engine));
         }
 
       /* The public APIs provide no bounded abort-and-join contract.  Poison
@@ -432,7 +483,6 @@ static int bk7258_scale_rotate_wait_locked(
       return ret;
     }
 
-  ret = priv->completion_result;
   if (ret < 0)
     {
       priv->faulted = true;
@@ -575,7 +625,15 @@ int bk7258_scale_rotate_initialize(
       return -EBUSY;
     }
 
-  priv->engine = engine;
+  {
+    irqstate_t flags = spin_lock_irqsave(&priv->state_lock);
+
+    priv->engine = engine;
+    priv->operation_active = false;
+    priv->completion_done = false;
+    spin_unlock_irqrestore(&priv->state_lock, flags);
+  }
+
   priv->faulted = false;
   ret = bk7258_scale_rotate_is_scale(engine) ?
     bk7258_scale_rotate_init_scale_locked(priv) :
@@ -587,7 +645,12 @@ int bk7258_scale_rotate_initialize(
     }
   else
     {
+      irqstate_t flags = spin_lock_irqsave(&priv->state_lock);
+
       priv->engine = BK7258_SCALE_ROTATE_SCALE0;
+      priv->operation_active = false;
+      priv->completion_done = false;
+      spin_unlock_irqrestore(&priv->state_lock, flags);
     }
 
   nxmutex_unlock(&priv->lock);
@@ -616,6 +679,16 @@ int bk7258_scale_rotate_uninitialize(
       nxmutex_unlock(&priv->lock);
       return -ENODEV;
     }
+
+  /* Stop accepting late ISR completions before unregistering callbacks. */
+
+  {
+    irqstate_t flags = spin_lock_irqsave(&priv->state_lock);
+
+    priv->operation_active = false;
+    priv->completion_done = false;
+    spin_unlock_irqrestore(&priv->state_lock, flags);
+  }
 
   if (bk7258_scale_rotate_is_scale(priv->engine))
     {
@@ -651,8 +724,14 @@ int bk7258_scale_rotate_uninitialize(
 
   priv->initialized = false;
   priv->faulted = false;
-  priv->operation_active = false;
-  priv->engine = BK7258_SCALE_ROTATE_SCALE0;
+  {
+    irqstate_t flags = spin_lock_irqsave(&priv->state_lock);
+
+    priv->operation_active = false;
+    priv->completion_done = false;
+    priv->engine = BK7258_SCALE_ROTATE_SCALE0;
+    spin_unlock_irqrestore(&priv->state_lock, flags);
+  }
   nxmutex_unlock(&priv->lock);
   return ret;
 }
@@ -668,7 +747,7 @@ int bk7258_scale(FAR struct bk7258_scale_rotate_s *priv,
   int pixel_bytes;
   int ret;
 
-  if (request == NULL || priv == NULL)
+  if (request == NULL || priv != &g_bk7258_scale_rotate)
     {
       return -EINVAL;
     }
@@ -755,7 +834,11 @@ int bk7258_scale(FAR struct bk7258_scale_rotate_s *priv,
     bk7258_scale_rotate_scale_id(priv->engine), &config));
   if (ret < 0)
     {
+      irqstate_t flags = spin_lock_irqsave(&priv->state_lock);
+
       priv->operation_active = false;
+      priv->completion_done = false;
+      spin_unlock_irqrestore(&priv->state_lock, flags);
       priv->faulted = true;
       goto out;
     }
@@ -782,7 +865,7 @@ int bk7258_rotate(FAR struct bk7258_scale_rotate_s *priv,
   clock_t ticks;
   int ret;
 
-  if (request == NULL || priv == NULL)
+  if (request == NULL || priv != &g_bk7258_scale_rotate)
     {
       return -EINVAL;
     }
@@ -917,7 +1000,11 @@ int bk7258_rotate(FAR struct bk7258_scale_rotate_s *priv,
 
   if (ret < 0)
     {
+      irqstate_t flags = spin_lock_irqsave(&priv->state_lock);
+
       priv->operation_active = false;
+      priv->completion_done = false;
+      spin_unlock_irqrestore(&priv->state_lock, flags);
       priv->faulted = true;
     }
 
