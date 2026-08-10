@@ -324,6 +324,36 @@ bk7258_t5_board_gt1151.ddc: bk7258_t5_board_gt1151.c
 	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
 		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
 endif
+ifeq ($(CONFIG_BK7258_PWM),y)
+BK7258_AP_BASE_CSRCS += bk7258_pwm.c
+endif
+ifeq ($(CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION),y)
+VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
+BK7258_AP_BASE_CSRCS += bk7258_t5_board_rgb_lcd_backlight.c
+
+bk7258_t5_board_rgb_lcd_backlight.ddc: bk7258_t5_board_rgb_lcd_backlight.c
+	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
+		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
+endif
+ifeq ($(CONFIG_BK7258_DVP),y)
+BK7258_AP_BASE_CSRCS += bk7258_dvp.c
+endif
+ifeq ($(CONFIG_BK7258_T5_BOARD_CAMERA),y)
+VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
+BK7258_AP_BASE_CSRCS += bk7258_t5_board_camera.c
+BK7258_AP_BASE_CSRCS += bk7258_t5_board_camera_i2c.c
+LDFLAGS += --wrap=bk_i2c_init_v2 --wrap=bk_i2c_deinit_v2
+LDFLAGS += --wrap=bk_i2c_memory_read_v2 --wrap=bk_i2c_memory_write_v2
+LDFLAGS += --wrap=dvp_camera_mclk_enable
+
+bk7258_t5_board_camera.ddc: bk7258_t5_board_camera.c
+	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
+		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
+
+bk7258_t5_board_camera_i2c.ddc: bk7258_t5_board_camera_i2c.c
+	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
+		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
+endif
 ifeq ($(CONFIG_BK7258_MIC),y)
 BK7258_AP_BASE_CSRCS += bk7258_mic.c
 endif

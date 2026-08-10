@@ -7,10 +7,8 @@
  * BK7258 (T5-AI) PWM — NuttX pwm_lowerhalf_s lower-half wrapper.
  *
  * Wraps the Beken armino SDK bk_pwm_* driver (AP core only) as a NuttX
- * PWM lower half.  See PWM_BLOCKED_ROOT_CAUSE.md in this directory for the
- * bundle-export defect that currently keeps bk_pwm_* out of libdriver.a
- * (CONFIG_PWM missing from the exported sdkconfig.h).  Once the bundle is
- * re-exported with CONFIG_PWM=1, this wrapper links and works as-is.
+ * PWM lower half.  The peripheral-complete v3.1.1.9 AP bundle supplies the
+ * controller implementation while NuttX owns registration and policy.
  *
  * SDK semantics captured here:
  *   - PWM input clock is XTAL 26 MHz (SDK selects PWM_SCLK_XTAL), so
@@ -29,9 +27,6 @@
 
 #include <nuttx/config.h>
 
-#include <stdint.h>
-#include <stdbool.h>
-
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -45,12 +40,6 @@
 /* Default channel if not overridden by Kconfig. */
 
 #define BK7258_PWM_CHAN_DEFAULT         0
-
-/* Default /dev/pwmN device name. */
-
-#ifndef CONFIG_BK7258_PWM_DEVNAME
-#  define CONFIG_BK7258_PWM_DEVNAME     "pwm0"
-#endif
 
 /****************************************************************************
  * Public Function Prototypes
@@ -67,8 +56,7 @@
  *   and register it at /dev/pwmN (N = CONFIG_BK7258_PWM_BUS).
  *
  * Returned Value:
- *   OK on success, or a negated errno value.  Returns -ENOENT if the SDK
- *   bk_pwm_* driver is not linked (bundle not re-exported with CONFIG_PWM=1).
+ *   OK on success, or a negated errno value.
  *
  ****************************************************************************/
 

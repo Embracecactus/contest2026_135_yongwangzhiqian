@@ -133,6 +133,11 @@
 
 #define BK7258_EVENT_TASK_STACKSIZE   3072u
 
+#ifdef CONFIG_BK7258_AP_CORE
+#  define BK7258_SDK_THREAD_ARG_BUFSIZE (2u + sizeof(uintptr_t) * 2u + 1u)
+#  define BK7258_DVP_THREAD_NAME         "dvp_work_thread"
+#endif
+
 
 #ifndef CONFIG_BK7258_AP_CORE
 /* The official CP SDK profile prints on UART0, while this board's NuttX
@@ -180,6 +185,14 @@ struct mq_adpt_s
   char        name[16];     /* Message queue name */
   char        cname[32];    /* Display name for debug */
 };
+
+#ifdef CONFIG_BK7258_AP_CORE
+struct bk7258_sdk_thread_start_s
+{
+  beken_thread_function_t function;
+  beken_thread_arg_t arg;
+};
+#endif
 
 #if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
 /* Match the SDK SMP implementation of rtos_enter_critical(): first mask
@@ -822,12 +835,114 @@ uint32_t bk_get_second(void)
  * Public Functions - Thread Management
  ****************************************************************************/
 
+#ifdef CONFIG_BK7258_AP_CORE
+static int bk7258_sdk_thread_trampoline(int argc, FAR char *argv[])
+{
+  FAR struct bk7258_sdk_thread_start_s *start;
+  beken_thread_function_t function;
+  beken_thread_arg_t arg;
+  FAR char *end;
+  uintptr_t address;
+
+  if (argc != 2 || argv == NULL || argv[1] == NULL)
+    {
+      wlerr("ERROR: SDK thread trampoline received invalid arguments\n");
+      return -EINVAL;
+    }
+
+  errno = 0;
+  address = (uintptr_t)strtoull(argv[1], &end, 16);
+  if (errno != 0 || end == argv[1] || *end != '\0' || address == 0)
+    {
+      wlerr("ERROR: SDK thread trampoline received invalid context\n");
+      return -EINVAL;
+    }
+
+  start = (FAR struct bk7258_sdk_thread_start_s *)address;
+  function = start->function;
+  arg = start->arg;
+  kmm_free(start);
+
+  if (function == NULL)
+    {
+      return -EINVAL;
+    }
+
+  function(arg);
+  return 0;
+}
+#endif
+
 bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
                             const char *name,
                             beken_thread_function_t function,
                             uint32_t stack_size, beken_thread_arg_t arg)
 {
+#ifdef CONFIG_BK7258_AP_CORE
+  FAR struct bk7258_sdk_thread_start_s *start = NULL;
+  char context[BK7258_SDK_THREAD_ARG_BUFSIZE];
+  FAR char *argv[] = {context, NULL};
+  pid_t pid;
+
+  if (name == NULL || function == NULL || stack_size == 0)
+    {
+      return BK_FAIL;
+    }
+
+  /* Keep the board-verified no-argument path unchanged.  The official DVP
+   * worker is the only v3.1.1.9 AP call site proven to require its non-NULL
+   * context.  Do not generalize this bridge: doing so also starts the SDK IPC
+   * worker, whose semaphore ABI is not compatible with this NuttX wrapper and
+   * was observed to fault in nxsem_wait_slow.  All other non-NULL arguments
+   * therefore retain the established fail-closed behavior.
+   */
+
+  if (arg == NULL)
+    {
+      pid = kthread_create(name,
+                           SCHED_PRIORITY_DEFAULT + 2 - priority,
+                           stack_size,
+                           (main_t)function, NULL);
+    }
+  else if (strcmp(name, BK7258_DVP_THREAD_NAME) == 0)
+    {
+      start = kmm_malloc(sizeof(*start));
+      if (start == NULL)
+        {
+          return BK_FAIL;
+        }
+
+      start->function = function;
+      start->arg = arg;
+      snprintf(context, sizeof(context), "%" PRIxPTR, (uintptr_t)start);
+      pid = kthread_create(name,
+                           SCHED_PRIORITY_DEFAULT + 2 - priority,
+                           stack_size,
+                           bk7258_sdk_thread_trampoline, argv);
+    }
+  else
+    {
+      wlerr("Task(%s)'s arg is NOT NULL\n", name);
+      pid = -1;
+    }
+
+  if (pid <= 0)
+    {
+      if (start != NULL)
+        {
+          kmm_free(start);
+        }
+
+      wlerr("ERROR: Failed to create thread(%s): %d\n", name, pid);
+      return BK_FAIL;
+    }
+#else
   pid_t pid = -1;
+
+  /* Preserve the established CP ABI exactly.  Enabling previously rejected
+   * non-NULL SDK thread arguments during early CP startup corrupts the
+   * scheduler before NSH; CP support needs separate call-site evidence.
+   */
 
   if (arg)
     {
@@ -846,6 +961,7 @@ bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
       wlerr("ERROR: Failed to create thread(%s): %d\n", name, pid);
       return BK_FAIL;
     }
+#endif
 
   if (thread)
     {
@@ -2615,6 +2731,17 @@ bk_err_t rtos_delay_milliseconds(uint32_t num_ms)
   return BK_OK;
 }
 
+/* The v3.1.1.9 PWM driver calls the bk_system delay_ms() ABI directly
+ * instead of going through rtos_delay_milliseconds().  Keep both entry
+ * points on the same NuttX-aware implementation so early boot/ISR callers
+ * busy-wait while normal task-context callers yield the CPU.
+ */
+
+void delay_ms(uint32_t num_ms)
+{
+  bk7258_os_delay_ms(num_ms);
+}
+
 /****************************************************************************
  * Public Functions - Scheduler / System
  ****************************************************************************/
@@ -2622,6 +2749,15 @@ bk_err_t rtos_delay_milliseconds(uint32_t num_ms)
 bool rtos_is_in_interrupt_context(void)
 {
   return up_interrupt_context();
+}
+
+/* The v3.1.1.9 CM33 FreeRTOS port exports this lower-level spelling in
+ * addition to rtos_is_in_interrupt_context().  Media controller archives
+ * call it directly when deciding whether power/clock operations may block. */
+
+uint32_t platform_is_in_interrupt_context(void)
+{
+  return up_interrupt_context() ? 1u : 0u;
 }
 
 bool rtos_local_irq_disabled(void)

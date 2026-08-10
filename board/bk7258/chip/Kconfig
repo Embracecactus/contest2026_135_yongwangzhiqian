@@ -1082,6 +1082,83 @@ config BK7258_GT1151_VALIDATION
 		T5-Board bus; subsequent touch samples are written to syslog.  This
 		option is intended for drivercheck configurations only.
 
+config BK7258_PWM
+	bool "BK7258 PWM lower half"
+	default n
+	depends on BK7258_AP_CORE && PWM && !PWM_MULTICHAN
+	depends on !PWM_PULSECOUNT && !PWM_FREQUENCY_FIXED
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Expose one AP-owned BK7258 PWM channel through NuttX's standard
+		/dev/pwmN upper half.  The official v3.1.1.9 SDK supplies the PWM
+		controller implementation; NuttX owns device registration and policy.
+		The first implementation intentionally supports continuous,
+		single-channel, integer-frequency PWM only.
+
+config BK7258_PWM_BUS
+	int "PWM device minor"
+	default 0
+	range 0 15
+	depends on BK7258_PWM
+
+config BK7258_PWM_CHAN
+	int "SDK PWM channel"
+	default 0
+	range 0 11
+	depends on BK7258_PWM
+
+config BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
+	bool "Cycle the T5-Board RGB LCD backlight through PWM3/P9"
+	default n
+	depends on BK7258_PWM && BK7258_BOARD_T5_BOARD
+	depends on BK7258_PWM_CHAN = 3
+	depends on !BK7258_LCD
+	help
+		Run a bounded board-level validation through the normal NuttX
+		/dev/pwm0 upper half.  The worker drives the attached RGB LCD
+		sub-board's LCD_PWM_BL input through P9/PWM3 at 1 kHz and cycles
+		100, 0, 10, 50 and 90 percent duty.  It is intended only for a
+		dedicated hardware-validation profile.
+
+config BK7258_DVP
+	bool "BK7258 DVP camera imgdata lower half"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_SDK_IPC_RUNTIME
+	select DRIVERS_VIDEO
+	select SCHED_LPWORK
+	select VIDEO_STREAM
+	help
+		Build the AP DVP data-plane wrapper against the peripheral-complete
+		v3.1.1.9 SDK bundle.  This generic chip option exposes a NuttX
+		imgdata lower half; a physical-board sensor binding and
+		capture_register() call are still required before a /dev/video device
+		is published.
+
+config BK7258_T5_BOARD_CAMERA
+	bool "T5-Board P10 DVP camera as /dev/video0"
+	default n
+	depends on BK7258_DVP && BK7258_BOARD_T5_BOARD && BK7258_PSRAM
+	depends on !BK7258_LCD && !BK7258_GT1151
+	help
+		Bind the T5-Board V1.0.2 P10 camera connector to the generic BK7258
+		DVP imgdata lower half and NuttX V4L2 capture upper half.  The first
+		board profile is 640x480, 30 fps MJPEG and uses PSRAM for both SDK
+		frames and V4L2 MMAP buffers.  LCD/touch are excluded because their
+		board routing overlaps the DVP data and sensor-control pins.
+
+config BK7258_T5_BOARD_CAMERA_VALIDATION
+	bool "Capture one MJPEG frame during T5-Board camera bring-up"
+	default n
+	depends on BK7258_T5_BOARD_CAMERA
+	help
+		Run one bounded V4L2 USERPTR capture after /dev/video0 is
+		registered.  The validation uses a PSRAM buffer, waits at most three
+		seconds for one 640x480 MJPEG frame, checks its JPEG markers, reports
+		BKCAM PASS/FAIL through syslog, and then closes the stream.  Enable
+		this only in drivercheck profiles; normal board configurations merely
+		register the standard V4L2 device.
+
 config BK7258_USBHOST
 	bool "BK7258 native USB host controller"
 	default n

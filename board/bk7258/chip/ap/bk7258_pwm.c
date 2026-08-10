@@ -5,16 +5,15 @@
  *
  * BK7258 (T5-AI) PWM — NuttX pwm_lowerhalf_s lower-half wrapper.
  *
- * Wraps the Beken armino SDK bk_pwm_* driver (AP core only).  See
- * PWM_BLOCKED_ROOT_CAUSE.md in this directory for the bundle-export defect
- * (CONFIG_PWM missing from the exported sdkconfig.h) that keeps bk_pwm_*
- * out of libdriver.a today; re-export the bundle with CONFIG_PWM=1 and this
- * wrapper links and runs as-is.
+ * Wraps the Beken armino SDK bk_pwm_* driver (AP core only).  The
+ * peripheral-complete v3.1.1.9 AP bundle exports the required controller
+ * implementation while NuttX owns registration and run-time policy.
  *
  * SDK call mapping:
- *   setup()       -> bk_pwm_driver_init(); bk_pwm_init(chan, &init_cfg)
- *   shutdown()    -> bk_pwm_deinit(chan); bk_pwm_driver_deinit()
- *   start(info)   -> bk_pwm_set_period_duty(chan, &pd); bk_pwm_start(chan)
+ *   setup()       -> bk_pwm_driver_init()
+ *   shutdown()    -> bk_pwm_deinit(chan)
+ *   first start   -> bk_pwm_init(chan, &cfg); bk_pwm_start(chan)
+ *   update(info)  -> bk_pwm_set_period_duty(chan, &pd)
  *   stop()        -> bk_pwm_stop(chan)
  *
  * SDK clock / duty semantics (verified in armino source):
@@ -46,7 +45,7 @@
 
 #include <driver/pwm.h>
 
-#include "bk7258_pwm.h"
+#include <arch/chip/bk7258_pwm.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -60,13 +59,17 @@
 #  define CONFIG_BK7258_PWM_CHAN       BK7258_PWM_CHAN_DEFAULT
 #endif
 
-/* NuttX pwm_info_s duty is ub16 (0..65535 => 0..100%). */
+/* NuttX pwm_info_s duty is unsigned 16.16 fixed point.  The largest value
+ * accepted by the upper half is 65535/65536, not exactly 100 percent.
+ */
 
 #define BK7258_PWM_DUTY_MAX            65535u
+#define BK7258_PWM_DUTY_SCALE          65536u
 
-/* Minimum legal period_cycle for the SDK (rejects period == 0). */
-
-#define BK7258_PWM_PERIOD_MIN          1u
+#define BK7258_PWM_STRINGIFY_(value)   #value
+#define BK7258_PWM_STRINGIFY(value)    BK7258_PWM_STRINGIFY_(value)
+#define BK7258_PWM_DEVPATH             \
+  "/dev/pwm" BK7258_PWM_STRINGIFY(CONFIG_BK7258_PWM_BUS)
 
 /****************************************************************************
  * Private Types
@@ -121,12 +124,56 @@ static struct bk7258_pwm_priv_s g_bk7258_pwm =
  * Private Functions
  ****************************************************************************/
 
+static int bk7258_pwm_map_error(bk_err_t error)
+{
+  if (error == BK_OK)
+    {
+      return OK;
+    }
+
+  switch (error)
+    {
+      case BK_ERR_PWM_CHAN_ID:
+      case BK_ERR_PWM_PERIOD_DUTY:
+      case BK_ERR_PWM_INVALID_GPIO_MODE:
+      case BK_ERR_PARAM:
+      case BK_ERR_NULL_PARAM:
+        return -EINVAL;
+
+      case BK_ERR_PWM_NOT_INIT:
+      case BK_ERR_PWM_CHAN_NOT_INIT:
+      case BK_ERR_PWM_CHAN_NOT_START:
+      case BK_ERR_NOT_INIT:
+      case BK_ERR_TRY_AGAIN:
+        return -EAGAIN;
+
+      case BK_ERR_BUSY:
+        return -EBUSY;
+
+      case BK_ERR_IN_PROGRESS:
+        return -EINPROGRESS;
+
+      case BK_ERR_TIMEOUT:
+        return -ETIMEDOUT;
+
+      case BK_ERR_NO_MEM:
+        return -ENOMEM;
+
+      case BK_ERR_NOT_SUPPORT:
+        return -ENOTSUP;
+
+      default:
+        return -EIO;
+    }
+}
+
 /****************************************************************************
  * Name: bk7258_pwm_setup
  *
- * Initialize the SDK PWM subsystem and configure this channel with a
- * minimal (period = 1) configuration.  The real period/duty are applied
- * in start() via bk_pwm_set_period_duty().
+ * Initialize the global SDK PWM subsystem.  Channel initialization is
+ * deferred until start(), when the caller's real period and duty are known.
+ * This matches the official SDK flow and avoids entering the v1px driver's
+ * special zero-duty GPIO mode before the first PWM waveform is configured.
  ****************************************************************************/
 
 static int bk7258_pwm_setup(FAR struct pwm_lowerhalf_s *dev)
@@ -134,7 +181,6 @@ static int bk7258_pwm_setup(FAR struct pwm_lowerhalf_s *dev)
   FAR struct bk7258_pwm_priv_s *priv =
     (FAR struct bk7258_pwm_priv_s *)dev;
   bk_err_t ret;
-  pwm_init_config_t cfg;
   int rc;
 
   rc = nxmutex_lock(&priv->lock);
@@ -149,36 +195,12 @@ static int bk7258_pwm_setup(FAR struct pwm_lowerhalf_s *dev)
       if (ret != BK_OK)
         {
           nxmutex_unlock(&priv->lock);
-          return -EIO;
+          return bk7258_pwm_map_error(ret);
         }
 
       priv->driver_inited = true;
     }
 
-  if (priv->chan_inited)
-    {
-      nxmutex_unlock(&priv->lock);
-      return OK;
-    }
-
-  memset(&cfg, 0, sizeof(cfg));
-  cfg.period_cycle = BK7258_PWM_PERIOD_MIN;
-  cfg.duty_cycle   = 0;
-  cfg.duty2_cycle  = 0;
-  cfg.duty3_cycle  = 0;
-  cfg.psc          = 0;
-
-  ret = bk_pwm_init((pwm_chan_t)priv->chan, &cfg);
-  if (ret != BK_OK)
-    {
-      /* Roll back driver_init on channel-init failure. */
-      bk_pwm_driver_deinit();
-      priv->driver_inited = false;
-      nxmutex_unlock(&priv->lock);
-      return -EIO;
-    }
-
-  priv->chan_inited = true;
   nxmutex_unlock(&priv->lock);
   return OK;
 }
@@ -191,6 +213,8 @@ static int bk7258_pwm_shutdown(FAR struct pwm_lowerhalf_s *dev)
 {
   FAR struct bk7258_pwm_priv_s *priv =
     (FAR struct bk7258_pwm_priv_s *)dev;
+  int result = OK;
+  int mapped;
   int rc;
 
   rc = nxmutex_lock(&priv->lock);
@@ -205,24 +229,46 @@ static int bk7258_pwm_shutdown(FAR struct pwm_lowerhalf_s *dev)
 
   if (priv->running)
     {
-      (void)bk_pwm_stop((pwm_chan_t)priv->chan);
-      priv->running = false;
+      mapped = bk7258_pwm_map_error(
+        bk_pwm_stop((pwm_chan_t)priv->chan));
+      if (mapped == OK)
+        {
+          priv->running = false;
+        }
+      else
+        {
+          result = mapped;
+        }
     }
 
   if (priv->chan_inited)
     {
-      bk_pwm_deinit((pwm_chan_t)priv->chan);
-      priv->chan_inited = false;
+      mapped = bk7258_pwm_map_error(
+        bk_pwm_deinit((pwm_chan_t)priv->chan));
+      if (mapped == OK)
+        {
+          priv->chan_inited = false;
+          priv->running = false;
+        }
+      else if (result == OK)
+        {
+          result = mapped;
+        }
     }
+
+  /* The SDK driver init state and interrupt registrations are global to all
+   * twelve channels, and the public API provides no ownership query or
+   * reference count.  Deinitializing it from one NuttX device could stop an
+   * unrelated SDK consumer, so shutdown releases only this channel.
+   */
 
   if (priv->driver_inited)
     {
-      bk_pwm_driver_deinit();
       priv->driver_inited = false;
     }
 
   nxmutex_unlock(&priv->lock);
-  return OK;
+  return result;
 }
 
 /****************************************************************************
@@ -241,6 +287,7 @@ static int bk7258_pwm_start(FAR struct pwm_lowerhalf_s *dev,
   bk_err_t ret;
   uint32_t period;
   uint64_t on_ticks;
+  pwm_init_config_t init_cfg;
   pwm_period_duty_config_t pd;
   int rc;
 
@@ -256,55 +303,80 @@ static int bk7258_pwm_start(FAR struct pwm_lowerhalf_s *dev,
       return rc;
     }
 
-  if (!priv->chan_inited)
+  if (info->frequency > BK7258_PWM_CLK_HZ)
     {
       nxmutex_unlock(&priv->lock);
-      return -EACCES;
+      return -ERANGE;
     }
 
-  /* period_cycle = CLK_HZ / frequency, clamped to >= 1. */
-  period = BK7258_PWM_CLK_HZ / info->frequency;
-  if (period < BK7258_PWM_PERIOD_MIN)
+  if (info->cpol != PWM_CPOL_NDEF || info->dcpol != PWM_DCPOL_NDEF)
     {
-      period = BK7258_PWM_PERIOD_MIN;
+      nxmutex_unlock(&priv->lock);
+      return -ENOTSUP;
     }
 
-  /* on_ticks = period * duty / 65535 (duty is ub16). */
-  on_ticks = (uint64_t)period * info->duty;
-  on_ticks /= BK7258_PWM_DUTY_MAX;
+  /* period_cycle = CLK_HZ / frequency. */
 
-  /* If a previous start is still running, stop first so the new
-   * period/duty take effect atomically; bk_pwm_set_period_duty on a
-   * running channel can otherwise race the counter.
+  period = BK7258_PWM_CLK_HZ / info->frequency;
+
+  /* Match NuttX's unsigned 16.16 convention and the rounding used by its
+   * in-tree PWM lower halves.  Rounding may select period ticks for a very
+   * high duty on a low-resolution period; the SDK deliberately represents
+   * that result as a constant-high GPIO output.
    */
 
-  if (priv->running)
+  on_ticks = (uint64_t)period * info->duty;
+  on_ticks = (on_ticks + (BK7258_PWM_DUTY_SCALE / 2u)) /
+             BK7258_PWM_DUTY_SCALE;
+
+  if (!priv->chan_inited)
     {
-      (void)bk_pwm_stop((pwm_chan_t)priv->chan);
+      memset(&init_cfg, 0, sizeof(init_cfg));
+      init_cfg.period_cycle = period;
+      init_cfg.duty_cycle   = (uint32_t)on_ticks;
+      init_cfg.psc          = 0;
+
+      ret = bk_pwm_init((pwm_chan_t)priv->chan, &init_cfg);
+      if (ret != BK_OK)
+        {
+          nxmutex_unlock(&priv->lock);
+          return bk7258_pwm_map_error(ret);
+        }
+
+      priv->chan_inited = true;
+    }
+  else
+    {
+      memset(&pd, 0, sizeof(pd));
+      pd.period_cycle = period;
+      pd.duty_cycle   = (uint32_t)on_ticks;
+      pd.psc          = 0;
+
+      ret = bk_pwm_set_period_duty((pwm_chan_t)priv->chan, &pd);
+      if (ret != BK_OK)
+        {
+          nxmutex_unlock(&priv->lock);
+          return bk7258_pwm_map_error(ret);
+        }
     }
 
-  memset(&pd, 0, sizeof(pd));
-  pd.period_cycle = period;
-  pd.duty_cycle   = (uint32_t)on_ticks;   /* SDK inverts this internally */
-  pd.duty2_cycle  = 0;                     /* single-channel mode */
-  pd.duty3_cycle  = 0;
-  pd.psc          = 0;
+  /* bk_pwm_set_period_duty() uses the hardware's load-new-config path, so
+   * an already running channel is updated without an avoidable stop/start
+   * glitch, as required by the NuttX upper-half contract.
+   */
 
-  ret = bk_pwm_set_period_duty((pwm_chan_t)priv->chan, &pd);
-  if (ret != BK_OK)
+  if (!priv->running)
     {
-      nxmutex_unlock(&priv->lock);
-      return -EIO;
+      ret = bk_pwm_start((pwm_chan_t)priv->chan);
+      if (ret != BK_OK)
+        {
+          nxmutex_unlock(&priv->lock);
+          return bk7258_pwm_map_error(ret);
+        }
+
+      priv->running = true;
     }
 
-  ret = bk_pwm_start((pwm_chan_t)priv->chan);
-  if (ret != BK_OK)
-    {
-      nxmutex_unlock(&priv->lock);
-      return -EIO;
-    }
-
-  priv->running = true;
   nxmutex_unlock(&priv->lock);
   return OK;
 }
@@ -327,7 +399,14 @@ static int bk7258_pwm_stop(FAR struct pwm_lowerhalf_s *dev)
 
   if (priv->running)
     {
-      bk_pwm_stop((pwm_chan_t)priv->chan);
+      rc = bk7258_pwm_map_error(
+        bk_pwm_stop((pwm_chan_t)priv->chan));
+      if (rc < 0)
+        {
+          nxmutex_unlock(&priv->lock);
+          return rc;
+        }
+
       priv->running = false;
     }
 
@@ -357,7 +436,7 @@ static int bk7258_pwm_ioctl(FAR struct pwm_lowerhalf_s *dev,
 
 int bk7258_pwm_initialize(void)
 {
-  return pwm_register(CONFIG_BK7258_PWM_DEVNAME, &g_bk7258_pwm.dev);
+  return pwm_register(BK7258_PWM_DEVPATH, &g_bk7258_pwm.dev);
 }
 
 #endif /* CONFIG_BK7258_PWM */

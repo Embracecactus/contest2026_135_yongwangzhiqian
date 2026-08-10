@@ -40,6 +40,9 @@
 #ifdef CONFIG_BK7258_MIC
 #  include <arch/chip/bk7258_mic.h>
 #endif
+#ifdef CONFIG_BK7258_PWM
+#  include <arch/chip/bk7258_pwm.h>
+#endif
 #ifdef CONFIG_BK7258_RTC
 #  include <arch/chip/bk7258_rtc.h>
 #endif
@@ -269,6 +272,22 @@ int bk7258_peripherals_initialize(void)
     }
 #endif
 
+#ifdef CONFIG_BK7258_PWM
+  ret = bk7258_pwm_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
+  ret = bk7258_t5_board_rgb_lcd_backlight_validation_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
 #ifdef CONFIG_BK7258_RTC
   ret = bk7258_rtc_initialize();
   if (ret < 0)
@@ -331,6 +350,14 @@ int bk7258_peripherals_initialize(void)
   if (ret < 0)
     {
       ierr("ERROR: GT1151 registration failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_T5_BOARD_CAMERA
+  ret = bk7258_t5_board_camera_initialize();
+  if (ret < 0)
+    {
+      verr("ERROR: T5-Board camera registration failed: %d\n", ret);
     }
 #endif
 

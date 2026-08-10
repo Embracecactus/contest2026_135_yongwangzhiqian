@@ -420,6 +420,7 @@ static uint32_t apctl_u32(const char *value, uint32_t fallback)
 static void apctl_status(void)
 {
   struct bk7258_ap_boot_state_s state;
+  struct bk7258_ap_fault_state_s fault;
 #ifdef CONFIG_BK7258_RPTUN
   struct bk7258_rptun_control_s rptun;
 #endif
@@ -431,6 +432,8 @@ static void apctl_status(void)
   struct bk7258_ap_sem_wake_loop_state_s sem_loop;
   volatile struct bk7258_cpu2_probe_state_s *shared_cpu2 =
     bk7258_cpu2_probe_state();
+  volatile struct bk7258_ap_fault_state_s *shared_fault =
+    bk7258_ap_fault_state();
   volatile struct bk7258_ap_ipi_state_s *shared_ipi =
     bk7258_ap_ipi_state();
   volatile struct bk7258_ap_smp_state_s *shared_smp =
@@ -447,12 +450,20 @@ static void apctl_status(void)
 #endif
 
   bk7258_ap_get_status(&state);
+  memset(&fault, 0, sizeof(fault));
 #ifdef CONFIG_BK7258_RPTUN
   memset(&rptun, 0, sizeof(rptun));
 #endif
   memset(&sem_wake, 0, sizeof(sem_wake));
   memset(&sem_loop, 0, sizeof(sem_loop));
   __asm volatile ("dmb sy" ::: "memory");
+  if (shared_fault->magic == BK7258_AP_FAULT_STATE_MAGIC &&
+      shared_fault->version == BK7258_AP_FAULT_STATE_VERSION &&
+      shared_fault->size == sizeof(fault))
+    {
+      memcpy(&fault, (const void *)(uintptr_t)shared_fault, sizeof(fault));
+    }
+
   memcpy(&cpu2, (const void *)(uintptr_t)shared_cpu2, sizeof(cpu2));
   memcpy(&ipi, (const void *)(uintptr_t)shared_ipi, sizeof(ipi));
   memcpy(&smp, (const void *)(uintptr_t)shared_smp, sizeof(smp));
@@ -501,6 +512,24 @@ static void apctl_status(void)
          " test=%08" PRIx32 " doorbells cp/ap=%" PRIu32 "/%" PRIu32
          "\n", state.heap_start, state.heap_end, state.heap_test,
          state.cp_to_ap_doorbells, state.ap_to_cp_doorbells);
+
+  if (fault.magic == BK7258_AP_FAULT_STATE_MAGIC)
+    {
+      printf("AP fault generation/exception=%" PRIu32 "/%" PRIu32
+             " error=%" PRIu32 " EXCRET/SP=%08" PRIx32 "/%08" PRIx32
+             "\n", fault.generation, fault.exception, fault.error,
+             fault.exc_return, fault.stack_pointer);
+      printf("AP fault HFSR/CFSR/MMFAR/BFAR=%08" PRIx32 "/%08" PRIx32
+             "/%08" PRIx32 "/%08" PRIx32 "\n",
+             fault.hfsr, fault.cfsr, fault.mmfar, fault.bfar);
+      printf("AP fault PC/LR/xPSR=%08" PRIx32 "/%08" PRIx32
+             "/%08" PRIx32 " R0/R1/R2/R3/R12=%08" PRIx32
+             "/%08" PRIx32 "/%08" PRIx32 "/%08" PRIx32
+             "/%08" PRIx32 "\n",
+             fault.stacked_pc, fault.stacked_lr, fault.stacked_xpsr,
+             fault.stacked_r0, fault.stacked_r1, fault.stacked_r2,
+             fault.stacked_r3, fault.stacked_r12);
+    }
 
 #ifdef CONFIG_BK7258_RPTUN
   if (rptun.magic == BK7258_RPTUN_CONTROL_MAGIC &&
