@@ -98,6 +98,18 @@ Last reviewed: 2026-08-10
 
 ## Engineering conventions
 
+- The default, owner-revocable model division is: `gpt-5.6-sol` at `xhigh`
+  owns project planning, architecture, task decomposition, review,
+  integration decisions and final acceptance. Boundary-clear implementation
+  and focused tests may be delegated to `gpt-5.6-luna` at `max`, or to
+  CodeBuddy `hy3` with effort `max`. Every delegation must state exact file
+  and behavior scope, forbidden actions, acceptance criteria and expected
+  evidence; the primary agent reviews the returned diff and evidence before
+  accepting or integrating it. Delegation does not expand any permission in
+  this file, especially official-source, hardware, Flash, OTP/eFuse, commit,
+  push or architecture authority. The owner may cancel or replace this model
+  division at any time; on cancellation, stop new delegation and safely halt
+  active delegated work at the next non-destructive boundary.
 - UART capture, reset-synchronized UART capture, COM-port enumeration and
   guarded J-Link diagnostics must use the repository-owned
   `tools/windows-hardware-debug` toolkit by default. Delegate these bounded
