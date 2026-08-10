@@ -13,6 +13,7 @@ TOOLCHAIN_DIR="${TOOLCHAIN_DIR:-}"
 SOURCE_ARCHIVE=""
 BUILD_SDK=false
 REPLACE=false
+PROFILE="base"
 
 usage()
 {
@@ -25,6 +26,7 @@ Options:
   --source-archive F  Original SDK archive recorded in provenance
   --toolchain-dir DIR Directory containing arm-none-eabi-gcc
   --jobs N            SDK build jobs (default: ${JOBS})
+  --profile NAME      Build profile: base or ap-peripherals-r2
   --build             Build the selected SDK role before importing
   --replace           Atomically replace an existing non-legacy bundle
   -h, --help          Show this help
@@ -58,6 +60,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --jobs)
       JOBS="$2"
+      shift 2
+      ;;
+    --profile)
+      PROFILE="$2"
       shift 2
       ;;
     --build)
@@ -112,6 +118,36 @@ case "$ROLE" in
     ;;
 esac
 
+PROFILE_FILE=""
+case "$PROFILE" in
+  base)
+    ;;
+  ap-peripherals-r2)
+    if [[ "$ROLE" != "ap" ]]; then
+      printf '%s\n' \
+        'error: ap-peripherals-r2 is only valid for the AP role' >&2
+      exit 2
+    fi
+    PROFILE_FILE="${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/${PROFILE}.config"
+    ;;
+  *)
+    printf "error: unsupported SDK build profile '%s'\n" "$PROFILE" >&2
+    exit 2
+    ;;
+esac
+
+if [[ -n "$PROFILE_FILE" && ! -f "$PROFILE_FILE" ]]; then
+  printf 'error: SDK build profile does not exist: %s\n' \
+    "$PROFILE_FILE" >&2
+  exit 1
+fi
+
+if [[ "$PROFILE" != "base" && "$BUILD_SDK" != "true" ]]; then
+  printf '%s\n' \
+    'error: a non-base SDK profile requires --build' >&2
+  exit 2
+fi
+
 if [[ "$VERSION" == "legacy" && "$REPLACE" == "true" ]]; then
   printf '%s\n' \
     'error: the legacy SDK bundle is immutable; import a versioned bundle' >&2
@@ -154,25 +190,18 @@ else
   SOURCE_ARCHIVE_SHA256="not-provided"
 fi
 
-BUILD_DIR="${SDK_DIR}/build/bk7258/app/${BUILD_NAME}"
-EXPORT_DIR="${BUILD_DIR}/armino_as_lib"
-ROLE_EXPORT="${EXPORT_DIR}/${BUILD_NAME}"
-COMPILE_DB="${BUILD_DIR}/compile_commands.json"
-BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
-DEST="${BUNDLE_BASE}/versions/${VERSION}/${ROLE}"
-MANIFEST_DIR="${SCRIPT_DIR}/sdk-manifests/${VERSION}"
-MANIFEST="${MANIFEST_DIR}/${ROLE}.sha256"
-PROVENANCE="${MANIFEST_DIR}/${ROLE}.provenance"
-TMP_DEST="${DEST}.tmp.$$"
 TMP_WORK="$(mktemp -d)"
-TMP_OBJ="${TMP_WORK}/uart_driver.c.obj"
-TMP_MANIFEST="${TMP_WORK}/${ROLE}.sha256"
-TMP_PROVENANCE="${TMP_WORK}/${ROLE}.provenance"
+TMP_DEST=""
 BACKUP=""
+DEST=""
 
 cleanup()
 {
-  rm -rf "$TMP_DEST" "$TMP_WORK"
+  if [[ -n "$TMP_DEST" ]]; then
+    rm -rf "$TMP_DEST"
+  fi
+
+  rm -rf "$TMP_WORK"
   if [[ -n "$BACKUP" && -e "$BACKUP" ]]; then
     if [[ -e "$DEST" ]]; then
       rm -rf "$DEST"
@@ -182,8 +211,73 @@ cleanup()
 }
 trap cleanup EXIT
 
+PROJECT_DIR="${SDK_DIR}/projects/app"
+MAKE_BUILD_ROOT="${SDK_DIR}/build"
+
+if [[ -n "$PROFILE_FILE" ]]; then
+  PROJECT_DIR="${TMP_WORK}/app"
+  MAKE_BUILD_ROOT="${TMP_WORK}/build"
+  cp -a "${SDK_DIR}/projects/app" "$PROJECT_DIR"
+
+  python3 - "$PROJECT_DIR/ap/config/bk7258_ap/config" \
+    "$PROFILE_FILE" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+base_path = Path(sys.argv[1])
+profile_path = Path(sys.argv[2])
+config_re = re.compile(r"^(?:# )?(CONFIG_[A-Za-z0-9_]+)(?:=.*| is not set)$")
+
+base = base_path.read_text(encoding="utf-8").splitlines()
+overrides = {}
+order = []
+for line in profile_path.read_text(encoding="utf-8").splitlines():
+    match = config_re.match(line)
+    if match:
+        key = match.group(1)
+        if key not in overrides:
+            order.append(key)
+        overrides[key] = line
+
+seen = set()
+merged = []
+for line in base:
+    match = config_re.match(line)
+    if match and match.group(1) in overrides:
+        key = match.group(1)
+        if key not in seen:
+            merged.append(overrides[key])
+            seen.add(key)
+        continue
+    merged.append(line)
+
+missing = [key for key in order if key not in seen]
+if missing:
+    merged.extend(["", "# BK7258 board-owned SDK bundle profile"])
+    merged.extend(overrides[key] for key in missing)
+
+base_path.write_text("\n".join(merged) + "\n", encoding="utf-8")
+PY
+fi
+
+BUILD_DIR="${MAKE_BUILD_ROOT}/bk7258/app/${BUILD_NAME}"
+EXPORT_DIR="${BUILD_DIR}/armino_as_lib"
+ROLE_EXPORT="${EXPORT_DIR}/${BUILD_NAME}"
+COMPILE_DB="${BUILD_DIR}/compile_commands.json"
+BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
+DEST="${BUNDLE_BASE}/versions/${VERSION}/${ROLE}"
+MANIFEST_DIR="${SCRIPT_DIR}/sdk-manifests/${VERSION}"
+MANIFEST="${MANIFEST_DIR}/${ROLE}.sha256"
+PROVENANCE="${MANIFEST_DIR}/${ROLE}.provenance"
+TMP_DEST="${DEST}.tmp.$$"
+TMP_OBJ="${TMP_WORK}/uart_driver.c.obj"
+TMP_MANIFEST="${TMP_WORK}/${ROLE}.sha256"
+TMP_PROVENANCE="${TMP_WORK}/${ROLE}.provenance"
+
 if $BUILD_SDK; then
   make -C "$SDK_DIR" "$SDK_TARGET" PROJECT=app \
+    PROJECT_DIR="$PROJECT_DIR" BUILD_DIR="$MAKE_BUILD_ROOT" \
     COMPILER_TOOLCHAIN_PATH="$TOOLCHAIN_DIR" "-j${JOBS}"
 fi
 
@@ -258,12 +352,19 @@ SDK_GIT_COMMIT="$(
 
 {
   printf 'bundle_version=%s\n' "$VERSION"
+  printf 'bundle_profile=%s\n' "$PROFILE"
   printf 'role=%s\n' "$ROLE"
   printf 'sdk_target=%s\n' "$SDK_TARGET"
   printf 'sdk_source_tree=%s\n' "$SDK_DIR"
   printf 'sdk_git_commit=%s\n' "$SDK_GIT_COMMIT"
   printf 'source_archive=%s\n' "$SOURCE_ARCHIVE"
   printf 'source_archive_sha256=%s\n' "$SOURCE_ARCHIVE_SHA256"
+  if [[ -n "$PROFILE_FILE" ]]; then
+    printf 'profile_sha256=%s\n' \
+      "$(sha256sum "$PROFILE_FILE" | awk '{print $1}')"
+  else
+    printf 'profile_sha256=not-applicable\n'
+  fi
   printf 'compiler=%s\n' "$COMPILER_VERSION"
   printf 'uart_patch_define=CONFIG_BK_PRINTF_DISABLE\n'
   printf 'uart_patched_object_sha256=%s\n' "$PATCHED_OBJECT_SHA256"

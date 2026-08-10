@@ -70,7 +70,8 @@ ARMINO_SDK_DIR="${SDK_TREE}" JOBS=8 "${IMPORT}" \
 
 ARMINO_SDK_DIR="${SDK_TREE}" JOBS=8 "${IMPORT}" \
   --role ap --bundle-version v3.1.1.9 \
-  --source-archive "${SDK_ARCHIVE}" --build --replace
+  --source-archive "${SDK_ARCHIVE}" \
+  --profile ap-peripherals-r2 --build --replace
 ```
 
 脚本默认也指向 `v3.1.1.9` 和上述最新 SDK source tree。这里仍显式写出版本和路径，
@@ -88,7 +89,9 @@ arm-none-eabi-gcc (15:10.3-2021.07-4) 10.3.1 20210621 (release)
 --toolchain-dir /usr/bin
 ```
 
-SDK 已构建且 `compile_commands.json` 仍存在时，可省略 `--build`。导入脚本会：
+`base` profile 的 SDK 已构建且 `compile_commands.json` 仍存在时，可省略
+`--build`。非 base profile 必须带 `--build`，以确保 profile 与导出库严格对应。
+导入脚本会：
 
 1. 从对应角色的 `compile_commands.json` 提取 `uart_driver.c` 编译命令；
 2. 添加 `-DCONFIG_BK_PRINTF_DISABLE`；
@@ -98,12 +101,19 @@ SDK 已构建且 `compile_commands.json` 仍存在时，可省略 `--build`。�
 6. 原子导入 `include/`、`config/` 和 `libs/`；
 7. 生成全文件 SHA-256 manifest 和来源 provenance。
 
-对应 SDK 构建目录：
+base profile 对应 SDK 构建目录：
 
 ```text
 CP: <SDK>/build/bk7258/app/bk7258/
 AP: <SDK>/build/bk7258/app/bk7258_ap/
 ```
+
+`ap-peripherals-r2` 会复制 `projects/app` 到 `mktemp` 工作区、合并仓库跟踪的
+`board/bk7258/bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r2.config`，并把
+`PROJECT_DIR`/`BUILD_DIR` 都指向该临时工作区。退出后临时目录自动删除，官方 SDK
+源码及其原构建目录不发生修改。该 profile 导出 PWM、CAN、DVP、Ethernet、YUV、
+JPEG encoder 与 H.264；NuttX 侧仍按 Kconfig 选择性链接、注册和初始化各 lower
+half，未实现的 lower half 不会被伪装成已适配。
 
 `legacy` bundle 永不可由导入脚本替换。非 legacy 版本也只有显式给出 `--replace`
 才可原子替换；旧 `--force` 参数会直接报错。
