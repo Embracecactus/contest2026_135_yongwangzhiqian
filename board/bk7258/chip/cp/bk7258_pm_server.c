@@ -32,7 +32,9 @@
  */
 
 extern void sys_drv_dev_clk_pwr_up(int dev, int power_up);
-extern void sys_hal_video_power_en(uint32_t power_down);
+extern void sys_drv_module_power_ctrl(int module, int power_state);
+extern int32_t sys_drv_module_power_state_get(int module);
+extern void smem_reset_lastblock(void);
 extern void sys_hal_set_auxs_cis_clk_sel(uint32_t value);
 extern void sys_hal_set_auxs_cis_clk_div(uint32_t value);
 extern void sys_hal_set_cis_auxs_clk_en(uint32_t value);
@@ -78,6 +80,11 @@ extern void sys_hal_set_cis_auxs_clk_en(uint32_t value);
 #define BK7258_SDK_CLOCK_SLCD       36
 #define BK7258_SDK_CLOCK_LIN        37
 
+#define BK7258_SDK_POWER_MEM3       2
+#define BK7258_SDK_POWER_VIDP       7
+#define BK7258_SDK_POWER_ON         0
+#define BK7258_SDK_POWER_OFF        1
+
 struct bk7258_pm_server_s
 {
   struct rpmsg_endpoint ept;
@@ -94,7 +101,8 @@ static bool bk7258_pm_is_video_clock(enum bk7258_pm_clock_e clock)
   return clock == BK7258_PM_CLOCK_JPEG ||
          clock == BK7258_PM_CLOCK_DISPLAY ||
          clock == BK7258_PM_CLOCK_H264 ||
-         clock == BK7258_PM_CLOCK_YUV;
+         clock == BK7258_PM_CLOCK_YUV ||
+         clock == BK7258_PM_CLOCK_DMA2D;
 }
 
 static bool bk7258_pm_video_active(struct bk7258_pm_server_s *priv)
@@ -102,17 +110,28 @@ static bool bk7258_pm_video_active(struct bk7258_pm_server_s *priv)
   return priv->refs[BK7258_PM_CLOCK_JPEG] != 0 ||
          priv->refs[BK7258_PM_CLOCK_DISPLAY] != 0 ||
          priv->refs[BK7258_PM_CLOCK_H264] != 0 ||
-         priv->refs[BK7258_PM_CLOCK_YUV] != 0;
+         priv->refs[BK7258_PM_CLOCK_YUV] != 0 ||
+         priv->refs[BK7258_PM_CLOCK_DMA2D] != 0;
 }
 
 static void bk7258_pm_set_video_power(bool enable)
 {
-  irqstate_t flags = enter_critical_section();
+  if (enable &&
+      sys_drv_module_power_state_get(BK7258_SDK_POWER_MEM3) ==
+      BK7258_SDK_POWER_OFF)
+    {
+      /* v3.1.1.9 restores MEM3 before a powered-down VIDP domain.  DMA2D
+       * writes can complete without this dependency, but source reads used
+       * by M2M/PFC require it. */
 
-  /* BK7258's VIDP power-down bit uses inverted semantics. */
+      sys_drv_module_power_ctrl(BK7258_SDK_POWER_MEM3,
+                                BK7258_SDK_POWER_ON);
+      smem_reset_lastblock();
+    }
 
-  sys_hal_video_power_en(enable ? 0 : 1);
-  leave_critical_section(flags);
+  sys_drv_module_power_ctrl(BK7258_SDK_POWER_VIDP,
+                            enable ? BK7258_SDK_POWER_ON :
+                                     BK7258_SDK_POWER_OFF);
 }
 
 static void bk7258_pm_set_camera_mclk_24m(bool enable)
@@ -262,6 +281,13 @@ static void bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
          * allowing the immutable AP helper to write shared registers. */
 
         bk7258_pm_set_camera_mclk_24m(enable);
+        break;
+      case BK7258_PM_CLOCK_DMA2D:
+        /* The immutable DMA2D driver programs its controller clocks after
+         * requesting PM_POWER_SUB_MODULE_NAME_VIDP_DMA2D.  The shared VIDP
+         * domain is the CP-owned resource represented by this logical vote;
+         * bk7258_pm_is_video_clock() handles its first/last power edge. */
+
         break;
       default:
         break;

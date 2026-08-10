@@ -1135,6 +1135,22 @@ config BK7258_DVP
 		capture_register() call are still required before a /dev/video device
 		is published.
 
+config BK7258_DMA2D
+	bool "BK7258 DMA2D graphics accelerator helper"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Build a typed AP-side helper for synchronous fill, copy and pixel
+		conversion, and alpha blending through the official v3.1.1.9 DMA2D
+		driver.  NuttX has no generic DMA2D upper half, so this option does
+		not publish a private character device.  A framebuffer or video owner
+		must explicitly initialize the singleton and retain ownership while an
+		operation is active.
+
+		The caller owns buffer lifetime and cache coherency.  Scale and rotate
+		operations remain separate from this helper.
+
 config BK7258_T5_BOARD_CAMERA
 	bool "T5-Board P10 DVP camera as /dev/video0"
 	default n
