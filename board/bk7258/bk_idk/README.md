@@ -13,6 +13,8 @@
 ```text
 bk_idk/
   sdk-bundles.mk
+  sdk-profiles/
+    v3.1.1.9/ap-peripherals-r2.config
   armino_as_lib/
     versions/
       legacy/
@@ -30,7 +32,7 @@ bk_idk/
 | `legacy/cp` | 341 | 2 | 81 | 4 |
 | `legacy/ap` | 603 | 2 | 101 | 0 |
 | `v3.1.1.9/cp` | 341 | 2 | 81 | 0 |
-| `v3.1.1.9/ap` | 603 | 2 | 101 | 0 |
+| `v3.1.1.9/ap` | 603 | 2 | 102 | 0 |
 
 CP 的 4 个 legacy loose object 不参与 NuttX 链接。
 
@@ -87,6 +89,12 @@ scripts/sdk-manifests/<version>/<role>.provenance
 脚本会重新编译 SDK UART 对象并加入 `CONFIG_BK_PRINTF_DISABLE`，避免 SDK 初始化接管
 NuttX console。`legacy` 被设为不可替换；`--replace` 只允许显式替换非 legacy
 版本，旧的 `--force` 已移除。
+
+AP 使用仓库跟踪的 `ap-peripherals-r2` 配置层构建。该配置层只作用于复制到临时目录
+的 SDK `projects/app`，不会修改官方 SDK 源码；它导出 PWM、CAN、DVP、Ethernet、
+YUV、JPEG encoder 和 H.264 实现，同时保留已有 TRNG、QSPI、USB Host、DMA2D、
+JPEG decoder、scale/rotate。静态库中存在能力不代表 NuttX 驱动已经完成：当前本仓
+只正式接入 PWM，并为 DVP 提供尚待板级 sensor binding 的 imgdata lower half。
 
 ## 分发边界
 
