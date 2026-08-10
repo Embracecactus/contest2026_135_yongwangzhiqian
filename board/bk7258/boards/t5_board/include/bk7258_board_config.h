@@ -19,6 +19,7 @@
 #define BK7258_BOARD_HAS_BATTERY                 0
 #define BK7258_BOARD_HAS_TF_CARD                 1
 #define BK7258_BOARD_HAS_RGB_LCD_CONNECTOR       1
+#define BK7258_BOARD_HAS_SPI_LCD_CONNECTOR       1
 #define BK7258_BOARD_HAS_DVP_CONNECTOR           1
 #define BK7258_BOARD_HAS_NATIVE_USB_HOST          1
 #define BK7258_BOARD_HAS_GT1151_TOUCH             1
@@ -40,7 +41,16 @@
 #define BK7258_BOARD_LCD_SPI_SDI_GPIO             50
 #define BK7258_BOARD_LCD_RESET_GPIO               53
 #define BK7258_BOARD_LCD_BACKLIGHT_GPIO           9
+#define BK7258_BOARD_LCD_BACKLIGHT_PWM_CHAN        3
 #define BK7258_BOARD_LCD_BACKLIGHT_ACTIVE_HIGH    1
+
+/* SPI LCD sub-board wiring supplied for the T5-Board expansion connector.
+ * Its backlight is distinct from the RGB LCD sub-board above.  The official
+ * BK7258 v3.1.1.9 GPIO map routes PWM channel 5 to GPIO25. */
+
+#define BK7258_BOARD_SPI_LCD_BACKLIGHT_GPIO       25
+#define BK7258_BOARD_SPI_LCD_BACKLIGHT_PWM_CHAN   5
+#define BK7258_BOARD_SPI_LCD_BACKLIGHT_ACTIVE_HIGH 1
 
 /* GT1151 capacitive touch controller on the LCD sub-board. */
 
@@ -50,6 +60,30 @@
 #define BK7258_BOARD_TOUCH_I2C_SDA_GPIO           15
 #define BK7258_BOARD_TOUCH_INTERRUPT_GPIO         55
 #define BK7258_BOARD_TOUCH_RESET_GPIO             54
+
+/* DVP camera connector P10, source-verified from T5-Board V1.0.2.  GPIO13
+ * and GPIO15 are the camera sensor's control bus on this board; this wiring
+ * deliberately differs from the SDK's generic GPIO0/GPIO1 example macro.
+ * The RGB LCD uses many of the same pins, so board Kconfig prevents the two
+ * routes from being initialized at the same time. */
+
+#define BK7258_BOARD_DVP_I2C_BUS                  2
+#define BK7258_BOARD_DVP_I2C_SCL_GPIO            13
+#define BK7258_BOARD_DVP_I2C_SDA_GPIO            15
+#define BK7258_BOARD_DVP_RESET_GPIO              51
+#define BK7258_BOARD_DVP_PWDN_GPIO               0xff
+#define BK7258_BOARD_DVP_MCLK_GPIO                27
+#define BK7258_BOARD_DVP_PCLK_GPIO                29
+#define BK7258_BOARD_DVP_HSYNC_GPIO               30
+#define BK7258_BOARD_DVP_VSYNC_GPIO               31
+#define BK7258_BOARD_DVP_D0_GPIO                  32
+#define BK7258_BOARD_DVP_D1_GPIO                  33
+#define BK7258_BOARD_DVP_D2_GPIO                  34
+#define BK7258_BOARD_DVP_D3_GPIO                  35
+#define BK7258_BOARD_DVP_D4_GPIO                  36
+#define BK7258_BOARD_DVP_D5_GPIO                  37
+#define BK7258_BOARD_DVP_D6_GPIO                  38
+#define BK7258_BOARD_DVP_D7_GPIO                  39
 
 /* TF-card wiring source-verified from T5-Board V1.0.2. */
 

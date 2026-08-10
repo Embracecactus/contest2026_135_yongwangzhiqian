@@ -97,4 +97,12 @@ int bk7258_gpio_lowerhalf_initialize(void);
 int bk7258_board_gt1151_initialize(void);
 #endif
 
+#ifdef CONFIG_BK7258_T5_BOARD_CAMERA
+int bk7258_t5_board_camera_initialize(void);
+#endif
+
+#ifdef CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
+int bk7258_t5_board_rgb_lcd_backlight_validation_initialize(void);
+#endif
+
 #endif /* __ARCH_BOARD_BK7258_BOARD_H */

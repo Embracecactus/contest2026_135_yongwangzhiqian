@@ -137,6 +137,18 @@ SECTIONS
         PROVIDE_HIDDEN(__stop_ipc_chan_reg = .);
     } > FLASH
 
+    /* The immutable v3.1.1.9 DVP implementation enumerates sensor-detect
+     * records through these exact boundary symbols.  The SDK linker script
+     * keeps the same input section; reproduce that ABI in the board-owned
+     * AP image instead of modifying either SDK or NuttX sources. */
+
+    .sensor_detect : ALIGN(4)
+    {
+        __camera_sensor_detect_array_start = .;
+        KEEP(*(.camera_sensor_detect_function_list.*))
+        __camera_sensor_detect_array_end = .;
+    } > FLASH
+
     .tdata : ALIGN(4)
     {
         _stdata = ABSOLUTE(.);

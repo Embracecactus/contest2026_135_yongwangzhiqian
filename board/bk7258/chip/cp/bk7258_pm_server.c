@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <nuttx/irq.h>
 #include <nuttx/rpmsg/rpmsg.h>
 
 #include <arch/chip/bk7258_pm.h>
@@ -31,6 +32,10 @@
  */
 
 extern void sys_drv_dev_clk_pwr_up(int dev, int power_up);
+extern void sys_hal_video_power_en(uint32_t power_down);
+extern void sys_hal_set_auxs_cis_clk_sel(uint32_t value);
+extern void sys_hal_set_auxs_cis_clk_div(uint32_t value);
+extern void sys_hal_set_cis_auxs_clk_en(uint32_t value);
 
 #define BK7258_SDK_CLOCK_POWER_DOWN 0
 #define BK7258_SDK_CLOCK_POWER_UP   1
@@ -83,6 +88,47 @@ struct bk7258_pm_server_s
 };
 
 static struct bk7258_pm_server_s g_bk7258_pm_server;
+
+static bool bk7258_pm_is_video_clock(enum bk7258_pm_clock_e clock)
+{
+  return clock == BK7258_PM_CLOCK_JPEG ||
+         clock == BK7258_PM_CLOCK_DISPLAY ||
+         clock == BK7258_PM_CLOCK_H264 ||
+         clock == BK7258_PM_CLOCK_YUV;
+}
+
+static bool bk7258_pm_video_active(struct bk7258_pm_server_s *priv)
+{
+  return priv->refs[BK7258_PM_CLOCK_JPEG] != 0 ||
+         priv->refs[BK7258_PM_CLOCK_DISPLAY] != 0 ||
+         priv->refs[BK7258_PM_CLOCK_H264] != 0 ||
+         priv->refs[BK7258_PM_CLOCK_YUV] != 0;
+}
+
+static void bk7258_pm_set_video_power(bool enable)
+{
+  irqstate_t flags = enter_critical_section();
+
+  /* BK7258's VIDP power-down bit uses inverted semantics. */
+
+  sys_hal_video_power_en(enable ? 0 : 1);
+  leave_critical_section(flags);
+}
+
+static void bk7258_pm_set_camera_mclk_24m(bool enable)
+{
+  irqstate_t flags = enter_critical_section();
+
+  if (enable)
+    {
+      sys_hal_set_auxs_cis_clk_sel(3);
+      sys_hal_set_auxs_cis_clk_div(19);
+    }
+
+  sys_hal_set_cis_auxs_clk_en(enable ? 1 : 0);
+  __asm volatile ("dmb sy" ::: "memory");
+  leave_critical_section(flags);
+}
 
 static void bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
 {
@@ -209,6 +255,14 @@ static void bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
       case BK7258_PM_CLOCK_LIN:
         sys_drv_dev_clk_pwr_up(BK7258_SDK_CLOCK_LIN, state);
         break;
+      case BK7258_PM_CLOCK_CAMERA_MCLK_24M:
+        /* v3.1.1.9 dvp_camera_mclk_enable(MCLK_24M): AUXS_CIS uses
+         * source 3 and divider 19.  sys_ctrl is CP-owned in this port,
+         * so reproduce those official SDK operations here rather than
+         * allowing the immutable AP helper to write shared registers. */
+
+        bk7258_pm_set_camera_mclk_24m(enable);
+        break;
       default:
         break;
     }
@@ -217,6 +271,7 @@ static void bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
 static void bk7258_pm_release_generation(
   struct bk7258_pm_server_s *priv)
 {
+  bool video_active = bk7258_pm_video_active(priv);
   unsigned int i;
 
   for (i = 0; i < BK7258_PM_CLOCK_COUNT; i++)
@@ -226,6 +281,11 @@ static void bk7258_pm_release_generation(
           bk7258_pm_set_clock((enum bk7258_pm_clock_e)i, false);
           priv->refs[i] = 0;
         }
+    }
+
+  if (video_active)
+    {
+      bk7258_pm_set_video_power(false);
     }
 
   priv->generation = 0;
@@ -271,6 +331,12 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
         {
           if (priv->refs[clock] == 0)
             {
+              if (bk7258_pm_is_video_clock(clock) &&
+                  !bk7258_pm_video_active(priv))
+                {
+                  bk7258_pm_set_video_power(true);
+                }
+
               bk7258_pm_set_clock(clock, true);
             }
 
@@ -289,6 +355,11 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
           if (priv->refs[clock] == 0)
             {
               bk7258_pm_set_clock(clock, false);
+              if (bk7258_pm_is_video_clock(clock) &&
+                  !bk7258_pm_video_active(priv))
+                {
+                  bk7258_pm_set_video_power(false);
+                }
             }
         }
     }

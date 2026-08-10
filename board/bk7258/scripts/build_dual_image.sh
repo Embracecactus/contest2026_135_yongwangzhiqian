@@ -32,7 +32,7 @@ esac
 CP_CONFIG="${CONFIG_ROOT}/${CP_CONFIG_NAME}"
 AP_CONFIG_NAME="${AP_CONFIG_NAME:-ap_smp}"
 case "${AP_CONFIG_NAME}" in
-    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi|ap_smp_mcuboot|ap_smp_drivercheck|ap_smp_drivercheck_mcuboot)
+    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi|ap_smp_mcuboot|ap_smp_drivercheck|ap_smp_drivercheck_mcuboot|ap_smp_camera_mcuboot|ap_smp_pwm_mcuboot)
         ;;
     *)
         printf 'build_dual_image: unsupported AP_CONFIG_NAME=%s\n' \
@@ -57,7 +57,9 @@ if [[ "${CP_CONFIG_NAME}" == cp_nsh_drivercheck* ||
       "${AP_CONFIG_NAME}" == ap_smp_drivercheck* ]]; then
     case "${CP_CONFIG_NAME}:${AP_CONFIG_NAME}" in
         cp_nsh_drivercheck:ap_smp_drivercheck|\
-        cp_nsh_drivercheck_mcuboot:ap_smp_drivercheck_mcuboot)
+        cp_nsh_drivercheck_mcuboot:ap_smp_drivercheck_mcuboot|\
+        cp_nsh_drivercheck_mcuboot:ap_smp_camera_mcuboot|\
+        cp_nsh_drivercheck_mcuboot:ap_smp_pwm_mcuboot)
             ;;
         *)
             printf '%s\n' \
