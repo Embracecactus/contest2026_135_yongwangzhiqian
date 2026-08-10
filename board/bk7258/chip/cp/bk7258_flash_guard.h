@@ -24,9 +24,7 @@ enum bk7258_flash_guard_owner_e
 {
   BK7258_FLASH_GUARD_NONE = 0,
   BK7258_FLASH_GUARD_DATA = 1,
-  BK7258_FLASH_GUARD_OTA_STAGING = 2,
-  BK7258_FLASH_GUARD_OTA_METADATA = 3,
-  BK7258_FLASH_GUARD_OTA_N17_METADATA = 4
+  BK7258_FLASH_GUARD_MCUBOOT = 2
 };
 
 /****************************************************************************
@@ -34,8 +32,8 @@ enum bk7258_flash_guard_owner_e
  ****************************************************************************/
 
 /* Serialize every team-owned CP Flash transaction.  A zero timeout preserves
- * the existing LittleFS wait-forever behavior; OTA staging always supplies a
- * finite timeout.  write_access must be false for read-only transactions.
+ * the existing LittleFS wait-forever behavior.  write_access must be false
+ * for the read-only MCUboot image partitions.
  * The SDK permission wrapper grants writes only to the calling PID, owner
  * kind and exact frozen range held by this guard.
  */

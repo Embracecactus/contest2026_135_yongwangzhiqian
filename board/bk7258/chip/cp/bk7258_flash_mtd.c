@@ -6,9 +6,8 @@
  * BK7258 (T5-AI) on-chip Flash MTD lower-halves — SDK wrapper.
  *
  * Calls bk_flash_* SDK APIs.  Zero register access.
- * Exposes the 1 MiB data partition and creates private NuttX MTD children
- * for the two physical CP/AP image pairs.  The OTA children are never
- * registered as public device nodes; the staging adapter alone obtains them.
+ * Exposes the 1 MiB data partition.  A NuttX MCUboot BL2 build also creates
+ * read-only MTD children for the two physical CP/AP image pairs.
  *
  * Geometry is fixed for the BK7258 integrated 8 MiB Flash interface:
  *   blocksize  = 4096  (read/write block unit)
@@ -51,20 +50,15 @@
 #define BK7258_FLASH_BLOCK_SIZE     4096u
 #define BK7258_FLASH_NBLOCKS        (BK7258_DATA_PART_SIZE / BK7258_FLASH_BLOCK_SIZE)
 
-#define BK7258_OTA_PART_BASE         BK7258_ROLE_SLOT_A_CP_OFFSET
-#define BK7258_OTA_PAIR_RAW_SIZE     BK7258_ROLE_SLOT_B_PAIR_SIZE
-#define BK7258_OTA_PAIR_LOGICAL_SIZE \
-  (BK7258_OTA_PAIR_RAW_SIZE / BK7258_FLASH_CRC_TOTAL_SIZE * \
+#define BK7258_MCUBOOT_PART_BASE         BK7258_ROLE_SLOT_A_CP_OFFSET
+#define BK7258_MCUBOOT_PAIR_RAW_SIZE     BK7258_ROLE_SLOT_B_PAIR_SIZE
+#define BK7258_MCUBOOT_PAIR_LOGICAL_SIZE \
+  (BK7258_MCUBOOT_PAIR_RAW_SIZE / BK7258_FLASH_CRC_TOTAL_SIZE * \
    BK7258_FLASH_CRC_DATA_SIZE)
-#define BK7258_OTA_PAIR_BLOCKS       \
-  (BK7258_OTA_PAIR_LOGICAL_SIZE / BK7258_FLASH_BLOCK_SIZE)
-#define BK7258_OTA_PART_SIZE         (2u * BK7258_OTA_PAIR_LOGICAL_SIZE)
-
-#define BK7258_OTA_N17_METADATA_BASE \
-  BK7258_ROLE_OTA_METADATA_PRIMARY_OFFSET
-#define BK7258_OTA_N17_METADATA_END  BK7258_ROLE_OTA_MANIFEST_B_END
-#define BK7258_OTA_N17_METADATA_SIZE \
-  (BK7258_OTA_N17_METADATA_END - BK7258_OTA_N17_METADATA_BASE)
+#define BK7258_MCUBOOT_PAIR_BLOCKS       \
+  (BK7258_MCUBOOT_PAIR_LOGICAL_SIZE / BK7258_FLASH_BLOCK_SIZE)
+#define BK7258_MCUBOOT_PART_SIZE         \
+  (2u * BK7258_MCUBOOT_PAIR_LOGICAL_SIZE)
 
 #if BK7258_ROLE_SLOT_A_CP_END != BK7258_ROLE_SLOT_A_AP_OFFSET
 #  error "slot A CP/AP layout is not contiguous"
@@ -74,13 +68,9 @@
 #  error "A/B image pairs must be physically adjacent for NuttX MTD partitions"
 #endif
 
-#if BK7258_OTA_PAIR_RAW_SIZE % BK7258_FLASH_CRC_TOTAL_SIZE != 0 || \
-    BK7258_OTA_PAIR_LOGICAL_SIZE % BK7258_FLASH_BLOCK_SIZE != 0
+#if BK7258_MCUBOOT_PAIR_RAW_SIZE % BK7258_FLASH_CRC_TOTAL_SIZE != 0 || \
+    BK7258_MCUBOOT_PAIR_LOGICAL_SIZE % BK7258_FLASH_BLOCK_SIZE != 0
 #  error "BK7258 A/B pair must map exactly to 34/32 CRC and 4 KiB MTD blocks"
-#endif
-
-#if BK7258_OTA_N17_METADATA_SIZE % BK7258_FLASH_BLOCK_SIZE != 0
-#  error "N17 metadata span must be erase-sector aligned"
 #endif
 
 /* Known compatible IDs accepted by the official driver.  The T5-AI board's
@@ -119,43 +109,17 @@ static struct bk7258_flash_mtd_s g_bk7258_data_mtd =
   .name = "bk7258-data"
 };
 
-#ifdef CONFIG_BK7258_OTA_STAGING
-static struct bk7258_flash_mtd_s g_bk7258_ota_parent_mtd =
-{
-  .base = BK7258_OTA_PART_BASE,
 #ifdef CONFIG_MCUBOOT_BOOTLOADER
-  .size = BK7258_OTA_PART_SIZE,
+static struct bk7258_flash_mtd_s g_bk7258_mcuboot_parent_mtd =
+{
+  .base = BK7258_MCUBOOT_PART_BASE,
+  .size = BK7258_MCUBOOT_PART_SIZE,
   .crc_encoded = true,
-#else
-  .size = 2u * BK7258_OTA_PAIR_RAW_SIZE,
-#endif
-  .owner = BK7258_FLASH_GUARD_OTA_STAGING,
-  .name = "bk7258-ota-parent"
+  .owner = BK7258_FLASH_GUARD_MCUBOOT,
+  .name = "bk7258-mcuboot-parent"
 };
 
-static FAR struct mtd_dev_s *g_bk7258_ota_slots[2];
-
-static struct bk7258_flash_mtd_s g_bk7258_ota_n17_metadata_parent_mtd =
-{
-  .base = BK7258_OTA_N17_METADATA_BASE,
-  .size = BK7258_OTA_N17_METADATA_SIZE,
-  .owner = BK7258_FLASH_GUARD_OTA_N17_METADATA,
-  .name = "bk7258-ota-n17-metadata"
-};
-
-static FAR struct mtd_dev_s *
-  g_bk7258_ota_n17_metadata[BK7258_OTA_N17_MTD_REGION_COUNT];
-
-static const uint32_t g_bk7258_ota_n17_region_blocks[] =
-{
-  0u,
-  (BK7258_ROLE_OTA_METADATA_MIRROR_OFFSET -
-   BK7258_OTA_N17_METADATA_BASE) / BK7258_FLASH_BLOCK_SIZE,
-  (BK7258_ROLE_OTA_MANIFEST_A_OFFSET -
-   BK7258_OTA_N17_METADATA_BASE) / BK7258_FLASH_BLOCK_SIZE,
-  (BK7258_ROLE_OTA_MANIFEST_B_OFFSET -
-   BK7258_OTA_N17_METADATA_BASE) / BK7258_FLASH_BLOCK_SIZE
-};
+static FAR struct mtd_dev_s *g_bk7258_mcuboot_slots[2];
 #endif
 
 static bool g_bk7258_flash_mtd_initialized;
@@ -168,15 +132,10 @@ bk7258_flash_mtd_state(FAR struct mtd_dev_s *dev)
       return &g_bk7258_data_mtd;
     }
 
-#ifdef CONFIG_BK7258_OTA_STAGING
-  if (dev == &g_bk7258_ota_parent_mtd.mtd)
+#ifdef CONFIG_MCUBOOT_BOOTLOADER
+  if (dev == &g_bk7258_mcuboot_parent_mtd.mtd)
     {
-      return &g_bk7258_ota_parent_mtd;
-    }
-
-  if (dev == &g_bk7258_ota_n17_metadata_parent_mtd.mtd)
-    {
-      return &g_bk7258_ota_n17_metadata_parent_mtd;
+      return &g_bk7258_mcuboot_parent_mtd;
     }
 #endif
 
@@ -402,10 +361,9 @@ static ssize_t bk7258_flash_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
   return (ssize_t)nblocks;
 }
 
-/* The N15 staging core programs and read-backs 256-byte records.  Advertise
- * true byte access to the MTD partition layer rather than bypassing it with
- * SDK raw-address operations.  The caller still owns the staging guard, and
- * this lower-half nests that same owner while it performs the Flash command.
+/* Advertise true byte access to the MTD partition layer.  The caller owns the
+ * data guard, and this lower-half nests that owner while issuing Flash
+ * commands.
  */
 
 static ssize_t bk7258_flash_read(FAR struct mtd_dev_s *dev, off_t offset,
@@ -575,19 +533,19 @@ FAR struct mtd_dev_s *bk7258_flash_mtd_initialize(void)
     }
 
   bk7258_flash_mtd_bind(&g_bk7258_data_mtd);
-#ifdef CONFIG_BK7258_OTA_STAGING
-  bk7258_flash_mtd_bind(&g_bk7258_ota_parent_mtd);
-  bk7258_flash_mtd_bind(&g_bk7258_ota_n17_metadata_parent_mtd);
+#ifdef CONFIG_MCUBOOT_BOOTLOADER
+  bk7258_flash_mtd_bind(&g_bk7258_mcuboot_parent_mtd);
 #endif
   g_bk7258_flash_mtd_initialized = true;
   return &g_bk7258_data_mtd.mtd;
 }
 
-#ifdef CONFIG_BK7258_OTA_STAGING
+#ifdef CONFIG_MCUBOOT_BOOTLOADER
 FAR struct mtd_dev_s *
-bk7258_ota_mtd_get(enum bk7258_ota_mtd_slot_e slot)
+bk7258_mcuboot_mtd_get(enum bk7258_mcuboot_mtd_slot_e slot)
 {
-  if (slot != BK7258_OTA_MTD_SLOT_A && slot != BK7258_OTA_MTD_SLOT_B)
+  if (slot != BK7258_MCUBOOT_MTD_SLOT_PRIMARY &&
+      slot != BK7258_MCUBOOT_MTD_SLOT_SECONDARY)
     {
       return NULL;
     }
@@ -597,33 +555,14 @@ bk7258_ota_mtd_get(enum bk7258_ota_mtd_slot_e slot)
       return NULL;
     }
 
-  if (g_bk7258_ota_slots[slot] == NULL)
+  if (g_bk7258_mcuboot_slots[slot] == NULL)
     {
-      g_bk7258_ota_slots[slot] =
-        mtd_partition(&g_bk7258_ota_parent_mtd.mtd,
-                      (off_t)slot * BK7258_OTA_PAIR_BLOCKS,
-                      BK7258_OTA_PAIR_BLOCKS);
+      g_bk7258_mcuboot_slots[slot] =
+        mtd_partition(&g_bk7258_mcuboot_parent_mtd.mtd,
+                      (off_t)slot * BK7258_MCUBOOT_PAIR_BLOCKS,
+                      BK7258_MCUBOOT_PAIR_BLOCKS);
     }
 
-  return g_bk7258_ota_slots[slot];
-}
-
-FAR struct mtd_dev_s *
-bk7258_ota_n17_mtd_get(enum bk7258_ota_n17_mtd_region_e region)
-{
-  if ((unsigned int)region >= BK7258_OTA_N17_MTD_REGION_COUNT ||
-      bk7258_flash_mtd_initialize() == NULL)
-    {
-      return NULL;
-    }
-
-  if (g_bk7258_ota_n17_metadata[region] == NULL)
-    {
-      g_bk7258_ota_n17_metadata[region] =
-        mtd_partition(&g_bk7258_ota_n17_metadata_parent_mtd.mtd,
-                      (off_t)g_bk7258_ota_n17_region_blocks[region], 1);
-    }
-
-  return g_bk7258_ota_n17_metadata[region];
+  return g_bk7258_mcuboot_slots[slot];
 }
 #endif

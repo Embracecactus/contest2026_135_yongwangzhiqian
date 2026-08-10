@@ -31,41 +31,13 @@ SECTIONS
     .rodata : {
         *(.rodata*)
 
-        /* NuttX crypto/ecc.c declares its four P-256 domain constants
-         * without const, although the verifier only reads them.  Keep these
-         * exact, source-verified tables in XIP Flash so Tier-1 still has no
-         * initialized RAM requirement.  No NuttX source is changed.
-         */
+        /* Keep cryptographic constants in XIP Flash so BL1 has no initialized
+         * RAM requirement. */
         *(.data.g_curve_p)
         *(.data.g_curve_b)
         *(.data.g_curve_n)
         *(.data.g_curve_g)
     } > FLASH
-
-#if !BK7258_BL1_MINIMAL
-    /* The only raw program primitive executes from SRAM while the on-chip
-     * Flash controller is busy.  Its load image remains inside the 64 KiB
-     * boot slot and is copied only after every N15-D gate has passed.
-     */
-    .boot_ota_ramfunc 0x2800C000 : {
-        __boot_ota_ramfunc_start = .;
-        KEEP(*(.boot_ota_ramfunc.text))
-        KEEP(*(.boot_ota_ramfunc.text.*))
-        KEEP(*(.boot_ota_ramfunc.rodata))
-        KEEP(*(.boot_ota_ramfunc.rodata.*))
-        __boot_ota_ramfunc_end = .;
-    } > RAM AT > FLASH
-    __boot_ota_ramfunc_load_start = LOADADDR(.boot_ota_ramfunc);
-
-    /* N15-C needs the 4 KiB metadata snapshot and 8 KiB validation scratch
-     * simultaneously.  Keep this boot-only workspace below the CP app SRAM
-     * window and restore it to zero before handoff.
-     */
-    .boot_ota_workspace 0x2800D000 (NOLOAD) : {
-        KEEP(*(.boot_ota_workspace))
-        KEEP(*(.boot_ota_workspace.*))
-    } > RAM
-#endif
 
     .data : {
         *(.data*)
@@ -82,25 +54,9 @@ SECTIONS
         *(.comment)
     }
 
-#if !BK7258_BL1_MINIMAL
-    ASSERT(SIZEOF(.boot_ota_workspace) <= 0x3000,
-           "N15 boot OTA workspace exceeds 12 KiB")
-    ASSERT((ADDR(.boot_ota_workspace) + SIZEOF(.boot_ota_workspace)) <= 0x28010000,
-           "N15 boot OTA workspace overlaps CP application SRAM")
-    ASSERT(SIZEOF(.boot_ota_ramfunc) <= 0x1000,
-           "N15 boot OTA SRAM writer exceeds 4 KiB")
-    ASSERT((ADDR(.boot_ota_ramfunc) + SIZEOF(.boot_ota_ramfunc)) <= 0x2800D000,
-           "N15 boot OTA SRAM writer overlaps validation workspace")
-#endif
     ASSERT(SIZEOF(.data) == 0, "bootloader must not require initialized RAM data")
     ASSERT(SIZEOF(.bss) == 0, "bootloader must not retain hidden BSS state")
-#if BK7258_BL1_MINIMAL
     ASSERT((ADDR(.rodata) + SIZEOF(.rodata)) <=
            (BK7258_ROLE_BOOT_XIP_END - BK7258_BL1_MANIFEST_TAIL_SIZE),
-           "minimal bootloader overlaps the reserved BL1 Manifest tail")
-#else
-    ASSERT((LOADADDR(.boot_ota_ramfunc) + SIZEOF(.boot_ota_ramfunc)) <=
-           (BK7258_ROLE_BOOT_XIP_END - BK7258_BL1_MANIFEST_TAIL_SIZE),
            "bootloader overlaps the reserved BL1 Manifest tail")
-#endif
 }

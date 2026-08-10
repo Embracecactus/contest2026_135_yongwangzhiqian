@@ -1,3 +1,7 @@
+> **Historical / retired:** this file records evidence for the former custom
+> N15 OTA lifecycle. Its runtime implementation and dedicated verification
+> scripts were removed on 2026-08-10; it is not the active update design.
+
 # BK7258 N15 OTA / AB source verification
 
 > 日期：2026-08-03

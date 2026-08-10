@@ -68,10 +68,3 @@ if(CONFIG_BK7258_PSRAM_TEST AND NOT CONFIG_BK7258_AP_CORE)
     SRCS bk7258_psram_test_main.c
     STACKSIZE 3072)
 endif()
-
-if(CONFIG_BK7258_OTA_VALIDATION AND NOT CONFIG_BK7258_AP_CORE)
-  nuttx_add_application(
-    NAME bkota
-    SRCS bk7258_ota_main.c
-    STACKSIZE 8192)
-endif()

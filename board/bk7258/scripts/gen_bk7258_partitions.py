@@ -61,12 +61,9 @@ REQUIRED_ROLES = frozenset(
         "slot_a_cp",
         "slot_a_ap",
         "slot_b_pair",
-        "ota_metadata_primary",
         "vendor_config",
-        "ota_metadata_mirror",
-        "ota_manifest_a",
-        "ota_manifest_b",
-        "ota_auth_policy",
+        "bl1_primary_manifest",
+        "bl1_secondary_manifest",
         "bl2",
         "littlefs",
         "easyflash_cp",
@@ -101,7 +98,6 @@ OFFICIAL_REFERENCE_NAMES = (
     "primary_cp_app",
     "primary_ap_app",
     "s_app",
-    "ota_fina_executive",
     "usr_config",
     "easyflash",
     "easyflash_ap",
@@ -464,12 +460,9 @@ def _validate_layout(layout: PartitionLayout) -> None:
     cp = layout.by_role("slot_a_cp")
     ap = layout.by_role("slot_a_ap")
     slot_b = layout.by_role("slot_b_pair")
-    metadata0 = layout.by_role("ota_metadata_primary")
     usr_config = layout.by_role("vendor_config")
-    metadata1 = layout.by_role("ota_metadata_mirror")
-    manifest_a = layout.by_role("ota_manifest_a")
-    manifest_b = layout.by_role("ota_manifest_b")
-    auth_policy = layout.by_role("ota_auth_policy")
+    manifest_a = layout.by_role("bl1_primary_manifest")
+    manifest_b = layout.by_role("bl1_secondary_manifest")
     bl2 = layout.by_role("bl2")
     littlefs = layout.by_role("littlefs")
     easyflash = layout.by_role("easyflash_cp")
@@ -482,12 +475,6 @@ def _validate_layout(layout: PartitionLayout) -> None:
         cp,
         ap,
         slot_b,
-        metadata0,
-        usr_config,
-        metadata1,
-        manifest_a,
-        manifest_b,
-        auth_policy,
     )
     if boot.offset != 0:
         raise PartitionLayoutError("boot partition must start at raw offset zero")
@@ -498,8 +485,6 @@ def _validate_layout(layout: PartitionLayout) -> None:
             )
     if cp.size + ap.size != slot_b.size:
         raise PartitionLayoutError("slot B must equal the combined CP/AP slot A span")
-    if metadata0.size != layout.erase_size or metadata1.size != layout.erase_size:
-        raise PartitionLayoutError("each metadata bank must occupy exactly one sector")
     if (
         manifest_a.size != layout.erase_size
         or manifest_b.size != layout.erase_size
@@ -507,24 +492,18 @@ def _validate_layout(layout: PartitionLayout) -> None:
         raise PartitionLayoutError("each signed Manifest must occupy exactly one sector")
     if (
         not manifest_a.readable
-        or not manifest_a.writable
+        or manifest_a.writable
         or not manifest_b.readable
-        or not manifest_b.writable
+        or manifest_b.writable
     ):
         raise PartitionLayoutError(
-            "signed Manifest sectors must be readable and lifecycle-writable"
+            "BL1 Manifest sectors must be readable and runtime read-only"
         )
-    if (
-        auth_policy.size != layout.erase_size
-        or not auth_policy.readable
-        or auth_policy.writable
-    ):
-        raise PartitionLayoutError(
-            "auth policy must be one readable, normal-read-only sector"
-        )
-    if auth_policy.end > littlefs.offset:
-        raise PartitionLayoutError("N17 authorization regions overlap LittleFS")
-    if bl2.offset < auth_policy.end or bl2.end > littlefs.offset:
+    if usr_config.offset != 0x4FC000 or usr_config.size != 56 * 1024:
+        raise PartitionLayoutError("vendor usr_config envelope changed")
+    if manifest_a.offset != 0x50B000 or manifest_b.offset != manifest_a.end:
+        raise PartitionLayoutError("BL1 Manifest sector placement changed")
+    if bl2.offset < manifest_b.end or bl2.end > littlefs.offset:
         raise PartitionLayoutError("BL2 must occupy the pre-LittleFS spare gap")
     if layout.logical_size(bl2) < 0x20000:
         raise PartitionLayoutError("BL2 requires at least 128 KiB logical space")

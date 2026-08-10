@@ -34,7 +34,7 @@ Until the final record validates, the selector remains fail-closed on A.
 
 ## Automated evidence
 
-`verify_bk7258_ota_publish.py` passed:
+The then-current format-1 `verify_bk7258_ota_publish.py` passed:
 
 - positive cases: 5;
 - negative/corruption/timeout cases: 142;
@@ -44,6 +44,11 @@ Until the final record validates, the selector remains fail-closed on A.
 - portable core `-Werror` and GCC `-fanalyzer` checks;
 - exact official v3.1.1.9 source and binary hashes;
 - final Boot/CP ELF closure.
+
+That verifier and its unused portable core were retired after the format-2
+dual-bank implementation replaced them. The successor format-2 verifier was
+also removed when the whole custom N15/N17 lifecycle was retired. The results
+below remain historical evidence and are not a current build gate.
 
 Both profiles completed the full build wrapper:
 

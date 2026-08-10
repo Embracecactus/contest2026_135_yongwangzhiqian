@@ -1,232 +1,107 @@
 # Current Progress
 
-Last updated: 2026-08-09 GMT+8
+Last updated: 2026-08-10 GMT+8
 Updated by: Codex
 
-## Active scope
+## Active objective
 
-The active objective is a recoverable BK7258 chain:
+The active BK7258 boot chain is:
 
 ```text
-legacy BootROM -> board-owned minimal BL1 -> signed Manifest
+legacy BootROM -> board-owned BL1 -> signed Manifest
 -> pinned NuttX MCUboot BL2 -> signed same-slot CP/AP pair -> NuttShell
 ```
 
-Official BK7258 v3.1.1.9 has no buildable Secure Boot adaptation. BK7236
-security material is used only as a same-architecture semantic/source
-reference; its single-core addresses, OTP/eFuse ABI and TF-M mapping are not
-treated as BK7258 facts. NuttX and SDK source trees remain unchanged.
+The old N15/N17 self-developed OTA lifecycle has been retired from active
+code. Its selector, journal, staging, publication, trial/rollback, fault
+injection, release-key and validation-script implementations are removed.
+Historical ADRs and verification records remain evidence of work that was
+previously performed; they are not descriptions of the current firmware.
 
-## Current board baseline
+## Current boot and partition baseline
 
-- MCUboot version: `18.1.3`; protected security counter: `20`.
-- BL1 profile: `BL1_MINIMAL=1`, fixed Primary -> Secondary BL2 ordering.
-- BL1 responsibilities: clock/reset normalization, watchdog fail-closed,
-  Manifest P-256/SHA-256 verification, BL2 vector/copy validation, checked
-  SRAM policy publication and BL2 handoff.
-- The final BL1 does not link N15/N17 lifecycle selectors, OTA Flash writer,
-  N17 release keys or NuttX ECC. Historical validation profiles remain
-  separate and are not part of the MCUboot image.
-- BL2 remains the only component that validates and launches a signed CP/AP
-  pair. It uses the pinned NuttX MCUboot sources and board-owned Flash/AP
-  handoff adapters.
-- Final BL1 ELF: `.text + .rodata = 9,878` bytes, `.data = 0`, `.bss = 0`.
+- Runtime SDK: official BK7258 v3.1.1.9 only, linked through board wrappers.
+- NuttX and official SDK source trees remain unchanged.
+- BL1 is still a complete source implementation: clock/reset/watchdog setup,
+  ECDSA-P256/SHA-256 Manifest authorization, primary-then-secondary BL2
+  fallback, vector/copy checks, SRAM policy publication and handoff.
+- BL2 is still the pinned NuttX MCUboot implementation. It verifies MCUboot
+  image/TLV metadata and accepts only a version/counter-compatible CP/AP pair
+  from the same physical slot.
+- BL1 has one production object closure. It no longer links any N15/N17
+  lifecycle selector, Flash writer, software journal or release key.
+- The active CSV keeps contiguous CP/AP A and B pairs, two read-only BL1
+  Manifest sectors, two read-only BL2 copies, LittleFS and the official
+  calibration tail. It has no OTA metadata bank or authorization-policy
+  sector.
+- Flash MTD exposes ordinary data partitions plus read-only MCUboot/Manifest
+  regions; there is currently no firmware update writer or installer.
+
+## Verification at this checkpoint
+
+On 2026-08-10, a clean 32-job `cp_nsh_mcuboot + ap_smp_mcuboot` build passed
+with ephemeral, non-repository signing keys and SDK v3.1.1.9 checksums:
+
+- MCUboot version `18.1.4`, image security counter `21`.
+- Manifest-enforced BL1 and NuttX MCUboot BL2 both compiled and linked.
+- CP/AP images were signed, 32+2 CRC encoded and assembled into the final
+  factory package.
+- Generated partition validation, SDK partition-wrapper host validation and
+  final factory-layout validation passed.
+- Factory prefix ends at `0x4fb000`; LittleFS remains
+  `0x600000..0x700000`; the official tail starts at `0x7fa000`.
 
 Artifact SHA-256:
 
-- `bl_crc.bin`: `2e00debb90f720359bc78996eb79a68c1ae00aa8e2ede9626c64534ee62a51df`
-- `all-app-factory.bin`: `b7103c3980e3557d4a544a4bb3b3ee9c3df29deaed164b5a293fab2257fda7f0`
-- `bl2_crc.bin`: `535571b677f0ced7d2c8a49b2495fbc0b2778657dfab50cb732c56a106204f17`
+- `bl_crc.bin`: `2c3f02cc91002fbcef97d00d6edd88cdde50fd732d2799a2eb07e15321d4a374`
+- `bl2_crc.bin`: `1ce5a10153e51452eb7871f7e57c009522d80c2a1850f2ab5b69ae5c2a1af79e`
+- `all-app-factory.bin`: `b483434eb51194f22d7ccc1859a53d6fc5b7561acd413739c0013531f411530b`
 
-## Verification
+This checkpoint is build/host evidence. The previously recorded board proof
+for Manifest rejection, secondary-BL2 fallback and signed CP/AP boot remains
+valid for the preserved chain, but the newly cleaned image has not been
+flashed in this checkpoint. Canonical board evidence:
+[Secure Boot remaining gates](verification/2026-08-08-bk7258-secureboot-remaining-gates.md).
 
-- Full `JOBS=32` CP/AP MCUboot build passed using immutable SDK v3.1.1.9.
-  The build now runs the profile-aware BL1 symbol verifier.
-- Host mailbox/BL1-policy tests passed: `0/31` failures.
-- Valid factory package reached
-  `B1PRIMARY -> BL2RAM -> B2GOOK -> B2SELA -> B2APOK -> B2HANDOFF -> NSH`:
-  `logs/bk7258-secureboot-minimal-primary/20260808-164835`.
-- Corrupting byte `0x40` of only the Primary Manifest digest, then rebuilding
-  its valid 32+2 CRC envelope, produced
-  `rc=2 -> B1PRIMARY BAD -> B1SECONDARY -> B2HANDOFF -> NSH`:
-  `logs/bk7258-secureboot-minimal-negative/20260808-165028`.
-- The valid boot envelope was restored and passed:
-  `logs/bk7258-secureboot-minimal-restored/20260808-165102`.
-- Independent 150 ms COM7 RTS physical reset passed the Primary path with
-  `cold_path=yes`:
-  `logs/bk7258-secureboot-minimal-rts/20260808-165125`.
-- The board is currently restored to the valid Primary image. No OTP/eFuse,
-  secure lifecycle or debug-lock bit was written.
+## Other verified platform state
 
-Canonical detail:
-[Secure Boot remaining-gates verification](verification/2026-08-08-bk7258-secureboot-remaining-gates.md).
+- CP NuttX, AP SMP, RPTUN/RPMsg/RPMsgFS, Bluetooth, Wi-Fi STA, PSRAM and the
+  established peripheral wrappers remain outside this cleanup and are not
+  intentionally changed.
+- T5AI-Core is the default physical board. T5-Board wiring is separated under
+  `boards/t5_board`; its ILI9488 RGB LCD displayed the expected color bars.
+- Driver backlog conclusions and board evidence are recorded in
+  [AP peripheral board evidence](verification/2026-08-09-bk7258-ap-peripheral-board-evidence.md).
 
 ## Honest boundary
 
-This proves a repository-owned, software-rooted Secure Boot chain on BK7258.
-It does not prove that BK7258 BootROM consumes the candidate Manifest, and it
-does not provide an immutable hardware root or persistent hardware-backed
-anti-rollback. The board remains recoverable for unfinished driver work.
+The chain is software-rooted. It does not prove that BK7258 BootROM consumes
+the repository Manifest and does not provide OTP/eFuse-backed root trust or
+persistent hardware anti-rollback. No OTP/eFuse, secure-lifecycle or debug
+lock bit has been written.
 
-## AP peripheral wrapper checkpoint
-
-- Reviewed CodeBuddy lower-half candidates were moved into the board-owned AP
-  layer; NuttX and SDK sources remain unchanged.
-- AP-SMP/AP-UP source selection and Kconfig now cover AUD, GPIO expander,
-  I2C, I2S, LCD, microphone capture, RTC, SARADC, SDIO, SDMADC, SPI and timer.
-  AUD and microphone capture are mutually exclusive owners of the AUD ADC.
-- LCD framebuffer storage now comes from the established AP PSRAM heap rather
-  than consuming about 300 KiB of AP SRAM `.bss`.
-- Two AP-SMP compile/link profiles passed: all non-PWM wrappers plus AUD, and
-  all non-PWM wrappers plus microphone capture. Both completed board CRC
-  post-processing. This is compile evidence, not peripheral hardware proof.
-- PWM is intentionally excluded: immutable v3.1.1.9 `libdriver.a` exports no
-  `bk_pwm_*` API required by the candidate. A board-owned register wrapper or
-  a source-verified SDK adaptation is still required.
-
-Canonical detail:
-[AP driver compile verification](verification/2026-08-08-bk7258-ap-drivers.md).
-
-- The object-returning lower halves (GPIOE, I2S, SDIO, SPI, LCD) are now
-  bound to their NuttX upper halves in `bk7258_peripherals_initialize()` so
-  the devices are reachable from user space; bindings are best-effort and log
-  instead of parking the AP. AP link now includes `libavdk_utils.a` for the
-  SDK GPIO IPC checksum path, and `chip/Make.defs` adds the `arm_m` include
-  directory for post-distclean dependency passes.
-- AP-SMP `ap_smp_drivercheck` profile (AUD, GPIOE, I2S, LCD, SDIO, SPI)
-  passed configure/compile/link/postbuild: `app1.bin=179888`,
-  `app1_crc.bin=191148`.
-
-Canonical detail:
-[AP lower-half bindings compile gate](verification/2026-08-09-bk7258-ap-lowerhalf-bindings.md).
-
-## Drivercheck MCUboot board verification pass (2026-08-09)
-
-The temporary probe baseline reached READY with 13 /dev nodes registered;
-init evidence for AUD,
-GPIOE, I2C, I2S, RTC, SARADC, SDIO, SDMADC, SPI, timer all zero;
-runtime self-check read `/dev/gpio0` (level 1) and `/dev/rtc0`
-(tm_year=70); ADC nodes open but raw reads need channel setup.
-
-Root causes fixed and board-verified this pass:
-
-1. GPIOE hang: NuttX `gplh_setpintype` issues WAKEUPCFG; the SDK wakeup
-   APIs block forever on a gpio_ipc SYNC channel with no CP responder.
-   Board wrapper now returns `-ENOTSUP` for WAKEUPCFG (permanent fix).
-2. PSRAM dead: `cp_nsh_drivercheck_mcuboot` lacked
-   `CONFIG_BK7258_PSRAM=y`, so CP never initialised the PSRAM
-   controller; every access read 0 from both cores. Config fixed
-   (vendor + board defconfigs); heap confirmed live (guard node 9,
-   free node 0x9fffe, 624 KiB free).
-3. LCD framebuf -ENOMEM: consequence of (2), now allocates.
-4. `lcd_drv_init=-4096`: the PM vote alone was insufficient.  The missing
-   prerequisite was the official SDK ordering
-   `sys_drv_init -> ipc_init -> mb_ipc_init -> bk_ipc_init`, plus a retained
-   `.ipc_chan_reg` table with real linker boundaries.  A board-owned minimal
-   runtime now supplies only that chain on CP and AP; the full SDK
-   `driver_init()` is not used.  Hardware then reported LCD driver/RGB init 0.
-5. Generic LCD framebuffer `-ENOMEM`: it allocated a second 300 KiB SRAM
-   shadow buffer.  The board driver now implements `fb_vtable_s` directly and
-   registers its existing PSRAM scanout buffer as `/dev/fb0`.
-6. GPIO/bus conflicts: the GPIOE integration no longer auto-registers and
-   configures GPIO0..15.  Consumers must explicitly claim each pin; I2C,
-   I2S, SPI, SDIO and LCD hardware tests use pin-compatible profiles.
-7. TRNG: the standard NuttX `/dev/random` path is backed by the AP-owned
-   v3.1.1.9 `bk_fill_rand()` implementation.  A temporary fail-closed probe
-   read two independent 32-byte samples and AP reached READY; the probe was
-   then removed and the clean image was rebuilt, reflashed and rechecked.
-8. QSPI: the AP-owned v3.1.1.9 controller is exposed through NuttX
-   `qspi_dev_s`.  The drivercheck MCUboot profile compiles, links and completes
-   postbuild using only the immutable SDK bundle.  No arbitrary MTD is bound:
-   the verified SDK command subset and 256-byte program transaction limit do
-   not justify claiming general Flash compatibility.  Hardware transfer is
-   pending a known external device and a pin-compatible profile because both
-   QSPI controllers overlap active LCD/SDIO/SPI/I2S pins.
-9. Touch: the CP-owned v3.1.1.9 controller is exposed as the standard NuttX
-   `/dev/buttons` device for one selected channel.  The implementation avoids
-   the SDK ISR's hidden `TIMER_ID1` ownership by polling on LPWORK.  A signed
-   MCUboot board image reached NSH, registered the node and returned the real
-   channel-3 bit in a four-byte read.  Physical capacitive transition evidence
-   still requires a suitable electrode; the module's GPIO29 is USERKEY.
-10. CAN, Ethernet, USB Host/Device, DVP, DMA2D, JPEG encode/decode,
-   Scale/Rotate and YUV/H264 are source-audited blockers rather than fake
-   implementations.  The immutable SDK bundle either omits the required data
-   plane, owns it through another stack, or lacks the cache/error/buffer
-   contract needed by the corresponding NuttX upper half.  No placeholder
-   device, private character ABI or copied SDK source was added.
-11. P2 review is complete: LIN, Segment LCD, IRDA and FFT/SBC remain blocked
-   by missing immutable-bundle symbols, unresolved core ownership, absent
-   NuttX/board consumer contracts, or a combination of those constraints.
-
-All temporary shared-SRAM/device-list/allocation probes and temporary
-`apctl` debug commands have been removed.  The final 32-job MCUboot build and
-sparse flash passed (`logs/bk7258-auto-debug/20260809-122731`); a subsequent
-read-only `apctl status` reported AP `READY(2)` with heartbeat 1106, CPU2
-`SECONDARY_READY(7)` and AP IPI `READY(2)` with zero loss/failure.  RPTUN
-remains `CONNECTING(3)` in this drivercheck profile.
-
-Canonical detail:
-[AP peripheral board evidence](verification/2026-08-09-bk7258-ap-peripheral-board-evidence.md).
-
-## BK7258 physical-board split (2026-08-09)
-
-- The shared platform moved from `board/bk7258_t5ai` to `board/bk7258`.
-  Chip, CP/AP, bootloader, MCUboot, partition and SDK-wrapper code remain one
-  implementation; the refactor does not duplicate the BSP.
-- Physical wiring now lives under `boards/t5ai_core` and `boards/t5_board`.
-  Existing defconfigs select T5AI-Core by default, preserving the verified
-  Core behavior.  T5-Board is selected by `CONFIG_BK7258_BOARD_T5_BOARD`.
-- Board-owned GPIO lower halves consume the selected LED/key definitions.
-  Hardware revisions are metadata and do not form directory names unless a
-  later revision changes a software-visible electrical contract.
-- Core and T5-Board CP/AP drivercheck-MCUboot configurations all passed
-  compile, link and postbuild using immutable SDK v3.1.1.9.  T5-Board's actual
-  compile flags resolve to `boards/t5_board/include`; its electrical mappings
-  remain schematic-only until exercised on the full board.
-
-Canonical detail:
-[BK7258 platform/board-variant verification](verification/2026-08-09-bk7258-platform-board-variants.md).
-
-## T5-Board RGB LCD hardware verification (2026-08-09)
-
-- The former monolithic LCD wrapper is split into a generic BK7258 RGB
-  controller, an ILI9488 panel module and a T5-Board wiring/binding layer.
-  T5-specific pins and panel commands no longer live in the chip driver.
-- A clean 32-job CP/AP MCUboot build passed with the optional validation
-  pattern enabled.  Sparse deployment reached `B2HANDOFF -> NuttShell` and
-  registered `/dev/fb0` as a 320x480 RGB565 framebuffer at 15 MHz.
-- The attached T35P128CQ-02 module continuously displayed the expected
-  red/green/blue/white bars.  This is visual hardware evidence for the
-  T5-Board/ILI9488 binding; the validation pattern remains disabled by
-  default and is not a product UI.
-- Evidence log: `logs/bk7258-t5-board-validation/20260809-224454`.
+The current source provides authenticated boot, not a complete field-update
+lifecycle. Restoring the deleted custom N15/N17 OTA state machines would be a
+regression. A future updater must be designed against NuttX MCUboot semantics
+and the frozen CP/AP same-slot contract.
 
 ## Next step
 
-1. The isolated P0/P1/P2 driver queue is complete.  TRNG and CP touch are
-   hardware-verified and QSPI is compile/link-verified; all non-implementable
-   entries are recorded against an explicit immutable SDK/NuttX ABI boundary.
-   Revisit them only after a v3.1.1.9 bundle is rebuilt with the relevant
-   controller enabled and its public ownership/cache/buffer contract frozen.
-2. Hardware-verify existing peripherals one at a time using pin-compatible
-   profiles.  Keep T5AI-Core as the default baseline; on T5-Board first verify
-   its P12 key and then TF card detect/data, RGB LCD and DVP wiring.  Validate
-   the P1 LED only with its shared log-UART path disconnected.  Do not enable
-   conflicting devices by default in shipped configs.
-3. Resume N17 OTA policy on the recoverable Secure Boot baseline. Do not put
-   historical N15/N17 writers back into minimal BL1.
-4. Hardware Secure Boot provisioning is the final gate, after signed OTA and
-   recovery matrices are stable and preferably on a second board. It requires
-   separate authorization before any OTP/eFuse or lifecycle operation.
+1. Review and commit this cleanup separately from unrelated driver/bundle
+   changes already present in the worktree.
+2. Flash and smoke-test the cleaned MCUboot image at the next safe hardware
+   checkpoint: Primary BL2, Secondary fallback negative case and CP/AP boot.
+3. Only when field update is requested, design its transport, inactive-slot
+   writer, confirmation and rollback flow directly around MCUboot; do not
+   restore the retired N15/N17 custom journal.
+4. Keep hardware Secure Boot provisioning deferred until separate authority;
+   never write OTP/eFuse as part of ordinary validation.
 
-## Open constraints
+## Fixed constraints
 
-- Official runtime SDK is fixed to v3.1.1.9; BK7259/v4 artifacts are excluded.
-- Do not modify NuttX or SDK sources except temporary debugging that is fully
-  restored.
-- Private signing keys must never enter the repository, firmware logs or
-  project memory.
-- Remaining GPIO/SPI warnings in the all-driver image are known physical-pin
-  conflicts; transfer validation uses pin-compatible profiles.  RPTUN
-  CONNECTING/`[ipc_svr]` behavior is tracked separately from this peripheral
-  runtime checkpoint.
+- Do not modify NuttX or official SDK source except temporary debugging that
+  is fully restored.
+- Do not mix BK7259, v4.x or BK7236 runtime artifacts into the product path.
+- Private signing keys must never enter the repository, logs or memory.
+- Hardware mutation, commit, push and PR actions keep their normal authority
+  boundaries.

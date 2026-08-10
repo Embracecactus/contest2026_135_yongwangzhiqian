@@ -8,9 +8,9 @@
 
 | 路径 | 先在什么问题时打开 |
 |---|---|
-| `board/bk7258/bootloader/` | BootROM handoff、vector/magic、cache/MPU/WDT、A/B selector |
+| `board/bk7258/bootloader/` | BootROM handoff、vector/magic、cache/MPU/WDT、BL1/BL2 |
 | `board/bk7258/chip/common/` | CP/AP共用UART、IRQ、heap、RPTUN、RPMsg、RPMsgFS、PSRAM |
-| `board/bk7258/chip/cp/` | Flash/LittleFS、AP control/supervisor、Controller、OTA staging |
+| `board/bk7258/chip/cp/` | Flash/LittleFS、AP control/supervisor、Controller |
 | `board/bk7258/chip/ap/` | AP startup/SMP/IPI、HCI Host lower-half、GATT |
 | `board/bk7258/configs/` | 某个CP/AP profile到底打开哪些Kconfig |
 | `board/bk7258/partitions/` | canonical CSV与生成布局 |
@@ -89,18 +89,19 @@
 | [PSRAM verifier](../../../board/bk7258/scripts/verify_bk7258_psram.py) | source/layout/ELF ownership门禁 |
 | [N14 evidence](../nuttx-port/n14-evidence-index.md) | build、cold、factory与回归索引 |
 
-## 8. N15 OTA
+## 8. BL1、BL2 与 MCUboot
 
 | 文件/目录 | 作用 |
 |---|---|
 | [canonical partition CSV](../../../board/bk7258/partitions/bk7258/auto_partitions.csv) | raw布局唯一手工输入 |
 | [partition generator](../../../board/bk7258/scripts/gen_bk7258_partitions.py) | 生成SDK/header/JSON/text |
-| [pair packer](../../../board/bk7258/scripts/pack_bk7258_ota_pair.py) | deterministic CP/AP bundle |
-| [staging wrapper](../../../board/bk7258/chip/cp/bk7258_ota_staging.c) | CP-only inactive slot写入 |
-| [trial control](../../../board/bk7258/chip/cp/bk7258_ota_trial.c) | status/prepare/activate/confirm/rollback |
-| `boot_ota_rotation_*` | portable dual-bank parse/select/trial/publish/health cores |
-| [format-2 campaign verifier](../../../board/bk7258/scripts/verify_bk7258_ota_campaign.py) | 独立检查16-package workflow |
-| `bootloader/research/adr003/`、`scripts/research/adr003/` | 被ADR-004取代的研究证据，不能链接/启用 |
+| [BL1 main](../../../board/bk7258/bootloader/boot_main.c) | 固定Primary→Secondary验证、SRAM复制与BL2 handoff |
+| [BL1 Manifest generator](../../../board/bk7258/bootloader/make_bl1_manifest.py) | 生成board-owned Manifest及外部公钥源码 |
+| `board/bk7258/bootloader/bl2/` | pinned NuttX MCUboot bootutil与CP/AP成对slot适配 |
+| [MCUboot pair packer](../../../board/bk7258/scripts/pack_bk7258_mcuboot_pair.py) | 使用NuttX `imgtool.py`签名CP/AP并生成32+2镜像 |
+| [dual image packer](../../../board/bk7258/scripts/pack_dual_image.py) | 按CSV组合BL1、双BL2及CP/AP两槽 |
+
+旧N15/N17自研OTA的staging/trial/journal/publish/fault实现和配套验证脚本已退役并从活动源码删除；`progress/verification/`中的旧记录仅作为历史证据，不能当作当前可执行入口。
 
 ## 9. 读文档的优先级
 

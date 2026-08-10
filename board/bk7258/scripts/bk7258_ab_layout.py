@@ -2,8 +2,7 @@
 """Compatibility API backed by the generated BK7258 partition CSV model.
 
 New code should prefer roles from :mod:`gen_bk7258_partitions`.  The exported
-constants remain stable for existing N15 packers and verifiers while their
-values now come from the repository-owned CSV instead of a second hand-written
+constants come from the repository-owned CSV instead of a second hand-written
 layout table.
 """
 
@@ -32,12 +31,9 @@ _BOOT = _LAYOUT.by_role("boot")
 _CP_A = _LAYOUT.by_role("slot_a_cp")
 _AP_A = _LAYOUT.by_role("slot_a_ap")
 _PAIR_B = _LAYOUT.by_role("slot_b_pair")
-_METADATA_PRIMARY = _LAYOUT.by_role("ota_metadata_primary")
 _USR_CONFIG = _LAYOUT.by_role("vendor_config")
-_METADATA_MIRROR = _LAYOUT.by_role("ota_metadata_mirror")
-_MANIFEST_A = _LAYOUT.by_role("ota_manifest_a")
-_MANIFEST_B = _LAYOUT.by_role("ota_manifest_b")
-_AUTH_POLICY = _LAYOUT.by_role("ota_auth_policy")
+_MANIFEST_PRIMARY = _LAYOUT.by_role("bl1_primary_manifest")
+_MANIFEST_SECONDARY = _LAYOUT.by_role("bl1_secondary_manifest")
 _BL2 = _LAYOUT.by_role("bl2")
 _LITTLEFS = _LAYOUT.by_role("littlefs")
 _EASYFLASH = _LAYOUT.by_role("easyflash_cp")
@@ -55,18 +51,12 @@ AP_A_START = _AP_A.offset
 AP_A_SIZE = _AP_A.size
 PAIR_B_START = _PAIR_B.offset
 PAIR_B_SIZE = _PAIR_B.size
-OTA_METADATA_START = _METADATA_PRIMARY.offset
-OTA_METADATA_SIZE = _METADATA_PRIMARY.size
 USR_CONFIG_START = _USR_CONFIG.offset
 USR_CONFIG_SIZE = _USR_CONFIG.size
-OTA_METADATA_MIRROR_START = _METADATA_MIRROR.offset
-OTA_METADATA_MIRROR_SIZE = _METADATA_MIRROR.size
-OTA_MANIFEST_A_START = _MANIFEST_A.offset
-OTA_MANIFEST_A_SIZE = _MANIFEST_A.size
-OTA_MANIFEST_B_START = _MANIFEST_B.offset
-OTA_MANIFEST_B_SIZE = _MANIFEST_B.size
-OTA_AUTH_POLICY_START = _AUTH_POLICY.offset
-OTA_AUTH_POLICY_SIZE = _AUTH_POLICY.size
+BL1_MANIFEST_PRIMARY_START = _MANIFEST_PRIMARY.offset
+BL1_MANIFEST_PRIMARY_SIZE = _MANIFEST_PRIMARY.size
+BL1_MANIFEST_SECONDARY_START = _MANIFEST_SECONDARY.offset
+BL1_MANIFEST_SECONDARY_SIZE = _MANIFEST_SECONDARY.size
 BL2_START = _BL2.offset
 BL2_SIZE = _BL2.size
 BL2_SECONDARY_START = BL2_START + BL2_SIZE
@@ -75,7 +65,7 @@ BL2_SECONDARY_END = BL2_SECONDARY_START + BL2_SECONDARY_SIZE
 LITTLEFS_START = _LITTLEFS.offset
 LITTLEFS_SIZE = _LITTLEFS.size
 CALIBRATION_TAIL_START = _EASYFLASH.offset
-FACTORY_PREFIX_END = _METADATA_PRIMARY.end
+FACTORY_PREFIX_END = _PAIR_B.end
 MIGRATION_WRITE_END = _LITTLEFS.end
 
 CP_XIP_START = _LAYOUT.xip_base + _LAYOUT.logical_offset(_CP_A)
@@ -114,10 +104,10 @@ REGIONS = (
     Region(_AP_A.name, _AP_A.offset, _AP_A.size, "primary-a"),
     Region(_PAIR_B.name, _PAIR_B.offset, _PAIR_B.size, "paired-b"),
     Region(
-        _METADATA_PRIMARY.name,
-        _METADATA_PRIMARY.offset,
-        _METADATA_PRIMARY.size,
-        "trial-metadata-primary",
+        "reserved_before_usr_config",
+        _PAIR_B.end,
+        _USR_CONFIG.offset - _PAIR_B.end,
+        "unallocated",
     ),
     Region(
         _USR_CONFIG.name,
@@ -126,33 +116,27 @@ REGIONS = (
         "vendor-reserved",
     ),
     Region(
-        _METADATA_MIRROR.name,
-        _METADATA_MIRROR.offset,
-        _METADATA_MIRROR.size,
-        "trial-metadata-mirror",
+        "reserved_before_bl1_manifest",
+        _USR_CONFIG.end,
+        _MANIFEST_PRIMARY.offset - _USR_CONFIG.end,
+        "unallocated",
     ),
     Region(
-        _MANIFEST_A.name,
-        _MANIFEST_A.offset,
-        _MANIFEST_A.size,
-        "signed-manifest-a",
+        _MANIFEST_PRIMARY.name,
+        _MANIFEST_PRIMARY.offset,
+        _MANIFEST_PRIMARY.size,
+        "bl1-primary-manifest",
     ),
     Region(
-        _MANIFEST_B.name,
-        _MANIFEST_B.offset,
-        _MANIFEST_B.size,
-        "signed-manifest-b",
-    ),
-    Region(
-        _AUTH_POLICY.name,
-        _AUTH_POLICY.offset,
-        _AUTH_POLICY.size,
-        "one-way-auth-policy",
+        _MANIFEST_SECONDARY.name,
+        _MANIFEST_SECONDARY.offset,
+        _MANIFEST_SECONDARY.size,
+        "bl1-secondary-manifest",
     ),
     Region(
         "reserved_before_littlefs",
-        _AUTH_POLICY.end,
-        _LITTLEFS.offset - _AUTH_POLICY.end,
+        _MANIFEST_SECONDARY.end,
+        _LITTLEFS.offset - _MANIFEST_SECONDARY.end,
         "unallocated",
     ),
     Region(_LITTLEFS.name, _LITTLEFS.offset, _LITTLEFS.size, "cp-raw-owner"),
@@ -177,7 +161,6 @@ OFFICIAL_ROWS = tuple(
         "primary_cp_app",
         "primary_ap_app",
         "s_app",
-        "ota_fina_executive",
         "usr_config",
         "easyflash",
         "easyflash_ap",
@@ -251,20 +234,15 @@ def report(sdk_source: Path | None = None) -> dict[str, object]:
             "size": PAIR_B_SIZE,
             "single_offset_compatible": True,
         },
-        "metadata_banks": [
-            [OTA_METADATA_START, OTA_METADATA_START + OTA_METADATA_SIZE],
+        "bl1_manifest_sectors": [
             [
-                OTA_METADATA_MIRROR_START,
-                OTA_METADATA_MIRROR_START + OTA_METADATA_MIRROR_SIZE,
+                BL1_MANIFEST_PRIMARY_START,
+                BL1_MANIFEST_PRIMARY_START + BL1_MANIFEST_PRIMARY_SIZE,
             ],
-        ],
-        "manifest_sectors": [
-            [OTA_MANIFEST_A_START, OTA_MANIFEST_A_START + OTA_MANIFEST_A_SIZE],
-            [OTA_MANIFEST_B_START, OTA_MANIFEST_B_START + OTA_MANIFEST_B_SIZE],
-        ],
-        "auth_policy": [
-            OTA_AUTH_POLICY_START,
-            OTA_AUTH_POLICY_START + OTA_AUTH_POLICY_SIZE,
+            [
+                BL1_MANIFEST_SECONDARY_START,
+                BL1_MANIFEST_SECONDARY_START + BL1_MANIFEST_SECONDARY_SIZE,
+            ],
         ],
         "migration": {
             "write_ranges": [
@@ -275,7 +253,6 @@ def report(sdk_source: Path | None = None) -> dict[str, object]:
             "calibration_tail_start": CALIBRATION_TAIL_START,
             "chip_erase_allowed": False,
             "preserve_usr_config": True,
-            "preserve_metadata_mirror_until_n15_o": True,
             "destructive_factory_requires_fresh_owner_authority": True,
         },
         "status": "accepted-layout-csv-host-verified",

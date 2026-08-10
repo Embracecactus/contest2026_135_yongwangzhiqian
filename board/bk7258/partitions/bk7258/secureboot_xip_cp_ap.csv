@@ -1,7 +1,7 @@
 # BK7258 project-owned secureboot XIP staging profile.
 #
 # This file is separate from auto_partitions.csv.  The latter remains the
-# active v3.1.1.9 / legacy-N17 build layout until this BK7258 staging chain
+# active v3.1.1.9 development layout until this BK7258 staging chain
 # has a recoverable full-image handoff and board validation.
 #
 # Geometry follows Beken's public BK7258 secure-boot convention:

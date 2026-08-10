@@ -125,16 +125,8 @@ static bool in_range(uint32_t addr, uint32_t size, uint32_t start,
 bool bk7258_flash_guard_write_authorized(uint32_t addr, uint32_t size)
 {{
   return g_guard &&
-         (in_range(addr, size, BK7258_ROLE_SLOT_A_CP_OFFSET,
-                   BK7258_ROLE_SLOT_B_PAIR_SIZE) ||
-          in_range(addr, size, BK7258_ROLE_SLOT_B_PAIR_OFFSET,
-                   BK7258_ROLE_SLOT_B_PAIR_SIZE) ||
-          in_range(addr, size, BK7258_ROLE_OTA_METADATA_PRIMARY_OFFSET,
-                   BK7258_ROLE_OTA_METADATA_PRIMARY_SIZE) ||
-          in_range(addr, size, BK7258_ROLE_OTA_METADATA_MIRROR_OFFSET,
-                   BK7258_ROLE_OTA_METADATA_MIRROR_SIZE) ||
-          in_range(addr, size, BK7258_ROLE_LITTLEFS_OFFSET,
-                   BK7258_ROLE_LITTLEFS_SIZE));
+         in_range(addr, size, BK7258_ROLE_LITTLEFS_OFFSET,
+                  BK7258_ROLE_LITTLEFS_SIZE);
 }}
 
 bk_err_t bk_flash_read_bytes(uint32_t addr, uint8_t *buffer, uint32_t size)
@@ -209,28 +201,24 @@ int main(void)
   CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
           BK7258_ROLE_LITTLEFS_OFFSET, 4, MAGIC) == BK_FAIL);
   CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
-          BK7258_ROLE_OTA_MANIFEST_A_OFFSET, 4, MAGIC) == BK_FAIL);
+          BK7258_ROLE_BL1_PRIMARY_MANIFEST_OFFSET, 4, MAGIC) == BK_FAIL);
   CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
-          BK7258_ROLE_OTA_MANIFEST_B_OFFSET, 4, MAGIC) == BK_FAIL);
-  CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
-          BK7258_ROLE_OTA_AUTH_POLICY_OFFSET, 4, MAGIC) == BK_FAIL);
+          BK7258_ROLE_BL1_SECONDARY_MANIFEST_OFFSET, 4, MAGIC) == BK_FAIL);
   CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
           BK7258_ROLE_VENDOR_CONFIG_OFFSET, 4, MAGIC) == BK_OK);
   CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
           BK7258_ROLE_CALIBRATION_NET_END - 2, 4, MAGIC) ==
         BK_ERR_FLASH_ADDR_OUT_OF_RANGE);
   CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
-          BK7258_ROLE_OTA_METADATA_MIRROR_END + 0x1000, 4, MAGIC) == BK_FAIL);
+          BK7258_ROLE_BL1_SECONDARY_MANIFEST_END + 0x1000, 4, MAGIC) == BK_FAIL);
 
   g_guard = true;
   CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
-          BK7258_ROLE_SLOT_A_CP_OFFSET, 4, MAGIC) == BK_OK);
+          BK7258_ROLE_SLOT_A_CP_OFFSET, 4, MAGIC) == BK_FAIL);
   CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
-          BK7258_ROLE_SLOT_B_PAIR_OFFSET, 4, MAGIC) == BK_OK);
+          BK7258_ROLE_SLOT_B_PAIR_OFFSET, 4, MAGIC) == BK_FAIL);
   CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
           BK7258_ROLE_LITTLEFS_OFFSET, 4, MAGIC) == BK_OK);
-  CHECK(__wrap_bk_flash_partition_write_perm_check_by_addr(
-          BK7258_ROLE_OTA_AUTH_POLICY_OFFSET, 4, MAGIC) == BK_FAIL);
   g_guard = false;
 
   CHECK(__wrap_bk_flash_partition_read(
@@ -256,20 +244,17 @@ int main(void)
   CHECK(__wrap_bk_flash_partition_write(
           BK7258_ROLE_SLOT_B_PAIR_SDK_ID, input, 0, 4) == BK_FAIL);
   CHECK(__wrap_bk_flash_partition_write(
-          BK7258_ROLE_OTA_MANIFEST_A_SDK_ID, input, 0, 4) == BK_FAIL);
+          BK7258_ROLE_BL1_PRIMARY_MANIFEST_SDK_ID, input, 0, 4) == BK_FAIL);
   CHECK(__wrap_bk_flash_partition_write(
-          BK7258_ROLE_OTA_MANIFEST_B_SDK_ID, input, 0, 4) == BK_FAIL);
-  CHECK(__wrap_bk_flash_partition_write(
-          BK7258_ROLE_OTA_AUTH_POLICY_SDK_ID, input, 0, 4) == BK_FAIL);
+          BK7258_ROLE_BL1_SECONDARY_MANIFEST_SDK_ID, input, 0, 4) == BK_FAIL);
   g_guard = true;
   CHECK(__wrap_bk_flash_partition_write(
-          BK7258_ROLE_SLOT_A_CP_SDK_ID, input, 0, 4) == BK_OK);
-  CHECK(g_write_addr == BK7258_ROLE_SLOT_A_CP_OFFSET);
+          BK7258_ROLE_SLOT_A_CP_SDK_ID, input, 0, 4) == BK_FAIL);
   CHECK(__wrap_bk_flash_partition_write(
-          BK7258_ROLE_SLOT_B_PAIR_SDK_ID, input, 0, 4) == BK_OK);
-  CHECK(g_write_addr == BK7258_ROLE_SLOT_B_PAIR_OFFSET);
+          BK7258_ROLE_SLOT_B_PAIR_SDK_ID, input, 0, 4) == BK_FAIL);
   CHECK(__wrap_bk_flash_partition_write(
-          BK7258_ROLE_OTA_AUTH_POLICY_SDK_ID, input, 0, 4) == BK_FAIL);
+          BK7258_ROLE_LITTLEFS_SDK_ID, input, 0, 4) == BK_OK);
+  CHECK(g_write_addr == BK7258_ROLE_LITTLEFS_OFFSET);
   g_guard = false;
 
   CHECK(__wrap_bk_flash_partition_erase(
@@ -282,13 +267,13 @@ int main(void)
   g_guard = true;
   CHECK(__wrap_bk_flash_partition_erase(
           BK7258_ROLE_SLOT_A_CP_SDK_ID, 0,
-          BK7258_FLASH_ERASE_SIZE) == BK_OK);
+          BK7258_FLASH_ERASE_SIZE) == BK_FAIL);
   CHECK(__wrap_bk_flash_partition_erase(
           BK7258_ROLE_SLOT_B_PAIR_SDK_ID, 0,
-          BK7258_FLASH_ERASE_SIZE) == BK_OK);
-  CHECK(__wrap_bk_flash_partition_erase(
-          BK7258_ROLE_OTA_AUTH_POLICY_SDK_ID, 0,
           BK7258_FLASH_ERASE_SIZE) == BK_FAIL);
+  CHECK(__wrap_bk_flash_partition_erase(
+          BK7258_ROLE_LITTLEFS_SDK_ID, 0,
+          BK7258_FLASH_ERASE_SIZE) == BK_OK);
 
   puts("PASS {label}");
   return 0;

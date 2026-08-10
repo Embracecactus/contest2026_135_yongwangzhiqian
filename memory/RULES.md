@@ -1,6 +1,6 @@
 # Project Rules
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-08-10
 
 ## Domain invariants
 
@@ -44,15 +44,11 @@ Last reviewed: 2026-08-09
   consumed successfully on 2026-08-03. It did not authorize chip erase or
   recurring factory writes; any later destructive Flash action needs fresh
   authority. Project tools must preserve raw `0x7fa000..0x800000`.
-- The normal N15 profile must retain Boot gates zero and omit `bkota`. The
-  gates-on validation profile, PSRAM loader and every Flash/metadata command
-  require explicit generation binding and fresh board authority.
-- N15 failure injection is validation-profile-only, one-shot and bound to one
-  generation plus one operation family. Host campaigns are regression tools,
-  not board-write authority. Physical OTA validation requires a separately
-  reviewed, range-specific plan; reset-only evidence must not be reported as
-  complete power removal.
-- N17 must keep the development board recoverable while later drivers are
+- The former N15/N17 custom OTA selector, writer, journal, validation profile
+  and campaign are retired. Do not restore or reconstruct them as a second
+  update framework. Any future field updater must start from the pinned NuttX
+  MCUboot semantics and obtain fresh, range-specific Flash-write authority.
+- Secure Boot development must keep the board recoverable while later drivers are
   adapted. OTP/eFuse writes, secure-boot enable, lifecycle-state changes,
   public-key-hash/security-counter provisioning and JTAG/debug locking are
   forbidden unless the owner later grants a new field-specific irreversible

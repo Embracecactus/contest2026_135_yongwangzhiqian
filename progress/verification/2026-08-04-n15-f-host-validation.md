@@ -23,9 +23,13 @@ Any metadata drift, primary mapping, AP fault, generation/fault-count change,
 ordinary backward clock jump or insufficient interval resets or restarts the
 window. True uint64 wrap is handled explicitly.
 
-`verify_bk7258_ota_health.py` passed 7 positive and 15 negative cases plus 5
-continuity-reset scenarios, `-Werror`, GCC `-fanalyzer`, and exact official
-source hashes. No metadata write gate was enabled by the host test.
+The then-current format-1 `verify_bk7258_ota_health.py` passed 7 positive and
+15 negative cases plus 5 continuity-reset scenarios, `-Werror`, GCC
+`-fanalyzer`, and exact official source hashes.  That verifier and its unused
+portable core were retired after the format-2 dual-bank implementation
+replaced them. The successor format-2 verifier was also removed when the
+whole custom N15/N17 lifecycle was retired; no metadata write gate was enabled
+by the historical host test.
 
 ## Separately gated profile
 

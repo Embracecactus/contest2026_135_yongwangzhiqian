@@ -31,10 +31,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BK7258_FLASH_REMAP_ENABLE 0x44030064u
-#define BK7258_REG32(address) \
-  (*(volatile uint32_t *)(uintptr_t)(address))
-
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -73,52 +69,6 @@ static bool bk7258_flash_guard_range(
                                 BK7258_DATA_RAW_PHYSICAL_SIZE);
     }
 
-#ifdef CONFIG_BK7258_OTA_STAGING_WRITE
-  if (owner == BK7258_FLASH_GUARD_OTA_STAGING)
-    {
-      if ((BK7258_REG32(BK7258_FLASH_REMAP_ENABLE) & 1u) != 0)
-        {
-          return bk7258_flash_range(addr, size,
-                                    BK7258_ROLE_SLOT_A_CP_OFFSET,
-                                    BK7258_ROLE_SLOT_B_PAIR_SIZE);
-        }
-
-      return bk7258_flash_range(addr, size,
-                                BK7258_ROLE_SLOT_B_PAIR_OFFSET,
-                                BK7258_ROLE_SLOT_B_PAIR_SIZE);
-    }
-#endif
-
-#ifdef CONFIG_BK7258_OTA_TRIAL_WRITE
-  if (owner == BK7258_FLASH_GUARD_OTA_METADATA)
-    {
-      return bk7258_flash_range(
-               addr, size, BK7258_ROLE_OTA_METADATA_PRIMARY_OFFSET,
-               BK7258_ROLE_OTA_METADATA_PRIMARY_SIZE) ||
-             bk7258_flash_range(
-               addr, size, BK7258_ROLE_OTA_METADATA_MIRROR_OFFSET,
-               BK7258_ROLE_OTA_METADATA_MIRROR_SIZE);
-    }
-#endif
-
-#ifdef CONFIG_BK7258_OTA_N17_WRITE
-  if (owner == BK7258_FLASH_GUARD_OTA_N17_METADATA)
-    {
-      return bk7258_flash_range(
-               addr, size, BK7258_ROLE_OTA_METADATA_PRIMARY_OFFSET,
-               BK7258_ROLE_OTA_METADATA_PRIMARY_SIZE) ||
-             bk7258_flash_range(
-               addr, size, BK7258_ROLE_OTA_METADATA_MIRROR_OFFSET,
-               BK7258_ROLE_OTA_METADATA_MIRROR_SIZE) ||
-             bk7258_flash_range(
-               addr, size, BK7258_ROLE_OTA_MANIFEST_A_OFFSET,
-               BK7258_ROLE_OTA_MANIFEST_A_SIZE) ||
-             bk7258_flash_range(
-               addr, size, BK7258_ROLE_OTA_MANIFEST_B_OFFSET,
-               BK7258_ROLE_OTA_MANIFEST_B_SIZE);
-    }
-#endif
-
   return false;
 }
 
@@ -143,18 +93,13 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
 
   if (up_interrupt_context() ||
       (owner != BK7258_FLASH_GUARD_DATA &&
-       owner != BK7258_FLASH_GUARD_OTA_STAGING &&
-       owner != BK7258_FLASH_GUARD_OTA_METADATA &&
-       owner != BK7258_FLASH_GUARD_OTA_N17_METADATA))
+       owner != BK7258_FLASH_GUARD_MCUBOOT))
     {
       return -EINVAL;
     }
 
-  /* The OTA staging core deliberately holds the guard across one complete
-   * erase/program/readback sector transaction.  Its NuttX MTD child then
-   * enters the same lower-half for the individual operations.  Permit only
-   * this same-task, same-owner nesting; other tasks still block on mutex.
-   */
+  /* Permit only same-task, same-owner nesting; other tasks still block on
+   * the mutex. */
 
   if (g_bk7258_flash_guard_pid == nxsched_gettid() &&
       g_bk7258_flash_guard_owner == owner &&
@@ -165,26 +110,10 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
       return OK;
     }
 
-#ifndef CONFIG_BK7258_OTA_STAGING_WRITE
-  if (write_access && owner == BK7258_FLASH_GUARD_OTA_STAGING)
+  if (write_access && owner == BK7258_FLASH_GUARD_MCUBOOT)
     {
-      return -EACCES;
+      return -EROFS;
     }
-#endif
-
-#ifndef CONFIG_BK7258_OTA_TRIAL_WRITE
-  if (write_access && owner == BK7258_FLASH_GUARD_OTA_METADATA)
-    {
-      return -EACCES;
-    }
-#endif
-
-#ifndef CONFIG_BK7258_OTA_N17_WRITE
-  if (write_access && owner == BK7258_FLASH_GUARD_OTA_N17_METADATA)
-    {
-      return -EACCES;
-    }
-#endif
 
   if (timeout_ms == 0)
     {

@@ -1,6 +1,6 @@
 # Project
 
-Last reviewed: 2026-08-03
+Last reviewed: 2026-08-10
 
 ## Purpose
 
@@ -26,16 +26,18 @@ for the 2026 openvela hardware-porting contest.
 
 - Team-owned code under `board/bk7258/`, `app/`, `tools/`, `docs/`, and exported evidence under `logs/`.
 - Bootloader, BSP, flash/LittleFS, AP SMP, RPTUN/RPMsg, supervision, RPMsgFS, Bluetooth, and PSRAM wrappers approved by completed stages.
-- Active N15 work on paired CP/AP OTA. The official-style contiguous A/B
-  layout and one-time LittleFS relocation are board-verified; deterministic
-  bundle validation, staging, trial confirmation and failover remain gated.
+- A recoverable board-owned BL1, pinned NuttX MCUboot BL2 and signed same-slot
+  CP/AP boot chain. The contiguous A/B geometry remains, while the former
+  custom N15/N17 update lifecycle is retired from active source.
 - Documentation, verification scripts, and durable project-memory checkpoints.
 
 ## Out of scope
 
 - Permanent edits to official NuttX, openvela apps, Beken SDK source, or Beken SDK static libraries.
 - Redistribution of the ignored proprietary SDK bundle.
-- Unapproved future scope such as network OTA transport, signed boot/key provisioning, Wi-Fi data plane, cacheable PSRAM, or opening the N14 upper 8 MiB to allocators.
+- Unapproved future scope such as network OTA transport, field-update
+  lifecycle, hardware-root key provisioning, cacheable PSRAM, or opening the
+  N14 upper 8 MiB to allocators.
 - Claims beyond recorded board gates, such as product lifetime, temperature/voltage, power-loss, or performance SLA.
 
 ## External constraints
@@ -43,4 +45,5 @@ for the 2026 openvela hardware-porting contest.
 - The project owner requires wrapper-based integration; temporary official-tree debug edits are allowed only if removed before the deliverable checkpoint.
 - Official v3.1.1.9 is the sole active SDK baseline; legacy inputs remain preserved references and are not validated until the active stage is complete and the owner separately approves that work.
 - Hardware mutation, commit, push, PR, and destructive factory flash require their normal explicit authority.
-- Canonical stage state is routed through `docs/bk7258-t5ai/next-stage-prompt.md`; N15 is the current approved MAIN Stage.
+- Canonical current state is `progress/CURRENT.md`; the roadmap records phase
+  history without making retired N15/N17 code part of the active firmware.

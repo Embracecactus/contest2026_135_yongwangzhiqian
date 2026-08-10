@@ -1,3 +1,8 @@
+> **Historical / retired design:** this documents the former N17 OTA release
+> Manifest ABI. Its journal/policy/runtime publication path was removed on
+> 2026-08-10. Do not confuse it with the read-only BL1 Manifest pages used by
+> the current BL1/MCUboot boot chain.
+
 # N17-S signed CP/AP release manifest ABI
 
 - Status: Accepted and frozen ABI; firmware implementation and board-write gates remain closed
