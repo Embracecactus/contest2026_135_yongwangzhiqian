@@ -22,6 +22,7 @@
 #include <string.h>
 #include <syslog.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/mutex.h>
 #include <nuttx/video/fb.h>
 
@@ -50,6 +51,10 @@ extern int32_t sys_drv_core_intr_group1_enable(uint32_t core_id,
  */
 
 #define BK7258_LCD_RGB_SYNC_LOW_REG       0x48060034u
+#define BK7258_LCD_DISPLAY_INT_REG         0x48060010u
+#define BK7258_LCD_RGB_CONFIG_REG          0x48060014u
+#define BK7258_LCD_DISPLAY_STATUS_REG      0x48060030u
+#define BK7258_LCD_DISPLAY_BASE_REG        0x48060044u
 #define BK7258_LCD_HSYNC_WIDTH_MASK       0x3fu
 #define BK7258_LCD_VSYNC_WIDTH_MASK       (0x3fu << 8)
 
@@ -101,9 +106,17 @@ static struct bk7258_lcd_priv_s g_bk7258_lcd =
   .inited         = false,
 };
 
+#ifdef CONFIG_BK7258_LCD_VALIDATION_PATTERN
+static volatile uint32_t g_bk7258_lcd_eof_count;
+#endif
+
 static void bk7258_lcd_eof_isr(void *arg)
 {
   (void)arg;
+
+#ifdef CONFIG_BK7258_LCD_VALIDATION_PATTERN
+  g_bk7258_lcd_eof_count++;
+#endif
 }
 
 static int bk7258_lcd_route_irq_to_ap_primary(void)
@@ -188,6 +201,32 @@ static void bk7258_lcd_fill_validation_pattern(
     }
 
   __asm volatile ("dmb sy" ::: "memory");
+}
+
+static void bk7258_lcd_log_validation_state(
+  FAR struct bk7258_lcd_priv_s *priv)
+{
+  FAR uint16_t *pixels = (FAR uint16_t *)priv->framebuf;
+  unsigned int width = priv->board->panel->width;
+  uint32_t ver_count0;
+  uint32_t ver_count1;
+
+  ver_count0 = bk_lcd_rgb_ver_cnt_get();
+  up_mdelay(20);
+  ver_count1 = bk_lcd_rgb_ver_cnt_get();
+
+  syslog(LOG_INFO,
+         "BK7258 LCD: validation scan=%lu->%lu eof=%lu "
+         "int=%08lx cfg=%08lx status=%08lx base=%08lx "
+         "pixels=%04x/%04x/%04x/%04x\n",
+         (unsigned long)ver_count0, (unsigned long)ver_count1,
+         (unsigned long)g_bk7258_lcd_eof_count,
+         (unsigned long)*(volatile uint32_t *)BK7258_LCD_DISPLAY_INT_REG,
+         (unsigned long)*(volatile uint32_t *)BK7258_LCD_RGB_CONFIG_REG,
+         (unsigned long)*(volatile uint32_t *)BK7258_LCD_DISPLAY_STATUS_REG,
+         (unsigned long)*(volatile uint32_t *)BK7258_LCD_DISPLAY_BASE_REG,
+         pixels[0], pixels[width / 4u], pixels[width / 2u],
+         pixels[(width * 3u) / 4u]);
 }
 #endif
 
@@ -483,6 +522,7 @@ int bk7258_lcd_initialize(void)
   /* NuttX clears exported framebuffer memory while registering /dev/fb0. */
 
   bk7258_lcd_fill_validation_pattern(priv);
+  bk7258_lcd_log_validation_state(priv);
 #endif
 
   priv->inited = true;
