@@ -39,6 +39,11 @@ previously performed; they are not descriptions of the current firmware.
 
 ## Verification at this checkpoint
 
+Implementation checkpoint:
+
+- Commit: `86c4bae` (`refactor(bk7258): retire custom OTA lifecycle`).
+- Remote: `fork/feat/bk7258-sdk-peripheral-bundle`.
+
 On 2026-08-10, a clean 32-job `cp_nsh_mcuboot + ap_smp_mcuboot` build passed
 with ephemeral, non-repository signing keys and SDK v3.1.1.9 checksums:
 
