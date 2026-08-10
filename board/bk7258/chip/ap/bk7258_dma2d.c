@@ -17,6 +17,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <nuttx/cache.h>
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
@@ -36,6 +37,21 @@
                                          DMA2D_TRANS_COMPLETE)
 #define BK7258_DMA2D_IRQ_PENDING        (-EINPROGRESS)
 
+/* v3.1.1.9 routes DMA2D source 28 to physical CPU2.  NuttX AP logical CPU0
+ * runs on physical CPU1, so move the group-1 route after SDK init just as the
+ * RGB display wrapper does for source 27. */
+
+#define BK7258_DMA2D_AP_PRIMARY_CORE_ID  1u
+#define BK7258_DMA2D_SDK_DEFAULT_CORE_ID 2u
+#define BK7258_DMA2D_INTERRUPT_CTRL_BIT  (1u << 28)
+#define BK7258_DMA2D_MODULE_CTRL_REG      0x48080008u
+#define BK7258_DMA2D_MODULE_CLK_GATE      (1u << 1)
+
+extern int32_t sys_drv_core_intr_group1_disable(uint32_t core_id,
+                                                uint32_t param);
+extern int32_t sys_drv_core_intr_group1_enable(uint32_t core_id,
+                                               uint32_t param);
+
 struct bk7258_dma2d_s
 {
   mutex_t lock;
@@ -44,6 +60,8 @@ struct bk7258_dma2d_s
   volatile int irq_result;
   bool initialized;
   bool faulted;
+  bool mode_valid;
+  dma2d_mode_t last_mode;
 };
 
 static struct bk7258_dma2d_s g_bk7258_dma2d =
@@ -89,6 +107,25 @@ static int bk7258_dma2d_sdk_error(bk_err_t error)
          * NuttX errno values. */
         return -EIO;
     }
+}
+
+static int bk7258_dma2d_route_irq_to_ap_primary(void)
+{
+  int32_t ret;
+
+  (void)sys_drv_core_intr_group1_disable(
+          BK7258_DMA2D_SDK_DEFAULT_CORE_ID,
+          BK7258_DMA2D_INTERRUPT_CTRL_BIT);
+  ret = sys_drv_core_intr_group1_enable(BK7258_DMA2D_AP_PRIMARY_CORE_ID,
+                                        BK7258_DMA2D_INTERRUPT_CTRL_BIT);
+  return ret == 0 ? 0 : -EIO;
+}
+
+static void bk7258_dma2d_unroute_ap_primary_irq(void)
+{
+  (void)sys_drv_core_intr_group1_disable(
+          BK7258_DMA2D_AP_PRIMARY_CORE_ID,
+          BK7258_DMA2D_INTERRUPT_CTRL_BIT);
 }
 
 static int bk7258_dma2d_map_input(enum bk7258_dma2d_format_e format,
@@ -330,6 +367,21 @@ static int bk7258_dma2d_validate_extent(FAR const void *buffer,
   return 0;
 }
 
+static void bk7258_dma2d_cache_bounds(FAR const void *buffer,
+                                      uint16_t frame_width,
+                                      uint16_t x, uint16_t y,
+                                      uint16_t width, uint16_t height,
+                                      int pixel_bytes,
+                                      FAR uintptr_t *start,
+                                      FAR uintptr_t *end)
+{
+  *start = (uintptr_t)buffer +
+           ((uint32_t)frame_width * y + x) * pixel_bytes;
+  *end = (uintptr_t)buffer +
+         (((uint32_t)frame_width * (y + height - 1) + x + width) *
+          pixel_bytes);
+}
+
 static int bk7258_dma2d_timeout(uint32_t timeout_ms, FAR clock_t *ticks)
 {
   if (timeout_ms == 0)
@@ -408,6 +460,13 @@ static int bk7258_dma2d_start_locked(FAR struct bk7258_dma2d_s *priv,
   priv->irq_result = BK7258_DMA2D_IRQ_PENDING;
   priv->operation_active = true;
 
+  /* Publish CPU buffer stores and all preceding DMA2D register writes before
+   * the start bit becomes visible to the accelerator.  The current AP profile
+   * keeps D-cache disabled, but normal SRAM still requires ordering against
+   * the device transaction. */
+
+  __asm volatile ("dmb sy" ::: "memory");
+
   sdkret = bk_dma2d_start_transfer();
   ret = bk7258_dma2d_sdk_error(sdkret);
   if (ret < 0)
@@ -420,6 +479,12 @@ static int bk7258_dma2d_start_locked(FAR struct bk7258_dma2d_s *priv,
   bk7258_dma2d_timeout(timeout_ms, &ticks);
   ret = nxsem_tickwait_uninterruptible(&priv->completion, ticks);
   priv->operation_active = false;
+
+  /* Order accelerator writes before the caller inspects its destination.
+   * Cache maintenance remains the caller's responsibility if a future board
+   * enables a cacheable mapping. */
+
+  __asm volatile ("dmb sy" ::: "memory");
 
   if (ret < 0)
     {
@@ -465,6 +530,113 @@ static int bk7258_dma2d_check_handle(FAR struct bk7258_dma2d_s *priv)
   return 0;
 }
 
+/* BK7258 retains transfer-mode state across operations.  In particular, an
+ * R2M fill followed by an M2M/PFC copy can complete without moving source
+ * data.  Reinitialize the engine before programming a different mode, then
+ * restore the settings that the v3.1.1.9 SDK and the Tuya integration
+ * establish on their single-mode initialization paths. */
+
+static int
+bk7258_dma2d_prepare_mode_locked(FAR struct bk7258_dma2d_s *priv,
+                                 dma2d_mode_t mode)
+{
+  bk_err_t sdkret;
+  int ret;
+
+  if (priv->mode_valid && priv->last_mode != mode)
+    {
+      /* A module soft-reset is insufficient on BK7258: R2M state still
+       * survives into a following PFC/M2M operation.  The v3.1.1.9 public
+       * deinit/init sequence power-cycles VIDP and is the smallest sequence
+       * proven to restore source reads.  Rebuild the SDK ISR callbacks and
+       * move its CPU2 route back to the NuttX AP primary afterwards. */
+
+      (void)bk_dma2d_int_enable(BK7258_DMA2D_IRQ_MASK, false);
+      bk7258_dma2d_unroute_ap_primary_irq();
+
+      ret = bk7258_dma2d_sdk_error(bk_dma2d_driver_deinit());
+      if (ret < 0)
+        {
+          goto fail;
+        }
+
+      ret = bk7258_dma2d_sdk_error(bk_dma2d_driver_init());
+      if (ret < 0)
+        {
+          goto fail;
+        }
+
+      ret = bk7258_dma2d_route_irq_to_ap_primary();
+      if (ret < 0)
+        {
+          goto fail_initialized;
+        }
+
+      sdkret = bk_dma2d_register_int_callback_isr(
+        DMA2D_TRANS_COMPLETE_ISR, bk7258_dma2d_complete_isr, priv);
+      ret = bk7258_dma2d_sdk_error(sdkret);
+      if (ret < 0)
+        {
+          goto fail_initialized;
+        }
+
+      sdkret = bk_dma2d_register_int_callback_isr(
+        DMA2D_TRANS_ERROR_ISR, bk7258_dma2d_error_isr, priv);
+      ret = bk7258_dma2d_sdk_error(sdkret);
+      if (ret < 0)
+        {
+          goto fail_initialized;
+        }
+
+      sdkret = bk_dma2d_register_int_callback_isr(
+        DMA2D_CFG_ERROR_ISR, bk7258_dma2d_error_isr, priv);
+      ret = bk7258_dma2d_sdk_error(sdkret);
+      if (ret < 0)
+        {
+          goto fail_initialized;
+        }
+
+      ret = bk7258_dma2d_sdk_error(
+        bk_dma2d_int_enable(BK7258_DMA2D_IRQ_MASK, true));
+      if (ret < 0)
+        {
+          goto fail_initialized;
+        }
+    }
+
+  priv->last_mode = mode;
+  priv->mode_valid = true;
+  return 0;
+
+fail_initialized:
+  bk7258_dma2d_unroute_ap_primary_irq();
+  (void)bk_dma2d_int_enable(BK7258_DMA2D_IRQ_MASK, false);
+  (void)bk_dma2d_register_int_callback_isr(DMA2D_TRANS_COMPLETE_ISR,
+                                            NULL, NULL);
+  (void)bk_dma2d_register_int_callback_isr(DMA2D_TRANS_ERROR_ISR, NULL,
+                                            NULL);
+  (void)bk_dma2d_register_int_callback_isr(DMA2D_CFG_ERROR_ISR, NULL, NULL);
+  (void)bk_dma2d_driver_deinit();
+
+fail:
+  priv->mode_valid = false;
+  priv->faulted = true;
+  return ret;
+}
+
+static int bk7258_dma2d_arm_locked(void)
+{
+  FAR volatile uint32_t *module_ctrl =
+    (FAR volatile uint32_t *)BK7258_DMA2D_MODULE_CTRL_REG;
+
+  *module_ctrl |= BK7258_DMA2D_MODULE_CLK_GATE;
+  dma2d_driver_transfes_ability(TRANS_16BYTES);
+  __asm volatile ("dmb sy" ::: "memory");
+
+  return bk7258_dma2d_sdk_error(
+    bk_dma2d_int_enable(BK7258_DMA2D_IRQ_MASK, true));
+}
+
 int bk7258_dma2d_initialize(FAR struct bk7258_dma2d_s **out)
 {
   FAR struct bk7258_dma2d_s *priv = &g_bk7258_dma2d;
@@ -493,6 +665,14 @@ int bk7258_dma2d_initialize(FAR struct bk7258_dma2d_s **out)
   ret = bk7258_dma2d_sdk_error(sdkret);
   if (ret < 0)
     {
+      nxmutex_unlock(&priv->lock);
+      return ret;
+    }
+
+  ret = bk7258_dma2d_route_irq_to_ap_primary();
+  if (ret < 0)
+    {
+      (void)bk_dma2d_driver_deinit();
       nxmutex_unlock(&priv->lock);
       return ret;
     }
@@ -530,12 +710,14 @@ int bk7258_dma2d_initialize(FAR struct bk7258_dma2d_s **out)
     }
 
   priv->faulted = false;
+  priv->mode_valid = false;
   priv->initialized = true;
   *out = priv;
   nxmutex_unlock(&priv->lock);
   return 0;
 
 fail:
+  bk7258_dma2d_unroute_ap_primary_irq();
   (void)bk_dma2d_int_enable(BK7258_DMA2D_IRQ_MASK, false);
   (void)bk_dma2d_register_int_callback_isr(DMA2D_TRANS_COMPLETE_ISR,
                                             NULL, NULL);
@@ -593,6 +775,7 @@ int bk7258_dma2d_uninitialize(FAR struct bk7258_dma2d_s *priv)
                                             NULL);
   (void)bk_dma2d_register_int_callback_isr(DMA2D_CFG_ERROR_ISR, NULL, NULL);
 
+  bk7258_dma2d_unroute_ap_primary_irq();
   sdkret = bk_dma2d_driver_deinit();
   deinit_ret = bk7258_dma2d_sdk_error(sdkret);
   if (deinit_ret < 0 && ret == 0)
@@ -612,6 +795,7 @@ int bk7258_dma2d_uninitialize(FAR struct bk7258_dma2d_s *priv)
   else
     {
       priv->faulted = false;
+      priv->mode_valid = false;
       priv->initialized = false;
     }
 
@@ -633,6 +817,10 @@ int bk7258_dma2d_copy(FAR struct bk7258_dma2d_s *priv,
   int dst_bytes;
   int ret;
   bool pfc;
+  uintptr_t src_start;
+  uintptr_t src_end;
+  uintptr_t dst_start;
+  uintptr_t dst_end;
 
   if (copy == NULL)
     {
@@ -695,7 +883,18 @@ int bk7258_dma2d_copy(FAR struct bk7258_dma2d_s *priv,
       return ret;
     }
 
-  pfc = copy->src_format != copy->dst_format ||
+  bk7258_dma2d_cache_bounds(copy->src, copy->src_frame_width,
+                            copy->src_x, copy->src_y, copy->width,
+                            copy->height, src_bytes, &src_start, &src_end);
+  bk7258_dma2d_cache_bounds(copy->dst, copy->dst_frame_width,
+                            copy->dst_x, copy->dst_y, copy->width,
+                            copy->height, dst_bytes, &dst_start, &dst_end);
+
+  /* Raw M2M is a 32-bit word copy on BK7258.  Other pixel widths must use
+   * PFC even when the source and destination formats are identical. */
+
+  pfc = src_bytes != FOUR_BYTES || dst_bytes != FOUR_BYTES ||
+        copy->src_format != copy->dst_format ||
         copy->src_swap != BK7258_DMA2D_SWAP_REGULAR ||
         copy->dst_swap != BK7258_DMA2D_SWAP_REGULAR ||
         copy->src_reverse != BK7258_DMA2D_REVERSE_NONE ||
@@ -736,12 +935,34 @@ int bk7258_dma2d_copy(FAR struct bk7258_dma2d_s *priv,
   ret = bk7258_dma2d_check_handle(priv);
   if (ret >= 0)
     {
+      /* DMA2D is not cache coherent with the AP cores.  Publish CPU writes
+       * before DMA reads, and discard any dirty/stale destination lines
+       * before and after DMA ownership. */
+
+      up_clean_dcache(src_start, src_end);
+      up_flush_dcache(dst_start, dst_end);
+
+      ret = bk7258_dma2d_prepare_mode_locked(priv, sdk.mode);
+
       /* This SDK configuration function has a void return type.  Any
        * hardware configuration failure is therefore reported by its ISR;
        * no unconditional success is inferred here. */
 
-      bk_dma2d_memcpy_or_pixel_convert(&sdk);
-      ret = bk7258_dma2d_start_locked(priv, copy->timeout_ms);
+      if (ret >= 0)
+        {
+          bk_dma2d_memcpy_or_pixel_convert(&sdk);
+          ret = bk7258_dma2d_arm_locked();
+        }
+
+      if (ret >= 0)
+        {
+          ret = bk7258_dma2d_start_locked(priv, copy->timeout_ms);
+        }
+
+      if (ret >= 0)
+        {
+          up_invalidate_dcache(dst_start, dst_end);
+        }
     }
 
   nxmutex_unlock(&g_bk7258_dma2d.lock);
@@ -755,6 +976,8 @@ int bk7258_dma2d_fill(FAR struct bk7258_dma2d_s *priv,
   out_color_mode_t output_format;
   int pixel_bytes;
   int ret;
+  uintptr_t dst_start;
+  uintptr_t dst_end;
 
   if (fill == NULL)
     {
@@ -775,6 +998,10 @@ int bk7258_dma2d_fill(FAR struct bk7258_dma2d_s *priv,
     {
       return ret;
     }
+
+  bk7258_dma2d_cache_bounds(fill->dst, fill->frame_width,
+                            fill->x, fill->y, fill->width, fill->height,
+                            pixel_bytes, &dst_start, &dst_end);
 
   sdk = (dma2d_fill_t){0};
   sdk.frameaddr = fill->dst;
@@ -797,10 +1024,25 @@ int bk7258_dma2d_fill(FAR struct bk7258_dma2d_s *priv,
   ret = bk7258_dma2d_check_handle(priv);
   if (ret >= 0)
     {
-      ret = bk7258_dma2d_sdk_error(dma2d_fill(&sdk));
+      up_flush_dcache(dst_start, dst_end);
+      ret = bk7258_dma2d_prepare_mode_locked(priv, DMA2D_R2M);
       if (ret >= 0)
         {
-          ret = bk7258_dma2d_start_locked(priv, fill->timeout_ms);
+          ret = bk7258_dma2d_sdk_error(dma2d_fill(&sdk));
+        }
+
+      if (ret >= 0)
+        {
+          ret = bk7258_dma2d_arm_locked();
+          if (ret >= 0)
+            {
+              ret = bk7258_dma2d_start_locked(priv, fill->timeout_ms);
+            }
+
+          if (ret >= 0)
+            {
+              up_invalidate_dcache(dst_start, dst_end);
+            }
         }
     }
 
@@ -826,6 +1068,12 @@ int bk7258_dma2d_blend(FAR struct bk7258_dma2d_s *priv,
   int background_bytes;
   int dst_bytes;
   int ret;
+  uintptr_t foreground_start;
+  uintptr_t foreground_end;
+  uintptr_t background_start;
+  uintptr_t background_end;
+  uintptr_t dst_start;
+  uintptr_t dst_end;
 
   if (blend == NULL)
     {
@@ -931,6 +1179,20 @@ int bk7258_dma2d_blend(FAR struct bk7258_dma2d_s *priv,
       return ret;
     }
 
+  bk7258_dma2d_cache_bounds(blend->foreground,
+                            blend->foreground_frame_width,
+                            blend->foreground_x, blend->foreground_y,
+                            blend->width, blend->height, foreground_bytes,
+                            &foreground_start, &foreground_end);
+  bk7258_dma2d_cache_bounds(blend->background,
+                            blend->background_frame_width,
+                            blend->background_x, blend->background_y,
+                            blend->width, blend->height, background_bytes,
+                            &background_start, &background_end);
+  bk7258_dma2d_cache_bounds(blend->dst, blend->dst_frame_width,
+                            blend->dst_x, blend->dst_y, blend->width,
+                            blend->height, dst_bytes, &dst_start, &dst_end);
+
   sdk = (dma2d_offset_blend_t){0};
   sdk.pfg_addr = (void *)(uintptr_t)blend->foreground;
   sdk.pbg_addr = (void *)(uintptr_t)blend->background;
@@ -974,10 +1236,27 @@ int bk7258_dma2d_blend(FAR struct bk7258_dma2d_s *priv,
   ret = bk7258_dma2d_check_handle(priv);
   if (ret >= 0)
     {
-      ret = bk7258_dma2d_sdk_error(bk_dma2d_offset_blend(&sdk));
+      up_clean_dcache(foreground_start, foreground_end);
+      up_clean_dcache(background_start, background_end);
+      up_flush_dcache(dst_start, dst_end);
+      ret = bk7258_dma2d_prepare_mode_locked(priv, DMA2D_M2M_BLEND);
       if (ret >= 0)
         {
-          ret = bk7258_dma2d_start_locked(priv, blend->timeout_ms);
+          ret = bk7258_dma2d_sdk_error(bk_dma2d_offset_blend(&sdk));
+        }
+
+      if (ret >= 0)
+        {
+          ret = bk7258_dma2d_arm_locked();
+          if (ret >= 0)
+            {
+              ret = bk7258_dma2d_start_locked(priv, blend->timeout_ms);
+            }
+
+          if (ret >= 0)
+            {
+              up_invalidate_dcache(dst_start, dst_end);
+            }
         }
     }
 

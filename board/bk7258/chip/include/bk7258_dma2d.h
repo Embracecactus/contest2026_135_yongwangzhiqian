@@ -157,10 +157,11 @@ struct bk7258_dma2d_blend_s
 int bk7258_dma2d_initialize(FAR struct bk7258_dma2d_s **out);
 int bk7258_dma2d_uninitialize(FAR struct bk7258_dma2d_s *priv);
 
-/* The caller owns all buffers.  They must remain valid and DMA-accessible,
- * be cache coherent (or be flushed/invalidated by the board owner), and must
- * not overlap in a way the SDK DMA2D operation cannot safely handle.  The
- * helper does not allocate, copy, or perform cache maintenance. */
+/* The caller owns all buffers.  They must remain valid and DMA-accessible and
+ * must not overlap in a way the SDK DMA2D operation cannot safely handle.
+ * The helper performs the required cache maintenance over each operation's
+ * active source and destination rectangles; it does not allocate or copy
+ * caller storage. */
 
 int bk7258_dma2d_copy(FAR struct bk7258_dma2d_s *priv,
                       FAR const struct bk7258_dma2d_copy_s *copy);

@@ -56,6 +56,16 @@ static struct bk7258_pm_client_s g_bk7258_pm_client =
 
 #define BK7258_SDK_CLOCK_COUNT 38
 
+/* v3.1.1.9 BK7258 sys_types.h encodes VIDP submodules as
+ * POWER_MODULE_NAME_VIDP * PM_MODULE_SUB_POWER_DOMAIN_MAX + index.
+ * DMA2D is the third VIDP submodule: 7 * 20 + 2 = 142.  Its power-state
+ * enum uses ON=0 and OFF=1, unlike bk_pm_clock_ctrl().
+ */
+
+#define BK7258_SDK_POWER_VIDP_DMA2D 142u
+#define BK7258_SDK_POWER_STATE_ON   0
+#define BK7258_SDK_POWER_STATE_OFF  1
+
 static const enum bk7258_pm_clock_e
 g_bk7258_pm_sdk_clock_map[BK7258_SDK_CLOCK_COUNT] =
 {
@@ -101,7 +111,19 @@ g_bk7258_pm_sdk_clock_map[BK7258_SDK_CLOCK_COUNT] =
 
 static mutex_t g_bk7258_pm_sdk_lock = NXMUTEX_INITIALIZER;
 static bool g_bk7258_pm_sdk_enabled[BK7258_SDK_CLOCK_COUNT];
+static bool g_bk7258_pm_sdk_dma2d_enabled;
 static uint32_t g_bk7258_pm_sdk_generation;
+
+extern int __real_bk_pm_module_vote_power_ctrl(unsigned int module,
+                                                int power_state);
+
+static void bk7258_pm_sdk_reset_generation(uint32_t generation)
+{
+  memset(g_bk7258_pm_sdk_enabled, 0, sizeof(g_bk7258_pm_sdk_enabled));
+  g_bk7258_pm_sdk_dma2d_enabled = false;
+  __atomic_store_n(&g_bk7258_pm_sdk_generation, generation,
+                   __ATOMIC_RELEASE);
+}
 
 static void bk7258_pm_flush_sem(FAR sem_t *sem)
 {
@@ -402,10 +424,7 @@ int __wrap_bk_pm_clock_ctrl(int module, int clock_state)
   if (__atomic_load_n(&g_bk7258_pm_sdk_generation, __ATOMIC_ACQUIRE) !=
       generation)
     {
-      memset(g_bk7258_pm_sdk_enabled, 0,
-             sizeof(g_bk7258_pm_sdk_enabled));
-      __atomic_store_n(&g_bk7258_pm_sdk_generation, generation,
-                       __ATOMIC_RELEASE);
+      bk7258_pm_sdk_reset_generation(generation);
     }
 
   if (g_bk7258_pm_sdk_enabled[module] == enable)
@@ -426,6 +445,77 @@ int __wrap_bk_pm_clock_ctrl(int module, int clock_state)
   if (ret >= 0)
     {
       g_bk7258_pm_sdk_enabled[module] = enable;
+    }
+
+out:
+  nxmutex_unlock(&g_bk7258_pm_sdk_lock);
+  return ret;
+}
+
+/* DMA2D is the first immutable AP component found to request a power domain
+ * rather than a leaf clock.  Route only the verified BK7258 v3.1.1.9 DMA2D
+ * module through the CP-owned PM service.  Other vendor modules retain their
+ * original SDK behavior until their raw IDs and ownership are reviewed.
+ */
+
+int __wrap_bk_pm_module_vote_power_ctrl(unsigned int module,
+                                         int power_state)
+{
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
+  uint32_t generation;
+  bool enable;
+  int ret;
+
+  if (module != BK7258_SDK_POWER_VIDP_DMA2D)
+    {
+      return __real_bk_pm_module_vote_power_ctrl(module, power_state);
+    }
+
+  if (power_state != BK7258_SDK_POWER_STATE_ON &&
+      power_state != BK7258_SDK_POWER_STATE_OFF)
+    {
+      return -EINVAL;
+    }
+
+  enable = power_state == BK7258_SDK_POWER_STATE_ON;
+  ret = nxmutex_lock(&g_bk7258_pm_sdk_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  generation = control->generation;
+  if (generation == 0)
+    {
+      ret = -ENOTCONN;
+      goto out;
+    }
+
+  if (__atomic_load_n(&g_bk7258_pm_sdk_generation, __ATOMIC_ACQUIRE) !=
+      generation)
+    {
+      bk7258_pm_sdk_reset_generation(generation);
+    }
+
+  if (g_bk7258_pm_sdk_dma2d_enabled == enable)
+    {
+      ret = OK;
+      goto out;
+    }
+
+  if (enable)
+    {
+      ret = bk7258_pm_clock_get(BK7258_PM_CLOCK_DMA2D);
+    }
+  else
+    {
+      ret = bk7258_pm_clock_put(BK7258_PM_CLOCK_DMA2D);
+    }
+
+  if (ret >= 0)
+    {
+      g_bk7258_pm_sdk_dma2d_enabled = enable;
     }
 
 out:
