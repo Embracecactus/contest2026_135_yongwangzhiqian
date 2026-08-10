@@ -37,7 +37,7 @@
 
 #define BK7258_BOARD_LCD_SPI_CLK_GPIO             49
 #define BK7258_BOARD_LCD_SPI_CS_GPIO              48
-#define BK7258_BOARD_LCD_SPI_SDI_GPIO             31
+#define BK7258_BOARD_LCD_SPI_SDI_GPIO             50
 #define BK7258_BOARD_LCD_RESET_GPIO               53
 #define BK7258_BOARD_LCD_BACKLIGHT_GPIO           9
 #define BK7258_BOARD_LCD_BACKLIGHT_ACTIVE_HIGH    1
