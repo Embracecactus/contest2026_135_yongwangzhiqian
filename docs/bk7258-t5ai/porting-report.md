@@ -1,5 +1,11 @@
 # BK7258（涂鸦 T5-AI）openvela / NuttX 移植报告
 
+> **2026-08-10 状态勘误：**本文 N15 章节保留已经发生过的设计和实板验证
+> 历史，但对应自定义 OTA selector/writer/journal/validation 实现已从现役源码
+> 删除。当前架构为 board-owned BL1 → pinned NuttX MCUboot BL2 → signed
+> same-slot CP/AP；没有 field OTA lifecycle。动态状态见
+> [`progress/CURRENT.md`](../../progress/CURRENT.md)。
+
 > 移植目标：Beken BK7258 芯片（Tuya T5-AI 模组，三核 Cortex-M33，Wi-Fi 6 + BLE 5.4）。
 > 赛道：openvela 2026 新硬件移植 + AI Coding。
 
@@ -42,7 +48,8 @@ FAL 分区），app 区由涂鸦私有用例占用。
 
 **竞赛任务**：移植到新硬件。**本阶段目标**：在 BK7258 上打通 BootROM → bootloader → NuttX app
 的最小跳转链，先以单核（CPU0）跑出 NSH baseline；当时列入后续路线的 AP
-CPU1/CPU2 SMP 现已在 N8 完成；OTA现由N15按成对generation、trial和failover路线推进。
+CPU1/CPU2 SMP 现已在 N8 完成；N15 自定义 OTA 路线后来完成过受限验证，
+现已退役，当前保留 BL1/MCUboot 签名启动链。
 
 **技术路线选型**：不直接复用涂鸦或 BK 官方的预编译 bootloader binary（vendor blob 不可审计、
 带私有 OTA 依赖），而是基于两家共有的 BootROM 启动协议**自制 Tier-1 bootloader**，完全可控
@@ -73,7 +80,7 @@ clock / GPIO / WDT / debug / UART，并贴合"移植新硬件"的本意。详见
 |---|---|---|
 | FLASH XIP | `0x02000000` + | bootloader @ `0x02000000`，app @ `0x02010000` |
 | SRAM | `0x28000000` – `0x280A0000` | 640 KB，MSP 顶 = `0x2809FFFC` |
-| PSRAM | `0x60000000` – `0x61000000` | T5-AI 实板 16 MiB；normal保留official低8 MiB ABI、上8 MiB boot-tested/unallocated；N15-F只开固定volatile transfer窗口 |
+| PSRAM | `0x60000000` – `0x61000000` | T5-AI 实板 16 MiB；normal保留official低8 MiB ABI、上8 MiB boot-tested/unallocated；历史 N15-F transfer窗口已无现役消费者 |
 | ROM | `0x06000000` | BootROM |
 | DTCM | `0x20000000` | 含软件 core-id 约定字（见 §4） |
 

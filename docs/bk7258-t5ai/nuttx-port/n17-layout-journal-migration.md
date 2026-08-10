@@ -1,3 +1,8 @@
+> **Historical / retired design:** the custom N17 journal, policy sector and
+> migration implementation were removed from active source on 2026-08-10.
+> Preserve this file only as architecture history; current boot uses BL1 plus
+> pinned NuttX MCUboot BL2 and has no field-update journal.
+
 # N17 Manifest placement, format-3 journal, and migration design
 
 - Status: Accepted and frozen architecture; host layout/vector/format-3 model

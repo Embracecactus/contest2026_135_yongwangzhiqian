@@ -77,7 +77,9 @@ sequenceDiagram
 
 所以“检测到16 MiB”和“提供16 MiB malloc”是两件完全不同的事。
 
-N15 validation profile后来只在上半区保留一个固定volatile transfer窗口；那不是通用allocator，也不产生持久化语义。
+历史 N15 validation profile 曾在上半区使用固定 volatile transfer 窗口；该
+profile 和 OTA transfer loader 已从现役代码删除。这个地址范围仍不是通用
+allocator，也不产生持久化语义。
 
 ## 4. 为什么首版保持non-cacheable
 

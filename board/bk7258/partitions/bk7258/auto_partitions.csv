@@ -11,12 +11,9 @@ primary_bootloader,,68K,code,TRUE,FALSE,boot
 primary_cp_app,,1360K,code,TRUE,TRUE,slot_a_cp
 primary_ap_app,,1156K,code,TRUE,TRUE,slot_a_ap
 s_app,,2516K,data,TRUE,TRUE,slot_b_pair
-ota_fina_executive,,4K,data,TRUE,TRUE,ota_metadata_primary
-usr_config,,56K,data,TRUE,TRUE,vendor_config
-ota_fina_mirror,,4K,data,TRUE,TRUE,ota_metadata_mirror
-ota_manifest_a,,4K,data,TRUE,TRUE,ota_manifest_a
-ota_manifest_b,,4K,data,TRUE,TRUE,ota_manifest_b
-ota_auth_policy,,4K,data,TRUE,FALSE,ota_auth_policy
+usr_config,0x4fc000,56K,data,TRUE,TRUE,vendor_config
+primary_manifest,0x50b000,4K,data,TRUE,FALSE,bl1_primary_manifest
+secondary_manifest,,4K,data,TRUE,FALSE,bl1_secondary_manifest
 # NuttX-owned BL2 in the spare pre-LittleFS gap.  136 KiB physical is 128 KiB
 # logical after the BK7236 34/32 CRC transform and remains executable-aligned.
 bl2,0x51d000,136K,code,TRUE,FALSE,bl2

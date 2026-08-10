@@ -32,8 +32,6 @@ from bk7258_ab_layout import (
     LITTLEFS_SIZE,
     LITTLEFS_START,
     MIGRATION_WRITE_END,
-    OTA_METADATA_SIZE,
-    OTA_METADATA_START,
     PAIR_B_SIZE,
     PAIR_B_START,
     USR_CONFIG_SIZE,
@@ -156,6 +154,11 @@ def main() -> None:
                 packed, offset,
             ))
 
+    if args.bl2_primary_crc is not None and len(bl2_segments) != 2:
+        raise SystemExit(
+            "MCUboot profile requires exactly primary and secondary BL2 segments"
+        )
+
     primary_segments = [
         segment("primary_bootloader", boot, BOOT_START),
         segment("primary_cp_app", cp_flash, CP_A_START),
@@ -198,10 +201,6 @@ def main() -> None:
             "primary_cp_app": [CP_A_START, CP_A_START + CP_A_SIZE],
             "primary_ap_app": [AP_A_START, AP_A_START + AP_A_SIZE],
             "s_app": [PAIR_B_START, PAIR_B_START + PAIR_B_SIZE],
-            "ota_metadata": [
-                OTA_METADATA_START,
-                OTA_METADATA_START + OTA_METADATA_SIZE,
-            ],
             "usr_config": [USR_CONFIG_START, USR_CONFIG_START + USR_CONFIG_SIZE],
             "primary_bl2": [BL2_START, BL2_START + BL2_SIZE],
             "secondary_bl2": [BL2_SECONDARY_START, BL2_SECONDARY_END],
@@ -209,7 +208,6 @@ def main() -> None:
             "calibration_tail_start": CALIBRATION_TAIL_START,
         },
         "segments": primary_segments,
-        "bl2_segments": bl2_segments,
         ("secondary_pair" if mcuboot_profile else "secondary_seed"): {
             **secondary_segment,
             "same_pair_as_primary": True,
@@ -219,8 +217,8 @@ def main() -> None:
             "reason": (
                 "board-owned BL2 may select the validated CP/AP pair"
                 if mcuboot_profile else
-                "layout-migration seed only; N15-A must add exact RBL and "
-                "trial metadata before B selection is enabled"
+                "layout-migration seed only; the unsigned profile never "
+                "selects the secondary pair"
             ),
         },
         "migration_segments": migration_segments,
@@ -258,12 +256,15 @@ def main() -> None:
             "preserves_usr_config": True,
             "preserves_reserved_ranges": True,
             "requires_explicit_owner_gate": True,
-            "bl2_segments": bl2_segments,
-            "bl2_write_range": [BL2_START, BL2_SECONDARY_END]
-            if bl2_segments else None,
         },
         "writes_enabled": False,
     }
+    if mcuboot_profile:
+        manifest["bl2_segments"] = bl2_segments
+        manifest["factory_image"]["bl2_segments"] = bl2_segments
+        manifest["factory_image"]["bl2_write_range"] = [
+            BL2_START, BL2_SECONDARY_END
+        ]
     manifest_path = args.output / "bk7258-dual-image.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(manifest, sort_keys=True))

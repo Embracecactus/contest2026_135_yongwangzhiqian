@@ -264,7 +264,7 @@ static void bk7258_bl2_load_boot_policy(int *preferred, int *fallback)
       (policy.fallback_slot != BK7258_BL2_BOOT_POLICY_SLOT_NONE &&
        (policy.fallback_slot > BK7258_BL2_SLOT_SECONDARY ||
         policy.fallback_slot == policy.preferred_slot)) ||
-      policy.source > BK7258_BL2_BOOT_POLICY_SOURCE_N17)
+      policy.source != BK7258_BL2_BOOT_POLICY_SOURCE_FIXED)
     {
       bk7258_bl2_mark("B2POLDEF");
       return;

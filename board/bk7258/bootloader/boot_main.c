@@ -26,17 +26,9 @@
 #include "boot_bl1_handoff_core.h"
 #include "boot_bl1_policy.h"
 #include "boot_bl2_contract.h"
+#include "boot_flash.h"
 #include "boot_wdt.h"
 #include "../chip/include/bk7258_partition_layout.h"
-
-#ifndef BK7258_BL1_MINIMAL
-#  define BK7258_BL1_MINIMAL 0u
-#endif
-
-#if !BK7258_BL1_MINIMAL
-#  include "boot_ota_select.h"
-#  include "boot_n17_ecc_wrapper.h"
-#endif
 
 extern void boot_clock_cold_init(void);
 
@@ -46,10 +38,6 @@ extern void boot_clock_cold_init(void);
 #define UART1_FIFO_ADDR   0x4583001Cu
 #define UART1_STATUS_ADDR 0x45830018u
 #define UART1_TX_READY    (1u << 20)   /* bit20: TX-FIFO-not-full (assumed) */
-
-#ifndef BK7258_BOOT_N17_ECC_VECTOR_SELFTEST
-#  define BK7258_BOOT_N17_ECC_VECTOR_SELFTEST 0u
-#endif
 
 #ifndef BK7258_BL1_MANIFEST_ENFORCE
 #  define BK7258_BL1_MANIFEST_ENFORCE 0u
@@ -184,7 +172,7 @@ static int boot_bl2_policy_store(
         (policy->fallback_slot != BK7258_BL2_BOOT_POLICY_SLOT_NONE &&
          (policy->fallback_slot > BK7258_BL2_BOOT_POLICY_SLOT_SECONDARY ||
           policy->fallback_slot == policy->preferred_slot)) ||
-        policy->source > BK7258_BL2_BOOT_POLICY_SOURCE_N17 ||
+        policy->source != BK7258_BL2_BOOT_POLICY_SOURCE_FIXED ||
         policy->check != bk7258_bl2_boot_policy_check(policy))
       {
         return -1;
@@ -369,9 +357,6 @@ __attribute__((used))
 uint32_t c_main(void)
 {
     const struct fal_partition *app;
-#if !BK7258_BL1_MINIMAL
-    struct bk7258_boot_ota_policy_s boot_policy;
-#endif
     struct bk7258_bl2_boot_policy_s bl2_policy;
     uint32_t app_vec = 0;
 #if !BK7258_BL1_MANIFEST_RAW_PAGE
@@ -447,16 +432,6 @@ uint32_t c_main(void)
     trustengine_readonly_probe();
 #endif
 
-    /* N17 probe-only target check: the vector has no release secret. */
-#if !BK7258_BL1_MINIMAL && BK7258_BOOT_N17_ECC_VECTOR_SELFTEST
-    if (bk7258_boot_n17_ecc_vector_selftest() < 0) {
-        uart_puts("BAD\r\nn17 ecc\r\n");
-        boot_wdt_fail_reset();
-    }
-    uart_puts("N17E1\r\n");
-#endif
-
-#if BK7258_BL1_MINIMAL
     bl2_policy.magic = BK7258_BL2_BOOT_POLICY_MAGIC;
     bl2_policy.version = BK7258_BL2_BOOT_POLICY_VERSION;
     bl2_policy.preferred_slot = BK7258_BL2_BOOT_POLICY_SLOT_PRIMARY;
@@ -468,32 +443,6 @@ uint32_t c_main(void)
     bl2_policy.check = bk7258_bl2_boot_policy_check(&bl2_policy);
     uart_puts("B1FIX\r\n");
     uart_puts("B1POLA\r\n");
-#else
-    if (boot_ota_resolve_policy(&boot_policy) < 0)
-      {
-        uart_puts("BAD\r\nboot policy\r\n");
-        boot_wdt_fail_reset();
-      }
-
-    uart_puts(boot_policy.source == BK7258_BOOT_OTA_POLICY_N15 ?
-              "B1N15\r\n" :
-              boot_policy.source == BK7258_BOOT_OTA_POLICY_N17 ?
-              "B1N17\r\n" : "B1FIX\r\n");
-    uart_puts(boot_policy.preferred_slot == BK7258_BOOT_OTA_SLOT_A ?
-              "B1POLA\r\n" : "B1POLB\r\n");
-
-    bl2_policy.magic = BK7258_BL2_BOOT_POLICY_MAGIC;
-    bl2_policy.version = BK7258_BL2_BOOT_POLICY_VERSION;
-    bl2_policy.preferred_slot = boot_policy.preferred_slot;
-    bl2_policy.fallback_slot =
-        boot_policy.fallback_slot == BK7258_BOOT_OTA_POLICY_SLOT_NONE ?
-        BK7258_BL2_BOOT_POLICY_SLOT_NONE : boot_policy.fallback_slot;
-    bl2_policy.source = boot_policy.source;
-    bl2_policy.state = boot_policy.state;
-    bl2_policy.generation_low = (uint32_t)boot_policy.generation;
-    bl2_policy.generation_high = (uint32_t)(boot_policy.generation >> 32);
-    bl2_policy.check = bk7258_bl2_boot_policy_check(&bl2_policy);
-#endif
 
     /* --- FAL partition parse -> find the dedicated NuttX MCUboot BL2.
      * BL1 must never enter CP slot A directly once BL2 owns A/B selection.
@@ -520,9 +469,9 @@ uint32_t c_main(void)
      * the second page of the documented 12 KiB control area through the raw
      * Flash path.  It never writes that page. */
 #if BK7258_BL1_BOOT_CONTROL_STAGING
-    if (boot_ota_raw_read((void *)0, BK7258_BL1_BOOT_CONTROL_RAW_OFFSET,
-                          boot_control_record,
-                          sizeof(boot_control_record)) == 0)
+    if (bk7258_bl1_flash_read(BK7258_BL1_BOOT_CONTROL_RAW_OFFSET,
+                              boot_control_record,
+                              sizeof(boot_control_record)) == 0)
       {
         boot_flag_status = bk7258_bl1_boot_flag_slot_order(
           boot_control_record, sizeof(boot_control_record),
@@ -539,13 +488,8 @@ uint32_t c_main(void)
               boot_flag_status == BK7258_BL1_BOOT_FLAG_VALID_PRIMARY ?
               "B1FLAGA\r\n" : "B1FLAGDEFAULT\r\n");
 #else
-#if BK7258_BL1_MINIMAL
-    slot_order[0] = BK7258_BL2_BOOT_POLICY_SLOT_PRIMARY;
-    slot_order[1] = BK7258_BL2_BOOT_POLICY_SLOT_SECONDARY;
-#else
     (void)bk7258_bl1_boot_flag_slot_order((const uint8_t *)0, 0u,
       (const struct bk7258_bl1_boot_flag_layout_s *)0, slot_order);
-#endif
 #endif
     for (attempt = 0; attempt < 2; attempt++) {
         slot = slot_order[attempt];
@@ -576,10 +520,9 @@ uint32_t c_main(void)
          * the candidate verifier checks that the remainder of this 4 KiB
          * record container is erased. */
         uart_puts("B1PAGE\r\n");
-        manifest_status = boot_ota_raw_read(
-            (void *)0,
-            slot == 0 ? BK7258_ROLE_OTA_MANIFEST_A_OFFSET :
-                        BK7258_ROLE_OTA_MANIFEST_B_OFFSET,
+        manifest_status = bk7258_bl1_flash_read(
+            slot == 0 ? BK7258_ROLE_BL1_PRIMARY_MANIFEST_OFFSET :
+                        BK7258_ROLE_BL1_SECONDARY_MANIFEST_OFFSET,
             manifest_record, sizeof(manifest_record));
         if (manifest_status == 0)
           {

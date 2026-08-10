@@ -113,7 +113,7 @@ def inspect(data: bytes, mode: str, allow_encoded: bool) -> dict[str, object]:
     if header.algorithm != 0 and not allow_encoded:
         raise VerificationError(
             f"algorithm 0x{header.algorithm:04x} is encoded; "
-            "N15 first release accepts plain algorithm 0 only"
+            "BK7258 RBL inspection accepts plain algorithm 0 only"
         )
     if header.body_size == 0 or header.raw_size == 0:
         raise VerificationError("RBL body/raw size must be non-zero")
@@ -232,7 +232,7 @@ def make_plain_rbl(
     *,
     container_size: int | None = None,
     app_partition: str = "app",
-    download_version: str = "n15-test",
+    download_version: str = "bk7258-test",
     current_version: str = "current",
     timestamp: int = 0,
 ) -> bytes:
@@ -281,7 +281,7 @@ def self_test() -> None:
     generated_header = make_plain_header(
         body,
         app_partition="app",
-        download_version="n15-test",
+        download_version="bk7258-test",
         current_version="00010203040506070809",
         timestamp=0x12345678,
     )

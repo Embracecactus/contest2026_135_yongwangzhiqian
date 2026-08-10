@@ -1,5 +1,5 @@
 /*
- * boot_sha256.h - freestanding SHA-256 used by the N15 boot selector.
+ * boot_sha256.h - freestanding SHA-256 used by BL1 authorization.
  *
  * SPDX-License-Identifier: Apache-2.0
  */

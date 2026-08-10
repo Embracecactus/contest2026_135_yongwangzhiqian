@@ -176,11 +176,11 @@ BL2_OFFSET=$(python3 "$PARTITION_GENERATOR" --get bl2.offset)
 BL2_SIZE=$(python3 "$PARTITION_GENERATOR" --get bl2.size)
 BL2_SECONDARY_OFFSET=$((BL2_OFFSET + BL2_SIZE))
 printf -v BL2_SECONDARY_OFFSET_HEX '0x%x' "$BL2_SECONDARY_OFFSET"
-MANIFEST_A_OFFSET=$(python3 "$PARTITION_GENERATOR" --get ota_manifest_a.offset)
-MANIFEST_A_SIZE=$(python3 "$PARTITION_GENERATOR" --get ota_manifest_a.size)
-MANIFEST_B_OFFSET=$(python3 "$PARTITION_GENERATOR" --get ota_manifest_b.offset)
-MANIFEST_B_SIZE=$(python3 "$PARTITION_GENERATOR" --get ota_manifest_b.size)
-FACTORY_PREFIX_SIZE=$(python3 "$PARTITION_GENERATOR" --get ota_metadata_primary.end)
+MANIFEST_A_OFFSET=$(python3 "$PARTITION_GENERATOR" --get bl1_primary_manifest.offset)
+MANIFEST_A_SIZE=$(python3 "$PARTITION_GENERATOR" --get bl1_primary_manifest.size)
+MANIFEST_B_OFFSET=$(python3 "$PARTITION_GENERATOR" --get bl1_secondary_manifest.offset)
+MANIFEST_B_SIZE=$(python3 "$PARTITION_GENERATOR" --get bl1_secondary_manifest.size)
+FACTORY_PREFIX_SIZE=$(python3 "$PARTITION_GENERATOR" --get slot_b_pair.end)
 LITTLEFS_OFFSET=$(python3 "$PARTITION_GENERATOR" --get littlefs.offset)
 LITTLEFS_SIZE=$(python3 "$PARTITION_GENERATOR" --get littlefs.size)
 
@@ -223,7 +223,6 @@ if ((DO_FLASH)); then
     echo "ERROR: image manifest does not match CSV layout $EXPECTED_LAYOUT_ID" >&2
     exit 1
   }
-  python3 "$SCRIPT_DIR/verify_bk7258_ota_layout.py"
   python3 "$SCRIPT_DIR/verify_bk7258_factory_layout.py" --package "$DUAL_DIR"
 fi
 if ((SPARSE_FLASH)); then
@@ -285,11 +284,11 @@ if ((SPARSE_FLASH)); then
     }
     if [[ "$PACKAGED_BL1_MANIFEST_RAW_PAGE" == true ]]; then
       ((MANIFEST_PRIMARY_SIZE == MANIFEST_A_SIZE)) || {
-        echo "ERROR: primary BL1 Manifest page must exactly fill ota_manifest_a" >&2
+        echo "ERROR: primary BL1 Manifest page must exactly fill its partition" >&2
         exit 1
       }
       ((MANIFEST_SECONDARY_SIZE == MANIFEST_B_SIZE)) || {
-        echo "ERROR: secondary BL1 Manifest page must exactly fill ota_manifest_b" >&2
+        echo "ERROR: secondary BL1 Manifest page must exactly fill its partition" >&2
         exit 1
       }
     fi

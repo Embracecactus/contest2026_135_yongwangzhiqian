@@ -43,7 +43,7 @@ also proved:
 
 ## Ordered board campaign
 
-`pack_bk7258_ota_campaign.py` format 2 generated 15 independently identified
+The now-retired format-2 campaign packer generated 15 independently identified
 packages
 under the unversioned build output
 `/home/lijian/project/open-vela/nuttx/bk7258-n15v-campaign-v2`:
@@ -69,7 +69,7 @@ under the unversioned build output
 Each package was regenerated from the same validated CP/AP raw binaries but
 has a unique generation, version, timestamp, RBL and pending metadata record.
 All 15 passed the pair, official-source, metadata, Boot-ELF and fixed-PSRAM
-transfer verifiers. The independent `verify_bk7258_ota_campaign.py` then
+transfer verifiers. The now-retired independent campaign verifier then
 rechecked campaign ordering, exact faults, containment, all artifact hashes,
 15 unique candidate/descriptor/metadata identities, and reran all 15 pair,
 transfer and loader dry-run gates. The loader plans contain only the fixed
@@ -139,8 +139,9 @@ Its CP ELF contains no `bkota` or `bk7258_ota_fault` symbol.
 ## Remaining hardware gate
 
 This evidence does not prove physical Flash timing, remap, reset, rollback or
-confirmation. Fresh owner authority must define the exact writable ranges and
-lifecycle before physical validation begins. The next gate is one minimal
+confirmation. The aggregate campaign scripts were later removed and this
+section is historical evidence only. Fresh owner authority must define the
+exact writable ranges and lifecycle before physical validation begins. The next gate is one minimal
 A-to-B and one B-to-A lifecycle, followed by retained-service checks and
 normal-profile restoration. Exhaustive fault campaigns and complete-power-
 removal testing are separate gates.

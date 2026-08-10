@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the BK7258 CSV partition source, generators, and migration gates."""
+"""Verify the BK7258 CSV partition source and generated consumers."""
 
 from __future__ import annotations
 
@@ -61,30 +61,29 @@ def verify(sdk_source: Path | None = None) -> dict[str, object]:
         "generated C header omits layout_id",
     )
     require(
-        "BK7258_ROLE_OTA_METADATA_MIRROR_OFFSET" in outputs[
+        "BK7258_ROLE_BL1_PRIMARY_MANIFEST_OFFSET" in outputs[
             "bk7258_partition_layout.h"
         ],
-        "generated C header omits the metadata mirror role",
+        "generated C header omits the primary BL1 Manifest role",
     )
     require(
         all(
             role in outputs["bk7258_partition_layout.h"]
             for role in (
-                "BK7258_ROLE_OTA_MANIFEST_A_OFFSET",
-                "BK7258_ROLE_OTA_MANIFEST_B_OFFSET",
-                "BK7258_ROLE_OTA_AUTH_POLICY_OFFSET",
+                "BK7258_ROLE_BL1_PRIMARY_MANIFEST_OFFSET",
+                "BK7258_ROLE_BL1_SECONDARY_MANIFEST_OFFSET",
             )
         ),
-        "generated C header omits an N17 authorization role",
+        "generated C header omits a BL1 Manifest role",
     )
     require(
         "#define BK7258_ROLE_SLOT_A_AP_SDK_ID 2" in outputs[
             "bk7258_partition_layout.h"
         ]
-        and "#define BK7258_ROLE_LITTLEFS_SDK_ID 16" in outputs[
+        and "#define BK7258_ROLE_LITTLEFS_SDK_ID 13" in outputs[
             "bk7258_partition_layout.h"
         ]
-        and "#define BK7258_SDK_PARTITIONS_TABLE_SIZE 17" in outputs[
+        and "#define BK7258_SDK_PARTITIONS_TABLE_SIZE 14" in outputs[
             "bk7258_partition_layout.h"
         ],
         "generated C header omits the pinned SDK partition ABI",
@@ -117,9 +116,14 @@ def verify(sdk_source: Path | None = None) -> dict[str, object]:
             "auto AP offset did not follow the resized CP partition",
         )
         require(
-            dynamic.by_role("ota_metadata_primary").offset
-            == baseline.by_role("ota_metadata_primary").offset - 136 * 1024,
-            "downstream automatic offsets did not follow the resized A/B pair",
+            dynamic.by_role("slot_b_pair").end
+            == baseline.by_role("slot_b_pair").end - 136 * 1024,
+            "resized A/B pair end did not propagate",
+        )
+        require(
+            dynamic.by_role("vendor_config").offset
+            == baseline.by_role("vendor_config").offset,
+            "fixed vendor partition moved with the application pair",
         )
         dynamic_header = generated_contents(dynamic)["bk7258_partition_layout.h"]
         require(
@@ -165,31 +169,23 @@ def verify(sdk_source: Path | None = None) -> dict[str, object]:
             "tail-move",
             fixture(source, (("easyflash,0x7fa000", "easyflash,0x7f9000"),)),
         )
-        negative["metadata-size"] = expect_rejected(
-            root,
-            "metadata-size",
-            fixture(
-                source,
-                (("ota_fina_mirror,,4K", "ota_fina_mirror,,8K"),),
-            ),
-        )
         negative["manifest-size"] = expect_rejected(
             root,
             "manifest-size",
             fixture(
                 source,
-                (("ota_manifest_a,,4K", "ota_manifest_a,,8K"),),
+                (("primary_manifest,0x50b000,4K", "primary_manifest,0x50b000,8K"),),
             ),
         )
-        negative["auth-policy-writable"] = expect_rejected(
+        negative["manifest-writable"] = expect_rejected(
             root,
-            "auth-policy-writable",
+            "manifest-writable",
             fixture(
                 source,
                 (
                     (
-                        "ota_auth_policy,,4K,data,TRUE,FALSE",
-                        "ota_auth_policy,,4K,data,TRUE,TRUE",
+                        "primary_manifest,0x50b000,4K,data,TRUE,FALSE",
+                        "primary_manifest,0x50b000,4K,data,TRUE,TRUE",
                     ),
                 ),
             ),
@@ -233,7 +229,7 @@ def verify(sdk_source: Path | None = None) -> dict[str, object]:
             "layout_id": dynamic.layout_id,
             "cp_size": dynamic.by_role("slot_a_cp").size,
             "ap_offset": dynamic.by_role("slot_a_ap").offset,
-            "metadata_offset": dynamic.by_role("ota_metadata_primary").offset,
+            "secondary_pair_end": dynamic.by_role("slot_b_pair").end,
         },
         "negative_cases": negative,
         "official_sdk": sdk_result,

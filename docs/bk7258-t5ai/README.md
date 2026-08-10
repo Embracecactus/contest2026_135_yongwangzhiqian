@@ -1,5 +1,11 @@
 # Beken BK7258（Tuya T5-AI）openvela / NuttX 移植
 
+> **2026-08-10 当前状态勘误：**N15/N17 自定义 OTA selector、writer、journal、
+> validation profile 和脚本已经退役并从现役源码删除。下文 N15 内容只保留
+> 历史实板证据。当前实现是完整的 board-owned BL1 → pinned NuttX MCUboot
+> BL2 → signed same-slot CP/AP 启动链；没有 field OTA writer/confirm/rollback
+> 服务。动态状态以 [`progress/CURRENT.md`](../../progress/CURRENT.md) 为准。
+
 板级原理图和验证边界见 [hardware/README.md](hardware/README.md)。
 
 把 openvela / NuttX 移植到 Beken BK7258（ARM Cortex-M33 三核、Wi-Fi 6 + BLE 5.4）Tuya T5-AI
@@ -133,25 +139,22 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 | **NuttX Stage N12（official Bluetooth IPC + NuttX HCI）** | ✅ **LATEST VERIFIED：`board-verified`（2026-08-02）**：Controller/Host初始化、MAC持久化、真实 RF scan report与RPMsg/RPMsgFS/SMP共存闭环 |
 | **NuttX Stage N13（BLE GAP/GATT Peripheral）** | ✅ `board-verified`（2026-08-03）：四类negative、20/20 uncached重连、BLE 100帧与RPMsg六场景×100/RPMsgFS四档×20主动并发、3/3 cold、最终`25/25/25` lifecycle与`bt_conn.ref=0`全部闭环 |
 | **NuttX Stage N14（PSRAM + SDK timer wrapper）** | ✅ `board-verified`（2026-08-03）：实板16 MiB识别与全容量boot gate；CP 128 KiB/AP 640 KiB独立heap；AP CPU0/CPU1 `16/16`、free稳定；timer 256、AP cycle10、physical cold/factory校准与RPMsg/Bluetooth回归全部闭环 |
-| **NuttX Stage N15（paired CP/AP OTA + rollback）** | **CURRENT / 批准的最小physical范围 `board-verified`**：generation 314经bank 0到confirmed B，generation 315经bank 1回confirmed A；两槽保留服务、confirmed-A RTS和完整掉电恢复均通过。host模型覆盖rollback/fault边界；实板未专门触发rollback |
+| **NuttX Stage N15（paired CP/AP OTA + rollback）** | **HISTORICAL / implementation retired**：批准范围曾完成 generation 314/315 双向实板验证；对应自定义 runtime 和脚本已删除，只保留证据 |
 | MTD / 文件系统 | ✅ board-verified（N5-D6 MTD + N5-D7 LittleFS，/data 挂载） |
 | NuttX Stage N6-A1（SDK integration + 80-slot RAM vectors） | ✅ board-verified（VTOR `0x28000800`，magic slots 64/65 与运行期 vector repair 均通过） |
 | 4295 秒系统时间折返修复 | ✅ board-verified（`CONFIG_SYSTEM_TIME64=y`，uptime 单调增长到 5834.58 秒，无 HF/WDT 复位） |
 | NuttX Stage N6-B（CPU0 SDK IRQ bridge） | ✅ TIMER1/source-3/IRQ19 board-verified（两次独立启动、三次 `bkirqtest` 全 PASS；静态 verifier 48/48 PASS） |
 | GPIO foundation C0 | ✅ board-verified：P9 active-high LED + P29 active-low USERKEY，3 个独立 boot/download、5 次 `bkgpioc0` PASS |
 | GPIO C1/C2 | ✅ board-verified：GPIO_NS source37/IRQ53 与 CPU0 group2 gate 已验证；`/dev/gpio0`/`/dev/gpio1` lower-half 完成，两次连续 falling-edge 命令通过；保留 `CONFIG_DEV_GPIO_NSIGNALS=2` 规避 upstream unregister 缺陷 |
-| 当前门禁 | 新布局已刷板；normal update只能 sparse 写boot/CP/AP并保留B、metadata、LittleFS、`usr_config`、reserved与`0x7fa000`尾区。factory重写需重新授权；只用SDK v3.1.1.9；禁止`BLEDebug.EXE`；官方NuttX/apps/SDK源码与静态库零改动 |
-| Tier-2 bootloader（OTA / A-B failover） | N15双向stage/metadata/remap/trial/confirm及post-confirm完整VDD removal实板闭环；板端已恢复normal gates-zero sparse镜像，validation profile仍保持独立 |
+| 当前门禁 | BL1 Manifest/BL2/`s_app` 写入均需精确范围授权；factory重写需重新授权；只用SDK v3.1.1.9；禁止`BLEDebug.EXE`；官方NuttX/apps/SDK源码与静态库零改动 |
+| BL1/BL2/MCUboot | 完整源码保留；BL1 固定 Primary→Secondary BL2 回退，MCUboot 校验同槽 CP/AP。旧 OTA lifecycle 不再链接 |
 | 多核后续 | N8 AP SMP、N9 RPTUN/RPMsg与N13 BLE服务层均已板端通过；不切换 BMP、不建立 CPU2第二 peer。Wi-Fi数据面仍未进入已批准范围 |
 
-**当前 N15 构建产物**：`$FW/bk7258-dual/app.bin`（CP）、`app1.bin`（AP）及
-`bk7258-dual-image.json`。正常 sparse 更新必须以本次 manifest 的 `segments[].bkfil`
-为准；2026-08-04 normal rebuild 为 `bl_crc.bin@0x0-0x11000`、
-`app_crc_flash.bin@0x11000-0xb4000`、`app1_crc_flash.bin@0x165000-0x2e000`，并保留
-B/`s_app`、metadata、`usr_config`、LittleFS `0x600000..0x700000`、reserved 区与
-`0x7fa000..0x800000` official tail。`all-app-factory.bin` 只用于获得 fresh authority
-后的破坏性迁移/恢复，不能替代 normal sparse 更新。root `$FW/all-app.bin` 继续只是
-bootloader + CP 的兼容镜像，不包含 AP；builder 已验证它与 root/manifest CP 一致。
+**当前 MCUboot 构建产物**：`$FW/bk7258-dual/app.bin`（CP）、`app1.bin`（AP）、
+`bl_crc.bin`、`bl2_crc.bin` 及 `bk7258-dual-image.json`。Flash 操作必须以本次
+manifest 的 `segments[].bkfil` 为准，并保留 `usr_config`、LittleFS
+`0x600000..0x700000` 和 `0x7fa000..0x800000` official tail。
+`all-app-factory.bin` 只用于获得 fresh authority 后的破坏性恢复。
 `$FW = $WORKSPACE/nuttx`，console UART1 460800 8N1。
 
 ## 产物索引
@@ -229,7 +232,8 @@ bootloader + CP 的兼容镜像，不包含 AP；builder 已验证它与 root/ma
 - [nuttx-port/n5-flash-filesystem.md](nuttx-port/n5-flash-filesystem.md) —— Stage N5 flash filesystem
   （D0 layout、D1 flash ID、D2 content dump、D3 magic scan、D4 emptiness scan、D5 raw flash r/w、
   D6 MTD lower-half、D7 LittleFS；全链路 board-verified 2026-07-19）
-  - **Current CP/AP Stage handoff：** [nuttx-port/prompts/15-n15-tier2-ota.md](nuttx-port/prompts/15-n15-tier2-ota.md)（N15 format-2 physical A→B→A、两槽服务回归及post-confirm完整掉电恢复已闭环）；N14功能基线见 [nuttx-port/prompts/14-n14-psram.md](nuttx-port/prompts/14-n14-psram.md)
+  - **Current handoff：** [`progress/CURRENT.md`](../../progress/CURRENT.md)；
+    [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) 仅为历史证据。
 
 ### 参考
 - [git-worktree-guide.md](git-worktree-guide.md) —— Git worktree 入门、本项目 clean worktree 与 openvela 构建工作区的关系

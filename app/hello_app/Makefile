@@ -91,15 +91,6 @@ MAINSRC   += bk7258_psram_test_main.c
 endif
 endif
 
-ifeq ($(CONFIG_BK7258_OTA_VALIDATION),y)
-ifneq ($(CONFIG_BK7258_AP_CORE),y)
-PROGNAME  += bkota
-PRIORITY  += SCHED_PRIORITY_DEFAULT
-STACKSIZE += 8192
-MAINSRC   += bk7258_ota_main.c
-endif
-endif
-
 MODULE = y
 
 include $(APPDIR)/Application.mk

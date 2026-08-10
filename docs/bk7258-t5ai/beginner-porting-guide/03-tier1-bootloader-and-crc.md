@@ -56,7 +56,9 @@ flowchart TD
 | [bootloader.ld](../../../board/bk7258/bootloader/bootloader.ld) | 固定 logical Flash/RAM 链接布局 |
 | [bk7236_pack_min_bootloader.py](../../../board/bk7258/bootloader/bk7236_pack_min_bootloader.py) | 把 logical binary 变为带 CRC 的 physical binary |
 
-当前 Tier-1 后来又增加了受 gate 保护的 N15 A/B 选择逻辑，但基础 handoff 契约没有改变；OTA 部分在第 09 章单独解释。
+当前 BL1 使用固定的 Primary→Secondary BL2 回退策略，并把后续镜像选择交给
+NuttX MCUboot BL2。旧 N15/N17 自定义 selector 已退休；第 09 章只保留其历史
+设计和验证过程，不代表当前固件仍链接该 OTA 逻辑。
 
 ## 4. 为什么会同时出现 logical 与 physical 地址
 

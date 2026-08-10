@@ -24,8 +24,8 @@ The tool:
 Exit code: 0 if it ran, 2 if a file is missing / unreadable. Diff results
 are reported, not asserted — this is an investigation aid, not a test gate.
 
-This mirrors the SOP-A black-box differential in
-docs/bk7258-t5ai/bootloader/reverse-synthesis-N17.md §8.
+This mirrors the black-box differential described in
+docs/bk7258-t5ai/bootloader/full-reverse-synthesis.md.
 """
 
 from __future__ import annotations

@@ -1,3 +1,6 @@
+> **历史资料（已退役）**：本章记录 N15 自定义 OTA 的设计和实板证据。
+> 对应 selector、journal、writer、命令和验证脚本已于 2026-08-10 从现役
+> 源码删除；当前启动链以 BL1 + NuttX MCUboot BL2 为准。
 > **事实截止日期**：2026-08-04
 > **权威来源**：[N15 总计划/完成记录](../nuttx-port/prompts/15-n15-tier2-ota.md)、[ADR-004 连续A/B布局](../../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md)、[ADR-005 metadata v1](../../../memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md)、[ADR-006 对称双bank](../../../memory/decisions/ADR-006-n15-symmetric-dual-bank-ota.md)、[N15 verification records](../../../progress/verification/)
 > **证据边界**：N15-M布局迁移与format-2最小physical A→B→A生命周期均已board-verified；确认后的RTS和完整移除USB/J-Link供电再上电，都恢复了同一generation 315 confirmed-A状态。analog mid-pulse brownout、physical rollback、签名和anti-rollback仍是未声称完成的独立边界。

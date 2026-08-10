@@ -10,9 +10,6 @@ import re
 import subprocess
 from pathlib import Path
 
-from bk7258_ab_layout import ERASE_SIZE, PAIR_B_SIZE
-
-
 class VerificationError(RuntimeError):
     """Raised when an N14 build gate is not satisfied."""
 
@@ -147,22 +144,12 @@ def verify_profiles(board: Path) -> dict[str, object]:
         "CONFIG_BK7258_PSRAM_TEST=y",
         "CONFIG_BK7258_SDK_TIMER_SELFTEST=y",
     ]
-    cp_later_stage_lines = [
-        "CONFIG_BK7258_OTA_STAGING=y",
-        "CONFIG_BK7258_OTA_TRIAL=y",
-    ]
     cp_normalized = remove_config_lines(
         cp_n14, cp_psram_lines, "N14 CP defconfig"
     )
-    cp_normalized = remove_config_lines(
-        cp_normalized,
-        cp_later_stage_lines,
-        "post-N14 CP defconfig",
-    )
     if cp_normalized != cp_n13:
         raise VerificationError(
-            "CP PSRAM profile differs from N13 outside retained N14 and "
-            "explicit later-stage gates"
+            "CP PSRAM profile differs from N13 outside retained N14 gates"
         )
 
     ap_n13 = read_text(board / "configs/ap_smp_ble_gatt/defconfig")
@@ -197,7 +184,7 @@ def verify_profiles(board: Path) -> dict[str, object]:
     }
 
 
-def verify_layout(board: Path, validation_profile: bool) -> dict[str, object]:
+def verify_layout(board: Path) -> dict[str, object]:
     header = read_text(board / "chip/include/bk7258_psram.h")
     layout = parse_u32_macros(header, set(EXPECTED_LAYOUT))
     if layout != EXPECTED_LAYOUT:
@@ -225,7 +212,7 @@ def verify_layout(board: Path, validation_profile: bool) -> dict[str, object]:
     ):
         raise VerificationError("N14 PSRAM heap/section boundaries overlap or gap")
 
-    result: dict[str, object] = {
+    return {
         "physical_window": [layout["BK7258_PSRAM_BASE"], physical_end],
         "sdk_abi_window": [layout["BK7258_PSRAM_BASE"], lower_end],
         "cp_heap": [cp_begin, cp_end],
@@ -233,67 +220,6 @@ def verify_layout(board: Path, validation_profile: bool) -> dict[str, object]:
         "ap_section": [section_begin, section_end],
         "upper_8m_policy": "boot-tested-unallocated",
     }
-    if validation_profile:
-        ota_header = read_text(board / "chip/include/bk7258_ota_staging.h")
-        require_tokens(
-            ota_header,
-            [
-                "#define BK7258_OTA_TRANSFER_CANDIDATE_SIZE",
-                "BK7258_ROLE_SLOT_B_PAIR_SIZE",
-                "(BK7258_OTA_TRANSFER_CANDIDATE_ADDRESS +",
-                "BK7258_OTA_TRANSFER_CANDIDATE_SIZE)",
-                "(BK7258_OTA_TRANSFER_DESCRIPTOR_ADDRESS + BK7258_FLASH_ERASE_SIZE)",
-                "(BK7258_OTA_TRANSFER_RECORD_ADDRESS + BK7258_OTA_TRANSFER_RECORD_SIZE)",
-            ],
-            "N15 generated validation transfer ABI",
-        )
-        literal_names = {
-            "BK7258_OTA_TRANSFER_CANDIDATE_ADDRESS",
-            "BK7258_OTA_TRANSFER_RECORD_SIZE",
-        }
-        literals = parse_u32_macros(ota_header, literal_names)
-        transfer = {
-            "BK7258_OTA_TRANSFER_CANDIDATE_ADDRESS": literals[
-                "BK7258_OTA_TRANSFER_CANDIDATE_ADDRESS"
-            ],
-            "BK7258_OTA_TRANSFER_CANDIDATE_SIZE": PAIR_B_SIZE,
-            "BK7258_OTA_TRANSFER_DESCRIPTOR_ADDRESS": literals[
-                "BK7258_OTA_TRANSFER_CANDIDATE_ADDRESS"
-            ]
-            + PAIR_B_SIZE,
-            "BK7258_OTA_TRANSFER_RECORD_ADDRESS": literals[
-                "BK7258_OTA_TRANSFER_CANDIDATE_ADDRESS"
-            ]
-            + PAIR_B_SIZE
-            + ERASE_SIZE,
-            "BK7258_OTA_TRANSFER_RECORD_SIZE": literals[
-                "BK7258_OTA_TRANSFER_RECORD_SIZE"
-            ],
-        }
-        transfer["BK7258_OTA_TRANSFER_END"] = (
-            transfer["BK7258_OTA_TRANSFER_RECORD_ADDRESS"]
-            + transfer["BK7258_OTA_TRANSFER_RECORD_SIZE"]
-        )
-        if (
-            transfer["BK7258_OTA_TRANSFER_CANDIDATE_ADDRESS"] != lower_end
-            or transfer["BK7258_OTA_TRANSFER_CANDIDATE_ADDRESS"]
-            + transfer["BK7258_OTA_TRANSFER_CANDIDATE_SIZE"]
-            != transfer["BK7258_OTA_TRANSFER_DESCRIPTOR_ADDRESS"]
-            or transfer["BK7258_OTA_TRANSFER_DESCRIPTOR_ADDRESS"] + 384
-            > transfer["BK7258_OTA_TRANSFER_RECORD_ADDRESS"]
-            or transfer["BK7258_OTA_TRANSFER_RECORD_ADDRESS"]
-            + transfer["BK7258_OTA_TRANSFER_RECORD_SIZE"]
-            != transfer["BK7258_OTA_TRANSFER_END"]
-            or transfer["BK7258_OTA_TRANSFER_END"] > physical_end
-        ):
-            raise VerificationError("N15 validation transfer leaves upper PSRAM")
-        result["upper_8m_policy"] = "validation-fixed-volatile-transfer"
-        result["validation_transfer"] = [
-            transfer["BK7258_OTA_TRANSFER_CANDIDATE_ADDRESS"],
-            transfer["BK7258_OTA_TRANSFER_END"],
-        ]
-
-    return result
 
 
 def verify_source_contract(board: Path) -> dict[str, object]:
@@ -623,11 +549,9 @@ def verify_source_contract(board: Path) -> dict[str, object]:
         build_script,
         [
             "cp_nsh_psram",
-            "cp_nsh_ota",
             "ap_smp_psram",
             "N14 PSRAM configs must be selected as a pair",
             'if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||',
-            '"${CP_CONFIG_NAME}" == "cp_nsh_ota" ||',
             'verify_bk7258_psram.py"',
             'BK7258_SDK_SOURCE',
         ],
@@ -974,7 +898,6 @@ def main() -> int:
     parser.add_argument("--ap-map", required=True, type=Path)
     parser.add_argument("--sdk-source", type=Path)
     parser.add_argument("--expected-bundle")
-    parser.add_argument("--validation-profile", action="store_true")
     parser.add_argument("--json", type=Path)
     parser.add_argument("--nm", default="arm-none-eabi-nm")
     args = parser.parse_args()
@@ -983,7 +906,7 @@ def main() -> int:
     result: dict[str, object] = {
         "format": 1,
         "profiles": verify_profiles(board),
-        "layout": verify_layout(board, args.validation_profile),
+        "layout": verify_layout(board),
         "source": verify_source_contract(board),
         "sdk_source": (
             verify_sdk_source(args.sdk_source)

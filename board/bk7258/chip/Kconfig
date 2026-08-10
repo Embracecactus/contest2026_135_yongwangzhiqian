@@ -71,6 +71,7 @@ config BK7258_BL2_IMAGE
 	bool "Build the NuttX MCUboot BL2 for the dedicated RAM load address"
 	default n
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && MCUBOOT_BOOTLOADER
+	select MTD_PARTITION
 	---help---
 		Build the NuttX MCUboot bootloader as the second boot stage, stored in
 		the project-owned ``bl2`` flash partition but linked for execution at
@@ -695,111 +696,6 @@ config BK7258_FLASH_LITTLEFS
 		LittleFS at /data with the "autoformat" option (formats on first
 		boot only).  Also runs a probe-file persistence check.
 		Destructive on the data partition; enable only when authorised.
-
-config BK7258_OTA_STAGING
-	bool "N15 CP-only inactive-slot validation and staging wrapper"
-	default n
-	depends on BK7258_FLASH_MTD && !BK7258_AP_CORE
-	select CRYPTO
-	select MTD_PARTITION
-	select MTD_BYTE_WRITE
-	---help---
-		Compile the team-owned N15-B descriptor/RBL/CRC/SHA-256 validator and
-		bounded inactive-slot staging state machine.  The SDK Flash lower-half
-		is split by NuttX mtd_partition() into private A/B CP/AP-pair MTD
-		children, so staging does not use raw SDK address writes.  The CP Flash
-		guard
-		serializes each 4 KiB transaction with LittleFS and dynamically admits
-		exactly A or B according to the current remap state.  This option cannot
-		write Flash: the separate compile write gate is still off and the
-		runtime gate initializes false.
-
-config BK7258_OTA_STAGING_WRITE
-	bool "N15 compile gate for inactive-slot mutation (unsafe until authorised)"
-	default n
-	depends on BK7258_OTA_STAGING
-	---help---
-		Allow the CP Flash permission wrapper to admit exactly the inactive pair.
-		The runtime gate still initializes false and no N15-B command enables
-		it.  Keep this option disabled through host/source/ELF closure and
-		require fresh owner authority before any board-write build or test.
-
-config BK7258_OTA_TRIAL
-	bool "N15 CP-only symmetric trial and dual-bank publication wrapper"
-	default n
-	depends on BK7258_OTA_STAGING && BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
-	---help---
-		Compile the format-2 append-only metadata parser/controller, inactive-
-		bank publication, CP confirm and explicit rollback APIs for A and B.
-		Records alternate between the generated primary/mirror 4 KiB banks and
-		use 32-byte program/read-back steps.  The selected durable bank is never
-		erased during publication.  This option alone cannot mutate metadata:
-		the separate compile write gate is off and the runtime gate initializes
-		false.
-
-config BK7258_OTA_HEALTH_STABLE_MS
-	int "N15-F continuous AP/RPTUN health before trial confirmation (ms)"
-	default 5000
-	range 1000 60000
-	depends on BK7258_OTA_TRIAL
-	---help---
-		Require this continuous healthy interval during an explicit confirm
-		request.  Supervisor unhealthy state, generation drift or a changed
-		fault counter restarts the interval; confirmation is never automatic.
-
-config BK7258_OTA_HEALTH_POLL_MS
-	int "N15-F health confirmation poll interval (ms)"
-	default 250
-	range 50 1000
-	depends on BK7258_OTA_TRIAL
-
-config BK7258_OTA_TRIAL_WRITE
-	bool "N15 compile gate for dual-bank metadata mutation (unsafe until authorised)"
-	default n
-	depends on BK7258_OTA_TRIAL && BK7258_OTA_STAGING_WRITE
-	---help---
-		Allow the CP Flash permission wrapper to admit only the two generated
-		4 KiB metadata banks for publication, trial, confirm or rollback.  The
-		runtime gate still initializes false and no normal-profile NSH command
-		enables it.  Keep disabled through host/source/ELF closure and require
-		fresh owner authority before any board-write build or test.
-
-config BK7258_OTA_N17_WRITE
-	bool "N17 compile gate for signed Manifest and journal mutation"
-	default n
-	depends on BK7258_OTA_STAGING && BK7258_OTA_STAGING_WRITE
-	---help---
-		Allow the private N17 MTD children to mutate only the two lifecycle
-		journal sectors and two signed-Manifest sectors.  It never admits the
-		one-way authentication-policy sector.  Runtime publication remains
-		disabled until a later, explicitly authorised release path exists.
-		Keep this disabled for normal builds and all current board tests.
-
-config BK7258_OTA_VALIDATION
-	bool "N15-F validation-only OTA command (destructive)"
-	default n
-	depends on BK7258_OTA_STAGING_WRITE && BK7258_OTA_TRIAL_WRITE
-	depends on BK7258_PSRAM
-	depends on SYSTEM_NSH && !BK7258_AP_CORE
-	---help---
-		Build the validation-only bkota command.  Every mutating invocation
-		requires an explicit generation-bound authorization token, arms only
-		the required runtime gate and disarms all gates before returning.  This
-		profile is not a production updater: it accepts unsigned host-generated
-		artifacts and must never be enabled in the normal CP configuration.
-		The fixed J-Link transfer window requires the board-verified 16 MiB
-		PSRAM and is rejected at runtime on an 8 MiB or unready device.
-
-config BK7258_OTA_FAULT_INJECTION
-	bool "N15-V deterministic OTA boundary fault injection"
-	default n
-	depends on BK7258_OTA_VALIDATION
-	---help---
-		Add validation-only, generation-bound, one-shot failpoints around the
-		s_app and metadata erase/program/read callbacks.  The normal profile
-		cannot compile this interface.  A failpoint is armed by the explicit
-		bkota command, applies only to the matching next mutation command and
-		is cleared after that command or by reset.
 
 config BK7258_CLOCK_320M
 	bool "BK7258 temporary 320 MHz CPU0 bring-up target"

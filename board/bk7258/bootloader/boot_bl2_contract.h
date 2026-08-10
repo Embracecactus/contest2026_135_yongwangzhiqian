@@ -18,11 +18,9 @@
 #define BK7258_BL2_SRAM_END               \
   (BK7258_BL2_SRAM_BASE + BK7258_BL2_SRAM_CAPACITY)
 
-/* BL1 publishes only an ordered slot policy, while BL2 remains the sole
- * component that accepts and launches a CP/AP pair.  The minimal Secure Boot
- * profile publishes fixed Primary -> Secondary order; historical lifecycle
- * validation builds may publish an N15/N17-derived order through the same
- * ABI.  The CP image may overwrite this SRAM record after handoff. */
+/* BL1 publishes only the fixed Primary -> Secondary order, while BL2 remains
+ * the sole component that accepts and launches a CP/AP pair.  The CP image
+ * may overwrite this SRAM record after handoff. */
 #define BK7258_BL2_BOOT_POLICY_ADDRESS     0x2801ffd0u
 #define BK7258_BL2_BOOT_POLICY_MAGIC       0x4232504cu /* "LP2B" */
 #define BK7258_BL2_BOOT_POLICY_VERSION     1u
@@ -30,8 +28,6 @@
 #define BK7258_BL2_BOOT_POLICY_SLOT_SECONDARY 1u
 #define BK7258_BL2_BOOT_POLICY_SLOT_NONE   0xffffffffu
 #define BK7258_BL2_BOOT_POLICY_SOURCE_FIXED 0u
-#define BK7258_BL2_BOOT_POLICY_SOURCE_N15   1u
-#define BK7258_BL2_BOOT_POLICY_SOURCE_N17   2u
 #define BK7258_BL2_BOOT_POLICY_CHECK_SEED  0xa5a55a5au
 
 #ifndef __LINKER__

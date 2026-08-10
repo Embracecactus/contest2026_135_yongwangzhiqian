@@ -26,21 +26,13 @@ The terminal metadata records:
 - `base_pair_sha256` equal to generation 314's complete
   `s_app-candidate.bin` SHA-256.
 
-## Commands
+## Retired command path
 
-```bash
-python3 board/bk7258/scripts/pack_bk7258_ota_campaign.py \
-  --validation-package /home/lijian/project/open-vela/nuttx/bk7258-dual-ota-validation \
-  --output /tmp/bk7258-ota-symmetric.Q7krkf/campaign \
-  --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9 \
-  --start-generation 300 --base-version n15-base --start-timestamp 1000
-
-python3 board/bk7258/scripts/verify_bk7258_ota_campaign.py \
-  --campaign /tmp/bk7258-ota-symmetric.Q7krkf/campaign \
-  --sdk-source /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9 \
-  --expected-start-generation 300 \
-  --output /tmp/bk7258-ota-symmetric.Q7krkf/campaign-verification.json
-```
+The aggregate campaign packer and verifier used for this historical run were
+removed after MCUboot BL2 became the authoritative CP/AP pair validator and
+the old N15 campaign ceased to be a current execution gate. Its bounded
+successor verifiers were later removed with the rest of the custom N15/N17
+lifecycle. Do not recreate commands from this record.
 
 ## Results
 

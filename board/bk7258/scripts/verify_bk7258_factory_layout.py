@@ -228,7 +228,7 @@ def verify(package: Path) -> dict[str, object]:
         factory,
         PAIR_B_START + PAIR_B_SIZE,
         FACTORY_PREFIX_END,
-        "trial metadata initialization",
+        "reserved factory padding",
     )
 
     migration_segments = manifest.get("migration_segments")

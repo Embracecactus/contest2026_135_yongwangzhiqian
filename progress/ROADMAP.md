@@ -1,6 +1,6 @@
 # Roadmap
 
-Last reviewed: 2026-08-08
+Last reviewed: 2026-08-10
 
 ## Latest completed baseline: N16 Wi-Fi STA data plane
 
@@ -14,6 +14,11 @@ Last reviewed: 2026-08-08
 
 ## Prior completed baseline: N15
 
+This section is historical verification. The custom selector, metadata
+journal, staging, trial/confirmation and rollback implementation has since
+been removed from active source; it must not be treated as the current update
+architecture.
+
 - The official-style contiguous CP/AP A/B layout and ADR-006 symmetric
   dual-bank selector are merged and board-verified for the approved scope.
 - Generation 314 completed A-to-confirmed-B through bank 0; generation 315
@@ -25,7 +30,7 @@ Last reviewed: 2026-08-08
 - Physical rollback and analog mid-program brownout were not part of the
   approved minimal N15 board run. Future Flash writes require fresh authority.
 
-## Active MAIN stage: N17-SB Secure Boot reverse/port
+## Active MAIN stage: BL1/BL2/MCUboot recoverable Secure Boot chain
 
 The official BK7258 v3.1.1.9 SDK has no buildable Secure Boot adaptation.
 Technical support confirmed that BK7236 and BK7258 share the security
@@ -37,8 +42,10 @@ The active objective is a complete recoverable board-owned BL1 -> NuttX
 MCUboot BL2 -> CP/AP SMP chain. No NuttX/SDK source changes, OTP/eFuse writes,
 secure-boot enable, lifecycle transition or debug lock are allowed.
 
-The current raw-page candidate proof (`B1PAGE -> BL2RAM -> MCUboot -> NSH`)
-is an implementation checkpoint, not proof of BK7258 BootROM acceptance.
+The board proof (`B1PAGE -> BL2RAM -> MCUboot -> NSH`) is evidence for the
+repository-owned chain, not proof of BK7258 BootROM Manifest acceptance.
+The old N17 custom OTA journal/policy implementation is retired; N17-SB below
+names the historical Secure Boot workstream, not an active OTA state machine.
 
 ## N17-SB phases and gates
 
@@ -88,7 +95,9 @@ is an implementation checkpoint, not proof of BK7258 BootROM acceptance.
 - **SB-H: blocked by missing BK7258 BootROM Manifest/OTP ABI and by the
   explicit no-irreversible-write rule.**
 
-Network OTA transport (old N18 proposal) is paused until SB6 exits.
+Network OTA transport remains paused. A future updater must start from NuttX
+MCUboot semantics and the CP/AP same-slot contract, with new Flash-write and
+recovery authorization; it must not restore the retired N15/N17 journal.
 
 ## Later candidates
 

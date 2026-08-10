@@ -205,29 +205,6 @@ BK7258_CP_CSRCS += bk7258_bl2_mcuboot_asn1.c
 BK7258_CP_CSRCS += bk7258_bl2_mcuboot_keys.c
 endif
 
-ifeq ($(CONFIG_BK7258_OTA_STAGING),y)
-BK7258_CP_CSRCS += bk7258_ota_staging_core.c
-BK7258_CP_CSRCS += bk7258_ota_staging.c
-BK7258_CP_CSRCS += bk7258_ota_n17_auth.c
-BK7258_CP_CSRCS += bk7258_ota_n17_release_keys.c
-BK7258_CP_CSRCS += bk7258_ota_n17_journal_core.c
-BK7258_CP_CSRCS += bk7258_ota_n17_publish.c
-endif
-
-ifeq ($(CONFIG_BK7258_OTA_TRIAL),y)
-BK7258_CP_CSRCS += bk7258_ota_trial_core_select.c
-BK7258_CP_CSRCS += bk7258_ota_trial_core_rotation.c
-BK7258_CP_CSRCS += bk7258_ota_trial_core_publish.c
-BK7258_CP_CSRCS += bk7258_ota_trial_core_control.c
-BK7258_CP_CSRCS += bk7258_ota_trial_core_health.c
-BK7258_CP_CSRCS += bk7258_ota_trial.c
-endif
-
-ifeq ($(CONFIG_BK7258_OTA_FAULT_INJECTION),y)
-BK7258_CP_CSRCS += bk7258_ota_fault_core.c
-BK7258_CP_CSRCS += bk7258_ota_fault.c
-endif
-
 # Stage N4-D1: deterministic 320 MHz CPU0 clock bring-up.
 
 ifeq ($(CONFIG_BK7258_CLOCK_320M),y)

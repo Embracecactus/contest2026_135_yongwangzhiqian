@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-08-10
 
 ## System context
 
@@ -23,9 +23,9 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | Beken SDK v3.1.1.9 | Immutable BK7258 CP/AP archives reached through minimal board ABI wrappers; the sole runtime SDK |
 | Beken `bk_idk release/v2.0.1` | Read-only official reference: its `docs/bk7258/**` pages and generic security tools provide BK7258 Secure Boot semantics/packaging evidence; its buildable `projects/security/**` examples are BK7236-only single-core samples. Never a runtime archive or source replacement; see [ADR-017](decisions/ADR-017-bk7258-official-secureboot-source-crosswalk.md) |
 | Windows/WSL2 tools | Build, sparse/factory download, UART/J-Link evidence, and no-GUI BLE client |
-| N15 OTA (accepted architecture) | Official-style contiguous CP/AP A/B geometry is deployed; ADR-006 dual-bank inactive-slot A/B rotation completed the approved physical A-to-B-to-A lifecycle |
+| Historical N15 OTA evidence | The former custom inactive-slot writer, dual-bank journal and trial/rollback lifecycle were physically exercised, then retired from active source. Their ADRs and verification records are historical evidence, not current firmware architecture. |
 | N16 Wi-Fi (accepted architecture, complete for STA scope) | Official v3.1.1.9 radio/controller and DHCP client remain on CP; AP uses the official vnet proxy plus a repository-owned lease/netdev adapter to native NuttX `wlan0`/IPv4/sockets; vendor AP lwIP is excluded |
-| N17-SB Secure Boot port (recoverable baseline) | BK7236 `bk_idk` is a read-only semantic/source reference; its single-core addresses/ABI/TFM mapping are not copied. The executable BK7258 chain uses a board-owned minimal BL1, candidate Manifest verifier and pinned NuttX MCUboot BL2 with CP/AP same-slot gating. Minimal BL1 publishes fixed Primary→Secondary order and links no N15/N17 lifecycle or Flash-write module. The chain is board-verified but remains software-rooted and unarmed; BootROM Manifest acceptance, OTP/eFuse binding and hardware rollback remain open. |
+| BL1/BL2/MCUboot chain (recoverable baseline) | BK7236 `bk_idk` is a read-only semantic/source reference; its single-core addresses/ABI/TFM mapping are not copied. The executable BK7258 chain uses a board-owned BL1, candidate Manifest verifier and pinned NuttX MCUboot BL2 with CP/AP same-slot gating. BL1 publishes fixed Primary→Secondary order and links no retired N15/N17 lifecycle or Flash-write module. The chain is board-verified but remains software-rooted and unarmed; BootROM Manifest acceptance, OTP/eFuse binding and hardware rollback remain open. |
 
 ## Primary data flows
 
@@ -41,22 +41,14 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   gateway ICMP, local TCP/UDP sockets, bounded retained-service coexistence,
   AP-restart rejection and 3/3 controlled RTS recovery are board-verified.
 - PSRAM: CP takes the official PM vote and performs the one-shot capacity gate; CP and AP use disjoint role-local heaps.
-- OTA: CP/AP are one launchable pair. The board-owned MCUboot BL2 exposes only
+- Signed-image selection: CP/AP are one launchable pair. The board-owned MCUboot BL2 exposes only
   one physical slot to each `boot_go()` attempt and requires the CP result and
   AP vector to come from that same slot; a cross-slot-only state fails closed.
   Primary CP/AP and `s_app` remain equal-length contiguous pairs selected by
   one official-style Flash remap decision; LittleFS and the calibration tail
-  are outside both executable spans.
-- Authenticated OTA (N17 design): the team bootloader authenticates a
-  canonical ECDSA-P256/SHA-256 release manifest and then verifies the actual
-  CP/AP pair. Manifest A is `0x50b000..0x50c000`, Manifest B is
-  `0x50c000..0x50d000`, and the normal-write-forbidden policy sector is
-  `0x50d000..0x50e000`. The 256-byte format-3 lifecycle journal references
-  immutable Manifest signed-region digests and remains responsible only for
-  pending, trial, confirmation, rollback and the software counter floor.
-  N17-S pins a public key in the team bootloader and makes no hardware-root
-  claim. N17-H may later bind the same format to BootROM/OTP under
-  [ADR-008](decisions/ADR-008-n17-phased-ota-authentication.md).
+  are outside both executable spans. The active firmware does not contain an
+  inactive-slot writer, trial journal, confirmation service or field-update
+  transport.
 
 ## Persistence and data lifecycle
 
@@ -66,29 +58,20 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 - Bluetooth base MAC/calibration records are created through the official first-calibration path and persist in flash.
 - RPMsg endpoints and AP-local state are generation-scoped; AP restart invalidates stale transport state.
 - The N14 upper PSRAM half is tested at boot but has no general runtime
-  allocator or persistence semantics. The N15-F validation profile alone may
-  use fixed volatile range `0x60800000..0x60a76200` to transfer one candidate,
-  descriptor and pending record after a generation-bound operator gate.
+  allocator or persistence semantics. The retired N15 validation transfer
+  window has no active consumer.
 - ADR-003's append-only logs, scratch sector, metadata ABI, and SRAM copy
   closure are retired research artifacts. Their 32,915-case model remains
   evidence for the rejected alternative; the mutation gate is zero and no
   board consumed that ABI.
-- ADR-004 freezes primary CP/AP at raw `0x011000..0x286000`, paired B at
-  `0x286000..0x4fb000`, metadata bank 0/user config through `0x50a000`, LittleFS at
-  `0x600000..0x700000`, and the immutable official tail at
-  `0x7fa000..0x800000`.
-- ADR-005 freezes metadata format 1 as historical one-direction evidence.
-  ADR-006 is current: eight append-only 512-byte records per bank at
-  `0x4fb000..0x4fc000` and `0x50a000..0x50b000`, with slot-neutral
-  `PENDING_*/TRIAL_*/CONFIRMED_*/ROLLBACK_*` states. The selected bank remains
-  durable until an inactive-bank record is completely read back; pending alone
-  is never permission to remap.
-- N17's canonical host layout reserves the two Manifest sectors and policy
-  sector above and leaves `0x50e000..0x600000` unallocated. The accepted
-  format-3 design reuses the two metadata sectors as sixteen 256-byte records
-  per bank and commits confirmation plus the accepted counter floor together.
-  Until the future migration is implemented, explicitly authorized and run,
-  the deployed board remains on N15 format 2 and its policy sector is unarmed.
+- The active CSV freezes primary CP/AP at raw `0x011000..0x286000`, paired B
+  at `0x286000..0x4fb000`, `usr_config` at `0x4fc000..0x50a000`, read-only BL1
+  Manifest pages at `0x50b000..0x50d000`, two read-only BL2 copies beginning
+  at `0x51d000`, LittleFS at `0x600000..0x700000`, and the immutable official
+  tail at `0x7fa000..0x800000`. The gaps are explicitly unallocated.
+- ADR-004 records the one-time physical layout migration. ADR-005, ADR-006
+  and the N17 format-3 journal remain historical design/evidence only; their
+  runtime readers, writers and policy sector have been removed.
 
 ## External dependencies
 
@@ -108,11 +91,10 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 - The active development board must remain recoverable for later driver work.
   OTP/eFuse, secure-boot enable, lifecycle/JTAG locks and hardware rollback
   counters are outside normal firmware and validation authority.
-- Normal firmware may not write or erase the N17 policy sector. After a future
-  authorized migration programs any non-`0xff` byte in that sector, boot must
-  fail closed to format 3 plus a valid signed Manifest/payload; format 2 and
-  header-only slot-A fallback are permanently ineligible. The current board
-  has not been armed.
+- Normal firmware may not write or erase BL1 Manifest or BL2 partitions.
+  There is no active N17 policy sector or field-update mutation path. Any
+  future updater must define a new authorization and recovery boundary before
+  gaining Flash-write authority.
 
 ## Known constraints and technical debt
 
@@ -148,16 +130,10 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   and BL1 only while it executes its one P-256 Manifest verification, use a
   60-second watchdog period; BL1 restores its ordinary period before acting on
   the result. This is a timing boundary, not a waiver for an infinite boot hang.
-- N15 R1/R2 sector-swap evidence is historical. N15-A through N15-F and the
-  format-2 host campaign are verified; the approved physical scope completed
-  generation 314 A-to-confirmed-B and generation 315 B-to-confirmed-A through
-  both metadata banks. This does not claim an analog mid-Flash-pulse brownout
-  or authorize future Flash writes.
-- N15 format 2 authenticates neither publisher nor rollback age. N17-S's
-  layout, Manifest and format-3 architecture are frozen, but its Bootloader
-  verifier/journal and migration are not implemented. Complete Flash
-  replacement remains outside its threat coverage until the separately gated
-  N17-H hardware trust chain is provisioned.
+- N15 R1/R2, format-2 and N17 format-3 lifecycle evidence is historical. The
+  former A-to-B-to-A run does not authorize future Flash writes, and the
+  corresponding runtime code has been retired. The preserved BL1/MCUboot
+  chain authenticates boot images but is not itself a field-update service.
 - Official v3.1.1.9 Wi-Fi teardown is incomplete: CP `wifi_deinit()` is
   unsupported and the AP proxy does not close its mailbox channels. Until a
   separate lifecycle design is verified, AP-only restart must fail closed
