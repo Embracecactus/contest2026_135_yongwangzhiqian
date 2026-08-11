@@ -177,36 +177,24 @@ static int bk7258_jpeg_decoder_check_locked(
   return 0;
 }
 
-static int bk7258_jpeg_decoder_route_error(int32_t result)
-{
-  return result == 0 ? 0 : -EIO;
-}
-
 static int bk7258_jpeg_decoder_route_to_cpu1(void)
 {
   int ret;
 
-  ret = bk7258_jpeg_decoder_route_error(
-    sys_drv_core_intr_group1_disable(BK7258_JPEGDEC_CPU2_CORE_ID,
-                                     BK7258_JPEGDEC_INTERRUPT_CTRL_BIT));
-  if (ret < 0)
-    {
-      /* Disable is idempotent in the SDK path.  This also clears a partial
-       * CPU1 route if a lower layer reported failure after changing state. */
+  /* v3.1.1.9 disable returns the pre-update enable register, not an errno.
+   * Match the verified SDK consumers: perform the disable and only test the
+   * zero-on-success enable operation below. */
 
-      (void)sys_drv_core_intr_group1_disable(
-        BK7258_JPEGDEC_CPU1_CORE_ID, BK7258_JPEGDEC_INTERRUPT_CTRL_BIT);
-      return ret;
-    }
+  (void)sys_drv_core_intr_group1_disable(BK7258_JPEGDEC_CPU2_CORE_ID,
+                                         BK7258_JPEGDEC_INTERRUPT_CTRL_BIT);
 
-  ret = bk7258_jpeg_decoder_route_error(
-    sys_drv_core_intr_group1_enable(BK7258_JPEGDEC_CPU1_CORE_ID,
-                                    BK7258_JPEGDEC_INTERRUPT_CTRL_BIT));
-  if (ret < 0)
+  ret = sys_drv_core_intr_group1_enable(BK7258_JPEGDEC_CPU1_CORE_ID,
+                                        BK7258_JPEGDEC_INTERRUPT_CTRL_BIT);
+  if (ret != 0)
     {
       (void)sys_drv_core_intr_group1_disable(
         BK7258_JPEGDEC_CPU1_CORE_ID, BK7258_JPEGDEC_INTERRUPT_CTRL_BIT);
-      return ret;
+      return -EIO;
     }
 
   return 0;
@@ -214,9 +202,11 @@ static int bk7258_jpeg_decoder_route_to_cpu1(void)
 
 static int bk7258_jpeg_decoder_route_from_cpu1(void)
 {
-  return bk7258_jpeg_decoder_route_error(
-    sys_drv_core_intr_group1_disable(BK7258_JPEGDEC_CPU1_CORE_ID,
-                                     BK7258_JPEGDEC_INTERRUPT_CTRL_BIT));
+  /* Disable returns the pre-update enable register, not an errno. */
+
+  (void)sys_drv_core_intr_group1_disable(BK7258_JPEGDEC_CPU1_CORE_ID,
+                                         BK7258_JPEGDEC_INTERRUPT_CTRL_BIT);
+  return 0;
 }
 
 /* The SDK passes addresses to a 32-bit JPEG register interface.  Reject a
