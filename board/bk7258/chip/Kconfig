@@ -1151,6 +1151,22 @@ config BK7258_DMA2D
 		The caller owns buffer lifetime and cache coherency.  Scale and rotate
 		operations remain separate from this helper.
 
+config BK7258_SCALE_ROTATE
+	bool "BK7258 hardware scale and rotate helpers"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Build an AP-side typed helper for synchronous image scaling and
+		rotation through the official v3.1.1.9 hardware drivers.  NuttX has no
+		matching scale/rotate upper half, so this option does not create a
+		private character-device ABI.  A framebuffer or video owner must own
+		the singleton and all DMA-visible buffers.
+
+		The v3.1.1.9 FRAME_SCALE data path is complete only for Scale0; Scale1
+		is deliberately reported as unsupported.  Rotation supports the
+		documented RGB565/YUV input formats and 0, 90 and 270 degree modes.
+
 config BK7258_JPEG_DECODER
 	bool "BK7258 hardware JPEG decoder helper"
 	default n

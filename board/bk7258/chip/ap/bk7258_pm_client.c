@@ -58,15 +58,17 @@ static struct bk7258_pm_client_s g_bk7258_pm_client =
 
 /* v3.1.1.9 BK7258 sys_types.h encodes VIDP submodules as
  * POWER_MODULE_NAME_VIDP * PM_MODULE_SUB_POWER_DOMAIN_MAX + index.
- * JPEG encode/decode, DMA2D and YUV buffer are VIDP submodules 0, 1, 2 and
- * 4: 140, 141, 142 and 144.  Their power-state enum uses ON=0 and OFF=1,
- * unlike bk_pm_clock_ctrl().
+ * JPEG encode/decode, DMA2D, YUV buffer, rotator and Scale0 are VIDP
+ * submodules 0, 1, 2, 4, 5 and 6: 140, 141, 142, 144, 145 and 146.  Their
+ * power-state enum uses ON=0 and OFF=1, unlike bk_pm_clock_ctrl().
  */
 
 #define BK7258_SDK_POWER_VIDP_JPEG_ENCODER 140u
 #define BK7258_SDK_POWER_VIDP_JPEG_DECODER 141u
 #define BK7258_SDK_POWER_VIDP_DMA2D        142u
 #define BK7258_SDK_POWER_VIDP_YUV_BUFFER   144u
+#define BK7258_SDK_POWER_VIDP_ROTATOR      145u
+#define BK7258_SDK_POWER_VIDP_SCALE0       146u
 #define BK7258_SDK_POWER_STATE_ON   0
 #define BK7258_SDK_POWER_STATE_OFF  1
 
@@ -119,6 +121,8 @@ static bool g_bk7258_pm_sdk_jpeg_encoder_enabled;
 static bool g_bk7258_pm_sdk_jpeg_decoder_enabled;
 static bool g_bk7258_pm_sdk_dma2d_enabled;
 static bool g_bk7258_pm_sdk_yuv_buffer_enabled;
+static bool g_bk7258_pm_sdk_rotator_enabled;
+static bool g_bk7258_pm_sdk_scale0_enabled;
 static uint32_t g_bk7258_pm_sdk_generation;
 
 extern int __real_bk_pm_module_vote_power_ctrl(unsigned int module,
@@ -131,6 +135,8 @@ static void bk7258_pm_sdk_reset_generation(uint32_t generation)
   g_bk7258_pm_sdk_jpeg_decoder_enabled = false;
   g_bk7258_pm_sdk_dma2d_enabled = false;
   g_bk7258_pm_sdk_yuv_buffer_enabled = false;
+  g_bk7258_pm_sdk_rotator_enabled = false;
+  g_bk7258_pm_sdk_scale0_enabled = false;
   __atomic_store_n(&g_bk7258_pm_sdk_generation, generation,
                    __ATOMIC_RELEASE);
 }
@@ -462,9 +468,10 @@ out:
   return ret;
 }
 
-/* Route only the verified BK7258 v3.1.1.9 JPEG encode/decode, DMA2D and YUV
- * buffer VIDP submodules through the CP-owned PM service.  Other vendor
- * modules retain their SDK behavior until their ownership is reviewed.
+/* Route only the verified BK7258 v3.1.1.9 JPEG encode/decode, DMA2D, YUV
+ * buffer, rotator and Scale0 VIDP submodules through the CP-owned PM service.
+ * Other vendor modules retain their SDK behavior until their ownership is
+ * reviewed.
  */
 
 int __wrap_bk_pm_module_vote_power_ctrl(unsigned int module,
@@ -498,6 +505,16 @@ int __wrap_bk_pm_module_vote_power_ctrl(unsigned int module,
       case BK7258_SDK_POWER_VIDP_YUV_BUFFER:
         clock = BK7258_PM_CLOCK_YUV;
         enabled = &g_bk7258_pm_sdk_yuv_buffer_enabled;
+        break;
+
+      case BK7258_SDK_POWER_VIDP_ROTATOR:
+        clock = BK7258_PM_CLOCK_ROTATOR;
+        enabled = &g_bk7258_pm_sdk_rotator_enabled;
+        break;
+
+      case BK7258_SDK_POWER_VIDP_SCALE0:
+        clock = BK7258_PM_CLOCK_SCALE0;
+        enabled = &g_bk7258_pm_sdk_scale0_enabled;
         break;
 
       default:

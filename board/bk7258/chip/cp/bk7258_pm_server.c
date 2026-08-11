@@ -103,7 +103,9 @@ static bool bk7258_pm_is_video_clock(enum bk7258_pm_clock_e clock)
          clock == BK7258_PM_CLOCK_H264 ||
          clock == BK7258_PM_CLOCK_YUV ||
          clock == BK7258_PM_CLOCK_DMA2D ||
-         clock == BK7258_PM_CLOCK_JPEG_DECODER;
+         clock == BK7258_PM_CLOCK_JPEG_DECODER ||
+         clock == BK7258_PM_CLOCK_SCALE0 ||
+         clock == BK7258_PM_CLOCK_ROTATOR;
 }
 
 static bool bk7258_pm_video_active(struct bk7258_pm_server_s *priv)
@@ -113,7 +115,9 @@ static bool bk7258_pm_video_active(struct bk7258_pm_server_s *priv)
          priv->refs[BK7258_PM_CLOCK_H264] != 0 ||
          priv->refs[BK7258_PM_CLOCK_YUV] != 0 ||
          priv->refs[BK7258_PM_CLOCK_DMA2D] != 0 ||
-         priv->refs[BK7258_PM_CLOCK_JPEG_DECODER] != 0;
+         priv->refs[BK7258_PM_CLOCK_JPEG_DECODER] != 0 ||
+         priv->refs[BK7258_PM_CLOCK_SCALE0] != 0 ||
+         priv->refs[BK7258_PM_CLOCK_ROTATOR] != 0;
 }
 
 static void bk7258_pm_set_video_power(bool enable)
@@ -294,6 +298,13 @@ static void bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
         /* The immutable JPEG decoder driver configures its controller clock
          * after requesting PM_POWER_SUB_MODULE_NAME_VIDP_JPEG_DE.  The CP
          * service owns only the shared VIDP/MEM3 power edge here. */
+
+        break;
+      case BK7258_PM_CLOCK_SCALE0:
+      case BK7258_PM_CLOCK_ROTATOR:
+        /* The immutable scale/rotator drivers configure their controller
+         * clocks after voting their VIDP submodule.  CP owns only the shared
+         * VIDP/MEM3 first/last power edge represented by these logical IDs. */
 
         break;
       default:
