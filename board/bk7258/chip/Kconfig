@@ -1197,6 +1197,24 @@ config BK7258_JPEG_ENCODER
 		The helper uses bounded completion waits and defers SDK interrupt
 		callbacks through the NuttX high-priority work queue.
 
+config BK7258_YUV_H264
+	bool "BK7258 YUV buffer and H.264 encoder helper"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Build an AP-side typed helper for a persistent YUV422-to-H.264
+		encoding stream through the official v3.1.1.9 YUV buffer, H.264 and
+		DMA drivers.  NuttX defines H.264 V4L2 formats but has no matching
+		memory-to-memory encoder lower half in this tree, so this option does
+		not create a private character-device ABI.  A camera or V4L2 media
+		owner must explicitly own the encoder stream and all DMA-visible
+		buffers.
+
+		SDK callbacks remain interrupt-safe and frame completion is exposed
+		through a bounded synchronous call.  The helper retains H.264 state
+		between frames so the hardware GOP is not reset on every encode.
+
 config BK7258_T5_BOARD_CAMERA
 	bool "T5-Board P10 DVP camera as /dev/video0"
 	default n
