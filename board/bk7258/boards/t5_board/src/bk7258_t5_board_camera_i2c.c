@@ -9,7 +9,7 @@
  * uses GPIO13/GPIO15 and therefore reaches the SDK through simulated I2C2.
  * The immutable v3.1.1.9 simulated driver uses a CPU-cycle delay calibrated
  * for a different clock.  This board-owned link wrapper keeps the SDK DVP
- * implementation intact while providing clock-independent 10 us half cycles
+ * implementation intact while providing clock-independent 5 us half cycles
  * for I2C2.  Hardware I2C0/I2C1 continue to use the original SDK functions.
  ****************************************************************************/
 
@@ -36,7 +36,7 @@
 #include <driver/i2c.h>
 
 #define T5_CAMERA_I2C_ID             BK7258_BOARD_DVP_I2C_BUS
-#define T5_CAMERA_I2C_HALF_PERIOD_US 10u
+#define T5_CAMERA_I2C_HALF_PERIOD_US 5u
 #define T5_CAMERA_RESET_SETTLE_US    20000u
 #define T5_CAMERA_RESET_ASSERT_US    100000u
 #define T5_CAMERA_RESET_RELEASE_US   100000u
@@ -49,6 +49,10 @@
 #define T5_CAMERA_DVP_INPUT_MUX_MODE 0u
 #define T5_CAMERA_MCLK_MUX_MODE      1u
 #define T5_CAMERA_GPIO_2_FUNC_EN     (1u << 6)
+#define T5_CAMERA_GPIO_INPUT          ((1u << 5) | (1u << 4) | \
+                                      (1u << 3) | (1u << 2) | (1u << 1))
+#define T5_CAMERA_GPIO_OUTPUT_HIGH    (1u << 1)
+#define T5_CAMERA_GPIO_OUTPUT_LOW     0u
 
 #define T5_CAMERA_REG32(address) \
   (*(FAR volatile uint32_t *)(uintptr_t)(address))
@@ -83,28 +87,61 @@ static gpio_id_t t5_camera_i2c_sda(void)
 
 static void t5_camera_i2c_delay(void)
 {
-  up_udelay(T5_CAMERA_I2C_HALF_PERIOD_US);
+  uint32_t cycles;
+  uint32_t start;
+  unsigned long frequency = up_perf_getfreq();
+
+  /* The generic up_udelay() walks the NuttX timer lower-half on every GPIO
+   * edge, which makes a full GC2145 register table take about a minute.
+   * Use NuttX's per-core DWT cycle counter for this short board-level SCCB
+   * delay.  up_perf_getfreq() is refreshed by the BK7258 DVFS path, so the
+   * timing follows the live AP frequency instead of assuming the original
+   * bring-up clock.
+   */
+
+  cycles = (uint32_t)(((uint64_t)frequency *
+                       T5_CAMERA_I2C_HALF_PERIOD_US + 999999u) /
+                      1000000u);
+  start = (uint32_t)up_perf_gettime();
+  while ((uint32_t)((uint32_t)up_perf_gettime() - start) < cycles)
+    {
+    }
 }
 
 static void t5_camera_i2c_drive_low(gpio_id_t pin)
 {
-  bk_gpio_disable_input(pin);
-  bk_gpio_set_output_low(pin);
-  bk_gpio_enable_output(pin);
+  /* Match v3.1.1.9 sim_i2c_driver.c: its fast path writes the complete
+   * per-pin AON GPIO word instead of walking three public GPIO calls on
+   * every SCCB edge.  P13/P15 are board-exclusive while the camera is open.
+   */
+
+  T5_CAMERA_REG32(T5_CAMERA_GPIO_REG_BASE +
+                  (uintptr_t)pin * sizeof(uint32_t)) =
+    T5_CAMERA_GPIO_OUTPUT_LOW;
 }
 
 static void t5_camera_i2c_drive_high(gpio_id_t pin)
 {
-  bk_gpio_disable_input(pin);
-  bk_gpio_set_output_high(pin);
-  bk_gpio_enable_output(pin);
+  T5_CAMERA_REG32(T5_CAMERA_GPIO_REG_BASE +
+                  (uintptr_t)pin * sizeof(uint32_t)) =
+    T5_CAMERA_GPIO_OUTPUT_HIGH;
 }
 
 static void t5_camera_i2c_release(gpio_id_t pin)
 {
-  bk_gpio_disable_output(pin);
-  bk_gpio_pull_up(pin);
-  bk_gpio_enable_input(pin);
+  /* Output disabled, input and internal pull-up enabled.  Keep the output
+   * latch high so returning to output mode cannot create a low glitch.
+   */
+
+  T5_CAMERA_REG32(T5_CAMERA_GPIO_REG_BASE +
+                  (uintptr_t)pin * sizeof(uint32_t)) =
+    T5_CAMERA_GPIO_INPUT;
+}
+
+static bool t5_camera_i2c_get_input(gpio_id_t pin)
+{
+  return (T5_CAMERA_REG32(T5_CAMERA_GPIO_REG_BASE +
+                         (uintptr_t)pin * sizeof(uint32_t)) & 1u) != 0;
 }
 
 static bool t5_camera_i2c_release_scl(void)
@@ -185,7 +222,7 @@ static bool t5_camera_i2c_write_byte(uint8_t byte)
       return false;
     }
 
-  acknowledged = !bk_gpio_get_input(t5_camera_i2c_sda());
+  acknowledged = !t5_camera_i2c_get_input(t5_camera_i2c_sda());
   t5_camera_i2c_drive_low(t5_camera_i2c_scl());
   t5_camera_i2c_drive_high(t5_camera_i2c_sda());
   t5_camera_i2c_delay();
@@ -212,7 +249,7 @@ static bool t5_camera_i2c_read_byte(uint8_t *byte, bool last)
           return false;
         }
 
-      if (bk_gpio_get_input(t5_camera_i2c_sda()))
+      if (t5_camera_i2c_get_input(t5_camera_i2c_sda()))
         {
           value |= 1;
         }
@@ -468,8 +505,8 @@ bk_err_t __wrap_bk_i2c_init_v2(i2c_id_t id,
   t5_camera_i2c_drive_high(t5_camera_i2c_scl());
   t5_camera_i2c_drive_high(t5_camera_i2c_sda());
   t5_camera_i2c_delay();
-  return bk_gpio_get_input(t5_camera_i2c_scl()) &&
-         bk_gpio_get_input(t5_camera_i2c_sda()) ? BK_OK :
+  return t5_camera_i2c_get_input(t5_camera_i2c_scl()) &&
+         t5_camera_i2c_get_input(t5_camera_i2c_sda()) ? BK_OK :
          BK_ERR_I2C_SM_BUS_BUSY;
 }
 

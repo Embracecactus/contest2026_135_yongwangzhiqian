@@ -38,6 +38,19 @@
 #define BK7258_PSRAM_AP_SECTION_BASE    0x607c0000u
 #define BK7258_PSRAM_AP_SECTION_SIZE    0x00040000u
 
+/* Official v3.1.1.9 8 MiB media-slab layout. */
+
+#define BK7258_PSRAM_MEDIA_BASE         0x60000000u
+#define BK7258_PSRAM_MEDIA_SIZE         0x00700000u
+
+enum bk7258_psram_media_heap_e
+{
+  BK7258_PSRAM_MEDIA_USER = 0,
+  BK7258_PSRAM_MEDIA_AUDIO,
+  BK7258_PSRAM_MEDIA_ENCODE,
+  BK7258_PSRAM_MEDIA_YUV
+};
+
 #define BK7258_PSRAM_AP_RESERVED_RESULT 0u
 #define BK7258_PSRAM_AP_RESERVED_MAGIC  1u
 #define BK7258_PSRAM_AP_RESERVED_HEAP   2u
@@ -125,6 +138,13 @@ void *bk7258_psram_malloc(size_t size);
 void *bk7258_psram_zalloc(size_t size);
 void *bk7258_psram_realloc(void *ptr, size_t size);
 void bk7258_psram_free(void *ptr);
+
+#ifdef CONFIG_BK7258_PSRAM_MEDIA
+int bk7258_psram_media_initialize(void);
+void *bk7258_psram_media_malloc(enum bk7258_psram_media_heap_e heap,
+                                size_t size);
+void bk7258_psram_media_free(void *ptr);
+#endif
 
 size_t bk7258_psram_total_size(void);
 size_t bk7258_psram_free_size(void);

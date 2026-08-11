@@ -25,6 +25,7 @@
 #include <arch/chip/bk7258_rptun.h>
 
 #include "bk7258_pm_ipc.h"
+#include "bk7258_dvfs.h"
 
 /* The immutable v3.1.1.9 CP libdriver archive exports this function.  Its
  * enum parameters use the ordinary C int ABI.  Keep the verified numeric
@@ -92,6 +93,8 @@ struct bk7258_pm_server_s
   volatile bool endpoint_created;
   uint32_t generation;
   uint16_t refs[BK7258_PM_CLOCK_COUNT];
+  uint8_t freq_votes[BK7258_PM_FREQ_CLIENT_COUNT];
+  bool freq_active[BK7258_PM_FREQ_CLIENT_COUNT];
 };
 
 static struct bk7258_pm_server_s g_bk7258_pm_server;
@@ -319,6 +322,7 @@ static void bk7258_pm_release_generation(
   struct bk7258_pm_server_s *priv)
 {
   bool video_active = bk7258_pm_video_active(priv);
+  bool freq_changed = false;
   unsigned int i;
 
   for (i = 0; i < BK7258_PM_CLOCK_COUNT; i++)
@@ -328,6 +332,26 @@ static void bk7258_pm_release_generation(
           bk7258_pm_set_clock((enum bk7258_pm_clock_e)i, false);
           priv->refs[i] = 0;
         }
+    }
+
+  for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
+    {
+      if (priv->freq_active[i])
+        {
+          if (i == BK7258_PM_FREQ_CLIENT_VIDEO)
+            {
+              (void)bk7258_dvfs_set_freq(BK7258_FREQ_320M);
+              freq_changed = true;
+            }
+
+          priv->freq_active[i] = false;
+          priv->freq_votes[i] = BK7258_PM_CPU_FREQ_DEFAULT;
+        }
+    }
+
+  if (freq_changed)
+    {
+      bk7258_systick_recalc();
     }
 
   if (video_active)
@@ -348,6 +372,7 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
   struct bk7258_pm_wire_s reply;
   FAR const struct bk7258_pm_wire_s *request = data;
   enum bk7258_pm_clock_e clock;
+  bool clock_command;
   int status = OK;
 
   (void)ept;
@@ -355,8 +380,17 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
 
   if (len != sizeof(*request) || request->magic != BK7258_PM_MAGIC ||
       request->version != BK7258_PM_VERSION || request->generation == 0 ||
-      request->generation != control->generation ||
-      request->clock >= BK7258_PM_CLOCK_COUNT)
+      request->generation != control->generation)
+    {
+      return -EINVAL;
+    }
+
+  clock_command = request->command == BK7258_PM_COMMAND_CLOCK_GET ||
+                  request->command == BK7258_PM_COMMAND_CLOCK_PUT;
+  if ((clock_command && request->clock >= BK7258_PM_CLOCK_COUNT) ||
+      (request->command == BK7258_PM_COMMAND_CPU_FREQ_VOTE &&
+       (request->clock >= BK7258_PM_FREQ_CLIENT_COUNT ||
+        request->reserved > BK7258_PM_CPU_FREQ_DEFAULT)))
     {
       return -EINVAL;
     }
@@ -410,6 +444,30 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
             }
         }
     }
+  else if (request->command == BK7258_PM_COMMAND_CPU_FREQ_VOTE)
+    {
+      if (request->clock == BK7258_PM_FREQ_CLIENT_VIDEO)
+        {
+          status = bk7258_dvfs_set_freq(
+            request->reserved == BK7258_PM_CPU_FREQ_DEFAULT ?
+            BK7258_FREQ_320M : (int)request->reserved);
+          if (status == 0)
+            {
+              priv->freq_votes[request->clock] = request->reserved;
+              priv->freq_active[request->clock] =
+                request->reserved != BK7258_PM_CPU_FREQ_DEFAULT;
+              bk7258_systick_recalc();
+            }
+          else
+            {
+              status = -EIO;
+            }
+        }
+      else
+        {
+          status = -ENOTSUP;
+        }
+    }
   else
     {
       status = -ENOTSUP;
@@ -418,7 +476,7 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
   memcpy(&reply, request, sizeof(reply));
   reply.command = BK7258_PM_COMMAND_RESPONSE;
   reply.status = status;
-  reply.refcount = priv->refs[clock];
+  reply.refcount = clock_command ? priv->refs[clock] : 0;
 
   /* The callback owns the RPTUN RX worker.  Never wait for a TX buffer here;
    * a busy transport is reported to AP as its bounded request timeout.

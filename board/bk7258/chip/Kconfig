@@ -56,6 +56,18 @@ config BK7258_AP_CORE
 		baseline with a freestanding CPU2 probe.  AP SMP is enabled only by the
 		separate BK7258_AP_SMP_BOOTSTRAP option and configs/ap_smp.
 
+config BK7258_SWD_RTT_DEBUG
+	bool "Route T5-Board P0/P1 to SWD and use SEGGER RTT logging"
+	default n
+	depends on !BK7258_AP_CORE && BK7258_GPIO_LOWERHALF
+	select SYSLOG_RTT
+	---help---
+		Enable the board-owned debug transport used when T5-Board exposes the
+		BK7258 JTAG/SWD group on GPIO0/GPIO1.  The CP remaps those pins from
+		UART1 to JTAG TCK/TMS immediately before releasing the AP; AP syslog can
+		then continue through RPMsg and the CP's SEGGER RTT channel while J-Link
+		owns P0/P1.  Keep this disabled in normal UART-console builds.
+
 config BK7258_MCUBOOT_IMAGE
 	bool "Build CP application as an MCUboot payload"
 	default n
@@ -287,6 +299,7 @@ config BK7258_PM_CLOCK
 	bool "CP-owned peripheral clock voting service"
 	default y if BK7258_RPTUN
 	depends on BK7258_RPTUN
+	select BK7258_DVFS if !BK7258_AP_CORE
 	---help---
 		Keep BK7258 peripheral leaf-clock ownership on CP and expose a bounded,
 		generation-safe RPMsg get/put wrapper to AP drivers.  The server maps a
@@ -634,6 +647,16 @@ config BK7258_PSRAM
 		Non-shareable Normal Non-cacheable on CP plus both AP logical CPUs.
 		PSRAM remains powered for the complete N14 boot generation;
 		sleep/power-down ownership is out of scope.
+
+config BK7258_PSRAM_MEDIA
+	bool
+	default n
+	depends on BK7258_PSRAM && BK7258_AP_CORE
+	help
+		Enable the AP-side wrapper for the official v3.1.1.9 PSRAM media
+		slabs.  Large media buffers use the SDK-defined USER, AUDIO,
+		ENCODE and YUV regions instead of exhausting the 640 KiB AP
+		general-purpose PSRAM heap.
 
 config BK7258_PSRAM_BOOT_TEST
 	bool "N14 destructive full-capacity PSRAM boot test"
@@ -1227,10 +1250,39 @@ config BK7258_T5_BOARD_CAMERA
 		frames and V4L2 MMAP buffers.  LCD/touch are excluded because their
 		board routing overlaps the DVP data and sensor-control pins.
 
+config BK7258_T5_BOARD_CAMERA_RAW_YUV
+	bool "Expose the T5-Board camera as raw YUYV"
+	default n
+	depends on BK7258_T5_BOARD_CAMERA
+	select BK7258_PSRAM_MEDIA
+	help
+		Configure the GC2145/DVP path for 640x480 packed YUYV frames instead
+		of MJPEG.  /dev/video0 remains a standard NuttX V4L2 capture device.
+		Select this when a board media owner needs raw pixels for a hardware
+		encoder or another image-processing stage.
+
+config BK7258_T5_BOARD_CAMERA_H264
+	bool "Expose the T5-Board camera as live H.264"
+	default n
+	depends on BK7258_T5_BOARD_CAMERA && !BK7258_T5_BOARD_CAMERA_RAW_YUV
+	depends on BK7258_AP_SMP_SCHED_ONLINE
+	help
+		Configure the GC2145 and the official v3.1.1.9 DVP/YUV/H.264
+		pipeline as one live stream.  /dev/video0 advertises the standard
+		V4L2_PIX_FMT_H264 format and returns Annex-B access units.  The SDK
+		routes the H.264 interrupt to the second AP hardware core, so that
+		logical CPU must be online.
+
+		The pinned NuttX version publishes the H.264 V4L2 fourcc but omits an
+		internal imgdata H.264 token.  The BK7258 lower half contains a narrow
+		compatibility mapping for this configured instance; no NuttX source or
+		public ABI is changed.
+
 config BK7258_T5_BOARD_CAMERA_VALIDATION
 	bool "Capture one MJPEG frame during T5-Board camera bring-up"
 	default n
-	depends on BK7258_T5_BOARD_CAMERA
+	depends on BK7258_T5_BOARD_CAMERA && !BK7258_T5_BOARD_CAMERA_RAW_YUV
+	depends on !BK7258_T5_BOARD_CAMERA_H264
 	help
 		Run one bounded V4L2 USERPTR capture after /dev/video0 is
 		registered.  The validation uses a PSRAM buffer, waits at most three
@@ -1238,6 +1290,16 @@ config BK7258_T5_BOARD_CAMERA_VALIDATION
 		BKCAM PASS/FAIL through syslog, and then closes the stream.  Enable
 		this only in drivercheck profiles; normal board configurations merely
 		register the standard V4L2 device.
+
+config BK7258_T5_BOARD_CAMERA_H264_VALIDATION
+	bool "Capture one live H.264 frame during T5-Board bring-up"
+	default n
+	depends on BK7258_T5_BOARD_CAMERA_H264
+	help
+		Run one bounded V4L2 USERPTR capture after /dev/video0 is registered.
+		It keeps the GC2145/DVP/YUV/H.264 pipeline live, validates a non-empty
+		640x480 Annex-B frame, reports BKCAMH264 PASS/FAIL, and closes the
+		stream.  Enable this only in drivercheck profiles.
 
 config BK7258_USBHOST
 	bool "BK7258 native USB host controller"

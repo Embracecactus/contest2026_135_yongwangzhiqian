@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include <nuttx/mm/mm.h>
+#include <nuttx/mutex.h>
 #include <nuttx/spinlock.h>
 
 #include <arch/chip/bk7258_psram.h>
@@ -32,6 +33,18 @@
 #  include <components/system.h>
 #endif
 #include <driver/psram.h>
+
+#ifdef CONFIG_BK7258_PSRAM_MEDIA
+#  include <components/media_types.h>
+
+/* v3.1.1.9 exports these public media-utils APIs from libmedia_utils.a,
+ * while the pinned armino-as-lib header subset omits psram_mem_slab.h. */
+
+extern void bk_psram_frame_buffer_init(void);
+extern void *bk_psram_frame_buffer_malloc(psram_heap_type_t type,
+                                          uint32_t size);
+extern void bk_psram_frame_buffer_free(void *memory);
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -133,6 +146,10 @@ struct bk7258_psram_test_context_s
 static struct mm_heap_s *g_bk7258_psram_heap;
 static spinlock_t g_bk7258_psram_lock = SP_UNLOCKED;
 static struct bk7258_psram_info_s g_bk7258_psram_info;
+#ifdef CONFIG_BK7258_PSRAM_MEDIA
+static mutex_t g_bk7258_psram_media_lock = NXMUTEX_INITIALIZER;
+static bool g_bk7258_psram_media_initialized;
+#endif
 #ifndef CONFIG_BK7258_AP_CORE
 static bool g_bk7258_psram_hardware_attempted;
 static bool g_bk7258_psram_hardware_ready;
@@ -856,6 +873,73 @@ void bk7258_psram_free(void *ptr)
       spin_unlock_irqrestore(&g_bk7258_psram_lock, flags);
     }
 }
+
+#ifdef CONFIG_BK7258_PSRAM_MEDIA
+int bk7258_psram_media_initialize(void)
+{
+  int ret;
+
+  if (!bk7258_psram_ready())
+    {
+      return -ENODEV;
+    }
+
+  ret = nxmutex_lock(&g_bk7258_psram_media_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (!g_bk7258_psram_media_initialized)
+    {
+      bk_psram_frame_buffer_init();
+      g_bk7258_psram_media_initialized = true;
+    }
+
+  nxmutex_unlock(&g_bk7258_psram_media_lock);
+  return OK;
+}
+
+void *bk7258_psram_media_malloc(enum bk7258_psram_media_heap_e heap,
+                                size_t size)
+{
+  void *memory = NULL;
+
+  if (size == 0 || size > UINT32_MAX ||
+      heap < BK7258_PSRAM_MEDIA_USER ||
+      heap > BK7258_PSRAM_MEDIA_YUV ||
+      bk7258_psram_media_initialize() < 0)
+    {
+      return NULL;
+    }
+
+  if (nxmutex_lock(&g_bk7258_psram_media_lock) < 0)
+    {
+      return NULL;
+    }
+
+  memory = bk_psram_frame_buffer_malloc((psram_heap_type_t)heap,
+                                        (uint32_t)size);
+  nxmutex_unlock(&g_bk7258_psram_media_lock);
+  return memory;
+}
+
+void bk7258_psram_media_free(void *ptr)
+{
+  uintptr_t address = (uintptr_t)ptr;
+
+  if (ptr == NULL || !g_bk7258_psram_media_initialized ||
+      address < BK7258_PSRAM_MEDIA_BASE ||
+      address >= BK7258_PSRAM_MEDIA_BASE + BK7258_PSRAM_MEDIA_SIZE ||
+      nxmutex_lock(&g_bk7258_psram_media_lock) < 0)
+    {
+      return;
+    }
+
+  bk_psram_frame_buffer_free(ptr);
+  nxmutex_unlock(&g_bk7258_psram_media_lock);
+}
+#endif
 
 size_t bk7258_psram_total_size(void)
 {
