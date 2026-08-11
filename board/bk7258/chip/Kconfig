@@ -1166,6 +1166,21 @@ config BK7258_JPEG_DECODER
 		The hardware output is interleaved YUYV.  Scaling, rotation and color
 		conversion remain separate accelerator stages.
 
+config BK7258_JPEG_ENCODER
+	bool "BK7258 hardware JPEG encoder helper"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Build an AP-side typed helper for synchronous YUV422-to-JPEG encoding
+		through the official v3.1.1.9 JPEG encoder, YUV buffer and DMA drivers.
+		NuttX has no matching JPEG encoder lower-half, so this option does not
+		create a private character-device ABI.  A camera or V4L2 media owner
+		must explicitly own the encoder instance and all DMA-visible buffers.
+
+		The helper uses bounded completion waits and defers SDK interrupt
+		callbacks through the NuttX high-priority work queue.
+
 config BK7258_T5_BOARD_CAMERA
 	bool "T5-Board P10 DVP camera as /dev/video0"
 	default n

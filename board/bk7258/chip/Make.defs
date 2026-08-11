@@ -344,6 +344,9 @@ endif
 ifeq ($(CONFIG_BK7258_JPEG_DECODER),y)
 BK7258_AP_BASE_CSRCS += bk7258_jpeg_decoder.c
 endif
+ifeq ($(CONFIG_BK7258_JPEG_ENCODER),y)
+BK7258_AP_BASE_CSRCS += bk7258_jpeg_encoder.c
+endif
 ifeq ($(CONFIG_BK7258_T5_BOARD_CAMERA),y)
 VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
 BK7258_AP_BASE_CSRCS += bk7258_t5_board_camera.c
@@ -424,7 +427,7 @@ ifeq ($(CONFIG_BK7258_PM_CLOCK),y)
 BK7258_AP_BASE_CSRCS += bk7258_pm_client.c
 ifeq ($(CONFIG_BK7258_AP_CORE),y)
 LDFLAGS += --wrap=bk_pm_clock_ctrl
-ifneq ($(filter y,$(CONFIG_BK7258_DMA2D) $(CONFIG_BK7258_JPEG_DECODER)),)
+ifneq ($(filter y,$(CONFIG_BK7258_DMA2D) $(CONFIG_BK7258_JPEG_DECODER) $(CONFIG_BK7258_JPEG_ENCODER)),)
 LDFLAGS += --wrap=bk_pm_module_vote_power_ctrl
 endif
 endif
