@@ -132,6 +132,9 @@ LDFLAGS += -u hm1055_detect_sensor
 LDFLAGS += -u ov2640_detect_sensor
 LDFLAGS += -u sc101_detect_sensor
 endif
+ifeq ($(CONFIG_BK7258_JPEG_DECODER),y)
+EXTRA_LIBS += $(BK_SDK_LIBS_DIR)/libbk_jpeg_decoder.a
+endif
 # libavdk_utils.a exports hnd_crc8 only.  The SDK GPIO driver calls
 # bk_ipc_send, which drags in bk_api_ipc.c.obj and with it the IPC frame
 # checksum, so the archive must be linked whenever a driver reaches the SDK
