@@ -453,18 +453,26 @@ static void bk7258_jpeg_encoder_line_worker(void *arg)
           continue;
         }
 
-      if (block >= priv->block_count)
+      if (block < priv->block_count)
         {
-          continue;
+          src = priv->input + (size_t)block * priv->block_bytes;
+          dst = priv->line_cache + (block & 1u) * priv->block_bytes;
+          memcpy(dst, src, priv->block_bytes);
         }
-
-      src = priv->input + (size_t)block * priv->block_bytes;
-      dst = priv->line_cache + (block & 1u) * priv->block_bytes;
-      memcpy(dst, src, priv->block_bytes);
 
       if (!bk7258_jpeg_encoder_active(priv))
         {
           break;
+        }
+
+      /* The line-clear interrupt releases the next already-buffered
+       * 8-line block.  Even when there is no later block to refill, the
+       * final buffered block still needs one re-encode trigger before JPEG
+       * can raise EOF. */
+
+      if (block > priv->block_count)
+        {
+          continue;
         }
 
       sdkret = bk_yuv_buf_rencode_start();
@@ -609,6 +617,34 @@ static int bk7258_jpeg_encoder_dma_config(
   priv->dma_ready = true;
   sdkret = bk_dma_set_transfer_len(priv->dma,
                                    BK7258_JPEG_ENCODER_DMA_BYTES);
+  if (sdkret != BK_OK)
+    {
+      return bk7258_jpeg_encoder_sdk_error(sdkret);
+    }
+
+  /* Match the v3.1.1.9 secure-domain JPEG controller.  Without these
+   * attributes BK7258 accepts the channel setup but drains only one FIFO
+   * word, leaving an apparently valid JPEG frame length with no payload. */
+
+  sdkret = bk_dma_set_src_burst_len(priv->dma, BURST_LEN_SINGLE);
+  if (sdkret != BK_OK)
+    {
+      return bk7258_jpeg_encoder_sdk_error(sdkret);
+    }
+
+  sdkret = bk_dma_set_dest_burst_len(priv->dma, BURST_LEN_INC16);
+  if (sdkret != BK_OK)
+    {
+      return bk7258_jpeg_encoder_sdk_error(sdkret);
+    }
+
+  sdkret = bk_dma_set_src_sec_attr(priv->dma, DMA_ATTR_SEC);
+  if (sdkret != BK_OK)
+    {
+      return bk7258_jpeg_encoder_sdk_error(sdkret);
+    }
+
+  sdkret = bk_dma_set_dest_sec_attr(priv->dma, DMA_ATTR_SEC);
   if (sdkret != BK_OK)
     {
       return bk7258_jpeg_encoder_sdk_error(sdkret);

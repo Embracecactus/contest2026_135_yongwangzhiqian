@@ -58,13 +58,15 @@ static struct bk7258_pm_client_s g_bk7258_pm_client =
 
 /* v3.1.1.9 BK7258 sys_types.h encodes VIDP submodules as
  * POWER_MODULE_NAME_VIDP * PM_MODULE_SUB_POWER_DOMAIN_MAX + index.
- * JPEG decode and DMA2D are VIDP submodules 1 and 2: 7 * 20 + 1 = 141 and
- * 7 * 20 + 2 = 142.  Their power-state enum uses ON=0 and OFF=1, unlike
- * bk_pm_clock_ctrl().
+ * JPEG encode/decode, DMA2D and YUV buffer are VIDP submodules 0, 1, 2 and
+ * 4: 140, 141, 142 and 144.  Their power-state enum uses ON=0 and OFF=1,
+ * unlike bk_pm_clock_ctrl().
  */
 
+#define BK7258_SDK_POWER_VIDP_JPEG_ENCODER 140u
 #define BK7258_SDK_POWER_VIDP_JPEG_DECODER 141u
 #define BK7258_SDK_POWER_VIDP_DMA2D        142u
+#define BK7258_SDK_POWER_VIDP_YUV_BUFFER   144u
 #define BK7258_SDK_POWER_STATE_ON   0
 #define BK7258_SDK_POWER_STATE_OFF  1
 
@@ -113,8 +115,10 @@ g_bk7258_pm_sdk_clock_map[BK7258_SDK_CLOCK_COUNT] =
 
 static mutex_t g_bk7258_pm_sdk_lock = NXMUTEX_INITIALIZER;
 static bool g_bk7258_pm_sdk_enabled[BK7258_SDK_CLOCK_COUNT];
+static bool g_bk7258_pm_sdk_jpeg_encoder_enabled;
 static bool g_bk7258_pm_sdk_jpeg_decoder_enabled;
 static bool g_bk7258_pm_sdk_dma2d_enabled;
+static bool g_bk7258_pm_sdk_yuv_buffer_enabled;
 static uint32_t g_bk7258_pm_sdk_generation;
 
 extern int __real_bk_pm_module_vote_power_ctrl(unsigned int module,
@@ -123,8 +127,10 @@ extern int __real_bk_pm_module_vote_power_ctrl(unsigned int module,
 static void bk7258_pm_sdk_reset_generation(uint32_t generation)
 {
   memset(g_bk7258_pm_sdk_enabled, 0, sizeof(g_bk7258_pm_sdk_enabled));
+  g_bk7258_pm_sdk_jpeg_encoder_enabled = false;
   g_bk7258_pm_sdk_jpeg_decoder_enabled = false;
   g_bk7258_pm_sdk_dma2d_enabled = false;
+  g_bk7258_pm_sdk_yuv_buffer_enabled = false;
   __atomic_store_n(&g_bk7258_pm_sdk_generation, generation,
                    __ATOMIC_RELEASE);
 }
@@ -456,9 +462,9 @@ out:
   return ret;
 }
 
-/* Route only the verified BK7258 v3.1.1.9 JPEG decoder and DMA2D VIDP
- * submodules through the CP-owned PM service.  Other vendor modules retain
- * their original SDK behavior until their raw IDs and ownership are reviewed.
+/* Route only the verified BK7258 v3.1.1.9 JPEG encode/decode, DMA2D and YUV
+ * buffer VIDP submodules through the CP-owned PM service.  Other vendor
+ * modules retain their SDK behavior until their ownership is reviewed.
  */
 
 int __wrap_bk_pm_module_vote_power_ctrl(unsigned int module,
@@ -474,6 +480,11 @@ int __wrap_bk_pm_module_vote_power_ctrl(unsigned int module,
 
   switch (module)
     {
+      case BK7258_SDK_POWER_VIDP_JPEG_ENCODER:
+        clock = BK7258_PM_CLOCK_JPEG;
+        enabled = &g_bk7258_pm_sdk_jpeg_encoder_enabled;
+        break;
+
       case BK7258_SDK_POWER_VIDP_JPEG_DECODER:
         clock = BK7258_PM_CLOCK_JPEG_DECODER;
         enabled = &g_bk7258_pm_sdk_jpeg_decoder_enabled;
@@ -482,6 +493,11 @@ int __wrap_bk_pm_module_vote_power_ctrl(unsigned int module,
       case BK7258_SDK_POWER_VIDP_DMA2D:
         clock = BK7258_PM_CLOCK_DMA2D;
         enabled = &g_bk7258_pm_sdk_dma2d_enabled;
+        break;
+
+      case BK7258_SDK_POWER_VIDP_YUV_BUFFER:
+        clock = BK7258_PM_CLOCK_YUV;
+        enabled = &g_bk7258_pm_sdk_yuv_buffer_enabled;
         break;
 
       default:
