@@ -33,6 +33,14 @@
 #define BK7258_SCALE_ROTATE_MIN_BLOCK_PIXELS  1
 #define BK7258_SCALE_ROTATE_MAX_BLOCK_PIXELS  4800
 
+/* v3.1.1.9 exposes Scale1 but leaves scale_set_write_burst(HW_SCALE1)
+ * unimplemented.  Its generated BK7258 register description identifies
+ * REG_0x10[11:0] as the write-burst threshold.  Program that one missing
+ * field here after the SDK reset, without modifying the immutable SDK. */
+
+#define BK7258_SCALE1_WRITE_THRESHOLD_REG 0x480e0040u
+#define BK7258_SCALE1_WRITE_THRESHOLD_MASK 0x00000fffu
+
 /* These are the non-zero bookkeeping values used by the SDK's official
  * BLOCK_SCALE examples.  The common scale ISR reads line_cycle and applies a
  * modulo before it branches on FRAME_SCALE, even though FRAME_SCALE address
@@ -168,6 +176,39 @@ static scale_id_t bk7258_scale_rotate_scale_id(
   enum bk7258_scale_rotate_engine_e engine)
 {
   return engine == BK7258_SCALE_ROTATE_SCALE1 ? HW_SCALE1 : HW_SCALE0;
+}
+
+static void bk7258_scale_rotate_configure_scale1_burst(uint16_t width)
+{
+  volatile uint32_t *reg =
+    (volatile uint32_t *)(uintptr_t)BK7258_SCALE1_WRITE_THRESHOLD_REG;
+  uint32_t threshold;
+  uint32_t value;
+
+  if ((width & 127) == 0)
+    {
+      threshold = 64;
+    }
+  else if ((width & 63) == 0)
+    {
+      threshold = 32;
+    }
+  else if ((width & 31) == 0)
+    {
+      threshold = 16;
+    }
+  else
+    {
+      /* Public requests are already constrained to multiples of 16. */
+
+      threshold = 8;
+    }
+
+  value = *reg;
+  value &= ~BK7258_SCALE1_WRITE_THRESHOLD_MASK;
+  value |= threshold;
+  *reg = value;
+  __asm volatile ("dsb sy" ::: "memory");
 }
 
 static int bk7258_scale_rotate_pixel_bytes(
@@ -575,10 +616,8 @@ static int bk7258_scale_rotate_init_scale_locked(
   scale_id_t id = bk7258_scale_rotate_scale_id(priv->engine);
   int ret;
 
-  /* The v3.1.1.9 scale driver uses sys_drv_int_group2_enable() for SCALE0;
-   * its BK7258 sys_hal implementation writes CPU1's group-2 register.
-   * SCALE1 is rejected before reaching this path because its write-burst
-   * configuration is explicitly BK_FAIL in that SDK release. */
+  /* The v3.1.1.9 scale driver uses sys_drv_int_group2_enable() for Scale0/1;
+   * its BK7258 sys_hal implementation writes CPU1's group-2 register. */
 
   ret = bk7258_scale_rotate_sdk_error(bk_hw_scale_driver_init(id));
   if (ret < 0)
@@ -681,15 +720,6 @@ int bk7258_scale_rotate_initialize(
     }
 
   *out = NULL;
-
-  if (engine == BK7258_SCALE_ROTATE_SCALE1)
-    {
-      /* hw_scale_driver.c::scale_set_write_burst() returns BK_FAIL for
-       * SCALE1, while hw_scale_frame() ignores that result.  Fail closed
-       * instead of exposing a path which cannot configure its write burst. */
-
-      return -ENOTSUP;
-    }
 
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
@@ -913,6 +943,11 @@ int bk7258_scale(FAR struct bk7258_scale_rotate_s *priv,
   config.pixel_fmt = format;
   config.src_addr = (FAR uint8_t *)request->src;
   config.dst_addr = request->dst;
+
+  if (priv->engine == BK7258_SCALE_ROTATE_SCALE1)
+    {
+      bk7258_scale_rotate_configure_scale1_burst(request->dst_width);
+    }
 
   ret = bk7258_scale_rotate_prepare_wait_locked(priv, request->timeout_ms,
                                                 &ticks);
