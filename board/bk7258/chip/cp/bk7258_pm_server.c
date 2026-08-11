@@ -102,7 +102,8 @@ static bool bk7258_pm_is_video_clock(enum bk7258_pm_clock_e clock)
          clock == BK7258_PM_CLOCK_DISPLAY ||
          clock == BK7258_PM_CLOCK_H264 ||
          clock == BK7258_PM_CLOCK_YUV ||
-         clock == BK7258_PM_CLOCK_DMA2D;
+         clock == BK7258_PM_CLOCK_DMA2D ||
+         clock == BK7258_PM_CLOCK_JPEG_DECODER;
 }
 
 static bool bk7258_pm_video_active(struct bk7258_pm_server_s *priv)
@@ -111,7 +112,8 @@ static bool bk7258_pm_video_active(struct bk7258_pm_server_s *priv)
          priv->refs[BK7258_PM_CLOCK_DISPLAY] != 0 ||
          priv->refs[BK7258_PM_CLOCK_H264] != 0 ||
          priv->refs[BK7258_PM_CLOCK_YUV] != 0 ||
-         priv->refs[BK7258_PM_CLOCK_DMA2D] != 0;
+         priv->refs[BK7258_PM_CLOCK_DMA2D] != 0 ||
+         priv->refs[BK7258_PM_CLOCK_JPEG_DECODER] != 0;
 }
 
 static void bk7258_pm_set_video_power(bool enable)
@@ -121,8 +123,7 @@ static void bk7258_pm_set_video_power(bool enable)
       BK7258_SDK_POWER_OFF)
     {
       /* v3.1.1.9 restores MEM3 before a powered-down VIDP domain.  DMA2D
-       * writes can complete without this dependency, but source reads used
-       * by M2M/PFC require it. */
+       * source reads and JPEG decode both depend on this memory domain. */
 
       sys_drv_module_power_ctrl(BK7258_SDK_POWER_MEM3,
                                 BK7258_SDK_POWER_ON);
@@ -287,6 +288,12 @@ static void bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
          * requesting PM_POWER_SUB_MODULE_NAME_VIDP_DMA2D.  The shared VIDP
          * domain is the CP-owned resource represented by this logical vote;
          * bk7258_pm_is_video_clock() handles its first/last power edge. */
+
+        break;
+      case BK7258_PM_CLOCK_JPEG_DECODER:
+        /* The immutable JPEG decoder driver configures its controller clock
+         * after requesting PM_POWER_SUB_MODULE_NAME_VIDP_JPEG_DE.  The CP
+         * service owns only the shared VIDP/MEM3 power edge here. */
 
         break;
       default:

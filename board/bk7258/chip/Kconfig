@@ -1151,6 +1151,21 @@ config BK7258_DMA2D
 		The caller owns buffer lifetime and cache coherency.  Scale and rotate
 		operations remain separate from this helper.
 
+config BK7258_JPEG_DECODER
+	bool "BK7258 hardware JPEG decoder helper"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Build an AP-side typed helper for synchronous hardware JPEG decode
+		through the official v3.1.1.9 JPEG decoder component.  NuttX has no
+		matching JPEG decoder lower-half, so this option does not create a
+		private character-device ABI.  A camera, framebuffer, or V4L2 media
+		owner must explicitly own the decoder instance and its buffers.
+
+		The hardware output is interleaved YUYV.  Scaling, rotation and color
+		conversion remain separate accelerator stages.
+
 config BK7258_T5_BOARD_CAMERA
 	bool "T5-Board P10 DVP camera as /dev/video0"
 	default n
