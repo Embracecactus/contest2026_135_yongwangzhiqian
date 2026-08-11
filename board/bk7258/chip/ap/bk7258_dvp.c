@@ -17,15 +17,18 @@
 #include <string.h>
 #include <sys/time.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/sched.h>
 #include <nuttx/spinlock.h>
 #include <nuttx/video/imgdata.h>
+#include <nuttx/video/video.h>
 #include <nuttx/wqueue.h>
 
 #include <components/dvp_camera.h>
 #include <driver/dma.h>
+#include <driver/h264.h>
 #include <driver/jpeg_enc.h>
 #include <driver/yuv_buf.h>
 #include <sdkconfig.h>
@@ -140,9 +143,245 @@ static int bk7258_dvp_error(bk_err_t error)
     }
 }
 
+#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
+extern bk_err_t __real_bk_h264_encode_enable(void);
+extern bk_err_t __real_bk_yuv_buf_start(yuv_mode_t work_mode);
+extern int __real_video_register(FAR const char *devpath,
+                                 FAR struct v4l2_s *ctx);
+extern int32_t __real_sys_drv_int_group2_enable(uint32_t mask);
+extern int32_t __real_sys_drv_core_intr_group2_enable(uint32_t core_id,
+                                                      uint32_t mask);
+extern int __real_dvp_camera_i2c_write_uint8(uint8_t addr, uint8_t reg,
+                                             uint8_t value);
+
+static bool g_bk7258_dvp_h264_opening;
+static bool g_bk7258_dvp_h264_yuv_deferred;
+static bool g_bk7258_dvp_h264_encode_deferred;
+static bool g_bk7258_dvp_yuv_irq_deferred;
+static bool g_bk7258_dvp_h264_irq_deferred;
+static bool g_bk7258_dvp_sensor_output_deferred;
+static uint32_t g_bk7258_dvp_h264_irq_core;
+static FAR const struct v4l2_ops_s *g_bk7258_dvp_capture_vops;
+static struct v4l2_ops_s g_bk7258_dvp_h264_vops;
+
+#define BK7258_H264_GROUP2_MASK (1u << (46u - 32u))
+#define BK7258_YUVB_GROUP2_MASK (1u << (58u - 32u))
+
+/* The pinned NuttX capture upper-half publishes V4L2_PIX_FMT_H264 in its
+ * public headers, but capture_try_fmt() does not yet accept it.  Keep the
+ * user-visible ABI standard and translate only at the v4l2 capture boundary
+ * to the existing compressed imgdata token consumed by this lower-half.
+ */
+
+static bool bk7258_dvp_h264_format_alias(FAR struct v4l2_format *format)
+{
+  if (format != NULL && format->fmt.pix.pixelformat == V4L2_PIX_FMT_H264)
+    {
+      format->fmt.pix.pixelformat = V4L2_PIX_FMT_JPEG_WITH_SUBIMG;
+      return true;
+    }
+
+  return false;
+}
+
+static int bk7258_dvp_h264_g_fmt(FAR struct file *filep,
+                                 FAR struct v4l2_format *format)
+{
+  int ret = g_bk7258_dvp_capture_vops->g_fmt(filep, format);
+
+  if (ret == OK && format->fmt.pix.pixelformat ==
+                   V4L2_PIX_FMT_JPEG_WITH_SUBIMG)
+    {
+      format->fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_h264_s_fmt(FAR struct file *filep,
+                                 FAR struct v4l2_format *format)
+{
+  bool aliased = bk7258_dvp_h264_format_alias(format);
+  int ret = g_bk7258_dvp_capture_vops->s_fmt(filep, format);
+
+  if (aliased)
+    {
+      format->fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_h264_try_fmt(FAR struct file *filep,
+                                   FAR struct v4l2_format *format)
+{
+  bool aliased = bk7258_dvp_h264_format_alias(format);
+  int ret = g_bk7258_dvp_capture_vops->try_fmt(filep, format);
+
+  if (aliased)
+    {
+      format->fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_h264_enum_fmt(FAR struct file *filep,
+                                    FAR struct v4l2_fmtdesc *format)
+{
+  int ret = g_bk7258_dvp_capture_vops->enum_fmt(filep, format);
+
+  if (ret == OK && format->pixelformat == V4L2_PIX_FMT_JPEG_WITH_SUBIMG)
+    {
+      format->pixelformat = V4L2_PIX_FMT_H264;
+      strncpy((FAR char *)format->description, "H264",
+              sizeof(format->description));
+      format->description[sizeof(format->description) - 1u] = '\0';
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_h264_enum_frminterval(
+  FAR struct file *filep, FAR struct v4l2_frmivalenum *interval)
+{
+  bool aliased = interval != NULL &&
+                 interval->pixel_format == V4L2_PIX_FMT_H264;
+  int ret;
+
+  if (aliased)
+    {
+      interval->pixel_format = V4L2_PIX_FMT_JPEG_WITH_SUBIMG;
+    }
+
+  ret = g_bk7258_dvp_capture_vops->enum_frminterval(filep, interval);
+  if (aliased)
+    {
+      interval->pixel_format = V4L2_PIX_FMT_H264;
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_h264_enum_frmsize(
+  FAR struct file *filep, FAR struct v4l2_frmsizeenum *size)
+{
+  bool aliased = size != NULL && size->pixel_format == V4L2_PIX_FMT_H264;
+  int ret;
+
+  if (aliased)
+    {
+      size->pixel_format = V4L2_PIX_FMT_JPEG_WITH_SUBIMG;
+    }
+
+  ret = g_bk7258_dvp_capture_vops->enum_frmsize(filep, size);
+  if (aliased)
+    {
+      size->pixel_format = V4L2_PIX_FMT_H264;
+    }
+
+  return ret;
+}
+
+int __wrap_video_register(FAR const char *devpath, FAR struct v4l2_s *ctx)
+{
+  FAR const struct v4l2_ops_s *original;
+  int ret;
+
+  if (devpath == NULL || ctx == NULL || ctx->vops == NULL ||
+      strcmp(devpath, "/dev/video0") != 0)
+    {
+      return __real_video_register(devpath, ctx);
+    }
+
+  original = ctx->vops;
+  g_bk7258_dvp_capture_vops = original;
+  memcpy(&g_bk7258_dvp_h264_vops, original,
+         sizeof(g_bk7258_dvp_h264_vops));
+  g_bk7258_dvp_h264_vops.g_fmt = bk7258_dvp_h264_g_fmt;
+  g_bk7258_dvp_h264_vops.s_fmt = bk7258_dvp_h264_s_fmt;
+  g_bk7258_dvp_h264_vops.try_fmt = bk7258_dvp_h264_try_fmt;
+  g_bk7258_dvp_h264_vops.enum_fmt = bk7258_dvp_h264_enum_fmt;
+  g_bk7258_dvp_h264_vops.enum_frminterval =
+    bk7258_dvp_h264_enum_frminterval;
+  g_bk7258_dvp_h264_vops.enum_frmsize = bk7258_dvp_h264_enum_frmsize;
+  ctx->vops = &g_bk7258_dvp_h264_vops;
+
+  ret = __real_video_register(devpath, ctx);
+  if (ret < 0)
+    {
+      ctx->vops = original;
+      g_bk7258_dvp_capture_vops = NULL;
+    }
+
+  return ret;
+}
+
+int32_t __wrap_sys_drv_int_group2_enable(uint32_t mask)
+{
+  if (g_bk7258_dvp_h264_opening && mask == BK7258_YUVB_GROUP2_MASK)
+    {
+      g_bk7258_dvp_yuv_irq_deferred = true;
+      return 0;
+    }
+
+  return __real_sys_drv_int_group2_enable(mask);
+}
+
+int32_t __wrap_sys_drv_core_intr_group2_enable(uint32_t core_id,
+                                               uint32_t mask)
+{
+  if (g_bk7258_dvp_h264_opening && mask == BK7258_H264_GROUP2_MASK)
+    {
+      g_bk7258_dvp_h264_irq_deferred = true;
+      g_bk7258_dvp_h264_irq_core = core_id;
+      return 0;
+    }
+
+  return __real_sys_drv_core_intr_group2_enable(core_id, mask);
+}
+
+bk_err_t __wrap_bk_yuv_buf_start(yuv_mode_t work_mode)
+{
+  if (g_bk7258_dvp_h264_opening && work_mode == H264_MODE)
+    {
+      g_bk7258_dvp_h264_yuv_deferred = true;
+      return BK_OK;
+    }
+
+  return __real_bk_yuv_buf_start(work_mode);
+}
+
+bk_err_t __wrap_bk_h264_encode_enable(void)
+{
+  if (g_bk7258_dvp_h264_opening)
+    {
+      g_bk7258_dvp_h264_encode_deferred = true;
+      return BK_OK;
+    }
+
+  return __real_bk_h264_encode_enable();
+}
+
+int __wrap_dvp_camera_i2c_write_uint8(uint8_t addr, uint8_t reg,
+                                      uint8_t value)
+{
+  uint8_t write_value = value;
+
+  if (g_bk7258_dvp_h264_opening && reg == 0xf2u && value == 0x0fu)
+    {
+      g_bk7258_dvp_sensor_output_deferred = true;
+      write_value = 0;
+    }
+
+  return __real_dvp_camera_i2c_write_uint8(addr, reg, write_value);
+}
+#endif
+
 static int bk7258_dvp_pm_acquire(FAR struct bk7258_dvp_s *priv)
 {
-  bool acquired_jpeg = false;
+  enum bk7258_pm_clock_e video_clock;
+  bool acquired_video = false;
   int ret;
 
   /* The T5 board and the SDK GC2145 descriptor both require 24 MHz.  Keep
@@ -154,16 +393,19 @@ static int bk7258_dvp_pm_acquire(FAR struct bk7258_dvp_s *priv)
       return -ENOTSUP;
     }
 
+  video_clock = priv->sdk_config.img_format == IMAGE_H264 ?
+                BK7258_PM_CLOCK_H264 : BK7258_PM_CLOCK_JPEG;
+
   if (!priv->pm_clock_held)
     {
-      ret = bk7258_pm_clock_get(BK7258_PM_CLOCK_JPEG);
+      ret = bk7258_pm_clock_get(video_clock);
       if (ret < 0)
         {
           return ret;
         }
 
       priv->pm_clock_held = true;
-      acquired_jpeg = true;
+      acquired_video = true;
     }
 
   if (!priv->pm_mclk_held)
@@ -171,8 +413,8 @@ static int bk7258_dvp_pm_acquire(FAR struct bk7258_dvp_s *priv)
       ret = bk7258_pm_clock_get(BK7258_PM_CLOCK_CAMERA_MCLK_24M);
       if (ret < 0)
         {
-          if (acquired_jpeg &&
-              bk7258_pm_clock_put(BK7258_PM_CLOCK_JPEG) >= 0)
+          if (acquired_video &&
+              bk7258_pm_clock_put(video_clock) >= 0)
             {
               priv->pm_clock_held = false;
             }
@@ -188,8 +430,12 @@ static int bk7258_dvp_pm_acquire(FAR struct bk7258_dvp_s *priv)
 
 static int bk7258_dvp_pm_release(FAR struct bk7258_dvp_s *priv)
 {
+  enum bk7258_pm_clock_e video_clock;
   int result = 0;
   int ret;
+
+  video_clock = priv->sdk_config.img_format == IMAGE_H264 ?
+                BK7258_PM_CLOCK_H264 : BK7258_PM_CLOCK_JPEG;
 
   if (priv->pm_mclk_held)
     {
@@ -206,7 +452,7 @@ static int bk7258_dvp_pm_release(FAR struct bk7258_dvp_s *priv)
 
   if (priv->pm_clock_held)
     {
-      ret = bk7258_pm_clock_put(BK7258_PM_CLOCK_JPEG);
+      ret = bk7258_pm_clock_put(video_clock);
       if (ret >= 0)
         {
           priv->pm_clock_held = false;
@@ -512,6 +758,7 @@ static FAR struct frame_buffer_t *bk7258_dvp_frame_malloc(
           frame->width = priv->sdk_config.width;
           frame->height = priv->sdk_config.height;
           frame->fmt = format == IMAGE_MJPEG ? PIXEL_FMT_JPEG :
+                       format == IMAGE_H264 ? PIXEL_FMT_H264 :
                        PIXEL_FMT_UNKNOW;
           priv->frame_busy[i] = true;
           spin_unlock_irqrestore(&priv->lock, flags);
@@ -587,6 +834,18 @@ static bool bk7258_dvp_format_supported(FAR struct bk7258_dvp_s *priv,
   if (priv->sdk_config.img_format == IMAGE_MJPEG)
     {
       return format == IMGDATA_PIX_FMT_JPEG;
+    }
+
+  if (priv->sdk_config.img_format == IMAGE_H264)
+    {
+      /* This NuttX revision publishes V4L2_PIX_FMT_H264 but its private
+       * V4L2-to-imgdata converter has no matching IMGDATA_PIX_FMT_H264.
+       * Unknown compressed formats reach a lower-half as the legacy
+       * JPEG_WITH_SUBIMG token.  Accept that token only when this instance
+       * was explicitly configured as IMAGE_H264; the public ABI remains
+       * standard V4L2 H.264 and no JPEG data is advertised or returned. */
+
+      return format == IMGDATA_PIX_FMT_JPEG_WITH_SUBIMG;
     }
 
   return false;
@@ -722,7 +981,14 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
       return ret;
     }
 
-  ret = bk7258_dvp_error(bk_jpeg_enc_driver_init());
+  if (priv->sdk_config.img_format == IMAGE_H264)
+    {
+      ret = bk7258_dvp_error(bk_h264_driver_init());
+    }
+  else
+    {
+      ret = bk7258_dvp_error(bk_jpeg_enc_driver_init());
+    }
   if (ret < 0)
     {
       nxmutex_unlock(&priv->api_lock);
@@ -736,9 +1002,23 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
       return ret;
     }
 
+  if (priv->sdk_config.img_format == IMAGE_H264)
+    {
+      g_bk7258_dvp_h264_opening = true;
+      g_bk7258_dvp_h264_yuv_deferred = false;
+      g_bk7258_dvp_h264_encode_deferred = false;
+      g_bk7258_dvp_yuv_irq_deferred = false;
+      g_bk7258_dvp_h264_irq_deferred = false;
+      g_bk7258_dvp_sensor_output_deferred = false;
+    }
+
   error = bk_dvp_open(&priv->handle, &priv->sdk_config,
                       &g_bk7258_dvp_callback, priv->config.encode_buffer);
   ret = bk7258_dvp_error(error);
+  if (priv->sdk_config.img_format == IMAGE_H264)
+    {
+      g_bk7258_dvp_h264_opening = false;
+    }
   if (ret < 0)
     {
       priv->handle = NULL;
@@ -746,6 +1026,71 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
 
       nxmutex_unlock(&priv->api_lock);
       return ret;
+    }
+
+  /* v3.1.1.9 starts the H.264 data path before programming the GC2145.
+   * On this board the sensor begins driving DVP near the OUTPUT entries of
+   * its init table, which can raise YUV/H.264 IRQs while bk_dvp_open() still
+   * owns partially initialized state.  Defer only the first H.264 start
+   * until the immutable SDK has completed sensor init; later frame restarts
+   * still pass straight through the wrappers above.
+   */
+
+  if (priv->sdk_config.img_format == IMAGE_H264)
+    {
+      if (g_bk7258_dvp_yuv_irq_deferred)
+        {
+          error = __real_sys_drv_int_group2_enable(
+            BK7258_YUVB_GROUP2_MASK);
+          if (error != 0)
+            {
+              nxmutex_unlock(&priv->api_lock);
+              return -EIO;
+            }
+        }
+
+      if (g_bk7258_dvp_h264_irq_deferred)
+        {
+          error = __real_sys_drv_core_intr_group2_enable(
+            g_bk7258_dvp_h264_irq_core, BK7258_H264_GROUP2_MASK);
+          if (error != 0)
+            {
+              nxmutex_unlock(&priv->api_lock);
+              return -EIO;
+            }
+        }
+
+      if (g_bk7258_dvp_h264_yuv_deferred)
+        {
+          ret = bk7258_dvp_error(__real_bk_yuv_buf_start(H264_MODE));
+          if (ret < 0)
+            {
+              nxmutex_unlock(&priv->api_lock);
+              return ret;
+            }
+        }
+
+      if (g_bk7258_dvp_h264_encode_deferred)
+        {
+          ret = bk7258_dvp_error(__real_bk_h264_encode_enable());
+          if (ret < 0)
+            {
+              nxmutex_unlock(&priv->api_lock);
+              return ret;
+            }
+        }
+
+      if (g_bk7258_dvp_sensor_output_deferred)
+        {
+          ret = bk7258_dvp_error(__real_dvp_camera_i2c_write_uint8(
+            0x78u >> 1, 0xf2u, 0x0fu));
+          if (ret < 0)
+            {
+              nxmutex_unlock(&priv->api_lock);
+              return ret;
+            }
+        }
+
     }
 
   /* bk_dvp_open() starts the vendor stream before returning.  Keep that
@@ -1094,19 +1439,23 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
   if (config->sdk.width == 0 || config->sdk.height == 0 ||
       bk7258_dvp_fps_hz((frame_fps_t)config->sdk.fps) == 0 ||
       (config->sdk.img_format != IMAGE_YUV &&
-       config->sdk.img_format != IMAGE_MJPEG))
+       config->sdk.img_format != IMAGE_MJPEG &&
+       config->sdk.img_format != IMAGE_H264))
     {
       return -ENOTSUP;
     }
 
-  if (config->sdk.img_format == IMAGE_MJPEG &&
+  if ((config->sdk.img_format == IMAGE_MJPEG ||
+       config->sdk.img_format == IMAGE_H264) &&
       (config->encode_buffer == NULL || config->encode_buffer_size == 0))
     {
       return -EINVAL;
     }
 
-  encode_buffer_size = (uint64_t)config->sdk.width * 16u * 2u;
-  if (config->sdk.img_format == IMAGE_MJPEG &&
+  encode_buffer_size = (uint64_t)config->sdk.width *
+                       (config->sdk.img_format == IMAGE_H264 ? 32u : 16u) *
+                       2u;
+  if (config->sdk.img_format != IMAGE_YUV &&
       (encode_buffer_size > UINT32_MAX ||
        config->encode_buffer_size < encode_buffer_size))
     {
@@ -1122,7 +1471,9 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
   for (i = 0; i < config->frame_count; i++)
     {
       uint32_t required = config->sdk.img_format == IMAGE_YUV ?
-                          (uint32_t)yuv_size : CONFIG_JPEG_FRAME_SIZE;
+                          (uint32_t)yuv_size :
+                          config->sdk.img_format == IMAGE_H264 ?
+                          CONFIG_H264_FRAME_SIZE : CONFIG_JPEG_FRAME_SIZE;
 
       if (config->frames[i].addr == NULL ||
           config->frames[i].size < required)

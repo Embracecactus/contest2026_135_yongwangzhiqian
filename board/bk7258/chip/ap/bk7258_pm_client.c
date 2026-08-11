@@ -26,6 +26,7 @@
 #include <arch/chip/bk7258_rptun.h>
 
 #include "bk7258_pm_ipc.h"
+#include "bk7258_dvfs.h"
 
 struct bk7258_pm_client_s
 {
@@ -73,6 +74,8 @@ static struct bk7258_pm_client_s g_bk7258_pm_client =
 #define BK7258_SDK_POWER_VIDP_H264         148u
 #define BK7258_SDK_POWER_STATE_ON   0
 #define BK7258_SDK_POWER_STATE_OFF  1
+#define BK7258_SDK_PM_DEV_JPEG      28u
+#define BK7258_SDK_PM_CPU_FREQ_MAX  7
 
 static const enum bk7258_pm_clock_e
 g_bk7258_pm_sdk_clock_map[BK7258_SDK_CLOCK_COUNT] =
@@ -127,10 +130,13 @@ static bool g_bk7258_pm_sdk_rotator_enabled;
 static bool g_bk7258_pm_sdk_scale0_enabled;
 static bool g_bk7258_pm_sdk_scale1_enabled;
 static bool g_bk7258_pm_sdk_h264_enabled;
+static int g_bk7258_pm_sdk_video_freq = BK7258_PM_CPU_FREQ_DEFAULT;
 static uint32_t g_bk7258_pm_sdk_generation;
 
 extern int __real_bk_pm_module_vote_power_ctrl(unsigned int module,
                                                 int power_state);
+extern int __real_bk_pm_module_vote_cpu_freq(unsigned int module,
+                                              int cpu_freq);
 
 static void bk7258_pm_sdk_reset_generation(uint32_t generation)
 {
@@ -143,6 +149,7 @@ static void bk7258_pm_sdk_reset_generation(uint32_t generation)
   g_bk7258_pm_sdk_scale0_enabled = false;
   g_bk7258_pm_sdk_scale1_enabled = false;
   g_bk7258_pm_sdk_h264_enabled = false;
+  g_bk7258_pm_sdk_video_freq = BK7258_PM_CPU_FREQ_DEFAULT;
   __atomic_store_n(&g_bk7258_pm_sdk_generation, generation,
                    __ATOMIC_RELEASE);
 }
@@ -285,8 +292,9 @@ static void bk7258_pm_device_destroy(FAR struct rpmsg_device *rdev,
     }
 }
 
-static int bk7258_pm_request(enum bk7258_pm_clock_e clock,
-                             enum bk7258_pm_command_e command)
+static int bk7258_pm_request(uint32_t resource,
+                             enum bk7258_pm_command_e command,
+                             uint32_t value)
 {
   struct bk7258_pm_client_s *priv = &g_bk7258_pm_client;
   volatile struct bk7258_rptun_control_s *control =
@@ -294,7 +302,16 @@ static int bk7258_pm_request(enum bk7258_pm_clock_e clock,
   struct bk7258_pm_wire_s request;
   int ret;
 
-  if (clock < 0 || clock >= BK7258_PM_CLOCK_COUNT)
+  if ((command == BK7258_PM_COMMAND_CLOCK_GET ||
+       command == BK7258_PM_COMMAND_CLOCK_PUT) &&
+      resource >= BK7258_PM_CLOCK_COUNT)
+    {
+      return -EINVAL;
+    }
+
+  if (command == BK7258_PM_COMMAND_CPU_FREQ_VOTE &&
+      (resource >= BK7258_PM_FREQ_CLIENT_COUNT ||
+       value > BK7258_PM_CPU_FREQ_DEFAULT))
     {
       return -EINVAL;
     }
@@ -337,7 +354,8 @@ static int bk7258_pm_request(enum bk7258_pm_clock_e clock,
   request.command = command;
   request.generation = control->generation;
   request.sequence = priv->sequence;
-  request.clock = clock;
+  request.clock = resource;
+  request.reserved = value;
 
   ret = bk7258_pm_send_bounded(priv, &request);
   if (ret >= 0)
@@ -395,12 +413,80 @@ int bk7258_pm_initialize(void)
 
 int bk7258_pm_clock_get(enum bk7258_pm_clock_e clock)
 {
-  return bk7258_pm_request(clock, BK7258_PM_COMMAND_CLOCK_GET);
+  return bk7258_pm_request(clock, BK7258_PM_COMMAND_CLOCK_GET, 0);
 }
 
 int bk7258_pm_clock_put(enum bk7258_pm_clock_e clock)
 {
-  return bk7258_pm_request(clock, BK7258_PM_COMMAND_CLOCK_PUT);
+  return bk7258_pm_request(clock, BK7258_PM_COMMAND_CLOCK_PUT, 0);
+}
+
+/* v3.1.1.9 bk_yuv_buf_init() votes PM_DEV_ID_JPEG to 480 MHz before
+ * starting either JPEG or H264 capture.  In the SDK this AP request is sent
+ * to CPU0 by the vendor mailbox PM service.  NuttX owns that mailbox, so
+ * preserve the SDK contract over the board-owned RPMsg PM channel instead.
+ */
+
+int __wrap_bk_pm_module_vote_cpu_freq(unsigned int module, int cpu_freq)
+{
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
+  uint32_t generation;
+  int ret;
+
+  if (module != BK7258_SDK_PM_DEV_JPEG)
+    {
+      return __real_bk_pm_module_vote_cpu_freq(module, cpu_freq);
+    }
+
+  if (cpu_freq < 0 || cpu_freq > BK7258_SDK_PM_CPU_FREQ_MAX)
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&g_bk7258_pm_sdk_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  generation = control->generation;
+  if (generation == 0)
+    {
+      ret = -ENOTCONN;
+      goto out;
+    }
+
+  if (__atomic_load_n(&g_bk7258_pm_sdk_generation, __ATOMIC_ACQUIRE) !=
+      generation)
+    {
+      bk7258_pm_sdk_reset_generation(generation);
+    }
+
+  if (g_bk7258_pm_sdk_video_freq == cpu_freq)
+    {
+      ret = OK;
+      goto out;
+    }
+
+  ret = bk7258_pm_request(BK7258_PM_FREQ_CLIENT_VIDEO,
+                          BK7258_PM_COMMAND_CPU_FREQ_VOTE,
+                          (uint32_t)cpu_freq);
+  if (ret >= 0)
+    {
+      g_bk7258_pm_sdk_video_freq = cpu_freq;
+
+      /* The frequency mux is shared, but SysTick is core-local.  Camera
+       * bring-up runs on AP logical CPU0, so repair its tick immediately
+       * after CP acknowledges the clock transition.
+       */
+
+      bk7258_systick_recalc();
+    }
+
+out:
+  nxmutex_unlock(&g_bk7258_pm_sdk_lock);
+  return ret;
 }
 
 /* The immutable AP SDK declares bk_pm_clock_ctrl() with enum arguments and a

@@ -40,7 +40,7 @@ struct bk7258_dvp_frame_mem_s
 /* The SDK's encode_buffer has no size parameter in bk_dvp_open().  The size
  * is retained here for board validation/documentation; the board remains
  * responsible for supplying a buffer large enough for its immutable SDK
- * configuration. */
+ * configuration (two 8-line JPEG banks or two 16-line H.264 banks). */
 
 struct bk7258_dvp_config_s
 {
@@ -56,7 +56,10 @@ struct bk7258_dvp_config_s
  * one.  This wrapper currently exposes only IMAGE_YUV and IMAGE_MJPEG as
  * NuttX imgdata formats; combined YUV/encode and H.264 modes return
  * -ENOTSUP.  Repeating an identical configuration is idempotent; a
- * conflicting configuration returns -EBUSY. */
+ * conflicting configuration returns -EBUSY.  IMAGE_H264 is exposed through
+ * the standard V4L2 H.264 fourcc.  The pinned NuttX imgdata bridge lacks an
+ * internal H.264 token, so the implementation contains a private, instance-
+ * scoped compatibility mapping without changing NuttX or its public ABI. */
 
 int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
                           FAR struct bk7258_dvp_s **out);

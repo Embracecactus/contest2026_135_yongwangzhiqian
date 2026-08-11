@@ -84,9 +84,9 @@ struct bk7258_dvfs_step_s
  * full 320 MHz core clock.  SysTick runs at the resulting CPU processor
  * clock; bk7258_clockdiag_current_cpu_hz() reports the role-specific value.
  *
- * Note (the "SDK 320 tier -> cpu0=160m" caveat, see bk7258_dvfs.h): the
- * 320 tier here yields CPU0 = 160 MHz at runtime; this is the SDK-aligned
- * stable top for CPU0 in this single-core port. */
+ * The 320 MHz tier yields CPU0 = 160 MHz.  The 480 MHz tier follows the
+ * v3.1.1.9 video operating point: CPU0/bus = 240 MHz while the AP physical
+ * CPU1/CPU2 cores run at 480 MHz. */
 static const struct bk7258_dvfs_step_s g_bk7258_dvfs_steps[] =
 {
   /* tier 0:  26  MHz  cksel=0x0 clkdiv=0x0  VDDD=0x6 VDDIG=0xB */
@@ -101,6 +101,8 @@ static const struct bk7258_dvfs_step_s g_bk7258_dvfs_steps[] =
   [BK7258_FREQ_240M] = { 0x3, 0x1, 0x1, 0x6, 0xD },
   /* tier 5: 320 MHz (CPU0=160)  cksel=0x2 clkdiv=0x0  VDDD=0x7 VDDIG=0xE */
   [BK7258_FREQ_320M] = { 0x2, 0x0, 0x0, 0x7, 0xE },
+  /* tier 6: 480 MHz (CPU0=240)  cksel=0x3 clkdiv=0x0  VDDD=0x7 VDDIG=0xE */
+  [BK7258_FREQ_480M] = { 0x3, 0x0, 0x0, 0x7, 0xE },
 };
 
 /* BL1 now enforces the recovered official 120 MHz handoff on cold and warm

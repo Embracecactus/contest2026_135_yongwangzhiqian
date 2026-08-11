@@ -88,7 +88,7 @@ extern "C"
  * MUST sort strictly after lower ones here. */
 
 #define BK7258_FREQ_MIN     BK7258_FREQ_26M
-#define BK7258_FREQ_MAX     BK7258_FREQ_320M   /* 480 guarded out */
+#define BK7258_FREQ_MAX     BK7258_FREQ_480M
 
 /****************************************************************************
  * Public Function Prototypes
@@ -110,8 +110,8 @@ extern "C"
  *   one external side effect: the final reload.
  *
  * Input Parameters:
- *   tier  - one of BK7258_FREQ_* (26M..320M).  Out-of-range values, or
- *           BK7258_FREQ_480M (SDK-guarded), are rejected with -EINVAL.
+ *   tier  - one of BK7258_FREQ_* (26M..480M).  Out-of-range values are
+ *           rejected with -EINVAL.
  *
  * Returned Value:
  *   0 on success, -errno on invalid tier.
@@ -122,11 +122,6 @@ extern "C"
 int bk7258_dvfs_set_freq(int tier);
 int bk7258_dvfs_get_freq(void);
 
-/* Recompute and write the SysTick one-tick reload for the live core clock.
- * Implemented in chip/common/bk7258_timerisr.c, called by bk7258_dvfs_set_freq()
- * after each switch (SysTick is clocked at the CPU0 processor clock). */
-void bk7258_systick_recalc(void);
-
 #if defined(CONFIG_FS_PROCFS) && defined(CONFIG_BK7258_DVFS_PROCFS)
 /* Register /proc/dvfs.  Must be called *before* the procfs is mounted (the
  * fs_procfs NOTE requires the entry table to be stable at mount time). */
@@ -135,9 +130,15 @@ int bk7258_dvfs_procfs_register(void);
 #else
 #  define bk7258_dvfs_set_freq(t)  (0)
 #  define bk7258_dvfs_get_freq()   (BK7258_FREQ_26M)
-#  define bk7258_systick_recalc()  ((void)0)
 #  define bk7258_dvfs_procfs_register()  (0)
 #endif
+
+/* Recompute and write the local SysTick one-tick reload for the live core
+ * clock.  This is also required when CP applies an AP SDK frequency vote;
+ * that path is independent of CONFIG_BK7258_DVFS.
+ */
+
+void bk7258_systick_recalc(void);
 
 #undef EXTERN
 #ifdef __cplusplus

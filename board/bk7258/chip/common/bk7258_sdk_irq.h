@@ -39,6 +39,10 @@
 void bk7258_clear_pending_irq(int irq);
 void interrupt_init(void);
 void interrupt_deinit(void);
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+int bk7258_sdk_irq_secondary_initialize(void);
+int bk7258_sdk_irq_secondary_online(void);
+#endif
 bk_err_t bk7258_sdk_irq_snapshot_handler(icu_int_src_t source,
                                          int_group_isr_t *handler);
 

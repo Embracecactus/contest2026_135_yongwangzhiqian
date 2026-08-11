@@ -2895,11 +2895,26 @@ static bool bk7258_sdk_log_is_sensitive(const char *fmt)
           strstr(fmt, "PSK") != NULL);
 }
 
+static bool bk7258_sdk_log_allowed(const char *fmt)
+{
+  /* SDK interrupts may run above the NuttX syscall interrupt-priority
+   * ceiling.  Such handlers must not enter the synchronous NuttX syslog
+   * backend: an interrupt can otherwise preempt a task while the RPMsg
+   * syslog spinlock is held and deadlock trying to acquire the same lock.
+   * Drop interrupt-context SDK diagnostics; normal task-context logs retain
+   * the existing NuttX syslog path.
+   */
+
+  return g_bk7258_sdk_printf_enabled &&
+         !up_interrupt_context() &&
+         !bk7258_sdk_log_is_sensitive(fmt);
+}
+
 void bk_printf_ext(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
-  if (!g_bk7258_sdk_printf_enabled || bk7258_sdk_log_is_sensitive(fmt))
+  if (!bk7258_sdk_log_allowed(fmt))
     {
       return;
     }
@@ -2918,7 +2933,7 @@ void bk_printf_ext(int level, char *tag, const char *fmt, ...)
 
 void bk_vprintf_ext(int level, char *tag, const char *fmt, va_list ap)
 {
-  if (!g_bk7258_sdk_printf_enabled || bk7258_sdk_log_is_sensitive(fmt))
+  if (!bk7258_sdk_log_allowed(fmt))
     {
       return;
     }
@@ -2947,7 +2962,7 @@ void bk_printf_static_block(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
-  if (!g_bk7258_sdk_printf_enabled || bk7258_sdk_log_is_sensitive(fmt))
+  if (!bk7258_sdk_log_allowed(fmt))
     {
       return;
     }
@@ -2968,7 +2983,7 @@ void bk_printf_raw(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
-  if (!g_bk7258_sdk_printf_enabled || bk7258_sdk_log_is_sensitive(fmt))
+  if (!bk7258_sdk_log_allowed(fmt))
     {
       return;
     }
@@ -2985,7 +3000,7 @@ void bk_printf(const char *fmt, ...)
 {
   va_list ap;
 
-  if (!g_bk7258_sdk_printf_enabled || bk7258_sdk_log_is_sensitive(fmt))
+  if (!bk7258_sdk_log_allowed(fmt))
     {
       return;
     }

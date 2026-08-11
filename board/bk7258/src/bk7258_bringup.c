@@ -38,6 +38,10 @@
 #include <debug.h>
 #include <nuttx/board.h>
 
+#ifdef CONFIG_BK7258_SWD_RTT_DEBUG
+#include <arch/chip/bk7258_debug.h>
+#endif
+
 #ifdef CONFIG_BK7258_PSRAM
 #include <arch/chip/bk7258_psram.h>
 #endif
@@ -328,6 +332,23 @@ int board_app_initialize(uintptr_t arg)
              (unsigned long)psram.boot_test_runs,
              (unsigned long)psram.mpu_valid);
     }
+#endif
+
+#ifdef CONFIG_BK7258_SWD_RTT_DEBUG
+  /* T5-Board exposes the BK7258 group-1 SWD signals on P0/P1.  Perform this
+   * after CP-side GPIO service initialization but before AP release, so the
+   * AP can emit its first camera diagnostics through RPMsg -> CP RTT without
+   * UART1 immediately reclaiming the same pins.
+   */
+
+  {
+    int swdret = bk7258_swd_group1_initialize();
+
+    if (swdret < 0)
+      {
+        _err("bk7258: P0/P1 SWD pinmux failed: %d\n", swdret);
+      }
+  }
 #endif
 
 #ifdef CONFIG_BK7258_AP_CONTROL

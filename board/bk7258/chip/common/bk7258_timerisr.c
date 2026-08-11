@@ -145,7 +145,6 @@ void up_timer_initialize(void)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_BK7258_DVFS
 void bk7258_systick_recalc(void)
 {
   uint32_t cpu_hz;
@@ -170,4 +169,3 @@ void bk7258_systick_recalc(void)
    * RELOAD so the first tick is one full tick long at the new period. */
   putreg32(0, BK7258_CDIAG_SYSTICK_CVR);
 }
-#endif /* CONFIG_BK7258_DVFS */

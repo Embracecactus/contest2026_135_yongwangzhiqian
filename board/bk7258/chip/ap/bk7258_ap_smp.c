@@ -30,6 +30,9 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/clock.h>
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+#  include <nuttx/init.h>
+#endif
 #ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE
 #  include <nuttx/irq.h>
 #  include <nuttx/semaphore.h>
@@ -45,9 +48,9 @@
 
 #include "arm_internal.h"
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
-#  include "init/init.h"
 #  include "nvic.h"
 #  include "sched/sched.h"
+#  include "bk7258_sdk_irq.h"
 #endif
 
 /****************************************************************************
@@ -1062,6 +1065,15 @@ bk7258_ap_secondary_scheduler_entry(void)
 #endif
 
   bk7258_cpu2_signal_scheduler_unlocked();
+  if (bk7258_sdk_irq_secondary_online() < 0)
+    {
+      bk7258_cpu2_fail(BK7258_CPU2_PROBE_ERROR_IPI_INIT);
+      for (; ; )
+        {
+          __asm volatile ("wfe");
+        }
+    }
+
   __asm volatile ("cpsie i; dsb sy; isb sy" ::: "memory");
   sched_unlock();
 
@@ -1148,6 +1160,19 @@ bk7258_ap_secondary_bootstrap(void)
     }
 
 #ifdef CONFIG_BK7258_AP_IPI
+  /* NuttX initializes the shared IRQ dispatch table on logical CPU0, but
+   * NVIC enable/priority state is private to each STAR core.  Complete the
+   * official CPU2-local NVIC setup before enabling any routed peripheral or
+   * mailbox interrupt on the secondary core. */
+
+#  ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  if (bk7258_sdk_irq_secondary_initialize() < 0)
+    {
+      bk7258_cpu2_fail(BK7258_CPU2_PROBE_ERROR_IPI_INIT);
+      goto parked;
+    }
+#  endif
+
   if (bk7258_ap_ipi_secondary_initialize() < 0)
     {
       bk7258_cpu2_fail(BK7258_CPU2_PROBE_ERROR_IPI_INIT);

@@ -12,11 +12,16 @@
 
 #include <nuttx/config.h>
 
+#include <errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+#  include <nuttx/sched.h>
+#endif
 #include <nuttx/spinlock.h>
 
 #include <arch/barriers.h>
@@ -75,6 +80,16 @@ _Static_assert(BK7258_SDK_IRQ_LCD_PRIORITY <=
 
 static spinlock_t g_bk7258_sdk_irq_lock = SP_UNLOCKED;
 static int_group_isr_t g_bk7258_sdk_irq_handlers[BK7258_SDK_IRQ_COUNT];
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+static bool g_bk7258_sdk_irq_secondary_ready;
+
+struct bk7258_sdk_irq_secondary_op_s
+{
+  int irq;
+  int priority;
+  bool attach;
+};
+#endif
 #ifdef CONFIG_BK7258_GPIO_IRQ_TEST
 static volatile uint32_t g_bk7258_sdk_irq_gpio_dispatch_counts[
   BK7258_SDK_IRQ_GPIO_SOURCE_COUNT];
@@ -162,6 +177,63 @@ static int bk7258_sdk_irq_dispatch(int irq, void *context, void *arg)
   return OK;
 }
 
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+static int bk7258_sdk_irq_secondary_update(void *arg)
+{
+  FAR struct bk7258_sdk_irq_secondary_op_s *op = arg;
+  int ret;
+
+  if (op == NULL || up_cpu_index() != 1)
+    {
+      return -EINVAL;
+    }
+
+  up_disable_irq(op->irq);
+  bk7258_clear_pending_irq(op->irq);
+
+  if (!op->attach)
+    {
+      return irq_detach(op->irq);
+    }
+
+  ret = up_prioritize_irq(op->irq, op->priority);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = irq_attach(op->irq, bk7258_sdk_irq_dispatch, NULL);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  up_enable_irq(op->irq);
+  UP_DSB();
+  UP_ISB();
+  return OK;
+}
+
+static int bk7258_sdk_irq_mirror_secondary(int irq, int priority,
+                                            bool attach)
+{
+  struct bk7258_sdk_irq_secondary_op_s op =
+  {
+    .irq = irq,
+    .priority = priority,
+    .attach = attach,
+  };
+
+  if (!__atomic_load_n(&g_bk7258_sdk_irq_secondary_ready,
+                       __ATOMIC_ACQUIRE))
+    {
+      return OK;
+    }
+
+  return nxsched_smp_call_single(1, bk7258_sdk_irq_secondary_update, &op);
+}
+#endif
+
 static bk_err_t
 bk7258_sdk_irq_unregister_locked(unsigned int index, int irq)
 {
@@ -180,6 +252,121 @@ bk7258_sdk_irq_unregister_locked(unsigned int index, int irq)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+int bk7258_sdk_irq_secondary_initialize(void)
+{
+  irqstate_t flags;
+  unsigned int index;
+  int irq;
+  int ret;
+
+  /* The official BK7258 SMP arch_isr_entry_init2() initializes every local
+   * NVIC external line on physical CPU2.  Delivery is still controlled by
+   * the per-core group1/group2 routing registers, so an enabled local NVIC
+   * line does not duplicate an interrupt assigned to physical CPU1.
+   *
+   * NuttX calls up_irqinitialize() only once on AP logical CPU0 and keeps a
+   * separate g_irqvector on each logical CPU.  Initialize every local line,
+   * but enable only sources which already have a NuttX dispatch entry.  Later
+   * SDK registrations are mirrored through an SMP call.
+   */
+
+  if (up_cpu_index() != 1)
+    {
+      return -EPERM;
+    }
+
+  flags = spin_lock_irqsave(&g_bk7258_sdk_irq_lock);
+  for (irq = BK7258_SDK_IRQ_FIRST;
+       irq < BK7258_SDK_IRQ_FIRST + BK7258_SDK_IRQ_COUNT;
+       irq++)
+    {
+      up_disable_irq(irq);
+      bk7258_clear_pending_irq(irq);
+
+      ret = up_prioritize_irq(irq, NVIC_SYSH_PRIORITY_DEFAULT);
+      if (ret < 0)
+        {
+          spin_unlock_irqrestore(&g_bk7258_sdk_irq_lock, flags);
+          return ret;
+        }
+
+      index = (unsigned int)(irq - BK7258_SDK_IRQ_FIRST);
+      if (g_bk7258_sdk_irq_handlers[index] != NULL)
+        {
+          ret = irq_attach(irq, bk7258_sdk_irq_dispatch, NULL);
+          if (ret < 0)
+            {
+              spin_unlock_irqrestore(&g_bk7258_sdk_irq_lock, flags);
+              return ret;
+            }
+
+          up_enable_irq(irq);
+        }
+    }
+
+  UP_DSB();
+  UP_ISB();
+  spin_unlock_irqrestore(&g_bk7258_sdk_irq_lock, flags);
+  return OK;
+}
+
+int bk7258_sdk_irq_secondary_online(void)
+{
+  irqstate_t flags;
+  unsigned int index;
+  int priority;
+  int irq;
+  int ret;
+
+  if (up_cpu_index() != 1)
+    {
+      return -EPERM;
+    }
+
+  /* SDK drivers can register while CPU1 waits for CPU0's post-bringup
+   * handshake.  Re-scan after that handshake, on CPU1 itself, so its
+   * per-CPU g_irqvector contains every handler before routed device IRQs are
+   * globally unmasked.  Registrations after this point use an SMP call.
+   */
+
+  flags = spin_lock_irqsave(&g_bk7258_sdk_irq_lock);
+  for (index = 0; index < BK7258_SDK_IRQ_COUNT; index++)
+    {
+      if (g_bk7258_sdk_irq_handlers[index] == NULL)
+        {
+          continue;
+        }
+
+      irq = BK7258_SDK_IRQ_FIRST + (int)index;
+      priority = bk7258_sdk_irq_encode_priority(
+        bk7258_sdk_irq_default_priority((icu_int_src_t)index));
+      ret = up_prioritize_irq(irq, priority);
+      if (ret < 0)
+        {
+          spin_unlock_irqrestore(&g_bk7258_sdk_irq_lock, flags);
+          return ret;
+        }
+
+      ret = irq_attach(irq, bk7258_sdk_irq_dispatch, NULL);
+      if (ret < 0)
+        {
+          spin_unlock_irqrestore(&g_bk7258_sdk_irq_lock, flags);
+          return ret;
+        }
+
+      up_enable_irq(irq);
+    }
+
+  __atomic_store_n(&g_bk7258_sdk_irq_secondary_ready, true,
+                   __ATOMIC_RELEASE);
+  UP_DSB();
+  UP_ISB();
+  spin_unlock_irqrestore(&g_bk7258_sdk_irq_lock, flags);
+  return OK;
+}
+#endif
 
 bk_err_t bk_int_isr_register(icu_int_src_t source,
                              int_group_isr_t handler, void *arg)
@@ -246,6 +433,13 @@ bk_err_t bk_int_isr_register(icu_int_src_t source,
 
 out:
   spin_unlock_irqrestore(&g_bk7258_sdk_irq_lock, flags);
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  if (result == BK_OK &&
+      bk7258_sdk_irq_mirror_secondary(irq, priority, handler != NULL) < 0)
+    {
+      result = BK_FAIL;
+    }
+#endif
   return result;
 }
 
@@ -265,11 +459,24 @@ bk_err_t bk_int_isr_unregister(icu_int_src_t source)
   flags = spin_lock_irqsave(&g_bk7258_sdk_irq_lock);
   result = bk7258_sdk_irq_unregister_locked(index, irq);
   spin_unlock_irqrestore(&g_bk7258_sdk_irq_lock, flags);
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  if (result == BK_OK &&
+      bk7258_sdk_irq_mirror_secondary(irq,
+        (int)(BK7258_SDK_IRQ_DEFAULT_PRIORITY <<
+              BK7258_SDK_IRQ_PRIORITY_SHIFT), false) < 0)
+    {
+      result = BK_FAIL;
+    }
+#endif
   return result;
 }
 
 bk_err_t bk_int_set_priority(icu_int_src_t source, uint32_t priority)
 {
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  unsigned int index = (unsigned int)source;
+  bool registered;
+#endif
   irqstate_t flags;
   bk_err_t result;
   int encoded;
@@ -288,8 +495,18 @@ bk_err_t bk_int_set_priority(icu_int_src_t source, uint32_t priority)
     }
 
   flags = spin_lock_irqsave(&g_bk7258_sdk_irq_lock);
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  registered = g_bk7258_sdk_irq_handlers[index] != NULL;
+#endif
   result = up_prioritize_irq(irq, encoded) < 0 ? BK_FAIL : BK_OK;
   spin_unlock_irqrestore(&g_bk7258_sdk_irq_lock, flags);
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  if (result == BK_OK &&
+      bk7258_sdk_irq_mirror_secondary(irq, encoded, registered) < 0)
+    {
+      result = BK_FAIL;
+    }
+#endif
   return result;
 }
 
