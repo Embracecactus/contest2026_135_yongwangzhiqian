@@ -93,6 +93,7 @@ struct bk7258_rotate_request_s
   uint16_t block_width;
   uint16_t block_height;
   uint16_t block_count;
+  /* Zero disables watermark; otherwise this must be less than block_count. */
   uint16_t watermark_block;
   enum bk7258_scale_rotate_format_e format;
   enum bk7258_scale_rotate_angle_e angle;
@@ -101,7 +102,10 @@ struct bk7258_rotate_request_s
   uint32_t timeout_ms;
 };
 
-/* A repeated initialize is -EBUSY, including when a different engine is
+/* v3.1.1.9 implements only SCALE0.  SCALE1 remains an enum value for ABI
+ * compatibility and future SDKs, but initialize(SCALE1) returns -ENOTSUP.
+ *
+ * A repeated initialize is -EBUSY, including when a different engine is
  * requested.  This strict single-owner rule also prevents the SDK scale
  * deinit path from resetting the other scale channel. */
 

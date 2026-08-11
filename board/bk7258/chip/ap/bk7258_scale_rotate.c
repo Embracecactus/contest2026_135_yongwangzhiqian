@@ -26,7 +26,7 @@
 #include <nuttx/semaphore.h>
 #include <nuttx/spinlock.h>
 
-#include <arch/chip/bk7258_scale_rotate.h>
+#include "../include/bk7258_scale_rotate.h"
 
 #define BK7258_SCALE_ROTATE_DEFAULT_TIMEOUT_MS 1000
 #define BK7258_SCALE_ROTATE_MAX_DIM            1280
@@ -42,6 +42,22 @@
 #define BK7258_SCALE_ROTATE_FRAME_LINE_CYCLE 16
 #define BK7258_SCALE_ROTATE_FRAME_LINE_MASK  0x1f
 
+/* The immutable bundle does not export sys_driver.h.  These are the
+ * minimal v3.1.1.9 ABI declarations used to correct the rotator's default
+ * IRQ target.  CPU1 is the NuttX AP core and CPU2 is the SDK's default
+ * rotator target.  The ROTT bit is bit 27 of group 2 in bk7258_ap/sys_types.h.
+ * Unlike the enable call, group2_disable returns the previous register and
+ * is therefore not an errno/status result. */
+
+extern int32_t sys_drv_core_intr_group2_enable(uint32_t core_id,
+                                               uint32_t param);
+extern int32_t sys_drv_core_intr_group2_disable(uint32_t core_id,
+                                                uint32_t param);
+
+#define BK7258_SCALE_ROTATE_CPU1_CORE_ID       1u
+#define BK7258_SCALE_ROTATE_CPU2_CORE_ID       2u
+#define BK7258_SCALE_ROTATE_ROTT_IRQ_BIT       (1u << 27)
+
 struct bk7258_scale_rotate_s
 {
   mutex_t lock;
@@ -53,6 +69,7 @@ struct bk7258_scale_rotate_s
   int completion_result;
   bool initialized;
   bool faulted;
+  bool rotator_irq_cpu1;
 };
 
 static struct bk7258_scale_rotate_s g_bk7258_scale_rotate =
@@ -96,6 +113,40 @@ static int bk7258_scale_rotate_sdk_error(bk_err_t error)
       default:
         return -EIO;
     }
+}
+
+static int bk7258_scale_rotate_route_rott_to_cpu1(void)
+{
+  int32_t ret;
+
+  /* bk_rott_int_enable() unconditionally enables the CPU2 target in the
+   * v3.1.1.9 SDK.  Disable's return value is the old enable register, not a
+   * status code, so only the CPU1 enable result is checked. */
+
+  (void)sys_drv_core_intr_group2_disable(
+    BK7258_SCALE_ROTATE_CPU2_CORE_ID,
+    BK7258_SCALE_ROTATE_ROTT_IRQ_BIT);
+  ret = sys_drv_core_intr_group2_enable(
+    BK7258_SCALE_ROTATE_CPU1_CORE_ID,
+    BK7258_SCALE_ROTATE_ROTT_IRQ_BIT);
+  if (ret != 0)
+    {
+      (void)sys_drv_core_intr_group2_disable(
+        BK7258_SCALE_ROTATE_CPU1_CORE_ID,
+        BK7258_SCALE_ROTATE_ROTT_IRQ_BIT);
+      return -EIO;
+    }
+
+  return 0;
+}
+
+static void bk7258_scale_rotate_route_rott_from_cpu1(void)
+{
+  /* The disable API returns the previous enable register, not status. */
+
+  (void)sys_drv_core_intr_group2_disable(
+    BK7258_SCALE_ROTATE_CPU1_CORE_ID,
+    BK7258_SCALE_ROTATE_ROTT_IRQ_BIT);
 }
 
 static bool bk7258_scale_rotate_valid_engine(
@@ -524,6 +575,11 @@ static int bk7258_scale_rotate_init_scale_locked(
   scale_id_t id = bk7258_scale_rotate_scale_id(priv->engine);
   int ret;
 
+  /* The v3.1.1.9 scale driver uses sys_drv_int_group2_enable() for SCALE0;
+   * its BK7258 sys_hal implementation writes CPU1's group-2 register.
+   * SCALE1 is rejected before reaching this path because its write-burst
+   * configuration is explicitly BK_FAIL in that SDK release. */
+
   ret = bk7258_scale_rotate_sdk_error(bk_hw_scale_driver_init(id));
   if (ret < 0)
     {
@@ -597,6 +653,18 @@ static int bk7258_scale_rotate_init_rotate_locked(void)
       return ret;
     }
 
+  ret = bk7258_scale_rotate_route_rott_to_cpu1();
+  if (ret < 0)
+    {
+      (void)bk_rott_int_enable(ROTATE_COMPLETE_INT | ROTATE_CFG_ERR_INT,
+                               false);
+      (void)bk_rott_isr_register(ROTATE_COMPLETE_INT, NULL);
+      (void)bk_rott_isr_register(ROTATE_CFG_ERR_INT, NULL);
+      (void)bk_rott_driver_deinit();
+      bk7258_scale_rotate_route_rott_from_cpu1();
+      return ret;
+    }
+
   return 0;
 }
 
@@ -613,6 +681,16 @@ int bk7258_scale_rotate_initialize(
     }
 
   *out = NULL;
+
+  if (engine == BK7258_SCALE_ROTATE_SCALE1)
+    {
+      /* hw_scale_driver.c::scale_set_write_burst() returns BK_FAIL for
+       * SCALE1, while hw_scale_frame() ignores that result.  Fail closed
+       * instead of exposing a path which cannot configure its write burst. */
+
+      return -ENOTSUP;
+    }
+
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
@@ -635,12 +713,14 @@ int bk7258_scale_rotate_initialize(
   }
 
   priv->faulted = false;
+  priv->rotator_irq_cpu1 = false;
   ret = bk7258_scale_rotate_is_scale(engine) ?
     bk7258_scale_rotate_init_scale_locked(priv) :
     bk7258_scale_rotate_init_rotate_locked();
   if (ret >= 0)
     {
       priv->initialized = true;
+      priv->rotator_irq_cpu1 = engine == BK7258_SCALE_ROTATE_ROTATOR;
       *out = priv;
     }
   else
@@ -650,6 +730,7 @@ int bk7258_scale_rotate_initialize(
       priv->engine = BK7258_SCALE_ROTATE_SCALE0;
       priv->operation_active = false;
       priv->completion_done = false;
+      priv->rotator_irq_cpu1 = false;
       spin_unlock_irqrestore(&priv->state_lock, flags);
     }
 
@@ -715,6 +796,10 @@ int bk7258_scale_rotate_uninitialize(
       (void)bk_rott_isr_register(ROTATE_CFG_ERR_INT, NULL);
       (void)bk_rott_soft_reset();
       ret = bk7258_scale_rotate_sdk_error(bk_rott_driver_deinit());
+      if (priv->rotator_irq_cpu1)
+        {
+          bk7258_scale_rotate_route_rott_from_cpu1();
+        }
     }
 
   if (ret >= 0 && cleanup_ret < 0)
@@ -724,6 +809,7 @@ int bk7258_scale_rotate_uninitialize(
 
   priv->initialized = false;
   priv->faulted = false;
+  priv->rotator_irq_cpu1 = false;
   {
     irqstate_t flags = spin_lock_irqsave(&priv->state_lock);
 
@@ -918,7 +1004,8 @@ int bk7258_rotate(FAR struct bk7258_scale_rotate_s *priv,
       request->block_count !=
         (uint32_t)(request->src_width / request->block_width) *
         (request->src_height / request->block_height) ||
-      request->watermark_block > request->block_count)
+      (request->watermark_block != 0 &&
+       request->watermark_block >= request->block_count))
     {
       ret = -EINVAL;
       goto out;
