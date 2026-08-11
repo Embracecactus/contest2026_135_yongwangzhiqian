@@ -117,7 +117,10 @@ int bk7258_scale_rotate_uninitialize(
 
 /* Scale uses the SDK FRAME_SCALE path.  The SDK's implementation is proven
  * for contiguous RGB565 and YUYV frames only; RGB888 is deliberately
- * rejected because the v3.1.1.9 row-address code advances by two bytes. */
+ * rejected because the v3.1.1.9 row-address code advances by two bytes.
+ * Destination width must be a multiple of 16: the SDK's nominal 8-pixel
+ * write-burst branch is inverted and its error is discarded by
+ * hw_scale_frame(). */
 
 int bk7258_scale(FAR struct bk7258_scale_rotate_s *priv,
                  FAR const struct bk7258_scale_request_s *request);

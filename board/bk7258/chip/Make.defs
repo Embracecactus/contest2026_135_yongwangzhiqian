@@ -341,6 +341,9 @@ endif
 ifeq ($(CONFIG_BK7258_DMA2D),y)
 BK7258_AP_BASE_CSRCS += bk7258_dma2d.c
 endif
+ifeq ($(CONFIG_BK7258_SCALE_ROTATE),y)
+BK7258_AP_BASE_CSRCS += bk7258_scale_rotate.c
+endif
 ifeq ($(CONFIG_BK7258_JPEG_DECODER),y)
 BK7258_AP_BASE_CSRCS += bk7258_jpeg_decoder.c
 endif
@@ -427,7 +430,7 @@ ifeq ($(CONFIG_BK7258_PM_CLOCK),y)
 BK7258_AP_BASE_CSRCS += bk7258_pm_client.c
 ifeq ($(CONFIG_BK7258_AP_CORE),y)
 LDFLAGS += --wrap=bk_pm_clock_ctrl
-ifneq ($(filter y,$(CONFIG_BK7258_DMA2D) $(CONFIG_BK7258_JPEG_DECODER) $(CONFIG_BK7258_JPEG_ENCODER)),)
+ifneq ($(filter y,$(CONFIG_BK7258_DMA2D) $(CONFIG_BK7258_SCALE_ROTATE) $(CONFIG_BK7258_JPEG_DECODER) $(CONFIG_BK7258_JPEG_ENCODER)),)
 LDFLAGS += --wrap=bk_pm_module_vote_power_ctrl
 endif
 endif

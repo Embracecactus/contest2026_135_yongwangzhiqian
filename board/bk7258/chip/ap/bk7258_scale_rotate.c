@@ -864,7 +864,12 @@ int bk7258_scale(FAR struct bk7258_scale_rotate_s *priv,
       request->src_height > BK7258_SCALE_ROTATE_MAX_DIM ||
       request->dst_width > BK7258_SCALE_ROTATE_MAX_DIM ||
       request->dst_height > BK7258_SCALE_ROTATE_MAX_DIM ||
-      (request->dst_width & 7) != 0)
+      /* v3.1.1.9 has an inverted 8-pixel branch in
+       * scale_set_write_burst(), and hw_scale_frame() discards its error.
+       * Multiples of 16 take a correct branch and are the smallest width
+       * this wrapper can expose without modifying the SDK. */
+
+      (request->dst_width & 15) != 0)
     {
       ret = -EINVAL;
       goto out;
