@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include <nuttx/compiler.h>
+#include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/spinlock.h>
@@ -34,6 +35,7 @@
 #define BK7258_JPEG_ENCODER_PIXEL_BYTES       2u
 #define BK7258_JPEG_ENCODER_DMA_BYTES         (10u * 1024u)
 #define BK7258_JPEG_ENCODER_DMA_CHANNEL       DMA_ID_8
+#define BK7258_JPEG_ENCODER_TIMEOUT_TICKS     SEC2TICK(5)
 
 /* v3.1.1.9 jpeg_driver.c enables the source in the CPU1 interrupt register,
  * while the generic SMP route may retain the old CPU2 target.  The public
@@ -80,6 +82,7 @@ struct bk7258_jpeg_encoder_s
   volatile bool operation_active;
   volatile bool completion_queued;
   volatile bool completion_done;
+  volatile bool head_pending;
   volatile uint32_t pending_lines;
   volatile uint32_t next_block;
   volatile int callback_result;
@@ -101,6 +104,7 @@ static struct bk7258_jpeg_encoder_s g_bk7258_jpeg_encoder =
 
 static void bk7258_jpeg_encoder_line_worker(void *arg);
 static void bk7258_jpeg_encoder_complete_worker(void *arg);
+static void bk7258_jpeg_encoder_head_callback(jpeg_unit_t id, void *param);
 
 static int bk7258_jpeg_encoder_sdk_error(bk_err_t error)
 {
@@ -342,6 +346,42 @@ static void bk7258_jpeg_encoder_line_callback(jpeg_unit_t id, void *param)
     }
 }
 
+static void bk7258_jpeg_encoder_head_callback(jpeg_unit_t id, void *param)
+{
+  FAR struct bk7258_jpeg_encoder_s *priv = param;
+  irqstate_t flags;
+  int ret;
+
+  (void)id;
+  if (priv == NULL)
+    {
+      return;
+    }
+
+  flags = spin_lock_irqsave(&priv->state_lock);
+  if (priv->operation_active && priv->callback_result == 0)
+    {
+      priv->head_pending = true;
+    }
+  else
+    {
+      spin_unlock_irqrestore(&priv->state_lock, flags);
+      return;
+    }
+  spin_unlock_irqrestore(&priv->state_lock, flags);
+
+  /* The official controller calls bk_yuv_buf_rencode_start() from this ISR.
+   * Defer it to the existing HPWORK bridge so this wrapper keeps all SDK
+   * calls out of the vendor callback context. */
+  ret = work_queue(HPWORK, &priv->line_work,
+                   (worker_t)bk7258_jpeg_encoder_line_worker, priv, 0);
+  if (ret < 0 && ret != -EBUSY)
+    {
+      bk7258_jpeg_encoder_fail_from_callback(priv, -EIO);
+      (void)bk7258_jpeg_encoder_schedule_complete(priv);
+    }
+}
+
 static void bk7258_jpeg_encoder_eof_callback(jpeg_unit_t id, void *param)
 {
   FAR struct bk7258_jpeg_encoder_s *priv = param;
@@ -368,25 +408,50 @@ static void bk7258_jpeg_encoder_error_callback(jpeg_unit_t id, void *param)
 static void bk7258_jpeg_encoder_line_worker(void *arg)
 {
   FAR struct bk7258_jpeg_encoder_s *priv = arg;
+  irqstate_t flags;
+  bool requeue;
 
   for (;;)
     {
-      irqstate_t flags;
       uint32_t block;
+      bool head;
       FAR const uint8_t *src;
       FAR uint8_t *dst;
       bk_err_t sdkret;
 
       flags = spin_lock_irqsave(&priv->state_lock);
-      if (!priv->operation_active || priv->pending_lines == 0)
+      if (!priv->operation_active ||
+          (!priv->head_pending && priv->pending_lines == 0))
         {
           spin_unlock_irqrestore(&priv->state_lock, flags);
           break;
         }
 
-      priv->pending_lines--;
-      block = priv->next_block++;
+      head = priv->head_pending;
+      if (head)
+        {
+          priv->head_pending = false;
+          block = 0;
+        }
+      else
+        {
+          priv->pending_lines--;
+          block = priv->next_block++;
+        }
       spin_unlock_irqrestore(&priv->state_lock, flags);
+
+      if (head)
+        {
+          sdkret = bk_yuv_buf_rencode_start();
+          if (sdkret != BK_OK)
+            {
+              bk7258_jpeg_encoder_fail_from_callback(priv,
+                bk7258_jpeg_encoder_sdk_error(sdkret));
+              (void)bk7258_jpeg_encoder_schedule_complete(priv);
+              break;
+            }
+          continue;
+        }
 
       if (block >= priv->block_count)
         {
@@ -414,7 +479,11 @@ static void bk7258_jpeg_encoder_line_worker(void *arg)
 
   /* A callback can arrive while this worker is draining.  Requeue after the
    * final check so an EBUSY result from that callback cannot lose a line. */
-  if (bk7258_jpeg_encoder_active(priv) && priv->pending_lines != 0)
+  flags = spin_lock_irqsave(&priv->state_lock);
+  requeue = priv->operation_active &&
+            (priv->head_pending || priv->pending_lines != 0);
+  spin_unlock_irqrestore(&priv->state_lock, flags);
+  if (requeue)
     {
       (void)work_queue(HPWORK, &priv->line_work,
                        (worker_t)bk7258_jpeg_encoder_line_worker, priv, 0);
@@ -427,6 +496,7 @@ static void bk7258_jpeg_encoder_complete_worker(void *arg)
   irqstate_t flags;
   uint32_t frame_size = 0;
   int result = 0;
+  int callback_result;
   bk_err_t sdkret;
 
   if (!bk7258_jpeg_encoder_active(priv))
@@ -467,9 +537,12 @@ static void bk7258_jpeg_encoder_complete_worker(void *arg)
     }
 
   flags = spin_lock_irqsave(&priv->state_lock);
-  if (priv->callback_result != 0 && result == 0)
+  callback_result = priv->callback_result;
+  spin_unlock_irqrestore(&priv->state_lock, flags);
+
+  if (callback_result != 0 && result == 0)
     {
-      result = priv->callback_result;
+      result = callback_result;
     }
 
   if (result == 0 && frame_size > priv->output_capacity)
@@ -477,6 +550,19 @@ static void bk7258_jpeg_encoder_complete_worker(void *arg)
       result = -ENOSPC;
     }
 
+  if (result != 0)
+    {
+      /* The official controller soft-resets JPEG before allowing a later
+       * frame after any encode error.  Preserve the original error if the
+       * recovery reset also fails, but fail closed on the next call. */
+      sdkret = bk_jpeg_enc_soft_reset();
+      if (sdkret != BK_OK)
+        {
+          priv->faulted = true;
+        }
+    }
+
+  flags = spin_lock_irqsave(&priv->state_lock);
   priv->completion_result = result;
   priv->completion_done = true;
   priv->completion_queued = false;
@@ -540,6 +626,13 @@ static int bk7258_jpeg_encoder_register_callbacks(
    * failure takes the same unregister path. */
   priv->callbacks_ready = true;
 
+  sdkret = bk_jpeg_enc_register_isr(JPEG_HEAD_OUTPUT,
+                                    bk7258_jpeg_encoder_head_callback, priv);
+  if (sdkret != BK_OK)
+    {
+      return bk7258_jpeg_encoder_sdk_error(sdkret);
+    }
+
   sdkret = bk_jpeg_enc_register_isr(JPEG_LINE_CLEAR,
                                     bk7258_jpeg_encoder_line_callback, priv);
   if (sdkret != BK_OK)
@@ -569,6 +662,7 @@ static void bk7258_jpeg_encoder_unregister_callbacks(
 {
   if (priv->callbacks_ready)
     {
+      (void)bk_jpeg_enc_unregister_isr(JPEG_HEAD_OUTPUT);
       (void)bk_jpeg_enc_unregister_isr(JPEG_LINE_CLEAR);
       (void)bk_jpeg_enc_unregister_isr(JPEG_EOF);
       (void)bk_jpeg_enc_unregister_isr(JPEG_FRAME_ERR);
@@ -637,6 +731,68 @@ static void bk7258_jpeg_encoder_cleanup_failed(
       (void)bk_dma_driver_deinit();
       priv->dma_driver_ready = false;
     }
+}
+
+static int bk7258_jpeg_encoder_abort_locked(
+  FAR struct bk7258_jpeg_encoder_s *priv, int reason)
+{
+  irqstate_t flags;
+  int first_error = 0;
+  bk_err_t sdkret;
+
+  /* Stop workers before touching hardware so no deferred line callback can
+   * race the timeout recovery sequence. */
+  flags = spin_lock_irqsave(&priv->state_lock);
+  priv->operation_active = false;
+  priv->completion_queued = false;
+  priv->head_pending = false;
+  priv->pending_lines = 0;
+  spin_unlock_irqrestore(&priv->state_lock, flags);
+
+  work_cancel_sync(HPWORK, &priv->line_work);
+  work_cancel_sync(HPWORK, &priv->complete_work);
+
+  sdkret = bk_yuv_buf_stop(JPEG_MODE);
+  if (sdkret != BK_OK && first_error == 0)
+    {
+      first_error = bk7258_jpeg_encoder_sdk_error(sdkret);
+    }
+
+  sdkret = bk_yuv_buf_soft_reset();
+  if (sdkret != BK_OK && first_error == 0)
+    {
+      first_error = bk7258_jpeg_encoder_sdk_error(sdkret);
+    }
+
+  sdkret = bk_jpeg_enc_soft_reset();
+  if (sdkret != BK_OK && first_error == 0)
+    {
+      first_error = bk7258_jpeg_encoder_sdk_error(sdkret);
+    }
+
+  if (priv->dma_started)
+    {
+      sdkret = bk_dma_stop(priv->dma);
+      if (sdkret != BK_OK && first_error == 0)
+        {
+          first_error = bk7258_jpeg_encoder_sdk_error(sdkret);
+        }
+      priv->dma_started = false;
+    }
+
+  if (first_error < 0)
+    {
+      priv->faulted = true;
+    }
+
+  /* A lost IRQ must always be reported as a timeout; cleanup failures make
+   * subsequent calls fail-closed through faulted, but do not hide it. */
+  if (reason < 0)
+    {
+      return reason;
+    }
+
+  return first_error;
 }
 
 int bk7258_jpeg_encoder_initialize(
@@ -710,6 +866,7 @@ int bk7258_jpeg_encoder_initialize(
   priv->operation_active = false;
   priv->completion_queued = false;
   priv->completion_done = false;
+  priv->head_pending = false;
   priv->pending_lines = 0;
   priv->callback_result = 0;
   priv->completion_result = -EIO;
@@ -1149,6 +1306,7 @@ int bk7258_jpeg_encoder_encode(
   priv->callback_result = 0;
   priv->completion_result = -EIO;
   priv->completion_done = false;
+  priv->head_pending = false;
   priv->completion_queued = false;
   priv->operation_active = true;
   spin_unlock_irqrestore(&priv->state_lock, flags);
@@ -1176,15 +1334,11 @@ int bk7258_jpeg_encoder_encode(
       goto unlock;
     }
 
-  ret = nxsem_wait_uninterruptible(&priv->complete_sem);
+  ret = nxsem_tickwait_uninterruptible(&priv->complete_sem,
+                                       BK7258_JPEG_ENCODER_TIMEOUT_TICKS);
   if (ret < 0)
     {
-      (void)bk_yuv_buf_stop(JPEG_MODE);
-      (void)bk_dma_stop(priv->dma);
-      priv->dma_started = false;
-      flags = spin_lock_irqsave(&priv->state_lock);
-      priv->operation_active = false;
-      spin_unlock_irqrestore(&priv->state_lock, flags);
+      ret = bk7258_jpeg_encoder_abort_locked(priv, ret);
       goto unlock;
     }
 
@@ -1202,14 +1356,8 @@ int bk7258_jpeg_encoder_encode(
   if (!completion_done)
     {
       /* The completion work could not be queued.  Its synchronous caller
-       * owns the only safe fallback stop path. */
-      (void)bk_yuv_buf_stop(JPEG_MODE);
-      (void)bk_yuv_buf_soft_reset();
-      if (priv->dma_started)
-        {
-          (void)bk_dma_stop(priv->dma);
-          priv->dma_started = false;
-        }
+       * owns the only safe fallback stop and reset path. */
+      ret = bk7258_jpeg_encoder_abort_locked(priv, -EIO);
     }
 
   if (ret == 0)
