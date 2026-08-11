@@ -21,6 +21,22 @@
 
 #include "../include/bk7258_jpeg_decoder.h"
 
+/* The v3.1.1.9 jpeg_dec_driver.c routes JPEGDEC to CPU2 unconditionally.
+ * AP NuttX executes on CPU1, so migrate the interrupt route after the SDK
+ * decoder has opened.  sys_driver.h and sys_types.h are not exported by the
+ * immutable bundle; these declarations/constants are the minimal ABI from
+ * those v3.1.1.9 public driver symbols and the verified BK7258 definitions:
+ * CPU1=1, CPU2=2, and JPEGDEC interrupt bit 26. */
+
+extern int32_t sys_drv_core_intr_group1_enable(uint32_t core_id,
+                                               uint32_t param);
+extern int32_t sys_drv_core_intr_group1_disable(uint32_t core_id,
+                                                uint32_t param);
+
+#define BK7258_JPEGDEC_CPU1_CORE_ID          1u
+#define BK7258_JPEGDEC_CPU2_CORE_ID          2u
+#define BK7258_JPEGDEC_INTERRUPT_CTRL_BIT    (1u << 26)
+
 /*
  * The v3.1.1.9 public bk_jpeg_decode_types.h includes frame_buffer.h, which
  * is not exported by the immutable AP bundle.  The complete frame_buffer_t
@@ -82,6 +98,7 @@ struct bk7258_jpeg_decoder_s
   bk7258_sdk_jpeg_decode_hw_handle_t handle;
   bool initialized;
   bool opened;
+  bool cpu1_route_enabled;
   bool operation_active;
 };
 
@@ -152,12 +169,54 @@ static int bk7258_jpeg_decoder_check_locked(
     }
 
   if (priv != g_bk7258_jpeg_decoder_owner || !priv->initialized ||
-      !priv->opened || priv->handle == NULL)
+      !priv->opened || !priv->cpu1_route_enabled || priv->handle == NULL)
     {
       return -ENODEV;
     }
 
   return 0;
+}
+
+static int bk7258_jpeg_decoder_route_error(int32_t result)
+{
+  return result == 0 ? 0 : -EIO;
+}
+
+static int bk7258_jpeg_decoder_route_to_cpu1(void)
+{
+  int ret;
+
+  ret = bk7258_jpeg_decoder_route_error(
+    sys_drv_core_intr_group1_disable(BK7258_JPEGDEC_CPU2_CORE_ID,
+                                     BK7258_JPEGDEC_INTERRUPT_CTRL_BIT));
+  if (ret < 0)
+    {
+      /* Disable is idempotent in the SDK path.  This also clears a partial
+       * CPU1 route if a lower layer reported failure after changing state. */
+
+      (void)sys_drv_core_intr_group1_disable(
+        BK7258_JPEGDEC_CPU1_CORE_ID, BK7258_JPEGDEC_INTERRUPT_CTRL_BIT);
+      return ret;
+    }
+
+  ret = bk7258_jpeg_decoder_route_error(
+    sys_drv_core_intr_group1_enable(BK7258_JPEGDEC_CPU1_CORE_ID,
+                                    BK7258_JPEGDEC_INTERRUPT_CTRL_BIT));
+  if (ret < 0)
+    {
+      (void)sys_drv_core_intr_group1_disable(
+        BK7258_JPEGDEC_CPU1_CORE_ID, BK7258_JPEGDEC_INTERRUPT_CTRL_BIT);
+      return ret;
+    }
+
+  return 0;
+}
+
+static int bk7258_jpeg_decoder_route_from_cpu1(void)
+{
+  return bk7258_jpeg_decoder_route_error(
+    sys_drv_core_intr_group1_disable(BK7258_JPEGDEC_CPU1_CORE_ID,
+                                     BK7258_JPEGDEC_INTERRUPT_CTRL_BIT));
 }
 
 /* The SDK passes addresses to a 32-bit JPEG register interface.  Reject a
@@ -407,9 +466,24 @@ int bk7258_jpeg_decoder_initialize(FAR struct bk7258_jpeg_decoder_s **out)
       return ret;
     }
 
+  ret = bk7258_jpeg_decoder_route_to_cpu1();
+  if (ret < 0)
+    {
+      /* The SDK open path has already registered its ISR and enabled the
+       * CPU2 route.  Always close/delete on migration failure; close repeats
+       * the SDK's CPU2 disable and the route helper clears any CPU1 partial
+       * state. */
+
+      (void)bk_jpeg_decode_hw_close(handle);
+      (void)bk_jpeg_decode_hw_delete(handle);
+      nxmutex_unlock(&g_bk7258_jpeg_decoder_lock);
+      return -EIO;
+    }
+
   g_bk7258_jpeg_decoder.handle = handle;
   g_bk7258_jpeg_decoder.initialized = true;
   g_bk7258_jpeg_decoder.opened = true;
+  g_bk7258_jpeg_decoder.cpu1_route_enabled = true;
   g_bk7258_jpeg_decoder.operation_active = false;
   g_bk7258_jpeg_decoder_owner = &g_bk7258_jpeg_decoder;
   *out = g_bk7258_jpeg_decoder_owner;
@@ -457,6 +531,20 @@ int bk7258_jpeg_decoder_uninitialize(FAR struct bk7258_jpeg_decoder_s *priv)
         }
 
       priv->opened = false;
+    }
+
+  if (priv->cpu1_route_enabled)
+    {
+      ret = bk7258_jpeg_decoder_route_from_cpu1();
+      if (ret < 0)
+        {
+          /* Keep ownership and the closed handle so a later uninitialize
+           * can retry the CPU1 route disable before deleting the controller. */
+          nxmutex_unlock(&g_bk7258_jpeg_decoder_lock);
+          return ret;
+        }
+
+      priv->cpu1_route_enabled = false;
     }
 
   sdkret = bk_jpeg_decode_hw_delete(priv->handle);
