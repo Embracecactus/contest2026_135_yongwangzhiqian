@@ -102,8 +102,10 @@ struct bk7258_rotate_request_s
   uint32_t timeout_ms;
 };
 
-/* v3.1.1.9 implements only SCALE0.  SCALE1 remains an enum value for ABI
- * compatibility and future SDKs, but initialize(SCALE1) returns -ENOTSUP.
+/* v3.1.1.9 fully configures Scale0 but leaves Scale1's per-width write-burst
+ * helper incomplete.  The board layer supplies that one documented BK7258
+ * register field after SDK reset, so both scale engines accept the same
+ * destination-width contract without modifying SDK sources.
  *
  * A repeated initialize is -EBUSY, including when a different engine is
  * requested.  This strict single-owner rule also prevents the SDK scale

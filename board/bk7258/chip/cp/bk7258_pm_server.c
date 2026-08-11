@@ -105,6 +105,7 @@ static bool bk7258_pm_is_video_clock(enum bk7258_pm_clock_e clock)
          clock == BK7258_PM_CLOCK_DMA2D ||
          clock == BK7258_PM_CLOCK_JPEG_DECODER ||
          clock == BK7258_PM_CLOCK_SCALE0 ||
+         clock == BK7258_PM_CLOCK_SCALE1 ||
          clock == BK7258_PM_CLOCK_ROTATOR;
 }
 
@@ -117,6 +118,7 @@ static bool bk7258_pm_video_active(struct bk7258_pm_server_s *priv)
          priv->refs[BK7258_PM_CLOCK_DMA2D] != 0 ||
          priv->refs[BK7258_PM_CLOCK_JPEG_DECODER] != 0 ||
          priv->refs[BK7258_PM_CLOCK_SCALE0] != 0 ||
+         priv->refs[BK7258_PM_CLOCK_SCALE1] != 0 ||
          priv->refs[BK7258_PM_CLOCK_ROTATOR] != 0;
 }
 
@@ -301,6 +303,7 @@ static void bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
 
         break;
       case BK7258_PM_CLOCK_SCALE0:
+      case BK7258_PM_CLOCK_SCALE1:
       case BK7258_PM_CLOCK_ROTATOR:
         /* The immutable scale/rotator drivers configure their controller
          * clocks after voting their VIDP submodule.  CP owns only the shared
