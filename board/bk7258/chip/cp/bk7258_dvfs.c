@@ -21,9 +21,9 @@
  * voltage rails move monotonically (no abrupt jump), exactly as the SDK
  * sys_drv_switch_cpu_bus_freq models.
  *
- * Following the NuttX lc823450 DVFS precedent (arch/arm/src/lc823450/
- * lc823450_dvfs2.c): a single standalone *_dvfs_set_freq(), not the NuttX PM
- * state machine.  No CONFIG_PM, no governor, no SCHED_HPWORK.
+ * The register-switching lower half follows the NuttX lc823450 DVFS
+ * precedent.  bk7258_pm_policy.c owns the stock NuttX PM integration and
+ * v3.1.1.9-compatible multi-client frequency aggregation.
  *
  * The whole per-tier switch (voltage -> dividers -> mux -> SysTick reload)
  * is atomic with respect to interrupts via irqsave()/irqrestore(): an ISR

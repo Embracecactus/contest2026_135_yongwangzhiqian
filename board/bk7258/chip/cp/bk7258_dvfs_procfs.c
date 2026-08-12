@@ -3,18 +3,18 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * /proc/dvfs interface for the BK7258 DVFS lower half.  Exposes the current
- * CPU frequency tier and accepts "cur_freq <tier>" to step it at runtime,
- * giving userspace a way to verify the DVFS path is live (not just a boot-
- * time one-shot).
+ * /proc/dvfs interface for the BK7258 DVFS policy.  Exposes the current CPU
+ * frequency tier and accepts "cur_freq <tier>" as the diagnostic APP
+ * client's vote, giving userspace a way to verify the DVFS path is live
+ * without bypassing other active module votes.
  *
  * Modelled on arch/arm/src/lc823450/lc823450_procfs_dvfs.c (lc823450 is the
  * NuttX OSS precedent for chip-local DVFS without the PM state machine).
  *
  * Contract:
- *   read  -> "cur_freq <tier>\n"  (tier = BK7258_FREQ_* integer 0..5)
- *   write -> "cur_freq <tier>\n"  steps the core clock to <tier>
- *           (out-of-range values are rejected by bk7258_dvfs_set_freq)
+ *   read  -> "cur_freq <tier>\n"  (tier = BK7258_FREQ_* integer 0..6)
+ *   write -> "cur_freq <tier>\n"  updates the APP vote to <tier>
+ *           (out-of-range values are rejected by the PM policy)
  *
  * Requires CONFIG_FS_PROCFS (independently mounted at /proc by
  * bk7258_bringup.c(board_app_initialize).  bk7258_dvfs_procfs_register()
@@ -36,6 +36,10 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/procfs.h>
+
+#ifdef CONFIG_BK7258_PM_POLICY
+#  include <arch/chip/bk7258_pm.h>
+#endif
 
 #include "bk7258_dvfs.h"
 
@@ -129,6 +133,7 @@ static ssize_t bk7258_dvfs_read(struct file *filep, char *buffer,
   size_t copysize;
   size_t remaining;
   off_t  offset = filep->f_pos;
+  int tier;
 
   if (priv == NULL)
     {
@@ -138,8 +143,24 @@ static ssize_t bk7258_dvfs_read(struct file *filep, char *buffer,
   remaining = buflen;
   totalsize = 0;
 
+#ifdef CONFIG_BK7258_PM_POLICY
+  {
+    struct bk7258_pm_frequency_status_s status;
+    int ret = bk7258_pm_frequency_get_status(&status);
+
+    if (ret < 0)
+      {
+        return ret;
+      }
+
+    tier = (int)status.current;
+  }
+#else
+  tier = bk7258_dvfs_get_freq();
+#endif
+
   priv->linesize = snprintf(priv->line, BK7258_DVFS_LINELEN,
-                            "cur_freq %d\n", bk7258_dvfs_get_freq());
+                            "cur_freq %d\n", tier);
   copysize = procfs_memcpy(priv->line, priv->linesize, buffer, remaining,
                            &offset);
   totalsize += copysize;
@@ -156,21 +177,29 @@ static ssize_t bk7258_dvfs_write(struct file *filep, const char *buffer,
                                  size_t buflen)
 {
   char line[BK7258_DVFS_LINELEN];
-  char cmd[16];
-  int  n;
-  int  tier;
+  size_t length;
+  int tier;
+  int ret;
 
-  n = MIN(buflen, sizeof(line) - 1);
-  strlcpy(line, buffer, (size_t)n + 1);
+  length = MIN(buflen, sizeof(line) - 1);
+  memcpy(line, buffer, length);
+  line[length] = '\0';
 
-  n = strcspn(line, " ");                    /* index of the space separator */
-  n = MIN((unsigned)n, sizeof(cmd) - 1);
-  strlcpy(cmd, line, (size_t)n + 1);
-
-  if (strcmp(cmd, "cur_freq") == 0)
+  if (sscanf(line, "cur_freq %d", &tier) != 1)
     {
-      tier = atoi(line + n + 1);             /* parse integer after the space */
-      bk7258_dvfs_set_freq(tier);
+      return -EINVAL;
+    }
+
+#ifdef CONFIG_BK7258_PM_POLICY
+  ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_APP,
+                                 (enum bk7258_pm_cpu_freq_e)tier);
+#else
+  ret = bk7258_dvfs_set_freq(tier);
+#endif
+
+  if (ret < 0)
+    {
+      return ret;
     }
 
   return (ssize_t)buflen;

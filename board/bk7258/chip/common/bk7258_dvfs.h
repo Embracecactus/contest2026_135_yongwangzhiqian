@@ -19,10 +19,9 @@
  * (VDDIG=0xB); per-tier VDDD/VDDIG lift and M1 mux switching happen here, one
  * tier at a time, so voltages step monotonically (no abrupt jumps).
  *
- * The interface mirrors NuttX's lc823450 DVFS pattern (a standalone
- * *_dvfs_set_freq(), not the NuttX PM state-machine subsystem) so this stays
- * minimal: no governor, no CONFIG_PM, no SCHED_HPWORK.  See
- * arch/arm/src/lc823450/lc823450_dvfs2.c for the OSS precedent.
+ * The register lower half mirrors NuttX's lc823450 standalone DVFS pattern.
+ * CP's bk7258_pm_policy.c integrates it with the stock NuttX PM lifecycle
+ * and adds the v3.1.1.9-compatible multi-client max-vote policy.
  *
  * SysTick reload is recomputed after every switch via bk7258_systick_recalc()
  * (chip/common/bk7258_timerisr.c) because SysTick is clocked at the processor clock.
@@ -37,7 +36,7 @@
  *   120M   120 MHz     0x3   0x3    0x1   0x6   0xC
  *   240M   240 MHz     0x3   0x1    0x1   0x6   0xD
  *   320M   160 MHz(*)  0x2   0x0    0x0   0x7   0xE
- *   480M   240 MHz(*)  0x3   0x0    0x0   0x7   0xE   (SDK-guarded, not used)
+ *   480M   240 MHz(*)  0x3   0x0    0x0   0x7   0xE
  *
  * (*) The SDK's 320/480 tiers set cpu0_speed=0 (/2), giving CPU0 only
  *     160/240 MHz respectively; CPU1/CPU2 retain the full core clock.  In the
@@ -45,8 +44,8 @@
  *     as the "SDK-aligned stable" point).  Reaching CPU0=320 is a separate,
  *     future task.  This API stays the same regardless.
  *
- * 480 MHz is not attempted: the SDK guard rejects cksel=3/clkdiv=0 direct and
- * the required 0xE VDDIG/power is out of scope (per project constraint).
+ * The 480 MHz tier is used by the official v3.1.1.9 video vote.  Physical
+ * CPU1/CPU2 run at 480 MHz while CP/CPU0 uses the official /2 divider.
  ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_BK7258_CHIP_BK7258_DVFS_H

@@ -37,6 +37,7 @@
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_dvp.h>
+#include <arch/chip/bk7258_pm.h>
 #include <arch/chip/bk7258_psram.h>
 
 #include <sdkconfig.h>
@@ -380,10 +381,32 @@ static int t5_camera_validate_frame(void)
   uint32_t bytesused = 0;
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
   uint32_t checksum = 0;
+  struct bk7258_pm_frequency_status_s dvfs_before;
+  struct bk7258_pm_frequency_status_s dvfs_active;
+  struct bk7258_pm_frequency_status_s dvfs_after;
 #endif
   int fd = -1;
   int ret = 0;
 
+#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
+  /* The v3.1.1.9 DVP lower half acquires its JPEG/video frequency vote
+   * while the device is opened and releases it when the device is closed.
+   * Sample the idle policy before open(), not after buffer setup. */
+
+  stage = "dvfs-before";
+  ret = bk7258_pm_frequency_get_status(&dvfs_before);
+  if (ret < 0 || dvfs_before.current != BK7258_PM_CPU_FREQ_120M)
+    {
+      if (ret >= 0)
+        {
+          ret = -ERANGE;
+        }
+
+      goto out;
+    }
+#endif
+
+  stage = "open";
   fd = open(T5_CAMERA_DEVPATH, O_RDONLY | O_NONBLOCK);
   if (fd < 0)
     {
@@ -451,6 +474,18 @@ static int t5_camera_validate_frame(void)
 
   streaming = true;
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
+  stage = "dvfs-active";
+  ret = bk7258_pm_frequency_get_status(&dvfs_active);
+  if (ret < 0 || dvfs_active.current != BK7258_PM_CPU_FREQ_480M)
+    {
+      if (ret >= 0)
+        {
+          ret = -ERANGE;
+        }
+
+      goto out;
+    }
+
   syslog(LOG_INFO, "BKCAMH264 STREAMON\n");
 #endif
   memset(&pollfd, 0, sizeof(pollfd));
@@ -511,18 +546,48 @@ static int t5_camera_validate_frame(void)
   ret = 0;
 
 out:
-  if (streaming && ioctl(fd, VIDIOC_STREAMOFF, (uintptr_t)&type) < 0 &&
-      ret == 0)
+  if (streaming && ioctl(fd, VIDIOC_STREAMOFF, (uintptr_t)&type) < 0)
     {
-      stage = "streamoff";
-      ret = -errno;
+      if (ret == 0)
+        {
+          stage = "streamoff";
+          ret = -errno;
+        }
+    }
+  else if (streaming)
+    {
+      streaming = false;
     }
 
-  if (fd >= 0 && close(fd) < 0 && ret == 0)
+  if (fd >= 0)
     {
-      stage = "close";
-      ret = -errno;
+      if (close(fd) < 0 && ret == 0)
+        {
+          stage = "close";
+          ret = -errno;
+        }
+
+      fd = -1;
     }
+
+#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
+  /* STREAMOFF stops frame flow, while close() synchronously tears down the
+   * SDK DVP/YUV instance and returns its frequency vote to DEFAULT. */
+
+  if (ret == 0)
+    {
+      stage = "dvfs-after";
+      ret = bk7258_pm_frequency_get_status(&dvfs_after);
+      if (ret >= 0 &&
+          (dvfs_after.current != BK7258_PM_CPU_FREQ_120M ||
+           dvfs_after.peak < BK7258_PM_CPU_FREQ_480M ||
+           dvfs_active.transitions <= dvfs_before.transitions ||
+           dvfs_after.transitions < dvfs_before.transitions + 2u))
+        {
+          ret = -ERANGE;
+        }
+    }
+#endif
 
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_RAW_YUV
   bk7258_psram_media_free(frame_base);
@@ -533,9 +598,12 @@ out:
     {
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
       syslog(LOG_INFO, "BKCAMH264 PASS bytes=%" PRIu32
-             " checksum=%08" PRIx32 " size=%ux%u\n",
+             " checksum=%08" PRIx32 " size=%ux%u dvfs=%" PRIu32
+             "->%" PRIu32 "->%" PRIu32 " transitions=%" PRIu32 "\n",
              bytesused, checksum,
-             T5_CAMERA_WIDTH, T5_CAMERA_HEIGHT);
+             T5_CAMERA_WIDTH, T5_CAMERA_HEIGHT,
+             dvfs_before.current, dvfs_active.current, dvfs_after.current,
+             dvfs_after.transitions - dvfs_before.transitions);
 #else
       syslog(LOG_INFO, "BKCAM PASS bytes=%" PRIu32
              " format=MJPEG size=%ux%u\n", bytesused,
