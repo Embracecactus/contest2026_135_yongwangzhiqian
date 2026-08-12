@@ -233,6 +233,11 @@ ifeq ($(CONFIG_BK7258_DVFS),y)
 BK7258_CP_CSRCS += bk7258_dvfs.c
 endif
 
+ifeq ($(CONFIG_BK7258_PM_POLICY),y)
+BK7258_CP_CSRCS += bk7258_pm_policy.c
+LDFLAGS += --wrap=bk_pm_module_vote_cpu_freq
+endif
+
 ifeq ($(CONFIG_BK7258_DVFS_PROCFS),y)
 BK7258_CP_CSRCS += bk7258_dvfs_procfs.c
 endif
@@ -437,11 +442,9 @@ ifeq ($(CONFIG_BK7258_PM_CLOCK),y)
 BK7258_AP_BASE_CSRCS += bk7258_pm_client.c
 ifeq ($(CONFIG_BK7258_AP_CORE),y)
 LDFLAGS += --wrap=bk_pm_clock_ctrl
+LDFLAGS += --wrap=bk_pm_module_vote_cpu_freq
 ifneq ($(filter y,$(CONFIG_BK7258_DMA2D) $(CONFIG_BK7258_SCALE_ROTATE) $(CONFIG_BK7258_JPEG_DECODER) $(CONFIG_BK7258_JPEG_ENCODER) $(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_DVP)),)
 LDFLAGS += --wrap=bk_pm_module_vote_power_ctrl
-endif
-ifneq ($(filter y,$(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_DVP)),)
-LDFLAGS += --wrap=bk_pm_module_vote_cpu_freq
 endif
 ifeq ($(CONFIG_BK7258_T5_BOARD_CAMERA_H264),y)
 LDFLAGS += --wrap=bk_yuv_buf_start

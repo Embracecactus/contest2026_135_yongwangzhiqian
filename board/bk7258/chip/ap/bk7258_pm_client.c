@@ -19,6 +19,7 @@
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/rpmsg/rpmsg.h>
+#include <nuttx/sched.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/signal.h>
 
@@ -40,7 +41,7 @@ struct bk7258_pm_client_s
   uint32_t sequence;
   uint32_t waiting_generation;
   uint32_t waiting_sequence;
-  int reply_status;
+  struct bk7258_pm_wire_s reply;
 };
 
 static struct bk7258_pm_client_s g_bk7258_pm_client =
@@ -74,7 +75,14 @@ static struct bk7258_pm_client_s g_bk7258_pm_client =
 #define BK7258_SDK_POWER_VIDP_H264         148u
 #define BK7258_SDK_POWER_STATE_ON   0
 #define BK7258_SDK_POWER_STATE_OFF  1
+#define BK7258_SDK_PM_DEV_PWM2      12u
+#define BK7258_SDK_PM_DEV_USB       17u
 #define BK7258_SDK_PM_DEV_JPEG      28u
+#define BK7258_SDK_PM_DEV_DISPLAY   29u
+#define BK7258_SDK_PM_DEV_AUDIO     30u
+#define BK7258_SDK_PM_DEV_DECODER   33u
+#define BK7258_SDK_PM_DEV_SECURE    36u
+#define BK7258_SDK_PM_DEV_DEFAULT   40u
 #define BK7258_SDK_PM_CPU_FREQ_MAX  7
 
 static const enum bk7258_pm_clock_e
@@ -130,16 +138,15 @@ static bool g_bk7258_pm_sdk_rotator_enabled;
 static bool g_bk7258_pm_sdk_scale0_enabled;
 static bool g_bk7258_pm_sdk_scale1_enabled;
 static bool g_bk7258_pm_sdk_h264_enabled;
-static int g_bk7258_pm_sdk_video_freq = BK7258_PM_CPU_FREQ_DEFAULT;
+static uint8_t g_bk7258_pm_sdk_freq[BK7258_PM_FREQ_CLIENT_COUNT];
 static uint32_t g_bk7258_pm_sdk_generation;
 
 extern int __real_bk_pm_module_vote_power_ctrl(unsigned int module,
                                                 int power_state);
-extern int __real_bk_pm_module_vote_cpu_freq(unsigned int module,
-                                              int cpu_freq);
-
 static void bk7258_pm_sdk_reset_generation(uint32_t generation)
 {
+  unsigned int i;
+
   memset(g_bk7258_pm_sdk_enabled, 0, sizeof(g_bk7258_pm_sdk_enabled));
   g_bk7258_pm_sdk_jpeg_encoder_enabled = false;
   g_bk7258_pm_sdk_jpeg_decoder_enabled = false;
@@ -149,7 +156,11 @@ static void bk7258_pm_sdk_reset_generation(uint32_t generation)
   g_bk7258_pm_sdk_scale0_enabled = false;
   g_bk7258_pm_sdk_scale1_enabled = false;
   g_bk7258_pm_sdk_h264_enabled = false;
-  g_bk7258_pm_sdk_video_freq = BK7258_PM_CPU_FREQ_DEFAULT;
+  for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
+    {
+      g_bk7258_pm_sdk_freq[i] = BK7258_PM_CPU_FREQ_DEFAULT;
+    }
+
   __atomic_store_n(&g_bk7258_pm_sdk_generation, generation,
                    __ATOMIC_RELEASE);
 }
@@ -241,7 +252,7 @@ static int bk7258_pm_client_cb(FAR struct rpmsg_endpoint *ept,
       return -ENOMSG;
     }
 
-  priv->reply_status = reply->status;
+  memcpy(&priv->reply, reply, sizeof(priv->reply));
   __asm volatile ("dmb sy" ::: "memory");
   priv->reply_valid = true;
   return nxsem_post(&priv->reply_sem);
@@ -294,7 +305,8 @@ static void bk7258_pm_device_destroy(FAR struct rpmsg_device *rdev,
 
 static int bk7258_pm_request(uint32_t resource,
                              enum bk7258_pm_command_e command,
-                             uint32_t value)
+                             uint32_t value,
+                             struct bk7258_pm_frequency_status_s *snapshot)
 {
   struct bk7258_pm_client_s *priv = &g_bk7258_pm_client;
   volatile struct bk7258_rptun_control_s *control =
@@ -312,6 +324,11 @@ static int bk7258_pm_request(uint32_t resource,
   if (command == BK7258_PM_COMMAND_CPU_FREQ_VOTE &&
       (resource >= BK7258_PM_FREQ_CLIENT_COUNT ||
        value > BK7258_PM_CPU_FREQ_DEFAULT))
+    {
+      return -EINVAL;
+    }
+
+  if (command == BK7258_PM_COMMAND_CPU_FREQ_QUERY && snapshot == NULL)
     {
       return -EINVAL;
     }
@@ -367,8 +384,14 @@ static int bk7258_pm_request(uint32_t resource,
   __asm volatile ("dmb sy" ::: "memory");
   if (ret >= 0)
     {
-      ret = priv->reply_valid ? priv->reply_status :
+      ret = priv->reply_valid ? priv->reply.status :
             (priv->connection_error < 0 ? priv->connection_error : -ESTALE);
+      if (ret >= 0 && snapshot != NULL)
+        {
+          snapshot->transitions = priv->reply.clock;
+          snapshot->current = priv->reply.refcount;
+          snapshot->peak = priv->reply.reserved;
+        }
     }
 
 out:
@@ -413,12 +436,81 @@ int bk7258_pm_initialize(void)
 
 int bk7258_pm_clock_get(enum bk7258_pm_clock_e clock)
 {
-  return bk7258_pm_request(clock, BK7258_PM_COMMAND_CLOCK_GET, 0);
+  return bk7258_pm_request(clock, BK7258_PM_COMMAND_CLOCK_GET, 0, NULL);
 }
 
 int bk7258_pm_clock_put(enum bk7258_pm_clock_e clock)
 {
-  return bk7258_pm_request(clock, BK7258_PM_COMMAND_CLOCK_PUT, 0);
+  return bk7258_pm_request(clock, BK7258_PM_COMMAND_CLOCK_PUT, 0, NULL);
+}
+
+static int bk7258_pm_recalc_primary(FAR void *arg)
+{
+  (void)arg;
+  bk7258_systick_recalc();
+  return OK;
+}
+
+static int bk7258_pm_recalc_primary_timebase(void)
+{
+#ifdef CONFIG_SMP
+  if (this_cpu() != 0)
+    {
+      return nxsched_smp_call_single(0, bk7258_pm_recalc_primary, NULL);
+    }
+#endif
+
+  return bk7258_pm_recalc_primary(NULL);
+}
+
+int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
+                             enum bk7258_pm_cpu_freq_e frequency)
+{
+  int ret;
+
+  ret = bk7258_pm_request(client, BK7258_PM_COMMAND_CPU_FREQ_VOTE,
+                          frequency, NULL);
+  if (ret >= 0)
+    {
+      /* CP changes the shared mux and repairs its own SysTick before
+       * replying.  The AP system tick belongs to logical CPU0 even when a
+       * module vote originates on logical CPU1. */
+
+      ret = bk7258_pm_recalc_primary_timebase();
+    }
+
+  return ret;
+}
+
+int bk7258_pm_frequency_get_status(
+  struct bk7258_pm_frequency_status_s *status)
+{
+  return bk7258_pm_request(0, BK7258_PM_COMMAND_CPU_FREQ_QUERY, 0, status);
+}
+
+static int bk7258_pm_sdk_freq_client(unsigned int module)
+{
+  switch (module)
+    {
+      case BK7258_SDK_PM_DEV_JPEG:
+        return BK7258_PM_FREQ_CLIENT_VIDEO_ENCODER;
+      case BK7258_SDK_PM_DEV_DECODER:
+        return BK7258_PM_FREQ_CLIENT_VIDEO_DECODER;
+      case BK7258_SDK_PM_DEV_DISPLAY:
+        return BK7258_PM_FREQ_CLIENT_DISPLAY;
+      case BK7258_SDK_PM_DEV_AUDIO:
+        return BK7258_PM_FREQ_CLIENT_AUDIO;
+      case BK7258_SDK_PM_DEV_USB:
+        return BK7258_PM_FREQ_CLIENT_USB;
+      case BK7258_SDK_PM_DEV_PWM2:
+        return BK7258_PM_FREQ_CLIENT_PWM;
+      case BK7258_SDK_PM_DEV_SECURE:
+        return BK7258_PM_FREQ_CLIENT_SECURE;
+      case BK7258_SDK_PM_DEV_DEFAULT:
+        return BK7258_PM_FREQ_CLIENT_DEFAULT;
+      default:
+        return -ENOTSUP;
+    }
 }
 
 /* v3.1.1.9 bk_yuv_buf_init() votes PM_DEV_ID_JPEG to 480 MHz before
@@ -432,11 +524,13 @@ int __wrap_bk_pm_module_vote_cpu_freq(unsigned int module, int cpu_freq)
   volatile struct bk7258_rptun_control_s *control =
     bk7258_rptun_control();
   uint32_t generation;
+  int client;
   int ret;
 
-  if (module != BK7258_SDK_PM_DEV_JPEG)
+  client = bk7258_pm_sdk_freq_client(module);
+  if (client < 0)
     {
-      return __real_bk_pm_module_vote_cpu_freq(module, cpu_freq);
+      return client;
     }
 
   if (cpu_freq < 0 || cpu_freq > BK7258_SDK_PM_CPU_FREQ_MAX)
@@ -463,25 +557,16 @@ int __wrap_bk_pm_module_vote_cpu_freq(unsigned int module, int cpu_freq)
       bk7258_pm_sdk_reset_generation(generation);
     }
 
-  if (g_bk7258_pm_sdk_video_freq == cpu_freq)
+  if (g_bk7258_pm_sdk_freq[client] == cpu_freq)
     {
       ret = OK;
       goto out;
     }
 
-  ret = bk7258_pm_request(BK7258_PM_FREQ_CLIENT_VIDEO,
-                          BK7258_PM_COMMAND_CPU_FREQ_VOTE,
-                          (uint32_t)cpu_freq);
+  ret = bk7258_pm_frequency_vote(client, cpu_freq);
   if (ret >= 0)
     {
-      g_bk7258_pm_sdk_video_freq = cpu_freq;
-
-      /* The frequency mux is shared, but SysTick is core-local.  Camera
-       * bring-up runs on AP logical CPU0, so repair its tick immediately
-       * after CP acknowledges the clock transition.
-       */
-
-      bk7258_systick_recalc();
+      g_bk7258_pm_sdk_freq[client] = cpu_freq;
     }
 
 out:

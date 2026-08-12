@@ -299,13 +299,27 @@ config BK7258_PM_CLOCK
 	bool "CP-owned peripheral clock voting service"
 	default y if BK7258_RPTUN
 	depends on BK7258_RPTUN
-	select BK7258_DVFS if !BK7258_AP_CORE
+	select BK7258_PM_POLICY if !BK7258_AP_CORE
 	---help---
 		Keep BK7258 peripheral leaf-clock ownership on CP and expose a bounded,
 		generation-safe RPMsg get/put wrapper to AP drivers.  The server maps a
 		project-owned allow-list onto the official v3.1.1.9 sys_ctrl API and
 		reference-counts each clock.  This is the clock-ownership foundation;
-		it does not yet enable NuttX system sleep states or a PM governor.
+		The CP image also selects the board PM policy below.
+
+config BK7258_PM_POLICY
+	bool "CP-owned NuttX PM and multi-client DVFS policy"
+	default y
+	depends on BK7258_PM_CLOCK && !BK7258_AP_CORE
+	select PM
+	select BK7258_DVFS
+	---help---
+		Initialize the stock NuttX PM framework during ARM bring-up and keep
+		all BK7258 frequency decisions on CP.  SDK module votes and AP RPMsg
+		votes are translated to stable board client IDs and the highest active
+		vote wins, matching v3.1.1.9.  The official 120 MHz default vote is the
+		floor.  This first phase explicitly rejects idle/standby/sleep state
+		changes; only DVFS and existing reference-counted clock gating are live.
 
 config BK7258_RPMSG_TEST
 	bool "N9 AP-SMP RPMsg bounded concurrency test"
@@ -758,8 +772,9 @@ config BK7258_DVFS
 		reload).  This is NOT the NuttX PM state machine: it follows the
 		lc823450 DVFS precedent of a single chip-local set_freq() with no
 		governor/HPWORK dependency.  Boot-time bring-up under
-		BK7258_CLOCK_320M selects this; runtime switching via /proc/dvfs
-		is available under BK7258_DVFS_PROCFS.
+		BK7258_CLOCK_320M and BK7258_PM_POLICY select this.  The latter uses
+		the stock NuttX PM lifecycle plus a board-owned frequency-QoS policy;
+		runtime switching via /proc/dvfs remains available for diagnostics.
 
 config BK7258_DVFS_PROCFS
 	bool "BK7258 /proc/dvfs runtime DVFS control"
