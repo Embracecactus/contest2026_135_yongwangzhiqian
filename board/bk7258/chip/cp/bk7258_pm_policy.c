@@ -60,11 +60,13 @@ static int bk7258_pm_prepare(FAR struct pm_callback_s *callback, int domain,
   (void)callback;
   (void)domain;
 
-  /* Phase one intentionally supports only active DVFS and leaf-clock
-   * gating.  Fail closed if a governor or application requests a sleep
-   * state before the platform wake/restore path exists. */
+  /* Phase one supports ordinary PM_IDLE/WFI only.  PM_STANDBY and PM_SLEEP
+   * remain fail-closed until the complete CP/AP coordinated low-voltage and
+   * wake/restore protocol exists.
+   */
 
-  return state == PM_NORMAL || state == PM_RESTORE ? OK : -EBUSY;
+  return state == PM_NORMAL || state == PM_IDLE || state == PM_RESTORE ?
+         OK : -EBUSY;
 }
 
 static void bk7258_pm_notify(FAR struct pm_callback_s *callback, int domain,
@@ -217,6 +219,12 @@ void arm_pminitialize(void)
   unsigned int i;
 
   pm_initialize();
+
+  /* Bound the greedy governor at PM_IDLE.  The prepare callback independently
+   * rejects deeper states, keeping this first phase shallow-only.
+   */
+
+  pm_stay(PM_IDLE_DOMAIN, PM_IDLE);
 
   for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
     {

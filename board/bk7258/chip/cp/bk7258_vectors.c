@@ -69,6 +69,7 @@
 
 #include "chip.h"
 #include "arm_internal.h"
+#include <arch/chip/bk7258_console.h>
 #include "ram_vectors.h"
 #include "nvic.h"
 
@@ -91,17 +92,17 @@
 #define BK7258_APP_MAGIC_WORD0          0x32374b42u   /* "BK72" */
 #define BK7258_APP_MAGIC_WORD1          0x00003633u   /* "36\0\0" */
 
-/* UART1 FIFO registers -- bare-MMIO path identical to bk7258_start.c's
- * bk7258_early_putc.  Duplicated here (vectors.c does not include
- * bk7258_start.c, which keeps bk7258_early_putc file-static).  Used only
- * by the diagnostic HardFault/NMI handler below.  Touches only MMIO, so it
- * is safe from a faulted exception context (no .data/.bss dependency).
+/* The fault path uses only the compile-time selected UART MMIO address.  RTT
+ * and NONE builds remain silent because an exception handler cannot safely
+ * depend on the RTT control block or a UART whose pins it does not own.
  */
 
-#define BK7258_FAULT_UART1_FIFO_STAT    (*(volatile unsigned int *)0x45830018u)
-#define BK7258_FAULT_UART1_FIFO_PORT    (*(volatile unsigned int *)0x4583001Cu)
-#define BK7258_FAULT_UART1_FIFO_READY   (1u << 20)
-#define BK7258_FAULT_UART1_POLL_LIMIT   100000u
+#ifdef BK7258_HAVE_UART_CONSOLE
+#  define BK7258_FAULT_UART_FIFO_STAT \
+  (*(volatile unsigned int *)BK7258_CONSOLE_FIFO_STATUS)
+#  define BK7258_FAULT_UART_FIFO_PORT \
+  (*(volatile unsigned int *)BK7258_CONSOLE_FIFO_PORT)
+#endif
 
 #define BK7258_SCB_CFSR                 (*(volatile uint32_t *)0xe000ed28u)
 #define BK7258_SCB_HFSR                 (*(volatile uint32_t *)0xe000ed2cu)
@@ -246,26 +247,23 @@ static void bk7258_reset_entry(void)
                   : "r"(0), "r"(__start));
 }
 
-/* Bare polled UART1 output -- freestanding, MMIO-only, identical to the
- * bk7258_early_putc() in bk7258_start.c.  Duplicated here because vectors.c
- * does not include bk7258_start.c (whose bk7258_early_putc is file-static)
- * and because the fault handler must not depend on any .data/.bss state.
- */
-
 static void bk7258_fault_putc(unsigned char c)
 {
+#ifdef BK7258_HAVE_UART_CONSOLE
   uint32_t count;
 
-  for (count = 0; count < BK7258_FAULT_UART1_POLL_LIMIT; count++)
+  for (count = 0; count < BK7258_UART_TX_POLL_LIMIT; count++)
     {
-      if ((BK7258_FAULT_UART1_FIFO_STAT &
-           BK7258_FAULT_UART1_FIFO_READY) != 0)
+      if ((BK7258_FAULT_UART_FIFO_STAT & BK7258_UART_TX_READY) != 0)
         {
           break;
         }
     }
 
-  BK7258_FAULT_UART1_FIFO_PORT = (unsigned int)(c & 0xffu);
+  BK7258_FAULT_UART_FIFO_PORT = (unsigned int)(c & 0xffu);
+#else
+  (void)c;
+#endif
 }
 
 static void bk7258_fault_puthex(uint32_t value)
@@ -535,7 +533,8 @@ const void *const _vectors[80] =
   [1]  = (void *)bk7258_reset_entry,
 
   /* [2..3] NMI + HardFault -> diagnostic bk7258_hardfault_handler.
-   *   Capture the frame at 0x2809f100, print key registers on UART1, then
+   *   Capture the frame at 0x2809f100, print key registers on the selected
+   *   UART console when one exists, then
    *   park.  NMI ([2]) uses the same path so escalated faults are observable.
    */
   [2]  = &bk7258_hardfault_handler,

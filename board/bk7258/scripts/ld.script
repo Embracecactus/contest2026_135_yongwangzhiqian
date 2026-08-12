@@ -272,7 +272,16 @@ SECTIONS
      */
     . = ALIGN(16);
     _sheap = ABSOLUTE(.);
+#ifdef CONFIG_BK7258_SWD_DEBUG
+    /* Preserve the last 2 KiB of CP SRAM across warm reset.  The diagnostic
+     * trace is addressed explicitly at 0x2804f800, remains outside BL2's
+     * 0x28010000..0x2802ffff copy window, and is never handed to the heap. */
+    _eheap = 0x2804f7fc;
+    ASSERT(_ebss + CONFIG_IDLETHREAD_STACKSIZE <= 0x2804f7fc,
+           "ERROR: CP image/IDLE stack overlaps SWD trace")
+#else
     _eheap = ORIGIN(RAM) + LENGTH(RAM) - 4;
+#endif
 
     ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
            ORIGIN(FLASH) + LENGTH(FLASH),

@@ -68,17 +68,41 @@ BK7258_COMMON_CSRCS += bk7258_timerisr.c
 BK7258_COMMON_CSRCS += bk7258_allocateheap.c
 BK7258_COMMON_CSRCS += bk7258_os_adapt.c
 BK7258_COMMON_CSRCS += bk7258_sdk_stubs.c
+BK7258_COMMON_CSRCS += bk7258_idle.c
+BK7258_RUNTIME_CSRCS = $(wordlist 3,8,$(BK7258_COMMON_CSRCS))
 
 # CPU0/CP sources.  Preserve the pre-refactor source order so archive/link
 # ordering and vector handler addresses remain unchanged.
 
 BK7258_CP_CSRCS  = bk7258_vectors.c
 BK7258_CP_CSRCS += bk7258_start.c
-BK7258_CP_CSRCS += $(BK7258_COMMON_CSRCS)
+ifeq ($(CONFIG_BK7258_CONSOLE_RTT),y)
+# RTT supplies the early polled primitive without claiming a UART.
+INCLUDES += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)segger$(DELIM)SystemView$(DELIM)SEGGER
+INCLUDES += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)segger$(DELIM)config
+BK7258_CP_CSRCS += bk7258_rtt_lowputc.c
+else
+ifneq ($(filter y,$(CONFIG_BK7258_CONSOLE_UART0) $(CONFIG_BK7258_CONSOLE_UART1) $(CONFIG_BK7258_CONSOLE_UART2)),)
+BK7258_CP_CSRCS += bk7258_lowputc.c
+endif
+endif
+ifneq ($(filter y,$(CONFIG_BK7258_UART0) $(CONFIG_BK7258_UART1) $(CONFIG_BK7258_UART2)),)
+BK7258_CP_CSRCS += bk7258_serial.c
+endif
+BK7258_CP_CSRCS += $(BK7258_RUNTIME_CSRCS)
 BK7258_CP_CSRCS += bk7258_sdk_partition.c
 
-ifeq ($(CONFIG_BK7258_SWD_RTT_DEBUG),y)
+ifeq ($(CONFIG_BK7258_SWD_DEBUG),y)
 BK7258_CP_CSRCS += bk7258_swd_debug.c
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+# bk_gpio_driver_init() lives in the immutable SDK archive.  Its default-map
+# helper rewrites every GPIO, including debugger-owned P0/P1, before any
+# caller can restore SWD.  The RTT profile supplies a CP-only debug wrapper
+# which leaves the bootloader-established pin state intact; GPIO clients
+# still get the SDK driver's HAL/IRQ initialization and configure their own
+# pins explicitly.
+LDFLAGS += --wrap=gpio_hal_default_map_init
+endif
 endif
 
 ifeq ($(CONFIG_BK7258_SDK_IPC_RUNTIME),y)
@@ -446,6 +470,7 @@ LDFLAGS += --wrap=bk_pm_module_vote_cpu_freq
 ifneq ($(filter y,$(CONFIG_BK7258_DMA2D) $(CONFIG_BK7258_SCALE_ROTATE) $(CONFIG_BK7258_JPEG_DECODER) $(CONFIG_BK7258_JPEG_ENCODER) $(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_DVP)),)
 LDFLAGS += --wrap=bk_pm_module_vote_power_ctrl
 endif
+
 ifeq ($(CONFIG_BK7258_T5_BOARD_CAMERA_H264),y)
 LDFLAGS += --wrap=bk_yuv_buf_start
 LDFLAGS += --wrap=bk_h264_encode_enable
@@ -476,7 +501,7 @@ endif
 
 BK7258_AP_UP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
 BK7258_AP_UP_CSRCS += bk7258_cpu2_probe.c
-BK7258_AP_UP_CSRCS += $(wordlist 6,7,$(BK7258_COMMON_CSRCS))
+BK7258_AP_UP_CSRCS += $(wordlist 6,8,$(BK7258_COMMON_CSRCS))
 
 BK7258_AP_SMP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
 BK7258_AP_SMP_CSRCS += bk7258_ap_smp.c
@@ -486,7 +511,7 @@ ifeq ($(CONFIG_BK7258_AP_IPI),y)
 BK7258_AP_SMP_CSRCS += bk7258_sdk_irq.c
 BK7258_AP_SMP_CSRCS += bk7258_ap_ipi.c
 endif
-BK7258_AP_SMP_CSRCS += $(wordlist 6,7,$(BK7258_COMMON_CSRCS))
+BK7258_AP_SMP_CSRCS += $(wordlist 6,8,$(BK7258_COMMON_CSRCS))
 
 ifeq ($(CONFIG_ARM_SYSTICK),y)
 BK7258_AP_UP_CSRCS += arm_systick.c

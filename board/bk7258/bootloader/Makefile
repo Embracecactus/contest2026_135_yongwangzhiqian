@@ -21,7 +21,7 @@ CPUFLAGS := -mcpu=cortex-m33 -mthumb -mfloat-abi=soft
 CFLAGS   := $(CPUFLAGS) -Os -g -ffreestanding -fno-builtin -Wall -Wextra \
             -Werror \
             -fdata-sections -ffunction-sections -I../chip/include
-ASFLAGS  := $(CPUFLAGS) -Os -g -ffreestanding
+ASFLAGS  := $(CPUFLAGS) -Os -g -ffreestanding -I../chip/include
 LDFLAGS  := $(CPUFLAGS) -T bootloader.tmp -nostdlib -Wl,--gc-sections \
             -Wl,-Map=bl.map
 
@@ -31,6 +31,65 @@ PARTITION_HEADER := ../chip/include/bk7258_partition_layout.h
 BL1_CONTROL_GENERATOR := make_bk7258_bl1_control.py
 BL2_IMAGE ?= bl2/bl2.bin
 BL1_CONTROL_IMAGE ?= bl1_control.bin
+
+# BL1 is the first owner of debug and early-console pinmux.  The dual-image
+# builder derives these values from the CP defconfig and passes the identical
+# route to BL2.  Standalone builds retain the established UART1 baseline.
+BL1_SWD_ENABLE ?= 0
+BL1_SWD_PIN_GROUP ?= 1
+BL1_SWD_TARGET ?= 0
+BL1_SWD_BOOT_HOLD ?= 0
+BL1_USE_BL2 ?= 0
+BL1_CONSOLE_UART ?= 1
+BL1_CONSOLE_BAUD ?= 460800
+BL1_CONSOLE_DATA_BITS ?= 8
+BL1_CONSOLE_PARITY ?= 0
+BL1_CONSOLE_STOP_BITS ?= 1
+BL1_UART2_PIN_GROUP ?= 0
+ifneq ($(filter $(BL1_SWD_ENABLE),0 1),$(BL1_SWD_ENABLE))
+$(error BL1_SWD_ENABLE must be exactly 0 or 1)
+endif
+ifneq ($(filter $(BL1_SWD_PIN_GROUP),0 1),$(BL1_SWD_PIN_GROUP))
+$(error BL1_SWD_PIN_GROUP must be 0 (P20/P21) or 1 (P0/P1))
+endif
+ifneq ($(filter $(BL1_SWD_TARGET),0 1 2),$(BL1_SWD_TARGET))
+$(error BL1_SWD_TARGET must be 0, 1 or 2)
+endif
+ifneq ($(filter $(BL1_SWD_BOOT_HOLD),0 1),$(BL1_SWD_BOOT_HOLD))
+$(error BL1_SWD_BOOT_HOLD must be exactly 0 or 1)
+endif
+ifneq ($(filter $(BL1_USE_BL2),0 1),$(BL1_USE_BL2))
+$(error BL1_USE_BL2 must be exactly 0 or 1)
+endif
+ifneq ($(filter $(BL1_CONSOLE_UART),0 1 2 3),$(BL1_CONSOLE_UART))
+$(error BL1_CONSOLE_UART must be 0, 1, 2 or 3 (RTT/NONE))
+endif
+ifneq ($(filter $(BL1_CONSOLE_DATA_BITS),5 6 7 8),$(BL1_CONSOLE_DATA_BITS))
+$(error BL1_CONSOLE_DATA_BITS must be 5, 6, 7 or 8)
+endif
+ifneq ($(filter $(BL1_CONSOLE_PARITY),0 1 2),$(BL1_CONSOLE_PARITY))
+$(error BL1_CONSOLE_PARITY must be 0, 1 or 2)
+endif
+ifneq ($(filter $(BL1_CONSOLE_STOP_BITS),1 2),$(BL1_CONSOLE_STOP_BITS))
+$(error BL1_CONSOLE_STOP_BITS must be 1 or 2)
+endif
+ifneq ($(filter $(BL1_UART2_PIN_GROUP),0 1),$(BL1_UART2_PIN_GROUP))
+$(error BL1_UART2_PIN_GROUP must be 0 (P30/P31) or 1 (P40/P41))
+endif
+BOOT_IO_DEFINES := \
+	-DBK7258_BL1_SWD_ENABLE=$(BL1_SWD_ENABLE) \
+	-DBK7258_BL1_SWD_PIN_GROUP=$(BL1_SWD_PIN_GROUP) \
+	-DBK7258_BL1_SWD_TARGET=$(BL1_SWD_TARGET) \
+	-DBK7258_BL1_SWD_BOOT_HOLD=$(BL1_SWD_BOOT_HOLD) \
+	-DBK7258_BL1_USE_BL2=$(BL1_USE_BL2) \
+	-DBK7258_BL1_CONSOLE_UART=$(BL1_CONSOLE_UART) \
+	-DBK7258_BL1_CONSOLE_BAUD=$(BL1_CONSOLE_BAUD) \
+	-DBK7258_BL1_CONSOLE_DATA_BITS=$(BL1_CONSOLE_DATA_BITS) \
+	-DBK7258_BL1_CONSOLE_PARITY=$(BL1_CONSOLE_PARITY) \
+	-DBK7258_BL1_CONSOLE_STOP_BITS=$(BL1_CONSOLE_STOP_BITS) \
+	-DBK7258_BL1_UART2_PIN_GROUP=$(BL1_UART2_PIN_GROUP)
+CFLAGS += $(BOOT_IO_DEFINES)
+ASFLAGS += $(BOOT_IO_DEFINES)
 NUTTX_ROOT ?= ../../../../nuttx
 MCUBOOT_ROOT := $(NUTTX_ROOT)/../apps/boot/mcuboot/mcuboot
 TINYCRYPT_ROOT := $(MCUBOOT_ROOT)/ext/tinycrypt/lib
@@ -52,6 +111,9 @@ ifneq ($(filter $(BL1_MANIFEST_RAW_PAGE),0 1),$(BL1_MANIFEST_RAW_PAGE))
 $(error BL1_MANIFEST_RAW_PAGE must be exactly 0 or 1)
 endif
 ifeq ($(BL1_MANIFEST_RAW_PAGE),1)
+ifeq ($(BL1_USE_BL2),0)
+$(error BL1_MANIFEST_RAW_PAGE requires BL1_USE_BL2=1)
+endif
 ifeq ($(BL1_MANIFEST_ENFORCE),0)
 $(error BL1_MANIFEST_RAW_PAGE requires BL1_MANIFEST_ENFORCE=1)
 endif
@@ -92,6 +154,9 @@ ifneq ($(filter $(BL1_BOOT_CONTROL_STAGING),0 1),$(BL1_BOOT_CONTROL_STAGING))
 $(error BL1_BOOT_CONTROL_STAGING must be exactly 0 or 1)
 endif
 ifeq ($(BL1_BOOT_CONTROL_STAGING),1)
+ifeq ($(BL1_USE_BL2),0)
+$(error BL1_BOOT_CONTROL_STAGING requires BL1_USE_BL2=1)
+endif
 CFLAGS += -DBK7258_BL1_BOOT_CONTROL_STAGING=1u \
           -DBK7258_BL1_BOOT_CONTROL_RAW_OFFSET=0x1000u \
           -DBK7258_BL1_PRIMARY_MANIFEST_XIP=0x02003000u \
@@ -99,6 +164,9 @@ CFLAGS += -DBK7258_BL1_BOOT_CONTROL_STAGING=1u \
 endif
 
 ifeq ($(BL1_MANIFEST_ENFORCE),1)
+ifeq ($(BL1_USE_BL2),0)
+$(error BL1_MANIFEST_ENFORCE requires BL1_USE_BL2=1)
+endif
 ifeq ($(strip $(BL1_MANIFEST_PRIMARY)),)
 $(error BL1_MANIFEST_PRIMARY must name a signed record when BL1_MANIFEST_ENFORCE=1)
 endif
@@ -206,12 +274,18 @@ bl_crc.bin: bl.bin bk7236_pack_min_bootloader.py FORCE
 
 verify: bl_crc.bin
 	@for symbol in Reset_Handler c_main fal_partition_table \
-		bk7258_bl1_handoff_vector_valid; do \
+		; do \
 		$(NM) -n bl.elf | grep -qw "$$symbol" || { \
 			echo "bootloader missing required symbol: $$symbol" >&2; \
 			exit 1; \
 		}; \
 	done
+ifeq ($(BL1_USE_BL2),1)
+	@$(NM) -n bl.elf | grep -qw bk7258_bl1_handoff_vector_valid || { \
+		echo 'BL2-handoff BL1 lacks its vector validator' >&2; \
+		exit 1; \
+	}
+endif
 ifeq ($(BL1_MANIFEST_ENFORCE),1)
 	@$(NM) -n bl.elf | grep -qw bk7258_bl1_manifest_verify_at || { \
 		echo 'Manifest-enforcing BL1 lacks its verifier' >&2; \

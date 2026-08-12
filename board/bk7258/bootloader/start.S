@@ -20,6 +20,27 @@
     .cpu cortex-m33
     .thumb
 
+#include "bk7258_debug_route.h"
+
+#define BK7258_BL1_UART_DIV \
+    ((26000000 / BK7258_BL1_CONSOLE_BAUD) - 1)
+#if BK7258_BL1_CONSOLE_PARITY == 1
+#  define BK7258_BL1_UART_PARITY_BITS 0x60
+#elif BK7258_BL1_CONSOLE_PARITY == 2
+#  define BK7258_BL1_UART_PARITY_BITS 0x20
+#else
+#  define BK7258_BL1_UART_PARITY_BITS 0
+#endif
+#if BK7258_BL1_CONSOLE_STOP_BITS == 2
+#  define BK7258_BL1_UART_STOP_BITS 0x80
+#else
+#  define BK7258_BL1_UART_STOP_BITS 0
+#endif
+#define BK7258_BL1_UART_CONFIG \
+    (0x3 | ((BK7258_BL1_CONSOLE_DATA_BITS - 5) << 3) | \
+     BK7258_BL1_UART_PARITY_BITS | BK7258_BL1_UART_STOP_BITS | \
+     (BK7258_BL1_UART_DIV << 8))
+
 /* ------------------------------------------------------------------------ */
 /* 0x000: initial vector table (64 words = 0x100 bytes)                      */
 /* ------------------------------------------------------------------------ */
@@ -97,6 +118,20 @@ Reset_Handler:
     str  r1, [r0]
     str  r1, [r0, #4]
 
+#if BK7258_BL1_SWD_ENABLE
+    /* Keep SWD reachable even if the CP image faults before board bring-up.
+     * The RTT profile exposes CPU0 throughout boot and runtime; CPU1 remains
+     * independently controlled by CP and is never a prerequisite for attach.
+     */
+    ldr  r0, =BK7258_SYS_CPU_ROUTE_REG
+    ldr  r1, [r0]
+    ldr  r2, =BK7258_SYS_JTAG_CORE_MASK
+    bics r1, r1, r2
+    ldr  r2, =(BK7258_BL1_SWD_TARGET << BK7258_SYS_JTAG_CORE_SHIFT)
+    orrs r1, r1, r2
+    str  r1, [r0]
+#endif
+
     /* Disable/feed AON WDT and APB WDT with the required key sequence. (verbatim) */
     ldr  r0, =0x44000600     /* AON_WDT_CTRL */
     ldr  r1, =0x005A0000     /* key1, period=0 */
@@ -118,42 +153,91 @@ Reset_Handler:
      * later clock helper switches the already-divided Flash clock to DPLL. */
     bl   boot_flash_reset_prepare
 
-    /* Configure GPIO0/1 like the known-good UART1 probe state. (verbatim) */
-    ldr  r0, =0x440100C0     /* GPIO0..7 peripheral mode */
-    movs r1, #0
+#if BK7258_BL1_SWD_ENABLE
+    bl   boot_swd_route_apply
+#endif
+
+#if BK7258_BL1_CONSOLE_UART < 3
+    /* Configure only the selected UART pins.  SWD and UART are independent
+     * owners unless Kconfig/build validation rejects an overlapping route.
+     */
+#  if BK7258_BL1_CONSOLE_UART == 0
+    ldr  r0, =0x440100C4
+    ldr  r1, [r0]
+    bic  r1, r1, #0x0000ff00
     str  r1, [r0]
-    ldr  r0, =0x44000400     /* GPIO0: UART_ID_1 TXD */
-    ldr  r1, =0x00000078
+    ldr  r0, =0x44000428     /* P10 UART0 RX */
+    ldr  r1, =0x0015007c
     str  r1, [r0]
-    ldr  r0, =0x44000404     /* GPIO1: UART_ID_1 RXD */
+    ldr  r0, =0x4400042c     /* P11 UART0 TX */
+    movs r1, #0x78
+    str  r1, [r0]
+#    define BK7258_BL1_UART_BASE 0x44820000
+#    define BK7258_BL1_UART_CLK_ENABLE (1 << 2)
+#    define BK7258_BL1_UART_CLK_SELECT (1 << 10)
+#  elif BK7258_BL1_CONSOLE_UART == 1
+    ldr  r0, =0x440100C0
+    ldr  r1, [r0]
+    bic  r1, r1, #0xff
+    str  r1, [r0]
+    ldr  r0, =0x44000400     /* P0 UART1 TX */
+    movs r1, #0x78
+    str  r1, [r0]
+    ldr  r0, =0x44000404     /* P1 UART1 RX */
     ldr  r1, =0x00150078
     str  r1, [r0]
-
-    /* Also preserve the known-good GPIO10/11 boot UART state. (verbatim) */
-    ldr  r0, =0x440100C4     /* GPIO8..15 peripheral mode */
-    movs r1, #0
-    str  r1, [r0]
-    ldr  r0, =0x44000428     /* GPIO10 */
-    ldr  r1, =0x0015007C
-    str  r1, [r0]
-    ldr  r0, =0x4400042C     /* GPIO11 */
-    ldr  r1, =0x00000078
-    str  r1, [r0]
-
-    /* Enable UART1 clock. (verbatim) */
-    ldr  r0, =0x44010030
+#    define BK7258_BL1_UART_BASE 0x45830000
+#    define BK7258_BL1_UART_CLK_ENABLE (1 << 10)
+#    define BK7258_BL1_UART_CLK_SELECT (1 << 13)
+#  else
+#    if BK7258_BL1_UART2_PIN_GROUP == 1
+    ldr  r0, =0x440100D4
     ldr  r1, [r0]
-    movs r2, #0x400
+    bic  r1, r1, #0xff
+    str  r1, [r0]
+    ldr  r0, =0x440004A0     /* P40 UART2 RX */
+    ldr  r1, =0x00150078
+    str  r1, [r0]
+    ldr  r0, =0x440004A4     /* P41 UART2 TX */
+    movs r1, #0x78
+    str  r1, [r0]
+#    else
+    ldr  r0, =0x440100CC
+    ldr  r1, [r0]
+    ldr  r2, =0xff000000
+    bics r1, r1, r2
+    ldr  r2, =0x11000000
     orrs r1, r1, r2
     str  r1, [r0]
+    ldr  r0, =0x44000478     /* P30 UART2 RX */
+    ldr  r1, =0x00150078
+    str  r1, [r0]
+    ldr  r0, =0x4400047C     /* P31 UART2 TX */
+    movs r1, #0x78
+    str  r1, [r0]
+#    endif
+#    define BK7258_BL1_UART_BASE 0x45840000
+#    define BK7258_BL1_UART_CLK_ENABLE (1 << 11)
+#    define BK7258_BL1_UART_CLK_SELECT (1 << 16)
+#  endif
 
-    /* Configure UART1 like the known-good probe state. (verbatim) */
-    ldr  r0, =0x45830008     /* UART1 global_ctrl */
+    ldr  r0, =0x44010030
+    ldr  r1, [r0]
+    ldr  r2, =BK7258_BL1_UART_CLK_ENABLE
+    orrs r1, r1, r2
+    str  r1, [r0]
+    ldr  r0, =0x44010020
+    ldr  r1, [r0]
+    ldr  r2, =BK7258_BL1_UART_CLK_SELECT
+    bics r1, r1, r2
+    str  r1, [r0]
+    ldr  r0, =(BK7258_BL1_UART_BASE + 0x08)
     movs r1, #1
     str  r1, [r0]
-    ldr  r0, =0x45830010     /* clk_div=0x37, 8-bit data, TX enable */
-    ldr  r1, =0x00003719
+    ldr  r0, =(BK7258_BL1_UART_BASE + 0x10)
+    ldr  r1, =BK7258_BL1_UART_CONFIG
     str  r1, [r0]
+#endif
 
     /*
      * Hand off to C: parse the FAL partition table, validate the app header
@@ -163,6 +247,20 @@ Reset_Handler:
     bl   c_main
     mov  r4, r0
 
+#if !BK7258_BL1_USE_BL2
+    /* The public SDK bootloader uses 0x2802f800 as its own stack limit, but
+     * the board-owned direct NuttX CP image starts its RAM at 0x28010000 and
+     * enters with MSP around 0x28015xxx.  Leaving the boot limit installed
+     * makes the first push in bk7258_reset_entry raise STKOF before CP can
+     * clear MSPLIM itself.  Widen only the direct-CP handoff here; the SRAM
+     * BL2 entry installs and later restores its separately contracted limit.
+     */
+    ldr  r0, =0x28010000
+    msr  msplim, r0
+    dsb  sy
+    isb  sy
+#endif
+
     /*
      * Match the official jump_to_app() cache/MPU contract before changing
      * VTOR/MSP.  This disables D-cache, cleans+invalidates every set/way and
@@ -170,6 +268,60 @@ Reset_Handler:
      * BK7258 reset-residue hardening step.
      */
     bl   boot_prepare_app_handoff
+
+#if BK7258_BL1_SWD_ENABLE
+    /* This is the direct-boot debug handshake boundary requested by the
+     * board contract: security/cache/MPU cleanup is complete, while the CP
+     * Reset_Handler has not executed.  Re-assert the configured route in
+     * case an earlier boot stage touched the GPIO or CPU-selection fields.
+     */
+    bl   boot_swd_route_apply
+#  if BK7258_BL1_SWD_BOOT_HOLD
+    /* The debugger may halt the core indefinitely.  Disable both boot-stage
+     * watchdogs before waiting; a loop-time feed would still expire while
+     * halted.  Keep them disabled after release: period zero does not clear
+     * the elapsed hardware count, so re-enabling after an unbounded hold can
+     * reset before the next instruction.  CP takes watchdog ownership in its
+     * reset entry.  Non-hold production builds retain the normal BL1 period.
+     */
+    ldr  r0, =0x44800010     /* APB_WDT_CTRL */
+    ldr  r1, =0x005A0000
+    str  r1, [r0]
+    ldr  r1, =0x00A50000
+    str  r1, [r0]
+    ldr  r0, =0x44000600     /* AON_WDT_CTRL */
+    ldr  r1, =0x005A0000
+    str  r1, [r0]
+    ldr  r1, =0x00A50000
+    str  r1, [r0]
+
+    ldr  r2, =BK7258_SWD_BOOT_RELEASE_ADDRESS
+    movs r3, #0
+    str  r3, [r2]
+    dsb  sy
+1:
+    ldr  r0, =BK7258_DHCSR_REG
+    ldr  r1, [r0]
+    tst  r1, #BK7258_DHCSR_C_DEBUGEN
+    beq  1b
+
+    /* C_DEBUGEN precedes the probe's first halt request, so it is not a safe
+     * automatic release condition.  Remain at this final handoff boundary
+     * until the attached debugger explicitly writes "JLNK" to the release
+     * word.  This makes command-line and IDE attach deterministic.
+     */
+
+    ldr  r3, =BK7258_SWD_BOOT_RELEASE_MAGIC
+2:
+    ldr  r1, [r2]
+    cmp  r1, r3
+    bne  2b
+    movs r1, #0
+    str  r1, [r2]
+    dsb  sy
+    isb  sy
+#  endif
+#endif
     mov  r0, r4
 
     /*
@@ -210,6 +362,60 @@ Reset_Handler:
     dsb  sy
     isb  sy
     bx   r2                  /* jump to app Reset_Handler             */
+
+#if BK7258_BL1_SWD_ENABLE
+    .thumb_func
+boot_swd_route_apply:
+    ldr  r0, =BK7258_DAUTHCTRL_REG
+    movs r1, #0x0f
+    str  r1, [r0]
+
+    ldr  r0, =BK7258_SYS_CPU_ROUTE_REG
+    ldr  r1, [r0]
+    ldr  r2, =BK7258_SYS_JTAG_CORE_MASK
+    bics r1, r1, r2
+    ldr  r2, =(BK7258_BL1_SWD_TARGET << BK7258_SYS_JTAG_CORE_SHIFT)
+    orrs r1, r1, r2
+    str  r1, [r0]
+
+#  if BK7258_BL1_SWD_PIN_GROUP == BK7258_SWD_PIN_GROUP_0
+    ldr  r0, =BK7258_SYS_GPIO16_23_FUNC_REG
+    ldr  r1, [r0]
+    ldr  r2, =BK7258_SWD_GROUP0_FUNC_MASK
+    bics r1, r1, r2
+    ldr  r2, =BK7258_SWD_GROUP0_FUNC_VALUE
+    orrs r1, r1, r2
+    str  r1, [r0]
+    ldr  r0, =BK7258_GPIO20_CTRL_REG
+#  else
+    ldr  r0, =BK7258_SYS_GPIO0_7_FUNC_REG
+    ldr  r1, [r0]
+    ldr  r2, =BK7258_SWD_GROUP1_FUNC_MASK
+    bics r1, r1, r2
+    ldr  r2, =BK7258_SWD_GROUP1_FUNC_VALUE
+    orrs r1, r1, r2
+    str  r1, [r0]
+    ldr  r0, =BK7258_GPIO0_CTRL_REG
+#  endif
+    ldr  r1, [r0]
+    ldr  r2, =BK7258_GPIO_FUNC_CTRL_MASK
+    bics r1, r1, r2
+    orr  r1, r1, #BK7258_GPIO_JTAG_CTRL
+    str  r1, [r0]
+#  if BK7258_BL1_SWD_PIN_GROUP == BK7258_SWD_PIN_GROUP_0
+    ldr  r0, =BK7258_GPIO21_CTRL_REG
+#  else
+    ldr  r0, =BK7258_GPIO1_CTRL_REG
+#  endif
+    ldr  r1, [r0]
+    ldr  r2, =BK7258_GPIO_FUNC_CTRL_MASK
+    bics r1, r1, r2
+    orr  r1, r1, #BK7258_GPIO_JTAG_CTRL
+    str  r1, [r0]
+    dsb  sy
+    isb  sy
+    bx   lr
+#endif
 
 hang:
     b    hang

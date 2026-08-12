@@ -5,12 +5,9 @@
  *
  * Board bringup for the Beken BK7258 (T5-AI) NuttX port.
  *
- * board_app_initialize() is the NSH application-init hook: when
- * CONFIG_NSH_ARCHINIT=y, nsh_initialize() issues boardctl(BOARDIOC_INIT)
- * and the NSH init task reaches this function during nx_start().  procfs is
- * mounted at /proc here so ps, ls /proc, and cat of /proc entries work;
- * when CONFIG_BK7258_FLASH_MTD + CONFIG_BK7258_FLASH_LITTLEFS are enabled,
- * /dev/mtdblock0 + a LittleFS /data mount are added on the data partition.
+ * board_late_initialize() owns mandatory platform services independently of
+ * NSH.  board_app_initialize() is the application-facing hook for procfs,
+ * MTD device nodes and filesystems.
  ****************************************************************************/
 
 /****************************************************************************
@@ -29,6 +26,7 @@
 #  include <arch/chip/bk7258_sdk_runtime.h>
 #endif
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include <syslog.h>
@@ -37,8 +35,9 @@
 #include <unistd.h>
 #include <debug.h>
 #include <nuttx/board.h>
+#include <nuttx/mutex.h>
 
-#ifdef CONFIG_BK7258_SWD_RTT_DEBUG
+#ifdef CONFIG_BK7258_SWD_DEBUG
 #include <arch/chip/bk7258_debug.h>
 #endif
 
@@ -86,8 +85,12 @@
 #endif
 
 /****************************************************************************
- * Private Functions
+ * Private Data and Functions
  ****************************************************************************/
+
+static mutex_t g_bk7258_platform_lock = NXMUTEX_INITIALIZER;
+static bool g_bk7258_platform_initialized;
+static int g_bk7258_platform_result;
 
 #ifdef CONFIG_BK7258_FLASH_LITTLEFS
 /* LittleFS bring-up: register /dev/mtdblock0 (ftl), mount at /data with the
@@ -170,23 +173,39 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: board_app_initialize
+ * Name: bk7258_platform_initialize
  *
  * Description:
- *   Standard NuttX board Application-level initialization hook, reached via
- *   CONFIG_NSH_ARCHINIT from the NSH init task.  Mounts procfs at
- *   CONFIG_NSH_PROC_MOUNTPOINT (default /proc) and returns OK.
- *
- * Input Parameters:
- *   arg - Board-specific argument (unused).
+ *   Initialize mandatory CP/AP platform services once.  This runs from
+ *   board_late_initialize() independently of NSH/BOARDIOC_INIT.
  *
  * Returned Value:
  *   Zero (OK) on success.
  *
  ****************************************************************************/
 
-int board_app_initialize(uintptr_t arg)
+static int bk7258_platform_initialize(void)
 {
+  int lockret;
+
+  lockret = nxmutex_lock(&g_bk7258_platform_lock);
+  if (lockret < 0)
+    {
+      return lockret;
+    }
+
+  if (g_bk7258_platform_initialized)
+    {
+      int result = g_bk7258_platform_result;
+
+      nxmutex_unlock(&g_bk7258_platform_lock);
+      return result;
+    }
+
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_BOARD_LATE_ENTRY);
+#endif
+
 #if defined(CONFIG_BK7258_AP_CONTROL) || \
     defined(CONFIG_BK7258_SARADC_SERVER) || \
     defined(CONFIG_BK7258_SDK_IPC_RUNTIME) || \
@@ -197,10 +216,32 @@ int board_app_initialize(uintptr_t arg)
 
 #ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
   apret = bk7258_sdk_runtime_initialize();
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_BOARD_LATE_AFTER_SDK);
+#endif
   if (apret < 0)
     {
       _err("bk7258: SDK IPC runtime init failed: %d\n", apret);
     }
+#endif
+
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  /* Reassert the configured BL1/BL2 SWD route immediately after the SDK
+   * runtime is ready.  The pin group and target core come from Kconfig; SDK
+   * leaves which can touch the selected SWD pins reassert the same mapping
+   * through the wrapper.
+   */
+
+  {
+    int swdret = bk7258_swd_initialize();
+
+    if (swdret < 0)
+      {
+        _err("bk7258: SWD pinmux failed: %d\n", swdret);
+      }
+
+    bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_BOARD_LATE_AFTER_SWD);
+  }
 #endif
 
 #ifdef CONFIG_BK7258_SARADC_SERVER
@@ -334,23 +375,6 @@ int board_app_initialize(uintptr_t arg)
     }
 #endif
 
-#ifdef CONFIG_BK7258_SWD_RTT_DEBUG
-  /* T5-Board exposes the BK7258 group-1 SWD signals on P0/P1.  Perform this
-   * after CP-side GPIO service initialization but before AP release, so the
-   * AP can emit its first camera diagnostics through RPMsg -> CP RTT without
-   * UART1 immediately reclaiming the same pins.
-   */
-
-  {
-    int swdret = bk7258_swd_group1_initialize();
-
-    if (swdret < 0)
-      {
-        _err("bk7258: P0/P1 SWD pinmux failed: %d\n", swdret);
-      }
-  }
-#endif
-
 #ifdef CONFIG_BK7258_AP_CONTROL
 #ifdef CONFIG_BK7258_PSRAM
   if (apret >= 0 && psramret < 0)
@@ -440,6 +464,60 @@ int board_app_initialize(uintptr_t arg)
       }
   }
 #endif
+
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  /* AP release initializes its own SDK SYS/GPIO view after the early CP
+   * route.  Recommit the selected board-owned route at the final mandatory
+   * platform boundary.
+   */
+
+  (void)bk7258_swd_initialize();
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_BOARD_LATE_EXIT);
+#endif
+
+#if defined(CONFIG_BK7258_AP_CONTROL) || \
+    defined(CONFIG_BK7258_SARADC_SERVER) || \
+    defined(CONFIG_BK7258_SDK_IPC_RUNTIME) || \
+    defined(CONFIG_BK7258_PM_CLOCK) || \
+    (defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE))
+  g_bk7258_platform_result = apret;
+#else
+  g_bk7258_platform_result = OK;
+#endif
+  g_bk7258_platform_initialized = true;
+  nxmutex_unlock(&g_bk7258_platform_lock);
+  return g_bk7258_platform_result;
+}
+
+void board_late_initialize(void)
+{
+  int ret = bk7258_platform_initialize();
+
+  if (ret < 0)
+    {
+      _err("bk7258: mandatory platform initialization failed: %d\n", ret);
+    }
+}
+
+/****************************************************************************
+ * Name: board_app_initialize
+ *
+ * Description:
+ *   Register application-facing procfs/MTD/filesystem services.  Mandatory
+ *   SDK, IPC, PM and AP lifecycle initialization is owned by
+ *   board_late_initialize() and does not depend on NSH.
+ ****************************************************************************/
+
+int board_app_initialize(uintptr_t arg)
+{
+  int ret;
+
+  (void)arg;
+  ret = bk7258_platform_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
 
   /* Register the BK7258 DVFS /proc/dvfs entry *before* mounting procfs: the
    * fs_procfs NOTE requires the procfs entry table to be stable at mount

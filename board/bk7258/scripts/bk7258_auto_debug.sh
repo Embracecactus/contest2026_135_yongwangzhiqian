@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Automate BK7258 build/download and Windows COM11 console capture from WSL2.
+# Automate BK7258 build/download and optional Windows UART capture from WSL2.
 # Physical RESET is authoritative when performed manually; J-Link RESETPIN is experimental until BClk is observed.
 
 set -Eeuo pipefail
@@ -21,8 +21,8 @@ LOG_ROOT="$OPENVELA_ROOT/logs/bk7258-auto-debug"
 
 CP_CONFIG_NAME=${CP_CONFIG_NAME:-cp_nsh}
 AP_CONFIG_NAME=${AP_CONFIG_NAME:-ap_smp}
-DOWNLOAD_PORT=${BK_DOWNLOAD_PORT:-7}
-CONSOLE_PORT=${BK_CONSOLE_PORT:-COM11}
+DOWNLOAD_PORT=${BK_DOWNLOAD_PORT:-3}
+CONSOLE_PORT=${BK_CONSOLE_PORT:-COM4}
 CONSOLE_BAUD=${BK_CONSOLE_BAUD:-460800}
 DOWNLOAD_BAUD=${BK_DOWNLOAD_BAUD:-6000000}
 CAPTURE_SECONDS=${BK_CAPTURE_SECONDS:-25}
@@ -35,6 +35,7 @@ COLD_CAPTURE=0
 JLINK_RESET=0
 RTS_RESET=0
 ASSUME_YES=0
+NO_CONSOLE=0
 CP_CONFIG_EXPLICIT=0
 AP_CONFIG_EXPLICIT=0
 
@@ -48,9 +49,10 @@ Actions:
   --flash                 Download through Windows bk_loader.exe
   --sparse-flash          With --flash, update boot/BL2/CP/AP when MCUboot profile is packaged; preserve data
   --boot-only             With --flash --sparse-flash, update only the boot segment
-  --cold-capture          Capture COM11 and ask for a manual physical RESET; no download
-  --rts-reset             Capture COM11, then pulse COM7 RTS (verified physical reset)
-  --jlink-reset           Capture COM11, then try J-Link RSetType 2 (experimental)
+  --cold-capture          Capture the selected UART and ask for a manual physical RESET
+  --rts-reset             Capture UART, then pulse the selected download-port RTS
+  --jlink-reset           Capture UART when enabled, then try J-Link RSetType 2
+  --no-console            Do not open UART1 (required while P0/P1 own SWD/RTT)
   --yes                   Skip the destructive factory-rewrite confirmation
 
 Options:
@@ -78,15 +80,16 @@ Examples:
   # Capture a physical RESET performed manually after the prompt:
   $(basename "$0") --cold-capture --capture-seconds 30
 
-  # Verified automated physical reset using COM7 RTS:
+  # Pulse the selected downloader RTS only when that board route supports it:
   $(basename "$0") --rts-reset --capture-seconds 30
 
   # Experimentally request J-Link RESETPIN reset and capture; require BClk:
   $(basename "$0") --jlink-reset --capture-seconds 30
 
-Port assignment on the current CH342 adapter:
-  COM7  = downloader / bk_loader (-p 7)
-  COM11 = firmware console (460800 8N1)
+Port assignment on the current T5-Board:
+  COM3 = downloader / bk_loader (-p 3)
+  COM4 = UART1 console only when its DIP switch is enabled
+  COM4 must remain unopened when P0/P1 are owned by SWD/RTT.
 USAGE
 }
 
@@ -99,6 +102,7 @@ while (($#)); do
     --cold-capture) COLD_CAPTURE=1 ;;
     --rts-reset) RTS_RESET=1 ;;
     --jlink-reset) JLINK_RESET=1 ;;
+    --no-console) NO_CONSOLE=1 ;;
     --yes) ASSUME_YES=1 ;;
     --cp-config) CP_CONFIG_NAME=${2:?missing value}; CP_CONFIG_EXPLICIT=1; shift ;;
     --ap-config) AP_CONFIG_NAME=${2:?missing value}; AP_CONFIG_EXPLICIT=1; shift ;;
@@ -340,6 +344,15 @@ if ((!DO_BUILD)); then
   fi
 fi
 
+# UART1/COM4 and the T5-Board SWD/RTT route share P0/P1.  Never open COM4 for
+# a packaged SWD image, even if the caller omitted --no-console.  On the
+# current board its UART1 DIP switch is physically off as an additional gate.
+
+if [[ -f "$DUAL_DIR/nuttx-cp.config" ]] &&
+   grep -qx 'CONFIG_BK7258_SWD_DEBUG=y' "$DUAL_DIR/nuttx-cp.config"; then
+  NO_CONSOLE=1
+fi
+
 if ((DO_FLASH && !SPARSE_FLASH && !ASSUME_YES)); then
   echo "WARNING: factory download rewrites A/B/metadata and clears LittleFS."
   echo "WARNING: the one-time ADR-004 migration is complete; require fresh owner authorization."
@@ -359,11 +372,13 @@ grep -qx "COM${DOWNLOAD_PORT}" <<<"$PORTS" || {
   printf '%s\n' "$PORTS" >&2
   exit 1
 }
-grep -qx "$CONSOLE_PORT" <<<"$PORTS" || {
-  echo "ERROR: console $CONSOLE_PORT is not present" >&2
-  printf '%s\n' "$PORTS" >&2
-  exit 1
-}
+if ((!NO_CONSOLE)); then
+  grep -qx "$CONSOLE_PORT" <<<"$PORTS" || {
+    echo "ERROR: console $CONSOLE_PORT is not present" >&2
+    printf '%s\n' "$PORTS" >&2
+    exit 1
+  }
+fi
 
 STAMP=$(date +%Y%m%d-%H%M%S)
 RUN_DIR="$LOG_ROOT/$STAMP"
@@ -419,37 +434,44 @@ cleanup()
 }
 trap cleanup EXIT INT TERM
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PS1_WIN" \
-  -Port "$CONSOLE_PORT" \
-  -Baud "$CONSOLE_BAUD" \
-  -DurationSec "$CAPTURE_SECONDS" \
-  -OutputFile "$RAW_WIN" \
-  -ReadyFile "$READY_WIN" \
-  >"$SERIAL_STDOUT" 2>&1 &
-CAPTURE_PID=$!
+if ((NO_CONSOLE)); then
+  : >"$SERIAL_RAW"
+  : >"$SERIAL_STDOUT"
+  CAPTURE_PID=
+  echo "==> UART capture disabled; P0/P1 remain exclusively owned by SWD/RTT"
+else
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PS1_WIN" \
+    -Port "$CONSOLE_PORT" \
+    -Baud "$CONSOLE_BAUD" \
+    -DurationSec "$CAPTURE_SECONDS" \
+    -OutputFile "$RAW_WIN" \
+    -ReadyFile "$READY_WIN" \
+    >"$SERIAL_STDOUT" 2>&1 &
+  CAPTURE_PID=$!
 
-# A cold Windows PowerShell/interop startup can exceed five seconds even
-# though COM11 is healthy.  Keep the flash gate fail-closed, but allow up to
-# 30 seconds for the capture process to create its ready marker.
+  # A cold Windows PowerShell/interop startup can exceed five seconds even
+  # though the console is healthy.  Keep the flash gate fail-closed, but allow
+  # up to 30 seconds for the capture process to create its ready marker.
 
-for _ in $(seq 1 600); do
-  [[ -f "$READY_FILE" ]] && break
-  if ! kill -0 "$CAPTURE_PID" 2>/dev/null; then
-    wait "$CAPTURE_PID" || true
-    echo "ERROR: serial capture failed before becoming ready" >&2
+  for _ in $(seq 1 600); do
+    [[ -f "$READY_FILE" ]] && break
+    if ! kill -0 "$CAPTURE_PID" 2>/dev/null; then
+      wait "$CAPTURE_PID" || true
+      echo "ERROR: serial capture failed before becoming ready" >&2
+      cat "$SERIAL_STDOUT" >&2 || true
+      exit 1
+    fi
+    sleep 0.05
+  done
+
+  [[ -f "$READY_FILE" ]] || {
+    echo "ERROR: timed out opening $CONSOLE_PORT" >&2
     cat "$SERIAL_STDOUT" >&2 || true
     exit 1
-  fi
-  sleep 0.05
-done
+  }
 
-[[ -f "$READY_FILE" ]] || {
-  echo "ERROR: timed out opening $CONSOLE_PORT" >&2
-  cat "$SERIAL_STDOUT" >&2 || true
-  exit 1
-}
-
-echo "==> Capturing $CONSOLE_PORT at $CONSOLE_BAUD baud"
+  echo "==> Capturing $CONSOLE_PORT at $CONSOLE_BAUD baud"
+fi
 
 if ((DO_FLASH)); then
   if ((SPARSE_FLASH)); then
@@ -548,7 +570,7 @@ elif ((JLINK_RESET)); then
   echo "==> Resetting through J-Link RESETPIN strategy (RSetType 2)"
   set +e
   printf 'RSetType 2\nReset\nGo\nExit\n' | \
-    "$JLINK_EXE" -device CORTEX-M33 -if SWD -speed 1000 -autoconnect 1 \
+    "$JLINK_EXE" -device STAR -if SWD -speed 1000 -autoconnect 1 \
     2>&1 | tee "$JLINK_LOG"
   jlink_rc=${PIPESTATUS[1]}
   set -e
@@ -561,11 +583,14 @@ else
   echo "==> Capture will stop automatically after ${CAPTURE_SECONDS}s."
 fi
 
-set +e
-wait "$CAPTURE_PID"
-capture_rc=$?
-set -e
-CAPTURE_PID=
+capture_rc=0
+if [[ -n "$CAPTURE_PID" ]]; then
+  set +e
+  wait "$CAPTURE_PID"
+  capture_rc=$?
+  set -e
+  CAPTURE_PID=
+fi
 
 python3 - "$SERIAL_RAW" "$SERIAL_TEXT" "$SUMMARY_FILE" <<'PY'
 from pathlib import Path

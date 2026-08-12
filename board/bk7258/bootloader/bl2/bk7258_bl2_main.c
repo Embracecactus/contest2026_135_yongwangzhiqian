@@ -7,21 +7,31 @@
 
 #include "bk7258_bl2_abi.h"
 #include "../boot_wdt.h"
+#include "bk7258_debug_route.h"
 
 #define SCB_VTOR 0xe000ed08u
 #define SCB_ICIALLU 0xe000ef50u
 #define NVIC_ICER0 0xe000e180u
 #define NVIC_ICPR0 0xe000e280u
 #define SYSTICK_CTRL 0xe000e010u
-#define UART1_FIFO 0x4583001cu
-#define UART1_STATUS 0x45830018u
+#if BK7258_BL2_CONSOLE_UART == 0
+#  define BK7258_BL2_UART_BASE 0x44820000u
+#elif BK7258_BL2_CONSOLE_UART == 1
+#  define BK7258_BL2_UART_BASE 0x45830000u
+#elif BK7258_BL2_CONSOLE_UART == 2
+#  define BK7258_BL2_UART_BASE 0x45840000u
+#endif
+#if BK7258_BL2_CONSOLE_UART < 3
+#  define BK7258_BL2_UART_FIFO (BK7258_BL2_UART_BASE + 0x1cu)
+#  define BK7258_BL2_UART_STATUS (BK7258_BL2_UART_BASE + 0x18u)
+#endif
 #define BK7258_AP_VECTOR_RAM_BASE 0x28050000u
 #define BK7258_AP_VECTOR_RAM_END  0x2809f000u
 #define BK7258_BL2_RAM_BASE       0x28020000u
 #define BK7258_CP_MSPLIM          0x28010000u
 
 extern void boot_prepare_app_handoff(void);
-extern void boot_uart1_prepare_app_handoff(void);
+extern void boot_console_prepare_app_handoff(void);
 
 static bool bk7258_bl2_header_valid(const struct image_header *hdr,
                                     uint32_t slot_size);
@@ -30,6 +40,83 @@ static bool bk7258_bl2_ap_vector(uint32_t cp_offset);
 static bool bk7258_bl2_pair_generation_valid(uint32_t cp_offset,
                                              const struct image_header *cp_hdr);
 static void bk7258_bl2_mark(const char *mark);
+
+#if BK7258_BL2_SWD_ENABLE
+static void bk7258_bl2_debug_gate(void)
+{
+  uint32_t route;
+  uint32_t function;
+  uint32_t pin;
+
+  /* This is the final bootloader observation boundary: image selection and
+   * validation are complete, UART/cache/MPU handoff cleanup has run, and CP
+   * has not executed a single instruction.  Re-assert the route selected by
+   * the CP defconfig and explicitly enable internal debug authentication.
+   * Use the current security-state alias only; the explicit NS alias is not
+   * writable when this BL2 is entered non-secure.
+   */
+
+  REG32(BK7258_DAUTHCTRL_REG) = 0x0fu;
+  route = REG32(BK7258_SYS_CPU_ROUTE_REG);
+  route &= ~BK7258_SYS_JTAG_CORE_MASK;
+  route |= BK7258_BL2_SWD_TARGET << BK7258_SYS_JTAG_CORE_SHIFT;
+  REG32(BK7258_SYS_CPU_ROUTE_REG) = route;
+
+#if BK7258_BL2_SWD_PIN_GROUP == BK7258_SWD_PIN_GROUP_0
+  function = REG32(BK7258_SYS_GPIO16_23_FUNC_REG);
+  function &= ~BK7258_SWD_GROUP0_FUNC_MASK;
+  function |= BK7258_SWD_GROUP0_FUNC_VALUE;
+  REG32(BK7258_SYS_GPIO16_23_FUNC_REG) = function;
+  pin = REG32(BK7258_GPIO20_CTRL_REG);
+  REG32(BK7258_GPIO20_CTRL_REG) =
+    (pin & ~BK7258_GPIO_FUNC_CTRL_MASK) | BK7258_GPIO_JTAG_CTRL;
+  pin = REG32(BK7258_GPIO21_CTRL_REG);
+  REG32(BK7258_GPIO21_CTRL_REG) =
+    (pin & ~BK7258_GPIO_FUNC_CTRL_MASK) | BK7258_GPIO_JTAG_CTRL;
+#else
+  function = REG32(BK7258_SYS_GPIO0_7_FUNC_REG);
+  function &= ~BK7258_SWD_GROUP1_FUNC_MASK;
+  function |= BK7258_SWD_GROUP1_FUNC_VALUE;
+  REG32(BK7258_SYS_GPIO0_7_FUNC_REG) = function;
+  pin = REG32(BK7258_GPIO0_CTRL_REG);
+  REG32(BK7258_GPIO0_CTRL_REG) =
+    (pin & ~BK7258_GPIO_FUNC_CTRL_MASK) | BK7258_GPIO_JTAG_CTRL;
+  pin = REG32(BK7258_GPIO1_CTRL_REG);
+  REG32(BK7258_GPIO1_CTRL_REG) =
+    (pin & ~BK7258_GPIO_FUNC_CTRL_MASK) | BK7258_GPIO_JTAG_CTRL;
+#endif
+  __asm volatile ("dsb sy; isb" ::: "memory");
+
+#if BK7258_BL2_SWD_BOOT_HOLD
+  /* A debugger halt stops loop-time feeding but not the hardware watchdog.
+   * Disable both boot watchdogs for the intentional hold and leave them
+   * disabled through the short CP branch.  Period zero does not clear the
+   * elapsed hardware count; re-enabling after an unbounded hold can reset on
+   * the key write itself.  CP disables the inherited boot watchdogs in its
+   * reset entry before the board watchdog driver takes ownership. */
+  boot_wdt_debug_hold_disable();
+  REG32(BK7258_SWD_BOOT_RELEASE_ADDRESS) = 0u;
+  __asm volatile ("dsb sy" ::: "memory");
+
+  while ((REG32(BK7258_DHCSR_REG) & BK7258_DHCSR_C_DEBUGEN) == 0)
+    {
+    }
+
+  /* C_DEBUGEN becomes visible before the probe has completed CoreSight
+   * enumeration and sent its first halt.  Require an explicit debugger
+   * release instead of racing CP security initialization.
+   */
+
+  while (REG32(BK7258_SWD_BOOT_RELEASE_ADDRESS) !=
+         BK7258_SWD_BOOT_RELEASE_MAGIC)
+    {
+    }
+
+  REG32(BK7258_SWD_BOOT_RELEASE_ADDRESS) = 0u;
+  __asm volatile ("dsb sy; isb" ::: "memory");
+#endif
+}
+#endif
 
 static bool bk7258_bl2_try_pair(int slot, struct boot_rsp *rsp)
 {
@@ -198,20 +285,24 @@ static bool bk7258_bl2_pair_generation_valid(uint32_t cp_offset,
 
 static void bk7258_bl2_log(const char *text)
 {
+#if BK7258_BL2_CONSOLE_UART < 3
   while (*text)
     {
       unsigned int n;
 
       for (n = 0; n < 100000u; n++)
         {
-          if ((REG32(UART1_STATUS) & (1u << 20)) != 0)
+          if ((REG32(BK7258_BL2_UART_STATUS) & (1u << 20)) != 0)
             {
               break;
             }
         }
 
-      REG32(UART1_FIFO) = (uint8_t)*text++;
+      REG32(BK7258_BL2_UART_FIFO) = (uint8_t)*text++;
     }
+#else
+  (void)text;
+#endif
 }
 
 void bk7258_bl2_panic(void)
@@ -503,7 +594,10 @@ void bk7258_bl2_main(void)
    * the selected application. */
   boot_wdt_feed_period(APP_HANDOFF_WDT_PERIOD);
   bk7258_bl2_mark("B2HANDOFF");
-  boot_uart1_prepare_app_handoff();
+  boot_console_prepare_app_handoff();
   boot_prepare_app_handoff();
+#if BK7258_BL2_SWD_ENABLE
+  bk7258_bl2_debug_gate();
+#endif
   bk7258_bl2_jump(image);
 }

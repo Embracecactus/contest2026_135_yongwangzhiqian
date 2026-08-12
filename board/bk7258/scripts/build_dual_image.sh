@@ -22,7 +22,7 @@ if [[ ! -d "${CONFIG_ROOT}" ]]; then
 fi
 CP_CONFIG_NAME="${CP_CONFIG_NAME:-cp_nsh}"
 case "${CP_CONFIG_NAME}" in
-    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_wifi|cp_nsh_wifi_mcuboot|cp_nsh_mcuboot|cp_nsh_drivercheck|cp_nsh_drivercheck_mcuboot|cp_nsh_drivercheck_rtt_mcuboot)
+    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_rptun_rtt|cp_nsh_rptun_rtt_mcuboot|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_wifi|cp_nsh_wifi_mcuboot|cp_nsh_wifi_rtt_mcuboot|cp_nsh_mcuboot|cp_nsh_drivercheck|cp_nsh_drivercheck_mcuboot|cp_nsh_drivercheck_rtt_mcuboot)
         ;;
     *)
         printf 'build_dual_image: unsupported CP_CONFIG_NAME=%s\n' \
@@ -33,7 +33,7 @@ esac
 CP_CONFIG="${CONFIG_ROOT}/${CP_CONFIG_NAME}"
 AP_CONFIG_NAME="${AP_CONFIG_NAME:-ap_smp}"
 case "${AP_CONFIG_NAME}" in
-    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi|ap_smp_wifi_mcuboot|ap_smp_mcuboot|ap_smp_drivercheck|ap_smp_drivercheck_mcuboot|ap_smp_camera_mcuboot|ap_smp_camera_h264_mcuboot|ap_smp_pwm_mcuboot)
+    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_rptun_mcuboot|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi|ap_smp_wifi_mcuboot|ap_smp_mcuboot|ap_smp_drivercheck|ap_smp_drivercheck_mcuboot|ap_smp_camera_mcuboot|ap_smp_camera_h264_mcuboot|ap_smp_pwm_mcuboot)
         ;;
     *)
         printf 'build_dual_image: unsupported AP_CONFIG_NAME=%s\n' \
@@ -73,11 +73,135 @@ if [[ "${CP_CONFIG_NAME}" == cp_nsh_drivercheck* ||
     esac
 fi
 
+# BL1, BL2 and CP must agree on physical debug/console ownership.  Derive the
+# boot-stage constants from Kconfig symbols, never from profile filenames.
+config_enabled()
+{
+    local config="$1"
+    local symbol="$2"
+    grep -qx "CONFIG_${symbol}=y" "${config}/defconfig"
+}
+
+config_disabled()
+{
+    local config="$1"
+    local symbol="$2"
+    grep -qx "# CONFIG_${symbol} is not set" "${config}/defconfig"
+}
+
+config_value()
+{
+    local config="$1"
+    local symbol="$2"
+    local fallback="$3"
+    local value
+
+    value="$(sed -n "s/^CONFIG_${symbol}=//p" "${config}/defconfig" | tail -n 1)"
+    printf '%s\n' "${value:-${fallback}}"
+}
+
+BL1_SWD_ENABLE=0
+BL1_SWD_PIN_GROUP=1
+BL1_SWD_TARGET=0
+BL1_SWD_BOOT_HOLD=0
+if config_enabled "${CP_CONFIG}" BK7258_SWD_DEBUG; then
+    BL1_SWD_ENABLE=1
+    if config_enabled "${CP_CONFIG}" BK7258_SWD_PINS_P20_P21; then
+        BL1_SWD_PIN_GROUP=0
+    fi
+    if config_enabled "${CP_CONFIG}" BK7258_SWD_TARGET_AP0; then
+        BL1_SWD_TARGET=1
+    elif config_enabled "${CP_CONFIG}" BK7258_SWD_TARGET_AP1; then
+        BL1_SWD_TARGET=2
+    elif ! config_disabled "${CP_CONFIG}" BK7258_SWD_BOOT_HOLD; then
+        BL1_SWD_BOOT_HOLD=1
+    fi
+fi
+
+if config_enabled "${CP_CONFIG}" BK7258_CONSOLE_UART0; then
+    BL1_CONSOLE_UART=0
+    BL1_CONSOLE_BAUD="$(config_value "${CP_CONFIG}" BK7258_UART0_BAUD 115200)"
+    BL1_CONSOLE_DATA_BITS="$(config_value "${CP_CONFIG}" BK7258_UART0_DATA_BITS 8)"
+    BL1_CONSOLE_PARITY="$(config_value "${CP_CONFIG}" BK7258_UART0_PARITY 0)"
+    BL1_CONSOLE_STOP_BITS="$(config_value "${CP_CONFIG}" BK7258_UART0_STOP_BITS 1)"
+elif config_enabled "${CP_CONFIG}" BK7258_CONSOLE_UART2; then
+    BL1_CONSOLE_UART=2
+    BL1_CONSOLE_BAUD="$(config_value "${CP_CONFIG}" BK7258_UART2_BAUD 115200)"
+    BL1_CONSOLE_DATA_BITS="$(config_value "${CP_CONFIG}" BK7258_UART2_DATA_BITS 8)"
+    BL1_CONSOLE_PARITY="$(config_value "${CP_CONFIG}" BK7258_UART2_PARITY 0)"
+    BL1_CONSOLE_STOP_BITS="$(config_value "${CP_CONFIG}" BK7258_UART2_STOP_BITS 1)"
+elif config_enabled "${CP_CONFIG}" BK7258_CONSOLE_UART1; then
+    BL1_CONSOLE_UART=1
+    BL1_CONSOLE_BAUD="$(config_value "${CP_CONFIG}" BK7258_UART1_BAUD 460800)"
+    BL1_CONSOLE_DATA_BITS="$(config_value "${CP_CONFIG}" BK7258_UART1_DATA_BITS 8)"
+    BL1_CONSOLE_PARITY="$(config_value "${CP_CONFIG}" BK7258_UART1_PARITY 0)"
+    BL1_CONSOLE_STOP_BITS="$(config_value "${CP_CONFIG}" BK7258_UART1_STOP_BITS 1)"
+elif config_enabled "${CP_CONFIG}" BK7258_CONSOLE_RTT ||
+     config_enabled "${CP_CONFIG}" BK7258_CONSOLE_NONE ||
+     [[ "${BL1_SWD_ENABLE}" == 1 ]]; then
+    BL1_CONSOLE_UART=3
+    BL1_CONSOLE_BAUD=115200
+    BL1_CONSOLE_DATA_BITS=8
+    BL1_CONSOLE_PARITY=0
+    BL1_CONSOLE_STOP_BITS=1
+else
+    BL1_CONSOLE_UART=1
+    BL1_CONSOLE_BAUD="$(config_value "${CP_CONFIG}" BK7258_UART1_BAUD 460800)"
+    BL1_CONSOLE_DATA_BITS="$(config_value "${CP_CONFIG}" BK7258_UART1_DATA_BITS 8)"
+    BL1_CONSOLE_PARITY="$(config_value "${CP_CONFIG}" BK7258_UART1_PARITY 0)"
+    BL1_CONSOLE_STOP_BITS="$(config_value "${CP_CONFIG}" BK7258_UART1_STOP_BITS 1)"
+fi
+
+BL1_UART2_PIN_GROUP=0
+if config_enabled "${CP_CONFIG}" BK7258_UART2_PINS_P40_P41; then
+    BL1_UART2_PIN_GROUP=1
+fi
+
+if ! [[ "${BL1_CONSOLE_BAUD}" =~ ^[0-9]+$ ]] ||
+   (( BL1_CONSOLE_BAUD < 400 || BL1_CONSOLE_BAUD > 5200000 )); then
+    printf 'build_dual_image: invalid boot console baud: %s\n' \
+        "${BL1_CONSOLE_BAUD}" >&2
+    exit 2
+fi
+
+if [[ "${BL1_SWD_ENABLE}:${BL1_SWD_PIN_GROUP}" == "1:1" ]] &&
+   { [[ "${BL1_CONSOLE_UART}" == 1 ]] ||
+     config_enabled "${CP_CONFIG}" BK7258_UART1; }; then
+    printf '%s\n' 'build_dual_image: P0/P1 cannot own both SWD and UART1' >&2
+    exit 2
+fi
+if [[ "${BL1_SWD_ENABLE}:${BL1_SWD_PIN_GROUP}" == "1:0" ]] &&
+   config_enabled "${AP_CONFIG}" BK7258_LCD; then
+    printf '%s\n' 'build_dual_image: P20/P21 SWD conflicts with AP LCD' >&2
+    exit 2
+fi
+if { [[ "${BL1_CONSOLE_UART}" == 2 ]] ||
+     config_enabled "${CP_CONFIG}" BK7258_UART2; } &&
+   [[ "${BL1_UART2_PIN_GROUP}" == 0 ]] &&
+   config_enabled "${AP_CONFIG}" BK7258_T5_BOARD_CAMERA; then
+    printf '%s\n' 'build_dual_image: UART2 P30/P31 conflicts with AP camera' >&2
+    exit 2
+fi
+if { [[ "${BL1_CONSOLE_UART}" == 2 ]] ||
+     config_enabled "${CP_CONFIG}" BK7258_UART2; } &&
+   [[ "${BL1_UART2_PIN_GROUP}" == 1 ]] &&
+   config_enabled "${AP_CONFIG}" BK7258_LCD; then
+    printf '%s\n' 'build_dual_image: UART2 P40/P41 conflicts with AP LCD' >&2
+    exit 2
+fi
+if config_enabled "${CP_CONFIG}" BK7258_UART0_FLOW_CONTROL &&
+   { config_enabled "${AP_CONFIG}" BK7258_GT1151 ||
+     config_enabled "${AP_CONFIG}" BK7258_USBHOST; }; then
+    printf '%s\n' 'build_dual_image: UART0 CTS/RTS P12/P13 conflict with AP board devices' >&2
+    exit 2
+fi
+
 # MCUboot is an explicit, signed build profile.  Do not silently turn a
 # cp_nsh_mcuboot/ap_smp_mcuboot build into the unsigned raw-image pipeline:
 # the signing key and BL1 authorization key must be supplied from outside the
 # repository (normally from /tmp or a developer-owned secure key store).
 MCUBOOT_PROFILE=false
+BL1_USE_BL2=0
 MCUBOOT_SIGNING_KEY="${MCUBOOT_SIGNING_KEY:-}"
 MCUBOOT_VERSION="${MCUBOOT_VERSION:-}"
 MCUBOOT_SECURITY_COUNTER="${MCUBOOT_SECURITY_COUNTER:-auto}"
@@ -108,6 +232,7 @@ case "${BL1_MANIFEST_RAW_PAGE}" in
 esac
 if [[ "${CP_CONFIG_NAME}" == *_mcuboot ]]; then
     MCUBOOT_PROFILE=true
+    BL1_USE_BL2=1
     MCUBOOT_BL2_FLASH_SEGMENT="bl2_crc.bin@0x51d000,bl2_secondary_crc.bin@0x53f000"
     if [[ -z "${MCUBOOT_SIGNING_KEY}" || ! -f "${MCUBOOT_SIGNING_KEY}" ]]; then
         printf '%s\n' \
@@ -177,11 +302,26 @@ if [[ "${CP_CONFIG_NAME}" == *_mcuboot ]]; then
 fi
 
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
-      "${AP_CONFIG_NAME}" == "ap_smp_rptun" ]]; then
-    if [[ "${CP_CONFIG_NAME}" != "cp_nsh_rptun" ||
-          "${AP_CONFIG_NAME}" != "ap_smp_rptun" ]]; then
+      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt_mcuboot" ||
+      "${AP_CONFIG_NAME}" == "ap_smp_rptun" ||
+      "${AP_CONFIG_NAME}" == "ap_smp_rptun_mcuboot" ]]; then
+    if [[ ( "${CP_CONFIG_NAME}" != "cp_nsh_rptun" &&
+            "${CP_CONFIG_NAME}" != "cp_nsh_rptun_rtt" &&
+            "${CP_CONFIG_NAME}" != "cp_nsh_rptun_rtt_mcuboot" ) ||
+          ( "${AP_CONFIG_NAME}" != "ap_smp_rptun" &&
+            "${AP_CONFIG_NAME}" != "ap_smp_rptun_mcuboot" ) ]]; then
         printf '%s\n' \
             'build_dual_image: N9 RPTUN layout configs must be selected as a pair' \
+            >&2
+        exit 2
+    fi
+    if [[ "${CP_CONFIG_NAME}" == *_mcuboot &&
+          "${AP_CONFIG_NAME}" != *_mcuboot ]] ||
+       [[ "${CP_CONFIG_NAME}" != *_mcuboot &&
+          "${AP_CONFIG_NAME}" == *_mcuboot ]]; then
+        printf '%s\n' \
+            'build_dual_image: N9 RPTUN MCUboot configs must be selected as a pair' \
             >&2
         exit 2
     fi
@@ -327,8 +467,19 @@ printf '%s\n' "build_dual_image: rebuilding Tier-1 bootloader"
 # pre-LittleFS gap.  Neither step writes OTP/eFuse.
 BL1_BOOT_ARGS=(
     "BL1_MANIFEST_RAW_PAGE=${BL1_MANIFEST_RAW_PAGE_VALUE}"
+    "BL1_USE_BL2=${BL1_USE_BL2}"
+    "BL1_SWD_ENABLE=${BL1_SWD_ENABLE}"
+    "BL1_SWD_PIN_GROUP=${BL1_SWD_PIN_GROUP}"
+    "BL1_SWD_TARGET=${BL1_SWD_TARGET}"
+    "BL1_CONSOLE_UART=${BL1_CONSOLE_UART}"
+    "BL1_CONSOLE_BAUD=${BL1_CONSOLE_BAUD}"
+    "BL1_CONSOLE_DATA_BITS=${BL1_CONSOLE_DATA_BITS}"
+    "BL1_CONSOLE_PARITY=${BL1_CONSOLE_PARITY}"
+    "BL1_CONSOLE_STOP_BITS=${BL1_CONSOLE_STOP_BITS}"
+    "BL1_UART2_PIN_GROUP=${BL1_UART2_PIN_GROUP}"
 )
 if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    BL1_BOOT_ARGS+=("BL1_SWD_BOOT_HOLD=0")
     printf '%s\n' "build_dual_image: building MCUboot BL2"
     BL2_KEY_SOURCE="${TMPDIR}/bk7258_bl2_keys.c"
     python3 "${WORKSPACE}/apps/boot/mcuboot/mcuboot/scripts/imgtool.py" \
@@ -345,6 +496,11 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     make -C "${BOARD_DIR}/bootloader/bl2" clean all \
         "BL2_LOGICAL_SIZE=${BL2_LOGICAL_SIZE}" \
         "BL2_SECURITY_COUNTER_FLOOR=${BL2_SECURITY_COUNTER_FLOOR}" \
+        "BL2_SWD_ENABLE=${BL1_SWD_ENABLE}" \
+        "BL2_SWD_PIN_GROUP=${BL1_SWD_PIN_GROUP}" \
+        "BL2_SWD_TARGET=${BL1_SWD_TARGET}" \
+        "BL2_SWD_BOOT_HOLD=${BL1_SWD_BOOT_HOLD}" \
+        "BL2_CONSOLE_UART=${BL1_CONSOLE_UART}" \
         "BL2_KEY_SOURCE=${BL2_KEY_SOURCE}"
     BL1_MANIFEST_CONTAINER_ARGS=()
     if [[ "${BL1_MANIFEST_RAW_PAGE}" == "true" ]]; then
@@ -378,6 +534,8 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
         "BL1_MANIFEST_KEY_SOURCE=${TMPDIR}/boot_bl1_manifest_key.c"
         "BL2_LOGICAL_SIZE=${BL2_LOGICAL_SIZE}"
     )
+else
+    BL1_BOOT_ARGS+=("BL1_SWD_BOOT_HOLD=${BL1_SWD_BOOT_HOLD}")
 fi
 BOOT_MAKE_TARGETS=(clean all verify)
 make -C "${BOARD_DIR}/bootloader" "${BOOT_MAKE_TARGETS[@]}" \
@@ -541,6 +699,7 @@ AP_SDK_MANIFEST_SHA256=${AP_SDK_MANIFEST_SHA256}
 CP_SDK_PROVENANCE_SHA256=${CP_SDK_PROVENANCE_SHA256}
 AP_SDK_PROVENANCE_SHA256=${AP_SDK_PROVENANCE_SHA256}
 MCUBOOT_PROFILE=${MCUBOOT_PROFILE}
+BL1_USE_BL2=${BL1_USE_BL2}
 MCUBOOT_VERSION=${MCUBOOT_VERSION}
 MCUBOOT_SECURITY_COUNTER=${MCUBOOT_SECURITY_COUNTER}
 MCUBOOT_OFFICIAL_PIPELINE=${MCUBOOT_OFFICIAL_PIPELINE}
@@ -548,6 +707,16 @@ MCUBOOT_SIGNING_KEY_REQUIRED=${MCUBOOT_PROFILE}
 BL1_MANIFEST_ENABLED=${MCUBOOT_PROFILE}
 BL1_MANIFEST_FORMAT=${BL1_MANIFEST_FORMAT}
 BL1_MANIFEST_RAW_PAGE=${BL1_MANIFEST_RAW_PAGE}
+BL1_SWD_ENABLE=${BL1_SWD_ENABLE}
+BL1_SWD_PIN_GROUP=${BL1_SWD_PIN_GROUP}
+BL1_SWD_TARGET=${BL1_SWD_TARGET}
+BL1_SWD_BOOT_HOLD=${BL1_SWD_BOOT_HOLD}
+BL1_CONSOLE_UART=${BL1_CONSOLE_UART}
+BL1_CONSOLE_BAUD=${BL1_CONSOLE_BAUD}
+BL1_CONSOLE_DATA_BITS=${BL1_CONSOLE_DATA_BITS}
+BL1_CONSOLE_PARITY=${BL1_CONSOLE_PARITY}
+BL1_CONSOLE_STOP_BITS=${BL1_CONSOLE_STOP_BITS}
+BL1_UART2_PIN_GROUP=${BL1_UART2_PIN_GROUP}
 BL2_LOGICAL_SIZE=${BL2_LOGICAL_SIZE}
 BL2_SECURITY_COUNTER_FLOOR=${BL2_SECURITY_COUNTER_FLOOR}
 BL2_BOOT_POLICY_ENABLED=${MCUBOOT_PROFILE}
@@ -579,6 +748,8 @@ else
 fi
 
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt_mcuboot" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_btipc" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||

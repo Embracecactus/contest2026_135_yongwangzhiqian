@@ -41,17 +41,37 @@
 #define SYS_CPU1_RUNNING         (1u << 5)
 #define SYS_CPU2_RUNNING         (1u << 6)
 
-#define UART1_BASE               0x45830000u
-#define UART1_CONFIG             (UART1_BASE + 0x10u)
-#define UART1_FIFO_CONFIG        (UART1_BASE + 0x14u)
-#define UART1_FIFO_STATUS        (UART1_BASE + 0x18u)
-#define UART1_INT_ENABLE         (UART1_BASE + 0x20u)
-#define UART1_TX_FINISHED        (1u << 17)
-#define UART1_TX_DRAIN_LOOPS     1000000u
+#if defined(BK7258_BL2_CONSOLE_UART)
+#  define BOOT_CONSOLE_UART BK7258_BL2_CONSOLE_UART
+#else
+#  define BOOT_CONSOLE_UART BK7258_BL1_CONSOLE_UART
+#endif
+
+#if BOOT_CONSOLE_UART == 0
+#  define BOOT_UART_BASE         0x44820000u
+#  define SYS_BOOT_UART_CLOCK_EN (1u << 2)
+#elif BOOT_CONSOLE_UART == 1
+#  define BOOT_UART_BASE         0x45830000u
+#  define SYS_BOOT_UART_CLOCK_EN (1u << 10)
+#elif BOOT_CONSOLE_UART == 2
+#  define BOOT_UART_BASE         0x45840000u
+#  define SYS_BOOT_UART_CLOCK_EN (1u << 11)
+#endif
+
+#if BOOT_CONSOLE_UART < 3
+#  define BOOT_UART_CONFIG       (BOOT_UART_BASE + 0x10u)
+#  define BOOT_UART_FIFO_CONFIG  (BOOT_UART_BASE + 0x14u)
+#  define BOOT_UART_FIFO_STATUS  (BOOT_UART_BASE + 0x18u)
+#  define BOOT_UART_INT_ENABLE   (BOOT_UART_BASE + 0x20u)
+#  define BOOT_UART_TX_FINISHED  (1u << 17)
+#  define BOOT_UART_DRAIN_LOOPS  1000000u
+#  define SYS_BOOT_UART_CLOCK    (SYS_BASE + 0x30u)
+#endif
+
+/* The official UART1 deinit additionally clears this UART1-only branch.
+ * UART0/UART2 have no corresponding write in the recovered boot contract. */
 #define SYS_UART1_DEVICE_CLK     (SYS_BASE + 0x80u)
 #define SYS_UART1_DEVICE_CLK_EN  (1u << 15)
-#define SYS_UART1_CLOCK          (SYS_BASE + 0x30u)
-#define SYS_UART1_CLOCK_EN       (1u << 10)
 
 #define AP_BOOT_STATE_MAGIC      0x2809f000u
 #define CORE_STOP_WAIT_LOOPS     10000u
@@ -449,33 +469,37 @@ void boot_prepare_app_handoff(void)
     boot_icache_invalidate_all();
 }
 
-void boot_uart1_prepare_app_handoff(void)
+void boot_console_prepare_app_handoff(void)
 {
+#if BOOT_CONSOLE_UART < 3
     uint32_t count;
 
     /* Exact v3.1.1.9 A/B handoff ordering calls the console deinit routine
      * before configure_dcache_mpu(0), VTOR/MSP and the final branch.  This
-     * project must keep UART1 alive across BL1 -> SRAM BL2 for BL2 diagnostics,
-     * so quiesce it only at the final BL2 -> CP boundary.
+     * project keeps the selected console alive across BL1 -> SRAM BL2 for BL2
+     * diagnostics, so quiesce it only at the final BL2 -> CP boundary.
      *
      * Official function 0x02000a7c waits indefinitely for FIFO status bit 17.
      * Bound that wait here: a damaged UART must not prevent a verified image
      * from booting forever.  The following masks and clock bits reproduce the
      * UART1 branch at 0x02000a1c in the official A/B binary. */
 
-    for (count = 0; count < UART1_TX_DRAIN_LOOPS; count++)
+    for (count = 0; count < BOOT_UART_DRAIN_LOOPS; count++)
         {
-            if ((REG32(UART1_FIFO_STATUS) & UART1_TX_FINISHED) != 0)
+            if ((REG32(BOOT_UART_FIFO_STATUS) & BOOT_UART_TX_FINISHED) != 0)
                 {
                     break;
                 }
         }
 
-    REG32(UART1_CONFIG) &= ~0x1bu;
-    REG32(UART1_FIFO_CONFIG) &= ~0x3040u;
-    REG32(UART1_INT_ENABLE) &= ~0x42u;
+    REG32(BOOT_UART_CONFIG) &= ~0x1bu;
+    REG32(BOOT_UART_FIFO_CONFIG) &= ~0x3040u;
+    REG32(BOOT_UART_INT_ENABLE) &= ~0x42u;
+#if BOOT_CONSOLE_UART == 1
     REG32(SYS_UART1_DEVICE_CLK) &= ~SYS_UART1_DEVICE_CLK_EN;
-    REG32(SYS_UART1_CLOCK) &= ~SYS_UART1_CLOCK_EN;
+#endif
+    REG32(SYS_BOOT_UART_CLOCK) &= ~SYS_BOOT_UART_CLOCK_EN;
     boot_dsb();
     boot_isb();
+#endif
 }

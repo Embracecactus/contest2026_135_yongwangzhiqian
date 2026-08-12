@@ -34,6 +34,13 @@
 
 #include <arch/chip/bk7258_amp.h>
 
+#ifdef CONFIG_BK7258_SWD_DEBUG
+#  include <arch/chip/bk7258_debug.h>
+#endif
+#ifdef CONFIG_BK7258_CONSOLE_RTT
+#  include <SEGGER_RTT.h>
+#endif
+
 #include "arm_internal.h"
 
 #ifdef CONFIG_BK7258_CLOCK_320M
@@ -128,6 +135,11 @@ void __start(void)
 
   __asm volatile ("cpsid i");
 
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_begin();
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_CP_ENTRY);
+#endif
+
   /* 2. Point VTOR at our flash-resident vector table.  The MCUboot image
    *    reserves a 0x200-byte, VTOR-alignment-sized header before that table.
    *    The bootloader may or may not have set this; make it deterministic.
@@ -172,6 +184,10 @@ void __start(void)
   BK7258_SCB_CPACR |= ((3u << 20) | (3u << 22));             /* CP10/CP11 full access */
   __asm volatile ("dsb; isb");
 
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_CP_CORE_READY);
+#endif
+
 #ifndef CONFIG_BUILD_PIC
   /* 5. Copy the .data image from flash (LMA == _eronly) to its RAM VMA
    *    (_sdata.._edata).  The BK7258 boots with a copy of NuttX kernel +
@@ -193,6 +209,16 @@ void __start(void)
     }
 #endif
 
+#ifdef CONFIG_BK7258_CONSOLE_RTT
+  /* Initialize the RTT control block early, but defer the board-specific SWD
+   * mux to board bring-up.  The SDK GPIO/sysctrl wrappers require initialized
+   * HAL state, and the debug profile establishes the mux only through those
+   * wrappers.
+   */
+
+  SEGGER_RTT_Init();
+#endif
+
 #ifdef CONFIG_BK7258_WIFI_VNET
   /* The immutable BK7258 v3.1.1.9 Wi-Fi library allocates its LMAC station
    * table with malloc() and expects the first-use heap contents to be zero.
@@ -207,6 +233,10 @@ void __start(void)
     }
 #endif
 #endif /* CONFIG_BUILD_PIC */
+
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_CP_C_RUNTIME_READY);
+#endif
 
   /* 7. Perform early serial initialisation so the console is available
    *    during the rest of boot.  arm_earlyserialinit() is only compiled
@@ -225,8 +255,8 @@ void __start(void)
    * for a performance experiment, run after early serial init so any stall is
    * distinguishable on the console, but before nx_start() so up_timer_
    * initialize() sees the new M1 and arms the correct SysTick reload via the
-   * runtime detector.  The UART1 console runs off an independent clocking
-   * path and survives the core mux switch.
+   * runtime detector.  UART consoles use the independent 26 MHz XTAL source
+   * and RTT does not depend on the CPU clock divider.
    */
 
   bk7258_clock_bringup_320m();
@@ -237,6 +267,10 @@ void __start(void)
    *    board_app_initialize and spawns the NSH builtin), and finally the
    *    IDLE task.
    */
+
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_CP_BEFORE_NX_START);
+#endif
 
   nx_start();
 

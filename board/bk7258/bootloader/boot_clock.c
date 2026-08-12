@@ -92,11 +92,21 @@
 
 #define ANA_SPI_TIMEOUT    100000u
 
-/* UART1 polled output (matches boot_main.c). */
+/* Selected boot-UART polled output (matches boot_main.c/start.S). */
 
-#define UART1_FIFO         REG32(0x4583001Cu)
-#define UART1_STATUS       REG32(0x45830018u)
-#define UART1_TX_READY     (1u << 20)
+#if BK7258_BL1_CONSOLE_UART == 0
+#  define BOOT_UART_BASE 0x44820000u
+#elif BK7258_BL1_CONSOLE_UART == 1
+#  define BOOT_UART_BASE 0x45830000u
+#elif BK7258_BL1_CONSOLE_UART == 2
+#  define BOOT_UART_BASE 0x45840000u
+#endif
+
+#if BK7258_BL1_CONSOLE_UART < 3
+#  define BOOT_UART_FIFO     REG32(BOOT_UART_BASE + 0x1cu)
+#  define BOOT_UART_STATUS   REG32(BOOT_UART_BASE + 0x18u)
+#  define BOOT_UART_TX_READY (1u << 20)
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Freestanding helpers (no libc, stack-only).                        */
@@ -104,11 +114,15 @@
 
 static void clk_putc(char c)
 {
+#if BK7258_BL1_CONSOLE_UART < 3
     int i;
     for (i = 0; i < 100000; i++) {
-        if (UART1_STATUS & UART1_TX_READY) break;
+        if (BOOT_UART_STATUS & BOOT_UART_TX_READY) break;
     }
-    UART1_FIFO = (uint32_t)(uint8_t)c;
+    BOOT_UART_FIFO = (uint32_t)(uint8_t)c;
+#else
+    (void)c;
+#endif
 }
 
 static void clk_puts(const char *s)

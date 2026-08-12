@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-08-10
+Last reviewed: 2026-08-12
 
 ## System context
 
@@ -16,7 +16,7 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | Component | Owner and responsibility |
 |---|---|
 | BK7258 platform and physical boards | `board/bk7258` owns shared SoC, CP/AP, boot-chain, wrapper, partition and build code. Physical wiring is selected from `boards/t5ai_core` or `boards/t5_board`; T5AI-Core remains the default. See [ADR-023](decisions/ADR-023-bk7258-platform-board-variants.md). |
-| Tier-1 bootloader | Team source; normalizes boot/cache/MPU/watchdog state and transfers to CP |
+| Tier-1 bootloader | Board-owned source reconstructed for this port; it is built as a project artifact rather than patched into a vendor binary. It normalizes boot/cache/MPU/watchdog state. Direct profiles validate and transfer straight to CP; signed profiles transfer to Manifest/MCUboot BL2. |
 | BK7258 integrated Flash | 8 MiB on the current T5-AI; interface reports `0xc86517`, compatible with the GD25WQ64E command identity but not evidence of a separate board-level chip |
 | CP NuttX on CPU0 | Flash/LittleFS owner, AP lifecycle supervisor, RPMsg peer, Beken Bluetooth Controller owner, Wi-Fi RF/PHY/MAC/WPA/controller owner, PSRAM hardware/PM owner |
 | AP NuttX SMP on CPU1+CPU2 | Stock NuttX scheduling/Host/services; logical CPU0 owns RPMsg/Bluetooth/Wi-Fi gateways, logical CPU1 is a business and socket producer |
@@ -26,10 +26,14 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | Historical N15 OTA evidence | The former custom inactive-slot writer, dual-bank journal and trial/rollback lifecycle were physically exercised, then retired from active source. Their ADRs and verification records are historical evidence, not current firmware architecture. |
 | N16 Wi-Fi (accepted architecture, complete for STA scope) | Official v3.1.1.9 radio/controller and DHCP client remain on CP; AP uses the official vnet proxy plus a repository-owned lease/netdev adapter to native NuttX `wlan0`/IPv4/sockets; vendor AP lwIP is excluded |
 | BL1/BL2/MCUboot chain (recoverable baseline) | BK7236 `bk_idk` is a read-only semantic/source reference; its single-core addresses/ABI/TFM mapping are not copied. The executable BK7258 chain uses a board-owned BL1, candidate Manifest verifier and pinned NuttX MCUboot BL2 with CP/AP same-slot gating. BL1 publishes fixed Primary→Secondary order and links no retired N15/N17 lifecycle or Flash-write module. The chain is board-verified but remains software-rooted and unarmed; BootROM Manifest acceptance, OTP/eFuse binding and hardware rollback remain open. |
+| CP debug and console transport | SWD route, target core and console transport are independent configuration axes with paired-image pin-conflict gates. SWD supports P0/P1 or P20/P21; console supports NONE, RTT or UART0/1/2 with explicit frame/baud and route settings. Direct profiles stop APB/AON watchdogs and hold in BL1 after final cleanup; release magic immediately precedes the CP branch. MCUboot profiles hold at the equivalent BL2-to-CP boundary. The board-verified T5-Board profile uses CP SWD/RTT on P0/P1, omits UART1/COM4, suppresses only the SDK all-pin default-map pass that would overwrite the route, and downloads through COM3. P20/P21 and alternate UART routes are compiled but not board-verified. |
+| PM and timer policy | Phase one is shallow-only and NuttX remains the PM owner. CP retains the existing SDK-compatible DVFS/module-clock votes, bounds the governor at `PM_IDLE`, and in ordinary non-RTT builds executes clear-SLEEPDEEP then DSB/WFI/ISB through `pm_idle()`. AP ordinary idle executes the same Cortex-M sequence directly. CP profiles without `CONFIG_TIMER_ARCH` own a direct periodic SysTick ISR that advances the NuttX scheduler; timer-lower-half profiles retain the generic path. `PM_STANDBY` and `PM_SLEEP` fail closed: no SDK `pm_state_machine()`, `arch_deep_sleep()` or AP coordinated low-voltage wrapper is part of phase one. A later low-voltage phase must implement the complete CP coordinator, two AP votes, AON/mailbox wake restriction, IRQ/DMA/SysTick checks and restore protocol before standby is admitted. |
 
 ## Primary data flows
 
-- Boot: legacy BootROM → board-owned minimal BL1 → signed Manifest → pinned
+- Direct boot: legacy BootROM → board-owned BL1 direct-vector validation and
+  optional final debug gate → CP → bounded AP release → AP SMP READY.
+- Signed boot: legacy BootROM → board-owned BL1 → signed Manifest → pinned
   NuttX MCUboot BL2 → signed CP/AP pair → bounded AP release → AP SMP READY.
 - IPC: one CP↔AP RPTUN/OpenAMP/RPMsg link; AP logical CPU0 is the mailbox/OpenAMP gateway.
 - Storage: CP exclusively owns raw flash/MTD/LittleFS; AP reaches it through RPMsgFS.
@@ -98,10 +102,10 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 
 ## Known constraints and technical debt
 
-- T5AI-Core V1.0.1 remains the hardware-verified default board. T5-Board
-  V1.0.2 pin mappings are schematic-verified and compile-verified only; its
-  board-level GPIO, TF, RGB LCD and DVP connections still need physical tests
-  in mutually compatible driver profiles.
+- T5AI-Core V1.0.1 remains the compatibility default. T5-Board is physically
+  verified for COM3 sparse download, P0/P1 CP SWD, BL1 final hold/release,
+  CP/AP startup, CPU2 SMP and bidirectional RPTUN. P20/P21, alternate UARTs,
+  TF, RGB LCD and DVP remain compile-only until tested in compatible profiles.
 - N14 exposes only 128 KiB CP and 640 KiB AP role-local PSRAM heaps. The remaining regions are reserved by policy.
 - PSRAM is non-cacheable; DMA/cache-coherency and performance tuning are deferred.
 - AP automatic recovery is disabled by default; the verified baseline is detection plus bounded manual recovery.

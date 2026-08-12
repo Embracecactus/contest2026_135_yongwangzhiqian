@@ -108,6 +108,13 @@ static_assert(BK7258_AP_RPTUN_INIT_PRIORITY > CONFIG_RPTUN_PRIORITY,
 #  define BK7258_CPU2_EXPECTED_MASK  0x1u
 #endif
 
+#if defined(CONFIG_BK7258_PM_CLOCK) && \
+    (defined(CONFIG_BK7258_WIFI_VNET) || \
+     defined(CONFIG_BK7258_BT_IPC) || \
+     defined(CONFIG_BK7258_BLE_GATT))
+#  define BK7258_AP_STARTUP_FREQ_VOTE 1
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -381,7 +388,7 @@ int bk7258_ap_main(int argc, char *argv[])
 #ifdef CONFIG_BK7258_PSRAM_TEST
   struct bk7258_psram_test_result_s psram_test;
 #endif
-#ifdef CONFIG_BK7258_PM_CLOCK
+#ifdef BK7258_AP_STARTUP_FREQ_VOTE
   bool pm_startup_vote = false;
 #endif
   uint32_t event;
@@ -635,11 +642,14 @@ int bk7258_ap_main(int argc, char *argv[])
     }
 
   /* The v3.1.1.9 radio startup path faults when the shared CPU clock is only
-   * 120 MHz.  Hold a bounded AP-startup vote while Wi-Fi, BT/BLE and the
-   * AP-owned peripherals are initialized.  Normal per-module votes take over
-   * after startup and the CP max-vote policy returns to its 120 MHz floor.
+   * 120 MHz.  Radio profiles hold a bounded AP-startup vote while Wi-Fi and
+   * BT/BLE are initialized.  A transport-only profile must not issue this
+   * request before RPMsg Name Service has connected: it has no high-load
+   * module to protect, and normal module votes remain available once the
+   * link is ready.
    */
 
+#ifdef BK7258_AP_STARTUP_FREQ_VOTE
   ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,
                                  BK7258_PM_CPU_FREQ_320M);
   if (ret < 0)
@@ -649,6 +659,7 @@ int bk7258_ap_main(int argc, char *argv[])
     }
 
   pm_startup_vote = true;
+#endif
 #endif
 
 #ifdef CONFIG_BK7258_WIFI_VNET
@@ -706,7 +717,7 @@ int bk7258_ap_main(int argc, char *argv[])
       goto parked;
     }
 
-#ifdef CONFIG_BK7258_PM_CLOCK
+#ifdef BK7258_AP_STARTUP_FREQ_VOTE
   ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,
                                  BK7258_PM_CPU_FREQ_DEFAULT);
   if (ret < 0)
@@ -835,7 +846,7 @@ int bk7258_ap_main(int argc, char *argv[])
     }
 
 parked:
-#ifdef CONFIG_BK7258_PM_CLOCK
+#ifdef BK7258_AP_STARTUP_FREQ_VOTE
   if (pm_startup_vote)
     {
       (void)bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,

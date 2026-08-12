@@ -6,6 +6,7 @@ config ARCH_BOARD_BK7258
 	bool "Beken BK7258 platform"
 	depends on ARCH_BOARD_CUSTOM
 	default y
+	select BOARD_LATE_INITIALIZE
 	---help---
 		Shared BK7258 CP/AP, boot-chain and peripheral integration. Select
 		the physical carrier below so
