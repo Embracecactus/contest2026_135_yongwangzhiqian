@@ -1,93 +1,91 @@
 # Current Progress
 
-Last updated: 2026-08-12 GMT+8
+Last updated: 2026-08-13 GMT+8
 Updated by: Codex
 
 ## Active objective
 
-The first BK7258 PM phase, T5-Board P0/P1 J-Link recovery, and the
-debug/UART/bringup configuration foundation are implemented and board-verified
-in the uncommitted worktree on `feat/bk7258-pm-idle` at `24428f4`.
+The complete BK7258 coordinated low-voltage PM phase and the subsequent
+official-SDK/Tuya wrapper audit are implemented and board-verified on
+`feat/bk7258-coordinated-standby`, based on `4f5a906`.
 
-This checkpoint intentionally implements only ordinary shallow idle. It does
-not claim a complete port of the v3.1.1.9 coordinated low-voltage PM protocol.
+NuttX remains the PM owner. Repository-owned board wrappers now implement the
+v3.1.1.9 three-core protocol instead of treating three independent WFI calls as
+standby: CP coordinates both AP cores, PWC/mailbox and AON state, and every
+unsafe or incomplete transition fails closed to ordinary shallow idle.
 
-## Current boot and hardware baseline
+## Current hardware and configuration baseline
 
-- The verified target is T5-Board. SWD uses P0/P1, firmware download uses
-  COM3, and UART1/COM4 is physically switched off. COM4 was not opened.
-- The verified direct profile is `BootROM -> board-owned reconstructed BL1 ->
-  CP/AP` with `BL1_USE_BL2=0`. It does not modify a vendor bootloader binary.
-  The separately retained signed profile inserts Manifest + NuttX MCUboot BL2.
-- BL1 validates the direct CP vector, restores the CP `MSPLIM`, establishes
-  P0/P1 SWD and waits after its final security/cache/watchdog cleanup. Writing
-  `JLNK` to `0x2809f7f0` releases CP; the unbounded hold cannot be reset by
-  APB/AON watchdogs.
-- NuttX and the official SDK v3.1.1.9 source trees remain unchanged; board
-  wrappers own the adaptation.
-- SWD group, target core and boot hold are explicit Kconfig inputs. Console
-  transport is independently NONE, RTT or UART0/1/2, with baud/frame/route
-  settings and paired-image pin-conflict checks. P20/P21 and alternate UART
-  routes remain compile-verified, not T5-Board-verified.
-- Mandatory SDK/IPC/PM/AP lifecycle setup runs from idempotent
-  `board_late_initialize()`. Procfs, MTD nodes and filesystem mounts remain
-  application-level bringup.
+- The verified target is T5-Board. SWD is P0/P1, firmware download is COM3,
+  and UART1/COM4 is physically switched off. COM4 was not opened.
+- The verified signed profile is `BootROM -> board-owned BL1 -> Manifest ->
+  NuttX MCUboot BL2 -> signed CP/AP`. BL2 holds immediately before CP handoff;
+  writing `JLNK` to `0x2809f7f0` releases CP.
+- The final board image is version `18.5.28`, security counter `53`, with CP/AP
+  `*_rptun_mcuboot` configurations, CP-target SWD group 1 (P0/P1), RTT/no UART
+  console, and BL2 boot hold enabled.
+- SWD group, target core, console UART/RTT/NONE, baud rate, frame and pin route
+  remain independent Kconfig inputs. P20/P21 and alternate UART routes are
+  compile-verified only.
+- Official NuttX and Beken SDK v3.1.1.9 sources remain unchanged. Permanent
+  adaptation is restricted to repository-owned board wrappers and scripts.
 
-## Verified at this checkpoint
+## Verified implementation
 
-- CP DVFS/module-clock voting remains active. NuttX PM accepts only
-  `PM_NORMAL`, `PM_IDLE`, and `PM_RESTORE`; `PM_STANDBY`/`PM_SLEEP` fail closed.
-- Ordinary non-RTT CP idle reaches clear-SLEEPDEEP then DSB -> WFI -> ISB
-  through `pm_idle()`; AP uses the same shallow primitive. The RTT diagnostic
-  CP profile deliberately stays awake so J-Link remains attachable.
-- GPIO default-map suppression prevents the SDK all-pin initializer from
-  reclaiming P0/P1. GPIO1's board LED lower-half is skipped when P0/P1 SWD or
-  UART1 owns the pin.
-- Transport-only AP builds no longer request the radio-only 320 MHz startup
-  vote. This removed the observed AP startup error `0x1a`.
-- CP periodic SysTick no longer depends on `up_timer_set_lowerhalf()` when
-  `CONFIG_TIMER_ARCH` is absent. The direct SysTick ISR calls
-  `nxsched_process_timer()`, allowing timed sleeps, board late init and the CP
-  RPMsg worker to progress.
-- The final `cp_nsh_rptun_rtt + ap_smp_rptun` dual build passed SDK provenance,
-  BL1, CP/AP link, partition/factory-layout, wrapper and RPTUN layout checks.
-- Sparse flashing through COM3 wrote only BL1, CP and AP; all three writes
-  passed. Slot B, LittleFS and calibration tail were preserved. Canonical log:
-  `../logs/bk7258-auto-debug/20260812-204429` from the workspace root.
-- At the BL1 hold, J-Link observed `PC=0x020002ba`, `VTOR=0x02000000`, SWD
-  function `0x22`, P0/P1 control `0x00050048`, and CPU0 route `0`.
-- More than 12 seconds after release, J-Link reattached successfully. Runtime
-  evidence showed `VTOR=0x28010800`, SysTick enabled (`CTRL=0x00010007`), the
-  full startup trace through stage `0x203`, platform/watchdog initialization
-  flags `1`, RPTUN CONNECTED with flags `0x7fff`, APBS READY/error 0, CPU2
-  RUNNING, and SMP PASSED/error 0/online mask `3`.
-- The target was resumed before J-Link exited. `git diff --check` passes. No
-  commit or push has been made.
+- CP coordinates the low-voltage request and waits for both AP WFI reports.
+  AP cores stop/restore SysTick, reject pending IRQ/DMA or invalid votes, set
+  AON WFI state, retain the mailbox wake path and enter/leave `SLEEPDEEP` in
+  the official ordering. RTC wake and NuttX tick compensation are active.
+- Continuous runtime PM diagnostics show real completed low-voltage cycles;
+  aborts remain bounded and observable rather than bypassing safety checks.
+- The official SDK/Tuya audit corrected I2C mutex initialization, DVP H264
+  failure cleanup, IPI self-test timing, Flash partition CRC/name validation,
+  UART rollback, semaphore/event semantics, host/target allocation boundaries,
+  RPTUN mailbox mocks and the stale SDK IRQ verifier.
+- The audit also confirmed several deliberate nonchanges: AP SRAM/PSRAM is
+  non-cacheable, Wi-Fi pbuf references match the SDK, the BT helper is ordinary
+  bitfield RMW, the DVFS critical section follows the SDK, USB has no official
+  unregister, and RPTUN rollback remains intentionally fail closed.
+- Generic, camera/H264, Wi-Fi and final signed PM dual-image builds all pass.
+  The partition/factory-layout and SDK provenance gates pass.
+- Host RPTUN unit tests pass `31/31`; SDK IRQ verification passes `48/48`;
+  `git diff --check` passes.
+- COM3 sparse flashing wrote only BL1, CP, AP and the two BL2 copies. BKFIL
+  reported all five writes successful; LittleFS, `usr_config` and calibration
+  were preserved. Canonical hardware log:
+  `../../logs/bk7258-auto-debug/20260813-015254` from this repository.
+- J-Link used exactly `STAR`, SWD and 100 kHz without halting the target. Across
+  two read-only samples CP completed cycles increased from 1,241 to 1,836;
+  AP0 deep entries from 4,543 to 6,618 and AP1 from 1,159 to 1,689. Wake counts
+  increased with them, proving continued coordinated runtime entry and restore.
 
-Detailed evidence and proof boundaries are in
-[PM idle and J-Link recovery](verification/2026-08-12-bk7258-pm-idle-jlink.md).
+Detailed commands, results and proof boundaries are in
+[the coordinated-PM and SDK/Tuya audit record](verification/2026-08-13-bk7258-coordinated-pm-sdk-audit.md).
 
 ## Honest boundary
 
-Phase one is equivalent to the official SDK only at the ordinary shallow-WFI
-hardware primitive. It does not implement CP sleep voting, both AP WFI votes,
-AON/mailbox-only wake, pending IRQ/DMA/SysTick handling, SLEEPDEEP entry, or
-the corresponding restore sequence. Those remain a later low-voltage phase.
+The signed chain still uses development software keys and is not rooted in
+OTP/eFuse. No OTP/eFuse, lifecycle, rollback-fuse or debug-lock bit was written.
 
-The retained signed boot chain is authenticated by development software keys,
-not OTP/eFuse hardware root trust. No OTP/eFuse, lifecycle, rollback fuse, or
-debug-lock bit has been written.
+P20/P21, alternate UART wiring and peripheral-specific physical profiles have
+not all been tested on matching boards. A diagnostic `last_abort_reason` may
+describe the most recent rejected attempt even while completed sleep/wake
+counters continue increasing; this is expected fail-closed behavior, not a
+claim that every idle opportunity reaches low voltage.
 
 ## Next step
 
-1. Review and commit the bounded PM/debug/UART/bringup changes when authorized.
-2. Validate P20/P21 and alternate UART routes only on matching physical wiring.
-3. Implement low-voltage standby as a separate phase containing the complete
-   CP + two-AP + AON/mailbox + IRQ/DMA/SysTick wake/restore protocol.
+1. Open and review the published branch as a PR against `dev-ai-contest-2026`.
+2. Run longer PM/peripheral coexistence soak tests if product qualification
+   requires them; keep every standby entry condition fail closed.
+3. Validate P20/P21 and alternate UART routes only with matching physical wiring.
 
 ## Fixed constraints
 
 - Do not modify NuttX or official SDK sources for the permanent solution.
 - Do not use COM4 in the P0/P1 SWD/RTT profile; use COM3 only for download.
-- Never place development private keys in the repository, logs, or memory.
+- Never halt the running board for evidence collection.
+- Never place development private keys in the repository, logs or memory.
 - Never write OTP/eFuse or debug locks without separate explicit authority.
+- GPT-5.6-Luna delegation is temporarily disabled; the main model owns coding
+  and debugging until the user explicitly re-enables it.

@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-08-12
+Last reviewed: 2026-08-13
 
 ## System context
 
@@ -27,7 +27,7 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | N16 Wi-Fi (accepted architecture, complete for STA scope) | Official v3.1.1.9 radio/controller and DHCP client remain on CP; AP uses the official vnet proxy plus a repository-owned lease/netdev adapter to native NuttX `wlan0`/IPv4/sockets; vendor AP lwIP is excluded |
 | BL1/BL2/MCUboot chain (recoverable baseline) | BK7236 `bk_idk` is a read-only semantic/source reference; its single-core addresses/ABI/TFM mapping are not copied. The executable BK7258 chain uses a board-owned BL1, candidate Manifest verifier and pinned NuttX MCUboot BL2 with CP/AP same-slot gating. BL1 publishes fixed Primary→Secondary order and links no retired N15/N17 lifecycle or Flash-write module. The chain is board-verified but remains software-rooted and unarmed; BootROM Manifest acceptance, OTP/eFuse binding and hardware rollback remain open. |
 | CP debug and console transport | SWD route, target core and console transport are independent configuration axes with paired-image pin-conflict gates. SWD supports P0/P1 or P20/P21; console supports NONE, RTT or UART0/1/2 with explicit frame/baud and route settings. Direct profiles stop APB/AON watchdogs and hold in BL1 after final cleanup; release magic immediately precedes the CP branch. MCUboot profiles hold at the equivalent BL2-to-CP boundary. The board-verified T5-Board profile uses CP SWD/RTT on P0/P1, omits UART1/COM4, suppresses only the SDK all-pin default-map pass that would overwrite the route, and downloads through COM3. P20/P21 and alternate UART routes are compiled but not board-verified. |
-| PM and timer policy | Phase one is shallow-only and NuttX remains the PM owner. CP retains the existing SDK-compatible DVFS/module-clock votes, bounds the governor at `PM_IDLE`, and in ordinary non-RTT builds executes clear-SLEEPDEEP then DSB/WFI/ISB through `pm_idle()`. AP ordinary idle executes the same Cortex-M sequence directly. CP profiles without `CONFIG_TIMER_ARCH` own a direct periodic SysTick ISR that advances the NuttX scheduler; timer-lower-half profiles retain the generic path. `PM_STANDBY` and `PM_SLEEP` fail closed: no SDK `pm_state_machine()`, `arch_deep_sleep()` or AP coordinated low-voltage wrapper is part of phase one. A later low-voltage phase must implement the complete CP coordinator, two AP votes, AON/mailbox wake restriction, IRQ/DMA/SysTick checks and restore protocol before standby is admitted. |
+| PM and timer policy | NuttX remains the PM owner and the SDK is a leaf hardware service. Ordinary idle uses clear-SLEEPDEEP then DSB/WFI/ISB. Coordinated standby is board-owned but follows the v3.1.1.9 protocol: CP owns the request, PWC mailbox exchange and both-AP vote barrier; each AP checks its vote and pending IRQ/DMA state, saves/stops SysTick, publishes AON WFI state, preserves the mailbox wake path, enters SLEEPDEEP and restores in official wake order. CP uses the bounded RTC wake and compensates NuttX ticks. Missing votes, pending work, stale generations, mailbox errors or restore errors fail closed; no core may independently claim low-voltage standby. Diagnostics are observational and do not authorize entry. |
 
 ## Primary data flows
 
@@ -36,6 +36,11 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 - Signed boot: legacy BootROM → board-owned BL1 → signed Manifest → pinned
   NuttX MCUboot BL2 → signed CP/AP pair → bounded AP release → AP SMP READY.
 - IPC: one CP↔AP RPTUN/OpenAMP/RPMsg link; AP logical CPU0 is the mailbox/OpenAMP gateway.
+- Power management: NuttX requests standby on CP → CP publishes a generation-scoped
+  PWC request → both AP cores pass local IRQ/DMA/vote gates and publish AON WFI
+  state → CP admits the bounded low-voltage interval → mailbox/RTC wake drives
+  ordered AP and CP restore → CP compensates scheduler ticks. Any incomplete
+  edge aborts to shallow idle.
 - Storage: CP exclusively owns raw flash/MTD/LittleFS; AP reaches it through RPMsgFS.
 - Bluetooth: CP owns the official Controller; AP owns the stock NuttX Host/GAP/GATT through official pointer IPC and a board lower-half.
 - Wi-Fi: CP owns official RF/PHY/MAC/WPA, the vnet controller and its DHCP

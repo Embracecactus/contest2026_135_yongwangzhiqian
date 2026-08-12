@@ -99,6 +99,7 @@ static FAR struct frame_buffer_t *bk7258_dvp_frame_malloc(
 static void bk7258_dvp_frame_complete(image_format_t format,
                                       FAR struct frame_buffer_t *frame,
                                       int result);
+static int bk7258_dvp_data_uninit(FAR struct imgdata_s *data);
 
 static const bk_dvp_callback_t g_bk7258_dvp_callback =
 {
@@ -1002,6 +1003,7 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
       return ret;
     }
 
+#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
   if (priv->sdk_config.img_format == IMAGE_H264)
     {
       g_bk7258_dvp_h264_opening = true;
@@ -1011,14 +1013,17 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
       g_bk7258_dvp_h264_irq_deferred = false;
       g_bk7258_dvp_sensor_output_deferred = false;
     }
+#endif
 
   error = bk_dvp_open(&priv->handle, &priv->sdk_config,
                       &g_bk7258_dvp_callback, priv->config.encode_buffer);
   ret = bk7258_dvp_error(error);
+#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
   if (priv->sdk_config.img_format == IMAGE_H264)
     {
       g_bk7258_dvp_h264_opening = false;
     }
+#endif
   if (ret < 0)
     {
       priv->handle = NULL;
@@ -1028,6 +1033,15 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
       return ret;
     }
 
+  /* From this point the SDK owns a live handle.  Publish that ownership
+   * before replaying the board-deferred start operations so every later
+   * failure is routed through the same bk_dvp_close()/PM cleanup path as a
+   * normal imgdata uninitialize.  Tuya and the official SDK both pair a
+   * successful hardware open with a complete deinit sequence. */
+
+  priv->sdk_open = true;
+  priv->suspended = false;
+
   /* v3.1.1.9 starts the H.264 data path before programming the GC2145.
    * On this board the sensor begins driving DVP near the OUTPUT entries of
    * its init table, which can raise YUV/H.264 IRQs while bk_dvp_open() still
@@ -1036,6 +1050,7 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
    * still pass straight through the wrappers above.
    */
 
+#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
   if (priv->sdk_config.img_format == IMAGE_H264)
     {
       if (g_bk7258_dvp_yuv_irq_deferred)
@@ -1044,8 +1059,8 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
             BK7258_YUVB_GROUP2_MASK);
           if (error != 0)
             {
-              nxmutex_unlock(&priv->api_lock);
-              return -EIO;
+              ret = -EIO;
+              goto fail_open;
             }
         }
 
@@ -1055,8 +1070,8 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
             g_bk7258_dvp_h264_irq_core, BK7258_H264_GROUP2_MASK);
           if (error != 0)
             {
-              nxmutex_unlock(&priv->api_lock);
-              return -EIO;
+              ret = -EIO;
+              goto fail_open;
             }
         }
 
@@ -1065,8 +1080,7 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
           ret = bk7258_dvp_error(__real_bk_yuv_buf_start(H264_MODE));
           if (ret < 0)
             {
-              nxmutex_unlock(&priv->api_lock);
-              return ret;
+              goto fail_open;
             }
         }
 
@@ -1075,8 +1089,7 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
           ret = bk7258_dvp_error(__real_bk_h264_encode_enable());
           if (ret < 0)
             {
-              nxmutex_unlock(&priv->api_lock);
-              return ret;
+              goto fail_open;
             }
         }
 
@@ -1086,12 +1099,12 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
             0x78u >> 1, 0xf2u, 0x0fu));
           if (ret < 0)
             {
-              nxmutex_unlock(&priv->api_lock);
-              return ret;
+              goto fail_open;
             }
         }
 
     }
+#endif
 
   /* bk_dvp_open() starts the vendor stream before returning.  Keep that
    * official first-start sequence intact: v3.1.1.9's resume path is meant
@@ -1099,10 +1112,15 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
    * transition.  Until V4L2 queues its first buffer, the bounded callback
    * pool safely drops completed frames. */
 
-  priv->sdk_open = true;
-  priv->suspended = false;
   nxmutex_unlock(&priv->api_lock);
   return 0;
+
+#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
+fail_open:
+  nxmutex_unlock(&priv->api_lock);
+  (void)bk7258_dvp_data_uninit(data);
+  return ret;
+#endif
 }
 
 static int bk7258_dvp_data_uninit(FAR struct imgdata_s *data)

@@ -550,9 +550,41 @@ config BK7258_PM_POLICY
 		votes are translated to stable board client IDs and the highest active
 		vote wins, matching v3.1.1.9.  The official 120 MHz default vote is the
 		floor.  The board idle loop integrates NuttX PM with ordinary Cortex-M
-		WFI.  This first phase admits PM_IDLE only.  PM_STANDBY and PM_SLEEP
-		stay fail-closed until the complete CP/AP coordinated low-voltage and
-		wake/restore protocol is implemented.
+		WFI.  Without BK7258_PM_COORDINATED_STANDBY this admits PM_IDLE only;
+		PM_STANDBY and PM_SLEEP remain fail-closed.
+
+config BK7258_PM_COORDINATED_STANDBY
+	bool "CP/AP coordinated low-voltage standby"
+	default n
+	depends on BK7258_RPTUN && BK7258_RPTUN_MBOX
+	depends on BK7258_AP_CORE || BK7258_PM_POLICY
+	depends on BK7258_AP_CORE || BK7258_AP_CONTROL
+	depends on !BK7258_AP_CORE || SMP
+	select PM if BK7258_AP_CORE
+	select PM_GOVERNOR_GREEDY if BK7258_AP_CORE
+	---help---
+		Implement the v3.1.1.9 low-voltage contract across CP, both AP logical
+		CPUs, AON r3 and the SDK-owned mailbox.  AP idle cores stop SysTick,
+		check NVIC/SYS/DMA pending work, preserve only mailbox wake, publish
+		the official WFI bits and restore their complete interrupt state.  CP
+		enters low voltage only after both AP votes, all AP clock/sleep votes
+		and the RPTUN data plane are idle, with an AON RTC wake source armed.
+		The CP restore path repairs flash, watchdog, SysTick, timekeeping and
+		wakes both AP cores.  PM_SLEEP remains rejected: this option enables
+		only the resumable PM_STANDBY state.  Do not enable it in RTT profiles,
+		which deliberately keep the CP awake for an unattached debugger.
+
+config BK7258_PM_STANDBY_ONESHOT_VERIFY
+	bool "Stop after one coordinated standby wake for hardware verification"
+	default n
+	depends on BK7258_PM_COORDINATED_STANDBY && !BK7258_AP_CORE
+	---help---
+		Allow exactly one successful CP low-voltage entry and wake, then reject
+		later PM_STANDBY transitions so SWD can reconnect while the system uses
+		ordinary PM_IDLE.  This is a bounded hardware-verification aid for
+		reading the CP/AP diagnostic records after the low-voltage domain has
+		powered the debug access port down.  Leave it disabled in production;
+		it does not alter the coordinated standby protocol itself.
 
 config BK7258_RPMSG_TEST
 	bool "N9 AP-SMP RPMsg bounded concurrency test"

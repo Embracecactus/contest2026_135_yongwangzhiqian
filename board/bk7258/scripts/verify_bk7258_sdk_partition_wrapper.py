@@ -297,6 +297,7 @@ def _run_host_case(root: Path, label: str, layout: PartitionLayout) -> str:
         "-Wall",
         "-Wextra",
         "-Werror",
+        "-DBK7258_SDK_PARTITION_HOST_TEST=1",
         "-I",
         str(include),
         "-I",

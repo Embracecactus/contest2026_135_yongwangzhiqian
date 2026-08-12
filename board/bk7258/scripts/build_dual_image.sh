@@ -22,7 +22,7 @@ if [[ ! -d "${CONFIG_ROOT}" ]]; then
 fi
 CP_CONFIG_NAME="${CP_CONFIG_NAME:-cp_nsh}"
 case "${CP_CONFIG_NAME}" in
-    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_rptun_rtt|cp_nsh_rptun_rtt_mcuboot|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_wifi|cp_nsh_wifi_mcuboot|cp_nsh_wifi_rtt_mcuboot|cp_nsh_mcuboot|cp_nsh_drivercheck|cp_nsh_drivercheck_mcuboot|cp_nsh_drivercheck_rtt_mcuboot)
+    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_rptun_rtt|cp_nsh_rptun_mcuboot|cp_nsh_rptun_rtt_mcuboot|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_wifi|cp_nsh_wifi_mcuboot|cp_nsh_wifi_rtt_mcuboot|cp_nsh_mcuboot|cp_nsh_drivercheck|cp_nsh_drivercheck_mcuboot|cp_nsh_drivercheck_rtt_mcuboot)
         ;;
     *)
         printf 'build_dual_image: unsupported CP_CONFIG_NAME=%s\n' \
@@ -303,11 +303,13 @@ fi
 
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_mcuboot" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt_mcuboot" ||
       "${AP_CONFIG_NAME}" == "ap_smp_rptun" ||
       "${AP_CONFIG_NAME}" == "ap_smp_rptun_mcuboot" ]]; then
     if [[ ( "${CP_CONFIG_NAME}" != "cp_nsh_rptun" &&
             "${CP_CONFIG_NAME}" != "cp_nsh_rptun_rtt" &&
+            "${CP_CONFIG_NAME}" != "cp_nsh_rptun_mcuboot" &&
             "${CP_CONFIG_NAME}" != "cp_nsh_rptun_rtt_mcuboot" ) ||
           ( "${AP_CONFIG_NAME}" != "ap_smp_rptun" &&
             "${AP_CONFIG_NAME}" != "ap_smp_rptun_mcuboot" ) ]]; then
@@ -749,6 +751,7 @@ fi
 
 if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt" ||
+      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_mcuboot" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt_mcuboot" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_btipc" ||
       "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||

@@ -75,6 +75,11 @@
 #include "bk7258_wdt.h"
 #endif
 
+#if defined(CONFIG_BK7258_PM_COORDINATED_STANDBY) && \
+    !defined(CONFIG_BK7258_AP_CORE)
+#include "bk7258_pm_coord.h"
+#endif
+
 #ifdef CONFIG_BK7258_TOUCH
 #include <arch/chip/bk7258_touch.h>
 #include <nuttx/input/buttons.h>
@@ -427,6 +432,23 @@ static int bk7258_platform_initialize(void)
    */
 
   (void)bk7258_wdt_initialize();
+#endif
+
+#if defined(CONFIG_BK7258_PM_COORDINATED_STANDBY) && \
+    !defined(CONFIG_BK7258_AP_CORE)
+  /* Arm the guaranteed AON RTC wake only after AP/RPTUN and the NuttX-owned
+   * watchdog are live.  Until this succeeds the PM prepare callback rejects
+   * every STANDBY attempt.
+   */
+
+  {
+    int pmret = bk7258_pm_coord_initialize();
+
+    if (pmret < 0)
+      {
+        _err("bk7258: coordinated standby init failed: %d\n", pmret);
+      }
+  }
 #endif
 
 #if defined(CONFIG_BK7258_GPIO_LOWERHALF) && !defined(CONFIG_BK7258_AP_CONTROL)

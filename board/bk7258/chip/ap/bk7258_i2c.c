@@ -123,6 +123,7 @@ static const struct i2c_ops_s g_bk7258_i2c_ops =
 static struct bk7258_i2c_priv_s g_bk7258_i2c =
 {
   .dev.ops  = &g_bk7258_i2c_ops,
+  .lock     = NXMUTEX_INITIALIZER,
   .id       = (i2c_id_t)BK7258_I2C_UNIT,
   .baud     = BK7258_I2C_BAUD_RATE_DEFAULT,
 };

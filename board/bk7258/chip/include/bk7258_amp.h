@@ -124,6 +124,34 @@
 #define BK7258_SHARED_RAM_BASE           0x2809f000u
 #define BK7258_SHARED_RAM_SIZE           0x00001000u
 
+/* The last 0x900 bytes of the shared page are not project telemetry.  The
+ * v3.1.1.9 CP/AP PM protocol fixes PWR_MNG at 0x2809f700 and SWAP at
+ * 0x2809f800.  Keep the vendor addresses and field widths explicit so new
+ * diagnostics cannot accidentally overlap the sleep votes again.
+ */
+
+#define BK7258_PWR_MNG_ADDR              0x2809f700u
+#define BK7258_PWR_MNG_SIZE              0x00000100u
+#define BK7258_SWAP_ADDR                 0x2809f800u
+#define BK7258_SWAP_SIZE                 0x00000800u
+
+#define BK7258_PWR_WAKE_CP_OFFSET        0x08u
+#define BK7258_PWR_WAKE_AP0_OFFSET       0x0cu
+#define BK7258_PWR_WAKE_AP1_OFFSET       0x10u
+#define BK7258_PWR_AP1_DEBUG_OFFSET      0x14u
+#define BK7258_PWR_AP_SLEEP_VOTE_OFFSET  0x3cu
+#define BK7258_PWR_AP_CLOCK_VOTE_OFFSET  0x44u
+#define BK7258_PWR_MODULE_LV_OFFSET      0x4cu
+
+/* Official AON PMU r3 coordination bits. */
+
+#define BK7258_AON_PMU_R3_ADDR           0x4400000cu
+#define BK7258_AON_AP0_WFI_BIT           (1u << 1)
+#define BK7258_AON_AP1_WFI_BIT           (1u << 2)
+#define BK7258_AON_CP_SLEEP_VOTE_BIT     (1u << 3)
+#define BK7258_AON_AP_WFI_BITS           \
+  (BK7258_AON_AP0_WFI_BIT | BK7258_AON_AP1_WFI_BIT)
+
 #ifdef CONFIG_BK7258_RPTUN_LAYOUT
 #  define BK7258_AP_RAM_SIZE             0x00047000u
 #  define BK7258_AP_RAM_END              BK7258_RPTUN_SHMEM_BASE
@@ -340,7 +368,10 @@ enum bk7258_ap_event_e
   BK7258_AP_EVENT_FAILED,
   BK7258_AP_EVENT_IPI_TEST,
   BK7258_AP_EVENT_IPI_TEST_PASSED,
-  BK7258_AP_EVENT_IPI_TEST_FAILED
+  BK7258_AP_EVENT_IPI_TEST_FAILED,
+  BK7258_AP_EVENT_STANDBY_REQUEST,
+  BK7258_AP_EVENT_STANDBY_ABORT,
+  BK7258_AP_EVENT_STANDBY_WAKE
 };
 
 enum bk7258_ap_error_e
@@ -1276,6 +1307,9 @@ int bk7258_ap_stop(uint32_t timeout_ms);
 int bk7258_ap_restart(uint32_t timeout_ms);
 int bk7258_ap_ipi_test(uint32_t count, uint32_t timeout_ms);
 void bk7258_ap_get_status(struct bk7258_ap_boot_state_s *status);
+#  ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+int bk7258_ap_pm_notify(uint32_t event);
+#  endif
 #  ifdef CONFIG_BK7258_AP_SUPERVISOR
 int bk7258_ap_supervisor_initialize(void);
 int bk7258_ap_supervisor_get_status(

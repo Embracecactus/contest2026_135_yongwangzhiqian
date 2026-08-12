@@ -20,7 +20,16 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
+
+#ifdef BK7258_SDK_PARTITION_HOST_TEST
+#  include <stdlib.h>
+#  define bk7258_sdk_malloc(size) malloc(size)
+#  define bk7258_sdk_free(ptr)    free(ptr)
+#else
+#  include <nuttx/kmalloc.h>
+#  define bk7258_sdk_malloc(size) kmm_malloc(size)
+#  define bk7258_sdk_free(ptr)    kmm_free(ptr)
+#endif
 
 #include <arch/chip/bk7258_partition_layout.h>
 
@@ -225,7 +234,7 @@ bk_err_t __wrap_bk_flash_partition_read(uint32_t partition,
   aligned_end = (offset + length + BK7258_SDK_READ_ALIGNMENT - 1u) &
                 ~(BK7258_SDK_READ_ALIGNMENT - 1u);
   aligned_length = aligned_end - aligned_offset;
-  aligned_buffer = (uint8_t *)malloc(aligned_length);
+  aligned_buffer = (uint8_t *)bk7258_sdk_malloc(aligned_length);
   if (aligned_buffer == NULL)
     {
       return BK_ERR_NO_MEM;
@@ -243,7 +252,7 @@ bk_err_t __wrap_bk_flash_partition_read(uint32_t partition,
         }
     }
 
-  free(aligned_buffer);
+  bk7258_sdk_free(aligned_buffer);
   return ret;
 }
 

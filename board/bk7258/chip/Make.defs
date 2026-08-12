@@ -82,9 +82,10 @@ INCLUDES += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)segger$(DELIM)System
 INCLUDES += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)segger$(DELIM)config
 BK7258_CP_CSRCS += bk7258_rtt_lowputc.c
 else
-ifneq ($(filter y,$(CONFIG_BK7258_CONSOLE_UART0) $(CONFIG_BK7258_CONSOLE_UART1) $(CONFIG_BK7258_CONSOLE_UART2)),)
+# bk7258_lowputc.c also supplies side-effect-free arm_lowputc()/up_putc()
+# hooks for CONSOLE_NONE.  Generic NuttX assert/syslog code references these
+# hooks even when no physical console is selected.
 BK7258_CP_CSRCS += bk7258_lowputc.c
-endif
 endif
 ifneq ($(filter y,$(CONFIG_BK7258_UART0) $(CONFIG_BK7258_UART1) $(CONFIG_BK7258_UART2)),)
 BK7258_CP_CSRCS += bk7258_serial.c
@@ -262,6 +263,11 @@ BK7258_CP_CSRCS += bk7258_pm_policy.c
 LDFLAGS += --wrap=bk_pm_module_vote_cpu_freq
 endif
 
+ifeq ($(CONFIG_BK7258_PM_COORDINATED_STANDBY),y)
+BK7258_CP_CSRCS += bk7258_pm_coord_cp.c
+LDFLAGS += --wrap=pm_low_voltage_bsp_restore
+endif
+
 ifeq ($(CONFIG_BK7258_DVFS_PROCFS),y)
 BK7258_CP_CSRCS += bk7258_dvfs_procfs.c
 endif
@@ -290,6 +296,10 @@ BK7258_AP_BASE_CSRCS += bk7258_ap_start.c
 BK7258_AP_BASE_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
 BK7258_AP_BASE_CSRCS += bk7258_ap_main.c
 BK7258_AP_BASE_CSRCS += bk7258_peripherals.c
+
+ifeq ($(CONFIG_BK7258_PM_COORDINATED_STANDBY),y)
+BK7258_AP_BASE_CSRCS += bk7258_pm_coord_ap.c
+endif
 
 ifeq ($(CONFIG_BK7258_SDK_IPC_RUNTIME),y)
 BK7258_AP_BASE_CSRCS += bk7258_sdk_runtime.c

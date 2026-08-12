@@ -14,6 +14,7 @@
  *     CPACR/FPCCR FPU setup (CP10/CP11 full access, no lazy/auto stacking)
  *     .data  copy  _eronly -> _sdata.._edata
  *     .bss   zero  _sbss.._ebss
+ *     low-power hardware init (SDK leaf; NuttX still owns PM policy)
  *     arm_earlyserialinit()   (bring up the polled console early)
  *     nx_start()              (kernel: scheduler, SysTick, init/NSH)
  *
@@ -45,6 +46,10 @@
 
 #ifdef CONFIG_BK7258_CLOCK_320M
 #include "bk7258_clock.h"
+#endif
+
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+#include "bk7258_pm_coord.h"
 #endif
 
 /****************************************************************************
@@ -233,6 +238,17 @@ void __start(void)
     }
 #endif
 #endif /* CONFIG_BUILD_PIC */
+
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+  /* Match the mandatory CPU0 startup ordering used by both the official
+   * v3.1.1.9 SDK and Tuya: initialize the low-power hardware after the C
+   * runtime exists, but before the scheduler, platform services and AP cores
+   * start.  The wrapper deliberately invokes only the SDK hardware leaf;
+   * NuttX remains the owner of the PM state machine and policy.
+   */
+
+  bk7258_pm_coord_early_initialize();
+#endif
 
 #ifdef CONFIG_BK7258_SWD_DEBUG
   bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_CP_C_RUNTIME_READY);

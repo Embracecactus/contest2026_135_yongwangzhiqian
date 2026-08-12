@@ -43,9 +43,11 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BK7258_RPTUN_MBOX_TYPE_COUNT       5u
+#define BK7258_RPTUN_MBOX_TYPE_COUNT       6u
 #define BK7258_RPTUN_MBOX_WORKER_NAME      "bk7258-rptun-rx"
 #define BK7258_RPTUN_MBOX_CHANNEL          MB_CHNL_LOG
+#define BK7258_PM_WAKE_MBOX_CHANNEL         MB_CHNL_PWC
+#define BK7258_PM_SLEEP_WAKEUP_NOTIFY_CMD   0x10u
 #define BK7258_RPTUN_MBOX_POLL_MS          1u
 
 static_assert(sizeof(mb_chnl_cmd_t) == BK7258_RPTUN_MBOX_DATA_LENGTH,
@@ -53,6 +55,8 @@ static_assert(sizeof(mb_chnl_cmd_t) == BK7258_RPTUN_MBOX_DATA_LENGTH,
 static_assert(GET_LOG_CHNL_ID(BK7258_RPTUN_MBOX_CHANNEL) ==
               BK7258_RPTUN_MBOX_LOGICAL_INDEX,
               "BK7258 RPTUN logical mailbox channel drift");
+static_assert(GET_LOG_CHNL_ID(BK7258_PM_WAKE_MBOX_CHANNEL) == 2u,
+              "BK7258 PM wake logical mailbox channel drift");
 
 /****************************************************************************
  * Private Types
@@ -81,6 +85,9 @@ static uint32_t g_bk7258_rptun_probe_sequence;
 static uint32_t g_bk7258_rptun_notify_generation;
 static uint32_t g_bk7258_rptun_notify_value;
 static bool g_bk7258_rptun_notify_pending;
+static volatile bool g_bk7258_rptun_pm_prepare_pending;
+static volatile bool g_bk7258_rptun_pm_release_pending;
+static volatile bool g_bk7258_rptun_tx_active;
 static bk7258_rptun_notify_t g_bk7258_rptun_notify;
 static pid_t g_bk7258_rptun_mbox_worker = INVALID_PROCESS_ID;
 static bool g_bk7258_rptun_mbox_initialized;
@@ -148,7 +155,47 @@ static void bk7258_rptun_mbox_tx_complete(void *arg, mb_chnl_ack_t *ack)
 
   (void)arg;
   (void)ack;
+  __atomic_store_n(&g_bk7258_rptun_tx_active, false, __ATOMIC_RELEASE);
   nxsem_post(&g_bk7258_rptun_mbox_sem);
+}
+
+#ifdef CONFIG_BK7258_AP_CORE
+static void bk7258_pm_wake_mbox_receive(void *arg, mb_chnl_cmd_t *command)
+{
+  mb_chnl_ack_t *ack = (mb_chnl_ack_t *)command;
+
+  (void)arg;
+  if (command == NULL)
+    {
+      return;
+    }
+
+  /* Match the SDK/Tuya AP PWC receiver contract.  The physical mailbox
+   * interrupt has already released AP0 from deep WFI before this callback;
+   * NuttX owns the resume path, so only validate and acknowledge the vendor
+   * wake command here.
+   */
+
+  ack->ack_state = command->hdr.cmd ==
+                   BK7258_PM_SLEEP_WAKEUP_NOTIFY_CMD ?
+                   ACK_STATE_COMPLETE : ACK_STATE_FAIL;
+}
+#endif
+
+static int bk7258_pm_wake_mbox_send(void)
+{
+  mb_chnl_cmd_t command;
+  int ret;
+
+  memset(&command, 0, sizeof(command));
+  command.hdr.cmd = BK7258_PM_SLEEP_WAKEUP_NOTIFY_CMD;
+  ret = mb_chnl_write(BK7258_PM_WAKE_MBOX_CHANNEL, &command);
+  if (ret == BK_OK)
+    {
+      return OK;
+    }
+
+  return ret == BK_ERR_BUSY ? -EAGAIN : -EIO;
 }
 
 static void bk7258_rptun_mbox_queue_notify(uint32_t generation,
@@ -209,6 +256,38 @@ static void bk7258_rptun_mbox_retry_notify(void)
     }
 }
 
+static void bk7258_rptun_mbox_retry_pm_release(void)
+{
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
+  uint32_t generation;
+  int ret;
+
+  if (!__atomic_exchange_n(&g_bk7258_rptun_pm_release_pending, false,
+                           __ATOMIC_ACQ_REL))
+    {
+      return;
+    }
+
+  generation = __atomic_load_n(
+    (uint32_t *)(uintptr_t)&control->generation, __ATOMIC_ACQUIRE);
+  if (generation == 0)
+    {
+      return;
+    }
+
+  ret = bk7258_pm_wake_mbox_send();
+  if (ret == -EAGAIN)
+    {
+      /* The worker also polls once per millisecond, so preserving the level
+       * is sufficient even if no TX-complete edge remains outstanding.
+       */
+
+      __atomic_store_n(&g_bk7258_rptun_pm_release_pending, true,
+                       __ATOMIC_RELEASE);
+    }
+}
+
 static void bk7258_rptun_mbox_dispatch(
   const struct bk7258_rptun_mbox_message_s *message)
 {
@@ -240,6 +319,23 @@ static void bk7258_rptun_mbox_dispatch(
       if (callback != NULL)
         {
           callback(message->generation, message->value);
+        }
+
+      return;
+    }
+
+  if (message->type == BK7258_RPTUN_MBOX_PM_WAKE)
+    {
+      /* Reaching the NuttX worker proves the SDK receive callback returned,
+       * so its logical-channel ACK has already been submitted.  Only now may
+       * AP0 consume PREPARE and mask mailbox interrupts for deep WFI.
+       * RELEASE remains an edge-only wake operation.
+       */
+
+      if (message->value == BK7258_RPTUN_PM_WAKE_PREPARE)
+        {
+          __atomic_store_n(&g_bk7258_rptun_pm_prepare_pending, true,
+                           __ATOMIC_RELEASE);
         }
 
       return;
@@ -328,6 +424,12 @@ static int bk7258_rptun_mbox_worker(int argc, char *argv[])
             }
         }
 
+      /* RELEASE must outrank a coalesced RPTUN notify.  The AP may already
+       * have masked all sources except mailbox while CP is unwinding a
+       * failed coordinated-sleep attempt.
+       */
+
+      bk7258_rptun_mbox_retry_pm_release();
       bk7258_rptun_mbox_retry_notify();
     }
 
@@ -393,9 +495,39 @@ int bk7258_rptun_mbox_initialize(void)
 
   bk7258_rptun_mbox_mark(BK7258_RPTUN_FLAG_AP_MBOX_INIT);
 
+  /* The vendor low-voltage leaf sends PM_SLEEP_WAKEUP_NOTIFY_CMD over the
+   * dedicated, higher-priority MB_CHNL_PWC channel.  The full SDK PM stack
+   * normally opens it from pm_cp0_mailbox_init()/pm_cp1_mailbox_init(); the
+   * NuttX wrapper deliberately does not start that policy stack, so it must
+   * claim just this hardware channel itself.
+   */
+
+  ret = mb_chnl_open(BK7258_PM_WAKE_MBOX_CHANNEL, NULL);
+  if (ret != BK_OK)
+    {
+      kthread_delete(pid);
+      nxsem_destroy(&g_bk7258_rptun_mbox_sem);
+      nxsem_destroy(&g_bk7258_rptun_probe_sem);
+      return -EIO;
+    }
+
+#ifdef CONFIG_BK7258_AP_CORE
+  ret = mb_chnl_ctrl(BK7258_PM_WAKE_MBOX_CHANNEL, MB_CHNL_SET_RX_ISR,
+                     (void *)bk7258_pm_wake_mbox_receive);
+  if (ret != BK_OK)
+    {
+      mb_chnl_close(BK7258_PM_WAKE_MBOX_CHANNEL);
+      kthread_delete(pid);
+      nxsem_destroy(&g_bk7258_rptun_mbox_sem);
+      nxsem_destroy(&g_bk7258_rptun_probe_sem);
+      return -EIO;
+    }
+#endif
+
   ret = mb_chnl_open(BK7258_RPTUN_MBOX_CHANNEL, NULL);
   if (ret != BK_OK)
     {
+      mb_chnl_close(BK7258_PM_WAKE_MBOX_CHANNEL);
       kthread_delete(pid);
       nxsem_destroy(&g_bk7258_rptun_mbox_sem);
       nxsem_destroy(&g_bk7258_rptun_probe_sem);
@@ -416,6 +548,7 @@ int bk7258_rptun_mbox_initialize(void)
   if (ret != BK_OK)
     {
       mb_chnl_close(BK7258_RPTUN_MBOX_CHANNEL);
+      mb_chnl_close(BK7258_PM_WAKE_MBOX_CHANNEL);
       kthread_delete(pid);
       nxsem_destroy(&g_bk7258_rptun_mbox_sem);
       nxsem_destroy(&g_bk7258_rptun_probe_sem);
@@ -454,11 +587,14 @@ int bk7258_rptun_mbox_send(uint32_t type, uint32_t generation,
 
   /* mb_chnl_write() owns its critical section and AP SMP spinlock. */
 
+  __atomic_store_n(&g_bk7258_rptun_tx_active, true, __ATOMIC_RELEASE);
   ret = mb_chnl_write(BK7258_RPTUN_MBOX_CHANNEL, &command);
   if (ret == BK_OK)
     {
       return OK;
     }
+
+  __atomic_store_n(&g_bk7258_rptun_tx_active, false, __ATOMIC_RELEASE);
 
   return ret == BK_ERR_BUSY ? -EAGAIN : -EIO;
 }
@@ -466,6 +602,37 @@ int bk7258_rptun_mbox_send(uint32_t type, uint32_t generation,
 int bk7258_rptun_mbox_notify(uint32_t generation, uint32_t value)
 {
   int ret;
+
+#if defined(CONFIG_BK7258_PM_COORDINATED_STANDBY) && \
+    !defined(CONFIG_BK7258_AP_CORE)
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
+
+  /* The shared pending words are the level-triggered delivery truth.  During
+   * cold start the CP and AP virtio endpoints can notify simultaneously, but
+   * the SDK logical mailbox has only one in-flight slot per peer.  Let the AP
+   * consume CP-to-AP startup data from the shared level and retain the
+   * physical AP-to-CP edge: this removes the symmetric single-slot deadlock.
+   * Once Name Service proves CONNECTED, restore physical edges in both
+   * directions; the shared pending words still repair a coalesced edge.
+   */
+
+  if (!g_bk7258_rptun_mbox_initialized)
+    {
+      return -ENODEV;
+    }
+
+  if (generation == 0 || value == 0)
+    {
+      return -EINVAL;
+    }
+
+  if (__atomic_load_n((uint32_t *)(uintptr_t)&control->state,
+                      __ATOMIC_ACQUIRE) != BK7258_RPTUN_STATE_CONNECTED)
+    {
+      return OK;
+    }
+#endif
 
   ret = bk7258_rptun_mbox_send(BK7258_RPTUN_MBOX_NOTIFY,
                                 generation, value);
@@ -564,6 +731,63 @@ int bk7258_rptun_mbox_probe(uint32_t count, uint32_t timeout_ms)
 #endif
 }
 
+int bk7258_rptun_mbox_pm_wake(uint32_t phase)
+{
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
+  uint32_t generation;
+  int ret;
+
+  if (!g_bk7258_rptun_mbox_initialized)
+    {
+      return -ENODEV;
+    }
+
+  if (phase != BK7258_RPTUN_PM_WAKE_PREPARE &&
+      phase != BK7258_RPTUN_PM_WAKE_RELEASE)
+    {
+      return -EINVAL;
+    }
+
+  if (phase == BK7258_RPTUN_PM_WAKE_RELEASE)
+    {
+      ret = bk7258_pm_wake_mbox_send();
+      if (ret == -EAGAIN)
+        {
+          __atomic_store_n(&g_bk7258_rptun_pm_release_pending, true,
+                           __ATOMIC_RELEASE);
+          nxsem_post(&g_bk7258_rptun_mbox_sem);
+          return OK;
+        }
+
+      return ret;
+    }
+
+  generation = __atomic_load_n(
+    (uint32_t *)(uintptr_t)&control->generation, __ATOMIC_ACQUIRE);
+  if (generation == 0)
+    {
+      return -EHOSTDOWN;
+    }
+
+  /* The official PM code sends this edge over MB_CHNL_PWC, whose receiver is
+   * installed only by the FreeRTOS AP PM stack.  NuttX owns MB_CHNL_LOG via
+   * this wrapper, so using an explicit PM message here preserves the hardware
+   * wake edge while also guaranteeing that the logical channel is ACKed.
+   */
+
+  ret = bk7258_rptun_mbox_send(BK7258_RPTUN_MBOX_PM_WAKE,
+                                generation, phase);
+
+  return ret;
+}
+
+bool bk7258_rptun_mbox_pm_prepare_take(void)
+{
+  return __atomic_exchange_n(&g_bk7258_rptun_pm_prepare_pending, false,
+                             __ATOMIC_ACQ_REL);
+}
+
 uint32_t bk7258_rptun_mbox_take_lifecycle(void)
 {
   irqstate_t flags;
@@ -583,6 +807,44 @@ void bk7258_rptun_mbox_set_notify(bk7258_rptun_notify_t callback)
   flags = spin_lock_irqsave(&g_bk7258_rptun_mbox_lock);
   g_bk7258_rptun_notify = callback;
   spin_unlock_irqrestore(&g_bk7258_rptun_mbox_lock, flags);
+
+  /* Wake the worker after callback publication.  Validation profiles keep
+   * this worker below CONFIG_RPTUN_PRIORITY so rptun_create_devices() can
+   * finish first; the lower half's local bootstrap level then guarantees a
+   * late all-vring pass without depending on a second mailbox edge.
+   */
+
+  if (callback != NULL)
+    {
+      nxsem_post(&g_bk7258_rptun_mbox_sem);
+    }
+}
+
+bool bk7258_rptun_mbox_is_idle(void)
+{
+  irqstate_t flags;
+  bool idle;
+  uint8_t pwc_state;
+
+  if (!g_bk7258_rptun_mbox_initialized ||
+      __atomic_load_n(&g_bk7258_rptun_tx_active, __ATOMIC_ACQUIRE) ||
+      __atomic_load_n(&g_bk7258_rptun_pm_release_pending,
+                      __ATOMIC_ACQUIRE))
+    {
+      return false;
+    }
+
+  if (mb_chnl_ctrl(BK7258_PM_WAKE_MBOX_CHANNEL, MB_CHNL_GET_STATUS,
+                   &pwc_state) != BK_OK || pwc_state != 0)
+    {
+      return false;
+    }
+
+  flags = spin_lock_irqsave(&g_bk7258_rptun_mbox_lock);
+  idle = g_bk7258_rptun_mbox_pending == 0 &&
+         !g_bk7258_rptun_notify_pending;
+  spin_unlock_irqrestore(&g_bk7258_rptun_mbox_lock, flags);
+  return idle;
 }
 
 #endif /* CONFIG_BK7258_RPTUN_MBOX */

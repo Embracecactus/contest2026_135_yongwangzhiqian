@@ -218,10 +218,12 @@ static int bk7258_flash_crc_read(const struct bk7258_flash_mtd_s *state,
 
       stored_crc = ((uint16_t)packet[BK7258_FLASH_CRC_DATA_SIZE] << 8) |
                    packet[BK7258_FLASH_CRC_DATA_SIZE + 1u];
-      (void)stored_crc;
-      /* Temporary hardware probe: the transfer still strips the two CRC
-       * bytes; the final BL2 path restores the mandatory comparison once
-       * the controller's raw-read convention is confirmed. */
+      if (stored_crc != bk7258_flash_crc16(packet))
+        {
+          ferr("bk7258: MCUboot CRC mismatch at 0x%08" PRIx32 "\n",
+               state->base + group * BK7258_FLASH_CRC_TOTAL_SIZE);
+          return -EILSEQ;
+        }
 
       memcpy(buffer, packet + in_group, count);
       buffer += count;
@@ -459,7 +461,8 @@ static int bk7258_flash_ioctl(FAR struct mtd_dev_s *dev, int cmd,
           geo->blocksize    = BK7258_FLASH_BLOCK_SIZE;
           geo->erasesize    = BK7258_FLASH_ERASE_SIZE;
           geo->neraseblocks = state->size / BK7258_FLASH_ERASE_SIZE;
-          strncpy(geo->model, state->name, sizeof(geo->model));
+          strncpy(geo->model, state->name, sizeof(geo->model) - 1u);
+          geo->model[sizeof(geo->model) - 1u] = '\0';
         }
         return OK;
 

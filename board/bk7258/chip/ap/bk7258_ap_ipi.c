@@ -69,6 +69,7 @@ extern bk_err_t bk_mailbox_cc_init(void);
 extern bk_err_t bk_mailbox_cc_init_on_current_core(int id);
 extern bk_err_t bk_mailbox_master_send(mailbox_data_t *data, uint8_t src,
                                         uint8_t dst);
+extern bool bk7258_pm_ap_ipi_kick(int cpu) weak_function;
 
 /****************************************************************************
  * Private Data
@@ -545,10 +546,29 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
         }
 
       __asm volatile ("dmb sy" ::: "memory");
+
+      /* AP1 has no local SysTick.  When this scheduler edge was sent only to
+       * forward an active CP sleep vote, running NuttX's delivered-task path
+       * first can replace the startup idle exception frame and AP1 never
+       * returns to up_idle() inside CP's bounded acknowledgement window.
+       * Let the PM wrapper consume that otherwise empty edge before scheduler
+       * delivery; an actual scheduler edge is still handled normally whenever
+       * there is no uncached CP vote.
+       */
+
+      if (local_cpu == BK7258_AP_IPI_SECONDARY_CPU &&
+          bk7258_pm_ap_ipi_kick != NULL &&
+          bk7258_pm_ap_ipi_kick(local_cpu))
+        {
+          __asm volatile ("dmb sy" ::: "memory");
+          return;
+        }
+
       smp->call_handler_count[local_cpu]++;
       (void)nxsched_smp_call_handler(BK7258_IRQ_MAILBOX, NULL, NULL);
       smp->delivered_handler_count[local_cpu]++;
       nxsched_process_delivered(local_cpu);
+
       __asm volatile ("dmb sy" ::: "memory");
       return;
     }
@@ -642,6 +662,13 @@ int bk7258_ap_ipi_selftest(uint32_t count, uint32_t timeout_ms)
 
   for (sequence = 1; sequence <= count; sequence++)
     {
+      /* timeout_ms bounds one request/response transaction.  Do not carry
+       * time already spent by an earlier successful message into the next
+       * ping, or a long but healthy multi-message self-test can report a
+       * false timeout.  Keep the PONG and heartbeat waits on the same budget
+       * for this sequence. */
+
+      elapsed = 0;
       heartbeat_before = cpu2->heartbeat;
       __asm volatile ("dmb sy" ::: "memory");
       ret = bk7258_ap_ipi_send(BK7258_AP_IPI_COMMAND_PING, sequence,

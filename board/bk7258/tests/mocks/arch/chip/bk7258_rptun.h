@@ -17,6 +17,8 @@
 #define BK7258_RPTUN_MBOX_PROBE_REPLY    (1u << 31)
 #define BK7258_RPTUN_MBOX_PROBE_SEQUENCE \
   (~BK7258_RPTUN_MBOX_PROBE_REPLY)
+#define BK7258_RPTUN_PM_WAKE_PREPARE     1u
+#define BK7258_RPTUN_PM_WAKE_RELEASE     2u
 
 enum bk7258_rptun_mbox_type_e
 {
@@ -24,7 +26,8 @@ enum bk7258_rptun_mbox_type_e
   BK7258_RPTUN_MBOX_LIFECYCLE,
   BK7258_RPTUN_MBOX_NOTIFY,
   BK7258_RPTUN_MBOX_HEARTBEAT,
-  BK7258_RPTUN_MBOX_PROBE
+  BK7258_RPTUN_MBOX_PROBE,
+  BK7258_RPTUN_MBOX_PM_WAKE
 };
 
 /* AP mailbox progress bits, passed to the (no-op) mark() macro. */
@@ -37,7 +40,22 @@ enum bk7258_rptun_mbox_type_e
 
 struct bk7258_rptun_control_s
 {
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t generation;
+  uint32_t state;
   uint32_t flags;
+  uint32_t error;
+  uint32_t resource_crc32;
+  uint32_t cp_to_ap_pending;
+  uint32_t ap_to_cp_pending;
+  uint32_t cp_heartbeat;
+  uint32_t ap_heartbeat;
+  uint32_t cp_epoch;
+  uint32_t ap_epoch;
+  uint32_t cp_rx_sequence;
+  uint32_t ap_rx_sequence;
 };
 
 volatile struct bk7258_rptun_control_s *bk7258_rptun_control(void);

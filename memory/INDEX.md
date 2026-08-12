@@ -1,6 +1,6 @@
 # Project Memory Index
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-08-13
 
 Read `../progress/CURRENT.md` after this file, then load only the documents relevant to the active task.
 
@@ -44,6 +44,10 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 ## Current verified baseline
 
 - Read [Current Progress](../progress/CURRENT.md) for the branch, publication/merge state, next action, and rollback point.
+- The complete three-core coordinated low-voltage PM implementation, the
+  official-SDK/Tuya wrapper audit, the final signed build matrix and the
+  non-halting COM3/P0-P1 board proof are recorded in the
+  [2026-08-13 verification record](../progress/verification/2026-08-13-bk7258-coordinated-pm-sdk-audit.md).
 - New contributors should start with the
   [BK7258/T5-AI beginner porting guide](../docs/bk7258-t5ai/beginner-porting-guide/README.md),
   then return here for durable decisions and to Current Progress for live state.
