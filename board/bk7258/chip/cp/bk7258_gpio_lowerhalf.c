@@ -40,8 +40,12 @@
   ((gpio_id_t)BK7258_BOARD_USER_BUTTON_GPIO)
 #define BK7258_GPIO_LED_MINOR               0
 #define BK7258_GPIO_KEY_MINOR               1
-#if defined(CONFIG_DEV_CONSOLE) && \
-    BK7258_BOARD_USER_LED_CONSOLE_SHARED
+#if (defined(CONFIG_BK7258_UART1) && \
+     BK7258_BOARD_USER_LED_CONSOLE_SHARED) || \
+    (defined(CONFIG_BK7258_SWD_DEBUG) && \
+     defined(CONFIG_BK7258_SWD_PINS_P0_P1) && \
+     (BK7258_BOARD_USER_LED_GPIO == 0 || \
+      BK7258_BOARD_USER_LED_GPIO == 1))
 #  define BK7258_GPIO_LED_AVAILABLE          0
 #else
 #  define BK7258_GPIO_LED_AVAILABLE          1
@@ -747,9 +751,10 @@ static int bk7258_gpio_key_setmask(FAR struct gpio_dev_s *dev, bool enable)
  *
  * Description:
  *   Configure and register the selected physical board's LED and user-key
- *   devices as /dev/gpio0 and /dev/gpio1.  A board whose LED shares the
- *   active console pin omits /dev/gpio0 without touching that pin, while
- *   keeping the independent user-key device available as /dev/gpio1.
+ *   devices as /dev/gpio0 and /dev/gpio1.  A board whose LED is claimed by
+ *   UART1 or the active P0/P1 SWD route omits /dev/gpio0 without touching
+ *   that pin, while keeping the independent user-key device available as
+ *   /dev/gpio1.
  *
  * Returned Value:
  *   Zero on success or a negated errno value on failure.

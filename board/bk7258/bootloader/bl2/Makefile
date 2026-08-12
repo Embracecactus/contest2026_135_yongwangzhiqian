@@ -14,11 +14,36 @@ BL2_LOGICAL_CAPACITY_BYTES := 131072
 # The default 0 accepts any valid MCUboot security counter; a
 # verification build can raise it to prove the fail-closed path.
 BL2_SECURITY_COUNTER_FLOOR ?= 0
+BL2_SWD_ENABLE ?= 0
+BL2_SWD_PIN_GROUP ?= 1
+BL2_SWD_TARGET ?= 0
+BL2_SWD_BOOT_HOLD ?= 0
+BL2_CONSOLE_UART ?= 1
 BL2_KEY_SOURCE ?= bk7258_bl2_keys.c
+ifneq ($(filter $(BL2_SWD_ENABLE),0 1),$(BL2_SWD_ENABLE))
+$(error BL2_SWD_ENABLE must be exactly 0 or 1)
+endif
+ifneq ($(filter $(BL2_SWD_PIN_GROUP),0 1),$(BL2_SWD_PIN_GROUP))
+$(error BL2_SWD_PIN_GROUP must be 0 (P20/P21) or 1 (P0/P1))
+endif
+ifneq ($(filter $(BL2_SWD_TARGET),0 1 2),$(BL2_SWD_TARGET))
+$(error BL2_SWD_TARGET must be 0, 1 or 2)
+endif
+ifneq ($(filter $(BL2_SWD_BOOT_HOLD),0 1),$(BL2_SWD_BOOT_HOLD))
+$(error BL2_SWD_BOOT_HOLD must be exactly 0 or 1)
+endif
+ifneq ($(filter $(BL2_CONSOLE_UART),0 1 2 3),$(BL2_CONSOLE_UART))
+$(error BL2_CONSOLE_UART must be 0, 1, 2 or 3 (RTT/NONE))
+endif
 CFLAGS := -mcpu=cortex-m33 -mthumb -mfloat-abi=soft -Os -ffreestanding -fno-builtin -fdata-sections -ffunction-sections -Wall -Wextra
 CFLAGS += -DBK7258_BL2_COPY_SIZE=$(BL2_LOGICAL_SIZE)
 CFLAGS += -DBK7258_BL2_SECURITY_COUNTER_FLOOR=$(BL2_SECURITY_COUNTER_FLOOR)u
-CFLAGS += -Iinclude -include assert.h -I$(MCUBOOT)/boot/bootutil/include -I$(MCUBOOT)/boot/bootutil/src
+CFLAGS += -DBK7258_BL2_SWD_ENABLE=$(BL2_SWD_ENABLE)
+CFLAGS += -DBK7258_BL2_SWD_PIN_GROUP=$(BL2_SWD_PIN_GROUP)
+CFLAGS += -DBK7258_BL2_SWD_TARGET=$(BL2_SWD_TARGET)
+CFLAGS += -DBK7258_BL2_SWD_BOOT_HOLD=$(BL2_SWD_BOOT_HOLD)
+CFLAGS += -DBK7258_BL2_CONSOLE_UART=$(BL2_CONSOLE_UART)
+CFLAGS += -Iinclude -I../../chip/include -include assert.h -I$(MCUBOOT)/boot/bootutil/include -I$(MCUBOOT)/boot/bootutil/src
 CFLAGS += -I$(MCUBOOT)/ext/tinycrypt/lib/include -I$(MCUBOOT)/ext/mbedtls-asn1/include
 LDFLAGS := -mcpu=cortex-m33 -mthumb -mfloat-abi=soft -nostdlib -Wl,--gc-sections -T bl2.ld -Wl,-Map=bl2.map
 

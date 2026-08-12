@@ -55,11 +55,7 @@
  ****************************************************************************/
 
 #ifdef CONFIG_BK7258_CLOCK_320M_PROBE
-/* Freestanding UART1 polled output for the one verification evidence line
- * (same MMIO contract as the other BK7258 bring-up files). */
-#  define BK7258_CLK_UART1_FSTAT    (*(volatile uint32_t *)0x45830018u)
-#  define BK7258_CLK_UART1_FPORT    (*(volatile uint32_t *)0x4583001cu)
-#  define BK7258_CLK_UART1_READY    (1u << 20)
+extern void arm_lowputc(char ch);
 #endif
 
 /****************************************************************************
@@ -69,11 +65,7 @@
 #ifdef CONFIG_BK7258_CLOCK_320M_PROBE
 static void bk7258_clk_putc(unsigned char c)
 {
-  while ((BK7258_CLK_UART1_FSTAT & BK7258_CLK_UART1_READY) == 0)
-    {
-    }
-
-  BK7258_CLK_UART1_FPORT = (uint32_t)(c & 0xffu);
+  arm_lowputc((char)c);
 }
 
 static void bk7258_clk_puts(const char *s)

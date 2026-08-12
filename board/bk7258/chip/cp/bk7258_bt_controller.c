@@ -65,9 +65,26 @@ extern void bk7258_os_bt_ipc_init_begin(void);
 extern void bk7258_os_bt_ipc_init_end(void);
 #endif
 
-/* Board-private console ownership recovery from bk7258_serial.c. */
+/* Restore every build-selected physical diagnostic owner after SDK leaves
+ * that may touch pinmux.  SWD and UART are independent when their pins do
+ * not conflict.
+ */
 
-extern void bk7258_uart_recover_console(void);
+#include <arch/chip/bk7258_console.h>
+
+#ifdef CONFIG_BK7258_SWD_DEBUG
+#  include <arch/chip/bk7258_debug.h>
+#endif
+
+static void bk7258_debug_transport_recover(void)
+{
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  (void)bk7258_swd_initialize();
+#endif
+#ifdef BK7258_HAVE_UART_CONSOLE
+  bk7258_uart_recover_console();
+#endif
+}
 
 /* Match the relevant ordering from the official CP startup sequence.  Driver
  * initialization makes flash calibration data readable.  The SDK
@@ -291,7 +308,7 @@ int __wrap_bk_bluetooth_init(void)
   g_bk7258_bt_vendor_init_calls++;
   ret = __real_bk_bluetooth_init();
   g_bk7258_bt_vendor_init_result = ret;
-  bk7258_uart_recover_console();
+  bk7258_debug_transport_recover();
 
   if (ret != 0)
     {
@@ -308,7 +325,7 @@ int __wrap_bk_bluetooth_deinit(void)
   g_bk7258_bt_vendor_deinit_calls++;
   ret = __real_bk_bluetooth_deinit();
   g_bk7258_bt_vendor_deinit_result = ret;
-  bk7258_uart_recover_console();
+  bk7258_debug_transport_recover();
 
   if (ret != 0)
     {
@@ -779,7 +796,7 @@ int bk7258_wifi_controller_initialize(void)
   ret = OK;
 
 recover_console:
-  bk7258_uart_recover_console();
+  bk7258_debug_transport_recover();
 out:
   nxmutex_unlock(&g_bk7258_wifi_controller_lock);
   return ret;
@@ -877,13 +894,12 @@ int bk7258_bt_controller_ipc_initialize(void)
 
   /* The official CP startup performs the PHY/RF/calibration leaf sequence
    * before it hands the UART to the application.  In the NuttX wrapper the
-   * console is already live, and that same sequence clears UART1's hardware
-   * registers without using bk_uart_deinit().  Reassert board console
-   * ownership only after every SDK leaf above has completed; this keeps the
-   * SDK sources untouched and mirrors the official wrapper boundary.
+   * console may already be live, and that same sequence can clear UART
+   * registers without using bk_uart_deinit().  Reassert selected debug and
+   * console ownership only after every SDK leaf above has completed.
    */
 
-  bk7258_uart_recover_console();
+  bk7258_debug_transport_recover();
   if (sdkret == 0 || sdkret == 1)
     {
       g_bk7258_bt_controller_ipc_ready = true;

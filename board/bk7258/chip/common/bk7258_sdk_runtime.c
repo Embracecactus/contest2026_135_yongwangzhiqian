@@ -21,6 +21,10 @@
 
 #include <arch/chip/bk7258_sdk_runtime.h>
 
+#ifdef CONFIG_BK7258_SWD_DEBUG
+#  include <arch/chip/bk7258_debug.h>
+#endif
+
 #include <common/bk_err.h>
 
 /****************************************************************************
@@ -70,9 +74,20 @@ int bk7258_sdk_runtime_initialize(void)
    * distinct logical channels and are independently idempotent.
    */
 
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_SDK_BEFORE_SYS);
+#endif
+
   sys_drv_init();
 
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_SDK_AFTER_SYS);
+#endif
+
   ret = ipc_init();
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_SDK_AFTER_IPC);
+#endif
   if (ret != BK_OK)
     {
       result = -EIO;
@@ -80,6 +95,9 @@ int bk7258_sdk_runtime_initialize(void)
     }
 
   ret = mb_ipc_init();
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_SDK_AFTER_MB_IPC);
+#endif
   if (ret != BK_OK)
     {
       result = -EIO;
@@ -87,6 +105,9 @@ int bk7258_sdk_runtime_initialize(void)
     }
 
   result = bk_ipc_init();
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_SDK_AFTER_BK_IPC);
+#endif
   if (result != BK_OK)
     {
       result = -EIO;
@@ -95,6 +116,10 @@ int bk7258_sdk_runtime_initialize(void)
 
   g_bk7258_sdk_runtime_ready = true;
   result = OK;
+
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_SDK_EXIT);
+#endif
 
 out:
   nxmutex_unlock(&g_bk7258_sdk_runtime_lock);

@@ -131,6 +131,17 @@ static inline void boot_wdt_feed(void)
     boot_wdt_feed_period(WDT_PERIOD);
 }
 
+/* An intentional debugger hold may stop the core for an unbounded interval,
+ * so periodically feeding from the hold loop is insufficient: the watchdog
+ * continues counting while the core is halted.  Period zero is the vendor
+ * disable sequence already used by the reset trampoline.  Keep it disabled
+ * after an unbounded hold because period zero does not clear elapsed hardware
+ * state; the next application reset entry takes watchdog ownership. */
+static inline void boot_wdt_debug_hold_disable(void)
+{
+    boot_wdt_feed_period(0u);
+}
+
 /* Fail closed through the same bounded reset path used by the official
  * BK7258 A/B bootloader.  Do not feed after installing the six-tick period:
  * callers must never remain permanently stuck in a boot-stage error loop. */

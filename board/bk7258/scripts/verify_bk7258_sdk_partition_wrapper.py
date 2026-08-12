@@ -333,15 +333,30 @@ def _verify_elf(elf: Path, map_path: Path) -> dict[str, object]:
     nm_result = subprocess.run(
         [nm, "-S", str(elf)], check=True, capture_output=True, text=True
     ).stdout
+    elf_symbols = {
+        fields[-1]
+        for line in nm_result.splitlines()
+        if len(fields := line.split()) >= 2
+    }
+    # Only wrappers reached by this concrete firmware profile survive
+    # --gc-sections.  get_info() is used by the SDK start path and the raw
+    # permission hook is used by the Flash driver, so both must be present in
+    # every runtime CP image.  The read/write/erase entry points are exercised
+    # by the host ABI cases above; requiring unused ones in the ELF would make
+    # this verifier disagree with the linker's intentional dead-code removal.
+
     required_symbols = (
         "__wrap_bk_flash_partition_get_info",
-        "__wrap_bk_flash_partition_read",
-        "__wrap_bk_flash_partition_write",
         "__wrap_bk_flash_partition_write_perm_check_by_addr",
         "g_bk7258_sdk_partitions",
     )
+    optional_symbols = (
+        "__wrap_bk_flash_partition_read",
+        "__wrap_bk_flash_partition_write",
+        "__wrap_bk_flash_partition_erase",
+    )
     for symbol in required_symbols:
-        require(symbol in nm_result, f"CP ELF omits wrapper symbol: {symbol}")
+        require(symbol in elf_symbols, f"CP ELF omits wrapper symbol: {symbol}")
 
     map_text = map_path.read_text(encoding="utf-8", errors="replace")
     require(
@@ -365,6 +380,9 @@ def _verify_elf(elf: Path, map_path: Path) -> dict[str, object]:
         "elf": str(elf.resolve()),
         "map": str(map_path.resolve()),
         "required_symbols": list(required_symbols),
+        "optional_symbols_linked": {
+            symbol: symbol in elf_symbols for symbol in optional_symbols
+        },
         "sdk_flash_partition_object_linked": False,
         "system_main_wrapped": True,
         "raw_permission_wrapped": True,

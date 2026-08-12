@@ -64,6 +64,22 @@
  */
 
 /****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+#ifndef CONFIG_TIMER_ARCH
+static int bk7258_timer_interrupt(int irq, void *context, void *arg)
+{
+  (void)irq;
+  (void)context;
+  (void)arg;
+
+  nxsched_process_timer();
+  return OK;
+}
+#endif
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -111,12 +127,29 @@ void up_timer_initialize(void)
 
   putreg32(reload, NVIC_SYSTICK_RELOAD);
 
-  /* coreclk=true  -> SysTick clocked at the processor clock (cpu_hz).
-   * minor=-1      -> do not register a /dev/timerN node; this timer is the
-   *                  dedicated system clock only.
+#ifdef CONFIG_TIMER_ARCH
+  /* The architecture-timer framework owns SysTick through the common timer
+   * lower half.  coreclk=true selects the processor clock; minor=-1 keeps it
+   * dedicated to the scheduler instead of publishing a /dev/timerN node.
    */
 
   up_timer_set_lowerhalf(systick_initialize(true, cpu_hz, -1));
+#else
+  /* up_timer_set_lowerhalf() is an empty macro in a periodic-tick build.
+   * Calling only systick_initialize() would therefore leave CTRL.ENABLE
+   * clear and its lower-half callback unset: nxsig_usleep(), watchdogs and
+   * every timeout-driven CP worker would stop permanently on their first
+   * wait.  Install the normal periodic clock ISR and start SysTick here.
+   */
+
+  irq_attach(NVIC_IRQ_SYSTICK, bk7258_timer_interrupt, NULL);
+  putreg32(0, NVIC_SYSTICK_CURRENT);
+  putreg32(NVIC_SYSTICK_CTRL_CLKSOURCE |
+           NVIC_SYSTICK_CTRL_TICKINT |
+           NVIC_SYSTICK_CTRL_ENABLE,
+           NVIC_SYSTICK_CTRL);
+  up_enable_irq(NVIC_IRQ_SYSTICK);
+#endif
 }
 
 /****************************************************************************

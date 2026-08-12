@@ -1,123 +1,93 @@
 # Current Progress
 
-Last updated: 2026-08-10 GMT+8
+Last updated: 2026-08-12 GMT+8
 Updated by: Codex
 
 ## Active objective
 
-The active BK7258 boot chain is:
+The first BK7258 PM phase, T5-Board P0/P1 J-Link recovery, and the
+debug/UART/bringup configuration foundation are implemented and board-verified
+in the uncommitted worktree on `feat/bk7258-pm-idle` at `24428f4`.
 
-```text
-legacy BootROM -> board-owned BL1 -> signed Manifest
--> pinned NuttX MCUboot BL2 -> signed same-slot CP/AP pair -> NuttShell
-```
+This checkpoint intentionally implements only ordinary shallow idle. It does
+not claim a complete port of the v3.1.1.9 coordinated low-voltage PM protocol.
 
-The old N15/N17 self-developed OTA lifecycle has been retired from active
-code. Its selector, journal, staging, publication, trial/rollback, fault
-injection, release-key and validation-script implementations are removed.
-Historical ADRs and verification records remain evidence of work that was
-previously performed; they are not descriptions of the current firmware.
+## Current boot and hardware baseline
 
-## Current boot and partition baseline
+- The verified target is T5-Board. SWD uses P0/P1, firmware download uses
+  COM3, and UART1/COM4 is physically switched off. COM4 was not opened.
+- The verified direct profile is `BootROM -> board-owned reconstructed BL1 ->
+  CP/AP` with `BL1_USE_BL2=0`. It does not modify a vendor bootloader binary.
+  The separately retained signed profile inserts Manifest + NuttX MCUboot BL2.
+- BL1 validates the direct CP vector, restores the CP `MSPLIM`, establishes
+  P0/P1 SWD and waits after its final security/cache/watchdog cleanup. Writing
+  `JLNK` to `0x2809f7f0` releases CP; the unbounded hold cannot be reset by
+  APB/AON watchdogs.
+- NuttX and the official SDK v3.1.1.9 source trees remain unchanged; board
+  wrappers own the adaptation.
+- SWD group, target core and boot hold are explicit Kconfig inputs. Console
+  transport is independently NONE, RTT or UART0/1/2, with baud/frame/route
+  settings and paired-image pin-conflict checks. P20/P21 and alternate UART
+  routes remain compile-verified, not T5-Board-verified.
+- Mandatory SDK/IPC/PM/AP lifecycle setup runs from idempotent
+  `board_late_initialize()`. Procfs, MTD nodes and filesystem mounts remain
+  application-level bringup.
 
-- Runtime SDK: official BK7258 v3.1.1.9 only, linked through board wrappers.
-- NuttX and official SDK source trees remain unchanged.
-- BL1 is still a complete source implementation: clock/reset/watchdog setup,
-  ECDSA-P256/SHA-256 Manifest authorization, primary-then-secondary BL2
-  fallback, vector/copy checks, SRAM policy publication and handoff.
-- BL2 is still the pinned NuttX MCUboot implementation. It verifies MCUboot
-  image/TLV metadata and accepts only a version/counter-compatible CP/AP pair
-  from the same physical slot.
-- BL1 has one production object closure. It no longer links any N15/N17
-  lifecycle selector, Flash writer, software journal or release key.
-- The active CSV keeps contiguous CP/AP A and B pairs, two read-only BL1
-  Manifest sectors, two read-only BL2 copies, LittleFS and the official
-  calibration tail. It has no OTA metadata bank or authorization-policy
-  sector.
-- Flash MTD exposes ordinary data partitions plus read-only MCUboot/Manifest
-  regions; there is currently no firmware update writer or installer.
+## Verified at this checkpoint
 
-## Verification at this checkpoint
+- CP DVFS/module-clock voting remains active. NuttX PM accepts only
+  `PM_NORMAL`, `PM_IDLE`, and `PM_RESTORE`; `PM_STANDBY`/`PM_SLEEP` fail closed.
+- Ordinary non-RTT CP idle reaches clear-SLEEPDEEP then DSB -> WFI -> ISB
+  through `pm_idle()`; AP uses the same shallow primitive. The RTT diagnostic
+  CP profile deliberately stays awake so J-Link remains attachable.
+- GPIO default-map suppression prevents the SDK all-pin initializer from
+  reclaiming P0/P1. GPIO1's board LED lower-half is skipped when P0/P1 SWD or
+  UART1 owns the pin.
+- Transport-only AP builds no longer request the radio-only 320 MHz startup
+  vote. This removed the observed AP startup error `0x1a`.
+- CP periodic SysTick no longer depends on `up_timer_set_lowerhalf()` when
+  `CONFIG_TIMER_ARCH` is absent. The direct SysTick ISR calls
+  `nxsched_process_timer()`, allowing timed sleeps, board late init and the CP
+  RPMsg worker to progress.
+- The final `cp_nsh_rptun_rtt + ap_smp_rptun` dual build passed SDK provenance,
+  BL1, CP/AP link, partition/factory-layout, wrapper and RPTUN layout checks.
+- Sparse flashing through COM3 wrote only BL1, CP and AP; all three writes
+  passed. Slot B, LittleFS and calibration tail were preserved. Canonical log:
+  `../logs/bk7258-auto-debug/20260812-204429` from the workspace root.
+- At the BL1 hold, J-Link observed `PC=0x020002ba`, `VTOR=0x02000000`, SWD
+  function `0x22`, P0/P1 control `0x00050048`, and CPU0 route `0`.
+- More than 12 seconds after release, J-Link reattached successfully. Runtime
+  evidence showed `VTOR=0x28010800`, SysTick enabled (`CTRL=0x00010007`), the
+  full startup trace through stage `0x203`, platform/watchdog initialization
+  flags `1`, RPTUN CONNECTED with flags `0x7fff`, APBS READY/error 0, CPU2
+  RUNNING, and SMP PASSED/error 0/online mask `3`.
+- The target was resumed before J-Link exited. `git diff --check` passes. No
+  commit or push has been made.
 
-Implementation commits currently under review on `feat/bk7258-trng`:
-
-- `2e0465d`: harden the TRNG continuous-output checks.
-- `15b1e39`: add the standard NuttX CAN character lower half.
-
-On 2026-08-10, 32-job signed dual-image builds, sparse downloads and board
-validation passed without modifying NuttX or SDK sources:
-
-- `ap_smp_camera_mcuboot` captured a valid 11507-byte 640x480 MJPEG frame
-  through `/dev/video0` and reported `BKCAM PASS` after SOI/EOI checks.
-- `ap_smp_pwm_mcuboot` drove the attached RGB LCD backlight through P9/PWM3
-  at configured 100/0/10/50/90 percent levels.  Serial reported `BKPWM PASS`
-  and the owner confirmed visible brightness changes.
-- Both runs reached BL2 handoff and NuttShell with no panic or fault.
-- Partition, 32+2 CRC and factory-layout checks passed; LittleFS and the
-  official calibration tail were preserved by sparse download.
-- The AP-owned hardware TRNG now applies a continuous adjacent-32-bit output
-  check, including one-to-three-byte reads.  A temporary AP-local probe read
-  `64 + 64 + 1` bytes through the standard `/dev/random` node; both 64-byte
-  blocks differed and the short read succeeded.  AP syslog reported
-  `BK7258 TRNG TEST PASS` through RPMsg in
-  `logs/bk7258-auto-debug/20260810-193804`.  The probe was then removed; the
-  clean image was rebuilt, sparse-flashed and reached NuttShell in
-  `logs/bk7258-auto-debug/20260810-194950`.
-- The AP-owned CAN0 controller passed internal LBMI loopback through the
-  standard `/dev/can0` VFS interface.  The exercised path included the NuttX
-  CAN upper half, the v3.1.1.9 SDK send/receive APIs, the controller IRQ
-  callbacks and the deferred RX kthread.  The probe received and compared an
-  8-byte frame with identifier `0x325`, then was removed.  The clean signed
-  image was rebuilt, sparse-flashed and reached NuttShell.  Evidence and the
-  intentionally unverified external-bus boundary are recorded in
-  [CAN internal loopback](verification/2026-08-10-bk7258-can-internal-loopback.md).
-
-## Other verified platform state
-
-- CP NuttX, AP SMP, RPTUN/RPMsg/RPMsgFS, Bluetooth, Wi-Fi STA, PSRAM and the
-  established peripheral wrappers remain outside this cleanup and are not
-  intentionally changed.
-- T5AI-Core is the default physical board. T5-Board wiring is separated under
-  `boards/t5_board`; its ILI9488 RGB LCD displayed the expected color bars.
-- Driver backlog conclusions and board evidence are recorded in
-  [AP peripheral board evidence](verification/2026-08-09-bk7258-ap-peripheral-board-evidence.md).
-- The official v3.1.1.9 AP bundle now has a reproducible board-owned
-  `ap-peripherals-r2` profile.  PWM and generic DVP compile/link in the AP
-  drivercheck image; the T5-Board V4L2 camera captured a valid JPEG and the
-  PWM lower half visibly controlled the RGB LCD backlight.  Evidence:
-  [SDK peripheral profile, PWM and DVP](verification/2026-08-10-bk7258-sdk-peripheral-profile-pwm-dvp.md).
+Detailed evidence and proof boundaries are in
+[PM idle and J-Link recovery](verification/2026-08-12-bk7258-pm-idle-jlink.md).
 
 ## Honest boundary
 
-The chain is software-rooted. It does not prove that BK7258 BootROM consumes
-the repository Manifest and does not provide OTP/eFuse-backed root trust or
-persistent hardware anti-rollback. No OTP/eFuse, secure-lifecycle or debug
-lock bit has been written.
+Phase one is equivalent to the official SDK only at the ordinary shallow-WFI
+hardware primitive. It does not implement CP sleep voting, both AP WFI votes,
+AON/mailbox-only wake, pending IRQ/DMA/SysTick handling, SLEEPDEEP entry, or
+the corresponding restore sequence. Those remain a later low-voltage phase.
 
-The current source provides authenticated boot, not a complete field-update
-lifecycle. Restoring the deleted custom N15/N17 OTA state machines would be a
-regression. A future updater must be designed against NuttX MCUboot semantics
-and the frozen CP/AP same-slot contract.
+The retained signed boot chain is authenticated by development software keys,
+not OTP/eFuse hardware root trust. No OTP/eFuse, lifecycle, rollback fuse, or
+debug-lock bit has been written.
 
 ## Next step
 
-1. Publish and review the TRNG hardening and CAN lower-half integration.
-2. When a CAN transceiver and peer become available, validate pin mux,
-   electrical levels, termination, peer ACK, arbitration, bitrate
-   interoperability and external bus-off recovery.  Until then, describe the
-   result specifically as controller-internal loopback, not external CAN bus
-   validation.
-3. Only when field update is requested, design its transport, inactive-slot
-   writer, confirmation and rollback flow directly around MCUboot; do not
-   restore the retired N15/N17 custom journal.
-4. Keep hardware Secure Boot provisioning deferred until separate authority;
-   never write OTP/eFuse as part of ordinary validation.
+1. Review and commit the bounded PM/debug/UART/bringup changes when authorized.
+2. Validate P20/P21 and alternate UART routes only on matching physical wiring.
+3. Implement low-voltage standby as a separate phase containing the complete
+   CP + two-AP + AON/mailbox + IRQ/DMA/SysTick wake/restore protocol.
 
 ## Fixed constraints
 
-- Do not modify NuttX or official SDK source except temporary debugging that
-  is fully restored.
-- Do not mix BK7259, v4.x or BK7236 runtime artifacts into the product path.
-- Private signing keys must never enter the repository, logs or memory.
-- Hardware mutation, commit, push and PR actions keep their normal authority
-  boundaries.
+- Do not modify NuttX or official SDK sources for the permanent solution.
+- Do not use COM4 in the P0/P1 SWD/RTT profile; use COM3 only for download.
+- Never place development private keys in the repository, logs, or memory.
+- Never write OTP/eFuse or debug locks without separate explicit authority.

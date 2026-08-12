@@ -4,7 +4,7 @@
  *   uint32_t c_main(void);
  *
  * Responsibilities (Tier-1 features I / A, with J handled by start.S):
- *   I  UART1 logging of boot progress.
+ *   I  Configurable UART logging of boot progress.
  *   A  FAL partition table parse -> locate "app", derive its logical address.
  *      App header validation (MSP / Reset Thumb / "BK7236\0\0" magic).
  * On success c_main prints "jump to:0x02010000\r\n", "JMP\r\n" and returns
@@ -33,11 +33,21 @@
 extern void boot_clock_cold_init(void);
 
 /* ------------------------------------------------------------------ */
-/* MMIO: BK7258 UART1 (matches the verified init in start.S).         */
+/* MMIO: selected BK7258 boot UART (matches the init in start.S).     */
 /* ------------------------------------------------------------------ */
-#define UART1_FIFO_ADDR   0x4583001Cu
-#define UART1_STATUS_ADDR 0x45830018u
-#define UART1_TX_READY    (1u << 20)   /* bit20: TX-FIFO-not-full (assumed) */
+#if BK7258_BL1_CONSOLE_UART == 0
+#  define BOOT_UART_BASE 0x44820000u
+#elif BK7258_BL1_CONSOLE_UART == 1
+#  define BOOT_UART_BASE 0x45830000u
+#elif BK7258_BL1_CONSOLE_UART == 2
+#  define BOOT_UART_BASE 0x45840000u
+#endif
+
+#if BK7258_BL1_CONSOLE_UART < 3
+#  define BOOT_UART_FIFO_ADDR   (BOOT_UART_BASE + 0x1cu)
+#  define BOOT_UART_STATUS_ADDR (BOOT_UART_BASE + 0x18u)
+#  define BOOT_UART_TX_READY    (1u << 20)
+#endif
 
 #ifndef BK7258_BL1_MANIFEST_ENFORCE
 #  define BK7258_BL1_MANIFEST_ENFORCE 0u
@@ -55,6 +65,10 @@ extern void boot_clock_cold_init(void);
 #  define BK7258_BL1_BOOT_CONTROL_STAGING 0u
 #endif
 
+#ifndef BK7258_BL1_USE_BL2
+#  define BK7258_BL1_USE_BL2 0u
+#endif
+
 #if BK7258_BL1_BOOT_CONTROL_STAGING
 #  ifndef BK7258_BL1_BOOT_CONTROL_RAW_OFFSET
 #    error "staging boot control requires a raw Flash offset"
@@ -68,8 +82,10 @@ extern void boot_clock_cold_init(void);
 #endif
 
 #define REG32(addr)       (*(volatile uint32_t *)(addr))
-#define UART1_FIFO        REG32(UART1_FIFO_ADDR)
-#define UART1_STATUS      REG32(UART1_STATUS_ADDR)
+#if BK7258_BL1_CONSOLE_UART < 3
+#  define BOOT_UART_FIFO   REG32(BOOT_UART_FIFO_ADDR)
+#  define BOOT_UART_STATUS REG32(BOOT_UART_STATUS_ADDR)
+#endif
 
 /* ------------------------------------------------------------------ */
 /* FAL partition table (mirrors struct fal_partition from the BK SDK,  */
@@ -118,6 +134,9 @@ const struct fal_partition fal_partition_table[] = {
 /* ------------------------------------------------------------------ */
 static void uart_putc(char c)
 {
+#if BK7258_BL1_CONSOLE_UART >= 3
+    (void)c;
+#else
     /*
      * Poll bit20 (TX-FIFO-not-full). The poll is bounded: if the bit polarity
      * is ever inverted on silicon, we degrade gracefully to the same
@@ -125,11 +144,12 @@ static void uart_putc(char c)
      * than hanging the boot.
      */
     for (int i = 0; i < 100000; i++) {
-        if (UART1_STATUS & UART1_TX_READY) {
+        if (BOOT_UART_STATUS & BOOT_UART_TX_READY) {
             break;
         }
     }
-    UART1_FIFO = (uint32_t)(uint8_t)c;
+    BOOT_UART_FIFO = (uint32_t)(uint8_t)c;
+#endif
 }
 
 static void uart_puts(const char *s)
@@ -158,6 +178,7 @@ static void log_u32(const char *label, uint32_t value)
     uart_puts("\r\n");
 }
 
+#if BK7258_BL1_USE_BL2
 static int boot_bl2_policy_store(
     const struct bk7258_bl2_boot_policy_s *policy)
 {
@@ -195,6 +216,7 @@ static int boot_bl2_policy_store(
     __asm volatile ("dsb sy" ::: "memory");
     return 0;
 }
+#endif
 
 /* Read-only TrustEngine/Dubhe observation for the reversible bring-up path.
  * These addresses are from the v3.1.1.9 BK7258 register headers and have
@@ -253,9 +275,50 @@ static const struct fal_partition *fal_find(const char *name)
     return (const struct fal_partition *)0;
 }
 
+#if !BK7258_BL1_USE_BL2
+/* A direct-boot CP image begins with its Cortex-M vector table and carries
+ * the board's fixed BK7236 marker at byte offset 0x100.  Keep this validator
+ * distinct from validate_bl2(): a normal NuttX image is deliberately not an
+ * MCUboot image and must never be sent to the SRAM BL2 parser. */
+static int validate_direct_app(uint32_t image, size_t image_size)
+{
+    volatile const uint32_t *vec = (volatile const uint32_t *)image;
+    uint32_t msp = vec[0];
+    uint32_t rst = vec[1];
+
+    if (image_size < 0x108u) {
+        uart_puts("BAD\r\napp size\r\n");
+        return 0;
+    }
+    if ((msp & 3u) != 0u || msp < 0x28010000u || msp > 0x28050000u) {
+        uart_puts("BAD\r\nmsp align/OOR\r\n");
+        return 0;
+    }
+    if ((rst & 1u) == 0u) {
+        uart_puts("BAD\r\nreset no-thumb\r\n");
+        return 0;
+    }
+    if ((rst & ~1u) < image || (rst & ~1u) >= image + image_size) {
+        uart_puts("BAD\r\nreset OOR\r\n");
+        return 0;
+    }
+    if (vec[0x100u / sizeof(uint32_t)] != 0x32374b42u) {
+        uart_puts("BAD\r\nmagic0\r\n");
+        return 0;
+    }
+    if (vec[0x104u / sizeof(uint32_t)] != 0x00003633u) {
+        uart_puts("BAD\r\nmagic1\r\n");
+        return 0;
+    }
+
+    return 1;
+}
+#endif
+
 /* ------------------------------------------------------------------ */
 /* BL2 header validation (ported from bk7236_min_bl.S to C).          */
 /* ------------------------------------------------------------------ */
+#if BK7258_BL1_USE_BL2
 static int validate_bl2(uint32_t image)
 {
     volatile uint32_t *vec   = (volatile uint32_t *)image;
@@ -349,6 +412,7 @@ static int load_bl2_to_ram(uint32_t source, size_t size)
 
     return validate_bl2(BL2_RAM_BASE);
 }
+#endif
 
 /* ------------------------------------------------------------------ */
 /* C entry called from start.S. Returns app logical vector address.   */
@@ -357,12 +421,17 @@ __attribute__((used))
 uint32_t c_main(void)
 {
     const struct fal_partition *app;
+#if BK7258_BL1_USE_BL2
     struct bk7258_bl2_boot_policy_s bl2_policy;
+#endif
     uint32_t app_vec = 0;
+#if BK7258_BL1_USE_BL2
 #if !BK7258_BL1_MANIFEST_RAW_PAGE
     uint32_t manifest_xip;
 #endif
+#endif
     int cold_ok = 0;
+#if BK7258_BL1_USE_BL2
 #if BK7258_BL1_MANIFEST_ENFORCE
     int manifest_status;
 #if BK7258_BL1_MANIFEST_RAW_PAGE
@@ -372,7 +441,6 @@ uint32_t c_main(void)
     int pair_ok = 0;
     int attempt;
     int slot;
-    int retry;
     uint8_t slot_order[2];
 #if BK7258_BL1_BOOT_CONTROL_STAGING
     uint8_t boot_control_record[BK7258_BL1_BOOT_FLAG_RECORD_SIZE];
@@ -383,6 +451,8 @@ uint32_t c_main(void)
       };
     enum bk7258_bl1_boot_flag_status_e boot_flag_status;
 #endif
+#endif
+    int retry;
 
     uart_puts("u_bootloader enter\r\n");
 
@@ -431,6 +501,35 @@ uint32_t c_main(void)
 #if BK7258_BL1_TRUSTENGINE_PROBE
     trustengine_readonly_probe();
 #endif
+
+#if !BK7258_BL1_USE_BL2
+    /* Normal profiles package a raw NuttX vector image at CP slot A.  BL1
+     * validates that image in place and returns its logical vector address
+     * to the final assembly handoff/optional SWD hold in start.S. */
+    boot_wdt_feed();
+    app = fal_find("cp_app");
+    if (app == (const struct fal_partition *)0) {
+        uart_puts("BAD\r\nno cp_app part\r\n");
+        boot_wdt_fail_reset();
+    }
+    if ((uint32_t)app->offset != BK7258_ROLE_SLOT_A_CP_LOGICAL_OFFSET ||
+        app->len != BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE) {
+        uart_puts("BAD\r\ncp_app layout\r\n");
+        boot_wdt_fail_reset();
+    }
+
+    app_vec = FLASH_BASE + (uint32_t)app->offset;
+    if (app_vec != BK7258_ROLE_SLOT_A_CP_XIP_START ||
+        !validate_direct_app(app_vec, app->len)) {
+        boot_wdt_fail_reset();
+    }
+
+    boot_wdt_feed();
+    __asm volatile ("cpsid i" ::: "memory");
+    log_u32("jump to:", app_vec);
+    uart_puts("JMP\r\n");
+    return app_vec;
+#else
 
     bl2_policy.magic = BK7258_BL2_BOOT_POLICY_MAGIC;
     bl2_policy.version = BK7258_BL2_BOOT_POLICY_VERSION;
@@ -577,4 +676,5 @@ uint32_t c_main(void)
     log_u32("bl2 ram @ ", BL2_RAM_BASE);
     uart_puts("BL2RAM\r\n");
     return BL2_RAM_BASE;
+#endif
 }

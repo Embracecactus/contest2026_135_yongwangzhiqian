@@ -25,6 +25,7 @@ config ARCH_CHIP_BK7258
 	select ARCH_HAVE_CUSTOM_VECTORS
 	select ARCH_RAMVECTORS
 	select ARCH_HAVE_MPU
+	select ARCH_IDLE_CUSTOM
 	select MTD if BK7258_FLASH_MTD
 	---help---
 		Beken BK7258 SoC as shipped on the T5-AI board: tri-core
@@ -56,17 +57,246 @@ config BK7258_AP_CORE
 		baseline with a freestanding CPU2 probe.  AP SMP is enabled only by the
 		separate BK7258_AP_SMP_BOOTSTRAP option and configs/ap_smp.
 
-config BK7258_SWD_RTT_DEBUG
-	bool "Route T5-Board P0/P1 to SWD and use SEGGER RTT logging"
+menu "BK7258 debug and UART pin ownership"
+
+config BK7258_SWD_DEBUG
+	bool "Enable the board-owned J-Link SWD route"
 	default n
-	depends on !BK7258_AP_CORE && BK7258_GPIO_LOWERHALF
-	select SYSLOG_RTT
+	depends on !BK7258_AP_CORE && BK7258_BOARD_T5_BOARD
 	---help---
-		Enable the board-owned debug transport used when T5-Board exposes the
-		BK7258 JTAG/SWD group on GPIO0/GPIO1.  The CP remaps those pins from
-		UART1 to JTAG TCK/TMS immediately before releasing the AP; AP syslog can
-		then continue through RPMsg and the CP's SEGGER RTT channel while J-Link
-		owns P0/P1.  Keep this disabled in normal UART-console builds.
+		Keep one explicit BK7258 SWD route active from BL1 through BL2, CP
+		startup and later restore boundaries.  This controls the physical
+		debug route only; RTT and UART console selection are independent.
+
+if BK7258_SWD_DEBUG
+
+choice
+	prompt "SWD pin group"
+	default BK7258_SWD_PINS_P0_P1
+
+config BK7258_SWD_PINS_P20_P21
+	bool "SDK group 0: P20/P21"
+	help
+		Use P20 as SWCLK and P21 as SWDIO.  These pins also carry I2C0 and
+		T5-Board RGB LCD R6/R5, so a paired build using either function must
+		be rejected.
+
+config BK7258_SWD_PINS_P0_P1
+	bool "SDK group 1: P0/P1"
+	help
+		Use P0 as SWCLK and P1 as SWDIO.  This is the verified T5-Board
+		route and is mutually exclusive with UART1.
+
+endchoice
+
+choice
+	prompt "SWD target core"
+	default BK7258_SWD_TARGET_CP
+
+config BK7258_SWD_TARGET_CP
+	bool "Physical CPU0 / CP"
+
+config BK7258_SWD_TARGET_AP0
+	bool "Physical CPU1 / AP logical CPU0"
+
+config BK7258_SWD_TARGET_AP1
+	bool "Physical CPU2 / AP logical CPU1"
+
+endchoice
+
+config BK7258_SWD_BOOT_HOLD
+	bool "Wait in the final bootloader handoff for J-Link"
+	default y
+	depends on BK7258_SWD_TARGET_CP
+	help
+		After image authentication and final security/cache cleanup, BL1 for
+		direct boot or BL2 for MCUboot waits for a debugger to attach and then
+		write the explicit JLNK release word.  C_DEBUGEN alone cannot release
+		the handoff because it is asserted before J-Link finishes CoreSight
+		enumeration.  Only the CP route can be held here because both AP cores
+		are still under CP lifecycle control.
+
+endif # BK7258_SWD_DEBUG
+
+choice
+	prompt "Early diagnostic console"
+	default BK7258_CONSOLE_NONE if BK7258_AP_CORE
+	default BK7258_CONSOLE_RTT if BK7258_SWD_DEBUG
+	default BK7258_CONSOLE_UART1
+
+config BK7258_CONSOLE_NONE
+	bool "No early console"
+
+config BK7258_CONSOLE_RTT
+	bool "SEGGER RTT"
+	depends on !BK7258_AP_CORE
+	select SYSLOG_RTT
+	help
+		Use RTT for early polled output.  It does not claim a UART or create
+		/dev/console; UART devices may still be enabled separately when their
+		pins do not conflict with SWD.
+
+config BK7258_CONSOLE_UART0
+	bool "UART0"
+	depends on !BK7258_AP_CORE
+	select BK7258_UART0
+	select DEV_CONSOLE
+	select SERIAL
+
+config BK7258_CONSOLE_UART1
+	bool "UART1"
+	depends on !BK7258_AP_CORE
+	depends on !BK7258_SWD_DEBUG || !BK7258_SWD_PINS_P0_P1
+	select BK7258_UART1
+	select DEV_CONSOLE
+	select SERIAL
+
+config BK7258_CONSOLE_UART2
+	bool "UART2"
+	depends on !BK7258_AP_CORE
+	select BK7258_UART2
+	select DEV_CONSOLE
+	select SERIAL
+
+endchoice
+
+config BK7258_UART0
+	bool "Enable UART0 as /dev/ttyS0"
+	default y if BK7258_CONSOLE_UART0
+	depends on !BK7258_AP_CORE
+	select ARCH_HAVE_SERIAL_TERMIOS
+	select SERIAL
+	select SERIAL_TERMIOS
+
+config BK7258_UART0_BAUD
+	int "UART0 initial baud rate"
+	default 115200
+	range 400 5200000
+	depends on BK7258_UART0
+
+config BK7258_UART0_DATA_BITS
+	int "UART0 data bits"
+	default 8
+	range 5 8
+	depends on BK7258_UART0
+
+config BK7258_UART0_PARITY
+	int "UART0 parity (0 none, 1 odd, 2 even)"
+	default 0
+	range 0 2
+	depends on BK7258_UART0
+
+config BK7258_UART0_STOP_BITS
+	int "UART0 stop bits"
+	default 1
+	range 1 2
+	depends on BK7258_UART0
+
+config BK7258_UART0_FLOW_CONTROL
+	bool "UART0 CTS/RTS flow control on P13/P12"
+	default n
+	depends on BK7258_UART0
+	select SERIAL_IFLOWCONTROL
+	select SERIAL_OFLOWCONTROL
+	help
+		UART0 is the only BK7258 UART with CTS/RTS pins in the official
+		v3.1.1.9 map.  P12/P13 cannot simultaneously serve USB0, touch or
+		another board function.
+
+config BK7258_UART1
+	bool "Enable UART1 as /dev/ttyS1"
+	default y if BK7258_CONSOLE_UART1
+	depends on !BK7258_AP_CORE
+	depends on !BK7258_SWD_DEBUG || !BK7258_SWD_PINS_P0_P1
+	select ARCH_HAVE_SERIAL_TERMIOS
+	select SERIAL
+	select SERIAL_TERMIOS
+
+config BK7258_UART1_BAUD
+	int "UART1 initial baud rate"
+	default 460800
+	range 400 5200000
+	depends on BK7258_UART1
+
+config BK7258_UART1_DATA_BITS
+	int "UART1 data bits"
+	default 8
+	range 5 8
+	depends on BK7258_UART1
+
+config BK7258_UART1_PARITY
+	int "UART1 parity (0 none, 1 odd, 2 even)"
+	default 0
+	range 0 2
+	depends on BK7258_UART1
+
+config BK7258_UART1_STOP_BITS
+	int "UART1 stop bits"
+	default 1
+	range 1 2
+	depends on BK7258_UART1
+
+config BK7258_UART2
+	bool "Enable UART2 as /dev/ttyS2"
+	default y if BK7258_CONSOLE_UART2
+	depends on !BK7258_AP_CORE
+	select ARCH_HAVE_SERIAL_TERMIOS
+	select SERIAL
+	select SERIAL_TERMIOS
+
+choice
+	prompt "UART2 pin group"
+	default BK7258_UART2_PINS_P30_P31
+	depends on BK7258_UART2
+
+config BK7258_UART2_PINS_P30_P31
+	bool "P31 TX / P30 RX"
+
+config BK7258_UART2_PINS_P40_P41
+	bool "P41 TX / P40 RX"
+	help
+		This alternate chip mux conflicts with the T5-Board RGB LCD G3/G4
+		and I2S2.  The paired CP/AP build validates that ownership.
+
+endchoice
+
+config BK7258_UART2_BAUD
+	int "UART2 initial baud rate"
+	default 115200
+	range 400 5200000
+	depends on BK7258_UART2
+
+config BK7258_UART2_DATA_BITS
+	int "UART2 data bits"
+	default 8
+	range 5 8
+	depends on BK7258_UART2
+
+config BK7258_UART2_PARITY
+	int "UART2 parity (0 none, 1 odd, 2 even)"
+	default 0
+	range 0 2
+	depends on BK7258_UART2
+
+config BK7258_UART2_STOP_BITS
+	int "UART2 stop bits"
+	default 1
+	range 1 2
+	depends on BK7258_UART2
+
+config BK7258_UART_RXBUFSIZE
+	int "UART receive ring size"
+	default 256
+	range 64 4096
+	depends on BK7258_UART0 || BK7258_UART1 || BK7258_UART2
+
+config BK7258_UART_TXBUFSIZE
+	int "UART transmit ring size"
+	default 256
+	range 64 4096
+	depends on BK7258_UART0 || BK7258_UART1 || BK7258_UART2
+
+endmenu
 
 config BK7258_MCUBOOT_IMAGE
 	bool "Build CP application as an MCUboot payload"
@@ -312,14 +542,17 @@ config BK7258_PM_POLICY
 	default y
 	depends on BK7258_PM_CLOCK && !BK7258_AP_CORE
 	select PM
+	select PM_GOVERNOR_GREEDY
 	select BK7258_DVFS
 	---help---
 		Initialize the stock NuttX PM framework during ARM bring-up and keep
 		all BK7258 frequency decisions on CP.  SDK module votes and AP RPMsg
 		votes are translated to stable board client IDs and the highest active
 		vote wins, matching v3.1.1.9.  The official 120 MHz default vote is the
-		floor.  This first phase explicitly rejects idle/standby/sleep state
-		changes; only DVFS and existing reference-counted clock gating are live.
+		floor.  The board idle loop integrates NuttX PM with ordinary Cortex-M
+		WFI.  This first phase admits PM_IDLE only.  PM_STANDBY and PM_SLEEP
+		stay fail-closed until the complete CP/AP coordinated low-voltage and
+		wake/restore protocol is implemented.
 
 config BK7258_RPMSG_TEST
 	bool "N9 AP-SMP RPMsg bounded concurrency test"
@@ -753,7 +986,7 @@ config BK7258_CLOCK_320M
 config BK7258_CLOCK_320M_PROBE
 	bool "BK7258 320 MHz bring-up verification probe (uart evidence line)"
 	default n
-	depends on BK7258_CLOCK_320M
+	depends on BK7258_CLOCK_320M && !BK7258_CONSOLE_NONE
 	---help---
 		Re-add a one-shot freestanding UART evidence line after the 320 MHz
 		bring-up showing M1/ANA_REG5/ANA_REG9 readback, for one
@@ -874,7 +1107,9 @@ config BK7258_GPIO_LOWERHALF
 		active-low user key as /dev/gpio1 through the standard NuttX GPIO
 		upper half. The key supports one selected rising or falling edge
 		at a time; level, both-edge, wakeup and debounce modes are not
-		supported. A validation application is selected separately.
+		supported. If the board LED pin is owned by UART1 or the selected
+		P0/P1 SWD route, /dev/gpio0 is omitted without remuxing that pin.
+		A validation application is selected separately.
 
 config BK7258_SARADC_SERVER
 	bool "CP SAR ADC mailbox server"

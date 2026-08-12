@@ -3,13 +3,14 @@
 Pulses Windows serial-port modem-control lines without external dependencies.
 
 .DESCRIPTION
-Used on the current CH342-A adapter where COM7 RTS is wired to the board
-physical reset path. A valid reset must still be proven by BClk on COM11.
+The caller selects the serial port whose modem-control line is physically
+wired to reset. A pulse is only an electrical action; boot evidence must be
+captured separately when a UART console is available.
 #>
 
 [CmdletBinding()]
 param(
-    [string]$Port = 'COM7',
+    [string]$Port = 'COM3',
 
     [ValidateSet('DTR', 'RTS', 'BOTH')]
     [string]$Mode = 'RTS',

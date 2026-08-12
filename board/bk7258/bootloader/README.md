@@ -1,13 +1,13 @@
 # BK7258 Tier-1 Bootloader (asm trampoline + C main + asm hardened epilogue)
 
 This is the Tier-1 rewrite of the hand-written minimal BK7258 bootloader. It
-keeps the **verified** cold-boot init sequence and jump target (app
-@ logical `0x02010000`) unchanged, but restructures the binary into three
-clean layers and adds three Tier-1 features:
+keeps the **verified** cold-boot invariants and jump target (app @ logical
+`0x02010000`), while making debug and console ownership explicit. The binary
+has three clean layers and three Tier-1 features:
 
 | Feature | What | Where |
 |---|---|---|
-| **I** UART1 boot logging | progress + diagnostics | `boot_main.c` |
+| **I** Configurable boot logging | UART0/1/2 or silent diagnostics | `start.S`, `boot_main.c` |
 | **A** FAL partition table parse | locate `cp_app`, derive logical addr | `boot_main.c` |
 | **J** Hardened jump epilogue | VTOR / dsb / isb / MSP / clear r0-r12 / bx | `start.S` |
 
@@ -16,7 +16,7 @@ clean layers and adds three Tier-1 features:
 ```
 board/bk7258/bootloader/
   start.S                            asm: vectors + bl magic + Reset init + bl c_main + hardened jump
-  boot_main.c                        C main: Manifest/BL2 validation + UART logs
+  boot_main.c                        C main: Manifest/BL2 validation + selected-UART logs
   boot_flash.c                       read-only raw-Flash access used by BL1
   boot_runtime.c                     cache/MPU, secondary-core, and handoff normalization
   bootloader.ld                      FLASH @ 0x02000000, slot 0x10000
@@ -26,6 +26,17 @@ board/bk7258/bootloader/
 ```
 
 ## MCUboot BL2 chain (MCUBOOT profile)
+
+Normal profiles and MCUboot profiles intentionally use different BL1
+handoffs. A normal profile packages a raw NuttX vector image, so BL1 resolves
+`cp_app`, validates its MSP/reset/magic and returns `0x02010000` directly to
+`start.S`. Before that direct branch, BL1 widens the public boot-stage
+`MSPLIM=0x2802f800` to the NuttX CP RAM lower bound `0x28010000`; otherwise
+the CP reset wrapper's first stack push is below the inherited limit. Only a
+`*_mcuboot` profile sets `BL1_USE_BL2=1`; that profile
+packages a signed MCUboot image and changes the handoff to SRAM BL2. Sending a
+normal vector image through BL2 is invalid and causes BL2's failure watchdog
+reset.
 
 The `cp_nsh_mcuboot` / `ap_smp_mcuboot` profile changes the handoff to:
 
@@ -52,6 +63,21 @@ through the checked SRAM record at `0x2801ffd0`. BL2 consumes the record once
 and runs the pinned upstream MCUboot `boot_go()` against each permitted
 physical CP/AP pair in order. No retired OTA journal or Flash writer is linked
 into this chain.
+
+Debug and console ownership are passed in from the selected CP defconfig. For
+direct boot, BL1 reasserts the configured SWD route after final cache/MPU
+cleanup and can wait for `DHCSR.C_DEBUGEN` immediately before the CP branch.
+That bit only admits the probe to the hold loop; it does not release the boot
+stage because it appears before CoreSight enumeration finishes. After attach,
+write `0x4a4c4e4b` (`JLNK`) to `0x2809f7f0` and resume the core to release the
+held boot stage. The intentional hold disables the boot watchdogs while the
+core may be halted. It leaves them disabled across the short application
+branch because re-enabling after an unbounded hold can immediately consume a
+stale watchdog count; the CP reset entry then takes watchdog ownership.
+For MCUboot, BL1 does not hold before SRAM BL2; BL2 applies the same route and
+optional hold after authentication and its final handoff cleanup. The current
+T5-Board debug profile uses P0/P1, targets CP and keeps the boot UART silent.
+P20/P21 and UART0/UART1/UART2 remain selectable for non-conflicting profiles.
 
 The package emits `bl2_crc.bin` and `bl2_secondary_crc.bin`, and the WSL2
 download SOP writes both ranges. Existing `--manifest` invocations remain an
@@ -102,7 +128,7 @@ FLASH logical base 0x02000000, logical slot 0x10000 (64 KiB)
   0x000..0x0FF  vector table  (64 entries: MSP=0x2809F700, Reset, NMI, HardFault, 60x default)
   0x100..0x107  bl magic      "BK7236\x10\x00"  (bytes: 42 4B 37 32 33 36 10 00)
   0x108..0x1FF  vector table  (62 entries -> Reset_Handler)
-  0x200..       Reset_Handler : verbatim init -> bl c_main -> hardened epilogue
+  0x200..       Reset_Handler : verified init + selected I/O -> bl c_main -> hardened epilogue
   .rodata      FAL executable partition table (4 entries x 64 B; see bl.map)
 
 Physical image (bl_crc.bin): 32 B data + 2 B CRC16 per block -> 0x11000 bytes.
@@ -119,8 +145,9 @@ Physical slot: 0x0 .. 0x11000 on flash.
 | bl2 | beken_onchip_crc | 0x4d0000 | 0x020000 | 0x024d0000 |
 
 magic_word `0x45503130` (`'E','P','1','0'`), matches the BK SDK
-`fal_partition.c` / `fal_def.h`. `c_main` resolves `bl2`; CP/AP remain
-contiguous so MCUboot can validate and hand off one paired slot.
+`fal_partition.c` / `fal_def.h`. Normal `c_main` resolves `cp_app`; an
+MCUboot-profile `c_main` resolves `bl2`. CP/AP remain contiguous so MCUboot can
+validate and hand off one paired slot.
 
 ## Build & pack
 
@@ -180,7 +207,7 @@ the calibration tail at `0x7fa000`.
 Do **not** run the commands in this repo — build/inspect only; flash on the
 board with your usual BK tooling.
 
-## Expected UART1 log
+## Expected boot-UART log
 
 With the existing app probe (which carries its own `BK7236\x10\x00` magic at
 its `0x100`) flashed at logical `0x02010000`:
@@ -195,8 +222,8 @@ BK7258 PROBE...            <- produced by the app probe after the handoff
 
 If header validation fails, the bootloader prints `BAD` + a short reason
 (`msp OOR` / `reset no-thumb` / `magic0` / `magic1` / `no app part`) and
-hangs. UART1 is the same console/GPIO0 TXD + GPIO1 RXD (with GPIO10/11 boot
-UART state preserved) used by the minimal bootloader.
+hangs. Output uses the boot UART, baud and frame selected from the CP profile.
+RTT/NONE profiles deliberately produce no boot-UART bytes.
 
 ## Rollback
 
@@ -210,19 +237,18 @@ bootloader image (no C layer):
 
 ## Design notes / deviations from the spec
 
-- **Init sequence is verbatim.** Every register/value in `Reset_Handler` before
-  `bl c_main` is copied unchanged from the known-good `bk7236_min_bl.S`
-  (cpsid i, SWD, AON/APB WDT feed, GPIO0/1 + GPIO10/11 UART1 pinmux, UART1
-  clock + config). Do not edit those constants.
+- **Cold-init invariants are preserved.** Interrupt masking, watchdog, Flash
+  and clock preparation retain the verified sequence. SWD group/core and the
+  optional UART pinmux/clock/frame are compile-time inputs derived from the CP
+  defconfig, so BL1 does not reclaim pins owned by another transport.
 - **Jump target unchanged.** Still app @ logical `0x02010000`.
 - **Cache/MPU cleanup is explicit.** `boot_runtime.c` clean-room reconstructs
   the Armv8-M SCB/MPU sequence from the official v3.1.1.9 normal bootloader:
   reset invalidates stale cache state, and handoff cleans/disables D-cache,
   disables/clears MPU regions, and invalidates I-cache before changing the
   application execution context.
-- **UART TX poll is bounded.** Bit 20 of UART1 status (`0x45830018`) is polled
-  as "TX-FIFO-not-full" per the spec, but the busy-wait is bounded so that an
-  inverted bit polarity degrades to the same write-through behavior the
-  verified minimal bootloader used instead of hanging the boot.
+- **UART TX poll is bounded.** Bit 20 of the selected UART status register is
+  polled as "TX-FIFO-not-full", but the busy-wait is bounded so a damaged or
+  unavailable console cannot hang verified-image boot.
 - **Hardened epilogue** preserves `r2` (app `Reset_Handler`) while clearing
   `r0,r1,r3..r12`, then `bx r2` — mirrors BK §2.7's clear-and-branch.

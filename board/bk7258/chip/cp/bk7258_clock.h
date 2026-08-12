@@ -18,7 +18,7 @@
  *
  * Called early in __start(), before nx_start(), so bk7258_clockdiag_current
  * _cpu_hz() observes M1 low bits = 0x20 (csrc=2, cdiv=0) and up_timer_
- * initialize() arms the correct SysTick reload.  The UART1 console runs off
+ * initialize() arms the correct SysTick reload.  The selected UART runs off
  * an independent clocking path and survives the core mux switch.
  ****************************************************************************/
 

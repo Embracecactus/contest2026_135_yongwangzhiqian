@@ -7,15 +7,14 @@
 ############################################################################
 
 set(BK7258_COMMON_EARLY_SRCS
-    common/bk7258_lowputc.c
-    common/bk7258_serial.c
     common/bk7258_irq.c
     common/bk7258_timerisr.c
     common/bk7258_allocateheap.c)
 
 set(BK7258_COMMON_LATE_SRCS
     common/bk7258_os_adapt.c
-    common/bk7258_sdk_stubs.c)
+    common/bk7258_sdk_stubs.c
+    common/bk7258_idle.c)
 
 set(BK7258_COMMON_SRCS
     ${BK7258_COMMON_EARLY_SRCS}
@@ -29,6 +28,25 @@ set(BK7258_CP_SRCS
     cp/bk7258_start.c
     ${BK7258_COMMON_SRCS}
     cp/bk7258_sdk_partition.c)
+
+if(CONFIG_BK7258_CONSOLE_RTT)
+  list(APPEND BK7258_CP_SRCS common/bk7258_rtt_lowputc.c)
+  target_include_directories(chip PRIVATE
+      ${NUTTX_DIR}/drivers/segger/SystemView/SEGGER
+      ${NUTTX_DIR}/drivers/segger/config)
+elseif(CONFIG_BK7258_CONSOLE_UART0 OR CONFIG_BK7258_CONSOLE_UART1 OR
+       CONFIG_BK7258_CONSOLE_UART2)
+  list(APPEND BK7258_CP_SRCS common/bk7258_lowputc.c)
+endif()
+
+if(CONFIG_BK7258_UART0 OR CONFIG_BK7258_UART1 OR CONFIG_BK7258_UART2)
+  list(APPEND BK7258_CP_SRCS common/bk7258_serial.c)
+endif()
+
+if(CONFIG_BK7258_SWD_DEBUG)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_swd_debug.c)
+  target_link_options(nuttx PRIVATE "LINKER:--wrap=gpio_hal_default_map_init")
+endif()
 
 if(CONFIG_BK7258_SDK_IPC_RUNTIME)
   list(APPEND BK7258_CP_SRCS common/bk7258_sdk_runtime.c)
@@ -175,6 +193,8 @@ set(BK7258_AP_BASE_SRCS
     ap/bk7258_ap_vectors.c
     ap/bk7258_ap_start.c
     ${BK7258_COMMON_EARLY_SRCS}
+    common/bk7258_lowputc.c
+    common/bk7258_serial.c
     ap/bk7258_ap_main.c
     ap/bk7258_peripherals.c)
 

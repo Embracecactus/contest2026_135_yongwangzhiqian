@@ -67,6 +67,8 @@
 #include <nuttx/init.h>
 #include <nuttx/tls.h>
 
+#include <arch/chip/bk7258_console.h>
+
 #ifdef CONFIG_BK7258_PSRAM
 #  include <arch/chip/bk7258_psram.h>
 #endif
@@ -140,14 +142,16 @@
 
 
 #ifndef CONFIG_BK7258_AP_CORE
-/* The official CP SDK profile prints on UART0, while this board's NuttX
- * console is UART1 (GPIO0/1).  Bluetooth uses bk_get_printf_port() to avoid
- * deinitializing the active console when its temporary DUT UART ownership is
- * released, so this wrapper must report the board wiring rather than the
- * SDK build-time default.
+/* Bluetooth uses bk_get_printf_port() to avoid deinitializing an active UART
+ * console when temporary DUT ownership is released.  Report the selected
+ * board console, or retain the SDK port when RTT/NONE owns diagnostics.
  */
 
-#  define BK7258_NUTTX_CONSOLE_UART_PORT 1
+#  ifdef BK7258_HAVE_UART_CONSOLE
+#    define BK7258_NUTTX_CONSOLE_UART_PORT BK7258_CONSOLE_UART_ID
+#  else
+#    define BK7258_NUTTX_CONSOLE_UART_PORT CONFIG_UART_PRINT_PORT
+#  endif
 #endif
 
 #if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
