@@ -88,14 +88,16 @@ def disassemble(objdump: str, obj: pathlib.Path, symbol: str) -> str:
     return run(objdump, "-dr", str(obj), f"--disassemble={symbol}")
 
 
-def has_mapped_default_priority(disassembly: str) -> bool:
-    """Recognize the compiled LCD-0 / normal-6 priority selection."""
+def has_mapped_default_priority(
+    disassembly: str, normal_priority: int, priority_shift: int
+) -> bool:
+    """Recognize the compiled LCD-0 / configured-normal priority selection."""
 
     if re.search(r"\bcmp(?:\.w)?\s+r\d+,\s*#27\b", disassembly) is None:
         return False
 
     normal = re.search(
-        r"\bmovne(?:s?\.w)?\s+(?P<reg>r\d+),\s*#6\b",
+        rf"\bmovne(?:s?\.w)?\s+(?P<reg>r\d+),\s*#{normal_priority}\b",
         disassembly,
     )
     if normal is None:
@@ -109,15 +111,17 @@ def has_mapped_default_priority(disassembly: str) -> bool:
         return False
 
     fused_argument = re.search(
-        rf"\bmov(?:s?\.w)?\s+r1,\s*{priority_reg},\s*lsl\s+#5\b",
+        rf"\bmov(?:s?\.w)?\s+r1,\s*{priority_reg},\s*lsl\s+"
+        rf"#{priority_shift}\b",
         disassembly,
     )
     shifted = re.search(
         rf"\bmov(?:s?\.w)?\s+{priority_reg},\s*{priority_reg},"
-        rf"\s*lsl\s+#5\b",
+        rf"\s*lsl\s+#{priority_shift}\b",
         disassembly,
     ) or re.search(
-        rf"\blsl(?:s?\.w)?\s+{priority_reg},\s*{priority_reg},\s*#5\b",
+        rf"\blsl(?:s?\.w)?\s+{priority_reg},\s*{priority_reg},"
+        rf"\s*#{priority_shift}\b",
         disassembly,
     ) or fused_argument
     if shifted is None:
@@ -130,6 +134,30 @@ def has_mapped_default_priority(disassembly: str) -> bool:
         ) is not None
 
     return priority_argument and "up_prioritize_irq" in disassembly
+
+
+def has_flat_default_priority(
+    disassembly: str, normal_priority: int, priority_shift: int
+) -> bool:
+    """Recognize the non-reentrant dispatcher safety priority."""
+
+    encoded = normal_priority << priority_shift
+    loaded = re.search(
+        rf"\bmov(?:s?\.w)?\s+(?P<reg>r\d+),\s*#{encoded}\b",
+        disassembly,
+    )
+    if loaded is None:
+        return False
+
+    priority_reg = re.escape(loaded.group("reg"))
+    return (
+        re.search(
+            rf"\bmov(?:s?\.w)?\s+r1,\s*{priority_reg}\b",
+            disassembly,
+        )
+        is not None
+        and "up_prioritize_irq" in disassembly
+    )
 
 
 def has_irq_serialization(disassembly: str) -> bool:
@@ -198,7 +226,7 @@ def main() -> int:
     parser.add_argument("--objdump", default="arm-none-eabi-objdump")
     args = parser.parse_args()
 
-    bridge_c = board / "chip" / "cp" / "bk7258_sdk_irq.c"
+    bridge_c = board / "chip" / "common" / "bk7258_sdk_irq.c"
     bridge_h = board / "chip" / "common" / "bk7258_sdk_irq.h"
     make_defs = board / "chip" / "Make.defs"
     cmake = board / "chip" / "CMakeLists.txt"
@@ -219,6 +247,26 @@ def main() -> int:
     ldscript_text = read(ldscript)
     build_config_text = read(build_config)
     stubs_text = read(stubs)
+    default_priority_match = re.search(
+        r"^#define\s+BK7258_SDK_IRQ_DEFAULT_PRIORITY\s+(\d+)",
+        bridge_header,
+        re.MULTILINE,
+    )
+    priority_bits_match = re.search(
+        r"^#define\s+BK7258_SDK_IRQ_PRIORITY_BITS\s+(\d+)",
+        bridge_header,
+        re.MULTILINE,
+    )
+    default_priority = (
+        int(default_priority_match.group(1))
+        if default_priority_match is not None
+        else -1
+    )
+    priority_shift = (
+        8 - int(priority_bits_match.group(1))
+        if priority_bits_match is not None
+        else -1
+    )
 
     verifier.check(bridge_c.is_file(), "S01", "dedicated bridge source exists")
     verifier.check(bridge_h.is_file(), "S02", "private bridge header exists")
@@ -246,7 +294,7 @@ def main() -> int:
     )
     verifier.check(
         "INT_SRC_NONE == BK7258_EXTERNAL_IRQS" in bridge_source
-        and "BK7258_SDK_IRQ_PRIORITY_SHIFT" in bridge_source,
+        and "BK7258_SDK_IRQ_PRIORITY_SHIFT" in bridge_header,
         "S07",
         "source gates 64 SDK sources and priority encoding",
     )
@@ -422,10 +470,23 @@ def main() -> int:
                 f"register path calls {callee} directly or via locked helper",
             )
 
+        high_priority_dispatch = (
+            "CONFIG_ARCH_HIPRI_INTERRUPT=y" in build_config_text
+        )
         verifier.check(
-            has_mapped_default_priority(register_asm),
+            default_priority >= 0
+            and priority_shift >= 0
+            and (
+                has_mapped_default_priority(
+                    register_asm, default_priority, priority_shift
+                )
+                if high_priority_dispatch
+                else has_flat_default_priority(
+                    register_asm, default_priority, priority_shift
+                )
+            ),
             "E08",
-            "register object selects LCD priority 0 and shifts normal priority 6",
+            "register object applies the configured dispatcher-safe priority",
         )
 
         for callee in (

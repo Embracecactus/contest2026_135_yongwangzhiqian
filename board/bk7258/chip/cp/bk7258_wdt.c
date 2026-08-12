@@ -79,6 +79,7 @@ static const struct watchdog_ops_s g_bk7258_wdt_ops =
 };
 
 static struct bk7258_wdt_lowerhalf_s g_bk7258_wdt;
+static bool g_bk7258_wdt_pm_resume;
 
 /****************************************************************************
  * Private: lower-half operations
@@ -233,6 +234,33 @@ int bk7258_wdt_initialize(void)
   wdinfo("BK7258 WDT registered, default timeout=%" PRIu32 " ms\n",
          priv->timeout);
   return OK;
+}
+
+void bk7258_wdt_pm_prepare(void)
+{
+  struct bk7258_wdt_lowerhalf_s *priv = &g_bk7258_wdt;
+
+  g_bk7258_wdt_pm_resume = priv->started;
+  if (priv->started)
+    {
+      /* Feed immediately before the immutable low-voltage leaf closes the
+       * APB watchdog behind the NuttX lower half.
+       */
+
+      (void)bk_wdt_feed();
+    }
+}
+
+void bk7258_wdt_pm_restore(void)
+{
+  struct bk7258_wdt_lowerhalf_s *priv = &g_bk7258_wdt;
+
+  if (g_bk7258_wdt_pm_resume)
+    {
+      (void)bk_wdt_start(priv->timeout);
+    }
+
+  g_bk7258_wdt_pm_resume = false;
 }
 
 #endif /* CONFIG_BK7258_WDT */

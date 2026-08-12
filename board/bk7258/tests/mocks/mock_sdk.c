@@ -129,6 +129,7 @@ void mock_mbox_inject_rx(uint32_t type, uint32_t generation, uint32_t value)
 void mock_mbox_set_boot_generation(uint32_t generation)
 {
   g_boot_state.generation = generation;
+  g_control.generation = generation;
 }
 
 void mock_mbox_set_boot_state(uint32_t state)
@@ -163,6 +164,9 @@ bk_err_t mb_chnl_ctrl(uint8_t log_chnl, int cmd, void *param)
   (void)log_chnl;
   switch (cmd)
     {
+      case MB_CHNL_GET_STATUS:
+        *(uint8_t *)param = g_busy ? 1u : 0u;
+        break;
       case MB_CHNL_SET_RX_ISR:
         g_rx_cb = (chnl_rx_isr_t)param;
         break;

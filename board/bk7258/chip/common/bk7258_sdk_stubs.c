@@ -162,6 +162,16 @@ void phy_wakeup_reinit(void)
 }
 #endif
 
+#ifndef CONFIG_BK7258_WIFI_VNET
+void rwnxl_set_wifi_low_vol_flag(void)
+{
+  /* The immutable SDK low-voltage leaf was built with Wi-Fi enabled and
+   * keeps this wake-debug hook behind its private CONFIG_WIFI_ENABLE.  A
+   * NuttX image without the Wi-Fi service has no MAC state to update.
+   */
+}
+#endif
+
 /****************************************************************************
  * SDK reboot/timer stubs
  ****************************************************************************/

@@ -51,7 +51,8 @@ typedef void (*chnl_tx_cmpl_isr_t)(void *param, mb_chnl_ack_t *ack_buf);
 
 enum mb_chnl_ctrl_cmd_e
 {
-  MB_CHNL_SET_RX_ISR = 0,
+  MB_CHNL_GET_STATUS = 0,
+  MB_CHNL_SET_RX_ISR,
   MB_CHNL_SET_TX_ISR,
   MB_CHNL_SET_TX_CMPL_ISR
 };
@@ -60,7 +61,10 @@ enum mb_chnl_ctrl_cmd_e
 #define ACK_STATE_COMPLETE  0x02
 #define ACK_STATE_FAIL      0x03
 
-/* MB_CHNL_LOG must resolve so that GET_LOG_CHNL_ID(MB_CHNL_LOG) == 14. */
+/* The production wrapper uses the SDK PWC channel for coordinated-PM wake
+ * and the LOG channel for RPTUN traffic.  Preserve their logical indices. */
+
+#define MB_CHNL_PWC         2
 #define MB_CHNL_LOG         14
 #define GET_LOG_CHNL_ID(log_chnl)  ((log_chnl) & 0xF)
 

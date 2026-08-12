@@ -664,6 +664,37 @@ int bk7258_ap_control_initialize(void)
   return ret;
 }
 
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+int bk7258_ap_pm_notify(uint32_t event)
+{
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+  int ret;
+
+  if (event != BK7258_AP_EVENT_STANDBY_REQUEST &&
+      event != BK7258_AP_EVENT_STANDBY_ABORT &&
+      event != BK7258_AP_EVENT_STANDBY_WAKE)
+    {
+      return -EINVAL;
+    }
+
+  __asm volatile ("dmb sy" ::: "memory");
+  if (state->state != BK7258_AP_STATE_READY || state->generation == 0)
+    {
+      return -EHOSTDOWN;
+    }
+
+  ret = bk7258_rptun_mbox_send(BK7258_RPTUN_MBOX_LIFECYCLE,
+                                state->generation, event);
+  if (ret >= 0)
+    {
+      state->cp_to_ap_doorbells++;
+      __asm volatile ("dmb sy; sev" ::: "memory");
+    }
+
+  return ret;
+}
+#endif
+
 int bk7258_ap_start(uint32_t timeout_ms)
 {
   int ret;

@@ -246,6 +246,52 @@ static int bk7258_uart_apply_format(struct uart_dev_s *dev)
   return OK;
 }
 
+static void bk7258_uart_rollback_setup(struct uart_dev_s *dev)
+{
+  struct bk7258_uart_s *priv = dev->priv;
+
+  /* The SDK deinitializer releases the UART clock/FIFO state but does not
+   * unmap its GPIOs.  Tuya performs that GPIO cleanup explicitly.  Remove
+   * every route this wrapper may have established so a failed setup cannot
+   * retain pin ownership (especially the alternate UART2 route). */
+
+  (void)bk_uart_deinit(priv->id);
+
+  if (priv->id == UART_ID_0)
+    {
+      (void)gpio_dev_unmap(GPIO_11);
+      (void)gpio_dev_unmap(GPIO_10);
+#ifdef CONFIG_BK7258_UART0_FLOW_CONTROL
+      (void)gpio_dev_unmap(GPIO_12);
+      (void)gpio_dev_unmap(GPIO_13);
+#endif
+    }
+  else if (priv->id == UART_ID_1)
+    {
+      (void)gpio_dev_unmap(GPIO_0);
+      (void)gpio_dev_unmap(GPIO_1);
+    }
+  else if (priv->id == UART_ID_2)
+    {
+      (void)gpio_dev_unmap(GPIO_31);
+      (void)gpio_dev_unmap(GPIO_30);
+#ifdef CONFIG_BK7258_UART2_PINS_P40_P41
+      (void)gpio_dev_unmap(GPIO_41);
+      (void)gpio_dev_unmap(GPIO_40);
+#endif
+    }
+
+#ifdef BK7258_HAVE_UART_CONSOLE
+  if (bk7258_uart_is_console(dev))
+    {
+      /* Keep the polled console usable after the SDK ownership handoff is
+       * rolled back. */
+
+      bk7258_lowputc_restore_console();
+    }
+#endif
+}
+
 static void bk7258_uart_sdk_isr(uart_id_t id, void *param)
 {
   struct uart_dev_s *dev = param;
@@ -304,16 +350,31 @@ static int bk7258_uart_setup(struct uart_dev_s *dev)
     }
 
   ret = bk7258_uart_apply_pin_route(priv);
-  if (ret < 0 || bk7258_uart_apply_format(dev) < 0 ||
-      bk_uart_disable_sw_fifo(priv->id) != BK_OK ||
+  if (ret < 0)
+    {
+      goto fail;
+    }
+
+  ret = bk7258_uart_apply_format(dev);
+  if (ret < 0)
+    {
+      goto fail;
+    }
+
+  if (bk_uart_disable_sw_fifo(priv->id) != BK_OK ||
       bk_uart_set_rx_full_threshold(priv->id, 1) != BK_OK)
     {
-      return -EIO;
+      ret = -EIO;
+      goto fail;
     }
 
   priv->rxbyte = -1;
   priv->initialized = true;
   return OK;
+
+fail:
+  bk7258_uart_rollback_setup(dev);
+  return ret;
 }
 
 static void bk7258_uart_shutdown(struct uart_dev_s *dev)

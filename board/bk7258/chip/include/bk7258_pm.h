@@ -9,6 +9,7 @@
 #ifndef __ARCH_ARM_INCLUDE_BK7258_BK7258_PM_H
 #define __ARCH_ARM_INCLUDE_BK7258_BK7258_PM_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /****************************************************************************
@@ -119,6 +120,11 @@ int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
                              enum bk7258_pm_cpu_freq_e frequency);
 int bk7258_pm_frequency_get_status(
   struct bk7258_pm_frequency_status_s *status);
+
+#ifndef CONFIG_BK7258_AP_CORE
+bool bk7258_pm_frequency_votes_idle(void);
+bool bk7258_pm_server_resources_idle(void);
+#endif
 
 #ifdef CONFIG_BK7258_AP_CORE
 int bk7258_pm_clock_get(enum bk7258_pm_clock_e clock);

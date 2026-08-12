@@ -64,6 +64,7 @@ struct bk7258_rptun_dev_s
   rptun_callback_t callback;
   void *callback_arg;
   uint32_t generation;
+  bool bootstrap;
   bool initialized;
 };
 
@@ -156,14 +157,28 @@ static void bk7258_rptun_receive(uint32_t generation, uint32_t notify)
   volatile uint32_t *outgoing = bk7258_rptun_outgoing_pending(control);
   rptun_callback_t callback;
   uint32_t pending;
+  bool bootstrap;
 
   if (!priv->initialized || generation != priv->generation)
     {
       return;
     }
 
+  /* Registration follows rptun_initialize() asynchronously.  Keep the
+   * level-triggered shared pending bits intact until OpenAMP has installed
+   * its callback; consuming them first loses the initial virtio handshake
+   * permanently when the mailbox worker wins that startup race.
+   */
+
+  callback = priv->callback;
+  if (callback == NULL)
+    {
+      return;
+    }
+
   pending = __atomic_exchange_n((uint32_t *)(uintptr_t)incoming, 0,
                                 __ATOMIC_ACQ_REL);
+  bootstrap = __atomic_load_n(&priv->bootstrap, __ATOMIC_ACQUIRE);
   __asm volatile ("dmb sy" ::: "memory");
   pending |= notify & BK7258_RPTUN_NOTIFY_VALID;
   if ((pending & BK7258_RPTUN_NOTIFY_VALID) != 0)
@@ -173,13 +188,17 @@ static void bk7258_rptun_receive(uint32_t generation, uint32_t notify)
         1u, __ATOMIC_RELEASE);
     }
 
-  callback = priv->callback;
-  if (callback == NULL)
-    {
-      return;
-    }
+  /* RPTUN installs the lower-half callback after remoteproc_start(), but
+   * creates the virtio devices immediately afterwards in another step.
+   * remoteproc_get_notification() returns success when its vdev list is
+   * still empty, so an early edge cannot be acknowledged reliably.  Keep a
+   * local bootstrap level until this core's Name Service callback proves its
+   * RPMsg device exists.  Do not gate this rescan on the shared lifecycle
+   * state: it is peer-owned during part of startup and may be cache-stale.
+   */
 
-  if ((pending & BK7258_RPTUN_NOTIFY_ALL) != 0)
+  if ((pending & BK7258_RPTUN_NOTIFY_ALL) != 0 ||
+      bootstrap)
     {
       callback(priv->callback_arg, RPTUN_NOTIFY_ALL);
     }
@@ -384,6 +403,7 @@ static int bk7258_rptun_register_callback(struct rptun_dev_s *dev,
     container_of(dev, struct bk7258_rptun_dev_s, rptun);
 
   priv->callback_arg = arg;
+  __atomic_store_n(&priv->bootstrap, callback != NULL, __ATOMIC_RELEASE);
   __asm volatile ("dmb sy" ::: "memory");
   priv->callback = callback;
   __asm volatile ("dmb sy" ::: "memory");
@@ -398,6 +418,7 @@ static int bk7258_rptun_register_callback(struct rptun_dev_s *dev,
 
 void bk7258_rptun_mark_connected(void)
 {
+  struct bk7258_rptun_dev_s *priv = &g_bk7258_rptun;
   volatile struct bk7258_rptun_control_s *control =
     bk7258_rptun_control();
   uint32_t expected = BK7258_RPTUN_STATE_CONNECTING;
@@ -408,6 +429,12 @@ void bk7258_rptun_mark_connected(void)
    * lifecycle transition such as QUIESCING or FAULTED.
    */
 
+  /* This callback is local proof that rptun_create_devices() completed.
+   * Stop the periodic all-vring bootstrap scan on this core regardless of
+   * which core won the shared CONNECTING -> CONNECTED transition.
+   */
+
+  __atomic_store_n(&priv->bootstrap, false, __ATOMIC_RELEASE);
   connected = __atomic_compare_exchange_n(
                 (uint32_t *)(uintptr_t)&control->state, &expected,
                 BK7258_RPTUN_STATE_CONNECTED, false,

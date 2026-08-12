@@ -127,6 +127,16 @@ static uint32_t bk7258_ap_mbox_receive(void)
 
 static void bk7258_ap_mbox_send(uint32_t event)
 {
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+  /* The CP lifecycle waiter polls this shared state every millisecond.  Do
+   * not spend the SDK mailbox's first AP-to-CP in-flight slot on a redundant
+   * lifecycle edge: on BK7258 the immediately following RPMsg VRING1 edge can
+   * otherwise remain BUSY after READY and prevent the initial NS bind.  The
+   * CP-to-AP standby request/abort/wake path remains a physical mailbox wake.
+   */
+
+  (void)event;
+#else
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
 
   if (bk7258_rptun_mbox_send(BK7258_RPTUN_MBOX_LIFECYCLE,
@@ -134,6 +144,7 @@ static void bk7258_ap_mbox_send(uint32_t event)
     {
       state->ap_to_cp_doorbells++;
     }
+#endif
 
   __asm volatile ("dmb sy" ::: "memory");
 }

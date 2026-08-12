@@ -21,6 +21,9 @@
 #include <arch/chip/bk7258_pm.h>
 
 #include "bk7258_dvfs.h"
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+#  include "bk7258_pm_coord.h"
+#endif
 
 /* CP v3.1.1.9 pm_dev_id_e values used by code linked into this port. */
 
@@ -60,10 +63,17 @@ static int bk7258_pm_prepare(FAR struct pm_callback_s *callback, int domain,
   (void)callback;
   (void)domain;
 
-  /* Phase one supports ordinary PM_IDLE/WFI only.  PM_STANDBY and PM_SLEEP
-   * remain fail-closed until the complete CP/AP coordinated low-voltage and
-   * wake/restore protocol exists.
+  /* PM_SLEEP always remains fail-closed.  PM_STANDBY is admitted only by
+   * the complete CP/AP/AON protocol and only while its live prerequisites
+   * are still true; a prepare rejection leaves the previous PM state active.
    */
+
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+  if (state == PM_STANDBY)
+    {
+      return bk7258_pm_cp_can_standby() ? OK : -EBUSY;
+    }
+#endif
 
   return state == PM_NORMAL || state == PM_IDLE || state == PM_RESTORE ?
          OK : -EBUSY;
@@ -178,6 +188,32 @@ int bk7258_pm_frequency_get_status(
   return OK;
 }
 
+bool bk7258_pm_frequency_votes_idle(void)
+{
+  FAR const struct bk7258_pm_policy_s *policy = &g_bk7258_pm_policy;
+  unsigned int i;
+
+  if (!policy->initialized)
+    {
+      return false;
+    }
+
+  /* pm_idle() has interrupts disabled and the scheduler locked before the
+   * board's prepare callback runs, so the vote table cannot change during
+   * this bounded read.
+   */
+
+  for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
+    {
+      if (policy->votes[i] != BK7258_PM_CPU_FREQ_DEFAULT)
+        {
+          return false;
+        }
+    }
+
+  return true;
+}
+
 static int bk7258_pm_sdk_client(unsigned int module)
 {
   switch (module)
@@ -220,11 +256,16 @@ void arm_pminitialize(void)
 
   pm_initialize();
 
-  /* Bound the greedy governor at PM_IDLE.  The prepare callback independently
-   * rejects deeper states, keeping this first phase shallow-only.
+  /* The greedy governor returns the first locked state.  A coordinated
+   * build may select STANDBY but never SLEEP; ordinary profiles retain the
+   * first-stage PM_IDLE ceiling.
    */
 
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+  pm_stay(PM_IDLE_DOMAIN, PM_STANDBY);
+#else
   pm_stay(PM_IDLE_DOMAIN, PM_IDLE);
+#endif
 
   for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
     {

@@ -1207,6 +1207,11 @@ bk_err_t rtos_init_semaphore(beken_semaphore_t *semaphore, int max_count)
   sem_t *sem = NULL;
   int ret;
 
+  if (semaphore == NULL)
+    {
+      return BK_ERR_NULL_PARAM;
+    }
+
   sem = kmm_malloc(sizeof(sem_t));
   if (!sem)
     {
@@ -1233,6 +1238,11 @@ bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
 {
   sem_t *sem = NULL;
   int ret;
+
+  if (semaphore == NULL)
+    {
+      return BK_ERR_NULL_PARAM;
+    }
 #ifdef CONFIG_BK7258_BT_IPC
   bool static_sem = false;
   bool expected = false;
@@ -1288,7 +1298,14 @@ bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
 bk_err_t rtos_set_semaphore(beken_semaphore_t *semaphore)
 {
   int ret;
-  sem_t *sem = (sem_t *)(*semaphore);
+  sem_t *sem;
+
+  if (semaphore == NULL || *semaphore == NULL)
+    {
+      return BK_ERR_NOT_INIT;
+    }
+
+  sem = (sem_t *)(*semaphore);
 
   ret = nxsem_post(sem);
   if (ret != OK)
@@ -1303,7 +1320,14 @@ bk_err_t rtos_get_semaphore(beken_semaphore_t *semaphore,
                             uint32_t timeout_ms)
 {
   int ret;
-  sem_t *sem = (sem_t *)(*semaphore);
+  sem_t *sem;
+
+  if (semaphore == NULL || *semaphore == NULL)
+    {
+      return BK_ERR_NOT_INIT;
+    }
+
+  sem = (sem_t *)(*semaphore);
 
   if (timeout_ms == 0)
     {
@@ -1328,8 +1352,15 @@ bk_err_t rtos_get_semaphore(beken_semaphore_t *semaphore,
 
 int rtos_get_semaphore_count(beken_semaphore_t *semaphore)
 {
-  sem_t *sem = (sem_t *)(*semaphore);
+  sem_t *sem;
   int count = 0;
+
+  if (semaphore == NULL || *semaphore == NULL)
+    {
+      return 0;
+    }
+
+  sem = (sem_t *)(*semaphore);
 
   nxsem_get_value(sem, &count);
 
@@ -1339,12 +1370,20 @@ int rtos_get_semaphore_count(beken_semaphore_t *semaphore)
 bk_err_t rtos_deinit_semaphore(beken_semaphore_t *semaphore)
 {
   int ret;
-  sem_t *sem = (sem_t *)(*semaphore);
+  sem_t *sem;
+
+  if (semaphore == NULL || *semaphore == NULL)
+    {
+      return BK_OK;
+    }
+
+  sem = (sem_t *)(*semaphore);
 
   ret = nxsem_destroy(sem);
   if (ret != OK)
     {
       wlerr("ERROR: Failed to destroy semaphore:%d\n", ret);
+      return beken_errno_trans(ret);
     }
 
 #ifdef CONFIG_BK7258_BT_IPC
@@ -1359,7 +1398,9 @@ bk_err_t rtos_deinit_semaphore(beken_semaphore_t *semaphore)
       kmm_free(sem);
     }
 
-  return beken_errno_trans(ret);
+  *semaphore = NULL;
+
+  return BK_OK;
 }
 
 #ifdef CONFIG_BK7258_BT_IPC
@@ -3060,37 +3101,60 @@ void bk_mem_dump(const char *title, uint32_t start, uint32_t len)
 
 bk_err_t rtos_init_event_ex(rtos_event_ext_t *event)
 {
-  sem_t *sem;
-
-  sem = kmm_malloc(sizeof(sem_t));
-  if (!sem)
+  if (event == NULL)
     {
-      return BK_FAIL;
+      return BK_ERR_NULL_PARAM;
     }
 
-  nxsem_init(sem, 0, 0);
-  event->event_semaphore = sem;
-  event->event_flag = 0;
+  if (event->event_semaphore != NULL)
+    {
+      return BK_OK;
+    }
 
-  return BK_OK;
+  event->event_flag = 0;
+  return rtos_init_semaphore(&event->event_semaphore, 1);
 }
 
 bk_err_t rtos_deinit_event_ex(rtos_event_ext_t *event)
 {
-  sem_t *sem = (sem_t *)event->event_semaphore;
+  bk_err_t ret;
 
-  nxsem_destroy(sem);
-  kmm_free(sem);
+  if (event == NULL)
+    {
+      return BK_ERR_NULL_PARAM;
+    }
 
-  return BK_OK;
+  ret = rtos_deinit_semaphore(&event->event_semaphore);
+  if (ret == BK_OK)
+    {
+      event->event_flag = 0;
+    }
+
+  return ret;
 }
 
 bk_err_t rtos_set_event_ex(rtos_event_ext_t *event, u32 event_flag)
 {
-  sem_t *sem = (sem_t *)event->event_semaphore;
+  uint32_t int_level;
 
+  if (event == NULL || event->event_semaphore == NULL)
+    {
+      return BK_ERR_NOT_INIT;
+    }
+
+  if (event_flag == 0)
+    {
+      return BK_OK;
+    }
+
+  /* The SDK permits this entry point from an ISR and serializes the shared
+   * flag word with its SMP critical lock before posting the waiter. */
+
+  int_level = rtos_enter_critical();
   event->event_flag |= event_flag;
-  nxsem_post(sem);
+  rtos_exit_critical(int_level);
+
+  (void)rtos_set_semaphore(&event->event_semaphore);
 
   return BK_OK;
 }
@@ -3098,30 +3162,67 @@ bk_err_t rtos_set_event_ex(rtos_event_ext_t *event, u32 event_flag)
 u32 rtos_wait_event_ex(rtos_event_ext_t *event, u32 event_flag,
                        u32 any_event, u32 timeout)
 {
-  sem_t *sem = (sem_t *)event->event_semaphore;
-  int ret;
+  uint32_t start;
 
-  if (timeout == BEKEN_WAIT_FOREVER)
+  if (event == NULL || event->event_semaphore == NULL || event_flag == 0)
     {
-      ret = nxsem_wait(sem);
-    }
-  else if (timeout == 0)
-    {
-      ret = nxsem_trywait(sem);
-    }
-  else
-    {
-      ret = nxsem_tickwait(sem, MSEC2TICK(timeout));
+      return 0;
     }
 
-  if (ret == OK)
+  start = rtos_get_time();
+  for (;;)
     {
-      u32 flags = event->event_flag & event_flag;
-      event->event_flag &= ~event_flag;
-      return flags;
-    }
+      uint32_t elapsed;
+      uint32_t remaining;
+      uint32_t int_level;
+      u32 flags;
 
-  return 0;
+      /* Match the official SDK/Tuya event-group contract: observe flags
+       * before blocking, distinguish ANY from ALL, and clear only the flags
+       * actually returned to the single supported waiter. */
+
+      int_level = rtos_enter_critical();
+      flags = event->event_flag & event_flag;
+      if (!any_event && flags != event_flag)
+        {
+          flags = 0;
+        }
+      event->event_flag &= ~flags;
+      rtos_exit_critical(int_level);
+
+      if (flags != 0)
+        {
+          return flags;
+        }
+
+      if (timeout == 0)
+        {
+          return 0;
+        }
+
+      if (timeout == BEKEN_WAIT_FOREVER)
+        {
+          remaining = BEKEN_WAIT_FOREVER;
+        }
+      else
+        {
+          /* Unsigned subtraction provides the required 32-bit millisecond
+           * wrap handling. */
+
+          elapsed = rtos_get_time() - start;
+          if (elapsed >= timeout)
+            {
+              return 0;
+            }
+
+          remaining = timeout - elapsed;
+        }
+
+      if (rtos_get_semaphore(&event->event_semaphore, remaining) != BK_OK)
+        {
+          return 0;
+        }
+    }
 }
 
 /****************************************************************************

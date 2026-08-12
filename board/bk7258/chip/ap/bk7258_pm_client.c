@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/rpmsg/rpmsg.h>
@@ -28,6 +29,7 @@
 
 #include "bk7258_pm_ipc.h"
 #include "bk7258_dvfs.h"
+#include "arm_internal.h"
 
 struct bk7258_pm_client_s
 {
@@ -42,12 +44,57 @@ struct bk7258_pm_client_s
   uint32_t waiting_generation;
   uint32_t waiting_sequence;
   struct bk7258_pm_wire_s reply;
+  uint16_t clock_refs[BK7258_PM_CLOCK_COUNT];
+  bool freq_active[BK7258_PM_FREQ_CLIENT_COUNT];
 };
 
 static struct bk7258_pm_client_s g_bk7258_pm_client =
 {
   .lock = NXMUTEX_INITIALIZER,
 };
+
+static void bk7258_pm_publish_vendor_votes(
+  FAR const struct bk7258_pm_client_s *priv)
+{
+  uintptr_t sleep = BK7258_PWR_MNG_ADDR +
+                    BK7258_PWR_AP_SLEEP_VOTE_OFFSET;
+  uintptr_t clock = BK7258_PWR_MNG_ADDR +
+                    BK7258_PWR_AP_CLOCK_VOTE_OFFSET;
+  bool active = false;
+  unsigned int i;
+
+  for (i = 0; i < BK7258_PM_CLOCK_COUNT; i++)
+    {
+      if (priv->clock_refs[i] != 0)
+        {
+          active = true;
+          break;
+        }
+    }
+
+  if (!active)
+    {
+      for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
+        {
+          if (priv->freq_active[i])
+            {
+              active = true;
+              break;
+            }
+        }
+    }
+
+  /* The SDK consumes both fields only as zero/non-zero gates.  Publishing
+   * one aggregate bit avoids unaligned 64-bit read/modify/write races at the
+   * fixed +60/+68 ABI offsets while retaining the official meaning.
+   */
+
+  putreg32(active ? 1u : 0u, sleep);
+  putreg32(0, sleep + 4u);
+  putreg32(active ? 1u : 0u, clock);
+  putreg32(0, clock + 4u);
+  __asm volatile ("dmb sy" ::: "memory");
+}
 
 /* v3.1.1.9 routes AP peripheral clocks through bk_pm_clock_ctrl().  The
  * vendor API is a set-state interface rather than a reference-counted one,
@@ -296,6 +343,9 @@ static void bk7258_pm_device_destroy(FAR struct rpmsg_device *rdev,
   __atomic_store_n(&g_bk7258_pm_sdk_generation, 0, __ATOMIC_RELEASE);
   priv->connection_error = -ENOTCONN;
   priv->reply_valid = false;
+  memset(priv->clock_refs, 0, sizeof(priv->clock_refs));
+  memset(priv->freq_active, 0, sizeof(priv->freq_active));
+  bk7258_pm_publish_vendor_votes(priv);
   (void)nxsem_post(&priv->reply_sem);
   if (priv->ept.rdev != NULL)
     {
@@ -386,6 +436,31 @@ static int bk7258_pm_request(uint32_t resource,
     {
       ret = priv->reply_valid ? priv->reply.status :
             (priv->connection_error < 0 ? priv->connection_error : -ESTALE);
+      if (ret >= 0 && command == BK7258_PM_COMMAND_CLOCK_GET)
+        {
+          if (priv->clock_refs[resource] != UINT16_MAX)
+            {
+              priv->clock_refs[resource]++;
+            }
+        }
+      else if (ret >= 0 && command == BK7258_PM_COMMAND_CLOCK_PUT)
+        {
+          if (priv->clock_refs[resource] != 0)
+            {
+              priv->clock_refs[resource]--;
+            }
+        }
+      else if (ret >= 0 && command == BK7258_PM_COMMAND_CPU_FREQ_VOTE)
+        {
+          priv->freq_active[resource] =
+            value != BK7258_PM_CPU_FREQ_DEFAULT;
+        }
+
+      if (ret >= 0 && command != BK7258_PM_COMMAND_CPU_FREQ_QUERY)
+        {
+          bk7258_pm_publish_vendor_votes(priv);
+        }
+
       if (ret >= 0 && snapshot != NULL)
         {
           snapshot->transitions = priv->reply.clock;
@@ -429,6 +504,12 @@ int bk7258_pm_initialize(void)
     {
       (void)nxsem_destroy(&priv->reply_sem);
       __atomic_store_n(&priv->initialized, false, __ATOMIC_RELEASE);
+    }
+  else
+    {
+      memset(priv->clock_refs, 0, sizeof(priv->clock_refs));
+      memset(priv->freq_active, 0, sizeof(priv->freq_active));
+      bk7258_pm_publish_vendor_votes(priv);
     }
 
   return ret;

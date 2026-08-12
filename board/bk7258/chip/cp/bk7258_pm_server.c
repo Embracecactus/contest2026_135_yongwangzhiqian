@@ -98,6 +98,40 @@ struct bk7258_pm_server_s
 
 static struct bk7258_pm_server_s g_bk7258_pm_server;
 
+bool bk7258_pm_server_resources_idle(void)
+{
+  FAR const struct bk7258_pm_server_s *priv = &g_bk7258_pm_server;
+  unsigned int i;
+
+  if (!__atomic_load_n(&priv->initialized, __ATOMIC_ACQUIRE) ||
+      !__atomic_load_n(&priv->endpoint_created, __ATOMIC_ACQUIRE))
+    {
+      return false;
+    }
+
+  /* CP pm_idle() executes with interrupts disabled and the scheduler locked,
+   * so the RPMsg worker cannot mutate these generation-owned votes here.
+   */
+
+  for (i = 0; i < BK7258_PM_CLOCK_COUNT; i++)
+    {
+      if (priv->refs[i] != 0)
+        {
+          return false;
+        }
+    }
+
+  for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
+    {
+      if (priv->freq_active[i])
+        {
+          return false;
+        }
+    }
+
+  return true;
+}
+
 static bool bk7258_pm_is_video_clock(enum bk7258_pm_clock_e clock)
 {
   return clock == BK7258_PM_CLOCK_JPEG ||
