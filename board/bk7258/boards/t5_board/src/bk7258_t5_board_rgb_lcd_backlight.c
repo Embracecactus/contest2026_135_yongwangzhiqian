@@ -25,7 +25,6 @@
 #include <arch/board/board.h>
 
 #define T5_PWM_BACKLIGHT_DEVPATH        "/dev/pwm0"
-#define T5_PWM_BACKLIGHT_FREQUENCY      1000u
 #define T5_PWM_BACKLIGHT_DELAY_US       1000000u
 #define T5_PWM_BACKLIGHT_STEP_US        2000000u
 #define T5_PWM_BACKLIGHT_FINAL_US       15000000u
@@ -43,7 +42,7 @@ static int t5_pwm_backlight_set(int fd, uint8_t duty_percent)
   uint32_t duty;
 
   memset(&info, 0, sizeof(info));
-  info.frequency = T5_PWM_BACKLIGHT_FREQUENCY;
+  info.frequency = BK7258_BOARD_LCD_BACKLIGHT_PWM_FREQUENCY;
   duty = ((uint32_t)duty_percent * T5_PWM_DUTY_SCALE) / 100u;
   info.duty = (ub16_t)(duty >= T5_PWM_DUTY_SCALE ?
                        T5_PWM_DUTY_SCALE - 1u : duty);
@@ -139,7 +138,7 @@ static int t5_pwm_backlight_validation_thread(int argc, FAR char *argv[])
          "BKPWM PASS channel=%u gpio=%u frequency=%u duties=100/0/10/50/90%%\n",
          BK7258_BOARD_LCD_BACKLIGHT_PWM_CHAN,
          BK7258_BOARD_LCD_BACKLIGHT_GPIO,
-         T5_PWM_BACKLIGHT_FREQUENCY);
+         BK7258_BOARD_LCD_BACKLIGHT_PWM_FREQUENCY);
   return OK;
 
 failed_with_stop:

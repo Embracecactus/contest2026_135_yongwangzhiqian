@@ -51,10 +51,12 @@ _Static_assert(BK7258_BOARD_USER_LED_GPIO < GPIO_NUM,
                "GPIO C0 board LED is outside the BK7258 GPIO range");
 _Static_assert(BK7258_BOARD_USER_BUTTON_GPIO < GPIO_NUM,
                "GPIO C0 board key is outside the BK7258 GPIO range");
-_Static_assert(BK7258_BOARD_USER_LED_ACTIVE_HIGH == 1,
-               "GPIO C0 currently requires an active-high LED");
-_Static_assert(BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 1,
-               "GPIO C0 currently requires an active-low key");
+_Static_assert(BK7258_BOARD_USER_LED_ACTIVE_HIGH == 0 ||
+               BK7258_BOARD_USER_LED_ACTIVE_HIGH == 1,
+               "GPIO C0 LED polarity must be boolean");
+_Static_assert(BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 0 ||
+               BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 1,
+               "GPIO C0 key polarity must be boolean");
 _Static_assert(!BK7258_GPIOC0_RESERVED(BK7258_GPIOC0_LED),
                "GPIO C0 LED must not use a console/boot UART pin");
 _Static_assert(!BK7258_GPIOC0_RESERVED(BK7258_GPIOC0_KEY),
@@ -78,7 +80,11 @@ static const gpio_config_t g_bk7258_gpioc0_led_config =
 static const gpio_config_t g_bk7258_gpioc0_key_config =
 {
   .io_mode = GPIO_INPUT_ENABLE,
+#if BK7258_BOARD_USER_BUTTON_ACTIVE_LOW
   .pull_mode = GPIO_PULL_UP_EN,
+#else
+  .pull_mode = GPIO_PULL_DOWN_EN,
+#endif
   .func_mode = GPIO_SECOND_FUNC_DISABLE,
 };
 
@@ -131,21 +137,32 @@ static int bk7258_gpioc0_result(const char *operation, gpio_id_t pin,
   return -EIO;
 }
 
+static bk_err_t bk7258_gpioc0_set_led(bool on)
+{
+  bool level = on ? BK7258_BOARD_USER_LED_ACTIVE_HIGH :
+                    !BK7258_BOARD_USER_LED_ACTIVE_HIGH;
+
+  return level ? bk_gpio_set_output_high(BK7258_GPIOC0_LED) :
+                 bk_gpio_set_output_low(BK7258_GPIOC0_LED);
+}
+
 static void bk7258_gpioc0_record_key(bool level, bool *seen_high,
                                      bool *seen_low)
 {
+  bool pressed = level != (BK7258_BOARD_USER_BUTTON_ACTIVE_LOW != 0);
+
   if (level)
     {
       *seen_high = true;
-      printf("bkgpioc0: KEY P%u raw=1 RELEASED\n",
-             (unsigned int)BK7258_GPIOC0_KEY);
     }
   else
     {
       *seen_low = true;
-      printf("bkgpioc0: KEY P%u raw=0 PRESSED\n",
-             (unsigned int)BK7258_GPIOC0_KEY);
     }
+
+  printf("bkgpioc0: KEY P%u raw=%u %s\n",
+         (unsigned int)BK7258_GPIOC0_KEY, level ? 1u : 0u,
+         pressed ? "PRESSED" : "RELEASED");
 }
 
 /****************************************************************************
@@ -174,11 +191,13 @@ int bk7258_gpio_foundation_test(void)
       return -EBUSY;
     }
 
-  printf("bkgpioc0: BEGIN board=%s LED=P%u active-high "
-         "KEY=P%u active-low\n",
+  printf("bkgpioc0: BEGIN board=%s LED=P%u active-%s "
+         "KEY=P%u active-%s\n",
          BK7258_BOARD_VARIANT_NAME,
          (unsigned int)BK7258_GPIOC0_LED,
-         (unsigned int)BK7258_GPIOC0_KEY);
+         BK7258_BOARD_USER_LED_ACTIVE_HIGH ? "high" : "low",
+         (unsigned int)BK7258_GPIOC0_KEY,
+         BK7258_BOARD_USER_BUTTON_ACTIVE_LOW ? "low" : "high");
 
   error = bk_gpio_driver_init();
   result = bk7258_gpioc0_result("driver init", BK7258_GPIOC0_LED,
@@ -204,7 +223,7 @@ int bk7258_gpio_foundation_test(void)
 
   error = bk_gpio_set_config(BK7258_GPIOC0_KEY,
                              &g_bk7258_gpioc0_key_config);
-  result = bk7258_gpioc0_result("configure input pull-up",
+  result = bk7258_gpioc0_result("configure input pull",
                                 BK7258_GPIOC0_KEY, error);
   if (result < 0)
     {
@@ -216,9 +235,8 @@ int bk7258_gpio_foundation_test(void)
   printf("bkgpioc0: visually confirm two LED pulses\n");
   for (cycle = 0; cycle < BK7258_GPIOC0_LED_CYCLES; cycle++)
     {
-      error = bk_gpio_set_output_low(BK7258_GPIOC0_LED);
-      result = bk7258_gpioc0_result("drive low", BK7258_GPIOC0_LED,
-                                    error);
+      error = bk7258_gpioc0_set_led(false);
+      result = bk7258_gpioc0_result("turn off", BK7258_GPIOC0_LED, error);
       if (result < 0)
         {
           goto out;
@@ -228,9 +246,8 @@ int bk7258_gpio_foundation_test(void)
              (unsigned int)BK7258_GPIOC0_LED);
       usleep(BK7258_GPIOC0_LED_OFF_US);
 
-      error = bk_gpio_set_output_high(BK7258_GPIOC0_LED);
-      result = bk7258_gpioc0_result("drive high", BK7258_GPIOC0_LED,
-                                    error);
+      error = bk7258_gpioc0_set_led(true);
+      result = bk7258_gpioc0_result("turn on", BK7258_GPIOC0_LED, error);
       if (result < 0)
         {
           goto out;
@@ -241,8 +258,8 @@ int bk7258_gpio_foundation_test(void)
       usleep(BK7258_GPIOC0_LED_ON_US);
     }
 
-  error = bk_gpio_set_output_low(BK7258_GPIOC0_LED);
-  result = bk7258_gpioc0_result("drive low", BK7258_GPIOC0_LED, error);
+  error = bk7258_gpioc0_set_led(false);
+  result = bk7258_gpioc0_result("turn off", BK7258_GPIOC0_LED, error);
   if (result < 0)
     {
       goto out;
@@ -270,7 +287,7 @@ int bk7258_gpio_foundation_test(void)
 
   if (!(seen_high && seen_low))
     {
-      printf("bkgpioc0: FAIL key states released=%u pressed=%u\n",
+      printf("bkgpioc0: FAIL key states high=%u low=%u\n",
              seen_high ? 1u : 0u, seen_low ? 1u : 0u);
       result = -ETIMEDOUT;
       goto out;
@@ -281,7 +298,7 @@ int bk7258_gpio_foundation_test(void)
 out:
   if (led_configured)
     {
-      error = bk_gpio_set_output_low(BK7258_GPIOC0_LED);
+      error = bk7258_gpioc0_set_led(false);
       cleanup_result = bk7258_gpioc0_result("leave off",
                                             BK7258_GPIOC0_LED, error);
       if (result == 0 && cleanup_result < 0)

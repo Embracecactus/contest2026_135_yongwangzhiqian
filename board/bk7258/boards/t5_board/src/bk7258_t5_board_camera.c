@@ -821,7 +821,7 @@ int bk7258_t5_board_camera_initialize(void)
   sdk.i2c_config.id = BK7258_BOARD_DVP_I2C_BUS;
   sdk.i2c_config.scl_pin = BK7258_BOARD_DVP_I2C_SCL_GPIO;
   sdk.i2c_config.sda_pin = BK7258_BOARD_DVP_I2C_SDA_GPIO;
-  sdk.i2c_config.baud_rate = 100000;
+  sdk.i2c_config.baud_rate = BK7258_BOARD_DVP_I2C_FREQUENCY;
   sdk.reset_pin = BK7258_BOARD_DVP_RESET_GPIO;
   sdk.pwdn_pin = BK7258_BOARD_DVP_PWDN_GPIO;
   sdk.io_config.data_width = SENSOR_BITS_WIDTH_8BIT;

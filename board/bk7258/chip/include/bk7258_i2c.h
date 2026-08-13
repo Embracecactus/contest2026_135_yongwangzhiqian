@@ -30,12 +30,12 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Hardware I2C unit used.  When CONFIG_SIM_I2C is disabled (the board
- * default) only hardware units 0..(SOC_I2C_UNIT_NUM-1) exist, so we drive
- * I2C_ID_0.  A second unit (I2C_ID_1) is available on BK7258 if wired.
+/* Hardware I2C unit used.  BK7258 exposes I2C_ID_0 and I2C_ID_1.  Keep the
+ * hardware instance and NuttX /dev/i2cN number aligned so board/product
+ * profiles do not need a second alias table.
  */
 
-#define BK7258_I2C_UNIT                0
+#define BK7258_I2C_UNIT                CONFIG_BK7258_I2C_BUS
 
 /* Default bus speed.  The NuttX I2C_SPEED_* macros and the Beken
  * I2C_BAUD_RATE_* macros use the same numeric kHz values, so the per-transfer
@@ -72,7 +72,8 @@
  *   publishes the node.
  *
  *   The underlying Beken I2C driver (bk_i2c_driver_init) is reference counted
- *   so multiple busses could share it; here we own exactly one unit.
+ *   so multiple buses could share it; this configured instance owns exactly
+ *   one unit.
  *
  * Returned Value:
  *   OK on success; a negated errno value on failure.  Calling it twice is

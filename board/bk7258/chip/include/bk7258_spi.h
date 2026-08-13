@@ -31,21 +31,18 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Hardware SPI unit used.  BK7258 exposes SPI_ID_0 (and SPI_ID_1 if the
- * SoC wires SOC_SPI_UNIT_NUM > 1).  We drive a single master unit.
+/* Hardware SPI unit used.  BK7258 exposes SPI_ID_0 and SPI_ID_1.  Keep the
+ * hardware instance and NuttX /dev/spiN number aligned so board/product
+ * profiles do not need a second alias table.
  */
 
-#define BK7258_SPI_UNIT                0
+#define BK7258_SPI_UNIT                CONFIG_BK7258_SPI_BUS
 
 /* Default bus parameters applied at init.  Mode 0, 8-bit, MSB first. */
 
 #define BK7258_SPI_MODE_DEFAULT        0        /* SPIDEV_MODE0 */
 #define BK7258_SPI_BITS_DEFAULT        8
 #define BK7258_SPI_BAUD_DEFAULT        1000000u /* 1 MHz */
-
-/* Default per-call blocking timeout handed to the Beken SDK (ms). */
-
-#define BK7258_SPI_TIMEOUT_MS_DEFAULT  1000u
 
 /****************************************************************************
  * Public Types

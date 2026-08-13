@@ -48,6 +48,11 @@ extern bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
 
 #define T5_GT1151_DEVPATH "/dev/input0"
 
+#if CONFIG_INPUT_GT9XX_I2C_FREQUENCY > \
+    BK7258_BOARD_TOUCH_I2C_MAX_FREQUENCY
+#  error "GT1151 I2C frequency exceeds the T5-Board binding limit"
+#endif
+
 struct t5_gt1151_i2c_s
 {
   struct i2c_master_s dev;
