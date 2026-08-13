@@ -1,6 +1,5 @@
 # NuttX CMake for BK7258 (T5-AI) board source files.
-# Stage N1 is validated with classic Make; this file mirrors the source set
-# for forward compatibility with the CMake backend.
+# Keep the board source set shared by the Classic Make and CMake backends.
 
 target_sources(board PRIVATE bk7258_bringup.c)
 

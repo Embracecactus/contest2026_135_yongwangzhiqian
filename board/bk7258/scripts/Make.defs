@@ -1,8 +1,9 @@
 #
 # NuttX Make.defs for Beken BK7258 (T5-AI) Stage N1 board.
 #
-# Classic Make backend (the same backend RV1126B used).  The CMake backend
-# is intentionally not enabled for N1; see board CMakeLists.txt.
+# Classic Make backend (the same backend RV1126B used).  The board CMake
+# files mirror this source, SDK-library and postbuild contract; signed
+# dual-image packaging remains owned by build_dual_image.sh.
 #
 
 include $(TOPDIR)/.config
