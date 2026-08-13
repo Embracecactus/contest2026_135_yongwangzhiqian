@@ -34,6 +34,7 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 - [ADR-021](decisions/ADR-021-mcuboot-version-aware-cp-ap-selection.md): let upstream MCUboot order both slots first, then enforce the board-owned same-slot CP/AP launch gate and isolate-slot fallback.
 - [ADR-022](decisions/ADR-022-bk7258-secureboot-bk7236-semantic-port.md): use BK7236 Secure Boot as a read-only semantic reference for the active BK7258 BL1/BL2 port, while keeping BK7258-specific ABI unknowns and OTP/eFuse operations gated.
 - [ADR-023](decisions/ADR-023-bk7258-platform-board-variants.md): keep one generic BK7258 platform root and select T5AI-Core or T5-Board wiring as physical-board variants, with Core as the compatibility default.
+- [ADR-024](decisions/ADR-024-bk7258-physical-board-build-profiles.md): model each reusable firmware configuration as a metadata-declared profile for one physical board and role; pair CP/AP by explicit compatibility rather than filename conventions.
 
 ## Superseded decisions
 
@@ -47,6 +48,9 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 - The current bringup/physical-board layering and its Classic/CMake build
   evidence are recorded in the
   [2026-08-13 board-layer verification](../progress/verification/2026-08-13-bk7258-bringup-board-layers.md).
+- The canonical 18-profile catalog, metadata pairing gates, shared-build lock
+  and cross-board build evidence are recorded in the
+  [2026-08-13 profile-consolidation verification](../progress/verification/2026-08-13-bk7258-config-profile-consolidation.md).
 - The complete three-core coordinated low-voltage PM implementation, the
   official-SDK/Tuya wrapper audit, the final signed build matrix and the
   non-halting COM3/P0-P1 board proof are recorded in the
