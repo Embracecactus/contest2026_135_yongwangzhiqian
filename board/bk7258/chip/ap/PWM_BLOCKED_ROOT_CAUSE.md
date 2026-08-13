@@ -66,6 +66,6 @@ The regenerated AP bundle exports the real `bk_pwm_*` implementation from
 
 This wrapper remains a real NuttX PWM lower half and is **not** degraded to
 `-ENOSYS` stubs.  The SDK driver's direct `delay_ms()` dependency is routed
-to the existing NuttX-aware OS adapter.  The `ap_smp_drivercheck` image now
+to the existing NuttX-aware OS adapter.  The `t5_board_ap_drivercheck` image now
 compiles and links with `CONFIG_BK7258_PWM=y`; final ELF inspection confirms
 both `bk7258_pwm_initialize` and `bk_pwm_driver_init` are present.

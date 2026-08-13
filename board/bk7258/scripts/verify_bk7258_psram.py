@@ -122,64 +122,55 @@ def parse_u32_macros(text: str, names: set[str]) -> dict[str, int]:
     return values
 
 
-def remove_config_lines(text: str, lines: list[str], description: str) -> str:
-    for line in lines:
-        exact = line + "\n"
-        if text.count(exact) != 1:
-            raise VerificationError(
-                f"{description} must contain exactly one line: {line}"
-            )
-        text = text.replace(exact, "", 1)
-
-    return text
-
-
 def verify_profiles(board: Path) -> dict[str, object]:
-    cp_n13 = read_text(board / "configs/cp_nsh_ble_gatt/defconfig")
-    cp_n14 = read_text(board / "configs/cp_nsh_psram/defconfig")
-    cp_psram_lines = [
+    cp_name = "t5ai_core_cp_psram_validation"
+    ap_name = "t5ai_core_ap_psram_validation"
+    cp_config = read_text(board / f"configs/{cp_name}/defconfig")
+    ap_config = read_text(board / f"configs/{ap_name}/defconfig")
+    cp_required = [
         "CONFIG_BK7258_AP_AUTOSTART_TIMEOUT_MS=60000",
         "CONFIG_BK7258_PSRAM=y",
         "CONFIG_BK7258_PSRAM_BOOT_TEST=y",
         "CONFIG_BK7258_PSRAM_TEST=y",
         "CONFIG_BK7258_SDK_TIMER_SELFTEST=y",
     ]
-    cp_normalized = remove_config_lines(
-        cp_n14, cp_psram_lines, "N14 CP defconfig"
-    )
-    if cp_normalized != cp_n13:
-        raise VerificationError(
-            "CP PSRAM profile differs from N13 outside retained N14 gates"
-        )
-
-    ap_n13 = read_text(board / "configs/ap_smp_ble_gatt/defconfig")
-    ap_n14 = read_text(board / "configs/ap_smp_psram/defconfig")
-    ap_psram_lines = [
+    ap_required = [
         "CONFIG_BK7258_PSRAM=y",
         "CONFIG_BK7258_PSRAM_TEST=y",
         "CONFIG_BK7258_PSRAM_TEST_ITERATIONS=16",
-    ]
-    ap_normalized = remove_config_lines(
-        ap_n14, ap_psram_lines, "N14 AP defconfig"
-    )
-    ap_normalized = ap_normalized.replace(
         'CONFIG_DEVICE_LOCAL_NAME="BK7258-N14"',
-        'CONFIG_DEVICE_LOCAL_NAME="BK7258-N13"',
-    ).replace(
         'CONFIG_DEVICE_NAME="BK7258 N14"',
-        'CONFIG_DEVICE_NAME="BK7258 N13"',
-    )
-    if ap_normalized != ap_n13:
-        raise VerificationError(
-            "N14 AP defconfig may differ from N13 only by PSRAM gates/name"
+    ]
+    require_tokens(cp_config, cp_required, "T5AI-Core CP PSRAM profile")
+    require_tokens(ap_config, ap_required, "T5AI-Core AP PSRAM profile")
+    for name, config in ((cp_name, cp_config), (ap_name, ap_config)):
+        if "CONFIG_BK7258_BOARD_T5_BOARD=y" in config.splitlines():
+            raise VerificationError(
+                f"{name} selects T5-Board instead of default T5AI-Core"
+            )
+
+    compat = "t5ai_core_psram_validation_raw_v1"
+    for name, role in ((cp_name, "cp"), (ap_name, "ap")):
+        metadata = read_text(board / f"configs/{name}/profile.conf")
+        require_tokens(
+            metadata,
+            [
+                "BK7258_PROFILE_SCHEMA=1",
+                "BK7258_PROFILE_BOARD=t5ai_core",
+                f"BK7258_PROFILE_ROLE={role}",
+                "BK7258_PROFILE_BOOT=raw",
+                "BK7258_PROFILE_CLASS=validation",
+                f"BK7258_PROFILE_COMPAT={compat}",
+            ],
+            f"{name} metadata",
         )
 
     return {
-        "cp_base": "cp_nsh_ble_gatt",
-        "ap_base": "ap_smp_ble_gatt",
-        "cp_added": cp_psram_lines,
-        "cp_later_stage_added": cp_later_stage_lines,
-        "ap_added": ap_psram_lines,
+        "cp_profile": cp_name,
+        "ap_profile": ap_name,
+        "compatibility": compat,
+        "cp_required": cp_required,
+        "ap_required": ap_required,
         "ap_name": "BK7258-N14",
     }
 
@@ -447,9 +438,9 @@ def verify_source_contract(board: Path) -> dict[str, object]:
         "N14 AP SMP heap gate",
     )
 
-    bringup = read_text(board / "src/bk7258_bringup.c")
+    platform = read_text(board / "src/bk7258_platform.c")
     require_tokens(
-        bringup,
+        platform,
         [
             "Match the official CP startup order",
             "AP is still held in reset",
@@ -459,23 +450,26 @@ def verify_source_contract(board: Path) -> dict[str, object]:
         ],
         "N14 CP post-calibration PSRAM gate",
     )
-    control_init = bringup.index("apret = bk7258_ap_control_initialize();")
-    bt_ipc_init = bringup.index("apret = bk7258_bt_controller_ipc_initialize();")
-    cp_init = bringup.index("psramret = bk7258_psram_initialize();")
-    psram_gate = bringup.index("if (apret >= 0 && psramret < 0)", cp_init)
-    supervisor_init = bringup.index("apret = bk7258_ap_supervisor_initialize();")
-    ap_release = bringup.index("apret = bk7258_ap_start(")
+    control_init = platform.index("apret = bk7258_ap_control_initialize();")
+    bt_ipc_init = platform.index(
+        "apret = bk7258_bt_controller_ipc_initialize();"
+    )
+    cp_init = platform.index("psramret = bk7258_psram_initialize();")
+    psram_gate = platform.index("if (apret >= 0 && psramret < 0)", cp_init)
+    supervisor_init = platform.index(
+        "apret = bk7258_ap_supervisor_initialize();"
+    )
+    ap_release = platform.index("apret = bk7258_ap_start(")
     if not (
-        control_init
-        < bt_ipc_init
-        < cp_init
+        control_init < cp_init
+        and bt_ipc_init < cp_init
         < psram_gate
         < supervisor_init
         < ap_release
     ):
         raise VerificationError(
-            "N14 CP order must be AP control, calibration/BT IPC, PSRAM, "
-            "supervisor, then AP release"
+            "N14 CP order must initialize AP control and calibration/BT IPC "
+            "before PSRAM, then supervisor and AP release"
         )
 
     ap_control = read_text(board / "chip/cp/bk7258_ap_control.c")
@@ -548,12 +542,12 @@ def verify_source_contract(board: Path) -> dict[str, object]:
     require_tokens(
         build_script,
         [
-            "cp_nsh_psram",
-            "ap_smp_psram",
-            "N14 PSRAM configs must be selected as a pair",
-            'if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||',
+            "t5ai_core_psram_validation_raw_v1",
+            "CP_PROFILE_COMPAT",
+            'config_enabled "${CP_CONFIG}" BK7258_PSRAM_TEST',
+            'config_enabled "${AP_CONFIG}" BK7258_PSRAM_TEST',
             'verify_bk7258_psram.py"',
-            'BK7258_SDK_SOURCE',
+            "BK7258_SDK_SOURCE",
         ],
         "N14 dual-image build wrapper",
     )

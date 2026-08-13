@@ -38,7 +38,8 @@ packages a signed MCUboot image and changes the handoff to SRAM BL2. Sending a
 normal vector image through BL2 is invalid and causes BL2's failure watchdog
 reset.
 
-The `cp_nsh_mcuboot` / `ap_smp_mcuboot` profile changes the handoff to:
+The `t5ai_core_cp_mcuboot` / `t5ai_core_ap_mcuboot` profile changes the
+handoff to:
 
 ```text
 BL1 -> primary Manifest + BL2 @ 0x024d0000

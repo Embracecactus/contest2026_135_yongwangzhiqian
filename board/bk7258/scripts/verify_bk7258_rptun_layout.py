@@ -240,14 +240,18 @@ def require_symbols(
 
 
 def verify_source_contract(board: Path, compatibility: dict[str, object]) -> None:
-    cp_defconfig = (board / "configs" / "cp_nsh_rptun" / "defconfig").read_text()
-    ap_defconfig = (board / "configs" / "ap_smp_rptun" / "defconfig").read_text()
+    cp_defconfig = (
+        board / "configs" / "t5ai_core_cp_psram_validation" / "defconfig"
+    ).read_text()
+    ap_defconfig = (
+        board / "configs" / "t5ai_core_ap_psram_validation" / "defconfig"
+    ).read_text()
     if "CONFIG_BK7258_RPTUN_LAYOUT=y" not in cp_defconfig:
-        raise VerificationError("CP N9 defconfig does not reserve RPTUN memory")
+        raise VerificationError("canonical CP defconfig does not reserve RPTUN memory")
     if "CONFIG_BK7258_RPTUN_LAYOUT=y" not in ap_defconfig:
-        raise VerificationError("AP N9 defconfig does not reserve RPTUN memory")
+        raise VerificationError("canonical AP defconfig does not reserve RPTUN memory")
     if "CONFIG_SMP_DEFAULT_CPUSET=0x1" not in ap_defconfig:
-        raise VerificationError("AP N9 default CPU set is not pinned to CPU0")
+        raise VerificationError("canonical AP default CPU set is not pinned to CPU0")
 
     for script_name in ("ld.script", "ld_ap.script"):
         linker = (board / "scripts" / script_name).read_text()

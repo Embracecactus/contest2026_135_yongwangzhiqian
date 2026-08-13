@@ -1,6 +1,6 @@
 # Operations
 
-Last reviewed: 2026-08-10
+Last reviewed: 2026-08-13
 
 Do not place credentials, tokens, private keys, or sensitive production data in this file.
 
@@ -61,7 +61,17 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
   profiles, build clean role outputs, import them into a new versioned bundle,
   record manifests/provenance, then run the bounded ABI/link review before
   changing the default selector.
-- Build paired CP/AP profiles with `board/bk7258/scripts/build_dual_image.sh`; the historical N14 profile uses `cp_nsh_psram + ap_smp_psram` and v3.1.1.9.
+- Build paired CP/AP profiles with `board/bk7258/scripts/build_dual_image.sh`.
+  The default direct pair is `t5ai_core_cp_base + t5ai_core_ap_base`; the
+  current profile catalog and compatible pairs are maintained in
+  [`board/bk7258/configs/README.md`](../board/bk7258/configs/README.md).
+- Every maintained CP/AP profile carries `profile.conf`.  The wrapper rejects
+  board, role, boot-mode, feature and compatibility mismatches before build.
+  CI-only profiles additionally require `BK7258_ALLOW_CI_PROFILE=YES`.
+- Physical dual-image builds hold `/tmp/openvela-bk7258-build-$UID.lock`
+  because openvela mutates the shared `nuttx/` and `apps/` trees.  Do not
+  bypass that wrapper or run a second direct configure/build concurrently.
+  `BK7258_PROFILE_CHECK_ONLY=YES` remains lock-free and performs no build.
 - Follow [the build/flash/debug SOP](../docs/bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md) rather than reconstructing commands from memory.
 - The build wrapper rejects mismatched CP/AP feature-profile pairs and runs post-link verification.
 - For the MCUboot host-reference pipeline, leave `MCUBOOT_OFFICIAL_PIPELINE=YES`
@@ -92,7 +102,9 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 
 ## Rollback and recovery
 
-- N13 `cp_nsh_ble_gatt + ap_smp_ble_gatt` is the no-PSRAM BLE rollback pair.
+- The former N13 `cp_nsh_ble_gatt + ap_smp_ble_gatt` names are historical
+  evidence, not maintained rollback profiles.  Do not reconstruct them from
+  memory; select a current pair from the canonical profile catalog.
 - The immutable pre-N14 source rollback point is commit `c6afd6f9b73dcf862f17bd31f5b2dc90820b9bb0`.
 - Recover a nonbooting board with the known Tier-1/minimal bootloader and documented sparse segments; do not erase broad ranges by inference.
 - Keep the N14 source/commit as a historical recovery input, but repack any

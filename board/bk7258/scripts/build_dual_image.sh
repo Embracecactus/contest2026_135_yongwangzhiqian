@@ -20,58 +20,179 @@ if [[ ! -d "${CONFIG_ROOT}" ]]; then
         "${CONFIG_ROOT}" >&2
     exit 2
 fi
-CP_CONFIG_NAME="${CP_CONFIG_NAME:-cp_nsh}"
-case "${CP_CONFIG_NAME}" in
-    cp_nsh|cp_nsh_manual|cp_nsh_rptun|cp_nsh_rptun_rtt|cp_nsh_rptun_mcuboot|cp_nsh_rptun_rtt_mcuboot|cp_nsh_btipc|cp_nsh_ble_gatt|cp_nsh_psram|cp_nsh_wifi|cp_nsh_wifi_mcuboot|cp_nsh_wifi_rtt_mcuboot|cp_nsh_wifi_uart0_mcuboot|cp_nsh_mcuboot|cp_nsh_drivercheck|cp_nsh_drivercheck_mcuboot|cp_nsh_drivercheck_rtt_mcuboot)
-        ;;
-    *)
-        printf 'build_dual_image: unsupported CP_CONFIG_NAME=%s\n' \
-            "${CP_CONFIG_NAME}" >&2
+profile_value()
+{
+    local config="$1"
+    local key="$2"
+    local value
+
+    value="$(sed -n "s/^${key}=//p" "${config}/profile.conf")"
+    if [[ -z "${value}" || "${value}" == *$'\n'* ]]; then
+        printf 'build_dual_image: profile %s must define %s exactly once\n' \
+            "${config}" "${key}" >&2
         exit 2
-        ;;
-esac
+    fi
+    printf '%s\n' "${value}"
+}
+
+validate_config_name()
+{
+    local role="$1"
+    local name="$2"
+
+    if ! [[ "${name}" =~ ^[a-z0-9][a-z0-9_]*$ ]]; then
+        printf 'build_dual_image: invalid %s config name: %s\n' \
+            "${role}" "${name}" >&2
+        exit 2
+    fi
+}
+
+validate_profile_enum()
+{
+    local field="$1"
+    local value="$2"
+    shift 2
+
+    local allowed
+    for allowed in "$@"; do
+        if [[ "${value}" == "${allowed}" ]]; then
+            return
+        fi
+    done
+    printf 'build_dual_image: invalid profile %s=%s\n' \
+        "${field}" "${value}" >&2
+    exit 2
+}
+
+CP_CONFIG_NAME="${CP_CONFIG_NAME:-t5ai_core_cp_base}"
+AP_CONFIG_NAME="${AP_CONFIG_NAME:-t5ai_core_ap_base}"
+validate_config_name CP "${CP_CONFIG_NAME}"
+validate_config_name AP "${AP_CONFIG_NAME}"
 CP_CONFIG="${CONFIG_ROOT}/${CP_CONFIG_NAME}"
-AP_CONFIG_NAME="${AP_CONFIG_NAME:-ap_smp}"
-case "${AP_CONFIG_NAME}" in
-    ap_up|ap_smp|ap_smp_online|ap_smp_affinity|ap_smp_semwake|ap_smp_semwake_loop|ap_smp_bidir|ap_smp_dualtask|ap_smp_migration|ap_smp_timedwait|ap_smp_lifecycle|ap_smp_rptun|ap_smp_rptun_mcuboot|ap_smp_btipc|ap_smp_ble_gatt|ap_smp_psram|ap_smp_wifi|ap_smp_wifi_mcuboot|ap_smp_mcuboot|ap_smp_drivercheck|ap_smp_drivercheck_mcuboot|ap_smp_camera_mcuboot|ap_smp_camera_h264_mcuboot|ap_smp_pwm_mcuboot)
-        ;;
-    *)
-        printf 'build_dual_image: unsupported AP_CONFIG_NAME=%s\n' \
-            "${AP_CONFIG_NAME}" >&2
-        exit 2
-        ;;
-esac
 AP_CONFIG="${CONFIG_ROOT}/${AP_CONFIG_NAME}"
 
-if [[ "${CP_CONFIG_NAME}" == *_mcuboot ||
-      "${AP_CONFIG_NAME}" == *_mcuboot ]]; then
-    if [[ "${CP_CONFIG_NAME}" != *_mcuboot ||
-          "${AP_CONFIG_NAME}" != *_mcuboot ]]; then
+for config in "${CP_CONFIG}" "${AP_CONFIG}"; do
+    if [[ ! -f "${config}/defconfig" || ! -f "${config}/profile.conf" ]]; then
+        printf 'build_dual_image: incomplete BK7258 profile: %s\n' \
+            "${config}" >&2
+        exit 2
+    fi
+done
+
+CP_PROFILE_SCHEMA="$(profile_value "${CP_CONFIG}" BK7258_PROFILE_SCHEMA)"
+CP_PROFILE_BOARD="$(profile_value "${CP_CONFIG}" BK7258_PROFILE_BOARD)"
+CP_PROFILE_ROLE="$(profile_value "${CP_CONFIG}" BK7258_PROFILE_ROLE)"
+CP_PROFILE_BOOT="$(profile_value "${CP_CONFIG}" BK7258_PROFILE_BOOT)"
+CP_PROFILE_CLASS="$(profile_value "${CP_CONFIG}" BK7258_PROFILE_CLASS)"
+CP_PROFILE_COMPAT="$(profile_value "${CP_CONFIG}" BK7258_PROFILE_COMPAT)"
+AP_PROFILE_SCHEMA="$(profile_value "${AP_CONFIG}" BK7258_PROFILE_SCHEMA)"
+AP_PROFILE_BOARD="$(profile_value "${AP_CONFIG}" BK7258_PROFILE_BOARD)"
+AP_PROFILE_ROLE="$(profile_value "${AP_CONFIG}" BK7258_PROFILE_ROLE)"
+AP_PROFILE_BOOT="$(profile_value "${AP_CONFIG}" BK7258_PROFILE_BOOT)"
+AP_PROFILE_CLASS="$(profile_value "${AP_CONFIG}" BK7258_PROFILE_CLASS)"
+AP_PROFILE_COMPAT="$(profile_value "${AP_CONFIG}" BK7258_PROFILE_COMPAT)"
+
+if [[ "${CP_PROFILE_SCHEMA}" != 1 || "${AP_PROFILE_SCHEMA}" != 1 ]]; then
+    printf '%s\n' 'build_dual_image: unsupported BK7258 profile schema' >&2
+    exit 2
+fi
+validate_profile_enum board "${CP_PROFILE_BOARD}" t5ai_core t5_board
+validate_profile_enum board "${AP_PROFILE_BOARD}" t5ai_core t5_board
+validate_profile_enum role "${CP_PROFILE_ROLE}" cp
+validate_profile_enum role "${AP_PROFILE_ROLE}" ap
+validate_profile_enum boot "${CP_PROFILE_BOOT}" raw mcuboot
+validate_profile_enum boot "${AP_PROFILE_BOOT}" raw mcuboot
+validate_profile_enum class "${CP_PROFILE_CLASS}" runnable validation ci
+validate_profile_enum class "${AP_PROFILE_CLASS}" runnable validation ci
+
+if [[ "${CP_PROFILE_BOARD}" != "${AP_PROFILE_BOARD}" ]]; then
+    printf 'build_dual_image: physical-board mismatch: CP=%s AP=%s\n' \
+        "${CP_PROFILE_BOARD}" "${AP_PROFILE_BOARD}" >&2
+    exit 2
+fi
+if [[ "${CP_PROFILE_BOOT}" != "${AP_PROFILE_BOOT}" ]]; then
+    printf 'build_dual_image: boot-format mismatch: CP=%s AP=%s\n' \
+        "${CP_PROFILE_BOOT}" "${AP_PROFILE_BOOT}" >&2
+    exit 2
+fi
+if [[ "${CP_PROFILE_COMPAT}" != "${AP_PROFILE_COMPAT}" ]]; then
+    printf 'build_dual_image: incompatible CP/AP profiles: CP=%s AP=%s\n' \
+        "${CP_PROFILE_COMPAT}" "${AP_PROFILE_COMPAT}" >&2
+    exit 2
+fi
+
+for entry in "${CP_CONFIG}:${CP_PROFILE_BOARD}" \
+             "${AP_CONFIG}:${AP_PROFILE_BOARD}"; do
+    config="${entry%%:*}"
+    board="${entry##*:}"
+    case "${board}" in
+        t5ai_core)
+            # T5AI-Core is the Kconfig choice default.  NuttX
+            # savedefconfig therefore removes its explicit selector; reject
+            # only the non-default T5-Board selector here and keep the board
+            # identity explicit in profile.conf.
+
+            if grep -qx 'CONFIG_BK7258_BOARD_T5_BOARD=y' \
+                "${config}/defconfig"; then
+                printf 'build_dual_image: %s metadata disagrees with defconfig board\n' \
+                    "${config}" >&2
+                exit 2
+            fi
+            continue
+            ;;
+        t5_board)
+            symbol=BK7258_BOARD_T5_BOARD
+            ;;
+    esac
+    if ! grep -qx "CONFIG_${symbol}=y" "${config}/defconfig"; then
+        printf 'build_dual_image: %s metadata disagrees with defconfig board\n' \
+            "${config}" >&2
+        exit 2
+    fi
+done
+
+if grep -qx 'CONFIG_BK7258_AP_CORE=y' "${CP_CONFIG}/defconfig" ||
+   ! grep -qx 'CONFIG_BK7258_AP_CORE=y' "${AP_CONFIG}/defconfig"; then
+    printf '%s\n' 'build_dual_image: profile role disagrees with AP_CORE' >&2
+    exit 2
+fi
+
+for entry in "${CP_CONFIG}:${CP_PROFILE_BOOT}" \
+             "${AP_CONFIG}:${AP_PROFILE_BOOT}"; do
+    config="${entry%%:*}"
+    boot="${entry##*:}"
+    if [[ "${boot}" == mcuboot ]]; then
+        if ! grep -qx 'CONFIG_BK7258_MCUBOOT_IMAGE=y' "${config}/defconfig"; then
+            printf 'build_dual_image: %s metadata requires MCUboot\n' \
+                "${config}" >&2
+            exit 2
+        fi
+    elif grep -qx 'CONFIG_BK7258_MCUBOOT_IMAGE=y' "${config}/defconfig"; then
+        printf 'build_dual_image: %s raw metadata forbids MCUboot\n' \
+            "${config}" >&2
+        exit 2
+    fi
+done
+
+BK7258_ALLOW_CI_PROFILE="${BK7258_ALLOW_CI_PROFILE:-NO}"
+validate_profile_enum BK7258_ALLOW_CI_PROFILE \
+    "${BK7258_ALLOW_CI_PROFILE}" NO YES
+if [[ "${CP_PROFILE_CLASS}" == ci || "${AP_PROFILE_CLASS}" == ci ]]; then
+    if [[ "${CP_PROFILE_CLASS}" != ci || "${AP_PROFILE_CLASS}" != ci ]]; then
+        printf '%s\n' 'build_dual_image: CI profiles must be selected as a pair' >&2
+        exit 2
+    fi
+    if [[ "${BK7258_ALLOW_CI_PROFILE}" != YES ]]; then
         printf '%s\n' \
-            'build_dual_image: MCUboot AP-start configs must be selected as a pair' \
+            'build_dual_image: CI-only profiles require BK7258_ALLOW_CI_PROFILE=YES' \
             >&2
         exit 2
     fi
 fi
 
-if [[ "${CP_CONFIG_NAME}" == cp_nsh_drivercheck* ||
-      "${AP_CONFIG_NAME}" == ap_smp_drivercheck* ]]; then
-    case "${CP_CONFIG_NAME}:${AP_CONFIG_NAME}" in
-        cp_nsh_drivercheck:ap_smp_drivercheck|\
-        cp_nsh_drivercheck_mcuboot:ap_smp_drivercheck_mcuboot|\
-        cp_nsh_drivercheck_mcuboot:ap_smp_camera_mcuboot|\
-        cp_nsh_drivercheck_mcuboot:ap_smp_camera_h264_mcuboot|\
-        cp_nsh_drivercheck_rtt_mcuboot:ap_smp_camera_h264_mcuboot|\
-        cp_nsh_drivercheck_mcuboot:ap_smp_pwm_mcuboot)
-            ;;
-        *)
-            printf '%s\n' \
-                'build_dual_image: matching AP driver-check configs must be selected as a pair' \
-                >&2
-            exit 2
-            ;;
-    esac
-fi
+BK7258_PROFILE_CHECK_ONLY="${BK7258_PROFILE_CHECK_ONLY:-NO}"
+validate_profile_enum BK7258_PROFILE_CHECK_ONLY \
+    "${BK7258_PROFILE_CHECK_ONLY}" NO YES
 
 # BL1, BL2 and CP must agree on physical debug/console ownership.  Derive the
 # boot-stage constants from Kconfig symbols, never from profile filenames.
@@ -98,6 +219,22 @@ config_value()
 
     value="$(sed -n "s/^CONFIG_${symbol}=//p" "${config}/defconfig" | tail -n 1)"
     printf '%s\n' "${value:-${fallback}}"
+}
+
+validate_symmetric_feature()
+{
+    local symbol="$1"
+    local label="$2"
+
+    if config_enabled "${CP_CONFIG}" "${symbol}" ||
+       config_enabled "${AP_CONFIG}" "${symbol}"; then
+        if ! config_enabled "${CP_CONFIG}" "${symbol}" ||
+           ! config_enabled "${AP_CONFIG}" "${symbol}"; then
+            printf 'build_dual_image: %s must be selected as a CP/AP pair\n' \
+                "${label}" >&2
+            exit 2
+        fi
+    fi
 }
 
 BL1_SWD_ENABLE=0
@@ -196,8 +333,51 @@ if config_enabled "${CP_CONFIG}" BK7258_UART0_FLOW_CONTROL &&
     exit 2
 fi
 
+validate_symmetric_feature BK7258_RPTUN RPTUN
+validate_symmetric_feature BK7258_BT_IPC 'Bluetooth IPC'
+validate_symmetric_feature BK7258_WIFI_VNET 'Wi-Fi VNET'
+
+if [[ "${BK7258_PROFILE_CHECK_ONLY}" == YES ]]; then
+    printf 'build_dual_image: profile PASS board=%s boot=%s compat=%s cp=%s ap=%s\n' \
+        "${CP_PROFILE_BOARD}" "${CP_PROFILE_BOOT}" \
+        "${CP_PROFILE_COMPAT}" "${CP_CONFIG_NAME}" "${AP_CONFIG_NAME}"
+    exit 0
+fi
+
+# The openvela build wrapper configures the shared nuttx/ and apps/ trees in
+# place.  Two dual-image builds in the same workspace can otherwise replace
+# Make.defs, generated Kconfig files and bk7258-dual artifacts underneath one
+# another.  Serialize physical builds across repository worktrees/sessions;
+# metadata-only profile checks above remain lock-free.
+
+if ! command -v flock >/dev/null 2>&1; then
+    printf '%s\n' 'build_dual_image: flock is required for a shared build tree' \
+        >&2
+    exit 2
+fi
+
+BK7258_BUILD_LOCK_TIMEOUT_SECONDS="${BK7258_BUILD_LOCK_TIMEOUT_SECONDS:-600}"
+if ! [[ "${BK7258_BUILD_LOCK_TIMEOUT_SECONDS}" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'build_dual_image: invalid build-lock timeout: %s\n' \
+        "${BK7258_BUILD_LOCK_TIMEOUT_SECONDS}" >&2
+    exit 2
+fi
+
+BK7258_BUILD_LOCK="/tmp/openvela-bk7258-build-${UID}.lock"
+exec {BK7258_BUILD_LOCK_FD}>"${BK7258_BUILD_LOCK}"
+if ! flock -n "${BK7258_BUILD_LOCK_FD}"; then
+    printf 'build_dual_image: waiting for shared NuttX build tree lock: %s\n' \
+        "${BK7258_BUILD_LOCK}"
+    if ! flock -w "${BK7258_BUILD_LOCK_TIMEOUT_SECONDS}" \
+        "${BK7258_BUILD_LOCK_FD}"; then
+        printf 'build_dual_image: timed out waiting for build lock after %ss\n' \
+            "${BK7258_BUILD_LOCK_TIMEOUT_SECONDS}" >&2
+        exit 2
+    fi
+fi
+
 # MCUboot is an explicit, signed build profile.  Do not silently turn a
-# cp_nsh_mcuboot/ap_smp_mcuboot build into the unsigned raw-image pipeline:
+# metadata-declared MCUboot pair into the unsigned raw-image pipeline:
 # the signing key and BL1 authorization key must be supplied from outside the
 # repository (normally from /tmp or a developer-owned secure key store).
 MCUBOOT_PROFILE=false
@@ -230,25 +410,25 @@ case "${BL1_MANIFEST_RAW_PAGE}" in
         exit 2
         ;;
 esac
-if [[ "${CP_CONFIG_NAME}" == *_mcuboot ]]; then
+if [[ "${CP_PROFILE_BOOT}" == mcuboot ]]; then
     MCUBOOT_PROFILE=true
     BL1_USE_BL2=1
     MCUBOOT_BL2_FLASH_SEGMENT="bl2_crc.bin@0x51d000,bl2_secondary_crc.bin@0x53f000"
     if [[ -z "${MCUBOOT_SIGNING_KEY}" || ! -f "${MCUBOOT_SIGNING_KEY}" ]]; then
         printf '%s\n' \
-            'build_dual_image: a *_mcuboot CP config requires an external MCUBOOT_SIGNING_KEY' \
+            'build_dual_image: an MCUboot profile requires an external MCUBOOT_SIGNING_KEY' \
             >&2
         exit 2
     fi
     if [[ -z "${MCUBOOT_VERSION}" ]]; then
         printf '%s\n' \
-            'build_dual_image: a *_mcuboot CP config requires MCUBOOT_VERSION' \
+            'build_dual_image: an MCUboot profile requires MCUBOOT_VERSION' \
             >&2
         exit 2
     fi
     if [[ -z "${BL1_MANIFEST_KEY}" || ! -f "${BL1_MANIFEST_KEY}" ]]; then
         printf '%s\n' \
-            'build_dual_image: a *_mcuboot CP config requires an external BL1_MANIFEST_KEY' \
+            'build_dual_image: an MCUboot profile requires an external BL1_MANIFEST_KEY' \
             >&2
         exit 2
     fi
@@ -301,60 +481,6 @@ if [[ "${CP_CONFIG_NAME}" == *_mcuboot ]]; then
     fi
 fi
 
-if config_enabled "${CP_CONFIG}" BK7258_RPTUN ||
-   config_enabled "${AP_CONFIG}" BK7258_RPTUN; then
-    if ! config_enabled "${CP_CONFIG}" BK7258_RPTUN ||
-       ! config_enabled "${AP_CONFIG}" BK7258_RPTUN; then
-        printf '%s\n' \
-            'build_dual_image: N9 RPTUN configs must be selected as a pair' \
-            >&2
-        exit 2
-    fi
-fi
-
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_btipc" ||
-      "${AP_CONFIG_NAME}" == "ap_smp_btipc" ]]; then
-    if [[ "${CP_CONFIG_NAME}" != "cp_nsh_btipc" ||
-          "${AP_CONFIG_NAME}" != "ap_smp_btipc" ]]; then
-        printf '%s\n' \
-            'build_dual_image: N12 Bluetooth IPC configs must be selected as a pair' \
-            >&2
-        exit 2
-    fi
-fi
-
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
-      "${AP_CONFIG_NAME}" == "ap_smp_ble_gatt" ]]; then
-    if [[ "${CP_CONFIG_NAME}" != "cp_nsh_ble_gatt" ||
-          "${AP_CONFIG_NAME}" != "ap_smp_ble_gatt" ]]; then
-        printf '%s\n' \
-            'build_dual_image: N13 BLE GATT configs must be selected as a pair' \
-            >&2
-        exit 2
-    fi
-fi
-
-if config_enabled "${CP_CONFIG}" BK7258_WIFI_VNET ||
-   config_enabled "${AP_CONFIG}" BK7258_WIFI_VNET; then
-    if ! config_enabled "${CP_CONFIG}" BK7258_WIFI_VNET ||
-       ! config_enabled "${AP_CONFIG}" BK7258_WIFI_VNET; then
-        printf '%s\n' \
-            'build_dual_image: N16 Wi-Fi configs must be selected as a pair' \
-            >&2
-        exit 2
-    fi
-fi
-
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
-      "${AP_CONFIG_NAME}" == "ap_smp_psram" ]]; then
-    if [[ "${CP_CONFIG_NAME}" != "cp_nsh_psram" ||
-          "${AP_CONFIG_NAME}" != "ap_smp_psram" ]]; then
-        printf '%s\n' \
-            'build_dual_image: N14 PSRAM configs must be selected as a pair' \
-            >&2
-        exit 2
-    fi
-fi
 JOBS="${JOBS:-8}"
 OUTPUT="${TOPDIR}/bk7258-dual"
 BK7258_SDK_BUNDLE_VERSION="${BK7258_SDK_BUNDLE_VERSION:-v3.1.1.9}"
@@ -410,6 +536,21 @@ AP_SDK_PROVENANCE_SHA256="$(
 build_config()
 {
     local config="$1"
+
+    # A removed profile can leave NuttX's Make.defs symlink pointing through
+    # the now-absent configs/<old-name> directory.  configure.sh -e sees the
+    # retained .config and tries to run distclean through that broken link,
+    # so it cannot recover by itself.  This wrapper always replaces the
+    # active NuttX configuration and therefore may discard only these stale
+    # configuration markers before performing the normal clean build.
+
+    if [[ -f "${TOPDIR}/.config" && ! -e "${TOPDIR}/Make.defs" ]]; then
+        printf '%s\n' \
+            'build_dual_image: removing stale NuttX config with broken Make.defs'
+        rm -f "${TOPDIR}/.config" "${TOPDIR}/defconfig" \
+            "${TOPDIR}/Make.defs"
+    fi
+
     "${BUILD}" "${config}" distclean
     "${BUILD}" "${config}" "-j${JOBS}"
 }
@@ -673,6 +814,14 @@ CP_CONFIG_NAME=${CP_CONFIG_NAME}
 AP_CONFIG_NAME=${AP_CONFIG_NAME}
 CP_CONFIG=${CP_CONFIG}
 AP_CONFIG=${AP_CONFIG}
+PROFILE_SCHEMA=${CP_PROFILE_SCHEMA}
+PHYSICAL_BOARD=${CP_PROFILE_BOARD}
+PROFILE_BOOT=${CP_PROFILE_BOOT}
+PROFILE_COMPAT=${CP_PROFILE_COMPAT}
+CP_PROFILE_CLASS=${CP_PROFILE_CLASS}
+AP_PROFILE_CLASS=${AP_PROFILE_CLASS}
+CP_PROFILE_METADATA=${CP_CONFIG}/profile.conf
+AP_PROFILE_METADATA=${AP_CONFIG}/profile.conf
 BK7258_SDK_BUNDLE_VERSION=${BK7258_SDK_BUNDLE_VERSION}
 BK7258_SDK_BUNDLE_ROOT=${SDK_BUNDLE_ROOT}
 CP_SDK_ROLE_DIR=${CP_SDK_ROLE_DIR}
@@ -741,15 +890,13 @@ if config_enabled "${CP_CONFIG}" BK7258_RPTUN; then
         --json "${OUTPUT}/bk7258-rptun-layout.json"
 fi
 
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
+if [[ "${CP_PROFILE_COMPAT}" == \
+      t5ai_core_psram_validation_raw_v1 ]]; then
     BLE_VERIFY_IDENTITY_ARGS=()
-    if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
-        BLE_VERIFY_IDENTITY_ARGS+=(
-            --expected-device-name "BK7258 N14"
-            --expected-local-name "BK7258-N14"
-        )
-    fi
+    BLE_VERIFY_IDENTITY_ARGS+=(
+        --expected-device-name "BK7258 N14"
+        --expected-local-name "BK7258-N14"
+    )
 
     python3 "${SCRIPT_DIR}/verify_bk7258_ble_gatt.py" \
         --cp-elf "${OUTPUT}/nuttx-cp.elf" \
@@ -759,7 +906,8 @@ if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
         "${BLE_VERIFY_IDENTITY_ARGS[@]}"
 fi
 
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_psram" ]]; then
+if config_enabled "${CP_CONFIG}" BK7258_PSRAM_TEST &&
+   config_enabled "${AP_CONFIG}" BK7258_PSRAM_TEST; then
     PSRAM_VERIFY_ARGS=(
         --cp-elf "${OUTPUT}/nuttx-cp.elf"
         --cp-map "${OUTPUT}/nuttx-cp.map"

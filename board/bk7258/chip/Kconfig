@@ -53,9 +53,9 @@ config BK7258_AP_CORE
 	select ARMV8M_SYSTICK
 	---help---
 		Build the independent AP NuttX image whose primary is physical CPU1 /
-		AP logical CPU0.  The ap_up configuration remains a single-core NuttX
-		baseline with a freestanding CPU2 probe.  AP SMP is enabled only by the
-		separate BK7258_AP_SMP_BOOTSTRAP option and configs/ap_smp.
+		AP logical CPU0.  Maintained AP profiles select SMP explicitly through
+		BK7258_AP_SMP_BOOTSTRAP; see board/bk7258/configs/README.md for the
+		canonical physical-board/profile catalog.
 
 menu "BK7258 debug and UART pin ownership"
 

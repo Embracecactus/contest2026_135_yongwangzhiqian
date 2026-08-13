@@ -42,7 +42,8 @@ CP_CONFIG_NAME=<CP 配置>
 AP_CONFIG_NAME=<AP 配置>
 ```
 
-本次 cold-reset 修复使用 `cp_nsh + ap_smp_bidir`，它只是一个实例，不是全项目固定值。
+历史 cold-reset 修复曾使用阶段快照配置。当前构建入口已经收敛为带物理板名和用途的稳定 profile，完整清单见
+[`board/bk7258/configs/README.md`](../../../board/bk7258/configs/README.md)。
 
 通用命令必须显式写出配置：
 
@@ -56,8 +57,8 @@ AP_CONFIG_NAME=<AP 配置>
 如果省略：
 
 ```text
-CP 默认：cp_nsh
-AP 默认：ap_smp
+CP 默认：t5ai_core_cp_base
+AP 默认：t5ai_core_ap_base
 ```
 
 默认值与 `build_dual_image.sh` 一致，但正式验证建议始终显式指定，避免误刷上一次 Stage 的 AP image。
@@ -211,19 +212,19 @@ AP_CONFIG_NAME=<ap_config> \
   ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
-本次 cold-reset 实例：
+T5AI-Core 基础实例：
 
 ```bash
-CP_CONFIG_NAME=cp_nsh \
-AP_CONFIG_NAME=ap_smp_bidir \
+CP_CONFIG_NAME=t5ai_core_cp_base \
+AP_CONFIG_NAME=t5ai_core_ap_base \
   ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```
 
 Builder 默认值：
 
 ```text
-CP_CONFIG_NAME=cp_nsh
-AP_CONFIG_NAME=ap_smp
+CP_CONFIG_NAME=t5ai_core_cp_base
+AP_CONFIG_NAME=t5ai_core_ap_base
 ```
 
 成功门禁：
@@ -235,45 +236,17 @@ build_dual_image: root CP artifacts match the manifest CP image
 
 ### 4.2 可用配置选择表
 
-CP 配置：
+| 物理板/用途 | CP | AP |
+|---|---|---|
+| T5AI-Core 基础 | `t5ai_core_cp_base` | `t5ai_core_ap_base` |
+| T5AI-Core MCUboot | `t5ai_core_cp_mcuboot` | `t5ai_core_ap_mcuboot` |
+| T5AI-Core PSRAM/SMP/BLE 验证 | `t5ai_core_cp_psram_validation` | `t5ai_core_ap_psram_validation` |
+| T5AI-Core Wi-Fi | `t5ai_core_cp_wifi` | `t5ai_core_ap_wifi` |
+| T5-Board 应用 | `t5_board_cp_app_mcuboot` | `t5_board_ap_app_mcuboot` |
+| T5-Board camera/H.264 | `t5_board_cp_app_mcuboot` | `t5_board_ap_camera_h264_mcuboot` |
+| T5-Board Wi-Fi | `t5_board_cp_wifi_mcuboot` | `t5_board_ap_wifi_mcuboot` |
 
-| 配置 | 用途 |
-|---|---|
-| `cp_nsh` | CP NSH + AP control + AP autostart |
-| `cp_nsh_manual` | CP NSH + AP control，不自动启动 AP；用于手工 `apctl start`/分层调试 |
-
-AP 配置：
-
-| 配置 | 主要 Stage / 用途 |
-|---|---|
-| `ap_up` | CPU1 单核 AP NuttX |
-| `ap_smp` | AP SMP secondary bootstrap 基线 |
-| `ap_smp_online` | CPU2 scheduler-online IDLE |
-| `ap_smp_affinity` | CPU1 explicit-affinity task |
-| `ap_smp_semwake` | 单次 semaphore remote wake |
-| `ap_smp_semwake_loop` | 固定 8 轮 semaphore wake loop |
-| `ap_smp_bidir` | 双向 semaphore pingpong / BP2P |
-| `ap_smp_dualtask` | 两个 CPU1 task 本地调度 |
-| `ap_smp_migration` | controlled migration |
-| `ap_smp_timedwait` | CPU1 timed wake |
-| `ap_smp_lifecycle` | scheduler quiesce/resume foundation |
-
-常用组合：
-
-```text
-自动启动某 AP Stage： cp_nsh        + 对应 ap_* 配置
-手工启动/重试 AP：    cp_nsh_manual + 对应 ap_* 配置
-```
-
-示例：
-
-```text
-基础 SMP bootstrap：      cp_nsh        + ap_smp
-本次 cold-reset/BP2P：    cp_nsh        + ap_smp_bidir
-手工 retry BP2P：         cp_nsh_manual + ap_smp_bidir
-controlled migration：    cp_nsh        + ap_smp_migration
-scheduler lifecycle D1：  cp_nsh        + ap_smp_lifecycle
-```
+T5-Board 还保留 camera smoke、PWM 等有界 validation profile，以及不可烧板的 drivercheck CI pair；详见配置目录 README。阶段性的 SMP affinity、semaphore、migration 等旧 profile 已完成使命，其能力并入当前验证档案，不再作为独立 defconfig 维护。
 
 配置必须来自：
 
@@ -281,7 +254,7 @@ scheduler lifecycle D1：  cp_nsh        + ap_smp_lifecycle
 contest2026_135_yongwangzhiqian/board/bk7258/configs/
 ```
 
-Builder 会拒绝不在白名单中的配置名。
+Builder 按每个目录的 `profile.conf` 检查物理板、CP/AP role、boot 格式和兼容组，不再维护容易漂移的文件名白名单。
 
 ### 4.3 构建产物
 
@@ -361,12 +334,12 @@ cd /home/lijian/project/open-vela
   --build \
   --flash \
   --sparse-flash \
-  --cp-config cp_nsh \
-  --ap-config ap_smp_bidir \
+  --cp-config t5ai_core_cp_base \
+  --ap-config t5ai_core_ap_base \
   --capture-seconds 30
 ```
 
-其中 `cp_nsh/ap_smp_bidir` 仅为本次实例。验证其他 Stage 时，替换两个配置参数，其他下载和采集流程不变。
+验证其他用途时，必须替换成同一物理板、同一 boot 格式和同一兼容组的 CP/AP profile，其他下载和采集流程不变。
 
 流程：
 
@@ -411,8 +384,8 @@ nuttx/bk7258-dual/build-profile.txt
 ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --flash \
   --sparse-flash \
-  --cp-config cp_nsh \
-  --ap-config ap_smp_bidir \
+  --cp-config t5ai_core_cp_base \
+  --ap-config t5ai_core_ap_base \
   --capture-seconds 30
 ```
 
@@ -494,7 +467,7 @@ NuttShell (NSH)
 nsh>
 ```
 
-当前 `ap_smp_bidir` 可能等待数秒后走 `F1/F2` timeout cleanup；只要继续到 `C8/NSH`，CP fail-open 就是正常的。
+历史 BP2P 镜像可能等待数秒后走 `F1/F2` timeout cleanup；该说明仅用于解释旧日志，不是当前 profile 的通过条件。
 
 ## 9. Physical cold-reset 标准流程
 
@@ -549,7 +522,7 @@ NuttShell (NSH)
 
 ### 9.3 第二级：当前 profile 的功能门禁
 
-使用 `cp_nsh_rptun + ap_smp_rptun` 时，物理复位后还必须在 NSH 执行：
+使用 `t5ai_core_cp_psram_validation + t5ai_core_ap_psram_validation` 时，物理复位后还必须在 NSH 执行：
 
 ```text
 apctl status

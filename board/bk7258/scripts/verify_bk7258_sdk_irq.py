@@ -231,7 +231,7 @@ def main() -> int:
     make_defs = board / "chip" / "Make.defs"
     cmake = board / "chip" / "CMakeLists.txt"
     kconfig = board / "chip" / "Kconfig"
-    defconfig = board / "configs" / "cp_nsh" / "defconfig"
+    defconfig = board / "configs" / "t5ai_core_cp_base" / "defconfig"
     ldscript = board / "scripts" / "ld.script"
     build_config = workspace / "nuttx" / ".config"
     stubs = board / "chip" / "common" / "bk7258_sdk_stubs.c"

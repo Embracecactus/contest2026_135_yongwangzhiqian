@@ -162,12 +162,15 @@ void phy_wakeup_reinit(void)
 }
 #endif
 
-#ifndef CONFIG_BK7258_WIFI_VNET
+#if !defined(CONFIG_BK7258_WIFI_VNET) && \
+    (!defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_AP_CORE))
 void rwnxl_set_wifi_low_vol_flag(void)
 {
   /* The immutable SDK low-voltage leaf was built with Wi-Fi enabled and
-   * keeps this wake-debug hook behind its private CONFIG_WIFI_ENABLE.  A
-   * NuttX image without the Wi-Fi service has no MAC state to update.
+   * keeps this wake-debug hook behind its private CONFIG_WIFI_ENABLE.  CP BT
+   * IPC links libwifi.a as part of the official PHY closure, so that archive
+   * owns the real symbol even though NuttX Wi-Fi VNET is disabled.  Other
+   * images without a linked Wi-Fi backend have no MAC state to update.
    */
 }
 #endif

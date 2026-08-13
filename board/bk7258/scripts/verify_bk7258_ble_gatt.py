@@ -88,21 +88,16 @@ def require_lines(text: str, required: list[str], description: str) -> None:
 
 
 def verify_source(board: Path) -> dict[str, object]:
-    cp_n12 = (board / "configs/cp_nsh_btipc/defconfig").read_text(
-        encoding="utf-8"
-    )
-    cp_n13 = (board / "configs/cp_nsh_ble_gatt/defconfig").read_text(
+    cp_config = (
+        board / "configs/t5ai_core_cp_psram_validation/defconfig"
+    ).read_text(
         encoding="utf-8"
     )
     tick_line = "CONFIG_USEC_PER_TICK=1000\n"
-    if cp_n13.count(tick_line) != 1:
+    if cp_config.count(tick_line) != 1:
         raise VerificationError(
-            "N13 CP defconfig must select the SDK-compatible 1 ms tick"
-        )
-
-    if cp_n13.replace(tick_line, "") != cp_n12:
-        raise VerificationError(
-            "N13 CP defconfig may differ from N12 only by its 1 ms tick"
+            "T5AI-Core PSRAM validation CP profile must select the "
+            "SDK-compatible 1 ms tick"
         )
 
     stubs_source = (board / "chip/common/bk7258_sdk_stubs.c").read_text(
@@ -115,10 +110,19 @@ def verify_source(board: Path) -> dict[str, object]:
         raise VerificationError(
             "N13 SDK wrapper must preserve bk_delay_us with up_udelay"
         )
+    for token in [
+        "!defined(CONFIG_BK7258_WIFI_VNET)",
+        "!defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_AP_CORE)",
+    ]:
+        if token not in stubs_source:
+            raise VerificationError(
+                "CP BT/PHY closure must leave the SDK Wi-Fi low-voltage "
+                f"symbol to libwifi.a: missing {token}"
+            )
 
-    ap_config = (board / "configs/ap_smp_ble_gatt/defconfig").read_text(
-        encoding="utf-8"
-    )
+    ap_config = (
+        board / "configs/t5ai_core_ap_psram_validation/defconfig"
+    ).read_text(encoding="utf-8")
     require_lines(
         ap_config,
         [
@@ -129,11 +133,11 @@ def verify_source(board: Path) -> dict[str, object]:
             "CONFIG_BK7258_BT_IPC_TRACE=y",
             "CONFIG_BLUETOOTH_CNTRL_HOST_FLOW_DISABLE=y",
             "CONFIG_SCHED_LPWORKPRIORITY=97",
-            'CONFIG_DEVICE_NAME="BK7258 N13"',
-            'CONFIG_DEVICE_LOCAL_NAME="BK7258-N13"',
+            'CONFIG_DEVICE_NAME="BK7258 N14"',
+            'CONFIG_DEVICE_LOCAL_NAME="BK7258-N14"',
             "CONFIG_SMP_DEFAULT_CPUSET=0x1",
         ],
-        "N13 AP defconfig",
+        "T5AI-Core PSRAM validation AP profile",
     )
 
     kconfig_source = (board / "chip/Kconfig").read_text(encoding="utf-8")
