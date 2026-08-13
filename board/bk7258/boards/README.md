@@ -86,6 +86,8 @@ The rule is applied by peripheral class as follows:
 A defconfig is therefore a product feature profile, not a board description.
 Several profiles may select the same board; another board may select an
 equivalent feature set without duplicating that board's electrical database.
+The retained profiles and their CP/AP compatibility groups are documented in
+[`../configs/README.md`](../configs/README.md).
 
 On T5-Board, switch bank S1 connects the on-board CH342F download/log UARTs
 to pins shared with SD D2/D3 and the P1 LED.  Keep SD in 1-bit mode while the

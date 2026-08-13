@@ -21,8 +21,8 @@
 
 ```bash
 cd /home/lijian/project/open-vela
-CP_CONFIG_NAME=cp_nsh_psram \
-AP_CONFIG_NAME=ap_smp_psram \
+CP_CONFIG_NAME=t5ai_core_cp_psram_validation \
+AP_CONFIG_NAME=t5ai_core_ap_psram_validation \
 BK7258_SDK_BUNDLE_VERSION=v3.1.1.9 \
   ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
 ```

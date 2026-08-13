@@ -85,12 +85,12 @@ BK7258 不是单核芯片，它是一个 **AP/CP 双核（实际是三核 Cortex
 证据链（都在你工程里）：
 1. 构建目标是 CP 镜像，使用的 SDK 头位于
    `armino_as_lib/versions/v3.1.1.9/cp/include/`；
-2. 活跃配置 `configs/cp_nsh/defconfig` 里是 `CONFIG_BK7258_AP_CONTROL=y`（即 Beken 术语里的 CP 角色），入口 `nsh_main`——这才是带串口的镜像；
+2. 活跃基础配置 `configs/t5ai_core_cp_base/defconfig` 里是 `CONFIG_BK7258_AP_CONTROL=y`（即 Beken 术语里的 CP 角色），入口 `nsh_main`——这才是带串口的镜像；
 3. 原 `bk7258_serial.c` 直接在 CP 地址 `0x45830000` 上戳寄存器、用 `irq_attach(BK7258_IRQ_UART1,…)` 挂**原生**中断，说明 UART1 硬件对 CP 核是直接可访问的，没走跨核 RPC。
 
 还有一个开关对我们有**实质影响**：
 
-```27:27:.../configs/cp_nsh/defconfig
+```27:27:.../configs/t5ai_core_cp_base/defconfig
 CONFIG_BK7258_SDK_IRQ_BRIDGE=y
 ```
 `SDK_IRQ_BRIDGE`（SDK 中断桥）开着，意味着「SDK 接管中断、再桥接到 NuttX」是预期路径——正好和我们的 wrapper 写法（不自己 `irq_attach`、用 `bk_uart_register_rx_isr`）对上。**这个开关千万别随手关掉，否则 RX 中断投不进 NuttX，控制台收不到键盘输入。**

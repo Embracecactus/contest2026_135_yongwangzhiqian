@@ -19,8 +19,8 @@ DUAL_DIR="${BK7258_DUAL_DIR:-$OPENVELA_ROOT/nuttx/bk7258-dual}"
 FIRMWARE="${BK7258_FIRMWARE:-}"
 LOG_ROOT="$OPENVELA_ROOT/logs/bk7258-auto-debug"
 
-CP_CONFIG_NAME=${CP_CONFIG_NAME:-cp_nsh}
-AP_CONFIG_NAME=${AP_CONFIG_NAME:-ap_smp}
+CP_CONFIG_NAME=${CP_CONFIG_NAME:-t5ai_core_cp_base}
+AP_CONFIG_NAME=${AP_CONFIG_NAME:-t5ai_core_ap_base}
 DOWNLOAD_PORT=${BK_DOWNLOAD_PORT:-3}
 CONSOLE_PORT=${BK_CONSOLE_PORT:-COM4}
 CONSOLE_BAUD=${BK_CONSOLE_BAUD:-460800}
@@ -69,7 +69,9 @@ Options:
 
 Examples:
   # Build an explicit CP/AP profile, sparse-flash, and capture the warm path:
-  $(basename "$0") --build --flash --sparse-flash --cp-config cp_nsh --ap-config ap_smp_bidir
+  $(basename "$0") --build --flash --sparse-flash --no-console \
+    --cp-config t5_board_cp_app_mcuboot \
+    --ap-config t5_board_ap_camera_h264_mcuboot
 
   # Sparse-flash an already built image and capture:
   $(basename "$0") --flash --sparse-flash
