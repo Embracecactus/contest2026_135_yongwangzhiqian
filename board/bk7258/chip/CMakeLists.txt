@@ -93,6 +93,14 @@ if(CONFIG_BK7258_WIFI_VNET)
   endif()
 endif()
 
+if(CONFIG_BK7258_WIFI_PACKET_DIAG)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_wifi_packet_diag.c)
+  target_link_options(
+    nuttx PRIVATE
+    "LINKER:--wrap=ethernetif_input"
+    "LINKER:--wrap=udp_sendto_if_src")
+endif()
+
 if(CONFIG_BK7258_RPTUN_MBOX)
   list(APPEND BK7258_CP_SRCS common/bk7258_rptun_mbox.c)
 endif()

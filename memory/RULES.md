@@ -1,6 +1,6 @@
 # Project Rules
 
-Last reviewed: 2026-08-10
+Last reviewed: 2026-08-13
 
 ## Domain invariants
 
@@ -103,6 +103,11 @@ Last reviewed: 2026-08-10
 
 ## Engineering conventions
 
+- Hardware-facing changes must be validated on the real board as soon as a
+  recoverable test image is available.  Do not grow one-off verification
+  scripts or a parallel validation framework merely to avoid direct board
+  testing; reuse the existing build/flash/debug path and add only the smallest
+  unit test or observable diagnostic needed to isolate a failure.
 - The default, owner-revocable model division is: `gpt-5.6-sol` at `xhigh`
   owns project planning, architecture, task decomposition, review,
   integration decisions and final acceptance. Boundary-clear implementation

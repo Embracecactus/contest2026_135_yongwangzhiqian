@@ -23,7 +23,7 @@
  ****************************************************************************/
 
 #define BK7258_PM_COORD_DIAG_MAGIC       0x44504d42u /* "BMPD" */
-#define BK7258_PM_COORD_DIAG_VERSION     1u
+#define BK7258_PM_COORD_DIAG_VERSION     2u
 
 /****************************************************************************
  * Public Types
@@ -42,6 +42,7 @@ enum bk7258_pm_coord_reason_e
   BK7258_PM_COORD_REASON_FLASH_PREPARE,
   BK7258_PM_COORD_REASON_WAKE_NOT_ARMED,
   BK7258_PM_COORD_REASON_ENTERED,
+  BK7258_PM_COORD_REASON_SDK_ACTIVITY,
 };
 
 struct bk7258_pm_coord_diag_s
@@ -61,6 +62,8 @@ struct bk7258_pm_coord_diag_s
   uint32_t last_ap_clock_vote_high;
   uint32_t last_sleep_us;
   uint32_t compensated_ticks;
+  uint32_t last_cp_sdk_awake_low;
+  uint32_t last_cp_sdk_awake_high;
 };
 
 /****************************************************************************
@@ -77,6 +80,7 @@ extern volatile struct bk7258_pm_coord_diag_s g_bk7258_pm_coord_diag;
 
 #ifdef CONFIG_BK7258_AP_CORE
 bool bk7258_pm_ap_runtime_ready(void);
+bool bk7258_pm_ap_release_peer(void);
 void bk7258_pm_ap_idle(void);
 #else
 void bk7258_pm_coord_early_initialize(void);

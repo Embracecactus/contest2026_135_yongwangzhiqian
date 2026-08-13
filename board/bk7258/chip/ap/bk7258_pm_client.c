@@ -28,6 +28,7 @@
 #include <arch/chip/bk7258_rptun.h>
 
 #include "bk7258_pm_ipc.h"
+#include "bk7258_pm_activity.h"
 #include "bk7258_dvfs.h"
 #include "arm_internal.h"
 
@@ -46,6 +47,9 @@ struct bk7258_pm_client_s
   struct bk7258_pm_wire_s reply;
   uint16_t clock_refs[BK7258_PM_CLOCK_COUNT];
   bool freq_active[BK7258_PM_FREQ_CLIENT_COUNT];
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+  struct bk7258_pm_activity_s sdk_activity;
+#endif
 };
 
 static struct bk7258_pm_client_s g_bk7258_pm_client =
@@ -53,7 +57,7 @@ static struct bk7258_pm_client_s g_bk7258_pm_client =
   .lock = NXMUTEX_INITIALIZER,
 };
 
-static void bk7258_pm_publish_vendor_votes(
+static void bk7258_pm_publish_vendor_votes_locked(
   FAR const struct bk7258_pm_client_s *priv)
 {
   uintptr_t sleep = BK7258_PWR_MNG_ADDR +
@@ -63,7 +67,11 @@ static void bk7258_pm_publish_vendor_votes(
   bool active = false;
   unsigned int i;
 
-  for (i = 0; i < BK7258_PM_CLOCK_COUNT; i++)
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+  active = !bk7258_pm_activity_idle(&priv->sdk_activity);
+#endif
+
+  for (i = 0; !active && i < BK7258_PM_CLOCK_COUNT; i++)
     {
       if (priv->clock_refs[i] != 0)
         {
@@ -94,6 +102,15 @@ static void bk7258_pm_publish_vendor_votes(
   putreg32(active ? 1u : 0u, clock);
   putreg32(0, clock + 4u);
   __asm volatile ("dmb sy" ::: "memory");
+}
+
+static void bk7258_pm_publish_vendor_votes(
+  FAR const struct bk7258_pm_client_s *priv)
+{
+  irqstate_t flags = enter_critical_section();
+
+  bk7258_pm_publish_vendor_votes_locked(priv);
+  leave_critical_section(flags);
 }
 
 /* v3.1.1.9 routes AP peripheral clocks through bk_pm_clock_ctrl().  The
@@ -131,6 +148,7 @@ static void bk7258_pm_publish_vendor_votes(
 #define BK7258_SDK_PM_DEV_SECURE    36u
 #define BK7258_SDK_PM_DEV_DEFAULT   40u
 #define BK7258_SDK_PM_CPU_FREQ_MAX  7
+#define BK7258_SDK_PM_SLEEP_LOG     22u
 
 static const enum bk7258_pm_clock_e
 g_bk7258_pm_sdk_clock_map[BK7258_SDK_CLOCK_COUNT] =
@@ -839,5 +857,41 @@ out:
   nxmutex_unlock(&g_bk7258_pm_sdk_lock);
   return ret;
 }
+
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+int __wrap_bk_pm_module_vote_sleep_ctrl(unsigned int module,
+                                         uint32_t sleep_state,
+                                         uint32_t sleep_time)
+{
+  struct bk7258_pm_client_s *priv = &g_bk7258_pm_client;
+  irqstate_t flags;
+  int ret;
+
+  (void)sleep_time;
+
+  /* The official AP implementation publishes an in-flight fixed-address
+   * vote, sends PM_SLEEP_CTRL_CMD through the vendor PM mailbox, waits, and
+   * then clears that temporary vote.  NuttX owns that mailbox and PM policy;
+   * preserve the API's set-state meaning locally and expose one aggregate
+   * zero/non-zero gate to CP instead of entering the unused FreeRTOS path.
+   * The SDK explicitly treats its AP LOG vote as a no-op.
+   */
+
+  if (module == BK7258_SDK_PM_SLEEP_LOG)
+    {
+      return OK;
+    }
+
+  flags = enter_critical_section();
+  ret = bk7258_pm_activity_vote(&priv->sdk_activity, module, sleep_state);
+  if (ret >= 0)
+    {
+      bk7258_pm_publish_vendor_votes_locked(priv);
+    }
+
+  leave_critical_section(flags);
+  return ret;
+}
+#endif
 
 #endif /* CONFIG_BK7258_PM_CLOCK */

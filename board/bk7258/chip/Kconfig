@@ -556,10 +556,12 @@ config BK7258_PM_POLICY
 config BK7258_PM_COORDINATED_STANDBY
 	bool "CP/AP coordinated low-voltage standby"
 	default n
-	depends on BK7258_RPTUN && BK7258_RPTUN_MBOX
+	depends on BK7258_RPTUN && BK7258_RPTUN_MBOX && BK7258_PM_CLOCK
 	depends on BK7258_AP_CORE || BK7258_PM_POLICY
 	depends on BK7258_AP_CORE || BK7258_AP_CONTROL
 	depends on !BK7258_AP_CORE || SMP
+	depends on !BK7258_AP_CORE || BK7258_AP_IPI
+	depends on !BK7258_AP_CORE || BK7258_AP_SMP_SCHED_ONLINE
 	select PM if BK7258_AP_CORE
 	select PM_GOVERNOR_GREEDY if BK7258_AP_CORE
 	---help---
@@ -790,6 +792,18 @@ config BK7258_WIFI_VNET
 
 		The first profile is STA-only.  Wi-Fi initialization and all AP-side
 		SDK-facing workers are owned by AP logical CPU0.
+
+config BK7258_WIFI_PACKET_DIAG
+	bool "CP Wi-Fi DHCP packet boundary diagnostics"
+	default n
+	depends on BK7258_WIFI_VNET && !BK7258_AP_CORE
+	---help---
+		Wrap the immutable SDK's CP Ethernet receive and lwIP UDP transmit
+		boundaries with observation-only DHCP counters.  The wrapper records
+		message type, transaction ID and bounded packet metadata without
+		logging credentials or changing packet contents.  Enable this only in
+		a diagnostic profile; g_bk7258_wifi_packet_diag can be sampled through
+		SWD after a bounded connection attempt.
 
 config BK7258_WIFI_CONTROL_PRIORITY
 	int "N16 AP Wi-Fi control worker priority"

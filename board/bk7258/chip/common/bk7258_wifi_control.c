@@ -50,6 +50,11 @@
 #include <arch/chip/bk7258_rptun.h>
 #include <arch/chip/bk7258_wifi.h>
 
+#if defined(CONFIG_BK7258_WIFI_PACKET_DIAG) && \
+    !defined(CONFIG_BK7258_AP_CORE)
+#  include "bk7258_wifi_packet_diag.h"
+#endif
+
 #include "bk7258_rptun.h"
 
 /****************************************************************************
@@ -965,6 +970,11 @@ static int bk7258_wifi_connect(
     {
       return -EINVAL;
     }
+
+#if defined(CONFIG_BK7258_WIFI_PACKET_DIAG) && \
+    !defined(CONFIG_BK7258_AP_CORE)
+  bk7258_wifi_packet_diag_reset();
+#endif
 
   memset(&config, 0, sizeof(config));
   memcpy(config.ssid, request->ssid, request->ssid_len);

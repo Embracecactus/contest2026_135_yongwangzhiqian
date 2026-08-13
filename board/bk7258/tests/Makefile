@@ -21,12 +21,14 @@ REAL_H  := ../chip/common/bk7258_rptun_mbox.h
 
 TARGET  := $(BUILD)/test_bk7258_rptun_mbox
 POLICY_TARGET := $(BUILD)/test_boot_bl1_policy
+PM_ACTIVITY_TARGET := $(BUILD)/test_bk7258_pm_activity
 POLICY_CFLAGS := -std=c11 -Wall -Wextra -Werror -O1 -g \
 	-fsanitize=address,undefined -fno-omit-frame-pointer
+PM_ACTIVITY_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2
 
 .PHONY: all clean
 
-all: $(TARGET) $(POLICY_TARGET)
+all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET)
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -64,6 +66,15 @@ $(POLICY_TARGET): test_boot_bl1_policy.c \
 	  ../bootloader/boot_bl1_handoff_core.c \
 	  ../bootloader/boot_bl1_policy.c \
 	  -I ../bootloader \
+	  -o $@
+
+$(PM_ACTIVITY_TARGET): test_bk7258_pm_activity.c \
+                      ../chip/common/bk7258_pm_activity.c \
+                      ../chip/common/bk7258_pm_activity.h
+	$(CC) $(PM_ACTIVITY_CFLAGS) \
+	  test_bk7258_pm_activity.c \
+	  ../chip/common/bk7258_pm_activity.c \
+	  -I ../chip/common \
 	  -o $@
 
 clean:

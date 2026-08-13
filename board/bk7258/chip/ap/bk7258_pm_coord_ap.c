@@ -554,6 +554,38 @@ bool bk7258_pm_ap_runtime_ready(void)
          rptun->state == BK7258_RPTUN_STATE_CONNECTED;
 }
 
+bool bk7258_pm_ap_release_peer(void)
+{
+  uint32_t aon;
+
+  if (bk7258_pm_local_cpu() != BK7258_AP_LOGICAL_CPU0)
+    {
+      return false;
+    }
+
+  aon = getreg32(BK7258_AON_PMU_R3_ADDR);
+  if ((aon & BK7258_AON_CP_SLEEP_VOTE_BIT) != 0)
+    {
+      return false;
+    }
+
+  if ((aon & BK7258_AON_AP1_WFI_BIT) == 0)
+    {
+      return true;
+    }
+
+  /* Match the SDK's bounded vPortYieldCore(1) retry semantically.  The
+   * existing one-millisecond mailbox-worker poll supplies the bound between
+   * attempts; completion is the uncached AP1 AON WFI bit, not the edge-send
+   * return value.  Replay revokes a stale software pending claim first: AP1
+   * can otherwise remain in WFI with no hardware mailbox status while every
+   * ordinary scheduler retry is incorrectly coalesced.
+   */
+
+  (void)bk7258_ap_ipi_replay_smp(BK7258_AP_LOGICAL_CPU1);
+  return false;
+}
+
 bool bk7258_pm_ap_ipi_kick(int cpu)
 {
   volatile struct bk7258_pm_ap_core_trace_s *trace;
