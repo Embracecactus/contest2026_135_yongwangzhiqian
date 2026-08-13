@@ -50,6 +50,43 @@ that physical board.  Variant selection does not automatically enable every
 fitted peripheral; Kconfig still controls driver ownership and pin-compatible
 profiles.
 
+## Peripheral configuration boundary
+
+The physical-board directory is the owner of every fixed electrical fact, not
+only LED and key GPIOs.  This includes fitted-device capability, pin routes,
+polarity, pull/drive policy, bus instance, device address or chip select,
+board-device frequency limits, LCD timing, SD-card detect and mutually
+exclusive connector routes.  A value may live in `bk7258_board_config.h` or in
+a board-local binding structure when it is used only by that binding.
+
+The shared `chip/` wrappers own BK7258 controller mechanics and the NuttX
+lower-half contract.  They must not describe a T5-Board connector or attached
+part.  In particular, the generic I2C wrapper applies each message's
+`frequency`, and the generic SPI wrapper applies the upper half's frequency,
+mode and word width.  Those runtime transaction values are not global board
+constants.  Only a fixed device such as the GT1151 or camera supplies a
+board-device default or maximum through its selected-board binding.
+
+`bk7258_peripherals_initialize()` may initialize enabled generic controllers.
+The selected board's `bk7258_board_early_initialize()` and
+`bk7258_board_devices_initialize()` hooks own attached-device registration and
+its ordering relative to those controllers.  A new physical board therefore
+adds its own header and hook implementation; it does not add board-name tests
+or pin literals to the shared chip orchestration.
+
+The rule is applied by peripheral class as follows:
+
+| Peripheral class | Configuration owner |
+|---|---|
+| UART, hardware I2C/SPI/I2S, PWM, ADC and timer controllers | Kconfig selects an SoC unit/channel and initial policy; standard NuttX calls control baud, message frequency, SPI mode/width, PWM waveform, sample channel or timeout at runtime |
+| LCD, touch, camera, SD card and other fitted devices | Selected-board header and binding own pins, polarity, bus attachment, address/CS, limits and registration |
+| CAN and QSPI fixed mux groups | Shared wrapper owns the SoC-fixed route; the selected product profile must choose a conflict-free owner before exposing a connector device |
+| RTC, TRNG, DMA and media accelerators | Chip-level resources with no physical-board pin database |
+
+A defconfig is therefore a product feature profile, not a board description.
+Several profiles may select the same board; another board may select an
+equivalent feature set without duplicating that board's electrical database.
+
 On T5-Board, switch bank S1 connects the on-board CH342F download/log UARTs
 to pins shared with SD D2/D3 and the P1 LED.  Keep SD in 1-bit mode while the
 UART paths are active.  A console-enabled build deliberately leaves P1 under

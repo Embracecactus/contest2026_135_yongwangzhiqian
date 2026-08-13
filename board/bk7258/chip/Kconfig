@@ -1127,7 +1127,7 @@ config BK7258_GPIO_FOUNDATION_TEST
 	select NSH_BUILTIN_APPS
 	---help---
 		Build the manual bkgpioc0 NSH command. The command exercises the
-		the selected board's active-high LED and active-low user key using
+		selected board's LED and user key with their declared polarity using
 		polling only, then restores both pin states. It never runs
 		from board bring-up and does not enable GPIO interrupts.
 
@@ -1149,8 +1149,8 @@ config BK7258_GPIO_LOWERHALF
 	depends on BK7258_SDK_IRQ_BRIDGE
 	select DEV_GPIO
 	---help---
-		Register the selected board's active-high LED as /dev/gpio0 and its
-		active-low user key as /dev/gpio1 through the standard NuttX GPIO
+		Register the selected board's LED as /dev/gpio0 and its user key as
+		/dev/gpio1 through the standard NuttX GPIO
 		upper half. The key supports one selected rising or falling edge
 		at a time; level, both-edge, wakeup and debounce modes are not
 		supported. If the board LED pin is owned by UART1 or the selected
@@ -1319,10 +1319,13 @@ config BK7258_I2C
 	select I2C_DRIVER
 
 config BK7258_I2C_BUS
-	int "I2C device minor"
+	int "I2C controller"
 	default 0
-	range 0 15
+	range 0 1
 	depends on BK7258_I2C
+	help
+		Select the BK7258 hardware I2C unit and matching /dev/i2cN bus
+		number.  Transfer frequency remains a per-message NuttX setting.
 
 config BK7258_I2S
 	bool "I2S lower half"
@@ -1719,12 +1722,10 @@ config BK7258_SPI_BUS
 	default 0
 	range 0 1
 	depends on BK7258_SPI
-
-config BK7258_SPI_TIMEOUT_MS
-	int "SPI transfer timeout (ms)"
-	default 1000
-	range 1 10000
-	depends on BK7258_SPI
+	help
+		Select the BK7258 hardware SPI unit and matching /dev/spiN bus
+		number.  Frequency, clock mode and word width remain runtime NuttX
+		SPI settings supplied by the attached device or SPI character driver.
 
 config BK7258_QSPI
 	bool "QSPI controller lower half"

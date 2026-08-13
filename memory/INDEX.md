@@ -44,6 +44,9 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 ## Current verified baseline
 
 - Read [Current Progress](../progress/CURRENT.md) for the branch, publication/merge state, next action, and rollback point.
+- The current bringup/physical-board layering and its Classic/CMake build
+  evidence are recorded in the
+  [2026-08-13 board-layer verification](../progress/verification/2026-08-13-bk7258-bringup-board-layers.md).
 - The complete three-core coordinated low-voltage PM implementation, the
   official-SDK/Tuya wrapper audit, the final signed build matrix and the
   non-halting COM3/P0-P1 board proof are recorded in the

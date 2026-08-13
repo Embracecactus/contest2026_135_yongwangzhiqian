@@ -40,6 +40,17 @@
   ((gpio_id_t)BK7258_BOARD_USER_BUTTON_GPIO)
 #define BK7258_GPIO_LED_MINOR               0
 #define BK7258_GPIO_KEY_MINOR               1
+#define BK7258_GPIO_LED_INACTIVE_LEVEL      \
+  (BK7258_BOARD_USER_LED_ACTIVE_HIGH == 0)
+#if BK7258_BOARD_USER_BUTTON_ACTIVE_LOW
+#  define BK7258_GPIO_KEY_DEFAULT_PINTYPE   GPIO_INTERRUPT_FALLING_PIN
+#  define BK7258_GPIO_KEY_DEFAULT_IRQ       GPIO_INT_TYPE_FALLING_EDGE
+#  define BK7258_GPIO_KEY_PULL_MODE         GPIO_PULL_UP_EN
+#else
+#  define BK7258_GPIO_KEY_DEFAULT_PINTYPE   GPIO_INTERRUPT_RISING_PIN
+#  define BK7258_GPIO_KEY_DEFAULT_IRQ       GPIO_INT_TYPE_RISING_EDGE
+#  define BK7258_GPIO_KEY_PULL_MODE         GPIO_PULL_DOWN_EN
+#endif
 #if (defined(CONFIG_BK7258_UART1) && \
      BK7258_BOARD_USER_LED_CONSOLE_SHARED) || \
     (defined(CONFIG_BK7258_SWD_DEBUG) && \
@@ -66,10 +77,12 @@ _Static_assert(BK7258_BOARD_USER_BUTTON_GPIO < GPIO_NUM,
 _Static_assert(BK7258_BOARD_USER_LED_GPIO !=
                BK7258_BOARD_USER_BUTTON_GPIO,
                "board LED and button GPIOs must differ");
-_Static_assert(BK7258_BOARD_USER_LED_ACTIVE_HIGH == 1,
-               "GPIO lower-half currently requires an active-high LED");
-_Static_assert(BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 1,
-               "GPIO lower-half currently requires an active-low button");
+_Static_assert(BK7258_BOARD_USER_LED_ACTIVE_HIGH == 0 ||
+               BK7258_BOARD_USER_LED_ACTIVE_HIGH == 1,
+               "board LED polarity must be boolean");
+_Static_assert(BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 0 ||
+               BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 1,
+               "board button polarity must be boolean");
 _Static_assert(INT_SRC_GPIO == 55,
                "GPIO lower-half requires GPIO_S source 55");
 
@@ -157,7 +170,7 @@ static const gpio_config_t g_bk7258_gpio_led_config =
 static const gpio_config_t g_bk7258_gpio_key_config =
 {
   .io_mode = GPIO_INPUT_ENABLE,
-  .pull_mode = GPIO_PULL_UP_EN,
+  .pull_mode = BK7258_GPIO_KEY_PULL_MODE,
   .func_mode = GPIO_SECOND_FUNC_DISABLE,
 };
 
@@ -181,7 +194,7 @@ static struct bk7258_gpio_interrupt_s g_bk7258_gpio_key =
 {
   .gpio =
     {
-      .gp_pintype = GPIO_INTERRUPT_FALLING_PIN,
+      .gp_pintype = BK7258_GPIO_KEY_DEFAULT_PINTYPE,
       .gp_ops = &g_bk7258_gpio_key_ops,
     },
   .lock = NXMUTEX_INITIALIZER,
@@ -321,6 +334,9 @@ static int bk7258_gpio_key_interrupt_type(
   switch (pintype)
     {
       case GPIO_INTERRUPT_PIN:
+        *type = BK7258_GPIO_KEY_DEFAULT_IRQ;
+        return OK;
+
       case GPIO_INTERRUPT_FALLING_PIN:
         *type = GPIO_INT_TYPE_FALLING_EDGE;
         return OK;
@@ -803,14 +819,16 @@ int bk7258_gpio_lowerhalf_initialize(void)
         }
 
       led_configured = true;
-      result = bk7258_gpio_result(
-                 bk_gpio_set_output_low(BK7258_GPIO_LED_PIN));
+      error = BK7258_GPIO_LED_INACTIVE_LEVEL ?
+                bk_gpio_set_output_high(BK7258_GPIO_LED_PIN) :
+                bk_gpio_set_output_low(BK7258_GPIO_LED_PIN);
+      result = bk7258_gpio_result(error);
       if (result < 0)
         {
           goto restore;
         }
 
-      g_bk7258_gpio_led.value = false;
+      g_bk7258_gpio_led.value = BK7258_GPIO_LED_INACTIVE_LEVEL;
     }
 
   result = bk7258_gpio_result(

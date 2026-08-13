@@ -10,7 +10,8 @@
  * because an absent daughter board must not park the AP.  GPIOE remains an
  * object-only lower half: a board consumer must explicitly choose and claim
  * each pin before publishing a GPIO character device.
- * The LCD wrapper registers its PSRAM-backed framebuffer directly.
+ * The selected board hook registers attached display, touch and camera
+ * devices after their generic controller lower halves are available.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -37,9 +38,6 @@
 #ifdef CONFIG_BK7258_I2S
 #  include <nuttx/audio/i2s.h>
 #  include <arch/chip/bk7258_i2s.h>
-#endif
-#ifdef CONFIG_BK7258_LCD
-#  include <arch/chip/bk7258_lcd.h>
 #endif
 #ifdef CONFIG_BK7258_MIC
 #  include <arch/chip/bk7258_mic.h>
@@ -210,7 +208,7 @@ static void bk7258_spi_bind(void)
     }
 
 #ifdef CONFIG_SPI_DRIVER
-  ret = spi_register(spi, 0);
+  ret = spi_register(spi, CONFIG_BK7258_SPI_BUS);
   if (ret < 0)
     {
       spierr("ERROR: spi_register failed: %d\n", ret);
@@ -307,13 +305,16 @@ int bk7258_peripherals_initialize(void)
     }
 #endif
 
-#ifdef CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
-  ret = bk7258_t5_board_rgb_lcd_backlight_validation_initialize();
+  /* Board-specific early consumers run only after their generic controller
+   * lower halves are available.  The selected physical-board implementation
+   * owns pin, polarity, pull, bus-device and conflict policy.
+   */
+
+  ret = bk7258_board_early_initialize();
   if (ret < 0)
     {
       return ret;
     }
-#endif
 
 #ifdef CONFIG_BK7258_RTC
   ret = bk7258_rtc_initialize();
@@ -368,29 +369,11 @@ int bk7258_peripherals_initialize(void)
   bk7258_spi_bind();
 #endif
 
-#ifdef CONFIG_BK7258_LCD
-  ret = bk7258_lcd_initialize();
+  ret = bk7258_board_devices_initialize();
   if (ret < 0)
     {
-      lcderr("ERROR: LCD framebuffer registration failed: %d\n", ret);
+      _err("ERROR: board device registration failed: %d\n", ret);
     }
-#endif
-
-#ifdef CONFIG_BK7258_GT1151
-  ret = bk7258_board_gt1151_initialize();
-  if (ret < 0)
-    {
-      ierr("ERROR: GT1151 registration failed: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_BK7258_T5_BOARD_CAMERA
-  ret = bk7258_t5_board_camera_initialize();
-  if (ret < 0)
-    {
-      verr("ERROR: T5-Board camera registration failed: %d\n", ret);
-    }
-#endif
 
 #ifdef CONFIG_BK7258_USBHOST
   bk7258_usbhost_bind();

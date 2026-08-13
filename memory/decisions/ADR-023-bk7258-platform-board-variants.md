@@ -32,6 +32,14 @@ fork the boot chain and dual-core implementation.
    revision changes a software-visible electrical contract.
 7. Do not treat Tuya's `TUYA_T5AI_EVB` mapping as T5-Board evidence; the two
    schematics have different pin assignments.
+8. Let each physical-board variant own every fixed electrical fact: fitted
+   capability, pin route, polarity, pull/drive policy, bus attachment,
+   address/chip-select, fixed-device frequency limits, panel timing and route
+   conflicts.  Keep generic controller mechanics and runtime I2C/SPI
+   transaction parameters in the shared chip wrapper and NuttX upper half.
+9. Register attached devices through selected-board early/device hooks.  Keep
+   mandatory platform lifetime initialization and application filesystem/MTD
+   bringup in separate shared layers instead of one board-name-aware function.
 
 ## Consequences
 
@@ -40,6 +48,10 @@ fork the boot chain and dual-core implementation.
   migration.
 - One driver implementation can consume the selected board's LED, key and
   other wiring without duplicating chip code.
+- New physical boards provide a variant header and hook implementation rather
+  than adding board-name tests or connector pin literals to `chip/`.
+- Product defconfigs select a board and feature set; they do not become the
+  canonical store for fixed board wiring or shared-bus transaction policy.
 - T5AI-Core retains the current hardware evidence.  T5-Board remains
   schematic-verified until separately tested.
 - A genuinely different future BK7258 module or board can be added as another

@@ -16,7 +16,7 @@
  *     -> bk_i2c_set_baud_rate(id, msg->frequency)
  *       -> bk_i2c_master_write / bk_i2c_master_read            (single seg)
  *       -> bk_i2c_memory_write / bk_i2c_memory_read            (reg+data)
- *         -> Beken hardware I2C unit (id 0)
+ *         -> configured Beken hardware I2C unit
  *
  * Notes on SDK behaviour that shaped this driver (verified against the
  * v3.1.1.9 headers, not assumed):
@@ -87,7 +87,7 @@ struct bk7258_i2c_priv_s
 {
   struct i2c_master_s dev;        /* NuttX lower-half vtable anchor */
   mutex_t lock;                   /* Serialize transfers on the unit */
-  i2c_id_t id;                    /* BK7258 I2C unit id (I2C_ID_0) */
+  i2c_id_t id;                    /* Configured BK7258 I2C unit */
   uint32_t baud;                  /* Last baud rate applied */
   bool initialized;               /* bk_i2c_init() done for this unit */
   bool driver_init;               /* bk_i2c_driver_init() done */

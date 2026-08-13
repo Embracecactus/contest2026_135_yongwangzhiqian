@@ -21,8 +21,8 @@
 #define BK7258_BOARD_HAS_RGB_LCD_CONNECTOR       1
 #define BK7258_BOARD_HAS_SPI_LCD_CONNECTOR       1
 #define BK7258_BOARD_HAS_DVP_CONNECTOR           1
-#define BK7258_BOARD_HAS_NATIVE_USB_HOST          1
-#define BK7258_BOARD_HAS_GT1151_TOUCH             1
+#define BK7258_BOARD_HAS_NATIVE_USB_HOST         1
+#define BK7258_BOARD_HAS_GT1151_TOUCH            1
 
 #define BK7258_BOARD_USER_LED_GPIO               1
 #define BK7258_BOARD_USER_LED_ACTIVE_HIGH        1
@@ -42,6 +42,7 @@
 #define BK7258_BOARD_LCD_RESET_GPIO               53
 #define BK7258_BOARD_LCD_BACKLIGHT_GPIO           9
 #define BK7258_BOARD_LCD_BACKLIGHT_PWM_CHAN        3
+#define BK7258_BOARD_LCD_BACKLIGHT_PWM_FREQUENCY 1000u
 #define BK7258_BOARD_LCD_BACKLIGHT_ACTIVE_HIGH    1
 
 /* SPI LCD sub-board wiring supplied for the T5-Board expansion connector.
@@ -56,6 +57,7 @@
 
 #define BK7258_BOARD_TOUCH_I2C_BUS                0
 #define BK7258_BOARD_TOUCH_I2C_ADDRESS            0x14
+#define BK7258_BOARD_TOUCH_I2C_MAX_FREQUENCY     100000u
 #define BK7258_BOARD_TOUCH_I2C_SCL_GPIO           13
 #define BK7258_BOARD_TOUCH_I2C_SDA_GPIO           15
 #define BK7258_BOARD_TOUCH_INTERRUPT_GPIO         55
@@ -68,6 +70,7 @@
  * routes from being initialized at the same time. */
 
 #define BK7258_BOARD_DVP_I2C_BUS                  2
+#define BK7258_BOARD_DVP_I2C_FREQUENCY           100000u
 #define BK7258_BOARD_DVP_I2C_SCL_GPIO            13
 #define BK7258_BOARD_DVP_I2C_SDA_GPIO            15
 #define BK7258_BOARD_DVP_RESET_GPIO              51

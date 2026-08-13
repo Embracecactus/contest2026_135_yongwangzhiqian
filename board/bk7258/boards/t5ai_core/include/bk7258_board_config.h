@@ -21,7 +21,10 @@
 #define BK7258_BOARD_HAS_BATTERY                 1
 #define BK7258_BOARD_HAS_TF_CARD                 0
 #define BK7258_BOARD_HAS_RGB_LCD_CONNECTOR       0
+#define BK7258_BOARD_HAS_SPI_LCD_CONNECTOR       0
 #define BK7258_BOARD_HAS_DVP_CONNECTOR           0
+#define BK7258_BOARD_HAS_NATIVE_USB_HOST         0
+#define BK7258_BOARD_HAS_GT1151_TOUCH            0
 
 #define BK7258_BOARD_USER_LED_GPIO               9
 #define BK7258_BOARD_USER_LED_ACTIVE_HIGH        1

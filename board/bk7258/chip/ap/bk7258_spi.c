@@ -17,7 +17,7 @@
  *            -> exchange(tx,rx,len) [xN] -> select(devid,false) -> unlock()
  *     -> bk_spi_set_baud_rate / bk_spi_set_mode / bk_spi_set_bit_width
  *       -> bk_spi_transmit / bk_spi_write_bytes / bk_spi_read_bytes
- *         -> Beken hardware SPI unit (id 0)
+ *         -> configured Beken hardware SPI unit
  *
  * Notes on SDK behaviour that shaped this driver (verified against the
  * v3.1.1.9 headers, not assumed):
@@ -73,10 +73,6 @@
 #  define CONFIG_BK7258_SPI_BUS        0
 #endif
 
-#ifndef CONFIG_BK7258_SPI_TIMEOUT_MS
-#  define CONFIG_BK7258_SPI_TIMEOUT_MS BK7258_SPI_TIMEOUT_MS_DEFAULT
-#endif
-
 /* NuttX SPIDEV_MODE0..3 align 1:1 with Beken SPI_POL_MODE_0..3. */
 
 #define BK7258_SPI_MODE_MAX            3
@@ -89,7 +85,7 @@ struct bk7258_spi_priv_s
 {
   struct spi_dev_s dev;             /* NuttX lower-half vtable anchor */
   mutex_t lock;                     /* NuttX bus lock */
-  spi_id_t id;                      /* BK7258 SPI unit id (SPI_ID_0) */
+  spi_id_t id;                      /* Configured BK7258 SPI unit */
   uint32_t freq;                    /* Cached frequency */
   uint8_t mode;                     /* Cached SPI mode (0..3) */
   uint8_t bits;                     /* Cached bits per word (8/16) */
