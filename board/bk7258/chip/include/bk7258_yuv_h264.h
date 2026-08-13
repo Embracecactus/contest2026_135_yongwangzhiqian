@@ -76,13 +76,16 @@ struct bk7258_yuv_h264_output_s
  * address loop. */
 
 /* Strict single-owner initialization.  The wrapper owns the configured
- * YUV/H.264 instances and one DMA channel until uninitialize.  The SDK
- * *_driver_init roots are shared and intentionally remain owned by the board
- * integration; this helper never deinitializes those global roots.  It cannot
- * coexist with the SDK DVP/H.264 pipeline.  All descriptors and buffers
- * remain caller-owned.  Buffers must be contiguous, 32-bit addressable,
- * DMA-visible and cache coherent; no cache maintenance or allocation is
- * performed here. */
+ * YUV/H.264 instances and one DMA channel until uninitialize.  Failed setup
+ * is rolled back through the same teardown path as normal close.  If an SDK
+ * cleanup operation itself fails, the wrapper retains its ownership tokens
+ * and retries that teardown before accepting a later initialize request.
+ * The SDK *_driver_init roots are shared and intentionally remain owned by
+ * the board integration; this helper never deinitializes those global roots.
+ * It cannot coexist with the SDK DVP/H.264 pipeline.  All descriptors and
+ * buffers remain caller-owned.  Buffers must be contiguous, 32-bit
+ * addressable, DMA-visible and cache coherent; no cache maintenance or
+ * allocation is performed here. */
 
 int bk7258_yuv_h264_initialize(
   FAR struct bk7258_yuv_h264_s **out,

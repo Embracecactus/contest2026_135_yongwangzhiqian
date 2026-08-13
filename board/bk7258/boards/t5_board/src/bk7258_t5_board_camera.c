@@ -713,6 +713,9 @@ out:
 
 static int t5_camera_validation_thread(int argc, FAR char *argv[])
 {
+  int cycle;
+  int ret;
+
   (void)argc;
   (void)argv;
 
@@ -723,7 +726,20 @@ static int t5_camera_validation_thread(int argc, FAR char *argv[])
    */
 
   usleep(T5_CAMERA_VALIDATION_DELAY_US);
-  (void)t5_camera_validate_frame();
+  for (cycle = 1; cycle <= 2; cycle++)
+    {
+      ret = t5_camera_validate_frame();
+      if (ret < 0)
+        {
+          syslog(LOG_ERR, "BKCAM LIFECYCLE FAIL cycle=%d ret=%d\n",
+                 cycle, ret);
+          return 0;
+        }
+
+      syslog(LOG_INFO, "BKCAM LIFECYCLE cycle=%d PASS\n", cycle);
+    }
+
+  syslog(LOG_INFO, "BKCAM LIFECYCLE PASS cycles=2\n");
   return 0;
 }
 #endif

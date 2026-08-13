@@ -70,8 +70,9 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
 FAR struct imgdata_s *bk7258_dvp_get_imgdata(FAR struct bk7258_dvp_s *priv);
 
 /* The object must be stopped and closed by the NuttX video owner before this
- * call.  It releases the wrapper's state but does not free caller-owned
- * frame or encode memory. */
+ * call.  The SDK handle itself is the wrapper's open/close ownership token;
+ * no parallel state flag can hide a half-open handle.  This call releases the
+ * wrapper's state but does not free caller-owned frame or encode memory. */
 
 int bk7258_dvp_uninitialize(FAR struct bk7258_dvp_s *priv);
 
