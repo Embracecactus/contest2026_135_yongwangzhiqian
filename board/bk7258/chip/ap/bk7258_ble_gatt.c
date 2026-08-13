@@ -307,6 +307,7 @@ static int g_init_result;
 static pid_t g_worker = INVALID_PROCESS_ID;
 static bool g_queue_ready;
 static bool g_initialized;
+static bool g_attributes_registered;
 static struct bk7258_ble_gatt_stats_s g_stats =
 {
   .state = BK7258_BLE_GATT_STATE_DISABLED,
@@ -620,6 +621,23 @@ static int bk7258_ble_gatt_start(void)
                               g_scan_response_data);
 }
 
+static void bk7258_ble_gatt_cleanup_worker(void)
+{
+  __atomic_store_n(&g_queue_ready, false, __ATOMIC_RELEASE);
+
+  if (g_worker != INVALID_PROCESS_ID)
+    {
+      (void)kthread_delete(g_worker);
+      g_worker = INVALID_PROCESS_ID;
+    }
+
+  nxsem_destroy(&g_init_sem);
+  nxsem_destroy(&g_event_sem);
+  g_event_head = 0;
+  g_event_tail = 0;
+  g_event_count = 0;
+}
+
 static void bk7258_ble_gatt_process_initialize(void)
 {
   int ret;
@@ -632,7 +650,16 @@ static void bk7258_ble_gatt_process_initialize(void)
       goto failed;
     }
 
-  bt_gatt_register(g_attributes, nitems(g_attributes));
+  /* NuttX exposes no GATT attribute unregister operation.  Treat the
+   * static table as a Host-lifetime root and never register it twice when
+   * advertising initialization is retried after a transient failure.
+   */
+
+  if (!g_attributes_registered)
+    {
+      bt_gatt_register(g_attributes, nitems(g_attributes));
+      g_attributes_registered = true;
+    }
   ret = bk7258_ble_gatt_start();
   if (ret != OK)
     {
@@ -885,11 +912,7 @@ int bk7258_ble_gatt_initialize(void)
   ret = sched_setaffinity(g_worker, sizeof(cpuset), &cpuset);
   if (ret < 0)
     {
-      kthread_delete(g_worker);
-      g_worker = INVALID_PROCESS_ID;
-      __atomic_store_n(&g_queue_ready, false, __ATOMIC_RELEASE);
-      nxsem_destroy(&g_init_sem);
-      nxsem_destroy(&g_event_sem);
+      bk7258_ble_gatt_cleanup_worker();
       return ret;
     }
 #else
@@ -900,6 +923,7 @@ int bk7258_ble_gatt_initialize(void)
   event.type = BK7258_BLE_GATT_EVENT_INITIALIZE;
   if (!bk7258_ble_gatt_queue(&event))
     {
+      bk7258_ble_gatt_cleanup_worker();
       return -EAGAIN;
     }
 
@@ -908,12 +932,15 @@ int bk7258_ble_gatt_initialize(void)
   if (ret < 0)
     {
       bk7258_ble_gatt_set_state(BK7258_BLE_GATT_STATE_FAULTED, ret);
+      bk7258_ble_gatt_cleanup_worker();
       return ret;
     }
 
   if (g_init_result != OK)
     {
-      return g_init_result;
+      ret = g_init_result;
+      bk7258_ble_gatt_cleanup_worker();
+      return ret;
     }
 
   g_initialized = true;

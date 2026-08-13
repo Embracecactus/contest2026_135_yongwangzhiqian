@@ -232,6 +232,11 @@ endif()
 # UP-only list so the normal AP-SMP image and the reduced AP-UP diagnostic
 # image compile the same lower halves.
 
+if(CONFIG_BK7258_DVP OR CONFIG_BK7258_JPEG_ENCODER OR
+   CONFIG_BK7258_YUV_H264 OR CONFIG_BK7258_MIC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_media_root.c)
+endif()
+
 if(CONFIG_BK7258_AUD AND CONFIG_BK7258_MIC)
   message(FATAL_ERROR
     "BK7258_AUD and BK7258_MIC cannot both own the AUD ADC block")

@@ -286,7 +286,9 @@ static int bk7258_i2s_process(FAR struct bk7258_i2s_priv_s *priv,
   uint32_t sample;
   uint32_t offset;
   uint8_t sample_bytes;
+  uint8_t channels;
   clock_t start;
+  bool locked = true;
   int ret;
 
   ret = nxmutex_lock(&priv->lock);
@@ -302,6 +304,8 @@ static int bk7258_i2s_process(FAR struct bk7258_i2s_priv_s *priv,
     }
 
   sample_bytes = (priv->datawidth + 7) / 8;
+  channels = xfer->direction == BK7258_I2S_TX ?
+             priv->txchannels : priv->rxchannels;
   if (sample_bytes == 0 || sample_bytes > sizeof(sample))
     {
       ret = -EINVAL;
@@ -325,12 +329,21 @@ static int bk7258_i2s_process(FAR struct bk7258_i2s_priv_s *priv,
       length = apb->nmaxbytes;
     }
 
-  if (length == 0 || (length % sample_bytes) != 0)
+  if (length == 0 ||
+      (length % ((uint32_t)sample_bytes * channels)) != 0)
     {
       ret = -EINVAL;
       goto out;
     }
 
+  /* active is set before the worker enters this function.  Configuration
+   * setters therefore reject changes until the transfer completes, while
+   * the local snapshot lets producers enqueue behind this transfer instead
+   * of blocking on every FIFO poll.
+   */
+
+  nxmutex_unlock(&priv->lock);
+  locked = false;
   start = clock_systime_ticks();
   for (offset = 0; offset < length; offset += sample_bytes)
     {
@@ -349,6 +362,27 @@ static int bk7258_i2s_process(FAR struct bk7258_i2s_priv_s *priv,
               ret = -EIO;
               goto out;
             }
+
+          /* I2S_LRCOM_STORE_LRLR consumes one FIFO word per wire slot.
+           * A NuttX mono buffer contains one sample per frame, so mirror it
+           * into the second slot.  Stereo buffers already contain L/R in
+           * sequence and need one write per sample.
+           */
+
+          if (channels == 1)
+            {
+              ret = bk7258_i2s_wait_ready(true, start, xfer->timeout);
+              if (ret < 0)
+                {
+                  goto out;
+                }
+
+              if (bk_i2s_write_data(0, &sample, 1) != BK_OK)
+                {
+                  ret = -EIO;
+                  goto out;
+                }
+            }
         }
       else
         {
@@ -359,6 +393,26 @@ static int bk7258_i2s_process(FAR struct bk7258_i2s_priv_s *priv,
             }
 
           bk7258_i2s_pack(&data[offset], priv->datawidth, sample);
+
+          /* Keep the first (left) slot for a mono NuttX stream and consume
+           * the second wire slot so the following sample begins on the next
+           * frame boundary.
+           */
+
+          if (channels == 1)
+            {
+              ret = bk7258_i2s_wait_ready(false, start, xfer->timeout);
+              if (ret < 0)
+                {
+                  goto out;
+                }
+
+              if (bk_i2s_read_data(&sample, 1) != BK_OK)
+                {
+                  ret = -EIO;
+                  goto out;
+                }
+            }
         }
     }
 
@@ -375,7 +429,11 @@ static int bk7258_i2s_process(FAR struct bk7258_i2s_priv_s *priv,
   ret = 0;
 
 out:
-  nxmutex_unlock(&priv->lock);
+  if (locked)
+    {
+      nxmutex_unlock(&priv->lock);
+    }
+
   return ret;
 }
 

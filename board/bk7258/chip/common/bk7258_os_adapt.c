@@ -54,6 +54,7 @@
 #include <sys/stat.h>
 #include <irq/irq.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/event.h>
 #include <nuttx/mqueue.h>
 #include <nuttx/mutex.h>
 #include <nuttx/queue.h>
@@ -1149,8 +1150,48 @@ beken_thread_t *rtos_get_current_thread(void)
 
 bk_err_t rtos_thread_join(beken_thread_t *thread)
 {
-  /* Not fully implemented - stub */
+  pid_t pid;
 
+  if (thread == NULL || *thread == NULL)
+    {
+      return BK_ERR_PARAM;
+    }
+
+  pid = (pid_t)(uintptr_t)*thread;
+
+#ifdef CONFIG_SCHED_WAITPID
+  /* Prefer the kernel join path when the caller is the creating task.  SDK
+   * components also join worker handles from a different service task; in
+   * that case NuttX reports -ECHILD and the v3.1.1.9-compatible finished
+   * polling below supplies the required cross-task semantics.
+   */
+
+  if (nxsched_waitpid(pid, NULL, 0) == pid)
+    {
+      *thread = NULL;
+      return BK_OK;
+    }
+#endif
+
+  for (; ; )
+    {
+      FAR struct tcb_s *tcb = nxsched_get_tcb(pid);
+      int ret;
+
+      if (tcb == NULL)
+        {
+          break;
+        }
+
+      nxsched_put_tcb(tcb);
+      ret = nxsig_usleep(10000u);
+      if (ret < 0 && ret != -EINTR)
+        {
+          return BK_FAIL;
+        }
+    }
+
+  *thread = NULL;
   return BK_OK;
 }
 
@@ -1792,7 +1833,50 @@ bool rtos_is_queue_full(beken_queue_t *queue)
 
 bool rtos_reset_queue(beken_queue_t *queue)
 {
-  /* NuttX does not have a direct mq reset; return success */
+  struct mq_adpt_s *mq_adpt;
+  struct mq_attr attr;
+  FAR char *message;
+  long pending;
+  long i;
+
+  if (queue == NULL || *queue == NULL)
+    {
+      return false;
+    }
+
+  mq_adpt = (struct mq_adpt_s *)*queue;
+  if (file_mq_getattr(&mq_adpt->mq, &attr) < 0)
+    {
+      return false;
+    }
+
+  pending = attr.mq_curmsgs;
+  if (pending == 0)
+    {
+      return true;
+    }
+
+  message = kmm_malloc(mq_adpt->msgsize);
+  if (message == NULL)
+    {
+      return false;
+    }
+
+  /* Drain the snapshot that existed when reset began.  A producer that
+   * sends after this point is a post-reset message and must remain queued,
+   * matching xQueueReset()'s critical-section boundary.
+   */
+
+  for (i = 0; i < pending; i++)
+    {
+      if (file_mq_tickreceive(&mq_adpt->mq, message, mq_adpt->msgsize,
+                              NULL, 0) < 0)
+        {
+          break;
+        }
+    }
+
+  kmm_free(message);
 
   return true;
 }
@@ -1803,16 +1887,21 @@ bool rtos_reset_queue(beken_queue_t *queue)
 
 bk_err_t rtos_init_event_flags(beken_event_t *event_flags)
 {
-  sem_t *sem;
+  FAR nxevent_t *event;
 
-  sem = kmm_malloc(sizeof(sem_t));
-  if (!sem)
+  if (event_flags == NULL)
+    {
+      return BK_ERR_PARAM;
+    }
+
+  event = kmm_malloc(sizeof(*event));
+  if (event == NULL)
     {
       return BK_FAIL;
     }
 
-  nxsem_init(sem, 0, 0);
-  *event_flags = sem;
+  nxevent_init(event, 0);
+  *event_flags = event;
 
   return BK_OK;
 }
@@ -1824,39 +1913,71 @@ beken_event_flags_t rtos_wait_for_event_flags(
     beken_event_flags_wait_option_t wait_option,
     uint32_t timeout_ms)
 {
-  sem_t *sem = (sem_t *)(*event_flags);
-  int ret;
+  FAR nxevent_t *event;
+  nxevent_flags_t flags = 0;
+  nxevent_mask_t result;
+
+  if (event_flags == NULL || *event_flags == NULL ||
+      flags_to_wait_for == 0)
+    {
+      return 0;
+    }
+
+  event = (FAR nxevent_t *)*event_flags;
+
+  if (wait_option == WAIT_FOR_ALL_EVENTS)
+    {
+      flags |= NXEVENT_WAIT_ALL;
+    }
+
+  if (!clear_set_flags)
+    {
+      flags |= NXEVENT_WAIT_NOCLEAR;
+    }
 
   if (timeout_ms == BEKEN_WAIT_FOREVER)
     {
-      ret = nxsem_wait(sem);
+      result = nxevent_wait(event, flags_to_wait_for, flags);
     }
   else if (timeout_ms == 0)
     {
-      ret = nxsem_trywait(sem);
+      result = nxevent_trywait(event, flags_to_wait_for, flags);
     }
   else
     {
-      ret = nxsem_tickwait(sem, MSEC2TICK(timeout_ms));
+      result = nxevent_tickwait(event, flags_to_wait_for, flags,
+                                MSEC2TICK(timeout_ms));
     }
 
-  return ret == OK ? flags_to_wait_for : 0;
+  return (beken_event_flags_t)result;
 }
 
 void rtos_set_event_flags(beken_event_t *event_flags,
                           uint32_t flags_to_set)
 {
-  sem_t *sem = (sem_t *)(*event_flags);
+  FAR nxevent_t *event;
 
-  nxsem_post(sem);
+  if (event_flags == NULL || *event_flags == NULL || flags_to_set == 0)
+    {
+      return;
+    }
+
+  event = (FAR nxevent_t *)*event_flags;
+  (void)nxevent_post(event, flags_to_set, NXEVENT_POST_ALL);
 }
 
 beken_event_flags_t rtos_clear_event_flags(beken_event_t *event_flags,
                                            uint32_t flags_to_clear)
 {
-  /* Stub - return 0 */
+  FAR nxevent_t *event;
 
-  return 0;
+  if (event_flags == NULL || *event_flags == NULL)
+    {
+      return 0;
+    }
+
+  event = (FAR nxevent_t *)*event_flags;
+  return (beken_event_flags_t)nxevent_clear(event, flags_to_clear);
 }
 
 beken_event_flags_t rtos_sync_event_flags(beken_event_t *event_flags,
@@ -1864,18 +1985,69 @@ beken_event_flags_t rtos_sync_event_flags(beken_event_t *event_flags,
                                           uint32_t flags_to_wait_for,
                                           uint32_t timeout_ms)
 {
-  rtos_set_event_flags(event_flags, flags_to_set);
+  FAR nxevent_t *event;
+  nxevent_mask_t result;
 
-  return rtos_wait_for_event_flags(event_flags, flags_to_wait_for,
-                                   true, WAIT_FOR_ANY_EVENT, timeout_ms);
+  if (event_flags == NULL || *event_flags == NULL ||
+      flags_to_wait_for == 0)
+    {
+      return 0;
+    }
+
+  event = (FAR nxevent_t *)*event_flags;
+
+  /* Keep the barrier bits live while nxevent_post() releases every existing
+   * waiter.  The posting (last-arriving) task then observes the same mask;
+   * clearing after its wait is safe because already released waiters retain
+   * their matched result in their private wait objects.
+   */
+
+  (void)nxevent_post(event, flags_to_set, NXEVENT_POST_ALL);
+
+  if (timeout_ms == BEKEN_WAIT_FOREVER)
+    {
+      result = nxevent_wait(event, flags_to_wait_for,
+                            NXEVENT_WAIT_ALL | NXEVENT_WAIT_NOCLEAR);
+    }
+  else if (timeout_ms == 0)
+    {
+      result = nxevent_trywait(event, flags_to_wait_for,
+                               NXEVENT_WAIT_ALL | NXEVENT_WAIT_NOCLEAR);
+    }
+  else
+    {
+      result = nxevent_tickwait(event, flags_to_wait_for,
+                                NXEVENT_WAIT_ALL | NXEVENT_WAIT_NOCLEAR,
+                                MSEC2TICK(timeout_ms));
+    }
+
+  if ((result & flags_to_wait_for) == flags_to_wait_for)
+    {
+      (void)nxevent_clear(event, flags_to_wait_for);
+    }
+
+  return (beken_event_flags_t)result;
 }
 
 bk_err_t rtos_deinit_event_flags(beken_event_t *event_flags)
 {
-  sem_t *sem = (sem_t *)(*event_flags);
+  FAR nxevent_t *event;
+  int ret;
 
-  nxsem_destroy(sem);
-  kmm_free(sem);
+  if (event_flags == NULL || *event_flags == NULL)
+    {
+      return BK_ERR_PARAM;
+    }
+
+  event = (FAR nxevent_t *)*event_flags;
+  ret = nxevent_destroy(event);
+  if (ret < 0)
+    {
+      return BK_FAIL;
+    }
+
+  kmm_free(event);
+  *event_flags = NULL;
 
   return BK_OK;
 }

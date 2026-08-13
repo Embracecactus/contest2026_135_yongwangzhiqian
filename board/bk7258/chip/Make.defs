@@ -387,6 +387,9 @@ bk7258_t5_board_rgb_lcd_backlight.ddc: bk7258_t5_board_rgb_lcd_backlight.c
 	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
 		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
 endif
+ifneq ($(filter y,$(CONFIG_BK7258_DVP) $(CONFIG_BK7258_JPEG_ENCODER) $(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_MIC)),)
+BK7258_AP_BASE_CSRCS += bk7258_media_root.c
+endif
 ifeq ($(CONFIG_BK7258_DVP),y)
 BK7258_AP_BASE_CSRCS += bk7258_dvp.c
 endif

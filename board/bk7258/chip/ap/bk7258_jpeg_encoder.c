@@ -30,6 +30,7 @@
 #include <driver/yuv_buf.h>
 
 #include "../include/bk7258_jpeg_encoder.h"
+#include "bk7258_media_root.h"
 
 #define BK7258_JPEG_ENCODER_FLEXA_LINES       8u
 #define BK7258_JPEG_ENCODER_PIXEL_BYTES       2u
@@ -67,10 +68,7 @@ struct bk7258_jpeg_encoder_s
   yuv_format_t format;
 
   dma_id_t dma;
-  bool dma_driver_ready;
   bool dma_ready;
-  bool jpeg_driver_ready;
-  bool yuv_driver_ready;
   bool jpeg_ready;
   bool yuv_ready;
   bool callbacks_ready;
@@ -750,23 +748,6 @@ static void bk7258_jpeg_encoder_cleanup_failed(
       priv->dma = DMA_ID_MAX;
     }
 
-  if (priv->yuv_driver_ready)
-    {
-      (void)bk_yuv_buf_driver_deinit();
-      priv->yuv_driver_ready = false;
-    }
-
-  if (priv->jpeg_driver_ready)
-    {
-      (void)bk_jpeg_enc_driver_deinit();
-      priv->jpeg_driver_ready = false;
-    }
-
-  if (priv->dma_driver_ready)
-    {
-      (void)bk_dma_driver_deinit();
-      priv->dma_driver_ready = false;
-    }
 }
 
 static int bk7258_jpeg_encoder_abort_locked(
@@ -890,10 +871,7 @@ int bk7258_jpeg_encoder_initialize(
     }
 
   priv->faulted = false;
-  priv->dma_driver_ready = false;
   priv->dma_ready = false;
-  priv->jpeg_driver_ready = false;
-  priv->yuv_driver_ready = false;
   priv->jpeg_ready = false;
   priv->yuv_ready = false;
   priv->callbacks_ready = false;
@@ -925,29 +903,11 @@ int bk7258_jpeg_encoder_initialize(
   priv->block_bytes = (uint32_t)block_bytes;
   priv->block_count = config->height / BK7258_JPEG_ENCODER_FLEXA_LINES;
 
-  sdkret = bk_dma_driver_init();
-  ret = bk7258_jpeg_encoder_sdk_error(sdkret);
+  ret = bk7258_media_root_initialize(BK7258_MEDIA_ROOT_JPEG);
   if (ret < 0)
     {
       goto fail;
     }
-  priv->dma_driver_ready = true;
-
-  sdkret = bk_yuv_buf_driver_init();
-  ret = bk7258_jpeg_encoder_sdk_error(sdkret);
-  if (ret < 0)
-    {
-      goto fail;
-    }
-  priv->yuv_driver_ready = true;
-
-  sdkret = bk_jpeg_enc_driver_init();
-  ret = bk7258_jpeg_encoder_sdk_error(sdkret);
-  if (ret < 0)
-    {
-      goto fail;
-    }
-  priv->jpeg_driver_ready = true;
 
   priv->dma = bk_fixed_dma_alloc(DMA_DEV_JPEG, BK7258_JPEG_ENCODER_DMA_CHANNEL);
   if (priv->dma == DMA_ID_MAX)
@@ -1146,51 +1106,7 @@ int bk7258_jpeg_encoder_uninitialize(
         }
     }
 
-  if (priv->yuv_driver_ready && !priv->yuv_ready)
-    {
-      sdkret = bk_yuv_buf_driver_deinit();
-      ret = bk7258_jpeg_encoder_sdk_error(sdkret);
-      if (ret < 0 && first_error == 0)
-        {
-          first_error = ret;
-        }
-      if (ret >= 0)
-        {
-          priv->yuv_driver_ready = false;
-        }
-    }
-
-  if (priv->jpeg_driver_ready && !priv->jpeg_ready)
-    {
-      sdkret = bk_jpeg_enc_driver_deinit();
-      ret = bk7258_jpeg_encoder_sdk_error(sdkret);
-      if (ret < 0 && first_error == 0)
-        {
-          first_error = ret;
-        }
-      if (ret >= 0)
-        {
-          priv->jpeg_driver_ready = false;
-        }
-    }
-
-  if (priv->dma_driver_ready && !priv->dma_ready)
-    {
-      sdkret = bk_dma_driver_deinit();
-      ret = bk7258_jpeg_encoder_sdk_error(sdkret);
-      if (ret < 0 && first_error == 0)
-        {
-          first_error = ret;
-        }
-      if (ret >= 0)
-        {
-          priv->dma_driver_ready = false;
-        }
-    }
-
-  if (priv->yuv_ready || priv->jpeg_ready || priv->dma_ready ||
-      priv->yuv_driver_ready || priv->jpeg_driver_ready ||
-      priv->dma_driver_ready)
+  if (priv->yuv_ready || priv->jpeg_ready || priv->dma_ready)
     {
       priv->faulted = true;
       nxmutex_unlock(&priv->api_lock);

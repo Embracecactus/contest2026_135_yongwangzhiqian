@@ -28,6 +28,7 @@
 #include <driver/yuv_buf.h>
 
 #include "../include/bk7258_yuv_h264.h"
+#include "bk7258_media_root.h"
 
 #define BK7258_YUV_H264_DEFAULT_TIMEOUT_MS 5000u
 #define BK7258_YUV_H264_MAX_WIDTH          1920u
@@ -1146,20 +1147,7 @@ int bk7258_yuv_h264_initialize(
   priv->operation_active = false;
   bk7258_yuv_h264_clear_events(priv);
 
-  sdkret = bk_dma_driver_init();
-  ret = bk7258_yuv_h264_sdk_error(sdkret);
-  if (ret < 0)
-    {
-      goto fail;
-    }
-  sdkret = bk_yuv_buf_driver_init();
-  ret = bk7258_yuv_h264_sdk_error(sdkret);
-  if (ret < 0)
-    {
-      goto fail;
-    }
-  sdkret = bk_h264_driver_init();
-  ret = bk7258_yuv_h264_sdk_error(sdkret);
+  ret = bk7258_media_root_initialize(BK7258_MEDIA_ROOT_H264);
   if (ret < 0)
     {
       goto fail;

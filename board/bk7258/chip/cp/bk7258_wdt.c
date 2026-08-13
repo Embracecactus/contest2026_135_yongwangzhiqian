@@ -145,6 +145,7 @@ static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
 {
   struct bk7258_wdt_lowerhalf_s *priv =
     (struct bk7258_wdt_lowerhalf_s *)lower;
+  uint32_t previous;
 
   if (timeout == 0)
     {
@@ -156,6 +157,7 @@ static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
       timeout = BK7258_WDT_MAX_TIMEOUT_MS;
     }
 
+  previous = priv->timeout;
   priv->timeout = timeout;
 
   /* If already running, re-arm with new period.
@@ -163,7 +165,11 @@ static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
 
   if (priv->started)
     {
-      bk_wdt_start(priv->timeout);
+      if (bk_wdt_start(priv->timeout) != BK_OK)
+        {
+          priv->timeout = previous;
+          return -EIO;
+        }
     }
 
   wdinfo("timeout set to %" PRIu32 " ms\n", priv->timeout);
@@ -200,8 +206,6 @@ int bk7258_wdt_initialize(void)
       return OK;
     }
 
-  s_inited = true;
-
   /* Initialize the SDK WDT state, then stop its TIMER_ID2 feeder.  NuttX
    * automonitor owns periodic keepalive through bk_wdt_feed(). */
 
@@ -230,6 +234,8 @@ int bk7258_wdt_initialize(void)
       wderr("ERROR: watchdog_register failed\n");
       return -ENOMEM;
     }
+
+  s_inited = true;
 
   wdinfo("BK7258 WDT registered, default timeout=%" PRIu32 " ms\n",
          priv->timeout);

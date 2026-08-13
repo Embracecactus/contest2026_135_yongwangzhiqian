@@ -22,7 +22,6 @@
     "zero_initialized": [
       "g_schedlock",
       "g_irqlock",
-      "g_assert_lock.0",
       "g_pidhashlock",
       "g_smp_call_lock",
       "g_sigspinlock",
@@ -30,7 +29,12 @@
       "g_bk7258_rptun_mbox_lock",
       "g_bk7258_sdk_irq_lock",
       "g_modifyreg_lock",
-      "g_ramvec_lock",
+      "g_ramvec_lock"
+    ],
+    "zero_initialized_patterns": [
+      "^g_assert_lock(?:\\.[0-9]+)?$"
+    ],
+    "zero_initialized_if_present": [
       "g_bk7258_ap_smp_pending"
     ]
   },
