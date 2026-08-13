@@ -31,6 +31,7 @@
 #include <driver/hal/hal_can_types.h>
 
 #include <arch/chip/bk7258_can.h>
+#include <arch/chip/bk7258_sdk_abi.h>
 
 #if defined(CONFIG_CAN_EXTID) || defined(CONFIG_CAN_FD)
 #  error "BK7258 CAN lower-half requires classic 11-bit CAN configuration"
@@ -39,28 +40,10 @@
 /*
  * The v3.1.1.9 public driver/can.h includes SDK-private gpio_driver.h,
  * spinlock.h, and bk_fifo.h, which are not part of the immutable AP bundle.
- * Keep the public ABI declarations board-owned here; all CAN frame and error
- * types below still come from the exported hal_can_types.h and bk_err.h.
+ * Keep the missing ABI declarations in the board-owned
+ * bk7258_sdk_abi.h boundary; all CAN frame and error types below still come
+ * from the exported hal_can_types.h and bk_err.h.
  */
-
-extern bk_err_t bk_can_driver_init(void);
-extern bk_err_t bk_can_driver_deinit(void);
-extern bk_err_t bk_can_receive(uint8_t *data, uint32_t expect_size,
-                               uint32_t *recv_size, uint32_t timeout);
-extern bk_err_t bk_can_send_ptb(can_frame_s *frame);
-extern void bk_can_register_isr_callback(can_callback_des_t *rx_cb,
-                                         can_callback_des_t *tx_cb);
-extern void bk_can_register_err_callback(can_callback_des_t *err_cb);
-extern bk_err_t can_driver_bit_rate_config(can_bit_rate_e s_speed,
-                                            can_bit_rate_e f_speed);
-extern bk_err_t bk_can_abort_ptb(void);
-extern bk_err_t bk_can_abort_all(void);
-
-/* These HAL functions are exported by immutable libcommon.a. */
-
-extern void can_hal_set_lbmi(uint32_t value);
-extern uint32_t can_hal_get_lbmi(void);
-extern bk_err_t can_hal_ctrl(uint32_t command, void *parameter);
 
 /* The public can_types.h cannot be included in the bundle-only build because
  * of its private header dependencies.  Keep its CAN-specific error values

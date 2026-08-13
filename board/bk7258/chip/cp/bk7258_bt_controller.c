@@ -28,6 +28,7 @@
 #include <nuttx/mutex.h>
 
 #include <arch/chip/bk7258_bt_ipc.h>
+#include <arch/chip/bk7258_sdk_abi.h>
 
 #include <common/bk_err.h>
 #include <components/system.h>
@@ -43,8 +44,6 @@
  * wrapper boundary, so their private structure definitions remain in SDK.
  */
 
-extern uint8_t g_wifi_os_funcs;
-extern uint8_t g_wifi_os_variable;
 extern void bk7258_os_wifi_malloc_zero_begin(void);
 extern void bk7258_os_wifi_malloc_zero_end(void);
 #endif
@@ -58,9 +57,6 @@ extern void bk7258_os_wifi_malloc_zero_end(void);
  */
 
 #ifdef CONFIG_BK7258_BT_IPC
-extern int32_t bt_ipc_init(void);
-extern int __real_bk_bluetooth_init(void);
-extern int __real_bk_bluetooth_deinit(void);
 extern void bk7258_os_bt_ipc_init_begin(void);
 extern void bk7258_os_bt_ipc_init_end(void);
 #endif
@@ -94,77 +90,22 @@ static void bk7258_debug_transport_recover(void)
  * initializers explicitly before the Controller can open RF.
  */
 
-extern void bk_phy_adapter_init(void);
-extern void bk_rf_adapter_init(void);
-extern int bk_cal_if_init(void);
-extern bk_err_t bk_adc_driver_init(void);
-
 /* WIFI_DEFAULT_INIT_CONFIG() normally publishes the SDK-owned callback table
  * through bk_wifi_init().  Bluetooth-only NuttX must not start the SDK Wi-Fi
  * stack, but the shared PHY backend still dereferences g_wifi_funcs for
  * critical-section leaves.
  */
 
-extern void *g_wifi_funcs;
-extern int rwnx_cal_set_rfconfig_WIFIPLL(void);
-extern void bk_delay_us(uint32_t us);
-extern uint32_t rtos_disable_int(void);
-extern void rtos_enable_int(uint32_t int_level);
-extern void sys_hal_enter_low_analog(void);
-extern void sys_hal_exit_low_analog(void);
-
 /* The generated SDK bundle omits partitions_gen.h, so including the private
  * flash_partition.h is not possible.  Keep the small binary ABI used here
- * local and guard the numeric partition IDs against the official v3.1.1.9
- * table at runtime before every read or write.
+ * in the board-private SDK ABI header and guard the numeric partition IDs
+ * against the official v3.1.1.9 table at runtime before every read or write.
  */
-
-struct bk7258_sdk_partition_s
-{
-  uint32_t    owner;
-  const char *description;
-  uint32_t    start;
-  uint32_t    length;
-  uint32_t    options;
-};
-
-extern struct bk7258_sdk_partition_s *
-  bk_flash_partition_get_info(uint32_t partition);
-extern bk_err_t bk_flash_driver_init(void);
-extern bk_err_t bk_flash_partition_read(uint32_t partition,
-                                        uint8_t *buffer, uint32_t offset,
-                                        uint32_t length);
-extern bk_err_t bk_flash_partition_write(uint32_t partition,
-                                         const uint8_t *buffer,
-                                         uint32_t offset, uint32_t length);
-extern bk_err_t bk_spec_flash_write_bytes(uint32_t partition,
-                                          const uint8_t *buffer,
-                                          uint32_t length, uint32_t offset);
-extern bk_err_t bk_trng_driver_init(void);
-extern int bk_rand(void);
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BK7258_SDK_PARTITION_SYS_RF         3u
-#define BK7258_SDK_PARTITION_SYS_NET        4u
-#define BK7258_SDK_SYS_RF_START             0x007fe000u
-#define BK7258_SDK_SYS_NET_START            0x007ff000u
-#define BK7258_SDK_DATA_PARTITION_SIZE      0x00001000u
-#define BK7258_SDK_MAC_RECORD_AREA_OFFSET   0x00000e00u
-#define BK7258_SDK_MAC_RECORD_AREA_SIZE     512u
-#define BK7258_SDK_MAC_RECORD_COUNT         51u
-#define BK7258_SDK_MAC_RECORD_MAGIC         0x4d41u
-#define BK7258_SDK_MAC_OUI0                 0xc8u
-#define BK7258_SDK_MAC_OUI1                 0x47u
-#define BK7258_SDK_MAC_OUI2                 0x8cu
-#define BK7258_WIFI_CAL_WIFI_PLL_SLOT         5u
-#define BK7258_WIFI_DELAY_US_SLOT             66u
-#define BK7258_WIFI_SET_OFDM_PWD_SLOT         73u
-#define BK7258_WIFI_GET_OFDM_PWD_SLOT         74u
-#define BK7258_WIFI_DISABLE_INT_SLOT         140u
-#define BK7258_WIFI_ENTER_LOW_ANALOG_SLOT    205u
 #define BK7258_SYS_CPU_POWER_SLEEP_WAKEUP    0x44010040u
 #define BK7258_SYS_PWD_OFDM                  (1u << 13)
 
@@ -196,43 +137,6 @@ static volatile int g_bk7258_bt_vendor_deinit_result;
 /****************************************************************************
  * Private Types
  ****************************************************************************/
-
-struct bk7258_bt_mac_record_s
-{
-  uint16_t magic;
-  uint8_t  data_crc;
-  uint8_t  header_crc;
-  uint8_t  mac[BK_MAC_ADDR_LEN];
-};
-
-/* The full SDK g_wifi_os_funcs object references the Wi-Fi/LwIP/FreeRTOS
- * closure and must not be pulled into a Bluetooth-only NuttX image.  The
- * immutable PHY backend used by this SDK bundle reaches a small group of
- * wifi_os_funcs_t leaves while entering and leaving DSSS-only mode.  Keep
- * the exact generated-table offsets and leave unrelated Wi-Fi services
- * absent.
- */
-
-struct bk7258_bt_wifi_phy_funcs_s
-{
-  uintptr_t reserved0[BK7258_WIFI_CAL_WIFI_PLL_SLOT];
-  int (*cal_set_wifi_pll)(void);
-  uintptr_t reserved1[BK7258_WIFI_DELAY_US_SLOT -
-                      BK7258_WIFI_CAL_WIFI_PLL_SLOT - 1u];
-  void (*delay_us)(uint32_t us);
-  uintptr_t reserved2[BK7258_WIFI_SET_OFDM_PWD_SLOT -
-                      BK7258_WIFI_DELAY_US_SLOT - 1u];
-  void (*set_ofdm_pwd)(uint32_t value);
-  uint32_t (*get_ofdm_pwd)(void);
-  uintptr_t reserved3[BK7258_WIFI_DISABLE_INT_SLOT -
-                      BK7258_WIFI_GET_OFDM_PWD_SLOT - 1u];
-  uint32_t (*disable_int)(void);
-  void (*enable_int)(uint32_t int_level);
-  uintptr_t reserved4[BK7258_WIFI_ENTER_LOW_ANALOG_SLOT -
-                      BK7258_WIFI_DISABLE_INT_SLOT - 2u];
-  void (*enter_low_analog)(void);
-  void (*exit_low_analog)(void);
-};
 
 static void bk7258_bt_set_ofdm_pwd(uint32_t value)
 {
@@ -272,29 +176,8 @@ static const struct bk7258_bt_wifi_phy_funcs_s g_bk7258_bt_wifi_phy_funcs =
   .exit_low_analog = sys_hal_exit_low_analog,
 };
 
-static_assert(sizeof(struct bk7258_bt_mac_record_s) == 10u,
-              "Beken base-MAC record ABI changed");
-static_assert(offsetof(struct bk7258_bt_wifi_phy_funcs_s,
-                       cal_set_wifi_pll) == 0x014u,
-              "SDK wifi_os_funcs_t Wi-Fi PLL ABI changed");
-static_assert(offsetof(struct bk7258_bt_wifi_phy_funcs_s, delay_us) ==
-              0x108u,
-              "SDK wifi_os_funcs_t delay ABI changed");
-static_assert(offsetof(struct bk7258_bt_wifi_phy_funcs_s, set_ofdm_pwd) ==
-              0x124u,
-              "SDK wifi_os_funcs_t OFDM power ABI changed");
-static_assert(offsetof(struct bk7258_bt_wifi_phy_funcs_s, get_ofdm_pwd) ==
-              0x128u,
-              "SDK wifi_os_funcs_t OFDM power ABI changed");
-static_assert(offsetof(struct bk7258_bt_wifi_phy_funcs_s, disable_int) ==
-              0x230u,
-              "SDK wifi_os_funcs_t interrupt ABI changed");
-static_assert(offsetof(struct bk7258_bt_wifi_phy_funcs_s,
-                       enter_low_analog) == 0x334u,
-              "SDK wifi_os_funcs_t analog-power ABI changed");
-static_assert(offsetof(struct bk7258_bt_wifi_phy_funcs_s, exit_low_analog) ==
-              0x338u,
-              "SDK wifi_os_funcs_t analog-power ABI changed");
+static_assert(BK_MAC_ADDR_LEN == BK7258_SDK_MAC_ADDRESS_SIZE,
+              "Beken MAC address ABI changed");
 
 /****************************************************************************
  * SDK Bluetooth Lifecycle Wrappers

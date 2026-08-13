@@ -5,67 +5,64 @@ Updated by: Codex
 
 ## Active objective
 
-BK7258 per-image CMake parity has been implemented and verified against merged
-baseline `1f31506599d0`.  The worktree is intentionally uncommitted on
-`feat/bk7258-cmake-parity`; the next operation is owner review followed by an
-explicit commit/push request.
+The BK7258 private SDK ABI boundary phase is implemented and verified on top
+of merged baseline `53d826d`.  It is published from
+`refactor/bk7258-sdk-abi-contract` for owner review and merge.
 
-Classic Make remains the signed dual-image packaging and board-flash path.
-This phase proves CMake source/config/archive/link/postbuild parity for
-individual CP/AP images; it does not claim that the CMake artifacts themselves
-were flashed or that `build_dual_image.sh` has a CMake backend.
+This phase centralizes the private v3.1.1.9 declarations and layout guards used
+by AP mailbox/CAN/RTC and CP Bluetooth/shared-PHY code.  It also closes the
+review question around AP IPI routing: the SDK sender transports only
+`param2`, while the receive bridge reconstructs `param0` from the physical
+source endpoint and `param1` from the AP-local CPU index.  Sender-side writes
+to `param0/param1` would therefore not repair or strengthen this protocol.
 
 ## Hardware and debug profiles
 
 - Target: T5-Board. P0/P1 remain dedicated to J-Link SWD, COM3 is the download
   port, and UART1/COM4 is physically switched off and was never opened.
 - The retained profile is signed `cp_nsh_wifi_rtt_mcuboot +
-  ap_smp_wifi_mcuboot`, version `18.6.11`, security counter `65`. RTT0 carries
+  ap_smp_wifi_mcuboot`, version `18.6.12`, security counter `66`. RTT0 carries
   NSH and RTT1 carries syslog. `_SEGGER_RTT` is `0x2802b9a0`.
 - Boot remains BootROM -> board BL1 -> Manifest -> NuttX MCUboot BL2 -> signed
   CP/AP. BL2 holds immediately before CP at `0x2809f7f0` for P0/P1 attach.
 
 ## Implemented
 
-- Added one shared CMake SDK-bundle selector for the `legacy` and `v3.1.1.9`
-  CP/AP roles; invalid or incomplete bundles fail at configure time.
-- Replaced the stale `chip` target and `${BOARD_DIR}` assumptions with the
-  NuttX CMake `arch` target and `${NUTTX_BOARD_DIR}`.
-- Mirrored Classic Make source gates and ordering for PM, RPTUN/tests,
-  peripherals, media, camera, CAN, USB host and physical-board bindings.
-- Mirrored SDK static-library closures, forced archive members, symbol wraps,
-  MCUboot include policy, entry/build-id options and board postbuild output.
-- Added a board-owned CMake 4 compatibility floor for the older bundled
-  OpenAMP/libmetal policy declarations. Official NuttX/apps/SDK remain
-  unchanged.
+- Added `chip/include/bk7258_sdk_abi.h` as the single board-private boundary
+  for immutable SDK symbols, numeric partition details, callback layouts and
+  compile-time ABI guards.
+- Removed the scattered shadow declarations and duplicated callback structures
+  from CAN, RTC and Bluetooth controller wrappers.
+- Centralized AP mailbox route validation and documented the v3.1.1.9
+  send/receive responsibility split.
+- Retained the existing runtime non-cacheable shared-SRAM MPU gate instead of
+  adding redundant cache maintenance to an explicitly non-cacheable region.
 
 ## Verification
 
-- CMake 4.0.2 built four clean profiles: CP/AP drivercheck and CP/AP
-  drivercheck MCUboot. All emitted ELF, raw image and CRC postbuild artifacts.
-- Every ELF has exactly one `_vectors`, `__start` and
-  `systick_initialize`; entry points are in the correct CP/AP XIP partitions.
-- Classic `cp_nsh_drivercheck + ap_smp_drivercheck` dual build passed SDK
-  checksums, partition/factory/RPTUN layout and packaging checks.
-- RPTUN mailbox tests passed `31/31`; PM activity and BL1 policy tests passed;
-  `git diff --check` passed.
-- Signed Classic Make version `18.6.11`/counter `65` was sparsely written over
+- Classic Make full dual `cp_nsh_drivercheck + ap_smp_drivercheck` passed SDK
+  checksum, partition/factory, wrapper and RPTUN-layout checks.
+- CMake CP and AP drivercheck builds passed. RPTUN mailbox tests passed
+  `31/31`; PM activity and BL1 policy tests passed; `git diff --check` passed.
+- The signed version `18.6.12`/counter `66` image was sparsely written over
   COM3. BL1, primary/secondary BL2, CP and AP all passed; LittleFS,
   `usr_config`, calibration, OTP and eFuse were not written. Download evidence:
-  `../../logs/bk7258-auto-debug/20260813-141836`.
-- P0/P1 J-Link identified STAR, observed `VTOR=0x28010800`, released only the
-  BL2 `JLNK` word, and confirmed the live RTT block and preserved pin route.
-- RTT0 reported AP READY, RPTUN CONNECTED, both AP CPUs online and all SMP,
-  affinity, semaphore-wake/loop and lifecycle checks PASSED.
-- `bkrpmsgtest all 20 30000` passed six runs and 240 dual-CPU request/reply
-  operations with zero errors and unchanged heap snapshots. Bluetooth info
-  passed. Final supervisor state was HEALTHY with fault/recovery/consecutive
-  counters `0/0/0`.
+  `../../logs/bk7258-auto-debug/20260813-150348`.
+- P0/P1 J-Link identified STAR, released only the BL2 `JLNK` word, observed
+  `VTOR=0x28010800`, and confirmed that both pins retained function `0x22` and
+  control `0x00050048`.
+- RTT0 `apctl status` reported AP READY, RPTUN CONNECTED, CPU2
+  SCHEDULER_ONLINE and supervisor HEALTHY with zero faults/recoveries/errors.
+- Two J-Link snapshots showed advancing AP/CP heartbeats, bidirectional RPTUN
+  sequence counters, AP SMP requests and CPU1 IPI handler counters. IPI
+  duplicate/lost/send-failure/spurious/stale counters remained zero.
+- CP Bluetooth initialization state showed IPC, MAC, PHY and Wi-Fi controller
+  dependencies ready, one vendor-init call and result zero.
 - Temporary development signing keys were permission `0600`, remained under
   `/tmp`, and were deleted after verification.
 
-Detailed proof and the CMake-versus-board evidence boundary are in the
-[CMake parity verification record](verification/2026-08-13-bk7258-cmake-parity.md).
+Detailed proof and the evidence boundary are in the
+[SDK ABI contract verification record](verification/2026-08-13-bk7258-sdk-abi-contract.md).
 
 ## Fixed constraints
 

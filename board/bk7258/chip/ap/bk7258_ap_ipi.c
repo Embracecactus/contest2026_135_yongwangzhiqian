@@ -30,8 +30,7 @@
 #include <arch/irq.h>
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/irq.h>
-
-#include <driver/mailbox_types.h>
+#include <arch/chip/bk7258_sdk_abi.h>
 
 #include "bk7258_sdk_irq.h"
 
@@ -65,10 +64,6 @@
  * External Function Prototypes
  ****************************************************************************/
 
-extern bk_err_t bk_mailbox_cc_init(void);
-extern bk_err_t bk_mailbox_cc_init_on_current_core(int id);
-extern bk_err_t bk_mailbox_master_send(mailbox_data_t *data, uint8_t src,
-                                        uint8_t dst);
 extern bool bk7258_pm_ap_ipi_kick(int cpu) weak_function;
 
 /****************************************************************************
@@ -208,6 +203,11 @@ static int bk7258_ap_ipi_send(uint32_t type, uint32_t sequence,
     }
 
   memset(&data, 0, sizeof(data));
+
+  /* The v3.1.1.9 mailbox transport sends only param2.  Its receive bridge
+   * reconstructs the source/destination route checked by the ISR below.
+   */
+
   data.param2 = bk7258_ap_ipi_encode(type, sequence);
 
   if (direction >= 0)
@@ -533,7 +533,9 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
   if (type == BK7258_AP_IPI_COMMAND_WAKE)
     {
       if (local_cpu != BK7258_AP_IPI_SECONDARY_CPU ||
-          data->param0 != BK7258_AP_IPI_PRIMARY_ENDPOINT)
+          !bk7258_sdk_mailbox_rx_is(
+            data, BK7258_AP_IPI_PRIMARY_ENDPOINT,
+            BK7258_AP_IPI_SECONDARY_CPU))
         {
           state->spurious_count++;
         }
@@ -554,8 +556,9 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
         BK7258_AP_IPI_PRIMARY_ENDPOINT;
 
       if (!bk7258_ap_smp_state_valid(smp) ||
-          data->param0 != expected_endpoint ||
-          data->param1 != (uint32_t)local_cpu)
+          !bk7258_sdk_mailbox_rx_is(
+            data, (mailbox_endpoint_t)expected_endpoint,
+            (uint32_t)local_cpu))
         {
           state->spurious_count++;
           bk7258_ap_smp_fail(BK7258_AP_SMP_ERROR_BAD_CPU);
@@ -611,8 +614,9 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
   if (type == BK7258_AP_IPI_COMMAND_PING)
     {
       if (local_cpu != BK7258_AP_IPI_SECONDARY_CPU ||
-          data->param0 != BK7258_AP_IPI_PRIMARY_ENDPOINT ||
-          data->param1 != BK7258_AP_IPI_SECONDARY_CPU)
+          !bk7258_sdk_mailbox_rx_is(
+            data, BK7258_AP_IPI_PRIMARY_ENDPOINT,
+            BK7258_AP_IPI_SECONDARY_CPU))
         {
           bk7258_ap_ipi_fail(BK7258_AP_IPI_ERROR_BAD_ENDPOINT);
           return;
@@ -633,8 +637,9 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
   if (type == BK7258_AP_IPI_COMMAND_PONG)
     {
       if (local_cpu != BK7258_AP_IPI_PRIMARY_CPU ||
-          data->param0 != BK7258_AP_IPI_SECONDARY_ENDPOINT ||
-          data->param1 != BK7258_AP_IPI_PRIMARY_CPU)
+          !bk7258_sdk_mailbox_rx_is(
+            data, BK7258_AP_IPI_SECONDARY_ENDPOINT,
+            BK7258_AP_IPI_PRIMARY_CPU))
         {
           bk7258_ap_ipi_fail(BK7258_AP_IPI_ERROR_BAD_ENDPOINT);
           return;

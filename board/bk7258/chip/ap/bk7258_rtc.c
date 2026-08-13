@@ -12,10 +12,9 @@
  * (verified with `nm`), so this wrapper is AP-only like I2C/SPI/SDIO.
  *
  * The SDK's driver/aon_rtc.h includes "sys/time.h" from its own POSIX
- * layer, which does not ship in the bundle.  To avoid that include path we
- * declare the two SDK entry points here (their symbols ARE in libdriver.a)
- * and use NuttX's struct timeval (include/sys/time.h), which is layout
- * compatible with the SDK's.
+ * layer, which does not ship in the bundle.  The board-private SDK ABI header
+ * therefore owns the archive declaration while this lower half uses NuttX's
+ * time representation.
  *
  * The SDK bk_rtc_settimeofday() implementation persists its offset through
  * EasyFlash.  Flash is CP-owned in this port, so calling that API from AP
@@ -41,18 +40,11 @@
 #include <nuttx/spinlock.h>
 
 #include <arch/chip/bk7258_rtc.h>
+#include <arch/chip/bk7258_sdk_abi.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-/* SDK AON RTC driver entry points.  Declared here instead of including
- * <driver/aon_rtc.h> because that header pulls the SDK's own
- * "sys/time.h" (not shipped in the bundle) and would clash with NuttX's.
- * The symbols themselves are present in the AP libdriver.a.
- */
-
-extern uint64_t bk_aon_rtc_get_us(void);
 
 /****************************************************************************
  * Private Types
