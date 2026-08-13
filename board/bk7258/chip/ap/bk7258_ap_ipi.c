@@ -383,7 +383,7 @@ int bk7258_ap_ipi_secondary_initialize(void)
 }
 
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
-int bk7258_ap_ipi_send_smp(int target_cpu)
+static int bk7258_ap_ipi_send_smp_internal(int target_cpu, bool replay)
 {
   volatile struct bk7258_ap_smp_state_s *state = bk7258_ap_smp_state();
   uint32_t command;
@@ -408,6 +408,20 @@ int bk7258_ap_ipi_send_smp(int target_cpu)
       return -EINVAL;
     }
 
+  /* A coordinated-PM RELEASE is a level-to-edge conversion.  If AP1 entered
+   * deep WFI after the original scheduler edge was consumed or lost, the
+   * software pending bit can remain set while the hardware mailbox FIFO and
+   * interrupt status are both empty.  Ordinary scheduler sends must still
+   * coalesce, but the PM recovery worker has independently observed AP1's
+   * asserted AON WFI level and may revoke that stale pending claim before
+   * replaying one physical edge.
+   */
+
+  if (replay)
+    {
+      atomic_set_release(&g_bk7258_ap_smp_pending[target_cpu], 0);
+    }
+
   if (atomic_xchg(&g_bk7258_ap_smp_pending[target_cpu], 1) != 0)
     {
       state->coalesced_count[self]++;
@@ -421,8 +435,12 @@ int bk7258_ap_ipi_send_smp(int target_cpu)
   if (ret < 0)
     {
       atomic_set_release(&g_bk7258_ap_smp_pending[target_cpu], 0);
-      state->send_failures[self]++;
-      bk7258_ap_smp_fail(BK7258_AP_SMP_ERROR_SEND);
+      if (!replay)
+        {
+          state->send_failures[self]++;
+          bk7258_ap_smp_fail(BK7258_AP_SMP_ERROR_SEND);
+        }
+
       return ret;
     }
 
@@ -430,6 +448,16 @@ int bk7258_ap_ipi_send_smp(int target_cpu)
   state->last_command[self] = command;
   __asm volatile ("dmb sy" ::: "memory");
   return OK;
+}
+
+int bk7258_ap_ipi_send_smp(int target_cpu)
+{
+  return bk7258_ap_ipi_send_smp_internal(target_cpu, false);
+}
+
+int bk7258_ap_ipi_replay_smp(int target_cpu)
+{
+  return bk7258_ap_ipi_send_smp_internal(target_cpu, true);
 }
 
 void bk7258_ap_ipi_mark_scheduler_online(void)

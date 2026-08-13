@@ -144,6 +144,12 @@ LDFLAGS += --wrap=malloc
 endif
 endif
 
+ifeq ($(CONFIG_BK7258_WIFI_PACKET_DIAG),y)
+BK7258_CP_CSRCS += bk7258_wifi_packet_diag.c
+LDFLAGS += --wrap=ethernetif_input
+LDFLAGS += --wrap=udp_sendto_if_src
+endif
+
 ifeq ($(CONFIG_BK7258_BT_IPC),y)
 ifneq ($(CONFIG_BK7258_AP_CORE),y)
 LDFLAGS += --wrap=bk_bluetooth_init --wrap=bk_bluetooth_deinit
@@ -264,8 +270,10 @@ LDFLAGS += --wrap=bk_pm_module_vote_cpu_freq
 endif
 
 ifeq ($(CONFIG_BK7258_PM_COORDINATED_STANDBY),y)
+BK7258_CP_CSRCS += bk7258_pm_activity.c
 BK7258_CP_CSRCS += bk7258_pm_coord_cp.c
 LDFLAGS += --wrap=pm_low_voltage_bsp_restore
+LDFLAGS += --wrap=bk_pm_module_vote_sleep_ctrl
 endif
 
 ifeq ($(CONFIG_BK7258_DVFS_PROCFS),y)
@@ -298,6 +306,7 @@ BK7258_AP_BASE_CSRCS += bk7258_ap_main.c
 BK7258_AP_BASE_CSRCS += bk7258_peripherals.c
 
 ifeq ($(CONFIG_BK7258_PM_COORDINATED_STANDBY),y)
+BK7258_AP_BASE_CSRCS += bk7258_pm_activity.c
 BK7258_AP_BASE_CSRCS += bk7258_pm_coord_ap.c
 endif
 

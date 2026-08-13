@@ -50,6 +50,10 @@
 #define BK7258_PM_SLEEP_WAKEUP_NOTIFY_CMD   0x10u
 #define BK7258_RPTUN_MBOX_POLL_MS          1u
 
+#ifdef CONFIG_BK7258_AP_CORE
+extern bool bk7258_pm_ap_release_peer(void) weak_function;
+#endif
+
 static_assert(sizeof(mb_chnl_cmd_t) == BK7258_RPTUN_MBOX_DATA_LENGTH,
               "BK7258 SDK logical mailbox command ABI drift");
 static_assert(GET_LOG_CHNL_ID(BK7258_RPTUN_MBOX_CHANNEL) ==
@@ -87,6 +91,9 @@ static uint32_t g_bk7258_rptun_notify_value;
 static bool g_bk7258_rptun_notify_pending;
 static volatile bool g_bk7258_rptun_pm_prepare_pending;
 static volatile bool g_bk7258_rptun_pm_release_pending;
+#ifdef CONFIG_BK7258_AP_CORE
+static volatile bool g_bk7258_pm_peer_release_pending;
+#endif
 static volatile bool g_bk7258_rptun_tx_active;
 static bk7258_rptun_notify_t g_bk7258_rptun_notify;
 static pid_t g_bk7258_rptun_mbox_worker = INVALID_PROCESS_ID;
@@ -163,6 +170,7 @@ static void bk7258_rptun_mbox_tx_complete(void *arg, mb_chnl_ack_t *ack)
 static void bk7258_pm_wake_mbox_receive(void *arg, mb_chnl_cmd_t *command)
 {
   mb_chnl_ack_t *ack = (mb_chnl_ack_t *)command;
+  bool valid;
 
   (void)arg;
   if (command == NULL)
@@ -176,9 +184,21 @@ static void bk7258_pm_wake_mbox_receive(void *arg, mb_chnl_cmd_t *command)
    * wake command here.
    */
 
-  ack->ack_state = command->hdr.cmd ==
-                   BK7258_PM_SLEEP_WAKEUP_NOTIFY_CMD ?
-                   ACK_STATE_COMPLETE : ACK_STATE_FAIL;
+  valid = command->hdr.cmd == BK7258_PM_SLEEP_WAKEUP_NOTIFY_CMD;
+  ack->ack_state = valid ? ACK_STATE_COMPLETE : ACK_STATE_FAIL;
+  if (valid)
+    {
+      /* The official CP restore clears its sleep vote and wakes AP0 over
+       * PWC; AP0 then retries vPortYieldCore(1) until AP1 leaves WFI.  AP0
+       * may have rejected its own deep entry after AP1 already committed,
+       * so its ordinary post-WFI path is not guaranteed to run.  Preserve
+       * the PWC edge as a worker-owned level until AP1 withdraws its AON bit.
+       */
+
+      __atomic_store_n(&g_bk7258_pm_peer_release_pending, true,
+                       __ATOMIC_RELEASE);
+      nxsem_post(&g_bk7258_rptun_mbox_sem);
+    }
 }
 #endif
 
@@ -287,6 +307,24 @@ static void bk7258_rptun_mbox_retry_pm_release(void)
                        __ATOMIC_RELEASE);
     }
 }
+
+#ifdef CONFIG_BK7258_AP_CORE
+static void bk7258_rptun_mbox_retry_pm_peer_release(void)
+{
+  if (!__atomic_load_n(&g_bk7258_pm_peer_release_pending,
+                       __ATOMIC_ACQUIRE))
+    {
+      return;
+    }
+
+  if (bk7258_pm_ap_release_peer == NULL ||
+      bk7258_pm_ap_release_peer())
+    {
+      __atomic_store_n(&g_bk7258_pm_peer_release_pending, false,
+                       __ATOMIC_RELEASE);
+    }
+}
+#endif
 
 static void bk7258_rptun_mbox_dispatch(
   const struct bk7258_rptun_mbox_message_s *message)
@@ -429,6 +467,9 @@ static int bk7258_rptun_mbox_worker(int argc, char *argv[])
        * failed coordinated-sleep attempt.
        */
 
+#ifdef CONFIG_BK7258_AP_CORE
+      bk7258_rptun_mbox_retry_pm_peer_release();
+#endif
       bk7258_rptun_mbox_retry_pm_release();
       bk7258_rptun_mbox_retry_notify();
     }

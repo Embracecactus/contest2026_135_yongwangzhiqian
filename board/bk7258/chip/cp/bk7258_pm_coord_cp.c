@@ -32,6 +32,7 @@
 #include <driver/flash.h>
 
 #include "bk7258_pm_coord.h"
+#include "bk7258_pm_activity.h"
 #include "bk7258_rptun_mbox.h"
 #include "bk7258_wdt.h"
 #include "bk7258_dvfs.h"
@@ -61,6 +62,9 @@
 extern void sys_hal_enter_low_voltage(void);
 extern void sys_hal_rtc_wakeup_enable(uint32_t value);
 extern void sys_drv_low_power_hardware_init(void);
+extern int __real_bk_pm_module_vote_sleep_ctrl(unsigned int module,
+                                                uint32_t sleep_state,
+                                                uint32_t sleep_time);
 
 /****************************************************************************
  * Public Data
@@ -75,6 +79,7 @@ volatile struct bk7258_pm_coord_diag_s g_bk7258_pm_coord_diag;
 static bool g_bk7258_pm_wake_armed;
 static bool g_bk7258_pm_flash_prepared;
 static uint64_t g_bk7258_pm_tick_remainder_us;
+static struct bk7258_pm_activity_s g_bk7258_pm_sdk_activity;
 #ifdef CONFIG_BK7258_PM_STANDBY_ONESHOT_VERIFY
 static bool g_bk7258_pm_standby_verified;
 #endif
@@ -210,6 +215,7 @@ static bool bk7258_pm_votes_idle(void)
 {
   return bk7258_pm_vendor_vote(BK7258_PWR_AP_SLEEP_VOTE_OFFSET) == 0 &&
          bk7258_pm_vendor_vote(BK7258_PWR_AP_CLOCK_VOTE_OFFSET) == 0 &&
+         bk7258_pm_activity_idle(&g_bk7258_pm_sdk_activity) &&
          bk7258_pm_frequency_votes_idle() &&
          bk7258_pm_server_resources_idle();
 }
@@ -241,6 +247,10 @@ static void bk7258_pm_record(uint32_t reason)
     (uint32_t)clock_vote;
   g_bk7258_pm_coord_diag.last_ap_clock_vote_high =
     (uint32_t)(clock_vote >> 32);
+  g_bk7258_pm_coord_diag.last_cp_sdk_awake_low =
+    g_bk7258_pm_sdk_activity.awake_low;
+  g_bk7258_pm_coord_diag.last_cp_sdk_awake_high =
+    g_bk7258_pm_sdk_activity.awake_high;
   __asm volatile ("dmb sy" ::: "memory");
 
   /* This diagnostic object lives in cacheable CP SRAM.  Clean it after each
@@ -302,6 +312,38 @@ static void bk7258_pm_compensate_ticks(uint64_t elapsed_us)
  * Public Functions
  ****************************************************************************/
 
+int __wrap_bk_pm_module_vote_sleep_ctrl(unsigned int module,
+                                         uint32_t sleep_state,
+                                         uint32_t sleep_time)
+{
+  irqstate_t flags;
+  int ret;
+
+  /* Keep the CP SDK's local wake-source side effects, especially the Wi-Fi
+   * and Bluetooth system-wake enables.  Mirror only successful set-state
+   * transitions into the NuttX-owned admission gate.  The full SDK PM state
+   * machine remains unstarted and is never called from NuttX idle.
+   */
+
+  if (module >= BK7258_PM_SDK_SLEEP_MODULE_COUNT || sleep_state > 1u)
+    {
+      return -EINVAL;
+    }
+
+  ret = __real_bk_pm_module_vote_sleep_ctrl(module, sleep_state,
+                                             sleep_time);
+  if (ret != BK_OK)
+    {
+      return ret;
+    }
+
+  flags = up_irq_save();
+  ret = bk7258_pm_activity_vote(&g_bk7258_pm_sdk_activity, module,
+                                sleep_state);
+  up_irq_restore(flags);
+  return ret;
+}
+
 void bk7258_pm_coord_early_initialize(void)
 {
   /* Both the v3.1.1.9 SDK and Tuya call pm_hardware_init() from CPU0
@@ -313,6 +355,8 @@ void bk7258_pm_coord_early_initialize(void)
    * pre-scheduler point, while AP0/AP1 are still held off.
    */
 
+  memset(&g_bk7258_pm_sdk_activity, 0,
+         sizeof(g_bk7258_pm_sdk_activity));
   sys_drv_low_power_hardware_init();
 }
 
@@ -400,6 +444,12 @@ bool bk7258_pm_cp_standby(void)
   if (!g_bk7258_pm_wake_armed || !bk7258_pm_ap_ready())
     {
       bk7258_pm_abort(BK7258_PM_COORD_REASON_NOT_READY);
+      return false;
+    }
+
+  if (!bk7258_pm_activity_idle(&g_bk7258_pm_sdk_activity))
+    {
+      bk7258_pm_abort(BK7258_PM_COORD_REASON_SDK_ACTIVITY);
       return false;
     }
 

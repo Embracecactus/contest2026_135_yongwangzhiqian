@@ -1335,6 +1335,7 @@ int bk7258_ap_ipi_wake_secondary(void);
 void bk7258_ap_ipi_mark_stopped(void);
 #      ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
 int bk7258_ap_ipi_send_smp(int target_cpu);
+int bk7258_ap_ipi_replay_smp(int target_cpu);
 void bk7258_ap_ipi_mark_scheduler_online(void);
 int bk7258_ap_smp_scheduler_selftest(uint32_t timeout_ms);
 #        ifdef CONFIG_BK7258_AP_SMP_CPU1_AFFINITY

@@ -8,3 +8,4 @@ make clean >/dev/null
 make
 ./build/test_bk7258_rptun_mbox
 ./build/test_boot_bl1_policy
+./build/test_bk7258_pm_activity

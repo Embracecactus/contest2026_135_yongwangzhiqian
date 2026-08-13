@@ -438,7 +438,7 @@ if ((NO_CONSOLE)); then
   : >"$SERIAL_RAW"
   : >"$SERIAL_STDOUT"
   CAPTURE_PID=
-  echo "==> UART capture disabled; P0/P1 remain exclusively owned by SWD/RTT"
+  echo "==> UART capture disabled; P0/P1 remain exclusively owned by the SWD debug route"
 else
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PS1_WIN" \
     -Port "$CONSOLE_PORT" \

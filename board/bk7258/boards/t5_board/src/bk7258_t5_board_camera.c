@@ -36,6 +36,7 @@
 #include <nuttx/video/v4l2_cap.h>
 
 #include <arch/board/board.h>
+#include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_dvp.h>
 #include <arch/chip/bk7258_pm.h>
 #include <arch/chip/bk7258_psram.h>
@@ -52,6 +53,12 @@
 #define T5_CAMERA_VALIDATION_TIMEOUT 3000
 #define T5_CAMERA_VALIDATION_DELAY_US 1000000u
 #define T5_CAMERA_VALIDATION_STACK    4096
+
+#define T5_CAMERA_VALIDATION_MAGIC    0x4d414342u /* "BCAM" */
+#define T5_CAMERA_VALIDATION_VERSION  1u
+#define T5_CAMERA_VALIDATION_RUNNING  1u
+#define T5_CAMERA_VALIDATION_PASSED   2u
+#define T5_CAMERA_VALIDATION_FAILED   3u
 
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
 #  define T5_CAMERA_V4L2_FORMAT      V4L2_PIX_FMT_H264
@@ -88,6 +95,45 @@ static FAR void *g_t5_camera_frame_bases[T5_CAMERA_FRAME_COUNT];
 static FAR void *g_t5_camera_encode_base;
 static FAR struct bk7258_dvp_s *g_t5_camera_dvp;
 static bool g_t5_camera_registered;
+
+#if defined(CONFIG_BK7258_T5_BOARD_CAMERA_VALIDATION) || \
+    defined(CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION)
+/* Retain the last one-shot result in AP SRAM so a debugger can validate the
+ * physical camera without requiring UART1/COM4.  This is deliberately a
+ * small firmware diagnostic, not a second camera test path: the existing
+ * V4L2 validation below remains the sole producer.
+ */
+
+struct t5_camera_validation_diag_s
+{
+  uint32_t magic;
+  uint16_t version;
+  uint16_t size;
+  uint32_t state;
+  int32_t result;
+  char stage[16];
+  uint32_t bytesused;
+  uint32_t checksum;
+  uint32_t dvfs_before;
+  uint32_t dvfs_active;
+  uint32_t dvfs_after;
+  uint32_t transitions_before;
+  uint32_t transitions_active;
+  uint32_t transitions_after;
+  uint32_t ap_sleep_vote_active;
+  uint32_t ap_clock_vote_active;
+  uint32_t ap_sleep_vote_after;
+  uint32_t ap_clock_vote_after;
+};
+
+static volatile struct t5_camera_validation_diag_s
+  g_t5_camera_validation_diag;
+
+static inline uint32_t t5_camera_shared_read32(uintptr_t address)
+{
+  return *(FAR volatile uint32_t *)address;
+}
+#endif
 
 static bool t5_camera_sensor_is_available(FAR struct imgsensor_s *sensor)
 {
@@ -381,12 +427,19 @@ static int t5_camera_validate_frame(void)
   uint32_t bytesused = 0;
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
   uint32_t checksum = 0;
-  struct bk7258_pm_frequency_status_s dvfs_before;
-  struct bk7258_pm_frequency_status_s dvfs_active;
-  struct bk7258_pm_frequency_status_s dvfs_after;
+  struct bk7258_pm_frequency_status_s dvfs_before = {0};
+  struct bk7258_pm_frequency_status_s dvfs_active = {0};
+  struct bk7258_pm_frequency_status_s dvfs_after = {0};
 #endif
   int fd = -1;
   int ret = 0;
+
+  memset((FAR void *)&g_t5_camera_validation_diag, 0,
+         sizeof(g_t5_camera_validation_diag));
+  g_t5_camera_validation_diag.magic = T5_CAMERA_VALIDATION_MAGIC;
+  g_t5_camera_validation_diag.version = T5_CAMERA_VALIDATION_VERSION;
+  g_t5_camera_validation_diag.size = sizeof(g_t5_camera_validation_diag);
+  g_t5_camera_validation_diag.state = T5_CAMERA_VALIDATION_RUNNING;
 
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
   /* The v3.1.1.9 DVP lower half acquires its JPEG/video frequency vote
@@ -395,6 +448,8 @@ static int t5_camera_validate_frame(void)
 
   stage = "dvfs-before";
   ret = bk7258_pm_frequency_get_status(&dvfs_before);
+  g_t5_camera_validation_diag.dvfs_before = dvfs_before.current;
+  g_t5_camera_validation_diag.transitions_before = dvfs_before.transitions;
   if (ret < 0 || dvfs_before.current != BK7258_PM_CPU_FREQ_120M)
     {
       if (ret >= 0)
@@ -476,6 +531,14 @@ static int t5_camera_validate_frame(void)
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
   stage = "dvfs-active";
   ret = bk7258_pm_frequency_get_status(&dvfs_active);
+  g_t5_camera_validation_diag.dvfs_active = dvfs_active.current;
+  g_t5_camera_validation_diag.transitions_active = dvfs_active.transitions;
+  g_t5_camera_validation_diag.ap_sleep_vote_active =
+    t5_camera_shared_read32(BK7258_PWR_MNG_ADDR +
+                            BK7258_PWR_AP_SLEEP_VOTE_OFFSET);
+  g_t5_camera_validation_diag.ap_clock_vote_active =
+    t5_camera_shared_read32(BK7258_PWR_MNG_ADDR +
+                            BK7258_PWR_AP_CLOCK_VOTE_OFFSET);
   if (ret < 0 || dvfs_active.current != BK7258_PM_CPU_FREQ_480M)
     {
       if (ret >= 0)
@@ -515,6 +578,7 @@ static int t5_camera_validate_frame(void)
     }
 
   bytesused = buffer.bytesused;
+  g_t5_camera_validation_diag.bytesused = bytesused;
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
   stage = "h264";
   if (bytesused < 5 || bytesused > T5_CAMERA_FRAME_SIZE ||
@@ -525,6 +589,7 @@ static int t5_camera_validate_frame(void)
     }
 
   checksum = t5_camera_checksum(frame, bytesused);
+  g_t5_camera_validation_diag.checksum = checksum;
 #elif defined(CONFIG_BK7258_T5_BOARD_CAMERA_RAW_YUV)
   stage = "yuyv";
   if (bytesused != T5_CAMERA_RAW_FRAME_SIZE)
@@ -570,6 +635,13 @@ out:
       fd = -1;
     }
 
+  g_t5_camera_validation_diag.ap_sleep_vote_after =
+    t5_camera_shared_read32(BK7258_PWR_MNG_ADDR +
+                            BK7258_PWR_AP_SLEEP_VOTE_OFFSET);
+  g_t5_camera_validation_diag.ap_clock_vote_after =
+    t5_camera_shared_read32(BK7258_PWR_MNG_ADDR +
+                            BK7258_PWR_AP_CLOCK_VOTE_OFFSET);
+
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
   /* STREAMOFF stops frame flow, while close() synchronously tears down the
    * SDK DVP/YUV instance and returns its frequency vote to DEFAULT. */
@@ -578,11 +650,18 @@ out:
     {
       stage = "dvfs-after";
       ret = bk7258_pm_frequency_get_status(&dvfs_after);
+      g_t5_camera_validation_diag.dvfs_after = dvfs_after.current;
+      g_t5_camera_validation_diag.transitions_after =
+        dvfs_after.transitions;
       if (ret >= 0 &&
           (dvfs_after.current != BK7258_PM_CPU_FREQ_120M ||
            dvfs_after.peak < BK7258_PM_CPU_FREQ_480M ||
            dvfs_active.transitions <= dvfs_before.transitions ||
-           dvfs_after.transitions < dvfs_before.transitions + 2u))
+           dvfs_after.transitions < dvfs_before.transitions + 2u ||
+           g_t5_camera_validation_diag.ap_sleep_vote_active == 0 ||
+           g_t5_camera_validation_diag.ap_clock_vote_active == 0 ||
+           g_t5_camera_validation_diag.ap_sleep_vote_after != 0 ||
+           g_t5_camera_validation_diag.ap_clock_vote_after != 0))
         {
           ret = -ERANGE;
         }
@@ -594,6 +673,14 @@ out:
 #else
   bk7258_psram_free(frame_base);
 #endif
+
+  g_t5_camera_validation_diag.result = ret;
+  strlcpy((FAR char *)g_t5_camera_validation_diag.stage, stage,
+          sizeof(g_t5_camera_validation_diag.stage));
+  g_t5_camera_validation_diag.state = ret == 0 ?
+                                      T5_CAMERA_VALIDATION_PASSED :
+                                      T5_CAMERA_VALIDATION_FAILED;
+
   if (ret == 0)
     {
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
