@@ -643,43 +643,15 @@ static int bk7258_yuv_h264_release_stream(
 
   bk7258_yuv_h264_set_active(priv, false);
 
+  /* Stop the DMA consumer before disabling the producers.  The remaining
+   * teardown follows the SDK/Tuya ownership dependencies: stop H.264/YUV,
+   * remove their callbacks and route, release the stream instances, and only
+   * then release the DMA channel configuration. */
+
   ret = bk7258_yuv_h264_dma_stop(priv, true);
   if (ret < 0)
     {
       first_error = ret;
-    }
-
-  if (priv->dma_attempted)
-    {
-      sdkret = bk_dma_deinit(priv->dma);
-      ret = bk7258_yuv_h264_sdk_error(sdkret);
-      if (ret < 0 && first_error == 0)
-        {
-          first_error = ret;
-        }
-      if (ret >= 0)
-        {
-          priv->dma_attempted = false;
-          priv->dma_ready = false;
-          /* bk_dma_deinit() also clears the SDK callback table and resets
-           * the channel interrupt state. */
-          priv->dma_callback_ready = false;
-          priv->dma_finish_enabled = false;
-        }
-    }
-
-  if (priv->dma_callback_ready)
-    {
-      sdkret = bk_dma_register_isr(priv->dma, NULL, NULL);
-      ret = bk7258_yuv_h264_sdk_error(sdkret);
-      if (ret < 0 && first_error == 0)
-        {
-          first_error = ret;
-        }
-      if (ret >= 0)
-        {
-          priv->dma_callback_ready = false;
-        }
     }
 
   if (priv->h264_enabled)
@@ -774,8 +746,8 @@ static int bk7258_yuv_h264_release_stream(
    * release the per-instance YUV/H.264 configuration here; never call the
    * *_driver_deinit roots from this wrapper. */
 
-  if (priv->h264_attempted && !priv->h264_callback_ready &&
-      !priv->h264_route_cpu1)
+  if (priv->h264_attempted || priv->h264_ready ||
+      priv->h264_callback_ready || priv->h264_enabled)
     {
       sdkret = bk_h264_deinit();
       ret = bk7258_yuv_h264_sdk_error(sdkret);
@@ -787,10 +759,13 @@ static int bk7258_yuv_h264_release_stream(
         {
           priv->h264_attempted = false;
           priv->h264_ready = false;
+          priv->h264_callback_ready = false;
+          priv->h264_enabled = false;
         }
     }
 
-  if (priv->yuv_attempted && !priv->yuv_callback_ready)
+  if (priv->yuv_attempted || priv->yuv_ready ||
+      priv->yuv_callback_ready || priv->yuv_started)
     {
       sdkret = bk_yuv_buf_deinit();
       ret = bk7258_yuv_h264_sdk_error(sdkret);
@@ -802,9 +777,139 @@ static int bk7258_yuv_h264_release_stream(
         {
           priv->yuv_attempted = false;
           priv->yuv_ready = false;
+          priv->yuv_callback_ready = false;
+          priv->yuv_started = false;
         }
     }
 
+  if (priv->dma_attempted || priv->dma_ready || priv->dma_started ||
+      priv->dma_finish_enabled)
+    {
+      sdkret = bk_dma_deinit(priv->dma);
+      ret = bk7258_yuv_h264_sdk_error(sdkret);
+      if (ret < 0 && first_error == 0)
+        {
+          first_error = ret;
+        }
+      if (ret >= 0)
+        {
+          priv->dma_attempted = false;
+          priv->dma_ready = false;
+          priv->dma_started = false;
+          /* bk_dma_deinit() also clears the SDK callback table and resets
+           * the channel interrupt state. */
+          priv->dma_callback_ready = false;
+          priv->dma_finish_enabled = false;
+        }
+    }
+
+  if (priv->dma_callback_ready)
+    {
+      sdkret = bk_dma_register_isr(priv->dma, NULL, NULL);
+      ret = bk7258_yuv_h264_sdk_error(sdkret);
+      if (ret < 0 && first_error == 0)
+        {
+          first_error = ret;
+        }
+      if (ret >= 0)
+        {
+          priv->dma_callback_ready = false;
+        }
+    }
+
+  return first_error;
+}
+
+static bool bk7258_yuv_h264_resources_owned(
+  FAR const struct bk7258_yuv_h264_s *priv)
+{
+  return priv->dma != DMA_ID_MAX || priv->dma_allocated ||
+         priv->dma_attempted || priv->dma_ready || priv->dma_started ||
+         priv->dma_callback_ready || priv->dma_finish_enabled ||
+         priv->yuv_attempted || priv->yuv_ready ||
+         priv->yuv_callback_ready || priv->yuv_started ||
+         priv->h264_attempted || priv->h264_ready ||
+         priv->h264_route_cpu1 || priv->h264_callback_ready ||
+         priv->h264_enabled;
+}
+
+static void bk7258_yuv_h264_reset_owner(
+  FAR struct bk7258_yuv_h264_s *priv)
+{
+  priv->width = 0;
+  priv->height = 0;
+  priv->format = BK7258_YUV_H264_YUYV;
+  priv->line_cache = NULL;
+  priv->line_cache_size = 0;
+  priv->timeout_ms = 0;
+  priv->frame_bytes = 0;
+  priv->block_bytes = 0;
+  priv->block_count = 0;
+  priv->fifo_addr = 0;
+  priv->dma = DMA_ID_MAX;
+  priv->dma_allocated = false;
+  priv->dma_attempted = false;
+  priv->dma_ready = false;
+  priv->dma_started = false;
+  priv->dma_callback_ready = false;
+  priv->dma_finish_enabled = false;
+  priv->yuv_attempted = false;
+  priv->yuv_ready = false;
+  priv->yuv_callback_ready = false;
+  priv->yuv_started = false;
+  priv->h264_attempted = false;
+  priv->h264_ready = false;
+  priv->h264_route_cpu1 = false;
+  priv->h264_callback_ready = false;
+  priv->h264_enabled = false;
+  priv->dma_output_capacity = 0;
+  priv->dma_completed_bytes = 0;
+  priv->completed_blocks = 0;
+  priv->next_block = 0;
+  priv->operation_active = false;
+  priv->initialized = false;
+  priv->faulted = false;
+  bk7258_yuv_h264_clear_events(priv);
+}
+
+static int bk7258_yuv_h264_teardown_locked(
+  FAR struct bk7258_yuv_h264_s *priv)
+{
+  int first_error;
+  int ret;
+  bk_err_t sdkret;
+
+  first_error = bk7258_yuv_h264_release_stream(priv);
+
+  /* A successful deinit detaches all channel state and callbacks.  Only then
+   * return the allocation to the SDK pool.  A failed step keeps its ownership
+   * bit and DMA id intact so a later uninitialize/initialize can retry rather
+   * than overwriting the only record of the live resource. */
+
+  if ((priv->dma_allocated || priv->dma != DMA_ID_MAX) &&
+      !priv->dma_attempted && !priv->dma_ready && !priv->dma_started &&
+      !priv->dma_callback_ready && !priv->dma_finish_enabled)
+    {
+      sdkret = bk_dma_free(BK7258_YUV_H264_DMA_USER, priv->dma);
+      ret = bk7258_yuv_h264_sdk_error(sdkret);
+      if (ret < 0 && first_error == 0)
+        {
+          first_error = ret;
+        }
+      if (ret >= 0)
+        {
+          priv->dma_allocated = false;
+          priv->dma = DMA_ID_MAX;
+        }
+    }
+
+  if (bk7258_yuv_h264_resources_owned(priv))
+    {
+      priv->faulted = true;
+      return first_error < 0 ? first_error : -EIO;
+    }
+
+  bk7258_yuv_h264_reset_owner(priv);
   return first_error;
 }
 
@@ -1115,6 +1220,21 @@ int bk7258_yuv_h264_initialize(
       return -EBUSY;
     }
 
+  /* A prior initialize may have failed while its rollback also reported an
+   * SDK error.  Never overwrite those ownership flags with a new request.
+   * Retry the same teardown first; proceed only when every resource token has
+   * actually been released. */
+
+  if (bk7258_yuv_h264_resources_owned(priv))
+    {
+      cleanup_ret = bk7258_yuv_h264_teardown_locked(priv);
+      if (bk7258_yuv_h264_resources_owned(priv))
+        {
+          nxmutex_unlock(&priv->api_lock);
+          return cleanup_ret < 0 ? cleanup_ret : -EIO;
+        }
+    }
+
   priv->width = config->width;
   priv->height = config->height;
   priv->format = config->format;
@@ -1182,25 +1302,10 @@ int bk7258_yuv_h264_initialize(
 
 fail:
   priv->initialized = false;
-  cleanup_ret = bk7258_yuv_h264_release_stream(priv);
+  cleanup_ret = bk7258_yuv_h264_teardown_locked(priv);
   if (ret >= 0 && cleanup_ret < 0)
     {
       ret = cleanup_ret;
-    }
-  if (priv->dma_allocated && !priv->dma_attempted &&
-      !priv->dma_callback_ready)
-    {
-      sdkret = bk_dma_free(BK7258_YUV_H264_DMA_USER, priv->dma);
-      cleanup_ret = bk7258_yuv_h264_sdk_error(sdkret);
-      if (ret >= 0 && cleanup_ret < 0)
-        {
-          ret = cleanup_ret;
-        }
-      if (cleanup_ret >= 0)
-        {
-          priv->dma_allocated = false;
-          priv->dma = DMA_ID_MAX;
-        }
     }
   nxmutex_unlock(&priv->api_lock);
   return ret;
@@ -1208,9 +1313,7 @@ fail:
 
 int bk7258_yuv_h264_uninitialize(FAR struct bk7258_yuv_h264_s *priv)
 {
-  int first_error = 0;
   int ret;
-  bk_err_t sdkret;
 
   if (priv != &g_bk7258_yuv_h264)
     {
@@ -1222,7 +1325,7 @@ int bk7258_yuv_h264_uninitialize(FAR struct bk7258_yuv_h264_s *priv)
     {
       return ret;
     }
-  if (!priv->initialized)
+  if (!priv->initialized && !bk7258_yuv_h264_resources_owned(priv))
     {
       nxmutex_unlock(&priv->api_lock);
       return -ENODEV;
@@ -1239,45 +1342,9 @@ int bk7258_yuv_h264_uninitialize(FAR struct bk7258_yuv_h264_s *priv)
     spin_unlock_irqrestore(&priv->state_lock, flags);
   }
 
-  ret = bk7258_yuv_h264_release_stream(priv);
-  if (ret < 0)
-    {
-      first_error = ret;
-    }
-
-  if (priv->dma_allocated)
-    {
-      if (!priv->dma_attempted && !priv->dma_callback_ready)
-        {
-          sdkret = bk_dma_free(BK7258_YUV_H264_DMA_USER, priv->dma);
-          ret = bk7258_yuv_h264_sdk_error(sdkret);
-          if (ret < 0 && first_error == 0)
-            {
-              first_error = ret;
-            }
-          if (ret >= 0)
-            {
-              priv->dma_allocated = false;
-              priv->dma = DMA_ID_MAX;
-            }
-        }
-    }
-
-  if (priv->dma_allocated || priv->dma_attempted ||
-      priv->dma_callback_ready || priv->dma_ready ||
-      priv->h264_attempted || priv->yuv_attempted ||
-      priv->h264_callback_ready || priv->yuv_callback_ready ||
-      priv->h264_route_cpu1 || priv->h264_enabled || priv->yuv_started)
-    {
-      priv->faulted = true;
-      nxmutex_unlock(&priv->api_lock);
-      return first_error < 0 ? first_error : -EIO;
-    }
-
-  priv->initialized = false;
-  priv->faulted = false;
+  ret = bk7258_yuv_h264_teardown_locked(priv);
   nxmutex_unlock(&priv->api_lock);
-  return first_error;
+  return ret;
 }
 
 int bk7258_yuv_h264_encode(

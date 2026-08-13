@@ -82,7 +82,6 @@ struct bk7258_dvp_s
   bool configured;
   bool pm_clock_held;
   bool pm_mclk_held;
-  bool sdk_open;
   bool suspended;
   bool capture_active;
   FAR uint8_t *next_buffer;
@@ -643,7 +642,7 @@ static int bk7258_dvp_stop_stream(FAR struct bk7258_dvp_s *priv)
     }
 
   flags = spin_lock_irqsave(&priv->lock);
-  if (!priv->sdk_open)
+  if (priv->handle == NULL)
     {
       spin_unlock_irqrestore(&priv->lock, flags);
       nxmutex_unlock(&priv->api_lock);
@@ -928,7 +927,7 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
       return -EBUSY;
     }
 
-  if (priv->sdk_open)
+  if (priv->handle != NULL)
     {
       nxmutex_unlock(&priv->api_lock);
       return 0;
@@ -1012,8 +1011,13 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
       g_bk7258_dvp_h264_opening = false;
     }
 #endif
-  if (ret < 0)
+  if (ret < 0 || priv->handle == NULL)
     {
+      if (ret >= 0)
+        {
+          ret = -EIO;
+        }
+
       priv->handle = NULL;
       (void)bk7258_dvp_pm_release(priv);
 
@@ -1021,13 +1025,11 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
       return ret;
     }
 
-  /* From this point the SDK owns a live handle.  Publish that ownership
-   * before replaying the board-deferred start operations so every later
-   * failure is routed through the same bk_dvp_close()/PM cleanup path as a
-   * normal imgdata uninitialize.  Tuya and the official SDK both pair a
-   * successful hardware open with a complete deinit sequence. */
+  /* From this point the non-NULL SDK handle is the single ownership token.
+   * Set no parallel "open" flag which could diverge during a partial setup
+   * failure.  Every later failure is routed through the same
+   * bk_dvp_close()/PM cleanup path as normal imgdata uninitialize. */
 
-  priv->sdk_open = true;
   priv->suspended = false;
 
   /* v3.1.1.9 starts the H.264 data path before programming the GC2145.
@@ -1131,11 +1133,22 @@ static int bk7258_dvp_data_uninit(FAR struct imgdata_s *data)
     }
 
   flags = spin_lock_irqsave(&priv->lock);
-  if (!priv->sdk_open)
+  if (priv->handle == NULL)
     {
       spin_unlock_irqrestore(&priv->lock, flags);
+
+      /* A previous close may already have consumed the SDK handle while a
+       * PM put failed.  The PM ownership bits deliberately remain set in
+       * that case, so a repeated imgdata uninit must retry their release
+       * instead of treating the NULL handle as a fully closed object. */
+
+      if (priv->pm_mclk_held || priv->pm_clock_held)
+        {
+          pm_ret = bk7258_dvp_pm_release(priv);
+        }
+
       nxmutex_unlock(&priv->api_lock);
-      return stop_ret;
+      return stop_ret < 0 ? stop_ret : pm_ret;
     }
 
   if (priv->stopping)
@@ -1155,7 +1168,8 @@ static int bk7258_dvp_data_uninit(FAR struct imgdata_s *data)
 
   /* bk_dvp_close() may wait for the SDK's own frame path.  Do not hold the
    * wrapper mutex while it runs, and never synchronously cancel this worker
-   * from itself. */
+   * from itself.  v3.1.1.9 always consumes a non-NULL handle and returns
+   * BK_OK; clearing the token below therefore completes that ownership pair. */
   close_ret = bk7258_dvp_error(bk_dvp_close(handle));
   current_worker = bk7258_dvp_is_current_worker(priv);
   if (!current_worker)
@@ -1183,7 +1197,6 @@ static int bk7258_dvp_data_uninit(FAR struct imgdata_s *data)
   if (close_ret == 0)
     {
       priv->handle = NULL;
-      priv->sdk_open = false;
       priv->suspended = false;
     }
   priv->stopping = false;
@@ -1229,7 +1242,7 @@ static int bk7258_dvp_data_set_buf(FAR struct imgdata_s *data,
     }
 
   flags = spin_lock_irqsave(&priv->lock);
-  if (!priv->sdk_open)
+  if (priv->handle == NULL)
     {
       spin_unlock_irqrestore(&priv->lock, flags);
       return -ENODEV;
@@ -1284,7 +1297,7 @@ static int bk7258_dvp_data_start_capture(
     }
 
   flags = spin_lock_irqsave(&priv->lock);
-  if (!priv->sdk_open)
+  if (priv->handle == NULL)
     {
       spin_unlock_irqrestore(&priv->lock, flags);
       nxmutex_unlock(&priv->api_lock);
@@ -1521,7 +1534,6 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
   g_bk7258_dvp.handle = NULL;
   g_bk7258_dvp.pm_clock_held = false;
   g_bk7258_dvp.pm_mclk_held = false;
-  g_bk7258_dvp.sdk_open = false;
   g_bk7258_dvp.suspended = false;
   flags = spin_lock_irqsave(&g_bk7258_dvp.lock);
   memset(g_bk7258_dvp.frame_busy, 0, sizeof(g_bk7258_dvp.frame_busy));
@@ -1557,7 +1569,7 @@ int bk7258_dvp_uninitialize(FAR struct bk7258_dvp_s *priv)
     {
       return ret;
     }
-  if (priv->sdk_open)
+  if (priv->handle != NULL)
     {
       nxmutex_unlock(&priv->api_lock);
       return -EBUSY;
@@ -1595,7 +1607,7 @@ int bk7258_dvp_suspend(FAR struct bk7258_dvp_s *priv)
     {
       return ret;
     }
-  if (!priv->sdk_open)
+  if (priv->handle == NULL)
     {
       nxmutex_unlock(&priv->api_lock);
       return -ENODEV;
@@ -1629,7 +1641,7 @@ int bk7258_dvp_resume(FAR struct bk7258_dvp_s *priv)
     {
       return ret;
     }
-  if (!priv->sdk_open)
+  if (priv->handle == NULL)
     {
       nxmutex_unlock(&priv->api_lock);
       return -ENODEV;
