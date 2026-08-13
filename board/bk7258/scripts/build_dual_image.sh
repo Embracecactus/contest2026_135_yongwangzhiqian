@@ -301,29 +301,12 @@ if [[ "${CP_CONFIG_NAME}" == *_mcuboot ]]; then
     fi
 fi
 
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_mcuboot" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt_mcuboot" ||
-      "${AP_CONFIG_NAME}" == "ap_smp_rptun" ||
-      "${AP_CONFIG_NAME}" == "ap_smp_rptun_mcuboot" ]]; then
-    if [[ ( "${CP_CONFIG_NAME}" != "cp_nsh_rptun" &&
-            "${CP_CONFIG_NAME}" != "cp_nsh_rptun_rtt" &&
-            "${CP_CONFIG_NAME}" != "cp_nsh_rptun_mcuboot" &&
-            "${CP_CONFIG_NAME}" != "cp_nsh_rptun_rtt_mcuboot" ) ||
-          ( "${AP_CONFIG_NAME}" != "ap_smp_rptun" &&
-            "${AP_CONFIG_NAME}" != "ap_smp_rptun_mcuboot" ) ]]; then
+if config_enabled "${CP_CONFIG}" BK7258_RPTUN ||
+   config_enabled "${AP_CONFIG}" BK7258_RPTUN; then
+    if ! config_enabled "${CP_CONFIG}" BK7258_RPTUN ||
+       ! config_enabled "${AP_CONFIG}" BK7258_RPTUN; then
         printf '%s\n' \
-            'build_dual_image: N9 RPTUN layout configs must be selected as a pair' \
-            >&2
-        exit 2
-    fi
-    if [[ "${CP_CONFIG_NAME}" == *_mcuboot &&
-          "${AP_CONFIG_NAME}" != *_mcuboot ]] ||
-       [[ "${CP_CONFIG_NAME}" != *_mcuboot &&
-          "${AP_CONFIG_NAME}" == *_mcuboot ]]; then
-        printf '%s\n' \
-            'build_dual_image: N9 RPTUN MCUboot configs must be selected as a pair' \
+            'build_dual_image: N9 RPTUN configs must be selected as a pair' \
             >&2
         exit 2
     fi
@@ -351,10 +334,10 @@ if [[ "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
     fi
 fi
 
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_wifi" ||
-      "${AP_CONFIG_NAME}" == "ap_smp_wifi" ]]; then
-    if [[ "${CP_CONFIG_NAME}" != "cp_nsh_wifi" ||
-          "${AP_CONFIG_NAME}" != "ap_smp_wifi" ]]; then
+if config_enabled "${CP_CONFIG}" BK7258_WIFI_VNET ||
+   config_enabled "${AP_CONFIG}" BK7258_WIFI_VNET; then
+    if ! config_enabled "${CP_CONFIG}" BK7258_WIFI_VNET ||
+       ! config_enabled "${AP_CONFIG}" BK7258_WIFI_VNET; then
         printf '%s\n' \
             'build_dual_image: N16 Wi-Fi configs must be selected as a pair' \
             >&2
@@ -749,14 +732,7 @@ else
         --output "${OUTPUT}/bk7258-sdk-partition-wrapper.json"
 fi
 
-if [[ "${CP_CONFIG_NAME}" == "cp_nsh_rptun" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_mcuboot" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_rptun_rtt_mcuboot" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_btipc" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_ble_gatt" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_psram" ||
-      "${CP_CONFIG_NAME}" == "cp_nsh_wifi" ]]; then
+if config_enabled "${CP_CONFIG}" BK7258_RPTUN; then
     python3 "${SCRIPT_DIR}/verify_bk7258_rptun_layout.py" \
         --cp-elf "${OUTPUT}/nuttx-cp.elf" \
         --cp-map "${OUTPUT}/nuttx-cp.map" \

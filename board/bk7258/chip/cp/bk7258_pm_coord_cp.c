@@ -78,6 +78,7 @@ volatile struct bk7258_pm_coord_diag_s g_bk7258_pm_coord_diag;
 
 static bool g_bk7258_pm_wake_armed;
 static bool g_bk7258_pm_flash_prepared;
+static volatile bool g_bk7258_pm_restore_seen;
 static uint64_t g_bk7258_pm_tick_remainder_us;
 static struct bk7258_pm_activity_s g_bk7258_pm_sdk_activity;
 #ifdef CONFIG_BK7258_PM_STANDBY_ONESHOT_VERIFY
@@ -535,6 +536,7 @@ bool bk7258_pm_cp_standby(void)
 #ifdef CONFIG_BK7258_WDT
   bk7258_wdt_pm_prepare();
 #endif
+  g_bk7258_pm_restore_seen = false;
   start_us = bk_aon_rtc_get_us();
   bk7258_pm_enter_low_voltage();
   end_us = bk_aon_rtc_get_us();
@@ -553,11 +555,26 @@ bool bk7258_pm_cp_standby(void)
   bk7258_wdt_pm_restore();
 #endif
   bk7258_systick_recalc();
-  bk7258_pm_set_cp_vote(false);
+
+  /* The immutable SDK leaf has no return value.  Its successful path calls
+   * pm_low_voltage_bsp_restore(), then clears the CP vote and releases AP0.
+   * A last-moment pending IRQ returns before all three actions.  Treat the
+   * wrapped restore callback as the success witness and complete the normal
+   * abort/release protocol when it was not observed.
+   */
+
+  if (!g_bk7258_pm_restore_seen)
+    {
+      g_bk7258_pm_coord_diag.last_sleep_us = 0;
+      bk7258_pm_abort(BK7258_PM_COORD_REASON_SDK_REJECTED);
+      return false;
+    }
 
   /* sys_hal_enter_low_voltage() performs the official MB_CHNL_PWC release
-   * after clocks, flash and voltage are restored.  Do not enqueue a second
-   * lower-priority MB_CHNL_LOG edge on the successful path.
+   * and clears the CP AON vote after clocks, flash and voltage are restored.
+   * Do not enqueue a second lower-priority MB_CHNL_LOG edge or perform a
+   * second whole-register RMW on the successful path: AP0 may already be
+   * clearing its own WFI bit concurrently.
    */
 
   g_bk7258_pm_coord_diag.entered++;
@@ -573,6 +590,8 @@ bool bk7258_pm_cp_standby(void)
 
 void __wrap_pm_low_voltage_bsp_restore(void)
 {
+  g_bk7258_pm_restore_seen = true;
+
   if (g_bk7258_pm_flash_prepared)
     {
       (void)bk_flash_power_saving_exit();

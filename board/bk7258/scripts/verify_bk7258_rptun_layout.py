@@ -463,6 +463,38 @@ def main() -> int:
                     )
                 exclusive_symbols[symbol] = value
 
+            for pattern in exclusive_state.get(f"{group}_patterns", []):
+                matches = {
+                    symbol: value
+                    for symbol, value in ap_symbols.items()
+                    if re.fullmatch(pattern, symbol)
+                }
+                if not matches:
+                    raise VerificationError(
+                        f"AP required exclusive-state pattern {pattern} "
+                        "has no matching symbol"
+                    )
+                for symbol, value in matches.items():
+                    if not low <= value < high:
+                        raise VerificationError(
+                            f"AP symbol {symbol} is outside {group} "
+                            "exclusive-state section"
+                        )
+                    exclusive_symbols[symbol] = value
+
+            for symbol in exclusive_state.get(
+                f"{group}_if_present", []
+            ):
+                value = ap_symbols.get(symbol)
+                if value is None:
+                    continue
+                if not low <= value < high:
+                    raise VerificationError(
+                        f"AP symbol {symbol} is outside {group} "
+                        "exclusive-state section"
+                    )
+                exclusive_symbols[symbol] = value
+
         cp_sections = parse_alloc_sections(args.objdump, args.cp_elf)
         ap_sections = parse_alloc_sections(args.objdump, args.ap_elf)
         verify_sections(

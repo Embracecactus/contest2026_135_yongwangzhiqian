@@ -336,6 +336,71 @@ errout_queue:
   return ret > 0 ? -ret : ret;
 }
 
+static int bk7258_aud_stop_worker(FAR struct bk7258_aud_priv_s *priv)
+{
+  struct audio_msg_s term_msg;
+  int ret;
+
+  if (priv->threadid == 0)
+    {
+      return 0;
+    }
+
+  if (priv->mqname[0] == '\0')
+    {
+      return -EIO;
+    }
+
+  memset(&term_msg, 0, sizeof(term_msg));
+  term_msg.msg_id = AUDIO_MSG_STOP;
+  ret = file_mq_send(&priv->mq, (FAR const char *)&term_msg,
+                     sizeof(term_msg), 1);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = pthread_join(priv->threadid, NULL);
+  if (ret != 0)
+    {
+      return ret > 0 ? -ret : ret;
+    }
+
+  priv->threadid = 0;
+  priv->running = false;
+  return 0;
+}
+
+static int bk7258_aud_hw_stop(FAR struct bk7258_aud_priv_s *priv)
+{
+  bk_err_t sdkret;
+
+  if (!priv->started)
+    {
+      return 0;
+    }
+
+  sdkret = priv->capture ? bk_aud_adc_stop() : bk_aud_dac_stop();
+  if (sdkret != BK_OK)
+    {
+      return -EIO;
+    }
+
+  priv->started = false;
+  return 0;
+}
+
+static void bk7258_aud_complete(FAR struct bk7258_aud_priv_s *priv,
+                                int result)
+{
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE, NULL, result,
+                  priv);
+#else
+  priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE, NULL, result);
+#endif
+}
+
 /****************************************************************************
  * Name: bk7258_aud_getcaps
  ****************************************************************************/
@@ -500,12 +565,14 @@ static int bk7258_aud_start(FAR struct audio_lowerhalf_s *dev)
   ret = bk7258_aud_ensure_init(priv);
   if (ret < 0)
     {
+      (void)bk7258_aud_stop_worker(priv);
       return ret;
     }
 
   ret = priv->capture ? bk_aud_adc_start() : bk_aud_dac_start();
   if (ret != BK_OK)
     {
+      (void)bk7258_aud_stop_worker(priv);
       return -EIO;
     }
 
@@ -526,6 +593,7 @@ static int bk7258_aud_stop(FAR struct audio_lowerhalf_s *dev)
 {
   FAR struct bk7258_aud_priv_s *priv =
     (FAR struct bk7258_aud_priv_s *)dev;
+  int ret;
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
   if (session != priv)
@@ -534,15 +602,19 @@ static int bk7258_aud_stop(FAR struct audio_lowerhalf_s *dev)
     }
 #endif
 
-  if (priv->capture)
+  ret = bk7258_aud_hw_stop(priv);
+  if (ret < 0)
     {
-      (void)bk_aud_adc_stop();
+      return ret;
     }
-  else
+
+  ret = bk7258_aud_stop_worker(priv);
+  if (ret < 0)
     {
-      (void)bk_aud_dac_stop();
+      return ret;
     }
-  priv->started = false;
+
+  bk7258_aud_complete(priv, OK);
   return OK;
 }
 
@@ -558,11 +630,17 @@ static int bk7258_aud_pause(FAR struct audio_lowerhalf_s *dev,
 static int bk7258_aud_pause(FAR struct audio_lowerhalf_s *dev)
 #endif
 {
+  FAR struct bk7258_aud_priv_s *priv =
+    (FAR struct bk7258_aud_priv_s *)dev;
+
 #ifdef CONFIG_AUDIO_MULTI_SESSION
-  return bk7258_aud_stop(dev, session);
-#else
-  return bk7258_aud_stop(dev);
+  if (session != priv)
+    {
+      return -EINVAL;
+    }
 #endif
+
+  return bk7258_aud_hw_stop(priv);
 }
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
@@ -1020,7 +1098,8 @@ static int bk7258_aud_shutdown(FAR struct audio_lowerhalf_s *dev)
 {
   FAR struct bk7258_aud_priv_s *priv =
     (FAR struct bk7258_aud_priv_s *)dev;
-  struct audio_msg_s term_msg;
+  int first_error;
+  int ret;
 
   /* Correct worker shutdown order:
    *   1. post AUDIO_MSG_STOP so a worker blocked in file_mq_receive()
@@ -1031,19 +1110,11 @@ static int bk7258_aud_shutdown(FAR struct audio_lowerhalf_s *dev)
    *   3. only then deinit the hardware.
    */
 
-  if (priv->threadid != 0)
+  first_error = bk7258_aud_hw_stop(priv);
+  ret = bk7258_aud_stop_worker(priv);
+  if (first_error == 0 && ret < 0)
     {
-      if (priv->mqname[0] != '\0')
-        {
-          memset(&term_msg, 0, sizeof(term_msg));
-          term_msg.msg_id = AUDIO_MSG_STOP;
-          term_msg.u.ptr = NULL;
-          (void)file_mq_send(&priv->mq, (FAR const char *)&term_msg,
-                             sizeof(term_msg), 1);
-        }
-
-      pthread_join(priv->threadid, NULL);
-      priv->threadid = 0;
+      first_error = ret;
     }
 
   if (priv->dac_inited)
@@ -1063,7 +1134,7 @@ static int bk7258_aud_shutdown(FAR struct audio_lowerhalf_s *dev)
   priv->running = false;
   priv->started = false;
   priv->configured = false;
-  return OK;
+  return first_error;
 }
 
 /****************************************************************************

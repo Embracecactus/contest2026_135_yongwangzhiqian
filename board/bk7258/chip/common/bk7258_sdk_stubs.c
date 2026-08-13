@@ -187,10 +187,24 @@ void bk_reboot(void)
   bk_reboot_ex(1); /* RESET_SOURCE_REBOOT in the SDK ABI */
 }
 
-void delay(unsigned int ms)
+void delay(int32_t count)
 {
-  /* Stub: SDK delay, NuttX uses nxsig_usleep instead */
-  (void)ms;
+  volatile int32_t i;
+  volatile int32_t j;
+
+  /* Preserve the v3.1.1.9 bk_system/delay.c ABI exactly.  Despite the
+   * tempting name, delay() is not a millisecond sleep: immutable timer,
+   * audio, I2S, touch and USB objects use it as a short hardware-settle busy
+   * loop.  A scheduler sleep is both too long and unsafe for early driver
+   * initialization.
+   */
+
+  for (i = 0; i < count; i++)
+    {
+      for (j = 0; j < 100; j++)
+        {
+        }
+    }
 }
 
 void bk_delay_us(unsigned int us)

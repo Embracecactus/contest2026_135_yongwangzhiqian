@@ -39,6 +39,8 @@
 #  include <arch/chip/bk7258_psram.h>
 #endif
 
+#include "bk7258_media_root.h"
+
 #define BK7258_DVP_MAX_FRAMES 8
 #define BK7258_DVP_EVENT_DEPTH 8
 #define BK7258_DVP_RESULT_ERROR 1
@@ -968,27 +970,13 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
    * boundary.  Deliberately do not deinitialize them on camera close: LCD,
    * I2S and other AP clients share their global state, channel pool or IRQs. */
 
-  ret = bk7258_dvp_error(bk_dma_driver_init());
-  if (ret < 0)
-    {
-      nxmutex_unlock(&priv->api_lock);
-      return ret;
-    }
-
-  ret = bk7258_dvp_error(bk_yuv_buf_driver_init());
-  if (ret < 0)
-    {
-      nxmutex_unlock(&priv->api_lock);
-      return ret;
-    }
-
   if (priv->sdk_config.img_format == IMAGE_H264)
     {
-      ret = bk7258_dvp_error(bk_h264_driver_init());
+      ret = bk7258_media_root_initialize(BK7258_MEDIA_ROOT_H264);
     }
   else
     {
-      ret = bk7258_dvp_error(bk_jpeg_enc_driver_init());
+      ret = bk7258_media_root_initialize(BK7258_MEDIA_ROOT_JPEG);
     }
   if (ret < 0)
     {

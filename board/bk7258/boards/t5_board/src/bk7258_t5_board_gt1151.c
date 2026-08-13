@@ -98,6 +98,7 @@ static struct t5_gt1151_i2c_s g_t5_gt1151_i2c =
 static xcpt_t g_t5_gt1151_isr;
 static FAR void *g_t5_gt1151_isr_arg;
 static bool g_t5_gt1151_registered;
+static bool g_t5_gt1151_irq_registered;
 static void t5_gt1151_invoke_isr(gpio_id_t gpio_id);
 static void t5_gt1151_sdk_isr(gpio_id_t gpio_id);
 
@@ -406,14 +407,29 @@ static void t5_gt1151_sdk_isr(gpio_id_t gpio_id)
 static int t5_gt1151_irq_attach(const struct gt9xx_board_s *state,
                                 xcpt_t isr, FAR void *arg)
 {
-  gpio_id_t pin = (gpio_id_t)BK7258_BOARD_TOUCH_INTERRUPT_GPIO;
   irqstate_t flags;
 
   (void)state;
 
-  if (isr == NULL || arg == NULL)
+  if (isr == NULL || arg == NULL || !g_t5_gt1151_irq_registered)
     {
       return -EINVAL;
+    }
+
+  flags = enter_critical_section();
+  g_t5_gt1151_isr = isr;
+  g_t5_gt1151_isr_arg = arg;
+  leave_critical_section(flags);
+  return OK;
+}
+
+static int t5_gt1151_irq_prepare(void)
+{
+  gpio_id_t pin = (gpio_id_t)BK7258_BOARD_TOUCH_INTERRUPT_GPIO;
+
+  if (g_t5_gt1151_irq_registered)
+    {
+      return OK;
     }
 
   (void)gpio_dev_unmap(pin);
@@ -428,20 +444,12 @@ static int t5_gt1151_irq_attach(const struct gt9xx_board_s *state,
       return -EIO;
     }
 
-  flags = enter_critical_section();
-  g_t5_gt1151_isr = isr;
-  g_t5_gt1151_isr_arg = arg;
-  leave_critical_section(flags);
-
   if (bk_gpio_register_isr(pin, t5_gt1151_sdk_isr) != BK_OK)
     {
-      flags = enter_critical_section();
-      g_t5_gt1151_isr = NULL;
-      g_t5_gt1151_isr_arg = NULL;
-      leave_critical_section(flags);
       return -EIO;
     }
 
+  g_t5_gt1151_irq_registered = true;
   return OK;
 }
 
@@ -519,6 +527,19 @@ int bk7258_board_gt1151_initialize(void)
   if (g_t5_gt1151_i2c.bitbang == NULL)
     {
       return -ENOMEM;
+    }
+
+  /* NuttX gt9xx_register() currently discards irq_attach()'s return value
+   * after publishing the character device.  Preflight every fallible SDK
+   * GPIO operation so /dev/input0 is never registered without a usable IRQ.
+   * The callback itself is installed by gt9xx_register() immediately after
+   * the driver node is published.
+   */
+
+  ret = t5_gt1151_irq_prepare();
+  if (ret < 0)
+    {
+      return ret;
     }
 
   ret = gt9xx_register(T5_GT1151_DEVPATH, &g_t5_gt1151_i2c.dev,

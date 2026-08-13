@@ -84,6 +84,8 @@
 #include <driver/dma.h>
 #include <driver/dma_types.h>
 
+#include "bk7258_media_root.h"
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -373,6 +375,13 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
   uint32_t fifo_addr = 0;
   bk_err_t err;
   int ret;
+
+  ret = bk7258_media_root_initialize(BK7258_MEDIA_ROOT_DMA);
+  if (ret < 0)
+    {
+      auderr("ERROR: shared DMA root init failed: %d\n", ret);
+      return ret;
+    }
 
   /* The ADC FIFO is L/R interleaved no matter what, so always open both
    * channels and drop the unused half in software.
@@ -1122,6 +1131,13 @@ static int bk7258_mic_stop(struct audio_lowerhalf_s *dev)
   bk7258_mic_hw_teardown(priv);
 
   priv->state = BK7258_MIC_STATE_CONFIGURED;
+
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE, NULL, OK, priv);
+#else
+  priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE, NULL, OK);
+#endif
+
   audinfo("Capture stopped\n");
 
   return OK;
