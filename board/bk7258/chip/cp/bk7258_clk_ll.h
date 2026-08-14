@@ -51,8 +51,9 @@
 #define BK7258_M1_CKSEL_SHIFT      4
 
 /* CPU0_INT_HALT_CLK_OP: cpu0_speed [4] (0 = /2, 1 = /1 of the core clock
- * for CPU0; SysTick is on the CPU0 processor clock).  This follows the
- * latest SDK's sys_hal_core_bus_clock_ctrl() operating-point table. */
+ * for CPU0).  This follows the latest SDK's
+ * sys_hal_core_bus_clock_ctrl() operating-point table; scheduler SysTick is
+ * independently clocked at 32 kHz. */
 #define BK7258_CPU_SPEED_BIT       (1u << 4)
 
 /* ANA_REG5: EN_DPLL [5]. */

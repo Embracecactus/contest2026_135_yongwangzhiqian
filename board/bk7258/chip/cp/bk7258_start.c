@@ -269,10 +269,10 @@ void __start(void)
    * policy keeps PM_DEV_ID_DEFAULT at 120 MHz and lets modules vote upward;
    * production profiles should therefore leave this disabled.  When enabled
    * for a performance experiment, run after early serial init so any stall is
-   * distinguishable on the console, but before nx_start() so up_timer_
-   * initialize() sees the new M1 and arms the correct SysTick reload via the
-   * runtime detector.  UART consoles use the independent 26 MHz XTAL source
-   * and RTT does not depend on the CPU clock divider.
+   * distinguishable on the console.  It still runs before nx_start() so the
+   * initial DWT conversion observes the final live CPU mux; scheduler SysTick
+   * remains on fixed 32 kHz.  UART consoles use the independent 26 MHz XTAL
+   * source and RTT does not depend on the CPU clock divider.
    */
 
   bk7258_clock_bringup_320m();

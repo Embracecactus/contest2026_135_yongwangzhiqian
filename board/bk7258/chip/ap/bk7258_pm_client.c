@@ -744,9 +744,10 @@ static int bk7258_pm_recalc_primary_timebase(void)
 int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
                              enum bk7258_pm_cpu_freq_e frequency)
 {
-  /* CP changes the shared mux and repairs its own SysTick before replying.
-   * bk7258_pm_commit_reply() repairs AP logical CPU0 after every confirmed
-   * vote, including a cached reply recovered from an earlier timeout.
+  /* CP changes the shared mux and refreshes its DWT conversion before
+   * replying.  bk7258_pm_commit_reply() refreshes AP logical CPU0 after
+   * every confirmed vote, including a cached reply recovered from an
+   * earlier timeout.  Both scheduler clocks remain on fixed 32 kHz.
    */
 
   return bk7258_pm_request(client, BK7258_PM_COMMAND_CPU_FREQ_VOTE,

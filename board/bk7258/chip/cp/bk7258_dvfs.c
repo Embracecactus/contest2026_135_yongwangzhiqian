@@ -25,10 +25,9 @@
  * precedent.  bk7258_pm_policy.c owns the stock NuttX PM integration and
  * v3.1.1.9-compatible multi-client frequency aggregation.
  *
- * The whole per-tier switch (voltage -> dividers -> mux -> SysTick reload)
- * is atomic with respect to interrupts via irqsave()/irqrestore(): an ISR
- * between the M1 write and the SysTick reload would observe an inconsistent
- * tick period.
+ * The whole per-tier switch (voltage -> dividers -> mux) is atomic with
+ * respect to interrupts via irqsave()/irqrestore().  Scheduler SysTick uses
+ * the independent 32-kHz route; only DWT conversion follows the CPU mux.
  ****************************************************************************/
 
 /****************************************************************************
@@ -81,8 +80,9 @@ struct bk7258_dvfs_step_s
  * passes ckdiv_cpu0 = 0x1 to set cpu0_speed = 1 (/1) for the 26..240 MHz
  * tiers.  The 320 MHz tier is the exception: the SDK passes ckdiv_cpu0 = 0,
  * selecting /2 so physical CPU0 runs at 160 MHz while CPU1/CPU2 run at the
- * full 320 MHz core clock.  SysTick runs at the resulting CPU processor
- * clock; bk7258_clockdiag_current_cpu_hz() reports the role-specific value.
+ * full 320 MHz core clock.  bk7258_clockdiag_current_cpu_hz() reports the
+ * role-specific value used to refresh DWT conversion; SysTick stays at
+ * 32 kHz.
  *
  * The 320 MHz tier yields CPU0 = 160 MHz.  The 480 MHz tier follows the
  * v3.1.1.9 video operating point: CPU0/bus = 240 MHz while the AP physical
@@ -255,10 +255,8 @@ int bk7258_dvfs_set_freq(int tier)
       return -EINVAL;
     }
 
-  /* The whole step sequence is atomic wrt ISRs: an IRQ between the mux
-   * write and the trailing SysTick reload would observe an inconsistent
-   * tick period, and an IRQ inside the analog-SPI sequence can lose a
-   * write to the analog block. */
+  /* The whole step sequence is atomic wrt ISRs because an IRQ inside the
+   * analog-SPI sequence can lose a write to the analog block. */
   flags = enter_critical_section();
 
   prev = g_bk7258_dvfs_cur;
@@ -281,9 +279,8 @@ int bk7258_dvfs_set_freq(int tier)
 
       g_bk7258_dvfs_cur = tier;
 
-      /* SysTick is clocked at the CPU0 processor clock; recompute the
-       * one-tick reload so the tick period matches the new frequency.
-       * This must happen before interrupts are re-enabled. */
+      /* SysTick stays on fixed 32 kHz.  Refresh CPU-clocked DWT conversion
+       * before interrupts are re-enabled. */
       bk7258_systick_recalc();
     }
 

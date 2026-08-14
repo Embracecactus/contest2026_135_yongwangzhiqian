@@ -264,7 +264,7 @@ endif()
 
 if(CONFIG_BK7258_AUD AND CONFIG_BK7258_MIC)
   message(FATAL_ERROR
-    "BK7258_AUD and BK7258_MIC cannot both own the AUD ADC block")
+    "BK7258_AUD and BK7258_MIC remain exclusive until shared AUD clock ownership is enabled")
 endif()
 
 foreach(BK7258_AP_PERIPHERAL AUD GPIOE I2C I2S)
@@ -274,6 +274,16 @@ foreach(BK7258_AP_PERIPHERAL AUD GPIOE I2C I2S)
          ap/bk7258_${BK7258_AP_PERIPHERAL_FILE}.c)
   endif()
 endforeach()
+
+if(CONFIG_BK7258_AUD)
+  if(CONFIG_BK7258_BOARD_T5_BOARD)
+    list(APPEND BK7258_AP_BASE_SRCS
+         ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_audio.c)
+  else()
+    list(APPEND BK7258_AP_BASE_SRCS
+         ${NUTTX_BOARD_DIR}/boards/t5ai_core/src/bk7258_t5ai_core_audio.c)
+  endif()
+endif()
 
 if(CONFIG_BK7258_LCD)
   list(APPEND BK7258_AP_BASE_SRCS
@@ -297,9 +307,14 @@ if(CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION)
        ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_rgb_lcd_backlight.c)
 endif()
 
-if(CONFIG_BK7258_DVP OR CONFIG_BK7258_JPEG_ENCODER OR
-   CONFIG_BK7258_YUV_H264 OR CONFIG_BK7258_MIC)
+if(CONFIG_BK7258_AUD OR CONFIG_BK7258_DVP OR
+   CONFIG_BK7258_JPEG_ENCODER OR CONFIG_BK7258_YUV_H264 OR
+   CONFIG_BK7258_MIC)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_media_root.c)
+endif()
+
+if(CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_aud_validation.c)
 endif()
 
 if(CONFIG_BK7258_DVP)
@@ -401,7 +416,7 @@ if(CONFIG_BK7258_RPTUN)
     if(CONFIG_BK7258_AP_CORE)
       bk7258_wrap_sdk_symbol(bk_pm_clock_ctrl
                              bk_pm_module_vote_cpu_freq)
-      if(CONFIG_BK7258_MIC OR CONFIG_BK7258_DMA2D OR
+      if(CONFIG_BK7258_AUD OR CONFIG_BK7258_MIC OR CONFIG_BK7258_DMA2D OR
          CONFIG_BK7258_SCALE_ROTATE OR
          CONFIG_BK7258_JPEG_DECODER OR CONFIG_BK7258_JPEG_ENCODER OR
          CONFIG_BK7258_YUV_H264 OR CONFIG_BK7258_DVP)

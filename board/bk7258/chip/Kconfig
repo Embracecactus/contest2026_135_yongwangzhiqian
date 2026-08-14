@@ -630,6 +630,9 @@ config BK7258_PM_COORDINATED_STANDBY
 	bool "CP/AP coordinated low-voltage standby"
 	default n
 	depends on BK7258_RPTUN && BK7258_RPTUN_MBOX && BK7258_PM_CLOCK
+	depends on BK7258_AP_CORE || TIMER_ARCH
+	depends on BK7258_AP_CORE || !SCHED_TICKLESS
+	depends on BK7258_AP_CORE || !ARM_SYSTICK_IRQ_WQUEUE
 	depends on BK7258_AP_CORE || BK7258_PM_POLICY
 	depends on BK7258_AP_CORE || BK7258_AP_CONTROL
 	depends on !BK7258_AP_CORE || SMP
@@ -644,15 +647,18 @@ config BK7258_PM_COORDINATED_STANDBY
 		the official WFI bits and restore their complete interrupt state.  CP
 		enters low voltage only after both AP votes, all AP clock/sleep votes
 		and the RPTUN data plane are idle, with an AON RTC wake source armed.
-		The CP restore path repairs flash, watchdog, SysTick, timekeeping and
-		wakes both AP cores.  PM_SLEEP remains rejected: this option enables
-		only the resumable PM_STANDBY state.  Do not enable it in RTT profiles,
-		which deliberately keep the CP awake for an unattached debugger.
+		The CP restore path repairs flash, watchdog and SysTick, then queues a
+		hard-IRQ SysTick trampoline that advances the NuttX architecture timer
+		from AON elapsed time before ordinary scheduling resumes.  PM_SLEEP
+		remains rejected: this option enables only the resumable PM_STANDBY
+		state.  Do not enable it in RTT profiles, which deliberately keep the CP
+		awake for an unattached debugger.
 
 config BK7258_PM_STANDBY_ONESHOT_VERIFY
 	bool "Stop after one coordinated standby wake for hardware verification"
 	default n
 	depends on BK7258_PM_COORDINATED_STANDBY && !BK7258_AP_CORE
+	depends on !BK7258_CONSOLE_RTT
 	---help---
 		Allow exactly one successful CP low-voltage entry and wake, then reject
 		later PM_STANDBY transitions so SWD can reconnect while the system uses
@@ -1136,9 +1142,10 @@ config BK7258_DVFS
 		overlay DVFS lower half that mirrors the Armino SDK runtime
 		sys_drv_switch_cpu_bus_freq / sys_hal_switch_cpu_bus_freq path
 		(lift VDDD/VDDIG one tier at a time per the SDK operating-point
-		table, then switch the core mux, then recompute the SysTick
-		reload).  This is NOT the NuttX PM state machine: it follows the
-		lc823450 DVFS precedent of a single chip-local set_freq() with no
+		table, then switch the core mux and refresh DWT conversion; scheduler
+		SysTick remains on fixed 32 kHz).  This is NOT the NuttX PM state
+		machine: it follows the lc823450 DVFS precedent of a single chip-local
+		set_freq() with no
 		governor/HPWORK dependency.  Boot-time bring-up under
 		BK7258_CLOCK_320M and BK7258_PM_POLICY select this.  The latter uses
 		the stock NuttX PM lifecycle plus a board-owned frequency-QoS policy;
@@ -1341,19 +1348,93 @@ menu "BK7258 AP peripheral wrappers"
 	depends on BK7258_AP_CORE
 
 config BK7258_AUD
-	bool "Analog audio DAC/ADC lower half"
+	bool "On-board analog speaker playback"
 	default n
+	depends on BK7258_PM_CLOCK
+	select ARCH_PERF_EVENTS
 	select BK7258_SDK_IPC_RUNTIME
 	select AUDIO
+	select AUDIO_DRIVER_SPECIFIC_BUFFERS
 	help
-		Expose the SDK analog DAC/ADC block through the NuttX audio lower-
-		half interface.  This generic wrapper and the dedicated microphone
-		wrapper are mutually exclusive because both own the AUD ADC block.
+		Expose the board's differential analog speaker path as a mono signed
+		16-bit NuttX playback device.  The data path uses the SDK's repeat-mode
+		GDMA engine and the selected-board binding controls the external power
+		amplifier.  Each reserved playback session holds the official 480-MHz
+		Audio CPU-frequency vote until RELEASE has torn down DMA, DAC and the
+		worker.  The dedicated BK7258_MIC wrapper owns capture separately; the
+		two remain mutually exclusive until their shared AUD clock-control
+		contract is completed.
 
 config BK7258_AUD_DEVNAME
-	string "Analog audio device name"
-	default "audio0"
+	string "Speaker playback device name"
+	default "pcm0p"
 	depends on BK7258_AUD
+
+config BK7258_AUD_SAMPLE_RATE
+	int
+	default 16000
+	depends on BK7258_AUD
+	help
+		The first validated speaker tuple is fixed at 16 kHz.  Other rates
+		remain unavailable until their coupled DMA frame duration and scheduler
+		deadline have separate hardware evidence.
+
+config BK7258_AUD_DIG_GAIN
+	int "Default speaker digital gain"
+	default 45
+	range 0 63
+	depends on BK7258_AUD
+
+config BK7258_AUD_ANA_GAIN
+	int "Default speaker analog gain"
+	default 10
+	range 0 15
+	depends on BK7258_AUD
+
+config BK7258_AUD_FRAME_SAMPLES
+	int
+	default 320
+	depends on BK7258_AUD
+	help
+		The first validated speaker tuple uses 320 samples per DMA frame,
+		which is 20 ms at 16 kHz.  Keep the rate and frame size as one verified
+		contract rather than exposing independent settings.
+
+config BK7258_AUD_QUEUE_DEPTH
+	int
+	default 8
+	depends on BK7258_AUD
+	help
+		The first validated speaker tuple fixes the explicit NuttX audio pool
+		at eight buffers.  Applications must keep this full set circulating so
+		the two-frame hardware DMA ring remains fed across scheduler latency.
+
+config BK7258_AUD_WORKER_PRIORITY
+	int "Speaker DMA refill worker priority"
+	default 245
+	range 226 245
+	depends on BK7258_AUD
+	help
+		Priority of the task-context DMA refill worker.  This worker refills the
+		completed hardware slot before publishing DEQUEUE, then deliberately
+		runs just below the standard nxplayer/nxlooper producer priority of
+		SCHED_PRIORITY_MAX - 9.  That ordering lets the feeder return one PCM
+		buffer before a just-arrived DMA token can form a continuous worker
+		chain.  With the board-default transport priorities, the required
+		shared-CPU ordering is transport < refill worker < bounded feeder.  A
+		custom profile that changes any of those priorities must preserve that
+		ordering, and the feeder must enqueue one buffer and block rather than
+		do unbounded decoding at its real-time priority.
+
+config BK7258_AUD_LIFECYCLE_VALIDATION
+	bool "Run bounded speaker playback lifecycle validation"
+	default n
+	depends on BK7258_AUD && BK7258_BOARD_T5_BOARD
+	help
+		Generate mono 1-kHz PCM in memory and exercise the public NuttX audio
+		ABI through two open/play/teardown cycles.  The validation checks DMA,
+		DAC and amplifier ownership diagnostics; audible output still requires
+		a speaker connected to the T5-Board P6 connector.
 
 config BK7258_MIC
 	bool "On-board analog microphone capture"

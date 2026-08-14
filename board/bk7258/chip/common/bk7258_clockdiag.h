@@ -3,11 +3,12 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 clock runtime detection for SysTick.
+ * BK7258 live CPU-clock runtime detection.
  *
  * Read-only helpers classify the live core-clock configuration left by the
- * Tier-1 bootloader so that up_timer_initialize() can compute the correct
- * SysTick reload at runtime.  No clock-control register is written here.
+ * Tier-1 bootloader and later DVFS votes.  The result drives CPU-clocked DWT
+ * conversion and diagnostics; scheduler SysTick uses a separate fixed
+ * 32-kHz source.  No clock-control register is written here.
  *
  * Contract: the including translation unit must include arm_internal.h first
  * so getreg32()/putreg32() are available.
@@ -144,7 +145,7 @@ static inline int bk7258_clockdiag_last_clock_case(void)
    * cold-reset (BootROM default) and soft-reset (loader residue) paths;
    * matching the full word caused the 320 MHz case to miss on cold reset
    * (M1=0x020 vs loader's 0x420), making current_cpu_hz() fall back to
-   * 26 MHz and SysTick run 12x too fast.
+   * 26 MHz and corrupting CPU-cycle diagnostics.
    */
 
   if (csrc == 0 && dplle == 0)
@@ -199,15 +200,16 @@ static inline int bk7258_clockdiag_last_clock_case(void)
  * Name: bk7258_clockdiag_current_cpu_hz
  *
  * Description:
- *   Return the runtime SysTick processor-clock frequency in Hz inferred
+ *   Return the live processor-clock frequency in Hz inferred
  *   from the live M1 and A5 registers.  Maps each case from
  *   bk7258_clockdiag_last_clock_case() to its measured frequency, and falls
  *   back to the 26 MHz baseline for the unknown case.  Read-only; no
  *   clock-control register is written.
  *
- *   The returned value is the SysTick processor clock (CLKSOURCE = processor
- *   clock, no /8 divisor).  BOARD_CPU_FREQ_HZ in board.h remains the
- *   build-time baseline and matches the BK7258_CDIAG_CASE_BASELINE return.
+ *   The returned value is the CPU/DWT clock.  It is intentionally independent
+ *   of the fixed 32-kHz scheduler SysTick source.  BOARD_CPU_FREQ_HZ in
+ *   board.h remains the build-time cold-reset fallback and matches the
+ *   BK7258_CDIAG_CASE_BASELINE return.
  *
  ****************************************************************************/
 

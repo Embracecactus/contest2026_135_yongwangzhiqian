@@ -18,6 +18,10 @@
 
 #include <arch/board/board.h>
 
+#ifdef CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION
+#  include <arch/chip/bk7258_aud.h>
+#endif
+
 #ifdef CONFIG_BK7258_LCD
 #  include <arch/chip/bk7258_lcd.h>
 #endif
@@ -68,6 +72,15 @@ int bk7258_board_devices_initialize(void)
   if (ret < 0)
     {
       _err("ERROR: T5-Board TF validation worker failed: %d\n", ret);
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION
+  ret = bk7258_aud_validation_start();
+  if (ret < 0)
+    {
+      _err("ERROR: T5-Board speaker validation worker failed: %d\n", ret);
       return ret;
     }
 #endif

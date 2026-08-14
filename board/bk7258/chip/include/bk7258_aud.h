@@ -4,36 +4,13 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) Audio front-end (AUD) — NuttX audio_lowerhalf_s wrapper.
+ * BK7258 analog speaker playback lower half.
  *
- * Wraps the official Beken bk_aud_* SDK API (DAC playback + ADC/DMIC
- * capture) as a NuttX audio lower half.  Both T5-AI Core and T5-AI Board
- * expose the audio pins, so this is the primary analog audio path
- * (microphone in, speaker out).  I2S (bk7258_i2s) is the digital-codec
- * companion that is delivered separately.
- *
- * AP role: the 54 bk_aud_* symbols live exclusively in the AP libdriver.a
- * (verified with `nm`; CP exports zero).  So this driver is AP-only, like
- * I2S and the other wrappers.
- *
- * Architecture (modelled on drivers/audio/audio_null.c):
- *   - The full audio_ops_s vtable is implemented.  allocbuffer/freebuffer
- *     are left NULL so the upper half uses its default buffer pool.
- *   - enqueuebuffer() posts AUDIO_MSG_ENQUEUE on a per-device message
- *     queue; a worker thread drains it and performs the actual PCM
- *     transfer to/from the AUD hardware FIFO, then reports completion via
- *     dev->upper(AUDIO_CALLBACK_COMPLETE).
- *   - DAC output: bk_aud_dac_get_fifo_addr() returns the TX FIFO register
- *     address; the worker writes 32-bit samples there.
- *   - ADC capture: bk_aud_adc_get_fifo_data() reads one sample per call;
- *     the worker polls it.
- *
- * SDK semantics (verified in aud_*_driver.c):
- *   - bk_aud_driver_init() then bk_aud_dac_init()/bk_aud_adc_init() are
- *     the standard bring-up; each requires the driver already init'd.
- *   - bk_aud_dac_start()/adc_start() enable the block; stop() disables it.
- *   - bk_aud_dac_set_samp_rate()/bk_aud_adc_set_samp_rate() select the
- *     sample rate; bk_aud_dac_set_chl()/bk_aud_adc_set_chl() the channel.
+ * This AP-only wrapper owns the AUD DAC submodule and one repeat-mode GDMA
+ * channel.  It publishes mono signed 16-bit PCM through NuttX's standard
+ * audio upper half.  The selected physical board owns the amplifier GPIO,
+ * polarity and delays; the dedicated bk7258_mic lower half separately owns
+ * capture.
  ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_AUD_H
@@ -55,8 +32,109 @@
 /* Default /dev/audioN device name. */
 
 #ifndef CONFIG_BK7258_AUD_DEVNAME
-#  define CONFIG_BK7258_AUD_DEVNAME    "audio0"
+#  define CONFIG_BK7258_AUD_DEVNAME    "pcm0p"
 #endif
+
+#define BK7258_AUD_BITS_PER_SAMPLE     16u
+#define BK7258_AUD_BYTES_PER_SAMPLE    2u
+#define BK7258_AUD_FINAL_DRAIN_FRAMES  2u
+
+#define BK7258_AUD_DIAG_MAGIC          0x43414442u /* "BDAC" */
+#define BK7258_AUD_DIAG_VERSION        5u
+#define BK7258_AUD_DIAG_CPU_SLOTS      2u
+
+#define BK7258_AUD_RESOURCE_DAC        (1u << 0)
+#define BK7258_AUD_RESOURCE_DMA        (1u << 1)
+#define BK7258_AUD_RESOURCE_RING       (1u << 2)
+#define BK7258_AUD_RESOURCE_WORKER     (1u << 3)
+#define BK7258_AUD_RESOURCE_STREAM     (1u << 4)
+#define BK7258_AUD_RESOURCE_PA         (1u << 5)
+#define BK7258_AUD_RESOURCE_FREQUENCY  (1u << 6)
+
+enum bk7258_aud_diag_state_e
+{
+  BK7258_AUD_DIAG_RESET = 0,
+  BK7258_AUD_DIAG_RESERVED,
+  BK7258_AUD_DIAG_CONFIGURED,
+  BK7258_AUD_DIAG_RUNNING,
+  BK7258_AUD_DIAG_DRAINED,
+  BK7258_AUD_DIAG_FAULT
+};
+
+struct bk7258_aud_diag_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t state;
+  int32_t  first_error;
+  uint32_t samplerate;
+  uint32_t channels;
+  uint32_t bits;
+  uint32_t digital_gain;
+  uint32_t analog_gain;
+  uint32_t resources;
+  uint32_t enqueue_count;
+  uint32_t dequeue_count;
+  uint32_t complete_count;
+  uint32_t submitted_bytes;
+  uint32_t played_bytes;
+  uint32_t dma_alloc_count;
+  uint32_t dma_start_count;
+  uint32_t dma_isr_count;
+  uint32_t final_drain_count;
+  uint32_t dma_stop_count;
+  uint32_t dma_deinit_count;
+  uint32_t dma_free_count;
+  uint32_t dac_start_count;
+  uint32_t dac_stop_count;
+  uint32_t pa_on_count;
+  uint32_t pa_off_count;
+  uint32_t underrun_count;
+  uint32_t pa_enabled;
+
+  /* perf_frequency is the frequency at which the measured DMA-service
+   * cycle counters ran.  It deliberately retains the active session value
+   * after RELEASE so post-mortem cycle conversion remains correct.
+   */
+
+  uint32_t perf_frequency;
+  uint32_t frequency_vote_count;
+  uint32_t frequency_release_count;
+  uint32_t frequency_before_vote;
+  uint32_t frequency_after_release;
+  uint32_t dma_isr_cpu_mask;
+  uint32_t dma_isr_cpu_count[BK7258_AUD_DIAG_CPU_SLOTS];
+  uint32_t dma_isr_min_cycles[BK7258_AUD_DIAG_CPU_SLOTS];
+  uint32_t dma_isr_max_cycles[BK7258_AUD_DIAG_CPU_SLOTS];
+  uint32_t dma_isr_interval_ticks;
+  uint32_t dma_isr_interval_count;
+  uint32_t tick_regression_count;
+  uint32_t worker_wake_count;
+  uint32_t worker_cpu_mask;
+  uint32_t worker_priority;
+  uint32_t sem_backlog_max;
+  uint32_t sem_backlog_events;
+  uint32_t worker_service_count;
+  uint32_t worker_service_max_cycles;
+  uint32_t worker_service_max_ticks;
+  uint32_t worker_service_cpu_migrations;
+  uint32_t worker_isr_during_service_count;
+  uint32_t worker_isr_during_service_max;
+  uint32_t dequeue_callback_count;
+  uint32_t dequeue_callback_max_cycles;
+  uint32_t dequeue_callback_max_ticks;
+  uint32_t dequeue_callback_cpu_migrations;
+  uint32_t first_underrun_isr_sequence;
+  uint32_t first_underrun_worker_wake;
+  uint32_t first_underrun_sem_value;
+  uint32_t first_underrun_outstanding;
+  uint32_t first_underrun_enqueue_count;
+  uint32_t first_underrun_dequeue_count;
+  uint32_t first_underrun_consume_sequence;
+  uint32_t first_underrun_produce_sequence;
+  uint32_t first_underrun_cpu;
+};
 
 /****************************************************************************
  * Public Function Prototypes
@@ -69,10 +147,10 @@
  * Name: bk7258_aud_initialize
  *
  * Description:
- *   Construct the BK7258 audio lower half (DAC + ADC) and register it at
- *   /dev/audioN via audio_register().  The hardware is brought up lazily
- *   by the first start(); this only constructs the driver and publishes
- *   the node.
+ *   Construct the BK7258 DAC playback lower half and register it at
+ *   /dev/audio/<CONFIG_BK7258_AUD_DEVNAME>.  Initialization claims the board
+ *   PA GPIO in its inactive state; reserve() owns the DVFS vote, while the
+ *   DMA, DAC, ring and worker remain lazy until start().
  *
  * Returned Value:
  *   OK on success; a negated errno value on failure.  Calling it twice is
@@ -81,6 +159,12 @@
  ****************************************************************************/
 
 int bk7258_aud_initialize(void);
+
+int bk7258_aud_get_diag(struct bk7258_aud_diag_s *diag);
+
+#ifdef CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION
+int bk7258_aud_validation_start(void);
+#endif
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_AUD */

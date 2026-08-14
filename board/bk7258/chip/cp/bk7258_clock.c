@@ -21,9 +21,10 @@
  * bk7258_dvfs_set_freq(BK7258_FREQ_320M) call, which steps the CPU0 core one
  * tier at a time from the 26 MHz boot residue up to the 320 MHz tier
  * (CPU0 effective 160 MHz on this single-core port; see bk7258_dvfs.h for the
- * SDK "cpu0:160m" note).  The DVFS lower half recomputes the SysTick reload
- * after the switch.  It is not a permanent governor decision: later runtime
- * policy uses the same set_freq() lower half to move between SDK tiers.
+ * SDK "cpu0:160m" note).  The DVFS lower half refreshes CPU-clocked DWT
+ * conversion after the switch; scheduler SysTick stays on fixed 32 kHz.  It
+ * is not a permanent governor decision: later runtime policy uses the same
+ * set_freq() lower half to move between SDK tiers.
  *
  * Shared low-level register helpers (ANA_REG9 field/latch, M1 writes, the
  * analog-SPI wait, the bus-independent microsecond delay) live in
@@ -100,8 +101,8 @@ void bk7258_clock_bringup_320m(void)
    * runtime tier is the DVFS lower half's job: it walks the remaining SDK
    * per-tier voltage/mux program one step at a time (VDDD -> 0x7,
    * VDDIG -> 0xE, CPU0 /2, then M1
-   * cksel=2/clkdiv=0) and finally recomputes the SysTick reload.  The DPLL
-   * was already enabled by the
+   * cksel=2/clkdiv=0) and finally refreshes the DWT conversion.  Scheduler
+   * SysTick remains on fixed 32 kHz.  The DPLL was already enabled by the
    * bootloader's boot_clock.c cold-init (cold path) or is already running
    * (loader --reboot 1 residue on the soft path). */
 

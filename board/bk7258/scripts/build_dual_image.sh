@@ -378,6 +378,27 @@ if config_enabled "${CP_CONFIG}" BK7258_UART0_FLOW_CONTROL &&
     exit 2
 fi
 
+if config_enabled "${CP_CONFIG}" BK7258_PM_STANDBY_ONESHOT_VERIFY &&
+   config_enabled "${CP_CONFIG}" BK7258_CONSOLE_RTT; then
+    printf '%s\n' \
+        'build_dual_image: one-shot standby validation requires a non-RTT CP console' >&2
+    exit 2
+fi
+
+# On T5-Board the fitted CS8302M amplifier owns P28.  Every current SDK I2S
+# pin group also routes I2S1_MCLK through P28, so a runnable image cannot
+# publish both owners.  Keep the raw CI drivercheck pair exempt because it
+# exists only to compile both independent lower halves and is never flashed.
+
+if [[ "${AP_PROFILE_BOARD}" == t5_board &&
+      "${AP_PROFILE_CLASS}" != ci ]] &&
+   config_enabled "${AP_CONFIG}" BK7258_AUD &&
+   config_enabled "${AP_CONFIG}" BK7258_I2S; then
+    printf '%s\n' \
+        'build_dual_image: T5-Board P28 cannot own both speaker PA and I2S1_MCLK' >&2
+    exit 2
+fi
+
 # The CP keeps the board-verified v3.1.1.9 bundle.  AP profiles may name a
 # role-specific variant, but the fixed one-line and fixed-four-line SDK data
 # helpers must never be paired with the opposite NuttX capability.
@@ -919,6 +940,35 @@ verify_sdk_map_role "${OUTPUT}/nuttx-cp.map" cp \
     "${CP_SDK_BUNDLE_VERSION}"
 verify_sdk_map_role "${OUTPUT}/nuttx-ap.map" ap \
     "${AP_SDK_BUNDLE_VERSION}"
+
+require_elf_symbol()
+{
+    local elf="$1"
+    local symbol="$2"
+
+    if ! arm-none-eabi-nm -S --defined-only "${elf}" |
+         awk -v symbol="${symbol}" \
+             'NF >= 4 && $NF == symbol && $(NF - 2) != "00000000" \
+              { found = 1 } END { exit !found }'; then
+        printf 'build_dual_image: required symbol %s is not linked in %s\n' \
+            "${symbol}" "${elf}" >&2
+        exit 1
+    fi
+}
+
+if config_enabled "${CP_CONFIG}" BK7258_PM_STANDBY_ONESHOT_VERIFY; then
+    command -v arm-none-eabi-nm >/dev/null 2>&1 || {
+        printf '%s\n' \
+            'build_dual_image: arm-none-eabi-nm is required for standby ELF gates' >&2
+        exit 1
+    }
+
+    for symbol in pm_idle bk7258_pm_cp_standby \
+                  bk7258_systick_prepare_sleep \
+                  bk7258_systick_restore_after_sleep; do
+        require_elf_symbol "${OUTPUT}/nuttx-cp.elf" "${symbol}"
+    done
+fi
 
 if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     cp "${TMPDIR}/cp-raw.bin" "${OUTPUT}/cp-raw.bin"

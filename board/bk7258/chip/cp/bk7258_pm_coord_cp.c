@@ -82,7 +82,6 @@ volatile struct bk7258_pm_coord_diag_s g_bk7258_pm_coord_diag;
 static bool g_bk7258_pm_wake_armed;
 static bool g_bk7258_pm_flash_prepared;
 static volatile bool g_bk7258_pm_restore_seen;
-static uint64_t g_bk7258_pm_tick_remainder_us;
 static struct bk7258_pm_activity_s g_bk7258_pm_sdk_activity;
 #ifdef CONFIG_BK7258_PM_STANDBY_ONESHOT_VERIFY
 static bool g_bk7258_pm_standby_verified;
@@ -295,27 +294,6 @@ static void bk7258_pm_abort(uint32_t reason)
   bk7258_pm_record(reason);
 }
 
-static void bk7258_pm_compensate_ticks(uint64_t elapsed_us)
-{
-  uint64_t total = elapsed_us + g_bk7258_pm_tick_remainder_us;
-  uint32_t ticks = (uint32_t)(total / USEC_PER_TICK);
-  uint32_t i;
-
-  g_bk7258_pm_tick_remainder_us = total % USEC_PER_TICK;
-  if (ticks > BK7258_PM_MAX_COMP_TICKS)
-    {
-      ticks = BK7258_PM_MAX_COMP_TICKS;
-      g_bk7258_pm_tick_remainder_us = 0;
-    }
-
-  for (i = 0; i < ticks; i++)
-    {
-      nxsched_process_timer();
-    }
-
-  g_bk7258_pm_coord_diag.compensated_ticks += ticks;
-}
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -433,6 +411,8 @@ bool bk7258_pm_cp_standby(void)
 {
   uint64_t start_us;
   uint64_t end_us;
+  uint64_t timer_start_us;
+  uint32_t compensated_ticks;
   uint32_t aon;
 
 #ifdef CONFIG_BK7258_PM_STANDBY_ONESHOT_VERIFY
@@ -545,8 +525,28 @@ bool bk7258_pm_cp_standby(void)
       return false;
     }
 
+  /* Preserve the live arch-timer sub-tick immediately before the immutable
+   * leaf path starts preparing flash and watchdog state.  SysTick pending is
+   * a single saturating bit, so leaving it running through those masked
+   * operations could lose more than one scheduler tick.  If the board proxy
+   * is not fully bound, do not enter a state from which CLOCK_MONOTONIC cannot
+   * be reconstructed.
+   */
+
+  if (bk7258_systick_prepare_sleep() < 0)
+    {
+      bk7258_pm_abort(BK7258_PM_COORD_REASON_CP_IRQ_PENDING);
+      return false;
+    }
+
+  timer_start_us = bk_aon_rtc_get_us();
   if (bk_flash_power_saving_enter() != BK_OK)
     {
+      compensated_ticks =
+        bk7258_systick_restore_after_sleep(
+          bk_aon_rtc_get_us() - timer_start_us,
+          BK7258_PM_MAX_COMP_TICKS);
+      g_bk7258_pm_coord_diag.compensated_ticks += compensated_ticks;
       bk7258_pm_abort(BK7258_PM_COORD_REASON_FLASH_PREPARE);
       return false;
     }
@@ -556,6 +556,7 @@ bool bk7258_pm_cp_standby(void)
   bk7258_wdt_pm_prepare();
 #endif
   g_bk7258_pm_restore_seen = false;
+
   start_us = bk_aon_rtc_get_us();
   bk7258_pm_enter_low_voltage();
   end_us = bk_aon_rtc_get_us();
@@ -573,7 +574,20 @@ bool bk7258_pm_cp_standby(void)
 #ifdef CONFIG_BK7258_WDT
   bk7258_wdt_pm_restore();
 #endif
-  bk7258_systick_recalc();
+
+  /* No task or interrupt can observe SysTick while pm_idle's masks remain in
+   * force.  Once flash and watchdog state are safe for timer callbacks,
+   * replace the SDK's temporary 0x00ffffff reload and pend a real SysTick
+   * exception.  Its hard-IRQ trampoline advances arch_timer's private
+   * timebase and restores the fractional pre-sleep phase before ordinary
+   * scheduling resumes.  Apply this on both successful wake and SDK reject.
+   */
+
+  compensated_ticks =
+    bk7258_systick_restore_after_sleep(
+      bk_aon_rtc_get_us() - timer_start_us,
+      BK7258_PM_MAX_COMP_TICKS);
+  g_bk7258_pm_coord_diag.compensated_ticks += compensated_ticks;
 
   /* The immutable SDK leaf has no return value.  Its successful path calls
    * pm_low_voltage_bsp_restore(), then clears the CP vote and releases AP0.
@@ -599,7 +613,6 @@ bool bk7258_pm_cp_standby(void)
   g_bk7258_pm_coord_diag.entered++;
   g_bk7258_pm_coord_diag.wakeups++;
   g_bk7258_pm_coord_diag.last_sleep_us = (uint32_t)(end_us - start_us);
-  bk7258_pm_compensate_ticks(end_us - start_us);
 #ifdef CONFIG_BK7258_PM_STANDBY_ONESHOT_VERIFY
   g_bk7258_pm_standby_verified = true;
 #endif
