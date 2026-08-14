@@ -77,6 +77,11 @@ struct bk7258_scale_rotate_s
   int completion_result;
   bool initialized;
   bool faulted;
+  bool interrupts_enabled;
+  bool completion_isr_registered;
+  bool error_isr_registered;
+  bool driver_owned;
+  bool memory_owned;
   bool rotator_irq_cpu1;
 };
 
@@ -750,6 +755,12 @@ int bk7258_scale_rotate_initialize(
   if (ret >= 0)
     {
       priv->initialized = true;
+      priv->interrupts_enabled = true;
+      priv->completion_isr_registered = true;
+      priv->error_isr_registered =
+        engine == BK7258_SCALE_ROTATE_ROTATOR;
+      priv->driver_owned = true;
+      priv->memory_owned = bk7258_scale_rotate_is_scale(engine);
       priv->rotator_irq_cpu1 = engine == BK7258_SCALE_ROTATE_ROTATOR;
       *out = priv;
     }
@@ -760,6 +771,11 @@ int bk7258_scale_rotate_initialize(
       priv->engine = BK7258_SCALE_ROTATE_SCALE0;
       priv->operation_active = false;
       priv->completion_done = false;
+      priv->interrupts_enabled = false;
+      priv->completion_isr_registered = false;
+      priv->error_isr_registered = false;
+      priv->driver_owned = false;
+      priv->memory_owned = false;
       priv->rotator_irq_cpu1 = false;
       spin_unlock_irqrestore(&priv->state_lock, flags);
     }
@@ -793,6 +809,8 @@ int bk7258_scale_rotate_uninitialize(
 
   /* Stop accepting late ISR completions before unregistering callbacks. */
 
+  priv->faulted = true;
+
   {
     irqstate_t flags = spin_lock_irqsave(&priv->state_lock);
 
@@ -805,41 +823,128 @@ int bk7258_scale_rotate_uninitialize(
     {
       scale_id_t id = bk7258_scale_rotate_scale_id(priv->engine);
 
-      cleanup_ret = bk7258_scale_rotate_sdk_error(
-        bk_hw_scale_int_enable(id, false));
-      (void)bk_hw_scale_isr_unregister(id);
-      ret = bk7258_scale_rotate_sdk_error(bk_hw_scale_driver_deinit(id));
-      {
-        int free_ret = bk7258_scale_rotate_sdk_error(
-          bk_hw_scale_mem_free(id));
-        if (ret >= 0 && free_ret < 0)
-          {
-            ret = free_ret;
-          }
-      }
+      ret = OK;
+      if (priv->interrupts_enabled)
+        {
+          ret = bk7258_scale_rotate_sdk_error(
+            bk_hw_scale_int_enable(id, false));
+          if (ret < 0)
+            {
+              goto out;
+            }
+
+          priv->interrupts_enabled = false;
+        }
+
+      if (priv->completion_isr_registered)
+        {
+          ret = bk7258_scale_rotate_sdk_error(
+            bk_hw_scale_isr_unregister(id));
+          if (ret < 0)
+            {
+              goto out;
+            }
+
+          priv->completion_isr_registered = false;
+        }
+
+      if (priv->driver_owned)
+        {
+          ret = bk7258_scale_rotate_sdk_error(
+            bk_hw_scale_driver_deinit(id));
+          if (ret < 0)
+            {
+              goto out;
+            }
+
+          priv->driver_owned = false;
+        }
+
+      cleanup_ret = OK;
+      if (priv->memory_owned)
+        {
+          cleanup_ret = bk7258_scale_rotate_sdk_error(
+            bk_hw_scale_mem_free(id));
+          if (cleanup_ret < 0)
+            {
+              ret = cleanup_ret;
+              goto out;
+            }
+
+          priv->memory_owned = false;
+        }
     }
   else
     {
-      cleanup_ret = bk7258_scale_rotate_sdk_error(
-        bk_rott_int_enable(ROTATE_COMPLETE_INT | ROTATE_CFG_ERR_INT, false));
-      (void)bk_rott_isr_register(ROTATE_COMPLETE_INT, NULL);
-      (void)bk_rott_isr_register(ROTATE_CFG_ERR_INT, NULL);
-      (void)bk_rott_soft_reset();
-      ret = bk7258_scale_rotate_sdk_error(bk_rott_driver_deinit());
+      ret = OK;
+      if (priv->interrupts_enabled)
+        {
+          ret = bk7258_scale_rotate_sdk_error(
+            bk_rott_int_enable(ROTATE_COMPLETE_INT | ROTATE_CFG_ERR_INT,
+                               false));
+          if (ret < 0)
+            {
+              goto out;
+            }
+
+          priv->interrupts_enabled = false;
+        }
+
+      if (priv->completion_isr_registered)
+        {
+          ret = bk7258_scale_rotate_sdk_error(
+            bk_rott_isr_register(ROTATE_COMPLETE_INT, NULL));
+          if (ret < 0)
+            {
+              goto out;
+            }
+
+          priv->completion_isr_registered = false;
+        }
+
+      if (priv->error_isr_registered)
+        {
+          ret = bk7258_scale_rotate_sdk_error(
+            bk_rott_isr_register(ROTATE_CFG_ERR_INT, NULL));
+          if (ret < 0)
+            {
+              goto out;
+            }
+
+          priv->error_isr_registered = false;
+        }
+
+      ret = bk7258_scale_rotate_sdk_error(bk_rott_soft_reset());
+      if (ret < 0)
+        {
+          goto out;
+        }
+
+      if (priv->driver_owned)
+        {
+          ret = bk7258_scale_rotate_sdk_error(bk_rott_driver_deinit());
+          if (ret < 0)
+            {
+              goto out;
+            }
+
+          priv->driver_owned = false;
+        }
+
       if (priv->rotator_irq_cpu1)
         {
           bk7258_scale_rotate_route_rott_from_cpu1();
+          priv->rotator_irq_cpu1 = false;
         }
-    }
-
-  if (ret >= 0 && cleanup_ret < 0)
-    {
-      ret = cleanup_ret;
     }
 
   priv->initialized = false;
   priv->faulted = false;
-  priv->rotator_irq_cpu1 = false;
+  priv->interrupts_enabled = false;
+  priv->completion_isr_registered = false;
+  priv->error_isr_registered = false;
+  priv->driver_owned = false;
+  priv->memory_owned = false;
   {
     irqstate_t flags = spin_lock_irqsave(&priv->state_lock);
 
@@ -848,6 +953,8 @@ int bk7258_scale_rotate_uninitialize(
     priv->engine = BK7258_SCALE_ROTATE_SCALE0;
     spin_unlock_irqrestore(&priv->state_lock, flags);
   }
+
+out:
   nxmutex_unlock(&priv->lock);
   return ret;
 }

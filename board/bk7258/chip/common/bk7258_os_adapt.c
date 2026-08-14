@@ -181,14 +181,44 @@ struct timer_adpt
   void          *priv;             /* beken_timer_t / beken2_timer_t */
 };
 
-/* Message queue adapter */
+/* Counting semaphore adapter.  NuttX sem_t has no maximum count, while the
+ * SDK contract is FreeRTOS xSemaphoreCreateCounting().  Keep the limit and a
+ * small posting lock beside the native semaphore so concurrent producers
+ * cannot overrun a binary semaphore with stale tokens.
+ */
+
+struct sem_adpt_s
+{
+  sem_t      sem;
+  spinlock_t lock;
+  int        max_count;
+  int        count;
+  uint16_t   waiters;
+};
+
+/* Message queue adapter.  A NuttX POSIX mqueue orders equal-priority messages
+ * FIFO and therefore cannot implement xQueueSendToFront() exactly.  Use a
+ * bounded board-local deque with semaphore wake hints and spinlock-protected
+ * state; every operation rechecks the state, so reset remains atomic with
+ * concurrent producers and consumers even when a wake hint is stale.
+ */
 
 struct mq_adpt_s
 {
-  struct file mq;           /* NuttX message queue handle */
-  uint32_t    msgsize;      /* Message size in bytes */
-  char        name[16];     /* Message queue name */
-  char        cname[32];    /* Display name for debug */
+  spinlock_t lock;
+  sem_t      not_empty;
+  sem_t      not_full;
+  bool       not_empty_initialized;
+  bool       not_full_initialized;
+  bool       shutting_down;
+  FAR uint8_t *messages;
+  uint32_t   msgsize;
+  uint32_t   capacity;
+  uint32_t   head;
+  uint32_t   count;
+  uint16_t   get_waiters;
+  uint16_t   put_waiters;
+  char       cname[32];
 };
 
 #ifdef CONFIG_BK7258_AP_CORE
@@ -242,7 +272,7 @@ static pid_t g_bk7258_timer_service_pid = -1;
  * keeps normal NuttX heap ownership.
  */
 
-static sem_t g_bk7258_bt_ipc_send_sem;
+static struct sem_adpt_s g_bk7258_bt_ipc_send_sem;
 static bool g_bk7258_bt_ipc_init_scope;
 static bool g_bk7258_bt_ipc_send_sem_active;
 static pid_t g_bk7258_bt_ipc_init_pid;
@@ -1245,30 +1275,32 @@ bk_err_t rtos_print_thread_status(char *buffer, int length)
 
 bk_err_t rtos_init_semaphore(beken_semaphore_t *semaphore, int max_count)
 {
-  sem_t *sem = NULL;
+  struct sem_adpt_s *adapter;
   int ret;
 
-  if (semaphore == NULL)
+  if (semaphore == NULL || max_count <= 0 || max_count > INT16_MAX)
     {
-      return BK_ERR_NULL_PARAM;
+      return semaphore == NULL ? BK_ERR_NULL_PARAM : BK_ERR_PARAM;
     }
 
-  sem = kmm_malloc(sizeof(sem_t));
-  if (!sem)
+  adapter = kmm_zalloc(sizeof(*adapter));
+  if (adapter == NULL)
     {
       wlerr("ERROR: Failed to malloc semaphore\n");
       return BK_FAIL;
     }
 
-  ret = nxsem_init(sem, 0, 0);
+  adapter->max_count = max_count;
+  adapter->count = 0;
+  ret = nxsem_init(&adapter->sem, 0, 0);
   if (ret == OK)
     {
-      *semaphore = sem;
+      *semaphore = adapter;
     }
   else
     {
       wlerr("ERROR: Failed to create semaphore:%d\n", ret);
-      kmm_free(sem);
+      kmm_free(adapter);
     }
 
   return beken_errno_trans(ret);
@@ -1277,12 +1309,13 @@ bk_err_t rtos_init_semaphore(beken_semaphore_t *semaphore, int max_count)
 bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
                                 int max_count, int init_count)
 {
-  sem_t *sem = NULL;
+  struct sem_adpt_s *adapter = NULL;
   int ret;
 
-  if (semaphore == NULL)
+  if (semaphore == NULL || max_count <= 0 || max_count > INT16_MAX ||
+      init_count < 0 || init_count > max_count)
     {
-      return BK_ERR_NULL_PARAM;
+      return semaphore == NULL ? BK_ERR_NULL_PARAM : BK_ERR_PARAM;
     }
 #ifdef CONFIG_BK7258_BT_IPC
   bool static_sem = false;
@@ -1296,26 +1329,34 @@ bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
                                   &expected, true, false,
                                   __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
     {
-      sem = &g_bk7258_bt_ipc_send_sem;
+      adapter = &g_bk7258_bt_ipc_send_sem;
       static_sem = true;
     }
 #endif
 
-  if (sem == NULL)
+  if (adapter == NULL)
     {
-      sem = kmm_malloc(sizeof(sem_t));
+      adapter = kmm_zalloc(sizeof(*adapter));
     }
 
-  if (!sem)
+  if (adapter == NULL)
     {
       wlerr("ERROR: Failed to malloc semaphore\n");
       return BK_FAIL;
     }
 
-  ret = nxsem_init(sem, 0, init_count);
+  adapter->max_count = max_count;
+  adapter->count = init_count;
+  /* adapter->count is the single source of truth.  The native semaphore is
+   * only a condition-variable-style wake channel; mirroring init_count into
+   * both objects would let a fast taker steal a token already assigned to a
+   * sleeping waiter.
+   */
+
+  ret = nxsem_init(&adapter->sem, 0, 0);
   if (ret == OK)
     {
-      *semaphore = sem;
+      *semaphore = adapter;
     }
   else
     {
@@ -1329,7 +1370,7 @@ bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
       else
 #endif
         {
-          kmm_free(sem);
+          kmm_free(adapter);
         }
     }
 
@@ -1338,17 +1379,35 @@ bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
 
 bk_err_t rtos_set_semaphore(beken_semaphore_t *semaphore)
 {
+  struct sem_adpt_s *adapter;
+  irqstate_t flags;
+  bool wake = false;
   int ret;
-  sem_t *sem;
 
   if (semaphore == NULL || *semaphore == NULL)
     {
       return BK_ERR_NOT_INIT;
     }
 
-  sem = (sem_t *)(*semaphore);
+  adapter = (struct sem_adpt_s *)*semaphore;
+  flags = spin_lock_irqsave(&adapter->lock);
+  if (adapter->count >= adapter->max_count)
+    {
+      ret = -EOVERFLOW;
+    }
+  else
+    {
+      adapter->count++;
+      wake = adapter->waiters != 0;
+      ret = OK;
+    }
 
-  ret = nxsem_post(sem);
+  spin_unlock_irqrestore(&adapter->lock, flags);
+  if (wake)
+    {
+      ret = nxsem_post(&adapter->sem);
+    }
+
   if (ret != OK)
     {
       wlerr("ERROR: Failed to post semaphore:%d\n", ret);
@@ -1360,67 +1419,118 @@ bk_err_t rtos_set_semaphore(beken_semaphore_t *semaphore)
 bk_err_t rtos_get_semaphore(beken_semaphore_t *semaphore,
                             uint32_t timeout_ms)
 {
+  struct sem_adpt_s *adapter;
+  clock_t elapsed;
+  clock_t limit;
+  clock_t start;
+  irqstate_t flags;
   int ret;
-  sem_t *sem;
 
   if (semaphore == NULL || *semaphore == NULL)
     {
       return BK_ERR_NOT_INIT;
     }
 
-  sem = (sem_t *)(*semaphore);
+  adapter = (struct sem_adpt_s *)*semaphore;
+  start = clock_systime_ticks();
 
-  if (timeout_ms == 0)
+  for (; ; )
     {
-      ret = nxsem_trywait(sem);
-    }
-  else if (timeout_ms == BEKEN_WAIT_FOREVER)
-    {
-      ret = nxsem_wait(sem);
-    }
-  else
-    {
-      ret = nxsem_tickwait(sem, MSEC2TICK(timeout_ms));
-    }
+      flags = spin_lock_irqsave(&adapter->lock);
+      if (adapter->count > 0)
+        {
+          adapter->count--;
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          return BK_OK;
+        }
 
-  if (ret != OK)
-    {
-      wlerr("ERROR: Failed to get semaphore:%d\n", ret);
-    }
+      if (timeout_ms == 0 || up_interrupt_context())
+        {
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          return beken_errno_trans(-EAGAIN);
+        }
 
-  return beken_errno_trans(ret);
+      if (adapter->waiters == UINT16_MAX)
+        {
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          return beken_errno_trans(-EOVERFLOW);
+        }
+
+      adapter->waiters++;
+      spin_unlock_irqrestore(&adapter->lock, flags);
+
+      if (timeout_ms == BEKEN_WAIT_FOREVER)
+        {
+          ret = nxsem_wait_uninterruptible(&adapter->sem);
+        }
+      else
+        {
+          limit = MSEC2TICK(timeout_ms);
+          if (limit < 1)
+            {
+              limit = 1;
+            }
+
+          elapsed = clock_systime_ticks() - start;
+          if (elapsed >= limit)
+            {
+              flags = spin_lock_irqsave(&adapter->lock);
+              adapter->waiters--;
+              spin_unlock_irqrestore(&adapter->lock, flags);
+              return beken_errno_trans(-ETIMEDOUT);
+            }
+
+          ret = nxsem_tickwait_uninterruptible(&adapter->sem,
+                                               limit - elapsed);
+        }
+
+      flags = spin_lock_irqsave(&adapter->lock);
+      adapter->waiters--;
+      spin_unlock_irqrestore(&adapter->lock, flags);
+      if (ret < 0)
+        {
+          wlerr("ERROR: Failed to get semaphore:%d\n", ret);
+          return beken_errno_trans(ret);
+        }
+
+      /* A wake is only a hint: another CPU can consume the logical token
+       * before this waiter runs.  Recheck adapter->count under the lock.
+       */
+    }
 }
 
 int rtos_get_semaphore_count(beken_semaphore_t *semaphore)
 {
-  sem_t *sem;
-  int count = 0;
+  struct sem_adpt_s *adapter;
+  irqstate_t flags;
+  int count;
 
   if (semaphore == NULL || *semaphore == NULL)
     {
       return 0;
     }
 
-  sem = (sem_t *)(*semaphore);
-
-  nxsem_get_value(sem, &count);
+  adapter = (struct sem_adpt_s *)*semaphore;
+  flags = spin_lock_irqsave(&adapter->lock);
+  count = adapter->count;
+  spin_unlock_irqrestore(&adapter->lock, flags);
 
   return count;
 }
 
 bk_err_t rtos_deinit_semaphore(beken_semaphore_t *semaphore)
 {
+  struct sem_adpt_s *adapter;
   int ret;
-  sem_t *sem;
 
   if (semaphore == NULL || *semaphore == NULL)
     {
       return BK_OK;
     }
 
-  sem = (sem_t *)(*semaphore);
+  adapter = (struct sem_adpt_s *)*semaphore;
 
-  ret = nxsem_destroy(sem);
+  ret = nxsem_destroy(&adapter->sem);
   if (ret != OK)
     {
       wlerr("ERROR: Failed to destroy semaphore:%d\n", ret);
@@ -1428,7 +1538,7 @@ bk_err_t rtos_deinit_semaphore(beken_semaphore_t *semaphore)
     }
 
 #ifdef CONFIG_BK7258_BT_IPC
-  if (sem == &g_bk7258_bt_ipc_send_sem)
+  if (adapter == &g_bk7258_bt_ipc_send_sem)
     {
       __atomic_store_n(&g_bk7258_bt_ipc_send_sem_active, false,
                        __ATOMIC_RELEASE);
@@ -1436,7 +1546,7 @@ bk_err_t rtos_deinit_semaphore(beken_semaphore_t *semaphore)
   else
 #endif
     {
-      kmm_free(sem);
+      kmm_free(adapter);
     }
 
   *semaphore = NULL;
@@ -1621,264 +1731,451 @@ bk_err_t rtos_deinit_mutex(beken_mutex_t *mtx)
 
 bk_err_t rtos_init_recursive_mutex(beken_mutex_t *mtx)
 {
-  /* NuttX mutex is already recursive-capable via nxmutex */
+  FAR rmutex_t *mutex;
+  int ret;
 
-  return rtos_init_mutex(mtx);
+  if (mtx == NULL)
+    {
+      return BK_ERR_NULL_PARAM;
+    }
+
+  mutex = kmm_malloc(sizeof(*mutex));
+  if (mutex == NULL)
+    {
+      return BK_FAIL;
+    }
+
+  ret = nxrmutex_init(mutex);
+  if (ret < 0)
+    {
+      kmm_free(mutex);
+      return beken_errno_trans(ret);
+    }
+
+  *mtx = mutex;
+  return BK_OK;
 }
 
 bk_err_t rtos_lock_recursive_mutex(beken_mutex_t *mtx)
 {
-  return rtos_lock_mutex(mtx);
+  if (mtx == NULL || *mtx == NULL)
+    {
+      return BK_ERR_NOT_INIT;
+    }
+
+  return beken_errno_trans(nxrmutex_lock((FAR rmutex_t *)*mtx));
 }
 
 bk_err_t rtos_unlock_recursive_mutex(beken_mutex_t *mtx)
 {
-  return rtos_unlock_mutex(mtx);
+  if (mtx == NULL || *mtx == NULL)
+    {
+      return BK_ERR_NOT_INIT;
+    }
+
+  return beken_errno_trans(nxrmutex_unlock((FAR rmutex_t *)*mtx));
 }
 
 bk_err_t rtos_deinit_recursive_mutex(beken_mutex_t *mtx)
 {
-  return rtos_deinit_mutex(mtx);
+  FAR rmutex_t *mutex;
+  int ret;
+
+  if (mtx == NULL || *mtx == NULL)
+    {
+      return BK_OK;
+    }
+
+  mutex = (FAR rmutex_t *)*mtx;
+  ret = nxrmutex_destroy(mutex);
+  if (ret < 0)
+    {
+      return beken_errno_trans(ret);
+    }
+
+  kmm_free(mutex);
+  *mtx = NULL;
+  return BK_OK;
 }
 
 /****************************************************************************
  * Public Functions - Message Queue
  ****************************************************************************/
 
+static int bk7258_mq_wait_hint(FAR sem_t *sem, uint32_t timeout_ms,
+                               clock_t start)
+{
+  clock_t elapsed;
+  clock_t limit;
+
+  if (up_interrupt_context() || timeout_ms == 0)
+    {
+      return -EAGAIN;
+    }
+
+  if (timeout_ms == BEKEN_WAIT_FOREVER)
+    {
+      return nxsem_wait_uninterruptible(sem);
+    }
+
+  limit = MSEC2TICK(timeout_ms);
+  if (limit < 1)
+    {
+      limit = 1;
+    }
+
+  elapsed = clock_systime_ticks() - start;
+  if (elapsed >= limit)
+    {
+      return -ETIMEDOUT;
+    }
+
+  return nxsem_tickwait_uninterruptible(sem, limit - elapsed);
+}
+
+static bk_err_t bk7258_mq_push(beken_queue_t *queue, FAR const void *message,
+                               uint32_t timeout_ms, bool front)
+{
+  FAR struct mq_adpt_s *adapter;
+  clock_t start;
+  irqstate_t flags;
+  bool wake;
+  uint32_t index;
+  int ret;
+
+  if (queue == NULL || *queue == NULL || message == NULL)
+    {
+      return BK_ERR_PARAM;
+    }
+
+  adapter = (FAR struct mq_adpt_s *)*queue;
+  start = clock_systime_ticks();
+
+  for (; ; )
+    {
+      flags = spin_lock_irqsave(&adapter->lock);
+      if (adapter->shutting_down)
+        {
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          return beken_errno_trans(-ESHUTDOWN);
+        }
+
+      if (adapter->count < adapter->capacity)
+        {
+          if (front)
+            {
+              adapter->head = (adapter->head + adapter->capacity - 1u) %
+                              adapter->capacity;
+              index = adapter->head;
+            }
+          else
+            {
+              index = (adapter->head + adapter->count) % adapter->capacity;
+            }
+
+          memcpy(adapter->messages + (size_t)index * adapter->msgsize,
+                 message, adapter->msgsize);
+          adapter->count++;
+          wake = adapter->get_waiters != 0;
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          ret = wake ? nxsem_post(&adapter->not_empty) : OK;
+          return beken_errno_trans(ret);
+        }
+
+      if (up_interrupt_context() || timeout_ms == 0)
+        {
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          return beken_errno_trans(-EAGAIN);
+        }
+
+      if (adapter->put_waiters == UINT16_MAX)
+        {
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          return beken_errno_trans(-EOVERFLOW);
+        }
+
+      adapter->put_waiters++;
+      spin_unlock_irqrestore(&adapter->lock, flags);
+      ret = bk7258_mq_wait_hint(&adapter->not_full, timeout_ms, start);
+      flags = spin_lock_irqsave(&adapter->lock);
+      adapter->put_waiters--;
+      spin_unlock_irqrestore(&adapter->lock, flags);
+      if (ret < 0)
+        {
+          return beken_errno_trans(ret);
+        }
+    }
+}
+
 bk_err_t rtos_init_queue(beken_queue_t *queue, const char *name,
                          uint32_t message_size,
                          uint32_t number_of_messages)
 {
-  struct mq_attr attr;
-  struct mq_adpt_s *mq_adpt;
+  FAR struct mq_adpt_s *adapter;
+  size_t bytes;
   int ret;
 
-  mq_adpt = kmm_malloc(sizeof(struct mq_adpt_s));
-  if (!mq_adpt)
+  if (queue == NULL || message_size == 0 || number_of_messages == 0 ||
+      number_of_messages > INT16_MAX ||
+      message_size > SIZE_MAX / number_of_messages)
+    {
+      return BK_ERR_PARAM;
+    }
+
+  adapter = kmm_zalloc(sizeof(*adapter));
+  if (adapter == NULL)
     {
       wlerr("ERROR: Failed to kmm_malloc\n");
       return BK_FAIL;
     }
 
-  memset(mq_adpt, 0x0, sizeof(struct mq_adpt_s));
-
-  if (name)
+  bytes = (size_t)message_size * number_of_messages;
+  adapter->messages = kmm_malloc(bytes);
+  if (adapter->messages == NULL)
     {
-      snprintf(mq_adpt->name, sizeof(mq_adpt->name), "/tmp/%s", name);
-    }
-  else
-    {
-      snprintf(mq_adpt->name, sizeof(mq_adpt->name), "/tmp/%p",
-               mq_adpt);
+      kmm_free(adapter);
+      return BK_FAIL;
     }
 
-  attr.mq_maxmsg  = number_of_messages;
-  attr.mq_msgsize = message_size;
-  attr.mq_curmsgs = 0;
-  attr.mq_flags   = 0;
+  adapter->msgsize = message_size;
+  adapter->capacity = number_of_messages;
+  strncpy(adapter->cname, name != NULL ? name : "null",
+          sizeof(adapter->cname) - 1);
 
-  strncpy(mq_adpt->cname, name ? name : "null",
-          sizeof(mq_adpt->cname) - 1);
+  ret = nxsem_init(&adapter->not_empty, 0, 0);
+  if (ret >= 0)
+    {
+      adapter->not_empty_initialized = true;
+      ret = nxsem_init(&adapter->not_full, 0, 0);
+      if (ret >= 0)
+        {
+          adapter->not_full_initialized = true;
+        }
+      else
+        {
+          (void)nxsem_destroy(&adapter->not_empty);
+          adapter->not_empty_initialized = false;
+        }
+    }
 
-  ret = file_mq_open(&mq_adpt->mq, mq_adpt->name,
-                     O_RDWR | O_CREAT, 0644, &attr);
   if (ret < 0)
     {
-      wlerr("ERROR: Failed to create mqueue\n");
-      kmm_free(mq_adpt);
+      wlerr("ERROR: Failed to create queue semaphores: %d\n", ret);
+      kmm_free(adapter->messages);
+      kmm_free(adapter);
       return beken_errno_trans(ret);
     }
 
-  mq_adpt->msgsize = message_size;
-  *queue           = mq_adpt;
+  *queue = adapter;
 
-  return beken_errno_trans(ret);
+  return BK_OK;
 }
 
 bk_err_t rtos_push_to_queue(beken_queue_t *queue, void *message,
                             uint32_t timeout_ms)
 {
-  int ret;
-  struct mq_adpt_s *mq_adpt = (struct mq_adpt_s *)*queue;
-
-  if (timeout_ms == BEKEN_WAIT_FOREVER)
-    {
-      ret = file_mq_send(&mq_adpt->mq, (const char *)message,
-                         mq_adpt->msgsize, 0);
-      if (ret < 0)
-        {
-          wlerr("Failed to send message to mqueue error=%d\n", ret);
-        }
-    }
-  else if (timeout_ms == 0)
-    {
-      /* BEKEN_NO_WAIT is zero in the official SDK.  file_mq_send() blocks
-       * in task context when the queue is full, so use the tick-based kernel
-       * API with a zero budget.  In interrupt context NuttX also fails with
-       * -EAGAIN instead of sleeping.
-       */
-
-      ret = file_mq_ticksend(&mq_adpt->mq, (const char *)message,
-                             mq_adpt->msgsize, 0, 0);
-      if (ret < 0)
-        {
-          wlerr("Failed to send message to mqueue without waiting error=%d\n",
-                ret);
-        }
-    }
-  else
-    {
-      struct timespec timeout;
-
-      clock_gettime(CLOCK_REALTIME, &timeout);
-      timeout.tv_sec  += timeout_ms / 1000;
-      timeout.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
-
-      if (timeout.tv_nsec >= 1000000000)
-        {
-          timeout.tv_sec  += timeout.tv_nsec / 1000000000;
-          timeout.tv_nsec %= 1000000000;
-        }
-
-      ret = file_mq_timedsend(&mq_adpt->mq, (const char *)message,
-                              mq_adpt->msgsize, 0, &timeout);
-      if (ret < 0)
-        {
-          wlerr("Failed to timedsend message to mqueue error=%d\n", ret);
-        }
-    }
-
-  return beken_errno_trans(ret);
+  return bk7258_mq_push(queue, message, timeout_ms, false);
 }
 
 bk_err_t rtos_push_to_queue_front(beken_queue_t *queue, void *message,
                                   uint32_t timeout_ms)
 {
-  /* NuttX mq does not support front insertion; fall back to normal send */
-
-  return rtos_push_to_queue(queue, message, timeout_ms);
+  return bk7258_mq_push(queue, message, timeout_ms, true);
 }
 
 bk_err_t rtos_pop_from_queue(beken_queue_t *queue, void *message,
                              uint32_t timeout_ms)
 {
+  FAR struct mq_adpt_s *adapter;
+  clock_t start;
+  irqstate_t flags;
+  bool wake;
   int ret;
-  struct mq_adpt_s *mq_adpt = (struct mq_adpt_s *)*queue;
 
-  if (timeout_ms == BEKEN_WAIT_FOREVER)
+  if (queue == NULL || *queue == NULL || message == NULL)
     {
-      ret = file_mq_receive(&mq_adpt->mq, message,
-                            mq_adpt->msgsize, 0);
-      if (ret < 0)
-        {
-          wlerr("Failed to receive message from mqueue error=%d\n", ret);
-        }
-    }
-  else
-    {
-      struct timespec timeout;
-
-      clock_gettime(CLOCK_REALTIME, &timeout);
-      timeout.tv_sec  += timeout_ms / 1000;
-      timeout.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
-
-      if (timeout.tv_nsec >= 1000000000)
-        {
-          timeout.tv_sec  += timeout.tv_nsec / 1000000000;
-          timeout.tv_nsec %= 1000000000;
-        }
-
-      ret = file_mq_timedreceive(&mq_adpt->mq, message,
-                                 mq_adpt->msgsize, 0, &timeout);
-      if (ret < 0)
-        {
-          wlerr("Failed to timedreceive message from mqueue error=%d\n",
-                ret);
-        }
+      return BK_ERR_PARAM;
     }
 
-  return ret > 0 ? BK_OK : BK_FAIL;
+  adapter = (FAR struct mq_adpt_s *)*queue;
+  start = clock_systime_ticks();
+
+  for (; ; )
+    {
+      flags = spin_lock_irqsave(&adapter->lock);
+      if (adapter->shutting_down)
+        {
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          return beken_errno_trans(-ESHUTDOWN);
+        }
+
+      if (adapter->count != 0)
+        {
+          memcpy(message,
+                 adapter->messages + (size_t)adapter->head * adapter->msgsize,
+                 adapter->msgsize);
+          adapter->head = (adapter->head + 1u) % adapter->capacity;
+          adapter->count--;
+          wake = adapter->put_waiters != 0;
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          ret = wake ? nxsem_post(&adapter->not_full) : OK;
+          return beken_errno_trans(ret);
+        }
+
+      if (up_interrupt_context() || timeout_ms == 0)
+        {
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          return beken_errno_trans(-EAGAIN);
+        }
+
+      if (adapter->get_waiters == UINT16_MAX)
+        {
+          spin_unlock_irqrestore(&adapter->lock, flags);
+          return beken_errno_trans(-EOVERFLOW);
+        }
+
+      adapter->get_waiters++;
+      spin_unlock_irqrestore(&adapter->lock, flags);
+      ret = bk7258_mq_wait_hint(&adapter->not_empty, timeout_ms, start);
+      flags = spin_lock_irqsave(&adapter->lock);
+      adapter->get_waiters--;
+      spin_unlock_irqrestore(&adapter->lock, flags);
+      if (ret < 0)
+        {
+          return beken_errno_trans(ret);
+        }
+    }
 }
 
 bk_err_t rtos_deinit_queue(beken_queue_t *queue)
 {
-  struct mq_adpt_s *mq_adpt = (struct mq_adpt_s *)*queue;
+  FAR struct mq_adpt_s *adapter;
+  irqstate_t flags;
+  int ret;
 
-  file_mq_close(&mq_adpt->mq);
-  file_mq_unlink(mq_adpt->name);
-  kmm_free(mq_adpt);
+  if (queue == NULL || *queue == NULL)
+    {
+      return BK_OK;
+    }
 
-  return OK;
+  adapter = (FAR struct mq_adpt_s *)*queue;
+  flags = spin_lock_irqsave(&adapter->lock);
+  if (adapter->get_waiters != 0 || adapter->put_waiters != 0)
+    {
+      spin_unlock_irqrestore(&adapter->lock, flags);
+      return beken_errno_trans(-EBUSY);
+    }
+
+  /* Once teardown starts, no queue operation may resume.  Keep ownership of
+   * each semaphore until its individual destroy succeeds so a rare partial
+   * failure is retryable instead of double-destroying the first semaphore.
+   */
+
+  adapter->shutting_down = true;
+  spin_unlock_irqrestore(&adapter->lock, flags);
+
+  if (adapter->not_empty_initialized)
+    {
+      ret = nxsem_destroy(&adapter->not_empty);
+      if (ret < 0)
+        {
+          return beken_errno_trans(ret);
+        }
+
+      adapter->not_empty_initialized = false;
+    }
+
+  if (adapter->not_full_initialized)
+    {
+      ret = nxsem_destroy(&adapter->not_full);
+      if (ret < 0)
+        {
+          return beken_errno_trans(ret);
+        }
+
+      adapter->not_full_initialized = false;
+    }
+
+  kmm_free(adapter->messages);
+  kmm_free(adapter);
+  *queue = NULL;
+
+  return BK_OK;
 }
 
 bool rtos_is_queue_empty(beken_queue_t *queue)
 {
-  struct mq_adpt_s *mq_adpt = (struct mq_adpt_s *)*queue;
-  struct mq_attr mq_attr;
+  FAR struct mq_adpt_s *adapter;
+  irqstate_t flags;
+  bool empty;
 
-  file_mq_getattr(&mq_adpt->mq, &mq_attr);
+  if (queue == NULL || *queue == NULL)
+    {
+      return true;
+    }
 
-  return (mq_attr.mq_curmsgs == 0);
+  adapter = (FAR struct mq_adpt_s *)*queue;
+  flags = spin_lock_irqsave(&adapter->lock);
+  empty = adapter->count == 0;
+  spin_unlock_irqrestore(&adapter->lock, flags);
+  return empty;
 }
 
 bool rtos_is_queue_full(beken_queue_t *queue)
 {
-  struct mq_adpt_s *mq_adpt = (struct mq_adpt_s *)*queue;
-  struct mq_attr mq_attr;
-
-  file_mq_getattr(&mq_adpt->mq, &mq_attr);
-
-  return (mq_attr.mq_curmsgs == mq_attr.mq_maxmsg);
-}
-
-bool rtos_reset_queue(beken_queue_t *queue)
-{
-  struct mq_adpt_s *mq_adpt;
-  struct mq_attr attr;
-  FAR char *message;
-  long pending;
-  long i;
+  FAR struct mq_adpt_s *adapter;
+  irqstate_t flags;
+  bool full;
 
   if (queue == NULL || *queue == NULL)
     {
       return false;
     }
 
-  mq_adpt = (struct mq_adpt_s *)*queue;
-  if (file_mq_getattr(&mq_adpt->mq, &attr) < 0)
+  adapter = (FAR struct mq_adpt_s *)*queue;
+  flags = spin_lock_irqsave(&adapter->lock);
+  full = adapter->count == adapter->capacity;
+  spin_unlock_irqrestore(&adapter->lock, flags);
+  return full;
+}
+
+bool rtos_reset_queue(beken_queue_t *queue)
+{
+  FAR struct mq_adpt_s *adapter;
+  irqstate_t flags;
+  uint16_t put_waiters;
+  int ret = OK;
+
+  if (queue == NULL || *queue == NULL || up_interrupt_context())
     {
       return false;
     }
 
-  pending = attr.mq_curmsgs;
-  if (pending == 0)
+  adapter = (FAR struct mq_adpt_s *)*queue;
+  flags = spin_lock_irqsave(&adapter->lock);
+  if (adapter->shutting_down)
     {
-      return true;
-    }
-
-  message = kmm_malloc(mq_adpt->msgsize);
-  if (message == NULL)
-    {
+      spin_unlock_irqrestore(&adapter->lock, flags);
       return false;
     }
 
-  /* Drain the snapshot that existed when reset began.  A producer that
-   * sends after this point is a post-reset message and must remain queued,
-   * matching xQueueReset()'s critical-section boundary.
+  adapter->head = 0;
+  adapter->count = 0;
+  put_waiters = adapter->put_waiters;
+  spin_unlock_irqrestore(&adapter->lock, flags);
+
+  /* Reset makes every slot available.  Wake blocked producers so each can
+   * compete for a slot and recheck the authoritative count.  Consumer wake
+   * hints already queued before reset are harmless because consumers also
+   * recheck count; do not nxsem_reset() while tasks may be blocked on it.
    */
 
-  for (i = 0; i < pending; i++)
+  while (put_waiters-- != 0 && ret >= 0)
     {
-      if (file_mq_tickreceive(&mq_adpt->mq, message, mq_adpt->msgsize,
-                              NULL, 0) < 0)
-        {
-          break;
-        }
+      ret = nxsem_post(&adapter->not_full);
     }
 
-  kmm_free(message);
-
-  return true;
+  return ret == OK;
 }
 
 /****************************************************************************
@@ -2979,9 +3276,12 @@ uint32_t platform_is_in_interrupt_context(void)
 
 bool rtos_local_irq_disabled(void)
 {
-  /* Stub: assume IRQs are not disabled */
+  uint32_t basepri;
+  uint32_t primask;
 
-  return false;
+  __asm volatile ("mrs %0, primask" : "=r" (primask) :: "memory");
+  __asm volatile ("mrs %0, basepri" : "=r" (basepri) :: "memory");
+  return (primask & 1u) != 0 || basepri != 0;
 }
 
 bool rtos_is_scheduler_suspended(void)

@@ -8,7 +8,8 @@
  *
  * Wraps the Beken SDK bk_timer_* driver as a NuttX timer lower half and
  * publishes it at /dev/timerN.  The BK7258 has 6 hardware timer channels
- * (TIMER_ID0..TIMER_ID5).
+ * (TIMER_ID0..TIMER_ID5).  The pinned v3.1.1.9 AP bundle exposes only
+ * TIMER_ID3..TIMER_ID5 through CONFIG_TIMER_SUPPORT_ID_BITS=0x38.
  *
  * AP/CP: the 15 bk_timer_* symbols are exported by both the AP and the CP
  * libdriver.a (verified with `nm`).  This wrapper runs on the AP core,
@@ -42,12 +43,12 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Default hardware timer channel.  TIMER_ID0 is reserved by the SDK for
- * its microsecond timer (CONFIG_TIMER_US), so default to TIMER_ID1.
+/* Default hardware timer channel.  The pinned AP bundle accepts channels
+ * 3..5, so default to TIMER_ID3.
  */
 
 #ifndef CONFIG_BK7258_TIMER_CHAN
-#  define CONFIG_BK7258_TIMER_CHAN      1
+#  define CONFIG_BK7258_TIMER_CHAN      3
 #endif
 
 /* Default /dev/timerN device name. */
@@ -79,6 +80,9 @@
  ****************************************************************************/
 
 int bk7258_timer_initialize(void);
+#ifdef CONFIG_BK7258_TIMER_FAULT_INJECTION
+int bk7258_timer_fault_validate(void);
+#endif
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_TIMER */

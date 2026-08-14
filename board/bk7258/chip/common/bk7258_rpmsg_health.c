@@ -477,6 +477,7 @@ int bk7258_rpmsg_health_initialize(void)
 {
   struct bk7258_rpmsg_health_dev_s *priv = &g_bk7258_rpmsg_health;
   bool expected = false;
+  bool callback_registered = false;
   bool semaphore_initialized = false;
   int ret = OK;
 
@@ -522,6 +523,11 @@ int bk7258_rpmsg_health_initialize(void)
 #endif
     }
 
+  if (ret >= 0)
+    {
+      callback_registered = true;
+    }
+
 #ifdef CONFIG_BK7258_AP_CORE
   if (ret >= 0)
     {
@@ -531,6 +537,24 @@ int bk7258_rpmsg_health_initialize(void)
 
   if (ret < 0)
     {
+      /* Registration can synchronously create the endpoint for an existing
+       * RPMsg device.  Remove the callback first; unregister invokes the
+       * matching destroy hook while its semaphore is still alive.
+       */
+
+      if (callback_registered)
+        {
+          rpmsg_unregister_callback(priv,
+                                    bk7258_rpmsg_health_device_created,
+                                    bk7258_rpmsg_health_device_destroy,
+#ifdef CONFIG_BK7258_AP_CORE
+                                    NULL, NULL);
+#else
+                                    bk7258_rpmsg_health_ns_match,
+                                    bk7258_rpmsg_health_ns_bind);
+#endif
+        }
+
       if (semaphore_initialized)
         {
 #ifdef CONFIG_BK7258_AP_CORE
@@ -539,6 +563,10 @@ int bk7258_rpmsg_health_initialize(void)
           (void)nxsem_destroy(&priv->reply_sem);
 #endif
         }
+
+      memset(&priv->ept, 0, sizeof(priv->ept));
+      __atomic_store_n(&priv->endpoint_created, false, __ATOMIC_RELEASE);
+      priv->connection_error = ret;
       __atomic_store_n(&priv->initialized, false, __ATOMIC_RELEASE);
     }
 

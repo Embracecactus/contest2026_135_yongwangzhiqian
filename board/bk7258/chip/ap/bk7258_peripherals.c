@@ -346,6 +346,14 @@ int bk7258_peripherals_initialize(void)
     {
       return ret;
     }
+
+#ifdef CONFIG_BK7258_TIMER_FAULT_INJECTION
+  ret = bk7258_timer_fault_validate();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
 #endif
 
   /* Object-returning lower halves.  These are best-effort: a failure means

@@ -553,6 +553,32 @@ config BK7258_PM_POLICY
 		WFI.  Without BK7258_PM_COORDINATED_STANDBY this admits PM_IDLE only;
 		PM_STANDBY and PM_SLEEP remain fail-closed.
 
+config BK7258_PM_FAULT_INJECTION
+	bool "PM RPMsg reply-loss fault injection"
+	default n
+	depends on BK7258_PM_CLOCK && !BK7258_AP_CORE
+	---help---
+		Expose a CP diagnostic record whose drop_reply_count field can be
+		armed by a debugger or initialized by the validation-only option below.
+		The PM server then commits a request but intentionally suppresses its
+		response, allowing a real board to verify AP retry and
+		generation/sequence replay without changing the
+		request or applying its resource transition twice.  The hook is inert
+		until explicitly armed and must remain disabled in production profiles.
+
+config BK7258_PM_FAULT_INITIAL_DROP_COUNT
+	int "Initial PM reply drop count"
+	default 0
+	range 0 3
+	depends on BK7258_PM_FAULT_INJECTION
+	---help---
+		Initialize the validation record before the CP PM endpoint is exposed.
+		A value of three suppresses the original reply and both AP retries, so
+		the following cleanup operation must recover the cached transaction
+		before it can release the resource.  Keep this at zero except for a
+		bounded fault-injection image; production profiles do not select the
+		parent option at all.
+
 config BK7258_PM_COORDINATED_STANDBY
 	bool "CP/AP coordinated low-voltage standby"
 	default n
@@ -1082,6 +1108,17 @@ config BK7258_WDT
 		takes over after boot and feeds it via the NuttX watchdog
 		upper-half automonitor (CONFIG_WATCHDOG_AUTOMONITOR).
 		Default timeout 8 s (period=8000), matching the bootloader.
+
+config BK7258_WDT_FAULT_INJECTION
+	bool "BK7258 WDT one-shot failure validation"
+	default n
+	depends on BK7258_WDT
+	---help---
+		Run a boot-time, one-shot fault-injection sequence at the SDK call
+		boundary.  It proves that initialization can be retried, a failed
+		stop remains ACTIVE, and a failed PM restore becomes inactive and
+		can be recovered.  This is a real-board validation option only; do
+		not enable it in a production profile.
 
 config BK7258_SDK_IRQ_BRIDGE
 	bool "Beken SDK CPU0 interrupt bridge"
@@ -1767,10 +1804,21 @@ config BK7258_TIMER
 	select BK7258_SDK_IPC_RUNTIME
 	select TIMER
 
+config BK7258_TIMER_FAULT_INJECTION
+	bool "BK7258 timer one-shot stop-failure validation"
+	default n
+	depends on BK7258_TIMER
+	---help---
+		Run a boot-time, one-shot stop-failure test at the SDK call
+		boundary.  The test checks both the NuttX ACTIVE state and the SDK
+		hardware-enable bit before retrying a normal stop.  This is a
+		real-board validation option only; do not enable it in a production
+		profile.
+
 config BK7258_TIMER_CHAN
 	int "Timer channel"
-	default 1
-	range 1 5
+	default 3
+	range 3 5
 	depends on BK7258_TIMER
 
 config BK7258_TIMER_BUS

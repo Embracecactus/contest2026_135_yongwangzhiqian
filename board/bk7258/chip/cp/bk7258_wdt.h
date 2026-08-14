@@ -49,6 +49,9 @@
 int bk7258_wdt_initialize(void);
 void bk7258_wdt_pm_prepare(void);
 void bk7258_wdt_pm_restore(void);
+#ifdef CONFIG_BK7258_WDT_FAULT_INJECTION
+int bk7258_wdt_fault_validate(void);
+#endif
 #endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_CHIP_BK7258_WDT_H */
