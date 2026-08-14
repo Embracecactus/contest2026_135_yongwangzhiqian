@@ -1,6 +1,6 @@
 # Project Memory Index
 
-Last reviewed: 2026-08-13
+Last reviewed: 2026-08-14
 
 Read `../progress/CURRENT.md` after this file, then load only the documents relevant to the active task.
 
@@ -45,6 +45,10 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 ## Current verified baseline
 
 - Read [Current Progress](../progress/CURRENT.md) for the branch, publication/merge state, next action, and rollback point.
+- The 66/100 review's actionable runtime-contract findings, the exact-once PM
+  retry proof, WDT/timer failure-recovery proof, final signed build and
+  T5-Board camera/RPTUN/supervisor/PM state are recorded in the
+  [2026-08-14 runtime-contract verification](../progress/verification/2026-08-14-bk7258-runtime-contracts.md).
 - The current bringup/physical-board layering and its Classic/CMake build
   evidence are recorded in the
   [2026-08-13 board-layer verification](../progress/verification/2026-08-13-bk7258-bringup-board-layers.md).
