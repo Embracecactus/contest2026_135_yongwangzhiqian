@@ -3,12 +3,10 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) on-board analog microphone capture — NuttX audio
+ * BK7258 on-board analog microphone capture — a shared NuttX audio
  * lower-half over the official Beken bk_aud_adc_* / bk_dma_* SDK APIs.
- * Zero register access.
- *
- * Board wiring: a single differential analog microphone on MICP1/MICN1,
- * i.e. hardware MIC1, which the AUD ADC maps onto the LEFT channel.
+ * Zero register access.  The selected physical-board header supplies the
+ * fixed one- or two-microphone topology.
  *
  * Role ownership: AP only.  bk_aud_adc_*, ring_buffer_* and the audio
  * clock/power votes are compiled into the AP libdriver.a exclusively; the
@@ -26,16 +24,18 @@
  * Notes on SDK behaviour that shaped this driver (verified against the
  * v3.1.1.9 sources, not assumed):
  *
- *  1. bk_aud_adc_set_mic_mode() is a no-op on BK7258: sys_hal_aud_mic1_
- *     single_en() has its body commented out.  Differential mode is the
- *     ANA_REG19 reset default (MICSINGLEEN == 0) applied by
- *     bk_aud_driver_init(), so the call is kept only for readability.
- *  2. bk_aud_set_ana_mic0_gain() drives ANA_REG19 == hardware MIC1.  The
- *     confusingly named bk_aud_set_ana_mic1_gain() drives ANA_REG27 ==
- *     MIC2, whose path is "not support" on this SoC.
- *  3. The ADC FIFO is always L/R interleaved regardless of adc_chl, so a
- *     mono capture initialises with AUD_ADC_CHL_LR, transfers twice the
- *     payload and drops the right half in software.
+ *  1. bk_aud_adc_set_mic_mode() is a no-op on BK7258 because both single_en
+ *     HAL bodies are empty.  Differential mode is nevertheless established
+ *     by bk_aud_driver_init() through the ANA_REG19/ANA_REG27 defaults.
+ *  2. bk_aud_set_ana_mic0_gain() drives ANA_REG19 == hardware MIC1;
+ *     bk_aud_set_ana_mic1_gain() drives ANA_REG27 == hardware MIC2.
+ *     CONFIG_SOC_BK7236XX is also selected for the BK7258 SDK bundle, so its
+ *     common audio init programs both analog records even though the generic
+ *     mic2_en HAL helper is empty.
+ *  3. The ADC FIFO is always a 32-bit L/R word.  The current official
+ *     onboard_mic_stream therefore initializes AUD_ADC_CHL_LR and uses a
+ *     32-bit DMA for both stream formats.  Mono capture drops the unused
+ *     right half; stereo capture preserves the MIC1/MIC2 sample pair.
  *  4. Start order is DMA then ADC; stop order is DMA then ADC.
  *  5. ring_buffer_read() must run in task context: it re-reads the DMA
  *     destination write pointer and rewrites the DMA pause address, which
@@ -68,6 +68,7 @@
 #include <nuttx/kthread.h>
 #include <nuttx/audio/audio.h>
 
+#include <arch/board/board.h>
 #include <arch/chip/bk7258_mic.h>
 
 /* SDK API headers.
@@ -96,10 +97,6 @@
 
 #ifndef CONFIG_BK7258_MIC_SAMPLE_RATE
 #  define CONFIG_BK7258_MIC_SAMPLE_RATE BK7258_MIC_RATE_16000
-#endif
-
-#ifndef CONFIG_BK7258_MIC_CHANNELS
-#  define CONFIG_BK7258_MIC_CHANNELS    1
 #endif
 
 #ifndef CONFIG_BK7258_MIC_DIG_GAIN
@@ -200,6 +197,12 @@ struct bk7258_mic_dev_s
   volatile bool     terminate;
   volatile bool     streaming;
 
+  /* Serialize the capture worker against pause/stop.  Once pause returns,
+   * no buffer callback from the pre-pause stream remains in flight.
+   */
+
+  mutex_t           worker_lock;
+
   enum bk7258_mic_state_e state;
   bool reserved;
 
@@ -287,14 +290,15 @@ static const struct audio_ops_s g_bk7258_mic_ops =
   .release       = bk7258_mic_release,
 };
 
-/* Single on-board microphone: one static instance, and the DMA finish ISR
- * needs it because bk_dma_register_isr() takes a bare void(*)(void) with no
- * argument to carry context.
+/* One on-board capture device: its negotiated stream may contain one or two
+ * physical microphones.  The DMA finish ISR needs the static instance because
+ * bk_dma_register_isr() takes no caller context.
  */
 
 static struct bk7258_mic_dev_s g_bk7258_mic =
 {
-  .lock = NXMUTEX_INITIALIZER,
+  .lock        = NXMUTEX_INITIALIZER,
+  .worker_lock = NXMUTEX_INITIALIZER,
 };
 
 static bool g_bk7258_mic_registered;
@@ -310,6 +314,40 @@ _Static_assert(BK7258_MIC_BYTES_PER_SAMPLE * BK7258_MIC_FIFO_CHANNELS ==
 _Static_assert((BK7258_MIC_DMA_FRAME_BYTES % BK7258_MIC_FIFO_WORD_BYTES)
                == 0,
                "BK7258 MIC DMA frame must be a whole number of FIFO words");
+
+_Static_assert(BK7258_BOARD_HAS_MIC1 == 1,
+               "BK7258 MIC lower half requires board MIC1 wiring");
+
+_Static_assert(BK7258_BOARD_MIC_CHANNELS == 1 ||
+               BK7258_BOARD_MIC_CHANNELS == 2,
+               "BK7258 board microphone topology must be mono or stereo");
+
+_Static_assert(BK7258_BOARD_HAS_MIC2 ==
+               (BK7258_BOARD_MIC_CHANNELS == 2),
+               "BK7258 board MIC2 wiring must match its channel count");
+
+_Static_assert(CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_8000 ||
+               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_11025 ||
+               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_12000 ||
+               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_16000 ||
+               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_22050 ||
+               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_24000 ||
+               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_32000 ||
+               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_44100 ||
+               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_48000,
+               "BK7258 MIC default sample rate must be supported by SDK");
+
+_Static_assert(CONFIG_BK7258_MIC_DIG_GAIN <= BK7258_MIC_DIG_GAIN_MAX,
+               "BK7258 MIC digital gain exceeds the SDK field");
+
+_Static_assert(CONFIG_BK7258_MIC_DIG_GAIN >= BK7258_MIC_DIG_GAIN_MIN,
+               "BK7258 MIC digital gain is below the SDK field");
+
+_Static_assert(CONFIG_BK7258_MIC_ANA_GAIN <= BK7258_MIC_ANA_GAIN_MAX,
+               "BK7258 MIC analog gain exceeds the hardware field");
+
+_Static_assert(CONFIG_BK7258_MIC_ANA_GAIN >= BK7258_MIC_ANA_GAIN_MIN,
+               "BK7258 MIC analog gain is below the hardware field");
 
 /****************************************************************************
  * Private Functions
@@ -383,8 +421,9 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
       return ret;
     }
 
-  /* The ADC FIFO is L/R interleaved no matter what, so always open both
-   * channels and drop the unused half in software.
+  /* The current official onboard_mic_stream explicitly opens L/R for both
+   * one- and two-channel formats because the DMA must carry each packed
+   * 32-bit FIFO word.  Mono selection happens when the worker discards R.
    */
 
   cfg.adc_chl       = AUD_ADC_CHL_LR;
@@ -392,11 +431,17 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
   cfg.adc_gain      = priv->dig_gain;
   cfg.adc_mode      = AUD_ADC_MODE_DIFFEN;
   cfg.adc_samp_edge = AUD_ADC_SAMP_EDGE_RISING;
-  cfg.clk_src       = AUD_CLK_APLL;
+
+  /* Keep the converter on the SDK onboard-mic reference clock.  The AP
+   * libdriver.a is built for the secure audio domain and its production
+   * stream selects XTAL here; APLL is not a board-level tuning knob.
+   */
+
+  cfg.clk_src       = AUD_CLK_XTAL;
 
   /* bk_aud_adc_init() internally performs bk_aud_driver_init() (power vote,
    * PM_CLK_ID_AUDIO, INT_SRC_AUDIO registration, ANA_REG baseline) and
-   * bk_aud_clk_config(), including the full APLL bring-up sequence.
+   * bk_aud_clk_config(), including the converter clock setup.
    */
 
   err = bk_aud_adc_init(&cfg);
@@ -410,7 +455,15 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
    * explicit and the code stays portable to parts where it is wired.
    */
 
-  bk_aud_adc_set_mic_mode(AUD_MIC_MIC1, AUD_ADC_MODE_DIFFEN);
+  err = bk_aud_adc_set_mic_mode(priv->channels == 2 ? AUD_MIC_BOTH :
+                                                      AUD_MIC_MIC1,
+                                AUD_ADC_MODE_DIFFEN);
+  if (err != BK_OK)
+    {
+      auderr("ERROR: bk_aud_adc_set_mic_mode failed: %d\n", err);
+      ret = bk7258_mic_result(err);
+      goto err_adc;
+    }
 
   /* ana_mic0 == ANA_REG19 == hardware MIC1 == MICP1/MICN1. */
 
@@ -420,6 +473,19 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
       auderr("ERROR: bk_aud_set_ana_mic0_gain failed: %d\n", err);
       ret = bk7258_mic_result(err);
       goto err_adc;
+    }
+
+  /* ana_mic1 == ANA_REG27 == hardware MIC2 == MICP2/MICN2. */
+
+  if (priv->channels == 2)
+    {
+      err = bk_aud_set_ana_mic1_gain(priv->ana_gain);
+      if (err != BK_OK)
+        {
+          auderr("ERROR: bk_aud_set_ana_mic1_gain failed: %d\n", err);
+          ret = bk7258_mic_result(err);
+          goto err_adc;
+        }
     }
 
   /* DMA destination ring, plus the de-interleave scratch frame. */
@@ -499,10 +565,28 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
       goto err_dma_init;
     }
 
-#ifdef CONFIG_BK7258_MIC_DMA_SECURE
-  bk_dma_set_src_sec_attr(priv->dma_id, DMA_ATTR_SEC);
-  bk_dma_set_dest_sec_attr(priv->dma_id, DMA_ATTR_SEC);
-#endif
+  /* This immutable AP libdriver.a was built with CONFIG_SPE=1: its DMA
+   * driver registers INT_SRC_GDMA / INT_SRC_DMA1_SEC, and the official
+   * onboard-mic stream marks both ends secure.  A NuttX-only conditional
+   * cannot reproduce that archive-time setting; omitting these attributes
+   * accepts setup but the audio FIFO never completes a transfer.
+   */
+
+  err = bk_dma_set_src_sec_attr(priv->dma_id, DMA_ATTR_SEC);
+  if (err != BK_OK)
+    {
+      auderr("ERROR: bk_dma_set_src_sec_attr failed: %d\n", err);
+      ret = bk7258_mic_result(err);
+      goto err_dma_init;
+    }
+
+  err = bk_dma_set_dest_sec_attr(priv->dma_id, DMA_ATTR_SEC);
+  if (err != BK_OK)
+    {
+      auderr("ERROR: bk_dma_set_dest_sec_attr failed: %d\n", err);
+      ret = bk7258_mic_result(err);
+      goto err_dma_init;
+    }
 
   err = bk_dma_register_isr(priv->dma_id, NULL, bk7258_mic_dma_isr);
   if (err != BK_OK)
@@ -727,11 +811,25 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
           break;
         }
 
+      /* Pause/stop serialize their hardware transition through worker_lock
+       * and clear streaming before releasing it.  Recheck after taking the
+       * lock so a pre-pause semaphore cannot produce a late callback.
+       */
+
+      nxmutex_lock(&priv->worker_lock);
+
+      if (priv->terminate || !priv->streaming)
+        {
+          nxmutex_unlock(&priv->worker_lock);
+          continue;
+        }
+
       /* Only consume a frame once the DMA has actually landed one. */
 
       if (ring_buffer_get_fill_size(&priv->ring) <
           BK7258_MIC_DMA_FRAME_BYTES)
         {
+          nxmutex_unlock(&priv->worker_lock);
           continue;
         }
 
@@ -739,6 +837,7 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
                              BK7258_MIC_DMA_FRAME_BYTES);
       if (got == 0)
         {
+          nxmutex_unlock(&priv->worker_lock);
           continue;
         }
 
@@ -747,6 +846,7 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
       frames = got / BK7258_MIC_FIFO_WORD_BYTES;
       if (frames == 0)
         {
+          nxmutex_unlock(&priv->worker_lock);
           continue;
         }
 
@@ -761,6 +861,7 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
            */
 
           audwarn("WARNING: no queued buffer, dropped %u frames\n", frames);
+          nxmutex_unlock(&priv->worker_lock);
           continue;
         }
 
@@ -813,6 +914,8 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
 #endif
           }
       }
+
+      nxmutex_unlock(&priv->worker_lock);
     }
 
   bk7258_mic_flush_pending(priv);
@@ -882,7 +985,7 @@ static int bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
 
         /* Capture only. */
 
-        caps->ac_channels = CONFIG_BK7258_MIC_CHANNELS;
+        caps->ac_channels = BK7258_BOARD_MIC_CHANNELS;
 
         switch (caps->ac_subtype)
           {
@@ -898,7 +1001,7 @@ static int bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
         break;
 
       case AUDIO_TYPE_INPUT:
-        caps->ac_channels = CONFIG_BK7258_MIC_CHANNELS;
+        caps->ac_channels = BK7258_BOARD_MIC_CHANNELS;
 
         switch (caps->ac_subtype)
           {
@@ -965,9 +1068,12 @@ static int bk7258_mic_configure(struct audio_lowerhalf_s *dev,
               return -EINVAL;
             }
 
-          if (channels != 1 && channels != 2)
+          if (channels < 1 || channels > BK7258_BOARD_MIC_CHANNELS)
             {
-              auderr("ERROR: unsupported channel count %u\n", channels);
+              auderr("ERROR: board %s supports 1..%u microphone channels, "
+                     "got %u\n",
+                     BK7258_BOARD_VARIANT_NAME,
+                     BK7258_BOARD_MIC_CHANNELS, channels);
               return -EINVAL;
             }
 
@@ -1121,7 +1227,14 @@ static int bk7258_mic_stop(struct audio_lowerhalf_s *dev)
       return OK;
     }
 
+  /* The worker's ring_buffer_read() also touches DMA producer/pause
+   * registers.  Quiesce it before stopping those registers underneath it.
+   */
+
+  nxmutex_lock(&priv->worker_lock);
+  priv->streaming = false;
   bk7258_mic_hw_stop(priv);
+  nxmutex_unlock(&priv->worker_lock);
 
   /* Join before teardown: the thread dereferences the ring and the scratch
    * frame that bk7258_mic_hw_teardown() is about to free.
@@ -1168,9 +1281,16 @@ static int bk7258_mic_pause(struct audio_lowerhalf_s *dev)
    * transport and the converter are halted.
    */
 
+  /* Serialize against ring_buffer_read() and the upper callback while the
+   * DMA/ADC registers are stopped.  A pending completion is consumed after
+   * unlock and ignored because streaming is false.
+   */
+
+  nxmutex_lock(&priv->worker_lock);
   priv->streaming = false;
   bk7258_mic_hw_stop(priv);
   priv->state = BK7258_MIC_STATE_PAUSED;
+  nxmutex_unlock(&priv->worker_lock);
 
   return OK;
 }
@@ -1191,16 +1311,25 @@ static int bk7258_mic_resume(struct audio_lowerhalf_s *dev)
       return OK;
     }
 
-  priv->streaming = true;
+  /* Keep the worker out while stale completions and ring pointers from the
+   * pre-pause stream are discarded and the hardware is restarted.
+   */
+
+  nxmutex_lock(&priv->worker_lock);
+
+  while (nxsem_trywait(&priv->dmasem) >= 0);
 
   ret = bk7258_mic_hw_start(priv);
   if (ret < 0)
     {
       priv->streaming = false;
+      nxmutex_unlock(&priv->worker_lock);
       return ret;
     }
 
+  priv->streaming = true;
   priv->state = BK7258_MIC_STATE_RUNNING;
+  nxmutex_unlock(&priv->worker_lock);
   return OK;
 }
 #endif
@@ -1218,7 +1347,10 @@ static int bk7258_mic_shutdown(struct audio_lowerhalf_s *dev)
   if (priv->state == BK7258_MIC_STATE_RUNNING ||
       priv->state == BK7258_MIC_STATE_PAUSED)
     {
+      nxmutex_lock(&priv->worker_lock);
+      priv->streaming = false;
       bk7258_mic_hw_stop(priv);
+      nxmutex_unlock(&priv->worker_lock);
       bk7258_mic_stop_thread(priv);
       bk7258_mic_hw_teardown(priv);
     }
@@ -1243,11 +1375,6 @@ static int bk7258_mic_enqueuebuffer(struct audio_lowerhalf_s *dev,
       apb->nmaxbytes < BK7258_MIC_BYTES_PER_SAMPLE)
     {
       return -EINVAL;
-    }
-
-  if (!priv->reserved)
-    {
-      return -EACCES;
     }
 
   apb->nbytes  = 0;
@@ -1331,7 +1458,13 @@ static int bk7258_mic_cancelbuffer(struct audio_lowerhalf_s *dev,
 static int bk7258_mic_ioctl(struct audio_lowerhalf_s *dev, int cmd,
                             unsigned long arg)
 {
+  struct bk7258_mic_dev_s *priv = (struct bk7258_mic_dev_s *)dev;
   int ret = OK;
+
+  if (priv == NULL)
+    {
+      return -EINVAL;
+    }
 
   switch (cmd)
     {
@@ -1345,7 +1478,7 @@ static int bk7258_mic_ioctl(struct audio_lowerhalf_s *dev, int cmd,
               return -EINVAL;
             }
 
-          info->buffer_size = BK7258_MIC_FRAME_BYTES;
+          info->buffer_size = BK7258_MIC_FRAME_BYTES * priv->channels;
           info->nbuffers    = CONFIG_BK7258_MIC_RING_FRAMES;
         }
         break;
@@ -1417,11 +1550,31 @@ static int bk7258_mic_release(struct audio_lowerhalf_s *dev)
 
   DEBUGASSERT(priv != NULL);
 
-  bk7258_mic_flush_pending(priv);
-
   nxmutex_lock(&priv->lock);
+
+  if (!priv->reserved)
+    {
+      nxmutex_unlock(&priv->lock);
+      return OK;
+    }
+
+  /* Close the enqueue gate before draining.  Otherwise an enqueue can land
+   * after flush_pending() observes an empty queue but before reserved is
+   * cleared, leaving a buffer that no owner can ever recover.
+   */
+
   priv->reserved = false;
   nxmutex_unlock(&priv->lock);
+
+  /* Join a buffer already removed from pendq by the capture worker, then
+   * keep the worker excluded while every remaining buffer is returned.  No
+   * new enqueue can pass the gate above, and the worker cannot race the
+   * final drain by reacquiring worker_lock between a join and the flush.
+   */
+
+  nxmutex_lock(&priv->worker_lock);
+  bk7258_mic_flush_pending(priv);
+  nxmutex_unlock(&priv->worker_lock);
   return OK;
 }
 
@@ -1449,7 +1602,7 @@ int bk7258_mic_initialize(void)
 
   priv->dev.ops    = &g_bk7258_mic_ops;
   priv->samplerate = CONFIG_BK7258_MIC_SAMPLE_RATE;
-  priv->channels   = CONFIG_BK7258_MIC_CHANNELS;
+  priv->channels   = BK7258_BOARD_MIC_CHANNELS;
   priv->dig_gain   = CONFIG_BK7258_MIC_DIG_GAIN;
   priv->ana_gain   = CONFIG_BK7258_MIC_ANA_GAIN;
   priv->dma_id     = DMA_ID_MAX + 1;   /* Not a valid channel */
@@ -1498,11 +1651,20 @@ int bk7258_mic_initialize(void)
   g_bk7258_mic_registered = true;
 
   syslog(LOG_INFO,
-         "BMIC BOOT PASS dev=/dev/audio/%s rate=%u ch=%u dig=0x%02x "
-         "ana=0x%02x\n",
+         "BMIC BOOT PASS board=%s dev=/dev/audio/%s rate=%u max_ch=%u "
+         "dig=0x%02x ana=0x%02x\n",
+         BK7258_BOARD_VARIANT_NAME,
          CONFIG_BK7258_MIC_DEVNAME, (unsigned)priv->samplerate,
          (unsigned)priv->channels, (unsigned)priv->dig_gain,
          (unsigned)priv->ana_gain);
+
+#ifdef CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION
+  ret = bk7258_mic_validation_start();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "BMICVAL FAIL stage=worker ret=%d\n", ret);
+    }
+#endif
 
   return OK;
 }

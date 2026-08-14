@@ -17,7 +17,11 @@ ENTRY(Reset_Handler)
 MEMORY
 {
     FLASH (rx)  : ORIGIN = BK7258_ROLE_BOOT_XIP_START,
-                  LENGTH = BK7258_ROLE_BOOT_LOGICAL_SIZE
+                  LENGTH = BK7258_ROLE_BOOT_LOGICAL_SIZE -
+                           BK7258_BL1_MANIFEST_TAIL_SIZE - 0x100
+    TRUST (rx)  : ORIGIN = BK7258_ROLE_BOOT_XIP_END -
+                           BK7258_BL1_MANIFEST_TAIL_SIZE - 0x100,
+                  LENGTH = 0x100
     RAM   (rwx) : ORIGIN = 0x28000000, LENGTH = 0x000A0000
 }
 
@@ -27,6 +31,14 @@ SECTIONS
         *(.text.startup)
         *(.text*)
     } > FLASH
+
+    /* Stable public identity used by the pre-flash trust probe.  Keep this
+     * outside ordinary .rodata so code growth cannot move its addresses. */
+    .trust_identity : {
+        KEEP(*(.rodata.bk7258_bl1_manifest_root_public_key))
+        KEEP(*(.rodata.bk7258_bl1_manifest_root_public_key_hash))
+        KEEP(*(.rodata.bk7258_beken_manifest_root_public_key_hash))
+    } > TRUST
 
     .rodata : {
         *(.rodata*)
@@ -56,7 +68,8 @@ SECTIONS
 
     ASSERT(SIZEOF(.data) == 0, "bootloader must not require initialized RAM data")
     ASSERT(SIZEOF(.bss) == 0, "bootloader must not retain hidden BSS state")
+    ASSERT(SIZEOF(.trust_identity) == 0x80,
+           "bootloader trust identity must contain P-256 X||Y plus two hashes")
     ASSERT((ADDR(.rodata) + SIZEOF(.rodata)) <=
-           (BK7258_ROLE_BOOT_XIP_END - BK7258_BL1_MANIFEST_TAIL_SIZE),
-           "bootloader overlaps the reserved BL1 Manifest tail")
+           ORIGIN(TRUST), "bootloader overlaps the fixed trust identity")
 }

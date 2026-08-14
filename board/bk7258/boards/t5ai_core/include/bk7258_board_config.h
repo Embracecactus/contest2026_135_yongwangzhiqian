@@ -26,6 +26,12 @@
 #define BK7258_BOARD_HAS_NATIVE_USB_HOST         0
 #define BK7258_BOARD_HAS_GT1151_TOUCH            0
 
+/* One differential on-board analog microphone is fitted on MIC1. */
+
+#define BK7258_BOARD_MIC_CHANNELS                 1
+#define BK7258_BOARD_HAS_MIC1                     1
+#define BK7258_BOARD_HAS_MIC2                     0
+
 #define BK7258_BOARD_USER_LED_GPIO               9
 #define BK7258_BOARD_USER_LED_ACTIVE_HIGH        1
 #define BK7258_BOARD_USER_LED_CONSOLE_SHARED     0

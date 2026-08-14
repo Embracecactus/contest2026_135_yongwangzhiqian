@@ -1,6 +1,6 @@
 # Project Rules
 
-Last reviewed: 2026-08-13
+Last reviewed: 2026-08-14
 
 ## Domain invariants
 
@@ -66,6 +66,20 @@ Last reviewed: 2026-08-13
   not firmware or board-write authority. The current board remains unarmed and
   runs N15 format 2 until a separately reviewed implementation and migration
   are explicitly authorized.
+- Every MCUboot package must bind a public-only trust contract to the actual
+  BL1/BL2 ELF symbols and raw image bytes.  Before any normal MCUboot download,
+  non-halting J-Link reads must match the target's existing BL1 Manifest and
+  BL2 MCUboot public fingerprints.  J-Link failure or failure to match every
+  identity at one permitted address fails closed before `bk_loader`; normal
+  download has no bypass and may not rotate trust roots.  The contract, logs
+  and project memory must never contain private-key material or private-key
+  paths.  This preflight does not grant authority to write boot-chain,
+  OTP/eFuse or lifecycle ranges.
+- Trust identities live in linker-reserved fixed blocks in new BL1/BL2 images.
+  The contract may retain only the explicitly reviewed installed-legacy probe
+  addresses; do not infer or append addresses from arbitrary binaries.  A
+  compatibility match authorizes only the already requested normal download,
+  never an implicit boot-chain rewrite.
 
 ## Failure and recovery behavior
 

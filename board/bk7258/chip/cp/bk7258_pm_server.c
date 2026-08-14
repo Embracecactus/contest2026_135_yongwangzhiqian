@@ -32,6 +32,8 @@
  */
 
 extern void sys_drv_dev_clk_pwr_up(int dev, int power_up);
+extern int bk_pm_module_vote_power_ctrl(unsigned int module,
+                                         int power_state);
 extern void sys_drv_module_power_ctrl(int module, int power_state);
 extern int32_t sys_drv_module_power_state_get(int module);
 extern void smem_reset_lastblock(void);
@@ -82,6 +84,7 @@ extern void sys_hal_set_cis_auxs_clk_en(uint32_t value);
 
 #define BK7258_SDK_POWER_MEM3       2
 #define BK7258_SDK_POWER_VIDP       7
+#define BK7258_SDK_POWER_AUDP_AUDIO 122u
 #define BK7258_SDK_POWER_ON         0
 #define BK7258_SDK_POWER_OFF        1
 
@@ -225,10 +228,11 @@ static void bk7258_pm_set_camera_mclk_24m(bool enable)
   leave_critical_section(flags);
 }
 
-static void bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
+static int bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
 {
   int state = enable ? BK7258_SDK_CLOCK_POWER_UP :
                        BK7258_SDK_CLOCK_POWER_DOWN;
+  int ret;
 
   switch (clock)
     {
@@ -258,7 +262,37 @@ static void bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
         sys_drv_dev_clk_pwr_up(BK7258_SDK_CLOCK_DISPLAY, state);
         break;
       case BK7258_PM_CLOCK_AUDIO:
+        /* AP SDK v3.1.1.9 votes PM_POWER_SUB_MODULE_NAME_AUDP_AUDIO
+         * immediately before PM_CLK_ID_AUDIO.  Both AP calls reference this
+         * composite resource.  Preserve the official hardware order on the
+         * first/last CP-owned edge without reviving the vendor mailbox PM
+         * service that conflicts with NuttX RPTUN.
+         */
+
+        if (enable)
+          {
+            ret = bk_pm_module_vote_power_ctrl(
+                    BK7258_SDK_POWER_AUDP_AUDIO,
+                    BK7258_SDK_POWER_ON);
+            if (ret < 0)
+              {
+                return ret;
+              }
+          }
+
         sys_drv_dev_clk_pwr_up(BK7258_SDK_CLOCK_AUDIO, state);
+
+        if (!enable)
+          {
+            ret = bk_pm_module_vote_power_ctrl(
+                    BK7258_SDK_POWER_AUDP_AUDIO,
+                    BK7258_SDK_POWER_OFF);
+            if (ret < 0)
+              {
+                return ret;
+              }
+          }
+
         break;
       case BK7258_PM_CLOCK_I2C1:
         sys_drv_dev_clk_pwr_up(BK7258_SDK_CLOCK_I2C1, state);
@@ -382,6 +416,8 @@ static void bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
       default:
         break;
     }
+
+  return OK;
 }
 
 static void bk7258_pm_release_generation(
@@ -394,7 +430,7 @@ static void bk7258_pm_release_generation(
     {
       if (priv->refs[i] != 0)
         {
-          bk7258_pm_set_clock((enum bk7258_pm_clock_e)i, false);
+          (void)bk7258_pm_set_clock((enum bk7258_pm_clock_e)i, false);
           priv->refs[i] = 0;
         }
     }
@@ -580,10 +616,13 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
                   bk7258_pm_set_video_power(true);
                 }
 
-              bk7258_pm_set_clock(clock, true);
+              status = bk7258_pm_set_clock(clock, true);
             }
 
-          priv->refs[clock]++;
+          if (status >= 0)
+            {
+              priv->refs[clock]++;
+            }
         }
     }
   else if (request->command == BK7258_PM_COMMAND_CLOCK_PUT)
@@ -594,15 +633,22 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
         }
       else
         {
-          priv->refs[clock]--;
-          if (priv->refs[clock] == 0)
+          if (priv->refs[clock] == 1)
             {
-              bk7258_pm_set_clock(clock, false);
-              if (bk7258_pm_is_video_clock(clock) &&
-                  !bk7258_pm_video_active(priv))
+              status = bk7258_pm_set_clock(clock, false);
+              if (status >= 0)
                 {
-                  bk7258_pm_set_video_power(false);
+                  priv->refs[clock] = 0;
+                  if (bk7258_pm_is_video_clock(clock) &&
+                      !bk7258_pm_video_active(priv))
+                    {
+                      bk7258_pm_set_video_power(false);
+                    }
                 }
+            }
+          else
+            {
+              priv->refs[clock]--;
             }
         }
     }

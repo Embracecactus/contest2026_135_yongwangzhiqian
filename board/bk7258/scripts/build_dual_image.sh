@@ -10,6 +10,7 @@ WORKSPACE="$(cd "${CONTEST_DIR}/.." && pwd)"
 TOPDIR="${WORKSPACE}/nuttx"
 BUILD="${WORKSPACE}/build.sh"
 PARTITION_GENERATOR="${SCRIPT_DIR}/gen_bk7258_partitions.py"
+TRUST_CHAIN_TOOL="${SCRIPT_DIR}/bk7258_trust_chain.py"
 # A worktree validation can point this at a temporary config mirror whose
 # custom board/chip paths resolve to that worktree.  Normal builds consume the
 # configs owned by this generic BK7258 board tree; the former vendor mirror
@@ -398,6 +399,7 @@ fi
 # repository (normally from /tmp or a developer-owned secure key store).
 MCUBOOT_PROFILE=false
 BL1_USE_BL2=0
+TRUST_CHAIN_CONTRACT=
 MCUBOOT_SIGNING_KEY="${MCUBOOT_SIGNING_KEY:-}"
 MCUBOOT_VERSION="${MCUBOOT_VERSION:-}"
 MCUBOOT_SECURITY_COUNTER="${MCUBOOT_SECURITY_COUNTER:-auto}"
@@ -429,6 +431,7 @@ esac
 if [[ "${CP_PROFILE_BOOT}" == mcuboot ]]; then
     MCUBOOT_PROFILE=true
     BL1_USE_BL2=1
+    TRUST_CHAIN_CONTRACT=bk7258-trust-chain.json
     MCUBOOT_BL2_FLASH_SEGMENT="bl2_crc.bin@0x51d000,bl2_secondary_crc.bin@0x53f000"
     if [[ -z "${MCUBOOT_SIGNING_KEY}" || ! -f "${MCUBOOT_SIGNING_KEY}" ]]; then
         printf '%s\n' \
@@ -694,6 +697,17 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     cp "${BOARD_DIR}/bootloader/bl2/bl2_crc.bin" "${TMPDIR}/bl2_crc.bin"
     cp "${BOARD_DIR}/bootloader/bl2/bl2_crc.bin" "${TMPDIR}/bl2_secondary_crc.bin"
     cp "${BOARD_DIR}/bootloader/bl2/bl2_crc.bin.json" "${TMPDIR}/bl2_crc.bin.json"
+    python3 "${TRUST_CHAIN_TOOL}" emit \
+        --bl1-manifest-key "${BL1_MANIFEST_KEY}" \
+        --mcuboot-signing-key "${MCUBOOT_SIGNING_KEY}" \
+        --bootloader-elf "${TMPDIR}/bootloader.elf" \
+        --bootloader-bin "${TMPDIR}/bootloader.bin" \
+        --bl2-elf "${TMPDIR}/bl2.elf" \
+        --bl2-bin "${TMPDIR}/bl2.bin" \
+        --boot-xip-base 0x02000000 \
+        --bl2-load-base "${BL2_LOAD_ADDRESS}" \
+        --bl2-primary-xip-base "${BL2_XIP_ADDRESS}" \
+        --output "${TMPDIR}/bk7258-trust-chain.json"
 fi
 
 printf 'build_dual_image: building CPU0/CP (%s)\n' "${CP_CONFIG_NAME}"
@@ -804,6 +818,7 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     PACK_DUAL_ARGS+=(
         --bl2-primary-crc "${TMPDIR}/bl2_crc.bin"
         --bl2-secondary-crc "${TMPDIR}/bl2_secondary_crc.bin"
+        --trust-chain "${TMPDIR}/bk7258-trust-chain.json"
     )
 fi
 python3 "${SCRIPT_DIR}/pack_dual_image.py" "${PACK_DUAL_ARGS[@]}"
@@ -854,6 +869,8 @@ MCUBOOT_VERSION=${MCUBOOT_VERSION}
 MCUBOOT_SECURITY_COUNTER=${MCUBOOT_SECURITY_COUNTER}
 MCUBOOT_OFFICIAL_PIPELINE=${MCUBOOT_OFFICIAL_PIPELINE}
 MCUBOOT_SIGNING_KEY_REQUIRED=${MCUBOOT_PROFILE}
+TRUST_CHAIN_CONTRACT=${TRUST_CHAIN_CONTRACT}
+TRUST_CHAIN_PREFLIGHT_REQUIRED=${MCUBOOT_PROFILE}
 BL1_MANIFEST_ENABLED=${MCUBOOT_PROFILE}
 BL1_MANIFEST_FORMAT=${BL1_MANIFEST_FORMAT}
 BL1_MANIFEST_RAW_PAGE=${BL1_MANIFEST_RAW_PAGE}
@@ -882,6 +899,11 @@ cp "${OUTPUT}/app_crc.bin" "${TOPDIR}/app_crc.bin"
 cp "${OUTPUT}/app1.bin" "${TOPDIR}/app1.bin"
 cp "${OUTPUT}/app1_crc.bin" "${TOPDIR}/app1_crc.bin"
 cp "${OUTPUT}/bk7258-dual-image.json" "${TOPDIR}/"
+if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    cp "${OUTPUT}/bk7258-trust-chain.json" "${TOPDIR}/"
+else
+    rm -f "${TOPDIR}/bk7258-trust-chain.json"
+fi
 
 if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     # The MCUboot CP profile has no runtime SDK partition call site in its

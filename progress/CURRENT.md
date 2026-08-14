@@ -5,100 +5,106 @@ Updated by: Codex
 
 ## Active objective
 
-The merged baseline is `f717e652df0f` on `dev-ai-contest-2026`.  The
-Wi-Fi/Bluetooth worker-lifecycle implementation is committed as `54f4571` on
-`fix/bk7258-radio-worker-lifecycle` and published to the matching `fork` branch.
-It closes the remaining boundary against the official v3.1.1.9 SDK and Tuya
-ownership model, with paired build and T5-Board evidence.
+The merged baseline is `4f88dc6` on `dev-ai-contest-2026`.  The working branch
+is `fix/bk7258-mic-board-topology`.  It contains the uncommitted MIC
+board-topology, lifecycle and audio-PM closure plus the completed pre-flash
+trust-chain gate.  The final CP/AP-only image is running on T5-Board; nothing
+from this working tree has been committed or pushed.
 
 ## Implemented
 
-- Upgraded the PM RPMsg protocol to version 4 with generation/sequence
-  identity, same-request retries, CP-side cached reply replay and exactly-once
-  clock/frequency side effects.  AP local ownership is committed once even if
-  the optional local timebase refresh fails.
-- Added complete RPMsg health registration rollback and staged RPMsg-test
-  semaphore/thread/callback cleanup.
-- Completed the SDK OS-adapter queue, recursive-mutex, IRQ-state and bounded
-  semaphore contracts.  `rtos_delete_thread()` remains aligned with the
-  official v3.1.1.9 SDK contract; the review request to clear its caller-owned
-  handle was not applied.
-- Made I2C reset, timer stop, WDT, USB-host and scale/rotate ownership state
-  follow vendor return values and retain retryable teardown tokens on failure.
-  Added the MIC null-argument release-build guard.  Added default-off WDT/timer
-  fault-injection diagnostics and corrected the timer channel range/default to
-  3 through 5, matching the pinned SDK capability mask `0x38`.
-- Aligned the camera and PWM AP validation profiles with the required SMP,
-  AP-supervisor and coordinated-PM topology.  The dual-image builder now rejects
-  missing supervisor/PM symmetry and insufficient AP PM domains.
-- Preserved the official SDK self-delete ABI and made Bluetooth Controller
-  state transactional across AP/CP.  CP publishes an authoritative active bit
-  only after real SDK success; AP reconciles lost replies or retains UNKNOWN
-  ownership on mismatch.  Wi-Fi remains whole-chip lifetime and rejects
-  AP-only restart while active.  See [ADR-025](../memory/decisions/ADR-025-bk7258-radio-lifecycle-boundary.md).
+- MCUboot builds emit a strict public-only `bk7258-trust-chain.json` derived
+  from the actual external signing keys and rebound to the packaged BL1/BL2
+  ELF symbols and raw bytes.  Private-key material and paths are excluded.
+- Future BL1/BL2 images publish identities in linker-reserved fixed blocks;
+  the contract retains the current installed boot chain's single legacy probe
+  per identity until a separately authorized boot-chain replacement occurs.
+- MCUboot packaging and final factory-layout verification require that
+  contract; raw packaging forbids it.  Packaging validates and stages the
+  source bundle into a clean output, then revalidates the destination.  A
+  detached/tampered contract fails before a downloadable package is accepted.
+- Every MCUboot Flash action in `bk7258_auto_debug.sh` performs non-halting
+  J-Link reads of the existing BL1 Manifest and BL2 MCUboot fingerprints before
+  `bk_loader`.  J-Link failure or failure to match any permitted location for
+  an identity refuses download; normal download cannot bypass the check or
+  rotate roots.
+- `--flash --sparse-flash --apps-only` produces a CP/AP-only write set and
+  preserves BL1, BL2, Manifest, secondary slot, LittleFS, `usr_config` and the
+  calibration tail.
+- One shared NuttX MIC lower-half now consumes physical-board topology:
+  T5AI-Core exposes MICP1/MICN1 as mono, while T5-Board exposes
+  MICP1/MICN1 plus MICP2/MICN2 as stereo.  Electrical topology remains in the
+  board header; product defaults for rate, gain and buffering are Kconfig;
+  supported runtime format negotiation remains the NuttX audio API's job.
+- MIC teardown now quiesces capture work before pause/stop/release/shutdown and
+  closes partially owned DMA/audio resources symmetrically, so a completed
+  close can be followed by a clean reopen.
+- The immutable AP audio SDK's separate AUDIO-domain and clock calls are both
+  routed to one CP-owned composite audio resource.  Its first acquire enables
+  SDK module `122` then clock `30`; its final release disables them in reverse
+  order, propagating errors instead of committing a false software state.
 
 ## Verification
 
-- Full signed production build passed for
-  `t5_board_cp_app_mcuboot + t5_board_ap_camera_validation_mcuboot`, MCUboot
-  version `18.6.42`, security counter `96`.  The production images exclude PM,
-  WDT and timer fault-injection symbols.
-- Final sparse COM3 download wrote only CP `0x11000..0x4e000` and AP
-  `0x165000..0x195000`; BKFIL reported both writes passed and
-  `All Finished Successfully`.  BL1, BL2, secondary slot, LittleFS,
-  `usr_config`, calibration and OTP/eFuse were not written.
-- P0/P1 SWD board state showed CP executing NuttX, RPTUN `CONNECTED`, AP
-  supervisor `HEALTHY`, CPU2 `SCHEDULER_ONLINE`, both AP CPUs online and camera
-  validation `PASSED` with a 7307-byte JPEG.  The production WDT is active at
-  its 8000 ms timeout.
-- CP/AP PM endpoints both reached sequence 22 with clock references, frequency
-  votes and pending transactions all zero.  Earlier fault-injection board runs
-  proved that one or three dropped replies caused one CP commit and AP recovery,
-  not duplicated references.
-- The mailbox suite passed 31/31 checks; PM activity and BL1 policy tests
-  passed.  Ten supported CP/AP metadata pairs passed, as did `git diff --check`
-  and build-script syntax validation.
-- Real-board validation images injected WDT initialization/stop/PM-restore and
-  timer-stop failures.  Every failure returned `-EIO`, preserved truthful
-  software/hardware ownership, and recovered on retry.  The first timer run
-  also found and closed the unsupported channel-1 default.
-- The Bluetooth validation image completed ten Controller close/reopen cycles
-  on each of two independent COM3 RTS cold boots.  AP and CP both reported
-  init 11/11, deinit 10/10 and zero errors; HCI info/stats remained healthy.
-  Final production `18.6.45`/counter 99 was restored with test cycles disabled
-  and reported init 1/1, deinit 0/0.  Wi-Fi status and the active-Wi-Fi AP
-  restart fail-closed boundary were also exercised.
+- Eight trust-gate unit tests passed, as did the existing 31-case mailbox suite,
+  BL1 policy and PM activity tests.
+- Full signed `t5_board_cp_app_mcuboot + t5_board_ap_app_mcuboot` build passed
+  with MCUboot `18.6.52`, security counter `106`; factory and RPTUN layout
+  gates passed.  The final AP ELF retains both PM wrappers and contains no MIC
+  lifecycle-validator or temporary hardware-diagnostic symbol.
+- Independent positive MCUboot and raw repacks passed.  Missing contracts,
+  contract/bootloader fingerprint detachment and wrong target fingerprints
+  failed closed.
+- The production auto-debug entry was run end-to-end with real read-only
+  J-Link plus a no-write loader stub.  Its apps-only argument contained exactly
+  CP/AP; a mismatch run exited before the loader stub was invoked.
+- T5-Board non-halting P0/P1 SWD reads found erased future fixed blocks, then
+  matched both BL1 public digests and the BL2 MCUboot SPKI fingerprint at the
+  installed compatibility locations.  Each BL2 read was restricted to the
+  exact 91-byte DER range.  No reset, Flash write or loader invocation occurred.
+- `bash -n`, Python byte-compilation and `git diff --check` pass.
+- A temporary public-API validator completed 10 T5-Board cycles of
+  open/reserve/configure/allocate/enqueue/start/capture/pause/resume/stop/
+  release/free/close/reopen.  It captured 12,800 stereo frames; both channels
+  had non-zero energy and 12,089 frames (94.45%) differed, proving live,
+  non-mirrored L/R inputs.  The validator is disabled in the final profile.
+- The final `18.6.52` CP/AP pair passed the real preflight and was written only
+  at raw `0x11000` and `0x165000`.  After the existing BL2 release handshake,
+  AP reported `READY`, RPTUN reported `CONNECTED`, both errors were zero, and
+  CP/AP heartbeats advanced across two non-halting J-Link reads.
 
-Detailed source-to-board evidence is in the
-[runtime-contract verification record](verification/2026-08-14-bk7258-runtime-contracts.md)
-and [radio-lifecycle verification record](verification/2026-08-14-bk7258-radio-worker-lifecycle.md).
+Canonical details and public fingerprints are in the
+[pre-flash trust-chain verification record](verification/2026-08-14-bk7258-preflash-trust-chain.md).
 
 ## Remaining boundary
 
-- The original 66/100 score describes the audited baseline.  The named
-  actionable defects are closed in this working tree, but only a new independent
-  review can assign a replacement score.
-- Vendor radio failure injection, MIC pause/resume pressure and high-rate USB
-  attach remain useful.  Bluetooth Controller repetition and the Wi-Fi
-  fail-closed boundary are now board-proven; full NuttX Host re-registration
-  remains unsupported rather than simulated.
-- Broad checkpatch cleanup was not mixed into this correctness phase.
-- MCUboot signing is still software-rooted for development.  OTP anti-rollback
-  floor advancement and irreversible production secure-boot activation remain
-  separately authorized work.
+- T5-Board dual-MIC capture and lifecycle are physically accepted.  The
+  T5AI-Core mono topology remains a board-specific runtime check when that
+  physical board is next available; do not infer its analog wiring from the
+  T5-Board result.
+- The lifecycle validator remains available only as an opt-in bounded board
+  diagnostic.  Runnable delivery profiles must keep it disabled; application
+  recording tests should use `/dev/audio/pcm0c` through the normal upper half.
+- The roots remain recoverable software development roots.  BootROM trust,
+  OTP/eFuse provisioning and hardware anti-rollback remain unimplemented and
+  separately authorized.
+- Broad checkpatch cleanup and unrelated untracked generated/log directories
+  are not part of this change.
 
 ## Next action
 
-Review and merge the published radio-lifecycle pull request.  Follow with MIC
-pause/resume and USB attach lifecycle pressure; do not claim mass-production
-acceptance from the current board run alone.
+Review the combined branch diff and separate intended MIC plus trust-chain
+files from unrelated generated/untracked material.  Commit/push only after the
+owner explicitly requests publication.  The MIC lower-half is now ready for
+an upper-layer recording application on T5-Board.
 
 ## Fixed constraints
 
 - Official NuttX/apps and Beken SDK source remain read-only.
 - Preserve P0/P1 SWD/RTT and COM3; never open COM4.
-- Do not add one-off verification scripts when an existing real-board path is
-  available.
-- Do not commit, push, flash or touch OTP/eFuse/lifecycle/debug locks without
-  corresponding owner authority.
-- GPT-5.6-Luna delegation remains disabled until the owner re-enables it.
+- Do not add one-off verification frameworks when the existing build/debug
+  path and a focused unit test cover the behavior.
+- Do not commit, push, perform a destructive/factory Flash write, or touch
+  OTP/eFuse/lifecycle/debug locks without corresponding owner authority.
+- GPT-5.6-Luna delegation remains temporarily disabled until the owner
+  re-enables it; implementation and review stay with the primary model.

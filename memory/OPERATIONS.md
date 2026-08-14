@@ -78,6 +78,11 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
   branch.  Supplying both external paths opts into the SDK v3.1.1.9 AES step;
   no key is stored in this repository and the resulting stream remains
   host-reference-only until the BK7258 BootROM consumer is proven.
+- A signed build emits `bk7258-trust-chain.json`.  Packaging must re-resolve
+  the BL1/BL2 symbols, bind that public contract to `bootloader.bin` and
+  `bl2.bin`, and revalidate after staging into a clean output directory; no
+  private-key path belongs in the package.  Do not hand-edit the contract to
+  make a target pass.
 - No active N15/N17 field-update candidate, validation profile, PSRAM loader,
   board SOP or aggregate fault campaign exists. Their historical records are
   evidence only and must not be reconstructed or treated as build gates.
@@ -87,6 +92,19 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 
 - Normal sparse flashing must use CP raw `0x011000..0x165000`, AP raw
   `0x165000..0x286000`, and preserve LittleFS at `0x600000..0x700000`.
+- Every MCUboot flash mode in `bk7258_auto_debug.sh` performs the non-halting
+  BL1/BL2 target-fingerprint preflight before starting `bk_loader`.  Treat
+  J-Link failure or an identity with no matching permitted address as a
+  package/target pairing failure; do not add a bypass.  Use
+  `--flash --sparse-flash --apps-only --no-console` for routine
+  CP/AP updates so BL1, BL2, Manifest, secondary and data regions remain
+  untouched.  Root rotation is a separately designed and authorized recovery
+  workflow, not a downloader option.
+- The current board still matches the reviewed legacy probe addresses; the
+  linker-reserved fixed blocks read erased until a future explicitly authorized
+  BL1/BL2 write.  Probe both sets read-only, accept one exact match per identity,
+  and never treat erased fixed blocks alone as a failure while compatibility is
+  active.
 - The one-time migration is complete. Reusing its factory path or performing
   any other destructive Flash action requires fresh owner authority. Chip
   erase and calibration-tail writes remain forbidden.
@@ -94,6 +112,13 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 - All `s_app`, BL1 Manifest and BL2 writes require fresh, exact-range owner
   authority. Source/dry-run verification does not grant it.
 - A flash PASS is not sufficient: require a new serial capture, `PASS_NSH`, and the stage-specific health command.
+- MIC lower-half acceptance is a stage-specific exception with stronger
+  direct evidence: exercise at least 10 complete public-audio-API cycles,
+  including pause/resume and close/reopen, and prove every fitted channel is
+  non-silent.  A stereo board must additionally show L/R are not mirrored.
+  Remove temporary register/ISR telemetry and disable the lifecycle validator
+  in the final runnable profile, then rebuild, apps-only flash, and confirm AP
+  `READY`, RPTUN `CONNECTED`, zero errors and advancing CP/AP heartbeats.
 - ADR-003 staging/journal/scratch addresses are retired and remain forbidden.
 - For critical-region BKFIL read-back, use 115200 and require two
   byte-identical captures. High-speed 6 Mbps reads can insert isolated

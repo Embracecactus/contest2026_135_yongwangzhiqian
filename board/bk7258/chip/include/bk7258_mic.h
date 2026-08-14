@@ -4,7 +4,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) on-board analog microphone (MICP1/MICN1) capture.
+ * BK7258 on-board analog microphone capture.  The shared lower half consumes
+ * the selected physical board's fixed one- or two-channel topology; runtime
+ * applications may request any channel count supported by that topology.
  *
  * The AUD ADC block is an AP-role peripheral: bk_aud_adc_* / bk_i2s_* /
  * ring_buffer_* are only defined in the AP libdriver.a.  The CP archive
@@ -58,10 +60,11 @@
 #define BK7258_MIC_DIG_GAIN_MAX         0x3fu
 #define BK7258_MIC_DIG_GAIN_0DB         0x2du
 
-/* Analog gain: SYS_ANA_REG19_MICGAIN is only a 4-bit field.  The Beken
- * onboard_mic_stream sample validates against 0x3f, which is a copy/paste
- * of the digital-gain range; the SDK masks with 0xf, so larger values are
- * silently truncated.  Clamp against the real hardware limit instead.
+/* Analog gain: SYS_ANA_REG19_MICGAIN and SYS_ANA_REG27_MICGAIN are 4-bit
+ * fields for MIC1 and MIC2 respectively.  The Beken onboard_mic_stream
+ * sample validates against 0x3f, which is a copy/paste of the digital-gain
+ * range; the SDK masks with 0xf, so larger values are silently truncated.
+ * Clamp against the real hardware limit instead.
  */
 
 #define BK7258_MIC_ANA_GAIN_MIN         0x00u
@@ -78,9 +81,9 @@
  * Name: bk7258_mic_initialize
  *
  * Description:
- *   Register the on-board analog microphone as a NuttX audio lower-half at
- *   /dev/audio/<CONFIG_BK7258_MIC_DEVNAME>.  No hardware is touched until
- *   the upper half calls configure()/start(); this only publishes the node.
+ *   Register the selected board's on-board analog microphone topology as a
+ *   NuttX audio lower-half at /dev/audio/<CONFIG_BK7258_MIC_DEVNAME>.  No
+ *   hardware is touched until the upper half calls configure()/start().
  *
  * Returned Value:
  *   OK on success; a negated errno value on failure.  Calling it twice is
@@ -89,6 +92,10 @@
  ****************************************************************************/
 
 int bk7258_mic_initialize(void);
+
+#ifdef CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION
+int bk7258_mic_validation_start(void);
+#endif
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_MIC */

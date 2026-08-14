@@ -40,6 +40,7 @@ equivalent to T5-Board V1.0.2 and is not used as a pin source.
 | Speaker control | P39 | P28 (`SPK_CTL`) |
 | Battery ADC | P28 | not fitted |
 | Charge detect | P38 | not fitted |
+| On-board microphone | MIC1 on MICP1/MICN1 (mono) | MIC1 on MICP1/MICN1 + MIC2 on MICP2/MICN2 (stereo) |
 | TF card | not fitted | CLK P2, CMD P3, D0 P4, D1 P5, D2 P10, D3 P11, CD P6 |
 | RGB LCD connector | not fitted | fitted |
 | DVP camera connector | not fitted | fitted |
@@ -82,6 +83,7 @@ The rule is applied by peripheral class as follows:
 | LCD, touch, camera, SD card and other fitted devices | Selected-board header and binding own pins, polarity, bus attachment, address/CS, limits and registration |
 | CAN and QSPI fixed mux groups | Shared wrapper owns the SoC-fixed route; the selected product profile must choose a conflict-free owner before exposing a connector device |
 | RTC, TRNG, DMA and media accelerators | Chip-level resources with no physical-board pin database |
+| On-board analog microphone | Selected-board header fixes whether MIC1 only or MIC1+MIC2 is fitted; Kconfig supplies default sample rate/gains/buffering, and the NuttX audio application negotiates a supported stream rate/channel count at runtime |
 
 A defconfig is therefore a product feature profile, not a board description.
 Several profiles may select the same board; another board may select an

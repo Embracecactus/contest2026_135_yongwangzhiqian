@@ -1,8 +1,8 @@
 # BK7258 双核自动编译、下载与板端调试 SOP
 
-日期：2026-07-31
+日期：2026-08-14
 
-状态：`usable / COM7-COM11 verified / N15-M bounded migration and physical reset 3-of-3 verified / J-Link reset experimental`
+状态：`current T5-Board COM3 + P0/P1 SWD/RTT / MCUboot trust preflight verified / older COM7-COM11 evidence retained`
 
 适用项目：
 
@@ -10,6 +10,10 @@
 /home/lijian/project/open-vela
 /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian
 ```
+
+> 当前 T5-Board 硬件覆盖规则：下载只用 COM3；P0/P1 归 SWD/RTT；UART1
+> 的 COM4 拨码已关闭且与该调试路由冲突，任何自动流程都不得打开 COM4。
+> 文中 COM7/COM11 是旧 T5AI-Core 阶段证据，不得套用到当前板。
 
 问题复盘：[n8-cold-reset-resolution-report.md](n8-cold-reset-resolution-report.md)
 
@@ -82,11 +86,21 @@ AP 默认：t5ai_core_ap_base
 
 入口：[Windows/WSL2 通用串口与 J-Link 调试 SOP](../../../tools/windows-hardware-debug/README.md)。该目录不包含 BK7258 地址、COM 号、复位极性、loader 或烧录动作，并提供 Claude/Codex 可读取的 `SKILL.md`。
 
-本文件和 `bk7258_auto_debug.sh` 仍是 BK7258 的板级事实来源，负责 CP/AP profile、镜像打包、BK loader、COM7/COM11 映射和 BK marker 判据。不要在未完成 BK 板端回归前用通用脚本替换现有已验证流程；新调试动作可先在通用层沉淀，再由本 SOP 固定板级参数和验收证据。
+本文件和 `bk7258_auto_debug.sh` 仍是 BK7258 的板级事实来源，负责 CP/AP profile、镜像打包、BK loader、当前 COM3/P0-P1 路由和 BK marker 判据。不要在未完成 BK 板端回归前用通用脚本替换现有已验证流程；新调试动作可先在通用层沉淀，再由本 SOP 固定板级参数和验收证据。
 
 ## 2. 固定环境
 
 ### 2.1 端口
+
+当前 T5-Board：
+
+```text
+COM3  = bk_loader 下载口
+P0/P1 = SWD/RTT
+COM4  = 禁止打开（UART1 拨码关闭且与 P0/P1 调试路由冲突）
+```
+
+下面的 COM7/COM11/COM12 仅保留为旧 T5AI-Core 验证记录：
 
 ```text
 COM7  = CH342-A 下载口
@@ -267,6 +281,7 @@ nuttx/bk7258-dual/app1_crc.bin
 nuttx/bk7258-dual/nuttx-cp.elf
 nuttx/bk7258-dual/nuttx-ap.elf
 nuttx/bk7258-dual/bk7258-dual-image.json
+nuttx/bk7258-dual/bk7258-trust-chain.json   # MCUboot profile only
 nuttx/bk7258-dual/build-profile.txt
 nuttx/bk7258-dual/all-app-factory.bin
 nuttx/bk7258-dual/littlefs_factory_clear.bin
@@ -325,7 +340,7 @@ sha256: d83c8e38bec19160f9d54d0832a4f553dab85bd568173f2a1ebe4fc9e860d405
 
 ## 5. 自动 Build + sparse 下载 + warm capture
 
-推荐一条命令完成：
+当前 T5-Board 日常应用更新推荐只写 CP/AP：
 
 ```bash
 cd /home/lijian/project/open-vela
@@ -334,9 +349,10 @@ cd /home/lijian/project/open-vela
   --build \
   --flash \
   --sparse-flash \
-  --cp-config t5ai_core_cp_base \
-  --ap-config t5ai_core_ap_base \
-  --capture-seconds 30
+  --apps-only \
+  --no-console \
+  --cp-config t5_board_cp_app_mcuboot \
+  --ap-config t5_board_ap_app_mcuboot
 ```
 
 验证其他用途时，必须替换成同一物理板、同一 boot 格式和同一兼容组的 CP/AP profile，其他下载和采集流程不变。
@@ -344,16 +360,18 @@ cd /home/lijian/project/open-vela
 流程：
 
 1. 按显式 `--cp-config/--ap-config` 构建 CP/AP；
-2. 记录本轮 sparse artifacts 的 SHA-256 和 stat；
-3. 打开 COM11；
-4. 创建 `serial.ready`；
-5. 通过 COM7 调用 Windows loader；
-6. 下载后 `--reboot 1`；
-7. COM11 继续捕获；
-8. 生成 marker summary。
+2. 校验 package manifest、ELF/raw 绑定和公开信任契约；
+3. 通过 P0/P1 对三个身份分别读取固定地址和现板兼容地址，共六段非停核
+   J-Link 读取；每个身份只需一个允许地址精确匹配；
+4. J-Link 失败，或任一身份在全部允许地址上都不匹配时，在调用 loader 前失败；
+5. 记录本轮 CP/AP sparse artifacts、契约和预检结果的 SHA-256；
+6. 仅通过 COM3 调用 Windows loader 写 CP/AP；
+7. 下载后 `--reboot 1`；
+8. 通过 RTT/后续功能检查取得启动和运行证据，不打开 COM4。
 
-N15-M之后，普通开发/回归必须使用`--sparse-flash`，它只更新boot/CP/AP并保留B、metadata、
-LittleFS、`usr_config`、reserved和official tail。省略`--sparse-flash`会进入destructive factory
+N15-M之后，普通开发/回归必须使用`--sparse-flash --apps-only`，它只更新CP/AP并保留
+BL1、BL2、Manifest、B、LittleFS、`usr_config`、reserved和official tail。普通
+`--sparse-flash`仍包含boot-chain段，只能在对应范围获得明确授权时使用。省略`--sparse-flash`会进入destructive factory
 rewrite并清空LittleFS，只能在owner重新明确授权后使用。该路径交互执行时必须输入：
 
 ```text
@@ -384,12 +402,13 @@ nuttx/bk7258-dual/build-profile.txt
 ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --flash \
   --sparse-flash \
-  --cp-config t5ai_core_cp_base \
-  --ap-config t5ai_core_ap_base \
-  --capture-seconds 30
+  --apps-only \
+  --no-console \
+  --cp-config t5_board_cp_app_mcuboot \
+  --ap-config t5_board_ap_app_mcuboot
 ```
 
-不指定期望 profile 时：
+不指定期望 profile 时（仍使用 package 中记录的配对）：
 
 ```bash
 cd /home/lijian/project/open-vela
@@ -397,15 +416,21 @@ cd /home/lijian/project/open-vela
 ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --flash \
   --sparse-flash \
-  --capture-seconds 30
+  --apps-only \
+  --no-console
 ```
 
-无人值守的普通sparse更新不需要`--yes`：
+无人值守的CP/AP-only sparse更新不需要`--yes`，但信任预检不可跳过：
 
 ```bash
 ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
-  --flash --sparse-flash --capture-seconds 30
+  --flash --sparse-flash --apps-only --no-console
 ```
+
+新构建的固定身份块位于 BL1 `0x0200fd40/0x0200fd60` 和 BL2
+`0x024d2f00`；当前板尚未重写 boot chain，因此固定块为擦除态，继续在已审查的
+兼容地址 `0x02002774/0x02002754/0x024d27ec` 匹配。脚本会同时只读探测两组，
+不会因为兼容匹配而写 BL1/BL2，也没有自动轮换根密钥的路径。
 
 ## 7. Windows CMD 手动 factory 下载备用命令
 
@@ -823,14 +848,14 @@ BClk -> U2 等价功能 -> C8 -> NSH
 
 ```text
 [ ] cd /home/lijian/project/open-vela
-[ ] 关闭占用 COM11 的终端 tab
-[ ] COM11 3 秒自检通过
+[ ] 确认当前板只用 COM3 下载，COM4 未打开
+[ ] 确认 P0/P1 SWD/RTT 与 J-Link 可读
 [ ] 明确选择 CP_CONFIG_NAME 和 AP_CONFIG_NAME
 [ ] 使用显式 profile 运行 build_dual_image.sh
 [ ] 检查 bk7258-dual/build-profile.txt
 [ ] stat + sha256sum 新产物
-[ ] 日常更新：auto_debug.sh --flash --sparse-flash --capture-seconds 30
-[ ] 检查 U2/U5/C8/NSH
+[ ] 日常更新：auto_debug.sh --flash --sparse-flash --apps-only --no-console
+[ ] 检查 trust-preflight.json 为 pass，随后核对 RTT/NSH/功能状态
 [ ] auto_debug.sh --cold-capture --capture-seconds 30
 [ ] 手动按 RESET
 [ ] 检查 BClk/U2/C8/NSH
