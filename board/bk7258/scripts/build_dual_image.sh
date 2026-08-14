@@ -334,8 +334,24 @@ if config_enabled "${CP_CONFIG}" BK7258_UART0_FLOW_CONTROL &&
 fi
 
 validate_symmetric_feature BK7258_RPTUN RPTUN
+validate_symmetric_feature BK7258_AP_SUPERVISOR 'AP supervisor'
+validate_symmetric_feature BK7258_PM_COORDINATED_STANDBY \
+    'coordinated PM standby'
 validate_symmetric_feature BK7258_BT_IPC 'Bluetooth IPC'
 validate_symmetric_feature BK7258_WIFI_VNET 'Wi-Fi VNET'
+
+if config_enabled "${AP_CONFIG}" BK7258_PM_COORDINATED_STANDBY; then
+    AP_PM_NDOMAINS="$(config_value "${AP_CONFIG}" PM_NDOMAINS 1)"
+    AP_SMP_NCPUS="$(config_value "${AP_CONFIG}" SMP_NCPUS 1)"
+    if ! [[ "${AP_PM_NDOMAINS}" =~ ^[0-9]+$ &&
+            "${AP_SMP_NCPUS}" =~ ^[0-9]+$ ]] ||
+       (( AP_PM_NDOMAINS < AP_SMP_NCPUS + 1 )); then
+        printf '%s\n' \
+            'build_dual_image: coordinated PM requires AP PM_NDOMAINS >= SMP_NCPUS + 1' \
+            >&2
+        exit 2
+    fi
+fi
 
 if [[ "${BK7258_PROFILE_CHECK_ONLY}" == YES ]]; then
     printf 'build_dual_image: profile PASS board=%s boot=%s compat=%s cp=%s ap=%s\n' \

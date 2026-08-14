@@ -159,6 +159,7 @@ struct bk7258_usbhost_s
   uint8_t endpoint_count;
   uint8_t active_sync;
   bool initialized;
+  bool event_sem_initialized;
   bool accepting_events;
   bool shutting_down;
   bool driver_initialized;
@@ -1196,6 +1197,146 @@ static void bk7258_initialize_driver(FAR struct bk7258_usbhost_s *priv)
   priv->conn.enumerate = bk7258_enumerate;
 }
 
+static bool bk7258_usbhost_has_ownership(
+  FAR const struct bk7258_usbhost_s *priv)
+{
+  return priv->event_sem_initialized || priv->ep0.sem_initialized ||
+         priv->ep0.pipe != NULL || priv->driver_initialized ||
+         priv->usb_open || priv->hcd_initialized;
+}
+
+/* Tear down only the stages that are still owned.  A failure leaves those
+ * ownership bits intact so another uninitialize call can resume at the
+ * failed stage.  This function is called with the init mutex held.
+ */
+
+static int bk7258_usbhost_teardown_locked(
+  FAR struct bk7258_usbhost_s *priv)
+{
+  bool was_initialized;
+  irqstate_t flags;
+  int first_error = OK;
+  int ret;
+
+  flags = spin_lock_irqsave(&priv->lock);
+  was_initialized = priv->initialized;
+  if (was_initialized &&
+      (priv->endpoint_count != 1 || priv->active_sync != 0))
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      return -EBUSY;
+    }
+
+  priv->accepting_events = false;
+  priv->shutting_down = true;
+  priv->initialized = false;
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  if (priv->event_sem_initialized)
+    {
+      (void)nxsem_post(&priv->event_sem);
+    }
+
+  (void)work_cancel_sync(HPWORK, &priv->event_work);
+
+  if (priv->ep0.pipe != NULL)
+    {
+      ret = bk7258_sdk_error(usbh_pipe_free(priv->ep0.pipe));
+      if (ret < 0)
+        {
+          /* No irreversible stage has run yet for a live host, so it can
+           * safely resume accepting events.  A partially initialized host
+           * stays quiesced and retains ownership for a later retry.
+           */
+
+          if (was_initialized)
+            {
+              flags = spin_lock_irqsave(&priv->lock);
+              priv->initialized = true;
+              priv->shutting_down = false;
+              priv->accepting_events = true;
+              spin_unlock_irqrestore(&priv->lock, flags);
+            }
+
+          return ret;
+        }
+
+      priv->ep0.pipe = NULL;
+      priv->vendor_hport.ep0 = NULL;
+      priv->rhport.hport.ep0 = NULL;
+      priv->endpoint_count = 0;
+    }
+
+  if (priv->ep0.sem_initialized)
+    {
+      ret = nxsem_destroy(&priv->ep0.async_done);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      priv->ep0.sem_initialized = false;
+    }
+
+  if (priv->usb_open)
+    {
+      g_bk7258_usb_hcd_deinit_status = -EAGAIN;
+      ret = bk7258_bk_error(bk_usb_close());
+
+      /* The SDK clears s_usb_open_close_flag even when its nested HCD
+       * deinit reports an error.  Record the two ownership stages
+       * separately so HCD cleanup can be retried directly below.
+       */
+
+      priv->usb_open = false;
+      if (g_bk7258_usb_hcd_deinit_status == OK)
+        {
+          priv->hcd_initialized = false;
+        }
+
+      if (ret < 0)
+        {
+          first_error = ret;
+        }
+    }
+
+  if (priv->hcd_initialized)
+    {
+      ret = __wrap_usbh_deinitialize();
+      if (ret < 0)
+        {
+          return first_error < 0 ? first_error : ret;
+        }
+
+      priv->hcd_initialized = false;
+    }
+
+  if (priv->driver_initialized)
+    {
+      ret = bk7258_bk_error(bk_usb_driver_deinit());
+      if (ret < 0)
+        {
+          return first_error < 0 ? first_error : ret;
+        }
+
+      priv->driver_initialized = false;
+    }
+
+  if (priv->event_sem_initialized)
+    {
+      ret = nxsem_destroy(&priv->event_sem);
+      if (ret < 0)
+        {
+          return first_error < 0 ? first_error : ret;
+        }
+
+      priv->event_sem_initialized = false;
+    }
+
+  memset(priv, 0, sizeof(*priv));
+  return first_error;
+}
+
 FAR struct usbhost_connection_s *bk7258_usbhost_initialize(void)
 {
   FAR struct bk7258_usbhost_s *priv = &g_bk7258_usbhost;
@@ -1213,6 +1354,16 @@ FAR struct usbhost_connection_s *bk7258_usbhost_initialize(void)
     {
       nxmutex_unlock(&g_bk7258_usbhost_init_lock);
       return &priv->conn;
+    }
+
+  if (bk7258_usbhost_has_ownership(priv) || priv->shutting_down)
+    {
+      /* A previous teardown stopped at a failed vendor stage.  Require the
+       * caller to retry uninitialize instead of overwriting live ownership.
+       */
+
+      nxmutex_unlock(&g_bk7258_usbhost_init_lock);
+      return NULL;
     }
 
   memset(priv, 0, sizeof(*priv));
@@ -1251,6 +1402,8 @@ FAR struct usbhost_connection_s *bk7258_usbhost_initialize(void)
       return NULL;
     }
 
+  priv->event_sem_initialized = true;
+
   priv->accepting_events = true;
   g_bk7258_usb_hcd_init_status = -EAGAIN;
   g_bk7258_usb_hcd_deinit_status = -EAGAIN;
@@ -1261,15 +1414,23 @@ FAR struct usbhost_connection_s *bk7258_usbhost_initialize(void)
   ret = bk7258_bk_error(bk_usb_driver_init());
   if (ret < 0)
     {
-      priv->accepting_events = false;
-      (void)work_cancel_sync(HPWORK, &priv->event_work);
-      nxsem_destroy(&priv->event_sem);
+      (void)bk7258_usbhost_teardown_locked(priv);
       nxmutex_unlock(&g_bk7258_usbhost_init_lock);
       return NULL;
     }
   priv->driver_initialized = true;
 
   open_ret = bk7258_bk_error(bk_usb_open(USB_HOST_MODE));
+  if (open_ret == OK)
+    {
+      priv->usb_open = true;
+    }
+
+  if (g_bk7258_usb_hcd_init_status == OK)
+    {
+      priv->hcd_initialized = true;
+    }
+
   ret = open_ret;
   if (open_ret < 0 || g_bk7258_usb_hcd_init_status != 0)
     {
@@ -1277,19 +1438,10 @@ FAR struct usbhost_connection_s *bk7258_usbhost_initialize(void)
         {
           ret = g_bk7258_usb_hcd_init_status;
         }
-      priv->accepting_events = false;
-      (void)work_cancel_sync(HPWORK, &priv->event_work);
-      if (open_ret == 0)
-        {
-          (void)bk_usb_close();
-        }
-      (void)bk_usb_driver_deinit();
-      nxsem_destroy(&priv->event_sem);
+      (void)bk7258_usbhost_teardown_locked(priv);
       nxmutex_unlock(&g_bk7258_usbhost_init_lock);
       return NULL;
     }
-  priv->usb_open = true;
-  priv->hcd_initialized = true;
 
   memset(&priv->ep0, 0, sizeof(priv->ep0));
   priv->ep0.magic = BK7258_USBH_MAGIC;
@@ -1305,11 +1457,7 @@ FAR struct usbhost_connection_s *bk7258_usbhost_initialize(void)
   ret = nxsem_init(&priv->ep0.async_done, 0, 0);
   if (ret < 0)
     {
-      priv->accepting_events = false;
-      (void)work_cancel_sync(HPWORK, &priv->event_work);
-      (void)bk_usb_close();
-      (void)bk_usb_driver_deinit();
-      nxsem_destroy(&priv->event_sem);
+      (void)bk7258_usbhost_teardown_locked(priv);
       nxmutex_unlock(&g_bk7258_usbhost_init_lock);
       return NULL;
     }
@@ -1322,17 +1470,7 @@ FAR struct usbhost_connection_s *bk7258_usbhost_initialize(void)
         {
           ret = -ENOMEM;
         }
-      if (priv->ep0.pipe != NULL)
-        {
-          (void)usbh_pipe_free(priv->ep0.pipe);
-          priv->ep0.pipe = NULL;
-        }
-      priv->accepting_events = false;
-      (void)work_cancel_sync(HPWORK, &priv->event_work);
-      (void)bk_usb_close();
-      (void)bk_usb_driver_deinit();
-      nxsem_destroy(&priv->ep0.async_done);
-      nxsem_destroy(&priv->event_sem);
+      (void)bk7258_usbhost_teardown_locked(priv);
       nxmutex_unlock(&g_bk7258_usbhost_init_lock);
       return NULL;
     }
@@ -1371,7 +1509,6 @@ FAR struct usbhost_connection_s *bk7258_usbhost_initialize(void)
 int bk7258_usbhost_uninitialize(void)
 {
   FAR struct bk7258_usbhost_s *priv = &g_bk7258_usbhost;
-  irqstate_t flags;
   int ret;
 
   ret = nxmutex_lock(&g_bk7258_usbhost_init_lock);
@@ -1379,59 +1516,13 @@ int bk7258_usbhost_uninitialize(void)
     {
       return ret;
     }
-  flags = spin_lock_irqsave(&priv->lock);
-  if (!priv->initialized)
+  if (!priv->initialized && !bk7258_usbhost_has_ownership(priv) &&
+      !priv->shutting_down)
     {
-      spin_unlock_irqrestore(&priv->lock, flags);
       nxmutex_unlock(&g_bk7258_usbhost_init_lock);
       return 0;
     }
-  if (priv->endpoint_count != 1 || priv->active_sync != 0)
-    {
-      spin_unlock_irqrestore(&priv->lock, flags);
-      nxmutex_unlock(&g_bk7258_usbhost_init_lock);
-      return -EBUSY;
-    }
-  priv->accepting_events = false;
-  priv->shutting_down = true;
-  priv->initialized = false;
-  spin_unlock_irqrestore(&priv->lock, flags);
-
-  nxsem_post(&priv->event_sem);
-  (void)work_cancel_sync(HPWORK, &priv->event_work);
-
-  ret = bk7258_sdk_error(usbh_pipe_free(priv->ep0.pipe));
-  if (ret < 0)
-    {
-      flags = spin_lock_irqsave(&priv->lock);
-      priv->initialized = true;
-      priv->shutting_down = false;
-      priv->accepting_events = true;
-      spin_unlock_irqrestore(&priv->lock, flags);
-      nxmutex_unlock(&g_bk7258_usbhost_init_lock);
-      return ret;
-    }
-  priv->ep0.pipe = NULL;
-  priv->vendor_hport.ep0 = NULL;
-  nxsem_destroy(&priv->ep0.async_done);
-  ret = bk7258_bk_error(bk_usb_close());
-  priv->usb_open = false;
-  priv->hcd_initialized = false;
-  if (g_bk7258_usb_hcd_deinit_status != -EAGAIN)
-    {
-      ret = bk7258_sdk_error(g_bk7258_usb_hcd_deinit_status);
-    }
-  {
-    int driver_ret = bk7258_bk_error(bk_usb_driver_deinit());
-    if (ret == 0)
-      {
-        ret = driver_ret;
-      }
-  }
-  priv->driver_initialized = false;
-
-  nxsem_destroy(&priv->event_sem);
-  memset(priv, 0, sizeof(*priv));
+  ret = bk7258_usbhost_teardown_locked(priv);
   nxmutex_unlock(&g_bk7258_usbhost_init_lock);
   return ret;
 }

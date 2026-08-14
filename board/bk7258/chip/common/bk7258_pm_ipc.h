@@ -16,10 +16,11 @@
 
 #define BK7258_PM_EPT_NAME             "bk7258-pm"
 #define BK7258_PM_MAGIC                0x314d5042u /* "BPM1" */
-#define BK7258_PM_VERSION              3u
+#define BK7258_PM_VERSION              4u
 #define BK7258_PM_ENDPOINT_WAIT_MS     3000u
 #define BK7258_PM_SEND_TIMEOUT_MS      100u
 #define BK7258_PM_REPLY_TIMEOUT_MS     1000u
+#define BK7258_PM_REQUEST_ATTEMPTS     3u
 
 enum bk7258_pm_command_e
 {

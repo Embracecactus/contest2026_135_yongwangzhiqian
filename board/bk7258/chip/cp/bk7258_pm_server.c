@@ -85,15 +85,48 @@ extern void sys_hal_set_cis_auxs_clk_en(uint32_t value);
 #define BK7258_SDK_POWER_ON         0
 #define BK7258_SDK_POWER_OFF        1
 
+#ifdef CONFIG_BK7258_PM_FAULT_INJECTION
+#  define BK7258_PM_FAULT_MAGIC     0x464d5042u /* "BPMF" */
+#  define BK7258_PM_FAULT_VERSION   1u
+
+struct bk7258_pm_fault_diag_s
+{
+  uint32_t magic;
+  uint16_t version;
+  uint16_t size;
+  uint32_t drop_reply_count;
+  uint32_t dropped_replies;
+  uint32_t replayed_replies;
+  uint32_t last_generation;
+  uint32_t last_sequence;
+};
+
+/* This named, self-describing record is intentionally writable by a hardware
+ * debugger in validation builds.  Production profiles do not contain it.
+ */
+
+volatile struct bk7258_pm_fault_diag_s g_bk7258_pm_fault_diag =
+{
+  .magic = BK7258_PM_FAULT_MAGIC,
+  .version = BK7258_PM_FAULT_VERSION,
+  .size = sizeof(struct bk7258_pm_fault_diag_s),
+  .drop_reply_count = CONFIG_BK7258_PM_FAULT_INITIAL_DROP_COUNT,
+};
+#endif
+
 struct bk7258_pm_server_s
 {
   struct rpmsg_endpoint ept;
   volatile bool initialized;
   volatile bool endpoint_created;
+  bool replay_valid;
   uint32_t generation;
+  uint32_t last_sequence;
   uint16_t refs[BK7258_PM_CLOCK_COUNT];
   uint8_t freq_votes[BK7258_PM_FREQ_CLIENT_COUNT];
   bool freq_active[BK7258_PM_FREQ_CLIENT_COUNT];
+  struct bk7258_pm_wire_s last_request;
+  struct bk7258_pm_wire_s last_reply;
 };
 
 static struct bk7258_pm_server_s g_bk7258_pm_server;
@@ -383,6 +416,75 @@ static void bk7258_pm_release_generation(
     }
 
   priv->generation = 0;
+  priv->last_sequence = 0;
+  priv->replay_valid = false;
+}
+
+static bool bk7258_pm_same_request(
+  FAR const struct bk7258_pm_wire_s *left,
+  FAR const struct bk7258_pm_wire_s *right)
+{
+  return left->magic == right->magic &&
+         left->version == right->version &&
+         left->command == right->command &&
+         left->generation == right->generation &&
+         left->sequence == right->sequence &&
+         left->clock == right->clock &&
+         left->reserved == right->reserved;
+}
+
+static bool bk7258_pm_sequence_after(uint32_t sequence, uint32_t previous)
+{
+  return (int32_t)(sequence - previous) > 0;
+}
+
+#ifdef CONFIG_BK7258_PM_FAULT_INJECTION
+static bool bk7258_pm_fault_drop_reply(
+  FAR const struct bk7258_pm_wire_s *request)
+{
+  uint32_t count;
+
+  count = __atomic_load_n(&g_bk7258_pm_fault_diag.drop_reply_count,
+                          __ATOMIC_ACQUIRE);
+  while (count != 0)
+    {
+      if (__atomic_compare_exchange_n(
+            &g_bk7258_pm_fault_diag.drop_reply_count, &count, count - 1,
+            false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+        {
+          __atomic_fetch_add(&g_bk7258_pm_fault_diag.dropped_replies, 1,
+                             __ATOMIC_RELAXED);
+          g_bk7258_pm_fault_diag.last_generation = request->generation;
+          g_bk7258_pm_fault_diag.last_sequence = request->sequence;
+          return true;
+        }
+    }
+
+  return false;
+}
+
+static void bk7258_pm_fault_record_replay(
+  FAR const struct bk7258_pm_wire_s *request)
+{
+  __atomic_fetch_add(&g_bk7258_pm_fault_diag.replayed_replies, 1,
+                     __ATOMIC_RELAXED);
+  g_bk7258_pm_fault_diag.last_generation = request->generation;
+  g_bk7258_pm_fault_diag.last_sequence = request->sequence;
+}
+#endif
+
+static int bk7258_pm_send_rejection(
+  struct bk7258_pm_server_s *priv,
+  FAR const struct bk7258_pm_wire_s *request, int status)
+{
+  struct bk7258_pm_wire_s reply;
+
+  memcpy(&reply, request, sizeof(reply));
+  reply.command = BK7258_PM_COMMAND_RESPONSE;
+  reply.status = status;
+  reply.refcount = 0;
+  reply.reserved = 0;
+  return rpmsg_trysend(&priv->ept, &reply, sizeof(reply));
 }
 
 static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
@@ -404,6 +506,7 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
 
   if (len != sizeof(*request) || request->magic != BK7258_PM_MAGIC ||
       request->version != BK7258_PM_VERSION || request->generation == 0 ||
+      request->sequence == 0 ||
       request->generation != control->generation)
     {
       return -EINVAL;
@@ -423,6 +526,41 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
     {
       bk7258_pm_release_generation(priv);
       priv->generation = request->generation;
+    }
+
+  /* A request is committed before its response is sent.  If AP loses that
+   * response, it retransmits the identical generation/sequence tuple.  Replay
+   * the cached response without applying the clock reference or frequency
+   * vote again.  A reused sequence carrying different contents is a protocol
+   * violation; an older sequence is stale.  Both are rejected without side
+   * effects.
+   */
+
+  if (priv->replay_valid)
+    {
+      if (request->sequence == priv->last_sequence)
+        {
+          if (!bk7258_pm_same_request(request, &priv->last_request))
+            {
+              return bk7258_pm_send_rejection(priv, request, -EPROTO);
+            }
+
+#ifdef CONFIG_BK7258_PM_FAULT_INJECTION
+          bk7258_pm_fault_record_replay(request);
+          if (bk7258_pm_fault_drop_reply(request))
+            {
+              return OK;
+            }
+#endif
+          return rpmsg_trysend(&priv->ept, &priv->last_reply,
+                               sizeof(priv->last_reply));
+        }
+
+      if (!bk7258_pm_sequence_after(request->sequence,
+                                    priv->last_sequence))
+        {
+          return bk7258_pm_send_rejection(priv, request, -ESTALE);
+        }
     }
 
   clock = (enum bk7258_pm_clock_e)request->clock;
@@ -499,8 +637,12 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
     {
       if (request->command == BK7258_PM_COMMAND_CPU_FREQ_VOTE)
         {
+          /* The vote is already committed.  A failure to collect its
+           * optional diagnostic snapshot must not turn that committed
+           * operation into an error reply and make AP retry it as new.
+           */
+
           status = bk7258_pm_frequency_get_status(&frequency_status);
-          reply.status = status;
         }
 
       if (status >= 0)
@@ -511,11 +653,25 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
         }
     }
 
-  /* The callback owns the RPTUN RX worker.  Never wait for a TX buffer here;
-   * a busy transport is reported to AP as its bounded request timeout.
+  /* Cache the committed transaction before attempting the response.  The
+   * callback owns the RPTUN RX worker, so it must never wait for a TX buffer;
+   * AP retries this same tuple after its bounded response timeout.
    */
 
-  return rpmsg_trysend(&priv->ept, &reply, sizeof(reply));
+  memcpy(&priv->last_request, request, sizeof(priv->last_request));
+  memcpy(&priv->last_reply, &reply, sizeof(priv->last_reply));
+  priv->last_sequence = request->sequence;
+  priv->replay_valid = true;
+
+#ifdef CONFIG_BK7258_PM_FAULT_INJECTION
+  if (bk7258_pm_fault_drop_reply(request))
+    {
+      return OK;
+    }
+#endif
+
+  return rpmsg_trysend(&priv->ept, &priv->last_reply,
+                       sizeof(priv->last_reply));
 }
 
 static void bk7258_pm_device_created(FAR struct rpmsg_device *rdev,

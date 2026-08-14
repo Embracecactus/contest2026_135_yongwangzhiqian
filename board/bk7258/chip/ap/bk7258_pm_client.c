@@ -44,6 +44,10 @@ struct bk7258_pm_client_s
   uint32_t sequence;
   uint32_t waiting_generation;
   uint32_t waiting_sequence;
+  bool pending_valid;
+  bool pending_committed;
+  int pending_status;
+  struct bk7258_pm_wire_s pending_request;
   struct bk7258_pm_wire_s reply;
   uint16_t clock_refs[BK7258_PM_CLOCK_COUNT];
   bool freq_active[BK7258_PM_FREQ_CLIENT_COUNT];
@@ -56,6 +60,8 @@ static struct bk7258_pm_client_s g_bk7258_pm_client =
 {
   .lock = NXMUTEX_INITIALIZER,
 };
+
+static int bk7258_pm_recalc_primary_timebase(void);
 
 static void bk7258_pm_publish_vendor_votes_locked(
   FAR const struct bk7258_pm_client_s *priv)
@@ -319,7 +325,7 @@ static int bk7258_pm_client_cb(FAR struct rpmsg_endpoint *ept,
 
   memcpy(&priv->reply, reply, sizeof(priv->reply));
   __asm volatile ("dmb sy" ::: "memory");
-  priv->reply_valid = true;
+  __atomic_store_n(&priv->reply_valid, true, __ATOMIC_RELEASE);
   return nxsem_post(&priv->reply_sem);
 }
 
@@ -360,7 +366,9 @@ static void bk7258_pm_device_destroy(FAR struct rpmsg_device *rdev,
   __atomic_store_n(&priv->endpoint_created, false, __ATOMIC_RELEASE);
   __atomic_store_n(&g_bk7258_pm_sdk_generation, 0, __ATOMIC_RELEASE);
   priv->connection_error = -ENOTCONN;
-  priv->reply_valid = false;
+  __atomic_store_n(&priv->reply_valid, false, __ATOMIC_RELEASE);
+  priv->pending_valid = false;
+  priv->pending_committed = false;
   memset(priv->clock_refs, 0, sizeof(priv->clock_refs));
   memset(priv->freq_active, 0, sizeof(priv->freq_active));
   bk7258_pm_publish_vendor_votes(priv);
@@ -369,6 +377,132 @@ static void bk7258_pm_device_destroy(FAR struct rpmsg_device *rdev,
     {
       rpmsg_destroy_ept(&priv->ept);
     }
+}
+
+static bool bk7258_pm_same_operation(
+  FAR const struct bk7258_pm_wire_s *request, uint32_t resource,
+  enum bk7258_pm_command_e command, uint32_t value)
+{
+  return request->command == command && request->clock == resource &&
+         request->reserved == value;
+}
+
+static int bk7258_pm_exchange(FAR struct bk7258_pm_client_s *priv,
+                              FAR const struct bk7258_pm_wire_s *request,
+                              bool new_transaction,
+                              FAR bool *sent)
+{
+  unsigned int attempt;
+  int ret = -ETIMEDOUT;
+
+  *sent = false;
+  priv->waiting_generation = request->generation;
+  priv->waiting_sequence = request->sequence;
+  if (new_transaction)
+    {
+      /* Clear state once for the whole transaction.  A reply may arrive just
+       * after one attempt times out; retrying the same tuple must not erase
+       * that valid late reply before the next wait observes its token.
+       */
+
+      __atomic_store_n(&priv->reply_valid, false, __ATOMIC_RELEASE);
+      bk7258_pm_flush_sem(&priv->reply_sem);
+    }
+
+  for (attempt = 0; attempt < BK7258_PM_REQUEST_ATTEMPTS; attempt++)
+    {
+      __asm volatile ("dmb sy" ::: "memory");
+      if (__atomic_load_n(&priv->reply_valid, __ATOMIC_ACQUIRE))
+        {
+          return OK;
+        }
+
+      ret = bk7258_pm_send_bounded(priv, request);
+      if (ret < 0)
+        {
+          break;
+        }
+
+      *sent = true;
+      ret = nxsem_tickwait_uninterruptible(
+              &priv->reply_sem, MSEC2TICK(BK7258_PM_REPLY_TIMEOUT_MS));
+      __asm volatile ("dmb sy" ::: "memory");
+      if (__atomic_load_n(&priv->reply_valid, __ATOMIC_ACQUIRE))
+        {
+          return OK;
+        }
+
+      if (priv->connection_error < 0)
+        {
+          return priv->connection_error;
+        }
+
+      /* The CP operation may already be committed even though its response
+       * was lost.  Retry the exact same sequence; protocol v4 servers replay
+       * the cached response without changing references or votes twice.
+       */
+    }
+
+  return ret;
+}
+
+static int bk7258_pm_commit_reply(
+  FAR struct bk7258_pm_client_s *priv,
+  FAR const struct bk7258_pm_wire_s *request,
+  FAR struct bk7258_pm_frequency_status_s *snapshot)
+{
+  uint32_t resource = request->clock;
+  int post_ret = OK;
+  int ret;
+
+  __asm volatile ("dmb sy" ::: "memory");
+  if (!__atomic_load_n(&priv->reply_valid, __ATOMIC_ACQUIRE))
+    {
+      return priv->connection_error < 0 ? priv->connection_error : -ESTALE;
+    }
+
+  ret = priv->reply.status;
+  if (ret >= 0 && request->command == BK7258_PM_COMMAND_CLOCK_GET)
+    {
+      if (priv->clock_refs[resource] != UINT16_MAX)
+        {
+          priv->clock_refs[resource]++;
+        }
+    }
+  else if (ret >= 0 && request->command == BK7258_PM_COMMAND_CLOCK_PUT)
+    {
+      if (priv->clock_refs[resource] != 0)
+        {
+          priv->clock_refs[resource]--;
+        }
+    }
+  else if (ret >= 0 &&
+           request->command == BK7258_PM_COMMAND_CPU_FREQ_VOTE)
+    {
+      priv->freq_active[resource] =
+        request->reserved != BK7258_PM_CPU_FREQ_DEFAULT;
+      post_ret = bk7258_pm_recalc_primary_timebase();
+    }
+
+  /* A successful CP reply means the resource transition is committed even
+   * if AP's local timebase repair subsequently reports an error.  Publish
+   * the committed local accounting first so a retry cannot apply the same
+   * CP vote twice or leave the vendor activity view stale.
+   */
+
+  if (ret >= 0 && request->command != BK7258_PM_COMMAND_CPU_FREQ_QUERY)
+    {
+      bk7258_pm_publish_vendor_votes(priv);
+    }
+
+  if (ret >= 0 && snapshot != NULL)
+    {
+      snapshot->transitions = priv->reply.clock;
+      snapshot->current = priv->reply.refcount;
+      snapshot->peak = priv->reply.reserved;
+    }
+
+  return post_ret < 0 ? post_ret : ret;
 }
 
 static int bk7258_pm_request(uint32_t resource,
@@ -380,6 +514,8 @@ static int bk7258_pm_request(uint32_t resource,
   volatile struct bk7258_rptun_control_s *control =
     bk7258_rptun_control();
   struct bk7258_pm_wire_s request;
+  bool same_pending;
+  bool sent;
   int ret;
 
   if ((command == BK7258_PM_COMMAND_CLOCK_GET ||
@@ -424,15 +560,83 @@ static int bk7258_pm_request(uint32_t resource,
       goto out;
     }
 
+  if (priv->pending_valid &&
+      priv->pending_request.generation != control->generation)
+    {
+      /* CP releases all references when the RPTUN generation changes.  The
+       * old cached response is no longer reachable, so converge AP to that
+       * same empty generation before accepting a new transaction.
+       */
+
+      priv->pending_valid = false;
+      priv->pending_committed = false;
+      __atomic_store_n(&priv->reply_valid, false, __ATOMIC_RELEASE);
+      memset(priv->clock_refs, 0, sizeof(priv->clock_refs));
+      memset(priv->freq_active, 0, sizeof(priv->freq_active));
+      bk7258_pm_publish_vendor_votes(priv);
+    }
+
+  /* Never advance past an operation whose response was not observed.  CP
+   * may already have committed it.  Recover the cached response with the
+   * original generation/sequence first, then update AP's local accounting
+   * exactly once.  A caller repeating that operation receives its recovered
+   * result instead of creating a second transaction.
+   */
+
+  if (priv->pending_valid)
+    {
+      same_pending = bk7258_pm_same_operation(&priv->pending_request,
+                                              resource, command, value);
+      if (!priv->pending_committed)
+        {
+          ret = bk7258_pm_exchange(priv, &priv->pending_request, false,
+                                   &sent);
+          if (ret < 0)
+            {
+              goto out;
+            }
+
+          priv->pending_status =
+            bk7258_pm_commit_reply(priv, &priv->pending_request,
+                                   same_pending ? snapshot : NULL);
+          priv->pending_committed = true;
+        }
+
+      if (!same_pending)
+        {
+          /* The original caller already observed a timeout.  Once its exact
+           * tuple has been replayed and committed to the AP bookkeeping, the
+           * local and CP resource views agree again.  Retire that transaction
+           * and let the current, different operation proceed; this is needed
+           * for the common error-cleanup sequence GET(timeout) -> PUT.
+           */
+
+          priv->pending_valid = false;
+          priv->pending_committed = false;
+        }
+      else
+        {
+          if (snapshot != NULL && priv->pending_status >= 0)
+            {
+              snapshot->transitions = priv->reply.clock;
+              snapshot->current = priv->reply.refcount;
+              snapshot->peak = priv->reply.reserved;
+            }
+
+          ret = priv->pending_status;
+          priv->pending_valid = false;
+          priv->pending_committed = false;
+          goto out;
+        }
+    }
+
   if (++priv->sequence == 0)
     {
       priv->sequence++;
     }
 
-  bk7258_pm_flush_sem(&priv->reply_sem);
   priv->waiting_generation = control->generation;
   priv->waiting_sequence = priv->sequence;
-  priv->reply_valid = false;
   memset(&request, 0, sizeof(request));
   request.magic = BK7258_PM_MAGIC;
   request.version = BK7258_PM_VERSION;
@@ -442,50 +646,22 @@ static int bk7258_pm_request(uint32_t resource,
   request.clock = resource;
   request.reserved = value;
 
-  ret = bk7258_pm_send_bounded(priv, &request);
-  if (ret >= 0)
+  ret = bk7258_pm_exchange(priv, &request, true, &sent);
+  if (ret < 0)
     {
-      ret = nxsem_tickwait_uninterruptible(
-              &priv->reply_sem, MSEC2TICK(BK7258_PM_REPLY_TIMEOUT_MS));
+      if (sent && priv->connection_error >= 0 &&
+          control->generation == request.generation)
+        {
+          memcpy(&priv->pending_request, &request,
+                 sizeof(priv->pending_request));
+          priv->pending_valid = true;
+          priv->pending_committed = false;
+        }
+
+      goto out;
     }
 
-  __asm volatile ("dmb sy" ::: "memory");
-  if (ret >= 0)
-    {
-      ret = priv->reply_valid ? priv->reply.status :
-            (priv->connection_error < 0 ? priv->connection_error : -ESTALE);
-      if (ret >= 0 && command == BK7258_PM_COMMAND_CLOCK_GET)
-        {
-          if (priv->clock_refs[resource] != UINT16_MAX)
-            {
-              priv->clock_refs[resource]++;
-            }
-        }
-      else if (ret >= 0 && command == BK7258_PM_COMMAND_CLOCK_PUT)
-        {
-          if (priv->clock_refs[resource] != 0)
-            {
-              priv->clock_refs[resource]--;
-            }
-        }
-      else if (ret >= 0 && command == BK7258_PM_COMMAND_CPU_FREQ_VOTE)
-        {
-          priv->freq_active[resource] =
-            value != BK7258_PM_CPU_FREQ_DEFAULT;
-        }
-
-      if (ret >= 0 && command != BK7258_PM_COMMAND_CPU_FREQ_QUERY)
-        {
-          bk7258_pm_publish_vendor_votes(priv);
-        }
-
-      if (ret >= 0 && snapshot != NULL)
-        {
-          snapshot->transitions = priv->reply.clock;
-          snapshot->current = priv->reply.refcount;
-          snapshot->peak = priv->reply.reserved;
-        }
-    }
+  ret = bk7258_pm_commit_reply(priv, &request, snapshot);
 
 out:
   nxmutex_unlock(&priv->lock);
@@ -565,20 +741,13 @@ static int bk7258_pm_recalc_primary_timebase(void)
 int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
                              enum bk7258_pm_cpu_freq_e frequency)
 {
-  int ret;
+  /* CP changes the shared mux and repairs its own SysTick before replying.
+   * bk7258_pm_commit_reply() repairs AP logical CPU0 after every confirmed
+   * vote, including a cached reply recovered from an earlier timeout.
+   */
 
-  ret = bk7258_pm_request(client, BK7258_PM_COMMAND_CPU_FREQ_VOTE,
-                          frequency, NULL);
-  if (ret >= 0)
-    {
-      /* CP changes the shared mux and repairs its own SysTick before
-       * replying.  The AP system tick belongs to logical CPU0 even when a
-       * module vote originates on logical CPU1. */
-
-      ret = bk7258_pm_recalc_primary_timebase();
-    }
-
-  return ret;
+  return bk7258_pm_request(client, BK7258_PM_COMMAND_CPU_FREQ_VOTE,
+                           frequency, NULL);
 }
 
 int bk7258_pm_frequency_get_status(

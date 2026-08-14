@@ -1340,7 +1340,10 @@ static int bk7258_mic_ioctl(struct audio_lowerhalf_s *dev, int cmd,
         {
           struct ap_buffer_info_s *info = (struct ap_buffer_info_s *)arg;
 
-          DEBUGASSERT(info != NULL);
+          if (info == NULL)
+            {
+              return -EINVAL;
+            }
 
           info->buffer_size = BK7258_MIC_FRAME_BYTES;
           info->nbuffers    = CONFIG_BK7258_MIC_RING_FRAMES;

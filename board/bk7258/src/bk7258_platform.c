@@ -95,6 +95,7 @@ static int g_bk7258_platform_result;
 
 int bk7258_platform_initialize(void)
 {
+  int result = OK;
   int lockret;
 
   lockret = nxmutex_lock(&g_bk7258_platform_lock);
@@ -105,10 +106,10 @@ int bk7258_platform_initialize(void)
 
   if (g_bk7258_platform_initialized)
     {
-      int result = g_bk7258_platform_result;
+      int saved_result = g_bk7258_platform_result;
 
       nxmutex_unlock(&g_bk7258_platform_lock);
-      return result;
+      return saved_result;
     }
 
 #ifdef CONFIG_BK7258_SWD_DEBUG
@@ -339,7 +340,15 @@ int bk7258_platform_initialize(void)
    * into a reboot loop.
    */
 
-  (void)bk7258_wdt_initialize();
+#ifdef CONFIG_BK7258_WDT_FAULT_INJECTION
+  result = bk7258_wdt_fault_validate();
+#else
+  result = bk7258_wdt_initialize();
+#endif
+  if (result < 0)
+    {
+      _err("bk7258: WDT initialization failed: %d\n", result);
+    }
 #endif
 
 #if defined(CONFIG_BK7258_PM_COORDINATED_STANDBY) && \
@@ -406,9 +415,9 @@ int bk7258_platform_initialize(void)
     defined(CONFIG_BK7258_SDK_IPC_RUNTIME) || \
     defined(CONFIG_BK7258_PM_CLOCK) || \
     (defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE))
-  g_bk7258_platform_result = apret;
+  g_bk7258_platform_result = apret < 0 ? apret : result;
 #else
-  g_bk7258_platform_result = OK;
+  g_bk7258_platform_result = result;
 #endif
   g_bk7258_platform_initialized = true;
   nxmutex_unlock(&g_bk7258_platform_lock);

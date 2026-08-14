@@ -30,7 +30,6 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/clock.h>
-#include <nuttx/kthread.h>
 #include <nuttx/mutex.h>
 #include <nuttx/rpmsg/rpmsg.h>
 #include <nuttx/semaphore.h>
@@ -124,6 +123,7 @@ struct bk7258_rpmsg_test_dev_s
   sem_t load_done_sem;
   sem_t tx_sem;
   sem_t tx_done_sem[2];
+  volatile bool shutdown;
   volatile uint32_t tx_pending;
   volatile uint32_t worker_dispatch[2];
   struct bk7258_rpmsg_test_tx_request_s tx_request[2];
@@ -210,6 +210,51 @@ static int bk7258_rpmsg_test_sem_init(sem_t *sem)
 
   return ret;
 }
+
+#ifdef CONFIG_BK7258_AP_CORE
+static void bk7258_rpmsg_test_reset_runtime(
+  FAR struct bk7258_rpmsg_test_dev_s *priv)
+{
+  unsigned int i;
+
+  /* initialize() is retryable after any staged setup failure.  Reset every
+   * control word consumed by a permanent worker before creating the first
+   * one; otherwise abort/load_stop from the failed attempt makes the next
+   * worker set exit immediately even though all semaphore ownership was
+   * correctly rebuilt.
+   */
+
+  __atomic_store_n(&priv->shutdown, false, __ATOMIC_RELEASE);
+  __atomic_store_n(&priv->tx_pending, 0, __ATOMIC_RELEASE);
+  __atomic_store_n(&priv->busy, false, __ATOMIC_RELEASE);
+  __atomic_store_n(&priv->abort, false, __ATOMIC_RELEASE);
+  __atomic_store_n(&priv->load_stop, false, __ATOMIC_RELEASE);
+  __atomic_store_n(&priv->workers_done, 0, __ATOMIC_RELEASE);
+
+  for (i = 0; i < 2; i++)
+    {
+      __atomic_store_n(&priv->worker_dispatch[i], 0, __ATOMIC_RELEASE);
+      __atomic_store_n(&priv->awaiting[i], 0, __ATOMIC_RELEASE);
+      __atomic_store_n(&priv->reply_status[i], -EINPROGRESS,
+                       __ATOMIC_RELEASE);
+      __atomic_store_n(&priv->worker_status[i], -EINPROGRESS,
+                       __ATOMIC_RELEASE);
+      __atomic_store_n(&priv->tx_request[i].status, -EINPROGRESS,
+                       __ATOMIC_RELEASE);
+      priv->tx_request[i].len = 0;
+      priv->tx_request[i].timeout_ms = 0;
+    }
+
+  priv->generation = 0;
+  priv->run_id = 0;
+  priv->count = 0;
+  priv->payload_size = 0;
+  priv->flags = 0;
+  priv->timeout_ms = 0;
+  memset(priv->latency, 0, sizeof(priv->latency));
+  memset(&priv->result, 0, sizeof(priv->result));
+}
+#endif
 
 static bool bk7258_rpmsg_test_endpoint_ready(void)
 {
@@ -376,6 +421,11 @@ static FAR void *bk7258_rpmsg_test_tx_gateway(FAR void *arg)
   (void)arg;
   for (; ; )
     {
+      if (__atomic_load_n(&priv->shutdown, __ATOMIC_ACQUIRE))
+        {
+          break;
+        }
+
       pending = __atomic_exchange_n(&priv->tx_pending, 0,
                                     __ATOMIC_ACQ_REL);
       if (pending == 0)
@@ -561,7 +611,7 @@ static int bk7258_rpmsg_test_attr_initialize(pthread_attr_t *attr,
   if (ret == 0)
     {
       initialized = 1;
-      ret = pthread_attr_setdetachstate(attr, PTHREAD_CREATE_DETACHED);
+      ret = pthread_attr_setdetachstate(attr, PTHREAD_CREATE_JOINABLE);
     }
 
   if (ret == 0)
@@ -723,17 +773,22 @@ static FAR void *bk7258_rpmsg_test_worker(FAR void *arg)
   uint32_t dispatch = 0;
   int ret;
 
-  /* A detached pthread that exits on AP logical CPU1 leaves its stack/TCB
-   * allocation pending in this board's current SMP lifecycle path.  The
-   * stress test used to create two fresh workers per request and therefore
-   * consumed one 4360-byte allocation on every run until pthread_create()
-   * returned ENOMEM.  Keep one pinned worker per logical CPU for the AP
-   * lifetime and dispatch requests with counting semaphores instead.  This
-   * stays entirely in the board wrapper and does not alter NuttX or the SDK.
+  /* Short-lived pthreads that exit on AP logical CPU1 leave their stack/TCB
+   * cleanup dependent on a matching join.  The stress test used to create
+   * two fresh workers per request and therefore consumed one 4360-byte
+   * allocation on every run until pthread_create() returned ENOMEM.  Keep
+   * one joinable, pinned worker per logical CPU for the AP lifetime and
+   * dispatch requests with counting semaphores instead.  Initialization
+   * failure joins those workers before releasing their semaphore state.
    */
 
   for (; ; )
     {
+      if (__atomic_load_n(&priv->shutdown, __ATOMIC_ACQUIRE))
+        {
+          break;
+        }
+
       if (slot == 0)
         {
           ret = nxsem_wait_uninterruptible(&priv->worker_start_sem[slot]);
@@ -752,13 +807,19 @@ static FAR void *bk7258_rpmsg_test_worker(FAR void *arg)
            */
 
           while (__atomic_load_n(&priv->worker_dispatch[slot],
-                                  __ATOMIC_ACQUIRE) == dispatch)
+                                  __ATOMIC_ACQUIRE) == dispatch &&
+                 !__atomic_load_n(&priv->shutdown, __ATOMIC_ACQUIRE))
             {
               __asm volatile ("wfe" ::: "memory");
             }
 
           dispatch = __atomic_load_n(&priv->worker_dispatch[slot],
                                      __ATOMIC_ACQUIRE);
+        }
+
+      if (__atomic_load_n(&priv->shutdown, __ATOMIC_ACQUIRE))
+        {
+          break;
         }
 
       __asm volatile ("dmb sy" ::: "memory");
@@ -778,13 +839,19 @@ static FAR void *bk7258_rpmsg_test_load_worker(FAR void *arg)
   (void)arg;
   for (; ; )
     {
+      if (__atomic_load_n(&priv->shutdown, __ATOMIC_ACQUIRE))
+        {
+          break;
+        }
+
       ret = nxsem_wait_uninterruptible(&priv->load_start_sem);
       if (ret < 0)
         {
           continue;
         }
 
-      while (!__atomic_load_n(&priv->load_stop, __ATOMIC_ACQUIRE))
+      while (!__atomic_load_n(&priv->load_stop, __ATOMIC_ACQUIRE) &&
+             !__atomic_load_n(&priv->shutdown, __ATOMIC_ACQUIRE))
         {
           for (i = 0; i < 4096; i++)
             {
@@ -918,6 +985,11 @@ static int bk7258_rpmsg_test_controller(int argc, FAR char *argv[])
   for (; ; )
     {
       ret = nxsem_wait_uninterruptible(&priv->start_sem);
+      if (__atomic_load_n(&priv->shutdown, __ATOMIC_ACQUIRE))
+        {
+          break;
+        }
+
       if (ret < 0 || !__atomic_load_n(&priv->busy, __ATOMIC_ACQUIRE))
         {
           continue;
@@ -1124,6 +1196,13 @@ static int bk7258_rpmsg_test_controller(int argc, FAR char *argv[])
     }
 
   return OK;
+}
+
+static FAR void *bk7258_rpmsg_test_controller_thread(FAR void *arg)
+{
+  (void)arg;
+  (void)bk7258_rpmsg_test_controller(0, NULL);
+  return NULL;
 }
 
 static void bk7258_rpmsg_test_send_error_report(
@@ -1388,10 +1467,29 @@ int bk7258_rpmsg_test_initialize(void)
 {
   struct bk7258_rpmsg_test_dev_s *priv = &g_bk7258_rpmsg_test;
 #ifdef CONFIG_BK7258_AP_CORE
-  pthread_t thread;
+  sem_t *semaphores[] =
+  {
+    &priv->start_sem,
+    &priv->done_sem,
+    &priv->worker_start_sem[0],
+    &priv->worker_start_sem[1],
+    &priv->reply_sem[0],
+    &priv->reply_sem[1],
+    &priv->load_start_sem,
+    &priv->load_done_sem,
+    &priv->tx_sem,
+    &priv->tx_done_sem[0],
+    &priv->tx_done_sem[1]
+  };
+  pthread_t threads[5];
+  size_t semaphore_count = 0;
+  size_t thread_count = 0;
   uint32_t i;
   uint32_t spawn_stage;
+#else
+  bool report_sem_initialized = false;
 #endif
+  bool callback_registered = false;
   bool expected = false;
   int ret;
 
@@ -1403,89 +1501,61 @@ int bk7258_rpmsg_test_initialize(void)
     }
 
 #ifdef CONFIG_BK7258_AP_CORE
-  ret = bk7258_rpmsg_test_sem_init(&priv->start_sem);
-
-  if (ret >= 0)
+  bk7258_rpmsg_test_reset_runtime(priv);
+  ret = OK;
+  while (semaphore_count < sizeof(semaphores) / sizeof(semaphores[0]) &&
+         ret >= 0)
     {
-      ret = bk7258_rpmsg_test_sem_init(&priv->done_sem);
-    }
-
-  if (ret >= 0)
-    {
-      ret = bk7258_rpmsg_test_sem_init(&priv->worker_start_sem[0]);
-    }
-
-  if (ret >= 0)
-    {
-      ret = bk7258_rpmsg_test_sem_init(&priv->worker_start_sem[1]);
-    }
-
-  if (ret >= 0)
-    {
-      ret = bk7258_rpmsg_test_sem_init(&priv->reply_sem[0]);
-    }
-
-  if (ret >= 0)
-    {
-      ret = bk7258_rpmsg_test_sem_init(&priv->reply_sem[1]);
-    }
-
-  if (ret >= 0)
-    {
-      ret = bk7258_rpmsg_test_sem_init(&priv->load_start_sem);
-    }
-
-  if (ret >= 0)
-    {
-      ret = bk7258_rpmsg_test_sem_init(&priv->load_done_sem);
-    }
-
-  if (ret >= 0)
-    {
-      ret = bk7258_rpmsg_test_sem_init(&priv->tx_sem);
-    }
-
-  if (ret >= 0)
-    {
-      ret = bk7258_rpmsg_test_sem_init(&priv->tx_done_sem[0]);
-    }
-
-  if (ret >= 0)
-    {
-      ret = bk7258_rpmsg_test_sem_init(&priv->tx_done_sem[1]);
+      ret = bk7258_rpmsg_test_sem_init(semaphores[semaphore_count]);
+      if (ret >= 0)
+        {
+          semaphore_count++;
+        }
     }
 
   if (ret >= 0)
     {
       ret = bk7258_rpmsg_test_spawn(
-              &thread, 0, BK7258_RPMSG_TEST_TX_PRIO,
+              &threads[thread_count], 0, BK7258_RPMSG_TEST_TX_PRIO,
               bk7258_rpmsg_test_tx_gateway, NULL, &spawn_stage);
+      if (ret >= 0)
+        {
+          thread_count++;
+        }
     }
 
   for (i = 0; i < 2 && ret >= 0; i++)
     {
       ret = bk7258_rpmsg_test_spawn(
-              &thread, i, BK7258_RPMSG_TEST_WORKER_PRIO,
+              &threads[thread_count], i, BK7258_RPMSG_TEST_WORKER_PRIO,
               bk7258_rpmsg_test_worker, (FAR void *)(uintptr_t)i,
               &spawn_stage);
+      if (ret >= 0)
+        {
+          thread_count++;
+        }
     }
 
   if (ret >= 0)
     {
       ret = bk7258_rpmsg_test_spawn(
-              &thread, 0, BK7258_RPMSG_TEST_LOAD_PRIO,
+              &threads[thread_count], 0, BK7258_RPMSG_TEST_LOAD_PRIO,
               bk7258_rpmsg_test_load_worker, NULL, &spawn_stage);
+      if (ret >= 0)
+        {
+          thread_count++;
+        }
     }
 
   if (ret >= 0)
     {
-      ret = kthread_create("bk-rpmsg-test",
-                           BK7258_RPMSG_TEST_CONTROLLER_PRIO,
-                           BK7258_RPMSG_TEST_THREAD_STACK,
-                           bk7258_rpmsg_test_controller, NULL);
+      ret = bk7258_rpmsg_test_spawn(
+              &threads[thread_count], 0,
+              BK7258_RPMSG_TEST_CONTROLLER_PRIO,
+              bk7258_rpmsg_test_controller_thread, NULL, &spawn_stage);
       if (ret >= 0)
         {
-          ret = OK;
+          thread_count++;
         }
     }
 #else
@@ -1498,6 +1568,10 @@ int bk7258_rpmsg_test_initialize(void)
   if (ret >= 0)
     {
       ret = bk7258_rpmsg_test_sem_init(&priv->report_sem);
+      if (ret >= 0)
+        {
+          report_sem_initialized = true;
+        }
     }
 #endif
 
@@ -1514,8 +1588,80 @@ int bk7258_rpmsg_test_initialize(void)
 #endif
     }
 
+  if (ret >= 0)
+    {
+      callback_registered = true;
+    }
+
   if (ret < 0)
     {
+#ifdef CONFIG_BK7258_AP_CORE
+      size_t cleanup;
+
+      if (callback_registered)
+        {
+          rpmsg_unregister_callback(priv,
+                                    bk7258_rpmsg_test_device_created,
+                                    bk7258_rpmsg_test_device_destroy,
+                                    NULL, NULL);
+        }
+
+      /* No test request can be accepted before callback registration.  Wake
+       * every permanent worker, let it observe shutdown, then join in reverse
+       * creation order before destroying any semaphore it may touch.
+       */
+
+      __atomic_store_n(&priv->shutdown, true, __ATOMIC_RELEASE);
+      __atomic_store_n(&priv->abort, true, __ATOMIC_RELEASE);
+      __atomic_store_n(&priv->load_stop, true, __ATOMIC_RELEASE);
+      if (thread_count != 0)
+        {
+          /* Threads are created only after all semaphores exist.  Do not
+           * touch a partially initialized semaphore array when semaphore
+           * creation itself was the failing stage.
+           */
+
+          (void)nxsem_post(&priv->start_sem);
+          (void)nxsem_post(&priv->worker_start_sem[0]);
+          __atomic_fetch_add(&priv->worker_dispatch[1], 1u,
+                             __ATOMIC_RELEASE);
+          (void)nxsem_post(&priv->load_start_sem);
+          (void)nxsem_post(&priv->tx_sem);
+          __asm volatile ("dmb sy; sev" ::: "memory");
+        }
+
+      for (cleanup = thread_count; cleanup > 0; cleanup--)
+        {
+          (void)pthread_join(threads[cleanup - 1], NULL);
+        }
+
+      while (semaphore_count > 0)
+        {
+          semaphore_count--;
+          (void)nxsem_destroy(semaphores[semaphore_count]);
+        }
+#else
+      if (callback_registered)
+        {
+          rpmsg_unregister_callback(priv,
+                                    bk7258_rpmsg_test_device_created,
+                                    bk7258_rpmsg_test_device_destroy,
+                                    bk7258_rpmsg_test_ns_match,
+                                    bk7258_rpmsg_test_ns_bind);
+        }
+
+      if (report_sem_initialized)
+        {
+          (void)nxsem_destroy(&priv->report_sem);
+        }
+#endif
+
+      memset(&priv->ept, 0, sizeof(priv->ept));
+      __atomic_store_n(&priv->endpoint_created, false, __ATOMIC_RELEASE);
+      priv->connection_error = ret;
+#ifdef CONFIG_BK7258_AP_CORE
+      bk7258_rpmsg_test_reset_runtime(priv);
+#endif
       __atomic_store_n(&priv->initialized, false, __ATOMIC_RELEASE);
     }
 

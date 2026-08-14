@@ -219,15 +219,16 @@ static int bk7258_i2c_transfer(FAR struct i2c_master_s *dev,
       return -EINVAL;
     }
 
-  if (!priv->initialized)
-    {
-      return -EAGAIN;
-    }
-
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
+    }
+
+  if (!priv->initialized)
+    {
+      nxmutex_unlock(&priv->lock);
+      return -EAGAIN;
     }
 
   for (i = 0; i < count; i++)
@@ -352,13 +353,34 @@ static int bk7258_i2c_reset(FAR struct i2c_master_s *dev)
     (FAR struct bk7258_i2c_priv_s *)dev;
   i2c_config_t cfg;
   bk_err_t err;
+  int ret;
+
+  ret = nxmutex_lock(&priv->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
   if (!priv->initialized)
     {
+      nxmutex_unlock(&priv->lock);
       return OK;
     }
 
-  bk_i2c_deinit(priv->id);
+  err = bk_i2c_deinit(priv->id);
+  if (err != BK_OK)
+    {
+      ret = bk7258_i2c_map_err(err);
+      nxmutex_unlock(&priv->lock);
+      return ret;
+    }
+
+  /* Deinit succeeded, so the old controller instance no longer exists.
+   * Commit that fact before attempting to recreate it.  If init fails,
+   * later setup() can recover instead of treating a dead controller as live.
+   */
+
+  priv->initialized = false;
 
 #ifdef CONFIG_BK7258_I2C_ADDR_10BIT
   cfg.addr_mode = I2C_ADDR_MODE_10BIT;
@@ -369,7 +391,14 @@ static int bk7258_i2c_reset(FAR struct i2c_master_s *dev)
   cfg.slave_addr = 0;
 
   err = bk_i2c_init(priv->id, &cfg);
-  return bk7258_i2c_map_err(err);
+  if (err == BK_OK)
+    {
+      priv->initialized = true;
+    }
+
+  ret = bk7258_i2c_map_err(err);
+  nxmutex_unlock(&priv->lock);
+  return ret;
 }
 #endif
 
@@ -379,9 +408,17 @@ static int bk7258_i2c_setup(FAR struct i2c_master_s *dev)
     (FAR struct bk7258_i2c_priv_s *)dev;
   i2c_config_t cfg;
   bk_err_t err;
+  int ret;
+
+  ret = nxmutex_lock(&priv->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
   if (priv->initialized)
     {
+      nxmutex_unlock(&priv->lock);
       return OK;
     }
 
@@ -390,7 +427,9 @@ static int bk7258_i2c_setup(FAR struct i2c_master_s *dev)
       err = bk_i2c_driver_init();
       if (err != BK_OK)
         {
-          return bk7258_i2c_map_err(err);
+          ret = bk7258_i2c_map_err(err);
+          nxmutex_unlock(&priv->lock);
+          return ret;
         }
 
       priv->driver_init = true;
@@ -414,14 +453,19 @@ static int bk7258_i2c_setup(FAR struct i2c_master_s *dev)
 
       if (priv->driver_init)
         {
-          bk_i2c_driver_deinit();
-          priv->driver_init = false;
+          if (bk_i2c_driver_deinit() == BK_OK)
+            {
+              priv->driver_init = false;
+            }
         }
 
-      return bk7258_i2c_map_err(err);
+      ret = bk7258_i2c_map_err(err);
+      nxmutex_unlock(&priv->lock);
+      return ret;
     }
 
   priv->initialized = true;
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 
@@ -429,21 +473,42 @@ static int bk7258_i2c_shutdown(FAR struct i2c_master_s *dev)
 {
   FAR struct bk7258_i2c_priv_s *priv =
     (FAR struct bk7258_i2c_priv_s *)dev;
+  bk_err_t err;
+  int ret;
 
-  if (!priv->initialized)
+  ret = nxmutex_lock(&priv->lock);
+  if (ret < 0)
     {
-      return OK;
+      return ret;
     }
 
-  bk_i2c_deinit(priv->id);
-  priv->initialized = false;
+  if (priv->initialized)
+    {
+      err = bk_i2c_deinit(priv->id);
+      if (err != BK_OK)
+        {
+          ret = bk7258_i2c_map_err(err);
+          nxmutex_unlock(&priv->lock);
+          return ret;
+        }
+
+      priv->initialized = false;
+    }
 
   if (priv->driver_init)
     {
-      bk_i2c_driver_deinit();
+      err = bk_i2c_driver_deinit();
+      if (err != BK_OK)
+        {
+          ret = bk7258_i2c_map_err(err);
+          nxmutex_unlock(&priv->lock);
+          return ret;
+        }
+
       priv->driver_init = false;
     }
 
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 

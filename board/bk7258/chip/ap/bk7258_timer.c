@@ -9,7 +9,8 @@
  * publishes it at /dev/timerN.  The BK7258 has 6 hardware timer channels
  * (TIMER_ID0..TIMER_ID5); TIMER_ID0 is reserved by the SDK for its
  * microsecond timer (CONFIG_TIMER_US), so this wrapper drives a channel in
- * 1..5 (default TIMER_ID1).
+ * 3..5 (default TIMER_ID3).  The v3.1.1.9 AP bundle advertises only those
+ * channels through CONFIG_TIMER_SUPPORT_ID_BITS=0x38.
  *
  * SDK call mapping:
  *   start()       -> bk_timer_start(chan, timeout_ms, sdk_isr)
@@ -54,7 +55,13 @@
 #endif
 
 #ifndef CONFIG_BK7258_TIMER_CHAN
-#  define CONFIG_BK7258_TIMER_CHAN     1
+#  define CONFIG_BK7258_TIMER_CHAN     3
+#endif
+
+#if defined(CONFIG_TIMER_SUPPORT_ID_BITS)
+_Static_assert((CONFIG_TIMER_SUPPORT_ID_BITS &
+                (1u << CONFIG_BK7258_TIMER_CHAN)) != 0,
+               "selected timer channel is unsupported by the SDK bundle");
 #endif
 
 /* SDK period is in milliseconds; the NuttX interface works in microseconds. */
@@ -64,6 +71,11 @@
 /* The SDK's 32-bit ms period. */
 
 #define BK7258_TIMER_MAX_MS            UINT32_MAX
+
+#ifdef CONFIG_BK7258_TIMER_FAULT_INJECTION
+#  define BK7258_TIMER_FAULT_MAGIC     0x46544d42u /* "BMTF" */
+#  define BK7258_TIMER_FAULT_VERSION   1u
+#endif
 
 /****************************************************************************
  * Private Types
@@ -79,6 +91,27 @@ struct bk7258_timer_priv_s
   bool driver_inited;             /* bk_timer_driver_init() done */
   bool running;                   /* hardware channel armed */
 };
+
+#ifdef CONFIG_BK7258_TIMER_FAULT_INJECTION
+struct bk7258_timer_fault_diag_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t state;
+  int32_t result;
+  int32_t settimeout;
+  int32_t start;
+  uint32_t active_before_stop;
+  uint32_t hardware_before_stop;
+  int32_t failed_stop;
+  uint32_t active_after_failed_stop;
+  uint32_t hardware_after_failed_stop;
+  int32_t retry_stop;
+  uint32_t active_after_retry_stop;
+  uint32_t hardware_after_retry_stop;
+};
+#endif
 
 /****************************************************************************
  * Private Function Prototypes
@@ -127,6 +160,31 @@ static struct bk7258_timer_priv_s g_bk7258_timer =
   .running      = false,
 };
 static bool g_bk7258_timer_registered;
+
+#ifdef CONFIG_BK7258_TIMER_FAULT_INJECTION
+volatile struct bk7258_timer_fault_diag_s g_bk7258_timer_fault_diag;
+static volatile bool g_bk7258_timer_fail_next_stop;
+
+static bk_err_t bk7258_timer_sdk_stop(timer_id_t timer_id)
+{
+  irqstate_t flags;
+  bool fail;
+
+  flags = enter_critical_section();
+  fail = g_bk7258_timer_fail_next_stop;
+  g_bk7258_timer_fail_next_stop = false;
+  leave_critical_section(flags);
+
+  if (fail)
+    {
+      return (bk_err_t)-1;
+    }
+
+  return bk_timer_stop(timer_id);
+}
+#else
+#  define bk7258_timer_sdk_stop bk_timer_stop
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -195,6 +253,8 @@ static int bk7258_timer_stop(FAR struct timer_lowerhalf_s *lower)
   FAR struct bk7258_timer_priv_s *priv =
     (FAR struct bk7258_timer_priv_s *)lower;
   irqstate_t flags;
+  bool was_running;
+  bk_err_t ret;
 
   /* Clear running under a critical section BEFORE stopping the hardware:
    * the SDK ISR checks running and will not re-arm once it is false, so
@@ -203,10 +263,22 @@ static int bk7258_timer_stop(FAR struct timer_lowerhalf_s *lower)
    */
 
   flags = enter_critical_section();
+  was_running = priv->running;
   priv->running = false;
   leave_critical_section(flags);
 
-  (void)bk_timer_stop((timer_id_t)priv->chan);
+  ret = bk7258_timer_sdk_stop((timer_id_t)priv->chan);
+  if (ret != BK_OK)
+    {
+      /* Stop did not commit in hardware.  Restore the previous software
+       * state so getstatus() and the ISR still describe the live channel.
+       */
+
+      flags = enter_critical_section();
+      priv->running = was_running;
+      leave_critical_section(flags);
+      return -EIO;
+    }
 
   return OK;
 }
@@ -334,6 +406,7 @@ static void bk7258_timer_sdk_isr(timer_id_t timer_id)
   uint32_t timeout_us;
   bool running;
   bool keep_running = true;
+  bool restart_failed = false;
   uint32_t prev_us;
   irqstate_t flags;
 
@@ -391,21 +464,45 @@ static void bk7258_timer_sdk_isr(timer_id_t timer_id)
               if (bk_timer_start(timer_id, timeout_ms,
                                  bk7258_timer_sdk_isr) != BK_OK)
                 {
+                  restart_failed = true;
                   keep_running = false;
                 }
             }
           else
             {
-              keep_running = false;
+              /* A concurrent upper-half stop already committed both the
+               * software and hardware transition.  Do not issue a second
+               * stop from the ISR: some SDK implementations report that as
+               * an error, which must not resurrect running=true.
+               */
+
+              return;
             }
         }
     }
 
   if (!keep_running)
     {
-      (void)bk_timer_stop(timer_id);
+      bk_err_t stop_ret = bk7258_timer_sdk_stop(timer_id);
+
       flags = enter_critical_section();
-      priv->running = false;
+      if (stop_ret == BK_OK)
+        {
+          priv->running = false;
+        }
+      else
+        {
+          /* Hardware is still armed.  Preserve ACTIVE; if reprogramming
+           * failed, it is still running the previous period.
+           */
+
+          priv->running = true;
+          if (restart_failed)
+            {
+              priv->timeout_us = prev_us;
+            }
+        }
+
       leave_critical_section(flags);
     }
 }
@@ -470,5 +567,87 @@ int bk7258_timer_initialize(void)
   g_bk7258_timer_registered = true;
   return OK;
 }
+
+#ifdef CONFIG_BK7258_TIMER_FAULT_INJECTION
+int bk7258_timer_fault_validate(void)
+{
+  volatile struct bk7258_timer_fault_diag_s *diag =
+    &g_bk7258_timer_fault_diag;
+  struct timer_status_s status;
+  struct bk7258_timer_priv_s *priv = &g_bk7258_timer;
+  uint32_t enable_mask;
+  int ret;
+
+  memset((void *)diag, 0, sizeof(*diag));
+  diag->magic = BK7258_TIMER_FAULT_MAGIC;
+  diag->version = BK7258_TIMER_FAULT_VERSION;
+  diag->size = sizeof(*diag);
+  diag->state = 1;
+  enable_mask = 1u << priv->chan;
+
+  ret = bk7258_timer_settimeout(&priv->dev, 60000000u);
+  diag->settimeout = ret;
+  if (ret < 0)
+    {
+      goto failed;
+    }
+
+  diag->state = 2;
+  ret = bk7258_timer_start(&priv->dev);
+  diag->start = ret;
+  if (ret < 0)
+    {
+      goto failed;
+    }
+
+  (void)bk7258_timer_getstatus(&priv->dev, &status);
+  diag->active_before_stop = (status.flags & TCFLAGS_ACTIVE) != 0;
+  diag->hardware_before_stop =
+    (bk_timer_get_enable_status() & enable_mask) != 0;
+  if (diag->active_before_stop == 0 || diag->hardware_before_stop == 0)
+    {
+      ret = -EIO;
+      goto failed;
+    }
+
+  diag->state = 3;
+  g_bk7258_timer_fail_next_stop = true;
+  ret = bk7258_timer_stop(&priv->dev);
+  diag->failed_stop = ret;
+  (void)bk7258_timer_getstatus(&priv->dev, &status);
+  diag->active_after_failed_stop =
+    (status.flags & TCFLAGS_ACTIVE) != 0;
+  diag->hardware_after_failed_stop =
+    (bk_timer_get_enable_status() & enable_mask) != 0;
+  if (ret != -EIO || diag->active_after_failed_stop == 0 ||
+      diag->hardware_after_failed_stop == 0)
+    {
+      goto failed;
+    }
+
+  diag->state = 4;
+  ret = bk7258_timer_stop(&priv->dev);
+  diag->retry_stop = ret;
+  (void)bk7258_timer_getstatus(&priv->dev, &status);
+  diag->active_after_retry_stop =
+    (status.flags & TCFLAGS_ACTIVE) != 0;
+  diag->hardware_after_retry_stop =
+    (bk_timer_get_enable_status() & enable_mask) != 0;
+  if (ret < 0 || diag->active_after_retry_stop != 0 ||
+      diag->hardware_after_retry_stop != 0)
+    {
+      goto failed;
+    }
+
+  diag->result = OK;
+  diag->state = 5;
+  return OK;
+
+failed:
+  diag->result = ret < 0 ? ret : -EIO;
+  diag->state |= 0x80000000u;
+  return diag->result;
+}
+#endif
 
 #endif /* CONFIG_BK7258_TIMER */
