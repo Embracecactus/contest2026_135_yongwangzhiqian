@@ -54,6 +54,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <syslog.h>
 #include <debug.h>
 
 #include <nuttx/arch.h>
@@ -61,10 +62,25 @@
 #include <nuttx/irq.h>
 #include <nuttx/mutex.h>
 #include <nuttx/sdio.h>
+
+#include <arch/board/board.h>
+#include <arch/chip/bk7258_sdk_abi.h>
+
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
 #include <nuttx/spinlock.h>
 #include <nuttx/wqueue.h>
+#endif
 
 #include <arch/chip/bk7258_sdio.h>
+
+#ifndef BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
+#  error "Selected board must declare its SDIO card-detect capability"
+#endif
+
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE && \
+    !defined(BK7258_BOARD_SDIO_MEDIA_POLL_MS)
+#  error "Card-detect boards must declare their media polling interval"
+#endif
 
 /* SDK API headers (Beken).  bk_err_t / BK_OK come via common/bk_err.h. */
 
@@ -72,17 +88,13 @@
 #include <driver/sdio_host_types.h>
 #include <driver/int_types.h>
 
+#if defined(CONFIG_BK7258_SDIO_4BIT) && \
+    !defined(CONFIG_SDCARD_BUSWIDTH_4LINE)
+#  error "Selected AP SDK bundle cannot preserve four-bit SDIO data setup"
+#endif
+
 #include "arm_internal.h"
 #include "bk7258_sdk_irq.h"
-
-/* v3.1.1.9 uses this exported SDK helper in bk_sd_card_init(), but does not
- * expose it from the public sdio_host.h.  Keep the private ABI declaration
- * local to the BK7258 wrapper and do not modify or copy SDK source.
- */
-
-#ifdef CONFIG_SDIO_V2P0
-extern void bk_sdio_clk_gate_config(uint32_t enable);
-#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -148,8 +160,11 @@ struct bk7258_sdio_priv_s
   sdio_eventset_t waitset;
   int xfer_result;
 
-  /* Mechanical card-detect polling and MMC/SD media-change callback. */
+  /* Mechanical card-detect polling and MMC/SD media-change callback.
+   * Omitted entirely for fixed-media board variants.
+   */
 
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
   spinlock_t media_lock;
   struct work_s media_work;
   worker_t callback;
@@ -157,6 +172,7 @@ struct bk7258_sdio_priv_s
   sdio_eventset_t callback_events;
   bool reported_present;
   bool media_poll_started;
+#endif
 };
 
 /****************************************************************************
@@ -205,7 +221,9 @@ static void bk7258_sdio_callbackenable(FAR struct sdio_dev_s *dev,
                                        sdio_eventset_t eventset);
 static int bk7258_sdio_registercallback(FAR struct sdio_dev_s *dev,
                                         worker_t callback, FAR void *arg);
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
 static void bk7258_sdio_media_worker(FAR void *arg);
+#endif
 
 /****************************************************************************
  * Private Data
@@ -269,6 +287,22 @@ static int bk7258_sdio_map_err(bk_err_t err)
     }
 }
 
+#ifdef CONFIG_SDIO_V2P0
+static void bk7258_sdio_finish_stop_transmission(void)
+{
+  /* Match the tail of the official v3.1.1.9 CMD12 sequence on every exit.
+   * The command needs a continuously clocked card; its tail returns the
+   * controller to the SDK's FIFO-controlled state.  The next command restores
+   * continuous clocking.  Reset once more afterward because the controller
+   * may have prefetched invalid data before the card accepted CMD12.
+   */
+
+  bk_sdio_tx_fifo_clk_gate_config(0);
+  bk_sdio_clk_gate_config(0);
+  bk_sdio_host_reset_sd_state();
+}
+#endif
+
 /****************************************************************************
  * Name: bk7258_sdio_complete_read
  *
@@ -277,10 +311,16 @@ static int bk7258_sdio_map_err(bk_err_t err)
  *   bk_sdio_host_read_blks_fifo() hard-codes 512-byte blocks, while NuttX
  *   also requests short protocol records such as the 8-byte SCR.  Drain the
  *   public word FIFO directly so the configured block geometry is honoured.
+ *   Drain each block before waiting for its completion token.  The card clock
+ *   remains continuous, matching the official SDK initialization path, so
+ *   starting the FIFO drain immediately after the command response prevents
+ *   the following block from overflowing while NuttX wakes.  The completion
+ *   token is still consumed after every block to validate the SDK's CRC/error
+ *   result before advancing to the next block.
  ****************************************************************************/
 
 static int bk7258_sdio_complete_read(
-  FAR struct bk7258_sdio_priv_s *priv)
+  FAR struct bk7258_sdio_priv_s *priv, uint32_t cmd_index)
 {
   size_t offset = 0;
   size_t block;
@@ -299,13 +339,6 @@ static int bk7258_sdio_complete_read(
   for (block = 0; block < priv->nblocks && offset < priv->xfer_nbytes;
        block++)
     {
-      err = bk_sdio_host_wait_receive_data();
-      if (err != BK_OK)
-        {
-          priv->xfer_pending = false;
-          return bk7258_sdio_map_err(err);
-        }
-
       chunk = priv->blocklen;
       if (chunk > priv->xfer_nbytes - offset)
         {
@@ -320,6 +353,14 @@ static int bk7258_sdio_complete_read(
           err = bk_sdio_host_read_fifo(&word);
           if (err != BK_OK)
             {
+              syslog(LOG_ERR,
+                     "BKSDIO CMD%lu RX fifo failed: block=%lu/%lu offset=%lu "
+                     "sdk=%d status=%08lx\n",
+                     (unsigned long)cmd_index,
+                     (unsigned long)block,
+                     (unsigned long)priv->nblocks,
+                     (unsigned long)(offset + copied),
+                     err, (unsigned long)getreg32(BK7258_SDIO_INT_STATUS));
               priv->xfer_pending = false;
               return bk7258_sdio_map_err(err);
             }
@@ -331,6 +372,22 @@ static int bk7258_sdio_complete_read(
 
           memcpy(priv->xfer_buf + offset + copied, &word, bytes);
           copied += bytes;
+        }
+
+      err = bk_sdio_host_wait_receive_data();
+      if (err != BK_OK)
+        {
+          syslog(LOG_ERR,
+                 "BKSDIO CMD%lu RX wait failed: block=%lu/%lu "
+                 "blocklen=%lu bytes=%lu sdk=%d status=%08lx\n",
+                 (unsigned long)cmd_index,
+                 (unsigned long)block,
+                 (unsigned long)priv->nblocks,
+                 (unsigned long)priv->blocklen,
+                 (unsigned long)priv->xfer_nbytes,
+                 err, (unsigned long)getreg32(BK7258_SDIO_INT_STATUS));
+          priv->xfer_pending = false;
+          return bk7258_sdio_map_err(err);
         }
 
       offset += chunk;
@@ -435,7 +492,12 @@ static bk_err_t bk7258_sdio_wait_command_polled(void)
                BK7258_SDIO_INT_STATUS);
     }
 
-  bk7258_clear_pending_irq(BK7258_SDIO_IRQ);
+  /* The SDK ISR shares this line for command and data completion.  Do not
+   * clear NVIC pending after acknowledging only the command W1C bits: short
+   * data such as SCR may already have asserted the same line.  Re-enabling
+   * the IRQ lets the SDK consume any remaining data status.
+   */
+
   UP_DSB();
 
   if ((status & BK7258_SDIO_CMD_RSP_TIMEOUT) != 0 ||
@@ -556,8 +618,9 @@ static void bk7258_sdio_clock(FAR struct sdio_dev_s *dev,
 #ifdef CONFIG_SDIO_V2P0
         /* Match the official v3.1.1.9 BK7258 SD-card profile.  Its
          * CONFIG_SDCARD_DEFAULT_CLOCK_FREQ is enum value 14, i.e. 20 MHz.
-         * The standalone SDK SDIO CLI uses 80 MHz, but that is not the
-         * production SD-card initialization path.
+         * Profiles using this immutable CPU-FIFO SDK bundle constrain NuttX
+         * to single-block transfers, avoiding the controller's multiblock
+         * pre-read overflow without reducing ordinary block throughput.
          */
 
         freq = SDIO_HOST_CLK_20M;
@@ -569,6 +632,14 @@ static void bk7258_sdio_clock(FAR struct sdio_dev_s *dev,
 
   if (bk_sdio_host_set_clock_freq(freq) == BK_OK)
     {
+      /* Keep the continuous card clock selected by host_init_locked().
+       * Official v3.1.1.9 and Tuya both leave it enabled across CMD7,
+       * CMD16 and the ordinary transfer-clock switch.  Disabling it here
+       * makes command clocking depend on FIFO state and can prevent the
+       * first post-selection command from reaching the card.  CMD12 owns
+       * its separate, bounded gate sequence in sendcmd().
+       */
+
       if (rate == CLOCK_IDMODE)
         {
           priv->cmd_timeout = BK7258_SDIO_ID_CMD_TIMEOUT;
@@ -597,6 +668,9 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
   sdio_host_cmd_cfg_t host_cmd;
   uint32_t rsp_type;
   bk_err_t err;
+#ifdef CONFIG_SDIO_V2P0
+  bool stop_transmission;
+#endif
 
   if (!priv->initialized)
     {
@@ -629,10 +703,55 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
         break;
     }
 
+#ifdef CONFIG_SDIO_V2P0
+  stop_transmission = host_cmd.cmd_index == 12u;
+
+  /* BK7258 continues pre-reading after the requested CMD18 blocks.  With
+   * FIFO-controlled clock backpressure, those residual words can stop the
+   * card clock before CMD12 is issued.  The official v3.1.1.9 SD-card driver
+   * resets the data/FIFO state and temporarily forces the clock on around
+   * STOP_TRANSMISSION; preserve that hardware protocol here.
+   */
+
+  if (stop_transmission)
+    {
+      bk_sdio_host_reset_sd_state();
+    }
+  else if (host_cmd.cmd_index == 24u || host_cmd.cmd_index == 25u)
+    {
+      /* NuttX sends the write command before sendsetup(), so this command
+       * edge is the only correct place to match the SDK's write reset.
+       */
+
+      bk_sdio_host_reset_sd_state();
+    }
+
+  /* CMD12 deliberately leaves the controller in FIFO-controlled clock mode.
+   * Restore continuous clocking at the next command boundary; doing this
+   * here cannot race an active data phase and matches the SDK requirement
+   * that command/response traffic always has a card clock.
+   */
+
+  bk_sdio_clk_gate_config(1);
+#endif
+
   up_disable_irq(BK7258_SDIO_IRQ);
   err = bk_sdio_host_send_command(&host_cmd);
   if (err != BK_OK)
     {
+      syslog(LOG_ERR,
+             "BKSDIO command start failed: CMD%lu arg=%08lx sdk=%d "
+             "status=%08lx\n",
+             (unsigned long)host_cmd.cmd_index,
+             (unsigned long)host_cmd.argument, err,
+             (unsigned long)getreg32(BK7258_SDIO_INT_STATUS));
+#ifdef CONFIG_SDIO_V2P0
+      if (stop_transmission)
+        {
+          bk7258_sdio_finish_stop_transmission();
+        }
+#endif
+
       bk7258_clear_pending_irq(BK7258_SDIO_IRQ);
       up_enable_irq(BK7258_SDIO_IRQ);
       priv->xfer_result = bk7258_sdio_map_err(err);
@@ -651,14 +770,24 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
    */
 
   err = bk7258_sdio_wait_command_polled();
+#ifdef CONFIG_SDIO_V2P0
+  if (stop_transmission)
+    {
+      bk7258_sdio_finish_stop_transmission();
+    }
+#endif
+
   up_enable_irq(BK7258_SDIO_IRQ);
   priv->xfer_result = bk7258_sdio_map_err(err);
   if (err != BK_OK)
     {
-      mcerr("ERROR: BK7258 SDIO CMD%lu arg=%08lx timeout=%lu sdk=%d\n",
-            (unsigned long)host_cmd.cmd_index,
-            (unsigned long)host_cmd.argument,
-            (unsigned long)host_cmd.wait_rsp_timeout, err);
+      syslog(LOG_ERR,
+             "BKSDIO command failed: CMD%lu arg=%08lx timeout=%lu "
+             "sdk=%d status=%08lx\n",
+             (unsigned long)host_cmd.cmd_index,
+             (unsigned long)host_cmd.argument,
+             (unsigned long)host_cmd.wait_rsp_timeout, err,
+             (unsigned long)getreg32(BK7258_SDIO_INT_STATUS));
       priv->events = SDIOWAIT_ERROR;
       if ((cmd & MMCSD_DATAXFR_MASK) != 0)
         {
@@ -679,7 +808,8 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
       (cmd & MMCSD_DATAXFR_MASK) != 0 &&
       (cmd & MMCSD_WRXFR) == 0)
     {
-      priv->xfer_result = bk7258_sdio_complete_read(priv);
+      priv->xfer_result =
+        bk7258_sdio_complete_read(priv, host_cmd.cmd_index);
       if (priv->xfer_result < 0)
         {
           priv->events |= SDIOWAIT_ERROR;
@@ -747,9 +877,32 @@ static int bk7258_sdio_recvsetup(FAR struct sdio_dev_s *dev,
   dcfg.data_block_size = (uint32_t)priv->blocklen;
   dcfg.data_dir        = SDIO_HOST_DATA_DIR_RD;
 
+#ifdef CONFIG_SDIO_V2P0
+  /* The BK7258 controller pre-reads beyond a completed block transaction.
+   * The official v3.1.1.9 SD-card path resets that data/FIFO state and
+   * discards one stale RX semaphore before every non-contiguous block read.
+   * Each NuttX block request is a discrete transaction, so apply the same
+   * sequence for 512-byte media blocks while leaving short protocol records
+   * such as the SCR on the generic FIFO path.
+   */
+
+  if (priv->blocklen == 512u)
+    {
+      bk_sdio_host_reset_sd_state();
+      bk_sdio_host_discard_previous_receive_data_sema();
+    }
+#endif
+
   err = bk_sdio_host_config_data(&dcfg);
   if (err != BK_OK)
     {
+      syslog(LOG_ERR,
+             "BKSDIO RX config failed: blocklen=%lu blocks=%lu bytes=%lu "
+             "sdk=%d status=%08lx\n",
+             (unsigned long)priv->blocklen,
+             (unsigned long)priv->nblocks,
+             (unsigned long)nbytes, err,
+             (unsigned long)getreg32(BK7258_SDIO_INT_STATUS));
       priv->xfer_result = bk7258_sdio_map_err(err);
       priv->events = SDIOWAIT_ERROR;
       priv->xfer_pending = false;
@@ -1011,6 +1164,7 @@ static sdio_eventset_t bk7258_sdio_eventwait(FAR struct sdio_dev_s *dev)
 static void bk7258_sdio_callbackenable(FAR struct sdio_dev_s *dev,
                                        sdio_eventset_t eventset)
 {
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
   FAR struct bk7258_sdio_priv_s *priv =
     (FAR struct bk7258_sdio_priv_s *)dev;
   irqstate_t flags;
@@ -1024,8 +1178,15 @@ static void bk7258_sdio_callbackenable(FAR struct sdio_dev_s *dev,
   priv->callback_events = eventset &
                           (SDIOMEDIA_INSERTED | SDIOMEDIA_EJECTED);
   spin_unlock_irqrestore(&priv->media_lock, flags);
+#else
+  /* Fixed-media slots never report insertion/ejection callbacks. */
+
+  (void)dev;
+  (void)eventset;
+#endif
 }
 
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
 static void bk7258_sdio_media_worker(FAR void *arg)
 {
   FAR struct bk7258_sdio_priv_s *priv = arg;
@@ -1067,7 +1228,7 @@ static void bk7258_sdio_media_worker(FAR void *arg)
     {
       ret = work_queue(HPWORK, &priv->media_work,
                        bk7258_sdio_media_worker, priv,
-                       MSEC2TICK(CONFIG_BK7258_SDIO_MEDIA_POLL_MS));
+                       MSEC2TICK(BK7258_BOARD_SDIO_MEDIA_POLL_MS));
       if (ret < 0)
         {
           flags = spin_lock_irqsave(&priv->media_lock);
@@ -1077,10 +1238,12 @@ static void bk7258_sdio_media_worker(FAR void *arg)
         }
     }
 }
+#endif
 
 static int bk7258_sdio_registercallback(FAR struct sdio_dev_s *dev,
                                         worker_t callback, FAR void *arg)
 {
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
   FAR struct bk7258_sdio_priv_s *priv =
     (FAR struct bk7258_sdio_priv_s *)dev;
   irqstate_t flags;
@@ -1110,6 +1273,17 @@ static int bk7258_sdio_registercallback(FAR struct sdio_dev_s *dev,
     }
 
   return ret;
+#else
+  /* Registration is required by the sdio_dev_s contract even when the
+   * board has no reliable card-detect source.  NuttX will probe the
+   * always-present slot once during initialization.
+   */
+
+  (void)dev;
+  (void)callback;
+  (void)arg;
+  return OK;
+#endif
 }
 
 /****************************************************************************
@@ -1129,7 +1303,9 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
   if (!priv->interface_init)
     {
       priv->dev = g_bk7258_sdio_ops;
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
       spin_lock_init(&priv->media_lock);
+#endif
       priv->interface_init = true;
     }
 
@@ -1154,7 +1330,9 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
       return err;
     }
 
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
   priv->reported_present = bk7258_board_sdio_card_present();
+#endif
 
   if (!priv->driver_init)
     {

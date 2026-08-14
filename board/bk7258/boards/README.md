@@ -41,22 +41,23 @@ equivalent to T5-Board V1.0.2 and is not used as a pin source.
 | Battery ADC | P28 | not fitted |
 | Charge detect | P38 | not fitted |
 | On-board microphone | MIC1 on MICP1/MICN1 (mono) | MIC1 on MICP1/MICN1 + MIC2 on MICP2/MICN2 (stereo) |
-| TF card | not fitted | CLK P2, CMD P3, D0 P4, D1 P5, D2 P10, D3 P11, CD P6 |
+| TF card | not fitted | CLK P2, CMD P3, D0 P4, D1 P5, D2 P10, D3 P11; P6 CD label has no verified edge |
 | RGB LCD connector | not fitted | fitted |
 | DVP camera connector | not fitted | fitted |
 
-The Core board is the hardware-verified baseline.  T5-Board entries above are
-schematic-verified only until their corresponding peripherals are exercised on
-that physical board.  Variant selection does not automatically enable every
-fitted peripheral; Kconfig still controls driver ownership and pin-compatible
-profiles.
+The Core board is the broad hardware-verified baseline.  T5-Board entries are
+promoted from schematic evidence only when their peripheral record captures a
+real-board result; the TF record, for example, rejects P6 card detect after
+inserted/removed level sampling.  Variant selection does not automatically
+enable every fitted peripheral; Kconfig still controls driver ownership and
+pin-compatible profiles.
 
 ## Peripheral configuration boundary
 
 The physical-board directory is the owner of every fixed electrical fact, not
 only LED and key GPIOs.  This includes fitted-device capability, pin routes,
 polarity, pull/drive policy, bus instance, device address or chip select,
-board-device frequency limits, LCD timing, SD-card detect and mutually
+board-device frequency limits, LCD timing, SD-card presence policy and mutually
 exclusive connector routes.  A value may live in `bk7258_board_config.h` or in
 a board-local binding structure when it is used only by that binding.
 
@@ -109,3 +110,8 @@ UART ownership and therefore exposes only the P12 key as `/dev/gpio1`; it
 does not register the P1 LED as `/dev/gpio0`.  A non-console build may use
 the LED.  The Type-C connector terminates at CH342F; BK7258 native USB D+/D-
 is routed to the USB-A connector.
+
+P6 stays high with the TF card both inserted and removed on the tested board,
+including under the SDK-equivalent input/pull-up setup.  The T5-Board binding
+therefore uses NuttX fixed-media semantics: insert the FAT card before reset,
+do not claim hotplug, and do not repair this by reversing polarity.

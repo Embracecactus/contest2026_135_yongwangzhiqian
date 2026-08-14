@@ -35,9 +35,8 @@
 #define BK7258_SDIO_UNIT               0
 
 /* Default bus width / clock applied at init (identification-speed clock).
- * T5-Board shares D2/D3 with the CH342F UART0 download path through S1-1
- * and S1-2.  P0/P1 SWD and UART1 are a separate mux conflict and do not
- * affect the TF-card data width.
+ * The selected physical-board binding owns whether the extra data lines are
+ * routed safely and therefore whether CONFIG_BK7258_SDIO_4BIT is selectable.
  */
 
 #ifdef CONFIG_BK7258_SDIO_4BIT
@@ -75,9 +74,9 @@
 
 int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev);
 
-/* Physical-board hooks.  The T5-Board implementation owns its SDIO pin
- * group and card-detect polarity; the generic controller lower half owns
- * only the BK7258 host protocol.
+/* Physical-board hooks.  The selected binding owns the pin group and media
+ * presence policy; the generic controller lower half owns only the BK7258
+ * host protocol.
  */
 
 int bk7258_board_sdio_initialize(bool widebus);

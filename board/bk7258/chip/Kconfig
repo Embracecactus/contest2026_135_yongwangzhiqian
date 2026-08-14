@@ -1758,63 +1758,18 @@ config BK7258_SARADC_BUS
 	depends on BK7258_SARADC
 
 config BK7258_SDIO
-	bool "SDIO host lower half"
+	bool
 	default n
-	depends on BK7258_BOARD_T5_BOARD && BK7258_PM_CLOCK
+	depends on BK7258_PM_CLOCK
 	select BK7258_SDK_IPC_RUNTIME
 	select ARCH_HAVE_SDIO
 	select SCHED_HPWORK
 	help
-		Expose the SDK blocking SDIO host API as a NuttX SDIO lower half and
-		bind it to the T5-Board TF-card wiring and card-detect input.  The
-		P6 mechanical card-detect contact is polled from HPWORK so the MMC/SD
-		upper half receives insertion and removal callbacks outside IRQ context.
-
-config BK7258_T5_BOARD_SDIO_D2_D3_ISOLATED
-	bool "T5-Board S1 isolates UART0 from SD D2/D3"
-	default n
-	depends on BK7258_SDIO && BK7258_BOARD_T5_BOARD
-	help
-		Assert the physical prerequisite for four-bit TF-card operation on
-		T5-Board V1.0.2: switches S1-1 and S1-2 are OFF while the application
-		runs, disconnecting the CH342F download UART from P10/P11 (SD D2/D3).
-		The optional U3 serial flash must also remain NC/DNP as specified by
-		the board schematic.  UART flashing may temporarily use S1-1/S1-2 ON,
-		but switch both OFF and reset the board before running a four-bit image.
-
-config BK7258_SDIO_4BIT
-	bool "Use four-bit SDIO bus"
-	default n
-	depends on BK7258_SDIO && BK7258_T5_BOARD_SDIO_D2_D3_ISOLATED
-	help
-		Enable D1/D2/D3 in addition to CLK/CMD/D0.  T5-Board shares D2/D3
-		with the CH342F UART0 download path, so the safe default is one-bit
-		mode.  P0/P1 SWD and RTT are independent of this TF-card bus-width
-		choice and may remain enabled.
-
-config BK7258_SDIO_MEDIA_POLL_MS
-	int "TF-card detect polling interval (ms)"
-	default 100
-	range 20 2000
-	depends on BK7258_SDIO
-	help
-		Interval used by the HPWORK card-detect poller.  The T5-Board socket
-		exposes a mechanical P6 contact but no dedicated SDK SDIO card-detect
-		interrupt contract, so polling provides deterministic NuttX hotplug
-		callbacks without calling the MMC/SD upper half from GPIO IRQ context.
-
-config BK7258_T5_BOARD_TF_VALIDATION
-	bool "Validate T5-Board TF insert/read/write/reinsert"
-	default n
-	depends on BK7258_SDIO && MMCSD_SDIO && FS_FAT
-	depends on BK7258_BOARD_T5_BOARD
-	help
-		Run one bounded, non-destructive validation through the standard NuttX
-		/dev/mmcsd0 block device and FAT filesystem.  It mounts an existing FAT
-		volume, creates a uniquely named 4 KiB test file, fsyncs, reads and
-		verifies it, removes only that file, unmounts, then waits for one eject
-		and reinsert cycle and repeats.  It never formats the card.  Enable this
-		only in a dedicated hardware-validation profile.
+		Expose the BK7258 SDK blocking SDIO host controller as a NuttX
+		sdio_dev_s lower half.  Physical pin mux, slot presence policy and
+		bus-width prerequisites belong to the selected board binding, which
+		selects this hidden controller capability.  HPWORK remains required by
+		NuttX's unconditional SDIO callback-registration ABI.
 
 config BK7258_SDMADC
 	bool "Sigma-delta ADC lower half"

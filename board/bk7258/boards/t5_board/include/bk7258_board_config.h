@@ -111,7 +111,17 @@
 #define BK7258_BOARD_SDIO_CMD_GPIO               3
 #define BK7258_BOARD_SDIO_D0_GPIO                4
 #define BK7258_BOARD_SDIO_D1_GPIO                5
+
+/* The schematic labels P6 as the socket card-detect contact, but real-board
+ * sampling found the input high both with the card inserted and removed,
+ * including after applying the SDK's input/pull-up configuration.  Keep the
+ * schematic metadata below, but do not advertise it as a usable media-change
+ * source.  The slot is therefore fixed media: insert the card before reset.
+ */
+
+#define BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE  0
 #define BK7258_BOARD_SDIO_CARD_DETECT_GPIO       6
 #define BK7258_BOARD_SDIO_CARD_DETECT_ACTIVE_LOW 1
+#define BK7258_BOARD_SDIO_MEDIA_POLL_MS          100u
 
 #endif /* __BOARD_BK7258_T5_BOARD_CONFIG_H */
