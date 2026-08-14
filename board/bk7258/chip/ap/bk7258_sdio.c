@@ -57,9 +57,12 @@
 #include <debug.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/clock.h>
 #include <nuttx/irq.h>
 #include <nuttx/mutex.h>
 #include <nuttx/sdio.h>
+#include <nuttx/spinlock.h>
+#include <nuttx/wqueue.h>
 
 #include <arch/chip/bk7258_sdio.h>
 
@@ -145,10 +148,15 @@ struct bk7258_sdio_priv_s
   sdio_eventset_t waitset;
   int xfer_result;
 
-#if defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_HPWORK)
+  /* Mechanical card-detect polling and MMC/SD media-change callback. */
+
+  spinlock_t media_lock;
+  struct work_s media_work;
   worker_t callback;
   FAR void *callback_arg;
-#endif
+  sdio_eventset_t callback_events;
+  bool reported_present;
+  bool media_poll_started;
 };
 
 /****************************************************************************
@@ -195,10 +203,9 @@ static void bk7258_sdio_waitenable(FAR struct sdio_dev_s *dev,
 static sdio_eventset_t bk7258_sdio_eventwait(FAR struct sdio_dev_s *dev);
 static void bk7258_sdio_callbackenable(FAR struct sdio_dev_s *dev,
                                        sdio_eventset_t eventset);
-#if defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_HPWORK)
 static int bk7258_sdio_registercallback(FAR struct sdio_dev_s *dev,
                                         worker_t callback, FAR void *arg);
-#endif
+static void bk7258_sdio_media_worker(FAR void *arg);
 
 /****************************************************************************
  * Private Data
@@ -232,9 +239,7 @@ static const struct sdio_dev_s g_bk7258_sdio_ops =
   .waitenable   = bk7258_sdio_waitenable,
   .eventwait    = bk7258_sdio_eventwait,
   .callbackenable = bk7258_sdio_callbackenable,
-#if defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_HPWORK)
   .registercallback = bk7258_sdio_registercallback,
-#endif
 };
 
 /****************************************************************************
@@ -475,7 +480,12 @@ static sdio_capset_t bk7258_sdio_capabilities(FAR struct sdio_dev_s *dev)
 #ifdef CONFIG_BK7258_SDIO_4BIT
   return SDIO_CAPS_4BIT;
 #else
-  return 0;
+  /* NuttX tests this explicit flag before sending ACMD6.  Returning zero
+   * does not mean one-bit-only; it means that the upper half may still
+   * switch an SD card to four data lines.
+   */
+
+  return SDIO_CAPS_1BIT_ONLY;
 #endif
 }
 
@@ -784,8 +794,15 @@ static int bk7258_sdio_sendsetup(FAR struct sdio_dev_s *dev,
 #endif
 
   /* The v3.1.1.9 CPU FIFO writer loads 32-bit words.  Reject a partial word
-   * instead of reading beyond the caller's buffer.
+   * or unaligned source instead of reading beyond the caller's buffer or
+   * relying on Cortex-M unaligned-access policy.  FAT_DIRECT_RETRY can then
+   * retry an unaligned direct transfer through its aligned sector buffer.
    */
+
+  if (((uintptr_t)buffer & 3u) != 0)
+    {
+      return -EFAULT;
+    }
 
   if ((nbytes & 3u) != 0 || (nbytes % 512u) != 0)
     {
@@ -994,28 +1011,106 @@ static sdio_eventset_t bk7258_sdio_eventwait(FAR struct sdio_dev_s *dev)
 static void bk7258_sdio_callbackenable(FAR struct sdio_dev_s *dev,
                                        sdio_eventset_t eventset)
 {
-  /* Polling shim: no interrupt to enable. */
+  FAR struct bk7258_sdio_priv_s *priv =
+    (FAR struct bk7258_sdio_priv_s *)dev;
+  irqstate_t flags;
 
-  (void)dev;
-  (void)eventset;
+  /* The MMC/SD upper half arms one expected edge at a time.  Keep the
+   * reported level unchanged while callbacks are disabled so an edge that
+   * occurs between probe/remove and this call is delivered by the next poll.
+   */
+
+  flags = spin_lock_irqsave(&priv->media_lock);
+  priv->callback_events = eventset &
+                          (SDIOMEDIA_INSERTED | SDIOMEDIA_EJECTED);
+  spin_unlock_irqrestore(&priv->media_lock, flags);
 }
 
-#if defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_HPWORK)
+static void bk7258_sdio_media_worker(FAR void *arg)
+{
+  FAR struct bk7258_sdio_priv_s *priv = arg;
+  worker_t callback = NULL;
+  FAR void *callback_arg = NULL;
+  sdio_eventset_t edge;
+  irqstate_t flags;
+  bool present;
+  bool restart;
+  int ret;
+
+  present = bk7258_board_sdio_card_present();
+  edge = present ? SDIOMEDIA_INSERTED : SDIOMEDIA_EJECTED;
+
+  flags = spin_lock_irqsave(&priv->media_lock);
+  if (present != priv->reported_present &&
+      (priv->callback_events & edge) != 0)
+    {
+      priv->reported_present = present;
+      priv->callback_events = 0;
+      callback = priv->callback;
+      callback_arg = priv->callback_arg;
+    }
+
+  restart = priv->media_poll_started;
+  spin_unlock_irqrestore(&priv->media_lock, flags);
+
+  /* NuttX requires media callbacks from work-thread context.  Invoke the
+   * upper half without holding the private spinlock because it immediately
+   * samples status and rearms the opposite edge.
+   */
+
+  if (callback != NULL)
+    {
+      callback(callback_arg);
+    }
+
+  if (restart)
+    {
+      ret = work_queue(HPWORK, &priv->media_work,
+                       bk7258_sdio_media_worker, priv,
+                       MSEC2TICK(CONFIG_BK7258_SDIO_MEDIA_POLL_MS));
+      if (ret < 0)
+        {
+          flags = spin_lock_irqsave(&priv->media_lock);
+          priv->media_poll_started = false;
+          spin_unlock_irqrestore(&priv->media_lock, flags);
+          mcerr("ERROR: SDIO card-detect poll stopped: %d\n", ret);
+        }
+    }
+}
+
 static int bk7258_sdio_registercallback(FAR struct sdio_dev_s *dev,
                                         worker_t callback, FAR void *arg)
 {
   FAR struct bk7258_sdio_priv_s *priv =
     (FAR struct bk7258_sdio_priv_s *)dev;
+  irqstate_t flags;
+  bool start;
+  int ret;
 
-  /* Polling shim: store the callback; it would be invoked from the SDK ISR
-   * context in a future interrupt-driven enhancement.  Not invoked here.
-   */
-
+  flags = spin_lock_irqsave(&priv->media_lock);
+  priv->callback_events = 0;
   priv->callback = callback;
   priv->callback_arg = arg;
-  return OK;
+  start = !priv->media_poll_started;
+  priv->media_poll_started = true;
+  spin_unlock_irqrestore(&priv->media_lock, flags);
+
+  if (!start)
+    {
+      return OK;
+    }
+
+  ret = work_queue(HPWORK, &priv->media_work,
+                   bk7258_sdio_media_worker, priv, 0);
+  if (ret < 0)
+    {
+      flags = spin_lock_irqsave(&priv->media_lock);
+      priv->media_poll_started = false;
+      spin_unlock_irqrestore(&priv->media_lock, flags);
+    }
+
+  return ret;
 }
-#endif
 
 /****************************************************************************
  * Public Functions
@@ -1034,6 +1129,7 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
   if (!priv->interface_init)
     {
       priv->dev = g_bk7258_sdio_ops;
+      spin_lock_init(&priv->media_lock);
       priv->interface_init = true;
     }
 
@@ -1058,6 +1154,8 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
       return err;
     }
 
+  priv->reported_present = bk7258_board_sdio_card_present();
+
   if (!priv->driver_init)
     {
       err = bk_sdio_host_driver_init();
@@ -1069,7 +1167,13 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
       priv->driver_init = true;
     }
 
-  err = bk7258_sdio_host_init_locked(priv, BK7258_SDIO_BUS_WIDTH_4BIT != 0);
+  /* Every SD card powers up in one-bit mode.  The four-bit profile maps
+   * D1-D3 at the board layer and advertises SDIO_CAPS_4BIT, but the
+   * controller must remain narrow until the MMC/SD upper half has sent
+   * ACMD6 successfully and calls bk7258_sdio_widebus(true).
+   */
+
+  err = bk7258_sdio_host_init_locked(priv, false);
   if (err != BK_OK)
     {
       if (priv->driver_init)

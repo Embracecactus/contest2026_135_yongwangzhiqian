@@ -55,6 +55,8 @@ image.
 | camera smoke validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_camera_validation_mcuboot` | MCUboot, validation |
 | camera/H.264 application | `t5_board_cp_app_mcuboot` | `t5_board_ap_camera_h264_mcuboot` | MCUboot, validation |
 | PWM validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_pwm_validation_mcuboot` | MCUboot, validation |
+| TF 1-bit, UART0 download route retained | `t5_board_cp_app_mcuboot` | `t5_board_ap_tf_1bit_validation_mcuboot` | MCUboot, validation |
+| TF 4-bit exclusive-route validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_tf_4bit_validation_mcuboot` | MCUboot, validation |
 | Wi-Fi | `t5_board_cp_wifi_mcuboot` | `t5_board_ap_wifi_mcuboot` | MCUboot, runnable |
 | compile-only driver coverage | `t5_board_cp_drivercheck` | `t5_board_ap_drivercheck` | raw, CI only |
 
@@ -62,6 +64,14 @@ image.
 profile and is not a CP/AP peer.  The signed dual-image pipeline builds the
 board-owned minimal BL2 through `bootloader/bl2/Makefile`; it does not pair
 this standalone defconfig with a physical-board application profile.
+
+The TF profiles reflect physical switch ownership, not two different SDIO
+drivers.  The one-bit profile works with S1-1/S1-2 ON and retains the CH342F
+UART0 download route.  Before running the four-bit profile, set S1-1/S1-2
+OFF; U3 must remain NC/DNP.  S1-3/S1-4 and P0/P1 SWD are independent of TF
+width, so J-Link plus RTT may remain enabled with those two log-UART switches
+OFF.  Both validation images use an already formatted FAT card and remove
+only their uniquely created test file; they never format media.
 
 Stage reports and evidence records may still name retired `cp_nsh_*` or
 `ap_smp_*` snapshots because those names identify the exact historical image

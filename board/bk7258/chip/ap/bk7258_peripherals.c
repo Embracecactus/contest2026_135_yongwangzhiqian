@@ -170,9 +170,8 @@ static void bk7258_sdio_bind(void)
     }
 
 #ifdef CONFIG_MMCSD_SDIO
-  /* The lower half samples the T5-Board card-detect input.  Probe media that
-   * is already present; interrupt-driven hotplug notification can be added
-   * later without changing the controller lower half.
+  /* The lower half samples the T5-Board card-detect input, probes media that
+   * is already present and delivers later insert/eject edges from HPWORK.
    */
 
   ret = mmcsd_slotinitialize(CONFIG_BK7258_SDIO_SLOTNO, sdio);

@@ -18,6 +18,10 @@
 
 #include <driver/gpio.h>
 
+#if BK7258_BOARD_SDIO_U3_FLASH_FITTED
+#  error "T5-Board TF and optional U3 flash cannot share the SDIO/SFC pins"
+#endif
+
 /* These v3.1.1.9 functions are exported by libdriver.a and used by the
  * official SDIO driver, but its immutable wrapper bundle omits the private
  * gpio_driver.h declaration.  Keep the ABI declarations local to this
@@ -47,9 +51,12 @@ int bk7258_board_sdio_initialize(bool widebus)
       return -EIO;
     }
 
-  /* Re-assert the complete SDIO pin group here.  The SDK archive was built
-   * with GPIO_DEFAULT_SET_SUPPORT, so bk_sdio_host_init() deliberately skips
-   * its own pin-group setup and assumes the board did it beforehand.
+  /* Re-assert the profile-selected SDIO pin group here.  A four-bit
+   * profile maps all four data pins even though the host initially starts
+   * at one bit; NuttX switches the host only after the card accepts ACMD6.
+   * The SDK archive was built with GPIO_DEFAULT_SET_SUPPORT, so
+   * bk_sdio_host_init() deliberately skips its own pin-group setup and
+   * assumes the board did it beforehand.
    */
 
   ret = widebus ? gpio_sdio_sel(T5_BOARD_SDIO_PIN_GROUP0) :
@@ -82,9 +89,10 @@ int bk7258_board_sdio_initialize(bool widebus)
                                  GPIO_DRIVER_CAPACITY_3);
     }
 
-  /* P6 is the socket's mechanical CD switch.  The v3.1.1.9 SD-card driver
-   * treats its configured insertion GPIO's raw high level as card present;
-   * the T5-Board socket uses that same high-active contact convention.
+  /* P6 is the socket's mechanical CD switch.  R54 pulls SD_CD high while
+   * the slot is empty and the socket contact pulls it low when a card is
+   * inserted.  This matches v3.1.1.9 sd_card_get_insert_status(): a raw
+   * high level is handled as "NO SDcard".
    */
 
   ret = gpio_dev_unmap((gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);

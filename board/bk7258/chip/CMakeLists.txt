@@ -351,6 +351,10 @@ if(CONFIG_BK7258_SDIO)
   list(APPEND BK7258_AP_BASE_SRCS
        ap/bk7258_sdio.c
        ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_sdio.c)
+  if(CONFIG_BK7258_T5_BOARD_TF_VALIDATION)
+    list(APPEND BK7258_AP_BASE_SRCS
+         ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_tf_validation.c)
+  endif()
 endif()
 
 foreach(BK7258_AP_PERIPHERAL SDMADC SPI QSPI CAN TIMER TRNG)

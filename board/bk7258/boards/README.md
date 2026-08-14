@@ -91,10 +91,21 @@ equivalent feature set without duplicating that board's electrical database.
 The retained profiles and their CP/AP compatibility groups are documented in
 [`../configs/README.md`](../configs/README.md).
 
-On T5-Board, switch bank S1 connects the on-board CH342F download/log UARTs
-to pins shared with SD D2/D3 and the P1 LED.  Keep SD in 1-bit mode while the
-UART paths are active.  A console-enabled build deliberately leaves P1 under
-UART ownership and therefore exposes only the P12 key as `/dev/gpio1`; it does
-not register the P1 LED as `/dev/gpio0`.  A non-console build may use the LED.
-The Type-C connector terminates at CH342F; BK7258 native USB D+/D- is routed
-to the USB-A connector.
+On T5-Board the two switch pairs are independent:
+
+- S1-1/S1-2 ON connect the CH342F download UART to P10/P11, which are TF
+  D2/D3.  This position supports one-bit TF on CLK/CMD/D0; four-bit TF
+  requires both switches OFF while the application runs.  UART flashing may
+  use them temporarily, followed by switching both OFF and resetting.
+- S1-3/S1-4 ON connect the CH342F log UART to P1/P0.  That route conflicts
+  with P0/P1 SWD (and P1 LED), but it does not change TF bus width.  A
+  four-bit TF profile may keep P0/P1 SWD and RTT when S1-3/S1-4 are OFF.
+
+The schematic marks optional serial flash U3 as NC/DNP.  U3 shares TF
+CLK/CMD/D0/D1 (and its remaining data pins occupy the adjacent SFC nets), so
+fitting it makes the TF socket unavailable rather than creating a third
+software profile.  A console-enabled build deliberately leaves P1 under
+UART ownership and therefore exposes only the P12 key as `/dev/gpio1`; it
+does not register the P1 LED as `/dev/gpio0`.  A non-console build may use
+the LED.  The Type-C connector terminates at CH342F; BK7258 native USB D+/D-
+is routed to the USB-A connector.
