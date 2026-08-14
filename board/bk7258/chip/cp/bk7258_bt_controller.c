@@ -28,6 +28,9 @@
 #include <nuttx/mutex.h>
 
 #include <arch/chip/bk7258_bt_ipc.h>
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+#  include <arch/chip/bk7258_rptun.h>
+#endif
 #include <arch/chip/bk7258_sdk_abi.h>
 
 #include <common/bk_err.h>
@@ -132,6 +135,13 @@ static volatile uint32_t g_bk7258_bt_vendor_init_calls;
 static volatile uint32_t g_bk7258_bt_vendor_deinit_calls;
 static volatile int g_bk7258_bt_vendor_init_result;
 static volatile int g_bk7258_bt_vendor_deinit_result;
+volatile struct bk7258_bt_lifecycle_diag_s g_bk7258_bt_cp_lifecycle =
+{
+  .magic   = BK7258_BT_LIFECYCLE_MAGIC,
+  .version = BK7258_BT_LIFECYCLE_VERSION,
+  .size    = sizeof(struct bk7258_bt_lifecycle_diag_s),
+  .state   = BK7258_BT_LIFECYCLE_CLOSED,
+};
 #endif
 
 /****************************************************************************
@@ -188,9 +198,29 @@ int __wrap_bk_bluetooth_init(void)
 {
   int ret;
 
-  g_bk7258_bt_vendor_init_calls++;
+  __atomic_fetch_add(&g_bk7258_bt_vendor_init_calls, 1u,
+                     __ATOMIC_RELAXED);
+  __atomic_fetch_add(&g_bk7258_bt_cp_lifecycle.init_requests, 1u,
+                     __ATOMIC_RELAXED);
   ret = __real_bk_bluetooth_init();
-  g_bk7258_bt_vendor_init_result = ret;
+  __atomic_store_n(&g_bk7258_bt_vendor_init_result, ret, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_bk7258_bt_cp_lifecycle.last_error, ret,
+                   __ATOMIC_RELAXED);
+  if (ret == 0)
+    {
+      __atomic_fetch_add(&g_bk7258_bt_cp_lifecycle.init_successes, 1u,
+                         __ATOMIC_RELAXED);
+      __atomic_store_n(&g_bk7258_bt_controller_ready, true,
+                       __ATOMIC_RELEASE);
+      __atomic_store_n(&g_bk7258_bt_cp_lifecycle.state,
+                       BK7258_BT_LIFECYCLE_OPEN, __ATOMIC_RELEASE);
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+      __atomic_fetch_or(&bk7258_rptun_control()->flags,
+                        BK7258_RPTUN_FLAG_CP_BT_ACTIVE,
+                        __ATOMIC_RELEASE);
+#endif
+    }
+
   bk7258_debug_transport_recover();
 
   if (ret != 0)
@@ -205,9 +235,30 @@ int __wrap_bk_bluetooth_deinit(void)
 {
   int ret;
 
-  g_bk7258_bt_vendor_deinit_calls++;
+  __atomic_fetch_add(&g_bk7258_bt_vendor_deinit_calls, 1u,
+                     __ATOMIC_RELAXED);
+  __atomic_fetch_add(&g_bk7258_bt_cp_lifecycle.deinit_requests, 1u,
+                     __ATOMIC_RELAXED);
   ret = __real_bk_bluetooth_deinit();
-  g_bk7258_bt_vendor_deinit_result = ret;
+  __atomic_store_n(&g_bk7258_bt_vendor_deinit_result, ret,
+                   __ATOMIC_RELEASE);
+  __atomic_store_n(&g_bk7258_bt_cp_lifecycle.last_error, ret,
+                   __ATOMIC_RELAXED);
+  if (ret == 0)
+    {
+      __atomic_fetch_add(&g_bk7258_bt_cp_lifecycle.deinit_successes, 1u,
+                         __ATOMIC_RELAXED);
+      __atomic_store_n(&g_bk7258_bt_controller_ready, false,
+                       __ATOMIC_RELEASE);
+      __atomic_store_n(&g_bk7258_bt_cp_lifecycle.state,
+                       BK7258_BT_LIFECYCLE_CLOSED, __ATOMIC_RELEASE);
+#ifdef CONFIG_BK7258_RPTUN_MBOX
+      __atomic_fetch_and(&bk7258_rptun_control()->flags,
+                         ~BK7258_RPTUN_FLAG_CP_BT_ACTIVE,
+                         __ATOMIC_RELEASE);
+#endif
+    }
+
   bk7258_debug_transport_recover();
 
   if (ret != 0)
@@ -808,7 +859,7 @@ int bk7258_bt_controller_initialize(void)
       return ret;
     }
 
-  if (g_bk7258_bt_controller_ready)
+  if (__atomic_load_n(&g_bk7258_bt_controller_ready, __ATOMIC_ACQUIRE))
     {
       ret = OK;
       goto out;
@@ -833,7 +884,8 @@ int bk7258_bt_controller_initialize(void)
       goto out;
     }
 
-  g_bk7258_bt_controller_ready = true;
+  __atomic_store_n(&g_bk7258_bt_controller_ready, true,
+                   __ATOMIC_RELEASE);
   ret = OK;
 
 out:

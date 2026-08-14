@@ -5,11 +5,10 @@ Updated by: Codex
 
 ## Active objective
 
-The merged baseline is `d81d32e` on `dev-ai-contest-2026`.  The current
-implementation is committed as `616fadb` on `fix/bk7258-runtime-contracts`
-and published to `fork/fix/bk7258-runtime-contracts`.  It closes the actionable
-runtime-contract findings from the 66/100 `board/bk7258` review and has been
-host-built and exercised on the T5-Board.
+The merged baseline is `f717e652df0f` on `dev-ai-contest-2026`.  The active
+uncommitted branch is `fix/bk7258-radio-worker-lifecycle`.  It closes the
+remaining Wi-Fi/Bluetooth worker-lifecycle boundary against the official
+v3.1.1.9 SDK and Tuya ownership model, with paired build and T5-Board evidence.
 
 ## Implemented
 
@@ -31,6 +30,11 @@ host-built and exercised on the T5-Board.
 - Aligned the camera and PWM AP validation profiles with the required SMP,
   AP-supervisor and coordinated-PM topology.  The dual-image builder now rejects
   missing supervisor/PM symmetry and insufficient AP PM domains.
+- Preserved the official SDK self-delete ABI and made Bluetooth Controller
+  state transactional across AP/CP.  CP publishes an authoritative active bit
+  only after real SDK success; AP reconciles lost replies or retains UNKNOWN
+  ownership on mismatch.  Wi-Fi remains whole-chip lifetime and rejects
+  AP-only restart while active.  See [ADR-025](../memory/decisions/ADR-025-bk7258-radio-lifecycle-boundary.md).
 
 ## Verification
 
@@ -57,19 +61,26 @@ host-built and exercised on the T5-Board.
   timer-stop failures.  Every failure returned `-EIO`, preserved truthful
   software/hardware ownership, and recovered on retry.  The first timer run
   also found and closed the unsupported channel-1 default.
+- The Bluetooth validation image completed ten Controller close/reopen cycles
+  on each of two independent COM3 RTS cold boots.  AP and CP both reported
+  init 11/11, deinit 10/10 and zero errors; HCI info/stats remained healthy.
+  Final production `18.6.45`/counter 99 was restored with test cycles disabled
+  and reported init 1/1, deinit 0/0.  Wi-Fi status and the active-Wi-Fi AP
+  restart fail-closed boundary were also exercised.
 
 Detailed source-to-board evidence is in the
-[runtime-contract verification record](verification/2026-08-14-bk7258-runtime-contracts.md).
+[runtime-contract verification record](verification/2026-08-14-bk7258-runtime-contracts.md)
+and [radio-lifecycle verification record](verification/2026-08-14-bk7258-radio-worker-lifecycle.md).
 
 ## Remaining boundary
 
 - The original 66/100 score describes the audited baseline.  The named
   actionable defects are closed in this working tree, but only a new independent
   review can assign a replacement score.
-- Real-board failure injection for the remaining vendor-deinit paths, repeated
-  Wi-Fi/BT worker creation, MIC pause/resume pressure and high-rate USB attach
-  remains useful.  WDT/timer failure recovery is now board-proven; the existing
-  camera lifecycle record separately proves physical open/close/reopen.
+- Vendor radio failure injection, MIC pause/resume pressure and high-rate USB
+  attach remain useful.  Bluetooth Controller repetition and the Wi-Fi
+  fail-closed boundary are now board-proven; full NuttX Host re-registration
+  remains unsupported rather than simulated.
 - Broad checkpatch cleanup was not mixed into this correctness phase.
 - MCUboot signing is still software-rooted for development.  OTP anti-rollback
   floor advancement and irreversible production secure-boot activation remain
@@ -77,10 +88,9 @@ Detailed source-to-board evidence is in the
 
 ## Next action
 
-Open the web PR from `Embracecactus:fix/bk7258-runtime-contracts` to
-`open-vela:dev-ai-contest-2026`, then follow with an independent re-review and
-the remaining targeted real-board stress/failure-injection matrix.  Do not
-claim mass-production acceptance from the current board run alone.
+Review the uncommitted radio-lifecycle diff, then commit/push only with owner
+authorization.  Follow with MIC pause/resume and USB attach lifecycle pressure;
+do not claim mass-production acceptance from the current board run alone.
 
 ## Fixed constraints
 
