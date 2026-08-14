@@ -55,7 +55,7 @@
 #  define BKTFVAL_MEDIA_MODE       "fixed"
 #endif
 #define BKTFVAL_MAGIC             0x46544b42u /* "BKTF" */
-#define BKTFVAL_VERSION           1u
+#define BKTFVAL_VERSION           2u
 #define BKTFVAL_RUNNING           1u
 #define BKTFVAL_PASSED            2u
 #define BKTFVAL_FAILED            3u
@@ -77,7 +77,8 @@ enum bktfval_stage_e
   BKTFVAL_STAGE_UNLINK,
   BKTFVAL_STAGE_UNMOUNT,
   BKTFVAL_STAGE_WAIT_EJECT,
-  BKTFVAL_STAGE_WAIT_REINSERT
+  BKTFVAL_STAGE_WAIT_REINSERT,
+  BKTFVAL_STAGE_CHECK_WIDTH
 };
 
 struct bktfval_diag_s
@@ -92,6 +93,10 @@ struct bktfval_diag_s
   uint32_t cycles;
   uint32_t bytes;
   uint32_t checksum;
+  uint32_t active_bus_width;
+  uint32_t width_transitions;
+  uint32_t width_failures;
+  int32_t last_width_error;
 };
 
 struct bktfval_partition_s
@@ -135,6 +140,35 @@ static struct bktfval_partitions_s g_bktfval_partitions;
 static int bktfval_errno(void)
 {
   return errno > 0 ? -errno : -EIO;
+}
+
+static int bktfval_check_bus_width(void)
+{
+  struct bk7258_sdio_runtime_s runtime;
+  uint32_t expected = BK7258_SDIO_BUS_WIDTH_4BIT ? 4u : 1u;
+  int ret;
+
+  g_bk7258_tf_validation_diag.stage = BKTFVAL_STAGE_CHECK_WIDTH;
+  ret = bk7258_sdio_get_runtime(&runtime);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  g_bk7258_tf_validation_diag.active_bus_width = runtime.bus_width;
+  g_bk7258_tf_validation_diag.width_transitions =
+    runtime.width_transitions;
+  g_bk7258_tf_validation_diag.width_failures = runtime.width_failures;
+  g_bk7258_tf_validation_diag.last_width_error = runtime.last_width_error;
+
+  if (runtime.initialized == 0u || runtime.bus_width != expected ||
+      runtime.width_failures != 0u || runtime.last_width_error < 0 ||
+      (expected == 4u && runtime.width_transitions == 0u))
+    {
+      return -EIO;
+    }
+
+  return OK;
 }
 
 static uint8_t bktfval_pattern(uint32_t cycle, size_t offset)
@@ -547,10 +581,11 @@ static int bktfval_thread(int argc, FAR char *argv[])
   g_bk7258_tf_validation_diag.magic = BKTFVAL_MAGIC;
   g_bk7258_tf_validation_diag.version = BKTFVAL_VERSION;
   g_bk7258_tf_validation_diag.size = sizeof(g_bk7258_tf_validation_diag);
-  g_bk7258_tf_validation_diag.state = BKTFVAL_RUNNING;
   g_bk7258_tf_validation_diag.stage = BKTFVAL_STAGE_START;
   g_bk7258_tf_validation_diag.bus_width =
     BK7258_SDIO_BUS_WIDTH_4BIT ? 4 : 1;
+  __asm__ __volatile__("dmb sy" : : : "memory");
+  g_bk7258_tf_validation_diag.state = BKTFVAL_RUNNING;
 
   syslog(LOG_INFO,
          "BKTF waiting for FAT card on %s (width=%u, insert-before-reset)\n",
@@ -558,6 +593,11 @@ static int bktfval_thread(int argc, FAR char *argv[])
 
   ret = bktfval_wait_blockdev(true, BKTFVAL_INITIAL_TIMEOUT,
                               BKTFVAL_STAGE_WAIT_INITIAL);
+  if (ret == OK)
+    {
+      ret = bktfval_check_bus_width();
+    }
+
   if (ret == OK)
     {
       ret = bktfval_cycle(1);
@@ -587,7 +627,13 @@ static int bktfval_thread(int argc, FAR char *argv[])
       ret = bktfval_cycle(2);
     }
 
+  if (ret == OK)
+    {
+      ret = bktfval_check_bus_width();
+    }
+
   g_bk7258_tf_validation_diag.result = ret;
+  __asm__ __volatile__("dmb sy" : : : "memory");
   g_bk7258_tf_validation_diag.state =
     ret == OK ? BKTFVAL_PASSED : BKTFVAL_FAILED;
   if (ret == OK)

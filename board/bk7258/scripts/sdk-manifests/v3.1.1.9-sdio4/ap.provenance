@@ -1,0 +1,16 @@
+bundle_version=v3.1.1.9-sdio4
+bundle_profile=ap-peripherals-r2-sdio4
+role=ap
+sdk_target=bk7258_ap
+sdk_source_tree=/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9
+sdk_git_commit=not-a-git-tree
+source_archive=not-provided
+source_archive_sha256=not-provided
+profile_sha256=2d8c82ace7fd18a6e1bdb7903c3a183fccfe814e5d8ce9329d653eb19703c049
+profile_components=ap-peripherals-r2.config,ap-sdio4.config
+compiler=arm-none-eabi-gcc (15:10.3-2021.07-4) 10.3.1 20210621 (release)
+uart_patch_define=CONFIG_BK_PRINTF_DISABLE
+uart_patched_object_sha256=40cc1cbe283443147bbe8f2af4c24e71766a61739463d0e2c2142c6b57626b34
+libdriver_original_sha256=00e70f573223fd299ba5fd3cc321329dcc49c9fcdfe04d88123f9f31066c239b
+libdriver_final_sha256=a8fa4edf2e15e1046d6974116504189febf857d0fb2df4830ce7b0d76cddfdfe
+final_manifest_sha256=06e07a17019aa6b9aa3986689b04c42ed3ab1d6b0c2a1604e7738b596a0995f5

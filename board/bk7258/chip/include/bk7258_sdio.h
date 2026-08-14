@@ -47,6 +47,24 @@
 #define BK7258_SDIO_CLK_IDMODE        400000u
 
 /****************************************************************************
+ * Public Types
+ ****************************************************************************/
+
+/* Runtime width evidence for board validation and fault diagnosis.  The
+ * fixed-width SDK bundle is an implementation constraint, so callers must be
+ * able to distinguish the requested profile from a completed host re-init.
+ */
+
+struct bk7258_sdio_runtime_s
+{
+  uint32_t initialized;
+  uint32_t bus_width;
+  uint32_t width_transitions;
+  uint32_t width_failures;
+  int32_t last_width_error;
+};
+
+/****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
 
@@ -73,6 +91,13 @@
  ****************************************************************************/
 
 int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev);
+
+/* Return a coherent-enough diagnostic snapshot after MMC/SD probing.  Width
+ * transitions are serialized by the upper half during card initialization;
+ * this API does not control the host or initiate I/O.
+ */
+
+int bk7258_sdio_get_runtime(FAR struct bk7258_sdio_runtime_s *runtime);
 
 /* Physical-board hooks.  The selected binding owns the pin group and media
  * presence policy; the generic controller lower half owns only the BK7258

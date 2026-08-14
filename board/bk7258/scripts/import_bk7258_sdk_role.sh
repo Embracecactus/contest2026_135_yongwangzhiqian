@@ -21,12 +21,14 @@ usage()
 Usage: $(basename "$0") --role cp|ap [options]
 
 Options:
-  --bundle-version V Version label: legacy or v3.1.1.9 (default: v3.1.1.9)
+  --bundle-version V Version label: legacy, v3.1.1.9, or
+                     v3.1.1.9-sdio4 (default: v3.1.1.9)
   --sdk-dir DIR       Authorized bk_avdk_smp source tree
   --source-archive F  Original SDK archive recorded in provenance
   --toolchain-dir DIR Directory containing arm-none-eabi-gcc
   --jobs N            SDK build jobs (default: ${JOBS})
-  --profile NAME      Build profile: base or ap-peripherals-r2
+  --profile NAME      Build profile: base, ap-peripherals-r2, or
+                     ap-peripherals-r2-sdio4
   --build             Build the selected SDK role before importing
   --replace           Atomically replace an existing non-legacy bundle
   -h, --help          Show this help
@@ -92,10 +94,10 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$VERSION" in
-  legacy|v3.1.1.9)
+  legacy|v3.1.1.9|v3.1.1.9-sdio4)
     ;;
   *)
-    printf "error: unsupported bundle version '%s' (supported: legacy v3.1.1.9)\n" \
+    printf "error: unsupported bundle version '%s' (supported: legacy v3.1.1.9 v3.1.1.9-sdio4)\n" \
       "$VERSION" >&2
     exit 2
     ;;
@@ -118,7 +120,7 @@ case "$ROLE" in
     ;;
 esac
 
-PROFILE_FILE=""
+PROFILE_FILES=()
 case "$PROFILE" in
   base)
     ;;
@@ -128,7 +130,20 @@ case "$PROFILE" in
         'error: ap-peripherals-r2 is only valid for the AP role' >&2
       exit 2
     fi
-    PROFILE_FILE="${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/${PROFILE}.config"
+    PROFILE_FILES+=(
+      "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r2.config"
+    )
+    ;;
+  ap-peripherals-r2-sdio4)
+    if [[ "$ROLE" != "ap" ]]; then
+      printf '%s\n' \
+        'error: ap-peripherals-r2-sdio4 is only valid for the AP role' >&2
+      exit 2
+    fi
+    PROFILE_FILES+=(
+      "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r2.config"
+      "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-sdio4.config"
+    )
     ;;
   *)
     printf "error: unsupported SDK build profile '%s'\n" "$PROFILE" >&2
@@ -136,10 +151,24 @@ case "$PROFILE" in
     ;;
 esac
 
-if [[ -n "$PROFILE_FILE" && ! -f "$PROFILE_FILE" ]]; then
-  printf 'error: SDK build profile does not exist: %s\n' \
-    "$PROFILE_FILE" >&2
-  exit 1
+for profile_file in "${PROFILE_FILES[@]}"; do
+  if [[ ! -f "$profile_file" ]]; then
+    printf 'error: SDK build profile does not exist: %s\n' \
+      "$profile_file" >&2
+    exit 1
+  fi
+done
+
+if [[ "$VERSION" == "v3.1.1.9-sdio4" ]]; then
+  if [[ "$ROLE" != "ap" || "$PROFILE" != "ap-peripherals-r2-sdio4" ]]; then
+    printf '%s\n' \
+      'error: v3.1.1.9-sdio4 requires AP role and ap-peripherals-r2-sdio4 profile' >&2
+    exit 2
+  fi
+elif [[ "$PROFILE" == "ap-peripherals-r2-sdio4" ]]; then
+  printf '%s\n' \
+    'error: ap-peripherals-r2-sdio4 must use bundle version v3.1.1.9-sdio4' >&2
+  exit 2
 fi
 
 if [[ "$PROFILE" != "base" && "$BUILD_SDK" != "true" ]]; then
@@ -192,53 +221,157 @@ fi
 
 TMP_WORK="$(mktemp -d)"
 TMP_DEST=""
-BACKUP=""
+TMP_MANIFEST=""
+TMP_PROVENANCE=""
 DEST=""
+MANIFEST=""
+PROVENANCE=""
+DEST_BACKUP=""
+MANIFEST_BACKUP=""
+PROVENANCE_BACKUP=""
+DEST_BACKED_UP=false
+MANIFEST_BACKED_UP=false
+PROVENANCE_BACKED_UP=false
+DEST_INSTALLED=false
+MANIFEST_INSTALLED=false
+PROVENANCE_INSTALLED=false
+INSTALL_COMMITTED=false
 
 cleanup()
 {
-  if [[ -n "$TMP_DEST" ]]; then
-    rm -rf "$TMP_DEST"
+  local exit_status=$?
+  local cleanup_failed=false
+
+  trap - EXIT INT TERM HUP
+  set +e
+
+  if [[ "$INSTALL_COMMITTED" != "true" ]]; then
+    if [[ "$DEST_INSTALLED" == "true" && -e "$DEST" ]]; then
+      if ! rm -rf "$DEST"; then
+        printf 'error: failed to remove new SDK bundle during rollback: %s\n' \
+          "$DEST" >&2
+        cleanup_failed=true
+      fi
+    fi
+    if [[ "$MANIFEST_INSTALLED" == "true" && -e "$MANIFEST" ]]; then
+      if ! rm -f "$MANIFEST"; then
+        printf 'error: failed to remove new manifest during rollback: %s\n' \
+          "$MANIFEST" >&2
+        cleanup_failed=true
+      fi
+    fi
+    if [[ "$PROVENANCE_INSTALLED" == "true" && -e "$PROVENANCE" ]]; then
+      if ! rm -f "$PROVENANCE"; then
+        printf 'error: failed to remove new provenance during rollback: %s\n' \
+          "$PROVENANCE" >&2
+        cleanup_failed=true
+      fi
+    fi
+
+    if [[ "$DEST_BACKED_UP" == "true" && -e "$DEST_BACKUP" ]]; then
+      if [[ -e "$DEST" ]]; then
+        printf 'error: SDK bundle rollback target is still occupied; backup kept at %s\n' \
+          "$DEST_BACKUP" >&2
+        cleanup_failed=true
+      elif ! mv "$DEST_BACKUP" "$DEST"; then
+        printf 'error: failed to restore SDK bundle; backup kept at %s\n' \
+          "$DEST_BACKUP" >&2
+        cleanup_failed=true
+      fi
+    fi
+    if [[ "$MANIFEST_BACKED_UP" == "true" && -e "$MANIFEST_BACKUP" ]]; then
+      if [[ -e "$MANIFEST" ]]; then
+        printf 'error: manifest rollback target is still occupied; backup kept at %s\n' \
+          "$MANIFEST_BACKUP" >&2
+        cleanup_failed=true
+      elif ! mv "$MANIFEST_BACKUP" "$MANIFEST"; then
+        printf 'error: failed to restore manifest; backup kept at %s\n' \
+          "$MANIFEST_BACKUP" >&2
+        cleanup_failed=true
+      fi
+    fi
+    if [[ "$PROVENANCE_BACKED_UP" == "true" &&
+          -e "$PROVENANCE_BACKUP" ]]; then
+      if [[ -e "$PROVENANCE" ]]; then
+        printf 'error: provenance rollback target is still occupied; backup kept at %s\n' \
+          "$PROVENANCE_BACKUP" >&2
+        cleanup_failed=true
+      elif ! mv "$PROVENANCE_BACKUP" "$PROVENANCE"; then
+        printf 'error: failed to restore provenance; backup kept at %s\n' \
+          "$PROVENANCE_BACKUP" >&2
+        cleanup_failed=true
+      fi
+    fi
   fi
 
-  rm -rf "$TMP_WORK"
-  if [[ -n "$BACKUP" && -e "$BACKUP" ]]; then
-    if [[ -e "$DEST" ]]; then
-      rm -rf "$DEST"
+  if [[ -n "$TMP_DEST" ]]; then
+    if ! rm -rf "$TMP_DEST"; then
+      printf 'error: failed to remove temporary SDK bundle: %s\n' \
+        "$TMP_DEST" >&2
+      cleanup_failed=true
     fi
-    mv "$BACKUP" "$DEST"
   fi
+  if [[ -n "$TMP_MANIFEST" ]]; then
+    if ! rm -f "$TMP_MANIFEST"; then
+      printf 'error: failed to remove temporary manifest: %s\n' \
+        "$TMP_MANIFEST" >&2
+      cleanup_failed=true
+    fi
+  fi
+  if [[ -n "$TMP_PROVENANCE" ]]; then
+    if ! rm -f "$TMP_PROVENANCE"; then
+      printf 'error: failed to remove temporary provenance: %s\n' \
+        "$TMP_PROVENANCE" >&2
+      cleanup_failed=true
+    fi
+  fi
+
+  if ! rm -rf "$TMP_WORK"; then
+    printf 'error: failed to remove temporary work tree: %s\n' \
+      "$TMP_WORK" >&2
+    cleanup_failed=true
+  fi
+  if [[ "$cleanup_failed" == "true" ]]; then
+    printf '%s\n' \
+      'error: SDK import rollback was incomplete; preserved backup paths are listed above' >&2
+    exit 125
+  fi
+  exit "$exit_status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 PROJECT_DIR="${SDK_DIR}/projects/app"
 MAKE_BUILD_ROOT="${SDK_DIR}/build"
 
-if [[ -n "$PROFILE_FILE" ]]; then
+if ((${#PROFILE_FILES[@]} != 0)); then
   PROJECT_DIR="${TMP_WORK}/app"
   MAKE_BUILD_ROOT="${TMP_WORK}/build"
   cp -a "${SDK_DIR}/projects/app" "$PROJECT_DIR"
 
   python3 - "$PROJECT_DIR/ap/config/bk7258_ap/config" \
-    "$PROFILE_FILE" <<'PY'
+    "${PROFILE_FILES[@]}" <<'PY'
 import re
 import sys
 from pathlib import Path
 
 base_path = Path(sys.argv[1])
-profile_path = Path(sys.argv[2])
+profile_paths = [Path(item) for item in sys.argv[2:]]
 config_re = re.compile(r"^(?:# )?(CONFIG_[A-Za-z0-9_]+)(?:=.*| is not set)$")
 
 base = base_path.read_text(encoding="utf-8").splitlines()
 overrides = {}
 order = []
-for line in profile_path.read_text(encoding="utf-8").splitlines():
-    match = config_re.match(line)
-    if match:
-        key = match.group(1)
-        if key not in overrides:
-            order.append(key)
-        overrides[key] = line
+for profile_path in profile_paths:
+    for line in profile_path.read_text(encoding="utf-8").splitlines():
+        match = config_re.match(line)
+        if match:
+            key = match.group(1)
+            if key not in overrides:
+                order.append(key)
+            overrides[key] = line
 
 seen = set()
 merged = []
@@ -272,8 +405,8 @@ MANIFEST="${MANIFEST_DIR}/${ROLE}.sha256"
 PROVENANCE="${MANIFEST_DIR}/${ROLE}.provenance"
 TMP_DEST="${DEST}.tmp.$$"
 TMP_OBJ="${TMP_WORK}/uart_driver.c.obj"
-TMP_MANIFEST="${TMP_WORK}/${ROLE}.sha256"
-TMP_PROVENANCE="${TMP_WORK}/${ROLE}.provenance"
+TMP_MANIFEST="${MANIFEST}.tmp.$$"
+TMP_PROVENANCE="${PROVENANCE}.tmp.$$"
 
 if $BUILD_SDK; then
   make -C "$SDK_DIR" "$SDK_TARGET" PROJECT=app \
@@ -297,6 +430,7 @@ if [[ -e "$DEST" && "$REPLACE" != "true" ]]; then
   exit 1
 fi
 
+mkdir -p "$(dirname "$DEST")" "$MANIFEST_DIR"
 mkdir -p "$TMP_DEST"
 
 python3 - "$COMPILE_DB" "$SOURCE_ROLE" "$TMP_OBJ" <<'PY'
@@ -359,9 +493,16 @@ SDK_GIT_COMMIT="$(
   printf 'sdk_git_commit=%s\n' "$SDK_GIT_COMMIT"
   printf 'source_archive=%s\n' "$SOURCE_ARCHIVE"
   printf 'source_archive_sha256=%s\n' "$SOURCE_ARCHIVE_SHA256"
-  if [[ -n "$PROFILE_FILE" ]]; then
+  if ((${#PROFILE_FILES[@]} != 0)); then
     printf 'profile_sha256=%s\n' \
-      "$(sha256sum "$PROFILE_FILE" | awk '{print $1}')"
+      "$(cat "${PROFILE_FILES[@]}" | sha256sum | awk '{print $1}')"
+    printf 'profile_components='
+    profile_separator=""
+    for profile_file in "${PROFILE_FILES[@]}"; do
+      printf '%s%s' "$profile_separator" "$(basename "$profile_file")"
+      profile_separator=,
+    done
+    printf '\n'
   else
     printf 'profile_sha256=not-applicable\n'
   fi
@@ -378,20 +519,103 @@ python3 "${SCRIPT_DIR}/generate_bk7258_sdk_manifest.py" \
 printf 'final_manifest_sha256=%s\n' \
   "$(sha256sum "$TMP_MANIFEST" | awk '{print $1}')" >> "$TMP_PROVENANCE"
 
-mkdir -p "$(dirname "$DEST")" "$MANIFEST_DIR"
-if [[ -e "$DEST" ]]; then
-  BACKUP="${DEST}.backup.$$"
-  mv "$DEST" "$BACKUP"
+if ! command -v flock >/dev/null 2>&1; then
+  printf '%s\n' 'error: flock is required for SDK bundle replacement' >&2
+  exit 1
 fi
-mv "$TMP_DEST" "$DEST"
-mv "$TMP_MANIFEST" "$MANIFEST"
-mv "$TMP_PROVENANCE" "$PROVENANCE"
-if [[ -n "$BACKUP" ]]; then
-  rm -rf "$BACKUP"
-  BACKUP=""
+BK7258_BUILD_LOCK_TIMEOUT_SECONDS="${BK7258_BUILD_LOCK_TIMEOUT_SECONDS:-600}"
+if ! [[ "$BK7258_BUILD_LOCK_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'error: invalid build-lock timeout: %s\n' \
+    "$BK7258_BUILD_LOCK_TIMEOUT_SECONDS" >&2
+  exit 2
+fi
+BK7258_BUILD_LOCK="/tmp/openvela-bk7258-build-${UID}.lock"
+exec {BK7258_BUILD_LOCK_FD}>"$BK7258_BUILD_LOCK"
+if ! flock -w "$BK7258_BUILD_LOCK_TIMEOUT_SECONDS" \
+     "$BK7258_BUILD_LOCK_FD"; then
+  printf 'error: timed out waiting %ss for build lock: %s\n' \
+    "$BK7258_BUILD_LOCK_TIMEOUT_SECONDS" "$BK7258_BUILD_LOCK" >&2
+  exit 1
 fi
 
-trap - EXIT
+DEST_EXISTS=false
+MANIFEST_EXISTS=false
+PROVENANCE_EXISTS=false
+[[ -e "$DEST" ]] && DEST_EXISTS=true
+[[ -e "$MANIFEST" ]] && MANIFEST_EXISTS=true
+[[ -e "$PROVENANCE" ]] && PROVENANCE_EXISTS=true
+
+if [[ "$DEST_EXISTS" == "true" &&
+      "$MANIFEST_EXISTS" == "true" &&
+      "$PROVENANCE_EXISTS" == "true" ]]; then
+  :
+elif [[ "$DEST_EXISTS" == "false" &&
+        "$MANIFEST_EXISTS" == "true" &&
+        "$PROVENANCE_EXISTS" == "true" ]]; then
+  # Normal fresh checkout: restricted binaries are ignored, while their
+  # tracked manifest and provenance are already present.
+  :
+elif [[ "$DEST_EXISTS" == "false" &&
+        "$MANIFEST_EXISTS" == "false" &&
+        "$PROVENANCE_EXISTS" == "false" ]]; then
+  :
+else
+  printf '%s\n' \
+    'error: refusing to replace an incomplete bundle/manifest/provenance set' >&2
+  exit 1
+fi
+if [[ "$REPLACE" != "true" &&
+      ( "$DEST_EXISTS" == "true" ||
+        "$MANIFEST_EXISTS" == "true" ||
+        "$PROVENANCE_EXISTS" == "true" ) ]]; then
+  printf '%s\n' \
+    'error: existing bundle metadata requires explicit --replace' >&2
+  exit 1
+fi
+
+if [[ -e "$DEST" ]]; then
+  DEST_BACKUP="${DEST}.backup.$$"
+  DEST_BACKED_UP=true
+  mv "$DEST" "$DEST_BACKUP"
+fi
+if [[ -e "$MANIFEST" ]]; then
+  MANIFEST_BACKUP="${MANIFEST}.backup.$$"
+  MANIFEST_BACKED_UP=true
+  mv "$MANIFEST" "$MANIFEST_BACKUP"
+fi
+if [[ -e "$PROVENANCE" ]]; then
+  PROVENANCE_BACKUP="${PROVENANCE}.backup.$$"
+  PROVENANCE_BACKED_UP=true
+  mv "$PROVENANCE" "$PROVENANCE_BACKUP"
+fi
+DEST_INSTALLED=true
+mv "$TMP_DEST" "$DEST"
+TMP_DEST=""
+MANIFEST_INSTALLED=true
+mv "$TMP_MANIFEST" "$MANIFEST"
+TMP_MANIFEST=""
+PROVENANCE_INSTALLED=true
+mv "$TMP_PROVENANCE" "$PROVENANCE"
+TMP_PROVENANCE=""
+
+"${SCRIPT_DIR}/setup_bk7258_sdk.sh" --check "$DEST" \
+  --version "$VERSION" --role "$ROLE"
+INSTALL_COMMITTED=true
+
+if [[ "$DEST_BACKED_UP" == "true" ]]; then
+  rm -rf "$DEST_BACKUP"
+  DEST_BACKUP=""
+fi
+if [[ "$MANIFEST_BACKED_UP" == "true" ]]; then
+  rm -f "$MANIFEST_BACKUP"
+  MANIFEST_BACKUP=""
+fi
+if [[ "$PROVENANCE_BACKED_UP" == "true" ]]; then
+  rm -f "$PROVENANCE_BACKUP"
+  PROVENANCE_BACKUP=""
+fi
+
+trap - EXIT INT TERM HUP
 rm -rf "$TMP_WORK"
 printf 'installed BK7258 %s SDK bundle %s: %s\n' \
   "$ROLE" "$VERSION" "$DEST"

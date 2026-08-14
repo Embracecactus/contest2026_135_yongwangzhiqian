@@ -91,6 +91,9 @@
 #if defined(CONFIG_BK7258_SDIO_4BIT) && \
     !defined(CONFIG_SDCARD_BUSWIDTH_4LINE)
 #  error "Selected AP SDK bundle cannot preserve four-bit SDIO data setup"
+#elif !defined(CONFIG_BK7258_SDIO_4BIT) && \
+      defined(CONFIG_SDCARD_BUSWIDTH_4LINE)
+#  error "Four-bit-only AP SDK bundle cannot serve a one-bit SDIO profile"
 #endif
 
 #include "arm_internal.h"
@@ -142,6 +145,9 @@ struct bk7258_sdio_priv_s
   bool initialized;                /* bk_sdio_host_init() done */
   bool driver_init;                /* bk_sdio_host_driver_init() done */
   bool interface_init;             /* dev vtable copied exactly once */
+  uint32_t width_transitions;       /* Successful 1-bit/4-bit re-inits */
+  uint32_t width_failures;          /* Failed width re-inits */
+  int last_width_error;             /* Most recent width re-init status */
   uint32_t cmd_timeout;            /* Controller clock-cycle timeout */
   uint32_t data_timeout;           /* Controller clock-cycle timeout */
 
@@ -518,29 +524,48 @@ static void bk7258_sdio_reset(FAR struct sdio_dev_s *dev)
 {
   FAR struct bk7258_sdio_priv_s *priv =
     (FAR struct bk7258_sdio_priv_s *)dev;
+  bk_err_t err;
+  int ret;
 
   if (priv->initialized)
     {
-      bk_sdio_host_deinit();
+      err = bk_sdio_host_deinit();
+      if (err != BK_OK)
+        {
+          priv->width_failures++;
+          priv->last_width_error = bk7258_sdio_map_err(err);
+          return;
+        }
+
       priv->initialized = false;
     }
 
-  bk7258_sdio_host_init_locked(priv, priv->widebus_enabled);
+  ret = bk7258_sdio_host_init_locked(priv, priv->widebus_enabled);
+  if (ret < 0)
+    {
+      priv->width_failures++;
+      priv->last_width_error = ret;
+    }
+  else
+    {
+      priv->last_width_error = OK;
+    }
 }
 
 static sdio_capset_t bk7258_sdio_capabilities(FAR struct sdio_dev_s *dev)
 {
-  /* Advertise only the bus mode that this board profile can safely use.
-   * T5-Board routes D2/D3 through the CH342F switch bank, so its console-
-   * compatible validation profile deliberately runs the card in 1-bit mode.
-   * If SDIO_CAPS_4BIT were reported unconditionally, the MMC/SD upper half
-   * would switch the card and controller back to four data lines after SCR
-   * negotiation, defeating CONFIG_BK7258_SDIO_4BIT.
+  /* Advertise exactly the data mode compiled into the selected SDK bundle.
+   * The v3.1.1.9 V2 data-setup helpers re-apply their private compile-time
+   * width on every transfer.  SDIO_CAPS_4BIT_ONLY makes NuttX send ACMD6 and
+   * call widebus(true) before its first data transfer (the SCR read), so the
+   * card and the fixed-four-line controller become wide at the same point.
+   * The ordinary SDIO_CAPS_4BIT path reads SCR first and is therefore unsafe
+   * with that bundle.  The default bundle remains explicitly one-bit-only.
    */
 
   (void)dev;
 #ifdef CONFIG_BK7258_SDIO_4BIT
-  return SDIO_CAPS_4BIT;
+  return SDIO_CAPS_4BIT_ONLY;
 #else
   /* NuttX tests this explicit flag before sending ACMD6.  Returning zero
    * does not mean one-bit-only; it means that the upper half may still
@@ -562,6 +587,8 @@ static void bk7258_sdio_widebus(FAR struct sdio_dev_s *dev, bool enable)
 {
   FAR struct bk7258_sdio_priv_s *priv =
     (FAR struct bk7258_sdio_priv_s *)dev;
+  bk_err_t err;
+  int ret;
 
 #ifndef CONFIG_BK7258_SDIO_4BIT
   enable = false;
@@ -573,9 +600,25 @@ static void bk7258_sdio_widebus(FAR struct sdio_dev_s *dev, bool enable)
        * controller but is the only SDK path to change width.
        */
 
-      bk_sdio_host_deinit();
+      err = bk_sdio_host_deinit();
+      if (err != BK_OK)
+        {
+          priv->width_failures++;
+          priv->last_width_error = bk7258_sdio_map_err(err);
+          return;
+        }
+
       priv->initialized = false;
-      bk7258_sdio_host_init_locked(priv, enable);
+      ret = bk7258_sdio_host_init_locked(priv, enable);
+      if (ret < 0)
+        {
+          priv->width_failures++;
+          priv->last_width_error = ret;
+          return;
+        }
+
+      priv->width_transitions++;
+      priv->last_width_error = OK;
     }
 }
 
@@ -1346,7 +1389,7 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
     }
 
   /* Every SD card powers up in one-bit mode.  The four-bit profile maps
-   * D1-D3 at the board layer and advertises SDIO_CAPS_4BIT, but the
+   * D1-D3 at the board layer and advertises SDIO_CAPS_4BIT_ONLY, but the
    * controller must remain narrow until the MMC/SD upper half has sent
    * ACMD6 successfully and calls bk7258_sdio_widebus(true).
    */
@@ -1364,6 +1407,23 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
     }
 
   *sdio_dev = &priv->dev;
+  return OK;
+}
+
+int bk7258_sdio_get_runtime(FAR struct bk7258_sdio_runtime_s *runtime)
+{
+  FAR struct bk7258_sdio_priv_s *priv = &g_bk7258_sdio;
+
+  if (runtime == NULL)
+    {
+      return -EINVAL;
+    }
+
+  runtime->initialized = priv->initialized ? 1u : 0u;
+  runtime->bus_width = priv->widebus_enabled ? 4u : 1u;
+  runtime->width_transitions = priv->width_transitions;
+  runtime->width_failures = priv->width_failures;
+  runtime->last_width_error = priv->last_width_error;
   return OK;
 }
 
