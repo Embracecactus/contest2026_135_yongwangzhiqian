@@ -537,6 +537,51 @@ config BK7258_PM_CLOCK
 		reference-counts each clock.  This is the clock-ownership foundation;
 		The CP image also selects the board PM policy below.
 
+config BK7258_TEMPERATURE
+	bool "CP-owned on-die temperature sensor"
+	default n
+	depends on BK7258_RPTUN
+	select SCHED_LPWORK
+	select THERMAL if BK7258_AP_CORE
+	---help---
+		Use the immutable CP SDK's bounded one-shot SARADC measurement and
+		expose it to AP through a project-owned, generation-safe RPMsg endpoint.
+		The SDK result is an ADC raw code, not degrees Celsius.  AP publishes a
+		NuttX thermal zone only after a valid per-device 25 C reference has been
+		supplied; uncalibrated reads retain the raw code without inventing an
+		absolute temperature.  CP sampling runs on LPWORK so the SDK's retry
+		deadline cannot block the RPTUN receive worker.
+
+config BK7258_TEMPERATURE_FIXED_REFERENCE_RAW
+	int "Fixed 25 C temperature reference raw code"
+	default 0
+	range 0 1364
+	depends on BK7258_TEMPERATURE && BK7258_AP_CORE
+	---help---
+		Set this only for a specific calibrated device or a bounded laboratory
+		image.  Zero leaves Celsius conversion disabled until an application
+		loads that chip's factory 25 C raw code with the runtime API.  This is
+		per-device calibration and must not be treated as a board-wide nominal.
+
+config BK7258_TEMPERATURE_POLL_INTERVAL_MS
+	int "Thermal-zone polling interval (milliseconds)"
+	default 1000
+	range 100 60000
+	depends on BK7258_TEMPERATURE && BK7258_AP_CORE
+	---help---
+		Polling interval used after calibrated data enables the NuttX thermal
+		zone.  Raw reads made directly through the board API are on demand.
+
+config BK7258_TEMPERATURE_VALIDATION
+	bool "Run bounded on-die temperature validation"
+	default n
+	depends on BK7258_TEMPERATURE && BK7258_AP_CORE
+	---help---
+		Perform eight AP-to-CP reads after normal peripheral bring-up and place
+		the raw range, generation and final status in a debugger-visible record.
+		This validates the real RPMsg and SARADC path without assuming an
+		absolute Celsius value when factory calibration is unavailable.
+
 config BK7258_PM_POLICY
 	bool "CP-owned NuttX PM and multi-client DVFS policy"
 	default y

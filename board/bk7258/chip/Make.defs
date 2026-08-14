@@ -165,6 +165,9 @@ BK7258_CP_CSRCS += bk7258_rptun.c
 ifeq ($(CONFIG_BK7258_PM_CLOCK),y)
 BK7258_CP_CSRCS += bk7258_pm_server.c
 endif
+ifeq ($(CONFIG_BK7258_TEMPERATURE),y)
+BK7258_CP_CSRCS += bk7258_temperature_server.c
+endif
 ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
 BK7258_CP_CSRCS += bk7258_rpmsg_health.c
 endif
@@ -512,6 +515,12 @@ LDFLAGS += --wrap=dvp_camera_i2c_write_uint8
 LDFLAGS += --wrap=video_register
 endif
 endif
+endif
+ifeq ($(CONFIG_BK7258_TEMPERATURE),y)
+BK7258_AP_BASE_CSRCS += bk7258_temperature_client.c
+endif
+ifeq ($(CONFIG_BK7258_TEMPERATURE_VALIDATION),y)
+BK7258_AP_BASE_CSRCS += bk7258_temperature_validation.c
 endif
 ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
 BK7258_AP_BASE_CSRCS += bk7258_rpmsg_health.c
