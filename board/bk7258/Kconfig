@@ -66,10 +66,10 @@ config BK7258_SDIO_4BIT
 	help
 		Enable D1/D2/D3 in addition to CLK/CMD/D0.  The safe T5-Board
 		default is one bit because D2/D3 share the CH342F UART0 switch route.
-		P0/P1 SWD and RTT are independent of this choice.  The current pinned
-		AP SDK bundle forces data setup back to one bit, so the build pipeline
-		fails this selection closed until a separately identified four-bit SDK
-		bundle is integrated.
+		P0/P1 SWD and RTT are independent of this choice.  This selection is
+		bound to the separately identified v3.1.1.9-sdio4 AP SDK bundle; the
+		default one-line bundle is rejected because its data helpers force the
+		controller back to one bit on every transfer.
 
 config BK7258_T5_BOARD_TF_VALIDATION
 	bool "Validate T5-Board TF fixed-media read/write"

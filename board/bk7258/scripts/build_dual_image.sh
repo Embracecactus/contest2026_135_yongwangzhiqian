@@ -59,6 +59,22 @@ profile_value()
     printf '%s\n' "${value}"
 }
 
+profile_value_optional()
+{
+    local config="$1"
+    local key="$2"
+    local fallback="$3"
+    local value
+
+    value="$(sed -n "s/^${key}=//p" "${config}/profile.conf")"
+    if [[ "${value}" == *$'\n'* ]]; then
+        printf 'build_dual_image: profile %s may define %s at most once\n' \
+            "${config}" "${key}" >&2
+        exit 2
+    fi
+    printf '%s\n' "${value:-${fallback}}"
+}
+
 validate_config_name()
 {
     local role="$1"
@@ -115,6 +131,11 @@ AP_PROFILE_ROLE="$(profile_value "${AP_CONFIG}" BK7258_PROFILE_ROLE)"
 AP_PROFILE_BOOT="$(profile_value "${AP_CONFIG}" BK7258_PROFILE_BOOT)"
 AP_PROFILE_CLASS="$(profile_value "${AP_CONFIG}" BK7258_PROFILE_CLASS)"
 AP_PROFILE_COMPAT="$(profile_value "${AP_CONFIG}" BK7258_PROFILE_COMPAT)"
+BK7258_SDK_BUNDLE_VERSION="${BK7258_SDK_BUNDLE_VERSION:-v3.1.1.9}"
+CP_SDK_BUNDLE_VERSION="$(profile_value_optional "${CP_CONFIG}" \
+    BK7258_PROFILE_SDK_BUNDLE "${BK7258_SDK_BUNDLE_VERSION}")"
+AP_SDK_BUNDLE_VERSION="$(profile_value_optional "${AP_CONFIG}" \
+    BK7258_PROFILE_SDK_BUNDLE "${BK7258_SDK_BUNDLE_VERSION}")"
 
 if [[ "${CP_PROFILE_SCHEMA}" != 1 || "${AP_PROFILE_SCHEMA}" != 1 ]]; then
     printf '%s\n' 'build_dual_image: unsupported BK7258 profile schema' >&2
@@ -357,6 +378,16 @@ if config_enabled "${CP_CONFIG}" BK7258_UART0_FLOW_CONTROL &&
     exit 2
 fi
 
+# The CP keeps the board-verified v3.1.1.9 bundle.  AP profiles may name a
+# role-specific variant, but the fixed one-line and fixed-four-line SDK data
+# helpers must never be paired with the opposite NuttX capability.
+
+if [[ "${CP_SDK_BUNDLE_VERSION}" != "v3.1.1.9" ]]; then
+    printf 'build_dual_image: CP profile requires SDK v3.1.1.9, got %s\n' \
+        "${CP_SDK_BUNDLE_VERSION}" >&2
+    exit 2
+fi
+
 # T5-Board V1.0.2 has no verified card-detect edge.  Make the fixed-media
 # upper-half policy explicit in the board profile rather than silently
 # inheriting NuttX's default card-detect setting.
@@ -388,16 +419,14 @@ if config_enabled "${AP_CONFIG}" BK7258_SDIO_4BIT; then
         exit 2
     fi
 
-    # The pinned AP libdriver.a was compiled without
-    # CONFIG_SDCARD_BUSWIDTH_4LINE.  Its V2 data-setup helpers overwrite the
-    # runtime host width from that private compile-time option, so accepting
-    # this profile would produce an image that advertises four-bit to NuttX
-    # while the controller transfers in one-bit mode.  Keep the profile as the
-    # board/S1 contract for the later separately versioned SDK bundle, but do
-    # not manufacture a falsely runnable image from the current bundle.
-
+    if [[ "${AP_SDK_BUNDLE_VERSION}" != "v3.1.1.9-sdio4" ]]; then
+        printf '%s\n' \
+            'build_dual_image: four-bit TF requires AP SDK bundle v3.1.1.9-sdio4' >&2
+        exit 2
+    fi
+elif [[ "${AP_SDK_BUNDLE_VERSION}" != "v3.1.1.9" ]]; then
     printf '%s\n' \
-        'build_dual_image: four-bit TF is blocked: pinned AP SDK bundle forces one-bit data setup' >&2
+        'build_dual_image: one-bit/default AP profiles require SDK bundle v3.1.1.9' >&2
     exit 2
 fi
 
@@ -405,9 +434,19 @@ validate_symmetric_feature BK7258_RPTUN RPTUN
 validate_symmetric_feature BK7258_AP_SUPERVISOR 'AP supervisor'
 validate_symmetric_feature BK7258_PM_COORDINATED_STANDBY \
     'coordinated PM standby'
-validate_symmetric_feature BK7258_TEMPERATURE 'on-die temperature service'
 validate_symmetric_feature BK7258_BT_IPC 'Bluetooth IPC'
 validate_symmetric_feature BK7258_WIFI_VNET 'Wi-Fi VNET'
+
+# Temperature is a CP-owned service with an optional AP client.  A client
+# without its server can only time out, but an idle server without a client is
+# valid and lets the generic CP application serve multiple AP profiles.
+
+if config_enabled "${AP_CONFIG}" BK7258_TEMPERATURE &&
+   ! config_enabled "${CP_CONFIG}" BK7258_TEMPERATURE; then
+    printf '%s\n' \
+        'build_dual_image: AP on-die temperature client requires the CP server' >&2
+    exit 2
+fi
 
 if config_enabled "${AP_CONFIG}" BK7258_PM_COORDINATED_STANDBY; then
     AP_PM_NDOMAINS="$(config_value "${AP_CONFIG}" PM_NDOMAINS 1)"
@@ -423,9 +462,10 @@ if config_enabled "${AP_CONFIG}" BK7258_PM_COORDINATED_STANDBY; then
 fi
 
 if [[ "${BK7258_PROFILE_CHECK_ONLY}" == YES ]]; then
-    printf 'build_dual_image: profile PASS board=%s boot=%s compat=%s cp=%s ap=%s\n' \
+    printf 'build_dual_image: profile PASS board=%s boot=%s compat=%s cp=%s ap=%s cp_sdk=%s ap_sdk=%s\n' \
         "${CP_PROFILE_BOARD}" "${CP_PROFILE_BOOT}" \
-        "${CP_PROFILE_COMPAT}" "${CP_CONFIG_NAME}" "${AP_CONFIG_NAME}"
+        "${CP_PROFILE_COMPAT}" "${CP_CONFIG_NAME}" "${AP_CONFIG_NAME}" \
+        "${CP_SDK_BUNDLE_VERSION}" "${AP_SDK_BUNDLE_VERSION}"
     exit 0
 fi
 
@@ -570,18 +610,13 @@ fi
 
 JOBS="${JOBS:-8}"
 OUTPUT="${TOPDIR}/bk7258-dual"
-BK7258_SDK_BUNDLE_VERSION="${BK7258_SDK_BUNDLE_VERSION:-v3.1.1.9}"
-
-if [[ "${BK7258_SDK_BUNDLE_VERSION}" != "v3.1.1.9" ]]; then
-    printf "build_dual_image: project requires official SDK v3.1.1.9, got '%s'\n" \
-        "${BK7258_SDK_BUNDLE_VERSION}" >&2
-    exit 2
-fi
-
 SDK_BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
-SDK_BUNDLE_ROOT="${SDK_BUNDLE_BASE}/versions/${BK7258_SDK_BUNDLE_VERSION}"
-SDK_MANIFEST_DIR="${SCRIPT_DIR}/sdk-manifests/${BK7258_SDK_BUNDLE_VERSION}"
-export BK7258_SDK_BUNDLE_VERSION
+CP_SDK_BUNDLE_ROOT="${SDK_BUNDLE_BASE}/versions/${CP_SDK_BUNDLE_VERSION}"
+AP_SDK_BUNDLE_ROOT="${SDK_BUNDLE_BASE}/versions/${AP_SDK_BUNDLE_VERSION}"
+CP_SDK_MANIFEST_DIR="${SCRIPT_DIR}/sdk-manifests/${CP_SDK_BUNDLE_VERSION}"
+AP_SDK_MANIFEST_DIR="${SCRIPT_DIR}/sdk-manifests/${AP_SDK_BUNDLE_VERSION}"
+export BK7258_CP_SDK_BUNDLE_VERSION="${CP_SDK_BUNDLE_VERSION}"
+export BK7258_AP_SDK_BUNDLE_VERSION="${AP_SDK_BUNDLE_VERSION}"
 TMPDIR="$(mktemp -d)"
 
 cleanup()
@@ -590,39 +625,28 @@ cleanup()
 }
 trap cleanup EXIT
 
-for role in cp ap; do
-    "${SCRIPT_DIR}/setup_bk7258_sdk.sh" --check \
-        --version "${BK7258_SDK_BUNDLE_VERSION}" --role "${role}"
-done
+"${SCRIPT_DIR}/setup_bk7258_sdk.sh" --check \
+    --version "${CP_SDK_BUNDLE_VERSION}" --role cp
+"${SCRIPT_DIR}/setup_bk7258_sdk.sh" --check \
+    --version "${AP_SDK_BUNDLE_VERSION}" --role ap
 
-CP_SDK_ROLE_DIR="$(readlink -f "${SDK_BUNDLE_ROOT}/cp")"
-AP_SDK_ROLE_DIR="$(readlink -f "${SDK_BUNDLE_ROOT}/ap")"
-CP_SDK_MANIFEST="${SDK_MANIFEST_DIR}/cp.sha256"
-AP_SDK_MANIFEST="${SDK_MANIFEST_DIR}/ap.sha256"
+CP_SDK_ROLE_DIR="$(readlink -f "${CP_SDK_BUNDLE_ROOT}/cp")"
+AP_SDK_ROLE_DIR="$(readlink -f "${AP_SDK_BUNDLE_ROOT}/ap")"
+CP_SDK_MANIFEST="${CP_SDK_MANIFEST_DIR}/cp.sha256"
+AP_SDK_MANIFEST="${AP_SDK_MANIFEST_DIR}/ap.sha256"
+CP_SDK_PROVENANCE="${CP_SDK_MANIFEST_DIR}/cp.provenance"
+AP_SDK_PROVENANCE="${AP_SDK_MANIFEST_DIR}/ap.provenance"
 CP_SDK_MANIFEST_SHA256="$(sha256sum "${CP_SDK_MANIFEST}" | awk '{print $1}')"
 AP_SDK_MANIFEST_SHA256="$(sha256sum "${AP_SDK_MANIFEST}" | awk '{print $1}')"
-
-file_sha256_or_missing()
-{
-    local path="$1"
-
-    if [[ -f "${path}" ]]; then
-        sha256sum "${path}" | awk '{print $1}'
-    else
-        printf 'missing\n'
-    fi
-}
-
-CP_SDK_PROVENANCE_SHA256="$(
-    file_sha256_or_missing "${SDK_MANIFEST_DIR}/cp.provenance"
-)"
-AP_SDK_PROVENANCE_SHA256="$(
-    file_sha256_or_missing "${SDK_MANIFEST_DIR}/ap.provenance"
-)"
+CP_SDK_PROVENANCE_SHA256="$(sha256sum "${CP_SDK_PROVENANCE}" | awk '{print $1}')"
+AP_SDK_PROVENANCE_SHA256="$(sha256sum "${AP_SDK_PROVENANCE}" | awk '{print $1}')"
 
 build_config()
 {
     local config="$1"
+    local cleanup_ap_bundle="v3.1.1.9"
+    local cleanup_cp_bundle="v3.1.1.9"
+    local configured_distclean=false
 
     # A removed profile can leave NuttX's Make.defs symlink pointing through
     # the now-absent configs/<old-name> directory.  configure.sh -e sees the
@@ -636,9 +660,25 @@ build_config()
             'build_dual_image: removing stale NuttX config with broken Make.defs'
         rm -f "${TOPDIR}/.config" "${TOPDIR}/defconfig" \
             "${TOPDIR}/Make.defs"
+        "${BUILD}" "${config}" distclean
+        configured_distclean=true
     fi
 
-    "${BUILD}" "${config}" distclean
+    # Clean the active configuration with the bundle that matches that
+    # configuration.  Passing the next profile's bundle through build.sh's
+    # configure-then-distclean path can make an interrupted AP four-bit build
+    # impossible to replace with a one-bit profile (or vice versa), because
+    # the selector rejects the old .config before configure.sh can clean it.
+
+    if [[ "${configured_distclean}" != true && -f "${TOPDIR}/.config" ]]; then
+        if grep -qx 'CONFIG_BK7258_AP_CORE=y' "${TOPDIR}/.config" &&
+           grep -qx 'CONFIG_BK7258_SDIO_4BIT=y' "${TOPDIR}/.config"; then
+            cleanup_ap_bundle="v3.1.1.9-sdio4"
+        fi
+        BK7258_CP_SDK_BUNDLE_VERSION="${cleanup_cp_bundle}" \
+        BK7258_AP_SDK_BUNDLE_VERSION="${cleanup_ap_bundle}" \
+            make -C "${TOPDIR}" distclean
+    fi
     "${BUILD}" "${config}" "-j${JOBS}"
 }
 
@@ -657,8 +697,8 @@ save_role()
     fi
 }
 
-printf 'build_dual_image: SDK bundle version: %s\n' \
-    "${BK7258_SDK_BUNDLE_VERSION}"
+printf 'build_dual_image: SDK bundles: CP=%s AP=%s\n' \
+    "${CP_SDK_BUNDLE_VERSION}" "${AP_SDK_BUNDLE_VERSION}"
 PARTITION_GENERATE_ARGS=(--check)
 PARTITION_VERIFY_ARGS=(
     --output "${TMPDIR}/bk7258-partitions.json"
@@ -852,6 +892,34 @@ for map in "${TMPDIR}"/nuttx-*.map; do
         cp "${map}" "${OUTPUT}/"
     fi
 done
+
+verify_sdk_map_role()
+{
+    local map="$1"
+    local role="$2"
+    local expected="$3"
+    local actual
+
+    [[ -f "${map}" ]] || {
+        printf 'build_dual_image: missing %s link map: %s\n' \
+            "${role}" "${map}" >&2
+        exit 1
+    }
+    actual="$(sed -n \
+        "s#.*versions/\\([^/]*\\)/${role}/libs/.*#\\1#p" \
+        "${map}" | sort -u)"
+    if [[ "${actual}" != "${expected}" ]]; then
+        printf 'build_dual_image: %s linked SDK bundle mismatch: expected=%s actual=%s\n' \
+            "${role}" "${expected}" "${actual:-missing}" >&2
+        exit 1
+    fi
+}
+
+verify_sdk_map_role "${OUTPUT}/nuttx-cp.map" cp \
+    "${CP_SDK_BUNDLE_VERSION}"
+verify_sdk_map_role "${OUTPUT}/nuttx-ap.map" ap \
+    "${AP_SDK_BUNDLE_VERSION}"
+
 if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     cp "${TMPDIR}/cp-raw.bin" "${OUTPUT}/cp-raw.bin"
     cp "${TMPDIR}/cp-raw-crc.bin" "${OUTPUT}/cp-raw-crc.bin"
@@ -908,6 +976,12 @@ python3 "${SCRIPT_DIR}/verify_bk7258_factory_layout.py" \
     --package "${OUTPUT}" \
     --json "${OUTPUT}/bk7258-factory-layout.json"
 
+if [[ "${CP_SDK_BUNDLE_VERSION}" == "${AP_SDK_BUNDLE_VERSION}" ]]; then
+    SDK_BUNDLE_SUMMARY="${CP_SDK_BUNDLE_VERSION}"
+else
+    SDK_BUNDLE_SUMMARY=role-specific
+fi
+
 cat > "${OUTPUT}/build-profile.txt" <<EOF
 CP_CONFIG_NAME=${CP_CONFIG_NAME}
 AP_CONFIG_NAME=${AP_CONFIG_NAME}
@@ -921,8 +995,11 @@ CP_PROFILE_CLASS=${CP_PROFILE_CLASS}
 AP_PROFILE_CLASS=${AP_PROFILE_CLASS}
 CP_PROFILE_METADATA=${CP_CONFIG}/profile.conf
 AP_PROFILE_METADATA=${AP_CONFIG}/profile.conf
-BK7258_SDK_BUNDLE_VERSION=${BK7258_SDK_BUNDLE_VERSION}
-BK7258_SDK_BUNDLE_ROOT=${SDK_BUNDLE_ROOT}
+BK7258_SDK_BUNDLE_VERSION=${SDK_BUNDLE_SUMMARY}
+CP_SDK_BUNDLE_VERSION=${CP_SDK_BUNDLE_VERSION}
+AP_SDK_BUNDLE_VERSION=${AP_SDK_BUNDLE_VERSION}
+CP_SDK_BUNDLE_ROOT=${CP_SDK_BUNDLE_ROOT}
+AP_SDK_BUNDLE_ROOT=${AP_SDK_BUNDLE_ROOT}
 CP_SDK_ROLE_DIR=${CP_SDK_ROLE_DIR}
 AP_SDK_ROLE_DIR=${AP_SDK_ROLE_DIR}
 CP_SDK_MANIFEST=${CP_SDK_MANIFEST}
@@ -1014,12 +1091,18 @@ fi
 
 if config_enabled "${CP_CONFIG}" BK7258_PSRAM_TEST &&
    config_enabled "${AP_CONFIG}" BK7258_PSRAM_TEST; then
+    if [[ "${CP_SDK_BUNDLE_VERSION}" != "${AP_SDK_BUNDLE_VERSION}" ]]; then
+        printf '%s\n' \
+            'build_dual_image: PSRAM verification requires matching CP/AP SDK bundles' >&2
+        exit 1
+    fi
+
     PSRAM_VERIFY_ARGS=(
         --cp-elf "${OUTPUT}/nuttx-cp.elf"
         --cp-map "${OUTPUT}/nuttx-cp.map"
         --ap-elf "${OUTPUT}/nuttx-ap.elf"
         --ap-map "${OUTPUT}/nuttx-ap.map"
-        --expected-bundle "${BK7258_SDK_BUNDLE_VERSION}"
+        --expected-bundle "${CP_SDK_BUNDLE_VERSION}"
         --json "${OUTPUT}/bk7258-psram.json"
     )
 

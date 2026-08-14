@@ -36,6 +36,22 @@ extern bk_err_t gpio_sdio_one_line_sel(int mode);
 
 static bool g_t5_board_sdio_initialized;
 
+static int bk7258_t5_board_sdio_unmap_pin(gpio_id_t gpio_id)
+{
+  return gpio_dev_unmap(gpio_id) == BK_OK ? OK : -EIO;
+}
+
+static int bk7258_t5_board_sdio_configure_pin(gpio_id_t gpio_id)
+{
+  if (bk_gpio_pull_up(gpio_id) != BK_OK ||
+      bk_gpio_set_capacity(gpio_id, GPIO_DRIVER_CAPACITY_3) != BK_OK)
+    {
+      return -EIO;
+    }
+
+  return OK;
+}
+
 int bk7258_board_sdio_initialize(bool widebus)
 {
   bk_err_t ret;
@@ -47,6 +63,31 @@ int bk7258_board_sdio_initialize(bool widebus)
 
   ret = bk_gpio_driver_init();
   if (ret != BK_OK)
+    {
+      return -EIO;
+    }
+
+  /* The pinned SDK's default GPIO table enables P2/P3/P4 as SDIO but P10
+   * and P11 as UART0.  gpio_sdio_sel() silently ignores an individual
+   * gpio_hal_func_map() failure when a pin is already owned, so explicitly
+   * release every default-mapped pin before selecting the group.  This
+   * matches the official/Tuya sdio_host_init_gpio() ordering and is
+   * essential for four-bit D2/D3.  P5/D1 is absent from the pinned default
+   * table and therefore starts unmapped; gpio_dev_unmap(P5) would itself
+   * return BK_ERR_GPIO_INVALID_OPERATE.
+   */
+
+  if (bk7258_t5_board_sdio_unmap_pin(
+        (gpio_id_t)BK7258_BOARD_SDIO_CLK_GPIO) < 0 ||
+      bk7258_t5_board_sdio_unmap_pin(
+        (gpio_id_t)BK7258_BOARD_SDIO_CMD_GPIO) < 0 ||
+      bk7258_t5_board_sdio_unmap_pin(
+        (gpio_id_t)BK7258_BOARD_SDIO_D0_GPIO) < 0 ||
+      (widebus &&
+       (bk7258_t5_board_sdio_unmap_pin(
+          (gpio_id_t)BK7258_BOARD_SDIO_D2_GPIO) < 0 ||
+        bk7258_t5_board_sdio_unmap_pin(
+          (gpio_id_t)BK7258_BOARD_SDIO_D3_GPIO) < 0)))
     {
       return -EIO;
     }
@@ -66,27 +107,27 @@ int bk7258_board_sdio_initialize(bool widebus)
       return -EIO;
     }
 
-  (void)bk_gpio_pull_up((gpio_id_t)BK7258_BOARD_SDIO_CLK_GPIO);
-  (void)bk_gpio_pull_up((gpio_id_t)BK7258_BOARD_SDIO_CMD_GPIO);
-  (void)bk_gpio_pull_up((gpio_id_t)BK7258_BOARD_SDIO_D0_GPIO);
-  (void)bk_gpio_set_capacity((gpio_id_t)BK7258_BOARD_SDIO_CLK_GPIO,
-                             GPIO_DRIVER_CAPACITY_3);
-  (void)bk_gpio_set_capacity((gpio_id_t)BK7258_BOARD_SDIO_CMD_GPIO,
-                             GPIO_DRIVER_CAPACITY_3);
-  (void)bk_gpio_set_capacity((gpio_id_t)BK7258_BOARD_SDIO_D0_GPIO,
-                             GPIO_DRIVER_CAPACITY_3);
+  if (bk7258_t5_board_sdio_configure_pin(
+        (gpio_id_t)BK7258_BOARD_SDIO_CLK_GPIO) < 0 ||
+      bk7258_t5_board_sdio_configure_pin(
+        (gpio_id_t)BK7258_BOARD_SDIO_CMD_GPIO) < 0 ||
+      bk7258_t5_board_sdio_configure_pin(
+        (gpio_id_t)BK7258_BOARD_SDIO_D0_GPIO) < 0)
+    {
+      return -EIO;
+    }
 
   if (widebus)
     {
-      (void)bk_gpio_pull_up((gpio_id_t)BK7258_BOARD_SDIO_D1_GPIO);
-      (void)bk_gpio_pull_up((gpio_id_t)BK7258_BOARD_SDIO_D2_GPIO);
-      (void)bk_gpio_pull_up((gpio_id_t)BK7258_BOARD_SDIO_D3_GPIO);
-      (void)bk_gpio_set_capacity((gpio_id_t)BK7258_BOARD_SDIO_D1_GPIO,
-                                 GPIO_DRIVER_CAPACITY_3);
-      (void)bk_gpio_set_capacity((gpio_id_t)BK7258_BOARD_SDIO_D2_GPIO,
-                                 GPIO_DRIVER_CAPACITY_3);
-      (void)bk_gpio_set_capacity((gpio_id_t)BK7258_BOARD_SDIO_D3_GPIO,
-                                 GPIO_DRIVER_CAPACITY_3);
+      if (bk7258_t5_board_sdio_configure_pin(
+            (gpio_id_t)BK7258_BOARD_SDIO_D1_GPIO) < 0 ||
+          bk7258_t5_board_sdio_configure_pin(
+            (gpio_id_t)BK7258_BOARD_SDIO_D2_GPIO) < 0 ||
+          bk7258_t5_board_sdio_configure_pin(
+            (gpio_id_t)BK7258_BOARD_SDIO_D3_GPIO) < 0)
+        {
+          return -EIO;
+        }
     }
 
   /* Only configure a card-detect GPIO when the physical board has a

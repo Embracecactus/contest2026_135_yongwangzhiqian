@@ -30,6 +30,7 @@ convention without removing the need for a profile name.
 | `BK7258_PROFILE_BOOT` | `raw` or `mcuboot` |
 | `BK7258_PROFILE_CLASS` | `runnable`, bounded `validation`, `ci`, or BL2 `infrastructure` |
 | `BK7258_PROFILE_COMPAT` | Exact CP/AP pairing group; both roles must match |
+| `BK7258_PROFILE_SDK_BUNDLE` | Optional role-specific SDK bundle; omitted profiles use `v3.1.1.9` |
 
 The dual-image builder rejects cross-board, cross-boot and incompatible
 CP/AP combinations before compiling.  CI-only profiles additionally require
@@ -77,12 +78,18 @@ verified insertion edge on the tested T5-Board, so both are fixed-media
 profiles with `MMCSD_HAVE_CARDDETECT=n`: insert the card before reset and keep
 it inserted for both validation cycles.
 
-The checked-in v3.1.1.9 AP SDK bundle was compiled without its private
-`CONFIG_SDCARD_BUSWIDTH_4LINE` option.  Its data-setup helper therefore forces
-the controller back to one bit even when NuttX selects four-bit mode.  The
-four-bit profile currently records the board and S1 contract but fails closed
-in `build_dual_image.sh`; it is not a runnable image until a separately
-versioned four-bit-capable SDK bundle is integrated.
+Do not switch S1-1/S1-2 ON while the four-bit image is actively using SDIO.
+For a later COM3 download, first reset into the existing BL2 hold, then switch
+S1-1/S1-2 ON and download.  After the loader returns to BL2 hold, switch both
+OFF again before releasing the hold through P0/P1 SWD.
+
+The default v3.1.1.9 AP SDK bundle was compiled without its private
+`CONFIG_SDCARD_BUSWIDTH_4LINE` option and remains the one-bit implementation.
+The four-bit profile binds `v3.1.1.9-sdio4`; its data helper is fixed at four
+lines, so the lower half reports `SDIO_CAPS_4BIT_ONLY` and NuttX sends ACMD6
+before the first data transfer (SCR).  The build rejects either bundle when
+paired with the opposite profile instead of silently running at the wrong
+width.
 
 Stage reports and evidence records may still name retired `cp_nsh_*` or
 `ap_smp_*` snapshots because those names identify the exact historical image
