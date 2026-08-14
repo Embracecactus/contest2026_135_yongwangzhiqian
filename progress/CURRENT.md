@@ -5,82 +5,89 @@ Updated by: Codex
 
 ## Current task
 
-Complete genuine four-bit TF/SDIO operation on T5-Board from branch
-`feat/bk7258-t5-board-tf-4bit`, based on merged upstream commit `7ede5ef`.
+Publish the completed BK7258 T5-Board AP Audio DAC stage from branch
+`feat/bk7258-audio-dac`, based on merged upstream commit `a8cc60b`, for the
+owner to review and merge through the GitHub Web UI.
 
-## Verified starting point
+## Verified baseline
 
-- The one-bit fixed-media profile completed two real-board FAT cycles and is
-  the retained regression baseline.
-- The existing four-bit NuttX profile, pin mux, ACMD6/widebus path and S1 route
-  assertions are present but deliberately fail closed.
-- The current AP SDK bundle was built without
-  `CONFIG_SDCARD_BUSWIDTH_4LINE`; its private data-setup helpers overwrite the
-  runtime width back to one bit.
-- Four-bit runtime conflicts with the COM3 UART0 data route on P10/P11, not
-  with P0/P1 SWD/RTT.  S1-1/S1-2 must be OFF while SDIO is running.
+- Upstream `dev-ai-contest-2026` contains the completed T5-Board TF four-bit
+  stage as squash commit `a8cc60b`; its tree is identical to published commit
+  `f3ad658f`.
+- The T5-Board Audio DAC stage is now physically verified with signed MCUboot
+  pair `18.6.76`, security counter `130`:
+  - [Audio DAC and fixed-32 kHz verification](verification/2026-08-15-bk7258-audio-dac.md)
+  - [T5-Board TF/SDIO verification](verification/2026-08-14-bk7258-t5-board-tf.md)
+  - [Pre-flash trust-chain verification](verification/2026-08-14-bk7258-preflash-trust-chain.md)
+- The block-diagram audit distinguishes a registered and validated NuttX
+  device from an SDK symbol, an internal helper, or a controller without a
+  board binding.  A peripheral not fitted on T5-Board may still be
+  implemented, but hardware claims require a meaningful physical endpoint.
 
-Canonical starting evidence:
+## Completed in this stage
 
-- [T5-Board TF/SDIO verification](verification/2026-08-14-bk7258-t5-board-tf.md)
-- [Pre-flash trust-chain verification](verification/2026-08-14-bk7258-preflash-trust-chain.md)
+- `CONFIG_BK7258_AUD` is a DAC-only NuttX playback lower half at
+  `/dev/audio/pcm0p`.  It uses the pinned v3.1.1.9 repeat-GDMA/ring-buffer ABI,
+  accepts primed APBs before `START`, returns every accepted APB, and performs
+  ordered mute/DMA/DAC/PA teardown.
+- The selected board owns the speaker electrical binding.  T5-Board uses P28
+  (`SPK_CTL`) and T5AI-Core uses P39 (`MUTE_N`); both are active-high with
+  board-owned PA delays.  The shared chip wrapper contains no board pin.
+- The first published contract is deliberately fixed to mono PCM S16,
+  16 kHz, 320 samples per 20 ms DMA frame and eight explicit APBs.  The
+  validator executes one explicit `STOP` session and one naturally drained
+  `FINAL` session through the public NuttX audio ABI.
+- Runtime priority is bounded as producer 246 > audio refill worker 245 >
+  board-default transport 225.  The Audio session owns a 480 MHz SDK-tier PM
+  vote from `RESERVE` through successful `RELEASE`.
+- CP physical CPU0 and AP-primary physical CPU1 use an external fixed 32 kHz
+  scheduler SysTick.  For timer accounting, DVFS refreshes their role-local
+  DWT conversion while the scheduler source remains fixed.  The dedicated
+  non-RTT CP profile also executed one coordinated standby and restored the CP
+  periodic timer through the hard-IRQ arch-timer compensation proxy.
+- The final Audio v5 diagnostic passed twice without mutation: 63 enqueues and
+  63 dequeues, two completes, two symmetric DMA/DAC/PA lifecycles, zero
+  underruns, zero residual resources, zero tick/CLOCK_MONOTONIC regressions,
+  and two AP-primary `120 -> 480 -> 120 MHz` cycles.
+- CP one-shot PM evidence is stable: one entry, one wake, 14,406 us sleep,
+  one compensated whole tick, final reason `ENTERED`, and no active AP or SDK
+  votes.  AP, CPU2 and RPTUN heartbeats continued after restore.
 
-## Active work
+## Exact next action
 
-Completed in the current worktree:
+Open a Web PR from `feat/bk7258-audio-dac` to `dev-ai-contest-2026`, review and
+merge it.  After the merge is confirmed, start the next bounded block-diagram
+driver stage without carrying forward generated bootloader, legacy SDK-tree or
+hardware-log artifacts.
 
-1. Built the AP-only `v3.1.1.9-sdio4` bundle from an unmodified official SDK
-   source copy; its independent 707-entry manifest and provenance pass.
-2. Bound the four-bit profile to that exact AP bundle while CP and all one-bit
-   profiles retain `v3.1.1.9`; config, compile and link-map gates are active.
-3. The first signed `18.6.63`, security-counter `117` image was downloaded
-   apps-only, but S1-1/S1-2 remained ON during its run.  Its diagnostic proved
-   the controller switched to four bits while FAT/GPT probing failed.
-4. Non-halting register evidence isolated the failure: P2-P5 were SDIO mode 1,
-   while P10/P11 remained UART0 mode 0 even though pull/drive configuration
-   was correct.  The SDK's default GPIO table owns P10/P11 as UART0 and its
-   grouped SDIO mapper silently drops per-pin busy errors.
-5. The T5-Board wrapper now follows the official/Tuya ownership sequence:
-   release the default-mapped profile pins before group selection.  P10/P11
-   can therefore become SDIO D2/D3; one-bit profiles retain their UART route.
-6. The corrected image has been rebuilt with the same version, counter and
-   external trust roots.  One-/four-bit profile gates, both SDK manifests,
-   Factory/RPTUN layout and role-specific link-map checks pass.  New apps-only
-   segment hashes are CP `3326fb9919b14b0fda74558acee7df3a50377e64e1ef03c290defcb326c718da`
-   and AP `c30fdcb9dad397b26d44c88d0ec4186ea06426143f90e5dbf09debe07210855e`;
-   the public trust contract remains unchanged.
-7. The corrected apps-only image was downloaded through COM3 after the
-   non-halting trust preflight.  The loader reported both explicit success
-   markers and the board stopped at the existing BL2 hold.
-8. With S1-1/S1-2 both OFF, the image completed genuine four-bit validation:
-   P10/P11 were SDIO mode 1, requested/active width was four, the transition
-   count was one with zero failures, GPT exposed seven partitions, and two FAT
-   cycles validated 8192 bytes with checksum `0x17c60dc5`.
-9. Post-board release hardening made SDK provenance mandatory and bound it to
-   the selected role, manifest, final archive and four-bit overlays; SDK import
-   now uses the shared build lock plus a three-part rollback transaction, and
-   interrupted AP one-/four-bit build trees can be recovered.  Three positive
-   bundle checks, 12 isolated negative provenance cases and a complete signed
-   dual-image rebuild passed.  These host-only changes were not downloaded and
-   did not alter the runtime source that produced item 8.
+## Remaining boundaries
 
-Next action: the owner opens a web PR from
-`Embracecactus:feat/bk7258-t5-board-tf-4bit` to
-`open-vela:dev-ai-contest-2026`; implementation and verification are complete.
-
-## Blockers
-
-- None for the four-bit TF stage.  Leave S1-1/S1-2 OFF while this image is
-  running; reconnect them only for a later COM3 download while BL2 is held.
+- T5-Board routes the class-D output to connector P6 but has no fitted
+  loudspeaker.  DMA/DAC/PA/lifecycle correctness is automatic PASS; audible
+  output still requires an external speaker or instrument on P6.
+- The hardware result covers only mono S16/16 kHz/320-sample frames/eight
+  explicit APBs, two lifecycle cycles and one CP standby.  It is not evidence
+  for shorter frames, compressed/file-backed feeders, Wi-Fi/BT load, long
+  soak, shared/mmap audio buffers or full duplex.
+- Fixed 32 kHz removes the observed Audio-DVFS SysTick regression.  The
+  bounded v5 probes sample transition points; they do not prove that every
+  possible `CLOCK_MONOTONIC` read on every AP SMP core is globally monotonic.
+- AP coordinated standby still lacks AON elapsed-time compensation.  This
+  stage verifies CP one-shot compensation and post-wake AP liveness, not
+  complete CP/AP standby time continuity.
+- Microphone and speaker validation profiles remain mutually exclusive.
+  Shared full-duplex AUD clock ownership is a later phase.
 
 ## Fixed constraints
 
 - Do not modify official NuttX/apps or Beken SDK source trees.
-- Preserve the validated one-bit SDK/profile behavior and unrelated untracked
-  artifacts.
-- Never open COM4.
-- Do not rotate trust roots or write boot-chain, OTP/eFuse, lifecycle or data
-  regions without explicit owner authority.
-- Keep P0/P1 SWD available for the mandatory trust preflight, BL2 hold release
-  and non-halting result read; closing SWD does not free any TF pin.
+- Preserve validated MIC, TF one-/four-bit and unrelated profile behavior.
+- Preserve unrelated untracked artifacts; do not inspect N17 or another
+  historical trust domain.
+- Never open COM4.  Operate COM3 and J-Link directly when required.
+- Normal firmware downloads must use the non-halting trust preflight and
+  apps-only write set.  Do not write BL1/BL2, manifests, secondary slot,
+  OTP/eFuse, lifecycle, calibration or data regions without explicit authority.
+- Keep board wiring and PA polarity in the selected-board binding; keep DAC,
+  DMA and NuttX audio mechanics in the shared chip wrapper.
 - GPT-5.6-Luna delegation remains disabled.

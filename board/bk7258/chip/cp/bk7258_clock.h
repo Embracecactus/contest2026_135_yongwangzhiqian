@@ -16,10 +16,10 @@
  * final power policy.  Runtime clients and a later NuttX PM governor use the
  * same bk7258_dvfs_set_freq() path to change SDK operating points safely.
  *
- * Called early in __start(), before nx_start(), so bk7258_clockdiag_current
- * _cpu_hz() observes M1 low bits = 0x20 (csrc=2, cdiv=0) and up_timer_
- * initialize() arms the correct SysTick reload.  The selected UART runs off
- * an independent clocking path and survives the core mux switch.
+ * Called early in __start(), before nx_start(), so the initial DWT conversion
+ * observes M1 low bits = 0x20 (csrc=2, cdiv=0).  Scheduler SysTick stays on
+ * its fixed 32-kHz source.  The selected UART runs off an independent
+ * clocking path and survives the core mux switch.
  ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_BK7258_CHIP_BK7258_CLOCK_H
@@ -42,8 +42,8 @@
  *   Bring the CPU0 core clock up to 320 MHz deterministically.  Ensures the
  *   DPLL is enabled (running the SDK SPI recalibration), raises VDDDIG/VDDD
  *   to the voltage the SDK guard requires for 320M, then switches the core
- *   source/divider.  No effect on SysTick here; the caller's runtime
- *   detection arms the reload for the new frequency.
+ *   source/divider.  The caller refreshes DWT conversion for the new CPU
+ *   frequency; scheduler SysTick remains fixed at 32 kHz.
  *
  * Returned Value:
  *   None.  A failed or stalled recalibration is recoverable by re-flash; this

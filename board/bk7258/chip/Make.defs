@@ -339,6 +339,24 @@ endif
 
 ifeq ($(CONFIG_BK7258_AUD),y)
 BK7258_AP_BASE_CSRCS += bk7258_aud.c
+ifeq ($(CONFIG_BK7258_BOARD_T5_BOARD),y)
+VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
+BK7258_AP_BASE_CSRCS += bk7258_t5_board_audio.c
+
+bk7258_t5_board_audio.ddc: bk7258_t5_board_audio.c
+	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
+		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
+else
+VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5ai_core$(DELIM)src
+BK7258_AP_BASE_CSRCS += bk7258_t5ai_core_audio.c
+
+bk7258_t5ai_core_audio.ddc: bk7258_t5ai_core_audio.c
+	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
+		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
+endif
+endif
+ifeq ($(CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION),y)
+BK7258_AP_BASE_CSRCS += bk7258_aud_validation.c
 endif
 ifeq ($(CONFIG_BK7258_GPIOE),y)
 BK7258_AP_BASE_CSRCS += bk7258_gpioe.c
@@ -390,7 +408,7 @@ bk7258_t5_board_rgb_lcd_backlight.ddc: bk7258_t5_board_rgb_lcd_backlight.c
 	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
 		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
 endif
-ifneq ($(filter y,$(CONFIG_BK7258_DVP) $(CONFIG_BK7258_JPEG_ENCODER) $(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_MIC)),)
+ifneq ($(filter y,$(CONFIG_BK7258_AUD) $(CONFIG_BK7258_DVP) $(CONFIG_BK7258_JPEG_ENCODER) $(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_MIC)),)
 BK7258_AP_BASE_CSRCS += bk7258_media_root.c
 endif
 ifeq ($(CONFIG_BK7258_DVP),y)
@@ -502,7 +520,7 @@ BK7258_AP_BASE_CSRCS += bk7258_pm_client.c
 ifeq ($(CONFIG_BK7258_AP_CORE),y)
 LDFLAGS += --wrap=bk_pm_clock_ctrl
 LDFLAGS += --wrap=bk_pm_module_vote_cpu_freq
-ifneq ($(filter y,$(CONFIG_BK7258_MIC) $(CONFIG_BK7258_DMA2D) $(CONFIG_BK7258_SCALE_ROTATE) $(CONFIG_BK7258_JPEG_DECODER) $(CONFIG_BK7258_JPEG_ENCODER) $(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_DVP)),)
+ifneq ($(filter y,$(CONFIG_BK7258_AUD) $(CONFIG_BK7258_MIC) $(CONFIG_BK7258_DMA2D) $(CONFIG_BK7258_SCALE_ROTATE) $(CONFIG_BK7258_JPEG_DECODER) $(CONFIG_BK7258_JPEG_ENCODER) $(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_DVP)),)
 LDFLAGS += --wrap=bk_pm_module_vote_power_ctrl
 endif
 

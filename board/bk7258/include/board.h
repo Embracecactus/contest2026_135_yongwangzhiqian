@@ -15,6 +15,9 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+
+#include <stdbool.h>
+
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_console.h>
 #include <bk7258_board_config.h>
@@ -58,14 +61,14 @@
 #  define BOARD_CONSOLE_BAUD      BK7258_CONSOLE_BAUD
 #endif
 
-/* CPU/system clock frequency in Hz.  The Tier-1 bootloader does NOT enable
- * the DPLL, so the app core runs at the BootROM default = the 26 MHz XTAL
- * (confirmed via armino sdkconfig.h CONFIG_XTAL_FREQ=26000000).
- * SysTick is clocked at the processor clock (CLKSOURCE=1, no /8 divisor).
+/* Cold-reset CPU-clock fallback in Hz.  Runtime code reads the live mux and
+ * divider because BL1 and CP-owned DVFS can leave the cores at a higher
+ * operating point.  Scheduler SysTick instead uses the independently routed
+ * fixed 32-kHz source and does not derive its reload from this macro.
  *
  * NOTE: NuttX has no CONFIG_CPU_FREQ_HZ Kconfig symbol; chips expose the
  * clock as a header macro (cf. mps MPS_SYSTICK_CLOCK).  Board-side
- * calibration TODO: update here if a future BSP enables the DPLL.
+ * calibration TODO: keep this fallback aligned with the XTAL baseline.
  */
 
 #define BOARD_CPU_FREQ_HZ    26000000u
@@ -108,6 +111,12 @@ int bk7258_t5_board_rgb_lcd_backlight_validation_initialize(void);
 
 #ifdef CONFIG_BK7258_T5_BOARD_TF_VALIDATION
 int bk7258_t5_board_tf_validation_initialize(void);
+#endif
+
+#ifdef CONFIG_BK7258_AUD
+int bk7258_board_speaker_initialize(void);
+int bk7258_board_speaker_set(bool enable);
+bool bk7258_board_speaker_is_enabled(void);
 #endif
 
 #ifdef CONFIG_BK7258_AP_CORE

@@ -38,6 +38,9 @@
 #define BK7258_BOARD_USER_BUTTON_GPIO            12
 #define BK7258_BOARD_USER_BUTTON_ACTIVE_LOW      1
 #define BK7258_BOARD_SPEAKER_CONTROL_GPIO        28
+#define BK7258_BOARD_SPEAKER_ACTIVE_HIGH          1
+#define BK7258_BOARD_SPEAKER_ON_DELAY_MS         10u
+#define BK7258_BOARD_SPEAKER_OFF_DELAY_MS        30u
 
 /* T35P128CQ-02 RGB LCD sub-board wiring.  The serial control signals and
  * backlight enable are source-verified against T5-Board V1.0.2 and

@@ -23,8 +23,9 @@
  * CP's bk7258_pm_policy.c integrates it with the stock NuttX PM lifecycle
  * and adds the v3.1.1.9-compatible multi-client max-vote policy.
  *
- * SysTick reload is recomputed after every switch via bk7258_systick_recalc()
- * (chip/common/bk7258_timerisr.c) because SysTick is clocked at the processor clock.
+ * Scheduler SysTick uses BK7258's fixed 32-kHz route and is independent of
+ * the processor mux.  bk7258_systick_recalc() refreshes only the DWT
+ * cycle-to-time conversion after a switch.
  *
  * Tier table (from sys_hal.c:548-686 case comments; fields = cksel_core,
  * clkdiv_core, cpu0_speed, VDDD vdighsel, VDDDIG vcorehsel):
@@ -56,6 +57,8 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+
+#include <stdint.h>
 
 #ifdef __cplusplus
 #define EXTERN extern "C"
@@ -101,12 +104,11 @@ extern "C"
  *   SDK sys_drv_switch_cpu_bus_freq: ascend or descend one tier at a time
  *   calling the low_to_high / high_to_low step handler, so VDDD/VDDIG move
  *   monotonically.  The whole sequence runs with interrupts disabled (the
- *   M1 write, voltage writes and the trailing SysTick reload are atomic wrt
- *   ISRs).
+ *   M1 and voltage writes are atomic wrt ISRs).
  *
- *   After each per-tier switch the SysTick reload is recomputed via
- *   bk7258_systick_recalc().  Callers that want a single sysfreq change see
- *   one external side effect: the final reload.
+ *   After each per-tier switch bk7258_systick_recalc() refreshes the DWT
+ *   frequency used by performance diagnostics.  The fixed scheduler clock
+ *   is deliberately not restarted or rephased.
  *
  * Input Parameters:
  *   tier  - one of BK7258_FREQ_* (26M..480M).  Out-of-range values are
@@ -132,12 +134,27 @@ int bk7258_dvfs_procfs_register(void);
 #  define bk7258_dvfs_procfs_register()  (0)
 #endif
 
-/* Recompute and write the local SysTick one-tick reload for the live core
- * clock.  This is also required when CP applies an AP SDK frequency vote;
- * that path is independent of CONFIG_BK7258_DVFS.
+/* Refresh local CPU-clocked performance time after a frequency switch.
+ * SysTick itself remains on the fixed 32-kHz source.  This is also required
+ * when CP applies an AP SDK frequency vote; that path is independent of
+ * CONFIG_BK7258_DVFS.
  */
 
 void bk7258_systick_recalc(void);
+
+/* Capture the architecture timer's current fractional phase immediately
+ * before the immutable CP low-voltage leaf takes SysTick ownership.  After
+ * wake, restore the fixed route and advance the saved NuttX arch-timer
+ * callback by the elapsed whole ticks while carrying the residual phase in
+ * a shortened first hardware interval.  The return value is the number of
+ * whole scheduler ticks queued for the pending hard-IRQ SysTick trampoline.
+ */
+
+#ifdef CONFIG_TIMER_ARCH
+int bk7258_systick_prepare_sleep(void);
+uint32_t bk7258_systick_restore_after_sleep(uint64_t elapsed_us,
+                                            uint32_t max_ticks);
+#endif
 
 #undef EXTERN
 #ifdef __cplusplus
