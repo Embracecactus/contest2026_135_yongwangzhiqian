@@ -117,6 +117,26 @@ Last reviewed: 2026-08-14
 
 ## Engineering conventions
 
+- Before the first source, build or hardware action after a resumed session,
+  read `memory/INDEX.md`, then `progress/CURRENT.md`, then only the active
+  verification record linked there.  Historical N15/N17 records must not be
+  used to fill a current-context gap.  If Git or an owner-reported merge makes
+  `CURRENT.md` stale, reconcile that snapshot before exploring an unrelated
+  historical phase.
+- Trust identity is established by the current phase's reviewed public
+  fingerprints, never by a filename.  A missing temporary filename must not
+  be converted directly into an owner blocker: first trace the agent-created
+  artifact's current-project provenance and compare only explicitly approved
+  same-domain candidates by public fingerprint.  Never inspect an unrelated
+  trust domain, generate a replacement or rotate roots as a fallback.  A
+  public contract or signed artifact proves identity but cannot sign a new
+  image.
+- The merged public-contract/J-Link preflight is the only normal BK7258
+  download trust gate.  Do not add a parallel key resolver or infer trust from
+  a path: the build binds public fingerprints to actual BL1/BL2 ELF and image
+  bytes, and every MCUboot download must match those identities on the target
+  before `bk_loader`.  Repository memory may record public fingerprints and
+  verification conclusions, but not private material or private-key paths.
 - Hardware-facing changes must be validated on the real board as soon as a
   recoverable test image is available.  Do not grow one-off verification
   scripts or a parallel validation framework merely to avoid direct board
