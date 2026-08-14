@@ -560,8 +560,10 @@ config BK7258_TEMPERATURE_FIXED_REFERENCE_RAW
 	---help---
 		Set this only for a specific calibrated device or a bounded laboratory
 		image.  Zero leaves Celsius conversion disabled until an application
-		loads that chip's factory 25 C raw code with the runtime API.  This is
-		per-device calibration and must not be treated as a board-wide nominal.
+		loads that chip's factory 25 C raw code with the runtime API.  A nonzero
+		value must be in the SDK-valid 11..1364 interval; the runtime rejects the
+		Kconfig-only 1..10 gap.  This is per-device calibration and must not be
+		treated as a board-wide nominal.
 
 config BK7258_TEMPERATURE_POLL_INTERVAL_MS
 	int "Thermal-zone polling interval (milliseconds)"

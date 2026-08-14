@@ -21,10 +21,12 @@
 #include <string.h>
 
 #include <nuttx/clock.h>
+#include <nuttx/irq.h>
 #include <nuttx/mutex.h>
 #include <nuttx/rpmsg/rpmsg.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/signal.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/thermal.h>
 
 #include <arch/chip/bk7258_rptun.h>
@@ -53,8 +55,11 @@
 struct bk7258_temperature_client_s
 {
   struct rpmsg_endpoint ept;
+  mutex_t init_lock;
+  mutex_t endpoint_lock;
   mutex_t lock;
   mutex_t zone_lock;
+  spinlock_t reply_lock;
   sem_t reply_sem;
   volatile bool initialized;
   volatile bool endpoint_created;
@@ -74,8 +79,11 @@ struct bk7258_temperature_client_s
 
 static struct bk7258_temperature_client_s g_bk7258_temperature_client =
 {
+  .init_lock = NXMUTEX_INITIALIZER,
+  .endpoint_lock = NXMUTEX_INITIALIZER,
   .lock = NXMUTEX_INITIALIZER,
   .zone_lock = NXMUTEX_INITIALIZER,
+  .reply_lock = SP_UNLOCKED,
 };
 
 static const struct thermal_zone_params_s g_bk7258_temperature_params =
@@ -101,11 +109,22 @@ static bool bk7258_temperature_endpoint_ready(void)
     &g_bk7258_temperature_client;
   volatile struct bk7258_rptun_control_s *control =
     bk7258_rptun_control();
+  bool ready = false;
+  int ret;
 
-  return __atomic_load_n(&priv->endpoint_created, __ATOMIC_ACQUIRE) &&
-         control->generation != 0 &&
-         control->state == BK7258_RPTUN_STATE_CONNECTED &&
-         is_rpmsg_ept_ready(&priv->ept);
+  ret = nxmutex_lock(&priv->endpoint_lock);
+  if (ret >= 0)
+    {
+      __asm volatile ("dmb sy" ::: "memory");
+      ready = __atomic_load_n(&priv->endpoint_created,
+                              __ATOMIC_ACQUIRE) &&
+              control->generation != 0 &&
+              control->state == BK7258_RPTUN_STATE_CONNECTED &&
+              is_rpmsg_ept_ready(&priv->ept);
+      nxmutex_unlock(&priv->endpoint_lock);
+    }
+
+  return ready;
 }
 
 static void bk7258_temperature_flush_sem(sem_t *sem)
@@ -120,6 +139,7 @@ static int bk7258_temperature_wait_endpoint(
 {
   clock_t start = clock_systime_ticks();
   clock_t limit = MSEC2TICK(BK7258_TEMPERATURE_ENDPOINT_WAIT_MS);
+  int ret;
 
   do
     {
@@ -132,25 +152,43 @@ static int bk7258_temperature_wait_endpoint(
     }
   while ((clock_t)(clock_systime_ticks() - start) < limit);
 
-  return priv->connection_error < 0 ? priv->connection_error : -ETIMEDOUT;
+  ret = __atomic_load_n(&priv->connection_error, __ATOMIC_ACQUIRE);
+
+  return ret < 0 ? ret : -ETIMEDOUT;
 }
 
 static int bk7258_temperature_send_bounded(
   struct bk7258_temperature_client_s *priv,
   const struct bk7258_temperature_wire_s *request)
 {
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
   clock_t start = clock_systime_ticks();
   clock_t limit = MSEC2TICK(BK7258_TEMPERATURE_SEND_TIMEOUT_MS);
   int ret = -ENOTCONN;
 
   do
     {
-      if (!bk7258_temperature_endpoint_ready())
+      ret = nxmutex_lock(&priv->endpoint_lock);
+      if (ret < 0)
         {
-          return -ENOTCONN;
+          return ret;
         }
 
-      ret = rpmsg_trysend(&priv->ept, request, sizeof(*request));
+      __asm volatile ("dmb sy" ::: "memory");
+      if (!__atomic_load_n(&priv->endpoint_created, __ATOMIC_ACQUIRE) ||
+          control->generation != request->generation ||
+          control->state != BK7258_RPTUN_STATE_CONNECTED ||
+          !is_rpmsg_ept_ready(&priv->ept))
+        {
+          ret = -ENOTCONN;
+        }
+      else
+        {
+          ret = rpmsg_trysend(&priv->ept, request, sizeof(*request));
+        }
+
+      nxmutex_unlock(&priv->endpoint_lock);
       if (ret >= 0)
         {
           return OK;
@@ -168,17 +206,73 @@ static int bk7258_temperature_send_bounded(
   return -ETIMEDOUT;
 }
 
+static int bk7258_temperature_wait_reply(
+  struct bk7258_temperature_client_s *priv,
+  const struct bk7258_temperature_wire_s *request,
+  struct bk7258_temperature_wire_s *reply)
+{
+  clock_t start = clock_systime_ticks();
+  clock_t limit = MSEC2TICK(BK7258_TEMPERATURE_REPLY_TIMEOUT_MS);
+
+  for (; ; )
+    {
+      irqstate_t irqstate;
+      clock_t elapsed;
+      bool valid;
+      int ret;
+
+      irqstate = spin_lock_irqsave(&priv->reply_lock);
+      valid = priv->reply_valid &&
+              priv->reply.generation == request->generation &&
+              priv->reply.sequence == request->sequence;
+      if (valid)
+        {
+          memcpy(reply, &priv->reply, sizeof(*reply));
+          priv->reply_valid = false;
+        }
+
+      spin_unlock_irqrestore(&priv->reply_lock, irqstate);
+      if (valid)
+        {
+          return OK;
+        }
+
+      ret = __atomic_load_n(&priv->connection_error, __ATOMIC_ACQUIRE);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      elapsed = clock_systime_ticks() - start;
+      if (elapsed >= limit)
+        {
+          return -ETIMEDOUT;
+        }
+
+      ret = nxsem_tickwait_uninterruptible(&priv->reply_sem,
+                                           limit - elapsed);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+}
+
 static int bk7258_temperature_exchange(
   struct bk7258_temperature_client_s *priv,
-  const struct bk7258_temperature_wire_s *request)
+  const struct bk7258_temperature_wire_s *request,
+  struct bk7258_temperature_wire_s *reply)
 {
+  irqstate_t irqstate;
   unsigned int attempt;
   int ret = -ETIMEDOUT;
 
+  bk7258_temperature_flush_sem(&priv->reply_sem);
+  irqstate = spin_lock_irqsave(&priv->reply_lock);
   priv->waiting_generation = request->generation;
   priv->waiting_sequence = request->sequence;
-  __atomic_store_n(&priv->reply_valid, false, __ATOMIC_RELEASE);
-  bk7258_temperature_flush_sem(&priv->reply_sem);
+  priv->reply_valid = false;
+  spin_unlock_irqrestore(&priv->reply_lock, irqstate);
 
   for (attempt = 0;
        attempt < BK7258_TEMPERATURE_REQUEST_ATTEMPTS;
@@ -187,31 +281,36 @@ static int bk7258_temperature_exchange(
       ret = bk7258_temperature_send_bounded(priv, request);
       if (ret < 0)
         {
-          return ret;
+          break;
         }
 
-      ret = nxsem_tickwait_uninterruptible(
-              &priv->reply_sem,
-              MSEC2TICK(BK7258_TEMPERATURE_REPLY_TIMEOUT_MS));
-      __asm volatile ("dmb sy" ::: "memory");
-      if (__atomic_load_n(&priv->reply_valid, __ATOMIC_ACQUIRE))
+      ret = bk7258_temperature_wait_reply(priv, request, reply);
+      if (ret >= 0)
         {
-          if (priv->reply.status != -EBUSY)
+          if (reply->status != -EBUSY)
             {
-              return OK;
+              ret = OK;
+              break;
             }
 
-          __atomic_store_n(&priv->reply_valid, false, __ATOMIC_RELEASE);
+          ret = -EBUSY;
           bk7258_temperature_flush_sem(&priv->reply_sem);
-          nxsig_usleep(BK7258_TEMPERATURE_BUSY_RETRY_US);
+          if (attempt + 1u < BK7258_TEMPERATURE_REQUEST_ATTEMPTS)
+            {
+              nxsig_usleep(BK7258_TEMPERATURE_BUSY_RETRY_US);
+            }
         }
-
-      if (priv->connection_error < 0)
+      else if (ret != -ETIMEDOUT)
         {
-          return priv->connection_error;
+          break;
         }
     }
 
+  irqstate = spin_lock_irqsave(&priv->reply_lock);
+  priv->waiting_generation = 0;
+  priv->waiting_sequence = 0;
+  priv->reply_valid = false;
+  spin_unlock_irqrestore(&priv->reply_lock, irqstate);
   return ret;
 }
 
@@ -221,6 +320,8 @@ static int bk7258_temperature_client_cb(FAR struct rpmsg_endpoint *ept,
 {
   struct bk7258_temperature_client_s *priv = priv_;
   const struct bk7258_temperature_wire_s *reply = data;
+  irqstate_t irqstate;
+  bool matched;
 
   (void)ept;
   (void)src;
@@ -228,16 +329,27 @@ static int bk7258_temperature_client_cb(FAR struct rpmsg_endpoint *ept,
   if (reply == NULL || len != sizeof(*reply) ||
       reply->magic != BK7258_TEMPERATURE_MAGIC ||
       reply->version != BK7258_TEMPERATURE_VERSION ||
-      reply->command != BK7258_TEMPERATURE_COMMAND_RESPONSE ||
-      reply->generation != priv->waiting_generation ||
-      reply->sequence != priv->waiting_sequence)
+      reply->command != BK7258_TEMPERATURE_COMMAND_RESPONSE)
     {
       return -ENOMSG;
     }
 
-  memcpy(&priv->reply, reply, sizeof(priv->reply));
-  __asm volatile ("dmb sy" ::: "memory");
-  __atomic_store_n(&priv->reply_valid, true, __ATOMIC_RELEASE);
+  irqstate = spin_lock_irqsave(&priv->reply_lock);
+  matched = priv->waiting_generation != 0 &&
+            reply->generation == priv->waiting_generation &&
+            reply->sequence == priv->waiting_sequence;
+  if (matched)
+    {
+      memcpy(&priv->reply, reply, sizeof(priv->reply));
+      priv->reply_valid = true;
+    }
+
+  spin_unlock_irqrestore(&priv->reply_lock, irqstate);
+  if (!matched)
+    {
+      return -ENOMSG;
+    }
+
   return nxsem_post(&priv->reply_sem);
 }
 
@@ -253,16 +365,31 @@ static void bk7258_temperature_device_created(FAR struct rpmsg_device *rdev,
       return;
     }
 
+  ret = nxmutex_lock(&priv->endpoint_lock);
+  if (ret < 0)
+    {
+      __atomic_store_n(&priv->connection_error, ret, __ATOMIC_RELEASE);
+      return;
+    }
+
+  if (__atomic_load_n(&priv->endpoint_created, __ATOMIC_ACQUIRE))
+    {
+      nxmutex_unlock(&priv->endpoint_lock);
+      return;
+    }
+
   priv->ept.priv = priv;
   ret = rpmsg_create_ept(&priv->ept, rdev,
                          BK7258_TEMPERATURE_EPT_NAME,
                          RPMSG_ADDR_ANY, RPMSG_ADDR_ANY,
                          bk7258_temperature_client_cb, NULL);
-  priv->connection_error = ret;
+  __atomic_store_n(&priv->connection_error, ret, __ATOMIC_RELEASE);
   if (ret >= 0)
     {
       __atomic_store_n(&priv->endpoint_created, true, __ATOMIC_RELEASE);
     }
+
+  nxmutex_unlock(&priv->endpoint_lock);
 }
 
 static void bk7258_temperature_device_destroy(FAR struct rpmsg_device *rdev,
@@ -270,6 +397,8 @@ static void bk7258_temperature_device_destroy(FAR struct rpmsg_device *rdev,
 {
   struct bk7258_temperature_client_s *priv = priv_;
   FAR const char *cpuname = rpmsg_get_cpuname(rdev);
+  irqstate_t irqstate;
+  int ret;
 
   if (cpuname == NULL || strcmp(cpuname, "cp") != 0)
     {
@@ -277,13 +406,22 @@ static void bk7258_temperature_device_destroy(FAR struct rpmsg_device *rdev,
     }
 
   __atomic_store_n(&priv->endpoint_created, false, __ATOMIC_RELEASE);
-  priv->connection_error = -ENOTCONN;
-  __atomic_store_n(&priv->reply_valid, false, __ATOMIC_RELEASE);
-  (void)nxsem_post(&priv->reply_sem);
-  if (priv->ept.rdev != NULL)
+  __atomic_store_n(&priv->connection_error, -ENOTCONN, __ATOMIC_RELEASE);
+  ret = nxmutex_lock(&priv->endpoint_lock);
+  if (ret >= 0)
     {
-      rpmsg_destroy_ept(&priv->ept);
+      if (priv->ept.rdev != NULL)
+        {
+          rpmsg_destroy_ept(&priv->ept);
+        }
+
+      nxmutex_unlock(&priv->endpoint_lock);
     }
+
+  irqstate = spin_lock_irqsave(&priv->reply_lock);
+  priv->reply_valid = false;
+  spin_unlock_irqrestore(&priv->reply_lock, irqstate);
+  (void)nxsem_post(&priv->reply_sem);
 }
 
 static int bk7258_temperature_get_temp(
@@ -349,6 +487,7 @@ int bk7258_temperature_read(
   volatile struct bk7258_rptun_control_s *control =
     bk7258_rptun_control();
   struct bk7258_temperature_wire_s request;
+  struct bk7258_temperature_wire_s reply;
   int64_t millicelsius;
   uint32_t reference_raw;
   int ret;
@@ -394,29 +533,29 @@ int bk7258_temperature_read(
   request.generation = control->generation;
   request.sequence = priv->sequence;
 
-  ret = bk7258_temperature_exchange(priv, &request);
+  ret = bk7258_temperature_exchange(priv, &request, &reply);
   if (ret < 0)
     {
       goto out;
     }
 
-  ret = priv->reply.status;
+  ret = reply.status;
   if (ret < 0)
     {
       goto out;
     }
 
-  if ((priv->reply.flags & BK7258_TEMPERATURE_FLAG_RAW_VALID) == 0 ||
-      priv->reply.raw_code < BK7258_TEMPERATURE_RAW_MIN ||
-      priv->reply.raw_code > BK7258_TEMPERATURE_RAW_MAX)
+  if ((reply.flags & BK7258_TEMPERATURE_FLAG_RAW_VALID) == 0 ||
+      reply.raw_code < BK7258_TEMPERATURE_RAW_MIN ||
+      reply.raw_code > BK7258_TEMPERATURE_RAW_MAX)
     {
       ret = -EPROTO;
       goto out;
     }
 
-  sample->generation = priv->reply.generation;
-  sample->sequence = priv->reply.sequence;
-  sample->raw_code = priv->reply.raw_code;
+  sample->generation = reply.generation;
+  sample->sequence = reply.sequence;
+  sample->raw_code = reply.raw_code;
   sample->flags = BK7258_TEMPERATURE_FLAG_RAW_VALID;
 
   reference_raw = __atomic_load_n(&priv->reference_raw,
@@ -440,12 +579,10 @@ out:
   return ret;
 }
 
-int bk7258_temperature_set_reference_raw(uint32_t reference_raw)
+static int bk7258_temperature_apply_reference_raw(
+  struct bk7258_temperature_client_s *priv, uint32_t reference_raw)
 {
-  struct bk7258_temperature_client_s *priv =
-    &g_bk7258_temperature_client;
   FAR struct thermal_zone_device_s *zone;
-  uint32_t previous_reference;
   bool zone_created = false;
   int ret = OK;
 
@@ -461,9 +598,6 @@ int bk7258_temperature_set_reference_raw(uint32_t reference_raw)
       return ret;
     }
 
-  previous_reference = __atomic_load_n(&priv->reference_raw,
-                                       __ATOMIC_ACQUIRE);
-  __atomic_store_n(&priv->reference_raw, reference_raw, __ATOMIC_RELEASE);
   zone = priv->zone;
   if (zone == NULL)
     {
@@ -472,8 +606,6 @@ int bk7258_temperature_set_reference_raw(uint32_t reference_raw)
                                           &g_bk7258_temperature_params);
       if (zone == NULL)
         {
-          __atomic_store_n(&priv->reference_raw, previous_reference,
-                           __ATOMIC_RELEASE);
           ret = -ENODEV;
         }
       else
@@ -481,6 +613,12 @@ int bk7258_temperature_set_reference_raw(uint32_t reference_raw)
           priv->zone = zone;
           zone_created = true;
         }
+    }
+
+  if (ret >= 0)
+    {
+      __atomic_store_n(&priv->reference_raw, reference_raw,
+                       __ATOMIC_RELEASE);
     }
 
   nxmutex_unlock(&priv->zone_lock);
@@ -492,23 +630,41 @@ int bk7258_temperature_set_reference_raw(uint32_t reference_raw)
   return ret;
 }
 
+int bk7258_temperature_set_reference_raw(uint32_t reference_raw)
+{
+  struct bk7258_temperature_client_s *priv =
+    &g_bk7258_temperature_client;
+
+  if (!__atomic_load_n(&priv->initialized, __ATOMIC_ACQUIRE))
+    {
+      return -EAGAIN;
+    }
+
+  return bk7258_temperature_apply_reference_raw(priv, reference_raw);
+}
+
 int bk7258_temperature_initialize(void)
 {
   struct bk7258_temperature_client_s *priv =
     &g_bk7258_temperature_client;
   bool callback_registered = false;
   bool semaphore_initialized = false;
-  bool expected = false;
+  int lockret;
   int ret;
 
-  if (!__atomic_compare_exchange_n(&priv->initialized, &expected, true,
-                                   false, __ATOMIC_ACQ_REL,
-                                   __ATOMIC_ACQUIRE))
+  lockret = nxmutex_lock(&priv->init_lock);
+  if (lockret < 0)
     {
+      return lockret;
+    }
+
+  if (__atomic_load_n(&priv->initialized, __ATOMIC_ACQUIRE))
+    {
+      nxmutex_unlock(&priv->init_lock);
       return OK;
     }
 
-  priv->connection_error = -ENOTCONN;
+  __atomic_store_n(&priv->connection_error, -ENOTCONN, __ATOMIC_RELEASE);
   ret = nxsem_init(&priv->reply_sem, 0, 0);
   if (ret >= 0)
     {
@@ -533,8 +689,8 @@ int bk7258_temperature_initialize(void)
 
   if (ret >= 0 && CONFIG_BK7258_TEMPERATURE_FIXED_REFERENCE_RAW != 0)
     {
-      ret = bk7258_temperature_set_reference_raw(
-              CONFIG_BK7258_TEMPERATURE_FIXED_REFERENCE_RAW);
+      ret = bk7258_temperature_apply_reference_raw(
+              priv, CONFIG_BK7258_TEMPERATURE_FIXED_REFERENCE_RAW);
     }
 
   if (ret < 0)
@@ -554,10 +710,14 @@ int bk7258_temperature_initialize(void)
 
       memset(&priv->ept, 0, sizeof(priv->ept));
       __atomic_store_n(&priv->endpoint_created, false, __ATOMIC_RELEASE);
-      priv->connection_error = ret;
-      __atomic_store_n(&priv->initialized, false, __ATOMIC_RELEASE);
+      __atomic_store_n(&priv->connection_error, ret, __ATOMIC_RELEASE);
+    }
+  else
+    {
+      __atomic_store_n(&priv->initialized, true, __ATOMIC_RELEASE);
     }
 
+  nxmutex_unlock(&priv->init_lock);
   return ret;
 }
 

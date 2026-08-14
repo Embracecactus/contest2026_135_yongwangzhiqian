@@ -405,6 +405,7 @@ validate_symmetric_feature BK7258_RPTUN RPTUN
 validate_symmetric_feature BK7258_AP_SUPERVISOR 'AP supervisor'
 validate_symmetric_feature BK7258_PM_COORDINATED_STANDBY \
     'coordinated PM standby'
+validate_symmetric_feature BK7258_TEMPERATURE 'on-die temperature service'
 validate_symmetric_feature BK7258_BT_IPC 'Bluetooth IPC'
 validate_symmetric_feature BK7258_WIFI_VNET 'Wi-Fi VNET'
 

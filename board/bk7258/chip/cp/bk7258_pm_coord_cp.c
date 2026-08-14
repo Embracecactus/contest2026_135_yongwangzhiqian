@@ -522,9 +522,21 @@ bool bk7258_pm_cp_standby(void)
       return false;
     }
 
-  /* AP acknowledgement can take up to 3 ms.  Close the final race with a
-   * CP interrupt arriving after the first eligibility test but before the
-   * SDK leaf masks normal interrupt sources and changes flash/voltage.
+  /* Waiting for the mailbox acknowledgement temporarily admits CP
+   * interrupts.  Recheck both the service votes and RPTUN data plane after
+   * the caller's interrupt mask has been restored; a temperature request or
+   * another RPMsg transaction may have completed its IRQ while leaving
+   * asynchronous work active.
+   */
+
+  if (!bk7258_pm_votes_idle() || !bk7258_pm_rptun_idle())
+    {
+      bk7258_pm_abort(BK7258_PM_COORD_REASON_AP_VOTE_CHANGED);
+      return false;
+    }
+
+  /* Close the remaining race with a CP interrupt arriving after the first
+   * eligibility test but before the SDK leaf changes flash/voltage.
    */
 
   if (bk7258_pm_cp_irq_pending())
