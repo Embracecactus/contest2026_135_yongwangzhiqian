@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-08-13
+Last reviewed: 2026-08-14
 
 ## System context
 
@@ -20,7 +20,7 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | BK7258 initialization layers | `src/bk7258_platform.c` owns mandatory SDK/IPC/PM/AP lifetime initialization, `src/bk7258_bringup.c` owns application-facing procfs/MTD/filesystem registration, and the selected physical-board hook owns attached LCD/touch/camera validation and registration. `board_late_initialize()` and `board_app_initialize()` are thin NuttX entry points. |
 | Tier-1 bootloader | Board-owned source reconstructed for this port; it is built as a project artifact rather than patched into a vendor binary. It normalizes boot/cache/MPU/watchdog state. Direct profiles validate and transfer straight to CP; signed profiles transfer to Manifest/MCUboot BL2. |
 | BK7258 integrated Flash | 8 MiB on the current T5-AI; interface reports `0xc86517`, compatible with the GD25WQ64E command identity but not evidence of a separate board-level chip |
-| CP NuttX on CPU0 | Flash/LittleFS owner, AP lifecycle supervisor, RPMsg peer, Beken Bluetooth Controller owner, Wi-Fi RF/PHY/MAC/WPA/controller owner, PSRAM hardware/PM owner |
+| CP NuttX on CPU0 | Flash/LittleFS owner, AP lifecycle supervisor, RPMsg peer, Beken Bluetooth Controller owner, Wi-Fi RF/PHY/MAC/WPA/controller owner, PSRAM hardware/PM owner. Bluetooth desired state is published only after real SDK init/deinit success; Wi-Fi remains whole-chip lifetime. See [ADR-025](decisions/ADR-025-bk7258-radio-lifecycle-boundary.md). |
 | AP NuttX SMP on CPU1+CPU2 | Stock NuttX scheduling/Host/services; logical CPU0 owns RPMsg/Bluetooth/Wi-Fi gateways, logical CPU1 is a business and socket producer |
 | Beken SDK v3.1.1.9 | Immutable BK7258 CP/AP archives reached through minimal board ABI wrappers; the sole runtime SDK |
 | Beken `bk_idk release/v2.0.1` | Read-only official reference: its `docs/bk7258/**` pages and generic security tools provide BK7258 Secure Boot semantics/packaging evidence; its buildable `projects/security/**` examples are BK7236-only single-core samples. Never a runtime archive or source replacement; see [ADR-017](decisions/ADR-017-bk7258-official-secureboot-source-crosswalk.md) |
@@ -44,7 +44,13 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   ordered AP and CP restore → CP compensates scheduler ticks. Any incomplete
   edge aborts to shallow idle.
 - Storage: CP exclusively owns raw flash/MTD/LittleFS; AP reaches it through RPMsgFS.
-- Bluetooth: CP owns the official Controller; AP owns the stock NuttX Host/GAP/GATT through official pointer IPC and a board lower-half.
+- Bluetooth: CP owns the official Controller; AP owns the stock NuttX
+  Host/GAP/GATT through official pointer IPC and a board lower-half.  CP's
+  versioned active flag is authoritative across init/deinit; AP reconciles a
+  lost reply only when that desired state already committed, otherwise retains
+  UNKNOWN ownership and fails closed.  Repeated Controller validation occurs
+  before Host ownership because this NuttX configuration cannot unregister and
+  re-register the Host device.
 - Wi-Fi: CP owns official RF/PHY/MAC/WPA, the vnet controller and its DHCP
   client; AP logical CPU0 owns the official command/data proxy and a
   repository lease/netdev seam into native NuttX networking. AP does not run
@@ -149,6 +155,11 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   unsupported and the AP proxy does not close its mailbox channels. Until a
   separate lifecycle design is verified, AP-only restart must fail closed
   while Wi-Fi is active and whole-chip reset is the recovery boundary.
+- Official Bluetooth init/deinit is symmetric, but its CP IPC worker always
+  reports success without checking the real return.  The board wrapper must
+  therefore use CP-owned committed state rather than the vendor event as its
+  ownership proof.  Full NuttX Host unregister/re-register remains outside the
+  supported lifecycle; do not replace it with forced worker deletion.
 - The immutable CP Wi-Fi archive consumes selected `malloc()` blocks as
   zero-initialized state. The board compatibility layer therefore zeroes
   allocations only for the PID executing `bk_wifi_init()`; concurrent CP

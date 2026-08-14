@@ -22,6 +22,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <syslog.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
@@ -87,7 +88,8 @@ struct bk7258_bt_hci_s
   sem_t              control_sem;
   struct bk7258_bt_hci_stats_s stats;
   bool               sem_ready;
-  bool               opened;
+  uint32_t           state;
+  bool               registering;
   bool               registered;
 };
 
@@ -100,7 +102,7 @@ struct bk7258_bt_hci_s
  * of the copied public SDK include bundle.
  */
 
-extern void bt_ipc_init(void);
+extern int32_t bt_ipc_init(void);
 extern void bt_ipc_hci_send_vendor_cmd(uint8_t *data, uint16_t length);
 extern void bt_ipc_hci_send_cmd(uint16_t opcode, uint8_t *data,
                                 uint16_t length);
@@ -149,7 +151,19 @@ static int bk7258_bt_ioctl(struct bt_driver_s *driver, int command,
 
 static struct bk7258_bt_hci_s g_bk7258_bt_hci =
 {
-  .lock = NXMUTEX_INITIALIZER,
+  .lock  = NXMUTEX_INITIALIZER,
+  .state = BK7258_BT_LIFECYCLE_CLOSED,
+};
+
+volatile struct bk7258_bt_lifecycle_diag_s g_bk7258_bt_ap_lifecycle =
+{
+  .magic   = BK7258_BT_LIFECYCLE_MAGIC,
+  .version = BK7258_BT_LIFECYCLE_VERSION,
+  .size    = sizeof(struct bk7258_bt_lifecycle_diag_s),
+  .state   = BK7258_BT_LIFECYCLE_CLOSED,
+#ifdef CONFIG_BK7258_BT_LIFECYCLE_TEST
+  .validation_requested = CONFIG_BK7258_BT_LIFECYCLE_TEST_CYCLES,
+#endif
 };
 
 /****************************************************************************
@@ -233,6 +247,23 @@ static void bk7258_bt_control_sem_drain(struct bk7258_bt_hci_s *priv)
     }
 }
 
+static void bk7258_bt_set_state(struct bk7258_bt_hci_s *priv,
+                               uint32_t state, int error)
+{
+  uint32_t previous;
+
+  previous = __atomic_exchange_n(&priv->state, state, __ATOMIC_ACQ_REL);
+  __atomic_store_n(&g_bk7258_bt_ap_lifecycle.last_error, error,
+                   __ATOMIC_RELAXED);
+  __atomic_store_n(&g_bk7258_bt_ap_lifecycle.state, state,
+                   __ATOMIC_RELEASE);
+  if (state == BK7258_BT_LIFECYCLE_UNKNOWN && state != previous)
+    {
+      __atomic_fetch_add(&g_bk7258_bt_ap_lifecycle.unknown_transitions, 1u,
+                         __ATOMIC_RELAXED);
+    }
+}
+
 #ifdef CONFIG_BK7258_RPTUN_MBOX
 static int bk7258_bt_wait_cp_ipc_ready(void)
 {
@@ -307,6 +338,99 @@ static int bk7258_bt_control_request(struct bk7258_bt_hci_s *priv,
            MSEC2TICK(BK7258_BT_CONTROL_TIMEOUT_MS));
 }
 
+static int bk7258_bt_transition_locked(struct bk7258_bt_hci_s *priv,
+                                       uint16_t subopcode,
+                                       uint32_t target_state)
+{
+  volatile struct bk7258_rptun_control_s *control =
+    bk7258_rptun_control();
+  volatile uint32_t *requests;
+  volatile uint32_t *successes;
+  uint32_t flags;
+  bool cp_active;
+  int ret;
+
+  if (subopcode == BK7258_BT_VENDOR_INIT)
+    {
+      requests = &g_bk7258_bt_ap_lifecycle.init_requests;
+      successes = &g_bk7258_bt_ap_lifecycle.init_successes;
+    }
+  else
+    {
+      requests = &g_bk7258_bt_ap_lifecycle.deinit_requests;
+      successes = &g_bk7258_bt_ap_lifecycle.deinit_successes;
+    }
+
+  __atomic_fetch_add(requests, 1u, __ATOMIC_RELAXED);
+  ret = bk7258_bt_control_request(priv, subopcode);
+  flags = __atomic_load_n(&control->flags, __ATOMIC_ACQUIRE);
+  cp_active = (flags & BK7258_RPTUN_FLAG_CP_BT_ACTIVE) != 0;
+  if (cp_active != (target_state == BK7258_BT_LIFECYCLE_OPEN))
+    {
+      if (ret >= 0)
+        {
+          ret = -EIO;
+          __atomic_fetch_add(&g_bk7258_bt_ap_lifecycle.status_mismatches,
+                             1u, __ATOMIC_RELAXED);
+        }
+
+      bk7258_bt_set_state(priv, BK7258_BT_LIFECYCLE_UNKNOWN, ret);
+      return ret;
+    }
+
+  /* The CP-owned flag is authoritative.  A lost vendor reply must not make
+   * an already committed idempotent transition diverge between AP and CP.
+   */
+
+  if (ret < 0)
+    {
+      __atomic_fetch_add(&g_bk7258_bt_ap_lifecycle.reconciled_timeouts,
+                         1u, __ATOMIC_RELAXED);
+    }
+
+  __atomic_fetch_add(successes, 1u, __ATOMIC_RELAXED);
+  bk7258_bt_set_state(priv, target_state, OK);
+  return OK;
+}
+
+#ifdef CONFIG_BK7258_BT_LIFECYCLE_TEST
+static int bk7258_bt_validate_lifecycle_locked(
+  struct bk7258_bt_hci_s *priv)
+{
+  uint32_t i;
+  int ret;
+
+  __atomic_store_n(&g_bk7258_bt_ap_lifecycle.validation_status,
+                   -EINPROGRESS, __ATOMIC_RELAXED);
+  for (i = 0; i < CONFIG_BK7258_BT_LIFECYCLE_TEST_CYCLES; i++)
+    {
+      ret = bk7258_bt_transition_locked(priv, BK7258_BT_VENDOR_DEINIT,
+                                        BK7258_BT_LIFECYCLE_CLOSED);
+      if (ret < 0)
+        {
+          goto out;
+        }
+
+      ret = bk7258_bt_transition_locked(priv, BK7258_BT_VENDOR_INIT,
+                                        BK7258_BT_LIFECYCLE_OPEN);
+      if (ret < 0)
+        {
+          goto out;
+        }
+
+      __atomic_store_n(&g_bk7258_bt_ap_lifecycle.validation_completed,
+                       i + 1u, __ATOMIC_RELAXED);
+    }
+
+  ret = OK;
+
+out:
+  __atomic_store_n(&g_bk7258_bt_ap_lifecycle.validation_status, ret,
+                   __ATOMIC_RELEASE);
+  return ret;
+}
+#endif
+
 static void bk7258_bt_sdk_receive(uint8_t *buffer, uint16_t length)
 {
   struct bk7258_bt_hci_s *priv = &g_bk7258_bt_hci;
@@ -319,7 +443,8 @@ static void bk7258_bt_sdk_receive(uint8_t *buffer, uint16_t length)
    * complete HCI packet synchronously before deferring stack processing.
    */
 
-  if (!__atomic_load_n(&priv->opened, __ATOMIC_ACQUIRE) ||
+  if (__atomic_load_n(&priv->state, __ATOMIC_ACQUIRE) !=
+        BK7258_BT_LIFECYCLE_OPEN ||
       buffer == NULL || length < 1 || priv->driver.receive == NULL)
     {
       bk7258_bt_count_invalid_rx(priv);
@@ -458,6 +583,8 @@ static void bk7258_bt_sdk_receive(uint8_t *buffer, uint16_t length)
 static int bk7258_bt_open(struct bt_driver_s *driver)
 {
   struct bk7258_bt_hci_s *priv = (struct bk7258_bt_hci_s *)driver;
+  uint32_t initial_state;
+  int32_t sdkret;
   int ret;
 
   ret = nxmutex_lock(&priv->lock);
@@ -466,7 +593,8 @@ static int bk7258_bt_open(struct bt_driver_s *driver)
       return ret;
     }
 
-  if (priv->opened)
+  initial_state = __atomic_load_n(&priv->state, __ATOMIC_ACQUIRE);
+  if (initial_state == BK7258_BT_LIFECYCLE_OPEN)
     {
       nxmutex_unlock(&priv->lock);
       return OK;
@@ -474,28 +602,54 @@ static int bk7258_bt_open(struct bt_driver_s *driver)
 
   bt_ipc_register_hci_send_callback(bk7258_bt_sdk_receive);
   bk7258_os_bt_ipc_init_begin();
-  bt_ipc_init();
+  sdkret = bt_ipc_init();
   bk7258_os_bt_ipc_init_end();
+  if (sdkret != 0 && sdkret != 1)
+    {
+      if (initial_state == BK7258_BT_LIFECYCLE_CLOSED)
+        {
+          bt_ipc_register_hci_send_callback(NULL);
+        }
+
+      nxmutex_unlock(&priv->lock);
+      return -EIO;
+    }
 
 #ifdef CONFIG_BK7258_RPTUN_MBOX
   ret = bk7258_bt_wait_cp_ipc_ready();
   if (ret < 0)
     {
-      bt_ipc_register_hci_send_callback(NULL);
+      if (initial_state == BK7258_BT_LIFECYCLE_CLOSED)
+        {
+          bt_ipc_register_hci_send_callback(NULL);
+        }
+
       nxmutex_unlock(&priv->lock);
       return ret;
     }
 #endif
 
-  ret = bk7258_bt_control_request(priv, BK7258_BT_VENDOR_INIT);
+  ret = bk7258_bt_transition_locked(priv, BK7258_BT_VENDOR_INIT,
+                                    BK7258_BT_LIFECYCLE_OPEN);
   if (ret < 0)
     {
-      bt_ipc_register_hci_send_callback(NULL);
       nxmutex_unlock(&priv->lock);
       return ret;
     }
 
-  __atomic_store_n(&priv->opened, true, __ATOMIC_RELEASE);
+#ifdef CONFIG_BK7258_BT_LIFECYCLE_TEST
+  if (__atomic_load_n(&g_bk7258_bt_ap_lifecycle.validation_completed,
+                      __ATOMIC_ACQUIRE) == 0u)
+    {
+      ret = bk7258_bt_validate_lifecycle_locked(priv);
+      if (ret < 0)
+        {
+          nxmutex_unlock(&priv->lock);
+          return ret;
+        }
+    }
+#endif
+
   nxmutex_unlock(&priv->lock);
   return OK;
 }
@@ -508,7 +662,8 @@ static int bk7258_bt_send(struct bt_driver_s *driver,
   uint16_t payload_length;
   uint16_t value;
 
-  if (!__atomic_load_n(&priv->opened, __ATOMIC_ACQUIRE))
+  if (__atomic_load_n(&priv->state, __ATOMIC_ACQUIRE) !=
+      BK7258_BT_LIFECYCLE_OPEN)
     {
       return -ENETDOWN;
     }
@@ -598,10 +753,18 @@ static void bk7258_bt_close(struct bt_driver_s *driver)
       return;
     }
 
-  if (priv->opened)
+  if (__atomic_load_n(&priv->state, __ATOMIC_ACQUIRE) !=
+      BK7258_BT_LIFECYCLE_CLOSED)
     {
-      __atomic_store_n(&priv->opened, false, __ATOMIC_RELEASE);
-      (void)bk7258_bt_control_request(priv, BK7258_BT_VENDOR_DEINIT);
+      if (bk7258_bt_transition_locked(priv, BK7258_BT_VENDOR_DEINIT,
+                                      BK7258_BT_LIFECYCLE_CLOSED) < 0)
+        {
+          syslog(LOG_ERR,
+                 "bk7258: Bluetooth Controller close is uncertain\n");
+          bt_ipc_register_hci_send_callback(NULL);
+          nxmutex_unlock(&priv->lock);
+          return;
+        }
     }
 
   bt_ipc_register_hci_send_callback(NULL);
@@ -654,14 +817,25 @@ int bk7258_bt_hci_initialize(void)
       return OK;
     }
 
-  ret = nxsem_init(&priv->control_sem, 0, 0);
-  if (ret < 0)
+  if (priv->registering)
     {
       nxmutex_unlock(&priv->lock);
-      return ret;
+      return -EBUSY;
     }
 
-  __atomic_store_n(&priv->sem_ready, true, __ATOMIC_RELEASE);
+  if (!__atomic_load_n(&priv->sem_ready, __ATOMIC_ACQUIRE))
+    {
+      ret = nxsem_init(&priv->control_sem, 0, 0);
+      if (ret < 0)
+        {
+          nxmutex_unlock(&priv->lock);
+          return ret;
+        }
+
+      __atomic_store_n(&priv->sem_ready, true, __ATOMIC_RELEASE);
+    }
+
+  priv->registering         = true;
   priv->driver.head_reserve = 0;
   priv->driver.open         = bk7258_bt_open;
   priv->driver.send         = bk7258_bt_send;
@@ -677,12 +851,24 @@ int bk7258_bt_hci_initialize(void)
   if (ret < 0)
     {
       bk7258_bt_close(&priv->driver);
-      __atomic_store_n(&priv->sem_ready, false, __ATOMIC_RELEASE);
-      nxsem_destroy(&priv->control_sem);
+
+      nxmutex_lock(&priv->lock);
+      priv->registering = false;
+      if (__atomic_load_n(&priv->state, __ATOMIC_ACQUIRE) ==
+          BK7258_BT_LIFECYCLE_CLOSED)
+        {
+          __atomic_store_n(&priv->sem_ready, false, __ATOMIC_RELEASE);
+          nxsem_destroy(&priv->control_sem);
+        }
+
+      nxmutex_unlock(&priv->lock);
       return ret;
     }
 
+  nxmutex_lock(&priv->lock);
   priv->registered = true;
+  priv->registering = false;
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 

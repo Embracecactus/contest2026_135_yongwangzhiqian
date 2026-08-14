@@ -32,6 +32,9 @@
 #define BK7258_BT_TEST_TIMEOUT_MIN_MS  1000u
 #define BK7258_BT_TEST_TIMEOUT_MAX_MS  60000u
 
+#define BK7258_BT_LIFECYCLE_MAGIC      0x434c5442u /* "BTLC" */
+#define BK7258_BT_LIFECYCLE_VERSION    1u
+
 #define BK7258_BT_ATT_TRACE_DEPTH        16u
 #define BK7258_BT_ATT_TRACE_TX           (1u << 31)
 #define BK7258_BT_ATT_TRACE_LENGTH_SHIFT 16u
@@ -48,6 +51,41 @@ enum bk7258_bt_test_operation_e
   BK7258_BT_TEST_OPERATION_SCAN,
   BK7258_BT_TEST_OPERATION_STATS
 };
+
+enum bk7258_bt_lifecycle_state_e
+{
+  BK7258_BT_LIFECYCLE_CLOSED = 0,
+  BK7258_BT_LIFECYCLE_OPEN,
+  BK7258_BT_LIFECYCLE_UNKNOWN
+};
+
+/* AP and CP keep one local copy of this record.  It is deliberately not a
+ * shared-memory protocol: ELF symbols let SWD inspect each owner directly,
+ * while runtime ownership is carried by the versioned RPTUN control flags.
+ */
+
+struct bk7258_bt_lifecycle_diag_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t size;
+  uint32_t state;
+  uint32_t init_requests;
+  uint32_t init_successes;
+  uint32_t deinit_requests;
+  uint32_t deinit_successes;
+  uint32_t unknown_transitions;
+  int32_t  last_error;
+  uint32_t validation_requested;
+  uint32_t validation_completed;
+  int32_t  validation_status;
+  uint32_t status_mismatches;
+  uint32_t reconciled_timeouts;
+  uint32_t reserved;
+};
+
+static_assert(sizeof(struct bk7258_bt_lifecycle_diag_s) == 64u,
+              "BK7258 Bluetooth lifecycle diagnostic ABI changed");
 
 struct bk7258_bt_att_trace_s
 {
@@ -163,9 +201,13 @@ static_assert(sizeof(struct bk7258_bt_test_result_s) ==
  ****************************************************************************/
 
 #ifdef CONFIG_BK7258_AP_CORE
+extern volatile struct bk7258_bt_lifecycle_diag_s
+  g_bk7258_bt_ap_lifecycle;
 int bk7258_bt_hci_initialize(void);
 int bk7258_bt_hci_get_stats(struct bk7258_bt_hci_stats_s *stats);
 #else
+extern volatile struct bk7258_bt_lifecycle_diag_s
+  g_bk7258_bt_cp_lifecycle;
 int bk7258_bt_controller_ipc_initialize(void);
 int bk7258_bt_controller_initialize(void);
 #endif

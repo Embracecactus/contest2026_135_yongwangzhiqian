@@ -803,6 +803,22 @@ config BK7258_BT_IPC
 		The initial profile supports HCI command, event and ACL traffic; SCO and
 		ISO are deliberately out of scope.
 
+config BK7258_BT_LIFECYCLE_TEST
+	bool "BK7258 Bluetooth Controller lifecycle regression test"
+	default n
+	depends on BK7258_BT_IPC && BK7258_AP_CORE
+	---help---
+		Before the NuttX Bluetooth Host takes ownership, repeat the official
+		Controller deinit/init vendor handshake and fail AP bring-up unless all
+		cycles complete.  This is a bounded real-hardware validation option;
+		leave it disabled in normal board profiles.
+
+config BK7258_BT_LIFECYCLE_TEST_CYCLES
+	int "BK7258 Bluetooth lifecycle validation cycles"
+	default 10
+	range 1 100
+	depends on BK7258_BT_LIFECYCLE_TEST
+
 config BK7258_WIFI_VNET
 	bool "N16 official Beken CP Wi-Fi with AP NuttX network"
 	default n
