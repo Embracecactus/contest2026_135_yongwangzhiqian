@@ -38,6 +38,11 @@ from bk7258_ab_layout import (
     USR_CONFIG_START,
     report as layout_report,
 )
+from bk7258_trust_chain import (
+    TrustChainError,
+    load_contract,
+    verify_contract_artifacts,
+)
 
 
 def sha256(path: Path) -> str:
@@ -61,6 +66,49 @@ def copy(path: Path, output: Path) -> Path:
     destination = output / path.name
     shutil.copy2(path, destination)
     return destination
+
+
+def stage_trust_bundle(
+    document: dict[str, object], contract: Path, output: Path,
+) -> Path:
+    """Validate and stage the public boot-chain identity bundle.
+
+    The contract is emitted beside the exact BL1/BL2 raw images and ELFs that
+    it describes.  Validate that source bundle first, then copy it into the
+    package and validate the destination again.  This keeps a clean output
+    directory working and prevents stale files in a previous package from
+    satisfying the contract accidentally.
+    """
+
+    source = contract.parent
+    verify_contract_artifacts(document, source)
+    bundle_files = (
+        "bootloader.bin",
+        "bootloader.elf",
+        "bl2.bin",
+        "bl2.elf",
+    )
+    for name in bundle_files:
+        source_path = source / name
+        destination = output / name
+        try:
+            if source_path.resolve() != destination.resolve():
+                shutil.copy2(source_path, destination)
+        except OSError as error:
+            raise TrustChainError(
+                f"cannot stage trust artifact {source_path}: {error}"
+            ) from error
+
+    trust_path = output / "bk7258-trust-chain.json"
+    try:
+        if contract.resolve() != trust_path.resolve():
+            shutil.copy2(contract, trust_path)
+    except OSError as error:
+        raise TrustChainError(
+            f"cannot stage trust contract {contract}: {error}"
+        ) from error
+    verify_contract_artifacts(document, output)
+    return trust_path
 
 
 def align_up(value: int, alignment: int) -> int:
@@ -101,6 +149,7 @@ def main() -> None:
     parser.add_argument("--ap-crc", type=Path, required=True)
     parser.add_argument("--bl2-primary-crc", type=Path)
     parser.add_argument("--bl2-secondary-crc", type=Path)
+    parser.add_argument("--trust-chain", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -112,6 +161,13 @@ def main() -> None:
             raise SystemExit(f"missing input: {path}")
     if (args.bl2_primary_crc is None) != (args.bl2_secondary_crc is None):
         raise SystemExit("primary and secondary BL2 images must be supplied together")
+    mcuboot_profile = args.bl2_primary_crc is not None
+    if mcuboot_profile != (args.trust_chain is not None):
+        raise SystemExit(
+            "MCUboot packaging requires a trust-chain contract; raw packaging forbids it"
+        )
+    if args.trust_chain is not None and not args.trust_chain.is_file():
+        raise SystemExit(f"missing input: {args.trust_chain}")
 
     layout_report()
     if args.boot.stat().st_size != BOOT_SIZE:
@@ -131,7 +187,6 @@ def main() -> None:
     ap_crc = copy(args.ap_crc, args.output)
     cp_flash = copy_flash_segment(args.cp_crc, args.output, "app_crc_flash.bin")
     ap_flash = copy_flash_segment(args.ap_crc, args.output, "app1_crc_flash.bin")
-    mcuboot_profile = args.bl2_primary_crc is not None
     secondary_file = "s_app_mcuboot.bin" if mcuboot_profile else "s_app_seed.bin"
     secondary_name = "s_app_mcuboot" if mcuboot_profile else "s_app_seed"
     secondary_pair = make_secondary_pair(
@@ -158,6 +213,22 @@ def main() -> None:
         raise SystemExit(
             "MCUboot profile requires exactly primary and secondary BL2 segments"
         )
+
+    trust_chain_entry = None
+    if args.trust_chain is not None:
+        try:
+            trust_document = load_contract(args.trust_chain)
+            trust_path = stage_trust_bundle(
+                trust_document, args.trust_chain, args.output
+            )
+        except TrustChainError as error:
+            raise SystemExit(f"invalid trust-chain package: {error}") from error
+        trust_chain_entry = {
+            "file": trust_path.name,
+            "length": trust_path.stat().st_size,
+            "sha256": sha256(trust_path),
+            "preflash_target_match_required": True,
+        }
 
     primary_segments = [
         segment("primary_bootloader", boot, BOOT_START),
@@ -261,6 +332,7 @@ def main() -> None:
     }
     if mcuboot_profile:
         manifest["bl2_segments"] = bl2_segments
+        manifest["trust_chain"] = trust_chain_entry
         manifest["factory_image"]["bl2_segments"] = bl2_segments
         manifest["factory_image"]["bl2_write_range"] = [
             BL2_START, BL2_SECONDARY_END

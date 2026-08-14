@@ -8,6 +8,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 OPENVELA_ROOT=$(cd "$SCRIPT_DIR/../../../.." && pwd)
 BUILD_SCRIPT="$SCRIPT_DIR/build_dual_image.sh"
 PARTITION_GENERATOR="$SCRIPT_DIR/gen_bk7258_partitions.py"
+TRUST_CHAIN_TOOL="$SCRIPT_DIR/bk7258_trust_chain.py"
 CAPTURE_PS1="$SCRIPT_DIR/capture_windows_serial.ps1"
 PULSE_PS1="$SCRIPT_DIR/pulse_windows_serial.ps1"
 LOADER_DIR_DEFAULT='/mnt/c/Users/lijian/Downloads/BEKEN_BKFIL_V2.1.11.15_20241114/BEKEN_BKFIL_V2.1.11.15_20241114'
@@ -31,6 +32,7 @@ DO_BUILD=0
 DO_FLASH=0
 SPARSE_FLASH=0
 BOOT_ONLY=0
+APPLICATIONS_ONLY=0
 COLD_CAPTURE=0
 JLINK_RESET=0
 RTS_RESET=0
@@ -49,6 +51,7 @@ Actions:
   --flash                 Download through Windows bk_loader.exe
   --sparse-flash          With --flash, update boot/BL2/CP/AP when MCUboot profile is packaged; preserve data
   --boot-only             With --flash --sparse-flash, update only the boot segment
+  --apps-only             With --flash --sparse-flash, update only CP/AP applications
   --cold-capture          Capture the selected UART and ask for a manual physical RESET
   --rts-reset             Capture UART, then pulse the selected download-port RTS
   --jlink-reset           Capture UART when enabled, then try J-Link RSetType 2
@@ -76,6 +79,9 @@ Examples:
   # Sparse-flash an already built image and capture:
   $(basename "$0") --flash --sparse-flash
 
+  # Update only signed CP/AP after the automatic target trust preflight:
+  $(basename "$0") --flash --sparse-flash --apps-only --no-console
+
   # Destructive factory rewrite; only with fresh owner authorization:
   $(basename "$0") --flash
 
@@ -92,6 +98,11 @@ Port assignment on the current T5-Board:
   COM3 = downloader / bk_loader (-p 3)
   COM4 = UART1 console only when its DIP switch is enabled
   COM4 must remain unopened when P0/P1 are owned by SWD/RTT.
+
+Every MCUboot flash action first compares the package's public BL1/BL2 trust
+fingerprints with the running target through non-halting J-Link reads.  A
+mismatch or unreadable target refuses the download; this path cannot rotate
+trust roots.
 USAGE
 }
 
@@ -101,6 +112,7 @@ while (($#)); do
     --flash) DO_FLASH=1 ;;
     --sparse-flash) SPARSE_FLASH=1 ;;
     --boot-only) BOOT_ONLY=1 ;;
+    --apps-only) APPLICATIONS_ONLY=1 ;;
     --cold-capture) COLD_CAPTURE=1 ;;
     --rts-reset) RTS_RESET=1 ;;
     --jlink-reset) JLINK_RESET=1 ;;
@@ -142,6 +154,16 @@ if ((BOOT_ONLY && (!DO_FLASH || !SPARSE_FLASH))); then
   exit 2
 fi
 
+if ((APPLICATIONS_ONLY && (!DO_FLASH || !SPARSE_FLASH))); then
+  echo "ERROR: --apps-only requires --flash --sparse-flash" >&2
+  exit 2
+fi
+
+if ((BOOT_ONLY && APPLICATIONS_ONLY)); then
+  echo "ERROR: --boot-only and --apps-only are mutually exclusive" >&2
+  exit 2
+fi
+
 for n in "$CAPTURE_SECONDS" "$DOWNLOAD_PORT" "$CONSOLE_BAUD" "$DOWNLOAD_BAUD"; do
   [[ $n =~ ^[0-9]+$ ]] || { echo "ERROR: numeric option expected, got '$n'" >&2; exit 2; }
 done
@@ -164,6 +186,10 @@ fi
 
 [[ -f "$PARTITION_GENERATOR" ]] || {
   echo "ERROR: missing partition generator $PARTITION_GENERATOR" >&2
+  exit 1
+}
+[[ -f "$TRUST_CHAIN_TOOL" ]] || {
+  echo "ERROR: missing trust-chain tool $TRUST_CHAIN_TOOL" >&2
   exit 1
 }
 
@@ -208,6 +234,7 @@ MANIFEST_SECONDARY_IMAGE="$DUAL_DIR/bl1-manifest-secondary.bin"
 LITTLEFS_CLEAR_IMAGE="$DUAL_DIR/littlefs_factory_clear.bin"
 
 PROFILE_FILE="$DUAL_DIR/build-profile.txt"
+TRUST_CHAIN_CONTRACT="$DUAL_DIR/bk7258-trust-chain.json"
 PACKAGED_CP_CONFIG=unknown
 PACKAGED_AP_CONFIG=unknown
 PACKAGED_MCUBOOT_PROFILE=false
@@ -230,10 +257,41 @@ if ((DO_FLASH)); then
     exit 1
   }
   python3 "$SCRIPT_DIR/verify_bk7258_factory_layout.py" --package "$DUAL_DIR"
+  MANIFEST_MCUBOOT_PROFILE=$(python3 - "$MANIFEST" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    manifest = json.load(stream)
+print("true" if isinstance(manifest.get("secondary_pair"), dict) else "false")
+PY
+  )
+  if [[ "$MANIFEST_MCUBOOT_PROFILE" != "$PACKAGED_MCUBOOT_PROFILE" ]]; then
+    echo "ERROR: package manifest and build profile disagree on MCUboot" >&2
+    exit 1
+  fi
+  if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+    [[ -f "$TRUST_CHAIN_CONTRACT" ]] || {
+      echo "ERROR: missing MCUboot trust contract $TRUST_CHAIN_CONTRACT" >&2
+      exit 1
+    }
+    grep -qx 'TRUST_CHAIN_PREFLIGHT_REQUIRED=true' "$PROFILE_FILE" || {
+      echo "ERROR: packaged MCUboot profile does not require trust preflight" >&2
+      exit 1
+    }
+    [[ -x "$JLINK_EXE" || -f "$JLINK_EXE" ]] || {
+      echo "ERROR: MCUboot flash preflight requires $JLINK_EXE" >&2
+      exit 1
+    }
+  fi
 fi
 if ((SPARSE_FLASH)); then
-  sparse_images=("$BOOT_IMAGE")
-  if ((!BOOT_ONLY)); then
+  if ((APPLICATIONS_ONLY)); then
+    sparse_images=("$CP_IMAGE" "$AP_IMAGE")
+  else
+    sparse_images=("$BOOT_IMAGE")
+  fi
+  if ((!BOOT_ONLY && !APPLICATIONS_ONLY)); then
     sparse_images+=("$CP_IMAGE" "$AP_IMAGE")
     if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
       sparse_images+=("$BL2_IMAGE" "$BL2_SECONDARY_IMAGE")
@@ -254,7 +312,8 @@ if ((SPARSE_FLASH)); then
   BL2_SECONDARY_IMAGE_SIZE=0
   MANIFEST_PRIMARY_SIZE=0
   MANIFEST_SECONDARY_SIZE=0
-  if [[ "$PACKAGED_MCUBOOT_PROFILE" == true && $BOOT_ONLY -eq 0 ]]; then
+  if [[ "$PACKAGED_MCUBOOT_PROFILE" == true && $BOOT_ONLY -eq 0 &&
+        $APPLICATIONS_ONLY -eq 0 ]]; then
     BL2_IMAGE_SIZE=$(stat -c %s "$BL2_IMAGE")
     BL2_SECONDARY_IMAGE_SIZE=$(stat -c %s "$BL2_SECONDARY_IMAGE")
     if [[ "$PACKAGED_BL1_MANIFEST_RAW_PAGE" == true ]]; then
@@ -279,7 +338,8 @@ if ((SPARSE_FLASH)); then
     echo "ERROR: sparse AP image length $AP_IMAGE_SIZE exceeds primary_ap_app" >&2
     exit 1
   }
-  if [[ "$PACKAGED_MCUBOOT_PROFILE" == true && $BOOT_ONLY -eq 0 ]]; then
+  if [[ "$PACKAGED_MCUBOOT_PROFILE" == true && $BOOT_ONLY -eq 0 &&
+        $APPLICATIONS_ONLY -eq 0 ]]; then
     ((BL2_IMAGE_SIZE > 0 && BL2_IMAGE_SIZE <= BL2_SIZE)) || {
       echo "ERROR: sparse BL2 image length $BL2_IMAGE_SIZE exceeds bl2 partition" >&2
       exit 1
@@ -394,6 +454,35 @@ SUMMARY_FILE="$RUN_DIR/summary.txt"
 JLINK_LOG="$RUN_DIR/jlink-reset.log"
 RESET_LOG="$RUN_DIR/serial-reset.log"
 ARTIFACT_FILE="$RUN_DIR/artifacts.sha256"
+TRUST_JLINK_COMMANDS="$RUN_DIR/trust-jlink.cmd"
+TRUST_JLINK_LOG="$RUN_DIR/trust-jlink.log"
+TRUST_PREFLIGHT_JSON="$RUN_DIR/trust-preflight.json"
+
+# A normal MCUboot download may update only a target that already trusts the
+# package's BL1 Manifest and MCUboot roots.  These are non-halting reads: no
+# reset, register write, Flash write, or implicit root-rotation path exists.
+
+if ((DO_FLASH)) && [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+  echo "==> Reading BL1/BL2 public trust fingerprints through J-Link"
+  python3 "$TRUST_CHAIN_TOOL" commands \
+    --contract "$TRUST_CHAIN_CONTRACT" > "$TRUST_JLINK_COMMANDS"
+  set +e
+  "$JLINK_EXE" -device CORTEX-M33 -if SWD -speed 1000 -autoconnect 1 \
+    < "$TRUST_JLINK_COMMANDS" 2>&1 | tee "$TRUST_JLINK_LOG"
+  trust_jlink_rc=${PIPESTATUS[0]}
+  set -e
+  if ((trust_jlink_rc != 0)); then
+    echo "ERROR: J-Link trust preflight exited with $trust_jlink_rc; refusing download" >&2
+    exit "$trust_jlink_rc"
+  fi
+  if ! python3 "$TRUST_CHAIN_TOOL" verify \
+      --contract "$TRUST_CHAIN_CONTRACT" \
+      --jlink-log "$TRUST_JLINK_LOG" \
+      --json "$TRUST_PREFLIGHT_JSON"; then
+    echo "ERROR: target trust roots do not match this package; refusing download" >&2
+    exit 1
+  fi
+fi
 
 {
   printf 'ACTION_BUILD=%s\n' "$DO_BUILD"
@@ -420,6 +509,14 @@ ARTIFACT_FILE="$RUN_DIR/artifacts.sha256"
   fi
   if [[ -f "$PROFILE_FILE" ]]; then
     cat "$PROFILE_FILE"
+  fi
+  if [[ -f "$TRUST_CHAIN_CONTRACT" ]]; then
+    sha256sum "$TRUST_CHAIN_CONTRACT"
+    stat -c '%y %s %n' "$TRUST_CHAIN_CONTRACT"
+  fi
+  if [[ -f "$TRUST_PREFLIGHT_JSON" ]]; then
+    sha256sum "$TRUST_PREFLIGHT_JSON" "$TRUST_JLINK_LOG"
+    cat "$TRUST_PREFLIGHT_JSON"
   fi
 } > "$ARTIFACT_FILE"
 
@@ -483,12 +580,15 @@ if ((DO_FLASH)); then
     printf -v BOOT_LENGTH_HEX '0x%x' "$(stat -c %s "$BOOT_IMAGE")"
     printf -v CP_LENGTH_HEX '0x%x' "$(stat -c %s "$CP_IMAGE")"
     printf -v AP_LENGTH_HEX '0x%x' "$(stat -c %s "$AP_IMAGE")"
-    MAIN_BIN_MULTI="${BOOT_IMAGE_WIN}@${BOOT_OFFSET}-${BOOT_LENGTH_HEX},"
+    MAIN_BIN_MULTI=
+    if ((!APPLICATIONS_ONLY)); then
+      MAIN_BIN_MULTI="${BOOT_IMAGE_WIN}@${BOOT_OFFSET}-${BOOT_LENGTH_HEX},"
+    fi
     if ((BOOT_ONLY)); then
       MAIN_BIN_MULTI=${MAIN_BIN_MULTI%,}
       echo "==> Boot-only sparse download through COM${DOWNLOAD_PORT}; all application/data regions preserved"
     else
-      if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+      if [[ "$PACKAGED_MCUBOOT_PROFILE" == true && $APPLICATIONS_ONLY -eq 0 ]]; then
         BL2_IMAGE_WIN=$(wslpath -m "$BL2_IMAGE")
         BL2_SECONDARY_IMAGE_WIN=$(wslpath -m "$BL2_SECONDARY_IMAGE")
         printf -v BL2_LENGTH_HEX '0x%x' "$BL2_IMAGE_SIZE"
@@ -506,7 +606,9 @@ if ((DO_FLASH)); then
       fi
       MAIN_BIN_MULTI+="${CP_IMAGE_WIN}@${CP_OFFSET}-${CP_LENGTH_HEX},"
       MAIN_BIN_MULTI+="${AP_IMAGE_WIN}@${AP_OFFSET}-${AP_LENGTH_HEX}"
-      if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
+      if ((APPLICATIONS_ONLY)); then
+        echo "==> CP/AP-only sparse download through COM${DOWNLOAD_PORT}; boot/BL2/data preserved"
+      elif [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
         echo "==> Sparse MCUboot download through COM${DOWNLOAD_PORT}; BL2/CP/AP updated, LittleFS preserved"
       else
         echo "==> Sparse download through COM${DOWNLOAD_PORT}; LittleFS preserved"

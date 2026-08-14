@@ -29,6 +29,11 @@ from bk7258_ab_layout import (
     PAIR_B_START,
     report as layout_report,
 )
+from bk7258_trust_chain import (
+    TrustChainError,
+    load_contract,
+    verify_contract_artifacts,
+)
 
 
 class VerificationError(RuntimeError):
@@ -150,10 +155,37 @@ def verify(package: Path) -> dict[str, object]:
         "B format metadata drift",
     )
 
+    trust_result = None
+    trust_entry = manifest.get("trust_chain")
+    if mcuboot_profile:
+        require(isinstance(trust_entry, dict), "MCUboot trust-chain entry missing")
+        trust_payload = check_manifest_file(
+            package, trust_entry, "bk7258-trust-chain.json"
+        )
+        require(
+            trust_entry.get("length") == len(trust_payload),
+            "trust-chain contract length drift",
+        )
+        require(
+            trust_entry.get("preflash_target_match_required") is True,
+            "MCUboot package must require target trust matching",
+        )
+        trust_document = load_contract(package / "bk7258-trust-chain.json")
+        verify_contract_artifacts(trust_document, package)
+        trust_result = {
+            "contract": "bk7258-trust-chain.json",
+            "sha256": sha256_bytes(trust_payload),
+            "preflash_target_match_required": True,
+        }
+    else:
+        require(trust_entry is None, "raw package must not carry a trust contract")
+
     # MCUboot packages carry two board-owned BL2 copies.  Older non-MCUboot
     # packages legitimately omit this optional list, so keep the check
     # conditional while making a present pair byte/offset bounded.
     bl2_entries = manifest.get("bl2_segments")
+    if mcuboot_profile:
+        require(bl2_entries is not None, "MCUboot BL2 segments are missing")
     if bl2_entries is not None:
         require(
             isinstance(bl2_entries, list) and len(bl2_entries) == 2,
@@ -290,7 +322,7 @@ def verify(package: Path) -> dict[str, object]:
         require(isinstance(entry, dict), f"missing {expected_name} manifest entry")
         check_manifest_file(package, entry, expected_name)
 
-    return {
+    result = {
         "format": 1,
         "status": "pass",
         "layout_id": LAYOUT_ID,
@@ -322,6 +354,9 @@ def verify(package: Path) -> dict[str, object]:
         "usr_config": {"included_in_images": False},
         "writes_enabled": False,
     }
+    if trust_result is not None:
+        result["trust_chain"] = trust_result
+    return result
 
 
 def main() -> int:
@@ -331,7 +366,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         result = verify(args.package)
-    except (VerificationError, OSError, ValueError) as error:
+    except (TrustChainError, VerificationError, OSError, ValueError) as error:
         print(f"FAIL bk7258-factory-layout: {error}")
         return 1
 

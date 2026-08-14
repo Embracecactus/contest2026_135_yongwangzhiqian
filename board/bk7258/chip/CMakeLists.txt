@@ -343,6 +343,10 @@ foreach(BK7258_AP_PERIPHERAL MIC RTC SARADC)
   endif()
 endforeach()
 
+if(CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_mic_validation.c)
+endif()
+
 if(CONFIG_BK7258_SDIO)
   list(APPEND BK7258_AP_BASE_SRCS
        ap/bk7258_sdio.c
@@ -390,7 +394,8 @@ if(CONFIG_BK7258_RPTUN)
     if(CONFIG_BK7258_AP_CORE)
       bk7258_wrap_sdk_symbol(bk_pm_clock_ctrl
                              bk_pm_module_vote_cpu_freq)
-      if(CONFIG_BK7258_DMA2D OR CONFIG_BK7258_SCALE_ROTATE OR
+      if(CONFIG_BK7258_MIC OR CONFIG_BK7258_DMA2D OR
+         CONFIG_BK7258_SCALE_ROTATE OR
          CONFIG_BK7258_JPEG_DECODER OR CONFIG_BK7258_JPEG_ENCODER OR
          CONFIG_BK7258_YUV_H264 OR CONFIG_BK7258_DVP)
         bk7258_wrap_sdk_symbol(bk_pm_module_vote_power_ctrl)

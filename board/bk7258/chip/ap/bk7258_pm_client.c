@@ -143,6 +143,7 @@ static void bk7258_pm_publish_vendor_votes(
 #define BK7258_SDK_POWER_VIDP_SCALE0       146u
 #define BK7258_SDK_POWER_VIDP_SCALE1       147u
 #define BK7258_SDK_POWER_VIDP_H264         148u
+#define BK7258_SDK_POWER_AUDP_AUDIO         122u
 #define BK7258_SDK_POWER_STATE_ON   0
 #define BK7258_SDK_POWER_STATE_OFF  1
 #define BK7258_SDK_PM_DEV_PWM2      12u
@@ -209,6 +210,7 @@ static bool g_bk7258_pm_sdk_rotator_enabled;
 static bool g_bk7258_pm_sdk_scale0_enabled;
 static bool g_bk7258_pm_sdk_scale1_enabled;
 static bool g_bk7258_pm_sdk_h264_enabled;
+static bool g_bk7258_pm_sdk_audio_power_enabled;
 static uint8_t g_bk7258_pm_sdk_freq[BK7258_PM_FREQ_CLIENT_COUNT];
 static uint32_t g_bk7258_pm_sdk_generation;
 
@@ -227,6 +229,7 @@ static void bk7258_pm_sdk_reset_generation(uint32_t generation)
   g_bk7258_pm_sdk_scale0_enabled = false;
   g_bk7258_pm_sdk_scale1_enabled = false;
   g_bk7258_pm_sdk_h264_enabled = false;
+  g_bk7258_pm_sdk_audio_power_enabled = false;
   for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
     {
       g_bk7258_pm_sdk_freq[i] = BK7258_PM_CPU_FREQ_DEFAULT;
@@ -913,10 +916,12 @@ out:
   return ret;
 }
 
-/* Route only the verified BK7258 v3.1.1.9 JPEG encode/decode, DMA2D, YUV
- * buffer, rotator, Scale0/1 and H264 VIDP submodules through the CP-owned PM
- * service.  Other vendor modules retain their SDK behavior until their
- * ownership is reviewed.
+/* Route the verified BK7258 v3.1.1.9 audio and VIDP submodules through the
+ * CP-owned PM service.  The immutable audio driver issues a domain vote
+ * followed by PM_CLK_ID_AUDIO; both acquire the composite AUDIO resource,
+ * so the first edge powers the domain/clock and the last edge reverses it.
+ * Other vendor modules retain their SDK behavior until their ownership is
+ * reviewed.
  */
 
 int __wrap_bk_pm_module_vote_power_ctrl(unsigned int module,
@@ -932,6 +937,11 @@ int __wrap_bk_pm_module_vote_power_ctrl(unsigned int module,
 
   switch (module)
     {
+      case BK7258_SDK_POWER_AUDP_AUDIO:
+        clock = BK7258_PM_CLOCK_AUDIO;
+        enabled = &g_bk7258_pm_sdk_audio_power_enabled;
+        break;
+
       case BK7258_SDK_POWER_VIDP_JPEG_ENCODER:
         clock = BK7258_PM_CLOCK_JPEG;
         enabled = &g_bk7258_pm_sdk_jpeg_encoder_enabled;

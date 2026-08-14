@@ -45,6 +45,12 @@ Read `../progress/CURRENT.md` after this file, then load only the documents rele
 ## Current verified baseline
 
 - Read [Current Progress](../progress/CURRENT.md) for the branch, publication/merge state, next action, and rollback point.
+- T5-Board dual-MIC topology, the AP-to-CP AUDIO PM ownership correction,
+  10-cycle capture/close/reopen proof and final production-image boot are
+  recorded in the [2026-08-14 MIC lifecycle verification](../progress/verification/2026-08-14-bk7258-mic-lifecycle.md).
+- The public-only build contract, package-to-ELF/raw rebinding, fail-closed
+  downloader gate and non-halting T5-Board fingerprint match are recorded in
+  the [2026-08-14 pre-flash trust-chain verification](../progress/verification/2026-08-14-bk7258-preflash-trust-chain.md).
 - The 66/100 review's actionable runtime-contract findings, the exact-once PM
   retry proof, WDT/timer failure-recovery proof, final signed build and
   T5-Board camera/RPTUN/supervisor/PM state are recorded in the
