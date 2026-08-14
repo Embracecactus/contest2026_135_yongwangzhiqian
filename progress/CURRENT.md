@@ -6,10 +6,10 @@ Updated by: Codex
 ## Active objective
 
 The merged baseline is `4f88dc6` on `dev-ai-contest-2026`.  The working branch
-is `fix/bk7258-mic-board-topology`.  It contains the uncommitted MIC
-board-topology, lifecycle and audio-PM closure plus the completed pre-flash
-trust-chain gate.  The final CP/AP-only image is running on T5-Board; nothing
-from this working tree has been committed or pushed.
+is `fix/bk7258-mic-board-topology`.  The MIC board-topology, lifecycle,
+audio-PM closure and pre-flash trust-chain gate are committed as `6f94173` and
+published to the matching `fork` branch.  The final CP/AP-only image is running
+on T5-Board.
 
 ## Implemented
 
@@ -73,8 +73,9 @@ from this working tree has been committed or pushed.
   AP reported `READY`, RPTUN reported `CONNECTED`, both errors were zero, and
   CP/AP heartbeats advanced across two non-halting J-Link reads.
 
-Canonical details and public fingerprints are in the
-[pre-flash trust-chain verification record](verification/2026-08-14-bk7258-preflash-trust-chain.md).
+Canonical details are in the
+[MIC lifecycle verification record](verification/2026-08-14-bk7258-mic-lifecycle.md)
+and [pre-flash trust-chain verification record](verification/2026-08-14-bk7258-preflash-trust-chain.md).
 
 ## Remaining boundary
 
@@ -93,9 +94,9 @@ Canonical details and public fingerprints are in the
 
 ## Next action
 
-Review the combined branch diff and separate intended MIC plus trust-chain
-files from unrelated generated/untracked material.  Commit/push only after the
-owner explicitly requests publication.  The MIC lower-half is now ready for
+Open and review the Chinese pull request from
+`Embracecactus:fix/bk7258-mic-board-topology` into
+`open-vela:dev-ai-contest-2026`.  After merge, the MIC lower-half is ready for
 an upper-layer recording application on T5-Board.
 
 ## Fixed constraints
