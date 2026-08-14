@@ -41,6 +41,10 @@
 #  include <arch/chip/bk7258_pm.h>
 #endif
 
+#ifdef CONFIG_BK7258_TEMPERATURE
+#  include <arch/chip/bk7258_temperature.h>
+#endif
+
 #ifdef CONFIG_BK7258_AP_CONTROL
 #  include <arch/chip/bk7258_amp.h>
 #endif
@@ -120,6 +124,7 @@ int bk7258_platform_initialize(void)
     defined(CONFIG_BK7258_SARADC_SERVER) || \
     defined(CONFIG_BK7258_SDK_IPC_RUNTIME) || \
     defined(CONFIG_BK7258_PM_CLOCK) || \
+    defined(CONFIG_BK7258_TEMPERATURE) || \
     (defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE))
   int apret = OK;
 #endif
@@ -178,6 +183,23 @@ int bk7258_platform_initialize(void)
   if (apret < 0)
     {
       _err("bk7258: PM clock service init failed: %d\n", apret);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_TEMPERATURE
+  /* Register the CP server before AP release and the AP client before its
+   * RPTUN device appears.  Callback registration is transport-order safe;
+   * actual sampling remains strictly on demand.
+   */
+
+  if (apret >= 0)
+    {
+      apret = bk7258_temperature_initialize();
+    }
+
+  if (apret < 0)
+    {
+      _err("bk7258: temperature service init failed: %d\n", apret);
     }
 #endif
 

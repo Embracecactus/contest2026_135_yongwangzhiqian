@@ -249,4 +249,18 @@ _Static_assert(offsetof(struct bk7258_bt_wifi_phy_funcs_s, exit_low_analog) ==
                "SDK wifi_os_funcs_t analog-power ABI changed");
 #endif
 
+/****************************************************************************
+ * CP on-die temperature ABI
+ ****************************************************************************/
+
+#if defined(CONFIG_BK7258_TEMPERATURE) && \
+    !defined(CONFIG_BK7258_AP_CORE)
+/* v3.1.1.9 exports this one-shot API from libtemp_detect.a but omits its
+ * public header from the immutable CP bundle.  It returns an averaged ADC raw
+ * code, not degrees Celsius.
+ */
+
+extern int temp_detect_get_temperature(uint32_t *temperature);
+#endif
+
 #endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_SDK_ABI_H */

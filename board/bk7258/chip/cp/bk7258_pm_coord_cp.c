@@ -33,6 +33,9 @@
 
 #include "bk7258_pm_coord.h"
 #include "bk7258_pm_activity.h"
+#ifdef CONFIG_BK7258_TEMPERATURE
+#  include <arch/chip/bk7258_temperature.h>
+#endif
 #include "bk7258_rptun_mbox.h"
 #include "bk7258_wdt.h"
 #include "bk7258_dvfs.h"
@@ -218,7 +221,11 @@ static bool bk7258_pm_votes_idle(void)
          bk7258_pm_vendor_vote(BK7258_PWR_AP_CLOCK_VOTE_OFFSET) == 0 &&
          bk7258_pm_activity_idle(&g_bk7258_pm_sdk_activity) &&
          bk7258_pm_frequency_votes_idle() &&
-         bk7258_pm_server_resources_idle();
+         bk7258_pm_server_resources_idle()
+#ifdef CONFIG_BK7258_TEMPERATURE
+         && bk7258_temperature_server_idle()
+#endif
+         ;
 }
 
 static void bk7258_pm_record(uint32_t reason)
