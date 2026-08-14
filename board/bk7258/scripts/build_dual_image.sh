@@ -357,6 +357,17 @@ if config_enabled "${CP_CONFIG}" BK7258_UART0_FLOW_CONTROL &&
     exit 2
 fi
 
+# T5-Board V1.0.2 has no verified card-detect edge.  Make the fixed-media
+# upper-half policy explicit in the board profile rather than silently
+# inheriting NuttX's default card-detect setting.
+
+if config_enabled "${AP_CONFIG}" BK7258_T5_BOARD_TF_SLOT &&
+   ! config_disabled "${AP_CONFIG}" MMCSD_HAVE_CARDDETECT; then
+    printf '%s\n' \
+        'build_dual_image: T5-Board TF fixed-media mode requires MMCSD_HAVE_CARDDETECT=n' >&2
+    exit 2
+fi
+
 # T5-Board V1.0.2 routes TF D2/D3 to P10/P11.  S1-1/S1-2 can connect those
 # pins to the CH342F UART0 download channel, and CP UART0 would also fight the
 # AP SDIO mux internally.  Four-bit profiles therefore carry an explicit
@@ -376,6 +387,18 @@ if config_enabled "${AP_CONFIG}" BK7258_SDIO_4BIT; then
             'build_dual_image: T5-Board 4-bit TF P10/P11 conflicts with CP UART0' >&2
         exit 2
     fi
+
+    # The pinned AP libdriver.a was compiled without
+    # CONFIG_SDCARD_BUSWIDTH_4LINE.  Its V2 data-setup helpers overwrite the
+    # runtime host width from that private compile-time option, so accepting
+    # this profile would produce an image that advertises four-bit to NuttX
+    # while the controller transfers in one-bit mode.  Keep the profile as the
+    # board/S1 contract for the later separately versioned SDK bundle, but do
+    # not manufacture a falsely runnable image from the current bundle.
+
+    printf '%s\n' \
+        'build_dual_image: four-bit TF is blocked: pinned AP SDK bundle forces one-bit data setup' >&2
+    exit 2
 fi
 
 validate_symmetric_feature BK7258_RPTUN RPTUN

@@ -72,6 +72,18 @@ _Static_assert(MAILBOX_CPU1 == 1 && MAILBOX_CPU2 == 2,
 #endif
 
 /****************************************************************************
+ * AP SDIO host transaction ABI
+ ****************************************************************************/
+
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_SDIO) && \
+    defined(CONFIG_SDIO_V2P0)
+extern void bk_sdio_clk_gate_config(uint32_t enable);
+extern void bk_sdio_tx_fifo_clk_gate_config(uint32_t enable);
+extern void bk_sdio_host_reset_sd_state(void);
+extern void bk_sdio_host_discard_previous_receive_data_sema(void);
+#endif
+
+/****************************************************************************
  * AP CAN ABI
  ****************************************************************************/
 

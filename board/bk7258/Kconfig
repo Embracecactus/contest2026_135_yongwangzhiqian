@@ -32,3 +32,53 @@ config BK7258_BOARD_T5_BOARD
 		changes board wiring only; chip, CP/AP and boot code remain shared.
 
 endchoice
+
+if BK7258_BOARD_T5_BOARD
+
+config BK7258_T5_BOARD_TF_SLOT
+	bool "T5-Board TF-card slot"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_SDIO
+	select MMCSD
+	select MMCSD_SDIO
+	help
+		Bind the chip SDIO host to the T5-Board V1.0.2 TF socket.  Board
+		wiring is CLK/CMD/D0/D1/D2/D3 = P2/P3/P4/P5/P10/P11.  Real-board
+		validation found no usable P6 insertion edge, so profiles must disable
+		MMCSD_HAVE_CARDDETECT and insert media before reset.  Hotplug is not
+		supported.
+
+config BK7258_T5_BOARD_SDIO_D2_D3_ISOLATED
+	bool "S1 isolates UART0 from TF D2/D3"
+	default n
+	depends on BK7258_T5_BOARD_TF_SLOT
+	help
+		Assert the physical prerequisite for four-bit TF-card operation:
+		S1-1 and S1-2 are OFF, disconnecting the CH342F download UART from
+		P10/P11 (TF D2/D3).  Optional serial flash U3 must remain NC/DNP.
+
+config BK7258_SDIO_4BIT
+	bool "Use four-bit TF bus"
+	default n
+	depends on BK7258_T5_BOARD_TF_SLOT
+	depends on BK7258_T5_BOARD_SDIO_D2_D3_ISOLATED
+	help
+		Enable D1/D2/D3 in addition to CLK/CMD/D0.  The safe T5-Board
+		default is one bit because D2/D3 share the CH342F UART0 switch route.
+		P0/P1 SWD and RTT are independent of this choice.  The current pinned
+		AP SDK bundle forces data setup back to one bit, so the build pipeline
+		fails this selection closed until a separately identified four-bit SDK
+		bundle is integrated.
+
+config BK7258_T5_BOARD_TF_VALIDATION
+	bool "Validate T5-Board TF fixed-media read/write"
+	default n
+	depends on BK7258_T5_BOARD_TF_SLOT && FS_FAT
+	help
+		Run a bounded, non-destructive test through /dev/mmcsd0 and FAT.  It
+		creates, fsyncs, reopens, verifies and removes one 4 KiB file, unmounts,
+		then repeats once without removing the card.  It never formats media.
+		Insert the card before reset and use only in a validation profile.
+
+endif # BK7258_BOARD_T5_BOARD

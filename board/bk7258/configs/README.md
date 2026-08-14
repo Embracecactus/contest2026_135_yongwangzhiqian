@@ -71,7 +71,17 @@ UART0 download route.  Before running the four-bit profile, set S1-1/S1-2
 OFF; U3 must remain NC/DNP.  S1-3/S1-4 and P0/P1 SWD are independent of TF
 width, so J-Link plus RTT may remain enabled with those two log-UART switches
 OFF.  Both validation images use an already formatted FAT card and remove
-only their uniquely created test file; they never format media.
+only their uniquely created test file; they never format media.  P6 has no
+verified insertion edge on the tested T5-Board, so both are fixed-media
+profiles with `MMCSD_HAVE_CARDDETECT=n`: insert the card before reset and keep
+it inserted for both validation cycles.
+
+The checked-in v3.1.1.9 AP SDK bundle was compiled without its private
+`CONFIG_SDCARD_BUSWIDTH_4LINE` option.  Its data-setup helper therefore forces
+the controller back to one bit even when NuttX selects four-bit mode.  The
+four-bit profile currently records the board and S1 contract but fails closed
+in `build_dual_image.sh`; it is not a runnable image until a separately
+versioned four-bit-capable SDK bundle is integrated.
 
 Stage reports and evidence records may still name retired `cp_nsh_*` or
 `ap_smp_*` snapshots because those names identify the exact historical image

@@ -27,6 +27,7 @@
 #include <unistd.h>
 
 #include <nuttx/fs/fs.h>
+#include <nuttx/fs/partition.h>
 #include <nuttx/kthread.h>
 
 #include <arch/board/board.h>
@@ -37,13 +38,22 @@
  ****************************************************************************/
 
 #define BKTFVAL_BLOCKDEV          "/dev/mmcsd0"
+#define BKTFVAL_PARTDEV_LEN       24
+#define BKTFVAL_PARTNAME_LEN      32
+#define BKTFVAL_MAX_PARTITIONS    32
+#define BKTFVAL_MOUNTROOT         "/mnt"
 #define BKTFVAL_MOUNTPOINT        "/mnt/tf"
 #define BKTFVAL_FILE_PREFIX       BKTFVAL_MOUNTPOINT "/BKTF"
 #define BKTFVAL_PAYLOAD_SIZE      4096u
 #define BKTFVAL_STACKSIZE         4096
 #define BKTFVAL_POLL_US           100000u
 #define BKTFVAL_INITIAL_TIMEOUT   1200u
-#define BKTFVAL_HOTPLUG_TIMEOUT   1800u
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
+#  define BKTFVAL_HOTPLUG_TIMEOUT 1800u
+#  define BKTFVAL_MEDIA_MODE       "hotplug"
+#else
+#  define BKTFVAL_MEDIA_MODE       "fixed"
+#endif
 #define BKTFVAL_MAGIC             0x46544b42u /* "BKTF" */
 #define BKTFVAL_VERSION           1u
 #define BKTFVAL_RUNNING           1u
@@ -84,6 +94,22 @@ struct bktfval_diag_s
   uint32_t checksum;
 };
 
+struct bktfval_partition_s
+{
+  size_t index;
+  size_t firstblock;
+  size_t nblocks;
+  bool tried;
+  char name[BKTFVAL_PARTNAME_LEN];
+};
+
+struct bktfval_partitions_s
+{
+  struct bktfval_partition_s entry[BKTFVAL_MAX_PARTITIONS];
+  size_t count;
+  bool truncated;
+};
+
 /****************************************************************************
  * Public Data
  ****************************************************************************/
@@ -99,6 +125,8 @@ volatile struct bktfval_diag_s g_bk7258_tf_validation_diag;
  ****************************************************************************/
 
 static uint8_t g_bktfval_payload[BKTFVAL_PAYLOAD_SIZE] aligned_data(4);
+static char g_bktfval_blockdev[BKTFVAL_PARTDEV_LEN] = BKTFVAL_BLOCKDEV;
+static struct bktfval_partitions_s g_bktfval_partitions;
 
 /****************************************************************************
  * Private Functions
@@ -126,6 +154,129 @@ static uint32_t bktfval_checksum(FAR const uint8_t *buffer, size_t length)
     }
 
   return value;
+}
+
+static void bktfval_partition_handler(FAR struct partition_s *part,
+                                      FAR void *arg)
+{
+  FAR struct bktfval_partitions_s *partitions = arg;
+  FAR struct bktfval_partition_s *entry;
+
+  if (part->nblocks == 0)
+    {
+      return;
+    }
+
+  if (partitions->count >= BKTFVAL_MAX_PARTITIONS)
+    {
+      partitions->truncated = true;
+      return;
+    }
+
+  entry = &partitions->entry[partitions->count++];
+  entry->index = part->index;
+  entry->firstblock = part->firstblock;
+  entry->nblocks = part->nblocks;
+  snprintf(entry->name, sizeof(entry->name), "%s", part->name);
+}
+
+static FAR struct bktfval_partition_s *bktfval_next_partition(void)
+{
+  FAR struct bktfval_partition_s *selected = NULL;
+  FAR struct bktfval_partition_s *entry;
+  size_t index;
+
+  for (index = 0; index < g_bktfval_partitions.count; index++)
+    {
+      entry = &g_bktfval_partitions.entry[index];
+      if (!entry->tried &&
+          (selected == NULL || entry->nblocks > selected->nblocks))
+        {
+          selected = entry;
+        }
+    }
+
+  if (selected != NULL)
+    {
+      selected->tried = true;
+    }
+
+  return selected;
+}
+
+static int bktfval_mount(void)
+{
+  FAR struct bktfval_partition_s *selected;
+  char partdev[BKTFVAL_PARTDEV_LEN];
+  int ret;
+
+  ret = nx_mount(g_bktfval_blockdev, BKTFVAL_MOUNTPOINT, "vfat", 0, NULL);
+  if (ret != -EINVAL || strcmp(g_bktfval_blockdev, BKTFVAL_BLOCKDEV) != 0)
+    {
+      return ret;
+    }
+
+  /* The NuttX FAT mount directly understands a raw FAT volume and DOS MBR,
+   * but not a GPT protective MBR.  Use the standard partition layer as a
+   * non-destructive fallback.  GPT does not guarantee that the largest
+   * partition contains FAT, so try candidates from largest to smallest and
+   * retain the first partition that the FAT driver actually accepts.
+   */
+
+  memset(&g_bktfval_partitions, 0, sizeof(g_bktfval_partitions));
+  ret = parse_block_partition(BKTFVAL_BLOCKDEV,
+                              bktfval_partition_handler,
+                              &g_bktfval_partitions);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bktfval_partitions.count == 0)
+    {
+      return -ENODEV;
+    }
+
+  if (g_bktfval_partitions.truncated)
+    {
+      syslog(LOG_WARNING,
+             "BKTF GPT has more than %u usable partitions; testing first %u\n",
+             BKTFVAL_MAX_PARTITIONS, BKTFVAL_MAX_PARTITIONS);
+    }
+
+  while ((selected = bktfval_next_partition()) != NULL)
+    {
+      snprintf(partdev, sizeof(partdev), BKTFVAL_BLOCKDEV "p%u",
+               (unsigned int)selected->index + 1u);
+      ret = register_blockpartition(partdev, 0660, BKTFVAL_BLOCKDEV,
+                                    (off_t)selected->firstblock,
+                                    (off_t)selected->nblocks);
+      if (ret < 0 && ret != -EEXIST)
+        {
+          return ret;
+        }
+
+      syslog(LOG_INFO,
+             "BKTF GPT candidate %s name='%s': first=%lu blocks=%lu\n",
+             partdev, selected->name, (unsigned long)selected->firstblock,
+             (unsigned long)selected->nblocks);
+      ret = nx_mount(partdev, BKTFVAL_MOUNTPOINT, "vfat", 0, NULL);
+      if (ret == OK)
+        {
+          snprintf(g_bktfval_blockdev, sizeof(g_bktfval_blockdev), "%s",
+                   partdev);
+          syslog(LOG_INFO, "BKTF selected FAT partition %s\n",
+                 g_bktfval_blockdev);
+          return OK;
+        }
+
+      if (ret != -EINVAL)
+        {
+          return ret;
+        }
+    }
+
+  return -EINVAL;
 }
 
 static int bktfval_wait_blockdev(bool present, uint32_t polls,
@@ -215,13 +366,24 @@ static int bktfval_cycle(uint32_t cycle)
   int ret;
   int cleanup_ret;
 
+  g_bk7258_tf_validation_diag.stage = BKTFVAL_STAGE_MOUNT;
+
+  /* Minimal validation profiles do not necessarily create /mnt during
+   * bring-up.  mkdir() does not create missing parents, so establish the
+   * conventional mount root before its TF-card child directory.
+   */
+
+  if (mkdir(BKTFVAL_MOUNTROOT, 0777) < 0 && errno != EEXIST)
+    {
+      return bktfval_errno();
+    }
+
   if (mkdir(BKTFVAL_MOUNTPOINT, 0777) < 0 && errno != EEXIST)
     {
       return bktfval_errno();
     }
 
-  g_bk7258_tf_validation_diag.stage = BKTFVAL_STAGE_MOUNT;
-  ret = nx_mount(BKTFVAL_BLOCKDEV, BKTFVAL_MOUNTPOINT, "vfat", 0, NULL);
+  ret = bktfval_mount();
   if (ret < 0)
     {
       return ret;
@@ -391,7 +553,7 @@ static int bktfval_thread(int argc, FAR char *argv[])
     BK7258_SDIO_BUS_WIDTH_4BIT ? 4 : 1;
 
   syslog(LOG_INFO,
-         "BKTF waiting for FAT card on %s (width=%u)\n",
+         "BKTF waiting for FAT card on %s (width=%u, insert-before-reset)\n",
          BKTFVAL_BLOCKDEV, BK7258_SDIO_BUS_WIDTH_4BIT ? 4 : 1);
 
   ret = bktfval_wait_blockdev(true, BKTFVAL_INITIAL_TIMEOUT,
@@ -403,16 +565,21 @@ static int bktfval_thread(int argc, FAR char *argv[])
 
   if (ret == OK)
     {
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
       syslog(LOG_INFO, "BKTF remove card now; waiting for eject\n");
       ret = bktfval_wait_blockdev(false, BKTFVAL_HOTPLUG_TIMEOUT,
                                   BKTFVAL_STAGE_WAIT_EJECT);
-    }
 
-  if (ret == OK)
-    {
-      syslog(LOG_INFO, "BKTF insert card now; waiting for reinsert\n");
-      ret = bktfval_wait_blockdev(true, BKTFVAL_HOTPLUG_TIMEOUT,
-                                  BKTFVAL_STAGE_WAIT_REINSERT);
+      if (ret == OK)
+        {
+          syslog(LOG_INFO, "BKTF insert card now; waiting for reinsert\n");
+          ret = bktfval_wait_blockdev(true, BKTFVAL_HOTPLUG_TIMEOUT,
+                                      BKTFVAL_STAGE_WAIT_REINSERT);
+        }
+#else
+      syslog(LOG_INFO,
+             "BKTF fixed-media slot: repeating without eject/reinsert\n");
+#endif
     }
 
   if (ret == OK)
@@ -426,9 +593,10 @@ static int bktfval_thread(int argc, FAR char *argv[])
   if (ret == OK)
     {
       syslog(LOG_INFO,
-             "BKTF PASS width=%u cycles=2 bytes=%lu hotplug=ok\n",
+             "BKTF PASS width=%u cycles=2 bytes=%lu media=%s\n",
              BK7258_SDIO_BUS_WIDTH_4BIT ? 4 : 1,
-             (unsigned long)g_bk7258_tf_validation_diag.bytes);
+             (unsigned long)g_bk7258_tf_validation_diag.bytes,
+             BKTFVAL_MEDIA_MODE);
     }
   else
     {

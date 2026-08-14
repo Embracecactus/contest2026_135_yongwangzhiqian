@@ -89,12 +89,13 @@ int bk7258_board_sdio_initialize(bool widebus)
                                  GPIO_DRIVER_CAPACITY_3);
     }
 
-  /* P6 is the socket's mechanical CD switch.  R54 pulls SD_CD high while
-   * the slot is empty and the socket contact pulls it low when a card is
-   * inserted.  This matches v3.1.1.9 sd_card_get_insert_status(): a raw
-   * high level is handled as "NO SDcard".
+  /* Only configure a card-detect GPIO when the physical board has a
+   * verified insertion edge.  T5-Board V1.0.2 keeps P6 high with and
+   * without media, so its board contract leaves the pin untouched and uses
+   * NuttX's fixed-media probing model instead.
    */
 
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
   ret = gpio_dev_unmap((gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);
   if (ret != BK_OK)
     {
@@ -109,6 +110,7 @@ int bk7258_board_sdio_initialize(bool widebus)
     (gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);
   (void)bk_gpio_pull_up(
     (gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);
+#endif
 
   g_t5_board_sdio_initialized = true;
   return OK;
@@ -116,16 +118,27 @@ int bk7258_board_sdio_initialize(bool widebus)
 
 bool bk7258_board_sdio_card_present(void)
 {
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
   bool level;
+#endif
 
   if (!g_t5_board_sdio_initialized)
     {
       return false;
     }
 
+#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
   level = bk_gpio_get_input(
     (gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);
   return BK7258_BOARD_SDIO_CARD_DETECT_ACTIVE_LOW ? !level : level;
+#else
+  /* NuttX documents an always-present status for slots without reliable
+   * insertion information.  The upper half probes once during slot setup;
+   * the card must therefore be inserted before reset.
+   */
+
+  return true;
+#endif
 }
 
 #endif /* CONFIG_BK7258_SDIO */
