@@ -1,22 +1,21 @@
 # Operations
 
-Last reviewed: 2026-08-13
+Last reviewed: 2026-08-14
 
 Do not place credentials, tokens, private keys, or sensitive production data in this file.
 
 ## Environments
 
 - Workspace root contains official `nuttx/` and `apps/` siblings plus this contest repository.
-- Active physical target: Tuya T5-AI/BK7258; current workstation mapping uses
-  COM7 for download/reset and COM11 at 460800 8N1 for UART. Both ports come
-  from the USB-to-UART device, so the USB connection must remain present to
-  preserve their power and availability. Rediscover ports before each session.
-- Owner-confirmed hardware topology: the J-Link RST signal is physically wired
-  to the board RST signal. This wiring fact does not by itself prove a specific
-  J-Link Commander reset command or reset type. On the current setup, a 150 ms
-  COM7 RTS pulse is the proven reset method because its resulting `BClk` cold
-  boot was captured on COM11; use it for the automated reset-recovery matrix
-  until the J-Link RST command path is separately demonstrated.
+- Active physical target: T5-Board/BK7258.  The owner-confirmed current route
+  uses COM3/UART1 at 115200 8N1 for download and console.  COM4 is disabled by
+  its DIP switch and conflicts with the active debug arrangement; do not open
+  it.  Preserve the P0/P1 SWD route and RTT support.
+- Owner-confirmed hardware topology: the J-Link pin-15 RST signal is physically
+  wired to board RST.  This clone probe's old firmware cannot reliably access
+  the top shared-SRAM BL2 release word while caches are enabled; use bounded
+  register/memory inspection and the documented final-hold continuation, never
+  skip a BL2 validation or boot-policy branch.
 - 2026-08-07 host access check: Windows exposes the J-Link as USB `8-4`
   (S/N `20790067`, VTref about `3.30 V`) and WSL can invoke the Windows
   Commander directly; no usbipd attach is needed and the Windows UART path is
