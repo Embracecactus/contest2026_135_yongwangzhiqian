@@ -35,9 +35,9 @@
 #define BK7258_SDIO_UNIT               0
 
 /* Default bus width / clock applied at init (identification-speed clock).
- * T5-Board shares D2/D3 with the CH342F download/log UART paths, so a
- * console-compatible validation profile must be able to select one-bit
- * mode without changing this driver.
+ * T5-Board shares D2/D3 with the CH342F UART0 download path through S1-1
+ * and S1-2.  P0/P1 SWD and UART1 are a separate mux conflict and do not
+ * affect the TF-card data width.
  */
 
 #ifdef CONFIG_BK7258_SDIO_4BIT

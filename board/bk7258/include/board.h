@@ -106,6 +106,10 @@ int bk7258_t5_board_camera_initialize(void);
 int bk7258_t5_board_rgb_lcd_backlight_validation_initialize(void);
 #endif
 
+#ifdef CONFIG_BK7258_T5_BOARD_TF_VALIDATION
+int bk7258_t5_board_tf_validation_initialize(void);
+#endif
+
 #ifdef CONFIG_BK7258_AP_CORE
 /* Selected physical-board hooks.  Generic AP controller wrappers call these
  * at stable ordering boundaries; the variant implementation owns attached

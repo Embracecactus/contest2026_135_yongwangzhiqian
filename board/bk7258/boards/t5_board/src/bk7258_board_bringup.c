@@ -63,6 +63,15 @@ int bk7258_board_devices_initialize(void)
     }
 #endif
 
+#ifdef CONFIG_BK7258_T5_BOARD_TF_VALIDATION
+  ret = bk7258_t5_board_tf_validation_initialize();
+  if (ret < 0)
+    {
+      _err("ERROR: T5-Board TF validation worker failed: %d\n", ret);
+      return ret;
+    }
+#endif
+
   (void)ret;
   return OK;
 }

@@ -3,6 +3,29 @@
 
 set -euo pipefail
 
+usage()
+{
+    cat <<'EOF'
+Usage: build_dual_image.sh
+
+Select the CP/AP profiles and build behavior through the documented
+CP_CONFIG_NAME, AP_CONFIG_NAME and BK7258_* environment variables.
+EOF
+}
+
+if (($# != 0)); then
+    if (($# == 1)) && [[ "$1" == --help || "$1" == -h ]]; then
+        usage
+        exit 0
+    fi
+
+    printf 'build_dual_image: unexpected argument:' >&2
+    printf ' %q' "$@" >&2
+    printf '\n' >&2
+    usage >&2
+    exit 2
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOARD_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CONTEST_DIR="$(cd "${BOARD_DIR}/../.." && pwd)"
@@ -332,6 +355,27 @@ if config_enabled "${CP_CONFIG}" BK7258_UART0_FLOW_CONTROL &&
      config_enabled "${AP_CONFIG}" BK7258_USBHOST; }; then
     printf '%s\n' 'build_dual_image: UART0 CTS/RTS P12/P13 conflict with AP board devices' >&2
     exit 2
+fi
+
+# T5-Board V1.0.2 routes TF D2/D3 to P10/P11.  S1-1/S1-2 can connect those
+# pins to the CH342F UART0 download channel, and CP UART0 would also fight the
+# AP SDIO mux internally.  Four-bit profiles therefore carry an explicit
+# physical-route assertion and cannot be paired with an active CP UART0.
+
+if config_enabled "${AP_CONFIG}" BK7258_SDIO_4BIT; then
+    if ! config_enabled "${AP_CONFIG}" \
+        BK7258_T5_BOARD_SDIO_D2_D3_ISOLATED; then
+        printf '%s\n' \
+            'build_dual_image: T5-Board 4-bit TF requires the S1-1/S1-2 isolation assertion' >&2
+        exit 2
+    fi
+
+    if [[ "${BL1_CONSOLE_UART}" == 0 ]] ||
+       config_enabled "${CP_CONFIG}" BK7258_UART0; then
+        printf '%s\n' \
+            'build_dual_image: T5-Board 4-bit TF P10/P11 conflicts with CP UART0' >&2
+        exit 2
+    fi
 fi
 
 validate_symmetric_feature BK7258_RPTUN RPTUN

@@ -96,7 +96,14 @@
 #define BK7258_BOARD_DVP_D6_GPIO                  38
 #define BK7258_BOARD_DVP_D7_GPIO                  39
 
-/* TF-card wiring source-verified from T5-Board V1.0.2. */
+/* TF-card wiring source-verified from T5-Board V1.0.2.  S1-1/S1-2 connect
+ * the CH342F download UART to P10/P11 when ON, so four-bit TF operation
+ * requires both switches OFF.  U3 is marked NC in the supplied schematic;
+ * fitting that optional serial flash would electrically share CLK/CMD/D0/D1
+ * and make the TF socket unavailable in both one- and four-bit modes.
+ */
+
+#define BK7258_BOARD_SDIO_U3_FLASH_FITTED         0
 
 #define BK7258_BOARD_SDIO_D2_GPIO                10
 #define BK7258_BOARD_SDIO_D3_GPIO                11
@@ -105,6 +112,6 @@
 #define BK7258_BOARD_SDIO_D0_GPIO                4
 #define BK7258_BOARD_SDIO_D1_GPIO                5
 #define BK7258_BOARD_SDIO_CARD_DETECT_GPIO       6
-#define BK7258_BOARD_SDIO_CARD_DETECT_ACTIVE_LOW 0
+#define BK7258_BOARD_SDIO_CARD_DETECT_ACTIVE_LOW 1
 
 #endif /* __BOARD_BK7258_T5_BOARD_CONFIG_H */
