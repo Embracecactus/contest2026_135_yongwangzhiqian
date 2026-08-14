@@ -81,6 +81,7 @@ static void bk7258_temperature_validation_worker(void *arg)
   uint32_t expected_generation = 0;
   uint32_t minimum_raw = UINT32_MAX;
   uint32_t maximum_raw = 0;
+  uint16_t final_state;
   unsigned int index;
   int status = OK;
 
@@ -143,13 +144,19 @@ static void bk7258_temperature_validation_worker(void *arg)
     minimum_raw == UINT32_MAX ? 0 : minimum_raw;
   g_bk7258_temperature_validation_diag.maximum_raw = maximum_raw;
   g_bk7258_temperature_validation_diag.status = status;
-  g_bk7258_temperature_validation_diag.state =
+  final_state =
     status == OK &&
     g_bk7258_temperature_validation_diag.successful_samples ==
       BK7258_TEMP_VALIDATION_SAMPLES ?
       BK7258_TEMP_VALIDATION_PASSED :
       BK7258_TEMP_VALIDATION_FAILED;
+
+  /* The debugger treats state as the completion publication field.  Make
+   * every result word visible before PASS/FAIL can be observed.
+   */
+
   __asm volatile ("dmb sy" ::: "memory");
+  g_bk7258_temperature_validation_diag.state = final_state;
 
   syslog(LOG_INFO,
          "BTEMP %s status=%d generation=%lu samples=%lu/%u "

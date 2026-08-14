@@ -436,6 +436,7 @@ int bk7258_platform_initialize(void)
     defined(CONFIG_BK7258_SARADC_SERVER) || \
     defined(CONFIG_BK7258_SDK_IPC_RUNTIME) || \
     defined(CONFIG_BK7258_PM_CLOCK) || \
+    defined(CONFIG_BK7258_TEMPERATURE) || \
     (defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE))
   g_bk7258_platform_result = apret < 0 ? apret : result;
 #else

@@ -25,14 +25,15 @@
 #define BK7258_TEMPERATURE_FLAG_RAW_VALID       (1u << 0)
 #define BK7258_TEMPERATURE_FLAG_CALIBRATED      (1u << 1)
 
-/* The immutable v3.1.1.9 SDK accepts only raw values strictly inside this
- * interval.  The BK7258 transfer slope is 12 ADC codes per 10 degrees C and
- * decreases as temperature rises.
+/* The immutable v3.1.1.9 CP bundle defines CONFIG_SOC_BK7236XX for BK7258
+ * and uses the non-SDMADC branch of temp_detect.h.  Its one-shot API accepts
+ * raw values strictly inside (10, 1365), and the transfer slope is 46 ADC
+ * codes per 10 degrees C.  The raw value decreases as temperature rises.
  */
 
-#define BK7258_TEMPERATURE_RAW_MIN              51u
+#define BK7258_TEMPERATURE_RAW_MIN              11u
 #define BK7258_TEMPERATURE_RAW_MAX              1364u
-#define BK7258_TEMPERATURE_LSB_PER_10C          12u
+#define BK7258_TEMPERATURE_LSB_PER_10C          46u
 
 /****************************************************************************
  * Public Types
