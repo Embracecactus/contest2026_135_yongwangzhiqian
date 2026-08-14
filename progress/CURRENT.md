@@ -5,10 +5,11 @@ Updated by: Codex
 
 ## Active objective
 
-The merged baseline is `f717e652df0f` on `dev-ai-contest-2026`.  The active
-uncommitted branch is `fix/bk7258-radio-worker-lifecycle`.  It closes the
-remaining Wi-Fi/Bluetooth worker-lifecycle boundary against the official
-v3.1.1.9 SDK and Tuya ownership model, with paired build and T5-Board evidence.
+The merged baseline is `f717e652df0f` on `dev-ai-contest-2026`.  The
+Wi-Fi/Bluetooth worker-lifecycle implementation is committed as `54f4571` on
+`fix/bk7258-radio-worker-lifecycle` and published to the matching `fork` branch.
+It closes the remaining boundary against the official v3.1.1.9 SDK and Tuya
+ownership model, with paired build and T5-Board evidence.
 
 ## Implemented
 
@@ -88,9 +89,9 @@ and [radio-lifecycle verification record](verification/2026-08-14-bk7258-radio-w
 
 ## Next action
 
-Review the uncommitted radio-lifecycle diff, then commit/push only with owner
-authorization.  Follow with MIC pause/resume and USB attach lifecycle pressure;
-do not claim mass-production acceptance from the current board run alone.
+Review and merge the published radio-lifecycle pull request.  Follow with MIC
+pause/resume and USB attach lifecycle pressure; do not claim mass-production
+acceptance from the current board run alone.
 
 ## Fixed constraints
 
