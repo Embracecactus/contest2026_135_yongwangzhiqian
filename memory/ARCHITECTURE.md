@@ -21,6 +21,7 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | BK7258 microphone | One AP NuttX audio lower-half owns DMA, ADC and worker lifetime.  The selected board header supplies fixed analog topology: T5AI-Core is MICP1/MICN1 mono; T5-Board is MICP1/MICN1 plus MICP2/MICN2 stereo.  Kconfig supplies product defaults for sample rate, analog/digital gain and buffering, while applications negotiate supported formats through `/dev/audio/pcm0c`.  The immutable AP SDK's separate AUDIO power-domain (`122`) and audio-clock (`30`) calls are link-wrapped into one generation-scoped CP-owned composite resource, because the native CPU1-to-CPU0 SDK PM mailbox is not an owner after RPTUN takes that mailbox. |
 | BK7258 speaker DAC | One AP NuttX playback lower half owns repeat GDMA, the two-frame DTCM ring, DAC and APB/worker lifetime at `/dev/audio/pcm0p`.  The selected board owns only the PA electrical binding: T5-Board P28 and T5AI-Core P39, both active-high with board-owned delays.  The first accepted contract is mono S16/16 kHz/320 samples/eight explicit APBs.  `RESERVE` through successful `RELEASE` owns the Audio 480 MHz SDK-tier vote; the bounded scheduling order is feeder 246 > refill worker 245 > board-default transport 225.  An optional chip-private hardware-EQ extension deep-copies four raw signed-22 coefficient banks before hardware creation, applies them while the initialized DAC is muted, and deconfigures them before DAC teardown.  It advertises no standard NuttX equalizer capability and owns no board preset.  Speaker and microphone validation remain mutually exclusive until shared full-duplex clock ownership is designed. |
 | BK7258 SARADC | The AP chip lower half publishes `/dev/adcN` through the standard NuttX ADC ABI.  One open session owns only the selected channel's GPIO mapping; each trigger takes, initializes, explicitly configures, starts, reads, stops, deinitializes and releases the shared ADC controller before delivering one sample to the upper FIFO.  CP owns the boot-lifetime GPIO runtime, SDK IRQ bridge and ADC mailbox server.  The selected board alone supplies pin/channel/electrical meaning: T5-Board binds active-low SW5 at P12/ADC14.  The generic validator contains no board endpoint assumption. |
+| BK7258 JPEG M2M decoder | One AP chip-level owner publishes the existing synchronous hardware JPEG decoder through the standard NuttX V4L2 M2M codec upper half.  `/dev/video1` accepts single-planar baseline JPEG on the OUTPUT queue and returns tightly packed YUYV on CAPTURE.  The initial contract is USERPTR-only and single-open; a dedicated one-thread work queue serializes the SDK singleton, while STREAMOFF and close synchronously cancel and return every queued buffer.  A bounded local parser admits only the reviewed SOF0 single-scan three-component subset before the immutable SDK sees input, and a grow-only guarded bounce satisfies its hidden `bytesused + 2048` DMA read.  The 32 x 16 baseline 4:2:2 fixture, negative/recovery/drain lifecycle and resource cleanup are board-verified.  This component owns no camera, LCD, board pin, DMA2D stage or RGB conversion. |
 | Tier-1 bootloader | Board-owned source reconstructed for this port; it is built as a project artifact rather than patched into a vendor binary. It normalizes boot/cache/MPU/watchdog state. Direct profiles validate and transfer straight to CP; signed profiles transfer to Manifest/MCUboot BL2. |
 | BK7258 integrated Flash | 8 MiB on the current T5-AI; interface reports `0xc86517`, compatible with the GD25WQ64E command identity but not evidence of a separate board-level chip |
 | CP NuttX on CPU0 | Flash/LittleFS owner, AP lifecycle supervisor, RPMsg peer, Beken Bluetooth Controller owner, Wi-Fi RF/PHY/MAC/WPA/controller owner, PSRAM hardware/PM owner. Bluetooth desired state is published only after real SDK init/deinit success; Wi-Fi remains whole-chip lifetime. See [ADR-025](decisions/ADR-025-bk7258-radio-lifecycle-boundary.md). |
@@ -40,7 +41,12 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   optional final debug gate → CP → bounded AP release → AP SMP READY.
 - Signed boot: legacy BootROM → board-owned BL1 → signed Manifest → pinned
   NuttX MCUboot BL2 → signed CP/AP pair → bounded AP release → AP SMP READY.
-- IPC: one CP↔AP RPTUN/OpenAMP/RPMsg link; AP logical CPU0 is the mailbox/OpenAMP gateway.
+- IPC: one CP↔AP RPTUN/OpenAMP/RPMsg link; AP logical CPU0 is the
+  mailbox/OpenAMP gateway.  Every generation also owns a transport-level,
+  generation-qualified NS proof endpoint: AP publishes CREATE, CP binds and
+  returns CREATE_ACK, and each core stops its bootstrap scan only after its
+  local proof.  The shared lifecycle reaches CONNECTED without depending on
+  an optional test, syslog consumer or health supervisor.
 - Power management: NuttX requests standby on CP → CP publishes a generation-scoped
   PWC request → both AP cores pass local IRQ/DMA/vote gates and publish AON WFI
   state → CP admits the bounded low-voltage interval → mailbox/RTC wake drives
@@ -81,6 +87,14 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   and the NuttX ADC upper half returns the packed channel/value message to
   `read()`.  Session-level GPIO mapping and per-trigger controller ownership
   are released before the last close completes.
+- JPEG M2M: an application negotiates JPEG OUTPUT and YUYV CAPTURE formats on
+  `/dev/video1`, queues one USERPTR buffer to each side and starts both queues.
+  The codec worker validates the complete compressed frame, copies it into a
+  zero-guarded DMA bounce, runs the single hardware decoder, then returns both
+  V4L2 buffers exactly once.  Malformed input returns an error pair without
+  touching hardware; a hardware decode failure faults and rebuilds the unique
+  backend before another job.  STREAMOFF or close waits for any synchronous
+  SDK operation and drains residual buffers as errors.
 - Signed-image selection: CP/AP are one launchable pair. The board-owned MCUboot BL2 exposes only
   one physical slot to each `boot_go()` attempt and requires the CP result and
   AP vector to come from that same slot; a cross-slot-only state fails closed.
@@ -143,8 +157,9 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   CP/AP startup, CPU2 SMP, bidirectional RPTUN, DVP camera, TF one-/four-bit
   storage and the bounded Audio DAC lifecycle.  Its P12/ADC14 SARADC path and
   released baseline are physically verified, while the SW5 active-low and
-  return transitions remain pending. P20/P21, alternate UARTs and RGB LCD
-  remain compile-only until tested in compatible profiles.
+  return transitions remain pending.  Its bounded JPEG V4L2 M2M USERPTR
+  lifecycle is also physically verified.  P20/P21, alternate UARTs and RGB
+  LCD remain compile-only until tested in compatible profiles.
 - N14 exposes only 128 KiB CP and 640 KiB AP role-local PSRAM heaps. The remaining regions are reserved by policy.
 - PSRAM is non-cacheable; DMA/cache-coherency and performance tuning are deferred.
 - AP automatic recovery is disabled by default; the verified baseline is detection plus bounded manual recovery.
@@ -212,3 +227,13 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   policy or safe non-flat preset, and NuttX exposes no standard coefficient
   payload.  The verified all-zero-bank lifecycle must not be presented as a
   frequency-response, pass-through, stability or acoustic result.
+- The first JPEG M2M contract is USERPTR-only, single-open, baseline SOF0 with
+  one scan and three 4:4:4/4:2:2/4:2:0 components, and tightly packed YUYV at
+  the JPEG dimensions.  It has no progressive/grayscale/multiscan support,
+  source-change negotiation, scaling, stride selection, DMA2D/RGB565 stage or
+  MMAP contract.  Because the current NuttX codec upper half does not expose
+  REQBUFS teardown to the lower half, format allocation is frozen after the
+  first buffer-size query and renegotiation requires close/reopen.  A single
+  32 x 16 baseline 4:2:2 fixture has a bounded board decode/recovery/cleanup
+  PASS; that result is not a reference-decoder pixel comparison, broad JPEG
+  conformance or a guarantee for the excluded formats and compositions.

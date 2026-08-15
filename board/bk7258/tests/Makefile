@@ -22,13 +22,18 @@ REAL_H  := ../chip/common/bk7258_rptun_mbox.h
 TARGET  := $(BUILD)/test_bk7258_rptun_mbox
 POLICY_TARGET := $(BUILD)/test_boot_bl1_policy
 PM_ACTIVITY_TARGET := $(BUILD)/test_bk7258_pm_activity
+RPTUN_CORE_CP_TARGET := $(BUILD)/test_bk7258_rptun_core_cp
+RPTUN_CORE_AP_TARGET := $(BUILD)/test_bk7258_rptun_core_ap
 POLICY_CFLAGS := -std=c11 -Wall -Wextra -Werror -O1 -g \
 	-fsanitize=address,undefined -fno-omit-frame-pointer
 PM_ACTIVITY_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2
+RPTUN_CORE_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2 \
+	-DTEST_BK7258_RPTUN_CORE
 
 .PHONY: all clean
 
-all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET)
+all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
+	$(RPTUN_CORE_CP_TARGET) $(RPTUN_CORE_AP_TARGET)
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -42,6 +47,10 @@ $(BUILD)/bk7258_rptun_mbox.c: $(REAL_C) | $(BUILD)
 
 $(BUILD)/bk7258_rptun_mbox.h: $(REAL_H) | $(BUILD)
 	cp $(REAL_H) $@
+
+$(BUILD)/bk7258_rptun.c: ../chip/common/bk7258_rptun.c | $(BUILD)
+	cp $< $@
+	sed -i 's|__asm volatile ("dmb sy.*|__asm__ volatile ("" ::: "memory");|g' $@
 
 $(TARGET): $(BUILD)/bk7258_rptun_mbox.c $(BUILD)/bk7258_rptun_mbox.h \
            test_bk7258_rptun_mbox.c mocks/mock_sdk.c
@@ -75,6 +84,22 @@ $(PM_ACTIVITY_TARGET): test_bk7258_pm_activity.c \
 	  test_bk7258_pm_activity.c \
 	  ../chip/common/bk7258_pm_activity.c \
 	  -I ../chip/common \
+	  -o $@
+
+$(RPTUN_CORE_CP_TARGET): $(BUILD)/bk7258_rptun.c \
+                         test_bk7258_rptun_core.c
+	$(CC) $(RPTUN_CORE_CFLAGS) \
+	  test_bk7258_rptun_core.c \
+	  $(BUILD)/bk7258_rptun.c \
+	  -I $(MOCKS) -I ../chip/common \
+	  -o $@
+
+$(RPTUN_CORE_AP_TARGET): $(BUILD)/bk7258_rptun.c \
+                         test_bk7258_rptun_core.c
+	$(CC) $(RPTUN_CORE_CFLAGS) -DTEST_BK7258_RPTUN_AP \
+	  test_bk7258_rptun_core.c \
+	  $(BUILD)/bk7258_rptun.c \
+	  -I $(MOCKS) -I ../chip/common \
 	  -o $@
 
 clean:

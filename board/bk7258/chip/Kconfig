@@ -1732,6 +1732,83 @@ config BK7258_JPEG_DECODER
 		The hardware output is interleaved YUYV.  Scaling, rotation and color
 		conversion remain separate accelerator stages.
 
+config BK7258_JPEG_M2M
+	bool "BK7258 JPEG V4L2 memory-to-memory decoder"
+	default n
+	depends on BK7258_JPEG_DECODER
+	select DRIVERS_VIDEO
+	select VIDEO_STREAM
+	select SCHED_WORKQUEUE
+	help
+		Publish the BK7258 hardware JPEG decoder through NuttX's standard
+		V4L2 memory-to-memory codec interface.  The output queue accepts one
+		JPEG image per buffer and the capture queue returns interleaved YUYV.
+		The first implementation accepts USERPTR only.  With D-cache enabled,
+		capture addresses must be cache-line aligned and sizeimage includes
+		trailing cache-line ownership padding.  The maintained AP handoff uses
+		non-cacheable SRAM and therefore requires natural pointer alignment.
+		In both cases bytesused is the exact decoded YUYV payload.
+		The decoder is a chip-level singleton and permits one open owner.
+
+if BK7258_JPEG_M2M
+
+config BK7258_JPEG_M2M_DEVPATH
+	string "JPEG M2M device path"
+	default "/dev/video1"
+
+config BK7258_JPEG_M2M_MAX_WIDTH
+	int "Maximum decoded width"
+	default 1920
+	range 2 65535
+
+config BK7258_JPEG_M2M_MAX_HEIGHT
+	int "Maximum decoded height"
+	default 1080
+	range 1 65535
+
+config BK7258_JPEG_M2M_DEFAULT_WIDTH
+	int "Default decoded width"
+	default 320
+	range 2 BK7258_JPEG_M2M_MAX_WIDTH
+
+config BK7258_JPEG_M2M_DEFAULT_HEIGHT
+	int "Default decoded height"
+	default 240
+	range 1 BK7258_JPEG_M2M_MAX_HEIGHT
+
+config BK7258_JPEG_M2M_MAX_INPUT_SIZE
+	int "Maximum JPEG input buffer size"
+	default 1048576
+	range 4096 16777216
+
+config BK7258_JPEG_M2M_WORKER_PRIORITY
+	int "JPEG M2M worker priority"
+	default 100
+	range 1 255
+
+config BK7258_JPEG_M2M_WORKER_STACKSIZE
+	int "JPEG M2M worker stack size"
+	default 4096
+	range 2048 16384
+
+config BK7258_JPEG_M2M_VALIDATION
+	bool "Run bounded JPEG V4L2 M2M validation"
+	default n
+	help
+		Launch a dedicated kernel thread after the standard codec device is
+		registered.  It exercises the public V4L2 M2M ABI with a chip-only
+		32x16 baseline JPEG fixture: capability and format negotiation,
+		USERPTR queueing, an initial hardware decode, a truncated-input
+		failure and successful recovery, plus STREAMOFF draining of an
+		unmatched output buffer.
+
+		The debugger-visible record contains bounded progress, flags, byte
+		counts and observed CRCs.  The CRC is deliberately not compared with
+		a host-invented golden value; PASS still requires two successful real
+		hardware decodes and deterministic equality between those two runs.
+
+endif # BK7258_JPEG_M2M
+
 config BK7258_JPEG_ENCODER
 	bool "BK7258 hardware JPEG encoder helper"
 	default n

@@ -39,6 +39,12 @@
 #  include <nuttx/audio/i2s.h>
 #  include <arch/chip/bk7258_i2s.h>
 #endif
+#ifdef CONFIG_BK7258_JPEG_M2M
+#  include <arch/chip/bk7258_jpeg_m2m.h>
+#endif
+#ifdef CONFIG_BK7258_JPEG_M2M_VALIDATION
+#  include <arch/chip/bk7258_jpeg_m2m_validation.h>
+#endif
 #ifdef CONFIG_BK7258_MIC
 #  include <arch/chip/bk7258_mic.h>
 #endif
@@ -275,6 +281,14 @@ int bk7258_peripherals_initialize(void)
     }
 #endif
 
+#ifdef CONFIG_BK7258_JPEG_M2M
+  ret = bk7258_jpeg_m2m_register(CONFIG_BK7258_JPEG_M2M_DEVPATH);
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
 #ifdef CONFIG_BK7258_AUD
   ret = bk7258_aud_initialize();
   if (ret < 0)
@@ -384,6 +398,14 @@ int bk7258_peripherals_initialize(void)
     {
       _err("ERROR: board device registration failed: %d\n", ret);
     }
+
+#ifdef CONFIG_BK7258_JPEG_M2M_VALIDATION
+  ret = bk7258_jpeg_m2m_validation_start();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
 
 #ifdef CONFIG_BK7258_TEMPERATURE_VALIDATION
   ret = bk7258_temperature_validation_start();

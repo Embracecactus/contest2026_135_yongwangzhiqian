@@ -333,6 +333,14 @@ if(CONFIG_BK7258_JPEG_DECODER)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_jpeg_decoder.c)
 endif()
 
+if(CONFIG_BK7258_JPEG_M2M)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_jpeg_m2m.c)
+endif()
+
+if(CONFIG_BK7258_JPEG_M2M_VALIDATION)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_jpeg_m2m_validation.c)
+endif()
+
 if(CONFIG_BK7258_JPEG_ENCODER)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_jpeg_encoder.c)
 endif()
