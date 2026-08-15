@@ -159,6 +159,17 @@ class BkpackContainerTest(unittest.TestCase):
         self.assertFalse(result["authenticated"])
         self.assertTrue(result["target_preflight_required"])
         self.assertEqual(result["plans"], ["apps", "factory", "normal"])
+        manifest = result["manifest"]
+        standard = set(manifest["standard_artifacts"])
+        plan_members = {
+            item["member"]
+            for plan in manifest["plans"].values()
+            for item in plan["segments"]
+        }
+        self.assertEqual(standard, {"vela_cp.bin", "vela_ap.bin"})
+        self.assertTrue(standard.isdisjoint(plan_members))
+        self.assertNotIn("app.bin", standard)
+        self.assertNotIn("app1.bin", standard)
         factory = result["manifest"]["plans"]["factory"]["segments"]
         self.assertEqual({item["name"] for item in factory}, {
             "factory_prefix", "littlefs_clear", "primary_bl2", "secondary_bl2",

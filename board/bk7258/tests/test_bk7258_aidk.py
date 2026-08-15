@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -24,12 +27,101 @@ from bk7258_resource_graph import (  # noqa: E402
     resolve_resource_graph,
     validate_resource_graph,
 )
+from materialize_aidk_profiles import materialize  # noqa: E402
 
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 
 
 class AidkBoardTest(unittest.TestCase):
+    def test_product_selects_shared_mcuboot_ab_and_temp_profiles_have_no_devices(
+            self) -> None:
+        product = load_catalog(REPOSITORY)["products"]["aidk_ai_toy_bringup"]
+        self.assertEqual(product["boot"], "mcuboot")
+        self.assertEqual(product["features"], ["mcuboot-ab"])
+        self.assertIn("boot_mcuboot_ab", product["fragments"])
+        self.assertNotIn("boot_raw_aidk_ai_toy", product["fragments"])
+        self.assertNotIn("FAL", " ".join(product["fragments"]))
+        script = (SCRIPT_ROOT / "build_dual_image.sh").read_text(encoding="utf-8")
+        self.assertIn("materialize_aidk_profiles.py", script)
+        self.assertIn("AIDK requires the shared MCUboot A/B boot contract", script)
+        self.assertIn("bk7258-product:${AIDK_PRODUCT_ID}:${role}", script)
+        self.assertIn("AIDK package metadata contains temporary profile paths",
+                      script)
+
+        result = subprocess.run(
+            [str(SCRIPT_ROOT / "build_dual_image.sh")],
+            env={**os.environ,
+                 "BK7258_PRODUCT": "aidk_ai_toy_bringup",
+                 "BK7258_PROFILE_CHECK_ONLY": "YES"},
+            text=True, capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("boot=mcuboot", result.stdout)
+
+        with tempfile.TemporaryDirectory(prefix="bk7258-aidk-profiles-") as directory:
+            work_root = Path(directory)
+            config_root = work_root / "configs"
+            make_defs = REPOSITORY / "board/bk7258/scripts/Make.defs"
+            materialize(
+                REPOSITORY / "board/bk7258/configs",
+                config_root,
+                make_defs,
+            )
+            generated_make_defs = work_root / "scripts/Make.defs"
+            self.assertTrue(generated_make_defs.is_symlink())
+            self.assertEqual(generated_make_defs.resolve(), make_defs.resolve())
+            for role in ("cp", "ap"):
+                profile = config_root / f"aidk_ai_toy_{role}_mcuboot"
+                metadata = (profile / "profile.conf").read_text(encoding="utf-8")
+                defconfig = (profile / "defconfig").read_text(encoding="utf-8")
+                self.assertIn("BK7258_PROFILE_BOOT=mcuboot", metadata)
+                self.assertIn("BK7258_PROFILE_BOARD=aidk_ai_toy", metadata)
+                self.assertIn("CONFIG_BK7258_BOARD_AIDK_AI_TOY=y", defconfig)
+                self.assertIn("CONFIG_BK7258_MCUBOOT_IMAGE=y", defconfig)
+                self.assertNotRegex(defconfig, r"CONFIG_BK7258_(MIC|AUD|LCD|DVP)=y")
+                self.assertNotIn("legacy-fal", defconfig.lower())
+                if role == "cp":
+                    self.assertIn("CONFIG_BK7258_CONSOLE_UART0=y", defconfig)
+                    self.assertIn("CONFIG_BK7258_UART0_BAUD=115200", defconfig)
+                    self.assertIn(
+                        "# CONFIG_BK7258_SWD_DEBUG is not set", defconfig)
+                    self.assertIn(
+                        "# CONFIG_BK7258_SWD_BOOT_HOLD is not set", defconfig)
+
+    def test_classic_selector_allows_only_unresolved_configure_goals(self) -> None:
+        root = REPOSITORY / "board/bk7258"
+        with tempfile.TemporaryDirectory(prefix="bk7258-selector-") as directory:
+            topdir = Path(directory) / "nuttx"
+            (topdir / "tools").mkdir(parents=True)
+            (topdir / "arch/arm/src/armv8-m").mkdir(parents=True)
+            (topdir / ".config").write_text("", encoding="utf-8")
+            (topdir / "tools/Config.mk").write_text("", encoding="utf-8")
+            (topdir / "arch/arm/src/armv8-m/Toolchain.defs").write_text(
+                "", encoding="utf-8")
+            harness = Path(directory) / "selector.mk"
+            harness.write_text(
+                f"TOPDIR := {topdir}\n"
+                f"BOARD_DIR := {root}\n"
+                "DELIM := /\n"
+                f"include {root / 'scripts/Make.defs'}\n"
+                ".PHONY: all olddefconfig\n"
+                "all olddefconfig:\n\t@:\n",
+                encoding="utf-8")
+
+            def run(goal: str, *selectors: str) -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    ["make", "-s", "-f", str(harness), goal, *selectors],
+                    text=True, capture_output=True, check=False)
+
+            self.assertEqual(run("olddefconfig").returncode, 0)
+            self.assertNotEqual(run("all").returncode, 0)
+            self.assertEqual(
+                run("all", "CONFIG_BK7258_BOARD_T5AI_CORE=y").returncode, 0)
+            self.assertNotEqual(
+                run("olddefconfig", "CONFIG_BK7258_BOARD_T5AI_CORE=y",
+                    "CONFIG_BK7258_BOARD_T5_BOARD=y").returncode,
+                0)
+
     def test_catalog_and_sdk_lock_are_board_product_mode_specific(self) -> None:
         catalog = load_catalog(REPOSITORY)
         board = catalog["boards"]["aidk_ai_toy"]
@@ -102,8 +194,18 @@ class AidkBoardTest(unittest.TestCase):
 
         self.assertIn("Select exactly one BK7258 physical board", make_defs)
         self.assertIn("Select exactly one BK7258 physical board", cmake)
-        self.assertIn("$(words $(BK7258_BOARD_VARIANT_SELECTIONS)),1",
-                      make_defs)
+        self.assertIn(
+            "BK7258_BOARD_VARIANT_COUNT := "
+            "$(words $(BK7258_BOARD_VARIANT_SELECTIONS))",
+            make_defs)
+        unresolved_goals = make_defs.split(
+            "BK7258_UNRESOLVED_BOARD_GOALS :=", 1)[1].split("\n\nifeq", 1)[0]
+        for goal in ("apps_preconfig", "clean", "clean_context", "dirlinks",
+                     "distclean", "incdir", "olddefconfig", "preconfig"):
+            self.assertIn(goal, unresolved_goals)
+        self.assertIn(
+            "$(filter-out $(BK7258_UNRESOLVED_BOARD_GOALS),$(MAKECMDGOALS))",
+            make_defs)
         self.assertIn("BK7258_BOARD_VARIANT_COUNT EQUAL 1", cmake)
         self.assertIn("else ifeq ($(CONFIG_BK7258_BOARD_T5AI_CORE),y)",
                       make_defs)

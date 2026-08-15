@@ -81,6 +81,18 @@ class TransportTest(unittest.TestCase):
         with self.assertRaisesRegex(FrameworkError, "unsupported host"):
             port_list("freebsd")
 
+    def test_windows_loader_requires_positive_markers_and_rejects_failures(
+            self) -> None:
+        script = (SCRIPT_ROOT / "bk7258_auto_debug.sh").read_text(
+            encoding="utf-8")
+        self.assertIn("'Writing Flash OK'", script)
+        self.assertIn("'{All Finished Successfully}'", script)
+        self.assertIn("GetBus fail", script)
+        self.assertIn("Writing Flash Failed", script)
+        self.assertIn(
+            "bk_loader did not emit both complete success markers", script)
+        self.assertIn("loader_rc=1", script)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

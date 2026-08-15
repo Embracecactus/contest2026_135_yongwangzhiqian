@@ -30,8 +30,27 @@ BK7258_BOARD_VARIANT_SELECTIONS := \
 	            $(CONFIG_BK7258_BOARD_T5_BOARD) \
 	            $(CONFIG_BK7258_BOARD_T5AI_CORE))
 
-ifneq ($(words $(BK7258_BOARD_VARIANT_SELECTIONS)),1)
-$(error Select exactly one BK7258 physical board)
+BK7258_BOARD_VARIANT_COUNT := $(words $(BK7258_BOARD_VARIANT_SELECTIONS))
+
+# configure.sh copies the seed defconfig before Kconfig has expanded choice
+# defaults, then includes this file while running `make olddefconfig`.  A
+# failed/partial configure must also remain cleanable.  Permit an unresolved
+# selector only for those configuration/cleanup goals; every build invocation
+# is still fail-closed, and multiple selectors are rejected in all phases.
+
+BK7258_UNRESOLVED_BOARD_GOALS := \
+	apps_preconfig clean clean_context dirlinks distclean incdir olddefconfig \
+	preconfig
+
+ifeq ($(BK7258_BOARD_VARIANT_COUNT),0)
+ifeq ($(strip $(MAKECMDGOALS)),)
+$(error Select exactly one BK7258 physical board (goals=$(MAKECMDGOALS)))
+endif
+ifneq ($(strip $(filter-out $(BK7258_UNRESOLVED_BOARD_GOALS),$(MAKECMDGOALS))),)
+$(error Select exactly one BK7258 physical board (goals=$(MAKECMDGOALS)))
+endif
+else ifneq ($(BK7258_BOARD_VARIANT_COUNT),1)
+$(error Select exactly one BK7258 physical board (goals=$(MAKECMDGOALS)))
 endif
 
 ifeq ($(CONFIG_BK7258_BOARD_AIDK_AI_TOY),y)
@@ -66,10 +85,12 @@ CXXPICFLAGS = $(ARCHPICFLAGS) $(CXXFLAGS)
 CPPFLAGS := $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
 AFLAGS := $(CFLAGS) -D__ASSEMBLY__
 
+ifneq ($(strip $(BK7258_BOARD_VARIANT_DIR)),)
 CFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
 CXXFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
 CPPFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
 AFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
+endif
 
 # NuttX Apps owns MCUboot's core sources, while this board owns the platform
 # signing policy.  Put the board overlay ahead of the upstream NuttX MCUboot

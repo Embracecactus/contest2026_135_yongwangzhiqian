@@ -1,9 +1,9 @@
 {
   "board": "aidk_ai_toy",
-  "boot": "raw",
+  "boot": "mcuboot",
   "family": "aidk_ai_toy",
-  "features": [],
-  "fragments": ["common_base", "board_aidk_ai_toy", "boot_raw_aidk_ai_toy"],
+  "features": ["mcuboot-ab"],
+  "fragments": ["common_base", "board_aidk_ai_toy", "boot_mcuboot_ab"],
   "id": "aidk_ai_toy_bringup",
   "kind": "product",
   "mode": "bringup",

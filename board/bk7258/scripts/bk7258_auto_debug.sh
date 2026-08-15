@@ -646,7 +646,9 @@ if ((DO_FLASH)); then
   ) 2>&1 | tee "$DOWNLOAD_LOG"
   loader_rc=${PIPESTATUS[0]}
   set -e
-  if grep -aEq -- '->[[:space:]]*fail' "$DOWNLOAD_LOG"; then
+  if grep -aEiq -- \
+      '->[[:space:]]*fail|GetBus fail|Writing Flash Failed|Read Flash Failed' \
+      "$DOWNLOAD_LOG"; then
     echo "ERROR: bk_loader reported a flash operation failure; refusing the global success banner" >&2
     loader_rc=1
   elif grep -aFq 'Writing Flash OK' "$DOWNLOAD_LOG" &&
@@ -655,8 +657,9 @@ if ((DO_FLASH)); then
       echo "WARNING: bk_loader returned $loader_rc despite explicit success markers; normalizing to success" >&2
     fi
     loader_rc=0
-  elif ((loader_rc != 0)); then
-    echo "ERROR: bk_loader exited with $loader_rc and no complete success markers" >&2
+  else
+    echo "ERROR: bk_loader did not emit both complete success markers" >&2
+    loader_rc=1
   fi
 elif ((RTS_RESET)); then
   echo "==> Pulsing COM${DOWNLOAD_PORT} RTS for a verified physical reset"
