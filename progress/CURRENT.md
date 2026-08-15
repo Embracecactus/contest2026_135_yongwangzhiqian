@@ -5,7 +5,7 @@ Updated by: Codex (GPT-5.6-Luna MAX delegated implementation)
 
 ## Current task
 
-P5 validation-runner metadata and `bkvalidate` skeleton are now implemented on
+P6 metadata-only `bkpack` preparation/verification is now implemented on
 `refactor/bk7258-platform-v2`; P0 remains the accepted foundation and legacy
 profiles/production build behavior remain usable.
 
@@ -138,9 +138,26 @@ Detailed evidence: [P4 ownership/resource-graph verification](verification/2026-
 
 Detailed evidence: [P5 validation-runner verification](verification/2026-08-15-bk7258-platform-v2-p5.md).
 
+## P6 implementation
+
+- `bk7258_bkpack_schema.json` is a strict, duplicate/unknown-key rejecting
+  contract for application and separately planned factory packages. Each
+  package contains exactly one named apps plan, the board/product/mode/role
+  tuple, SDK-lock and partition identities, bounded non-overlapping ranges,
+  tool/trust metadata, and `hardware_verified=false`.
+- `pack-prepare` emits metadata only. It maps `libarch.a`, `libboards.a` and
+  the four `vela_<role>.bin` outputs; `.bkpack` remains an optional additive
+  extension. `source_build_id` is independently derived from unsigned build
+  metadata and is never used as a signed digest.
+- `pack-verify` validates the package and current repository identities without
+  reading image bytes, signing, keys, network, Flash or hardware. Extra,
+  outside, overlapping and ambiguous artifacts/ranges fail closed.
+
+Detailed evidence: [P6 package verification](verification/2026-08-15-bk7258-platform-v2-p6.md).
+
 ## Exact next action
 
-Continue with owner review of P5 descriptor coverage and later device-backed
+Continue with owner review of P6 package metadata and later device-backed
 validation; no private SDK mirror mutation or automatic hardware execution is
 permitted.
 
