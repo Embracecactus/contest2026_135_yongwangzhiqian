@@ -457,6 +457,9 @@ endif
 ifeq ($(CONFIG_BK7258_SARADC),y)
 BK7258_AP_BASE_CSRCS += bk7258_saradc.c
 endif
+ifeq ($(CONFIG_BK7258_SARADC_VALIDATION),y)
+BK7258_AP_BASE_CSRCS += bk7258_saradc_validation.c
+endif
 ifeq ($(CONFIG_BK7258_SDIO),y)
 VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
 BK7258_AP_BASE_CSRCS += bk7258_sdio.c

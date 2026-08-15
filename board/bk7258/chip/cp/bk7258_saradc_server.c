@@ -19,9 +19,21 @@
 
 #include <common/bk_err.h>
 #include <driver/adc.h>
+#include <driver/gpio.h>
 
 int bk7258_saradc_server_initialize(void)
 {
+  /* Channel-map RPCs use the SDK GPIO HAL, but bk_adc_driver_init() does not
+   * initialize it.  Establish the process-lifetime chip GPIO foundation
+   * before starting the SARADC mailbox task; no selected-board GPIO device
+   * is registered here and the SDK's incomplete deinit is never called.
+   */
+
+  if (bk_gpio_driver_init() != BK_OK)
+    {
+      return -EIO;
+    }
+
   return bk_adc_driver_init() == BK_OK ? 0 : -EIO;
 }
 

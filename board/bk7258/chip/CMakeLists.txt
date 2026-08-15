@@ -361,6 +361,10 @@ foreach(BK7258_AP_PERIPHERAL MIC RTC SARADC)
   endif()
 endforeach()
 
+if(CONFIG_BK7258_SARADC_VALIDATION)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_saradc_validation.c)
+endif()
+
 if(CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_mic_validation.c)
 endif()

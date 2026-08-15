@@ -81,4 +81,21 @@ config BK7258_T5_BOARD_TF_VALIDATION
 		then repeats once without removing the card.  It never formats media.
 		Insert the card before reset and use only in a validation profile.
 
+config BK7258_T5_BOARD_SARADC_KEY_VALIDATION
+	bool "Validate T5-Board ADC key on P12/ADC14"
+	default n
+	depends on BK7258_AP_CORE && BK7258_SARADC
+	depends on BK7258_SARADC_CHAN = 14
+	depends on BK7258_SARADC_BUS = 0
+	select BK7258_SARADC_VALIDATION
+	help
+		Bind the chip-generic /dev/adcN validator to the T5-Board V1.0.2
+		SW5 ADC key.  The board contributes only the physical P12/ADC14,
+		active-low direction and relative transition thresholds; sampling and
+		lifecycle logic remain in the reusable chip implementation.
+
+		This is an interactive validation option.  Leave SW5 released for the
+		initial phase, press it when prompted, then release it when prompted.
+		A static unpressed reading is not a physical key PASS.
+
 endif # BK7258_BOARD_T5_BOARD

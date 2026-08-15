@@ -1229,7 +1229,7 @@ config BK7258_SDK_TIMER_SELFTEST
 config BK7258_GPIO_FOUNDATION_TEST
 	bool "BK7258 selected-board GPIO foundation manual test"
 	default n
-	depends on ARCH_CHIP_BK7258 && SYSTEM_NSH
+	depends on ARCH_CHIP_BK7258 && SYSTEM_NSH && !BK7258_AP_CORE
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	---help---
@@ -1268,10 +1268,13 @@ config BK7258_SARADC_SERVER
 	bool "CP SAR ADC mailbox server"
 	default n
 	depends on !BK7258_AP_CORE
+	select BK7258_SDK_IPC_RUNTIME
+	select BK7258_SDK_IRQ_BRIDGE
 	help
-		Start the official v3.1.1.9 CP ADC driver and SARADC mailbox server.
-		Enable this in the CP image paired with an AP image that enables
-		BK7258_SARADC.
+		Initialize the shared chip GPIO mapping foundation, then start the
+		official v3.1.1.9 CP ADC driver and SARADC mailbox server.  This does
+		not expose any selected-board GPIO device.  Enable it in the CP image
+		paired with an AP image that enables BK7258_SARADC.
 
 config BK7258_SDK_IPC_RUNTIME
 	bool "Beken SDK system-resource IPC runtime"
@@ -1874,16 +1877,24 @@ config BK7258_RTC
 	select RTC_DRIVER
 
 config BK7258_SARADC
-	bool "SAR ADC lower half"
+	bool "BK7258 SAR ADC lower half"
 	default n
 	depends on BK7258_AP_CORE
 	select BK7258_SDK_IPC_RUNTIME
 	select ANALOG
 	select ADC
 	help
-		Expose the AP-side NuttX ADC device.  The matching CP image must
-		enable BK7258_SARADC_SERVER because the v3.1.1.9 bk_adc_* client
-		uses the SDK mailbox service rather than touching SARADC locally.
+		Expose one AP-side SARADC channel through the standard NuttX ADC
+		upper half.  The lower half maps the configured analog channel while
+		/dev/adcN is open, but acquires the CP-owned controller only for each
+		ANIOC_TRIGGER conversion.  This keeps the on-die temperature path and
+		other SARADC users live between samples.
+
+		The matching CP image must enable BK7258_SARADC_SERVER because the
+		v3.1.1.9 AP client uses the SDK mailbox service rather than touching
+		SARADC locally.  The selected board remains responsible for assigning
+		the channel's physical pin exclusively and rejecting conflicting GPIO,
+		UART, USB, touch, or other pin owners.
 
 config BK7258_SARADC_CHAN
 	int "SAR ADC channel"
@@ -1896,6 +1907,27 @@ config BK7258_SARADC_BUS
 	default 0
 	range 0 15
 	depends on BK7258_SARADC
+
+config BK7258_SARADC_READ_TIMEOUT_MS
+	int "SAR ADC conversion timeout (ms)"
+	default 1000
+	range 1 2000
+	depends on BK7258_SARADC
+	help
+		Bound the CP-side wait for the SDK's 32-sample conversion buffer.  The
+		upper bound deliberately remains below the immutable AP mailbox
+		operation timeout so the response and completion handshake retain
+		time to finish.
+
+config BK7258_SARADC_VALIDATION
+	bool
+	default n
+	depends on BK7258_SARADC && BK7258_AP_CORE
+	help
+		Build the chip-generic, bounded /dev/adcN lifecycle and transition
+		validator.  A selected-board binding supplies the expected channel,
+		active direction and relative thresholds; this implementation contains
+		no physical GPIO, key, battery or voltage-divider assumptions.
 
 config BK7258_SDIO
 	bool
