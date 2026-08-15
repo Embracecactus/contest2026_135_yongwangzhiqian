@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import re
+import stat
 import sys
 from pathlib import Path
 from typing import Any, Callable
@@ -22,6 +23,17 @@ SCHEMA = "bk7258.composition/1"
 ROLES = frozenset({"cp", "ap", "bl2"})
 MODES = frozenset({"bringup", "application", "validation", "factory"})
 BOOTS = frozenset({"raw", "mcuboot"})
+SDK_REGISTRY_SCHEMA = "bk7258.sdk-registry/1"
+SDK_SET_SCHEMA = "bk7258.sdk-set/1"
+SDK_LOCK_SCHEMA = "bk7258.sdk-lock/1"
+SDK_IMPORT_SCHEMA = "bk7258.sdk-import/1"
+SDK_ROLES = frozenset({"cp", "ap"})
+SDK_MANIFEST_ROOT = "board/bk7258/scripts/sdk-manifests"
+PRIVATE_MIRROR_URL = "https://github.com/Embracecactus/vendor-bk-avdk-smp.git"
+SDK_ENTRY_KINDS = frozenset({"official", "derived", "sealed-binary"})
+SDK_REQUIRED_DIRS = frozenset({"include", "config", "libs"})
+TOKEN_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+SDK_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 ID_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 SYMBOL_RE = re.compile(r"^CONFIG_[A-Z0-9_]+$")
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -95,7 +107,8 @@ def identifiers(value: Any, field: str) -> list[str]:
 
 def relative_path(value: Any, field: str) -> str:
     if (not isinstance(value, str) or not value or "\\" in value or
-            any(char.isspace() for char in value) or value.startswith("/")):
+            "\x00" in value or any(char.isspace() for char in value) or
+            value.startswith("/")):
         raise FrameworkError(f"unsafe repository path in {field}")
     parts = value.split("/")
     if any(part in {"", ".", ".."} for part in parts):
@@ -566,7 +579,357 @@ def validate_classic_report(value: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+def _sdk_regular(path: Path, field: str) -> None:
+    try:
+        mode = path.lstat().st_mode
+    except OSError as error:
+        raise FrameworkError(f"missing {field}: {path}") from error
+    if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+        raise FrameworkError(f"{field} must be a regular non-symlink file: {path}")
+
+
+def _sdk_directory(path: Path, field: str) -> None:
+    try:
+        mode = path.lstat().st_mode
+    except OSError as error:
+        raise FrameworkError(f"missing {field}: {path}") from error
+    if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+        raise FrameworkError(f"{field} must be a real directory: {path}")
+
+
+def _sdk_file_sha256(path: Path, field: str) -> str:
+    _sdk_regular(path, field)
+    try:
+        return sha256(path.read_bytes())
+    except (OSError, UnicodeError) as error:
+        raise FrameworkError(f"cannot read {field}: {path}") from error
+
+
+def _sdk_provenance(path: Path) -> dict[str, str]:
+    _sdk_regular(path, "SDK provenance")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise FrameworkError(f"cannot read SDK provenance: {path}") from error
+    if not text.endswith("\n"):
+        raise FrameworkError(f"SDK provenance must end with a newline: {path}")
+    result: dict[str, str] = {}
+    for index, line in enumerate(text.splitlines(), 1):
+        if not line or "=" not in line:
+            raise FrameworkError(f"malformed SDK provenance line {index}: {path}")
+        key, value = line.split("=", 1)
+        if not TOKEN_RE.fullmatch(key) or key in result or "\x00" in value:
+            raise FrameworkError(f"invalid or duplicate SDK provenance key: {path}:{index}")
+        result[key] = value
+    return result
+
+
+def _sdk_manifest_entries(path: Path) -> dict[str, str]:
+    _sdk_regular(path, "SDK checksum manifest")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise FrameworkError(f"cannot read SDK checksum manifest: {path}") from error
+    if not text.endswith("\n"):
+        raise FrameworkError(f"SDK checksum manifest must end with a newline: {path}")
+    result: dict[str, str] = {}
+    for index, line in enumerate(text.splitlines(), 1):
+        match = re.fullmatch(r"([0-9a-f]{64})  ([^ \t].*)", line)
+        if match is None:
+            raise FrameworkError(f"malformed SDK checksum line {index}: {path}")
+        item_hash, item_path = match.groups()
+        relative_path(item_path, f"SDK checksum path {path}:{index}")
+        if item_path.split("/", 1)[0] not in SDK_REQUIRED_DIRS:
+            raise FrameworkError(f"SDK checksum path escapes bundle roots: {item_path}")
+        if item_path in result:
+            raise FrameworkError(f"duplicate SDK checksum path: {item_path}")
+        result[item_path] = item_hash
+    if not result:
+        raise FrameworkError(f"SDK checksum manifest is empty: {path}")
+    return result
+
+
+def _sdk_entry_id(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", value):
+        raise FrameworkError(f"invalid content-addressed SDK id in {field}")
+    return value
+
+
+def _sdk_version(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not SDK_VERSION_RE.fullmatch(value):
+        raise FrameworkError(f"invalid SDK version in {field}")
+    return value
+
+
+def _sdk_path(value: Any, field: str) -> str:
+    path = relative_path(value, field)
+    if not path.startswith(SDK_MANIFEST_ROOT + "/"):
+        raise FrameworkError(f"SDK metadata path is outside manifest root: {field}")
+    return path
+
+
+def validate_sdk_registry(repository: Path, value: dict[str, Any]) -> dict[str, Any]:
+    exact(value, {"schema", "kind", "version", "policy", "entries"}, "SDK registry")
+    if value["schema"] != SDK_REGISTRY_SCHEMA or value["kind"] != "sdk-registry" or value["version"] != 1:
+        raise FrameworkError("unsupported SDK registry schema")
+    policy = obj(value["policy"], "SDK registry policy")
+    exact(policy, {"content_addressed", "sdk_bytes_tracked", "replacement", "network", "private_mirror"},
+          "SDK registry policy")
+    if policy["content_addressed"] is not True or policy["sdk_bytes_tracked"] is not False:
+        raise FrameworkError("SDK registry must be content-addressed metadata only")
+    if policy["replacement"] != "forbidden" or policy["network"] != "forbidden":
+        raise FrameworkError("SDK registry replacement/network policy is unsafe")
+    mirror = obj(policy["private_mirror"], "SDK private mirror")
+    exact(mirror, {"url", "destination", "redistribution_authorized"}, "SDK private mirror")
+    if (mirror["url"] != PRIVATE_MIRROR_URL or mirror["destination"] != "metadata-only" or
+            mirror["redistribution_authorized"] is not False):
+        raise FrameworkError("private mirror is not metadata-only and unauthorized")
+    entries = array(value["entries"], "SDK registry entries")
+    if not entries:
+        raise FrameworkError("SDK registry has no entries")
+    ids: set[str] = set()
+    keys: set[tuple[str, str]] = set()
+    for index, raw in enumerate(entries):
+        entry = obj(raw, f"SDK registry entry {index}")
+        exact(entry, {"id", "version", "role", "artifact_kind", "provenance_kind",
+                      "source_reproducible", "manifest_path", "provenance_path",
+                      "manifest_sha256", "provenance_sha256", "content_digest",
+                      "source_archive_sha256", "parent_id"}, f"SDK registry entry {index}")
+        entry_id = _sdk_entry_id(entry["id"], f"entry {index}.id")
+        if entry_id in ids:
+            raise FrameworkError("duplicate SDK registry id")
+        ids.add(entry_id)
+        version = _sdk_version(entry["version"], f"entry {index}.version")
+        role = identifier(entry["role"], f"entry {index}.role")
+        if role not in SDK_ROLES or (version, role) in keys:
+            raise FrameworkError("duplicate or unsupported SDK registry version/role")
+        keys.add((version, role))
+        if entry["artifact_kind"] != "sdk-bundle" or entry["provenance_kind"] not in SDK_ENTRY_KINDS:
+            raise FrameworkError("unsupported SDK artifact/provenance kind")
+        if not isinstance(entry["source_reproducible"], bool):
+            raise FrameworkError("SDK source_reproducible must be boolean")
+        manifest_rel = _sdk_path(entry["manifest_path"], f"entry {index}.manifest_path")
+        provenance_rel = _sdk_path(entry["provenance_path"], f"entry {index}.provenance_path")
+        manifest_path = repository / manifest_rel
+        provenance_path = repository / provenance_rel
+        manifest_hash = _sdk_file_sha256(manifest_path, "SDK checksum manifest")
+        provenance_hash = _sdk_file_sha256(provenance_path, "SDK provenance")
+        if manifest_hash != entry["manifest_sha256"] or provenance_hash != entry["provenance_sha256"]:
+            raise FrameworkError(f"SDK registry metadata digest mismatch: {entry_id}")
+        if entry["content_digest"] != entry_id or entry["content_digest"] != f"sha256:{manifest_hash}":
+            raise FrameworkError(f"SDK content id is not bound to its manifest: {entry_id}")
+        digest(entry["manifest_sha256"], f"entry {index}.manifest_sha256")
+        digest(entry["provenance_sha256"], f"entry {index}.provenance_sha256")
+        _sdk_manifest_entries(manifest_path)
+        provenance = _sdk_provenance(provenance_path)
+        if provenance.get("bundle_version") != version or provenance.get("role") != role:
+            raise FrameworkError(f"SDK provenance identity mismatch: {entry_id}")
+        if provenance.get("final_manifest_sha256") != manifest_hash:
+            raise FrameworkError(f"SDK provenance manifest binding mismatch: {entry_id}")
+        archive = provenance.get("source_archive")
+        archive_hash = provenance.get("source_archive_sha256")
+        if entry["source_reproducible"]:
+            if (entry["provenance_kind"] != "official" or not archive or
+                    archive in {"not-provided", "not-recorded"} or
+                    not archive_hash or not HASH_RE.fullmatch(archive_hash)):
+                raise FrameworkError(f"source-reproducible SDK lacks source archive proof: {entry_id}")
+        elif (entry["provenance_kind"] == "official" or
+              archive not in {"not-provided", "not-recorded"} or
+              archive_hash not in {"not-provided", "not-recorded"}):
+            raise FrameworkError(f"sealed/derived SDK source claim is inconsistent: {entry_id}")
+        parent = entry["parent_id"]
+        if entry["provenance_kind"] == "derived":
+            if parent is None or parent == entry_id:
+                raise FrameworkError(f"derived SDK must name a distinct parent: {entry_id}")
+            _sdk_entry_id(parent, f"entry {index}.parent_id")
+        elif parent is not None:
+            raise FrameworkError(f"only derived SDK entries may have a parent: {entry_id}")
+    for entry in entries:
+        if entry["provenance_kind"] == "derived" and entry["parent_id"] not in ids:
+            raise FrameworkError(f"derived SDK parent is not in registry: {entry['id']}")
+    return value
+
+
+def validate_sdk_set(value: dict[str, Any], registry: dict[str, Any]) -> dict[str, Any]:
+    exact(value, {"schema", "kind", "version", "id", "board", "product", "mode", "roles"},
+          "SDK set")
+    if value["schema"] != SDK_SET_SCHEMA or value["kind"] != "sdk-set" or value["version"] != 1:
+        raise FrameworkError("unsupported SDK set schema")
+    identifier(value["id"], "SDK set.id")
+    for field in ("board", "product", "mode"):
+        identifier(value[field], f"SDK set.{field}")
+    if value["mode"] not in MODES:
+        raise FrameworkError("SDK set mode is not in the versioned mode enum")
+    roles = obj(value["roles"], "SDK set.roles")
+    exact(roles, {"cp", "ap", "bl2"}, "SDK set.roles")
+    registry_ids = {_sdk_entry_id(item["id"], "registry entry") for item in registry["entries"]}
+    for role in ("cp", "ap"):
+        _sdk_entry_id(roles[role], f"SDK set.roles.{role}")
+        if roles[role] not in registry_ids:
+            raise FrameworkError(f"SDK set references unknown {role} entry")
+    if roles["bl2"] is not None:
+        raise FrameworkError("BL2 must have no runtime SDK")
+    return value
+
+
+def validate_sdk_lock(repository: Path, registry_path: Path, set_path: Path,
+                      value: dict[str, Any], registry: dict[str, Any],
+                      sdk_set: dict[str, Any]) -> dict[str, Any]:
+    exact(value, {"schema", "kind", "version", "id", "set_id", "registry_path",
+                  "registry_sha256", "set_path", "set_sha256", "roles",
+                  "no_runtime_sdk_roles", "identity_sha256"}, "SDK lock")
+    if value["schema"] != SDK_LOCK_SCHEMA or value["kind"] != "sdk-lock" or value["version"] != 1:
+        raise FrameworkError("unsupported SDK lock schema")
+    identifier(value["id"], "SDK lock.id")
+    if value["set_id"] != sdk_set["id"]:
+        raise FrameworkError("SDK lock set binding mismatch")
+    if value["registry_path"] != "board/bk7258/scripts/bk7258_sdk_registry.json":
+        raise FrameworkError("SDK lock registry path mismatch")
+    if value["set_path"] != "board/bk7258/scripts/bk7258_sdk_set.json":
+        raise FrameworkError("SDK lock set path mismatch")
+    digest(value["registry_sha256"], "SDK lock registry_sha256")
+    digest(value["set_sha256"], "SDK lock set_sha256")
+    if _sdk_file_sha256(registry_path, "SDK registry") != value["registry_sha256"]:
+        raise FrameworkError("SDK lock registry digest mismatch")
+    if _sdk_file_sha256(set_path, "SDK set") != value["set_sha256"]:
+        raise FrameworkError("SDK lock set digest mismatch")
+    roles = obj(value["roles"], "SDK lock.roles")
+    exact(roles, {"cp", "ap", "bl2"}, "SDK lock.roles")
+    by_id = {_sdk_entry_id(item["id"], "registry entry"): item for item in registry["entries"]}
+    for role in ("cp", "ap"):
+        row = obj(roles[role], f"SDK lock.roles.{role}")
+        exact(row, {"registry_id", "manifest_sha256", "provenance_sha256"}, f"SDK lock.roles.{role}")
+        if row["registry_id"] != sdk_set["roles"][role] or row["registry_id"] not in by_id:
+            raise FrameworkError(f"SDK lock {role} registry binding mismatch")
+        entry = by_id[row["registry_id"]]
+        if row["manifest_sha256"] != entry["manifest_sha256"] or row["provenance_sha256"] != entry["provenance_sha256"]:
+            raise FrameworkError(f"SDK lock {role} digest binding mismatch")
+        digest(row["manifest_sha256"], f"SDK lock {role} manifest")
+        digest(row["provenance_sha256"], f"SDK lock {role} provenance")
+    if roles["bl2"] != {"registry_id": None, "manifest_sha256": None, "provenance_sha256": None}:
+        raise FrameworkError("SDK lock must encode BL2 as no-runtime-SDK")
+    if value["no_runtime_sdk_roles"] != ["bl2"]:
+        raise FrameworkError("SDK lock no-runtime roles must contain only BL2")
+    digest(value["identity_sha256"], "SDK lock identity")
+    body = dict(value)
+    del body["identity_sha256"]
+    if sha256(canonical_json(body)) != value["identity_sha256"]:
+        raise FrameworkError("SDK lock identity mismatch")
+    return value
+
+
+def verify_sdk_bundle(repository: Path, entry: dict[str, Any], bundle_dir: Path) -> dict[str, Any]:
+    """Verify one external SDK bundle without copying or modifying it."""
+    _sdk_directory(bundle_dir, "SDK bundle root")
+    manifest_path = repository / entry["manifest_path"]
+    expected = _sdk_manifest_entries(manifest_path)
+    top_level = list(bundle_dir.iterdir())
+    names = {path.name for path in top_level}
+    if names != SDK_REQUIRED_DIRS or len(top_level) != len(names):
+        raise FrameworkError("SDK bundle has missing or extra top-level entries")
+    for path in top_level:
+        _sdk_directory(path, "SDK bundle root entry")
+    actual: dict[str, Path] = {}
+
+    def visit(directory: Path, prefix: str) -> None:
+        try:
+            children = list(directory.iterdir())
+        except OSError as error:
+            raise FrameworkError(f"cannot scan SDK bundle: {directory}") from error
+        for child in children:
+            relative = f"{prefix}/{child.name}" if prefix else child.name
+            try:
+                mode = child.lstat().st_mode
+            except OSError as error:
+                raise FrameworkError(f"cannot stat SDK bundle entry: {child}") from error
+            if stat.S_ISLNK(mode) or stat.S_ISSOCK(mode) or stat.S_ISFIFO(mode) or stat.S_ISCHR(mode) or stat.S_ISBLK(mode):
+                raise FrameworkError(f"symlink or special SDK bundle entry: {relative}")
+            if stat.S_ISDIR(mode):
+                visit(child, relative)
+            elif stat.S_ISREG(mode):
+                if relative in actual:
+                    raise FrameworkError(f"duplicate SDK bundle path: {relative}")
+                actual[relative] = child
+            else:
+                raise FrameworkError(f"unsupported SDK bundle entry: {relative}")
+
+    for name in sorted(SDK_REQUIRED_DIRS):
+        visit(bundle_dir / name, name)
+    if set(actual) != set(expected):
+        missing = sorted(set(expected) - set(actual))
+        extra = sorted(set(actual) - set(expected))
+        raise FrameworkError(f"SDK bundle file set mismatch: missing={missing[:3]} extra={extra[:3]}")
+    for relative, path in actual.items():
+        observed = _sdk_file_sha256(path, f"SDK bundle file {relative}")
+        if observed != expected[relative]:
+            raise FrameworkError(f"SDK bundle checksum mismatch: {relative}")
+    return {"entry_id": entry["id"], "file_count": len(actual), "manifest_sha256": entry["manifest_sha256"]}
+
+
+def sdk_import_receipt(entry: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    body = {
+        "schema": SDK_IMPORT_SCHEMA,
+        "kind": "sdk-import-receipt",
+        "registry_id": entry["id"],
+        "content_digest": entry["content_digest"],
+        "manifest_sha256": entry["manifest_sha256"],
+        "provenance_sha256": entry["provenance_sha256"],
+        "source_reproducible": entry["source_reproducible"],
+        "file_count": result["file_count"],
+        "bytes_copied": False,
+        "network_used": False,
+        "replacement": "forbidden",
+    }
+    output = dict(body)
+    output["identity_sha256"] = sha256(canonical_json(body))
+    return validate_sdk_import_receipt(output)
+
+
+def validate_sdk_import_receipt(value: dict[str, Any]) -> dict[str, Any]:
+    exact(value, {"schema", "kind", "registry_id", "content_digest", "manifest_sha256",
+                  "provenance_sha256", "source_reproducible", "file_count",
+                  "bytes_copied", "network_used", "replacement", "identity_sha256"},
+          "SDK import receipt")
+    if value["schema"] != SDK_IMPORT_SCHEMA or value["kind"] != "sdk-import-receipt":
+        raise FrameworkError("unsupported SDK import receipt schema")
+    _sdk_entry_id(value["registry_id"], "SDK receipt.registry_id")
+    if value["content_digest"] != value["registry_id"]:
+        raise FrameworkError("SDK receipt content identity mismatch")
+    digest(value["manifest_sha256"], "SDK receipt manifest")
+    digest(value["provenance_sha256"], "SDK receipt provenance")
+    if (not isinstance(value["source_reproducible"], bool) or
+            not isinstance(value["file_count"], int) or
+            isinstance(value["file_count"], bool) or value["file_count"] <= 0):
+        raise FrameworkError("SDK receipt counts/provenance are malformed")
+    if value["bytes_copied"] is not False or value["network_used"] is not False or value["replacement"] != "forbidden":
+        raise FrameworkError("SDK receipt records an unsafe import")
+    digest(value["identity_sha256"], "SDK receipt identity")
+    body = dict(value)
+    del body["identity_sha256"]
+    if sha256(canonical_json(body)) != value["identity_sha256"]:
+        raise FrameworkError("SDK receipt identity mismatch")
+    return value
+
+
 def write_json(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(canonical_json(value))
+
+
+def load_json_checked(path: Path, field: str) -> dict[str, Any]:
+    _sdk_regular(path, field)
+    return load_json(path)
+
+
+def write_new_json(path: Path, value: dict[str, Any]) -> None:
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        pass
+    except OSError as error:
+        raise FrameworkError(f"cannot inspect output path: {path}") from error
+    else:
+        raise FrameworkError(f"refusing to replace existing output: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(canonical_json(value))
 
@@ -596,6 +959,17 @@ def cli(argv: list[str] | None = None) -> int:
     view_parser.add_argument("--mode")
     view_parser.add_argument("--out", type=Path, required=True)
     view_parser.add_argument("--cmake-out", type=Path)
+    sdk_import_parser = commands.add_parser("sdk-import", aliases=("import-sdk",))
+    sdk_import_parser.add_argument("--registry", type=Path)
+    sdk_import_parser.add_argument("--entry", required=True)
+    sdk_import_parser.add_argument("--bundle-dir", type=Path, required=True)
+    sdk_import_parser.add_argument("--out", type=Path, required=True)
+    sdk_verify_parser = commands.add_parser("sdk-verify", aliases=("verify-sdk",))
+    sdk_verify_parser.add_argument("--registry", type=Path)
+    sdk_verify_parser.add_argument("--set", dest="sdk_set", type=Path)
+    sdk_verify_parser.add_argument("--lock", type=Path)
+    sdk_verify_parser.add_argument("--bundle", action="append", default=[])
+    sdk_verify_parser.add_argument("--bundle-root", type=Path)
     commands.add_parser("validate")
     args = parser.parse_args(argv)
     root = args.root.resolve()
@@ -611,6 +985,49 @@ def cli(argv: list[str] | None = None) -> int:
             if args.cmake_out is not None:
                 args.cmake_out.parent.mkdir(parents=True, exist_ok=True)
                 args.cmake_out.write_text(cmake_view(ir), encoding="utf-8")
+        elif args.command in {"sdk-import", "import-sdk"}:
+            registry_path = (args.registry or
+                             root / "board/bk7258/scripts/bk7258_sdk_registry.json").resolve()
+            registry = validate_sdk_registry(root, load_json_checked(registry_path, "SDK registry"))
+            entry_id = _sdk_entry_id(args.entry, "--entry")
+            matches = [item for item in registry["entries"] if item["id"] == entry_id]
+            if len(matches) != 1:
+                raise FrameworkError(f"SDK registry entry is not exactly one: {entry_id}")
+            result = verify_sdk_bundle(root, matches[0], args.bundle_dir.resolve())
+            write_new_json(args.out, sdk_import_receipt(matches[0], result))
+            print(f"bk7258-sdk: IMPORT VERIFIED {entry_id} files={result['file_count']}")
+        elif args.command in {"sdk-verify", "verify-sdk"}:
+            registry_path = (args.registry or
+                             root / "board/bk7258/scripts/bk7258_sdk_registry.json").resolve()
+            set_path = (args.sdk_set or
+                        root / "board/bk7258/scripts/bk7258_sdk_set.json").resolve()
+            lock_path = (args.lock or
+                         root / "board/bk7258/scripts/bk7258_sdk_lock.json").resolve()
+            registry = validate_sdk_registry(root, load_json_checked(registry_path, "SDK registry"))
+            sdk_set = validate_sdk_set(load_json_checked(set_path, "SDK set"), registry)
+            lock = validate_sdk_lock(root, registry_path, set_path,
+                                     load_json_checked(lock_path, "SDK lock"), registry, sdk_set)
+            by_id = {_sdk_entry_id(item["id"], "registry entry"): item for item in registry["entries"]}
+            bundle_args: dict[str, Path] = {}
+            for spec in args.bundle:
+                role, separator, raw_path = spec.partition("=")
+                if not separator or role not in {"cp", "ap", "bl2"} or not raw_path:
+                    raise FrameworkError("--bundle must be ROLE=PATH for cp, ap, or bl2")
+                if role in bundle_args:
+                    raise FrameworkError(f"duplicate --bundle role: {role}")
+                bundle_args[role] = Path(raw_path)
+            if args.bundle_root is not None:
+                for role in ("cp", "ap"):
+                    if role in bundle_args:
+                        raise FrameworkError(f"--bundle and --bundle-root both select {role}")
+                    entry = by_id[lock["roles"][role]["registry_id"]]
+                    bundle_args[role] = args.bundle_root / "versions" / entry["version"] / role
+            for role, bundle_dir in bundle_args.items():
+                if role == "bl2":
+                    raise FrameworkError("BL2 has no SDK bundle to verify")
+                entry = by_id[lock["roles"][role]["registry_id"]]
+                verify_sdk_bundle(root, entry, bundle_dir.resolve())
+            print(f"bk7258-sdk: VERIFY PASS set={sdk_set['id']} lock={lock['id']}")
         else:
             ir = resolve(root, args.product, args.role, args.board, args.mode)
             if args.command == "resolve":
