@@ -20,6 +20,8 @@ from bk7258_framework import (  # noqa: E402
     canonical_json,
     classic_report,
     cmake_view,
+    build_plan,
+    config_document,
     load_catalog,
     load_json,
     merge_symbols,
@@ -33,6 +35,8 @@ from bk7258_framework import (  # noqa: E402
     validate_classic_report,
     validate_ir,
     validate_role_view,
+    validate_build_plan,
+    validate_config_document,
     verify_sdk_bundle,
 )
 
@@ -161,6 +165,25 @@ class FrameworkTest(unittest.TestCase):
         self.assertIs(validate_sdk_import_receipt(receipt), receipt)
         self.assertFalse(receipt["bytes_copied"])
         self.assertFalse(receipt["network_used"])
+
+    def test_product_config_and_isolated_boot_runtime_plan(self) -> None:
+        cp_ir = resolve(REPOSITORY, "t5ai_core_bringup", "cp")
+        cp_config = config_document(cp_ir)
+        self.assertIs(validate_config_document(cp_config), cp_config)
+        self.assertIn("CONFIG_BK7258_AP_CORE is not set", cp_config["defconfig"])
+        plan = build_plan(REPOSITORY, "t5ai_core_bringup")
+        self.assertIs(validate_build_plan(plan), plan)
+        self.assertEqual(set(plan["roles"]), {"bl1", "bl2", "cp", "ap"})
+        self.assertIsNone(plan["roles"]["bl2"]["sdk"])
+        self.assertEqual(plan["roles"]["bl2"]["config_kind"], "minimal-make-inputs")
+        self.assertFalse(plan["roles"]["bl2"]["fake_nuttx_seed"])
+        self.assertFalse(plan["legacy_adapter"]["invoked"])
+        build_paths = {item["build_root_template"] for item in plan["roles"].values()}
+        artifact_paths = {item["artifact_root_template"] for item in plan["roles"].values()}
+        config_paths = {item["config_path_template"] for item in plan["roles"].values()}
+        self.assertEqual(len(build_paths), 4)
+        self.assertEqual(len(artifact_paths), 4)
+        self.assertEqual(len(config_paths), 4)
 
 
 if __name__ == "__main__":

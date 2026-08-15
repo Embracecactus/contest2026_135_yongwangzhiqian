@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema": "bk7258.build-plan/1",
+  "kind": "build-plan-schema",
+  "version": 1,
+  "strict": {
+    "duplicate_keys": "reject",
+    "unknown_keys": "reject",
+    "board_selection": "exactly-one",
+    "role_paths": "unique",
+    "real_build": "not-invoked"
+  },
+  "roles": ["bl1", "bl2", "cp", "ap"],
+  "documents": {
+    "resolved-role-config": {
+      "additional_properties": false,
+      "required": [
+        "schema",
+        "kind",
+        "version",
+        "ir_identity_sha256",
+        "inputs",
+        "symbols",
+        "defconfig",
+        "defconfig_sha256",
+        "identity_sha256"
+      ]
+    },
+    "isolated-build-plan": {
+      "additional_properties": false,
+      "required": [
+        "schema",
+        "kind",
+        "version",
+        "identity_inputs",
+        "board",
+        "sdk",
+        "source_views",
+        "roles",
+        "legacy_adapter",
+        "identity_sha256"
+      ]
+    }
+  }
+}
