@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Shared board header for the Beken BK7258 T5-AI board family.
+ * Shared board header for the Beken BK7258 logical board.
  * NuttX's configure step exposes this via <arch/board/board.h>.
  ****************************************************************************/
 
@@ -16,8 +16,7 @@
 
 #include <nuttx/config.h>
 
-#include <stdbool.h>
-
+#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_console.h>
 #include <bk7258_board_config.h>
@@ -85,18 +84,6 @@ int bk7258_sdk_irq_timer_test(void);
 int bk7258_sdk_timer_selftest(uint32_t iterations);
 #endif
 
-#ifdef CONFIG_BK7258_GPIO_FOUNDATION_TEST
-int bk7258_gpio_foundation_test(void);
-#endif
-
-#ifdef CONFIG_BK7258_GPIO_IRQ_TEST
-int bk7258_gpio_irq_test(void);
-#endif
-
-#ifdef CONFIG_BK7258_GPIO_LOWERHALF
-int bk7258_gpio_lowerhalf_initialize(void);
-#endif
-
 #ifdef CONFIG_BK7258_GT1151
 int bk7258_board_gt1151_initialize(void);
 #endif
@@ -113,20 +100,14 @@ int bk7258_t5_board_rgb_lcd_backlight_validation_initialize(void);
 int bk7258_t5_board_tf_validation_initialize(void);
 #endif
 
-#ifdef CONFIG_BK7258_AUD
-int bk7258_board_speaker_initialize(void);
-int bk7258_board_speaker_set(bool enable);
-bool bk7258_board_speaker_is_enabled(void);
-#endif
-
-#ifdef CONFIG_BK7258_AP_CORE
-/* Selected physical-board hooks.  Generic AP controller wrappers call these
- * at stable ordering boundaries; the variant implementation owns attached
- * devices and all fixed electrical policy.
+/* Selected physical-board hooks.  The immutable descriptor is linked into
+ * both roles; AP controller composition invokes these callbacks at stable
+ * ordering boundaries, while CP may consume other fields from the same
+ * descriptor.  The variant owns attached devices and fixed electrical
+ * policy.
  */
 
 int bk7258_board_early_initialize(void);
 int bk7258_board_devices_initialize(void);
-#endif
 
 #endif /* __ARCH_BOARD_BK7258_BOARD_H */

@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) SDMADC — NuttX adc_dev_s lower-half wrapper.
+ * BK7258 SDMADC — NuttX adc_dev_s lower-half wrapper.
  *
  * Wraps the official Beken bk_sdmadc_* SDK API in a NuttX ADC lower half.
  * The BK7258 SDMADC is a 16-bit sigma-delta converter; bk_sdmadc_single_read()

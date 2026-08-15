@@ -33,7 +33,8 @@
  */
 
 #include <nuttx/config.h>
-#include "../chip/include/bk7258_partition_layout.h"
+#include "../chip/include/bk7258_memorymap.h"
+#include "../include/bk7258_partition_layout.h"
 
 OUTPUT_ARCH("arm")
 EXTERN(_vectors)

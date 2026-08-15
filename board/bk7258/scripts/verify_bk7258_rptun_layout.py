@@ -58,7 +58,6 @@ def parse_probe(
 
         for name in (
             "bk7258_amp.h",
-            "bk7258_partition_layout.h",
             "bk7258_rptun.h",
         ):
             shutil.copy2(board / "chip" / "include" / name, chip_include / name)

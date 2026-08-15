@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) temporary 320 MHz CPU0 bring-up target.
+ * BK7258 temporary 320 MHz CPU0 bring-up target.
  *
  * bk7258_clock_bringup_320m() mirrors the Armino SDK early-init clock path
  * (sys_hal_early_init -> sys_hal_dpll_cpu_flash_time_early_init ->

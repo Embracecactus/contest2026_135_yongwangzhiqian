@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) hardware watchdog NuttX lower-half driver.
+ * BK7258 hardware watchdog NuttX lower-half driver.
  *
  * Mirrors the Armino SDK WDT BSP path:
  *   bk_wdt_driver_init  -> wdt_hal_init (select WDT unit, close unused)

@@ -44,6 +44,11 @@ SYMBOL_RE = re.compile(r"^CONFIG_[A-Z0-9_]+$")
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 STAGES = {"common": 0, "role": 1, "board": 2, "boot": 3, "feature": 4,
           "app": 5, "validation": 6, "factory": 7}
+BOARD_SELECTORS = {
+    "aidk_ai_toy": "CONFIG_BK7258_BOARD_AIDK_AI_TOY",
+    "t5_board": "CONFIG_BK7258_BOARD_T5_BOARD",
+    "t5ai_core": "CONFIG_BK7258_BOARD_T5AI_CORE",
+}
 
 # P6 is deliberately a metadata-only package boundary.  Keep the standard
 # build outputs visible in the package contract; the optional ``.bkpack``
@@ -187,6 +192,27 @@ def symbols(value: Any, field: str = "symbols") -> dict[str, str | None]:
     return result
 
 
+def validate_board_selector_symbols(board_id: str,
+                                    values: dict[str, str | None],
+                                    field: str) -> None:
+    """Require the resolved Kconfig board selector to match the IR board."""
+    if board_id not in BOARD_SELECTORS:
+        raise FrameworkError(f"unsupported board selector in {field}: {board_id}")
+
+    selected: list[str] = []
+    for candidate, selector in BOARD_SELECTORS.items():
+        value = values.get(selector)
+        if value not in (None, "y"):
+            raise FrameworkError(
+                f"{field}.{selector} must be absent, null, or y")
+        if value == "y":
+            selected.append(candidate)
+
+    if selected != [board_id]:
+        raise FrameworkError(
+            f"{field} must select exactly board {board_id}: {selected}")
+
+
 def validate_board(value: dict[str, Any]) -> dict[str, Any]:
     exact(value, {"schema", "kind", "id", "soc", "variant", "bindings",
                   "resource_claims", "transport"}, "board")
@@ -310,7 +336,9 @@ def validate_ir(value: dict[str, Any]) -> dict[str, Any]:
         ids.add(item_id)
         identifier(fragment["scope"], f"IR.fragments[{index}].scope")
         digest(fragment["sha256"], f"IR.fragments[{index}].sha256")
-    symbols(value["symbols"], "IR.symbols")
+    resolved_symbols = symbols(value["symbols"], "IR.symbols")
+    validate_board_selector_symbols(inputs["board"], resolved_symbols,
+                                    "IR.symbols")
     claims = array(value["resource_claims"], "IR.resource_claims")
     claim_keys: set[tuple[str, str]] = set()
     for index, raw in enumerate(claims):
@@ -444,6 +472,9 @@ def resolve(repository: Path, product_id: str, role: str, board_id: str | None =
             raise FrameworkError(f"mode differs from product: {mode}")
     board = catalog["boards"][selected_board]
     fragments = _selected(catalog, product, role)
+    merged_symbols = merge_symbols(fragments)
+    validate_board_selector_symbols(board["id"], merged_symbols,
+                                    "resolved symbols")
     body: dict[str, Any] = {
         "schema": SCHEMA,
         "kind": "resolved-config-ir",
@@ -455,7 +486,7 @@ def resolve(repository: Path, product_id: str, role: str, board_id: str | None =
         },
         "fragments": [{"id": item["id"], "scope": item["scope"],
                        "sha256": sha256(canonical_json(item))} for item in fragments],
-        "symbols": merge_symbols(fragments),
+        "symbols": merged_symbols,
         "resource_claims": sorted((dict(item) for item in board["resource_claims"]),
                                    key=lambda item: (item["resource"], item["owner"])),
         "source_view": {
@@ -1024,6 +1055,8 @@ def validate_config_document(value: dict[str, Any]) -> dict[str, Any]:
         if inputs[field] is not None:
             identifier(inputs[field], f"role config {field}")
     config_symbols = symbols(value["symbols"], "role config symbols")
+    validate_board_selector_symbols(inputs["board"], config_symbols,
+                                    "role config symbols")
     if not isinstance(value["defconfig"], str) or "\x00" in value["defconfig"]:
         raise FrameworkError("role config defconfig is malformed")
     digest(value["defconfig_sha256"], "role config defconfig_sha256")

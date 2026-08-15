@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) I2C master — NuttX i2c_master_s lower-half over the
+ * BK7258 I2C master — NuttX i2c_master_s lower-half over the
  * official Beken bk_i2c_* SDK API.  Zero register access.
  *
  * Role ownership: AP only.  bk_i2c_* (21 symbols) are compiled into the AP

@@ -65,6 +65,9 @@ struct bk7258_dvp_s
   struct imgdata_s data;
   struct bk7258_dvp_config_s config;
   bk_dvp_config_t sdk_config;
+  struct bk7258_dvp_i2c_write_s deferred_i2c[
+    BK7258_DVP_DEFERRED_I2C_WRITES];
+  uint8_t deferred_i2c_count;
   camera_handle_t handle;
 
   spinlock_t lock;
@@ -145,7 +148,7 @@ static int bk7258_dvp_error(bk_err_t error)
     }
 }
 
-#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
 extern bk_err_t __real_bk_h264_encode_enable(void);
 extern bk_err_t __real_bk_yuv_buf_start(yuv_mode_t work_mode);
 extern int __real_video_register(FAR const char *devpath,
@@ -161,7 +164,6 @@ static bool g_bk7258_dvp_h264_yuv_deferred;
 static bool g_bk7258_dvp_h264_encode_deferred;
 static bool g_bk7258_dvp_yuv_irq_deferred;
 static bool g_bk7258_dvp_h264_irq_deferred;
-static bool g_bk7258_dvp_sensor_output_deferred;
 static uint32_t g_bk7258_dvp_h264_irq_core;
 static FAR const struct v4l2_ops_s *g_bk7258_dvp_capture_vops;
 static struct v4l2_ops_s g_bk7258_dvp_h264_vops;
@@ -368,15 +370,51 @@ bk_err_t __wrap_bk_h264_encode_enable(void)
 int __wrap_dvp_camera_i2c_write_uint8(uint8_t addr, uint8_t reg,
                                       uint8_t value)
 {
-  uint8_t write_value = value;
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+  struct bk7258_dvp_i2c_write_s write;
+  int action = BK7258_DVP_I2C_WRITE_PASS;
 
-  if (g_bk7258_dvp_h264_opening && reg == 0xf2u && value == 0x0fu)
+  write.addr = addr;
+  write.reg = reg;
+  write.value = value;
+  write.immediate_value = value;
+
+  if (g_bk7258_dvp_h264_opening && binding != NULL &&
+      binding->i2c_write != NULL)
     {
-      g_bk7258_dvp_sensor_output_deferred = true;
-      write_value = 0;
+      action = binding->i2c_write(binding->arg, &write);
+      if (action < 0)
+        {
+          return action;
+        }
+
+      if (action == BK7258_DVP_I2C_WRITE_DEFER)
+        {
+          if (g_bk7258_dvp.deferred_i2c_count >=
+              BK7258_DVP_DEFERRED_I2C_WRITES)
+            {
+              return -ENOMEM;
+            }
+
+          g_bk7258_dvp.deferred_i2c[g_bk7258_dvp.deferred_i2c_count++] =
+            write;
+
+          /* Keep the sensor output disabled until the SDK has completed its
+           * first H.264 bring-up sequence.  The original write is replayed
+           * through the real SDK symbol once open returns. */
+
+          return __real_dvp_camera_i2c_write_uint8(
+            addr, reg, write.immediate_value);
+        }
+
+      if (action != BK7258_DVP_I2C_WRITE_PASS)
+        {
+          return -EINVAL;
+        }
     }
 
-  return __real_dvp_camera_i2c_write_uint8(addr, reg, write_value);
+  return __real_dvp_camera_i2c_write_uint8(addr, reg, value);
 }
 #endif
 
@@ -386,9 +424,9 @@ static int bk7258_dvp_pm_acquire(FAR struct bk7258_dvp_s *priv)
   bool acquired_video = false;
   int ret;
 
-  /* The T5 board and the SDK GC2145 descriptor both require 24 MHz.  Keep
-   * the logical CP resource explicit so another board cannot silently use a
-   * wrong divider when a different sensor clock is requested. */
+  /* The selected binding and SDK sensor descriptor both require 24 MHz.
+   * Keep the logical CP resource explicit so another binding cannot silently
+   * use a wrong divider when a different sensor clock is requested. */
 
   if (priv->sdk_config.clk_source != MCLK_24M)
     {
@@ -955,19 +993,16 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
   priv->worker_tid = (pid_t)-1;
   spin_unlock_irqrestore(&priv->lock, flags);
 
-  /* Tuya's T5AI GC2145 path powers the video/JPEG clock before it enables
-   * the 24 MHz sensor MCLK and touches SCCB.  The immutable v3.1.1.9 DVP
-   * detector configures MCLK before its JPEG driver acquires that clock.
-   * Acquire it explicitly through the project-owned CP clock service so the
-   * vendor detector observes the same prerequisite without bypassing the
-   * NuttX/CP ownership boundary. */
+  /* The SDK detector configures MCLK before its JPEG driver acquires that
+   * clock.  Acquire it explicitly through the project-owned CP clock service
+   * so the vendor detector observes the same prerequisite without bypassing
+   * the NuttX/CP ownership boundary. */
 
-  /* v3.1.1.9 treats DMA, YUV buffer and JPEG encoder as AP-wide shared
-   * drivers.  The SDK common bring-up (and Tuya's T5AI port) initializes
-   * all three before opening DVP.  NuttX does not call that vendor-wide
-   * initializer, so perform the same idempotent operations at this wrapper
-   * boundary.  Deliberately do not deinitialize them on camera close: LCD,
-   * I2S and other AP clients share their global state, channel pool or IRQs. */
+  /* The SDK treats DMA, YUV buffer and JPEG encoder as AP-wide shared
+   * drivers.  NuttX does not call the vendor-wide initializer, so perform
+   * the same idempotent operations at this wrapper boundary.  Deliberately
+   * do not deinitialize them on camera close: LCD, I2S and other AP clients
+   * share their global state, channel pool or IRQs. */
 
   if (priv->sdk_config.img_format == IMAGE_H264)
     {
@@ -990,7 +1025,7 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
       return ret;
     }
 
-#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
   if (priv->sdk_config.img_format == IMAGE_H264)
     {
       g_bk7258_dvp_h264_opening = true;
@@ -998,14 +1033,14 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
       g_bk7258_dvp_h264_encode_deferred = false;
       g_bk7258_dvp_yuv_irq_deferred = false;
       g_bk7258_dvp_h264_irq_deferred = false;
-      g_bk7258_dvp_sensor_output_deferred = false;
+      g_bk7258_dvp.deferred_i2c_count = 0;
     }
 #endif
 
   error = bk_dvp_open(&priv->handle, &priv->sdk_config,
                       &g_bk7258_dvp_callback, priv->config.encode_buffer);
   ret = bk7258_dvp_error(error);
-#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
   if (priv->sdk_config.img_format == IMAGE_H264)
     {
       g_bk7258_dvp_h264_opening = false;
@@ -1019,6 +1054,7 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
         }
 
       priv->handle = NULL;
+      priv->deferred_i2c_count = 0;
       (void)bk7258_dvp_pm_release(priv);
 
       nxmutex_unlock(&priv->api_lock);
@@ -1032,15 +1068,14 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
 
   priv->suspended = false;
 
-  /* v3.1.1.9 starts the H.264 data path before programming the GC2145.
-   * On this board the sensor begins driving DVP near the OUTPUT entries of
-   * its init table, which can raise YUV/H.264 IRQs while bk_dvp_open() still
-   * owns partially initialized state.  Defer only the first H.264 start
-   * until the immutable SDK has completed sensor init; later frame restarts
-   * still pass straight through the wrappers above.
-   */
+  /* The SDK may start the H.264 data path before completing a sensor
+   * descriptor.  A descriptor may begin driving DVP near the OUTPUT entries
+   * of its init table, which can raise YUV/H.264 IRQs while bk_dvp_open()
+   * still owns partially initialized state.  Defer only the first H.264
+   * start until the immutable SDK has completed sensor init; later frame
+   * restarts still pass straight through the wrappers above. */
 
-#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
   if (priv->sdk_config.img_format == IMAGE_H264)
     {
       if (g_bk7258_dvp_yuv_irq_deferred)
@@ -1083,15 +1118,19 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
             }
         }
 
-      if (g_bk7258_dvp_sensor_output_deferred)
+      for (uint8_t i = 0; i < g_bk7258_dvp.deferred_i2c_count; i++)
         {
           ret = bk7258_dvp_error(__real_dvp_camera_i2c_write_uint8(
-            0x78u >> 1, 0xf2u, 0x0fu));
+            g_bk7258_dvp.deferred_i2c[i].addr,
+            g_bk7258_dvp.deferred_i2c[i].reg,
+            g_bk7258_dvp.deferred_i2c[i].value));
           if (ret < 0)
             {
               goto fail_open;
             }
         }
+
+      g_bk7258_dvp.deferred_i2c_count = 0;
 
     }
 #endif
@@ -1105,7 +1144,7 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
   nxmutex_unlock(&priv->api_lock);
   return 0;
 
-#ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
 fail_open:
   nxmutex_unlock(&priv->api_lock);
   (void)bk7258_dvp_data_uninit(data);
@@ -1455,6 +1494,13 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
       return -EINVAL;
     }
 
+  if (config->binding != NULL &&
+      (config->binding->version != BK7258_DVP_BINDING_VERSION ||
+       config->binding->size < sizeof(*config->binding)))
+    {
+      return -EINVAL;
+    }
+
   if (config->sdk.width == 0 || config->sdk.height == 0 ||
       bk7258_dvp_fps_hz((frame_fps_t)config->sdk.fps) == 0 ||
       (config->sdk.img_format != IMAGE_YUV &&
@@ -1510,6 +1556,7 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
   if (g_bk7258_dvp.configured)
     {
       bool same = g_bk7258_dvp.config.frames == config->frames &&
+                  g_bk7258_dvp.config.binding == config->binding &&
                   g_bk7258_dvp.config.frame_count == config->frame_count &&
                   g_bk7258_dvp.config.encode_buffer == config->encode_buffer &&
                   g_bk7258_dvp.config.encode_buffer_size ==
@@ -1529,6 +1576,7 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
   spin_lock_init(&g_bk7258_dvp.lock);
   g_bk7258_dvp.config = *config;
   g_bk7258_dvp.sdk_config = config->sdk;
+  g_bk7258_dvp.deferred_i2c_count = 0;
   g_bk7258_dvp.data.ops = &g_bk7258_dvp_data_ops;
   g_bk7258_dvp.configured = true;
   g_bk7258_dvp.handle = NULL;

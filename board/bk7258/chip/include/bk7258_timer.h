@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) general-purpose timer — NuttX timer_lowerhalf_s wrapper.
+ * BK7258 general-purpose timer — NuttX timer_lowerhalf_s wrapper.
  *
  * Wraps the Beken SDK bk_timer_* driver as a NuttX timer lower half and
  * publishes it at /dev/timerN.  The BK7258 has 6 hardware timer channels

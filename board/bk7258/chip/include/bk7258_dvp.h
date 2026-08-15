@@ -26,6 +26,42 @@ extern "C"
 struct imgdata_s;
 struct bk7258_dvp_s;
 
+/* The SDK can emit one sensor-control write while the first H.264 pipeline
+ * is still being opened.  A physical sensor binding may ask the reusable
+ * lower half to defer such a write without exposing SDK/linker wrappers to
+ * the board source.  The callback supplies any sensor-specific immediate
+ * hold value; the lower half replays the original write after open has
+ * completed. */
+
+#define BK7258_DVP_BINDING_VERSION       1u
+#define BK7258_DVP_DEFERRED_I2C_WRITES   4u
+
+enum bk7258_dvp_i2c_write_action_e
+{
+  BK7258_DVP_I2C_WRITE_PASS = 0,
+  BK7258_DVP_I2C_WRITE_DEFER = 1,
+};
+
+struct bk7258_dvp_i2c_write_s
+{
+  uint8_t addr;
+  uint8_t reg;
+  uint8_t value;
+  uint8_t immediate_value;
+};
+
+typedef int (*bk7258_dvp_i2c_write_cb_t)(FAR void *arg,
+                                         FAR struct
+                                           bk7258_dvp_i2c_write_s *write);
+
+struct bk7258_dvp_binding_s
+{
+  uint16_t version;
+  uint16_t size;
+  FAR void *arg;
+  bk7258_dvp_i2c_write_cb_t i2c_write;
+};
+
 /* A caller-owned, DMA-capable frame backing store.  The wrapper never
  * allocates frame memory from the SDK callback because that callback can be
  * entered from a DVP interrupt.  Each store must remain valid until
@@ -45,6 +81,7 @@ struct bk7258_dvp_frame_mem_s
 struct bk7258_dvp_config_s
 {
   bk_dvp_config_t sdk;
+  FAR const struct bk7258_dvp_binding_s *binding;
   FAR struct bk7258_dvp_frame_mem_s *frames;
   uint8_t frame_count;
   FAR uint8_t *encode_buffer;

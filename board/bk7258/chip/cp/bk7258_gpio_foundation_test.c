@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Manual non-IRQ GPIO foundation test for the T5-AI board LED and key.
+ * Manual non-IRQ GPIO foundation test for the selected board's LED and key.
  ****************************************************************************/
 
 /****************************************************************************
@@ -21,7 +21,7 @@
 
 #include <nuttx/spinlock.h>
 
-#include <arch/board/board.h>
+#include <arch/chip/bk7258_gpio.h>
 
 #include <driver/gpio.h>
 
@@ -29,10 +29,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BK7258_GPIOC0_LED                   \
-  ((gpio_id_t)BK7258_BOARD_USER_LED_GPIO)
-#define BK7258_GPIOC0_KEY                   \
-  ((gpio_id_t)BK7258_BOARD_USER_BUTTON_GPIO)
 #define BK7258_GPIOC0_LED_OFF_US            250000u
 #define BK7258_GPIOC0_LED_ON_US             500000u
 #define BK7258_GPIOC0_LED_CYCLES            2u
@@ -47,28 +43,14 @@
  * Compile-time Invariants
  ****************************************************************************/
 
-_Static_assert(BK7258_BOARD_USER_LED_GPIO < GPIO_NUM,
-               "GPIO C0 board LED is outside the BK7258 GPIO range");
-_Static_assert(BK7258_BOARD_USER_BUTTON_GPIO < GPIO_NUM,
-               "GPIO C0 board key is outside the BK7258 GPIO range");
-_Static_assert(BK7258_BOARD_USER_LED_ACTIVE_HIGH == 0 ||
-               BK7258_BOARD_USER_LED_ACTIVE_HIGH == 1,
-               "GPIO C0 LED polarity must be boolean");
-_Static_assert(BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 0 ||
-               BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 1,
-               "GPIO C0 key polarity must be boolean");
-_Static_assert(!BK7258_GPIOC0_RESERVED(BK7258_GPIOC0_LED),
-               "GPIO C0 LED must not use a console/boot UART pin");
-_Static_assert(!BK7258_GPIOC0_RESERVED(BK7258_GPIOC0_KEY),
-               "GPIO C0 key must not use a console/boot UART pin");
-_Static_assert(BK7258_GPIOC0_LED != BK7258_GPIOC0_KEY,
-               "GPIO C0 LED and key pins must differ");
-
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
 static bool g_bk7258_gpioc0_running;
+static FAR const struct bk7258_gpio_config_s *g_bk7258_gpioc0_config;
+static gpio_id_t g_bk7258_gpioc0_led;
+static gpio_id_t g_bk7258_gpioc0_key;
 
 static const gpio_config_t g_bk7258_gpioc0_led_config =
 {
@@ -77,16 +59,15 @@ static const gpio_config_t g_bk7258_gpioc0_led_config =
   .func_mode = GPIO_SECOND_FUNC_DISABLE,
 };
 
-static const gpio_config_t g_bk7258_gpioc0_key_config =
+static gpio_config_t g_bk7258_gpioc0_key_config =
 {
   .io_mode = GPIO_INPUT_ENABLE,
-#if BK7258_BOARD_USER_BUTTON_ACTIVE_LOW
-  .pull_mode = GPIO_PULL_UP_EN,
-#else
-  .pull_mode = GPIO_PULL_DOWN_EN,
-#endif
+  .pull_mode = GPIO_PULL_DISABLE,
   .func_mode = GPIO_SECOND_FUNC_DISABLE,
 };
+
+#define BK7258_GPIOC0_LED  (g_bk7258_gpioc0_led)
+#define BK7258_GPIOC0_KEY  (g_bk7258_gpioc0_key)
 
 /****************************************************************************
  * Private Functions
@@ -139,8 +120,8 @@ static int bk7258_gpioc0_result(const char *operation, gpio_id_t pin,
 
 static bk_err_t bk7258_gpioc0_set_led(bool on)
 {
-  bool level = on ? BK7258_BOARD_USER_LED_ACTIVE_HIGH :
-                    !BK7258_BOARD_USER_LED_ACTIVE_HIGH;
+  bool level = on ? g_bk7258_gpioc0_config->user_led_active_high :
+                    !g_bk7258_gpioc0_config->user_led_active_high;
 
   return level ? bk_gpio_set_output_high(BK7258_GPIOC0_LED) :
                  bk_gpio_set_output_low(BK7258_GPIOC0_LED);
@@ -149,7 +130,8 @@ static bk_err_t bk7258_gpioc0_set_led(bool on)
 static void bk7258_gpioc0_record_key(bool level, bool *seen_high,
                                      bool *seen_low)
 {
-  bool pressed = level != (BK7258_BOARD_USER_BUTTON_ACTIVE_LOW != 0);
+  bool pressed = level !=
+                 (g_bk7258_gpioc0_config->user_button_active_low != 0);
 
   if (level)
     {
@@ -191,13 +173,38 @@ int bk7258_gpio_foundation_test(void)
       return -EBUSY;
     }
 
+  g_bk7258_gpioc0_config = bk7258_board_gpio_config();
+  if (g_bk7258_gpioc0_config == NULL ||
+      g_bk7258_gpioc0_config->version != BK7258_GPIO_BINDING_VERSION ||
+      g_bk7258_gpioc0_config->size < sizeof(*g_bk7258_gpioc0_config) ||
+      g_bk7258_gpioc0_config->name == NULL ||
+      g_bk7258_gpioc0_config->user_led_gpio >= GPIO_NUM ||
+      g_bk7258_gpioc0_config->user_button_gpio >= GPIO_NUM ||
+      g_bk7258_gpioc0_config->user_led_gpio ==
+        g_bk7258_gpioc0_config->user_button_gpio ||
+      BK7258_GPIOC0_RESERVED(g_bk7258_gpioc0_config->user_led_gpio) ||
+      BK7258_GPIOC0_RESERVED(g_bk7258_gpioc0_config->user_button_gpio))
+    {
+      printf("bkgpioc0: FAIL no valid GPIO board binding\n");
+      bk7258_gpioc0_release();
+      return -ENODEV;
+    }
+
+  BK7258_GPIOC0_LED =
+    (gpio_id_t)g_bk7258_gpioc0_config->user_led_gpio;
+  BK7258_GPIOC0_KEY =
+    (gpio_id_t)g_bk7258_gpioc0_config->user_button_gpio;
+  g_bk7258_gpioc0_key_config.pull_mode =
+    g_bk7258_gpioc0_config->user_button_active_low ? GPIO_PULL_UP_EN :
+                                                     GPIO_PULL_DOWN_EN;
+
   printf("bkgpioc0: BEGIN board=%s LED=P%u active-%s "
          "KEY=P%u active-%s\n",
-         BK7258_BOARD_VARIANT_NAME,
+         g_bk7258_gpioc0_config->name,
          (unsigned int)BK7258_GPIOC0_LED,
-         BK7258_BOARD_USER_LED_ACTIVE_HIGH ? "high" : "low",
+         g_bk7258_gpioc0_config->user_led_active_high ? "high" : "low",
          (unsigned int)BK7258_GPIOC0_KEY,
-         BK7258_BOARD_USER_BUTTON_ACTIVE_LOW ? "low" : "high");
+         g_bk7258_gpioc0_config->user_button_active_low ? "low" : "high");
 
   error = bk_gpio_driver_init();
   result = bk7258_gpioc0_result("driver init", BK7258_GPIOC0_LED,

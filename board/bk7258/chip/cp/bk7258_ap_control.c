@@ -22,6 +22,7 @@
 #include <nuttx/mutex.h>
 #include <nuttx/signal.h>
 
+#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 
 #if defined(CONFIG_BK7258_BT_IPC) && defined(CONFIG_BK7258_RPTUN_MBOX)

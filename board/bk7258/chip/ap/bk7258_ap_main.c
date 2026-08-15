@@ -21,6 +21,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
 
+#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_peripherals.h>
 

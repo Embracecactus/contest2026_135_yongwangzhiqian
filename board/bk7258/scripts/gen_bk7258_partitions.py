@@ -24,7 +24,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 BOARD_DIR = SCRIPT_DIR.parent
 DEFAULT_INPUT = BOARD_DIR / "partitions/bk7258/auto_partitions.csv"
 DEFAULT_OUTPUT_DIR = BOARD_DIR / "partitions/generated"
-DEFAULT_HEADER = BOARD_DIR / "chip/include/bk7258_partition_layout.h"
+DEFAULT_HEADER = BOARD_DIR / "include/bk7258_partition_layout.h"
 SDK_RELEASE = "v3.1.1.9"
 SDK_DIRECTORY = "bk_avdk_smp-release-v3.1.1.9"
 SDK_REFERENCE_CSV = Path("projects/app_ab/partitions/bk7258/auto_partitions.csv")
@@ -737,14 +737,25 @@ def render_header(layout: PartitionLayout) -> str:
         "#ifndef __BK7258_PARTITION_LAYOUT_H",
         "#define __BK7258_PARTITION_LAYOUT_H",
         "",
+        "#ifndef BK7258_FLASH_XIP_BASE",
+        '#  error "Include the BK7258 SoC memory map before the partition contract"',
+        "#endif",
+        "",
+        f"#if BK7258_FLASH_CRC_DATA_SIZE != {layout.crc_data_size}u",
+        '#  error "BK7258 partition CRC data geometry does not match the SoC"',
+        "#endif",
+        f"#if BK7258_FLASH_CRC_TOTAL_SIZE != {layout.crc_total_size}u",
+        '#  error "BK7258 partition CRC total geometry does not match the SoC"',
+        "#endif",
+        f"#if BK7258_FLASH_XIP_BASE != 0x{layout.xip_base:08x}u",
+        '#  error "BK7258 partition XIP base does not match the SoC"',
+        "#endif",
+        "",
         f'#define BK7258_PARTITION_LAYOUT_ID "{layout.layout_id}"',
         f'#define BK7258_PARTITION_LAYOUT_SHA256 "{layout.layout_sha256}"',
         f"#define BK7258_PARTITION_LAYOUT_SHA256_BYTES {{{layout_digest_bytes}}}",
         f"#define BK7258_FLASH_SIZE 0x{layout.flash_size:08x}",
         f"#define BK7258_FLASH_ERASE_SIZE 0x{layout.erase_size:08x}",
-        f"#define BK7258_FLASH_CRC_DATA_SIZE {layout.crc_data_size}",
-        f"#define BK7258_FLASH_CRC_TOTAL_SIZE {layout.crc_total_size}",
-        f"#define BK7258_FLASH_XIP_BASE 0x{layout.xip_base:08x}",
         f"#define BK7258_PARTITION_COUNT {len(layout.partitions)}",
         f"#define BK7258_SDK_PARTITIONS_TABLE_SIZE {sdk_table_size}",
         f"#define BK7258_SDK_PARTITION_VALID_MASK 0x{sdk_valid_mask:08x}",

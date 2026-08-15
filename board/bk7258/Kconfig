@@ -1,5 +1,5 @@
 #
-# NuttX board configuration for the Beken BK7258 T5-AI board family.
+# NuttX board configuration for the Beken BK7258 logical board.
 #
 
 config ARCH_BOARD_BK7258
@@ -12,6 +12,27 @@ config ARCH_BOARD_BK7258
 		the physical carrier below so
 		board-level GPIOs and capabilities match the assembled hardware.
 
+# Hidden physical capabilities consumed by chip-generic controller options.
+# A board selector owns these facts; chip Kconfig must not name a PCB.
+
+config BK7258_BOARD_HAS_AUDIO_BINDING
+	bool
+
+config BK7258_BOARD_HAS_MIC_BINDING
+	bool
+
+config BK7258_BOARD_HAS_USER_GPIO_BINDING
+	bool
+
+config BK7258_BOARD_HAS_SDIO_BINDING
+	bool
+
+config BK7258_BOARD_HAS_SWD_ROUTE
+	bool
+
+config BK7258_BOARD_HAS_NATIVE_USB_HOST
+	bool
+
 choice
 	prompt "BK7258 physical board"
 	default BK7258_BOARD_T5AI_CORE
@@ -19,6 +40,9 @@ choice
 
 config BK7258_BOARD_T5AI_CORE
 	bool "T5AI-Core V1.0.1"
+	select BK7258_BOARD_HAS_AUDIO_BINDING
+	select BK7258_BOARD_HAS_MIC_BINDING
+	select BK7258_BOARD_HAS_USER_GPIO_BINDING
 	help
 		Compact T5-E1 core board with battery management, dual USB-UART,
 		P9 user LED, P29 user key, microphone and speaker amplifier.  This
@@ -26,6 +50,12 @@ config BK7258_BOARD_T5AI_CORE
 
 config BK7258_BOARD_T5_BOARD
 	bool "T5-Board V1.0.2"
+	select BK7258_BOARD_HAS_AUDIO_BINDING
+	select BK7258_BOARD_HAS_MIC_BINDING
+	select BK7258_BOARD_HAS_SDIO_BINDING
+	select BK7258_BOARD_HAS_USER_GPIO_BINDING
+	select BK7258_BOARD_HAS_SWD_ROUTE
+	select BK7258_BOARD_HAS_NATIVE_USB_HOST
 	help
 		Full T5-E1-IPEX development board with TF card, RGB LCD and DVP
 		camera connectors, P1 user LED and P12 ADC key.  Selecting this
@@ -105,5 +135,120 @@ config BK7258_T5_BOARD_SARADC_KEY_VALIDATION
 		This is an interactive validation option.  Leave SW5 released for the
 		initial phase, press it when prompted, then release it when prompted.
 		A static unpressed reading is not a physical key PASS.
+
+config BK7258_AUD_LIFECYCLE_VALIDATION
+	bool "Run bounded T5-Board speaker lifecycle validation"
+	default n
+	depends on BK7258_AUD
+	help
+		Generate mono 1-kHz PCM in memory and exercise the public NuttX audio
+		ABI through two open/play/teardown cycles.  The validation checks DMA,
+		DAC and amplifier ownership diagnostics; audible output still requires
+		a speaker connected to the T5-Board P6 connector.
+
+config BK7258_LCD
+	bool "T5-Board RGB framebuffer with ILI9488 panel"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PSRAM
+	select BK7258_SDK_IPC_RUNTIME
+	select DRIVERS_VIDEO
+	select VIDEO_FB
+	help
+		Enable the BK7258 RGB controller, T5-Board physical binding and
+		ILI9488 panel driver.  A single RGB565 scanout buffer is allocated
+		from AP PSRAM and exported directly as /dev/fb0.
+
+config BK7258_LCD_VALIDATION_PATTERN
+	bool "Fill the LCD with a startup validation pattern"
+	default n
+	depends on BK7258_LCD
+	help
+		Fill /dev/fb0 with red, green, blue and white bars after framebuffer
+		registration.  This is intended only for board-level display bring-up;
+		normal applications should leave it disabled and render through fb0.
+
+config BK7258_GT1151
+	bool "T5-Board GT1151 capacitive touch panel"
+	default n
+	depends on BK7258_AP_CORE
+	select I2C
+	select I2C_BITBANG
+	select INPUT
+	select INPUT_GT9XX
+	help
+		Register the LCD sub-board GT1151 through NuttX's standard GT9xx
+		touchscreen driver as /dev/input0.  GPIO13/GPIO15 form a board-owned
+		bitbang-I2C bus rather than an unsupported hardware-I2C pin mapping.
+
+config BK7258_GT1151_VALIDATION
+	bool "Continuously report GT1151 validation samples"
+	default n
+	depends on BK7258_GT1151
+	help
+		Open /dev/input0 from a kernel thread after board bring-up.  A
+		successful open proves that the product ID can be read over the real
+		board bus; subsequent touch samples are written to syslog.  This is
+		intended for drivercheck configurations only.
+
+config BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
+	bool "Cycle the T5-Board RGB LCD backlight through PWM3/P9"
+	default n
+	depends on BK7258_PWM && BK7258_PWM_CHAN = 3
+	depends on !BK7258_LCD
+	help
+		Run a bounded board-level validation through the normal NuttX
+		/dev/pwm0 upper half.  The worker drives LCD_PWM_BL through P9/PWM3 at
+		1 kHz and cycles 100, 0, 10, 50 and 90 percent duty.
+
+config BK7258_T5_BOARD_CAMERA
+	bool "T5-Board P10 DVP camera as /dev/video0"
+	default n
+	depends on BK7258_DVP && BK7258_PSRAM
+	depends on !BK7258_LCD && !BK7258_GT1151
+	select BK7258_DVP_BOARD_GLUE
+	help
+		Bind the T5-Board V1.0.2 P10 camera connector to the generic BK7258
+		DVP imgdata lower half and NuttX V4L2 capture upper half.  The first
+		board profile is 640x480, 30 fps MJPEG and uses PSRAM for both SDK
+		frames and V4L2 MMAP buffers.
+
+config BK7258_T5_BOARD_CAMERA_RAW_YUV
+	bool "Expose the T5-Board camera as raw YUYV"
+	default n
+	depends on BK7258_T5_BOARD_CAMERA
+	select BK7258_PSRAM_MEDIA
+	help
+		Configure the GC2145/DVP path for 640x480 packed YUYV frames instead
+		of MJPEG.  /dev/video0 remains a standard NuttX V4L2 capture device.
+
+config BK7258_T5_BOARD_CAMERA_H264
+	bool "Expose the T5-Board camera as live H.264"
+	default n
+	depends on BK7258_T5_BOARD_CAMERA && !BK7258_T5_BOARD_CAMERA_RAW_YUV
+	depends on BK7258_AP_SMP_SCHED_ONLINE
+	select BK7258_DVP_H264_COMPAT
+	help
+		Configure the GC2145 and the official v3.1.1.9 DVP/YUV/H.264
+		pipeline as one live stream.  /dev/video0 advertises standard H.264
+		and returns Annex-B access units.  Logical CPU1 must be online because
+		the SDK routes the H.264 interrupt to the second AP hardware core.
+
+config BK7258_T5_BOARD_CAMERA_VALIDATION
+	bool "Capture one MJPEG frame during T5-Board camera bring-up"
+	default n
+	depends on BK7258_T5_BOARD_CAMERA && !BK7258_T5_BOARD_CAMERA_RAW_YUV
+	depends on !BK7258_T5_BOARD_CAMERA_H264
+	help
+		Run one bounded V4L2 USERPTR capture, verify a 640x480 MJPEG frame,
+		report BKCAM PASS/FAIL and close the stream.  Enable this only in a
+		drivercheck configuration.
+
+config BK7258_T5_BOARD_CAMERA_H264_VALIDATION
+	bool "Capture one live H.264 frame during T5-Board bring-up"
+	default n
+	depends on BK7258_T5_BOARD_CAMERA_H264
+	help
+		Run one bounded V4L2 USERPTR capture, validate a non-empty 640x480
+		Annex-B frame, report BKCAMH264 PASS/FAIL and close the stream.
 
 endif # BK7258_BOARD_T5_BOARD

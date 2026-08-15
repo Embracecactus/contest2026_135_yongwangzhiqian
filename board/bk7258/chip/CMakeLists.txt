@@ -275,36 +275,12 @@ foreach(BK7258_AP_PERIPHERAL AUD GPIOE I2C I2S)
   endif()
 endforeach()
 
-if(CONFIG_BK7258_AUD)
-  if(CONFIG_BK7258_BOARD_T5_BOARD)
-    list(APPEND BK7258_AP_BASE_SRCS
-         ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_audio.c)
-  else()
-    list(APPEND BK7258_AP_BASE_SRCS
-         ${NUTTX_BOARD_DIR}/boards/t5ai_core/src/bk7258_t5ai_core_audio.c)
-  endif()
-endif()
-
 if(CONFIG_BK7258_LCD)
-  list(APPEND BK7258_AP_BASE_SRCS
-       ap/bk7258_lcd_rgb.c
-       ${NUTTX_BOARD_DIR}/panels/ili9488_rgb.c
-       ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_lcd.c)
-  target_include_directories(arch PRIVATE ${NUTTX_BOARD_DIR}/panels)
-endif()
-
-if(CONFIG_BK7258_GT1151)
-  list(APPEND BK7258_AP_BASE_SRCS
-       ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_gt1151.c)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lcd_rgb.c)
 endif()
 
 if(CONFIG_BK7258_PWM)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_pwm.c)
-endif()
-
-if(CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION)
-  list(APPEND BK7258_AP_BASE_SRCS
-       ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_rgb_lcd_backlight.c)
 endif()
 
 if(CONFIG_BK7258_AUD OR CONFIG_BK7258_DVP OR
@@ -349,10 +325,7 @@ if(CONFIG_BK7258_YUV_H264)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_yuv_h264.c)
 endif()
 
-if(CONFIG_BK7258_T5_BOARD_CAMERA)
-  list(APPEND BK7258_AP_BASE_SRCS
-       ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_camera.c
-       ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_camera_i2c.c)
+if(CONFIG_BK7258_DVP_BOARD_GLUE)
   bk7258_wrap_sdk_symbol(
     bk_i2c_init_v2
     bk_i2c_deinit_v2
@@ -378,13 +351,7 @@ if(CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION)
 endif()
 
 if(CONFIG_BK7258_SDIO)
-  list(APPEND BK7258_AP_BASE_SRCS
-       ap/bk7258_sdio.c
-       ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_sdio.c)
-  if(CONFIG_BK7258_T5_BOARD_TF_VALIDATION)
-    list(APPEND BK7258_AP_BASE_SRCS
-         ${NUTTX_BOARD_DIR}/boards/t5_board/src/bk7258_t5_board_tf_validation.c)
-  endif()
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_sdio.c)
 endif()
 
 foreach(BK7258_AP_PERIPHERAL SDMADC SPI QSPI CAN TIMER TRNG)
@@ -434,7 +401,7 @@ if(CONFIG_BK7258_RPTUN)
          CONFIG_BK7258_YUV_H264 OR CONFIG_BK7258_DVP)
         bk7258_wrap_sdk_symbol(bk_pm_module_vote_power_ctrl)
       endif()
-      if(CONFIG_BK7258_T5_BOARD_CAMERA_H264)
+      if(CONFIG_BK7258_DVP_H264_COMPAT)
         bk7258_wrap_sdk_symbol(
           bk_yuv_buf_start
           bk_h264_encode_enable

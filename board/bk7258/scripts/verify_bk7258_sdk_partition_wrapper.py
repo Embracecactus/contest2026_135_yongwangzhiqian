@@ -51,12 +51,17 @@ def _write_host_headers(root: Path, layout: PartitionLayout) -> Path:
     include = root / "include"
     (include / "nuttx").mkdir(parents=True)
     (include / "arch/chip").mkdir(parents=True)
+    (include / "arch/board").mkdir(parents=True)
     (include / "driver").mkdir(parents=True)
     (include / "nuttx/config.h").write_text(
         "#pragma once\n#define CONFIG_BK7258_FLASH_MTD 1\n",
         encoding="utf-8",
     )
-    (include / "arch/chip/bk7258_partition_layout.h").write_text(
+    shutil.copy2(
+        BOARD_DIR / "chip/include/bk7258_memorymap.h",
+        include / "arch/chip/bk7258_memorymap.h",
+    )
+    (include / "arch/board/bk7258_partition_layout.h").write_text(
         generated_contents(layout)["bk7258_partition_layout.h"],
         encoding="utf-8",
     )
@@ -85,7 +90,8 @@ def _host_harness(label: str) -> str:
 #include <stdio.h>
 #include <string.h>
 
-#include <arch/chip/bk7258_partition_layout.h>
+#include <arch/chip/bk7258_memorymap.h>
+#include <arch/board/bk7258_partition_layout.h>
 #include <driver/flash.h>
 
 #define MAGIC 0x12345678u

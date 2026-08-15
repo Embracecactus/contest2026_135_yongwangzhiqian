@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) runtime CPU-frequency switching (DVFS) -- NuttX overlay
+ * BK7258 runtime CPU-frequency switching (DVFS) -- NuttX overlay
  * lower half.  Mirrors the Armino SDK runtime clock path:
  *
  *   sys_drv_switch_cpu_bus_freq(target)        (sys_ps_driver.c:244-289)

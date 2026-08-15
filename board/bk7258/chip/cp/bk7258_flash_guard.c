@@ -21,7 +21,7 @@
 #include <nuttx/mutex.h>
 #include <nuttx/sched.h>
 
-#include <arch/chip/bk7258_amp.h>
+#include <arch/board/bk7258_image_layout.h>
 
 #include <driver/flash.h>
 

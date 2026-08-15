@@ -1,5 +1,5 @@
 #
-# NuttX Make.defs for Beken BK7258 (T5-AI) Stage N1 board.
+# NuttX Make.defs for the Beken BK7258 logical board.
 #
 # Classic Make backend (the same backend RV1126B used).  The board CMake
 # files mirror this source, SDK-library and postbuild contract; signed
@@ -20,16 +20,25 @@ CROSSDEV = arm-none-eabi-
 
 include $(TOPDIR)/arch/arm/src/armv8-m/Toolchain.defs
 
-# Select exactly one physical-board description.  The fallback preserves
-# compatibility with an already-configured build tree created before the
-# board-variant Kconfig choice was introduced; a fresh configuration always
-# resolves the choice explicitly.
+# Select exactly one physical-board description.  Kconfig supplies a default
+# for fresh configurations, but the build backends still validate the
+# resolved contract so a stale or hand-edited .config cannot silently fall
+# back to another PCB.
+
+BK7258_BOARD_VARIANT_SELECTIONS := \
+	$(filter y,$(CONFIG_BK7258_BOARD_AIDK_AI_TOY) \
+	            $(CONFIG_BK7258_BOARD_T5_BOARD) \
+	            $(CONFIG_BK7258_BOARD_T5AI_CORE))
+
+ifneq ($(words $(BK7258_BOARD_VARIANT_SELECTIONS)),1)
+$(error Select exactly one BK7258 physical board)
+endif
 
 ifeq ($(CONFIG_BK7258_BOARD_AIDK_AI_TOY),y)
 BK7258_BOARD_VARIANT_DIR := $(BOARD_DIR)$(DELIM)boards$(DELIM)aidk_ai_toy
 else ifeq ($(CONFIG_BK7258_BOARD_T5_BOARD),y)
 BK7258_BOARD_VARIANT_DIR := $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board
-else
+else ifeq ($(CONFIG_BK7258_BOARD_T5AI_CORE),y)
 BK7258_BOARD_VARIANT_DIR := $(BOARD_DIR)$(DELIM)boards$(DELIM)t5ai_core
 endif
 
@@ -39,12 +48,14 @@ BK7258_BOARD_VARIANT_INCLUDE := $(BK7258_BOARD_VARIANT_DIR)$(DELIM)include
 # vector tables remain KEEP-pinned at each role's official primary origin.
 
 ifeq ($(CONFIG_BK7258_AP_CORE),y)
-ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)ld_ap.script
+LDSCRIPT = ld_ap.script
 BK7258_IMAGE_ROLE = ap
 else
-ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)ld.script
+LDSCRIPT = ld.script
 BK7258_IMAGE_ROLE = cp
 endif
+
+ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)$(LDSCRIPT)
 
 # Standard NuttX ARM flag assembly.
 

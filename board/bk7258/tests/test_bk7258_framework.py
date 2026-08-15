@@ -17,6 +17,7 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from bk7258_framework import (  # noqa: E402
     FrameworkError,
+    _defconfig_text,
     canonical_json,
     classic_report,
     cmake_view,
@@ -68,6 +69,14 @@ class FrameworkTest(unittest.TestCase):
         ap = resolve(REPOSITORY, "t5ai_core_bringup", "ap")
         self.assertIsNone(cp["symbols"]["CONFIG_BK7258_AP_CORE"])
         self.assertEqual(ap["symbols"]["CONFIG_BK7258_AP_CORE"], "y")
+        board_selectors = {
+            "CONFIG_BK7258_BOARD_AIDK_AI_TOY",
+            "CONFIG_BK7258_BOARD_T5_BOARD",
+            "CONFIG_BK7258_BOARD_T5AI_CORE",
+        }
+        self.assertEqual({key for key in board_selectors
+                          if cp["symbols"].get(key) == "y"},
+                         {"CONFIG_BK7258_BOARD_T5AI_CORE"})
         self.assertEqual(cp, resolve(REPOSITORY, "t5ai_core_bringup", "cp"))
         self.assertIs(validate_ir(cp), cp)
 
@@ -90,6 +99,59 @@ class FrameworkTest(unittest.TestCase):
             merge_symbols([{"symbols": {"CONFIG_X": "y"}}, {"symbols": {"CONFIG_X": None}}])
         with self.assertRaises(FrameworkError):
             relative_path("board/bk7258_t5ai/chip", "retired source")
+
+        def resign(ir: dict[str, object]) -> dict[str, object]:
+            body = copy.deepcopy(ir)
+            body.pop("identity_sha256")
+            ir["identity_sha256"] = hashlib.sha256(
+                canonical_json(body)).hexdigest()
+            return ir
+
+        aidk = resolve(REPOSITORY, "aidk_ai_toy_bringup", "cp")
+        doubled = copy.deepcopy(aidk)
+        doubled["symbols"]["CONFIG_BK7258_BOARD_T5AI_CORE"] = "y"
+        with self.assertRaises(FrameworkError):
+            validate_ir(resign(doubled))
+
+        missing = copy.deepcopy(aidk)
+        del missing["symbols"]["CONFIG_BK7258_BOARD_AIDK_AI_TOY"]
+        with self.assertRaises(FrameworkError):
+            validate_ir(resign(missing))
+
+        mismatched = copy.deepcopy(aidk)
+        del mismatched["symbols"]["CONFIG_BK7258_BOARD_AIDK_AI_TOY"]
+        mismatched["symbols"]["CONFIG_BK7258_BOARD_T5AI_CORE"] = "y"
+        with self.assertRaises(FrameworkError):
+            validate_ir(resign(mismatched))
+
+        def resign_config(document: dict[str, object]) -> dict[str, object]:
+            document["defconfig"] = _defconfig_text(
+                document["inputs"], document["symbols"],
+                document["ir_identity_sha256"])
+            document["defconfig_sha256"] = hashlib.sha256(
+                document["defconfig"].encode()).hexdigest()
+            body = copy.deepcopy(document)
+            body.pop("identity_sha256")
+            document["identity_sha256"] = hashlib.sha256(
+                canonical_json(body)).hexdigest()
+            return document
+
+        config = config_document(aidk)
+        config_doubled = copy.deepcopy(config)
+        config_doubled["symbols"]["CONFIG_BK7258_BOARD_T5AI_CORE"] = "y"
+        with self.assertRaises(FrameworkError):
+            validate_config_document(resign_config(config_doubled))
+
+        config_missing = copy.deepcopy(config)
+        del config_missing["symbols"]["CONFIG_BK7258_BOARD_AIDK_AI_TOY"]
+        with self.assertRaises(FrameworkError):
+            validate_config_document(resign_config(config_missing))
+
+        config_mismatched = copy.deepcopy(config)
+        del config_mismatched["symbols"]["CONFIG_BK7258_BOARD_AIDK_AI_TOY"]
+        config_mismatched["symbols"]["CONFIG_BK7258_BOARD_T5AI_CORE"] = "y"
+        with self.assertRaises(FrameworkError):
+            validate_config_document(resign_config(config_mismatched))
 
     def test_strict_duplicate_and_ir_identity_checks(self) -> None:
         with tempfile.TemporaryDirectory(prefix="bk7258-framework-") as directory:

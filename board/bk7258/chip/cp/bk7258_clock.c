@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) boot-time CPU0 clock bring-up -- thin DVFS caller.
+ * BK7258 boot-time CPU0 clock bring-up -- thin DVFS caller.
  *
  * This used to be a hand-rolled analog/mux bring-up that mirrored only a
  * fragment of the Armino SDK early-init path.  The product-grade model now

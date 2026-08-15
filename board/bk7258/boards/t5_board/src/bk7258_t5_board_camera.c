@@ -60,6 +60,13 @@
 #define T5_CAMERA_VALIDATION_PASSED   2u
 #define T5_CAMERA_VALIDATION_FAILED   3u
 
+/* GC2145 output-enable write.  This is a property of the T5-Board camera
+ * binding, not of the reusable AP DVP lower half. */
+
+#define T5_CAMERA_SENSOR_I2C_ADDRESS  0x3cu
+#define T5_CAMERA_SENSOR_OUTPUT_REG   0xf2u
+#define T5_CAMERA_SENSOR_OUTPUT_VALUE 0x0fu
+
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264
 #  define T5_CAMERA_V4L2_FORMAT      V4L2_PIX_FMT_H264
 /* bk7258_dvp.c keeps H264 public at the V4L2 boundary and maps it to the
@@ -95,6 +102,31 @@ static FAR void *g_t5_camera_frame_bases[T5_CAMERA_FRAME_COUNT];
 static FAR void *g_t5_camera_encode_base;
 static FAR struct bk7258_dvp_s *g_t5_camera_dvp;
 static bool g_t5_camera_registered;
+
+static int t5_camera_dvp_i2c_write(FAR void *arg,
+                                   FAR struct bk7258_dvp_i2c_write_s
+                                     *write)
+{
+  (void)arg;
+
+  if (write != NULL && write->addr == T5_CAMERA_SENSOR_I2C_ADDRESS &&
+      write->reg == T5_CAMERA_SENSOR_OUTPUT_REG &&
+      write->value == T5_CAMERA_SENSOR_OUTPUT_VALUE)
+    {
+      write->immediate_value = 0;
+      return BK7258_DVP_I2C_WRITE_DEFER;
+    }
+
+  return BK7258_DVP_I2C_WRITE_PASS;
+}
+
+static const struct bk7258_dvp_binding_s g_t5_camera_dvp_binding =
+{
+  .version = BK7258_DVP_BINDING_VERSION,
+  .size = sizeof(struct bk7258_dvp_binding_s),
+  .arg = NULL,
+  .i2c_write = t5_camera_dvp_i2c_write,
+};
 
 #if defined(CONFIG_BK7258_T5_BOARD_CAMERA_VALIDATION) || \
     defined(CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION)
@@ -844,6 +876,7 @@ int bk7258_t5_board_camera_initialize(void)
   sdk.img_format = T5_CAMERA_SDK_FORMAT;
 
   config.sdk = sdk;
+  config.binding = &g_t5_camera_dvp_binding;
   config.frames = g_t5_camera_frames;
   config.frame_count = T5_CAMERA_FRAME_COUNT;
   config.encode_buffer = encode_buffer;

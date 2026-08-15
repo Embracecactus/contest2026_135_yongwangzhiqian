@@ -6,7 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "../chip/include/bk7258_partition_layout.h"
+#include "../chip/include/bk7258_memorymap.h"
+#include "../include/bk7258_partition_layout.h"
 #include "boot_bl2_contract.h"
 
 #define BK7258_BL1_MANIFEST_SIZE             256u

@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) SDIO host controller — NuttX sdio_dev_s lower-half over the
+ * BK7258 SDIO host controller — NuttX sdio_dev_s lower-half over the
  * official Beken bk_sdio_host_* SDK API.  Zero register access.
  *
  * Role ownership: AP only.  The 24 bk_sdio_host_* symbols are compiled into
@@ -62,25 +62,13 @@
 #include <nuttx/irq.h>
 #include <nuttx/mutex.h>
 #include <nuttx/sdio.h>
-
-#include <arch/board/board.h>
-#include <arch/chip/bk7258_sdk_abi.h>
-
-#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
 #include <nuttx/spinlock.h>
 #include <nuttx/wqueue.h>
-#endif
+
+#include <arch/chip/bk7258_board_binding.h>
+#include <arch/chip/bk7258_sdk_abi.h>
 
 #include <arch/chip/bk7258_sdio.h>
-
-#ifndef BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
-#  error "Selected board must declare its SDIO card-detect capability"
-#endif
-
-#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE && \
-    !defined(BK7258_BOARD_SDIO_MEDIA_POLL_MS)
-#  error "Card-detect boards must declare their media polling interval"
-#endif
 
 /* SDK API headers (Beken).  bk_err_t / BK_OK come via common/bk_err.h. */
 
@@ -141,6 +129,7 @@
 struct bk7258_sdio_priv_s
 {
   struct sdio_dev_s dev;          /* NuttX lower-half vtable anchor */
+  FAR const struct bk7258_sdio_binding_s *binding;
   bool widebus_enabled;           /* 4-bit mode active */
   bool initialized;                /* bk_sdio_host_init() done */
   bool driver_init;                /* bk_sdio_host_driver_init() done */
@@ -166,11 +155,11 @@ struct bk7258_sdio_priv_s
   sdio_eventset_t waitset;
   int xfer_result;
 
-  /* Mechanical card-detect polling and MMC/SD media-change callback.
-   * Omitted entirely for fixed-media board variants.
+  /* Mechanical card-detect polling and MMC/SD media-change callback.  The
+   * storage is always present; the selected binding decides at runtime
+   * whether the fixed-media path or this polling path is active.
    */
 
-#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
   spinlock_t media_lock;
   struct work_s media_work;
   worker_t callback;
@@ -178,7 +167,6 @@ struct bk7258_sdio_priv_s
   sdio_eventset_t callback_events;
   bool reported_present;
   bool media_poll_started;
-#endif
 };
 
 /****************************************************************************
@@ -227,9 +215,7 @@ static void bk7258_sdio_callbackenable(FAR struct sdio_dev_s *dev,
                                        sdio_eventset_t eventset);
 static int bk7258_sdio_registercallback(FAR struct sdio_dev_s *dev,
                                         worker_t callback, FAR void *arg);
-#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
 static void bk7258_sdio_media_worker(FAR void *arg);
-#endif
 
 /****************************************************************************
  * Private Data
@@ -291,6 +277,47 @@ static int bk7258_sdio_map_err(bk_err_t err)
       default:
         return -EIO;
     }
+}
+
+static FAR const struct bk7258_sdio_binding_s *
+  bk7258_sdio_get_binding(void)
+{
+  FAR const struct bk7258_board_binding_s *board;
+  FAR const struct bk7258_sdio_binding_s *binding;
+  FAR const struct bk7258_sdio_config_s *config;
+
+  board = bk7258_board_get_binding();
+  if (board == NULL || board->version != BK7258_BINDING_VERSION ||
+      board->size < sizeof(*board))
+    {
+      return NULL;
+    }
+
+  binding = board->sdio;
+  if (binding == NULL || binding->version != BK7258_BINDING_VERSION ||
+      binding->size < sizeof(*binding) || binding->initialize == NULL ||
+      binding->card_present == NULL)
+    {
+      return NULL;
+    }
+
+  config = binding->config;
+  if (config == NULL || config->version != BK7258_BINDING_VERSION ||
+      config->size < sizeof(*config) ||
+      (config->card_detect_available && config->media_poll_ms == 0))
+    {
+      return NULL;
+    }
+
+  return binding;
+}
+
+static bool bk7258_sdio_card_detect_enabled(
+  FAR const struct bk7258_sdio_priv_s *priv)
+{
+  return priv != NULL && priv->binding != NULL &&
+         priv->binding->config != NULL &&
+         priv->binding->config->card_detect_available;
 }
 
 #ifdef CONFIG_SDIO_V2P0
@@ -578,9 +605,11 @@ static sdio_capset_t bk7258_sdio_capabilities(FAR struct sdio_dev_s *dev)
 
 static sdio_statset_t bk7258_sdio_status(FAR struct sdio_dev_s *dev)
 {
-  (void)dev;
+  FAR struct bk7258_sdio_priv_s *priv =
+    (FAR struct bk7258_sdio_priv_s *)dev;
 
-  return bk7258_board_sdio_card_present() ? SDIO_STATUS_PRESENT : 0;
+  return priv != NULL && priv->binding != NULL &&
+         priv->binding->card_present() ? SDIO_STATUS_PRESENT : 0;
 }
 
 static void bk7258_sdio_widebus(FAR struct sdio_dev_s *dev, bool enable)
@@ -1207,10 +1236,16 @@ static sdio_eventset_t bk7258_sdio_eventwait(FAR struct sdio_dev_s *dev)
 static void bk7258_sdio_callbackenable(FAR struct sdio_dev_s *dev,
                                        sdio_eventset_t eventset)
 {
-#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
   FAR struct bk7258_sdio_priv_s *priv =
     (FAR struct bk7258_sdio_priv_s *)dev;
   irqstate_t flags;
+
+  if (!bk7258_sdio_card_detect_enabled(priv))
+    {
+      /* Fixed-media slots never report insertion/ejection callbacks. */
+
+      return;
+    }
 
   /* The MMC/SD upper half arms one expected edge at a time.  Keep the
    * reported level unchanged while callbacks are disabled so an edge that
@@ -1221,15 +1256,8 @@ static void bk7258_sdio_callbackenable(FAR struct sdio_dev_s *dev,
   priv->callback_events = eventset &
                           (SDIOMEDIA_INSERTED | SDIOMEDIA_EJECTED);
   spin_unlock_irqrestore(&priv->media_lock, flags);
-#else
-  /* Fixed-media slots never report insertion/ejection callbacks. */
-
-  (void)dev;
-  (void)eventset;
-#endif
 }
 
-#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
 static void bk7258_sdio_media_worker(FAR void *arg)
 {
   FAR struct bk7258_sdio_priv_s *priv = arg;
@@ -1241,7 +1269,7 @@ static void bk7258_sdio_media_worker(FAR void *arg)
   bool restart;
   int ret;
 
-  present = bk7258_board_sdio_card_present();
+  present = priv->binding->card_present();
   edge = present ? SDIOMEDIA_INSERTED : SDIOMEDIA_EJECTED;
 
   flags = spin_lock_irqsave(&priv->media_lock);
@@ -1271,7 +1299,7 @@ static void bk7258_sdio_media_worker(FAR void *arg)
     {
       ret = work_queue(HPWORK, &priv->media_work,
                        bk7258_sdio_media_worker, priv,
-                       MSEC2TICK(BK7258_BOARD_SDIO_MEDIA_POLL_MS));
+                       MSEC2TICK(priv->binding->config->media_poll_ms));
       if (ret < 0)
         {
           flags = spin_lock_irqsave(&priv->media_lock);
@@ -1281,17 +1309,23 @@ static void bk7258_sdio_media_worker(FAR void *arg)
         }
     }
 }
-#endif
 
 static int bk7258_sdio_registercallback(FAR struct sdio_dev_s *dev,
                                         worker_t callback, FAR void *arg)
 {
-#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
   FAR struct bk7258_sdio_priv_s *priv =
     (FAR struct bk7258_sdio_priv_s *)dev;
   irqstate_t flags;
   bool start;
   int ret;
+
+  if (!bk7258_sdio_card_detect_enabled(priv))
+    {
+      /* Registration is still required by the sdio_dev_s ABI, but a
+       * fixed-media slot has no edge source to poll. */
+
+      return OK;
+    }
 
   flags = spin_lock_irqsave(&priv->media_lock);
   priv->callback_events = 0;
@@ -1316,17 +1350,6 @@ static int bk7258_sdio_registercallback(FAR struct sdio_dev_s *dev,
     }
 
   return ret;
-#else
-  /* Registration is required by the sdio_dev_s contract even when the
-   * board has no reliable card-detect source.  NuttX will probe the
-   * always-present slot once during initialization.
-   */
-
-  (void)dev;
-  (void)callback;
-  (void)arg;
-  return OK;
-#endif
 }
 
 /****************************************************************************
@@ -1343,12 +1366,20 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
       return -EINVAL;
     }
 
+  if (priv->binding == NULL)
+    {
+      priv->binding = bk7258_sdio_get_binding();
+      if (priv->binding == NULL)
+        {
+          mcerr("ERROR: BK7258 SDIO board binding is unavailable\n");
+          return -ENODEV;
+        }
+    }
+
   if (!priv->interface_init)
     {
       priv->dev = g_bk7258_sdio_ops;
-#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
       spin_lock_init(&priv->media_lock);
-#endif
       priv->interface_init = true;
     }
 
@@ -1367,15 +1398,16 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev)
   priv->nblocks = 0;
   priv->xfer_is_read = false;
   priv->xfer_pending = false;
-  err = bk7258_board_sdio_initialize(BK7258_SDIO_BUS_WIDTH_4BIT != 0);
+  err = priv->binding->initialize(BK7258_SDIO_BUS_WIDTH_4BIT != 0);
   if (err < 0)
     {
       return err;
     }
 
-#if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
-  priv->reported_present = bk7258_board_sdio_card_present();
-#endif
+  if (bk7258_sdio_card_detect_enabled(priv))
+    {
+      priv->reported_present = priv->binding->card_present();
+    }
 
   if (!priv->driver_init)
     {

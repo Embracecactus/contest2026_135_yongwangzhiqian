@@ -23,8 +23,6 @@
 #include <nuttx/semaphore.h>
 #include <nuttx/signal.h>
 
-#include <arch/board/board.h>
-
 #include <os/os.h>
 
 /****************************************************************************

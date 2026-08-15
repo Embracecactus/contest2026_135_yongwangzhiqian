@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 
+#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 
 #include "arm_internal.h"

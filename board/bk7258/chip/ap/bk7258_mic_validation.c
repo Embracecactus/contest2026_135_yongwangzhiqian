@@ -30,7 +30,7 @@
 #include <nuttx/audio/audio.h>
 #include <nuttx/kthread.h>
 
-#include <arch/board/board.h>
+#include <arch/chip/bk7258_board_binding.h>
 #include <arch/chip/bk7258_mic.h>
 
 /****************************************************************************
@@ -126,6 +126,39 @@ static int bmicval_errno(void)
   return errno > 0 ? -errno : -EIO;
 }
 
+static FAR const struct bk7258_mic_config_s *bmicval_mic_config(void)
+{
+  FAR const struct bk7258_board_binding_s *board;
+  FAR const struct bk7258_mic_binding_s *binding;
+  FAR const struct bk7258_mic_config_s *config;
+
+  board = bk7258_board_get_binding();
+  if (board == NULL || board->version != BK7258_BINDING_VERSION ||
+      board->size < sizeof(*board))
+    {
+      return NULL;
+    }
+
+  binding = board->mic;
+  if (binding == NULL || binding->version != BK7258_BINDING_VERSION ||
+      binding->size < sizeof(*binding) || binding->initialize == NULL)
+    {
+      return NULL;
+    }
+
+  config = binding->config;
+  if (config == NULL || config->version != BK7258_BINDING_VERSION ||
+      config->size < sizeof(*config) || config->channels < 1 ||
+      config->channels > 2 || (config->flags & BK7258_MIC_BINDING_MIC1) == 0 ||
+      ((config->flags & BK7258_MIC_BINDING_MIC2) != 0) !=
+        (config->channels == 2))
+    {
+      return NULL;
+    }
+
+  return config;
+}
+
 static void bmicval_accumulate(struct bmicval_stats_s *stats,
                                const struct ap_buffer_s *apb,
                                uint8_t channels)
@@ -202,7 +235,8 @@ static int bmicval_cycle(struct bmicval_stats_s *stats, uint32_t cycle)
   struct timespec deadline;
   uint32_t completed = 0;
   uint32_t index;
-  uint8_t channels = BK7258_BOARD_MIC_CHANNELS;
+  FAR const struct bk7258_mic_config_s *config;
+  uint8_t channels;
   mqd_t mq = (mqd_t)-1;
   bool mq_registered = false;
   bool reserved = false;
@@ -210,6 +244,14 @@ static int bmicval_cycle(struct bmicval_stats_s *stats, uint32_t cycle)
   int fd = -1;
   int ret = OK;
   int cleanup_ret;
+
+  config = bmicval_mic_config();
+  if (config == NULL)
+    {
+      return -ENODEV;
+    }
+
+  channels = config->channels;
 
   g_bk7258_mic_validation_diag.stage = BMICVAL_STAGE_OPEN;
   fd = open(BMICVAL_DEVPATH, O_RDWR | O_CLOEXEC);
@@ -477,6 +519,7 @@ out:
 static int bmicval_thread(int argc, char **argv)
 {
   struct bmicval_stats_s stats;
+  FAR const struct bk7258_mic_config_s *config;
   uint32_t cycle;
   int ret = OK;
 
@@ -497,7 +540,16 @@ static int bmicval_thread(int argc, char **argv)
     sizeof(g_bk7258_mic_validation_diag);
   g_bk7258_mic_validation_diag.state = BMICVAL_RUNNING;
   g_bk7258_mic_validation_diag.stage = BMICVAL_STAGE_INIT;
-  g_bk7258_mic_validation_diag.channels = BK7258_BOARD_MIC_CHANNELS;
+
+  config = bmicval_mic_config();
+  if (config == NULL)
+    {
+      g_bk7258_mic_validation_diag.result = -ENODEV;
+      g_bk7258_mic_validation_diag.state = BMICVAL_FAILED;
+      return 0;
+    }
+
+  g_bk7258_mic_validation_diag.channels = config->channels;
 
   usleep(BMICVAL_DELAY_US);
 
@@ -524,7 +576,7 @@ static int bmicval_thread(int argc, char **argv)
           ret = -ENODATA;
         }
 
-      if (ret == OK && BK7258_BOARD_MIC_CHANNELS == 2 &&
+      if (ret == OK && config->channels == 2 &&
           (stats.right_max <= stats.right_min ||
            stats.right_energy == 0 ||
            stats.different < stats.samples / 100))
@@ -544,7 +596,7 @@ static int bmicval_thread(int argc, char **argv)
              " L=[%" PRId32 ",%" PRId32 "] E=%" PRIu64
              " R=[%" PRId32 ",%" PRId32 "] E=%" PRIu64
              " diff=%" PRIu32 "\n",
-             BMICVAL_CYCLES, BK7258_BOARD_MIC_CHANNELS, stats.samples,
+             BMICVAL_CYCLES, config->channels, stats.samples,
              stats.left_min, stats.left_max, stats.left_energy,
              stats.right_min, stats.right_max, stats.right_energy,
              stats.different);
@@ -568,6 +620,11 @@ static int bmicval_thread(int argc, char **argv)
 int bk7258_mic_validation_start(void)
 {
   int ret;
+
+  if (bmicval_mic_config() == NULL)
+    {
+      return -ENODEV;
+    }
 
   ret = kthread_create("bmic-validate", SCHED_PRIORITY_DEFAULT,
                        BMICVAL_STACKSIZE, bmicval_thread, NULL);

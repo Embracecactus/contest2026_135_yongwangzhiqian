@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) I2C master — NuttX i2c_master_s lower-half wrapping the
+ * BK7258 I2C master — NuttX i2c_master_s lower-half wrapping the
  * official Beken bk_i2c_* SDK API.
  *
  * The I2C block is an AP-role peripheral: bk_i2c_* are only defined in the

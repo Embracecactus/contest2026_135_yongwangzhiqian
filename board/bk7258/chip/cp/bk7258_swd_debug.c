@@ -195,9 +195,8 @@ void bk7258_swd_maintain(void)
 int bk7258_swd_initialize(void)
 {
   /* Preserve the compile-time core and pin group selected by BL1/BL2.  The
-   * verified T5-Board profile uses physical CPU0/CP on P0/P1; P20/P21 remains
-   * available as an alternate route when the paired-image pin validator has
-   * excluded its board conflicts.
+   * selected board resource graph must exclude conflicts before either
+   * P0/P1 or P20/P21 is routed to the configured target core.
    *
    * Do not call bk_gpio_driver_init() here.  Chip consumers such as UART,
    * SARADC and the GPIO lower half share that boot-lifetime SDK runtime and
