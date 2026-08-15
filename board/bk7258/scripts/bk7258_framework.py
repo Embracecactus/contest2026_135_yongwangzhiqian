@@ -1306,6 +1306,8 @@ def cli(argv: list[str] | None = None) -> int:
     resource_resolve_parser = commands.add_parser("resource-resolve", aliases=("graph-resolve",))
     resource_resolve_parser.add_argument("--graph", type=Path)
     resource_resolve_parser.add_argument("--out", type=Path, required=True)
+    validation_parser = commands.add_parser("validation-check")
+    validation_parser.add_argument("--descriptors", type=Path)
     commands.add_parser("validate")
     args = parser.parse_args(argv)
     root = args.root.resolve()
@@ -1413,6 +1415,20 @@ def cli(argv: list[str] | None = None) -> int:
                 else:
                     write_json(args.out, resolve_resource_graph(root, graph))
                     print(f"bk7258-framework: RESOURCE GRAPH RESOLVED {args.out}")
+        elif args.command == "validation-check":
+            from bk7258_validation import (  # noqa: PLC0415
+                validate_descriptor_set,
+            )
+
+            descriptor_path = (args.descriptors or
+                               root / "board/bk7258/scripts/bk7258_validation_descriptors.json")
+            if not descriptor_path.is_absolute():
+                descriptor_path = root / descriptor_path
+            descriptor_set = load_json_checked(descriptor_path, "validation descriptors")
+            result = validate_descriptor_set(root, descriptor_set)
+            print("bk7258-framework: VALIDATION PASS "
+                  f"descriptors={result['descriptors']} "
+                  f"legacy_profiles={result['legacy']['profiles']}")
         else:
             ir = resolve(root, args.product, args.role, args.board, args.mode)
             if args.command == "resolve":

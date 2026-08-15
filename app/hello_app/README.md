@@ -22,3 +22,18 @@ self-delete及queued final-free。
 - [N14 completion](../../docs/bk7258-t5ai/nuttx-port/prompts/14-n14-psram.md)
 - [N14 source verification](../../docs/bk7258-t5ai/nuttx-port/n14-psram-source-verification.md)
 - [N14 evidence index](../../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md)
+
+P5 validation skeleton (opt-in with `CONFIG_BK7258_BKVALIDATE=y`) exposes:
+
+```text
+bkvalidate list
+bkvalidate run <descriptor-id>
+bkvalidate all-compatible
+```
+
+Descriptors are versioned in
+`board/bk7258/scripts/bk7258_validation_descriptors.json`.  `all-compatible`
+serializes global resource claims and emits `SKIP` for interactive, fixture,
+destructive-fault, planned, or unavailable requirements.  The runner core uses
+only public device-path APIs; it does not call vendor SDK functions or start
+the legacy production validation workers.
