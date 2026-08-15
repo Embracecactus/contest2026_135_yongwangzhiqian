@@ -8,8 +8,9 @@ Updated by: Codex
 - Canonical upstream baseline is `origin/dev-ai-contest-2026` at
   `eecfc7dda46d2f2eefb2af59c67cc96028eb41d9`.
 - The board/chip/partition/binding refactor is merged. Active work is the
-  additive package phase on `agent/bk7258-bkpack`; no firmware is being
-  flashed and no hardware is being accessed.
+  additive package phase on `agent/bk7258-bkpack`; the implementation is
+  committed and published for Web PR creation. No firmware was flashed and
+  no hardware was accessed.
 - P0-P9a remain merged. No P9b frozen-profile cutover is authorized.
 
 ## Current structural result
@@ -40,7 +41,7 @@ Updated by: Codex
   Make/CMake/Kconfig and no product partition definitions under `chip/`.
 - Full Classic/CMake firmware builds and board runtime regression were not run;
   the present conclusion is structural/host `CODE_PASS`, not hardware PASS.
-- The focused package suite passed 16 tests. Python syntax, shell syntax and
+- The focused package suite passed 17 tests. Python syntax, shell syntax and
   `git diff --check` passed. A real previously built signed directory was
   repacked with the current schema; its 30 payload members plus manifest
   verified with SHA-256
@@ -61,10 +62,10 @@ Updated by: Codex
 
 ## Exact next action
 
-Complete the independent scope review, then build one fresh signed pair and
-hand its `firmware.bkpack` to the owner for a Windows extraction/manual-loader
-check. The generated `WINDOWS_FLASH.txt` is the only download handoff; do not
-add a generic cross-platform Flash framework.
+Open and merge the Web PR, then build one fresh signed pair and hand its
+`firmware.bkpack` to the owner for a Windows extraction/manual-loader check.
+The generated `WINDOWS_FLASH.txt` is the only download handoff; do not add a
+generic cross-platform Flash framework.
 
 ## Boundaries
 
