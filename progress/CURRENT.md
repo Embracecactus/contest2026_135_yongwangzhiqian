@@ -42,19 +42,24 @@ Detailed evidence: [P0 freeze verification](verification/2026-08-15-bk7258-platf
 
 ## P1 implementation
 
-- Strict duplicate-key schemas validate board, product, fragment and resolved
-  IR documents with safe identifiers, repository-relative source views and a
-  content identity hash.
+- Strict duplicate-key schemas validate board, product, mode, role, fragment
+  and resolved IR documents with safe identifiers, repository-relative source
+  views and a content identity hash; the schema contract is versioned in the
+  existing scripts path.
 - Board/product/mode/role composition is deterministic and fail-closed: one
   board is selected by the product, conflicting symbols and missing/cyclic
   fragment dependencies fail, and no T5 fallback exists.
-- The canonical CMake source view and a Classic adapter-isolation feasibility
-  report are host-only outputs; they do not alter the legacy builder.
+- The canonical CMake adapter keeps the existing board/chip source tree
+  read-only, creates a role-local build/artifact view, forbids a shared
+  `.config`, and emits a machine-readable view identity; the Classic
+  adapter-isolation feasibility report is explicitly unproven and does not
+  alter the legacy builder.
 - Catalog inputs live in the existing `board/bk7258/scripts` path.  No new
   config profile, product directory, SDK bytes or production source was added.
 
-Detailed evidence: [P0 freeze verification](verification/2026-08-15-bk7258-platform-v2-p0.md)
-and [P1 resolver verification](verification/2026-08-15-bk7258-platform-v2-p1.md).
+Detailed evidence: [P1 resolver verification](verification/2026-08-15-bk7258-platform-v2-p1.md),
+with the [P0 freeze verification](verification/2026-08-15-bk7258-platform-v2-p0.md)
+as its immutable baseline.
 
 ## Exact next action
 

@@ -17,12 +17,16 @@ from bk7258_framework import (  # noqa: E402
     FrameworkError,
     canonical_json,
     classic_report,
+    cmake_view,
     load_catalog,
     load_json,
     merge_symbols,
     resolve,
+    role_view_manifest,
     validate_board,
+    validate_classic_report,
     validate_ir,
+    validate_role_view,
 )
 
 
@@ -30,6 +34,16 @@ REPOSITORY = Path(__file__).resolve().parents[3]
 
 
 class FrameworkTest(unittest.TestCase):
+    def test_versioned_schema_declares_strict_role_and_mode_inputs(self) -> None:
+        schema = load_json(SCRIPT_ROOT / "bk7258_composition_schema.json")
+        self.assertEqual(schema["schema"], "bk7258.composition/1")
+        self.assertEqual(schema["kind"], "composition-schema")
+        self.assertEqual(schema["version"], 1)
+        self.assertEqual(schema["enums"]["roles"], ["cp", "ap", "bl2"])
+        self.assertIn("bringup", schema["enums"]["modes"])
+        self.assertEqual(schema["strict"]["board_selection"], "exactly-one")
+        self.assertEqual(schema["strict"]["legacy_fallback"], "forbidden")
+
     def test_catalog_and_roles_resolve_deterministically(self) -> None:
         catalog = load_catalog(REPOSITORY)
         self.assertEqual(set(catalog["boards"]), {"t5ai_core", "t5_board"})
@@ -69,8 +83,24 @@ class FrameworkTest(unittest.TestCase):
     def test_classic_report_is_explicit_adapter_boundary(self) -> None:
         report = classic_report(REPOSITORY)
         self.assertEqual(report["status"], "feasible-with-adapter")
+        self.assertFalse(report["proven"])
+        self.assertFalse(report["isolation_proven"])
         self.assertTrue(report["repository_relative_source_view"])
+        self.assertIs(validate_classic_report(report), report)
         self.assertNotIn(str(REPOSITORY), canonical_json(report).decode())
+
+    def test_role_view_isolated_and_cmake_adapter_is_non_legacy(self) -> None:
+        ir = resolve(REPOSITORY, "t5ai_core_bringup", "cp")
+        view = role_view_manifest(ir)
+        self.assertTrue(view["source_view"]["read_only"])
+        self.assertTrue(view["build_view"]["role_local"])
+        self.assertFalse(view["build_view"]["shared_config"])
+        self.assertFalse(view["legacy_semantics"]["invoked"])
+        self.assertIs(validate_role_view(view), view)
+        cmake = cmake_view(ir)
+        self.assertIn("BK7258_COMPOSITION_ROLE_BUILD_VIEW", cmake)
+        self.assertIn("BK7258_COMPOSITION_SHARED_CONFIG_FORBIDDEN TRUE", cmake)
+        self.assertIn("BK7258_COMPOSITION_LEGACY_BUILDER_INVOKED FALSE", cmake)
 
 
 if __name__ == "__main__":
