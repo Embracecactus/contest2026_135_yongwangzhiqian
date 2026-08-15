@@ -6,7 +6,7 @@ Updated by: Codex (GPT-5.6-Luna MAX delegated implementation)
 ## Snapshot
 
 - Branch: `refactor/bk7258-platform-v2`
-- HEAD: `1c7a897` (P9a CURRENT compaction amend pending)
+- P9a implementation checkpoint: `f67b173d6913502185ad7fd8d50f8b312b15dcfb`
 - Objective: preserve the frozen BK7258 legacy surface while validating the
   platform-v2 composition/resource/build boundary and preparing an owner-gated
   P9b migration.
