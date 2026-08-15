@@ -29,6 +29,7 @@ SDK_LOCK_SCHEMA = "bk7258.sdk-lock/1"
 SDK_IMPORT_SCHEMA = "bk7258.sdk-import/1"
 CONFIG_SCHEMA = "bk7258.config/1"
 BUILD_PLAN_SCHEMA = "bk7258.build-plan/1"
+BKPACK_SCHEMA = "bk7258.bkpack/1"
 SDK_ROLES = frozenset({"cp", "ap"})
 SDK_MANIFEST_ROOT = "board/bk7258/scripts/sdk-manifests"
 PRIVATE_MIRROR_URL = "https://github.com/Embracecactus/vendor-bk-avdk-smp.git"
@@ -41,6 +42,26 @@ SYMBOL_RE = re.compile(r"^CONFIG_[A-Z0-9_]+$")
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 STAGES = {"common": 0, "role": 1, "board": 2, "boot": 3, "feature": 4,
           "app": 5, "validation": 6, "factory": 7}
+
+# P6 is deliberately a metadata-only package boundary.  Keep the standard
+# build outputs visible in the package contract; the optional ``.bkpack``
+# entry is an additive vendor extension and never replaces those outputs.
+PACK_ROLES = ("bl1", "bl2", "cp", "ap")
+PACK_KINDS = frozenset({"application", "factory"})
+PACK_ROLE_PARTITIONS = {
+    "bl1": "primary_bootloader",
+    "bl2": "bl2",
+    "cp": "primary_cp_app",
+    "ap": "primary_ap_app",
+}
+PACK_ARTIFACTS = {
+    "libarch.a": ("static_archive", "chip", ("cp", "ap")),
+    "libboards.a": ("static_archive", "board", ("cp", "ap")),
+    "vela_bl1.bin": ("firmware_binary", "board", ("bl1",)),
+    "vela_bl2.bin": ("firmware_binary", "board", ("bl2",)),
+    "vela_cp.bin": ("firmware_binary", "board", ("cp",)),
+    "vela_ap.bin": ("firmware_binary", "board", ("ap",)),
+}
 
 
 class FrameworkError(ValueError):
@@ -1224,6 +1245,404 @@ def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+def _pack_template(value: Any, field: str) -> str:
+    """Validate a build-artifact template without touching the artifact."""
+    if (not isinstance(value, str) or not value or value.startswith("/") or
+            "\\" in value or "\x00" in value or
+            any(char.isspace() for char in value)):
+        raise FrameworkError(f"unsafe package template in {field}")
+    if any(part in {"", ".", ".."} for part in value.split("/")):
+        raise FrameworkError(f"unsafe package template in {field}")
+    return value
+
+
+def _pack_int(value: Any, field: str, *, positive: bool = False) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise FrameworkError(f"{field} must be an integer")
+    if value < (1 if positive else 0):
+        raise FrameworkError(f"{field} must be non-negative" if not positive else
+                             f"{field} must be positive")
+    return value
+
+
+def _pack_source_build_id(value: dict[str, Any]) -> str:
+    """Derive the unsigned source/build identity from package metadata only."""
+    apps = dict(value["apps_plan"])
+    apps.pop("source_build_id", None)
+    body = {
+        "build_plan_identity_sha256": value["build_plan_identity_sha256"],
+        "board": value["board"],
+        "product": value["product"],
+        "mode": value["mode"],
+        "sdk_lock": value["sdk_lock"],
+        "partition": value["partition"],
+        "plan": value["plan"],
+        "apps_plan": apps,
+        "artifacts": value["artifacts"],
+        "ranges": value["ranges"],
+    }
+    return sha256(canonical_json(body))
+
+
+def _pack_partition_layout(repository: Path, partition_path: Path | None) -> tuple[Any, str]:
+    """Load the existing partition source as read-only metadata."""
+    try:
+        from gen_bk7258_partitions import load_layout  # noqa: PLC0415
+    except ImportError as error:
+        raise FrameworkError("partition metadata adapter is unavailable") from error
+    path = partition_path or repository / "board/bk7258/partitions/bk7258/auto_partitions.csv"
+    if not path.is_absolute():
+        path = repository / path
+    path = path.resolve()
+    try:
+        layout = load_layout(path)
+    except (OSError, ValueError, RuntimeError) as error:
+        raise FrameworkError(f"cannot load package partition layout: {path}") from error
+    try:
+        source = path.relative_to(repository.resolve()).as_posix()
+    except ValueError as error:
+        raise FrameworkError("package partition source is outside repository") from error
+    return layout, source
+
+
+def _pack_layout_role(layout: Any, role: str) -> Any:
+    """Map package roles to one and only one executable partition."""
+    candidates = {
+        "bl1": ("boot", "bl1_control"),
+        "bl2": ("bl2", "bl1_primary_bl2"),
+        "cp": ("slot_a_cp", "primary_cp_app"),
+        "ap": ("slot_a_ap", "primary_ap_app"),
+    }[role]
+    matches = [item for item in layout.partitions if item.role in candidates]
+    if len(matches) != 1:
+        raise FrameworkError(f"package role {role} does not map to exactly one partition")
+    return matches[0]
+
+
+def _pack_artifact_templates(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    roles = plan["roles"]
+
+    def role_path(role: str, filename: str) -> str:
+        return f"{roles[role]['artifact_root_template']}/{filename}"
+
+    rows: list[dict[str, Any]] = []
+    for name, (kind, owner, mapped_roles) in PACK_ARTIFACTS.items():
+        source_role = mapped_roles[0]
+        rows.append({
+            "name": name,
+            "kind": kind,
+            "owner": owner,
+            "roles": list(mapped_roles),
+            "path_template": role_path(source_role, name),
+            "required": True,
+        })
+    rows.append({
+        "name": ".bkpack",
+        "kind": "vendor_package_extension",
+        "owner": "board",
+        "roles": [],
+        "path_template": ".bkpack",
+        "required": False,
+    })
+    return rows
+
+
+def _pack_ranges(layout: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    partition_roles: dict[str, Any] = {}
+    ranges: list[dict[str, Any]] = []
+    for role in PACK_ROLES:
+        partition = _pack_layout_role(layout, role)
+        row = {
+            "partition": partition.name,
+            "start": partition.offset,
+            "end": partition.end,
+        }
+        partition_roles[role] = row
+        ranges.append({
+            "artifact": f"vela_{role}.bin",
+            "role": role,
+            "partition": partition.name,
+            "start": partition.offset,
+            "end": partition.end,
+        })
+    return partition_roles, ranges
+
+
+def validate_bkpack(value: dict[str, Any]) -> dict[str, Any]:
+    """Validate one metadata-only BK7258 package manifest.
+
+    This validator intentionally checks names, identities and bounded ranges;
+    it never opens an image, invokes a signer, accesses a key, or writes
+    Flash.  ``factory`` is a separate package kind and plan, even though the
+    current skeleton uses the same active executable layout as application.
+    """
+    exact(value, {"schema", "kind", "version", "package_id", "board", "product",
+                  "mode", "roles", "plan", "apps_plan", "build_plan_identity_sha256",
+                  "source_build_id", "signed_digest", "sdk_lock", "partition", "ranges",
+                  "artifacts", "tool", "trust", "hardware_verified", "identity_sha256"},
+          "BK7258 package")
+    if value["schema"] != BKPACK_SCHEMA or value["kind"] not in PACK_KINDS or value["version"] != 1:
+        raise FrameworkError("unsupported BK7258 package schema")
+    package_id = identifier(value["package_id"], "package.package_id")
+    for field in ("product", "mode"):
+        identifier(value[field], f"package.{field}")
+    if value["mode"] not in MODES:
+        raise FrameworkError("package.mode is not in the versioned mode enum")
+    if value["roles"] != list(PACK_ROLES):
+        raise FrameworkError("package roles must be the exact BL1/BL2/CP/AP set")
+    board = obj(value["board"], "package.board")
+    exact(board, {"id", "variant"}, "package.board")
+    identifier(board["id"], "package.board.id")
+    identifier(board["variant"], "package.board.variant")
+    plan = obj(value["plan"], "package.plan")
+    exact(plan, {"kind", "name", "version", "range_policy", "artifact_policy"},
+          "package.plan")
+    if (plan["kind"] != value["kind"] or plan["name"] != package_id or
+            plan["version"] != 1):
+        raise FrameworkError("package kind/plan identity mismatch")
+    if plan["range_policy"] != "exact-partitions" or \
+            plan["artifact_policy"] != "standard-plus-additive-extension":
+        raise FrameworkError("package plan policy is unsafe")
+    apps = obj(value["apps_plan"], "package.apps_plan")
+    exact(apps, {"name", "kind", "version", "roles", "artifacts", "source_build_id"},
+          "package.apps_plan")
+    identifier(apps["name"], "package.apps_plan.name")
+    if apps["kind"] != "named-apps-plan" or apps["version"] != 1:
+        raise FrameworkError("package must contain exactly one named apps plan")
+    if apps["roles"] != ["cp", "ap"]:
+        raise FrameworkError("apps plan roles are ambiguous")
+    if apps["artifacts"] != ["libarch.a", "libboards.a", "vela_cp.bin", "vela_ap.bin"]:
+        raise FrameworkError("apps plan must name the standard CP/AP artifacts exactly once")
+    digest(value["build_plan_identity_sha256"], "package build plan identity")
+    digest(value["source_build_id"], "package source_build_id")
+    if apps["source_build_id"] != value["source_build_id"]:
+        raise FrameworkError("apps plan/source_build_id binding mismatch")
+    if value["signed_digest"] is not None:
+        digest(value["signed_digest"], "package signed_digest")
+        raise FrameworkError("signed package artifacts are not enabled by P6")
+    sdk = obj(value["sdk_lock"], "package.sdk_lock")
+    exact(sdk, {"id", "identity_sha256", "roles"}, "package.sdk_lock")
+    identifier(sdk["id"], "package.sdk_lock.id")
+    digest(sdk["identity_sha256"], "package.sdk_lock.identity_sha256")
+    sdk_roles = obj(sdk["roles"], "package.sdk_lock.roles")
+    exact(sdk_roles, {"cp", "ap", "bl2"}, "package.sdk_lock.roles")
+    for role in ("cp", "ap"):
+        _sdk_entry_id(sdk_roles[role], f"package.sdk_lock.roles.{role}")
+    if sdk_roles["bl2"] is not None:
+        raise FrameworkError("package SDK lock must encode BL2 as no-runtime-SDK")
+    partition = obj(value["partition"], "package.partition")
+    exact(partition, {"source", "layout_id", "layout_sha256", "flash_size", "erase_size",
+                      "role_partitions", "range_policy"}, "package.partition")
+    relative_path(partition["source"], "package.partition.source")
+    identifier(partition["layout_id"], "package.partition.layout_id")
+    digest(partition["layout_sha256"], "package.partition.layout_sha256")
+    flash_size = _pack_int(partition["flash_size"], "package.partition.flash_size", positive=True)
+    _pack_int(partition["erase_size"], "package.partition.erase_size", positive=True)
+    if partition["range_policy"] != "exact-partitions":
+        raise FrameworkError("package partition range policy is unsafe")
+    expected_partitions = obj(partition["role_partitions"], "package.partition.role_partitions")
+    exact(expected_partitions, set(PACK_ROLES), "package.partition.role_partitions")
+    for role in PACK_ROLES:
+        row = obj(expected_partitions[role], f"package.partition.role_partitions.{role}")
+        exact(row, {"partition", "start", "end"}, f"package.partition.role_partitions.{role}")
+        if row["partition"] != PACK_ROLE_PARTITIONS[role]:
+            raise FrameworkError(f"package role {role} has an ambiguous partition mapping")
+        start = _pack_int(row["start"], f"package.partition.{role}.start")
+        end = _pack_int(row["end"], f"package.partition.{role}.end")
+        if start >= end or end > flash_size:
+            raise FrameworkError(f"package partition range is outside Flash: {role}")
+    ranges = array(value["ranges"], "package.ranges")
+    if len(ranges) != len(PACK_ROLES):
+        raise FrameworkError("package must contain exactly one range per role")
+    seen_roles: set[str] = set()
+    intervals: list[tuple[int, int, str]] = []
+    for index, raw in enumerate(ranges):
+        row = obj(raw, f"package.ranges[{index}]")
+        exact(row, {"artifact", "role", "partition", "start", "end"},
+              f"package.ranges[{index}]")
+        role = identifier(row["role"], f"package.ranges[{index}].role")
+        if role not in PACK_ROLES or role in seen_roles:
+            raise FrameworkError("package ranges contain an ambiguous or duplicate role")
+        seen_roles.add(role)
+        if row["artifact"] != f"vela_{role}.bin":
+            raise FrameworkError(f"package range artifact does not map to role: {role}")
+        expected = expected_partitions[role]
+        if row["partition"] != expected["partition"]:
+            raise FrameworkError(f"package range partition mapping is ambiguous: {role}")
+        start = _pack_int(row["start"], f"package.ranges[{index}].start")
+        end = _pack_int(row["end"], f"package.ranges[{index}].end")
+        if start >= end or end > flash_size:
+            raise FrameworkError(f"package range is outside Flash: {role}")
+        if start != expected["start"] or end != expected["end"]:
+            raise FrameworkError(f"package range does not equal its partition: {role}")
+        intervals.append((start, end, role))
+    if seen_roles != set(PACK_ROLES):
+        raise FrameworkError("package ranges omit a role")
+    intervals.sort()
+    for previous, current in zip(intervals, intervals[1:]):
+        if current[0] < previous[1]:
+            raise FrameworkError(f"package ranges overlap: {previous[2]} and {current[2]}")
+    artifacts = array(value["artifacts"], "package.artifacts")
+    names: set[str] = set()
+    expected_names = set(PACK_ARTIFACTS) | {".bkpack"}
+    for index, raw in enumerate(artifacts):
+        row = obj(raw, f"package.artifacts[{index}]")
+        exact(row, {"name", "kind", "owner", "roles", "path_template", "required"},
+              f"package.artifacts[{index}]")
+        name = row["name"]
+        if not isinstance(name, str) or name in names:
+            raise FrameworkError("package artifacts contain a duplicate or ambiguous name")
+        names.add(name)
+        if name not in expected_names:
+            raise FrameworkError(f"package contains an extra artifact: {name}")
+        _pack_template(row["path_template"], f"package.artifacts[{index}].path_template")
+        if not isinstance(row["required"], bool):
+            raise FrameworkError("package artifact required flag must be boolean")
+        if name == ".bkpack":
+            if (row["kind"], row["owner"], row["roles"], row["required"]) != \
+                    ("vendor_package_extension", "board", [], False):
+                raise FrameworkError(".bkpack must remain an additive optional extension")
+        else:
+            kind, owner, mapped_roles = PACK_ARTIFACTS[name]
+            if (row["kind"], row["owner"], row["roles"], row["required"]) != \
+                    (kind, owner, list(mapped_roles), True):
+                raise FrameworkError(f"standard artifact mapping is wrong: {name}")
+    if names != expected_names:
+        raise FrameworkError("package standard artifacts are incomplete")
+    tool = obj(value["tool"], "package.tool")
+    exact(tool, {"backend", "packer", "signer", "network_used", "bytes_written"},
+          "package.tool")
+    if (tool["backend"] != "cmake" or tool["packer"] != "bk7258_framework.py" or
+            tool["signer"] is not None or tool["network_used"] is not False or
+            tool["bytes_written"] is not False):
+        raise FrameworkError("package tool metadata claims an unsafe operation")
+    trust = obj(value["trust"], "package.trust")
+    exact(trust, {"mode", "signed", "signed_digest", "key_id", "flash_authorized"},
+          "package.trust")
+    if (trust["mode"] != "host-reference-only" or trust["signed"] is not False or
+            trust["signed_digest"] is not None or trust["key_id"] is not None or
+            trust["flash_authorized"] is not False):
+        raise FrameworkError("package trust metadata claims signing or Flash authority")
+    if value["hardware_verified"] is not False:
+        raise FrameworkError("package hardware_verified must remain false")
+    if _pack_source_build_id(value) != value["source_build_id"]:
+        raise FrameworkError("package source_build_id does not match unsigned metadata")
+    digest(value["identity_sha256"], "package identity")
+    body = dict(value)
+    del body["identity_sha256"]
+    if sha256(canonical_json(body)) != value["identity_sha256"]:
+        raise FrameworkError("package identity mismatch")
+    return value
+
+
+def pack_prepare(repository: Path, product_id: str, kind: str = "application",
+                 board_id: str | None = None, mode: str | None = None,
+                 partition_path: Path | None = None) -> dict[str, Any]:
+    """Prepare a deterministic package manifest without bytes or signing."""
+    if kind not in PACK_KINDS:
+        raise FrameworkError("package kind must be application or factory")
+    plan = build_plan(repository, product_id, board_id, mode)
+    inputs = plan["identity_inputs"]
+    sdk_roles = dict(plan["sdk"]["roles"])
+    layout, partition_source = _pack_partition_layout(repository, partition_path)
+    role_partitions, ranges = _pack_ranges(layout)
+    package_id = f"{inputs['product']}-{kind}-package"
+    apps_name = f"{inputs['product']}-apps"
+    artifacts = _pack_artifact_templates(plan)
+    package_plan = {
+        "kind": kind,
+        "name": package_id,
+        "version": 1,
+        "range_policy": "exact-partitions",
+        "artifact_policy": "standard-plus-additive-extension",
+    }
+    apps_plan = {
+        "name": apps_name,
+        "kind": "named-apps-plan",
+        "version": 1,
+        "roles": ["cp", "ap"],
+        "artifacts": ["libarch.a", "libboards.a", "vela_cp.bin", "vela_ap.bin"],
+        "source_build_id": "0" * 64,
+    }
+    partition = {
+        "source": partition_source,
+        "layout_id": layout.layout_id,
+        "layout_sha256": layout.layout_sha256,
+        "flash_size": layout.flash_size,
+        "erase_size": layout.erase_size,
+        "role_partitions": role_partitions,
+        "range_policy": "exact-partitions",
+    }
+    body: dict[str, Any] = {
+        "schema": BKPACK_SCHEMA,
+        "kind": kind,
+        "version": 1,
+        "package_id": package_id,
+        "board": dict(plan["board"]),
+        "product": inputs["product"],
+        "mode": inputs["mode"],
+        "roles": list(PACK_ROLES),
+        "plan": package_plan,
+        "apps_plan": apps_plan,
+        "build_plan_identity_sha256": plan["identity_sha256"],
+        "source_build_id": "0" * 64,
+        "signed_digest": None,
+        "sdk_lock": {
+            "id": plan["sdk"]["lock_id"],
+            "identity_sha256": plan["sdk"]["lock_identity_sha256"],
+            "roles": sdk_roles,
+        },
+        "partition": partition,
+        "ranges": ranges,
+        "artifacts": artifacts,
+        "tool": {
+            "backend": "cmake",
+            "packer": "bk7258_framework.py",
+            "signer": None,
+            "network_used": False,
+            "bytes_written": False,
+        },
+        "trust": {
+            "mode": "host-reference-only",
+            "signed": False,
+            "signed_digest": None,
+            "key_id": None,
+            "flash_authorized": False,
+        },
+        "hardware_verified": False,
+    }
+    source_build_id = _pack_source_build_id(body)
+    body["source_build_id"] = source_build_id
+    body["apps_plan"]["source_build_id"] = source_build_id
+    body["identity_sha256"] = sha256(canonical_json(body))
+    return validate_bkpack(body)
+
+
+def pack_verify(repository: Path | None, package: dict[str, Any] | Path) -> dict[str, Any]:
+    """Verify package metadata and optional current-repository bindings only."""
+    value = load_json(package) if isinstance(package, Path) else package
+    validate_bkpack(value)
+    if repository is not None:
+        plan = build_plan(repository, value["product"], value["board"]["id"], value["mode"])
+        if plan["identity_sha256"] != value["build_plan_identity_sha256"]:
+            raise FrameworkError("package build plan identity differs from repository")
+        if plan["sdk"]["lock_id"] != value["sdk_lock"]["id"] or \
+                plan["sdk"]["lock_identity_sha256"] != value["sdk_lock"]["identity_sha256"]:
+            raise FrameworkError("package SDK lock differs from repository")
+        layout, _ = _pack_partition_layout(repository, repository / value["partition"]["source"])
+        if layout.layout_sha256 != value["partition"]["layout_sha256"]:
+            raise FrameworkError("package partition layout differs from repository")
+    return {
+        "package_id": value["package_id"],
+        "kind": value["kind"],
+        "source_build_id": value["source_build_id"],
+        "hardware_verified": value["hardware_verified"],
+        "signed": False,
+        "bytes_read": False,
+        "network_used": False,
+    }
+
+
 def write_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(canonical_json(value))
@@ -1286,6 +1705,16 @@ def cli(argv: list[str] | None = None) -> int:
     plan_parser.add_argument("--set", dest="sdk_set", type=Path)
     plan_parser.add_argument("--lock", type=Path)
     plan_parser.add_argument("--out", type=Path, required=True)
+    pack_prepare_parser = commands.add_parser("pack-prepare")
+    pack_prepare_parser.add_argument("--product", required=True)
+    pack_prepare_parser.add_argument("--kind", choices=tuple(sorted(PACK_KINDS)),
+                                     default="application")
+    pack_prepare_parser.add_argument("--board")
+    pack_prepare_parser.add_argument("--mode")
+    pack_prepare_parser.add_argument("--partition", type=Path)
+    pack_prepare_parser.add_argument("--out", type=Path, required=True)
+    pack_verify_parser = commands.add_parser("pack-verify")
+    pack_verify_parser.add_argument("--package", type=Path, required=True)
     sdk_import_parser = commands.add_parser("sdk-import", aliases=("import-sdk",))
     sdk_import_parser.add_argument("--registry", type=Path)
     sdk_import_parser.add_argument("--entry", required=True)
@@ -1334,6 +1763,15 @@ def cli(argv: list[str] | None = None) -> int:
             plan = build_plan(root, args.product, args.board, args.mode,
                               args.sdk_set, args.lock)
             write_json(args.out, plan)
+        elif args.command == "pack-prepare":
+            package = pack_prepare(root, args.product, args.kind, args.board, args.mode,
+                                   args.partition)
+            write_json(args.out, package)
+        elif args.command == "pack-verify":
+            result = pack_verify(root, args.package.resolve())
+            print("bk7258-package: VERIFY PASS "
+                  f"package={result['package_id']} kind={result['kind']} "
+                  f"source_build_id={result['source_build_id']}")
         elif args.command in {"sdk-import", "import-sdk"}:
             registry_path = (args.registry or
                              root / "board/bk7258/scripts/bk7258_sdk_registry.json").resolve()
