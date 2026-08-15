@@ -68,6 +68,120 @@ def copy(path: Path, output: Path) -> Path:
     return destination
 
 
+def copy_named(path: Path, output: Path, name: str) -> Path:
+    """Stage an input under its stable package filename."""
+
+    destination = output / name
+    try:
+        if path.resolve() != destination.resolve():
+            shutil.copyfile(path, destination)
+    except OSError as error:
+        raise TrustChainError(
+            f"cannot stage standard source {path} as {name}: {error}"
+        ) from error
+    return destination
+
+
+STANDARD_ALIAS_SOURCES = {
+    "vela_cp.bin": "cp-raw.bin",
+    "vela_ap.bin": "ap-raw.bin",
+}
+
+
+def _standard_alias_entry(output: Path, alias: str, source_name: str) -> dict[str, object]:
+    """Materialize and verify one role-qualified openvela image alias.
+
+    The source files are emitted by the existing build/signing pipeline.  The
+    aliases are deliberately byte-for-byte copies: this step does not invoke
+    imgtool, CRC expansion, or any other transformation.
+    """
+
+    source = output / source_name
+    destination = output / alias
+    if not source.is_file():
+        raise TrustChainError(
+            f"standard artifact source is missing for {alias}: {source_name}"
+        )
+    try:
+        shutil.copyfile(source, destination)
+        source_bytes = source.read_bytes()
+        alias_bytes = destination.read_bytes()
+    except OSError as error:
+        raise TrustChainError(
+            f"cannot materialize standard artifact {alias}: {error}"
+        ) from error
+    source_digest = sha256(source)
+    alias_digest = sha256(destination)
+    if source_bytes != alias_bytes or source_digest != alias_digest:
+        raise TrustChainError(
+            f"standard artifact alias is not byte-exact: {alias} <- {source_name}"
+        )
+    return {
+        "file": alias,
+        "source_file": source_name,
+        "length": len(alias_bytes),
+        "sha256": alias_digest,
+        "source_sha256": source_digest,
+        "byte_exact": True,
+    }
+
+
+def materialize_standard_artifacts(output: Path) -> dict[str, object]:
+    """Create role-qualified openvela image aliases.
+
+    ``libarch.a`` and ``libboards.a`` remain normal NuttX build archives and
+    are not deployable package payloads.  BL1/BL2 remain Beken boot-chain
+    artifacts; they are deliberately not labelled as openvela outputs here.
+    """
+
+    artifacts = {
+        alias: _standard_alias_entry(output, alias, source)
+        for alias, source in STANDARD_ALIAS_SOURCES.items()
+    }
+    return {
+        "status": "generated",
+        "version": 1,
+        "artifacts": artifacts,
+    }
+
+
+def verify_standard_artifacts(output: Path, document: object) -> None:
+    """Verify the persisted standard-artifact manifest and bytes."""
+
+    if not isinstance(document, dict):
+        raise TrustChainError("standard_artifacts manifest must be an object")
+    status = document.get("status")
+    artifacts = document.get("artifacts")
+    if status != "generated" or document.get("version") != 1:
+        raise TrustChainError("standard_artifacts manifest status/version is invalid")
+    if not isinstance(artifacts, dict) or set(artifacts) != set(STANDARD_ALIAS_SOURCES):
+        raise TrustChainError("standard_artifacts aliases are incomplete")
+    for alias, source_name in STANDARD_ALIAS_SOURCES.items():
+        entry = artifacts[alias]
+        if not isinstance(entry, dict):
+            raise TrustChainError(f"standard artifact entry is invalid: {alias}")
+        if entry.get("file") != alias or entry.get("source_file") != source_name:
+            raise TrustChainError(f"standard artifact mapping drift: {alias}")
+        source = output / source_name
+        destination = output / alias
+        if not source.is_file() or not destination.is_file():
+            raise TrustChainError(f"standard artifact file is missing: {alias}")
+        source_digest = sha256(source)
+        alias_digest = sha256(destination)
+        if entry.get("length") != destination.stat().st_size:
+            raise TrustChainError(f"standard artifact length drift: {alias}")
+        if (entry.get("sha256") != alias_digest or
+                entry.get("source_sha256") != source_digest or
+                entry.get("sha256") != entry.get("source_sha256") or
+                entry.get("byte_exact") is not True):
+            raise TrustChainError(f"standard artifact hash gate failed: {alias}")
+        try:
+            if source.read_bytes() != destination.read_bytes():
+                raise TrustChainError(f"standard artifact bytes drift: {alias}")
+        except OSError as error:
+            raise TrustChainError(f"cannot read standard artifact {alias}: {error}") from error
+
+
 def stage_trust_bundle(
     document: dict[str, object], contract: Path, output: Path,
 ) -> Path:
@@ -144,8 +258,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--boot", type=Path, required=True)
     parser.add_argument("--cp-raw", type=Path, required=True)
+    parser.add_argument("--cp-standard", type=Path)
     parser.add_argument("--cp-crc", type=Path, required=True)
     parser.add_argument("--ap-raw", type=Path, required=True)
+    parser.add_argument("--ap-standard", type=Path)
     parser.add_argument("--ap-crc", type=Path, required=True)
     parser.add_argument("--bl2-primary-crc", type=Path)
     parser.add_argument("--bl2-secondary-crc", type=Path)
@@ -166,8 +282,16 @@ def main() -> None:
         raise SystemExit(
             "MCUboot packaging requires a trust-chain contract; raw packaging forbids it"
         )
+    if args.cp_standard is None or args.ap_standard is None:
+        raise SystemExit(
+            "packaging requires explicit --cp-standard and --ap-standard inputs"
+        )
     if args.trust_chain is not None and not args.trust_chain.is_file():
         raise SystemExit(f"missing input: {args.trust_chain}")
+
+    for path in (args.cp_standard, args.ap_standard):
+        if path is not None and not path.is_file():
+            raise SystemExit(f"missing input: {path}")
 
     layout_report()
     if args.boot.stat().st_size != BOOT_SIZE:
@@ -185,6 +309,10 @@ def main() -> None:
     cp_crc = copy(args.cp_crc, args.output)
     ap_raw = copy(args.ap_raw, args.output)
     ap_crc = copy(args.ap_crc, args.output)
+    # Role-qualified openvela aliases are bound to explicit logical inputs,
+    # never to stale files in the output tree.
+    copy_named(args.cp_standard, args.output, "cp-raw.bin")
+    copy_named(args.ap_standard, args.output, "ap-raw.bin")
     cp_flash = copy_flash_segment(args.cp_crc, args.output, "app_crc_flash.bin")
     ap_flash = copy_flash_segment(args.ap_crc, args.output, "app1_crc_flash.bin")
     secondary_file = "s_app_mcuboot.bin" if mcuboot_profile else "s_app_seed.bin"
@@ -229,6 +357,8 @@ def main() -> None:
             "sha256": sha256(trust_path),
             "preflash_target_match_required": True,
         }
+
+    standard_artifacts = materialize_standard_artifacts(args.output)
 
     primary_segments = [
         segment("primary_bootloader", boot, BOOT_START),
@@ -301,6 +431,7 @@ def main() -> None:
             "cp": {"file": cp_crc.name, "sha256": sha256(cp_crc)},
             "ap": {"file": ap_crc.name, "sha256": sha256(ap_crc)},
         },
+        "standard_artifacts": standard_artifacts,
         "normal_update": {
             "preserves_littlefs": True,
             "preserves_secondary": True,
@@ -320,7 +451,15 @@ def main() -> None:
                 [BOOT_START, FACTORY_PREFIX_END],
                 [LITTLEFS_START, MIGRATION_WRITE_END],
             ],
-            "loader_arguments": [item["bkfil"] for item in migration_segments],
+            # The flat factory prefix ends before both BL2 envelopes.  Keep
+            # the executable plan complete instead of requiring every client
+            # to rediscover and append those two segments independently.
+            "loader_arguments": [
+                item["bkfil"] for item in sorted(
+                    (*migration_segments, *bl2_segments),
+                    key=lambda row: int(row["physical_offset"]),
+                )
+            ],
             "project_write_end": MIGRATION_WRITE_END,
             "calibration_tail_start": CALIBRATION_TAIL_START,
             "preserves_calibration_tail": True,
@@ -339,6 +478,13 @@ def main() -> None:
         ]
     manifest_path = args.output / "bk7258-dual-image.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    try:
+        persisted_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        verify_standard_artifacts(
+            args.output, persisted_manifest.get("standard_artifacts")
+        )
+    except (OSError, json.JSONDecodeError, TrustChainError) as error:
+        raise SystemExit(f"standard artifact manifest gate failed: {error}") from error
     print(json.dumps(manifest, sort_keys=True))
 
 

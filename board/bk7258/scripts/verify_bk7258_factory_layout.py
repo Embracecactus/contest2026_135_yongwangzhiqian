@@ -302,9 +302,15 @@ def verify(package: Path) -> dict[str, object]:
         [LITTLEFS_START, MIGRATION_WRITE_END],
     ]
     require(factory_entry.get("write_ranges") == expected_ranges, "write ranges drift")
+    expected_loader_entries = [prefix_entry, clear_entry]
+    if isinstance(bl2_entries, list):
+        expected_loader_entries.extend(bl2_entries)
+    expected_loader_entries.sort(key=lambda entry: entry.get("physical_offset"))
+    expected_loader_arguments = [
+        entry.get("bkfil") for entry in expected_loader_entries
+    ]
     require(
-        factory_entry.get("loader_arguments")
-        == [prefix_entry.get("bkfil"), clear_entry.get("bkfil")],
+        factory_entry.get("loader_arguments") == expected_loader_arguments,
         "loader argument manifest drift",
     )
 

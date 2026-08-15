@@ -28,7 +28,12 @@ from bk7258_trust_chain import (  # noqa: E402
     validate_contract_document,
     verify_target,
 )
-from pack_dual_image import stage_trust_bundle  # noqa: E402
+from pack_dual_image import (  # noqa: E402
+    STANDARD_ALIAS_SOURCES,
+    materialize_standard_artifacts,
+    stage_trust_bundle,
+    verify_standard_artifacts,
+)
 
 
 def artifact(file_name: str) -> dict[str, object]:
@@ -207,6 +212,25 @@ class TrustChainTest(unittest.TestCase):
                 self.assertEqual((output / name).read_bytes(),
                                  (source / name).read_bytes())
 
+    def test_standard_aliases_are_byte_exact_and_manifest_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            for index, source_name in enumerate(STANDARD_ALIAS_SOURCES.values()):
+                (output / source_name).write_bytes(
+                    bytes([index + 17]) * (index + 3)
+                )
+
+            document = materialize_standard_artifacts(output)
+            verify_standard_artifacts(output, document)
+            for alias, source_name in STANDARD_ALIAS_SOURCES.items():
+                self.assertEqual(
+                    (output / alias).read_bytes(),
+                    (output / source_name).read_bytes(),
+                )
+
+            (output / "vela_cp.bin").write_bytes(b"tampered")
+            with self.assertRaisesRegex(TrustChainError, "(length drift|hash gate)"):
+                verify_standard_artifacts(output, document)
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,10 +6,10 @@ Updated by: Codex
 ## Snapshot
 
 - Canonical upstream baseline is `origin/dev-ai-contest-2026` at
-  `06997c665fd57b8337f94f068f428583a67d7d2b`.
-- Active work is the uncommitted structural refactor on
-  `agent/bk7258-board-contract`; no firmware was flashed and no hardware was
-  accessed.
+  `eecfc7dda46d2f2eefb2af59c67cc96028eb41d9`.
+- The board/chip/partition/binding refactor is merged. Active work is the
+  additive package phase on `agent/bk7258-bkpack`; no firmware is being
+  flashed and no hardware is being accessed.
 - P0-P9a remain merged. No P9b frozen-profile cutover is authorized.
 
 ## Current structural result
@@ -40,24 +40,31 @@ Updated by: Codex
   Make/CMake/Kconfig and no product partition definitions under `chip/`.
 - Full Classic/CMake firmware builds and board runtime regression were not run;
   the present conclusion is structural/host `CODE_PASS`, not hardware PASS.
+- The focused package suite passed 16 tests. Python syntax, shell syntax and
+  `git diff --check` passed. A real previously built signed directory was
+  repacked with the current schema; its 30 payload members plus manifest
+  verified with SHA-256
+  `8fe38a44ba1b63e9bd3805214eb9331e19c2a4e4182784f98dc131c4275fc0a1`.
 
 ## Remaining debt
 
 - Validation implementation still lives beside some chip drivers. Removing
   boot-time validation ownership remains the separate validation-runner
   cutover; no legacy profile is deleted meanwhile.
-- The standard artifact names and package/range contract are modeled, while
-  `pack-prepare`/`pack-verify` remain metadata-only. The existing signed dual
-  packer still emits a package directory; it does not yet emit one portable,
-  self-verifying `firmware.bkpack` or a cross-platform flash CLI.
+- `pack-prepare`/`pack-verify` remain metadata-only planning tools. Signed
+  dual builds now additionally emit a deterministic, verified
+  `firmware.bkpack`; it is a Beken ZIP-compatible delivery archive, not an
+  official openvela format or a Flash loader.
+- A fresh complete signed build and an actual Windows manual download of this
+  exact implementation have not run. No Linux/macOS/native Windows loader is
+  claimed or planned in this phase.
 
 ## Exact next action
 
-Review and commit this bounded board/chip/partition/binding phase. The next
-implementation phase is the additive package adapter: preserve normal NuttX /
-OpenVela outputs, materialize deterministic CP/AP artifact names, and wrap
-BL1/BL2/CP/AP plus the signed manifest into one verified `.bkpack` without
-changing frozen profiles.
+Complete the independent scope review, then build one fresh signed pair and
+hand its `firmware.bkpack` to the owner for a Windows extraction/manual-loader
+check. The generated `WINDOWS_FLASH.txt` is the only download handoff; do not
+add a generic cross-platform Flash framework.
 
 ## Boundaries
 
