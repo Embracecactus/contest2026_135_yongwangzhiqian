@@ -31,7 +31,8 @@
 #  define bk7258_sdk_free(ptr)    kmm_free(ptr)
 #endif
 
-#include <arch/chip/bk7258_partition_layout.h>
+#include <arch/chip/bk7258_memorymap.h>
+#include <arch/board/bk7258_partition_layout.h>
 
 #include <driver/flash.h>
 

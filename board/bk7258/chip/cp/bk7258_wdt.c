@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) hardware watchdog NuttX lower-half driver — SDK wrapper.
+ * BK7258 hardware watchdog NuttX lower-half driver — SDK wrapper.
  *
  * Calls bk_wdt_* / bk_aon_wdt_* SDK APIs.  Zero register access.
  *

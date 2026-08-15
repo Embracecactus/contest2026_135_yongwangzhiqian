@@ -27,6 +27,7 @@
 
 #include <nuttx/mutex.h>
 
+#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_bt_ipc.h>
 #ifdef CONFIG_BK7258_RPTUN_MBOX
 #  include <arch/chip/bk7258_rptun.h>

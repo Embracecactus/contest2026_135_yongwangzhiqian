@@ -2,14 +2,25 @@
 #ifndef __BK7258_PARTITION_LAYOUT_H
 #define __BK7258_PARTITION_LAYOUT_H
 
+#ifndef BK7258_FLASH_XIP_BASE
+#  error "Include the BK7258 SoC memory map before the partition contract"
+#endif
+
+#if BK7258_FLASH_CRC_DATA_SIZE != 32u
+#  error "BK7258 partition CRC data geometry does not match the SoC"
+#endif
+#if BK7258_FLASH_CRC_TOTAL_SIZE != 34u
+#  error "BK7258 partition CRC total geometry does not match the SoC"
+#endif
+#if BK7258_FLASH_XIP_BASE != 0x02000000u
+#  error "BK7258 partition XIP base does not match the SoC"
+#endif
+
 #define BK7258_PARTITION_LAYOUT_ID "bk7258-v3119-ab-124ebfab37ca1fcd"
 #define BK7258_PARTITION_LAYOUT_SHA256 "124ebfab37ca1fcd9971c5aba7b9f214f0500df74cdc394c88ec602020732d8a"
 #define BK7258_PARTITION_LAYOUT_SHA256_BYTES {0x12, 0x4e, 0xbf, 0xab, 0x37, 0xca, 0x1f, 0xcd, 0x99, 0x71, 0xc5, 0xab, 0xa7, 0xb9, 0xf2, 0x14, 0xf0, 0x50, 0x0d, 0xf7, 0x4c, 0xdc, 0x39, 0x4c, 0x88, 0xec, 0x60, 0x20, 0x20, 0x73, 0x2d, 0x8a}
 #define BK7258_FLASH_SIZE 0x00800000
 #define BK7258_FLASH_ERASE_SIZE 0x00001000
-#define BK7258_FLASH_CRC_DATA_SIZE 32
-#define BK7258_FLASH_CRC_TOTAL_SIZE 34
-#define BK7258_FLASH_XIP_BASE 0x02000000
 #define BK7258_PARTITION_COUNT 13
 #define BK7258_SDK_PARTITIONS_TABLE_SIZE 14
 #define BK7258_SDK_PARTITION_VALID_MASK 0x00003fdf

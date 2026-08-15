@@ -339,21 +339,6 @@ endif
 
 ifeq ($(CONFIG_BK7258_AUD),y)
 BK7258_AP_BASE_CSRCS += bk7258_aud.c
-ifeq ($(CONFIG_BK7258_BOARD_T5_BOARD),y)
-VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
-BK7258_AP_BASE_CSRCS += bk7258_t5_board_audio.c
-
-bk7258_t5_board_audio.ddc: bk7258_t5_board_audio.c
-	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
-		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
-else
-VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5ai_core$(DELIM)src
-BK7258_AP_BASE_CSRCS += bk7258_t5ai_core_audio.c
-
-bk7258_t5ai_core_audio.ddc: bk7258_t5ai_core_audio.c
-	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
-		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
-endif
 endif
 ifeq ($(CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION),y)
 BK7258_AP_BASE_CSRCS += bk7258_aud_validation.c
@@ -368,45 +353,10 @@ ifeq ($(CONFIG_BK7258_I2S),y)
 BK7258_AP_BASE_CSRCS += bk7258_i2s.c
 endif
 ifeq ($(CONFIG_BK7258_LCD),y)
-VPATH += $(BOARD_DIR)$(DELIM)panels
-VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
-INCLUDES += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)panels
 BK7258_AP_BASE_CSRCS += bk7258_lcd_rgb.c
-BK7258_AP_BASE_CSRCS += ili9488_rgb.c
-BK7258_AP_BASE_CSRCS += bk7258_t5_board_lcd.c
-
-# NuttX mkdeps searches each DEPPATH itself and therefore expects a source
-# basename here.  GNU make expands $< to the absolute VPATH match for sources
-# outside arch/arm/src, which mkdeps would incorrectly prepend to every
-# DEPPATH.  Keep the panel and board binding in their owning directories and
-# override only their dependency recipes.
-
-ili9488_rgb.ddc: ili9488_rgb.c
-	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
-		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
-
-bk7258_t5_board_lcd.ddc: bk7258_t5_board_lcd.c
-	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
-		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
-endif
-ifeq ($(CONFIG_BK7258_GT1151),y)
-VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
-BK7258_AP_BASE_CSRCS += bk7258_t5_board_gt1151.c
-
-bk7258_t5_board_gt1151.ddc: bk7258_t5_board_gt1151.c
-	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
-		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
 endif
 ifeq ($(CONFIG_BK7258_PWM),y)
 BK7258_AP_BASE_CSRCS += bk7258_pwm.c
-endif
-ifeq ($(CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION),y)
-VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
-BK7258_AP_BASE_CSRCS += bk7258_t5_board_rgb_lcd_backlight.c
-
-bk7258_t5_board_rgb_lcd_backlight.ddc: bk7258_t5_board_rgb_lcd_backlight.c
-	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
-		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
 endif
 ifneq ($(filter y,$(CONFIG_BK7258_AUD) $(CONFIG_BK7258_DVP) $(CONFIG_BK7258_JPEG_ENCODER) $(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_MIC)),)
 BK7258_AP_BASE_CSRCS += bk7258_media_root.c
@@ -435,21 +385,10 @@ endif
 ifeq ($(CONFIG_BK7258_YUV_H264),y)
 BK7258_AP_BASE_CSRCS += bk7258_yuv_h264.c
 endif
-ifeq ($(CONFIG_BK7258_T5_BOARD_CAMERA),y)
-VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
-BK7258_AP_BASE_CSRCS += bk7258_t5_board_camera.c
-BK7258_AP_BASE_CSRCS += bk7258_t5_board_camera_i2c.c
+ifeq ($(CONFIG_BK7258_DVP_BOARD_GLUE),y)
 LDFLAGS += --wrap=bk_i2c_init_v2 --wrap=bk_i2c_deinit_v2
 LDFLAGS += --wrap=bk_i2c_memory_read_v2 --wrap=bk_i2c_memory_write_v2
 LDFLAGS += --wrap=dvp_camera_mclk_enable
-
-bk7258_t5_board_camera.ddc: bk7258_t5_board_camera.c
-	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
-		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
-
-bk7258_t5_board_camera_i2c.ddc: bk7258_t5_board_camera_i2c.c
-	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
-		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
 endif
 ifeq ($(CONFIG_BK7258_MIC),y)
 BK7258_AP_BASE_CSRCS += bk7258_mic.c
@@ -467,22 +406,7 @@ ifeq ($(CONFIG_BK7258_SARADC_VALIDATION),y)
 BK7258_AP_BASE_CSRCS += bk7258_saradc_validation.c
 endif
 ifeq ($(CONFIG_BK7258_SDIO),y)
-VPATH += $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board$(DELIM)src
 BK7258_AP_BASE_CSRCS += bk7258_sdio.c
-BK7258_AP_BASE_CSRCS += bk7258_t5_board_sdio.c
-ifeq ($(CONFIG_BK7258_T5_BOARD_TF_VALIDATION),y)
-BK7258_AP_BASE_CSRCS += bk7258_t5_board_tf_validation.c
-endif
-
-# See the external board-source dependency note in the LCD block above.
-
-bk7258_t5_board_sdio.ddc: bk7258_t5_board_sdio.c
-	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
-		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
-
-bk7258_t5_board_tf_validation.ddc: bk7258_t5_board_tf_validation.c
-	$(Q) $(MKDEP) --obj-path $(OBJPATH) --obj-suffix $(OBJEXT) $(DEPPATH) \
-		"$(CC)" -- $(CFLAGS) -- $(notdir $<) > $@
 endif
 ifeq ($(CONFIG_BK7258_SDMADC),y)
 BK7258_AP_BASE_CSRCS += bk7258_sdmadc.c
@@ -533,7 +457,7 @@ ifneq ($(filter y,$(CONFIG_BK7258_AUD) $(CONFIG_BK7258_MIC) $(CONFIG_BK7258_DMA2
 LDFLAGS += --wrap=bk_pm_module_vote_power_ctrl
 endif
 
-ifeq ($(CONFIG_BK7258_T5_BOARD_CAMERA_H264),y)
+ifeq ($(CONFIG_BK7258_DVP_H264_COMPAT),y)
 LDFLAGS += --wrap=bk_yuv_buf_start
 LDFLAGS += --wrap=bk_h264_encode_enable
 LDFLAGS += --wrap=sys_drv_int_group2_enable

@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Beken BK7258 (T5-AI, Cortex-M33) heap allocation for NuttX N2.
+ * Beken BK7258 Cortex-M33 heap allocation for NuttX N2.
  *
  * Modelled on the flat-build path of nuttx/arch/arm/src/mps/
  * mps_allocateheap.c.  The single user heap spans from the top of the IDLE

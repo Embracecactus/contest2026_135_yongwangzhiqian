@@ -46,7 +46,7 @@
 #include <nuttx/semaphore.h>
 #include <nuttx/signal.h>
 
-#include <arch/board/board.h>
+#include <arch/chip/bk7258_board_binding.h>
 #include <arch/chip/bk7258_aud.h>
 #include <arch/chip/bk7258_pm.h>
 
@@ -153,6 +153,11 @@ struct bk7258_aud_frame_s
 struct bk7258_aud_dev_s
 {
   struct audio_lowerhalf_s dev;       /* Must be first */
+
+  /* Immutable physical-board contract supplied by the selected binding. */
+
+  FAR const struct bk7258_aud_binding_s *binding;
+  FAR const struct bk7258_aud_config_s *board_config;
 
   mutex_t lock;                       /* State and APB ownership */
   mutex_t worker_lock;                /* DMA/ring control plane */
@@ -291,9 +296,6 @@ static struct bk7258_aud_dev_s g_bk7258_aud =
 };
 
 static bool g_bk7258_aud_registered;
-
-_Static_assert(BK7258_BOARD_HAS_AUDIO == 1,
-               "BK7258 AUD requires a selected board with analog audio");
 _Static_assert((BK7258_AUD_FRAME_BYTES % sizeof(uint32_t)) == 0,
                "BK7258 AUD DMA frame must be 32-bit aligned");
 _Static_assert(CONFIG_BK7258_AUD_QUEUE_DEPTH == 8,
@@ -333,6 +335,41 @@ _Static_assert(sizeof(struct bk7258_aud_diag_s) == 0x110,
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+static FAR const struct bk7258_aud_binding_s *
+bk7258_aud_get_binding(void)
+{
+  FAR const struct bk7258_board_binding_s *board;
+  FAR const struct bk7258_aud_binding_s *binding;
+  FAR const struct bk7258_aud_config_s *config;
+
+  board = bk7258_board_get_binding();
+  if (board == NULL || board->version != BK7258_BINDING_VERSION ||
+      board->size < sizeof(*board))
+    {
+      return NULL;
+    }
+
+  binding = board->audio;
+  if (binding == NULL || binding->version != BK7258_BINDING_VERSION ||
+      binding->size < sizeof(*binding) || binding->initialize == NULL ||
+      binding->set == NULL || binding->is_enabled == NULL)
+    {
+      return NULL;
+    }
+
+  config = binding->config;
+  if (config == NULL || config->version != BK7258_BINDING_VERSION ||
+      config->size < sizeof(*config) || config->variant_name == NULL ||
+      config->speaker_control_gpio >= BK7258_BINDING_GPIO_COUNT ||
+      config->speaker_on_delay_ms > UINT32_MAX / 1000u ||
+      config->speaker_off_delay_ms > UINT32_MAX / 1000u)
+    {
+      return NULL;
+    }
+
+  return binding;
+}
 
 static int bk7258_aud_result(bk_err_t error)
 {
@@ -914,8 +951,8 @@ static int bk7258_aud_set_pa(struct bk7258_aud_dev_s *priv, bool enable)
 {
   int ret;
 
-  ret = bk7258_board_speaker_set(enable);
-  if (ret < 0 || bk7258_board_speaker_is_enabled() != enable)
+  ret = priv->binding->set(priv->board_config, enable);
+  if (ret < 0 || priv->binding->is_enabled(priv->board_config) != enable)
     {
       return ret < 0 ? ret : -EIO;
     }
@@ -1266,7 +1303,7 @@ static int bk7258_aud_hw_stream_stop(struct bk7258_aud_dev_s *priv)
 
   if (priv->pa_enabled)
     {
-      nxsig_usleep(BK7258_BOARD_SPEAKER_OFF_DELAY_MS * 1000u);
+      nxsig_usleep(priv->board_config->speaker_off_delay_ms * 1000u);
       ret = bk7258_aud_set_pa(priv, false);
       if (ret < 0 && first == OK)
         {
@@ -1452,7 +1489,7 @@ static int bk7258_aud_hw_start(struct bk7258_aud_dev_s *priv)
   priv->dac_started = true;
   priv->diag.dac_start_count++;
 
-  nxsig_usleep(BK7258_BOARD_SPEAKER_ON_DELAY_MS * 1000u);
+  nxsig_usleep(priv->board_config->speaker_on_delay_ms * 1000u);
   ret = bk7258_aud_set_pa(priv, true);
   if (ret < 0)
     {
@@ -2744,6 +2781,7 @@ static int bk7258_aud_release(struct audio_lowerhalf_s *dev)
 int bk7258_aud_initialize(void)
 {
   struct bk7258_aud_dev_s *priv = &g_bk7258_aud;
+  FAR const struct bk7258_aud_binding_s *binding;
   int ret;
 
   if (g_bk7258_aud_registered)
@@ -2756,18 +2794,27 @@ int bk7258_aud_initialize(void)
       return -EINVAL;
     }
 
-  ret = bk7258_board_speaker_initialize();
+  binding = bk7258_aud_get_binding();
+  if (binding == NULL)
+    {
+      auderr("ERROR: BK7258 audio board binding is unavailable\n");
+      return -ENODEV;
+    }
+
+  ret = binding->initialize(binding->config);
   if (ret < 0)
     {
       return ret;
     }
 
-  ret = bk7258_board_speaker_set(false);
-  if (ret < 0 || bk7258_board_speaker_is_enabled())
+  ret = binding->set(binding->config, false);
+  if (ret < 0 || binding->is_enabled(binding->config))
     {
       return ret < 0 ? ret : -EIO;
     }
 
+  priv->binding = binding;
+  priv->board_config = binding->config;
   priv->dev.ops = &g_bk7258_aud_ops;
   priv->samplerate = CONFIG_BK7258_AUD_SAMPLE_RATE;
   priv->channels = 1;
@@ -2823,11 +2870,11 @@ int bk7258_aud_initialize(void)
   syslog(LOG_INFO,
          "BDAC BOOT PASS board=%s dev=/dev/audio/%s rate=%" PRIu32
          " frame=%u queue=%u pa=P%u active=%s\n",
-         BK7258_BOARD_VARIANT_NAME, CONFIG_BK7258_AUD_DEVNAME,
+         priv->board_config->variant_name, CONFIG_BK7258_AUD_DEVNAME,
          priv->samplerate, (unsigned int)BK7258_AUD_FRAME_BYTES,
          (unsigned int)CONFIG_BK7258_AUD_QUEUE_DEPTH,
-         (unsigned int)BK7258_BOARD_SPEAKER_CONTROL_GPIO,
-         BK7258_BOARD_SPEAKER_ACTIVE_HIGH ? "high" : "low");
+         (unsigned int)priv->board_config->speaker_control_gpio,
+         priv->board_config->speaker_active_high ? "high" : "low");
   return OK;
 }
 
@@ -2841,7 +2888,7 @@ int bk7258_aud_get_diag(struct bk7258_aud_diag_s *diag)
     }
 
   nxmutex_lock(&priv->lock);
-  priv->diag.pa_enabled = bk7258_board_speaker_is_enabled();
+  priv->diag.pa_enabled = priv->binding->is_enabled(priv->board_config);
   memcpy(diag, &priv->diag, sizeof(*diag));
   nxmutex_unlock(&priv->lock);
   return OK;

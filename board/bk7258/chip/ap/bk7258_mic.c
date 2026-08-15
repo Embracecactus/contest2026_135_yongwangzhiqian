@@ -68,7 +68,7 @@
 #include <nuttx/kthread.h>
 #include <nuttx/audio/audio.h>
 
-#include <arch/board/board.h>
+#include <arch/chip/bk7258_board_binding.h>
 #include <arch/chip/bk7258_mic.h>
 
 /* SDK API headers.
@@ -170,6 +170,11 @@ struct bk7258_mic_dev_s
 {
   struct audio_lowerhalf_s dev;        /* Must be first */
 
+  /* Immutable physical-board contract supplied by board bring-up. */
+
+  FAR const struct bk7258_mic_binding_s *binding;
+  FAR const struct bk7258_mic_config_s *config;
+
   /* Negotiated format */
 
   uint32_t samplerate;
@@ -231,6 +236,11 @@ static void bk7258_mic_deinterleave(int16_t *dest, const int16_t *src,
 static int  bk7258_mic_capture_thread(int argc, char **argv);
 static void bk7258_mic_flush_pending(struct bk7258_mic_dev_s *priv);
 static void bk7258_mic_stop_thread(struct bk7258_mic_dev_s *priv);
+
+/* Physical-board binding validation. */
+
+static FAR const struct bk7258_mic_binding_s *
+  bk7258_mic_get_binding(void);
 
 /* audio_ops_s */
 
@@ -315,17 +325,6 @@ _Static_assert((BK7258_MIC_DMA_FRAME_BYTES % BK7258_MIC_FIFO_WORD_BYTES)
                == 0,
                "BK7258 MIC DMA frame must be a whole number of FIFO words");
 
-_Static_assert(BK7258_BOARD_HAS_MIC1 == 1,
-               "BK7258 MIC lower half requires board MIC1 wiring");
-
-_Static_assert(BK7258_BOARD_MIC_CHANNELS == 1 ||
-               BK7258_BOARD_MIC_CHANNELS == 2,
-               "BK7258 board microphone topology must be mono or stereo");
-
-_Static_assert(BK7258_BOARD_HAS_MIC2 ==
-               (BK7258_BOARD_MIC_CHANNELS == 2),
-               "BK7258 board MIC2 wiring must match its channel count");
-
 _Static_assert(CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_8000 ||
                CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_11025 ||
                CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_12000 ||
@@ -352,6 +351,45 @@ _Static_assert(CONFIG_BK7258_MIC_ANA_GAIN >= BK7258_MIC_ANA_GAIN_MIN,
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: bk7258_mic_get_binding
+ ****************************************************************************/
+
+static FAR const struct bk7258_mic_binding_s *
+  bk7258_mic_get_binding(void)
+{
+  FAR const struct bk7258_board_binding_s *board;
+  FAR const struct bk7258_mic_binding_s *binding;
+  FAR const struct bk7258_mic_config_s *config;
+
+  board = bk7258_board_get_binding();
+  if (board == NULL || board->version != BK7258_BINDING_VERSION ||
+      board->size < sizeof(*board))
+    {
+      return NULL;
+    }
+
+  binding = board->mic;
+  if (binding == NULL || binding->version != BK7258_BINDING_VERSION ||
+      binding->size < sizeof(*binding) || binding->initialize == NULL)
+    {
+      return NULL;
+    }
+
+  config = binding->config;
+  if (config == NULL || config->version != BK7258_BINDING_VERSION ||
+      config->size < sizeof(*config) || config->channels < 1 ||
+      config->channels > BK7258_MIC_FIFO_CHANNELS ||
+      (config->flags & BK7258_MIC_BINDING_MIC1) == 0 ||
+      ((config->flags & BK7258_MIC_BINDING_MIC2) != 0) !=
+        (config->channels == 2))
+    {
+      return NULL;
+    }
+
+  return binding;
+}
 
 /****************************************************************************
  * Name: bk7258_mic_result
@@ -985,7 +1023,7 @@ static int bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
 
         /* Capture only. */
 
-        caps->ac_channels = BK7258_BOARD_MIC_CHANNELS;
+        caps->ac_channels = g_bk7258_mic.config->channels;
 
         switch (caps->ac_subtype)
           {
@@ -1001,7 +1039,7 @@ static int bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
         break;
 
       case AUDIO_TYPE_INPUT:
-        caps->ac_channels = BK7258_BOARD_MIC_CHANNELS;
+        caps->ac_channels = g_bk7258_mic.config->channels;
 
         switch (caps->ac_subtype)
           {
@@ -1068,12 +1106,13 @@ static int bk7258_mic_configure(struct audio_lowerhalf_s *dev,
               return -EINVAL;
             }
 
-          if (channels < 1 || channels > BK7258_BOARD_MIC_CHANNELS)
+          if (channels < 1 || channels > priv->config->channels)
             {
               auderr("ERROR: board %s supports 1..%u microphone channels, "
                      "got %u\n",
-                     BK7258_BOARD_VARIANT_NAME,
-                     BK7258_BOARD_MIC_CHANNELS, channels);
+                     priv->config->variant_name != NULL ?
+                       priv->config->variant_name : "unknown",
+                     priv->config->channels, channels);
               return -EINVAL;
             }
 
@@ -1593,6 +1632,7 @@ static int bk7258_mic_release(struct audio_lowerhalf_s *dev)
 int bk7258_mic_initialize(void)
 {
   struct bk7258_mic_dev_s *priv = &g_bk7258_mic;
+  FAR const struct bk7258_mic_binding_s *binding;
   int ret;
 
   if (g_bk7258_mic_registered)
@@ -1602,7 +1642,25 @@ int bk7258_mic_initialize(void)
 
   priv->dev.ops    = &g_bk7258_mic_ops;
   priv->samplerate = CONFIG_BK7258_MIC_SAMPLE_RATE;
-  priv->channels   = BK7258_BOARD_MIC_CHANNELS;
+
+  binding = bk7258_mic_get_binding();
+  if (binding == NULL)
+    {
+      auderr("ERROR: BK7258 microphone board binding is unavailable\n");
+      return -ENODEV;
+    }
+
+  ret = binding->initialize();
+  if (ret < 0)
+    {
+      auderr("ERROR: BK7258 microphone board binding initialization failed: %d\n",
+             ret);
+      return ret;
+    }
+
+  priv->binding   = binding;
+  priv->config    = binding->config;
+  priv->channels  = binding->config->channels;
   priv->dig_gain   = CONFIG_BK7258_MIC_DIG_GAIN;
   priv->ana_gain   = CONFIG_BK7258_MIC_ANA_GAIN;
   priv->dma_id     = DMA_ID_MAX + 1;   /* Not a valid channel */
@@ -1653,7 +1711,8 @@ int bk7258_mic_initialize(void)
   syslog(LOG_INFO,
          "BMIC BOOT PASS board=%s dev=/dev/audio/%s rate=%u max_ch=%u "
          "dig=0x%02x ana=0x%02x\n",
-         BK7258_BOARD_VARIANT_NAME,
+         priv->config->variant_name != NULL ? priv->config->variant_name :
+           "unknown",
          CONFIG_BK7258_MIC_DEVNAME, (unsigned)priv->samplerate,
          (unsigned)priv->channels, (unsigned)priv->dig_gain,
          (unsigned)priv->ana_gain);

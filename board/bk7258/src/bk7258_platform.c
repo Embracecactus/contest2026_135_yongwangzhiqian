@@ -17,9 +17,12 @@
 #include <stdint.h>
 #include <syslog.h>
 
-#include <arch/board/board.h>
 #include <debug.h>
 #include <nuttx/mutex.h>
+
+#ifdef CONFIG_BK7258_GPIO_LOWERHALF
+#  include <arch/chip/bk7258_gpio.h>
+#endif
 
 #ifdef CONFIG_BK7258_SARADC_SERVER
 #  include <arch/chip/bk7258_saradc_server.h>

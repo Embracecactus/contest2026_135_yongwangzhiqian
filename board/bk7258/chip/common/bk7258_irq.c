@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Beken BK7258 (T5-AI, Cortex-M33) NVIC interrupt support for NuttX A1.
+ * Beken BK7258 Cortex-M33 NVIC interrupt support for NuttX A1.
  *
  * Standard Cortex-M NVIC glue, modelled on nuttx/arch/arm/src/mps/mps_irq.c.
  * Provides up_irqinitialize() / up_enable_irq() / up_disable_irq() /

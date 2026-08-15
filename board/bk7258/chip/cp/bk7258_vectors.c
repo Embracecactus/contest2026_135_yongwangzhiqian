@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Beken BK7258 (T5-AI, tri-core Cortex-M33) Cortex-M vector table for
+ * Beken BK7258 tri-core Cortex-M33 Cortex-M vector table for
  * NuttX Stage A1.
  *
  * Stage A1 drives the full NuttX boot (scheduler, SysTick, IRQ dispatch)
@@ -53,7 +53,7 @@
  * Entry [64] sits at byte offset 0x100 -- exactly what the bootloader
  * validates.  This layout is shared verbatim with the bare-metal probe
  * (docs/bk7258-t5ai/probe/probe.c) that has already been boot-verified
- * on the T5-AI board.  Slots [64]/[65] keep the bootloader magic unchanged;
+ * for the BK7258 boot contract.  Slots [64]/[65] keep the bootloader magic;
  * slots [0]/[1] now follow the standard NuttX PSP/MSP reset contract, while
  * dispatcher slots route through the real NuttX handlers.
  ****************************************************************************/

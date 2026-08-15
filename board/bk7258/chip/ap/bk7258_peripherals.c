@@ -19,8 +19,8 @@
 #include <debug.h>
 #include <errno.h>
 
+#include <arch/chip/bk7258_board_binding.h>
 #include <arch/chip/bk7258_peripherals.h>
-#include <arch/board/board.h>
 #ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
 #  include <arch/chip/bk7258_sdk_runtime.h>
 #endif
@@ -179,8 +179,8 @@ static void bk7258_sdio_bind(void)
     }
 
 #ifdef CONFIG_MMCSD_SDIO
-  /* The lower half samples the T5-Board card-detect input, probes media that
-   * is already present and delivers later insert/eject edges from HPWORK.
+  /* The lower half follows the selected slot binding, probes media that is
+   * already present and delivers configured insert/eject edges from HPWORK.
    */
 
   ret = mmcsd_slotinitialize(CONFIG_BK7258_SDIO_SLOTNO, sdio);
@@ -267,7 +267,16 @@ static void bk7258_usbhost_bind(void)
 
 int bk7258_peripherals_initialize(void)
 {
+  FAR const struct bk7258_board_binding_s *board;
   int ret;
+
+  board = bk7258_board_get_binding();
+  if (board == NULL || board->version != BK7258_BINDING_VERSION ||
+      board->size < sizeof(*board) || board->early_initialize == NULL ||
+      board->devices_initialize == NULL)
+    {
+      return -ENODEV;
+    }
 
 #ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
   /* SDK-backed AP drivers share system-register and mailbox services.
@@ -326,7 +335,7 @@ int bk7258_peripherals_initialize(void)
    * owns pin, polarity, pull, bus-device and conflict policy.
    */
 
-  ret = bk7258_board_early_initialize();
+  ret = board->early_initialize();
   if (ret < 0)
     {
       return ret;
@@ -393,7 +402,7 @@ int bk7258_peripherals_initialize(void)
   bk7258_spi_bind();
 #endif
 
-  ret = bk7258_board_devices_initialize();
+  ret = board->devices_initialize();
   if (ret < 0)
     {
       _err("ERROR: board device registration failed: %d\n", ret);

@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Beken BK7258 (T5-AI, Cortex-M33) SysTick system-timer init for NuttX.
+ * Beken BK7258 Cortex-M33 SysTick system-timer init for NuttX.
  *
  * Modelled on nuttx/arch/arm/src/mps/mps_timer.c.  up_timer_initialize()
  * loads the SysTick reload value for the configured tick rate and registers
@@ -38,7 +38,6 @@
 #include <nuttx/spinlock.h>
 #include <nuttx/timers/arch_timer.h>
 #include <nuttx/timers/timer.h>
-#include <arch/board/board.h>
 #include <arch/barriers.h>
 #include <arch/irq.h>
 

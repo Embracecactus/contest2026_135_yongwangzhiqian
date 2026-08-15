@@ -21,6 +21,7 @@
 
 #include <nuttx/board.h>
 
+#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 
 #define BK7258_FLASH_CONTROLLER_BASE  0x44030000u

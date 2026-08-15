@@ -1,6 +1,21 @@
-# NuttX board-level CMake for the Beken BK7258 T5-AI board family.
+# NuttX board-level CMake for the Beken BK7258 logical board.
 
 include("${NUTTX_BOARD_DIR}/bk_idk/sdk-bundles.cmake")
+
+set(BK7258_BOARD_VARIANT_COUNT 0)
+foreach(BK7258_BOARD_SELECTOR
+        CONFIG_BK7258_BOARD_AIDK_AI_TOY
+        CONFIG_BK7258_BOARD_T5_BOARD
+        CONFIG_BK7258_BOARD_T5AI_CORE)
+  if(${BK7258_BOARD_SELECTOR})
+    math(EXPR BK7258_BOARD_VARIANT_COUNT
+         "${BK7258_BOARD_VARIANT_COUNT} + 1")
+  endif()
+endforeach()
+
+if(NOT BK7258_BOARD_VARIANT_COUNT EQUAL 1)
+  message(FATAL_ERROR "Select exactly one BK7258 physical board")
+endif()
 
 if(CONFIG_BK7258_BOARD_AIDK_AI_TOY)
   set(BK7258_BOARD_VARIANT_DIR
@@ -8,7 +23,7 @@ if(CONFIG_BK7258_BOARD_AIDK_AI_TOY)
 elseif(CONFIG_BK7258_BOARD_T5_BOARD)
   set(BK7258_BOARD_VARIANT_DIR
       "${NUTTX_BOARD_DIR}/boards/t5_board")
-else()
+elseif(CONFIG_BK7258_BOARD_T5AI_CORE)
   set(BK7258_BOARD_VARIANT_DIR
       "${NUTTX_BOARD_DIR}/boards/t5ai_core")
 endif()
@@ -26,12 +41,13 @@ add_subdirectory(src)
 
 # Pin the role-specific linker script for the CMake backend.
 if(CONFIG_BK7258_AP_CORE)
-  set_property(GLOBAL PROPERTY LD_SCRIPT
-               "${NUTTX_BOARD_DIR}/scripts/ld_ap.script")
+  set(BK7258_LDSCRIPT ld_ap.script)
 else()
-  set_property(GLOBAL PROPERTY LD_SCRIPT
-               "${NUTTX_BOARD_DIR}/scripts/ld.script")
+  set(BK7258_LDSCRIPT ld.script)
 endif()
+
+set_property(GLOBAL PROPERTY LD_SCRIPT
+             "${NUTTX_BOARD_DIR}/scripts/${BK7258_LDSCRIPT}")
 
 # NuttX Apps owns MCUboot's core sources while the BK7258 board owns the
 # signing-policy overlay and P-256 support headers.  Register these before the

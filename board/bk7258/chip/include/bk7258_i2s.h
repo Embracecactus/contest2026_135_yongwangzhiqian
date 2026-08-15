@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) I2S — NuttX i2s_dev_s lower-half wrapper.
+ * BK7258 I2S — NuttX i2s_dev_s lower-half wrapper.
  *
  * Wraps the official Beken bk_i2s_* SDK API as a NuttX I2S lower half.
  * The BK7258 I2S block drives I2S/PCM audio codecs; three GPIO groups are

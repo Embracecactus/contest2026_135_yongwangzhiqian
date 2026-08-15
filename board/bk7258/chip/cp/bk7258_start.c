@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Beken BK7258 (T5-AI, tri-core Cortex-M33) C reset entry for NuttX.
+ * Beken BK7258 tri-core Cortex-M33 C reset entry for NuttX.
  *
  * Standard Cortex-M __start sequence (modelled on
  * nuttx/arch/arm/src/mps/mps_start.c):
@@ -33,6 +33,7 @@
 #include <nuttx/config.h>
 #include <nuttx/init.h>
 
+#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 
 #ifdef CONFIG_BK7258_SWD_DEBUG

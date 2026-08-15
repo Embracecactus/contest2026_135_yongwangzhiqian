@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -83,6 +84,83 @@ class AidkBoardTest(unittest.TestCase):
         self.assertIn('boards/aidk_ai_toy', (root / "CMakeLists.txt").read_text())
         self.assertIn('boards$(DELIM)aidk_ai_toy',
                       (root / "scripts/Make.defs").read_text())
+
+    def test_board_selection_and_audio_binding_fail_closed(self) -> None:
+        root = REPOSITORY / "board/bk7258"
+        make_defs = (root / "scripts/Make.defs").read_text()
+        cmake = (root / "CMakeLists.txt").read_text()
+        chip_make = (root / "chip/Make.defs").read_text()
+        chip_cmake = (root / "chip/CMakeLists.txt").read_text()
+        board_make = (root / "src/Makefile").read_text()
+        board_cmake = (root / "src/CMakeLists.txt").read_text()
+        board_kconfig = (root / "Kconfig").read_text()
+        chip_kconfig = (root / "chip/Kconfig").read_text()
+        aidk_fragment = json.loads((SCRIPT_ROOT /
+            "bk7258_fragment_catalog_board_aidk_ai_toy.json").read_text())
+        core_fragment = json.loads((SCRIPT_ROOT /
+            "bk7258_fragment_catalog_board_t5ai_core.json").read_text())
+
+        self.assertIn("Select exactly one BK7258 physical board", make_defs)
+        self.assertIn("Select exactly one BK7258 physical board", cmake)
+        self.assertIn("$(words $(BK7258_BOARD_VARIANT_SELECTIONS)),1",
+                      make_defs)
+        self.assertIn("BK7258_BOARD_VARIANT_COUNT EQUAL 1", cmake)
+        self.assertIn("else ifeq ($(CONFIG_BK7258_BOARD_T5AI_CORE),y)",
+                      make_defs)
+        self.assertIn("elseif(CONFIG_BK7258_BOARD_T5AI_CORE)", cmake)
+        self.assertNotIn("boards$(DELIM)", chip_make)
+        self.assertNotIn("/boards/", chip_cmake)
+        self.assertNotIn("CONFIG_BK7258_BOARD_T5", chip_make)
+        self.assertNotIn("CONFIG_BK7258_BOARD_T5", chip_cmake)
+        self.assertIn("BK7258_AUD requires a physical-board audio binding",
+                      board_make)
+        self.assertIn("BK7258_AUD requires a physical-board audio binding",
+                      board_cmake)
+        self.assertIn("$(BK7258_BOARD_SDK_DIR)$(DELIM)include", board_make)
+        self.assertIn("${BK7258_SDK_ROLE_DIR}/include", board_cmake)
+        self.assertIn("CONFIG_FREERTOS=0", board_make)
+        self.assertIn("CONFIG_FREERTOS=0", board_cmake)
+        self.assertIn("config BK7258_BOARD_HAS_MIC_BINDING", board_kconfig)
+        self.assertIn("config BK7258_BOARD_HAS_USER_GPIO_BINDING",
+                      board_kconfig)
+        self.assertIn("config BK7258_BOARD_HAS_SDIO_BINDING",
+                      board_kconfig)
+        self.assertIn("depends on BK7258_BOARD_HAS_AUDIO_BINDING",
+                      chip_kconfig)
+        self.assertIn("BK7258_BOARD_HAS_MIC_BINDING", chip_kconfig)
+        self.assertIn("BK7258_BOARD_HAS_USER_GPIO_BINDING", chip_kconfig)
+        self.assertIn("BK7258_BOARD_HAS_SDIO_BINDING", chip_kconfig)
+        self.assertNotIn("BK7258_T5_BOARD", chip_kconfig)
+        self.assertEqual(aidk_fragment["symbols"],
+                         {"CONFIG_BK7258_BOARD_AIDK_AI_TOY": "y"})
+        self.assertEqual(core_fragment["symbols"],
+                         {"CONFIG_BK7258_BOARD_T5AI_CORE": "y"})
+
+    def test_chip_sources_consume_only_typed_board_bindings(self) -> None:
+        root = REPOSITORY / "board/bk7258"
+        chip = root / "chip"
+
+        for path in chip.rglob("*"):
+            if path.suffix not in {".c", ".h"}:
+                continue
+
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("#include <arch/board/board.h>", text,
+                             str(path))
+            self.assertNotRegex(text,
+                                r"\bBK7258_BOARD_(?!BINDING)[A-Z0-9_]+\b",
+                                str(path))
+
+        dvp = (chip / "ap/bk7258_dvp.c").read_text(encoding="utf-8")
+        self.assertNotIn("GC2145", dvp)
+        self.assertNotIn("0x78u >> 1", dvp)
+        self.assertNotIn("0xf2u", dvp)
+
+        board_make = (root / "src/Makefile").read_text(encoding="utf-8")
+        board_cmake = (root / "src/CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn("bk7258_platform.c bk7258_board_bringup.c", board_make)
+        self.assertIn("${BK7258_BOARD_VARIANT_DIR}/src/bk7258_board_bringup.c",
+                      board_cmake)
 
 
 if __name__ == "__main__":

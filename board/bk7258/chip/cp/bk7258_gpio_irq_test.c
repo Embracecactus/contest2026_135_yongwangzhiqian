@@ -21,7 +21,7 @@
 
 #include <nuttx/spinlock.h>
 
-#include <arch/board/board.h>
+#include <arch/chip/bk7258_gpio.h>
 
 #include <driver/gpio.h>
 #include <driver/int.h>
@@ -35,8 +35,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BK7258_GPIOIRQ_KEY                   \
-  ((gpio_id_t)BK7258_BOARD_USER_BUTTON_GPIO)
 #define BK7258_GPIOIRQ_SECURE_SOURCE         INT_SRC_GPIO
 #define BK7258_GPIOIRQ_SECURE_IRQ            \
   (BK7258_SDK_IRQ_FIRST + BK7258_GPIOIRQ_SECURE_SOURCE)
@@ -47,24 +45,6 @@
 #define BK7258_GPIOIRQ_ROUTE_REG              0x44010084u
 #define BK7258_GPIOIRQ_SECURE_ROUTE_BIT       (1u << 23)
 #define BK7258_GPIOIRQ_ROUTE_MASK             BK7258_GPIOIRQ_SECURE_ROUTE_BIT
-#if BK7258_BOARD_USER_BUTTON_ACTIVE_LOW
-#  define BK7258_GPIOIRQ_PRESS_EDGE           GPIO_INT_TYPE_FALLING_EDGE
-#  define BK7258_GPIOIRQ_RELEASE_EDGE         GPIO_INT_TYPE_RISING_EDGE
-#  define BK7258_GPIOIRQ_PRESS_EDGE_NAME      "FALL"
-#  define BK7258_GPIOIRQ_RELEASE_EDGE_NAME    "RISE"
-#  define BK7258_GPIOIRQ_PRESSED_LEVEL        false
-#  define BK7258_GPIOIRQ_RELEASED_LEVEL       true
-#  define BK7258_GPIOIRQ_PULL_MODE            GPIO_PULL_UP_EN
-#else
-#  define BK7258_GPIOIRQ_PRESS_EDGE           GPIO_INT_TYPE_RISING_EDGE
-#  define BK7258_GPIOIRQ_RELEASE_EDGE         GPIO_INT_TYPE_FALLING_EDGE
-#  define BK7258_GPIOIRQ_PRESS_EDGE_NAME      "RISE"
-#  define BK7258_GPIOIRQ_RELEASE_EDGE_NAME    "FALL"
-#  define BK7258_GPIOIRQ_PRESSED_LEVEL        true
-#  define BK7258_GPIOIRQ_RELEASED_LEVEL       false
-#  define BK7258_GPIOIRQ_PULL_MODE            GPIO_PULL_DOWN_EN
-#endif
-
 #define BK7258_GPIOIRQ_RESERVED(pin) \
   ((pin) == GPIO_0 || (pin) == GPIO_1 || \
    (pin) == GPIO_10 || (pin) == GPIO_11)
@@ -73,15 +53,8 @@
  * Compile-time Invariants
  ****************************************************************************/
 
-_Static_assert(BK7258_BOARD_USER_BUTTON_GPIO < GPIO_NUM,
-               "GPIO IRQ key is outside the BK7258 GPIO range");
-_Static_assert(BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 0 ||
-               BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 1,
-               "GPIO IRQ key polarity must be boolean");
 _Static_assert(GPIO_NUM == 56,
                "GPIO IRQ test requires the pinned 56-channel SDK layout");
-_Static_assert(!BK7258_GPIOIRQ_RESERVED(BK7258_GPIOIRQ_KEY),
-               "GPIO IRQ test must not use a console/boot UART pin");
 _Static_assert(INT_SRC_GPIO == 55,
                "GPIO IRQ test requires SDK GPIO_S source 55");
 _Static_assert(BK7258_GPIOIRQ_SECURE_IRQ == 71,
@@ -112,15 +85,31 @@ struct bk7258_gpioirq_timeout_diag_s
 };
 
 static bool g_bk7258_gpioirq_running;
+static FAR const struct bk7258_gpio_config_s *g_bk7258_gpioirq_config;
+static gpio_id_t g_bk7258_gpioirq_key;
+static gpio_int_type_t g_bk7258_gpioirq_press_edge;
+static gpio_int_type_t g_bk7258_gpioirq_release_edge;
+static const char *g_bk7258_gpioirq_press_edge_name;
+static const char *g_bk7258_gpioirq_release_edge_name;
+static bool g_bk7258_gpioirq_pressed_level;
+static bool g_bk7258_gpioirq_released_level;
 static volatile uint32_t g_bk7258_gpioirq_count;
 static volatile gpio_id_t g_bk7258_gpioirq_last_id;
 
-static const gpio_config_t g_bk7258_gpioirq_key_config =
+static gpio_config_t g_bk7258_gpioirq_key_config =
 {
   .io_mode = GPIO_INPUT_ENABLE,
-  .pull_mode = BK7258_GPIOIRQ_PULL_MODE,
+  .pull_mode = GPIO_PULL_DISABLE,
   .func_mode = GPIO_SECOND_FUNC_DISABLE,
 };
+
+#define BK7258_GPIOIRQ_KEY                (g_bk7258_gpioirq_key)
+#define BK7258_GPIOIRQ_PRESS_EDGE         (g_bk7258_gpioirq_press_edge)
+#define BK7258_GPIOIRQ_RELEASE_EDGE       (g_bk7258_gpioirq_release_edge)
+#define BK7258_GPIOIRQ_PRESS_EDGE_NAME    (g_bk7258_gpioirq_press_edge_name)
+#define BK7258_GPIOIRQ_RELEASE_EDGE_NAME  (g_bk7258_gpioirq_release_edge_name)
+#define BK7258_GPIOIRQ_PRESSED_LEVEL      (g_bk7258_gpioirq_pressed_level)
+#define BK7258_GPIOIRQ_RELEASED_LEVEL     (g_bk7258_gpioirq_released_level)
 
 /* The pinned SDK exports this helper from gpio_driver_base.c but does not
  * declare it in the public GPIO header. It snapshots the raw interrupt
@@ -421,8 +410,45 @@ int bk7258_gpio_irq_test(void)
       return -EBUSY;
     }
 
+  g_bk7258_gpioirq_config = bk7258_board_gpio_config();
+  if (g_bk7258_gpioirq_config == NULL ||
+      g_bk7258_gpioirq_config->version != BK7258_GPIO_BINDING_VERSION ||
+      g_bk7258_gpioirq_config->size < sizeof(*g_bk7258_gpioirq_config) ||
+      g_bk7258_gpioirq_config->name == NULL ||
+      g_bk7258_gpioirq_config->user_button_gpio >= GPIO_NUM ||
+      BK7258_GPIOIRQ_RESERVED(
+        g_bk7258_gpioirq_config->user_button_gpio))
+    {
+      printf("bkgpioirq: FAIL no valid GPIO board binding\n");
+      bk7258_gpioirq_release();
+      return -ENODEV;
+    }
+
+  BK7258_GPIOIRQ_KEY =
+    (gpio_id_t)g_bk7258_gpioirq_config->user_button_gpio;
+  if (g_bk7258_gpioirq_config->user_button_active_low)
+    {
+      BK7258_GPIOIRQ_PRESS_EDGE = GPIO_INT_TYPE_FALLING_EDGE;
+      BK7258_GPIOIRQ_RELEASE_EDGE = GPIO_INT_TYPE_RISING_EDGE;
+      BK7258_GPIOIRQ_PRESS_EDGE_NAME = "FALL";
+      BK7258_GPIOIRQ_RELEASE_EDGE_NAME = "RISE";
+      BK7258_GPIOIRQ_PRESSED_LEVEL = false;
+      BK7258_GPIOIRQ_RELEASED_LEVEL = true;
+      g_bk7258_gpioirq_key_config.pull_mode = GPIO_PULL_UP_EN;
+    }
+  else
+    {
+      BK7258_GPIOIRQ_PRESS_EDGE = GPIO_INT_TYPE_RISING_EDGE;
+      BK7258_GPIOIRQ_RELEASE_EDGE = GPIO_INT_TYPE_FALLING_EDGE;
+      BK7258_GPIOIRQ_PRESS_EDGE_NAME = "RISE";
+      BK7258_GPIOIRQ_RELEASE_EDGE_NAME = "FALL";
+      BK7258_GPIOIRQ_PRESSED_LEVEL = true;
+      BK7258_GPIOIRQ_RELEASED_LEVEL = false;
+      g_bk7258_gpioirq_key_config.pull_mode = GPIO_PULL_DOWN_EN;
+    }
+
   printf("bkgpioirq: BEGIN board=%s key=P%u gpio_s=%u/irq%u\n",
-         BK7258_BOARD_VARIANT_NAME,
+         g_bk7258_gpioirq_config->name,
          (unsigned int)BK7258_GPIOIRQ_KEY,
          (unsigned int)BK7258_GPIOIRQ_SECURE_SOURCE,
          (unsigned int)BK7258_GPIOIRQ_SECURE_IRQ);

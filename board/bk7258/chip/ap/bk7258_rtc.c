@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) RTC — NuttX rtc_lowerhalf_s wrapper.
+ * BK7258 RTC — NuttX rtc_lowerhalf_s wrapper.
  *
  * Wraps the Beken AON RTC free-running counter as a NuttX RTC lower half.
  * Epoch time is represented as an AP-local signed offset from that counter.

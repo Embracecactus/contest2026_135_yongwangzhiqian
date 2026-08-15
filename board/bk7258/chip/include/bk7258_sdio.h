@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) SDIO host controller — NuttX sdio_dev_s lower-half wrapping
+ * BK7258 SDIO host controller — NuttX sdio_dev_s lower-half wrapping
  * the official Beken bk_sdio_host_* SDK API.
  *
  * The SDIO host block is an AP-role peripheral: the 24 bk_sdio_host_* symbols
@@ -24,7 +24,6 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
-#include <stdbool.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -98,14 +97,6 @@ int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev);
  */
 
 int bk7258_sdio_get_runtime(FAR struct bk7258_sdio_runtime_s *runtime);
-
-/* Physical-board hooks.  The selected binding owns the pin group and media
- * presence policy; the generic controller lower half owns only the BK7258
- * host protocol.
- */
-
-int bk7258_board_sdio_initialize(bool widebus);
-bool bk7258_board_sdio_card_present(void);
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_SDIO */

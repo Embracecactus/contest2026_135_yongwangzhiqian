@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) on-chip Flash MTD lower-halves.
+ * BK7258 on-chip Flash MTD lower-halves.
  *
  * The data MTD covers LittleFS.  A NuttX MCUboot BL2 build can additionally
  * create two read-only MTD partitions for the physical A/B image pairs.

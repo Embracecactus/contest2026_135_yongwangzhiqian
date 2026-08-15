@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) runtime CPU-frequency switching (DVFS) -- the product-grade
+ * BK7258 runtime CPU-frequency switching (DVFS) -- the product-grade
  * equivalent of the Armino SDK runtime path
  *
  *     sys_drv_switch_cpu_bus_freq

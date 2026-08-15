@@ -17,7 +17,7 @@
 #
 
 config ARCH_CHIP_BK7258
-	bool "Beken BK7258 (T5-AI tri-core Cortex-M33)"
+	bool "Beken BK7258 tri-core Cortex-M33"
 	depends on ARCH_CHIP_CUSTOM
 	select ARCH_CORTEXM33
 	select ARCH_HAVE_TRUSTZONE
@@ -28,8 +28,8 @@ config ARCH_CHIP_BK7258
 	select ARCH_IDLE_CUSTOM
 	select MTD if BK7258_FLASH_MTD
 	---help---
-		Beken BK7258 SoC as shipped on the T5-AI board: tri-core
-		Cortex-M33.  This Stage N1 port targets a single app core that
+		Beken BK7258 tri-core Cortex-M33 SoC.  This Stage N1 port targets
+		a single app core that
 		the on-board Tier-1 bootloader (board/bk7258/bootloader)
 		jumps to at logical flash address 0x02010000 after validating
 		the app magic "BK7236\0\0" at image offset 0x100.
@@ -62,7 +62,7 @@ menu "BK7258 debug and UART pin ownership"
 config BK7258_SWD_DEBUG
 	bool "Enable the board-owned J-Link SWD route"
 	default n
-	depends on !BK7258_AP_CORE && BK7258_BOARD_T5_BOARD
+	depends on !BK7258_AP_CORE && BK7258_BOARD_HAS_SWD_ROUTE
 	---help---
 		Keep one explicit BK7258 SWD route active from BL1 through BL2, CP
 		startup and later restore boundaries.  This controls the physical
@@ -77,15 +77,15 @@ choice
 config BK7258_SWD_PINS_P20_P21
 	bool "SDK group 0: P20/P21"
 	help
-		Use P20 as SWCLK and P21 as SWDIO.  These pins also carry I2C0 and
-		T5-Board RGB LCD R6/R5, so a paired build using either function must
-		be rejected.
+		Use P20 as SWCLK and P21 as SWDIO.  These pins also carry alternate
+		I2C and display signals, so the selected board resource graph must
+		reject conflicting owners.
 
 config BK7258_SWD_PINS_P0_P1
 	bool "SDK group 1: P0/P1"
 	help
-		Use P0 as SWCLK and P1 as SWDIO.  This is the verified T5-Board
-		route and is mutually exclusive with UART1.
+		Use P0 as SWCLK and P1 as SWDIO.  This route is mutually exclusive
+		with UART1 and any selected-board device on the same pins.
 
 endchoice
 
@@ -255,8 +255,8 @@ config BK7258_UART2_PINS_P30_P31
 config BK7258_UART2_PINS_P40_P41
 	bool "P41 TX / P40 RX"
 	help
-		This alternate chip mux conflicts with the T5-Board RGB LCD G3/G4
-		and I2S2.  The paired CP/AP build validates that ownership.
+		This alternate chip mux shares P40/P41 with display and I2S2
+		functions.  The paired CP/AP resource graph validates ownership.
 
 endchoice
 
@@ -1090,8 +1090,8 @@ config BK7258_FLASH_MTD
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	select MTD
 	---help---
-		Expose the 1 MiB data partition (raw 0x00600000..0x006FFFFF)
-		as a NuttX MTD instance.  read/erase/bwrite use the
+		Expose the selected product's writable data partition as a NuttX MTD
+		instance.  read/erase/bwrite use the
 		option-A SR0 block-protect policy (cleared around each op,
 		restored afterwards).  No /dev node or filesystem is mounted
 		by this driver; a filesystem mount requires separate
@@ -1230,6 +1230,7 @@ config BK7258_GPIO_FOUNDATION_TEST
 	bool "BK7258 selected-board GPIO foundation manual test"
 	default n
 	depends on ARCH_CHIP_BK7258 && SYSTEM_NSH && !BK7258_AP_CORE
+	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	---help---
@@ -1242,6 +1243,7 @@ config BK7258_GPIO_IRQ_TEST
 	bool "BK7258 selected-board key GPIO edge IRQ manual test"
 	default n
 	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
+	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	---help---
@@ -1254,6 +1256,7 @@ config BK7258_GPIO_LOWERHALF
 	bool "BK7258 selected-board NuttX GPIO lower-half"
 	default n
 	depends on BK7258_SDK_IRQ_BRIDGE
+	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
 	select DEV_GPIO
 	---help---
 		Register the selected board's LED as /dev/gpio0 and its user key as
@@ -1312,9 +1315,9 @@ config BK7258_TOUCH_CHANNEL
 	range 0 15
 	depends on BK7258_TOUCH
 	help
-		Select one physical BK7258 touch channel.  Channel 3 maps to GPIO29,
-		which is the T5-AI USERKEY pin and is useful only in a dedicated touch
-		validation profile; do not combine it with BK7258_GPIO_LOWERHALF.
+		Select one physical BK7258 touch channel.  Channel 3 maps to GPIO29;
+		only use it when the selected board's resource contract assigns that
+		pin to touch.  Do not combine it with BK7258_GPIO_LOWERHALF.
 
 config BK7258_TOUCH_POLL_INTERVAL_MS
 	int "Touch polling interval (ms)"
@@ -1354,6 +1357,7 @@ config BK7258_AUD
 	bool "On-board analog speaker playback"
 	default n
 	depends on BK7258_PM_CLOCK
+	depends on BK7258_BOARD_HAS_AUDIO_BINDING
 	select ARCH_PERF_EVENTS
 	select BK7258_SDK_IPC_RUNTIME
 	select AUDIO
@@ -1441,20 +1445,10 @@ config BK7258_AUD_WORKER_PRIORITY
 		ordering, and the feeder must enqueue one buffer and block rather than
 		do unbounded decoding at its real-time priority.
 
-config BK7258_AUD_LIFECYCLE_VALIDATION
-	bool "Run bounded speaker playback lifecycle validation"
-	default n
-	depends on BK7258_AUD && BK7258_BOARD_T5_BOARD
-	help
-		Generate mono 1-kHz PCM in memory and exercise the public NuttX audio
-		ABI through two open/play/teardown cycles.  The validation checks DMA,
-		DAC and amplifier ownership diagnostics; audible output still requires
-		a speaker connected to the T5-Board P6 connector.
-
 config BK7258_MIC
 	bool "On-board analog microphone capture"
 	default n
-	depends on !BK7258_AUD
+	depends on !BK7258_AUD && BK7258_BOARD_HAS_MIC_BINDING
 	select BK7258_SDK_IPC_RUNTIME
 	select AUDIO
 	select AUDIO_DRIVER_SPECIFIC_BUFFERS
@@ -1586,52 +1580,6 @@ config BK7258_I2S_QUEUE_DEPTH
 	range 1 32
 	depends on BK7258_I2S
 
-config BK7258_LCD
-	bool "BK7258 RGB framebuffer with T5-Board ILI9488 panel"
-	default n
-	depends on BK7258_BOARD_T5_BOARD && BK7258_PSRAM
-	select BK7258_SDK_IPC_RUNTIME
-	select DRIVERS_VIDEO
-	select VIDEO_FB
-	help
-		Enable the BK7258 RGB controller, T5-Board physical binding and
-		ILI9488 panel driver.  A single RGB565 scanout buffer is allocated
-		from AP PSRAM and exported directly as /dev/fb0.  Other boards and
-		panels must provide their own binding instead of reusing T5-Board pins.
-
-config BK7258_LCD_VALIDATION_PATTERN
-	bool "Fill the LCD with a startup validation pattern"
-	default n
-	depends on BK7258_LCD
-	help
-		Fill /dev/fb0 with red, green, blue and white bars after framebuffer
-		registration.  This is intended only for board-level display bring-up;
-		normal applications should leave it disabled and render through fb0.
-
-config BK7258_GT1151
-	bool "T5-Board GT1151 capacitive touch panel"
-	default n
-	depends on BK7258_BOARD_T5_BOARD
-	select I2C
-	select I2C_BITBANG
-	select INPUT
-	select INPUT_GT9XX
-	help
-		Register the LCD sub-board GT1151 through NuttX's standard GT9xx
-		touchscreen driver as /dev/input0.  The T5-Board routes this bus to
-		GPIO13/GPIO15, so the board binding uses the NuttX bitbang-I2C lower
-		half rather than claiming an unsupported hardware-I2C pin mapping.
-
-config BK7258_GT1151_VALIDATION
-	bool "Continuously report GT1151 validation samples"
-	default n
-	depends on BK7258_GT1151
-	help
-		Open /dev/input0 from a kernel thread after board bring-up.  A
-		successful open proves that the product ID can be read over the real
-		T5-Board bus; subsequent touch samples are written to syslog.  This
-		option is intended for drivercheck configurations only.
-
 config BK7258_PWM
 	bool "BK7258 PWM lower half"
 	default n
@@ -1657,19 +1605,6 @@ config BK7258_PWM_CHAN
 	range 0 11
 	depends on BK7258_PWM
 
-config BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
-	bool "Cycle the T5-Board RGB LCD backlight through PWM3/P9"
-	default n
-	depends on BK7258_PWM && BK7258_BOARD_T5_BOARD
-	depends on BK7258_PWM_CHAN = 3
-	depends on !BK7258_LCD
-	help
-		Run a bounded board-level validation through the normal NuttX
-		/dev/pwm0 upper half.  The worker drives the attached RGB LCD
-		sub-board's LCD_PWM_BL input through P9/PWM3 at 1 kHz and cycles
-		100, 0, 10, 50 and 90 percent duty.  It is intended only for a
-		dedicated hardware-validation profile.
-
 config BK7258_DVP
 	bool "BK7258 DVP camera imgdata lower half"
 	default n
@@ -1684,6 +1619,21 @@ config BK7258_DVP
 		imgdata lower half; a physical-board sensor binding and
 		capture_register() call are still required before a /dev/video device
 		is published.
+
+config BK7258_DVP_BOARD_GLUE
+	bool
+	depends on BK7258_DVP
+	help
+		Internal capability selected by a physical camera binding that needs
+		the SDK sensor-I2C and MCLK compatibility wrappers.
+
+config BK7258_DVP_H264_COMPAT
+	bool
+	depends on BK7258_DVP
+	help
+		Internal v3.1.1.9 compatibility path for the reviewed DVP/H.264
+		startup ordering and standard V4L2 H.264 format translation. A board
+		binding must select this only for a matching SDK sensor pipeline.
 
 config BK7258_DMA2D
 	bool "BK7258 DMA2D graphics accelerator helper"
@@ -1842,73 +1792,10 @@ config BK7258_YUV_H264
 		through a bounded synchronous call.  The helper retains H.264 state
 		between frames so the hardware GOP is not reset on every encode.
 
-config BK7258_T5_BOARD_CAMERA
-	bool "T5-Board P10 DVP camera as /dev/video0"
-	default n
-	depends on BK7258_DVP && BK7258_BOARD_T5_BOARD && BK7258_PSRAM
-	depends on !BK7258_LCD && !BK7258_GT1151
-	help
-		Bind the T5-Board V1.0.2 P10 camera connector to the generic BK7258
-		DVP imgdata lower half and NuttX V4L2 capture upper half.  The first
-		board profile is 640x480, 30 fps MJPEG and uses PSRAM for both SDK
-		frames and V4L2 MMAP buffers.  LCD/touch are excluded because their
-		board routing overlaps the DVP data and sensor-control pins.
-
-config BK7258_T5_BOARD_CAMERA_RAW_YUV
-	bool "Expose the T5-Board camera as raw YUYV"
-	default n
-	depends on BK7258_T5_BOARD_CAMERA
-	select BK7258_PSRAM_MEDIA
-	help
-		Configure the GC2145/DVP path for 640x480 packed YUYV frames instead
-		of MJPEG.  /dev/video0 remains a standard NuttX V4L2 capture device.
-		Select this when a board media owner needs raw pixels for a hardware
-		encoder or another image-processing stage.
-
-config BK7258_T5_BOARD_CAMERA_H264
-	bool "Expose the T5-Board camera as live H.264"
-	default n
-	depends on BK7258_T5_BOARD_CAMERA && !BK7258_T5_BOARD_CAMERA_RAW_YUV
-	depends on BK7258_AP_SMP_SCHED_ONLINE
-	help
-		Configure the GC2145 and the official v3.1.1.9 DVP/YUV/H.264
-		pipeline as one live stream.  /dev/video0 advertises the standard
-		V4L2_PIX_FMT_H264 format and returns Annex-B access units.  The SDK
-		routes the H.264 interrupt to the second AP hardware core, so that
-		logical CPU must be online.
-
-		The pinned NuttX version publishes the H.264 V4L2 fourcc but omits an
-		internal imgdata H.264 token.  The BK7258 lower half contains a narrow
-		compatibility mapping for this configured instance; no NuttX source or
-		public ABI is changed.
-
-config BK7258_T5_BOARD_CAMERA_VALIDATION
-	bool "Capture one MJPEG frame during T5-Board camera bring-up"
-	default n
-	depends on BK7258_T5_BOARD_CAMERA && !BK7258_T5_BOARD_CAMERA_RAW_YUV
-	depends on !BK7258_T5_BOARD_CAMERA_H264
-	help
-		Run one bounded V4L2 USERPTR capture after /dev/video0 is
-		registered.  The validation uses a PSRAM buffer, waits at most three
-		seconds for one 640x480 MJPEG frame, checks its JPEG markers, reports
-		BKCAM PASS/FAIL through syslog, and then closes the stream.  Enable
-		this only in drivercheck profiles; normal board configurations merely
-		register the standard V4L2 device.
-
-config BK7258_T5_BOARD_CAMERA_H264_VALIDATION
-	bool "Capture one live H.264 frame during T5-Board bring-up"
-	default n
-	depends on BK7258_T5_BOARD_CAMERA_H264
-	help
-		Run one bounded V4L2 USERPTR capture after /dev/video0 is registered.
-		It keeps the GC2145/DVP/YUV/H.264 pipeline live, validates a non-empty
-		640x480 Annex-B frame, reports BKCAMH264 PASS/FAIL, and closes the
-		stream.  Enable this only in drivercheck profiles.
-
 config BK7258_USBHOST
 	bool "BK7258 native USB host controller"
 	default n
-	depends on BK7258_AP_CORE && BK7258_BOARD_T5_BOARD
+	depends on BK7258_AP_CORE && BK7258_BOARD_HAS_NATIVE_USB_HOST
 	select SCHED_HPWORK
 	select USBHOST
 	select USBHOST_HAVE_ASYNCH
@@ -1917,8 +1804,8 @@ config BK7258_USBHOST
 		Expose the BK7258 MUSB controller through NuttX's standard USB host
 		controller interface.  NuttX owns enumeration and class drivers; the
 		immutable v3.1.1.9 SDK supplies only power/PHY setup and the low-level
-		HCD pipe/URB implementation.  This option is limited to T5-Board,
-		whose USB-A connector is wired to the native host D+/D- pins and 5 V.
+		HCD pipe/URB implementation.  The option is visible only when the
+		selected board advertises a powered native-host connector.
 
 config BK7258_USBHOST_CH34X
 	bool "CH340/CH341 USB host serial class"
@@ -2009,7 +1896,7 @@ config BK7258_SARADC_VALIDATION
 config BK7258_SDIO
 	bool
 	default n
-	depends on BK7258_PM_CLOCK
+	depends on BK7258_PM_CLOCK && BK7258_BOARD_HAS_SDIO_BINDING
 	select BK7258_SDK_IPC_RUNTIME
 	select ARCH_HAVE_SDIO
 	select SCHED_HPWORK

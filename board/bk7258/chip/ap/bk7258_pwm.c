@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) PWM — NuttX pwm_lowerhalf_s lower-half wrapper.
+ * BK7258 PWM — NuttX pwm_lowerhalf_s lower-half wrapper.
  *
  * Wraps the Beken armino SDK bk_pwm_* driver (AP core only).  The
  * peripheral-complete v3.1.1.9 AP bundle exports the required controller

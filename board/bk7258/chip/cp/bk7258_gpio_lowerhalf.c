@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * NuttX GPIO lower-half devices for the T5-AI board LED and USERKEY.
+ * NuttX GPIO lower-half devices for the selected board's LED and button.
  ****************************************************************************/
 
 /****************************************************************************
@@ -22,7 +22,7 @@
 #include <nuttx/mutex.h>
 #include <nuttx/spinlock.h>
 
-#include <arch/board/board.h>
+#include <arch/chip/bk7258_gpio.h>
 
 #include <driver/gpio.h>
 #include <driver/int.h>
@@ -34,33 +34,8 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BK7258_GPIO_LED_PIN                 \
-  ((gpio_id_t)BK7258_BOARD_USER_LED_GPIO)
-#define BK7258_GPIO_KEY_PIN                 \
-  ((gpio_id_t)BK7258_BOARD_USER_BUTTON_GPIO)
 #define BK7258_GPIO_LED_MINOR               0
 #define BK7258_GPIO_KEY_MINOR               1
-#define BK7258_GPIO_LED_INACTIVE_LEVEL      \
-  (BK7258_BOARD_USER_LED_ACTIVE_HIGH == 0)
-#if BK7258_BOARD_USER_BUTTON_ACTIVE_LOW
-#  define BK7258_GPIO_KEY_DEFAULT_PINTYPE   GPIO_INTERRUPT_FALLING_PIN
-#  define BK7258_GPIO_KEY_DEFAULT_IRQ       GPIO_INT_TYPE_FALLING_EDGE
-#  define BK7258_GPIO_KEY_PULL_MODE         GPIO_PULL_UP_EN
-#else
-#  define BK7258_GPIO_KEY_DEFAULT_PINTYPE   GPIO_INTERRUPT_RISING_PIN
-#  define BK7258_GPIO_KEY_DEFAULT_IRQ       GPIO_INT_TYPE_RISING_EDGE
-#  define BK7258_GPIO_KEY_PULL_MODE         GPIO_PULL_DOWN_EN
-#endif
-#if (defined(CONFIG_BK7258_UART1) && \
-     BK7258_BOARD_USER_LED_CONSOLE_SHARED) || \
-    (defined(CONFIG_BK7258_SWD_DEBUG) && \
-     defined(CONFIG_BK7258_SWD_PINS_P0_P1) && \
-     (BK7258_BOARD_USER_LED_GPIO == 0 || \
-      BK7258_BOARD_USER_LED_GPIO == 1))
-#  define BK7258_GPIO_LED_AVAILABLE          0
-#else
-#  define BK7258_GPIO_LED_AVAILABLE          1
-#endif
 #define BK7258_GPIO_SECURE_SOURCE           INT_SRC_GPIO
 #define BK7258_GPIO_ROUTE_REG               0x44010084u
 #define BK7258_GPIO_SECURE_ROUTE_BIT        (1u << 23)
@@ -70,19 +45,6 @@
  * Compile-time Invariants
  ****************************************************************************/
 
-_Static_assert(BK7258_BOARD_USER_LED_GPIO < GPIO_NUM,
-               "board LED GPIO is outside the BK7258 GPIO range");
-_Static_assert(BK7258_BOARD_USER_BUTTON_GPIO < GPIO_NUM,
-               "board button GPIO is outside the BK7258 GPIO range");
-_Static_assert(BK7258_BOARD_USER_LED_GPIO !=
-               BK7258_BOARD_USER_BUTTON_GPIO,
-               "board LED and button GPIOs must differ");
-_Static_assert(BK7258_BOARD_USER_LED_ACTIVE_HIGH == 0 ||
-               BK7258_BOARD_USER_LED_ACTIVE_HIGH == 1,
-               "board LED polarity must be boolean");
-_Static_assert(BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 0 ||
-               BK7258_BOARD_USER_BUTTON_ACTIVE_LOW == 1,
-               "board button polarity must be boolean");
 _Static_assert(INT_SRC_GPIO == 55,
                "GPIO lower-half requires GPIO_S source 55");
 
@@ -105,6 +67,7 @@ struct bk7258_gpio_interrupt_s
   struct gpio_dev_s gpio;
   mutex_t lock;
   gpio_id_t pin;
+  bool active_low;
   volatile pin_interrupt_t callback;
   uint32_t saved_route;
   bool enabled;
@@ -133,6 +96,10 @@ static int bk7258_gpio_setdebounce(FAR struct gpio_dev_s *dev,
 static int bk7258_gpio_output_setmask(FAR struct gpio_dev_s *dev,
                                       bool enable);
 static int bk7258_gpio_key_setmask(FAR struct gpio_dev_s *dev, bool enable);
+static bool bk7258_gpio_led_available(
+  FAR const struct bk7258_gpio_config_s *config);
+static int bk7258_gpio_validate_config(
+  FAR const struct bk7258_gpio_config_s *config);
 
 /****************************************************************************
  * Private Data
@@ -167,10 +134,10 @@ static const gpio_config_t g_bk7258_gpio_led_config =
   .func_mode = GPIO_SECOND_FUNC_DISABLE,
 };
 
-static const gpio_config_t g_bk7258_gpio_key_config =
+static gpio_config_t g_bk7258_gpio_key_config =
 {
   .io_mode = GPIO_INPUT_ENABLE,
-  .pull_mode = BK7258_GPIO_KEY_PULL_MODE,
+  .pull_mode = GPIO_PULL_DISABLE,
   .func_mode = GPIO_SECOND_FUNC_DISABLE,
 };
 
@@ -187,26 +154,75 @@ static struct bk7258_gpio_output_s g_bk7258_gpio_led =
       .gp_ops = &g_bk7258_gpio_output_ops,
     },
   .lock = NXMUTEX_INITIALIZER,
-  .pin = BK7258_GPIO_LED_PIN,
+  .pin = GPIO_0,
 };
 
 static struct bk7258_gpio_interrupt_s g_bk7258_gpio_key =
 {
   .gpio =
     {
-      .gp_pintype = BK7258_GPIO_KEY_DEFAULT_PINTYPE,
+      .gp_pintype = GPIO_INTERRUPT_FALLING_PIN,
       .gp_ops = &g_bk7258_gpio_key_ops,
     },
   .lock = NXMUTEX_INITIALIZER,
-  .pin = BK7258_GPIO_KEY_PIN,
+  .pin = GPIO_0,
 };
 
 static mutex_t g_bk7258_gpio_init_lock = NXMUTEX_INITIALIZER;
 static bool g_bk7258_gpio_initialized;
+static bool g_bk7258_gpio_led_available;
+
+/* The selected binding is copied into these instances during initialization;
+ * keeping the local aliases preserves the existing devnode semantics while
+ * avoiding board-config macros in the reusable chip source.
+ */
+
+#define BK7258_GPIO_LED_PIN  (g_bk7258_gpio_led.pin)
+#define BK7258_GPIO_KEY_PIN  (g_bk7258_gpio_key.pin)
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+static bool bk7258_gpio_led_available(
+  FAR const struct bk7258_gpio_config_s *config)
+{
+#if defined(CONFIG_BK7258_UART1)
+  if (config->user_led_console_shared)
+    {
+      return false;
+    }
+#endif
+
+#if defined(CONFIG_BK7258_SWD_DEBUG) && \
+    defined(CONFIG_BK7258_SWD_PINS_P0_P1)
+  if (config->user_led_gpio == 0 || config->user_led_gpio == 1)
+    {
+      return false;
+    }
+#endif
+
+  return true;
+}
+
+static int bk7258_gpio_validate_config(
+  FAR const struct bk7258_gpio_config_s *config)
+{
+  if (config == NULL || config->version != BK7258_GPIO_BINDING_VERSION ||
+      config->size < sizeof(*config) || config->name == NULL)
+    {
+      return -ENODEV;
+    }
+
+  if (config->user_led_gpio >= GPIO_NUM ||
+      config->user_button_gpio >= GPIO_NUM ||
+      config->user_led_gpio == config->user_button_gpio)
+    {
+      return -EINVAL;
+    }
+
+  return OK;
+}
 
 static int bk7258_gpio_result(bk_err_t error)
 {
@@ -329,12 +345,14 @@ static int bk7258_gpio_open_route(
 }
 
 static int bk7258_gpio_key_interrupt_type(
-  enum gpio_pintype_e pintype, FAR gpio_int_type_t *type)
+  enum gpio_pintype_e pintype, bool active_low,
+  FAR gpio_int_type_t *type)
 {
   switch (pintype)
     {
       case GPIO_INTERRUPT_PIN:
-        *type = BK7258_GPIO_KEY_DEFAULT_IRQ;
+        *type = active_low ? GPIO_INT_TYPE_FALLING_EDGE :
+                             GPIO_INT_TYPE_RISING_EDGE;
         return OK;
 
       case GPIO_INTERRUPT_FALLING_PIN:
@@ -359,7 +377,7 @@ static void bk7258_gpio_key_isr(gpio_id_t gpio_id)
 {
   pin_interrupt_t callback;
 
-  if (gpio_id != BK7258_GPIO_KEY_PIN)
+  if (gpio_id != g_bk7258_gpio_key.pin)
     {
       return;
     }
@@ -600,7 +618,8 @@ static int bk7258_gpio_key_enable(FAR struct gpio_dev_s *dev, bool enable)
     }
 
   result = bk7258_gpio_key_interrupt_type(
-             (enum gpio_pintype_e)key->gpio.gp_pintype, &type);
+             (enum gpio_pintype_e)key->gpio.gp_pintype,
+             key->active_low, &type);
   if (result < 0)
     {
       nxmutex_unlock(&key->lock);
@@ -720,7 +739,8 @@ static int bk7258_gpio_key_setpintype(FAR struct gpio_dev_s *dev,
 
   if (pintype >= GPIO_INTERRUPT_PIN)
     {
-      result = bk7258_gpio_key_interrupt_type(pintype, &type);
+      result = bk7258_gpio_key_interrupt_type(pintype, key->active_low,
+                                              &type);
       if (result == OK)
         {
           result = bk7258_gpio_result(
@@ -779,6 +799,7 @@ static int bk7258_gpio_key_setmask(FAR struct gpio_dev_s *dev, bool enable)
 
 int bk7258_gpio_lowerhalf_initialize(void)
 {
+  FAR const struct bk7258_gpio_config_s *config;
   uint32_t saved_led = 0;
   uint32_t saved_key;
   bool led_configured = false;
@@ -799,6 +820,24 @@ int bk7258_gpio_lowerhalf_initialize(void)
       return OK;
     }
 
+  config = bk7258_board_gpio_config();
+  result = bk7258_gpio_validate_config(config);
+  if (result < 0)
+    {
+      nxmutex_unlock(&g_bk7258_gpio_init_lock);
+      return result;
+    }
+
+  g_bk7258_gpio_led.pin = (gpio_id_t)config->user_led_gpio;
+  g_bk7258_gpio_key.pin = (gpio_id_t)config->user_button_gpio;
+  g_bk7258_gpio_key.active_low = config->user_button_active_low;
+  g_bk7258_gpio_key.gpio.gp_pintype =
+    config->user_button_active_low ? GPIO_INTERRUPT_FALLING_PIN :
+                                     GPIO_INTERRUPT_RISING_PIN;
+  g_bk7258_gpio_key_config.pull_mode =
+    config->user_button_active_low ? GPIO_PULL_UP_EN : GPIO_PULL_DOWN_EN;
+  g_bk7258_gpio_led_available = bk7258_gpio_led_available(config);
+
   result = bk7258_gpio_result(bk_gpio_driver_init());
   if (result < 0)
     {
@@ -807,7 +846,7 @@ int bk7258_gpio_lowerhalf_initialize(void)
 
   saved_key = bk_gpio_get_value(BK7258_GPIO_KEY_PIN);
 
-  if (BK7258_GPIO_LED_AVAILABLE)
+  if (g_bk7258_gpio_led_available)
     {
       saved_led = bk_gpio_get_value(BK7258_GPIO_LED_PIN);
       result = bk7258_gpio_result(
@@ -819,7 +858,7 @@ int bk7258_gpio_lowerhalf_initialize(void)
         }
 
       led_configured = true;
-      error = BK7258_GPIO_LED_INACTIVE_LEVEL ?
+      error = !config->user_led_active_high ?
                 bk_gpio_set_output_high(BK7258_GPIO_LED_PIN) :
                 bk_gpio_set_output_low(BK7258_GPIO_LED_PIN);
       result = bk7258_gpio_result(error);
@@ -828,7 +867,7 @@ int bk7258_gpio_lowerhalf_initialize(void)
           goto restore;
         }
 
-      g_bk7258_gpio_led.value = BK7258_GPIO_LED_INACTIVE_LEVEL;
+      g_bk7258_gpio_led.value = !config->user_led_active_high;
     }
 
   result = bk7258_gpio_result(
@@ -854,7 +893,7 @@ int bk7258_gpio_lowerhalf_initialize(void)
       goto restore;
     }
 
-  if (BK7258_GPIO_LED_AVAILABLE)
+  if (g_bk7258_gpio_led_available)
     {
       result = gpio_pin_register(&g_bk7258_gpio_led.gpio,
                                  BK7258_GPIO_LED_MINOR);

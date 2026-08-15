@@ -9,7 +9,8 @@
 #ifndef __BK7258_BL2_ABI_H
 #define __BK7258_BL2_ABI_H
 
-#include "../../../chip/include/bk7258_partition_layout.h"
+#include "../../../chip/include/bk7258_memorymap.h"
+#include "../../../include/bk7258_partition_layout.h"
 #include "../../boot_bl2_contract.h"
 
 #define BK7258_BL2_CRC_PHYSICAL_SIZE(logical_size) \

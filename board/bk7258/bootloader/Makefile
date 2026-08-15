@@ -27,7 +27,8 @@ LDFLAGS  := $(CPUFLAGS) -T bootloader.tmp -nostdlib -Wl,--gc-sections \
 
 PARTITION_CSV := ../partitions/bk7258/auto_partitions.csv
 PARTITION_GENERATOR := ../scripts/gen_bk7258_partitions.py
-PARTITION_HEADER := ../chip/include/bk7258_partition_layout.h
+PARTITION_HEADER := ../include/bk7258_partition_layout.h
+MEMORYMAP_HEADER := ../chip/include/bk7258_memorymap.h
 BL1_CONTROL_GENERATOR := make_bk7258_bl1_control.py
 BL2_IMAGE ?= bl2/bl2.bin
 BL1_CONTROL_IMAGE ?= bl1_control.bin
@@ -191,7 +192,7 @@ BL1_CORE_OBJS := start.o boot_main.o boot_clock.o boot_runtime.o \
 
 OBJS := $(BL1_CORE_OBJS)
 
-$(OBJS): $(PARTITION_HEADER)
+$(OBJS): $(PARTITION_HEADER) $(MEMORYMAP_HEADER)
 
 .PHONY: all clean verify partition-check bl1-control FORCE
 
@@ -212,7 +213,7 @@ bl1-control: $(BL1_CONTROL_GENERATOR)
 partition-check:
 	python3 $(PARTITION_GENERATOR) --check
 
-bootloader.tmp: bootloader.ld $(PARTITION_HEADER)
+bootloader.tmp: bootloader.ld $(PARTITION_HEADER) $(MEMORYMAP_HEADER)
 	$(CC) -E -P -x c -D__LINKER__ \
 		-I../chip/include $< -o $@
 

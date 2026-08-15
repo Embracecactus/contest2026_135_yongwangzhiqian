@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) on-chip Flash MTD lower-halves — SDK wrapper.
+ * BK7258 on-chip Flash MTD lower-halves — SDK wrapper.
  *
  * Calls bk_flash_* SDK APIs.  Zero register access.
  * Exposes the 1 MiB data partition.  A NuttX MCUboot BL2 build also creates
@@ -29,7 +29,7 @@
 
 #include <nuttx/mtd/mtd.h>
 
-#include <arch/chip/bk7258_amp.h>
+#include <arch/board/bk7258_image_layout.h>
 
 #include "bk7258_flash_mtd.h"
 #include "bk7258_flash_guard.h"
@@ -73,8 +73,8 @@
 #  error "BK7258 A/B pair must map exactly to 34/32 CRC and 4 KiB MTD blocks"
 #endif
 
-/* Known compatible IDs accepted by the official driver.  The T5-AI board's
- * integrated Flash reports 0xc86517, which matches the GD25WQ64E command-set
+/* Known compatible IDs accepted by the official driver.  Reference hardware
+ * reports 0xc86517, which matches the GD25WQ64E command-set
  * identity.  This does not imply a separate board-level SPI NOR package.
  */
 

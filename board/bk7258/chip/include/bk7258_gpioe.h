@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) general-purpose multi-pin GPIO — NuttX ioexpander
+ * BK7258 general-purpose multi-pin GPIO — NuttX ioexpander
  * lower-half.
  *
  * Exposes BK7258 GPIO0..GPIO47 through the standard NuttX ioexpander

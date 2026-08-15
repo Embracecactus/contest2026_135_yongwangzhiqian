@@ -123,11 +123,6 @@ extern uint64_t bk_aon_rtc_get_us(void);
 #if !defined(CONFIG_BK7258_AP_CORE) && \
     (defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_WIFI_VNET))
 
-#define BK7258_SDK_PARTITION_SYS_RF          3u
-#define BK7258_SDK_PARTITION_SYS_NET         4u
-#define BK7258_SDK_SYS_RF_START              0x007fe000u
-#define BK7258_SDK_SYS_NET_START             0x007ff000u
-#define BK7258_SDK_DATA_PARTITION_SIZE       0x00001000u
 #define BK7258_SDK_MAC_RECORD_AREA_OFFSET    0x00000e00u
 #define BK7258_SDK_MAC_RECORD_AREA_SIZE      512u
 #define BK7258_SDK_MAC_RECORD_COUNT          51u

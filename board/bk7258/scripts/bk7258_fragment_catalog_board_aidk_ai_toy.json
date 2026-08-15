@@ -1,1 +1,1 @@
-{"id":"board_aidk_ai_toy","kind":"config-fragment","requires":["common_base"],"schema":"bk7258.composition/1","scope":"board","symbols":{}}
+{"id":"board_aidk_ai_toy","kind":"config-fragment","requires":["common_base"],"schema":"bk7258.composition/1","scope":"board","symbols":{"CONFIG_BK7258_BOARD_AIDK_AI_TOY":"y"}}

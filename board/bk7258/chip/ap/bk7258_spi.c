@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI) SPI master — NuttX spi_dev_s lower-half over the
+ * BK7258 SPI master — NuttX spi_dev_s lower-half over the
  * official Beken bk_spi_* SDK API.  Zero register access.
  *
  * Role ownership: AP only.  bk_spi_* (37 symbols) are compiled into the AP
