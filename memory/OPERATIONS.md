@@ -1,6 +1,6 @@
 # Operations
 
-Last reviewed: 2026-08-14
+Last reviewed: 2026-08-15
 
 Do not place credentials, tokens, private keys, or sensitive production data in this file.
 
@@ -27,14 +27,19 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 - USB and J-Link can power the target simultaneously. Removing only J-Link
   target power while USB remains connected does not remove BK7258 VDD and must
   not be recorded as a complete power cycle.
-- SDK workspace locations are recorded as follows:
-  - `/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9` is the active,
-    read-only BK7258 SDK source snapshot.
+- SDK workspace ownership is recorded as follows:
+  - The active read-only BK7258 SDK source snapshot is supplied explicitly by
+    `--sdk-dir` or `BK7258_SDK_SOURCE`; no developer-specific absolute path is
+    a project default.
+  - Imported runtime bundles live only under the ignored canonical directory
+    `board/bk7258/bk_idk/armino_as_lib/versions/<version>` and must be real
+    directories whose exact file sets and hashes match tracked manifests.
   - `/tmp/bk-idk-v201` is a disposable read-only checkout of Beken
     `bk_idk release/v2.0.1` (`650e754e12fe1e43c37ce2316a973668b033fd48`) for
     BK7236 secureboot source review only.
-  - `/home/lijian/project/armino/vendor_beken` is a third-party Git mirror,
-    not an official SDK implementation input.
+  - A separately supplied `vendor_beken` checkout is only a third-party
+    historical reference, not an official SDK implementation input; its host
+    path is not part of the project contract.
 - The active compatible SDK bundle remains v3.1.1.9. Matching SDK source is
   external and read-only; supply it through `BK7258_SDK_SOURCE` for source
   verification. BK7259 and v4 are retired and cannot replace it.

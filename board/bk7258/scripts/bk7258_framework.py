@@ -36,6 +36,7 @@ SDK_MANIFEST_ROOT = "board/bk7258/scripts/sdk-manifests"
 PRIVATE_MIRROR_URL = "https://github.com/Embracecactus/vendor-bk-avdk-smp.git"
 SDK_ENTRY_KINDS = frozenset({"official", "derived", "sealed-binary"})
 SDK_REQUIRED_DIRS = frozenset({"include", "config", "libs"})
+RETIRED_REPOSITORY_ROOTS = ("board/bk7258_t5ai",)
 TOKEN_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 SDK_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 ID_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
@@ -148,6 +149,9 @@ def relative_path(value: Any, field: str) -> str:
     parts = value.split("/")
     if any(part in {"", ".", ".."} for part in parts):
         raise FrameworkError(f"unsafe repository path in {field}")
+    if any(value == root or value.startswith(root + "/")
+           for root in RETIRED_REPOSITORY_ROOTS):
+        raise FrameworkError(f"retired repository path in {field}")
     return value
 
 
@@ -2789,7 +2793,7 @@ def cli(argv: list[str] | None = None) -> int:
             matches = [item for item in registry["entries"] if item["id"] == entry_id]
             if len(matches) != 1:
                 raise FrameworkError(f"SDK registry entry is not exactly one: {entry_id}")
-            result = verify_sdk_bundle(root, matches[0], args.bundle_dir.resolve())
+            result = verify_sdk_bundle(root, matches[0], args.bundle_dir.absolute())
             write_new_json(args.out, sdk_import_receipt(matches[0], result))
             print(f"bk7258-sdk: IMPORT VERIFIED {entry_id} files={result['file_count']}")
         elif args.command in {"sdk-verify", "verify-sdk"}:
@@ -2822,7 +2826,7 @@ def cli(argv: list[str] | None = None) -> int:
                 if role == "bl2":
                     raise FrameworkError("BL2 has no SDK bundle to verify")
                 entry = by_id[lock["roles"][role]["registry_id"]]
-                verify_sdk_bundle(root, entry, bundle_dir.resolve())
+                verify_sdk_bundle(root, entry, bundle_dir.absolute())
             print(f"bk7258-sdk: VERIFY PASS set={sdk_set['id']} lock={lock['id']}")
         elif args.command in {"layer-check", "ownership-check", "migration-check",
                               "resource-check", "graph-check", "resource-resolve", "graph-resolve"}:

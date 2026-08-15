@@ -1,6 +1,6 @@
 # Project Rules
 
-Last reviewed: 2026-08-14
+Last reviewed: 2026-08-15
 
 ## Domain invariants
 
@@ -31,6 +31,10 @@ Last reviewed: 2026-08-14
 
 ## Permissions and ownership
 
+- After a change is merged, all new contest development starts from the main
+  contest repository's latest `dev-ai-contest-2026`.  Do not continue
+  development on an already merged fork branch or auxiliary worktree; a fork
+  is publication transport only when the contest workflow requires it.
 - Temporary diagnostic edits to official trees are allowed only for debugging and must be removed before a checkpoint.
 - Do not commit, push, open a PR, flash a destructive factory image, or mutate external repositories unless the user grants the corresponding authority.
 - The owner grants the primary agent standing authority for bounded,
@@ -98,6 +102,11 @@ Last reviewed: 2026-08-14
 
 - Never record passwords, tokens, private keys, session cookies, or personal data in repository memory.
 - Proprietary SDK archives remain ignored and must not be redistributed; only manifests/provenance metadata are versioned.
+- Local BK7258 SDK bundles live only under the ignored canonical
+  `board/bk7258/bk_idk/armino_as_lib/versions` store as real directories.
+  Active tooling must reject bundle symlinks and the retired
+  `board/bk7258_t5ai` source root; SDK source locations are explicit host
+  inputs, never repository defaults.
 - Do not claim secure BLE, power-loss safety, cache coherency, or production SLA without a dedicated accepted stage and evidence.
 - N17-S may claim signed OTA publisher authentication and software downgrade
   prevention only after its implementation gates pass. Until BootROM secure
