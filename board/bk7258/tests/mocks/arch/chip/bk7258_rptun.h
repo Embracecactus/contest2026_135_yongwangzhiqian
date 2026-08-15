@@ -11,6 +11,10 @@
 
 #include <stdint.h>
 
+#ifdef TEST_BK7258_RPTUN_CORE
+#  include <stddef.h>
+#endif
+
 #define BK7258_RPTUN_MBOX_COMMAND        0xb9u
 #define BK7258_RPTUN_MBOX_DATA_LENGTH    16u
 #define BK7258_RPTUN_MBOX_LOGICAL_INDEX  14u
@@ -59,5 +63,46 @@ struct bk7258_rptun_control_s
 };
 
 volatile struct bk7258_rptun_control_s *bk7258_rptun_control(void);
+
+#ifdef TEST_BK7258_RPTUN_CORE
+
+#define BK7258_RPTUN_CONTROL_MAGIC        0x54505242u
+#define BK7258_RPTUN_CONTROL_VERSION      1u
+
+#define BK7258_RPTUN_NOTIFY_VRING0        (1u << 0)
+#define BK7258_RPTUN_NOTIFY_VRING1        (1u << 1)
+#define BK7258_RPTUN_NOTIFY_ALL           (1u << 31)
+
+#define BK7258_RPTUN_FLAG_CONNECTED_ONCE  (1u << 14)
+#define BK7258_RPTUN_FLAG_AP_CORE_READY   (1u << 5)
+
+#define BK7258_RPTUN_VRING_COUNT          2u
+#define BK7258_RPTUN_VRING_ALIGN          16u
+#define BK7258_RPTUN_VRING_NUM            8u
+#define BK7258_RPTUN_BUFFER_SIZE          64u
+
+extern unsigned char g_mock_rptun_resource[];
+extern unsigned char g_mock_rptun_carveout[];
+
+#define BK7258_RPTUN_RESOURCE_ADDR \
+  ((uintptr_t)g_mock_rptun_resource)
+#define BK7258_RPTUN_CARVEOUT_ADDR \
+  ((uintptr_t)g_mock_rptun_carveout)
+#define BK7258_RPTUN_CARVEOUT_SIZE        1024u
+
+enum bk7258_rptun_control_state_e
+{
+  BK7258_RPTUN_STATE_OFFLINE = 0,
+  BK7258_RPTUN_STATE_PREPARING,
+  BK7258_RPTUN_STATE_TABLE_READY,
+  BK7258_RPTUN_STATE_CONNECTING,
+  BK7258_RPTUN_STATE_CONNECTED,
+  BK7258_RPTUN_STATE_QUIESCING,
+  BK7258_RPTUN_STATE_FAULTED
+};
+
+void bk7258_rptun_mark_connected(void);
+
+#endif /* TEST_BK7258_RPTUN_CORE */
 
 #endif /* __MOCK_ARCH_CHIP_BK7258_RPTUN_H */

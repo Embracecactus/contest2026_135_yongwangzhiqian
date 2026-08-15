@@ -577,6 +577,84 @@ if [[ "${CP_CONFIG_NAME}" == "${BK7258_AUDIO_DAC_VALIDATION_CP}" ||
     fi
 fi
 
+# This pair is the bounded standard-V4L2 JPEG M2M validator.  Stable profile
+# names catch a compat-token downgrade, while the v1 token protects renamed
+# copies.  Keep this board/profile contract independent of the chip-generic
+# JPEG decoder and M2M feature symbols so other boards can reuse the driver.
+
+BK7258_JPEG_M2M_VALIDATION_COMPAT=t5_board_jpeg_m2m_validation_mcuboot_v1
+BK7258_JPEG_M2M_VALIDATION_CP=t5_board_cp_jpeg_m2m_validation_mcuboot
+BK7258_JPEG_M2M_VALIDATION_AP=t5_board_ap_jpeg_m2m_validation_mcuboot
+if [[ "${CP_CONFIG_NAME}" == "${BK7258_JPEG_M2M_VALIDATION_CP}" ||
+      "${AP_CONFIG_NAME}" == "${BK7258_JPEG_M2M_VALIDATION_AP}" ||
+      "${CP_PROFILE_COMPAT}" == "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ||
+      "${AP_PROFILE_COMPAT}" == "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ]]; then
+    if [[ "${CP_PROFILE_COMPAT}" != "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ||
+          "${AP_PROFILE_COMPAT}" != "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ||
+          "${CP_PROFILE_BOARD}" != t5_board ||
+          "${AP_PROFILE_BOARD}" != t5_board ||
+          "${CP_PROFILE_BOOT}" != mcuboot ||
+          "${AP_PROFILE_BOOT}" != mcuboot ||
+          "${CP_PROFILE_CLASS}" != validation ||
+          "${AP_PROFILE_CLASS}" != validation ]] ||
+       ! config_enabled "${CP_CONFIG}" BK7258_AP_AUTOSTART ||
+       ! config_enabled "${CP_CONFIG}" BK7258_AP_CONTROL ||
+       ! config_enabled "${CP_CONFIG}" BK7258_CONSOLE_UART0 ||
+       ! config_enabled "${CP_CONFIG}" BK7258_RPTUN ||
+       ! config_enabled "${CP_CONFIG}" BK7258_SDK_IPC_RUNTIME ||
+       ! config_enabled "${CP_CONFIG}" BK7258_SWD_DEBUG ||
+       config_enabled "${CP_CONFIG}" BK7258_SWD_PINS_P20_P21 ||
+       config_enabled "${CP_CONFIG}" BK7258_SWD_TARGET_AP0 ||
+       config_enabled "${CP_CONFIG}" BK7258_SWD_TARGET_AP1 ||
+       config_disabled "${CP_CONFIG}" BK7258_SWD_BOOT_HOLD ||
+       ! config_enabled "${AP_CONFIG}" BK7258_JPEG_DECODER ||
+       ! config_enabled "${AP_CONFIG}" BK7258_JPEG_M2M ||
+       ! config_enabled "${AP_CONFIG}" BK7258_JPEG_M2M_VALIDATION ||
+       ! config_enabled "${AP_CONFIG}" BK7258_RPTUN ||
+       [[ "$(config_value "${AP_CONFIG}" BK7258_JPEG_M2M_DEVPATH \
+             '"/dev/video1"')" != '"/dev/video1"' ]] ||
+       ! grep -qx 'CONFIG_BK7258_JPEG_M2M_DEFAULT_WIDTH=32' \
+           "${AP_CONFIG}/defconfig" ||
+       ! grep -qx 'CONFIG_BK7258_JPEG_M2M_DEFAULT_HEIGHT=16' \
+           "${AP_CONFIG}/defconfig" ||
+       ! grep -qx 'CONFIG_BK7258_JPEG_M2M_MAX_WIDTH=32' \
+           "${AP_CONFIG}/defconfig" ||
+       ! grep -qx 'CONFIG_BK7258_JPEG_M2M_MAX_HEIGHT=16' \
+           "${AP_CONFIG}/defconfig" ||
+       ! grep -qx 'CONFIG_BK7258_JPEG_M2M_MAX_INPUT_SIZE=4096' \
+           "${AP_CONFIG}/defconfig"; then
+        printf '%s\n' \
+            'build_dual_image: JPEG M2M validation requires the complete v1 MCUboot validation pair' >&2
+        exit 2
+    fi
+
+    for symbol in BK7258_FLASH_LITTLEFS BK7258_FLASH_MTD \
+                  BK7258_GPIO_LOWERHALF BK7258_SARADC_SERVER \
+                  BK7258_TEMPERATURE BK7258_WIFI_VNET BK7258_BT_IPC \
+                  BK7258_RPMSGFS BK7258_PM_COORDINATED_STANDBY; do
+        if config_enabled "${CP_CONFIG}" "${symbol}"; then
+            printf 'build_dual_image: JPEG M2M validation CP must not enable %s\n' \
+                "${symbol}" >&2
+            exit 2
+        fi
+    done
+
+    for symbol in BK7258_DVP BK7258_T5_BOARD_CAMERA \
+                  BK7258_T5_BOARD_CAMERA_RAW_YUV \
+                  BK7258_T5_BOARD_CAMERA_H264 \
+                  BK7258_T5_BOARD_CAMERA_VALIDATION \
+                  BK7258_T5_BOARD_CAMERA_H264_VALIDATION BK7258_LCD \
+                  BK7258_DMA2D BK7258_JPEG_ENCODER BK7258_YUV_H264 \
+                  BK7258_SCALE_ROTATE BK7258_PSRAM \
+                  BK7258_PM_COORDINATED_STANDBY; do
+        if config_enabled "${AP_CONFIG}" "${symbol}"; then
+            printf 'build_dual_image: JPEG M2M validation AP must not enable %s\n' \
+                "${symbol}" >&2
+            exit 2
+        fi
+    done
+fi
+
 if [[ "${BK7258_PROFILE_CHECK_ONLY}" == YES ]]; then
     printf 'build_dual_image: profile PASS board=%s boot=%s compat=%s cp=%s ap=%s cp_sdk=%s ap_sdk=%s\n' \
         "${CP_PROFILE_BOARD}" "${CP_PROFILE_BOOT}" \
@@ -953,6 +1031,26 @@ build_config "${CP_CONFIG}"
 
 save_role cp app.bin app_crc.bin
 
+# The SWD route, target and hold are Kconfig defaults, so savedefconfig removes
+# their explicit selectors.  The source-profile gate above rejects every
+# non-default override; bind the contract to the resolved CP configuration as
+# well so a future Kconfig-default change fails before signing or packaging.
+
+if [[ "${CP_CONFIG_NAME}" == "${BK7258_JPEG_M2M_VALIDATION_CP}" ||
+      "${AP_CONFIG_NAME}" == "${BK7258_JPEG_M2M_VALIDATION_AP}" ||
+      "${CP_PROFILE_COMPAT}" == "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ||
+      "${AP_PROFILE_COMPAT}" == "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ]]; then
+    for symbol in BK7258_SWD_DEBUG BK7258_SWD_PINS_P0_P1 \
+                  BK7258_SWD_TARGET_CP BK7258_SWD_BOOT_HOLD; do
+        if ! grep -qx "CONFIG_${symbol}=y" \
+            "${TMPDIR}/nuttx-cp.config"; then
+            printf 'build_dual_image: JPEG M2M resolved CP config lacks %s\n' \
+                "${symbol}" >&2
+            exit 2
+        fi
+    done
+fi
+
 if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     printf '%s\n' "build_dual_image: signing CP/AP with pinned NuttX MCUboot imgtool"
     cp "${TMPDIR}/app.bin" "${TMPDIR}/cp-raw.bin"
@@ -1104,6 +1202,50 @@ require_map_symbol_owner()
         exit 1
     fi
 }
+
+if config_enabled "${AP_CONFIG}" BK7258_JPEG_M2M; then
+    command -v arm-none-eabi-nm >/dev/null 2>&1 || {
+        printf '%s\n' \
+            'build_dual_image: arm-none-eabi-nm is required for JPEG M2M ELF gates' >&2
+        exit 1
+    }
+
+    for symbol in bk7258_jpeg_m2m_register \
+                  bk7258_jpeg_decoder_initialize codec_register \
+                  bk_jpeg_decode_hw_decode bk_jpeg_dec_hw_start; do
+        require_elf_symbol "${OUTPUT}/nuttx-ap.elf" "${symbol}"
+    done
+
+    require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" \
+        bk7258_jpeg_m2m_register \
+        'staging/libarch.a(bk7258_jpeg_m2m.o)'
+    require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" \
+        bk7258_jpeg_decoder_initialize \
+        'staging/libarch.a(bk7258_jpeg_decoder.o)'
+    require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" codec_register \
+        'staging/libdrivers.a(v4l2_m2m.o)'
+    require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" \
+        bk_jpeg_decode_hw_decode \
+        "versions/${AP_SDK_BUNDLE_VERSION}/ap/libs/libbk_jpeg_decoder.a(bk_jpeg_decode_hw.c.obj)"
+    require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" bk_jpeg_dec_hw_start \
+        "versions/${AP_SDK_BUNDLE_VERSION}/ap/libs/libdriver.a(jpeg_dec_driver.c.obj)"
+fi
+
+if config_enabled "${AP_CONFIG}" BK7258_JPEG_M2M_VALIDATION; then
+    for symbol in bk7258_jpeg_m2m_validation_start \
+                  g_bk7258_jpeg_m2m_validation_diag; do
+        require_elf_symbol "${OUTPUT}/nuttx-ap.elf" "${symbol}"
+    done
+
+    require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" \
+        bk7258_jpeg_m2m_validation_start \
+        'staging/libarch.a(bk7258_jpeg_m2m_validation.o)'
+
+    for symbol in bk7258_dma2d_initialize bk7258_dvp_initialize \
+                  bk7258_jpeg_encoder_initialize bk7258_lcd_initialize; do
+        forbid_elf_symbol "${OUTPUT}/nuttx-ap.elf" "${symbol}"
+    done
+fi
 
 if config_enabled "${AP_CONFIG}" BK7258_AUD_LIFECYCLE_VALIDATION ||
    config_enabled "${AP_CONFIG}" BK7258_AUD_DAC_EQ; then

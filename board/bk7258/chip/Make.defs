@@ -423,6 +423,12 @@ endif
 ifeq ($(CONFIG_BK7258_JPEG_DECODER),y)
 BK7258_AP_BASE_CSRCS += bk7258_jpeg_decoder.c
 endif
+ifeq ($(CONFIG_BK7258_JPEG_M2M),y)
+BK7258_AP_BASE_CSRCS += bk7258_jpeg_m2m.c
+endif
+ifeq ($(CONFIG_BK7258_JPEG_M2M_VALIDATION),y)
+BK7258_AP_BASE_CSRCS += bk7258_jpeg_m2m_validation.c
+endif
 ifeq ($(CONFIG_BK7258_JPEG_ENCODER),y)
 BK7258_AP_BASE_CSRCS += bk7258_jpeg_encoder.c
 endif

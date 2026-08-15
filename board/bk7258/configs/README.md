@@ -61,6 +61,7 @@ image.
 | on-die temperature validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_temperature_validation_mcuboot` | MCUboot, validation |
 | speaker DAC + private hardware-EQ zero-bank register lifecycle and one-shot standby validation | `t5_board_cp_audio_dac_validation_mcuboot` | `t5_board_ap_audio_dac_validation_mcuboot` | MCUboot, validation |
 | SARADC ADC-key lifecycle validation | `t5_board_cp_saradc_key_validation_mcuboot` | `t5_board_ap_saradc_key_validation_mcuboot` | MCUboot, interactive validation |
+| JPEG-to-YUYV V4L2 M2M bounded USERPTR board validation | `t5_board_cp_jpeg_m2m_validation_mcuboot` | `t5_board_ap_jpeg_m2m_validation_mcuboot` | MCUboot, validation |
 | Wi-Fi | `t5_board_cp_wifi_mcuboot` | `t5_board_ap_wifi_mcuboot` | MCUboot, runnable |
 | compile-only driver coverage | `t5_board_cp_drivercheck` | `t5_board_ap_drivercheck` | raw, CI only |
 
