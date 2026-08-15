@@ -46,7 +46,14 @@
 #define BDACVAL_TONE_AMPLITUDE       4096
 
 #define BDACVAL_MAGIC                0x56434442u /* "BDCV" */
-#define BDACVAL_VERSION              5u
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+#  define BDACVAL_VERSION            6u
+#  define BDACVAL_EQ_REJECTS_PER_CYCLE 8u
+#  define BDACVAL_EQ_CONFIGS_PER_CYCLE 2u
+#  define BDACVAL_EQ_READBACKS_PER_CYCLE 2u
+#else
+#  define BDACVAL_VERSION            5u
+#endif
 #define BDACVAL_RUNNING              1u
 #define BDACVAL_PASSED               2u
 #define BDACVAL_FAILED               3u
@@ -63,6 +70,9 @@ enum bdacval_stage_e
   BDACVAL_STAGE_OPEN,
   BDACVAL_STAGE_CAPS,
   BDACVAL_STAGE_RESERVE,
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  BDACVAL_STAGE_EQ_CONFIG,
+#endif
   BDACVAL_STAGE_CONFIGURE,
   BDACVAL_STAGE_BUFFER_INFO,
   BDACVAL_STAGE_MESSAGE_QUEUE,
@@ -169,7 +179,32 @@ struct bdacval_diag_s
   uint32_t first_underrun_consume_sequence;
   uint32_t first_underrun_produce_sequence;
   uint32_t first_underrun_cpu;
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  uint32_t eq_pre_reserve_rejects;
+  uint32_t eq_invalid_rejects;
+  uint32_t eq_runtime_rejects;
+  uint32_t expected_eq_config_hash;
+  uint32_t driver_eq_shadow_valid;
+  uint32_t driver_eq_requested;
+  uint32_t driver_eq_applied;
+  uint32_t driver_eq_config_delta;
+  uint32_t driver_eq_apply_delta;
+  uint32_t driver_eq_deconfig_delta;
+  uint32_t driver_eq_reject_delta;
+  uint32_t driver_eq_readback_delta;
+  uint32_t driver_eq_readback_fail_delta;
+  uint32_t driver_eq_last_config_hash;
+#endif
 };
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+_Static_assert(sizeof(struct bdacval_diag_s) == 0x1b4,
+               "BK7258 AUD EQ validation diagnostic v6 ABI changed");
+#else
+_Static_assert(sizeof(struct bdacval_diag_s) == 0x17c,
+               "BK7258 AUD validation diagnostic v5 ABI changed");
+#endif
 
 struct bdacval_cycle_s
 {
@@ -210,6 +245,271 @@ static int bdacval_errno(void)
 {
   return errno > 0 ? -errno : -EIO;
 }
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+
+static uint32_t
+bdacval_eq_hash(const struct bk7258_aud_eq_config_s *config)
+{
+  const uint8_t *bytes = (const uint8_t *)config;
+  uint32_t hash = 2166136261u;
+  unsigned int i;
+
+  for (i = 0; i < sizeof(*config); i++)
+    {
+      hash ^= bytes[i];
+      hash *= 16777619u;
+    }
+
+  return hash;
+}
+
+static void
+bdacval_eq_init_config(struct bk7258_aud_eq_config_s *config,
+                       bool boundary_pattern)
+{
+  static const int32_t pattern[BK7258_AUD_EQ_COEFF_COUNT] =
+    {
+      BK7258_AUD_EQ_COEFF_MIN,
+      BK7258_AUD_EQ_COEFF_MAX,
+      -1,
+      1,
+      0x12345
+    };
+  unsigned int coefficient;
+  unsigned int bank;
+
+  memset(config, 0, sizeof(*config));
+  config->version = BK7258_AUD_EQ_CONFIG_VERSION;
+  config->size = sizeof(*config);
+  config->flags = BK7258_AUD_EQ_FLAG_ENABLE;
+
+  if (boundary_pattern)
+    {
+      for (bank = 0; bank < BK7258_AUD_EQ_BANK_COUNT; bank++)
+        {
+          for (coefficient = 0;
+               coefficient < BK7258_AUD_EQ_COEFF_COUNT;
+               coefficient++)
+            {
+              config->coeff[bank][coefficient] = pattern[coefficient];
+            }
+        }
+    }
+}
+
+static int
+bdacval_eq_expect_reject(int fd, unsigned long arg, int expected_errno,
+                         volatile uint32_t *counter)
+{
+  int ret;
+
+  errno = 0;
+  ret = ioctl(fd, BK7258_AUDIOIOC_SET_DAC_EQ, arg);
+  if (ret >= 0 || errno != expected_errno)
+    {
+      return -EPROTO;
+    }
+
+  (*counter)++;
+  return OK;
+}
+
+static int bdacval_eq_pre_reserve(int fd)
+{
+  struct bk7258_aud_eq_config_s config;
+
+  bdacval_eq_init_config(&config, false);
+  return bdacval_eq_expect_reject(
+    fd, (unsigned long)(uintptr_t)&config, EACCES,
+    &g_bk7258_aud_validation_diag.eq_pre_reserve_rejects);
+}
+
+static int bdacval_eq_configure_reserved(int fd)
+{
+  struct bk7258_aud_eq_config_s config;
+  struct bk7258_aud_diag_s before;
+  struct bk7258_aud_diag_s after;
+  uint32_t boundary_hash;
+  uint32_t safe_hash;
+  int ret;
+
+  ret = bk7258_aud_get_diag(&before);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bdacval_eq_expect_reject(
+    fd, 0, EINVAL,
+    &g_bk7258_aud_validation_diag.eq_invalid_rejects);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  bdacval_eq_init_config(&config, false);
+  config.version++;
+  ret = bdacval_eq_expect_reject(
+    fd, (unsigned long)(uintptr_t)&config, EINVAL,
+    &g_bk7258_aud_validation_diag.eq_invalid_rejects);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  bdacval_eq_init_config(&config, false);
+  config.size -= sizeof(uint32_t);
+  ret = bdacval_eq_expect_reject(
+    fd, (unsigned long)(uintptr_t)&config, EINVAL,
+    &g_bk7258_aud_validation_diag.eq_invalid_rejects);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  bdacval_eq_init_config(&config, false);
+  config.flags |= 1u << 1;
+  ret = bdacval_eq_expect_reject(
+    fd, (unsigned long)(uintptr_t)&config, EINVAL,
+    &g_bk7258_aud_validation_diag.eq_invalid_rejects);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  bdacval_eq_init_config(&config, false);
+  config.coeff[0][0] = BK7258_AUD_EQ_COEFF_MIN - 1;
+  ret = bdacval_eq_expect_reject(
+    fd, (unsigned long)(uintptr_t)&config, ERANGE,
+    &g_bk7258_aud_validation_diag.eq_invalid_rejects);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  bdacval_eq_init_config(&config, false);
+  config.coeff[0][0] = BK7258_AUD_EQ_COEFF_MAX + 1;
+  ret = bdacval_eq_expect_reject(
+    fd, (unsigned long)(uintptr_t)&config, ERANGE,
+    &g_bk7258_aud_validation_diag.eq_invalid_rejects);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_aud_get_diag(&after);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (after.eq_config_count != before.eq_config_count ||
+      after.eq_reject_count - before.eq_reject_count != 6 ||
+      after.eq_shadow_valid != before.eq_shadow_valid ||
+      after.eq_requested != before.eq_requested ||
+      after.eq_applied != before.eq_applied ||
+      after.eq_last_config_hash != before.eq_last_config_hash ||
+      after.eq_readback_count != before.eq_readback_count ||
+      after.eq_readback_fail_count != before.eq_readback_fail_count ||
+      (after.resources & BK7258_AUD_RESOURCE_EQ) != 0)
+    {
+      return -EPROTO;
+    }
+
+  bdacval_eq_init_config(&config, true);
+  boundary_hash = bdacval_eq_hash(&config);
+  if (ioctl(fd, BK7258_AUDIOIOC_SET_DAC_EQ,
+            (unsigned long)(uintptr_t)&config) < 0)
+    {
+      return bdacval_errno();
+    }
+
+  memset(&config, 0xa5, sizeof(config));
+  ret = bk7258_aud_get_diag(&after);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (after.eq_config_count != before.eq_config_count + 1 ||
+      after.eq_shadow_valid != 1 || after.eq_requested != 1 ||
+      after.eq_applied != 0 ||
+      after.eq_last_config_hash != boundary_hash ||
+      (after.resources & BK7258_AUD_RESOURCE_EQ) != 0)
+    {
+      return -EPROTO;
+    }
+
+  /* Only the canonical all-zero raw banks reach the running DAC.  This
+   * validates enable-bit and zero-bank apply/readback/deconfigure lifecycle
+   * without proving nonzero bank packing, Q format, pass-through response or
+   * coefficient stability.
+   */
+
+  bdacval_eq_init_config(&config, false);
+  safe_hash = bdacval_eq_hash(&config);
+  if (ioctl(fd, BK7258_AUDIOIOC_SET_DAC_EQ,
+            (unsigned long)(uintptr_t)&config) < 0)
+    {
+      return bdacval_errno();
+    }
+
+  g_bk7258_aud_validation_diag.expected_eq_config_hash = safe_hash;
+  ret = bk7258_aud_get_diag(&after);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (after.eq_config_count != before.eq_config_count + 2 ||
+      after.eq_reject_count - before.eq_reject_count != 6 ||
+      after.eq_shadow_valid != 1 || after.eq_requested != 1 ||
+      after.eq_applied != 0 || after.eq_last_config_hash != safe_hash ||
+      after.eq_readback_count != before.eq_readback_count ||
+      after.eq_readback_fail_count != before.eq_readback_fail_count ||
+      (after.resources & BK7258_AUD_RESOURCE_EQ) != 0)
+    {
+      return -EPROTO;
+    }
+
+  return OK;
+}
+
+static int bdacval_eq_expect_running(int fd)
+{
+  struct bk7258_aud_eq_config_s config;
+  struct bk7258_aud_diag_s diag;
+  int ret;
+
+  bdacval_eq_init_config(&config, false);
+  ret = bdacval_eq_expect_reject(
+    fd, (unsigned long)(uintptr_t)&config, EBUSY,
+    &g_bk7258_aud_validation_diag.eq_runtime_rejects);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_aud_get_diag(&diag);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (diag.eq_shadow_valid != 1 || diag.eq_requested != 1 ||
+      diag.eq_applied != 1 ||
+      diag.eq_last_config_hash !=
+        g_bk7258_aud_validation_diag.expected_eq_config_hash ||
+      (diag.resources & BK7258_AUD_RESOURCE_EQ) == 0)
+    {
+      return -EPROTO;
+    }
+
+  return OK;
+}
+
+#endif /* CONFIG_BK7258_AUD_DAC_EQ */
 
 static void bdacval_sample_monotonic(void)
 {
@@ -593,6 +893,15 @@ static int bdacval_cycle(uint32_t cycle_number)
       goto out;
     }
 
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  bdacval_set_stage(BDACVAL_STAGE_EQ_CONFIG);
+  ret = bdacval_eq_pre_reserve(fd);
+  if (ret < 0)
+    {
+      goto out;
+    }
+#endif
+
   bdacval_set_stage(BDACVAL_STAGE_RESERVE);
   cleanup_required = true;
   bdacval_sample_monotonic();
@@ -605,6 +914,15 @@ static int bdacval_cycle(uint32_t cycle_number)
   bdacval_sample_monotonic();
 
   reserved = true;
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  bdacval_set_stage(BDACVAL_STAGE_EQ_CONFIG);
+  ret = bdacval_eq_configure_reserved(fd);
+  if (ret < 0)
+    {
+      goto out;
+    }
+#endif
+
   memset(&caps, 0, sizeof(caps));
   caps.caps.ac_len = sizeof(caps.caps);
   caps.caps.ac_type = AUDIO_TYPE_OUTPUT;
@@ -703,6 +1021,15 @@ static int bdacval_cycle(uint32_t cycle_number)
       g_bk7258_aud_validation_diag.start_ioctl_ticks[cycle_number - 1] =
         bdacval_tick_delta(stream_start_tick, start_ioctl_tick);
     }
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  bdacval_set_stage(BDACVAL_STAGE_EQ_CONFIG);
+  ret = bdacval_eq_expect_running(fd);
+  if (ret < 0)
+    {
+      goto out;
+    }
+#endif
 
   bdacval_deadline(&deadline, BDACVAL_TIMEOUT_SEC);
 
@@ -843,6 +1170,16 @@ static int bdacval_cycle(uint32_t cycle_number)
       ret = -EPROTO;
       goto out;
     }
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  if (driver_diag.eq_shadow_valid != 0 ||
+      driver_diag.eq_requested != 0 || driver_diag.eq_applied != 0 ||
+      (driver_diag.resources & BK7258_AUD_RESOURCE_EQ) != 0)
+    {
+      ret = -EPROTO;
+      goto out;
+    }
+#endif
 
   if (ioctl(fd, AUDIOIOC_UNREGISTERMQ, (unsigned long)mq) < 0)
     {
@@ -1091,6 +1428,28 @@ static void bdacval_publish_driver_delta(
     after->first_underrun_produce_sequence;
   g_bk7258_aud_validation_diag.first_underrun_cpu =
     after->first_underrun_cpu;
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  g_bk7258_aud_validation_diag.driver_eq_shadow_valid =
+    after->eq_shadow_valid;
+  g_bk7258_aud_validation_diag.driver_eq_requested =
+    after->eq_requested;
+  g_bk7258_aud_validation_diag.driver_eq_applied =
+    after->eq_applied;
+  g_bk7258_aud_validation_diag.driver_eq_config_delta =
+    after->eq_config_count - before->eq_config_count;
+  g_bk7258_aud_validation_diag.driver_eq_apply_delta =
+    after->eq_apply_count - before->eq_apply_count;
+  g_bk7258_aud_validation_diag.driver_eq_deconfig_delta =
+    after->eq_deconfig_count - before->eq_deconfig_count;
+  g_bk7258_aud_validation_diag.driver_eq_reject_delta =
+    after->eq_reject_count - before->eq_reject_count;
+  g_bk7258_aud_validation_diag.driver_eq_readback_delta =
+    after->eq_readback_count - before->eq_readback_count;
+  g_bk7258_aud_validation_diag.driver_eq_readback_fail_delta =
+    after->eq_readback_fail_count - before->eq_readback_fail_count;
+  g_bk7258_aud_validation_diag.driver_eq_last_config_hash =
+    after->eq_last_config_hash;
+#endif
 }
 
 static int bdacval_check_driver(
@@ -1112,6 +1471,17 @@ static int bdacval_check_driver(
     {
       return -EPROTO;
     }
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  if (after->eq_shadow_valid != 0 || after->eq_requested != 0 ||
+      after->eq_applied != 0 ||
+      (after->resources & BK7258_AUD_RESOURCE_EQ) != 0 ||
+      after->eq_last_config_hash !=
+        g_bk7258_aud_validation_diag.expected_eq_config_hash)
+    {
+      return -EPROTO;
+    }
+#endif
 
   if (g_bk7258_aud_validation_diag.driver_enqueue_delta == 0 ||
       g_bk7258_aud_validation_diag.driver_enqueue_delta !=
@@ -1163,6 +1533,34 @@ static int bdacval_check_driver(
     {
       return -EPROTO;
     }
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  if (g_bk7258_aud_validation_diag.eq_pre_reserve_rejects !=
+        BDACVAL_CYCLES ||
+      g_bk7258_aud_validation_diag.eq_invalid_rejects !=
+        6u * BDACVAL_CYCLES ||
+      g_bk7258_aud_validation_diag.eq_runtime_rejects !=
+        BDACVAL_CYCLES ||
+      g_bk7258_aud_validation_diag.driver_eq_config_delta !=
+        BDACVAL_EQ_CONFIGS_PER_CYCLE * BDACVAL_CYCLES ||
+      g_bk7258_aud_validation_diag.driver_eq_apply_delta !=
+        BDACVAL_CYCLES ||
+      g_bk7258_aud_validation_diag.driver_eq_deconfig_delta !=
+        BDACVAL_CYCLES ||
+      g_bk7258_aud_validation_diag.driver_eq_reject_delta !=
+        BDACVAL_EQ_REJECTS_PER_CYCLE * BDACVAL_CYCLES ||
+      g_bk7258_aud_validation_diag.driver_eq_readback_delta !=
+        BDACVAL_EQ_READBACKS_PER_CYCLE * BDACVAL_CYCLES ||
+      g_bk7258_aud_validation_diag.driver_eq_readback_fail_delta != 0 ||
+      g_bk7258_aud_validation_diag.driver_eq_shadow_valid != 0 ||
+      g_bk7258_aud_validation_diag.driver_eq_requested != 0 ||
+      g_bk7258_aud_validation_diag.driver_eq_applied != 0 ||
+      g_bk7258_aud_validation_diag.driver_eq_last_config_hash !=
+        g_bk7258_aud_validation_diag.expected_eq_config_hash)
+    {
+      return -EPROTO;
+    }
+#endif
 
   return OK;
 }

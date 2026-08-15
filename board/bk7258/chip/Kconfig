@@ -1365,6 +1365,18 @@ config BK7258_AUD
 		two remain mutually exclusive until their shared AUD clock-control
 		contract is completed.
 
+config BK7258_AUD_DAC_EQ
+	bool "Private DAC hardware equalizer control"
+	default n
+	depends on BK7258_AUD && !AUDIO_MULTI_SESSION
+	help
+		Enable the BK7258-private, versioned DAC equalizer ioctl.  The caller
+		supplies all four hardware coefficient banks as signed 22-bit raw
+		coefficients before the DAC is constructed.  This option deliberately
+		does not advertise NuttX AUDIO_FU_EQUALIZER because the generic audio
+		ABI does not define a coefficient payload, session argument or filter
+		stability contract.
+
 config BK7258_AUD_DEVNAME
 	string "Speaker playback device name"
 	default "pcm0p"

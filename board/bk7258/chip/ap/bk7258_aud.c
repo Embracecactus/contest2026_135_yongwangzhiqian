@@ -31,6 +31,7 @@
 #include <inttypes.h>
 #include <sched.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 #include <syslog.h>
@@ -59,6 +60,9 @@
 #include <driver/audio_ring_buff.h>
 #include <driver/dma.h>
 
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+#  include "arm_internal.h"
+#endif
 #include "bk7258_media_root.h"
 
 /****************************************************************************
@@ -102,6 +106,21 @@
 #define BK7258_AUD_RING_BYTES \
   ((BK7258_AUD_FRAME_BYTES * BK7258_AUD_DMA_RING_FRAMES) + \
    BK7258_AUD_DMA_RING_GUARD_BYTES)
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+#  define BK7258_AUD_EQ_ENABLE_REG       0x47800060u
+#  define BK7258_AUD_EQ_ENABLE_BIT       (1u << 2)
+#  define BK7258_AUD_EQ_BANK_REG_BASE    0x47800080u
+#  define BK7258_AUD_EQ_BANK_REG_STRIDE  0x0cu
+#  define BK7258_AUD_EQ_A1A2_REG_OFFSET  0x00u
+#  define BK7258_AUD_EQ_B0B1_REG_OFFSET  0x04u
+#  define BK7258_AUD_EQ_B2_REG_OFFSET    0x08u
+#  define BK7258_AUD_EQ_EXT_REG_BASE     0x478000b0u
+#  define BK7258_AUD_EQ_EXT_REG_STRIDE   0x04u
+#  define BK7258_AUD_EQ_RAW_MASK         0x003fffffu
+#  define BK7258_AUD_EQ_HIGH_MASK        0x0000ffffu
+#  define BK7258_AUD_EQ_LOW_MASK         0x0000003fu
+#endif
 
 /****************************************************************************
  * Private Types
@@ -150,6 +169,17 @@ struct bk7258_aud_dev_s
   uint8_t  dig_gain;
   uint8_t  ana_gain;
   bool     muted;
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  /* worker_lock serializes the EQ shadow and SDK/register control path.
+   * Mutations also take lock when publishing resources or diagnostics.
+   */
+
+  struct bk7258_aud_eq_config_s eq_config;
+  bool     eq_shadow_valid;
+  bool     eq_cleanup_needed;
+  bool     eq_applied;
+#endif
 
   dma_id_t dma_id;
   bool     dma_allocated;
@@ -278,6 +308,27 @@ _Static_assert(CONFIG_BK7258_AUD_SAMPLE_RATE == 16000,
                "BK7258 AUD only validates the 16-kHz playback tuple");
 _Static_assert(CONFIG_BK7258_AUD_FRAME_SAMPLES == 320,
                "BK7258 AUD only validates 320-sample DMA frames");
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+_Static_assert(sizeof(struct bk7258_aud_eq_config_s) == 88,
+               "BK7258 AUD EQ private ABI must remain fixed-width");
+_Static_assert(offsetof(struct bk7258_aud_eq_config_s, version) == 0 &&
+               offsetof(struct bk7258_aud_eq_config_s, size) == 2 &&
+               offsetof(struct bk7258_aud_eq_config_s, flags) == 4 &&
+               offsetof(struct bk7258_aud_eq_config_s, coeff) == 8,
+               "BK7258 AUD EQ private ABI layout changed");
+_Static_assert(sizeof(unsigned long) >= sizeof(uintptr_t),
+               "BK7258 AUD EQ ioctl cannot carry a pointer");
+_Static_assert(_IOC_TYPE(BK7258_AUDIOIOC_SET_DAC_EQ) == _AUDIOIOCBASE &&
+               _IOC_NR(BK7258_AUDIOIOC_SET_DAC_EQ) == 0x80,
+               "BK7258 AUD EQ private ioctl encoding changed");
+_Static_assert(sizeof(aud_dac_eq_config_t) == 80,
+               "BK7258 SDK DAC EQ ABI changed");
+_Static_assert(sizeof(struct bk7258_aud_diag_s) == 0x138,
+               "BK7258 AUD diagnostic v6 ABI changed");
+#else
+_Static_assert(sizeof(struct bk7258_aud_diag_s) == 0x110,
+               "BK7258 AUD diagnostic v5 ABI changed");
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -350,12 +401,368 @@ static void bk7258_aud_record_error(struct bk7258_aud_dev_s *priv,
 
 static bool bk7258_aud_resources_owned(struct bk7258_aud_dev_s *priv)
 {
-  return priv->dac_initialized || priv->dma_allocated ||
-         priv->dma_initialized || priv->dma_irq_enabled ||
-         priv->dma_started || priv->dac_started || priv->ring_valid ||
-         priv->pa_enabled || priv->ring_mem != NULL ||
-         priv->scratch != NULL;
+  bool owned;
+
+  owned = priv->dac_initialized || priv->dma_allocated ||
+          priv->dma_initialized || priv->dma_irq_enabled ||
+          priv->dma_started || priv->dac_started || priv->ring_valid ||
+          priv->pa_enabled || priv->ring_mem != NULL ||
+          priv->scratch != NULL;
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  owned = owned || priv->eq_cleanup_needed;
+#endif
+
+  return owned;
 }
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+
+static uint32_t
+bk7258_aud_eq_hash(const struct bk7258_aud_eq_config_s *config)
+{
+  const uint8_t *bytes = (const uint8_t *)config;
+  uint32_t hash = 2166136261u;
+  unsigned int i;
+
+  for (i = 0; i < sizeof(*config); i++)
+    {
+      hash ^= bytes[i];
+      hash *= 16777619u;
+    }
+
+  return hash;
+}
+
+static int
+bk7258_aud_eq_validate(const struct bk7258_aud_eq_config_s *config)
+{
+  unsigned int coefficient;
+  unsigned int bank;
+
+  if (config->version != BK7258_AUD_EQ_CONFIG_VERSION ||
+      config->size != sizeof(*config) ||
+      (config->flags & ~BK7258_AUD_EQ_FLAG_MASK) != 0)
+    {
+      return -EINVAL;
+    }
+
+  for (bank = 0; bank < BK7258_AUD_EQ_BANK_COUNT; bank++)
+    {
+      for (coefficient = 0; coefficient < BK7258_AUD_EQ_COEFF_COUNT;
+           coefficient++)
+        {
+          if (config->coeff[bank][coefficient] <
+                BK7258_AUD_EQ_COEFF_MIN ||
+              config->coeff[bank][coefficient] >
+                BK7258_AUD_EQ_COEFF_MAX)
+            {
+              return -ERANGE;
+            }
+        }
+    }
+
+  return OK;
+}
+
+/* Both driver locks are held when a session releases its shadow.  Keep the
+ * last accepted hash and cumulative counters for post-mortem diagnostics,
+ * but never let a later opener inherit another session's requested filter.
+ */
+
+static void
+bk7258_aud_eq_clear_shadow_locked(struct bk7258_aud_dev_s *priv)
+{
+  memset(&priv->eq_config, 0, sizeof(priv->eq_config));
+  priv->eq_shadow_valid = false;
+  priv->diag.eq_shadow_valid = 0;
+  priv->diag.eq_requested = 0;
+}
+
+static void
+bk7258_aud_eq_build_sdk_config(
+  const struct bk7258_aud_eq_config_s *source,
+  aud_dac_eq_config_t *target)
+{
+  target->flt0_A1 = source->coeff[0][BK7258_AUD_EQ_COEFF_A1];
+  target->flt0_A2 = source->coeff[0][BK7258_AUD_EQ_COEFF_A2];
+  target->flt0_B0 = source->coeff[0][BK7258_AUD_EQ_COEFF_B0];
+  target->flt0_B1 = source->coeff[0][BK7258_AUD_EQ_COEFF_B1];
+  target->flt0_B2 = source->coeff[0][BK7258_AUD_EQ_COEFF_B2];
+  target->flt1_A1 = source->coeff[1][BK7258_AUD_EQ_COEFF_A1];
+  target->flt1_A2 = source->coeff[1][BK7258_AUD_EQ_COEFF_A2];
+  target->flt1_B0 = source->coeff[1][BK7258_AUD_EQ_COEFF_B0];
+  target->flt1_B1 = source->coeff[1][BK7258_AUD_EQ_COEFF_B1];
+  target->flt1_B2 = source->coeff[1][BK7258_AUD_EQ_COEFF_B2];
+  target->flt2_A1 = source->coeff[2][BK7258_AUD_EQ_COEFF_A1];
+  target->flt2_A2 = source->coeff[2][BK7258_AUD_EQ_COEFF_A2];
+  target->flt2_B0 = source->coeff[2][BK7258_AUD_EQ_COEFF_B0];
+  target->flt2_B1 = source->coeff[2][BK7258_AUD_EQ_COEFF_B1];
+  target->flt2_B2 = source->coeff[2][BK7258_AUD_EQ_COEFF_B2];
+  target->flt3_A1 = source->coeff[3][BK7258_AUD_EQ_COEFF_A1];
+  target->flt3_A2 = source->coeff[3][BK7258_AUD_EQ_COEFF_A2];
+  target->flt3_B0 = source->coeff[3][BK7258_AUD_EQ_COEFF_B0];
+  target->flt3_B1 = source->coeff[3][BK7258_AUD_EQ_COEFF_B1];
+  target->flt3_B2 = source->coeff[3][BK7258_AUD_EQ_COEFF_B2];
+}
+
+/* Verify the SDK's complete hardware contract rather than treating its
+ * return value as proof.  Each signed-22 coefficient is split into a 16-bit
+ * high field and a six-bit extension field.  Reserved register bits are not
+ * part of the contract and are deliberately ignored.
+ */
+
+static int bk7258_aud_eq_verify_registers(
+  struct bk7258_aud_dev_s *priv,
+  const struct bk7258_aud_eq_config_s *config,
+  bool enabled)
+{
+  uint32_t actual[BK7258_AUD_EQ_COEFF_COUNT];
+  uintptr_t bank_address;
+  uintptr_t ext_address;
+  uint32_t expected;
+  uint32_t a1a2;
+  uint32_t b0b1;
+  uint32_t b2;
+  uint32_t ext;
+  unsigned int coefficient;
+  unsigned int bank;
+  bool mismatch;
+
+  mismatch = ((getreg32(BK7258_AUD_EQ_ENABLE_REG) &
+               BK7258_AUD_EQ_ENABLE_BIT) != 0) != enabled;
+
+  for (bank = 0; bank < BK7258_AUD_EQ_BANK_COUNT; bank++)
+    {
+      bank_address = BK7258_AUD_EQ_BANK_REG_BASE +
+                     bank * BK7258_AUD_EQ_BANK_REG_STRIDE;
+      ext_address = BK7258_AUD_EQ_EXT_REG_BASE +
+                    bank * BK7258_AUD_EQ_EXT_REG_STRIDE;
+      a1a2 = getreg32(bank_address + BK7258_AUD_EQ_A1A2_REG_OFFSET);
+      b0b1 = getreg32(bank_address + BK7258_AUD_EQ_B0B1_REG_OFFSET);
+      b2 = getreg32(bank_address + BK7258_AUD_EQ_B2_REG_OFFSET);
+      ext = getreg32(ext_address);
+
+      actual[BK7258_AUD_EQ_COEFF_A1] =
+        ((a1a2 & BK7258_AUD_EQ_HIGH_MASK) << 6) |
+        ((ext >> (BK7258_AUD_EQ_COEFF_A1 * 6u)) &
+         BK7258_AUD_EQ_LOW_MASK);
+      actual[BK7258_AUD_EQ_COEFF_A2] =
+        (((a1a2 >> 16) & BK7258_AUD_EQ_HIGH_MASK) << 6) |
+        ((ext >> (BK7258_AUD_EQ_COEFF_A2 * 6u)) &
+         BK7258_AUD_EQ_LOW_MASK);
+      actual[BK7258_AUD_EQ_COEFF_B0] =
+        ((b0b1 & BK7258_AUD_EQ_HIGH_MASK) << 6) |
+        ((ext >> (BK7258_AUD_EQ_COEFF_B0 * 6u)) &
+         BK7258_AUD_EQ_LOW_MASK);
+      actual[BK7258_AUD_EQ_COEFF_B1] =
+        (((b0b1 >> 16) & BK7258_AUD_EQ_HIGH_MASK) << 6) |
+        ((ext >> (BK7258_AUD_EQ_COEFF_B1 * 6u)) &
+         BK7258_AUD_EQ_LOW_MASK);
+      actual[BK7258_AUD_EQ_COEFF_B2] =
+        ((b2 & BK7258_AUD_EQ_HIGH_MASK) << 6) |
+        ((ext >> (BK7258_AUD_EQ_COEFF_B2 * 6u)) &
+         BK7258_AUD_EQ_LOW_MASK);
+
+      for (coefficient = 0; coefficient < BK7258_AUD_EQ_COEFF_COUNT;
+           coefficient++)
+        {
+          expected = config == NULL ? 0u :
+                     ((uint32_t)config->coeff[bank][coefficient] &
+                      BK7258_AUD_EQ_RAW_MASK);
+          mismatch = mismatch || actual[coefficient] != expected;
+        }
+    }
+
+  nxmutex_lock(&priv->lock);
+  if (mismatch)
+    {
+      priv->diag.eq_readback_fail_count++;
+    }
+  else
+    {
+      priv->diag.eq_readback_count++;
+    }
+
+  nxmutex_unlock(&priv->lock);
+  return mismatch ? -EIO : OK;
+}
+
+/* worker_lock is held and the DAC is stopped but still initialized.  Keep
+ * ownership until both the SDK operation and the complete zero readback
+ * succeed; an uncertain filter must block DAC deinit.
+ */
+
+static int bk7258_aud_eq_deconfig(struct bk7258_aud_dev_s *priv)
+{
+  int verify_ret;
+  bk_err_t error;
+
+  if (!priv->eq_cleanup_needed)
+    {
+      return OK;
+    }
+
+  error = bk_aud_dac_eq_deconfig();
+  verify_ret = bk7258_aud_eq_verify_registers(priv, NULL, false);
+  if (error != BK_OK)
+    {
+      return bk7258_aud_result(error);
+    }
+
+  if (verify_ret < 0)
+    {
+      return verify_ret;
+    }
+
+  nxmutex_lock(&priv->lock);
+  priv->eq_cleanup_needed = false;
+  priv->eq_applied = false;
+  priv->diag.eq_applied = 0;
+  priv->diag.eq_deconfig_count++;
+  priv->diag.resources &= ~BK7258_AUD_RESOURCE_EQ;
+  nxmutex_unlock(&priv->lock);
+  return OK;
+}
+
+/* worker_lock owns this SDK control path.  Publish cleanup ownership before
+ * entering the immutable SDK so every failure after the first register may
+ * have changed is unwound by the ordinary START teardown path.
+ */
+
+static int bk7258_aud_eq_apply(struct bk7258_aud_dev_s *priv)
+{
+  struct bk7258_aud_eq_config_s config;
+  aud_dac_eq_config_t sdk_config;
+  int ret;
+  bk_err_t error;
+
+  if (!priv->eq_shadow_valid ||
+      (priv->eq_config.flags & BK7258_AUD_EQ_FLAG_ENABLE) == 0)
+    {
+      return OK;
+    }
+
+  if (!priv->dac_initialized || priv->dac_started ||
+      priv->eq_cleanup_needed)
+    {
+      return -EBUSY;
+    }
+
+  memcpy(&config, &priv->eq_config, sizeof(config));
+  nxmutex_lock(&priv->lock);
+  priv->eq_cleanup_needed = true;
+  priv->diag.resources |= BK7258_AUD_RESOURCE_EQ;
+  nxmutex_unlock(&priv->lock);
+
+  bk7258_aud_eq_build_sdk_config(&config, &sdk_config);
+  error = bk_aud_dac_eq_config(&sdk_config);
+  if (error != BK_OK)
+    {
+      ret = bk7258_aud_result(error);
+    }
+  else
+    {
+      ret = bk7258_aud_eq_verify_registers(priv, &config, true);
+    }
+
+  if (ret < 0)
+    {
+      /* Preserve the configuration/readback error while making one immediate
+       * best-effort rollback.  A failed rollback retains ownership for the
+       * ordinary START error teardown to retry.
+       */
+
+      (void)bk7258_aud_eq_deconfig(priv);
+      return ret;
+    }
+
+  nxmutex_lock(&priv->lock);
+  priv->eq_applied = true;
+  priv->diag.eq_applied = 1;
+  priv->diag.eq_apply_count++;
+  nxmutex_unlock(&priv->lock);
+  return OK;
+}
+
+static int bk7258_aud_eq_reject(struct bk7258_aud_dev_s *priv, int error)
+{
+  nxmutex_lock(&priv->lock);
+  priv->diag.eq_reject_count++;
+  nxmutex_unlock(&priv->lock);
+  return error;
+}
+
+static int bk7258_aud_eq_set_config(struct bk7258_aud_dev_s *priv,
+                                    unsigned long arg)
+{
+  const struct bk7258_aud_eq_config_s *user_config;
+  struct bk7258_aud_eq_config_s config;
+  uint32_t hash;
+  int ret;
+
+  user_config = (const struct bk7258_aud_eq_config_s *)(uintptr_t)arg;
+  if (user_config == NULL)
+    {
+      return bk7258_aud_eq_reject(priv, -EINVAL);
+    }
+
+  /* Reject a shorter or foreign version before reading past its fixed
+   * header.  As with the standard audio pointer ioctls, flat-build pointer
+   * validity is the caller's responsibility.
+   */
+
+  if (user_config->version != BK7258_AUD_EQ_CONFIG_VERSION ||
+      user_config->size != sizeof(config))
+    {
+      return bk7258_aud_eq_reject(priv, -EINVAL);
+    }
+
+  /* Never retain or validate through the caller's pointer. */
+
+  memcpy(&config, user_config, sizeof(config));
+  ret = bk7258_aud_eq_validate(&config);
+  if (ret < 0)
+    {
+      return bk7258_aud_eq_reject(priv, ret);
+    }
+
+  hash = bk7258_aud_eq_hash(&config);
+
+  nxmutex_lock(&priv->worker_lock);
+  nxmutex_lock(&priv->lock);
+  if (!priv->reserved)
+    {
+      ret = -EACCES;
+    }
+  else if ((priv->state != BK7258_AUD_STATE_RESERVED &&
+            priv->state != BK7258_AUD_STATE_CONFIGURED) ||
+           bk7258_aud_resources_owned(priv))
+    {
+      ret = -EBUSY;
+    }
+  else
+    {
+      memcpy(&priv->eq_config, &config, sizeof(priv->eq_config));
+      priv->eq_shadow_valid = true;
+      priv->diag.eq_shadow_valid = 1;
+      priv->diag.eq_requested =
+        (config.flags & BK7258_AUD_EQ_FLAG_ENABLE) != 0;
+      priv->diag.eq_config_count++;
+      priv->diag.eq_last_config_hash = hash;
+      ret = OK;
+    }
+
+  if (ret < 0)
+    {
+      priv->diag.eq_reject_count++;
+    }
+
+  nxmutex_unlock(&priv->lock);
+  nxmutex_unlock(&priv->worker_lock);
+  return ret;
+}
+
+#endif /* CONFIG_BK7258_AUD_DAC_EQ */
 
 /* The official v3.1.1.9 on-board speaker stream holds PM_DEV_ID_AUDIO at
  * 480 MHz from open through close.  Use the stable board-owned client ID,
@@ -491,6 +898,9 @@ static int bk7258_aud_finish_session(struct bk7258_aud_dev_s *priv)
       priv->configured = false;
       priv->final_queued = false;
       priv->complete_sent = false;
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+      bk7258_aud_eq_clear_shadow_locked(priv);
+#endif
       bk7258_aud_set_state(priv, BK7258_AUD_STATE_RESET);
       __atomic_store_n(&priv->close_safe, true, __ATOMIC_RELEASE);
     }
@@ -706,6 +1116,14 @@ static int bk7258_aud_hw_setup(struct bk7258_aud_dev_s *priv)
     {
       return ret;
     }
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  ret = bk7258_aud_eq_apply(priv);
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
 
   priv->ring_mem = kmm_zalloc(BK7258_AUD_RING_BYTES);
   if (priv->ring_mem == NULL)
@@ -955,7 +1373,22 @@ static int bk7258_aud_hw_teardown(struct bk7258_aud_dev_s *priv)
   kmm_free(priv->scratch);
   priv->scratch = NULL;
 
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
   if (priv->dac_initialized && !priv->dac_started)
+    {
+      ret = bk7258_aud_eq_deconfig(priv);
+      if (ret < 0 && first == OK)
+        {
+          first = ret;
+        }
+    }
+#endif
+
+  if (priv->dac_initialized && !priv->dac_started
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+      && !priv->eq_cleanup_needed
+#endif
+     )
     {
       error = bk_aud_dac_deinit();
       if (error == BK_OK)
@@ -2162,6 +2595,12 @@ static int bk7258_aud_ioctl(struct audio_lowerhalf_s *dev, int cmd,
         return OK;
 #endif
 
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+      case BK7258_AUDIOIOC_SET_DAC_EQ:
+        return bk7258_aud_eq_set_config(
+          (struct bk7258_aud_dev_s *)dev, arg);
+#endif
+
       default:
         return -ENOTTY;
     }
@@ -2336,6 +2775,12 @@ int bk7258_aud_initialize(void)
   priv->dig_gain = CONFIG_BK7258_AUD_DIG_GAIN;
   priv->ana_gain = CONFIG_BK7258_AUD_ANA_GAIN;
   priv->muted = false;
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  memset(&priv->eq_config, 0, sizeof(priv->eq_config));
+  priv->eq_shadow_valid = false;
+  priv->eq_cleanup_needed = false;
+  priv->eq_applied = false;
+#endif
   priv->dma_id = DMA_ID_MAX;
   priv->pid = -1;
   dq_init(&priv->pendq);

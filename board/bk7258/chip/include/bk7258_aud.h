@@ -22,6 +22,10 @@
 
 #include <nuttx/config.h>
 
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+#  include <nuttx/fs/ioctl.h>
+#endif
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -39,8 +43,31 @@
 #define BK7258_AUD_BYTES_PER_SAMPLE    2u
 #define BK7258_AUD_FINAL_DRAIN_FRAMES  2u
 
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+#  define BK7258_AUD_EQ_CONFIG_VERSION       1u
+#  define BK7258_AUD_EQ_BANK_COUNT           4u
+#  define BK7258_AUD_EQ_COEFF_COUNT          5u
+#  define BK7258_AUD_EQ_COEFF_A1             0u
+#  define BK7258_AUD_EQ_COEFF_A2             1u
+#  define BK7258_AUD_EQ_COEFF_B0             2u
+#  define BK7258_AUD_EQ_COEFF_B1             3u
+#  define BK7258_AUD_EQ_COEFF_B2             4u
+#  define BK7258_AUD_EQ_COEFF_MIN            (-2097152)
+#  define BK7258_AUD_EQ_COEFF_MAX            2097151
+#  define BK7258_AUD_EQ_FLAG_ENABLE          (1u << 0)
+#  define BK7258_AUD_EQ_FLAG_MASK            BK7258_AUD_EQ_FLAG_ENABLE
+
+/* Private lower-half ioctl.  AUDIO_FU_EQUALIZER remains unadvertised. */
+
+#  define BK7258_AUDIOIOC_SET_DAC_EQ         _AUDIOIOC(0x80)
+#endif
+
 #define BK7258_AUD_DIAG_MAGIC          0x43414442u /* "BDAC" */
-#define BK7258_AUD_DIAG_VERSION        5u
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+#  define BK7258_AUD_DIAG_VERSION      6u
+#else
+#  define BK7258_AUD_DIAG_VERSION      5u
+#endif
 #define BK7258_AUD_DIAG_CPU_SLOTS      2u
 
 #define BK7258_AUD_RESOURCE_DAC        (1u << 0)
@@ -50,6 +77,26 @@
 #define BK7258_AUD_RESOURCE_STREAM     (1u << 4)
 #define BK7258_AUD_RESOURCE_PA         (1u << 5)
 #define BK7258_AUD_RESOURCE_FREQUENCY  (1u << 6)
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+#  define BK7258_AUD_RESOURCE_EQ       (1u << 7)
+#endif
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+
+/* The immutable v3.1.1.9 HAL keeps only bits 21:0 of every coefficient.
+ * Values in this ABI must therefore be sign-extended signed-22 raw words.
+ * No Q format or filter-stability policy is implied by this transport ABI.
+ */
+
+struct bk7258_aud_eq_config_s
+{
+  uint16_t version;
+  uint16_t size;
+  uint32_t flags;
+  int32_t  coeff[BK7258_AUD_EQ_BANK_COUNT][BK7258_AUD_EQ_COEFF_COUNT];
+};
+
+#endif
 
 enum bk7258_aud_diag_state_e
 {
@@ -134,6 +181,19 @@ struct bk7258_aud_diag_s
   uint32_t first_underrun_consume_sequence;
   uint32_t first_underrun_produce_sequence;
   uint32_t first_underrun_cpu;
+
+#ifdef CONFIG_BK7258_AUD_DAC_EQ
+  uint32_t eq_shadow_valid;
+  uint32_t eq_requested;
+  uint32_t eq_applied;
+  uint32_t eq_config_count;
+  uint32_t eq_apply_count;
+  uint32_t eq_deconfig_count;
+  uint32_t eq_reject_count;
+  uint32_t eq_last_config_hash;
+  uint32_t eq_readback_count;
+  uint32_t eq_readback_fail_count;
+#endif
 };
 
 /****************************************************************************

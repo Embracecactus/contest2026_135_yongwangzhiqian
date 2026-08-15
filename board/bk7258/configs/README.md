@@ -59,7 +59,7 @@ image.
 | TF 1-bit, UART0 download route retained | `t5_board_cp_app_mcuboot` | `t5_board_ap_tf_1bit_validation_mcuboot` | MCUboot, validation |
 | TF 4-bit exclusive-route validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_tf_4bit_validation_mcuboot` | MCUboot, validation |
 | on-die temperature validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_temperature_validation_mcuboot` | MCUboot, validation |
-| speaker DAC lifecycle + one-shot standby validation | `t5_board_cp_audio_dac_validation_mcuboot` | `t5_board_ap_audio_dac_validation_mcuboot` | MCUboot, validation |
+| speaker DAC + private hardware-EQ zero-bank register lifecycle and one-shot standby validation | `t5_board_cp_audio_dac_validation_mcuboot` | `t5_board_ap_audio_dac_validation_mcuboot` | MCUboot, validation |
 | Wi-Fi | `t5_board_cp_wifi_mcuboot` | `t5_board_ap_wifi_mcuboot` | MCUboot, runnable |
 | compile-only driver coverage | `t5_board_cp_drivercheck` | `t5_board_ap_drivercheck` | raw, CI only |
 
