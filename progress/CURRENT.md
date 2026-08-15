@@ -5,7 +5,7 @@ Updated by: Codex (GPT-5.6-Luna MAX delegated implementation)
 
 ## Current task
 
-P3 product/mode config and isolated BL1/BL2/CP/AP build-plan work is being
+P4 ownership/resource metadata and paired BL1/BL2/CP/AP resolution are now
 implemented on `refactor/bk7258-platform-v2`; P0 remains the accepted
 foundation and legacy profiles/production build behavior remain usable.
 
@@ -49,7 +49,7 @@ Detailed evidence: [P0 freeze verification](verification/2026-08-15-bk7258-platf
 - Board/product/mode/role composition is deterministic and fail-closed: one
   board is selected by the product, conflicting symbols and missing/cyclic
   fragment dependencies fail, and no T5 fallback exists.
-- The canonical CMake adapter keeps the existing board/chip source tree
+- The CMake adapter keeps the existing board/chip source tree
   read-only, creates a role-local build/artifact view, forbids a shared
   `.config`, and emits a machine-readable view identity; the Classic
   adapter-isolation feasibility report is explicitly unproven and does not
@@ -92,11 +92,38 @@ Detailed evidence: [P2 SDK registry verification](verification/2026-08-15-bk7258
 
 Detailed evidence: [P3 build-plan verification](verification/2026-08-15-bk7258-platform-v2-p3.md).
 
+## P4 implementation
+
+- Strict ownership and dependency metadata now follows only Architecture ->
+  Chip/SoC -> Board; Architecture is upstream NuttX and is not patched here.
+  `vendor_common_glue`, `build_adapter` and `migration_pending` are internal
+  tags, while the compatibility ledger records files/symbols before any
+  per-item migration and creates no layer directory.
+- BK7258-intrinsic AP topology/lifecycle, mailbox/IPI/shared memory, RPTUN,
+  clock/power and cross-core mechanisms remain Chip-owned.  Board owns pins,
+  bindings, external devices, linker/configuration and bring-up; production
+  validation auto-start is marked migration_pending toward Board.
+- The resource graph resolves paired BL1/BL2/CP/AP roles over download, boot,
+  hold, runtime, suspend and restart.  It checks pin/function, devpath/minor,
+  IRQ/DMA/clock/power, SDK singleton, mailbox, memory/PSRAM and BOM claims,
+  plus temporal handoff preconditions.
+- Exactly-one board selection and forbidden fallback are enforced.  SDK
+  singleton controllers remain max-one with explicit owner; the graph binds
+  SDK IDs to the existing P2 lock and emits metadata only.
+- `bk7258_framework.py` now exposes host-only `layer-check`,
+  `migration-check`, `resource-check`, and `resource-resolve` compatibility
+  commands.  P1-P3 tools remain CMake/Classic adapters over existing build
+  semantics; standard artifacts are `libarch.a`, `libboards.a`, and
+  `vela_*.bin`, while `.bkpack` is only a later additive vendor extension.
+  No public NuttX/common repository change was needed; any future upstream API
+  requirement must be recorded as external-upstream-needed.
+
+Detailed evidence: [P4 ownership/resource-graph verification](verification/2026-08-15-bk7258-platform-v2-p4.md).
+
 ## Exact next action
 
-Continue with owner review of the P3 plan/config metadata and later role-set
-coverage; SDK archives remain metadata-only and no private mirror mutation is
-permitted.
+Continue with owner review of P4 metadata and later role-set coverage; SDK
+archives remain metadata-only and no private mirror mutation is permitted.
 
 ## Remaining boundaries
 

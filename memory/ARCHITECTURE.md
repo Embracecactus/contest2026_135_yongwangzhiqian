@@ -9,6 +9,11 @@ master. Physical CPU1 and CPU2 form one AP NuttX SMP cluster. The source
 Tier-1 bootloader hands the CP image control; CP initializes shared hardware
 owners and releases the AP image.
 
+The official adaptation hierarchy is exactly Architecture (upstream NuttX) ->
+Chip/SoC (BK7258-intrinsic mechanisms) -> Board (pins, bindings, external
+devices and bring-up).  `vendor_common_glue` and build/migration tags are
+internal responsibility labels, not additional public layers.
+
 Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.md).
 
 ## Components and ownership

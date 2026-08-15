@@ -1,0 +1,98 @@
+{
+  "schema": "bk7258.compatibility-ledger/1",
+  "kind": "compatibility-migration-ledger",
+  "version": 1,
+  "status": "inventory-only",
+  "source_root": "board/bk7258",
+  "rows": [
+    {
+      "path": "board/bk7258/src/bk7258_platform.c",
+      "symbols": {"CONFIG_BK7258_AP_CORE": null, "CONFIG_BK7258_RPTUN": null},
+      "current_owner": "vendor_common_glue",
+      "target_owner": "chip",
+      "status": "inventory-only",
+      "notes": "Split BK7258-intrinsic AP sequencing, generation/restart and cross-core policy toward chip; retain board-specific bindings in existing board bringup."
+    },
+    {
+      "path": "board/bk7258/src/bk7258_bringup.c",
+      "symbols": {"CONFIG_BOARD_INITIALIZE": null},
+      "current_owner": "vendor_common_glue",
+      "target_owner": "board",
+      "status": "inventory-only",
+      "notes": "Existing board application registration entry remains in src; no platform layer is introduced."
+    },
+    {
+      "path": "board/bk7258/src/bk7258_appinit.c",
+      "symbols": {"CONFIG_BOARD_LATE_INITIALIZE": null},
+      "current_owner": "vendor_common_glue",
+      "target_owner": "board",
+      "status": "inventory-only",
+      "notes": "Thin official board app entry is recorded as board composition glue."
+    },
+    {
+      "path": "board/bk7258/chip/common/bk7258_rptun.c",
+      "symbols": {"CONFIG_BK7258_RPTUN_LAYOUT": null},
+      "current_owner": "chip",
+      "target_owner": "chip",
+      "status": "inventory-only",
+      "notes": "BK7258-intrinsic RPTUN transport/shared-memory substrate remains chip-owned."
+    },
+    {
+      "path": "board/bk7258/chip/common/bk7258_pm_activity.c",
+      "symbols": {"CONFIG_BK7258_PM": null},
+      "current_owner": "chip",
+      "target_owner": "chip",
+      "status": "inventory-only",
+      "notes": "BK7258 power activity lower-half mechanism remains chip-owned; board policy is separate."
+    },
+    {
+      "path": "board/bk7258/chip/cp/bk7258_pm_server.c",
+      "symbols": {"CONFIG_BK7258_PM_SERVER": null},
+      "current_owner": "chip",
+      "target_owner": "chip",
+      "status": "inventory-only",
+      "notes": "CP clock/power lower-half and cross-core mechanism remain chip-owned when board-independent."
+    },
+    {
+      "path": "board/bk7258/chip/ap/bk7258_ap_ipi.c",
+      "symbols": {"CONFIG_BK7258_AP_CORE": null, "CONFIG_BK7258_IPI": null},
+      "current_owner": "chip",
+      "target_owner": "chip",
+      "status": "inventory-only",
+      "notes": "AP IPI/topology mechanism is BK7258-intrinsic and remains in the chip ownership boundary."
+    },
+    {
+      "path": "board/bk7258/chip/ap/bk7258_peripherals.c",
+      "symbols": {"CONFIG_BK7258_T5_BOARD_SARADC_KEY_VALIDATION": null, "CONFIG_BK7258_T5_BOARD_TF_VALIDATION": null},
+      "current_owner": "chip",
+      "target_owner": "board",
+      "status": "inventory-only",
+      "notes": "Production validation auto-start references are migration_pending away from chip toward existing board bringup; generic lower halves stay chip-owned."
+    },
+    {
+      "path": "board/bk7258/boards/t5ai_core/src/bk7258_board_bringup.c",
+      "symbols": {"CONFIG_BOARD_INITIALIZE": null},
+      "current_owner": "board",
+      "target_owner": "board",
+      "status": "inventory-only",
+      "notes": "T5AI-Core pin, external-device and board registration policy remains in the existing board variant path."
+    },
+    {
+      "path": "board/bk7258/boards/t5_board/src/bk7258_board_bringup.c",
+      "symbols": {"CONFIG_BOARD_INITIALIZE": null, "CONFIG_BK7258_T5_BOARD_SARADC_KEY_VALIDATION": null},
+      "current_owner": "board",
+      "target_owner": "board",
+      "status": "inventory-only",
+      "notes": "T5-Board binding and validation policy is the destination for board-specific auto-start."
+    },
+    {
+      "path": "board/bk7258/bootloader/bl2/Makefile",
+      "symbols": {"CONFIG_BK7258_BL2_IMAGE": null},
+      "current_owner": "board",
+      "target_owner": "board",
+      "status": "inventory-only",
+      "notes": "BL2 Make input remains an existing board artifact adapter and consumes no runtime SDK."
+    }
+  ],
+  "identity_sha256": "b9b9f6491601d0e6a22cbc6ea9e57fbc6cf7d6fbd42a25f1f466041b55831007"
+}

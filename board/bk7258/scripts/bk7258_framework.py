@@ -1297,6 +1297,15 @@ def cli(argv: list[str] | None = None) -> int:
     sdk_verify_parser.add_argument("--lock", type=Path)
     sdk_verify_parser.add_argument("--bundle", action="append", default=[])
     sdk_verify_parser.add_argument("--bundle-root", type=Path)
+    layer_parser = commands.add_parser("layer-check", aliases=("ownership-check",))
+    layer_parser.add_argument("--manifest", type=Path)
+    migration_parser = commands.add_parser("migration-check")
+    migration_parser.add_argument("--ledger", type=Path)
+    resource_check_parser = commands.add_parser("resource-check", aliases=("graph-check",))
+    resource_check_parser.add_argument("--graph", type=Path)
+    resource_resolve_parser = commands.add_parser("resource-resolve", aliases=("graph-resolve",))
+    resource_resolve_parser.add_argument("--graph", type=Path)
+    resource_resolve_parser.add_argument("--out", type=Path, required=True)
     commands.add_parser("validate")
     args = parser.parse_args(argv)
     root = args.root.resolve()
@@ -1366,6 +1375,44 @@ def cli(argv: list[str] | None = None) -> int:
                 entry = by_id[lock["roles"][role]["registry_id"]]
                 verify_sdk_bundle(root, entry, bundle_dir.resolve())
             print(f"bk7258-sdk: VERIFY PASS set={sdk_set['id']} lock={lock['id']}")
+        elif args.command in {"layer-check", "ownership-check", "migration-check",
+                              "resource-check", "graph-check", "resource-resolve", "graph-resolve"}:
+            # Keep the ownership/resource checker in its own existing scripts
+            # module; this lazy import avoids a framework/resource import cycle
+            # while exposing one canonical host CLI.
+            from bk7258_resource_graph import (  # noqa: PLC0415
+                resolve_resource_graph,
+                validate_migration_ledger,
+                validate_ownership_manifest,
+                validate_resource_graph,
+            )
+
+            def _rooted(path: Path | None, default: Path) -> Path:
+                actual = path or default
+                return actual if actual.is_absolute() else root / actual
+
+            if args.command in {"layer-check", "ownership-check"}:
+                manifest = load_json_checked(
+                    _rooted(args.manifest, root / "board/bk7258/scripts/bk7258_layer_ownership.json"),
+                    "layer ownership manifest")
+                validate_ownership_manifest(root, manifest)
+                print("bk7258-framework: LAYER OWNERSHIP PASS")
+            elif args.command == "migration-check":
+                ledger = load_json_checked(
+                    _rooted(args.ledger, root / "board/bk7258/scripts/bk7258_compatibility_migration_ledger.json"),
+                    "compatibility migration ledger")
+                validate_migration_ledger(root, ledger)
+                print("bk7258-framework: MIGRATION LEDGER PASS")
+            else:
+                graph = load_json_checked(
+                    _rooted(args.graph, root / "board/bk7258/scripts/bk7258_resource_graph_t5ai_core.json"),
+                    "resource graph")
+                if args.command in {"resource-check", "graph-check"}:
+                    validate_resource_graph(root, graph)
+                    print("bk7258-framework: RESOURCE GRAPH PASS")
+                else:
+                    write_json(args.out, resolve_resource_graph(root, graph))
+                    print(f"bk7258-framework: RESOURCE GRAPH RESOLVED {args.out}")
         else:
             ir = resolve(root, args.product, args.role, args.board, args.mode)
             if args.command == "resolve":
