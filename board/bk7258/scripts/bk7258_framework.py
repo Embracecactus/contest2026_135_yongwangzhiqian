@@ -144,6 +144,19 @@ def relative_path(value: Any, field: str) -> str:
     return value
 
 
+def _sdk_metadata_path(value: Any, field: str) -> str:
+    """Validate a product's repository-relative SDK set/lock metadata path."""
+    path = relative_path(value, field)
+    name = path.rsplit("/", 1)[-1]
+    kind = "set" if field.endswith("sdk_set") else "lock"
+    if (not path.startswith("board/bk7258/scripts/bk7258_sdk_") or
+            not name.endswith(".json") or
+            not (name == f"bk7258_sdk_{kind}.json" or
+                 name.startswith(f"bk7258_sdk_{kind}_"))):
+        raise FrameworkError(f"{field} must name an in-tree SDK set/lock metadata file")
+    return path
+
+
 def digest(value: Any, field: str) -> str:
     if not isinstance(value, str) or not HASH_RE.fullmatch(value):
         raise FrameworkError(f"invalid SHA-256 in {field}")
@@ -218,7 +231,8 @@ def _role(value: Any, field: str) -> None:
 
 def validate_product(value: dict[str, Any]) -> dict[str, Any]:
     exact(value, {"schema", "kind", "id", "family", "mode", "board", "boot",
-                  "roles", "fragments", "features", "validation_suite"}, "product")
+                  "roles", "fragments", "features", "validation_suite",
+                  "sdk_set", "sdk_lock"}, "product")
     if value["schema"] != SCHEMA or value["kind"] != "product":
         raise FrameworkError("unsupported product schema")
     for field in ("id", "family", "mode", "board"):
@@ -235,6 +249,8 @@ def validate_product(value: dict[str, Any]) -> dict[str, Any]:
     identifiers(value["features"], "product.features")
     if value["validation_suite"] is not None:
         identifier(value["validation_suite"], "product.validation_suite")
+    _sdk_metadata_path(value["sdk_set"], "product.sdk_set")
+    _sdk_metadata_path(value["sdk_lock"], "product.sdk_lock")
     return value
 
 
@@ -813,7 +829,11 @@ def validate_sdk_lock(repository: Path, registry_path: Path, set_path: Path,
         raise FrameworkError("SDK lock set binding mismatch")
     if value["registry_path"] != "board/bk7258/scripts/bk7258_sdk_registry.json":
         raise FrameworkError("SDK lock registry path mismatch")
-    if value["set_path"] != "board/bk7258/scripts/bk7258_sdk_set.json":
+    try:
+        expected_set_path = set_path.resolve().relative_to(repository.resolve()).as_posix()
+    except ValueError as error:
+        raise FrameworkError("SDK lock set path is outside the repository") from error
+    if value["set_path"] != expected_set_path:
         raise FrameworkError("SDK lock set path mismatch")
     digest(value["registry_sha256"], "SDK lock registry_sha256")
     digest(value["set_sha256"], "SDK lock set_sha256")
@@ -1078,6 +1098,14 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
                 other["inputs"]["board"] != cp_ir["inputs"]["board"] or \
                 other["inputs"]["boot"] != cp_ir["inputs"]["boot"]:
             raise FrameworkError("role resolution produced mismatched product inputs")
+    product_catalog = load_catalog(repository)["products"]
+    product_metadata = product_catalog.get(product_id)
+    if product_metadata is None:
+        raise FrameworkError(f"unknown product: {product_id}")
+    if set_path is None:
+        set_path = repository / product_metadata["sdk_set"]
+    if lock_path is None:
+        lock_path = repository / product_metadata["sdk_lock"]
     sdk_set, lock = _load_plan_sdk(repository, set_path, lock_path)
     inputs = cp_ir["inputs"]
     if (sdk_set["product"] != inputs["product"] or sdk_set["board"] != inputs["board"] or

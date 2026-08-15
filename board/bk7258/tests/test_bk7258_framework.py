@@ -57,13 +57,21 @@ class FrameworkTest(unittest.TestCase):
 
     def test_catalog_and_roles_resolve_deterministically(self) -> None:
         catalog = load_catalog(REPOSITORY)
-        self.assertEqual(set(catalog["boards"]), {"t5ai_core", "t5_board"})
+        self.assertEqual(set(catalog["boards"]), {"t5ai_core", "t5_board", "aidk_ai_toy"})
         cp = resolve(REPOSITORY, "t5ai_core_bringup", "cp")
         ap = resolve(REPOSITORY, "t5ai_core_bringup", "ap")
         self.assertIsNone(cp["symbols"]["CONFIG_BK7258_AP_CORE"])
         self.assertEqual(ap["symbols"]["CONFIG_BK7258_AP_CORE"], "y")
         self.assertEqual(cp, resolve(REPOSITORY, "t5ai_core_bringup", "cp"))
         self.assertIs(validate_ir(cp), cp)
+
+    def test_aidk_ai_toy_product_resolves_without_legacy_profile_or_devices(self) -> None:
+        cp = resolve(REPOSITORY, "aidk_ai_toy_bringup", "cp")
+        self.assertEqual(cp["inputs"]["board"], "aidk_ai_toy")
+        self.assertIsNone(cp["inputs"]["legacy_profile"])
+        plan = build_plan(REPOSITORY, "aidk_ai_toy_bringup")
+        self.assertEqual(plan["board"]["variant"], "aidk_ai_toy")
+        self.assertFalse(plan["legacy_adapter"]["invoked"])
 
     def test_exact_board_mode_and_symbol_conflicts_fail_closed(self) -> None:
         with self.assertRaises(FrameworkError):

@@ -5,7 +5,7 @@ Updated by: Codex (GPT-5.6-Luna MAX delegated implementation)
 
 ## Current task
 
-P7 cross-platform dry-run transport discovery/resolution is now implemented on
+P8's schematic-only AIDK AI Toy board binding is now implemented on
 `refactor/bk7258-platform-v2`; P0 remains the accepted foundation and legacy
 profiles/production build behavior remain usable.
 
@@ -170,11 +170,29 @@ Detailed evidence: [P6 package verification](verification/2026-08-15-bk7258-plat
 
 Detailed evidence: [P7 transport verification](verification/2026-08-15-bk7258-platform-v2-p7.md).
 
+## P8 implementation
+
+- The official existing Board layer now has an explicit
+  `CONFIG_BK7258_BOARD_AIDK_AI_TOY` selector, CMake/Classic variant wiring,
+  board config header and minimal bring-up hook under the authorized
+  `board/bk7258/boards/aidk_ai_toy/` directory.
+- The binding records UART0 115200 8N1 console/download, disabled flow
+  control, SWD, boot hold, RTT and RTS/DTR reset, with a dynamic USB serial
+  port identity that is never used as board identity.  Hardware remains
+  `hardware_verified=false` and no unverified peripheral is registered.
+- Schematic conflicts P20/P21 (SC7A20/SWD), P0/P1 (MFRC522/CN1), P8/P9
+  (32-kHz/KEY3/motor) and USB0 are explicit unknown/do-not-claim records;
+  SD-NAND, LCD, camera, MFRC522, SC7A20 and USB0 are disabled in the minimal
+  product metadata.  The resource graph and board/product/mode-specific SDK
+  lock resolve without a legacy profile.
+
+Detailed evidence: [P8 AIDK board verification](verification/2026-08-15-bk7258-platform-v2-p8.md).
+
 ## Exact next action
 
-Continue with owner review of P7 transport metadata and later device-backed
-validation; no private SDK mirror mutation or automatic hardware execution is
-permitted.
+Continue with owner review of the P8 schematic-only board metadata and later
+device-backed validation; no private SDK mirror mutation or automatic
+hardware execution is permitted.
 
 ## Remaining boundaries
 
@@ -186,6 +204,9 @@ permitted.
   default auto discovery, unique USB identity matching and explicit
   Windows/Linux/WSL backend capability; no COM number or `/dev` path is a
   product/board default.
+- AIDK board hardware, peripheral BOM routes and boot behavior remain
+  unverified; the current P8 result is a positive metadata/build-plan smoke
+  only, with no CMake/Classic compile, Flash or boot run claimed.
 
 ## Fixed constraints
 

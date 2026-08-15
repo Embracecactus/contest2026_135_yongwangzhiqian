@@ -23,6 +23,7 @@ from bk7258_framework import (
     identifier,
     identifiers,
     load_json,
+    obj,
     relative_path,
     sha256,
     symbols,
@@ -306,10 +307,59 @@ def _resource_row(value: Any, index: int, category: str) -> dict[str, Any]:
     return value
 
 
+def _validate_aidk_board_constraints(value: Any) -> None:
+    constraints = obj(value, "AIDK board constraints")
+    exact(constraints, {"console", "debug", "port_identity", "conflicts", "unsupported"},
+          "AIDK board constraints")
+    console = obj(constraints["console"], "AIDK console")
+    exact(console, {"uart", "baud", "data_bits", "parity", "stop_bits",
+                    "flow_control", "rts_reset"}, "AIDK console")
+    if (console["uart"] != "uart0" or console["baud"] != 115200 or
+            console["data_bits"] != 8 or console["parity"] != "none" or
+            console["stop_bits"] != 1 or console["flow_control"] is not False or
+            console["rts_reset"] is not False):
+        raise FrameworkError("AIDK console binding is not the fixed UART0 115200 8N1 contract")
+    debug = obj(constraints["debug"], "AIDK debug")
+    exact(debug, {"swd", "boot_hold", "rtt"}, "AIDK debug")
+    if any(debug[key] is not False for key in ("swd", "boot_hold", "rtt")):
+        raise FrameworkError("AIDK SWD/boot-hold/RTT must remain disabled")
+    port = obj(constraints["port_identity"], "AIDK port identity")
+    exact(port, {"board_id", "port", "persistent"}, "AIDK port identity")
+    if (port["board_id"] != "aidk_ai_toy" or port["port"] != "dynamic-usb-serial" or
+            port["persistent"] is not False):
+        raise FrameworkError("AIDK port identity must remain dynamic and non-persistent")
+    conflicts = array(constraints["conflicts"], "AIDK board conflicts")
+    expected = {
+        "p20_p21_sc7a20_swd", "p0_p1_mfrc522_cn1", "p8_p9_32k_key3_motor", "usb0_unknown"
+    }
+    seen: set[str] = set()
+    for index, raw in enumerate(conflicts):
+        row = obj(raw, f"AIDK conflict[{index}]")
+        exact(row, {"id", "pins", "functions", "status", "policy", "notes"},
+              f"AIDK conflict[{index}]")
+        conflict_id = identifier(row["id"], f"AIDK conflict[{index}].id")
+        if conflict_id in seen or conflict_id not in expected:
+            raise FrameworkError("AIDK conflict coverage is duplicate or incomplete")
+        seen.add(conflict_id)
+        identifiers(row["pins"], f"AIDK conflict[{index}].pins")
+        identifiers(row["functions"], f"AIDK conflict[{index}].functions")
+        if row["status"] != "unknown" or row["policy"] != "do-not-claim" or \
+                not isinstance(row["notes"], str) or not row["notes"]:
+            raise FrameworkError(f"AIDK conflict policy is unsafe: {conflict_id}")
+    if seen != expected:
+        raise FrameworkError("AIDK conflict coverage is incomplete")
+    unsupported = identifiers(constraints["unsupported"], "AIDK unsupported BOM")
+    if unsupported != ["sd_nand", "lcd", "camera", "mfrc522", "sc7a20", "usb0"]:
+        raise FrameworkError("AIDK unsupported BOM list is not canonical")
+
+
 def validate_resource_graph(repository: Path, value: dict[str, Any]) -> dict[str, Any]:
-    exact(value, {"schema", "kind", "version", "board", "product", "mode",
+    graph_keys = {"schema", "kind", "version", "board", "product", "mode",
                   "board_selection", "phases", "roles", "nodes", "edges",
-                  "resources", "temporal_handoff", "identity_sha256"}, "resource graph")
+                  "resources", "temporal_handoff", "identity_sha256"}
+    if value.get("board") == "aidk_ai_toy":
+        graph_keys.add("board_constraints")
+    exact(value, graph_keys, "resource graph")
     if value["schema"] != GRAPH_SCHEMA or value["kind"] != "resource-graph" or value["version"] != 1:
         raise FrameworkError("unsupported resource graph schema")
     for field in ("board", "product", "mode"):
@@ -326,6 +376,8 @@ def validate_resource_graph(repository: Path, value: dict[str, Any]) -> dict[str
     if (selection["selected"] != value["board"] or candidates != [value["board"]] or
             selection["exactly_one"] is not True or selection["fallback"] != "forbidden"):
         raise FrameworkError("resource graph board selection is not exactly-one/fail-closed")
+    if value["board"] == "aidk_ai_toy":
+        _validate_aidk_board_constraints(value["board_constraints"])
     nodes = array(value["nodes"], "resource graph nodes")
     if len(nodes) != len(ROLES):
         raise FrameworkError("resource graph must contain exactly BL1/BL2/CP/AP nodes")

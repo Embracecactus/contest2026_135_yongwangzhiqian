@@ -1,0 +1,19 @@
+{
+  "board": "aidk_ai_toy",
+  "boot": "raw",
+  "family": "aidk_ai_toy",
+  "features": [],
+  "fragments": ["common_base", "board_aidk_ai_toy", "boot_raw_aidk_ai_toy"],
+  "id": "aidk_ai_toy_bringup",
+  "kind": "product",
+  "mode": "bringup",
+  "roles": {
+    "ap": {"fragments": ["role_ap"], "legacy_profile": null},
+    "bl2": {"fragments": ["role_bl2"], "legacy_profile": null},
+    "cp": {"fragments": ["role_cp"], "legacy_profile": null}
+  },
+  "schema": "bk7258.composition/1",
+  "sdk_lock": "board/bk7258/scripts/bk7258_sdk_lock_aidk_ai_toy.json",
+  "sdk_set": "board/bk7258/scripts/bk7258_sdk_set_aidk_ai_toy.json",
+  "validation_suite": null
+}

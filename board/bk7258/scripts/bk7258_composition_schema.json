@@ -51,7 +51,9 @@
         "roles",
         "fragments",
         "features",
-        "validation_suite"
+        "validation_suite",
+        "sdk_set",
+        "sdk_lock"
       ],
       "additional_properties": false
     },

@@ -31,6 +31,14 @@ config BK7258_BOARD_T5_BOARD
 		camera connectors, P1 user LED and P12 ADC key.  Selecting this
 		changes board wiring only; chip, CP/AP and boot code remain shared.
 
+config BK7258_BOARD_AIDK_AI_TOY
+	bool "AIDK AI Toy (schematic-only bring-up)"
+	help
+		Minimal AIDK AI Toy board binding. UART0 is the 115200 8N1
+		console/download path. SWD, boot hold, RTT, RTS/DTR reset and UART
+		flow control remain disabled. Unknown BOM/peripheral routes are not
+		claimed; this selector is not a hardware-verified board target.
+
 endchoice
 
 if BK7258_BOARD_T5_BOARD

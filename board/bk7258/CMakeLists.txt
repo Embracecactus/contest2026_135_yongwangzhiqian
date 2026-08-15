@@ -2,7 +2,10 @@
 
 include("${NUTTX_BOARD_DIR}/bk_idk/sdk-bundles.cmake")
 
-if(CONFIG_BK7258_BOARD_T5_BOARD)
+if(CONFIG_BK7258_BOARD_AIDK_AI_TOY)
+  set(BK7258_BOARD_VARIANT_DIR
+      "${NUTTX_BOARD_DIR}/boards/aidk_ai_toy")
+elseif(CONFIG_BK7258_BOARD_T5_BOARD)
   set(BK7258_BOARD_VARIANT_DIR
       "${NUTTX_BOARD_DIR}/boards/t5_board")
 else()
