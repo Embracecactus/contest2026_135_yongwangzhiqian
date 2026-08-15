@@ -5,9 +5,9 @@ Updated by: Codex (GPT-5.6-Luna MAX delegated implementation)
 
 ## Current task
 
-P1 composition framework is implemented on `refactor/bk7258-platform-v2`; P2
-SDK registry work follows immediately.  P0 remains the accepted foundation;
-legacy profiles and production build behavior remain usable.
+P3 product/mode config and isolated BL1/BL2/CP/AP build-plan work is being
+implemented on `refactor/bk7258-platform-v2`; P0 remains the accepted
+foundation and legacy profiles/production build behavior remain usable.
 
 ## Verified baseline
 
@@ -77,10 +77,26 @@ as its immutable baseline.
 
 Detailed evidence: [P2 SDK registry verification](verification/2026-08-15-bk7258-platform-v2-p2.md).
 
+## P3 implementation
+
+- `config` emits a deterministic role config document and optional defconfig
+  text from the resolved product/mode/board/role IR; it never writes the
+  frozen `board/bk7258/configs` profiles.
+- `build-plan` emits a content-identified, machine-readable plan for separate
+  BL1, BL2, CP and AP source views, build roots, artifact roots and `.config`
+  paths.  CP/AP SDK rows bind to the P2 lock; BL1 and BL2 use `sdk=null`.
+- BL2 is explicitly `minimal-make-inputs` with the existing
+  `bootloader/bl2/Makefile` adapter and `fake_nuttx_seed=false`; no fake NuttX
+  BL2 seed or real build/sign/flash operation is performed.  The legacy
+  `build_dual_image.sh` path remains a compatibility-only, uninvoked adapter.
+
+Detailed evidence: [P3 build-plan verification](verification/2026-08-15-bk7258-platform-v2-p3.md).
+
 ## Exact next action
 
-Continue with owner review of the P2 SDK metadata and later role-set coverage;
-SDK archives remain metadata-only and no private mirror mutation is permitted.
+Continue with owner review of the P3 plan/config metadata and later role-set
+coverage; SDK archives remain metadata-only and no private mirror mutation is
+permitted.
 
 ## Remaining boundaries
 
