@@ -58,8 +58,8 @@ int __wrap_gpio_hal_default_map_init(void *hal)
    * HAL setup, mailbox resource setup and GPIO IRQ registration.  Suppress
    * only its all-pin default-map pass: that pass writes P0/P1 between the
    * BL2 debug handshake and board bring-up, and a DWT watchpoint proved that
-   * the transient write is what drops an attached probe.  Board GPIO users
-   * configure their claimed pins explicitly after driver initialization.
+   * the transient write is what drops an attached probe.  Chip GPIO clients
+   * configure only their claimed pins after shared driver initialization.
    */
 
   (void)hal;
@@ -199,13 +199,14 @@ int bk7258_swd_initialize(void)
    * available as an alternate route when the paired-image pin validator has
    * excluded its board conflicts.
    *
-   * Do not call bk_gpio_driver_init() here.  The GPIO lower-half owns that
-   * one-time initialization; this profile wraps only its destructive
-   * all-pin default-map pass so the SDK HAL/IRQ service remains available
-   * without a transient P0/P1 remap.  A DWT write watchpoint proved that the
-   * old call from this function was long enough to drop an attached SWD
-   * session.  The route below is the complete, idempotent end state produced
-   * by sys_drv_set_jtag_mode(0) + gpio_jtag_sel(1).
+   * Do not call bk_gpio_driver_init() here.  Chip consumers such as UART,
+   * SARADC and the GPIO lower half share that boot-lifetime SDK runtime and
+   * initialize it before mapping their own pins.  This profile wraps only
+   * its destructive all-pin default-map pass so the HAL/IRQ service remains
+   * available without a transient P0/P1 remap.  A DWT write watchpoint proved
+   * that the old call from this function was long enough to drop an attached
+   * SWD session.  The route below is the complete, idempotent end state
+   * produced by sys_drv_set_jtag_mode(0) + gpio_jtag_sel(1).
    */
 
   bk7258_swd_maintain();

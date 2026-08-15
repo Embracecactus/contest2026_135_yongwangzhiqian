@@ -20,6 +20,7 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | BK7258 initialization layers | `src/bk7258_platform.c` owns mandatory SDK/IPC/PM/AP lifetime initialization, `src/bk7258_bringup.c` owns application-facing procfs/MTD/filesystem registration, and the selected physical-board hook owns attached LCD/touch/camera validation and registration. `board_late_initialize()` and `board_app_initialize()` are thin NuttX entry points. |
 | BK7258 microphone | One AP NuttX audio lower-half owns DMA, ADC and worker lifetime.  The selected board header supplies fixed analog topology: T5AI-Core is MICP1/MICN1 mono; T5-Board is MICP1/MICN1 plus MICP2/MICN2 stereo.  Kconfig supplies product defaults for sample rate, analog/digital gain and buffering, while applications negotiate supported formats through `/dev/audio/pcm0c`.  The immutable AP SDK's separate AUDIO power-domain (`122`) and audio-clock (`30`) calls are link-wrapped into one generation-scoped CP-owned composite resource, because the native CPU1-to-CPU0 SDK PM mailbox is not an owner after RPTUN takes that mailbox. |
 | BK7258 speaker DAC | One AP NuttX playback lower half owns repeat GDMA, the two-frame DTCM ring, DAC and APB/worker lifetime at `/dev/audio/pcm0p`.  The selected board owns only the PA electrical binding: T5-Board P28 and T5AI-Core P39, both active-high with board-owned delays.  The first accepted contract is mono S16/16 kHz/320 samples/eight explicit APBs.  `RESERVE` through successful `RELEASE` owns the Audio 480 MHz SDK-tier vote; the bounded scheduling order is feeder 246 > refill worker 245 > board-default transport 225.  An optional chip-private hardware-EQ extension deep-copies four raw signed-22 coefficient banks before hardware creation, applies them while the initialized DAC is muted, and deconfigures them before DAC teardown.  It advertises no standard NuttX equalizer capability and owns no board preset.  Speaker and microphone validation remain mutually exclusive until shared full-duplex clock ownership is designed. |
+| BK7258 SARADC | The AP chip lower half publishes `/dev/adcN` through the standard NuttX ADC ABI.  One open session owns only the selected channel's GPIO mapping; each trigger takes, initializes, explicitly configures, starts, reads, stops, deinitializes and releases the shared ADC controller before delivering one sample to the upper FIFO.  CP owns the boot-lifetime GPIO runtime, SDK IRQ bridge and ADC mailbox server.  The selected board alone supplies pin/channel/electrical meaning: T5-Board binds active-low SW5 at P12/ADC14.  The generic validator contains no board endpoint assumption. |
 | Tier-1 bootloader | Board-owned source reconstructed for this port; it is built as a project artifact rather than patched into a vendor binary. It normalizes boot/cache/MPU/watchdog state. Direct profiles validate and transfer straight to CP; signed profiles transfer to Manifest/MCUboot BL2. |
 | BK7258 integrated Flash | 8 MiB on the current T5-AI; interface reports `0xc86517`, compatible with the GD25WQ64E command identity but not evidence of a separate board-level chip |
 | CP NuttX on CPU0 | Flash/LittleFS owner, AP lifecycle supervisor, RPMsg peer, Beken Bluetooth Controller owner, Wi-Fi RF/PHY/MAC/WPA/controller owner, PSRAM hardware/PM owner. Bluetooth desired state is published only after real SDK init/deinit success; Wi-Fi remains whole-chip lifetime. See [ADR-025](decisions/ADR-025-bk7258-radio-lifecycle-boundary.md). |
@@ -73,6 +74,13 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   extension is selected, its shadow is applied after DAC init/mute but before
   DMA/DAC/PA start, and is deconfigured/read back after quiescence but before
   DAC deinit.
+- SARADC: `ANIOC_TRIGGER` enters the AP chip lower half, which sends
+  acquire/init/config/start/`bk_adc_read`/stop/deinit/release to the CP SARADC
+  mailbox server.  The unsupported `bk_adc_single_read` operation is not used.
+  The CP SDK ISR completes the sample; AP publishes it through `au_receive`,
+  and the NuttX ADC upper half returns the packed channel/value message to
+  `read()`.  Session-level GPIO mapping and per-trigger controller ownership
+  are released before the last close completes.
 - Signed-image selection: CP/AP are one launchable pair. The board-owned MCUboot BL2 exposes only
   one physical slot to each `boot_go()` attempt and requires the CP result and
   AP vector to come from that same slot; a cross-slot-only state fails closed.
@@ -133,8 +141,10 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 - T5AI-Core V1.0.1 remains the compatibility default. T5-Board is physically
   verified for COM3 sparse download, P0/P1 CP SWD, BL1/BL2 final hold/release,
   CP/AP startup, CPU2 SMP, bidirectional RPTUN, DVP camera, TF one-/four-bit
-  storage and the bounded Audio DAC lifecycle. P20/P21, alternate UARTs and
-  RGB LCD remain compile-only until tested in compatible profiles.
+  storage and the bounded Audio DAC lifecycle.  Its P12/ADC14 SARADC path and
+  released baseline are physically verified, while the SW5 active-low and
+  return transitions remain pending. P20/P21, alternate UARTs and RGB LCD
+  remain compile-only until tested in compatible profiles.
 - N14 exposes only 128 KiB CP and 640 KiB AP role-local PSRAM heaps. The remaining regions are reserved by policy.
 - PSRAM is non-cacheable; DMA/cache-coherency and performance tuning are deferred.
 - AP automatic recovery is disabled by default; the verified baseline is detection plus bounded manual recovery.

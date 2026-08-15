@@ -469,6 +469,71 @@ if config_enabled "${AP_CONFIG}" BK7258_TEMPERATURE &&
     exit 2
 fi
 
+# The AP SARADC lower half is an IPC client even though it exposes the
+# standard local /dev/adcN ABI.  A client without the CP mailbox server can
+# only block until the immutable SDK operation timeout.  An idle CP server is
+# valid, so this remains a one-way dependency like the temperature service.
+
+if config_enabled "${AP_CONFIG}" BK7258_SARADC &&
+   ! config_enabled "${CP_CONFIG}" BK7258_SARADC_SERVER; then
+    printf '%s\n' \
+        'build_dual_image: AP SARADC client requires the CP mailbox server' >&2
+    exit 2
+fi
+
+# T5-Board P12 is one physical endpoint with GPIO, UART0_RTS, USB0_DP,
+# TOUCH0 and ADC14 alternatives.  Enforce that ownership for any runnable
+# ADC14 image, not only for the interactive key validator.  UART0 without
+# flow control remains valid because it uses only P10/P11.
+
+if [[ "${AP_PROFILE_BOARD}" == t5_board ]] &&
+   config_enabled "${AP_CONFIG}" BK7258_SARADC &&
+   [[ "$(config_value "${AP_CONFIG}" BK7258_SARADC_CHAN 0)" == 14 ]]; then
+    for conflict in BK7258_UART0_FLOW_CONTROL BK7258_GPIO_LOWERHALF \
+                    BK7258_GPIO_FOUNDATION_TEST BK7258_GPIO_IRQ_TEST; do
+        if config_enabled "${CP_CONFIG}" "${conflict}"; then
+            printf 'build_dual_image: T5-Board P12 ADC14 conflicts with CP %s\n' \
+                "${conflict}" >&2
+            exit 2
+        fi
+    done
+
+    if config_enabled "${AP_CONFIG}" BK7258_USBHOST; then
+        printf '%s\n' \
+            'build_dual_image: T5-Board P12 cannot own both ADC14 and USB0_DP' >&2
+        exit 2
+    fi
+
+    if config_enabled "${CP_CONFIG}" BK7258_TOUCH &&
+       [[ "$(config_value "${CP_CONFIG}" BK7258_TOUCH_CHANNEL 3)" == 0 ]]; then
+        printf '%s\n' \
+            'build_dual_image: T5-Board P12 cannot own both ADC14 and TOUCH0' >&2
+        exit 2
+    fi
+fi
+
+SARADC_KEY_COMPAT=t5_board_saradc_key_validation_mcuboot_v1
+if config_enabled "${AP_CONFIG}" BK7258_T5_BOARD_SARADC_KEY_VALIDATION ||
+   [[ "${AP_PROFILE_COMPAT}" == "${SARADC_KEY_COMPAT}" ||
+      "${CP_PROFILE_COMPAT}" == "${SARADC_KEY_COMPAT}" ]]; then
+    if [[ "${AP_PROFILE_CLASS}" != validation ||
+          "${CP_PROFILE_CLASS}" != validation ||
+          "${AP_PROFILE_BOOT}" != mcuboot ||
+          "${CP_PROFILE_BOOT}" != mcuboot ||
+          "${AP_PROFILE_COMPAT}" != "${SARADC_KEY_COMPAT}" ||
+          "${CP_PROFILE_COMPAT}" != "${SARADC_KEY_COMPAT}" ]] ||
+       ! config_enabled "${AP_CONFIG}" \
+           BK7258_T5_BOARD_SARADC_KEY_VALIDATION ||
+       ! config_enabled "${AP_CONFIG}" BK7258_SARADC ||
+       ! config_enabled "${CP_CONFIG}" BK7258_SARADC_SERVER ||
+       [[ "$(config_value "${AP_CONFIG}" BK7258_SARADC_CHAN 0)" != 14 ]] ||
+       [[ "$(config_value "${AP_CONFIG}" BK7258_SARADC_BUS 0)" != 0 ]]; then
+        printf '%s\n' \
+            'build_dual_image: T5-Board ADC-key validation requires its dedicated ADC14 /dev/adc0 CP/AP pair' >&2
+        exit 2
+    fi
+fi
+
 if config_enabled "${AP_CONFIG}" BK7258_PM_COORDINATED_STANDBY; then
     AP_PM_NDOMAINS="$(config_value "${AP_CONFIG}" PM_NDOMAINS 1)"
     AP_SMP_NCPUS="$(config_value "${AP_CONFIG}" SMP_NCPUS 1)"
@@ -1094,6 +1159,50 @@ if config_enabled "${CP_CONFIG}" BK7258_PM_STANDBY_ONESHOT_VERIFY; then
                   bk7258_systick_restore_after_sleep; do
         require_elf_symbol "${OUTPUT}/nuttx-cp.elf" "${symbol}"
     done
+fi
+
+if config_enabled "${AP_CONFIG}" BK7258_SARADC; then
+    command -v arm-none-eabi-nm >/dev/null 2>&1 || {
+        printf '%s\n' \
+            'build_dual_image: arm-none-eabi-nm is required for SARADC ELF gates' >&2
+        exit 1
+    }
+
+    for symbol in bk7258_saradc_server_initialize \
+                  bk7258_sdk_runtime_initialize \
+                  bk_gpio_driver_init bk_adc_driver_init \
+                  mb_saradc_ipc_init bk_saradc_server_init \
+                  bk_int_isr_register; do
+        require_elf_symbol "${OUTPUT}/nuttx-cp.elf" "${symbol}"
+    done
+
+    require_map_symbol_owner "${OUTPUT}/nuttx-cp.map" \
+        bk_int_isr_register 'libarch.a(bk7258_sdk_irq.o)'
+    require_map_symbol_owner "${OUTPUT}/nuttx-cp.map" \
+        bk_adc_driver_init 'cp/libs/libdriver.a(adc_driver.c.obj)'
+
+    for symbol in bk7258_sdk_runtime_initialize \
+                  bk7258_saradc_initialize bk7258_saradc_get_diag \
+                  g_bk7258_saradc_diag adc_register \
+                  bk_adc_chan_init_gpio bk_adc_chan_deinit_gpio \
+                  bk_adc_acquire bk_adc_init bk_adc_set_config \
+                  bk_adc_enable_bypass_clalibration bk_adc_start \
+                  bk_adc_read bk_adc_stop bk_adc_deinit bk_adc_release; do
+        require_elf_symbol "${OUTPUT}/nuttx-ap.elf" "${symbol}"
+    done
+
+    require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" \
+        adc_register 'libdrivers.a(adc.o)'
+    require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" \
+        bk_adc_read 'ap/libs/libdriver.a(saradc_client.c.obj)'
+fi
+
+if config_enabled "${AP_CONFIG}" BK7258_T5_BOARD_SARADC_KEY_VALIDATION; then
+    require_elf_symbol "${OUTPUT}/nuttx-ap.elf" \
+        bk7258_saradc_validation_start
+    require_elf_symbol "${OUTPUT}/nuttx-ap.elf" \
+        g_bk7258_saradc_validation_diag
+    forbid_elf_symbol "${OUTPUT}/nuttx-ap.elf" bk_adc_single_read
 fi
 
 if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then

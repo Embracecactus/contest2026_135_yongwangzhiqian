@@ -60,6 +60,7 @@ image.
 | TF 4-bit exclusive-route validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_tf_4bit_validation_mcuboot` | MCUboot, validation |
 | on-die temperature validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_temperature_validation_mcuboot` | MCUboot, validation |
 | speaker DAC + private hardware-EQ zero-bank register lifecycle and one-shot standby validation | `t5_board_cp_audio_dac_validation_mcuboot` | `t5_board_ap_audio_dac_validation_mcuboot` | MCUboot, validation |
+| SARADC ADC-key lifecycle validation | `t5_board_cp_saradc_key_validation_mcuboot` | `t5_board_ap_saradc_key_validation_mcuboot` | MCUboot, interactive validation |
 | Wi-Fi | `t5_board_cp_wifi_mcuboot` | `t5_board_ap_wifi_mcuboot` | MCUboot, runnable |
 | compile-only driver coverage | `t5_board_cp_drivercheck` | `t5_board_ap_drivercheck` | raw, CI only |
 
@@ -83,6 +84,13 @@ Do not switch S1-1/S1-2 ON while the four-bit image is actively using SDIO.
 For a later COM3 download, first reset into the existing BL2 hold, then switch
 S1-1/S1-2 ON and download.  After the loader returns to BL2 hold, switch both
 OFF again before releasing the hold through P0/P1 SWD.
+
+The SARADC key profile reserves P12 exclusively as ADC14.  UART0 remains a
+two-wire console/download path on P10/P11; UART0 flow control, USB0, touch
+channel 0 and the digital GPIO button owner are excluded.  After boot, leave
+SW5 released for the baseline, press and hold it when prompted, then release
+it for the final phase.  A released-only trace proves the controller/IPC path
+but is not a physical key validation pass.
 
 The default v3.1.1.9 AP SDK bundle was compiled without its private
 `CONFIG_SDCARD_BUSWIDTH_4LINE` option and remains the one-bit implementation.

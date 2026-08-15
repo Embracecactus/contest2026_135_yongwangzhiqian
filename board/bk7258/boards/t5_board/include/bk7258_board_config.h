@@ -37,6 +37,19 @@
 #define BK7258_BOARD_USER_LED_CONSOLE_SHARED     1
 #define BK7258_BOARD_USER_BUTTON_GPIO            12
 #define BK7258_BOARD_USER_BUTTON_ACTIVE_LOW      1
+
+/* SW5 is an analog key, not a digital-only button: 3V3 feeds the node
+ * through R96 (10 kOhm), SW5 pulls it to ground, and R5 (100 Ohm) connects
+ * the filtered ADC_KEY node to P12/ADC14.  The USER_BUTTON aliases above
+ * describe the same physical endpoint and must never be enabled together
+ * with this SARADC binding.
+ */
+
+#define BK7258_BOARD_ADC_KEY_GPIO                 12
+#define BK7258_BOARD_ADC_KEY_SARADC_CHAN          14
+#define BK7258_BOARD_ADC_KEY_ACTIVE_LOW           1
+#define BK7258_BOARD_ADC_KEY_BINDING_ID           0x59454b54u /* "TKEY" */
+
 #define BK7258_BOARD_SPEAKER_CONTROL_GPIO        28
 #define BK7258_BOARD_SPEAKER_ACTIVE_HIGH          1
 #define BK7258_BOARD_SPEAKER_ON_DELAY_MS         10u
