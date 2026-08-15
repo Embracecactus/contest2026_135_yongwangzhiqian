@@ -5,10 +5,9 @@ Updated by: Codex (GPT-5.6-Luna MAX delegated implementation)
 
 ## Current task
 
-P0 of the BK7258 platform-v2 migration is implemented pending primary-agent
-review on `refactor/bk7258-platform-v2`.  The sole local P0 commit is the only
-commit after the approved base; the exact amended HEAD is reported in the
-handoff rather than embedded here to avoid a recursive self-hash.
+P1 composition framework is implemented on `refactor/bk7258-platform-v2`; P2
+SDK registry work follows immediately.  P0 remains the accepted foundation;
+legacy profiles and production build behavior remain usable.
 
 ## Verified baseline
 
@@ -41,18 +40,35 @@ handoff rather than embedded here to avoid a recursive self-hash.
 
 Detailed evidence: [P0 freeze verification](verification/2026-08-15-bk7258-platform-v2-p0.md).
 
+## P1 implementation
+
+- Strict duplicate-key schemas validate board, product, fragment and resolved
+  IR documents with safe identifiers, repository-relative source views and a
+  content identity hash.
+- Board/product/mode/role composition is deterministic and fail-closed: one
+  board is selected by the product, conflicting symbols and missing/cyclic
+  fragment dependencies fail, and no T5 fallback exists.
+- The canonical CMake source view and a Classic adapter-isolation feasibility
+  report are host-only outputs; they do not alter the legacy builder.
+- Catalog inputs live in the existing `board/bk7258/scripts` path.  No new
+  config profile, product directory, SDK bytes or production source was added.
+
+Detailed evidence: [P0 freeze verification](verification/2026-08-15-bk7258-platform-v2-p0.md)
+and [P1 resolver verification](verification/2026-08-15-bk7258-platform-v2-p1.md).
+
 ## Exact next action
 
-Primary agent independently reviews the amended P0 commit and evidence.  Do
-not begin P1 until review accepts this checkpoint.
+Continue with P2 immutable SDK bundle/set/lock metadata and verification
+framework.  SDK archives remain metadata-only and no private mirror mutation
+is permitted.
 
 ## Remaining boundaries
 
 - No legacy profile was deleted or modified; no equivalent product resolver
   exists yet.
-- No product manifest, generated seed, SDK registry, production build,
-  signing, package, Flash, hardware operation or remote mutation occurred.
-- Cross-platform stable-device transport discovery is a P7 requirement:
+- No generated build seed, SDK registry bytes, production build, signing,
+  package, Flash, hardware operation or remote mutation occurred.
+- Cross-platform stable-device transport discovery remains a P7 requirement:
   default auto discovery, unique USB identity matching and explicit
   Windows/Linux/WSL backend capability; no COM number or `/dev` path is a
   product/board default.
@@ -62,8 +78,8 @@ not begin P1 until review accepts this checkpoint.
 - Official NuttX/apps/Beken SDK and proprietary SDK bytes remain untouched.
 - Preserve validated T5/SARADC/JPEG/Audio/TF/Wi-Fi behavior and unrelated user
   files; do not inspect N17 or another historical trust domain.
-- No new legacy config directory, driver/validator profile, product/board
-  seed, upstream rebase, P1 code, build/sign/package/flash/hardware action or
-  push is authorized in P0.
+- No new legacy config directory or driver/validator profile was added;
+  upstream rebase, build/sign/package/flash/hardware action and push remain
+  forbidden.
 - The future mirror URL is owner-designated only and grants no redistribution
   right; licensing/authorization/notices/SBOM must precede any P2 action.

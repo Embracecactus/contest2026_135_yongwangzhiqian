@@ -1,0 +1,16 @@
+{
+  "bindings": {
+    "console": {"baud": 115200, "flow_control": false, "rts_reset": false, "uart": "uart0"},
+    "debug": {"boot_hold": false, "rtt": false, "swd": false}
+  },
+  "id": "t5ai_core",
+  "kind": "board",
+  "resource_claims": [
+    {"owner": "console", "phases": ["cp", "ap", "bl2"], "resource": "uart0"},
+    {"owner": "speaker", "phases": ["ap"], "resource": "pa_p39_p28"}
+  ],
+  "schema": "bk7258.composition/1",
+  "soc": "bk7258",
+  "transport": {"capabilities": ["serial-console"], "identity_hints": {}},
+  "variant": "t5ai_core"
+}

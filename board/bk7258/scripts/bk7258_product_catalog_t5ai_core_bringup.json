@@ -1,0 +1,17 @@
+{
+  "board": "t5ai_core",
+  "boot": "raw",
+  "family": "t5ai_core",
+  "features": [],
+  "fragments": ["common_base", "board_t5ai_core", "boot_raw"],
+  "id": "t5ai_core_bringup",
+  "kind": "product",
+  "mode": "bringup",
+  "roles": {
+    "ap": {"fragments": ["role_ap"], "legacy_profile": "t5ai_core_ap_base"},
+    "bl2": {"fragments": ["role_bl2"], "legacy_profile": "bl2_mcuboot"},
+    "cp": {"fragments": ["role_cp"], "legacy_profile": "t5ai_core_cp_base"}
+  },
+  "schema": "bk7258.composition/1",
+  "validation_suite": null
+}
