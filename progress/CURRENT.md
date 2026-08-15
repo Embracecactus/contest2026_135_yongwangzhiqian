@@ -3,218 +3,75 @@
 Last updated: 2026-08-15
 Updated by: Codex (GPT-5.6-Luna MAX delegated implementation)
 
-## Current task
+## Snapshot
 
-P8's schematic-only AIDK AI Toy board binding is now implemented on
-`refactor/bk7258-platform-v2`; P0 remains the accepted foundation and legacy
-profiles/production build behavior remain usable.
+- Branch: `refactor/bk7258-platform-v2`
+- HEAD: `1c7a897` (P9a CURRENT compaction amend pending)
+- Objective: preserve the frozen BK7258 legacy surface while validating the
+  platform-v2 composition/resource/build boundary and preparing an owner-gated
+  P9b migration.
+- Current phase: P9a shadow/parity complete; no cutover is authorized.
 
-## Verified baseline
+## Completed foundation
 
-- Approved base: `origin/dev-ai-contest-2026` at
-  `2eb0353ee6989e6654629aa0b67cac8c7c1ee810`; independent remote read-only
-  verification returned the same exact SHA.
-- The frozen `board/bk7258/configs` tree is 27 profile directories, 55 regular
-  files and 82 descendants.  Its Git tree is
-  `3fb581ad1a0d0c439f12a7c5f18f8989c8a448df`.
-- Merged JPEG/SARADC behavior remains present.  SARADC physical endpoint
-  remains PARTIAL: released ADC14/controller evidence exists, but a real SW5
-  released/pressed/released run is pending.
+- P0 froze the approved 27-profile, 55-file legacy tree and consumer inventory
+  from the approved Git object.  The ledger remains proposal-only.
+- P1-P4 added strict composition, SDK metadata, isolated build-plan, ownership,
+  migration, and lifecycle resource-graph contracts without changing legacy
+  profiles, SDK bytes, or public NuttX/common sources.
+- P5-P7 added validation descriptors, metadata-only package planning, and
+  dry-run cross-platform transport contracts.
+- P8 added the schematic-only AIDK AI Toy Board binding.  Its hardware,
+  peripheral BOM routes, and boot behavior remain unverified.
 
-## P0 implementation
+Evidence: [P0](verification/2026-08-15-bk7258-platform-v2-p0.md),
+[P1](verification/2026-08-15-bk7258-platform-v2-p1.md),
+[P2](verification/2026-08-15-bk7258-platform-v2-p2.md),
+[P3](verification/2026-08-15-bk7258-platform-v2-p3.md),
+[P4](verification/2026-08-15-bk7258-platform-v2-p4.md),
+[P5](verification/2026-08-15-bk7258-platform-v2-p5.md),
+[P6](verification/2026-08-15-bk7258-platform-v2-p6.md),
+[P7](verification/2026-08-15-bk7258-platform-v2-p7.md),
+[P8](verification/2026-08-15-bk7258-platform-v2-p8.md).
 
-- Git-object-derived freeze manifest binds the exact approved commit/tree,
-  current configs bytes, modes, metadata, defconfig symbols, SDK manifests,
-  pair graph and mandatory ledger digest.
-- The 27-row ledger is explicit `consolidation-review`/proposal state.  It
-  separates product/resource mode from validation suite and creates no product,
-  board or configuration seed.
-- The exact-base consumer snapshot has 104 recomputed consumers plus neutral
-  reviewed-path records for board/platform documentation.  It makes no
-  unreliable active/inactive claim and records historical-only false positives.
-- Strict duplicate-key JSON loading, schema/path/hash/type checks, root
-  lstat/mode checks, Git-object availability and all adversarial negative tests
-  are implemented.
-- ADR-026 is proposed for owner review; ADR-024 remains byte-identical and is
-  identified as legacy/as-is in `memory/ARCHITECTURE.md`.
+## P9a result
 
-Detailed evidence: [P0 freeze verification](verification/2026-08-15-bk7258-platform-v2-p0.md).
+- `bk7258_shadow_ledger.json` and its schema bind all 27 frozen profiles to
+  family, resource mode, validation suite, target role/product, source
+  digests, status, and rationale.  Allowed statuses are exactly `EXACT`,
+  `EQUIVALENT_WITH_REASON`, `MIGRATION_PENDING`, and `RETIRE_PROPOSED`.
+- `bk7258_framework.py shadow-check` compares old metadata/defconfig/source
+  closure with proposed resolved defconfig/source/device/resource/SDK/package
+  evidence where available.  Missing evidence is explicit; all 27 rows are
+  `MIGRATION_PENDING`.
+- `bk7258_framework.py framework-check` passes 11 bounded P0-P8 metadata and
+  representative T5/AIDK plan/package/transport checks.  No production build,
+  signing, Flash, hardware, or network operation was performed.
+- Release workflow is recorded in
+  [release-checklist](../docs/bk7258-t5ai/release-checklist.md); no AI Coding
+  session logs were exported.
 
-## P1 implementation
+Evidence: [P9a verification](verification/2026-08-15-bk7258-platform-v2-p9a.md).
 
-- Strict duplicate-key schemas validate board, product, mode, role, fragment
-  and resolved IR documents with safe identifiers, repository-relative source
-  views and a content identity hash; the schema contract is versioned in the
-  existing scripts path.
-- Board/product/mode/role composition is deterministic and fail-closed: one
-  board is selected by the product, conflicting symbols and missing/cyclic
-  fragment dependencies fail, and no T5 fallback exists.
-- The CMake adapter keeps the existing board/chip source tree
-  read-only, creates a role-local build/artifact view, forbids a shared
-  `.config`, and emits a machine-readable view identity; the Classic
-  adapter-isolation feasibility report is explicitly unproven and does not
-  alter the legacy builder.
-- Catalog inputs live in the existing `board/bk7258/scripts` path.  No new
-  config profile, product directory, SDK bytes or production source was added.
+## Exact next gates
 
-Detailed evidence: [P1 resolver verification](verification/2026-08-15-bk7258-platform-v2-p1.md),
-with the [P0 freeze verification](verification/2026-08-15-bk7258-platform-v2-p0.md)
-as its immutable baseline.
+1. Owner reviews and accepts the P9a shadow report, status rationales, and
+   release checklist.
+2. Before any P9b cutover, obtain the separately approved hardware gate and
+   device-backed evidence for AIDK bindings, resource claims, boot behavior,
+   and the pending SARADC physical endpoint.
+3. P9b (if authorized) must preserve the legacy tree and prove parity before
+   changing live ownership.  P10 may address publication/PR workflow only
+   after owner approval and the separate public-NuttX PR boundary.
 
-## P2 implementation
+## Boundaries and prohibitions
 
-- Versioned SDK registry/set/lock metadata is content-addressed by SHA-256 and
-  records official, derived and sealed-binary provenance without storing SDK
-  bytes.  The lock encodes CP/AP manifest/provenance identities and explicitly
-  binds BL2 to no runtime SDK.
-- `bk7258_framework.py sdk-verify` validates duplicate-free metadata, tracked
-  manifest/provenance paths, source-reproducibility claims, private-mirror
-  authorization policy and optional external bundle trees.  Bundle checks
-  reject symlinks, special files, missing files and extra files.
-- `sdk-import` is verification-only and emits a non-overwriting receipt; there
-  is no `--replace`, upload, network access or registry mutation.  AP entries
-  with `source_archive=not-provided` remain non-source-reproducible.
-
-Detailed evidence: [P2 SDK registry verification](verification/2026-08-15-bk7258-platform-v2-p2.md).
-
-## P3 implementation
-
-- `config` emits a deterministic role config document and optional defconfig
-  text from the resolved product/mode/board/role IR; it never writes the
-  frozen `board/bk7258/configs` profiles.
-- `build-plan` emits a content-identified, machine-readable plan for separate
-  BL1, BL2, CP and AP source views, build roots, artifact roots and `.config`
-  paths.  CP/AP SDK rows bind to the P2 lock; BL1 and BL2 use `sdk=null`.
-- BL2 is explicitly `minimal-make-inputs` with the existing
-  `bootloader/bl2/Makefile` adapter and `fake_nuttx_seed=false`; no fake NuttX
-  BL2 seed or real build/sign/flash operation is performed.  The legacy
-  `build_dual_image.sh` path remains a compatibility-only, uninvoked adapter.
-
-Detailed evidence: [P3 build-plan verification](verification/2026-08-15-bk7258-platform-v2-p3.md).
-
-## P4 implementation
-
-- Strict ownership and dependency metadata now follows only Architecture ->
-  Chip/SoC -> Board; Architecture is upstream NuttX and is not patched here.
-  `vendor_common_glue`, `build_adapter` and `migration_pending` are internal
-  tags, while the compatibility ledger records files/symbols before any
-  per-item migration and creates no layer directory.
-- BK7258-intrinsic AP topology/lifecycle, mailbox/IPI/shared memory, RPTUN,
-  clock/power and cross-core mechanisms remain Chip-owned.  Board owns pins,
-  bindings, external devices, linker/configuration and bring-up; production
-  validation auto-start is marked migration_pending toward Board.
-- The resource graph resolves paired BL1/BL2/CP/AP roles over download, boot,
-  hold, runtime, suspend and restart.  It checks pin/function, devpath/minor,
-  IRQ/DMA/clock/power, SDK singleton, mailbox, memory/PSRAM and BOM claims,
-  plus temporal handoff preconditions.
-- Exactly-one board selection and forbidden fallback are enforced.  SDK
-  singleton controllers remain max-one with explicit owner; the graph binds
-  SDK IDs to the existing P2 lock and emits metadata only.
-- `bk7258_framework.py` now exposes host-only `layer-check`,
-  `migration-check`, `resource-check`, and `resource-resolve` compatibility
-  commands.  P1-P3 tools remain CMake/Classic adapters over existing build
-  semantics; standard artifacts are `libarch.a`, `libboards.a`, and
-  `vela_*.bin`, while `.bkpack` is only a later additive vendor extension.
-  No public NuttX/common repository change was needed; any future upstream API
-  requirement must be recorded as external-upstream-needed.
-
-Detailed evidence: [P4 ownership/resource-graph verification](verification/2026-08-15-bk7258-platform-v2-p4.md).
-
-## P5 implementation
-
-- `bk7258_validation_descriptors.json` defines versioned validation descriptors
-  with typed requirements, auto/interactive/fixture/destructive-fault
-  categories, lifecycle commands, timeout/status and globally serialized
-  resource claims.  The checker enforces `app/hello_app` entrypoints and no
-  vendor/chip/board-private calls in the runner core.
-- `bkvalidate list`, `run <id>` and `all-compatible` are opt-in through
-  `CONFIG_BK7258_BKVALIDATE` and wired through the existing hello-app Kconfig,
-  Classic Make and CMake files.  Outcomes are stable JSON; incompatible,
-  interactive, fixture, destructive-fault and not-ready descriptors are
-  explicit `SKIP` results.
-- The checker proves all 27 frozen legacy profiles map to family/resource
-  mode/validation suite.  Existing validation and production auto-start remain
-  untouched; the new-path migration policy is explicitly `migration_pending`.
-
-Detailed evidence: [P5 validation-runner verification](verification/2026-08-15-bk7258-platform-v2-p5.md).
-
-## P6 implementation
-
-- `bk7258_bkpack_schema.json` is a strict, duplicate/unknown-key rejecting
-  contract for application and separately planned factory packages. Each
-  package contains exactly one named apps plan, the board/product/mode/role
-  tuple, SDK-lock and partition identities, bounded non-overlapping ranges,
-  tool/trust metadata, and `hardware_verified=false`.
-- `pack-prepare` emits metadata only. It maps `libarch.a`, `libboards.a` and
-  the four `vela_<role>.bin` outputs; `.bkpack` remains an optional additive
-  extension. `source_build_id` is independently derived from unsigned build
-  metadata and is never used as a signed digest.
-- `pack-verify` validates the package and current repository identities without
-  reading image bytes, signing, keys, network, Flash or hardware. Extra,
-  outside, overlapping and ambiguous artifacts/ranges fail closed.
-
-Detailed evidence: [P6 package verification](verification/2026-08-15-bk7258-platform-v2-p6.md).
-
-## P7 implementation
-
-- `bk7258_transport_schema.json` and the framework transport helpers support
-  Linux `/dev/tty*`, macOS `/dev/cu.*`, Windows `COM*`, and WSL native device
-  paths with an optional PowerShell adapter. Unsupported hosts return an
-  actionable error; no serial device is opened.
-- `port-list` and `port-resolve` keep board identity separate from port/USB
-  identity. Explicit `--port` is deterministic; automatic selection rejects
-  ambiguity unless exactly one USB identity filter match exists.
-- `transport-plan` records explicit RTS/DTR/reset capabilities, enforces the
-  AIDK RTS-reset prohibition, and models an exclusive loader open -> close/
-  release -> console open/capture sequence with capture-before-loader false.
-
-Detailed evidence: [P7 transport verification](verification/2026-08-15-bk7258-platform-v2-p7.md).
-
-## P8 implementation
-
-- The official existing Board layer now has an explicit
-  `CONFIG_BK7258_BOARD_AIDK_AI_TOY` selector, CMake/Classic variant wiring,
-  board config header and minimal bring-up hook under the authorized
-  `board/bk7258/boards/aidk_ai_toy/` directory.
-- The binding records UART0 115200 8N1 console/download, disabled flow
-  control, SWD, boot hold, RTT and RTS/DTR reset, with a dynamic USB serial
-  port identity that is never used as board identity.  Hardware remains
-  `hardware_verified=false` and no unverified peripheral is registered.
-- Schematic conflicts P20/P21 (SC7A20/SWD), P0/P1 (MFRC522/CN1), P8/P9
-  (32-kHz/KEY3/motor) and USB0 are explicit unknown/do-not-claim records;
-  SD-NAND, LCD, camera, MFRC522, SC7A20 and USB0 are disabled in the minimal
-  product metadata.  The resource graph and board/product/mode-specific SDK
-  lock resolve without a legacy profile.
-
-Detailed evidence: [P8 AIDK board verification](verification/2026-08-15-bk7258-platform-v2-p8.md).
-
-## Exact next action
-
-Continue with owner review of the P8 schematic-only board metadata and later
-device-backed validation; no private SDK mirror mutation or automatic
-hardware execution is permitted.
-
-## Remaining boundaries
-
-- No legacy profile was deleted or modified; no equivalent product resolver
-  exists yet.
-- No generated build seed, SDK registry bytes, production build, signing,
-  package, Flash, hardware operation or remote mutation occurred.
-- Cross-platform stable-device transport discovery remains a P7 requirement:
-  default auto discovery, unique USB identity matching and explicit
-  Windows/Linux/WSL backend capability; no COM number or `/dev` path is a
-  product/board default.
-- AIDK board hardware, peripheral BOM routes and boot behavior remain
-  unverified; the current P8 result is a positive metadata/build-plan smoke
-  only, with no CMake/Classic compile, Flash or boot run claimed.
-
-## Fixed constraints
-
-- Official NuttX/apps/Beken SDK and proprietary SDK bytes remain untouched.
-- Preserve validated T5/SARADC/JPEG/Audio/TF/Wi-Fi behavior and unrelated user
-  files; do not inspect N17 or another historical trust domain.
-- No new legacy config directory or driver/validator profile was added;
-  upstream rebase, build/sign/package/flash/hardware action and push remain
-  forbidden.
-- The future mirror URL is owner-designated only and grants no redistribution
-  right; licensing/authorization/notices/SBOM must precede any P2 action.
+- Do not inspect N17 or another historical trust domain; do not delete or
+  modify frozen profiles, add profile directories, or add SDK bytes.
+- Do not build, sign, package, flash, open serial/hardware, mutate the private
+  mirror, use network services, push, or open PRs in this phase.
+- Do not export logs now.  Any later export must use selected local staging,
+  existing `logs/` only, and scrub secrets/tokens/private keys, absolute host
+  paths, personal data, and restricted SDK content.
+- Public NuttX/common changes, if ever approved, require a separate NuttX fork
+  PR targeted to `dev-ai-contest-2026`; they are not part of this wrapper PR.
