@@ -5,7 +5,7 @@ Updated by: Codex (GPT-5.6-Luna MAX delegated implementation)
 
 ## Current task
 
-P6 metadata-only `bkpack` preparation/verification is now implemented on
+P7 cross-platform dry-run transport discovery/resolution is now implemented on
 `refactor/bk7258-platform-v2`; P0 remains the accepted foundation and legacy
 profiles/production build behavior remain usable.
 
@@ -155,9 +155,24 @@ Detailed evidence: [P5 validation-runner verification](verification/2026-08-15-b
 
 Detailed evidence: [P6 package verification](verification/2026-08-15-bk7258-platform-v2-p6.md).
 
+## P7 implementation
+
+- `bk7258_transport_schema.json` and the framework transport helpers support
+  Linux `/dev/tty*`, macOS `/dev/cu.*`, Windows `COM*`, and WSL native device
+  paths with an optional PowerShell adapter. Unsupported hosts return an
+  actionable error; no serial device is opened.
+- `port-list` and `port-resolve` keep board identity separate from port/USB
+  identity. Explicit `--port` is deterministic; automatic selection rejects
+  ambiguity unless exactly one USB identity filter match exists.
+- `transport-plan` records explicit RTS/DTR/reset capabilities, enforces the
+  AIDK RTS-reset prohibition, and models an exclusive loader open -> close/
+  release -> console open/capture sequence with capture-before-loader false.
+
+Detailed evidence: [P7 transport verification](verification/2026-08-15-bk7258-platform-v2-p7.md).
+
 ## Exact next action
 
-Continue with owner review of P6 package metadata and later device-backed
+Continue with owner review of P7 transport metadata and later device-backed
 validation; no private SDK mirror mutation or automatic hardware execution is
 permitted.
 

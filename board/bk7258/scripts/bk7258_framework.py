@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import stat
 import sys
@@ -62,6 +63,10 @@ PACK_ARTIFACTS = {
     "vela_cp.bin": ("firmware_binary", "board", ("cp",)),
     "vela_ap.bin": ("firmware_binary", "board", ("ap",)),
 }
+TRANSPORT_SCHEMA = "bk7258.transport/1"
+TRANSPORT_HOSTS = frozenset({"linux", "darwin", "windows", "wsl"})
+TRANSPORT_IDENTITY_KEYS = ("vid", "pid", "serial_prefix", "interface", "location")
+TRANSPORT_CAPABILITY_KEYS = ("rts", "dtr", "reset", "rts_reset")
 
 
 class FrameworkError(ValueError):
@@ -1643,6 +1648,411 @@ def pack_verify(repository: Path | None, package: dict[str, Any] | Path) -> dict
     }
 
 
+def _transport_host(host: str | None = None) -> dict[str, Any]:
+    """Return an explicit host/backend identity without opening a port."""
+    if host is not None:
+        normalized = host.lower()
+        aliases = {"macos": "darwin", "mac": "darwin", "win32": "windows"}
+        normalized = aliases.get(normalized, normalized)
+        if normalized not in TRANSPORT_HOSTS:
+            raise FrameworkError(
+                f"unsupported host {host!r}; use --host linux|darwin|windows|wsl "
+                "or provide a supported explicit port")
+    elif sys.platform == "win32":
+        normalized = "windows"
+    elif sys.platform == "darwin":
+        normalized = "darwin"
+    elif sys.platform.startswith("linux"):
+        try:
+            proc_version = Path("/proc/version").read_text(encoding="utf-8").lower()
+        except (OSError, UnicodeError):
+            proc_version = ""
+        normalized = "wsl" if (os.environ.get("WSL_INTEROP") or "microsoft" in proc_version) else "linux"
+    else:
+        raise FrameworkError(
+            f"unsupported host {sys.platform!r}; use --host linux|darwin|windows|wsl "
+            "and an explicit supported port, or run the host adapter")
+    return {"os": normalized, "wsl": normalized == "wsl", "backend": "native"}
+
+
+def _transport_port(value: Any, host: str, field: str = "port") -> str:
+    if not isinstance(value, str) or not value or "\x00" in value or any(char.isspace() for char in value):
+        raise FrameworkError(f"invalid {field}")
+    if host in {"linux", "wsl"}:
+        if re.fullmatch(r"/dev/tty[^/]*", value) is None:
+            if not (host == "wsl" and re.fullmatch(r"(?i:COM[1-9][0-9]*)", value)):
+                raise FrameworkError(f"{field} must match /dev/tty* on {host}")
+    elif host == "darwin":
+        if re.fullmatch(r"/dev/cu\.[^/]*", value) is None:
+            raise FrameworkError(f"{field} must match /dev/cu.* on darwin")
+    elif host == "windows":
+        if re.fullmatch(r"(?i:COM[1-9][0-9]*)", value) is None:
+            raise FrameworkError(f"{field} must match COM* on windows")
+    else:
+        raise FrameworkError(f"unsupported transport host: {host}")
+    return value
+
+
+def _transport_identity(value: Any, field: str) -> dict[str, str | None]:
+    if value is None:
+        return {key: None for key in TRANSPORT_IDENTITY_KEYS}
+    raw = obj(value, field)
+    if set(raw) - set(TRANSPORT_IDENTITY_KEYS):
+        raise FrameworkError(f"unknown USB identity field in {field}")
+    result: dict[str, str | None] = {}
+    for key in TRANSPORT_IDENTITY_KEYS:
+        item = raw.get(key)
+        if item is not None and (not isinstance(item, str) or not item or
+                                 any(char.isspace() for char in item) or "\x00" in item):
+            raise FrameworkError(f"invalid USB identity field {field}.{key}")
+        result[key] = item
+    return result
+
+
+def _transport_capabilities(value: Any, field: str = "capabilities") -> dict[str, bool]:
+    raw = obj(value, field)
+    exact(raw, set(TRANSPORT_CAPABILITY_KEYS), field)
+    result: dict[str, bool] = {}
+    for key in TRANSPORT_CAPABILITY_KEYS:
+        if not isinstance(raw[key], bool):
+            raise FrameworkError(f"{field}.{key} must be explicit boolean")
+        result[key] = raw[key]
+    return result
+
+
+def _transport_candidate(value: Any, host: str, field: str,
+                         *, source: str = "native") -> dict[str, Any]:
+    raw = obj(value, field)
+    exact(raw, {"port", "identity", "capabilities", "source"}, field)
+    port = _transport_port(raw["port"], host, f"{field}.port")
+    identity = _transport_identity(raw["identity"], f"{field}.identity")
+    capabilities = _transport_capabilities(raw["capabilities"], f"{field}.capabilities")
+    if raw["source"] not in {"native", "explicit", "powershell-adapter"}:
+        raise FrameworkError(f"unsupported transport candidate source: {field}")
+    if source != "native" and raw["source"] != source:
+        raise FrameworkError(f"transport candidate source mismatch: {field}")
+    return {"port": port, "identity": identity, "capabilities": capabilities,
+            "source": raw["source"]}
+
+
+def _transport_candidate_from_port(port: str, host: str, source: str = "explicit") -> dict[str, Any]:
+    return {
+        "port": _transport_port(port, host),
+        "identity": _transport_identity(None, "candidate.identity"),
+        "capabilities": {key: False for key in TRANSPORT_CAPABILITY_KEYS},
+        "source": source,
+    }
+
+
+def validate_transport_list(value: dict[str, Any]) -> dict[str, Any]:
+    exact(value, {"schema", "kind", "version", "host", "candidates",
+                  "hardware_accessed", "identity_sha256"}, "transport port list")
+    if value["schema"] != TRANSPORT_SCHEMA or value["kind"] != "port-list" or value["version"] != 1:
+        raise FrameworkError("unsupported transport port-list schema")
+    host = obj(value["host"], "transport list host")
+    exact(host, {"os", "wsl", "backend"}, "transport list host")
+    if host["os"] not in TRANSPORT_HOSTS or host["wsl"] is not (host["os"] == "wsl"):
+        raise FrameworkError("transport host identity is malformed")
+    if host["backend"] not in {"native", "powershell-adapter"}:
+        raise FrameworkError("unsupported transport host backend")
+    candidates = array(value["candidates"], "transport candidates")
+    seen: set[str] = set()
+    for index, raw in enumerate(candidates):
+        candidate = _transport_candidate(raw, host["os"], f"transport candidates[{index}]")
+        if candidate["port"] in seen:
+            raise FrameworkError("duplicate transport candidate port")
+        seen.add(candidate["port"])
+    if value["hardware_accessed"] is not False:
+        raise FrameworkError("transport discovery must not access hardware")
+    digest(value["identity_sha256"], "transport list identity")
+    body = dict(value)
+    del body["identity_sha256"]
+    if sha256(canonical_json(body)) != value["identity_sha256"]:
+        raise FrameworkError("transport list identity mismatch")
+    return value
+
+
+def _transport_device_paths(host: str, device_root: Path,
+                            supplied: list[str] | None,
+                            windows_ports: list[str] | None,
+                            powershell_adapter: bool = False) -> list[str]:
+    if supplied is not None:
+        return list(supplied)
+    if host == "windows":
+        # Windows enumeration is intentionally an adapter input.  A Linux
+        # host must not pretend that COM ports are visible; callers may pass
+        # --port COMn or --windows-port COMn for a deterministic dry-run.
+        env_ports = os.environ.get("BK7258_PORT_CANDIDATES", "")
+        return list(windows_ports or [item for item in env_ports.split(",") if item])
+    if host == "wsl" and powershell_adapter and windows_ports:
+        # A caller-provided adapter result is metadata input only.  The
+        # framework does not invoke PowerShell or probe a COM handle.
+        return list(windows_ports)
+    pattern = "cu.*" if host == "darwin" else "tty*"
+    try:
+        return sorted(path.as_posix() for path in device_root.glob(pattern))
+    except OSError as error:
+        raise FrameworkError(f"cannot enumerate {host} serial candidates under {device_root}") from error
+
+
+def port_list(host: str | None = None, *, device_root: Path = Path("/dev"),
+              candidates: list[Any] | None = None,
+              windows_ports: list[str] | None = None,
+              powershell_adapter: bool = False) -> dict[str, Any]:
+    """Enumerate candidate names only; no serial device is opened."""
+    host_identity = _transport_host(host)
+    raw_paths = _transport_device_paths(host_identity["os"], device_root,
+                                        candidates, windows_ports, powershell_adapter)
+    rows: list[dict[str, Any]] = []
+    for index, item in enumerate(raw_paths):
+        if isinstance(item, str):
+            row = _transport_candidate_from_port(item, host_identity["os"])
+        else:
+            row = _transport_candidate(item, host_identity["os"], f"candidate[{index}]")
+        if row["port"] in {candidate["port"] for candidate in rows}:
+            raise FrameworkError("duplicate transport candidate port")
+        rows.append(row)
+    if powershell_adapter:
+        if host_identity["os"] != "wsl":
+            raise FrameworkError("PowerShell adapter is only valid for WSL")
+        host_identity["backend"] = "powershell-adapter"
+        for row in rows:
+            row["source"] = "powershell-adapter"
+    body: dict[str, Any] = {
+        "schema": TRANSPORT_SCHEMA,
+        "kind": "port-list",
+        "version": 1,
+        "host": host_identity,
+        "candidates": rows,
+        "hardware_accessed": False,
+    }
+    result = dict(body)
+    result["identity_sha256"] = sha256(canonical_json(body))
+    return validate_transport_list(result)
+
+
+def _transport_filter(values: dict[str, str | None] | None) -> dict[str, str | None]:
+    result = _transport_identity(values, "transport filter")
+    if all(item is None for item in result.values()):
+        raise FrameworkError("USB identity filter must select at least one field")
+    return result
+
+
+def _transport_matches(candidate: dict[str, Any], identity: dict[str, str | None]) -> bool:
+    actual = candidate["identity"]
+    for key, expected in identity.items():
+        if expected is None:
+            continue
+        observed = actual.get(key)
+        if observed is None:
+            return False
+        if key == "serial_prefix":
+            if not observed.startswith(expected):
+                return False
+        elif observed.lower() != expected.lower():
+            return False
+    return True
+
+
+def validate_transport_resolution(value: dict[str, Any]) -> dict[str, Any]:
+    exact(value, {"schema", "kind", "version", "host", "board_identity",
+                  "port_identity", "candidate", "selection", "hardware_accessed",
+                  "identity_sha256"}, "transport port resolution")
+    if value["schema"] != TRANSPORT_SCHEMA or value["kind"] != "port-resolution" or value["version"] != 1:
+        raise FrameworkError("unsupported transport port-resolution schema")
+    host = obj(value["host"], "transport resolution host")
+    exact(host, {"os", "wsl", "backend"}, "transport resolution host")
+    if host["os"] not in TRANSPORT_HOSTS or host["wsl"] is not (host["os"] == "wsl"):
+        raise FrameworkError("transport resolution host is malformed")
+    board = value["board_identity"]
+    if board is not None:
+        board = obj(board, "transport resolution board identity")
+        exact(board, {"id"}, "transport resolution board identity")
+        identifier(board["id"], "transport resolution board identity.id")
+    port_identity = obj(value["port_identity"], "transport resolution port identity")
+    exact(port_identity, {"port", "identity"}, "transport resolution port identity")
+    _transport_port(port_identity["port"], host["os"], "transport resolution port")
+    _transport_identity(port_identity["identity"], "transport resolution USB identity")
+    candidate = _transport_candidate(value["candidate"], host["os"], "transport resolution candidate")
+    if candidate["port"] != port_identity["port"] or candidate["identity"] != port_identity["identity"]:
+        raise FrameworkError("transport resolution port identity mismatch")
+    selection = obj(value["selection"], "transport resolution selection")
+    exact(selection, {"mode", "filter"}, "transport resolution selection")
+    if selection["mode"] not in {"explicit", "auto", "usb-identity"}:
+        raise FrameworkError("unsupported transport selection mode")
+    if selection["filter"] is not None:
+        _transport_filter(selection["filter"])
+    if selection["mode"] == "explicit" and selection["filter"] is not None:
+        raise FrameworkError("explicit port selection cannot be ambiguous with an identity filter")
+    if selection["mode"] == "usb-identity" and selection["filter"] is None:
+        raise FrameworkError("USB identity selection requires a filter")
+    if value["hardware_accessed"] is not False:
+        raise FrameworkError("transport resolution must not access hardware")
+    digest(value["identity_sha256"], "transport resolution identity")
+    body = dict(value)
+    del body["identity_sha256"]
+    if sha256(canonical_json(body)) != value["identity_sha256"]:
+        raise FrameworkError("transport resolution identity mismatch")
+    return value
+
+
+def port_resolve(host: str | None = None, *, port: str | None = None,
+                 board_id: str | None = None,
+                 identity: dict[str, str | None] | None = None,
+                 device_root: Path = Path("/dev"),
+                 candidates: list[Any] | None = None,
+                 windows_ports: list[str] | None = None,
+                 powershell_adapter: bool = False) -> dict[str, Any]:
+    """Resolve one port deterministically while keeping board identity separate."""
+    host_identity = _transport_host(host)
+    if board_id is not None:
+        identifier(board_id, "board identity")
+    if port is not None and identity is not None:
+        raise FrameworkError("--port and USB identity filter are mutually exclusive")
+    filter_identity = _transport_filter(identity) if identity is not None else None
+    listing = port_list(host_identity["os"], device_root=device_root, candidates=candidates,
+                        windows_ports=windows_ports, powershell_adapter=powershell_adapter)
+    listed = listing["candidates"]
+    if port is not None:
+        selected_port = _transport_port(port, host_identity["os"])
+        matches = [candidate for candidate in listed if candidate["port"] == selected_port]
+        selected = matches[0] if len(matches) == 1 else _transport_candidate_from_port(selected_port, host_identity["os"])
+        mode = "explicit"
+    else:
+        matching = listed if filter_identity is None else [
+            candidate for candidate in listed if _transport_matches(candidate, filter_identity)]
+        if len(matching) == 0:
+            hint = "; pass --port explicitly or provide a USB identity filter"
+            raise FrameworkError(f"no transport candidate matched{hint}")
+        if len(matching) != 1:
+            raise FrameworkError(
+                "ambiguous transport candidates; pass --port or a deterministic USB identity filter")
+        selected = matching[0]
+        mode = "usb-identity" if filter_identity is not None else "auto"
+    body: dict[str, Any] = {
+        "schema": TRANSPORT_SCHEMA,
+        "kind": "port-resolution",
+        "version": 1,
+        "host": listing["host"],
+        "board_identity": None if board_id is None else {"id": board_id},
+        "port_identity": {"port": selected["port"], "identity": dict(selected["identity"])},
+        "candidate": selected,
+        "selection": {"mode": mode, "filter": filter_identity},
+        "hardware_accessed": False,
+    }
+    result = dict(body)
+    result["identity_sha256"] = sha256(canonical_json(body))
+    return validate_transport_resolution(result)
+
+
+def validate_transport_plan(value: dict[str, Any]) -> dict[str, Any]:
+    exact(value, {"schema", "kind", "version", "board_identity", "port_identity",
+                  "host", "resolution_identity_sha256", "capabilities", "policy",
+                  "sequence", "hardware_accessed", "identity_sha256"}, "transport plan")
+    if value["schema"] != TRANSPORT_SCHEMA or value["kind"] != "transport-plan" or value["version"] != 1:
+        raise FrameworkError("unsupported transport-plan schema")
+    board = obj(value["board_identity"], "transport plan board identity")
+    exact(board, {"id", "variant"}, "transport plan board identity")
+    identifier(board["id"], "transport plan board.id")
+    identifier(board["variant"], "transport plan board.variant")
+    host = obj(value["host"], "transport plan host")
+    exact(host, {"os", "wsl", "backend"}, "transport plan host")
+    if host["os"] not in TRANSPORT_HOSTS or host["wsl"] is not (host["os"] == "wsl"):
+        raise FrameworkError("transport plan host is malformed")
+    digest(value["resolution_identity_sha256"], "transport plan resolution identity")
+    port_identity = obj(value["port_identity"], "transport plan port identity")
+    exact(port_identity, {"port", "identity"}, "transport plan port identity")
+    _transport_port(port_identity["port"], host["os"], "transport plan port")
+    _transport_identity(port_identity["identity"], "transport plan USB identity")
+    capabilities = _transport_capabilities(value["capabilities"], "transport plan capabilities")
+    policy = obj(value["policy"], "transport plan policy")
+    exact(policy, {"exclusive", "capture_before_loader", "loader_closes_before_console",
+                   "port_released_before_console", "aidk", "rts_reset_allowed"},
+          "transport plan policy")
+    for key in ("exclusive", "capture_before_loader", "loader_closes_before_console",
+                "port_released_before_console", "aidk", "rts_reset_allowed"):
+        if not isinstance(policy[key], bool):
+            raise FrameworkError(f"transport plan policy {key} must be boolean")
+    if (policy["exclusive"] is not True or policy["capture_before_loader"] is not False or
+            policy["loader_closes_before_console"] is not True or
+            policy["port_released_before_console"] is not True):
+        raise FrameworkError("transport plan permits loader/console port conflict")
+    if policy["aidk"] is True:
+        if policy["rts_reset_allowed"] is not False or capabilities["rts_reset"] is not False:
+            raise FrameworkError("AIDK forbids RTS reset")
+    sequence = array(value["sequence"], "transport plan sequence")
+    expected = [("loader", "open"), ("loader", "close-release"),
+                ("console", "open"), ("console", "capture")]
+    if len(sequence) != len(expected):
+        raise FrameworkError("transport plan sequence is incomplete")
+    for index, (owner, action) in enumerate(expected):
+        row = obj(sequence[index], f"transport plan sequence[{index}]")
+        exact(row, {"owner", "action", "exclusive"}, f"transport plan sequence[{index}]")
+        if row["owner"] != owner or row["action"] != action or row["exclusive"] is not True:
+            raise FrameworkError("transport plan sequence violates exclusive loader/console order")
+    if value["hardware_accessed"] is not False:
+        raise FrameworkError("transport plan must remain a dry-run")
+    digest(value["identity_sha256"], "transport plan identity")
+    body = dict(value)
+    del body["identity_sha256"]
+    if sha256(canonical_json(body)) != value["identity_sha256"]:
+        raise FrameworkError("transport plan identity mismatch")
+    return value
+
+
+def transport_plan(repository: Path, board_id: str, *, host: str | None = None,
+                   port: str | None = None,
+                   identity: dict[str, str | None] | None = None,
+                   device_root: Path = Path("/dev"),
+                   candidates: list[Any] | None = None,
+                   windows_ports: list[str] | None = None,
+                   powershell_adapter: bool = False,
+                   aidk: bool = False,
+                   capabilities: dict[str, bool] | None = None) -> dict[str, Any]:
+    """Create a dry-run exclusive loader -> console transport plan."""
+    identifier(board_id, "board")
+    catalog = load_catalog(repository)
+    if board_id not in catalog["boards"]:
+        raise FrameworkError(f"unknown board for transport plan: {board_id}")
+    board = catalog["boards"][board_id]
+    resolution = port_resolve(host, port=port, board_id=board_id, identity=identity,
+                              device_root=device_root, candidates=candidates,
+                              windows_ports=windows_ports,
+                              powershell_adapter=powershell_adapter)
+    selected_capabilities = capabilities or resolution["candidate"]["capabilities"]
+    selected_capabilities = _transport_capabilities(selected_capabilities, "transport capabilities")
+    if aidk and selected_capabilities["rts_reset"]:
+        raise FrameworkError("AIDK forbids RTS reset")
+    body: dict[str, Any] = {
+        "schema": TRANSPORT_SCHEMA,
+        "kind": "transport-plan",
+        "version": 1,
+        "board_identity": {"id": board["id"], "variant": board["variant"]},
+        "port_identity": dict(resolution["port_identity"]),
+        "host": dict(resolution["host"]),
+        "resolution_identity_sha256": resolution["identity_sha256"],
+        "capabilities": selected_capabilities,
+        "policy": {
+            "exclusive": True,
+            "capture_before_loader": False,
+            "loader_closes_before_console": True,
+            "port_released_before_console": True,
+            "aidk": bool(aidk),
+            "rts_reset_allowed": not aidk,
+        },
+        "sequence": [
+            {"owner": "loader", "action": "open", "exclusive": True},
+            {"owner": "loader", "action": "close-release", "exclusive": True},
+            {"owner": "console", "action": "open", "exclusive": True},
+            {"owner": "console", "action": "capture", "exclusive": True},
+        ],
+        "hardware_accessed": False,
+    }
+    result = dict(body)
+    result["identity_sha256"] = sha256(canonical_json(body))
+    return validate_transport_plan(result)
+
+
 def write_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(canonical_json(value))
@@ -1664,6 +2074,24 @@ def write_new_json(path: Path, value: dict[str, Any]) -> None:
         raise FrameworkError(f"refusing to replace existing output: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(canonical_json(value))
+
+
+def _cli_transport_filter(args: argparse.Namespace) -> dict[str, str | None] | None:
+    values = {
+        "vid": args.vid,
+        "pid": args.pid,
+        "serial_prefix": args.serial_prefix,
+        "interface": args.interface,
+        "location": args.location,
+    }
+    return None if all(item is None for item in values.values()) else values
+
+
+def _cli_emit_transport(value: dict[str, Any], output: Path | None) -> None:
+    if output is not None:
+        write_json(output, value)
+    else:
+        print(canonical_json(value).decode(), end="")
 
 
 def cli(argv: list[str] | None = None) -> int:
@@ -1715,6 +2143,37 @@ def cli(argv: list[str] | None = None) -> int:
     pack_prepare_parser.add_argument("--out", type=Path, required=True)
     pack_verify_parser = commands.add_parser("pack-verify")
     pack_verify_parser.add_argument("--package", type=Path, required=True)
+    def add_transport_common(parser_object: argparse.ArgumentParser) -> None:
+        parser_object.add_argument("--host")
+        parser_object.add_argument("--port")
+        parser_object.add_argument("--vid")
+        parser_object.add_argument("--pid")
+        parser_object.add_argument("--serial-prefix")
+        parser_object.add_argument("--interface")
+        parser_object.add_argument("--location")
+        parser_object.add_argument("--device-root", type=Path, default=Path("/dev"))
+        parser_object.add_argument("--candidate", action="append", default=[])
+        parser_object.add_argument("--windows-port", action="append", default=[])
+        parser_object.add_argument("--powershell-adapter", action="store_true")
+        parser_object.add_argument("--out", type=Path)
+
+    port_list_parser = commands.add_parser("port-list")
+    port_list_parser.add_argument("--host")
+    port_list_parser.add_argument("--device-root", type=Path, default=Path("/dev"))
+    port_list_parser.add_argument("--candidate", action="append", default=[])
+    port_list_parser.add_argument("--windows-port", action="append", default=[])
+    port_list_parser.add_argument("--powershell-adapter", action="store_true")
+    port_list_parser.add_argument("--out", type=Path)
+    port_resolve_parser = commands.add_parser("port-resolve")
+    add_transport_common(port_resolve_parser)
+    transport_parser = commands.add_parser("transport-plan")
+    transport_parser.add_argument("--board", required=True)
+    add_transport_common(transport_parser)
+    transport_parser.add_argument("--aidk", action="store_true")
+    transport_parser.add_argument("--rts", action="store_true")
+    transport_parser.add_argument("--dtr", action="store_true")
+    transport_parser.add_argument("--reset", action="store_true")
+    transport_parser.add_argument("--rts-reset", action="store_true")
     sdk_import_parser = commands.add_parser("sdk-import", aliases=("import-sdk",))
     sdk_import_parser.add_argument("--registry", type=Path)
     sdk_import_parser.add_argument("--entry", required=True)
@@ -1772,6 +2231,44 @@ def cli(argv: list[str] | None = None) -> int:
             print("bk7258-package: VERIFY PASS "
                   f"package={result['package_id']} kind={result['kind']} "
                   f"source_build_id={result['source_build_id']}")
+        elif args.command == "port-list":
+            result = port_list(
+                args.host,
+                device_root=args.device_root,
+                candidates=args.candidate or None,
+                windows_ports=args.windows_port or None,
+                powershell_adapter=args.powershell_adapter,
+            )
+            _cli_emit_transport(result, args.out)
+        elif args.command == "port-resolve":
+            result = port_resolve(
+                args.host,
+                port=args.port,
+                identity=_cli_transport_filter(args),
+                device_root=args.device_root,
+                candidates=args.candidate or None,
+                windows_ports=args.windows_port or None,
+                powershell_adapter=args.powershell_adapter,
+            )
+            _cli_emit_transport(result, args.out)
+        elif args.command == "transport-plan":
+            result = transport_plan(
+                root,
+                args.board,
+                host=args.host,
+                port=args.port,
+                identity=_cli_transport_filter(args),
+                device_root=args.device_root,
+                candidates=args.candidate or None,
+                windows_ports=args.windows_port or None,
+                powershell_adapter=args.powershell_adapter,
+                aidk=args.aidk,
+                capabilities={
+                    "rts": args.rts, "dtr": args.dtr, "reset": args.reset,
+                    "rts_reset": args.rts_reset,
+                } if any((args.rts, args.dtr, args.reset, args.rts_reset)) else None,
+            )
+            _cli_emit_transport(result, args.out)
         elif args.command in {"sdk-import", "import-sdk"}:
             registry_path = (args.registry or
                              root / "board/bk7258/scripts/bk7258_sdk_registry.json").resolve()

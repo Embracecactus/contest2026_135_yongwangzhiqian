@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema": "bk7258.transport/1",
+  "kind": "transport-schema",
+  "version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "documents": {
+    "port-list": {
+      "required": ["schema", "kind", "version", "host", "candidates", "hardware_accessed", "identity_sha256"],
+      "additional_properties": false
+    },
+    "port-resolution": {
+      "required": ["schema", "kind", "version", "host", "board_identity", "port_identity", "candidate", "selection", "hardware_accessed", "identity_sha256"],
+      "additional_properties": false
+    },
+    "transport-plan": {
+      "required": ["schema", "kind", "version", "board_identity", "port_identity", "host", "resolution_identity_sha256", "capabilities", "policy", "sequence", "hardware_accessed", "identity_sha256"],
+      "additional_properties": false
+    }
+  },
+  "strict": {
+    "duplicate_keys": "reject",
+    "unknown_keys": "reject",
+    "hosts": ["linux", "darwin", "windows", "wsl"],
+    "linux_ports": "/dev/tty*",
+    "darwin_ports": "/dev/cu.*",
+    "windows_ports": "COM*",
+    "wsl": "native-dev-or-optional-powershell-adapter",
+    "board_identity": "separate-from-port-identity",
+    "selection": "explicit-port-or-exactly-one-auto-candidate",
+    "ambiguity": "reject-with-actionable-filter-or-usb-identity",
+    "capabilities": ["rts", "dtr", "reset", "rts_reset"],
+    "aidk": "rts_reset-forbidden",
+    "sequence": "exclusive-loader-open-close-release-before-console-open",
+    "capture": "forbidden-before-loader-release",
+    "hardware_access": "dry-run-only",
+    "serial_open": "not-invoked",
+    "powershell": "optional-not-mandatory"
+  }
+}
