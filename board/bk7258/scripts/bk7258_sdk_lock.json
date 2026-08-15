@@ -1,0 +1,30 @@
+{
+  "schema": "bk7258.sdk-lock/1",
+  "kind": "sdk-lock",
+  "version": 1,
+  "id": "t5ai_core_bringup-sdk-lock",
+  "set_id": "t5ai_core_bringup-sdk",
+  "registry_path": "board/bk7258/scripts/bk7258_sdk_registry.json",
+  "registry_sha256": "4f5e6e30c2ecc3cc708e8fe0ff2c165df9eb8a257564236aa722e1e1de9ddcc5",
+  "set_path": "board/bk7258/scripts/bk7258_sdk_set.json",
+  "set_sha256": "3d940eb89ee1f02c554bb634851322f27694a0d5709459b676e9f094fb2fc52c",
+  "roles": {
+    "cp": {
+      "registry_id": "sha256:438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be",
+      "manifest_sha256": "438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be",
+      "provenance_sha256": "3c370abc6622d57bd6005682931a33df139dc5c2911294af65fdee7038ceea36"
+    },
+    "ap": {
+      "registry_id": "sha256:4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713",
+      "manifest_sha256": "4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713",
+      "provenance_sha256": "781198b3ed6500771337801ba0de3068897740aca805febfe2692ce1e3428591"
+    },
+    "bl2": {
+      "registry_id": null,
+      "manifest_sha256": null,
+      "provenance_sha256": null
+    }
+  },
+  "no_runtime_sdk_roles": ["bl2"],
+  "identity_sha256": "cb50794659eab20d2ba7b4e0a1ed0949e0309924b382921626accbd3c51fc3a5"
+}

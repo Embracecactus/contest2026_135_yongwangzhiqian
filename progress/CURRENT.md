@@ -61,11 +61,26 @@ Detailed evidence: [P1 resolver verification](verification/2026-08-15-bk7258-pla
 with the [P0 freeze verification](verification/2026-08-15-bk7258-platform-v2-p0.md)
 as its immutable baseline.
 
+## P2 implementation
+
+- Versioned SDK registry/set/lock metadata is content-addressed by SHA-256 and
+  records official, derived and sealed-binary provenance without storing SDK
+  bytes.  The lock encodes CP/AP manifest/provenance identities and explicitly
+  binds BL2 to no runtime SDK.
+- `bk7258_framework.py sdk-verify` validates duplicate-free metadata, tracked
+  manifest/provenance paths, source-reproducibility claims, private-mirror
+  authorization policy and optional external bundle trees.  Bundle checks
+  reject symlinks, special files, missing files and extra files.
+- `sdk-import` is verification-only and emits a non-overwriting receipt; there
+  is no `--replace`, upload, network access or registry mutation.  AP entries
+  with `source_archive=not-provided` remain non-source-reproducible.
+
+Detailed evidence: [P2 SDK registry verification](verification/2026-08-15-bk7258-platform-v2-p2.md).
+
 ## Exact next action
 
-Continue with P2 immutable SDK bundle/set/lock metadata and verification
-framework.  SDK archives remain metadata-only and no private mirror mutation
-is permitted.
+Continue with owner review of the P2 SDK metadata and later role-set coverage;
+SDK archives remain metadata-only and no private mirror mutation is permitted.
 
 ## Remaining boundaries
 

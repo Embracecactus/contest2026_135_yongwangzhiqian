@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import os
 import sys
 import tempfile
 import unittest
@@ -23,10 +25,15 @@ from bk7258_framework import (  # noqa: E402
     merge_symbols,
     resolve,
     role_view_manifest,
+    validate_sdk_lock,
+    validate_sdk_import_receipt,
+    validate_sdk_registry,
+    validate_sdk_set,
     validate_board,
     validate_classic_report,
     validate_ir,
     validate_role_view,
+    verify_sdk_bundle,
 )
 
 
@@ -101,6 +108,59 @@ class FrameworkTest(unittest.TestCase):
         self.assertIn("BK7258_COMPOSITION_ROLE_BUILD_VIEW", cmake)
         self.assertIn("BK7258_COMPOSITION_SHARED_CONFIG_FORBIDDEN TRUE", cmake)
         self.assertIn("BK7258_COMPOSITION_LEGACY_BUILDER_INVOKED FALSE", cmake)
+
+    def test_sdk_registry_set_lock_are_immutable_metadata_and_bl2_is_empty(self) -> None:
+        registry = load_json(SCRIPT_ROOT / "bk7258_sdk_registry.json")
+        self.assertIs(validate_sdk_registry(REPOSITORY, registry), registry)
+        sdk_set = load_json(SCRIPT_ROOT / "bk7258_sdk_set.json")
+        self.assertIs(validate_sdk_set(sdk_set, registry), sdk_set)
+        lock = load_json(SCRIPT_ROOT / "bk7258_sdk_lock.json")
+        self.assertIs(validate_sdk_lock(
+            REPOSITORY, SCRIPT_ROOT / "bk7258_sdk_registry.json",
+            SCRIPT_ROOT / "bk7258_sdk_set.json", lock, registry, sdk_set), lock)
+        self.assertFalse(next(item for item in registry["entries"]
+                              if item["role"] == "ap" and item["version"] == "v3.1.1.9")["source_reproducible"])
+        self.assertIsNone(sdk_set["roles"]["bl2"])
+        self.assertFalse(registry["policy"]["private_mirror"]["redistribution_authorized"])
+
+    def test_sdk_bundle_verifier_rejects_extra_and_symlink_entries(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="bk7258-sdk-verify-") as directory:
+            root = Path(directory)
+            manifest = root / "board/bk7258/scripts/sdk-manifests/test/cp.sha256"
+            manifest.parent.mkdir(parents=True)
+            payload = b"fixture\n"
+            payload_hash = hashlib.sha256(payload).hexdigest()
+            manifest.write_text(f"{payload_hash}  include/a.h\n", encoding="utf-8")
+            bundle = root / "bundle"
+            (bundle / "include").mkdir(parents=True)
+            (bundle / "config").mkdir()
+            (bundle / "libs").mkdir()
+            (bundle / "include/a.h").write_bytes(payload)
+            entry = {"id": "sha256:" + "0" * 64,
+                     "manifest_path": "board/bk7258/scripts/sdk-manifests/test/cp.sha256",
+                     "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()}
+            result = verify_sdk_bundle(root, entry, bundle)
+            self.assertEqual(result["file_count"], 1)
+            (bundle / "config/extra").write_bytes(b"extra")
+            with self.assertRaises(FrameworkError):
+                verify_sdk_bundle(root, entry, bundle)
+            (bundle / "config/extra").unlink()
+            os.symlink("../include/a.h", bundle / "libs/link")
+            with self.assertRaises(FrameworkError):
+                verify_sdk_bundle(root, entry, bundle)
+
+    def test_sdk_import_receipt_is_non_mutating(self) -> None:
+        from bk7258_framework import sdk_import_receipt
+
+        entry_id = "sha256:" + "1" * 64
+        receipt = sdk_import_receipt(
+            {"id": entry_id, "content_digest": entry_id,
+             "manifest_sha256": "2" * 64,
+             "provenance_sha256": "3" * 64, "source_reproducible": False},
+            {"file_count": 1})
+        self.assertIs(validate_sdk_import_receipt(receipt), receipt)
+        self.assertFalse(receipt["bytes_copied"])
+        self.assertFalse(receipt["network_used"])
 
 
 if __name__ == "__main__":
