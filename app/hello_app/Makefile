@@ -91,6 +91,13 @@ MAINSRC   += bk7258_psram_test_main.c
 endif
 endif
 
+ifeq ($(CONFIG_BK7258_BKVALIDATE),y)
+PROGNAME  += bkvalidate
+PRIORITY  += SCHED_PRIORITY_DEFAULT
+STACKSIZE += 3072
+MAINSRC   += bkvalidate_main.c
+endif
+
 MODULE = y
 
 include $(APPDIR)/Application.mk

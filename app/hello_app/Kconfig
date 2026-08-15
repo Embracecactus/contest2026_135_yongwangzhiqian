@@ -8,3 +8,11 @@ config LVX_USE_DEMO_CONTEST2026_135_HELLO_APP
 	default n
 	---help---
 		Enable the contest 2026 team 135 hello app demo.
+
+config BK7258_BKVALIDATE
+	bool "BK7258 public-API validation dispatcher"
+	default n
+	---help---
+		Build the metadata-driven bkvalidate list/run/all-compatible skeleton.
+		The dispatcher uses public device APIs only and never calls vendor SDK
+		entry points.

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema": "bk7258.validation/1",
+  "kind": "validation-descriptor-schema",
+  "version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "kind", "version", "serialization", "migration_policy", "descriptors", "legacy_ledger", "identity_sha256"],
+  "properties": {
+    "schema": {"const": "bk7258.validation/1"},
+    "kind": {"const": "validation-descriptor-set"},
+    "version": {"const": 1},
+    "serialization": {"type": "object", "additionalProperties": false},
+    "migration_policy": {"type": "object", "additionalProperties": false},
+    "descriptors": {"type": "array", "minItems": 1},
+    "legacy_ledger": {"const": "board/bk7258/scripts/legacy_profile_migration_ledger.json"},
+    "identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "descriptor": {
+    "required": ["id", "version", "role", "requirements", "category", "timeout", "prepare", "run", "cancel", "cleanup", "status", "resource_claims", "entrypoint"],
+    "categories": ["auto", "interactive", "fixture", "destructive-fault"],
+    "statuses": ["planned", "ready", "disabled"],
+    "roles": ["cp", "ap", "cp_ap", "board"],
+    "runner_core": "public_device_api_only",
+    "entrypoint_policy": "app/hello_app-only",
+    "resource_policy": "global-exclusive-serialization"
+  },
+  "outcome": {
+    "schema": "bk7258.validation-outcome/1",
+    "statuses": ["PASS", "SKIP", "FAIL"]
+  }
+}

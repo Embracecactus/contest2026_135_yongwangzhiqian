@@ -68,3 +68,10 @@ if(CONFIG_BK7258_PSRAM_TEST AND NOT CONFIG_BK7258_AP_CORE)
     SRCS bk7258_psram_test_main.c
     STACKSIZE 3072)
 endif()
+
+if(CONFIG_BK7258_BKVALIDATE)
+  nuttx_add_application(
+    NAME bkvalidate
+    SRCS bkvalidate_main.c
+    STACKSIZE 3072)
+endif()

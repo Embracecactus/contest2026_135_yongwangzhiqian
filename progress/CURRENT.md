@@ -5,9 +5,9 @@ Updated by: Codex (GPT-5.6-Luna MAX delegated implementation)
 
 ## Current task
 
-P4 ownership/resource metadata and paired BL1/BL2/CP/AP resolution are now
-implemented on `refactor/bk7258-platform-v2`; P0 remains the accepted
-foundation and legacy profiles/production build behavior remain usable.
+P5 validation-runner metadata and `bkvalidate` skeleton are now implemented on
+`refactor/bk7258-platform-v2`; P0 remains the accepted foundation and legacy
+profiles/production build behavior remain usable.
 
 ## Verified baseline
 
@@ -120,10 +120,29 @@ Detailed evidence: [P3 build-plan verification](verification/2026-08-15-bk7258-p
 
 Detailed evidence: [P4 ownership/resource-graph verification](verification/2026-08-15-bk7258-platform-v2-p4.md).
 
+## P5 implementation
+
+- `bk7258_validation_descriptors.json` defines versioned validation descriptors
+  with typed requirements, auto/interactive/fixture/destructive-fault
+  categories, lifecycle commands, timeout/status and globally serialized
+  resource claims.  The checker enforces `app/hello_app` entrypoints and no
+  vendor/chip/board-private calls in the runner core.
+- `bkvalidate list`, `run <id>` and `all-compatible` are opt-in through
+  `CONFIG_BK7258_BKVALIDATE` and wired through the existing hello-app Kconfig,
+  Classic Make and CMake files.  Outcomes are stable JSON; incompatible,
+  interactive, fixture, destructive-fault and not-ready descriptors are
+  explicit `SKIP` results.
+- The checker proves all 27 frozen legacy profiles map to family/resource
+  mode/validation suite.  Existing validation and production auto-start remain
+  untouched; the new-path migration policy is explicitly `migration_pending`.
+
+Detailed evidence: [P5 validation-runner verification](verification/2026-08-15-bk7258-platform-v2-p5.md).
+
 ## Exact next action
 
-Continue with owner review of P4 metadata and later role-set coverage; SDK
-archives remain metadata-only and no private mirror mutation is permitted.
+Continue with owner review of P5 descriptor coverage and later device-backed
+validation; no private SDK mirror mutation or automatic hardware execution is
+permitted.
 
 ## Remaining boundaries
 
