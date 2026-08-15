@@ -20,54 +20,67 @@ backend.  Those are P1 decisions to be reviewed against this record.
 
 ## Decisions
 
-### Dependency and configuration model
+### Official adaptation layers and configuration model
 
-The target dependency direction is:
+The public adaptation model is exactly:
 
 ```text
-chip (SoC startup, IRQ, SMP, controllers, minimal mailbox substrate)
-    <- platform (CP/AP/BL2 lifecycle, RPTUN, coordinated PM)
-    <- services (approved platform/chip interfaces)
-    <- generic/external drivers (approved NuttX/chip APIs)
-    <- boards (platform-data/resource resolver and exactly-one wiring)
-    <- products and validation/apps (public interfaces)
+Architecture (upstream NuttX, unchanged here)
+    <- Chip/SoC (BK7258-intrinsic mechanisms)
+        <- Board (pins, bindings, external devices, bring-up)
 ```
 
-Chip is limited to SoC startup, IRQ/SMP/controller mechanics and the minimal
-mailbox substrate.  It has no dependency on boards, platform composition,
-services or validation.  Platform depends on chip and owns CP/AP/BL2 lifecycle,
-RPTUN and coordinated PM; those responsibilities do not belong to optional
-services.  Services depend only on approved platform/chip interfaces.  Generic
-and external drivers contain no board assumptions and use approved NuttX/chip
-APIs.  Boards compose wiring through platform data and a resource resolver,
-with exactly one binding or a fail-closed result.  Validation and apps consume
-public interfaces and never become chip dependencies.
+Architecture is the upstream NuttX contract and any generic framework change
+is recorded as `external_upstream_needed`; this repository does not patch the
+public NuttX/common tree.  Chip owns BK7258-intrinsic startup/arch APIs, IRQ,
+serial, timer, heap, on-chip controllers, AP topology/lifecycle,
+mailbox/IPI/shared-memory, RPTUN transport, clock/power lower-halves and
+board-independent cross-core mechanisms.  Board owns schematic/BOM facts,
+pin and bus bindings, external peripheral/power registration, linker/board
+configuration and the official board initialization phases.
+
+`vendor_common_glue`, `build_adapter`, and `migration_pending` are internal
+responsibility tags, not peer formal layers.  Existing `src/` entry/glue is
+classified per symbol: BK7258 mechanisms target Chip, board policy targets
+existing Board bring-up, and no platform/services/drivers/validation layer or
+directory is created.  Production validation auto-start is recorded as
+`migration_pending` away from Chip toward Board policy.
+
+The official board phase contract is `board_early_initialize`,
+`board_late_initialize`, `board_app_initialize`, and
+`board_app_finalinitialize`.  Board selection is exactly one and is
+fail-closed before configuration resolution.  Validation is a mode/capability
+concern and never becomes a formal adaptation layer.
 
 The product rule is `family + mode + role`: a reusable product family may have
 bringup, application, validation or factory modes, with CP/AP/BL2 roles
-resolved as one resource graph.  A new driver or validator extends a
-capability pack and suite.  It does not add a `configs/` directory.  A new
-profile is allowed only for a genuinely different product mode, lifecycle,
-boot layout or architecture boundary and requires a new reviewed ADR.
+resolved as one resource graph.  A new capability or validation suite does not
+add a `configs/` directory.  A new profile is allowed only for a genuinely
+different product mode, lifecycle, boot layout or architecture boundary and
+requires a new reviewed ADR; the default policy is a few reviewed seeds/modes
+rather than profile growth.
 
 The resource graph spans CP, AP and BL2 and every lifecycle phase (bring-up,
 runtime, suspend/resume, recovery and teardown).  Pair compatibility is a
 graph property, not a filename convention.  Board selection is exactly one
 and is fail-closed before configuration resolution.
 
-### Build backend and seed boundaries
+### Build adapters, artifacts and seed boundaries
 
-P1 may evaluate CMake as the canonical backend candidate because the current
-tree has a CMake parity record.  CMake is not accepted as canonical by this
-ADR; acceptance requires P1 proof that the same resolved inputs, SDK lock,
-role isolation and artifact identity are consumed by every backend.
+P1-P3 tools are adapters that generate Kconfig/.config metadata and invoke the
+existing build semantics.  CMake is the recommended adapter; it is not an
+alternative build system.  Classic Make remains a supported compatibility
+adapter, and any isolation report must not claim more than is proven.
 
-The Classic flow remains compatibility-only unless a complete copy-on-write
-(COW) isolation proof is produced.  Production BL2 remains the current
-minimal `board/bk7258/bootloader/bl2/Makefile` path for now.  P0 must not add a
-fake NuttX BL2 seed.  The final number of product/configuration seeds is not
-pre-fixed; it is determined by the closed migration matrix and reviewed
-resource graph.
+The official artifact mapping is `libarch.a`, `libboards.a`, and
+`vela_*.bin`.  A later `.bkpack` is a vendor extension for packaging metadata;
+it is additive and never replaces the standard artifacts or build flow.
+
+Production BL2 remains the current
+`board/bk7258/bootloader/bl2/Makefile` path for now.  P0 must not add a fake
+NuttX BL2 seed.  The final number of product/configuration seeds follows the
+few-seed policy and is accepted only for a genuinely different product mode,
+lifecycle, boot layout or architecture boundary.
 
 BL1, BL2, CP and AP each require isolated inputs and output directories.  No
 shared `.config`, restore-after-build trick or global lock is an acceptable

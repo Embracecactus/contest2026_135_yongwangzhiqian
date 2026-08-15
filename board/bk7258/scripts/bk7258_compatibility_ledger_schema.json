@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema": "bk7258.compatibility-ledger/1",
+  "kind": "compatibility-ledger-schema",
+  "version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "kind", "version", "status", "source_root", "rows", "identity_sha256"],
+  "properties": {
+    "schema": {"const": "bk7258.compatibility-ledger/1"},
+    "kind": {"const": "compatibility-ledger-schema"},
+    "version": {"const": 1},
+    "status": {"const": "inventory-only"},
+    "source_root": {"const": "board/bk7258"},
+    "rows": {"type": "array", "minItems": 1},
+    "identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "strict": {
+    "path_policy": "existing-regular-non-symlink-only",
+    "symbol_policy": "Kconfig-symbol-map",
+    "migration": "no-broad-moves",
+    "formal_layers": ["architecture", "chip", "board"],
+    "responsibility_tags": ["vendor_common_glue", "build_adapter", "external_upstream_needed", "migration_pending"],
+    "target_owner_policy": "formal-layer-only"
+  }
+}
