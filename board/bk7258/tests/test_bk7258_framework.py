@@ -25,6 +25,7 @@ from bk7258_framework import (  # noqa: E402
     load_catalog,
     load_json,
     merge_symbols,
+    relative_path,
     resolve,
     role_view_manifest,
     validate_sdk_lock,
@@ -87,6 +88,8 @@ class FrameworkTest(unittest.TestCase):
             resolve(REPOSITORY, "unknown", "cp")
         with self.assertRaises(FrameworkError):
             merge_symbols([{"symbols": {"CONFIG_X": "y"}}, {"symbols": {"CONFIG_X": None}}])
+        with self.assertRaises(FrameworkError):
+            relative_path("board/bk7258_t5ai/chip", "retired source")
 
     def test_strict_duplicate_and_ir_identity_checks(self) -> None:
         with tempfile.TemporaryDirectory(prefix="bk7258-framework-") as directory:
@@ -165,6 +168,10 @@ class FrameworkTest(unittest.TestCase):
             os.symlink("../include/a.h", bundle / "libs/link")
             with self.assertRaises(FrameworkError):
                 verify_sdk_bundle(root, entry, bundle)
+            (bundle / "libs/link").unlink()
+            os.symlink(bundle, root / "bundle-link")
+            with self.assertRaises(FrameworkError):
+                verify_sdk_bundle(root, entry, root / "bundle-link")
 
     def test_sdk_import_receipt_is_non_mutating(self) -> None:
         from bk7258_framework import sdk_import_receipt

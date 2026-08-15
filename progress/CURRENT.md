@@ -1,77 +1,63 @@
 # Current Progress
 
 Last updated: 2026-08-15
-Updated by: Codex (GPT-5.6-Luna MAX delegated implementation)
+Updated by: Codex
 
 ## Snapshot
 
-- Branch: `refactor/bk7258-platform-v2`
-- P9a implementation checkpoint: `f67b173d6913502185ad7fd8d50f8b312b15dcfb`
-- Objective: preserve the frozen BK7258 legacy surface while validating the
-  platform-v2 composition/resource/build boundary and preparing an owner-gated
-  P9b migration.
-- Current phase: P9a shadow/parity complete; no cutover is authorized.
+- Canonical development baseline: main contest repository branch
+  `dev-ai-contest-2026` at `860ac761b64727a6d9be06730f66a2dabb4cc9cc`.
+- The merged tree is byte-for-byte identical to the reviewed publication tree
+  at `28a35366e82c087cc3e16d689f89642b765373b0`; the merge rewrote commit IDs but
+  did not change the final tree.
+- P0-P9a are merged.  The owner accepted the new rule that later work starts
+  from the latest main branch rather than a merged fork branch or auxiliary
+  worktree.
+- No P9b legacy cutover or AIDK hardware operation is authorized by this
+  checkpoint.
 
-## Completed foundation
+## Merged foundation
 
-- P0 froze the approved 27-profile, 55-file legacy tree and consumer inventory
-  from the approved Git object.  The ledger remains proposal-only.
-- P1-P4 added strict composition, SDK metadata, isolated build-plan, ownership,
-  migration, and lifecycle resource-graph contracts without changing legacy
-  profiles, SDK bytes, or public NuttX/common sources.
-- P5-P7 added validation descriptors, metadata-only package planning, and
-  dry-run cross-platform transport contracts.
-- P8 added the schematic-only AIDK AI Toy Board binding.  Its hardware,
-  peripheral BOM routes, and boot behavior remain unverified.
+- P0-P4 provide the frozen 27-profile baseline, strict composition and SDK
+  metadata, role-isolated build plans, and the official
+  Architecture -> Chip/SoC -> Board ownership/resource contracts.
+- P5-P7 provide the opt-in validation runner, metadata-only package planning,
+  and dry-run cross-platform transport with no fixed COM or `/dev` identity.
+- P8 provides the schematic-only `aidk_ai_toy` Board binding with UART0,
+  disabled SWD/boot hold/RTT/flow control, and all unknown BOM devices off.
+- P9a maps all 27 frozen profiles through the shadow ledger.  Every row remains
+  `MIGRATION_PENDING`; no parity or retirement result is fabricated.
+- The obsolete local `board/bk7258_t5ai` dependency is retired.  Its unique
+  SDK bundles were moved into the ignored canonical `board/bk7258/bk_idk`
+  store as real directories; active tooling rejects the retired path and SDK
+  bundle symlinks.
+- The bounded framework check passed 11 metadata/planning checks.  AIDK still
+  has no production build, signing, Flash, boot, or hardware evidence.
 
-Evidence: [P0](verification/2026-08-15-bk7258-platform-v2-p0.md),
-[P1](verification/2026-08-15-bk7258-platform-v2-p1.md),
-[P2](verification/2026-08-15-bk7258-platform-v2-p2.md),
-[P3](verification/2026-08-15-bk7258-platform-v2-p3.md),
-[P4](verification/2026-08-15-bk7258-platform-v2-p4.md),
-[P5](verification/2026-08-15-bk7258-platform-v2-p5.md),
-[P6](verification/2026-08-15-bk7258-platform-v2-p6.md),
-[P7](verification/2026-08-15-bk7258-platform-v2-p7.md),
-[P8](verification/2026-08-15-bk7258-platform-v2-p8.md).
+Evidence: [P9a verification](verification/2026-08-15-bk7258-platform-v2-p9a.md)
+and [release checklist](../docs/bk7258-t5ai/release-checklist.md).
 
-## P9a result
+## Development workflow
 
-- `bk7258_shadow_ledger.json` and its schema bind all 27 frozen profiles to
-  family, resource mode, validation suite, target role/product, source
-  digests, status, and rationale.  Allowed statuses are exactly `EXACT`,
-  `EQUIVALENT_WITH_REASON`, `MIGRATION_PENDING`, and `RETIRE_PROPOSED`.
-- `bk7258_framework.py shadow-check` compares old metadata/defconfig/source
-  closure with proposed resolved defconfig/source/device/resource/SDK/package
-  evidence where available.  Missing evidence is explicit; all 27 rows are
-  `MIGRATION_PENDING`.
-- `bk7258_framework.py framework-check` passes 11 bounded P0-P8 metadata and
-  representative T5/AIDK plan/package/transport checks.  No production build,
-  signing, Flash, hardware, or network operation was performed.
-- Release workflow is recorded in
-  [release-checklist](../docs/bk7258-t5ai/release-checklist.md); no AI Coding
-  session logs were exported.
+- Start every new task from the main repository's latest
+  `origin/dev-ai-contest-2026` and keep the canonical checkout synchronized.
+- Do not continue coding on an already merged feature/fork branch or auxiliary
+  worktree.  Use the fork only as PR publication transport when required.
+- Public NuttX/common changes remain a separate NuttX fork/PR targeted to
+  `dev-ai-contest-2026`; proprietary SDK bytes remain outside Git.
 
-Evidence: [P9a verification](verification/2026-08-15-bk7258-platform-v2-p9a.md).
+## Exact next action
 
-## Exact next gates
+Select the next driver/board task from this merged baseline.  P9b profile
+cutover and AIDK download/boot verification remain separate owner-gated tasks.
 
-1. Owner reviews and accepts the P9a shadow report, status rationales, and
-   release checklist.
-2. Before any P9b cutover, obtain the separately approved hardware gate and
-   device-backed evidence for AIDK bindings, resource claims, boot behavior,
-   and the pending SARADC physical endpoint.
-3. P9b (if authorized) must preserve the legacy tree and prove parity before
-   changing live ownership.  P10 may address publication/PR workflow only
-   after owner approval and the separate public-NuttX PR boundary.
+## Boundaries
 
-## Boundaries and prohibitions
-
-- Do not inspect N17 or another historical trust domain; do not delete or
-  modify frozen profiles, add profile directories, or add SDK bytes.
-- Do not build, sign, package, flash, open serial/hardware, mutate the private
-  mirror, use network services, push, or open PRs in this phase.
-- Do not export logs now.  Any later export must use selected local staging,
-  existing `logs/` only, and scrub secrets/tokens/private keys, absolute host
-  paths, personal data, and restricted SDK content.
-- Public NuttX/common changes, if ever approved, require a separate NuttX fork
-  PR targeted to `dev-ai-contest-2026`; they are not part of this wrapper PR.
+- Preserve the four remaining untracked local artifact groups; do not stage,
+  delete, or infer release evidence from them.
+- Do not inspect N17 or another historical trust domain, add SDK bytes, or
+  mutate a private SDK mirror.
+- Do not delete or modify the 27 frozen profiles until P9b is explicitly
+  authorized and profile-specific parity evidence exists.
+- Any later AI Coding log export must be selected and scrubbed before it is
+  added under the existing `logs/` tree.

@@ -117,6 +117,7 @@ JPEG decoder、scale/rotate。静态库中存在能力不代表 NuttX 驱动已�
 
 ```bash
 board/bk7258/scripts/import_bk7258_sdk_role.sh \
+  --sdk-dir /path/to/authorized/bk_avdk_smp \
   --role ap --bundle-version v3.1.1.9-sdio4 \
   --profile ap-peripherals-r2-sdio4 --build --replace
 ```

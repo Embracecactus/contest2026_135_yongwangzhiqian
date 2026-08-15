@@ -5,7 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOARD_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SDK_DIR="${ARMINO_SDK_DIR:-/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9}"
+SDK_DIR="${BK7258_SDK_SOURCE:-${ARMINO_SDK_DIR:-}}"
 ROLE=""
 VERSION="v3.1.1.9"
 JOBS="${JOBS:-8}"
@@ -23,7 +23,8 @@ Usage: $(basename "$0") --role cp|ap [options]
 Options:
   --bundle-version V Version label: legacy, v3.1.1.9, or
                      v3.1.1.9-sdio4 (default: v3.1.1.9)
-  --sdk-dir DIR       Authorized bk_avdk_smp source tree
+  --sdk-dir DIR       Authorized bk_avdk_smp source tree (required unless
+                      BK7258_SDK_SOURCE or legacy ARMINO_SDK_DIR is set)
   --source-archive F  Original SDK archive recorded in provenance
   --toolchain-dir DIR Directory containing arm-none-eabi-gcc
   --jobs N            SDK build jobs (default: ${JOBS})
@@ -35,6 +36,8 @@ Options:
 
 The legacy bundle is never replaceable through this script.  Destinations:
   ${BOARD_DIR}/bk_idk/armino_as_lib/versions/<version>/<role>
+
+No developer-specific SDK source path is assumed.
 EOF
 }
 
@@ -199,6 +202,12 @@ for tool in arm-none-eabi-gcc arm-none-eabi-ar arm-none-eabi-nm; do
     exit 1
   fi
 done
+
+if [[ -z "$SDK_DIR" ]]; then
+  printf '%s\n' \
+    'error: provide --sdk-dir or set BK7258_SDK_SOURCE' >&2
+  exit 2
+fi
 
 if [[ ! -d "$SDK_DIR" ]]; then
   printf 'error: SDK source tree does not exist: %s\n' "$SDK_DIR" >&2

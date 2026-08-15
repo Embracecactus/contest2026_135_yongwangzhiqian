@@ -90,7 +90,22 @@ provenance_path()
 validate_structure()
 {
     local dir="$1"
+    local actual_top
     local ok=true
+
+    [[ ! -L "$dir" ]] || {
+        printf '  symlink bundle root is forbidden: %s\n' "$dir" >&2
+        return 1
+    }
+
+    actual_top="$(
+        find "$dir" -mindepth 1 -maxdepth 1 -printf '%f\n' |
+            LC_ALL=C sort
+    )"
+    if [[ "$actual_top" != $'config\ninclude\nlibs' ]]; then
+        printf '  bundle roots must be exactly: config include libs\n' >&2
+        ok=false
+    fi
 
     for subdir in include config libs; do
         if [[ ! -d "${dir}/${subdir}" ]]; then
@@ -99,17 +114,42 @@ validate_structure()
         fi
     done
 
+    if [[ -n "$(find "$dir" -type l -print -quit)" ]]; then
+        printf '  SDK bundle contains a symlink: %s\n' \
+            "$(find "$dir" -type l -print -quit)" >&2
+        ok=false
+    fi
+
+    if [[ -n "$(find "$dir" -mindepth 1 ! -type d ! -type f ! -type l -print -quit)" ]]; then
+        printf '  SDK bundle contains a special file: %s\n' \
+            "$(find "$dir" -mindepth 1 ! -type d ! -type f ! -type l -print -quit)" >&2
+        ok=false
+    fi
+
     [[ "$ok" == "true" ]]
 }
 
 validate_manifest()
 {
     local bundle_dir="$1"
+    local actual_files
+    local expected_files
     local manifest
     local output
 
     manifest="$(manifest_path)"
     [[ -f "$manifest" ]] || die "tracked manifest not found: ${manifest}"
+
+    expected_files="$(
+        sed -n 's/^[0-9a-f]\{64\}  //p' "$manifest" |
+            LC_ALL=C sort
+    )"
+    actual_files="$(
+        cd "$bundle_dir"
+        find config include libs -type f -printf '%p\n' | LC_ALL=C sort
+    )"
+    [[ -n "$expected_files" && "$actual_files" == "$expected_files" ]] ||
+        die "SDK bundle file set differs from tracked manifest"
 
     info "validating checksums against ${manifest} ..."
     output="$(cd "$bundle_dir" && sha256sum -c "$manifest" 2>&1)" || {
@@ -256,6 +296,7 @@ if [[ "$MODE" == "check" ]]; then
     fi
 
     info "checking SDK ${VERSION}/${ROLE} bundle at: ${BUNDLE_DIR}"
+    [[ ! -L "$BUNDLE_DIR" ]] || die "bundle root must not be a symlink: ${BUNDLE_DIR}"
     [[ -d "$BUNDLE_DIR" ]] || die "directory does not exist: ${BUNDLE_DIR}"
     validate_structure "$BUNDLE_DIR" ||
         die "directory structure validation failed"
@@ -272,9 +313,10 @@ TMP_DIR="${DEST_DIR}.tmp.$$"
 
 info "source:      ${SOURCE_DIR}"
 info "destination: ${DEST_DIR}"
+[[ ! -L "$SOURCE_DIR" ]] || die "source directory must not be a symlink: ${SOURCE_DIR}"
 [[ -d "$SOURCE_DIR" ]] || die "source directory does not exist: ${SOURCE_DIR}"
 validate_structure "$SOURCE_DIR" || die "source directory structure validation failed"
-[[ ! -e "$DEST_DIR" ]] ||
+[[ ! -e "$DEST_DIR" && ! -L "$DEST_DIR" ]] ||
     die "destination already exists: ${DEST_DIR} -- refusing to overwrite"
 
 mkdir -p "$(dirname "$DEST_DIR")"
