@@ -482,6 +482,36 @@ if config_enabled "${AP_CONFIG}" BK7258_PM_COORDINATED_STANDBY; then
     fi
 fi
 
+# The retained Audio DAC profile is the bounded hardware-EQ register-lifecycle
+# validator.  Its stable profile names catch an accidental downgrade of both
+# metadata tokens, while the v2 token protects renamed copies.  Do not trigger
+# this board/profile contract from the chip-generic AUD_DAC_EQ feature.
+
+BK7258_AUDIO_DAC_VALIDATION_COMPAT=t5_board_audio_dac_validation_mcuboot_v2
+BK7258_AUDIO_DAC_VALIDATION_CP=t5_board_cp_audio_dac_validation_mcuboot
+BK7258_AUDIO_DAC_VALIDATION_AP=t5_board_ap_audio_dac_validation_mcuboot
+if [[ "${CP_CONFIG_NAME}" == "${BK7258_AUDIO_DAC_VALIDATION_CP}" ||
+      "${AP_CONFIG_NAME}" == "${BK7258_AUDIO_DAC_VALIDATION_AP}" ||
+      "${CP_PROFILE_COMPAT}" == "${BK7258_AUDIO_DAC_VALIDATION_COMPAT}" ||
+      "${AP_PROFILE_COMPAT}" == "${BK7258_AUDIO_DAC_VALIDATION_COMPAT}" ]]; then
+    if [[ "${CP_PROFILE_COMPAT}" != "${BK7258_AUDIO_DAC_VALIDATION_COMPAT}" ||
+          "${AP_PROFILE_COMPAT}" != "${BK7258_AUDIO_DAC_VALIDATION_COMPAT}" ||
+          "${CP_PROFILE_BOARD}" != t5_board ||
+          "${AP_PROFILE_BOARD}" != t5_board ||
+          "${CP_PROFILE_BOOT}" != mcuboot ||
+          "${AP_PROFILE_BOOT}" != mcuboot ||
+          "${CP_PROFILE_CLASS}" != validation ||
+          "${AP_PROFILE_CLASS}" != validation ]] ||
+       ! config_enabled "${AP_CONFIG}" BK7258_AUD ||
+       ! config_enabled "${AP_CONFIG}" BK7258_AUD_DAC_EQ ||
+       ! config_enabled "${AP_CONFIG}" BK7258_AUD_LIFECYCLE_VALIDATION ||
+       ! config_enabled "${CP_CONFIG}" BK7258_PM_STANDBY_ONESHOT_VERIFY; then
+        printf '%s\n' \
+            'build_dual_image: Audio DAC EQ validation requires the complete v2 MCUboot validation pair' >&2
+        exit 2
+    fi
+fi
+
 if [[ "${BK7258_PROFILE_CHECK_ONLY}" == YES ]]; then
     printf 'build_dual_image: profile PASS board=%s boot=%s compat=%s cp=%s ap=%s cp_sdk=%s ap_sdk=%s\n' \
         "${CP_PROFILE_BOARD}" "${CP_PROFILE_BOOT}" \
@@ -955,6 +985,102 @@ require_elf_symbol()
         exit 1
     fi
 }
+
+forbid_elf_symbol()
+{
+    local elf="$1"
+    local symbol="$2"
+
+    if arm-none-eabi-nm --defined-only "${elf}" |
+       awk -v symbol="${symbol}" 'NF >= 3 && $NF == symbol { found = 1 }
+           END { exit !found }'; then
+        printf 'build_dual_image: forbidden symbol %s is linked in %s\n' \
+            "${symbol}" "${elf}" >&2
+        exit 1
+    fi
+}
+
+require_map_symbol_owner()
+{
+    local map="$1"
+    local symbol="$2"
+    local owner="$3"
+
+    if ! awk -v section=".text.${symbol}" -v owner="${owner}" '
+        function nonzero_hex(value) {
+          return value ~ /^0x[0-9a-fA-F]+$/ && value !~ /^0x0+$/
+        }
+        function live_owner_line(i, count, address, size) {
+          if (index($0, owner) == 0) return 0
+          count = 0
+          for (i = 1; i <= NF; i++) {
+            if ($i ~ /^0x[0-9a-fA-F]+$/) {
+              count++
+              if (count == 1) address = $i
+              if (count == 2) size = $i
+            }
+          }
+          return count >= 2 && nonzero_hex(address) && nonzero_hex(size)
+        }
+        $0 == "Linker script and memory map" { memory_map = 1; next }
+        $0 == "Cross Reference Table" { memory_map = 0; active = 0 }
+        !memory_map { next }
+        $1 == section {
+          if (live_owner_line()) found = 1
+          else active = 1
+          next
+        }
+        active && live_owner_line() { found = 1; active = 0; next }
+        active && $1 ~ /^\./ { active = 0 }
+        END { exit !found }
+      ' "${map}"; then
+        printf 'build_dual_image: symbol %s in %s is not owned by %s\n' \
+            "${symbol}" "${map}" "${owner}" >&2
+        exit 1
+    fi
+}
+
+if config_enabled "${AP_CONFIG}" BK7258_AUD_LIFECYCLE_VALIDATION ||
+   config_enabled "${AP_CONFIG}" BK7258_AUD_DAC_EQ; then
+    command -v arm-none-eabi-nm >/dev/null 2>&1 || {
+        printf '%s\n' \
+            'build_dual_image: arm-none-eabi-nm is required for Audio ELF gates' >&2
+        exit 1
+    }
+
+    for symbol in bk7258_aud_initialize bk7258_aud_get_diag; do
+        require_elf_symbol "${OUTPUT}/nuttx-ap.elf" "${symbol}"
+    done
+fi
+
+if config_enabled "${AP_CONFIG}" BK7258_AUD_LIFECYCLE_VALIDATION; then
+    for symbol in bk7258_aud_validation_start \
+                  g_bk7258_aud_validation_diag; do
+        require_elf_symbol "${OUTPUT}/nuttx-ap.elf" "${symbol}"
+    done
+
+    require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" \
+        bk7258_aud_validation_start \
+        'staging/libarch.a(bk7258_aud_validation.o)'
+fi
+
+if config_enabled "${AP_CONFIG}" BK7258_AUD_DAC_EQ; then
+    for symbol in bk_aud_dac_eq_config bk_aud_dac_eq_deconfig; do
+        require_elf_symbol "${OUTPUT}/nuttx-ap.elf" "${symbol}"
+        require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" "${symbol}" \
+            "versions/${AP_SDK_BUNDLE_VERSION}/ap/libs/libdriver.a(aud_dac_driver.c.obj)"
+    done
+
+    require_map_symbol_owner "${OUTPUT}/nuttx-ap.map" \
+        bk7258_aud_initialize 'staging/libarch.a(bk7258_aud.o)'
+    forbid_elf_symbol "${OUTPUT}/nuttx-ap.elf" bk_aud_eq_init
+    forbid_elf_symbol "${OUTPUT}/nuttx-ap.elf" bk_aud_eq_deinit
+    if grep -Fq '/libs/libeq.a(' "${OUTPUT}/nuttx-ap.map"; then
+        printf '%s\n' \
+            'build_dual_image: hardware-EQ validation must not link software libeq.a' >&2
+        exit 1
+    fi
+fi
 
 if config_enabled "${CP_CONFIG}" BK7258_PM_STANDBY_ONESHOT_VERIFY; then
     command -v arm-none-eabi-nm >/dev/null 2>&1 || {

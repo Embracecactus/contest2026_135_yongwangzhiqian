@@ -19,7 +19,7 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | BK7258 build profiles | `board/bk7258/configs/<profile>/defconfig` selects one reusable product or bounded validation feature set for one physical board and one CP/AP role. Adjacent `profile.conf` is the packaging contract: board, role, boot mode, class and CP/AP compatibility ID. The build wrapper consumes metadata rather than profile-name whitelists and serializes physical builds because openvela configures the shared `nuttx/` and `apps/` trees in place. See [ADR-024](decisions/ADR-024-bk7258-physical-board-build-profiles.md). |
 | BK7258 initialization layers | `src/bk7258_platform.c` owns mandatory SDK/IPC/PM/AP lifetime initialization, `src/bk7258_bringup.c` owns application-facing procfs/MTD/filesystem registration, and the selected physical-board hook owns attached LCD/touch/camera validation and registration. `board_late_initialize()` and `board_app_initialize()` are thin NuttX entry points. |
 | BK7258 microphone | One AP NuttX audio lower-half owns DMA, ADC and worker lifetime.  The selected board header supplies fixed analog topology: T5AI-Core is MICP1/MICN1 mono; T5-Board is MICP1/MICN1 plus MICP2/MICN2 stereo.  Kconfig supplies product defaults for sample rate, analog/digital gain and buffering, while applications negotiate supported formats through `/dev/audio/pcm0c`.  The immutable AP SDK's separate AUDIO power-domain (`122`) and audio-clock (`30`) calls are link-wrapped into one generation-scoped CP-owned composite resource, because the native CPU1-to-CPU0 SDK PM mailbox is not an owner after RPTUN takes that mailbox. |
-| BK7258 speaker DAC | One AP NuttX playback lower half owns repeat GDMA, the two-frame DTCM ring, DAC and APB/worker lifetime at `/dev/audio/pcm0p`.  The selected board owns only the PA electrical binding: T5-Board P28 and T5AI-Core P39, both active-high with board-owned delays.  The first accepted contract is mono S16/16 kHz/320 samples/eight explicit APBs.  `RESERVE` through successful `RELEASE` owns the Audio 480 MHz SDK-tier vote; the bounded scheduling order is feeder 246 > refill worker 245 > board-default transport 225.  Speaker and microphone validation remain mutually exclusive until shared full-duplex clock ownership is designed. |
+| BK7258 speaker DAC | One AP NuttX playback lower half owns repeat GDMA, the two-frame DTCM ring, DAC and APB/worker lifetime at `/dev/audio/pcm0p`.  The selected board owns only the PA electrical binding: T5-Board P28 and T5AI-Core P39, both active-high with board-owned delays.  The first accepted contract is mono S16/16 kHz/320 samples/eight explicit APBs.  `RESERVE` through successful `RELEASE` owns the Audio 480 MHz SDK-tier vote; the bounded scheduling order is feeder 246 > refill worker 245 > board-default transport 225.  An optional chip-private hardware-EQ extension deep-copies four raw signed-22 coefficient banks before hardware creation, applies them while the initialized DAC is muted, and deconfigures them before DAC teardown.  It advertises no standard NuttX equalizer capability and owns no board preset.  Speaker and microphone validation remain mutually exclusive until shared full-duplex clock ownership is designed. |
 | Tier-1 bootloader | Board-owned source reconstructed for this port; it is built as a project artifact rather than patched into a vendor binary. It normalizes boot/cache/MPU/watchdog state. Direct profiles validate and transfer straight to CP; signed profiles transfer to Manifest/MCUboot BL2. |
 | BK7258 integrated Flash | 8 MiB on the current T5-AI; interface reports `0xc86517`, compatible with the GD25WQ64E command identity but not evidence of a separate board-level chip |
 | CP NuttX on CPU0 | Flash/LittleFS owner, AP lifecycle supervisor, RPMsg peer, Beken Bluetooth Controller owner, Wi-Fi RF/PHY/MAC/WPA/controller owner, PSRAM hardware/PM owner. Bluetooth desired state is published only after real SDK init/deinit success; Wi-Fi remains whole-chip lifetime. See [ADR-025](decisions/ADR-025-bk7258-radio-lifecycle-boundary.md). |
@@ -69,7 +69,10 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   a two-frame ring into the DAC.  Each DMA interrupt wakes the refill worker,
   which commits the next frame before publishing `DEQUEUE`; the bounded feeder
   requeues one APB, and `STOP` or `FINAL` quiesces the worker before PA/DAC/DMA
-  reverse teardown and the Audio frequency release.
+  reverse teardown and the Audio frequency release.  When the private DAC-EQ
+  extension is selected, its shadow is applied after DAC init/mute but before
+  DMA/DAC/PA start, and is deconfigured/read back after quiescence but before
+  DAC deinit.
 - Signed-image selection: CP/AP are one launchable pair. The board-owned MCUboot BL2 exposes only
   one physical slot to each `boot_go()` attempt and requires the CP result and
   AP vector to come from that same slot; a cross-slot-only state fails closed.
@@ -194,3 +197,8 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   affinity protects the validated Audio path, but cross-core high-resolution
   monotonic-time behavior and complete AP standby compensation remain future
   work.
+- The DAC-EQ ABI transports raw signed-22 values only.  The immutable SDK does
+  not document a hardware Q format, transfer-function convention, stability
+  policy or safe non-flat preset, and NuttX exposes no standard coefficient
+  payload.  The verified all-zero-bank lifecycle must not be presented as a
+  frequency-response, pass-through, stability or acoustic result.
