@@ -72,9 +72,12 @@ existing build semantics.  CMake is the recommended adapter; it is not an
 alternative build system.  Classic Make remains a supported compatibility
 adapter, and any isolation report must not claim more than is proven.
 
-The official artifact mapping is `libarch.a`, `libboards.a`, and
-`vela_*.bin`.  A later `.bkpack` is a vendor extension for packaging metadata;
-it is additive and never replaces the standard artifacts or build flow.
+The official build produces `libarch.a`, `libboards.a`, and the final openvela
+runtime image.  This dual-core port exposes the latter as role-qualified
+`vela_cp.bin` and `vela_ap.bin`.  Beken BL1/BL2 files are vendor boot-chain
+artifacts, not openvela standard artifacts.  A later `.bkpack` is an additive
+Beken delivery extension and never replaces the standard outputs or build
+flow.
 
 Production BL2 remains the current
 `board/bk7258/bootloader/bl2/Makefile` path for now.  P0 must not add a fake

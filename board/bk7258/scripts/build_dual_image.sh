@@ -34,6 +34,11 @@ TOPDIR="${WORKSPACE}/nuttx"
 BUILD="${WORKSPACE}/build.sh"
 PARTITION_GENERATOR="${SCRIPT_DIR}/gen_bk7258_partitions.py"
 TRUST_CHAIN_TOOL="${SCRIPT_DIR}/bk7258_trust_chain.py"
+# The payload-bearing container is an additive delivery artifact.  Keep the
+# tool overrideable for CI/worktree validation, but never fall back to the
+# metadata-only framework package when the signed profile requires a real
+# container.
+BKPACK_TOOL="${BK7258_BKPACK_TOOL:-${SCRIPT_DIR}/bk7258_bkpack.py}"
 # A worktree validation can point this at a temporary config mirror whose
 # custom board/chip paths resolve to that worktree.  Normal builds consume the
 # configs owned by this generic BK7258 board tree; the former vendor mirror
@@ -1348,9 +1353,7 @@ if config_enabled "${AP_CONFIG}" BK7258_T5_BOARD_SARADC_KEY_VALIDATION; then
 fi
 
 if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
-    cp "${TMPDIR}/cp-raw.bin" "${OUTPUT}/cp-raw.bin"
     cp "${TMPDIR}/cp-raw-crc.bin" "${OUTPUT}/cp-raw-crc.bin"
-    cp "${TMPDIR}/ap-raw.bin" "${OUTPUT}/ap-raw.bin"
     cp "${TMPDIR}/ap-raw-crc.bin" "${OUTPUT}/ap-raw-crc.bin"
     cp "${TMPDIR}/bl1-manifest.bin" "${OUTPUT}/bl1-manifest.bin"
     cp "${TMPDIR}/bl1-manifest-primary.bin" "${OUTPUT}/bl1-manifest-primary.bin"
@@ -1369,15 +1372,26 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     fi
 fi
 
+CP_STANDARD_IMAGE="${TMPDIR}/app.bin"
+AP_STANDARD_IMAGE="${TMPDIR}/app1.bin"
+if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    CP_STANDARD_IMAGE="${TMPDIR}/cp-raw.bin"
+    AP_STANDARD_IMAGE="${TMPDIR}/ap-raw.bin"
+fi
+
 PACK_DUAL_ARGS=(
     --boot "${BOARD_DIR}/bootloader/bl_crc.bin"
     --cp-raw "${TMPDIR}/app.bin"
+    --cp-standard "${CP_STANDARD_IMAGE}"
     --cp-crc "${TMPDIR}/app_crc.bin"
     --ap-raw "${TMPDIR}/app1.bin"
+    --ap-standard "${AP_STANDARD_IMAGE}"
     --ap-crc "${TMPDIR}/app1_crc.bin"
     --output "${OUTPUT}"
 )
 if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    # Standard role images remain the unsigned logical NuttX outputs; the
+    # separately named CRC-expanded files below are the Flash payloads.
     PACK_DUAL_ARGS+=(
         --bl2-primary-crc "${TMPDIR}/bl2_crc.bin"
         --bl2-secondary-crc "${TMPDIR}/bl2_secondary_crc.bin"
@@ -1465,6 +1479,30 @@ BL2_SECONDARY_XIP_ADDRESS=${BL2_SECONDARY_XIP_ADDRESS}
 BL2_LOAD_ADDRESS=${BL2_LOAD_ADDRESS}
 BL2_FLASH_SEGMENT=${MCUBOOT_BL2_FLASH_SEGMENT}
 EOF
+
+if [[ "${MCUBOOT_PROFILE}" == "true" &&
+      "${BL1_MANIFEST_RAW_PAGE}" == "false" ]]; then
+    if [[ ! -f "${BKPACK_TOOL}" ]]; then
+        printf 'build_dual_image: MCUboot profile requires container tool: %s\n' \
+            "${BKPACK_TOOL}" >&2
+        exit 2
+    fi
+    printf '%s\n' "build_dual_image: creating payload-bearing firmware.bkpack"
+    python3 "${BKPACK_TOOL}" create \
+        --source "${OUTPUT}" \
+        --output "${OUTPUT}/firmware.bkpack"
+    printf '%s\n' "build_dual_image: verifying payload-bearing firmware.bkpack"
+    python3 "${BKPACK_TOOL}" verify \
+        --package "${OUTPUT}/firmware.bkpack"
+elif [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
+    rm -f "${OUTPUT}/firmware.bkpack"
+    printf '%s\n' \
+        "build_dual_image: firmware.bkpack NOT_GENERATED (raw BL1 manifest pages are not represented by the Windows Flash plans)"
+else
+    rm -f "${OUTPUT}/firmware.bkpack"
+    printf '%s\n' \
+        "build_dual_image: firmware.bkpack NOT_GENERATED (raw profile has no BL2/trust-chain contract)"
+fi
 
 cp "${OUTPUT}/app.bin" "${TOPDIR}/app.bin"
 cp "${OUTPUT}/app_crc.bin" "${TOPDIR}/app_crc.bin"

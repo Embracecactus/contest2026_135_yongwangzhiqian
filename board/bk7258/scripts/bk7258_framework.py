@@ -61,11 +61,17 @@ PACK_ROLE_PARTITIONS = {
     "cp": "primary_cp_app",
     "ap": "primary_ap_app",
 }
+PACK_ROLE_ARTIFACTS = {
+    "bl1": "bootloader.bin",
+    "bl2": "bl2.bin",
+    "cp": "vela_cp.bin",
+    "ap": "vela_ap.bin",
+}
 PACK_ARTIFACTS = {
     "libarch.a": ("static_archive", "chip", ("cp", "ap")),
     "libboards.a": ("static_archive", "board", ("cp", "ap")),
-    "vela_bl1.bin": ("firmware_binary", "board", ("bl1",)),
-    "vela_bl2.bin": ("firmware_binary", "board", ("bl2",)),
+    "bootloader.bin": ("vendor_boot_binary", "board", ("bl1",)),
+    "bl2.bin": ("vendor_boot_binary", "board", ("bl2",)),
     "vela_cp.bin": ("firmware_binary", "board", ("cp",)),
     "vela_ap.bin": ("firmware_binary", "board", ("ap",)),
 }
@@ -1436,7 +1442,7 @@ def _pack_ranges(layout: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         }
         partition_roles[role] = row
         ranges.append({
-            "artifact": f"vela_{role}.bin",
+            "artifact": PACK_ROLE_ARTIFACTS[role],
             "role": role,
             "partition": partition.name,
             "start": partition.offset,
@@ -1541,7 +1547,7 @@ def validate_bkpack(value: dict[str, Any]) -> dict[str, Any]:
         if role not in PACK_ROLES or role in seen_roles:
             raise FrameworkError("package ranges contain an ambiguous or duplicate role")
         seen_roles.add(role)
-        if row["artifact"] != f"vela_{role}.bin":
+        if row["artifact"] != PACK_ROLE_ARTIFACTS[role]:
             raise FrameworkError(f"package range artifact does not map to role: {role}")
         expected = expected_partitions[role]
         if row["partition"] != expected["partition"]:
@@ -1583,9 +1589,9 @@ def validate_bkpack(value: dict[str, Any]) -> dict[str, Any]:
             kind, owner, mapped_roles = PACK_ARTIFACTS[name]
             if (row["kind"], row["owner"], row["roles"], row["required"]) != \
                     (kind, owner, list(mapped_roles), True):
-                raise FrameworkError(f"standard artifact mapping is wrong: {name}")
+                raise FrameworkError(f"package artifact mapping is wrong: {name}")
     if names != expected_names:
-        raise FrameworkError("package standard artifacts are incomplete")
+        raise FrameworkError("package artifacts are incomplete")
     tool = obj(value["tool"], "package.tool")
     exact(tool, {"backend", "packer", "signer", "network_used", "bytes_written"},
           "package.tool")
