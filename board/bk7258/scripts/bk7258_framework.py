@@ -67,6 +67,13 @@ TRANSPORT_SCHEMA = "bk7258.transport/1"
 TRANSPORT_HOSTS = frozenset({"linux", "darwin", "windows", "wsl"})
 TRANSPORT_IDENTITY_KEYS = ("vid", "pid", "serial_prefix", "interface", "location")
 TRANSPORT_CAPABILITY_KEYS = ("rts", "dtr", "reset", "rts_reset")
+SHADOW_SCHEMA = "bk7258.shadow/1"
+SHADOW_REPORT_SCHEMA = "bk7258.shadow-report/1"
+SHADOW_LEDGER_REL = "board/bk7258/scripts/bk7258_shadow_ledger.json"
+SHADOW_STATUS_ORDER = ("EXACT", "EQUIVALENT_WITH_REASON", "MIGRATION_PENDING",
+                       "RETIRE_PROPOSED")
+SHADOW_STATUS = frozenset(SHADOW_STATUS_ORDER)
+FRAMEWORK_CHECK_SCHEMA = "bk7258.framework-check/1"
 
 
 class FrameworkError(ValueError):
@@ -2081,6 +2088,473 @@ def transport_plan(repository: Path, board_id: str, *, host: str | None = None,
     return validate_transport_plan(result)
 
 
+def _shadow_digest(path: Path, field: str) -> str:
+    """Hash one tracked metadata file without accepting a symlink."""
+    try:
+        info = path.lstat()
+    except OSError as error:
+        raise FrameworkError(f"missing {field}: {path}") from error
+    if not stat.S_ISREG(info.st_mode):
+        raise FrameworkError(f"{field} must be a regular file: {path}")
+    return sha256(path.read_bytes())
+
+
+def _shadow_path(repository: Path, value: str, field: str) -> Path:
+    path = relative_path(value, field)
+    candidate = repository / path
+    try:
+        info = candidate.lstat()
+    except OSError as error:
+        raise FrameworkError(f"missing {field}: {candidate}") from error
+    if stat.S_ISLNK(info.st_mode):
+        raise FrameworkError(f"{field} must not be a symlink: {candidate}")
+    try:
+        candidate.resolve().relative_to(repository.resolve())
+    except ValueError as error:
+        raise FrameworkError(f"{field} escaped repository") from error
+    return candidate
+
+
+def validate_shadow_ledger(repository: Path, value: dict[str, Any]) -> dict[str, Any]:
+    """Validate the immutable P9a mapping ledger.
+
+    The ledger is deliberately a mapping/provenance input, not a claim that a
+    new product is already equivalent.  The detailed old/new evidence is
+    produced by :func:`shadow_parity`; a non-EXACT row must always retain a
+    human-readable rationale.
+    """
+    exact(value, {"schema", "kind", "version", "status", "source_manifest",
+                  "source_manifest_sha256", "source_migration_ledger",
+                  "source_migration_ledger_sha256", "profile_count", "statuses",
+                  "rows", "identity_sha256"}, "shadow ledger")
+    if (value["schema"] != SHADOW_SCHEMA or
+            value["kind"] != "legacy-profile-shadow-ledger" or
+            value["version"] != 1 or value["status"] != "shadow-only"):
+        raise FrameworkError("unsupported shadow ledger schema/status")
+    source_manifest = _shadow_path(repository, value["source_manifest"],
+                                   "shadow source manifest")
+    source_migration = _shadow_path(repository, value["source_migration_ledger"],
+                                    "shadow source migration ledger")
+    digest(value["source_manifest_sha256"], "shadow source manifest digest")
+    digest(value["source_migration_ledger_sha256"],
+           "shadow source migration ledger digest")
+    if _shadow_digest(source_manifest, "shadow source manifest") != value["source_manifest_sha256"]:
+        raise FrameworkError("shadow source manifest digest mismatch")
+    if (_shadow_digest(source_migration, "shadow source migration ledger") !=
+            value["source_migration_ledger_sha256"]):
+        raise FrameworkError("shadow source migration ledger digest mismatch")
+    if (not isinstance(value["profile_count"], int) or
+            isinstance(value["profile_count"], bool) or value["profile_count"] != 27):
+        raise FrameworkError("shadow ledger profile count must be exactly 27")
+    statuses = array(value["statuses"], "shadow ledger statuses")
+    if statuses != list(SHADOW_STATUS_ORDER) or set(statuses) != SHADOW_STATUS:
+        raise FrameworkError("shadow ledger status enum is not stable")
+    rows = array(value["rows"], "shadow ledger rows")
+    if len(rows) != value["profile_count"]:
+        raise FrameworkError("shadow ledger row count is not exactly 27")
+    seen: set[str] = set()
+    for index, raw in enumerate(rows):
+        row = obj(raw, f"shadow ledger row {index}")
+        exact(row, {"legacy_profile", "family", "resource_mode", "validation_suite",
+                    "target_product", "target_role", "status", "rationale"},
+              f"shadow ledger row {index}")
+        name = identifier(row["legacy_profile"], f"shadow row {index}.legacy_profile")
+        if name in seen:
+            raise FrameworkError(f"duplicate shadow profile: {name}")
+        seen.add(name)
+        identifier(row["family"], f"shadow row {index}.family")
+        identifier(row["resource_mode"], f"shadow row {index}.resource_mode")
+        if row["validation_suite"] is not None:
+            identifier(row["validation_suite"], f"shadow row {index}.validation_suite")
+        if row["target_product"] is not None:
+            identifier(row["target_product"], f"shadow row {index}.target_product")
+        if row["target_role"] not in ROLES:
+            raise FrameworkError(f"shadow row {index} has an unsupported target role")
+        if row["status"] not in SHADOW_STATUS:
+            raise FrameworkError(f"shadow row {index} has an unsupported status")
+        if (not isinstance(row["rationale"], str) or not row["rationale"].strip()):
+            raise FrameworkError(f"shadow row {index} rationale is missing")
+        if row["status"] != "EXACT" and not row["rationale"].strip():
+            raise FrameworkError(f"shadow row {index} non-EXACT rationale is missing")
+    manifest = load_json(source_manifest)
+    if manifest.get("profile_count") != 27 or not isinstance(manifest.get("profiles"), list):
+        raise FrameworkError("shadow source manifest does not describe 27 profiles")
+    migration = load_json(source_migration)
+    if not isinstance(migration.get("rows"), list) or len(migration["rows"]) != 27:
+        raise FrameworkError("shadow source migration ledger does not describe 27 rows")
+    manifest_names = {item.get("name") for item in manifest["profiles"]}
+    migration_by_name = {
+        item.get("legacy_profile"): item for item in migration["rows"]
+        if isinstance(item, dict)
+    }
+    if len(migration_by_name) != 27 or seen != manifest_names or seen != set(migration_by_name):
+        raise FrameworkError("shadow ledger coverage differs from frozen legacy profiles")
+    for row in rows:
+        source = migration_by_name[row["legacy_profile"]]
+        target = source.get("target")
+        if (not isinstance(target, dict) or
+                row["family"] != target.get("family") or
+                row["resource_mode"] != target.get("resource_mode") or
+                row["validation_suite"] != target.get("validation_suite") or
+                row["target_role"] != target.get("role")):
+            raise FrameworkError(f"shadow row mapping differs from migration ledger: {row['legacy_profile']}")
+    body = dict(value)
+    supplied = body.pop("identity_sha256")
+    digest(supplied, "shadow ledger identity")
+    if sha256(canonical_json(body)) != supplied:
+        raise FrameworkError("shadow ledger identity mismatch")
+    return value
+
+
+def _shadow_inventory_closure(repository: Path, profile: str) -> list[str]:
+    """Return repository-relative inventory consumers naming one profile."""
+    inventory_path = repository / "board/bk7258/scripts/legacy_profile_consumers.json"
+    inventory = load_json(inventory_path)
+    paths = {
+        row["path"] for row in inventory.get("consumers", [])
+        if isinstance(row, dict) and any(
+            isinstance(reference, dict) and reference.get("term") == profile
+            for reference in row.get("references", [])
+        )
+    }
+    paths.update({
+        f"board/bk7258/configs/{profile}/profile.conf",
+        f"board/bk7258/configs/{profile}/defconfig",
+    })
+    return sorted(paths)
+
+
+def _shadow_graph(repository: Path, product_id: str) -> dict[str, Any] | None:
+    catalog = load_catalog(repository)
+    product = catalog["products"].get(product_id)
+    if product is None:
+        return None
+    path = repository / "board/bk7258/scripts" / f"bk7258_resource_graph_{product['board']}.json"
+    if not path.is_file():
+        return None
+    return load_json(path)
+
+
+def _shadow_graph_evidence(graph: dict[str, Any] | None) -> tuple[list[Any] | None, list[Any] | None]:
+    if graph is None:
+        return None, None
+    resources = graph.get("resources", {})
+    devpaths = sorted((dict(item) for item in resources.get("devpaths_minors", [])),
+                      key=lambda item: item.get("id", ""))
+    claims: list[Any] = []
+    for category in sorted(resources):
+        if category == "bom":
+            continue
+        for item in resources.get(category, []):
+            row = dict(item)
+            row["category"] = category
+            claims.append(row)
+    claims.sort(key=lambda item: (item.get("category", ""), item.get("id", "")))
+    return devpaths, claims
+
+
+def _shadow_new_evidence(repository: Path, product_id: str | None,
+                         role: str) -> dict[str, Any]:
+    fields: dict[str, Any] = {
+        "metadata": None, "resolved_defconfig": None, "source_closure": None, "device_nodes": None,
+        "resource_claims": None, "sdk_role": None, "package_plan": None,
+    }
+    if product_id is None:
+        return fields
+    ir = resolve(repository, product_id, role)
+    plan = build_plan(repository, product_id)
+    fragment_paths = []
+    for fragment in ir["fragments"]:
+        matches = sorted((path.relative_to(repository).as_posix()
+                          for path in (repository / "board/bk7258/scripts").glob(
+                              f"bk7258_fragment_catalog_{fragment['id']}.json")))
+        fragment_paths.extend(matches)
+    source = ir["source_view"]
+    fields["resolved_defconfig"] = {
+        "symbols": dict(ir["symbols"]), "identity_sha256": ir["identity_sha256"],
+    }
+    fields["source_closure"] = sorted(set(fragment_paths + [
+        source["board_root"], source["board_variant"], source["chip_root"],
+    ]))
+    graph = _shadow_graph(repository, product_id)
+    fields["device_nodes"], fields["resource_claims"] = _shadow_graph_evidence(graph)
+    sdk_role = plan["sdk"]["roles"].get(role)
+    if sdk_role is None:
+        fields["sdk_role"] = None
+    else:
+        fields["sdk_role"] = {"registry_id": sdk_role,
+                               "manifest_sha256": sdk_role.removeprefix("sha256:")}
+    try:
+        package = pack_prepare(repository, product_id)
+    except FrameworkError:
+        package = None
+    if package is not None:
+        fields["package_plan"] = {
+            "package_id": package["package_id"], "kind": package["kind"],
+            "plan": package["plan"], "apps_plan": package["apps_plan"],
+            "identity_sha256": package["identity_sha256"],
+        }
+    return fields
+
+
+def _shadow_comparison(old: dict[str, Any], new: dict[str, Any]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    result["metadata"] = "NOT_COMPARABLE"
+    old_symbols = old["resolved_defconfig"]
+    new_symbols = new["resolved_defconfig"]
+    if old_symbols is None or new_symbols is None:
+        result["resolved_defconfig"] = "NOT_AVAILABLE"
+    else:
+        old_map = {key: item for key, item in old_symbols.items() if item is not None}
+        new_map = new_symbols.get("symbols", {})
+        new_map = {key: item for key, item in new_map.items() if item is not None}
+        result["resolved_defconfig"] = ("MATCH" if all(
+            new_map.get(key) == item for key, item in old_map.items()
+        ) else "DIFFERENT")
+    for field in ("source_closure", "device_nodes", "resource_claims", "sdk_role",
+                  "package_plan"):
+        old_value, new_value = old[field], new[field]
+        if old_value is None or new_value is None:
+            result[field] = "NOT_AVAILABLE"
+        elif field == "sdk_role":
+            old_digest = old_value.get("sha256_manifest") if isinstance(old_value, dict) else None
+            new_digest = new_value.get("manifest_sha256") if isinstance(new_value, dict) else None
+            result[field] = ("MATCH" if old_digest is not None and old_digest == new_digest
+                             else "DIFFERENT")
+        else:
+            result[field] = "MATCH" if old_value == new_value else "DIFFERENT"
+    return result
+
+
+def shadow_parity(repository: Path, ledger_path: Path | None = None,
+                  *, require_git: bool = True) -> dict[str, Any]:
+    """Produce deterministic old/new evidence for every frozen profile."""
+    root = repository.resolve()
+    path = ledger_path or root / SHADOW_LEDGER_REL
+    if not path.is_absolute():
+        path = root / path
+    ledger = validate_shadow_ledger(root, load_json(path))
+    manifest_path = root / ledger["source_manifest"]
+    manifest = load_json(manifest_path)
+    if require_git:
+        try:
+            from verify_legacy_profile_freeze import check_manifest  # noqa: PLC0415
+            check_manifest(root, manifest, require_git=True)
+        except FrameworkError:
+            raise
+        except Exception as error:
+            # Keep the CLI contract stable while preserving the original
+            # reason.  No report is emitted from an unverified freeze.
+            raise FrameworkError(f"frozen profile verification failed: {error}") from error
+    migration = load_json(root / ledger["source_migration_ledger"])
+    migration_by_name = {row["legacy_profile"]: row for row in migration["rows"]}
+    profiles_by_name = {row["name"]: row for row in manifest["profiles"]}
+    rows: list[dict[str, Any]] = []
+    for mapping in sorted(ledger["rows"], key=lambda item: item["legacy_profile"]):
+        name = mapping["legacy_profile"]
+        profile = profiles_by_name[name]
+        old_sdk = profile["sdk"]
+        target_product = mapping["target_product"]
+        old = {
+            "metadata": dict(profile["metadata"]),
+            "resolved_defconfig": dict(profile["defconfig_symbols"]),
+            "source_closure": _shadow_inventory_closure(root, name),
+            "device_nodes": None,
+            "resource_claims": None,
+            "sdk_role": dict(old_sdk),
+            "package_plan": None,
+        }
+        new = _shadow_new_evidence(root, target_product, mapping["target_role"])
+        comparison = _shadow_comparison(old, new)
+        rows.append({
+            "legacy_profile": name,
+            "mapping": {key: mapping[key] for key in (
+                "family", "resource_mode", "validation_suite", "target_product", "target_role")},
+            "old": old,
+            "new": new,
+            "comparison": comparison,
+            "status": mapping["status"],
+            "rationale": mapping["rationale"],
+        })
+    body: dict[str, Any] = {
+        "schema": SHADOW_REPORT_SCHEMA,
+        "kind": "legacy-profile-shadow-report",
+        "version": 1,
+        "status": "shadow-only",
+        "profile_count": len(rows),
+        "statuses": list(SHADOW_STATUS_ORDER),
+        "ledger_identity_sha256": ledger["identity_sha256"],
+        "rows": rows,
+        "hardware_accessed": False,
+        "network_used": False,
+    }
+    result = dict(body)
+    result["identity_sha256"] = sha256(canonical_json(body))
+    return validate_shadow_report(result)
+
+
+def validate_shadow_report(value: dict[str, Any]) -> dict[str, Any]:
+    exact(value, {"schema", "kind", "version", "status", "profile_count", "statuses",
+                  "ledger_identity_sha256", "rows", "hardware_accessed", "network_used",
+                  "identity_sha256"}, "shadow report")
+    if (value["schema"] != SHADOW_REPORT_SCHEMA or
+            value["kind"] != "legacy-profile-shadow-report" or value["version"] != 1 or
+            value["status"] != "shadow-only"):
+        raise FrameworkError("unsupported shadow report schema/status")
+    if value["profile_count"] != 27 or len(value["rows"]) != 27:
+        raise FrameworkError("shadow report must contain exactly 27 rows")
+    if value["statuses"] != list(SHADOW_STATUS_ORDER) or set(value["statuses"]) != SHADOW_STATUS:
+        raise FrameworkError("shadow report status enum is not stable")
+    digest(value["ledger_identity_sha256"], "shadow report ledger identity")
+    if value["hardware_accessed"] is not False or value["network_used"] is not False:
+        raise FrameworkError("shadow report claims hardware or network access")
+    seen: set[str] = set()
+    for index, raw in enumerate(value["rows"]):
+        row = obj(raw, f"shadow report row {index}")
+        exact(row, {"legacy_profile", "mapping", "old", "new", "comparison", "status",
+                    "rationale"}, f"shadow report row {index}")
+        name = identifier(row["legacy_profile"], f"shadow report row {index}.profile")
+        if name in seen:
+            raise FrameworkError(f"duplicate shadow report profile: {name}")
+        seen.add(name)
+        mapping = obj(row["mapping"], f"shadow report row {index}.mapping")
+        exact(mapping, {"family", "resource_mode", "validation_suite", "target_product",
+                        "target_role"}, f"shadow report row {index}.mapping")
+        identifier(mapping["family"], "shadow report family")
+        identifier(mapping["resource_mode"], "shadow report resource mode")
+        if mapping["validation_suite"] is not None:
+            identifier(mapping["validation_suite"], "shadow report validation suite")
+        if mapping["target_product"] is not None:
+            identifier(mapping["target_product"], "shadow report target product")
+        if mapping["target_role"] not in ROLES:
+            raise FrameworkError("shadow report target role is invalid")
+        for side in ("old", "new"):
+            evidence = obj(row[side], f"shadow report row {index}.{side}")
+            exact(evidence, {"metadata", "resolved_defconfig", "source_closure",
+                             "device_nodes", "resource_claims", "sdk_role", "package_plan"},
+                  f"shadow report row {index}.{side}")
+        comparison = obj(row["comparison"], f"shadow report row {index}.comparison")
+        exact(comparison, {"metadata", "resolved_defconfig", "source_closure",
+                           "device_nodes", "resource_claims", "sdk_role", "package_plan"},
+              f"shadow report row {index}.comparison")
+        if any(not isinstance(item, str) or not item for item in comparison.values()):
+            raise FrameworkError("shadow comparison status is malformed")
+        if row["status"] not in SHADOW_STATUS:
+            raise FrameworkError("shadow report row status is invalid")
+        if row["status"] != "EXACT" and (not isinstance(row["rationale"], str) or
+                                           not row["rationale"].strip()):
+            raise FrameworkError("shadow report non-EXACT rationale is missing")
+    digest(value["identity_sha256"], "shadow report identity")
+    body = dict(value)
+    supplied = body.pop("identity_sha256")
+    if sha256(canonical_json(body)) != supplied:
+        raise FrameworkError("shadow report identity mismatch")
+    return value
+
+
+def _framework_check_step(checks: list[dict[str, Any]], check_id: str,
+                          detail: str, callback: Callable[[], Any]) -> None:
+    callback()
+    checks.append({"id": check_id, "status": "PASS", "detail": detail})
+
+
+def framework_check(repository: Path) -> dict[str, Any]:
+    """Run the bounded P0-P8 metadata/framework smoke contract."""
+    root = repository.resolve()
+    checks: list[dict[str, Any]] = []
+    manifest_path = root / "board/bk7258/scripts/legacy_profile_freeze_manifest.json"
+    manifest = load_json(manifest_path)
+    try:
+        from verify_legacy_profile_freeze import check_manifest  # noqa: PLC0415
+        _framework_check_step(checks, "p0-freeze", "27 frozen profiles and consumer inventory",
+                              lambda: check_manifest(root, manifest, require_git=True))
+    except ImportError as error:
+        raise FrameworkError(f"P0 verifier unavailable: {error}") from error
+    catalog = load_catalog(root)
+    _framework_check_step(checks, "p1-catalog", "strict board/product/fragment catalogs",
+                          lambda: None)
+    for product in ("t5ai_core_bringup", "aidk_ai_toy_bringup"):
+        for role in ("cp", "ap", "bl2"):
+            resolve(root, product, role)
+    _framework_check_step(checks, "p1-resolve", "T5 and AIDK role resolution", lambda: None)
+    registry_path = root / "board/bk7258/scripts/bk7258_sdk_registry.json"
+    set_path = root / "board/bk7258/scripts/bk7258_sdk_set.json"
+    lock_path = root / "board/bk7258/scripts/bk7258_sdk_lock.json"
+    registry = validate_sdk_registry(root, load_json(registry_path))
+    sdk_set = validate_sdk_set(load_json(set_path), registry)
+    validate_sdk_lock(root, registry_path, set_path, load_json(lock_path), registry, sdk_set)
+    _framework_check_step(checks, "p2-sdk-metadata", "SDK registry/set/lock invariants", lambda: None)
+    for product in ("t5ai_core_bringup", "aidk_ai_toy_bringup"):
+        plan = build_plan(root, product)
+        validate_build_plan(plan)
+        for role in ("cp", "ap"):
+            validate_config_document(config_document(resolve(root, product, role)))
+    _framework_check_step(checks, "p3-build-plans", "representative T5/AIDK config and role plans", lambda: None)
+    from bk7258_resource_graph import (  # noqa: PLC0415
+        validate_migration_ledger, validate_ownership_manifest, validate_resource_graph,
+    )
+    validate_ownership_manifest(root, load_json(root / "board/bk7258/scripts/bk7258_layer_ownership.json"))
+    validate_migration_ledger(root, load_json(root / "board/bk7258/scripts/bk7258_compatibility_migration_ledger.json"))
+    _framework_check_step(checks, "p4-ownership-migration", "ownership and migration metadata", lambda: None)
+    for board in ("t5ai_core", "aidk_ai_toy"):
+        graph = load_json(root / "board/bk7258/scripts" / f"bk7258_resource_graph_{board}.json")
+        validate_resource_graph(root, graph)
+    _framework_check_step(checks, "p4-resource-graphs", "T5/AIDK resource graph schemas", lambda: None)
+    from bk7258_validation import validate_descriptor_set  # noqa: PLC0415
+    validate_descriptor_set(root, load_json(root / "board/bk7258/scripts/bk7258_validation_descriptors.json"))
+    _framework_check_step(checks, "p5-validation", "validation descriptors and 27-profile coverage", lambda: None)
+    for product in ("t5ai_core_bringup", "aidk_ai_toy_bringup"):
+        pack_prepare(root, product)
+    _framework_check_step(checks, "p6-package-plan", "metadata-only package plan generation", lambda: None)
+    transport_plan(root, "aidk_ai_toy", host="linux", candidates=["/dev/ttyBK7258"], aidk=True)
+    _framework_check_step(checks, "p7-transport", "dry-run transport capability/sequence", lambda: None)
+    _framework_check_step(checks, "p8-aidk-binding", "AIDK board selector and binding metadata",
+                          lambda: load_catalog(root)["boards"]["aidk_ai_toy"])
+    body: dict[str, Any] = {
+        "schema": FRAMEWORK_CHECK_SCHEMA,
+        "kind": "framework-check",
+        "version": 1,
+        "status": "PASS",
+        "checks": checks,
+        "hardware_accessed": False,
+        "network_used": False,
+    }
+    result = dict(body)
+    result["identity_sha256"] = sha256(canonical_json(body))
+    return validate_framework_check(result)
+
+
+def validate_framework_check(value: dict[str, Any]) -> dict[str, Any]:
+    exact(value, {"schema", "kind", "version", "status", "checks",
+                  "hardware_accessed", "network_used", "identity_sha256"},
+          "framework check")
+    if (value["schema"] != FRAMEWORK_CHECK_SCHEMA or
+            value["kind"] != "framework-check" or value["version"] != 1 or
+            value["status"] != "PASS"):
+        raise FrameworkError("unsupported framework-check schema/status")
+    checks = array(value["checks"], "framework check checks")
+    if not checks:
+        raise FrameworkError("framework check has no checks")
+    seen: set[str] = set()
+    for index, raw in enumerate(checks):
+        check = obj(raw, f"framework check row {index}")
+        exact(check, {"id", "status", "detail"}, f"framework check row {index}")
+        check_id = identifier(check["id"], f"framework check row {index}.id")
+        if check_id in seen:
+            raise FrameworkError(f"duplicate framework check id: {check_id}")
+        seen.add(check_id)
+        if check["status"] != "PASS" or not isinstance(check["detail"], str) or not check["detail"]:
+            raise FrameworkError(f"framework check row {index} is not a stable PASS")
+    if value["hardware_accessed"] is not False or value["network_used"] is not False:
+        raise FrameworkError("framework check claims hardware or network access")
+    digest(value["identity_sha256"], "framework check identity")
+    body = dict(value)
+    supplied = body.pop("identity_sha256")
+    if sha256(canonical_json(body)) != supplied:
+        raise FrameworkError("framework check identity mismatch")
+    return value
+
+
 def write_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(canonical_json(value))
@@ -2224,6 +2698,16 @@ def cli(argv: list[str] | None = None) -> int:
     resource_resolve_parser.add_argument("--out", type=Path, required=True)
     validation_parser = commands.add_parser("validation-check")
     validation_parser.add_argument("--descriptors", type=Path)
+    shadow_parser = commands.add_parser(
+        "shadow-check", aliases=("shadow-parity", "shadow-report", "parity",
+                                 "parity-check", "legacy-shadow", "legacy-parity"))
+    shadow_parser.add_argument("--ledger", type=Path)
+    shadow_parser.add_argument("--no-git", action="store_true",
+                               help="skip the approved Git-object freeze check")
+    shadow_parser.add_argument("--out", type=Path)
+    framework_check_parser = commands.add_parser(
+        "framework-check", aliases=("check-framework",))
+    framework_check_parser.add_argument("--out", type=Path)
     commands.add_parser("validate")
     args = parser.parse_args(argv)
     root = args.root.resolve()
@@ -2392,6 +2876,19 @@ def cli(argv: list[str] | None = None) -> int:
             print("bk7258-framework: VALIDATION PASS "
                   f"descriptors={result['descriptors']} "
                   f"legacy_profiles={result['legacy']['profiles']}")
+        elif args.command in {"shadow-check", "shadow-parity", "shadow-report", "parity",
+                              "parity-check", "legacy-shadow", "legacy-parity"}:
+            result = shadow_parity(root, args.ledger, require_git=not args.no_git)
+            if args.out is not None:
+                write_json(args.out, result)
+            else:
+                print(canonical_json(result).decode(), end="")
+        elif args.command in {"framework-check", "check-framework"}:
+            result = framework_check(root)
+            if args.out is not None:
+                write_json(args.out, result)
+            else:
+                print(canonical_json(result).decode(), end="")
         else:
             ir = resolve(root, args.product, args.role, args.board, args.mode)
             if args.command == "resolve":

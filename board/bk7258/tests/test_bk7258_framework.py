@@ -38,6 +38,11 @@ from bk7258_framework import (  # noqa: E402
     validate_build_plan,
     validate_config_document,
     verify_sdk_bundle,
+    framework_check,
+    shadow_parity,
+    validate_framework_check,
+    validate_shadow_ledger,
+    validate_shadow_report,
 )
 
 
@@ -192,6 +197,25 @@ class FrameworkTest(unittest.TestCase):
         self.assertEqual(len(build_paths), 4)
         self.assertEqual(len(artifact_paths), 4)
         self.assertEqual(len(config_paths), 4)
+
+    def test_p9a_shadow_covers_all_profiles_without_fake_green(self) -> None:
+        ledger = load_json(SCRIPT_ROOT / "bk7258_shadow_ledger.json")
+        self.assertIs(validate_shadow_ledger(REPOSITORY, ledger), ledger)
+        report = shadow_parity(REPOSITORY)
+        self.assertIs(validate_shadow_report(report), report)
+        self.assertEqual(report["profile_count"], 27)
+        self.assertEqual({row["status"] for row in report["rows"]}, {"MIGRATION_PENDING"})
+        self.assertTrue(all(row["rationale"] for row in report["rows"]))
+        self.assertTrue(all("metadata" in row["old"] and "package_plan" in row["new"]
+                            for row in report["rows"]))
+
+    def test_p9a_framework_check_is_bounded_and_dry_run(self) -> None:
+        result = framework_check(REPOSITORY)
+        self.assertIs(validate_framework_check(result), result)
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(len(result["checks"]), 11)
+        self.assertFalse(result["hardware_accessed"])
+        self.assertFalse(result["network_used"])
 
 
 if __name__ == "__main__":

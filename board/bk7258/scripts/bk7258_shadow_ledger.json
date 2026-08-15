@@ -1,0 +1,290 @@
+{
+  "identity_sha256": "6e18b5312f4e6d8eda175c0670d4ad10d30d4f4d9c6f11463676a85d9d6d847c",
+  "kind": "legacy-profile-shadow-ledger",
+  "profile_count": 27,
+  "rows": [
+    {
+      "family": "bk7258",
+      "legacy_profile": "bl2_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "minimal-boot",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "bl2",
+      "validation_suite": null
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_app_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "application",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": null
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_audio_dac_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "audio-dac"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_camera_h264_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "camera-h264"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_camera_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "camera"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_drivercheck",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "ci",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "driver-coverage"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_jpeg_m2m_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "jpeg-m2m"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_pwm_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "pwm"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_saradc_key_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "saradc-key"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_temperature_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "temperature"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_tf_1bit_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "tf"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_tf_4bit_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "tf"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_ap_wifi_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "wifi",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": null
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_cp_app_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "application",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "cp",
+      "validation_suite": null
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_cp_audio_dac_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "cp",
+      "validation_suite": "audio-dac"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_cp_drivercheck",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "ci",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "cp",
+      "validation_suite": "driver-coverage"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_cp_jpeg_m2m_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "cp",
+      "validation_suite": "jpeg-m2m"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_cp_saradc_key_validation_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "cp",
+      "validation_suite": "saradc-key"
+    },
+    {
+      "family": "t5_board",
+      "legacy_profile": "t5_board_cp_wifi_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "wifi",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "cp",
+      "validation_suite": null
+    },
+    {
+      "family": "t5ai_core",
+      "legacy_profile": "t5ai_core_ap_base",
+      "rationale": "P9a candidate mapping only: role/defconfig overlap is observed, but source closure, device/resource claims and package parity are not accepted for cutover.",
+      "resource_mode": "bringup",
+      "status": "MIGRATION_PENDING",
+      "target_product": "t5ai_core_bringup",
+      "target_role": "ap",
+      "validation_suite": null
+    },
+    {
+      "family": "t5ai_core",
+      "legacy_profile": "t5ai_core_ap_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "bringup-signed",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": null
+    },
+    {
+      "family": "t5ai_core",
+      "legacy_profile": "t5ai_core_ap_psram_validation",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": "psram"
+    },
+    {
+      "family": "t5ai_core",
+      "legacy_profile": "t5ai_core_ap_wifi",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "wifi",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "ap",
+      "validation_suite": null
+    },
+    {
+      "family": "t5ai_core",
+      "legacy_profile": "t5ai_core_cp_base",
+      "rationale": "P9a candidate mapping only: role/defconfig overlap is observed, but source closure, device/resource claims and package parity are not accepted for cutover.",
+      "resource_mode": "bringup",
+      "status": "MIGRATION_PENDING",
+      "target_product": "t5ai_core_bringup",
+      "target_role": "cp",
+      "validation_suite": null
+    },
+    {
+      "family": "t5ai_core",
+      "legacy_profile": "t5ai_core_cp_mcuboot",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "bringup-signed",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "cp",
+      "validation_suite": null
+    },
+    {
+      "family": "t5ai_core",
+      "legacy_profile": "t5ai_core_cp_psram_validation",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "validation",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "cp",
+      "validation_suite": "psram"
+    },
+    {
+      "family": "t5ai_core",
+      "legacy_profile": "t5ai_core_cp_wifi",
+      "rationale": "P9a mapping only: no approved equivalent product/resource binding has been accepted; retain the frozen metadata and compare evidence before any cutover.",
+      "resource_mode": "wifi",
+      "status": "MIGRATION_PENDING",
+      "target_product": null,
+      "target_role": "cp",
+      "validation_suite": null
+    }
+  ],
+  "schema": "bk7258.shadow/1",
+  "source_manifest": "board/bk7258/scripts/legacy_profile_freeze_manifest.json",
+  "source_manifest_sha256": "06ee003073c0889a651cd8e8a9b5cc5086c4d24f2d06e8e1561047d9a1ea6afa",
+  "source_migration_ledger": "board/bk7258/scripts/legacy_profile_migration_ledger.json",
+  "source_migration_ledger_sha256": "29fdd5e37f57339027a51bb4e9d9f70173ac77075e98f19945523127f9b1674c",
+  "status": "shadow-only",
+  "statuses": [
+    "EXACT",
+    "EQUIVALENT_WITH_REASON",
+    "MIGRATION_PENDING",
+    "RETIRE_PROPOSED"
+  ],
+  "version": 1
+}
