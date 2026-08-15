@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema": "bk7258.composition/1",
+  "kind": "composition-schema",
+  "version": 1,
+  "strict": {
+    "duplicate_keys": "reject",
+    "unknown_keys": "reject",
+    "implicit_defaults": "reject",
+    "board_selection": "exactly-one",
+    "legacy_fallback": "forbidden"
+  },
+  "enums": {
+    "roles": ["cp", "ap", "bl2"],
+    "modes": ["bringup", "application", "validation", "factory"],
+    "boots": ["raw", "mcuboot"],
+    "fragment_scopes": [
+      "common",
+      "role",
+      "board",
+      "boot",
+      "feature",
+      "app",
+      "validation",
+      "factory"
+    ]
+  },
+  "documents": {
+    "board": {
+      "required": [
+        "schema",
+        "kind",
+        "id",
+        "soc",
+        "variant",
+        "bindings",
+        "resource_claims",
+        "transport"
+      ],
+      "additional_properties": false
+    },
+    "product": {
+      "required": [
+        "schema",
+        "kind",
+        "id",
+        "family",
+        "mode",
+        "board",
+        "boot",
+        "roles",
+        "fragments",
+        "features",
+        "validation_suite"
+      ],
+      "additional_properties": false
+    },
+    "config-fragment": {
+      "required": [
+        "schema",
+        "kind",
+        "id",
+        "scope",
+        "symbols",
+        "requires"
+      ],
+      "additional_properties": false
+    },
+    "resolved-config-ir": {
+      "required": [
+        "schema",
+        "kind",
+        "inputs",
+        "fragments",
+        "symbols",
+        "resource_claims",
+        "source_view",
+        "identity_sha256"
+      ],
+      "additional_properties": false
+    }
+  }
+}
