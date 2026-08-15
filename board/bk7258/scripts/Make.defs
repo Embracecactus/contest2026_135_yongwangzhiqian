@@ -25,7 +25,9 @@ include $(TOPDIR)/arch/arm/src/armv8-m/Toolchain.defs
 # board-variant Kconfig choice was introduced; a fresh configuration always
 # resolves the choice explicitly.
 
-ifeq ($(CONFIG_BK7258_BOARD_T5_BOARD),y)
+ifeq ($(CONFIG_BK7258_BOARD_AIDK_AI_TOY),y)
+BK7258_BOARD_VARIANT_DIR := $(BOARD_DIR)$(DELIM)boards$(DELIM)aidk_ai_toy
+else ifeq ($(CONFIG_BK7258_BOARD_T5_BOARD),y)
 BK7258_BOARD_VARIANT_DIR := $(BOARD_DIR)$(DELIM)boards$(DELIM)t5_board
 else
 BK7258_BOARD_VARIANT_DIR := $(BOARD_DIR)$(DELIM)boards$(DELIM)t5ai_core

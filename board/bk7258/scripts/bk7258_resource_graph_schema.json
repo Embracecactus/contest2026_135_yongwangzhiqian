@@ -14,6 +14,7 @@
     "product": {"type": "string"},
     "mode": {"enum": ["bringup", "application", "validation", "factory"]},
     "board_selection": {"type": "object", "additionalProperties": false},
+    "board_constraints": {"type": "object", "additionalProperties": false},
     "phases": {"const": ["download", "boot", "hold", "runtime", "suspend", "restart"]},
     "roles": {"const": ["bl1", "bl2", "cp", "ap"]},
     "nodes": {"type": "array", "minItems": 4},

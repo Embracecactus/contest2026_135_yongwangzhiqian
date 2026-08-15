@@ -1,0 +1,14 @@
+{
+  "schema": "bk7258.sdk-set/1",
+  "kind": "sdk-set",
+  "version": 1,
+  "id": "aidk_ai_toy_bringup-sdk",
+  "board": "aidk_ai_toy",
+  "product": "aidk_ai_toy_bringup",
+  "mode": "bringup",
+  "roles": {
+    "cp": "sha256:438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be",
+    "ap": "sha256:4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713",
+    "bl2": null
+  }
+}

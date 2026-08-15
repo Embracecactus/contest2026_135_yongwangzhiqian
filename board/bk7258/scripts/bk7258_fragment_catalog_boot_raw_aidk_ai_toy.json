@@ -1,0 +1,1 @@
+{"id":"boot_raw_aidk_ai_toy","kind":"config-fragment","requires":["board_aidk_ai_toy"],"schema":"bk7258.composition/1","scope":"boot","symbols":{"CONFIG_BK7258_MCUBOOT_IMAGE":null}}

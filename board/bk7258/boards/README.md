@@ -13,6 +13,7 @@ revision:
 |---|---|---|---|
 | T5AI-Core | `t5ai_core` | `CONFIG_BK7258_BOARD_T5AI_CORE` | V1.0.1 |
 | T5-Board | `t5_board` | `CONFIG_BK7258_BOARD_T5_BOARD` | V1.0.2 |
+| AIDK AI Toy | `aidk_ai_toy` | `CONFIG_BK7258_BOARD_AIDK_AI_TOY` | schematic-only |
 
 Hardware revisions live in `BK7258_BOARD_HARDWARE_VERSION`.  A revision gets
 its own selector only if it changes a software-visible electrical contract.
@@ -51,6 +52,14 @@ real-board result; the TF record, for example, rejects P6 card detect after
 inserted/removed level sampling.  Variant selection does not automatically
 enable every fitted peripheral; Kconfig still controls driver ownership and
 pin-compatible profiles.
+
+The AIDK AI Toy binding is a minimal, no-device bring-up target.  Its only
+documented board binding is UART0 at 115200 8N1 for console/download, with
+flow-control, SWD, boot hold, RTT and RTS/DTR reset disabled.  COM/USB port
+identity is dynamic transport metadata and is not a board or product identity.
+The schematic records possible P20/P21 SC7A20-vs-SWD, P0/P1 MFRC522-vs-CN1
+UART, P8/P9 32-kHz-vs-KEY3/motor and USB0 conflicts; no unknown route or BOM
+peripheral is enabled or claimed.
 
 ## Peripheral configuration boundary
 
