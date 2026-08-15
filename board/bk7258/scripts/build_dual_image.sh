@@ -44,6 +44,46 @@ BKPACK_TOOL="${BK7258_BKPACK_TOOL:-${SCRIPT_DIR}/bk7258_bkpack.py}"
 # configs owned by this generic BK7258 board tree; the former vendor mirror
 # still points at the retired bk7258_t5ai layout and must not select builds.
 CONFIG_ROOT="${BK7258_CONFIG_ROOT:-${BOARD_DIR}/configs}"
+BK7258_PRODUCT="${BK7258_PRODUCT:-${BK7258_PRODUCT_ID:-}}"
+AIDK_PRODUCT_ID=
+AIDK_PROFILE_WORK_ROOT=
+AIDK_PROFILE_ROOT=
+cleanup_aidk_profile_root()
+{
+    local active_makedefs=
+
+    if [[ -n "${AIDK_PROFILE_WORK_ROOT}" ]]; then
+        if [[ -L "${TOPDIR}/Make.defs" ]]; then
+            active_makedefs="$(readlink "${TOPDIR}/Make.defs")"
+            if [[ "${active_makedefs}" == "${AIDK_PROFILE_WORK_ROOT}"/* ]]; then
+                ln -sfn "${BOARD_DIR}/scripts/Make.defs" \
+                    "${TOPDIR}/Make.defs"
+            fi
+        fi
+        rm -rf "${AIDK_PROFILE_WORK_ROOT}"
+    fi
+}
+trap cleanup_aidk_profile_root EXIT
+if [[ -n "${BK7258_PRODUCT}" &&
+      "${BK7258_PRODUCT}" != aidk_ai_toy &&
+      "${BK7258_PRODUCT}" != aidk_ai_toy_bringup ]]; then
+    printf 'build_dual_image: unsupported BK7258 product: %s\n' \
+        "${BK7258_PRODUCT}" >&2
+    exit 2
+fi
+if [[ "${BK7258_PRODUCT}" == aidk_ai_toy ||
+      "${BK7258_PRODUCT}" == aidk_ai_toy_bringup ]]; then
+    AIDK_PRODUCT_ID=aidk_ai_toy_bringup
+    AIDK_PROFILE_WORK_ROOT="$(mktemp -d -t bk7258-aidk-profiles.XXXXXX)"
+    AIDK_PROFILE_ROOT="${AIDK_PROFILE_WORK_ROOT}/configs"
+    python3 "${SCRIPT_DIR}/materialize_aidk_profiles.py" \
+        --seed-root "${BOARD_DIR}/configs" \
+        --output "${AIDK_PROFILE_ROOT}" \
+        --make-defs "${BOARD_DIR}/scripts/Make.defs"
+    CONFIG_ROOT="${AIDK_PROFILE_ROOT}"
+    CP_CONFIG_NAME=aidk_ai_toy_cp_mcuboot
+    AP_CONFIG_NAME=aidk_ai_toy_ap_mcuboot
+fi
 if [[ ! -d "${CONFIG_ROOT}" ]]; then
     printf 'build_dual_image: missing BK7258 config root: %s\n' \
         "${CONFIG_ROOT}" >&2
@@ -146,8 +186,8 @@ if [[ "${CP_PROFILE_SCHEMA}" != 1 || "${AP_PROFILE_SCHEMA}" != 1 ]]; then
     printf '%s\n' 'build_dual_image: unsupported BK7258 profile schema' >&2
     exit 2
 fi
-validate_profile_enum board "${CP_PROFILE_BOARD}" t5ai_core t5_board
-validate_profile_enum board "${AP_PROFILE_BOARD}" t5ai_core t5_board
+validate_profile_enum board "${CP_PROFILE_BOARD}" aidk_ai_toy t5ai_core t5_board
+validate_profile_enum board "${AP_PROFILE_BOARD}" aidk_ai_toy t5ai_core t5_board
 validate_profile_enum role "${CP_PROFILE_ROLE}" cp
 validate_profile_enum role "${AP_PROFILE_ROLE}" ap
 validate_profile_enum boot "${CP_PROFILE_BOOT}" raw mcuboot
@@ -170,12 +210,20 @@ if [[ "${CP_PROFILE_COMPAT}" != "${AP_PROFILE_COMPAT}" ]]; then
         "${CP_PROFILE_COMPAT}" "${AP_PROFILE_COMPAT}" >&2
     exit 2
 fi
+if [[ "${CP_PROFILE_BOARD}" == aidk_ai_toy &&
+      ("${CP_PROFILE_BOOT}" != mcuboot || "${AP_PROFILE_BOOT}" != mcuboot) ]]; then
+    printf '%s\n' 'build_dual_image: AIDK requires the shared MCUboot A/B boot contract' >&2
+    exit 2
+fi
 
 for entry in "${CP_CONFIG}:${CP_PROFILE_BOARD}" \
              "${AP_CONFIG}:${AP_PROFILE_BOARD}"; do
     config="${entry%%:*}"
     board="${entry##*:}"
     case "${board}" in
+        aidk_ai_toy)
+            symbol=BK7258_BOARD_AIDK_AI_TOY
+            ;;
         t5ai_core)
             # T5AI-Core is the Kconfig choice default.  NuttX
             # savedefconfig therefore removes its explicit selector; reject
@@ -821,6 +869,7 @@ TMPDIR="$(mktemp -d)"
 cleanup()
 {
     rm -rf "${TMPDIR}"
+    cleanup_aidk_profile_root
 }
 trap cleanup EXIT
 
@@ -1035,6 +1084,24 @@ build_config "${CP_CONFIG}"
 # cannot describe two timestamp-distinct CP builds.
 
 save_role cp app.bin app_crc.bin
+
+# Materialized product profiles are intentionally temporary.  Preserve the
+# logical product/role identity in the archived resolved configurations
+# instead of publishing an already-deleted host /tmp path.
+
+if [[ -n "${AIDK_PRODUCT_ID}" ]]; then
+    for role in cp ap; do
+        config_copy="${TMPDIR}/nuttx-${role}.config"
+        if ! grep -q '^CONFIG_BASE_DEFCONFIG=' "${config_copy}"; then
+            printf 'build_dual_image: %s config lacks BASE_DEFCONFIG provenance\n' \
+                "${role}" >&2
+            exit 2
+        fi
+        sed -i \
+            "s|^CONFIG_BASE_DEFCONFIG=.*|CONFIG_BASE_DEFCONFIG=\"bk7258-product:${AIDK_PRODUCT_ID}:${role}\"|" \
+            "${config_copy}"
+    done
+fi
 
 # The SWD route, target and hold are Kconfig defaults, so savedefconfig removes
 # their explicit selectors.  The source-profile gate above rejects every
@@ -1423,19 +1490,39 @@ else
     SDK_BUNDLE_SUMMARY=role-specific
 fi
 
+CP_CONFIG_RECORD="${CP_CONFIG}"
+AP_CONFIG_RECORD="${AP_CONFIG}"
+CP_PROFILE_METADATA_RECORD="${CP_CONFIG}/profile.conf"
+AP_PROFILE_METADATA_RECORD="${AP_CONFIG}/profile.conf"
+PROFILE_MATERIALIZER=none
+CP_PROFILE_SEED=none
+AP_PROFILE_SEED=none
+if [[ -n "${AIDK_PRODUCT_ID}" ]]; then
+    CP_CONFIG_RECORD="bk7258-product:${AIDK_PRODUCT_ID}:cp"
+    AP_CONFIG_RECORD="bk7258-product:${AIDK_PRODUCT_ID}:ap"
+    CP_PROFILE_METADATA_RECORD="generated:${CP_PROFILE_COMPAT}:cp"
+    AP_PROFILE_METADATA_RECORD="generated:${AP_PROFILE_COMPAT}:ap"
+    PROFILE_MATERIALIZER=board/bk7258/scripts/materialize_aidk_profiles.py
+    CP_PROFILE_SEED=board/bk7258/configs/t5ai_core_cp_mcuboot
+    AP_PROFILE_SEED=board/bk7258/configs/t5ai_core_ap_mcuboot
+fi
+
 cat > "${OUTPUT}/build-profile.txt" <<EOF
 CP_CONFIG_NAME=${CP_CONFIG_NAME}
 AP_CONFIG_NAME=${AP_CONFIG_NAME}
-CP_CONFIG=${CP_CONFIG}
-AP_CONFIG=${AP_CONFIG}
+CP_CONFIG=${CP_CONFIG_RECORD}
+AP_CONFIG=${AP_CONFIG_RECORD}
 PROFILE_SCHEMA=${CP_PROFILE_SCHEMA}
 PHYSICAL_BOARD=${CP_PROFILE_BOARD}
 PROFILE_BOOT=${CP_PROFILE_BOOT}
 PROFILE_COMPAT=${CP_PROFILE_COMPAT}
 CP_PROFILE_CLASS=${CP_PROFILE_CLASS}
 AP_PROFILE_CLASS=${AP_PROFILE_CLASS}
-CP_PROFILE_METADATA=${CP_CONFIG}/profile.conf
-AP_PROFILE_METADATA=${AP_CONFIG}/profile.conf
+CP_PROFILE_METADATA=${CP_PROFILE_METADATA_RECORD}
+AP_PROFILE_METADATA=${AP_PROFILE_METADATA_RECORD}
+PROFILE_MATERIALIZER=${PROFILE_MATERIALIZER}
+CP_PROFILE_SEED=${CP_PROFILE_SEED}
+AP_PROFILE_SEED=${AP_PROFILE_SEED}
 BK7258_SDK_BUNDLE_VERSION=${SDK_BUNDLE_SUMMARY}
 CP_SDK_BUNDLE_VERSION=${CP_SDK_BUNDLE_VERSION}
 AP_SDK_BUNDLE_VERSION=${AP_SDK_BUNDLE_VERSION}
@@ -1479,6 +1566,17 @@ BL2_SECONDARY_XIP_ADDRESS=${BL2_SECONDARY_XIP_ADDRESS}
 BL2_LOAD_ADDRESS=${BL2_LOAD_ADDRESS}
 BL2_FLASH_SEGMENT=${MCUBOOT_BL2_FLASH_SEGMENT}
 EOF
+
+if [[ -n "${AIDK_PRODUCT_ID}" ]] &&
+   grep -Eq '(^|=)/tmp/|bk7258-aidk-profiles\.' \
+       "${OUTPUT}/build-profile.txt" \
+       "${OUTPUT}/nuttx-cp.config" \
+       "${OUTPUT}/nuttx-ap.config"; then
+    printf '%s\n' \
+        'build_dual_image: AIDK package metadata contains temporary profile paths' \
+        >&2
+    exit 2
+fi
 
 if [[ "${MCUBOOT_PROFILE}" == "true" &&
       "${BL1_MANIFEST_RAW_PAGE}" == "false" ]]; then
