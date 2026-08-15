@@ -1,0 +1,1 @@
+{"id":"role_ap","kind":"config-fragment","requires":["common_base"],"schema":"bk7258.composition/1","scope":"role","symbols":{"CONFIG_BK7258_AP_CORE":"y"}}

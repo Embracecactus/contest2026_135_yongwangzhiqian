@@ -1,0 +1,1 @@
+{"id":"boot_raw","kind":"config-fragment","requires":["board_t5ai_core"],"schema":"bk7258.composition/1","scope":"boot","symbols":{"CONFIG_BK7258_MCUBOOT_IMAGE":null}}
