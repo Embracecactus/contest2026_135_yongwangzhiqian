@@ -27,7 +27,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from bk7258_crc_expand import expand
-from gen_bk7258_partitions import load_layout
+from gen_bk7258_partitions import PartitionLayout, load_layout
 
 
 HEADER_SIZE = 0x1000
@@ -101,8 +101,7 @@ class SlotGeometry:
         return self.cp_logical_size - HEADER_SIZE
 
 
-def load_slot_geometry(partition_csv: Path, slot_name: str) -> SlotGeometry:
-    layout = load_layout(partition_csv)
+def load_slot_geometry(layout: PartitionLayout, slot_name: str) -> SlotGeometry:
     prefix = "primary" if slot_name == "primary_all" else "secondary"
     cp = layout.by_role(f"{prefix}_cp_app")
     ap = layout.by_role(f"{prefix}_ap_app")
@@ -293,6 +292,12 @@ def main() -> int:
         default=DEFAULT_PARTITION_CSV,
         help="project secureboot staging profile (not an SDK-installed file)",
     )
+    parser.add_argument("--expect-layout-id")
+    parser.add_argument("--expect-layout-sha256")
+    parser.add_argument(
+        "--partition-source-record",
+        help="stable repository-relative source name written to the report",
+    )
     parser.add_argument(
         "--aes-tool", type=Path,
         help="external Beken AES tool; omitted means the no-AES branch",
@@ -303,7 +308,26 @@ def main() -> int:
     )
     args = parser.parse_args()
     require_file(args.partition_csv, "secureboot partition CSV")
-    geometry = load_slot_geometry(args.partition_csv, args.slot_name)
+    if (args.expect_layout_id is None) != (
+            args.expect_layout_sha256 is None):
+        raise SystemExit(
+            "--expect-layout-id and --expect-layout-sha256 must be supplied together"
+        )
+    layout = load_layout(args.partition_csv)
+    if args.expect_layout_id is not None and (
+            layout.layout_id != args.expect_layout_id or
+            layout.layout_sha256 != args.expect_layout_sha256):
+        raise SystemExit(
+            "secureboot staging layout identity mismatch: "
+            f"expected {args.expect_layout_id}/{args.expect_layout_sha256}, "
+            f"got {layout.layout_id}/{layout.layout_sha256}"
+        )
+    geometry = load_slot_geometry(layout, args.slot_name)
+    partition_source_record = (
+        args.partition_source_record
+        if args.partition_source_record is not None
+        else str(args.partition_csv)
+    )
 
     for path, label in (
         (args.cp_raw, "CP input"), (args.ap_raw, "AP input"),
@@ -386,7 +410,11 @@ def main() -> int:
         "version": args.version,
         "security_counter": args.security_counter,
         "layout": {
-            "partition_csv": str(args.partition_csv),
+            "kind": "host-reference-only",
+            "active": False,
+            "partition_csv": partition_source_record,
+            "layout_id": layout.layout_id,
+            "layout_sha256": layout.layout_sha256,
             "cp_partition": geometry.cp_partition,
             "ap_partition": geometry.ap_partition,
             "header_size": HEADER_SIZE,

@@ -93,6 +93,18 @@ class TransportTest(unittest.TestCase):
             "bk_loader did not emit both complete success markers", script)
         self.assertIn("loader_rc=1", script)
 
+    def test_auto_debug_consumes_verified_package_layout_contract(self) -> None:
+        script = (SCRIPT_ROOT / "bk7258_auto_debug.sh").read_text(
+            encoding="utf-8")
+        self.assertIn("flash-contract", script)
+        self.assertIn("PARTITION_LAYOUT_SHA256", script)
+        self.assertIn("Flash source plan member", (
+            SCRIPT_ROOT / "bk7258_bkpack.py").read_text(encoding="utf-8"))
+        self.assertIn("legacy or raw directory packages are not download-authorized",
+                      script)
+        self.assertNotIn("PARTITION_GENERATOR", script)
+        self.assertNotIn("--get slot_a_cp.offset", script)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

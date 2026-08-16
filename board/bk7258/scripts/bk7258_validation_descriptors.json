@@ -8,10 +8,10 @@
     "outcome_schema": "bk7258.validation-outcome/1"
   },
   "migration_policy": {
-    "legacy_validation": "migration_pending",
-    "production_auto_start": "migration_pending",
-    "legacy_profile_state": "consolidation-review",
-    "legacy_bytes": "unchanged"
+    "legacy_validation": "canonical_suite_only",
+    "production_auto_start": "canonical-only",
+    "legacy_profile_state": "cutover-approved",
+    "legacy_bytes": "historical-only"
   },
   "descriptors": [
     {
@@ -66,12 +66,27 @@
       "requirements": ["fixture:jpeg-baseline"],
       "category": "fixture",
       "timeout": 30000,
-      "prepare": "fixture-mount",
-      "run": "public_api:video-io",
-      "cancel": "standard-timeout",
-      "cleanup": "fixture-unmount",
+      "prepare": "none",
+      "run": "public_api:jpeg-m2m-validation",
+      "cancel": "none",
+      "cleanup": "none",
       "status": "ready",
       "resource_claims": ["jpeg_engine"],
+      "entrypoint": "app/hello_app/bkvalidate_main.c"
+    },
+    {
+      "id": "temperature_validation",
+      "version": 1,
+      "role": "ap",
+      "requirements": ["fixture:temperature-rpmsg"],
+      "category": "fixture",
+      "timeout": 30000,
+      "prepare": "none",
+      "run": "public_api:temperature-validation",
+      "cancel": "none",
+      "cleanup": "none",
+      "status": "ready",
+      "resource_claims": ["temperature_sensor"],
       "entrypoint": "app/hello_app/bkvalidate_main.c"
     },
     {
@@ -91,5 +106,5 @@
     }
   ],
   "legacy_ledger": "board/bk7258/scripts/legacy_profile_migration_ledger.json",
-  "identity_sha256": "9c724cecce671782b7b2bc29f0a4c178060959ce24fb539ad349ae3eba675a76"
+  "identity_sha256": "b05f698d140cf9ae3a4b4b006f8f6006903be014ba2eeaca55032eccb2df6f89"
 }

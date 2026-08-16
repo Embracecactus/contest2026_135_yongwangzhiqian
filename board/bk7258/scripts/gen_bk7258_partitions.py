@@ -12,6 +12,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import re
 import sys
 import tempfile
@@ -22,7 +23,27 @@ from typing import Iterable
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 BOARD_DIR = SCRIPT_DIR.parent
-DEFAULT_INPUT = BOARD_DIR / "partitions/bk7258/auto_partitions.csv"
+REPOSITORY_ROOT = BOARD_DIR.parent.parent
+LEGACY_INPUT = BOARD_DIR / "partitions/bk7258/auto_partitions.csv"
+
+
+def _environment_input() -> Path:
+    """Resolve the active input exported by the product build adapter.
+
+    The absent-variable path intentionally preserves the historical standalone
+    CLI behavior.  Product builds export an absolute path; accepting a
+    repository-relative value as well keeps hand-written host invocations
+    deterministic regardless of their current directory.
+    """
+
+    value = os.environ.get("BK7258_PARTITION_LAYOUT_SOURCE")
+    if not value:
+        return LEGACY_INPUT
+    path = Path(value)
+    return path if path.is_absolute() else REPOSITORY_ROOT / path
+
+
+DEFAULT_INPUT = _environment_input()
 DEFAULT_OUTPUT_DIR = BOARD_DIR / "partitions/generated"
 DEFAULT_HEADER = BOARD_DIR / "include/bk7258_partition_layout.h"
 SDK_RELEASE = "v3.1.1.9"
@@ -34,7 +55,6 @@ SDK_POSITION_CSV = Path(
 SDK_PARTITION_SETTING = Path(
     "tools/build_tools/build_process/bk_sdk/smp_flash_partitions_setting.json"
 )
-SOURCE_LABEL = "board/bk7258/partitions/bk7258/auto_partitions.csv"
 
 # v3.1.1.9 keeps these IDs stable even when a project CSV omits one of the
 # reserved rows.  The shipped CP archives were compiled against this ABI.
@@ -326,9 +346,10 @@ class PartitionLayout:
         return result
 
     def report(self) -> dict[str, object]:
-        source_label = SOURCE_LABEL
-        if self.layout_name == SECUREBOOT_XIP_LAYOUT:
-            source_label = str(self.source.relative_to(BOARD_DIR.parent.parent))
+        try:
+            source_label = self.source.relative_to(REPOSITORY_ROOT).as_posix()
+        except ValueError:
+            source_label = str(self.source)
         return {
             "format": 1,
             "source": source_label,
@@ -906,8 +927,25 @@ def sync_generated(
             if observed != content:
                 drift.append(name)
         else:
-            output_dir.mkdir(parents=True, exist_ok=True)
-            path.write_text(content, encoding="utf-8", newline="\n")
+            # The canonical header may live outside output_dir.  Product and
+            # role builds deliberately put it under a private include root,
+            # so create the parent of every concrete artifact rather than
+            # assuming the repository-owned default tree.  Preserve mtime for
+            # identical content so a standard Make/CMake adapter can resolve
+            # the contract repeatedly without forcing an incremental relink.
+            path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                if path.read_text(encoding="utf-8") == content:
+                    continue
+            except OSError:
+                pass
+
+            temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+            try:
+                temporary.write_text(content, encoding="utf-8", newline="\n")
+                os.replace(temporary, path)
+            finally:
+                temporary.unlink(missing_ok=True)
     return tuple(drift)
 
 
@@ -1084,6 +1122,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--header", type=Path, default=DEFAULT_HEADER)
     parser.add_argument("--sdk-source", type=Path)
+    parser.add_argument("--expect-layout-id")
+    parser.add_argument("--expect-layout-sha256")
     parser.add_argument(
         "--get",
         metavar="ROLE.FIELD",
@@ -1102,6 +1142,21 @@ def main() -> int:
     args = parse_args()
     try:
         layout = load_layout(args.input)
+        if (args.expect_layout_id is None) != (
+            args.expect_layout_sha256 is None
+        ):
+            raise PartitionLayoutError(
+                "--expect-layout-id and --expect-layout-sha256 must be supplied together"
+            )
+        if args.expect_layout_id is not None and (
+            layout.layout_id != args.expect_layout_id
+            or layout.layout_sha256 != args.expect_layout_sha256
+        ):
+            raise PartitionLayoutError(
+                "resolved partition layout identity mismatch: "
+                f"expected={args.expect_layout_id}/{args.expect_layout_sha256} "
+                f"observed={layout.layout_id}/{layout.layout_sha256}"
+            )
         if args.get is not None:
             print(query_layout(layout, args.get))
             return 0

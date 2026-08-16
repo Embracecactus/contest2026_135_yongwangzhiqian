@@ -59,8 +59,7 @@ if(CONFIG_BK7258_UART0 OR CONFIG_BK7258_UART1 OR CONFIG_BK7258_UART2)
 endif()
 
 list(APPEND BK7258_CP_SRCS
-     ${BK7258_COMMON_RUNTIME_SRCS}
-     cp/bk7258_sdk_partition.c)
+     ${BK7258_COMMON_RUNTIME_SRCS})
 
 if(CONFIG_BK7258_SWD_DEBUG)
   list(APPEND BK7258_CP_SRCS cp/bk7258_swd_debug.c)
@@ -71,15 +70,6 @@ endif()
 
 if(CONFIG_BK7258_SDK_IPC_RUNTIME)
   list(APPEND BK7258_CP_SRCS common/bk7258_sdk_runtime.c)
-endif()
-
-if(NOT CONFIG_BK7258_AP_CORE)
-  bk7258_wrap_sdk_symbol(
-    bk_flash_partition_get_info
-    bk_flash_partition_read
-    bk_flash_partition_write
-    bk_flash_partition_erase
-    bk_flash_partition_write_perm_check_by_addr)
 endif()
 
 if(CONFIG_BK7258_PSRAM)
@@ -164,12 +154,6 @@ if(CONFIG_BK7258_GPIO_LOWERHALF)
   list(APPEND BK7258_CP_SRCS
        cp/bk7258_gpio_cp_irq.c
        cp/bk7258_gpio_lowerhalf.c)
-endif()
-
-if(CONFIG_BK7258_FLASH_MTD)
-  list(APPEND BK7258_CP_SRCS
-       cp/bk7258_flash_mtd.c
-       cp/bk7258_flash_guard.c)
 endif()
 
 if(CONFIG_MCUBOOT_BOOTLOADER)
@@ -503,4 +487,4 @@ endif()
 
 target_link_options(nuttx PRIVATE
                     "LINKER:--build-id=none"
-                    "LINKER:--entry=__start")
+                    "LINKER:--entry=_vectors")

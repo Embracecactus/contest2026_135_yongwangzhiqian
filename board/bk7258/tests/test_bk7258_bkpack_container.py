@@ -59,11 +59,47 @@ class BkpackContainerTest(unittest.TestCase):
             "bk7258-trust-chain.json": b"{}",
         }
         payloads.update({
-            "vela_cp.bin": payloads["cp-raw.bin"],
-            "vela_ap.bin": payloads["ap-raw.bin"],
+            "vela_nuttx_cp.bin": payloads["cp-raw.bin"],
+            "vela_nuttx_ap.bin": payloads["ap-raw.bin"],
         })
+        payloads[bkpack.STANDARD_MANIFEST] = json.dumps({
+            "schema": "openvela.nuttx-artifacts/1",
+            "version": 1,
+            "dual_core": True,
+            "generic_alias": None,
+            "roles": {
+                "cp": {
+                    "source_file": "cp-raw.bin",
+                    "alias": "vela_nuttx_cp.bin",
+                    "sha256": bkpack._sha256(payloads["cp-raw.bin"]),
+                    "size": len(payloads["cp-raw.bin"]),
+                    "byte_exact": True,
+                },
+                "ap": {
+                    "source_file": "ap-raw.bin",
+                    "alias": "vela_nuttx_ap.bin",
+                    "sha256": bkpack._sha256(payloads["ap-raw.bin"]),
+                    "size": len(payloads["ap-raw.bin"]),
+                    "byte_exact": True,
+                },
+            },
+        }, sort_keys=True, separators=(",", ":")).encode()
         for name, payload in payloads.items():
             (self.source / name).write_bytes(payload)
+
+        # The source root represents the explicit resolved-product contract.
+        # Keep the fixture independent from the verifier's module default by
+        # staging the CSV under the package's fixed member name.
+        partition_payload = (
+            SCRIPT_ROOT.parent / "partitions/bk7258/auto_partitions.csv"
+        ).read_bytes()
+        (self.source / bkpack.PARTITION_LAYOUT_MEMBER).write_bytes(
+            partition_payload
+        )
+        partition_layout = bkpack._layout_from_payload(partition_payload)
+        self.layout_id = partition_layout.layout_id
+        self.layout_sha256 = partition_layout.layout_sha256
+        self.flash_size = partition_layout.flash_size
 
         boot = segment("primary_bootloader", "bl_crc.bin", 0x0000, payloads["bl_crc.bin"])
         cp = segment("primary_cp_app", "app_crc_flash.bin", 0x1000, payloads["app_crc_flash.bin"])
@@ -88,8 +124,14 @@ class BkpackContainerTest(unittest.TestCase):
         }
         dual = {
             "format": 2,
-            "layout_id": "test-layout",
-            "layout": {"flash_size": 0x10000},
+            "layout_id": self.layout_id,
+            "layout_sha256": self.layout_sha256,
+            "layout": {
+                "layout_id": self.layout_id,
+                "layout_sha256": self.layout_sha256,
+                "layout_source": "board/bk7258/partitions/test/layout.csv",
+                "flash_size": self.flash_size,
+            },
             "writes_enabled": False,
             "segments": [boot, cp, ap],
             "bl2_segments": [bl2, bl2b],
@@ -125,6 +167,10 @@ class BkpackContainerTest(unittest.TestCase):
             "MCUBOOT_PROFILE=true\n"
             "TRUST_CHAIN_PREFLIGHT_REQUIRED=true\n"
             "BL1_MANIFEST_RAW_PAGE=false\n"
+            f"PARTITION_LAYOUT_ID={self.layout_id}\n"
+            f"PARTITION_LAYOUT_SHA256={self.layout_sha256}\n"
+            "PARTITION_LAYOUT_SOURCE=board/bk7258/partitions/test/layout.csv\n"
+            f"PARTITION_LAYOUT_SOURCE_SHA256={bkpack._sha256(partition_payload)}\n"
             "PHYSICAL_BOARD=t5_board\n"
             "CP_CONFIG_NAME=cp_test\n"
             "AP_CONFIG_NAME=ap_test\n",
@@ -159,14 +205,37 @@ class BkpackContainerTest(unittest.TestCase):
         self.assertFalse(result["authenticated"])
         self.assertTrue(result["target_preflight_required"])
         self.assertEqual(result["plans"], ["apps", "factory", "normal"])
+        self.assertEqual(result["layout_id"], self.layout_id)
+        self.assertEqual(result["layout_sha256"], self.layout_sha256)
         manifest = result["manifest"]
+        self.assertEqual(manifest["source"]["layout_source"],
+                         "board/bk7258/partitions/test/layout.csv")
+        self.assertTrue(all(
+            plan["layout_id"] == self.layout_id and
+            plan["layout_sha256"] == self.layout_sha256 and
+            plan["flash_size"] == self.flash_size
+            for plan in manifest["plans"].values()))
+        contract = bkpack.flash_contract(first, self.source)
+        self.assertTrue(contract["source_verified"])
+        self.assertEqual(contract["layout"], {
+            "layout_id": self.layout_id,
+            "layout_sha256": self.layout_sha256,
+            "layout_source": "board/bk7258/partitions/test/layout.csv",
+            "flash_size": self.flash_size,
+        })
+        self.assertEqual(manifest["partition_layout"]["member"],
+                         bkpack.PARTITION_LAYOUT_MEMBER)
+        self.assertEqual(
+            manifest["partition_layout"]["source_sha256"],
+            bkpack._sha256((self.source / bkpack.PARTITION_LAYOUT_MEMBER).read_bytes()),
+        )
         standard = set(manifest["standard_artifacts"])
         plan_members = {
             item["member"]
             for plan in manifest["plans"].values()
             for item in plan["segments"]
         }
-        self.assertEqual(standard, {"vela_cp.bin", "vela_ap.bin"})
+        self.assertEqual(standard, {"vela_nuttx_cp.bin", "vela_nuttx_ap.bin"})
         self.assertTrue(standard.isdisjoint(plan_members))
         self.assertNotIn("app.bin", standard)
         self.assertNotIn("app1.bin", standard)
@@ -176,13 +245,15 @@ class BkpackContainerTest(unittest.TestCase):
         })
         output = self.root / "expanded"
         self.assertEqual(bkpack.materialize(first, output), output)
-        self.assertEqual((output / "vela_cp.bin").read_bytes(),
+        self.assertEqual((output / "vela_nuttx_cp.bin").read_bytes(),
                          (output / "cp-raw.bin").read_bytes())
         guide = (output / bkpack.WINDOWS_FLASH_GUIDE).read_text(encoding="utf-8")
         self.assertIn("<PORT_NUMBER>", guide)
         self.assertIn("for COM9, use -p 9", guide)
         self.assertIn("app_crc_flash.bin@0x1000-0x10", guide)
-        self.assertIn("Do not flash vela_cp.bin", guide)
+        self.assertIn("Partition SHA-256: " + self.layout_sha256, guide)
+        self.assertIn("Do not flash vela_nuttx_cp.bin", guide)
+        self.assertTrue((output / bkpack.STANDARD_MANIFEST).is_file())
         self.assertTrue((output / bkpack.MANIFEST_MEMBER).is_file())
 
     def test_raw_manifest_pages_are_rejected(self) -> None:
@@ -197,12 +268,100 @@ class BkpackContainerTest(unittest.TestCase):
         with self.assertRaisesRegex(bkpack.BkpackError, "raw BL1 manifest"):
             bkpack.create(self.source, self.root / "unsupported.bkpack")
 
+    def test_layout_binding_and_flash_ranges_fail_closed(self) -> None:
+        profile = self.source / bkpack.BUILD_PROFILE
+        profile.write_text(
+            profile.read_text(encoding="utf-8").replace(
+                "PARTITION_LAYOUT_SHA256=" + self.layout_sha256,
+                "PARTITION_LAYOUT_SHA256=" + "2" * 64,
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(bkpack.BkpackError,
+                                    "build profile and dual manifest layout SHA-256 disagree"):
+            bkpack.create(self.source, self.root / "layout-drift.bkpack")
+
+        profile.write_text(
+            profile.read_text(encoding="utf-8").replace(
+                "PARTITION_LAYOUT_SHA256=" + "2" * 64,
+                "PARTITION_LAYOUT_SHA256=" + self.layout_sha256,
+            ),
+            encoding="utf-8",
+        )
+        dual_path = self.source / bkpack.DUAL_MANIFEST
+        dual = json.loads(dual_path.read_text(encoding="utf-8"))
+        ap = next(item for item in dual["segments"]
+                  if item["name"] == "primary_ap_app")
+        old_bkfil = ap["bkfil"]
+        ap["physical_offset"] = self.flash_size
+        ap["physical_end"] = self.flash_size + ap["length"]
+        ap["bkfil"] = f"{ap['file']}@0x{self.flash_size:x}-0x{ap['length']:x}"
+        dual["normal_update"]["arguments"] = [
+            ap["bkfil"] if item == old_bkfil else item
+            for item in dual["normal_update"]["arguments"]
+        ]
+        dual_path.write_text(json.dumps(dual), encoding="utf-8")
+        with self.assertRaisesRegex(bkpack.BkpackError,
+                                    "range exceeds the bound partition layout"):
+            bkpack.create(self.source, self.root / "range-drift.bkpack")
+
+    def test_flash_contract_rejects_materialized_source_drift(self) -> None:
+        package = self.root / "good.bkpack"
+        bkpack.create(self.source, package)
+        (self.source / "app_crc_flash.bin").write_bytes(b"changed")
+        with self.assertRaisesRegex(
+                bkpack.BkpackError,
+                "Flash source plan member differs from verified container"):
+            bkpack.flash_contract(package, self.source)
+
+    def test_flash_contract_is_package_self_contained(self) -> None:
+        package = self.root / "good.bkpack"
+        bkpack.create(self.source, package)
+        with mock.patch.object(bkpack, "REPOSITORY_ROOT", self.root / "missing"):
+            contract = bkpack.flash_contract(package)
+        self.assertTrue(contract["package_layout_verified"])
+        self.assertIsNone(contract["source"])
+
+        (self.source / bkpack.PARTITION_LAYOUT_MEMBER).unlink()
+        materialized_contract = bkpack.flash_contract(package, self.source)
+        self.assertTrue(materialized_contract["source_verified"])
+        self.assertEqual(materialized_contract["source"],
+                         str(self.source.resolve()))
+
+    def test_embedded_partition_member_tamper_and_missing_fail_closed(self) -> None:
+        good = self.root / "good.bkpack"
+        bkpack.create(self.source, good)
+
+        tampered = self.root / "tampered-layout.bkpack"
+        self._rewrite(
+            good,
+            tampered,
+            change={bkpack.PARTITION_LAYOUT_MEMBER: b"alternate CSV"},
+        )
+        with self.assertRaisesRegex(bkpack.BkpackError, "hash/size mismatch"):
+            bkpack.verify(tampered)
+
+        missing = self.root / "missing-layout.bkpack"
+        with zipfile.ZipFile(good) as original, zipfile.ZipFile(missing, "w") as output:
+            for entry in original.infolist():
+                if entry.filename != bkpack.PARTITION_LAYOUT_MEMBER:
+                    output.writestr(bkpack._zip_info(entry.filename), original.read(entry))
+        with self.assertRaisesRegex(bkpack.BkpackError, "missing/extra"):
+            bkpack.verify(missing)
+
+        alternate = (
+            SCRIPT_ROOT.parent / "partitions/bk7258/secureboot_xip_cp_ap.csv"
+        ).read_bytes()
+        (self.source / bkpack.PARTITION_LAYOUT_MEMBER).write_bytes(alternate)
+        with self.assertRaisesRegex(bkpack.BkpackError, "Flash source member"):
+            bkpack.flash_contract(good, self.source)
+
     def test_tamper_duplicate_extra_and_compression_are_rejected(self) -> None:
         good = self.root / "good.bkpack"
         bkpack.create(self.source, good)
 
         tampered = self.root / "tampered.bkpack"
-        self._rewrite(good, tampered, change={"vela_cp.bin": b"changed"})
+        self._rewrite(good, tampered, change={"vela_nuttx_cp.bin": b"changed"})
         with self.assertRaisesRegex(bkpack.BkpackError, "hash/size mismatch"):
             bkpack.verify(tampered)
 
@@ -210,7 +369,7 @@ class BkpackContainerTest(unittest.TestCase):
         with zipfile.ZipFile(good) as original, zipfile.ZipFile(duplicate, "w") as output:
             for entry in original.infolist():
                 output.writestr(bkpack._zip_info(entry.filename), original.read(entry))
-            output.writestr(bkpack._zip_info("vela_cp.bin"), b"again")
+            output.writestr(bkpack._zip_info("vela_nuttx_cp.bin"), b"again")
         with self.assertRaisesRegex(bkpack.BkpackError, "duplicate"):
             bkpack.verify(duplicate)
 

@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import json
 import os
+import struct
 import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -27,13 +29,654 @@ from bk7258_resource_graph import (  # noqa: E402
     resolve_resource_graph,
     validate_resource_graph,
 )
-from materialize_aidk_profiles import materialize  # noqa: E402
+from materialize_product_profiles import materialize_plan  # noqa: E402
+from gen_bk7258_partitions import load_layout  # noqa: E402
+
+BOOTLOADER_ROOT = SCRIPT_ROOT.parent / "bootloader"
+sys.path.insert(0, str(BOOTLOADER_ROOT))
+from make_bl1_manifest import bl2_contract_from_layout  # noqa: E402
 
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 
 
 class AidkBoardTest(unittest.TestCase):
+    def test_partition_headers_are_product_and_role_private(self) -> None:
+        board = REPOSITORY / "board/bk7258"
+        generator = board / "scripts/gen_bk7258_partitions.py"
+        verifier = board / "scripts/verify_bk7258_partitions.py"
+        source = board / "partitions/bk7258/auto_partitions.csv"
+        tracked_header = board / "include/bk7258_partition_layout.h"
+        tracked_before = tracked_header.read_bytes()
+
+        with tempfile.TemporaryDirectory(
+                prefix="bk7258-private-partitions-") as directory:
+            root = Path(directory)
+            alternate = root / "alternate.csv"
+            alternate.write_text(
+                source.read_text(encoding="utf-8").replace(
+                    "primary_cp_app,,1360K", "primary_cp_app,,1292K", 1
+                ).replace("s_app,,2516K", "s_app,,2448K", 1),
+                encoding="utf-8",
+            )
+            layouts = {
+                "product-a": (source, load_layout(source)),
+                "product-b": (alternate, load_layout(alternate)),
+            }
+            self.assertNotEqual(
+                layouts["product-a"][1].layout_id,
+                layouts["product-b"][1].layout_id,
+            )
+
+            def generate(product: str, role: str) -> tuple[Path, Path]:
+                input_path, layout = layouts[product]
+                contract = root / product / role
+                header = (
+                    contract /
+                    "include/arch/board/bk7258_partition_layout.h"
+                )
+                output_dir = contract / "generated"
+                common = [
+                    sys.executable, str(generator),
+                    "--input", str(input_path),
+                    "--expect-layout-id", layout.layout_id,
+                    "--expect-layout-sha256", layout.layout_sha256,
+                    "--header", str(header),
+                    "--output-dir", str(output_dir),
+                ]
+                generated = subprocess.run(
+                    common, cwd=REPOSITORY, text=True,
+                    capture_output=True, check=False,
+                )
+                self.assertEqual(generated.returncode, 0, generated.stderr)
+                checked = subprocess.run(
+                    common + ["--check"], cwd=REPOSITORY, text=True,
+                    capture_output=True, check=False,
+                )
+                self.assertEqual(checked.returncode, 0, checked.stderr)
+                return header, output_dir
+
+            requests = [
+                (product, role)
+                for product in layouts
+                for role in ("cp", "ap")
+            ]
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                generated = dict(zip(
+                    requests,
+                    executor.map(lambda request: generate(*request), requests),
+                ))
+
+            for (product, role), (header, output_dir) in generated.items():
+                layout = layouts[product][1]
+                header_text = header.read_text(encoding="utf-8")
+                self.assertIn(layout.layout_id, header_text)
+                report = json.loads((
+                    output_dir / "bk7258_partition_layout.json"
+                ).read_text(encoding="utf-8"))
+                self.assertEqual(report["layout_id"], layout.layout_id)
+                self.assertEqual(
+                    Path(report["source"]).resolve(), layouts[product][0].resolve()
+                )
+                self.assertIn(role, str(header))
+
+                preprocessed = subprocess.run(
+                    [
+                        "cc", "-E", "-P", "-x", "c",
+                        "-DBK7258_FLASH_XIP_BASE=0x02000000u",
+                        "-DBK7258_FLASH_CRC_DATA_SIZE=32u",
+                        "-DBK7258_FLASH_CRC_TOTAL_SIZE=34u",
+                        "-I", str(header.parents[2]),
+                        "-I", str(REPOSITORY.parent / "nuttx/include"),
+                        "-",
+                    ],
+                    input=(
+                        "#include <arch/board/bk7258_partition_layout.h>\n"
+                        "const char *layout_id = BK7258_PARTITION_LAYOUT_ID;\n"
+                    ),
+                    text=True, capture_output=True, check=False,
+                )
+                self.assertEqual(
+                    preprocessed.returncode, 0, preprocessed.stderr)
+                self.assertIn(f'"{layout.layout_id}"', preprocessed.stdout)
+
+            selected_header, selected_output = generated[("product-a", "cp")]
+            baseline = layouts["product-a"][1]
+            verified = subprocess.run(
+                [
+                    sys.executable, str(verifier),
+                    "--input", str(source),
+                    "--expect-layout-id", baseline.layout_id,
+                    "--expect-layout-sha256", baseline.layout_sha256,
+                    "--header", str(selected_header),
+                    "--output-dir", str(selected_output),
+                ],
+                cwd=REPOSITORY, text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(verified.returncode, 0, verified.stdout)
+
+        self.assertEqual(tracked_header.read_bytes(), tracked_before)
+
+    def test_partition_contract_is_required_atomically_by_build_consumers(
+            self) -> None:
+        board = REPOSITORY / "board/bk7258"
+        source = board / "partitions/bk7258/auto_partitions.csv"
+        layout = load_layout(source)
+        base_env = dict(os.environ)
+        for name in (
+            "BK7258_PARTITION_CONTRACT_ROOT",
+            "BK7258_PARTITION_LAYOUT_SOURCE",
+            "BK7258_PARTITION_LAYOUT_ID",
+            "BK7258_PARTITION_LAYOUT_SHA256",
+        ):
+            base_env.pop(name, None)
+
+        with tempfile.TemporaryDirectory(
+                prefix="bk7258-postbuild-contract-") as directory:
+            missing_root = subprocess.run(
+                [
+                    str(board / "scripts/postbuild.sh"),
+                    directory, str(board), "cp",
+                ],
+                env={
+                    **base_env,
+                    "BK7258_PARTITION_LAYOUT_SOURCE": str(source),
+                    "BK7258_PARTITION_LAYOUT_ID": layout.layout_id,
+                    "BK7258_PARTITION_LAYOUT_SHA256": layout.layout_sha256,
+                },
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(missing_root.returncode, 3)
+            self.assertIn(
+                "contract root, source, ID and SHA-256 must be supplied together",
+                missing_root.stderr,
+            )
+
+            incomplete_root = subprocess.run(
+                [
+                    str(board / "scripts/postbuild.sh"),
+                    directory, str(board), "cp",
+                ],
+                env={
+                    **base_env,
+                    "BK7258_PARTITION_CONTRACT_ROOT": str(
+                        Path(directory) / "missing-contract"),
+                    "BK7258_PARTITION_LAYOUT_SOURCE": str(source),
+                    "BK7258_PARTITION_LAYOUT_ID": layout.layout_id,
+                    "BK7258_PARTITION_LAYOUT_SHA256": layout.layout_sha256,
+                },
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(incomplete_root.returncode, 3)
+            self.assertIn("incomplete private partition contract",
+                          incomplete_root.stderr)
+
+        build_dual = (board / "scripts/build_dual_image.sh").read_text()
+        make_defs = (board / "scripts/Make.defs").read_text()
+        cmake = (board / "CMakeLists.txt").read_text()
+        self.assertIn("materialize_partition_contract", build_dual)
+        self.assertIn('build_config "${CP_CONFIG}" cp', build_dual)
+        self.assertIn('build_config "${AP_CONFIG}" ap', build_dual)
+        self.assertIn("PARTITION_CONTRACT_ROOT=$(partition_contract_root bl1)",
+                      build_dual)
+        self.assertIn("PARTITION_CONTRACT_ROOT=$(partition_contract_root bl2)",
+                      build_dual)
+        self.assertIn("BK7258_PARTITION_MATERIALIZED", make_defs)
+        self.assertIn("legacy-$(BK7258_PARTITION_LAYOUT_SHA256)", make_defs)
+        self.assertIn("NUTTX_INCLUDE_DIRECTORIES", cmake)
+        self.assertIn("BK7258_PARTITION_ENV_COUNT EQUAL 0", cmake)
+        self.assertIn("bk7258-${BK7258_PARTITION_ROLE}-link.ld", cmake)
+        self.assertIn("BK7258_PARTITION_CONTRACT_ROOT=${BK7258_PARTITION_CONTRACT_ROOT}",
+                      cmake)
+
+    def test_isolated_postbuild_requires_private_contract_and_artifacts(self) -> None:
+        board = REPOSITORY / "board/bk7258"
+        script = board / "scripts/postbuild.sh"
+        generator = board / "scripts/gen_bk7258_partitions.py"
+        source = board / "partitions/bk7258/auto_partitions.csv"
+        layout = load_layout(source)
+        base_env = dict(os.environ)
+        for name in (
+            "BK7258_POSTBUILD_MODE",
+            "BK7258_POSTBUILD_ARTIFACT_ROOT",
+            "BK7258_POSTBUILD_DUAL_ROLE",
+            "BK7258_BL1_CRC_BIN",
+            "BK7258_PARTITION_CONTRACT_ROOT",
+            "BK7258_PARTITION_LAYOUT_SOURCE",
+            "BK7258_PARTITION_LAYOUT_ID",
+            "BK7258_PARTITION_LAYOUT_SHA256",
+        ):
+            base_env.pop(name, None)
+
+        with tempfile.TemporaryDirectory(prefix="bk7258-isolated-postbuild-") as directory:
+            root = Path(directory)
+            topdir = root / "cp"
+            artifact_root = topdir / "artifacts"
+            contract = topdir / "partition-contract"
+            artifact_root.mkdir(parents=True)
+            contract.mkdir(parents=True)
+            config = topdir / ".config"
+            config.write_text("# isolated CP role\n", encoding="utf-8")
+
+            generated = subprocess.run(
+                [
+                    sys.executable, str(generator),
+                    "--input", str(source),
+                    "--expect-layout-id", layout.layout_id,
+                    "--expect-layout-sha256", layout.layout_sha256,
+                    "--header", str(
+                        contract / "include/arch/board/bk7258_partition_layout.h"
+                    ),
+                    "--output-dir", str(contract / "generated"),
+                ],
+                cwd=REPOSITORY, text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+
+            xip = int(subprocess.check_output(
+                [
+                    sys.executable, str(generator),
+                    "--input", str(source),
+                    "--get", "slot_a_cp.xip_start",
+                ],
+                cwd=REPOSITORY, text=True,
+            ).strip(), 0)
+            image = bytearray(0x108)
+            struct.pack_into("<II", image, 0, 0x28030000, xip + 0x40 | 1)
+            image[0x100:0x108] = b"BK7236\0\0"
+            (topdir / "nuttx.bin").write_bytes(image)
+
+            bl1 = root / "bl1" / "artifacts" / "bl_crc.bin"
+            bl1.parent.mkdir(parents=True)
+            # The isolated contract owns this input; do not consume the
+            # source-tree compatibility bootloader artifact in a host test.
+            bl1.write_bytes(b"fake-bl1-crc-artifact\n")
+
+            isolated_env = {
+                **base_env,
+                "BK7258_POSTBUILD_MODE": "isolated",
+                "BK7258_POSTBUILD_ARTIFACT_ROOT": str(artifact_root),
+                "BK7258_BL1_CRC_BIN": str(bl1),
+                "BK7258_PARTITION_CONTRACT_ROOT": str(contract),
+                "BK7258_PARTITION_LAYOUT_SOURCE": str(source),
+                "BK7258_PARTITION_LAYOUT_ID": layout.layout_id,
+                "BK7258_PARTITION_LAYOUT_SHA256": layout.layout_sha256,
+            }
+            complete = subprocess.run(
+                [str(script), str(topdir), str(board), "cp"],
+                cwd=REPOSITORY, env=isolated_env,
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(complete.returncode, 0, complete.stderr)
+            self.assertIn("mode=isolated", complete.stdout)
+            self.assertIn("artifact_root=", complete.stdout)
+            for name in (
+                "app.bin", "app_crc.bin", "app_crc.bin.json",
+                "nuttx_crc.bin", "all-app.bin",
+            ):
+                self.assertTrue((artifact_root / name).is_file(), name)
+            self.assertEqual(
+                (artifact_root / "vela_nuttx.bin").read_bytes(),
+                (artifact_root / "app.bin").read_bytes(),
+            )
+            self.assertEqual(
+                (artifact_root / "vela_nuttx_cp.bin").read_bytes(),
+                (artifact_root / "app.bin").read_bytes(),
+            )
+            cp_standard = json.loads(
+                (artifact_root / "vela_nuttx_cp.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(cp_standard["role"], "cp")
+            self.assertEqual(cp_standard["source_file"], "app.bin")
+            self.assertEqual(cp_standard["generic_alias"], "vela_nuttx.bin")
+            self.assertFalse((topdir / "app.bin").exists())
+            self.assertTrue(
+                (artifact_root / "all-app.bin").read_bytes().startswith(bl1.read_bytes())
+            )
+
+            missing_bl1_env = dict(isolated_env)
+            missing_bl1_env.pop("BK7258_BL1_CRC_BIN")
+            missing_bl1 = subprocess.run(
+                [str(script), str(topdir), str(board), "cp"],
+                cwd=REPOSITORY, env=missing_bl1_env,
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(missing_bl1.returncode, 6)
+            self.assertIn("requires explicit BK7258_BL1_CRC_BIN",
+                          missing_bl1.stderr)
+
+            linked_source = root / "linked-partitions.csv"
+            linked_source.symlink_to(source)
+            symlink_env = dict(isolated_env)
+            symlink_env["BK7258_PARTITION_LAYOUT_SOURCE"] = str(linked_source)
+            symlink_source = subprocess.run(
+                [str(script), str(topdir), str(board), "cp"],
+                cwd=REPOSITORY, env=symlink_env,
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(symlink_source.returncode, 3)
+            self.assertIn("partition source must not be a symlink",
+                          symlink_source.stderr)
+
+            source_tree_env = dict(isolated_env)
+            source_tree_env["BK7258_POSTBUILD_ARTIFACT_ROOT"] = str(
+                board / "partitions"
+            )
+            source_tree_output = subprocess.run(
+                [str(script), str(topdir), str(board), "cp"],
+                cwd=REPOSITORY, env=source_tree_env,
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(source_tree_output.returncode, 3)
+            self.assertIn("artifact root must be outside BOARD_DIR",
+                          source_tree_output.stderr)
+
+            fallback_env = dict(isolated_env)
+            fallback_env["BK7258_BL1_CRC_BIN"] = str(
+                board / "bootloader/bl_crc.bin"
+            )
+            fallback = subprocess.run(
+                [str(script), str(topdir), str(board), "cp"],
+                cwd=REPOSITORY, env=fallback_env,
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(fallback.returncode, 6)
+            self.assertIn("cannot use the legacy board bootloader", fallback.stderr)
+
+            ap_topdir = root / "ap"
+            ap_artifact_root = ap_topdir / "artifacts"
+            ap_contract = ap_topdir / "partition-contract"
+            ap_artifact_root.mkdir(parents=True)
+            ap_contract.mkdir(parents=True)
+            ap_generated = subprocess.run(
+                [
+                    sys.executable, str(generator),
+                    "--input", str(source),
+                    "--expect-layout-id", layout.layout_id,
+                    "--expect-layout-sha256", layout.layout_sha256,
+                    "--header", str(
+                        ap_contract / "include/arch/board/bk7258_partition_layout.h"
+                    ),
+                    "--output-dir", str(ap_contract / "generated"),
+                ],
+                cwd=REPOSITORY, text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(ap_generated.returncode, 0, ap_generated.stderr)
+            ap_xip = int(subprocess.check_output(
+                [
+                    sys.executable, str(generator),
+                    "--input", str(source),
+                    "--get", "slot_a_ap.xip_start",
+                ],
+                cwd=REPOSITORY, text=True,
+            ).strip(), 0)
+            ap_image = bytearray(8)
+            struct.pack_into("<II", ap_image, 0, 0x28030000, ap_xip + 0x4 | 1)
+            (ap_topdir / ".config").write_text("# isolated AP role\n", encoding="utf-8")
+            (ap_topdir / "nuttx.bin").write_bytes(ap_image)
+            not_read = root / "bl1-not-read"
+            not_read.symlink_to(root / "missing-bl1")
+            ap_env = dict(isolated_env)
+            ap_env.update({
+                "BK7258_POSTBUILD_ARTIFACT_ROOT": str(ap_artifact_root),
+                "BK7258_BL1_CRC_BIN": str(not_read),
+                "BK7258_PARTITION_CONTRACT_ROOT": str(ap_contract),
+            })
+            ap_result = subprocess.run(
+                [str(script), str(ap_topdir), str(board), "ap"],
+                cwd=REPOSITORY, env=ap_env,
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(ap_result.returncode, 0, ap_result.stderr)
+            self.assertTrue((ap_artifact_root / "app1.bin").is_file())
+            self.assertTrue((ap_artifact_root / "app1_crc.bin").is_file())
+            self.assertEqual(
+                (ap_artifact_root / "vela_nuttx.bin").read_bytes(),
+                (ap_artifact_root / "app1.bin").read_bytes(),
+            )
+            self.assertEqual(
+                (ap_artifact_root / "vela_nuttx_ap.bin").read_bytes(),
+                (ap_artifact_root / "app1.bin").read_bytes(),
+            )
+            self.assertFalse((ap_artifact_root / "all-app.bin").exists())
+            self.assertFalse((ap_artifact_root / "nuttx_crc.bin").exists())
+
+            dual_ap_env = dict(ap_env)
+            dual_ap_env["BK7258_POSTBUILD_DUAL_ROLE"] = "1"
+            dual_ap_result = subprocess.run(
+                [str(script), str(ap_topdir), str(board), "ap"],
+                cwd=REPOSITORY, env=dual_ap_env,
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(dual_ap_result.returncode, 0, dual_ap_result.stderr)
+            self.assertFalse((ap_artifact_root / "vela_nuttx.bin").exists())
+            dual_ap_standard = json.loads(
+                (ap_artifact_root / "vela_nuttx_ap.json").read_text(encoding="utf-8")
+            )
+            self.assertTrue(dual_ap_standard["dual_core"])
+            self.assertIsNone(dual_ap_standard["generic_alias"])
+
+            bl2_topdir = root / "bl2" / "cp"
+            bl2_artifact_root = bl2_topdir / "artifacts"
+            bl2_contract = bl2_topdir / "partition-contract"
+            bl2_artifact_root.mkdir(parents=True)
+            bl2_contract.mkdir(parents=True)
+            bl2_generated = subprocess.run(
+                [
+                    sys.executable, str(generator),
+                    "--input", str(source),
+                    "--expect-layout-id", layout.layout_id,
+                    "--expect-layout-sha256", layout.layout_sha256,
+                    "--header", str(
+                        bl2_contract / "include/arch/board/bk7258_partition_layout.h"
+                    ),
+                    "--output-dir", str(bl2_contract / "generated"),
+                ],
+                cwd=REPOSITORY, text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(bl2_generated.returncode, 0, bl2_generated.stderr)
+            bl2_image = bytearray(0x108)
+            struct.pack_into(
+                "<II", bl2_image, 0, 0x28030000, 0x28020000 + 0x4 | 1
+            )
+            bl2_image[0x100:0x108] = b"BK7236\0\0"
+            (bl2_topdir / ".config").write_text(
+                "CONFIG_BK7258_BL2_IMAGE=y\n", encoding="utf-8"
+            )
+            (bl2_topdir / "nuttx.bin").write_bytes(bl2_image)
+            bl2_env = dict(isolated_env)
+            bl2_env.update({
+                "BK7258_POSTBUILD_ARTIFACT_ROOT": str(bl2_artifact_root),
+                "BK7258_BL1_CRC_BIN": str(not_read),
+                "BK7258_PARTITION_CONTRACT_ROOT": str(bl2_contract),
+            })
+            bl2_result = subprocess.run(
+                [str(script), str(bl2_topdir), str(board), "cp"],
+                cwd=REPOSITORY, env=bl2_env,
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(bl2_result.returncode, 0, bl2_result.stderr)
+            self.assertTrue((bl2_artifact_root / "app.bin").is_file())
+            self.assertTrue((bl2_artifact_root / "app_crc.bin").is_file())
+            self.assertFalse((bl2_artifact_root / "all-app.bin").exists())
+            self.assertFalse((bl2_artifact_root / "nuttx_crc.bin").exists())
+
+        postbuild = script.read_text(encoding="utf-8")
+        self.assertIn(
+            'BL_CRC_BIN="${BOARD_DIR}/bootloader/bl_crc.bin"', postbuild
+        )
+        self.assertIn("postbuild.sh: mode=legacy (compatibility)", postbuild)
+
+    def test_bl1_manifest_rechecks_resolved_partition_identity(self) -> None:
+        source = REPOSITORY / "board/bk7258/partitions/bk7258/auto_partitions.csv"
+        layout = load_layout(source)
+        script = REPOSITORY / "board/bk7258/bootloader/make_bl1_manifest.py"
+        primary = bl2_contract_from_layout(
+            source, "primary", layout.layout_id, layout.layout_sha256)
+        secondary = bl2_contract_from_layout(
+            source, "secondary", layout.layout_id, layout.layout_sha256)
+        self.assertEqual(primary, (0x024D0000, 0x20000))
+        self.assertEqual(secondary, (0x024F0000, 0x20000))
+        staging_source = (
+            REPOSITORY /
+            "board/bk7258/partitions/bk7258/secureboot_xip_cp_ap.csv"
+        )
+        staging = load_layout(staging_source)
+        self.assertEqual(
+            bl2_contract_from_layout(
+                staging_source, "primary", staging.layout_id,
+                staging.layout_sha256),
+            (0x02004C00, 0x1FF40),
+        )
+        self.assertEqual(
+            bl2_contract_from_layout(
+                staging_source, "secondary", staging.layout_id,
+                staging.layout_sha256),
+            (0x02024C00, 0x1FF40),
+        )
+        common = [
+            sys.executable,
+            str(script),
+            "--bl2", "missing-bl2.bin",
+            "--private-key", "missing-key.pem",
+            "--out", "unused-manifest.bin",
+            "--partition-csv", str(source),
+        ]
+
+        wrong_sha = subprocess.run(
+            common + [
+                "--expect-layout-id", layout.layout_id,
+                "--expect-layout-sha256", "0" * 64,
+            ],
+            cwd=REPOSITORY,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(wrong_sha.returncode, 0)
+        self.assertIn("partition layout identity mismatch", wrong_sha.stderr)
+
+        incomplete = subprocess.run(
+            common + ["--expect-layout-id", layout.layout_id],
+            cwd=REPOSITORY,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(incomplete.returncode, 0)
+        self.assertIn("must be supplied together", incomplete.stderr)
+
+        wrong_xip = subprocess.run(
+            common + [
+                "--expect-layout-id", layout.layout_id,
+                "--expect-layout-sha256", layout.layout_sha256,
+                "--bl2-xip", "0x024d0200",
+            ],
+            cwd=REPOSITORY,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(wrong_xip.returncode, 0)
+        self.assertIn("disagrees with primary layout address", wrong_xip.stderr)
+
+        wrong_capacity = subprocess.run(
+            common + [
+                "--expect-layout-id", layout.layout_id,
+                "--expect-layout-sha256", layout.layout_sha256,
+                "--bl2-capacity", "0x10000",
+            ],
+            cwd=REPOSITORY,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(wrong_capacity.returncode, 0)
+        self.assertIn("disagrees with primary layout capacity",
+                      wrong_capacity.stderr)
+
+        secureboot_packer = (
+            REPOSITORY / "board/bk7258/scripts/pack_bk7258_secureboot.py"
+        )
+        staging_mismatch = subprocess.run(
+            [
+                sys.executable, str(secureboot_packer),
+                "--cp-raw", "missing-cp.bin",
+                "--ap-raw", "missing-ap.bin",
+                "--key", "missing-key.pem",
+                "--imgtool", "missing-imgtool.py",
+                "--output", "unused-secureboot-output",
+                "--version", "0.0.0",
+                "--partition-csv", str(staging_source),
+                "--expect-layout-id", staging.layout_id,
+                "--expect-layout-sha256", "0" * 64,
+            ],
+            cwd=REPOSITORY,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(staging_mismatch.returncode, 0)
+        self.assertIn("secureboot staging layout identity mismatch",
+                      staging_mismatch.stderr)
+
+    def test_partition_contract_is_atomic_and_source_report_is_dynamic(self) -> None:
+        source = REPOSITORY / "board/bk7258/partitions/bk7258/auto_partitions.csv"
+        plan = build_plan(REPOSITORY, "aidk_ai_toy_bringup")
+        expected = plan["partition_layout"]
+        base_env = dict(os.environ)
+        for name in (
+            "BK7258_PARTITION_LAYOUT_SOURCE",
+            "BK7258_PARTITION_LAYOUT_ID",
+            "BK7258_PARTITION_LAYOUT_SHA256",
+        ):
+            base_env.pop(name, None)
+
+        incomplete = subprocess.run(
+            [sys.executable, "-c", "import bk7258_ab_layout"],
+            cwd=SCRIPT_ROOT,
+            env={**base_env, "BK7258_PARTITION_LAYOUT_SOURCE": str(source)},
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(incomplete.returncode, 0)
+        self.assertIn("must be exported together", incomplete.stderr)
+
+        complete_env = {
+            **base_env,
+            "BK7258_PARTITION_LAYOUT_SOURCE": str(source),
+            "BK7258_PARTITION_LAYOUT_ID": expected["layout_id"],
+            "BK7258_PARTITION_LAYOUT_SHA256": expected["layout_sha256"],
+        }
+        accepted = subprocess.run(
+            [sys.executable, "-c",
+             "import bk7258_ab_layout as layout; print(layout.LAYOUT_ID)"],
+            cwd=SCRIPT_ROOT,
+            env=complete_env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        self.assertEqual(accepted.stdout.strip(), expected["layout_id"])
+
+        rejected = subprocess.run(
+            [sys.executable, "-c", "import bk7258_ab_layout"],
+            cwd=SCRIPT_ROOT,
+            env={**complete_env, "BK7258_PARTITION_LAYOUT_SHA256": "0" * 64},
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("identity mismatch", rejected.stderr)
+
+        with tempfile.TemporaryDirectory(prefix="bk7258-layout-source-") as directory:
+            alternate = Path(directory) / "selected.csv"
+            alternate.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            self.assertEqual(load_layout(alternate).report()["source"], str(alternate))
+
     def test_product_selects_shared_mcuboot_ab_and_temp_profiles_have_no_devices(
             self) -> None:
         product = load_catalog(REPOSITORY)["products"]["aidk_ai_toy_bringup"]
@@ -43,10 +686,13 @@ class AidkBoardTest(unittest.TestCase):
         self.assertNotIn("boot_raw_aidk_ai_toy", product["fragments"])
         self.assertNotIn("FAL", " ".join(product["fragments"]))
         script = (SCRIPT_ROOT / "build_dual_image.sh").read_text(encoding="utf-8")
-        self.assertIn("materialize_aidk_profiles.py", script)
-        self.assertIn("AIDK requires the shared MCUboot A/B boot contract", script)
-        self.assertIn("bk7258-product:${AIDK_PRODUCT_ID}:${role}", script)
-        self.assertIn("AIDK package metadata contains temporary profile paths",
+        self.assertIn("materialize_product_profiles.py", script)
+        self.assertIn("product plan/profile boot mismatch", script)
+        self.assertIn("bk7258-product:${PRODUCT_ID}:${role}", script)
+        self.assertIn("build-plan", script)
+        self.assertIn("PARTITION_LAYOUT_SHA256=${PARTITION_LAYOUT_SHA256}", script)
+        self.assertIn("SECUREBOOT_STAGING_LAYOUT_ACTIVE=false", script)
+        self.assertIn("product package metadata contains temporary profile paths",
                       script)
 
         result = subprocess.run(
@@ -62,10 +708,9 @@ class AidkBoardTest(unittest.TestCase):
             work_root = Path(directory)
             config_root = work_root / "configs"
             make_defs = REPOSITORY / "board/bk7258/scripts/Make.defs"
-            materialize(
-                REPOSITORY / "board/bk7258/configs",
-                config_root,
-                make_defs,
+            plan = build_plan(REPOSITORY, "aidk_ai_toy_bringup")
+            materialize_plan(
+                plan, REPOSITORY / "board/bk7258/configs", config_root, make_defs
             )
             generated_make_defs = work_root / "scripts/Make.defs"
             self.assertTrue(generated_make_defs.is_symlink())
@@ -76,17 +721,13 @@ class AidkBoardTest(unittest.TestCase):
                 defconfig = (profile / "defconfig").read_text(encoding="utf-8")
                 self.assertIn("BK7258_PROFILE_BOOT=mcuboot", metadata)
                 self.assertIn("BK7258_PROFILE_BOARD=aidk_ai_toy", metadata)
+                self.assertIn("BK7258_PROFILE_COMPAT=canonical-fragments-v1", metadata)
                 self.assertIn("CONFIG_BK7258_BOARD_AIDK_AI_TOY=y", defconfig)
                 self.assertIn("CONFIG_BK7258_MCUBOOT_IMAGE=y", defconfig)
                 self.assertNotRegex(defconfig, r"CONFIG_BK7258_(MIC|AUD|LCD|DVP)=y")
                 self.assertNotIn("legacy-fal", defconfig.lower())
                 if role == "cp":
-                    self.assertIn("CONFIG_BK7258_CONSOLE_UART0=y", defconfig)
-                    self.assertIn("CONFIG_BK7258_UART0_BAUD=115200", defconfig)
-                    self.assertIn(
-                        "# CONFIG_BK7258_SWD_DEBUG is not set", defconfig)
-                    self.assertIn(
-                        "# CONFIG_BK7258_SWD_BOOT_HOLD is not set", defconfig)
+                    self.assertIn("# CONFIG_BK7258_AP_CORE is not set", defconfig)
 
     def test_classic_selector_allows_only_unresolved_configure_goals(self) -> None:
         root = REPOSITORY / "board/bk7258"
@@ -104,9 +745,40 @@ class AidkBoardTest(unittest.TestCase):
                 f"BOARD_DIR := {root}\n"
                 "DELIM := /\n"
                 f"include {root / 'scripts/Make.defs'}\n"
-                ".PHONY: all olddefconfig\n"
-                "all olddefconfig:\n\t@:\n",
+                ".PHONY: all olddefconfig print-contract\n"
+                "all olddefconfig:\n\t@:\n"
+                "print-contract:\n"
+                "\t@printf '%s\\n' "
+                "'$(BK7258_PARTITION_CONTRACT_INCLUDE)' "
+                "'$(BK7258_PARTITION_CONTRACT_HEADER_DIR)' "
+                "'$(BK7258_PARTITION_CONTRACT_HEADER)'\n",
                 encoding="utf-8")
+
+            contract = Path(directory) / "partition-contract"
+            private_header = (
+                contract / "include/arch/board/bk7258_partition_layout.h"
+            )
+            private_header.parent.mkdir(parents=True)
+            source = root / "partitions/bk7258/auto_partitions.csv"
+            layout = load_layout(source)
+            generated = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "scripts/gen_bk7258_partitions.py"),
+                    "--input", str(source),
+                    "--expect-layout-id", layout.layout_id,
+                    "--expect-layout-sha256", layout.layout_sha256,
+                    "--header", str(private_header),
+                    "--output-dir", str(contract / "generated"),
+                ],
+                text=True, capture_output=True, check=False)
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            contract_vars = (
+                f"BK7258_PARTITION_CONTRACT_ROOT={contract}",
+                f"BK7258_PARTITION_LAYOUT_SOURCE={source}",
+                f"BK7258_PARTITION_LAYOUT_ID={layout.layout_id}",
+                f"BK7258_PARTITION_LAYOUT_SHA256={layout.layout_sha256}",
+            )
 
             def run(goal: str, *selectors: str) -> subprocess.CompletedProcess[str]:
                 return subprocess.run(
@@ -116,11 +788,46 @@ class AidkBoardTest(unittest.TestCase):
             self.assertEqual(run("olddefconfig").returncode, 0)
             self.assertNotEqual(run("all").returncode, 0)
             self.assertEqual(
-                run("all", "CONFIG_BK7258_BOARD_T5AI_CORE=y").returncode, 0)
+                run("all", "CONFIG_BK7258_BOARD_T5AI_CORE=y",
+                    *contract_vars).returncode, 0)
             self.assertNotEqual(
                 run("olddefconfig", "CONFIG_BK7258_BOARD_T5AI_CORE=y",
                     "CONFIG_BK7258_BOARD_T5_BOARD=y").returncode,
                 0)
+
+            override_attempt = run(
+                "print-contract",
+                "CONFIG_BK7258_BOARD_T5AI_CORE=y",
+                *contract_vars,
+                f"BK7258_PARTITION_CONTRACT_INCLUDE={root / 'include'}",
+                f"BK7258_PARTITION_CONTRACT_HEADER_DIR={root / 'include'}",
+                "BK7258_PARTITION_CONTRACT_HEADER="
+                f"{root / 'include/bk7258_partition_layout.h'}",
+            )
+            self.assertEqual(
+                override_attempt.returncode, 0, override_attempt.stderr)
+            self.assertEqual(
+                override_attempt.stdout.splitlines(),
+                [
+                    str(contract / "include"),
+                    str(contract / "include/arch/board"),
+                    str(private_header),
+                ],
+            )
+
+            private_header.write_text(
+                private_header.read_text(encoding="utf-8").replace(
+                    layout.layout_id, "stale-layout", 1
+                ),
+                encoding="utf-8",
+            )
+            stale_header = run(
+                "all", "CONFIG_BK7258_BOARD_T5AI_CORE=y", *contract_vars)
+            self.assertNotEqual(stale_header.returncode, 0)
+            self.assertIn(
+                "Explicit BK7258 partition contract validation failed",
+                stale_header.stderr,
+            )
 
     def test_catalog_and_sdk_lock_are_board_product_mode_specific(self) -> None:
         catalog = load_catalog(REPOSITORY)

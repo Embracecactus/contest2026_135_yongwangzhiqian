@@ -7,7 +7,7 @@ set -Eeuo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 OPENVELA_ROOT=$(cd "$SCRIPT_DIR/../../../.." && pwd)
 BUILD_SCRIPT="$SCRIPT_DIR/build_dual_image.sh"
-PARTITION_GENERATOR="$SCRIPT_DIR/gen_bk7258_partitions.py"
+BKPACK_TOOL="$SCRIPT_DIR/bk7258_bkpack.py"
 TRUST_CHAIN_TOOL="$SCRIPT_DIR/bk7258_trust_chain.py"
 CAPTURE_PS1="$SCRIPT_DIR/capture_windows_serial.ps1"
 PULSE_PS1="$SCRIPT_DIR/pulse_windows_serial.ps1"
@@ -66,15 +66,14 @@ Options:
   --console-port COMN     Windows console port (default: $CONSOLE_PORT)
   --console-baud N        Console baud (default: $CONSOLE_BAUD)
   --firmware PATH         Factory image path (default: PACKAGE/all-app-factory.bin)
-  --package DIR           Dual-image package directory (default: $DUAL_DIR)
+  --package DIR           Dual-image directory containing verified firmware.bkpack (default: $DUAL_DIR)
   --log-root PATH         Output directory (default: $LOG_ROOT)
   -h, --help              Show this help
 
 Examples:
-  # Build an explicit CP/AP profile, sparse-flash, and capture the warm path:
-  $(basename "$0") --build --flash --sparse-flash --no-console \
-    --cp-config t5_board_cp_app_mcuboot \
-    --ap-config t5_board_ap_camera_h264_mcuboot
+  # Build the canonical T5-Board product, sparse-flash, and capture the warm path:
+  BK7258_PRODUCT=t5_board_bringup $(basename "$0") --build --flash \
+    --sparse-flash --no-console
 
   # Sparse-flash an already built image and capture:
   $(basename "$0") --flash --sparse-flash
@@ -102,7 +101,8 @@ Port assignment on the current T5-Board:
 Every MCUboot flash action first compares the package's public BL1/BL2 trust
 fingerprints with the running target through non-halting J-Link reads.  A
 mismatch or unreadable target refuses the download; this path cannot rotate
-trust roots.
+trust roots. Flash also requires layout ID/SHA and every write range to match
+the verified firmware.bkpack, dual manifest, build profile, and source files.
 USAGE
 }
 
@@ -184,37 +184,14 @@ if ((JLINK_RESET)); then
   [[ -x "$JLINK_EXE" || -f "$JLINK_EXE" ]] || { echo "ERROR: missing $JLINK_EXE" >&2; exit 1; }
 fi
 
-[[ -f "$PARTITION_GENERATOR" ]] || {
-  echo "ERROR: missing partition generator $PARTITION_GENERATOR" >&2
+[[ -f "$BKPACK_TOOL" ]] || {
+  echo "ERROR: missing payload verifier $BKPACK_TOOL" >&2
   exit 1
 }
 [[ -f "$TRUST_CHAIN_TOOL" ]] || {
   echo "ERROR: missing trust-chain tool $TRUST_CHAIN_TOOL" >&2
   exit 1
 }
-
-# Resolve every destructive range from the project CSV.  This keeps the WSL2
-# debug/download SOP synchronized with the firmware build and fails closed if
-# the partition source is invalid.
-
-EXPECTED_LAYOUT_ID=$(python3 "$PARTITION_GENERATOR" --get layout_id)
-BOOT_OFFSET=$(python3 "$PARTITION_GENERATOR" --get boot.offset)
-BOOT_SIZE=$(python3 "$PARTITION_GENERATOR" --get boot.size)
-CP_OFFSET=$(python3 "$PARTITION_GENERATOR" --get slot_a_cp.offset)
-CP_SIZE=$(python3 "$PARTITION_GENERATOR" --get slot_a_cp.size)
-AP_OFFSET=$(python3 "$PARTITION_GENERATOR" --get slot_a_ap.offset)
-AP_SIZE=$(python3 "$PARTITION_GENERATOR" --get slot_a_ap.size)
-BL2_OFFSET=$(python3 "$PARTITION_GENERATOR" --get bl2.offset)
-BL2_SIZE=$(python3 "$PARTITION_GENERATOR" --get bl2.size)
-BL2_SECONDARY_OFFSET=$((BL2_OFFSET + BL2_SIZE))
-printf -v BL2_SECONDARY_OFFSET_HEX '0x%x' "$BL2_SECONDARY_OFFSET"
-MANIFEST_A_OFFSET=$(python3 "$PARTITION_GENERATOR" --get bl1_primary_manifest.offset)
-MANIFEST_A_SIZE=$(python3 "$PARTITION_GENERATOR" --get bl1_primary_manifest.size)
-MANIFEST_B_OFFSET=$(python3 "$PARTITION_GENERATOR" --get bl1_secondary_manifest.offset)
-MANIFEST_B_SIZE=$(python3 "$PARTITION_GENERATOR" --get bl1_secondary_manifest.size)
-FACTORY_PREFIX_SIZE=$(python3 "$PARTITION_GENERATOR" --get slot_b_pair.end)
-LITTLEFS_OFFSET=$(python3 "$PARTITION_GENERATOR" --get littlefs.offset)
-LITTLEFS_SIZE=$(python3 "$PARTITION_GENERATOR" --get littlefs.size)
 
 if ((DO_BUILD)); then
   echo "==> Building CP=$CP_CONFIG_NAME AP=$AP_CONFIG_NAME"
@@ -224,6 +201,7 @@ fi
 [[ -f "$FIRMWARE" ]] || { echo "ERROR: missing firmware $FIRMWARE" >&2; exit 1; }
 
 MANIFEST="$DUAL_DIR/bk7258-dual-image.json"
+FIRMWARE_PACKAGE="$DUAL_DIR/firmware.bkpack"
 BOOT_IMAGE="$DUAL_DIR/bl_crc.bin"
 CP_IMAGE="$DUAL_DIR/app_crc_flash.bin"
 AP_IMAGE="$DUAL_DIR/app1_crc_flash.bin"
@@ -252,11 +230,119 @@ fi
 
 if ((DO_FLASH)); then
   [[ -f "$MANIFEST" ]] || { echo "ERROR: missing image manifest $MANIFEST" >&2; exit 1; }
-  grep -Fq "\"layout_id\": \"${EXPECTED_LAYOUT_ID}\"" "$MANIFEST" || {
-    echo "ERROR: image manifest does not match CSV layout $EXPECTED_LAYOUT_ID" >&2
+  [[ -f "$PROFILE_FILE" ]] || { echo "ERROR: missing build profile $PROFILE_FILE" >&2; exit 1; }
+  [[ -f "$FIRMWARE_PACKAGE" ]] || {
+    echo "ERROR: Flash requires a verified firmware.bkpack with an explicit layout ID/SHA; legacy or raw directory packages are not download-authorized" >&2
     exit 1
   }
-  python3 "$SCRIPT_DIR/verify_bk7258_factory_layout.py" --package "$DUAL_DIR"
+  FLASH_CONTRACT_JSON=$(python3 "$BKPACK_TOOL" flash-contract \
+    --package "$FIRMWARE_PACKAGE" --source "$DUAL_DIR")
+  FLASH_CONTRACT_FIELDS=$(python3 - "$FLASH_CONTRACT_JSON" <<'PY'
+import json
+import sys
+
+contract = json.loads(sys.argv[1])
+if contract.get("status") != "pass" or contract.get("source_verified") is not True:
+    raise SystemExit("verified Flash contract is missing")
+layout = contract.get("layout")
+plans = contract.get("plans")
+if not isinstance(layout, dict) or not isinstance(plans, dict):
+    raise SystemExit("verified Flash contract layout/plans are missing")
+
+expected = {
+    "apps": {
+        "primary_cp_app": "app_crc_flash.bin",
+        "primary_ap_app": "app1_crc_flash.bin",
+    },
+    "normal": {
+        "primary_bootloader": "bl_crc.bin",
+        "primary_cp_app": "app_crc_flash.bin",
+        "primary_ap_app": "app1_crc_flash.bin",
+        "primary_bl2": "bl2_crc.bin",
+        "secondary_bl2": "bl2_secondary_crc.bin",
+    },
+    "factory": {
+        "factory_prefix": "all-app-factory.bin",
+        "littlefs_clear": "littlefs_factory_clear.bin",
+        "primary_bl2": "bl2_crc.bin",
+        "secondary_bl2": "bl2_secondary_crc.bin",
+    },
+}
+indexed = {}
+for plan_name, names in expected.items():
+    plan = plans.get(plan_name)
+    if not isinstance(plan, dict):
+        raise SystemExit(f"verified Flash plan is missing: {plan_name}")
+    if (plan.get("layout_id") != layout.get("layout_id") or
+            plan.get("layout_sha256") != layout.get("layout_sha256") or
+            plan.get("flash_size") != layout.get("flash_size")):
+        raise SystemExit(f"Flash plan layout binding drift: {plan_name}")
+    rows = plan.get("segments")
+    if not isinstance(rows, list):
+        raise SystemExit(f"Flash plan segments are missing: {plan_name}")
+    by_name = {row.get("name"): row for row in rows if isinstance(row, dict)}
+    if set(by_name) != set(names):
+        raise SystemExit(f"Flash plan segment set drift: {plan_name}")
+    for name, member in names.items():
+        row = by_name[name]
+        if row.get("member") != member:
+            raise SystemExit(f"Flash plan member drift: {plan_name}/{name}")
+        if row.get("physical_end") != row.get("physical_offset") + row.get("length"):
+            raise SystemExit(f"Flash plan range drift: {plan_name}/{name}")
+    indexed[plan_name] = by_name
+
+def emit(key, value):
+    if not isinstance(value, (str, int)) or isinstance(value, bool):
+        raise SystemExit(f"Flash contract value is invalid: {key}")
+    print(f"{key}\t{value}")
+
+emit("LAYOUT_ID", layout.get("layout_id"))
+emit("LAYOUT_SHA256", layout.get("layout_sha256"))
+emit("LAYOUT_SOURCE", layout.get("layout_source"))
+emit("FLASH_SIZE", layout.get("flash_size"))
+emit("PACKAGE_SHA256", contract.get("package_sha256"))
+for prefix, plan_name, segment_name in (
+    ("BOOT", "normal", "primary_bootloader"),
+    ("CP", "apps", "primary_cp_app"),
+    ("AP", "apps", "primary_ap_app"),
+    ("BL2", "normal", "primary_bl2"),
+    ("BL2_SECONDARY", "normal", "secondary_bl2"),
+    ("FACTORY_PREFIX", "factory", "factory_prefix"),
+    ("LITTLEFS", "factory", "littlefs_clear"),
+):
+    row = indexed[plan_name][segment_name]
+    emit(prefix + "_OFFSET", f"0x{row['physical_offset']:x}")
+    emit(prefix + "_SIZE", f"0x{row['length']:x}")
+PY
+  )
+  declare -A VERIFIED_FLASH_CONTRACT=()
+  while IFS=$'\t' read -r key value; do
+    [[ -n "$key" && -n "$value" && -z ${VERIFIED_FLASH_CONTRACT[$key]+x} ]] || {
+      echo "ERROR: malformed or duplicate verified Flash contract field" >&2
+      exit 1
+    }
+    VERIFIED_FLASH_CONTRACT[$key]=$value
+  done <<<"$FLASH_CONTRACT_FIELDS"
+  EXPECTED_LAYOUT_ID=${VERIFIED_FLASH_CONTRACT[LAYOUT_ID]}
+  EXPECTED_LAYOUT_SHA256=${VERIFIED_FLASH_CONTRACT[LAYOUT_SHA256]}
+  EXPECTED_LAYOUT_SOURCE=${VERIFIED_FLASH_CONTRACT[LAYOUT_SOURCE]}
+  VERIFIED_PACKAGE_SHA256=${VERIFIED_FLASH_CONTRACT[PACKAGE_SHA256]}
+  BOOT_OFFSET=${VERIFIED_FLASH_CONTRACT[BOOT_OFFSET]}
+  BOOT_SIZE=${VERIFIED_FLASH_CONTRACT[BOOT_SIZE]}
+  CP_OFFSET=${VERIFIED_FLASH_CONTRACT[CP_OFFSET]}
+  CP_SIZE=${VERIFIED_FLASH_CONTRACT[CP_SIZE]}
+  AP_OFFSET=${VERIFIED_FLASH_CONTRACT[AP_OFFSET]}
+  AP_SIZE=${VERIFIED_FLASH_CONTRACT[AP_SIZE]}
+  BL2_OFFSET=${VERIFIED_FLASH_CONTRACT[BL2_OFFSET]}
+  BL2_SIZE=${VERIFIED_FLASH_CONTRACT[BL2_SIZE]}
+  BL2_SECONDARY_OFFSET=${VERIFIED_FLASH_CONTRACT[BL2_SECONDARY_OFFSET]}
+  BL2_SECONDARY_SIZE=${VERIFIED_FLASH_CONTRACT[BL2_SECONDARY_SIZE]}
+  FACTORY_PREFIX_OFFSET=${VERIFIED_FLASH_CONTRACT[FACTORY_PREFIX_OFFSET]}
+  FACTORY_PREFIX_SIZE=${VERIFIED_FLASH_CONTRACT[FACTORY_PREFIX_SIZE]}
+  LITTLEFS_OFFSET=${VERIFIED_FLASH_CONTRACT[LITTLEFS_OFFSET]}
+  LITTLEFS_SIZE=${VERIFIED_FLASH_CONTRACT[LITTLEFS_SIZE]}
+  printf -v BL2_SECONDARY_OFFSET_HEX '0x%x' "$BL2_SECONDARY_OFFSET"
+  echo "==> Verified package layout: $EXPECTED_LAYOUT_ID ($EXPECTED_LAYOUT_SHA256)"
   MANIFEST_MCUBOOT_PROFILE=$(python3 - "$MANIFEST" <<'PY'
 import json
 import sys
@@ -322,30 +408,29 @@ if ((SPARSE_FLASH)); then
     fi
   fi
 
-  # Refuse malformed/oversized artifacts before bk_loader can erase across a
-  # CSV-defined partition boundary.  This is the hard guarantee behind
-  # "preserve LittleFS", independent of the build script's own size checks.
+  # Refuse artifacts that differ from the package-verified Flash plan before
+  # bk_loader can erase across a resolved-layout boundary.
 
-  ((BOOT_IMAGE_SIZE > 0 && BOOT_IMAGE_SIZE <= BOOT_SIZE)) || {
-    echo "ERROR: sparse boot image length $BOOT_IMAGE_SIZE exceeds boot size $BOOT_SIZE" >&2
+  ((BOOT_IMAGE_SIZE == BOOT_SIZE)) || {
+    echo "ERROR: sparse boot image length differs from the verified package plan" >&2
     exit 1
   }
-  ((CP_IMAGE_SIZE > 0 && CP_IMAGE_SIZE <= CP_SIZE)) || {
-    echo "ERROR: sparse CP image length $CP_IMAGE_SIZE exceeds primary_cp_app" >&2
+  ((CP_IMAGE_SIZE == CP_SIZE)) || {
+    echo "ERROR: sparse CP image length differs from the verified package plan" >&2
     exit 1
   }
-  ((AP_IMAGE_SIZE > 0 && AP_IMAGE_SIZE <= AP_SIZE)) || {
-    echo "ERROR: sparse AP image length $AP_IMAGE_SIZE exceeds primary_ap_app" >&2
+  ((AP_IMAGE_SIZE == AP_SIZE)) || {
+    echo "ERROR: sparse AP image length differs from the verified package plan" >&2
     exit 1
   }
   if [[ "$PACKAGED_MCUBOOT_PROFILE" == true && $BOOT_ONLY -eq 0 &&
         $APPLICATIONS_ONLY -eq 0 ]]; then
-    ((BL2_IMAGE_SIZE > 0 && BL2_IMAGE_SIZE <= BL2_SIZE)) || {
-      echo "ERROR: sparse BL2 image length $BL2_IMAGE_SIZE exceeds bl2 partition" >&2
+    ((BL2_IMAGE_SIZE == BL2_SIZE)) || {
+      echo "ERROR: sparse BL2 image length differs from the verified package plan" >&2
       exit 1
     }
-    ((BL2_SECONDARY_IMAGE_SIZE > 0 && BL2_SECONDARY_IMAGE_SIZE <= BL2_SIZE)) || {
-      echo "ERROR: sparse secondary BL2 image length $BL2_SECONDARY_IMAGE_SIZE exceeds secondary envelope" >&2
+    ((BL2_SECONDARY_IMAGE_SIZE == BL2_SECONDARY_SIZE)) || {
+      echo "ERROR: sparse secondary BL2 image length differs from the verified package plan" >&2
       exit 1
     }
     if [[ "$PACKAGED_BL1_MANIFEST_RAW_PAGE" == true ]]; then
@@ -371,7 +456,7 @@ elif ((DO_FLASH)); then
   FIRMWARE_SIZE=$(stat -c %s "$FIRMWARE")
   LITTLEFS_CLEAR_SIZE=$(stat -c %s "$LITTLEFS_CLEAR_IMAGE")
   ((FIRMWARE_SIZE == FACTORY_PREFIX_SIZE && LITTLEFS_CLEAR_SIZE == LITTLEFS_SIZE)) || {
-    echo "ERROR: factory segments violate the CSV-defined bounds" >&2
+    echo "ERROR: factory segments differ from the verified package plan" >&2
     exit 1
   }
   if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
@@ -379,12 +464,12 @@ elif ((DO_FLASH)); then
     [[ -f "$BL2_SECONDARY_IMAGE" ]] || { echo "ERROR: missing secondary MCUboot BL2 image $BL2_SECONDARY_IMAGE" >&2; exit 1; }
     BL2_IMAGE_SIZE=$(stat -c %s "$BL2_IMAGE")
     BL2_SECONDARY_IMAGE_SIZE=$(stat -c %s "$BL2_SECONDARY_IMAGE")
-    ((BL2_IMAGE_SIZE > 0 && BL2_IMAGE_SIZE <= BL2_SIZE)) || {
-      echo "ERROR: factory BL2 image length $BL2_IMAGE_SIZE exceeds bl2 partition" >&2
+    ((BL2_IMAGE_SIZE == BL2_SIZE)) || {
+      echo "ERROR: factory BL2 image length differs from the verified package plan" >&2
       exit 1
     }
-    ((BL2_SECONDARY_IMAGE_SIZE > 0 && BL2_SECONDARY_IMAGE_SIZE <= BL2_SIZE)) || {
-      echo "ERROR: factory secondary BL2 image length $BL2_SECONDARY_IMAGE_SIZE exceeds secondary envelope" >&2
+    ((BL2_SECONDARY_IMAGE_SIZE == BL2_SECONDARY_SIZE)) || {
+      echo "ERROR: factory secondary BL2 image length differs from the verified package plan" >&2
       exit 1
     }
   fi
@@ -492,6 +577,13 @@ fi
   fi
   printf 'PACKAGED_CP_CONFIG_NAME=%s\n' "$PACKAGED_CP_CONFIG"
   printf 'PACKAGED_AP_CONFIG_NAME=%s\n' "$PACKAGED_AP_CONFIG"
+  if ((DO_FLASH)); then
+    printf 'PARTITION_LAYOUT_ID=%s\n' "$EXPECTED_LAYOUT_ID"
+    printf 'PARTITION_LAYOUT_SHA256=%s\n' "$EXPECTED_LAYOUT_SHA256"
+    printf 'PARTITION_LAYOUT_SOURCE=%s\n' "$EXPECTED_LAYOUT_SOURCE"
+    printf 'VERIFIED_PACKAGE_SHA256=%s\n' "$VERIFIED_PACKAGE_SHA256"
+    sha256sum "$FIRMWARE_PACKAGE"
+  fi
   sha256sum "$FIRMWARE"
   stat -c '%y %s %n' "$FIRMWARE"
   if ((SPARSE_FLASH)); then
@@ -617,7 +709,7 @@ if ((DO_FLASH)); then
   else
     FIRMWARE_WIN=$(wslpath -m "$FIRMWARE")
     LITTLEFS_CLEAR_WIN=$(wslpath -m "$LITTLEFS_CLEAR_IMAGE")
-    MAIN_BIN_MULTI="${FIRMWARE_WIN}@${BOOT_OFFSET}-${FACTORY_PREFIX_SIZE},"
+    MAIN_BIN_MULTI="${FIRMWARE_WIN}@${FACTORY_PREFIX_OFFSET}-${FACTORY_PREFIX_SIZE},"
     if [[ "$PACKAGED_MCUBOOT_PROFILE" == true ]]; then
       BL2_IMAGE_WIN=$(wslpath -m "$BL2_IMAGE")
       BL2_SECONDARY_IMAGE_WIN=$(wslpath -m "$BL2_SECONDARY_IMAGE")

@@ -17,7 +17,13 @@ from bk7258_ab_layout import (
     AP_XIP_START,
     CP_XIP_SIZE,
     CP_XIP_START,
+    LAYOUT_ID,
+    LAYOUT_INPUT,
+    LAYOUT_SHA256,
+    LAYOUT_SOURCE,
+    verify_contract as verify_partition_contract,
 )
+import bk7258_framework as composition
 
 
 class VerificationError(RuntimeError):
@@ -238,13 +244,18 @@ def require_symbols(
             )
 
 
-def verify_source_contract(board: Path, compatibility: dict[str, object]) -> None:
-    cp_defconfig = (
-        board / "configs" / "t5ai_core_cp_psram_validation" / "defconfig"
-    ).read_text()
-    ap_defconfig = (
-        board / "configs" / "t5ai_core_ap_psram_validation" / "defconfig"
-    ).read_text()
+def verify_source_contract(repository: Path, board: Path,
+                           compatibility: dict[str, object]) -> None:
+    cp_defconfig = composition.config_document(
+        composition.resolve_validation_suite(
+            repository, "t5ai_core_bringup", "psram", "cp"
+        )
+    )["defconfig"]
+    ap_defconfig = composition.config_document(
+        composition.resolve_validation_suite(
+            repository, "t5ai_core_bringup", "psram", "ap"
+        )
+    )["defconfig"]
     if "CONFIG_BK7258_RPTUN_LAYOUT=y" not in cp_defconfig:
         raise VerificationError("canonical CP defconfig does not reserve RPTUN memory")
     if "CONFIG_BK7258_RPTUN_LAYOUT=y" not in ap_defconfig:
@@ -343,6 +354,9 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--headers-only", action="store_true")
+    parser.add_argument("--input", type=Path, default=LAYOUT_INPUT)
+    parser.add_argument("--expect-layout-id")
+    parser.add_argument("--expect-layout-sha256")
     parser.add_argument("--cp-elf", type=Path)
     parser.add_argument("--cp-map", type=Path)
     parser.add_argument("--ap-elf", type=Path)
@@ -354,16 +368,25 @@ def main() -> int:
     parser.add_argument("--objdump", default="arm-none-eabi-objdump")
     args = parser.parse_args()
 
+    verify_partition_contract(
+        args.input, args.expect_layout_id, args.expect_layout_sha256
+    )
+
     compatibility_path = script.parent / "bk7258-rptun-compatibility.json"
     compatibility = json.loads(compatibility_path.read_text(encoding="utf-8"))
 
     layout = parse_probe(workspace, board, args.cc, args.cmake)
     verify_layout_values(layout, compatibility)
-    verify_source_contract(board, compatibility)
+    verify_source_contract(contest, board, compatibility)
 
     result: dict[str, object] = {
         "format": 1,
         "status": "headers-verified",
+        "partition_layout": {
+            "source": LAYOUT_SOURCE,
+            "layout_id": LAYOUT_ID,
+            "layout_sha256": LAYOUT_SHA256,
+        },
         "layout": layout,
         "compatibility": compatibility_path.name,
         "versions": {

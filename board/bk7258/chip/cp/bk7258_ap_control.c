@@ -22,7 +22,6 @@
 #include <nuttx/mutex.h>
 #include <nuttx/signal.h>
 
-#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 
 #if defined(CONFIG_BK7258_BT_IPC) && defined(CONFIG_BK7258_RPTUN_MBOX)
@@ -74,6 +73,18 @@ extern void sys_drv_set_cpu2_reset(uint32_t reset_value);
 
 static mutex_t g_bk7258_ap_lock = NXMUTEX_INITIALIZER;
 static bool g_bk7258_ap_initialized;
+static bool g_bk7258_ap_faulted;
+static struct bk7258_ap_image_desc_s g_bk7258_ap_image;
+
+static bool bk7258_ap_image_valid(
+  const struct bk7258_ap_image_desc_s *image)
+{
+  return image != NULL && image->slot_start < image->slot_end &&
+         image->vector_addr >= image->slot_start &&
+         image->vector_addr < image->slot_end &&
+         image->slot_end - image->vector_addr >= 0x140u &&
+         (image->vector_addr & 0x1ffu) == 0;
+}
 
 /****************************************************************************
  * Private Functions
@@ -253,9 +264,70 @@ static void bk7258_ap_state_prepare(void)
   state->state       = BK7258_AP_STATE_STARTING;
   state->ram_start   = BK7258_AP_RAM_BASE;
   state->ram_end     = BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE;
-  state->flash_start = BK7258_AP_FLASH_ADDR;
-  state->flash_end   = BK7258_AP_FLASH_ADDR + BK7258_AP_FLASH_SIZE;
+  state->flash_start = g_bk7258_ap_image.slot_start;
+  state->flash_end   = g_bk7258_ap_image.slot_end;
   __asm volatile ("dmb sy" ::: "memory");
+}
+
+static int bk7258_ap_start_fail(
+  volatile struct bk7258_ap_boot_state_s *state, int ret,
+  uint32_t fallback_error)
+{
+#ifdef CONFIG_BK7258_RPTUN
+  int quiesce_ret;
+#endif
+
+  /* Every failure after the destructive reset normalization must publish a
+   * state that can never be mistaken for a still-running AP.  In particular,
+   * mailbox/RPTUN failures can happen before state_prepare() replaces an old
+   * READY record.  Keep any AP-published diagnostic, otherwise report the CP
+   * lifecycle failure supplied by the caller.
+   */
+
+  /* A completed RPTUN probe can be powered off synchronously and permits a
+   * later retry.  NuttX deliberately rejects teardown while the asynchronous
+   * probe is only PREPARING/TABLE_READY/CONNECTING; in that case no safe
+   * cancellation API exists, so fail closed until a whole-chip reset rather
+   * than letting the next start reuse a partial vdev.
+   */
+
+#ifdef CONFIG_BK7258_RPTUN
+  quiesce_ret = bk7258_rptun_quiesce();
+  if (quiesce_ret < 0)
+    {
+      g_bk7258_ap_faulted = true;
+    }
+#endif
+
+  bk7258_cpu2_sdk_stop();
+  bk7258_cpu1_sdk_stop();
+  up_mdelay(BK7258_AP_RESTART_DELAY_MS);
+
+  if (state->magic != BK7258_AP_BOOT_STATE_MAGIC ||
+      state->version != BK7258_AP_BOOT_STATE_VERSION ||
+      state->size != sizeof(*state))
+    {
+      memset((void *)(uintptr_t)state, 0, sizeof(*state));
+      state->magic = BK7258_AP_BOOT_STATE_MAGIC;
+      state->version = BK7258_AP_BOOT_STATE_VERSION;
+      state->size = sizeof(*state);
+      state->ram_start = BK7258_AP_RAM_BASE;
+      state->ram_end = BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE;
+      state->flash_start = g_bk7258_ap_image.slot_start;
+      state->flash_end = g_bk7258_ap_image.slot_end;
+    }
+
+  if (state->state != BK7258_AP_STATE_FAILED ||
+      state->error == BK7258_AP_ERROR_NONE)
+    {
+      state->error = fallback_error;
+    }
+
+  state->command = BK7258_AP_COMMAND_NONE;
+  state->state = BK7258_AP_STATE_FAILED;
+  state->last_event = BK7258_AP_EVENT_FAILED;
+  __asm volatile ("dmb sy" ::: "memory");
+  return ret;
 }
 
 static bool bk7258_ap_scheduler_online(void)
@@ -494,7 +566,8 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
   ret = bk7258_ap_mbox_initialize();
   if (ret < 0)
     {
-      return ret;
+      return bk7258_ap_start_fail(state, ret,
+                                  BK7258_AP_ERROR_BAD_BOOT_STATE);
     }
 
 #ifdef CONFIG_BK7258_RPTUN
@@ -505,7 +578,8 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
   ret = bk7258_rptun_quiesce();
   if (ret < 0)
     {
-      return ret;
+      return bk7258_ap_start_fail(state, ret,
+                                  BK7258_AP_ERROR_BAD_BOOT_STATE);
     }
 #endif
 
@@ -515,7 +589,8 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
   ret = bk7258_rptun_initialize(state->generation);
   if (ret < 0)
     {
-      return ret;
+      return bk7258_ap_start_fail(state, ret,
+                                  BK7258_AP_ERROR_BAD_BOOT_STATE);
     }
 #endif
 
@@ -531,7 +606,8 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
                                      BK7258_SDK_PM_POWER_ON);
   if (ret != 0)
     {
-      return -EIO;
+      return bk7258_ap_start_fail(state, -EIO,
+                                  BK7258_AP_ERROR_BAD_BOOT_STATE);
     }
 
   sys_drv_set_cpu1_pwr_dw(0);
@@ -541,7 +617,8 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
    * launched CP, and CP must release CPU1 at the AP vector table itself.
    */
 
-  sys_drv_set_cpu1_boot_address_offset(BK7258_AP_VECTOR_ADDR >> 8);
+  sys_drv_set_cpu1_boot_address_offset(
+    g_bk7258_ap_image.vector_addr >> 8);
   __asm volatile ("dsb sy; isb sy" ::: "memory");
 
   sys_drv_set_cpu1_reset(1);
@@ -550,19 +627,7 @@ static int bk7258_ap_start_locked(uint32_t timeout_ms)
   ret = bk7258_ap_wait(BK7258_AP_STATE_READY, timeout_ms);
   if (ret < 0)
     {
-      bk7258_cpu2_sdk_stop();
-      bk7258_cpu1_sdk_stop();
-      up_mdelay(BK7258_AP_RESTART_DELAY_MS);
-
-      if (state->state != BK7258_AP_STATE_FAILED)
-        {
-          state->error = BK7258_AP_ERROR_TIMEOUT;
-        }
-
-      state->command = BK7258_AP_COMMAND_NONE;
-      state->state = BK7258_AP_STATE_FAILED;
-      state->last_event = BK7258_AP_EVENT_FAILED;
-      __asm volatile ("dmb sy" ::: "memory");
+      return bk7258_ap_start_fail(state, ret, BK7258_AP_ERROR_TIMEOUT);
     }
 
   return ret;
@@ -642,9 +707,15 @@ static int bk7258_ap_stop_locked(uint32_t timeout_ms)
  * Public Functions
  ****************************************************************************/
 
-int bk7258_ap_control_initialize(void)
+int bk7258_ap_control_initialize(
+  const struct bk7258_ap_image_desc_s *image)
 {
-  int ret;
+  int ret = OK;
+
+  if (!bk7258_ap_image_valid(image))
+    {
+      return -EINVAL;
+    }
 
   ret = nxmutex_lock(&g_bk7258_ap_lock);
   if (ret < 0)
@@ -652,13 +723,22 @@ int bk7258_ap_control_initialize(void)
       return ret;
     }
 
-  if (!g_bk7258_ap_initialized)
+  if (g_bk7258_ap_faulted)
     {
+      ret = -ESHUTDOWN;
+    }
+  else if (!g_bk7258_ap_initialized)
+    {
+      g_bk7258_ap_image = *image;
       ret = bk7258_ap_mbox_initialize();
       if (ret >= 0)
         {
           g_bk7258_ap_initialized = true;
         }
+    }
+  else if (memcmp(&g_bk7258_ap_image, image, sizeof(*image)) != 0)
+    {
+      ret = -EBUSY;
     }
 
   nxmutex_unlock(&g_bk7258_ap_lock);
@@ -708,14 +788,14 @@ int bk7258_ap_start(uint32_t timeout_ms)
 
   if (!g_bk7258_ap_initialized)
     {
-      ret = bk7258_ap_mbox_initialize();
-      if (ret < 0)
-        {
-          nxmutex_unlock(&g_bk7258_ap_lock);
-          return ret;
-        }
+      nxmutex_unlock(&g_bk7258_ap_lock);
+      return -ENODEV;
+    }
 
-      g_bk7258_ap_initialized = true;
+  if (g_bk7258_ap_faulted)
+    {
+      nxmutex_unlock(&g_bk7258_ap_lock);
+      return -ESHUTDOWN;
     }
 
 #ifdef CONFIG_BK7258_WIFI_VNET
@@ -745,6 +825,18 @@ int bk7258_ap_stop(uint32_t timeout_ms)
   if (ret < 0)
     {
       return ret;
+    }
+
+  if (!g_bk7258_ap_initialized)
+    {
+      nxmutex_unlock(&g_bk7258_ap_lock);
+      return -ENODEV;
+    }
+
+  if (g_bk7258_ap_faulted)
+    {
+      nxmutex_unlock(&g_bk7258_ap_lock);
+      return -ESHUTDOWN;
     }
 
 #ifdef CONFIG_BK7258_WIFI_VNET
@@ -779,6 +871,18 @@ int bk7258_ap_restart(uint32_t timeout_ms)
   if (ret < 0)
     {
       return ret;
+    }
+
+  if (!g_bk7258_ap_initialized)
+    {
+      nxmutex_unlock(&g_bk7258_ap_lock);
+      return -ENODEV;
+    }
+
+  if (g_bk7258_ap_faulted)
+    {
+      nxmutex_unlock(&g_bk7258_ap_lock);
+      return -ESHUTDOWN;
     }
 
 #ifdef CONFIG_BK7258_WIFI_VNET

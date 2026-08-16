@@ -32,7 +32,43 @@ CONTEST_DIR="$(cd "${BOARD_DIR}/../.." && pwd)"
 WORKSPACE="$(cd "${CONTEST_DIR}/.." && pwd)"
 TOPDIR="${WORKSPACE}/nuttx"
 BUILD="${WORKSPACE}/build.sh"
+validate_output_root()
+{
+    local path="$1"
+    if [[ "${path}" != /* ]]; then
+        printf 'build_dual_image: output root must be an absolute path: %s\n' \
+            "${path}" >&2
+        return 2
+    fi
+    case "${path}" in
+        /|"${WORKSPACE}"|"${CONTEST_DIR}"|"${BOARD_DIR}"|"${TOPDIR}")
+            printf 'build_dual_image: refusing broad output root: %s\n' \
+                "${path}" >&2
+            return 2
+            ;;
+    esac
+    if [[ -L "${path}" ]]; then
+        printf 'build_dual_image: output root must not be a symlink: %s\n' \
+            "${path}" >&2
+        return 2
+    fi
+    if [[ -e "${path}" && ! -d "${path}" ]]; then
+        printf 'build_dual_image: output root is not a directory: %s\n' \
+            "${path}" >&2
+        return 2
+    fi
+    if [[ -d "${path}" ]] &&
+       [[ -n "$(find "${path}" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+        printf 'build_dual_image: output root must be empty before compatibility build: %s\n' \
+            "${path}" >&2
+        return 2
+    fi
+}
+if [[ -n "${BK7258_OUTPUT_ROOT:-}" ]]; then
+    validate_output_root "${BK7258_OUTPUT_ROOT}"
+fi
 PARTITION_GENERATOR="${SCRIPT_DIR}/gen_bk7258_partitions.py"
+FRAMEWORK_TOOL="${SCRIPT_DIR}/bk7258_framework.py"
 TRUST_CHAIN_TOOL="${SCRIPT_DIR}/bk7258_trust_chain.py"
 # The payload-bearing container is an additive delivery artifact.  Keep the
 # tool overrideable for CI/worktree validation, but never fall back to the
@@ -45,44 +81,116 @@ BKPACK_TOOL="${BK7258_BKPACK_TOOL:-${SCRIPT_DIR}/bk7258_bkpack.py}"
 # still points at the retired bk7258_t5ai layout and must not select builds.
 CONFIG_ROOT="${BK7258_CONFIG_ROOT:-${BOARD_DIR}/configs}"
 BK7258_PRODUCT="${BK7258_PRODUCT:-${BK7258_PRODUCT_ID:-}}"
-AIDK_PRODUCT_ID=
-AIDK_PROFILE_WORK_ROOT=
-AIDK_PROFILE_ROOT=
-cleanup_aidk_profile_root()
+BK7258_VALIDATION_SUITE="${BK7258_VALIDATION_SUITE:-}"
+PRODUCT_ID=
+PROFILE_WORK_ROOT=
+PROFILE_ROOT=
+PROFILE_WORK_ROOT_OWNED=false
+BUILD_PLAN_SOURCE=none
+BUILD_PLAN_FILE_RECORD=none
+BUILD_PLAN_IDENTITY_SHA256=none
+VALIDATION_SUITE_CATALOG_IDENTITY=none
+MATERIALIZED_PROFILE_IDENTITY_SHA256=none
+VALIDATION_SUITE_PROFILE_METADATA=none
+plan_value()
+{
+    python3 -c \
+        'import json, sys; value=json.load(open(sys.argv[1], encoding="utf-8")); [value := value[key] for key in sys.argv[2].split(".")]; print(value)' \
+        "$1" "$2"
+}
+cleanup_profile_root()
 {
     local active_makedefs=
 
-    if [[ -n "${AIDK_PROFILE_WORK_ROOT}" ]]; then
+    if [[ -n "${PROFILE_WORK_ROOT}" ]]; then
         if [[ -L "${TOPDIR}/Make.defs" ]]; then
             active_makedefs="$(readlink "${TOPDIR}/Make.defs")"
-            if [[ "${active_makedefs}" == "${AIDK_PROFILE_WORK_ROOT}"/* ]]; then
+            if [[ "${active_makedefs}" == "${PROFILE_WORK_ROOT}"/* ]]; then
                 ln -sfn "${BOARD_DIR}/scripts/Make.defs" \
                     "${TOPDIR}/Make.defs"
             fi
         fi
-        rm -rf "${AIDK_PROFILE_WORK_ROOT}"
+        if [[ "${PROFILE_WORK_ROOT_OWNED}" == true ]]; then
+            rm -rf "${PROFILE_WORK_ROOT}"
+        fi
     fi
 }
-trap cleanup_aidk_profile_root EXIT
-if [[ -n "${BK7258_PRODUCT}" &&
-      "${BK7258_PRODUCT}" != aidk_ai_toy &&
-      "${BK7258_PRODUCT}" != aidk_ai_toy_bringup ]]; then
-    printf 'build_dual_image: unsupported BK7258 product: %s\n' \
-        "${BK7258_PRODUCT}" >&2
+trap cleanup_profile_root EXIT
+case "${BK7258_PRODUCT}" in
+    aidk_ai_toy) PRODUCT_ID=aidk_ai_toy_bringup ;;
+    aidk_ai_toy_bringup|t5ai_core_bringup|t5_board_bringup)
+        PRODUCT_ID="${BK7258_PRODUCT}" ;;
+    "") ;;
+    *)
+        printf 'build_dual_image: unsupported BK7258 product: %s\n' \
+            "${BK7258_PRODUCT}" >&2
+        exit 2
+        ;;
+esac
+if [[ -n "${BK7258_VALIDATION_SUITE}" && -z "${PRODUCT_ID}" ]]; then
+    printf '%s\n' \
+        'build_dual_image: validation suites require a canonical BK7258 product' >&2
     exit 2
 fi
-if [[ "${BK7258_PRODUCT}" == aidk_ai_toy ||
-      "${BK7258_PRODUCT}" == aidk_ai_toy_bringup ]]; then
-    AIDK_PRODUCT_ID=aidk_ai_toy_bringup
-    AIDK_PROFILE_WORK_ROOT="$(mktemp -d -t bk7258-aidk-profiles.XXXXXX)"
-    AIDK_PROFILE_ROOT="${AIDK_PROFILE_WORK_ROOT}/configs"
-    python3 "${SCRIPT_DIR}/materialize_aidk_profiles.py" \
-        --seed-root "${BOARD_DIR}/configs" \
-        --output "${AIDK_PROFILE_ROOT}" \
+if [[ -n "${PRODUCT_ID}" ]]; then
+    if [[ -n "${BK7258_PROFILE_WORK_ROOT:-}" ]]; then
+        PROFILE_WORK_ROOT="${BK7258_PROFILE_WORK_ROOT}"
+        case "${PROFILE_WORK_ROOT}" in
+            /|"${CONTEST_DIR}"|"${WORKSPACE}"|"${BOARD_DIR}")
+                printf 'build_dual_image: unsafe external profile root: %s\n' \
+                    "${PROFILE_WORK_ROOT}" >&2
+                exit 2
+                ;;
+        esac
+    else
+        PROFILE_WORK_ROOT="$(mktemp -d -t bk7258-product-profiles.XXXXXX)"
+        PROFILE_WORK_ROOT_OWNED=true
+    fi
+    PROFILE_ROOT="${PROFILE_WORK_ROOT}/configs"
+    BUILD_PLAN_SOURCE="${BK7258_BUILD_PLAN_FILE:-${PROFILE_WORK_ROOT}/bk7258-build-plan.json}"
+    if [[ ! -f "${BUILD_PLAN_SOURCE}" ]]; then
+        python3 "${FRAMEWORK_TOOL}" --root "${CONTEST_DIR}" build-plan \
+            --product "${PRODUCT_ID}" --out "${BUILD_PLAN_SOURCE}"
+    fi
+    python3 "${FRAMEWORK_TOOL}" --root "${CONTEST_DIR}" build-plan-verify \
+        --plan "${BUILD_PLAN_SOURCE}" --product "${PRODUCT_ID}" >/dev/null
+    BUILD_PLAN_FILE_RECORD=bk7258-build-plan.json
+    BUILD_PLAN_IDENTITY_SHA256="$(plan_value "${BUILD_PLAN_SOURCE}" identity_sha256)"
+    if [[ -n "${BK7258_VALIDATION_SUITE}" ]]; then
+        python3 "${FRAMEWORK_TOOL}" --root "${CONTEST_DIR}" \
+            validation-suite-check --product "${PRODUCT_ID}" \
+            --suite "${BK7258_VALIDATION_SUITE}" >/dev/null
+    fi
+    MATERIALIZER_ARGS=(
+        --plan "${BUILD_PLAN_SOURCE}"
+        --seed-root "${BOARD_DIR}/configs"
+        --output "${PROFILE_ROOT}"
         --make-defs "${BOARD_DIR}/scripts/Make.defs"
-    CONFIG_ROOT="${AIDK_PROFILE_ROOT}"
-    CP_CONFIG_NAME=aidk_ai_toy_cp_mcuboot
-    AP_CONFIG_NAME=aidk_ai_toy_ap_mcuboot
+    )
+    if [[ -n "${BK7258_VALIDATION_SUITE}" ]]; then
+        MATERIALIZER_ARGS+=(--validation-suite "${BK7258_VALIDATION_SUITE}")
+    fi
+    python3 "${SCRIPT_DIR}/materialize_product_profiles.py" "${MATERIALIZER_ARGS[@]}"
+    if [[ -n "${BK7258_VALIDATION_SUITE}" ]]; then
+        VALIDATION_SUITE_PROFILE_METADATA="${PROFILE_ROOT}/bk7258-validation-suite.json"
+        if [[ ! -f "${VALIDATION_SUITE_PROFILE_METADATA}" ]]; then
+            printf '%s\n' \
+                'build_dual_image: validation suite materializer did not emit identity sidecar' >&2
+            exit 2
+        fi
+        VALIDATION_SUITE_CATALOG_IDENTITY="$(plan_value \
+            "${VALIDATION_SUITE_PROFILE_METADATA}" catalog_identity_sha256)"
+        MATERIALIZED_PROFILE_IDENTITY_SHA256="$(plan_value \
+            "${VALIDATION_SUITE_PROFILE_METADATA}" identity_sha256)"
+        if [[ "$(plan_value "${VALIDATION_SUITE_PROFILE_METADATA}" product)" != "${PRODUCT_ID}" ||
+              "$(plan_value "${VALIDATION_SUITE_PROFILE_METADATA}" suite)" != "${BK7258_VALIDATION_SUITE}" ]]; then
+            printf '%s\n' 'build_dual_image: validation suite sidecar product/suite mismatch' >&2
+            exit 2
+        fi
+    fi
+    CONFIG_ROOT="${PROFILE_ROOT}"
+    CP_CONFIG_NAME="$(plan_value "${BUILD_PLAN_SOURCE}" legacy_adapter.seed_profiles.cp.target_profile)"
+    AP_CONFIG_NAME="$(plan_value "${BUILD_PLAN_SOURCE}" legacy_adapter.seed_profiles.ap.target_profile)"
 fi
 if [[ ! -d "${CONFIG_ROOT}" ]]; then
     printf 'build_dual_image: missing BK7258 config root: %s\n' \
@@ -182,6 +290,18 @@ CP_SDK_BUNDLE_VERSION="$(profile_value_optional "${CP_CONFIG}" \
 AP_SDK_BUNDLE_VERSION="$(profile_value_optional "${AP_CONFIG}" \
     BK7258_PROFILE_SDK_BUNDLE "${BK7258_SDK_BUNDLE_VERSION}")"
 
+if [[ -n "${PRODUCT_ID}" ]]; then
+    LOCK_CP_SDK_BUNDLE_VERSION="$(plan_value "${BUILD_PLAN_SOURCE}" sdk.versions.cp)"
+    LOCK_AP_SDK_BUNDLE_VERSION="$(plan_value "${BUILD_PLAN_SOURCE}" sdk.versions.ap)"
+    if [[ "${CP_SDK_BUNDLE_VERSION}" != "${LOCK_CP_SDK_BUNDLE_VERSION}" ||
+          "${AP_SDK_BUNDLE_VERSION}" != "${LOCK_AP_SDK_BUNDLE_VERSION}" ]]; then
+        printf 'build_dual_image: generated profile SDK differs from lock: CP=%s/%s AP=%s/%s\n' \
+            "${CP_SDK_BUNDLE_VERSION}" "${LOCK_CP_SDK_BUNDLE_VERSION}" \
+            "${AP_SDK_BUNDLE_VERSION}" "${LOCK_AP_SDK_BUNDLE_VERSION}" >&2
+        exit 2
+    fi
+fi
+
 if [[ "${CP_PROFILE_SCHEMA}" != 1 || "${AP_PROFILE_SCHEMA}" != 1 ]]; then
     printf '%s\n' 'build_dual_image: unsupported BK7258 profile schema' >&2
     exit 2
@@ -210,10 +330,13 @@ if [[ "${CP_PROFILE_COMPAT}" != "${AP_PROFILE_COMPAT}" ]]; then
         "${CP_PROFILE_COMPAT}" "${AP_PROFILE_COMPAT}" >&2
     exit 2
 fi
-if [[ "${CP_PROFILE_BOARD}" == aidk_ai_toy &&
-      ("${CP_PROFILE_BOOT}" != mcuboot || "${AP_PROFILE_BOOT}" != mcuboot) ]]; then
-    printf '%s\n' 'build_dual_image: AIDK requires the shared MCUboot A/B boot contract' >&2
-    exit 2
+if [[ -n "${PRODUCT_ID}" ]]; then
+    PLAN_BOOT="$(plan_value "${BUILD_PLAN_SOURCE}" identity_inputs.boot)"
+    if [[ "${CP_PROFILE_BOOT}" != "${PLAN_BOOT}" ]]; then
+        printf 'build_dual_image: product plan/profile boot mismatch: %s/%s\n' \
+            "${PLAN_BOOT}" "${CP_PROFILE_BOOT}" >&2
+        exit 2
+    fi
 fi
 
 for entry in "${CP_CONFIG}:${CP_PROFILE_BOARD}" \
@@ -605,13 +728,12 @@ fi
 # metadata tokens, while the v2 token protects renamed copies.  Do not trigger
 # this board/profile contract from the chip-generic AUD_DAC_EQ feature.
 
+# Suite IDs are canonical resolver inputs.  Keep the compatibility token here
+# because the legacy adapter still checks the resolved profile metadata, but do
+# not reintroduce the retired per-suite config directory names.
+BK7258_AUDIO_DAC_VALIDATION_SUITE=audio_dac
 BK7258_AUDIO_DAC_VALIDATION_COMPAT=t5_board_audio_dac_validation_mcuboot_v2
-BK7258_AUDIO_DAC_VALIDATION_CP=t5_board_cp_audio_dac_validation_mcuboot
-BK7258_AUDIO_DAC_VALIDATION_AP=t5_board_ap_audio_dac_validation_mcuboot
-if [[ "${CP_CONFIG_NAME}" == "${BK7258_AUDIO_DAC_VALIDATION_CP}" ||
-      "${AP_CONFIG_NAME}" == "${BK7258_AUDIO_DAC_VALIDATION_AP}" ||
-      "${CP_PROFILE_COMPAT}" == "${BK7258_AUDIO_DAC_VALIDATION_COMPAT}" ||
-      "${AP_PROFILE_COMPAT}" == "${BK7258_AUDIO_DAC_VALIDATION_COMPAT}" ]]; then
+if [[ "${BK7258_VALIDATION_SUITE}" == "${BK7258_AUDIO_DAC_VALIDATION_SUITE}" ]]; then
     if [[ "${CP_PROFILE_COMPAT}" != "${BK7258_AUDIO_DAC_VALIDATION_COMPAT}" ||
           "${AP_PROFILE_COMPAT}" != "${BK7258_AUDIO_DAC_VALIDATION_COMPAT}" ||
           "${CP_PROFILE_BOARD}" != t5_board ||
@@ -625,7 +747,7 @@ if [[ "${CP_CONFIG_NAME}" == "${BK7258_AUDIO_DAC_VALIDATION_CP}" ||
        ! config_enabled "${AP_CONFIG}" BK7258_AUD_LIFECYCLE_VALIDATION ||
        ! config_enabled "${CP_CONFIG}" BK7258_PM_STANDBY_ONESHOT_VERIFY; then
         printf '%s\n' \
-            'build_dual_image: Audio DAC EQ validation requires the complete v2 MCUboot validation pair' >&2
+            'build_dual_image: audio_dac validation suite requires the complete canonical MCUboot pair' >&2
         exit 2
     fi
 fi
@@ -635,13 +757,9 @@ fi
 # copies.  Keep this board/profile contract independent of the chip-generic
 # JPEG decoder and M2M feature symbols so other boards can reuse the driver.
 
+BK7258_JPEG_M2M_VALIDATION_SUITE=jpeg_m2m
 BK7258_JPEG_M2M_VALIDATION_COMPAT=t5_board_jpeg_m2m_validation_mcuboot_v1
-BK7258_JPEG_M2M_VALIDATION_CP=t5_board_cp_jpeg_m2m_validation_mcuboot
-BK7258_JPEG_M2M_VALIDATION_AP=t5_board_ap_jpeg_m2m_validation_mcuboot
-if [[ "${CP_CONFIG_NAME}" == "${BK7258_JPEG_M2M_VALIDATION_CP}" ||
-      "${AP_CONFIG_NAME}" == "${BK7258_JPEG_M2M_VALIDATION_AP}" ||
-      "${CP_PROFILE_COMPAT}" == "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ||
-      "${AP_PROFILE_COMPAT}" == "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ]]; then
+if [[ "${BK7258_VALIDATION_SUITE}" == "${BK7258_JPEG_M2M_VALIDATION_SUITE}" ]]; then
     if [[ "${CP_PROFILE_COMPAT}" != "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ||
           "${AP_PROFILE_COMPAT}" != "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ||
           "${CP_PROFILE_BOARD}" != t5_board ||
@@ -677,7 +795,7 @@ if [[ "${CP_CONFIG_NAME}" == "${BK7258_JPEG_M2M_VALIDATION_CP}" ||
        ! grep -qx 'CONFIG_BK7258_JPEG_M2M_MAX_INPUT_SIZE=4096' \
            "${AP_CONFIG}/defconfig"; then
         printf '%s\n' \
-            'build_dual_image: JPEG M2M validation requires the complete v1 MCUboot validation pair' >&2
+            'build_dual_image: jpeg_m2m validation suite requires the complete canonical MCUboot pair' >&2
         exit 2
     fi
 
@@ -748,6 +866,149 @@ if ! flock -n "${BK7258_BUILD_LOCK_FD}"; then
     fi
 fi
 
+# Resolve the active partition contract exactly once.  Product builds consume
+# the framework build-plan identity; the classic adapter explicitly selects
+# the historical CSV instead of relying on a Python module default.
+
+PARTITION_LAYOUT_SOURCE_RELATIVE=board/bk7258/partitions/bk7258/auto_partitions.csv
+PARTITION_LAYOUT_SOURCE="${CONTEST_DIR}/${PARTITION_LAYOUT_SOURCE_RELATIVE}"
+PARTITION_LAYOUT_ID=
+PARTITION_LAYOUT_SHA256=
+if [[ -n "${PRODUCT_ID}" ]]; then
+    PARTITION_LAYOUT_SOURCE_RELATIVE="$(plan_value \
+        "${BUILD_PLAN_SOURCE}" partition_layout.source)"
+    PARTITION_LAYOUT_ID="$(plan_value \
+        "${BUILD_PLAN_SOURCE}" partition_layout.layout_id)"
+    PARTITION_LAYOUT_SHA256="$(plan_value \
+        "${BUILD_PLAN_SOURCE}" partition_layout.layout_sha256)"
+    BUILD_PLAN_IDENTITY_SHA256="$(plan_value \
+        "${BUILD_PLAN_SOURCE}" identity_sha256)"
+    if [[ "${PARTITION_LAYOUT_SOURCE_RELATIVE}" == /* ]]; then
+        printf '%s\n' \
+            'build_dual_image: framework partition source must be repository-relative' >&2
+        exit 2
+    fi
+    PARTITION_LAYOUT_SOURCE="$(readlink -f \
+        "${CONTEST_DIR}/${PARTITION_LAYOUT_SOURCE_RELATIVE}")"
+    case "${PARTITION_LAYOUT_SOURCE}" in
+        "${CONTEST_DIR}"/*)
+            ;;
+        *)
+            printf '%s\n' \
+                'build_dual_image: framework partition source escapes the repository' >&2
+            exit 2
+            ;;
+    esac
+fi
+if [[ ! -f "${PARTITION_LAYOUT_SOURCE}" ]]; then
+    printf 'build_dual_image: missing active partition source: %s\n' \
+        "${PARTITION_LAYOUT_SOURCE}" >&2
+    exit 2
+fi
+if [[ -z "${PARTITION_LAYOUT_ID}" ]]; then
+    PARTITION_LAYOUT_ID="$(python3 "${PARTITION_GENERATOR}" \
+        --input "${PARTITION_LAYOUT_SOURCE}" --get layout_id)"
+    PARTITION_LAYOUT_SHA256="$(python3 "${PARTITION_GENERATOR}" \
+        --input "${PARTITION_LAYOUT_SOURCE}" --get layout_sha256)"
+fi
+PARTITION_CONTRACT_ARGS=(
+    --input "${PARTITION_LAYOUT_SOURCE}"
+    --expect-layout-id "${PARTITION_LAYOUT_ID}"
+    --expect-layout-sha256 "${PARTITION_LAYOUT_SHA256}"
+)
+PACK_PARTITION_CONTRACT_ARGS=(
+    --partition "${PARTITION_LAYOUT_SOURCE}"
+    --expect-layout-id "${PARTITION_LAYOUT_ID}"
+    --expect-layout-sha256 "${PARTITION_LAYOUT_SHA256}"
+)
+python3 "${PARTITION_GENERATOR}" \
+    "${PARTITION_CONTRACT_ARGS[@]}" --get layout_id >/dev/null
+export BK7258_PARTITION_LAYOUT_SOURCE="${PARTITION_LAYOUT_SOURCE}"
+export BK7258_PARTITION_LAYOUT_ID="${PARTITION_LAYOUT_ID}"
+export BK7258_PARTITION_LAYOUT_SHA256="${PARTITION_LAYOUT_SHA256}"
+
+# Generated partition artifacts are build inputs, not source-tree state.
+# Keep a distinct include/output tree for every product identity and image
+# role.  The layout hash in the path also makes an incremental invocation
+# select a new tree when the CSV semantics change.
+
+PARTITION_PRODUCT_KEY="${PRODUCT_ID:-${CP_PROFILE_BOARD}-${CP_PROFILE_COMPAT}}"
+PARTITION_PRODUCT_KEY="${PARTITION_PRODUCT_KEY//[^a-zA-Z0-9_.-]/_}"
+PARTITION_CONTRACT_BASE="${TOPDIR}/.cache/bk7258-partition-contract/${PARTITION_PRODUCT_KEY}-${PARTITION_LAYOUT_SHA256:0:16}"
+
+partition_contract_root()
+{
+    case "$1" in
+        bl1|bl2|cp|ap)
+            printf '%s/%s\n' "${PARTITION_CONTRACT_BASE}" "$1"
+            ;;
+        *)
+            printf 'build_dual_image: invalid partition-contract role: %s\n' \
+                "$1" >&2
+            return 2
+            ;;
+    esac
+}
+
+materialize_partition_contract()
+{
+    local role="$1"
+    local contract_root
+    local header
+    local output_dir
+
+    contract_root="$(partition_contract_root "${role}")"
+    header="${contract_root}/include/arch/board/bk7258_partition_layout.h"
+    output_dir="${contract_root}/generated"
+    python3 "${PARTITION_GENERATOR}" \
+        "${PARTITION_CONTRACT_ARGS[@]}" \
+        --header "${header}" --output-dir "${output_dir}"
+    python3 "${PARTITION_GENERATOR}" \
+        "${PARTITION_CONTRACT_ARGS[@]}" \
+        --header "${header}" --output-dir "${output_dir}" --check
+}
+
+partition_query()
+{
+    python3 "${PARTITION_GENERATOR}" \
+        "${PARTITION_CONTRACT_ARGS[@]}" --get "$1"
+}
+
+REQUESTED_BL2_XIP_ADDRESS="${BL2_XIP_ADDRESS:-}"
+REQUESTED_BL2_SECONDARY_XIP_ADDRESS="${BL2_SECONDARY_XIP_ADDRESS:-}"
+BL2_XIP_ADDRESS="$(partition_query bl2.xip_start)"
+BL2_LOGICAL_CAPACITY="$(partition_query bl2.logical_size)"
+BL2_LOGICAL_CAPACITY_BYTES="$((BL2_LOGICAL_CAPACITY))"
+BL2_PHYSICAL_START="$(partition_query bl2.offset)"
+BL2_PHYSICAL_SIZE="$(partition_query bl2.size)"
+BL2_SECONDARY_PHYSICAL_START="$(printf '0x%x' \
+    "$((BL2_PHYSICAL_START + BL2_PHYSICAL_SIZE))")"
+BL2_SECONDARY_PHYSICAL_END="$((
+    BL2_SECONDARY_PHYSICAL_START + BL2_PHYSICAL_SIZE
+))"
+LITTLEFS_PHYSICAL_START="$(partition_query littlefs.offset)"
+if ((BL2_SECONDARY_PHYSICAL_END > LITTLEFS_PHYSICAL_START)); then
+    printf '%s\n' \
+        'build_dual_image: derived secondary BL2 overlaps LittleFS' >&2
+    exit 2
+fi
+BL2_SECONDARY_XIP_ADDRESS="$(printf '0x%x' \
+    "$((BL2_XIP_ADDRESS + BL2_LOGICAL_CAPACITY))")"
+for requested_pair in \
+    "BL2_XIP_ADDRESS:${REQUESTED_BL2_XIP_ADDRESS}:${BL2_XIP_ADDRESS}" \
+    "BL2_SECONDARY_XIP_ADDRESS:${REQUESTED_BL2_SECONDARY_XIP_ADDRESS}:${BL2_SECONDARY_XIP_ADDRESS}"; do
+    IFS=: read -r requested_name requested_value resolved_value \
+        <<< "${requested_pair}"
+    if [[ -n "${requested_value}" ]]; then
+        if ! [[ "${requested_value}" =~ ^(0[xX][0-9a-fA-F]+|[0-9]+)$ ]] ||
+           ((requested_value != resolved_value)); then
+            printf 'build_dual_image: %s=%s disagrees with resolved layout %s\n' \
+                "${requested_name}" "${requested_value}" "${resolved_value}" >&2
+            exit 2
+        fi
+    fi
+done
+
 # MCUboot is an explicit, signed build profile.  Do not silently turn a
 # metadata-declared MCUboot pair into the unsigned raw-image pipeline:
 # the signing key and BL1 authorization key must be supplied from outside the
@@ -761,13 +1022,15 @@ MCUBOOT_SECURITY_COUNTER="${MCUBOOT_SECURITY_COUNTER:-auto}"
 MCUBOOT_OFFICIAL_PIPELINE="${MCUBOOT_OFFICIAL_PIPELINE:-YES}"
 SECUREBOOT_AES_TOOL="${SECUREBOOT_AES_TOOL:-}"
 SECUREBOOT_AES_KEY_FILE="${SECUREBOOT_AES_KEY_FILE:-}"
+SECUREBOOT_STAGING_LAYOUT_SOURCE=none
+SECUREBOOT_STAGING_LAYOUT_SOURCE_RECORD=none
+SECUREBOOT_STAGING_LAYOUT_ID=none
+SECUREBOOT_STAGING_LAYOUT_SHA256=none
 BL1_MANIFEST_KEY="${BL1_MANIFEST_KEY:-}"
 BL1_MANIFEST_FORMAT="${BL1_MANIFEST_FORMAT:-beken-candidate-v1}"
 BL1_MANIFEST_RAW_PAGE="${BL1_MANIFEST_RAW_PAGE:-false}"
 BL2_LOGICAL_SIZE="${BL2_LOGICAL_SIZE:-0x3000}"
 BL2_SECURITY_COUNTER_FLOOR="${BL2_SECURITY_COUNTER_FLOOR:-0}"
-BL2_XIP_ADDRESS="${BL2_XIP_ADDRESS:-0x024d0000}"
-BL2_SECONDARY_XIP_ADDRESS="${BL2_SECONDARY_XIP_ADDRESS:-0x024f0000}"
 BL2_LOAD_ADDRESS="${BL2_LOAD_ADDRESS:-0x28020000}"
 MCUBOOT_BL2_FLASH_SEGMENT=
 case "${BL1_MANIFEST_RAW_PAGE}" in
@@ -787,7 +1050,7 @@ if [[ "${CP_PROFILE_BOOT}" == mcuboot ]]; then
     MCUBOOT_PROFILE=true
     BL1_USE_BL2=1
     TRUST_CHAIN_CONTRACT=bk7258-trust-chain.json
-    MCUBOOT_BL2_FLASH_SEGMENT="bl2_crc.bin@0x51d000,bl2_secondary_crc.bin@0x53f000"
+    MCUBOOT_BL2_FLASH_SEGMENT="bl2_crc.bin@${BL2_PHYSICAL_START},bl2_secondary_crc.bin@${BL2_SECONDARY_PHYSICAL_START}"
     if [[ -z "${MCUBOOT_SIGNING_KEY}" || ! -f "${MCUBOOT_SIGNING_KEY}" ]]; then
         printf '%s\n' \
             'build_dual_image: an MCUboot profile requires an external MCUBOOT_SIGNING_KEY' \
@@ -856,7 +1119,8 @@ if [[ "${CP_PROFILE_BOOT}" == mcuboot ]]; then
 fi
 
 JOBS="${JOBS:-8}"
-OUTPUT="${TOPDIR}/bk7258-dual"
+OUTPUT="${BK7258_OUTPUT_ROOT:-${TOPDIR}/bk7258-dual}"
+validate_output_root "${OUTPUT}"
 SDK_BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
 CP_SDK_BUNDLE_ROOT="${SDK_BUNDLE_BASE}/versions/${CP_SDK_BUNDLE_VERSION}"
 AP_SDK_BUNDLE_ROOT="${SDK_BUNDLE_BASE}/versions/${AP_SDK_BUNDLE_VERSION}"
@@ -869,9 +1133,13 @@ TMPDIR="$(mktemp -d)"
 cleanup()
 {
     rm -rf "${TMPDIR}"
-    cleanup_aidk_profile_root
+    cleanup_profile_root
 }
 trap cleanup EXIT
+
+for partition_role in bl1 bl2 cp ap; do
+    materialize_partition_contract "${partition_role}"
+done
 
 "${SCRIPT_DIR}/setup_bk7258_sdk.sh" --check \
     --version "${CP_SDK_BUNDLE_VERSION}" --role cp
@@ -892,9 +1160,13 @@ AP_SDK_PROVENANCE_SHA256="$(sha256sum "${AP_SDK_PROVENANCE}" | awk '{print $1}')
 build_config()
 {
     local config="$1"
+    local role="$2"
+    local partition_contract_root
     local cleanup_ap_bundle="v3.1.1.9"
     local cleanup_cp_bundle="v3.1.1.9"
     local configured_distclean=false
+
+    partition_contract_root="$(partition_contract_root "${role}")"
 
     # A removed profile can leave NuttX's Make.defs symlink pointing through
     # the now-absent configs/<old-name> directory.  configure.sh -e sees the
@@ -908,7 +1180,8 @@ build_config()
             'build_dual_image: removing stale NuttX config with broken Make.defs'
         rm -f "${TOPDIR}/.config" "${TOPDIR}/defconfig" \
             "${TOPDIR}/Make.defs"
-        "${BUILD}" "${config}" distclean
+        BK7258_PARTITION_CONTRACT_ROOT="${partition_contract_root}" \
+            "${BUILD}" "${config}" distclean
         configured_distclean=true
     fi
 
@@ -925,9 +1198,11 @@ build_config()
         fi
         BK7258_CP_SDK_BUNDLE_VERSION="${cleanup_cp_bundle}" \
         BK7258_AP_SDK_BUNDLE_VERSION="${cleanup_ap_bundle}" \
+        BK7258_PARTITION_CONTRACT_ROOT="${partition_contract_root}" \
             make -C "${TOPDIR}" distclean
     fi
-    "${BUILD}" "${config}" "-j${JOBS}"
+    BK7258_PARTITION_CONTRACT_ROOT="${partition_contract_root}" \
+        "${BUILD}" "${config}" "-j${JOBS}"
 }
 
 save_role()
@@ -947,8 +1222,17 @@ save_role()
 
 printf 'build_dual_image: SDK bundles: CP=%s AP=%s\n' \
     "${CP_SDK_BUNDLE_VERSION}" "${AP_SDK_BUNDLE_VERSION}"
-PARTITION_GENERATE_ARGS=(--check)
+CP_PARTITION_CONTRACT_ROOT="$(partition_contract_root cp)"
+PARTITION_GENERATE_ARGS=(
+    "${PARTITION_CONTRACT_ARGS[@]}"
+    --header "${CP_PARTITION_CONTRACT_ROOT}/include/arch/board/bk7258_partition_layout.h"
+    --output-dir "${CP_PARTITION_CONTRACT_ROOT}/generated"
+    --check
+)
 PARTITION_VERIFY_ARGS=(
+    "${PARTITION_CONTRACT_ARGS[@]}"
+    --header "${CP_PARTITION_CONTRACT_ROOT}/include/arch/board/bk7258_partition_layout.h"
+    --output-dir "${CP_PARTITION_CONTRACT_ROOT}/generated"
     --output "${TMPDIR}/bk7258-partitions.json"
 )
 if [[ -n "${BK7258_SDK_SOURCE:-}" ]]; then
@@ -959,7 +1243,8 @@ python3 "${PARTITION_GENERATOR}" \
     "${PARTITION_GENERATE_ARGS[@]}"
 python3 "${SCRIPT_DIR}/verify_bk7258_partitions.py" \
     "${PARTITION_VERIFY_ARGS[@]}"
-python3 "${SCRIPT_DIR}/verify_bk7258_sdk_partition_wrapper.py"
+python3 "${SCRIPT_DIR}/verify_bk7258_sdk_partition_wrapper.py" \
+    "${PARTITION_CONTRACT_ARGS[@]}"
 printf '%s\n' "build_dual_image: rebuilding Tier-1 bootloader"
 
 # Build the SRAM MCUboot BL2 and its two board-owned BL1 authorization records
@@ -967,6 +1252,10 @@ printf '%s\n' "build_dual_image: rebuilding Tier-1 bootloader"
 # primary and secondary BL2 copies are separate CRC streams in the
 # pre-LittleFS gap.  Neither step writes OTP/eFuse.
 BL1_BOOT_ARGS=(
+    "PARTITION_CONTRACT_ROOT=$(partition_contract_root bl1)"
+    "PARTITION_CSV=${PARTITION_LAYOUT_SOURCE}"
+    "PARTITION_LAYOUT_ID=${PARTITION_LAYOUT_ID}"
+    "PARTITION_LAYOUT_SHA256=${PARTITION_LAYOUT_SHA256}"
     "BL1_MANIFEST_RAW_PAGE=${BL1_MANIFEST_RAW_PAGE_VALUE}"
     "BL1_USE_BL2=${BL1_USE_BL2}"
     "BL1_SWD_ENABLE=${BL1_SWD_ENABLE}"
@@ -994,8 +1283,16 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
         '};' \
         'const int bootutil_key_cnt = 1;' \
         >> "${BL2_KEY_SOURCE}"
-    make -C "${BOARD_DIR}/bootloader/bl2" clean all \
+    BL2_BUILD_ARGS=(
+        "PARTITION_CONTRACT_ROOT=$(partition_contract_root bl2)" \
+        "PARTITION_CSV=${PARTITION_LAYOUT_SOURCE}" \
+        "PARTITION_LAYOUT_ID=${PARTITION_LAYOUT_ID}" \
+        "PARTITION_LAYOUT_SHA256=${PARTITION_LAYOUT_SHA256}" \
         "BL2_LOGICAL_SIZE=${BL2_LOGICAL_SIZE}" \
+        "BL2_LOGICAL_CAPACITY=${BL2_LOGICAL_CAPACITY}" \
+        "BL2_LOGICAL_CAPACITY_BYTES=${BL2_LOGICAL_CAPACITY_BYTES}" \
+        "BL2_XIP_BASE=${BL2_XIP_ADDRESS}" \
+        "BL2_EXECUTION_BASE=${BL2_LOAD_ADDRESS}" \
         "BL2_SECURITY_COUNTER_FLOOR=${BL2_SECURITY_COUNTER_FLOOR}" \
         "BL2_SWD_ENABLE=${BL1_SWD_ENABLE}" \
         "BL2_SWD_PIN_GROUP=${BL1_SWD_PIN_GROUP}" \
@@ -1003,6 +1300,9 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
         "BL2_SWD_BOOT_HOLD=${BL1_SWD_BOOT_HOLD}" \
         "BL2_CONSOLE_UART=${BL1_CONSOLE_UART}" \
         "BL2_KEY_SOURCE=${BL2_KEY_SOURCE}"
+    )
+    make -C "${BOARD_DIR}/bootloader/bl2" clean "${BL2_BUILD_ARGS[@]}"
+    make -C "${BOARD_DIR}/bootloader/bl2" "-j${JOBS}" all "${BL2_BUILD_ARGS[@]}"
     BL1_MANIFEST_CONTAINER_ARGS=()
     if [[ "${BL1_MANIFEST_RAW_PAGE}" == "true" ]]; then
         BL1_MANIFEST_CONTAINER_ARGS+=(--container-size 0x1000)
@@ -1012,8 +1312,13 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
         --bl2 "${BOARD_DIR}/bootloader/bl2/bl2.bin" \
         --private-key "${BL1_MANIFEST_KEY}" \
         --generated-root-c "${TMPDIR}/boot_bl1_manifest_key.c" \
+        --partition-csv "${PARTITION_LAYOUT_SOURCE}" \
+        --expect-layout-id "${PARTITION_LAYOUT_ID}" \
+        --expect-layout-sha256 "${PARTITION_LAYOUT_SHA256}" \
+        --bl2-slot primary \
         --bl2-xip "${BL2_XIP_ADDRESS}" \
         --bl2-size "${BL2_LOGICAL_SIZE}" \
+        --bl2-capacity "${BL2_LOGICAL_CAPACITY}" \
         --bl2-load "${BL2_LOAD_ADDRESS}" \
         "${BL1_MANIFEST_CONTAINER_ARGS[@]}" \
         --out "${TMPDIR}/bl1-manifest-primary.bin"
@@ -1022,8 +1327,13 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
         --bl2 "${BOARD_DIR}/bootloader/bl2/bl2.bin" \
         --private-key "${BL1_MANIFEST_KEY}" \
         --generated-root-c "${TMPDIR}/boot_bl1_manifest_key.c" \
+        --partition-csv "${PARTITION_LAYOUT_SOURCE}" \
+        --expect-layout-id "${PARTITION_LAYOUT_ID}" \
+        --expect-layout-sha256 "${PARTITION_LAYOUT_SHA256}" \
+        --bl2-slot secondary \
         --bl2-xip "${BL2_SECONDARY_XIP_ADDRESS}" \
         --bl2-size "${BL2_LOGICAL_SIZE}" \
+        --bl2-capacity "${BL2_LOGICAL_CAPACITY}" \
         --bl2-load "${BL2_LOAD_ADDRESS}" \
         "${BL1_MANIFEST_CONTAINER_ARGS[@]}" \
         --out "${TMPDIR}/bl1-manifest-secondary.bin"
@@ -1038,9 +1348,8 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
 else
     BL1_BOOT_ARGS+=("BL1_SWD_BOOT_HOLD=${BL1_SWD_BOOT_HOLD}")
 fi
-BOOT_MAKE_TARGETS=(clean all verify)
-make -C "${BOARD_DIR}/bootloader" "${BOOT_MAKE_TARGETS[@]}" \
-    "${BL1_BOOT_ARGS[@]}"
+make -C "${BOARD_DIR}/bootloader" clean "${BL1_BOOT_ARGS[@]}"
+make -C "${BOARD_DIR}/bootloader" "-j${JOBS}" all verify "${BL1_BOOT_ARGS[@]}"
 cp "${BOARD_DIR}/bootloader/bl.elf" "${TMPDIR}/bootloader.elf"
 cp "${BOARD_DIR}/bootloader/bl.bin" "${TMPDIR}/bootloader.bin"
 cp "${BOARD_DIR}/bootloader/bl.map" "${TMPDIR}/bootloader.map"
@@ -1067,16 +1376,16 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
 fi
 
 printf 'build_dual_image: building CPU0/CP (%s)\n' "${CP_CONFIG_NAME}"
-build_config "${CP_CONFIG}"
+build_config "${CP_CONFIG}" cp
 save_role cp app.bin app_crc.bin
 
 printf 'build_dual_image: building physical CPU1/AP (%s)\n' \
     "${AP_CONFIG_NAME}"
-build_config "${AP_CONFIG}"
+build_config "${AP_CONFIG}" ap
 save_role ap app1.bin app1_crc.bin
 
 printf '%s\n' "build_dual_image: restoring CPU0/CP build tree"
-build_config "${CP_CONFIG}"
+build_config "${CP_CONFIG}" cp
 
 # The restored CP build is authoritative for both the normal build tree and
 # the dual-image package.  Overwrite the first CP snapshot so app.bin,
@@ -1085,11 +1394,46 @@ build_config "${CP_CONFIG}"
 
 save_role cp app.bin app_crc.bin
 
+# The materializer's expanded profile is only a compatibility input.  Bind
+# the archived, post-Kconfig configs back to the immutable product plan before
+# any signing or packaging stage.  This is a parity check, not a claim that
+# the legacy backend is an isolated canonical executor.
+if [[ -n "${PRODUCT_ID}" ]]; then
+    for role in cp ap; do
+        config_copy="${TMPDIR}/nuttx-${role}.config"
+        expected_board="${CP_PROFILE_BOARD}"
+        expected_boot="${CP_PROFILE_BOOT}"
+        if ! grep -qx "CONFIG_BK7258_BOARD_${expected_board^^}=y" "${config_copy}" &&
+           [[ "${expected_board}" != t5ai_core ]]; then
+            printf 'build_dual_image: expanded %s config lacks product board selector\n' \
+                "${role}" >&2
+            exit 2
+        fi
+        if [[ "${expected_boot}" == mcuboot ]] &&
+           ! grep -qx 'CONFIG_BK7258_MCUBOOT_IMAGE=y' "${config_copy}"; then
+            printf 'build_dual_image: expanded %s config lacks MCUboot selector\n' \
+                "${role}" >&2
+            exit 2
+        fi
+        if [[ "${expected_boot}" == raw ]] &&
+           grep -qx 'CONFIG_BK7258_MCUBOOT_IMAGE=y' "${config_copy}"; then
+            printf 'build_dual_image: expanded %s raw config still enables MCUboot\n' \
+                "${role}" >&2
+            exit 2
+        fi
+        if ! grep -q '^CONFIG_BASE_DEFCONFIG=' "${config_copy}"; then
+            printf 'build_dual_image: expanded %s config lost product provenance\n' \
+                "${role}" >&2
+            exit 2
+        fi
+    done
+fi
+
 # Materialized product profiles are intentionally temporary.  Preserve the
 # logical product/role identity in the archived resolved configurations
 # instead of publishing an already-deleted host /tmp path.
 
-if [[ -n "${AIDK_PRODUCT_ID}" ]]; then
+if [[ -n "${PRODUCT_ID}" ]]; then
     for role in cp ap; do
         config_copy="${TMPDIR}/nuttx-${role}.config"
         if ! grep -q '^CONFIG_BASE_DEFCONFIG=' "${config_copy}"; then
@@ -1098,8 +1442,14 @@ if [[ -n "${AIDK_PRODUCT_ID}" ]]; then
             exit 2
         fi
         sed -i \
-            "s|^CONFIG_BASE_DEFCONFIG=.*|CONFIG_BASE_DEFCONFIG=\"bk7258-product:${AIDK_PRODUCT_ID}:${role}\"|" \
+            "s|^CONFIG_BASE_DEFCONFIG=.*|CONFIG_BASE_DEFCONFIG=\"bk7258-product:${PRODUCT_ID}:${role}\"|" \
             "${config_copy}"
+        if ! grep -qx "CONFIG_BASE_DEFCONFIG=\"bk7258-product:${PRODUCT_ID}:${role}\"" \
+             "${config_copy}"; then
+            printf 'build_dual_image: %s config product provenance rewrite failed\n' \
+                "${role}" >&2
+            exit 2
+        fi
     done
 fi
 
@@ -1108,10 +1458,7 @@ fi
 # non-default override; bind the contract to the resolved CP configuration as
 # well so a future Kconfig-default change fails before signing or packaging.
 
-if [[ "${CP_CONFIG_NAME}" == "${BK7258_JPEG_M2M_VALIDATION_CP}" ||
-      "${AP_CONFIG_NAME}" == "${BK7258_JPEG_M2M_VALIDATION_AP}" ||
-      "${CP_PROFILE_COMPAT}" == "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ||
-      "${AP_PROFILE_COMPAT}" == "${BK7258_JPEG_M2M_VALIDATION_COMPAT}" ]]; then
+if [[ "${BK7258_VALIDATION_SUITE}" == "${BK7258_JPEG_M2M_VALIDATION_SUITE}" ]]; then
     for symbol in BK7258_SWD_DEBUG BK7258_SWD_PINS_P0_P1 \
                   BK7258_SWD_TARGET_CP BK7258_SWD_BOOT_HOLD; do
         if ! grep -qx "CONFIG_${symbol}=y" \
@@ -1131,6 +1478,7 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     cp "${TMPDIR}/app1_crc.bin" "${TMPDIR}/ap-raw-crc.bin"
     MCUBOOT_PAIR_OUTPUT="${TMPDIR}/mcuboot-pair"
     python3 "${SCRIPT_DIR}/pack_bk7258_mcuboot_pair.py" \
+        "${PACK_PARTITION_CONTRACT_ARGS[@]}" \
         --cp-raw "${TMPDIR}/cp-raw.bin" \
         --ap-raw "${TMPDIR}/ap-raw.bin" \
         --key "${MCUBOOT_SIGNING_KEY}" \
@@ -1152,12 +1500,28 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
                 --aes-key-file "${SECUREBOOT_AES_KEY_FILE}"
             )
         fi
+        SECUREBOOT_STAGING_LAYOUT_SOURCE_RELATIVE=board/bk7258/partitions/bk7258/secureboot_xip_cp_ap.csv
+        SECUREBOOT_STAGING_LAYOUT_SOURCE_RECORD="${SECUREBOOT_STAGING_LAYOUT_SOURCE_RELATIVE}"
+        SECUREBOOT_STAGING_LAYOUT_SOURCE="${CONTEST_DIR}/${SECUREBOOT_STAGING_LAYOUT_SOURCE_RELATIVE}"
+        SECUREBOOT_STAGING_LAYOUT_ID="$(python3 "${PARTITION_GENERATOR}" \
+            --input "${SECUREBOOT_STAGING_LAYOUT_SOURCE}" --get layout_id)"
+        SECUREBOOT_STAGING_LAYOUT_SHA256="$(python3 "${PARTITION_GENERATOR}" \
+            --input "${SECUREBOOT_STAGING_LAYOUT_SOURCE}" --get layout_sha256)"
+        if [[ "${SECUREBOOT_STAGING_LAYOUT_ID}" == "${PARTITION_LAYOUT_ID}" ]]; then
+            printf '%s\n' \
+                'build_dual_image: secureboot host-reference layout must be distinct from the active layout' >&2
+            exit 2
+        fi
         python3 "${SCRIPT_DIR}/pack_bk7258_secureboot.py" \
             --cp-raw "${TMPDIR}/cp-raw.bin" \
             --ap-raw "${TMPDIR}/ap-raw.bin" \
             --key "${MCUBOOT_SIGNING_KEY}" \
             --imgtool "${WORKSPACE}/apps/boot/mcuboot/mcuboot/scripts/imgtool.py" \
             --output "${SECUREBOOT_PIPELINE_OUTPUT}" \
+            --partition-csv "${SECUREBOOT_STAGING_LAYOUT_SOURCE}" \
+            --partition-source-record "${SECUREBOOT_STAGING_LAYOUT_SOURCE_RECORD}" \
+            --expect-layout-id "${SECUREBOOT_STAGING_LAYOUT_ID}" \
+            --expect-layout-sha256 "${SECUREBOOT_STAGING_LAYOUT_SHA256}" \
             --version "${MCUBOOT_VERSION}" \
             --security-counter "${MCUBOOT_SECURITY_COUNTER}" \
             "${SECUREBOOT_AES_ARGS[@]}" \
@@ -1165,7 +1529,6 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     fi
 fi
 
-rm -rf "${OUTPUT}"
 mkdir -p "${OUTPUT}"
 cp "${TMPDIR}"/nuttx-*.elf "${OUTPUT}/"
 cp "${TMPDIR}"/nuttx-*.config "${OUTPUT}/"
@@ -1173,6 +1536,9 @@ cp "${TMPDIR}"/bootloader.elf "${OUTPUT}/"
 cp "${TMPDIR}"/bootloader.bin "${OUTPUT}/"
 cp "${TMPDIR}"/bootloader.map "${OUTPUT}/"
 cp "${TMPDIR}/bk7258-partitions.json" "${OUTPUT}/"
+if [[ "${BUILD_PLAN_SOURCE}" != none ]]; then
+    cp "${BUILD_PLAN_SOURCE}" "${OUTPUT}/${BUILD_PLAN_FILE_RECORD}"
+fi
 for map in "${TMPDIR}"/nuttx-*.map; do
     if [ -f "${map}" ]; then
         cp "${map}" "${OUTPUT}/"
@@ -1447,6 +1813,7 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
 fi
 
 PACK_DUAL_ARGS=(
+    "${PACK_PARTITION_CONTRACT_ARGS[@]}"
     --boot "${BOARD_DIR}/bootloader/bl_crc.bin"
     --cp-raw "${TMPDIR}/app.bin"
     --cp-standard "${CP_STANDARD_IMAGE}"
@@ -1481,6 +1848,7 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
 fi
 
 python3 "${SCRIPT_DIR}/verify_bk7258_factory_layout.py" \
+    "${PACK_PARTITION_CONTRACT_ARGS[@]}" \
     --package "${OUTPUT}" \
     --json "${OUTPUT}/bk7258-factory-layout.json"
 
@@ -1497,14 +1865,14 @@ AP_PROFILE_METADATA_RECORD="${AP_CONFIG}/profile.conf"
 PROFILE_MATERIALIZER=none
 CP_PROFILE_SEED=none
 AP_PROFILE_SEED=none
-if [[ -n "${AIDK_PRODUCT_ID}" ]]; then
-    CP_CONFIG_RECORD="bk7258-product:${AIDK_PRODUCT_ID}:cp"
-    AP_CONFIG_RECORD="bk7258-product:${AIDK_PRODUCT_ID}:ap"
+if [[ -n "${PRODUCT_ID}" ]]; then
+    CP_CONFIG_RECORD="bk7258-product:${PRODUCT_ID}:cp"
+    AP_CONFIG_RECORD="bk7258-product:${PRODUCT_ID}:ap"
     CP_PROFILE_METADATA_RECORD="generated:${CP_PROFILE_COMPAT}:cp"
     AP_PROFILE_METADATA_RECORD="generated:${AP_PROFILE_COMPAT}:ap"
-    PROFILE_MATERIALIZER=board/bk7258/scripts/materialize_aidk_profiles.py
-    CP_PROFILE_SEED=board/bk7258/configs/t5ai_core_cp_mcuboot
-    AP_PROFILE_SEED=board/bk7258/configs/t5ai_core_ap_mcuboot
+    PROFILE_MATERIALIZER=board/bk7258/scripts/materialize_product_profiles.py
+    CP_PROFILE_SEED="$(plan_value "${BUILD_PLAN_SOURCE}" legacy_adapter.seed_profiles.cp.source)"
+    AP_PROFILE_SEED="$(plan_value "${BUILD_PLAN_SOURCE}" legacy_adapter.seed_profiles.ap.source)"
 fi
 
 cat > "${OUTPUT}/build-profile.txt" <<EOF
@@ -1523,6 +1891,19 @@ AP_PROFILE_METADATA=${AP_PROFILE_METADATA_RECORD}
 PROFILE_MATERIALIZER=${PROFILE_MATERIALIZER}
 CP_PROFILE_SEED=${CP_PROFILE_SEED}
 AP_PROFILE_SEED=${AP_PROFILE_SEED}
+PARTITION_LAYOUT_SOURCE=${PARTITION_LAYOUT_SOURCE_RELATIVE}
+PARTITION_LAYOUT_ID=${PARTITION_LAYOUT_ID}
+PARTITION_LAYOUT_SHA256=${PARTITION_LAYOUT_SHA256}
+BUILD_PLAN_FILE=${BUILD_PLAN_FILE_RECORD}
+BUILD_PLAN_IDENTITY_SHA256=${BUILD_PLAN_IDENTITY_SHA256}
+VALIDATION_SUITE=${BK7258_VALIDATION_SUITE:-none}
+VALIDATION_SUITE_CATALOG_IDENTITY_SHA256=${VALIDATION_SUITE_CATALOG_IDENTITY}
+MATERIALIZED_PROFILE_IDENTITY_SHA256=${MATERIALIZED_PROFILE_IDENTITY_SHA256}
+SECUREBOOT_STAGING_LAYOUT_KIND=host-reference-only
+SECUREBOOT_STAGING_LAYOUT_ACTIVE=false
+SECUREBOOT_STAGING_LAYOUT_SOURCE=${SECUREBOOT_STAGING_LAYOUT_SOURCE_RECORD}
+SECUREBOOT_STAGING_LAYOUT_ID=${SECUREBOOT_STAGING_LAYOUT_ID}
+SECUREBOOT_STAGING_LAYOUT_SHA256=${SECUREBOOT_STAGING_LAYOUT_SHA256}
 BK7258_SDK_BUNDLE_VERSION=${SDK_BUNDLE_SUMMARY}
 CP_SDK_BUNDLE_VERSION=${CP_SDK_BUNDLE_VERSION}
 AP_SDK_BUNDLE_VERSION=${AP_SDK_BUNDLE_VERSION}
@@ -1567,13 +1948,13 @@ BL2_LOAD_ADDRESS=${BL2_LOAD_ADDRESS}
 BL2_FLASH_SEGMENT=${MCUBOOT_BL2_FLASH_SEGMENT}
 EOF
 
-if [[ -n "${AIDK_PRODUCT_ID}" ]] &&
+if [[ -n "${PRODUCT_ID}" ]] &&
    grep -Eq '(^|=)/tmp/|bk7258-aidk-profiles\.' \
        "${OUTPUT}/build-profile.txt" \
        "${OUTPUT}/nuttx-cp.config" \
        "${OUTPUT}/nuttx-ap.config"; then
     printf '%s\n' \
-        'build_dual_image: AIDK package metadata contains temporary profile paths' \
+        'build_dual_image: product package metadata contains temporary profile paths' \
         >&2
     exit 2
 fi
@@ -1588,6 +1969,7 @@ if [[ "${MCUBOOT_PROFILE}" == "true" &&
     printf '%s\n' "build_dual_image: creating payload-bearing firmware.bkpack"
     python3 "${BKPACK_TOOL}" create \
         --source "${OUTPUT}" \
+        --partition "${PARTITION_LAYOUT_SOURCE}" \
         --output "${OUTPUT}/firmware.bkpack"
     printf '%s\n' "build_dual_image: verifying payload-bearing firmware.bkpack"
     python3 "${BKPACK_TOOL}" verify \
@@ -1606,6 +1988,9 @@ cp "${OUTPUT}/app.bin" "${TOPDIR}/app.bin"
 cp "${OUTPUT}/app_crc.bin" "${TOPDIR}/app_crc.bin"
 cp "${OUTPUT}/app1.bin" "${TOPDIR}/app1.bin"
 cp "${OUTPUT}/app1_crc.bin" "${TOPDIR}/app1_crc.bin"
+cp "${OUTPUT}/vela_nuttx_cp.bin" "${TOPDIR}/vela_nuttx_cp.bin"
+cp "${OUTPUT}/vela_nuttx_ap.bin" "${TOPDIR}/vela_nuttx_ap.bin"
+cp "${OUTPUT}/vela_nuttx_manifest.json" "${TOPDIR}/vela_nuttx_manifest.json"
 cp "${OUTPUT}/bk7258-dual-image.json" "${TOPDIR}/"
 if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     cp "${OUTPUT}/bk7258-trust-chain.json" "${TOPDIR}/"
@@ -1622,6 +2007,7 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
         "build_dual_image: skipping unused SDK wrapper ELF check for MCUboot"
 else
     python3 "${SCRIPT_DIR}/verify_bk7258_sdk_partition_wrapper.py" \
+        "${PARTITION_CONTRACT_ARGS[@]}" \
         --elf "${OUTPUT}/nuttx-cp.elf" \
         --map "${OUTPUT}/nuttx-cp.map" \
         --output "${OUTPUT}/bk7258-sdk-partition-wrapper.json"
@@ -1629,6 +2015,7 @@ fi
 
 if config_enabled "${CP_CONFIG}" BK7258_RPTUN; then
     python3 "${SCRIPT_DIR}/verify_bk7258_rptun_layout.py" \
+        "${PARTITION_CONTRACT_ARGS[@]}" \
         --cp-elf "${OUTPUT}/nuttx-cp.elf" \
         --cp-map "${OUTPUT}/nuttx-cp.map" \
         --ap-elf "${OUTPUT}/nuttx-ap.elf" \
@@ -1636,8 +2023,7 @@ if config_enabled "${CP_CONFIG}" BK7258_RPTUN; then
         --json "${OUTPUT}/bk7258-rptun-layout.json"
 fi
 
-if [[ "${CP_PROFILE_COMPAT}" == \
-      t5ai_core_psram_validation_raw_v1 ]]; then
+if [[ "${BK7258_VALIDATION_SUITE}" == psram ]]; then
     BLE_VERIFY_IDENTITY_ARGS=()
     BLE_VERIFY_IDENTITY_ARGS+=(
         --expected-device-name "BK7258 N14"
@@ -1708,7 +2094,7 @@ printf '%s\n' "  use the offset-length segments in bk7258-dual-image.json"
 printf '%s\n' "build_dual_image: destructive factory rewrite requires fresh owner authorization"
 printf '%s\n' "build_dual_image: factory ranges preserve usr_config/reserved/tail"
 printf '  all-app-factory.bin@%s-%s + littlefs_factory_clear.bin@%s-%s\n' \
-    "$(python3 "${PARTITION_GENERATOR}" --get boot.offset)" \
-    "$(python3 "${PARTITION_GENERATOR}" --get slot_b_pair.end)" \
-    "$(python3 "${PARTITION_GENERATOR}" --get littlefs.offset)" \
-    "$(python3 "${PARTITION_GENERATOR}" --get littlefs.size)"
+    "$(partition_query boot.offset)" \
+    "$(partition_query slot_b_pair.end)" \
+    "$(partition_query littlefs.offset)" \
+    "$(partition_query littlefs.size)"

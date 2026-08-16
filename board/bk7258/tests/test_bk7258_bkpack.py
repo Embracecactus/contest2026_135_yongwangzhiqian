@@ -30,11 +30,24 @@ class BkpackTest(unittest.TestCase):
         self.assertEqual(schema["schema"], "bk7258.bkpack/1")
         self.assertEqual(schema["strict"]["apps_plan"],
                          "exactly-one-named-plan-per-package")
+        self.assertEqual(schema["strict"]["flash_plan_layout"],
+                         "layout-id-and-sha256-bound")
+        self.assertEqual(schema["strict"]["legacy_raw_flash"],
+                         "fail-closed-without-verified-layout-contract")
+        self.assertEqual(schema["strict"]["partition_layout_member"],
+                         "bk7258-partition-layout.csv")
+        self.assertIn("source_sha256", schema["properties"]["partition"]["required"])
         package = pack_prepare(REPOSITORY, "t5ai_core_bringup")
         self.assertIs(validate_bkpack(package), package)
         self.assertFalse(package["hardware_verified"])
         self.assertIsNone(package["signed_digest"])
         self.assertEqual(len(package["apps_plan"]["roles"]), 2)
+        self.assertEqual(package["apps_plan"]["artifacts"], [
+            "libarch.a", "libboard.a",
+            "vela_nuttx_cp.bin", "vela_nuttx_ap.bin",
+        ])
+        self.assertEqual(schema["strict"]["standard_artifact_manifest"],
+                         "vela_nuttx_manifest.json")
 
     def test_factory_has_separate_kind_and_plan(self) -> None:
         package = pack_prepare(REPOSITORY, "t5ai_core_bringup", kind="factory")

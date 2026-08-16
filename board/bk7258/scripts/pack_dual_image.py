@@ -29,6 +29,8 @@ from bk7258_ab_layout import (
     ERASE_SIZE,
     FACTORY_PREFIX_END,
     LAYOUT_ID,
+    LAYOUT_INPUT,
+    LAYOUT_SHA256,
     LITTLEFS_SIZE,
     LITTLEFS_START,
     MIGRATION_WRITE_END,
@@ -37,6 +39,7 @@ from bk7258_ab_layout import (
     USR_CONFIG_SIZE,
     USR_CONFIG_START,
     report as layout_report,
+    verify_contract as verify_partition_contract,
 )
 from bk7258_trust_chain import (
     TrustChainError,
@@ -83,9 +86,10 @@ def copy_named(path: Path, output: Path, name: str) -> Path:
 
 
 STANDARD_ALIAS_SOURCES = {
-    "vela_cp.bin": "cp-raw.bin",
-    "vela_ap.bin": "ap-raw.bin",
+    "vela_nuttx_cp.bin": "cp-raw.bin",
+    "vela_nuttx_ap.bin": "ap-raw.bin",
 }
+STANDARD_MANIFEST = "vela_nuttx_manifest.json"
 
 
 def _standard_alias_entry(output: Path, alias: str, source_name: str) -> dict[str, object]:
@@ -129,8 +133,11 @@ def _standard_alias_entry(output: Path, alias: str, source_name: str) -> dict[st
 def materialize_standard_artifacts(output: Path) -> dict[str, object]:
     """Create role-qualified openvela image aliases.
 
-    ``libarch.a`` and ``libboards.a`` remain normal NuttX build archives and
-    are not deployable package payloads.  BL1/BL2 remain Beken boot-chain
+    ``libarch.a`` and the normalized selected ``libboard.a`` remain normal
+    NuttX build archives and are not deployable package payloads.  Classic
+    Make also creates an internal generic ``libboards.a``; CMake folds those
+    objects into ``libboard.a``, so it is not a cross-backend artifact.
+    BL1/BL2 remain Beken boot-chain
     artifacts; they are deliberately not labelled as openvela outputs here.
     """
 
@@ -138,6 +145,27 @@ def materialize_standard_artifacts(output: Path) -> dict[str, object]:
         alias: _standard_alias_entry(output, alias, source)
         for alias, source in STANDARD_ALIAS_SOURCES.items()
     }
+    manifest = {
+        "schema": "openvela.nuttx-artifacts/1",
+        "version": 1,
+        "dual_core": True,
+        "generic_alias": None,
+        "roles": {
+            role: {
+                "source_file": entry["source_file"],
+                "alias": entry["file"],
+                "sha256": entry["sha256"],
+                "size": entry["length"],
+                "byte_exact": True,
+            }
+            for role, alias in (("cp", "vela_nuttx_cp.bin"),
+                                ("ap", "vela_nuttx_ap.bin"))
+            for entry in (artifacts[alias],)
+        },
+    }
+    (output / STANDARD_MANIFEST).write_bytes(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    )
     return {
         "status": "generated",
         "version": 1,
@@ -180,6 +208,36 @@ def verify_standard_artifacts(output: Path, document: object) -> None:
                 raise TrustChainError(f"standard artifact bytes drift: {alias}")
         except OSError as error:
             raise TrustChainError(f"cannot read standard artifact {alias}: {error}") from error
+    manifest_path = output / STANDARD_MANIFEST
+    if not manifest_path.is_file() or manifest_path.is_symlink():
+        raise TrustChainError("standard artifact manifest is missing")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise TrustChainError("standard artifact manifest is invalid") from error
+    if (not isinstance(manifest, dict) or
+            manifest.get("schema") != "openvela.nuttx-artifacts/1" or
+            manifest.get("version") != 1 or
+            manifest.get("dual_core") is not True or
+            manifest.get("generic_alias") is not None):
+        raise TrustChainError("standard artifact manifest contract is invalid")
+    roles = manifest.get("roles")
+    expected_roles = {
+        "cp": "vela_nuttx_cp.bin",
+        "ap": "vela_nuttx_ap.bin",
+    }
+    if not isinstance(roles, dict) or set(roles) != set(expected_roles):
+        raise TrustChainError("standard artifact manifest roles are incomplete")
+    for role, alias in expected_roles.items():
+        entry = roles[role]
+        source_name = STANDARD_ALIAS_SOURCES[alias]
+        if (not isinstance(entry, dict) or
+                set(entry) != {"source_file", "alias", "sha256", "size", "byte_exact"} or
+                entry["source_file"] != source_name or entry["alias"] != alias or
+                entry["sha256"] != sha256(output / alias) or
+                entry["size"] != (output / alias).stat().st_size or
+                entry["byte_exact"] is not True):
+            raise TrustChainError(f"standard artifact manifest mapping drift: {role}")
 
 
 def stage_trust_bundle(
@@ -266,6 +324,9 @@ def main() -> None:
     parser.add_argument("--bl2-primary-crc", type=Path)
     parser.add_argument("--bl2-secondary-crc", type=Path)
     parser.add_argument("--trust-chain", type=Path)
+    parser.add_argument("--partition", type=Path, default=LAYOUT_INPUT)
+    parser.add_argument("--expect-layout-id")
+    parser.add_argument("--expect-layout-sha256")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -293,7 +354,9 @@ def main() -> None:
         if path is not None and not path.is_file():
             raise SystemExit(f"missing input: {path}")
 
-    layout_report()
+    verify_partition_contract(
+        args.partition, args.expect_layout_id, args.expect_layout_sha256
+    )
     if args.boot.stat().st_size != BOOT_SIZE:
         raise SystemExit(f"bl_crc.bin must be exactly 0x{BOOT_SIZE:x} bytes")
     cp_flash_size = align_up(args.cp_crc.stat().st_size, ERASE_SIZE)
@@ -393,6 +456,7 @@ def main() -> None:
     manifest = {
         "format": 2,
         "layout_id": LAYOUT_ID,
+        "layout_sha256": LAYOUT_SHA256,
         "layout": layout_report(),
         "logical_layout": {
             "cp_app": [CP_XIP_START, CP_XIP_START + CP_XIP_SIZE],

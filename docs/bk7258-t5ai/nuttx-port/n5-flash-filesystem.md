@@ -245,9 +245,10 @@ N5FS:D5 OK
 
 **新增文件**：
 
-- `board/bk7258/chip/cp/bk7258_flash_mtd.h` — 暴露 `bk7258_flash_mtd_initialize()`
+- `board/bk7258/src/bk7258_flash_mtd.h` — 暴露 `bk7258_flash_mtd_initialize()`
   及（gated）`bk7258_flash_mtd_selftest()`。
-- `board/bk7258/chip/cp/bk7258_flash_mtd.c` — `struct mtd_dev_s` 实现。
+- `board/bk7258/src/bk7258_flash_mtd.c` — board-owned `struct mtd_dev_s`
+  分区组合实现。
 
 **MTD 接口**：
 

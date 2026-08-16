@@ -1,0 +1,1 @@
+{"id":"board_t5_board","kind":"config-fragment","requires":["common_base"],"schema":"bk7258.composition/1","scope":"board","symbols":{"CONFIG_BK7258_BOARD_T5_BOARD":"y"}}

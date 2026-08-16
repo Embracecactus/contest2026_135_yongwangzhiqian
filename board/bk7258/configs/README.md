@@ -37,97 +37,67 @@ CP/AP combinations before compiling.  CI-only profiles additionally require
 `BK7258_ALLOW_CI_PROFILE=YES`, so they cannot be mistaken for a board-runnable
 image.
 
-## Retained profiles
+## Retained seed profiles
 
-### T5AI-Core
+Only these three profile directories are retained as compatibility seeds:
 
-| Purpose | CP | AP | Boot/class |
-|---|---|---|---|
-| normal base | `t5ai_core_cp_base` | `t5ai_core_ap_base` | raw, runnable |
-| signed base | `t5ai_core_cp_mcuboot` | `t5ai_core_ap_mcuboot` | MCUboot, runnable |
-| PSRAM/SMP/BLE regression | `t5ai_core_cp_psram_validation` | `t5ai_core_ap_psram_validation` | raw, validation |
-| Wi-Fi | `t5ai_core_cp_wifi` | `t5ai_core_ap_wifi` | raw, runnable |
+| Profile | Role | Purpose |
+|---|---|---|
+| `bl2_mcuboot` | standalone BL2 | Common minimal MCUboot BL2 infrastructure seed |
+| `t5ai_core_cp_base` | CP | T5AI-Core raw bring-up seed |
+| `t5ai_core_ap_base` | AP | T5AI-Core raw bring-up seed |
 
-### T5-Board
+They are inputs to canonical product resolution, not a 27-entry application
+matrix.  Do not add per-feature or per-validation defconfigs; use a product
+fragment or validation suite instead.
 
-| Purpose | CP | AP | Boot/class |
-|---|---|---|---|
-| normal application | `t5_board_cp_app_mcuboot` | `t5_board_ap_app_mcuboot` | MCUboot, runnable |
-| camera smoke validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_camera_validation_mcuboot` | MCUboot, validation |
-| camera/H.264 application | `t5_board_cp_app_mcuboot` | `t5_board_ap_camera_h264_mcuboot` | MCUboot, validation |
-| PWM validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_pwm_validation_mcuboot` | MCUboot, validation |
-| TF 1-bit, UART0 download route retained | `t5_board_cp_app_mcuboot` | `t5_board_ap_tf_1bit_validation_mcuboot` | MCUboot, validation |
-| TF 4-bit exclusive-route validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_tf_4bit_validation_mcuboot` | MCUboot, validation |
-| on-die temperature validation | `t5_board_cp_app_mcuboot` | `t5_board_ap_temperature_validation_mcuboot` | MCUboot, validation |
-| speaker DAC + private hardware-EQ zero-bank register lifecycle and one-shot standby validation | `t5_board_cp_audio_dac_validation_mcuboot` | `t5_board_ap_audio_dac_validation_mcuboot` | MCUboot, validation |
-| SARADC ADC-key lifecycle validation | `t5_board_cp_saradc_key_validation_mcuboot` | `t5_board_ap_saradc_key_validation_mcuboot` | MCUboot, interactive validation |
-| JPEG-to-YUYV V4L2 M2M bounded USERPTR board validation | `t5_board_cp_jpeg_m2m_validation_mcuboot` | `t5_board_ap_jpeg_m2m_validation_mcuboot` | MCUboot, validation |
-| Wi-Fi | `t5_board_cp_wifi_mcuboot` | `t5_board_ap_wifi_mcuboot` | MCUboot, runnable |
-| compile-only driver coverage | `t5_board_cp_drivercheck` | `t5_board_ap_drivercheck` | raw, CI only |
+## Canonical products, fragments, and suites
 
-`bl2_mcuboot` is the single common standalone NuttX BL2 infrastructure
-profile and is not a CP/AP peer.  The signed dual-image pipeline builds the
-board-owned minimal BL2 through `bootloader/bl2/Makefile`; it does not pair
-this standalone defconfig with a physical-board application profile.
+New builds are product-first.  Resolve them with
+`board/bk7258/scripts/bk7258_framework.py` and execute the isolated contract
+with `board/bk7258/scripts/bk7258_isolated_executor.py`.
 
-The TF profiles reflect physical switch ownership, not two different SDIO
-drivers.  The one-bit profile works with S1-1/S1-2 ON and retains the CH342F
-UART0 download route.  Before running the four-bit profile, set S1-1/S1-2
-OFF; U3 must remain NC/DNP.  S1-3/S1-4 and P0/P1 SWD are independent of TF
-width, so J-Link plus RTT may remain enabled with those two log-UART switches
-OFF.  Both validation images use an already formatted FAT card and remove
-only their uniquely created test file; they never format media.  P6 has no
-verified insertion edge on the tested T5-Board, so both are fixed-media
-profiles with `MMCSD_HAVE_CARDDETECT=n`: insert the card before reset and keep
-it inserted for both validation cycles.
+| Product | Board/boot | Base fragments | Role fragments | Retained seed mapping |
+|---|---|---|---|---|
+| `t5ai_core_bringup` | `t5ai_core` / raw | `common_base`, `board_t5ai_core`, `boot_raw` | `role_cp`, `role_ap`, `role_bl2` | CP/AP base and `bl2_mcuboot` |
+| `t5_board_bringup` | `t5_board` / MCUboot AB | `common_base`, `board_t5_board`, `boot_mcuboot_ab` | `role_cp`, `role_ap`, `role_bl2` | `bl2_mcuboot` only |
+| `aidk_ai_toy_bringup` | `aidk_ai_toy` / MCUboot AB | `common_base`, `board_aidk_ai_toy`, `boot_mcuboot_ab` | `role_cp`, `role_ap`, `role_bl2` | none; fully composed |
 
-Do not switch S1-1/S1-2 ON while the four-bit image is actively using SDIO.
-For a later COM3 download, first reset into the existing BL2 hold, then switch
-S1-1/S1-2 ON and download.  After the loader returns to BL2 hold, switch both
-OFF again before releasing the hold through P0/P1 SWD.
+Canonical validation suites are resolved as product fragments rather than
+profile directories:
 
-The SARADC key profile reserves P12 exclusively as ADC14.  UART0 remains a
-two-wire console/download path on P10/P11; UART0 flow control, USB0, touch
-channel 0 and the digital GPIO button owner are excluded.  After boot, leave
-SW5 released for the baseline, press and hold it when prompted, then release
-it for the final phase.  A released-only trace proves the controller/IPC path
-but is not a physical key validation pass.
+- `t5ai_core_bringup`: `psram` (`validation_psram`);
+- `t5_board_bringup`: `audio_dac`, `jpeg_m2m`, `saradc_key`, `temperature`,
+  `camera`, `camera_h264`, `pwm`, `tf_1bit`, `tf_4bit`, `driver_coverage`, and
+  `wifi` (each uses the matching `validation_*` fragment).
 
-The default v3.1.1.9 AP SDK bundle was compiled without its private
-`CONFIG_SDCARD_BUSWIDTH_4LINE` option and remains the one-bit implementation.
-The four-bit profile binds `v3.1.1.9-sdio4`; its data helper is fixed at four
-lines, so the lower half reports `SDIO_CAPS_4BIT_ONLY` and NuttX sends ACMD6
-before the first data transfer (SCR).  The build rejects either bundle when
-paired with the opposite profile instead of silently running at the wrong
-width.
-
-Stage reports and evidence records may still name retired `cp_nsh_*` or
-`ap_smp_*` snapshots because those names identify the exact historical image
-that produced the evidence.  They are not current build instructions; use the
-table above for new builds.
+The authoritative product and fragment documents are the
+`bk7258_product_catalog_*.json`, `bk7258_fragment_catalog_*.json`, and
+`bk7258_validation_suite_catalog.json` files beside the framework.  The
+validation suite catalog is the source for feature symbols and resource
+requirements; it does not claim hardware PASS by itself.
 
 ## Usage
 
-Check a pair without compiling or requiring signing keys:
+Resolve a canonical product without compiling or requiring signing keys:
 
 ```sh
-BK7258_PROFILE_CHECK_ONLY=YES \
-CP_CONFIG_NAME=t5ai_core_cp_base \
-AP_CONFIG_NAME=t5ai_core_ap_base \
-./board/bk7258/scripts/build_dual_image.sh
+python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+  --product t5ai_core_bringup \
+  --out /tmp/bk7258-t5ai-core-build-plan.json
 ```
 
-Build the raw T5AI-Core base pair:
+Prepare the canonical isolated four-role contract:
 
 ```sh
-CP_CONFIG_NAME=t5ai_core_cp_base \
-AP_CONFIG_NAME=t5ai_core_ap_base \
-./board/bk7258/scripts/build_dual_image.sh
+python3 board/bk7258/scripts/bk7258_isolated_executor.py prepare \
+  --product t5ai_core_bringup \
+  --build-root /tmp/bk7258-t5ai-core-build \
+  --out /tmp/bk7258-t5ai-core-build/execution.json
 ```
 
-The physical build path serializes access to the shared openvela `nuttx/` and
-`apps/` trees.  A second dual-image build waits on the workspace lock instead
-of replacing generated configuration or artifacts underneath the first.
+The legacy `build_dual_image.sh` adapter remains a compatibility path only;
+do not use old profile-pair commands as the canonical product interface.
 
 MCUboot profiles require the external signing and BL1 manifest keys already
 required by the secure-build pipeline.  Do not store those private keys in

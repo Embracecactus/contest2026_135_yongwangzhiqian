@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import struct
 import sys
 from dataclasses import asdict, dataclass
@@ -17,6 +18,19 @@ from gen_bk7258_partitions import DEFAULT_INPUT, load_layout
 
 
 LAYOUT = load_layout(DEFAULT_INPUT)
+EXPECTED_LAYOUT_ID = os.environ.get("BK7258_PARTITION_LAYOUT_ID") or None
+EXPECTED_LAYOUT_SHA256 = os.environ.get("BK7258_PARTITION_LAYOUT_SHA256") or None
+if (EXPECTED_LAYOUT_ID is None) != (EXPECTED_LAYOUT_SHA256 is None):
+    raise RuntimeError("partition layout ID and SHA-256 must be exported together")
+if EXPECTED_LAYOUT_ID is not None and (
+    LAYOUT.layout_id != EXPECTED_LAYOUT_ID
+    or LAYOUT.layout_sha256 != EXPECTED_LAYOUT_SHA256
+):
+    raise RuntimeError(
+        "bootloader partition identity mismatch: "
+        f"expected={EXPECTED_LAYOUT_ID}/{EXPECTED_LAYOUT_SHA256} "
+        f"observed={LAYOUT.layout_id}/{LAYOUT.layout_sha256}"
+    )
 BOOT_PARTITION = LAYOUT.by_role("boot")
 MAGIC = b'BK7236\x10\x00'
 MAGIC_LOGICAL_OFFSET = 0x100
@@ -36,6 +50,8 @@ DEFAULT_OUT = Path('/home/lijian/project/TuyaOpen/zephyr-bk7258-port/out/custom_
 @dataclass
 class BootloaderInfo:
     layout_id: str
+    layout_sha256: str
+    layout_source: str
     input_size: int
     logical_size: int
     physical_size: int
@@ -155,6 +171,8 @@ def build_image(args: argparse.Namespace) -> BootloaderInfo:
 
     info = BootloaderInfo(
         layout_id=LAYOUT.layout_id,
+        layout_sha256=LAYOUT.layout_sha256,
+        layout_source=str(LAYOUT.report()["source"]),
         input_size=input_size,
         logical_size=len(raw),
         physical_size=len(encoded),

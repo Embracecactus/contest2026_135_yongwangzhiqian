@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 from gen_bk7258_partitions import (
+    DEFAULT_HEADER,
     DEFAULT_INPUT,
     DEFAULT_OUTPUT_DIR,
     PartitionLayout,
@@ -51,9 +52,26 @@ def expect_rejected(root: Path, name: str, content: str) -> str:
     raise VerificationError(f"unsafe fixture was accepted: {name}")
 
 
-def verify(sdk_source: Path | None = None) -> dict[str, object]:
-    baseline = load_layout(DEFAULT_INPUT)
-    stale = sync_generated(baseline, DEFAULT_OUTPUT_DIR, True)
+def verify(
+    sdk_source: Path | None = None,
+    input_path: Path = DEFAULT_INPUT,
+    expected_id: str | None = None,
+    expected_sha256: str | None = None,
+    output_dir: Path = DEFAULT_OUTPUT_DIR,
+    header_path: Path = DEFAULT_HEADER,
+) -> dict[str, object]:
+    baseline = load_layout(input_path)
+    require(
+        (expected_id is None) == (expected_sha256 is None),
+        "expected layout ID and SHA-256 must be supplied together",
+    )
+    if expected_id is not None:
+        require(
+            baseline.layout_id == expected_id
+            and baseline.layout_sha256 == expected_sha256,
+            "resolved partition layout identity mismatch",
+        )
+    stale = sync_generated(baseline, output_dir, True, header_path)
     require(not stale, f"generated artifacts are stale: {stale!r}")
     outputs = generated_contents(baseline)
     require(
@@ -89,7 +107,7 @@ def verify(sdk_source: Path | None = None) -> dict[str, object]:
         "generated C header omits the pinned SDK partition ABI",
     )
 
-    source = DEFAULT_INPUT.read_text(encoding="utf-8")
+    source = input_path.read_text(encoding="utf-8")
     negative: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="bk7258-partition-tests-") as temp:
         root = Path(temp)
@@ -221,6 +239,7 @@ def verify(sdk_source: Path | None = None) -> dict[str, object]:
     return {
         "format": 1,
         "status": "pass",
+        "source": baseline.report()["source"],
         "layout_id": baseline.layout_id,
         "layout_sha256": baseline.layout_sha256,
         "partition_count": len(baseline.partitions),
@@ -240,7 +259,12 @@ def verify(sdk_source: Path | None = None) -> dict[str, object]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
+    parser.add_argument("--expect-layout-id")
+    parser.add_argument("--expect-layout-sha256")
     parser.add_argument("--sdk-source", type=Path)
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--header", type=Path, default=DEFAULT_HEADER)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--json", action="store_true")
     return parser.parse_args()
@@ -249,7 +273,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        result = verify(args.sdk_source)
+        result = verify(
+            args.sdk_source,
+            args.input,
+            args.expect_layout_id,
+            args.expect_layout_sha256,
+            args.output_dir,
+            args.header,
+        )
     except (VerificationError, PartitionLayoutError, OSError, ValueError) as error:
         print(f"FAIL bk7258-partitions: {error}")
         return 1

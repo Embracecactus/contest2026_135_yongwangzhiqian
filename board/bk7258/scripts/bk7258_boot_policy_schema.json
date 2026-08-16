@@ -1,0 +1,599 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema": "bk7258.boot-policy/1",
+  "kind": "boot-policy-schema",
+  "version": 1,
+  "title": "BK7258 product boot policy metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "version",
+    "policy_id",
+    "product",
+    "family",
+    "board",
+    "catalog",
+    "boot",
+    "bl2_image_logical_size",
+    "active_roles",
+    "metadata_only",
+    "executor_authoritative",
+    "integration_status",
+    "integration_blocked_until",
+    "mechanism",
+    "manifest",
+    "debug_io",
+    "version_policy",
+    "layout_binding",
+    "bl2_geometry",
+    "credentials",
+    "permissions",
+    "executor",
+    "identity_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "bk7258.boot-policy/1"},
+    "kind": {"const": "product-boot-policy"},
+    "version": {"const": 1},
+    "policy_id": {"$ref": "#/$defs/identifier"},
+    "product": {"$ref": "#/$defs/identifier"},
+    "family": {"$ref": "#/$defs/identifier"},
+    "board": {"$ref": "#/$defs/identifier"},
+    "catalog": {"$ref": "#/$defs/repository_path"},
+    "boot": {"enum": ["raw", "mcuboot"]},
+    "bl2_image_logical_size": {
+      "oneOf": [
+        {"type": "integer", "const": 12288},
+        {"type": "null"}
+      ]
+    },
+    "active_roles": {"$ref": "#/$defs/active_roles"},
+    "metadata_only": {"const": true},
+    "executor_authoritative": {"const": false},
+    "integration_status": {"const": "BLOCKED"},
+    "integration_blocked_until": {"const": "plan/profile-reconciliation"},
+    "mechanism": {"oneOf": [
+      {"$ref": "#/$defs/mcuboot_mechanism"},
+      {"$ref": "#/$defs/raw_mechanism"}
+    ]},
+    "manifest": {"oneOf": [
+      {"$ref": "#/$defs/mcuboot_manifest"},
+      {"$ref": "#/$defs/raw_manifest"}
+    ]},
+    "debug_io": {"$ref": "#/$defs/debug_io"},
+    "version_policy": {"oneOf": [
+      {"$ref": "#/$defs/mcuboot_version_policy"},
+      {"$ref": "#/$defs/raw_version_policy"}
+    ]},
+    "layout_binding": {"$ref": "#/$defs/layout_binding"},
+    "bl2_geometry": {"oneOf": [
+      {"$ref": "#/$defs/mcuboot_geometry"},
+      {"$ref": "#/$defs/raw_geometry"}
+    ]},
+    "credentials": {"oneOf": [
+      {"$ref": "#/$defs/mcuboot_credentials"},
+      {"$ref": "#/$defs/raw_credentials"}
+    ]},
+    "permissions": {"oneOf": [
+      {"$ref": "#/$defs/mcuboot_permissions"},
+      {"$ref": "#/$defs/raw_permissions"}
+    ]},
+    "executor": {"$ref": "#/$defs/executor"},
+    "identity_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {"oneOf": [
+      {"$ref": "#/$defs/aidk_profile"},
+      {"$ref": "#/$defs/t5ai_profile"},
+      {"$ref": "#/$defs/t5_board_profile"}
+    ]},
+    {"if": {"properties": {"boot": {"const": "mcuboot"}}},
+     "then": {"properties": {
+       "active_roles": {"const": ["bl1", "bl2", "cp", "ap"]}
+     }},
+     "else": {"properties": {
+       "active_roles": {"const": ["bl1", "cp", "ap"]}
+     }}},
+    {"if": {"properties": {"boot": {"const": "mcuboot"}}},
+     "then": {"properties": {
+       "bl2_image_logical_size": {"const": 12288}
+     }},
+     "else": {"properties": {
+       "bl2_image_logical_size": {"type": "null"}
+     }}}
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "repository_path": {
+      "type": "string",
+      "pattern": "^[^/\\\\\\x00.][^/\\\\\\x00]*?(?:/[^/\\\\\\x00.][^/\\\\\\x00]*)*$"
+    },
+    "string_list": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "active_roles": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 4,
+      "items": {"enum": ["bl1", "bl2", "cp", "ap"]},
+      "uniqueItems": true
+    },
+    "mcuboot_mechanism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application_format", "mcuboot", "bl1", "bl2"],
+      "properties": {
+        "application_format": {"const": "mcuboot"},
+        "mcuboot": {"$ref": "#/$defs/mcuboot_mechanism_entry"},
+        "bl1": {"$ref": "#/$defs/mcuboot_bl1_entry"},
+        "bl2": {"$ref": "#/$defs/mcuboot_bl2_entry"}
+      }
+    },
+    "raw_mechanism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application_format", "mcuboot", "bl1", "bl2"],
+      "properties": {
+        "application_format": {"const": "raw"},
+        "mcuboot": {"$ref": "#/$defs/raw_mcuboot_entry"},
+        "bl1": {"$ref": "#/$defs/raw_bl1_entry"},
+        "bl2": {"$ref": "#/$defs/raw_bl2_entry"}
+      }
+    },
+    "mcuboot_mechanism_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "cp_ap_pair", "loader"],
+      "properties": {
+        "enabled": {"const": true},
+        "cp_ap_pair": {"const": true},
+        "loader": {"const": "bl2"}
+      }
+    },
+    "mcuboot_bl1_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "handoff"],
+      "properties": {"enabled": {"const": true}, "handoff": {"const": "bl2"}}
+    },
+    "mcuboot_bl2_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "loader", "role"],
+      "properties": {
+        "enabled": {"const": true},
+        "loader": {"const": "mcuboot"},
+        "role": {"const": "bl2"}
+      }
+    },
+    "raw_mcuboot_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "cp_ap_pair", "loader"],
+      "properties": {
+        "enabled": {"const": false},
+        "cp_ap_pair": {"const": false},
+        "loader": {"const": "none"}
+      }
+    },
+    "raw_bl1_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "handoff"],
+      "properties": {"enabled": {"const": true}, "handoff": {"const": "direct-image"}}
+    },
+    "raw_bl2_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "loader", "role"],
+      "properties": {
+        "enabled": {"const": false},
+        "loader": {"const": "not-used"},
+        "role": {"const": "not-applicable"}
+      }
+    },
+    "mcuboot_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enforce", "format", "records", "raw_page", "source"],
+      "properties": {
+        "enforce": {"const": true},
+        "format": {"const": "beken-candidate-v1"},
+        "records": {"const": "primary-secondary"},
+        "raw_page": {"const": false},
+        "source": {"type": "string", "minLength": 1}
+      }
+    },
+    "raw_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enforce", "format", "records", "raw_page", "source"],
+      "properties": {
+        "enforce": {"const": false},
+        "format": {"const": "none"},
+        "records": {"const": "none"},
+        "raw_page": {"const": false},
+        "source": {"type": "string", "minLength": 1}
+      }
+    },
+    "serial_console": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "kind", "uart", "baud", "data_bits", "parity", "stop_bits", "flow_control", "rts_reset", "port_strategy", "port_identity", "loader_console_exclusive"],
+      "properties": {
+        "source": {"const": "resolved-profile"},
+        "kind": {"const": "uart"},
+        "uart": {"enum": ["uart0", "uart1", "uart2"]},
+        "baud": {"type": "integer", "minimum": 1},
+        "data_bits": {"const": 8},
+        "parity": {"const": "none"},
+        "stop_bits": {"const": 1},
+        "flow_control": {"const": false},
+        "rts_reset": {"const": false},
+        "port_strategy": {"type": "string", "minLength": 1},
+        "port_identity": {"type": "string", "minLength": 1},
+        "loader_console_exclusive": {"const": true}
+      }
+    },
+    "rtt_console": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "kind", "uart", "baud", "data_bits", "parity", "stop_bits", "flow_control", "rts_reset", "port_strategy", "port_identity", "loader_console_exclusive"],
+      "properties": {
+        "source": {"const": "resolved-profile"},
+        "kind": {"const": "rtt"},
+        "uart": {"type": "null"},
+        "baud": {"type": "null"},
+        "data_bits": {"type": "null"},
+        "parity": {"type": "null"},
+        "stop_bits": {"type": "null"},
+        "flow_control": {"const": false},
+        "rts_reset": {"const": false},
+        "port_strategy": {"const": "swd-rtt"},
+        "port_identity": {"const": "swd-session"},
+        "loader_console_exclusive": {"const": true}
+      }
+    },
+    "loader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transport", "download", "uart", "baud", "tool", "requires_swd", "rts_reset", "dtr_reset", "shared_port"],
+      "properties": {
+        "transport": {"enum": ["com-uart", "uart", "serial-uart"]},
+        "download": {"enum": ["serial-uart", "bkfil"]},
+        "uart": {"enum": ["uart0", "uart1", "uart2"]},
+        "baud": {"type": "integer", "minimum": 1},
+        "tool": {"const": "BKFIL/bk_loader"},
+        "requires_swd": {"const": false},
+        "rts_reset": {"const": false},
+        "dtr_reset": {"const": false},
+        "shared_port": {"const": false}
+      }
+    },
+    "swd_disabled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "enabled", "pin_group", "target", "stages", "stage_holds"],
+      "properties": {
+        "source": {"const": "resolved-profile"},
+        "enabled": {"const": false},
+        "pin_group": {"const": "none"},
+        "target": {"const": "none"},
+        "stages": {"const": []},
+        "stage_holds": {"const": {}}
+      }
+    },
+    "swd_t5_board": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "enabled", "pin_group", "target", "stages", "stage_holds"],
+      "properties": {
+        "source": {"const": "resolved-profile"},
+        "enabled": {"const": true},
+        "pin_group": {"const": "p0_p1"},
+        "target": {"const": "cp"},
+        "stages": {"const": ["bl1", "bl2", "cp"]},
+        "stage_holds": {"const": {"bl1": false, "bl2": true, "cp": true}}
+      }
+    },
+    "debug_io": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["swd", "console", "loader"],
+      "properties": {
+        "swd": {"oneOf": [
+          {"$ref": "#/$defs/swd_disabled"},
+          {"$ref": "#/$defs/swd_t5_board"}
+        ]},
+        "console": {"oneOf": [
+          {"$ref": "#/$defs/serial_console"},
+          {"$ref": "#/$defs/rtt_console"}
+        ]},
+        "loader": {"$ref": "#/$defs/loader"}
+      }
+    },
+    "version_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "source", "format", "pair_rule", "monotonic"],
+      "properties": {
+        "state": {"enum": ["required", "not-applicable", "policy-default", "forbidden"]},
+        "source": {"type": "string", "minLength": 1},
+        "format": {"type": "string", "minLength": 1},
+        "pair_rule": {"type": "string", "minLength": 1},
+        "monotonic": {"type": "string", "minLength": 1}
+      }
+    },
+    "version_default": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "source", "format", "default", "monotonic"],
+      "properties": {
+        "state": {"enum": ["required", "not-applicable", "policy-default", "forbidden"]},
+        "source": {"type": "string", "minLength": 1},
+        "format": {"type": "string", "minLength": 1},
+        "default": {"type": ["integer", "null"], "minimum": 0},
+        "monotonic": {"type": "string", "minLength": 1}
+      }
+    },
+    "counter_floor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "source", "format", "default", "otp_write"],
+      "properties": {
+        "state": {"enum": ["required", "not-applicable", "policy-default", "forbidden"]},
+        "source": {"type": "string", "minLength": 1},
+        "format": {"type": "string", "minLength": 1},
+        "default": {"type": ["integer", "null"], "minimum": 0},
+        "otp_write": {"const": false}
+      }
+    },
+    "mcuboot_version_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application_version", "security_counter", "bl1_manifest_version", "bl2_security_counter_floor"],
+      "properties": {
+        "application_version": {"allOf": [{"$ref": "#/$defs/version_item"}, {"properties": {"state": {"const": "required"}, "source": {"const": "user-authorized"}, "pair_rule": {"const": "cp-ap-equal"}, "monotonic": {"const": "non-decreasing"}}}]},
+        "security_counter": {"allOf": [{"$ref": "#/$defs/version_item"}, {"properties": {"state": {"const": "required"}, "source": {"const": "user-authorized"}, "pair_rule": {"const": "cp-ap-equal"}, "monotonic": {"const": "non-decreasing"}}}]},
+        "bl1_manifest_version": {"allOf": [{"$ref": "#/$defs/version_default"}, {"properties": {"state": {"const": "required"}, "default": {"const": 5}}}]},
+        "bl2_security_counter_floor": {"allOf": [{"$ref": "#/$defs/counter_floor"}, {"properties": {"state": {"const": "policy-default"}, "default": {"const": 0}}}]}
+      }
+    },
+    "raw_version_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application_version", "security_counter", "bl1_manifest_version", "bl2_security_counter_floor"],
+      "properties": {
+        "application_version": {"allOf": [{"$ref": "#/$defs/version_item"}, {"properties": {"state": {"const": "not-applicable"}}}]},
+        "security_counter": {"allOf": [{"$ref": "#/$defs/version_item"}, {"properties": {"state": {"const": "not-applicable"}}}]},
+        "bl1_manifest_version": {"allOf": [{"$ref": "#/$defs/version_default"}, {"properties": {"state": {"const": "not-applicable"}, "default": {"type": "null"}}}]},
+        "bl2_security_counter_floor": {"allOf": [{"$ref": "#/$defs/counter_floor"}, {"properties": {"state": {"const": "not-applicable"}, "default": {"type": "null"}}}]}
+      }
+    },
+    "layout_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "layout_id", "layout_sha256"],
+      "properties": {
+        "source": {"const": "product.partition_layout"},
+        "layout_id": {"const": "product.partition_layout.layout_id"},
+        "layout_sha256": {"const": "product.partition_layout.layout_sha256"}
+      }
+    },
+    "mcuboot_geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "source", "layout_ref", "primary", "secondary"],
+      "properties": {
+        "required": {"const": true},
+        "source": {"const": "resolved-layout"},
+        "layout_ref": {"const": "build_plan.partition_layout"},
+        "primary": {"$ref": "#/$defs/geometry_primary"},
+        "secondary": {"$ref": "#/$defs/geometry_secondary"}
+      }
+    },
+    "raw_geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "source", "layout_ref", "primary", "secondary"],
+      "properties": {
+        "required": {"const": false},
+        "source": {"const": "not-applicable"},
+        "layout_ref": {"const": "not-applicable"},
+        "primary": {"type": "null"},
+        "secondary": {"type": "null"}
+      }
+    },
+    "geometry_primary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "physical_start", "physical_size", "xip_start", "logical_size"],
+      "properties": {
+        "role": {"const": "bl2"},
+        "physical_start": {"const": "offset"},
+        "physical_size": {"const": "size"},
+        "xip_start": {"const": "xip_start"},
+        "logical_size": {"const": "logical_size"}
+      }
+    },
+    "geometry_secondary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["physical_start", "physical_size", "xip_start", "logical_size", "boundary_role", "boundary", "same_capacity_as"],
+      "properties": {
+        "physical_start": {"const": "primary.offset + primary.size"},
+        "physical_size": {"const": "primary.size"},
+        "xip_start": {"const": "primary.xip_start + primary.logical_size"},
+        "logical_size": {"const": "primary.logical_size"},
+        "boundary_role": {"const": "littlefs"},
+        "boundary": {"const": "offset"},
+        "same_capacity_as": {"const": "primary.logical_size"}
+      }
+    },
+    "credential": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "purpose", "required_for", "supply", "state"],
+      "properties": {
+        "id": {"enum": ["bk7258-mcuboot-signing", "bk7258-bl1-manifest-signing"]},
+        "kind": {"const": "private-signing-key"},
+        "purpose": {"enum": ["sign-cp-ap", "authorize-bl2"]},
+        "required_for": {"const": ["sign"]},
+        "supply": {"const": "external-user-authorized"},
+        "state": {"const": "required"}
+      }
+    },
+    "mcuboot_credentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "read_private_material", "required", "optional"],
+      "properties": {
+        "policy": {"const": "identifier-only-external-supply"},
+        "read_private_material": {"const": false},
+        "required": {"type": "array", "items": {"$ref": "#/$defs/credential"}, "minItems": 2, "maxItems": 2, "uniqueItems": true},
+        "optional": {"const": []}
+      }
+    },
+    "raw_credentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "read_private_material", "required", "optional"],
+      "properties": {
+        "policy": {"const": "identifier-only-external-supply"},
+        "read_private_material": {"const": false},
+        "required": {"const": []},
+        "optional": {"const": []}
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resolve", "prepare", "materialize", "compile", "sign", "package", "flash", "hardware", "network", "key_read"],
+      "properties": {
+        "resolve": {"const": "allow"},
+        "prepare": {"const": "allow"},
+        "materialize": {"const": "allow"},
+        "compile": {"const": "requires-user-authorization"},
+        "sign": {"enum": ["forbidden", "requires-user-authorization"]},
+        "package": {"const": "requires-user-authorization"},
+        "flash": {"const": "forbidden"},
+        "hardware": {"const": "forbidden"},
+        "network": {"const": "forbidden"},
+        "key_read": {"const": "forbidden"}
+      }
+    },
+    "mcuboot_permissions": {
+      "allOf": [
+        {"$ref": "#/$defs/permissions"},
+        {"properties": {"sign": {"const": "requires-user-authorization"}}}
+      ]
+    },
+    "raw_permissions": {
+      "allOf": [
+        {"$ref": "#/$defs/permissions"},
+        {"properties": {"sign": {"const": "forbidden"}}}
+      ]
+    },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interface_version", "input_kind", "selection", "layout_resolution", "geometry_output", "preauthorization_side_effects", "authorization_fields", "no_key_paths", "authority", "integration_status", "blocked_until"],
+      "properties": {
+        "interface_version": {"const": 1},
+        "input_kind": {"const": "resolved-isolated-build-plan"},
+        "selection": {"const": "exact-product-id"},
+        "layout_resolution": {"const": "build_plan.partition_layout"},
+        "geometry_output": {"const": "resolved-from-layout"},
+        "preauthorization_side_effects": {"const": "none"},
+        "authorization_fields": {"$ref": "#/$defs/string_list"},
+        "no_key_paths": {"const": true},
+        "authority": {"const": "not-executor-authoritative"},
+        "integration_status": {"const": "BLOCKED"},
+        "blocked_until": {"const": "plan/profile-reconciliation"}
+      }
+    },
+    "aidk_profile": {
+      "type": "object",
+      "properties": {
+        "product": {"const": "aidk_ai_toy_bringup"},
+        "family": {"const": "aidk_ai_toy"},
+        "board": {"const": "aidk_ai_toy"},
+        "boot": {"const": "mcuboot"},
+        "debug_io": {"$ref": "#/$defs/aidk_debug_io"}
+      }
+    },
+    "t5ai_profile": {
+      "type": "object",
+      "properties": {
+        "product": {"const": "t5ai_core_bringup"},
+        "family": {"const": "t5ai_core"},
+        "board": {"const": "t5ai_core"},
+        "boot": {"const": "raw"},
+        "debug_io": {"$ref": "#/$defs/t5ai_debug_io"}
+      }
+    },
+    "t5_board_profile": {
+      "type": "object",
+      "properties": {
+        "product": {"const": "t5_board_bringup"},
+        "family": {"const": "t5_board"},
+        "board": {"const": "t5_board"},
+        "boot": {"const": "mcuboot"},
+        "debug_io": {"$ref": "#/$defs/t5_board_debug_io"}
+      }
+    },
+    "aidk_debug_io": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["swd", "console", "loader"],
+      "properties": {
+        "swd": {"$ref": "#/$defs/swd_disabled"},
+        "console": {"allOf": [{"$ref": "#/$defs/serial_console"}, {"properties": {"uart": {"const": "uart0"}, "baud": {"const": 115200}, "port_strategy": {"const": "dynamic-usb-serial"}, "port_identity": {"const": "non-persistent"}}}]},
+        "loader": {"allOf": [{"$ref": "#/$defs/loader"}, {"properties": {"transport": {"const": "com-uart"}, "download": {"const": "serial-uart"}, "uart": {"const": "uart0"}, "baud": {"const": 115200}}}]}
+      }
+    },
+    "t5ai_debug_io": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["swd", "console", "loader"],
+      "properties": {
+        "swd": {"$ref": "#/$defs/swd_disabled"},
+        "console": {"allOf": [{"$ref": "#/$defs/serial_console"}, {"properties": {"uart": {"const": "uart1"}, "baud": {"const": 460800}, "port_strategy": {"const": "board-uart"}, "port_identity": {"const": "board-local"}}}]},
+        "loader": {"allOf": [{"$ref": "#/$defs/loader"}, {"properties": {"transport": {"const": "serial-uart"}, "download": {"const": "bkfil"}, "uart": {"const": "uart0"}}}]}
+      }
+    },
+    "t5_board_debug_io": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["swd", "console", "loader"],
+      "properties": {
+        "swd": {"$ref": "#/$defs/swd_t5_board"},
+        "console": {"$ref": "#/$defs/rtt_console"},
+        "loader": {"allOf": [{"$ref": "#/$defs/loader"}, {"properties": {"transport": {"const": "serial-uart"}, "download": {"const": "bkfil"}, "uart": {"const": "uart0"}}}]}
+      }
+    }
+  },
+  "strict": {
+    "duplicate_keys": "reject",
+    "unknown_keys": "reject",
+    "missing_fields": "reject",
+    "identity": "sha256-canonical-document-without-identity_sha256",
+    "fail_closed": "invalid-or-unresolved-policy-blocks-execution",
+    "geometry": "resolved-layout-only-no-literals",
+    "credentials": "ids-and-requirements-only-no-key-paths-or-key-reads",
+    "side_effects": "metadata-validation-only",
+    "authority": "metadata-only-not-executor-authoritative",
+    "integration": "BLOCKED-until-plan/profile-reconciliation"
+  }
+}

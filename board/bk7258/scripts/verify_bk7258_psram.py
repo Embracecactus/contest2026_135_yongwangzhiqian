@@ -10,6 +10,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import bk7258_framework as composition
+
 class VerificationError(RuntimeError):
     """Raised when an N14 build gate is not satisfied."""
 
@@ -123,10 +125,17 @@ def parse_u32_macros(text: str, names: set[str]) -> dict[str, int]:
 
 
 def verify_profiles(board: Path) -> dict[str, object]:
-    cp_name = "t5ai_core_cp_psram_validation"
-    ap_name = "t5ai_core_ap_psram_validation"
-    cp_config = read_text(board / f"configs/{cp_name}/defconfig")
-    ap_config = read_text(board / f"configs/{ap_name}/defconfig")
+    repository = board.parents[1]
+    cp_name = "t5ai_core_bringup/psram/cp"
+    ap_name = "t5ai_core_bringup/psram/ap"
+    cp_ir = composition.resolve_validation_suite(
+        repository, "t5ai_core_bringup", "psram", "cp"
+    )
+    ap_ir = composition.resolve_validation_suite(
+        repository, "t5ai_core_bringup", "psram", "ap"
+    )
+    cp_config = composition.config_document(cp_ir)["defconfig"]
+    ap_config = composition.config_document(ap_ir)["defconfig"]
     cp_required = [
         "CONFIG_BK7258_AP_AUTOSTART_TIMEOUT_MS=60000",
         "CONFIG_BK7258_PSRAM=y",
@@ -149,9 +158,17 @@ def verify_profiles(board: Path) -> dict[str, object]:
                 f"{name} selects T5-Board instead of default T5AI-Core"
             )
 
-    compat = "t5ai_core_psram_validation_raw_v1"
-    for name, role in ((cp_name, "cp"), (ap_name, "ap")):
-        metadata = read_text(board / f"configs/{name}/profile.conf")
+    compat = "suite_psram_raw_v1"
+    for name, role, ir in ((cp_name, "cp", cp_ir), (ap_name, "ap", ap_ir)):
+        inputs = ir["inputs"]
+        metadata = "\n".join([
+            "BK7258_PROFILE_SCHEMA=1",
+            f"BK7258_PROFILE_BOARD={inputs['board']}",
+            f"BK7258_PROFILE_ROLE={role}",
+            f"BK7258_PROFILE_BOOT={inputs['boot']}",
+            "BK7258_PROFILE_CLASS=validation",
+            f"BK7258_PROFILE_COMPAT={compat}",
+        ]) + "\n"
         require_tokens(
             metadata,
             [
@@ -450,7 +467,9 @@ def verify_source_contract(board: Path) -> dict[str, object]:
         ],
         "N14 CP post-calibration PSRAM gate",
     )
-    control_init = platform.index("apret = bk7258_ap_control_initialize();")
+    control_init = platform.index(
+        "apret = bk7258_ap_control_initialize(&ap_image);"
+    )
     bt_ipc_init = platform.index(
         "apret = bk7258_bt_controller_ipc_initialize();"
     )

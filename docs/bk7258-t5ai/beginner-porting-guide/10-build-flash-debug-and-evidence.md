@@ -2,6 +2,24 @@
 > **权威来源**：[BK7258 build/flash/debug SOP](../nuttx-port/bk7258-build-flash-debug-sop.md)、[项目运维](../../../memory/OPERATIONS.md)、[Windows/WSL2通用调试工具](../../../tools/windows-hardware-debug/README.md)
 > **证据边界**：构建与只读检查可复现；任何Flash erase/program、factory rewrite、PSRAM write或额外reset仍需要对应授权。本章不是一次新的板写授权。
 
+> ⚠️ **SUPERSEDED / NON-RUNNABLE**：本章旧 profile-pair 命令仅保留为
+> 历史证据，禁止执行，也不要重建已删除的 `configs/` 目录。当前 canonical
+> product、validation-suite 和 materializer 入口如下；它们先生成/审计
+> host-only role view，不授权 Flash：
+>
+> ```sh
+> python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+>   --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
+> python3 board/bk7258/scripts/bk7258_framework.py validation-check
+> python3 board/bk7258/scripts/materialize_product_profiles.py \
+>   --plan <build-root>/bk7258-build-plan.json \
+>   --seed-root board/bk7258/configs --output <build-root>/configs \
+>   --make-defs board/bk7258/scripts/Make.defs
+> python3 board/bk7258/scripts/bk7258_isolated_executor.py prepare \
+>   --product t5_board_bringup --build-root <build-root> \
+>   --out <build-root>/execution.json
+> ```
+
 # 10 构建、下载、调试与证据
 
 ## 1. 先分清四个动作
@@ -15,27 +33,32 @@
 
 “能构建”不等于“能烧录”，“Flash PASS”也不等于“功能PASS”。
 
-## 2. 标准双镜像构建
+## 2. 标准产品解析与隔离构建
 
-通用模板：
+产品 ID 是唯一的配置入口；不要把 CP/AP profile 名称当作产品选择器。
+需要运行 host-only 的四角色流程时，在 `prepare` 后按 manifest 执行
+`materialize-sources`，再由单独授权的 `compile-runtime` 产生只读证据：
 
 ```bash
-cd /home/lijian/project/open-vela
-CP_CONFIG_NAME=t5ai_core_cp_psram_validation \
-AP_CONFIG_NAME=t5ai_core_ap_psram_validation \
-BK7258_SDK_BUNDLE_VERSION=v3.1.1.9 \
-  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
+cd <workspace-root>/contest2026_135_yongwangzhiqian
+python3 board/bk7258/scripts/bk7258_isolated_executor.py \
+  materialize-sources --manifest <build-root>/execution.json
+python3 board/bk7258/scripts/bk7258_isolated_executor.py \
+  compile-runtime --manifest <build-root>/execution.json \
+  --authorize-compile
 ```
 
 | 行 | 含义 | 为什么显式写 | 错了会怎样 |
 |---|---|---|---|
-| `cd .../open-vela` | 进入workspace根 | 脚本使用固定相对布局 | 找错NuttX/apps/contest |
-| `CP_CONFIG_NAME=...` | 选择CP profile | 防止沿用上阶段配置 | CP能力/Flash owner不匹配 |
-| `AP_CONFIG_NAME=...` | 选择AP profile | CP/AP profile必须成对 | RPTUN/BT/PSRAM ABI不匹配 |
-| `SDK...=v3.1.1.9` | 锁定唯一active bundle | 禁止legacy误入 | ABI/provenance漂移 |
-| `build_dual_image.sh` | 构建Boot、CP、AP并运行verifier | 单独make不能覆盖pair门禁 | 产物可链接但不能组合 |
+| `cd <workspace-root>/contest2026_135_yongwangzhiqian` | 进入项目根 | 脚本使用固定相对布局 | 找错NuttX/apps/contest |
+| `--product ...` | 选择 canonical product | 绑定板、boot、partition 和 SDK | 解析结果不匹配即拒绝 |
+| `validation-check` | 校验 suite catalog | 防止 suite/fragment 漂移 | 不声明硬件 PASS |
+| `materialize_product_profiles.py --plan ...` | 渲染临时 role view | 只消费 canonical IR | 不恢复旧 profile |
+| `isolated_executor.py` | 审计 source snapshot/role roots | 每个角色隔离 | 不执行 Flash/sign/package |
 
-对于normal N15构建，脚本强制v3.1.1.9，并保证OTA selection/write gates关闭。只有显式validation profile和完整identity才会生成隔离的validation artifacts。
+对于 normal N15 构建，产品 plan 强制绑定 v3.1.1.9，并保证 OTA
+selection/write gates 关闭。需要验证功能时选择 validation-suite overlay；
+suite 只改变 canonical fragment/资源声明，不生成新的 defconfig 目录。
 
 ## 3. Builder内部发生什么
 

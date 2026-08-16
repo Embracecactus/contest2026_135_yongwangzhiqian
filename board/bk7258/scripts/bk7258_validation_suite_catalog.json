@@ -1,0 +1,216 @@
+{
+  "schema": "bk7258.validation-suite/1",
+  "kind": "validation-suite-catalog",
+  "version": 1,
+  "suites": [
+    {
+      "id": "psram",
+      "product": "t5ai_core_bringup",
+      "fragments": ["validation_psram"],
+      "roles": {
+        "cp": {"symbols": {
+          "CONFIG_BK7258_AP_AUTOSTART": "y",
+          "CONFIG_BK7258_AP_AUTOSTART_TIMEOUT_MS": "60000",
+          "CONFIG_BK7258_BT_IPC": "y",
+          "CONFIG_BK7258_BT_IPC_TEST": "y",
+          "CONFIG_BK7258_PSRAM": "y",
+          "CONFIG_BK7258_PSRAM_BOOT_TEST": "y",
+          "CONFIG_BK7258_PSRAM_TEST": "y",
+          "CONFIG_BK7258_RPTUN": "y",
+          "CONFIG_BK7258_RPTUN_LAYOUT": "y",
+          "CONFIG_BK7258_RPTUN_MBOX": "y",
+          "CONFIG_BK7258_SDK_TIMER_SELFTEST": "y"
+        }},
+        "ap": {"symbols": {
+          "CONFIG_BK7258_AP_CORE": "y",
+          "CONFIG_BK7258_BLE_GATT": "y",
+          "CONFIG_BK7258_BLE_GATT_NOTIFY_INTERVAL_MS": "50",
+          "CONFIG_BK7258_BT_ATT_MTU_COMPAT": "y",
+          "CONFIG_BK7258_BT_CONN_RX_REF_COMPAT": "y",
+          "CONFIG_BK7258_BT_IPC": "y",
+          "CONFIG_BK7258_BT_IPC_TEST": "y",
+          "CONFIG_BK7258_BT_IPC_TRACE": "y",
+          "CONFIG_BK7258_PSRAM": "y",
+          "CONFIG_BK7258_PSRAM_TEST": "y",
+          "CONFIG_BK7258_PSRAM_TEST_ITERATIONS": "16",
+          "CONFIG_BK7258_RPTUN": "y",
+          "CONFIG_BK7258_RPTUN_LAYOUT": "y",
+          "CONFIG_BK7258_RPTUN_MBOX": "y",
+          "CONFIG_BLUETOOTH_CNTRL_HOST_FLOW_DISABLE": "y",
+          "CONFIG_BLUETOOTH_MAX_PAIRED": "2",
+          "CONFIG_BLUETOOTH_TXCMD_PRIORITY": "120",
+          "CONFIG_BLUETOOTH_TXCONN_PRIORITY": "119",
+          "CONFIG_DEVICE_LOCAL_NAME": "\"BK7258-N14\"",
+          "CONFIG_DEVICE_NAME": "\"BK7258 N14\"",
+          "CONFIG_SCHED_LPWORKPRIORITY": "97",
+          "CONFIG_SMP_DEFAULT_CPUSET": "0x1"
+        }}
+      },
+      "resources": ["psram", "rptun_transport", "ble_gatt"]
+    },
+    {
+      "id": "audio_dac",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_audio_dac"],
+      "roles": {
+        "cp": {"symbols": {
+          "CONFIG_BK7258_AP_AUTOSTART": "y",
+          "CONFIG_BK7258_CONSOLE_UART0": "y",
+          "CONFIG_BK7258_PM_COORDINATED_STANDBY": "y",
+          "CONFIG_BK7258_PM_STANDBY_ONESHOT_VERIFY": "y",
+          "CONFIG_BK7258_PSRAM": "y",
+          "CONFIG_BK7258_RPTUN": "y",
+          "CONFIG_BK7258_RPTUN_LAYOUT": "y",
+          "CONFIG_BK7258_RPTUN_MBOX": "y",
+          "CONFIG_BK7258_SARADC_SERVER": "y",
+          "CONFIG_BK7258_SDK_IPC_RUNTIME": "y",
+          "CONFIG_BK7258_SWD_DEBUG": "y"
+        }},
+        "ap": {"symbols": {
+          "CONFIG_BK7258_AP_CORE": "y",
+          "CONFIG_BK7258_AUD": "y",
+          "CONFIG_BK7258_AUD_DAC_EQ": "y",
+          "CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION": "y",
+          "CONFIG_BOARDCTL": "y",
+          "CONFIG_BK7258_PM_COORDINATED_STANDBY": "y",
+          "CONFIG_PM_NDOMAINS": "3",
+          "CONFIG_BK7258_RPTUN": "y",
+          "CONFIG_BK7258_RPTUN_LAYOUT": "y",
+          "CONFIG_BK7258_RPTUN_MBOX": "y",
+          "CONFIG_SMP_NCPUS": "2"
+        }}
+      },
+      "resources": ["audio_dac", "rptun_transport", "pm_cross_core"]
+    },
+    {
+      "id": "jpeg_m2m",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_jpeg_m2m"],
+      "roles": {
+        "cp": {"symbols": {
+          "CONFIG_BK7258_AP_AUTOSTART": "y",
+          "CONFIG_BK7258_AP_CONTROL": "y",
+          "CONFIG_BK7258_CONSOLE_UART0": "y",
+          "CONFIG_BK7258_RPTUN": "y",
+          "CONFIG_BK7258_RPTUN_LAYOUT": "y",
+          "CONFIG_BK7258_RPTUN_MBOX": "y",
+          "CONFIG_BK7258_SDK_IPC_RUNTIME": "y",
+          "CONFIG_BK7258_SWD_DEBUG": "y",
+          "CONFIG_BK7258_SWD_BOOT_HOLD": "y",
+          "CONFIG_BK7258_SWD_PINS_P0_P1": "y",
+          "CONFIG_BK7258_SWD_TARGET_CP": "y"
+        }},
+        "ap": {"symbols": {
+          "CONFIG_BK7258_AP_CORE": "y",
+          "CONFIG_BK7258_JPEG_DECODER": "y",
+          "CONFIG_BK7258_JPEG_M2M": "y",
+          "CONFIG_BK7258_JPEG_M2M_DEFAULT_HEIGHT": "16",
+          "CONFIG_BK7258_JPEG_M2M_DEFAULT_WIDTH": "32",
+          "CONFIG_BK7258_JPEG_M2M_MAX_HEIGHT": "16",
+          "CONFIG_BK7258_JPEG_M2M_MAX_INPUT_SIZE": "4096",
+          "CONFIG_BK7258_JPEG_M2M_MAX_WIDTH": "32",
+          "CONFIG_BK7258_JPEG_M2M_VALIDATION": "y",
+          "CONFIG_BK7258_RPTUN": "y",
+          "CONFIG_BK7258_RPTUN_LAYOUT": "y",
+          "CONFIG_BK7258_RPTUN_MBOX": "y"
+        }}
+      },
+      "resources": ["jpeg_engine", "rptun_transport"]
+    },
+    {
+      "id": "saradc_key",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_saradc_key"],
+      "roles": {
+        "cp": {"symbols": {
+          "CONFIG_BK7258_AP_AUTOSTART": "y",
+          "CONFIG_BK7258_AP_CONTROL": "y",
+          "CONFIG_BK7258_AP_SUPERVISOR": "y",
+          "CONFIG_BK7258_CONSOLE_UART0": "y",
+          "CONFIG_BK7258_RPTUN": "y",
+          "CONFIG_BK7258_RPTUN_LAYOUT": "y",
+          "CONFIG_BK7258_RPTUN_MBOX": "y",
+          "CONFIG_BK7258_SARADC_SERVER": "y",
+          "CONFIG_BK7258_SWD_DEBUG": "y"
+        }},
+        "ap": {"symbols": {
+          "CONFIG_BK7258_AP_CORE": "y",
+          "CONFIG_BK7258_AP_IPI": "y",
+          "CONFIG_BK7258_AP_SMP_BOOTSTRAP": "y",
+          "CONFIG_BK7258_AP_SMP_SCHED_ONLINE": "y",
+          "CONFIG_BK7258_AP_SUPERVISOR": "y",
+          "CONFIG_BK7258_RPTUN": "y",
+          "CONFIG_BK7258_RPTUN_LAYOUT": "y",
+          "CONFIG_BK7258_RPTUN_MBOX": "y",
+          "CONFIG_BK7258_SARADC": "y",
+          "CONFIG_BK7258_SARADC_CHAN": "14",
+          "CONFIG_BK7258_T5_BOARD_SARADC_KEY_VALIDATION": "y",
+          "CONFIG_SMP": "y",
+          "CONFIG_SMP_DEFAULT_CPUSET": "0x1",
+          "CONFIG_SMP_NCPUS": "2"
+        }}
+      },
+      "resources": ["saradc", "rptun_transport"]
+    },
+    {
+      "id": "temperature",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_temperature"],
+      "roles": {
+        "cp": {"symbols": {"CONFIG_BK7258_TEMPERATURE": "y", "CONFIG_BK7258_RPTUN": "y", "CONFIG_BK7258_RPTUN_LAYOUT": "y", "CONFIG_BK7258_RPTUN_MBOX": "y"}},
+        "ap": {"symbols": {"CONFIG_BK7258_AP_CORE": "y", "CONFIG_BK7258_TEMPERATURE": "y", "CONFIG_BK7258_TEMPERATURE_VALIDATION": "y", "CONFIG_BK7258_RPTUN": "y", "CONFIG_BK7258_RPTUN_LAYOUT": "y", "CONFIG_BK7258_RPTUN_MBOX": "y", "CONFIG_SMP_DEFAULT_CPUSET": "0x1"}}
+      },
+      "resources": ["temperature_sensor", "rptun_transport"]
+    },
+    {
+      "id": "camera",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_camera"],
+      "roles": {"cp": {"symbols": {}}, "ap": {"symbols": {"CONFIG_BK7258_AP_CORE": "y", "CONFIG_BK7258_DVP": "y"}}},
+      "resources": ["camera_dvp"]
+    },
+    {
+      "id": "camera_h264",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_camera_h264"],
+      "roles": {"cp": {"symbols": {}}, "ap": {"symbols": {"CONFIG_BK7258_AP_CORE": "y", "CONFIG_BK7258_DVP": "y", "CONFIG_BK7258_H264": "y"}}},
+      "resources": ["camera_dvp", "h264_engine"]
+    },
+    {
+      "id": "pwm",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_pwm"],
+      "roles": {"cp": {"symbols": {}}, "ap": {"symbols": {"CONFIG_BK7258_AP_CORE": "y", "CONFIG_BK7258_PWM": "y"}}},
+      "resources": ["pwm"]
+    },
+    {
+      "id": "tf_1bit",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_tf_1bit"],
+      "roles": {"cp": {"symbols": {}}, "ap": {"symbols": {"CONFIG_BK7258_AP_CORE": "y", "CONFIG_BK7258_TF": "y", "CONFIG_BK7258_TF_WIDTH": "1"}}},
+      "resources": ["sdio"]
+    },
+    {
+      "id": "tf_4bit",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_tf_4bit"],
+      "roles": {"cp": {"symbols": {}}, "ap": {"symbols": {"CONFIG_BK7258_AP_CORE": "y", "CONFIG_BK7258_TF": "y", "CONFIG_BK7258_TF_WIDTH": "4"}}},
+      "resources": ["sdio"]
+    },
+    {
+      "id": "driver_coverage",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_driver_coverage"],
+      "roles": {"cp": {"symbols": {}}, "ap": {"symbols": {"CONFIG_BK7258_AP_CORE": "y"}}},
+      "resources": ["board_driver_matrix"]
+    },
+    {
+      "id": "wifi",
+      "product": "t5_board_bringup",
+      "fragments": ["validation_wifi"],
+      "roles": {"cp": {"symbols": {}}, "ap": {"symbols": {"CONFIG_BK7258_AP_CORE": "y", "CONFIG_BK7258_WIFI": "y"}}},
+      "resources": ["wifi_control"]
+    }
+  ],
+  "identity_sha256": "93a14f72905654baa29e71c3bdff8e63fe9bdbf81c41bbfaaad2467fded01567"
+}

@@ -7,6 +7,11 @@
   "id": "t5ai_core_bringup",
   "kind": "product",
   "mode": "bringup",
+  "partition_layout": {
+    "layout_id": "bk7258-v3119-ab-124ebfab37ca1fcd",
+    "layout_sha256": "124ebfab37ca1fcd9971c5aba7b9f214f0500df74cdc394c88ec602020732d8a",
+    "source": "board/bk7258/partitions/bk7258/auto_partitions.csv"
+  },
   "roles": {
     "ap": {"fragments": ["role_ap"], "legacy_profile": "t5ai_core_ap_base"},
     "bl2": {"fragments": ["role_bl2"], "legacy_profile": "bl2_mcuboot"},

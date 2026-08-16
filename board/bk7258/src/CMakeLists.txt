@@ -8,6 +8,22 @@ target_sources(board PRIVATE
     bk7258_platform.c
     ${BK7258_BOARD_VARIANT_DIR}/src/bk7258_board_bringup.c)
 
+# The product Flash layout and its NuttX MTD composition belong to the
+# logical board.  The chip/SDK layer supplies only the raw Flash mechanism.
+# CP remains the sole Flash owner, so AP never links this policy wrapper.
+
+if(NOT CONFIG_BK7258_AP_CORE)
+  target_sources(board PRIVATE bk7258_sdk_partition.c)
+  if(CONFIG_BK7258_BT_IPC OR CONFIG_BK7258_WIFI_VNET)
+    target_sources(board PRIVATE bk7258_mac_storage.c)
+  endif()
+  if(CONFIG_BK7258_FLASH_MTD)
+    target_sources(board PRIVATE
+        bk7258_flash_mtd.c
+        bk7258_flash_guard.c)
+  endif()
+endif()
+
 # The immutable physical-board descriptor is linked into both roles.  AP
 # lower halves consume MIC/SDIO/audio bindings, while CP GPIO consumers use
 # the same selected board's LED/button binding.  Unavailable capabilities are

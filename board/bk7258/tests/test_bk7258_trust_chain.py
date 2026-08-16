@@ -228,7 +228,7 @@ class TrustChainTest(unittest.TestCase):
                     (output / source_name).read_bytes(),
                 )
 
-            (output / "vela_cp.bin").write_bytes(b"tampered")
+            (output / "vela_nuttx_cp.bin").write_bytes(b"tampered")
             with self.assertRaisesRegex(TrustChainError, "(length drift|hash gate)"):
                 verify_standard_artifacts(output, document)
 

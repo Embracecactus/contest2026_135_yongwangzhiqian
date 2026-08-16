@@ -96,9 +96,9 @@
   "resources": {
     "pins_functions": [
       {
-        "id": "console_uart0",
+        "id": "console_uart1",
         "pins": ["p10", "p11"],
-        "function": "uart0_console_download",
+        "function": "uart1_console",
         "owner": "board",
         "consumers": ["bl1", "bl2", "cp", "ap"],
         "phases": ["download", "boot", "hold", "runtime", "suspend", "restart"],
@@ -163,9 +163,9 @@
     ],
     "irq_dma_clock_power": [
       {
-        "id": "uart0_irq",
+        "id": "uart1_irq",
         "kind": "irq",
-        "resource": "uart0",
+        "resource": "uart1",
         "owner": "cp",
         "max_instances": 1,
         "phases": ["download", "boot", "hold", "runtime", "suspend", "restart"],
@@ -364,5 +364,5 @@
       "release": "CP may reclaim the AP mailbox lease only after restart acknowledgement."
     }
   ],
-  "identity_sha256": "fa0fd22a50c1920ea6ef18ecc91177383f9aa4c810ecec5d66f187578292c5a0"
+  "identity_sha256": "83a7014df3534b0e46932527463bbf285970f47ebebda06056f566e154e50b12"
 }

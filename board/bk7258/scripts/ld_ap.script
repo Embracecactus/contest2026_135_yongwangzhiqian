@@ -13,7 +13,7 @@
 
 #include <nuttx/config.h>
 #include "../chip/include/bk7258_memorymap.h"
-#include "../include/bk7258_partition_layout.h"
+#include <bk7258_partition_layout.h>
 
 OUTPUT_ARCH("arm")
 EXTERN(_vectors)
@@ -23,7 +23,7 @@ EXTERN(bk7258_ap_main)
 #ifdef CONFIG_BK7258_AP_IPI
 EXTERN(bk_int_isr_register)
 #endif
-ENTRY(__start)
+ENTRY(_vectors)
 
 MEMORY
 {

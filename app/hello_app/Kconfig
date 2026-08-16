@@ -13,6 +13,7 @@ config BK7258_BKVALIDATE
 	bool "BK7258 public-API validation dispatcher"
 	default n
 	---help---
-		Build the metadata-driven bkvalidate list/run/all-compatible skeleton.
-		The dispatcher uses public device APIs only and never calls vendor SDK
-		entry points.
+		Build the metadata-driven bkvalidate list/run/all-compatible dispatcher.
+		The dispatcher uses public device APIs or versioned diagnostic records and
+		never calls vendor SDK entry points.  Generic JPEG and temperature
+		validation start only through their explicit run commands.

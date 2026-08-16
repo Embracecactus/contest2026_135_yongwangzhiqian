@@ -35,6 +35,12 @@
 #define BK7258_TEMPERATURE_RAW_MAX              1364u
 #define BK7258_TEMPERATURE_LSB_PER_10C          46u
 
+#define BK7258_TEMPERATURE_VALIDATION_MAGIC     0x504d5442u /* "BTMP" */
+#define BK7258_TEMPERATURE_VALIDATION_VERSION   1u
+#define BK7258_TEMPERATURE_VALIDATION_RUNNING   1u
+#define BK7258_TEMPERATURE_VALIDATION_PASSED    2u
+#define BK7258_TEMPERATURE_VALIDATION_FAILED    3u
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -47,6 +53,27 @@ struct bk7258_temperature_sample_s
   uint32_t reference_raw;
   int32_t temperature_millicelsius;
   uint32_t flags;
+};
+
+/* Versioned debugger-visible result published by the optional validation
+ * worker.  The state field is the completion publication field; consumers
+ * must validate magic/version before interpreting the remaining members.
+ */
+
+struct bk7258_temperature_validation_diag_s
+{
+  uint32_t magic;
+  uint16_t version;
+  uint16_t state;
+  int32_t status;
+  uint32_t generation;
+  uint32_t successful_samples;
+  uint32_t failed_samples;
+  uint32_t minimum_raw;
+  uint32_t maximum_raw;
+  uint32_t last_raw;
+  int32_t last_millicelsius;
+  uint32_t last_flags;
 };
 
 /****************************************************************************
@@ -75,6 +102,9 @@ int bk7258_temperature_read(
 int bk7258_temperature_set_reference_raw(uint32_t reference_raw);
 
 #ifdef CONFIG_BK7258_TEMPERATURE_VALIDATION
+extern volatile struct bk7258_temperature_validation_diag_s
+  g_bk7258_temperature_validation_diag;
+
 int bk7258_temperature_validation_start(void);
 #endif
 #else

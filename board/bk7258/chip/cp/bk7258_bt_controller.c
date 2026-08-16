@@ -27,7 +27,6 @@
 
 #include <nuttx/mutex.h>
 
-#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_bt_ipc.h>
 #ifdef CONFIG_BK7258_RPTUN_MBOX
 #  include <arch/chip/bk7258_rptun.h>
@@ -129,6 +128,8 @@ static bool g_bk7258_wifi_controller_ready;
 static bool g_bk7258_bt_phy_adapter_ready;
 static bool g_bk7258_bt_wifi_adapter_ready;
 static bool g_bk7258_bt_calibration_ready;
+static mutex_t g_bk7258_bt_mac_lock = NXMUTEX_INITIALIZER;
+static const struct bk7258_bt_mac_storage_ops_s *g_bk7258_bt_mac_storage;
 static bool g_bk7258_bt_mac_ready;
 static uint8_t g_bk7258_bt_base_mac[BK_MAC_ADDR_LEN];
 #ifdef CONFIG_BK7258_BT_IPC
@@ -316,61 +317,35 @@ static uint8_t bk7258_bt_crc8(const uint8_t *buffer, uint32_t length)
   return crc;
 }
 
-static bool bk7258_bt_partition_read(uint32_t partition,
-                                     uint32_t expected_start,
+static bool bk7258_bt_partition_read(enum bk7258_bt_mac_store_e store,
                                      uint32_t offset, uint8_t *buffer,
                                      uint32_t length)
 {
-  struct bk7258_sdk_partition_s *info;
-
-  info = bk_flash_partition_get_info(partition);
-  if (info == NULL || info->start != expected_start ||
-      info->length != BK7258_SDK_DATA_PARTITION_SIZE ||
-      offset > info->length || length > info->length - offset)
+  if (g_bk7258_bt_mac_storage == NULL)
     {
       return false;
     }
 
-  return bk_flash_partition_read(partition, buffer, offset, length) == BK_OK;
+  return g_bk7258_bt_mac_storage->read(store, offset, buffer, length) == OK;
 }
 
-static bool bk7258_bt_partition_write(uint32_t partition,
-                                      uint32_t expected_start,
+static bool bk7258_bt_partition_write(enum bk7258_bt_mac_store_e store,
                                       uint32_t offset,
                                       const uint8_t *buffer,
                                       uint32_t length)
 {
-  struct bk7258_sdk_partition_s *info;
-
-  info = bk_flash_partition_get_info(partition);
-  if (info == NULL || info->start != expected_start ||
-      info->length != BK7258_SDK_DATA_PARTITION_SIZE ||
-      offset > info->length || length > info->length - offset)
+  if (g_bk7258_bt_mac_storage == NULL)
     {
       return false;
     }
 
-  return bk_flash_partition_write(partition, buffer, offset,
-                                  length) == BK_OK;
+  return g_bk7258_bt_mac_storage->write(store, offset, buffer, length) == OK;
 }
 
 static bool bk7258_bt_sysnet_write(const uint8_t *mac)
 {
-  struct bk7258_sdk_partition_s *info;
-
-  info = bk_flash_partition_get_info(BK7258_SDK_PARTITION_SYS_NET);
-  if (info == NULL || info->start != BK7258_SDK_SYS_NET_START ||
-      info->length != BK7258_SDK_DATA_PARTITION_SIZE)
-    {
-      return false;
-    }
-
-  /* This is the exact leaf used by SDK save_net_info(WIFI_MAC_ITEM): retain
-   * the rest of the sys_net sector across its erase/rewrite transaction.
-   */
-
-  return bk_spec_flash_write_bytes(BK7258_SDK_PARTITION_SYS_NET, mac,
-                                   BK_MAC_ADDR_LEN, 0) == BK_OK;
+  return bk7258_bt_partition_write(BK7258_BT_MAC_STORE_NETWORK, 0, mac,
+                                   BK_MAC_ADDR_LEN);
 }
 
 static bool bk7258_bt_mac_record_is_erased(
@@ -412,8 +387,7 @@ static bool bk7258_bt_mac_read_backup(uint8_t *mac)
   int latest = BK7258_SDK_MAC_RECORD_COUNT - 1;
   int i;
 
-  if (!bk7258_bt_partition_read(BK7258_SDK_PARTITION_SYS_RF,
-                                BK7258_SDK_SYS_RF_START,
+  if (!bk7258_bt_partition_read(BK7258_BT_MAC_STORE_BACKUP,
                                 BK7258_SDK_MAC_RECORD_AREA_OFFSET,
                                 area.bytes, sizeof(area.bytes)))
     {
@@ -454,8 +428,7 @@ static bool bk7258_bt_mac_write_backup(const uint8_t *mac)
   int latest = -1;
   int i;
 
-  if (!bk7258_bt_partition_read(BK7258_SDK_PARTITION_SYS_RF,
-                                BK7258_SDK_SYS_RF_START,
+  if (!bk7258_bt_partition_read(BK7258_BT_MAC_STORE_BACKUP,
                                 BK7258_SDK_MAC_RECORD_AREA_OFFSET,
                                 area.bytes, sizeof(area.bytes)))
     {
@@ -493,13 +466,13 @@ static bool bk7258_bt_mac_write_backup(const uint8_t *mac)
   record.header_crc = bk7258_bt_crc8((const uint8_t *)&record, 3);
 
   return bk7258_bt_partition_write(
-           BK7258_SDK_PARTITION_SYS_RF, BK7258_SDK_SYS_RF_START,
+           BK7258_BT_MAC_STORE_BACKUP,
            BK7258_SDK_MAC_RECORD_AREA_OFFSET +
              (uint32_t)free_index * sizeof(record),
            (const uint8_t *)&record, sizeof(record));
 }
 
-static void bk7258_bt_mac_initialize(void)
+static void bk7258_bt_mac_initialize_locked(void)
 {
   static const uint8_t fallback[BK_MAC_ADDR_LEN] =
     {
@@ -537,8 +510,8 @@ static void bk7258_bt_mac_initialize(void)
     }
 
   net_valid = bk7258_bt_partition_read(
-                BK7258_SDK_PARTITION_SYS_NET,
-                BK7258_SDK_SYS_NET_START, 0, net_mac, sizeof(net_mac)) &&
+                BK7258_BT_MAC_STORE_NETWORK, 0, net_mac,
+                sizeof(net_mac)) &&
               bk7258_bt_mac_is_official_valid(net_mac);
   backup_valid = bk7258_bt_mac_read_backup(backup_mac) &&
                  bk7258_bt_mac_is_official_valid(backup_mac);
@@ -599,13 +572,20 @@ bk_err_t bk_get_mac(uint8_t *mac, mac_type_t type)
 {
   uint8_t mac_mask = 1u; /* Official NX_VIRT_DEV_MAX is 2. */
   uint8_t mac_low;
+  int ret;
 
   if (mac == NULL)
     {
       return BK_ERR_NULL_PARAM;
     }
 
-  bk7258_bt_mac_initialize();
+  ret = nxmutex_lock(&g_bk7258_bt_mac_lock);
+  if (ret < 0)
+    {
+      return BK_FAIL;
+    }
+
+  bk7258_bt_mac_initialize_locked();
   memcpy(mac, g_bk7258_bt_base_mac, BK_MAC_ADDR_LEN);
 
   switch (type)
@@ -630,9 +610,11 @@ bk_err_t bk_get_mac(uint8_t *mac, mac_type_t type)
         break;
 
       default:
+        nxmutex_unlock(&g_bk7258_bt_mac_lock);
         return BK_ERR_INVALID_MAC_TYPE;
     }
 
+  nxmutex_unlock(&g_bk7258_bt_mac_lock);
   return BK_OK;
 }
 
@@ -640,6 +622,7 @@ bk_err_t bk_set_base_mac(const uint8_t *mac)
 {
   bool backup_written;
   bool net_written;
+  int ret;
 
   if (mac == NULL)
     {
@@ -651,17 +634,68 @@ bk_err_t bk_set_base_mac(const uint8_t *mac)
       return BK_ERR_GROUP_MAC;
     }
 
-  bk7258_bt_mac_initialize();
-  memcpy(g_bk7258_bt_base_mac, mac, BK_MAC_ADDR_LEN);
+  ret = nxmutex_lock(&g_bk7258_bt_mac_lock);
+  if (ret < 0)
+    {
+      return BK_FAIL;
+    }
+
+  bk7258_bt_mac_initialize_locked();
   net_written = bk7258_bt_sysnet_write(mac);
   backup_written = bk7258_bt_mac_write_backup(mac);
 
+  /* sys_net is authoritative on the next boot.  Publish the new in-memory
+   * address only after that write succeeds; a backup-only partial write is
+   * repaired from the still-authoritative sys_net record on the next read.
+   */
+
+  if (net_written)
+    {
+      memcpy(g_bk7258_bt_base_mac, mac, BK_MAC_ADDR_LEN);
+    }
+
+  nxmutex_unlock(&g_bk7258_bt_mac_lock);
   return net_written && backup_written ? BK_OK : BK_FAIL;
 }
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+int bk7258_bt_mac_storage_register(
+  const struct bk7258_bt_mac_storage_ops_s *ops)
+{
+  int ret;
+
+  if (ops == NULL || ops->read == NULL || ops->write == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&g_bk7258_bt_mac_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bk7258_bt_mac_ready)
+    {
+      ret = -EBUSY;
+    }
+  else if (g_bk7258_bt_mac_storage != NULL &&
+           g_bk7258_bt_mac_storage != ops)
+    {
+      ret = -EALREADY;
+    }
+  else
+    {
+      g_bk7258_bt_mac_storage = ops;
+      ret = OK;
+    }
+
+  nxmutex_unlock(&g_bk7258_bt_mac_lock);
+  return ret;
+}
 
 #ifdef CONFIG_BK7258_WIFI_VNET
 int bk7258_wifi_controller_initialize(void)

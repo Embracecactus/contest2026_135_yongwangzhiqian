@@ -42,9 +42,6 @@
 #ifdef CONFIG_BK7258_JPEG_M2M
 #  include <arch/chip/bk7258_jpeg_m2m.h>
 #endif
-#ifdef CONFIG_BK7258_JPEG_M2M_VALIDATION
-#  include <arch/chip/bk7258_jpeg_m2m_validation.h>
-#endif
 #ifdef CONFIG_BK7258_MIC
 #  include <arch/chip/bk7258_mic.h>
 #endif
@@ -72,9 +69,6 @@
 #endif
 #ifdef CONFIG_BK7258_TIMER
 #  include <arch/chip/bk7258_timer.h>
-#endif
-#ifdef CONFIG_BK7258_TEMPERATURE_VALIDATION
-#  include <arch/chip/bk7258_temperature.h>
 #endif
 #ifdef CONFIG_BK7258_USBHOST
 #  include <nuttx/usb/usbhost.h>
@@ -407,22 +401,6 @@ int bk7258_peripherals_initialize(void)
     {
       _err("ERROR: board device registration failed: %d\n", ret);
     }
-
-#ifdef CONFIG_BK7258_JPEG_M2M_VALIDATION
-  ret = bk7258_jpeg_m2m_validation_start();
-  if (ret < 0)
-    {
-      return ret;
-    }
-#endif
-
-#ifdef CONFIG_BK7258_TEMPERATURE_VALIDATION
-  ret = bk7258_temperature_validation_start();
-  if (ret < 0)
-    {
-      return ret;
-    }
-#endif
 
 #ifdef CONFIG_BK7258_USBHOST
   bk7258_usbhost_bind();

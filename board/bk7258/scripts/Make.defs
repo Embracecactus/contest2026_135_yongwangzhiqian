@@ -76,6 +76,143 @@ endif
 
 ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)$(LDSCRIPT)
 
+# The partition header is generated into a product/role-private build tree.
+# Product orchestration supplies the complete resolved contract.  Standard
+# OpenVela build.sh/direct-make invocations have no product executor yet, so a
+# compatibility adapter materializes the canonical legacy layout under the
+# NuttX build tree; neither path consumes the tracked compatibility header.
+
+BK7258_PARTITION_CONTRACT_ROOT := \
+	$(strip $(BK7258_PARTITION_CONTRACT_ROOT))
+BK7258_PARTITION_CONTRACT_SAFE_GOALS := \
+	apps_preconfig clean clean_context dirlinks distclean incdir olddefconfig \
+	preconfig
+BK7258_PARTITION_SAFE_ONLY :=
+
+BK7258_PARTITION_GENERATOR := \
+	$(BOARD_DIR)$(DELIM)scripts$(DELIM)gen_bk7258_partitions.py
+
+ifneq ($(strip $(MAKECMDGOALS)),)
+ifeq ($(strip $(filter-out $(BK7258_PARTITION_CONTRACT_SAFE_GOALS),$(MAKECMDGOALS))),)
+BK7258_PARTITION_SAFE_ONLY := y
+endif
+endif
+
+ifeq ($(BK7258_PARTITION_CONTRACT_ROOT),)
+ifneq ($(strip $(BK7258_PARTITION_LAYOUT_SOURCE)$(BK7258_PARTITION_LAYOUT_ID)$(BK7258_PARTITION_LAYOUT_SHA256)),)
+$(error BK7258 partition contract root, source, ID and SHA-256 must be supplied together)
+endif
+ifneq ($(BK7258_PARTITION_SAFE_ONLY),y)
+BK7258_PARTITION_LAYOUT_SOURCE := \
+	$(BOARD_DIR)$(DELIM)partitions$(DELIM)bk7258$(DELIM)auto_partitions.csv
+BK7258_PARTITION_LAYOUT_ID := $(strip $(shell \
+	python3 "$(BK7258_PARTITION_GENERATOR)" \
+		--input "$(BK7258_PARTITION_LAYOUT_SOURCE)" --get layout_id))
+BK7258_PARTITION_LAYOUT_SHA256 := $(strip $(shell \
+	python3 "$(BK7258_PARTITION_GENERATOR)" \
+		--input "$(BK7258_PARTITION_LAYOUT_SOURCE)" --get layout_sha256))
+ifeq ($(strip $(BK7258_PARTITION_LAYOUT_ID)),)
+$(error Unable to resolve the legacy BK7258 partition layout ID)
+endif
+ifeq ($(strip $(BK7258_PARTITION_LAYOUT_SHA256)),)
+$(error Unable to resolve the legacy BK7258 partition layout SHA-256)
+endif
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+BK7258_PARTITION_ROLE := ap
+else
+BK7258_PARTITION_ROLE := cp
+endif
+BK7258_PARTITION_CONTRACT_ROOT := \
+	$(TOPDIR)$(DELIM).cache$(DELIM)bk7258-partition-contract$(DELIM)legacy-$(BK7258_PARTITION_LAYOUT_SHA256)$(DELIM)$(BK7258_PARTITION_ROLE)
+BK7258_PARTITION_CONTRACT_INCLUDE := \
+	$(BK7258_PARTITION_CONTRACT_ROOT)$(DELIM)include
+BK7258_PARTITION_CONTRACT_HEADER_DIR := \
+	$(BK7258_PARTITION_CONTRACT_INCLUDE)$(DELIM)arch$(DELIM)board
+BK7258_PARTITION_CONTRACT_HEADER := \
+	$(BK7258_PARTITION_CONTRACT_HEADER_DIR)$(DELIM)bk7258_partition_layout.h
+BK7258_PARTITION_CONTRACT_OUTPUT := \
+	$(BK7258_PARTITION_CONTRACT_ROOT)$(DELIM)generated
+BK7258_PARTITION_MATERIALIZED := $(strip $(shell \
+	python3 "$(BK7258_PARTITION_GENERATOR)" \
+		--input "$(BK7258_PARTITION_LAYOUT_SOURCE)" \
+		--expect-layout-id "$(BK7258_PARTITION_LAYOUT_ID)" \
+		--expect-layout-sha256 "$(BK7258_PARTITION_LAYOUT_SHA256)" \
+		--header "$(BK7258_PARTITION_CONTRACT_HEADER)" \
+		--output-dir "$(BK7258_PARTITION_CONTRACT_OUTPUT)" >/dev/null && \
+	printf '%s' yes))
+ifneq ($(BK7258_PARTITION_MATERIALIZED),yes)
+$(error Unable to materialize the legacy BK7258 partition contract)
+endif
+endif
+endif
+
+ifneq ($(BK7258_PARTITION_CONTRACT_ROOT),)
+ifeq ($(strip $(BK7258_PARTITION_LAYOUT_SOURCE)),)
+$(error BK7258_PARTITION_LAYOUT_SOURCE is required with BK7258_PARTITION_CONTRACT_ROOT)
+endif
+ifeq ($(strip $(BK7258_PARTITION_LAYOUT_ID)),)
+$(error BK7258_PARTITION_LAYOUT_ID is required with BK7258_PARTITION_CONTRACT_ROOT)
+endif
+ifeq ($(strip $(BK7258_PARTITION_LAYOUT_SHA256)),)
+$(error BK7258_PARTITION_LAYOUT_SHA256 is required with BK7258_PARTITION_CONTRACT_ROOT)
+endif
+ifeq ($(wildcard $(BK7258_PARTITION_LAYOUT_SOURCE)),)
+$(error Missing resolved BK7258 partition source: $(BK7258_PARTITION_LAYOUT_SOURCE))
+endif
+override BK7258_PARTITION_CONTRACT_INCLUDE := \
+	$(BK7258_PARTITION_CONTRACT_ROOT)/include
+override BK7258_PARTITION_CONTRACT_HEADER_DIR := \
+	$(BK7258_PARTITION_CONTRACT_INCLUDE)/arch/board
+override BK7258_PARTITION_CONTRACT_HEADER := \
+	$(BK7258_PARTITION_CONTRACT_HEADER_DIR)/bk7258_partition_layout.h
+override BK7258_PARTITION_CONTRACT_OUTPUT := \
+	$(BK7258_PARTITION_CONTRACT_ROOT)/generated
+ifeq ($(wildcard $(BK7258_PARTITION_CONTRACT_HEADER)),)
+$(error Missing generated BK7258 partition header: $(BK7258_PARTITION_CONTRACT_HEADER))
+endif
+
+ifneq ($(BK7258_PARTITION_SAFE_ONLY),y)
+BK7258_PARTITION_CONTRACT_CHECK := $(strip $(shell \
+	python3 "$(BK7258_PARTITION_GENERATOR)" \
+		--input "$(BK7258_PARTITION_LAYOUT_SOURCE)" \
+		--expect-layout-id "$(BK7258_PARTITION_LAYOUT_ID)" \
+		--expect-layout-sha256 "$(BK7258_PARTITION_LAYOUT_SHA256)" \
+		--header "$(BK7258_PARTITION_CONTRACT_HEADER)" \
+		--output-dir "$(BK7258_PARTITION_CONTRACT_OUTPUT)" \
+		--check >/dev/null 2>&1 && printf '%s' yes))
+ifneq ($(BK7258_PARTITION_CONTRACT_CHECK),yes)
+$(error Explicit BK7258 partition contract validation failed)
+endif
+endif
+ARCHINCLUDES := \
+	${INCDIR_PREFIX}$(BK7258_PARTITION_CONTRACT_INCLUDE) \
+	${INCDIR_PREFIX}$(BK7258_PARTITION_CONTRACT_HEADER_DIR) \
+	$(ARCHINCLUDES)
+ARCHXXINCLUDES := \
+	${INCDIR_PREFIX}$(BK7258_PARTITION_CONTRACT_INCLUDE) \
+	${INCDIR_PREFIX}$(BK7258_PARTITION_CONTRACT_HEADER_DIR) \
+	$(ARCHXXINCLUDES)
+
+# NuttX's generic ARM rule tracks only the top-level linker script.  Attach
+# the included private header so changing the selected contract cannot reuse
+# a stale preprocessed script.
+
+$(addsuffix .tmp,$(ARCHSCRIPT)): $(BK7258_PARTITION_CONTRACT_HEADER)
+endif
+
+# Keep the immutable SDK Flash mechanism in the chip layer while replacing
+# its build-time partition table with the product layout owned by this logical
+# board.  CP is the only Flash owner and the matching wrappers live in the
+# board archive.
+
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=bk_flash_partition_get_info
+LDFLAGS += --wrap=bk_flash_partition_read
+LDFLAGS += --wrap=bk_flash_partition_write
+LDFLAGS += --wrap=bk_flash_partition_erase
+LDFLAGS += --wrap=bk_flash_partition_write_perm_check_by_addr
+endif
+
 # Standard NuttX ARM flag assembly.
 
 CFLAGS   := $(ARCHCFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)

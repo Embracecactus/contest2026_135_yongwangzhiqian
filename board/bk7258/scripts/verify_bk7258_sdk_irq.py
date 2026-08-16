@@ -11,6 +11,8 @@ import subprocess
 import sys
 import tempfile
 
+import bk7258_framework as composition
+
 
 PUBLIC_SYMBOLS = (
     "bk_int_isr_register",
@@ -231,7 +233,6 @@ def main() -> int:
     make_defs = board / "chip" / "Make.defs"
     cmake = board / "chip" / "CMakeLists.txt"
     kconfig = board / "chip" / "Kconfig"
-    defconfig = board / "configs" / "t5ai_core_cp_base" / "defconfig"
     ldscript = board / "scripts" / "ld.script"
     build_config = workspace / "nuttx" / ".config"
     stubs = board / "chip" / "common" / "bk7258_sdk_stubs.c"
@@ -243,7 +244,9 @@ def main() -> int:
     make_text = read(make_defs)
     cmake_text = read(cmake)
     kconfig_text = read(kconfig)
-    defconfig_text = read(defconfig)
+    defconfig_text = composition.config_document(
+        composition.resolve(contest, "t5ai_core_bringup", "cp")
+    )["defconfig"]
     ldscript_text = read(ldscript)
     build_config_text = read(build_config)
     stubs_text = read(stubs)

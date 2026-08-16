@@ -1,6 +1,21 @@
 # BK7258 PWM Bundle Export Resolution
 
-Status: resolved by the `ap-peripherals-r2` v3.1.1.9 bundle profile.
+Status: resolved by the `ap-peripherals-r2` v3.1.1.9 SDK bundle overlay.
+
+> **Profile status:** The old per-role drivercheck profile name formerly used
+> near the end of this note is **SUPERSEDED and NON-RUNNABLE**; its deleted
+> `configs/` directory must not be restored. Use the canonical product and
+> validation-suite catalog instead:
+>
+> ```sh
+> python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+>   --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
+> python3 board/bk7258/scripts/bk7258_framework.py validation-check
+> python3 board/bk7258/scripts/materialize_product_profiles.py \
+>   --plan <build-root>/bk7258-build-plan.json \
+>   --seed-root board/bk7258/configs --output <build-root>/configs \
+>   --make-defs board/bk7258/scripts/Make.defs
+> ```
 
 ## Original symptom
 
@@ -66,6 +81,9 @@ The regenerated AP bundle exports the real `bk_pwm_*` implementation from
 
 This wrapper remains a real NuttX PWM lower half and is **not** degraded to
 `-ENOSYS` stubs.  The SDK driver's direct `delay_ms()` dependency is routed
-to the existing NuttX-aware OS adapter.  The `t5_board_ap_drivercheck` image now
-compiles and links with `CONFIG_BK7258_PWM=y`; final ELF inspection confirms
-both `bk7258_pwm_initialize` and `bk_pwm_driver_init` are present.
+to the existing NuttX-aware OS adapter.  The historical per-role drivercheck
+image referenced by the original investigation is **SUPERSEDED and
+NON-RUNNABLE** after the profile retirement.  The `driver_coverage` validation
+suite on `t5_board_bringup` is the canonical replacement; its resolved role
+view must compile and link with `CONFIG_BK7258_PWM=y`, and ELF inspection must
+confirm both `bk7258_pwm_initialize` and `bk_pwm_driver_init` are present.

@@ -606,7 +606,7 @@ N5 各 substage 板端验证摘要（详细 worklog：[`nuttx-port/n5-flash-file
 | **N5-D3** magic scan | `"BK7236"` magic @ logical `0x100`（`W0=0x32374B42`, `W1=0x00103633`）；NuttX read path 表现为 logical view | ✅ board-observed |
 | **N5-D4** emptiness scan | Candidate data partition 前 16 KB（4 x 4 KB sample）全 `0xFF` | ✅ board-observed |
 | **N5-D5** raw flash r/w | Raw flash erase/write/read-back/re-erase @ `0x00100000`（第一个 4 KB sector）；SR0 protect clear/restore required | ✅ board-verified（2026-07-19） |
-| **N5-D6** MTD lower-half | MTD read/erase/bwrite，方案 A（每次 op 临时清/恢复 SR0 块保护）；CONFIG_BK7258_FLASH_MTD；新增 `chip/cp/bk7258_flash_mtd.[ch]` | ✅ board-verified（2026-07-19） |
+| **N5-D6** MTD lower-half | MTD read/erase/bwrite，方案 A（每次 op 临时清/恢复 SR0 块保护）；CONFIG_BK7258_FLASH_MTD；现位于 `src/bk7258_flash_mtd.[ch]` | ✅ board-verified（2026-07-19） |
 | **N5-D7** LittleFS filesystem | CONFIG_BK7258_FLASH_LITTLEFS；ftl 注册 `/dev/mtdblock0`；mount 到 `/data`（autoformat 仅首次）；probe 文件重启持久化通过 | ✅ board-verified（2026-07-19） |
 
 **安全 candidate**：logical offset `0x00100000..0x001FFFFF`（1 MB），4 KB / 64 KB 对齐，远在当前

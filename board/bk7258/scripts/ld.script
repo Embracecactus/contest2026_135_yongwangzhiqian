@@ -34,7 +34,7 @@
 
 #include <nuttx/config.h>
 #include "../chip/include/bk7258_memorymap.h"
-#include "../include/bk7258_partition_layout.h"
+#include <bk7258_partition_layout.h>
 
 OUTPUT_ARCH("arm")
 EXTERN(_vectors)
@@ -49,7 +49,7 @@ EXTERN(_vectors)
 EXTERN(bk_int_isr_register)
 #endif
 
-ENTRY(__start)
+ENTRY(_vectors)
 
 /* A MCUboot payload stores its header before the Cortex-M vector table.
  * Normal BL1-direct images retain the historical origin unchanged.
