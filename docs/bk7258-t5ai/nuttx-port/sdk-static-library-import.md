@@ -62,7 +62,7 @@ cd /home/lijian/project/open-vela
 
 SDK_ARCHIVE=/mnt/c/Users/lijian/Downloads/BK7258_SMP/bk_avdk_smp-release-v3.1.1.9.tar.gz
 SDK_TREE=/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9
-IMPORT=./contest2026_135_yongwangzhiqian/board/bk7258/scripts/import_bk7258_sdk_role.sh
+IMPORT=./contest2026_135_yongwangzhiqian/tools/bk7258/import_bk7258_sdk_role.sh
 
 ARMINO_SDK_DIR="${SDK_TREE}" JOBS=8 "${IMPORT}" \
   --role cp --bundle-version v3.1.1.9 \
@@ -121,7 +121,7 @@ half，未实现的 lower half 不会被伪装成已适配。
 ## 4. 校验已安装 bundle
 
 ```bash
-CHECK=./contest2026_135_yongwangzhiqian/board/bk7258/scripts/setup_bk7258_sdk.sh
+CHECK=./contest2026_135_yongwangzhiqian/tools/bk7258/setup_bk7258_sdk.sh
 
 for role in cp ap; do
   "${CHECK}" --check --version v3.1.1.9 --role "${role}"
@@ -135,8 +135,8 @@ done
 跟踪文件：
 
 ```text
-board/bk7258/scripts/sdk-manifests/<version>/<role>.sha256
-board/bk7258/scripts/sdk-manifests/<version>/<role>.provenance
+board/bk7258/bk_idk/manifests/<version>/<role>.sha256
+board/bk7258/bk_idk/manifests/<version>/<role>.provenance
 ```
 
 manifest 固定 bundle 内所有头文件、配置和库；provenance 固定官方 archive 哈希、
@@ -160,14 +160,14 @@ NuttX 管理。版本切换只发生在 team overlay 的 include/archive 路径�
 ```bash
 cd /home/lijian/project/open-vela
 JOBS=8 \
-./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
+./contest2026_135_yongwangzhiqian/tools/bk7258/build_dual_image.sh
 ```
 
 临时回退 legacy：
 
 ```bash
 BK7258_SDK_BUNDLE_VERSION=legacy JOBS=8 \
-./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
+./contest2026_135_yongwangzhiqian/tools/bk7258/build_dual_image.sh
 ```
 
 输出位于 `nuttx/bk7258-dual/`。`build-profile.txt` 记录所用 bundle、CP/AP 真实路径、

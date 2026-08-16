@@ -32,7 +32,7 @@ bkvalidate all-compatible
 ```
 
 Descriptors are versioned in
-`board/bk7258/scripts/bk7258_validation_descriptors.json`.  `all-compatible`
+`tools/bk7258/bk7258_validation_descriptors.json`.  `all-compatible`
 serializes global resource claims and emits `SKIP` for interactive, fixture,
 destructive-fault, planned, or unavailable requirements.  The runner core uses
 only public device-path APIs; it does not call vendor SDK functions or start

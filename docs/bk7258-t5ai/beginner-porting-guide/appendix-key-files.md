@@ -14,7 +14,7 @@
 | `board/bk7258/chip/ap/` | AP startup/SMP/IPI、HCI Host lower-half、GATT |
 | `board/bk7258/configs/` | 某个CP/AP profile到底打开哪些Kconfig |
 | `board/bk7258/partitions/` | canonical CSV与生成布局 |
-| `board/bk7258/scripts/` | build、pack、import、verify、loader helper |
+| `tools/bk7258/` | build、pack、import、verify、loader helper |
 | `board/bk7258/src/` | `board_app_initialize()`、procfs/LittleFS/AP/Bluetooth/PSRAM bring-up顺序 |
 | `board/bk7258/bk_idk/` | SDK role bundle入口和本地准备说明 |
 | `app/hello_app/` | NSH builtin测试命令 |
@@ -86,7 +86,7 @@
 |---|---|
 | [bk7258_psram.c](../../../board/bk7258/chip/common/bk7258_psram.c) | CP owner、capacity gate、role heaps、allocator wrapper |
 | [bk7258_psram.h](../../../board/bk7258/chip/include/bk7258_psram.h) | layout/API contract |
-| [PSRAM verifier](../../../board/bk7258/scripts/verify_bk7258_psram.py) | source/layout/ELF ownership门禁 |
+| [PSRAM verifier](../../../tools/bk7258/verify_bk7258_psram.py) | source/layout/ELF ownership门禁 |
 | [N14 evidence](../nuttx-port/n14-evidence-index.md) | build、cold、factory与回归索引 |
 
 ## 8. BL1、BL2 与 MCUboot
@@ -98,8 +98,8 @@
 | [BL1 main](../../../board/bk7258/bootloader/boot_main.c) | 固定Primary→Secondary验证、SRAM复制与BL2 handoff |
 | [BL1 Manifest generator](../../../board/bk7258/bootloader/make_bl1_manifest.py) | 生成board-owned Manifest及外部公钥源码 |
 | `board/bk7258/bootloader/bl2/` | pinned NuttX MCUboot bootutil与CP/AP成对slot适配 |
-| [MCUboot pair packer](../../../board/bk7258/scripts/pack_bk7258_mcuboot_pair.py) | 使用NuttX `imgtool.py`签名CP/AP并生成32+2镜像 |
-| [dual image packer](../../../board/bk7258/scripts/pack_dual_image.py) | 按CSV组合BL1、双BL2及CP/AP两槽 |
+| [MCUboot pair packer](../../../tools/bk7258/pack_bk7258_mcuboot_pair.py) | 使用NuttX `imgtool.py`签名CP/AP并生成32+2镜像 |
+| [dual image packer](../../../tools/bk7258/pack_dual_image.py) | 按CSV组合BL1、双BL2及CP/AP两槽 |
 
 旧N15/N17自研OTA的staging/trial/journal/publish/fault实现和配套验证脚本已退役并从活动源码删除；`progress/verification/`中的旧记录仅作为历史证据，不能当作当前可执行入口。
 

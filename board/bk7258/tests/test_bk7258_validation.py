@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT_ROOT = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "tools" / "bk7258"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from bk7258_framework import FrameworkError, canonical_json, load_json  # noqa: E402

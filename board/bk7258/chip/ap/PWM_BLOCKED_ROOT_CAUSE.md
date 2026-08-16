@@ -8,10 +8,10 @@ Status: resolved by the `ap-peripherals-r2` v3.1.1.9 SDK bundle overlay.
 > validation-suite catalog instead:
 >
 > ```sh
-> python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+> python3 tools/bk7258/bk7258_framework.py build-plan \
 >   --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
-> python3 board/bk7258/scripts/bk7258_framework.py validation-check
-> python3 board/bk7258/scripts/materialize_product_profiles.py \
+> python3 tools/bk7258/bk7258_framework.py validation-check
+> python3 tools/bk7258/materialize_product_profiles.py \
 >   --plan <build-root>/bk7258-build-plan.json \
 >   --seed-root board/bk7258/configs --output <build-root>/configs \
 >   --make-defs board/bk7258/scripts/Make.defs
@@ -75,7 +75,7 @@ The official v3.1.1.9 SDK source tree is therefore never edited.
 
 The regenerated AP bundle exports the real `bk_pwm_*` implementation from
 `libdriver.a`; its complete file hashes and profile hash are recorded in
-`scripts/sdk-manifests/v3.1.1.9/ap.sha256` and `ap.provenance`.
+`bk_idk/manifests/v3.1.1.9/ap.sha256` and `ap.provenance`.
 
 ## Wrapper Side
 

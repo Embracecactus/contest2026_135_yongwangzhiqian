@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 import bk7258_framework as composition
+from bk7258_paths import Bk7258Layout
 
 class VerificationError(RuntimeError):
     """Raised when an N14 build gate is not satisfied."""
@@ -230,7 +231,7 @@ def verify_layout(board: Path) -> dict[str, object]:
     }
 
 
-def verify_source_contract(board: Path) -> dict[str, object]:
+def verify_source_contract(board: Path, tools: Path) -> dict[str, object]:
     source = read_text(board / "chip/common/bk7258_psram.c")
     ids = parse_u32_macros(source, set(EXPECTED_IDS))
     if ids != EXPECTED_IDS:
@@ -557,7 +558,7 @@ def verify_source_contract(board: Path) -> dict[str, object]:
         "N14 bkpsramtest",
     )
 
-    build_script = read_text(board / "scripts/build_dual_image.sh")
+    build_script = read_text(tools / "build_dual_image.sh")
     require_tokens(
         build_script,
         [
@@ -915,12 +916,14 @@ def main() -> int:
     parser.add_argument("--nm", default="arm-none-eabi-nm")
     args = parser.parse_args()
 
-    board = Path(__file__).resolve().parent.parent
+    layout = Bk7258Layout()
+    board = layout.board_dir
+    tools = layout.tools_dir
     result: dict[str, object] = {
         "format": 1,
         "profiles": verify_profiles(board),
         "layout": verify_layout(board),
-        "source": verify_source_contract(board),
+        "source": verify_source_contract(board, tools),
         "sdk_source": (
             verify_sdk_source(args.sdk_source)
             if args.sdk_source is not None

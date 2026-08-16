@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT_DIR = REPO_ROOT / "board/bk7258/scripts"
+SCRIPT_DIR = REPO_ROOT / "tools" / "bk7258"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from verify_legacy_profile_freeze import (  # noqa: E402
@@ -36,8 +36,8 @@ from verify_legacy_profile_freeze import (  # noqa: E402
 )
 
 
-MANIFEST_REL = Path("board/bk7258/scripts/legacy_profile_freeze_manifest.json")
-LEDGER_REL = Path("board/bk7258/scripts/legacy_profile_migration_ledger.json")
+MANIFEST_REL = Path("tools/bk7258/legacy_profile_freeze_manifest.json")
+LEDGER_REL = Path("tools/bk7258/legacy_profile_migration_ledger.json")
 MANIFEST = load_json(SCRIPT_DIR / MANIFEST_REL.name)
 SNAPSHOT = base_snapshot(REPO_ROOT)
 RETAINED = tuple(MANIFEST["retained_profiles"])

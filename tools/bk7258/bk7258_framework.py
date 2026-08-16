@@ -9,6 +9,7 @@ map is suitable for a later adapter to render as an ordinary NuttX
 
 from __future__ import annotations
 
+
 import argparse
 import hashlib
 import json
@@ -18,6 +19,8 @@ import stat
 import sys
 from pathlib import Path
 from typing import Any, Callable
+
+from bk7258_paths import load_board_script
 
 
 SCHEMA = "bk7258.composition/1"
@@ -47,7 +50,11 @@ BUILD_PLAN_SCHEMA = "bk7258.build-plan/1"
 BKPACK_SCHEMA = "bk7258.bkpack/1"
 EXECUTION_CONTEXT_SCHEMA = "bk7258.execution-context/1"
 SDK_ROLES = frozenset({"cp", "ap"})
-SDK_MANIFEST_ROOT = "board/bk7258/scripts/sdk-manifests"
+# Canonical SDK manifest store after the scripts/ convergence refactor.
+# Registry entries reference this path directly; no runtime old-path
+# compatibility remains (the legacy profile freeze reads the historical
+# spelling only from the approved Git baseline commit).
+SDK_MANIFEST_ROOT = "board/bk7258/bk_idk/manifests"
 PRIVATE_MIRROR_URL = "https://github.com/Embracecactus/vendor-bk-avdk-smp.git"
 SDK_ENTRY_KINDS = frozenset({"official", "derived", "sealed-binary"})
 SDK_REQUIRED_DIRS = frozenset({"include", "config", "libs"})
@@ -86,7 +93,7 @@ CANONICAL_OVERLAYS = {
 # The canonical role configuration is generated from the resolved IR and the
 # selected fragments.  The three retained seed files are only compatibility
 # fixtures; no resolver or isolated build reads the legacy profile tree.
-CANONICAL_CONFIG_SOURCE = "board/bk7258/scripts/bk7258_framework.py"
+CANONICAL_CONFIG_SOURCE = "tools/bk7258/bk7258_framework.py"
 CANONICAL_CONFIG_COMPAT = "canonical-fragments-v1"
 
 # P6 is deliberately a metadata-only package boundary.  Keep the standard
@@ -120,7 +127,7 @@ TRANSPORT_IDENTITY_KEYS = ("vid", "pid", "serial_prefix", "interface", "location
 TRANSPORT_CAPABILITY_KEYS = ("rts", "dtr", "reset", "rts_reset")
 SHADOW_SCHEMA = "bk7258.shadow/1"
 SHADOW_REPORT_SCHEMA = "bk7258.shadow-report/1"
-SHADOW_LEDGER_REL = "board/bk7258/scripts/bk7258_shadow_ledger.json"
+SHADOW_LEDGER_REL = "tools/bk7258/bk7258_shadow_ledger.json"
 SHADOW_STATUS_ORDER = ("shadow-equivalent", "retire-blocked-hardware")
 SHADOW_STATUS = frozenset(SHADOW_STATUS_ORDER)
 FRAMEWORK_CHECK_SCHEMA = "bk7258.framework-check/1"
@@ -210,7 +217,7 @@ def _sdk_metadata_path(value: Any, field: str) -> str:
     path = relative_path(value, field)
     name = path.rsplit("/", 1)[-1]
     kind = "set" if field.endswith("sdk_set") else "lock"
-    if (not path.startswith("board/bk7258/scripts/bk7258_sdk_") or
+    if (not path.startswith("tools/bk7258/bk7258_sdk_") or
             not name.endswith(".json") or
             not (name == f"bk7258_sdk_{kind}.json" or
                  name.startswith(f"bk7258_sdk_{kind}_"))):
@@ -250,6 +257,7 @@ def _load_product_partition_layout(repository: Path, reference: Any,
         raise FrameworkError(
             f"product partition source is not a regular in-tree file: {layout_ref['source']}")
     try:
+        gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
         from gen_bk7258_partitions import load_layout  # noqa: PLC0415
 
         layout = load_layout(resolved_source)
@@ -277,7 +285,7 @@ def symbols(value: Any, field: str = "symbols") -> dict[str, str | None]:
             raise FrameworkError(f"invalid Kconfig symbol in {field}")
         if item is not None and (not isinstance(item, str) or
                                  not (re.fullmatch(r"[A-Za-z0-9_./:+,-]+", item)
-                                      or re.fullmatch(r'"[^"\\n]*"', item))):
+                                      or re.fullmatch(r'"[^"\n]*"', item))):
             raise FrameworkError(f"invalid Kconfig value for {key}")
         result[key] = item
     return result
@@ -472,7 +480,7 @@ def validate_ir(value: dict[str, Any]) -> dict[str, Any]:
 
 
 def catalog_root(repository: Path) -> Path:
-    return repository / "board/bk7258/scripts"
+    return repository / "tools/bk7258"
 
 
 def _collection(root: Path, prefix: str, validator: Callable[[dict[str, Any]], dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -498,7 +506,7 @@ def load_catalog(repository: Path) -> dict[str, dict[str, dict[str, Any]]]:
     }
 
 
-VALIDATION_SUITE_REL = Path("board/bk7258/scripts/bk7258_validation_suite_catalog.json")
+VALIDATION_SUITE_REL = Path("tools/bk7258/bk7258_validation_suite_catalog.json")
 
 
 def load_validation_suites(repository: Path) -> dict[str, dict[str, Any]]:
@@ -787,7 +795,7 @@ def role_view_manifest(ir: dict[str, Any]) -> dict[str, Any]:
             "shared_config": False,
         },
         "legacy_semantics": {
-            "builder": "board/bk7258/scripts/build_dual_image.sh",
+            "builder": "tools/bk7258/build_dual_image.sh",
             "invoked": False,
             "modified": False,
         },
@@ -824,7 +832,7 @@ def validate_role_view(value: dict[str, Any]) -> dict[str, Any]:
         raise FrameworkError("role build view must be isolated")
     legacy = obj(value["legacy_semantics"], "role view legacy semantics")
     exact(legacy, {"builder", "invoked", "modified"}, "role view legacy semantics")
-    if legacy["builder"] != "board/bk7258/scripts/build_dual_image.sh":
+    if legacy["builder"] != "tools/bk7258/build_dual_image.sh":
         raise FrameworkError("unexpected legacy builder binding")
     if legacy["invoked"] is not False or legacy["modified"] is not False:
         raise FrameworkError("role view must not alter legacy semantics")
@@ -837,7 +845,7 @@ def validate_role_view(value: dict[str, Any]) -> dict[str, Any]:
 
 
 def classic_report(repository: Path) -> dict[str, Any]:
-    source = "board/bk7258/scripts/build_dual_image.sh"
+    source = "tools/bk7258/build_dual_image.sh"
     if not (repository / source).is_file():
         raise FrameworkError(f"missing Classic source: {source}")
     body = {"schema": SCHEMA, "kind": "classic-isolation-feasibility",
@@ -981,6 +989,17 @@ def _sdk_path(value: Any, field: str) -> str:
     return path
 
 
+def sdk_metadata_path(repository: Path, relative: str) -> Path:
+    """Resolve a registry SDK metadata path to its on-disk location.
+
+    Registry entries already reference the canonical store
+    (``SDK_MANIFEST_ROOT``), so this is a direct repository-relative join.
+    The historical ``scripts/sdk-manifests`` spelling is read only by the
+    legacy profile freeze scanner from the approved Git baseline commit.
+    """
+    return repository / relative
+
+
 def validate_sdk_registry(repository: Path, value: dict[str, Any]) -> dict[str, Any]:
     exact(value, {"schema", "kind", "version", "policy", "entries"}, "SDK registry")
     if value["schema"] != SDK_REGISTRY_SCHEMA or value["kind"] != "sdk-registry" or value["version"] != 1:
@@ -1023,8 +1042,8 @@ def validate_sdk_registry(repository: Path, value: dict[str, Any]) -> dict[str, 
             raise FrameworkError("SDK source_reproducible must be boolean")
         manifest_rel = _sdk_path(entry["manifest_path"], f"entry {index}.manifest_path")
         provenance_rel = _sdk_path(entry["provenance_path"], f"entry {index}.provenance_path")
-        manifest_path = repository / manifest_rel
-        provenance_path = repository / provenance_rel
+        manifest_path = sdk_metadata_path(repository, manifest_rel)
+        provenance_path = sdk_metadata_path(repository, provenance_rel)
         manifest_hash = _sdk_file_sha256(manifest_path, "SDK checksum manifest")
         provenance_hash = _sdk_file_sha256(provenance_path, "SDK provenance")
         if manifest_hash != entry["manifest_sha256"] or provenance_hash != entry["provenance_sha256"]:
@@ -1096,7 +1115,7 @@ def validate_sdk_lock(repository: Path, registry_path: Path, set_path: Path,
     identifier(value["id"], "SDK lock.id")
     if value["set_id"] != sdk_set["id"]:
         raise FrameworkError("SDK lock set binding mismatch")
-    if value["registry_path"] != "board/bk7258/scripts/bk7258_sdk_registry.json":
+    if value["registry_path"] != "tools/bk7258/bk7258_sdk_registry.json":
         raise FrameworkError("SDK lock registry path mismatch")
     try:
         expected_set_path = set_path.resolve().relative_to(repository.resolve()).as_posix()
@@ -1138,7 +1157,7 @@ def validate_sdk_lock(repository: Path, registry_path: Path, set_path: Path,
 def verify_sdk_bundle(repository: Path, entry: dict[str, Any], bundle_dir: Path) -> dict[str, Any]:
     """Verify one external SDK bundle without copying or modifying it."""
     _sdk_directory(bundle_dir, "SDK bundle root")
-    manifest_path = repository / entry["manifest_path"]
+    manifest_path = sdk_metadata_path(repository, entry["manifest_path"])
     expected = _sdk_manifest_entries(manifest_path)
     top_level = list(bundle_dir.iterdir())
     names = {path.name for path in top_level}
@@ -1355,9 +1374,9 @@ def _plan_source_views(board_variant: str) -> dict[str, dict[str, Any]]:
 
 def _load_plan_sdk(repository: Path, set_path: Path | None = None,
                    lock_path: Path | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
-    registry_path = repository / "board/bk7258/scripts/bk7258_sdk_registry.json"
-    actual_set_path = set_path or repository / "board/bk7258/scripts/bk7258_sdk_set.json"
-    actual_lock_path = lock_path or repository / "board/bk7258/scripts/bk7258_sdk_lock.json"
+    registry_path = repository / "tools/bk7258/bk7258_sdk_registry.json"
+    actual_set_path = set_path or repository / "tools/bk7258/bk7258_sdk_set.json"
+    actual_lock_path = lock_path or repository / "tools/bk7258/bk7258_sdk_lock.json"
     if not actual_set_path.is_absolute():
         actual_set_path = repository / actual_set_path
     if not actual_lock_path.is_absolute():
@@ -1371,7 +1390,7 @@ def _load_plan_sdk(repository: Path, set_path: Path | None = None,
 
 def _sdk_lock_versions(repository: Path, lock: dict[str, Any]) -> dict[str, str | None]:
     """Resolve bundle versions from the validated SDK lock, never ambient env."""
-    registry_path = repository / "board/bk7258/scripts/bk7258_sdk_registry.json"
+    registry_path = repository / "tools/bk7258/bk7258_sdk_registry.json"
     registry = validate_sdk_registry(repository, load_json_checked(registry_path,
                                                                    "SDK registry"))
     by_id = {_sdk_entry_id(item["id"], "SDK registry entry"): item
@@ -1562,7 +1581,7 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
         "source_views": source_views,
         "roles": build_roles,
         "legacy_adapter": {
-            "builder": "board/bk7258/scripts/build_dual_image.sh",
+            "builder": "tools/bk7258/build_dual_image.sh",
             "mode": "shadow-comparator",
             "invoked": False,
             "modified": False,
@@ -1732,7 +1751,7 @@ def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
     legacy = obj(value["legacy_adapter"], "build plan legacy adapter")
     exact(legacy, {"builder", "mode", "invoked", "modified", "seed_profiles"},
           "build plan legacy adapter")
-    if (legacy["builder"] != "board/bk7258/scripts/build_dual_image.sh" or
+    if (legacy["builder"] != "tools/bk7258/build_dual_image.sh" or
             legacy["mode"] != "shadow-comparator" or legacy["invoked"] is not False or
             legacy["modified"] is not False):
         raise FrameworkError("build plan legacy adapter boundary is unsafe")
@@ -1822,7 +1841,7 @@ def execution_context(repository: Path, product_id: str,
     # hand-materialized profile tree followed by a separate build.
     commands = [{
         "stage": "compatibility-build-and-package",
-        "tool": "board/bk7258/scripts/build_dual_image.sh",
+        "tool": "tools/bk7258/build_dual_image.sh",
         "arguments": [],
         "plan_validation": "build-plan-verify",
         "profile_materialization": "materialize_product_profiles.py",
@@ -1879,7 +1898,7 @@ def execution_context(repository: Path, product_id: str,
                               "MCUBOOT_VERSION"]
                              if inputs["boot"] == "mcuboot" else []),
         "package": {
-            "tool": "board/bk7258/scripts/bk7258_bkpack.py",
+            "tool": "tools/bk7258/bk7258_bkpack.py",
             "expected": inputs["boot"] == "mcuboot",
             "signing_performed": False,
         },
@@ -2026,7 +2045,7 @@ def validate_execution_context(value: dict[str, Any]) -> dict[str, Any]:
                     "profile_materialization", "compatibility"},
           "execution context command 0")
     if (command["stage"] != "compatibility-build-and-package" or
-            command["tool"] != "board/bk7258/scripts/build_dual_image.sh" or
+            command["tool"] != "tools/bk7258/build_dual_image.sh" or
             command["plan_validation"] != "build-plan-verify" or
             command["profile_materialization"] != "materialize_product_profiles.py" or
             command["compatibility"] != "shared-legacy-adapter"):
@@ -3099,7 +3118,7 @@ def validate_shadow_ledger(repository: Path, value: dict[str, Any]) -> dict[str,
 
 def _shadow_inventory_closure(repository: Path, profile: str) -> list[str]:
     """Return repository-relative inventory consumers naming one profile."""
-    inventory_path = repository / "board/bk7258/scripts/legacy_profile_consumers.json"
+    inventory_path = repository / "tools/bk7258/legacy_profile_consumers.json"
     inventory = load_json(inventory_path)
     paths = {
         row["path"] for row in inventory.get("consumers", [])
@@ -3120,7 +3139,7 @@ def _shadow_graph(repository: Path, product_id: str) -> dict[str, Any] | None:
     product = catalog["products"].get(product_id)
     if product is None:
         return None
-    path = repository / "board/bk7258/scripts" / f"bk7258_resource_graph_{product['board']}.json"
+    path = repository / "tools/bk7258" / f"bk7258_resource_graph_{product['board']}.json"
     if not path.is_file():
         return None
     return load_json(path)
@@ -3157,7 +3176,7 @@ def _shadow_new_evidence(repository: Path, product_id: str | None,
     fragment_paths = []
     for fragment in ir["fragments"]:
         matches = sorted((path.relative_to(repository).as_posix()
-                          for path in (repository / "board/bk7258/scripts").glob(
+                          for path in (repository / "tools/bk7258").glob(
                               f"bk7258_fragment_catalog_{fragment['id']}.json")))
         fragment_paths.extend(matches)
     source = ir["source_view"]
@@ -3358,7 +3377,7 @@ def framework_check(repository: Path) -> dict[str, Any]:
     """Run the bounded P0-P8 metadata/framework smoke contract."""
     root = repository.resolve()
     checks: list[dict[str, Any]] = []
-    manifest_path = root / "board/bk7258/scripts/legacy_profile_freeze_manifest.json"
+    manifest_path = root / "tools/bk7258/legacy_profile_freeze_manifest.json"
     manifest = load_json(manifest_path)
     try:
         from verify_legacy_profile_freeze import check_manifest  # noqa: PLC0415
@@ -3373,9 +3392,9 @@ def framework_check(repository: Path) -> dict[str, Any]:
         for role in ("cp", "ap", "bl2"):
             resolve(root, product, role)
     _framework_check_step(checks, "p1-resolve", "T5/T5-Board/AIDK role resolution", lambda: None)
-    registry_path = root / "board/bk7258/scripts/bk7258_sdk_registry.json"
-    set_path = root / "board/bk7258/scripts/bk7258_sdk_set.json"
-    lock_path = root / "board/bk7258/scripts/bk7258_sdk_lock.json"
+    registry_path = root / "tools/bk7258/bk7258_sdk_registry.json"
+    set_path = root / "tools/bk7258/bk7258_sdk_set.json"
+    lock_path = root / "tools/bk7258/bk7258_sdk_lock.json"
     registry = validate_sdk_registry(root, load_json(registry_path))
     sdk_set = validate_sdk_set(load_json(set_path), registry)
     validate_sdk_lock(root, registry_path, set_path, load_json(lock_path), registry, sdk_set)
@@ -3389,15 +3408,15 @@ def framework_check(repository: Path) -> dict[str, Any]:
     from bk7258_resource_graph import (  # noqa: PLC0415
         validate_migration_ledger, validate_ownership_manifest, validate_resource_graph,
     )
-    validate_ownership_manifest(root, load_json(root / "board/bk7258/scripts/bk7258_layer_ownership.json"))
-    validate_migration_ledger(root, load_json(root / "board/bk7258/scripts/bk7258_compatibility_migration_ledger.json"))
+    validate_ownership_manifest(root, load_json(root / "tools/bk7258/bk7258_layer_ownership.json"))
+    validate_migration_ledger(root, load_json(root / "tools/bk7258/bk7258_compatibility_migration_ledger.json"))
     _framework_check_step(checks, "p4-ownership-migration", "ownership and migration metadata", lambda: None)
     for board in ("t5ai_core", "t5_board", "aidk_ai_toy"):
-        graph = load_json(root / "board/bk7258/scripts" / f"bk7258_resource_graph_{board}.json")
+        graph = load_json(root / "tools/bk7258" / f"bk7258_resource_graph_{board}.json")
         validate_resource_graph(root, graph)
     _framework_check_step(checks, "p4-resource-graphs", "T5/T5-Board/AIDK resource graph schemas", lambda: None)
     from bk7258_validation import validate_descriptor_set  # noqa: PLC0415
-    validate_descriptor_set(root, load_json(root / "board/bk7258/scripts/bk7258_validation_descriptors.json"))
+    validate_descriptor_set(root, load_json(root / "tools/bk7258/bk7258_validation_descriptors.json"))
     _framework_check_step(
         checks, "p5-validation",
         "partial command registry and 27-profile migration ledger",
@@ -3765,7 +3784,7 @@ def cli(argv: list[str] | None = None) -> int:
             _cli_emit_transport(result, args.out)
         elif args.command in {"sdk-import", "import-sdk"}:
             registry_path = (args.registry or
-                             root / "board/bk7258/scripts/bk7258_sdk_registry.json").resolve()
+                             root / "tools/bk7258/bk7258_sdk_registry.json").resolve()
             registry = validate_sdk_registry(root, load_json_checked(registry_path, "SDK registry"))
             entry_id = _sdk_entry_id(args.entry, "--entry")
             matches = [item for item in registry["entries"] if item["id"] == entry_id]
@@ -3776,11 +3795,11 @@ def cli(argv: list[str] | None = None) -> int:
             print(f"bk7258-sdk: IMPORT VERIFIED {entry_id} files={result['file_count']}")
         elif args.command in {"sdk-verify", "verify-sdk"}:
             registry_path = (args.registry or
-                             root / "board/bk7258/scripts/bk7258_sdk_registry.json").resolve()
+                             root / "tools/bk7258/bk7258_sdk_registry.json").resolve()
             set_path = (args.sdk_set or
-                        root / "board/bk7258/scripts/bk7258_sdk_set.json").resolve()
+                        root / "tools/bk7258/bk7258_sdk_set.json").resolve()
             lock_path = (args.lock or
-                         root / "board/bk7258/scripts/bk7258_sdk_lock.json").resolve()
+                         root / "tools/bk7258/bk7258_sdk_lock.json").resolve()
             registry = validate_sdk_registry(root, load_json_checked(registry_path, "SDK registry"))
             sdk_set = validate_sdk_set(load_json_checked(set_path, "SDK set"), registry)
             lock = validate_sdk_lock(root, registry_path, set_path,
@@ -3824,19 +3843,19 @@ def cli(argv: list[str] | None = None) -> int:
 
             if args.command in {"layer-check", "ownership-check"}:
                 manifest = load_json_checked(
-                    _rooted(args.manifest, root / "board/bk7258/scripts/bk7258_layer_ownership.json"),
+                    _rooted(args.manifest, root / "tools/bk7258/bk7258_layer_ownership.json"),
                     "layer ownership manifest")
                 validate_ownership_manifest(root, manifest)
                 print("bk7258-framework: LAYER OWNERSHIP PASS")
             elif args.command == "migration-check":
                 ledger = load_json_checked(
-                    _rooted(args.ledger, root / "board/bk7258/scripts/bk7258_compatibility_migration_ledger.json"),
+                    _rooted(args.ledger, root / "tools/bk7258/bk7258_compatibility_migration_ledger.json"),
                     "compatibility migration ledger")
                 validate_migration_ledger(root, ledger)
                 print("bk7258-framework: MIGRATION LEDGER PASS")
             else:
                 graph = load_json_checked(
-                    _rooted(args.graph, root / "board/bk7258/scripts/bk7258_resource_graph_t5ai_core.json"),
+                    _rooted(args.graph, root / "tools/bk7258/bk7258_resource_graph_t5ai_core.json"),
                     "resource graph")
                 if args.command in {"resource-check", "graph-check"}:
                     validate_resource_graph(root, graph)
@@ -3850,7 +3869,7 @@ def cli(argv: list[str] | None = None) -> int:
             )
 
             descriptor_path = (args.descriptors or
-                               root / "board/bk7258/scripts/bk7258_validation_descriptors.json")
+                               root / "tools/bk7258/bk7258_validation_descriptors.json")
             if not descriptor_path.is_absolute():
                 descriptor_path = root / descriptor_path
             descriptor_set = load_json_checked(descriptor_path, "validation descriptors")

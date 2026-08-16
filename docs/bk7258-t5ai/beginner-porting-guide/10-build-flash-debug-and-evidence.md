@@ -8,14 +8,14 @@
 > host-only role view，不授权 Flash：
 >
 > ```sh
-> python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+> python3 tools/bk7258/bk7258_framework.py build-plan \
 >   --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
-> python3 board/bk7258/scripts/bk7258_framework.py validation-check
-> python3 board/bk7258/scripts/materialize_product_profiles.py \
+> python3 tools/bk7258/bk7258_framework.py validation-check
+> python3 tools/bk7258/materialize_product_profiles.py \
 >   --plan <build-root>/bk7258-build-plan.json \
 >   --seed-root board/bk7258/configs --output <build-root>/configs \
 >   --make-defs board/bk7258/scripts/Make.defs
-> python3 board/bk7258/scripts/bk7258_isolated_executor.py prepare \
+> python3 tools/bk7258/bk7258_isolated_executor.py prepare \
 >   --product t5_board_bringup --build-root <build-root> \
 >   --out <build-root>/execution.json
 > ```
@@ -41,9 +41,9 @@
 
 ```bash
 cd <workspace-root>/contest2026_135_yongwangzhiqian
-python3 board/bk7258/scripts/bk7258_isolated_executor.py \
+python3 tools/bk7258/bk7258_isolated_executor.py \
   materialize-sources --manifest <build-root>/execution.json
-python3 board/bk7258/scripts/bk7258_isolated_executor.py \
+python3 tools/bk7258/bk7258_isolated_executor.py \
   compile-runtime --manifest <build-root>/execution.json \
   --authorize-compile
 ```
@@ -157,7 +157,7 @@ sequenceDiagram
 
 ```bash
 cd /home/lijian/project/open-vela
-PS1=$(wslpath -w contest2026_135_yongwangzhiqian/board/bk7258/scripts/capture_windows_serial.ps1)
+PS1=$(wslpath -w contest2026_135_yongwangzhiqian/tools/bk7258/capture_windows_serial.ps1)
 OUT=$(wslpath -w /home/lijian/project/open-vela/logs/apctl-status.raw)
 powershell.exe -NoProfile -ExecutionPolicy Bypass \
   -File "$PS1" -Port COM11 -Baud 460800 -DurationSec 6 \

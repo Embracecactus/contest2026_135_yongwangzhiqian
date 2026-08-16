@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT_ROOT = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "tools" / "bk7258"
 REPOSITORY = Path(__file__).resolve().parents[3]
 if str(SCRIPT_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPT_ROOT))

@@ -6,7 +6,7 @@
   "product": "t5_board_bringup",
   "family": "t5_board",
   "board": "t5_board",
-  "catalog": "board/bk7258/scripts/bk7258_product_catalog_t5_board_bringup.json",
+  "catalog": "tools/bk7258/bk7258_product_catalog_t5_board_bringup.json",
   "boot": "mcuboot",
   "bl2_image_logical_size": 12288,
   "active_roles": ["bl1", "bl2", "cp", "ap"],
@@ -173,5 +173,5 @@
     ],
     "no_key_paths": true
   },
-  "identity_sha256": "6bd87563cfe9ca97d083a52bb095ffd661cd35ffae15b3b995f5bf9c38389777"
+  "identity_sha256": "2f07ed76bd870a879d230f2f67bbb6875d46da7fc6bc9ab50773cf1d81020e70"
 }

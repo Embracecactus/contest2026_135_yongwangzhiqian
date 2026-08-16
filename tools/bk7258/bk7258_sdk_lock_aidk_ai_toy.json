@@ -4,9 +4,9 @@
   "version": 1,
   "id": "aidk_ai_toy_bringup-sdk-lock",
   "set_id": "aidk_ai_toy_bringup-sdk",
-  "registry_path": "board/bk7258/scripts/bk7258_sdk_registry.json",
-  "registry_sha256": "4f5e6e30c2ecc3cc708e8fe0ff2c165df9eb8a257564236aa722e1e1de9ddcc5",
-  "set_path": "board/bk7258/scripts/bk7258_sdk_set_aidk_ai_toy.json",
+  "registry_path": "tools/bk7258/bk7258_sdk_registry.json",
+  "registry_sha256": "c427211e86b6c3b4c48c8c629e5db5bcec60e53a020cdb4f12e2b9258b8042c0",
+  "set_path": "tools/bk7258/bk7258_sdk_set_aidk_ai_toy.json",
   "set_sha256": "eac0cb8e4da93e61773de3477ad95e9b28d988c5a78bfe8910c5fa77e70b5fa7",
   "roles": {
     "cp": {
@@ -25,6 +25,8 @@
       "provenance_sha256": null
     }
   },
-  "no_runtime_sdk_roles": ["bl2"],
-  "identity_sha256": "149fb168b6076bdf43b361457a8774fcf7b4a918fb9c316a9d548488726a2979"
+  "no_runtime_sdk_roles": [
+    "bl2"
+  ],
+  "identity_sha256": "5c77d60c4c698273addeaa59da5a9ff2716f2691da6a43161710c6547b0a95bd"
 }

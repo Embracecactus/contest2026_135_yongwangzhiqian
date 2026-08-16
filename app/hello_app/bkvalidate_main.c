@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Small public-API validation dispatcher.  Descriptor policy is checked by
- * board/bk7258/scripts/bk7258_validation.py; this target-side dispatcher only
+ * tools/bk7258/bk7258_validation.py; this target-side dispatcher only
  * uses public device paths or versioned diagnostic records, serializes
  * resource claims, and emits stable JSON outcomes.  It has no vendor SDK
  * calls and never starts validation from peripheral composition.

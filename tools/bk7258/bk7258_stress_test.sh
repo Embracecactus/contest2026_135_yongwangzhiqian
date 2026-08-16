@@ -10,24 +10,49 @@
 #   pthread 栈/TCB 未回收；常驻 worker 修复后应越过原 run 53 阈值且 heap 稳定。
 #
 # 用法：
-#   ./bk7258_stress_test.sh                 # 默认：排除 RPMsg
-#   STRESS_RPMSG=1 ./bk7258_stress_test.sh  # 含 RPMsg heap/阈值回归
+#   BK7258_STRESS_PORT=COMx ./bk7258_stress_test.sh
+#   BK7258_STRESS_PORT=COMx STRESS_RPMSG=1 ./bk7258_stress_test.sh
 #
 # 依赖：
 #   - powershell.exe (Windows interop) 可用
-#   - COM11 枚举存在（firmware console, 460800 8N1）
+#   - 调用者现场枚举并通过 BK7258_STRESS_PORT 指定 firmware console
+#   - 默认 460800 8N1；可通过 BK7258_STRESS_BAUD 覆盖波特率
 #   - 同目录的 capture_windows_serial.ps1
 #
 # 产物：
-#   $REPO/logs/stress-<时间戳>/<phase>.raw   每个阶段的原始串口
-#   $REPO/logs/stress-<时间戳>/stress-master-summary.txt  汇总
+#   <workspace>/logs/stress-<时间戳>/<phase>.raw   每个阶段的原始串口
+#   <workspace>/logs/stress-<时间戳>/stress-master-summary.txt  汇总
 # =============================================================================
 set -u
 
-REPO=/home/lijian/project/open-vela
-SCRIPTS="$REPO/contest2026_135_yongwangzhiqian/board/bk7258/scripts"
-PS1=$(wslpath -w "$SCRIPTS/capture_windows_serial.ps1")
-LOGDIR="$REPO/logs/stress-$(date +%Y%m%d-%H%M%S)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LAYOUT_PATHS="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+from bk7258_paths import Bk7258Layout
+layout = Bk7258Layout()
+print(layout.workspace_root or layout.contest_root.parent)
+print(layout.tools_dir)
+' "$SCRIPT_DIR")" || {
+  printf '%s\n' 'bk7258_stress_test.sh: cannot resolve BK7258 layout' >&2
+  exit 2
+}
+REPO_ROOT="${LAYOUT_PATHS%%$'\n'*}"
+TOOLS_DIR="${LAYOUT_PATHS#*$'\n'}"
+if [[ "$REPO_ROOT" == "$LAYOUT_PATHS" || -z "$REPO_ROOT" || -z "$TOOLS_DIR" ]]; then
+  printf '%s\n' 'bk7258_stress_test.sh: malformed BK7258 layout result' >&2
+  exit 2
+fi
+PORT="${BK7258_STRESS_PORT:-}"
+BAUD="${BK7258_STRESS_BAUD:-460800}"
+if [[ -z "$PORT" || ! "$BAUD" =~ ^[0-9]+$ ]]; then
+  printf '%s\n' \
+    'bk7258_stress_test.sh: set BK7258_STRESS_PORT to the enumerated COM port' >&2
+  exit 2
+fi
+PS1=$(wslpath -w "$TOOLS_DIR/capture_windows_serial.ps1")
+LOG_ROOT="${BK7258_STRESS_LOG_ROOT:-${REPO_ROOT}/logs}"
+LOGDIR="$LOG_ROOT/stress-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$LOGDIR"
 SUMMARY="$LOGDIR/stress-master-summary.txt"
 
@@ -47,12 +72,12 @@ cap() {
   out=$(wslpath -w "$1")
   if [ -n "${3:-}" ]; then
     diagnostic=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PS1" \
-      -Port COM11 -Baud 460800 -DurationSec "$2" -OutputFile "$out" \
+      -Port "$PORT" -Baud "$BAUD" -DurationSec "$2" -OutputFile "$out" \
       -Command "$3" 2>&1)
     rc=$?
   else
     diagnostic=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PS1" \
-      -Port COM11 -Baud 460800 -DurationSec "$2" -OutputFile "$out" 2>&1)
+      -Port "$PORT" -Baud "$BAUD" -DurationSec "$2" -OutputFile "$out" 2>&1)
     rc=$?
   fi
 

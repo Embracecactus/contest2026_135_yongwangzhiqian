@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT_ROOT = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "tools" / "bk7258"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from bk7258_framework import (  # noqa: E402
@@ -305,7 +305,7 @@ class FrameworkTest(unittest.TestCase):
     def test_sdk_bundle_verifier_rejects_extra_and_symlink_entries(self) -> None:
         with tempfile.TemporaryDirectory(prefix="bk7258-sdk-verify-") as directory:
             root = Path(directory)
-            manifest = root / "board/bk7258/scripts/sdk-manifests/test/cp.sha256"
+            manifest = root / "board/bk7258/bk_idk/manifests/test/cp.sha256"
             manifest.parent.mkdir(parents=True)
             payload = b"fixture\n"
             payload_hash = hashlib.sha256(payload).hexdigest()
@@ -316,7 +316,7 @@ class FrameworkTest(unittest.TestCase):
             (bundle / "libs").mkdir()
             (bundle / "include/a.h").write_bytes(payload)
             entry = {"id": "sha256:" + "0" * 64,
-                     "manifest_path": "board/bk7258/scripts/sdk-manifests/test/cp.sha256",
+                     "manifest_path": "board/bk7258/bk_idk/manifests/test/cp.sha256",
                      "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()}
             result = verify_sdk_bundle(root, entry, bundle)
             self.assertEqual(result["file_count"], 1)
@@ -348,8 +348,16 @@ class FrameworkTest(unittest.TestCase):
     def test_product_config_and_isolated_boot_runtime_plan(self) -> None:
         cp_ir = resolve(REPOSITORY, "t5ai_core_bringup", "cp")
         cp_config = config_document(cp_ir)
+        ap_config = config_document(resolve(REPOSITORY, "t5ai_core_bringup", "ap"))
         self.assertIs(validate_config_document(cp_config), cp_config)
         self.assertIn("CONFIG_BK7258_AP_CORE is not set", cp_config["defconfig"])
+        self.assertIn('CONFIG_ARCH="arm"', cp_config["defconfig"])
+        self.assertIn(
+            'CONFIG_ARCH_BOARD_CUSTOM_DIR="../contest2026_135_yongwangzhiqian/board/bk7258"',
+            cp_config["defconfig"],
+        )
+        self.assertIn('CONFIG_INIT_ENTRYPOINT="nsh_main"', cp_config["defconfig"])
+        self.assertIn('CONFIG_INIT_ENTRYPOINT="bk7258_ap_main"', ap_config["defconfig"])
         plan = build_plan(REPOSITORY, "t5ai_core_bringup")
         self.assertIs(validate_build_plan(plan), plan)
         self.assertEqual(set(plan["roles"]), {"bl1", "bl2", "cp", "ap"})

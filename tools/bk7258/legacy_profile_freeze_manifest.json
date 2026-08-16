@@ -55,7 +55,7 @@
   ],
   "profile_count": 3,
   "file_count": 7,
-  "migration_ledger": "board/bk7258/scripts/legacy_profile_migration_ledger.json",
-  "migration_ledger_sha256": "29fdd5e37f57339027a51bb4e9d9f70173ac77075e98f19945523127f9b1674c",
-  "manifest_sha256": "56e623113822029660615a457842d0589f71ec8aa4235f2225a4053a83a7288c"
+  "migration_ledger": "tools/bk7258/legacy_profile_migration_ledger.json",
+  "migration_ledger_sha256": "a1cf483975c68d00cbcf45ebece5426673b993f3706dc45cb01798ba4a765c77",
+  "manifest_sha256": "0ab3bb631043ddcd4c4bd56fc1372d46b07078c0d28008695dc52fec1a92ba07"
 }

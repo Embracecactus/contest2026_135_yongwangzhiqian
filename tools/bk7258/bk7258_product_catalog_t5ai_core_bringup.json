@@ -18,7 +18,7 @@
     "cp": {"fragments": ["role_cp"], "legacy_profile": "t5ai_core_cp_base"}
   },
   "schema": "bk7258.composition/1",
-  "sdk_lock": "board/bk7258/scripts/bk7258_sdk_lock.json",
-  "sdk_set": "board/bk7258/scripts/bk7258_sdk_set.json",
+  "sdk_lock": "tools/bk7258/bk7258_sdk_lock.json",
+  "sdk_set": "tools/bk7258/bk7258_sdk_set.json",
   "validation_suite": null
 }

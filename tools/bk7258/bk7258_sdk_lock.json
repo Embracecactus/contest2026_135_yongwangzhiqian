@@ -4,9 +4,9 @@
   "version": 1,
   "id": "t5ai_core_bringup-sdk-lock",
   "set_id": "t5ai_core_bringup-sdk",
-  "registry_path": "board/bk7258/scripts/bk7258_sdk_registry.json",
-  "registry_sha256": "4f5e6e30c2ecc3cc708e8fe0ff2c165df9eb8a257564236aa722e1e1de9ddcc5",
-  "set_path": "board/bk7258/scripts/bk7258_sdk_set.json",
+  "registry_path": "tools/bk7258/bk7258_sdk_registry.json",
+  "registry_sha256": "c427211e86b6c3b4c48c8c629e5db5bcec60e53a020cdb4f12e2b9258b8042c0",
+  "set_path": "tools/bk7258/bk7258_sdk_set.json",
   "set_sha256": "3d940eb89ee1f02c554bb634851322f27694a0d5709459b676e9f094fb2fc52c",
   "roles": {
     "cp": {
@@ -25,6 +25,8 @@
       "provenance_sha256": null
     }
   },
-  "no_runtime_sdk_roles": ["bl2"],
-  "identity_sha256": "cb50794659eab20d2ba7b4e0a1ed0949e0309924b382921626accbd3c51fc3a5"
+  "no_runtime_sdk_roles": [
+    "bl2"
+  ],
+  "identity_sha256": "6d6258559e17b19d377733498c0f8a4f24b0e57a4e72d0774534865bfae5de04"
 }

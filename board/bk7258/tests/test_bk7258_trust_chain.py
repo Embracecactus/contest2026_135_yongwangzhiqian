@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPT_DIR = Path(__file__).resolve().parents[3] / "tools" / "bk7258"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from bk7258_trust_chain import (  # noqa: E402

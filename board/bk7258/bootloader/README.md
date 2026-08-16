@@ -6,10 +6,10 @@
 > Resolve a current product, validation suite, and temporary role view first:
 >
 > ```sh
-> python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+> python3 tools/bk7258/bk7258_framework.py build-plan \
 >   --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
-> python3 board/bk7258/scripts/bk7258_framework.py validation-check
-> python3 board/bk7258/scripts/materialize_product_profiles.py \
+> python3 tools/bk7258/bk7258_framework.py validation-check
+> python3 tools/bk7258/materialize_product_profiles.py \
 >   --plan <build-root>/bk7258-build-plan.json \
 >   --seed-root board/bk7258/configs \
 >   --output <build-root>/configs \

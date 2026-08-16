@@ -18,7 +18,7 @@
     "serialization": {"type": "object", "additionalProperties": false},
     "migration_policy": {"type": "object", "additionalProperties": false},
     "descriptors": {"type": "array", "minItems": 1},
-    "legacy_ledger": {"const": "board/bk7258/scripts/legacy_profile_migration_ledger.json"},
+    "legacy_ledger": {"const": "tools/bk7258/legacy_profile_migration_ledger.json"},
     "identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
   },
   "descriptor": {

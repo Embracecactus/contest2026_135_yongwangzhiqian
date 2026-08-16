@@ -11,6 +11,7 @@ pass the package's target public-root preflight.
 
 from __future__ import annotations
 
+
 import argparse
 import hashlib
 import json
@@ -22,6 +23,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
+from bk7258_paths import load_board_script
 from bk7258_trust_chain import (
     TrustChainError,
     load_contract,
@@ -183,6 +185,7 @@ def _load_partition_layout(path: Path) -> Any:
     calls this helper on a temporary file containing the archive member.
     """
     try:
+        gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
         from gen_bk7258_partitions import (  # noqa: PLC0415
             PartitionLayoutError,
             load_layout,

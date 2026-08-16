@@ -9,7 +9,7 @@ Every profile directory contains:
 
 - `defconfig`: the NuttX configuration consumed by `build.sh`;
 - `profile.conf`: board/role/boot/class/compatibility metadata consumed by
-  `../scripts/build_dual_image.sh`.
+  `tools/bk7258/build_dual_image.sh` (from the repository root).
 
 The flat directory layout is intentional: NuttX custom-board configuration
 paths end at `configs/<profile>`.  The physical board is explicit in the
@@ -54,8 +54,8 @@ fragment or validation suite instead.
 ## Canonical products, fragments, and suites
 
 New builds are product-first.  Resolve them with
-`board/bk7258/scripts/bk7258_framework.py` and execute the isolated contract
-with `board/bk7258/scripts/bk7258_isolated_executor.py`.
+`tools/bk7258/bk7258_framework.py` and execute the isolated contract
+with `tools/bk7258/bk7258_isolated_executor.py`.
 
 | Product | Board/boot | Base fragments | Role fragments | Retained seed mapping |
 |---|---|---|---|---|
@@ -82,7 +82,7 @@ requirements; it does not claim hardware PASS by itself.
 Resolve a canonical product without compiling or requiring signing keys:
 
 ```sh
-python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+python3 tools/bk7258/bk7258_framework.py build-plan \
   --product t5ai_core_bringup \
   --out /tmp/bk7258-t5ai-core-build-plan.json
 ```
@@ -90,7 +90,7 @@ python3 board/bk7258/scripts/bk7258_framework.py build-plan \
 Prepare the canonical isolated four-role contract:
 
 ```sh
-python3 board/bk7258/scripts/bk7258_isolated_executor.py prepare \
+python3 tools/bk7258/bk7258_isolated_executor.py prepare \
   --product t5ai_core_bringup \
   --build-root /tmp/bk7258-t5ai-core-build \
   --out /tmp/bk7258-t5ai-core-build/execution.json

@@ -45,8 +45,8 @@
     },
     "build_adapter": {
       "formal_layers": ["board"],
-      "current_paths": ["board/bk7258/scripts", "board/bk7258/cmake"],
-      "target_paths": ["board/bk7258/scripts", "board/bk7258/cmake"],
+      "current_paths": ["tools/bk7258", "board/bk7258/cmake"],
+      "target_paths": ["tools/bk7258", "board/bk7258/cmake"],
       "status": "adapter_only",
       "scope": "Host adapters generate Kconfig/.config metadata and invoke existing CMake/Make semantics; they are not a replacement build system.",
       "notes": "CMake is the recommended adapter; Classic remains a supported compatibility adapter with legacy semantics."
@@ -126,5 +126,5 @@
     "new_seed_requires": "genuinely different product mode, lifecycle, boot layout or architecture boundary",
     "validation": "not_a_formal_layer"
   },
-  "identity_sha256": "0443b256a06442b0123a73f3dcb77f77756b10ceb4042c1c3d0861fec4b5fb96"
+  "identity_sha256": "13c795f694e08842aa764d1879915baa48f4ea748ce29f24274e61d4342932d9"
 }

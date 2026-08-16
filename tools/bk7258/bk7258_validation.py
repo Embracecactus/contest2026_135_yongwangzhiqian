@@ -157,7 +157,7 @@ def validate_legacy_profile_mapping(repository: Path, descriptor_set: dict[str, 
         if row["class"] not in {"validation", "ci"} and suite is not None:
             raise FrameworkError(f"runnable profile has an unexpected suite: {name}")
         families.add(target["family"])
-    freeze = load_json(repository / "board/bk7258/scripts/legacy_profile_freeze_manifest.json")
+    freeze = load_json(repository / "tools/bk7258/legacy_profile_freeze_manifest.json")
     historical_names = set(freeze.get("retained_profiles", [])) | set(
         freeze.get("retired_profiles", []))
     if seen != historical_names:
@@ -282,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", choices=("check",))
     args = parser.parse_args(argv)
     root = args.root.resolve()
-    path = args.descriptors or root / "board/bk7258/scripts/bk7258_validation_descriptors.json"
+    path = args.descriptors or root / "tools/bk7258/bk7258_validation_descriptors.json"
     if not path.is_absolute():
         path = root / path
     try:

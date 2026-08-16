@@ -27,9 +27,24 @@ if (($# != 0)); then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BOARD_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-CONTEST_DIR="$(cd "${BOARD_DIR}/../.." && pwd)"
-WORKSPACE="$(cd "${CONTEST_DIR}/.." && pwd)"
+# 形态无关地解析仓库根 / 板级目录 / workspace（P1 路径层），
+# 替代旧 scripts/ 位置下的 SCRIPT_DIR/.. 推导（迁移到 tools/bk7258 后语义已变）。
+_ROOTS="$(python3 - "${SCRIPT_DIR}" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from bk7258_paths import Bk7258Layout
+lay = Bk7258Layout()
+print(lay.contest_root)
+print(lay.board_dir)
+print(lay.workspace_root or "")
+PY
+)"
+CONTEST_DIR="$(printf '%s\n' "${_ROOTS}" | sed -n '1p')"
+BOARD_DIR="$(printf '%s\n' "${_ROOTS}" | sed -n '2p')"
+WORKSPACE="$(printf '%s\n' "${_ROOTS}" | sed -n '3p')"
+if [[ -z "${WORKSPACE}" ]]; then
+    WORKSPACE="$(cd "${CONTEST_DIR}/.." && pwd)"
+fi
 TOPDIR="${WORKSPACE}/nuttx"
 BUILD="${WORKSPACE}/build.sh"
 validate_output_root()
@@ -67,7 +82,7 @@ validate_output_root()
 if [[ -n "${BK7258_OUTPUT_ROOT:-}" ]]; then
     validate_output_root "${BK7258_OUTPUT_ROOT}"
 fi
-PARTITION_GENERATOR="${SCRIPT_DIR}/gen_bk7258_partitions.py"
+PARTITION_GENERATOR="${BOARD_DIR}/scripts/gen_bk7258_partitions.py"
 FRAMEWORK_TOOL="${SCRIPT_DIR}/bk7258_framework.py"
 TRUST_CHAIN_TOOL="${SCRIPT_DIR}/bk7258_trust_chain.py"
 # The payload-bearing container is an additive delivery artifact.  Keep the
@@ -1124,8 +1139,9 @@ validate_output_root "${OUTPUT}"
 SDK_BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
 CP_SDK_BUNDLE_ROOT="${SDK_BUNDLE_BASE}/versions/${CP_SDK_BUNDLE_VERSION}"
 AP_SDK_BUNDLE_ROOT="${SDK_BUNDLE_BASE}/versions/${AP_SDK_BUNDLE_VERSION}"
-CP_SDK_MANIFEST_DIR="${SCRIPT_DIR}/sdk-manifests/${CP_SDK_BUNDLE_VERSION}"
-AP_SDK_MANIFEST_DIR="${SCRIPT_DIR}/sdk-manifests/${AP_SDK_BUNDLE_VERSION}"
+SDK_MANIFEST_BASE="${BOARD_DIR}/bk_idk/manifests"
+CP_SDK_MANIFEST_DIR="${SDK_MANIFEST_BASE}/${CP_SDK_BUNDLE_VERSION}"
+AP_SDK_MANIFEST_DIR="${SDK_MANIFEST_BASE}/${AP_SDK_BUNDLE_VERSION}"
 export BK7258_CP_SDK_BUNDLE_VERSION="${CP_SDK_BUNDLE_VERSION}"
 export BK7258_AP_SDK_BUNDLE_VERSION="${AP_SDK_BUNDLE_VERSION}"
 TMPDIR="$(mktemp -d)"
@@ -1870,7 +1886,7 @@ if [[ -n "${PRODUCT_ID}" ]]; then
     AP_CONFIG_RECORD="bk7258-product:${PRODUCT_ID}:ap"
     CP_PROFILE_METADATA_RECORD="generated:${CP_PROFILE_COMPAT}:cp"
     AP_PROFILE_METADATA_RECORD="generated:${AP_PROFILE_COMPAT}:ap"
-    PROFILE_MATERIALIZER=board/bk7258/scripts/materialize_product_profiles.py
+    PROFILE_MATERIALIZER=tools/bk7258/materialize_product_profiles.py
     CP_PROFILE_SEED="$(plan_value "${BUILD_PLAN_SOURCE}" legacy_adapter.seed_profiles.cp.source)"
     AP_PROFILE_SEED="$(plan_value "${BUILD_PLAN_SOURCE}" legacy_adapter.seed_profiles.ap.source)"
 fi

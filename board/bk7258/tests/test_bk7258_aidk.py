@@ -14,6 +14,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
+TOOLS_ROOT = Path(__file__).resolve().parents[3] / "tools" / "bk7258"
+sys.path.insert(0, str(TOOLS_ROOT))
 SCRIPT_ROOT = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
@@ -32,7 +34,7 @@ from bk7258_resource_graph import (  # noqa: E402
 from materialize_product_profiles import materialize_plan  # noqa: E402
 from gen_bk7258_partitions import load_layout  # noqa: E402
 
-BOOTLOADER_ROOT = SCRIPT_ROOT.parent / "bootloader"
+BOOTLOADER_ROOT = TOOLS_ROOT.parent.parent / "board" / "bk7258" / "bootloader"
 sys.path.insert(0, str(BOOTLOADER_ROOT))
 from make_bl1_manifest import bl2_contract_from_layout  # noqa: E402
 
@@ -44,7 +46,7 @@ class AidkBoardTest(unittest.TestCase):
     def test_partition_headers_are_product_and_role_private(self) -> None:
         board = REPOSITORY / "board/bk7258"
         generator = board / "scripts/gen_bk7258_partitions.py"
-        verifier = board / "scripts/verify_bk7258_partitions.py"
+        verifier = TOOLS_ROOT / "verify_bk7258_partitions.py"
         source = board / "partitions/bk7258/auto_partitions.csv"
         tracked_header = board / "include/bk7258_partition_layout.h"
         tracked_before = tracked_header.read_bytes()
@@ -211,7 +213,7 @@ class AidkBoardTest(unittest.TestCase):
             self.assertIn("incomplete private partition contract",
                           incomplete_root.stderr)
 
-        build_dual = (board / "scripts/build_dual_image.sh").read_text()
+        build_dual = (TOOLS_ROOT / "build_dual_image.sh").read_text()
         make_defs = (board / "scripts/Make.defs").read_text()
         cmake = (board / "CMakeLists.txt").read_text()
         self.assertIn("materialize_partition_contract", build_dual)
@@ -596,7 +598,7 @@ class AidkBoardTest(unittest.TestCase):
                       wrong_capacity.stderr)
 
         secureboot_packer = (
-            REPOSITORY / "board/bk7258/scripts/pack_bk7258_secureboot.py"
+            REPOSITORY / "tools/bk7258/pack_bk7258_secureboot.py"
         )
         staging_mismatch = subprocess.run(
             [
@@ -634,7 +636,7 @@ class AidkBoardTest(unittest.TestCase):
 
         incomplete = subprocess.run(
             [sys.executable, "-c", "import bk7258_ab_layout"],
-            cwd=SCRIPT_ROOT,
+            cwd=TOOLS_ROOT,
             env={**base_env, "BK7258_PARTITION_LAYOUT_SOURCE": str(source)},
             text=True,
             capture_output=True,
@@ -652,7 +654,7 @@ class AidkBoardTest(unittest.TestCase):
         accepted = subprocess.run(
             [sys.executable, "-c",
              "import bk7258_ab_layout as layout; print(layout.LAYOUT_ID)"],
-            cwd=SCRIPT_ROOT,
+            cwd=TOOLS_ROOT,
             env=complete_env,
             text=True,
             capture_output=True,
@@ -663,7 +665,7 @@ class AidkBoardTest(unittest.TestCase):
 
         rejected = subprocess.run(
             [sys.executable, "-c", "import bk7258_ab_layout"],
-            cwd=SCRIPT_ROOT,
+            cwd=TOOLS_ROOT,
             env={**complete_env, "BK7258_PARTITION_LAYOUT_SHA256": "0" * 64},
             text=True,
             capture_output=True,
@@ -685,7 +687,7 @@ class AidkBoardTest(unittest.TestCase):
         self.assertIn("boot_mcuboot_ab", product["fragments"])
         self.assertNotIn("boot_raw_aidk_ai_toy", product["fragments"])
         self.assertNotIn("FAL", " ".join(product["fragments"]))
-        script = (SCRIPT_ROOT / "build_dual_image.sh").read_text(encoding="utf-8")
+        script = (TOOLS_ROOT / "build_dual_image.sh").read_text(encoding="utf-8")
         self.assertIn("materialize_product_profiles.py", script)
         self.assertIn("product plan/profile boot mismatch", script)
         self.assertIn("bk7258-product:${PRODUCT_ID}:${role}", script)
@@ -696,7 +698,7 @@ class AidkBoardTest(unittest.TestCase):
                       script)
 
         result = subprocess.run(
-            [str(SCRIPT_ROOT / "build_dual_image.sh")],
+            [str(TOOLS_ROOT / "build_dual_image.sh")],
             env={**os.environ,
                  "BK7258_PRODUCT": "aidk_ai_toy_bringup",
                  "BK7258_PROFILE_CHECK_ONLY": "YES"},
@@ -842,7 +844,7 @@ class AidkBoardTest(unittest.TestCase):
         })
         self.assertEqual(product["board"], "aidk_ai_toy")
         self.assertEqual(product["mode"], "bringup")
-        registry_path = REPOSITORY / "board/bk7258/scripts/bk7258_sdk_registry.json"
+        registry_path = REPOSITORY / "tools/bk7258/bk7258_sdk_registry.json"
         registry = load_json(registry_path)
         sdk_set_path = REPOSITORY / product["sdk_set"]
         sdk_lock_path = REPOSITORY / product["sdk_lock"]
@@ -854,7 +856,7 @@ class AidkBoardTest(unittest.TestCase):
             REPOSITORY, registry_path, sdk_set_path, sdk_lock, registry, sdk_set), sdk_lock)
 
     def test_resource_graph_resolves_exactly_one_aidk_plan(self) -> None:
-        graph_path = SCRIPT_ROOT / "bk7258_resource_graph_aidk_ai_toy.json"
+        graph_path = TOOLS_ROOT / "bk7258_resource_graph_aidk_ai_toy.json"
         graph = load_json(graph_path)
         self.assertIs(validate_resource_graph(REPOSITORY, graph), graph)
         resolved = resolve_resource_graph(REPOSITORY, graph)
@@ -894,9 +896,9 @@ class AidkBoardTest(unittest.TestCase):
         board_cmake = (root / "src/CMakeLists.txt").read_text()
         board_kconfig = (root / "Kconfig").read_text()
         chip_kconfig = (root / "chip/Kconfig").read_text()
-        aidk_fragment = json.loads((SCRIPT_ROOT /
+        aidk_fragment = json.loads((TOOLS_ROOT /
             "bk7258_fragment_catalog_board_aidk_ai_toy.json").read_text())
-        core_fragment = json.loads((SCRIPT_ROOT /
+        core_fragment = json.loads((TOOLS_ROOT /
             "bk7258_fragment_catalog_board_t5ai_core.json").read_text())
 
         self.assertIn("Select exactly one BK7258 physical board", make_defs)

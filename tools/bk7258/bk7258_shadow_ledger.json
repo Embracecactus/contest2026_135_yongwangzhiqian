@@ -1,5 +1,5 @@
 {
-  "identity_sha256": "e30071278faef511c85d0770e20020d044b121ccc72bbd2a332a4c3cc9ad9a11",
+  "identity_sha256": "d4f327236800ed72ac56f33e289900d18b4c27333acd6e952afd81e28612c53b",
   "kind": "legacy-profile-shadow-ledger",
   "profile_count": 27,
   "rows": [
@@ -32,10 +32,10 @@
     {"family":"t5ai_core","legacy_profile":"t5ai_core_cp_wifi","resource_mode":"wifi","status":"retire-blocked-hardware","target_product":"t5ai_core_bringup","target_role":"cp","validation_suite":null,"rationale":"Mapped to the canonical product; Wi-Fi hardware cutover remains blocked."}
   ],
   "schema": "bk7258.shadow/1",
-  "source_manifest": "board/bk7258/scripts/legacy_profile_freeze_manifest.json",
-  "source_manifest_sha256": "47e2c13ccbfa8b35a74890d7ea067db0cd4fbc85fc091d0930a3ac96f5c022fb",
-  "source_migration_ledger": "board/bk7258/scripts/legacy_profile_migration_ledger.json",
-  "source_migration_ledger_sha256": "29fdd5e37f57339027a51bb4e9d9f70173ac77075e98f19945523127f9b1674c",
+  "source_manifest": "tools/bk7258/legacy_profile_freeze_manifest.json",
+  "source_manifest_sha256": "c4d828d4bfb52c4a0a420bb71fe380138101313914807e35849c66749aba670f",
+  "source_migration_ledger": "tools/bk7258/legacy_profile_migration_ledger.json",
+  "source_migration_ledger_sha256": "a1cf483975c68d00cbcf45ebece5426673b993f3706dc45cb01798ba4a765c77",
   "status": "cutover-approved",
   "statuses": ["shadow-equivalent", "retire-blocked-hardware"],
   "version": 1

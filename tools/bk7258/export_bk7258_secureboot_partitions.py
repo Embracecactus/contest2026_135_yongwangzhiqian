@@ -10,11 +10,15 @@ BK7258-specific translation performed here.
 
 from __future__ import annotations
 
+
 import argparse
 import csv
 import sys
 from pathlib import Path
 
+from bk7258_paths import load_board_script
+
+gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
 from gen_bk7258_partitions import (
     BOARD_DIR,
     SECUREBOOT_XIP_LAYOUT,

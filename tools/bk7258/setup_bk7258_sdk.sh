@@ -6,7 +6,23 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BOARD_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+LAYOUT_PATHS="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+from bk7258_paths import Bk7258Layout
+layout = Bk7258Layout()
+print(layout.board_dir)
+print(layout.tools_dir)
+' "$SCRIPT_DIR")" || {
+    printf '%s\n' 'setup_bk7258_sdk.sh: error: cannot resolve BK7258 layout' >&2
+    exit 1
+}
+BOARD_DIR="${LAYOUT_PATHS%%$'\n'*}"
+TOOLS_DIR="${LAYOUT_PATHS#*$'\n'}"
+if [[ "$BOARD_DIR" == "$LAYOUT_PATHS" || -z "$BOARD_DIR" || -z "$TOOLS_DIR" ]]; then
+    printf '%s\n' 'setup_bk7258_sdk.sh: error: malformed BK7258 layout result' >&2
+    exit 1
+fi
 BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
 PROG="$(basename "$0")"
 
@@ -38,10 +54,10 @@ The default is --version v3.1.1.9 --role cp.  All versions map to:
   ${BUNDLE_BASE}/versions/<version>/{cp,ap}
 
 Checksums are read from:
-  ${SCRIPT_DIR}/sdk-manifests/<version>/<role>.sha256
+  ${BOARD_DIR}/bk_idk/manifests/<version>/<role>.sha256
 
 Bundle identity and manifest binding are read from:
-  ${SCRIPT_DIR}/sdk-manifests/<version>/<role>.provenance
+  ${BOARD_DIR}/bk_idk/manifests/<version>/<role>.provenance
 
 Installation is local-only, atomic, and always refuses to overwrite an
 existing destination.
@@ -77,14 +93,14 @@ default_target()
 
 manifest_path()
 {
-    printf '%s/sdk-manifests/%s/%s.sha256\n' \
-        "$SCRIPT_DIR" "$VERSION" "$ROLE"
+    printf "%s/bk_idk/manifests/%s/%s.sha256\n" \
+        "$BOARD_DIR" "$VERSION" "$ROLE"
 }
 
 provenance_path()
 {
-    printf '%s/sdk-manifests/%s/%s.provenance\n' \
-        "$SCRIPT_DIR" "$VERSION" "$ROLE"
+    printf "%s/bk_idk/manifests/%s/%s.provenance\n" \
+        "$BOARD_DIR" "$VERSION" "$ROLE"
 }
 
 validate_structure()

@@ -25,17 +25,17 @@ from verify_legacy_profile_freeze import (
 )
 
 
-OUTPUT_REL = Path("board/bk7258/scripts/legacy_profile_consumers.json")
+OUTPUT_REL = Path("tools/bk7258/legacy_profile_consumers.json")
 FIXED_TERMS = (
     "CP_CONFIG_NAME", "AP_CONFIG_NAME", "BK7258_CONFIG_ROOT", "BK7258_PROFILE_",
     "profile.conf", "board/bk7258/configs", "sdk-profiles", "sdk-bundles",
 )
 GENERATED_PATHS = (
-    "board/bk7258/scripts/legacy_profile_consumers.json",
-    "board/bk7258/scripts/legacy_profile_freeze_manifest.json",
-    "board/bk7258/scripts/legacy_profile_migration_ledger.json",
-    "board/bk7258/scripts/verify_legacy_profile_freeze.py",
-    "board/bk7258/scripts/inventory_legacy_profile_consumers.py",
+    "tools/bk7258/legacy_profile_consumers.json",
+    "tools/bk7258/legacy_profile_freeze_manifest.json",
+    "tools/bk7258/legacy_profile_migration_ledger.json",
+    "tools/bk7258/verify_legacy_profile_freeze.py",
+    "tools/bk7258/inventory_legacy_profile_consumers.py",
     "board/bk7258/tests/test_legacy_profile_freeze.py",
     "progress/verification/2026-08-15-bk7258-platform-v2-p0.md",
 )
@@ -98,7 +98,7 @@ def reviewed_status(path: str) -> tuple[str, str]:
         return "historical-only", HISTORICAL_ONLY[path]
     if path.startswith("board/bk7258/configs/"):
         return "legacy-profile-data", "Profile metadata/defconfig is the frozen legacy input surface."
-    if path.startswith("board/bk7258/scripts/") or path.startswith("board/bk7258/chip/"):
+    if path.startswith("tools/bk7258/") or path.startswith("board/bk7258/chip/"):
         return "legacy-parser-or-build-reference", "Tracked build or verifier code still names the legacy schema."
     if path.startswith("board/bk7258/tests/"):
         return "host-test-reference", "Host test retains a legacy contract reference."
