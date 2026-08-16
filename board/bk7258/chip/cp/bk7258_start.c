@@ -33,7 +33,6 @@
 #include <nuttx/config.h>
 #include <nuttx/init.h>
 
-#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 
 #ifdef CONFIG_BK7258_SWD_DEBUG
@@ -78,19 +77,6 @@
 #define BK7258_APB_WDT_KEY1      (0x5au << 16)
 #define BK7258_APB_WDT_KEY2      (0xa5u << 16)
 
-/* The direct BL1 image starts at CP flash base.  A MCUboot payload reserves
- * its standard header before the vector table, and the linker uses the same
- * offset.  Tell VTOR to fetch exceptions from the actual vector location.
- */
-
-#ifdef CONFIG_BK7258_BL2_IMAGE
-#  define BK7258_VTOR_VALUE      BK7258_BL2_EXEC_RAM_BASE
-#elif defined(CONFIG_BK7258_MCUBOOT_IMAGE)
-#  define BK7258_VTOR_VALUE      (BK7258_CP_FLASH_ADDR + 0x200u)
-#else
-#  define BK7258_VTOR_VALUE      BK7258_CP_FLASH_ADDR
-#endif
-
 /* Heap base convention shared with mps_start.c / bk7258_allocateheap.c:
  * the IDLE thread stack sits at the top of .bss and is CONFIG_IDLETHREAD_
  * STACKSIZE bytes; the heap begins right above it.  g_idle_topstack records
@@ -104,6 +90,7 @@
  ****************************************************************************/
 
 extern uint32_t _eheap[];
+extern const void *const _vectors[80];
 
 /****************************************************************************
  * Public Data
@@ -146,13 +133,14 @@ void __start(void)
   bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_CP_ENTRY);
 #endif
 
-  /* 2. Point VTOR at our flash-resident vector table.  The MCUboot image
-   *    reserves a 0x200-byte, VTOR-alignment-sized header before that table.
-   *    The bootloader may or may not have set this; make it deterministic.
+  /* 2. Point VTOR at the vector table selected by the active linker script.
+   *    Raw, MCUboot and BL2 images use different origins; the linker owns
+   *    that product/build policy and publishes the final address through
+   *    _vectors.  Chip reset code must not reconstruct a board slot layout.
    *    Barrier so subsequent exception entry observes the new VTOR.
    */
 
-  BK7258_SCB_VTOR = BK7258_VTOR_VALUE;
+  BK7258_SCB_VTOR = (uintptr_t)_vectors;
   __asm volatile ("dsb; isb");
 
   /* 3. Stop both bootloader watchdogs immediately.  Preserve the APB WDT

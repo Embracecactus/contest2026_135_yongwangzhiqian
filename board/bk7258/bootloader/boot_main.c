@@ -29,7 +29,7 @@
 #include "boot_flash.h"
 #include "boot_wdt.h"
 #include "../chip/include/bk7258_memorymap.h"
-#include "../include/bk7258_partition_layout.h"
+#include <bk7258_partition_layout.h>
 
 extern void boot_clock_cold_init(void);
 

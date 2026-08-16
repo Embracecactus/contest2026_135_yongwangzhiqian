@@ -22,12 +22,15 @@ from bk7258_ab_layout import (
     ERASE_SIZE,
     FACTORY_PREFIX_END,
     LAYOUT_ID,
+    LAYOUT_INPUT,
+    LAYOUT_SHA256,
+    LAYOUT_SOURCE,
     LITTLEFS_SIZE,
     LITTLEFS_START,
     MIGRATION_WRITE_END,
     PAIR_B_SIZE,
     PAIR_B_START,
-    report as layout_report,
+    verify_contract as verify_partition_contract,
 )
 from bk7258_trust_chain import (
     TrustChainError,
@@ -80,8 +83,13 @@ def check_manifest_file(
     return payload
 
 
-def verify(package: Path) -> dict[str, object]:
-    layout_report()
+def verify(
+    package: Path,
+    partition: Path = LAYOUT_INPUT,
+    expected_id: str | None = None,
+    expected_sha256: str | None = None,
+) -> dict[str, object]:
+    verify_partition_contract(partition, expected_id, expected_sha256)
     manifest_path = package / "bk7258-dual-image.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -90,10 +98,18 @@ def verify(package: Path) -> dict[str, object]:
 
     require(manifest.get("format") == 2, "manifest format must be 2")
     require(manifest.get("layout_id") == LAYOUT_ID, "manifest layout ID drift")
+    require(
+        manifest.get("layout_sha256") == LAYOUT_SHA256,
+        "manifest layout SHA-256 drift",
+    )
     require(manifest.get("writes_enabled") is False, "writes_enabled must stay false")
     embedded_layout = manifest.get("layout")
     require(isinstance(embedded_layout, dict), "embedded layout is missing")
     require(embedded_layout.get("layout_id") == LAYOUT_ID, "embedded layout ID drift")
+    require(
+        embedded_layout.get("layout_sha256") == LAYOUT_SHA256,
+        "embedded layout SHA-256 drift",
+    )
     require(
         embedded_layout.get("writes_enabled") is False,
         "embedded writes_enabled must stay false",
@@ -331,7 +347,9 @@ def verify(package: Path) -> dict[str, object]:
     result = {
         "format": 1,
         "status": "pass",
+        "layout_source": LAYOUT_SOURCE,
         "layout_id": LAYOUT_ID,
+        "layout_sha256": LAYOUT_SHA256,
         "package": str(package.resolve()),
         "factory_image": {
             "length": len(factory),
@@ -368,10 +386,18 @@ def verify(package: Path) -> dict[str, object]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package", type=Path, required=True)
+    parser.add_argument("--partition", type=Path, default=LAYOUT_INPUT)
+    parser.add_argument("--expect-layout-id")
+    parser.add_argument("--expect-layout-sha256")
     parser.add_argument("--json", type=Path)
     args = parser.parse_args()
     try:
-        result = verify(args.package)
+        result = verify(
+            args.package,
+            args.partition,
+            args.expect_layout_id,
+            args.expect_layout_sha256,
+        )
     except (TrustChainError, VerificationError, OSError, ValueError) as error:
         print(f"FAIL bk7258-factory-layout: {error}")
         return 1

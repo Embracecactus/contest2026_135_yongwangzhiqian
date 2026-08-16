@@ -9,6 +9,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import bk7258_framework as composition
+
 
 class VerificationError(RuntimeError):
     """Raised when an N13 build gate is not satisfied."""
@@ -88,15 +90,16 @@ def require_lines(text: str, required: list[str], description: str) -> None:
 
 
 def verify_source(board: Path) -> dict[str, object]:
-    cp_config = (
-        board / "configs/t5ai_core_cp_psram_validation/defconfig"
-    ).read_text(
-        encoding="utf-8"
-    )
+    repository = board.parents[1]
+    cp_config = composition.config_document(
+        composition.resolve_validation_suite(
+            repository, "t5ai_core_bringup", "psram", "cp"
+        )
+    )["defconfig"]
     tick_line = "CONFIG_USEC_PER_TICK=1000\n"
     if cp_config.count(tick_line) != 1:
         raise VerificationError(
-            "T5AI-Core PSRAM validation CP profile must select the "
+            "canonical PSRAM validation CP suite must select the "
             "SDK-compatible 1 ms tick"
         )
 
@@ -120,9 +123,11 @@ def verify_source(board: Path) -> dict[str, object]:
                 f"symbol to libwifi.a: missing {token}"
             )
 
-    ap_config = (
-        board / "configs/t5ai_core_ap_psram_validation/defconfig"
-    ).read_text(encoding="utf-8")
+    ap_config = composition.config_document(
+        composition.resolve_validation_suite(
+            repository, "t5ai_core_bringup", "psram", "ap"
+        )
+    )["defconfig"]
     require_lines(
         ap_config,
         [
@@ -137,7 +142,7 @@ def verify_source(board: Path) -> dict[str, object]:
             'CONFIG_DEVICE_LOCAL_NAME="BK7258-N14"',
             "CONFIG_SMP_DEFAULT_CPUSET=0x1",
         ],
-        "T5AI-Core PSRAM validation AP profile",
+        "canonical PSRAM validation AP suite",
     )
 
     kconfig_source = (board / "chip/Kconfig").read_text(encoding="utf-8")

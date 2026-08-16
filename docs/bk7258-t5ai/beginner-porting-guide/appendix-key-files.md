@@ -44,8 +44,8 @@
 | [bk7258_vectors.c](../../../board/bk7258/chip/cp/bk7258_vectors.c) | CP vector/RAM-vector处理 |
 | [bk7258_serial.c](../../../board/bk7258/chip/common/bk7258_serial.c) | UART lower-half与RX ISR |
 | [bk7258_sdk_irq.c](../../../board/bk7258/chip/common/bk7258_sdk_irq.c) | SDK interrupt→NuttX IRQ bridge |
-| [bk7258_flash_mtd.c](../../../board/bk7258/chip/cp/bk7258_flash_mtd.c) | on-chip Flash MTD |
-| [bk7258_flash_guard.c](../../../board/bk7258/chip/cp/bk7258_flash_guard.c) | CP-only Flash serialization/permission |
+| [bk7258_flash_mtd.c](../../../board/bk7258/src/bk7258_flash_mtd.c) | board-owned partition/MTD composition |
+| [bk7258_flash_guard.c](../../../board/bk7258/src/bk7258_flash_guard.c) | CP-only Flash serialization/permission policy |
 | [bk7258_bringup.c](../../../board/bk7258/src/bk7258_bringup.c) | procfs、LittleFS与service bring-up |
 
 ## 4. AP与SMP

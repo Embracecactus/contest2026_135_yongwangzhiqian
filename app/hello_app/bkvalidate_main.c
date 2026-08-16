@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Small public-API validation dispatcher.  Descriptor policy is checked by
- * board/bk7258/scripts/bk7258_validation.py; this target-side skeleton only
- * probes public device paths, serializes resource claims, and emits stable
- * JSON outcomes.  It has no vendor SDK calls.
+ * board/bk7258/scripts/bk7258_validation.py; this target-side dispatcher only
+ * uses public device paths or versioned diagnostic records, serializes
+ * resource claims, and emits stable JSON outcomes.  It has no vendor SDK
+ * calls and never starts validation from peripheral composition.
  ****************************************************************************/
 
 /****************************************************************************
@@ -14,10 +15,34 @@
  ****************************************************************************/
 
 #include <fcntl.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+
+#if defined(CONFIG_BK7258_AP_CORE) && \
+    defined(CONFIG_BK7258_JPEG_M2M_VALIDATION)
+#  include <arch/chip/bk7258_jpeg_m2m_validation.h>
+#  define BKVALIDATE_JPEG_START bk7258_jpeg_m2m_validation_start
+#  define BKVALIDATE_JPEG_WAIT bkvalidate_wait_jpeg
+#else
+#  define BKVALIDATE_JPEG_START NULL
+#  define BKVALIDATE_JPEG_WAIT NULL
+#endif
+
+#if defined(CONFIG_BK7258_AP_CORE) && \
+    defined(CONFIG_BK7258_TEMPERATURE_VALIDATION)
+#  include <arch/chip/bk7258_temperature.h>
+#  define BKVALIDATE_TEMPERATURE_START bk7258_temperature_validation_start
+#  define BKVALIDATE_TEMPERATURE_WAIT bkvalidate_wait_temperature
+#else
+#  define BKVALIDATE_TEMPERATURE_START NULL
+#  define BKVALIDATE_TEMPERATURE_WAIT NULL
+#endif
+
+#define BKVALIDATE_POLL_US 10000u
 
 /****************************************************************************
  * Private Types
@@ -36,7 +61,88 @@ struct bkvalidate_descriptor_s
   const char *cleanup;
   const char *status;
   const char *resource_claim;
+  bool command_driven;
+  int (*start)(void);
+  int (*wait)(unsigned int timeout_ms);
 };
+
+#if defined(CONFIG_BK7258_AP_CORE) && \
+    defined(CONFIG_BK7258_JPEG_M2M_VALIDATION)
+static int bkvalidate_wait_jpeg(unsigned int timeout_ms)
+{
+  unsigned int attempts = (timeout_ms + 9u) / 10u;
+
+  while (attempts-- > 0)
+    {
+      uint32_t state;
+
+      if (g_bk7258_jpeg_m2m_validation_diag.magic !=
+            BK7258_JPEG_M2M_VALIDATION_MAGIC ||
+          g_bk7258_jpeg_m2m_validation_diag.version !=
+            BK7258_JPEG_M2M_VALIDATION_VERSION ||
+          g_bk7258_jpeg_m2m_validation_diag.size !=
+            sizeof(g_bk7258_jpeg_m2m_validation_diag))
+        {
+          return -EPROTO;
+        }
+
+      state = __atomic_load_n(
+        &g_bk7258_jpeg_m2m_validation_diag.state, __ATOMIC_ACQUIRE);
+      if (state == BK7258_JPEG_M2M_VALIDATION_PASSED)
+        {
+          return 0;
+        }
+
+      if (state == BK7258_JPEG_M2M_VALIDATION_FAILED)
+        {
+          return g_bk7258_jpeg_m2m_validation_diag.result < 0 ?
+                 g_bk7258_jpeg_m2m_validation_diag.result : -EIO;
+        }
+
+      usleep(BKVALIDATE_POLL_US);
+    }
+
+  return -ETIMEDOUT;
+}
+#endif
+
+#if defined(CONFIG_BK7258_AP_CORE) && \
+    defined(CONFIG_BK7258_TEMPERATURE_VALIDATION)
+static int bkvalidate_wait_temperature(unsigned int timeout_ms)
+{
+  unsigned int attempts = (timeout_ms + 9u) / 10u;
+
+  while (attempts-- > 0)
+    {
+      uint16_t state;
+
+      if (g_bk7258_temperature_validation_diag.magic !=
+            BK7258_TEMPERATURE_VALIDATION_MAGIC ||
+          g_bk7258_temperature_validation_diag.version !=
+            BK7258_TEMPERATURE_VALIDATION_VERSION)
+        {
+          return -EPROTO;
+        }
+
+      state = __atomic_load_n(
+        &g_bk7258_temperature_validation_diag.state, __ATOMIC_ACQUIRE);
+      if (state == BK7258_TEMPERATURE_VALIDATION_PASSED)
+        {
+          return 0;
+        }
+
+      if (state == BK7258_TEMPERATURE_VALIDATION_FAILED)
+        {
+          return g_bk7258_temperature_validation_diag.status < 0 ?
+                 g_bk7258_temperature_validation_diag.status : -EIO;
+        }
+
+      usleep(BKVALIDATE_POLL_US);
+    }
+
+  return -ETIMEDOUT;
+}
+#endif
 
 /****************************************************************************
  * Private Data
@@ -47,27 +153,35 @@ static const struct bkvalidate_descriptor_s g_descriptors[] =
   {
     "rptun_public_api_smoke", "cp_ap", "devpath:/dev/rptun", "auto",
     30000, "none", "public_api:open-close", "standard-timeout",
-    "public_api:close", "ready", "rptun_transport"
+    "public_api:close", "ready", "rptun_transport", false, NULL, NULL
   },
   {
     "wifi_public_api_smoke", "cp_ap", "devpath:/dev/wlan0", "auto",
     30000, "none", "public_api:open-close", "standard-timeout",
-    "public_api:close", "planned", "wifi_control"
+    "public_api:close", "planned", "wifi_control", false, NULL, NULL
   },
   {
     "gpio_interactive", "board", "operator:pin-observation", "interactive",
     60000, "operator-confirm", "public_api:gpio-observe", "operator-cancel",
-    "public_api:close", "ready", "board_gpio"
+    "public_api:close", "ready", "board_gpio", false, NULL, NULL
   },
   {
     "jpeg_fixture", "ap", "fixture:jpeg-baseline", "fixture",
-    30000, "fixture-mount", "public_api:video-io", "standard-timeout",
-    "fixture-unmount", "ready", "jpeg_engine"
+    30000, "none", "public_api:jpeg-m2m-validation", "none",
+    "none", "ready", "jpeg_engine", true,
+    BKVALIDATE_JPEG_START, BKVALIDATE_JPEG_WAIT
+  },
+  {
+    "temperature_validation", "ap", "fixture:temperature-rpmsg", "fixture",
+    30000, "none", "public_api:temperature-validation", "none",
+    "none", "ready", "temperature_sensor", true,
+    BKVALIDATE_TEMPERATURE_START, BKVALIDATE_TEMPERATURE_WAIT
   },
   {
     "power_fault_recovery", "cp_ap", "fault:power-cycle", "destructive-fault",
     120000, "fault-authorization", "public_api:recovery-observe",
-    "standard-timeout", "public_api:close", "ready", "pm_cross_core"
+    "standard-timeout", "public_api:close", "ready", "pm_cross_core", false,
+    NULL, NULL
   },
 };
 
@@ -102,7 +216,12 @@ static bool bkvalidate_requirement_available(const char *requirement)
 
   if (strncmp(requirement, "devpath:", 8) != 0)
     {
-      return false;
+      /* Fixture requirements are validated by the bounded command itself.
+       * They deliberately do not probe or initialize production devices from
+       * the dispatcher.
+       */
+
+      return strncmp(requirement, "fixture:", 8) == 0;
     }
 
   path = requirement + 8;
@@ -187,6 +306,7 @@ static void bkvalidate_run_one(const struct bkvalidate_descriptor_s *descriptor,
                                bool all_compatible, bool newline)
 {
   const char *reason;
+  int ret;
 
   if (all_compatible && strcmp(descriptor->category, "auto") != 0)
     {
@@ -195,10 +315,18 @@ static void bkvalidate_run_one(const struct bkvalidate_descriptor_s *descriptor,
       return;
     }
 
-  if (strcmp(descriptor->category, "auto") != 0)
+  if (strcmp(descriptor->category, "auto") != 0 &&
+      !descriptor->command_driven)
     {
       bkvalidate_print_outcome(descriptor, "SKIP",
                                "category_requires_explicit_authorization", newline);
+      return;
+    }
+
+  if (descriptor->command_driven && descriptor->start == NULL)
+    {
+      bkvalidate_print_outcome(descriptor, "SKIP", "validation_not_built",
+                               newline);
       return;
     }
 
@@ -220,8 +348,37 @@ static void bkvalidate_run_one(const struct bkvalidate_descriptor_s *descriptor,
       return;
     }
 
-  reason = strcmp(descriptor->run, "public_api:open-close") == 0 ?
-           "public_device_api_probe" : "runner_skeleton";
+  if (descriptor->start != NULL)
+    {
+      ret = descriptor->start();
+      if (ret < 0)
+        {
+          bkvalidate_print_outcome(descriptor, "FAIL",
+                                   "validation_start_failed", newline);
+          bkvalidate_claim_release();
+          return;
+        }
+
+      ret = descriptor->wait == NULL ? -EPROTO :
+            descriptor->wait(descriptor->timeout);
+      if (ret < 0)
+        {
+          reason = ret == -ETIMEDOUT ? "validation_timeout" :
+                   ret == -EPROTO ? "validation_diag_identity_mismatch" :
+                   "validation_failed";
+          bkvalidate_print_outcome(descriptor, "FAIL", reason, newline);
+          bkvalidate_claim_release();
+          return;
+        }
+
+      reason = "validation_passed";
+    }
+  else
+    {
+      reason = strcmp(descriptor->run, "public_api:open-close") == 0 ?
+               "public_device_api_probe" : "runner_skeleton";
+    }
+
   bkvalidate_print_outcome(descriptor, "PASS", reason, newline);
   bkvalidate_claim_release();
 }

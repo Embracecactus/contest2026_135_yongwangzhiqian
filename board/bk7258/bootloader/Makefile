@@ -25,9 +25,38 @@ ASFLAGS  := $(CPUFLAGS) -Os -g -ffreestanding -I../chip/include
 LDFLAGS  := $(CPUFLAGS) -T bootloader.tmp -nostdlib -Wl,--gc-sections \
             -Wl,-Map=bl.map
 
-PARTITION_CSV := ../partitions/bk7258/auto_partitions.csv
-PARTITION_GENERATOR := ../scripts/gen_bk7258_partitions.py
+PARTITION_CSV ?= ../partitions/bk7258/auto_partitions.csv
+PARTITION_GENERATOR ?= ../scripts/gen_bk7258_partitions.py
+PARTITION_CONTRACT_ROOT ?=
+ifneq ($(strip $(PARTITION_CONTRACT_ROOT)),)
+PARTITION_HEADER := $(PARTITION_CONTRACT_ROOT)/include/arch/board/bk7258_partition_layout.h
+PARTITION_OUTPUT_DIR := $(PARTITION_CONTRACT_ROOT)/generated
+else
 PARTITION_HEADER := ../include/bk7258_partition_layout.h
+PARTITION_OUTPUT_DIR := ../partitions/generated
+endif
+PARTITION_HEADER_DIR := $(dir $(PARTITION_HEADER))
+PARTITION_INCLUDE_FLAGS := -I$(PARTITION_HEADER_DIR)
+CFLAGS += $(PARTITION_INCLUDE_FLAGS)
+ASFLAGS += $(PARTITION_INCLUDE_FLAGS)
+PARTITION_LAYOUT_ID ?=
+PARTITION_LAYOUT_SHA256 ?=
+ifneq ($(strip $(PARTITION_CONTRACT_ROOT)),)
+ifeq ($(strip $(PARTITION_LAYOUT_ID)),)
+$(error PARTITION_LAYOUT_ID is required with PARTITION_CONTRACT_ROOT)
+endif
+endif
+PARTITION_ARGS := --input $(PARTITION_CSV) --header $(PARTITION_HEADER) \
+	--output-dir $(PARTITION_OUTPUT_DIR)
+ifneq ($(strip $(PARTITION_LAYOUT_ID)),)
+ifeq ($(strip $(PARTITION_LAYOUT_SHA256)),)
+$(error PARTITION_LAYOUT_SHA256 is required with PARTITION_LAYOUT_ID)
+endif
+PARTITION_ARGS += --expect-layout-id $(PARTITION_LAYOUT_ID) \
+	--expect-layout-sha256 $(PARTITION_LAYOUT_SHA256)
+else ifneq ($(strip $(PARTITION_LAYOUT_SHA256)),)
+$(error PARTITION_LAYOUT_ID is required with PARTITION_LAYOUT_SHA256)
+endif
 MEMORYMAP_HEADER := ../chip/include/bk7258_memorymap.h
 BL1_CONTROL_GENERATOR := make_bk7258_bl1_control.py
 BL2_IMAGE ?= bl2/bl2.bin
@@ -77,7 +106,7 @@ endif
 ifneq ($(filter $(BL1_UART2_PIN_GROUP),0 1),$(BL1_UART2_PIN_GROUP))
 $(error BL1_UART2_PIN_GROUP must be 0 (P30/P31) or 1 (P40/P41))
 endif
-BOOT_IO_DEFINES := \
+BOOT_IO_DEFINES = \
 	-DBK7258_BL1_SWD_ENABLE=$(BL1_SWD_ENABLE) \
 	-DBK7258_BL1_SWD_PIN_GROUP=$(BL1_SWD_PIN_GROUP) \
 	-DBK7258_BL1_SWD_TARGET=$(BL1_SWD_TARGET) \
@@ -89,8 +118,6 @@ BOOT_IO_DEFINES := \
 	-DBK7258_BL1_CONSOLE_PARITY=$(BL1_CONSOLE_PARITY) \
 	-DBK7258_BL1_CONSOLE_STOP_BITS=$(BL1_CONSOLE_STOP_BITS) \
 	-DBK7258_BL1_UART2_PIN_GROUP=$(BL1_UART2_PIN_GROUP)
-CFLAGS += $(BOOT_IO_DEFINES)
-ASFLAGS += $(BOOT_IO_DEFINES)
 NUTTX_ROOT ?= ../../../../nuttx
 MCUBOOT_ROOT := $(NUTTX_ROOT)/../apps/boot/mcuboot/mcuboot
 TINYCRYPT_ROOT := $(MCUBOOT_ROOT)/ext/tinycrypt/lib
@@ -100,9 +127,44 @@ TINYCRYPT_CFLAGS := $(CFLAGS) -I$(TINYCRYPT_ROOT)/include
 # recoverable development chain.  Enabling it requires an externally signed
 # 256-byte record; neither SDK/NuttX sources nor OTP/eFuse are modified.
 BL1_MANIFEST_ENFORCE ?= 0
+BL1_COMPILE_ONLY ?= 0
+BL1_COMPILE_POLICY ?= raw
+ifneq ($(filter $(BL1_COMPILE_ONLY),0 1),$(BL1_COMPILE_ONLY))
+$(error BL1_COMPILE_ONLY must be exactly 0 or 1)
+endif
+ifneq ($(filter $(BL1_COMPILE_POLICY),raw mcuboot),$(BL1_COMPILE_POLICY))
+$(error BL1_COMPILE_POLICY must be raw or mcuboot)
+endif
+ifeq ($(BL1_COMPILE_ONLY),1)
+ifneq ($(strip $(BL1_MANIFEST_PRIMARY)),)
+$(error BL1 compile-only must not receive a signed manifest path)
+endif
+ifneq ($(strip $(BL1_MANIFEST_SECONDARY)),)
+$(error BL1 compile-only must not receive a signed manifest path)
+endif
+ifeq ($(BL1_COMPILE_POLICY),mcuboot)
+# Compile-only MCUboot mode must compile the BL1 -> BL2 handoff and verifier,
+# but it deliberately has no signed manifest record to read or package.
+override BL1_USE_BL2 := 1
+override BL1_MANIFEST_ENFORCE := 1
+else ifeq ($(BL1_COMPILE_POLICY),raw)
+override BL1_USE_BL2 := 0
+override BL1_MANIFEST_ENFORCE := 0
+endif
+endif
+ifeq ($(BL1_COMPILE_POLICY),mcuboot)
+ifneq ($(BL1_COMPILE_ONLY),1)
+$(error BL1_COMPILE_POLICY=mcuboot is compile-only-only)
+endif
+endif
 ifneq ($(filter $(BL1_MANIFEST_ENFORCE),0 1),$(BL1_MANIFEST_ENFORCE))
 $(error BL1_MANIFEST_ENFORCE must be exactly 0 or 1)
 endif
+
+# Append after compile-only policy resolution so command-line attempts to
+# force direct-boot values cannot leak into the MCUboot compile target.
+CFLAGS += $(BOOT_IO_DEFINES)
+ASFLAGS += $(BOOT_IO_DEFINES)
 
 # Optional validation path for the board-owned 4 KiB BL1 Manifest partitions.
 # It is intentionally separate from the established executable XIP-tail
@@ -128,6 +190,11 @@ BL1_MANIFEST_SECONDARY ?=
 # image packaging overrides this with a public-only C file generated from the
 # caller's external private key; the private key is never a compiler input.
 BL1_MANIFEST_KEY_SOURCE ?= boot_bl1_manifest_key.c
+ifeq ($(BL1_COMPILE_ONLY),1)
+ifneq ($(BL1_MANIFEST_KEY_SOURCE),boot_bl1_manifest_key.c)
+$(error BL1 compile-only key source must be the staged public source)
+endif
+endif
 # Candidate Beken/Armino records use the read-only Dubhe OTP shadow as the
 # production root when provisioned.  The current board is CM with an empty
 # hash, so this policy falls back to the recoverable software development
@@ -168,8 +235,10 @@ ifeq ($(BL1_MANIFEST_ENFORCE),1)
 ifeq ($(BL1_USE_BL2),0)
 $(error BL1_MANIFEST_ENFORCE requires BL1_USE_BL2=1)
 endif
+ifeq ($(BL1_COMPILE_ONLY),0)
 ifeq ($(strip $(BL1_MANIFEST_PRIMARY)),)
 $(error BL1_MANIFEST_PRIMARY must name a signed record when BL1_MANIFEST_ENFORCE=1)
+endif
 endif
 
 # BL2_LOGICAL_SIZE is the signed/CRC-padded logical length of the specific
@@ -194,7 +263,7 @@ OBJS := $(BL1_CORE_OBJS)
 
 $(OBJS): $(PARTITION_HEADER) $(MEMORYMAP_HEADER)
 
-.PHONY: all clean verify partition-check bl1-control FORCE
+.PHONY: all compile-only clean verify partition-check bl1-control FORCE
 
 # Make does not track command-line CFLAGS.  These two outputs depend on the
 # manifest enforcement setting and must therefore be refreshed when a caller
@@ -202,6 +271,15 @@ $(OBJS): $(PARTITION_HEADER) $(MEMORYMAP_HEADER)
 FORCE:
 
 all: partition-check bl.bin bl_crc.bin
+
+# Host/executor compile-only boundary.  It intentionally stops at the raw
+# ELF/BIN pair; CRC expansion, manifest generation and packaging remain
+# separate authorized operations and are never prerequisites here.
+compile-only: partition-check bl.elf bl.bin
+
+$(OBJS) bootloader.tmp bl_crc.bin: | partition-check
+
+$(OBJS): FORCE
 
 # This target is deliberately opt-in.  The active v3.1.1.9 board layout still
 # boots from the legacy boot slot; producing the official-shaped XIP control
@@ -211,11 +289,11 @@ bl1-control: $(BL1_CONTROL_GENERATOR)
 	python3 $(BL1_CONTROL_GENERATOR) --bl2 "$(BL2_IMAGE)" --out "$(BL1_CONTROL_IMAGE)"
 
 partition-check:
-	python3 $(PARTITION_GENERATOR) --check
+	python3 $(PARTITION_GENERATOR) $(PARTITION_ARGS) --check
 
 bootloader.tmp: bootloader.ld $(PARTITION_HEADER) $(MEMORYMAP_HEADER)
 	$(CC) -E -P -x c -D__LINKER__ \
-		-I../chip/include $< -o $@
+		-I../chip/include $(PARTITION_INCLUDE_FLAGS) $< -o $@
 
 start.o: start.S
 	$(CC) $(ASFLAGS) -c $< -o $@
@@ -271,7 +349,10 @@ bl.bin: bl.elf
 	$(OBJCOPY) -O binary $< $@
 
 bl_crc.bin: bl.bin bk7236_pack_min_bootloader.py FORCE
-	python3 bk7236_pack_min_bootloader.py --in bl.bin --out bl_crc.bin $(BL1_MANIFEST_ARG)
+	BK7258_PARTITION_LAYOUT_SOURCE="$(abspath $(PARTITION_CSV))" \
+		BK7258_PARTITION_LAYOUT_ID="$(PARTITION_LAYOUT_ID)" \
+		BK7258_PARTITION_LAYOUT_SHA256="$(PARTITION_LAYOUT_SHA256)" \
+		python3 bk7236_pack_min_bootloader.py --in bl.bin --out bl_crc.bin $(BL1_MANIFEST_ARG)
 
 verify: bl_crc.bin
 	@for symbol in Reset_Handler c_main fal_partition_table \

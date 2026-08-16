@@ -28,9 +28,14 @@ from bk7258_ab_layout import (
     AP_XIP_SIZE,
     CP_XIP_START,
     CP_XIP_SIZE,
+    LAYOUT_ID,
+    LAYOUT_INPUT,
+    LAYOUT_SHA256,
     PAIR_B_SIZE,
     PAIR_B_START,
     crc_physical_size,
+    report as layout_report,
+    verify_contract as verify_partition_contract,
 )
 from bk7258_crc_expand import expand
 
@@ -130,6 +135,9 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--version", required=True)
     parser.add_argument("--security-counter", default="auto")
+    parser.add_argument("--partition", type=Path, default=LAYOUT_INPUT)
+    parser.add_argument("--expect-layout-id")
+    parser.add_argument("--expect-layout-sha256")
     parser.add_argument(
         "--header-size", type=parse_int, default=HEADER_SIZE,
         help="MCUboot header size; v3.1.1.9 secure signing uses 0x1000",
@@ -148,6 +156,10 @@ def main() -> None:
         "apps/boot/mcuboot/mcuboot/scripts/imgtool.py",
     )
     args = parser.parse_args()
+
+    verify_partition_contract(
+        args.partition, args.expect_layout_id, args.expect_layout_sha256
+    )
 
     for path in (args.cp_raw, args.ap_raw, args.key, args.imgtool):
         if not path.is_file():
@@ -204,7 +216,9 @@ def main() -> None:
 
     manifest = {
         "format": 1,
-        "layout": "bk7258-v3119-ab",
+        "layout_id": LAYOUT_ID,
+        "layout_sha256": LAYOUT_SHA256,
+        "layout": layout_report(),
         "version": args.version,
         "security_counter": args.security_counter,
         "pair_binding": {

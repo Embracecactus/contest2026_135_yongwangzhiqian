@@ -28,34 +28,8 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BK7258_TEMP_VALIDATION_MAGIC       0x504d5442u /* "BTMP" */
-#define BK7258_TEMP_VALIDATION_VERSION     1u
 #define BK7258_TEMP_VALIDATION_SAMPLES     8u
 #define BK7258_TEMP_VALIDATION_DELAY_US    100000u
-
-#define BK7258_TEMP_VALIDATION_RUNNING     1u
-#define BK7258_TEMP_VALIDATION_PASSED      2u
-#define BK7258_TEMP_VALIDATION_FAILED      3u
-
-/****************************************************************************
- * Private Types
- ****************************************************************************/
-
-struct bk7258_temperature_validation_diag_s
-{
-  uint32_t magic;
-  uint16_t version;
-  uint16_t state;
-  int32_t status;
-  uint32_t generation;
-  uint32_t successful_samples;
-  uint32_t failed_samples;
-  uint32_t minimum_raw;
-  uint32_t maximum_raw;
-  uint32_t last_raw;
-  int32_t last_millicelsius;
-  uint32_t last_flags;
-};
 
 /****************************************************************************
  * Public Data
@@ -148,8 +122,8 @@ static void bk7258_temperature_validation_worker(void *arg)
     status == OK &&
     g_bk7258_temperature_validation_diag.successful_samples ==
       BK7258_TEMP_VALIDATION_SAMPLES ?
-      BK7258_TEMP_VALIDATION_PASSED :
-      BK7258_TEMP_VALIDATION_FAILED;
+      BK7258_TEMPERATURE_VALIDATION_PASSED :
+      BK7258_TEMPERATURE_VALIDATION_FAILED;
 
   /* The debugger treats state as the completion publication field.  Make
    * every result word visible before PASS/FAIL can be observed.
@@ -162,7 +136,7 @@ static void bk7258_temperature_validation_worker(void *arg)
          "BTEMP %s status=%d generation=%lu samples=%lu/%u "
          "raw=%lu..%lu last=%lu flags=0x%lx\n",
          g_bk7258_temperature_validation_diag.state ==
-           BK7258_TEMP_VALIDATION_PASSED ? "PASS" : "FAIL",
+           BK7258_TEMPERATURE_VALIDATION_PASSED ? "PASS" : "FAIL",
          status,
          (unsigned long)g_bk7258_temperature_validation_diag.generation,
          (unsigned long)
@@ -191,11 +165,11 @@ int bk7258_temperature_validation_start(void)
     }
 
   g_bk7258_temperature_validation_diag.magic =
-    BK7258_TEMP_VALIDATION_MAGIC;
+    BK7258_TEMPERATURE_VALIDATION_MAGIC;
   g_bk7258_temperature_validation_diag.version =
-    BK7258_TEMP_VALIDATION_VERSION;
+    BK7258_TEMPERATURE_VALIDATION_VERSION;
   g_bk7258_temperature_validation_diag.state =
-    BK7258_TEMP_VALIDATION_RUNNING;
+    BK7258_TEMPERATURE_VALIDATION_RUNNING;
   g_bk7258_temperature_validation_diag.status = -EINPROGRESS;
   g_bk7258_temperature_validation_diag.generation = 0;
   g_bk7258_temperature_validation_diag.successful_samples = 0;
@@ -213,7 +187,7 @@ int bk7258_temperature_validation_start(void)
     {
       g_bk7258_temperature_validation_diag.status = ret;
       g_bk7258_temperature_validation_diag.state =
-        BK7258_TEMP_VALIDATION_FAILED;
+        BK7258_TEMPERATURE_VALIDATION_FAILED;
       __atomic_store_n(&g_bk7258_temperature_validation_started, false,
                        __ATOMIC_RELEASE);
     }

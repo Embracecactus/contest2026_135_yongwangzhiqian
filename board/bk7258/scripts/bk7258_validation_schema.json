@@ -6,6 +6,11 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "kind", "version", "serialization", "migration_policy", "descriptors", "legacy_ledger", "identity_sha256"],
+  "standard_artifact_contract": {
+    "cp": "vela_nuttx_cp.bin",
+    "ap": "vela_nuttx_ap.bin",
+    "manifest": "vela_nuttx_manifest.json"
+  },
   "properties": {
     "schema": {"const": "bk7258.validation/1"},
     "kind": {"const": "validation-descriptor-set"},
@@ -21,7 +26,7 @@
     "categories": ["auto", "interactive", "fixture", "destructive-fault"],
     "statuses": ["planned", "ready", "disabled"],
     "roles": ["cp", "ap", "cp_ap", "board"],
-    "runner_core": "public_device_api_only",
+    "runner_core": "public_device_or_versioned_diagnostic_api",
     "entrypoint_policy": "app/hello_app-only",
     "resource_policy": "global-exclusive-serialization"
   },

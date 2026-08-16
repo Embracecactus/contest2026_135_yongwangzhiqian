@@ -20,6 +20,27 @@
 #include <arch/chip/bk7258_board_binding.h>
 #include <arch/chip/bk7258_gpio.h>
 
+/* Physical-device entry points are private to the selected T5-Board
+ * composition.  Do not expose them through the logical board's public
+ * <arch/board/board.h> facade.
+ */
+
+#ifdef CONFIG_BK7258_GT1151
+int bk7258_board_gt1151_initialize(void);
+#endif
+
+#ifdef CONFIG_BK7258_T5_BOARD_CAMERA
+int bk7258_t5_board_camera_initialize(void);
+#endif
+
+#ifdef CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
+int bk7258_t5_board_rgb_lcd_backlight_validation_initialize(void);
+#endif
+
+#ifdef CONFIG_BK7258_T5_BOARD_TF_VALIDATION
+int bk7258_t5_board_tf_validation_initialize(void);
+#endif
+
 static int bk7258_t5_board_mic_initialize(void)
 {
   /* The two analog microphone routes are fixed on the T5-Board schematic;

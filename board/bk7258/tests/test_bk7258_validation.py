@@ -27,14 +27,42 @@ class ValidationDescriptorTest(unittest.TestCase):
     def setUp(self) -> None:
         self.descriptors = load_json(SCRIPT_ROOT / "bk7258_validation_descriptors.json")
 
-    def test_descriptor_set_and_27_profile_mapping_are_valid(self) -> None:
+    def test_descriptor_set_and_three_retained_seed_mapping_are_valid(self) -> None:
         result = validate_descriptor_set(REPOSITORY, self.descriptors)
-        self.assertEqual(result["descriptors"], 5)
-        self.assertEqual(result["legacy"]["profiles"], 27)
-        self.assertEqual(result["legacy"]["migration_state"], "migration_pending")
+        self.assertEqual(result["descriptors"], 6)
+        self.assertEqual(result["legacy"]["profiles"], 3)
+        self.assertEqual(result["legacy"]["migration_state"], "canonical-suite-only")
         self.assertEqual(self.descriptors["migration_policy"]["production_auto_start"],
-                         "migration_pending")
+                         "canonical-only")
+        self.assertEqual(result["standard_artifacts"], {
+            "cp": "vela_nuttx_cp.bin",
+            "ap": "vela_nuttx_ap.bin",
+            "manifest": "vela_nuttx_manifest.json",
+        })
         self.assertEqual(self.descriptors["serialization"]["claim_policy"], "exclusive")
+
+    def test_generic_validation_is_registered_as_explicit_commands(self) -> None:
+        descriptors = {
+            item["id"]: item for item in self.descriptors["descriptors"]
+        }
+        self.assertEqual(descriptors["jpeg_fixture"]["run"],
+                         "public_api:jpeg-m2m-validation")
+        self.assertEqual(descriptors["temperature_validation"]["run"],
+                         "public_api:temperature-validation")
+        self.assertEqual(descriptors["jpeg_fixture"]["category"], "fixture")
+        self.assertEqual(descriptors["temperature_validation"]["category"], "fixture")
+        self.assertEqual(descriptors["jpeg_fixture"]["cancel"], "none")
+        self.assertEqual(descriptors["temperature_validation"]["cancel"], "none")
+        self.assertEqual(descriptors["jpeg_fixture"]["cleanup"], "none")
+        self.assertEqual(descriptors["temperature_validation"]["cleanup"], "none")
+
+        peripherals = (REPOSITORY / "board/bk7258/chip/ap/bk7258_peripherals.c").read_text()
+        self.assertNotIn("bk7258_jpeg_m2m_validation_start", peripherals)
+        self.assertNotIn("bk7258_temperature_validation_start", peripherals)
+
+        runner = (REPOSITORY / "app/hello_app/bkvalidate_main.c").read_text()
+        self.assertIn("bk7258_jpeg_m2m_validation_start", runner)
+        self.assertIn("bk7258_temperature_validation_start", runner)
 
     def test_descriptor_rejects_chip_board_entrypoint_and_vendor_run(self) -> None:
         broken = copy.deepcopy(self.descriptors)

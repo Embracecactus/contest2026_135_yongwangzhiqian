@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the project-owned SDK partition ABI wrapper on host and in an ELF."""
+"""Verify the board-owned SDK partition ABI wrapper on host and in an ELF."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from gen_bk7258_partitions import (
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 BOARD_DIR = SCRIPT_DIR.parent
-WRAPPER_SOURCE = BOARD_DIR / "chip/cp/bk7258_sdk_partition.c"
+WRAPPER_SOURCE = BOARD_DIR / "src/bk7258_sdk_partition.c"
 
 
 class VerificationError(RuntimeError):
@@ -33,8 +33,8 @@ def require(condition: bool, message: str) -> None:
         raise VerificationError(message)
 
 
-def _dynamic_layout(root: Path) -> PartitionLayout:
-    source = DEFAULT_INPUT.read_text(encoding="utf-8")
+def _dynamic_layout(root: Path, input_path: Path) -> PartitionLayout:
+    source = input_path.read_text(encoding="utf-8")
     replacements = (
         ("primary_cp_app,,1360K", "primary_cp_app,,1292K"),
         ("s_app,,2516K", "s_app,,2448K"),
@@ -396,12 +396,28 @@ def _verify_elf(elf: Path, map_path: Path) -> dict[str, object]:
     }
 
 
-def verify(elf: Path | None = None, map_path: Path | None = None) -> dict[str, object]:
+def verify(
+    elf: Path | None = None,
+    map_path: Path | None = None,
+    input_path: Path = DEFAULT_INPUT,
+    expected_id: str | None = None,
+    expected_sha256: str | None = None,
+) -> dict[str, object]:
     require(WRAPPER_SOURCE.is_file(), "SDK partition wrapper source is absent")
-    baseline = load_layout(DEFAULT_INPUT)
+    baseline = load_layout(input_path)
+    require(
+        (expected_id is None) == (expected_sha256 is None),
+        "expected layout ID and SHA-256 must be supplied together",
+    )
+    if expected_id is not None:
+        require(
+            baseline.layout_id == expected_id
+            and baseline.layout_sha256 == expected_sha256,
+            "resolved partition layout identity mismatch",
+        )
     with tempfile.TemporaryDirectory(prefix="bk7258-sdk-partition-") as temp:
         root = Path(temp)
-        dynamic = _dynamic_layout(root)
+        dynamic = _dynamic_layout(root, input_path)
         host = {
             "default": _run_host_case(root, "default", baseline),
             "dynamic": _run_host_case(root, "dynamic", dynamic),
@@ -413,7 +429,9 @@ def verify(elf: Path | None = None, map_path: Path | None = None) -> dict[str, o
     return {
         "format": 1,
         "status": "pass",
+        "source": baseline.report()["source"],
         "layout_id": baseline.layout_id,
+        "layout_sha256": baseline.layout_sha256,
         "dynamic_layout_id": dynamic.layout_id,
         "host": host,
         "elf": elf_result,
@@ -424,6 +442,9 @@ def verify(elf: Path | None = None, map_path: Path | None = None) -> dict[str, o
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
+    parser.add_argument("--expect-layout-id")
+    parser.add_argument("--expect-layout-sha256")
     parser.add_argument("--elf", type=Path)
     parser.add_argument("--map", dest="map_path", type=Path)
     parser.add_argument("--output", type=Path)
@@ -434,7 +455,13 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        result = verify(args.elf, args.map_path)
+        result = verify(
+            args.elf,
+            args.map_path,
+            args.input,
+            args.expect_layout_id,
+            args.expect_layout_sha256,
+        )
     except (
         OSError,
         PartitionLayoutError,

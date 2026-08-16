@@ -26,7 +26,6 @@ config ARCH_CHIP_BK7258
 	select ARCH_RAMVECTORS
 	select ARCH_HAVE_MPU
 	select ARCH_IDLE_CUSTOM
-	select MTD if BK7258_FLASH_MTD
 	---help---
 		Beken BK7258 tri-core Cortex-M33 SoC.  This Stage N1 port targets
 		a single app core that
@@ -579,10 +578,11 @@ config BK7258_TEMPERATURE_VALIDATION
 	default n
 	depends on BK7258_TEMPERATURE && BK7258_AP_CORE
 	---help---
-		Perform eight AP-to-CP reads after normal peripheral bring-up and place
-		the raw range, generation and final status in a debugger-visible record.
-		This validates the real RPMsg and SARADC path without assuming an
-		absolute Celsius value when factory calibration is unavailable.
+		Build the bounded on-die validation worker for the explicit
+		"bkvalidate run temperature_validation" command.  The command performs
+		eight AP-to-CP reads and places the raw range, generation and final
+		status in a debugger-visible record.  Peripheral bring-up only registers
+		the production temperature service; it does not start this worker.
 
 config BK7258_PM_POLICY
 	bool "CP-owned NuttX PM and multi-client DVFS policy"
@@ -844,6 +844,7 @@ config BK7258_BT_IPC
 	default n
 	depends on BK7258_RPTUN_MBOX
 	depends on !BK7258_AP_CORE || (DRIVERS_BLUETOOTH && NET_BLUETOOTH && WIRELESS_BLUETOOTH)
+	select BK7258_SDK_IPC_RUNTIME
 	---help---
 		Use the official SDK MB_CHNL_BT_CMD protocol without modifying either
 		NuttX or the SDK.  The CP image starts the Beken controller-side IPC
@@ -1083,30 +1084,6 @@ config BK7258_PSRAM_TEST_STACKSIZE
 	default 2048
 	range 2048 8192
 	depends on BK7258_PSRAM_TEST
-
-config BK7258_FLASH_MTD
-	bool "BK7258 on-chip flash data-partition MTD"
-	default n
-	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
-	select MTD
-	---help---
-		Expose the selected product's writable data partition as a NuttX MTD
-		instance.  read/erase/bwrite use the
-		option-A SR0 block-protect policy (cleared around each op,
-		restored afterwards).  No /dev node or filesystem is mounted
-		by this driver; a filesystem mount requires separate
-		authorisation (see BK7258_FLASH_LITTLEFS).
-
-config BK7258_FLASH_LITTLEFS
-	bool "BK7258 data-partition LittleFS (auto-format + mount)"
-	default n
-	depends on BK7258_FLASH_MTD
-	select FS_LITTLEFS
-	---help---
-		Register /dev/mtdblock0 (ftl) over the data-partition MTD and mount
-		LittleFS at /data with the "autoformat" option (formats on first
-		boot only).  Also runs a probe-file persistence check.
-		Destructive on the data partition; enable only when authorised.
 
 config BK7258_CLOCK_320M
 	bool "BK7258 temporary 320 MHz CPU0 bring-up target"
@@ -1745,8 +1722,9 @@ config BK7258_JPEG_M2M_VALIDATION
 	bool "Run bounded JPEG V4L2 M2M validation"
 	default n
 	help
-		Launch a dedicated kernel thread after the standard codec device is
-		registered.  It exercises the public V4L2 M2M ABI with a chip-only
+		Build the bounded validator for the explicit
+		"bkvalidate run jpeg_fixture" command.  The command launches a
+		dedicated kernel thread that exercises the public V4L2 M2M ABI with a chip-only
 		32x16 baseline JPEG fixture: capability and format negotiation,
 		USERPTR queueing, an initial hardware decode, a truncated-input
 		failure and successful recovery, plus STREAMOFF draining of an

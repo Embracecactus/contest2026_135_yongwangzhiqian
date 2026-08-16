@@ -252,3 +252,32 @@ config BK7258_T5_BOARD_CAMERA_H264_VALIDATION
 		Annex-B frame, report BKCAMH264 PASS/FAIL and close the stream.
 
 endif # BK7258_BOARD_T5_BOARD
+
+# Product data storage composition belongs to the logical board.  The chip
+# layer keeps only the BK7258 raw Flash mechanism and generic cross-core
+# transport; these options select the board's resolved data-partition
+# contract and its optional filesystem mount.  Keep the symbol names and
+# dependencies stable so existing CP/BL2 defconfigs remain compatible.
+
+config BK7258_FLASH_MTD
+	bool "BK7258 on-chip flash data-partition MTD"
+	default n
+	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && !BK7258_AP_CORE
+	select MTD
+	---help---
+		Expose the selected board product's writable data partition as a NuttX
+		MTD instance.  read/erase/bwrite use the option-A SR0 block-protect
+		policy (cleared around each op, restored afterwards).  No /dev node or
+		filesystem is mounted by this driver; a filesystem mount requires
+		separate authorisation (see BK7258_FLASH_LITTLEFS).
+
+config BK7258_FLASH_LITTLEFS
+	bool "BK7258 data-partition LittleFS (auto-format + mount)"
+	default n
+	depends on BK7258_FLASH_MTD
+	select FS_LITTLEFS
+	---help---
+		Register /dev/mtdblock0 (ftl) over the selected board data-partition
+		MTD and mount LittleFS at /data with the "autoformat" option (formats
+		on first boot only).  Also runs a probe-file persistence check.
+		Destructive on the data partition; enable only when authorised.

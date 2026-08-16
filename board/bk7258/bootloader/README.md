@@ -1,5 +1,24 @@
 # BK7258 Tier-1 Bootloader (asm trampoline + C main + asm hardened epilogue)
 
+> **Scope / status:** Any old per-feature `*_mcuboot` profile name in this
+> historical note is **SUPERSEDED and NON-RUNNABLE**. The deleted
+> `configs/` directories must not be recreated or passed to a builder.
+> Resolve a current product, validation suite, and temporary role view first:
+>
+> ```sh
+> python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+>   --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
+> python3 board/bk7258/scripts/bk7258_framework.py validation-check
+> python3 board/bk7258/scripts/materialize_product_profiles.py \
+>   --plan <build-root>/bk7258-build-plan.json \
+>   --seed-root board/bk7258/configs \
+>   --output <build-root>/configs \
+>   --make-defs board/bk7258/scripts/Make.defs
+> ```
+>
+> For a role-private host-only contract, use the isolated executor's
+> `prepare` and `materialize-sources` commands. Neither path flashes a board.
+
 This is the Tier-1 rewrite of the hand-written minimal BK7258 bootloader. It
 keeps the **verified** cold-boot invariants and jump target (app @ logical
 `0x02010000`), while making debug and console ownership explicit. The binary
@@ -25,21 +44,20 @@ board/bk7258/bootloader/
   README.md                          this file
 ```
 
-## MCUboot BL2 chain (MCUBOOT profile)
+## MCUboot BL2 chain (MCUBOOT product mode)
 
-Normal profiles and MCUboot profiles intentionally use different BL1
-handoffs. A normal profile packages a raw NuttX vector image, so BL1 resolves
+Raw bring-up and MCUboot product modes intentionally use different BL1
+handoffs. A raw product packages a NuttX vector image, so BL1 resolves
 `cp_app`, validates its MSP/reset/magic and returns `0x02010000` directly to
 `start.S`. Before that direct branch, BL1 widens the public boot-stage
 `MSPLIM=0x2802f800` to the NuttX CP RAM lower bound `0x28010000`; otherwise
 the CP reset wrapper's first stack push is below the inherited limit. Only a
-`*_mcuboot` profile sets `BL1_USE_BL2=1`; that profile
+MCUboot product composition sets `BL1_USE_BL2=1`; that composition
 packages a signed MCUboot image and changes the handoff to SRAM BL2. Sending a
-normal vector image through BL2 is invalid and causes BL2's failure watchdog
+raw vector image through BL2 is invalid and causes BL2's failure watchdog
 reset.
 
-The `t5ai_core_cp_mcuboot` / `t5ai_core_ap_mcuboot` profile changes the
-handoff to:
+The current `t5_board_bringup` product changes the handoff to:
 
 ```text
 BL1 -> primary Manifest + BL2 @ 0x024d0000
@@ -65,7 +83,8 @@ and runs the pinned upstream MCUboot `boot_go()` against each permitted
 physical CP/AP pair in order. No retired OTA journal or Flash writer is linked
 into this chain.
 
-Debug and console ownership are passed in from the selected CP defconfig. For
+Debug and console ownership are passed in from the selected canonical CP role
+view. For
 direct boot, BL1 reasserts the configured SWD route after final cache/MPU
 cleanup and can wait for `DHCSR.C_DEBUGEN` immediately before the CP branch.
 That bit only admits the probe to the hold loop; it does not release the boot
@@ -77,7 +96,7 @@ branch because re-enabling after an unbounded hold can immediately consume a
 stale watchdog count; the CP reset entry then takes watchdog ownership.
 For MCUboot, BL1 does not hold before SRAM BL2; BL2 applies the same route and
 optional hold after authentication and its final handoff cleanup. The current
-T5-Board debug profile uses P0/P1, targets CP and keeps the boot UART silent.
+T5-Board bring-up product uses P0/P1, targets CP and keeps the boot UART silent.
 P20/P21 and UART0/UART1/UART2 remain selectable for non-conflicting profiles.
 
 The package emits `bl2_crc.bin` and `bl2_secondary_crc.bin`, and the WSL2

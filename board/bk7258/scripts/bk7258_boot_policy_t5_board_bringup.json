@@ -1,0 +1,177 @@
+{
+  "schema": "bk7258.boot-policy/1",
+  "kind": "product-boot-policy",
+  "version": 1,
+  "policy_id": "bk7258-t5-common-v1",
+  "product": "t5_board_bringup",
+  "family": "t5_board",
+  "board": "t5_board",
+  "catalog": "board/bk7258/scripts/bk7258_product_catalog_t5_board_bringup.json",
+  "boot": "mcuboot",
+  "bl2_image_logical_size": 12288,
+  "active_roles": ["bl1", "bl2", "cp", "ap"],
+  "metadata_only": true,
+  "executor_authoritative": false,
+  "integration_status": "BLOCKED",
+  "integration_blocked_until": "plan/profile-reconciliation",
+  "mechanism": {
+    "application_format": "mcuboot",
+    "mcuboot": {"enabled": true, "cp_ap_pair": true, "loader": "bl2"},
+    "bl1": {"enabled": true, "handoff": "bl2"},
+    "bl2": {"enabled": true, "loader": "mcuboot", "role": "bl2"}
+  },
+  "manifest": {
+    "enforce": true,
+    "format": "beken-candidate-v1",
+    "records": "primary-secondary",
+    "raw_page": false,
+    "source": "build_dual_image.sh"
+  },
+  "debug_io": {
+    "swd": {
+      "source": "resolved-profile",
+      "enabled": true,
+      "pin_group": "p0_p1",
+      "target": "cp",
+      "stages": ["bl1", "bl2", "cp"],
+      "stage_holds": {"bl1": false, "bl2": true, "cp": true}
+    },
+    "console": {
+      "source": "resolved-profile",
+      "kind": "rtt",
+      "uart": null,
+      "baud": null,
+      "data_bits": null,
+      "parity": null,
+      "stop_bits": null,
+      "flow_control": false,
+      "rts_reset": false,
+      "port_strategy": "swd-rtt",
+      "port_identity": "swd-session",
+      "loader_console_exclusive": true
+    },
+    "loader": {
+      "transport": "serial-uart",
+      "download": "bkfil",
+      "uart": "uart0",
+      "baud": 115200,
+      "tool": "BKFIL/bk_loader",
+      "requires_swd": false,
+      "rts_reset": false,
+      "dtr_reset": false,
+      "shared_port": false
+    }
+  },
+  "version_policy": {
+    "application_version": {
+      "state": "required",
+      "source": "user-authorized",
+      "format": "imgtool-semver",
+      "pair_rule": "cp-ap-equal",
+      "monotonic": "non-decreasing"
+    },
+    "security_counter": {
+      "state": "required",
+      "source": "user-authorized",
+      "format": "uint32-or-auto",
+      "pair_rule": "cp-ap-equal",
+      "monotonic": "non-decreasing"
+    },
+    "bl1_manifest_version": {
+      "state": "required",
+      "source": "user-authorized-or-default",
+      "format": "uint32",
+      "default": 5,
+      "monotonic": "non-decreasing"
+    },
+    "bl2_security_counter_floor": {
+      "state": "policy-default",
+      "source": "build-parameter",
+      "format": "uint32",
+      "default": 0,
+      "otp_write": false
+    }
+  },
+  "layout_binding": {
+    "source": "product.partition_layout",
+    "layout_id": "product.partition_layout.layout_id",
+    "layout_sha256": "product.partition_layout.layout_sha256"
+  },
+  "bl2_geometry": {
+    "required": true,
+    "source": "resolved-layout",
+    "layout_ref": "build_plan.partition_layout",
+    "primary": {
+      "role": "bl2",
+      "physical_start": "offset",
+      "physical_size": "size",
+      "xip_start": "xip_start",
+      "logical_size": "logical_size"
+    },
+    "secondary": {
+      "physical_start": "primary.offset + primary.size",
+      "physical_size": "primary.size",
+      "xip_start": "primary.xip_start + primary.logical_size",
+      "logical_size": "primary.logical_size",
+      "boundary_role": "littlefs",
+      "boundary": "offset",
+      "same_capacity_as": "primary.logical_size"
+    }
+  },
+  "credentials": {
+    "policy": "identifier-only-external-supply",
+    "read_private_material": false,
+    "required": [
+      {
+        "id": "bk7258-mcuboot-signing",
+        "kind": "private-signing-key",
+        "purpose": "sign-cp-ap",
+        "required_for": ["sign"],
+        "supply": "external-user-authorized",
+        "state": "required"
+      },
+      {
+        "id": "bk7258-bl1-manifest-signing",
+        "kind": "private-signing-key",
+        "purpose": "authorize-bl2",
+        "required_for": ["sign"],
+        "supply": "external-user-authorized",
+        "state": "required"
+      }
+    ],
+    "optional": []
+  },
+  "permissions": {
+    "resolve": "allow",
+    "prepare": "allow",
+    "materialize": "allow",
+    "compile": "requires-user-authorization",
+    "sign": "requires-user-authorization",
+    "package": "requires-user-authorization",
+    "flash": "forbidden",
+    "hardware": "forbidden",
+    "network": "forbidden",
+    "key_read": "forbidden"
+  },
+  "executor": {
+    "interface_version": 1,
+    "input_kind": "resolved-isolated-build-plan",
+    "selection": "exact-product-id",
+    "layout_resolution": "build_plan.partition_layout",
+    "geometry_output": "resolved-from-layout",
+    "preauthorization_side_effects": "none",
+    "authority": "not-executor-authoritative",
+    "integration_status": "BLOCKED",
+    "blocked_until": "plan/profile-reconciliation",
+    "authorization_fields": [
+      "version_policy.application_version",
+      "version_policy.security_counter",
+      "version_policy.bl1_manifest_version",
+      "credential-id:bk7258-mcuboot-signing",
+      "credential-id:bk7258-bl1-manifest-signing",
+      "permissions.package"
+    ],
+    "no_key_paths": true
+  },
+  "identity_sha256": "6bd87563cfe9ca97d083a52bb095ffd661cd35ffae15b3b995f5bf9c38389777"
+}

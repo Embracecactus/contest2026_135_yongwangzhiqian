@@ -1,3 +1,26 @@
+> ⚠️ **SUPERSEDED / NON-RUNNABLE**：本文中旧 profile-pair 命令仅用于历史
+> 证据，禁止执行，也不得重建已删除的 `configs/` 目录。当前 canonical
+> product、validation-suite 和 materializer 入口是：
+>
+> ```sh
+> python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+>   --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
+> python3 board/bk7258/scripts/bk7258_framework.py validation-check
+> python3 board/bk7258/scripts/materialize_product_profiles.py \
+>   --plan <build-root>/bk7258-build-plan.json \
+>   --seed-root board/bk7258/configs --output <build-root>/configs \
+>   --make-defs board/bk7258/scripts/Make.defs
+> python3 board/bk7258/scripts/bk7258_isolated_executor.py prepare \
+>   --product t5_board_bringup --build-root <build-root> \
+>   --out <build-root>/execution.json
+> ```
+>
+> `validation-check` validates the suite catalog; a suite such as `psram` is
+> an overlay bound to its canonical product, not a config directory. The
+> isolated executor is host-only until a separate compile/postbuild/signing
+> authorization is recorded. Flash commands below remain action-specific and
+> require their stated authorization.
+
 # BK7258 双核自动编译、下载与板端调试 SOP
 
 日期：2026-08-14
@@ -39,33 +62,19 @@
 
 ### 1.1 通用性原则
 
-本 SOP 不绑定某一个 AP 固件。双镜像由两个配置名共同决定：
-
-```text
-CP_CONFIG_NAME=<CP 配置>
-AP_CONFIG_NAME=<AP 配置>
-```
+本 SOP 不绑定某一个 AP 固件。双镜像由 canonical product plan 和（如适用）
+validation-suite overlay 共同决定；CP/AP role view 由 materializer 临时
+生成，不是手工配置名。
 
 历史 cold-reset 修复曾使用阶段快照配置。当前构建入口已经收敛为带物理板名和用途的稳定 profile，完整清单见
 [`board/bk7258/configs/README.md`](../../../board/bk7258/configs/README.md)。
 
-通用命令必须显式写出配置：
-
-```bash
-./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
-  --build --flash \
-  --cp-config <cp_config> \
-  --ap-config <ap_config>
-```
-
-如果省略：
-
-```text
-CP 默认：t5ai_core_cp_base
-AP 默认：t5ai_core_ap_base
-```
-
-默认值与 `build_dual_image.sh` 一致，但正式验证建议始终显式指定，避免误刷上一次 Stage 的 AP image。
+旧的 `--cp-config/--ap-config` 选项只接受已删除的 profile-pair 名称，
+因此本 SOP 中任何带具体旧名称的调用都是 **SUPERSEDED / NON-RUNNABLE**。
+产品解析必须从本文件顶部的 `--product` build plan 开始；需要板端
+下载时，只有在 plan/materialized package 已由 owner 明确授权后，才可将
+已验证的 package 交给现有 loader 流程。不要用默认 seed 名称代替产品
+身份，也不要把历史 profile 复制回 `configs/`。
 
 ### 1.2 边调试边维护 SOP
 
@@ -216,59 +225,44 @@ SerialPort.Open(COM11): Access denied
 
 ## 4. 标准构建流程
 
-### 4.1 通用构建模板
+### 4.1 Canonical product/suite/materializer 流程
+
+产品解析、suite catalog 校验和临时 role view 渲染均为 host-only：
 
 ```bash
-cd /home/lijian/project/open-vela
-
-CP_CONFIG_NAME=<cp_config> \
-AP_CONFIG_NAME=<ap_config> \
-  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
+python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+  --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
+python3 board/bk7258/scripts/bk7258_framework.py validation-check
+python3 board/bk7258/scripts/materialize_product_profiles.py \
+  --plan <build-root>/bk7258-build-plan.json \
+  --seed-root board/bk7258/configs --output <build-root>/configs \
+  --make-defs board/bk7258/scripts/Make.defs
 ```
 
-T5AI-Core 基础实例：
+功能验证以 suite overlay 表达，而不是新建 CP/AP defconfig。当前 catalog
+包含 `t5ai_core_bringup` 的 `psram`，以及 `t5_board_bringup` 的
+`audio_dac`、`jpeg_m2m`、`saradc_key`、`temperature`、`camera`、
+`camera_h264`、`pwm`、`tf_1bit`、`tf_4bit`、`driver_coverage` 和 `wifi`。
+suite 选择必须和其绑定 product 一致；`validation-check` 只验证合同，
+不宣称板端 PASS。
+
+### 4.2 Role-isolated build contract
+
+需要生成隔离证据时继续使用同一 product plan：
 
 ```bash
-CP_CONFIG_NAME=t5ai_core_cp_base \
-AP_CONFIG_NAME=t5ai_core_ap_base \
-  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
+python3 board/bk7258/scripts/bk7258_isolated_executor.py prepare \
+  --product t5_board_bringup --build-root <build-root> \
+  --out <build-root>/execution.json
+python3 board/bk7258/scripts/bk7258_isolated_executor.py materialize-sources \
+  --manifest <build-root>/execution.json
+python3 board/bk7258/scripts/bk7258_isolated_executor.py compile-runtime \
+  --manifest <build-root>/execution.json --authorize-compile
 ```
 
-Builder 默认值：
-
-```text
-CP_CONFIG_NAME=t5ai_core_cp_base
-AP_CONFIG_NAME=t5ai_core_ap_base
-```
-
-成功门禁：
-
-```text
-build_dual_image: artifacts: .../nuttx/bk7258-dual
-build_dual_image: root CP artifacts match the manifest CP image
-```
-
-### 4.2 可用配置选择表
-
-| 物理板/用途 | CP | AP |
-|---|---|---|
-| T5AI-Core 基础 | `t5ai_core_cp_base` | `t5ai_core_ap_base` |
-| T5AI-Core MCUboot | `t5ai_core_cp_mcuboot` | `t5ai_core_ap_mcuboot` |
-| T5AI-Core PSRAM/SMP/BLE 验证 | `t5ai_core_cp_psram_validation` | `t5ai_core_ap_psram_validation` |
-| T5AI-Core Wi-Fi | `t5ai_core_cp_wifi` | `t5ai_core_ap_wifi` |
-| T5-Board 应用 | `t5_board_cp_app_mcuboot` | `t5_board_ap_app_mcuboot` |
-| T5-Board camera/H.264 | `t5_board_cp_app_mcuboot` | `t5_board_ap_camera_h264_mcuboot` |
-| T5-Board Wi-Fi | `t5_board_cp_wifi_mcuboot` | `t5_board_ap_wifi_mcuboot` |
-
-T5-Board 还保留 camera smoke、PWM 等有界 validation profile，以及不可烧板的 drivercheck CI pair；详见配置目录 README。阶段性的 SMP affinity、semaphore、migration 等旧 profile 已完成使命，其能力并入当前验证档案，不再作为独立 defconfig 维护。
-
-配置必须来自：
-
-```text
-contest2026_135_yongwangzhiqian/board/bk7258/configs/
-```
-
-Builder 按每个目录的 `profile.conf` 检查物理板、CP/AP role、boot 格式和兼容组，不再维护容易漂移的文件名白名单。
+这些命令不运行 Flash、sign 或 package。旧的 `build_dual_image.sh` 及其
+profile-pair 选项只保留为 compatibility adapter；本 SOP 不把它们当作
+canonical product interface，也不恢复已删除的 config 目录。
 
 ### 4.3 构建产物
 
@@ -307,13 +301,14 @@ sha256sum \
   nuttx/bk7258-dual/littlefs_factory_clear.bin
 ```
 
-同时检查 profile：
+同时检查 package 的 product/role identity（profile 字段仅是生成记录）：
 
 ```bash
 cat nuttx/bk7258-dual/build-profile.txt
 ```
 
-预期明确记录：
+预期明确记录 product materializer 及 plan identity；以下旧字段若出现在
+历史 package 中只作审计信息，不作为新的构建输入：
 
 ```text
 CP_CONFIG_NAME=...
@@ -322,7 +317,7 @@ AP_CONFIG_NAME=...
 
 规则：
 
-- 不同 AP Stage 必须选择对应 `AP_CONFIG_NAME`，不能复用 SOP 示例名；
+- package identity 必须与本轮 product plan 一致，不能复用旧 package；
 - `build-profile.txt` 必须与本轮计划验证的固件组合一致；
 - factory 时间必须晚于本轮源码修改；
 - 每次实质性重编后记录新哈希；
@@ -343,23 +338,23 @@ sha256: d83c8e38bec19160f9d54d0832a4f553dab85bd568173f2a1ebe4fc9e860d405
 当前 T5-Board 日常应用更新推荐只写 CP/AP：
 
 ```bash
-cd /home/lijian/project/open-vela
-
-./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
+BK7258_PRODUCT=t5_board_bringup \
+  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
   --build \
   --flash \
   --sparse-flash \
   --apps-only \
-  --no-console \
-  --cp-config t5_board_cp_app_mcuboot \
-  --ap-config t5_board_ap_app_mcuboot
+  --no-console
 ```
 
-验证其他用途时，必须替换成同一物理板、同一 boot 格式和同一兼容组的 CP/AP profile，其他下载和采集流程不变。
+该兼容 adapter 先按 product plan/materializer 解析，再执行既有下载门禁；
+它不接受已删除的旧 profile-pair 名称。验证其他用途时，使用与 suite
+绑定的 canonical product，并先完成本节 4.1/4.2 的 host-only plan 和
+manifest 检查。
 
 流程：
 
-1. 按显式 `--cp-config/--ap-config` 构建 CP/AP；
+1. 按 canonical product plan 和已审计 manifest 构建 CP/AP；
 2. 校验 package manifest、ELF/raw 绑定和公开信任契约；
 3. 通过 P0/P1 对三个身份分别读取固定地址和现板兼容地址，共六段非停核
    J-Link 读取；每个身份只需一个允许地址精确匹配；
@@ -394,7 +389,9 @@ flash-only 模式不会重新决定 AP 固件，而是读取：
 nuttx/bk7258-dual/build-profile.txt
 ```
 
-并在启动时打印实际 packaged profile。可以传入 `--cp-config/--ap-config` 作为期望值门禁；若与已打包 profile 不同，脚本会拒绝下载。
+并在启动时打印 package 绑定的 product/materialized role identity。不要传入
+已删除 profile 名称；若 package identity 与本轮 product plan 不同，脚本应
+拒绝下载。
 
 推荐：
 
@@ -403,12 +400,10 @@ nuttx/bk7258-dual/build-profile.txt
   --flash \
   --sparse-flash \
   --apps-only \
-  --no-console \
-  --cp-config t5_board_cp_app_mcuboot \
-  --ap-config t5_board_ap_app_mcuboot
+  --no-console
 ```
 
-不指定期望 profile 时（仍使用 package 中记录的配对）：
+使用 package 中记录的 canonical identity：
 
 ```bash
 cd /home/lijian/project/open-vela
@@ -547,14 +542,14 @@ NuttShell (NSH)
 
 ### 9.3 第二级：当前 profile 的功能门禁
 
-使用 `t5ai_core_cp_psram_validation + t5ai_core_ap_psram_validation` 时，物理复位后还必须在 NSH 执行：
+使用 `t5ai_core_bringup` 的 `psram` validation-suite overlay 时，物理复位后还必须在 NSH 执行：
 
 ```text
 apctl status
 bkrpmsgtest run 100 64 idle 10000
 ```
 
-RPTUN profile 的成功条件是：
+该 suite 的 RPTUN 成功条件是：
 
 ```text
 AP state=READY
@@ -850,9 +845,9 @@ BClk -> U2 等价功能 -> C8 -> NSH
 [ ] cd /home/lijian/project/open-vela
 [ ] 确认当前板只用 COM3 下载，COM4 未打开
 [ ] 确认 P0/P1 SWD/RTT 与 J-Link 可读
-[ ] 明确选择 CP_CONFIG_NAME 和 AP_CONFIG_NAME
-[ ] 使用显式 profile 运行 build_dual_image.sh
-[ ] 检查 bk7258-dual/build-profile.txt
+[ ] 明确 canonical product 与 validation-suite（如适用）
+[ ] 生成并验证 framework build plan
+[ ] 检查 isolated execution manifest/source snapshot
 [ ] stat + sha256sum 新产物
 [ ] 日常更新：auto_debug.sh --flash --sparse-flash --apps-only --no-console
 [ ] 检查 trust-preflight.json 为 pass，随后核对 RTT/NSH/功能状态

@@ -24,6 +24,20 @@ SCHEMA = "bk7258.composition/1"
 ROLES = frozenset({"cp", "ap", "bl2"})
 MODES = frozenset({"bringup", "application", "validation", "factory"})
 BOOTS = frozenset({"raw", "mcuboot"})
+# The role set is part of the build-plan identity.  A raw T5AI composition has
+# no BL2 stage; MCUboot compositions retain both boot roles.  Keep the mapping
+# local and deterministic so plan generation does not consult ambient policy
+# or execute any boot tooling.  The executor reconciles this binding with the
+# checked-in boot-policy document before staging or running a role.
+ACTIVE_ROLES_BY_BOOT = {
+    "raw": ("bl1", "cp", "ap"),
+    "mcuboot": ("bl1", "bl2", "cp", "ap"),
+}
+# The unsigned BL2 compile target has a fixed board-owned image window.  This
+# is deliberately distinct from the resolved partition capacity (0x20000),
+# which is a storage bound rather than the image's compile-time copy size.
+BL2_IMAGE_LOGICAL_SIZE_BY_BOOT = {"raw": None, "mcuboot": 0x3000}
+PLAN_ROLES = ("bl1", "bl2", "cp", "ap")
 SDK_REGISTRY_SCHEMA = "bk7258.sdk-registry/1"
 SDK_SET_SCHEMA = "bk7258.sdk-set/1"
 SDK_LOCK_SCHEMA = "bk7258.sdk-lock/1"
@@ -31,6 +45,7 @@ SDK_IMPORT_SCHEMA = "bk7258.sdk-import/1"
 CONFIG_SCHEMA = "bk7258.config/1"
 BUILD_PLAN_SCHEMA = "bk7258.build-plan/1"
 BKPACK_SCHEMA = "bk7258.bkpack/1"
+EXECUTION_CONTEXT_SCHEMA = "bk7258.execution-context/1"
 SDK_ROLES = frozenset({"cp", "ap"})
 SDK_MANIFEST_ROOT = "board/bk7258/scripts/sdk-manifests"
 PRIVATE_MIRROR_URL = "https://github.com/Embracecactus/vendor-bk-avdk-smp.git"
@@ -49,6 +64,30 @@ BOARD_SELECTORS = {
     "t5_board": "CONFIG_BK7258_BOARD_T5_BOARD",
     "t5ai_core": "CONFIG_BK7258_BOARD_T5AI_CORE",
 }
+# These names belong to the legacy compatibility adapter only.  They are not
+# used to resolve IR symbols and are deliberately emitted under
+# ``build_plan.legacy_adapter`` rather than under resolved-role config.
+CANONICAL_SEED_DEFAULTS = {
+    "aidk_ai_toy_bringup": {
+        "cp": "t5ai_core_cp_base", "ap": "t5ai_core_ap_base",
+    },
+    "t5_board_bringup": {
+        "cp": "t5ai_core_cp_base", "ap": "t5ai_core_ap_base",
+    },
+    "t5ai_core_bringup": {
+        "cp": "t5ai_core_cp_base", "ap": "t5ai_core_ap_base",
+    },
+}
+CANONICAL_OVERLAYS = {
+    "aidk_ai_toy_bringup": "aidk_ai_toy_minimal_v1",
+    "t5_board_bringup": "none",
+    "t5ai_core_bringup": "none",
+}
+# The canonical role configuration is generated from the resolved IR and the
+# selected fragments.  The three retained seed files are only compatibility
+# fixtures; no resolver or isolated build reads the legacy profile tree.
+CANONICAL_CONFIG_SOURCE = "board/bk7258/scripts/bk7258_framework.py"
+CANONICAL_CONFIG_COMPAT = "canonical-fragments-v1"
 
 # P6 is deliberately a metadata-only package boundary.  Keep the standard
 # build outputs visible in the package contract; the optional ``.bkpack``
@@ -64,16 +103,16 @@ PACK_ROLE_PARTITIONS = {
 PACK_ROLE_ARTIFACTS = {
     "bl1": "bootloader.bin",
     "bl2": "bl2.bin",
-    "cp": "vela_cp.bin",
-    "ap": "vela_ap.bin",
+    "cp": "vela_nuttx_cp.bin",
+    "ap": "vela_nuttx_ap.bin",
 }
 PACK_ARTIFACTS = {
     "libarch.a": ("static_archive", "chip", ("cp", "ap")),
-    "libboards.a": ("static_archive", "board", ("cp", "ap")),
+    "libboard.a": ("static_archive", "board", ("cp", "ap")),
     "bootloader.bin": ("vendor_boot_binary", "board", ("bl1",)),
     "bl2.bin": ("vendor_boot_binary", "board", ("bl2",)),
-    "vela_cp.bin": ("firmware_binary", "board", ("cp",)),
-    "vela_ap.bin": ("firmware_binary", "board", ("ap",)),
+    "vela_nuttx_cp.bin": ("firmware_binary", "board", ("cp",)),
+    "vela_nuttx_ap.bin": ("firmware_binary", "board", ("ap",)),
 }
 TRANSPORT_SCHEMA = "bk7258.transport/1"
 TRANSPORT_HOSTS = frozenset({"linux", "darwin", "windows", "wsl"})
@@ -82,10 +121,10 @@ TRANSPORT_CAPABILITY_KEYS = ("rts", "dtr", "reset", "rts_reset")
 SHADOW_SCHEMA = "bk7258.shadow/1"
 SHADOW_REPORT_SCHEMA = "bk7258.shadow-report/1"
 SHADOW_LEDGER_REL = "board/bk7258/scripts/bk7258_shadow_ledger.json"
-SHADOW_STATUS_ORDER = ("EXACT", "EQUIVALENT_WITH_REASON", "MIGRATION_PENDING",
-                       "RETIRE_PROPOSED")
+SHADOW_STATUS_ORDER = ("shadow-equivalent", "retire-blocked-hardware")
 SHADOW_STATUS = frozenset(SHADOW_STATUS_ORDER)
 FRAMEWORK_CHECK_SCHEMA = "bk7258.framework-check/1"
+PARTITION_ROOT = "board/bk7258/partitions"
 
 
 class FrameworkError(ValueError):
@@ -179,6 +218,51 @@ def _sdk_metadata_path(value: Any, field: str) -> str:
     return path
 
 
+def _partition_layout_reference(value: Any, field: str) -> dict[str, Any]:
+    """Validate one product-pinned, repository-owned partition layout."""
+    layout = obj(value, field)
+    exact(layout, {"source", "layout_id", "layout_sha256"}, field)
+    source = relative_path(layout["source"], f"{field}.source")
+    if (not source.startswith(PARTITION_ROOT + "/") or
+            not source.endswith(".csv")):
+        raise FrameworkError(
+            f"{field}.source must name a repository-owned partition CSV")
+    layout_id = identifier(layout["layout_id"], f"{field}.layout_id")
+    layout_sha256 = digest(layout["layout_sha256"],
+                           f"{field}.layout_sha256")
+    if not layout_id.endswith("-" + layout_sha256[:16]):
+        raise FrameworkError(f"{field} id/hash binding mismatch")
+    return layout
+
+
+def _load_product_partition_layout(repository: Path, reference: Any,
+                                   field: str) -> Any:
+    """Load and verify the exact layout selected by a product catalog."""
+    layout_ref = _partition_layout_reference(reference, field)
+    repository_root = repository.resolve()
+    source = repository_root / layout_ref["source"]
+    try:
+        resolved_source = source.resolve(strict=True)
+    except OSError as error:
+        raise FrameworkError(
+            f"cannot load product partition layout: {layout_ref['source']}") from error
+    if resolved_source != source or not resolved_source.is_file():
+        raise FrameworkError(
+            f"product partition source is not a regular in-tree file: {layout_ref['source']}")
+    try:
+        from gen_bk7258_partitions import load_layout  # noqa: PLC0415
+
+        layout = load_layout(resolved_source)
+    except (ImportError, OSError, ValueError, RuntimeError) as error:
+        raise FrameworkError(
+            f"cannot load product partition layout: {layout_ref['source']}") from error
+    if (layout.layout_id != layout_ref["layout_id"] or
+            layout.layout_sha256 != layout_ref["layout_sha256"]):
+        raise FrameworkError(
+            f"product partition layout identity differs from source: {layout_ref['source']}")
+    return layout
+
+
 def digest(value: Any, field: str) -> str:
     if not isinstance(value, str) or not HASH_RE.fullmatch(value):
         raise FrameworkError(f"invalid SHA-256 in {field}")
@@ -192,7 +276,8 @@ def symbols(value: Any, field: str = "symbols") -> dict[str, str | None]:
         if not isinstance(key, str) or not SYMBOL_RE.fullmatch(key):
             raise FrameworkError(f"invalid Kconfig symbol in {field}")
         if item is not None and (not isinstance(item, str) or
-                                 not re.fullmatch(r"[A-Za-z0-9_./:+,-]+", item)):
+                                 not (re.fullmatch(r"[A-Za-z0-9_./:+,-]+", item)
+                                      or re.fullmatch(r'"[^"\\n]*"', item))):
             raise FrameworkError(f"invalid Kconfig value for {key}")
         result[key] = item
     return result
@@ -266,6 +351,8 @@ def validate_board(value: dict[str, Any]) -> dict[str, Any]:
 
 def _role(value: Any, field: str) -> None:
     role = obj(value, field)
+    # Seed selection is compatibility-only and never belongs to the
+    # canonical product/IR role schema.
     exact(role, {"fragments", "legacy_profile"}, field)
     identifiers(role["fragments"], f"{field}.fragments")
     if role["legacy_profile"] is not None:
@@ -275,7 +362,7 @@ def _role(value: Any, field: str) -> None:
 def validate_product(value: dict[str, Any]) -> dict[str, Any]:
     exact(value, {"schema", "kind", "id", "family", "mode", "board", "boot",
                   "roles", "fragments", "features", "validation_suite",
-                  "sdk_set", "sdk_lock"}, "product")
+                  "sdk_set", "sdk_lock", "partition_layout"}, "product")
     if value["schema"] != SCHEMA or value["kind"] != "product":
         raise FrameworkError("unsupported product schema")
     for field in ("id", "family", "mode", "board"):
@@ -294,6 +381,8 @@ def validate_product(value: dict[str, Any]) -> dict[str, Any]:
         identifier(value["validation_suite"], "product.validation_suite")
     _sdk_metadata_path(value["sdk_set"], "product.sdk_set")
     _sdk_metadata_path(value["sdk_lock"], "product.sdk_lock")
+    _partition_layout_reference(value["partition_layout"],
+                                "product.partition_layout")
     return value
 
 
@@ -317,7 +406,8 @@ def validate_ir(value: dict[str, Any]) -> dict[str, Any]:
         raise FrameworkError("unsupported IR schema")
     inputs = obj(value["inputs"], "IR.inputs")
     exact(inputs, {"product", "family", "mode", "board", "role", "boot",
-                   "features", "validation_suite", "legacy_profile"}, "IR.inputs")
+                   "features", "validation_suite", "legacy_profile",
+                   "partition_layout"}, "IR.inputs")
     for field in ("product", "family", "mode", "board"):
         identifier(inputs[field], f"IR.inputs.{field}")
     identifier(inputs["role"], "IR.inputs.role")
@@ -331,6 +421,8 @@ def validate_ir(value: dict[str, Any]) -> dict[str, Any]:
     for field in ("validation_suite", "legacy_profile"):
         if inputs[field] is not None:
             identifier(inputs[field], f"IR.inputs.{field}")
+    _partition_layout_reference(inputs["partition_layout"],
+                                "IR.inputs.partition_layout")
     fragments = array(value["fragments"], "IR.fragments")
     ids: set[str] = set()
     for index, raw in enumerate(fragments):
@@ -406,6 +498,131 @@ def load_catalog(repository: Path) -> dict[str, dict[str, dict[str, Any]]]:
     }
 
 
+VALIDATION_SUITE_REL = Path("board/bk7258/scripts/bk7258_validation_suite_catalog.json")
+
+
+def load_validation_suites(repository: Path) -> dict[str, dict[str, Any]]:
+    """Load the one-to-many validation suite map without creating products.
+
+    A suite is a data overlay on one of the three canonical products.  It is
+    deliberately separate from ``configs/``: selecting a validator changes
+    feature symbols and resource claims, never the board/profile tree.
+    """
+    document = load_json(repository / VALIDATION_SUITE_REL)
+    exact(document, {"schema", "kind", "version", "suites", "identity_sha256"},
+          "validation suite catalog")
+    if (document["schema"] != "bk7258.validation-suite/1" or
+            document["kind"] != "validation-suite-catalog" or
+            document["version"] != 1):
+        raise FrameworkError("unsupported validation suite catalog")
+    suites = array(document["suites"], "validation suite catalog suites")
+    result: dict[str, dict[str, Any]] = {}
+    for index, raw in enumerate(suites):
+        suite = obj(raw, f"validation suite {index}")
+        exact(suite, {"id", "product", "fragments", "roles", "resources"},
+              f"validation suite {index}")
+        suite_id = identifier(suite["id"], f"validation suite {index}.id")
+        if suite_id in result:
+            raise FrameworkError(f"duplicate validation suite: {suite_id}")
+        product = identifier(suite["product"], f"validation suite {suite_id}.product")
+        identifiers(suite["fragments"], f"validation suite {suite_id}.fragments")
+        roles = obj(suite["roles"], f"validation suite {suite_id}.roles")
+        exact(roles, {"cp", "ap"}, f"validation suite {suite_id}.roles")
+        for role in ("cp", "ap"):
+            row = obj(roles[role], f"validation suite {suite_id}.{role}")
+            exact(row, {"symbols"}, f"validation suite {suite_id}.{role}")
+            symbols(row["symbols"], f"validation suite {suite_id}.{role}.symbols")
+        resources = array(suite["resources"], f"validation suite {suite_id}.resources")
+        for resource in resources:
+            identifier(resource, f"validation suite {suite_id}.resource")
+        result[suite_id] = suite
+    body = dict(document)
+    supplied = body.pop("identity_sha256")
+    digest(supplied, "validation suite catalog identity")
+    if sha256(canonical_json(body)) != supplied:
+        raise FrameworkError("validation suite catalog identity mismatch")
+    return result
+
+
+def resolve_validation_suite(repository: Path, product_id: str, suite_id: str,
+                             role: str, board_id: str | None = None,
+                             mode: str | None = None) -> dict[str, Any]:
+    """Resolve a canonical product plus one validation suite overlay."""
+    suites = load_validation_suites(repository)
+    suite = suites.get(suite_id)
+    if suite is None:
+        raise FrameworkError(f"unknown validation suite: {suite_id}")
+    if suite["product"] != product_id:
+        raise FrameworkError(
+            f"validation suite {suite_id} is bound to {suite['product']}, not {product_id}"
+        )
+    if role not in {"cp", "ap"}:
+        raise FrameworkError("validation suites are runtime CP/AP overlays")
+    base = resolve(repository, product_id, role, board_id, mode)
+    symbols_overlay = suite["roles"][role]["symbols"]
+    symbols_result = dict(base["symbols"])
+    for key, value in symbols_overlay.items():
+        if key in symbols_result and symbols_result[key] not in {None, value}:
+            raise FrameworkError(f"validation suite conflicts with product symbol: {key}")
+        symbols_result[key] = value
+    inputs = dict(base["inputs"])
+    inputs["validation_suite"] = suite_id
+    fragments = list(base["fragments"])
+    for fragment_id in suite["fragments"]:
+        fragment = {
+            "id": fragment_id,
+            "scope": "validation",
+            "sha256": sha256(canonical_json({
+                "schema": SCHEMA, "kind": "config-fragment", "id": fragment_id,
+                "scope": "validation", "symbols": symbols_overlay, "requires": [],
+            })),
+        }
+        if any(item["id"] == fragment_id for item in fragments):
+            raise FrameworkError(f"validation suite duplicates fragment: {fragment_id}")
+        fragments.append(fragment)
+    claims = list(base["resource_claims"])
+    for resource in suite["resources"]:
+        claim = {"resource": resource, "owner": f"suite_{suite_id}",
+                 "phases": ["validation"]}
+        if any(item["resource"] == resource for item in claims):
+            continue
+        claims.append(claim)
+    body = dict(base)
+    body["inputs"] = inputs
+    body["fragments"] = fragments
+    body["symbols"] = dict(sorted(symbols_result.items()))
+    body["resource_claims"] = sorted(claims,
+                                      key=lambda item: (item["resource"], item["owner"]))
+    body.pop("identity_sha256", None)
+    body["identity_sha256"] = sha256(canonical_json(body))
+    return validate_ir(body)
+
+
+def validation_suite_check(repository: Path, product_id: str,
+                           suite_id: str) -> dict[str, Any]:
+    """Validate one suite's catalog identity and CP/AP product binding."""
+    suites = load_validation_suites(repository)
+    suite = suites.get(suite_id)
+    if suite is None:
+        raise FrameworkError(f"unknown validation suite: {suite_id}")
+    if suite["product"] != product_id:
+        raise FrameworkError(
+            f"validation suite {suite_id} is bound to {suite['product']}, not {product_id}")
+    resolved = {
+        role: resolve_validation_suite(repository, product_id, suite_id, role)
+        for role in ("cp", "ap")
+    }
+    catalog = load_json(repository / VALIDATION_SUITE_REL)
+    return {
+        "suite": suite_id,
+        "product": product_id,
+        "catalog_identity_sha256": catalog["identity_sha256"],
+        "role_ir_identity_sha256": {
+            role: resolved[role]["identity_sha256"] for role in ("cp", "ap")
+        },
+    }
+
+
 def _fragment_order(value: dict[str, Any]) -> tuple[int, str]:
     return STAGES[value["scope"]], value["id"]
 
@@ -477,6 +694,9 @@ def resolve(repository: Path, product_id: str, role: str, board_id: str | None =
         if mode != product["mode"]:
             raise FrameworkError(f"mode differs from product: {mode}")
     board = catalog["boards"][selected_board]
+    _load_product_partition_layout(repository, product["partition_layout"],
+                                   "product.partition_layout")
+    partition_layout = dict(product["partition_layout"])
     fragments = _selected(catalog, product, role)
     merged_symbols = merge_symbols(fragments)
     validate_board_selector_symbols(board["id"], merged_symbols,
@@ -489,6 +709,7 @@ def resolve(repository: Path, product_id: str, role: str, board_id: str | None =
             "board": board["id"], "role": role, "boot": product["boot"],
             "features": product["features"], "validation_suite": product["validation_suite"],
             "legacy_profile": product["roles"][role]["legacy_profile"],
+            "partition_layout": partition_layout,
         },
         "fragments": [{"id": item["id"], "scope": item["scope"],
                        "sha256": sha256(canonical_json(item))} for item in fragments],
@@ -1009,6 +1230,7 @@ def validate_sdk_import_receipt(value: dict[str, Any]) -> dict[str, Any]:
 
 def _defconfig_text(inputs: dict[str, Any], config_symbols: dict[str, str | None],
                     ir_identity: str) -> str:
+    partition_layout = inputs["partition_layout"]
     lines = [
         "# Generated by bk7258_framework.py; do not edit.",
         f"# BK7258_IR_IDENTITY_SHA256={ir_identity}",
@@ -1016,6 +1238,9 @@ def _defconfig_text(inputs: dict[str, Any], config_symbols: dict[str, str | None
         f"# BK7258_MODE={inputs['mode']}",
         f"# BK7258_BOARD={inputs['board']}",
         f"# BK7258_ROLE={inputs['role']}",
+        f"# BK7258_PARTITION_LAYOUT_ID={partition_layout['layout_id']}",
+        f"# BK7258_PARTITION_LAYOUT_SHA256={partition_layout['layout_sha256']}",
+        f"# BK7258_PARTITION_SOURCE={partition_layout['source']}",
     ]
     for key, value in sorted(config_symbols.items()):
         lines.append(f"# {key} is not set" if value is None else f"{key}={value}")
@@ -1031,6 +1256,7 @@ def config_document(ir: dict[str, Any]) -> dict[str, Any]:
         "version": 1,
         "ir_identity_sha256": ir["identity_sha256"],
         "inputs": dict(ir["inputs"]),
+        "partition_layout": dict(ir["inputs"]["partition_layout"]),
         "symbols": dict(ir["symbols"]),
         "defconfig": _defconfig_text(ir["inputs"], ir["symbols"], ir["identity_sha256"]),
     }
@@ -1042,14 +1268,16 @@ def config_document(ir: dict[str, Any]) -> dict[str, Any]:
 
 def validate_config_document(value: dict[str, Any]) -> dict[str, Any]:
     exact(value, {"schema", "kind", "version", "ir_identity_sha256", "inputs",
-                  "symbols", "defconfig", "defconfig_sha256", "identity_sha256"},
+                  "partition_layout", "symbols", "defconfig", "defconfig_sha256",
+                  "identity_sha256"},
           "resolved role config")
     if value["schema"] != CONFIG_SCHEMA or value["kind"] != "resolved-role-config" or value["version"] != 1:
         raise FrameworkError("unsupported resolved role config schema")
     digest(value["ir_identity_sha256"], "role config IR identity")
     inputs = obj(value["inputs"], "role config inputs")
     exact(inputs, {"product", "family", "mode", "board", "role", "boot",
-                   "features", "validation_suite", "legacy_profile"}, "role config inputs")
+                   "features", "validation_suite", "legacy_profile",
+                   "partition_layout"}, "role config inputs")
     for field in ("product", "family", "mode", "board", "role"):
         identifier(inputs[field], f"role config inputs.{field}")
     if inputs["role"] not in ROLES:
@@ -1060,6 +1288,12 @@ def validate_config_document(value: dict[str, Any]) -> dict[str, Any]:
     for field in ("validation_suite", "legacy_profile"):
         if inputs[field] is not None:
             identifier(inputs[field], f"role config {field}")
+    input_partition = _partition_layout_reference(
+        inputs["partition_layout"], "role config inputs.partition_layout")
+    document_partition = _partition_layout_reference(
+        value["partition_layout"], "role config partition_layout")
+    if document_partition != input_partition:
+        raise FrameworkError("role config partition layout binding mismatch")
     config_symbols = symbols(value["symbols"], "role config symbols")
     validate_board_selector_symbols(inputs["board"], config_symbols,
                                     "role config symbols")
@@ -1089,6 +1323,7 @@ def _boot_config_identity(product_ir: dict[str, Any], role: str, makefile: str,
         "family": product_ir["inputs"]["family"],
         "mode": product_ir["inputs"]["mode"],
         "board": product_ir["inputs"]["board"],
+        "partition_layout": dict(product_ir["inputs"]["partition_layout"]),
         "role": role,
         "makefile": makefile,
         "sdk": None,
@@ -1134,6 +1369,105 @@ def _load_plan_sdk(repository: Path, set_path: Path | None = None,
     return sdk_set, lock
 
 
+def _sdk_lock_versions(repository: Path, lock: dict[str, Any]) -> dict[str, str | None]:
+    """Resolve bundle versions from the validated SDK lock, never ambient env."""
+    registry_path = repository / "board/bk7258/scripts/bk7258_sdk_registry.json"
+    registry = validate_sdk_registry(repository, load_json_checked(registry_path,
+                                                                   "SDK registry"))
+    by_id = {_sdk_entry_id(item["id"], "SDK registry entry"): item
+             for item in registry["entries"]}
+    versions: dict[str, str | None] = {}
+    for role in ("cp", "ap"):
+        registry_id = lock["roles"][role]["registry_id"]
+        entry = by_id.get(registry_id)
+        if entry is None:
+            raise FrameworkError(f"SDK lock {role} entry is missing from registry")
+        versions[role] = _sdk_version(entry["version"], f"SDK lock {role} version")
+    versions["bl2"] = None
+    return versions
+
+
+def _profile_field(path: Path, key: str) -> str | None:
+    """Read one non-secret compatibility profile field exactly once."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as error:
+        raise FrameworkError(f"cannot read legacy profile metadata: {path}") from error
+    values = [line.split("=", 1)[1] for line in lines
+              if line.startswith(f"{key}=")]
+    if len(values) > 1:
+        raise FrameworkError(f"legacy profile defines {key} more than once: {path}")
+    return values[0] if values else None
+
+
+def _canonical_profile_text(ir: dict[str, Any]) -> str:
+    """Render the small, deterministic profile header for a resolved IR.
+
+    This is intentionally metadata-only.  The complete Kconfig value map is
+    emitted by :func:`config_document`; this header exists solely because the
+    existing CMake adapter still accepts a directory containing both files.
+    """
+    validate_ir(ir)
+    inputs = ir["inputs"]
+    lines = [
+        "# Generated from bk7258 composition fragments; do not edit.",
+        "BK7258_PROFILE_SCHEMA=1",
+        f"BK7258_PROFILE_BOARD={inputs['board']}",
+        f"BK7258_PROFILE_ROLE={inputs['role']}",
+        f"BK7258_PROFILE_BOOT={inputs['boot']}",
+        "BK7258_PROFILE_CLASS=runnable",
+        f"BK7258_PROFILE_COMPAT={CANONICAL_CONFIG_COMPAT}",
+        f"BK7258_PROFILE_IR_SHA256={ir['identity_sha256']}",
+    ]
+    sdk_version = inputs.get("sdk_bundle")
+    if sdk_version is not None:
+        lines.insert(-1, f"BK7258_PROFILE_SDK_BUNDLE={sdk_version}")
+    return "\n".join(lines) + "\n"
+
+
+def _canonical_overlay_sha256(product: str, role: str) -> str:
+    return sha256(canonical_json({
+        "kind": "canonical-fragment-overlay",
+        "version": 1,
+        "product": product,
+        "role": role,
+    }))
+
+
+def _canonical_seed_profiles(product: dict[str, Any],
+                             role_ir: dict[str, dict[str, Any]],
+                             sdk_versions: dict[str, str | None]) -> dict[str, dict[str, Any]]:
+    """Describe generated CP/AP configs without consulting ``configs/``.
+
+    The field names are retained as a narrow compatibility envelope for the
+    existing manifest schema.  ``source`` points at the resolver, not at a
+    legacy profile; the old bytes are consumed only by ``shadow_parity``.
+    """
+    product_id = product["id"]
+    result: dict[str, dict[str, Any]] = {}
+    for role in ("cp", "ap"):
+        ir = role_ir[role]
+        config = config_document(ir)
+        profile_text = _canonical_profile_text(ir)
+        target = f"{product_id.removesuffix('_bringup')}_{role}_{product['boot']}"
+        profile_hash = sha256(profile_text.encode())
+        defconfig_hash = config["defconfig_sha256"]
+        result[role] = {
+            "seed_profile": target,
+            "source": CANONICAL_CONFIG_SOURCE,
+            "profile_sha256": profile_hash,
+            "defconfig_sha256": defconfig_hash,
+            "overlay": CANONICAL_CONFIG_COMPAT,
+            "overlay_sha256": _canonical_overlay_sha256(product_id, role),
+            "target_profile": target,
+            "compat": CANONICAL_CONFIG_COMPAT,
+            "sdk_bundle": sdk_versions[role],
+            "materialized_profile_sha256": profile_hash,
+            "materialized_defconfig_sha256": defconfig_hash,
+        }
+    return result
+
+
 def build_plan(repository: Path, product_id: str, board_id: str | None = None,
                mode: str | None = None, set_path: Path | None = None,
                lock_path: Path | None = None) -> dict[str, Any]:
@@ -1146,7 +1480,8 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
                 other["inputs"]["family"] != cp_ir["inputs"]["family"] or \
                 other["inputs"]["mode"] != cp_ir["inputs"]["mode"] or \
                 other["inputs"]["board"] != cp_ir["inputs"]["board"] or \
-                other["inputs"]["boot"] != cp_ir["inputs"]["boot"]:
+                other["inputs"]["boot"] != cp_ir["inputs"]["boot"] or \
+                other["inputs"]["partition_layout"] != cp_ir["inputs"]["partition_layout"]:
             raise FrameworkError("role resolution produced mismatched product inputs")
     product_catalog = load_catalog(repository)["products"]
     product_metadata = product_catalog.get(product_id)
@@ -1158,10 +1493,13 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
         lock_path = repository / product_metadata["sdk_lock"]
     sdk_set, lock = _load_plan_sdk(repository, set_path, lock_path)
     inputs = cp_ir["inputs"]
+    partition_layout = dict(inputs["partition_layout"])
     if (sdk_set["product"] != inputs["product"] or sdk_set["board"] != inputs["board"] or
             sdk_set["mode"] != inputs["mode"]):
         raise FrameworkError("SDK set does not exactly match resolved product/mode/board")
+    sdk_versions = _sdk_lock_versions(repository, lock)
     role_ir = {"cp": cp_ir, "ap": ap_ir, "bl2": bl2_ir}
+    active_roles = list(ACTIVE_ROLES_BY_BOOT[inputs["boot"]])
     config_ids = {
         "cp": config_document(cp_ir)["identity_sha256"],
         "ap": config_document(ap_ir)["identity_sha256"],
@@ -1189,35 +1527,47 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
             "backend": "cmake" if role in {"cp", "ap"} else
                         ("bootloader-adapter" if role == "bl1" else "minimal-make"),
             "fake_nuttx_seed": False,
+            "activation": "active" if role in active_roles else "inactive",
+            "applicability": "required" if role in active_roles else "not-applicable",
         }
     body: dict[str, Any] = {
         "schema": BUILD_PLAN_SCHEMA,
         "kind": "isolated-build-plan",
         "version": 1,
+        "active_roles": active_roles,
+        "bl2_image_logical_size": BL2_IMAGE_LOGICAL_SIZE_BY_BOOT[inputs["boot"]],
         "identity_inputs": {
             "product": inputs["product"],
             "family": inputs["family"],
             "mode": inputs["mode"],
             "board": inputs["board"],
             "boot": inputs["boot"],
+            "bl2_image_logical_size": BL2_IMAGE_LOGICAL_SIZE_BY_BOOT[inputs["boot"]],
+            "active_roles": active_roles,
             "role_ir_sha256": {role: role_ir[role]["identity_sha256"] for role in ("cp", "ap", "bl2")},
             "sdk_set_id": sdk_set["id"],
             "sdk_lock_id": lock["id"],
+            "partition_layout_id": partition_layout["layout_id"],
+            "partition_layout_sha256": partition_layout["layout_sha256"],
         },
         "board": {"id": inputs["board"], "variant": board_variant},
+        "partition_layout": partition_layout,
         "sdk": {
             "set_id": sdk_set["id"],
             "lock_id": lock["id"],
             "lock_identity_sha256": lock["identity_sha256"],
             "roles": {role: sdk_set["roles"][role] for role in ("cp", "ap", "bl2")},
+            "versions": sdk_versions,
         },
         "source_views": source_views,
         "roles": build_roles,
         "legacy_adapter": {
             "builder": "board/bk7258/scripts/build_dual_image.sh",
-            "mode": "compatibility-only",
+            "mode": "shadow-comparator",
             "invoked": False,
             "modified": False,
+            "seed_profiles": _canonical_seed_profiles(product_metadata, role_ir,
+                                                        sdk_versions),
         },
     }
     result = dict(body)
@@ -1225,19 +1575,51 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
     return validate_build_plan(result)
 
 
+def build_plan_verify(repository: Path, plan_path: Path,
+                      product_id: str | None = None) -> dict[str, Any]:
+    """Verify an external plan against the current product/SDK/layout inputs."""
+    plan = load_json_checked(plan_path, "build plan")
+    validate_build_plan(plan)
+    selected_product = product_id or plan["identity_inputs"]["product"]
+    if plan["identity_inputs"]["product"] != selected_product:
+        raise FrameworkError("external build plan product binding mismatch")
+    expected = build_plan(repository, selected_product,
+                          plan["identity_inputs"]["board"],
+                          plan["identity_inputs"]["mode"])
+    if expected["identity_sha256"] != plan["identity_sha256"]:
+        raise FrameworkError("external build plan identity differs from repository")
+    return plan
+
+
 def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
-    exact(value, {"schema", "kind", "version", "identity_inputs", "board", "sdk",
-                  "source_views", "roles", "legacy_adapter", "identity_sha256"},
+    exact(value, {"schema", "kind", "version", "active_roles", "bl2_image_logical_size", "identity_inputs", "board", "sdk",
+                  "partition_layout", "source_views", "roles", "legacy_adapter",
+                  "identity_sha256"},
           "isolated build plan")
     if value["schema"] != BUILD_PLAN_SCHEMA or value["kind"] != "isolated-build-plan" or value["version"] != 1:
         raise FrameworkError("unsupported isolated build plan schema")
     inputs = obj(value["identity_inputs"], "build plan identity_inputs")
-    exact(inputs, {"product", "family", "mode", "board", "boot", "role_ir_sha256",
-                   "sdk_set_id", "sdk_lock_id"}, "build plan identity_inputs")
-    for field in ("product", "family", "mode", "board", "sdk_set_id", "sdk_lock_id"):
+    exact(inputs, {"product", "family", "mode", "board", "boot", "bl2_image_logical_size", "active_roles", "role_ir_sha256",
+                   "sdk_set_id", "sdk_lock_id", "partition_layout_id",
+                   "partition_layout_sha256"}, "build plan identity_inputs")
+    for field in ("product", "family", "mode", "board", "sdk_set_id", "sdk_lock_id",
+                  "partition_layout_id"):
         identifier(inputs[field], f"build plan identity_inputs.{field}")
+    digest(inputs["partition_layout_sha256"],
+           "build plan identity_inputs.partition_layout_sha256")
     if inputs["mode"] not in MODES or inputs["boot"] not in BOOTS:
         raise FrameworkError("unsupported build plan mode/boot")
+    expected_image_size = BL2_IMAGE_LOGICAL_SIZE_BY_BOOT[inputs["boot"]]
+    if (value["bl2_image_logical_size"] != expected_image_size or
+            inputs["bl2_image_logical_size"] != expected_image_size):
+        raise FrameworkError("build plan BL2 image logical size is not policy-bound")
+    expected_active_roles = list(ACTIVE_ROLES_BY_BOOT[inputs["boot"]])
+    if value["active_roles"] != expected_active_roles or inputs["active_roles"] != expected_active_roles:
+        raise FrameworkError("build plan active role binding is unsafe")
+    if (not isinstance(value["active_roles"], list) or
+            any(role not in PLAN_ROLES for role in value["active_roles"]) or
+            len(set(value["active_roles"])) != len(value["active_roles"])):
+        raise FrameworkError("build plan active_roles is malformed")
     role_ids = obj(inputs["role_ir_sha256"], "build plan role IR identities")
     exact(role_ids, {"cp", "ap", "bl2"}, "build plan role IR identities")
     for role in role_ids:
@@ -1247,8 +1629,14 @@ def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
     if board["id"] != inputs["board"]:
         raise FrameworkError("build plan board binding mismatch")
     identifier(board["variant"], "build plan board.variant")
+    partition_layout = _partition_layout_reference(
+        value["partition_layout"], "build plan partition_layout")
+    if (partition_layout["layout_id"] != inputs["partition_layout_id"] or
+            partition_layout["layout_sha256"] != inputs["partition_layout_sha256"]):
+        raise FrameworkError("build plan partition layout identity mismatch")
     sdk = obj(value["sdk"], "build plan SDK")
-    exact(sdk, {"set_id", "lock_id", "lock_identity_sha256", "roles"}, "build plan SDK")
+    exact(sdk, {"set_id", "lock_id", "lock_identity_sha256", "roles", "versions"},
+          "build plan SDK")
     if sdk["set_id"] != inputs["sdk_set_id"] or sdk["lock_id"] != inputs["sdk_lock_id"]:
         raise FrameworkError("build plan SDK identity mismatch")
     digest(sdk["lock_identity_sha256"], "build plan SDK lock identity")
@@ -1258,6 +1646,12 @@ def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
         _sdk_entry_id(sdk_roles[role], f"build plan SDK {role}")
     if sdk_roles["bl2"] is not None:
         raise FrameworkError("build plan BL2 SDK must be null")
+    versions = obj(sdk["versions"], "build plan SDK versions")
+    exact(versions, {"cp", "ap", "bl2"}, "build plan SDK versions")
+    for role in ("cp", "ap"):
+        _sdk_version(versions[role], f"build plan SDK {role} version")
+    if versions["bl2"] is not None:
+        raise FrameworkError("build plan BL2 SDK version must be null")
     source_views = obj(value["source_views"], "build plan source views")
     exact(source_views, {"bl1", "bl2", "cp", "ap"}, "build plan source views")
     view_ids: set[str] = set()
@@ -1284,7 +1678,13 @@ def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
         item = obj(raw, f"build plan role {role}")
         exact(item, {"source_view_id", "build_root_template", "artifact_root_template",
                      "config_path_template", "config_kind", "config_identity_sha256",
-                     "sdk", "backend", "fake_nuttx_seed"}, f"build plan role {role}")
+                     "sdk", "backend", "fake_nuttx_seed", "activation",
+                     "applicability"}, f"build plan role {role}")
+        role_active = role in expected_active_roles
+        if item["activation"] != ("active" if role_active else "inactive"):
+            raise FrameworkError(f"build plan role {role} activation is not bound")
+        if item["applicability"] != ("required" if role_active else "not-applicable"):
+            raise FrameworkError(f"build plan role {role} applicability is not bound")
         if item["source_view_id"] not in view_ids:
             raise FrameworkError(f"build plan role {role} source view is unknown")
         for field, seen in (("build_root_template", build_paths),
@@ -1300,6 +1700,21 @@ def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
             raise FrameworkError(f"unsupported build plan config kind: {role}")
         if item["backend"] not in {"cmake", "bootloader-adapter", "minimal-make"}:
             raise FrameworkError(f"unsupported build plan backend: {role}")
+        expected_backend = {
+            "bl1": "bootloader-adapter",
+            "bl2": "minimal-make",
+            "cp": "cmake",
+            "ap": "cmake",
+        }[role]
+        expected_config_kind = {
+            "bl1": "boot-policy",
+            "bl2": "minimal-make-inputs",
+            "cp": "nuttx-defconfig",
+            "ap": "nuttx-defconfig",
+        }[role]
+        if item["backend"] != expected_backend or item["config_kind"] != expected_config_kind:
+            raise FrameworkError(
+                f"build plan role {role} backend/config_kind is not role-bound")
         if item["fake_nuttx_seed"] is not False:
             raise FrameworkError("build plan must not create a fake NuttX seed")
         if role in {"bl1", "bl2"}:
@@ -1315,17 +1730,412 @@ def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
             digest(sdk_row["manifest_sha256"], f"build plan role {role}.sdk.manifest_sha256")
             digest(sdk_row["provenance_sha256"], f"build plan role {role}.sdk.provenance_sha256")
     legacy = obj(value["legacy_adapter"], "build plan legacy adapter")
-    exact(legacy, {"builder", "mode", "invoked", "modified"}, "build plan legacy adapter")
+    exact(legacy, {"builder", "mode", "invoked", "modified", "seed_profiles"},
+          "build plan legacy adapter")
     if (legacy["builder"] != "board/bk7258/scripts/build_dual_image.sh" or
-            legacy["mode"] != "compatibility-only" or legacy["invoked"] is not False or
+            legacy["mode"] != "shadow-comparator" or legacy["invoked"] is not False or
             legacy["modified"] is not False):
         raise FrameworkError("build plan legacy adapter boundary is unsafe")
+    seed_profiles = obj(legacy["seed_profiles"], "build plan seed profiles")
+    exact(seed_profiles, {"cp", "ap"}, "build plan seed profiles")
+    seed_fields = {"seed_profile", "source", "profile_sha256", "defconfig_sha256",
+                   "overlay", "overlay_sha256", "target_profile", "compat",
+                   "sdk_bundle", "materialized_profile_sha256",
+                   "materialized_defconfig_sha256"}
+    for role in ("cp", "ap"):
+        seed = obj(seed_profiles[role], f"build plan seed profile {role}")
+        exact(seed, seed_fields, f"build plan seed profile {role}")
+        identifier(seed["seed_profile"], f"build plan seed profile {role}.seed_profile")
+        source = relative_path(seed["source"],
+                               f"build plan seed profile {role}.source")
+        if (not source.startswith("board/bk7258/configs/") and
+                source != CANONICAL_CONFIG_SOURCE):
+            raise FrameworkError(
+                f"build plan seed profile {role} source is not canonical")
+        digest(seed["profile_sha256"], f"build plan seed profile {role}.profile_sha256")
+        digest(seed["defconfig_sha256"],
+               f"build plan seed profile {role}.defconfig_sha256")
+        identifier(seed["overlay"], f"build plan seed profile {role}.overlay")
+        digest(seed["overlay_sha256"],
+               f"build plan seed profile {role}.overlay_sha256")
+        digest(seed["materialized_profile_sha256"],
+               f"build plan seed profile {role}.materialized_profile_sha256")
+        digest(seed["materialized_defconfig_sha256"],
+               f"build plan seed profile {role}.materialized_defconfig_sha256")
+        identifier(seed["target_profile"],
+                   f"build plan seed profile {role}.target_profile")
+        if seed["compat"] is not None:
+            identifier(seed["compat"], f"build plan seed profile {role}.compat")
+        if seed["sdk_bundle"] is not None:
+            _sdk_version(seed["sdk_bundle"],
+                         f"build plan seed profile {role}.sdk_bundle")
+            if seed["sdk_bundle"] != versions[role]:
+                raise FrameworkError(
+                    f"build plan seed profile {role} SDK version mismatch")
     digest(value["identity_sha256"], "build plan identity")
     body = dict(value)
     del body["identity_sha256"]
     if sha256(canonical_json(body)) != value["identity_sha256"]:
         raise FrameworkError("build plan identity mismatch")
     return value
+
+
+def _execution_path(template: str, build_root: str) -> str:
+    if build_root == "${BUILD_ROOT}":
+        return template
+    return template.replace("${BUILD_ROOT}", build_root)
+
+
+def execution_context(repository: Path, product_id: str,
+                       build_root: str = "${BUILD_ROOT}",
+                       output: str = "${OUTPUT}",
+                       board_id: str | None = None,
+                       mode: str | None = None,
+                       set_path: Path | None = None,
+                       lock_path: Path | None = None) -> dict[str, Any]:
+    """Produce a deterministic, non-executing compatibility context.
+
+    This function intentionally does not inspect signing-key environment
+    variables or invoke a subprocess.  It describes the existing legacy
+    adapter invocation and the artifacts that the later build mode will
+    produce.
+    """
+    plan = build_plan(repository, product_id, board_id, mode, set_path, lock_path)
+    inputs = plan["identity_inputs"]
+    roles: dict[str, dict[str, Any]] = {}
+    for role in ("bl1", "bl2", "cp", "ap"):
+        item = plan["roles"][role]
+        roles[role] = {
+            "backend": item["backend"],
+            "source_view_id": item["source_view_id"],
+            "build_root": _execution_path(item["build_root_template"], build_root),
+            "artifact_root": _execution_path(item["artifact_root_template"], build_root),
+            "config_path": _execution_path(item["config_path_template"], build_root),
+            "config_identity_sha256": item["config_identity_sha256"],
+            "sdk_bundle": plan["sdk"]["versions"][role] if role in {"cp", "ap"} else None,
+        }
+    seed_profiles = plan["legacy_adapter"]["seed_profiles"]
+    profile_root = "adapter-owned-temporary"
+    profile_names = {role: seed_profiles[role]["target_profile"] for role in ("cp", "ap")}
+    # The shell adapter owns plan verification and profile materialization.
+    # Keep this as one command so the context cannot imply an unbound,
+    # hand-materialized profile tree followed by a separate build.
+    commands = [{
+        "stage": "compatibility-build-and-package",
+        "tool": "board/bk7258/scripts/build_dual_image.sh",
+        "arguments": [],
+        "plan_validation": "build-plan-verify",
+        "profile_materialization": "materialize_product_profiles.py",
+        "compatibility": "shared-legacy-adapter",
+    }]
+    body: dict[str, Any] = {
+        "schema": EXECUTION_CONTEXT_SCHEMA,
+        "kind": "execution-context",
+        "version": 1,
+        "execution_mode": "dry-run",
+        "product": inputs["product"],
+        "board": inputs["board"],
+        "mode": inputs["mode"],
+        "boot": inputs["boot"],
+        "build_plan_identity_sha256": plan["identity_sha256"],
+        "build_root": build_root,
+        "output": output,
+        "adapter_semantic_parity": "unproven",
+        "adapter_execution": {
+            "kind": "shared-legacy-adapter",
+            "consumes_role_build_roots": False,
+            "role_paths_executed": False,
+        },
+        "partition_layout": dict(plan["partition_layout"]),
+        "sdk": {
+            "set_id": plan["sdk"]["set_id"],
+            "lock_id": plan["sdk"]["lock_id"],
+            "lock_identity_sha256": plan["sdk"]["lock_identity_sha256"],
+            "versions": dict(plan["sdk"]["versions"]),
+        },
+        "profiles": {
+            "root": profile_root,
+            "cp": profile_names["cp"],
+            "ap": profile_names["ap"],
+            "seed_profiles": {
+                role: {
+                    "seed_profile": seed_profiles[role]["seed_profile"],
+                    "profile_sha256": seed_profiles[role]["profile_sha256"],
+                    "defconfig_sha256": seed_profiles[role]["defconfig_sha256"],
+                    "materialized_profile_sha256": seed_profiles[role]["materialized_profile_sha256"],
+                    "materialized_defconfig_sha256": seed_profiles[role]["materialized_defconfig_sha256"],
+                    "overlay": seed_profiles[role]["overlay"],
+                    "overlay_sha256": seed_profiles[role]["overlay_sha256"],
+                } for role in ("cp", "ap")
+            },
+        },
+        "roles": roles,
+        "environment": {
+            "BK7258_PRODUCT": inputs["product"],
+            "BK7258_OUTPUT_ROOT": output,
+        },
+        "commands": commands,
+        "key_requirements": (["MCUBOOT_SIGNING_KEY", "BL1_MANIFEST_KEY",
+                              "MCUBOOT_VERSION"]
+                             if inputs["boot"] == "mcuboot" else []),
+        "package": {
+            "tool": "board/bk7258/scripts/bk7258_bkpack.py",
+            "expected": inputs["boot"] == "mcuboot",
+            "signing_performed": False,
+        },
+        "side_effects": {
+            "compile_invoked": False,
+            "key_read": False,
+            "bytes_written": False,
+            "network_used": False,
+            "hardware_accessed": False,
+        },
+    }
+    result = dict(body)
+    result["identity_sha256"] = sha256(canonical_json(body))
+    return validate_execution_context(result)
+
+
+def validate_execution_context(value: dict[str, Any]) -> dict[str, Any]:
+    """Validate the host-only execution context emitted by ``execute``."""
+    exact(value, {"schema", "kind", "version", "execution_mode", "product",
+                  "board", "mode", "boot", "build_plan_identity_sha256",
+                  "build_root", "output", "adapter_semantic_parity",
+                  "adapter_execution",
+                  "partition_layout", "sdk", "profiles",
+                  "roles", "environment", "commands", "key_requirements",
+                  "package", "side_effects", "identity_sha256"},
+          "execution context")
+    if (value["schema"] != EXECUTION_CONTEXT_SCHEMA or
+            value["kind"] != "execution-context" or value["version"] != 1 or
+            value["execution_mode"] != "dry-run"):
+        raise FrameworkError("unsupported execution context")
+    for field in ("product", "board", "mode", "build_root", "output"):
+        if field in {"build_root", "output"}:
+            if not isinstance(value[field], str) or not value[field]:
+                raise FrameworkError(f"invalid execution context {field}")
+        else:
+            identifier(value[field], f"execution context {field}")
+    if value["boot"] not in BOOTS:
+        raise FrameworkError("invalid execution context boot")
+    if value["adapter_semantic_parity"] != "unproven":
+        raise FrameworkError("execution context must not claim semantic parity")
+    adapter = obj(value["adapter_execution"], "execution context adapter")
+    exact(adapter, {"kind", "consumes_role_build_roots", "role_paths_executed"},
+          "execution context adapter")
+    if (adapter["kind"] != "shared-legacy-adapter" or
+            adapter["consumes_role_build_roots"] is not False or
+            adapter["role_paths_executed"] is not False):
+        raise FrameworkError("execution context adapter isolation is overstated")
+    digest(value["build_plan_identity_sha256"], "execution context build plan identity")
+    partition = obj(value["partition_layout"], "execution context partition")
+    exact(partition, {"source", "layout_id", "layout_sha256"},
+          "execution context partition")
+    relative_path(partition["source"], "execution context partition.source")
+    if not partition["source"].startswith(PARTITION_ROOT + "/"):
+        raise FrameworkError("execution context partition source is not canonical")
+    identifier(partition["layout_id"], "execution context partition.layout_id")
+    digest(partition["layout_sha256"], "execution context partition.layout_sha256")
+    if not partition["layout_id"].endswith("-" + partition["layout_sha256"][:16]):
+        raise FrameworkError("execution context partition identity mismatch")
+    sdk = obj(value["sdk"], "execution context SDK")
+    exact(sdk, {"set_id", "lock_id", "lock_identity_sha256", "versions"},
+          "execution context SDK")
+    identifier(sdk["set_id"], "execution context SDK set")
+    identifier(sdk["lock_id"], "execution context SDK lock")
+    digest(sdk["lock_identity_sha256"], "execution context SDK lock identity")
+    versions = obj(sdk["versions"], "execution context SDK versions")
+    exact(versions, {"cp", "ap", "bl2"}, "execution context SDK versions")
+    for role in ("cp", "ap"):
+        _sdk_version(versions[role], f"execution context SDK {role}")
+    if versions["bl2"] is not None:
+        raise FrameworkError("execution context BL2 SDK must be null")
+    profiles = obj(value["profiles"], "execution context profiles")
+    exact(profiles, {"root", "cp", "ap", "seed_profiles"},
+          "execution context profiles")
+    if profiles["root"] != "adapter-owned-temporary":
+        raise FrameworkError("execution context profile root ownership mismatch")
+    for role in ("cp", "ap"):
+        identifier(profiles[role], f"execution context {role} profile")
+        expected_profile = value["product"]
+        if expected_profile.endswith("_bringup"):
+            expected_profile = expected_profile[:-len("_bringup")]
+        expected_profile = f"{expected_profile}_{role}_{value['boot']}"
+        if profiles[role] != expected_profile:
+            raise FrameworkError(f"execution context profile name mismatch: {role}")
+    seed_profiles = obj(profiles["seed_profiles"], "execution context seed profiles")
+    exact(seed_profiles, {"cp", "ap"}, "execution context seed profiles")
+    for role in ("cp", "ap"):
+        seed = obj(seed_profiles[role], f"execution context seed {role}")
+        exact(seed, {"seed_profile", "profile_sha256", "defconfig_sha256",
+                     "materialized_profile_sha256", "materialized_defconfig_sha256",
+                     "overlay", "overlay_sha256"},
+              f"execution context seed {role}")
+        identifier(seed["seed_profile"], f"execution context seed {role}.name")
+        digest(seed["profile_sha256"], f"execution context seed {role}.profile")
+        digest(seed["defconfig_sha256"], f"execution context seed {role}.defconfig")
+        digest(seed["materialized_profile_sha256"],
+               f"execution context seed {role}.materialized_profile")
+        digest(seed["materialized_defconfig_sha256"],
+               f"execution context seed {role}.materialized_defconfig")
+        identifier(seed["overlay"], f"execution context seed {role}.overlay")
+        digest(seed["overlay_sha256"], f"execution context seed {role}.overlay_sha256")
+    if not isinstance(value["roles"], dict) or set(value["roles"]) != {"bl1", "bl2", "cp", "ap"}:
+        raise FrameworkError("execution context roles are incomplete")
+    expected_backend = {"bl1": "bootloader-adapter", "bl2": "minimal-make",
+                        "cp": "cmake", "ap": "cmake"}
+    for role, item in value["roles"].items():
+        row = obj(item, f"execution context role {role}")
+        exact(row, {"backend", "source_view_id", "build_root", "artifact_root",
+                    "config_path", "config_identity_sha256", "sdk_bundle"},
+              f"execution context role {role}")
+        if row["backend"] != expected_backend[role]:
+            raise FrameworkError(f"execution context backend mismatch: {role}")
+        identifier(row["source_view_id"], f"execution context role {role}.source_view_id")
+        for field in ("build_root", "artifact_root", "config_path"):
+            if not isinstance(row[field], str) or not row[field]:
+                raise FrameworkError(f"invalid execution context role path: {role}/{field}")
+        expected_root = f"{value['build_root']}/bk7258/{value['product']}/{value['mode']}/{role}"
+        if (row["build_root"] != expected_root or
+                row["artifact_root"] != f"{expected_root}/artifacts" or
+                row["config_path"] != f"{expected_root}/.config"):
+            raise FrameworkError(f"execution context role path binding mismatch: {role}")
+        digest(row["config_identity_sha256"],
+               f"execution context role {role}.config_identity_sha256")
+        if role in {"cp", "ap"}:
+            if row["sdk_bundle"] != versions[role]:
+                raise FrameworkError(f"execution context role SDK mismatch: {role}")
+        elif row["sdk_bundle"] is not None:
+            raise FrameworkError(f"execution context boot role has SDK: {role}")
+    environment = obj(value["environment"], "execution context environment")
+    exact(environment, {"BK7258_PRODUCT", "BK7258_OUTPUT_ROOT"},
+          "execution context environment")
+    if environment["BK7258_PRODUCT"] != value["product"]:
+        raise FrameworkError("execution context product environment mismatch")
+    if environment["BK7258_OUTPUT_ROOT"] != value["output"]:
+        raise FrameworkError("execution context output environment mismatch")
+    expected_keys = (["MCUBOOT_SIGNING_KEY", "BL1_MANIFEST_KEY", "MCUBOOT_VERSION"]
+                     if value["boot"] == "mcuboot" else [])
+    if value["key_requirements"] != expected_keys:
+        raise FrameworkError("execution context key requirements mismatch")
+    commands = array(value["commands"], "execution context commands")
+    if len(commands) != 1:
+        raise FrameworkError("execution context command sequence is incomplete")
+    command = obj(commands[0], "execution context command 0")
+    exact(command, {"stage", "tool", "arguments", "plan_validation",
+                    "profile_materialization", "compatibility"},
+          "execution context command 0")
+    if (command["stage"] != "compatibility-build-and-package" or
+            command["tool"] != "board/bk7258/scripts/build_dual_image.sh" or
+            command["plan_validation"] != "build-plan-verify" or
+            command["profile_materialization"] != "materialize_product_profiles.py" or
+            command["compatibility"] != "shared-legacy-adapter"):
+        raise FrameworkError("execution context compatibility command is not canonical")
+    if not isinstance(command["arguments"], list) or any(
+            not isinstance(item, str) or not item for item in command["arguments"]):
+        raise FrameworkError("execution context command arguments are malformed")
+    if command["arguments"] != []:
+        raise FrameworkError("execution context compatibility command unexpectedly has arguments")
+    if not isinstance(value["key_requirements"], list) or any(
+            not isinstance(item, str) or not item for item in value["key_requirements"]):
+        raise FrameworkError("execution context key requirements are malformed")
+    if value["side_effects"] != {
+            "compile_invoked": False, "key_read": False, "bytes_written": False,
+            "network_used": False, "hardware_accessed": False}:
+        raise FrameworkError("dry-run execution context claims side effects")
+    package = obj(value["package"], "execution context package")
+    exact(package, {"tool", "expected", "signing_performed"},
+          "execution context package")
+    if (package["signing_performed"] is not False or
+            package["expected"] is not (value["boot"] == "mcuboot")):
+        raise FrameworkError("execution context package claims signing")
+    digest(value["identity_sha256"], "execution context identity")
+    body = dict(value)
+    del body["identity_sha256"]
+    if sha256(canonical_json(body)) != value["identity_sha256"]:
+        raise FrameworkError("execution context identity mismatch")
+    return value
+
+
+def execute(repository: Path, product_id: str, *, dry_run: bool = True,
+            build_root: str = "${BUILD_ROOT}", output: str = "${OUTPUT}",
+            board_id: str | None = None, mode: str | None = None,
+            set_path: Path | None = None, lock_path: Path | None = None) -> dict[str, Any]:
+    """Emit the host-only execution context.
+
+    Real image, signing, and packaging actions remain behind the explicit
+    compatibility shell entry point.  Keeping this function dry-run-only
+    prevents a caller from turning a plan inspection command into an
+    unreviewed build by toggling a boolean.
+    """
+    context = execution_context(repository, product_id, build_root, output,
+                                board_id, mode, set_path, lock_path)
+    if not dry_run:
+        raise FrameworkError(
+            "framework execute is host-only dry-run; invoke build_dual_image.sh "
+            "explicitly for the shared compatibility adapter")
+    return context
+
+
+def isolated_prepare(repository: Path, product_id: str, build_root: Path,
+                     output: Path, *, plan_path: Path | None = None,
+                     workspace_root: Path | None = None) -> dict[str, Any]:
+    """Prepare the canonical role-isolated execution contract.
+
+    The import is intentionally lazy: the legacy framework planner remains a
+    host-only compatibility surface, while the isolated prepare module owns
+    its stricter source-snapshot and four-role manifest contract.  This entry
+    point does not invoke a compiler, signer, packer, or hardware tool.
+    """
+    from bk7258_isolated_executor import prepare  # noqa: PLC0415
+
+    return prepare(repository, product_id, build_root, output,
+                   plan_path=plan_path, workspace_root=workspace_root)
+
+
+def isolated_materialize_sources(
+        repository: Path, manifest: Path | dict[str, Any], *,
+        workspace_root: Path | None = None) -> dict[str, Any]:
+    """Materialize and audit the one entity source snapshot.
+
+    This lazy bridge keeps the framework's planner API usable without
+    importing the executor at module load time.  The delegated phase remains
+    source-only and never signs, packages, accesses hardware, or uses network.
+    """
+    from bk7258_isolated_executor import materialize_sources  # noqa: PLC0415
+
+    return materialize_sources(repository, manifest, workspace_root=workspace_root)
+
+
+def isolated_compile_runtime(
+        repository: Path, manifest: Path | dict[str, Any], *,
+        authorize_compile: bool = False,
+        cmake_executable: str | Path = "cmake",
+        python_executable: str | Path = Path(sys.executable).resolve(),
+        olddefconfig_executable: str | Path = "olddefconfig",
+        kconfiglib_root: str | Path | None = None,
+        make_executable: str | Path = "make",
+        command_runner: Callable[..., Any] | None = None) -> dict[str, Any]:
+    """Compile active isolated roles from a materialized manifest.
+
+    This bridge deliberately keeps the executor import lazy and requires the
+    explicit policy authorization bit; boot roles are limited to raw ELF/BIN
+    compile-only targets, with no signing, packaging, hardware, or network.
+    """
+    from bk7258_isolated_executor import compile_runtime  # noqa: PLC0415
+
+    return compile_runtime(
+        repository, manifest, authorize_compile=authorize_compile,
+        cmake_executable=cmake_executable,
+        python_executable=python_executable,
+        olddefconfig_executable=olddefconfig_executable,
+        kconfiglib_root=kconfiglib_root,
+        make_executable=make_executable,
+        command_runner=command_runner)
+
+
+# ``build-runtime`` is an operation-oriented spelling used by some callers.
+isolated_build_runtime = isolated_compile_runtime
 
 
 def _pack_template(value: Any, field: str) -> str:
@@ -1367,25 +2177,23 @@ def _pack_source_build_id(value: dict[str, Any]) -> str:
     return sha256(canonical_json(body))
 
 
-def _pack_partition_layout(repository: Path, partition_path: Path | None) -> tuple[Any, str]:
-    """Load the existing partition source as read-only metadata."""
-    try:
-        from gen_bk7258_partitions import load_layout  # noqa: PLC0415
-    except ImportError as error:
-        raise FrameworkError("partition metadata adapter is unavailable") from error
-    path = partition_path or repository / "board/bk7258/partitions/bk7258/auto_partitions.csv"
-    if not path.is_absolute():
-        path = repository / path
-    path = path.resolve()
-    try:
-        layout = load_layout(path)
-    except (OSError, ValueError, RuntimeError) as error:
-        raise FrameworkError(f"cannot load package partition layout: {path}") from error
-    try:
-        source = path.relative_to(repository.resolve()).as_posix()
-    except ValueError as error:
-        raise FrameworkError("package partition source is outside repository") from error
-    return layout, source
+def _pack_partition_layout(repository: Path, reference: Any,
+                           partition_path: Path | None = None) -> tuple[Any, str]:
+    """Load only the product-resolved partition source as package metadata."""
+    layout_ref = _partition_layout_reference(reference,
+                                             "package product partition_layout")
+    if partition_path is not None:
+        if partition_path.is_absolute():
+            raise FrameworkError(
+                "package partition repeat must be a repository-relative path")
+        candidate_source = relative_path(
+            partition_path.as_posix(), "package partition repeat")
+        if candidate_source != layout_ref["source"]:
+            raise FrameworkError(
+                "package partition override differs from the resolved product layout")
+    layout = _load_product_partition_layout(
+        repository, layout_ref, "package product partition_layout")
+    return layout, layout_ref["source"]
 
 
 def _pack_layout_role(layout: Any, role: str) -> Any:
@@ -1404,19 +2212,27 @@ def _pack_layout_role(layout: Any, role: str) -> Any:
 
 def _pack_artifact_templates(plan: dict[str, Any]) -> list[dict[str, Any]]:
     roles = plan["roles"]
+    inputs = plan["identity_inputs"]
 
     def role_path(role: str, filename: str) -> str:
         return f"{roles[role]['artifact_root_template']}/{filename}"
 
     rows: list[dict[str, Any]] = []
     for name, (kind, owner, mapped_roles) in PACK_ARTIFACTS.items():
-        source_role = mapped_roles[0]
+        if len(mapped_roles) == 1:
+            path_template = role_path(mapped_roles[0], name)
+        else:
+            role_set = ",".join(mapped_roles)
+            path_template = (
+                f"${{BUILD_ROOT}}/bk7258/{inputs['product']}/"
+                f"{inputs['mode']}/{{{role_set}}}/artifacts/{name}"
+            )
         rows.append({
             "name": name,
             "kind": kind,
             "owner": owner,
             "roles": list(mapped_roles),
-            "path_template": role_path(source_role, name),
+            "path_template": path_template,
             "required": True,
         })
     rows.append({
@@ -1494,7 +2310,8 @@ def validate_bkpack(value: dict[str, Any]) -> dict[str, Any]:
         raise FrameworkError("package must contain exactly one named apps plan")
     if apps["roles"] != ["cp", "ap"]:
         raise FrameworkError("apps plan roles are ambiguous")
-    if apps["artifacts"] != ["libarch.a", "libboards.a", "vela_cp.bin", "vela_ap.bin"]:
+    if apps["artifacts"] != ["libarch.a", "libboard.a",
+                             "vela_nuttx_cp.bin", "vela_nuttx_ap.bin"]:
         raise FrameworkError("apps plan must name the standard CP/AP artifacts exactly once")
     digest(value["build_plan_identity_sha256"], "package build plan identity")
     digest(value["source_build_id"], "package source_build_id")
@@ -1516,9 +2333,11 @@ def validate_bkpack(value: dict[str, Any]) -> dict[str, Any]:
     partition = obj(value["partition"], "package.partition")
     exact(partition, {"source", "layout_id", "layout_sha256", "flash_size", "erase_size",
                       "role_partitions", "range_policy"}, "package.partition")
-    relative_path(partition["source"], "package.partition.source")
-    identifier(partition["layout_id"], "package.partition.layout_id")
-    digest(partition["layout_sha256"], "package.partition.layout_sha256")
+    _partition_layout_reference({
+        "source": partition["source"],
+        "layout_id": partition["layout_id"],
+        "layout_sha256": partition["layout_sha256"],
+    }, "package.partition layout identity")
     flash_size = _pack_int(partition["flash_size"], "package.partition.flash_size", positive=True)
     _pack_int(partition["erase_size"], "package.partition.erase_size", positive=True)
     if partition["range_policy"] != "exact-partitions":
@@ -1590,6 +2409,20 @@ def validate_bkpack(value: dict[str, Any]) -> dict[str, Any]:
             if (row["kind"], row["owner"], row["roles"], row["required"]) != \
                     (kind, owner, list(mapped_roles), True):
                 raise FrameworkError(f"package artifact mapping is wrong: {name}")
+            if len(mapped_roles) == 1:
+                expected_template = (
+                    f"${{BUILD_ROOT}}/bk7258/{value['product']}/{value['mode']}/"
+                    f"{mapped_roles[0]}/artifacts/{name}"
+                )
+            else:
+                role_set = ",".join(mapped_roles)
+                expected_template = (
+                    f"${{BUILD_ROOT}}/bk7258/{value['product']}/{value['mode']}/"
+                    f"{{{role_set}}}/artifacts/{name}"
+                )
+            if row["path_template"] != expected_template:
+                raise FrameworkError(
+                    f"package artifact path template is wrong: {name}")
     if names != expected_names:
         raise FrameworkError("package artifacts are incomplete")
     tool = obj(value["tool"], "package.tool")
@@ -1627,7 +2460,8 @@ def pack_prepare(repository: Path, product_id: str, kind: str = "application",
     plan = build_plan(repository, product_id, board_id, mode)
     inputs = plan["identity_inputs"]
     sdk_roles = dict(plan["sdk"]["roles"])
-    layout, partition_source = _pack_partition_layout(repository, partition_path)
+    layout, partition_source = _pack_partition_layout(
+        repository, plan["partition_layout"], partition_path)
     role_partitions, ranges = _pack_ranges(layout)
     package_id = f"{inputs['product']}-{kind}-package"
     apps_name = f"{inputs['product']}-apps"
@@ -1644,7 +2478,8 @@ def pack_prepare(repository: Path, product_id: str, kind: str = "application",
         "kind": "named-apps-plan",
         "version": 1,
         "roles": ["cp", "ap"],
-        "artifacts": ["libarch.a", "libboards.a", "vela_cp.bin", "vela_ap.bin"],
+        "artifacts": ["libarch.a", "libboard.a",
+                      "vela_nuttx_cp.bin", "vela_nuttx_ap.bin"],
         "source_build_id": "0" * 64,
     }
     partition = {
@@ -1712,8 +2547,16 @@ def pack_verify(repository: Path | None, package: dict[str, Any] | Path) -> dict
         if plan["sdk"]["lock_id"] != value["sdk_lock"]["id"] or \
                 plan["sdk"]["lock_identity_sha256"] != value["sdk_lock"]["identity_sha256"]:
             raise FrameworkError("package SDK lock differs from repository")
-        layout, _ = _pack_partition_layout(repository, repository / value["partition"]["source"])
-        if layout.layout_sha256 != value["partition"]["layout_sha256"]:
+        package_layout = {
+            "source": value["partition"]["source"],
+            "layout_id": value["partition"]["layout_id"],
+            "layout_sha256": value["partition"]["layout_sha256"],
+        }
+        if package_layout != plan["partition_layout"]:
+            raise FrameworkError("package partition layout differs from build plan")
+        layout, _ = _pack_partition_layout(repository, plan["partition_layout"])
+        if (layout.layout_id != value["partition"]["layout_id"] or
+                layout.layout_sha256 != value["partition"]["layout_sha256"]):
             raise FrameworkError("package partition layout differs from repository")
     return {
         "package_id": value["package_id"],
@@ -2172,7 +3015,7 @@ def validate_shadow_ledger(repository: Path, value: dict[str, Any]) -> dict[str,
                   "rows", "identity_sha256"}, "shadow ledger")
     if (value["schema"] != SHADOW_SCHEMA or
             value["kind"] != "legacy-profile-shadow-ledger" or
-            value["version"] != 1 or value["status"] != "shadow-only"):
+            value["version"] != 1 or value["status"] != "cutover-approved"):
         raise FrameworkError("unsupported shadow ledger schema/status")
     source_manifest = _shadow_path(repository, value["source_manifest"],
                                    "shadow source manifest")
@@ -2220,12 +3063,17 @@ def validate_shadow_ledger(repository: Path, value: dict[str, Any]) -> dict[str,
         if row["status"] != "EXACT" and not row["rationale"].strip():
             raise FrameworkError(f"shadow row {index} non-EXACT rationale is missing")
     manifest = load_json(source_manifest)
-    if manifest.get("profile_count") != 27 or not isinstance(manifest.get("profiles"), list):
-        raise FrameworkError("shadow source manifest does not describe 27 profiles")
+    if manifest.get("status") == "cutover-approved":
+        from verify_legacy_profile_freeze import base_snapshot  # noqa: PLC0415
+        historical_profiles = base_snapshot(repository)["profiles"]
+    else:
+        historical_profiles = manifest.get("profiles")
+    if len(historical_profiles) != 27:
+        raise FrameworkError("shadow source manifest does not describe the historical 27 profiles")
     migration = load_json(source_migration)
     if not isinstance(migration.get("rows"), list) or len(migration["rows"]) != 27:
         raise FrameworkError("shadow source migration ledger does not describe 27 rows")
-    manifest_names = {item.get("name") for item in manifest["profiles"]}
+    manifest_names = {item.get("name") for item in historical_profiles}
     migration_by_name = {
         item.get("legacy_profile"): item for item in migration["rows"]
         if isinstance(item, dict)
@@ -2391,7 +3239,12 @@ def shadow_parity(repository: Path, ledger_path: Path | None = None,
             raise FrameworkError(f"frozen profile verification failed: {error}") from error
     migration = load_json(root / ledger["source_migration_ledger"])
     migration_by_name = {row["legacy_profile"]: row for row in migration["rows"]}
-    profiles_by_name = {row["name"]: row for row in manifest["profiles"]}
+    if manifest.get("status") == "cutover-approved":
+        from verify_legacy_profile_freeze import base_snapshot  # noqa: PLC0415
+        historical_profiles = base_snapshot(root)["profiles"]
+    else:
+        historical_profiles = manifest["profiles"]
+    profiles_by_name = {row["name"]: row for row in historical_profiles}
     rows: list[dict[str, Any]] = []
     for mapping in sorted(ledger["rows"], key=lambda item: item["legacy_profile"]):
         name = mapping["legacy_profile"]
@@ -2516,10 +3369,10 @@ def framework_check(repository: Path) -> dict[str, Any]:
     catalog = load_catalog(root)
     _framework_check_step(checks, "p1-catalog", "strict board/product/fragment catalogs",
                           lambda: None)
-    for product in ("t5ai_core_bringup", "aidk_ai_toy_bringup"):
+    for product in ("t5ai_core_bringup", "t5_board_bringup", "aidk_ai_toy_bringup"):
         for role in ("cp", "ap", "bl2"):
             resolve(root, product, role)
-    _framework_check_step(checks, "p1-resolve", "T5 and AIDK role resolution", lambda: None)
+    _framework_check_step(checks, "p1-resolve", "T5/T5-Board/AIDK role resolution", lambda: None)
     registry_path = root / "board/bk7258/scripts/bk7258_sdk_registry.json"
     set_path = root / "board/bk7258/scripts/bk7258_sdk_set.json"
     lock_path = root / "board/bk7258/scripts/bk7258_sdk_lock.json"
@@ -2527,28 +3380,31 @@ def framework_check(repository: Path) -> dict[str, Any]:
     sdk_set = validate_sdk_set(load_json(set_path), registry)
     validate_sdk_lock(root, registry_path, set_path, load_json(lock_path), registry, sdk_set)
     _framework_check_step(checks, "p2-sdk-metadata", "SDK registry/set/lock invariants", lambda: None)
-    for product in ("t5ai_core_bringup", "aidk_ai_toy_bringup"):
+    for product in ("t5ai_core_bringup", "t5_board_bringup", "aidk_ai_toy_bringup"):
         plan = build_plan(root, product)
         validate_build_plan(plan)
         for role in ("cp", "ap"):
             validate_config_document(config_document(resolve(root, product, role)))
-    _framework_check_step(checks, "p3-build-plans", "representative T5/AIDK config and role plans", lambda: None)
+    _framework_check_step(checks, "p3-build-plans", "T5/T5-Board/AIDK config and role plans", lambda: None)
     from bk7258_resource_graph import (  # noqa: PLC0415
         validate_migration_ledger, validate_ownership_manifest, validate_resource_graph,
     )
     validate_ownership_manifest(root, load_json(root / "board/bk7258/scripts/bk7258_layer_ownership.json"))
     validate_migration_ledger(root, load_json(root / "board/bk7258/scripts/bk7258_compatibility_migration_ledger.json"))
     _framework_check_step(checks, "p4-ownership-migration", "ownership and migration metadata", lambda: None)
-    for board in ("t5ai_core", "aidk_ai_toy"):
+    for board in ("t5ai_core", "t5_board", "aidk_ai_toy"):
         graph = load_json(root / "board/bk7258/scripts" / f"bk7258_resource_graph_{board}.json")
         validate_resource_graph(root, graph)
-    _framework_check_step(checks, "p4-resource-graphs", "T5/AIDK resource graph schemas", lambda: None)
+    _framework_check_step(checks, "p4-resource-graphs", "T5/T5-Board/AIDK resource graph schemas", lambda: None)
     from bk7258_validation import validate_descriptor_set  # noqa: PLC0415
     validate_descriptor_set(root, load_json(root / "board/bk7258/scripts/bk7258_validation_descriptors.json"))
-    _framework_check_step(checks, "p5-validation", "validation descriptors and 27-profile coverage", lambda: None)
-    for product in ("t5ai_core_bringup", "aidk_ai_toy_bringup"):
+    _framework_check_step(
+        checks, "p5-validation",
+        "partial command registry and 27-profile migration ledger",
+        lambda: None)
+    for product in ("t5ai_core_bringup", "t5_board_bringup", "aidk_ai_toy_bringup"):
         pack_prepare(root, product)
-    _framework_check_step(checks, "p6-package-plan", "metadata-only package plan generation", lambda: None)
+    _framework_check_step(checks, "p6-package-plan", "T5/T5-Board/AIDK metadata-only package plans", lambda: None)
     transport_plan(root, "aidk_ai_toy", host="linux", candidates=["/dev/ttyBK7258"], aidk=True)
     _framework_check_step(checks, "p7-transport", "dry-run transport capability/sequence", lambda: None)
     _framework_check_step(checks, "p8-aidk-binding", "AIDK board selector and binding metadata",
@@ -2678,13 +3534,60 @@ def cli(argv: list[str] | None = None) -> int:
     plan_parser.add_argument("--set", dest="sdk_set", type=Path)
     plan_parser.add_argument("--lock", type=Path)
     plan_parser.add_argument("--out", type=Path, required=True)
+    plan_verify_parser = commands.add_parser("build-plan-verify")
+    plan_verify_parser.add_argument("--plan", type=Path, required=True)
+    plan_verify_parser.add_argument("--product")
+    execute_parser = commands.add_parser("execute", allow_abbrev=False)
+    execute_parser.add_argument("--product", required=True)
+    execute_parser.add_argument("--board")
+    execute_parser.add_argument("--mode")
+    execute_parser.add_argument("--set", dest="sdk_set", type=Path)
+    execute_parser.add_argument("--lock", type=Path)
+    execute_parser.add_argument("--build-root", default="${BUILD_ROOT}")
+    execute_parser.add_argument("--output", default="${OUTPUT}")
+    execute_parser.add_argument("--dry-run", action="store_true")
+    execute_parser.add_argument("--out", type=Path, required=True)
+    isolated_prepare_parser = commands.add_parser(
+        "execute-prepare", allow_abbrev=False,
+        help="prepare the canonical role-isolated four-role build contract")
+    isolated_prepare_parser.add_argument("--product", required=True)
+    isolated_prepare_parser.add_argument("--build-root", type=Path, required=True)
+    isolated_prepare_parser.add_argument("--workspace-root", type=Path)
+    isolated_prepare_parser.add_argument("--plan", type=Path)
+    isolated_prepare_parser.add_argument("--out", type=Path, required=True)
+    isolated_materialize_parser = commands.add_parser(
+        "execute-materialize-sources", allow_abbrev=False,
+        help="materialize and audit the one entity source snapshot")
+    isolated_materialize_parser.add_argument("--manifest", type=Path, required=True)
+    isolated_materialize_parser.add_argument("--workspace-root", type=Path)
+    isolated_runtime_parser = commands.add_parser(
+        "execute-compile-runtime", aliases=("execute-build-runtime",),
+        allow_abbrev=False,
+        help="compile isolated CP/AP runtime targets from a materialized manifest")
+    isolated_runtime_parser.add_argument("--manifest", type=Path, required=True)
+    isolated_runtime_parser.add_argument(
+        "--authorize-compile", action="store_true",
+        help="explicitly authorize the policy-gated runtime compile phase")
+    isolated_runtime_parser.add_argument("--cmake", "--cmake-executable",
+                                         dest="cmake_executable", default="cmake")
+    isolated_runtime_parser.add_argument("--python", "--python-executable",
+                                         dest="python_executable",
+                                         default=str(Path(sys.executable).resolve()))
+    isolated_runtime_parser.add_argument("--olddefconfig", "--olddefconfig-executable",
+                                         dest="olddefconfig_executable",
+                                         default="olddefconfig")
+    isolated_runtime_parser.add_argument("--kconfiglib-root", type=Path)
+    isolated_runtime_parser.add_argument("--make", "--make-executable",
+                                         dest="make_executable", default="make")
     pack_prepare_parser = commands.add_parser("pack-prepare")
     pack_prepare_parser.add_argument("--product", required=True)
     pack_prepare_parser.add_argument("--kind", choices=tuple(sorted(PACK_KINDS)),
                                      default="application")
     pack_prepare_parser.add_argument("--board")
     pack_prepare_parser.add_argument("--mode")
-    pack_prepare_parser.add_argument("--partition", type=Path)
+    pack_prepare_parser.add_argument(
+        "--partition", type=Path,
+        help="optional repeat of the product-pinned partition CSV; alternate layouts are rejected")
     pack_prepare_parser.add_argument("--out", type=Path, required=True)
     pack_verify_parser = commands.add_parser("pack-verify")
     pack_verify_parser.add_argument("--package", type=Path, required=True)
@@ -2741,6 +3644,9 @@ def cli(argv: list[str] | None = None) -> int:
     resource_resolve_parser.add_argument("--out", type=Path, required=True)
     validation_parser = commands.add_parser("validation-check")
     validation_parser.add_argument("--descriptors", type=Path)
+    suite_check_parser = commands.add_parser("validation-suite-check")
+    suite_check_parser.add_argument("--product", required=True)
+    suite_check_parser.add_argument("--suite", required=True)
     shadow_parser = commands.add_parser(
         "shadow-check", aliases=("shadow-parity", "shadow-report", "parity",
                                  "parity-check", "legacy-shadow", "legacy-parity"))
@@ -2777,6 +3683,39 @@ def cli(argv: list[str] | None = None) -> int:
             plan = build_plan(root, args.product, args.board, args.mode,
                               args.sdk_set, args.lock)
             write_json(args.out, plan)
+        elif args.command == "build-plan-verify":
+            plan = build_plan_verify(root, args.plan.resolve(), args.product)
+            print("bk7258-framework: BUILD PLAN VERIFY PASS "
+                  f"product={plan['identity_inputs']['product']} "
+                  f"identity={plan['identity_sha256']}")
+        elif args.command == "execute":
+            context = execute(
+                root, args.product, dry_run=True,
+                build_root=args.build_root, output=args.output,
+                board_id=args.board, mode=args.mode,
+                set_path=args.sdk_set, lock_path=args.lock)
+            write_json(args.out, context)
+        elif args.command == "execute-prepare":
+            isolated_prepare(root, args.product, args.build_root, args.out,
+                             plan_path=args.plan,
+                             workspace_root=args.workspace_root)
+        elif args.command == "execute-materialize-sources":
+            manifest = isolated_materialize_sources(
+                root, args.manifest, workspace_root=args.workspace_root)
+            print("bk7258-framework: MATERIALIZE-SOURCES PASS "
+                  f"identity={manifest['identity_sha256']} "
+                  f"snapshot={manifest['source_view']['snapshot_identity_sha256']}")
+        elif args.command in {"execute-compile-runtime", "execute-build-runtime"}:
+            manifest = isolated_compile_runtime(
+                root, args.manifest,
+                authorize_compile=args.authorize_compile,
+                cmake_executable=args.cmake_executable,
+                python_executable=args.python_executable,
+                olddefconfig_executable=args.olddefconfig_executable,
+                kconfiglib_root=args.kconfiglib_root,
+                make_executable=args.make_executable)
+            print("bk7258-framework: COMPILE-RUNTIME PASS "
+                  f"identity={manifest['identity_sha256']}")
         elif args.command == "pack-prepare":
             package = pack_prepare(root, args.product, args.kind, args.board, args.mode,
                                    args.partition)
@@ -2919,6 +3858,11 @@ def cli(argv: list[str] | None = None) -> int:
             print("bk7258-framework: VALIDATION PASS "
                   f"descriptors={result['descriptors']} "
                   f"legacy_profiles={result['legacy']['profiles']}")
+        elif args.command == "validation-suite-check":
+            result = validation_suite_check(root, args.product, args.suite)
+            print("bk7258-framework: VALIDATION SUITE PASS "
+                  f"product={result['product']} suite={result['suite']} "
+                  f"catalog={result['catalog_identity_sha256']}")
         elif args.command in {"shadow-check", "shadow-parity", "shadow-report", "parity",
                               "parity-check", "legacy-shadow", "legacy-parity"}:
             result = shadow_parity(root, args.ledger, require_git=not args.no_git)

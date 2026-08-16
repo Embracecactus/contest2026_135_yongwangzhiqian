@@ -21,7 +21,6 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
 
-#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_peripherals.h>
 
@@ -54,6 +53,8 @@
 
 #include "arm_internal.h"
 #include "bk7258_clockdiag.h"
+
+extern const void *const _vectors[80];
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -242,8 +243,17 @@ static int bk7258_ap_validate_runtime(void)
   state->heap_end        = BK7258_AP_HEAP_END;
   state->ram_start       = BK7258_AP_RAM_BASE;
   state->ram_end         = BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE;
-  state->flash_start     = BK7258_AP_FLASH_ADDR;
-  state->flash_end       = BK7258_AP_FLASH_ADDR + BK7258_AP_FLASH_SIZE;
+  /* CP publishes the board-selected AP slot before releasing this core.
+   * Validate that the linker's actual vector belongs to that slot instead
+   * of rebuilding product partition policy inside the chip lifecycle.
+   */
+
+  if (state->flash_start >= state->flash_end ||
+      (uintptr_t)_vectors < state->flash_start ||
+      (uintptr_t)_vectors >= state->flash_end)
+    {
+      return BK7258_AP_ERROR_BAD_VTOR;
+    }
 
   /* Publish the cache/MPU handoff contract in the normal-boot reserved
    * words.  The fault handler intentionally reuses these words if a later

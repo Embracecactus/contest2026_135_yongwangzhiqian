@@ -91,7 +91,6 @@ ifneq ($(filter y,$(CONFIG_BK7258_UART0) $(CONFIG_BK7258_UART1) $(CONFIG_BK7258_
 BK7258_CP_CSRCS += bk7258_serial.c
 endif
 BK7258_CP_CSRCS += $(BK7258_RUNTIME_CSRCS)
-BK7258_CP_CSRCS += bk7258_sdk_partition.c
 
 ifeq ($(CONFIG_BK7258_SWD_DEBUG),y)
 BK7258_CP_CSRCS += bk7258_swd_debug.c
@@ -108,17 +107,6 @@ endif
 
 ifeq ($(CONFIG_BK7258_SDK_IPC_RUNTIME),y)
 BK7258_CP_CSRCS += bk7258_sdk_runtime.c
-endif
-
-# Keep the official v3.1.1.9 archives immutable while replacing their
-# build-time partition table with the repository-generated CSV ABI.
-
-ifneq ($(CONFIG_BK7258_AP_CORE),y)
-LDFLAGS += --wrap=bk_flash_partition_get_info
-LDFLAGS += --wrap=bk_flash_partition_read
-LDFLAGS += --wrap=bk_flash_partition_write
-LDFLAGS += --wrap=bk_flash_partition_erase
-LDFLAGS += --wrap=bk_flash_partition_write_perm_check_by_addr
 endif
 
 ifeq ($(CONFIG_BK7258_PSRAM),y)
@@ -209,14 +197,6 @@ endif
 ifeq ($(CONFIG_BK7258_GPIO_LOWERHALF),y)
 BK7258_CP_CSRCS += bk7258_gpio_cp_irq.c
 BK7258_CP_CSRCS += bk7258_gpio_lowerhalf.c
-endif
-
-# Stage N5-D6-A: on-chip flash data-partition MTD.  Default off so normal
-# firmware is unchanged.
-
-ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
-BK7258_CP_CSRCS += bk7258_flash_mtd.c
-BK7258_CP_CSRCS += bk7258_flash_guard.c
 endif
 
 # NuttX MCUboot BL2 reaches the selected Direct-XIP image through the board
@@ -541,7 +521,8 @@ LDFLAGS += --wrap=arm_doirq --wrap=nxsched_resume_scheduler
 LDFLAGS += --wrap=nx_bringup
 endif
 
-# Force the link entry point to our __start.  --build-id=none keeps the image
-# deterministic and avoids build-id bytes shifting later sections.
+# Keep the explicit link entry point aligned with the vector-table ABI;
+# --build-id=none keeps the image deterministic and avoids build-id bytes
+# shifting later sections.
 
-LDFLAGS += --build-id=none --entry=__start
+LDFLAGS += --build-id=none --entry=_vectors

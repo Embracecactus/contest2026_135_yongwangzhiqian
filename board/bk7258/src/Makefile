@@ -32,6 +32,20 @@ DEPPATH += --dep-path $(BK7258_BOARD_VARIANT_DIR)$(DELIM)src
 CSRCS = bk7258_appinit.c bk7258_boot.c bk7258_bringup.c
 CSRCS += bk7258_platform.c bk7258_board_bringup.c
 
+# The product Flash layout and its NuttX MTD composition belong to the
+# logical board.  The chip/SDK layer supplies only the raw Flash mechanism.
+# CP remains the sole Flash owner, so AP never links this policy wrapper.
+
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+CSRCS += bk7258_sdk_partition.c
+ifneq ($(filter y,$(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
+CSRCS += bk7258_mac_storage.c
+endif
+ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
+CSRCS += bk7258_flash_mtd.c bk7258_flash_guard.c
+endif
+endif
+
 # The immutable physical-board descriptor is linked into both roles.  AP
 # lower halves consume MIC/SDIO/audio bindings, while CP GPIO consumers use
 # the same selected board's LED/button binding.  Unavailable capabilities are

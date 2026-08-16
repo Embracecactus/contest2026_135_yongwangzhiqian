@@ -157,10 +157,10 @@ manifest 的 `segments[].bkfil` 为准，并保留 `usr_config`、LittleFS
 `all-app-factory.bin` 只用于获得 fresh authority 后的破坏性恢复。
 `$FW = $WORKSPACE/nuttx`，console UART1 460800 8N1。
 
-产物分为三层，不能混用：`vela_cp.bin`、`vela_ap.bin` 是公开的
-OpenVela 角色逻辑镜像，只用于集成、检查和调试；`app.bin`、`app1.bin`
-及对应的 `*_crc.bin` 是 BK7258 MCUboot/32+2 CRC 内部兼容产物；最终下载
-入口是 `firmware.bkpack`，其中 `apps`、`normal`、`factory` 计划只引用
+产物分为三层，不能混用：`vela_nuttx_cp.bin`、`vela_nuttx_ap.bin` 是公开的
+OpenVela 角色逻辑镜像，`vela_nuttx_manifest.json` 记录双核别名与逐字节校验；
+`app.bin`、`app1.bin` 及对应的 `*_crc.bin` 是 BK7258 MCUboot/32+2 CRC
+内部兼容产物；最终下载入口是唯一的 `firmware.bkpack`，其中 `apps`、`normal`、`factory` 计划只引用
 Flash-padded payload。不要直接烧录 `vela_*.bin`、`app*.bin` 或未补齐的
 `*_crc.bin`。
 

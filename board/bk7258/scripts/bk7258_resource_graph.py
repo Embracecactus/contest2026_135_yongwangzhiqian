@@ -236,7 +236,9 @@ def validate_ownership_manifest(repository: Path, value: dict[str, Any]) -> dict
     artifacts = array(contract["artifacts"], "build contract artifacts")
     if any(not isinstance(row, dict) for row in artifacts):
         raise FrameworkError("build artifact is malformed")
-    expected_artifacts = {"libarch.a", "libboards.a", "vela_*.bin", ".bkpack"}
+    expected_artifacts = {
+        "libarch.a", "libboards.a", "libboard.a", "vela_*.bin", ".bkpack"
+    }
     if {row.get("name") for row in artifacts} != expected_artifacts:
         raise FrameworkError("build artifact mapping is incomplete")
     for index, raw in enumerate(artifacts):
@@ -249,6 +251,10 @@ def validate_ownership_manifest(repository: Path, value: dict[str, Any]) -> dict
         if row["name"] == ".bkpack":
             if row["status"] != "later_vendor_extension":
                 raise FrameworkError(".bkpack must remain a later vendor extension")
+        elif row["name"] == "libboards.a":
+            if row["status"] != "classic_backend_internal":
+                raise FrameworkError(
+                    "libboards.a must remain a Classic-backend internal archive")
         elif row["status"] != "required":
             raise FrameworkError(f"required artifact status is invalid: {row['name']}")
     if contract["extension_policy"] != "vendor extensions are additive and not replacement":

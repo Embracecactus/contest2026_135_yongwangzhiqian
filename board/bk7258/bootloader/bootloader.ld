@@ -10,7 +10,7 @@
  */
 
 #include "../chip/include/bk7258_memorymap.h"
-#include "../include/bk7258_partition_layout.h"
+#include <bk7258_partition_layout.h>
 #include "boot_bl2_contract.h"
 
 ENTRY(Reset_Handler)

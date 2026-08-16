@@ -1,0 +1,139 @@
+{
+  "schema": "bk7258.boot-policy/1",
+  "kind": "product-boot-policy",
+  "version": 1,
+  "policy_id": "bk7258-t5-common-v1",
+  "product": "t5ai_core_bringup",
+  "family": "t5ai_core",
+  "board": "t5ai_core",
+  "catalog": "board/bk7258/scripts/bk7258_product_catalog_t5ai_core_bringup.json",
+  "boot": "raw",
+  "bl2_image_logical_size": null,
+  "active_roles": ["bl1", "cp", "ap"],
+  "metadata_only": true,
+  "executor_authoritative": false,
+  "integration_status": "BLOCKED",
+  "integration_blocked_until": "plan/profile-reconciliation",
+  "mechanism": {
+    "application_format": "raw",
+    "mcuboot": {"enabled": false, "cp_ap_pair": false, "loader": "none"},
+    "bl1": {"enabled": true, "handoff": "direct-image"},
+    "bl2": {"enabled": false, "loader": "not-used", "role": "not-applicable"}
+  },
+  "manifest": {
+    "enforce": false,
+    "format": "none",
+    "records": "none",
+    "raw_page": false,
+    "source": "build_dual_image.sh"
+  },
+  "debug_io": {
+    "swd": {
+      "source": "resolved-profile",
+      "enabled": false,
+      "pin_group": "none",
+      "target": "none",
+      "stages": [],
+      "stage_holds": {}
+    },
+    "console": {
+      "source": "resolved-profile",
+      "kind": "uart",
+      "uart": "uart1",
+      "baud": 460800,
+      "data_bits": 8,
+      "parity": "none",
+      "stop_bits": 1,
+      "flow_control": false,
+      "rts_reset": false,
+      "port_strategy": "board-uart",
+      "port_identity": "board-local",
+      "loader_console_exclusive": true
+    },
+    "loader": {
+      "transport": "serial-uart",
+      "download": "bkfil",
+      "uart": "uart0",
+      "baud": 115200,
+      "tool": "BKFIL/bk_loader",
+      "requires_swd": false,
+      "rts_reset": false,
+      "dtr_reset": false,
+      "shared_port": false
+    }
+  },
+  "version_policy": {
+    "application_version": {
+      "state": "not-applicable",
+      "source": "not-used",
+      "format": "none",
+      "pair_rule": "none",
+      "monotonic": "not-applicable"
+    },
+    "security_counter": {
+      "state": "not-applicable",
+      "source": "not-used",
+      "format": "none",
+      "pair_rule": "none",
+      "monotonic": "not-applicable"
+    },
+    "bl1_manifest_version": {
+      "state": "not-applicable",
+      "source": "not-used",
+      "format": "none",
+      "default": null,
+      "monotonic": "not-applicable"
+    },
+    "bl2_security_counter_floor": {
+      "state": "not-applicable",
+      "source": "not-used",
+      "format": "none",
+      "default": null,
+      "otp_write": false
+    }
+  },
+  "layout_binding": {
+    "source": "product.partition_layout",
+    "layout_id": "product.partition_layout.layout_id",
+    "layout_sha256": "product.partition_layout.layout_sha256"
+  },
+  "bl2_geometry": {
+    "required": false,
+    "source": "not-applicable",
+    "layout_ref": "not-applicable",
+    "primary": null,
+    "secondary": null
+  },
+  "credentials": {
+    "policy": "identifier-only-external-supply",
+    "read_private_material": false,
+    "required": [],
+    "optional": []
+  },
+  "permissions": {
+    "resolve": "allow",
+    "prepare": "allow",
+    "materialize": "allow",
+    "compile": "requires-user-authorization",
+    "sign": "forbidden",
+    "package": "requires-user-authorization",
+    "flash": "forbidden",
+    "hardware": "forbidden",
+    "network": "forbidden",
+    "key_read": "forbidden"
+  },
+  "executor": {
+    "interface_version": 1,
+    "input_kind": "resolved-isolated-build-plan",
+    "selection": "exact-product-id",
+    "layout_resolution": "build_plan.partition_layout",
+    "geometry_output": "resolved-from-layout",
+    "preauthorization_side_effects": "none",
+    "authority": "not-executor-authoritative",
+    "integration_status": "BLOCKED",
+    "blocked_until": "plan/profile-reconciliation",
+    "authorization_fields": ["permissions.package"],
+    "no_key_paths": true
+  },
+  "identity_sha256": "ee6edd390aff80ba46aaa273e56f215f44fd37752bf6fafa2f1a9a111d9bcfc4"
+}

@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from gen_bk7258_partitions import (
     DEFAULT_INPUT,
     PartitionLayoutError,
+    REPOSITORY_ROOT,
     load_layout,
     parse_size,
     verify_sdk_compatibility,
@@ -26,7 +28,43 @@ class LayoutError(PartitionLayoutError):
     """Backward-compatible name for partition/layout validation failures."""
 
 
-_LAYOUT = load_layout(DEFAULT_INPUT)
+def _load_active_layout():
+    source = os.environ.get("BK7258_PARTITION_LAYOUT_SOURCE") or None
+    expected_id = os.environ.get("BK7258_PARTITION_LAYOUT_ID") or None
+    expected_sha256 = os.environ.get("BK7258_PARTITION_LAYOUT_SHA256") or None
+    supplied = tuple(value is not None for value in (
+        source, expected_id, expected_sha256
+    ))
+    if any(supplied) and not all(supplied):
+        raise LayoutError(
+            "BK7258_PARTITION_LAYOUT_SOURCE, BK7258_PARTITION_LAYOUT_ID and "
+            "BK7258_PARTITION_LAYOUT_SHA256 must be exported together"
+        )
+
+    if source is None:
+        active_input = DEFAULT_INPUT.resolve()
+    else:
+        selected = Path(source)
+        active_input = (
+            selected if selected.is_absolute() else REPOSITORY_ROOT / selected
+        ).resolve()
+    try:
+        layout = load_layout(active_input)
+    except PartitionLayoutError as error:
+        raise LayoutError(str(error)) from error
+    if expected_id is not None and (
+        layout.layout_id != expected_id
+        or layout.layout_sha256 != expected_sha256
+    ):
+        raise LayoutError(
+            "active partition layout identity mismatch: "
+            f"expected={expected_id}/{expected_sha256} "
+            f"observed={layout.layout_id}/{layout.layout_sha256}"
+        )
+    return active_input, layout
+
+
+LAYOUT_INPUT, _LAYOUT = _load_active_layout()
 _BOOT = _LAYOUT.by_role("boot")
 _CP_A = _LAYOUT.by_role("slot_a_cp")
 _AP_A = _LAYOUT.by_role("slot_a_ap")
@@ -40,6 +78,7 @@ _EASYFLASH = _LAYOUT.by_role("easyflash_cp")
 
 LAYOUT_ID = _LAYOUT.layout_id
 LAYOUT_SHA256 = _LAYOUT.layout_sha256
+LAYOUT_SOURCE = str(_LAYOUT.report()["source"])
 FLASH_SIZE = _LAYOUT.flash_size
 ERASE_SIZE = _LAYOUT.erase_size
 
@@ -184,7 +223,7 @@ def verify_layout() -> None:
     """Re-evaluate the CSV and compatibility aliases before packaging."""
 
     try:
-        observed = load_layout(DEFAULT_INPUT)
+        observed = load_layout(LAYOUT_INPUT)
     except PartitionLayoutError as error:
         raise LayoutError(str(error)) from error
     if observed.layout_id != LAYOUT_ID or observed.layout_sha256 != LAYOUT_SHA256:
@@ -199,6 +238,30 @@ def verify_layout() -> None:
         expected_start = region.end
     if expected_start != FLASH_SIZE:
         raise LayoutError("layout does not cover the exact Flash capacity")
+
+
+def verify_contract(
+    source: Path | None = None,
+    expected_id: str | None = None,
+    expected_sha256: str | None = None,
+) -> None:
+    """Bind an explicit tool invocation to the already selected layout."""
+
+    if source is not None and source.resolve() != LAYOUT_INPUT:
+        raise LayoutError(
+            f"partition source mismatch: {source.resolve()} != {LAYOUT_INPUT}"
+        )
+    if (expected_id is None) != (expected_sha256 is None):
+        raise LayoutError("expected layout ID and SHA-256 must be supplied together")
+    if expected_id is not None and (
+        expected_id != LAYOUT_ID or expected_sha256 != LAYOUT_SHA256
+    ):
+        raise LayoutError(
+            "partition identity mismatch: "
+            f"expected={expected_id}/{expected_sha256} "
+            f"active={LAYOUT_ID}/{LAYOUT_SHA256}"
+        )
+    verify_layout()
 
 
 def verify_official_sdk(source: Path) -> dict[str, object]:
@@ -218,7 +281,7 @@ def report(sdk_source: Path | None = None) -> dict[str, object]:
         "format": 2,
         "layout_id": LAYOUT_ID,
         "layout_sha256": LAYOUT_SHA256,
-        "layout_source": "board/bk7258/partitions/bk7258/auto_partitions.csv",
+        "layout_source": LAYOUT_SOURCE,
         "flash_size": FLASH_SIZE,
         "erase_size": ERASE_SIZE,
         "regions": [region.report() for region in REGIONS],

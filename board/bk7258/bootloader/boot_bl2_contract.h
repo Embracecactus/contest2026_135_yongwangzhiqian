@@ -10,7 +10,7 @@
 #define BK7258_BOOT_BL2_CONTRACT_H
 
 #include "../chip/include/bk7258_memorymap.h"
-#include "../include/bk7258_partition_layout.h"
+#include <bk7258_partition_layout.h>
 
 #define BK7258_BL2_LOGICAL_CAPACITY       BK7258_ROLE_BL2_LOGICAL_SIZE
 #define BK7258_BL2_PHYSICAL_CAPACITY      BK7258_ROLE_BL2_SIZE

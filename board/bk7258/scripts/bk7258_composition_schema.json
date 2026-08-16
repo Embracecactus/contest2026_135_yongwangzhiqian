@@ -8,7 +8,12 @@
     "unknown_keys": "reject",
     "implicit_defaults": "reject",
     "board_selection": "exactly-one",
-    "legacy_fallback": "forbidden"
+    "legacy_fallback": "forbidden",
+    "standard_artifact_contract": {
+      "cp": "vela_nuttx_cp.bin",
+      "ap": "vela_nuttx_ap.bin",
+      "manifest": "vela_nuttx_manifest.json"
+    }
   },
   "enums": {
     "roles": ["cp", "ap", "bl2"],
@@ -53,7 +58,8 @@
         "features",
         "validation_suite",
         "sdk_set",
-        "sdk_lock"
+        "sdk_lock",
+        "partition_layout"
       ],
       "additional_properties": false
     },

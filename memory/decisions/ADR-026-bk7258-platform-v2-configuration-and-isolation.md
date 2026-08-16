@@ -1,22 +1,25 @@
 # ADR-026: BK7258 platform-v2 configuration freeze and isolation model
 
-- Status: Proposed for owner review; the P0 guard decisions are implemented pending acceptance, and P1+ decisions remain open
-- Date: 2026-08-15
+- Status: Accepted for the P0-P9a structural baseline and approved 27-to-3 seed cutover; the isolated four-role `compile-runtime`/`COMPILE_ONLY` contract and isolated postbuild standard-alias surface are implemented and verified. Production signing/package delivery, P9b, validation migration and hardware remain open; signing requires separate authorization, and host fixture package tests are not a real signed delivery.
+- Date: 2026-08-16
 - Supersedes: ADR-024 (the ADR-024 historical body is retained unchanged)
 - Decision owner: Project owner
 
 ## Context
 
-The current BK7258 tree has a useful, already-reduced legacy catalog, but its
-remaining `configs/<profile>` directories still combine board identity, role,
-boot format, SDK selection and validation intent.  Build, verifier and
-documentation consumers also refer to profile names directly.  The next
-platform migration must stop this surface from growing while preserving the
-merged T5/SARADC/JPEG/Audio/TF/Wi-Fi behavior and its evidence boundaries.
+The pre-cutover BK7258 tree had a useful, already-reduced legacy catalog, but
+its `configs/<profile>` directories combined board identity, role, boot format,
+SDK selection and validation intent. Build, verifier and documentation
+consumers also referred to profile names directly. The accepted cutover now
+retains only the three reviewed seeds `bl2_mcuboot`, `t5ai_core_cp_base` and
+`t5ai_core_ap_base`; the 27-row freeze/ledger remains historical coverage for
+P9b equivalence and hardware review.
 
-P0 therefore freezes the exact legacy tree and records its consumers.  It does
-not create product manifests, generated seeds, board variants or a new build
-backend.  Those are P1 decisions to be reviewed against this record.
+P0 froze the exact legacy tree and recorded its consumers. The later approved
+product cutover creates no new profile family: product manifests, board
+variants, role composition and the three seed fixtures are now the canonical
+inputs, while the frozen 27-row object remains an immutable historical
+reference.
 
 ## Decisions
 
@@ -72,12 +75,17 @@ existing build semantics.  CMake is the recommended adapter; it is not an
 alternative build system.  Classic Make remains a supported compatibility
 adapter, and any isolation report must not claim more than is proven.
 
-The official build produces `libarch.a`, `libboards.a`, and the final openvela
-runtime image.  This dual-core port exposes the latter as role-qualified
-`vela_cp.bin` and `vela_ap.bin`.  Beken BL1/BL2 files are vendor boot-chain
-artifacts, not openvela standard artifacts.  A later `.bkpack` is an additive
-Beken delivery extension and never replaces the standard outputs or build
-flow.
+The cross-backend build contract produces `libarch.a`, normalized selected
+board archive `libboard.a`, and the final openvela runtime image.  Classic
+Make additionally creates upstream generic `libboards.a` as an internal
+archive; CMake folds those generic board objects into `libboard.a`, so the
+separate `libboards.a` file is not a cross-backend package requirement.  This
+  dual-core port exposes the canonical role images as `vela_nuttx_cp.bin` and
+  `vela_nuttx_ap.bin`, with `vela_nuttx_manifest.json` binding the two aliases
+  to their internal sources and byte hashes. Single-role postbuild retains the
+  generic `vela_nuttx.bin`; `app.bin`/`app1.bin` and CRC files remain internal
+  or vendor Flash artifacts. A later `.bkpack` is an additive Beken delivery
+  extension and never replaces the standard outputs or build flow.
 
 Production BL2 remains the current
 `board/bk7258/bootloader/bl2/Makefile` path for now.  P0 must not add a fake
@@ -88,6 +96,12 @@ lifecycle, boot layout or architecture boundary.
 BL1, BL2, CP and AP each require isolated inputs and output directories.  No
 shared `.config`, restore-after-build trick or global lock is an acceptable
 substitute for isolation in the target design.
+
+The final evidence establishes a four-role isolated compile-only baseline:
+BL1/BL2/CP/AP each compile from one materialized read-only entity snapshot,
+with role-private roots and a reconciled `COMPILE_ONLY` boot policy. This
+baseline does not imply that BL1/BL2 artifacts are runnable or trusted, and it
+does not include postbuild, signing, packaging, Flash or hardware execution.
 
 Unsigned/build identity reproducibility is a separate property from signed
 artifact reproducibility.  Unsigned resolved configuration, manifests,
@@ -127,19 +141,30 @@ P9b, Flash, trust-root, lifecycle or board changes.
 
 ## Consequences
 
-- The P0 manifest pins all current legacy profile paths, types, modes, bytes,
-  metadata and pair groups; any growth, case change, special file or mutation
-  fails closed.
-- The 27-row migration ledger is planning metadata only.  It does not create
-  a product, board or configuration seed.
-- Existing profile consumers remain until P1 migration proves equivalent
-  resolved configurations and artifacts.  Historical evidence keeps its
-  original names.
+- The P0 manifest pins the historical 27 profile paths, types, modes, bytes,
+  metadata and pair groups; any mutation of that reference fails closed.
+- The approved cutover retains exactly three seed fixtures and routes current
+  product resolution through board/product/fragments rather than legacy
+  profile names. The 27-row ledger remains evidence and P9b equivalence input;
+  historical verification keeps its original names.
 - Future P1 work must preserve the current SARADC physical endpoint as
   PARTIAL until the released/pressed/released hardware run exists.
-- P0 records a proposed guard and migration ledger; it does not accept the
-  future product resolver, backend choice or hardware cutover.  Those remain
-  open for owner review.
+- The accepted P0-P9a structural baseline now includes the reviewed product
+  resolver, role composition and three-seed cutover; it does not authorize a
+  trust-root change, production signing, hardware cutover or uncommitted
+  runtime acceptance.
+- The isolated postbuild emits and checks the canonical
+  `vela_nuttx_cp.bin`/`vela_nuttx_ap.bin` aliases and
+  `vela_nuttx_manifest.json`. Host-only bkpack fixtures verify that the final
+  archive contract includes those members; production package delivery and
+  signing remain `NOT_RUN`.
+- The isolated executor provides a verified four-role `compile-runtime`
+  phase from a materialized read-only snapshot with role-private roots and
+  artifact records. It reconciles boot policy in `COMPILE_ONLY` mode and its
+  isolated postbuild emits the canonical aliases, but does not close P9b or
+  authorize signing, production package delivery, hardware, legacy-profile or
+  validation migration. Signing requires separate authorization, and the
+  compile-only boot artifacts are not a runnable or trusted delivery result.
 
 ## Reversal signals
 

@@ -17,21 +17,21 @@
       "owner": "chip",
       "parent": "architecture",
       "source": "existing_board_tree",
-      "current_paths": ["board/bk7258/chip", "board/bk7258/include"],
+      "current_paths": ["board/bk7258/chip"],
       "allowed_dependencies": ["architecture"],
       "forbidden_dependencies": ["board"],
       "status": "transitional-ledger-only",
-      "scope": "BK7258-intrinsic startup, arch APIs, IRQ, serial, timer, heap, on-chip controllers, AP topology/lifecycle, mailbox/IPI/shared memory, RPTUN transport, and lower-half Kconfig/Make definitions."
+      "scope": "BK7258-intrinsic startup, arch APIs, IRQ, serial, timer, heap, raw on-chip controller mechanisms, AP topology/lifecycle, mailbox/IPI/shared memory, RPTUN transport, and SoC-generic lower-half Kconfig/Make definitions. Product image, partition and filesystem composition enter through board Kconfig, linker symbols or typed board-provided descriptors; remaining transitional validation startup is enumerated in the compatibility ledger."
     },
     "board": {
       "owner": "board",
       "parent": "chip",
       "source": "existing_board_tree",
-      "current_paths": ["board/bk7258/boards", "board/bk7258/src", "board/bk7258/configs", "board/bk7258/bootloader"],
+      "current_paths": ["board/bk7258/Kconfig", "board/bk7258/boards", "board/bk7258/src", "board/bk7258/panels", "board/bk7258/include", "board/bk7258/partitions", "board/bk7258/configs", "board/bk7258/bootloader"],
       "allowed_dependencies": ["architecture", "chip"],
       "forbidden_dependencies": [],
       "status": "transitional-ledger-only",
-      "scope": "Physical board pins, bindings, external peripherals, linker/board configuration, bring-up and device registration."
+      "scope": "Physical board pins, bindings, external peripherals, product image/partition layouts, board Kconfig choices, Flash/MTD/filesystem composition, linker/board configuration, bring-up and device registration."
     }
   },
   "responsibility_tags": {
@@ -62,17 +62,17 @@
     "migration_pending": {
       "formal_layers": ["board"],
       "current_paths": ["board/bk7258/chip/ap/bk7258_peripherals.c"],
-      "target_paths": ["board/bk7258/boards/t5_board/src/bk7258_board_bringup.c"],
+      "target_paths": ["board/bk7258/src"],
       "status": "migration_pending",
       "scope": "Production validation auto-start is board policy, not chip mechanism.",
-      "notes": "Validation starts remain recorded for later per-symbol migration; no production source is changed by this metadata amend."
+      "notes": "Generic JPEG and temperature workers are dispatched explicitly by app/hello_app/bkvalidate_main.c; this migration tag remains pending for the broader validation policy without moving lower halves."
     }
   },
   "dependency_rules": [
     {"from": "architecture", "to": "chip", "allowed": false, "reason": "upstream Architecture is not modified to depend on a vendor chip"},
     {"from": "architecture", "to": "board", "allowed": false, "reason": "upstream Architecture is not modified to depend on a physical board"},
     {"from": "chip", "to": "architecture", "allowed": true, "reason": "chip adaptation consumes the upstream Architecture APIs"},
-    {"from": "chip", "to": "board", "allowed": false, "reason": "chip mechanisms cannot own board pins or external-device policy"},
+    {"from": "chip", "to": "board", "allowed": false, "reason": "target rule: chip mechanisms cannot own board pins, external-device policy or product layout; current exceptions must be explicit in the compatibility ledger"},
     {"from": "board", "to": "architecture", "allowed": true, "reason": "board composition consumes public Architecture APIs"},
     {"from": "board", "to": "chip", "allowed": true, "reason": "board bindings consume BK7258 chip controllers and lower halves"}
   ],
@@ -113,7 +113,8 @@
     ],
     "artifacts": [
       {"name": "libarch.a", "owner": "chip", "kind": "static_archive", "status": "required"},
-      {"name": "libboards.a", "owner": "board", "kind": "static_archive", "status": "required"},
+      {"name": "libboards.a", "owner": "architecture", "kind": "static_archive", "status": "classic_backend_internal"},
+      {"name": "libboard.a", "owner": "board", "kind": "static_archive", "status": "required"},
       {"name": "vela_*.bin", "owner": "board", "kind": "firmware_binary", "status": "required"},
       {"name": ".bkpack", "owner": "board", "kind": "vendor_package_extension", "status": "later_vendor_extension"}
     ],
@@ -125,5 +126,5 @@
     "new_seed_requires": "genuinely different product mode, lifecycle, boot layout or architecture boundary",
     "validation": "not_a_formal_layer"
   },
-  "identity_sha256": "48beb38e97e60e8ad318840ec74601464ea6e257c501919df8dc6641c057f70c"
+  "identity_sha256": "0443b256a06442b0123a73f3dcb77f77756b10ceb4042c1c3d0861fec4b5fb96"
 }

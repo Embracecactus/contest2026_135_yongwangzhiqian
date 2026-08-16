@@ -59,6 +59,22 @@ enum bk7258_bt_lifecycle_state_e
   BK7258_BT_LIFECYCLE_UNKNOWN
 };
 
+#ifndef CONFIG_BK7258_AP_CORE
+enum bk7258_bt_mac_store_e
+{
+  BK7258_BT_MAC_STORE_BACKUP = 0,
+  BK7258_BT_MAC_STORE_NETWORK
+};
+
+struct bk7258_bt_mac_storage_ops_s
+{
+  int (*read)(enum bk7258_bt_mac_store_e store, uint32_t offset,
+              uint8_t *buffer, uint32_t length);
+  int (*write)(enum bk7258_bt_mac_store_e store, uint32_t offset,
+               const uint8_t *buffer, uint32_t length);
+};
+#endif
+
 /* AP and CP keep one local copy of this record.  It is deliberately not a
  * shared-memory protocol: ELF symbols let SWD inspect each owner directly,
  * while runtime ownership is carried by the versioned RPTUN control flags.
@@ -208,6 +224,8 @@ int bk7258_bt_hci_get_stats(struct bk7258_bt_hci_stats_s *stats);
 #else
 extern volatile struct bk7258_bt_lifecycle_diag_s
   g_bk7258_bt_cp_lifecycle;
+int bk7258_bt_mac_storage_register(
+  const struct bk7258_bt_mac_storage_ops_s *ops);
 int bk7258_bt_controller_ipc_initialize(void);
 int bk7258_bt_controller_initialize(void);
 #endif

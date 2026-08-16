@@ -84,22 +84,6 @@ int bk7258_sdk_irq_timer_test(void);
 int bk7258_sdk_timer_selftest(uint32_t iterations);
 #endif
 
-#ifdef CONFIG_BK7258_GT1151
-int bk7258_board_gt1151_initialize(void);
-#endif
-
-#ifdef CONFIG_BK7258_T5_BOARD_CAMERA
-int bk7258_t5_board_camera_initialize(void);
-#endif
-
-#ifdef CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
-int bk7258_t5_board_rgb_lcd_backlight_validation_initialize(void);
-#endif
-
-#ifdef CONFIG_BK7258_T5_BOARD_TF_VALIDATION
-int bk7258_t5_board_tf_validation_initialize(void);
-#endif
-
 /* Selected physical-board hooks.  The immutable descriptor is linked into
  * both roles; AP controller composition invokes these callbacks at stable
  * ordering boundaries, while CP may consume other fields from the same

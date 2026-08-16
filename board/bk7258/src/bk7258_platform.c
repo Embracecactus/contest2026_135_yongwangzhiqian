@@ -49,6 +49,7 @@
 #endif
 
 #ifdef CONFIG_BK7258_AP_CONTROL
+#  include <arch/board/bk7258_image_layout.h>
 #  include <arch/chip/bk7258_amp.h>
 #endif
 
@@ -128,6 +129,7 @@ int bk7258_platform_initialize(void)
     defined(CONFIG_BK7258_SDK_IPC_RUNTIME) || \
     defined(CONFIG_BK7258_PM_CLOCK) || \
     defined(CONFIG_BK7258_TEMPERATURE) || \
+    (defined(CONFIG_BK7258_BT_IPC) && !defined(CONFIG_BK7258_AP_CORE)) || \
     (defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE))
   int apret = OK;
 #endif
@@ -206,7 +208,21 @@ int bk7258_platform_initialize(void)
     }
 #endif
 
+#if !defined(CONFIG_BK7258_AP_CORE) && \
+    (defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_WIFI_VNET))
+  if (apret >= 0)
+    {
+      apret = bk7258_mac_storage_initialize();
+    }
+
+  if (apret < 0)
+    {
+      _err("bk7258: MAC storage binding init failed: %d\n", apret);
+    }
+#endif
+
 #if defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE)
+
   /* CP owns RF/PHY/MAC and must publish the official Wi-Fi controller
    * mailbox endpoints before AP starts its vnet proxy.
    */
@@ -222,8 +238,7 @@ int bk7258_platform_initialize(void)
     }
 #endif
 
-#ifdef CONFIG_BK7258_AP_CONTROL
-#ifdef CONFIG_BK7258_BT_IPC
+#if defined(CONFIG_BK7258_BT_IPC) && !defined(CONFIG_BK7258_AP_CORE)
   /* CP owns the controller side of Bluetooth IPC.  Publish it before AP is
    * released, just like the Wi-Fi controller endpoints above.  Otherwise a
    * cold AP can reach its synchronous HCI open while CP is still creating
@@ -239,12 +254,20 @@ int bk7258_platform_initialize(void)
                apret);
         }
     }
-
 #endif
+
+#ifdef CONFIG_BK7258_AP_CONTROL
+  static const struct bk7258_ap_image_desc_s ap_image =
+    {
+      .slot_start = BK7258_AP_FLASH_ADDR,
+      .slot_end = BK7258_AP_FLASH_ADDR + BK7258_AP_FLASH_SIZE,
+      .vector_addr = BK7258_AP_VECTOR_ADDR,
+    };
+
 
   if (apret >= 0)
     {
-      apret = bk7258_ap_control_initialize();
+      apret = bk7258_ap_control_initialize(&ap_image);
       if (apret < 0)
         {
           _err("bk7258: AP control init failed: %d\n", apret);
@@ -440,6 +463,7 @@ int bk7258_platform_initialize(void)
     defined(CONFIG_BK7258_SDK_IPC_RUNTIME) || \
     defined(CONFIG_BK7258_PM_CLOCK) || \
     defined(CONFIG_BK7258_TEMPERATURE) || \
+    (defined(CONFIG_BK7258_BT_IPC) && !defined(CONFIG_BK7258_AP_CORE)) || \
     (defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE))
   g_bk7258_platform_result = apret < 0 ? apret : result;
 #else

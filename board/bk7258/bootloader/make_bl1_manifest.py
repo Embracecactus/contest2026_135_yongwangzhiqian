@@ -117,10 +117,59 @@ def physical_to_virtual(address: int, physical_block: int,
     )
 
 
-def bl2_xip_from_layout(partition_csv: Path, slot: str) -> int:
-    """Derive the vector-aligned BL2 XIP address using partition.py rules."""
+def bl2_contract_from_layout(
+    partition_csv: Path,
+    slot: str,
+    expected_layout_id: str | None = None,
+    expected_layout_sha256: str | None = None,
+) -> tuple[int, int]:
+    """Derive one BL2 XIP address and capacity from a verified layout.
+
+    The active A/B layout owns one physical ``bl2`` row and derives its
+    secondary copy from the following reserved gap.  The host-reference
+    secureboot layout instead names two explicit BL2 rows.  Supporting both
+    forms here keeps the signing decision bound to the layout object that was
+    just identity-checked.
+    """
 
     layout = load_layout(partition_csv)
+    if (expected_layout_id is None) != (expected_layout_sha256 is None):
+        raise ValueError(
+            "--expect-layout-id and --expect-layout-sha256 must be supplied together"
+        )
+    if expected_layout_id is not None:
+        if (layout.layout_id != expected_layout_id or
+                layout.layout_sha256 != expected_layout_sha256):
+            raise ValueError(
+                "partition layout identity mismatch: "
+                f"expected {expected_layout_id}/{expected_layout_sha256}, "
+                f"got {layout.layout_id}/{layout.layout_sha256}"
+            )
+    roles = {partition.role for partition in layout.partitions}
+    has_active = "bl2" in roles
+    has_staging = {
+        "bl1_primary_bl2", "bl1_secondary_bl2"
+    }.issubset(roles)
+    if has_active == has_staging:
+        raise ValueError(
+            "partition layout must define exactly one supported BL2 slot model"
+        )
+
+    if has_active:
+        partition = layout.by_role("bl2")
+        capacity = layout.logical_size(partition)
+        primary_xip = layout.xip_base + layout.logical_offset(partition)
+        if primary_xip % CPU_VECTOR_ALIGNMENT:
+            raise ValueError("active BL2 XIP address is not vector-aligned")
+        if slot == "primary":
+            return primary_xip, capacity
+
+        littlefs = layout.by_role("littlefs")
+        secondary_offset = partition.end
+        if secondary_offset + partition.size > littlefs.offset:
+            raise ValueError("derived secondary BL2 overlaps LittleFS")
+        return primary_xip + capacity, capacity
+
     partition = layout.by_role(f"bl1_{slot}_bl2")
     aligned_physical = align_up(partition.offset, layout.crc_total_size)
     virtual_partition = physical_to_virtual(
@@ -132,7 +181,16 @@ def bl2_xip_from_layout(partition_csv: Path, slot: str) -> int:
         partition.end, layout.crc_total_size, layout.crc_data_size
     ):
         raise ValueError(f"{partition.name} has no vector-aligned code window")
-    return xip
+    virtual_end = physical_to_virtual(
+        partition.end, layout.crc_total_size, layout.crc_data_size
+    )
+    capacity = (
+        (virtual_end - virtual_code) // layout.crc_data_size
+        * layout.crc_data_size
+    )
+    if capacity <= 0:
+        raise ValueError(f"{partition.name} has no usable BL2 code capacity")
+    return xip, capacity
 
 
 def der_length(data: bytes, offset: int) -> tuple[int, int]:
@@ -242,7 +300,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--partition-csv",
         type=Path,
-        help="derive the BL2 XIP address from a project-owned staging layout",
+        help="derive the BL2 XIP address from a project-owned partition layout",
+    )
+    parser.add_argument(
+        "--expect-layout-id",
+        help="expected canonical identity of --partition-csv",
+    )
+    parser.add_argument(
+        "--expect-layout-sha256",
+        help="expected canonical SHA-256 of --partition-csv",
     )
     parser.add_argument(
         "--bl2-slot",
@@ -251,6 +317,12 @@ def parse_args() -> argparse.Namespace:
         help="BL2 slot selected when --partition-csv is used",
     )
     parser.add_argument("--bl2-size", type=positive_int, default=0x3000)
+    parser.add_argument(
+        "--bl2-capacity",
+        type=positive_int,
+        default=BL2_LOGICAL_CAPACITY,
+        help="resolved usable logical capacity of the selected BL2 slot",
+    )
     parser.add_argument("--bl2-load", type=positive_int, default=0x28020000)
     parser.add_argument(
         "--manifest-version", "--image-version", dest="manifest_version",
@@ -282,14 +354,28 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.partition_csv is None and (
+            args.expect_layout_id is not None or
+            args.expect_layout_sha256 is not None):
+        raise ValueError(
+            "layout identity expectations require --partition-csv"
+        )
     if args.partition_csv is not None:
-        derived_bl2_xip = bl2_xip_from_layout(
-            args.partition_csv, args.bl2_slot
+        derived_bl2_xip, derived_bl2_capacity = bl2_contract_from_layout(
+            args.partition_csv,
+            args.bl2_slot,
+            args.expect_layout_id,
+            args.expect_layout_sha256,
         )
         if args.bl2_xip is not None and args.bl2_xip != derived_bl2_xip:
             raise ValueError(
                 f"--bl2-xip 0x{args.bl2_xip:08x} disagrees with "
-                f"{args.bl2_slot} staging address 0x{derived_bl2_xip:08x}"
+                f"{args.bl2_slot} layout address 0x{derived_bl2_xip:08x}"
+            )
+        if args.bl2_capacity != derived_bl2_capacity:
+            raise ValueError(
+                f"--bl2-capacity 0x{args.bl2_capacity:x} disagrees with "
+                f"{args.bl2_slot} layout capacity 0x{derived_bl2_capacity:x}"
             )
         args.bl2_xip = derived_bl2_xip
     elif args.bl2_xip is None:
@@ -304,8 +390,10 @@ def main() -> None:
         )
     if args.bl2_size == 0 or args.bl2_size % 32:
         raise ValueError("BL2 size must be nonzero and CRC-block aligned")
-    if args.bl2_size > BL2_LOGICAL_CAPACITY:
-        raise ValueError("BL2 size exceeds the reserved 128 KiB logical capacity")
+    if args.bl2_capacity == 0 or args.bl2_capacity % 32:
+        raise ValueError("BL2 capacity must be nonzero and CRC-block aligned")
+    if args.bl2_size > args.bl2_capacity:
+        raise ValueError("BL2 size exceeds the resolved logical capacity")
     image = args.bl2.read_bytes()
     raw_image = image
     if not raw_image:

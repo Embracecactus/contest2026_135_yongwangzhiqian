@@ -54,6 +54,41 @@
       "notes": "CP clock/power lower-half and cross-core mechanism remain chip-owned when board-independent."
     },
     {
+      "path": "board/bk7258/chip/Kconfig",
+      "symbols": {
+        "CONFIG_BK7258_FLASH_MTD": null,
+        "CONFIG_BK7258_FLASH_LITTLEFS": null
+      },
+      "current_owner": "chip",
+      "target_owner": "board",
+      "status": "inventory-only",
+      "notes": "The user-visible data-partition MTD/LittleFS composition moved to the existing board/bk7258/Kconfig with symbol names and CP-only dependencies preserved; chip Kconfig retains SoC-generic BL1/BL2/MCUboot and cross-core mechanisms."
+    },
+    {
+      "path": "board/bk7258/chip/cp/bk7258_start.c",
+      "symbols": {"CONFIG_BK7258_MCUBOOT_IMAGE": null},
+      "current_owner": "chip",
+      "target_owner": "chip",
+      "status": "inventory-only",
+      "notes": "Startup consumes the linker-owned _vectors symbol for VTOR; raw, MCUboot and BL2 placement policy no longer enters chip reset code."
+    },
+    {
+      "path": "board/bk7258/chip/cp/bk7258_ap_control.c",
+      "symbols": {"CONFIG_BK7258_RPTUN": null},
+      "current_owner": "chip",
+      "target_owner": "chip",
+      "status": "inventory-only",
+      "notes": "AP lifecycle consumes a validated image descriptor injected by board composition; cross-core reset, mailbox and restart mechanics remain chip-owned."
+    },
+    {
+      "path": "board/bk7258/chip/cp/bk7258_bt_controller.c",
+      "symbols": {"CONFIG_BK7258_BT_IPC": null, "CONFIG_BK7258_WIFI_VNET": null},
+      "current_owner": "chip",
+      "target_owner": "chip",
+      "status": "inventory-only",
+      "notes": "Radio lifecycle and MAC derivation remain chip-owned; SYS_RF/SYS_NET placement is supplied through registered board storage operations."
+    },
+    {
       "path": "board/bk7258/chip/ap/bk7258_ap_ipi.c",
       "symbols": {"CONFIG_BK7258_AP_CORE": null, "CONFIG_BK7258_IPI": null},
       "current_owner": "chip",
@@ -62,12 +97,36 @@
       "notes": "AP IPI/topology mechanism is BK7258-intrinsic and remains in the chip ownership boundary."
     },
     {
+      "path": "board/bk7258/chip/ap/bk7258_ap_start.c",
+      "symbols": {"CONFIG_BK7258_AP_CORE": null},
+      "current_owner": "chip",
+      "target_owner": "chip",
+      "status": "inventory-only",
+      "notes": "AP reset startup consumes the linker-owned _vectors symbol and no longer reads product layout policy."
+    },
+    {
+      "path": "board/bk7258/chip/ap/bk7258_ap_main.c",
+      "symbols": {"CONFIG_BK7258_AP_CORE": null},
+      "current_owner": "chip",
+      "target_owner": "chip",
+      "status": "inventory-only",
+      "notes": "AP runtime validates the linker vector against the CP-published image descriptor and no longer reconstructs product ranges."
+    },
+    {
       "path": "board/bk7258/chip/ap/bk7258_peripherals.c",
-      "symbols": {"CONFIG_BK7258_T5_BOARD_SARADC_KEY_VALIDATION": null, "CONFIG_BK7258_T5_BOARD_TF_VALIDATION": null},
+      "symbols": {"CONFIG_BK7258_JPEG_M2M_VALIDATION": null, "CONFIG_BK7258_TEMPERATURE_VALIDATION": null},
       "current_owner": "chip",
       "target_owner": "board",
       "status": "inventory-only",
-      "notes": "Production validation auto-start references are migration_pending away from chip toward existing board bringup; generic lower halves stay chip-owned."
+      "notes": "Generic JPEG and temperature workers are dispatched explicitly by app/hello_app/bkvalidate_main.c; chip lower halves remain unchanged and no longer auto-start validation."
+    },
+    {
+      "path": "board/bk7258/src/bk7258_mac_storage.c",
+      "symbols": {"CONFIG_BK7258_BT_IPC": null, "CONFIG_BK7258_WIFI_VNET": null},
+      "current_owner": "board",
+      "target_owner": "board",
+      "status": "inventory-only",
+      "notes": "Board composition maps generic MAC storage operations to the selected SYS_RF/SYS_NET partition contract."
     },
     {
       "path": "board/bk7258/boards/t5ai_core/src/bk7258_board_bringup.c",
@@ -94,5 +153,5 @@
       "notes": "BL2 Make input remains an existing board artifact adapter and consumes no runtime SDK."
     }
   ],
-  "identity_sha256": "b9b9f6491601d0e6a22cbc6ea9e57fbc6cf7d6fbd42a25f1f466041b55831007"
+  "identity_sha256": "3837880018ac7c926bba20d2df0ed4049de0c04b5f8c78d307dec5d7a9d5b923"
 }

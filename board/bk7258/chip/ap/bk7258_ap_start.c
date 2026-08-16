@@ -15,7 +15,6 @@
 
 #include <stdint.h>
 
-#include <arch/board/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 
 #include "arm_internal.h"
@@ -63,6 +62,7 @@ extern uint32_t _espinlock_data[];
 extern uint32_t _sspinlock_bss[];
 extern uint32_t _espinlock_bss[];
 #endif
+extern const void *const _vectors[80];
 
 const uintptr_t g_idle_topstack = HEAP_BASE;
 
@@ -220,9 +220,9 @@ void __start(void)
   state->local_core_id  = 0;
   state->physical_core_id = BK7258_AP_PHYSICAL_ID_OFFSET;
   state->initial_msp    = msp;
-  state->initial_vtor   = BK7258_AP_VECTOR_ADDR;
+  state->initial_vtor   = (uintptr_t)_vectors;
 
-  BK7258_SCB_VTOR = BK7258_AP_VECTOR_ADDR;
+  BK7258_SCB_VTOR = (uintptr_t)_vectors;
   __asm volatile ("dsb sy; isb sy" ::: "memory");
 
   /* Disable automatic/lazy FP context stacking before enabling CP10/CP11. */

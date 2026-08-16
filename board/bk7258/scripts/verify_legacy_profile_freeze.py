@@ -23,10 +23,14 @@ from typing import Any, Iterable
 
 APPROVED_BASE_COMMIT = "2eb0353ee6989e6654629aa0b67cac8c7c1ee810"
 CONFIGS_REL = Path("board/bk7258/configs")
+CUTOVER_README_REL = (CONFIGS_REL / "README.md").as_posix()
+CUTOVER_SEED_FILE_NAMES = ("defconfig", "profile.conf")
 MANIFEST_REL = Path("board/bk7258/scripts/legacy_profile_freeze_manifest.json")
 LEDGER_REL = Path("board/bk7258/scripts/legacy_profile_migration_ledger.json")
 INVENTORY_REL = Path("board/bk7258/scripts/legacy_profile_consumers.json")
 MANIFEST_SCHEMA = 1
+CUTOVER_MANIFEST_SCHEMA = 2
+CUTOVER_STATUS = "cutover-approved"
 ROOT_MODE = "0755"
 DIR_MODE = "0755"
 FILE_MODE = {"100644": "0644", "100755": "0755"}
@@ -55,6 +59,12 @@ MANIFEST_KEYS = {
     "schema", "kind", "status", "root", "root_entry", "rules", "baseline",
     "profile_count", "file_count", "entries", "profiles", "migration_ledger",
     "migration_ledger_sha256", "consumer_inventory", "manifest_sha256",
+}
+CUTOVER_MANIFEST_KEYS = {
+    "schema", "kind", "status", "root", "root_entry", "rules", "baseline",
+    "historical_profile_count", "retained_profiles", "retired_profiles",
+    "profile_count", "file_count", "migration_ledger",
+    "migration_ledger_sha256", "manifest_sha256",
 }
 BASELINE_KEYS = {
     "commit", "commit_tree", "configs_git_tree", "entries_sha256",
@@ -620,6 +630,18 @@ def base_snapshot(root: Path) -> dict[str, Any]:
 
 def assert_current_matches_snapshot(root: Path, snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     actual = walk_current_entries(root)
+    # Empty directories are not Git entries and can be left behind by a
+    # filesystem-only checkout after their tracked files are removed.  They
+    # are excluded from the commit identity; any non-empty retired directory
+    # remains a hard failure below.
+    actual_paths = {entry["path"] for entry in actual}
+    actual = [
+        entry for entry in actual
+        if not (
+            entry["type"] == "directory" and
+            not any(path.startswith(entry["path"] + "/") for path in actual_paths)
+        )
+    ]
     expected = snapshot["entries"]
     expected_by_path = {entry["path"]: entry for entry in expected}
     actual_by_path = {entry["path"]: entry for entry in actual}
@@ -655,6 +677,161 @@ def manifest_without_digest(manifest: dict[str, Any]) -> dict[str, Any]:
 
 def manifest_digest(manifest: dict[str, Any]) -> str:
     return sha256_bytes(canonical_json(manifest_without_digest(manifest)))
+
+
+def _current_profile_names(entries: list[dict[str, Any]]) -> set[str]:
+    prefix = CONFIGS_REL.as_posix() + "/"
+    return {
+        path[len(prefix):].split("/", 1)[0]
+        for path in (entry["path"] for entry in entries)
+        if path.startswith(prefix) and "/" in path[len(prefix):]
+    }
+
+
+def assert_current_matches_cutover(root: Path, snapshot: dict[str, Any],
+                                   retained: list[str]) -> list[dict[str, Any]]:
+    """Verify that only the approved three seed directories remain.
+
+    Retained bytes are compared with the approved Git object.  Retired
+    directories are intentionally absent and cannot be replaced by a new
+    profile with a similar name.
+    """
+    actual = walk_current_entries(root)
+    retained_set = set(retained)
+    if len(retained_set) != 3 or retained_set != {
+        "bl2_mcuboot", "t5ai_core_cp_base", "t5ai_core_ap_base"
+    }:
+        raise FreezeError("cutover must retain exactly the three canonical seed profiles")
+    names = _current_profile_names(actual)
+    if names != retained_set:
+        missing = sorted(retained_set - names)
+        extra = sorted(names - retained_set)
+        detail = f" missing={missing}" if missing else ""
+        detail += f" extra={extra}" if extra else ""
+        raise FreezeError(f"current profile tree is not the approved 27-to-3 cutover{detail}")
+    base_by_path = {entry["path"]: entry for entry in snapshot["entries"]}
+    base_files = snapshot["blobs"]
+    # ``git ls-tree -r`` only reports files, while ``parse_git_tree`` adds
+    # their parent directories.  Select the cutover surface explicitly:
+    # README plus the three retained directories and their two seed files.
+    # In particular, do not select every direct child of ``configs/`` here;
+    # that would accidentally make the 24 retired directory entries required
+    # after the 27-to-3 cutover.
+    prefix = CONFIGS_REL.as_posix() + "/"
+    expected_paths = {
+        path: entry
+        for path, entry in base_by_path.items()
+        if path == CUTOVER_README_REL or any(
+            path == f"{prefix}{profile}" or
+            path.startswith(f"{prefix}{profile}/")
+            for profile in retained_set
+        )
+    }
+    expected_file_paths = {
+        path for path, entry in expected_paths.items() if entry["type"] == "file"
+    }
+    expected_seed_paths = {
+        f"{CONFIGS_REL.as_posix()}/{profile}/{filename}"
+        for profile in retained_set
+        for filename in CUTOVER_SEED_FILE_NAMES
+    }
+    if expected_file_paths != expected_seed_paths | {CUTOVER_README_REL}:
+        raise FreezeError("cutover must contain README plus six retained seed files")
+    actual_by_path = {entry["path"]: entry for entry in actual}
+    if set(actual_by_path) != set(expected_paths):
+        missing = sorted(set(expected_paths) - set(actual_by_path))
+        extra = sorted(set(actual_by_path) - set(expected_paths))
+        raise FreezeError(f"retained seed tree differs from approved Git object: missing={missing} extra={extra}")
+    for path, expected in expected_paths.items():
+        observed = actual_by_path[path]
+        if observed.get("type") != expected["type"] or observed.get("mode") != expected["mode"]:
+            raise FreezeError(f"retained seed entry changed: {path}")
+        if expected["type"] == "file" and path != CUTOVER_README_REL:
+            if observed.get("sha256") != expected["sha256"]:
+                raise FreezeError(f"retained seed bytes changed: {path}")
+            if path not in base_files:
+                raise FreezeError(f"approved retained seed blob is missing: {path}")
+    return actual
+
+
+def _validate_cutover_manifest_shape(manifest: dict[str, Any]) -> None:
+    if set(manifest) != CUTOVER_MANIFEST_KEYS:
+        raise FreezeError("cutover manifest schema keys are not exact")
+    if (manifest["schema"] != CUTOVER_MANIFEST_SCHEMA or
+            manifest["kind"] != "bk7258-profile-cutover-freeze" or
+            manifest["status"] != CUTOVER_STATUS or
+            manifest["root"] != CONFIGS_REL.as_posix()):
+        raise FreezeError("cutover manifest status/root mismatch")
+    root_entry = ensure_object(manifest["root_entry"], "cutover root entry")
+    if set(root_entry) != {"path", "type", "mode", "git_mode", "git_object"}:
+        raise FreezeError("cutover root entry schema mismatch")
+    if root_entry["path"] != CONFIGS_REL.as_posix() or root_entry["type"] != "directory":
+        raise FreezeError("cutover root entry is malformed")
+    if root_entry["mode"] != ROOT_MODE or root_entry["git_mode"] != "040000":
+        raise FreezeError("cutover root entry mode mismatch")
+    ensure_git_object(root_entry["git_object"], "cutover root Git object")
+    rules = ensure_object(manifest["rules"], "cutover rules")
+    if set(rules) != {
+        "approved_base_is_historical_only", "retained_seed_count_is_exact",
+        "retired_profile_paths_are_forbidden", "new_config_directories_forbidden",
+        "retained_seed_file_bytes_are_sha256_pinned",
+    } or any(value is not True for value in rules.values()):
+        raise FreezeError("cutover rules are malformed")
+    baseline = ensure_object(manifest["baseline"], "cutover baseline")
+    if set(baseline) != BASELINE_KEYS or baseline["commit"] != APPROVED_BASE_COMMIT:
+        raise FreezeError("cutover baseline is not bound to the approved Git object")
+    if baseline["remote_fetch_verified"] is not True:
+        raise FreezeError("cutover baseline must record verified remote provenance")
+    for key in ("commit_tree", "configs_git_tree"):
+        ensure_git_object(baseline[key], f"cutover baseline {key}")
+    ensure_hash(baseline["entries_sha256"], "cutover baseline entries digest")
+    retained = ensure_list(manifest["retained_profiles"], "cutover retained profiles")
+    retired = ensure_list(manifest["retired_profiles"], "cutover retired profiles")
+    for name in retained + retired:
+        ensure_safe_identifier(name, "cutover profile name")
+    if (retained != ["bl2_mcuboot", "t5ai_core_cp_base", "t5ai_core_ap_base"] or
+            len(set(retired)) != 24 or set(retained).intersection(retired)):
+        raise FreezeError("cutover profile lists are not the approved 27-to-3 mapping")
+    if (not isinstance(manifest["historical_profile_count"], int) or
+            isinstance(manifest["historical_profile_count"], bool) or
+            not isinstance(manifest["profile_count"], int) or
+            isinstance(manifest["profile_count"], bool) or
+            manifest["historical_profile_count"] != 27 or
+            manifest["profile_count"] != 3):
+        raise FreezeError("cutover profile counts are not 27 historical / 3 retained")
+    if (not isinstance(manifest["file_count"], int) or
+            isinstance(manifest["file_count"], bool) or manifest["file_count"] != 7):
+        raise FreezeError("cutover file count must include the README and six retained seed files")
+    if manifest["migration_ledger"] != LEDGER_REL.as_posix():
+        raise FreezeError("cutover migration ledger path mismatch")
+    ensure_hash(manifest["migration_ledger_sha256"], "cutover migration ledger digest")
+    ensure_hash(manifest["manifest_sha256"], "cutover manifest digest")
+    if manifest["manifest_sha256"] != manifest_digest(manifest):
+        raise FreezeError("cutover manifest self-digest mismatch")
+
+
+def validate_cutover_ledger(root: Path, expected_profiles: list[dict[str, Any]],
+                            manifest_path: str = MANIFEST_REL.as_posix()) -> tuple[dict[str, Any], str]:
+    """Validate the 27 historical rows without treating them as active files."""
+    path = root / LEDGER_REL
+    ledger = load_json(path)
+    if ledger.get("status") not in {"cutover-approved", "proposal-only"}:
+        raise FreezeError("migration ledger is not an approved cutover record")
+    rows = ensure_list(ledger.get("rows"), "cutover migration rows")
+    expected_names = {record["name"] for record in expected_profiles}
+    names = {row.get("legacy_profile") for row in rows if isinstance(row, dict)}
+    if len(rows) != 27 or names != expected_names:
+        raise FreezeError("cutover migration ledger must cover the historical 27 profiles")
+    allowed_states = {"shadow-equivalent", "retire-blocked-hardware", "consolidation-review"}
+    for row in rows:
+        if not isinstance(row, dict) or row.get("migration_state") not in allowed_states:
+            raise FreezeError("cutover migration row has an unsupported state")
+        target = row.get("target")
+        if not isinstance(target, dict) or target.get("decision") not in {
+            "approved-cutover", "proposal"
+        }:
+            raise FreezeError("cutover migration target is not explicit")
+    return ledger, sha256_file(path)
 
 
 def validate_ledger(root: Path, expected_profiles: list[dict[str, Any]], manifest_path: str = MANIFEST_REL.as_posix()) -> tuple[dict[str, Any], str]:
@@ -1071,6 +1248,40 @@ def validate_inventory(root: Path, manifest: dict[str, Any], require_git: bool) 
 
 
 def check_manifest(root: Path, manifest: dict[str, Any], require_git: bool = True) -> dict[str, Any]:
+    if manifest.get("status") == CUTOVER_STATUS:
+        _validate_cutover_manifest_shape(manifest)
+        if not require_git:
+            raise FreezeError("cutover verification requires the approved Git baseline")
+        snapshot = base_snapshot(root)
+        base = snapshot["base"]
+        baseline = manifest["baseline"]
+        if (baseline["commit_tree"] != base["commit_tree"] or
+                baseline["configs_git_tree"] != base["configs_git_tree"] or
+                baseline["entries_sha256"] != snapshot["entries_sha256"]):
+            raise FreezeError("cutover baseline differs from approved Git object")
+        if manifest["root_entry"] != snapshot["root_entry"]:
+            raise FreezeError("cutover root entry differs from approved Git object")
+        historical_names = {record["name"] for record in snapshot["profiles"]}
+        expected_retired = historical_names - set(manifest["retained_profiles"])
+        if set(manifest["retired_profiles"]) != expected_retired:
+            raise FreezeError(
+                "cutover retired profile list differs from the historical 27-profile set"
+            )
+        actual = assert_current_matches_cutover(
+            root, snapshot, manifest["retained_profiles"]
+        )
+        _, ledger_digest = validate_cutover_ledger(root, snapshot["profiles"])
+        if ledger_digest != manifest["migration_ledger_sha256"]:
+            raise FreezeError("cutover migration ledger digest mismatch")
+        return {
+            "profiles": 3,
+            "files": 7,
+            "entries": len(actual),
+            "entries_sha256": snapshot["entries_sha256"],
+            "ledger_sha256": ledger_digest,
+            "consumers": 0,
+            "manifest_sha256": manifest["manifest_sha256"],
+        }
     validate_manifest_shape(manifest)
     snapshot = base_snapshot(root) if require_git else None
     if snapshot is not None:

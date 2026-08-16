@@ -1191,7 +1191,15 @@ bk7258_ap_blcy_state(void)
 }
 
 #ifdef CONFIG_BK7258_AP_CONTROL
-int bk7258_ap_control_initialize(void);
+struct bk7258_ap_image_desc_s
+{
+  uint32_t slot_start;
+  uint32_t slot_end;
+  uint32_t vector_addr;
+};
+
+int bk7258_ap_control_initialize(
+  const struct bk7258_ap_image_desc_s *image);
 int bk7258_ap_start(uint32_t timeout_ms);
 int bk7258_ap_stop(uint32_t timeout_ms);
 int bk7258_ap_restart(uint32_t timeout_ms);
