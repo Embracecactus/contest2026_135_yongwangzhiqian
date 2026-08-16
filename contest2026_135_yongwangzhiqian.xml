@@ -16,5 +16,6 @@
     <linkfile src="quickapp/hello_quickapp" dest="packages/apps/contest2026_135_hello_quickapp"/>
     <linkfile src="board/contest_board" dest="vendor/openvela/boards/contest2026_135_board"/>
     <linkfile src="board/bk7258" dest="vendor/openvela/boards/contest2026_135_bk7258"/>
+    <linkfile src="tools/bk7258" dest="vendor/openvela/tools/contest2026_135_bk7258"/>
   </project>
 </manifest>
