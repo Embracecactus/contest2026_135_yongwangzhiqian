@@ -14,6 +14,7 @@ adapts signed images to the board's CP/AP layout.
 
 from __future__ import annotations
 
+
 import argparse
 import hashlib
 import json
@@ -23,6 +24,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from bk7258_paths import load_board_script
 from bk7258_ab_layout import (
     AP_XIP_START,
     AP_XIP_SIZE,
@@ -37,6 +39,7 @@ from bk7258_ab_layout import (
     report as layout_report,
     verify_contract as verify_partition_contract,
 )
+bk7258_crc_expand = load_board_script("bk7258_crc_expand")
 from bk7258_crc_expand import expand
 
 HEADER_SIZE = 0x200

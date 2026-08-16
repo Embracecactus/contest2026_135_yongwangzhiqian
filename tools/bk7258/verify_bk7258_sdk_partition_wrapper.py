@@ -3,6 +3,10 @@
 
 from __future__ import annotations
 
+from bk7258_paths import Bk7258Layout, load_board_script
+
+
+
 import argparse
 import json
 import shutil
@@ -10,6 +14,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
 from gen_bk7258_partitions import (
     DEFAULT_INPUT,
     PartitionLayout,
@@ -20,7 +25,7 @@ from gen_bk7258_partitions import (
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-BOARD_DIR = SCRIPT_DIR.parent
+BOARD_DIR = Bk7258Layout().board_dir
 WRAPPER_SOURCE = BOARD_DIR / "src/bk7258_sdk_partition.c"
 
 

@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 
-SCRIPT_ROOT = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "tools" / "bk7258"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 import bk7258_bkpack as bkpack  # noqa: E402
@@ -91,7 +91,7 @@ class BkpackContainerTest(unittest.TestCase):
         # Keep the fixture independent from the verifier's module default by
         # staging the CSV under the package's fixed member name.
         partition_payload = (
-            SCRIPT_ROOT.parent / "partitions/bk7258/auto_partitions.csv"
+            SCRIPT_ROOT.parent.parent / "board" / "bk7258" / "partitions/bk7258/auto_partitions.csv"
         ).read_bytes()
         (self.source / bkpack.PARTITION_LAYOUT_MEMBER).write_bytes(
             partition_payload
@@ -350,7 +350,7 @@ class BkpackContainerTest(unittest.TestCase):
             bkpack.verify(missing)
 
         alternate = (
-            SCRIPT_ROOT.parent / "partitions/bk7258/secureboot_xip_cp_ap.csv"
+            SCRIPT_ROOT.parent.parent / "board" / "bk7258" / "partitions/bk7258/secureboot_xip_cp_ap.csv"
         ).read_bytes()
         (self.source / bkpack.PARTITION_LAYOUT_MEMBER).write_bytes(alternate)
         with self.assertRaisesRegex(bkpack.BkpackError, "Flash source member"):

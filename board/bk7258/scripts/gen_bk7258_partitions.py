@@ -22,8 +22,16 @@ from typing import Iterable
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-BOARD_DIR = SCRIPT_DIR.parent
-REPOSITORY_ROOT = BOARD_DIR.parent.parent
+# 形态无关地解析仓库根 / 板级目录（P1 路径层），
+# 替代 ``SCRIPT_DIR.parent`` 的脆弱推导（迁移到 tools/bk7258 后语义已变）。
+try:
+    from bk7258_paths import Bk7258Layout
+except ModuleNotFoundError:
+    sys.path.insert(0, str(SCRIPT_DIR.parent.parent.parent / "tools" / "bk7258"))
+    from bk7258_paths import Bk7258Layout
+_LAYOUT = Bk7258Layout()
+BOARD_DIR = _LAYOUT.board_dir
+REPOSITORY_ROOT = _LAYOUT.contest_root
 LEGACY_INPUT = BOARD_DIR / "partitions/bk7258/auto_partitions.csv"
 
 

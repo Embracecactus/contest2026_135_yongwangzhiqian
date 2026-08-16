@@ -2,7 +2,7 @@
   "schema": 1,
   "kind": "bk7258-legacy-profile-migration-ledger",
   "status": "proposal-only",
-  "source_manifest": "board/bk7258/scripts/legacy_profile_freeze_manifest.json",
+  "source_manifest": "tools/bk7258/legacy_profile_freeze_manifest.json",
   "rules": {
     "row_count_is_exact": true,
     "every_legacy_profile_has_a_non_tbd_state": true,

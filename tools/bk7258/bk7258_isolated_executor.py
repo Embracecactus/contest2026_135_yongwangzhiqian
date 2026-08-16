@@ -1865,7 +1865,9 @@ def _expected_delivery_commands(value: dict[str, Any], delivery: dict[str, Any],
     """
     root = Path(delivery["root"])
     source_root = Path(value["source_view"]["root"])
-    source_board = source_root / "contest2026_135_yongwangzhiqian/board/bk7258"
+    source_repository = source_root / "contest2026_135_yongwangzhiqian"
+    source_board = source_repository / "board/bk7258"
+    source_tools = source_repository / "tools/bk7258"
     scripts = source_board / "scripts"
     bootloader = source_board / "bootloader"
     parameters = delivery["parameters"]
@@ -1973,7 +1975,7 @@ def _expected_delivery_commands(value: dict[str, Any], delivery: dict[str, Any],
             str(source_board), role], work[role], updates, "none", index))
     commands.extend([
         make("mcuboot-pair-sign", "python3", [
-            python, str(scripts / "pack_bk7258_mcuboot_pair.py"),
+            python, str(source_tools / "pack_bk7258_mcuboot_pair.py"),
             "--partition", str(partition_csv), "--expect-layout-id", layout["layout_id"],
             "--expect-layout-sha256", layout["layout_sha256"],
             "--cp-raw", str(payload / "app.bin"), "--ap-raw", str(payload / "app1.bin"),
@@ -1986,7 +1988,7 @@ def _expected_delivery_commands(value: dict[str, Any], delivery: dict[str, Any],
                 "BK7258_PARTITION_LAYOUT_SHA256": layout["layout_sha256"],
             }, "sign", 6),
         make("trust-chain-emit", "python3", [
-            python, str(scripts / "bk7258_trust_chain.py"), "emit",
+            python, str(source_tools / "bk7258_trust_chain.py"), "emit",
             "--bl1-manifest-key", PRIVATE_KEY_TOKEN,
             "--mcuboot-signing-key", PRIVATE_KEY_TOKEN,
             "--bootloader-elf", str(value["roles"]["bl1"]["artifacts"]["bl.elf"]["path"]),
@@ -1998,7 +2000,7 @@ def _expected_delivery_commands(value: dict[str, Any], delivery: dict[str, Any],
             "--output", str(trust)], payload,
             {"BK7258_PARTITION_LAYOUT_ID": layout["layout_id"]}, "sign", 7),
         make("dual-package", "python3", [
-            python, str(scripts / "pack_dual_image.py"), "--boot", str(bootloader_crc),
+            python, str(source_tools / "pack_dual_image.py"), "--boot", str(bootloader_crc),
             "--cp-raw", str(dual_input / "app.bin"),
             "--cp-standard", str(dual_input / "cp-raw.bin"),
             "--cp-crc", str(dual_input / "app_crc.bin"),
@@ -2015,14 +2017,14 @@ def _expected_delivery_commands(value: dict[str, Any], delivery: dict[str, Any],
                 "BK7258_PARTITION_LAYOUT_SHA256": layout["layout_sha256"],
             }, "package", 8),
         make("bkpack-create", "python3", [
-            python, str(scripts / "bk7258_bkpack.py"), "create",
+            python, str(source_tools / "bk7258_bkpack.py"), "create",
             "--source", str(package_source), "--partition", str(partition_csv),
             "--output", str(package)], package_source, {
                 "BK7258_PARTITION_LAYOUT_ID": layout["layout_id"],
                 "BK7258_PARTITION_LAYOUT_SHA256": layout["layout_sha256"],
             }, "package", 9),
         make("bkpack-verify", "python3", [
-            python, str(scripts / "bk7258_bkpack.py"), "verify", "--package", str(package)],
+            python, str(source_tools / "bk7258_bkpack.py"), "verify", "--package", str(package)],
             root, {
                 "BK7258_PARTITION_LAYOUT_ID": layout["layout_id"],
                 "BK7258_PARTITION_LAYOUT_SHA256": layout["layout_sha256"],
@@ -3382,17 +3384,20 @@ def _make_delivery_command(stage: str, tool: str, argv: list[str],
     }
 
 
-def _delivery_tool_records(source_board: Path) -> dict[str, dict[str, str]]:
+def _delivery_tool_records(
+    source_board: Path,
+    source_tools: Path,
+) -> dict[str, dict[str, str]]:
     paths = {
         "postbuild": source_board / "scripts/postbuild.sh",
         "crc_expand": source_board / "scripts/bk7258_crc_expand.py",
         "bl1_pack": source_board / "bootloader/bk7236_pack_min_bootloader.py",
         "bl1_manifest": source_board / "bootloader/make_bl1_manifest.py",
         "bl2_crc": source_board / "scripts/bk7258_crc_expand.py",
-        "mcuboot_pair": source_board / "scripts/pack_bk7258_mcuboot_pair.py",
-        "dual_image": source_board / "scripts/pack_dual_image.py",
-        "bkpack": source_board / "scripts/bk7258_bkpack.py",
-        "trust_chain": source_board / "scripts/bk7258_trust_chain.py",
+        "mcuboot_pair": source_tools / "pack_bk7258_mcuboot_pair.py",
+        "dual_image": source_tools / "pack_dual_image.py",
+        "bkpack": source_tools / "bk7258_bkpack.py",
+        "trust_chain": source_tools / "bk7258_trust_chain.py",
         "imgtool": source_board.parent.parent.parent /
             "apps/boot/mcuboot/mcuboot/scripts/imgtool.py",
     }
@@ -3711,7 +3716,9 @@ def deliver(
         for name in ("payload", "work", "manifests", "dual-input", "package-source",
                      "inputs", "logs"):
             (delivery_root / name).mkdir()
-    source_board = source_root / "contest2026_135_yongwangzhiqian/board/bk7258"
+    source_repository = source_root / "contest2026_135_yongwangzhiqian"
+    source_board = source_repository / "board/bk7258"
+    source_tools = source_repository / "tools/bk7258"
     scripts = source_board / "scripts"
     bootloader = source_board / "bootloader"
     partition_relative = plan["partition_layout"]["source"]
@@ -3746,7 +3753,7 @@ def deliver(
         layout_id=plan["partition_layout"]["layout_id"],
         layout_sha256=plan["partition_layout"]["layout_sha256"],
     )
-    tool_records = _delivery_tool_records(source_board)
+    tool_records = _delivery_tool_records(source_board, source_tools)
     commands: list[dict[str, Any]] = []
     command_index = 0
     log_prefix = "final-" if prepared_delivery else ""
@@ -3901,7 +3908,7 @@ def deliver(
     pair_output = delivery_root / "payload/mcuboot-pair"
     pair_output.mkdir()
     run("mcuboot-pair-sign", "python3", [
-        python, str(scripts / "pack_bk7258_mcuboot_pair.py"),
+        python, str(source_tools / "pack_bk7258_mcuboot_pair.py"),
         "--partition", str(partition_csv),
         "--expect-layout-id", plan["partition_layout"]["layout_id"],
         "--expect-layout-sha256", plan["partition_layout"]["layout_sha256"],
@@ -3945,7 +3952,7 @@ def deliver(
 
     trust = delivery_root / "payload/bk7258-trust-chain.json"
     run("trust-chain-emit", "python3", [
-        python, str(scripts / "bk7258_trust_chain.py"), "emit",
+        python, str(source_tools / "bk7258_trust_chain.py"), "emit",
         "--bl1-manifest-key", str(bl1_key),
         "--mcuboot-signing-key", str(mcuboot_key),
         "--bootloader-elf", str(value["roles"]["bl1"]["artifacts"]["bl.elf"]["path"]),
@@ -4027,7 +4034,7 @@ def deliver(
     (package_source / "bk7258-build-plan.json").write_bytes(
         Path(value["plan_copy"]).read_bytes())
     run("dual-package", "python3", [
-        python, str(scripts / "pack_dual_image.py"),
+        python, str(source_tools / "pack_dual_image.py"),
         "--boot", str(bootloader_crc),
         "--cp-raw", str(dual_input / "app.bin"),
         "--cp-standard", str(dual_input / "cp-raw.bin"),
@@ -4048,7 +4055,7 @@ def deliver(
     }, "package")
     package = delivery_root / "firmware.bkpack"
     run("bkpack-create", "python3", [
-        python, str(scripts / "bk7258_bkpack.py"), "create",
+        python, str(source_tools / "bk7258_bkpack.py"), "create",
         "--source", str(package_source), "--partition", str(partition_csv),
         "--output", str(package),
     ], package_source, {
@@ -4056,7 +4063,7 @@ def deliver(
         "BK7258_PARTITION_LAYOUT_SHA256": plan["partition_layout"]["layout_sha256"],
     }, "package")
     run("bkpack-verify", "python3", [
-        python, str(scripts / "bk7258_bkpack.py"), "verify", "--package", str(package),
+        python, str(source_tools / "bk7258_bkpack.py"), "verify", "--package", str(package),
     ], delivery_root, {
         "BK7258_PARTITION_LAYOUT_ID": plan["partition_layout"]["layout_id"],
         "BK7258_PARTITION_LAYOUT_SHA256": plan["partition_layout"]["layout_sha256"],
@@ -4169,7 +4176,9 @@ def prepare_delivery(
     for name in ("payload", "work", "manifests", "dual-input", "package-source",
                  "inputs", "logs"):
         (delivery_root / name).mkdir()
-    source_board = source_root / "contest2026_135_yongwangzhiqian/board/bk7258"
+    source_repository = source_root / "contest2026_135_yongwangzhiqian"
+    source_board = source_repository / "board/bk7258"
+    source_tools = source_repository / "tools/bk7258"
     scripts = source_board / "scripts"
     bootloader = source_board / "bootloader"
     partition_relative = plan["partition_layout"]["source"]
@@ -4195,7 +4204,7 @@ def prepare_delivery(
         layout_source=partition_csv,
         layout_id=plan["partition_layout"]["layout_id"],
         layout_sha256=plan["partition_layout"]["layout_sha256"])
-    tool_records = _delivery_tool_records(source_board)
+    tool_records = _delivery_tool_records(source_board, source_tools)
     commands: list[dict[str, Any]] = []
     command_index = 0
 

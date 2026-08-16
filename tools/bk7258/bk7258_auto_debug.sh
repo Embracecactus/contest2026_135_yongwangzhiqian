@@ -5,7 +5,16 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-OPENVELA_ROOT=$(cd "$SCRIPT_DIR/../../../.." && pwd)
+# 形态无关地解析 openvela workspace 根（P1 路径层），
+# 替代旧 scripts/ 位置下的 SCRIPT_DIR/../../.. 推导（迁移到 tools/bk7258 后语义已变）。
+OPENVELA_ROOT="$(python3 - "${SCRIPT_DIR}" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from bk7258_paths import Bk7258Layout
+lay = Bk7258Layout()
+print(lay.workspace_root or lay.contest_root.parent)
+PY
+)"
 BUILD_SCRIPT="$SCRIPT_DIR/build_dual_image.sh"
 BKPACK_TOOL="$SCRIPT_DIR/bk7258_bkpack.py"
 TRUST_CHAIN_TOOL="$SCRIPT_DIR/bk7258_trust_chain.py"

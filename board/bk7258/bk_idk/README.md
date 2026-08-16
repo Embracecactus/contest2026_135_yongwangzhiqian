@@ -45,14 +45,14 @@ CP 的 4 个 legacy loose object 不参与 NuttX 链接。
 普通构建不设置变量时使用 `v3.1.1.9`：
 
 ```bash
-JOBS=8 board/bk7258/scripts/build_dual_image.sh
+JOBS=8 tools/bk7258/build_dual_image.sh
 ```
 
 下列legacy选择方式只作为历史恢复说明保留，当前规则禁止执行：
 
 ```bash
 BK7258_SDK_BUNDLE_VERSION=legacy JOBS=8 \
-  board/bk7258/scripts/build_dual_image.sh
+  tools/bk7258/build_dual_image.sh
 ```
 
 Classic Make 与 CMake 接受 `legacy`、`v3.1.1.9` 和 AP-only
@@ -66,11 +66,11 @@ profile 都使用 `v3.1.1.9`；T5-Board 四线 TF profile 显式绑定 AP varian
 默认校验最新 CP，完整校验应显式检查两个角色：
 
 ```bash
-board/bk7258/scripts/setup_bk7258_sdk.sh \
+tools/bk7258/setup_bk7258_sdk.sh \
   --check --version v3.1.1.9 --role cp
-board/bk7258/scripts/setup_bk7258_sdk.sh \
+tools/bk7258/setup_bk7258_sdk.sh \
   --check --version v3.1.1.9 --role ap
-board/bk7258/scripts/setup_bk7258_sdk.sh \
+tools/bk7258/setup_bk7258_sdk.sh \
   --check --version v3.1.1.9-sdio4 --role ap
 ```
 
@@ -84,7 +84,7 @@ legacy回退包保留有完整清单；下列命令当前禁止执行，仅供�
 
 ```bash
 for role in cp ap; do
-  board/bk7258/scripts/setup_bk7258_sdk.sh \
+  tools/bk7258/setup_bk7258_sdk.sh \
     --check --version legacy --role "${role}"
 done
 ```
@@ -92,8 +92,8 @@ done
 清单和来源记录位于：
 
 ```text
-scripts/sdk-manifests/<version>/<role>.sha256
-scripts/sdk-manifests/<version>/<role>.provenance
+board/bk7258/bk_idk/manifests/<version>/<role>.sha256
+board/bk7258/bk_idk/manifests/<version>/<role>.provenance
 ```
 
 ## 重新编译和导入
@@ -116,7 +116,7 @@ JPEG decoder、scale/rotate。静态库中存在能力不代表 NuttX 驱动已�
 四线 AP bundle 的可复现导入命令为：
 
 ```bash
-board/bk7258/scripts/import_bk7258_sdk_role.sh \
+tools/bk7258/import_bk7258_sdk_role.sh \
   --sdk-dir /path/to/authorized/bk_avdk_smp \
   --role ap --bundle-version v3.1.1.9-sdio4 \
   --profile ap-peripherals-r2-sdio4 --build --replace

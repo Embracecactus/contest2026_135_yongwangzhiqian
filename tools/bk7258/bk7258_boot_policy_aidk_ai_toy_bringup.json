@@ -6,7 +6,7 @@
   "product": "aidk_ai_toy_bringup",
   "family": "aidk_ai_toy",
   "board": "aidk_ai_toy",
-  "catalog": "board/bk7258/scripts/bk7258_product_catalog_aidk_ai_toy_bringup.json",
+  "catalog": "tools/bk7258/bk7258_product_catalog_aidk_ai_toy_bringup.json",
   "boot": "mcuboot",
   "bl2_image_logical_size": 12288,
   "active_roles": ["bl1", "bl2", "cp", "ap"],
@@ -173,5 +173,5 @@
     ],
     "no_key_paths": true
   },
-  "identity_sha256": "343ead519fef9f6605793d598a06583f6cf4d9fb46c3a838444924af6bd292c2"
+  "identity_sha256": "66bf54c3df363d8af70135c155631a2c076f768f10d04fc4d89ca0c32d553eb5"
 }

@@ -567,13 +567,13 @@ def main(argv: list[str] | None = None) -> int:
     root = args.root.resolve()
     try:
         if args.command == "ownership-check":
-            path = args.manifest or root / "board/bk7258/scripts/bk7258_layer_ownership.json"
+            path = args.manifest or root / "tools/bk7258/bk7258_layer_ownership.json"
             validate_ownership_manifest(root, load_json(path))
         elif args.command == "migration-check":
-            path = args.ledger or root / "board/bk7258/scripts/bk7258_compatibility_migration_ledger.json"
+            path = args.ledger or root / "tools/bk7258/bk7258_compatibility_migration_ledger.json"
             validate_migration_ledger(root, load_json(path))
         else:
-            path = args.graph or root / "board/bk7258/scripts/bk7258_resource_graph_t5ai_core.json"
+            path = args.graph or root / "tools/bk7258/bk7258_resource_graph_t5ai_core.json"
             graph = load_json(path)
             if args.command == "graph-check":
                 validate_resource_graph(root, graph)

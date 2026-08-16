@@ -4,7 +4,23 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BOARD_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+LAYOUT_PATHS="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+from bk7258_paths import Bk7258Layout
+layout = Bk7258Layout()
+print(layout.board_dir)
+print(layout.tools_dir)
+' "$SCRIPT_DIR")" || {
+  printf '%s\n' 'error: cannot resolve BK7258 layout' >&2
+  exit 1
+}
+BOARD_DIR="${LAYOUT_PATHS%%$'\n'*}"
+TOOLS_DIR="${LAYOUT_PATHS#*$'\n'}"
+if [[ "$BOARD_DIR" == "$LAYOUT_PATHS" || -z "$BOARD_DIR" || -z "$TOOLS_DIR" ]]; then
+  printf '%s\n' 'error: malformed BK7258 layout result' >&2
+  exit 1
+fi
 SDK_DIR="${BK7258_SDK_SOURCE:-${ARMINO_SDK_DIR:-}}"
 ROLE=""
 VERSION="v3.1.1.9"
@@ -409,7 +425,7 @@ ROLE_EXPORT="${EXPORT_DIR}/${BUILD_NAME}"
 COMPILE_DB="${BUILD_DIR}/compile_commands.json"
 BUNDLE_BASE="${BOARD_DIR}/bk_idk/armino_as_lib"
 DEST="${BUNDLE_BASE}/versions/${VERSION}/${ROLE}"
-MANIFEST_DIR="${SCRIPT_DIR}/sdk-manifests/${VERSION}"
+MANIFEST_DIR="${BOARD_DIR}/bk_idk/manifests/${VERSION}"
 MANIFEST="${MANIFEST_DIR}/${ROLE}.sha256"
 PROVENANCE="${MANIFEST_DIR}/${ROLE}.provenance"
 TMP_DEST="${DEST}.tmp.$$"
@@ -522,7 +538,7 @@ SDK_GIT_COMMIT="$(
   printf 'libdriver_final_sha256=%s\n' "$FINAL_LIBDRIVER_SHA256"
 } > "$TMP_PROVENANCE"
 
-python3 "${SCRIPT_DIR}/generate_bk7258_sdk_manifest.py" \
+python3 "${TOOLS_DIR}/generate_bk7258_sdk_manifest.py" \
   --bundle-dir "$TMP_DEST" --output "$TMP_MANIFEST"
 (cd "$TMP_DEST" && sha256sum -c "$TMP_MANIFEST" --quiet)
 printf 'final_manifest_sha256=%s\n' \
@@ -607,7 +623,7 @@ PROVENANCE_INSTALLED=true
 mv "$TMP_PROVENANCE" "$PROVENANCE"
 TMP_PROVENANCE=""
 
-"${SCRIPT_DIR}/setup_bk7258_sdk.sh" --check "$DEST" \
+"${TOOLS_DIR}/setup_bk7258_sdk.sh" --check "$DEST" \
   --version "$VERSION" --role "$ROLE"
 INSTALL_COMMITTED=true
 

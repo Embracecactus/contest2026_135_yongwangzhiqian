@@ -6,7 +6,7 @@
   "product": "t5ai_core_bringup",
   "family": "t5ai_core",
   "board": "t5ai_core",
-  "catalog": "board/bk7258/scripts/bk7258_product_catalog_t5ai_core_bringup.json",
+  "catalog": "tools/bk7258/bk7258_product_catalog_t5ai_core_bringup.json",
   "boot": "raw",
   "bl2_image_logical_size": null,
   "active_roles": ["bl1", "cp", "ap"],
@@ -135,5 +135,5 @@
     "authorization_fields": ["permissions.package"],
     "no_key_paths": true
   },
-  "identity_sha256": "ee6edd390aff80ba46aaa273e56f215f44fd37752bf6fafa2f1a9a111d9bcfc4"
+  "identity_sha256": "56837db1739863c4cd49cfe60d4605c89eb725bacca7a3ada99a6291c01261ff"
 }

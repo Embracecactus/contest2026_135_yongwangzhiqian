@@ -17,6 +17,7 @@ bootable image.
 
 from __future__ import annotations
 
+
 import argparse
 import hashlib
 import json
@@ -26,7 +27,11 @@ import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from bk7258_paths import load_board_script
+
+bk7258_crc_expand = load_board_script("bk7258_crc_expand")
 from bk7258_crc_expand import expand
+gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
 from gen_bk7258_partitions import PartitionLayout, load_layout
 
 

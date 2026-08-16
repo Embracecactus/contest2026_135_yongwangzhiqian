@@ -12,6 +12,10 @@ documented BL1 control area, not the current 32+2 legacy boot envelope.
 
 from __future__ import annotations
 
+from bk7258_paths import Bk7258Layout, load_board_script
+
+
+
 import argparse
 import hashlib
 import json
@@ -19,13 +23,16 @@ import struct
 import sys
 from pathlib import Path
 
+bk7258_crc_expand = load_board_script("bk7258_crc_expand")
 from bk7258_crc_expand import decode, expand
+from bk7258_paths import Bk7258Layout
+gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
 from gen_bk7258_partitions import SECUREBOOT_XIP_LAYOUT, load_layout
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_PARTITION_CSV = (
-    SCRIPT_DIR.parent / "partitions/bk7258/secureboot_xip_cp_ap.csv"
+    Bk7258Layout().board_dir / "partitions/bk7258/secureboot_xip_cp_ap.csv"
 )
 CPU_VECTOR_ALIGNMENT = 512
 DEFAULT_BL2_LOGICAL_SIZE = 0x3000

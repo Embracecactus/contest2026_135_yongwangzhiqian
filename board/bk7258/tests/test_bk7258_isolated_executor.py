@@ -16,7 +16,7 @@ from unittest import mock
 from pathlib import Path
 
 
-SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPT_DIR = Path(__file__).resolve().parents[3] / "tools" / "bk7258"
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -52,6 +52,17 @@ class IsolatedPrepareTests(unittest.TestCase):
             "cmake_minimum_required(VERSION 3.16)\n", encoding="utf-8")
         (workspace / "packages/source.c").write_text("before\n", encoding="utf-8")
         return workspace
+
+    def test_delivery_tool_records_split_board_hooks_and_host_tools(self):
+        board = REPOSITORY / "board/bk7258"
+        tools = REPOSITORY / "tools/bk7258"
+        records = isolated._delivery_tool_records(board, tools)
+        for name in ("postbuild", "crc_expand", "bl2_crc"):
+            self.assertTrue(
+                Path(records[name]["path"]).is_relative_to(board / "scripts")
+            )
+        for name in ("mcuboot_pair", "dual_image", "bkpack", "trust_chain"):
+            self.assertEqual(Path(records[name]["path"]).parent, tools)
 
     def test_prepare_materializes_runtime_seeds_and_declares_pending_snapshot(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -3,14 +3,14 @@
 > product、validation-suite 和 materializer 入口是：
 >
 > ```sh
-> python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+> python3 tools/bk7258/bk7258_framework.py build-plan \
 >   --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
-> python3 board/bk7258/scripts/bk7258_framework.py validation-check
-> python3 board/bk7258/scripts/materialize_product_profiles.py \
+> python3 tools/bk7258/bk7258_framework.py validation-check
+> python3 tools/bk7258/materialize_product_profiles.py \
 >   --plan <build-root>/bk7258-build-plan.json \
 >   --seed-root board/bk7258/configs --output <build-root>/configs \
 >   --make-defs board/bk7258/scripts/Make.defs
-> python3 board/bk7258/scripts/bk7258_isolated_executor.py prepare \
+> python3 tools/bk7258/bk7258_isolated_executor.py prepare \
 >   --product t5_board_bringup --build-root <build-root> \
 >   --out <build-root>/execution.json
 > ```
@@ -157,9 +157,9 @@ WSL 路径：
 ### 2.3 自动化脚本
 
 ```text
-contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
-contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh
-contest2026_135_yongwangzhiqian/board/bk7258/scripts/capture_windows_serial.ps1
+contest2026_135_yongwangzhiqian/tools/bk7258/build_dual_image.sh
+contest2026_135_yongwangzhiqian/tools/bk7258/bk7258_auto_debug.sh
+contest2026_135_yongwangzhiqian/tools/bk7258/capture_windows_serial.ps1
 ```
 
 ## 3. 每轮开始前的检查
@@ -197,7 +197,7 @@ COM11
 快速只读自检：
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/tools/bk7258/bk7258_auto_debug.sh \
   --cold-capture --capture-seconds 3
 ```
 
@@ -230,10 +230,10 @@ SerialPort.Open(COM11): Access denied
 产品解析、suite catalog 校验和临时 role view 渲染均为 host-only：
 
 ```bash
-python3 board/bk7258/scripts/bk7258_framework.py build-plan \
+python3 tools/bk7258/bk7258_framework.py build-plan \
   --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
-python3 board/bk7258/scripts/bk7258_framework.py validation-check
-python3 board/bk7258/scripts/materialize_product_profiles.py \
+python3 tools/bk7258/bk7258_framework.py validation-check
+python3 tools/bk7258/materialize_product_profiles.py \
   --plan <build-root>/bk7258-build-plan.json \
   --seed-root board/bk7258/configs --output <build-root>/configs \
   --make-defs board/bk7258/scripts/Make.defs
@@ -251,12 +251,12 @@ suite 选择必须和其绑定 product 一致；`validation-check` 只验证合�
 需要生成隔离证据时继续使用同一 product plan：
 
 ```bash
-python3 board/bk7258/scripts/bk7258_isolated_executor.py prepare \
+python3 tools/bk7258/bk7258_isolated_executor.py prepare \
   --product t5_board_bringup --build-root <build-root> \
   --out <build-root>/execution.json
-python3 board/bk7258/scripts/bk7258_isolated_executor.py materialize-sources \
+python3 tools/bk7258/bk7258_isolated_executor.py materialize-sources \
   --manifest <build-root>/execution.json
-python3 board/bk7258/scripts/bk7258_isolated_executor.py compile-runtime \
+python3 tools/bk7258/bk7258_isolated_executor.py compile-runtime \
   --manifest <build-root>/execution.json --authorize-compile
 ```
 
@@ -339,7 +339,7 @@ sha256: d83c8e38bec19160f9d54d0832a4f553dab85bd568173f2a1ebe4fc9e860d405
 
 ```bash
 BK7258_PRODUCT=t5_board_bringup \
-  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
+  ./contest2026_135_yongwangzhiqian/tools/bk7258/bk7258_auto_debug.sh \
   --build \
   --flash \
   --sparse-flash \
@@ -396,7 +396,7 @@ nuttx/bk7258-dual/build-profile.txt
 推荐：
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/tools/bk7258/bk7258_auto_debug.sh \
   --flash \
   --sparse-flash \
   --apps-only \
@@ -408,7 +408,7 @@ nuttx/bk7258-dual/build-profile.txt
 ```bash
 cd /home/lijian/project/open-vela
 
-./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/tools/bk7258/bk7258_auto_debug.sh \
   --flash \
   --sparse-flash \
   --apps-only \
@@ -418,7 +418,7 @@ cd /home/lijian/project/open-vela
 无人值守的CP/AP-only sparse更新不需要`--yes`，但信任预检不可跳过：
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/tools/bk7258/bk7258_auto_debug.sh \
   --flash --sparse-flash --apps-only --no-console
 ```
 
@@ -498,7 +498,7 @@ nsh>
 ```bash
 cd /home/lijian/project/open-vela
 
-./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/tools/bk7258/bk7258_auto_debug.sh \
   --cold-capture \
   --capture-seconds 30
 ```
@@ -576,7 +576,7 @@ core:  STAR r1p0
 脚本命令：
 
 ```bash
-./contest2026_135_yongwangzhiqian/board/bk7258/scripts/bk7258_auto_debug.sh \
+./contest2026_135_yongwangzhiqian/tools/bk7258/bk7258_auto_debug.sh \
   --jlink-reset --capture-seconds 30
 ```
 
@@ -642,7 +642,7 @@ COM11 空闲且 NSH 已出现时，可以使用 PowerShell capture 脚本发送�
 cd /home/lijian/project/open-vela
 
 PS1=$(wslpath -w \
-  contest2026_135_yongwangzhiqian/board/bk7258/scripts/capture_windows_serial.ps1)
+  contest2026_135_yongwangzhiqian/tools/bk7258/capture_windows_serial.ps1)
 OUT=$(wslpath -w /home/lijian/project/open-vela/logs/apctl-status.raw)
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass \

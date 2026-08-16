@@ -19,6 +19,9 @@ the secret material through its own credential boundary.
 
 from __future__ import annotations
 
+
+from bk7258_paths import Bk7258Layout, load_board_script
+
 import argparse
 import copy
 import hashlib
@@ -30,7 +33,7 @@ from typing import Any, Mapping
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-CONTEST_ROOT = SCRIPT_DIR.parents[2]
+CONTEST_ROOT = Bk7258Layout().contest_root
 POLICY_SCHEMA = "bk7258.boot-policy/1"
 POLICY_KIND = "product-boot-policy"
 BUILD_PLAN_SCHEMA = "bk7258.build-plan/1"
@@ -43,9 +46,9 @@ POLICY_FILES = {
     "t5ai_core_bringup": "bk7258_boot_policy_t5ai_core_bringup.json",
 }
 PRODUCT_CATALOGS = {
-    "aidk_ai_toy_bringup": "board/bk7258/scripts/bk7258_product_catalog_aidk_ai_toy_bringup.json",
-    "t5_board_bringup": "board/bk7258/scripts/bk7258_product_catalog_t5_board_bringup.json",
-    "t5ai_core_bringup": "board/bk7258/scripts/bk7258_product_catalog_t5ai_core_bringup.json",
+    "aidk_ai_toy_bringup": "tools/bk7258/bk7258_product_catalog_aidk_ai_toy_bringup.json",
+    "t5_board_bringup": "tools/bk7258/bk7258_product_catalog_t5_board_bringup.json",
+    "t5ai_core_bringup": "tools/bk7258/bk7258_product_catalog_t5ai_core_bringup.json",
 }
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 ID_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
@@ -664,9 +667,8 @@ def _load_layout(repository: Path, catalog: Mapping[str, Any]):
         raise BootPolicyError(f"missing resolved partition layout: {source}") from error
     if resolved != source or not resolved.is_file():
         raise BootPolicyError("resolved partition layout must be an in-tree regular file")
-    if str(SCRIPT_DIR) not in sys.path:
-        sys.path.insert(0, str(SCRIPT_DIR))
     try:
+        gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
         from gen_bk7258_partitions import load_layout
         from gen_bk7258_partitions import PartitionLayoutError
         layout = load_layout(resolved)
@@ -888,7 +890,7 @@ def policy_path(repository: Path, product: str) -> Path:
     if product not in POLICY_FILES:
         raise BootPolicyError(f"unknown BK7258 product: {product}")
     repository = Path(repository).resolve()
-    path = repository / "board/bk7258/scripts" / POLICY_FILES[product]
+    path = repository / "tools/bk7258" / POLICY_FILES[product]
     try:
         resolved = path.resolve(strict=True)
     except OSError as error:

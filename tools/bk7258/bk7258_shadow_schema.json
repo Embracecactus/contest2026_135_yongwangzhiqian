@@ -24,9 +24,9 @@
     "kind": {"const": "legacy-profile-shadow-ledger"},
     "version": {"const": 1},
     "status": {"const": "shadow-only"},
-    "source_manifest": {"const": "board/bk7258/scripts/legacy_profile_freeze_manifest.json"},
+    "source_manifest": {"const": "tools/bk7258/legacy_profile_freeze_manifest.json"},
     "source_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "source_migration_ledger": {"const": "board/bk7258/scripts/legacy_profile_migration_ledger.json"},
+    "source_migration_ledger": {"const": "tools/bk7258/legacy_profile_migration_ledger.json"},
     "source_migration_ledger_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "profile_count": {"const": 27},
     "statuses": {

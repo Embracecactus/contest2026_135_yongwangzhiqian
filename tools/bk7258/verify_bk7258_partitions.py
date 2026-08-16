@@ -3,11 +3,16 @@
 
 from __future__ import annotations
 
+
+
 import argparse
 import json
 import tempfile
 from pathlib import Path
 
+from bk7258_paths import load_board_script
+
+gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
 from gen_bk7258_partitions import (
     DEFAULT_HEADER,
     DEFAULT_INPUT,

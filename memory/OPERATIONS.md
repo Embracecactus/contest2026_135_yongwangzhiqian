@@ -65,7 +65,7 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
   profiles, build clean role outputs, import them into a new versioned bundle,
   record manifests/provenance, then run the bounded ABI/link review before
   changing the default selector.
-- Build paired CP/AP profiles with `board/bk7258/scripts/build_dual_image.sh`.
+- Build paired CP/AP profiles with `tools/bk7258/build_dual_image.sh`.
   The default direct pair is `t5ai_core_cp_base + t5ai_core_ap_base`; the
   current profile catalog and compatible pairs are maintained in
   [`board/bk7258/configs/README.md`](../board/bk7258/configs/README.md).

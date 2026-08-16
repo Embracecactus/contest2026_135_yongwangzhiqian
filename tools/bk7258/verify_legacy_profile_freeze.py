@@ -20,14 +20,16 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
+from bk7258_paths import Bk7258Layout
+
 
 APPROVED_BASE_COMMIT = "2eb0353ee6989e6654629aa0b67cac8c7c1ee810"
 CONFIGS_REL = Path("board/bk7258/configs")
 CUTOVER_README_REL = (CONFIGS_REL / "README.md").as_posix()
 CUTOVER_SEED_FILE_NAMES = ("defconfig", "profile.conf")
-MANIFEST_REL = Path("board/bk7258/scripts/legacy_profile_freeze_manifest.json")
-LEDGER_REL = Path("board/bk7258/scripts/legacy_profile_migration_ledger.json")
-INVENTORY_REL = Path("board/bk7258/scripts/legacy_profile_consumers.json")
+MANIFEST_REL = Path("tools/bk7258/legacy_profile_freeze_manifest.json")
+LEDGER_REL = Path("tools/bk7258/legacy_profile_migration_ledger.json")
+INVENTORY_REL = Path("tools/bk7258/legacy_profile_consumers.json")
 MANIFEST_SCHEMA = 1
 CUTOVER_MANIFEST_SCHEMA = 2
 CUTOVER_STATUS = "cutover-approved"
@@ -124,7 +126,9 @@ def sha256_file(path: Path) -> str:
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
+    # The freeze reads approved blobs out of Git history, so this must be the
+    # contest repository root regardless of how the tools are checked out.
+    return Bk7258Layout().contest_root
 
 
 def relative_path(path: Path, root: Path) -> str:

@@ -105,6 +105,6 @@
       "entrypoint": "app/hello_app/bkvalidate_main.c"
     }
   ],
-  "legacy_ledger": "board/bk7258/scripts/legacy_profile_migration_ledger.json",
-  "identity_sha256": "b05f698d140cf9ae3a4b4b006f8f6006903be014ba2eeaca55032eccb2df6f89"
+  "legacy_ledger": "tools/bk7258/legacy_profile_migration_ledger.json",
+  "identity_sha256": "b1c677f43d040083e4f679421cad4d5e07b641a62aa97c76f2f466c61ca309f0"
 }
