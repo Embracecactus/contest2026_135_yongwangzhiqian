@@ -14,14 +14,13 @@ import stat
 from pathlib import Path
 from typing import Any
 
-from bk7258_framework import (
+from bk7258_common import (
     FrameworkError,
     array,
     canonical_json,
     exact,
     identifier,
     identifiers,
-    load_validation_suites,
     load_json,
     relative_path,
     sha256,
@@ -91,90 +90,9 @@ def _identity(value: dict[str, Any], field: str) -> dict[str, Any]:
     return value
 
 
-def validate_legacy_profile_mapping(repository: Path, descriptor_set: dict[str, Any]) -> dict[str, Any]:
-    path = repository / descriptor_set["legacy_ledger"]
-    ledger = load_json(path)
-    expected_keys = {"schema", "kind", "status", "source_manifest", "rules", "rows"}
-    exact(ledger, expected_keys, "legacy profile migration ledger")
-    if (ledger["schema"] != 1 or ledger["kind"] != "bk7258-legacy-profile-migration-ledger" or
-            ledger["status"] not in {"cutover-approved", "proposal-only"}):
-        raise FrameworkError("legacy profile migration ledger is not an approved historical record")
-    rows = array(ledger["rows"], "legacy profile migration rows")
-    profiles_root = repository / "board/bk7258/configs"
-    try:
-        profiles = sorted(
-            path.name for path in profiles_root.iterdir()
-            if path.is_dir() and (path / "profile.conf").is_file()
-        )
-    except OSError as error:
-        raise FrameworkError("canonical profile root is unavailable") from error
-    if len(rows) != 27 or profiles != ["bl2_mcuboot", "t5ai_core_ap_base", "t5ai_core_cp_base"]:
-        raise FrameworkError("cutover must retain exactly the three canonical seed profiles")
-    suite_catalog = load_validation_suites(repository)
-    seen: set[str] = set()
-    families: set[str] = set()
-    suites: set[str] = set()
-    for index, raw in enumerate(rows):
-        row = raw if isinstance(raw, dict) else None
-        if row is None:
-            raise FrameworkError(f"legacy profile row {index} is malformed")
-        exact(row, {"legacy_profile", "board", "role", "boot", "class",
-                    "pair", "migration_state", "target", "review"},
-              f"legacy profile row {index}")
-        name = row["legacy_profile"]
-        if not isinstance(name, str) or name in seen:
-            raise FrameworkError(f"legacy profile coverage is not unique: {name}")
-        seen.add(name)
-        if row["migration_state"] not in {
-            "shadow-equivalent", "retire-blocked-hardware", "consolidation-review"
-        }:
-            raise FrameworkError(f"legacy profile state is not an approved historical state: {name}")
-        target = row["target"]
-        if not isinstance(target, dict):
-            raise FrameworkError(f"legacy profile target is malformed: {name}")
-        exact(target, {"family", "resource_mode", "validation_suite", "role",
-                       "pair", "decision", "owner", "capabilities"},
-              f"legacy profile target {name}")
-        for field in ("family", "resource_mode", "role", "pair"):
-            identifier(target[field], f"legacy profile target {name}.{field}")
-        if target["role"] != row["role"] or target["pair"] != row["pair"]:
-            raise FrameworkError(f"legacy profile target role/pair mismatch: {name}")
-        if (target["decision"] not in {"proposal", "approved-cutover"} or
-                target["owner"] not in {"P5-product-resource-review", "P9b-profile-cutover"}):
-            raise FrameworkError(f"legacy profile target decision mismatch: {name}")
-        suite = target["validation_suite"]
-        if suite is not None:
-            identifier(suite, f"legacy profile target {name}.validation_suite")
-            normalized = suite.replace("-", "_")
-            if normalized not in suite_catalog and not (
-                normalized == "tf" and
-                {"tf_1bit", "tf_4bit"}.issubset(suite_catalog)
-            ):
-                raise FrameworkError(f"legacy profile suite has no canonical carrier: {name}")
-            suites.add(normalized)
-        if row["class"] in {"validation", "ci"} and suite is None:
-            raise FrameworkError(f"validation/CI profile has no suite: {name}")
-        if row["class"] not in {"validation", "ci"} and suite is not None:
-            raise FrameworkError(f"runnable profile has an unexpected suite: {name}")
-        families.add(target["family"])
-    freeze = load_json(repository / "tools/bk7258/legacy_profile_freeze_manifest.json")
-    historical_names = set(freeze.get("retained_profiles", [])) | set(
-        freeze.get("retired_profiles", []))
-    if seen != historical_names:
-        raise FrameworkError("legacy profile mapping does not cover the historical cutover set")
-    return {
-        "profiles": len(profiles),
-        "families": sorted(families),
-        "suites": sorted(suites),
-        "legacy_state": "cutover-approved",
-        "migration_state": "canonical-suite-only",
-    }
-
-
 def validate_descriptor_set(repository: Path, value: dict[str, Any]) -> dict[str, Any]:
     exact(value, {"schema", "kind", "version", "serialization",
-                  "migration_policy", "descriptors", "legacy_ledger",
-                  "identity_sha256"}, "validation descriptor set")
+                  "descriptors", "identity_sha256"}, "validation descriptor set")
     if (value["schema"] != VALIDATION_SCHEMA or
             value["kind"] != "validation-descriptor-set" or value["version"] != 1):
         raise FrameworkError("unsupported validation descriptor schema")
@@ -186,18 +104,6 @@ def validate_descriptor_set(repository: Path, value: dict[str, Any]) -> dict[str
     if (serialization["scope"] != "global" or serialization["claim_policy"] != "exclusive" or
             serialization["outcome_schema"] != OUTCOME_SCHEMA):
         raise FrameworkError("validation serialization policy is unsafe")
-    migration = value["migration_policy"]
-    if not isinstance(migration, dict):
-        raise FrameworkError("validation migration policy is malformed")
-    exact(migration, {"legacy_validation", "production_auto_start",
-                      "legacy_profile_state", "legacy_bytes"},
-          "validation migration policy")
-    if (migration["legacy_validation"] != "canonical_suite_only" or
-            migration["production_auto_start"] != "canonical-only" or
-            migration["legacy_profile_state"] != "cutover-approved" or
-            migration["legacy_bytes"] != "historical-only"):
-        raise FrameworkError("validation migration policy is not fail-closed")
-    relative_path(value["legacy_ledger"], "validation legacy_ledger")
     descriptors = array(value["descriptors"], "validation descriptors")
     if not descriptors:
         raise FrameworkError("validation descriptor set is empty")
@@ -240,7 +146,6 @@ def validate_descriptor_set(repository: Path, value: dict[str, Any]) -> dict[str
         ):
             raise FrameworkError(f"validation descriptor is placed in chip/board code: {descriptor_id}")
         _regular(repository / entrypoint, f"validation descriptor {descriptor_id}.entrypoint")
-    mapping = validate_legacy_profile_mapping(repository, value)
     body = dict(value)
     supplied = body.pop("identity_sha256")
     if sha256(canonical_json(body)) != supplied:
@@ -248,7 +153,6 @@ def validate_descriptor_set(repository: Path, value: dict[str, Any]) -> dict[str
     return {
         "descriptors": len(descriptors),
         "claims": claim_owners,
-        "legacy": mapping,
         "standard_artifacts": dict(STANDARD_ARTIFACT_CONTRACT),
     }
 

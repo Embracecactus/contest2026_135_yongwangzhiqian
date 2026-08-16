@@ -29,8 +29,8 @@ from pathlib import Path
 
 from bk7258_paths import load_board_script
 
-bk7258_crc_expand = load_board_script("bk7258_crc_expand")
-from bk7258_crc_expand import expand
+bk7258_crc16 = load_board_script("bk7258_crc16")
+expand = bk7258_crc16.expand
 gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
 from gen_bk7258_partitions import PartitionLayout, load_layout
 

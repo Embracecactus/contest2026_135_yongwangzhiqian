@@ -670,7 +670,6 @@ def _load_layout(repository: Path, catalog: Mapping[str, Any]):
     try:
         gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
         from gen_bk7258_partitions import load_layout
-        from gen_bk7258_partitions import PartitionLayoutError
         layout = load_layout(resolved)
     except (ImportError, OSError, ValueError, RuntimeError) as error:
         raise BootPolicyError(f"cannot resolve partition layout: {source}") from error

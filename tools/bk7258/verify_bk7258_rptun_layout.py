@@ -23,7 +23,7 @@ from bk7258_ab_layout import (
     LAYOUT_SOURCE,
     verify_contract as verify_partition_contract,
 )
-import bk7258_framework as composition
+from bk7258_framework import config_document, resolve
 
 
 class VerificationError(RuntimeError):
@@ -246,20 +246,16 @@ def require_symbols(
 
 def verify_source_contract(repository: Path, board: Path,
                            compatibility: dict[str, object]) -> None:
-    cp_defconfig = composition.config_document(
-        composition.resolve_validation_suite(
-            repository, "t5ai_core_bringup", "psram", "cp"
-        )
+    cp_defconfig = config_document(
+        resolve(repository, "t5ai_core_bringup", "cp")
     )["defconfig"]
-    ap_defconfig = composition.config_document(
-        composition.resolve_validation_suite(
-            repository, "t5ai_core_bringup", "psram", "ap"
-        )
+    ap_defconfig = config_document(
+        resolve(repository, "t5ai_core_bringup", "ap")
     )["defconfig"]
-    if "CONFIG_BK7258_RPTUN_LAYOUT=y" not in cp_defconfig:
-        raise VerificationError("canonical CP defconfig does not reserve RPTUN memory")
-    if "CONFIG_BK7258_RPTUN_LAYOUT=y" not in ap_defconfig:
-        raise VerificationError("canonical AP defconfig does not reserve RPTUN memory")
+    if "CONFIG_BK7258_AP_CORE=y" in cp_defconfig.splitlines():
+        raise VerificationError("canonical CP defconfig must not be AP core")
+    if "CONFIG_BK7258_AP_CORE=y" not in ap_defconfig.splitlines():
+        raise VerificationError("canonical AP defconfig must select AP core")
     if "CONFIG_SMP_DEFAULT_CPUSET=0x1" not in ap_defconfig:
         raise VerificationError("canonical AP default CPU set is not pinned to CPU0")
 

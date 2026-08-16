@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Compatibility API backed by the generated BK7258 partition CSV model.
+"""Derived BK7258 A/B layout view over the generated partition CSV model.
 
-New code should prefer roles from :mod:`gen_bk7258_partitions`.  The exported
-constants come from the repository-owned CSV instead of a second hand-written
-layout table.
+This module is not a second source of truth: every constant is derived from
+the repository-owned ``gen_bk7258_partitions`` CSV model (role offsets,
+logical sizes, XIP addresses, Region tuples and official-row contracts).
+Consumers use it so the derived constants are computed once, in one place,
+instead of being re-derived per packer.  New role lookups should still use
+:mod:`gen_bk7258_partitions` directly.
 """
 
 from __future__ import annotations

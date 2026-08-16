@@ -15,7 +15,6 @@ from bk7258_ab_layout import (
     AP_XIP_SIZE,
     AP_XIP_START,
     BL2_SECONDARY_END,
-    BL2_SECONDARY_SIZE,
     BL2_SECONDARY_START,
     BL2_SIZE,
     BL2_START,

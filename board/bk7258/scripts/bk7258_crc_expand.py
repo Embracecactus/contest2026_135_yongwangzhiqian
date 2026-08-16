@@ -5,62 +5,16 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
 import json
 import struct
+import sys
 from pathlib import Path
 
-PACKET_DATA = 32
-PACKET_TOTAL = 34
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from bk7258_crc16 import expand
+
 APP_MAGIC = b"BK7236\0\0"
-
-_VENDOR_CRC_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "tools/vendor/bk7258-sdk-v3.1.1.9/bk_crc16.py"
-)
-_VENDOR_CRC_SPEC = importlib.util.spec_from_file_location(
-    "bk7258_sdk_v3119_crc16", _VENDOR_CRC_PATH
-)
-if _VENDOR_CRC_SPEC is None or _VENDOR_CRC_SPEC.loader is None:
-    raise ImportError(f"cannot load vendored SDK CRC helper: {_VENDOR_CRC_PATH}")
-_VENDOR_CRC_MODULE = importlib.util.module_from_spec(_VENDOR_CRC_SPEC)
-_VENDOR_CRC_SPEC.loader.exec_module(_VENDOR_CRC_MODULE)
-_VENDOR_CRC = _VENDOR_CRC_MODULE.bk_crc16()
-
-
-class ExpansionError(ValueError):
-    """Raised when a 32+2 encoded image is malformed."""
-
-
-def crc16(data: bytes) -> int:
-    return _VENDOR_CRC_MODULE.crc16(data, 0, len(data))
-
-
-def expand(data: bytes) -> bytes:
-    return _VENDOR_CRC.crc16_data(data)
-
-
-def decode(data: bytes) -> bytes:
-    """Verify and remove every BK7258 32-byte + CRC16 packet."""
-
-    if len(data) % PACKET_TOTAL:
-        raise ExpansionError(
-            f"encoded image size 0x{len(data):x} is not a multiple of "
-            f"{PACKET_TOTAL}"
-        )
-
-    output = bytearray()
-    for offset in range(0, len(data), PACKET_TOTAL):
-        block = data[offset : offset + PACKET_DATA]
-        stored_crc = struct.unpack_from(">H", data, offset + PACKET_DATA)[0]
-        observed_crc = crc16(block)
-        if stored_crc != observed_crc:
-            raise ExpansionError(
-                f"CRC16 mismatch at encoded offset 0x{offset:x}: "
-                f"expected 0x{stored_crc:04x}, got 0x{observed_crc:04x}"
-            )
-        output.extend(block)
-    return bytes(output)
 
 
 def parse_int(value: str) -> int:

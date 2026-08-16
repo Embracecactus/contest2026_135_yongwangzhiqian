@@ -39,8 +39,8 @@ from bk7258_ab_layout import (
     report as layout_report,
     verify_contract as verify_partition_contract,
 )
-bk7258_crc_expand = load_board_script("bk7258_crc_expand")
-from bk7258_crc_expand import expand
+bk7258_crc16 = load_board_script("bk7258_crc16")
+expand = bk7258_crc16.expand
 
 HEADER_SIZE = 0x200
 ALIGN = 4

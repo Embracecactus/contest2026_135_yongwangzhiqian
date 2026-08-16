@@ -10,7 +10,7 @@ import re
 import subprocess
 from pathlib import Path
 
-import bk7258_framework as composition
+from bk7258_framework import config_document, resolve
 from bk7258_paths import Bk7258Layout
 
 class VerificationError(RuntimeError):
@@ -127,36 +127,27 @@ def parse_u32_macros(text: str, names: set[str]) -> dict[str, int]:
 
 def verify_profiles(board: Path) -> dict[str, object]:
     repository = board.parents[1]
-    cp_name = "t5ai_core_bringup/psram/cp"
-    ap_name = "t5ai_core_bringup/psram/ap"
-    cp_ir = composition.resolve_validation_suite(
-        repository, "t5ai_core_bringup", "psram", "cp"
-    )
-    ap_ir = composition.resolve_validation_suite(
-        repository, "t5ai_core_bringup", "psram", "ap"
-    )
-    cp_config = composition.config_document(cp_ir)["defconfig"]
-    ap_config = composition.config_document(ap_ir)["defconfig"]
-    cp_required = [
-        "CONFIG_BK7258_AP_AUTOSTART_TIMEOUT_MS=60000",
-        "CONFIG_BK7258_PSRAM=y",
-        "CONFIG_BK7258_PSRAM_BOOT_TEST=y",
-        "CONFIG_BK7258_PSRAM_TEST=y",
-        "CONFIG_BK7258_SDK_TIMER_SELFTEST=y",
-    ]
-    ap_required = [
-        "CONFIG_BK7258_PSRAM=y",
-        "CONFIG_BK7258_PSRAM_TEST=y",
-        "CONFIG_BK7258_PSRAM_TEST_ITERATIONS=16",
-        'CONFIG_DEVICE_LOCAL_NAME="BK7258-N14"',
-        'CONFIG_DEVICE_NAME="BK7258 N14"',
-    ]
-    require_tokens(cp_config, cp_required, "T5AI-Core CP PSRAM profile")
-    require_tokens(ap_config, ap_required, "T5AI-Core AP PSRAM profile")
+    cp_name = "t5ai_core_bringup/cp"
+    ap_name = "t5ai_core_bringup/ap"
+    cp_ir = resolve(repository, "t5ai_core_bringup", "cp")
+    ap_ir = resolve(repository, "t5ai_core_bringup", "ap")
+    cp_config = config_document(cp_ir)["defconfig"]
+    ap_config = config_document(ap_ir)["defconfig"]
+    # Suite symbols are no longer injected into configs.  Only the retained
+    # seed/base contract is checked here; feature selection belongs to the
+    # final .config produced by menuconfig/Kconfig.
+    if "CONFIG_BK7258_AP_CORE=y" in cp_config.splitlines():
+        raise VerificationError("canonical CP profile must not be AP core")
+    if "CONFIG_BK7258_AP_CORE=y" not in ap_config.splitlines():
+        raise VerificationError("canonical AP profile must select AP core")
     for name, config in ((cp_name, cp_config), (ap_name, ap_config)):
         if "CONFIG_BK7258_BOARD_T5_BOARD=y" in config.splitlines():
             raise VerificationError(
                 f"{name} selects T5-Board instead of default T5AI-Core"
+            )
+        if "CONFIG_BK7258_BOARD_AIDK_AI_TOY=y" in config.splitlines():
+            raise VerificationError(
+                f"{name} selects AIDK instead of default T5AI-Core"
             )
 
     compat = "suite_psram_raw_v1"

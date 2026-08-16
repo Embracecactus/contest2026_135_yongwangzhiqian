@@ -1,1 +1,0 @@
-{"id":"boot_mcuboot_ab","kind":"config-fragment","requires":["common_base"],"schema":"bk7258.composition/1","scope":"boot","symbols":{"CONFIG_BK7258_MCUBOOT_IMAGE":"y"}}

@@ -19,6 +19,25 @@ import stat
 import sys
 from pathlib import Path
 from typing import Any, Callable
+from bk7258_common import (
+    FrameworkError,
+    HASH_RE,
+    ID_RE,
+    RETIRED_REPOSITORY_ROOTS,
+    SYMBOL_RE,
+    array,
+    canonical_json,
+    digest,
+    exact,
+    identifier,
+    identifiers,
+    load_json,
+    obj,
+    relative_path,
+    sha256,
+    symbols,
+    write_json,
+)
 
 from bk7258_paths import load_board_script
 
@@ -58,43 +77,17 @@ SDK_MANIFEST_ROOT = "board/bk7258/bk_idk/manifests"
 PRIVATE_MIRROR_URL = "https://github.com/Embracecactus/vendor-bk-avdk-smp.git"
 SDK_ENTRY_KINDS = frozenset({"official", "derived", "sealed-binary"})
 SDK_REQUIRED_DIRS = frozenset({"include", "config", "libs"})
-RETIRED_REPOSITORY_ROOTS = ("board/bk7258_t5ai",)
 TOKEN_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 SDK_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-ID_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
-SYMBOL_RE = re.compile(r"^CONFIG_[A-Z0-9_]+$")
-HASH_RE = re.compile(r"^[0-9a-f]{64}$")
-STAGES = {"common": 0, "role": 1, "board": 2, "boot": 3, "feature": 4,
-          "app": 5, "validation": 6, "factory": 7}
 BOARD_SELECTORS = {
     "aidk_ai_toy": "CONFIG_BK7258_BOARD_AIDK_AI_TOY",
     "t5_board": "CONFIG_BK7258_BOARD_T5_BOARD",
     "t5ai_core": "CONFIG_BK7258_BOARD_T5AI_CORE",
 }
-# These names belong to the legacy compatibility adapter only.  They are not
-# used to resolve IR symbols and are deliberately emitted under
-# ``build_plan.legacy_adapter`` rather than under resolved-role config.
-CANONICAL_SEED_DEFAULTS = {
-    "aidk_ai_toy_bringup": {
-        "cp": "t5ai_core_cp_base", "ap": "t5ai_core_ap_base",
-    },
-    "t5_board_bringup": {
-        "cp": "t5ai_core_cp_base", "ap": "t5ai_core_ap_base",
-    },
-    "t5ai_core_bringup": {
-        "cp": "t5ai_core_cp_base", "ap": "t5ai_core_ap_base",
-    },
-}
-CANONICAL_OVERLAYS = {
-    "aidk_ai_toy_bringup": "aidk_ai_toy_minimal_v1",
-    "t5_board_bringup": "none",
-    "t5ai_core_bringup": "none",
-}
-# The canonical role configuration is generated from the resolved IR and the
-# selected fragments.  The three retained seed files are only compatibility
-# fixtures; no resolver or isolated build reads the legacy profile tree.
-CANONICAL_CONFIG_SOURCE = "tools/bk7258/bk7258_framework.py"
-CANONICAL_CONFIG_COMPAT = "canonical-fragments-v1"
+# The canonical role configuration is the retained seed defconfig (or a
+# user-provided final .config); the final .config produced by Kconfig is the
+# only configuration authority.  No fragment/overlay merge remains.
+CANONICAL_CONFIG_COMPAT = "seed-config-v1"
 
 # P6 is deliberately a metadata-only package boundary.  Keep the standard
 # build outputs visible in the package contract; the optional ``.bkpack``
@@ -125,91 +118,30 @@ TRANSPORT_SCHEMA = "bk7258.transport/1"
 TRANSPORT_HOSTS = frozenset({"linux", "darwin", "windows", "wsl"})
 TRANSPORT_IDENTITY_KEYS = ("vid", "pid", "serial_prefix", "interface", "location")
 TRANSPORT_CAPABILITY_KEYS = ("rts", "dtr", "reset", "rts_reset")
-SHADOW_SCHEMA = "bk7258.shadow/1"
-SHADOW_REPORT_SCHEMA = "bk7258.shadow-report/1"
-SHADOW_LEDGER_REL = "tools/bk7258/bk7258_shadow_ledger.json"
-SHADOW_STATUS_ORDER = ("shadow-equivalent", "retire-blocked-hardware")
-SHADOW_STATUS = frozenset(SHADOW_STATUS_ORDER)
 FRAMEWORK_CHECK_SCHEMA = "bk7258.framework-check/1"
 PARTITION_ROOT = "board/bk7258/partitions"
 
 
-class FrameworkError(ValueError):
-    """Any malformed, ambiguous, or unsupported framework input."""
 
 
-def canonical_json(value: Any) -> bytes:
-    return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
-def sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
 
 
-def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise FrameworkError(f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
 
 
-def load_json(path: Path) -> dict[str, Any]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_pairs)
-    except FrameworkError:
-        raise
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise FrameworkError(f"cannot load JSON: {path}") from error
-    if not isinstance(value, dict):
-        raise FrameworkError(f"JSON root is not an object: {path}")
-    return value
 
 
-def obj(value: Any, field: str) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise FrameworkError(f"{field} must be an object")
-    return value
 
 
-def array(value: Any, field: str) -> list[Any]:
-    if not isinstance(value, list):
-        raise FrameworkError(f"{field} must be an array")
-    return value
 
 
-def exact(value: dict[str, Any], keys: set[str], field: str) -> None:
-    if set(value) != keys:
-        raise FrameworkError(f"{field} keys are not exact")
 
 
-def identifier(value: Any, field: str) -> str:
-    if not isinstance(value, str) or not ID_RE.fullmatch(value):
-        raise FrameworkError(f"unsafe identifier in {field}")
-    return value
 
 
-def identifiers(value: Any, field: str) -> list[str]:
-    values = array(value, field)
-    result = [identifier(item, f"{field}[]") for item in values]
-    if len(result) != len(set(result)):
-        raise FrameworkError(f"duplicate identifier in {field}")
-    return result
 
 
-def relative_path(value: Any, field: str) -> str:
-    if (not isinstance(value, str) or not value or "\\" in value or
-            "\x00" in value or any(char.isspace() for char in value) or
-            value.startswith("/")):
-        raise FrameworkError(f"unsafe repository path in {field}")
-    parts = value.split("/")
-    if any(part in {"", ".", ".."} for part in parts):
-        raise FrameworkError(f"unsafe repository path in {field}")
-    if any(value == root or value.startswith(root + "/")
-           for root in RETIRED_REPOSITORY_ROOTS):
-        raise FrameworkError(f"retired repository path in {field}")
-    return value
 
 
 def _sdk_metadata_path(value: Any, field: str) -> str:
@@ -271,30 +203,19 @@ def _load_product_partition_layout(repository: Path, reference: Any,
     return layout
 
 
-def digest(value: Any, field: str) -> str:
-    if not isinstance(value, str) or not HASH_RE.fullmatch(value):
-        raise FrameworkError(f"invalid SHA-256 in {field}")
-    return value
 
 
-def symbols(value: Any, field: str = "symbols") -> dict[str, str | None]:
-    values = obj(value, field)
-    result: dict[str, str | None] = {}
-    for key, item in values.items():
-        if not isinstance(key, str) or not SYMBOL_RE.fullmatch(key):
-            raise FrameworkError(f"invalid Kconfig symbol in {field}")
-        if item is not None and (not isinstance(item, str) or
-                                 not (re.fullmatch(r"[A-Za-z0-9_./:+,-]+", item)
-                                      or re.fullmatch(r'"[^"\n]*"', item))):
-            raise FrameworkError(f"invalid Kconfig value for {key}")
-        result[key] = item
-    return result
 
 
 def validate_board_selector_symbols(board_id: str,
                                     values: dict[str, str | None],
                                     field: str) -> None:
-    """Require the resolved Kconfig board selector to match the IR board."""
+    """Require a present board selector to match the IR board.
+
+    Metadata documents may omit the selector when the board is the Kconfig
+    default; the strict check happens on the final .config via
+    :func:`verify_final_config`.
+    """
     if board_id not in BOARD_SELECTORS:
         raise FrameworkError(f"unsupported board selector in {field}: {board_id}")
 
@@ -307,13 +228,13 @@ def validate_board_selector_symbols(board_id: str,
         if value == "y":
             selected.append(candidate)
 
-    if selected != [board_id]:
+    if selected not in ([], [board_id]):
         raise FrameworkError(
-            f"{field} must select exactly board {board_id}: {selected}")
+            f"{field} may select only board {board_id}: {selected}")
 
 
 def validate_board(value: dict[str, Any]) -> dict[str, Any]:
-    exact(value, {"schema", "kind", "id", "soc", "variant", "bindings",
+    exact(value, {"schema", "kind", "id", "soc", "variant",
                   "resource_claims", "transport"}, "board")
     if value["schema"] != SCHEMA or value["kind"] != "board":
         raise FrameworkError("unsupported board schema")
@@ -321,19 +242,8 @@ def validate_board(value: dict[str, Any]) -> dict[str, Any]:
     if value["soc"] != "bk7258":
         raise FrameworkError("board.soc must be bk7258")
     identifier(value["variant"], "board.variant")
-    bindings = obj(value["bindings"], "board.bindings")
-    exact(bindings, {"console", "debug"}, "board.bindings")
-    console = obj(bindings["console"], "board.console")
-    exact(console, {"uart", "baud", "flow_control", "rts_reset"}, "board.console")
-    identifier(console["uart"], "board.console.uart")
-    if not isinstance(console["baud"], int) or isinstance(console["baud"], bool) or console["baud"] <= 0:
-        raise FrameworkError("board.console.baud must be positive")
-    if console["flow_control"] is not False or console["rts_reset"] is not False:
-        raise FrameworkError("board console flow control and RTS reset must be false")
-    debug = obj(bindings["debug"], "board.debug")
-    exact(debug, {"swd", "boot_hold", "rtt"}, "board.debug")
-    if any(debug[key] is not False for key in debug):
-        raise FrameworkError("board debug controls must be explicit false")
+    # Console/debug Kconfig facts are owned by the final .config, never by
+    # board metadata.  The board catalog keeps only electrical/resource facts.
     claims = array(value["resource_claims"], "board.resource_claims")
     seen: set[tuple[str, str]] = set()
     for index, raw in enumerate(claims):
@@ -359,18 +269,16 @@ def validate_board(value: dict[str, Any]) -> dict[str, Any]:
 
 def _role(value: Any, field: str) -> None:
     role = obj(value, field)
-    # Seed selection is compatibility-only and never belongs to the
-    # canonical product/IR role schema.
-    exact(role, {"fragments", "legacy_profile"}, field)
-    identifiers(role["fragments"], f"{field}.fragments")
+    # ``legacy_profile`` is the retained seed name for roles that have one.
+    exact(role, {"legacy_profile"}, field)
     if role["legacy_profile"] is not None:
         identifier(role["legacy_profile"], f"{field}.legacy_profile")
 
 
 def validate_product(value: dict[str, Any]) -> dict[str, Any]:
     exact(value, {"schema", "kind", "id", "family", "mode", "board", "boot",
-                  "roles", "fragments", "features", "validation_suite",
-                  "sdk_set", "sdk_lock", "partition_layout"}, "product")
+                  "roles", "sdk_set", "sdk_lock", "partition_layout"},
+          "product")
     if value["schema"] != SCHEMA or value["kind"] != "product":
         raise FrameworkError("unsupported product schema")
     for field in ("id", "family", "mode", "board"):
@@ -383,27 +291,10 @@ def validate_product(value: dict[str, Any]) -> dict[str, Any]:
     exact(roles, {"cp", "ap", "bl2"}, "product.roles")
     for role in roles:
         _role(roles[role], f"product.roles.{role}")
-    identifiers(value["fragments"], "product.fragments")
-    identifiers(value["features"], "product.features")
-    if value["validation_suite"] is not None:
-        identifier(value["validation_suite"], "product.validation_suite")
     _sdk_metadata_path(value["sdk_set"], "product.sdk_set")
     _sdk_metadata_path(value["sdk_lock"], "product.sdk_lock")
     _partition_layout_reference(value["partition_layout"],
                                 "product.partition_layout")
-    return value
-
-
-def validate_fragment(value: dict[str, Any]) -> dict[str, Any]:
-    exact(value, {"schema", "kind", "id", "scope", "symbols", "requires"}, "fragment")
-    if value["schema"] != SCHEMA or value["kind"] != "config-fragment":
-        raise FrameworkError("unsupported fragment schema")
-    identifier(value["id"], "fragment.id")
-    identifier(value["scope"], "fragment.scope")
-    if value["scope"] not in STAGES:
-        raise FrameworkError(f"unsupported fragment scope: {value['scope']}")
-    symbols(value["symbols"], "fragment.symbols")
-    identifiers(value["requires"], "fragment.requires")
     return value
 
 
@@ -414,8 +305,8 @@ def validate_ir(value: dict[str, Any]) -> dict[str, Any]:
         raise FrameworkError("unsupported IR schema")
     inputs = obj(value["inputs"], "IR.inputs")
     exact(inputs, {"product", "family", "mode", "board", "role", "boot",
-                   "features", "validation_suite", "legacy_profile",
-                   "partition_layout"}, "IR.inputs")
+                   "validation_suite", "legacy_profile", "partition_layout"},
+          "IR.inputs")
     for field in ("product", "family", "mode", "board"):
         identifier(inputs[field], f"IR.inputs.{field}")
     identifier(inputs["role"], "IR.inputs.role")
@@ -425,23 +316,13 @@ def validate_ir(value: dict[str, Any]) -> dict[str, Any]:
         raise FrameworkError("unsupported IR mode")
     if inputs["boot"] not in BOOTS:
         raise FrameworkError("unsupported IR boot")
-    identifiers(inputs["features"], "IR.inputs.features")
     for field in ("validation_suite", "legacy_profile"):
         if inputs[field] is not None:
             identifier(inputs[field], f"IR.inputs.{field}")
     _partition_layout_reference(inputs["partition_layout"],
                                 "IR.inputs.partition_layout")
-    fragments = array(value["fragments"], "IR.fragments")
-    ids: set[str] = set()
-    for index, raw in enumerate(fragments):
-        fragment = obj(raw, f"IR.fragments[{index}]")
-        exact(fragment, {"id", "scope", "sha256"}, f"IR.fragments[{index}]")
-        item_id = identifier(fragment["id"], f"IR.fragments[{index}].id")
-        if item_id in ids:
-            raise FrameworkError("duplicate IR fragment")
-        ids.add(item_id)
-        identifier(fragment["scope"], f"IR.fragments[{index}].scope")
-        digest(fragment["sha256"], f"IR.fragments[{index}].sha256")
+    if value["fragments"] != []:
+        raise FrameworkError("IR fragment lists are retired; no config overlay")
     resolved_symbols = symbols(value["symbols"], "IR.symbols")
     validate_board_selector_symbols(inputs["board"], resolved_symbols,
                                     "IR.symbols")
@@ -502,7 +383,6 @@ def load_catalog(repository: Path) -> dict[str, dict[str, dict[str, Any]]]:
     return {
         "boards": _collection(root, "board", validate_board),
         "products": _collection(root, "product", validate_product),
-        "fragments": _collection(root, "fragment", validate_fragment),
     }
 
 
@@ -512,9 +392,10 @@ VALIDATION_SUITE_REL = Path("tools/bk7258/bk7258_validation_suite_catalog.json")
 def load_validation_suites(repository: Path) -> dict[str, dict[str, Any]]:
     """Load the one-to-many validation suite map without creating products.
 
-    A suite is a data overlay on one of the three canonical products.  It is
-    deliberately separate from ``configs/``: selecting a validator changes
-    feature symbols and resource claims, never the board/profile tree.
+    A suite is a resource/behavior metadata overlay on one of the three
+    canonical products.  It is deliberately separate from ``configs/`` and
+    never injects Kconfig symbols: the final .config is the only configuration
+    authority.
     """
     document = load_json(repository / VALIDATION_SUITE_REL)
     exact(document, {"schema", "kind", "version", "suites", "identity_sha256"},
@@ -527,19 +408,12 @@ def load_validation_suites(repository: Path) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for index, raw in enumerate(suites):
         suite = obj(raw, f"validation suite {index}")
-        exact(suite, {"id", "product", "fragments", "roles", "resources"},
+        exact(suite, {"id", "product", "resources"},
               f"validation suite {index}")
         suite_id = identifier(suite["id"], f"validation suite {index}.id")
         if suite_id in result:
             raise FrameworkError(f"duplicate validation suite: {suite_id}")
         product = identifier(suite["product"], f"validation suite {suite_id}.product")
-        identifiers(suite["fragments"], f"validation suite {suite_id}.fragments")
-        roles = obj(suite["roles"], f"validation suite {suite_id}.roles")
-        exact(roles, {"cp", "ap"}, f"validation suite {suite_id}.roles")
-        for role in ("cp", "ap"):
-            row = obj(roles[role], f"validation suite {suite_id}.{role}")
-            exact(row, {"symbols"}, f"validation suite {suite_id}.{role}")
-            symbols(row["symbols"], f"validation suite {suite_id}.{role}.symbols")
         resources = array(suite["resources"], f"validation suite {suite_id}.resources")
         for resource in resources:
             identifier(resource, f"validation suite {suite_id}.resource")
@@ -555,7 +429,11 @@ def load_validation_suites(repository: Path) -> dict[str, dict[str, Any]]:
 def resolve_validation_suite(repository: Path, product_id: str, suite_id: str,
                              role: str, board_id: str | None = None,
                              mode: str | None = None) -> dict[str, Any]:
-    """Resolve a canonical product plus one validation suite overlay."""
+    """Resolve a canonical product plus one validation suite metadata overlay.
+
+    The suite contributes only resource claims.  It never adds or overrides
+    Kconfig symbols; application/driver selection lives in the final .config.
+    """
     suites = load_validation_suites(repository)
     suite = suites.get(suite_id)
     if suite is None:
@@ -567,27 +445,8 @@ def resolve_validation_suite(repository: Path, product_id: str, suite_id: str,
     if role not in {"cp", "ap"}:
         raise FrameworkError("validation suites are runtime CP/AP overlays")
     base = resolve(repository, product_id, role, board_id, mode)
-    symbols_overlay = suite["roles"][role]["symbols"]
-    symbols_result = dict(base["symbols"])
-    for key, value in symbols_overlay.items():
-        if key in symbols_result and symbols_result[key] not in {None, value}:
-            raise FrameworkError(f"validation suite conflicts with product symbol: {key}")
-        symbols_result[key] = value
     inputs = dict(base["inputs"])
     inputs["validation_suite"] = suite_id
-    fragments = list(base["fragments"])
-    for fragment_id in suite["fragments"]:
-        fragment = {
-            "id": fragment_id,
-            "scope": "validation",
-            "sha256": sha256(canonical_json({
-                "schema": SCHEMA, "kind": "config-fragment", "id": fragment_id,
-                "scope": "validation", "symbols": symbols_overlay, "requires": [],
-            })),
-        }
-        if any(item["id"] == fragment_id for item in fragments):
-            raise FrameworkError(f"validation suite duplicates fragment: {fragment_id}")
-        fragments.append(fragment)
     claims = list(base["resource_claims"])
     for resource in suite["resources"]:
         claim = {"resource": resource, "owner": f"suite_{suite_id}",
@@ -597,8 +456,6 @@ def resolve_validation_suite(repository: Path, product_id: str, suite_id: str,
         claims.append(claim)
     body = dict(base)
     body["inputs"] = inputs
-    body["fragments"] = fragments
-    body["symbols"] = dict(sorted(symbols_result.items()))
     body["resource_claims"] = sorted(claims,
                                       key=lambda item: (item["resource"], item["owner"]))
     body.pop("identity_sha256", None)
@@ -631,57 +488,13 @@ def validation_suite_check(repository: Path, product_id: str,
     }
 
 
-def _fragment_order(value: dict[str, Any]) -> tuple[int, str]:
-    return STAGES[value["scope"]], value["id"]
-
-
-def _selected(catalog: dict[str, Any], product: dict[str, Any], role: str) -> list[dict[str, Any]]:
-    ids = list(product["fragments"]) + list(product["roles"][role]["fragments"])
-    if len(ids) != len(set(ids)):
-        raise FrameworkError("product selects a fragment more than once")
-    selected: dict[str, dict[str, Any]] = {}
-    for item_id in ids:
-        if item_id not in catalog["fragments"]:
-            raise FrameworkError(f"missing selected fragment: {item_id}")
-        selected[item_id] = catalog["fragments"][item_id]
-    for fragment in selected.values():
-        missing = sorted(set(fragment["requires"]) - set(selected))
-        if missing:
-            raise FrameworkError(f"fragment {fragment['id']} missing requirements: {missing}")
-    ordered: list[dict[str, Any]] = []
-    visiting: set[str] = set()
-    visited: set[str] = set()
-
-    def visit(item_id: str) -> None:
-        if item_id in visited:
-            return
-        if item_id in visiting:
-            raise FrameworkError(f"cyclic fragment dependency: {item_id}")
-        visiting.add(item_id)
-        fragment = selected[item_id]
-        for requirement in sorted(fragment["requires"], key=lambda key: _fragment_order(selected[key])):
-            visit(requirement)
-        visiting.remove(item_id)
-        visited.add(item_id)
-        ordered.append(fragment)
-
-    for fragment in sorted(selected.values(), key=_fragment_order):
-        visit(fragment["id"])
-    return ordered
-
-
-def merge_symbols(fragments: list[dict[str, Any]]) -> dict[str, str | None]:
-    result: dict[str, str | None] = {}
-    for fragment in fragments:
-        for key, value in sorted(fragment["symbols"].items()):
-            if key in result and result[key] != value:
-                raise FrameworkError(f"conflicting explicit symbol: {key}")
-            result[key] = value
-    return dict(sorted(result.items()))
-
-
 def resolve(repository: Path, product_id: str, role: str, board_id: str | None = None,
             mode: str | None = None) -> dict[str, Any]:
+    """Resolve product metadata for one role without generating configs.
+
+    The retained seed (``legacy_profile``) is the configuration input; the
+    final .config produced by Kconfig is the only configuration authority.
+    """
     identifier(product_id, "product")
     identifier(role, "role")
     if role not in ROLES:
@@ -705,23 +518,18 @@ def resolve(repository: Path, product_id: str, role: str, board_id: str | None =
     _load_product_partition_layout(repository, product["partition_layout"],
                                    "product.partition_layout")
     partition_layout = dict(product["partition_layout"])
-    fragments = _selected(catalog, product, role)
-    merged_symbols = merge_symbols(fragments)
-    validate_board_selector_symbols(board["id"], merged_symbols,
-                                    "resolved symbols")
     body: dict[str, Any] = {
         "schema": SCHEMA,
         "kind": "resolved-config-ir",
         "inputs": {
             "product": product["id"], "family": product["family"], "mode": product["mode"],
             "board": board["id"], "role": role, "boot": product["boot"],
-            "features": product["features"], "validation_suite": product["validation_suite"],
+            "validation_suite": None,
             "legacy_profile": product["roles"][role]["legacy_profile"],
             "partition_layout": partition_layout,
         },
-        "fragments": [{"id": item["id"], "scope": item["scope"],
-                       "sha256": sha256(canonical_json(item))} for item in fragments],
-        "symbols": merged_symbols,
+        "fragments": [],
+        "symbols": {},
         "resource_claims": sorted((dict(item) for item in board["resource_claims"]),
                                    key=lambda item: (item["resource"], item["owner"])),
         "source_view": {
@@ -1104,6 +912,20 @@ def validate_sdk_set(value: dict[str, Any], registry: dict[str, Any]) -> dict[st
     return value
 
 
+def _sdk_lock_version_policy(roles: dict[str, Any],
+                             by_id: dict[str, dict[str, Any]]) -> dict[str, str]:
+    """Require CP/AP SDK bundles to share one version unless policy allows."""
+    versions = {
+        role: by_id[roles[role]["registry_id"]]["version"]
+        for role in ("cp", "ap")
+    }
+    if versions["cp"] != versions["ap"]:
+        raise FrameworkError(
+            "SDK lock CP/AP versions differ: "
+            f"cp={versions['cp']} ap={versions['ap']}")
+    return versions
+
+
 def validate_sdk_lock(repository: Path, registry_path: Path, set_path: Path,
                       value: dict[str, Any], registry: dict[str, Any],
                       sdk_set: dict[str, Any]) -> dict[str, Any]:
@@ -1142,6 +964,7 @@ def validate_sdk_lock(repository: Path, registry_path: Path, set_path: Path,
             raise FrameworkError(f"SDK lock {role} digest binding mismatch")
         digest(row["manifest_sha256"], f"SDK lock {role} manifest")
         digest(row["provenance_sha256"], f"SDK lock {role} provenance")
+    _sdk_lock_version_policy(roles, by_id)
     if roles["bl2"] != {"registry_id": None, "manifest_sha256": None, "provenance_sha256": None}:
         raise FrameworkError("SDK lock must encode BL2 as no-runtime-SDK")
     if value["no_runtime_sdk_roles"] != ["bl2"]:
@@ -1247,28 +1070,33 @@ def validate_sdk_import_receipt(value: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
-def _defconfig_text(inputs: dict[str, Any], config_symbols: dict[str, str | None],
-                    ir_identity: str) -> str:
-    partition_layout = inputs["partition_layout"]
-    lines = [
-        "# Generated by bk7258_framework.py; do not edit.",
-        f"# BK7258_IR_IDENTITY_SHA256={ir_identity}",
-        f"# BK7258_PRODUCT={inputs['product']}",
-        f"# BK7258_MODE={inputs['mode']}",
-        f"# BK7258_BOARD={inputs['board']}",
-        f"# BK7258_ROLE={inputs['role']}",
-        f"# BK7258_PARTITION_LAYOUT_ID={partition_layout['layout_id']}",
-        f"# BK7258_PARTITION_LAYOUT_SHA256={partition_layout['layout_sha256']}",
-        f"# BK7258_PARTITION_SOURCE={partition_layout['source']}",
-    ]
-    for key, value in sorted(config_symbols.items()):
-        lines.append(f"# {key} is not set" if value is None else f"{key}={value}")
-    return "\n".join(lines) + "\n"
+def config_document(ir: dict[str, Any], repository: Path | None = None,
+                    config_path: Path | str | None = None) -> dict[str, Any]:
+    """Bind one role config document to a retained seed or final .config.
 
-
-def config_document(ir: dict[str, Any]) -> dict[str, Any]:
-    """Generate a deterministic role config document without touching configs/."""
+    The framework never synthesizes Kconfig values.  A role either has a
+    retained seed defconfig under ``configs/`` or is bound to a user-provided
+    final .config; Kconfig resolves the actual final .config at build time.
+    """
     validate_ir(ir)
+    if config_path is None:
+        seed = ir["inputs"]["legacy_profile"]
+        if not seed:
+            raise FrameworkError(
+                f"role {ir['inputs']['role']} has no retained seed; "
+                "supply config_path with the final .config")
+        if repository is None:
+            raise FrameworkError(
+                "repository is required to resolve the retained seed")
+        config_path = Path(repository) / "board/bk7258/configs" / seed / "defconfig"
+    config_path = Path(config_path)
+    if config_path.is_symlink() or not config_path.is_file():
+        raise FrameworkError(f"role config is not a regular file: {config_path}")
+    try:
+        text = config_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise FrameworkError(f"cannot read role config: {config_path}") from error
+    config_symbols = parse_final_config(text)
     body: dict[str, Any] = {
         "schema": CONFIG_SCHEMA,
         "kind": "resolved-role-config",
@@ -1276,8 +1104,8 @@ def config_document(ir: dict[str, Any]) -> dict[str, Any]:
         "ir_identity_sha256": ir["identity_sha256"],
         "inputs": dict(ir["inputs"]),
         "partition_layout": dict(ir["inputs"]["partition_layout"]),
-        "symbols": dict(ir["symbols"]),
-        "defconfig": _defconfig_text(ir["inputs"], ir["symbols"], ir["identity_sha256"]),
+        "symbols": config_symbols,
+        "defconfig": text,
     }
     body["defconfig_sha256"] = sha256(body["defconfig"].encode())
     result = dict(body)
@@ -1295,15 +1123,14 @@ def validate_config_document(value: dict[str, Any]) -> dict[str, Any]:
     digest(value["ir_identity_sha256"], "role config IR identity")
     inputs = obj(value["inputs"], "role config inputs")
     exact(inputs, {"product", "family", "mode", "board", "role", "boot",
-                   "features", "validation_suite", "legacy_profile",
-                   "partition_layout"}, "role config inputs")
+                   "validation_suite", "legacy_profile", "partition_layout"},
+          "role config inputs")
     for field in ("product", "family", "mode", "board", "role"):
         identifier(inputs[field], f"role config inputs.{field}")
     if inputs["role"] not in ROLES:
         raise FrameworkError("unsupported role config role")
     if inputs["mode"] not in MODES or inputs["boot"] not in BOOTS:
         raise FrameworkError("unsupported role config mode/boot")
-    identifiers(inputs["features"], "role config features")
     for field in ("validation_suite", "legacy_profile"):
         if inputs[field] is not None:
             identifier(inputs[field], f"role config {field}")
@@ -1321,15 +1148,110 @@ def validate_config_document(value: dict[str, Any]) -> dict[str, Any]:
     digest(value["defconfig_sha256"], "role config defconfig_sha256")
     if sha256(value["defconfig"].encode()) != value["defconfig_sha256"]:
         raise FrameworkError("role config defconfig digest mismatch")
-    expected = _defconfig_text(inputs, config_symbols, value["ir_identity_sha256"])
-    if value["defconfig"] != expected:
-        raise FrameworkError("role config defconfig is not canonical")
     digest(value["identity_sha256"], "role config identity")
     body = dict(value)
     del body["identity_sha256"]
     if sha256(canonical_json(body)) != value["identity_sha256"]:
         raise FrameworkError("role config identity mismatch")
     return value
+
+
+def parse_final_config(text: str) -> dict[str, str | None]:
+    """Parse a NuttX final .config into ``CONFIG_*`` values.
+
+    ``# CONFIG_X is not set`` lines map to ``None``; ``CONFIG_X=value`` lines
+    keep their literal value.  This is deliberately independent of
+    kconfiglib so host verification stays dependency-free and fail-closed.
+    """
+    result: dict[str, str | None] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("# ") and line.endswith(" is not set"):
+            name = line[2:-len(" is not set")]
+            if name.startswith("CONFIG_"):
+                result[name] = None
+            continue
+        if line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key.startswith("CONFIG_"):
+            result[key] = value
+    return result
+
+
+def verify_final_config(repository: Path, product_id: str, role: str,
+                        config_path: Path, *,
+                        expected_layout_id: str | None = None,
+                        expected_sdk_version: str | None = None) -> dict[str, Any]:
+    """Verify one built CP/AP/BL2 final .config against product metadata.
+
+    The final .config produced by Kconfig is the single configuration
+    authority.  This function checks exactly the locked facts that an
+    application may never override (physical board, role, boot chain) and
+    returns the config SHA-256 for build/package identity.  Layout and SDK
+    bindings are supplied by the executor's plan and checked here as well.
+    """
+    identifier(product_id, "product")
+    identifier(role, "role")
+    if role not in ROLES:
+        raise FrameworkError(f"role must be cp, ap, or bl2: {role}")
+    config_path = Path(config_path)
+    if config_path.is_symlink() or not config_path.is_file():
+        raise FrameworkError(f"final config is not a regular file: {config_path}")
+    try:
+        raw = config_path.read_bytes()
+    except OSError as error:
+        raise FrameworkError(f"cannot read final config: {config_path}") from error
+    text = raw.decode("utf-8", errors="strict")
+    values = parse_final_config(text)
+    catalog = load_catalog(repository)
+    product = catalog["products"].get(product_id)
+    if product is None:
+        raise FrameworkError(f"unknown product: {product_id}")
+    board_id = product["board"]
+    selected = [
+        candidate for candidate, selector in BOARD_SELECTORS.items()
+        if values.get(selector) == "y"
+    ]
+    if selected != [board_id]:
+        raise FrameworkError(
+            f"final config selects board {selected or 'none'}, "
+            f"product requires {board_id}")
+    ap_core = values.get("CONFIG_BK7258_AP_CORE") == "y"
+    if (role == "ap") != ap_core:
+        raise FrameworkError(
+            f"final config AP role mismatch: role={role} AP_CORE={ap_core}")
+    if role == "bl2" and values.get("CONFIG_BK7258_BL2_IMAGE") != "y":
+        raise FrameworkError("final BL2 config must select CONFIG_BK7258_BL2_IMAGE")
+    mcuboot = values.get("CONFIG_BK7258_MCUBOOT_IMAGE") == "y"
+    expected_mcuboot = product["boot"] == "mcuboot"
+    if mcuboot != expected_mcuboot:
+        raise FrameworkError(
+            f"final config boot mismatch: MCUBOOT_IMAGE={mcuboot}, "
+            f"product requires {product['boot']}")
+    layout_id = product["partition_layout"]["layout_id"]
+    if expected_layout_id is not None and expected_layout_id != layout_id:
+        raise FrameworkError(
+            f"expected partition layout {expected_layout_id} differs from "
+            f"product {layout_id}")
+    return {
+        "product": product_id,
+        "role": role,
+        "board": board_id,
+        "boot": product["boot"],
+        "config_path": str(config_path),
+        "config_sha256": sha256(raw),
+        "config_size": len(raw),
+        "layout_id": layout_id,
+        "sdk_version": expected_sdk_version,
+        "board_selector": BOARD_SELECTORS[board_id],
+        "ap_core": ap_core,
+        "mcuboot_image": mcuboot,
+    }
 
 
 def _boot_config_identity(product_ir: dict[str, Any], role: str, makefile: str,
@@ -1429,7 +1351,7 @@ def _canonical_profile_text(ir: dict[str, Any]) -> str:
     validate_ir(ir)
     inputs = ir["inputs"]
     lines = [
-        "# Generated from bk7258 composition fragments; do not edit.",
+        "# Generated from retained seed/final .config input; do not edit.",
         "BK7258_PROFILE_SCHEMA=1",
         f"BK7258_PROFILE_BOARD={inputs['board']}",
         f"BK7258_PROFILE_ROLE={inputs['role']}",
@@ -1446,34 +1368,50 @@ def _canonical_profile_text(ir: dict[str, Any]) -> str:
 
 def _canonical_overlay_sha256(product: str, role: str) -> str:
     return sha256(canonical_json({
-        "kind": "canonical-fragment-overlay",
+        "kind": "canonical-seed-config",
         "version": 1,
         "product": product,
         "role": role,
     }))
 
 
-def _canonical_seed_profiles(product: dict[str, Any],
+def _canonical_seed_profiles(repository: Path, product: dict[str, Any],
                              role_ir: dict[str, dict[str, Any]],
-                             sdk_versions: dict[str, str | None]) -> dict[str, dict[str, Any]]:
-    """Describe generated CP/AP configs without consulting ``configs/``.
+                             sdk_versions: dict[str, str | None],
+                             config_root: Path | None = None,
+                             ) -> dict[str, dict[str, Any]]:
+    """Describe CP/AP config inputs bound to retained seeds or final .configs.
 
-    The field names are retained as a narrow compatibility envelope for the
-    existing manifest schema.  ``source`` points at the resolver, not at a
-    legacy profile; the old bytes are consumed only by ``shadow_parity``.
+    ``source`` is either a ``configs/<seed>`` directory (relative to the
+    repository) or an absolute final ``<role>.config`` file.  The framework
+    never synthesizes Kconfig values.
     """
     product_id = product["id"]
     result: dict[str, dict[str, Any]] = {}
     for role in ("cp", "ap"):
         ir = role_ir[role]
-        config = config_document(ir)
+        if config_root is not None:
+            config_path = Path(config_root) / f"{role}.config"
+            source = str(config_path)
+        else:
+            seed = ir["inputs"]["legacy_profile"]
+            if not seed:
+                raise FrameworkError(
+                    f"product {product_id} role {role} has no retained seed; "
+                    "pass config_root containing <role>.config final configs")
+            config_path = (repository / "board/bk7258/configs" / seed /
+                           "defconfig")
+            source = f"board/bk7258/configs/{seed}"
+        config = config_document(ir, repository=repository,
+                                 config_path=config_path)
         profile_text = _canonical_profile_text(ir)
         target = f"{product_id.removesuffix('_bringup')}_{role}_{product['boot']}"
+        seed_profile = ir["inputs"]["legacy_profile"] or target
         profile_hash = sha256(profile_text.encode())
         defconfig_hash = config["defconfig_sha256"]
         result[role] = {
-            "seed_profile": target,
-            "source": CANONICAL_CONFIG_SOURCE,
+            "seed_profile": seed_profile,
+            "source": source,
             "profile_sha256": profile_hash,
             "defconfig_sha256": defconfig_hash,
             "overlay": CANONICAL_CONFIG_COMPAT,
@@ -1489,7 +1427,8 @@ def _canonical_seed_profiles(product: dict[str, Any],
 
 def build_plan(repository: Path, product_id: str, board_id: str | None = None,
                mode: str | None = None, set_path: Path | None = None,
-               lock_path: Path | None = None) -> dict[str, Any]:
+               lock_path: Path | None = None,
+               config_root: Path | None = None) -> dict[str, Any]:
     """Resolve all boot/runtime roles into an isolated, metadata-only plan."""
     cp_ir = resolve(repository, product_id, "cp", board_id, mode)
     ap_ir = resolve(repository, product_id, "ap", board_id, mode)
@@ -1520,11 +1459,24 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
     role_ir = {"cp": cp_ir, "ap": ap_ir, "bl2": bl2_ir}
     active_roles = list(ACTIVE_ROLES_BY_BOOT[inputs["boot"]])
     config_ids = {
-        "cp": config_document(cp_ir)["identity_sha256"],
-        "ap": config_document(ap_ir)["identity_sha256"],
+        "cp": None,
+        "ap": None,
         "bl1": _boot_config_identity(cp_ir, "bl1", "board/bk7258/bootloader/Makefile", "boot-policy"),
         "bl2": _boot_config_identity(cp_ir, "bl2", "board/bk7258/bootloader/bl2/Makefile", "minimal-make-inputs"),
     }
+    seed_profiles = _canonical_seed_profiles(
+        repository, product_metadata, role_ir, sdk_versions,
+        config_root=config_root)
+    for role in ("cp", "ap"):
+        row = seed_profiles[role]
+        source = row["source"]
+        if source.startswith("board/bk7258/configs/"):
+            config_path = repository / source / "defconfig"
+        else:
+            config_path = Path(source)
+        config_ids[role] = config_document(
+            role_ir[role], repository=repository,
+            config_path=config_path)["identity_sha256"]
     board_variant = cp_ir["source_view"]["board_variant"].rsplit("/", 1)[-1]
     source_views = _plan_source_views(board_variant)
     for source in source_views.values():
@@ -1580,14 +1532,13 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
         },
         "source_views": source_views,
         "roles": build_roles,
-        "legacy_adapter": {
-            "builder": "tools/bk7258/build_dual_image.sh",
-            "mode": "shadow-comparator",
-            "invoked": False,
-            "modified": False,
-            "seed_profiles": _canonical_seed_profiles(product_metadata, role_ir,
-                                                        sdk_versions),
-        },
+            "legacy_adapter": {
+                "builder": "tools/bk7258/build_dual_image.sh",
+                "mode": "shadow-comparator",
+                "invoked": False,
+                "modified": False,
+                "seed_profiles": seed_profiles,
+            },
     }
     result = dict(body)
     result["identity_sha256"] = sha256(canonical_json(body))
@@ -1595,7 +1546,8 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
 
 
 def build_plan_verify(repository: Path, plan_path: Path,
-                      product_id: str | None = None) -> dict[str, Any]:
+                      product_id: str | None = None,
+                      config_root: Path | None = None) -> dict[str, Any]:
     """Verify an external plan against the current product/SDK/layout inputs."""
     plan = load_json_checked(plan_path, "build plan")
     validate_build_plan(plan)
@@ -1604,7 +1556,8 @@ def build_plan_verify(repository: Path, plan_path: Path,
         raise FrameworkError("external build plan product binding mismatch")
     expected = build_plan(repository, selected_product,
                           plan["identity_inputs"]["board"],
-                          plan["identity_inputs"]["mode"])
+                          plan["identity_inputs"]["mode"],
+                          config_root=config_root)
     if expected["identity_sha256"] != plan["identity_sha256"]:
         raise FrameworkError("external build plan identity differs from repository")
     return plan
@@ -1765,10 +1718,10 @@ def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
         seed = obj(seed_profiles[role], f"build plan seed profile {role}")
         exact(seed, seed_fields, f"build plan seed profile {role}")
         identifier(seed["seed_profile"], f"build plan seed profile {role}.seed_profile")
-        source = relative_path(seed["source"],
-                               f"build plan seed profile {role}.source")
-        if (not source.startswith("board/bk7258/configs/") and
-                source != CANONICAL_CONFIG_SOURCE):
+        source = seed["source"]
+        if source.startswith("board/bk7258/configs/"):
+            relative_path(source, f"build plan seed profile {role}.source")
+        elif not (source.startswith("/") and source.endswith(f"{role}.config")):
             raise FrameworkError(
                 f"build plan seed profile {role} source is not canonical")
         digest(seed["profile_sha256"], f"build plan seed profile {role}.profile_sha256")
@@ -1806,12 +1759,13 @@ def _execution_path(template: str, build_root: str) -> str:
 
 
 def execution_context(repository: Path, product_id: str,
-                       build_root: str = "${BUILD_ROOT}",
-                       output: str = "${OUTPUT}",
-                       board_id: str | None = None,
-                       mode: str | None = None,
-                       set_path: Path | None = None,
-                       lock_path: Path | None = None) -> dict[str, Any]:
+                      build_root: str = "${BUILD_ROOT}",
+                      output: str = "${OUTPUT}",
+                      board_id: str | None = None,
+                      mode: str | None = None,
+                      set_path: Path | None = None,
+                      lock_path: Path | None = None,
+                      config_root: Path | None = None) -> dict[str, Any]:
     """Produce a deterministic, non-executing compatibility context.
 
     This function intentionally does not inspect signing-key environment
@@ -1819,7 +1773,8 @@ def execution_context(repository: Path, product_id: str,
     adapter invocation and the artifacts that the later build mode will
     produce.
     """
-    plan = build_plan(repository, product_id, board_id, mode, set_path, lock_path)
+    plan = build_plan(repository, product_id, board_id, mode, set_path, lock_path,
+                      config_root=config_root)
     inputs = plan["identity_inputs"]
     roles: dict[str, dict[str, Any]] = {}
     for role in ("bl1", "bl2", "cp", "ap"):
@@ -2079,7 +2034,8 @@ def validate_execution_context(value: dict[str, Any]) -> dict[str, Any]:
 def execute(repository: Path, product_id: str, *, dry_run: bool = True,
             build_root: str = "${BUILD_ROOT}", output: str = "${OUTPUT}",
             board_id: str | None = None, mode: str | None = None,
-            set_path: Path | None = None, lock_path: Path | None = None) -> dict[str, Any]:
+            set_path: Path | None = None, lock_path: Path | None = None,
+            config_root: Path | None = None) -> dict[str, Any]:
     """Emit the host-only execution context.
 
     Real image, signing, and packaging actions remain behind the explicit
@@ -2088,7 +2044,8 @@ def execute(repository: Path, product_id: str, *, dry_run: bool = True,
     unreviewed build by toggling a boolean.
     """
     context = execution_context(repository, product_id, build_root, output,
-                                board_id, mode, set_path, lock_path)
+                                board_id, mode, set_path, lock_path,
+                                config_root=config_root)
     if not dry_run:
         raise FrameworkError(
             "framework execute is host-only dry-run; invoke build_dual_image.sh "
@@ -2098,7 +2055,8 @@ def execute(repository: Path, product_id: str, *, dry_run: bool = True,
 
 def isolated_prepare(repository: Path, product_id: str, build_root: Path,
                      output: Path, *, plan_path: Path | None = None,
-                     workspace_root: Path | None = None) -> dict[str, Any]:
+                     workspace_root: Path | None = None,
+                     config_root: Path | None = None) -> dict[str, Any]:
     """Prepare the canonical role-isolated execution contract.
 
     The import is intentionally lazy: the legacy framework planner remains a
@@ -2109,7 +2067,8 @@ def isolated_prepare(repository: Path, product_id: str, build_root: Path,
     from bk7258_isolated_executor import prepare  # noqa: PLC0415
 
     return prepare(repository, product_id, build_root, output,
-                   plan_path=plan_path, workspace_root=workspace_root)
+                   plan_path=plan_path, workspace_root=workspace_root,
+                   config_root=config_root)
 
 
 def isolated_materialize_sources(
@@ -2472,11 +2431,13 @@ def validate_bkpack(value: dict[str, Any]) -> dict[str, Any]:
 
 def pack_prepare(repository: Path, product_id: str, kind: str = "application",
                  board_id: str | None = None, mode: str | None = None,
-                 partition_path: Path | None = None) -> dict[str, Any]:
+                 partition_path: Path | None = None,
+                 config_root: Path | None = None) -> dict[str, Any]:
     """Prepare a deterministic package manifest without bytes or signing."""
     if kind not in PACK_KINDS:
         raise FrameworkError("package kind must be application or factory")
-    plan = build_plan(repository, product_id, board_id, mode)
+    plan = build_plan(repository, product_id, board_id, mode,
+                      config_root=config_root)
     inputs = plan["identity_inputs"]
     sdk_roles = dict(plan["sdk"]["roles"])
     layout, partition_source = _pack_partition_layout(
@@ -2555,12 +2516,14 @@ def pack_prepare(repository: Path, product_id: str, kind: str = "application",
     return validate_bkpack(body)
 
 
-def pack_verify(repository: Path | None, package: dict[str, Any] | Path) -> dict[str, Any]:
+def pack_verify(repository: Path | None, package: dict[str, Any] | Path,
+                *, config_root: Path | None = None) -> dict[str, Any]:
     """Verify package metadata and optional current-repository bindings only."""
     value = load_json(package) if isinstance(package, Path) else package
     validate_bkpack(value)
     if repository is not None:
-        plan = build_plan(repository, value["product"], value["board"]["id"], value["mode"])
+        plan = build_plan(repository, value["product"], value["board"]["id"],
+                          value["mode"], config_root=config_root)
         if plan["identity_sha256"] != value["build_plan_identity_sha256"]:
             raise FrameworkError("package build plan identity differs from repository")
         if plan["sdk"]["lock_id"] != value["sdk_lock"]["id"] or \
@@ -2993,380 +2956,6 @@ def transport_plan(repository: Path, board_id: str, *, host: str | None = None,
     return validate_transport_plan(result)
 
 
-def _shadow_digest(path: Path, field: str) -> str:
-    """Hash one tracked metadata file without accepting a symlink."""
-    try:
-        info = path.lstat()
-    except OSError as error:
-        raise FrameworkError(f"missing {field}: {path}") from error
-    if not stat.S_ISREG(info.st_mode):
-        raise FrameworkError(f"{field} must be a regular file: {path}")
-    return sha256(path.read_bytes())
-
-
-def _shadow_path(repository: Path, value: str, field: str) -> Path:
-    path = relative_path(value, field)
-    candidate = repository / path
-    try:
-        info = candidate.lstat()
-    except OSError as error:
-        raise FrameworkError(f"missing {field}: {candidate}") from error
-    if stat.S_ISLNK(info.st_mode):
-        raise FrameworkError(f"{field} must not be a symlink: {candidate}")
-    try:
-        candidate.resolve().relative_to(repository.resolve())
-    except ValueError as error:
-        raise FrameworkError(f"{field} escaped repository") from error
-    return candidate
-
-
-def validate_shadow_ledger(repository: Path, value: dict[str, Any]) -> dict[str, Any]:
-    """Validate the immutable P9a mapping ledger.
-
-    The ledger is deliberately a mapping/provenance input, not a claim that a
-    new product is already equivalent.  The detailed old/new evidence is
-    produced by :func:`shadow_parity`; a non-EXACT row must always retain a
-    human-readable rationale.
-    """
-    exact(value, {"schema", "kind", "version", "status", "source_manifest",
-                  "source_manifest_sha256", "source_migration_ledger",
-                  "source_migration_ledger_sha256", "profile_count", "statuses",
-                  "rows", "identity_sha256"}, "shadow ledger")
-    if (value["schema"] != SHADOW_SCHEMA or
-            value["kind"] != "legacy-profile-shadow-ledger" or
-            value["version"] != 1 or value["status"] != "cutover-approved"):
-        raise FrameworkError("unsupported shadow ledger schema/status")
-    source_manifest = _shadow_path(repository, value["source_manifest"],
-                                   "shadow source manifest")
-    source_migration = _shadow_path(repository, value["source_migration_ledger"],
-                                    "shadow source migration ledger")
-    digest(value["source_manifest_sha256"], "shadow source manifest digest")
-    digest(value["source_migration_ledger_sha256"],
-           "shadow source migration ledger digest")
-    if _shadow_digest(source_manifest, "shadow source manifest") != value["source_manifest_sha256"]:
-        raise FrameworkError("shadow source manifest digest mismatch")
-    if (_shadow_digest(source_migration, "shadow source migration ledger") !=
-            value["source_migration_ledger_sha256"]):
-        raise FrameworkError("shadow source migration ledger digest mismatch")
-    if (not isinstance(value["profile_count"], int) or
-            isinstance(value["profile_count"], bool) or value["profile_count"] != 27):
-        raise FrameworkError("shadow ledger profile count must be exactly 27")
-    statuses = array(value["statuses"], "shadow ledger statuses")
-    if statuses != list(SHADOW_STATUS_ORDER) or set(statuses) != SHADOW_STATUS:
-        raise FrameworkError("shadow ledger status enum is not stable")
-    rows = array(value["rows"], "shadow ledger rows")
-    if len(rows) != value["profile_count"]:
-        raise FrameworkError("shadow ledger row count is not exactly 27")
-    seen: set[str] = set()
-    for index, raw in enumerate(rows):
-        row = obj(raw, f"shadow ledger row {index}")
-        exact(row, {"legacy_profile", "family", "resource_mode", "validation_suite",
-                    "target_product", "target_role", "status", "rationale"},
-              f"shadow ledger row {index}")
-        name = identifier(row["legacy_profile"], f"shadow row {index}.legacy_profile")
-        if name in seen:
-            raise FrameworkError(f"duplicate shadow profile: {name}")
-        seen.add(name)
-        identifier(row["family"], f"shadow row {index}.family")
-        identifier(row["resource_mode"], f"shadow row {index}.resource_mode")
-        if row["validation_suite"] is not None:
-            identifier(row["validation_suite"], f"shadow row {index}.validation_suite")
-        if row["target_product"] is not None:
-            identifier(row["target_product"], f"shadow row {index}.target_product")
-        if row["target_role"] not in ROLES:
-            raise FrameworkError(f"shadow row {index} has an unsupported target role")
-        if row["status"] not in SHADOW_STATUS:
-            raise FrameworkError(f"shadow row {index} has an unsupported status")
-        if (not isinstance(row["rationale"], str) or not row["rationale"].strip()):
-            raise FrameworkError(f"shadow row {index} rationale is missing")
-        if row["status"] != "EXACT" and not row["rationale"].strip():
-            raise FrameworkError(f"shadow row {index} non-EXACT rationale is missing")
-    manifest = load_json(source_manifest)
-    if manifest.get("status") == "cutover-approved":
-        from verify_legacy_profile_freeze import base_snapshot  # noqa: PLC0415
-        historical_profiles = base_snapshot(repository)["profiles"]
-    else:
-        historical_profiles = manifest.get("profiles")
-    if len(historical_profiles) != 27:
-        raise FrameworkError("shadow source manifest does not describe the historical 27 profiles")
-    migration = load_json(source_migration)
-    if not isinstance(migration.get("rows"), list) or len(migration["rows"]) != 27:
-        raise FrameworkError("shadow source migration ledger does not describe 27 rows")
-    manifest_names = {item.get("name") for item in historical_profiles}
-    migration_by_name = {
-        item.get("legacy_profile"): item for item in migration["rows"]
-        if isinstance(item, dict)
-    }
-    if len(migration_by_name) != 27 or seen != manifest_names or seen != set(migration_by_name):
-        raise FrameworkError("shadow ledger coverage differs from frozen legacy profiles")
-    for row in rows:
-        source = migration_by_name[row["legacy_profile"]]
-        target = source.get("target")
-        if (not isinstance(target, dict) or
-                row["family"] != target.get("family") or
-                row["resource_mode"] != target.get("resource_mode") or
-                row["validation_suite"] != target.get("validation_suite") or
-                row["target_role"] != target.get("role")):
-            raise FrameworkError(f"shadow row mapping differs from migration ledger: {row['legacy_profile']}")
-    body = dict(value)
-    supplied = body.pop("identity_sha256")
-    digest(supplied, "shadow ledger identity")
-    if sha256(canonical_json(body)) != supplied:
-        raise FrameworkError("shadow ledger identity mismatch")
-    return value
-
-
-def _shadow_inventory_closure(repository: Path, profile: str) -> list[str]:
-    """Return repository-relative inventory consumers naming one profile."""
-    inventory_path = repository / "tools/bk7258/legacy_profile_consumers.json"
-    inventory = load_json(inventory_path)
-    paths = {
-        row["path"] for row in inventory.get("consumers", [])
-        if isinstance(row, dict) and any(
-            isinstance(reference, dict) and reference.get("term") == profile
-            for reference in row.get("references", [])
-        )
-    }
-    paths.update({
-        f"board/bk7258/configs/{profile}/profile.conf",
-        f"board/bk7258/configs/{profile}/defconfig",
-    })
-    return sorted(paths)
-
-
-def _shadow_graph(repository: Path, product_id: str) -> dict[str, Any] | None:
-    catalog = load_catalog(repository)
-    product = catalog["products"].get(product_id)
-    if product is None:
-        return None
-    path = repository / "tools/bk7258" / f"bk7258_resource_graph_{product['board']}.json"
-    if not path.is_file():
-        return None
-    return load_json(path)
-
-
-def _shadow_graph_evidence(graph: dict[str, Any] | None) -> tuple[list[Any] | None, list[Any] | None]:
-    if graph is None:
-        return None, None
-    resources = graph.get("resources", {})
-    devpaths = sorted((dict(item) for item in resources.get("devpaths_minors", [])),
-                      key=lambda item: item.get("id", ""))
-    claims: list[Any] = []
-    for category in sorted(resources):
-        if category == "bom":
-            continue
-        for item in resources.get(category, []):
-            row = dict(item)
-            row["category"] = category
-            claims.append(row)
-    claims.sort(key=lambda item: (item.get("category", ""), item.get("id", "")))
-    return devpaths, claims
-
-
-def _shadow_new_evidence(repository: Path, product_id: str | None,
-                         role: str) -> dict[str, Any]:
-    fields: dict[str, Any] = {
-        "metadata": None, "resolved_defconfig": None, "source_closure": None, "device_nodes": None,
-        "resource_claims": None, "sdk_role": None, "package_plan": None,
-    }
-    if product_id is None:
-        return fields
-    ir = resolve(repository, product_id, role)
-    plan = build_plan(repository, product_id)
-    fragment_paths = []
-    for fragment in ir["fragments"]:
-        matches = sorted((path.relative_to(repository).as_posix()
-                          for path in (repository / "tools/bk7258").glob(
-                              f"bk7258_fragment_catalog_{fragment['id']}.json")))
-        fragment_paths.extend(matches)
-    source = ir["source_view"]
-    fields["resolved_defconfig"] = {
-        "symbols": dict(ir["symbols"]), "identity_sha256": ir["identity_sha256"],
-    }
-    fields["source_closure"] = sorted(set(fragment_paths + [
-        source["board_root"], source["board_variant"], source["chip_root"],
-    ]))
-    graph = _shadow_graph(repository, product_id)
-    fields["device_nodes"], fields["resource_claims"] = _shadow_graph_evidence(graph)
-    sdk_role = plan["sdk"]["roles"].get(role)
-    if sdk_role is None:
-        fields["sdk_role"] = None
-    else:
-        fields["sdk_role"] = {"registry_id": sdk_role,
-                               "manifest_sha256": sdk_role.removeprefix("sha256:")}
-    try:
-        package = pack_prepare(repository, product_id)
-    except FrameworkError:
-        package = None
-    if package is not None:
-        fields["package_plan"] = {
-            "package_id": package["package_id"], "kind": package["kind"],
-            "plan": package["plan"], "apps_plan": package["apps_plan"],
-            "identity_sha256": package["identity_sha256"],
-        }
-    return fields
-
-
-def _shadow_comparison(old: dict[str, Any], new: dict[str, Any]) -> dict[str, str]:
-    result: dict[str, str] = {}
-    result["metadata"] = "NOT_COMPARABLE"
-    old_symbols = old["resolved_defconfig"]
-    new_symbols = new["resolved_defconfig"]
-    if old_symbols is None or new_symbols is None:
-        result["resolved_defconfig"] = "NOT_AVAILABLE"
-    else:
-        old_map = {key: item for key, item in old_symbols.items() if item is not None}
-        new_map = new_symbols.get("symbols", {})
-        new_map = {key: item for key, item in new_map.items() if item is not None}
-        result["resolved_defconfig"] = ("MATCH" if all(
-            new_map.get(key) == item for key, item in old_map.items()
-        ) else "DIFFERENT")
-    for field in ("source_closure", "device_nodes", "resource_claims", "sdk_role",
-                  "package_plan"):
-        old_value, new_value = old[field], new[field]
-        if old_value is None or new_value is None:
-            result[field] = "NOT_AVAILABLE"
-        elif field == "sdk_role":
-            old_digest = old_value.get("sha256_manifest") if isinstance(old_value, dict) else None
-            new_digest = new_value.get("manifest_sha256") if isinstance(new_value, dict) else None
-            result[field] = ("MATCH" if old_digest is not None and old_digest == new_digest
-                             else "DIFFERENT")
-        else:
-            result[field] = "MATCH" if old_value == new_value else "DIFFERENT"
-    return result
-
-
-def shadow_parity(repository: Path, ledger_path: Path | None = None,
-                  *, require_git: bool = True) -> dict[str, Any]:
-    """Produce deterministic old/new evidence for every frozen profile."""
-    root = repository.resolve()
-    path = ledger_path or root / SHADOW_LEDGER_REL
-    if not path.is_absolute():
-        path = root / path
-    ledger = validate_shadow_ledger(root, load_json(path))
-    manifest_path = root / ledger["source_manifest"]
-    manifest = load_json(manifest_path)
-    if require_git:
-        try:
-            from verify_legacy_profile_freeze import check_manifest  # noqa: PLC0415
-            check_manifest(root, manifest, require_git=True)
-        except FrameworkError:
-            raise
-        except Exception as error:
-            # Keep the CLI contract stable while preserving the original
-            # reason.  No report is emitted from an unverified freeze.
-            raise FrameworkError(f"frozen profile verification failed: {error}") from error
-    migration = load_json(root / ledger["source_migration_ledger"])
-    migration_by_name = {row["legacy_profile"]: row for row in migration["rows"]}
-    if manifest.get("status") == "cutover-approved":
-        from verify_legacy_profile_freeze import base_snapshot  # noqa: PLC0415
-        historical_profiles = base_snapshot(root)["profiles"]
-    else:
-        historical_profiles = manifest["profiles"]
-    profiles_by_name = {row["name"]: row for row in historical_profiles}
-    rows: list[dict[str, Any]] = []
-    for mapping in sorted(ledger["rows"], key=lambda item: item["legacy_profile"]):
-        name = mapping["legacy_profile"]
-        profile = profiles_by_name[name]
-        old_sdk = profile["sdk"]
-        target_product = mapping["target_product"]
-        old = {
-            "metadata": dict(profile["metadata"]),
-            "resolved_defconfig": dict(profile["defconfig_symbols"]),
-            "source_closure": _shadow_inventory_closure(root, name),
-            "device_nodes": None,
-            "resource_claims": None,
-            "sdk_role": dict(old_sdk),
-            "package_plan": None,
-        }
-        new = _shadow_new_evidence(root, target_product, mapping["target_role"])
-        comparison = _shadow_comparison(old, new)
-        rows.append({
-            "legacy_profile": name,
-            "mapping": {key: mapping[key] for key in (
-                "family", "resource_mode", "validation_suite", "target_product", "target_role")},
-            "old": old,
-            "new": new,
-            "comparison": comparison,
-            "status": mapping["status"],
-            "rationale": mapping["rationale"],
-        })
-    body: dict[str, Any] = {
-        "schema": SHADOW_REPORT_SCHEMA,
-        "kind": "legacy-profile-shadow-report",
-        "version": 1,
-        "status": "shadow-only",
-        "profile_count": len(rows),
-        "statuses": list(SHADOW_STATUS_ORDER),
-        "ledger_identity_sha256": ledger["identity_sha256"],
-        "rows": rows,
-        "hardware_accessed": False,
-        "network_used": False,
-    }
-    result = dict(body)
-    result["identity_sha256"] = sha256(canonical_json(body))
-    return validate_shadow_report(result)
-
-
-def validate_shadow_report(value: dict[str, Any]) -> dict[str, Any]:
-    exact(value, {"schema", "kind", "version", "status", "profile_count", "statuses",
-                  "ledger_identity_sha256", "rows", "hardware_accessed", "network_used",
-                  "identity_sha256"}, "shadow report")
-    if (value["schema"] != SHADOW_REPORT_SCHEMA or
-            value["kind"] != "legacy-profile-shadow-report" or value["version"] != 1 or
-            value["status"] != "shadow-only"):
-        raise FrameworkError("unsupported shadow report schema/status")
-    if value["profile_count"] != 27 or len(value["rows"]) != 27:
-        raise FrameworkError("shadow report must contain exactly 27 rows")
-    if value["statuses"] != list(SHADOW_STATUS_ORDER) or set(value["statuses"]) != SHADOW_STATUS:
-        raise FrameworkError("shadow report status enum is not stable")
-    digest(value["ledger_identity_sha256"], "shadow report ledger identity")
-    if value["hardware_accessed"] is not False or value["network_used"] is not False:
-        raise FrameworkError("shadow report claims hardware or network access")
-    seen: set[str] = set()
-    for index, raw in enumerate(value["rows"]):
-        row = obj(raw, f"shadow report row {index}")
-        exact(row, {"legacy_profile", "mapping", "old", "new", "comparison", "status",
-                    "rationale"}, f"shadow report row {index}")
-        name = identifier(row["legacy_profile"], f"shadow report row {index}.profile")
-        if name in seen:
-            raise FrameworkError(f"duplicate shadow report profile: {name}")
-        seen.add(name)
-        mapping = obj(row["mapping"], f"shadow report row {index}.mapping")
-        exact(mapping, {"family", "resource_mode", "validation_suite", "target_product",
-                        "target_role"}, f"shadow report row {index}.mapping")
-        identifier(mapping["family"], "shadow report family")
-        identifier(mapping["resource_mode"], "shadow report resource mode")
-        if mapping["validation_suite"] is not None:
-            identifier(mapping["validation_suite"], "shadow report validation suite")
-        if mapping["target_product"] is not None:
-            identifier(mapping["target_product"], "shadow report target product")
-        if mapping["target_role"] not in ROLES:
-            raise FrameworkError("shadow report target role is invalid")
-        for side in ("old", "new"):
-            evidence = obj(row[side], f"shadow report row {index}.{side}")
-            exact(evidence, {"metadata", "resolved_defconfig", "source_closure",
-                             "device_nodes", "resource_claims", "sdk_role", "package_plan"},
-                  f"shadow report row {index}.{side}")
-        comparison = obj(row["comparison"], f"shadow report row {index}.comparison")
-        exact(comparison, {"metadata", "resolved_defconfig", "source_closure",
-                           "device_nodes", "resource_claims", "sdk_role", "package_plan"},
-              f"shadow report row {index}.comparison")
-        if any(not isinstance(item, str) or not item for item in comparison.values()):
-            raise FrameworkError("shadow comparison status is malformed")
-        if row["status"] not in SHADOW_STATUS:
-            raise FrameworkError("shadow report row status is invalid")
-        if row["status"] != "EXACT" and (not isinstance(row["rationale"], str) or
-                                           not row["rationale"].strip()):
-            raise FrameworkError("shadow report non-EXACT rationale is missing")
-    digest(value["identity_sha256"], "shadow report identity")
-    body = dict(value)
-    supplied = body.pop("identity_sha256")
-    if sha256(canonical_json(body)) != supplied:
-        raise FrameworkError("shadow report identity mismatch")
-    return value
-
-
 def _framework_check_step(checks: list[dict[str, Any]], check_id: str,
                           detail: str, callback: Callable[[], Any]) -> None:
     callback()
@@ -3374,17 +2963,9 @@ def _framework_check_step(checks: list[dict[str, Any]], check_id: str,
 
 
 def framework_check(repository: Path) -> dict[str, Any]:
-    """Run the bounded P0-P8 metadata/framework smoke contract."""
+    """Run the bounded P1-P8 metadata/framework smoke contract."""
     root = repository.resolve()
     checks: list[dict[str, Any]] = []
-    manifest_path = root / "tools/bk7258/legacy_profile_freeze_manifest.json"
-    manifest = load_json(manifest_path)
-    try:
-        from verify_legacy_profile_freeze import check_manifest  # noqa: PLC0415
-        _framework_check_step(checks, "p0-freeze", "27 frozen profiles and consumer inventory",
-                              lambda: check_manifest(root, manifest, require_git=True))
-    except ImportError as error:
-        raise FrameworkError(f"P0 verifier unavailable: {error}") from error
     catalog = load_catalog(root)
     _framework_check_step(checks, "p1-catalog", "strict board/product/fragment catalogs",
                           lambda: None)
@@ -3399,12 +2980,15 @@ def framework_check(repository: Path) -> dict[str, Any]:
     sdk_set = validate_sdk_set(load_json(set_path), registry)
     validate_sdk_lock(root, registry_path, set_path, load_json(lock_path), registry, sdk_set)
     _framework_check_step(checks, "p2-sdk-metadata", "SDK registry/set/lock invariants", lambda: None)
-    for product in ("t5ai_core_bringup", "t5_board_bringup", "aidk_ai_toy_bringup"):
-        plan = build_plan(root, product)
-        validate_build_plan(plan)
-        for role in ("cp", "ap"):
-            validate_config_document(config_document(resolve(root, product, role)))
-    _framework_check_step(checks, "p3-build-plans", "T5/T5-Board/AIDK config and role plans", lambda: None)
+    plan = build_plan(root, "t5ai_core_bringup")
+    validate_build_plan(plan)
+    for role in ("cp", "ap"):
+        validate_config_document(config_document(
+            resolve(root, "t5ai_core_bringup", role), repository=root))
+    _framework_check_step(
+        checks, "p3-build-plans",
+        "T5AI seed plan; T5-Board/AIDK plans require final .config inputs",
+        lambda: None)
     from bk7258_resource_graph import (  # noqa: PLC0415
         validate_migration_ledger, validate_ownership_manifest, validate_resource_graph,
     )
@@ -3421,9 +3005,11 @@ def framework_check(repository: Path) -> dict[str, Any]:
         checks, "p5-validation",
         "partial command registry and 27-profile migration ledger",
         lambda: None)
-    for product in ("t5ai_core_bringup", "t5_board_bringup", "aidk_ai_toy_bringup"):
-        pack_prepare(root, product)
-    _framework_check_step(checks, "p6-package-plan", "T5/T5-Board/AIDK metadata-only package plans", lambda: None)
+    pack_prepare(root, "t5ai_core_bringup")
+    _framework_check_step(
+        checks, "p6-package-plan",
+        "T5AI metadata-only package plan; T5-Board/AIDK require final .config",
+        lambda: None)
     transport_plan(root, "aidk_ai_toy", host="linux", candidates=["/dev/ttyBK7258"], aidk=True)
     _framework_check_step(checks, "p7-transport", "dry-run transport capability/sequence", lambda: None)
     _framework_check_step(checks, "p8-aidk-binding", "AIDK board selector and binding metadata",
@@ -3473,9 +3059,6 @@ def validate_framework_check(value: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
-def write_json(path: Path, value: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(canonical_json(value))
 
 
 def load_json_checked(path: Path, field: str) -> dict[str, Any]:
@@ -3514,7 +3097,7 @@ def _cli_emit_transport(value: dict[str, Any], output: Path | None) -> None:
         print(canonical_json(value).decode(), end="")
 
 
-def cli(argv: list[str] | None = None) -> int:
+def _build_cli_parsers() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd())
     commands = parser.add_subparsers(dest="command", required=True)
@@ -3546,22 +3129,32 @@ def cli(argv: list[str] | None = None) -> int:
     config_parser.add_argument("--mode")
     config_parser.add_argument("--out", type=Path, required=True)
     config_parser.add_argument("--defconfig-out", type=Path)
+    verify_config_parser = commands.add_parser("verify-config")
+    verify_config_parser.add_argument("--product", required=True)
+    verify_config_parser.add_argument("--role", required=True,
+                                      choices=tuple(sorted(ROLES)))
+    verify_config_parser.add_argument("--config", type=Path, required=True)
+    verify_config_parser.add_argument("--layout-id")
+    verify_config_parser.add_argument("--sdk-version")
     plan_parser = commands.add_parser("build-plan", aliases=("plan",))
     plan_parser.add_argument("--product", required=True)
     plan_parser.add_argument("--board")
     plan_parser.add_argument("--mode")
     plan_parser.add_argument("--set", dest="sdk_set", type=Path)
     plan_parser.add_argument("--lock", type=Path)
+    plan_parser.add_argument("--config-root", type=Path)
     plan_parser.add_argument("--out", type=Path, required=True)
     plan_verify_parser = commands.add_parser("build-plan-verify")
     plan_verify_parser.add_argument("--plan", type=Path, required=True)
     plan_verify_parser.add_argument("--product")
+    plan_verify_parser.add_argument("--config-root", type=Path)
     execute_parser = commands.add_parser("execute", allow_abbrev=False)
     execute_parser.add_argument("--product", required=True)
     execute_parser.add_argument("--board")
     execute_parser.add_argument("--mode")
     execute_parser.add_argument("--set", dest="sdk_set", type=Path)
     execute_parser.add_argument("--lock", type=Path)
+    execute_parser.add_argument("--config-root", type=Path)
     execute_parser.add_argument("--build-root", default="${BUILD_ROOT}")
     execute_parser.add_argument("--output", default="${OUTPUT}")
     execute_parser.add_argument("--dry-run", action="store_true")
@@ -3573,6 +3166,7 @@ def cli(argv: list[str] | None = None) -> int:
     isolated_prepare_parser.add_argument("--build-root", type=Path, required=True)
     isolated_prepare_parser.add_argument("--workspace-root", type=Path)
     isolated_prepare_parser.add_argument("--plan", type=Path)
+    isolated_prepare_parser.add_argument("--config-root", type=Path)
     isolated_prepare_parser.add_argument("--out", type=Path, required=True)
     isolated_materialize_parser = commands.add_parser(
         "execute-materialize-sources", allow_abbrev=False,
@@ -3607,9 +3201,11 @@ def cli(argv: list[str] | None = None) -> int:
     pack_prepare_parser.add_argument(
         "--partition", type=Path,
         help="optional repeat of the product-pinned partition CSV; alternate layouts are rejected")
+    pack_prepare_parser.add_argument("--config-root", type=Path)
     pack_prepare_parser.add_argument("--out", type=Path, required=True)
     pack_verify_parser = commands.add_parser("pack-verify")
     pack_verify_parser.add_argument("--package", type=Path, required=True)
+    pack_verify_parser.add_argument("--config-root", type=Path)
     def add_transport_common(parser_object: argparse.ArgumentParser) -> None:
         parser_object.add_argument("--host")
         parser_object.add_argument("--port")
@@ -3666,23 +3262,17 @@ def cli(argv: list[str] | None = None) -> int:
     suite_check_parser = commands.add_parser("validation-suite-check")
     suite_check_parser.add_argument("--product", required=True)
     suite_check_parser.add_argument("--suite", required=True)
-    shadow_parser = commands.add_parser(
-        "shadow-check", aliases=("shadow-parity", "shadow-report", "parity",
-                                 "parity-check", "legacy-shadow", "legacy-parity"))
-    shadow_parser.add_argument("--ledger", type=Path)
-    shadow_parser.add_argument("--no-git", action="store_true",
-                               help="skip the approved Git-object freeze check")
-    shadow_parser.add_argument("--out", type=Path)
     framework_check_parser = commands.add_parser(
         "framework-check", aliases=("check-framework",))
     framework_check_parser.add_argument("--out", type=Path)
     commands.add_parser("validate")
-    args = parser.parse_args(argv)
-    root = args.root.resolve()
+    return parser
+
+def _run_cli_command(args: argparse.Namespace, root: Path) -> int:
     try:
         if args.command == "validate":
             catalog = load_catalog(root)
-            print(f"bk7258-framework: OK boards={len(catalog['boards'])} products={len(catalog['products'])} fragments={len(catalog['fragments'])}")
+            print(f"bk7258-framework: OK boards={len(catalog['boards'])} products={len(catalog['products'])}")
         elif args.command == "classic-report":
             write_json(args.out, classic_report(root))
         elif args.command == "role-view":
@@ -3693,17 +3283,30 @@ def cli(argv: list[str] | None = None) -> int:
                 args.cmake_out.write_text(cmake_view(ir), encoding="utf-8")
         elif args.command in {"config", "generate-config"}:
             ir = resolve(root, args.product, args.role, args.board, args.mode)
-            document = config_document(ir)
+            document = config_document(ir, repository=root)
             write_json(args.out, document)
             if args.defconfig_out is not None:
                 args.defconfig_out.parent.mkdir(parents=True, exist_ok=True)
                 args.defconfig_out.write_text(document["defconfig"], encoding="utf-8")
+        elif args.command == "verify-config":
+            config_path = args.config
+            if not config_path.is_absolute():
+                config_path = root / config_path
+            result = verify_final_config(
+                root, args.product, args.role, config_path,
+                expected_layout_id=args.layout_id,
+                expected_sdk_version=args.sdk_version)
+            print("bk7258-framework: VERIFY-CONFIG PASS "
+                  f"product={result['product']} role={result['role']} "
+                  f"config_sha256={result['config_sha256']}")
         elif args.command in {"build-plan", "plan"}:
             plan = build_plan(root, args.product, args.board, args.mode,
-                              args.sdk_set, args.lock)
+                              args.sdk_set, args.lock,
+                              config_root=args.config_root)
             write_json(args.out, plan)
         elif args.command == "build-plan-verify":
-            plan = build_plan_verify(root, args.plan.resolve(), args.product)
+            plan = build_plan_verify(root, args.plan.resolve(), args.product,
+                                     config_root=args.config_root)
             print("bk7258-framework: BUILD PLAN VERIFY PASS "
                   f"product={plan['identity_inputs']['product']} "
                   f"identity={plan['identity_sha256']}")
@@ -3712,12 +3315,14 @@ def cli(argv: list[str] | None = None) -> int:
                 root, args.product, dry_run=True,
                 build_root=args.build_root, output=args.output,
                 board_id=args.board, mode=args.mode,
-                set_path=args.sdk_set, lock_path=args.lock)
+                set_path=args.sdk_set, lock_path=args.lock,
+                config_root=args.config_root)
             write_json(args.out, context)
         elif args.command == "execute-prepare":
             isolated_prepare(root, args.product, args.build_root, args.out,
                              plan_path=args.plan,
-                             workspace_root=args.workspace_root)
+                             workspace_root=args.workspace_root,
+                             config_root=args.config_root)
         elif args.command == "execute-materialize-sources":
             manifest = isolated_materialize_sources(
                 root, args.manifest, workspace_root=args.workspace_root)
@@ -3737,10 +3342,11 @@ def cli(argv: list[str] | None = None) -> int:
                   f"identity={manifest['identity_sha256']}")
         elif args.command == "pack-prepare":
             package = pack_prepare(root, args.product, args.kind, args.board, args.mode,
-                                   args.partition)
+                                   args.partition, config_root=args.config_root)
             write_json(args.out, package)
         elif args.command == "pack-verify":
-            result = pack_verify(root, args.package.resolve())
+            result = pack_verify(root, args.package.resolve(),
+                                 config_root=args.config_root)
             print("bk7258-package: VERIFY PASS "
                   f"package={result['package_id']} kind={result['kind']} "
                   f"source_build_id={result['source_build_id']}")
@@ -3875,20 +3481,12 @@ def cli(argv: list[str] | None = None) -> int:
             descriptor_set = load_json_checked(descriptor_path, "validation descriptors")
             result = validate_descriptor_set(root, descriptor_set)
             print("bk7258-framework: VALIDATION PASS "
-                  f"descriptors={result['descriptors']} "
-                  f"legacy_profiles={result['legacy']['profiles']}")
+                  f"descriptors={result['descriptors']}")
         elif args.command == "validation-suite-check":
             result = validation_suite_check(root, args.product, args.suite)
             print("bk7258-framework: VALIDATION SUITE PASS "
                   f"product={result['product']} suite={result['suite']} "
                   f"catalog={result['catalog_identity_sha256']}")
-        elif args.command in {"shadow-check", "shadow-parity", "shadow-report", "parity",
-                              "parity-check", "legacy-shadow", "legacy-parity"}:
-            result = shadow_parity(root, args.ledger, require_git=not args.no_git)
-            if args.out is not None:
-                write_json(args.out, result)
-            else:
-                print(canonical_json(result).decode(), end="")
         elif args.command in {"framework-check", "check-framework"}:
             result = framework_check(root)
             if args.out is not None:
@@ -3906,6 +3504,12 @@ def cli(argv: list[str] | None = None) -> int:
     except FrameworkError as error:
         print(f"bk7258-framework: FAIL: {error}", file=sys.stderr)
         return 2
+
+def cli(argv: list[str] | None = None) -> int:
+    parser = _build_cli_parsers()
+    args = parser.parse_args(argv)
+    root = args.root.resolve()
+    return _run_cli_command(args, root)
 
 
 if __name__ == "__main__":

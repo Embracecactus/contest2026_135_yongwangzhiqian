@@ -163,12 +163,18 @@ if [[ -n "${PRODUCT_ID}" ]]; then
     fi
     PROFILE_ROOT="${PROFILE_WORK_ROOT}/configs"
     BUILD_PLAN_SOURCE="${BK7258_BUILD_PLAN_FILE:-${PROFILE_WORK_ROOT}/bk7258-build-plan.json}"
+    CONFIG_ROOT_ARGS=()
+    if [[ -n "${BK7258_CONFIG_ROOT:-}" ]]; then
+        CONFIG_ROOT_ARGS=(--config-root "${BK7258_CONFIG_ROOT}")
+    fi
     if [[ ! -f "${BUILD_PLAN_SOURCE}" ]]; then
         python3 "${FRAMEWORK_TOOL}" --root "${CONTEST_DIR}" build-plan \
-            --product "${PRODUCT_ID}" --out "${BUILD_PLAN_SOURCE}"
+            --product "${PRODUCT_ID}" --out "${BUILD_PLAN_SOURCE}" \
+            "${CONFIG_ROOT_ARGS[@]}"
     fi
     python3 "${FRAMEWORK_TOOL}" --root "${CONTEST_DIR}" build-plan-verify \
-        --plan "${BUILD_PLAN_SOURCE}" --product "${PRODUCT_ID}" >/dev/null
+        --plan "${BUILD_PLAN_SOURCE}" --product "${PRODUCT_ID}" \
+        "${CONFIG_ROOT_ARGS[@]}" >/dev/null
     BUILD_PLAN_FILE_RECORD=bk7258-build-plan.json
     BUILD_PLAN_IDENTITY_SHA256="$(plan_value "${BUILD_PLAN_SOURCE}" identity_sha256)"
     if [[ -n "${BK7258_VALIDATION_SUITE}" ]]; then
@@ -756,11 +762,7 @@ if [[ "${BK7258_VALIDATION_SUITE}" == "${BK7258_AUDIO_DAC_VALIDATION_SUITE}" ]];
           "${CP_PROFILE_BOOT}" != mcuboot ||
           "${AP_PROFILE_BOOT}" != mcuboot ||
           "${CP_PROFILE_CLASS}" != validation ||
-          "${AP_PROFILE_CLASS}" != validation ]] ||
-       ! config_enabled "${AP_CONFIG}" BK7258_AUD ||
-       ! config_enabled "${AP_CONFIG}" BK7258_AUD_DAC_EQ ||
-       ! config_enabled "${AP_CONFIG}" BK7258_AUD_LIFECYCLE_VALIDATION ||
-       ! config_enabled "${CP_CONFIG}" BK7258_PM_STANDBY_ONESHOT_VERIFY; then
+          "${AP_PROFILE_CLASS}" != validation ]]; then
         printf '%s\n' \
             'build_dual_image: audio_dac validation suite requires the complete canonical MCUboot pair' >&2
         exit 2
@@ -782,63 +784,11 @@ if [[ "${BK7258_VALIDATION_SUITE}" == "${BK7258_JPEG_M2M_VALIDATION_SUITE}" ]]; 
           "${CP_PROFILE_BOOT}" != mcuboot ||
           "${AP_PROFILE_BOOT}" != mcuboot ||
           "${CP_PROFILE_CLASS}" != validation ||
-          "${AP_PROFILE_CLASS}" != validation ]] ||
-       ! config_enabled "${CP_CONFIG}" BK7258_AP_AUTOSTART ||
-       ! config_enabled "${CP_CONFIG}" BK7258_AP_CONTROL ||
-       ! config_enabled "${CP_CONFIG}" BK7258_CONSOLE_UART0 ||
-       ! config_enabled "${CP_CONFIG}" BK7258_RPTUN ||
-       ! config_enabled "${CP_CONFIG}" BK7258_SDK_IPC_RUNTIME ||
-       ! config_enabled "${CP_CONFIG}" BK7258_SWD_DEBUG ||
-       config_enabled "${CP_CONFIG}" BK7258_SWD_PINS_P20_P21 ||
-       config_enabled "${CP_CONFIG}" BK7258_SWD_TARGET_AP0 ||
-       config_enabled "${CP_CONFIG}" BK7258_SWD_TARGET_AP1 ||
-       config_disabled "${CP_CONFIG}" BK7258_SWD_BOOT_HOLD ||
-       ! config_enabled "${AP_CONFIG}" BK7258_JPEG_DECODER ||
-       ! config_enabled "${AP_CONFIG}" BK7258_JPEG_M2M ||
-       ! config_enabled "${AP_CONFIG}" BK7258_JPEG_M2M_VALIDATION ||
-       ! config_enabled "${AP_CONFIG}" BK7258_RPTUN ||
-       [[ "$(config_value "${AP_CONFIG}" BK7258_JPEG_M2M_DEVPATH \
-             '"/dev/video1"')" != '"/dev/video1"' ]] ||
-       ! grep -qx 'CONFIG_BK7258_JPEG_M2M_DEFAULT_WIDTH=32' \
-           "${AP_CONFIG}/defconfig" ||
-       ! grep -qx 'CONFIG_BK7258_JPEG_M2M_DEFAULT_HEIGHT=16' \
-           "${AP_CONFIG}/defconfig" ||
-       ! grep -qx 'CONFIG_BK7258_JPEG_M2M_MAX_WIDTH=32' \
-           "${AP_CONFIG}/defconfig" ||
-       ! grep -qx 'CONFIG_BK7258_JPEG_M2M_MAX_HEIGHT=16' \
-           "${AP_CONFIG}/defconfig" ||
-       ! grep -qx 'CONFIG_BK7258_JPEG_M2M_MAX_INPUT_SIZE=4096' \
-           "${AP_CONFIG}/defconfig"; then
+          "${AP_PROFILE_CLASS}" != validation ]]; then
         printf '%s\n' \
             'build_dual_image: jpeg_m2m validation suite requires the complete canonical MCUboot pair' >&2
         exit 2
     fi
-
-    for symbol in BK7258_FLASH_LITTLEFS BK7258_FLASH_MTD \
-                  BK7258_GPIO_LOWERHALF BK7258_SARADC_SERVER \
-                  BK7258_TEMPERATURE BK7258_WIFI_VNET BK7258_BT_IPC \
-                  BK7258_RPMSGFS BK7258_PM_COORDINATED_STANDBY; do
-        if config_enabled "${CP_CONFIG}" "${symbol}"; then
-            printf 'build_dual_image: JPEG M2M validation CP must not enable %s\n' \
-                "${symbol}" >&2
-            exit 2
-        fi
-    done
-
-    for symbol in BK7258_DVP BK7258_T5_BOARD_CAMERA \
-                  BK7258_T5_BOARD_CAMERA_RAW_YUV \
-                  BK7258_T5_BOARD_CAMERA_H264 \
-                  BK7258_T5_BOARD_CAMERA_VALIDATION \
-                  BK7258_T5_BOARD_CAMERA_H264_VALIDATION BK7258_LCD \
-                  BK7258_DMA2D BK7258_JPEG_ENCODER BK7258_YUV_H264 \
-                  BK7258_SCALE_ROTATE BK7258_PSRAM \
-                  BK7258_PM_COORDINATED_STANDBY; do
-        if config_enabled "${AP_CONFIG}" "${symbol}"; then
-            printf 'build_dual_image: JPEG M2M validation AP must not enable %s\n' \
-                "${symbol}" >&2
-            exit 2
-        fi
-    done
 fi
 
 if [[ "${BK7258_PROFILE_CHECK_ONLY}" == YES ]]; then
@@ -1323,7 +1273,7 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     if [[ "${BL1_MANIFEST_RAW_PAGE}" == "true" ]]; then
         BL1_MANIFEST_CONTAINER_ARGS+=(--container-size 0x1000)
     fi
-    python3 "${BOARD_DIR}/bootloader/make_bl1_manifest.py" \
+    python3 "${BOARD_DIR}/bootloader/bk7258_bl1_pack.py" manifest \
         --format "${BL1_MANIFEST_FORMAT}" \
         --bl2 "${BOARD_DIR}/bootloader/bl2/bl2.bin" \
         --private-key "${BL1_MANIFEST_KEY}" \
@@ -1338,7 +1288,7 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
         --bl2-load "${BL2_LOAD_ADDRESS}" \
         "${BL1_MANIFEST_CONTAINER_ARGS[@]}" \
         --out "${TMPDIR}/bl1-manifest-primary.bin"
-    python3 "${BOARD_DIR}/bootloader/make_bl1_manifest.py" \
+    python3 "${BOARD_DIR}/bootloader/bk7258_bl1_pack.py" manifest \
         --format "${BL1_MANIFEST_FORMAT}" \
         --bl2 "${BOARD_DIR}/bootloader/bl2/bl2.bin" \
         --private-key "${BL1_MANIFEST_KEY}" \

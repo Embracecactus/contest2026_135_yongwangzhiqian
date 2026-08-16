@@ -58,7 +58,7 @@ else ifneq ($(strip $(PARTITION_LAYOUT_SHA256)),)
 $(error PARTITION_LAYOUT_ID is required with PARTITION_LAYOUT_SHA256)
 endif
 MEMORYMAP_HEADER := ../chip/include/bk7258_memorymap.h
-BL1_CONTROL_GENERATOR := make_bk7258_bl1_control.py
+BL1_CONTROL_GENERATOR := bk7258_bl1_pack.py
 BL2_IMAGE ?= bl2/bl2.bin
 BL1_CONTROL_IMAGE ?= bl1_control.bin
 
@@ -286,7 +286,7 @@ $(OBJS): FORCE
 # page must not silently change that default image.
 bl1-control: $(BL1_CONTROL_GENERATOR)
 	@test -f "$(BL2_IMAGE)" || { echo "missing BL2 image: $(BL2_IMAGE)" >&2; exit 1; }
-	python3 $(BL1_CONTROL_GENERATOR) --bl2 "$(BL2_IMAGE)" --out "$(BL1_CONTROL_IMAGE)"
+	python3 $(BL1_CONTROL_GENERATOR) control --bl2 "$(BL2_IMAGE)" --out "$(BL1_CONTROL_IMAGE)"
 
 partition-check:
 	python3 $(PARTITION_GENERATOR) $(PARTITION_ARGS) --check
@@ -348,11 +348,11 @@ bl.elf: $(OBJS) bootloader.tmp
 bl.bin: bl.elf
 	$(OBJCOPY) -O binary $< $@
 
-bl_crc.bin: bl.bin bk7236_pack_min_bootloader.py FORCE
+bl_crc.bin: bl.bin bk7258_bl1_pack.py FORCE
 	BK7258_PARTITION_LAYOUT_SOURCE="$(abspath $(PARTITION_CSV))" \
 		BK7258_PARTITION_LAYOUT_ID="$(PARTITION_LAYOUT_ID)" \
 		BK7258_PARTITION_LAYOUT_SHA256="$(PARTITION_LAYOUT_SHA256)" \
-		python3 bk7236_pack_min_bootloader.py --in bl.bin --out bl_crc.bin $(BL1_MANIFEST_ARG)
+		python3 bk7258_bl1_pack.py crc --in bl.bin --out bl_crc.bin $(BL1_MANIFEST_ARG)
 
 verify: bl_crc.bin
 	@for symbol in Reset_Handler c_main fal_partition_table \

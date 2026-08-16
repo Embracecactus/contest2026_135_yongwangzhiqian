@@ -49,33 +49,37 @@ Only these three profile directories are retained as compatibility seeds:
 
 They are inputs to canonical product resolution, not a 27-entry application
 matrix.  Do not add per-feature or per-validation defconfigs; use a product
-fragment or validation suite instead.
+seed plus menuconfig/Kconfig (or a final .config) instead.
 
-## Canonical products, fragments, and suites
+## Canonical products, seeds, and final .config
 
-New builds are product-first.  Resolve them with
-`tools/bk7258/bk7258_framework.py` and execute the isolated contract
-with `tools/bk7258/bk7258_isolated_executor.py`.
+New builds are product-first, but the product never generates Kconfig
+values.  Kconfig and the final `.config` are the only configuration
+authority:
 
-| Product | Board/boot | Base fragments | Role fragments | Retained seed mapping |
-|---|---|---|---|---|
-| `t5ai_core_bringup` | `t5ai_core` / raw | `common_base`, `board_t5ai_core`, `boot_raw` | `role_cp`, `role_ap`, `role_bl2` | CP/AP base and `bl2_mcuboot` |
-| `t5_board_bringup` | `t5_board` / MCUboot AB | `common_base`, `board_t5_board`, `boot_mcuboot_ab` | `role_cp`, `role_ap`, `role_bl2` | `bl2_mcuboot` only |
-| `aidk_ai_toy_bringup` | `aidk_ai_toy` / MCUboot AB | `common_base`, `board_aidk_ai_toy`, `boot_mcuboot_ab` | `role_cp`, `role_ap`, `role_bl2` | none; fully composed |
+```text
+Chip/Board Kconfig + App Kconfig
+        ↓
+build.sh <config> --cmake menuconfig
+        ↓
+final .config
+        ↓
+CMake build
+        ↓
+bk7258_framework.py verify-config
+```
 
-Canonical validation suites are resolved as product fragments rather than
-profile directories:
+Product metadata (`bk7258_product_catalog_*.json`) keeps only identity,
+expected board/role/boot, partition layout, SDK/ABI, trust/package and
+artifact policy.  Roles with a retained seed (`legacy_profile`) start from
+that seed's `defconfig`; seedless products must supply final `cp.config` /
+`ap.config` / `bl2.config` files (``--config-root`` for the executor).
 
-- `t5ai_core_bringup`: `psram` (`validation_psram`);
-- `t5_board_bringup`: `audio_dac`, `jpeg_m2m`, `saradc_key`, `temperature`,
-  `camera`, `camera_h264`, `pwm`, `tf_1bit`, `tf_4bit`, `driver_coverage`, and
-  `wifi` (each uses the matching `validation_*` fragment).
-
-The authoritative product and fragment documents are the
-`bk7258_product_catalog_*.json`, `bk7258_fragment_catalog_*.json`, and
-`bk7258_validation_suite_catalog.json` files beside the framework.  The
-validation suite catalog is the source for feature symbols and resource
-requirements; it does not claim hardware PASS by itself.
+`tools/bk7258/bk7258_framework.py verify-config --product ... --role ... \
+--config <final .config>` checks the locked board/role/boot facts and hashes
+the final `.config` into build/package identity.  Validation suites in
+`bk7258_validation_suite_catalog.json` are resource/behavior metadata only
+and never inject Kconfig symbols.
 
 ## Usage
 
@@ -110,3 +114,27 @@ bounded validation target.  Do not preserve each bring-up stage as another
 defconfig.  Prefer extending an existing validation profile when the new gate
 is cumulative, and use Kconfig/runtime control for ordinary peripheral
 parameters such as UART baud, I2C frequency and SPI mode.
+
+## Seed 命名规则
+
+- runnable 角色 seed：`<board_variant>_<role>_base`，例如
+  `t5ai_core_cp_base` / `t5ai_core_ap_base`。
+- standalone 基础设施 seed：`<role>_<boot_flavor>`，例如 `bl2_mcuboot`
+  （`BK7258_PROFILE_BOARD=common`，跨板共用）。
+- 禁止新增 feature / validation 级 defconfig；用 seed + menuconfig/Kconfig
+  或最终 `.config` 表达应用差异。
+
+## profile.conf 定位
+
+`profile.conf` 是 contest 仓自有的 host 侧元数据，官方 NuttX/openvela 不
+要求（官方 board 配置目录只有 `configs/<cfg>/defconfig`，`build.sh` /
+CMake 也只消费 defconfig）。它只声明期望的
+`BK7258_PROFILE_BOARD/ROLE/BOOT/CLASS/COMPAT` 事实，供 host 工具核对最终
+`.config` 与组合校验；不生成、不覆盖任何 Kconfig 值。
+
+## seed 不回写
+
+`menuconfig` / `savedefconfig` 的结果只允许落到工作区 `.config`，禁止回写
+`configs/<seed>/defconfig`。三个角色 seed 是冻结的兼容契约，App 选择必须
+通过构建目录内的最终 `.config` 表达，否则会污染角色默认值并产生隐式的
+board×app defconfig 变体。

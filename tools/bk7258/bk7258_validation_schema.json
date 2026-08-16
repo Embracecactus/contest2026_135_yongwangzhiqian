@@ -5,7 +5,7 @@
   "version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "kind", "version", "serialization", "migration_policy", "descriptors", "legacy_ledger", "identity_sha256"],
+  "required": ["schema", "kind", "version", "serialization", "descriptors", "identity_sha256"],
   "standard_artifact_contract": {
     "cp": "vela_nuttx_cp.bin",
     "ap": "vela_nuttx_ap.bin",
@@ -16,9 +16,7 @@
     "kind": {"const": "validation-descriptor-set"},
     "version": {"const": 1},
     "serialization": {"type": "object", "additionalProperties": false},
-    "migration_policy": {"type": "object", "additionalProperties": false},
     "descriptors": {"type": "array", "minItems": 1},
-    "legacy_ledger": {"const": "tools/bk7258/legacy_profile_migration_ledger.json"},
     "identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
   },
   "descriptor": {

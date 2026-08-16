@@ -13,10 +13,9 @@ import stat
 from pathlib import Path
 from typing import Any
 
-from bk7258_framework import (
+from bk7258_common import (
     FrameworkError,
     array,
-    build_plan,
     canonical_json,
     digest,
     exact,
@@ -28,6 +27,7 @@ from bk7258_framework import (
     sha256,
     symbols,
 )
+from bk7258_framework import build_plan
 
 
 OWNERSHIP_SCHEMA = "bk7258.ownership/2"
@@ -523,9 +523,11 @@ def validate_resource_graph(repository: Path, value: dict[str, Any]) -> dict[str
     return _identity(value, "resource graph")
 
 
-def resolve_resource_graph(repository: Path, value: dict[str, Any]) -> dict[str, Any]:
+def resolve_resource_graph(repository: Path, value: dict[str, Any],
+                           *, config_root: Path | None = None) -> dict[str, Any]:
     validate_resource_graph(repository, value)
-    plan = build_plan(repository, value["product"], value["board"], value["mode"])
+    plan = build_plan(repository, value["product"], value["board"], value["mode"],
+                      config_root=config_root)
     if (plan["board"]["id"] != value["board"] or
             plan["identity_inputs"]["product"] != value["product"] or
             plan["identity_inputs"]["mode"] != value["mode"]):

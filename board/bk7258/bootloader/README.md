@@ -40,7 +40,7 @@ board/bk7258/bootloader/
   boot_runtime.c                     cache/MPU, secondary-core, and handoff normalization
   bootloader.ld                      FLASH @ 0x02000000, slot 0x10000
   Makefile                           arm-none-eabi-gcc freestanding
-  bk7236_pack_min_bootloader.py      BK CRC packer (copied from $ZEPHYR_PORT/tools/)
+  bk7258_bl1_pack.py                 single BL1 packer entry (control/manifest/crc)
   README.md                          this file
 ```
 
@@ -125,7 +125,7 @@ generator performs no signing, device I/O, OTP, or eFuse operation.
 The same page-size rule is available for the candidate Manifest generator:
 
 ```bash
-python3 make_bl1_manifest.py --format beken-candidate-v1 \
+python3 bk7258_bl1_pack.py manifest --format beken-candidate-v1 \
   --container-size 0x1000 --bl2 /path/to/bl2.bin \
   --private-key /tmp/bk7258-bl1-manifest-dev-key.pem --out primary_manifest.bin
 ```

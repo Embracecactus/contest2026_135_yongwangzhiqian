@@ -1,8 +1,4 @@
 {
-  "bindings": {
-    "console": {"baud": 115200, "flow_control": false, "rts_reset": false, "uart": "uart0"},
-    "debug": {"boot_hold": false, "rtt": false, "swd": false}
-  },
   "id": "t5_board",
   "kind": "board",
   "resource_claims": [{"owner": "console", "phases": ["cp", "ap", "bl2"], "resource": "uart0"}],

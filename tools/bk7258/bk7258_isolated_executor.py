@@ -364,6 +364,7 @@ def _declare_source_view(repository: Path, workspace: Path,
         ],
         "excluded_shared_state": [
             "nuttx/.config", "nuttx/defconfig", "nuttx/Make.defs",
+            "nuttx/include/nuttx/config.h",
             "nuttx/arch/arm/include/board", "nuttx/arch/arm/include/chip",
             "nuttx/arch/arm/src/board", "nuttx/arch/arm/src/chip",
             "board/bk7258/bootloader.tmp", "board/bk7258/bootloader/bl2_crc.bin.json",
@@ -392,6 +393,7 @@ def _declare_source_view(repository: Path, workspace: Path,
         "shared_make_defs_detected": shared_make_defs.is_file(),
         "excluded_shared_state": [
             "nuttx/.config", "nuttx/defconfig", "nuttx/Make.defs",
+            "nuttx/include/nuttx/config.h",
             "nuttx/arch/arm/include/board", "nuttx/arch/arm/include/chip",
             "nuttx/arch/arm/src/board", "nuttx/arch/arm/src/chip",
             "board/bk7258/bootloader.tmp", "board/bk7258/bootloader/bl2_crc.bin.json",
@@ -425,12 +427,12 @@ def _copy_seed(source: Path, target: Path) -> None:
 def _materialize_seeds(plan: dict[str, Any], repository: Path,
                        source_views: dict[str, dict[str, Any]],
                        role_roots: dict[str, Path]) -> dict[str, dict[str, Any]]:
-    """Generate private role configs from canonical fragments.
+    """Materialize role configs from retained seeds or final .configs.
 
-    The compatibility-shaped return record is retained for the manifest
-    schema, but no legacy ``configs/<profile>`` input is read or copied.  A
-    role directory contains only the small generated profile header and the
-    resolved canonical defconfig.
+    The framework never synthesizes Kconfig values.  A role with a retained
+    seed copies that seed's defconfig; a seedless product must supply
+    ``config_root/<role>.config`` final configs.  Kconfig resolves the actual
+    final .config during the CMake configure phase.
     """
     result: dict[str, dict[str, Any]] = {}
     for role in RUNTIME_ROLES:
@@ -442,13 +444,23 @@ def _materialize_seeds(plan: dict[str, Any], repository: Path,
         ir = framework.resolve(
             repository, plan["identity_inputs"]["product"], role,
             plan["identity_inputs"]["board"], plan["identity_inputs"]["mode"])
-        config = framework.config_document(ir)
-        if config["identity_sha256"] != plan["roles"][role]["config_identity_sha256"]:
-            raise IsolatedExecutorError(f"canonical role config identity mismatch: {role}")
-        role_config.mkdir()
         profile_text = framework._canonical_profile_text(ir)
+        source = row["source"]
+        if source.startswith("board/bk7258/configs/"):
+            defconfig_path = repository / source / "defconfig"
+        else:
+            defconfig_path = Path(source)
+        if defconfig_path.is_symlink() or not defconfig_path.is_file():
+            raise IsolatedExecutorError(
+                f"role config input is not a regular file: {defconfig_path}")
+        try:
+            defconfig_text = defconfig_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as error:
+            raise IsolatedExecutorError(
+                f"cannot read role config input: {defconfig_path}") from error
+        role_config.mkdir()
         (role_config / "profile.conf").write_text(profile_text, encoding="utf-8")
-        (role_config / "defconfig").write_text(config["defconfig"], encoding="utf-8")
+        (role_config / "defconfig").write_text(defconfig_text, encoding="utf-8")
         profile_sha = _digest_file(role_config / "profile.conf")
         defconfig_sha = _digest_file(role_config / "defconfig")
         if profile_sha != row["materialized_profile_sha256"]:
@@ -761,8 +773,21 @@ def _verify_snapshot_inputs(value: dict[str, Any], source_root: Path) -> None:
         raise IsolatedExecutorError(
             "materialized snapshot lacks a real contest repository root")
     try:
+        plan_copy = json.loads(Path(value["plan_copy"]).read_text(encoding="utf-8"))
+        config_roots = {
+            Path(row["source"]).parent
+            for row in plan_copy["legacy_adapter"]["seed_profiles"].values()
+            if isinstance(row.get("source"), str) and
+            row["source"].startswith("/") and
+            row["source"].endswith((".config",))
+        }
+        if len(config_roots) > 1:
+            raise IsolatedExecutorError(
+                "external role configs must share one config_root")
+        config_root = next(iter(config_roots)) if config_roots else None
         snapshot_plan = framework.build_plan(
-            snapshot_repository, value["product"], value["board"], value["mode"])
+            snapshot_repository, value["product"], value["board"], value["mode"],
+            config_root=config_root)
     except (framework.FrameworkError, OSError, ValueError, KeyError, TypeError,
             AttributeError) as error:
         raise IsolatedExecutorError(
@@ -1597,7 +1622,7 @@ def _runtime_command_paths(command: dict[str, Any], role: str,
         raise RuntimeCompileError(f"runtime command contains a forbidden operation: {role}")
     lowered_joined = joined.lower()
     if any(token in lowered_joined for token in
-           ("make_bl1_manifest", "--manifest", "manifest-primary",
+           ("bk7258_bl1_pack", "--manifest", "manifest-primary",
             "manifest-secondary", "signed-record", "signing-key")):
         raise RuntimeCompileError(f"runtime command contains a manifest/signing operation: {role}")
     if command.get("tool") == "make" and "all" in argv:
@@ -1933,15 +1958,15 @@ def _expected_delivery_commands(value: dict[str, Any], delivery: dict[str, Any],
     secondary_args[secondary_args.index("--bl2-xip") + 1] = hex(secondary_xip)
     commands = [
         make("bl1-manifest-primary", "python3", [
-            python, str(bootloader / "make_bl1_manifest.py"),
+            python, str(bootloader / "bk7258_bl1_pack.py"), "manifest",
             *common_manifest_args, "--out", str(primary_manifest)],
             manifests, {"BK7258_LAYOUT_ID": layout["layout_id"]}, "sign", 0),
         make("bl1-manifest-secondary", "python3", [
-            python, str(bootloader / "make_bl1_manifest.py"),
+            python, str(bootloader / "bk7258_bl1_pack.py"), "manifest",
             *secondary_args, "--out", str(secondary_manifest)],
             manifests, {"BK7258_LAYOUT_ID": layout["layout_id"]}, "sign", 1),
         make("bl1-pack", "python3", [
-            python, str(bootloader / "bk7236_pack_min_bootloader.py"),
+            python, str(bootloader / "bk7258_bl1_pack.py"), "crc",
             "--in", str(bl1_staged), "--out", str(bootloader_crc),
             "--manifest-primary", str(primary_manifest),
             "--manifest-secondary", str(secondary_manifest)],
@@ -2478,9 +2503,26 @@ def _validate_manifest(value: dict[str, Any]) -> dict[str, Any]:
                   "config_seed_profile", "cmake_board_config", "partition_contract_root",
                   "cmake_binary_root", "bootloader_staging_root", "source_view",
                   "config_identity_sha256", "sdk_bundle", "commands", "artifacts",
+                  "final_config_sha256", "config_verification",
                   "activation", "applicability"}
         if not isinstance(row, dict) or set(row) != needed:
             raise IsolatedExecutorError(f"prepare role fields are malformed: {role}")
+        if value["phase"] in {"prepare", "materialized"} and (
+                row["final_config_sha256"] is not None or
+                row["config_verification"] is not None):
+            raise IsolatedExecutorError(
+                f"pre-runtime role carries final config verification: {role}")
+        if value["phase"] in {
+                "runtime-built", "delivery-prepared", "delivery-built"} and \
+                role in RUNTIME_ROLES and role_active:
+            verification = row["config_verification"]
+            final_hash = row["final_config_sha256"]
+            if not isinstance(verification, dict) or \
+                    not isinstance(final_hash, str) or \
+                    verification.get("config_sha256") != final_hash or \
+                    row["artifacts"].get(".config", {}).get("sha256") != final_hash:
+                raise IsolatedExecutorError(
+                    f"runtime role final config verification is inconsistent: {role}")
         role_active = role in value["active_roles"]
         if row["activation"] != ("active" if role_active else "inactive") or \
                 row["applicability"] != ("required" if role_active else "not-applicable"):
@@ -2677,7 +2719,7 @@ def _validate_manifest(value: dict[str, Any]) -> dict[str, Any]:
                     "build_dual_image.sh", "postbuild", "imgtool", "openssl",
                     "nuttx_post_build", "crc", "sign", "pack", "flash")) or \
                     any(token in joined for token in (
-                        "make_bl1_manifest", "--manifest", "manifest-primary",
+                        "bk7258_bl1_pack", "--manifest", "manifest-primary",
                         "manifest-secondary", "signed-record", "signing-key")):
                 raise IsolatedExecutorError("prepare manifest routes through a forbidden compile operation")
             if command["tool"] == "make" and "all" in command["argv"]:
@@ -3137,8 +3179,15 @@ def compile_runtime(
                 role_root, cmake_root, Path(row["artifact_root"]), role)
             # ``config_path`` denotes the resolved CMake configuration input,
             # while artifacts[".config"] remains its independent archive.
-            row["config_path"] = str(
-                _select_runtime_output(cmake_root, role_root, ".config"))
+            final_config = _select_runtime_output(cmake_root, role_root, ".config")
+            row["config_path"] = str(final_config)
+            verification = framework.verify_final_config(
+                repository, plan["identity_inputs"]["product"], role,
+                final_config,
+                expected_layout_id=plan["partition_layout"]["layout_id"],
+                expected_sdk_version=plan["sdk"]["versions"][role])
+            row["final_config_sha256"] = verification["config_sha256"]
+            row["config_verification"] = verification
         elif role in BOOT_ROLES and role in value["active_roles"]:
             row["commands"] = runtime_commands[role]
             row["artifacts"] = _collect_boot_artifacts(
@@ -3257,6 +3306,7 @@ def _delivery_environment(root: Path, source_view: dict[str, Any],
         "LC_ALL": "C",
         "PYTHONUNBUFFERED": "1",
         "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
         "HOME": str(env_root / "home"),
         "TMPDIR": str(env_root / "tmp"),
         "XDG_CACHE_HOME": str(env_root / "cache"),
@@ -3391,8 +3441,8 @@ def _delivery_tool_records(
     paths = {
         "postbuild": source_board / "scripts/postbuild.sh",
         "crc_expand": source_board / "scripts/bk7258_crc_expand.py",
-        "bl1_pack": source_board / "bootloader/bk7236_pack_min_bootloader.py",
-        "bl1_manifest": source_board / "bootloader/make_bl1_manifest.py",
+        "bl1_pack": source_board / "bootloader/bk7258_bl1_pack.py",
+        "bl1_manifest": source_board / "bootloader/bk7258_bl1_pack.py",
         "bl2_crc": source_board / "scripts/bk7258_crc_expand.py",
         "mcuboot_pair": source_tools / "pack_bk7258_mcuboot_pair.py",
         "dual_image": source_tools / "pack_dual_image.py",
@@ -3851,20 +3901,22 @@ def deliver(
         "--bl2-load", hex(0x28020000), "--manifest-version", str(manifest_version),
     ]
     run("bl1-manifest-primary", "python3", [
-        python, str(bootloader / "make_bl1_manifest.py"), *common_manifest_args,
+        python, str(bootloader / "bk7258_bl1_pack.py"), "manifest",
+        *common_manifest_args,
         "--out", str(primary_manifest),
     ], delivery_root / "manifests", {"BK7258_LAYOUT_ID": plan["partition_layout"]["layout_id"]}, "sign")
     secondary_args = list(common_manifest_args)
     secondary_args[secondary_args.index("--bl2-slot") + 1] = "secondary"
     secondary_args[secondary_args.index("--bl2-xip") + 1] = hex(secondary_xip)
     run("bl1-manifest-secondary", "python3", [
-        python, str(bootloader / "make_bl1_manifest.py"), *secondary_args,
+        python, str(bootloader / "bk7258_bl1_pack.py"), "manifest",
+        *secondary_args,
         "--out", str(secondary_manifest),
     ], delivery_root / "manifests", {"BK7258_LAYOUT_ID": plan["partition_layout"]["layout_id"]}, "sign")
 
     bootloader_crc = delivery_root / "payload/bootloader_crc.bin"
     run("bl1-pack", "python3", [
-        python, str(bootloader / "bk7236_pack_min_bootloader.py"),
+        python, str(bootloader / "bk7258_bl1_pack.py"), "crc",
         "--in", str(bl1_staged), "--out", str(bootloader_crc),
         "--manifest-primary", str(primary_manifest),
         "--manifest-secondary", str(secondary_manifest),
@@ -3932,8 +3984,14 @@ def deliver(
         shutil.copyfile(raw_source, raw_destination)
         signed = pair_output / ("cp_signed.bin" if role == "cp" else "ap_signed.bin")
         signed_crc_path = pair_output / signed_crc
-        (delivery_root / "payload" / raw_name).write_bytes(signed.read_bytes())
-        (delivery_root / "payload" / crc_name).write_bytes(signed_crc_path.read_bytes())
+        raw_target = delivery_root / "payload" / raw_name
+        crc_target = delivery_root / "payload" / crc_name
+        # postbuild emits the unsigned role images read-only; the signed
+        # payload replaces them in place, so make the targets writable first.
+        raw_target.chmod(0o600)
+        raw_target.write_bytes(signed.read_bytes())
+        crc_target.chmod(0o600)
+        crc_target.write_bytes(signed_crc_path.read_bytes())
 
     _write_dual_nuttx_manifest(delivery_root / "payload")
 
@@ -4249,7 +4307,7 @@ def prepare_delivery(
         "bl1", "bl.bin")
     bootloader_crc = delivery_root / "payload/bootloader_crc.bin"
     run("bl1-pack", "python3", [
-        python, str(bootloader / "bk7236_pack_min_bootloader.py"),
+        python, str(bootloader / "bk7258_bl1_pack.py"), "crc",
         "--in", str(bl1_staged), "--out", str(bootloader_crc),
     ], delivery_root / "payload", {
         "BK7258_PARTITION_LAYOUT_ID": plan["partition_layout"]["layout_id"],
@@ -4319,7 +4377,8 @@ def prepare_delivery(
 
 def prepare(repository: Path, product_id: str, build_root: Path,
             output: Path, *, plan_path: Path | None = None,
-            workspace_root: Path | None = None) -> dict[str, Any]:
+            workspace_root: Path | None = None,
+            config_root: Path | None = None) -> dict[str, Any]:
     """Prepare a canonical role-isolated execution manifest without building."""
     repository = _safe_path(repository, "repository")
     _reject_traversal(repository, "repository")
@@ -4338,23 +4397,28 @@ def prepare(repository: Path, product_id: str, build_root: Path,
     board_digest = _tree_digest(board_source)
 
     if plan_path is None:
-        plan = framework.build_plan(repository, product_id)
+        plan = framework.build_plan(repository, product_id,
+                                    config_root=config_root)
         plan_path_copy = build_root / "bk7258-build-plan.json"
         plan_path_copy.write_bytes(_canonical(plan))
-        verified_plan = framework.build_plan_verify(repository, plan_path_copy, product_id)
+        verified_plan = framework.build_plan_verify(
+            repository, plan_path_copy, product_id, config_root=config_root)
     else:
         supplied = _safe_path(plan_path, "plan")
         _reject_traversal(supplied, "plan")
-        verified_plan = framework.build_plan_verify(repository, supplied, product_id)
+        verified_plan = framework.build_plan_verify(
+            repository, supplied, product_id, config_root=config_root)
         plan_path_copy = build_root / "bk7258-build-plan.json"
         plan_path_copy.write_bytes(_canonical(verified_plan))
-        reloaded = framework.build_plan_verify(repository, plan_path_copy, product_id)
+        reloaded = framework.build_plan_verify(
+            repository, plan_path_copy, product_id, config_root=config_root)
         if reloaded["identity_sha256"] != verified_plan["identity_sha256"]:
             raise IsolatedExecutorError("copied build plan identity changed")
     plan_copy_sha256 = _digest_file(plan_path_copy)
     if verified_plan["identity_sha256"] != framework.build_plan(
             repository, product_id, verified_plan["identity_inputs"]["board"],
-            verified_plan["identity_inputs"]["mode"])["identity_sha256"]:
+            verified_plan["identity_inputs"]["mode"],
+            config_root=config_root)["identity_sha256"]:
         raise IsolatedExecutorError("build plan identity is not current")
 
     resolved_policy = _resolve_policy_for_plan(repository, verified_plan)
@@ -4399,6 +4463,8 @@ def prepare(repository: Path, product_id: str, build_root: Path,
             "config_identity_sha256": item["config_identity_sha256"],
             "sdk_bundle": verified_plan["sdk"]["versions"][role] if role in RUNTIME_ROLES else None,
             "artifacts": {},
+            "final_config_sha256": None,
+            "config_verification": None,
             "activation": "active" if role_active else "inactive",
             "applicability": "required" if role_active else "not-applicable",
             "commands": (_commands(
@@ -4504,6 +4570,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare_parser.add_argument("--out", type=Path, required=True)
     prepare_parser.add_argument("--plan", type=Path)
     prepare_parser.add_argument("--workspace-root", type=Path)
+    prepare_parser.add_argument("--config-root", type=Path)
     materialize_parser = commands.add_parser(
         "materialize-sources", allow_abbrev=False,
         help="materialize and audit the one entity source snapshot")
@@ -4558,7 +4625,8 @@ def cli(argv: list[str] | None = None) -> int:
         if args.command == "prepare":
             manifest = prepare(args.root.resolve(), args.product, args.build_root,
                                args.out, plan_path=args.plan,
-                               workspace_root=args.workspace_root)
+                               workspace_root=args.workspace_root,
+                               config_root=args.config_root)
             print(f"bk7258-isolated-executor: PREPARE PASS identity={manifest['identity_sha256']}")
         elif args.command == "materialize-sources":
             manifest = materialize_sources(

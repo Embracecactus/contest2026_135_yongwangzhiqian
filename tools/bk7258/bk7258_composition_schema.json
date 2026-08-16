@@ -18,17 +18,7 @@
   "enums": {
     "roles": ["cp", "ap", "bl2"],
     "modes": ["bringup", "application", "validation", "factory"],
-    "boots": ["raw", "mcuboot"],
-    "fragment_scopes": [
-      "common",
-      "role",
-      "board",
-      "boot",
-      "feature",
-      "app",
-      "validation",
-      "factory"
-    ]
+    "boots": ["raw", "mcuboot"]
   },
   "documents": {
     "board": {
@@ -38,7 +28,6 @@
         "id",
         "soc",
         "variant",
-        "bindings",
         "resource_claims",
         "transport"
       ],
@@ -54,23 +43,9 @@
         "board",
         "boot",
         "roles",
-        "fragments",
-        "features",
-        "validation_suite",
         "sdk_set",
         "sdk_lock",
         "partition_layout"
-      ],
-      "additional_properties": false
-    },
-    "config-fragment": {
-      "required": [
-        "schema",
-        "kind",
-        "id",
-        "scope",
-        "symbols",
-        "requires"
       ],
       "additional_properties": false
     },

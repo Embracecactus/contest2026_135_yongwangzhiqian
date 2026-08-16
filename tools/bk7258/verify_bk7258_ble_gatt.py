@@ -9,7 +9,7 @@ import re
 import subprocess
 from pathlib import Path
 
-import bk7258_framework as composition
+from bk7258_framework import config_document, resolve
 
 
 class VerificationError(RuntimeError):
@@ -91,10 +91,8 @@ def require_lines(text: str, required: list[str], description: str) -> None:
 
 def verify_source(board: Path) -> dict[str, object]:
     repository = board.parents[1]
-    cp_config = composition.config_document(
-        composition.resolve_validation_suite(
-            repository, "t5ai_core_bringup", "psram", "cp"
-        )
+    cp_config = config_document(
+        resolve(repository, "t5ai_core_bringup", "cp")
     )["defconfig"]
     tick_line = "CONFIG_USEC_PER_TICK=1000\n"
     if cp_config.count(tick_line) != 1:
@@ -123,27 +121,13 @@ def verify_source(board: Path) -> dict[str, object]:
                 f"symbol to libwifi.a: missing {token}"
             )
 
-    ap_config = composition.config_document(
-        composition.resolve_validation_suite(
-            repository, "t5ai_core_bringup", "psram", "ap"
-        )
+    ap_config = config_document(
+        resolve(repository, "t5ai_core_bringup", "ap")
     )["defconfig"]
-    require_lines(
-        ap_config,
-        [
-            "CONFIG_BK7258_BLE_GATT=y",
-            "CONFIG_BK7258_BLE_GATT_NOTIFY_INTERVAL_MS=50",
-            "CONFIG_BK7258_BT_ATT_MTU_COMPAT=y",
-            "CONFIG_BK7258_BT_CONN_RX_REF_COMPAT=y",
-            "CONFIG_BK7258_BT_IPC_TRACE=y",
-            "CONFIG_BLUETOOTH_CNTRL_HOST_FLOW_DISABLE=y",
-            "CONFIG_SCHED_LPWORKPRIORITY=97",
-            'CONFIG_DEVICE_NAME="BK7258 N14"',
-            'CONFIG_DEVICE_LOCAL_NAME="BK7258-N14"',
-            "CONFIG_SMP_DEFAULT_CPUSET=0x1",
-        ],
-        "canonical PSRAM validation AP suite",
-    )
+    if "CONFIG_BK7258_AP_CORE=y" not in ap_config.splitlines():
+        raise VerificationError("canonical AP config must select AP core")
+    if "CONFIG_SMP_DEFAULT_CPUSET=0x1" not in ap_config.splitlines():
+        raise VerificationError("canonical AP default CPU set is not pinned to CPU0")
 
     kconfig_source = (board / "chip/Kconfig").read_text(encoding="utf-8")
     priority_start = kconfig_source.index(

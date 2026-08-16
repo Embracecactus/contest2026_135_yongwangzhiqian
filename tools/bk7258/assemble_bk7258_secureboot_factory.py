@@ -23,8 +23,9 @@ import struct
 import sys
 from pathlib import Path
 
-bk7258_crc_expand = load_board_script("bk7258_crc_expand")
-from bk7258_crc_expand import decode, expand
+bk7258_crc16 = load_board_script("bk7258_crc16")
+decode = bk7258_crc16.decode
+expand = bk7258_crc16.expand
 from bk7258_paths import Bk7258Layout
 gen_bk7258_partitions = load_board_script("gen_bk7258_partitions")
 from gen_bk7258_partitions import SECUREBOOT_XIP_LAYOUT, load_layout

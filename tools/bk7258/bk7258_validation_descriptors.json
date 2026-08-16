@@ -7,12 +7,6 @@
     "claim_policy": "exclusive",
     "outcome_schema": "bk7258.validation-outcome/1"
   },
-  "migration_policy": {
-    "legacy_validation": "canonical_suite_only",
-    "production_auto_start": "canonical-only",
-    "legacy_profile_state": "cutover-approved",
-    "legacy_bytes": "historical-only"
-  },
   "descriptors": [
     {
       "id": "rptun_public_api_smoke",
@@ -105,6 +99,5 @@
       "entrypoint": "app/hello_app/bkvalidate_main.c"
     }
   ],
-  "legacy_ledger": "tools/bk7258/legacy_profile_migration_ledger.json",
-  "identity_sha256": "b1c677f43d040083e4f679421cad4d5e07b641a62aa97c76f2f466c61ca309f0"
+  "identity_sha256": "0430914abce169fcc7d47c9cc6e31a9152f38c0f87a5a09e4606b78c425ddf62"
 }

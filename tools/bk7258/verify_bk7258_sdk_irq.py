@@ -245,9 +245,9 @@ def main() -> int:
     cmake_text = read(cmake)
     kconfig_text = read(kconfig)
     # The bridge is a property of the retained CP seed.  The product
-    # resolver intentionally renders only the product fragments and does not
-    # inline the legacy seed file, so checking the resolved fragment here
-    # would silently turn this gate into a false negative.
+    # resolver intentionally renders only product metadata and does not
+    # inline the legacy seed file, so checking the seed defconfig here
+    # keeps the gate a real source check.
     defconfig_text = read(
         board / "configs" / "t5ai_core_cp_base" / "defconfig"
     )
