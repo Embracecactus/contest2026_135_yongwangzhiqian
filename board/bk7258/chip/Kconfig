@@ -458,13 +458,12 @@ config BK7258_AP_CONTROL
 	bool "CPU0 control for the CPU1 AP NuttX image"
 	default n
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && SYSTEM_NSH
-	select BUILTIN
-	select NSH_BUILTIN_APPS
 	---help---
-		Add the CPU0 start/stop/restart wrapper and the manual apctl NSH
-		command.  The baseline protocol uses a reserved shared SRAM page;
-		BK7258_RPTUN_MBOX replaces the raw doorbell path with the SDK mailbox
-		channel wrapper when the RPTUN profile is selected.
+		Add the CPU0 start/stop/restart wrapper.  The manual apctl NSH
+		command is a separate application (BK7258_APP_APCTL).  The baseline
+		protocol uses a reserved shared SRAM page; BK7258_RPTUN_MBOX replaces
+		the raw doorbell path with the SDK mailbox channel wrapper when the
+		RPTUN profile is selected.
 
 config BK7258_AP_AUTOSTART
 	bool "Start CPU1 AP during board bring-up"
@@ -672,16 +671,16 @@ config BK7258_RPMSG_TEST
 	default n
 	depends on BK7258_RPTUN && !DISABLE_PTHREAD
 	depends on !BK7258_AP_CORE || SMP
-	select BUILTIN if !BK7258_AP_CORE
-	select NSH_BUILTIN_APPS if !BK7258_AP_CORE
 	---help---
-		Register a board-local RPMsg endpoint on both images.  The CP-side
-		bkrpmsgtest command asks two AP pthreads, pinned to logical CPU0 and
-		CPU1, to send concurrent echo traffic with bounded non-blocking sends
-		and bounded waits.  The result records sender CPU, AP callback CPU,
-		generation, loss and cycle-count latency percentiles using machine-
-		parsable BRPT lines.  The RPTUN RX worker remains the only transport
-		owner and keeps its higher real-time priority.
+		Register a board-local RPMsg test endpoint on both images.  The
+		CP-side bkrpmsgtest command is a separate application
+		(BK7258_APP_RPMSG_TEST).  The endpoint asks two AP pthreads, pinned
+		to logical CPU0 and CPU1, to send concurrent echo traffic with
+		bounded non-blocking sends and bounded waits.  The result records
+		sender CPU, AP callback CPU, generation, loss and cycle-count latency
+		percentiles using machine-parsable BRPT lines.  The RPTUN RX worker
+		remains the only transport owner and keeps its higher real-time
+		priority.
 
 config BK7258_RPTUN_RX_PRIORITY
 	int "N9 RPTUN mailbox RX worker priority"
@@ -816,10 +815,9 @@ config BK7258_RPMSGFS_TEST
 	default n
 	depends on BK7258_RPMSGFS && !DISABLE_PTHREAD
 	depends on !BK7258_AP_CORE || SMP
-	select BUILTIN if !BK7258_AP_CORE
-	select NSH_BUILTIN_APPS if !BK7258_AP_CORE
 	---help---
-		Add a board-owned control endpoint and bkrpmsgfstest command.  The AP
+		Add a board-owned RPMsgFS test control endpoint.  The bkrpmsgfstest
+		command is a separate application (BK7258_APP_RPMSGFS_TEST).  The AP
 		endpoint callback only queues work; one permanent logical-CPU0 worker
 		performs bounded-size operations below /cpdata/rpmsgfs-n11.  CP waits
 		with an explicit deadline and validates generation-tagged results.
@@ -878,8 +876,6 @@ config BK7258_WIFI_VNET
 	default n
 	depends on BK7258_RPTUN_MBOX && BK7258_RPTUN
 	depends on !BK7258_AP_CORE || (SMP && NET)
-	select BUILTIN if !BK7258_AP_CORE
-	select NSH_BUILTIN_APPS if !BK7258_AP_CORE
 	---help---
 		Keep the official Beken v3.1.1.9 Wi-Fi controller, RF/PHY,
 		supplicant and mailbox data plane on CP.  On AP, use the official
@@ -924,14 +920,13 @@ config BK7258_BT_IPC_TEST
 	default n
 	depends on BK7258_BT_IPC && BK7258_RPTUN && !DISABLE_PTHREAD
 	depends on !BK7258_AP_CORE || NETDEV_IOCTL
-	select BUILTIN if !BK7258_AP_CORE
-	select NSH_BUILTIN_APPS if !BK7258_AP_CORE
 	---help---
-		Add a board-owned diagnostic endpoint and bkbttest command.  The AP
-		endpoint callback only queues requests; a permanent logical-CPU0 worker
-		uses the stock NuttX Bluetooth socket ioctls to report the Controller
-		address/features and perform a bounded LE scan.  CP waits with an
-		explicit deadline and validates generation-tagged results.
+		Add a board-owned Bluetooth IPC diagnostic endpoint.  The bkbttest
+		command is a separate application (BK7258_APP_BT_IPC_TEST).  The AP
+		endpoint callback only queues requests; a permanent logical-CPU0
+		worker uses the stock NuttX Bluetooth socket ioctls to report the
+		Controller address/features and perform a bounded LE scan.  CP waits
+		with an explicit deadline and validates generation-tagged results.
 
 config BK7258_BT_IPC_TEST_PRIORITY
 	int "N12 AP Bluetooth test worker priority"
@@ -1065,13 +1060,12 @@ config BK7258_PSRAM_TEST
 	default n
 	depends on BK7258_PSRAM
 	depends on !BK7258_AP_CORE || (SMP && !DISABLE_PTHREAD)
-	select BUILTIN if !BK7258_AP_CORE
-	select NSH_BUILTIN_APPS if !BK7258_AP_CORE
 	---help---
-		Add the CP bkpsramtest NSH command and run the AP allocator gate before
-		AP READY.  The AP gate creates joinable SRAM-stack workers pinned to
-		logical CPU0 and CPU1, performs concurrent alloc/zero/realloc/check/free
-		loops and requires the heap free count to return to its baseline.
+		Run the AP allocator gate before AP READY.  The CP bkpsramtest NSH
+		command is a separate application (BK7258_APP_PSRAM_TEST).  The AP
+		gate creates joinable SRAM-stack workers pinned to logical CPU0 and
+		CPU1, performs concurrent alloc/zero/realloc/check/free loops and
+		requires the heap free count to return to its baseline.
 
 config BK7258_PSRAM_TEST_ITERATIONS
 	int "N14 allocator iterations per worker"
@@ -1179,55 +1173,55 @@ config BK7258_SDK_IRQ_BRIDGE
 		BK7258_AP_IPI; this activation option remains CP-only.
 
 config BK7258_SDK_IRQ_TIMER_TEST
-	bool "Beken SDK IRQ bridge TIMER1 manual test"
+	bool "Deprecated Beken SDK IRQ bridge TIMER1 manual test"
 	default n
 	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
-	select BUILTIN
-	select NSH_BUILTIN_APPS
 	---help---
-		Build the manual bkirqtest NSH command. The command temporarily
-		replaces the SDK INT_SRC_TIMER callback, triggers TIMER_ID1,
-		proves unregister silence and re-registration, then restores the
-		original callback. It never runs from board bring-up.
+		Deprecated: this symbol no longer registers an application.  Enable
+		BK7258_APP_IRQ_TIMER_TEST to build the manual bkirqtest NSH command.
+		The command temporarily replaces the SDK INT_SRC_TIMER callback,
+		triggers TIMER_ID1, proves unregister silence and re-registration,
+		then restores the original callback.  It never runs from board
+		bring-up.
 
 config BK7258_SDK_TIMER_SELFTEST
-	bool "Beken SDK software-timer lifecycle regression test"
+	bool "Deprecated Beken SDK software-timer lifecycle regression test"
 	default n
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && SYSTEM_NSH
-	select BUILTIN
-	select NSH_BUILTIN_APPS
 	---help---
-		Build the bktimertest NSH command.  It repeatedly deletes a periodic
-		SDK timer from inside its own callback and proves that callbacks run
-		in the board timer-service task rather than the NuttX watchdog ISR.
-		This is the regression gate for the SDK wrapper's deferred-free
-		lifecycle and never runs automatically during board bring-up.
+		Deprecated: this symbol no longer registers an application.  Enable
+		BK7258_APP_TIMER_SELFTEST to build the bktimertest NSH command.  It
+		repeatedly deletes a periodic SDK timer from inside its own callback
+		and proves that callbacks run in the board timer-service task rather
+		than the NuttX watchdog ISR.  This is the regression gate for the SDK
+		wrapper's deferred-free lifecycle and never runs automatically during
+		board bring-up.
 
 config BK7258_GPIO_FOUNDATION_TEST
-	bool "BK7258 selected-board GPIO foundation manual test"
+	bool "Deprecated BK7258 selected-board GPIO foundation manual test"
 	default n
 	depends on ARCH_CHIP_BK7258 && SYSTEM_NSH && !BK7258_AP_CORE
 	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
-	select BUILTIN
-	select NSH_BUILTIN_APPS
 	---help---
-		Build the manual bkgpioc0 NSH command. The command exercises the
-		selected board's LED and user key with their declared polarity using
-		polling only, then restores both pin states. It never runs
-		from board bring-up and does not enable GPIO interrupts.
+		Deprecated: this symbol no longer registers an application.  Enable
+		BK7258_APP_GPIO_TEST to build the manual bkgpioc0 NSH command.  The
+		command exercises the selected board's LED and user key with their
+		declared polarity using polling only, then restores both pin states.
+		It never runs from board bring-up and does not enable GPIO
+		interrupts.
 
 config BK7258_GPIO_IRQ_TEST
-	bool "BK7258 selected-board key GPIO edge IRQ manual test"
+	bool "Deprecated BK7258 selected-board key GPIO edge IRQ manual test"
 	default n
 	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
 	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
-	select BUILTIN
-	select NSH_BUILTIN_APPS
 	---help---
-		Build the manual bkgpioirq NSH command. The command uses the selected
-		board's user key to prove falling and rising edge callbacks. It mirrors
-		the SDK GPIO_S source-55 handler onto GPIO_NS source 56 for the
-		test, then restores both the IRQ route and original pin state.
+		Deprecated: this symbol no longer registers an application.  Enable
+		BK7258_APP_GPIO_IRQ_TEST to build the manual bkgpioirq NSH command.
+		The command uses the selected board's user key to prove falling and
+		rising edge callbacks.  It mirrors the SDK GPIO_S source-55 handler
+		onto GPIO_NS source 56 for the test, then restores both the IRQ route
+		and original pin state.
 
 config BK7258_GPIO_LOWERHALF
 	bool "BK7258 selected-board NuttX GPIO lower-half"
