@@ -52,13 +52,14 @@ python3 tools/bk7258/bk7258_isolated_executor.py \
 |---|---|---|---|
 | `cd <workspace-root>/contest2026_135_yongwangzhiqian` | 进入项目根 | 脚本使用固定相对布局 | 找错NuttX/apps/contest |
 | `--product ...` | 选择 canonical product | 绑定板、boot、partition 和 SDK | 解析结果不匹配即拒绝 |
-| `validation-check` | 校验 suite catalog | 防止 suite/fragment 漂移 | 不声明硬件 PASS |
+| `validation-check` | 校验 suite catalog | 防止 suite 资源/行为漂移 | 不声明硬件 PASS |
 | `materialize_product_profiles.py --plan ...` | 渲染临时 role view | 只消费 canonical IR | 不恢复旧 profile |
 | `isolated_executor.py` | 审计 source snapshot/role roots | 每个角色隔离 | 不执行 Flash/sign/package |
 
 对于 normal N15 构建，产品 plan 强制绑定 v3.1.1.9，并保证 OTA
 selection/write gates 关闭。需要验证功能时选择 validation-suite overlay；
-suite 只改变 canonical fragment/资源声明，不生成新的 defconfig 目录。
+suite 只携带资源/行为声明，不注入 Kconfig；配置由保留 seed 经 menuconfig/
+Kconfig 生成最终 .config。
 
 ## 3. Builder内部发生什么
 
