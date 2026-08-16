@@ -50,7 +50,18 @@
 
 #define BK7258_IRQ_FIRST                16
 #define BK7258_EXTERNAL_IRQS            64
-#define NR_IRQS                         (BK7258_IRQ_FIRST + BK7258_EXTERNAL_IRQS)
+
+/* Keep the public NVIC names required by the NuttX chip-port contract in
+ * this chip header.  The common ARM-M header also provides NVIC_IRQ_FIRST,
+ * but defining it here makes the BK7258 vector contract self-contained and
+ * lets the compile-time checks below catch a future drift.
+ */
+
+#ifndef NVIC_IRQ_FIRST
+#  define NVIC_IRQ_FIRST                (16)
+#endif
+
+#define NR_IRQS                         (NVIC_IRQ_FIRST + BK7258_EXTERNAL_IRQS)
 
 /* Cortex-M system exception vector numbers (offset by 16 from IRQ number).
  * Provided here so chip.h / board code can name them; mirror the values in
@@ -80,22 +91,43 @@
 #define BK7258_IRQ_SCALE0               (BK7258_IRQ_FIRST + 49) /* logical 65 */
 #define BK7258_IRQ_MAILBOX              (BK7258_IRQ_FIRST + 63) /* logical 79 */
 
-/* NVIC priority encoding for the Cortex-M33 core.  The core implements
- * priority bits [7:5] (3 bits -> 8 priority levels, top 5 bits
- * implemented).  Values are identical to every other stock Cortex-M3/4/33
- * in NuttX (see nuttx/include/arch/mps/chip.h); the BK7258 does not add
- * anything special here.
+/* NVIC priority encoding for the Cortex-M33 core.  The STAR NVIC implements
+ * priority bits [7:5] (3 bits -> 8 priority levels).  Keep this contract
+ * explicit rather than inheriting a four-bit value from another Cortex-M
+ * port; the SDK IRQ bridge consumes the same encoded bytes.
+ *
+ *   STAR implements three priority bits in [7:5].  The v3.1.1.9 SDK archive
+ *   contains no PRIGROUP override, so this port keeps the reset grouping:
+ *   all three implemented bits are pre-emption priority and no sub-priority
+ *   field is exposed.  Keep the encoded values in sync with
+ *   bk7258_sdk_irq.h, which converts SDK priorities 0..7 by the same
+ *   five-bit shift.
  *
  *   MAX     = 0x00  (highest, exception entry uses this)
  *   DEFAULT = 0x80  (midpoint, used by up_irq_save/disable via BASEPRI)
- *   MIN     = 0xf0  (lowest)
- *   STEP    = 0x10  (16 between adjacent levels)
+ *   MIN     = 0xe0  (lowest, all implemented bits set)
+ *   STEP    = 0x20  (32 between adjacent levels)
+ *   SUBSTEP = 0x00  (no sub-priority bits are configured)
  */
 
-#define NVIC_SYSH_PRIORITY_MIN          0xf0
+#define NVIC_SYSH_PRIORITY_BITS         3
+#define NVIC_SYSH_PRIORITY_SHIFT        (8 - NVIC_SYSH_PRIORITY_BITS)
+#define NVIC_SYSH_PRIORITY_MASK         (((1 << NVIC_SYSH_PRIORITY_BITS) - 1) << NVIC_SYSH_PRIORITY_SHIFT)
+#define NVIC_SYSH_PRIORITY_MIN          NVIC_SYSH_PRIORITY_MASK
 #define NVIC_SYSH_PRIORITY_DEFAULT      0x80
 #define NVIC_SYSH_PRIORITY_MAX          0x00
-#define NVIC_SYSH_PRIORITY_STEP         0x10
+#define NVIC_SYSH_PRIORITY_STEP         (1 << NVIC_SYSH_PRIORITY_SHIFT)
+#define NVIC_SYSH_PRIORITY_SUBSTEP      0x00
+
+#if NVIC_IRQ_FIRST != BK7258_IRQ_FIRST
+#  error "BK7258 public NVIC_IRQ_FIRST must match the vector layout"
+#endif
+
+#if NVIC_SYSH_PRIORITY_MIN != 0xe0 || \
+    NVIC_SYSH_PRIORITY_STEP != 0x20 || \
+    NVIC_SYSH_PRIORITY_SUBSTEP != 0
+#  error "BK7258 STAR priority encoding must remain three-bit pre-emption only"
+#endif
 
 /****************************************************************************
  * CP and the board-verified AP-UP fallback remain independent UP kernels.

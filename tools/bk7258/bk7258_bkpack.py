@@ -40,7 +40,12 @@ BUILD_PROFILE = "build-profile.txt"
 # may be created from a build directory outside the repository, and the
 # package must still carry the exact resolved source bytes it was built from.
 PARTITION_LAYOUT_MEMBER = "bk7258-partition-layout.csv"
-REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+# ``layout_source`` is relative to the contest checkout (the directory that
+# contains ``board/`` and ``tools/``), not to its OpenVela parent.  The tools
+# were moved out of ``board/bk7258/scripts``; keeping the old ``parents[3]``
+# anchor silently resolved ``board/...`` one level too high in source-work
+# builds and made an otherwise valid package fail at creation time.
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 MAX_MEMBERS = 128
 MAX_MEMBER_SIZE = 16 * 1024 * 1024
 MAX_TOTAL_SIZE = 32 * 1024 * 1024

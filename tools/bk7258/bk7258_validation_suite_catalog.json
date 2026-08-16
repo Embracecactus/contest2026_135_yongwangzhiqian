@@ -55,7 +55,6 @@
       "roles": {
         "cp": {"symbols": {
           "CONFIG_BK7258_AP_AUTOSTART": "y",
-          "CONFIG_BK7258_CONSOLE_UART0": "y",
           "CONFIG_BK7258_PM_COORDINATED_STANDBY": "y",
           "CONFIG_BK7258_PM_STANDBY_ONESHOT_VERIFY": "y",
           "CONFIG_BK7258_PSRAM": "y",
@@ -90,7 +89,6 @@
         "cp": {"symbols": {
           "CONFIG_BK7258_AP_AUTOSTART": "y",
           "CONFIG_BK7258_AP_CONTROL": "y",
-          "CONFIG_BK7258_CONSOLE_UART0": "y",
           "CONFIG_BK7258_RPTUN": "y",
           "CONFIG_BK7258_RPTUN_LAYOUT": "y",
           "CONFIG_BK7258_RPTUN_MBOX": "y",
@@ -126,7 +124,6 @@
           "CONFIG_BK7258_AP_AUTOSTART": "y",
           "CONFIG_BK7258_AP_CONTROL": "y",
           "CONFIG_BK7258_AP_SUPERVISOR": "y",
-          "CONFIG_BK7258_CONSOLE_UART0": "y",
           "CONFIG_BK7258_RPTUN": "y",
           "CONFIG_BK7258_RPTUN_LAYOUT": "y",
           "CONFIG_BK7258_RPTUN_MBOX": "y",
@@ -212,5 +209,5 @@
       "resources": ["wifi_control"]
     }
   ],
-  "identity_sha256": "93a14f72905654baa29e71c3bdff8e63fe9bdbf81c41bbfaaad2467fded01567"
+  "identity_sha256": "f65e0b11b0df74cd6b6efae5a130bd162a65abc91687f6c77c5f05bec0b17235"
 }

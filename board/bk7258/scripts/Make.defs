@@ -6,6 +6,12 @@
 # dual-image packaging remains owned by build_dual_image.sh.
 #
 
+# GNU Make otherwise adopts the first generated linker-script target as the
+# default goal because Config.mk is included before the NuttX `all` target.
+# Keep the standard `build.sh <config>` entry point building the firmware,
+# while explicit linker-script goals remain available to configure/clean.
+.DEFAULT_GOAL := all
+
 include $(TOPDIR)/.config
 include $(TOPDIR)/tools/Config.mk
 include $(BOARD_DIR)$(DELIM)bk_idk$(DELIM)sdk-bundles.mk

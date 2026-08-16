@@ -15,6 +15,7 @@ from bk7258_framework import (  # noqa: E402
     build_plan,
     load_catalog,
     load_json,
+    resolve,
     validate_sdk_lock,
     validate_sdk_registry,
     validate_sdk_set,
@@ -56,6 +57,21 @@ class T5BoardProductTest(unittest.TestCase):
         )
         self.assertNotIn("seed_profile", product["roles"]["bl2"])
         self.assertEqual(product["roles"]["bl2"]["legacy_profile"], "bl2_mcuboot")
+
+        cp = resolve(REPOSITORY, "t5_board_bringup", "cp")
+        ap = resolve(REPOSITORY, "t5_board_bringup", "ap")
+        for symbol in (
+            "CONFIG_BK7258_SWD_DEBUG",
+            "CONFIG_BK7258_SWD_PINS_P0_P1",
+            "CONFIG_BK7258_SWD_TARGET_CP",
+            "CONFIG_BK7258_SWD_BOOT_HOLD",
+            "CONFIG_BK7258_CONSOLE_RTT",
+            "CONFIG_SERIAL_RTT_CONSOLE",
+            "CONFIG_SYSLOG_RTT",
+        ):
+            self.assertEqual(cp["symbols"].get(symbol), "y", symbol)
+            self.assertNotEqual(ap["symbols"].get(symbol), "y", symbol)
+        self.assertNotEqual(cp["symbols"].get("CONFIG_BK7258_CONSOLE_UART1"), "y")
 
         registry_path = SCRIPT_ROOT / "bk7258_sdk_registry.json"
         registry = load_json(registry_path)

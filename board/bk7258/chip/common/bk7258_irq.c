@@ -30,6 +30,7 @@
 
 #include <stdint.h>
 #include <assert.h>
+#include <errno.h>
 #include <debug.h>
 
 #include <nuttx/arch.h>
@@ -61,6 +62,14 @@
                                  NVIC_SYSH_PRIORITY_DEFAULT << 16 | \
                                  NVIC_SYSH_PRIORITY_DEFAULT << 8  | \
                                  NVIC_SYSH_PRIORITY_DEFAULT)
+
+_Static_assert(NVIC_IRQ_FIRST == BK7258_IRQ_FIRST,
+               "BK7258 IRQ numbering must start at the NVIC vector offset");
+_Static_assert(NVIC_SYSH_PRIORITY_MIN == NVIC_SYSH_PRIORITY_MASK,
+               "BK7258 minimum priority must cover all implemented bits");
+_Static_assert(NVIC_SYSH_PRIORITY_STEP ==
+               (1 << NVIC_SYSH_PRIORITY_SHIFT),
+               "BK7258 priority step must match the encoded bit shift");
 
 /****************************************************************************
  * Private Functions
@@ -130,7 +139,17 @@ int up_prioritize_irq(int irq, int priority)
   int shift;
 
   DEBUGASSERT(irq >= 0 && irq < NR_IRQS &&
-              (unsigned)priority <= NVIC_SYSH_PRIORITY_MIN);
+              priority >= NVIC_SYSH_PRIORITY_MAX &&
+              priority <= NVIC_SYSH_PRIORITY_MIN &&
+              (priority & (NVIC_SYSH_PRIORITY_STEP - 1)) == 0);
+
+  if (irq < 0 || irq >= NR_IRQS ||
+      priority < NVIC_SYSH_PRIORITY_MAX ||
+      priority > NVIC_SYSH_PRIORITY_MIN ||
+      (priority & (NVIC_SYSH_PRIORITY_STEP - 1)) != 0)
+    {
+      return -EINVAL;
+    }
 
   if (irq < 16)
     {
