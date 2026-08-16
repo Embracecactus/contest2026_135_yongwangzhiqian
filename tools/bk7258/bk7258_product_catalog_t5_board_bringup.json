@@ -22,7 +22,7 @@
       "legacy_profile": "bl2_mcuboot"
     },
     "cp": {
-      "fragments": ["role_cp"],
+      "fragments": ["role_cp", "t5_board_cp_swd_rtt"],
       "legacy_profile": null
     }
   },

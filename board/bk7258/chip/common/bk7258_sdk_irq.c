@@ -59,6 +59,10 @@ _Static_assert(BK7258_SDK_IRQ_FIRST + BK7258_SDK_IRQ_COUNT == NR_IRQS,
                "Stage B gate: SDK source 0..63 must map to IRQ 16..79");
 _Static_assert(BK7258_SDK_IRQ_PRIORITY_BITS == 3,
                "Stage B gate: STAR NVIC implements three priority bits");
+_Static_assert(BK7258_SDK_IRQ_PRIORITY_BITS == NVIC_SYSH_PRIORITY_BITS,
+               "Stage B gate: SDK and NuttX priority widths must match");
+_Static_assert(BK7258_SDK_IRQ_PRIORITY_SHIFT == NVIC_SYSH_PRIORITY_SHIFT,
+               "Stage B gate: SDK and NuttX priority shifts must match");
 _Static_assert(INT_SRC_LCD == 27,
                "Stage B gate: LCD priority exception must remain source 27");
 #ifdef CONFIG_BK7258_GPIO_IRQ_TEST

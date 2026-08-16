@@ -1495,6 +1495,7 @@ if [[ "${MCUBOOT_PROFILE}" == "true" ]]; then
     MCUBOOT_PAIR_OUTPUT="${TMPDIR}/mcuboot-pair"
     python3 "${SCRIPT_DIR}/pack_bk7258_mcuboot_pair.py" \
         "${PACK_PARTITION_CONTRACT_ARGS[@]}" \
+        --imgtool "${WORKSPACE}/apps/boot/mcuboot/mcuboot/scripts/imgtool.py" \
         --cp-raw "${TMPDIR}/cp-raw.bin" \
         --ap-raw "${TMPDIR}/ap-raw.bin" \
         --key "${MCUBOOT_SIGNING_KEY}" \

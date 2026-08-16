@@ -11,9 +11,6 @@ import subprocess
 import sys
 import tempfile
 
-import bk7258_framework as composition
-
-
 PUBLIC_SYMBOLS = (
     "bk_int_isr_register",
     "bk_int_isr_unregister",
@@ -212,8 +209,11 @@ def extract_member(ar: str, archive: pathlib.Path, member: str,
 
 def main() -> int:
     script = pathlib.Path(__file__).resolve()
-    board = script.parent.parent
-    contest = board.parents[1]
+    # This verifier is a host tool under tools/bk7258, not a board script.
+    # Resolve the source-work tree explicitly instead of treating tools/ as
+    # board/, which silently selected the parent workspace after the P2 move.
+    contest = script.parents[2]
+    board = contest / "board" / "bk7258"
     workspace = contest.parent
 
     parser = argparse.ArgumentParser(description=__doc__)
@@ -244,9 +244,13 @@ def main() -> int:
     make_text = read(make_defs)
     cmake_text = read(cmake)
     kconfig_text = read(kconfig)
-    defconfig_text = composition.config_document(
-        composition.resolve(contest, "t5ai_core_bringup", "cp")
-    )["defconfig"]
+    # The bridge is a property of the retained CP seed.  The product
+    # resolver intentionally renders only the product fragments and does not
+    # inline the legacy seed file, so checking the resolved fragment here
+    # would silently turn this gate into a false negative.
+    defconfig_text = read(
+        board / "configs" / "t5ai_core_cp_base" / "defconfig"
+    )
     ldscript_text = read(ldscript)
     build_config_text = read(build_config)
     stubs_text = read(stubs)
