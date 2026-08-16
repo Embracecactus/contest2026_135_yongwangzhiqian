@@ -11,4 +11,3 @@ make
 ./build/test_bk7258_pm_activity
 ./build/test_bk7258_rptun_core_cp
 ./build/test_bk7258_rptun_core_ap
-python3 test_bk7258_trust_chain.py

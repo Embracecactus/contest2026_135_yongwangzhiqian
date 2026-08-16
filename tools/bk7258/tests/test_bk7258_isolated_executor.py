@@ -31,7 +31,26 @@ class IsolatedPrepareTests(unittest.TestCase):
     def _prepare(self, temporary: tempfile.TemporaryDirectory[str], product: str):
         root = Path(temporary) / "fresh-build"
         output = root / "reports" / "execution.json"
-        manifest = isolated.prepare(REPOSITORY, product, root, output)
+        config_root = None
+        if product != "t5ai_core_bringup":
+            config_root = Path(temporary) / f"final-configs-{product}"
+            config_root.mkdir()
+            board = {
+                "t5_board_bringup": "T5_BOARD",
+                "aidk_ai_toy_bringup": "AIDK_AI_TOY",
+            }[product]
+            (config_root / "cp.config").write_text(
+                f"CONFIG_BK7258_BOARD_{board}=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "# CONFIG_BK7258_AP_CORE is not set\n",
+                encoding="utf-8")
+            (config_root / "ap.config").write_text(
+                f"CONFIG_BK7258_BOARD_{board}=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "CONFIG_BK7258_AP_CORE=y\n",
+                encoding="utf-8")
+        manifest = isolated.prepare(REPOSITORY, product, root, output,
+                                    config_root=config_root)
         return root, output, manifest
 
     def _snapshot_workspace_fixture(self, temporary: tempfile.TemporaryDirectory[str]) -> Path:
@@ -168,7 +187,30 @@ class IsolatedPrepareTests(unittest.TestCase):
         }
         for product, required in expected.items():
             with self.subTest(product=product):
-                plan = isolated.framework.build_plan(REPOSITORY, product)
+                config_root = None
+                if product != "t5ai_core_bringup":
+                    with tempfile.TemporaryDirectory(
+                            prefix="bk7258-policy-") as directory:
+                        config_root = Path(directory) / "configs"
+                        config_root.mkdir()
+                        board = {
+                            "t5_board_bringup": "T5_BOARD",
+                            "aidk_ai_toy_bringup": "AIDK_AI_TOY",
+                        }[product]
+                        (config_root / "cp.config").write_text(
+                            f"CONFIG_BK7258_BOARD_{board}=y\n"
+                            "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                            "# CONFIG_BK7258_AP_CORE is not set\n",
+                            encoding="utf-8")
+                        (config_root / "ap.config").write_text(
+                            f"CONFIG_BK7258_BOARD_{board}=y\n"
+                            "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                            "CONFIG_BK7258_AP_CORE=y\n",
+                            encoding="utf-8")
+                        plan = isolated.framework.build_plan(
+                            REPOSITORY, product, config_root=config_root)
+                else:
+                    plan = isolated.framework.build_plan(REPOSITORY, product)
                 resolved = isolated._resolve_policy_for_plan(REPOSITORY, plan)
                 variables = isolated._boot_make_variables(plan, resolved, "bl1")
                 self.assertTrue(set(required).issubset(set(variables)))
@@ -392,6 +434,7 @@ header.write_text('// fixture partition contract\\n')
         fake_cmake.write_text(
             f"""#!/usr/bin/env python3
 import pathlib, sys
+import os
 fail = {failure}
 include_system_map = {system_map}
 args = sys.argv[1:]
@@ -404,7 +447,18 @@ build.mkdir(parents=True, exist_ok=True)
 if '--build' in args:
     target = args[args.index('--target') + 1]
     if target == fail: sys.exit(7)
-    (build / '.config').write_text('CONFIG_FIXTURE=y\\n')
+    role = os.environ.get('BK7258_ROLE', 'cp')
+    product = os.environ.get('BK7258_PRODUCT', 't5_board_bringup')
+    board = {{
+        't5_board_bringup': 'CONFIG_BK7258_BOARD_T5_BOARD=y',
+        'aidk_ai_toy_bringup': 'CONFIG_BK7258_BOARD_AIDK_AI_TOY=y',
+        't5ai_core_bringup': 'CONFIG_BK7258_BOARD_T5AI_CORE=y',
+    }}[product]
+    boot = ('CONFIG_BK7258_MCUBOOT_IMAGE=y' if product != 't5ai_core_bringup'
+            else '# CONFIG_BK7258_MCUBOOT_IMAGE is not set')
+    ap = ('CONFIG_BK7258_AP_CORE=y' if role == 'ap'
+          else '# CONFIG_BK7258_AP_CORE is not set')
+    (build / '.config').write_text(board + '\\n' + boot + '\\n' + ap + '\\n')
     (build / 'nuttx').write_bytes(b'ELF-fixture')
     (build / 'nuttx.map').write_text('map\\n')
     if include_system_map:

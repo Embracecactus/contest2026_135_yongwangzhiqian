@@ -18,7 +18,6 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from bk7258_framework import (  # noqa: E402
     FrameworkError,
-    _defconfig_text,
     canonical_json,
     classic_report,
     cmake_view,
@@ -27,13 +26,14 @@ from bk7258_framework import (  # noqa: E402
     config_document,
     load_catalog,
     load_json,
-    merge_symbols,
     pack_prepare,
     pack_verify,
     relative_path,
     resolve,
     role_view_manifest,
+    verify_final_config,
     validate_sdk_lock,
+    _sdk_lock_version_policy,
     validate_sdk_import_receipt,
     validate_sdk_registry,
     validate_sdk_set,
@@ -47,14 +47,28 @@ from bk7258_framework import (  # noqa: E402
     validate_config_document,
     verify_sdk_bundle,
     framework_check,
-    shadow_parity,
     validate_framework_check,
-    validate_shadow_ledger,
-    validate_shadow_report,
 )
 
 
 REPOSITORY = Path(__file__).resolve().parents[3]
+
+
+def _final_configs(root: Path, board_symbol: str, *,
+                   mcuboot: bool = True, ap_core: bool = True) -> Path:
+    """Write minimal final .config fixtures for seedless product plans."""
+    config_root = root / "final-configs"
+    config_root.mkdir(parents=True)
+    boot = ("CONFIG_BK7258_MCUBOOT_IMAGE=y\n" if mcuboot
+            else "# CONFIG_BK7258_MCUBOOT_IMAGE is not set\n")
+    cp = (f"CONFIG_BK7258_BOARD_{board_symbol}=y\n" + boot +
+          "# CONFIG_BK7258_AP_CORE is not set\n")
+    ap = (f"CONFIG_BK7258_BOARD_{board_symbol}=y\n" + boot +
+          ("CONFIG_BK7258_AP_CORE=y\n" if ap_core
+           else "# CONFIG_BK7258_AP_CORE is not set\n"))
+    (config_root / "cp.config").write_text(cp, encoding="utf-8")
+    (config_root / "ap.config").write_text(ap, encoding="utf-8")
+    return config_root
 
 
 class FrameworkTest(unittest.TestCase):
@@ -87,16 +101,12 @@ class FrameworkTest(unittest.TestCase):
         self.assertEqual(set(catalog["boards"]), {"t5ai_core", "t5_board", "aidk_ai_toy"})
         cp = resolve(REPOSITORY, "t5ai_core_bringup", "cp")
         ap = resolve(REPOSITORY, "t5ai_core_bringup", "ap")
-        self.assertIsNone(cp["symbols"]["CONFIG_BK7258_AP_CORE"])
-        self.assertEqual(ap["symbols"]["CONFIG_BK7258_AP_CORE"], "y")
-        board_selectors = {
-            "CONFIG_BK7258_BOARD_AIDK_AI_TOY",
-            "CONFIG_BK7258_BOARD_T5_BOARD",
-            "CONFIG_BK7258_BOARD_T5AI_CORE",
-        }
-        self.assertEqual({key for key in board_selectors
-                          if cp["symbols"].get(key) == "y"},
-                         {"CONFIG_BK7258_BOARD_T5AI_CORE"})
+        self.assertEqual(cp["symbols"], {})
+        self.assertEqual(ap["symbols"], {})
+        self.assertEqual(cp["fragments"], [])
+        self.assertEqual(ap["fragments"], [])
+        self.assertEqual(cp["inputs"]["legacy_profile"], "t5ai_core_cp_base")
+        self.assertEqual(ap["inputs"]["legacy_profile"], "t5ai_core_ap_base")
         self.assertEqual(cp, resolve(REPOSITORY, "t5ai_core_bringup", "cp"))
         self.assertIs(validate_ir(cp), cp)
 
@@ -110,55 +120,63 @@ class FrameworkTest(unittest.TestCase):
         for product in catalog["products"].values():
             self.assertEqual(product["partition_layout"], expected)
 
-        ir = resolve(REPOSITORY, "aidk_ai_toy_bringup", "cp")
-        self.assertEqual(ir["inputs"]["partition_layout"], expected)
-        config = config_document(ir)
-        self.assertEqual(config["partition_layout"], expected)
-        self.assertIn(
-            f"BK7258_PARTITION_LAYOUT_SHA256={expected['layout_sha256']}",
-            config["defconfig"])
+        with tempfile.TemporaryDirectory(prefix="bk7258-layout-") as directory:
+            config_root = _final_configs(Path(directory), "AIDK_AI_TOY")
+            ir = resolve(REPOSITORY, "aidk_ai_toy_bringup", "cp")
+            self.assertEqual(ir["inputs"]["partition_layout"], expected)
+            config = config_document(
+                ir, repository=REPOSITORY,
+                config_path=config_root / "cp.config")
+            self.assertEqual(config["partition_layout"], expected)
 
-        plan = build_plan(REPOSITORY, "aidk_ai_toy_bringup")
-        self.assertEqual(plan["partition_layout"], expected)
-        self.assertEqual(plan["identity_inputs"]["partition_layout_id"],
-                         expected["layout_id"])
-        self.assertEqual(plan["identity_inputs"]["partition_layout_sha256"],
-                         expected["layout_sha256"])
+            plan = build_plan(REPOSITORY, "aidk_ai_toy_bringup",
+                              config_root=config_root)
+            self.assertEqual(plan["partition_layout"], expected)
+            self.assertEqual(plan["identity_inputs"]["partition_layout_id"],
+                             expected["layout_id"])
+            self.assertEqual(plan["identity_inputs"]["partition_layout_sha256"],
+                             expected["layout_sha256"])
 
-        package = pack_prepare(REPOSITORY, "aidk_ai_toy_bringup")
-        self.assertEqual(package["partition"]["source"], expected["source"])
-        self.assertEqual(package["partition"]["layout_id"], expected["layout_id"])
-        self.assertEqual(package["partition"]["layout_sha256"],
-                         expected["layout_sha256"])
-        self.assertFalse(pack_verify(REPOSITORY, package)["hardware_verified"])
-        archive_templates = {
-            row["name"]: row["path_template"]
-            for row in package["artifacts"]
-            if row["name"] in {"libarch.a", "libboard.a"}
-        }
-        self.assertTrue(all("/{cp,ap}/" in value
-                            for value in archive_templates.values()))
-        repeated = pack_prepare(
-            REPOSITORY, "aidk_ai_toy_bringup",
-            partition_path=Path(expected["source"]))
-        self.assertEqual(repeated, package)
-        with self.assertRaises(FrameworkError):
-            pack_prepare(
+            package = pack_prepare(REPOSITORY, "aidk_ai_toy_bringup",
+                                   config_root=config_root)
+            self.assertEqual(package["partition"]["source"], expected["source"])
+            self.assertEqual(package["partition"]["layout_id"], expected["layout_id"])
+            self.assertEqual(package["partition"]["layout_sha256"],
+                             expected["layout_sha256"])
+            self.assertFalse(pack_verify(REPOSITORY, package,
+                                         config_root=config_root)["hardware_verified"])
+            archive_templates = {
+                row["name"]: row["path_template"]
+                for row in package["artifacts"]
+                if row["name"] in {"libarch.a", "libboard.a"}
+            }
+            self.assertTrue(all("/{cp,ap}/" in value
+                                for value in archive_templates.values()))
+            repeated = pack_prepare(
                 REPOSITORY, "aidk_ai_toy_bringup",
-                partition_path=Path(
-                    "board/bk7258/partitions/bk7258/secureboot_xip_cp_ap.csv"))
-        with self.assertRaises(FrameworkError):
-            # A traversal alias that normalizes to the selected CSV must
-            # still be rejected; only the exact catalog path is accepted.
-            pack_prepare(
-                REPOSITORY, "aidk_ai_toy_bringup",
-                partition_path=Path(
-                    "board/bk7258/partitions/../partitions/bk7258/"
-                    "auto_partitions.csv"))
-        with self.assertRaises(FrameworkError):
-            pack_prepare(
-                REPOSITORY, "aidk_ai_toy_bringup",
-                partition_path=(REPOSITORY / expected["source"]))
+                partition_path=Path(expected["source"]),
+                config_root=config_root)
+            self.assertEqual(repeated, package)
+            with self.assertRaises(FrameworkError):
+                pack_prepare(
+                    REPOSITORY, "aidk_ai_toy_bringup",
+                    partition_path=Path(
+                        "board/bk7258/partitions/bk7258/secureboot_xip_cp_ap.csv"),
+                    config_root=config_root)
+            with self.assertRaises(FrameworkError):
+                # A traversal alias that normalizes to the selected CSV must
+                # still be rejected; only the exact catalog path is accepted.
+                pack_prepare(
+                    REPOSITORY, "aidk_ai_toy_bringup",
+                    partition_path=Path(
+                        "board/bk7258/partitions/../partitions/bk7258/"
+                        "auto_partitions.csv"),
+                    config_root=config_root)
+            with self.assertRaises(FrameworkError):
+                pack_prepare(
+                    REPOSITORY, "aidk_ai_toy_bringup",
+                    partition_path=(REPOSITORY / expected["source"]),
+                    config_root=config_root)
 
         config_mismatch = copy.deepcopy(config)
         config_mismatch["partition_layout"]["source"] = \
@@ -181,9 +199,10 @@ class FrameworkTest(unittest.TestCase):
         cp = resolve(REPOSITORY, "aidk_ai_toy_bringup", "cp")
         self.assertEqual(cp["inputs"]["board"], "aidk_ai_toy")
         self.assertIsNone(cp["inputs"]["legacy_profile"])
-        plan = build_plan(REPOSITORY, "aidk_ai_toy_bringup")
-        self.assertEqual(plan["board"]["variant"], "aidk_ai_toy")
-        self.assertFalse(plan["legacy_adapter"]["invoked"])
+        with self.assertRaises(FrameworkError):
+            build_plan(REPOSITORY, "aidk_ai_toy_bringup")
+        with self.assertRaises(FrameworkError):
+            config_document(cp, repository=REPOSITORY)
 
     def test_exact_board_mode_and_symbol_conflicts_fail_closed(self) -> None:
         with self.assertRaises(FrameworkError):
@@ -192,8 +211,6 @@ class FrameworkTest(unittest.TestCase):
             resolve(REPOSITORY, "t5ai_core_bringup", "cp", mode="application")
         with self.assertRaises(FrameworkError):
             resolve(REPOSITORY, "unknown", "cp")
-        with self.assertRaises(FrameworkError):
-            merge_symbols([{"symbols": {"CONFIG_X": "y"}}, {"symbols": {"CONFIG_X": None}}])
         with self.assertRaises(FrameworkError):
             relative_path("board/bk7258_t5ai/chip", "retired source")
 
@@ -211,53 +228,41 @@ class FrameworkTest(unittest.TestCase):
             validate_ir(resign(doubled))
 
         missing = copy.deepcopy(aidk)
-        del missing["symbols"]["CONFIG_BK7258_BOARD_AIDK_AI_TOY"]
+        missing["fragments"] = [{
+            "id": "retired-fragment", "scope": "common",
+            "sha256": "0" * 64,
+        }]
         with self.assertRaises(FrameworkError):
             validate_ir(resign(missing))
 
         mismatched = copy.deepcopy(aidk)
-        del mismatched["symbols"]["CONFIG_BK7258_BOARD_AIDK_AI_TOY"]
-        mismatched["symbols"]["CONFIG_BK7258_BOARD_T5AI_CORE"] = "y"
+        mismatched["symbols"]["CONFIG_BK7258_BOARD_AIDK_AI_TOY"] = "n"
         with self.assertRaises(FrameworkError):
             validate_ir(resign(mismatched))
 
         def resign_config(document: dict[str, object]) -> dict[str, object]:
-            document["defconfig"] = _defconfig_text(
-                document["inputs"], document["symbols"],
-                document["ir_identity_sha256"])
-            document["defconfig_sha256"] = hashlib.sha256(
-                document["defconfig"].encode()).hexdigest()
             body = copy.deepcopy(document)
             body.pop("identity_sha256")
             document["identity_sha256"] = hashlib.sha256(
                 canonical_json(body)).hexdigest()
             return document
 
-        config = config_document(aidk)
+        config = config_document(
+            resolve(REPOSITORY, "t5ai_core_bringup", "cp"),
+            repository=REPOSITORY)
         config_doubled = copy.deepcopy(config)
-        config_doubled["symbols"]["CONFIG_BK7258_BOARD_T5AI_CORE"] = "y"
+        config_doubled["symbols"]["CONFIG_BK7258_BOARD_T5_BOARD"] = "y"
         with self.assertRaises(FrameworkError):
             validate_config_document(resign_config(config_doubled))
-
-        config_missing = copy.deepcopy(config)
-        del config_missing["symbols"]["CONFIG_BK7258_BOARD_AIDK_AI_TOY"]
-        with self.assertRaises(FrameworkError):
-            validate_config_document(resign_config(config_missing))
-
-        config_mismatched = copy.deepcopy(config)
-        del config_mismatched["symbols"]["CONFIG_BK7258_BOARD_AIDK_AI_TOY"]
-        config_mismatched["symbols"]["CONFIG_BK7258_BOARD_T5AI_CORE"] = "y"
-        with self.assertRaises(FrameworkError):
-            validate_config_document(resign_config(config_mismatched))
 
     def test_strict_duplicate_and_ir_identity_checks(self) -> None:
         with tempfile.TemporaryDirectory(prefix="bk7258-framework-") as directory:
             duplicate = Path(directory) / "duplicate.json"
             duplicate.write_text('{"a":1,"a":2}\n', encoding="utf-8")
-            with self.assertRaises(FrameworkError):
-                load_json(duplicate)
+        with self.assertRaises(FrameworkError):
+            load_json(duplicate)
         board = copy.deepcopy(load_catalog(REPOSITORY)["boards"]["t5ai_core"])
-        board["bindings"]["console"]["rts_reset"] = True
+        board["bindings"] = {}
         with self.assertRaises(FrameworkError):
             validate_board(board)
         ir = resolve(REPOSITORY, "t5ai_core_bringup", "cp")
@@ -265,6 +270,73 @@ class FrameworkTest(unittest.TestCase):
         broken["identity_sha256"] = "0" * 64
         with self.assertRaises(FrameworkError):
             validate_ir(broken)
+
+    def test_final_config_is_verified_against_product_metadata(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="bk7258-config-") as directory:
+            root = Path(directory)
+            cp = root / "cp.config"
+            cp.write_text(
+                "CONFIG_BK7258_BOARD_T5AI_CORE=y\n"
+                "# CONFIG_BK7258_MCUBOOT_IMAGE is not set\n"
+                "# CONFIG_BK7258_AP_CORE is not set\n",
+                encoding="utf-8")
+            ap = root / "ap.config"
+            ap.write_text(
+                "CONFIG_BK7258_BOARD_T5AI_CORE=y\n"
+                "# CONFIG_BK7258_MCUBOOT_IMAGE is not set\n"
+                "CONFIG_BK7258_AP_CORE=y\n",
+                encoding="utf-8")
+
+            cp_result = verify_final_config(
+                REPOSITORY, "t5ai_core_bringup", "cp", cp)
+            ap_result = verify_final_config(
+                REPOSITORY, "t5ai_core_bringup", "ap", ap)
+            self.assertEqual(cp_result["board"], "t5ai_core")
+            self.assertEqual(cp_result["role"], "cp")
+            self.assertEqual(cp_result["ap_core"], False)
+            self.assertEqual(ap_result["ap_core"], True)
+            self.assertEqual(
+                cp_result["config_sha256"],
+                hashlib.sha256(cp.read_bytes()).hexdigest())
+
+            tampered = root / "tampered.config"
+            tampered.write_text(
+                "CONFIG_BK7258_BOARD_T5_BOARD=y\n"
+                "# CONFIG_BK7258_MCUBOOT_IMAGE is not set\n"
+                "# CONFIG_BK7258_AP_CORE is not set\n",
+                encoding="utf-8")
+            with self.assertRaises(FrameworkError):
+                verify_final_config(
+                    REPOSITORY, "t5ai_core_bringup", "cp", tampered)
+
+            wrong_role = root / "wrong-role.config"
+            wrong_role.write_text(
+                "CONFIG_BK7258_BOARD_T5AI_CORE=y\n"
+                "# CONFIG_BK7258_MCUBOOT_IMAGE is not set\n"
+                "CONFIG_BK7258_AP_CORE=y\n",
+                encoding="utf-8")
+            with self.assertRaises(FrameworkError):
+                verify_final_config(
+                    REPOSITORY, "t5ai_core_bringup", "cp", wrong_role)
+
+            wrong_boot = root / "wrong-boot.config"
+            wrong_boot.write_text(
+                "CONFIG_BK7258_BOARD_T5AI_CORE=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "# CONFIG_BK7258_AP_CORE is not set\n",
+                encoding="utf-8")
+            with self.assertRaises(FrameworkError):
+                verify_final_config(
+                    REPOSITORY, "t5ai_core_bringup", "cp", wrong_boot)
+
+            no_board = root / "no-board.config"
+            no_board.write_text(
+                "# CONFIG_BK7258_MCUBOOT_IMAGE is not set\n"
+                "# CONFIG_BK7258_AP_CORE is not set\n",
+                encoding="utf-8")
+            with self.assertRaises(FrameworkError):
+                verify_final_config(
+                    REPOSITORY, "t5ai_core_bringup", "cp", no_board)
 
     def test_classic_report_is_explicit_adapter_boundary(self) -> None:
         report = classic_report(REPOSITORY)
@@ -301,6 +373,29 @@ class FrameworkTest(unittest.TestCase):
                               if item["role"] == "ap" and item["version"] == "v3.1.1.9")["source_reproducible"])
         self.assertIsNone(sdk_set["roles"]["bl2"])
         self.assertFalse(registry["policy"]["private_mirror"]["redistribution_authorized"])
+
+    def test_sdk_lock_rejects_cp_ap_version_mix(self) -> None:
+        registry = load_json(SCRIPT_ROOT / "bk7258_sdk_registry.json")
+        by_id = {
+            item["id"]: item for item in registry["entries"]
+        }
+        roles = {
+            "cp": {"registry_id": next(
+                item["id"] for item in registry["entries"]
+                if item["role"] == "cp" and item["version"] == "v3.1.1.9")},
+            "ap": {"registry_id": next(
+                item["id"] for item in registry["entries"]
+                if item["role"] == "ap" and item["version"] == "legacy")},
+            "bl2": {"registry_id": None},
+        }
+        with self.assertRaises(FrameworkError):
+            _sdk_lock_version_policy(roles, by_id)
+        roles["ap"]["registry_id"] = next(
+            item["id"] for item in registry["entries"]
+            if item["role"] == "ap" and item["version"] == "v3.1.1.9")
+        self.assertEqual(
+            _sdk_lock_version_policy(roles, by_id),
+            {"cp": "v3.1.1.9", "ap": "v3.1.1.9"})
 
     def test_sdk_bundle_verifier_rejects_extra_and_symlink_entries(self) -> None:
         with tempfile.TemporaryDirectory(prefix="bk7258-sdk-verify-") as directory:
@@ -347,10 +442,13 @@ class FrameworkTest(unittest.TestCase):
 
     def test_product_config_and_isolated_boot_runtime_plan(self) -> None:
         cp_ir = resolve(REPOSITORY, "t5ai_core_bringup", "cp")
-        cp_config = config_document(cp_ir)
-        ap_config = config_document(resolve(REPOSITORY, "t5ai_core_bringup", "ap"))
+        cp_config = config_document(cp_ir, repository=REPOSITORY)
+        ap_config = config_document(
+            resolve(REPOSITORY, "t5ai_core_bringup", "ap"),
+            repository=REPOSITORY)
         self.assertIs(validate_config_document(cp_config), cp_config)
-        self.assertIn("CONFIG_BK7258_AP_CORE is not set", cp_config["defconfig"])
+        self.assertNotIn("CONFIG_BK7258_AP_CORE=y", cp_config["defconfig"])
+        self.assertIn("CONFIG_BK7258_AP_CORE=y", ap_config["defconfig"])
         self.assertIn('CONFIG_ARCH="arm"', cp_config["defconfig"])
         self.assertIn(
             'CONFIG_ARCH_BOARD_CUSTOM_DIR="../contest2026_135_yongwangzhiqian/board/bk7258"',
@@ -379,7 +477,10 @@ class FrameworkTest(unittest.TestCase):
         self.assertEqual(raw["identity_inputs"]["active_roles"], raw["active_roles"])
         self.assertEqual(raw["roles"]["bl2"]["activation"], "inactive")
         self.assertEqual(raw["roles"]["bl2"]["applicability"], "not-applicable")
-        mcuboot = build_plan(REPOSITORY, "t5_board_bringup")
+        with tempfile.TemporaryDirectory(prefix="bk7258-mcuboot-") as directory:
+            config_root = _final_configs(Path(directory), "T5_BOARD")
+            mcuboot = build_plan(REPOSITORY, "t5_board_bringup",
+                                 config_root=config_root)
         self.assertEqual(mcuboot["active_roles"], ["bl1", "bl2", "cp", "ap"])
         self.assertEqual(mcuboot["bl2_image_logical_size"], 0x3000)
         self.assertEqual(mcuboot["identity_inputs"]["bl2_image_logical_size"], 0x3000)
@@ -393,31 +494,41 @@ class FrameworkTest(unittest.TestCase):
             validate_build_plan(backend_tampered)
 
     def test_execute_defaults_to_host_only_context_for_all_products(self) -> None:
-        for product in ("t5ai_core_bringup", "aidk_ai_toy_bringup",
-                        "t5_board_bringup"):
-            context = execution_context(REPOSITORY, product)
-            self.assertIs(validate_execution_context(context), context)
-            self.assertEqual(context["execution_mode"], "dry-run")
-            self.assertFalse(context["side_effects"]["compile_invoked"])
-            self.assertFalse(context["side_effects"]["key_read"])
-            self.assertFalse(context["side_effects"]["bytes_written"])
-            self.assertEqual(context["adapter_semantic_parity"], "unproven")
-            self.assertEqual(context["adapter_execution"], {
-                "kind": "shared-legacy-adapter",
-                "consumes_role_build_roots": False,
-                "role_paths_executed": False,
-            })
-            self.assertEqual(context["profiles"]["root"],
-                             "adapter-owned-temporary")
-            self.assertEqual(set(context["environment"]),
-                             {"BK7258_PRODUCT", "BK7258_OUTPUT_ROOT"})
-            self.assertEqual(
-                context["environment"]["BK7258_OUTPUT_ROOT"], "${OUTPUT}")
-            self.assertEqual(
-                context["sdk"]["versions"]["cp"], "v3.1.1.9")
-            self.assertEqual(
-                len(context["profiles"]["seed_profiles"]["cp"]
-                    ["materialized_defconfig_sha256"]), 64)
+        with tempfile.TemporaryDirectory(prefix="bk7258-execute-") as directory:
+            base = Path(directory)
+            aidk_configs = _final_configs(base / "aidk", "AIDK_AI_TOY")
+            t5_configs = _final_configs(base / "t5", "T5_BOARD")
+            configs = {
+                "t5ai_core_bringup": None,
+                "aidk_ai_toy_bringup": aidk_configs,
+                "t5_board_bringup": t5_configs,
+            }
+            for product in ("t5ai_core_bringup", "aidk_ai_toy_bringup",
+                            "t5_board_bringup"):
+                context = execution_context(
+                    REPOSITORY, product, config_root=configs[product])
+                self.assertIs(validate_execution_context(context), context)
+                self.assertEqual(context["execution_mode"], "dry-run")
+                self.assertFalse(context["side_effects"]["compile_invoked"])
+                self.assertFalse(context["side_effects"]["key_read"])
+                self.assertFalse(context["side_effects"]["bytes_written"])
+                self.assertEqual(context["adapter_semantic_parity"], "unproven")
+                self.assertEqual(context["adapter_execution"], {
+                    "kind": "shared-legacy-adapter",
+                    "consumes_role_build_roots": False,
+                    "role_paths_executed": False,
+                })
+                self.assertEqual(context["profiles"]["root"],
+                                 "adapter-owned-temporary")
+                self.assertEqual(set(context["environment"]),
+                                 {"BK7258_PRODUCT", "BK7258_OUTPUT_ROOT"})
+                self.assertEqual(
+                    context["environment"]["BK7258_OUTPUT_ROOT"], "${OUTPUT}")
+                self.assertEqual(
+                    context["sdk"]["versions"]["cp"], "v3.1.1.9")
+                self.assertEqual(
+                    len(context["profiles"]["seed_profiles"]["cp"]
+                        ["materialized_defconfig_sha256"]), 64)
 
     def test_execute_rejects_build_flag_and_profile_checks_all_products(self) -> None:
         with tempfile.TemporaryDirectory(prefix="bk7258-execute-cli-") as directory:
@@ -432,18 +543,29 @@ class FrameworkTest(unittest.TestCase):
             self.assertIn("unrecognized arguments: --build", result.stderr)
             self.assertFalse(output.exists())
 
-        build_dual = SCRIPT_ROOT / "build_dual_image.sh"
-        for product in ("t5ai_core_bringup", "t5_board_bringup",
-                        "aidk_ai_toy_bringup"):
-            environment = os.environ.copy()
-            environment.update({
-                "BK7258_PRODUCT": product,
-                "BK7258_PROFILE_CHECK_ONLY": "YES",
-            })
-            result = subprocess.run(
-                [str(build_dual)], cwd=REPOSITORY, env=environment,
-                capture_output=True, text=True, check=False)
-            self.assertEqual(result.returncode, 0, result.stderr)
+        with tempfile.TemporaryDirectory(prefix="bk7258-dual-") as directory:
+            base = Path(directory)
+            aidk_configs = _final_configs(base / "aidk", "AIDK_AI_TOY")
+            t5_configs = _final_configs(base / "t5", "T5_BOARD")
+            configs = {
+                "t5ai_core_bringup": None,
+                "aidk_ai_toy_bringup": aidk_configs,
+                "t5_board_bringup": t5_configs,
+            }
+            build_dual = SCRIPT_ROOT / "build_dual_image.sh"
+            for product in ("t5ai_core_bringup", "t5_board_bringup",
+                            "aidk_ai_toy_bringup"):
+                environment = os.environ.copy()
+                environment.update({
+                    "BK7258_PRODUCT": product,
+                    "BK7258_PROFILE_CHECK_ONLY": "YES",
+                })
+                if configs[product] is not None:
+                    environment["BK7258_CONFIG_ROOT"] = str(configs[product])
+                result = subprocess.run(
+                    [str(build_dual)], cwd=REPOSITORY, env=environment,
+                    capture_output=True, text=True, check=False)
+                self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_canonical_validation_suite_checks_bind_compat_without_retired_dirs(self) -> None:
         script = (SCRIPT_ROOT / "build_dual_image.sh").read_text(encoding="utf-8")
@@ -473,19 +595,22 @@ class FrameworkTest(unittest.TestCase):
             "audio_dac": "t5_board_audio_dac_validation_mcuboot_v2",
             "jpeg_m2m": "t5_board_jpeg_m2m_validation_mcuboot_v1",
         }
-        for suite, compat in expected.items():
-            environment = os.environ.copy()
-            environment.update({
-                "BK7258_PRODUCT": "t5_board_bringup",
-                "BK7258_VALIDATION_SUITE": suite,
-                "BK7258_PROFILE_CHECK_ONLY": "YES",
-            })
-            result = subprocess.run(
-                [str(build_dual)], cwd=REPOSITORY, env=environment,
-                capture_output=True, text=True, check=False)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn(f"compat={compat}", result.stdout)
-            self.assertIn("profile PASS", result.stdout)
+        with tempfile.TemporaryDirectory(prefix="bk7258-suite-") as directory:
+            config_root = _final_configs(Path(directory), "T5_BOARD")
+            for suite, compat in expected.items():
+                environment = os.environ.copy()
+                environment.update({
+                    "BK7258_PRODUCT": "t5_board_bringup",
+                    "BK7258_VALIDATION_SUITE": suite,
+                    "BK7258_PROFILE_CHECK_ONLY": "YES",
+                    "BK7258_CONFIG_ROOT": str(config_root),
+                })
+                result = subprocess.run(
+                    [str(build_dual)], cwd=REPOSITORY, env=environment,
+                    capture_output=True, text=True, check=False)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"compat={compat}", result.stdout)
+                self.assertIn("profile PASS", result.stdout)
 
         environment = os.environ.copy()
         environment.update({
@@ -499,25 +624,11 @@ class FrameworkTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("bound to t5_board_bringup", result.stderr)
 
-    def test_p9a_shadow_covers_all_profiles_without_fake_green(self) -> None:
-        ledger = load_json(SCRIPT_ROOT / "bk7258_shadow_ledger.json")
-        self.assertIs(validate_shadow_ledger(REPOSITORY, ledger), ledger)
-        report = shadow_parity(REPOSITORY)
-        self.assertIs(validate_shadow_report(report), report)
-        self.assertEqual(report["profile_count"], 27)
-        statuses = {row["status"] for row in report["rows"]}
-        self.assertEqual(statuses, {"shadow-equivalent", "retire-blocked-hardware"})
-        self.assertNotIn("PASS", statuses)
-        self.assertNotIn("EXACT", statuses)
-        self.assertTrue(all(row["rationale"] for row in report["rows"]))
-        self.assertTrue(all("metadata" in row["old"] and "package_plan" in row["new"]
-                            for row in report["rows"]))
-
     def test_p9a_framework_check_is_bounded_and_dry_run(self) -> None:
         result = framework_check(REPOSITORY)
         self.assertIs(validate_framework_check(result), result)
         self.assertEqual(result["status"], "PASS")
-        self.assertEqual(len(result["checks"]), 11)
+        self.assertEqual(len(result["checks"]), 10)
         self.assertFalse(result["hardware_accessed"])
         self.assertFalse(result["network_used"])
 

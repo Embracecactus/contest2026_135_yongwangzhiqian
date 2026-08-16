@@ -15,9 +15,9 @@ CFLAGS  := -std=gnu11 -pthread -Wall -Wextra -O2
 MOCKS   := mocks
 BUILD   := build
 
-# Real implementation, relative to this tests/ directory.
-REAL_C  := ../chip/common/bk7258_rptun_mbox.c
-REAL_H  := ../chip/common/bk7258_rptun_mbox.h
+# Real implementation, relative to this repo-level tests/bk7258 directory.
+REAL_C  := ../../board/bk7258/chip/common/bk7258_rptun_mbox.c
+REAL_H  := ../../board/bk7258/chip/common/bk7258_rptun_mbox.h
 
 TARGET  := $(BUILD)/test_bk7258_rptun_mbox
 POLICY_TARGET := $(BUILD)/test_boot_bl1_policy
@@ -48,7 +48,7 @@ $(BUILD)/bk7258_rptun_mbox.c: $(REAL_C) | $(BUILD)
 $(BUILD)/bk7258_rptun_mbox.h: $(REAL_H) | $(BUILD)
 	cp $(REAL_H) $@
 
-$(BUILD)/bk7258_rptun.c: ../chip/common/bk7258_rptun.c | $(BUILD)
+$(BUILD)/bk7258_rptun.c: ../../board/bk7258/chip/common/bk7258_rptun.c | $(BUILD)
 	cp $< $@
 	sed -i 's|__asm volatile ("dmb sy.*|__asm__ volatile ("" ::: "memory");|g' $@
 
@@ -62,28 +62,29 @@ $(TARGET): $(BUILD)/bk7258_rptun_mbox.c $(BUILD)/bk7258_rptun_mbox.h \
 	  -o $@ -lpthread
 
 $(POLICY_TARGET): test_boot_bl1_policy.c \
-                 ../bootloader/boot_bl1_boot_flag_core.c \
-                 ../bootloader/boot_bl1_boot_flag_core.h \
-                 ../bootloader/boot_bl1_handoff_core.c \
-                 ../bootloader/boot_bl1_handoff_core.h \
-                 ../bootloader/boot_bl1_policy.c \
-                 ../bootloader/boot_bl1_policy.h \
-                 ../bootloader/boot_bl1_manifest.h
+                 ../../board/bk7258/bootloader/boot_bl1_boot_flag_core.c \
+                 ../../board/bk7258/bootloader/boot_bl1_boot_flag_core.h \
+                 ../../board/bk7258/bootloader/boot_bl1_handoff_core.c \
+                 ../../board/bk7258/bootloader/boot_bl1_handoff_core.h \
+                 ../../board/bk7258/bootloader/boot_bl1_policy.c \
+                 ../../board/bk7258/bootloader/boot_bl1_policy.h \
+                 ../../board/bk7258/bootloader/boot_bl1_manifest.h
 	$(CC) $(POLICY_CFLAGS) \
 	  test_boot_bl1_policy.c \
-	  ../bootloader/boot_bl1_boot_flag_core.c \
-	  ../bootloader/boot_bl1_handoff_core.c \
-	  ../bootloader/boot_bl1_policy.c \
-	  -I ../bootloader \
+	  ../../board/bk7258/bootloader/boot_bl1_boot_flag_core.c \
+	  ../../board/bk7258/bootloader/boot_bl1_handoff_core.c \
+	  ../../board/bk7258/bootloader/boot_bl1_policy.c \
+	  -I ../../board/bk7258/bootloader \
+	  -I ../../board/bk7258/include \
 	  -o $@
 
 $(PM_ACTIVITY_TARGET): test_bk7258_pm_activity.c \
-                      ../chip/common/bk7258_pm_activity.c \
-                      ../chip/common/bk7258_pm_activity.h
+                      ../../board/bk7258/chip/common/bk7258_pm_activity.c \
+                      ../../board/bk7258/chip/common/bk7258_pm_activity.h
 	$(CC) $(PM_ACTIVITY_CFLAGS) \
 	  test_bk7258_pm_activity.c \
-	  ../chip/common/bk7258_pm_activity.c \
-	  -I ../chip/common \
+	  ../../board/bk7258/chip/common/bk7258_pm_activity.c \
+	  -I ../../board/bk7258/chip/common \
 	  -o $@
 
 $(RPTUN_CORE_CP_TARGET): $(BUILD)/bk7258_rptun.c \
@@ -91,7 +92,7 @@ $(RPTUN_CORE_CP_TARGET): $(BUILD)/bk7258_rptun.c \
 	$(CC) $(RPTUN_CORE_CFLAGS) \
 	  test_bk7258_rptun_core.c \
 	  $(BUILD)/bk7258_rptun.c \
-	  -I $(MOCKS) -I ../chip/common \
+	  -I $(MOCKS) -I ../../board/bk7258/chip/common \
 	  -o $@
 
 $(RPTUN_CORE_AP_TARGET): $(BUILD)/bk7258_rptun.c \
@@ -99,7 +100,7 @@ $(RPTUN_CORE_AP_TARGET): $(BUILD)/bk7258_rptun.c \
 	$(CC) $(RPTUN_CORE_CFLAGS) -DTEST_BK7258_RPTUN_AP \
 	  test_bk7258_rptun_core.c \
 	  $(BUILD)/bk7258_rptun.c \
-	  -I $(MOCKS) -I ../chip/common \
+	  -I $(MOCKS) -I ../../board/bk7258/chip/common \
 	  -o $@
 
 clean:

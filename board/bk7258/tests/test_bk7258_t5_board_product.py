@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -12,6 +13,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "tools" / "bk7258"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from bk7258_framework import (  # noqa: E402
+    FrameworkError,
     build_plan,
     load_catalog,
     load_json,
@@ -38,7 +40,6 @@ class T5BoardProductTest(unittest.TestCase):
         self.assertEqual(product["family"], "t5_board")
         self.assertEqual(product["mode"], "bringup")
         self.assertEqual(product["boot"], "mcuboot")
-        self.assertEqual(product["features"], ["mcuboot-ab"])
         self.assertEqual(
             product["partition_layout"],
             {
@@ -50,28 +51,21 @@ class T5BoardProductTest(unittest.TestCase):
             },
         )
         self.assertEqual(
-            set(product["roles"]["cp"]), {"fragments", "legacy_profile"}
+            set(product["roles"]["cp"]), {"legacy_profile"}
         )
         self.assertEqual(
-            set(product["roles"]["ap"]), {"fragments", "legacy_profile"}
+            set(product["roles"]["ap"]), {"legacy_profile"}
         )
-        self.assertNotIn("seed_profile", product["roles"]["bl2"])
         self.assertEqual(product["roles"]["bl2"]["legacy_profile"], "bl2_mcuboot")
 
         cp = resolve(REPOSITORY, "t5_board_bringup", "cp")
         ap = resolve(REPOSITORY, "t5_board_bringup", "ap")
-        for symbol in (
-            "CONFIG_BK7258_SWD_DEBUG",
-            "CONFIG_BK7258_SWD_PINS_P0_P1",
-            "CONFIG_BK7258_SWD_TARGET_CP",
-            "CONFIG_BK7258_SWD_BOOT_HOLD",
-            "CONFIG_BK7258_CONSOLE_RTT",
-            "CONFIG_SERIAL_RTT_CONSOLE",
-            "CONFIG_SYSLOG_RTT",
-        ):
-            self.assertEqual(cp["symbols"].get(symbol), "y", symbol)
-            self.assertNotEqual(ap["symbols"].get(symbol), "y", symbol)
-        self.assertNotEqual(cp["symbols"].get("CONFIG_BK7258_CONSOLE_UART1"), "y")
+        self.assertEqual(cp["symbols"], {})
+        self.assertEqual(ap["symbols"], {})
+        self.assertIsNone(cp["inputs"]["legacy_profile"])
+        self.assertIsNone(ap["inputs"]["legacy_profile"])
+        with self.assertRaises(FrameworkError):
+            build_plan(REPOSITORY, "t5_board_bringup")
 
         registry_path = SCRIPT_ROOT / "bk7258_sdk_registry.json"
         registry = load_json(registry_path)
@@ -96,7 +90,25 @@ class T5BoardProductTest(unittest.TestCase):
     def test_resource_graph_resolves_only_the_verified_bringup_contract(self) -> None:
         graph = load_json(SCRIPT_ROOT / "bk7258_resource_graph_t5_board.json")
         self.assertIs(validate_resource_graph(REPOSITORY, graph), graph)
-        resolved = resolve_resource_graph(REPOSITORY, graph)
+        with tempfile.TemporaryDirectory(prefix="bk7258-t5-graph-") as directory:
+            config_root = Path(directory) / "configs"
+            config_root.mkdir()
+            (config_root / "cp.config").write_text(
+                "CONFIG_BK7258_BOARD_T5_BOARD=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "# CONFIG_BK7258_AP_CORE is not set\n",
+                encoding="utf-8")
+            (config_root / "ap.config").write_text(
+                "CONFIG_BK7258_BOARD_T5_BOARD=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "CONFIG_BK7258_AP_CORE=y\n",
+                encoding="utf-8")
+            resolved = resolve_resource_graph(
+                REPOSITORY, graph, config_root=config_root)
+            self.assertEqual(
+                build_plan(REPOSITORY, "t5_board_bringup",
+                           config_root=config_root)["board"]["id"],
+                "t5_board")
 
         self.assertTrue(resolved["resolved"])
         self.assertEqual(resolved["board_selection"]["candidates"], ["t5_board"])
@@ -120,7 +132,6 @@ class T5BoardProductTest(unittest.TestCase):
             any(token in resource_text for token in ("sdio", "camera", "lcd", "speaker"))
         )
         self.assertNotIn("psram", {row["kind"] for row in graph["resources"]["memory_psram"]})
-        self.assertEqual(build_plan(REPOSITORY, "t5_board_bringup")["board"]["id"], "t5_board")
 
 
 if __name__ == "__main__":

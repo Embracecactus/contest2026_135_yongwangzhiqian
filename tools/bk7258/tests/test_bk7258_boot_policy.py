@@ -26,6 +26,22 @@ PRODUCTS = (
 )
 
 
+def _t5_config_root(root: Path) -> Path:
+    config_root = root / "configs"
+    config_root.mkdir()
+    (config_root / "cp.config").write_text(
+        "CONFIG_BK7258_BOARD_T5_BOARD=y\n"
+        "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+        "# CONFIG_BK7258_AP_CORE is not set\n",
+        encoding="utf-8")
+    (config_root / "ap.config").write_text(
+        "CONFIG_BK7258_BOARD_T5_BOARD=y\n"
+        "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+        "CONFIG_BK7258_AP_CORE=y\n",
+        encoding="utf-8")
+    return config_root
+
+
 class BootPolicyTests(unittest.TestCase):
     def test_schema_is_strict_and_declares_fail_closed_contract(self) -> None:
         schema = json.loads(
@@ -190,7 +206,9 @@ class BootPolicyTests(unittest.TestCase):
     def test_resolve_accepts_full_plan_but_never_claims_executable(self) -> None:
         from bk7258_framework import build_plan
 
-        plan = build_plan(REPOSITORY, "t5_board_bringup")
+        with tempfile.TemporaryDirectory(prefix="bk7258-boot-") as directory:
+            plan = build_plan(REPOSITORY, "t5_board_bringup",
+                              config_root=_t5_config_root(Path(directory)))
         resolved = boot_policy.resolve_policy(
             REPOSITORY, "t5_board_bringup", build_plan=plan
         )
@@ -221,7 +239,9 @@ class BootPolicyTests(unittest.TestCase):
     def test_resolve_requires_canonical_build_plan_metadata_and_identity(self) -> None:
         from bk7258_framework import build_plan
 
-        plan = build_plan(REPOSITORY, "t5_board_bringup")
+        with tempfile.TemporaryDirectory(prefix="bk7258-boot-") as directory:
+            plan = build_plan(REPOSITORY, "t5_board_bringup",
+                              config_root=_t5_config_root(Path(directory)))
         for field in ("schema", "kind", "version", "identity_sha256"):
             with self.subTest(missing=field):
                 missing = copy.deepcopy(plan)

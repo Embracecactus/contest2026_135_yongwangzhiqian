@@ -27,13 +27,9 @@ class ValidationDescriptorTest(unittest.TestCase):
     def setUp(self) -> None:
         self.descriptors = load_json(SCRIPT_ROOT / "bk7258_validation_descriptors.json")
 
-    def test_descriptor_set_and_three_retained_seed_mapping_are_valid(self) -> None:
+    def test_descriptor_set_is_valid(self) -> None:
         result = validate_descriptor_set(REPOSITORY, self.descriptors)
         self.assertEqual(result["descriptors"], 6)
-        self.assertEqual(result["legacy"]["profiles"], 3)
-        self.assertEqual(result["legacy"]["migration_state"], "canonical-suite-only")
-        self.assertEqual(self.descriptors["migration_policy"]["production_auto_start"],
-                         "canonical-only")
         self.assertEqual(result["standard_artifacts"], {
             "cp": "vela_nuttx_cp.bin",
             "ap": "vela_nuttx_ap.bin",

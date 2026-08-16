@@ -36,7 +36,7 @@ from gen_bk7258_partitions import load_layout  # noqa: E402
 
 BOOTLOADER_ROOT = TOOLS_ROOT.parent.parent / "board" / "bk7258" / "bootloader"
 sys.path.insert(0, str(BOOTLOADER_ROOT))
-from make_bl1_manifest import bl2_contract_from_layout  # noqa: E402
+from bk7258_bl1_pack import bl2_contract_from_layout  # noqa: E402
 
 
 REPOSITORY = Path(__file__).resolve().parents[3]
@@ -512,7 +512,7 @@ class AidkBoardTest(unittest.TestCase):
     def test_bl1_manifest_rechecks_resolved_partition_identity(self) -> None:
         source = REPOSITORY / "board/bk7258/partitions/bk7258/auto_partitions.csv"
         layout = load_layout(source)
-        script = REPOSITORY / "board/bk7258/bootloader/make_bl1_manifest.py"
+        script = REPOSITORY / "board/bk7258/bootloader/bk7258_bl1_pack.py"
         primary = bl2_contract_from_layout(
             source, "primary", layout.layout_id, layout.layout_sha256)
         secondary = bl2_contract_from_layout(
@@ -539,6 +539,7 @@ class AidkBoardTest(unittest.TestCase):
         common = [
             sys.executable,
             str(script),
+            "manifest",
             "--bl2", "missing-bl2.bin",
             "--private-key", "missing-key.pem",
             "--out", "unused-manifest.bin",
@@ -624,7 +625,21 @@ class AidkBoardTest(unittest.TestCase):
 
     def test_partition_contract_is_atomic_and_source_report_is_dynamic(self) -> None:
         source = REPOSITORY / "board/bk7258/partitions/bk7258/auto_partitions.csv"
-        plan = build_plan(REPOSITORY, "aidk_ai_toy_bringup")
+        with tempfile.TemporaryDirectory(prefix="bk7258-aidk-part-") as directory:
+            config_root = Path(directory) / "final-configs"
+            config_root.mkdir()
+            (config_root / "cp.config").write_text(
+                "CONFIG_BK7258_BOARD_AIDK_AI_TOY=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "# CONFIG_BK7258_AP_CORE is not set\n",
+                encoding="utf-8")
+            (config_root / "ap.config").write_text(
+                "CONFIG_BK7258_BOARD_AIDK_AI_TOY=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "CONFIG_BK7258_AP_CORE=y\n",
+                encoding="utf-8")
+            plan = build_plan(REPOSITORY, "aidk_ai_toy_bringup",
+                              config_root=config_root)
         expected = plan["partition_layout"]
         base_env = dict(os.environ)
         for name in (
@@ -683,10 +698,10 @@ class AidkBoardTest(unittest.TestCase):
             self) -> None:
         product = load_catalog(REPOSITORY)["products"]["aidk_ai_toy_bringup"]
         self.assertEqual(product["boot"], "mcuboot")
-        self.assertEqual(product["features"], ["mcuboot-ab"])
-        self.assertIn("boot_mcuboot_ab", product["fragments"])
-        self.assertNotIn("boot_raw_aidk_ai_toy", product["fragments"])
-        self.assertNotIn("FAL", " ".join(product["fragments"]))
+        self.assertEqual(product["roles"]["cp"], {"legacy_profile": None})
+        self.assertEqual(product["roles"]["ap"], {"legacy_profile": None})
+        self.assertFalse(list(TOOLS_ROOT.glob("bk7258_fragment_catalog_*.json")),
+                         "fragment catalogs are retired")
         script = (TOOLS_ROOT / "build_dual_image.sh").read_text(encoding="utf-8")
         self.assertIn("materialize_product_profiles.py", script)
         self.assertIn("product plan/profile boot mismatch", script)
@@ -697,20 +712,34 @@ class AidkBoardTest(unittest.TestCase):
         self.assertIn("product package metadata contains temporary profile paths",
                       script)
 
-        result = subprocess.run(
-            [str(TOOLS_ROOT / "build_dual_image.sh")],
-            env={**os.environ,
-                 "BK7258_PRODUCT": "aidk_ai_toy_bringup",
-                 "BK7258_PROFILE_CHECK_ONLY": "YES"},
-            text=True, capture_output=True, check=False)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("boot=mcuboot", result.stdout)
-
         with tempfile.TemporaryDirectory(prefix="bk7258-aidk-profiles-") as directory:
             work_root = Path(directory)
+            final_configs = work_root / "final-configs"
+            final_configs.mkdir()
+            (final_configs / "cp.config").write_text(
+                "CONFIG_BK7258_BOARD_AIDK_AI_TOY=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "# CONFIG_BK7258_AP_CORE is not set\n",
+                encoding="utf-8")
+            (final_configs / "ap.config").write_text(
+                "CONFIG_BK7258_BOARD_AIDK_AI_TOY=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "CONFIG_BK7258_AP_CORE=y\n",
+                encoding="utf-8")
+            result = subprocess.run(
+                [str(TOOLS_ROOT / "build_dual_image.sh")],
+                env={**os.environ,
+                     "BK7258_PRODUCT": "aidk_ai_toy_bringup",
+                     "BK7258_PROFILE_CHECK_ONLY": "YES",
+                     "BK7258_CONFIG_ROOT": str(final_configs)},
+                text=True, capture_output=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("boot=mcuboot", result.stdout)
+
             config_root = work_root / "configs"
             make_defs = REPOSITORY / "board/bk7258/scripts/Make.defs"
-            plan = build_plan(REPOSITORY, "aidk_ai_toy_bringup")
+            plan = build_plan(REPOSITORY, "aidk_ai_toy_bringup",
+                              config_root=final_configs)
             materialize_plan(
                 plan, REPOSITORY / "board/bk7258/configs", config_root, make_defs
             )
@@ -723,7 +752,7 @@ class AidkBoardTest(unittest.TestCase):
                 defconfig = (profile / "defconfig").read_text(encoding="utf-8")
                 self.assertIn("BK7258_PROFILE_BOOT=mcuboot", metadata)
                 self.assertIn("BK7258_PROFILE_BOARD=aidk_ai_toy", metadata)
-                self.assertIn("BK7258_PROFILE_COMPAT=canonical-fragments-v1", metadata)
+                self.assertIn("BK7258_PROFILE_COMPAT=seed-config-v1", metadata)
                 self.assertIn("CONFIG_BK7258_BOARD_AIDK_AI_TOY=y", defconfig)
                 self.assertIn("CONFIG_BK7258_MCUBOOT_IMAGE=y", defconfig)
                 self.assertNotRegex(defconfig, r"CONFIG_BK7258_(MIC|AUD|LCD|DVP)=y")
@@ -835,13 +864,8 @@ class AidkBoardTest(unittest.TestCase):
         catalog = load_catalog(REPOSITORY)
         board = catalog["boards"]["aidk_ai_toy"]
         product = catalog["products"]["aidk_ai_toy_bringup"]
-        self.assertEqual(board["bindings"]["console"], {
-            "uart": "uart0", "baud": 115200,
-            "flow_control": False, "rts_reset": False,
-        })
-        self.assertEqual(board["bindings"]["debug"], {
-            "swd": False, "boot_hold": False, "rtt": False,
-        })
+        self.assertNotIn("bindings", board,
+                         "console/debug Kconfig facts are owned by .config")
         self.assertEqual(product["board"], "aidk_ai_toy")
         self.assertEqual(product["mode"], "bringup")
         registry_path = REPOSITORY / "tools/bk7258/bk7258_sdk_registry.json"
@@ -859,14 +883,29 @@ class AidkBoardTest(unittest.TestCase):
         graph_path = TOOLS_ROOT / "bk7258_resource_graph_aidk_ai_toy.json"
         graph = load_json(graph_path)
         self.assertIs(validate_resource_graph(REPOSITORY, graph), graph)
-        resolved = resolve_resource_graph(REPOSITORY, graph)
+        with tempfile.TemporaryDirectory(prefix="bk7258-aidk-graph-") as directory:
+            config_root = Path(directory) / "configs"
+            config_root.mkdir()
+            (config_root / "cp.config").write_text(
+                "CONFIG_BK7258_BOARD_AIDK_AI_TOY=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "# CONFIG_BK7258_AP_CORE is not set\n",
+                encoding="utf-8")
+            (config_root / "ap.config").write_text(
+                "CONFIG_BK7258_BOARD_AIDK_AI_TOY=y\n"
+                "CONFIG_BK7258_MCUBOOT_IMAGE=y\n"
+                "CONFIG_BK7258_AP_CORE=y\n",
+                encoding="utf-8")
+            resolved = resolve_resource_graph(
+                REPOSITORY, graph, config_root=config_root)
+            self.assertEqual(
+                build_plan(REPOSITORY, "aidk_ai_toy_bringup",
+                           config_root=config_root)["board"]["id"],
+                "aidk_ai_toy")
         self.assertTrue(resolved["resolved"])
         self.assertEqual(resolved["board_selection"]["candidates"], ["aidk_ai_toy"])
         self.assertEqual(resolved["board_constraints"]["port_identity"]["port"],
                          "dynamic-usb-serial")
-        self.assertEqual(build_plan(REPOSITORY, "aidk_ai_toy_bringup")["board"]["id"],
-                         "aidk_ai_toy")
-
     def test_board_layer_is_minimal_and_wired_without_unverified_devices(self) -> None:
         root = REPOSITORY / "board/bk7258"
         header = (root / "boards/aidk_ai_toy/include/bk7258_board_config.h").read_text()
@@ -896,11 +935,6 @@ class AidkBoardTest(unittest.TestCase):
         board_cmake = (root / "src/CMakeLists.txt").read_text()
         board_kconfig = (root / "Kconfig").read_text()
         chip_kconfig = (root / "chip/Kconfig").read_text()
-        aidk_fragment = json.loads((TOOLS_ROOT /
-            "bk7258_fragment_catalog_board_aidk_ai_toy.json").read_text())
-        core_fragment = json.loads((TOOLS_ROOT /
-            "bk7258_fragment_catalog_board_t5ai_core.json").read_text())
-
         self.assertIn("Select exactly one BK7258 physical board", make_defs)
         self.assertIn("Select exactly one BK7258 physical board", cmake)
         self.assertIn(
@@ -942,11 +976,6 @@ class AidkBoardTest(unittest.TestCase):
         self.assertIn("BK7258_BOARD_HAS_USER_GPIO_BINDING", chip_kconfig)
         self.assertIn("BK7258_BOARD_HAS_SDIO_BINDING", chip_kconfig)
         self.assertNotIn("BK7258_T5_BOARD", chip_kconfig)
-        self.assertEqual(aidk_fragment["symbols"],
-                         {"CONFIG_BK7258_BOARD_AIDK_AI_TOY": "y"})
-        self.assertEqual(core_fragment["symbols"],
-                         {"CONFIG_BK7258_BOARD_T5AI_CORE": "y"})
-
     def test_chip_sources_consume_only_typed_board_bindings(self) -> None:
         root = REPOSITORY / "board/bk7258"
         chip = root / "chip"
