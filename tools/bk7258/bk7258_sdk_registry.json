@@ -60,7 +60,7 @@
       "parent_id": null
     },
     {
-      "id": "sha256:4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713",
+      "id": "sha256:09a83cc5b504ce1e83cde40590552235b8c46714a30a0f001aa499873239a196",
       "version": "v3.1.1.9",
       "role": "ap",
       "artifact_kind": "sdk-bundle",
@@ -68,14 +68,14 @@
       "source_reproducible": false,
       "manifest_path": "board/bk7258/bk_idk/manifests/v3.1.1.9/ap.sha256",
       "provenance_path": "board/bk7258/bk_idk/manifests/v3.1.1.9/ap.provenance",
-      "manifest_sha256": "4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713",
-      "provenance_sha256": "781198b3ed6500771337801ba0de3068897740aca805febfe2692ce1e3428591",
-      "content_digest": "sha256:4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713",
+      "manifest_sha256": "09a83cc5b504ce1e83cde40590552235b8c46714a30a0f001aa499873239a196",
+      "provenance_sha256": "c4a27f7681176752195645f124557d4a349fcdb71857071639e6193fa8e88080",
+      "content_digest": "sha256:09a83cc5b504ce1e83cde40590552235b8c46714a30a0f001aa499873239a196",
       "source_archive_sha256": "not-provided",
       "parent_id": null
     },
     {
-      "id": "sha256:06e07a17019aa6b9aa3986689b04c42ed3ab1d6b0c2a1604e7738b596a0995f5",
+      "id": "sha256:1f9520b12c5205728323b11868e9b1848fdb744deeda58131049bb698a1881cf",
       "version": "v3.1.1.9-sdio4",
       "role": "ap",
       "artifact_kind": "sdk-bundle",
@@ -83,11 +83,11 @@
       "source_reproducible": false,
       "manifest_path": "board/bk7258/bk_idk/manifests/v3.1.1.9-sdio4/ap.sha256",
       "provenance_path": "board/bk7258/bk_idk/manifests/v3.1.1.9-sdio4/ap.provenance",
-      "manifest_sha256": "06e07a17019aa6b9aa3986689b04c42ed3ab1d6b0c2a1604e7738b596a0995f5",
-      "provenance_sha256": "05273a275c21537a98e0611c34854e22b88d50b433b4954ad52167944714a4e7",
-      "content_digest": "sha256:06e07a17019aa6b9aa3986689b04c42ed3ab1d6b0c2a1604e7738b596a0995f5",
+      "manifest_sha256": "1f9520b12c5205728323b11868e9b1848fdb744deeda58131049bb698a1881cf",
+      "provenance_sha256": "1ec7a15f8ea3a7a028aa57c7d88e89a20d2acb380395e93fa8072a066b7e64be",
+      "content_digest": "sha256:1f9520b12c5205728323b11868e9b1848fdb744deeda58131049bb698a1881cf",
       "source_archive_sha256": "not-provided",
-      "parent_id": "sha256:4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713"
+      "parent_id": "sha256:09a83cc5b504ce1e83cde40590552235b8c46714a30a0f001aa499873239a196"
     }
   ]
 }

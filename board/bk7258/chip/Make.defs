@@ -335,6 +335,27 @@ endif
 ifeq ($(CONFIG_BK7258_LCD),y)
 BK7258_AP_BASE_CSRCS += bk7258_lcd_rgb.c
 endif
+ifeq ($(CONFIG_BK7258_LCD_SPI),y)
+BK7258_AP_BASE_CSRCS += bk7258_lcd_spi.c
+endif
+ifeq ($(CONFIG_BK7258_LIN),y)
+BK7258_AP_BASE_CSRCS += bk7258_lin.c
+endif
+ifeq ($(CONFIG_BK7258_SLCD),y)
+BK7258_AP_BASE_CSRCS += bk7258_slcd.c
+endif
+ifeq ($(CONFIG_BK7258_SBC),y)
+BK7258_AP_BASE_CSRCS += bk7258_sbc.c
+endif
+ifeq ($(CONFIG_BK7258_DMIC),y)
+BK7258_AP_BASE_CSRCS += bk7258_dmic.c
+endif
+ifeq ($(CONFIG_BK7258_USBCDC),y)
+BK7258_AP_BASE_CSRCS += bk7258_usbcdc.c
+endif
+ifeq ($(CONFIG_BK7258_LCD_8080),y)
+BK7258_AP_BASE_CSRCS += bk7258_lcd_8080.c
+endif
 ifeq ($(CONFIG_BK7258_PWM),y)
 BK7258_AP_BASE_CSRCS += bk7258_pwm.c
 endif

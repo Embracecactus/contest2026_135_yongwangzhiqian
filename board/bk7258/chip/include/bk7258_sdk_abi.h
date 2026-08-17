@@ -84,6 +84,257 @@ extern void bk_sdio_host_discard_previous_receive_data_sema(void);
 #endif
 
 /****************************************************************************
+ * AP LIN ABI
+ *
+ * The exported driver/lin_types.h pulls SDK-private gpio_driver.h, which is
+ * not part of the immutable bundle.  Keep the same layout/ABI here and
+ * assert it against the v3.1.1.9 bundle with static assertions.
+ ****************************************************************************/
+
+#ifdef CONFIG_BK7258_LIN
+
+typedef enum
+{
+  LIN_SLAVE = 0,
+  LIN_MASTER = 1
+} lin_dev_t;
+
+typedef enum
+{
+  LIN_CHAN_0 = 0,
+  LIN_CHAN_1,
+  LIN_CHAN_2,
+  LIN_CHAN_MAX
+} lin_channel_t;
+
+typedef enum
+{
+  LIN_DATA_LEN_MIN = 0,
+  LIN_DATA_LEN_1BYTES,
+  LIN_DATA_LEN_2BYTES,
+  LIN_DATA_LEN_3BYTES,
+  LIN_DATA_LEN_4BYTES,
+  LIN_DATA_LEN_5BYTES,
+  LIN_DATA_LEN_6BYTES,
+  LIN_DATA_LEN_7BYTES,
+  LIN_DATA_LEN_8BYTES,
+  LIN_DATA_LEN_MAX
+} lin_data_len_t;
+
+typedef enum
+{
+  LIN_CLASSIC = 0,
+  LIN_ENHANCED
+} lin_checksum_t;
+
+typedef enum
+{
+  LIN_BUS_INACTIVITY_4S,
+  LIN_BUS_INACTIVITY_6S,
+  LIN_BUS_INACTIVITY_8S,
+  LIN_BUS_INACTIVITY_10S
+} lin_bus_inactivity_time_t;
+
+typedef enum
+{
+  LIN_WUP_REPEAT_180MS,
+  LIN_WUP_REPEAT_200MS,
+  LIN_WUP_REPEAT_220MS,
+  LIN_WUP_REPEAT_240MS
+} lin_wup_repeat_time_t;
+
+typedef enum
+{
+  LIN_IDENT_MIN = -1,
+  LIN_IDENT0,
+  LIN_IDENT1,
+  LIN_IDENT2,
+  LIN_IDENT3,
+  LIN_IDENT4,
+  LIN_IDENT5,
+  LIN_IDENT6,
+  LIN_IDENT7,
+  LIN_IDENT8,
+  LIN_IDENT9,
+  LIN_IDENT10,
+  LIN_IDENT11,
+  LIN_IDENT12,
+  LIN_IDENT13,
+  LIN_IDENT14,
+  LIN_IDENT15,
+  LIN_IDENT_MAX
+} lin_id_t;
+
+typedef struct
+{
+  uint32_t id;
+  uint32_t dev;
+} lin_gpio_map_t;
+
+typedef struct
+{
+  lin_gpio_map_t tx_gpio;
+  lin_gpio_map_t rx_gpio;
+  lin_gpio_map_t sleep_gpio;
+} lin_gpio_t;
+
+typedef struct
+{
+  lin_channel_t chn;
+  lin_dev_t dev;
+  lin_data_len_t length;
+  lin_checksum_t checksum;
+  double rate;
+  lin_bus_inactivity_time_t bus_inactiv_time;
+  lin_wup_repeat_time_t wup_repeat_time;
+} lin_config_t;
+
+#define BK_ERR_LIN_NOT_INIT              (BK_ERR_LIN_BASE - 1)
+#define BK_ERR_LIN_INT_TYPE              (BK_ERR_LIN_BASE - 2)
+#define BK_ERR_LIN_BIT_ERROR             (BK_ERR_LIN_BASE - 3)
+#define BK_ERR_LIN_CHK_ERROR             (BK_ERR_LIN_BASE - 4)
+#define BK_ERR_LIN_TIMEOUT_ERROR         (BK_ERR_LIN_BASE - 5)
+#define BK_ERR_LIN_PARITY_ERROR          (BK_ERR_LIN_BASE - 6)
+#define BK_ERR_LIN_HAL_INVALID_ADDR      (BK_ERR_LIN_BASE - 7)
+#define BK_ERR_LIN_HAL_INVALID_ARG       (BK_ERR_LIN_BASE - 8)
+
+extern bk_err_t bk_lin_driver_init(void);
+extern bk_err_t bk_lin_driver_deinit(void);
+extern bk_err_t bk_lin_gpio_init(lin_channel_t chn);
+extern bk_err_t bk_lin_cfg(lin_config_t *cfg);
+extern bk_err_t bk_lin_set_dev(lin_dev_t dev);
+extern bk_err_t bk_lin_set_rate(double rate);
+extern bk_err_t bk_lin_set_data_length(lin_data_len_t len);
+extern bk_err_t bk_lin_set_enh_check(lin_checksum_t check);
+extern bk_err_t bk_lin_interrupt_enable(void);
+extern bk_err_t bk_lin_interrupt_disable(void);
+extern bk_err_t bk_lin_send(uint8_t *buf, uint32_t len);
+extern bk_err_t bk_lin_recv(uint8_t *buf, uint32_t len);
+extern bk_err_t bk_lin_tx(lin_id_t id, uint8_t *tx, uint32_t len);
+extern bk_err_t bk_lin_rx(lin_id_t id, uint8_t *rx, uint32_t len,
+                          uint32_t timeout);
+
+_Static_assert(sizeof(lin_gpio_map_t) == 8u,
+               "v3.1.1.9 LIN gpio map ABI changed");
+_Static_assert(sizeof(lin_gpio_t) == 24u,
+               "v3.1.1.9 LIN gpio ABI changed");
+/* The ARM EABI toolchain builds with short enums, so the four one-byte
+ * enum fields pack before the 8-byte-aligned double rate field.
+ */
+_Static_assert(sizeof(lin_config_t) == 24u,
+               "v3.1.1.9 LIN config ABI changed");
+
+#endif /* CONFIG_BK7258_LIN */
+
+/****************************************************************************
+ * AP segment-LCD (SLCD) ABI
+ *
+ * The exported driver/slcd_types.h pulls SDK-private gpio_map.h, so keep
+ * the v3.1.1.9 types and entry points here.
+ ****************************************************************************/
+
+#ifdef CONFIG_BK7258_SLCD
+
+typedef enum
+{
+  SLCD_SEG_0 = 0,
+  SLCD_SEG_1,
+  SLCD_SEG_2,
+  SLCD_SEG_3,
+  SLCD_SEG_4,
+  SLCD_SEG_5,
+  SLCD_SEG_6,
+  SLCD_SEG_7,
+  SLCD_SEG_8,
+  SLCD_SEG_9,
+  SLCD_SEG_10,
+  SLCD_SEG_11,
+  SLCD_SEG_12,
+  SLCD_SEG_13,
+  SLCD_SEG_14,
+  SLCD_SEG_15,
+  SLCD_SEG_16,
+  SLCD_SEG_17,
+  SLCD_SEG_18,
+  SLCD_SEG_19,
+  SLCD_SEG_20,
+  SLCD_SEG_21,
+  SLCD_SEG_22,
+  SLCD_SEG_23,
+  SLCD_SEG_24,
+  SLCD_SEG_25,
+  SLCD_SEG_26,
+  SLCD_SEG_27,
+  SLCD_SEG_28,
+  SLCD_SEG_29,
+  SLCD_SEG_30,
+  SLCD_SEG_31
+} slcd_seg_id_t;
+
+typedef enum
+{
+  SLCD_COM_NUM_4 = 0,
+  SLCD_COM_NUM_8
+} slcd_com_num_t;
+
+typedef enum
+{
+  SLCD_BIAS_1_PER_OF_3 = 0,
+  SLCD_BIAS_1_PER_OF_4
+} slcd_bias_t;
+
+typedef enum
+{
+  SLCD_RATE_LEVEL_0 = 0,
+  SLCD_RATE_LEVEL_1,
+  SLCD_RATE_LEVEL_2,
+  SLCD_RATE_LEVEL_3
+} slcd_rate_t;
+
+typedef struct
+{
+  slcd_com_num_t com_num;
+  slcd_bias_t slcd_bias;
+  slcd_rate_t slcd_rate;
+} slcd_config_t;
+
+extern void bk_slcd_driver_init(slcd_config_t slcd_config);
+extern void bk_slcd_driver_deinit(void);
+extern void bk_slcd_set_seg_value(slcd_seg_id_t seg_id, uint8_t value);
+extern void bk_slcd_set_com_port_enable(uint8_t com_enable);
+extern void bk_slcd_set_seg_port_enable(uint32_t seg_enable);
+extern void bk_slcd_set_seg00_03_value(uint32_t value);
+extern void bk_slcd_set_seg04_07_value(uint32_t value);
+extern void bk_slcd_set_seg08_11_value(uint32_t value);
+extern void bk_slcd_set_seg12_15_value(uint32_t value);
+extern void bk_slcd_set_seg16_19_value(uint32_t value);
+extern void bk_slcd_set_seg20_23_value(uint32_t value);
+extern void bk_slcd_set_seg24_27_value(uint32_t value);
+extern void bk_slcd_set_seg28_31_value(uint32_t value);
+
+_Static_assert(sizeof(slcd_config_t) == 3u,
+               "v3.1.1.9 SLCD config ABI changed");
+
+#endif /* CONFIG_BK7258_SLCD */
+
+/****************************************************************************
+ * AP 8080-LCD data-plane ABI
+ *
+ * The public driver/lcd.h exposes bk_lcd_8080_* control and command APIs but
+ * not the pixel data path.  The immutable bundle exports the two HAL
+ * functions below from libcommon.a; declare them here for the framebuffer
+ * lower half.
+ ****************************************************************************/
+
+#ifdef CONFIG_BK7258_LCD_8080
+
+extern void lcd_hal_8080_data_send(uint32_t command, uint16_t *data,
+                                   uint32_t len);
+extern void lcd_hal_8080_ram_write(uint32_t command);
+
+#endif /* CONFIG_BK7258_LCD_8080 */
+
+/****************************************************************************
  * AP CAN ABI
  ****************************************************************************/
 

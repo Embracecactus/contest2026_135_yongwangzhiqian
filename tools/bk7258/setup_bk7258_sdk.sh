@@ -219,19 +219,28 @@ validate_provenance()
         uart_patch_define CONFIG_BK_PRINTF_DISABLE
 
     if [[ "$VERSION" == "v3.1.1.9" && "$ROLE" == "ap" ]]; then
+        profile_sha256="$(
+            sha256sum \
+                "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r4.config" |
+                awk '{print $1}'
+        )"
         require_provenance_value "$provenance" \
-            bundle_profile ap-peripherals-r2
+            bundle_profile ap-peripherals-r4
+        require_provenance_value "$provenance" profile_components \
+            ap-peripherals-r4.config
+        require_provenance_value "$provenance" \
+            profile_sha256 "$profile_sha256"
     elif [[ "$VERSION" == "v3.1.1.9-sdio4" ]]; then
         profile_sha256="$(
             cat \
-                "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r2.config" \
+                "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r4.config" \
                 "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-sdio4.config" |
                 sha256sum | awk '{print $1}'
         )"
         require_provenance_value "$provenance" \
-            bundle_profile ap-peripherals-r2-sdio4
+            bundle_profile ap-peripherals-r4-sdio4
         require_provenance_value "$provenance" profile_components \
-            ap-peripherals-r2.config,ap-sdio4.config
+            ap-peripherals-r4.config,ap-sdio4.config
         require_provenance_value "$provenance" \
             profile_sha256 "$profile_sha256"
     fi
