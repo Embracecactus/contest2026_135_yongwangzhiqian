@@ -62,14 +62,34 @@ config BK7258_BOARD_T5_BOARD
 		changes board wiring only; chip, CP/AP and boot code remain shared.
 
 config BK7258_BOARD_AIDK_AI_TOY
-	bool "AIDK AI Toy (schematic-only bring-up)"
+	bool "AIDK AI Toy"
+	select BK7258_BOARD_HAS_AUDIO_BINDING
+	select BK7258_BOARD_HAS_MIC_BINDING
+	select BK7258_BOARD_HAS_SDIO_BINDING
+	select BK7258_BOARD_HAS_USER_GPIO_BINDING
 	help
-		Minimal AIDK AI Toy board binding. UART0 is the 115200 8N1
-		console/download path. SWD, boot hold, RTT, RTS/DTR reset and UART
-		flow control remain disabled. Unknown BOM/peripheral routes are not
-		claimed; this selector is not a hardware-verified board target.
+		AIDK AI Toy (BK7258 AI Demo) board: UART0 console, CH340E UART1,
+		SC7A20H gyro on I2C1, GC2145 DVP camera + touch on I2C2, 160x160
+		QSPI LCD, 1GB SD NAND, analog MIC/PA audio, motor, keys/LEDs,
+		MFRC522 NFC and Type-C USB.  Hardware verification still pending.
 
 endchoice
+
+if BK7258_BOARD_AIDK_AI_TOY
+
+config BK7258_AIDK_SD_NAND
+	bool "AIDK 1GB SD NAND"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_SDIO
+	select MMCSD
+	select MMCSD_SDIO
+	help
+		Bind the chip SDIO host to the AIDK soldered 1GB SD NAND on
+		SDIO map mode 1 (P14-P19).  No card detect is available; the
+		media is always present.
+
+endif
 
 if BK7258_BOARD_T5_BOARD
 
