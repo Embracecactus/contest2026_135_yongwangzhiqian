@@ -7,7 +7,9 @@
   "mode": "bringup",
   "board_selection": {
     "selected": "aidk_ai_toy",
-    "candidates": ["aidk_ai_toy"],
+    "candidates": [
+      "aidk_ai_toy"
+    ],
     "exactly_one": true,
     "fallback": "forbidden"
   },
@@ -21,61 +23,423 @@
       "flow_control": false,
       "rts_reset": false
     },
-    "debug": {"swd": false, "boot_hold": false, "rtt": false},
-    "port_identity": {"board_id": "aidk_ai_toy", "port": "dynamic-usb-serial", "persistent": false},
+    "debug": {
+      "swd": false,
+      "boot_hold": false,
+      "rtt": false
+    },
+    "port_identity": {
+      "board_id": "aidk_ai_toy",
+      "port": "dynamic-usb-serial",
+      "persistent": false
+    },
     "conflicts": [
-      {"id": "p20_p21_sc7a20_swd", "pins": ["p20", "p21"], "functions": ["sc7a20", "swd"], "status": "unknown", "policy": "do-not-claim", "notes": "P20/P21 may be SC7A20 or SWD; no route is enabled."},
-      {"id": "p0_p1_mfrc522_cn1", "pins": ["p0", "p1"], "functions": ["mfrc522", "cn1_uart"], "status": "unknown", "policy": "do-not-claim", "notes": "P0/P1 MFRC522 and CN1 UART ownership is unresolved."},
-      {"id": "p8_p9_32k_key3_motor", "pins": ["p8", "p9"], "functions": ["clock_32k", "key3", "motor"], "status": "unknown", "policy": "do-not-claim", "notes": "P8/P9 32-kHz, KEY3 and motor routes are unresolved."},
-      {"id": "usb0_unknown", "pins": ["usb0"], "functions": ["usb0"], "status": "unknown", "policy": "do-not-claim", "notes": "USB0 BOM/connector role is unknown."}
+      {
+        "id": "p20_p21_sc7a20_swd",
+        "pins": [
+          "p20",
+          "p21"
+        ],
+        "functions": [
+          "sc7a20",
+          "swd"
+        ],
+        "status": "unknown",
+        "policy": "do-not-claim",
+        "notes": "P20/P21 may be SC7A20 or SWD; no route is enabled."
+      },
+      {
+        "id": "p0_p1_mfrc522_cn1",
+        "pins": [
+          "p0",
+          "p1"
+        ],
+        "functions": [
+          "mfrc522",
+          "cn1_uart"
+        ],
+        "status": "unknown",
+        "policy": "do-not-claim",
+        "notes": "P0/P1 MFRC522 and CN1 UART ownership is unresolved."
+      },
+      {
+        "id": "p8_p9_32k_key3_motor",
+        "pins": [
+          "p8",
+          "p9"
+        ],
+        "functions": [
+          "clock_32k",
+          "key3",
+          "motor"
+        ],
+        "status": "unknown",
+        "policy": "do-not-claim",
+        "notes": "P8/P9 32-kHz, KEY3 and motor routes are unresolved."
+      },
+      {
+        "id": "usb0_unknown",
+        "pins": [
+          "usb0"
+        ],
+        "functions": [
+          "usb0"
+        ],
+        "status": "unknown",
+        "policy": "do-not-claim",
+        "notes": "USB0 BOM/connector role is unknown."
+      }
     ],
-    "unsupported": ["sd_nand", "lcd", "camera", "mfrc522", "sc7a20", "usb0"]
+    "unsupported": [
+      "sd_nand",
+      "lcd",
+      "camera",
+      "mfrc522",
+      "sc7a20",
+      "usb0"
+    ]
   },
-  "phases": ["download", "boot", "hold", "runtime", "suspend", "restart"],
-  "roles": ["bl1", "bl2", "cp", "ap"],
+  "phases": [
+    "download",
+    "boot",
+    "hold",
+    "runtime",
+    "suspend",
+    "restart"
+  ],
+  "roles": [
+    "bl1",
+    "bl2",
+    "cp",
+    "ap"
+  ],
   "nodes": [
-    {"id": "bl1", "role": "bl1", "sdk": null, "provides": ["bl1_manifest_valid", "boot_hold_release"], "requires": []},
-    {"id": "bl2", "role": "bl2", "sdk": null, "provides": ["bl2_handoff"], "requires": ["bl1_manifest_valid"]},
-    {"id": "cp", "role": "cp", "sdk": "sha256:438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be", "provides": ["cp_boot", "mailbox_transport", "rptun_cp_ap"], "requires": ["bl2_handoff"]},
-    {"id": "ap", "role": "ap", "sdk": "sha256:4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713", "provides": ["ap_boot", "rptun_ready"], "requires": ["rptun_cp_ap"]}
+    {
+      "id": "bl1",
+      "role": "bl1",
+      "sdk": null,
+      "provides": [
+        "bl1_manifest_valid",
+        "boot_hold_release"
+      ],
+      "requires": []
+    },
+    {
+      "id": "bl2",
+      "role": "bl2",
+      "sdk": null,
+      "provides": [
+        "bl2_handoff"
+      ],
+      "requires": [
+        "bl1_manifest_valid"
+      ]
+    },
+    {
+      "id": "cp",
+      "role": "cp",
+      "sdk": "sha256:438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be",
+      "provides": [
+        "cp_boot",
+        "mailbox_transport",
+        "rptun_cp_ap"
+      ],
+      "requires": [
+        "bl2_handoff"
+      ]
+    },
+    {
+      "id": "ap",
+      "role": "ap",
+      "sdk": "sha256:09a83cc5b504ce1e83cde40590552235b8c46714a30a0f001aa499873239a196",
+      "provides": [
+        "ap_boot",
+        "rptun_ready"
+      ],
+      "requires": [
+        "rptun_cp_ap"
+      ]
+    }
   ],
   "edges": [
-    {"id": "bl1_to_bl2", "from": "bl1", "to": "bl2", "phase": "boot", "requires": [], "provides": ["bl1_manifest_valid"]},
-    {"id": "hold_release", "from": "bl1", "to": "bl2", "phase": "hold", "requires": ["boot_hold_release"], "provides": ["boot_released"]},
-    {"id": "bl2_to_cp", "from": "bl2", "to": "cp", "phase": "boot", "requires": ["bl2_handoff"], "provides": ["cp_boot"]},
-    {"id": "cp_to_ap", "from": "cp", "to": "ap", "phase": "runtime", "requires": ["mailbox_transport"], "provides": ["rptun_cp_ap"]},
-    {"id": "ap_suspend", "from": "ap", "to": "cp", "phase": "suspend", "requires": ["rptun_ready"], "provides": ["resume_token"]},
-    {"id": "ap_restart", "from": "ap", "to": "cp", "phase": "restart", "requires": ["resume_token"], "provides": ["ap_reclaim"]}
+    {
+      "id": "bl1_to_bl2",
+      "from": "bl1",
+      "to": "bl2",
+      "phase": "boot",
+      "requires": [],
+      "provides": [
+        "bl1_manifest_valid"
+      ]
+    },
+    {
+      "id": "hold_release",
+      "from": "bl1",
+      "to": "bl2",
+      "phase": "hold",
+      "requires": [
+        "boot_hold_release"
+      ],
+      "provides": [
+        "boot_released"
+      ]
+    },
+    {
+      "id": "bl2_to_cp",
+      "from": "bl2",
+      "to": "cp",
+      "phase": "boot",
+      "requires": [
+        "bl2_handoff"
+      ],
+      "provides": [
+        "cp_boot"
+      ]
+    },
+    {
+      "id": "cp_to_ap",
+      "from": "cp",
+      "to": "ap",
+      "phase": "runtime",
+      "requires": [
+        "mailbox_transport"
+      ],
+      "provides": [
+        "rptun_cp_ap"
+      ]
+    },
+    {
+      "id": "ap_suspend",
+      "from": "ap",
+      "to": "cp",
+      "phase": "suspend",
+      "requires": [
+        "rptun_ready"
+      ],
+      "provides": [
+        "resume_token"
+      ]
+    },
+    {
+      "id": "ap_restart",
+      "from": "ap",
+      "to": "cp",
+      "phase": "restart",
+      "requires": [
+        "resume_token"
+      ],
+      "provides": [
+        "ap_reclaim"
+      ]
+    }
   ],
   "resources": {
     "pins_functions": [
-      {"id": "console_uart0", "pins": ["uart0_tx", "uart0_rx"], "function": "uart0_console_download", "owner": "board", "consumers": ["bl1", "bl2", "cp", "ap"], "phases": ["download", "boot", "hold", "runtime", "suspend", "restart"], "status": "unknown"}
+      {
+        "id": "console_uart0",
+        "pins": [
+          "uart0_tx",
+          "uart0_rx"
+        ],
+        "function": "uart0_console_download",
+        "owner": "board",
+        "consumers": [
+          "bl1",
+          "bl2",
+          "cp",
+          "ap"
+        ],
+        "phases": [
+          "download",
+          "boot",
+          "hold",
+          "runtime",
+          "suspend",
+          "restart"
+        ],
+        "status": "unknown"
+      }
     ],
     "devpaths_minors": [
-      {"id": "console_devpath", "devpath": "/dev/console", "minor": 0, "owner": "cp", "consumers": ["bl2", "cp", "ap"], "phases": ["download", "boot", "hold", "runtime", "suspend", "restart"], "status": "unknown"},
-      {"id": "rptun_devpath", "devpath": "/dev/rptun", "minor": 1, "owner": "cp", "consumers": ["cp", "ap"], "phases": ["boot", "runtime", "suspend", "restart"], "status": "unknown"}
+      {
+        "id": "console_devpath",
+        "devpath": "/dev/console",
+        "minor": 0,
+        "owner": "cp",
+        "consumers": [
+          "bl2",
+          "cp",
+          "ap"
+        ],
+        "phases": [
+          "download",
+          "boot",
+          "hold",
+          "runtime",
+          "suspend",
+          "restart"
+        ],
+        "status": "unknown"
+      },
+      {
+        "id": "rptun_devpath",
+        "devpath": "/dev/rptun",
+        "minor": 1,
+        "owner": "cp",
+        "consumers": [
+          "cp",
+          "ap"
+        ],
+        "phases": [
+          "boot",
+          "runtime",
+          "suspend",
+          "restart"
+        ],
+        "status": "unknown"
+      }
     ],
     "irq_dma_clock_power": [
-      {"id": "uart0_irq", "kind": "irq", "resource": "uart0", "owner": "cp", "max_instances": 1, "phases": ["download", "boot", "hold", "runtime", "suspend", "restart"], "status": "unknown"},
-      {"id": "clock_tier", "kind": "clock", "resource": "bk7258_clock_tier", "owner": "cp", "max_instances": 1, "phases": ["boot", "runtime", "suspend", "restart"], "status": "unknown"}
+      {
+        "id": "uart0_irq",
+        "kind": "irq",
+        "resource": "uart0",
+        "owner": "cp",
+        "max_instances": 1,
+        "phases": [
+          "download",
+          "boot",
+          "hold",
+          "runtime",
+          "suspend",
+          "restart"
+        ],
+        "status": "unknown"
+      },
+      {
+        "id": "clock_tier",
+        "kind": "clock",
+        "resource": "bk7258_clock_tier",
+        "owner": "cp",
+        "max_instances": 1,
+        "phases": [
+          "boot",
+          "runtime",
+          "suspend",
+          "restart"
+        ],
+        "status": "unknown"
+      }
     ],
     "sdk_singletons": [
-      {"id": "sdk_cp_uart", "provider": "sha256:438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be", "owner": "cp", "max_instances": 1, "ownership": "cp_exclusive", "phases": ["download", "boot", "hold", "runtime", "suspend", "restart"]},
-      {"id": "sdk_ap_uart", "provider": "sha256:4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713", "owner": "ap", "max_instances": 1, "ownership": "ap_exclusive", "phases": ["download", "boot", "hold", "runtime", "suspend", "restart"]}
+      {
+        "id": "sdk_cp_uart",
+        "provider": "sha256:438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be",
+        "owner": "cp",
+        "max_instances": 1,
+        "ownership": "cp_exclusive",
+        "phases": [
+          "download",
+          "boot",
+          "hold",
+          "runtime",
+          "suspend",
+          "restart"
+        ]
+      },
+      {
+        "id": "sdk_ap_uart",
+        "provider": "sha256:09a83cc5b504ce1e83cde40590552235b8c46714a30a0f001aa499873239a196",
+        "owner": "ap",
+        "max_instances": 1,
+        "ownership": "ap_exclusive",
+        "phases": [
+          "download",
+          "boot",
+          "hold",
+          "runtime",
+          "suspend",
+          "restart"
+        ]
+      }
     ],
     "mailbox": [
-      {"id": "cp_ap_mailbox", "provides": ["mailbox_transport"], "requires": [], "owner": "cp", "consumers": ["cp", "ap"], "phases": ["boot", "runtime", "suspend", "restart"]}
+      {
+        "id": "cp_ap_mailbox",
+        "provides": [
+          "mailbox_transport"
+        ],
+        "requires": [],
+        "owner": "cp",
+        "consumers": [
+          "cp",
+          "ap"
+        ],
+        "phases": [
+          "boot",
+          "runtime",
+          "suspend",
+          "restart"
+        ]
+      }
     ],
     "memory_psram": [
-      {"id": "runtime_sram", "kind": "memory", "region": "bk7258_sram", "owner": "cp", "capacity": "board-defined", "max_instances": 1, "phases": ["boot", "runtime", "suspend", "restart"], "status": "unknown"}
+      {
+        "id": "runtime_sram",
+        "kind": "memory",
+        "region": "bk7258_sram",
+        "owner": "cp",
+        "capacity": "board-defined",
+        "max_instances": 1,
+        "phases": [
+          "boot",
+          "runtime",
+          "suspend",
+          "restart"
+        ],
+        "status": "unknown"
+      }
     ],
     "bom": [
-      {"id": "unknown_external_peripherals", "component": "unverified-bom", "status": "unknown", "owner": "board", "phases": ["download", "boot", "hold", "runtime", "suspend", "restart"]}
+      {
+        "id": "unknown_external_peripherals",
+        "component": "unverified-bom",
+        "status": "unknown",
+        "owner": "board",
+        "phases": [
+          "download",
+          "boot",
+          "hold",
+          "runtime",
+          "suspend",
+          "restart"
+        ]
+      }
     ]
   },
   "temporal_handoff": [
-    {"id": "loader_to_console", "from": "bl1", "to": "bl2", "phase": "boot", "resource": "uart0", "preconditions": ["bl1_manifest_valid"], "release": "loader releases dynamic transport before console capture"},
-    {"id": "cp_to_ap_runtime", "from": "cp", "to": "ap", "phase": "runtime", "resource": "mailbox_transport", "preconditions": ["mailbox_transport"], "release": "CP retains singleton ownership until AP teardown"}
+    {
+      "id": "loader_to_console",
+      "from": "bl1",
+      "to": "bl2",
+      "phase": "boot",
+      "resource": "uart0",
+      "preconditions": [
+        "bl1_manifest_valid"
+      ],
+      "release": "loader releases dynamic transport before console capture"
+    },
+    {
+      "id": "cp_to_ap_runtime",
+      "from": "cp",
+      "to": "ap",
+      "phase": "runtime",
+      "resource": "mailbox_transport",
+      "preconditions": [
+        "mailbox_transport"
+      ],
+      "release": "CP retains singleton ownership until AP teardown"
+    }
   ],
-  "identity_sha256": "ac59ae4ebf442e3ad41343efbfe5bb5d50bbe5c84f8e7f4125b54abbd47d5046"
+  "identity_sha256": "0d1501149613c633352e40713cf5f1470dbe73c85cc3f4b735a62d96c0e49a61"
 }

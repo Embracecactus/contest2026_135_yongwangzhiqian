@@ -5,9 +5,9 @@
   "id": "aidk_ai_toy_bringup-sdk-lock",
   "set_id": "aidk_ai_toy_bringup-sdk",
   "registry_path": "tools/bk7258/bk7258_sdk_registry.json",
-  "registry_sha256": "c427211e86b6c3b4c48c8c629e5db5bcec60e53a020cdb4f12e2b9258b8042c0",
+  "registry_sha256": "1f897be5d14dca23c417c03865142e4ec0b3a9b1fe0eab17d40cce3547852136",
   "set_path": "tools/bk7258/bk7258_sdk_set_aidk_ai_toy.json",
-  "set_sha256": "eac0cb8e4da93e61773de3477ad95e9b28d988c5a78bfe8910c5fa77e70b5fa7",
+  "set_sha256": "a5b1c57bf83abb8cc28ba4528d108cf068897c382bb30de154b1e0e4dfd8fa21",
   "roles": {
     "cp": {
       "registry_id": "sha256:438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be",
@@ -15,9 +15,9 @@
       "provenance_sha256": "3c370abc6622d57bd6005682931a33df139dc5c2911294af65fdee7038ceea36"
     },
     "ap": {
-      "registry_id": "sha256:4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713",
-      "manifest_sha256": "4cf54d7d741c994df161e66012d9217a000bcf414ca68e4b6073bb377be95713",
-      "provenance_sha256": "781198b3ed6500771337801ba0de3068897740aca805febfe2692ce1e3428591"
+      "registry_id": "sha256:09a83cc5b504ce1e83cde40590552235b8c46714a30a0f001aa499873239a196",
+      "manifest_sha256": "09a83cc5b504ce1e83cde40590552235b8c46714a30a0f001aa499873239a196",
+      "provenance_sha256": "c4a27f7681176752195645f124557d4a349fcdb71857071639e6193fa8e88080"
     },
     "bl2": {
       "registry_id": null,
@@ -28,5 +28,5 @@
   "no_runtime_sdk_roles": [
     "bl2"
   ],
-  "identity_sha256": "5c77d60c4c698273addeaa59da5a9ff2716f2691da6a43161710c6547b0a95bd"
+  "identity_sha256": "a441fa04a81cb91fa63df8c6019073fd534f8f47b0cf35bb8475ed54c17de14f"
 }

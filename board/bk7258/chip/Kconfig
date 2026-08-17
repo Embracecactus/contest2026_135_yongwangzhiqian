@@ -1967,4 +1967,115 @@ config BK7258_TRNG
 		the architecture-backed /dev/urandom implementation rather than a
 		software PRNG.
 
+config BK7258_LCD_SPI
+	bool "SPI LCD framebuffer lower half"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_SDK_IPC_RUNTIME
+	select DRIVERS_VIDEO
+	select VIDEO_FB
+	help
+		Expose one BK7258 SPI-attached panel through the standard NuttX
+		/dev/fb0 framebuffer interface.  The immutable v3.1.1.9 SDK owns
+		the SPI-LCD controller, panel init sequence and frame/partial DMA
+		paths; this lower half owns the RGB565 framebuffer, dirty-area
+		tracking and device registration.  A selected board supplies the SDK
+		panel descriptor, controller index and RESET/DC pins through
+		bk7258_board_lcd_spi_config().
+
+		The first implementation supports one RGB565 SPI panel.  It is
+		mutually exclusive with the RGB controller wrapper because both
+		share the single display service.
+
+config BK7258_LIN
+	bool "LIN controller lower half"
+	default n
+	depends on BK7258_AP_CORE
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Publish the BK7258 LIN controller as the bounded character device
+		/dev/lin0.  NuttX has no LIN upper-half, so the lower half exposes
+		one LIN frame per read/write through the immutable v3.1.1.9 SDK LIN
+		driver.  The first implementation supports one node, 1..8 byte data
+		frames, classic/enhanced checksum and master or slave mode; a
+		selected board supplies the channel, mode, rate and control pins.
+
+config BK7258_SLCD
+	bool "Segment LCD (SLCD) lower half"
+	default n
+	depends on BK7258_AP_CORE
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Publish the BK7258 segment-LCD controller as the bounded character
+		device /dev/slcd0.  NuttX has no segment-LCD upper half, so a write
+		transfers up to 32 segment values (one byte per segment, each bit a
+		COM) and private ioctls update single segments and COM/SEG enable
+		masks.  A selected board supplies the glass geometry (4/8 COM),
+		bias, frame rate and enable masks.
+
+config BK7258_SBC
+	bool "SBC hardware decoder helper"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Build a typed AP-side helper for synchronous SBC frame decoding
+		through the official v3.1.1.9 hardware SBC decoder.  NuttX has no
+		matching SBC upper half, so this option does not create a private
+		character-device ABI.  An audio or Bluetooth owner must explicitly
+		own the singleton decoder and its buffers.
+
+config BK7258_DMIC
+	bool "Audio DMIC helper"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	depends on !BK7258_MIC && !BK7258_AUD
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Build the AP-side audio DMIC helper through the official v3.1.1.9
+		DMIC driver.  The helper owns the board binding, sample rate and
+		start/stop/FIFO call boundary; a NuttX audio upper half may consume
+		it later.  It is mutually exclusive with the analog MIC and speaker
+		wrappers while the shared AUD clock contract is incomplete.
+
+config BK7258_USBCDC
+	bool "USB device CDC-ACM serial gadget"
+	default n
+	depends on BK7258_AP_CORE
+	depends on !BK7258_USBHOST
+	select SERIAL
+	help
+		Expose the BK7258 MUSB controller as a USB device CDC-ACM serial
+		gadget through the standard NuttX serial device /dev/ttyGS0.  The
+		immutable v3.1.1.9 CherryUSB component owns the device controller
+		and class control requests; this lower half owns the device/config
+		descriptors, CDC data endpoints and the serial ring path.  It is
+		mutually exclusive with the USB host wrapper because both share the
+		single MUSB controller.
+
+config BK7258_USBCDC_VID
+	hex "USB CDC gadget vendor ID"
+	default 0x1209
+	depends on BK7258_USBCDC
+
+config BK7258_USBCDC_PID
+	hex "USB CDC gadget product ID"
+	default 0x0001
+	depends on BK7258_USBCDC
+
+config BK7258_LCD_8080
+	bool "8080-MCU LCD framebuffer lower half"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	depends on !BK7258_LCD && !BK7258_LCD_SPI
+	select BK7258_SDK_IPC_RUNTIME
+	select DRIVERS_VIDEO
+	select VIDEO_FB
+	help
+		Expose one BK7258 8080-MCU panel through the standard NuttX
+		/dev/fb0 framebuffer interface.  The immutable v3.1.1.9 SDK owns the
+		8080 controller, panel init sequence and FIFO; this lower half owns
+		the RGB565 framebuffer, dirty-area tracking and RAMWR pixel pushes.
+		A selected board supplies the SDK panel descriptor and geometry.
+
 endmenu

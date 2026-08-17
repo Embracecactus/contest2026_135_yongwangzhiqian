@@ -263,6 +263,34 @@ if(CONFIG_BK7258_LCD)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lcd_rgb.c)
 endif()
 
+if(CONFIG_BK7258_LCD_SPI)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lcd_spi.c)
+endif()
+
+if(CONFIG_BK7258_LIN)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lin.c)
+endif()
+
+if(CONFIG_BK7258_SLCD)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_slcd.c)
+endif()
+
+if(CONFIG_BK7258_SBC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_sbc.c)
+endif()
+
+if(CONFIG_BK7258_DMIC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_dmic.c)
+endif()
+
+if(CONFIG_BK7258_USBCDC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_usbcdc.c)
+endif()
+
+if(CONFIG_BK7258_LCD_8080)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lcd_8080.c)
+endif()
+
 if(CONFIG_BK7258_PWM)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_pwm.c)
 endif()

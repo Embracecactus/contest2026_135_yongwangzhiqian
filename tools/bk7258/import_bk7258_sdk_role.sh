@@ -44,8 +44,10 @@ Options:
   --source-archive F  Original SDK archive recorded in provenance
   --toolchain-dir DIR Directory containing arm-none-eabi-gcc
   --jobs N            SDK build jobs (default: ${JOBS})
-  --profile NAME      Build profile: base, ap-peripherals-r2, or
-                     ap-peripherals-r2-sdio4
+  --profile NAME      Build profile: base, ap-peripherals-r2,
+                     ap-peripherals-r2-sdio4, ap-peripherals-r3, or
+                     ap-peripherals-r3-sdio4, ap-peripherals-r4, or
+                     ap-peripherals-r4-sdio4
   --build             Build the selected SDK role before importing
   --replace           Atomically replace an existing non-legacy bundle
   -h, --help          Show this help
@@ -164,6 +166,48 @@ case "$PROFILE" in
       "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-sdio4.config"
     )
     ;;
+  ap-peripherals-r3)
+    if [[ "$ROLE" != "ap" ]]; then
+      printf '%s\n' \
+        'error: ap-peripherals-r3 is only valid for the AP role' >&2
+      exit 2
+    fi
+    PROFILE_FILES+=(
+      "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r3.config"
+    )
+    ;;
+  ap-peripherals-r3-sdio4)
+    if [[ "$ROLE" != "ap" ]]; then
+      printf '%s\n' \
+        'error: ap-peripherals-r3-sdio4 is only valid for the AP role' >&2
+      exit 2
+    fi
+    PROFILE_FILES+=(
+      "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r3.config"
+      "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-sdio4.config"
+    )
+    ;;
+  ap-peripherals-r4)
+    if [[ "$ROLE" != "ap" ]]; then
+      printf '%s\n' \
+        'error: ap-peripherals-r4 is only valid for the AP role' >&2
+      exit 2
+    fi
+    PROFILE_FILES+=(
+      "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r4.config"
+    )
+    ;;
+  ap-peripherals-r4-sdio4)
+    if [[ "$ROLE" != "ap" ]]; then
+      printf '%s\n' \
+        'error: ap-peripherals-r4-sdio4 is only valid for the AP role' >&2
+      exit 2
+    fi
+    PROFILE_FILES+=(
+      "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r4.config"
+      "${BOARD_DIR}/bk_idk/sdk-profiles/v3.1.1.9/ap-sdio4.config"
+    )
+    ;;
   *)
     printf "error: unsupported SDK build profile '%s'\n" "$PROFILE" >&2
     exit 2
@@ -179,7 +223,10 @@ for profile_file in "${PROFILE_FILES[@]}"; do
 done
 
 if [[ "$VERSION" == "v3.1.1.9-sdio4" ]]; then
-  if [[ "$ROLE" != "ap" || "$PROFILE" != "ap-peripherals-r2-sdio4" ]]; then
+  if [[ "$ROLE" != "ap" ||
+        ( "$PROFILE" != "ap-peripherals-r2-sdio4" &&
+          "$PROFILE" != "ap-peripherals-r3-sdio4" &&
+          "$PROFILE" != "ap-peripherals-r4-sdio4" ) ]]; then
     printf '%s\n' \
       'error: v3.1.1.9-sdio4 requires AP role and ap-peripherals-r2-sdio4 profile' >&2
     exit 2
@@ -187,6 +234,14 @@ if [[ "$VERSION" == "v3.1.1.9-sdio4" ]]; then
 elif [[ "$PROFILE" == "ap-peripherals-r2-sdio4" ]]; then
   printf '%s\n' \
     'error: ap-peripherals-r2-sdio4 must use bundle version v3.1.1.9-sdio4' >&2
+  exit 2
+elif [[ "$PROFILE" == "ap-peripherals-r3-sdio4" ]]; then
+  printf '%s\n' \
+    'error: ap-peripherals-r3-sdio4 must use bundle version v3.1.1.9-sdio4' >&2
+  exit 2
+elif [[ "$PROFILE" == "ap-peripherals-r4-sdio4" ]]; then
+  printf '%s\n' \
+    'error: ap-peripherals-r4-sdio4 must use bundle version v3.1.1.9-sdio4' >&2
   exit 2
 fi
 
