@@ -39,10 +39,18 @@ if(CONFIG_BK7258_AUD)
   elseif(CONFIG_BK7258_BOARD_T5AI_CORE)
     target_sources(board PRIVATE
         ${BK7258_BOARD_VARIANT_DIR}/src/bk7258_t5ai_core_audio.c)
+  elseif(CONFIG_BK7258_BOARD_AIDK_AI_TOY)
+    target_sources(board PRIVATE
+        ${BK7258_BOARD_VARIANT_DIR}/src/bk7258_aidk_board_audio.c)
   else()
     message(FATAL_ERROR
         "BK7258_AUD requires a physical-board audio binding")
   endif()
+endif()
+
+if(CONFIG_BK7258_AIDK_SD_NAND)
+  target_sources(board PRIVATE
+      ${BK7258_BOARD_VARIANT_DIR}/src/bk7258_aidk_board_sdio.c)
 endif()
 
 if(CONFIG_BK7258_LCD)

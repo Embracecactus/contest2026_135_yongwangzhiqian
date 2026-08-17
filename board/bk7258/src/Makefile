@@ -59,9 +59,15 @@ ifeq ($(CONFIG_BK7258_BOARD_T5_BOARD),y)
 CSRCS += bk7258_t5_board_audio.c
 else ifeq ($(CONFIG_BK7258_BOARD_T5AI_CORE),y)
 CSRCS += bk7258_t5ai_core_audio.c
+else ifeq ($(CONFIG_BK7258_BOARD_AIDK_AI_TOY),y)
+CSRCS += bk7258_aidk_board_audio.c
 else
 $(error BK7258_AUD requires a physical-board audio binding)
 endif
+endif
+
+ifeq ($(CONFIG_BK7258_AIDK_SD_NAND),y)
+CSRCS += bk7258_aidk_board_sdio.c
 endif
 
 ifeq ($(CONFIG_BK7258_LCD),y)
