@@ -279,5 +279,6 @@ config BK7258_FLASH_LITTLEFS
 	---help---
 		Register /dev/mtdblock0 (ftl) over the selected board data-partition
 		MTD and mount LittleFS at /data with the "autoformat" option (formats
-		on first boot only).  Also runs a probe-file persistence check.
-		Destructive on the data partition; enable only when authorised.
+		on first boot only).  Persistence and destructive storage validation
+		are explicit application/test actions and never run during bring-up.
+		Auto-format can modify the data partition; enable only when authorised.

@@ -151,3 +151,16 @@
 3. common 抽离/framework 瘦身后，是否仍有需要优先处理的耦合？
 4. 信任根轮换流程（密钥注册表+公钥指纹）是否足够规范？
 5. 提交拆分粒度是否适合评审（5 个 vs 建议 4 个）？
+
+## 10. 2026-08-17 最终 App 回归收口（v8）
+
+在 §1–§6 之后，针对 25 篇指定版本官方文档的逐篇对照又完成了四角色最终回归：
+
+- 修复 App→chip 链接断链（App 只依赖独立 chip 公共头，不再包含物理板 `board.h`）。
+- 隔离构建禁用 CMake regeneration，避免不可变源码快照被 glob 自动重配置破坏。
+- 补齐签名续跑中 `bl2_secondary_crc.bin`/`app*.bin` 的只读产物可写切换。
+- 统一隔离交付启动段成员名回 `bl_crc.bin`，修复与 `auto_debug.sh`/工厂布局校验器的契约漂移。
+- v8 签名包（`firmware.bkpack` `e3f47d95...`，18.7.1/counter `0x12060053`）COM3 五段下载+回读逐字节一致，BL2 release 后 VTOR `0x28020000→0x28010800`，RTT 捕获 `NuttShell (NSH) / nsh>`。
+- 最终树 pytest 157 passed/1 skipped，`framework-check` PASS。
+
+完整证据见 [2026-08-17 最终 App 回归 v8](verification/2026-08-17-final-app-regression-v8.md)。

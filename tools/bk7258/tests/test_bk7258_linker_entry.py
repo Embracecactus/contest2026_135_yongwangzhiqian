@@ -9,8 +9,8 @@ import unittest
 from pathlib import Path
 
 
-BOARD = Path(__file__).resolve().parents[1]
-REPOSITORY = BOARD.parents[2]
+REPOSITORY = Path(__file__).resolve().parents[3]
+BOARD = REPOSITORY / "board" / "bk7258"
 SCRIPTS = BOARD / "scripts"
 
 

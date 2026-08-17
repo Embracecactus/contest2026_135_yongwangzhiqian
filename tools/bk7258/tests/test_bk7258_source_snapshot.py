@@ -34,6 +34,26 @@ class SourceSnapshotTests(unittest.TestCase):
             dirty.parent.mkdir(parents=True)
             dirty.write_text("dirty board source\n", encoding="utf-8")
 
+            evidence = workspace / (
+                "contest2026_135_yongwangzhiqian/logs/hardware-debug/run.log")
+            evidence.parent.mkdir(parents=True)
+            evidence.write_text("not a build input\n", encoding="utf-8")
+
+            classic_app = workspace / (
+                "contest2026_135_yongwangzhiqian/app/hello_app")
+            classic_app.mkdir(parents=True)
+            for output in ("hello.o", ".built", ".depend", "Make.dep"):
+                (classic_app / output).write_bytes(b"generated app output")
+            classic_board = workspace / (
+                "contest2026_135_yongwangzhiqian/board/bk7258/src/libboard.a")
+            classic_board.parent.mkdir(parents=True, exist_ok=True)
+            classic_board.write_bytes(b"generated board archive")
+            sdk_archive = workspace / (
+                "contest2026_135_yongwangzhiqian/board/bk7258/bk_idk/"
+                "armino_as_lib/versions/v3.1.1.9/cp/libs/libdriver.a")
+            sdk_archive.parent.mkdir(parents=True)
+            sdk_archive.write_bytes(b"required SDK archive")
+
             ignored_openamp = workspace / "external/openamp/ignored_required.c"
             ignored_openamp.parent.mkdir()
             ignored_openamp.write_text("ignored but build-required\n", encoding="utf-8")
@@ -53,10 +73,16 @@ class SourceSnapshotTests(unittest.TestCase):
             cmake = workspace / "nuttx/CMakeFiles"
             cmake.mkdir()
             (cmake / "CMakeCache.txt").write_text("generated\n", encoding="utf-8")
-            board_test_build = workspace / (
-                "contest2026_135_yongwangzhiqian/board/bk7258/tests/build")
-            board_test_build.mkdir(parents=True)
-            (board_test_build / "test.o").write_bytes(b"generated test output")
+            board_test_builds = [
+                workspace / (
+                    "contest2026_135_yongwangzhiqian/board/bk7258/tests/build"),
+                workspace / (
+                    "contest2026_135_yongwangzhiqian/tests/bk7258/build"),
+            ]
+            for board_test_build in board_test_builds:
+                board_test_build.mkdir(parents=True)
+                (board_test_build / "test.o").write_bytes(
+                    b"generated test output")
 
             bootloader = workspace / (
                 "contest2026_135_yongwangzhiqian/board/bk7258/bootloader")
@@ -77,6 +103,14 @@ class SourceSnapshotTests(unittest.TestCase):
             self.assertEqual(tuple(manifest["scope"]), snapshot.ROOTS)
             self.assertEqual(set(manifest["roots"]), set(snapshot.ROOTS))
             self.assertTrue((destination / dirty.relative_to(workspace)).is_file())
+            self.assertFalse((destination / evidence.relative_to(workspace)).exists())
+            for output in ("hello.o", ".built", ".depend", "Make.dep"):
+                self.assertFalse(
+                    (destination / classic_app.relative_to(workspace) / output).exists())
+            self.assertFalse(
+                (destination / classic_board.relative_to(workspace)).exists())
+            self.assertTrue(
+                (destination / sdk_archive.relative_to(workspace)).is_file())
             self.assertTrue((destination / ignored_openamp.relative_to(workspace)).is_file())
             self.assertTrue(
                 (destination / third_party_build_source.relative_to(workspace)).is_file())
@@ -86,8 +120,9 @@ class SourceSnapshotTests(unittest.TestCase):
             self.assertFalse((destination / "nuttx/generated.elf").exists())
             self.assertFalse((destination / "nuttx/bk7258-old-build").exists())
             self.assertFalse((destination / "nuttx/CMakeFiles").exists())
-            self.assertFalse(
-                (destination / board_test_build.relative_to(workspace)).exists())
+            for board_test_build in board_test_builds:
+                self.assertFalse(
+                    (destination / board_test_build.relative_to(workspace)).exists())
             self.assertFalse((destination / bootloader.relative_to(workspace) / "bl.bin").exists())
             self.assertTrue((destination / bootloader.relative_to(workspace) / "boot_main.c").is_file())
             self.assertTrue((destination / "nuttx/dirty-link").is_symlink())

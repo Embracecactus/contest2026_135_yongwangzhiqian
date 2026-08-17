@@ -1,11 +1,12 @@
-# BK7258 build profiles
+# BK7258 compatibility seeds
 
-`configs/` contains build profiles, not physical-board descriptions.  One
-physical board may have several profiles for normal applications, optional
-services and bounded hardware validation.  Fixed pins, fitted devices and
-electrical limits remain under [`../boards/`](../boards/README.md).
+`configs/` contains only the three retained role/bootstrap seeds listed
+below.  It is not a board-by-application configuration matrix.  Fixed pins,
+fitted devices and electrical limits remain under
+[`../boards/`](../boards/README.md); applications are selected by Kconfig in
+the build's final `.config`.
 
-Every profile directory contains:
+Every retained seed directory contains:
 
 - `defconfig`: the NuttX configuration consumed by `build.sh`;
 - `profile.conf`: board/role/boot/class/compatibility metadata consumed by
@@ -107,13 +108,12 @@ MCUboot profiles require the external signing and BL1 manifest keys already
 required by the secure-build pipeline.  Do not store those private keys in
 the repository.
 
-## Adding a profile
+## Do not add application profiles
 
-Add a profile only when it represents a reusable application/service set or a
-bounded validation target.  Do not preserve each bring-up stage as another
-defconfig.  Prefer extending an existing validation profile when the new gate
-is cumulative, and use Kconfig/runtime control for ordinary peripheral
-parameters such as UART baud, I2C frequency and SPI mode.
+Do not add a `configs/<board>_<app>` directory for applications, services,
+benchmarks or validation commands.  Select those through Kconfig/menuconfig
+in the build-local final `.config`.  A new persistent seed is justified only
+for a genuinely new boot or role bootstrap contract, not for a feature set.
 
 ## Seed 命名规则
 
@@ -134,7 +134,7 @@ CMake 也只消费 defconfig）。它只声明期望的
 
 ## seed 不回写
 
-`menuconfig` / `savedefconfig` 的结果只允许落到工作区 `.config`，禁止回写
-`configs/<seed>/defconfig`。三个角色 seed 是冻结的兼容契约，App 选择必须
-通过构建目录内的最终 `.config` 表达，否则会污染角色默认值并产生隐式的
-board×app defconfig 变体。
+`menuconfig` 修改构建目录中的最终 `.config`。禁止针对这三个冻结 seed 运行
+会把精简结果写回源码 seed 的 `savedefconfig`；如需保存某次验收配置，应将
+最终 `.config` 作为仓外构建证据保存。App 选择必须由最终 `.config` 表达，
+不得生成 board×app defconfig 变体。

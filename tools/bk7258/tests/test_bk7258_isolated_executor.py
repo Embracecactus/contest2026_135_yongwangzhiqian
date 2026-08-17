@@ -87,7 +87,11 @@ class IsolatedPrepareTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root, output, manifest = self._prepare(temporary, "t5_board_bringup")
             self.assertEqual(manifest["execution_mode"], "prepare-only")
-            self.assertTrue(manifest["source_view"]["shared_nuttx_config_detected"])
+            # The parent workspace may be clean (no generated nuttx/.config)
+            # or may contain a prior configure result.  The snapshot contract
+            # must report either state accurately, but never consume it.
+            self.assertIsInstance(
+                manifest["source_view"]["shared_nuttx_config_detected"], bool)
             self.assertFalse(manifest["source_view"]["shared_source_root_used"])
             self.assertEqual(
                 manifest["source_view"]["policy"],
@@ -165,7 +169,7 @@ class IsolatedPrepareTests(unittest.TestCase):
                 self.assertEqual(
                     hashlib.sha256((seed / "profile.conf").read_bytes()).hexdigest(),
                     json.loads(Path(manifest["plan_copy"]).read_text())[
-                        "legacy_adapter"]["seed_profiles"][role][
+                        "config_inputs"]["seed_profiles"][role][
                         "materialized_profile_sha256"])
 
     def test_prepare_raw_marks_bl2_not_applicable(self):
@@ -579,6 +583,7 @@ else:
                 self.assertIn(
                     "-DPython3_EXECUTABLE=" + built["tools"]["python"]["path"],
                     configure_argv)
+                self.assertIn("-DCMAKE_SUPPRESS_REGENERATION=ON", configure_argv)
                 config_path = Path(row["config_path"])
                 self.assertEqual(config_path, Path(row["cmake_binary_root"]) / ".config")
                 self.assertTrue(config_path.is_file())
@@ -880,6 +885,7 @@ else:
                     configure["argv"] = [
                         item for item in configure["argv"]
                         if not item.startswith("-DNUTTX_APPS_DIR=") and
+                        item != "-DCMAKE_SUPPRESS_REGENERATION=ON" and
                         not item.startswith("-DPython3_EXECUTABLE=")]
                     build = next(command for command in row["commands"]
                                   if command["stage"] == "cmake-build")

@@ -18,7 +18,10 @@ from typing import Any
 
 RETIRED_REPOSITORY_ROOTS = ("board/bk7258_t5ai",)
 ID_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
-SYMBOL_RE = re.compile(r"^CONFIG_[A-Z0-9_]+$")
+# Kconfig symbol names are identifiers, not necessarily all-uppercase.  The
+# NuttX tree contains valid mixed-case symbols such as
+# CONFIG_LIBC_IPv4_ADDRCONV and CONFIG_FASTDDS_NoExample.
+SYMBOL_RE = re.compile(r"^CONFIG_[A-Za-z0-9_]+$")
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 
 

@@ -463,13 +463,30 @@ class FrameworkTest(unittest.TestCase):
         self.assertEqual(plan["roles"]["bl2"]["config_kind"], "minimal-make-inputs")
         self.assertFalse(plan["roles"]["bl2"]["fake_nuttx_seed"])
         self.assertIsNone(plan["bl2_image_logical_size"])
-        self.assertFalse(plan["legacy_adapter"]["invoked"])
+        self.assertEqual(plan["config_inputs"]["mode"], "resolved-config")
+        for seed in plan["config_inputs"]["seed_profiles"].values():
+            self.assertNotIn("overlay", seed)
+            self.assertNotIn("overlay_sha256", seed)
         build_paths = {item["build_root_template"] for item in plan["roles"].values()}
         artifact_paths = {item["artifact_root_template"] for item in plan["roles"].values()}
         config_paths = {item["config_path_template"] for item in plan["roles"].values()}
         self.assertEqual(len(build_paths), 4)
         self.assertEqual(len(artifact_paths), 4)
         self.assertEqual(len(config_paths), 4)
+
+    def test_final_config_accepts_valid_mixed_case_kconfig_symbols(self) -> None:
+        ir = resolve(REPOSITORY, "t5ai_core_bringup", "cp")
+        with tempfile.TemporaryDirectory(prefix="bk7258-final-config-") as directory:
+            config = Path(directory) / "cp.config"
+            config.write_text(
+                "CONFIG_BK7258_BOARD_T5AI_CORE=y\n"
+                "CONFIG_LIBC_IPv4_ADDRCONV=y\n"
+                "CONFIG_FASTDDS_NoExample=y\n",
+                encoding="utf-8",
+            )
+            document = config_document(ir, config_path=config)
+        self.assertEqual(document["symbols"]["CONFIG_LIBC_IPv4_ADDRCONV"], "y")
+        self.assertEqual(document["symbols"]["CONFIG_FASTDDS_NoExample"], "y")
 
     def test_build_plan_active_roles_and_applicability_are_identity_bound(self) -> None:
         raw = build_plan(REPOSITORY, "t5ai_core_bringup")
@@ -514,12 +531,12 @@ class FrameworkTest(unittest.TestCase):
                 self.assertFalse(context["side_effects"]["bytes_written"])
                 self.assertEqual(context["adapter_semantic_parity"], "unproven")
                 self.assertEqual(context["adapter_execution"], {
-                    "kind": "shared-legacy-adapter",
+                    "kind": "shared-classic-adapter",
                     "consumes_role_build_roots": False,
                     "role_paths_executed": False,
                 })
                 self.assertEqual(context["profiles"]["root"],
-                                 "adapter-owned-temporary")
+                                 "config-input-owned")
                 self.assertEqual(set(context["environment"]),
                                  {"BK7258_PRODUCT", "BK7258_OUTPUT_ROOT"})
                 self.assertEqual(

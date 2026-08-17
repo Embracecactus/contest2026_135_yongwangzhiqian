@@ -1173,55 +1173,34 @@ config BK7258_SDK_IRQ_BRIDGE
 		BK7258_AP_IPI; this activation option remains CP-only.
 
 config BK7258_SDK_IRQ_TIMER_TEST
-	bool "Deprecated Beken SDK IRQ bridge TIMER1 manual test"
+	bool
 	default n
 	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
 	---help---
-		Deprecated: this symbol no longer registers an application.  Enable
-		BK7258_APP_IRQ_TIMER_TEST to build the manual bkirqtest NSH command.
-		The command temporarily replaces the SDK INT_SRC_TIMER callback,
-		triggers TIMER_ID1, proves unregister silence and re-registration,
-		then restores the original callback.  It never runs from board
-		bring-up.
+		Internal implementation gate selected by BK7258_APP_IRQ_TIMER_TEST.
 
 config BK7258_SDK_TIMER_SELFTEST
-	bool "Deprecated Beken SDK software-timer lifecycle regression test"
+	bool
 	default n
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && SYSTEM_NSH
 	---help---
-		Deprecated: this symbol no longer registers an application.  Enable
-		BK7258_APP_TIMER_SELFTEST to build the bktimertest NSH command.  It
-		repeatedly deletes a periodic SDK timer from inside its own callback
-		and proves that callbacks run in the board timer-service task rather
-		than the NuttX watchdog ISR.  This is the regression gate for the SDK
-		wrapper's deferred-free lifecycle and never runs automatically during
-		board bring-up.
+		Internal implementation gate selected by BK7258_APP_TIMER_SELFTEST.
 
 config BK7258_GPIO_FOUNDATION_TEST
-	bool "Deprecated BK7258 selected-board GPIO foundation manual test"
+	bool
 	default n
 	depends on ARCH_CHIP_BK7258 && SYSTEM_NSH && !BK7258_AP_CORE
 	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
 	---help---
-		Deprecated: this symbol no longer registers an application.  Enable
-		BK7258_APP_GPIO_TEST to build the manual bkgpioc0 NSH command.  The
-		command exercises the selected board's LED and user key with their
-		declared polarity using polling only, then restores both pin states.
-		It never runs from board bring-up and does not enable GPIO
-		interrupts.
+		Internal implementation gate selected by BK7258_APP_GPIO_TEST.
 
 config BK7258_GPIO_IRQ_TEST
-	bool "Deprecated BK7258 selected-board key GPIO edge IRQ manual test"
+	bool
 	default n
 	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
 	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
 	---help---
-		Deprecated: this symbol no longer registers an application.  Enable
-		BK7258_APP_GPIO_IRQ_TEST to build the manual bkgpioirq NSH command.
-		The command uses the selected board's user key to prove falling and
-		rising edge callbacks.  It mirrors the SDK GPIO_S source-55 handler
-		onto GPIO_NS source 56 for the test, then restores both the IRQ route
-		and original pin state.
+		Internal implementation gate selected by BK7258_APP_GPIO_IRQ_TEST.
 
 config BK7258_GPIO_LOWERHALF
 	bool "BK7258 selected-board NuttX GPIO lower-half"

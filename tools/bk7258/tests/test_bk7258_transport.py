@@ -105,6 +105,17 @@ class TransportTest(unittest.TestCase):
         self.assertNotIn("PARTITION_GENERATOR", script)
         self.assertNotIn("--get slot_a_cp.offset", script)
 
+    def test_no_console_flash_uses_loader_without_powershell_port_scan(self) -> None:
+        script = (SCRIPT_ROOT / "bk7258_auto_debug.sh").read_text(
+            encoding="utf-8")
+        self.assertIn("if ((!NO_CONSOLE || RTS_RESET)); then", script)
+        self.assertIn(
+            "COM${DOWNLOAD_PORT} will be validated by bk_loader.exe", script)
+        self.assertGreater(
+            script.index("NEEDS_POWERSHELL=0"),
+            script.index("CONFIG_BK7258_SWD_DEBUG=y"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

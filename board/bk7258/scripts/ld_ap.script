@@ -20,6 +20,10 @@ EXTERN(_vectors)
 EXTERN(__vector_core0_table)
 EXTERN(__vector_core1_table)
 EXTERN(bk7258_ap_main)
+#ifdef CONFIG_ARCH_HAVE_TCBINFO
+/* The official J-Link RTOS plugin reads g_tcbinfo/g_reginfo from the ELF. */
+EXTERN(g_tcbinfo)
+#endif
 #ifdef CONFIG_BK7258_AP_IPI
 EXTERN(bk_int_isr_register)
 #endif

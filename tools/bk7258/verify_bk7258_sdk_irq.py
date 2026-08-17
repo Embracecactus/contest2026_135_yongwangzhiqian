@@ -207,6 +207,30 @@ def extract_member(ar: str, archive: pathlib.Path, member: str,
     output.write_bytes(result.stdout)
 
 
+def bridge_member(ar: str, archive: pathlib.Path) -> str:
+    """Return the SDK bridge member emitted by either Make or CMake.
+
+    Classic Make normally names the object ``bk7258_sdk_irq.o`` while the
+    CMake/Ninja archive uses the source-derived ``bk7258_sdk_irq.c.o`` name.
+    Both are the same board-owned object; the verifier must not treat the
+    backend's object naming convention as an ownership difference.
+    """
+    members = [line.strip() for line in run(ar, "t", str(archive)).splitlines()
+               if line.strip()]
+    matches = [member for member in members
+               if pathlib.PurePosixPath(member).name in {
+                   "bk7258_sdk_irq.o",
+                   "bk7258_sdk_irq.c.o",
+                   "bk7258_sdk_irq.c.obj",
+               }]
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"expected exactly one bk7258 SDK IRQ archive member in {archive}; "
+            f"found {matches or 'none'}"
+        )
+    return matches[0]
+
+
 def main() -> int:
     script = pathlib.Path(__file__).resolve()
     # This verifier is a host tool under tools/bk7258, not a board script.
@@ -223,6 +247,9 @@ def main() -> int:
                         default=workspace / "nuttx" / "nuttx.map")
     parser.add_argument("--archive", type=pathlib.Path,
                         default=workspace / "nuttx" / "staging" / "libarch.a")
+    parser.add_argument("--config", type=pathlib.Path,
+                        default=workspace / "nuttx" / ".config",
+                        help="final .config used by the selected ELF")
     parser.add_argument("--ar", default="arm-none-eabi-ar")
     parser.add_argument("--nm", default="arm-none-eabi-nm")
     parser.add_argument("--objdump", default="arm-none-eabi-objdump")
@@ -234,7 +261,9 @@ def main() -> int:
     cmake = board / "chip" / "CMakeLists.txt"
     kconfig = board / "chip" / "Kconfig"
     ldscript = board / "scripts" / "ld.script"
-    build_config = workspace / "nuttx" / ".config"
+    build_config = args.config
+    if not build_config.is_absolute():
+        build_config = workspace / build_config
     stubs = board / "chip" / "common" / "bk7258_sdk_stubs.c"
 
     verifier = Verifier()
@@ -369,6 +398,7 @@ def main() -> int:
         nm_output = run(args.nm, "-A", "--defined-only", str(args.elf))
         archive_nm = run(args.nm, "-A", "--defined-only",
                          str(args.archive))
+        selected_member = bridge_member(args.ar, args.archive)
         map_text = read(args.map)
         counts = symbol_counts(nm_output)
         archive_counts = symbol_counts(archive_nm)
@@ -384,11 +414,13 @@ def main() -> int:
             )
 
             owner = map_owner(map_text, symbol)
+            expected_owner = (
+                f"{args.archive.name}({pathlib.PurePosixPath(selected_member).name})"
+            )
             verifier.check(
-                owner is not None
-                and "libarch.a(bk7258_sdk_irq.o)" in owner,
+                owner is not None and expected_owner in owner,
                 "E02",
-                f"{symbol} owner is overlay bk7258_sdk_irq.o"
+                f"{symbol} owner is overlay {expected_owner}"
                 f" (observed: {owner or 'missing'})",
             )
 
@@ -418,7 +450,7 @@ def main() -> int:
 
         with tempfile.TemporaryDirectory(prefix="bk7258-sdk-irq-") as tmp:
             bridge_obj = pathlib.Path(tmp) / "bk7258_sdk_irq.o"
-            extract_member(args.ar, args.archive, "bk7258_sdk_irq.o",
+            extract_member(args.ar, args.archive, selected_member,
                            bridge_obj)
             unregister_helper_asm = disassemble(
                 args.objdump, bridge_obj,

@@ -93,12 +93,32 @@ BUILD_DIR_NAMES = frozenset({
 # A basename such as ``build`` or ``out`` is also used by real third-party
 # source projects.  Keep those trees unless a path is a known generated
 # workspace output or has a strong CMake marker.  This exact list includes the
-# board test output that is present in the contest checkout.
+# repository-level BK7258 host-test output.
 KNOWN_GENERATED_DIR_PATHS = frozenset({
     "nuttx/staging",
+    # Keep the pre-migration path while ignored local workspaces may still
+    # contain copied host-test sources and binaries there.
     "contest2026_135_yongwangzhiqian/board/bk7258/tests/build",
+    "contest2026_135_yongwangzhiqian/tests/bk7258/build",
     "contest2026_135_yongwangzhiqian/tools/windows-hardware-debug/ble-gatt-client/out",
     "contest2026_135_yongwangzhiqian/tools/windows-hardware-debug/ble-advertiser/out",
+})
+
+# Repository-local evidence is not a compiler, linker or delivery-tool input.
+# Excluding it also prevents hardware logs from entering source snapshots.
+NON_SOURCE_DIR_PATHS = frozenset({
+    "contest2026_135_yongwangzhiqian/logs",
+})
+
+CONTEST_ROOT = "contest2026_135_yongwangzhiqian"
+CONTEST_SDK_ARCHIVE_ROOT = (
+    f"{CONTEST_ROOT}/board/bk7258/bk_idk/armino_as_lib/versions/"
+)
+CONTEST_CLASSIC_OUTPUT_SUFFIXES = frozenset({
+    ".o", ".elf", ".map", ".su", ".dep", ".d",
+})
+CONTEST_CLASSIC_OUTPUT_NAMES = frozenset({
+    ".built", ".depend", "Make.dep",
 })
 
 NUTTX_GENERATED_DIR_PREFIXES = frozenset({
@@ -462,6 +482,8 @@ def _excluded_reason(
     if _nuttx_generated_path(relative):
         return "cmake-or-build-output"
     if is_dir:
+        if relative in NON_SOURCE_DIR_PATHS:
+            return "non-source-evidence"
         if (
             name in BUILD_DIR_NAMES
             or name.startswith("cmake-build")
@@ -483,6 +505,13 @@ def _excluded_reason(
         return "python-cache"
     if name in BUILD_FILE_NAMES:
         return "cmake-or-build-output"
+    if parts[0] == CONTEST_ROOT:
+        suffix = Path(name).suffix
+        if (name in CONTEST_CLASSIC_OUTPUT_NAMES or
+                suffix in CONTEST_CLASSIC_OUTPUT_SUFFIXES or
+                (suffix == ".a" and
+                 not relative.startswith(CONTEST_SDK_ARCHIVE_ROOT))):
+            return "classic-build-output"
     if (
         parts[0] == "nuttx"
         and Path(name).suffix in NUTTX_BUILD_OUTPUT_SUFFIXES
@@ -515,6 +544,11 @@ def _excluded_path(relative: str) -> bool:
     if _nuttx_generated_path(relative):
         return True
     if any(
+        relative == excluded or relative.startswith(excluded + "/")
+        for excluded in NON_SOURCE_DIR_PATHS
+    ):
+        return True
+    if any(
         relative == generated or relative.startswith(generated + "/")
         for generated in GENERATED_LINK_PATHS
     ):
@@ -532,6 +566,14 @@ def _excluded_path(relative: str) -> bool:
         and any(part in BUILD_OUTPUT_DIR_NAMES for part in parts[:-1])
     ):
         return True
+    if parts[0] == CONTEST_ROOT:
+        name = parts[-1]
+        suffix = Path(name).suffix
+        if (name in CONTEST_CLASSIC_OUTPUT_NAMES or
+                suffix in CONTEST_CLASSIC_OUTPUT_SUFFIXES or
+                (suffix == ".a" and
+                 not relative.startswith(CONTEST_SDK_ARCHIVE_ROOT))):
+            return True
     if _bootloader_path(relative):
         name = parts[-1]
         if name in BOOTLOADER_GENERATED_NAMES or Path(name).suffix in BOOTLOADER_GENERATED_SUFFIXES:
@@ -1174,6 +1216,8 @@ def snapshot_workspace(
                 "generated_nuttx_links": sorted(GENERATED_LINK_PATHS),
                 "cmake_and_build_outputs": True,
                 "known_generated_directories": sorted(KNOWN_GENERATED_DIR_PATHS),
+                "non_source_evidence_directories": sorted(NON_SOURCE_DIR_PATHS),
+                "contest_classic_outputs": True,
                 "third_party_build_named_source_directories": "retained-unless-strong-marker",
                 "optional_metadata_symlink_names": sorted(OPTIONAL_METADATA_SYMLINK_NAMES),
                 "optional_missing_symlink_paths": sorted(OPTIONAL_MISSING_SYMLINK_PATHS),

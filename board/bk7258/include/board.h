@@ -76,14 +76,6 @@
  * Public Function Prototypes
  ****************************************************************************/
 
-#ifdef CONFIG_BK7258_SDK_IRQ_TIMER_TEST
-int bk7258_sdk_irq_timer_test(void);
-#endif
-
-#ifdef CONFIG_BK7258_SDK_TIMER_SELFTEST
-int bk7258_sdk_timer_selftest(uint32_t iterations);
-#endif
-
 /* Selected physical-board hooks.  The immutable descriptor is linked into
  * both roles; AP controller composition invokes these callbacks at stable
  * ordering boundaries, while CP may consume other fields from the same

@@ -2,7 +2,6 @@
   "id": "t5ai_core",
   "kind": "board",
   "resource_claims": [
-    {"owner": "console", "phases": ["cp", "ap", "bl2"], "resource": "uart0"},
     {"owner": "speaker", "phases": ["ap"], "resource": "pa_p39_p28"}
   ],
   "schema": "bk7258.composition/1",

@@ -1256,6 +1256,13 @@ def verify_final_config(repository: Path, product_id: str, role: str,
 
 def _boot_config_identity(product_ir: dict[str, Any], role: str, makefile: str,
                           kind: str) -> str:
+    """Hash the resolved standalone-role configuration contract.
+
+    BL1/BL2 have no NuttX ``.config``.  Their source bytes are bound by the
+    isolated source-snapshot identity; this digest intentionally covers only
+    the resolved product, layout, role and Make entry point.  Do not claim a
+    partial source-file manifest as a configuration hash.
+    """
     body = {
         "schema": CONFIG_SCHEMA,
         "kind": kind,
@@ -1366,15 +1373,6 @@ def _canonical_profile_text(ir: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _canonical_overlay_sha256(product: str, role: str) -> str:
-    return sha256(canonical_json({
-        "kind": "canonical-seed-config",
-        "version": 1,
-        "product": product,
-        "role": role,
-    }))
-
-
 def _canonical_seed_profiles(repository: Path, product: dict[str, Any],
                              role_ir: dict[str, dict[str, Any]],
                              sdk_versions: dict[str, str | None],
@@ -1414,8 +1412,6 @@ def _canonical_seed_profiles(repository: Path, product: dict[str, Any],
             "source": source,
             "profile_sha256": profile_hash,
             "defconfig_sha256": defconfig_hash,
-            "overlay": CANONICAL_CONFIG_COMPAT,
-            "overlay_sha256": _canonical_overlay_sha256(product_id, role),
             "target_profile": target,
             "compat": CANONICAL_CONFIG_COMPAT,
             "sdk_bundle": sdk_versions[role],
@@ -1461,8 +1457,11 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
     config_ids = {
         "cp": None,
         "ap": None,
-        "bl1": _boot_config_identity(cp_ir, "bl1", "board/bk7258/bootloader/Makefile", "boot-policy"),
-        "bl2": _boot_config_identity(cp_ir, "bl2", "board/bk7258/bootloader/bl2/Makefile", "minimal-make-inputs"),
+        "bl1": _boot_config_identity(
+            cp_ir, "bl1", "board/bk7258/bootloader/Makefile", "boot-policy"),
+        "bl2": _boot_config_identity(
+            cp_ir, "bl2", "board/bk7258/bootloader/bl2/Makefile",
+            "minimal-make-inputs"),
     }
     seed_profiles = _canonical_seed_profiles(
         repository, product_metadata, role_ir, sdk_versions,
@@ -1532,13 +1531,10 @@ def build_plan(repository: Path, product_id: str, board_id: str | None = None,
         },
         "source_views": source_views,
         "roles": build_roles,
-            "legacy_adapter": {
-                "builder": "tools/bk7258/build_dual_image.sh",
-                "mode": "shadow-comparator",
-                "invoked": False,
-                "modified": False,
-                "seed_profiles": seed_profiles,
-            },
+        "config_inputs": {
+            "mode": "resolved-config",
+            "seed_profiles": seed_profiles,
+        },
     }
     result = dict(body)
     result["identity_sha256"] = sha256(canonical_json(body))
@@ -1565,7 +1561,7 @@ def build_plan_verify(repository: Path, plan_path: Path,
 
 def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
     exact(value, {"schema", "kind", "version", "active_roles", "bl2_image_logical_size", "identity_inputs", "board", "sdk",
-                  "partition_layout", "source_views", "roles", "legacy_adapter",
+                  "partition_layout", "source_views", "roles", "config_inputs",
                   "identity_sha256"},
           "isolated build plan")
     if value["schema"] != BUILD_PLAN_SCHEMA or value["kind"] != "isolated-build-plan" or value["version"] != 1:
@@ -1701,17 +1697,15 @@ def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
                 raise FrameworkError(f"build plan role {role} SDK binding mismatch")
             digest(sdk_row["manifest_sha256"], f"build plan role {role}.sdk.manifest_sha256")
             digest(sdk_row["provenance_sha256"], f"build plan role {role}.sdk.provenance_sha256")
-    legacy = obj(value["legacy_adapter"], "build plan legacy adapter")
-    exact(legacy, {"builder", "mode", "invoked", "modified", "seed_profiles"},
-          "build plan legacy adapter")
-    if (legacy["builder"] != "tools/bk7258/build_dual_image.sh" or
-            legacy["mode"] != "shadow-comparator" or legacy["invoked"] is not False or
-            legacy["modified"] is not False):
-        raise FrameworkError("build plan legacy adapter boundary is unsafe")
-    seed_profiles = obj(legacy["seed_profiles"], "build plan seed profiles")
+    config_inputs = obj(value["config_inputs"], "build plan config inputs")
+    exact(config_inputs, {"mode", "seed_profiles"},
+          "build plan config inputs")
+    if config_inputs["mode"] != "resolved-config":
+        raise FrameworkError("build plan config input boundary is unsafe")
+    seed_profiles = obj(config_inputs["seed_profiles"], "build plan seed profiles")
     exact(seed_profiles, {"cp", "ap"}, "build plan seed profiles")
     seed_fields = {"seed_profile", "source", "profile_sha256", "defconfig_sha256",
-                   "overlay", "overlay_sha256", "target_profile", "compat",
+                   "target_profile", "compat",
                    "sdk_bundle", "materialized_profile_sha256",
                    "materialized_defconfig_sha256"}
     for role in ("cp", "ap"):
@@ -1727,9 +1721,6 @@ def validate_build_plan(value: dict[str, Any]) -> dict[str, Any]:
         digest(seed["profile_sha256"], f"build plan seed profile {role}.profile_sha256")
         digest(seed["defconfig_sha256"],
                f"build plan seed profile {role}.defconfig_sha256")
-        identifier(seed["overlay"], f"build plan seed profile {role}.overlay")
-        digest(seed["overlay_sha256"],
-               f"build plan seed profile {role}.overlay_sha256")
         digest(seed["materialized_profile_sha256"],
                f"build plan seed profile {role}.materialized_profile_sha256")
         digest(seed["materialized_defconfig_sha256"],
@@ -1766,12 +1757,12 @@ def execution_context(repository: Path, product_id: str,
                       set_path: Path | None = None,
                       lock_path: Path | None = None,
                       config_root: Path | None = None) -> dict[str, Any]:
-    """Produce a deterministic, non-executing compatibility context.
+    """Produce a deterministic, non-executing Classic compatibility context.
 
     This function intentionally does not inspect signing-key environment
-    variables or invoke a subprocess.  It describes the existing legacy
-    adapter invocation and the artifacts that the later build mode will
-    produce.
+    variables or invoke a subprocess.  It describes the shared-tree Classic
+    adapter only; canonical source-read-only execution is owned by
+    ``bk7258_isolated_executor.py``.
     """
     plan = build_plan(repository, product_id, board_id, mode, set_path, lock_path,
                       config_root=config_root)
@@ -1788,19 +1779,18 @@ def execution_context(repository: Path, product_id: str,
             "config_identity_sha256": item["config_identity_sha256"],
             "sdk_bundle": plan["sdk"]["versions"][role] if role in {"cp", "ap"} else None,
         }
-    seed_profiles = plan["legacy_adapter"]["seed_profiles"]
-    profile_root = "adapter-owned-temporary"
+    seed_profiles = plan["config_inputs"]["seed_profiles"]
+    profile_root = "config-input-owned"
     profile_names = {role: seed_profiles[role]["target_profile"] for role in ("cp", "ap")}
-    # The shell adapter owns plan verification and profile materialization.
-    # Keep this as one command so the context cannot imply an unbound,
-    # hand-materialized profile tree followed by a separate build.
+    # This is intentionally labeled compatibility-only: build_dual_image.sh
+    # still uses the shared NuttX tree and is not the canonical CMake executor.
     commands = [{
-        "stage": "compatibility-build-and-package",
+        "stage": "classic-compatibility-build-and-package",
         "tool": "tools/bk7258/build_dual_image.sh",
         "arguments": [],
         "plan_validation": "build-plan-verify",
         "profile_materialization": "materialize_product_profiles.py",
-        "compatibility": "shared-legacy-adapter",
+        "compatibility": "shared-classic-adapter",
     }]
     body: dict[str, Any] = {
         "schema": EXECUTION_CONTEXT_SCHEMA,
@@ -1816,7 +1806,7 @@ def execution_context(repository: Path, product_id: str,
         "output": output,
         "adapter_semantic_parity": "unproven",
         "adapter_execution": {
-            "kind": "shared-legacy-adapter",
+            "kind": "shared-classic-adapter",
             "consumes_role_build_roots": False,
             "role_paths_executed": False,
         },
@@ -1838,8 +1828,6 @@ def execution_context(repository: Path, product_id: str,
                     "defconfig_sha256": seed_profiles[role]["defconfig_sha256"],
                     "materialized_profile_sha256": seed_profiles[role]["materialized_profile_sha256"],
                     "materialized_defconfig_sha256": seed_profiles[role]["materialized_defconfig_sha256"],
-                    "overlay": seed_profiles[role]["overlay"],
-                    "overlay_sha256": seed_profiles[role]["overlay_sha256"],
                 } for role in ("cp", "ap")
             },
         },
@@ -1897,7 +1885,7 @@ def validate_execution_context(value: dict[str, Any]) -> dict[str, Any]:
     adapter = obj(value["adapter_execution"], "execution context adapter")
     exact(adapter, {"kind", "consumes_role_build_roots", "role_paths_executed"},
           "execution context adapter")
-    if (adapter["kind"] != "shared-legacy-adapter" or
+    if (adapter["kind"] != "shared-classic-adapter" or
             adapter["consumes_role_build_roots"] is not False or
             adapter["role_paths_executed"] is not False):
         raise FrameworkError("execution context adapter isolation is overstated")
@@ -1927,7 +1915,7 @@ def validate_execution_context(value: dict[str, Any]) -> dict[str, Any]:
     profiles = obj(value["profiles"], "execution context profiles")
     exact(profiles, {"root", "cp", "ap", "seed_profiles"},
           "execution context profiles")
-    if profiles["root"] != "adapter-owned-temporary":
+    if profiles["root"] != "config-input-owned":
         raise FrameworkError("execution context profile root ownership mismatch")
     for role in ("cp", "ap"):
         identifier(profiles[role], f"execution context {role} profile")
@@ -1942,8 +1930,7 @@ def validate_execution_context(value: dict[str, Any]) -> dict[str, Any]:
     for role in ("cp", "ap"):
         seed = obj(seed_profiles[role], f"execution context seed {role}")
         exact(seed, {"seed_profile", "profile_sha256", "defconfig_sha256",
-                     "materialized_profile_sha256", "materialized_defconfig_sha256",
-                     "overlay", "overlay_sha256"},
+                     "materialized_profile_sha256", "materialized_defconfig_sha256"},
               f"execution context seed {role}")
         identifier(seed["seed_profile"], f"execution context seed {role}.name")
         digest(seed["profile_sha256"], f"execution context seed {role}.profile")
@@ -1952,8 +1939,6 @@ def validate_execution_context(value: dict[str, Any]) -> dict[str, Any]:
                f"execution context seed {role}.materialized_profile")
         digest(seed["materialized_defconfig_sha256"],
                f"execution context seed {role}.materialized_defconfig")
-        identifier(seed["overlay"], f"execution context seed {role}.overlay")
-        digest(seed["overlay_sha256"], f"execution context seed {role}.overlay_sha256")
     if not isinstance(value["roles"], dict) or set(value["roles"]) != {"bl1", "bl2", "cp", "ap"}:
         raise FrameworkError("execution context roles are incomplete")
     expected_backend = {"bl1": "bootloader-adapter", "bl2": "minimal-make",
@@ -1999,12 +1984,12 @@ def validate_execution_context(value: dict[str, Any]) -> dict[str, Any]:
     exact(command, {"stage", "tool", "arguments", "plan_validation",
                     "profile_materialization", "compatibility"},
           "execution context command 0")
-    if (command["stage"] != "compatibility-build-and-package" or
+    if (command["stage"] != "classic-compatibility-build-and-package" or
             command["tool"] != "tools/bk7258/build_dual_image.sh" or
             command["plan_validation"] != "build-plan-verify" or
             command["profile_materialization"] != "materialize_product_profiles.py" or
-            command["compatibility"] != "shared-legacy-adapter"):
-        raise FrameworkError("execution context compatibility command is not canonical")
+            command["compatibility"] != "shared-classic-adapter"):
+        raise FrameworkError("execution context compatibility command is not valid")
     if not isinstance(command["arguments"], list) or any(
             not isinstance(item, str) or not item for item in command["arguments"]):
         raise FrameworkError("execution context command arguments are malformed")
@@ -3003,7 +2988,7 @@ def framework_check(repository: Path) -> dict[str, Any]:
     validate_descriptor_set(root, load_json(root / "tools/bk7258/bk7258_validation_descriptors.json"))
     _framework_check_step(
         checks, "p5-validation",
-        "partial command registry and 27-profile migration ledger",
+        "validation descriptor and command registry invariants",
         lambda: None)
     pack_prepare(root, "t5ai_core_bringup")
     _framework_check_step(
