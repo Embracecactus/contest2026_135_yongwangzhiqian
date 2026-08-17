@@ -24,7 +24,7 @@ config BK7258_APP_HELLO_PROGNAME
 
 config BK7258_APP_HELLO_PRIORITY
 	int "hello app priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_HELLO_STACKSIZE
 	int "hello app stack size"
@@ -52,7 +52,7 @@ config BK7258_APP_BKVALIDATE_PROGNAME
 
 config BK7258_APP_BKVALIDATE_PRIORITY
 	int "bkvalidate priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_BKVALIDATE_STACKSIZE
 	int "bkvalidate stack size"
@@ -79,7 +79,7 @@ config BK7258_APP_APCTL_PROGNAME
 
 config BK7258_APP_APCTL_PRIORITY
 	int "apctl priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_APCTL_STACKSIZE
 	int "apctl stack size"
@@ -106,7 +106,7 @@ config BK7258_APP_RPMSG_TEST_PROGNAME
 
 config BK7258_APP_RPMSG_TEST_PRIORITY
 	int "bkrpmsgtest priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_RPMSG_TEST_STACKSIZE
 	int "bkrpmsgtest stack size"
@@ -133,7 +133,7 @@ config BK7258_APP_RPMSGFS_TEST_PROGNAME
 
 config BK7258_APP_RPMSGFS_TEST_PRIORITY
 	int "bkrpmsgfstest priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_RPMSGFS_TEST_STACKSIZE
 	int "bkrpmsgfstest stack size"
@@ -160,7 +160,7 @@ config BK7258_APP_BT_IPC_TEST_PROGNAME
 
 config BK7258_APP_BT_IPC_TEST_PRIORITY
 	int "bkbttest priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_BT_IPC_TEST_STACKSIZE
 	int "bkbttest stack size"
@@ -187,7 +187,7 @@ config BK7258_APP_WIFI_PROGNAME
 
 config BK7258_APP_WIFI_PRIORITY
 	int "bkwifi priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_WIFI_STACKSIZE
 	int "bkwifi stack size"
@@ -214,7 +214,7 @@ config BK7258_APP_PSRAM_TEST_PROGNAME
 
 config BK7258_APP_PSRAM_TEST_PRIORITY
 	int "bkpsramtest priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_PSRAM_TEST_STACKSIZE
 	int "bkpsramtest stack size"
@@ -227,6 +227,7 @@ config BK7258_APP_GPIO_TEST
 	default n
 	depends on ARCH_CHIP_BK7258 && SYSTEM_NSH && !BK7258_AP_CORE
 	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
+	select BK7258_GPIO_FOUNDATION_TEST
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	---help---
@@ -242,7 +243,7 @@ config BK7258_APP_GPIO_TEST_PROGNAME
 
 config BK7258_APP_GPIO_TEST_PRIORITY
 	int "bkgpioc0 priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_GPIO_TEST_STACKSIZE
 	int "bkgpioc0 stack size"
@@ -255,6 +256,7 @@ config BK7258_APP_GPIO_IRQ_TEST
 	default n
 	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
 	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
+	select BK7258_GPIO_IRQ_TEST
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	---help---
@@ -270,7 +272,7 @@ config BK7258_APP_GPIO_IRQ_TEST_PROGNAME
 
 config BK7258_APP_GPIO_IRQ_TEST_PRIORITY
 	int "bkgpioirq priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_GPIO_IRQ_TEST_STACKSIZE
 	int "bkgpioirq stack size"
@@ -282,6 +284,7 @@ config BK7258_APP_IRQ_TIMER_TEST
 	bool "Beken SDK IRQ bridge TIMER1 manual test command"
 	default n
 	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
+	select BK7258_SDK_IRQ_TIMER_TEST
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	---help---
@@ -296,7 +299,7 @@ config BK7258_APP_IRQ_TIMER_TEST_PROGNAME
 
 config BK7258_APP_IRQ_TIMER_TEST_PRIORITY
 	int "bkirqtest priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_IRQ_TIMER_TEST_STACKSIZE
 	int "bkirqtest stack size"
@@ -308,6 +311,7 @@ config BK7258_APP_TIMER_SELFTEST
 	bool "Beken SDK software-timer lifecycle regression test command"
 	default n
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && SYSTEM_NSH
+	select BK7258_SDK_TIMER_SELFTEST
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	---help---
@@ -322,7 +326,7 @@ config BK7258_APP_TIMER_SELFTEST_PROGNAME
 
 config BK7258_APP_TIMER_SELFTEST_PRIORITY
 	int "bktimertest priority"
-	default SCHED_PRIORITY_DEFAULT
+	default 100
 
 config BK7258_APP_TIMER_SELFTEST_STACKSIZE
 	int "bktimertest stack size"

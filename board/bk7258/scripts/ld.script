@@ -39,6 +39,14 @@
 OUTPUT_ARCH("arm")
 EXTERN(_vectors)
 
+/* Keep the architecture's TCB/register description in the final ELF.  It is
+ * consumed by the official J-Link RTOS plugin out-of-band, so no target-side
+ * reference would otherwise extract arm_tcbinfo.o from libarch.a. */
+
+#ifdef CONFIG_ARCH_HAVE_TCBINFO
+EXTERN(g_tcbinfo)
+#endif
+
 #ifdef CONFIG_BK7258_SDK_IRQ_BRIDGE
 /* Force the overlay bridge member out of libarch.a before the Beken SDK
  * archives are scanned.  Otherwise libdriver.a(interrupt_base.c.obj) can

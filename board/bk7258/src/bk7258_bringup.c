@@ -12,11 +12,8 @@
 
 #include <nuttx/config.h>
 
-#include <fcntl.h>
-#include <string.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #include <debug.h>
 
@@ -41,29 +38,18 @@
  ****************************************************************************/
 
 #ifdef CONFIG_BK7258_FLASH_LITTLEFS
-/* LittleFS bring-up: register /dev/mtdblock0 (ftl), mount at /data with the
- * "autoformat" option (formats only on first boot), then run a probe-file
- * persistence check.
- *
- * The probe file is created on the first boot after format and read back on
- * every later boot, so a reboot observing the expected bytes proves write
- * persistence.
+/* LittleFS bring-up: register /dev/mtdblock0 (FTL) and mount /data.  Storage
+ * validation belongs to an explicitly selected application/test; normal
+ * board bring-up must not create or rewrite a probe file on every boot.
  */
 
 #define BK7258_FS_MOUNTPOINT  "/data"
 #define BK7258_FS_BLOCKDEV    "/dev/mtdblock0"
-#define BK7258_FS_PROBE       "/data/probe.txt"
-#define BK7258_FS_PROBE_LEN   12
-static const char g_fs_probe[BK7258_FS_PROBE_LEN] = "BK7258LFS-OK";
-
-static void bk7258_fs_probe(struct mtd_dev_s *mtd)
+static void bk7258_fs_mount(struct mtd_dev_s *mtd)
 {
-  char buf[BK7258_FS_PROBE_LEN];
-  int fd;
-  ssize_t n;
-
   if (ftl_initialize(0, mtd) < 0)
     {
+      _err("bk7258: failed to register LittleFS FTL block device\n");
       return;
     }
 
@@ -72,47 +58,9 @@ static void bk7258_fs_probe(struct mtd_dev_s *mtd)
   if (mount(BK7258_FS_BLOCKDEV, BK7258_FS_MOUNTPOINT, "littlefs", 0,
             "autoformat") < 0)
     {
+      _err("bk7258: failed to mount LittleFS at %s\n",
+           BK7258_FS_MOUNTPOINT);
       return;
-    }
-
-  /* If the probe file exists, read it back and compare (persistence). */
-
-  fd = open(BK7258_FS_PROBE, O_RDONLY);
-  if (fd < 0)
-    {
-      /* First boot: create the probe file. */
-
-      fd = open(BK7258_FS_PROBE, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-      if (fd < 0)
-        {
-          return;
-        }
-
-      if (write(fd, g_fs_probe, BK7258_FS_PROBE_LEN) != BK7258_FS_PROBE_LEN)
-        {
-          close(fd);
-          return;
-        }
-
-      close(fd);
-      sync();
-      return;
-    }
-
-  n = read(fd, buf, BK7258_FS_PROBE_LEN);
-  close(fd);
-
-  /* Persistence verification: the file was created on a previous boot, so
-   * a successful read-back of the expected marker proves writes survive
-   * reset.  Stay silent when persistence is confirmed; log a runtime error
-   * otherwise.
-   */
-
-  if (n != (ssize_t)BK7258_FS_PROBE_LEN ||
-      memcmp(buf, g_fs_probe, BK7258_FS_PROBE_LEN) != 0)
-    {
-      _err("bk7258: LittleFS probe persistence check failed (n=%d)\n",
-           (int)n);
     }
 }
 #endif /* CONFIG_BK7258_FLASH_LITTLEFS */
@@ -160,15 +108,15 @@ int bk7258_bringup(void)
 
 #ifdef CONFIG_BK7258_FLASH_MTD
   /* Create the MTD instance for the 1 MiB data partition.  When LittleFS is
-   * also enabled, register /dev/mtdblock0 + mount /data and run the probe
-   * persistence check on the same instance.
+   * also enabled, register /dev/mtdblock0 and mount /data on the same
+   * instance.
    */
 
   FAR struct mtd_dev_s *mtd = bk7258_flash_mtd_initialize();
   if (mtd != NULL)
     {
 #ifdef CONFIG_BK7258_FLASH_LITTLEFS
-      bk7258_fs_probe(mtd);
+      bk7258_fs_mount(mtd);
 #endif
 #ifdef CONFIG_MCUBOOT_BOOTLOADER
       /* Publish read-only, bounds-checked image-pair partitions only to the

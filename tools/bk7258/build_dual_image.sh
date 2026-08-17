@@ -210,8 +210,8 @@ if [[ -n "${PRODUCT_ID}" ]]; then
         fi
     fi
     CONFIG_ROOT="${PROFILE_ROOT}"
-    CP_CONFIG_NAME="$(plan_value "${BUILD_PLAN_SOURCE}" legacy_adapter.seed_profiles.cp.target_profile)"
-    AP_CONFIG_NAME="$(plan_value "${BUILD_PLAN_SOURCE}" legacy_adapter.seed_profiles.ap.target_profile)"
+    CP_CONFIG_NAME="$(plan_value "${BUILD_PLAN_SOURCE}" config_inputs.seed_profiles.cp.target_profile)"
+    AP_CONFIG_NAME="$(plan_value "${BUILD_PLAN_SOURCE}" config_inputs.seed_profiles.ap.target_profile)"
 fi
 if [[ ! -d "${CONFIG_ROOT}" ]]; then
     printf 'build_dual_image: missing BK7258 config root: %s\n' \
@@ -1825,6 +1825,18 @@ else
     SDK_BUNDLE_SUMMARY=role-specific
 fi
 
+# The absolute SDK paths above are build inputs only.  Published profile
+# metadata must remain portable: consumers can resolve these repository-
+# relative records against their own checkout, while the manifest/provenance
+# digests still bind the exact SDK contents used by this build.
+SDK_BUNDLE_ROOT_RECORD="board/bk7258/bk_idk/armino_as_lib/versions"
+CP_SDK_BUNDLE_ROOT_RECORD="${SDK_BUNDLE_ROOT_RECORD}/${CP_SDK_BUNDLE_VERSION}"
+AP_SDK_BUNDLE_ROOT_RECORD="${SDK_BUNDLE_ROOT_RECORD}/${AP_SDK_BUNDLE_VERSION}"
+CP_SDK_ROLE_DIR_RECORD="${CP_SDK_BUNDLE_ROOT_RECORD}/cp"
+AP_SDK_ROLE_DIR_RECORD="${AP_SDK_BUNDLE_ROOT_RECORD}/ap"
+CP_SDK_MANIFEST_RECORD="board/bk7258/bk_idk/manifests/${CP_SDK_BUNDLE_VERSION}/cp.sha256"
+AP_SDK_MANIFEST_RECORD="board/bk7258/bk_idk/manifests/${AP_SDK_BUNDLE_VERSION}/ap.sha256"
+
 CP_CONFIG_RECORD="${CP_CONFIG}"
 AP_CONFIG_RECORD="${AP_CONFIG}"
 CP_PROFILE_METADATA_RECORD="${CP_CONFIG}/profile.conf"
@@ -1838,8 +1850,18 @@ if [[ -n "${PRODUCT_ID}" ]]; then
     CP_PROFILE_METADATA_RECORD="generated:${CP_PROFILE_COMPAT}:cp"
     AP_PROFILE_METADATA_RECORD="generated:${AP_PROFILE_COMPAT}:ap"
     PROFILE_MATERIALIZER=tools/bk7258/materialize_product_profiles.py
-    CP_PROFILE_SEED="$(plan_value "${BUILD_PLAN_SOURCE}" legacy_adapter.seed_profiles.cp.source)"
-    AP_PROFILE_SEED="$(plan_value "${BUILD_PLAN_SOURCE}" legacy_adapter.seed_profiles.ap.source)"
+    CP_PROFILE_SEED="$(plan_value "${BUILD_PLAN_SOURCE}" config_inputs.seed_profiles.cp.source)"
+    AP_PROFILE_SEED="$(plan_value "${BUILD_PLAN_SOURCE}" config_inputs.seed_profiles.ap.source)"
+    # A final .config supplied through BK7258_CONFIG_ROOT is an operational
+    # input, not a publishable profile path.  Keep the build plan's absolute
+    # path available to the materializer, but publish only a stable semantic
+    # record so packages never leak a host /tmp (or other workstation) path.
+    if [[ "${CP_PROFILE_SEED}" == /* ]]; then
+        CP_PROFILE_SEED="final-config:cp"
+    fi
+    if [[ "${AP_PROFILE_SEED}" == /* ]]; then
+        AP_PROFILE_SEED="final-config:ap"
+    fi
 fi
 
 cat > "${OUTPUT}/build-profile.txt" <<EOF
@@ -1874,12 +1896,12 @@ SECUREBOOT_STAGING_LAYOUT_SHA256=${SECUREBOOT_STAGING_LAYOUT_SHA256}
 BK7258_SDK_BUNDLE_VERSION=${SDK_BUNDLE_SUMMARY}
 CP_SDK_BUNDLE_VERSION=${CP_SDK_BUNDLE_VERSION}
 AP_SDK_BUNDLE_VERSION=${AP_SDK_BUNDLE_VERSION}
-CP_SDK_BUNDLE_ROOT=${CP_SDK_BUNDLE_ROOT}
-AP_SDK_BUNDLE_ROOT=${AP_SDK_BUNDLE_ROOT}
-CP_SDK_ROLE_DIR=${CP_SDK_ROLE_DIR}
-AP_SDK_ROLE_DIR=${AP_SDK_ROLE_DIR}
-CP_SDK_MANIFEST=${CP_SDK_MANIFEST}
-AP_SDK_MANIFEST=${AP_SDK_MANIFEST}
+CP_SDK_BUNDLE_ROOT=${CP_SDK_BUNDLE_ROOT_RECORD}
+AP_SDK_BUNDLE_ROOT=${AP_SDK_BUNDLE_ROOT_RECORD}
+CP_SDK_ROLE_DIR=${CP_SDK_ROLE_DIR_RECORD}
+AP_SDK_ROLE_DIR=${AP_SDK_ROLE_DIR_RECORD}
+CP_SDK_MANIFEST=${CP_SDK_MANIFEST_RECORD}
+AP_SDK_MANIFEST=${AP_SDK_MANIFEST_RECORD}
 CP_SDK_MANIFEST_SHA256=${CP_SDK_MANIFEST_SHA256}
 AP_SDK_MANIFEST_SHA256=${AP_SDK_MANIFEST_SHA256}
 CP_SDK_PROVENANCE_SHA256=${CP_SDK_PROVENANCE_SHA256}
@@ -1916,7 +1938,7 @@ BL2_FLASH_SEGMENT=${MCUBOOT_BL2_FLASH_SEGMENT}
 EOF
 
 if [[ -n "${PRODUCT_ID}" ]] &&
-   grep -Eq '(^|=)/tmp/|bk7258-aidk-profiles\.' \
+   grep -Eq '(^|=)/(home|tmp|mnt|workspace|Users)/|bk7258-aidk-profiles\.' \
        "${OUTPUT}/build-profile.txt" \
        "${OUTPUT}/nuttx-cp.config" \
        "${OUTPUT}/nuttx-ap.config"; then

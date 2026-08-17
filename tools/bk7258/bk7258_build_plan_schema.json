@@ -47,7 +47,7 @@
         "sdk",
         "source_views",
         "roles",
-        "legacy_adapter",
+        "config_inputs",
         "identity_sha256"
       ],
       "active_roles": {
@@ -65,7 +65,8 @@
       "identity_inputs": [
         "bl2_image_logical_size"
       ],
-      "legacy_adapter": {
+      "config_inputs": {
+        "mode": "resolved-config",
         "seed_profiles": {
           "roles": ["cp", "ap"],
           "fields": [
@@ -75,8 +76,6 @@
             "defconfig_sha256",
             "materialized_profile_sha256",
             "materialized_defconfig_sha256",
-            "overlay",
-            "overlay_sha256",
             "target_profile",
             "compat",
             "sdk_bundle"

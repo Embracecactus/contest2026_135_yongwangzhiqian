@@ -436,7 +436,7 @@ def _materialize_seeds(plan: dict[str, Any], repository: Path,
     """
     result: dict[str, dict[str, Any]] = {}
     for role in RUNTIME_ROLES:
-        row = plan["legacy_adapter"]["seed_profiles"][role]
+        row = plan["config_inputs"]["seed_profiles"][role]
         (role_roots[role] / "config").mkdir(parents=True, exist_ok=True)
         role_config = role_roots[role] / "config" / row["target_profile"]
         if role_config.exists() or role_config.is_symlink():
@@ -470,8 +470,6 @@ def _materialize_seeds(plan: dict[str, Any], repository: Path,
         result[role] = {
             "seed_profile": row["seed_profile"],
             "target_profile": row["target_profile"],
-            "overlay": row["overlay"],
-            "overlay_sha256": row["overlay_sha256"],
             "profile_sha256": row["profile_sha256"],
             "defconfig_sha256": row["defconfig_sha256"],
             "materialized_profile_sha256": profile_sha,
@@ -691,6 +689,7 @@ def _normalize_materialized_manifest(value: dict[str, Any]) -> dict[str, Any]:
             binary_index = configure_argv.index("-B") + 2
             configure_argv[binary_index:binary_index] = [
                 "-G", "Ninja", f"-DNUTTX_APPS_DIR={apps_root}",
+                "-DCMAKE_SUPPRESS_REGENERATION=ON",
                 "-DPython3_EXECUTABLE=python3"]
         configure["argv"] = configure_argv
         build_argv = list(build.get("argv", []))
@@ -776,7 +775,7 @@ def _verify_snapshot_inputs(value: dict[str, Any], source_root: Path) -> None:
         plan_copy = json.loads(Path(value["plan_copy"]).read_text(encoding="utf-8"))
         config_roots = {
             Path(row["source"]).parent
-            for row in plan_copy["legacy_adapter"]["seed_profiles"].values()
+            for row in plan_copy["config_inputs"]["seed_profiles"].values()
             if isinstance(row.get("source"), str) and
             row["source"].startswith("/") and
             row["source"].endswith((".config",))
@@ -1068,11 +1067,16 @@ def _commands(plan: dict[str, Any], role: str, paths: dict[str, Path],
                 "cmake", "-S", source_view["nuttx"], "-B", str(paths["cmake_binary"]),
                 "-G", "Ninja",
                 f"-DNUTTX_APPS_DIR={Path(source_view['root']) / 'apps'}",
+                "-DCMAKE_SUPPRESS_REGENERATION=ON",
                 "-DPython3_EXECUTABLE=python3",
                 f"-DBOARD_CONFIG={seed['cmake_board_config']}",
             ],
             "environment": dict(env),
-            "cwd": str(paths["root"]),
+            # NuttX defconfigs conventionally store CONFIG_APPS_DIR="../apps".
+            # Run configure from the read-only NuttX source root so that this
+            # standard relative path resolves inside the audited snapshot;
+            # all generated files still go to the explicit out-of-tree -B.
+            "cwd": str(Path(source_view["nuttx"])),
             "status": "NOT_RUN",
             "log": None,
             "returncode": None,
@@ -1547,7 +1551,7 @@ def _canonical_runtime_commands(
     """Rebuild the command contract from audited inputs, never from manifest argv."""
     seed = None
     if role in RUNTIME_ROLES:
-        profile = plan["legacy_adapter"]["seed_profiles"][role]["target_profile"]
+        profile = plan["config_inputs"]["seed_profiles"][role]["target_profile"]
         seed = {"cmake_board_config": str(paths["root"] / "config" / profile)}
     commands = _commands(
         plan, role, paths, repository, source_view, seed,
@@ -1581,7 +1585,7 @@ def _assert_runtime_role_bindings(
             row["config_identity_sha256"] != plan_role["config_identity_sha256"]:
         raise RuntimeCompileError(f"{role} role identity is not plan-canonical")
     if role in RUNTIME_ROLES:
-        profile = plan["legacy_adapter"]["seed_profiles"][role]["target_profile"]
+        profile = plan["config_inputs"]["seed_profiles"][role]["target_profile"]
         expected_seed = paths["root"] / "config" / profile
         if (row["config_seed_profile"] != profile or
                 row["cmake_board_config"] != str(expected_seed) or
@@ -1627,8 +1631,10 @@ def _runtime_command_paths(command: dict[str, Any], role: str,
         raise RuntimeCompileError(f"runtime command contains a manifest/signing operation: {role}")
     if command.get("tool") == "make" and "all" in argv:
         raise RuntimeCompileError(f"compile-only command invokes make all: {role}")
-    if command.get("cwd") != str(role_root):
-        raise RuntimeCompileError(f"runtime command cwd escaped role root: {role}")
+    expected_cwd = (source_root / "nuttx" if stage == "cmake-configure"
+                    else role_root)
+    if command.get("cwd") != str(expected_cwd):
+        raise RuntimeCompileError(f"runtime command cwd is not stage-bound: {role}")
     environment = command.get("environment", {})
     if (environment.get("PATH") != safe_path or
             environment.get("PYTHONPATH") != str(kconfiglib_root) or
@@ -1691,6 +1697,9 @@ def _runtime_command_paths(command: dict[str, Any], role: str,
         apps = f"-DNUTTX_APPS_DIR={source_root / 'apps'}"
         if apps not in argv:
             raise RuntimeCompileError(f"cmake configure apps root changed: {role}")
+        if "-DCMAKE_SUPPRESS_REGENERATION=ON" not in argv:
+            raise RuntimeCompileError(
+                f"cmake configure must suppress regeneration for immutable snapshot: {role}")
         python_binding = f"-DPython3_EXECUTABLE={python_executable}"
         if python_binding not in argv:
             raise RuntimeCompileError(f"cmake configure Python executable changed: {role}")
@@ -1717,13 +1726,14 @@ def _invoke_runtime_command(command: dict[str, Any], role_root: Path, role: str,
     if log_path.exists() or log_path.is_symlink():
         raise RuntimeCompileError(f"runtime log already exists: {log_path}")
     try:
+        command_cwd = command["cwd"]
         if runner is None:
             result = subprocess.run(
-                command["argv"], cwd=str(role_root), env=effective_env,
+                command["argv"], cwd=command_cwd, env=effective_env,
                 capture_output=True, text=True, check=False)
         else:
             result = runner(
-                command["argv"], cwd=str(role_root), env=effective_env,
+                command["argv"], cwd=command_cwd, env=effective_env,
                 capture_output=True, text=True, check=False)
     except Exception as error:
         output = f"executor error: {error}\n"
@@ -2025,7 +2035,8 @@ def _expected_delivery_commands(value: dict[str, Any], delivery: dict[str, Any],
             "--output", str(trust)], payload,
             {"BK7258_PARTITION_LAYOUT_ID": layout["layout_id"]}, "sign", 7),
         make("dual-package", "python3", [
-            python, str(source_tools / "pack_dual_image.py"), "--boot", str(bootloader_crc),
+            python, str(source_tools / "pack_dual_image.py"),
+            "--boot", str(dual_input / "bl_crc.bin"),
             "--cp-raw", str(dual_input / "app.bin"),
             "--cp-standard", str(dual_input / "cp-raw.bin"),
             "--cp-crc", str(dual_input / "app_crc.bin"),
@@ -3936,8 +3947,19 @@ def deliver(
         "BK7258_PARTITION_LAYOUT_SHA256": plan["partition_layout"]["layout_sha256"],
     })
     bl2_secondary_crc = delivery_root / "payload/bl2_secondary_crc.bin"
+    if bl2_secondary_crc.exists():
+        bl2_secondary_crc.chmod(0o600)
     bl2_secondary_crc.write_bytes(bl2_crc.read_bytes())
     os.chmod(bl2_secondary_crc, 0o400)
+
+    if prepared_delivery:
+        for name in ("app.bin", "vela_nuttx_cp.bin",
+                     "app1.bin", "vela_nuttx_ap.bin"):
+            output = delivery_root / "payload" / name
+            if output.is_symlink() or not output.is_file():
+                raise RuntimeDeliveryError(
+                    f"delivery-prepared postbuild output changed: {name}")
+            output.chmod(0o600)
 
     for role in RUNTIME_ROLES:
         work = delivery_root / "work" / role
@@ -4034,9 +4056,10 @@ def deliver(
         shutil.copyfile(delivery_root / "payload" / name, dual_input / name)
     # Existing pack_dual_image stages the CRC-expanded BL1 into its canonical
     # bootloader.bin name, then re-stages the raw bootloader required by the
-    # trust-chain contract.  Keep both inputs private; the established tool
-    # remains authoritative for the final directory layout.
-    shutil.copyfile(bootloader_crc, dual_input / "bootloader_crc.bin")
+    # trust-chain contract.  The Flash-facing member keeps the established
+    # bl_crc.bin contract consumed by auto_debug.sh and the factory-layout
+    # verifier, while the delivery payload retains bootloader_crc.bin.
+    shutil.copyfile(bootloader_crc, dual_input / "bl_crc.bin")
     for role, artifact_name, output_name in (
             ("bl1", "bl.elf", "bootloader.elf"),
             ("bl2", "bl2.elf", "bl2.elf")):
@@ -4058,8 +4081,8 @@ def deliver(
             shutil.copyfile(source, dual_input / target_name)
     for role, config_name in (("cp", "nuttx-cp.config"), ("ap", "nuttx-ap.config")):
         shutil.copyfile(delivery_root / "work" / role / ".config", package_source / config_name)
-    cp_profile_name = plan["legacy_adapter"]["seed_profiles"]["cp"]["target_profile"]
-    ap_profile_name = plan["legacy_adapter"]["seed_profiles"]["ap"]["target_profile"]
+    cp_profile_name = plan["config_inputs"]["seed_profiles"]["cp"]["target_profile"]
+    ap_profile_name = plan["config_inputs"]["seed_profiles"]["ap"]["target_profile"]
     profile_lines = [
         f"PRODUCT_ID={plan['identity_inputs']['product']}",
         f"CP_CONFIG_NAME={cp_profile_name}",
@@ -4093,7 +4116,7 @@ def deliver(
         Path(value["plan_copy"]).read_bytes())
     run("dual-package", "python3", [
         python, str(source_tools / "pack_dual_image.py"),
-        "--boot", str(bootloader_crc),
+        "--boot", str(dual_input / "bl_crc.bin"),
         "--cp-raw", str(dual_input / "app.bin"),
         "--cp-standard", str(dual_input / "cp-raw.bin"),
         "--cp-crc", str(dual_input / "app_crc.bin"),

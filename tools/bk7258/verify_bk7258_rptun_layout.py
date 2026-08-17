@@ -24,6 +24,7 @@ from bk7258_ab_layout import (
     verify_contract as verify_partition_contract,
 )
 from bk7258_framework import config_document, resolve
+from bk7258_paths import Bk7258Layout
 
 
 class VerificationError(RuntimeError):
@@ -247,10 +248,10 @@ def require_symbols(
 def verify_source_contract(repository: Path, board: Path,
                            compatibility: dict[str, object]) -> None:
     cp_defconfig = config_document(
-        resolve(repository, "t5ai_core_bringup", "cp")
+        resolve(repository, "t5ai_core_bringup", "cp"), repository=repository
     )["defconfig"]
     ap_defconfig = config_document(
-        resolve(repository, "t5ai_core_bringup", "ap")
+        resolve(repository, "t5ai_core_bringup", "ap"), repository=repository
     )["defconfig"]
     if "CONFIG_BK7258_AP_CORE=y" in cp_defconfig.splitlines():
         raise VerificationError("canonical CP defconfig must not be AP core")
@@ -344,9 +345,13 @@ def verify_layout_values(
 
 def main() -> int:
     script = Path(__file__).resolve()
-    board = script.parent.parent
-    contest = board.parents[1]
-    workspace = contest.parent
+    # The verifier is a host tool, not a board script.  Derive the board and
+    # workspace roots through the shared layout resolver so it continues to
+    # work after the host tools moved out of board/bk7258/scripts.
+    roots = Bk7258Layout()
+    board = roots.board_dir
+    contest = roots.contest_root
+    workspace = roots.workspace_root or contest.parent
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--headers-only", action="store_true")

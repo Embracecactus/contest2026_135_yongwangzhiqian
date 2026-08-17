@@ -87,6 +87,14 @@ class AppConfigDecouplingTest(unittest.TestCase):
                               self.kconfig, re.MULTILINE),
                     msg=f"{symbol}_{suffix}")
 
+    def test_app_priorities_are_kconfig_values_not_c_macros(self) -> None:
+        priority_defaults = re.findall(
+            r"^config BK7258_APP_[A-Z0-9_]+_PRIORITY\b.*?^\s*default\s+([^\s]+)",
+            self.kconfig, re.MULTILINE | re.DOTALL)
+        self.assertEqual(len(priority_defaults), len(APP_SYMBOLS))
+        self.assertTrue(all(value.isdigit() for value in priority_defaults),
+                        msg=priority_defaults)
+
     def test_app_dependencies_fail_closed(self) -> None:
         for symbol, requires in APP_REQUIRES.items():
             block = self._config_block(symbol)

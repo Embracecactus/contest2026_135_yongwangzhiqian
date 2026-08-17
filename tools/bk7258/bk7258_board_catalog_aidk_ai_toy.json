@@ -1,9 +1,7 @@
 {
   "id": "aidk_ai_toy",
   "kind": "board",
-  "resource_claims": [
-    {"owner": "console", "phases": ["cp", "ap", "bl2"], "resource": "uart0"}
-  ],
+  "resource_claims": [],
   "schema": "bk7258.composition/1",
   "soc": "bk7258",
   "transport": {

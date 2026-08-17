@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <arch/board/board.h>
+#include <arch/chip/bk7258_selftest.h>
 
 int main(int argc, char *argv[])
 {

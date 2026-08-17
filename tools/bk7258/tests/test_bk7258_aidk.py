@@ -16,7 +16,7 @@ from pathlib import Path
 
 TOOLS_ROOT = Path(__file__).resolve().parents[3] / "tools" / "bk7258"
 sys.path.insert(0, str(TOOLS_ROOT))
-SCRIPT_ROOT = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPT_ROOT = TOOLS_ROOT.parent.parent / "board" / "bk7258" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from bk7258_framework import (  # noqa: E402
@@ -711,6 +711,12 @@ class AidkBoardTest(unittest.TestCase):
         self.assertIn("SECUREBOOT_STAGING_LAYOUT_ACTIVE=false", script)
         self.assertIn("product package metadata contains temporary profile paths",
                       script)
+        self.assertIn("SDK_BUNDLE_ROOT_RECORD=\"board/bk7258/bk_idk/armino_as_lib/versions\"",
+                      script)
+        self.assertIn("CP_SDK_BUNDLE_ROOT=${CP_SDK_BUNDLE_ROOT_RECORD}", script)
+        self.assertIn("AP_SDK_BUNDLE_ROOT=${AP_SDK_BUNDLE_ROOT_RECORD}", script)
+        self.assertIn("CP_SDK_MANIFEST=${CP_SDK_MANIFEST_RECORD}", script)
+        self.assertIn("AP_SDK_MANIFEST=${AP_SDK_MANIFEST_RECORD}", script)
 
         with tempfile.TemporaryDirectory(prefix="bk7258-aidk-profiles-") as directory:
             work_root = Path(directory)

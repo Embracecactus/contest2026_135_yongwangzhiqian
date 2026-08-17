@@ -23,10 +23,9 @@ from typing import Any
 import bk7258_framework as framework
 
 __all__ = [
-    "BOARD_SYMBOLS", "CP_CONTRACT", "FORBIDDEN", "OVERLAYS", "PAIR",
+    "BOARD_SYMBOLS", "PAIR",
     "COMPAT", "VALIDATION_SUITE_COMPAT", "materialize", "materialize_plan",
-    "materialized_hashes", "main", "overlay_descriptor", "overlay_sha256",
-    "profile_name", "seed_record",
+    "materialized_hashes", "main", "profile_name", "seed_record",
 ]
 
 
@@ -52,58 +51,14 @@ VALIDATION_SUITE_COMPAT = {
     "driver_coverage": "t5_board_app_mcuboot_v1",
     "wifi": "t5_board_app_mcuboot_v1",
 }
-FORBIDDEN = {
-    "CONFIG_BK7258_MIC=y",
-    "CONFIG_BK7258_AUD=y",
-    "CONFIG_BK7258_LCD=y",
-    "CONFIG_BK7258_DVP=y",
-    "CONFIG_BK7258_T5_BOARD_CAMERA=y",
-    "CONFIG_BK7258_T5_BOARD_TF_SLOT=y",
-}
-CP_CONTRACT = (
-    "CONFIG_BK7258_CONSOLE_UART0=y",
-    "CONFIG_BK7258_UART0=y",
-    "CONFIG_BK7258_UART0_BAUD=115200",
-    "CONFIG_BK7258_UART0_DATA_BITS=8",
-    "CONFIG_BK7258_UART0_PARITY=0",
-    "CONFIG_BK7258_UART0_STOP_BITS=1",
-    "# CONFIG_BK7258_UART0_FLOW_CONTROL is not set",
-    "# CONFIG_BK7258_SWD_DEBUG is not set",
-    "# CONFIG_BK7258_SWD_BOOT_HOLD is not set",
-)
 BOARD_SYMBOLS = {
     "aidk_ai_toy": "CONFIG_BK7258_BOARD_AIDK_AI_TOY",
     "t5_board": "CONFIG_BK7258_BOARD_T5_BOARD",
     "t5ai_core": "CONFIG_BK7258_BOARD_T5AI_CORE",
 }
 
-# Overlay definitions are data-only.  The descriptor digest is recorded in
-# the build plan, so a later compatibility invocation cannot silently change
-# the generated profile.
-OVERLAYS: dict[str, dict[str, Any]] = {
-    "none": {
-        "remove": [],
-        "append": {"cp": [], "ap": []},
-    },
-    "aidk_ai_toy_minimal_v1": {
-        "remove": sorted(FORBIDDEN),
-        "append": {"cp": list(CP_CONTRACT), "ap": []},
-    },
-}
-
-
 def _canonical_json(value: Any) -> bytes:
     return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
-
-
-def overlay_descriptor(name: str) -> dict[str, Any]:
-    if name not in OVERLAYS:
-        raise ValueError(f"unsupported legacy profile overlay: {name}")
-    return json.loads(json.dumps(OVERLAYS[name], sort_keys=True))
-
-
-def overlay_sha256(name: str) -> str:
-    return hashlib.sha256(_canonical_json(overlay_descriptor(name))).hexdigest()
 
 
 def profile_name(product: str, role: str, boot: str) -> str:
@@ -119,8 +74,7 @@ def _file_sha256(path: Path) -> str:
         raise ValueError(f"cannot read legacy seed: {path}") from error
 
 
-def seed_record(seed_root: Path, seed_profile: str, overlay: str,
-                role: str, product: str, boot: str,
+def seed_record(seed_root: Path, seed_profile: str, role: str, product: str, boot: str,
                 compat: str | None = None,
                 sdk_bundle: str | None = None,
                 board: str = "aidk_ai_toy") -> dict[str, Any]:
@@ -134,14 +88,11 @@ def seed_record(seed_root: Path, seed_profile: str, overlay: str,
     defconfig = source / "defconfig"
     if not profile.is_file() or not defconfig.is_file():
         raise ValueError(f"missing legacy seed profile: {source}")
-    overlay_descriptor(overlay)
     result = {
         "seed_profile": seed_profile,
         "source": f"board/bk7258/configs/{seed_profile}",
         "profile_sha256": _file_sha256(profile),
         "defconfig_sha256": _file_sha256(defconfig),
-        "overlay": overlay,
-        "overlay_sha256": overlay_sha256(overlay),
         "target_profile": profile_name(product, role, boot),
         "compat": compat,
         "sdk_bundle": sdk_bundle,
@@ -149,7 +100,7 @@ def seed_record(seed_root: Path, seed_profile: str, overlay: str,
     result.update(materialized_hashes(
         profile.read_text(encoding="utf-8"),
         defconfig.read_text(encoding="utf-8"), role, board=board,
-        boot=boot, compat=compat, sdk_bundle=sdk_bundle, overlay=overlay))
+        boot=boot, compat=compat, sdk_bundle=sdk_bundle))
     return result
 
 
@@ -186,48 +137,18 @@ def _rewrite_profile(text: str, role: str, *, board: str = "aidk_ai_toy",
     return "\n".join(output) + "\n"
 
 
-def _rewrite_defconfig(text: str, role: str, *, board: str = "aidk_ai_toy",
-                       boot: str = "mcuboot",
-                       overlay: str = "aidk_ai_toy_minimal_v1") -> str:
-    if role not in {"cp", "ap"} or board not in BOARD_SYMBOLS:
-        raise ValueError(f"unsupported materialized profile: {board}/{role}")
-    rules = overlay_descriptor(overlay)
-    lines = []
-    for line in text.splitlines():
-        if line in rules["remove"]:
-            continue
-        if line.startswith("CONFIG_BK7258_BOARD_") and line.endswith("=y"):
-            continue
-        lines.append(line)
-    if boot == "mcuboot" and "CONFIG_BK7258_MCUBOOT_IMAGE=y" not in lines:
-        raise ValueError("MCUboot seed does not enable CONFIG_BK7258_MCUBOOT_IMAGE")
-    lines.append(f"{BOARD_SYMBOLS[board]}=y")
-    existing_keys = {
-        line.lstrip("# ").split("=", 1)[0].split(" is not set", 1)[0]
-        for line in lines
-    }
-    for setting in rules["append"].get(role, []):
-        key = setting.lstrip("# ").split("=", 1)[0].split(" is not set", 1)[0]
-        if key not in existing_keys:
-            lines.append(setting)
-            existing_keys.add(key)
-    return "\n".join(lines) + "\n"
-
-
 def materialized_hashes(profile_text: str, defconfig_text: str, role: str,
                         *, board: str, boot: str, compat: str | None,
-                        sdk_bundle: str | None, overlay: str) -> dict[str, str]:
-    """Hash the exact expanded files produced by the adapter rewrite."""
+                        sdk_bundle: str | None) -> dict[str, str]:
+    """Hash the exact profile metadata and retained config input."""
     expanded_profile = _rewrite_profile(
         profile_text, role, board=board, boot=boot, compat=compat,
         sdk_bundle=sdk_bundle)
-    expanded_defconfig = _rewrite_defconfig(
-        defconfig_text, role, board=board, boot=boot, overlay=overlay)
     return {
         "materialized_profile_sha256": hashlib.sha256(
             expanded_profile.encode()).hexdigest(),
         "materialized_defconfig_sha256": hashlib.sha256(
-            expanded_defconfig.encode()).hexdigest(),
+            defconfig_text.encode()).hexdigest(),
     }
 
 
@@ -258,14 +179,14 @@ def _validate_plan(plan: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]
     if plan.get("kind") != "isolated-build-plan":
         raise ValueError("materializer requires an isolated build plan")
     inputs = plan.get("identity_inputs")
-    adapter = plan.get("legacy_adapter")
+    adapter = plan.get("config_inputs")
     if not isinstance(inputs, dict) or not isinstance(adapter, dict):
         raise ValueError("build plan lacks compatibility adapter metadata")
     profiles = adapter.get("seed_profiles")
     if not isinstance(profiles, dict) or set(profiles) != {"cp", "ap"}:
         raise ValueError("build plan seed_profiles must contain CP and AP")
     required = {"seed_profile", "source", "profile_sha256", "defconfig_sha256",
-                "overlay", "overlay_sha256", "target_profile", "compat",
+                "target_profile", "compat",
                 "sdk_bundle", "materialized_profile_sha256",
                 "materialized_defconfig_sha256"}
     for role in ("cp", "ap"):
@@ -273,13 +194,12 @@ def _validate_plan(plan: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]
         if not isinstance(row, dict) or set(row) != required:
             raise ValueError(f"malformed seed profile record: {role}")
         source = row["source"]
-        if (adapter.get("mode") != "shadow-comparator" or
+        if (adapter.get("mode") != "resolved-config" or
                 row["compat"] != framework.CANONICAL_CONFIG_COMPAT or
                 not (source.startswith("board/bk7258/configs/") or
                      (source.startswith("/") and source.endswith(f"{role}.config")))):
             raise ValueError(
-                "legacy profile materialization is retired; use canonical "
-                "seed/final-.config resolution (legacy names are shadow-only)")
+                "config input is not a canonical retained seed or final .config")
     return inputs, profiles
 
 
@@ -406,7 +326,7 @@ def main() -> int:
     parser.add_argument("--plan", type=Path,
                         help="framework isolated build plan JSON")
     parser.add_argument("--validation-suite",
-                        help="temporary canonical validation-suite overlay")
+                        help="temporary validation-suite metadata profile")
     args = parser.parse_args()
     try:
         if args.plan is None:

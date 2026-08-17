@@ -45,7 +45,7 @@ self-delete及queued final-free。
 - [N14 source verification](../../docs/bk7258-t5ai/nuttx-port/n14-psram-source-verification.md)
 - [N14 evidence index](../../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md)
 
-P5 validation skeleton (opt-in with `CONFIG_BK7258_BKVALIDATE=y`) exposes:
+P5 validation skeleton (opt-in with `CONFIG_BK7258_APP_BKVALIDATE=y`) exposes:
 
 ```text
 bkvalidate list
@@ -56,9 +56,10 @@ bkvalidate all-compatible
 Descriptors are versioned in
 `tools/bk7258/bk7258_validation_descriptors.json`.  `all-compatible`
 serializes global resource claims and emits `SKIP` for interactive, fixture,
-destructive-fault, planned, or unavailable requirements.  The runner core uses
-only public device-path APIs; it does not call vendor SDK functions or start
-the legacy production validation workers.
+destructive-fault, planned, or unavailable requirements.  The dispatcher does
+not call vendor SDK functions directly.  Individual descriptors may invoke
+explicitly selected BK7258 diagnostic endpoints; they are never started merely
+because the dispatcher is enabled.
 
 ## 测试分层约定
 

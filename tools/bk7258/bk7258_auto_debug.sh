@@ -177,12 +177,6 @@ for n in "$CAPTURE_SECONDS" "$DOWNLOAD_PORT" "$CONSOLE_BAUD" "$DOWNLOAD_BAUD"; d
   [[ $n =~ ^[0-9]+$ ]] || { echo "ERROR: numeric option expected, got '$n'" >&2; exit 2; }
 done
 
-command -v powershell.exe >/dev/null 2>&1 || {
-  echo "ERROR: WSL Windows interop is unavailable (powershell.exe not found)" >&2
-  exit 1
-}
-
-[[ -f "$CAPTURE_PS1" ]] || { echo "ERROR: missing $CAPTURE_PS1" >&2; exit 1; }
 if ((DO_FLASH)); then
   [[ -x "$LOADER_EXE" || -f "$LOADER_EXE" ]] || { echo "ERROR: missing $LOADER_EXE" >&2; exit 1; }
 fi
@@ -509,6 +503,25 @@ if [[ -f "$DUAL_DIR/nuttx-cp.config" ]] &&
   NO_CONSOLE=1
 fi
 
+# PowerShell is only the Windows serial capture/reset adapter.  A no-console
+# Flash run invokes bk_loader.exe and J-Link.exe directly from WSL, so it must
+# not depend on PowerShell port enumeration.  bk_loader owns the authoritative
+# COM open/handshake check for that path.
+
+NEEDS_POWERSHELL=0
+if ((!NO_CONSOLE || RTS_RESET)); then
+  NEEDS_POWERSHELL=1
+fi
+if ((NEEDS_POWERSHELL)); then
+  command -v powershell.exe >/dev/null 2>&1 || {
+    echo "ERROR: Windows serial capture/reset requires powershell.exe" >&2
+    exit 1
+  }
+fi
+if ((!NO_CONSOLE)); then
+  [[ -f "$CAPTURE_PS1" ]] || { echo "ERROR: missing $CAPTURE_PS1" >&2; exit 1; }
+fi
+
 if ((DO_FLASH && !SPARSE_FLASH && !ASSUME_YES)); then
   echo "WARNING: factory download rewrites A/B/metadata and clears LittleFS."
   echo "WARNING: the one-time ADR-004 migration is complete; require fresh owner authorization."
@@ -521,13 +534,26 @@ if ((DO_FLASH && !SPARSE_FLASH && !ASSUME_YES)); then
   fi
 fi
 
-# Verify the two independent CH342 ports before starting a destructive action.
-PORTS=$(powershell.exe -NoProfile -Command '[System.IO.Ports.SerialPort]::GetPortNames()' | tr -d '\r')
-grep -qx "COM${DOWNLOAD_PORT}" <<<"$PORTS" || {
-  echo "ERROR: downloader COM${DOWNLOAD_PORT} is not present" >&2
-  printf '%s\n' "$PORTS" >&2
-  exit 1
-}
+# Enumerate ports only for an operation that actually uses the PowerShell
+# serial adapter.  In --flash --no-console mode the Windows loader validates
+# COM${DOWNLOAD_PORT} itself and reports GetBus/open failures fail-closed.
+PORTS=
+if ((NEEDS_POWERSHELL)); then
+  PORTS=$(powershell.exe -NoProfile -Command \
+    '[System.IO.Ports.SerialPort]::GetPortNames()' | tr -d '\r') || {
+    echo "ERROR: failed to enumerate Windows serial ports" >&2
+    exit 1
+  }
+fi
+if ((RTS_RESET || (DO_FLASH && !NO_CONSOLE))); then
+  grep -qx "COM${DOWNLOAD_PORT}" <<<"$PORTS" || {
+    echo "ERROR: downloader COM${DOWNLOAD_PORT} is not present" >&2
+    printf '%s\n' "$PORTS" >&2
+    exit 1
+  }
+elif ((DO_FLASH)); then
+  echo "==> Skipping PowerShell serial enumeration; COM${DOWNLOAD_PORT} will be validated by bk_loader.exe"
+fi
 if ((!NO_CONSOLE)); then
   grep -qx "$CONSOLE_PORT" <<<"$PORTS" || {
     echo "ERROR: console $CONSOLE_PORT is not present" >&2
@@ -621,9 +647,14 @@ fi
   fi
 } > "$ARTIFACT_FILE"
 
-PS1_WIN=$(wslpath -w "$CAPTURE_PS1")
-RAW_WIN=$(wslpath -w "$SERIAL_RAW")
-READY_WIN=$(wslpath -w "$READY_FILE")
+PS1_WIN=
+RAW_WIN=
+READY_WIN=
+if ((!NO_CONSOLE)); then
+  PS1_WIN=$(wslpath -w "$CAPTURE_PS1")
+  RAW_WIN=$(wslpath -w "$SERIAL_RAW")
+  READY_WIN=$(wslpath -w "$READY_FILE")
+fi
 
 cleanup()
 {
