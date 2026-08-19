@@ -17,6 +17,7 @@
 #include <sched.h>
 #include <stdint.h>
 #include <string.h>
+#include <syslog.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -55,6 +56,10 @@
 #include "bk7258_clockdiag.h"
 
 extern const void *const _vectors[80];
+
+#ifdef CONFIG_BK7258_APP_VELA_CLAW
+extern int vela_claw_main(int argc, char *argv[]);
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -761,6 +766,27 @@ int bk7258_ap_main(int argc, char *argv[])
 #endif
   __asm volatile ("dmb sy" ::: "memory");
   bk7258_ap_mbox_send(BK7258_AP_EVENT_READY);
+
+#ifdef CONFIG_BK7258_APP_VELA_CLAW
+  /* The AP init task owns the lifecycle event loop; it has no NSH.  Launch
+   * the AI Toy agent directly on the console.  task_create() inherits the
+   * init task's fd table (FDCLONE not disabled), so vela_claw's stdin/stdout
+   * are bound to /dev/console (UART1) automatically.
+   */
+
+  {
+    pid_t clawpid = task_create("vela_claw",
+                                CONFIG_BK7258_APP_VELA_CLAW_PRIORITY,
+                                CONFIG_BK7258_APP_VELA_CLAW_STACKSIZE,
+                                (main_t)vela_claw_main,
+                                NULL);
+    if (clawpid < 0)
+      {
+        syslog(LOG_ERR, "bk7258: vela_claw launch failed: %d\n",
+               (int)clawpid);
+      }
+  }
+#endif
 
 #ifdef CONFIG_BK7258_RPTUN
   if (priority_raised)

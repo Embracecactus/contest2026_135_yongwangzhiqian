@@ -10,6 +10,7 @@
 
   <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian">
     <linkfile src="app/hello_app" dest="packages/demos/contest2026_135_hello_app"/>
+    <linkfile src="app/vela_claw" dest="packages/demos/contest2026_135_vela_claw"/>
     <linkfile src="app/demos/Make.defs" dest="packages/demos/Make.defs"/>
     <linkfile src="app/demos/CMakeLists.txt" dest="packages/demos/CMakeLists.txt"/>
     <linkfile src="app/demos/Kconfig" dest="packages/demos/Kconfig"/>

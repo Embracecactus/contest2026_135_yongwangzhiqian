@@ -144,7 +144,6 @@ config BK7258_CONSOLE_UART0
 
 config BK7258_CONSOLE_UART1
 	bool "UART1"
-	depends on !BK7258_AP_CORE
 	depends on !BK7258_SWD_DEBUG || !BK7258_SWD_PINS_P0_P1
 	select BK7258_UART1
 	select DEV_CONSOLE
@@ -205,7 +204,6 @@ config BK7258_UART0_FLOW_CONTROL
 config BK7258_UART1
 	bool "Enable UART1 as /dev/ttyS1"
 	default y if BK7258_CONSOLE_UART1
-	depends on !BK7258_AP_CORE
 	depends on !BK7258_SWD_DEBUG || !BK7258_SWD_PINS_P0_P1
 	select ARCH_HAVE_SERIAL_TERMIOS
 	select SERIAL

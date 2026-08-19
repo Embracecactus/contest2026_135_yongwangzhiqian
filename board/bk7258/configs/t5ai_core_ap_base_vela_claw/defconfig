@@ -5,9 +5,7 @@
 # You can then do "make savedefconfig" to generate a new defconfig file that includes your
 # modifications.
 #
-# CONFIG_DEV_CONSOLE is not set
 # CONFIG_LV_CONF_SKIP is not set
-# CONFIG_SERIAL is not set
 CONFIG_ARCH="arm"
 CONFIG_ARCH_BOARD_CUSTOM=y
 CONFIG_ARCH_BOARD_CUSTOM_DIR="../contest2026_135_yongwangzhiqian/board/bk7258"
@@ -24,6 +22,7 @@ CONFIG_BK7258_APP_VELA_CLAW=y
 CONFIG_BK7258_AP_CORE=y
 CONFIG_BK7258_AP_IPI=y
 CONFIG_BK7258_AP_SMP_BOOTSTRAP=y
+CONFIG_BK7258_CONSOLE_UART1=y
 CONFIG_BK7258_MIC=y
 CONFIG_IDLETHREAD_STACKSIZE=2048
 CONFIG_INIT_ENTRYPOINT="bk7258_ap_main"
