@@ -17,10 +17,13 @@
 /* sem_t is provided by <semaphore.h>; reuse it directly. */
 typedef sem_t sem_t;
 
+#define SEM_INITIALIZER(c) { 0 }
+
 int nxsem_init(sem_t *sem, int pshared, unsigned int value);
 int nxsem_destroy(sem_t *sem);
 int nxsem_post(sem_t *sem);
 int nxsem_trywait(sem_t *sem);
 int nxsem_tickwait_uninterruptible(sem_t *sem, int ticks);
+int nxsem_wait_uninterruptible(sem_t *sem);
 
 #endif /* __MOCK_NUTTX_SEMAPHORE_H */

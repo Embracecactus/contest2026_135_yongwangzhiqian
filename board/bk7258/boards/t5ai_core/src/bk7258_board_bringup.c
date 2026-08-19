@@ -17,6 +17,9 @@
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_board_binding.h>
 #include <arch/chip/bk7258_gpio.h>
+#ifdef CONFIG_BK7258_ETH
+#  include <arch/chip/bk7258_eth.h>
+#endif
 
 static int bk7258_t5ai_core_mic_initialize(void)
 {
@@ -98,3 +101,17 @@ int bk7258_board_devices_initialize(void)
 {
   return OK;
 }
+
+#ifdef CONFIG_BK7258_ETH
+static const struct bk7258_eth_board_s g_bk7258_t5ai_core_eth_config =
+{
+  .name      = "T5AI-Core",
+  .pin_group = BK7258_ETH_PIN_GROUP0,
+  .mac_addr  = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x01 },
+};
+
+FAR const struct bk7258_eth_board_s *bk7258_board_eth_config(void)
+{
+  return &g_bk7258_t5ai_core_eth_config;
+}
+#endif /* CONFIG_BK7258_ETH */

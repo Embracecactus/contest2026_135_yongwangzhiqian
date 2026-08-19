@@ -11,8 +11,12 @@
 
 #include <sys/types.h>
 
+#ifndef SCHED_PRIORITY_DEFAULT
+#define SCHED_PRIORITY_DEFAULT 100
+#endif
+
 pid_t kthread_create(const char *name, int priority, int stacksize,
-                     int (*entry)(int, char *argv[]), char *arg);
+                     int (*entry)(int, char *argv[]), char *argv[]);
 int kthread_delete(pid_t pid);
 
 #endif /* __MOCK_NUTTX_KTHREAD_H */

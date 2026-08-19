@@ -1145,10 +1145,17 @@ config BK7258_WDT
 		Register /dev/watchdog0 backed by the BK7258 APB hardware
 		watchdog.  Mirrors the Armino SDK WDT BSP
 		(bk_wdt_driver_init / bk_wdt_start / bk_wdt_feed path).
-		The bootloader arms the WDT during cold-init; this driver
-		takes over after boot and feeds it via the NuttX watchdog
-		upper-half automonitor (CONFIG_WATCHDOG_AUTOMONITOR).
-		Default timeout 8 s (period=8000), matching the bootloader.
+
+config BK7258_IRDA
+	bool "IrDA NEC receiver character device"
+	default n
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
+	help
+		Publish the CP-owned BK7258 IrDA NEC receiver as the bounded
+		character device /dev/irda0.  The v3.1.1.9 CP SDK owns the NEC
+		decode path (CONFIG_SUPPORT_IRDA=y); open() runs irda_init() and
+		Irda_init_app(), read() returns one encoded key per frame and
+		BKIOC_IRDA_* ioctls configure the receiver.
 
 config BK7258_WDT_FAULT_INJECTION
 	bool "BK7258 WDT one-shot failure validation"
@@ -1999,6 +2006,43 @@ config BK7258_LIN
 		driver.  The first implementation supports one node, 1..8 byte data
 		frames, classic/enhanced checksum and master or slave mode; a
 		selected board supplies the channel, mode, rate and control pins.
+
+config BK7258_ETH
+	bool "Ethernet MAC netdev"
+	default n
+	depends on BK7258_AP_CORE && NET
+	select BK7258_SDK_IPC_RUNTIME
+	help
+		Register the BK7258 Ethernet MAC as the native NuttX netdev eth0.
+		The v3.1.1.9 AP SDK exports the STM32H7-compatible HAL_ETH driver
+		and the LAN8742 PHY (CONFIG_ETH=y); this wrapper adds the netdev
+		layer, the board GPIO mux (RMII pin group) and the INT_SRC_ETH
+		receive path.  Select the PHY pin group below; GROUP0 conflicts
+		with DVP, GROUP1 conflicts with LCD.
+
+choice
+	prompt "Ethernet RMII pin group"
+	depends on BK7258_ETH
+	default BK7258_ETH_PIN_GROUP0
+
+config BK7258_ETH_PIN_GROUP0
+	bool "Pin group 0 (27, 29-39)"
+
+config BK7258_ETH_PIN_GROUP1
+	bool "Pin group 1 (46-55)"
+
+endchoice # Ethernet RMII pin group
+
+config BK7258_DMA
+	bool "General-purpose DMA character device"
+	default n
+	depends on BK7258_AP_CORE
+	help
+		Publish a user-space memory-to-memory DMA engine as /dev/dma0.
+		The AP SDK owns the channel state machine (bk_dma_alloc/init/start/
+		stop/free); this wrapper exposes synchronous mem-to-mem transfers
+		through BKIOC_DMA_TRANSFER with a private channel user token that
+		never collides with the in-tree AUD/MIC/JPEG/H264 DMA owners.
 
 config BK7258_SLCD
 	bool "Segment LCD (SLCD) lower half"
