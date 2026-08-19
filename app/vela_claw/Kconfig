@@ -1,0 +1,67 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config BK7258_APP_VELA_CLAW
+	bool "Vela-Claw AI agent (openvela/NuttX native)"
+	default n
+	depends on SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Vela-Claw: an on-device "Chat Coding" AI agent for openvela/NuttX
+		IoT devices. A faithful, openvela-native rework of Espressif's
+		esp-claw. Runs an LLM agent loop (perceive -> decide -> execute)
+		with a pluggable transport (mock for offline, libcurl for the real
+		cloud LLM) and a capability/Lua tool system. Input channels: serial
+		CLI and an optional LVGL screen UI.
+
+if BK7258_APP_VELA_CLAW
+
+config BK7258_APP_VELA_CLAW_PROGNAME
+	string "program name"
+	default "vela_claw"
+
+config BK7258_APP_VELA_CLAW_PRIORITY
+	int "vela_claw priority"
+	default 100
+
+config BK7258_APP_VELA_CLAW_STACKSIZE
+	int "vela_claw stack size"
+	default 8192
+	---help---
+		The agent worker thread, LVGL (when enabled) and Lua execution
+		share this stack budget; 8 KiB is a safe default.
+
+config VELA_CLAW_UI
+	bool "Enable screen UI (LVGL)"
+	default n
+	select GRAPHICS_LVGL
+	---help---
+		Render the chat UI with LVGL. This only selects the software stack
+		(LVGL) needed to build the screen UI; the physical display and touch
+		device are board-level decisions and must be enabled by the board
+		defconfig (e.g. BK7258_LCD + BK7258_GT1151 for the T5-Board RGB LCD +
+		GT1151 touch). The screen UI is an input channel that emits the same
+		claw_event (platform "ui") as the serial CLI, and draws agent replies
+		via its own response sender. When off, only the serial CLI is
+		available.
+
+		NOTE: the openvela UIKit framework (frameworks/graphics/uikit) is not
+		selected here. Its library sources use LVGL APIs (LV_GLOBAL_DEFAULT)
+		without including lvgl.h, so it does not compile in this tree; vela_claw
+		drives LVGL directly via lv_init()/lv_deinit() instead.
+
+config VELA_CLAW_NET
+	bool "Enable networking for the real cloud LLM (WiFi STA)"
+	default n
+	select NET
+	select BK7258_WIFI_VNET
+	select LIBCURL4NX
+	---help---
+		Enable CONFIG_NET + BK7258_WIFI_VNET so the curl transport can reach
+		the cloud LLM over Wi-Fi. Without this, the app runs with the mock
+		transport (offline demo). Requires the CP-side vnet proxy.
+
+endif

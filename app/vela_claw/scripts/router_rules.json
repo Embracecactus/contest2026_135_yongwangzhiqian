@@ -1,0 +1,34 @@
+{
+  "_comment": "Vela-Claw declarative event-router rules. Mirrors esp-claw's router_rules.json. The host/core currently uses the built-in equivalent of these rules (see claw_event_router.c); this file ships as the canonical, editable reference and will be loaded by claw_event_router_init() once file-based rule loading lands.",
+  "version": 1,
+  "rules": [
+    {
+      "name": "cli_message_to_agent",
+      "match": { "platform": "cli", "type": "MESSAGE" },
+      "actions": [ { "type": "run_agent" } ]
+    },
+    {
+      "name": "ui_message_to_agent",
+      "match": { "platform": "ui", "type": "MESSAGE" },
+      "actions": [ { "type": "run_agent" } ]
+    },
+    {
+      "name": "command_to_agent",
+      "match": { "type": "COMMAND" },
+      "actions": [ { "type": "run_agent" } ]
+    },
+    {
+      "name": "run_lua_direct",
+      "match": { "type": "MESSAGE", "text_prefix": "/run " },
+      "actions": [
+        { "type": "run_script" },
+        { "type": "run_agent", "as_reply": true }
+      ]
+    },
+    {
+      "name": "silent_events",
+      "match": { "type": ["TIMER", "STARTUP", "OUT_MESSAGE", "ATTACHMENT"] },
+      "actions": [ { "type": "drop" } ]
+    }
+  ]
+}
