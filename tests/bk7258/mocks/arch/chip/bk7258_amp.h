@@ -31,4 +31,8 @@ volatile struct bk7258_ap_boot_state_s *bk7258_ap_boot_state(void);
 #define BK7258_AP_STATE_READY  2u
 #define BK7258_AP_EVENT_NONE   0u
 
+/* Real chip constants consumed by the BL2 handoff vector validation. */
+#define BK7258_CP_RAM_BASE   0x28010000u
+#define BK7258_CP_RAM_SIZE   0x00040000u
+
 #endif /* __MOCK_ARCH_CHIP_BK7258_AMP_H */

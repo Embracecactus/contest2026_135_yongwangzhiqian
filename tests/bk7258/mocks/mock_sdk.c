@@ -249,6 +249,11 @@ int nxsem_tickwait_uninterruptible(sem_t *sem, int ticks)
   return (errno == ETIMEDOUT) ? -ETIMEDOUT : -errno;
 }
 
+int nxsem_wait_uninterruptible(sem_t *sem)
+{
+  return sem_wait(sem) == 0 ? 0 : -errno;
+}
+
 /* ------------------------------------------------------------------ */
 /* NuttX kthread shim                                                 */
 /* ------------------------------------------------------------------ */
@@ -270,12 +275,12 @@ static pthread_t g_worker_pt;
 static bool g_worker_valid = false;
 
 pid_t kthread_create(const char *name, int priority, int stacksize,
-                     int (*entry)(int, char *argv[]), char *arg)
+                     int (*entry)(int, char *argv[]), char *argv[])
 {
   (void)name;
   (void)priority;
   (void)stacksize;
-  (void)arg;
+  (void)argv;
 
   kthr_arg_t *a = (kthr_arg_t *)malloc(sizeof(*a));
   a->entry = entry;

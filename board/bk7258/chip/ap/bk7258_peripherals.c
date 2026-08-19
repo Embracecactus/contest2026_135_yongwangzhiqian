@@ -48,6 +48,9 @@
 #ifdef CONFIG_BK7258_PWM
 #  include <arch/chip/bk7258_pwm.h>
 #endif
+#ifdef CONFIG_BK7258_DMA
+#  include <arch/chip/bk7258_dma.h>
+#endif
 #ifdef CONFIG_BK7258_RTC
 #  include <arch/chip/bk7258_rtc.h>
 #endif
@@ -318,6 +321,14 @@ int bk7258_peripherals_initialize(void)
 
 #ifdef CONFIG_BK7258_PWM
   ret = bk7258_pwm_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_DMA
+  ret = bk7258_dma_initialize();
   if (ret < 0)
     {
       return ret;

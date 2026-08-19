@@ -201,6 +201,10 @@ if(CONFIG_BK7258_WDT)
   list(APPEND BK7258_CP_SRCS cp/bk7258_wdt.c)
 endif()
 
+if(CONFIG_BK7258_IRDA)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_irda.c)
+endif()
+
 if(CONFIG_BK7258_SARADC_SERVER)
   list(APPEND BK7258_CP_SRCS cp/bk7258_saradc_server.c)
 endif()
@@ -269,6 +273,14 @@ endif()
 
 if(CONFIG_BK7258_LIN)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lin.c)
+endif()
+
+if(CONFIG_BK7258_ETH)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_eth.c)
+endif()
+
+if(CONFIG_BK7258_DMA)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_dma.c)
 endif()
 
 if(CONFIG_BK7258_SLCD)

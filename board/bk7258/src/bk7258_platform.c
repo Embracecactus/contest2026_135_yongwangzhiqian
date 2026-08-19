@@ -65,6 +65,10 @@
 #  include "bk7258_wdt.h"
 #endif
 
+#ifdef CONFIG_BK7258_IRDA
+#  include <arch/chip/bk7258_irda.h>
+#endif
+
 #if defined(CONFIG_BK7258_PM_COORDINATED_STANDBY) && \
     !defined(CONFIG_BK7258_AP_CORE)
 #  include "bk7258_pm_coord.h"
@@ -396,6 +400,14 @@ int bk7258_platform_initialize(void)
   if (result < 0)
     {
       _err("bk7258: WDT initialization failed: %d\n", result);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_IRDA
+  result = bk7258_irda_initialize();
+  if (result < 0)
+    {
+      _err("bk7258: IRDA initialization failed: %d\n", result);
     }
 #endif
 

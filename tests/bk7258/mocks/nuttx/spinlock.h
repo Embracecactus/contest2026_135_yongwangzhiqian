@@ -32,4 +32,17 @@ static inline void spin_unlock_irqrestore(spinlock_t *lock, irqstate_t flags)
   pthread_mutex_unlock(lock);
 }
 
+/* Host stand-ins for the NuttX critical-section helpers (single-threaded
+ * test process, so interrupt disable is a no-op). */
+
+static inline irqstate_t enter_critical_section(void)
+{
+  return 0;
+}
+
+static inline void leave_critical_section(irqstate_t flags)
+{
+  (void)flags;
+}
+
 #endif /* __MOCK_NUTTX_SPINLOCK_H */

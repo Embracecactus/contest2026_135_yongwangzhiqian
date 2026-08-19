@@ -270,6 +270,10 @@ ifeq ($(CONFIG_BK7258_WDT),y)
 BK7258_CP_CSRCS += bk7258_wdt.c
 endif
 
+ifeq ($(CONFIG_BK7258_IRDA),y)
+BK7258_CP_CSRCS += bk7258_irda.c
+endif
+
 ifeq ($(CONFIG_BK7258_SARADC_SERVER),y)
 BK7258_CP_CSRCS += bk7258_saradc_server.c
 endif
@@ -340,6 +344,12 @@ BK7258_AP_BASE_CSRCS += bk7258_lcd_spi.c
 endif
 ifeq ($(CONFIG_BK7258_LIN),y)
 BK7258_AP_BASE_CSRCS += bk7258_lin.c
+endif
+ifeq ($(CONFIG_BK7258_ETH),y)
+BK7258_AP_BASE_CSRCS += bk7258_eth.c
+endif
+ifeq ($(CONFIG_BK7258_DMA),y)
+BK7258_AP_BASE_CSRCS += bk7258_dma.c
 endif
 ifeq ($(CONFIG_BK7258_SLCD),y)
 BK7258_AP_BASE_CSRCS += bk7258_slcd.c
