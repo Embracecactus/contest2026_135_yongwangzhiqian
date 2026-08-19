@@ -30,6 +30,10 @@
 #include <nuttx/video/fb.h>
 #include <nuttx/input/touchscreen.h>
 
+#ifdef CONFIG_BK7258_PSRAM
+#  include <arch/chip/bk7258_psram.h>
+#endif
+
 #include <lvgl/lvgl.h>
 
 #include "claw_common.h"
@@ -46,6 +50,7 @@
 
 #define VELA_UI_FBDEV   "/dev/fb0"
 #define VELA_UI_TOUCHDEV "/dev/input0"
+#define VELA_UI_PX_BYTES 2u /* RGB565 */
 
 static int                 g_fb_fd   = -1;
 static int                 g_touch_fd = -1;
@@ -83,14 +88,21 @@ static void fb_flush(lv_disp_drv_t *drv, const lv_area_t *area,
     color_p;
 #endif
 
+  /* The draw buffer is declared LV_COLOR_FORMAT_RGB565 (2 bytes/pixel).
+   * LVGL 9's lv_color_t is a fixed 3-byte RGB888 struct and must NOT be
+   * used to compute the pixel stride here -- that would desynchronize the
+   * copy and corrupt the framebuffer (black screen).
+   */
+
   int32_t w = lv_area_get_width(area);
+  size_t px_bytes = (size_t)w * VELA_UI_PX_BYTES;
+
   for (int32_t y = area->y1; y <= area->y2; y++)
     {
       uint8_t *dst = (uint8_t *)g_fbmem
                      + (size_t)g_pinfo.stride * y
-                     + (size_t)area->x1 * sizeof(lv_color_t);
-      memcpy(dst, src + (size_t)(y - area->y1) * w * sizeof(lv_color_t),
-             (size_t)w * sizeof(lv_color_t));
+                     + (size_t)area->x1 * VELA_UI_PX_BYTES;
+      memcpy(dst, src + (size_t)(y - area->y1) * px_bytes, px_bytes);
     }
 
 #if LVGL_VERSION_MAJOR >= 9
@@ -119,6 +131,7 @@ static void touch_read(lv_indev_drv_t *drv, lv_indev_data_t *data)
     {
       struct touch_sample_s sample;
       ssize_t n = read(g_touch_fd, &sample, sizeof(sample));
+
       if (n == (ssize_t)sizeof(sample))
         {
           if (sample.point[0].flags & TOUCH_DOWN)
@@ -233,7 +246,16 @@ static void *ui_thread(void *arg)
           append_message("agent", msg);
           free(msg);
         }
+
+      /* LVGL requires an explicit tick source (no LV_TICK_CUSTOM in this
+       * profile); without it periodic timers (indev read + display refresh)
+       * never fire.  Drive the tick and pump the timer handlers only; the
+       * indev read timer polls the GT1151 at LV_DEF_REFR_PERIOD (30 ms),
+       * which keeps I2C touch reads bounded.
+       */
+      lv_tick_inc(5);
       lv_timer_handler();
+
       claw_sleep_ms(5);
     }
   return NULL;
@@ -266,15 +288,58 @@ claw_err_t vela_claw_ui_init(void)
 
   int w = g_vinfo.xres;
   int h = g_vinfo.yres;
-  size_t buf_px = (size_t)w * h;
-  g_draw_buf = (lv_color_t *)malloc(buf_px * sizeof(lv_color_t));
-  if (!g_draw_buf) return CLAW_ENOMEM;
+
+  /* LVGL partial-render mode only needs a fraction of the frame in RAM.
+   * A full-frame RGB565 draw buffer (320x480 with a 3-byte lv_color_t is
+   * ~450 KiB) does not fit the remaining AP PSRAM heap after the LCD
+   * scanout buffer (~340 KiB free).  Use a half-frame draw buffer to keep
+   * the per-frame flush count low (2 flushes instead of 4).
+   */
+
+  size_t draw_h = (size_t)h / 2u;
+  if (draw_h < 40u)
+    {
+      draw_h = 40u;
+    }
+
+  size_t buf_bytes = (size_t)w * draw_h * VELA_UI_PX_BYTES;
+  size_t buf_px = buf_bytes / VELA_UI_PX_BYTES;
+
+  /* A full-frame RGB565 draw buffer (320x480 = 300 KiB) does not fit the AP
+   * internal-SRAM heap; the BK7258 PSRAM heap (640 KiB AP side) is the
+   * intended backing store for display buffers.  The LCD scanout buffer is
+   * also carved from that heap, so log the actual free amount on failure.
+   */
+
+#ifdef CONFIG_BK7258_PSRAM
+  g_draw_buf = (lv_color_t *)bk7258_psram_malloc(buf_bytes);
+  CLAW_LOGI("ui: draw buffer request=%u PSRAM free=%u",
+            (unsigned)buf_bytes, (unsigned)bk7258_psram_free_size());
+#else
+  g_draw_buf = (lv_color_t *)malloc(buf_bytes);
+#endif
+  if (!g_draw_buf)
+    {
+      CLAW_LOGE("ui: draw buffer alloc failed (%u bytes)",
+                (unsigned)buf_bytes);
+      return CLAW_ENOMEM;
+    }
 
 #if LVGL_VERSION_MAJOR >= 9
-  lv_draw_buf_t dbuf;
-  lv_draw_buf_init(&dbuf, w, h, LV_COLOR_FORMAT_RGB565,
-                   g_pinfo.stride, g_draw_buf, buf_px * sizeof(lv_color_t));
+  /* lv_display_set_draw_buffers() stores the buf pointer in the display, so
+   * it must outlive this function (the LVGL 8 branch already uses static).
+   */
+  static lv_draw_buf_t dbuf;
+  lv_draw_buf_init(&dbuf, w, (int32_t)draw_h, LV_COLOR_FORMAT_RGB565,
+                   (uint32_t)((size_t)w * VELA_UI_PX_BYTES),
+                   g_draw_buf, buf_bytes);
   lv_display_t *disp = lv_display_create(w, h);
+  if (disp == NULL)
+    {
+      CLAW_LOGE("ui: lv_display_create failed");
+      return CLAW_EIO;
+    }
+
   lv_display_set_flush_cb(disp, fb_flush);
   lv_display_set_draw_buffers(disp, &dbuf, NULL);
   lv_display_set_render_mode(disp, LV_DISPLAY_RENDER_MODE_PARTIAL);
@@ -297,8 +362,15 @@ claw_err_t vela_claw_ui_init(void)
 
 #if LVGL_VERSION_MAJOR >= 9
   lv_indev_t *indev = lv_indev_create();
+  if (indev == NULL)
+    {
+      CLAW_LOGE("ui: lv_indev_create failed");
+      return CLAW_EIO;
+    }
+
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(indev, touch_read);
+  lv_indev_enable(indev, true);
 #else
   static lv_indev_drv_t idrv;
   lv_indev_drv_init(&idrv);
@@ -308,12 +380,23 @@ claw_err_t vela_claw_ui_init(void)
 #endif
 
   build_chat_ui(w, h);
+  CLAW_LOGI("ui: chat UI built (%dx%d)", w, h);
 
   g_resp_q = claw_queue_create(8, sizeof(char *));
+  if (g_resp_q == NULL)
+    {
+      CLAW_LOGE("ui: response queue create failed");
+      return CLAW_ENOMEM;
+    }
+
   claw_event_router_set_sender("ui", ui_sender);
 
   g_ui_running = 1;
-  claw_thread_create(&g_ui_thread, ui_thread, NULL, 0, 16 * 1024);
+  if (claw_thread_create(&g_ui_thread, ui_thread, NULL, 0, 16 * 1024) != 0)
+    {
+      CLAW_LOGE("ui: UI thread create failed");
+      return CLAW_ENOMEM;
+    }
 
   CLAW_LOGI("ui: screen UI up (%dx%d)", w, h);
   return CLAW_OK;
