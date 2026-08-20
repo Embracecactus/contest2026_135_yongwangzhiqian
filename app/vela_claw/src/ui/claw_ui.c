@@ -19,6 +19,7 @@
  ****************************************************************************/
 
 #include <fcntl.h>
+#include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,7 +59,9 @@ static struct fb_videoinfo_s g_vinfo;
 static struct fb_planeinfo_s g_pinfo;
 static void               *g_fbmem;
 static size_t              g_fbmem_size;
+#if LVGL_VERSION_MAJOR < 9
 static lv_color_t         *g_draw_buf;
+#endif
 
 /* Response text queue (pointers to strdup'd strings) + UI thread. */
 static claw_queue_t       *g_resp_q;
@@ -71,29 +74,67 @@ static lv_obj_t           *g_ta;
 static lv_obj_t           *g_kb;
 
 /****************************************************************************
- * LVGL display flush (copy LVGL render buffer -> framebuffer)
+ * LVGL display flush
  ****************************************************************************/
 
 #if LVGL_VERSION_MAJOR >= 9
 static void fb_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
+{
+  struct fb_planeinfo_s pan = g_pinfo;
+  size_t frame_bytes = (size_t)g_pinfo.stride * g_vinfo.yres;
+  uintptr_t base = (uintptr_t)g_fbmem;
+  uintptr_t frame = (uintptr_t)px_map;
+  size_t offset;
+  int ret;
+
+  /* LVGL renders a complete RGB565 frame directly into one of the two
+   * framebuffer pages.  Queue that page for the LCD EOF ISR and do not let
+   * LVGL reuse it until the controller reports the following VSYNC.
+   */
+
+  if (area->x1 != 0 || area->y1 != 0 ||
+      area->x2 + 1 != (int32_t)g_vinfo.xres ||
+      area->y2 + 1 != (int32_t)g_vinfo.yres ||
+      frame < base || frame_bytes > g_fbmem_size ||
+      frame - base > g_fbmem_size - frame_bytes)
+    {
+      CLAW_LOGE("ui: invalid full-frame flush");
+      lv_display_flush_ready(disp);
+      return;
+    }
+
+  offset = (size_t)(frame - base);
+  if (offset != 0 && offset != frame_bytes)
+    {
+      CLAW_LOGE("ui: flush buffer is not a framebuffer page");
+      lv_display_flush_ready(disp);
+      return;
+    }
+
+  pan.xoffset = 0;
+  pan.yoffset = offset == 0 ? 0 : g_vinfo.yres;
+  ret = ioctl(g_fb_fd, FBIOPAN_DISPLAY,
+              (unsigned long)(uintptr_t)&pan);
+  if (ret < 0)
+    {
+      CLAW_LOGE("ui: framebuffer pan failed: %d", errno);
+      lv_display_flush_ready(disp);
+      return;
+    }
+
+  ret = ioctl(g_fb_fd, FBIO_WAITFORVSYNC, 0);
+  if (ret < 0)
+    {
+      CLAW_LOGE("ui: framebuffer VSYNC wait failed: %d", errno);
+    }
+
+  lv_display_flush_ready(disp);
+}
 #else
 static void fb_flush(lv_disp_drv_t *drv, const lv_area_t *area,
                      lv_color_t *color_p)
-#endif
 {
-  const uint8_t *src = (const uint8_t *)
-#if LVGL_VERSION_MAJOR >= 9
-    px_map;
-#else
-    color_p;
-#endif
-
-  /* The draw buffer is declared LV_COLOR_FORMAT_RGB565 (2 bytes/pixel).
-   * LVGL 9's lv_color_t is a fixed 3-byte RGB888 struct and must NOT be
-   * used to compute the pixel stride here -- that would desynchronize the
-   * copy and corrupt the framebuffer (black screen).
-   */
-
+  const uint8_t *src = (const uint8_t *)color_p;
   int32_t w = lv_area_get_width(area);
   size_t px_bytes = (size_t)w * VELA_UI_PX_BYTES;
 
@@ -105,12 +146,9 @@ static void fb_flush(lv_disp_drv_t *drv, const lv_area_t *area,
       memcpy(dst, src + (size_t)(y - area->y1) * px_bytes, px_bytes);
     }
 
-#if LVGL_VERSION_MAJOR >= 9
-  lv_display_flush_ready(disp);
-#else
   lv_disp_flush_ready(drv);
-#endif
 }
+#endif
 
 /****************************************************************************
  * LVGL touch input (GT1151 via /dev/input0)
@@ -277,7 +315,7 @@ claw_err_t vela_claw_ui_init(void)
   ioctl(g_fb_fd, FBIOGET_VIDEOINFO, (unsigned long)((uintptr_t)&g_vinfo));
   ioctl(g_fb_fd, FBIOGET_PLANEINFO, (unsigned long)((uintptr_t)&g_pinfo));
 
-  g_fbmem_size = (size_t)g_pinfo.stride * g_vinfo.yres;
+  g_fbmem_size = g_pinfo.fblen;
   g_fbmem = mmap(NULL, g_fbmem_size,
                  PROT_READ | PROT_WRITE, MAP_SHARED, g_fb_fd, 0);
   if (g_fbmem == MAP_FAILED)
@@ -289,6 +327,32 @@ claw_err_t vela_claw_ui_init(void)
   int w = g_vinfo.xres;
   int h = g_vinfo.yres;
 
+#if LVGL_VERSION_MAJOR >= 9
+  size_t frame_bytes = (size_t)g_pinfo.stride * g_vinfo.yres;
+
+  if (g_pinfo.xres_virtual != g_vinfo.xres ||
+      g_pinfo.yres_virtual < (uint32_t)g_vinfo.yres * 2u ||
+      g_fbmem_size < frame_bytes * 2u)
+    {
+      CLAW_LOGE("ui: framebuffer does not expose two full pages");
+      return CLAW_EIO;
+    }
+
+  lv_display_t *disp = lv_display_create(w, h);
+  if (disp == NULL)
+    {
+      CLAW_LOGE("ui: lv_display_create failed");
+      return CLAW_EIO;
+    }
+
+  lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
+  lv_display_set_flush_cb(disp, fb_flush);
+  lv_display_set_buffers(disp,
+                         (uint8_t *)g_fbmem + frame_bytes,
+                         g_fbmem,
+                         frame_bytes,
+                         LV_DISPLAY_RENDER_MODE_FULL);
+#else
   /* LVGL partial-render mode only needs a fraction of the frame in RAM.
    * A full-frame RGB565 draw buffer (320x480 with a 3-byte lv_color_t is
    * ~450 KiB) does not fit the remaining AP PSRAM heap after the LCD
@@ -325,25 +389,6 @@ claw_err_t vela_claw_ui_init(void)
       return CLAW_ENOMEM;
     }
 
-#if LVGL_VERSION_MAJOR >= 9
-  /* lv_display_set_draw_buffers() stores the buf pointer in the display, so
-   * it must outlive this function (the LVGL 8 branch already uses static).
-   */
-  static lv_draw_buf_t dbuf;
-  lv_draw_buf_init(&dbuf, w, (int32_t)draw_h, LV_COLOR_FORMAT_RGB565,
-                   (uint32_t)((size_t)w * VELA_UI_PX_BYTES),
-                   g_draw_buf, buf_bytes);
-  lv_display_t *disp = lv_display_create(w, h);
-  if (disp == NULL)
-    {
-      CLAW_LOGE("ui: lv_display_create failed");
-      return CLAW_EIO;
-    }
-
-  lv_display_set_flush_cb(disp, fb_flush);
-  lv_display_set_draw_buffers(disp, &dbuf, NULL);
-  lv_display_set_render_mode(disp, LV_DISPLAY_RENDER_MODE_PARTIAL);
-#else
   static lv_disp_draw_buf_t dbuf;
   lv_disp_draw_buf_init(&dbuf, g_draw_buf, NULL, buf_px);
   static lv_disp_drv_t drv;
