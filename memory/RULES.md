@@ -11,7 +11,9 @@ Last reviewed: 2026-08-20
   official BK7236/BK7258 `bk_idk release/v2.0.1` secureboot material may be
   inspected as a read-only BL1/BL2/TF-M reference; it is not a replacement
   runtime SDK or static-library bundle.
-- CP is the sole owner of flash/LittleFS, the Beken Bluetooth Controller, AP lifecycle, and PSRAM hardware initialization.
+- CP is the sole owner of on-chip Flash, the Beken Bluetooth Controller, AP
+  lifecycle and PSRAM hardware initialization. Persistent storage topology is
+  a system choice; no application owns its medium or partition.
 - AP is the sole stock NuttX Bluetooth Host/GAP/GATT owner and a PSRAM consumer only.
 - AP remains one native SMP cluster and one RPTUN peer; physical CPU2 is not a second peer.
 - N14 upper 8 MiB PSRAM is boot-tested/reserved, not a general heap. The only
@@ -22,12 +24,10 @@ Last reviewed: 2026-08-20
   [ADR-004](decisions/ADR-004-n15-official-contiguous-ab-layout.md). The
   ADR-003 sector-swap addresses, metadata ABI, and scratch path are retired
   and must never be enabled or flashed.
-- N17 reserves Manifest A at `0x50b000..0x50c000`, Manifest B at
-  `0x50c000..0x50d000`, and the one-way authentication policy at
-  `0x50d000..0x50e000`. The generic partition wrapper must reject writes and
-  erases to all three. Only future dedicated lifecycle code may update the
-  inactive slot's Manifest under ADR-009; normal firmware must never mutate
-  the policy sector.
+- Every maintained CSV explicitly declares Manifest A/B and BL2 A/B. No code
+  may infer the B address from a gap. Normal application firmware cannot write
+  those ranges; a future updater needs a separately reviewed inactive-slot
+  lifecycle and exact-range authority.
 
 ## Permissions and ownership
 
@@ -45,7 +45,7 @@ Last reviewed: 2026-08-20
   recoverable hardware validation: accepted-layout sparse firmware updates,
   UART capture/commands, read-only J-Link inspection, and normal hardware
   reset may run without asking again.  This does not authorize chip/factory
-  erase, layout migration, calibration/LittleFS destruction, OTP/eFuse or
+  erase, layout migration, calibration/persistent-data destruction, OTP/eFuse or
   security-lifecycle writes, debug locking, or any other irreversible action.
 - Preserve unrelated dirty or untracked work. Resolve exact targets before any destructive operation.
 - The owner-authorized one-time N15 layout migration and LittleFS reset was
@@ -64,18 +64,18 @@ Last reviewed: 2026-08-20
   [ADR-008](decisions/ADR-008-n17-phased-ota-authentication.md) pass. Read-only
   capability/source inspection is allowed. No normal build, script or test
   may perform these writes implicitly.
-- The BL1 development manifest packer must reject a private key that does not
-  derive to the compiled board-owned development root. Any merged
+- `trust.py` must reject a private key that does not derive to the compiled
+  build-local BL1/BL2 public root. Any merged
   secure-boot image produced for pipeline comparison remains a
   host-reference-only artifact until BK7258 BootROM acceptance and the exact
   AES/CRC consumer are independently proven; it must not trigger OTP/eFuse
   writes or be described as production-bootable.
-- The accepted N17 CSV/generated layout and public vector are host artifacts,
-  not firmware or board-write authority. The current board remains unarmed and
-  runs N15 format 2 until a separately reviewed implementation and migration
-  are explicitly authorized.
-- Every MCUboot package must bind a public-only trust contract to the actual
-  BL1/BL2 ELF symbols and raw image bytes.  Before any normal MCUboot download,
+- A generated layout and public vector are host artifacts, not board-write
+  authority. A layout-identity change requires explicit migration or full
+  reflash and cannot be presented as an ordinary OTA update.
+- Every MCUboot package embeds public-only evidence bound to actual BL1/BL2
+  roots and image bytes; there is no separate trust contract. Before any
+  normal MCUboot download,
   non-halting J-Link reads must match the target's existing BL1 Manifest and
   BL2 MCUboot public fingerprints.  J-Link failure or failure to match every
   identity at one permitted address fails closed before `bk_loader`; normal
@@ -83,11 +83,10 @@ Last reviewed: 2026-08-20
   and project memory must never contain private-key material or private-key
   paths.  This preflight does not grant authority to write boot-chain,
   OTP/eFuse or lifecycle ranges.
-- Trust identities live in linker-reserved fixed blocks in new BL1/BL2 images.
-  The contract may retain only the explicitly reviewed installed-legacy probe
-  addresses; do not infer or append addresses from arbitrary binaries.  A
-  compatibility match authorizes only the already requested normal download,
-  never an implicit boot-chain rewrite.
+- Trust identities live in linker-owned BL1/BL2 sections. Package verification
+  locates and validates their bytes; source code does not carry developer or
+  legacy probe addresses. A match authorizes only the requested normal
+  download, never an implicit boot-chain rewrite.
 
 ## Failure and recovery behavior
 
@@ -105,12 +104,19 @@ Last reviewed: 2026-08-20
 ## Security and privacy rules
 
 - Never record passwords, tokens, private keys, session cookies, or personal data in repository memory.
-- Proprietary SDK archives remain ignored and must not be redistributed; only manifests/provenance metadata are versioned.
+- Proprietary SDK archives remain ignored and must not be redistributed; only
+  SDK profiles and accepted deterministic tree hashes are versioned.
 - Local BK7258 SDK bundles live only under the ignored canonical
   `board/bk7258/bk_idk/armino_as_lib/versions` store as real directories.
   Active tooling must reject bundle symlinks and the retired
-  `board/bk7258_t5ai` source root; SDK source locations are explicit host
-  inputs, never repository defaults.
+  `board/bk7258_t5ai` source root. The canonical SDK source and base version
+  are derived from the single team-manifest project carrying the
+  `bk7258-sdk` group; `bk7258.py sdk rebuild --source` is the only
+  developer-supplied migration override.
+- Active SDK roles and variants are derived from the maintained profile files
+  for the manifest-selected base version. There is no legacy bundle fallback
+  or recovery selection, and memory must not duplicate the selected version,
+  checkout path or profile filenames.
 - Do not claim secure BLE, power-loss safety, cache coherency, or production SLA without a dedicated accepted stage and evidence.
 - N17-S may claim signed OTA publisher authentication and software downgrade
   prevention only after its implementation gates pass. Until BootROM secure
@@ -129,6 +135,17 @@ Last reviewed: 2026-08-20
   failure.
 
 ## Engineering conventions
+
+- BK7258 refactors are target-architecture-first. Old framework, registry,
+  catalog, schema, test or wrapper files are not requirements and must not be
+  migrated one-for-one. Preserve only behavior consumed by a current real
+  build/package/verification/hardware path.
+- `tools/bk7258/bk7258.py build|sdk|package|verify` is the only tracked public
+  BK7258 tool surface. SDK and toolchain identities come from the team
+  manifest, board/role compatibility from selected CP/AP profiles, boot mode
+  from an explicit command input, and all Flash/storage geometry plus policy
+  from the selected CSV. No consumer may
+  repeat those facts as version/address/profile conditionals.
 
 - Before the first source, build or hardware action after a resumed session,
   read `memory/INDEX.md`, then `progress/CURRENT.md`, then only the active

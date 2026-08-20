@@ -134,7 +134,7 @@ static bool bk7258_bl2_try_pair(int slot, struct boot_rsp *rsp)
 
   if (slot == BK7258_BL2_SLOT_PRIMARY)
     {
-      expected_cp = BK7258_ROLE_SLOT_A_CP_XIP_START;
+      expected_cp = BK7258_ARTIFACT_CP_XIP_START;
       if (rsp->br_image_off != expected_cp)
         {
           return false;
@@ -148,7 +148,7 @@ static bool bk7258_bl2_try_pair(int slot, struct boot_rsp *rsp)
           return false;
         }
     }
-  else if (rsp->br_image_off != BK7258_ROLE_SLOT_A_CP_XIP_START &&
+  else if (rsp->br_image_off != BK7258_ARTIFACT_CP_XIP_START &&
            rsp->br_image_off != BK7258_BL2_B_CP_XIP_START)
     {
       return false;
@@ -210,8 +210,8 @@ static bool bk7258_bl2_header_valid(const struct image_header *hdr,
 
 static const struct image_header *bk7258_bl2_ap_header(uint32_t cp_offset)
 {
-  uint32_t ap_header = cp_offset == BK7258_ROLE_SLOT_A_CP_XIP_START ?
-    BK7258_ROLE_SLOT_A_AP_XIP_START : BK7258_BL2_B_AP_XIP_START;
+  uint32_t ap_header = cp_offset == BK7258_ARTIFACT_CP_XIP_START ?
+    BK7258_ARTIFACT_AP_XIP_START : BK7258_BL2_B_AP_XIP_START;
 
   return (const struct image_header *)(uintptr_t)ap_header;
 }
@@ -273,13 +273,13 @@ static bool bk7258_bl2_pair_generation_valid(uint32_t cp_offset,
   int slot;
 
   ap_hdr = bk7258_bl2_ap_header(cp_offset);
-  if (!bk7258_bl2_header_valid(ap_hdr, BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE) ||
+  if (!bk7258_bl2_header_valid(ap_hdr, BK7258_ARTIFACT_AP_LOGICAL_SIZE) ||
       !bk7258_bl2_version_equal(&cp_hdr->ih_ver, &ap_hdr->ih_ver))
     {
       return false;
     }
 
-  slot = cp_offset == BK7258_ROLE_SLOT_A_CP_XIP_START ? 0 : 1;
+  slot = cp_offset == BK7258_ARTIFACT_CP_XIP_START ? 0 : 1;
   return bk7258_bl2_security_counter_equal(slot, cp_hdr, ap_hdr);
 }
 
@@ -404,7 +404,7 @@ static bool bk7258_bl2_ap_vector(uint32_t cp_offset)
   /* Do not use ih_hdr_size until the header itself has been bounded.  This
    * check is intentionally repeated outside MCUboot's internal state so the
    * paired AP vector cannot turn a malformed header into an arbitrary read. */
-  if (!bk7258_bl2_header_valid(hdr, BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE))
+  if (!bk7258_bl2_header_valid(hdr, BK7258_ARTIFACT_AP_LOGICAL_SIZE))
     {
       bk7258_bl2_mark("B2APHDR");
       return false;
@@ -433,9 +433,9 @@ static bool bk7258_bl2_ap_vector(uint32_t cp_offset)
       return false;
     }
 
-  if (reset_addr < BK7258_ROLE_SLOT_A_AP_XIP_START +
+  if (reset_addr < BK7258_ARTIFACT_AP_XIP_START +
                    (uint32_t)hdr->ih_hdr_size ||
-      reset_addr >= BK7258_ROLE_SLOT_A_AP_XIP_START + hdr->ih_hdr_size +
+      reset_addr >= BK7258_ARTIFACT_AP_XIP_START + hdr->ih_hdr_size +
                     hdr->ih_img_size)
     {
       bk7258_bl2_mark("B2APRST");
@@ -485,8 +485,8 @@ static void __attribute__((noreturn)) bk7258_bl2_jump(uint32_t image)
   uint32_t reset_addr = reset & ~1u;
 
   if ((msp & 7u) != 0 || msp < 0x28010000u || msp >= 0x28050000u ||
-      (reset & 1u) == 0 || reset_addr < BK7258_ROLE_SLOT_A_CP_XIP_START ||
-      reset_addr >= BK7258_ROLE_SLOT_A_AP_XIP_START)
+      (reset & 1u) == 0 || reset_addr < BK7258_ARTIFACT_CP_XIP_START ||
+      reset_addr >= BK7258_ARTIFACT_AP_XIP_START)
     {
       bk7258_bl2_panic();
     }
@@ -550,14 +550,14 @@ void bk7258_bl2_main(void)
 
   bk7258_bl2_mark("B2GOOK");
 
-  bk7258_bl2_mark(rsp.br_image_off == BK7258_ROLE_SLOT_A_CP_XIP_START ?
+  bk7258_bl2_mark(rsp.br_image_off == BK7258_ARTIFACT_CP_XIP_START ?
                   "B2SELA" : "B2SELB");
 
   if (rsp.br_flash_dev_id != 0 || rsp.br_hdr == NULL ||
-      (rsp.br_image_off != BK7258_ROLE_SLOT_A_CP_XIP_START &&
+      (rsp.br_image_off != BK7258_ARTIFACT_CP_XIP_START &&
        rsp.br_image_off != BK7258_BL2_B_CP_XIP_START) ||
       !bk7258_bl2_header_valid(rsp.br_hdr,
-                               BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE))
+                               BK7258_ARTIFACT_CP_LOGICAL_SIZE))
     {
       bk7258_bl2_panic();
     }
@@ -572,13 +572,13 @@ void bk7258_bl2_main(void)
       bk7258_bl2_panic();
     }
 
-  if (rsp.br_image_off != BK7258_ROLE_SLOT_A_CP_XIP_START)
+  if (rsp.br_image_off != BK7258_ARTIFACT_CP_XIP_START)
     {
       if (!bk7258_bl2_remap_secondary())
         {
           bk7258_bl2_panic();
         }
-      image = BK7258_ROLE_SLOT_A_CP_XIP_START + rsp.br_hdr->ih_hdr_size;
+      image = BK7258_ARTIFACT_CP_XIP_START + rsp.br_hdr->ih_hdr_size;
     }
   else
     {

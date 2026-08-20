@@ -77,7 +77,7 @@ config BK7258_SWD_PINS_P20_P21
 	bool "SDK group 0: P20/P21"
 	help
 		Use P20 as SWCLK and P21 as SWDIO.  These pins also carry alternate
-		I2C and display signals, so the selected board resource graph must
+		I2C and display signals, so the selected CP/AP profile pair must
 		reject conflicting owners.
 
 config BK7258_SWD_PINS_P0_P1
@@ -253,7 +253,7 @@ config BK7258_UART2_PINS_P40_P41
 	bool "P41 TX / P40 RX"
 	help
 		This alternate chip mux shares P40/P41 with display and I2S2
-		functions.  The paired CP/AP resource graph validates ownership.
+		functions. The paired CP/AP build validation checks ownership.
 
 endchoice
 
@@ -305,21 +305,6 @@ config BK7258_MCUBOOT_IMAGE
 		BL1 application: it must be signed by MCUboot imgtool and is entered
 		through the board-owned BL2.  This changes neither the Beken SDK nor
 		NuttX sources and is deliberately separate from the MCUboot BL2 profile.
-
-config BK7258_BL2_IMAGE
-	bool "Build the NuttX MCUboot BL2 for the dedicated RAM load address"
-	default n
-	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && MCUBOOT_BOOTLOADER
-	select MTD_PARTITION
-	---help---
-		Build the NuttX MCUboot bootloader as the second boot stage, stored in
-		the project-owned ``bl2`` flash partition but linked for execution at
-		0x28020000.  The immutable first-stage bootloader copies it from the
-		CRC-decoded XIP view into that RAM window before entering its vector
-		table.  BL2 then owns the primary/secondary CP+AP application pair.
-		The current BL2 image is kept within a conservative 64 KiB execution
-		window.  If a larger logical BL2 is copied, its complete CRC-expanded
-		XIP payload must be present; an erased CRC tail is invalid.
 
 config BK7258_AP_SMP_BOOTSTRAP
 	bool "N8-B1 AP SMP secondary bootstrap"
@@ -799,7 +784,7 @@ config BK7258_RPMSGFS
 	bool "N11 AP access to CP LittleFS through RPMsgFS"
 	default n
 	depends on BK7258_RPTUN
-	depends on BK7258_AP_CORE || BK7258_FLASH_LITTLEFS
+	depends on BK7258_AP_CORE || BK7258_STORAGE_ONCHIP_PERSISTENT
 	select FS_RPMSGFS if BK7258_AP_CORE
 	select FS_RPMSGFS_SERVER if !BK7258_AP_CORE
 	---help---

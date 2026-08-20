@@ -815,85 +815,36 @@ SDK init 互不影响。
 > 且它**不在任何 Kconfig 里定义**——纯粹是个编译期宏。所以只要重编这个文件时
 > 传进去就行，不用动整个 SDK 配置。
 
-### 8.2 重编需要什么环境（好消息：不用 Docker）
+### 8.2 当前重建命令
 
-armino 官方完整构建是跑在 Docker 里的（你机器没装 docker，也用不上）。但我们
-**只重编 `uart_driver.c` 这一个文件**，所以：
-
-- 复用 armino 当初编这个文件的**原始编译命令**（它记录在 armino 构建残留的
-  `compile_commands.json` 里，逐字包含了所有 `-I` 头路径、`-D` 宏、`-mcpu` 等）；
-- 用本机已经装好的 `arm-none-eabi-gcc`（NuttX 就在用它）来只编译这一个 `.c`。
-
-前置条件：
-1. armino 源码树（例如 `/home/lijian/project/armino/bk_avdk_smp`），且之前跑过一次
-   bk7258 构建，所以 `build/bk7258/app/bk7258/compile_commands.json` 存在；
-2. `arm-none-eabi-gcc` 在 `PATH` 上；
-3. 要打补丁的库
-   `bk_idk/armino_as_lib/versions/v3.1.1.9/cp/libs/libdriver.a`。
-
-### 8.3 操作（照抄即可）
+不要手工修改已安装的 `libdriver.a`，也不要从个人路径复制构建残留。统一入口会在
+临时工作区重建 SDK、从唯一的 UART compile-database 条目加入宏、替换 archive
+成员，并在安装前后验证 `bk_printf_init` 已消失：
 
 ```bash
-ARMINO=/home/lijian/project/armino/bk_avdk_smp
-LIBS=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/board/bk7258/bk_idk/armino_as_lib/versions/v3.1.1.9/cp/libs
+cd <openvela-workspace>
 
-# --- 步骤 1：提取 armino 编 uart_driver.c 的原始命令，加宏后重编到 /tmp ---
-mkdir -p /tmp/uart_rebuild
-python3 - "$ARMINO" <<'PY'
-import json, subprocess, sys
-armino = sys.argv[1]
-db = json.load(open(f'{armino}/build/bk7258/app/bk7258/compile_commands.json'))
-e = [x for x in db if x['file'].replace('\\','/').endswith('uart_driver.c')][0]
-cmd = e['command']
-# 在原有 -DCONFIG_CMAKE=1 后面插入我们的禁用宏
-cmd = cmd.replace('-DCONFIG_CMAKE=1', '-DCONFIG_CMAKE=1 -DCONFIG_BK_PRINTF_DISABLE', 1)
-# 把输出 .obj 重定向到 /tmp（别覆盖 armino 构建目录）
-cmd = cmd.replace(
-    '-o armino/driver/CMakeFiles/__armino_driver.dir/uart/uart_driver.c.obj',
-    '-o /tmp/uart_rebuild/uart_driver.c.obj', 1)
-# 去掉链接期 --gc-sections（我们只 -c 编译，不需要）
-cmd = cmd.replace('"-Wl, --gc-sections" ', '', 1)
-r = subprocess.run(cmd, shell=True, cwd=e['directory'], capture_output=True, text=True)
-print("RC=", r.returncode)
-print(r.stderr[-2000:])   # 正常应为空或只有无关警告
-PY
-
-# --- 步骤 2：先备份原库，再把新编的 uart_driver.c.obj 替换进 libdriver.a ---
-cp -p "$LIBS/libdriver.a" "$LIBS/libdriver.a.bak"        # 可回滚
-ar r "$LIBS/libdriver.a" /tmp/uart_rebuild/uart_driver.c.obj
-
-# --- 步骤 3：删掉 bk7258_sdk_stubs.c 里那个 bk_printf_init 空桩 ---
-#     （保留 apctl_main / bkirqtest_main 两个，它们跟 UART 无关，见 8.5）
-$EDITOR ../chip/common/bk7258_sdk_stubs.c   # 删除 int bk_printf_init(void){...} 那一段
+./contest2026_135_yongwangzhiqian/tools/bk7258/bk7258.py \
+  sdk rebuild --role cp --replace
 ```
 
-### 8.4 验证新库真的去掉了引用
+默认 SDK 源码路径和版本来自 team manifest；工具链默认从 `PATH` 查找。只有有界
+迁移检查才显式传 `--source` 或 `--toolchain-dir`。
+
+### 8.3 验证
 
 ```bash
-ar p "$LIBS/libdriver.a" uart_driver.c.obj > /tmp/verify_uart.obj
-
-# 1) 必须查不到 bk_printf_init（查到了就是失败）
-nm /tmp/verify_uart.obj | grep -E ' bk_printf_init' && echo "失败：仍引用" || echo "OK：已无 bk_printf_init 引用"
-
-# 2) 这些导出符号必须还在（证明 ABI 没变）
-nm /tmp/verify_uart.obj | grep -E ' T bk_uart_driver_init| T bk_uart_init| T bk_uart_register_rx_isr'
+./contest2026_135_yongwangzhiqian/tools/bk7258/bk7258.py sdk verify --role cp
 ```
 
-然后从干净状态重新编译 NuttX（`make clean && make`），链接应当**全程不出现**
-`undefined reference to bk_printf_init`，且**不需要** `bk_printf_init` 桩就能过。
+验证失败是阻断条件，不能继续使用 manifest/provenance 已失配的 SDK bundle。
 
-### 8.5 回滚 / 注意事项
+### 8.4 回滚 / 注意事项
 
-- **回滚**：`cp -p "$LIBS/libdriver.a.bak" "$LIBS/libdriver.a"` 即可还原原预编译库。
-- **校验清单会失配**：`scripts/bk7258_sdk_manifest.sha256` 钉死了 `libdriver.a`
-  的原始二进制内容，`setup_bk7258_sdk.sh --check` 会对这个文件报 mismatch。
-  **不致命**——不影响编译、运行、烧录，只是校验脚本不通过。
-- **`apctl_main` / `bkirqtest_main` 两个桩必须留**：它们跟 UART 完全无关。
-  `apps/builtin/builtin_list.h` 硬注册了 `apctl` 和 `bkirqtest` 两个命令，但
-  `apctl` 源码暴露的是 `main()`（不是 `apctl_main()`）、`bkirqtest` 压根没源码，
-  所以这两个桩无论你用寄存器版还是 SDK wrapper 版都得留着。
-- **重新 `--install` SDK 后要重做本章**：`setup_bk7258_sdk.sh --install` 会拷回
-  没打补丁的上游 `libdriver.a`，桩依赖会回来。
+- bundle、manifest 和 provenance 在同一文件锁下替换；任何安装或安装后验证失败都会
+  恢复旧三件套。
+- `CONFIG_BK_PRINTF_DISABLE` 的 UART 对象和最终 `libdriver.a` 哈希都写入 provenance。
+- `apctl_main` / `bkirqtest_main` 与 UART 无关，不应混入 SDK bundle 重建。
 
 ---
 

@@ -53,9 +53,8 @@ bkvalidate run <descriptor-id>
 bkvalidate all-compatible
 ```
 
-Descriptors are versioned in
-`tools/bk7258/bk7258_validation_descriptors.json`.  `all-compatible`
-serializes global resource claims and emits `SKIP` for interactive, fixture,
+The target-side table in `bkvalidate_main.c` is the sole descriptor source.
+`all-compatible` serializes global resource claims and emits `SKIP` for interactive, fixture,
 destructive-fault, planned, or unavailable requirements.  The dispatcher does
 not call vendor SDK functions directly.  Individual descriptors may invoke
 explicitly selected BK7258 diagnostic endpoints; they are never started merely
@@ -63,8 +62,8 @@ because the dispatcher is enabled.
 
 ## 测试分层约定
 
-- 纯逻辑（无硬件依赖）走 host 测试：C 用例放 `tests/bk7258/`
-  （`Makefile` + `run_tests.sh`），Python 用例放 `tools/bk7258/tests/`。
+- 纯逻辑（无硬件依赖）的 C host 用例放 `tests/bk7258/`
+  （`Makefile` + `run_tests.sh`）。旧的维护工具 Python 测试目录已经退役。
 - 命令壳（NSH 内置命令）留在 `app/hello_app/`，由 `CONFIG_BK7258_APP_*`
   门控；每个命令只有 enable/PROGNAME/PRIORITY/STACKSIZE 和依赖声明。
 - 硬件验收命令（rpmsg / gpio / psram / bt / irq / timer 等）不接入 cmocka：

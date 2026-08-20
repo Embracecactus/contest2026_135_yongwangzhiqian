@@ -28,66 +28,67 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
   target power while USB remains connected does not remove BK7258 VDD and must
   not be recorded as a complete power cycle.
 - SDK workspace ownership is recorded as follows:
-  - The active read-only BK7258 SDK source snapshot is supplied explicitly by
-    `--sdk-dir` or `BK7258_SDK_SOURCE`; no developer-specific absolute path is
-    a project default.
+  - The active read-only BK7258 SDK source is synchronized by the team
+    manifest at `vendor/beken/bk_avdk_smp` and pinned to the commit/tree in
+    ADR-027. `bk7258.py sdk rebuild --source` is mandatory and the supplied
+    clean checkout must equal that manifest revision.
   - Imported runtime bundles live only under the ignored canonical directory
-    `board/bk7258/bk_idk/armino_as_lib/versions/<version>` and must be real
-    directories whose exact file sets and hashes match tracked manifests.
-  - `/tmp/bk-idk-v201` is a disposable read-only checkout of Beken
-    `bk_idk release/v2.0.1` (`650e754e12fe1e43c37ce2316a973668b033fd48`) for
-    BK7236 secureboot source review only.
-  - A separately supplied `vendor_beken` checkout is only a third-party
-    historical reference, not an official SDK implementation input; its host
-    path is not part of the project contract.
-- The active compatible SDK bundle remains v3.1.1.9. Matching SDK source is
-  external and read-only; supply it through `BK7258_SDK_SOURCE` for source
-  verification. BK7259 and v4 are retired and cannot replace it.
+    `board/bk7258/bk_idk/armino_as_lib/versions/<version>/<profile>` and must
+    be real directories matching the tree hash in the selected profile.
+  - The OpenVela ARM prebuilt at
+    `prebuilts/gcc/linux-x86_64/arm-none-eabi` is pinned by the team manifest.
+    OpenVela, SDK rebuild and project BL1/BL2 share it; `/usr/bin` and PATH are
+    not compiler fallbacks.
+- The active compatible SDK bundle remains v3.1.1.9, with one AP-only SDIO4
+  variant derived from the same source/profile family. Matching SDK source is
+  the manifest project pinned by ADR-027; no older bundle fallback is
+  supported. BK7259 and v4 are retired and cannot replace it.
+- `tools/bk7258/bk7258.py sdk list|verify|install|rebuild` owns profile
+  discovery, tree verification and the locked rebuild/replace transaction.
+  There are no standalone manifests or provenance files.
+- `tools/bk7258/bk7258.py package create|extract` and
+  `bk7258.py verify layout|image|package|trust` are the complete host package
+  and verification surface.
 
 ## Required verification
 
-- Run the stage-specific source/ELF verifier and existing RPTUN/BLE/packaging gates.
-- Run CP and AP SDK bundle `--check` for the selected version.
-- Require `git diff --check`; confirm official `nuttx/` and `apps/` tracked diffs are zero.
+- Run `tools/bk7258/bk7258.py sdk verify --profile NAME` for each selected
+  bundle and the direct `verify layout|image|package` gates.
+- Require `git diff --check`; confirm the build introduced no new tracked
+  changes in official `nuttx/` or `apps/` beyond their recorded baseline.
 - For a completed hardware stage, retain raw UART/J-Link logs, artifact hashes, physical reset evidence, and regression tests proportional to the change.
 - Canonical N14 matrix: [N14 evidence index](../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md).
 - For BL1/BL2/MCUboot changes, run the affected source/host gate and one full
   signed CP/AP integration build. Hardware fallback or destructive mutation
   remains separate, range-specific validation work.
-- The deployed board uses CP `0x011000`, AP `0x165000`, and raw LittleFS
-  `0x600000..0x700000`. Never mix old-layout images or offsets with the
-  migrated board.
+- Deployed artifacts must match the package layout identity. Persistent and
+  immutable ranges come from that layout; never infer them from an older
+  board capture.
 
 ## Build and release
 
-- A future compatible SDK update is a fresh export, never a rename or reuse
-  of v3 archives: resolve the official tag to a commit, confirm BK7258 CP/AP
-  profiles, build clean role outputs, import them into a new versioned bundle,
-  record manifests/provenance, then run the bounded ABI/link review before
-  changing the default selector.
-- Build paired CP/AP profiles with `tools/bk7258/build_dual_image.sh`.
-  The default direct pair is `t5ai_core_cp_base + t5ai_core_ap_base`; the
-  current profile catalog and compatible pairs are maintained in
-  [`board/bk7258/configs/README.md`](../board/bk7258/configs/README.md).
+- A compatible SDK update changes the team manifest pin, rebuilds each
+  explicit profile from that clean source, records the new tree hash comment,
+  and passes a real OpenVela link/build before acceptance.
+- Build requires every semantic input explicitly; there is no default pair:
+
+  ```text
+  bk7258.py build --cp-config PATH --ap-config PATH \
+    --boot direct|mcuboot --partition CSV --jobs N
+  ```
 - Every maintained CP/AP profile carries `profile.conf`.  The wrapper rejects
-  board, role, boot-mode, feature and compatibility mismatches before build.
-  CI-only profiles additionally require `BK7258_ALLOW_CI_PROFILE=YES`.
-- Physical dual-image builds hold `/tmp/openvela-bk7258-build-$UID.lock`
-  because openvela mutates the shared `nuttx/` and `apps/` trees.  Do not
-  bypass that wrapper or run a second direct configure/build concurrently.
-  `BK7258_PROFILE_CHECK_ONLY=YES` remains lock-free and performs no build.
+  board, role, feature and compatibility mismatches before build. Boot mode is
+  an explicit command input; MCUboot defconfig overlays are build-local.
+- Do not run another OpenVela configure/build concurrently with
+  `bk7258.py build`; official classic clean still touches shared NuttX state,
+  while CMake outputs remain under `out/bk7258/<config>/cmake`.
 - Follow [the build/flash/debug SOP](../docs/bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md) rather than reconstructing commands from memory.
-- The build wrapper rejects mismatched CP/AP feature-profile pairs and runs post-link verification.
-- For the MCUboot host-reference pipeline, leave `MCUBOOT_OFFICIAL_PIPELINE=YES`
-  and omit `SECUREBOOT_AES_TOOL`/`SECUREBOOT_AES_KEY_FILE` for the no-AES
-  branch.  Supplying both external paths opts into the SDK v3.1.1.9 AES step;
-  no key is stored in this repository and the resulting stream remains
-  host-reference-only until the BK7258 BootROM consumer is proven.
-- A signed build emits `bk7258-trust-chain.json`.  Packaging must re-resolve
-  the BL1/BL2 symbols, bind that public contract to `bootloader.bin` and
-  `bl2.bin`, and revalidate after staging into a clean output directory; no
-  private-key path belongs in the package.  Do not hand-edit the contract to
-  make a target pass.
+- The build wrapper rejects mismatched CP/AP pairs and a storage topology that
+  differs from the selected CSV.
+- Signed package creation must match explicit keys to the public-anchor
+  sections in the actual BL1/BL2 ELFs before invoking official signers. Public
+  fingerprints and artifact hashes are embedded in `.bkpack`; no standalone
+  trust file or private-key path is retained.
 - No active N15/N17 field-update candidate, validation profile, PSRAM loader,
   board SOP or aggregate fault campaign exists. Their historical records are
   evidence only and must not be reconstructed or treated as build gates.
@@ -95,10 +96,12 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 
 ## Deployment
 
-- Normal sparse flashing must use CP raw `0x011000..0x165000`, AP raw
-  `0x165000..0x286000`, and preserve LittleFS at `0x600000..0x700000`.
-- Every MCUboot flash mode in `bk7258_auto_debug.sh` performs the non-halting
-  BL1/BL2 target-fingerprint preflight before starting `bk_loader`.  Treat
+- Normal flashing consumes only a verified package Flash contract. It must
+  preserve every CSV `preserve`/`immutable` range and any explicitly omitted
+  external artifact.
+- Every MCUboot hardware workflow in `tools/windows-hardware-debug` must
+  perform the non-halting BL1/BL2 target-fingerprint preflight before starting
+  `bk_loader`. Treat
   J-Link failure or an identity with no matching permitted address as a
   package/target pairing failure; do not add a bypass.  Use
   `--flash --sparse-flash --apps-only --no-console` for routine
@@ -132,8 +135,8 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 ## Rollback and recovery
 
 - The former N13 `cp_nsh_ble_gatt + ap_smp_ble_gatt` names are historical
-  evidence, not maintained rollback profiles.  Do not reconstruct them from
-  memory; select a current pair from the canonical profile catalog.
+  evidence, not maintained rollback profiles. Do not reconstruct them from
+  memory; pass two current explicit config directories to `bk7258.py build`.
 - The immutable pre-N14 source rollback point is commit `c6afd6f9b73dcf862f17bd31f5b2dc90820b9bb0`.
 - Recover a nonbooting board with the known Tier-1/minimal bootloader and documented sparse segments; do not erase broad ranges by inference.
 - Keep the N14 source/commit as a historical recovery input, but repack any

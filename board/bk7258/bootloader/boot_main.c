@@ -28,8 +28,7 @@
 #include "boot_bl2_contract.h"
 #include "boot_flash.h"
 #include "boot_wdt.h"
-#include "../chip/include/bk7258_memorymap.h"
-#include <bk7258_partition_layout.h>
+#include <bk7258_partitions.h>
 
 extern void boot_clock_cold_init(void);
 
@@ -68,6 +67,10 @@ extern void boot_clock_cold_init(void);
 
 #ifndef BK7258_BL1_USE_BL2
 #  define BK7258_BL1_USE_BL2 0u
+#endif
+
+#if BK7258_BL1_MANIFEST_ENFORCE && !BK7258_BL1_MANIFEST_RAW_PAGE
+#  error "signed BL1 requires CSV Manifest data partitions"
 #endif
 
 #if BK7258_BL1_BOOT_CONTROL_STAGING
@@ -117,16 +120,16 @@ struct fal_partition {
 __attribute__((used))
 const struct fal_partition fal_partition_table[] = {
     { FAL_PART_MAGIC, "bootloader", "beken_onchip_crc",
-      BK7258_ROLE_BOOT_LOGICAL_OFFSET, BK7258_ROLE_BOOT_LOGICAL_SIZE, 0u },
+      BK7258_ARTIFACT_BOOT_LOGICAL_OFFSET, BK7258_ARTIFACT_BOOT_LOGICAL_SIZE, 0u },
     { FAL_PART_MAGIC, "cp_app",     "beken_onchip_crc",
-      BK7258_ROLE_SLOT_A_CP_LOGICAL_OFFSET,
-      BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE, 0u },
+      BK7258_ARTIFACT_CP_LOGICAL_OFFSET,
+      BK7258_ARTIFACT_CP_LOGICAL_SIZE, 0u },
     { FAL_PART_MAGIC, "ap_app",     "beken_onchip_crc",
-      BK7258_ROLE_SLOT_A_AP_LOGICAL_OFFSET,
-      BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE, 0u },
+      BK7258_ARTIFACT_AP_LOGICAL_OFFSET,
+      BK7258_ARTIFACT_AP_LOGICAL_SIZE, 0u },
     { FAL_PART_MAGIC, "bl2",        "beken_onchip_crc",
-      BK7258_ROLE_BL2_LOGICAL_OFFSET,
-      BK7258_ROLE_BL2_LOGICAL_SIZE, 0u },
+      BK7258_ARTIFACT_BL2_A_LOGICAL_OFFSET,
+      BK7258_ARTIFACT_BL2_A_LOGICAL_SIZE, 0u },
 };
 #define FAL_PART_COUNT  (sizeof(fal_partition_table) / sizeof(fal_partition_table[0]))
 
@@ -426,11 +429,6 @@ uint32_t c_main(void)
     struct bk7258_bl2_boot_policy_s bl2_policy;
 #endif
     uint32_t app_vec = 0;
-#if BK7258_BL1_USE_BL2
-#if !BK7258_BL1_MANIFEST_RAW_PAGE
-    uint32_t manifest_xip;
-#endif
-#endif
     int cold_ok = 0;
 #if BK7258_BL1_USE_BL2
 #if BK7258_BL1_MANIFEST_ENFORCE
@@ -513,14 +511,14 @@ uint32_t c_main(void)
         uart_puts("BAD\r\nno cp_app part\r\n");
         boot_wdt_fail_reset();
     }
-    if ((uint32_t)app->offset != BK7258_ROLE_SLOT_A_CP_LOGICAL_OFFSET ||
-        app->len != BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE) {
+    if ((uint32_t)app->offset != BK7258_ARTIFACT_CP_LOGICAL_OFFSET ||
+        app->len != BK7258_ARTIFACT_CP_LOGICAL_SIZE) {
         uart_puts("BAD\r\ncp_app layout\r\n");
         boot_wdt_fail_reset();
     }
 
     app_vec = FLASH_BASE + (uint32_t)app->offset;
-    if (app_vec != BK7258_ROLE_SLOT_A_CP_XIP_START ||
+    if (app_vec != BK7258_ARTIFACT_CP_XIP_START ||
         !validate_direct_app(app_vec, app->len)) {
         boot_wdt_fail_reset();
     }
@@ -554,16 +552,14 @@ uint32_t c_main(void)
         uart_puts("BAD\r\nno bl2 part\r\n");
         boot_wdt_fail_reset();
     }
-    if ((uint32_t)app->offset != BK7258_ROLE_BL2_LOGICAL_OFFSET ||
+    if ((uint32_t)app->offset != BK7258_ARTIFACT_BL2_A_LOGICAL_OFFSET ||
         app->len < BL2_COPY_SIZE) {
         uart_puts("BAD\r\nbl2 layout\r\n");
         boot_wdt_fail_reset();
     }
-    /* The first-stage code remains in XIP.  The CSV-owned primary BL2 keeps
-     * its historical address.  A second, equally sized logical slot follows
-     * it in the pre-LittleFS gap.  Each candidate has its own board-owned
-     * Manifest record in the boot tail; a failed primary never reaches the
-     * MCUboot handoff and is followed by a deterministic secondary attempt. */
+    /* The first-stage code remains in XIP. The CSV explicitly supplies both
+     * equal BL2 slots and both Manifest data partitions; a failed primary is
+     * followed by a deterministic secondary attempt. */
     /* The active recoverable layout has no BL1 boot_flag provider, so its
      * default remains Primary -> Secondary.  The opt-in staging build reads
      * the second page of the documented 12 KiB control area through the raw
@@ -595,15 +591,6 @@ uint32_t c_main(void)
         slot = slot_order[attempt];
         app_vec = slot == 0 ? FLASH_BASE + (uint32_t)app->offset :
                               BK7258_BL2_SECONDARY_XIP;
-#if !BK7258_BL1_MANIFEST_RAW_PAGE
-        manifest_xip = slot == 0 ? BK7258_BL1_MANIFEST_PRIMARY_XIP_ADDRESS :
-                                   BK7258_BL1_MANIFEST_SECONDARY_XIP_ADDRESS;
-#endif
-#if !BK7258_BL1_MANIFEST_ENFORCE
-#if !BK7258_BL1_MANIFEST_RAW_PAGE
-        (void)manifest_xip;
-#endif
-#endif
         uart_puts(slot == 0 ? "B1PRIMARY\r\n" : "B1SECONDARY\r\n");
         log_u32("partition bl2 @ ", app_vec);
 
@@ -614,29 +601,22 @@ uint32_t c_main(void)
          * has no opportunity to service either watchdog while it is inside
          * the arithmetic backend, so give it the extended BL2 window. */
         boot_wdt_feed_period(BL2_WDT_PERIOD);
-#if BK7258_BL1_MANIFEST_RAW_PAGE
-        /* The candidate page lives in the CSV data partitions, not in the
-         * CRC-decoded executable XIP tail.  Read only the first 256 bytes;
-         * the candidate verifier checks that the remainder of this 4 KiB
-         * record container is erased. */
+        /* The Manifest lives in the CSV data partition. Read the maintained
+         * 256-byte record; no boot-tail compatibility location exists. */
         uart_puts("B1PAGE\r\n");
         manifest_status = bk7258_bl1_flash_read(
-            slot == 0 ? BK7258_ROLE_BL1_PRIMARY_MANIFEST_OFFSET :
-                        BK7258_ROLE_BL1_SECONDARY_MANIFEST_OFFSET,
+            slot == 0 ? BK7258_PARTITION_PRIMARY_MANIFEST_OFFSET :
+                        BK7258_PARTITION_SECONDARY_MANIFEST_OFFSET,
             manifest_record, sizeof(manifest_record));
         if (manifest_status == 0)
           {
-            manifest_status = bk7258_beken_manifest_verify_buffer(
+            manifest_status = bk7258_bl1_manifest_verify_buffer(
                 manifest_record, app_vec, BL2_COPY_SIZE, BL2_RAM_BASE);
           }
         else
           {
             manifest_status = -5;
           }
-#else
-        manifest_status = bk7258_bl1_manifest_verify_at(
-            manifest_xip, app_vec, BL2_COPY_SIZE, BL2_RAM_BASE);
-#endif
         boot_wdt_feed();
         if (manifest_status < 0) {
             log_u32("bl1 manifest rc ", (uint32_t)(-manifest_status));

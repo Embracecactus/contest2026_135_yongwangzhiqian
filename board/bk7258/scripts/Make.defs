@@ -3,7 +3,7 @@
 #
 # Classic Make backend (the same backend RV1126B used).  The board CMake
 # files mirror this source, SDK-library and postbuild contract; signed
-# dual-image packaging remains owned by build_dual_image.sh.
+# image and package materialization are explicit bk7258.py stages.
 #
 
 # GNU Make otherwise adopts the first generated linker-script target as the
@@ -14,11 +14,16 @@
 
 include $(TOPDIR)/.config
 include $(TOPDIR)/tools/Config.mk
-include $(BOARD_DIR)$(DELIM)bk_idk$(DELIM)sdk-bundles.mk
 
-# Toolchain: arm-none-eabi-gcc on /usr/bin (probe-verified).
+# The team manifest pins the official OpenVela ARM prebuilt.  Classic Make
+# uses its absolute workspace-relative prefix and never falls back to PATH.
 
-CROSSDEV = arm-none-eabi-
+BK7258_TOOLCHAIN_BIN := \
+	$(abspath $(TOPDIR)/../prebuilts/gcc/linux-x86_64/arm-none-eabi/bin)
+ifeq ($(wildcard $(BK7258_TOOLCHAIN_BIN)/arm-none-eabi-gcc),)
+$(error Missing manifest ARM toolchain; sync prebuilts/gcc/linux-x86_64/arm-none-eabi)
+endif
+CROSSDEV = $(BK7258_TOOLCHAIN_BIN)/arm-none-eabi-
 
 # Reuse the common ARMv8-M toolchain flags (sets -mcpu=cortex-m33,
 # -march=armv8-m.main, -mfloat-abi, ...).  This matches what every other
@@ -82,129 +87,17 @@ endif
 
 ARCHSCRIPT = $(BOARD_DIR)$(DELIM)scripts$(DELIM)$(LDSCRIPT)
 
-# The partition header is generated into a product/role-private build tree.
-# Product orchestration supplies the complete resolved contract.  Standard
-# OpenVela build.sh/direct-make invocations have no product executor yet, so a
-# compatibility adapter materializes the canonical legacy layout under the
-# NuttX build tree; neither path consumes the tracked compatibility header.
-
-BK7258_PARTITION_CONTRACT_ROOT := \
-	$(strip $(BK7258_PARTITION_CONTRACT_ROOT))
-BK7258_PARTITION_CONTRACT_SAFE_GOALS := \
-	apps_preconfig clean clean_context dirlinks distclean incdir olddefconfig \
-	preconfig
-BK7258_PARTITION_SAFE_ONLY :=
-
-BK7258_PARTITION_GENERATOR := \
-	$(BOARD_DIR)$(DELIM)scripts$(DELIM)gen_bk7258_partitions.py
-
-ifneq ($(strip $(MAKECMDGOALS)),)
-ifeq ($(strip $(filter-out $(BK7258_PARTITION_CONTRACT_SAFE_GOALS),$(MAKECMDGOALS))),)
-BK7258_PARTITION_SAFE_ONLY := y
+# The unified builder materializes the selected layout in the official out tree.
+ifeq ($(wildcard $(BK7258_PARTITION_HEADER)),)
+$(error BK7258_PARTITION_HEADER is required; use tools/bk7258/bk7258.py build)
 endif
+ifeq ($(wildcard $(BK7258_PARTITION_LINKER)),)
+$(error BK7258_PARTITION_LINKER is required; use tools/bk7258/bk7258.py build)
 endif
-
-ifeq ($(BK7258_PARTITION_CONTRACT_ROOT),)
-ifneq ($(strip $(BK7258_PARTITION_LAYOUT_SOURCE)$(BK7258_PARTITION_LAYOUT_ID)$(BK7258_PARTITION_LAYOUT_SHA256)),)
-$(error BK7258 partition contract root, source, ID and SHA-256 must be supplied together)
-endif
-ifneq ($(BK7258_PARTITION_SAFE_ONLY),y)
-BK7258_PARTITION_LAYOUT_SOURCE := \
-	$(BOARD_DIR)$(DELIM)partitions$(DELIM)bk7258$(DELIM)auto_partitions.csv
-BK7258_PARTITION_LAYOUT_ID := $(strip $(shell \
-	python3 "$(BK7258_PARTITION_GENERATOR)" \
-		--input "$(BK7258_PARTITION_LAYOUT_SOURCE)" --get layout_id))
-BK7258_PARTITION_LAYOUT_SHA256 := $(strip $(shell \
-	python3 "$(BK7258_PARTITION_GENERATOR)" \
-		--input "$(BK7258_PARTITION_LAYOUT_SOURCE)" --get layout_sha256))
-ifeq ($(strip $(BK7258_PARTITION_LAYOUT_ID)),)
-$(error Unable to resolve the legacy BK7258 partition layout ID)
-endif
-ifeq ($(strip $(BK7258_PARTITION_LAYOUT_SHA256)),)
-$(error Unable to resolve the legacy BK7258 partition layout SHA-256)
-endif
-ifeq ($(CONFIG_BK7258_AP_CORE),y)
-BK7258_PARTITION_ROLE := ap
-else
-BK7258_PARTITION_ROLE := cp
-endif
-BK7258_PARTITION_CONTRACT_ROOT := \
-	$(TOPDIR)$(DELIM).cache$(DELIM)bk7258-partition-contract$(DELIM)legacy-$(BK7258_PARTITION_LAYOUT_SHA256)$(DELIM)$(BK7258_PARTITION_ROLE)
-BK7258_PARTITION_CONTRACT_INCLUDE := \
-	$(BK7258_PARTITION_CONTRACT_ROOT)$(DELIM)include
-BK7258_PARTITION_CONTRACT_HEADER_DIR := \
-	$(BK7258_PARTITION_CONTRACT_INCLUDE)$(DELIM)arch$(DELIM)board
-BK7258_PARTITION_CONTRACT_HEADER := \
-	$(BK7258_PARTITION_CONTRACT_HEADER_DIR)$(DELIM)bk7258_partition_layout.h
-BK7258_PARTITION_CONTRACT_OUTPUT := \
-	$(BK7258_PARTITION_CONTRACT_ROOT)$(DELIM)generated
-BK7258_PARTITION_MATERIALIZED := $(strip $(shell \
-	python3 "$(BK7258_PARTITION_GENERATOR)" \
-		--input "$(BK7258_PARTITION_LAYOUT_SOURCE)" \
-		--expect-layout-id "$(BK7258_PARTITION_LAYOUT_ID)" \
-		--expect-layout-sha256 "$(BK7258_PARTITION_LAYOUT_SHA256)" \
-		--header "$(BK7258_PARTITION_CONTRACT_HEADER)" \
-		--output-dir "$(BK7258_PARTITION_CONTRACT_OUTPUT)" >/dev/null && \
-	printf '%s' yes))
-ifneq ($(BK7258_PARTITION_MATERIALIZED),yes)
-$(error Unable to materialize the legacy BK7258 partition contract)
-endif
-endif
-endif
-
-ifneq ($(BK7258_PARTITION_CONTRACT_ROOT),)
-ifeq ($(strip $(BK7258_PARTITION_LAYOUT_SOURCE)),)
-$(error BK7258_PARTITION_LAYOUT_SOURCE is required with BK7258_PARTITION_CONTRACT_ROOT)
-endif
-ifeq ($(strip $(BK7258_PARTITION_LAYOUT_ID)),)
-$(error BK7258_PARTITION_LAYOUT_ID is required with BK7258_PARTITION_CONTRACT_ROOT)
-endif
-ifeq ($(strip $(BK7258_PARTITION_LAYOUT_SHA256)),)
-$(error BK7258_PARTITION_LAYOUT_SHA256 is required with BK7258_PARTITION_CONTRACT_ROOT)
-endif
-ifeq ($(wildcard $(BK7258_PARTITION_LAYOUT_SOURCE)),)
-$(error Missing resolved BK7258 partition source: $(BK7258_PARTITION_LAYOUT_SOURCE))
-endif
-override BK7258_PARTITION_CONTRACT_INCLUDE := \
-	$(BK7258_PARTITION_CONTRACT_ROOT)/include
-override BK7258_PARTITION_CONTRACT_HEADER_DIR := \
-	$(BK7258_PARTITION_CONTRACT_INCLUDE)/arch/board
-override BK7258_PARTITION_CONTRACT_HEADER := \
-	$(BK7258_PARTITION_CONTRACT_HEADER_DIR)/bk7258_partition_layout.h
-override BK7258_PARTITION_CONTRACT_OUTPUT := \
-	$(BK7258_PARTITION_CONTRACT_ROOT)/generated
-ifeq ($(wildcard $(BK7258_PARTITION_CONTRACT_HEADER)),)
-$(error Missing generated BK7258 partition header: $(BK7258_PARTITION_CONTRACT_HEADER))
-endif
-
-ifneq ($(BK7258_PARTITION_SAFE_ONLY),y)
-BK7258_PARTITION_CONTRACT_CHECK := $(strip $(shell \
-	python3 "$(BK7258_PARTITION_GENERATOR)" \
-		--input "$(BK7258_PARTITION_LAYOUT_SOURCE)" \
-		--expect-layout-id "$(BK7258_PARTITION_LAYOUT_ID)" \
-		--expect-layout-sha256 "$(BK7258_PARTITION_LAYOUT_SHA256)" \
-		--header "$(BK7258_PARTITION_CONTRACT_HEADER)" \
-		--output-dir "$(BK7258_PARTITION_CONTRACT_OUTPUT)" \
-		--check >/dev/null 2>&1 && printf '%s' yes))
-ifneq ($(BK7258_PARTITION_CONTRACT_CHECK),yes)
-$(error Explicit BK7258 partition contract validation failed)
-endif
-endif
-ARCHINCLUDES := \
-	${INCDIR_PREFIX}$(BK7258_PARTITION_CONTRACT_INCLUDE) \
-	${INCDIR_PREFIX}$(BK7258_PARTITION_CONTRACT_HEADER_DIR) \
-	$(ARCHINCLUDES)
-ARCHXXINCLUDES := \
-	${INCDIR_PREFIX}$(BK7258_PARTITION_CONTRACT_INCLUDE) \
-	${INCDIR_PREFIX}$(BK7258_PARTITION_CONTRACT_HEADER_DIR) \
-	$(ARCHXXINCLUDES)
-
-# NuttX's generic ARM rule tracks only the top-level linker script.  Attach
-# the included private header so changing the selected contract cannot reuse
-# a stale preprocessed script.
-
-$(addsuffix .tmp,$(ARCHSCRIPT)): $(BK7258_PARTITION_CONTRACT_HEADER)
-endif
+BK7258_PARTITION_INCLUDE_DIR := $(dir $(BK7258_PARTITION_HEADER))
+INCLUDES += ${INCDIR_PREFIX}$(BK7258_PARTITION_INCLUDE_DIR)
+ARCHINCLUDES += ${INCDIR_PREFIX}$(BK7258_PARTITION_INCLUDE_DIR)
+$(addsuffix .tmp,$(ARCHSCRIPT)): $(BK7258_PARTITION_HEADER) $(BK7258_PARTITION_LINKER)
 
 # Keep the immutable SDK Flash mechanism in the chip layer while replacing
 # its build-time partition table with the product layout owned by this logical
@@ -235,20 +128,6 @@ CPPFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
 AFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
 endif
 
-# NuttX Apps owns MCUboot's core sources, while this board owns the platform
-# signing policy.  Put the board overlay ahead of the upstream NuttX MCUboot
-# configuration for every compilation unit; the overlay includes the upstream
-# header and adds only the BK7258 P-256 policy.
-
-ifeq ($(CONFIG_MCUBOOT_BOOTLOADER),y)
-CFLAGS += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)chip$(DELIM)include
-CXXFLAGS += ${INCDIR_PREFIX}$(BOARD_DIR)$(DELIM)chip$(DELIM)include
-CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
-CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
-CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
-CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
-endif
-
 # NXFLAT module definitions (unused on this flat-build target but NuttX
 # expects them to be defined).
 
@@ -261,178 +140,16 @@ LDNXFLATFLAGS = -e main -s 2048
 LDELFFLAGS = -r -e main
 LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
 
-# Link Beken SDK prebuilt static libraries.
-# libdriver.a contains all peripheral drivers (UART, flash, WDT, timer, etc.)
+# The unified builder supplies one already-resolved SDK profile closure.
+BK7258_SDK_LIBS_DIR := $(BK7258_SDK_DIR)$(DELIM)libs
 
-# Link Beken SDK prebuilt static libraries.
-# Exclude: cmsis startup, coredump, unity, at_server, lwip, wpa_supplicant,
-# iperf, hmac, psa_mbedtls, and duplicate bluetooth controller variants
-# (only keep libbluetooth_controller.a, exclude *_ble_*, *_bt_*, *_dual_*).
-# Unresolved symbols from other libs are stubbed in bk7258_sdk_stubs.c.
-
-ifeq ($(CONFIG_BK7258_AP_CORE),y)
-
-# The AP image links the AP-built peripheral archive only.  NuttX continues to
-# own startup, scheduling and interrupt dispatch; SDK RTOS/startup archives are
-# deliberately not linked.
-
-BK_SDK_LIBS_DIR := $(shell readlink -f $(BK7258_SDK_BUNDLE_ROOT)/ap/libs)
+# Link the profile-resolved SDK closure without naming vendor libraries.
+BK_SDK_LIBS_DIR := $(realpath $(BK7258_SDK_DIR)$(DELIM)libs)
 ifeq ($(BK_SDK_LIBS_DIR),)
-$(error BK7258 AP SDK bundle '$(BK7258_SDK_BUNDLE_VERSION)' has no libs directory)
+$(error BK7258_SDK_DIR has no libs directory)
 endif
-ifeq ($(CONFIG_BK7258_BT_IPC),y)
-EXTRA_LIBS += $(BK_SDK_LIBS_DIR)/libbk_bluetooth.a
+BK7258_SDK_LINK_INPUTS := $(sort $(wildcard $(BK_SDK_LIBS_DIR)/*.a) $(wildcard $(BK_SDK_LIBS_DIR)/*.o) $(wildcard $(BK_SDK_LIBS_DIR)/*.obj))
+ifeq ($(BK7258_SDK_LINK_INPUTS),)
+$(error BK7258 SDK profile has no resolved link inputs)
 endif
-ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
-EXTRA_LIBS += \
-  $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
-  $(BK_SDK_LIBS_DIR)/libbk_wifi_driver.a
-endif
-ifeq ($(CONFIG_BK7258_USBHOST),y)
-EXTRA_LIBS += $(BK_SDK_LIBS_DIR)/libbk_usb.a
-endif
-ifeq ($(CONFIG_BK7258_DVP),y)
-EXTRA_LIBS += \
-  $(BK_SDK_LIBS_DIR)/libbk_dvp.a \
-  $(BK_SDK_LIBS_DIR)/libbk_camera.a \
-  $(BK_SDK_LIBS_DIR)/libbk_peripheral.a \
-  $(BK_SDK_LIBS_DIR)/libmedia_utils.a \
-  $(BK_SDK_LIBS_DIR)/libmultimedia.a
-
-# Sensor registrations live in otherwise unreferenced archive members.
-# Match the official v3.1.1.9 bk_peripheral CMake interface, which exports
-# these six -u symbols alongside its sensor-detect linker section.
-
-LDFLAGS += -u gc0308_detect_sensor
-LDFLAGS += -u gc0328c_detect_sensor
-LDFLAGS += -u gc2145_detect_sensor
-LDFLAGS += -u hm1055_detect_sensor
-LDFLAGS += -u ov2640_detect_sensor
-LDFLAGS += -u sc101_detect_sensor
-endif
-ifeq ($(CONFIG_BK7258_JPEG_DECODER),y)
-EXTRA_LIBS += $(BK_SDK_LIBS_DIR)/libbk_jpeg_decoder.a
-endif
-# libavdk_utils.a exports hnd_crc8 only.  The SDK GPIO driver calls
-# bk_ipc_send, which drags in bk_api_ipc.c.obj and with it the IPC frame
-# checksum, so the archive must be linked whenever a driver reaches the SDK
-# IPC path.  Stubbing hnd_crc8 is not an option: a wrong checksum would be
-# accepted silently by the peer.
-
-EXTRA_LIBS += \
-  $(BK_SDK_LIBS_DIR)/libdriver.a \
-  $(BK_SDK_LIBS_DIR)/libbk7258_ap.a \
-  $(BK_SDK_LIBS_DIR)/libbk_pm.a \
-  $(BK_SDK_LIBS_DIR)/libbk_adapter.a \
-  $(BK_SDK_LIBS_DIR)/libbk_common.a \
-  $(BK_SDK_LIBS_DIR)/libcommon.a \
-  $(BK_SDK_LIBS_DIR)/libbk_log.a \
-  $(BK_SDK_LIBS_DIR)/libbk_event.a \
-  $(BK_SDK_LIBS_DIR)/libavdk_utils.a \
-  $(BK_SDK_LIBS_DIR)/libcm33.a
-
-else
-
-BK_SDK_LIBS_DIR := $(shell readlink -f $(BK7258_SDK_BUNDLE_ROOT)/cp/libs)
-ifeq ($(BK_SDK_LIBS_DIR),)
-$(error BK7258 CP SDK bundle '$(BK7258_SDK_BUNDLE_VERSION)' has no libs directory)
-endif
-
-# Libraries to exclude (not needed for basic NuttX bring-up):
-# - cmsis startup (conflicts with NuttX startup)
-# - coredump, unity, at_server (testing/debug tools)
-# - lwip, wpa_supplicant, wifi (networking, not needed yet)
-# - iperf, hmac, psa_mbedtls (networking/crypto)
-# - ALL bluetooth controller/host variants (duplicate symbols).  The BT IPC
-#   profile adds only the controller-only BLE archive selected by the official
-#   CP SDK build.
-# - ble_wifi_exchange (wifi/bt coexistence)
-
-BK_EXCLUDE_LIBS := \
-  libcmsis.a libcoredump.a libunity.a libat_server.a \
-  liblwip_intf_v2_1.a libwpa_supplicant-2.10.a \
-  libiperf.a libhmac_sha_256.a libpsa_mbedtls.a \
-  libwifi.a libwifi_csi.a libwifi_csi_nspe.a libwifi_nspe.a libbk_wifi.a \
-  libble_wifi_exchange.a \
-  libbluetooth_controller.a \
-  libbluetooth_controller_ble.a \
-  libbluetooth_controller_ble_cp_slave_observer.a \
-  libbluetooth_controller_ble_cp_slave_observer_nspe.a \
-  libbluetooth_controller_ble_cp_slave_only.a \
-  libbluetooth_controller_ble_cp_slave_only_nspe.a \
-  libbluetooth_controller_ble_nspe.a \
-  libbluetooth_controller_ble_non_calibration.a \
-  libbluetooth_controller_ble_non_calibration_nspe.a \
-  libbluetooth_controller_ble_reduce.a \
-  libbluetooth_controller_ble_reduce_nspe.a \
-  libbluetooth_controller_ble_slave_only.a \
-  libbluetooth_controller_ble_slave_only_nspe.a \
-  libbluetooth_controller_bt.a \
-  libbluetooth_controller_bt_nspe.a \
-  libbluetooth_controller_controller_only_ble.a \
-  libbluetooth_controller_controller_only_ble_nspe.a \
-  libbluetooth_controller_controller_only_dual.a \
-  libbluetooth_controller_controller_only_dual_nspe.a \
-  libbluetooth_controller_dual.a \
-  libbluetooth_controller_dual_nspe.a \
-  libbluetooth_host_ble.a \
-  libbluetooth_host_ble_only.a \
-  libbluetooth_host_ble_reduce.a \
-  libbluetooth_host_ble_slave_only.a \
-  libbluetooth_host_dm.a \
-  libbluetooth_host_dm_bt.a \
-  libbluetooth_host_dm_dual.a \
-  libbk_phy_nspe.a \
-  libate_phy_nspe.a \
-  libcom_phy_nspe.a \
-  libcom_phy.a \
-  libate_phy.a \
-  libbk_rtos.a \
-  libbk_system.a \
-  libos_source.a
-
-# Build the exclude list as full paths
-BK_EXCLUDE_PATHS := $(foreach lib,$(BK_EXCLUDE_LIBS),$(BK_SDK_LIBS_DIR)/$(lib))
-
-EXTRA_LIBS += $(filter-out $(BK_EXCLUDE_PATHS),$(wildcard $(BK_SDK_LIBS_DIR)/*.a))
-
-# Match the official CP controller-only build instead of pulling the generic
-# controller archive.  libcom_phy.a is the exported full PHY/calibration
-# archive (the bundle's libbk_phy.a name is occupied by the SDK component
-# archive).  The v3.1.1.9 PHY adapter was built with CONFIG_WIFI_ENABLE=y and
-# its immutable function table consequently needs the Wi-Fi/lwIP archive
-# closure.  These archives are linked as the PHY backend; the NuttX wrapper
-# does not call the SDK Wi-Fi or lwIP startup paths.  SDK bk_system remains
-# excluded because its FreeRTOS tick/printf runtime conflicts with the NuttX
-# board adapters.  Keep the additions scoped to the BT IPC profile so the
-# established CP baseline link remains unchanged.
-
-ifeq ($(CONFIG_BK7258_BT_IPC),y)
-EXTRA_LIBS += \
-  $(BK_SDK_LIBS_DIR)/libbluetooth_controller_controller_only_ble.a \
-  $(BK_SDK_LIBS_DIR)/libcom_phy.a \
-  $(BK_SDK_LIBS_DIR)/libwifi.a \
-  $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
-  $(BK_SDK_LIBS_DIR)/liblwip_intf_v2_1.a
-endif
-
-ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
-EXTRA_LIBS += \
-  $(BK_SDK_LIBS_DIR)/libcom_phy.a \
-  $(BK_SDK_LIBS_DIR)/libwifi.a \
-  $(BK_SDK_LIBS_DIR)/libbk_wifi.a \
-  $(BK_SDK_LIBS_DIR)/libcontroller_if.a \
-  $(BK_SDK_LIBS_DIR)/libwpa_supplicant-2.10.a \
-  $(BK_SDK_LIBS_DIR)/libpsa_mbedtls.a \
-  $(BK_SDK_LIBS_DIR)/liblwip_intf_v2_1.a
-endif
-
-endif
-
-# POSTBUILD: once nuttx.bin exists, CRC-expand it and prepend the Tier-1
-# bootloader (bl_crc.bin) to produce all-app.bin, ready for flashing at
-# physical offset 0x0.  The script is idempotent and safe to re-run.
-
-define POSTBUILD
-	$(Q) $(BOARD_DIR)$(DELIM)scripts$(DELIM)postbuild.sh $(TOPDIR) $(BOARD_DIR) $(BK7258_IMAGE_ROLE)
-endef
+EXTRA_LIBS += $(BK7258_SDK_LINK_INPUTS)

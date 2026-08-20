@@ -9,37 +9,39 @@
  * start.S does not need to zero .bss.
  */
 
-#include "../chip/include/bk7258_memorymap.h"
-#include <bk7258_partition_layout.h>
+#include <bk7258_partitions.h>
 #include "boot_bl2_contract.h"
 
 ENTRY(Reset_Handler)
+bk7258_bl1_bl2_copy_size = BK7258_BL2_COPY_SIZE;
 
 MEMORY
 {
-    FLASH (rx)  : ORIGIN = BK7258_ROLE_BOOT_XIP_START,
-                  LENGTH = BK7258_ROLE_BOOT_LOGICAL_SIZE -
-                           BK7258_BL1_MANIFEST_TAIL_SIZE - 0x100
-    TRUST (rx)  : ORIGIN = BK7258_ROLE_BOOT_XIP_END -
-                           BK7258_BL1_MANIFEST_TAIL_SIZE - 0x100,
+#if BK7258_BL1_SIGNED
+    FLASH (rx)  : ORIGIN = BK7258_ARTIFACT_BOOT_XIP_START,
+                  LENGTH = BK7258_ARTIFACT_BOOT_LOGICAL_SIZE - 0x100
+    TRUST (rx)  : ORIGIN = BK7258_ARTIFACT_BOOT_XIP_END - 0x100,
                   LENGTH = 0x100
+#else
+    FLASH (rx)  : ORIGIN = BK7258_ARTIFACT_BOOT_XIP_START,
+                  LENGTH = BK7258_ARTIFACT_BOOT_LOGICAL_SIZE
+#endif
     RAM   (rwx) : ORIGIN = 0x28000000, LENGTH = 0x000A0000
 }
 
 SECTIONS
 {
-    .text BK7258_ROLE_BOOT_XIP_START : {
+    .text BK7258_ARTIFACT_BOOT_XIP_START : {
         *(.text.startup)
         *(.text*)
     } > FLASH
 
-    /* Stable public identity used by the pre-flash trust probe.  Keep this
-     * outside ordinary .rodata so code growth cannot move its addresses. */
-    .trust_identity : {
+#if BK7258_BL1_SIGNED
+    .bk7258.trust.bl1 : {
         KEEP(*(.rodata.bk7258_bl1_manifest_root_public_key))
-        KEEP(*(.rodata.bk7258_bl1_manifest_root_public_key_hash))
         KEEP(*(.rodata.bk7258_beken_manifest_root_public_key_hash))
     } > TRUST
+#endif
 
     .rodata : {
         *(.rodata*)
@@ -69,8 +71,10 @@ SECTIONS
 
     ASSERT(SIZEOF(.data) == 0, "bootloader must not require initialized RAM data")
     ASSERT(SIZEOF(.bss) == 0, "bootloader must not retain hidden BSS state")
-    ASSERT(SIZEOF(.trust_identity) == 0x80,
-           "bootloader trust identity must contain P-256 X||Y plus two hashes")
+#if BK7258_BL1_SIGNED
+    ASSERT(SIZEOF(.bk7258.trust.bl1) == 0x60,
+           "bootloader trust identity must contain P-256 X||Y plus its hash")
     ASSERT((ADDR(.rodata) + SIZEOF(.rodata)) <=
            ORIGIN(TRUST), "bootloader overlaps the fixed trust identity")
+#endif
 }

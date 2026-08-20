@@ -1,9 +1,0 @@
-{
-  "id": "t5_board",
-  "kind": "board",
-  "resource_claims": [],
-  "schema": "bk7258.composition/1",
-  "soc": "bk7258",
-  "transport": {"capabilities": ["serial-console"], "identity_hints": {}},
-  "variant": "t5_board"
-}

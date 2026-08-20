@@ -5,95 +5,72 @@ Updated by: Codex
 
 ## Objective
 
-The implementation is nearing completion.  The active phase is a
-maintainer-first architecture cleanup: remove obsolete compatibility paths,
-reduce duplicated configuration and host tooling, and leave one obvious way
-to build and maintain each supported BK7258 product without changing verified
-runtime behavior prematurely.
+Replace the historical BK7258 framework/wrapper tree with one public
+`tools/bk7258/bk7258.py build|sdk|package|verify` and six internal domains.
 
 ## Repository state
 
 - Repository: `contest2026_135_yongwangzhiqian`
-- Branch: `feat/bk7258-ai-toy-vela-claw`
-- Implementation checkpoint: `36cea32` (`refactor(bk7258): begin maintenance
-  architecture cleanup`)
-- Pre-checkpoint product HEAD: `ef9e23f`
-- Auxiliary `.worktrees`, `.eq-workspace` and `.jpeg-workspace` checkouts were
-  removed; active development is restricted to the primary checkout.
-- Existing unrelated untracked logs, boot artifacts and personal helper
-  scripts remain owner work and must not be staged, rewritten or deleted by
-  the architecture cleanup.
+- Branch: `refactor/bk7258-sdk-manifest`
+- HEAD: `27ddd6c73c0291bc938765fae002089317657a9f`
+- Changes are uncommitted and unpushed.
+- Owner-untracked logs, `bootloader.tmp`, doc-stress helpers and
+  `build_package.sh` remain untouched.
 
-## Material work complete
+## Implemented architecture
 
-- Existing product work through `ef9e23f` remains intact: missing peripheral
-  drivers, AIDK AI Toy support, Vela-Claw, UART ownership and T5-Board screen
-  UI changes are present in the current history.
-- The first host-tool redundancy was removed without changing the flash
-  format: `bk7258_crc_expand.py` was folded into the canonical
-  `bk7258_crc16.py` codec/CLI, and BL2, postbuild, isolated delivery, path
-  allowlists and tests now consume the single implementation.
-- Project rules now require primary-checkout-only development and use one
-  agent by default, with bounded Terra/Luna delegation for independent work.
-- CodeGraph was synchronized after deleting the auxiliary workspaces, so old
-  worktree copies no longer act as architecture evidence.
+- The only tracked public tool is `bk7258.py`; `_lib` contains exactly
+  `build.py`, `sdk.py`, `layout.py`, `image.py`, `package.py`, `trust.py`.
+- The team manifest pins SDK `cb080de...` and OpenVela ARM prebuilt
+  `948af44a...`. OpenVela, SDK rebuild and project BL1/BL2 share it with no
+  compiler PATH fallback.
+- SDK profiles are `cp`, `ap`, `ap-sdio4`; each owns one accepted bundle-tree
+  hash and NuttX closure omissions. Registry/set/lock/provenance are gone.
+- Three board-name-independent CSVs select `onchip-persistent`,
+  `removable-block` or `fixed-block`. They retain the verified BL1,
+  Manifest/BL2 A/B and CP/AP A/B initial geometry; sizes remain CSV-editable.
+- Project BL1 and the board-verified freestanding project BL2 build only under
+  `out/`. The official Beken bootloader is reference-only. The unused NuttX
+  BL2 config/glue and tracked development public keys are deleted.
+- `--boot direct|mcuboot` is explicit. MCUboot uses build-local defconfig
+  overlays and public-key C sources, not tracked boot-mode config copies.
+- `image.py` alone owns CRC/pair/final Flash bytes. `package.py` stores those
+  bytes unchanged and records every preserved external artifact.
+- Signed release uses explicit public/private PEMs, separate BL1/MCUboot
+  counters and pinned imgtool. Public verification covers Manifest A/B,
+  compiled BL1/BL2 roots and CP/AP signatures. No private path is packaged.
+- Hardware/debug/Flash transport remains outside `_lib` in the Windows SOP.
 
-## Verification
+## Evidence obtained
 
-- `python3 tools/bk7258/tests/test_bk7258_crc16.py`: 5/5 PASS, including
-  vendor-byte-exact encoding, CLI vector/size/magic checks, padding and JSON
-  manifest output.
-- `python3 tools/bk7258/tests/test_bk7258_paths.py`: 27/27 PASS.
-- `python3 tools/bk7258/tests/test_bk7258_aidk.py`: 12/12 PASS, including real
-  host postbuild and private partition-contract paths.
-- `python3 tools/bk7258/tests/test_bk7258_isolated_executor.py`: 28 tests PASS
-  with one expected skip when stale local BL1/BL2 ELF artifacts are hidden.
-  The ambient 2026-08-19 `bl.elf` lacks current handoff symbols and causes the
-  artifact-dependent test to fail if left visible; this predates `36cea32`
-  and is not a CRC regression.
-- `bash -n board/bk7258/scripts/postbuild.sh`: PASS.
-- `git diff --check`: PASS.
-- No firmware build, signing, package delivery, hardware or flash operation
-  was performed in this cleanup checkpoint.
+- [Boot/storage source checkpoint](verification/2026-08-20-bk7258-single-cli-boot-storage-source.md)
+- SDK CP/AP/AP-SDIO4 rebuild and tree verification passed before this slice;
+  hashes remain recorded in the earlier real-build checkpoint.
+- Before switching from the host compiler to the newly pinned OpenVela
+  prebuilt, a real official CP/AP build plus the new out-of-tree project BL1
+  passed. The resulting project-BL1 unsigned package was deterministic and
+  independently verified (`d39ad4c...`). This is exploratory path evidence,
+  not final prebuilt-toolchain acceptance.
+- Three new layout CSVs parse successfully.
+- Host-only temporary P-256 public-source generation and 256-byte BL1
+  Manifest signing passed; the temporary private keys were deleted.
+- Python source compilation and `git diff --check` pass as of the latest
+  checkpoint.
 
-## Accepted working direction
+## Not yet verified
 
-- Keep one logical `board/bk7258` port with three physical variants:
-  `t5ai_core`, `t5_board` and `aidk_ai_toy`.
-- Expose one product entry per physical board; internally each product retains
-  separate CP and AP role defconfigs.  BL1/MCUboot BL2 and the partition/trust
-  contract should be shared when the hardware contract permits it.
-- Keep chip mechanics, immutable board electrical facts, role configuration,
-  product/application selection and validation configuration as separate
-  ownership layers.
-- Converge on one human-facing build/verify/package entry while preserving
-  algorithm modules and fail-closed trust checks internally.
-
-## Risks and unresolved decisions
-
-- `board/bk7258/configs/README.md` describes three retained seeds, but the
-  tracked tree now contains product, drivercheck and two full `*.config`
-  pairs.  The source of truth is not yet reconciled.
-- The tracked `personal/*.config` pairs cannot be removed yet: owner-created
-  untracked `build_package.sh` and the document-stress fragment consume them.
-- `build_dual_image.sh` and the framework/isolated executor remain parallel
-  orchestration surfaces.  No removal is safe until one accepted product path
-  reproduces the required BL1/BL2/CP/AP and package evidence.
-- The target common MCUboot boot chain is an architecture direction, not yet a
-  claim that all three current board profiles build or boot identically.
+- The pinned ARM prebuilt checkout is not fully synchronized. A slow fetch was
+  stopped at the owner's direction; no final prebuilt-based firmware build ran.
+- The new BL2 Makefile, signed CP/AP release, public package trust verifier and
+  all three storage topologies have not run end to end.
+- No new artifact has been flashed. No erase, OTP/eFuse, lifecycle, debug-lock
+  or other irreversible hardware operation occurred.
 
 ## Exact next action
 
-Derive compact CP/AP defconfigs for the three supported board products from
-the current verified inputs, migrate the owner helper consumers to those
-profiles, and remove full `personal/*.config` files only after consumer and
-build verification reach zero ambiguity.  Then select the sole orchestration
-entry and retire its compatibility peer in a separate reviewed change.
+Finish active documentation/residual cleanup, run static host checks, and
+record the final source-only checkpoint. Toolchain synchronization, signed
+integration build and recoverable hardware validation remain explicit later
+execution steps rather than inferred PASS results.
 
-## Boundaries
-
-- Do not alter official NuttX/apps/SDK sources or SDK static libraries.
-- Do not use auxiliary worktrees or historical N17 trust domains.
-- Do not flash hardware, read private keys, sign production images, commit,
-  push or create a PR without the corresponding current-turn authorization.
-- Preserve all unrelated untracked files and logs.
+Do not commit or push without fresh explicit authority.

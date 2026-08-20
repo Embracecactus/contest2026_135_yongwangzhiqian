@@ -23,17 +23,15 @@
 enum bk7258_flash_guard_owner_e
 {
   BK7258_FLASH_GUARD_NONE = 0,
-  BK7258_FLASH_GUARD_DATA = 1,
-  BK7258_FLASH_GUARD_MCUBOOT = 2
+  BK7258_FLASH_GUARD_DATA = 1
 };
 
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
 
-/* Serialize every team-owned CP Flash transaction.  A zero timeout preserves
- * the existing LittleFS wait-forever behavior.  write_access must be false
- * for the read-only MCUboot image partitions.
+/* Serialize every team-owned CP persistent-data transaction.  A zero timeout
+ * preserves the filesystem wait-forever behavior.
  * The SDK permission wrapper grants writes only to the calling PID, owner
  * kind and exact frozen range held by this guard.
  */

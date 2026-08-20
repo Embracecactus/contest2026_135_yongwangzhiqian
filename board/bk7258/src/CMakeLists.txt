@@ -88,8 +88,8 @@ endif()
 target_include_directories(board PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../chip/common
     ${CMAKE_CURRENT_SOURCE_DIR}/../chip/cp
-    ${BK7258_SDK_ROLE_DIR}/include
-    ${BK7258_SDK_ROLE_DIR}/config)
+    ${BK7258_SDK_INCLUDE_DIR}
+    ${BK7258_SDK_CONFIG_DIR})
 
 # Board bindings include the same immutable SDK headers as the chip lower
 # halves.  NuttX exports arch include directories to the board target, but

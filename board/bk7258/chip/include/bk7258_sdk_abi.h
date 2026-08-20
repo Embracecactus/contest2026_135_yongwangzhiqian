@@ -30,8 +30,8 @@
  ****************************************************************************/
 
 /* This boundary is pinned to the sole active runtime SDK.  Bundle selection
- * and archive checksum verification remain owned by bk_idk/sdk-bundles.* and
- * build_dual_image.sh; this value identifies the C ABI described below.
+ * and bundle tree verification remain owned by bk7258.py sdk and
+ * bk7258.py build; this value identifies the C ABI described below.
  */
 
 #define BK7258_SDK_ABI_VERSION_V3119       0x03010109u
