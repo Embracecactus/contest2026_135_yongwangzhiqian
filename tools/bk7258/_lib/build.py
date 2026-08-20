@@ -373,12 +373,15 @@ def _config_header(guard: str, macros: dict[str, int]) -> str:
         f"#define {guard}",
         "",
     ]
-    lines.extend(f"#define {name} {value}u" for name, value in macros.items())
+    lines.extend(f"#define {name} {value}" for name, value in macros.items())
     lines.extend(("", "#endif", ""))
     return "\n".join(lines)
 
 
-def _bl1_config(cp: RoleBuild, *, signed: bool, bl2_copy_size: int) -> str:
+def _bl1_config(cp: RoleBuild, *, signed: bool, bl2_copy_size: int,
+                rollback_floor: int) -> str:
+    if rollback_floor < 0:
+        raise BuildError("rollback floor must be non-negative")
     route = _early_route(cp)
     macros = {
         "BK7258_BL1_SIGNED": int(signed),
@@ -389,6 +392,7 @@ def _bl1_config(cp: RoleBuild, *, signed: bool, bl2_copy_size: int) -> str:
         "BK7258_BL1_OTP_ROOT_POLICY": int(signed),
         "BK7258_BL1_TRUSTENGINE_PROBE": 0,
         "BK7258_BL2_COPY_SIZE": bl2_copy_size,
+        "BK7258_BL1_MANIFEST_MIN_IMAGE_VERSION": rollback_floor,
         "BK7258_BL1_SWD_ENABLE": route.swd_enable,
         "BK7258_BL1_SWD_PIN_GROUP": route.swd_pin_group,
         "BK7258_BL1_SWD_TARGET": route.swd_target,
@@ -529,9 +533,10 @@ def _build_config_root(workspace: Path, cp: ConfigProfile, ap: ConfigProfile,
                        selected: ConfigProfile,
                        selected_layout: layout_domain.Layout,
                        boot: str) -> Path:
-    if boot == "direct":
-        return selected.root
-    root = _pair_root(workspace, cp, ap, selected_layout) / "configs" / selected.role
+    root = (
+        _pair_root(workspace, cp, ap, selected_layout)
+        / "configs" / boot / selected.role
+    )
     if root.is_symlink():
         raise BuildError(f"generated build config root must not be a symlink: {root}")
     lines = [
@@ -539,8 +544,18 @@ def _build_config_root(workspace: Path, cp: ConfigProfile, ap: ConfigProfile,
         if not line.startswith("CONFIG_BK7258_MCUBOOT_IMAGE=")
         and line != "# CONFIG_BK7258_MCUBOOT_IMAGE is not set"
     ]
-    lines.extend(("", "CONFIG_BK7258_MCUBOOT_IMAGE=y"))
+    boot_setting = (
+        "CONFIG_BK7258_MCUBOOT_IMAGE=y"
+        if boot == "mcuboot"
+        else "# CONFIG_BK7258_MCUBOOT_IMAGE is not set"
+    )
+    lines.extend(("", boot_setting))
     _atomic_text(root / "defconfig", "\n".join(lines) + "\n")
+    make_defs = _regular(
+        selected.root.parent.parent / "scripts/Make.defs",
+        f"{selected.role} board Make.defs",
+    )
+    _atomic_text(root / "Make.defs", make_defs.read_text(encoding="utf-8"))
     return root
 
 
@@ -673,9 +688,16 @@ def _build_bl2(repository: Path, workspace: Path, cp: RoleBuild, ap: RoleBuild,
                 f"BL2 size is not stable after binding its copy contract: "
                 f"{copy_size} -> {rebuilt_copy_size}"
             )
+    elf = _regular(root / "bl2.elf", "project BL2 ELF")
+    try:
+        trust_domain.validate_bl2_vector(
+            binary, elf, toolchain.binary_dir / "arm-none-eabi-nm"
+        )
+    except trust_domain.TrustError as error:
+        raise BuildError(f"project BL2 vector contract failed: {error}") from error
     return Bl2Build(
         root=root,
-        elf=_regular(root / "bl2.elf", "project BL2 ELF"),
+        elf=elf,
         binary=binary,
         map_file=_regular(root / "bl2.map", "project BL2 map"),
         config_header=_regular(config_header, "project BL2 config"),
@@ -685,7 +707,7 @@ def _build_bl2(repository: Path, workspace: Path, cp: RoleBuild, ap: RoleBuild,
 
 def _build_bl1(repository: Path, workspace: Path, cp: RoleBuild, ap: RoleBuild,
                selected_layout: layout_domain.Layout, toolchain: Toolchain, *,
-               signed: bool, bl2_copy_size: int,
+               signed: bool, bl2_copy_size: int, rollback_floor: int,
                key_source: Path | None, clean: bool) -> BootBuild:
     root = _common_root(workspace, cp, ap, selected_layout) / "bl1"
     if root.is_symlink():
@@ -694,7 +716,10 @@ def _build_bl1(repository: Path, workspace: Path, cp: RoleBuild, ap: RoleBuild,
     config_header = root / "bk7258_bl1_config.h"
     _atomic_text(
         config_header,
-        _bl1_config(cp, signed=signed, bl2_copy_size=bl2_copy_size),
+        _bl1_config(
+            cp, signed=signed, bl2_copy_size=bl2_copy_size,
+            rollback_floor=rollback_floor,
+        ),
     )
     makefile = _regular(
         repository / "board/bk7258/bootloader/Makefile", "project BL1 Makefile"
@@ -816,7 +841,7 @@ def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
         bl1 = _build_bl1(
             repository, workspace, cp_result, ap_result, selected_layout,
             toolchain, signed=False, bl2_copy_size=32,
-            key_source=None, clean=clean,
+            rollback_floor=0, key_source=None, clean=clean,
         )
         artifacts, preserved_external = _finalize_direct_images(
             workspace, cp_result, ap_result, bl1, selected_layout
@@ -840,6 +865,7 @@ def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
         bl1 = _build_bl1(
             repository, workspace, cp_result, ap_result, selected_layout,
             toolchain, signed=True, bl2_copy_size=bl2.copy_size,
+            rollback_floor=rollback_floor,
             key_source=public_sources.bl1_source, clean=clean,
         )
         artifacts = ()

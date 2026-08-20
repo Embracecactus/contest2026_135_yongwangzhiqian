@@ -63,7 +63,7 @@ CPPFLAGS := -I$(SOURCE) -I$(SOURCE)/include -I$(SOURCE)/../../chip/include \
 CFLAGS := $(CPUFLAGS) -Os -g -ffreestanding -fno-builtin \
           -fdata-sections -ffunction-sections -Wall -Wextra $(CPPFLAGS)
 ASFLAGS := $(CPUFLAGS) -Os -g -ffreestanding $(CPPFLAGS)
-LDFLAGS := $(CPUFLAGS) -nostdlib -Wl,--gc-sections \
+LDFLAGS := $(CPUFLAGS) -nostdlib -Wl,--gc-sections -Wl,--build-id=none \
            -T $(OUT)/bl2.ld -Wl,-Map=$(OUT)/bl2.map
 
 OBJECTS := \
