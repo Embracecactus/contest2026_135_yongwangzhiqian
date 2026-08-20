@@ -12,8 +12,8 @@ Replace the historical BK7258 framework/wrapper tree with one public
 
 - Repository: `contest2026_135_yongwangzhiqian`
 - Branch: `refactor/bk7258-sdk-manifest`
-- HEAD: `27ddd6c73c0291bc938765fae002089317657a9f`
-- Changes are uncommitted and unpushed.
+- Implementation commit: `2ee0fe37290ce9497f4c54be723466a41ef62bd7`
+- Remote: `fork/refactor/bk7258-sdk-manifest`; implementation commit pushed.
 - Owner-untracked logs, `bootloader.tmp`, doc-stress helpers and
   `build_package.sh` remain untouched.
 
@@ -68,9 +68,9 @@ Replace the historical BK7258 framework/wrapper tree with one public
 
 ## Exact next action
 
-Finish active documentation/residual cleanup, run static host checks, and
-record the final source-only checkpoint. Toolchain synchronization, signed
-integration build and recoverable hardware validation remain explicit later
-execution steps rather than inferred PASS results.
+Open a PR from `Embracecactus:refactor/bk7258-sdk-manifest` to
+`open-vela:dev-ai-contest-2026` and review the source-only boundary. Toolchain
+synchronization, signed integration build and recoverable hardware validation
+remain explicit later steps rather than inferred PASS results.
 
 Do not commit or push without fresh explicit authority.
