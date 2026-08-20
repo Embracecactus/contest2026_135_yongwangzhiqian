@@ -3,7 +3,7 @@ MCUBOOT := $(TOP)apps/boot/mcuboot/mcuboot
 
 CC := arm-none-eabi-gcc
 OBJCOPY := arm-none-eabi-objcopy
-CRC_PACKER := ../../scripts/bk7258_crc_expand.py
+CRC_PACKER := ../../scripts/bk7258_crc16.py
 PARTITION_CSV ?= ../../partitions/bk7258/auto_partitions.csv
 PARTITION_GENERATOR ?= ../../scripts/gen_bk7258_partitions.py
 PARTITION_CONTRACT_ROOT ?=

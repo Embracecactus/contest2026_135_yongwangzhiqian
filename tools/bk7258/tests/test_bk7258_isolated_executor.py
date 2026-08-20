@@ -63,7 +63,7 @@ class IsolatedPrepareTests(unittest.TestCase):
                 "bootloader/Makefile", "bootloader/bl2/Makefile",
                 "chip/include/bk7258_memorymap.h", "include/board.h",
                 "partitions/bk7258/auto_partitions.csv",
-                "scripts/gen_bk7258_partitions.py", "scripts/bk7258_crc_expand.py"):
+                "scripts/gen_bk7258_partitions.py", "scripts/bk7258_crc16.py"):
             path = board / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"fixture:{relative}\n", encoding="utf-8")

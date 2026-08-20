@@ -44,7 +44,6 @@ MANIFEST_MARKER_FILES = (
 # 两个 Python 构建钩子）。
 BOARD_SCRIPT_ALLOWLIST = (
     "gen_bk7258_partitions",
-    "bk7258_crc_expand",
     "bk7258_crc16",
 )
 
@@ -134,8 +133,7 @@ def load_board_script(name: str) -> Any:
     """按绝对路径显式加载 ``board/bk7258/scripts`` 里的直接构建钩子模块。
 
     仅允许 ``BOARD_SCRIPT_ALLOWLIST`` 中的模块名（收敛后 scripts/ 中仅有的
-    三个 Python 构建钩子 ``gen_bk7258_partitions`` / ``bk7258_crc_expand`` /
-    ``bk7258_crc16``，
+    两个 Python 构建钩子 ``gen_bk7258_partitions`` / ``bk7258_crc16``，
     其直接依赖 armino SDK 模块布局，故不能变为 ``tools/bk7258`` 的同级模块）。
 
     本函数即为唯一的 sanctioned 导入边界：用 ``importlib`` 按绝对路径加载，

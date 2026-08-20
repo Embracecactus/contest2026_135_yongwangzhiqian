@@ -1,6 +1,6 @@
 # Project Rules
 
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-20
 
 ## Domain invariants
 
@@ -35,6 +35,10 @@ Last reviewed: 2026-08-15
   contest repository's latest `dev-ai-contest-2026`.  Do not continue
   development on an already merged fork branch or auxiliary worktree; a fork
   is publication transport only when the contest workflow requires it.
+- Active development, review and verification use only the primary contest
+  repository checkout.  Do not create or use `.worktrees/`, auxiliary
+  worktrees, or workspace clones as implementation or evidence sources unless
+  the owner explicitly reactivates that workflow.
 - Temporary diagnostic edits to official trees are allowed only for debugging and must be removed before a checkpoint.
 - Do not commit, push, open a PR, flash a destructive factory image, or mutate external repositories unless the user grants the corresponding authority.
 - The owner grants the primary agent standing authority for bounded,
@@ -151,18 +155,23 @@ Last reviewed: 2026-08-15
   scripts or a parallel validation framework merely to avoid direct board
   testing; reuse the existing build/flash/debug path and add only the smallest
   unit test or observable diagnostic needed to isolate a failure.
-- The default, owner-revocable model division is: `gpt-5.6-sol` at `xhigh`
-  owns project planning, architecture, task decomposition, review,
-  integration decisions and final acceptance. Boundary-clear implementation
-  and focused tests may be delegated to `gpt-5.6-luna` at `max`, or to
-  CodeBuddy `hy3` with effort `max`. Every delegation must state exact file
-  and behavior scope, forbidden actions, acceptance criteria and expected
-  evidence; the primary agent reviews the returned diff and evidence before
-  accepting or integrating it. Delegation does not expand any permission in
-  this file, especially official-source, hardware, Flash, OTP/eFuse, commit,
-  push or architecture authority. The owner may cancel or replace this model
-  division at any time; on cancellation, stop new delegation and safely halt
-  active delegated work at the next non-destructive boundary.
+- The default, owner-revocable model division uses one agent unless a task is
+  independent and bounded. `gpt-5.6-sol` at `high` owns requirements,
+  architecture, ambiguous root causes, integration decisions and final
+  acceptance. `gpt-5.6-terra` at `medium` may handle read-heavy exploration,
+  logs, ordinary review and evidence gathering. `gpt-5.6-luna` at `low` or
+  `medium`, or CodeBuddy `hy3` at a proportionate effort, may handle narrow,
+  repeatable and mechanically verifiable checks or small implementation work.
+  Run no more than two subagents concurrently, do not parallelize dependent
+  tasks or overlapping edits, and reuse an existing thread for follow-ups.
+  Every delegation must state exact file and behavior scope, forbidden
+  actions, acceptance criteria and expected concise evidence; the primary
+  agent reviews the returned diff and evidence before accepting or integrating
+  it. Delegation does not expand any permission in this file, especially
+  official-source, hardware, Flash, OTP/eFuse, commit, push or architecture
+  authority. The owner may cancel or replace this model division at any time;
+  on cancellation, stop new delegation and safely halt active delegated work
+  at the next non-destructive boundary.
 - UART capture, reset-synchronized UART capture, COM-port enumeration and
   guarded J-Link diagnostics must use the repository-owned
   `tools/windows-hardware-debug` toolkit by default. Delegate these bounded

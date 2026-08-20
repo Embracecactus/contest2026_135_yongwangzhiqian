@@ -1985,7 +1985,7 @@ def _expected_delivery_commands(value: dict[str, Any], delivery: dict[str, Any],
                 "BK7258_PARTITION_LAYOUT_SHA256": layout["layout_sha256"],
             }, "none", 2),
         make("bl2-pack", "python3", [
-            python, str(scripts / "bk7258_crc_expand.py"), "--in", str(bl2_staged),
+            python, str(scripts / "bk7258_crc16.py"), "--in", str(bl2_staged),
             "--out", str(payload / "bl2_crc.bin"), "--xip-base", hex(primary_xip),
             "--execution-base", hex(0x28020000), "--max-size", hex(bl2_capacity),
             "--pad-size", hex(bl2_logical_size)], payload, {
@@ -3451,10 +3451,10 @@ def _delivery_tool_records(
 ) -> dict[str, dict[str, str]]:
     paths = {
         "postbuild": source_board / "scripts/postbuild.sh",
-        "crc_expand": source_board / "scripts/bk7258_crc_expand.py",
+        "crc_expand": source_board / "scripts/bk7258_crc16.py",
         "bl1_pack": source_board / "bootloader/bk7258_bl1_pack.py",
         "bl1_manifest": source_board / "bootloader/bk7258_bl1_pack.py",
-        "bl2_crc": source_board / "scripts/bk7258_crc_expand.py",
+        "bl2_crc": source_board / "scripts/bk7258_crc16.py",
         "mcuboot_pair": source_tools / "pack_bk7258_mcuboot_pair.py",
         "dual_image": source_tools / "pack_dual_image.py",
         "bkpack": source_tools / "bk7258_bkpack.py",
@@ -3938,7 +3938,7 @@ def deliver(
 
     bl2_crc = delivery_root / "payload/bl2_crc.bin"
     run("bl2-pack", "python3", [
-        python, str(scripts / "bk7258_crc_expand.py"), "--in", str(bl2_staged),
+        python, str(scripts / "bk7258_crc16.py"), "--in", str(bl2_staged),
         "--out", str(bl2_crc), "--xip-base", hex(primary_xip),
         "--execution-base", hex(0x28020000), "--max-size", hex(bl2_capacity),
         "--pad-size", hex(bl2_logical_size),
@@ -4338,7 +4338,7 @@ def prepare_delivery(
     })
     bl2_crc = delivery_root / "payload/bl2_crc.bin"
     run("bl2-pack", "python3", [
-        python, str(scripts / "bk7258_crc_expand.py"), "--in", str(bl2_staged),
+        python, str(scripts / "bk7258_crc16.py"), "--in", str(bl2_staged),
         "--out", str(bl2_crc), "--xip-base", hex(primary_xip),
         "--execution-base", hex(0x28020000), "--max-size", hex(bl2_capacity),
         "--pad-size", hex(bl2_logical_size),
