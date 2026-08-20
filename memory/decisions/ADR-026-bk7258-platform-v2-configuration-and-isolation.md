@@ -1,6 +1,6 @@
 # ADR-026: BK7258 platform-v2 configuration freeze and isolation model
 
-- Status: Accepted for the P0-P9a structural baseline and approved 27-to-3 seed cutover; the isolated four-role `compile-runtime`/`COMPILE_ONLY` contract and isolated postbuild standard-alias surface are implemented and verified. Production signing/package delivery, P9b, validation migration and hardware remain open; signing requires separate authorization, and host fixture package tests are not a real signed delivery.
+- Status: Superseded by ADR-028. Retained as historical evidence for the P0-P9a cutover.
 - Date: 2026-08-16
 - Supersedes: ADR-024 (the ADR-024 historical body is retained unchanged)
 - Decision owner: Project owner

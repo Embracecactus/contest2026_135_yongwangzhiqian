@@ -32,3 +32,34 @@
   BL1/BL2 ELF and binaries, then require the non-halting J-Link fingerprint
   preflight before the existing apps-only loader path.  Do not record private
   material or private-key paths in repository memory.
+
+## BK7258 architecture guard
+
+- Before reading an old implementation as a design input, freeze four things:
+  the final public command tree, the internal domain boundaries, the sole
+  source of truth for every mutable fact, and the deletion set. If any of
+  these is unknown, stop at architecture analysis instead of adding a
+  compatibility layer.
+- Design from the accepted target architecture, not from the historical file
+  tree. Before a refactor, state the target public commands, internal domains
+  and deletion set. Never perform a one-file-to-one-file compatibility move.
+- Historical scripts, schemas, tests and documentation are evidence, not
+  requirements. Preserve a behavior only when a current build, package,
+  verification or hardware path actually consumes it.
+- `tools/bk7258/` has exactly one tracked public entry: `bk7258.py`, exposing
+  only `build`, `sdk`, `package` and `verify`. Implementation belongs under
+  `_lib` by domain; do not add public wrappers or compatibility CLIs unless the
+  owner explicitly requests one.
+- Team manifest owns SDK/toolchain identity. CP/AP profile metadata owns
+  board/role compatibility, while `--boot` is an explicit command input. The
+  selected partition CSV owns geometry, storage topology, semantic roles and
+  build/write policy. Python, shell, Make and CMake may consume these facts
+  but must not duplicate them.
+- Before accepting a BK7258 cleanup, report which old layers were deleted,
+  confirm tracked top-level file count did not grow, and search for duplicate
+  version/profile/layout truths. If a new file does not replace a real domain
+  capability, delete it rather than documenting it.
+- Reject a refactor that introduces a version, SDK checkout path, profile
+  filename, partition address or build-policy conditional outside its owning
+  manifest/profile/CSV. A changed historical test or document is never, by
+  itself, evidence that the compatibility surface must survive.

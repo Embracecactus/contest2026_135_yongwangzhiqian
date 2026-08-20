@@ -20,7 +20,7 @@ for the 2026 openvela hardware-porting contest.
 - Run CP NuttX plus AP native SMP NuttX with bounded lifecycle and RPMsg services.
 - Integrate Beken capabilities through minimal board wrappers while preserving official trees.
 - Attach source, build, and physical-board evidence to every completed MAIN Stage.
-- Keep rollback profiles and deterministic SDK bundle checks available.
+- Keep recoverable A/B boot behavior and deterministic SDK bundle checks.
 
 ## In scope
 
@@ -42,8 +42,11 @@ for the 2026 openvela hardware-porting contest.
 
 ## External constraints
 
-- The project owner requires wrapper-based integration; temporary official-tree debug edits are allowed only if removed before the deliverable checkpoint.
-- Official v3.1.1.9 is the sole active SDK baseline; legacy inputs remain preserved references and are not validated until the active stage is complete and the owner separately approves that work.
+- The project owner requires team-owned integration without modifying official
+  trees; temporary official-tree debug edits must be removed before a
+  deliverable checkpoint.
+- Official v3.1.1.9 is the sole active SDK baseline; no legacy bundle fallback
+  exists. The team manifest also pins the OpenVela ARM prebuilt.
 - Hardware mutation, commit, push, PR, and destructive factory flash require their normal explicit authority.
 - Canonical current state is `progress/CURRENT.md`; the roadmap records phase
   history without making retired N15/N17 code part of the active firmware.

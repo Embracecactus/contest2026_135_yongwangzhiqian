@@ -92,8 +92,7 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
   int ret;
 
   if (up_interrupt_context() ||
-      (owner != BK7258_FLASH_GUARD_DATA &&
-       owner != BK7258_FLASH_GUARD_MCUBOOT))
+      owner != BK7258_FLASH_GUARD_DATA)
     {
       return -EINVAL;
     }
@@ -108,11 +107,6 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
       g_bk7258_flash_guard_depth++;
       __asm volatile ("dmb sy" ::: "memory");
       return OK;
-    }
-
-  if (write_access && owner == BK7258_FLASH_GUARD_MCUBOOT)
-    {
-      return -EROFS;
     }
 
   if (timeout_ms == 0)

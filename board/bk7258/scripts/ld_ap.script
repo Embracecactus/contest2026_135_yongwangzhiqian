@@ -12,8 +12,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include "../chip/include/bk7258_memorymap.h"
-#include <bk7258_partition_layout.h>
+#include <bk7258_partitions.h>
 
 OUTPUT_ARCH("arm")
 EXTERN(_vectors)
@@ -34,11 +33,11 @@ MEMORY
 #ifdef CONFIG_BK7258_MCUBOOT_IMAGE
     /* MCUboot owns the first 0x200 bytes; keep the AP vector table VTOR
      * aligned exactly as the CP linker script does. */
-    FLASH (rx)  : ORIGIN = BK7258_ROLE_SLOT_A_AP_XIP_START + 0x200,
-                  LENGTH = BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE - 0x200
+    FLASH (rx)  : ORIGIN = BK7258_ARTIFACT_AP_XIP_START + 0x200,
+                  LENGTH = BK7258_ARTIFACT_AP_LOGICAL_SIZE - 0x200
 #else
-    FLASH (rx)  : ORIGIN = BK7258_ROLE_SLOT_A_AP_XIP_START,
-                  LENGTH = BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE
+    FLASH (rx)  : ORIGIN = BK7258_ARTIFACT_AP_XIP_START,
+                  LENGTH = BK7258_ARTIFACT_AP_LOGICAL_SIZE
 #endif
     SPINLOCK (rwx) : ORIGIN = 0x28000000, LENGTH = 0x010000
 #ifdef CONFIG_BK7258_RPTUN_LAYOUT

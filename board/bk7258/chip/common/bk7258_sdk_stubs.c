@@ -104,15 +104,6 @@ volatile const uint8_t build_version[] = "openvela-bk7258";
  * SDK PHY stubs (used by libbk_phy.a)
  ****************************************************************************/
 
-#if !defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_AP_CORE)
-int phy_cca_busy_test(int argc, char **argv)
-{
-  (void)argc;
-  (void)argv;
-  return 0;
-}
-#endif
-
 int tx_evm_cmd_test(int argc, char **argv)
 {
   (void)argc;
@@ -137,12 +128,6 @@ uint32_t gapc_get_conidx(uint8_t conidx)
   return 0;
 }
 
-#if !defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_AP_CORE)
-void rs_deinit(void)
-{
-}
-#endif
-
 /* sys_hal_aud_*, sys_hal_apll_en, sys_hal_psram_* provided by libbk7258.a */
 
 /* sys_hal_* functions provided by libbk7258.a (sys_hal.c) */
@@ -154,26 +139,6 @@ void rs_deinit(void)
 /****************************************************************************
  * SDK PM stubs (used by libbk_pm.a)
  ****************************************************************************/
-
-#if !defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_AP_CORE)
-void phy_wakeup_reinit(void)
-{
-  /* Stub: phy reinit not needed without wifi */
-}
-#endif
-
-#if !defined(CONFIG_BK7258_WIFI_VNET) && \
-    (!defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_AP_CORE))
-void rwnxl_set_wifi_low_vol_flag(void)
-{
-  /* The immutable SDK low-voltage leaf was built with Wi-Fi enabled and
-   * keeps this wake-debug hook behind its private CONFIG_WIFI_ENABLE.  CP BT
-   * IPC links libwifi.a as part of the official PHY closure, so that archive
-   * owns the real symbol even though NuttX Wi-Fi VNET is disabled.  Other
-   * images without a linked Wi-Fi backend have no MAC state to update.
-   */
-}
-#endif
 
 /****************************************************************************
  * SDK reboot/timer stubs

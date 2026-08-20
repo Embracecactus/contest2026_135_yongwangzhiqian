@@ -1,341 +1,120 @@
-/****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/src/
- * bk7258_sdk_partition.c
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * Project-owned v3.1.1.9 Flash partition wrapper.
- *
- * The official SDK archives embed the partition table used when those
- * archives were built.  Linker --wrap keeps the archives immutable while
- * routing every public partition operation through the repository-generated
- * CSV layout.  The raw Flash driver remains the official SDK implementation.
- ****************************************************************************/
-
-/****************************************************************************
- * Included Files
- ****************************************************************************/
+/* SPDX-License-Identifier: Apache-2.0 */
 
 #include <nuttx/config.h>
 
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef BK7258_SDK_PARTITION_HOST_TEST
-#  include <stdlib.h>
-#  define bk7258_sdk_malloc(size) malloc(size)
-#  define bk7258_sdk_free(ptr)    free(ptr)
-#else
-#  include <nuttx/kmalloc.h>
-#  define bk7258_sdk_malloc(size) kmm_malloc(size)
-#  define bk7258_sdk_free(ptr)    kmm_free(ptr)
-#endif
-
-#include <arch/chip/bk7258_memorymap.h>
-#include <arch/board/bk7258_partition_layout.h>
-
+#include <bk7258_partitions.h>
 #include <driver/flash.h>
+#include <driver/flash_partition.h>
 
-#ifdef CONFIG_BK7258_FLASH_MTD
-#  include "bk7258_flash_guard.h"
-#endif
+#define BK7258_OPTIONS(execute, read, write) \
+  ((execute ? PAR_OPT_EXECUTE_EN : PAR_OPT_EXECUTE_DIS) | \
+   (read ? PAR_OPT_READ_EN : PAR_OPT_READ_DIS) | \
+   (write ? PAR_OPT_WRITE_EN : PAR_OPT_WRITE_DIS))
 
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
+#define BK7258_PARTITION_ROW(id, name, offset, size, execute, read, write) \
+  [id] = {BK_FLASH_EMBEDDED, name, offset, size, \
+          BK7258_OPTIONS(execute, read, write)},
 
-#define BK7258_FLASH_API_MAGIC_CODE       0x12345678u
-#define BK7258_SDK_PARTITION_OWNER_FLASH  0u
-#define BK7258_SDK_PARTITION_READ         (1u << 0)
-#define BK7258_SDK_PARTITION_WRITE        (1u << 1)
-#define BK7258_SDK_PARTITION_EXECUTE      (1u << 2)
-#define BK7258_SDK_READ_ALIGNMENT         32u
-
-#define BK7258_SDK_PARTITION_ENTRY(id, name, start, length, execute, read, \
-                                   write)                                  \
-  [id] =                                                                  \
-    {                                                                     \
-      BK7258_SDK_PARTITION_OWNER_FLASH, name, start, length,               \
-      ((execute) ? BK7258_SDK_PARTITION_EXECUTE : 0u) |                    \
-      ((read) ? BK7258_SDK_PARTITION_READ : 0u) |                          \
-      ((write) ? BK7258_SDK_PARTITION_WRITE : 0u)                          \
-    },
-
-/****************************************************************************
- * Private Types
- ****************************************************************************/
-
-/* Binary-compatible with SDK bk_logic_partition_t.  The exported SDK bundle
- * intentionally omits partitions_gen.h, so including flash_partition.h is
- * not possible from the team overlay.
- */
-
-struct bk7258_sdk_partition_s
+static bk_logic_partition_t g_bk7258_partitions[BK7258_PARTITION_COUNT] =
 {
-  uint32_t    owner;
-  const char *description;
-  uint32_t    start;
-  uint32_t    length;
-  uint32_t    options;
+  BK7258_PARTITION_FOREACH(BK7258_PARTITION_ROW)
 };
 
-/****************************************************************************
- * Private Data
- ****************************************************************************/
-
-static const struct bk7258_sdk_partition_s
-  g_bk7258_sdk_partitions[BK7258_SDK_PARTITIONS_TABLE_SIZE] =
+static bool bk7258_partition_valid(bk_partition_t partition)
 {
-  BK7258_SDK_PARTITION_FOREACH(BK7258_SDK_PARTITION_ENTRY)
-};
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
-
-static bool bk7258_sdk_partition_valid(uint32_t partition)
-{
-  return partition < BK7258_SDK_PARTITIONS_TABLE_SIZE &&
-         (BK7258_SDK_PARTITION_VALID_MASK & (1u << partition)) != 0;
+  return partition < BK7258_PARTITION_COUNT &&
+         (BK7258_PARTITION_VALID_MASK & (1u << partition)) != 0u;
 }
 
-static const struct bk7258_sdk_partition_s *
-bk7258_sdk_partition_info(uint32_t partition)
+static bool bk7258_partition_range(const bk_logic_partition_t *partition,
+                                   uint32_t offset, uint32_t size)
 {
-  if (!bk7258_sdk_partition_valid(partition))
-    {
-      return NULL;
-    }
-
-  return &g_bk7258_sdk_partitions[partition];
+  return offset <= partition->partition_length &&
+         size <= partition->partition_length - offset;
 }
 
-static bool bk7258_sdk_partition_range(
-  const struct bk7258_sdk_partition_s *partition, uint32_t offset,
-  uint32_t size)
+bk_logic_partition_t *__wrap_bk_flash_partition_get_info(
+    bk_partition_t partition)
 {
-  return offset < partition->length && size <= partition->length - offset;
+  return bk7258_partition_valid(partition) ?
+         &g_bk7258_partitions[partition] : NULL;
 }
 
-static const struct bk7258_sdk_partition_s *
-bk7258_sdk_partition_info_by_addr(uint32_t addr)
+bk_err_t __wrap_bk_flash_partition_read(bk_partition_t partition,
+                                        uint8_t *buffer,
+                                        uint32_t offset,
+                                        uint32_t size)
 {
-  uint32_t partition;
-
-  for (partition = 0; partition < BK7258_SDK_PARTITIONS_TABLE_SIZE;
-       partition++)
-    {
-      const struct bk7258_sdk_partition_s *info;
-
-      info = bk7258_sdk_partition_info(partition);
-      if (info != NULL && addr >= info->start && addr - info->start < info->length)
-        {
-          return info;
-        }
-    }
-
-  return NULL;
-}
-
-static bool bk7258_sdk_partition_guarded(
-  const struct bk7258_sdk_partition_s *partition)
-{
-  return partition ==
-           &g_bk7258_sdk_partitions[BK7258_ROLE_SLOT_B_PAIR_SDK_ID] ||
-         partition ==
-           &g_bk7258_sdk_partitions[BK7258_ROLE_LITTLEFS_SDK_ID];
-}
-
-static bk_err_t bk7258_sdk_partition_write_allowed(
-  const struct bk7258_sdk_partition_s *partition)
-{
-  if ((partition->options & BK7258_SDK_PARTITION_WRITE) == 0 ||
-      (partition->options & BK7258_SDK_PARTITION_EXECUTE) != 0 ||
-      bk7258_sdk_partition_guarded(partition))
-    {
-      return BK_FAIL;
-    }
-
-  return BK_OK;
-}
-
-static bk_err_t bk7258_sdk_partition_write_by_addr_allowed(uint32_t addr,
-                                                            uint32_t size)
-{
-  const struct bk7258_sdk_partition_s *info;
-  uint32_t offset;
-
-  info = bk7258_sdk_partition_info_by_addr(addr);
-  if (info == NULL)
-    {
-      return BK_FAIL;
-    }
-
-  offset = addr - info->start;
-  if (!bk7258_sdk_partition_range(info, offset, size))
-    {
-      return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
-    }
-
-#ifdef CONFIG_BK7258_FLASH_MTD
-  if (bk7258_flash_guard_write_authorized(addr, size))
-    {
-      return BK_OK;
-    }
-#endif
-
-  return bk7258_sdk_partition_write_allowed(info);
-}
-
-/****************************************************************************
- * SDK Linker Wrappers
- ****************************************************************************/
-
-struct bk7258_sdk_partition_s *
-__wrap_bk_flash_partition_get_info(uint32_t partition)
-{
-  return (struct bk7258_sdk_partition_s *)
-    bk7258_sdk_partition_info(partition);
-}
-
-bk_err_t __wrap_bk_flash_partition_read(uint32_t partition,
-                                        uint8_t *buffer, uint32_t offset,
-                                        uint32_t length)
-{
-  const struct bk7258_sdk_partition_s *info;
-  uint32_t aligned_offset;
-  uint32_t aligned_end;
-  uint32_t aligned_length;
-  uint8_t *aligned_buffer;
-  bk_err_t ret;
-
-  if (buffer == NULL)
-    {
-      return BK_FAIL;
-    }
-
-  info = bk7258_sdk_partition_info(partition);
+  bk_logic_partition_t *info = __wrap_bk_flash_partition_get_info(partition);
   if (info == NULL)
     {
       return BK_ERR_FLASH_PARTITION_NOT_FOUND;
     }
 
-  if ((info->options & BK7258_SDK_PARTITION_READ) == 0 ||
-      !bk7258_sdk_partition_range(info, offset, length))
+  if (buffer == NULL || !bk7258_partition_range(info, offset, size) ||
+      (info->partition_options & PAR_OPT_READ_EN) == 0u)
     {
       return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
     }
 
-  if (length == 0)
-    {
-      return BK_OK;
-    }
-
-  aligned_offset = offset & ~(BK7258_SDK_READ_ALIGNMENT - 1u);
-  aligned_end = (offset + length + BK7258_SDK_READ_ALIGNMENT - 1u) &
-                ~(BK7258_SDK_READ_ALIGNMENT - 1u);
-  aligned_length = aligned_end - aligned_offset;
-  aligned_buffer = (uint8_t *)bk7258_sdk_malloc(aligned_length);
-  if (aligned_buffer == NULL)
-    {
-      return BK_ERR_NO_MEM;
-    }
-
-  ret = bk_flash_read_bytes(info->start + aligned_offset, aligned_buffer,
-                            aligned_length);
-  if (ret == BK_OK)
-    {
-      uint32_t index;
-
-      for (index = 0; index < length; index++)
-        {
-          buffer[index] = aligned_buffer[offset - aligned_offset + index];
-        }
-    }
-
-  bk7258_sdk_free(aligned_buffer);
-  return ret;
+  return bk_flash_read_bytes(info->partition_start_addr + offset,
+                             buffer, size);
 }
 
-bk_err_t __wrap_bk_flash_partition_write(uint32_t partition,
+bk_err_t __wrap_bk_flash_partition_write(bk_partition_t partition,
                                          const uint8_t *buffer,
-                                         uint32_t offset, uint32_t length)
+                                         uint32_t offset,
+                                         uint32_t size)
 {
-  const struct bk7258_sdk_partition_s *info;
-  bk_err_t ret;
-
-  if (buffer == NULL)
-    {
-      return BK_FAIL;
-    }
-
-  info = bk7258_sdk_partition_info(partition);
+  bk_logic_partition_t *info = __wrap_bk_flash_partition_get_info(partition);
   if (info == NULL)
     {
       return BK_ERR_FLASH_PARTITION_NOT_FOUND;
     }
 
-  if (!bk7258_sdk_partition_range(info, offset, length))
+  if (buffer == NULL || !bk7258_partition_range(info, offset, size) ||
+      (info->partition_options & PAR_OPT_WRITE_EN) == 0u)
     {
       return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
     }
 
-  if (length == 0)
-    {
-      return BK_OK;
-    }
-
-  ret = bk7258_sdk_partition_write_by_addr_allowed(info->start + offset,
-                                                    length);
-  if (ret != BK_OK)
-    {
-      return ret;
-    }
-
-  return bk_flash_write_bytes(info->start + offset, buffer, length);
+  return bk_flash_write_bytes(info->partition_start_addr + offset,
+                              buffer, size);
 }
 
-bk_err_t __wrap_bk_flash_partition_erase(uint32_t partition,
-                                         uint32_t offset, uint32_t size)
+bk_err_t __wrap_bk_flash_partition_erase(bk_partition_t partition,
+                                         uint32_t offset,
+                                         uint32_t size)
 {
-  const struct bk7258_sdk_partition_s *info;
-  uint32_t first_sector;
-  uint32_t last_sector;
-  uint32_t sector;
-  bk_err_t ret;
-
-  info = bk7258_sdk_partition_info(partition);
+  bk_logic_partition_t *info = __wrap_bk_flash_partition_get_info(partition);
   if (info == NULL)
     {
       return BK_ERR_FLASH_PARTITION_NOT_FOUND;
     }
 
-  if (!bk7258_sdk_partition_range(info, offset, size))
+  if (!bk7258_partition_range(info, offset, size) ||
+      (info->partition_options & PAR_OPT_WRITE_EN) == 0u)
     {
       return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
     }
 
-  if (size == 0)
+  if (size == 0u)
     {
       return BK_OK;
     }
 
-  ret = bk7258_sdk_partition_write_by_addr_allowed(info->start + offset,
-                                                    size);
-  if (ret != BK_OK)
+  uint32_t first = offset / BK7258_FLASH_ERASE_SIZE;
+  uint32_t last = (offset + size - 1u) / BK7258_FLASH_ERASE_SIZE;
+  for (uint32_t sector = first; sector <= last; sector++)
     {
-      return ret;
-    }
-
-  first_sector = offset / BK7258_FLASH_ERASE_SIZE;
-  last_sector = (offset + size - 1u) / BK7258_FLASH_ERASE_SIZE;
-  for (sector = first_sector; sector <= last_sector; sector++)
-    {
-      ret = bk_flash_erase_sector(info->start +
-                                  sector * BK7258_FLASH_ERASE_SIZE);
-      if (ret != BK_OK)
+      bk_err_t result = bk_flash_erase_sector(
+          info->partition_start_addr + sector * BK7258_FLASH_ERASE_SIZE);
+      if (result != BK_OK)
         {
-          return ret;
+          return result;
         }
     }
 
@@ -343,12 +122,21 @@ bk_err_t __wrap_bk_flash_partition_erase(uint32_t partition,
 }
 
 bk_err_t __wrap_bk_flash_partition_write_perm_check_by_addr(
-  uint32_t addr, uint32_t size, uint32_t magic_code)
+    uint32_t address, uint32_t size, uint32_t magic_code)
 {
-  if (magic_code != BK7258_FLASH_API_MAGIC_CODE)
+  (void)magic_code;
+  for (uint32_t index = 0; index < BK7258_PARTITION_COUNT; index++)
     {
-      return BK_FAIL;
+      bk_logic_partition_t *info = &g_bk7258_partitions[index];
+      if (address >= info->partition_start_addr &&
+          address - info->partition_start_addr <= info->partition_length &&
+          size <= info->partition_length -
+                  (address - info->partition_start_addr))
+        {
+          return (info->partition_options & PAR_OPT_WRITE_EN) != 0u ?
+                 BK_OK : BK_FAIL;
+        }
     }
 
-  return bk7258_sdk_partition_write_by_addr_allowed(addr, size);
+  return BK_FAIL;
 }

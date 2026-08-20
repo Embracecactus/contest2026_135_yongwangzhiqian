@@ -40,26 +40,26 @@ void bk7258_bl2_primary_only(bool enabled)
 
 static const struct flash_area g_cp_primary =
 {
-  FLASH_CP_PRIMARY, 0, 0, BK7258_ROLE_SLOT_A_CP_XIP_START,
-  BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE
+  FLASH_CP_PRIMARY, 0, 0, BK7258_ARTIFACT_CP_XIP_START,
+  BK7258_ARTIFACT_CP_LOGICAL_SIZE
 };
 
 static const struct flash_area g_cp_secondary =
 {
   FLASH_CP_SECONDARY, 0, 0, BK7258_BL2_B_CP_XIP_START,
-  BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE
+  BK7258_ARTIFACT_CP_LOGICAL_SIZE
 };
 
 static const struct flash_area g_ap_primary =
 {
-  FLASH_AP_PRIMARY, 0, 0, BK7258_ROLE_SLOT_A_AP_XIP_START,
-  BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE
+  FLASH_AP_PRIMARY, 0, 0, BK7258_ARTIFACT_AP_XIP_START,
+  BK7258_ARTIFACT_AP_LOGICAL_SIZE
 };
 
 static const struct flash_area g_ap_secondary =
 {
   FLASH_AP_SECONDARY, 0, 0, BK7258_BL2_B_AP_XIP_START,
-  BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE
+  BK7258_ARTIFACT_AP_LOGICAL_SIZE
 };
 
 int flash_area_open(uint8_t id, const struct flash_area **fa)

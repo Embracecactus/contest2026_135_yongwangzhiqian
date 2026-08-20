@@ -1,15 +1,6 @@
-/* BK7236-security-semantic, board-owned BL1 Manifest verifier.
- *
- * 0x00 magic "BKBL1M2\\0"
- * 0x08 format, 0x0c signature algorithm, 0x10 digest algorithm
- * 0x14 key id, 0x18 image version, 0x1c flags
- * 0x20 BL2 XIP, 0x24 BL2 size, 0x28 BL2 SRAM load, 0x2c reserved
- * 0x30 SHA-256(BL2), 0x50 SHA-256(public key), 0x70 public key X||Y
- * 0xb0 ECDSA-P256 r||s over SHA-256(bytes 0x00..0xaf)
- * 0xf0..0xff erased.  BL2, not this record, authenticates CP/AP via MCUboot.
- *
- * This mirrors the documented BL1 semantic checks.  It is not a claim that
- * these offsets are Beken's unpublished BK7258 Manifest ABI.
+/* Board-owned verifier for the one maintained Beken-shaped BL1 Manifest.
+ * BL2, not this record, authenticates CP/AP through MCUboot. This does not
+ * claim that an unprovisioned BK7258 BootROM accepts the record directly.
  */
 #include <stddef.h>
 #include <stdint.h>
@@ -21,7 +12,6 @@
 #include "boot_bl1_policy.h"
 #include "boot_sha256.h"
 
-extern const uint8_t bk7258_bl1_manifest_root_public_key_hash[32];
 extern const uint8_t bk7258_beken_manifest_root_public_key_hash[32];
 
 #define BK7258_BL1_OTP_REG32(addr) \
@@ -127,104 +117,11 @@ static int bk7258_bl1_root_hash_matches(const uint8_t *manifest_hash,
 #endif
 }
 
-int bk7258_bl1_manifest_verify_at(uint32_t manifest_xip, uint32_t bl2_xip,
-                                  size_t bl2_size, uint32_t bl2_load)
-{
-  static const uint8_t magic[8] =
-    { 'B', 'K', 'B', 'L', '1', 'M', '2', 0 };
-  const uint8_t *manifest = (const uint8_t *)(uintptr_t)manifest_xip;
-  struct boot_sha256_context_s sha256;
-  uint8_t manifest_digest[32];
-  uint8_t bl2_digest[32];
-  uint8_t public_key_digest[32];
-  const uint8_t *public_key =
-    manifest + BK7258_BL1_MANIFEST_PUBLIC_KEY_OFFSET;
-
-  /* Keep the experimental Beken/Armino candidate parser behind the same
-   * recoverable flash location.  A mismatching magic continues through the
-   * established BKBL1M2 parser, so existing development images remain valid. */
-  if (get_le32(manifest) == BK7258_BEKEN_MANIFEST_MAGIC)
-    {
-      return bk7258_beken_manifest_verify_at(manifest_xip, bl2_xip,
-                                             bl2_size, bl2_load);
-    }
-
-  if (!bytes_equal(manifest, magic, sizeof(magic)) ||
-      get_le32(manifest + 8u) != BK7258_BL1_MANIFEST_FORMAT ||
-      get_le32(manifest + 12u) != BK7258_BL1_MANIFEST_SIGNATURE_ALG ||
-      get_le32(manifest + 16u) != BK7258_BL1_MANIFEST_DIGEST_ALG ||
-      get_le32(manifest + 20u) != BK7258_BL1_MANIFEST_KEY_ID ||
-      !bk7258_bl1_manifest_version_allowed(
-        get_le32(manifest + 24u),
-        bk7258_bl1_manifest_version_floor_readonly()) ||
-      get_le32(manifest + 28u) != 0u ||
-      get_le32(manifest + 32u) != bl2_xip ||
-      get_le32(manifest + 36u) != bl2_size ||
-      get_le32(manifest + 40u) != bl2_load ||
-      get_le32(manifest + 44u) != 0u ||
-      !bytes_are_ff(manifest + BK7258_BL1_MANIFEST_RESERVED_OFFSET,
-                    BK7258_BL1_MANIFEST_SIZE -
-                    BK7258_BL1_MANIFEST_RESERVED_OFFSET))
-    {
-      return -1; /* Record format or fixed handoff fields. */
-    }
-
-  boot_sha256_init(&sha256);
-  boot_sha256_update(&sha256, public_key, 64u);
-  boot_sha256_final(&sha256, public_key_digest);
-  if (!bytes_equal(public_key_digest,
-                   manifest + BK7258_BL1_MANIFEST_KEY_HASH_OFFSET,
-                   sizeof(public_key_digest)) ||
-      !bytes_equal(public_key_digest,
-                   bk7258_bl1_manifest_root_public_key_hash,
-                   sizeof(public_key_digest)))
-    {
-      return -4; /* Manifest key is not anchored to the software root. */
-    }
-
-  boot_sha256_init(&sha256);
-  boot_sha256_update(&sha256, (const uint8_t *)(uintptr_t)bl2_xip, bl2_size);
-  boot_sha256_final(&sha256, bl2_digest);
-  if (!bytes_equal(bl2_digest,
-                   manifest + BK7258_BL1_MANIFEST_DIGEST_OFFSET,
-                   sizeof(bl2_digest)))
-    {
-      return -2; /* The authorized BL2 digest did not match XIP. */
-    }
-
-  boot_sha256_init(&sha256);
-  boot_sha256_update(&sha256, manifest, BK7258_BL1_MANIFEST_SIGNED_SIZE);
-  boot_sha256_final(&sha256, manifest_digest);
-  return uECC_verify(public_key, manifest_digest,
-                     sizeof(manifest_digest),
-                     manifest + BK7258_BL1_MANIFEST_SIGNATURE_OFFSET,
-                     uECC_secp256r1()) == 1 ?
-         0 : -3; /* P-256 signature rejected. */
-}
-
-int bk7258_bl1_manifest_verify(uint32_t bl2_xip, size_t bl2_size,
-                               uint32_t bl2_load)
-{
-  return bk7258_bl1_manifest_verify_at(
-    BK7258_BL1_MANIFEST_PRIMARY_XIP_ADDRESS, bl2_xip, bl2_size, bl2_load);
-}
-
-/*
- * Verify the one-image Beken/Armino manifest candidate.
- *
- * This layout is intentionally isolated from BKBL1M2.  It is a reversible
- * compatibility experiment matching the generic IPSS manifest sample found
- * beside the Armino security scaffolding: the descriptor records the raw
- * image length, while the board copy window may be larger and must have an
- * erased tail.  Acceptance here proves only that the board-owned BL1 can
- * consume the candidate.  It does not prove that BK7258 BootROM accepts it
- * or that OTP-backed Secure Boot is enabled.  Cipher/encrypted records are
- * rejected until BK7258 evidence is available.
- */
-static int bk7258_beken_manifest_verify_bytes(const uint8_t *manifest,
-                                              uint32_t bl2_xip,
-                                              size_t bl2_size,
-                                              uint32_t bl2_load)
+/* Verify the one maintained Beken-shaped project Manifest format. */
+int bk7258_bl1_manifest_verify_buffer(const uint8_t *manifest,
+                                      uint32_t bl2_xip,
+                                      size_t bl2_size,
+                                      uint32_t bl2_load)
 {
   const uint8_t *image_digest =
     manifest + BK7258_BEKEN_MANIFEST_IMAGE_DIGEST_OFFSET;
@@ -236,6 +133,11 @@ static int bk7258_beken_manifest_verify_bytes(const uint8_t *manifest,
   uint8_t digest[32];
   uint32_t image_size;
   uint32_t total_size;
+
+  if (manifest == (const uint8_t *)0)
+    {
+      return -1;
+    }
 
   total_size = get_le32(manifest + 0x0cu);
   image_size = get_le32(manifest +
@@ -293,31 +195,4 @@ static int bk7258_beken_manifest_verify_bytes(const uint8_t *manifest,
   boot_sha256_final(&sha256, digest);
   return uECC_verify(public_key + 1u, digest, sizeof(digest), signature,
                      uECC_secp256r1()) == 1 ? 0 : -3;
-}
-
-int bk7258_beken_manifest_verify_at(uint32_t manifest_xip, uint32_t bl2_xip,
-                                    size_t bl2_size, uint32_t bl2_load)
-{
-  return bk7258_beken_manifest_verify_bytes(
-    (const uint8_t *)(uintptr_t)manifest_xip, bl2_xip, bl2_size, bl2_load);
-}
-
-int bk7258_beken_manifest_verify_buffer(const uint8_t *manifest,
-                                        uint32_t bl2_xip, size_t bl2_size,
-                                        uint32_t bl2_load)
-{
-  if (manifest == (const uint8_t *)0)
-    {
-      return -1;
-    }
-
-  return bk7258_beken_manifest_verify_bytes(manifest, bl2_xip, bl2_size,
-                                            bl2_load);
-}
-
-int bk7258_beken_manifest_verify(uint32_t bl2_xip, size_t bl2_size,
-                                 uint32_t bl2_load)
-{
-  return bk7258_beken_manifest_verify_at(
-    BK7258_BL1_MANIFEST_PRIMARY_XIP_ADDRESS, bl2_xip, bl2_size, bl2_load);
 }

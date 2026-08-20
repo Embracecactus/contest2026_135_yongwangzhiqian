@@ -1,0 +1,23 @@
+# BK7258 A/B firmware layout with persistent data on removable block media.
+# LAYOUT_NAME=bk7258-ab-removable-block
+# STORAGE_TOPOLOGY=removable-block
+# ERASE_SIZE=4K
+# CRC_DATA_SIZE=32
+# CRC_TOTAL_SIZE=34
+# XIP_BASE=0x02000000
+# Name,Offset,Size,Type,Read,Write,Artifact,Policy
+FLASH_CAPACITY=8M
+primary_bootloader,,68K,code,TRUE,FALSE,boot,image
+primary_cp_app,,1360K,code,TRUE,FALSE,cp,image
+primary_ap_app,,1156K,code,TRUE,FALSE,ap,image
+s_app,,2516K,data,TRUE,FALSE,pair,image
+usr_config,0x4fc000,56K,data,TRUE,TRUE,,preserve
+primary_manifest,0x50b000,4K,data,TRUE,FALSE,manifest_a,external
+secondary_manifest,,4K,data,TRUE,FALSE,manifest_b,external
+primary_bl2,0x51d000,136K,code,TRUE,FALSE,bl2_a,external
+secondary_bl2,,136K,code,TRUE,FALSE,bl2_b,external
+reserved_data,0x600000,1M,data,TRUE,FALSE,,preserve
+easyflash,0x7fa000,8K,data,TRUE,TRUE,,immutable
+easyflash_ap,0x7fc000,8K,data,TRUE,TRUE,,immutable
+sys_rf,0x7fe000,4K,data,TRUE,TRUE,,immutable
+sys_net,0x7ff000,4K,data,TRUE,TRUE,,immutable

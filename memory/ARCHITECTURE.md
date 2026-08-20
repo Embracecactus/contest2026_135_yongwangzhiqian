@@ -20,24 +20,24 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 
 | Component | Owner and responsibility |
 |---|---|
-| BK7258 logical board and physical variants | `board/bk7258` is the one OpenVela logical board and owns the role-specific CP/AP linker scripts, product image/partition contract, boot chain, composition and board archive. `chip/` owns BK7258 memory-map constants, controller mechanics and NuttX lower halves. Exactly one of `boards/t5ai_core`, `boards/t5_board` or `boards/aidk_ai_toy` supplies electrical facts and attached-device bindings; Classic Make, CMake and the composition IR reject zero, multiple or mismatched selectors. Physical binding sources are compiled by `src/`, never selected from `chip/`; generic lower halves consume versioned typed descriptors and callbacks instead of board headers, selector macros or sensor-specific constants. T5AI-Core remains the frozen-profile compatibility default. See [ADR-023](decisions/ADR-023-bk7258-platform-board-variants.md). |
-| BK7258 build and package boundary | The cross-backend contract retains role-specific `libarch.a` and normalized selected-board `libboard.a` archives. Classic Make additionally creates upstream generic `libboards.a` as an internal archive; CMake folds those objects into `libboard.a`, so `libboards.a` is not a required package artifact. The dual build exposes the canonical OpenVela role images as `vela_nuttx_cp.bin`/`vela_nuttx_ap.bin` and the dual-core verification record as `vela_nuttx_manifest.json`; single-role postbuild may expose `vela_nuttx.bin`. `app.bin`/`app1.bin` and CRC-expanded files remain internal/vendor boot-download artifacts. `firmware.bkpack` is the sole Beken delivery archive; host fixture tests cover its alias/member contract, while production signing, package delivery and hardware remain phase-gated. |
-| BK7258 product and build profiles | T5AI-Core, T5-Board and AIDK AI Toy have strict product, SDK-lock and resource-graph metadata. The approved 27-row legacy ledger is cut over to the three retained seeds `bl2_mcuboot`, `t5ai_core_cp_base` and `t5ai_core_ap_base`; historical names remain evidence, while P9b equivalence and hardware acceptance remain open. Framework `execute` remains a host-only dry-run for full delivery; the isolated executor provides the verified four-role `compile-runtime` phase and isolated postbuild alias/manifest emission from role-private roots. BL1/BL2/CP/AP compile under reconciled `COMPILE_ONLY` policy; signing, production package delivery and hardware remain outside the accepted phase, and boot artifacts are not thereby runnable or trusted. ADR-024 describes the historical profile shape; its target architecture is superseded by [ADR-026](decisions/ADR-026-bk7258-platform-v2-configuration-and-isolation.md). |
+| BK7258 logical board and physical variants | `board/bk7258` is the shared BK7258 platform. Exactly one physical binding supplies electrical facts and fitted-device capability; storage and boot algorithms contain no board-name branch. See [ADR-023](decisions/ADR-023-bk7258-platform-board-variants.md). |
+| BK7258 build and package boundary | `tools/bk7258/bk7258.py build|sdk|package|verify` is the only public tool. Six internal domains own build orchestration, SDK transactions, partition layout, image bytes, deterministic `.bkpack` and trust. CP/AP use official `build.sh`; project BL1/BL2 build out of tree. The team-manifest ARM prebuilt is the single compiler source for all stages. There is no dual-image shell, postbuild hook, framework, executor or compatibility alias. |
+| BK7258 build profiles | Each explicit config directory contains `defconfig` and `profile.conf`; the latter owns board, role, compatibility and SDK profile. `build` requires CP config, AP config, `--boot direct|mcuboot`, partition CSV and jobs. MCUboot derives build-local defconfig overlays instead of tracked boot-mode copies. See [ADR-028](decisions/ADR-028-bk7258-single-cli-data-owned-build.md). |
 | BK7258 initialization layers | `src/bk7258_platform.c` owns mandatory SDK/IPC/PM/AP lifetime initialization, `src/bk7258_bringup.c` owns application-facing procfs/MTD/filesystem registration, and the selected physical-board hook owns attached LCD/touch/camera validation and registration. `board_late_initialize()` and `board_app_initialize()` are thin NuttX entry points. |
 | BK7258 microphone | One AP NuttX audio lower-half owns DMA, ADC and worker lifetime.  The selected board descriptor supplies fixed analog topology: T5AI-Core is MICP1/MICN1 mono; T5-Board is MICP1/MICN1 plus MICP2/MICN2 stereo.  Kconfig supplies product defaults for sample rate, analog/digital gain and buffering, while applications negotiate supported formats through `/dev/audio/pcm0c`.  The immutable AP SDK's separate AUDIO power-domain (`122`) and audio-clock (`30`) calls are link-wrapped into one generation-scoped CP-owned composite resource, because the native CPU1-to-CPU0 SDK PM mailbox is not an owner after RPTUN takes that mailbox. |
 | BK7258 speaker DAC | One AP NuttX playback lower half owns repeat GDMA, the two-frame DTCM ring, DAC and APB/worker lifetime at `/dev/audio/pcm0p`.  The selected board owns only the PA electrical binding: T5-Board P28 and T5AI-Core P39, both active-high with board-owned delays.  The first accepted contract is mono S16/16 kHz/320 samples/eight explicit APBs.  `RESERVE` through successful `RELEASE` owns the Audio 480 MHz SDK-tier vote; the bounded scheduling order is feeder 246 > refill worker 245 > board-default transport 225.  An optional chip-private hardware-EQ extension deep-copies four raw signed-22 coefficient banks before hardware creation, applies them while the initialized DAC is muted, and deconfigures them before DAC teardown.  It advertises no standard NuttX equalizer capability and owns no board preset.  Speaker and microphone validation remain mutually exclusive until shared full-duplex clock ownership is designed. |
 | BK7258 SARADC | The AP chip lower half publishes `/dev/adcN` through the standard NuttX ADC ABI.  One open session owns only the selected channel's GPIO mapping; each trigger takes, initializes, explicitly configures, starts, reads, stops, deinitializes and releases the shared ADC controller before delivering one sample to the upper FIFO.  CP owns the boot-lifetime GPIO runtime, SDK IRQ bridge and ADC mailbox server.  The selected board alone supplies pin/channel/electrical meaning: T5-Board binds active-low SW5 at P12/ADC14.  The generic validator contains no board endpoint assumption. |
 | BK7258 JPEG M2M decoder | One AP chip-level owner publishes the existing synchronous hardware JPEG decoder through the standard NuttX V4L2 M2M codec upper half.  `/dev/video1` accepts single-planar baseline JPEG on the OUTPUT queue and returns tightly packed YUYV on CAPTURE.  The initial contract is USERPTR-only and single-open; a dedicated one-thread work queue serializes the SDK singleton, while STREAMOFF and close synchronously cancel and return every queued buffer.  A bounded local parser admits only the reviewed SOF0 single-scan three-component subset before the immutable SDK sees input, and a grow-only guarded bounce satisfies its hidden `bytesused + 2048` DMA read.  The 32 x 16 baseline 4:2:2 fixture, negative/recovery/drain lifecycle and resource cleanup are board-verified.  This component owns no camera, LCD, board pin, DMA2D stage or RGB conversion. |
-| Tier-1 bootloader | Board-owned source reconstructed for this port; it is built as a project artifact rather than patched into a vendor binary. It normalizes boot/cache/MPU/watchdog state. Direct profiles validate and transfer straight to CP; signed profiles transfer to Manifest/MCUboot BL2. |
-| BK7258 integrated Flash | The current verified hardware exposes an 8 MiB interface reporting `0xc86517`, compatible with the GD25WQ64E command identity but not evidence of a separate board-level chip. SoC XIP/CRC geometry lives in `chip/include/bk7258_memorymap.h`; products explicitly select a logical-board partition source plus canonical ID/SHA. The SDK partition wrapper, MTD composition, Flash guard and linker wrap policy live in logical-board `src/`/build entry points; generated image aliases remain a logical-board contract. Build, BL1/BL2, postbuild, package and Flash plans must recheck the same resolved layout tuple. |
-| CP NuttX on CPU0 | Flash/LittleFS owner, AP lifecycle supervisor, RPMsg peer, Beken Bluetooth Controller owner, Wi-Fi RF/PHY/MAC/WPA/controller owner, PSRAM hardware/PM owner. Bluetooth desired state is published only after real SDK init/deinit success; Wi-Fi remains whole-chip lifetime. See [ADR-025](decisions/ADR-025-bk7258-radio-lifecycle-boundary.md). |
+| Tier-1 bootloader | The executable BL1 is project-owned and built out of tree. The official Beken bootloader is reverse-engineering evidence only and never an image input. Direct BL1 jumps to CP; signed BL1 verifies CSV-declared Manifest/BL2 A/B. |
+| BK7258 integrated Flash and storage | The selected eight-column CSV is the sole Flash geometry, Artifact, Policy and storage-topology source. `layout.py` writes build-local SDK/C/LD derivatives. `onchip-persistent`, `removable-block` and `fixed-block` are system topologies independent of applications and board names. See [ADR-029](decisions/ADR-029-bk7258-storage-and-boot-topologies.md). |
+| CP NuttX on CPU0 | On-chip Flash owner, AP lifecycle supervisor, RPMsg peer, Beken Bluetooth Controller owner, Wi-Fi RF/PHY/MAC/WPA/controller owner, PSRAM hardware/PM owner. A selected system topology may expose persistent data through CP; applications do not own the medium. See [ADR-025](decisions/ADR-025-bk7258-radio-lifecycle-boundary.md). |
 | AP NuttX SMP on CPU1+CPU2 | Stock NuttX scheduling/Host/services; logical CPU0 owns RPMsg/Bluetooth/Wi-Fi gateways, logical CPU1 is a business and socket producer |
-| Beken SDK v3.1.1.9 | Immutable BK7258 CP/AP archives reached through minimal board ABI wrappers; the sole runtime SDK |
+| Beken SDK | The single manifest project tagged `bk7258-sdk` owns source, revision and base version. Profiles follow `<role>[-<variant>].config`, declare NuttX-owned closure omissions, and carry one accepted deterministic bundle-tree hash. `sdk rebuild` builds a temporary clean official checkout, extracts the actual `app.elf` link inputs, patches the UART archive, exports the official generated partition header and atomically replaces the ignored bundle plus profile hash. There is no version constant, registry, set/lock, manifest/provenance pair or Make/CMake library-name map. |
 | Beken `bk_idk release/v2.0.1` | Read-only official reference: its `docs/bk7258/**` pages and generic security tools provide BK7258 Secure Boot semantics/packaging evidence; its buildable `projects/security/**` examples are BK7236-only single-core samples. Never a runtime archive or source replacement; see [ADR-017](decisions/ADR-017-bk7258-official-secureboot-source-crosswalk.md) |
 | Windows/WSL2 tools | Build, sparse/factory download, UART/J-Link evidence, and no-GUI BLE client |
 | Historical N15 OTA evidence | The former custom inactive-slot writer, dual-bank journal and trial/rollback lifecycle were physically exercised, then retired from active source. Their ADRs and verification records are historical evidence, not current firmware architecture. |
 | N16 Wi-Fi (accepted architecture, complete for STA scope) | Official v3.1.1.9 radio/controller and DHCP client remain on CP; AP uses the official vnet proxy plus a repository-owned lease/netdev adapter to native NuttX `wlan0`/IPv4/sockets; vendor AP lwIP is excluded |
-| BL1/BL2/MCUboot chain (recoverable baseline) | BK7236 `bk_idk` is a read-only semantic/source reference; its single-core addresses/ABI/TFM mapping are not copied. The executable BK7258 chain uses a board-owned BL1, candidate Manifest verifier and pinned NuttX MCUboot BL2 with CP/AP same-slot gating. BL1 publishes fixed Primary→Secondary order and links no retired N15/N17 lifecycle or Flash-write module. New BL1/BL2 images expose public identities in linker-reserved fixed blocks; one reviewed legacy location per identity keeps the currently installed chain compatible until an authorized replacement. Each signed package carries a public-only trust contract rebound to the packaged ELF symbols/raw bytes; the normal downloader compares it with existing target BL1/BL2 fingerprints through non-halting J-Link reads and fails before `bk_loader` when no permitted location matches or target data are unreadable. This prevents accidental implicit root rotation but does not authenticate a hostile host package or grant boot-chain write authority. The chain is board-verified but remains software-rooted and unarmed; BootROM Manifest acceptance, OTP/eFuse binding and hardware rollback remain open. |
+| BL1/BL2/MCUboot chain | Project BL1 verifies Manifest A/B and project freestanding BL2 A/B. BL2 retains the board-verified pinned-MCUboot same-slot, same-version and same-counter CP/AP gate. Public-only C roots are generated in the build tree from explicit PEM inputs; signed `.bkpack` evidence embeds public keys and signatures rather than a separate trust contract. The chain remains software-rooted: OTP/eFuse provisioning and hardware monotonic rollback are not claimed. |
 | CP debug and console transport | SWD route, target core and console transport are independent configuration axes with paired-image pin-conflict gates. SWD supports P0/P1 or P20/P21; console supports NONE, RTT or UART0/1/2 with explicit frame/baud and route settings. Direct profiles stop APB/AON watchdogs and hold in BL1 after final cleanup; release magic immediately precedes the CP branch. MCUboot profiles hold at the equivalent BL2-to-CP boundary. Board-verified T5-Board configurations use P0/P1 CP SWD with either RTT or, for the dedicated Audio one-shot profile, UART0/COM3; UART1/COM4 is omitted. They suppress only the SDK all-pin default-map pass that would overwrite the route. P20/P21 and other UART routes are compiled but not board-verified. |
 | PM and timer policy | NuttX remains the PM owner and the SDK is a leaf hardware service. Ordinary idle uses clear-SLEEPDEEP then DSB/WFI/ISB.  CP physical CPU0 and AP-primary physical CPU1 use fixed external-32 kHz scheduler SysTick routes; for timer accounting, DVFS refreshes their role-local DWT conversion while the scheduler source remains fixed. Coordinated standby is board-owned but follows the v3.1.1.9 protocol: CP owns the request, PWC mailbox exchange and both-AP vote barrier; each AP checks its vote and pending IRQ/DMA state, saves/stops SysTick, publishes AON WFI state, preserves the mailbox wake path, enters SLEEPDEEP and restores in official wake order. CP uses a bounded RTC wake and a hard-IRQ arch-timer proxy to restore whole ticks plus the saved sub-tick phase; one real one-shot restore is board-verified. Missing votes, pending work, stale generations, mailbox errors or restore errors fail closed; no core may independently claim low-voltage standby. AP standby still lacks AON elapsed-time compensation, so complete CP/AP time continuity is not claimed. |
 
@@ -105,16 +105,17 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   one physical slot to each `boot_go()` attempt and requires the CP result and
   AP vector to come from that same slot; a cross-slot-only state fails closed.
   Primary CP/AP and `s_app` remain equal-length contiguous pairs selected by
-  one official-style Flash remap decision; LittleFS and the calibration tail
+  one official-style Flash remap decision; persistent and immutable ranges
   are outside both executable spans. The active firmware does not contain an
   inactive-slot writer, trial journal, confirmation service or field-update
   transport.
 
 ## Persistence and data lifecycle
 
-- `/data` is CP LittleFS at raw `0x600000..0x700000`. N15-M intentionally
-  cleared and autoformatted it during the one-time layout migration; its
-  persistence probe passed three physical resets.
+- Persistent storage is a system service. On-chip persistence currently uses
+  CP MTD/LittleFS without boot-time autoformat; removable and fixed block
+  topologies use board-exposed media. Applications receive a data directory
+  and do not select the medium, filesystem, partition or cross-core transport.
 - Bluetooth base MAC/calibration records are created through the official first-calibration path and persist in flash.
 - RPMsg endpoints and AP-local state are generation-scoped; AP restart invalidates stale transport state.
 - The N14 upper PSRAM half is tested at boot but has no general runtime
@@ -124,11 +125,10 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   closure are retired research artifacts. Their 32,915-case model remains
   evidence for the rejected alternative; the mutation gate is zero and no
   board consumed that ABI.
-- The active CSV freezes primary CP/AP at raw `0x011000..0x286000`, paired B
-  at `0x286000..0x4fb000`, `usr_config` at `0x4fc000..0x50a000`, read-only BL1
-  Manifest pages at `0x50b000..0x50d000`, two read-only BL2 copies beginning
-  at `0x51d000`, LittleFS at `0x600000..0x700000`, and the immutable official
-  tail at `0x7fa000..0x800000`. The gaps are explicitly unallocated.
+- The three maintained CSVs retain the previously verified initial BL1,
+  Manifest/BL2 A/B and CP/AP A/B geometry. Their storage region is either
+  persistent_data or reserved according to topology; all sizes remain
+  compile-time CSV inputs. The immutable calibration tail remains explicit.
 - ADR-004 records the one-time physical layout migration. ADR-005, ADR-006
   and the N17 format-3 journal remain historical design/evidence only; their
   runtime readers, writers and policy sector have been removed.
@@ -136,7 +136,9 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 ## External dependencies
 
 - openvela/NuttX sibling checkouts in the workspace, treated as official read-only inputs.
-- Beken SDK v3.1.1.9 for all runtime linking, adaptation and board verification.
+- Manifest-pinned Beken SDK v3.1.1.9 fork source for bundle regeneration, and
+  content-addressed v3.1.1.9 CP/AP bundles for runtime linking, adaptation and
+  board verification; see ADR-027.
 - Beken `bk_idk release/v2.0.1` only for read-only BK7236/BK7258 secureboot source review. BK7259 and `release/v4.0.1` are retired and prohibited by [the project rules](RULES.md).
 - Windows BKFIL/Beken loader, COM serial devices, and SEGGER J-Link for physical-board operations.
 - Product capability reference: [Beken BK7258](https://www.bekencorp.com/index/goods/detail/cid/60.html).
@@ -175,11 +177,9 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 - Executable images use 32+2 CRC-expanded physical coordinates, while
   `bk_flash_*` data APIs use raw offsets. The canonical layout/verifier must
   cross-check every conversion and reject old/new layout mixing.
-- Partition contracts are generated into product/role-private build trees.
-  Classic Make, CMake, linker preprocessing, BL1/BL2 and postbuild must derive
-  the header from the same source/ID/SHA tuple; command-line header overrides
-  are ignored.  This isolates layout inputs, but full concurrent product builds
-  still require the future executor to isolate every output and SDK view.
+- Partition contracts are generated under `out/bk7258/<config>/generated`.
+  Classic Make, CMake, linker preprocessing, image and package stages consume
+  the same explicit CSV and generated header/linker paths.
 - Partition/MTD composition and SYS_RF/SYS_NET storage mapping are board-owned.
   Chip startup uses linker `_vectors`, AP lifecycle accepts a validated image
   descriptor, and radio lifecycle accepts storage callbacks; chip code does
@@ -188,15 +188,10 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   MIC, AUD, SARADC, TF and other frozen validation profiles still contain
   production or board bring-up auto-start paths, so validation policy remains
   explicitly `mixed-legacy` until P9b.
-- Product metadata and resource graphs cover all three boards. Full-delivery
-  `execute` remains a dry-run planner, while the isolated four-role
-  `compile-runtime` phase is verified in reconciled `COMPILE_ONLY` mode.
-  Isolated postbuild emits and verifies the canonical role aliases and
-  manifest; production signing/package delivery and `.bkpack` execution
-  remain phase-gated, and compiled BL1/BL2 artifacts are not a
-  runnable/trusted boot result. The 27-row ledger is historical after the
-  three-seed cutover, P9b and validation migration remain partial, and the
-  compatibility shell remains the complete production delivery path.
+- Product metadata, resource graphs, source snapshots and the isolated
+  executor are retired. `bk7258.py build` directly orchestrates the official
+  CP/AP CMake builds. The accepted raw pair and unsigned package are real host
+  artifacts but are not thereby signed or hardware-verified.
 - BL2 XIP reads must never extend past the valid CRC-expanded payload. A test
   that copied 128 KiB from an 8 KiB BL2 package falsely appeared to show a
   64 KiB SRAM-bank limit; a complete 128 KiB logical/136 KiB physical CRC

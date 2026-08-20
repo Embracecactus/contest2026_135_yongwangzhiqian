@@ -16,7 +16,6 @@
 ############################################################################
 
 include armv8-m/Make.defs
-include $(BOARD_DIR)$(DELIM)bk_idk$(DELIM)sdk-bundles.mk
 
 # The arch Makefile already adds chip/ itself.  Add the role subdirectories for
 # source lookup and chip-private quoted includes.
@@ -40,22 +39,15 @@ INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)armv8-m
 
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)arm_m
 
-# Beken SDK headers are kept separate for each firmware role.
+# The unified builder injects the one verified SDK profile for this role.
 
-ifeq ($(CONFIG_BK7258_AP_CORE),y)
-BK7258_SDK_ROLE := ap
-else
-BK7258_SDK_ROLE := cp
+ifeq ($(wildcard $(BK7258_SDK_DIR)$(DELIM)include),)
+$(error BK7258_SDK_DIR is required; use tools/bk7258/bk7258.py build)
 endif
 
-BK7258_SDK_ROLE_DIR := $(BK7258_SDK_BUNDLE_ROOT)$(DELIM)$(BK7258_SDK_ROLE)
-
-ifeq ($(wildcard $(BK7258_SDK_ROLE_DIR)$(DELIM)include),)
-$(error BK7258 $(BK7258_SDK_ROLE) SDK bundle '$(BK7258_SDK_BUNDLE_VERSION)' is missing: $(BK7258_SDK_ROLE_DIR))
-endif
-
-INCLUDES += ${INCDIR_PREFIX}$(BK7258_SDK_ROLE_DIR)$(DELIM)include
-INCLUDES += ${INCDIR_PREFIX}$(BK7258_SDK_ROLE_DIR)$(DELIM)config
+BK7258_SDK_LIBS_DIR := $(BK7258_SDK_DIR)$(DELIM)libs
+INCLUDES += ${INCDIR_PREFIX}$(BK7258_SDK_DIR)$(DELIM)include
+INCLUDES += ${INCDIR_PREFIX}$(BK7258_SDK_DIR)$(DELIM)config
 
 # Shared N7 sources.  lowputc/serial remain shared in this structural-only
 # move: the current AP ELF still exports arm_lowputc()/up_putc(), so making
@@ -197,30 +189,6 @@ endif
 ifeq ($(CONFIG_BK7258_GPIO_LOWERHALF),y)
 BK7258_CP_CSRCS += bk7258_gpio_cp_irq.c
 BK7258_CP_CSRCS += bk7258_gpio_lowerhalf.c
-endif
-
-# NuttX MCUboot BL2 reaches the selected Direct-XIP image through the board
-# handoff hook.  Keep this adapter in the board port: neither NuttX nor the
-# immutable Beken SDK is changed.
-
-ifeq ($(CONFIG_MCUBOOT_BOOTLOADER),y)
-BK7258_CP_CSRCS += bk7258_bl2_mcuboot_boot.c
-# The upstream NuttX MCUboot application deliberately leaves the signing
-# algorithm and platform key to each board port.  Keep that glue here rather
-# than carrying a local change to apps/ or MCUboot itself.  The public key
-# below is MCUboot's published development key; production must replace only
-# this board-owned public-key translation unit with the project release key.
-INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
-CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
-CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)tinycrypt$(DELIM)lib$(DELIM)include
-INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
-CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
-CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)boot$(DELIM)mcuboot$(DELIM)mcuboot$(DELIM)ext$(DELIM)mbedtls-asn1$(DELIM)include
-BK7258_CP_CSRCS += bk7258_bl2_mcuboot_ecdsa.c
-BK7258_CP_CSRCS += bk7258_bl2_mcuboot_ecc.c
-BK7258_CP_CSRCS += bk7258_bl2_mcuboot_ecc_dsa.c
-BK7258_CP_CSRCS += bk7258_bl2_mcuboot_asn1.c
-BK7258_CP_CSRCS += bk7258_bl2_mcuboot_keys.c
 endif
 
 # Stage N4-D1: deterministic 320 MHz CPU0 clock bring-up.

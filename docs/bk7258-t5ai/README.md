@@ -150,19 +150,13 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 | BL1/BL2/MCUboot | 完整源码保留；BL1 固定 Primary→Secondary BL2 回退，MCUboot 校验同槽 CP/AP。旧 OTA lifecycle 不再链接 |
 | 多核后续 | N8 AP SMP、N9 RPTUN/RPMsg与N13 BLE服务层均已板端通过；不切换 BMP、不建立 CPU2第二 peer。Wi-Fi数据面仍未进入已批准范围 |
 
-**当前 MCUboot 构建产物**：`$FW/bk7258-dual/app.bin`（CP）、`app1.bin`（AP）、
-`bl_crc.bin`、`bl2_crc.bin` 及 `bk7258-dual-image.json`。Flash 操作必须以本次
-manifest 的 `segments[].bkfil` 为准，并保留 `usr_config`、LittleFS
-`0x600000..0x700000` 和 `0x7fa000..0x800000` official tail。
-`all-app-factory.bin` 只用于获得 fresh authority 后的破坏性恢复。
-`$FW = $WORKSPACE/nuttx`，console UART1 460800 8N1。
-
-产物分为三层，不能混用：`vela_nuttx_cp.bin`、`vela_nuttx_ap.bin` 是公开的
-OpenVela 角色逻辑镜像，`vela_nuttx_manifest.json` 记录双核别名与逐字节校验；
-`app.bin`、`app1.bin` 及对应的 `*_crc.bin` 是 BK7258 MCUboot/32+2 CRC
-内部兼容产物；最终下载入口是唯一的 `firmware.bkpack`，其中 `apps`、`normal`、`factory` 计划只引用
-Flash-padded payload。不要直接烧录 `vela_*.bin`、`app*.bin` 或未补齐的
-`*_crc.bin`。
+当前维护者只通过 `tools/bk7258/bk7258.py` 构建和打包。官方 NuttX
+`nuttx/nuttx.bin/nuttx.map` 保留在 `out/bk7258/<config>-<boot>/cmake`；项目
+BL1/BL2与最终 Flash段位于 pair/layout-identity 输出目录。最终交付容器是
+`.bkpack`，必须先通过 `verify package`；签名交付还必须通过 `verify trust`。
+不存在 `bk7258-dual-image.json`、`vela_*`别名、factory计划或 metadata-only
+package plan。Flash只能使用已验证包中声明的 sparse range，并保留所有
+`preserve`/`immutable`区域。
 
 ## 产物索引
 

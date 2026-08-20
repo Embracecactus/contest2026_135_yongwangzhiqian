@@ -23,7 +23,7 @@
 #  include "bk7258_flash_mtd.h"
 #endif
 
-#ifdef CONFIG_BK7258_FLASH_LITTLEFS
+#ifdef CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT
 #  include <nuttx/fs/fs.h>
 #endif
 
@@ -37,7 +37,7 @@
  * Private Data and Functions
  ****************************************************************************/
 
-#ifdef CONFIG_BK7258_FLASH_LITTLEFS
+#ifdef CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT
 /* LittleFS bring-up: register /dev/mtdblock0 (FTL) and mount /data.  Storage
  * validation belongs to an explicitly selected application/test; normal
  * board bring-up must not create or rewrite a probe file on every boot.
@@ -56,14 +56,14 @@ static void bk7258_fs_mount(struct mtd_dev_s *mtd)
   mkdir(BK7258_FS_MOUNTPOINT, 0777);
 
   if (mount(BK7258_FS_BLOCKDEV, BK7258_FS_MOUNTPOINT, "littlefs", 0,
-            "autoformat") < 0)
+            NULL) < 0)
     {
       _err("bk7258: failed to mount LittleFS at %s\n",
            BK7258_FS_MOUNTPOINT);
       return;
     }
 }
-#endif /* CONFIG_BK7258_FLASH_LITTLEFS */
+#endif /* CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT */
 
 /****************************************************************************
  * Public Functions
@@ -107,33 +107,15 @@ int bk7258_bringup(void)
 #endif
 
 #ifdef CONFIG_BK7258_FLASH_MTD
-  /* Create the MTD instance for the 1 MiB data partition.  When LittleFS is
-   * also enabled, register /dev/mtdblock0 and mount /data on the same
-   * instance.
+  /* Create the selected on-chip persistent MTD and mount the system data
+   * service. The mount never formats the range.
    */
 
   FAR struct mtd_dev_s *mtd = bk7258_flash_mtd_initialize();
   if (mtd != NULL)
     {
-#ifdef CONFIG_BK7258_FLASH_LITTLEFS
+#ifdef CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT
       bk7258_fs_mount(mtd);
-#endif
-#ifdef CONFIG_MCUBOOT_BOOTLOADER
-      /* Publish read-only, bounds-checked image-pair partitions only to the
-       * NuttX MCUboot BL2 profile.
-       */
-
-      if (register_mtddriver(
-            CONFIG_MCUBOOT_PRIMARY_SLOT_PATH,
-            bk7258_mcuboot_mtd_get(BK7258_MCUBOOT_MTD_SLOT_PRIMARY),
-            0600, NULL) < 0 ||
-          register_mtddriver(
-            CONFIG_MCUBOOT_SECONDARY_SLOT_PATH,
-            bk7258_mcuboot_mtd_get(BK7258_MCUBOOT_MTD_SLOT_SECONDARY),
-            0600, NULL) < 0)
-        {
-          _err("bk7258: MCUboot MTD node registration failed\n");
-        }
 #endif
     }
 #endif

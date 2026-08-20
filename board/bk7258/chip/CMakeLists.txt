@@ -8,7 +8,14 @@
 # are documented where they occur.
 ############################################################################
 
-include("${NUTTX_BOARD_DIR}/bk_idk/sdk-bundles.cmake")
+if("$ENV{BK7258_SDK_DIR}" STREQUAL "")
+  message(FATAL_ERROR
+          "BK7258_SDK_DIR is required; use tools/bk7258/bk7258.py build")
+endif()
+set(BK7258_SDK_DIR "$ENV{BK7258_SDK_DIR}")
+set(BK7258_SDK_INCLUDE_DIR "${BK7258_SDK_DIR}/include")
+set(BK7258_SDK_CONFIG_DIR "${BK7258_SDK_DIR}/config")
+set(BK7258_SDK_LIBS_DIR "${BK7258_SDK_DIR}/libs")
 
 function(bk7258_wrap_sdk_symbol)
   foreach(BK7258_SYMBOL ${ARGN})
@@ -154,19 +161,6 @@ if(CONFIG_BK7258_GPIO_LOWERHALF)
   list(APPEND BK7258_CP_SRCS
        cp/bk7258_gpio_cp_irq.c
        cp/bk7258_gpio_lowerhalf.c)
-endif()
-
-if(CONFIG_MCUBOOT_BOOTLOADER)
-  list(APPEND BK7258_CP_SRCS
-       ../bootloader/bl2/bk7258_bl2_mcuboot_boot.c
-       ../bootloader/bl2/bk7258_bl2_mcuboot_ecdsa.c
-       ../bootloader/bl2/bk7258_bl2_mcuboot_ecc.c
-       ../bootloader/bl2/bk7258_bl2_mcuboot_ecc_dsa.c
-       ../bootloader/bl2/bk7258_bl2_mcuboot_asn1.c
-       ../bootloader/bl2/bk7258_bl2_mcuboot_keys.c)
-  target_include_directories(arch PRIVATE
-      ${NUTTX_APPS_DIR}/boot/mcuboot/mcuboot/ext/tinycrypt/lib/include
-      ${NUTTX_APPS_DIR}/boot/mcuboot/mcuboot/ext/mbedtls-asn1/include)
 endif()
 
 if(CONFIG_BK7258_CLOCK_320M)
@@ -497,8 +491,8 @@ target_include_directories(arch PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/ap
     ${NUTTX_DIR}/arch/arm/src/arm_m
     ${NUTTX_DIR}/arch/arm/src/armv8-m
-    ${BK7258_SDK_ROLE_DIR}/include
-    ${BK7258_SDK_ROLE_DIR}/config)
+    ${BK7258_SDK_INCLUDE_DIR}
+    ${BK7258_SDK_CONFIG_DIR})
 
 # Match the SDK header environment used by Classic Make without enabling any
 # of the SDK's FreeRTOS, watchdog or retention ownership.

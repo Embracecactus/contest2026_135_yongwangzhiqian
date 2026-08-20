@@ -9,11 +9,10 @@
 #ifndef BK7258_BOOT_BL2_CONTRACT_H
 #define BK7258_BOOT_BL2_CONTRACT_H
 
-#include "../chip/include/bk7258_memorymap.h"
-#include <bk7258_partition_layout.h>
+#include <bk7258_partitions.h>
 
-#define BK7258_BL2_LOGICAL_CAPACITY       BK7258_ROLE_BL2_LOGICAL_SIZE
-#define BK7258_BL2_PHYSICAL_CAPACITY      BK7258_ROLE_BL2_SIZE
+#define BK7258_BL2_LOGICAL_CAPACITY       BK7258_ARTIFACT_BL2_A_LOGICAL_SIZE
+#define BK7258_BL2_PHYSICAL_CAPACITY      BK7258_ARTIFACT_BL2_A_SIZE
 #define BK7258_BL2_SRAM_BASE              0x28020000u
 #define BK7258_BL2_SRAM_CAPACITY          0x00020000u
 #define BK7258_BL2_SRAM_END               \
@@ -55,51 +54,25 @@ static inline uint32_t bk7258_bl2_boot_policy_check(
 }
 #endif
 
-/* The current board-owned MCUboot image occupies 0x3000 logical bytes after
- * FF padding.  The Makefiles can override this with the exact same value when
- * building a larger image, up to the 128 KiB contract. */
-#define BK7258_BL2_DEFAULT_IMAGE_SIZE     0x00003000u
 #ifndef BK7258_BL2_COPY_SIZE
-#  define BK7258_BL2_COPY_SIZE            BK7258_BL2_DEFAULT_IMAGE_SIZE
+#  error "BK7258_BL2_COPY_SIZE must be generated from the selected build"
 #endif
 
-/*
- * The CSV keeps the original 128 KiB logical ``bl2`` envelope.  The unused
- * pre-LittleFS gap immediately following that envelope is large enough for a
- * second, equally sized development slot.  This is the board-owned
- * primary/secondary fallback used while the BK7258 BootROM Manifest ABI is
- * unavailable; it does not change the official SDK partition rows.
- */
-#define BK7258_BL2_PRIMARY_XIP            BK7258_ROLE_BL2_XIP_START
+#define BK7258_BL2_PRIMARY_XIP            BK7258_ARTIFACT_BL2_A_XIP_START
+#define BK7258_BL2_SECONDARY_XIP          BK7258_ARTIFACT_BL2_B_XIP_START
 #define BK7258_BL2_SECONDARY_LOGICAL_OFFSET \
-  (BK7258_ROLE_BL2_LOGICAL_OFFSET + BK7258_BL2_LOGICAL_CAPACITY)
-#define BK7258_BL2_SECONDARY_XIP          \
-  (BK7258_FLASH_XIP_BASE + BK7258_BL2_SECONDARY_LOGICAL_OFFSET)
-#define BK7258_BL2_SECONDARY_RAW_OFFSET   \
-  (BK7258_ROLE_BL2_OFFSET + BK7258_BL2_PHYSICAL_CAPACITY)
-#define BK7258_BL2_SECONDARY_RAW_END     \
-  (BK7258_BL2_SECONDARY_RAW_OFFSET + BK7258_BL2_PHYSICAL_CAPACITY)
+  BK7258_ARTIFACT_BL2_B_LOGICAL_OFFSET
+#define BK7258_BL2_SECONDARY_RAW_OFFSET   BK7258_ARTIFACT_BL2_B_OFFSET
+#define BK7258_BL2_SECONDARY_RAW_END      BK7258_ARTIFACT_BL2_B_END
 
-/* The two 256-byte records share the fixed bootloader tail.  The primary
- * address remains the historical address so old development images still
- * fail/boot in the same place when enforcement is disabled. */
-#define BK7258_BL1_MANIFEST_SLOT_SIZE     0x00000100u
-#define BK7258_BL1_MANIFEST_TAIL_SIZE     \
-  (2 * 0x00000100)
-
-#if BK7258_BL2_LOGICAL_CAPACITY != 0x00020000u
-#  error "BK7258 BL2 partition must reserve 128 KiB logical capacity"
-#endif
-#if BK7258_BL2_PHYSICAL_CAPACITY != 0x00022000u
-#  error "BK7258 BL2 partition must reserve 136 KiB CRC physical span"
+#if BK7258_ARTIFACT_BL2_B_LOGICAL_SIZE != BK7258_BL2_LOGICAL_CAPACITY || \
+    BK7258_ARTIFACT_BL2_B_SIZE != BK7258_BL2_PHYSICAL_CAPACITY
+#  error "BK7258 BL2 A/B capacities must match"
 #endif
 #if BK7258_BL2_COPY_SIZE == 0u || \
     BK7258_BL2_COPY_SIZE > BK7258_BL2_LOGICAL_CAPACITY || \
+    BK7258_BL2_COPY_SIZE > BK7258_BL2_SRAM_CAPACITY || \
     (BK7258_BL2_COPY_SIZE & 31u) != 0u
 #  error "BK7258 BL2 image size must be CRC-block aligned and within capacity"
 #endif
-#if BK7258_BL2_SECONDARY_RAW_END > BK7258_ROLE_LITTLEFS_OFFSET
-#  error "secondary BL2 slot overlaps LittleFS"
-#endif
-
 #endif /* BK7258_BOOT_BL2_CONTRACT_H */

@@ -273,32 +273,44 @@ config BK7258_T5_BOARD_CAMERA_H264_VALIDATION
 
 endif # BK7258_BOARD_T5_BOARD
 
-# Product data storage composition belongs to the logical board.  The chip
-# layer keeps only the BK7258 raw Flash mechanism and generic cross-core
-# transport; these options select the board's resolved data-partition
-# contract and its optional filesystem mount.  Keep the symbol names and
-# dependencies stable so existing CP/BL2 defconfigs remain compatible.
+# Persistent storage is a system topology, independent of any application or
+# physical-board name.  A selected board supplies only the required hardware
+# capability and electrical binding.
 
-config BK7258_FLASH_MTD
-	bool "BK7258 on-chip flash data-partition MTD"
+config BK7258_STORAGE_ONCHIP_PERSISTENT
+	bool "Persistent data on BK7258 on-chip Flash"
 	default n
 	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && !BK7258_AP_CORE
+	select BK7258_FLASH_MTD
+	select FS_LITTLEFS
+	help
+		Expose the CSV-selected persistent_data range through MTD and mount
+		LittleFS at /data.  Ordinary boot never auto-formats the range.
+
+config BK7258_STORAGE_REMOVABLE_BLOCK
+	bool "Persistent data on removable block media"
+	default n
+	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && BK7258_AP_CORE
+	depends on BK7258_BOARD_HAS_SDIO_BINDING
+	help
+		Use an already provisioned removable block medium.  Partitioning and
+		formatting are explicit provisioning operations, never boot actions.
+
+config BK7258_STORAGE_FIXED_BLOCK
+	bool "Persistent data on fixed block media"
+	default n
+	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && BK7258_AP_CORE
+	depends on BK7258_BOARD_HAS_SDIO_BINDING
+	help
+		Use an already provisioned soldered block medium.  Capacity is read
+		from the device; no nominal board size becomes a coded end address.
+
+config BK7258_FLASH_MTD
+	bool
+	default n
+	depends on BK7258_STORAGE_ONCHIP_PERSISTENT
 	select MTD
 	---help---
-		Expose the selected board product's writable data partition as a NuttX
+		Expose the selected layout's writable persistent_data range as a NuttX
 		MTD instance.  read/erase/bwrite use the option-A SR0 block-protect
-		policy (cleared around each op, restored afterwards).  No /dev node or
-		filesystem is mounted by this driver; a filesystem mount requires
-		separate authorisation (see BK7258_FLASH_LITTLEFS).
-
-config BK7258_FLASH_LITTLEFS
-	bool "BK7258 data-partition LittleFS (auto-format + mount)"
-	default n
-	depends on BK7258_FLASH_MTD
-	select FS_LITTLEFS
-	---help---
-		Register /dev/mtdblock0 (ftl) over the selected board data-partition
-		MTD and mount LittleFS at /data with the "autoformat" option (formats
-		on first boot only).  Persistence and destructive storage validation
-		are explicit application/test actions and never run during bring-up.
-		Auto-format can modify the data partition; enable only when authorised.
+		policy (cleared around each op, restored afterwards).

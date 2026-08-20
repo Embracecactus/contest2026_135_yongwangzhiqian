@@ -24,12 +24,6 @@
 #include <nuttx/config.h>
 #include <nuttx/mtd/mtd.h>
 
-enum bk7258_mcuboot_mtd_slot_e
-{
-  BK7258_MCUBOOT_MTD_SLOT_PRIMARY = 0,
-  BK7258_MCUBOOT_MTD_SLOT_SECONDARY = 1
-};
-
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -51,12 +45,6 @@ enum bk7258_mcuboot_mtd_slot_e
 #ifdef CONFIG_BK7258_FLASH_MTD
 FAR struct mtd_dev_s *bk7258_flash_mtd_initialize(void);
 
-/* Return a bounds-checked, read-only MTD child for a signed image pair. */
-
-#ifdef CONFIG_MCUBOOT_BOOTLOADER
-FAR struct mtd_dev_s *
-bk7258_mcuboot_mtd_get(enum bk7258_mcuboot_mtd_slot_e slot);
-#endif
 #endif
 
 #endif /* __BOARDS_ARM_BK7258_SRC_BK7258_FLASH_MTD_H */

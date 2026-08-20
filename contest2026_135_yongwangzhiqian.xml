@@ -8,6 +8,19 @@
   -->
   <include name="openvela.xml"/>
 
+  <extend-project name="prebuilts_gcc_linux-x86_64_arm-none-eabi"
+                  path="prebuilts/gcc/linux-x86_64/arm-none-eabi"
+                  revision="948af44a3171ff9c8645cbe4729bb21fa3e23f00"
+                  upstream="refs/heads/dev-ai-contest-2026"
+                  groups="bk7258-toolchain"/>
+
+  <project path="vendor/beken/bk_avdk_smp"
+           name="Embracecactus/bk_avdk_smp"
+           remote="git"
+           revision="cb080de1655d579c7593ecf504c440997c4c137b"
+           upstream="refs/heads/openvela/v3.1.1.9"
+           groups="bk7258-sdk"/>
+
   <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian">
     <linkfile src="app/hello_app" dest="packages/demos/contest2026_135_hello_app"/>
     <linkfile src="app/vela_claw" dest="packages/demos/contest2026_135_vela_claw"/>

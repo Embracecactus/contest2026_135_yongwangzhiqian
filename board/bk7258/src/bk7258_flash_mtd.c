@@ -6,13 +6,8 @@
  * BK7258 product-partition MTD composition — SDK wrapper.
  *
  * Calls bk_flash_* SDK APIs.  Zero register access.
- * Exposes the 1 MiB data partition.  A NuttX MCUboot BL2 build also creates
- * read-only MTD children for the two physical CP/AP image pairs.
- *
- * Geometry is fixed for the BK7258 integrated 8 MiB Flash interface:
- *   blocksize  = 4096  (read/write block unit)
- *   erasesize  = 4096  (sector erase unit)
- *   neraseblocks = 256 (1 MiB / 4 KiB)
+ * Exposes the selected on-chip persistent_data range. Geometry comes only
+ * from the generated partition contract.
  ****************************************************************************/
 
 /****************************************************************************
@@ -42,36 +37,13 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Verified data partition layout (matches docs n5-flash-filesystem.md). */
+/* Selected persistent-data layout. */
 
 #define BK7258_DATA_PART_BASE       BK7258_DATA_RAW_PHYSICAL_OFFSET
 #define BK7258_DATA_PART_SIZE       BK7258_DATA_RAW_PHYSICAL_SIZE
 
-#define BK7258_FLASH_BLOCK_SIZE     4096u
+#define BK7258_FLASH_BLOCK_SIZE     BK7258_FLASH_ERASE_SIZE
 #define BK7258_FLASH_NBLOCKS        (BK7258_DATA_PART_SIZE / BK7258_FLASH_BLOCK_SIZE)
-
-#define BK7258_MCUBOOT_PART_BASE         BK7258_ROLE_SLOT_A_CP_OFFSET
-#define BK7258_MCUBOOT_PAIR_RAW_SIZE     BK7258_ROLE_SLOT_B_PAIR_SIZE
-#define BK7258_MCUBOOT_PAIR_LOGICAL_SIZE \
-  (BK7258_MCUBOOT_PAIR_RAW_SIZE / BK7258_FLASH_CRC_TOTAL_SIZE * \
-   BK7258_FLASH_CRC_DATA_SIZE)
-#define BK7258_MCUBOOT_PAIR_BLOCKS       \
-  (BK7258_MCUBOOT_PAIR_LOGICAL_SIZE / BK7258_FLASH_BLOCK_SIZE)
-#define BK7258_MCUBOOT_PART_SIZE         \
-  (2u * BK7258_MCUBOOT_PAIR_LOGICAL_SIZE)
-
-#if BK7258_ROLE_SLOT_A_CP_END != BK7258_ROLE_SLOT_A_AP_OFFSET
-#  error "slot A CP/AP layout is not contiguous"
-#endif
-
-#if BK7258_ROLE_SLOT_A_AP_END != BK7258_ROLE_SLOT_B_PAIR_OFFSET
-#  error "A/B image pairs must be physically adjacent for NuttX MTD partitions"
-#endif
-
-#if BK7258_MCUBOOT_PAIR_RAW_SIZE % BK7258_FLASH_CRC_TOTAL_SIZE != 0 || \
-    BK7258_MCUBOOT_PAIR_LOGICAL_SIZE % BK7258_FLASH_BLOCK_SIZE != 0
-#  error "BK7258 A/B pair must map exactly to 34/32 CRC and 4 KiB MTD blocks"
-#endif
 
 /* Known compatible IDs accepted by the official driver.  Reference hardware
  * reports 0xc86517, which matches the GD25WQ64E command-set
@@ -109,19 +81,6 @@ static struct bk7258_flash_mtd_s g_bk7258_data_mtd =
   .name = "bk7258-data"
 };
 
-#ifdef CONFIG_MCUBOOT_BOOTLOADER
-static struct bk7258_flash_mtd_s g_bk7258_mcuboot_parent_mtd =
-{
-  .base = BK7258_MCUBOOT_PART_BASE,
-  .size = BK7258_MCUBOOT_PART_SIZE,
-  .crc_encoded = true,
-  .owner = BK7258_FLASH_GUARD_MCUBOOT,
-  .name = "bk7258-mcuboot-parent"
-};
-
-static FAR struct mtd_dev_s *g_bk7258_mcuboot_slots[2];
-#endif
-
 static bool g_bk7258_flash_mtd_initialized;
 
 static FAR struct bk7258_flash_mtd_s *
@@ -131,13 +90,6 @@ bk7258_flash_mtd_state(FAR struct mtd_dev_s *dev)
     {
       return &g_bk7258_data_mtd;
     }
-
-#ifdef CONFIG_MCUBOOT_BOOTLOADER
-  if (dev == &g_bk7258_mcuboot_parent_mtd.mtd)
-    {
-      return &g_bk7258_mcuboot_parent_mtd;
-    }
-#endif
 
   return NULL;
 }
@@ -536,36 +488,6 @@ FAR struct mtd_dev_s *bk7258_flash_mtd_initialize(void)
     }
 
   bk7258_flash_mtd_bind(&g_bk7258_data_mtd);
-#ifdef CONFIG_MCUBOOT_BOOTLOADER
-  bk7258_flash_mtd_bind(&g_bk7258_mcuboot_parent_mtd);
-#endif
   g_bk7258_flash_mtd_initialized = true;
   return &g_bk7258_data_mtd.mtd;
 }
-
-#ifdef CONFIG_MCUBOOT_BOOTLOADER
-FAR struct mtd_dev_s *
-bk7258_mcuboot_mtd_get(enum bk7258_mcuboot_mtd_slot_e slot)
-{
-  if (slot != BK7258_MCUBOOT_MTD_SLOT_PRIMARY &&
-      slot != BK7258_MCUBOOT_MTD_SLOT_SECONDARY)
-    {
-      return NULL;
-    }
-
-  if (bk7258_flash_mtd_initialize() == NULL)
-    {
-      return NULL;
-    }
-
-  if (g_bk7258_mcuboot_slots[slot] == NULL)
-    {
-      g_bk7258_mcuboot_slots[slot] =
-        mtd_partition(&g_bk7258_mcuboot_parent_mtd.mtd,
-                      (off_t)slot * BK7258_MCUBOOT_PAIR_BLOCKS,
-                      BK7258_MCUBOOT_PAIR_BLOCKS);
-    }
-
-  return g_bk7258_mcuboot_slots[slot];
-}
-#endif

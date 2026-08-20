@@ -1,20 +1,15 @@
 # BK7258 PWM Bundle Export Resolution
 
-Status: resolved by the `ap-peripherals-r2` v3.1.1.9 SDK bundle overlay.
+Status: resolved; the historical r2 overlay is retired and its settings are
+part of the canonical AP SDK profile.
 
 > **Profile status:** The old per-role drivercheck profile name formerly used
 > near the end of this note is **SUPERSEDED and NON-RUNNABLE**; its deleted
-> `configs/` directory must not be restored. Use the canonical product and
-> validation-suite catalog instead:
+> `configs/` directory must not be restored. Use the canonical build entry:
 >
 > ```sh
-> python3 tools/bk7258/bk7258_framework.py build-plan \
->   --product t5_board_bringup --out <build-root>/bk7258-build-plan.json
-> python3 tools/bk7258/bk7258_framework.py validation-check
-> python3 tools/bk7258/materialize_product_profiles.py \
->   --plan <build-root>/bk7258-build-plan.json \
->   --seed-root board/bk7258/configs --output <build-root>/configs \
->   --make-defs board/bk7258/scripts/Make.defs
+> python3 tools/bk7258/bk7258.py build \
+>   --cp-config <cp-profile> --ap-config <ap-profile> --check
 > ```
 
 ## Original symptom
@@ -67,10 +62,10 @@ With `CONFIG_PWM` absent, `pwm_driver.c` is not compiled into
 
 ## Resolution
 
-The repository now owns
-`bk_idk/sdk-profiles/v3.1.1.9/ap-peripherals-r2.config`.  The import tool
-copies the official `projects/app` project to a temporary directory, applies
-that tracked overlay, and builds with an external temporary build directory.
+The repository now owns the canonical
+`bk_idk/sdk-profiles/v3.1.1.9/ap.config`.  `bk7258.py sdk rebuild` copies the
+official `projects/app` project to a temporary directory, applies that tracked
+profile, and builds with an external temporary build directory.
 The official v3.1.1.9 SDK source tree is therefore never edited.
 
 The regenerated AP bundle exports the real `bk_pwm_*` implementation from

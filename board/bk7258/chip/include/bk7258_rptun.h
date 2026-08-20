@@ -29,7 +29,7 @@
 #define BK7258_RPTUN_CARVEOUT_ALIGN       64u
 
 /* These sizes are frozen against the current NuttX/OpenAMP checkout by
- * verify_bk7258_rptun_layout.py.  When CONFIG_RPTUN is enabled, the lower
+ * bk7258.py verify rptun. When CONFIG_RPTUN is enabled, the lower
  * half also static-asserts sizeof(struct rptun_rsc_s) and vring_size().
  */
 
