@@ -23,7 +23,9 @@
 #include <syslog.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/clock.h>
 #include <nuttx/mutex.h>
+#include <nuttx/semaphore.h>
 #include <nuttx/video/fb.h>
 
 #include <arch/chip/bk7258_lcd.h>
@@ -44,6 +46,11 @@ extern int32_t sys_drv_core_intr_group1_enable(uint32_t core_id,
 #define BK7258_LCD_AP_PRIMARY_CORE_ID     1u
 #define BK7258_LCD_SDK_DEFAULT_CORE_ID    2u
 #define BK7258_LCD_INTERRUPT_CTRL_BIT     (1u << 27)
+#ifdef CONFIG_FB_SYNC
+#  define BK7258_LCD_FRAME_COUNT          2u
+#else
+#  define BK7258_LCD_FRAME_COUNT          1u
+#endif
 
 /* The SDK validates the documented six-bit sync-width fields as though they
  * were only three bits wide.  Restore the board profile's values after its
@@ -66,6 +73,9 @@ struct bk7258_lcd_priv_s
   uint8_t *framebuf_alloc;
   uint8_t *framebuf;
   size_t framebuf_bytes;
+#ifdef CONFIG_FB_SYNC
+  sem_t flip_sem;
+#endif
   uint16_t power;
   bool inited;
 };
@@ -75,6 +85,9 @@ static int bk7258_lcd_getvideoinfo(FAR struct fb_vtable_s *vtable,
 static int bk7258_lcd_getplaneinfo(FAR struct fb_vtable_s *vtable,
                                    int planeno,
                                    FAR struct fb_planeinfo_s *pinfo);
+#ifdef CONFIG_FB_SYNC
+static int bk7258_lcd_waitforvsync(FAR struct fb_vtable_s *vtable);
+#endif
 #ifdef CONFIG_FB_UPDATE
 static int bk7258_lcd_updatearea(FAR struct fb_vtable_s *vtable,
                                  FAR const struct fb_area_s *area);
@@ -90,6 +103,9 @@ static struct bk7258_lcd_priv_s g_bk7258_lcd =
   {
     .getvideoinfo = bk7258_lcd_getvideoinfo,
     .getplaneinfo = bk7258_lcd_getplaneinfo,
+#ifdef CONFIG_FB_SYNC
+    .waitforvsync = bk7258_lcd_waitforvsync,
+#endif
 #ifdef CONFIG_FB_UPDATE
     .updatearea   = bk7258_lcd_updatearea,
 #endif
@@ -102,6 +118,9 @@ static struct bk7258_lcd_priv_s g_bk7258_lcd =
   .framebuf_alloc = NULL,
   .framebuf       = NULL,
   .framebuf_bytes = 0,
+#ifdef CONFIG_FB_SYNC
+  .flip_sem       = SEM_INITIALIZER(0),
+#endif
   .power          = 0,
   .inited         = false,
 };
@@ -112,7 +131,46 @@ static volatile uint32_t g_bk7258_lcd_eof_count;
 
 static void bk7258_lcd_eof_isr(void *arg)
 {
-  (void)arg;
+  FAR struct bk7258_lcd_priv_s *priv = arg;
+  union fb_paninfo_u info;
+  bool flipped = false;
+
+  if (priv != NULL &&
+      fb_peek_paninfo(&priv->vtable, &info, FB_NO_OVERLAY) == OK)
+    {
+      uint32_t height = priv->board->panel->height;
+      uint32_t yoffset = info.planeinfo.yoffset;
+
+      if (info.planeinfo.xoffset == 0 &&
+          (yoffset == 0 || yoffset == height))
+        {
+          uintptr_t address = (uintptr_t)priv->framebuf +
+                              (size_t)yoffset *
+                              priv->board->panel->width * 2u;
+
+          __asm volatile ("dmb sy" ::: "memory");
+          (void)lcd_driver_set_display_base_addr((uint32_t)address);
+        }
+
+      if (fb_remove_paninfo(&priv->vtable, FB_NO_OVERLAY) == OK)
+        {
+          flipped = true;
+        }
+    }
+
+#ifdef CONFIG_FB_SYNC
+  if (flipped)
+    {
+      (void)nxsem_post(&priv->flip_sem);
+    }
+#else
+  (void)flipped;
+#endif
+
+  if (priv != NULL)
+    {
+      fb_notify_vsync(&priv->vtable);
+    }
 
 #ifdef CONFIG_BK7258_LCD_VALIDATION_PATTERN
   g_bk7258_lcd_eof_count++;
@@ -250,6 +308,17 @@ static int bk7258_lcd_getvideoinfo(FAR struct fb_vtable_s *vtable,
   return OK;
 }
 
+#ifdef CONFIG_FB_SYNC
+static int bk7258_lcd_waitforvsync(FAR struct fb_vtable_s *vtable)
+{
+  FAR struct bk7258_lcd_priv_s *priv = &g_bk7258_lcd;
+
+  (void)vtable;
+  return nxsem_tickwait_uninterruptible(&priv->flip_sem,
+                                        MSEC2TICK(100));
+}
+#endif
+
 static int bk7258_lcd_getplaneinfo(FAR struct fb_vtable_s *vtable,
                                    int planeno,
                                    FAR struct fb_planeinfo_s *pinfo)
@@ -270,7 +339,8 @@ static int bk7258_lcd_getplaneinfo(FAR struct fb_vtable_s *vtable,
   pinfo->display      = 0;
   pinfo->bpp          = 16;
   pinfo->xres_virtual = priv->board->panel->width;
-  pinfo->yres_virtual = priv->board->panel->height;
+  pinfo->yres_virtual = priv->board->panel->height *
+                        BK7258_LCD_FRAME_COUNT;
   return OK;
 }
 
@@ -400,7 +470,8 @@ int bk7258_lcd_initialize(void)
       goto errout;
     }
 
-  priv->framebuf_bytes = (size_t)panel->width * panel->height * 2u;
+  priv->framebuf_bytes = (size_t)panel->width * panel->height * 2u *
+                         BK7258_LCD_FRAME_COUNT;
   priv->framebuf_alloc = bk7258_psram_zalloc(priv->framebuf_bytes + 15u);
   if (priv->framebuf_alloc == NULL)
     {
@@ -464,7 +535,7 @@ int bk7258_lcd_initialize(void)
       goto errout_with_framebuffer;
     }
 
-  sdkret = bk_lcd_isr_register(RGB_OUTPUT_EOF, bk7258_lcd_eof_isr, NULL);
+  sdkret = bk_lcd_isr_register(RGB_OUTPUT_EOF, bk7258_lcd_eof_isr, priv);
   if (sdkret != BK_OK)
     {
       syslog(LOG_ERR, "BK7258 LCD: EOF callback failed: %d\n", sdkret);

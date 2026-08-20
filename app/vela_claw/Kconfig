@@ -37,6 +37,7 @@ config BK7258_APP_VELA_CLAW_STACKSIZE
 config VELA_CLAW_UI
 	bool "Enable screen UI (LVGL)"
 	default n
+	select FB_SYNC
 	select GRAPHICS_LVGL
 	---help---
 		Render the chat UI with LVGL. This only selects the software stack
