@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Shared BK7258 32-byte + CRC16 flash packet codec (Beken format).
+"""Shared BK7258 32-byte + CRC16 flash packet codec and image CLI.
 
-The app-image expander (``bk7258_crc_expand.py``) and the BL1 packer
-(``bootloader/bk7258_bl1_pack.py crc``) encode logical images into
-32-byte data + 2-byte big-endian CRC16 packets.  The CRC algorithm is the
-vendor SDK helper pinned under ``tools/vendor/bk7258-sdk-v3.1.1.9``; this
-module is the single host-side entry point for that codec so both consumers
-cannot drift apart.
+The command-line image encoder and the BL1 packer
+(``bootloader/bk7258_bl1_pack.py crc``) encode logical images into 32-byte
+data + 2-byte big-endian CRC16 packets.  The CRC algorithm is the vendor SDK
+helper pinned under ``tools/vendor/bk7258-sdk-v3.1.1.9``; this module is the
+single host-side entry point for both the algorithm and its command-line use.
 
 Official counterpart: the Beken SDK CRC helper (``bk_crc16.py``) used by the
 vendor packer.  Outputs of this module must stay byte-exact with that helper.
@@ -14,13 +13,17 @@ vendor packer.  Outputs of this module must stay byte-exact with that helper.
 
 from __future__ import annotations
 
+import argparse
+import hashlib
 import importlib.util
+import json
 import struct
 from pathlib import Path
 
 PACKET_DATA = 32
 PACKET_TOTAL = 34
 PADDING_BYTE = b"\xff"
+APP_MAGIC = b"BK7236\0\0"
 
 _VENDOR_CRC_PATH = (
     Path(__file__).resolve().parents[3]
@@ -85,3 +88,91 @@ def physical_offset_for_logical(logical_offset: int) -> int:
     return (logical_offset // PACKET_DATA) * PACKET_TOTAL + (
         logical_offset % PACKET_DATA
     )
+
+
+def parse_int(value: str) -> int:
+    """Parse a decimal or ``0x``-prefixed command-line integer."""
+
+    return int(value, 0)
+
+
+def main() -> None:
+    """Validate and encode one logical BK7258 image for physical flash."""
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--in", dest="input", type=Path, required=True)
+    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--xip-base", type=parse_int, required=True)
+    parser.add_argument(
+        "--execution-base",
+        type=parse_int,
+        help="expected vector-table execution address; defaults to --xip-base",
+    )
+    parser.add_argument("--max-size", type=parse_int, required=True)
+    parser.add_argument(
+        "--pad-size",
+        type=parse_int,
+        help="pad the logical input with erased bytes before 32+2 encoding",
+    )
+    parser.add_argument("--require-magic", action="store_true")
+    args = parser.parse_args()
+
+    raw = args.input.read_bytes()
+    input_size = len(raw)
+    if args.pad_size is not None:
+        if args.pad_size < input_size:
+            raise SystemExit(
+                f"pad size 0x{args.pad_size:x} is smaller than input "
+                f"0x{input_size:x}"
+            )
+        raw = raw.ljust(args.pad_size, PADDING_BYTE)
+    if len(raw) < 8:
+        raise SystemExit("image is too small to contain MSP and Reset vectors")
+    if len(raw) > args.max_size:
+        raise SystemExit(
+            f"image size 0x{len(raw):x} exceeds slot 0x{args.max_size:x}"
+        )
+
+    msp, reset = struct.unpack_from("<II", raw)
+    reset_addr = reset & ~1
+    if not (0x28000000 <= msp < 0x280A0000):
+        raise SystemExit(f"MSP 0x{msp:08x} is outside BK7258 SRAM")
+    if (reset & 1) == 0:
+        raise SystemExit(f"Reset vector 0x{reset:08x} is not Thumb")
+    execution_base = (
+        args.execution_base
+        if args.execution_base is not None
+        else args.xip_base
+    )
+    if not (execution_base <= reset_addr < execution_base + len(raw)):
+        raise SystemExit(
+            f"Reset vector 0x{reset:08x} is outside image execution range "
+            f"0x{execution_base:08x}..0x{execution_base + len(raw):08x}"
+        )
+    if args.require_magic and raw[0x100:0x108] != APP_MAGIC:
+        raise SystemExit("CP image is missing BK7236 magic at raw offset 0x100")
+
+    encoded = expand(raw)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_bytes(encoded)
+
+    manifest = {
+        "input": str(args.input),
+        "output": str(args.out),
+        "input_size": input_size,
+        "logical_size": len(raw),
+        "physical_size": len(encoded),
+        "xip_base": args.xip_base,
+        "execution_base": execution_base,
+        "msp": msp,
+        "reset": reset,
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+    }
+    args.out.with_suffix(args.out.suffix + ".json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
+    print(json.dumps(manifest, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

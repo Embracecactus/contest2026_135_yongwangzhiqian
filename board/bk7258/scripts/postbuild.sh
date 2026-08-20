@@ -302,7 +302,7 @@ fi
 NUTTX_BIN="${TOPDIR}/nuttx.bin"
 RAW_BIN="${ARTIFACT_ROOT}/${RAW_NAME}"
 CRC_BIN="${ARTIFACT_ROOT}/${CRC_NAME}"
-PACKER="${BOARD_DIR}/scripts/bk7258_crc_expand.py"
+PACKER="${BOARD_DIR}/scripts/bk7258_crc16.py"
 
 if [[ "${POSTBUILD_MODE}" == isolated ]]; then
     require_isolated_path "nuttx.bin" "${NUTTX_BIN}" "regular file"
