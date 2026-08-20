@@ -170,6 +170,27 @@ def elf_symbol(elf: Path, nm: Path, name: str) -> int:
     return matches[0]
 
 
+def validate_bl2_vector(image: Path, elf: Path, nm: Path) -> int:
+    """Bind the raw BL2 vector bytes to the linked ELF entry contract."""
+
+    image = _regular(image, "BL2 image")
+    vector = image.read_bytes()[:8]
+    if len(vector) != 8:
+        raise TrustError("BL2 image is too small to contain a Cortex-M vector")
+    msp = int.from_bytes(vector[:4], "little")
+    reset = int.from_bytes(vector[4:], "little")
+    load = elf_symbol(elf, nm, "bk7258_bl2_load_address")
+    vectors = elf_symbol(elf, nm, "_vectors")
+    reset_symbol = elf_symbol(elf, nm, "bk7258_bl2_reset")
+    if vectors != load:
+        raise TrustError("BL2 ELF vector table does not start at its load address")
+    if (msp & 3) != 0 or msp <= load:
+        raise TrustError("BL2 raw image has an invalid initial MSP")
+    if reset != (reset_symbol | 1) or not load <= reset_symbol < load + image.stat().st_size:
+        raise TrustError("BL2 raw reset vector does not match the linked reset entry")
+    return load
+
+
 def public_fingerprint(private_key: Path, openssl: Path) -> tuple[str, bytes]:
     """Return SHA-256 of canonical DER SubjectPublicKeyInfo."""
 
@@ -391,7 +412,7 @@ def sign_mcuboot(*, input_image: Path, output_image: Path, private_key: Path,
             [
                 sys.executable, str(official_imgtool), "sign",
                 "-k", str(private_key),
-                "--public-key-format", "full",
+                "--public-key-format", "hash",
                 "--max-align", "8", "--align", "1",
                 "--version", version,
                 "--security-counter", str(security_counter),
@@ -485,7 +506,7 @@ def signed_release(*, layout: layout_domain.Layout,
         raise TrustError("signed release inputs must be boot, cp, ap and bl2")
     raw = image_domain.read_artifacts(artifacts)
     copy_size = elf_symbol(bl1_elf, nm, "bk7258_bl1_bl2_copy_size")
-    load_address = elf_symbol(bl2_elf, nm, "bk7258_bl2_load_address")
+    load_address = validate_bl2_vector(artifacts["bl2"], bl2_elf, nm)
     expected_copy_size = (len(raw["bl2"]) + 31) // 32 * 32
     if copy_size != expected_copy_size:
         raise TrustError(

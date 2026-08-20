@@ -50,7 +50,7 @@ CFLAGS := $(CPUFLAGS) -Os -g -ffreestanding -fno-builtin -Wall -Wextra \
           -Werror -fdata-sections -ffunction-sections $(CPPFLAGS)
 ASFLAGS := $(CPUFLAGS) -Os -g -ffreestanding $(CPPFLAGS)
 LDFLAGS := $(CPUFLAGS) -T $(OUT)/bootloader.ld -nostdlib \
-           -Wl,--gc-sections -Wl,-Map=$(OUT)/bl.map
+           -Wl,--gc-sections -Wl,--build-id=none -Wl,-Map=$(OUT)/bl.map
 
 COMMON_OBJECTS := \
   $(OUT)/start.o \

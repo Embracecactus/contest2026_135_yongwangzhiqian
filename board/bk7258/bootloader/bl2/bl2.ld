@@ -14,12 +14,12 @@ SECTIONS
 {
   .vectors : { KEEP(*(.vectors)) } > BL2_RAM
   .text : { *(.text.start) *(.text*) } > BL2_RAM
-  .rodata : { *(.rodata*) } > BL2_RAM
   .bk7258.trust.mcuboot :
   {
     KEEP(*(.rodata.ecdsa_pub_key))
     KEEP(*(.rodata.ecdsa_pub_key_len))
   } > BL2_RAM
+  .rodata : { *(.rodata*) } > BL2_RAM
   .data : { *(.data*) } > BL2_RAM
   .bss (NOLOAD) :
   {
