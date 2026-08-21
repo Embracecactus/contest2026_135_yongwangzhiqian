@@ -127,12 +127,24 @@ Last reviewed: 2026-08-21
 ## Security and privacy rules
 
 - Never record passwords, tokens, private keys, session cookies, or personal data in repository memory.
+- Agent-generated development signing keys are agent-owned disposable build
+  inputs, not inputs the project owner must rediscover. Before reporting a
+  signing blocker or asking the owner for a key, the agent must: (1) inspect
+  the known temporary release workspace and path-only session evidence,
+  (2) verify any candidate by deriving and comparing its public fingerprint,
+  and (3) decide whether the already-authorized development flow permits a
+  complete root/baseline/package rebuild. If a disposable key is gone and a
+  full development-root replacement is authorized, generate a new temporary
+  key outside the repository and rebuild the confirmed baseline plus pending
+  OTA package. Ask the owner only for externally owned/production signing
+  access, or when replacing the current development root is not authorized.
+  Private content and private paths still must not enter Git or project memory.
 - Proprietary SDK archives remain ignored and must not be redistributed; only
   SDK profiles and accepted deterministic tree hashes are versioned.
 - Local BK7258 SDK bundles live only under the ignored canonical
-  `board/bk7258/bk_idk/armino_as_lib/versions` store as real directories.
-  Active tooling must reject bundle symlinks and the retired
-  `board/bk7258_t5ai` source root. The canonical SDK source and base version
+  `chips/bk7258/bk_idk/armino_as_lib/versions` store as real directories.
+  Active tooling must reject bundle symlinks and retired board source roots.
+  The canonical SDK source and base version
   are derived from the single team-manifest project carrying the
   `bk7258-sdk` group; `bk7258.py sdk rebuild --source` is the only
   developer-supplied migration override.
@@ -163,9 +175,11 @@ Last reviewed: 2026-08-21
   catalog, schema, test or wrapper files are not requirements and must not be
   migrated one-for-one. Preserve only behavior consumed by a current real
   build/package/verification/hardware path.
-- `tools/bk7258/bk7258.py build|sdk|package|verify` is the only tracked public
-  BK7258 tool surface. SDK and toolchain identities come from the team
-  manifest, board/role compatibility from selected CP/AP profiles, boot mode
+- `tools/bk7258/bk7258.py build|sdk|package|verify|toolchain` is the only
+  tracked public BK7258 tool surface. SDK identity comes from the team
+  manifest; the target compiler comes from the content-locked toolchain
+  descriptor and verified prebuilt. Board/role compatibility comes from
+  selected CP/AP profiles, boot mode
   from an explicit command input, and all Flash/storage geometry plus policy
   from the selected CSV. No consumer may
   repeat those facts as version/address/profile conditionals.

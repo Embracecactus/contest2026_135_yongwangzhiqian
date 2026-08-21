@@ -22,19 +22,22 @@
 - Keep the coordinating Sol agent focused on requirements, architecture,
   ambiguous root causes, tradeoffs, integration review, risky hardware
   actions, and final acceptance.
-- Delegate independent read-heavy exploration, long-file or log analysis,
-  ordinary review, and evidence gathering to `gpt-5.6-terra` at `medium`.
-- Delegate narrow, repeatable, mechanically verifiable inventory, checks, and
-  small edits to `gpt-5.6-luna` at `low`, `medium`, or `max`. Prefer `max` for
-  bounded but non-trivial combinations of edits and verification; use lower
-  effort for simple inventories so the delegation itself stays economical.
-- Use one agent for trivial or dependent work. Run no more than two subagents
-  concurrently, and never let multiple agents edit the same files.
+- Do not use Terra for this repository.
+- Use one agent by default. Delegate only an independent, bounded task whose
+  mechanical exploration would otherwise pollute the coordinating context.
+- When delegation is justified, use only `gpt-5.6-luna` at `max`. Suitable
+  work is narrow inventory, filtered long-log classification, exact-symbol
+  review, repetitive verification, or a small edit with objective acceptance
+  criteria. Sol retains architecture, ambiguous diagnosis, integration and
+  final acceptance.
+- Run at most one Luna subagent at a time. Keep it read-only when the main
+  agent is editing the same area, and reuse its thread for follow-up work.
+- In an indexed checkout, query CodeGraph before text search. Filter build and
+  hardware output to the first actionable root cause and final PASS/FAIL;
+  never relay raw logs when a short evidence summary is sufficient.
 - Require subagents to return concise conclusions, exact file or symbol
   evidence, risks, and verification status instead of raw logs or long source
   excerpts.
-- Reuse an existing subagent thread for follow-up work in the same area rather
-  than spawning another agent to reread the same context.
 
 ## Git publication ownership
 
