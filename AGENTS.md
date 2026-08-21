@@ -17,6 +17,25 @@
 - Do not commit, push, deploy, delete, or overwrite user work merely because the memory protocol exists; normal authorization rules still apply.
 <!-- PROJECT_MEMORY_END -->
 
+## Model routing and token discipline
+
+- Keep the coordinating Sol agent focused on requirements, architecture,
+  ambiguous root causes, tradeoffs, integration review, risky hardware
+  actions, and final acceptance.
+- Delegate independent read-heavy exploration, long-file or log analysis,
+  ordinary review, and evidence gathering to `gpt-5.6-terra` at `medium`.
+- Delegate narrow, repeatable, mechanically verifiable inventory, checks, and
+  small edits to `gpt-5.6-luna` at `low`, `medium`, or `max`. Prefer `max` for
+  bounded but non-trivial combinations of edits and verification; use lower
+  effort for simple inventories so the delegation itself stays economical.
+- Use one agent for trivial or dependent work. Run no more than two subagents
+  concurrently, and never let multiple agents edit the same files.
+- Require subagents to return concise conclusions, exact file or symbol
+  evidence, risks, and verification status instead of raw logs or long source
+  excerpts.
+- Reuse an existing subagent thread for follow-up work in the same area rather
+  than spawning another agent to reread the same context.
+
 ## BK7258 resume guard
 
 - During active BK7258 driver/application work, do not use or inspect N17 or

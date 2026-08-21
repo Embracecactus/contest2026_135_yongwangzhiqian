@@ -497,6 +497,7 @@ config BK7258_RPTUN
 	bool "N9 CP/AP NuttX RPTUN and RPMsg link"
 	default n
 	depends on BK7258_RPTUN_MBOX
+	select BOARDCTL
 	select DEV_SIMPLE_ADDRENV
 	select RPTUN
 	select RPMSG_PING
