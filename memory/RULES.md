@@ -111,6 +111,29 @@ Last reviewed: 2026-08-21
 - Read-only remote inspection is allowed when needed to confirm branch
   publication or report PR/check state; it must not mutate the PR.
 
+#### Clean feature lineage gate
+
+- Before creating or publishing a feature branch, fetch the authoritative
+  upstream base and create the branch directly from `origin/<base>`. Syncing
+  the fork default branch is a separate operation and never makes a stale fork
+  branch an acceptable PR base.
+- Before handoff, `git merge-base --is-ancestor origin/<base> HEAD` must pass,
+  the left side of `git rev-list --left-right --count
+  origin/<base>...HEAD` must be zero, and the GitHub comparison must report
+  `behind_by=0` for the exact upstream base and cross-fork head.
+- If upstream contains patch-equivalent work under different commit IDs,
+  compare tree or patch identity before integrating it. Create a new clean
+  branch from the updated upstream base and cherry-pick only genuinely new
+  commits. Do not replay equivalent commits and do not add an `ours` merge
+  merely to make histories appear connected.
+- If an already-published branch needs rewritten ancestry, default to a new
+  clean head branch. A force-push still requires fresh action-specific owner
+  authority. Never hand off a rebase-required PR containing merge commits or
+  duplicate-equivalent commits.
+- Verify the repository's allowed merge method before publication. A branch
+  intended for Rebase and merge must remain linear; successful tree merging
+  alone is not sufficient acceptance evidence.
+
 ## Failure and recovery behavior
 
 - Initialization, transport, allocator, or AP startup failures fail closed and must not be converted into READY with a warning.
