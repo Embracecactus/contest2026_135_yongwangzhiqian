@@ -63,10 +63,10 @@ on T5Board, with CP/AP treated as one launchable and recoverable pair.
 
 ## Exact next action
 
-Hand the dirty implementation and hardware checkpoint to the owner's selected
-test/review model. That model should add or adapt host coverage without
-repeating the root rotation or destructive hardware steps. After review, run
-the existing clean build/package gates and prepare the normal commit handoff.
+Hand the committed implementation and hardware checkpoint to the owner's
+selected test/review model. That model should add or adapt host coverage
+without repeating the root rotation or destructive hardware steps. After
+review, run the existing clean build/package gates for the normal merge handoff.
 
 ## Current prohibitions
 
