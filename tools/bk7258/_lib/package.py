@@ -59,7 +59,7 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
     if set(member_names) != {row.artifact for row in image_set.writes}:
         raise PackageError("member-name mapping must cover every image artifact exactly")
     security_mode = trust_evidence.get("mode")
-    if security_mode not in {"signed", "unsigned"}:
+    if security_mode not in {"signed", "signed-ota", "unsigned"}:
         raise PackageError("trust evidence must explicitly declare signed or unsigned")
     for profile, digest in sdk_evidence.items():
         if not profile or not DIGEST_RE.fullmatch(digest):
@@ -76,16 +76,23 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
         if member in members:
             raise PackageError(f"duplicate package member: {member}")
         members[member] = row.data
-        images.append(
-            {
+        if security_mode == "signed-ota":
+            images.append({
+                "artifact": row.artifact,
+                "target": "inactive",
+                "member": member,
+                "size": len(row.data),
+                "sha256": hashlib.sha256(row.data).hexdigest(),
+            })
+        else:
+            images.append({
                 "artifact": row.artifact,
                 "partition": row.partition,
                 "member": member,
                 "offset": row.offset,
                 "size": len(row.data),
                 "sha256": hashlib.sha256(row.data).hexdigest(),
-            }
-        )
+            })
 
     layout = image_set.layout
     document: dict[str, object] = {
@@ -190,22 +197,36 @@ def _integer(value: object, field: str) -> int:
 def _validate_security(security: dict[str, object]) -> str:
     if security == {"mode": "unsigned"}:
         return "unsigned"
-    expected = {
-        "mode", "algorithm", "bl1_public_fingerprint",
-        "mcuboot_public_fingerprint", "bl1_public_der", "mcuboot_public_der",
-        "bl2_load_address", "bl1_security_counter", "rollback", "images",
-    }
-    if set(security) != expected or security.get("mode") != "signed" \
+    mode = security.get("mode")
+    if mode == "signed-ota":
+        expected = {
+            "mode", "algorithm", "mcuboot_public_fingerprint",
+            "mcuboot_public_der", "rollback", "trailer", "images",
+        }
+        prefixes = ("mcuboot",)
+    else:
+        legacy_expected = {
+            "mode", "algorithm", "bl1_public_fingerprint",
+            "mcuboot_public_fingerprint", "bl1_public_der", "mcuboot_public_der",
+            "bl2_load_address", "bl1_security_counter", "rollback", "images",
+        }
+        expected = legacy_expected if "trailer" not in security else \
+            legacy_expected | {"trailer"}
+        prefixes = ("bl1", "mcuboot")
+    if set(security) != expected or mode not in {"signed", "signed-ota"} \
             or security.get("algorithm") != "ecdsa-p256-sha256" \
             or security.get("rollback") != "otp-readonly-plus-explicit-software-floor":
         raise PackageError("signed package evidence shape is invalid")
-    for name in (
-        "bl1_public_fingerprint", "mcuboot_public_fingerprint",
-    ):
+    if mode == "signed-ota" and security.get("trailer") != "pending-v1":
+        raise PackageError("signed OTA trailer profile is invalid")
+    if mode == "signed" and "trailer" in security \
+            and security.get("trailer") != "confirmed-v1":
+        raise PackageError("signed full trailer profile is invalid")
+    for prefix in prefixes:
+        name = f"{prefix}_public_fingerprint"
         if not isinstance(security.get(name), str) \
                 or not DIGEST_RE.fullmatch(security[name]):
             raise PackageError(f"signed package digest is invalid: {name}")
-    for prefix in ("bl1", "mcuboot"):
         encoded = security.get(f"{prefix}_public_der")
         if not isinstance(encoded, str) or len(encoded) != 182:
             raise PackageError(f"signed package public key is invalid: {prefix}")
@@ -216,10 +237,13 @@ def _validate_security(security: dict[str, object]) -> str:
         if len(public) != 91 or public[-65] != 0x04 \
                 or hashlib.sha256(public).hexdigest() != security[f"{prefix}_public_fingerprint"]:
             raise PackageError(f"signed package public fingerprint is invalid: {prefix}")
-    counter = _integer(security.get("bl1_security_counter"), "bl1_security_counter")
-    load_address = _integer(security.get("bl2_load_address"), "bl2_load_address")
-    if counter == 0 or load_address == 0:
-        raise PackageError("BL1 security counter must be positive")
+    if mode == "signed":
+        counter = _integer(security.get("bl1_security_counter"),
+                           "bl1_security_counter")
+        load_address = _integer(security.get("bl2_load_address"),
+                                "bl2_load_address")
+        if counter == 0 or load_address == 0:
+            raise PackageError("BL1 security counter must be positive")
     signed_images = security.get("images")
     if not isinstance(signed_images, list) or len(signed_images) != 2:
         raise PackageError("signed CP/AP evidence is malformed")
@@ -240,7 +264,7 @@ def _validate_security(security: dict[str, object]) -> str:
         seen[artifact] = (version, image_counter)
     if set(seen) != {"cp", "ap"} or seen["cp"] != seen["ap"]:
         raise PackageError("signed CP/AP generation evidence does not match")
-    return "signed"
+    return str(mode)
 
 
 def verify(path: Path) -> dict[str, object]:
@@ -368,20 +392,26 @@ def verify(path: Path) -> dict[str, object]:
     image_artifacts: set[str] = set()
     image_data: dict[str, bytes] = {}
     for index, row in enumerate(images):
-        expected_image_fields = {
-            "artifact", "partition", "member", "offset", "size", "sha256"
-        }
+        expected_image_fields = (
+            {"artifact", "target", "member", "size", "sha256"}
+            if security_mode == "signed-ota" else
+            {"artifact", "partition", "member", "offset", "size", "sha256"}
+        )
         if not isinstance(row, dict) or set(row) != expected_image_fields:
             raise PackageError(f"invalid image row {index}")
         artifact = row.get("artifact")
-        partition_name = row.get("partition")
         member = row.get("member")
         image_digest = row.get("sha256")
         if not isinstance(artifact, str) or artifact in image_artifacts \
                 or artifact not in partition_by_artifact:
             raise PackageError(f"invalid or duplicate image artifact: {artifact}")
         partition = partition_by_artifact[artifact]
-        if partition_name != partition.name or partition.policy not in {"image", "external"}:
+        if security_mode == "signed-ota":
+            if row.get("target") != "inactive" or artifact not in {"cp", "ap"} \
+                    or partition.policy != "image":
+                raise PackageError(f"OTA image target is invalid: {artifact}")
+        elif row.get("partition") != partition.name \
+                or partition.policy not in {"image", "external"}:
             raise PackageError(f"image does not match its partition: {artifact}")
         if not isinstance(member, str) or member not in members or member == MANIFEST:
             raise PackageError(f"missing image member: {member}")
@@ -390,31 +420,39 @@ def verify(path: Path) -> dict[str, object]:
         data = members[member]
         if hashlib.sha256(data).hexdigest() != image_digest \
                 or len(data) != row.get("size") or not data \
-                or len(data) > partition.size:
+                or (security_mode == "signed-ota" and len(data) != partition.size) \
+                or (security_mode != "signed-ota" and len(data) > partition.size):
             raise PackageError(f"image member identity mismatch: {member}")
-        offset = _integer(row.get("offset"), f"image[{index}].offset")
-        if offset != partition.offset:
-            raise PackageError(f"image offset does not match the layout: {artifact}")
         if partition.executable and crc_total_size > crc_data_size:
             image_domain.crc_decode(data, crc_data_size, crc_total_size)
-        end = offset + len(data)
-        if end > flash_size:
-            raise PackageError(f"image exceeds Flash: {member}")
+        if security_mode != "signed-ota":
+            offset = _integer(row.get("offset"), f"image[{index}].offset")
+            if offset != partition.offset:
+                raise PackageError(f"image offset does not match the layout: {artifact}")
+            end = offset + len(data)
+            if end > flash_size:
+                raise PackageError(f"image exceeds Flash: {member}")
+            ranges.append((offset, end, member))
         expected_members.add(member)
-        ranges.append((offset, end, member))
         image_artifacts.add(artifact)
         image_data[artifact] = data
     if set(members) != expected_members:
         raise PackageError("package contains undeclared members")
 
-    required_images = {
-        item.artifact for item in partition_tuple
-        if item.policy == "image" and item.artifact is not None
-    }
-    if not required_images.issubset(image_artifacts) \
-            or (image_artifacts & external_set) | preserved_set != external_set \
-            or (image_artifacts & external_set) & preserved_set:
-        raise PackageError("image and preserved-external coverage is incomplete")
+    if security_mode == "signed-ota":
+        if image_artifacts != {"cp", "ap"} or preserved_set or erases:
+            raise PackageError(
+                "apps-only OTA package must contain only CP/AP writes"
+            )
+    else:
+        required_images = {
+            item.artifact for item in partition_tuple
+            if item.policy == "image" and item.artifact is not None
+        }
+        if not required_images.issubset(image_artifacts) \
+                or (image_artifacts & external_set) | preserved_set != external_set \
+                or (image_artifacts & external_set) & preserved_set:
+            raise PackageError("image and preserved-external coverage is incomplete")
     if {"cp", "ap", "pair"}.issubset(image_data):
         cp_partition = partition_by_artifact["cp"]
         ap_partition = partition_by_artifact["ap"]
@@ -496,6 +534,21 @@ def flash_contract(package: Path) -> dict[str, object]:
     verify(package)
     document, _ = _read(package)
     layout = document["layout"]
+    if document["security"].get("mode") == "signed-ota":
+        return {
+            "layout": {
+                "identity": layout["identity"],
+                "sha256": layout["sha256"],
+            },
+            "target": "inactive",
+            "payloads": document["images"],
+            "erases": [],
+            "preserved_external": [],
+            "protected": [
+                row for row in layout["partitions"]
+                if row["policy"] in {"preserve", "immutable"}
+            ],
+        }
     return {
         "layout": {"identity": layout["identity"], "sha256": layout["sha256"]},
         "writes": document["images"],

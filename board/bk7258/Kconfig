@@ -314,3 +314,15 @@ config BK7258_FLASH_MTD
 		Expose the selected layout's writable persistent_data range as a NuttX
 		MTD instance.  read/erase/bwrite use the option-A SR0 block-protect
 		policy (cleared around each op, restored afterwards).
+
+config BK7258_OTA
+	bool "Paired MCUboot OTA staging on CP"
+	default n
+	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && !BK7258_AP_CORE
+	depends on BK7258_MCUBOOT_IMAGE
+	---help---
+		Expose the board-owned CP/AP pair updater.  It writes only the physical
+		inactive pair, completes AP before CP, and commits CP sector zero last.
+		Runtime health confirmation updates both standard MCUboot image_ok
+		trailers.  The application still owns transport, package download and
+		health policy; AP never owns on-chip Flash.

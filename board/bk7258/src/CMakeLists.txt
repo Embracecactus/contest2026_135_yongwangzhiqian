@@ -13,7 +13,9 @@ target_sources(board PRIVATE
 # CP remains the sole Flash owner, so AP never links this policy wrapper.
 
 if(NOT CONFIG_BK7258_AP_CORE)
-  target_sources(board PRIVATE bk7258_sdk_partition.c)
+  target_sources(board PRIVATE
+      bk7258_boot_slot.c
+      bk7258_sdk_partition.c)
   if(CONFIG_BK7258_BT_IPC OR CONFIG_BK7258_WIFI_VNET)
     target_sources(board PRIVATE bk7258_mac_storage.c)
   endif()
@@ -21,6 +23,12 @@ if(NOT CONFIG_BK7258_AP_CORE)
     target_sources(board PRIVATE
         bk7258_flash_mtd.c
         bk7258_flash_guard.c)
+  endif()
+  if(CONFIG_BK7258_OTA)
+    target_sources(board PRIVATE bk7258_ota.c)
+    if(NOT CONFIG_BK7258_FLASH_MTD)
+      target_sources(board PRIVATE bk7258_flash_guard.c)
+    endif()
   endif()
 endif()
 

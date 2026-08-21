@@ -5,73 +5,73 @@ Updated by: Codex
 
 ## Objective
 
-Bring up the AIDK AI Toy resource path without altering the verified BK7258
-boot chain or risking the official device assets.
+Standard MCUboot multi-image OTA for BK7258 is adapted and physically verified
+on T5Board, with CP/AP treated as one launchable and recoverable pair.
 
 ## Repository state
 
 - Repository: `contest2026_135_yongwangzhiqian`
 - Branch: `fix/bk7258-vela-claw-poweron-flicker`
-- AIDK baseline commit: `4cce51e` (`feat(bk7258): add AIDK fixed-block
-  MCUboot profiles`). Publication handoff commit `b1aa1dc` is pushed to
-  `fork/fix/bk7258-vela-claw-poweron-flicker`.
+- HEAD: `89384390ea87757665633003a4affd20fdfc5009`
+- OTA implementation and evidence are uncommitted dirty-tree changes.
 - Owner-untracked logs, `bootloader.tmp`, doc-stress helpers and
   `build_package.sh` remain untouched.
 
-## Completed baseline
+## Accepted architecture
 
-- COM8 is a healthy CH340 device. The schematic confirms CH340E connects
-  UART0 on P10/P11; board facts and Kconfig text now match it.
-- The device FAT volume's 16 WAV and 10 AVI assets plus the AIDK schematic are
-  backed up outside Git at `../aitoy-official-device-backup-2026-08-21/` with
-  a verified 27-file SHA-256 manifest.
-- Maintained `aidk_ai_toy_{cp,ap}_base` seeds replace the generated
-  `aidk_ai_toy_personal/*.config` layer.
-- CP owns UART0 115200 8N1. AP owns fixed SD NAND, SDIO/MMCSD, FAT and
-  16-kHz mono `pcm0p`; AP has no console and MIC is deferred.
-- [AIDK board-resource baseline](verification/2026-08-21-bk7258-aidk-board-resource-baseline.md)
-  records the resolved configs, resource formats, hashes and limitations.
-- Final clean direct build passed with layout `bk7258-381e2cdd1286ac59`, CP
-  config `2abf2a46...87b5a`, AP config `560618c7...89c2`, CP image
-  `335df765...0c743` and AP image `b35d2db5...70cc8`.
-- [Signed AIDK MCUboot package](verification/2026-08-21-bk7258-aidk-mcuboot-package.md)
-  passed clean BL1/BL2/CP/AP build, eight-image package verification and
-  public-signature verification. Package SHA-256 is `29aa1757...dc11e`.
+- [ADR-031](../memory/decisions/ADR-031-bk7258-standard-mcuboot-paired-direct-xip-ota.md)
+  accepts standard per-image MCUboot trailers plus a board-owned same-slot
+  pair gate; no private selector or journal is restored.
+- BL1 owns Manifest/BL2 A/B only. BL2 orders complete CP/AP pairs, exposes one
+  pair per `boot_go()`, and uses upstream direct-XIP revert.
+- CP derives active/inactive from retained remap registers. It alone stages
+  the inactive physical pair and confirms the active pair's two trailers.
 
-## Paused prior phase
+## Completed checkpoint
 
-- T5-Board display stabilization remains a verified partial improvement in
-  [its page-flip checkpoint](verification/2026-08-21-bk7258-t5-board-display-flip.md).
-- Residual gray-level flicker is intentionally deferred while aitoy board
-  adaptation is active.
+- BL2 has bounded 32+2 CRC trailer RMW, exact `copy_done` authority, readback,
+  Flash protection restore and WDT fail-reset. Boot mutation accepts the
+  T5Board-proven C86517 command set.
+- Runtime OTA uses task/range Flash guards, AP-first staging, CP sector-zero
+  final commit, and AP-then-CP health confirmation.
+- `bkota status|stage <cp> <ap>|confirm` is built into CP NSH.
+- Full releases use imgtool `--confirm`; `package create --ota-apps` uses
+  `--pad`, `pending-v1` and dynamic `target=inactive`. Legacy full signed
+  packages remain verifiable.
+- Clean real ARM CP/AP/BL2/BL1 build passed with rollback floor 3; BL2 copy
+  size is 13,536 bytes.
+- The owner authorized a full development-root rotation. New public roots and
+  all package hashes are recorded in the linked verification record; private
+  material remains outside Git and project memory.
+- T5Board completed A confirmed → B pending → B runtime confirm → A pending →
+  unconfirmed A revert to B. Final state is confirmed B v1.0.1+4 active with
+  confirmed A v1.0.0+3 fallback.
+- `usr_config` and calibration tail are byte-identical before/after. Two
+  115200 root-chain readbacks are byte-identical and match package prefixes.
+- Detailed evidence: [standard paired OTA hardware verification](verification/2026-08-21-bk7258-t5-board-paired-ota-adaptation.md).
 
-## Open risks
+## Residual scope
 
-- The signed AIDK images have not run on hardware.
-- The owner confirms a recoverable factory firmware backup exists, but the
-  current bounded inventory did not independently locate it. ADR-030 accepts
-  the owner's instruction to proceed without factory identity/backup recheck.
-- No AP service mounts `/dev/mmcsd0` or reads/plays the official assets yet.
-- Two ASR WAV files are stereo despite `mono` in their names. The AVI files
-  are 320x160 MJPEG without audio; `genie_eye.avi` uses 25 fps, others 20 fps.
-- USB-device MSC, LCD, camera, NFC, gyro and motor are outside this baseline.
+- `bk7258_ota_stage_pair()` is linked but the file-backed `bkota stage` command
+  was not run: CP currently exposes no block/file source. ROM-loader inactive
+  writes supplied the signed trial pairs; runtime confirm and boot revert were
+  physically exercised.
+- `bkota` is intentionally a trusted manual seam: it neither parses `.bkpack`
+  nor derives service health. A product field agent must verify package/layout
+  policy before staging and enforce CP/AP health before calling confirm.
+- Host/unit tests are intentionally deferred to another model by owner order.
 
 ## Exact next action
 
-The owner will open the PR manually from the pushed fork branch against
-`open-vela/contest2026_135_yongwangzhiqian:dev-ai-contest-2026`. Hardware then
-resumes under [ADR-030](../memory/decisions/ADR-030-aidk-first-provision-project-boot-chain.md):
-manually reset/CEN during BKFIL GetBus, capture two byte-identical 8 MiB reads,
-write the verified package's eight sparse segments with boot last, and capture
-the complete UART boot path.
+Hand the dirty implementation and hardware checkpoint to the owner's selected
+test/review model. That model should add or adapt host coverage without
+repeating the root rotation or destructive hardware steps. After review, run
+the existing clean build/package gates and prepare the normal commit handoff.
 
 ## Current prohibitions
 
-- Do not chip-erase, program OTP/eFuse or enable debug lock.
-- ADR-030 explicitly authorizes replacing the AIDK factory BL1/BL2/MCUboot
-  chain with the verified project chain; it does not authorize any other
-  boot-chain mutation.
-- Do not Flash unless the new full-chain package passes layout, image and
-  public-signature verification.
-- Do not format or write the device FAT volume; resource bring-up is read-only.
+- This model must not add, modify or run tests.
+- Do not repeat root rotation, chip erase, OTP/eFuse/lifecycle writes, debug
+  lock, or calibration/persistent-data writes.
+- Do not record private-key content or paths in Git, logs or project memory.
 - Do not modify or remove the owner-untracked files listed above.
