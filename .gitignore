@@ -25,7 +25,14 @@ bl_crc.json
 # Beken SDK local prerequisite bundle (proprietary/restricted prebuilts,
 # not authorized for redistribution in this repo).
 # Sibling tracked files under bk_idk/ (e.g. README.md) are NOT ignored.
-board/bk7258/bk_idk/armino_as_lib
+chips/bk7258/bk_idk/armino_as_lib
+
+# Content-addressed Arm GNU release installed by bk7258.py toolchain install.
+prebuilt/*
+!prebuilt/README.md
+
+# NuttX dirlinks materializes the selected physical board below common.
+boards/bk7258/common/board
 
 # Local backup files
 *.bak

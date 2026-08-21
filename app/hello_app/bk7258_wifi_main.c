@@ -149,11 +149,13 @@ static void bkwifi_usage(void)
 {
   printf("usage:\n"
          "  bkwifi connect [timeout_ms=%u]\n"
+         "  bkwifi connect-args <ssid> <password> [timeout_ms=%u]\n"
          "  bkwifi status  [timeout_ms=%u]\n"
          "  bkwifi ping    [timeout_ms=%u]\n"
          "  bkwifi tcp <ipv4> <port> [count=%u] [size=%u] [timeout_ms=%u]\n"
          "  bkwifi udp <ipv4> <port> [count=%u] [size=%u] [timeout_ms=%u]\n"
          "SSID and password are read with terminal echo disabled.\n",
+         BK7258_WIFI_CONNECT_DEFAULT_MS,
          BK7258_WIFI_CONNECT_DEFAULT_MS,
          BK7258_WIFI_CONNECT_DEFAULT_MS,
          BK7258_WIFI_CONNECT_DEFAULT_MS,
@@ -238,6 +240,7 @@ int main(int argc, char *argv[])
   char ssid[BK7258_WIFI_SSID_MAX_LEN + 2u];
   char password[BK7258_WIFI_PASSWORD_MAX_LEN + 2u];
   uint32_t timeout_ms = BK7258_WIFI_CONNECT_DEFAULT_MS;
+  bool direct_credentials = false;
   int ret;
 
   memset(ssid, 0, sizeof(ssid));
@@ -254,6 +257,11 @@ int main(int argc, char *argv[])
   if (strcmp(argv[1], "connect") == 0)
     {
       operation = BK7258_WIFI_OPERATION_CONNECT;
+    }
+  else if (strcmp(argv[1], "connect-args") == 0)
+    {
+      operation = BK7258_WIFI_OPERATION_CONNECT;
+      direct_credentials = true;
     }
   else if (strcmp(argv[1], "status") == 0)
     {
@@ -327,6 +335,30 @@ int main(int argc, char *argv[])
 
       echo_arg = &echo;
     }
+  else if (direct_credentials)
+    {
+      size_t ssid_length;
+      size_t password_length;
+
+      if (argc < 4 || argc > 5 ||
+          (argc == 5 && bkwifi_u32(argv[4], &timeout_ms) < 0))
+        {
+          bkwifi_usage();
+          return EXIT_FAILURE;
+        }
+
+      ssid_length = strnlen(argv[2], sizeof(ssid));
+      password_length = strnlen(argv[3], sizeof(password));
+      if (ssid_length == 0u || ssid_length >= sizeof(ssid) ||
+          password_length >= sizeof(password))
+        {
+          bkwifi_usage();
+          return EXIT_FAILURE;
+        }
+
+      memcpy(ssid, argv[2], ssid_length + 1u);
+      memcpy(password, argv[3], password_length + 1u);
+    }
   else if (argc > 3 ||
            (argc == 3 && bkwifi_u32(argv[2], &timeout_ms) < 0))
     {
@@ -343,7 +375,7 @@ int main(int argc, char *argv[])
       return EXIT_FAILURE;
     }
 
-  if (operation == BK7258_WIFI_OPERATION_CONNECT)
+  if (operation == BK7258_WIFI_OPERATION_CONNECT && !direct_credentials)
     {
       ret = bkwifi_read_hidden("SSID: ", ssid, sizeof(ssid), false);
       if (ret >= 0)

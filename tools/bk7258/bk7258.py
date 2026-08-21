@@ -18,6 +18,7 @@ from _lib import image as image_domain  # noqa: E402
 from _lib import layout as layout_domain  # noqa: E402
 from _lib import package as package_domain  # noqa: E402
 from _lib import sdk as sdk_domain  # noqa: E402
+from _lib import toolchain as toolchain_domain  # noqa: E402
 from _lib import trust as trust_domain  # noqa: E402
 
 
@@ -36,6 +37,13 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--openssl", type=Path)
     build.add_argument("--rollback-floor", type=lambda value: int(value, 0))
     build.add_argument("--clean", action="store_true")
+
+    toolchain = commands.add_parser("toolchain", help="manage the locked Arm GNU toolchain")
+    toolchain_commands = toolchain.add_subparsers(dest="toolchain_command", required=True)
+    toolchain_install = toolchain_commands.add_parser("install", help="install the locked toolchain")
+    toolchain_install.add_argument("--archive", type=Path)
+    toolchain_install.add_argument("--replace", action="store_true")
+    toolchain_commands.add_parser("verify", help="verify the installed locked toolchain")
 
     sdk = commands.add_parser("sdk", help="manage manifest-pinned SDK bundles")
     sdk_commands = sdk.add_subparsers(dest="sdk_command", required=True)
@@ -148,6 +156,25 @@ def _build(args: argparse.Namespace) -> None:
         print(f"image {row.name}={row.path} size={row.size} sha256={row.sha256}")
     for name in result.preserved_external:
         print(f"preserve external={name}")
+
+
+def _toolchain(args: argparse.Namespace) -> None:
+    if args.toolchain_command == "install":
+        report = toolchain_domain.install(
+            REPOSITORY,
+            args.archive,
+            replace=args.replace,
+        )
+        print(
+            f"bk7258 toolchain install: PASS root={report.root} "
+            f"sha256={report.archive_sha256}"
+        )
+    else:
+        report = toolchain_domain.verify(REPOSITORY)
+        print(
+            f"bk7258 toolchain verify: PASS root={report.root} "
+            f"version={report.gcc_version!r} sha256={report.archive_sha256}"
+        )
 
 
 def _sdk(args: argparse.Namespace) -> None:
@@ -272,6 +299,11 @@ def _package(args: argparse.Namespace) -> None:
         sdk_evidence,
         trust_evidence,
         args.output,
+        catalog_signer=(
+            (lambda catalog: trust_domain.sign_catalog(
+                catalog, args.mcuboot_key, args.openssl
+            )) if args.ota_apps else None
+        ),
     )
     print(
         f"bk7258 package create: PASS output={report['package']} "
@@ -310,7 +342,8 @@ def _verify(args: argparse.Namespace) -> None:
             f"security={security} sha256={result['sha256']}"
         )
     else:
-        evidence, layout, images = package_domain.trust_material(args.package)
+        evidence, layout, images, catalog, catalog_signature = \
+            package_domain.trust_material(args.package)
         trust_domain.verify_signed_material(
             security=evidence,
             layout=layout,
@@ -319,6 +352,8 @@ def _verify(args: argparse.Namespace) -> None:
                 REPOSITORY.parent / "apps/boot/mcuboot/mcuboot/scripts/imgtool.py"
             ),
             openssl=args.openssl,
+            catalog=catalog,
+            catalog_signature=catalog_signature,
         )
         if evidence.get("mode") == "signed-ota":
             print("bk7258 verify trust: PASS public MCUboot CP/AP signatures")
@@ -332,6 +367,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "build":
             _build(args)
+        elif args.command == "toolchain":
+            _toolchain(args)
         elif args.command == "sdk":
             _sdk(args)
         elif args.command == "package":
@@ -344,6 +381,7 @@ def main(argv: list[str] | None = None) -> int:
         layout_domain.LayoutError,
         package_domain.PackageError,
         sdk_domain.SdkError,
+        toolchain_domain.ToolchainError,
         trust_domain.TrustError,
         OSError,
         UnicodeError,

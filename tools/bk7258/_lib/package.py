@@ -10,7 +10,7 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
-from typing import Mapping
+from typing import Callable, Mapping
 
 from _lib import image as image_domain
 from _lib import layout as layout_domain
@@ -22,10 +22,56 @@ class PackageError(ValueError):
 
 FORMAT = "bk7258.package/1"
 MANIFEST = "manifest.json"
+OTA_FORMAT = "bk7258.ota/1"
+OTA_CATALOG = "catalog.json"
+OTA_SIGNATURE = "catalog.sig"
 MAX_MEMBERS = 64
 MAX_MEMBER_SIZE = 16 * 1024 * 1024
 MAX_PACKAGE_SIZE = 64 * 1024 * 1024
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _ota_catalog(layout: Mapping[str, object],
+                 images: list[dict[str, object]],
+                 security: Mapping[str, object]) -> bytes:
+    by_artifact = {row.get("artifact"): row for row in images}
+    generations = {
+        row.get("artifact"): row
+        for row in security.get("images", [])
+        if isinstance(row, dict)
+    }
+    if set(by_artifact) != {"cp", "ap"} or set(generations) != {"cp", "ap"}:
+        raise PackageError("OTA catalog requires exactly one CP/AP generation")
+    version = generations["cp"].get("version")
+    counter = generations["cp"].get("security_counter")
+    if (version, counter) != (
+        generations["ap"].get("version"),
+        generations["ap"].get("security_counter"),
+    ):
+        raise PackageError("OTA catalog CP/AP generation does not match")
+    base: dict[str, object] = {
+        "format": OTA_FORMAT,
+        "board_family": "bk7258",
+        "layout": {
+            "identity": layout.get("identity"),
+            "sha256": layout.get("sha256"),
+        },
+        "version": version,
+        "security_counter": counter,
+        "cp": {
+            "uri": by_artifact["cp"].get("member"),
+            "size": by_artifact["cp"].get("size"),
+            "sha256": by_artifact["cp"].get("sha256"),
+        },
+        "ap": {
+            "uri": by_artifact["ap"].get("member"),
+            "size": by_artifact["ap"].get("size"),
+            "sha256": by_artifact["ap"].get("sha256"),
+        },
+    }
+    document = dict(base)
+    document["package_id"] = hashlib.sha256(_canonical(base)).hexdigest()
+    return _canonical(document)
 
 
 def _canonical(value: object) -> bytes:
@@ -50,7 +96,9 @@ def _entry(name: str, data: bytes) -> zipfile.ZipInfo:
 
 def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
            sdk_evidence: Mapping[str, str], trust_evidence: Mapping[str, object],
-           output: Path) -> dict[str, object]:
+           output: Path,
+           catalog_signer: Callable[[bytes], bytes] | None = None) \
+           -> dict[str, object]:
     """Store already-finalized image bytes without changing them."""
 
     output = output.absolute()
@@ -133,6 +181,18 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
             for row in image_set.erases
         ],
     }
+    if security_mode == "signed-ota":
+        if catalog_signer is None:
+            raise PackageError("apps-only OTA requires a catalog signer")
+        catalog = _ota_catalog(document["layout"], images, trust_evidence)
+        signature = catalog_signer(catalog)
+        if len(signature) < 8 or len(signature) > 80 \
+                or signature[0] != 0x30 or signature[1] != len(signature) - 2:
+            raise PackageError("OTA catalog signature is not canonical DER")
+        members[OTA_CATALOG] = catalog
+        members[OTA_SIGNATURE] = signature
+    elif catalog_signer is not None:
+        raise PackageError("only apps-only OTA packages may carry a catalog signer")
     manifest = _canonical(document)
     output.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{output.name}.", dir=output.parent)
@@ -388,6 +448,8 @@ def verify(path: Path) -> dict[str, object]:
         raise PackageError("package preserves an artifact that is not external")
 
     expected_members = {MANIFEST}
+    if security_mode == "signed-ota":
+        expected_members.update({OTA_CATALOG, OTA_SIGNATURE})
     ranges: list[tuple[int, int, str]] = []
     image_artifacts: set[str] = set()
     image_data: dict[str, bytes] = {}
@@ -436,6 +498,17 @@ def verify(path: Path) -> dict[str, object]:
         expected_members.add(member)
         image_artifacts.add(artifact)
         image_data[artifact] = data
+
+    if security_mode == "signed-ota":
+        catalog = members.get(OTA_CATALOG)
+        signature = members.get(OTA_SIGNATURE)
+        expected_catalog = _ota_catalog(layout, images, security)
+        if catalog != expected_catalog:
+            raise PackageError("OTA catalog does not match signed package facts")
+        if signature is None or len(signature) < 8 or len(signature) > 80 \
+                or signature[0] != 0x30 \
+                or signature[1] != len(signature) - 2:
+            raise PackageError("OTA catalog signature is malformed")
     if set(members) != expected_members:
         raise PackageError("package contains undeclared members")
 
@@ -570,8 +643,10 @@ def trust_evidence(package: Path) -> dict[str, object]:
     return dict(security)
 
 
-def trust_material(package: Path) -> tuple[dict[str, object], dict[str, object],
-                                           dict[str, bytes]]:
+def trust_material(package: Path) -> tuple[
+    dict[str, object], dict[str, object], dict[str, bytes],
+    bytes | None, bytes | None,
+]:
     """Return structurally verified public evidence and finalized image bytes."""
 
     verify(package)
@@ -580,4 +655,10 @@ def trust_material(package: Path) -> tuple[dict[str, object], dict[str, object],
         row["artifact"]: members[row["member"]]
         for row in document["images"]
     }
-    return dict(document["security"]), dict(document["layout"]), images
+    return (
+        dict(document["security"]),
+        dict(document["layout"]),
+        images,
+        members.get(OTA_CATALOG),
+        members.get(OTA_SIGNATURE),
+    )

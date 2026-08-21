@@ -4,7 +4,7 @@
 # Normally CONFIG_VELA_CLAW_UI / CONFIG_VELA_CLAW_NET already `select` every
 # required kernel + userspace symbol, so you only need to enable those two
 # switches in menuconfig. This file is a fallback: append its contents to
-#   board/bk7258/configs/t5ai_core_ap_base/defconfig
+#   boards/bk7258/t5ai_core/configs/t5ai_core_ap_base/defconfig
 # (or your board's AP defconfig) to turn Vela-Claw + screen UI + networking
 # on without menuconfig.
 #

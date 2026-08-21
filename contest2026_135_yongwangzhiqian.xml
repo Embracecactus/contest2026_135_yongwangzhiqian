@@ -8,12 +8,6 @@
   -->
   <include name="openvela.xml"/>
 
-  <extend-project name="prebuilts_gcc_linux-x86_64_arm-none-eabi"
-                  path="prebuilts/gcc/linux-x86_64/arm-none-eabi"
-                  revision="948af44a3171ff9c8645cbe4729bb21fa3e23f00"
-                  upstream="refs/heads/dev-ai-contest-2026"
-                  groups="bk7258-toolchain"/>
-
   <project path="vendor/beken/bk_avdk_smp"
            name="Embracecactus/bk_avdk_smp"
            remote="git"
@@ -23,13 +17,16 @@
 
   <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian">
     <linkfile src="app/hello_app" dest="packages/demos/contest2026_135_hello_app"/>
+    <linkfile src="app/ota_agent" dest="packages/demos/contest2026_135_ota_agent"/>
     <linkfile src="app/vela_claw" dest="packages/demos/contest2026_135_vela_claw"/>
     <linkfile src="app/demos/Make.defs" dest="packages/demos/Make.defs"/>
     <linkfile src="app/demos/CMakeLists.txt" dest="packages/demos/CMakeLists.txt"/>
     <linkfile src="app/demos/Kconfig" dest="packages/demos/Kconfig"/>
     <linkfile src="quickapp/hello_quickapp" dest="packages/apps/contest2026_135_hello_quickapp"/>
-    <linkfile src="board/contest_board" dest="vendor/openvela/boards/contest2026_135_board"/>
-    <linkfile src="board/bk7258" dest="vendor/openvela/boards/contest2026_135_bk7258"/>
+    <linkfile src="chips/bk7258" dest="vendor/beken/chips/bk7258"/>
+    <linkfile src="boards/bk7258" dest="vendor/beken/boards/bk7258"/>
+    <linkfile src="prebuilt" dest="vendor/beken/prebuilt"/>
+    <linkfile src="integration/beken/vendorsetup.sh" dest="vendor/beken/build/bk7258/vendorsetup.sh"/>
     <linkfile src="tools/bk7258" dest="vendor/openvela/tools/contest2026_135_bk7258"/>
   </project>
 </manifest>
