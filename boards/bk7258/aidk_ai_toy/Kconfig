@@ -1,0 +1,2 @@
+# Shared BK7258 options; this board's defconfigs select AIDK AI Toy.
+source "../vendor/beken/boards/bk7258/common/Kconfig"

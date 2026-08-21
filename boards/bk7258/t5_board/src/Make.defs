@@ -1,0 +1,30 @@
+# T5-Board physical-device bindings.
+
+CSRCS += bk7258_board_bringup.c
+
+ifeq ($(CONFIG_BK7258_AUD),y)
+CSRCS += bk7258_t5_board_audio.c
+endif
+
+ifeq ($(CONFIG_BK7258_LCD),y)
+CSRCS += bk7258_t5_board_lcd.c
+endif
+
+ifeq ($(CONFIG_BK7258_GT1151),y)
+CSRCS += bk7258_t5_board_gt1151.c
+endif
+
+ifeq ($(CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION),y)
+CSRCS += bk7258_t5_board_rgb_lcd_backlight.c
+endif
+
+ifeq ($(CONFIG_BK7258_T5_BOARD_CAMERA),y)
+CSRCS += bk7258_t5_board_camera.c bk7258_t5_board_camera_i2c.c
+endif
+
+ifeq ($(CONFIG_BK7258_T5_BOARD_TF_SLOT),y)
+CSRCS += bk7258_t5_board_sdio.c
+ifeq ($(CONFIG_BK7258_T5_BOARD_TF_VALIDATION),y)
+CSRCS += bk7258_t5_board_tf_validation.c
+endif
+endif
