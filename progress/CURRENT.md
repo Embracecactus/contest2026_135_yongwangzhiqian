@@ -13,7 +13,8 @@ boot chain or risking the official device assets.
 - Repository: `contest2026_135_yongwangzhiqian`
 - Branch: `fix/bk7258-vela-claw-poweron-flicker`
 - AIDK baseline commit: `4cce51e` (`feat(bk7258): add AIDK fixed-block
-  MCUboot profiles`). Local checkpoint HEAD is `11e2cdf`; not pushed.
+  MCUboot profiles`). Publication handoff commit `b1aa1dc` is pushed to
+  `fork/fix/bk7258-vela-claw-poweron-flicker`.
 - Owner-untracked logs, `bootloader.tmp`, doc-stress helpers and
   `build_package.sh` remain untouched.
 
@@ -57,8 +58,7 @@ boot chain or risking the official device assets.
 
 ## Exact next action
 
-After explicit approval of the external destination, push the current branch
-to `Embracecactus/contest2026_135_yongwangzhiqian` and open a draft PR against
+The owner will open the PR manually from the pushed fork branch against
 `open-vela/contest2026_135_yongwangzhiqian:dev-ai-contest-2026`. Hardware then
 resumes under [ADR-030](../memory/decisions/ADR-030-aidk-first-provision-project-boot-chain.md):
 manually reset/CEN during BKFIL GetBus, capture two byte-identical 8 MiB reads,
