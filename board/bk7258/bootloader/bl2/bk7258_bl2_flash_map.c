@@ -3,13 +3,16 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "flash_map_backend/flash_map_backend.h"
+#include <bootutil/bootutil_public.h>
 #include "bk7258_bl2_abi.h"
+#include "../boot_flash.h"
 #include "../boot_wdt.h"
 
 #define FLASH_CP_PRIMARY 0
 #define FLASH_CP_SECONDARY 1
 #define FLASH_AP_PRIMARY 2
 #define FLASH_AP_SECONDARY 3
+static uint8_t g_bk7258_bl2_flash_sector[BK7258_FLASH_ERASE_SIZE];
 
 /* MCUboot normally selects each image ID independently.  The BK7258 board
  * stores CP and AP as two image IDs, but they are one launchable pair: the CP
@@ -137,28 +140,258 @@ int flash_area_read(const struct flash_area *fa, uint32_t off,
   return 0;
 }
 
+static int bk7258_bl2_raw_area(const struct flash_area *fa,
+                               uint32_t *base, uint32_t *size)
+{
+  if (fa == NULL || base == NULL || size == NULL)
+    {
+      return -1;
+    }
+
+  switch (fa->fa_id)
+    {
+      case FLASH_CP_PRIMARY:
+        *base = BK7258_CP_RAW_PHYSICAL_START;
+        *size = BK7258_CP_RAW_PHYSICAL_SIZE;
+        return 0;
+      case FLASH_CP_SECONDARY:
+        *base = BK7258_AB_SECONDARY_CP_RAW_START;
+        *size = BK7258_CP_RAW_PHYSICAL_SIZE;
+        return 0;
+      case FLASH_AP_PRIMARY:
+        *base = BK7258_AP_RAW_PHYSICAL_START;
+        *size = BK7258_AP_RAW_PHYSICAL_SIZE;
+        return 0;
+      case FLASH_AP_SECONDARY:
+        *base = BK7258_AB_SECONDARY_AP_RAW_START;
+        *size = BK7258_AP_RAW_PHYSICAL_SIZE;
+        return 0;
+      default:
+        return -1;
+    }
+}
+
+static bool bk7258_bl2_area_visible(const struct flash_area *fa)
+{
+  if (fa == NULL)
+    {
+      return false;
+    }
+
+  if (g_bk7258_bl2_slot_limit == BK7258_BL2_SLOT_PRIMARY)
+    {
+      return fa->fa_id == FLASH_CP_PRIMARY || fa->fa_id == FLASH_AP_PRIMARY;
+    }
+
+  if (g_bk7258_bl2_slot_limit == BK7258_BL2_SLOT_SECONDARY)
+    {
+      return fa->fa_id == FLASH_CP_SECONDARY ||
+             fa->fa_id == FLASH_AP_SECONDARY;
+    }
+
+  return false;
+}
+
+static uint32_t bk7258_bl2_copy_done_off(const struct flash_area *fa)
+{
+  uint32_t magic = fa->fa_size - BOOT_MAGIC_SZ;
+  uint32_t image_ok = (magic - BOOT_MAX_ALIGN) & ~(BOOT_MAX_ALIGN - 1u);
+
+  return image_ok - BOOT_MAX_ALIGN;
+}
+
+static uint16_t bk7258_bl2_crc16(const uint8_t *data)
+{
+  uint16_t crc = 0xffffu;
+  uint32_t index;
+  uint32_t bit;
+
+  for (index = 0; index < BK7258_FLASH_CRC_DATA_SIZE; index++)
+    {
+      crc ^= (uint16_t)data[index] << 8;
+      for (bit = 0; bit < 8u; bit++)
+        {
+          crc = (uint16_t)((crc << 1) ^
+            ((crc & 0x8000u) != 0u ? 0x8005u : 0u));
+        }
+    }
+
+  return crc;
+}
+
+static int bk7258_bl2_raw_replace(uint32_t address,
+                                  const uint8_t *source, uint32_t length)
+{
+  uint8_t verify[BK7258_FLASH_CRC_DATA_SIZE];
+  uint32_t end;
+
+  if (source == NULL || length == 0u || address >= BK7258_FLASH_SIZE ||
+      length > BK7258_FLASH_SIZE - address)
+    {
+      return -1;
+    }
+
+  end = address + length;
+  while (address < end)
+    {
+      uint32_t sector = address & ~(BK7258_FLASH_ERASE_SIZE - 1u);
+      uint32_t offset = address - sector;
+      uint32_t count = BK7258_FLASH_ERASE_SIZE - offset;
+      uint32_t index;
+
+      if (count > end - address)
+        {
+          count = end - address;
+        }
+
+      if (bk7258_boot_flash_read(sector, g_bk7258_bl2_flash_sector,
+                                 sizeof(g_bk7258_bl2_flash_sector)) < 0)
+        {
+          return -1;
+        }
+
+      for (index = 0; index < count; index++)
+        {
+          g_bk7258_bl2_flash_sector[offset + index] = source[index];
+        }
+
+      if (bk7258_boot_flash_erase(sector, BK7258_FLASH_ERASE_SIZE) < 0 ||
+          bk7258_boot_flash_program(sector, g_bk7258_bl2_flash_sector,
+                                    sizeof(g_bk7258_bl2_flash_sector)) < 0)
+        {
+          return -1;
+        }
+
+      /* The controller reports command completion before the board can rely
+       * on the rewritten CRC packets.  Verify the complete RMW sector before
+       * allowing MCUboot to boot an image whose copy_done mutation it owns. */
+      for (index = 0; index < BK7258_FLASH_ERASE_SIZE;
+           index += sizeof(verify))
+        {
+          uint32_t check;
+
+          if (bk7258_boot_flash_read(sector + index, verify,
+                                     sizeof(verify)) < 0)
+            {
+              return -1;
+            }
+
+          for (check = 0; check < sizeof(verify); check++)
+            {
+              if (verify[check] != g_bk7258_bl2_flash_sector[index + check])
+                {
+                  return -1;
+                }
+            }
+        }
+
+      address += count;
+      source += count;
+      boot_wdt_feed_period(BL2_WDT_PERIOD);
+    }
+
+  return 0;
+}
+
 int flash_area_write(const struct flash_area *fa, uint32_t off,
                      const void *src, uint32_t len)
 {
-  (void)fa;
-  (void)off;
-  (void)src;
-  (void)len;
-  return -1;
+  const uint8_t *input = src;
+  uint32_t raw_base;
+  uint32_t raw_size;
+
+  /* Direct-XIP-revert writes exactly one board-owned field in BL2:
+   * copy_done.  Magic is supplied by imgtool, image_ok is owned by the
+   * runtime health-confirm path, and all other trailer/status bytes remain
+   * inaccessible here. */
+  if (fa == NULL || src == NULL || len != 1u ||
+      off != bk7258_bl2_copy_done_off(fa) || input[0] != BOOT_FLAG_SET ||
+      !bk7258_bl2_area_visible(fa) ||
+      bk7258_bl2_raw_area(fa, &raw_base, &raw_size) < 0)
+    {
+      return -1;
+    }
+
+  while (len != 0u)
+    {
+      uint8_t logical[BK7258_FLASH_CRC_DATA_SIZE];
+      uint8_t encoded[BK7258_FLASH_CRC_TOTAL_SIZE];
+      uint32_t group = off / BK7258_FLASH_CRC_DATA_SIZE;
+      uint32_t in_group = off % BK7258_FLASH_CRC_DATA_SIZE;
+      uint32_t count = BK7258_FLASH_CRC_DATA_SIZE - in_group;
+      uint32_t raw_offset = group * BK7258_FLASH_CRC_TOTAL_SIZE;
+      uint16_t crc;
+      uint32_t index;
+
+      if (count > len)
+        {
+          count = len;
+        }
+
+      if (raw_offset > raw_size - BK7258_FLASH_CRC_TOTAL_SIZE ||
+          flash_area_read(fa, group * BK7258_FLASH_CRC_DATA_SIZE,
+                          logical, sizeof(logical)) < 0)
+        {
+          return -1;
+        }
+
+      for (index = 0; index < count; index++)
+        {
+          logical[in_group + index] = input[index];
+        }
+
+      for (index = 0; index < BK7258_FLASH_CRC_DATA_SIZE; index++)
+        {
+          encoded[index] = logical[index];
+        }
+
+      crc = bk7258_bl2_crc16(logical);
+      encoded[BK7258_FLASH_CRC_DATA_SIZE] = (uint8_t)(crc >> 8);
+      encoded[BK7258_FLASH_CRC_DATA_SIZE + 1u] = (uint8_t)crc;
+      if (bk7258_bl2_raw_replace(raw_base + raw_offset, encoded,
+                                 sizeof(encoded)) < 0)
+        {
+          /* Upstream direct-XIP deliberately treats a copy_done write error
+           * as non-fatal.  That is unsafe for this board because it would
+           * repeatedly boot an untracked candidate, so a hardware mutation
+           * failure must reset before application handoff. */
+          boot_wdt_fail_reset();
+        }
+
+      off += count;
+      input += count;
+      len -= count;
+    }
+
+  return 0;
 }
 
 int flash_area_erase(const struct flash_area *fa, uint32_t off, uint32_t len)
 {
-  (void)fa;
-  (void)off;
-  (void)len;
-  return -1;
+  uint32_t raw_base;
+  uint32_t raw_size;
+
+  if (fa == NULL || off != 0u || len != fa->fa_size ||
+      !bk7258_bl2_area_visible(fa) ||
+      bk7258_bl2_raw_area(fa, &raw_base, &raw_size) < 0 ||
+      (raw_base & (BK7258_FLASH_ERASE_SIZE - 1u)) != 0u ||
+      (raw_size & (BK7258_FLASH_ERASE_SIZE - 1u)) != 0u)
+    {
+      return -1;
+    }
+
+  if (bk7258_boot_flash_erase(raw_base, raw_size) < 0)
+    {
+      boot_wdt_fail_reset();
+    }
+
+  return 0;
 }
 
 uint32_t flash_area_align(const struct flash_area *fa)
 {
   (void)fa;
-  return 4;
+  return 1;
 }
 
 uint8_t flash_area_erased_val(const struct flash_area *fa)

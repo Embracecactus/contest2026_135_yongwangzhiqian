@@ -62,11 +62,57 @@ static bool bk7258_flash_range(uint32_t addr, uint32_t size,
 static bool bk7258_flash_guard_range(
   enum bk7258_flash_guard_owner_e owner, uint32_t addr, uint32_t size)
 {
+#ifdef BK7258_STORAGE_TOPOLOGY_ONCHIP_PERSISTENT
   if (owner == BK7258_FLASH_GUARD_DATA)
     {
       return bk7258_flash_range(addr, size,
                                 BK7258_DATA_RAW_PHYSICAL_OFFSET,
                                 BK7258_DATA_RAW_PHYSICAL_SIZE);
+    }
+#endif
+
+  if (owner == BK7258_FLASH_GUARD_OTA_PRIMARY)
+    {
+      return bk7258_flash_range(addr, size,
+                                BK7258_CP_RAW_PHYSICAL_START,
+                                BK7258_CP_RAW_PHYSICAL_SIZE +
+                                BK7258_AP_RAW_PHYSICAL_SIZE);
+    }
+
+  if (owner == BK7258_FLASH_GUARD_OTA_SECONDARY)
+    {
+      return bk7258_flash_range(addr, size,
+                                BK7258_AB_SECONDARY_CP_RAW_START,
+                                BK7258_CP_RAW_PHYSICAL_SIZE +
+                                BK7258_AP_RAW_PHYSICAL_SIZE);
+    }
+
+  if (owner == BK7258_FLASH_GUARD_CONFIRM_PRIMARY)
+    {
+      return bk7258_flash_range(
+               addr, size,
+               BK7258_CP_RAW_PHYSICAL_START +
+               BK7258_CP_RAW_PHYSICAL_SIZE - BK7258_FLASH_ERASE_SIZE,
+               BK7258_FLASH_ERASE_SIZE) ||
+             bk7258_flash_range(
+               addr, size,
+               BK7258_AP_RAW_PHYSICAL_START +
+               BK7258_AP_RAW_PHYSICAL_SIZE - BK7258_FLASH_ERASE_SIZE,
+               BK7258_FLASH_ERASE_SIZE);
+    }
+
+  if (owner == BK7258_FLASH_GUARD_CONFIRM_SECONDARY)
+    {
+      return bk7258_flash_range(
+               addr, size,
+               BK7258_AB_SECONDARY_CP_RAW_START +
+               BK7258_CP_RAW_PHYSICAL_SIZE - BK7258_FLASH_ERASE_SIZE,
+               BK7258_FLASH_ERASE_SIZE) ||
+             bk7258_flash_range(
+               addr, size,
+               BK7258_AB_SECONDARY_AP_RAW_START +
+               BK7258_AP_RAW_PHYSICAL_SIZE - BK7258_FLASH_ERASE_SIZE,
+               BK7258_FLASH_ERASE_SIZE);
     }
 
   return false;
@@ -91,8 +137,8 @@ int bk7258_flash_guard_lock(enum bk7258_flash_guard_owner_e owner,
 {
   int ret;
 
-  if (up_interrupt_context() ||
-      owner != BK7258_FLASH_GUARD_DATA)
+  if (up_interrupt_context() || owner <= BK7258_FLASH_GUARD_NONE ||
+      owner > BK7258_FLASH_GUARD_CONFIRM_SECONDARY)
     {
       return -EINVAL;
     }

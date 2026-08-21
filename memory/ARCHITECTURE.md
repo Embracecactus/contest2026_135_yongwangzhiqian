@@ -37,7 +37,7 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
 | Windows/WSL2 tools | Build, sparse/factory download, UART/J-Link evidence, and no-GUI BLE client |
 | Historical N15 OTA evidence | The former custom inactive-slot writer, dual-bank journal and trial/rollback lifecycle were physically exercised, then retired from active source. Their ADRs and verification records are historical evidence, not current firmware architecture. |
 | N16 Wi-Fi (accepted architecture, complete for STA scope) | Official v3.1.1.9 radio/controller and DHCP client remain on CP; AP uses the official vnet proxy plus a repository-owned lease/netdev adapter to native NuttX `wlan0`/IPv4/sockets; vendor AP lwIP is excluded |
-| BL1/BL2/MCUboot chain | Project BL1 verifies Manifest A/B and project freestanding BL2 A/B. BL2 retains the board-verified pinned-MCUboot same-slot, same-version and same-counter CP/AP gate. Public-only C roots are generated in the build tree from explicit PEM inputs; signed `.bkpack` evidence embeds public keys and signatures rather than a separate trust contract. The chain remains software-rooted: OTP/eFuse provisioning and hardware monotonic rollback are not claimed. |
+| BL1/BL2/MCUboot chain | Project BL1 verifies Manifest A/B and project freestanding BL2 A/B. BL2 uses standard MCUboot multi-image trailers with direct-XIP revert, but exposes one complete same-slot, same-version, same-counter and same-trailer-state CP/AP pair per `boot_go()` attempt. Public-only C roots are generated in the build tree from explicit PEM inputs; signed `.bkpack` evidence embeds public keys and signatures rather than a separate trust contract. The chain remains software-rooted: OTP/eFuse provisioning and hardware monotonic rollback are not claimed. See ADR-031. |
 | CP debug and console transport | SWD route, target core and console transport are independent configuration axes with paired-image pin-conflict gates. SWD supports P0/P1 or P20/P21; console supports NONE, RTT or UART0/1/2 with explicit frame/baud and route settings. Direct profiles stop APB/AON watchdogs and hold in BL1 after final cleanup; release magic immediately precedes the CP branch. MCUboot profiles hold at the equivalent BL2-to-CP boundary. Board-verified T5-Board configurations use P0/P1 CP SWD with either RTT or, for the dedicated Audio one-shot profile, UART0/COM3; UART1/COM4 is omitted. They suppress only the SDK all-pin default-map pass that would overwrite the route. P20/P21 and other UART routes are compiled but not board-verified. |
 | PM and timer policy | NuttX remains the PM owner and the SDK is a leaf hardware service. Ordinary idle uses clear-SLEEPDEEP then DSB/WFI/ISB.  CP physical CPU0 and AP-primary physical CPU1 use fixed external-32 kHz scheduler SysTick routes; for timer accounting, DVFS refreshes their role-local DWT conversion while the scheduler source remains fixed. Coordinated standby is board-owned but follows the v3.1.1.9 protocol: CP owns the request, PWC mailbox exchange and both-AP vote barrier; each AP checks its vote and pending IRQ/DMA state, saves/stops SysTick, publishes AON WFI state, preserves the mailbox wake path, enters SLEEPDEEP and restores in official wake order. CP uses a bounded RTC wake and a hard-IRQ arch-timer proxy to restore whole ticks plus the saved sub-tick phase; one real one-shot restore is board-verified. Missing votes, pending work, stale generations, mailbox errors or restore errors fail closed; no core may independently claim low-voltage standby. AP standby still lacks AON elapsed-time compensation, so complete CP/AP time continuity is not claimed. |
 
@@ -106,9 +106,11 @@ Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.m
   AP vector to come from that same slot; a cross-slot-only state fails closed.
   Primary CP/AP and `s_app` remain equal-length contiguous pairs selected by
   one official-style Flash remap decision; persistent and immutable ranges
-  are outside both executable spans. The active firmware does not contain an
-  inactive-slot writer, trial journal, confirmation service or field-update
-  transport.
+  are outside both executable spans. CP derives the physical active slot from
+  the retained remap registers, stages only the opposite pair with CP sector
+  zero committed last, and confirms the two standard `image_ok` trailers after
+  application health acceptance. There is no private trial journal; transport
+  and health policy remain application responsibilities.
 
 ## Persistence and data lifecycle
 

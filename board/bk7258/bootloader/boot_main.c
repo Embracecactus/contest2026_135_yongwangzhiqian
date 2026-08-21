@@ -182,46 +182,6 @@ static void log_u32(const char *label, uint32_t value)
     uart_puts("\r\n");
 }
 
-#if BK7258_BL1_USE_BL2
-static int boot_bl2_policy_store(
-    const struct bk7258_bl2_boot_policy_s *policy)
-{
-    volatile struct bk7258_bl2_boot_policy_s *handoff =
-        (volatile struct bk7258_bl2_boot_policy_s *)(uintptr_t)
-        BK7258_BL2_BOOT_POLICY_ADDRESS;
-
-    if (policy == (const struct bk7258_bl2_boot_policy_s *)0 ||
-        policy->magic != BK7258_BL2_BOOT_POLICY_MAGIC ||
-        policy->version != BK7258_BL2_BOOT_POLICY_VERSION ||
-        policy->preferred_slot > BK7258_BL2_BOOT_POLICY_SLOT_SECONDARY ||
-        (policy->fallback_slot != BK7258_BL2_BOOT_POLICY_SLOT_NONE &&
-         (policy->fallback_slot > BK7258_BL2_BOOT_POLICY_SLOT_SECONDARY ||
-          policy->fallback_slot == policy->preferred_slot)) ||
-        policy->source != BK7258_BL2_BOOT_POLICY_SOURCE_FIXED ||
-        policy->check != bk7258_bl2_boot_policy_check(policy))
-      {
-        return -1;
-      }
-
-    /* Publish magic last so a reset cannot expose a partially written policy
-     * as valid to BL2. */
-    handoff->magic = 0;
-    __asm volatile ("dsb sy" ::: "memory");
-    handoff->version = policy->version;
-    handoff->preferred_slot = policy->preferred_slot;
-    handoff->fallback_slot = policy->fallback_slot;
-    handoff->source = policy->source;
-    handoff->state = policy->state;
-    handoff->generation_low = policy->generation_low;
-    handoff->generation_high = policy->generation_high;
-    handoff->check = policy->check;
-    __asm volatile ("dsb sy" ::: "memory");
-    handoff->magic = policy->magic;
-    __asm volatile ("dsb sy" ::: "memory");
-    return 0;
-}
-#endif
-
 /* Read-only TrustEngine/Dubhe observation for the reversible bring-up path.
  * These addresses are from the v3.1.1.9 BK7258 register headers and have
  * also been read successfully through SWD on the target.  The probe never
@@ -425,9 +385,6 @@ __attribute__((used))
 uint32_t c_main(void)
 {
     const struct fal_partition *app;
-#if BK7258_BL1_USE_BL2
-    struct bk7258_bl2_boot_policy_s bl2_policy;
-#endif
     uint32_t app_vec = 0;
     int cold_ok = 0;
 #if BK7258_BL1_USE_BL2
@@ -530,18 +487,6 @@ uint32_t c_main(void)
     return app_vec;
 #else
 
-    bl2_policy.magic = BK7258_BL2_BOOT_POLICY_MAGIC;
-    bl2_policy.version = BK7258_BL2_BOOT_POLICY_VERSION;
-    bl2_policy.preferred_slot = BK7258_BL2_BOOT_POLICY_SLOT_PRIMARY;
-    bl2_policy.fallback_slot = BK7258_BL2_BOOT_POLICY_SLOT_SECONDARY;
-    bl2_policy.source = BK7258_BL2_BOOT_POLICY_SOURCE_FIXED;
-    bl2_policy.state = 0u;
-    bl2_policy.generation_low = 0u;
-    bl2_policy.generation_high = 0u;
-    bl2_policy.check = bk7258_bl2_boot_policy_check(&bl2_policy);
-    uart_puts("B1FIX\r\n");
-    uart_puts("B1POLA\r\n");
-
     /* --- FAL partition parse -> find the dedicated NuttX MCUboot BL2.
      * BL1 must never enter CP slot A directly once BL2 owns A/B selection.
      */
@@ -565,7 +510,7 @@ uint32_t c_main(void)
      * the second page of the documented 12 KiB control area through the raw
      * Flash path.  It never writes that page. */
 #if BK7258_BL1_BOOT_CONTROL_STAGING
-    if (bk7258_bl1_flash_read(BK7258_BL1_BOOT_CONTROL_RAW_OFFSET,
+    if (bk7258_boot_flash_read(BK7258_BL1_BOOT_CONTROL_RAW_OFFSET,
                               boot_control_record,
                               sizeof(boot_control_record)) == 0)
       {
@@ -604,7 +549,7 @@ uint32_t c_main(void)
         /* The Manifest lives in the CSV data partition. Read the maintained
          * 256-byte record; no boot-tail compatibility location exists. */
         uart_puts("B1PAGE\r\n");
-        manifest_status = bk7258_bl1_flash_read(
+        manifest_status = bk7258_boot_flash_read(
             slot == 0 ? BK7258_PARTITION_PRIMARY_MANIFEST_OFFSET :
                         BK7258_PARTITION_SECONDARY_MANIFEST_OFFSET,
             manifest_record, sizeof(manifest_record));
@@ -639,11 +584,6 @@ uint32_t c_main(void)
 
     if (!pair_ok) {
         uart_puts("BAD\r\nno bl2 candidate\r\n");
-        boot_wdt_fail_reset();
-    }
-
-    if (boot_bl2_policy_store(&bl2_policy) < 0) {
-        uart_puts("BAD\r\nbl2 policy handoff\r\n");
         boot_wdt_fail_reset();
     }
 

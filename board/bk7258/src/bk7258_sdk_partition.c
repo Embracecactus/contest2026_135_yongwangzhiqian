@@ -9,6 +9,10 @@
 #include <driver/flash.h>
 #include <driver/flash_partition.h>
 
+#if defined(CONFIG_BK7258_FLASH_MTD) || defined(CONFIG_BK7258_OTA)
+#  include "bk7258_flash_guard.h"
+#endif
+
 #define BK7258_OPTIONS(execute, read, write) \
   ((execute ? PAR_OPT_EXECUTE_EN : PAR_OPT_EXECUTE_DIS) | \
    (read ? PAR_OPT_READ_EN : PAR_OPT_READ_DIS) | \
@@ -125,6 +129,15 @@ bk_err_t __wrap_bk_flash_partition_write_perm_check_by_addr(
     uint32_t address, uint32_t size, uint32_t magic_code)
 {
   (void)magic_code;
+#if defined(CONFIG_BK7258_FLASH_MTD) || defined(CONFIG_BK7258_OTA)
+  /* The generated layout remains read-only for executable partitions.  OTA
+   * receives a narrower task-scoped capability for exactly the inactive pair
+   * (or the active pair's two trailer sectors during health confirmation). */
+  if (bk7258_flash_guard_write_authorized(address, size))
+    {
+      return BK_OK;
+    }
+#endif
   for (uint32_t index = 0; index < BK7258_PARTITION_COUNT; index++)
     {
       bk_logic_partition_t *info = &g_bk7258_partitions[index];

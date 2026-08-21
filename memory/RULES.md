@@ -26,8 +26,10 @@ Last reviewed: 2026-08-21
   and must never be enabled or flashed.
 - Every maintained CSV explicitly declares Manifest A/B and BL2 A/B. No code
   may infer the B address from a gap. Normal application firmware cannot write
-  those ranges; a future updater needs a separately reviewed inactive-slot
-  lifecycle and exact-range authority.
+  those ranges. The accepted MCUboot field updater may write only the runtime
+  inactive CP/AP pair and the active pair's exact trailer sectors under the
+  task-scoped ranges in ADR-031; it has no Manifest/BL2 or persistent-data
+  authority.
 
 ## Permissions and ownership
 

@@ -64,6 +64,8 @@ def _parser() -> argparse.ArgumentParser:
     security = create.add_mutually_exclusive_group(required=True)
     security.add_argument("--unsigned", action="store_true")
     security.add_argument("--signed", action="store_true")
+    security.add_argument("--ota-apps", action="store_true",
+                          help="create pending signed CP/AP OTA images only")
     create.add_argument("--bl1-key", type=Path)
     create.add_argument("--mcuboot-key", type=Path)
     create.add_argument("--bl1-elf", type=Path)
@@ -216,6 +218,37 @@ def _package(args: argparse.Namespace) -> None:
         )
         image_set = release.image_set
         trust_evidence = release.evidence.manifest()
+    elif args.ota_apps:
+        required = (
+            args.mcuboot_key, args.bl2_elf, args.openssl,
+            args.version, args.security_counter,
+        )
+        forbidden = (
+            args.bl1_key, args.bl1_elf, args.bl1_security_counter,
+        )
+        if any(value is None for value in required) \
+                or any(value is not None for value in forbidden) \
+                or args.preserve_external:
+            raise trust_domain.TrustError(
+                "apps-only OTA requires MCUboot key/BL2/version/counter inputs "
+                "and forbids BL1 or preserved-release inputs"
+            )
+        toolchain = build_domain.toolchain_root(REPOSITORY) / "bin"
+        release = trust_domain.signed_ota_pair(
+            layout=selected_layout,
+            artifacts=artifact_paths,
+            mcuboot_private_key=args.mcuboot_key,
+            bl2_elf=args.bl2_elf,
+            version=args.version,
+            security_counter=args.security_counter,
+            official_imgtool=(
+                REPOSITORY.parent / "apps/boot/mcuboot/mcuboot/scripts/imgtool.py"
+            ),
+            openssl=args.openssl,
+            objcopy=toolchain / "arm-none-eabi-objcopy",
+        )
+        image_set = release.image_set
+        trust_evidence = release.evidence.manifest()
     else:
         if any(value is not None for value in signed_inputs):
             raise trust_domain.TrustError(
@@ -287,7 +320,10 @@ def _verify(args: argparse.Namespace) -> None:
             ),
             openssl=args.openssl,
         )
-        print("bk7258 verify trust: PASS public BL1/BL2/CP/AP signatures")
+        if evidence.get("mode") == "signed-ota":
+            print("bk7258 verify trust: PASS public MCUboot CP/AP signatures")
+        else:
+            print("bk7258 verify trust: PASS public BL1/BL2/CP/AP signatures")
 
 
 def main(argv: list[str] | None = None) -> int:

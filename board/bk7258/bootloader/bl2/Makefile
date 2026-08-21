@@ -69,6 +69,7 @@ LDFLAGS := $(CPUFLAGS) -nostdlib -Wl,--gc-sections -Wl,--build-id=none \
 OBJECTS := \
   $(OUT)/bl2_start.o \
   $(OUT)/bk7258_bl2_main.o \
+  $(OUT)/bk7258_bl2_pair_policy.o \
   $(OUT)/bk7258_bl2_flash_map.o \
   $(OUT)/bk7258_bl2_security_cnt.o \
   $(OUT)/loader.o \
@@ -86,6 +87,7 @@ OBJECTS := \
   $(OUT)/asn1parse.o \
   $(OUT)/platform_util.o \
   $(OUT)/boot_libc.o \
+  $(OUT)/boot_flash.o \
   $(OUT)/boot_runtime.o \
   $(OUT)/bk7258_bl2_keys.o
 
@@ -121,7 +123,7 @@ $(OUT)/asn1parse.o $(OUT)/platform_util.o: $(OUT)/%.o: \
     $(ASN1)/src/%.c $(CONFIG_HEADER) | $(OUT)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OUT)/boot_libc.o $(OUT)/boot_runtime.o: $(OUT)/%.o: \
+$(OUT)/boot_libc.o $(OUT)/boot_flash.o $(OUT)/boot_runtime.o: $(OUT)/%.o: \
     $(SOURCE)/../%.c $(CONFIG_HEADER) | $(OUT)
 	$(CC) $(CFLAGS) -c $< -o $@
 

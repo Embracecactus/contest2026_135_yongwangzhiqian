@@ -32,6 +32,38 @@ config BK7258_APP_HELLO_STACKSIZE
 
 endif
 
+config BK7258_APP_OTA
+	bool "BK7258 paired OTA operator command"
+	default n
+	depends on BK7258_OTA && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Build the trusted-maintainer bkota status/stage/confirm command.  This
+		manual command does not parse or authenticate a .bkpack container:
+		stage accepts only the two physical CRC-encoded members extracted from
+		a separately host-verified --ota-apps package.  BL2 authenticates them
+		before boot.  Confirm is an explicit operator health-acceptance action;
+		the command does not infer AP/RPMsg health.  Product field transport and
+		health policy must wrap the board API rather than exposing this command
+		to an untrusted caller.
+
+if BK7258_APP_OTA
+
+config BK7258_APP_OTA_PROGNAME
+	string "bkota program name"
+	default "bkota"
+
+config BK7258_APP_OTA_PRIORITY
+	int "bkota priority"
+	default 100
+
+config BK7258_APP_OTA_STACKSIZE
+	int "bkota stack size"
+	default 4096
+
+endif
+
 config BK7258_APP_BKVALIDATE
 	bool "BK7258 public-API validation dispatcher"
 	default n
