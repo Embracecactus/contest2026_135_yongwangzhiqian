@@ -9,13 +9,13 @@ import shutil
 import stat
 import subprocess
 import tempfile
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
 from _lib import image as image_domain
 from _lib import layout as layout_domain
 from _lib import sdk as sdk_domain
+from _lib import toolchain as toolchain_domain
 from _lib import trust as trust_domain
 
 
@@ -27,9 +27,8 @@ PROFILE_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 REQUIRED_PROFILE_FIELDS = frozenset(
     {"SCHEMA", "BOARD", "ROLE", "CLASS", "COMPAT", "SDK"}
 )
-TOOLCHAIN_GROUP = "bk7258-toolchain"
-
-
+BOARD_ROOT = Path("boards/bk7258")
+CHIP_ROOT = Path("chips/bk7258")
 @dataclass(frozen=True)
 class ConfigProfile:
     root: Path
@@ -150,11 +149,13 @@ def _official_entry(path: Path, workspace: Path) -> Path:
 
 def config_profile(repository: Path, path: Path, expected_role: str) -> ConfigProfile:
     root = _directory(path, f"{expected_role} config directory")
-    allowed_root = (repository / "board/bk7258/configs").resolve(strict=True)
+    allowed_root = (repository / BOARD_ROOT).resolve(strict=True)
     try:
         root.relative_to(allowed_root)
     except ValueError as error:
         raise BuildError(f"{expected_role} config must be under {allowed_root}") from error
+    if root.parent.name != "configs" or root.parent.parent.name == "common":
+        raise BuildError(f"{expected_role} config must be owned by one physical board")
     _regular(root / "defconfig", f"{expected_role} defconfig")
     profile_path = _regular(root / "profile.conf", f"{expected_role} profile")
     values: dict[str, str] = {}
@@ -214,6 +215,7 @@ def _build_environment(toolchain: Toolchain) -> dict[str, str]:
 
     environment: dict[str, str] = {
         "PATH": f"{toolchain.binary_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}",
+        "CMAKE_PROGRAM_PATH": str(toolchain.binary_dir),
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
         "PYTHONDONTWRITEBYTECODE": "1",
@@ -465,54 +467,21 @@ def _capture(command: list[str], label: str, *, cwd: Path) -> str:
 
 
 def resolve_toolchain(repository: Path, workspace: Path) -> Toolchain:
-    """Resolve the manifest-pinned OpenVela ARM prebuilt without PATH fallback."""
+    """Resolve the content-addressed Arm GNU prebuilt without PATH fallback."""
 
-    manifest = _regular(repository / f"{repository.name}.xml", "team manifest")
     try:
-        root = ET.parse(manifest).getroot()
-    except (OSError, ET.ParseError) as error:
-        raise BuildError(f"cannot parse team manifest: {manifest}") from error
-    matches = []
-    for project in root.iter("extend-project"):
-        groups = re.split(r"[\s,]+", project.get("groups", "").strip())
-        if TOOLCHAIN_GROUP in groups:
-            matches.append(project)
-    if len(matches) != 1:
-        raise BuildError("team manifest must pin exactly one BK7258 toolchain")
-    project = matches[0]
-    relative = project.get("path", "")
-    revision = project.get("revision", "")
-    if not relative or not re.fullmatch(r"[0-9a-f]{40}", revision):
-        raise BuildError("BK7258 toolchain manifest entry is incomplete")
-    checkout = _directory(workspace / relative, "manifest ARM toolchain checkout")
-    observed = _capture(
-        ["git", "-C", str(checkout), "rev-parse", "HEAD"],
-        "toolchain source identity",
-        cwd=workspace,
-    )
-    if observed != revision:
-        raise BuildError(
-            f"toolchain revision mismatch: expected={revision} observed={observed}"
-        )
-    if _capture(
-        ["git", "-C", str(checkout), "status", "--porcelain"],
-        "toolchain source cleanliness",
-        cwd=workspace,
-    ):
-        raise BuildError("manifest ARM toolchain checkout must be clean")
-    binary_dir = _directory(checkout / "bin", "manifest ARM toolchain bin directory")
-    for name in (
-        "arm-none-eabi-gcc", "arm-none-eabi-g++", "arm-none-eabi-ar",
-        "arm-none-eabi-objcopy", "arm-none-eabi-objdump", "arm-none-eabi-size",
-        "arm-none-eabi-nm", "arm-none-eabi-readelf",
-    ):
-        tool = _regular(binary_dir / name, f"manifest ARM tool {name}")
-        if not os.access(tool, os.X_OK):
-            raise BuildError(f"manifest ARM tool is not executable: {tool}")
+        report = toolchain_domain.verify(repository)
+    except toolchain_domain.ToolchainError as error:
+        raise BuildError(str(error)) from error
     make = shutil.which("make", path=os.environ.get("PATH", "/usr/bin:/bin"))
     if make is None:
         raise BuildError("make is required for the project BL1")
-    return Toolchain(checkout, binary_dir, revision, Path(make).resolve(strict=True))
+    return Toolchain(
+        report.root,
+        report.binary_dir,
+        report.archive_sha256,
+        Path(make).resolve(strict=True),
+    )
 
 
 def toolchain_root(repository: Path) -> Path:
@@ -551,18 +520,28 @@ def _build_config_root(workspace: Path, cp: ConfigProfile, ap: ConfigProfile,
     )
     lines.extend(("", boot_setting))
     _atomic_text(root / "defconfig", "\n".join(lines) + "\n")
+    selector = f"CONFIG_BK7258_BOARD_{selected.board.upper()}"
+    if f"{selector}=y" not in lines:
+        raise BuildError(
+            f"{selected.role} profile does not select its physical board: {selector}"
+        )
     make_defs = _regular(
-        selected.root.parent.parent / "scripts/Make.defs",
-        f"{selected.role} board Make.defs",
+        selected.root.parents[2] / "common/scripts/Make.defs",
+        "BK7258 common board Make.defs",
     )
-    _atomic_text(root / "Make.defs", make_defs.read_text(encoding="utf-8"))
+    _atomic_text(
+        root / "Make.defs",
+        f"BK7258_EXPECTED_BOARD_SELECTOR := {selector}\n"
+        + make_defs.read_text(encoding="utf-8"),
+    )
     return root
 
 
 def _role_build(repository: Path, workspace: Path, official_build: Path,
                 config: ConfigProfile, build_config_root: Path, output_name: str,
                 selected_layout: layout_domain.Layout, toolchain: Toolchain,
-                jobs: int, clean: bool) -> RoleBuild:
+                jobs: int, clean: bool,
+                catalog_public_source: Path | None = None) -> RoleBuild:
     sdk_report = sdk_domain.verify(repository, config.sdk_profile)
     build_config_root = _directory(build_config_root, f"{config.role} build config")
     _regular(build_config_root / "defconfig", f"{config.role} build defconfig")
@@ -574,6 +553,7 @@ def _role_build(repository: Path, workspace: Path, official_build: Path,
     environment.update(
         {
             "BK7258_SDK_DIR": str(sdk_report.bundle),
+            "BK7258_TOOLCHAIN_BIN": str(toolchain.binary_dir),
             "BK7258_PARTITION_CSV": str(selected_layout.source),
             "BK7258_PARTITION_HEADER": str(generated.header),
             "BK7258_PARTITION_LINKER": str(generated.linker),
@@ -582,6 +562,10 @@ def _role_build(repository: Path, workspace: Path, official_build: Path,
             "BK7258_PARTITION_SHA256": selected_layout.sha256,
         }
     )
+    if catalog_public_source is not None:
+        environment["BK7258_OTA_CATALOG_PUBLIC_SOURCE"] = str(
+            _regular(catalog_public_source, "OTA catalog public key source")
+        )
     ccache_root = output_root / "ccache"
     ccache_temp = ccache_root / "tmp"
     ccache_temp.mkdir(parents=True, exist_ok=True)
@@ -649,7 +633,7 @@ def _build_bl2(repository: Path, workspace: Path, cp: RoleBuild, ap: RoleBuild,
         config_header, _bl2_config(cp, rollback_floor, initial_copy_size)
     )
     makefile = _regular(
-        repository / "board/bk7258/bootloader/bl2/Makefile",
+        repository / CHIP_ROOT / "bootloader/bl2/Makefile",
         "project BL2 Makefile",
     )
     mcuboot_root = _directory(
@@ -722,7 +706,7 @@ def _build_bl1(repository: Path, workspace: Path, cp: RoleBuild, ap: RoleBuild,
         ),
     )
     makefile = _regular(
-        repository / "board/bk7258/bootloader/Makefile", "project BL1 Makefile"
+        repository / CHIP_ROOT / "bootloader/Makefile", "project BL1 Makefile"
     )
     environment = _build_environment(toolchain)
     command = [
@@ -821,6 +805,17 @@ def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
             "mcuboot build requires BL1/MCUboot public keys, OpenSSL and rollback floor"
         )
     selected_layout = layout_domain.load(partition)
+    public_sources = None
+    if boot == "mcuboot":
+        assert bl1_public_key is not None
+        assert mcuboot_public_key is not None
+        assert openssl is not None
+        public_sources = trust_domain.write_public_sources(
+            bl1_public_key=bl1_public_key,
+            mcuboot_public_key=mcuboot_public_key,
+            openssl=openssl,
+            output=_pair_root(workspace, cp, ap, selected_layout) / "trust",
+        )
     cp_build_config = _build_config_root(
         workspace, cp, ap, cp, selected_layout, boot
     )
@@ -833,7 +828,8 @@ def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
     )
     ap_result = _role_build(
         repository, workspace, official_build, ap, ap_build_config,
-        f"{ap.root.name}-{boot}", selected_layout, toolchain, jobs, clean
+        f"{ap.root.name}-{boot}", selected_layout, toolchain, jobs, clean,
+        public_sources.catalog_source if public_sources is not None else None,
     )
     _verify_storage_topology(cp_result, ap_result, selected_layout)
     if boot == "direct":
@@ -851,12 +847,7 @@ def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
         assert mcuboot_public_key is not None
         assert openssl is not None
         assert rollback_floor is not None
-        public_sources = trust_domain.write_public_sources(
-            bl1_public_key=bl1_public_key,
-            mcuboot_public_key=mcuboot_public_key,
-            openssl=openssl,
-            output=_pair_root(workspace, cp, ap, selected_layout) / "trust",
-        )
+        assert public_sources is not None
         bl2 = _build_bl2(
             repository, workspace, cp_result, ap_result, selected_layout,
             toolchain, public_sources.mcuboot_source, rollback_floor,

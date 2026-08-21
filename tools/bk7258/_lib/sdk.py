@@ -24,8 +24,8 @@ class SdkError(RuntimeError):
     """SDK source, profile, bundle, or transaction failure."""
 
 
-PROFILE_ROOT = Path("board/bk7258/bk_idk/sdk-profiles")
-BUNDLE_ROOT = Path("board/bk7258/bk_idk/armino_as_lib/versions")
+PROFILE_ROOT = Path("chips/bk7258/bk_idk/sdk-profiles")
+BUNDLE_ROOT = Path("chips/bk7258/bk_idk/armino_as_lib/versions")
 BUNDLE_HASH_PREFIX = "# BK7258_BUNDLE_TREE_SHA256="
 BUNDLE_OMIT_PREFIX = "# BK7258_BUNDLE_OMIT="
 REQUIRED_ROOTS = frozenset({"config", "include", "libs"})
@@ -387,28 +387,35 @@ def _find_export(build_root: Path, sdk_target: str) -> tuple[Path, Path]:
     return matches[0]
 
 
-def _link_basenames(build_root: Path) -> set[str]:
-    commands: list[str] = []
+def _link_inputs(build_root: Path) -> tuple[Path, ...]:
+    result: dict[Path, None] = {}
     for ninja_file in build_root.rglob("build.ninja"):
         directory = ninja_file.parent
         for elf in directory.glob("app.elf"):
-            result = _run(
+            command = _run(
                 ["ninja", "-C", str(directory), "-t", "commands", elf.name],
                 "official SDK link-command query",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            commands.append(result.stdout)
-    if not commands:
-        raise SdkError("official SDK build exposes no app.elf link command")
-    result = {Path(match).name for text in commands for match in LINK_INPUT_RE.findall(text)}
+            for match in LINK_INPUT_RE.findall(command.stdout):
+                path = Path(match)
+                if not path.is_absolute():
+                    path = directory / path
+                try:
+                    path = path.resolve(strict=True)
+                except OSError:
+                    continue
+                if path.is_file():
+                    result[path] = None
     if not result:
-        raise SdkError("official SDK link command contains no static link inputs")
-    return result
+        raise SdkError("official SDK build exposes no app.elf link command")
+    return tuple(result)
 
 
-def _stage_export(export: Path, role_export: Path, link_names: set[str],
+def _stage_export(export: Path, role_export: Path,
+                  link_inputs: tuple[Path, ...], source_root: Path,
                   build_root: Path, selected_profile: Profile,
                   destination: Path) -> None:
     destination.mkdir()
@@ -425,6 +432,7 @@ def _stage_export(export: Path, role_export: Path, link_names: set[str],
     if duplicates:
         raise SdkError("duplicate official SDK link input names: " + ", ".join(sorted(duplicates)))
     omitted = _profile_omits(selected_profile)
+    link_names = {item.name for item in link_inputs}
     selected = [
         item for item in candidates
         if item.name in link_names and item.name not in omitted
@@ -434,6 +442,30 @@ def _stage_export(export: Path, role_export: Path, link_names: set[str],
     for item in selected:
         _regular(item, "official SDK link input")
         shutil.copy2(item, libraries / item.name)
+
+    # The official export flattens component archives by basename.  A linked
+    # immutable prebuilt under components/bk_libs can legitimately share that
+    # basename with its source-built adapter (notably BK7258 libbk_phy.a).
+    # Preserve both without a handwritten library map; the link command and
+    # manifest-pinned source path are the only selection authority.
+
+    for item in link_inputs:
+        try:
+            relative = item.relative_to(source_root)
+        except ValueError:
+            continue
+        if "bk_libs" not in relative.parts or item.name in omitted:
+            continue
+        _regular(item, "official SDK immutable link input")
+        target = libraries / item.name
+        if target.exists() and target.read_bytes() == item.read_bytes():
+            continue
+        if target.exists():
+            digest = hashlib.sha256(item.read_bytes()).hexdigest()[:12]
+            target = libraries / f"immutable-{digest}-{item.name}"
+        if target.exists():
+            raise SdkError(f"duplicate immutable SDK link input: {target.name}")
+        shutil.copy2(item, target)
 
 
 def _uart_command(compile_database: Path, role: str, output: Path,
@@ -557,7 +589,7 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
         export, role_export = _find_export(build_root, sdk_target)
         staged = work / "bundle"
         _stage_export(
-            export, role_export, _link_basenames(build_root), build_root,
+            export, role_export, _link_inputs(build_root), clone, build_root,
             selected, staged
         )
         _patch_uart(staged, build_root, selected.role, toolchain, work)

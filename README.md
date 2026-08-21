@@ -60,18 +60,20 @@ repo sync -c -j8
 
 **只在自己的仓目录 `contest2026_135_yongwangzhiqian/` 里开发。** 不同作品形态放在对应子目录，manifest 会通过 `<linkfile>` 把它们**软链**到 openvela 编译树该在的位置——你不用手动 copy：
 
-| 作品形态 | 你的代码放这里             | 系统自动映射到                                 |
-| -------- | -------------------------- | ---------------------------------------------- |
-| 应用     | `app/hello_app/`           | `packages/demos/contest2026_135_hello_app`     |
-| 快应用   | `quickapp/hello_quickapp/` | `packages/apps/contest2026_135_hello_quickapp` |
-| 板级适配 | `board/contest_board/`     | `vendor/openvela/boards/contest2026_135_board` |
+| 作品形态   | 你的代码放这里             | 系统自动映射到                                 |
+| ---------- | -------------------------- | ---------------------------------------------- |
+| 应用       | `app/hello_app/`           | `packages/demos/contest2026_135_hello_app`     |
+| 快应用     | `quickapp/hello_quickapp/` | `packages/apps/contest2026_135_hello_quickapp` |
+| SoC 适配   | `chips/bk7258/`            | `vendor/beken/chips/bk7258`                    |
+| 板级适配   | `boards/bk7258/`           | `vendor/beken/boards/bk7258`                   |
+| 预构建工具 | `prebuilt/`                | `vendor/beken/prebuilt`                        |
 
 > 用不到的形态目录可以删掉；新增作品时按同样规则加子目录，并在 `contest2026_135_yongwangzhiqian.xml` 里补一条 `<linkfile>` 映射即可。**生产仓库（packages/nuttx/vendor 等）零改动。**
 
 建议仓库目录约定（便于评委定位）：
 
 ```text
-app/ | quickapp/ | board/   # 你的作品代码
+app/ | quickapp/ | chips/ | boards/ | prebuilt/ | tools/
 logs/                       # AI Coding 日志（主动导出后提交，格式见 logs/README.md）
 README.md                   # 作品说明（提交前请改成你自己的，见第六节）
 ```

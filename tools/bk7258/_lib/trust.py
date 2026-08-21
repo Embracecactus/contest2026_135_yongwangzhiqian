@@ -51,6 +51,7 @@ class TrustEvidence:
 class PublicSources:
     bl1_source: Path
     mcuboot_source: Path
+    catalog_source: Path
     bl1_fingerprint: str
     mcuboot_fingerprint: str
 
@@ -225,6 +226,7 @@ def write_public_sources(*, bl1_public_key: Path, mcuboot_public_key: Path,
     bl1_uncompressed_hash = hashlib.sha256(b"\x04" + bl1_xy).digest()
     bl1_source = output / "bk7258_bl1_public_key.c"
     mcuboot_source = output / "bk7258_mcuboot_public_key.c"
+    catalog_source = output / "bk7258_ota_catalog_public_key.c"
     _atomic_text(
         bl1_source,
         "/* Generated public-only P-256 BL1 root. */\n"
@@ -249,9 +251,20 @@ def write_public_sources(*, bl1_public_key: Path, mcuboot_public_key: Path,
         "{\n  { .key = ecdsa_pub_key, .len = &ecdsa_pub_key_len },\n};\n"
         "const int bootutil_key_cnt = 1;\n",
     )
+    _atomic_text(
+        catalog_source,
+        "/* Generated public-only P-256 OTA catalog root. */\n"
+        "#include <stddef.h>\n"
+        "#include <stdint.h>\n\n"
+        "const uint8_t bk7258_ota_catalog_public_key_der[] =\n{\n"
+        f"{_bytes_initializer(mcuboot_der)}\n}};\n"
+        "const size_t bk7258_ota_catalog_public_key_der_size =\n"
+        "  sizeof(bk7258_ota_catalog_public_key_der);\n",
+    )
     return PublicSources(
         bl1_source,
         mcuboot_source,
+        catalog_source,
         hashlib.sha256(bl1_der).hexdigest(),
         hashlib.sha256(mcuboot_der).hexdigest(),
     )
@@ -709,6 +722,59 @@ def _public_pem(der: bytes) -> bytes:
     ).encode("ascii")
 
 
+def sign_catalog(catalog: bytes, private_key: Path, openssl: Path) -> bytes:
+    """Sign the exact canonical catalog bytes with the MCUboot P-256 root."""
+
+    if not catalog:
+        raise TrustError("OTA catalog must not be empty")
+    private_key = _regular(private_key, "catalog signing key")
+    openssl = _regular(openssl, "OpenSSL executable")
+    with tempfile.TemporaryDirectory(prefix="bk7258-catalog-sign-") as name:
+        root = Path(name)
+        document = root / "catalog.json"
+        signature = root / "catalog.sig"
+        document.write_bytes(catalog)
+        _run(
+            [
+                str(openssl), "dgst", "-sha256", "-sign",
+                str(private_key), "-out", str(signature), str(document),
+            ],
+            "OTA catalog signing",
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+        result = signature.read_bytes()
+    if len(result) < 8 or len(result) > 80 or result[0] != 0x30:
+        raise TrustError("OTA catalog ECDSA signature is malformed")
+    return result
+
+
+def verify_catalog(catalog: bytes, signature: bytes, public_der: bytes,
+                   openssl: Path) -> None:
+    """Verify exact catalog bytes against the packaged MCUboot public root."""
+
+    if not catalog or len(public_der) != 91 or public_der[-65] != 0x04:
+        raise TrustError("OTA catalog or public root is malformed")
+    openssl = _regular(openssl, "OpenSSL executable")
+    with tempfile.TemporaryDirectory(prefix="bk7258-catalog-verify-") as name:
+        root = Path(name)
+        document = root / "catalog.json"
+        signature_path = root / "catalog.sig"
+        public = root / "mcuboot-public.pem"
+        document.write_bytes(catalog)
+        signature_path.write_bytes(signature)
+        public.write_bytes(_public_pem(public_der))
+        _run(
+            [
+                str(openssl), "dgst", "-sha256", "-verify", str(public),
+                "-signature", str(signature_path), str(document),
+            ],
+            "public OTA catalog verification",
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+
+
 def _ecdsa_der(raw: bytes) -> bytes:
     if len(raw) != 64:
         raise TrustError("raw ECDSA signature must contain P-256 r||s")
@@ -762,7 +828,9 @@ def _mcuboot_metadata(data: bytes) -> tuple[int, str, int | None]:
 
 def verify_signed_material(*, security: dict[str, object],
                            layout: dict[str, object], images: dict[str, bytes],
-                           official_imgtool: Path, openssl: Path) -> None:
+                           official_imgtool: Path, openssl: Path,
+                           catalog: bytes | None = None,
+                           catalog_signature: bytes | None = None) -> None:
     """Cryptographically verify public package evidence without private keys."""
 
     mode = security.get("mode")
@@ -790,6 +858,9 @@ def verify_signed_material(*, security: dict[str, object],
         return data
 
     if mode == "signed-ota":
+        if catalog is None or catalog_signature is None:
+            raise TrustError("apps-only OTA package lacks its signed catalog")
+        verify_catalog(catalog, catalog_signature, mcuboot_der, openssl)
         if security.get("trailer") != "pending-v1":
             raise TrustError("apps-only OTA trailer profile is invalid")
         if set(images) != {"cp", "ap"} or not {"cp", "ap"}.issubset(rows):

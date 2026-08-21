@@ -35,18 +35,15 @@ endif
 config BK7258_APP_OTA
 	bool "BK7258 paired OTA operator command"
 	default n
-	depends on BK7258_OTA && SYSTEM_NSH
+	depends on BK7258_OTA && BK7258_OTA_RPMSG && SYSTEM_NSH
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	---help---
-		Build the trusted-maintainer bkota status/stage/confirm command.  This
-		manual command does not parse or authenticate a .bkpack container:
-		stage accepts only the two physical CRC-encoded members extracted from
-		a separately host-verified --ota-apps package.  BL2 authenticates them
-		before boot.  Confirm is an explicit operator health-acceptance action;
-		the command does not infer AP/RPMsg health.  Product field transport and
-		health policy must wrap the board API rather than exposing this command
-		to an untrusted caller.
+		Build the trusted-maintainer bkota status/apply-file/cancel/confirm
+		command.  File paths are forwarded to the AP OTA Manager; CP never opens
+		the file and remains only the Pair Installer/Flash owner. Confirm remains
+		an explicit operator health-acceptance action until the automatic health
+		gate lands.
 
 if BK7258_APP_OTA
 

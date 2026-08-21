@@ -1,0 +1,3 @@
+# AIDK AI Toy selects shared BK7258 build policy.
+BK7258_EXPECTED_BOARD_SELECTOR := CONFIG_BK7258_BOARD_AIDK_AI_TOY
+include $(BOARD_DIR)$(DELIM)..$(DELIM)common$(DELIM)scripts$(DELIM)Make.defs

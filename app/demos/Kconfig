@@ -1,6 +1,7 @@
 menu "Contest 2026 demos"
 
 source "$APPSDIR/packages/demos/contest2026_135_hello_app/Kconfig"
+source "$APPSDIR/packages/demos/contest2026_135_ota_agent/Kconfig"
 source "$APPSDIR/packages/demos/contest2026_135_vela_claw/Kconfig"
 
 endmenu # Contest 2026 demos

@@ -1,0 +1,154 @@
+#
+# NuttX Make.defs for the Beken BK7258 logical board.
+#
+# Classic Make backend (the same backend RV1126B used).  The board CMake
+# files mirror this source, SDK-library and postbuild contract; signed
+# image and package materialization are explicit bk7258.py stages.
+#
+
+# GNU Make otherwise adopts the first generated linker-script target as the
+# default goal because Config.mk is included before the NuttX `all` target.
+# Keep the standard `build.sh <config>` entry point building the firmware,
+# while explicit linker-script goals remain available to configure/clean.
+.DEFAULT_GOAL := all
+
+include $(TOPDIR)/.config
+include $(TOPDIR)/tools/Config.mk
+
+# The unified builder supplies the content-addressed Arm GNU toolchain path.
+# Classic Make never falls back to PATH or a host package.
+
+BK7258_TOOLCHAIN_BIN := $(strip $(BK7258_TOOLCHAIN_BIN))
+ifeq ($(wildcard $(BK7258_TOOLCHAIN_BIN)/arm-none-eabi-gcc),)
+$(error Missing locked BK7258 toolchain; run tools/bk7258/bk7258.py toolchain install)
+endif
+CROSSDEV = $(BK7258_TOOLCHAIN_BIN)/arm-none-eabi-
+
+# Reuse the common ARMv8-M toolchain flags (sets -mcpu=cortex-m33,
+# -march=armv8-m.main, -mfloat-abi, ...).  This matches what every other
+# in-tree Cortex-M33 chip does.
+
+include $(TOPDIR)/arch/arm/src/armv8-m/Toolchain.defs
+
+# Select exactly one physical-board description.  Kconfig supplies a default
+# for fresh configurations, but the build backends still validate the
+# resolved contract so a stale or hand-edited .config cannot silently fall
+# back to another PCB.
+
+BK7258_BOARD_VARIANT_SELECTIONS := \
+	$(filter y,$(CONFIG_BK7258_BOARD_AIDK_AI_TOY) \
+	            $(CONFIG_BK7258_BOARD_T5_BOARD) \
+	            $(CONFIG_BK7258_BOARD_T5AI_CORE))
+
+BK7258_BOARD_VARIANT_COUNT := $(words $(BK7258_BOARD_VARIANT_SELECTIONS))
+
+# configure.sh copies the seed defconfig before Kconfig has expanded choice
+# defaults, then includes this file while running `make olddefconfig`.  A
+# failed/partial configure must also remain cleanable.  Permit an unresolved
+# selector only for those configuration/cleanup goals; every build invocation
+# is still fail-closed, and multiple selectors are rejected in all phases.
+
+BK7258_UNRESOLVED_BOARD_GOALS := \
+	apps_preconfig clean clean_context dirlinks distclean incdir olddefconfig \
+	preconfig
+
+ifeq ($(BK7258_BOARD_VARIANT_COUNT),0)
+ifeq ($(strip $(MAKECMDGOALS)),)
+$(error Select exactly one BK7258 physical board (goals=$(MAKECMDGOALS)))
+endif
+ifneq ($(strip $(filter-out $(BK7258_UNRESOLVED_BOARD_GOALS),$(MAKECMDGOALS))),)
+$(error Select exactly one BK7258 physical board (goals=$(MAKECMDGOALS)))
+endif
+else ifneq ($(BK7258_BOARD_VARIANT_COUNT),1)
+$(error Select exactly one BK7258 physical board (goals=$(MAKECMDGOALS)))
+endif
+
+ifneq ($(BK7258_BOARD_VARIANT_COUNT),0)
+ifneq ($($(BK7258_EXPECTED_BOARD_SELECTOR)),y)
+$(error Physical board directory does not match $(BK7258_EXPECTED_BOARD_SELECTOR))
+endif
+endif
+
+BK7258_BOARD_VARIANT_DIR := $(BOARD_DIR)
+
+BK7258_BOARD_VARIANT_INCLUDE := $(BK7258_BOARD_VARIANT_DIR)$(DELIM)include
+
+# ADR-004 linker scripts: CP FLASH @ 0x02010000, AP FLASH @ 0x02150000;
+# vector tables remain KEEP-pinned at each role's official primary origin.
+
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+LDSCRIPT = ld_ap.script
+BK7258_IMAGE_ROLE = ap
+else
+LDSCRIPT = ld.script
+BK7258_IMAGE_ROLE = cp
+endif
+
+ARCHSCRIPT = $(BOARD_COMMON_DIR)$(DELIM)scripts$(DELIM)$(LDSCRIPT)
+
+# The unified builder materializes the selected layout in the official out tree.
+ifeq ($(wildcard $(BK7258_PARTITION_HEADER)),)
+$(error BK7258_PARTITION_HEADER is required; use tools/bk7258/bk7258.py build)
+endif
+ifeq ($(wildcard $(BK7258_PARTITION_LINKER)),)
+$(error BK7258_PARTITION_LINKER is required; use tools/bk7258/bk7258.py build)
+endif
+BK7258_PARTITION_INCLUDE_DIR := $(dir $(BK7258_PARTITION_HEADER))
+INCLUDES += ${INCDIR_PREFIX}$(BK7258_PARTITION_INCLUDE_DIR)
+ARCHINCLUDES += ${INCDIR_PREFIX}$(BK7258_PARTITION_INCLUDE_DIR)
+$(addsuffix .tmp,$(ARCHSCRIPT)): $(BK7258_PARTITION_HEADER) $(BK7258_PARTITION_LINKER)
+
+# Keep the immutable SDK Flash mechanism in the chip layer while replacing
+# its build-time partition table with the product layout owned by this logical
+# board.  CP is the only Flash owner and the matching wrappers live in the
+# board archive.
+
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=bk_flash_partition_get_info
+LDFLAGS += --wrap=bk_flash_partition_read
+LDFLAGS += --wrap=bk_flash_partition_write
+LDFLAGS += --wrap=bk_flash_partition_erase
+LDFLAGS += --wrap=bk_flash_partition_write_perm_check_by_addr
+endif
+
+# Standard NuttX ARM flag assembly.
+
+CFLAGS   := $(ARCHCFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
+CXXFLAGS := $(ARCHCXXFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHXXINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
+CPICFLAGS = $(ARCHPICFLAGS) $(CFLAGS)
+CXXPICFLAGS = $(ARCHPICFLAGS) $(CXXFLAGS)
+CPPFLAGS := $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
+AFLAGS := $(CFLAGS) -D__ASSEMBLY__
+
+ifneq ($(strip $(BK7258_BOARD_VARIANT_DIR)),)
+CFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
+CXXFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
+CPPFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
+AFLAGS += ${INCDIR_PREFIX}$(BK7258_BOARD_VARIANT_INCLUDE)
+endif
+
+# NXFLAT module definitions (unused on this flat-build target but NuttX
+# expects them to be defined).
+
+NXFLATLDFLAGS1 = -r -d -warn-common
+NXFLATLDFLAGS2 = $(NXFLATLDFLAGS1) -T$(TOPDIR)/binfmt/libnxflat/gnu-nxflat-pcrel.ld -no-check-sections
+LDNXFLATFLAGS = -e main -s 2048
+
+# ELF module definitions (same caveat).
+
+LDELFFLAGS = -r -e main
+LDELFFLAGS += -T $(call CONVERT_PATH,$(TOPDIR)/libs/libc/elf/gnu-elf.ld)
+
+# The unified builder supplies one already-resolved SDK profile closure.
+BK7258_SDK_LIBS_DIR := $(BK7258_SDK_DIR)$(DELIM)libs
+
+# Link the profile-resolved SDK closure without naming vendor libraries.
+BK_SDK_LIBS_DIR := $(realpath $(BK7258_SDK_DIR)$(DELIM)libs)
+ifeq ($(BK_SDK_LIBS_DIR),)
+$(error BK7258_SDK_DIR has no libs directory)
+endif
+BK7258_SDK_LINK_INPUTS := $(sort $(wildcard $(BK_SDK_LIBS_DIR)/*.a) $(wildcard $(BK_SDK_LIBS_DIR)/*.o) $(wildcard $(BK_SDK_LIBS_DIR)/*.obj))
+ifeq ($(BK7258_SDK_LINK_INPUTS),)
+$(error BK7258 SDK profile has no resolved link inputs)
+endif
+EXTRA_LIBS += $(BK7258_SDK_LINK_INPUTS)

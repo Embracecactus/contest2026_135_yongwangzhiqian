@@ -1,0 +1,31 @@
+config BK7258_APP_OTA_AGENT
+	bool "BK7258 unified OTA manager command"
+	default n
+	depends on BK7258_OTA_MANAGER && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Expose the AP product OTA manager as `ota status|apply-file|cancel`.
+		apply-file accepts only an extracted directory containing a catalog
+		signed by the build-pinned MCUboot root.
+
+if BK7258_APP_OTA_AGENT
+
+config BK7258_APP_OTA_AGENT_PROGNAME
+	string "OTA manager program name"
+	default "ota"
+
+config BK7258_APP_OTA_AGENT_PRIORITY
+	int "OTA manager command priority"
+	default 100
+
+config BK7258_APP_OTA_AGENT_STACKSIZE
+	int "OTA manager command stack size"
+	default 8192
+
+config BK7258_APP_OTA_AGENT_TIMEOUT_MS
+	int "Complete pair staging timeout (milliseconds)"
+	default 900000
+	range 60000 3600000
+
+endif

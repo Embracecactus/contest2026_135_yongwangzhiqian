@@ -1,0 +1,7 @@
+# T5AI-Core physical-device bindings.
+
+CSRCS += bk7258_board_bringup.c
+
+ifeq ($(CONFIG_BK7258_AUD),y)
+CSRCS += bk7258_t5ai_core_audio.c
+endif

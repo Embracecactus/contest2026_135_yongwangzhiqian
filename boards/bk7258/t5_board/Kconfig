@@ -1,0 +1,2 @@
+# Shared BK7258 options; this board's defconfigs select T5-Board.
+source "../vendor/beken/boards/bk7258/common/Kconfig"
