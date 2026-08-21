@@ -11,9 +11,9 @@ on T5Board, with CP/AP treated as one launchable and recoverable pair.
 ## Repository state
 
 - Repository: `contest2026_135_yongwangzhiqian`
-- Branch: `fix/bk7258-vela-claw-poweron-flicker`
-- HEAD: `89384390ea87757665633003a4affd20fdfc5009`
-- OTA implementation and evidence are uncommitted dirty-tree changes.
+- Branch: `feat/bk7258-standard-paired-ota`
+- OTA implementation commit: `9c1f028`.
+- Tracked implementation and evidence are committed.
 - Owner-untracked logs, `bootloader.tmp`, doc-stress helpers and
   `build_package.sh` remain untouched.
 
@@ -63,10 +63,10 @@ on T5Board, with CP/AP treated as one launchable and recoverable pair.
 
 ## Exact next action
 
-Hand the dirty implementation and hardware checkpoint to the owner's selected
-test/review model. That model should add or adapt host coverage without
-repeating the root rotation or destructive hardware steps. After review, run
-the existing clean build/package gates and prepare the normal commit handoff.
+Hand the committed implementation and hardware checkpoint to the owner's
+selected test/review model. That model should add or adapt host coverage
+without repeating the root rotation or destructive hardware steps. After
+review, run the existing clean build/package gates for the normal merge handoff.
 
 ## Current prohibitions
 

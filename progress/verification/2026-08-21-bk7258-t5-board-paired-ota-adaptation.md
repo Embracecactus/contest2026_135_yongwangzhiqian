@@ -2,7 +2,7 @@
 
 - Date and time zone: 2026-08-21 Asia/Shanghai
 - Verifier: Codex
-- Commit or artifact: dirty tree on `89384390ea87757665633003a4affd20fdfc5009`
+- Commit or artifact: `9c1f028`
 - Environment: OpenVela workspace, ARM GCC 13.4.0, T5Board on COM3
 
 ## Result
