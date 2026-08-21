@@ -12,7 +12,8 @@ boot chain or risking the official device assets.
 
 - Repository: `contest2026_135_yongwangzhiqian`
 - Branch: `fix/bk7258-vela-claw-poweron-flicker`
-- HEAD: `a7056609059a`; current AIDK work is uncommitted and unpushed.
+- AIDK baseline commit: `4cce51e` (`feat(bk7258): add AIDK fixed-block
+  MCUboot profiles`); not pushed.
 - Owner-untracked logs, `bootloader.tmp`, doc-stress helpers and
   `build_package.sh` remain untouched.
 
