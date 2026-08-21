@@ -12,8 +12,8 @@ on T5Board, with CP/AP treated as one launchable and recoverable pair.
 
 - Repository: `contest2026_135_yongwangzhiqian`
 - Branch: `fix/bk7258-vela-claw-poweron-flicker`
-- HEAD: `89384390ea87757665633003a4affd20fdfc5009`
-- OTA implementation and evidence are uncommitted dirty-tree changes.
+- OTA implementation commit: `c1572cb918fe4be867d549a32baa779d469852c6`.
+- Tracked implementation and evidence are committed.
 - Owner-untracked logs, `bootloader.tmp`, doc-stress helpers and
   `build_package.sh` remain untouched.
 
