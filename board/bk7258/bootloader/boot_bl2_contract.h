@@ -18,42 +18,6 @@
 #define BK7258_BL2_SRAM_END               \
   (BK7258_BL2_SRAM_BASE + BK7258_BL2_SRAM_CAPACITY)
 
-/* BL1 publishes only the fixed Primary -> Secondary order, while BL2 remains
- * the sole component that accepts and launches a CP/AP pair.  The CP image
- * may overwrite this SRAM record after handoff. */
-#define BK7258_BL2_BOOT_POLICY_ADDRESS     0x2801ffd0u
-#define BK7258_BL2_BOOT_POLICY_MAGIC       0x4232504cu /* "LP2B" */
-#define BK7258_BL2_BOOT_POLICY_VERSION     1u
-#define BK7258_BL2_BOOT_POLICY_SLOT_PRIMARY 0u
-#define BK7258_BL2_BOOT_POLICY_SLOT_SECONDARY 1u
-#define BK7258_BL2_BOOT_POLICY_SLOT_NONE   0xffffffffu
-#define BK7258_BL2_BOOT_POLICY_SOURCE_FIXED 0u
-#define BK7258_BL2_BOOT_POLICY_CHECK_SEED  0xa5a55a5au
-
-#ifndef __LINKER__
-struct bk7258_bl2_boot_policy_s
-{
-  uint32_t magic;
-  uint32_t version;
-  uint32_t preferred_slot;
-  uint32_t fallback_slot;
-  uint32_t source;
-  uint32_t state;
-  uint32_t generation_low;
-  uint32_t generation_high;
-  uint32_t check;
-};
-
-static inline uint32_t bk7258_bl2_boot_policy_check(
-  const struct bk7258_bl2_boot_policy_s *policy)
-{
-  return BK7258_BL2_BOOT_POLICY_CHECK_SEED ^ policy->magic ^
-         policy->version ^ policy->preferred_slot ^ policy->fallback_slot ^
-         policy->source ^ policy->state ^ policy->generation_low ^
-         policy->generation_high;
-}
-#endif
-
 #ifndef BK7258_BL2_COPY_SIZE
 #  error "BK7258_BL2_COPY_SIZE must be generated from the selected build"
 #endif

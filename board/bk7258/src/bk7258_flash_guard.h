@@ -23,7 +23,11 @@
 enum bk7258_flash_guard_owner_e
 {
   BK7258_FLASH_GUARD_NONE = 0,
-  BK7258_FLASH_GUARD_DATA = 1
+  BK7258_FLASH_GUARD_DATA = 1,
+  BK7258_FLASH_GUARD_OTA_PRIMARY = 2,
+  BK7258_FLASH_GUARD_OTA_SECONDARY = 3,
+  BK7258_FLASH_GUARD_CONFIRM_PRIMARY = 4,
+  BK7258_FLASH_GUARD_CONFIRM_SECONDARY = 5
 };
 
 /****************************************************************************

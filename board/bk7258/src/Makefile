@@ -37,12 +37,18 @@ CSRCS += bk7258_platform.c bk7258_board_bringup.c
 # CP remains the sole Flash owner, so AP never links this policy wrapper.
 
 ifneq ($(CONFIG_BK7258_AP_CORE),y)
-CSRCS += bk7258_sdk_partition.c
+CSRCS += bk7258_boot_slot.c bk7258_sdk_partition.c
 ifneq ($(filter y,$(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
 CSRCS += bk7258_mac_storage.c
 endif
 ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
 CSRCS += bk7258_flash_mtd.c bk7258_flash_guard.c
+endif
+ifeq ($(CONFIG_BK7258_OTA),y)
+CSRCS += bk7258_ota.c
+ifneq ($(CONFIG_BK7258_FLASH_MTD),y)
+CSRCS += bk7258_flash_guard.c
+endif
 endif
 endif
 

@@ -6,6 +6,8 @@
 #include <bootutil/image.h>
 
 #include "bk7258_bl2_abi.h"
+#include "bk7258_bl2_pair_policy.h"
+#include "../boot_flash.h"
 #include "../boot_wdt.h"
 #include "bk7258_debug_route.h"
 
@@ -29,6 +31,12 @@
 #define BK7258_AP_VECTOR_RAM_END  0x2809f000u
 #define BK7258_BL2_RAM_BASE       0x28020000u
 #define BK7258_CP_MSPLIM          0x28010000u
+#define BK7258_BL2_TRAILER_MAGIC_SIZE 16u
+#define BK7258_BL2_TRAILER_ALIGN 8u
+#define BK7258_BL2_COPY_DONE_OFFSET(size) \
+  ((size) - BK7258_BL2_TRAILER_MAGIC_SIZE - 2u * BK7258_BL2_TRAILER_ALIGN)
+#define BK7258_BL2_IMAGE_OK_OFFSET(size) \
+  ((size) - BK7258_BL2_TRAILER_MAGIC_SIZE - BK7258_BL2_TRAILER_ALIGN)
 
 extern void boot_prepare_app_handoff(void);
 extern void boot_console_prepare_app_handoff(void);
@@ -39,6 +47,9 @@ static const struct image_header *bk7258_bl2_ap_header(uint32_t cp_offset);
 static bool bk7258_bl2_ap_vector(uint32_t cp_offset);
 static bool bk7258_bl2_pair_generation_valid(uint32_t cp_offset,
                                              const struct image_header *cp_hdr);
+static bool bk7258_bl2_pair_trailer_state_valid(uint32_t cp_offset);
+static bool bk7258_bl2_pair_candidate(
+  int slot, struct bk7258_bl2_pair_candidate_s *candidate);
 static void bk7258_bl2_mark(const char *mark);
 
 #if BK7258_BL2_SWD_ENABLE
@@ -283,6 +294,56 @@ static bool bk7258_bl2_pair_generation_valid(uint32_t cp_offset,
   return bk7258_bl2_security_counter_equal(slot, cp_hdr, ap_hdr);
 }
 
+static bool bk7258_bl2_pair_candidate(
+  int slot, struct bk7258_bl2_pair_candidate_s *candidate)
+{
+  const struct image_header *cp_hdr;
+  uint32_t cp_offset;
+
+  if (candidate == NULL ||
+      (slot != BK7258_BL2_SLOT_PRIMARY &&
+       slot != BK7258_BL2_SLOT_SECONDARY))
+    {
+      return false;
+    }
+
+  candidate->usable = false;
+  cp_offset = slot == BK7258_BL2_SLOT_PRIMARY ?
+    BK7258_ARTIFACT_CP_XIP_START : BK7258_BL2_B_CP_XIP_START;
+  cp_hdr = (const struct image_header *)(uintptr_t)cp_offset;
+  if (!bk7258_bl2_header_valid(cp_hdr, BK7258_ARTIFACT_CP_LOGICAL_SIZE) ||
+      !bk7258_bl2_pair_generation_valid(cp_offset, cp_hdr) ||
+      !bk7258_bl2_pair_trailer_state_valid(cp_offset))
+    {
+      return false;
+    }
+
+  candidate->version = cp_hdr->ih_ver;
+  candidate->usable = true;
+  return true;
+}
+
+static bool bk7258_bl2_pair_trailer_state_valid(uint32_t cp_offset)
+{
+  const volatile uint8_t *cp =
+    (const volatile uint8_t *)(uintptr_t)cp_offset;
+  const volatile uint8_t *ap =
+    (const volatile uint8_t *)(uintptr_t)
+      ((uint32_t)(uintptr_t)bk7258_bl2_ap_header(cp_offset));
+  uint8_t cp_copy = cp[BK7258_BL2_COPY_DONE_OFFSET(
+    BK7258_ARTIFACT_CP_LOGICAL_SIZE)];
+  uint8_t ap_copy = ap[BK7258_BL2_COPY_DONE_OFFSET(
+    BK7258_ARTIFACT_AP_LOGICAL_SIZE)];
+  uint8_t cp_ok = cp[BK7258_BL2_IMAGE_OK_OFFSET(
+    BK7258_ARTIFACT_CP_LOGICAL_SIZE)];
+  uint8_t ap_ok = ap[BK7258_BL2_IMAGE_OK_OFFSET(
+    BK7258_ARTIFACT_AP_LOGICAL_SIZE)];
+
+  return (cp_copy == 0xffu || cp_copy == 1u) &&
+         (cp_ok == 0xffu || cp_ok == 1u) &&
+         cp_copy == ap_copy && cp_ok == ap_ok;
+}
+
 static void bk7258_bl2_log(const char *text)
 {
 #if BK7258_BL2_CONSOLE_UART < 3
@@ -321,51 +382,6 @@ static void bk7258_bl2_mark(const char *mark)
 {
   bk7258_bl2_log(mark);
   bk7258_bl2_log("\r\n");
-}
-
-static void bk7258_bl2_load_boot_policy(int *preferred, int *fallback)
-{
-  volatile struct bk7258_bl2_boot_policy_s *handoff =
-    (volatile struct bk7258_bl2_boot_policy_s *)(uintptr_t)
-    BK7258_BL2_BOOT_POLICY_ADDRESS;
-  struct bk7258_bl2_boot_policy_s policy;
-
-  policy.magic = handoff->magic;
-  policy.version = handoff->version;
-  policy.preferred_slot = handoff->preferred_slot;
-  policy.fallback_slot = handoff->fallback_slot;
-  policy.source = handoff->source;
-  policy.state = handoff->state;
-  policy.generation_low = handoff->generation_low;
-  policy.generation_high = handoff->generation_high;
-  policy.check = handoff->check;
-
-  /* Consume the record once.  BL1 republishes it on every boot, while this
-   * clear prevents an unrelated direct BL2 entry from inheriting stale
-   * lifecycle authority. */
-  handoff->magic = 0;
-  __asm volatile ("dsb sy" ::: "memory");
-
-  *preferred = BK7258_BL2_SLOT_PRIMARY;
-  *fallback = BK7258_BL2_SLOTS_BOTH;
-  if (policy.magic != BK7258_BL2_BOOT_POLICY_MAGIC ||
-      policy.version != BK7258_BL2_BOOT_POLICY_VERSION ||
-      policy.check != bk7258_bl2_boot_policy_check(&policy) ||
-      policy.preferred_slot > BK7258_BL2_SLOT_SECONDARY ||
-      (policy.fallback_slot != BK7258_BL2_BOOT_POLICY_SLOT_NONE &&
-       (policy.fallback_slot > BK7258_BL2_SLOT_SECONDARY ||
-        policy.fallback_slot == policy.preferred_slot)) ||
-      policy.source != BK7258_BL2_BOOT_POLICY_SOURCE_FIXED)
-    {
-      bk7258_bl2_mark("B2POLDEF");
-      return;
-    }
-
-  *preferred = (int)policy.preferred_slot;
-  if (policy.fallback_slot != BK7258_BL2_BOOT_POLICY_SLOT_NONE)
-    {
-      *fallback = (int)policy.fallback_slot;
-    }
 }
 
 static bool bk7258_bl2_remap_secondary(void)
@@ -516,24 +532,41 @@ void bk7258_bl2_main(void)
   uint32_t image;
   bool paired_ap_valid;
   bool pair_ok;
+  struct bk7258_bl2_pair_candidate_s candidates[2] = {0};
+  struct bk7258_bl2_pair_order_s order;
   int preferred_slot;
   int fallback_slot;
 
   bk7258_bl2_mark("B2INIT");
   bk7258_bl2_platform_init();
-  bk7258_bl2_load_boot_policy(&preferred_slot, &fallback_slot);
+  /* Recover the official C86517 boot-time protection policy even when a
+   * previous power loss interrupted the temporary unprotect window. */
+  if (bk7258_boot_flash_restore_default_protection() < 0)
+    {
+      bk7258_bl2_panic();
+    }
+  bk7258_bl2_set_slot_limit(BK7258_BL2_SLOTS_BOTH);
+  (void)bk7258_bl2_pair_candidate(BK7258_BL2_SLOT_PRIMARY,
+                                  &candidates[BK7258_BL2_SLOT_PRIMARY]);
+  (void)bk7258_bl2_pair_candidate(BK7258_BL2_SLOT_SECONDARY,
+                                  &candidates[BK7258_BL2_SLOT_SECONDARY]);
+  if (!bk7258_bl2_pair_order(candidates, &order))
+    {
+      bk7258_bl2_panic();
+    }
+
+  preferred_slot = order.preferred;
+  fallback_slot = order.fallback;
   bk7258_bl2_mark(preferred_slot == BK7258_BL2_SLOT_PRIMARY ?
-                  "B2POLA" : "B2POLB");
+                  "B2ORDA" : "B2ORDB");
   bk7258_bl2_mark("B2GO");
-  /* BL1 owns lifecycle journal mutation and supplies an ordered pair policy.
-   * BL2 is the sole image acceptance authority: each allowed pair is exposed
-   * to unmodified upstream boot_go() in isolation, then the board's CP/AP
-   * generation and vector gates run before handoff.  Never scan both slots
-   * independently here; that would let MCUboot version ordering bypass a
-   * consumed trial or explicit rollback state. */
+  /* Order complete pairs from their bounded headers, then expose exactly one
+   * physical pair to each upstream boot_go() attempt.  MCUboot remains the
+   * sole signature and trailer authority, while this board gate prevents its
+   * per-image direct-XIP loop from selecting or mutating cross-slot CP/AP. */
   pair_ok = bk7258_bl2_try_pair(preferred_slot, &rsp);
   bk7258_bl2_mark("B2GORET");
-  if (!pair_ok && fallback_slot != BK7258_BL2_SLOTS_BOTH)
+  if (!pair_ok && fallback_slot != BK7258_BL2_PAIR_SLOT_NONE)
     {
       bk7258_bl2_mark(fallback_slot == BK7258_BL2_SLOT_PRIMARY ?
                       "B2TRYA" : "B2TRYB");
