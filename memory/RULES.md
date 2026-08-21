@@ -1,6 +1,6 @@
 # Project Rules
 
-Last reviewed: 2026-08-20
+Last reviewed: 2026-08-21
 
 ## Domain invariants
 
@@ -40,7 +40,9 @@ Last reviewed: 2026-08-20
   worktrees, or workspace clones as implementation or evidence sources unless
   the owner explicitly reactivates that workflow.
 - Temporary diagnostic edits to official trees are allowed only for debugging and must be removed before a checkpoint.
-- Do not commit, push, open a PR, flash a destructive factory image, or mutate external repositories unless the user grants the corresponding authority.
+- The standing Git publication authority is defined below. Do not mutate any
+  other external repository state, flash a destructive factory image, or take
+  an irreversible action unless the owner grants that separate authority.
 - The owner grants the primary agent standing authority for bounded,
   recoverable hardware validation: accepted-layout sparse firmware updates,
   UART capture/commands, read-only J-Link inspection, and normal hardware
@@ -87,6 +89,25 @@ Last reviewed: 2026-08-20
   locates and validates their bytes; source code does not carry developer or
   legacy probe addresses. A match authorizes only the requested normal
   download, never an implicit boot-chain rewrite.
+
+### Git publication ownership
+
+- For authorized project development, the primary agent owns the complete
+  local commit and remote feature-branch publication workflow: review the
+  exact diff, stage only intended paths, commit it, push the current feature
+  branch to the configured `fork`, and verify that the remote branch SHA
+  exactly matches local `HEAD` before handoff.
+- This standing authority does not allow force-push, remote branch deletion,
+  direct push to the upstream/default branch, or publication to another
+  repository. Those actions require fresh, action-specific owner authority.
+- The primary agent provides a copy-ready Chinese PR title and body directly
+  in the conversation. Do not store PR prose in the repository or a temporary
+  file unless the owner explicitly requests a file.
+- The project owner exclusively creates, edits, reviews and merges PRs. The
+  agent must not create, reopen, edit, close or merge a PR unless the owner
+  explicitly requests that specific PR action in the current turn.
+- Read-only remote inspection is allowed when needed to confirm branch
+  publication or report PR/check state; it must not mutate the PR.
 
 ## Failure and recovery behavior
 
@@ -176,9 +197,11 @@ Last reviewed: 2026-08-20
   independent and bounded. `gpt-5.6-sol` at `high` owns requirements,
   architecture, ambiguous root causes, integration decisions and final
   acceptance. `gpt-5.6-terra` at `medium` may handle read-heavy exploration,
-  logs, ordinary review and evidence gathering. `gpt-5.6-luna` at `low` or
-  `medium`, or CodeBuddy `hy3` at a proportionate effort, may handle narrow,
-  repeatable and mechanically verifiable checks or small implementation work.
+  logs, ordinary review and evidence gathering. `gpt-5.6-luna` at `low`,
+  `medium` or `max`, or CodeBuddy `hy3` at a proportionate effort, may handle
+  narrow, repeatable and mechanically verifiable checks or small implementation
+  work. Prefer Luna `max` for bounded but non-trivial edit/check combinations
+  and lower effort for simple inventories.
   Run no more than two subagents concurrently, do not parallelize dependent
   tasks or overlapping edits, and reuse an existing thread for follow-ups.
   Every delegation must state exact file and behavior scope, forbidden
@@ -204,8 +227,9 @@ Last reviewed: 2026-08-20
   with explicit file scope, acceptance criteria, and mutation authority. The
   primary agent reviews and integrates the result and performs final
   verification; architecture decisions, hardware/Flash operations, official
-  source changes, commits, pushes, PRs, and final acceptance remain with the
-  primary agent unless the owner explicitly expands that authority.
+  source changes, commits, feature-branch pushes and final acceptance remain
+  with the primary agent. PR actions remain owner-owned under the publication
+  rule unless explicitly requested in the current turn.
 - At a workspace root containing `.codegraph/`, use CodeGraph before grep/file reading when locating or understanding code.
 - Use `rg`/`rg --files` for text and file discovery when CodeGraph does not cover the team repository.
 - Use `apply_patch` for manual file edits and preserve user-authored changes.

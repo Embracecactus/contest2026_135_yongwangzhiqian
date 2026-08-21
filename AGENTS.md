@@ -36,6 +36,11 @@
 - Reuse an existing subagent thread for follow-up work in the same area rather
   than spawning another agent to reread the same context.
 
+## Git publication ownership
+
+- Before any commit, push or PR action, follow the canonical
+  [Git publication ownership rules](memory/RULES.md#git-publication-ownership).
+
 ## BK7258 resume guard
 
 - During active BK7258 driver/application work, do not use or inspect N17 or
