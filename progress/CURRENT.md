@@ -5,70 +5,70 @@ Updated by: Codex
 
 ## Objective
 
-Finish the T5-Board Vela-Claw display stabilization without changing the
-verified BL1/BL2/MCUboot chain or masking the remaining gray-level flicker.
+Bring up the AIDK AI Toy resource path without altering the verified BK7258
+boot chain or risking the official device assets.
 
 ## Repository state
 
 - Repository: `contest2026_135_yongwangzhiqian`
 - Branch: `fix/bk7258-vela-claw-poweron-flicker`
-- Base: `origin/dev-ai-contest-2026@9033986abb67d11b3776437b3605e70f15436d54`
-- Display implementation commit: `ffa4281` (`fix(bk7258): synchronize
-  Vela-Claw framebuffer flips`); not pushed.
+- HEAD: `a7056609059a`; current AIDK work is uncommitted and unpushed.
 - Owner-untracked logs, `bootloader.tmp`, doc-stress helpers and
   `build_package.sh` remain untouched.
 
-## Implemented
+## Completed baseline
 
-- `VELA_CLAW_UI` now selects the standard NuttX framebuffer sync contract.
-- The BK7258 framebuffer exposes two contiguous full RGB565 pages only when
-  `FB_SYNC` is enabled (`320x960`, 614400 bytes total).
-- `FBIOPAN_DISPLAY` requests are consumed at RGB EOF; the ISR validates the
-  page offset, switches the LCD base, removes the queued pan, signals the
-  matching flip semaphore and publishes VSYNC.
-- LVGL 9 renders directly into the two full framebuffer pages and waits for
-  `FBIO_WAITFORVSYNC`; the former half-frame PSRAM draw buffer and memcpy into
-  the active scanout were removed. The LVGL 8 fallback remains unchanged.
+- COM8 is a healthy CH340 device. The schematic confirms CH340E connects
+  UART0 on P10/P11; board facts and Kconfig text now match it.
+- The device FAT volume's 16 WAV and 10 AVI assets plus the AIDK schematic are
+  backed up outside Git at `../aitoy-official-device-backup-2026-08-21/` with
+  a verified 27-file SHA-256 manifest.
+- Maintained `aidk_ai_toy_{cp,ap}_base` seeds replace the generated
+  `aidk_ai_toy_personal/*.config` layer.
+- CP owns UART0 115200 8N1. AP owns fixed SD NAND, SDIO/MMCSD, FAT and
+  16-kHz mono `pcm0p`; AP has no console and MIC is deferred.
+- [AIDK board-resource baseline](verification/2026-08-21-bk7258-aidk-board-resource-baseline.md)
+  records the resolved configs, resource formats, hashes and limitations.
+- Final clean direct build passed with layout `bk7258-381e2cdd1286ac59`, CP
+  config `2abf2a46...87b5a`, AP config `560618c7...89c2`, CP image
+  `335df765...0c743` and AP image `b35d2db5...70cc8`.
+- [Signed AIDK MCUboot package](verification/2026-08-21-bk7258-aidk-mcuboot-package.md)
+  passed clean BL1/BL2/CP/AP build, eight-image package verification and
+  public-signature verification. Package SHA-256 is `29aa1757...dc11e`.
 
-## Verified result
+## Paused prior phase
 
-- [Display page-flip hardware checkpoint](verification/2026-08-21-bk7258-t5-board-display-flip.md)
-- Final clean direct CP/AP build passed with layout
-  `bk7258-5641c11040abf787`, AP config SHA-256 `af8e68c8...622c4ee` and AP
-  Flash segment SHA-256 `d08635fe...abd8d2`.
-- Final ELF contains `bk7258_lcd_waitforvsync`, `fb_peek_paninfo`,
-  `fb_remove_paninfo` and `fb_notify_vsync`; the Vela UI object no longer
-  references `memcpy` for display flush.
-- A functionally equivalent predecessor AP (`28e1093f...90427ef`) was written
-  at `0x165000` without chip erase. AP reached `READY` with error 0. The owner
-  observed a large reduction in flicker, but gray regions still visibly
-  flicker; this is not a completed visual fix.
-- With the same LCD/panel/timing/IRQ path and Vela UI disabled, the static
-  four-color validation pattern was completely stable. This confines the
-  remaining defect to dynamic UI/display behavior rather than backlight,
-  panel reset or basic RGB scanout.
-- `git diff --check` passed before the implementation commit.
+- T5-Board display stabilization remains a verified partial improvement in
+  [its page-flip checkpoint](verification/2026-08-21-bk7258-t5-board-display-flip.md).
+- Residual gray-level flicker is intentionally deferred while aitoy board
+  adaptation is active.
 
-## Rejected explanations / boundaries
+## Open risks
 
-- BL1/BL2/MCUboot was excluded by a direct/raw AP comparison.
-- Replacing framebuffer memcpy with explicit 32/16-bit stores did not remove
-  flicker. Historical GCC10/SDK bundle inputs produced the same linked AP
-  bytes for this path.
-- A 30 MHz-only image still flickered and displayed only the right-hand
-  three quarters. Keep the Tuya-matching 15 MHz timing.
-- Removing the project sync-width restore left the SDK fallback at 2/2 and
-  prevented AP from reaching READY. Keep the working 20/4 register value.
-- The current display changes have not received a signed build/package run.
-  Current hardware runs a direct unsigned diagnostic image.
-- J-Link could not connect because of its reset-pin state. No OTP/eFuse,
-  lifecycle, debug-lock or chip-erase operation was performed.
+- The signed AIDK images have not run on hardware.
+- The owner confirms a recoverable factory firmware backup exists, but the
+  current bounded inventory did not independently locate it. ADR-030 accepts
+  the owner's instruction to proceed without factory identity/backup recheck.
+- No AP service mounts `/dev/mmcsd0` or reads/plays the official assets yet.
+- Two ASR WAV files are stereo despite `mono` in their names. The AVI files
+  are 320x160 MJPEG without audio; `genie_eye.avi` uses 25 fps, others 20 fps.
+- USB-device MSC, LCD, camera, NFC, gyro and motor are outside this baseline.
 
 ## Exact next action
 
-Resume from `ffa4281` and isolate the remaining gray-level flicker. Start with
-the ILI9488 VCOM/inversion/frame-control behavior and page-flip cadence; do not
-raise the RGB pixel clock or redo the already rejected boot, SDK, memcpy,
-backlight, reset, GPIO15 or sync-width experiments. Rebuild and Flash only the
-AP segment for each single-variable comparison, then run a final signed
-end-to-end build only after the visual result is stable.
+Apply [ADR-030](../memory/decisions/ADR-030-aidk-first-provision-project-boot-chain.md):
+when the owner is physically present, manually reset/CEN the board while
+BKFIL waits on COM8, capture two byte-identical 8 MiB factory Flash reads at
+115200, then provision the already verified package's eight declared segments
+with boot last and capture the complete UART boot path.
+
+## Current prohibitions
+
+- Do not chip-erase, program OTP/eFuse or enable debug lock.
+- ADR-030 explicitly authorizes replacing the AIDK factory BL1/BL2/MCUboot
+  chain with the verified project chain; it does not authorize any other
+  boot-chain mutation.
+- Do not Flash unless the new full-chain package passes layout, image and
+  public-signature verification.
+- Do not format or write the device FAT volume; resource bring-up is read-only.
+- Do not modify or remove the owner-untracked files listed above.

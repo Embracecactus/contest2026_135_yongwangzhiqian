@@ -36,7 +36,7 @@
 
 /* No BOM-backed peripheral is enabled by the minimal bring-up product. */
 
-#define BK7258_BOARD_HAS_USB_UART                1  /* CH340E -> UART1 (P0/P1) */
+#define BK7258_BOARD_HAS_USB_UART                1  /* CH340E -> UART0 (P10/P11) */
 #define BK7258_BOARD_HAS_AUDIO                   1  /* HT6873 PA, AUDLP/AUDLN */
 #define BK7258_BOARD_HAS_BATTERY                 1  /* ETA3422 + 4.2V VBAT */
 #define BK7258_BOARD_HAS_TF_CARD                 0
@@ -81,8 +81,8 @@
 
 /* Schematic-derived pin map (BK7258 pin -> net). */
 
-#define BK7258_BOARD_PIN_UART1_TXD              0
-#define BK7258_BOARD_PIN_UART1_RXD              1
+#define BK7258_BOARD_PIN_UART1_TXD               0
+#define BK7258_BOARD_PIN_UART1_RXD               1
 #define BK7258_BOARD_PIN_QSPI1_CLK              2
 #define BK7258_BOARD_PIN_QSPI1_CS               3
 #define BK7258_BOARD_PIN_QSPI1_D0               4
@@ -91,6 +91,8 @@
 #define BK7258_BOARD_PIN_QSPI1_D3               7
 #define BK7258_BOARD_PIN_KEY3                   8
 #define BK7258_BOARD_PIN_MOTOR_OR_NAND_EN       9
+#define BK7258_BOARD_PIN_UART0_RXD              10
+#define BK7258_BOARD_PIN_UART0_TXD              11
 #define BK7258_BOARD_PIN_KEY2                   12
 #define BK7258_BOARD_PIN_KEY1                   13
 #define BK7258_BOARD_PIN_SD_CLK                 14

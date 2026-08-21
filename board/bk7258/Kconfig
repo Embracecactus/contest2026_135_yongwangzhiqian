@@ -68,7 +68,7 @@ config BK7258_BOARD_AIDK_AI_TOY
 	select BK7258_BOARD_HAS_SDIO_BINDING
 	select BK7258_BOARD_HAS_USER_GPIO_BINDING
 	help
-		AIDK AI Toy (BK7258 AI Demo) board: UART0 console, CH340E UART1,
+		AIDK AI Toy (BK7258 AI Demo) board: UART0 console, CH340E UART0,
 		SC7A20H gyro on I2C1, GC2145 DVP camera + touch on I2C2, 160x160
 		QSPI LCD, 1GB SD NAND, analog MIC/PA audio, motor, keys/LEDs,
 		MFRC522 NFC and Type-C USB.  Hardware verification still pending.
