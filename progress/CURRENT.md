@@ -1,94 +1,105 @@
 # Current Progress
 
 Last updated: 2026-08-22
-Updated by: Codex
+Updated by: ox-alpha
 
 ## Objective
 
-The rebuilt T5Board Wi-Fi paired OTA path is complete through staging, trial,
-health confirmation and retained confirmed boot. The next phase is automatic
-health confirmation, followed by the real T5Board TF file-source path while
-keeping the same Manager/source/Pair Installer architecture.
+T5Board OTA admission/health hardening and CP-owned platform-health automatic
+confirmation are complete and hardware-accepted on real T5Board, including the
+success path (pending -> automatic confirmed) and AON-reset retention.
 
 ## Repository state
 
-- Repository: `contest2026_135_yongwangzhiqian`
-- Branch: `feat/bk7258-standard-paired-ota`
-- Implementation commit: `b506f2e` (`feat(bk7258): rebuild native platform
-  and paired OTA`); this project-memory checkpoint is committed on top.
-- Unverified CH32 files/manifest lines, historical logs and the tests-only
-  newline change remain intentionally outside the publication scope.
-- Official project build entry resolves the content-locked Arm GCC 10.3.1
-  toolchain. No test target ran.
+- Repository: `contest2026_135_yongwangzhiqian`.
+- Branch: `feat/bk7258-ota-admission-hardening`, created from current
+  `origin/dev-ai-contest-2026@abf9de87f993` with zero initial divergence.
+- The implementation is uncommitted. Existing untracked project logs remain
+  untouched. No test target ran and no file under `tests/` changed.
+- Temporary MCUboot validation instrumentation and the temporary CH32 Kconfig
+  placeholder were removed; the official `apps/boot/mcuboot` tree is clean.
+- Scope review confirmed zero diff under `app/vela_claw/**`, no product-health
+  RPMsg changes and no CH32 temporary files in the working tree.
 
-## Accepted architecture
+## Implemented
 
-- [ADR-031](../memory/decisions/ADR-031-bk7258-standard-mcuboot-paired-direct-xip-ota.md)
-  owns paired MCUboot trial/revert/confirm.
-- [ADR-032](../memory/decisions/ADR-032-bk7258-unified-field-ota-platform.md)
-  owns the AP Manager, interchangeable sources, RPMsg and CP Pair Installer.
-- [ADR-033](../memory/decisions/ADR-033-openvela-native-beken-layout-and-gcc10.md)
-  owns the native Beken projection and content-locked GCC10.
+- Pre-erase CP/AP header, CRC, version, protected-counter and pending-trailer
+  admission; candidate version and counter must both exceed active.
+- Staging requires a confirmed active pair, preventing a pending trial from
+  erasing its fallback.
+- Generation-bound finite-lock confirmation with lock-internal revalidation.
+- Shared runtime/BL2 MCUboot format and trailer geometry.
+- T5Board CP/AP Supervisor enabled; dedicated post-READY CPU2 heartbeat,
+  coherent shared snapshots and always-available `healthy_age_ms`.
+- File backend uses `pread()`.
+- MCUboot signer explicitly uses fixed 72-byte ECDSA padding and publishes
+  `ecdsa-der-pad72-v1` evidence. New-package verification enforces valid DER
+  plus zero-only padding while retaining legacy package readability.
+- OTA system reset uses the AON watchdog and PMU whole-device reset routing.
+  The rejected SDK NMI-dump reboot adapter is absent.
+- Auto-confirm starts only for a pending active pair.  Two CP workers mutually
+  monitor liveness, enforce a 10-second stable platform-health window and a
+  60-second trial deadline, and reset whole-device on timeout/generation drift.
+- Confirmation consumes a fresh Supervisor sample and rechecks AP generation
+  before AP trailer RMW and again before CP trailer RMW under the Flash guard.
+- Business-application voting is explicitly outside this phase.  All temporary
+  Vela Claw/UI/core and product-health RPMsg changes were removed.
 
 ## Verified checkpoint
 
-- T5Board uses one-line TF/SDIO and UART0/COM3. P0/P1 SWD targets CP; UART1 is
-  disabled and the P1 user LED is suppressed by the existing conflict gate.
-- A clean GCC10 CP/AP/BL2/BL1 build passed for layout
-  `bk7258-5641c11040abf787`. The signed network19 baseline package passed
-  eight-image structure and public BL1/BL2/CP/AP signature verification.
-- The clean build and eight-image public-trust verification passed again after
-  removing the temporary AP-side ARP observation fields used during routing
-  diagnosis.
-- CP remains the only on-chip Flash writer. SDK `mb_flash_*` coordination is
-  retained; the rejected no-op wrapper caused a hardware NMI and was removed.
-- OTA progress is published through a 44-byte seqlock snapshot in the unused
-  RPTUN resource-table gap. Progress no longer consumes one-way RPMsg vring
-  buffers; READ/DATA, control and COMPLETE remain versioned RPMsg messages.
-- The Pair Installer services the live NuttX-owned watchdog and yields after
-  every successfully completed Flash sector. It never disables the watchdog;
-  a stuck sector still times out.
-- Authorized HTTP Range staging of signed `1.1.0+4`/counter 4 completed all
-  CP/AP erase, AP write/hash, CP write/hash and final CP-sector-0 commit.
-  Manager reached READY_TO_REBOOT with `progress=1/1`, error 0.
-- The first payload proved healthy trial B and unconfirmed revert A. The final
-  network19 payload then completed staging, booted healthy trial B, returned
-  `active CP/AP pair confirmed`, and remained active B after another reset.
-- Final status is confirmed active B, inactive A, AP READY, CPU2 online mask
-  3, RPTUN connected, Manager idle and no AP fault.
+- Final clean GCC10 CP/AP/BL2/BL1 build: PASS after hardware acceptance.
+- Layout: `bk7258-5641c11040abf787`; current BL2 copy size: 13696 bytes.
+- Owner-authorized disposable development-root rotation completed without chip
+  erase or writes to OTP/eFuse/lifecycle/calibration/persistent-data.
+- Current hardware: active B, confirmed `1.4.0+7`, counter 7.  Inactive A is
+  intentionally invalid/partial after the owner-visible cancellation of an
+  over-expanded diagnostic staging; it is not claimed as a fallback.
+- AP READY, CPU2 scheduler-online, RPTUN connected and Supervisor HEALTHY.
+- Real authenticated Range staging, pending `-EBUSY`, manual confirm, AON
+  retention and same-version `-EPERM` admission all passed on T5Board.
+- Pending auto-confirm diagnostic trials that did not satisfy the then-enabled
+  higher-level product vote all hit the 60-second deadline and BL2 safely
+  returned to confirmed B.  No failed trial was confirmed.
+- Over-expanded staging was canceled before reboot; Manager reported CANCELED
+  and active confirmed B remained unchanged.  After scope correction, the
+  platform-only clean build and expected auto-confirm symbols passed.
+- Final acceptance (platform-only `1.10.0+13`, counter 13,
+  sha256 `195325fd939ea25c36a41ad1bdfbea17d1cd579ff48aa2c82693eb99bc56da33`):
+  staged over Wi-Fi Range to inactive A, `bkota reboot` entered the trial
+  (`B2SELA`, `BOTA TRIAL ARM slot=0 counter=13`), the pair was automatically
+  confirmed with no manual command (`BOTA TRIAL CONFIRMED slot=0 counter=13`),
+  and one further AON reset retained active A confirmed `1.10.0+13` counter 13
+  (`B2SELA` again, trial state NOT_PENDING, both workers exited).
 - Detailed evidence:
-  [T5Board OTA runtime](verification/2026-08-21-bk7258-t5board-ota-runtime.md).
+  [OTA admission hardening](verification/2026-08-22-bk7258-ota-admission-hardening.md),
+  [platform auto-confirm](verification/2026-08-22-bk7258-platform-auto-confirm.md).
 
-## Confirmed release payload
+## Final artifacts
 
-- New apps-only package: network19, version `1.2.0+5`, security counter 5.
-- Package SHA-256:
-  `dc675a2cc48479425b9d263a8912a148b42da0d51ec255bbfe6551b107c46e9f`.
-- Package structure and public MCUboot CP/AP signatures pass.
-- This payload was staged and confirmed on hardware. No Range service is
-  running.
+- Confirmed recovery package `1.3.0+6`, counter 6:
+  `8705914f8555a0b69b099e38d06ea8e9499dfd4f66aa5a79fbdc3636b700d309`.
+- Confirmed running package `1.10.0+13`, counter 13:
+  `195325fd939ea25c36a41ad1bdfbea17d1cd579ff48aa2c82693eb99bc56da33`.
+- Both pass package structure and public BL1/BL2/CP/AP trust verification.
+- Private signing material remains outside the repository; never ask the owner
+  to rediscover it or record its path/content.
 
 ## Exact next action
 
-Implement the automatic CP/AP health-confirm policy so production firmware
-does not depend on the operator `bkota confirm` command. Then identify the
-actual mounted T5Board TF filesystem and run the same signed pair installer
-through `apply-file` using the one-line SDIO profile.
+Owner decision: commit and publish the reviewed branch, or continue platform
+scope.  The working tree is the hardware-accepted state; do not rebase onto a
+moving upstream without a fresh clean build.
 
 ## Remaining platform scope
 
-- T5Board TF file-source staging still needs the real card filesystem path;
-  Windows `D:` is ToyAI storage and is not T5Board evidence.
-- T5AI-Core HTTPS selection/runtime, BLE-only transfer, durable TF/NAND
-  resume, UART/USB field transport, resource/model updates and delta remain.
-- The two exact temporary Windows firewall rules remain because Windows
-  rejected removal without administrator privilege. Temporary AP-side ARP
-  observation fields were removed before publication.
+- Optional business-application health vote adapter as a separate later phase.
+- Real T5Board TF `.bkpack` source and mount state.
+- T5AI-Core HTTPS, BLE-only, NAND resume, UART/USB, resource/model and delta.
 
 ## Current prohibitions
 
-- Do not read or reuse historical OTA adaptation code or documentation.
-- Do not add, modify or run tests.
-- Do not rotate roots, erase the whole chip, write OTP/eFuse/lifecycle,
-  calibration or persistent-data regions, or enable debug lock.
-- Do not search for, print or record private-key contents/paths or credentials.
+- Do not read/reuse historical OTA adaptation or run/modify tests.
+- Do not touch unrelated CH32 work.
+- Do not erase the whole chip or write OTP/eFuse/lifecycle,
+  calibration/persistent-data or debug-lock state.
+- Never print or record private-key paths/contents or credentials.
