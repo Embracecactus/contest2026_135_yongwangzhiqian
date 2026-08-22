@@ -160,10 +160,14 @@ static int apctl_supervisor_status(void)
          status.generation, status.flags);
   printf("Supervisor heartbeat primary/secondary=%" PRIu32 "/%" PRIu32
          " age=%" PRIu32 "/%" PRIu32
-         " ms transport seq/age=%" PRIu32 "/%" PRIu32 " ms\n",
+         " ms transport seq/age=%" PRIu32 "/%" PRIu32
+         " ms healthy/sample=%" PRIu32 "/%" PRIu32
+         " ms sample_sequence=%" PRIu32 "\n",
          status.primary_heartbeat, status.secondary_heartbeat,
          status.primary_age_ms, status.secondary_age_ms,
-         status.transport_sequence, status.transport_age_ms);
+         status.transport_sequence, status.transport_age_ms,
+         status.healthy_age_ms, status.sample_age_ms,
+         status.sample_sequence);
   printf("Supervisor faults/recoveries/consecutive=%" PRIu32 "/%" PRIu32
          "/%" PRIu32 " injection=%s(%" PRIu32
          ") last_error=%" PRId32 "\n",

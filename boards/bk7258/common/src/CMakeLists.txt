@@ -21,8 +21,12 @@ if(NOT CONFIG_BK7258_AP_CORE)
   if(CONFIG_BK7258_OTA)
     target_sources(board PRIVATE
         bk7258_ota_flash.c
+        bk7258_ota_image.c
         bk7258_ota_pair.c
         bk7258_ota_boot_control.c)
+    if(CONFIG_BK7258_OTA_AUTO_CONFIRM)
+      target_sources(board PRIVATE bk7258_ota_trial.c)
+    endif()
     if(NOT CONFIG_BK7258_FLASH_MTD)
       target_sources(board PRIVATE bk7258_flash_guard.c)
     endif()

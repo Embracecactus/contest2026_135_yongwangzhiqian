@@ -177,11 +177,13 @@ static int bk7258_ota_file_read_at(
       image < BK7258_OTA_IMAGE_CP || image > BK7258_OTA_IMAGE_AP ||
       source->fd[image] < 0 ||
       (uint64_t)offset + nbytes >
-        source->catalog.manifest.image[image].physical_size ||
-      __atomic_load_n(&source->canceled, __ATOMIC_ACQUIRE) ||
-      lseek(source->fd[image], (off_t)offset, SEEK_SET) != (off_t)offset)
+        source->catalog.manifest.image[image].physical_size)
     {
       return -EINVAL;
+    }
+  if (__atomic_load_n(&source->canceled, __ATOMIC_ACQUIRE))
+    {
+      return -ECANCELED;
     }
 
   while (done < nbytes)
@@ -192,7 +194,8 @@ static int bk7258_ota_file_read_at(
         {
           return -ECANCELED;
         }
-      count = read(source->fd[image], buffer + done, nbytes - done);
+      count = pread(source->fd[image], buffer + done, nbytes - done,
+                    (off_t)offset + (off_t)done);
       if (count <= 0)
         {
           return count < 0 ? -errno : -EIO;

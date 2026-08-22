@@ -40,9 +40,9 @@
 
 #include "bk7258_rptun.h"
 
-#define BK7258_OTA_RPMSG_EPT_NAME       "bk7258-ota-v1"
-#define BK7258_OTA_RPMSG_MAGIC          0x31544f42u /* "BOT1" */
-#define BK7258_OTA_RPMSG_VERSION        1u
+#define BK7258_OTA_RPMSG_EPT_NAME       "bk7258-ota-v2"
+#define BK7258_OTA_RPMSG_MAGIC          0x32544f42u /* "BOT2" */
+#define BK7258_OTA_RPMSG_VERSION        2u
 #define BK7258_OTA_RPMSG_PAYLOAD_SIZE   432u
 #define BK7258_OTA_RPMSG_SEND_MS        1000u
 #define BK7258_OTA_RPMSG_CONTROL_ACK_MS 5000u
@@ -744,7 +744,6 @@ out_source:
     {
       source->close(context);
     }
-out_unlock:
   nxmutex_unlock(&priv->session_lock);
   return ret;
 }

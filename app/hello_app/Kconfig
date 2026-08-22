@@ -41,9 +41,9 @@ config BK7258_APP_OTA
 	---help---
 		Build the trusted-maintainer bkota status/apply-file/cancel/confirm
 		command.  File paths are forwarded to the AP OTA Manager; CP never opens
-		the file and remains only the Pair Installer/Flash owner. Confirm remains
-		an explicit operator health-acceptance action until the automatic health
-		gate lands.
+		the file and remains only the Pair Installer/Flash owner.  Manual confirm
+		is a physical maintenance fallback; product profiles may enable the
+		generation-bound CP automatic trial policy.
 
 if BK7258_APP_OTA
 

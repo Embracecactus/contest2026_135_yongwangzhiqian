@@ -37,6 +37,12 @@
 #include <driver/aon_wdt.h>
 #include <driver/timer.h>
 
+/* Present in the manifest-pinned official v3.1.1.9 driver archive but not
+ * exported by its reduced public header bundle. */
+
+extern void aon_pmu_drv_wdt_change_not_rosc_clk(void);
+extern void aon_pmu_drv_wdt_rst_dev_enable(void);
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -394,6 +400,27 @@ int bk7258_wdt_service(void)
     }
 
   return bk_wdt_feed() == BK_OK ? OK : -EIO;
+}
+
+void bk7258_wdt_force_system_reset(void)
+{
+  irqstate_t flags;
+
+  /* CONFIG_NMI_WDT_EN makes the SDK bk_wdt_force_reboot() deliberately raise
+   * an NMI so FreeRTOS can dump state before resetting.  NuttX owns that NMI
+   * vector, so calling it only records a fault and never reaches a whole-SoC
+   * reset.  Use the SDK's AON watchdog and PMU reset routing directly: this
+   * is the same hardware reset source without depending on a FreeRTOS trap. */
+
+  flags = up_irq_save();
+  (void)flags;
+  aon_pmu_drv_wdt_change_not_rosc_clk();
+  aon_pmu_drv_wdt_rst_dev_enable();
+  (void)bk_aon_wdt_set_period(10u);
+
+  for (;;)
+    {
+    }
 }
 
 void bk7258_wdt_pm_prepare(void)

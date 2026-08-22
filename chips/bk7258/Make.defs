@@ -276,8 +276,10 @@ BK7258_AP_BASE_CSRCS += bk7258_psram.c
 endif
 
 ifeq ($(CONFIG_BK7258_OTA_MANAGER),y)
+ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
 ifeq ($(wildcard $(BK7258_OTA_CATALOG_PUBLIC_SOURCE)),)
 $(error BK7258_OTA_MANAGER requires the generated catalog public root)
+endif
 endif
 
 ifeq ($(CONFIG_BK7258_OTA_SOURCE_FILE),y)

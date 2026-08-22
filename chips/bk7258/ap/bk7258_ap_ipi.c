@@ -548,8 +548,6 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
     {
       volatile struct bk7258_ap_smp_state_s *smp =
         bk7258_ap_smp_state();
-      volatile struct bk7258_cpu2_probe_state_s *cpu2 =
-        bk7258_cpu2_probe_state();
       uint32_t expected_endpoint =
         local_cpu == BK7258_AP_IPI_PRIMARY_CPU ?
         BK7258_AP_IPI_SECONDARY_ENDPOINT :
@@ -568,13 +566,6 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
       atomic_set_release(&g_bk7258_ap_smp_pending[local_cpu], 0);
       smp->rx_count[local_cpu]++;
       smp->last_command[local_cpu] = command;
-
-      if (local_cpu == BK7258_AP_IPI_SECONDARY_CPU &&
-          cpu2->magic == BK7258_CPU2_PROBE_STATE_MAGIC &&
-          cpu2->generation == smp->generation)
-        {
-          cpu2->heartbeat++;
-        }
 
       __asm volatile ("dmb sy" ::: "memory");
 
@@ -659,7 +650,6 @@ int bk7258_ap_ipi_selftest(uint32_t count, uint32_t timeout_ms)
   volatile struct bk7258_cpu2_probe_state_s *cpu2 =
     bk7258_cpu2_probe_state();
   uint32_t elapsed = 0;
-  uint32_t heartbeat_before;
   uint32_t sequence;
   int ret;
 
@@ -698,11 +688,10 @@ int bk7258_ap_ipi_selftest(uint32_t count, uint32_t timeout_ms)
       /* timeout_ms bounds one request/response transaction.  Do not carry
        * time already spent by an earlier successful message into the next
        * ping, or a long but healthy multi-message self-test can report a
-       * false timeout.  Keep the PONG and heartbeat waits on the same budget
-       * for this sequence. */
+       * false timeout.  The generation-bound PONG proves that the secondary
+       * ISR handled the request; runtime health uses its own pinned task. */
 
       elapsed = 0;
-      heartbeat_before = cpu2->heartbeat;
       __asm volatile ("dmb sy" ::: "memory");
       ret = bk7258_ap_ipi_send(BK7258_AP_IPI_COMMAND_PING, sequence,
                                BK7258_AP_IPI_SECONDARY_CPU, true);
@@ -713,23 +702,6 @@ int bk7258_ap_ipi_selftest(uint32_t count, uint32_t timeout_ms)
 
       while (state->last_rx_sequence[
              BK7258_AP_IPI_DIR_SECONDARY_TO_PRIMARY] < sequence)
-        {
-          if (state->state == BK7258_AP_IPI_STATE_FAILED)
-            {
-              return -EIO;
-            }
-
-          if (elapsed >= timeout_ms)
-            {
-              bk7258_ap_ipi_fail(BK7258_AP_IPI_ERROR_TIMEOUT);
-              return -ETIMEDOUT;
-            }
-
-          up_mdelay(1);
-          elapsed++;
-        }
-
-      while (cpu2->heartbeat == heartbeat_before)
         {
           if (state->state == BK7258_AP_IPI_STATE_FAILED)
             {

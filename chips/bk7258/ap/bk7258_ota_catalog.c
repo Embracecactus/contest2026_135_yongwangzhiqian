@@ -131,6 +131,66 @@ static int bk7258_ota_catalog_string(const cJSON *item, char *output,
   return 0;
 }
 
+static int bk7258_ota_catalog_version_number(const char **cursor,
+                                             uint32_t maximum,
+                                             char delimiter,
+                                             uint32_t *value)
+{
+  const char *text = *cursor;
+  uint32_t result = 0u;
+
+  if (*text < '0' || *text > '9')
+    {
+      return -EINVAL;
+    }
+
+  do
+    {
+      uint32_t digit = (uint32_t)(*text - '0');
+
+      if (result > (maximum - digit) / 10u)
+        {
+          return -ERANGE;
+        }
+      result = result * 10u + digit;
+      text++;
+    }
+  while (*text >= '0' && *text <= '9');
+
+  if (*text != delimiter)
+    {
+      return -EINVAL;
+    }
+
+  *value = result;
+  *cursor = delimiter == '\0' ? text : text + 1;
+  return 0;
+}
+
+static int bk7258_ota_catalog_version(
+  const char *text, struct bk7258_mcuboot_version_s *version)
+{
+  uint32_t major;
+  uint32_t minor;
+  uint32_t revision;
+  uint32_t build;
+
+  if (bk7258_ota_catalog_version_number(&text, UINT8_MAX, '.', &major) < 0 ||
+      bk7258_ota_catalog_version_number(&text, UINT8_MAX, '.', &minor) < 0 ||
+      bk7258_ota_catalog_version_number(&text, UINT16_MAX, '+',
+                                        &revision) < 0 ||
+      bk7258_ota_catalog_version_number(&text, UINT32_MAX, '\0', &build) < 0)
+    {
+      return -EINVAL;
+    }
+
+  version->major = (uint8_t)major;
+  version->minor = (uint8_t)minor;
+  version->revision = (uint16_t)revision;
+  version->build = build;
+  return 0;
+}
+
 static bool bk7258_ota_catalog_uri_safe(const char *uri)
 {
   return uri[0] != '/' && strchr(uri, '\\') == NULL &&
@@ -234,6 +294,8 @@ static int bk7258_ota_catalog_parse(
   if (bk7258_ota_catalog_string(
         cJSON_GetObjectItemCaseSensitive(root, "version"),
         result->version, sizeof(result->version)) < 0 ||
+      bk7258_ota_catalog_version(result->version,
+                                 &result->manifest.image_version) < 0 ||
       bk7258_ota_catalog_u32(
         cJSON_GetObjectItemCaseSensitive(root, "security_counter"),
         &result->security_counter) < 0 || result->security_counter == 0u ||
@@ -241,6 +303,9 @@ static int bk7258_ota_catalog_parse(
         cJSON_GetObjectItemCaseSensitive(root, "package_id"),
         result->package_id, sizeof(result->package_id)) < 0 ||
       strlen(result->package_id) != BK7258_OTA_CATALOG_ID_SIZE - 1u ||
+      bk7258_ota_catalog_hex(
+        cJSON_GetObjectItemCaseSensitive(root, "package_id"),
+        result->manifest.package_id, BK7258_OTA_PACKAGE_ID_SIZE) < 0 ||
       bk7258_ota_catalog_image(
         cJSON_GetObjectItemCaseSensitive(root, "cp"),
         BK7258_OTA_IMAGE_CP, result) < 0 ||
@@ -251,6 +316,7 @@ static int bk7258_ota_catalog_parse(
       goto out;
     }
 
+  result->manifest.security_counter = result->security_counter;
   result->manifest.version = BK7258_OTA_MANIFEST_VERSION;
   ret = 0;
 

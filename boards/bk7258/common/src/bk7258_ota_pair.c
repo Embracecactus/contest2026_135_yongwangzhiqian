@@ -23,11 +23,13 @@
 
 #include "bk7258_flash_guard.h"
 #include "bk7258_ota_flash_internal.h"
+#include "bk7258_ota_image.h"
 #ifdef CONFIG_BK7258_WDT
 #  include "bk7258_wdt.h"
 #endif
 
 #define BK7258_OTA_PROGRESS_GRANULARITY (64u * 1024u)
+#define BK7258_OTA_STAGE_LOCK_TIMEOUT_MS 5000u
 
 static uint8_t g_bk7258_ota_write_sector[BK7258_FLASH_ERASE_SIZE];
 static uint8_t g_bk7258_ota_cp_commit[BK7258_FLASH_ERASE_SIZE];
@@ -186,15 +188,68 @@ static int bk7258_ota_program_image(
 static int bk7258_ota_validate_manifest(
   const struct bk7258_ota_manifest_s *manifest)
 {
+  bool package_id_present = false;
+  size_t index;
+
   if (manifest->version != BK7258_OTA_MANIFEST_VERSION ||
       memcmp(manifest->layout_sha256, g_bk7258_ota_layout_sha256,
              sizeof(g_bk7258_ota_layout_sha256)) != 0 ||
+      manifest->security_counter == 0u ||
       manifest->image[BK7258_OTA_IMAGE_CP].physical_size !=
         BK7258_CP_RAW_PHYSICAL_SIZE ||
       manifest->image[BK7258_OTA_IMAGE_AP].physical_size !=
         BK7258_AP_RAW_PHYSICAL_SIZE)
     {
       return -EINVAL;
+    }
+
+  for (index = 0u; index < sizeof(manifest->package_id); index++)
+    {
+      package_id_present |= manifest->package_id[index] != 0u;
+    }
+
+  return package_id_present ? 0 : -EINVAL;
+}
+
+static int bk7258_ota_admit_candidate(
+  const struct bk7258_ota_source_ops_s *ops, void *context,
+  const struct bk7258_ota_manifest_s *manifest,
+  const struct bk7258_ota_pair_snapshot_s *active)
+{
+  struct bk7258_ota_image_metadata_s cp;
+  struct bk7258_ota_image_metadata_s ap;
+  int ret;
+
+  ret = bk7258_ota_source_image_metadata(
+          ops, context, BK7258_OTA_IMAGE_CP,
+          manifest->image[BK7258_OTA_IMAGE_CP].physical_size,
+          BK7258_ARTIFACT_CP_LOGICAL_SIZE, &cp);
+  if (ret == 0)
+    {
+      ret = bk7258_ota_source_image_metadata(
+              ops, context, BK7258_OTA_IMAGE_AP,
+              manifest->image[BK7258_OTA_IMAGE_AP].physical_size,
+              BK7258_ARTIFACT_AP_LOGICAL_SIZE, &ap);
+    }
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (!bk7258_mcuboot_version_equal(&cp.version, &ap.version) ||
+      !bk7258_mcuboot_version_equal(&cp.version,
+                                    &manifest->image_version) ||
+      !cp.security_counter_present || !ap.security_counter_present ||
+      cp.security_counter != ap.security_counter ||
+      cp.security_counter != manifest->security_counter)
+    {
+      return -EILSEQ;
+    }
+
+  if (bk7258_mcuboot_version_compare(&cp.version, &active->version) <= 0 ||
+      cp.security_counter <= active->security_counter)
+    {
+      return -EPERM;
     }
 
   return 0;
@@ -205,6 +260,7 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
 {
   struct bk7258_ota_geometry_s geometry;
   struct bk7258_ota_manifest_s manifest;
+  struct bk7258_ota_pair_snapshot_s active;
   enum bk7258_flash_guard_owner_e owner;
   SHA2_CTX sha256;
   uint8_t digest[BK7258_OTA_SHA256_SIZE];
@@ -225,15 +281,29 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
   owner = geometry.inactive_slot == BK7258_BOOT_SLOT_PRIMARY ?
           BK7258_FLASH_GUARD_OTA_PRIMARY :
           BK7258_FLASH_GUARD_OTA_SECONDARY;
-  ret = bk7258_flash_guard_lock(owner, true, 0);
+  ret = bk7258_flash_guard_lock(owner, true,
+                                BK7258_OTA_STAGE_LOCK_TIMEOUT_MS);
   if (ret < 0)
     {
       return ret;
     }
 
+  ret = bk7258_ota_get_active_pair(&active);
+  if (ret == 0 && active.active_slot != geometry.active_slot)
+    {
+      ret = -ESTALE;
+    }
+  if (ret == 0 && active.state != BK7258_OTA_PAIR_CONFIRMED)
+    {
+      ret = active.state == BK7258_OTA_PAIR_PENDING ? -EBUSY : -EPERM;
+    }
+
   memset(&manifest, 0, sizeof(manifest));
-  opened = true;
-  ret = ops->open(context, &manifest);
+  if (ret == 0)
+    {
+      opened = true;
+      ret = ops->open(context, &manifest);
+    }
   if (ret == 0)
     {
       ret = bk7258_ota_validate_manifest(&manifest);
@@ -241,6 +311,11 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
   else if (ret > 0)
     {
       ret = -EIO;
+    }
+
+  if (ret == 0)
+    {
+      ret = bk7258_ota_admit_candidate(ops, context, &manifest, &active);
     }
 
   if (ret == 0)

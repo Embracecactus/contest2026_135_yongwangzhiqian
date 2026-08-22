@@ -273,10 +273,15 @@ def _validate_security(security: dict[str, object]) -> str:
         expected = legacy_expected if "trailer" not in security else \
             legacy_expected | {"trailer"}
         prefixes = ("bl1", "mcuboot")
+    if "signature_profile" in security:
+        expected |= {"signature_profile"}
     if set(security) != expected or mode not in {"signed", "signed-ota"} \
             or security.get("algorithm") != "ecdsa-p256-sha256" \
             or security.get("rollback") != "otp-readonly-plus-explicit-software-floor":
         raise PackageError("signed package evidence shape is invalid")
+    if "signature_profile" in security and \
+            security.get("signature_profile") != "ecdsa-der-pad72-v1":
+        raise PackageError("signed package signature profile is invalid")
     if mode == "signed-ota" and security.get("trailer") != "pending-v1":
         raise PackageError("signed OTA trailer profile is invalid")
     if mode == "signed" and "trailer" in security \

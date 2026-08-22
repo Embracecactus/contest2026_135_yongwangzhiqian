@@ -321,11 +321,77 @@ config BK7258_OTA
 	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	depends on BK7258_MCUBOOT_IMAGE
 	select CRYPTO
+	select BK7258_WDT
 	---help---
 		Expose the board-owned CP/AP pair updater.  It writes only the physical
 		inactive pair, completes AP before CP, and commits CP sector zero last.
 		The updater validates the selected layout, exact physical sizes and
 		streamed SHA-256 digests supplied by an authenticated source manifest.
 		Runtime health confirmation updates both standard MCUboot image_ok
-		trailers.  The application still owns transport, package download and
-		health policy; AP never owns on-chip Flash.
+		trailers.  The application owns transport and package download; CP owns
+		the optional generation-bound trial policy and on-chip Flash.
+
+if BK7258_OTA
+
+config BK7258_OTA_AUTO_CONFIRM
+	bool "Automatically confirm a healthy pending CP/AP pair"
+	default n
+	depends on BK7258_AP_SUPERVISOR
+	help
+		Start a CP-only policy worker when BL2 boots a pending pair.  Confirmation
+		requires fresh CP/AP, CPU2 and RPMsg Supervisor health for one continuous
+		stable interval.  A generation change or trial deadline triggers
+		whole-device reset so BL2 can select the confirmed fallback.  Product
+		application voting remains an optional higher-level adapter.
+
+config BK7258_OTA_TRIAL_PRIORITY
+	int "OTA trial policy priority"
+	default 190
+	range 1 199
+	depends on BK7258_OTA_AUTO_CONFIRM
+	help
+		Keep the policy below the AP Supervisor while above ordinary application
+		tasks.  Flash confirmation remains serialized by the Flash guard.
+
+config BK7258_OTA_TRIAL_STACKSIZE
+	int "OTA trial policy stack size"
+	default 3072
+	range 2048 8192
+	depends on BK7258_OTA_AUTO_CONFIRM
+
+config BK7258_OTA_TRIAL_POLL_MS
+	int "OTA trial policy poll interval (milliseconds)"
+	default 250
+	range 50 2000
+	depends on BK7258_OTA_AUTO_CONFIRM
+
+config BK7258_OTA_TRIAL_STABLE_MS
+	int "Continuous CP/AP platform health before confirm (milliseconds)"
+	default 10000
+	range 5000 120000
+	depends on BK7258_OTA_AUTO_CONFIRM
+
+config BK7258_OTA_TRIAL_TIMEOUT_MS
+	int "Pending trial deadline before revert reset (milliseconds)"
+	default 60000
+	range 15000 600000
+	depends on BK7258_OTA_AUTO_CONFIRM
+
+config BK7258_OTA_TRIAL_HEALTH_MAX_AGE_MS
+	int "Maximum accepted Supervisor sample age (milliseconds)"
+	default 2000
+	range 500 10000
+	depends on BK7258_OTA_AUTO_CONFIRM
+
+config BK7258_OTA_TRIAL_CONFIRM_TIMEOUT_MS
+	int "Maximum in-progress pair confirmation time (milliseconds)"
+	default 10000
+	range 6000 30000
+	depends on BK7258_OTA_AUTO_CONFIRM
+	help
+		Independent lease for the Flash-guard wait and two trailer RMWs.  The
+		deadline worker uses this while state is CONFIRMING instead of the normal
+		policy heartbeat timeout, preventing a false reset during bounded Flash
+		contention while still failing closed if confirmation stalls.
+
+endif

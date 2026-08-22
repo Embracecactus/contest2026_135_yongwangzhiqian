@@ -65,6 +65,10 @@
 #  include "bk7258_wdt.h"
 #endif
 
+#ifdef CONFIG_BK7258_OTA_AUTO_CONFIRM
+#  include <arch/chip/bk7258_ota.h>
+#endif
+
 #ifdef CONFIG_BK7258_IRDA
 #  include <arch/chip/bk7258_irda.h>
 #endif
@@ -369,6 +373,26 @@ int bk7258_platform_initialize(void)
         }
     }
 
+#endif
+
+#ifdef CONFIG_BK7258_OTA_AUTO_CONFIRM
+  /* Start the CP trial deadline even when AP autostart failed.  A pending
+   * generation must either earn a fresh platform/product health token or
+   * reset the whole device so BL2 can select the confirmed fallback.
+   */
+
+  {
+    int trialret = bk7258_ota_trial_initialize();
+
+    if (trialret < 0)
+      {
+        _err("bk7258: OTA trial policy init failed: %d\n", trialret);
+        if (apret >= 0)
+          {
+            apret = trialret;
+          }
+      }
+  }
 #endif
 
 #ifdef CONFIG_BK7258_WIFI_VNET

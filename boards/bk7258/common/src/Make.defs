@@ -31,7 +31,11 @@ ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
 CSRCS += bk7258_flash_mtd.c bk7258_flash_guard.c
 endif
 ifeq ($(CONFIG_BK7258_OTA),y)
-CSRCS += bk7258_ota_flash.c bk7258_ota_pair.c bk7258_ota_boot_control.c
+CSRCS += bk7258_ota_flash.c bk7258_ota_image.c bk7258_ota_pair.c \
+         bk7258_ota_boot_control.c
+ifeq ($(CONFIG_BK7258_OTA_AUTO_CONFIRM),y)
+CSRCS += bk7258_ota_trial.c
+endif
 ifneq ($(CONFIG_BK7258_FLASH_MTD),y)
 CSRCS += bk7258_flash_guard.c
 endif

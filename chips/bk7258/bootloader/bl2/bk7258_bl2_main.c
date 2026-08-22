@@ -1,12 +1,14 @@
 /* Bare-metal handoff around the NuttX-pinned upstream MCUboot bootutil. */
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #include <bootutil/bootutil.h>
 #include <bootutil/image.h>
 
 #include "bk7258_bl2_abi.h"
 #include "bk7258_bl2_pair_policy.h"
+#include "bk7258_mcuboot_format.h"
 #include "../boot_flash.h"
 #include "../boot_wdt.h"
 #include "bk7258_debug_route.h"
@@ -31,12 +33,17 @@
 #define BK7258_AP_VECTOR_RAM_END  0x2809f000u
 #define BK7258_BL2_RAM_BASE       0x28020000u
 #define BK7258_CP_MSPLIM          0x28010000u
-#define BK7258_BL2_TRAILER_MAGIC_SIZE 16u
-#define BK7258_BL2_TRAILER_ALIGN 8u
-#define BK7258_BL2_COPY_DONE_OFFSET(size) \
-  ((size) - BK7258_BL2_TRAILER_MAGIC_SIZE - 2u * BK7258_BL2_TRAILER_ALIGN)
-#define BK7258_BL2_IMAGE_OK_OFFSET(size) \
-  ((size) - BK7258_BL2_TRAILER_MAGIC_SIZE - BK7258_BL2_TRAILER_ALIGN)
+
+_Static_assert(IMAGE_MAGIC == BK7258_MCUBOOT_IMAGE_MAGIC,
+               "BK7258 MCUboot magic mismatch");
+_Static_assert(IMAGE_HEADER_SIZE == BK7258_MCUBOOT_IMAGE_HEADER_SIZE,
+               "BK7258 MCUboot header-size mismatch");
+_Static_assert(sizeof(struct image_version) ==
+               sizeof(struct bk7258_mcuboot_version_s),
+               "BK7258 MCUboot version-size mismatch");
+_Static_assert(offsetof(struct image_header, ih_ver) ==
+               offsetof(struct bk7258_mcuboot_image_header_s, version),
+               "BK7258 MCUboot version-offset mismatch");
 
 extern void boot_prepare_app_handoff(void);
 extern void boot_console_prepare_app_handoff(void);
@@ -330,13 +337,13 @@ static bool bk7258_bl2_pair_trailer_state_valid(uint32_t cp_offset)
   const volatile uint8_t *ap =
     (const volatile uint8_t *)(uintptr_t)
       ((uint32_t)(uintptr_t)bk7258_bl2_ap_header(cp_offset));
-  uint8_t cp_copy = cp[BK7258_BL2_COPY_DONE_OFFSET(
+  uint8_t cp_copy = cp[BK7258_MCUBOOT_COPY_DONE_OFFSET(
     BK7258_ARTIFACT_CP_LOGICAL_SIZE)];
-  uint8_t ap_copy = ap[BK7258_BL2_COPY_DONE_OFFSET(
+  uint8_t ap_copy = ap[BK7258_MCUBOOT_COPY_DONE_OFFSET(
     BK7258_ARTIFACT_AP_LOGICAL_SIZE)];
-  uint8_t cp_ok = cp[BK7258_BL2_IMAGE_OK_OFFSET(
+  uint8_t cp_ok = cp[BK7258_MCUBOOT_IMAGE_OK_OFFSET(
     BK7258_ARTIFACT_CP_LOGICAL_SIZE)];
-  uint8_t ap_ok = ap[BK7258_BL2_IMAGE_OK_OFFSET(
+  uint8_t ap_ok = ap[BK7258_MCUBOOT_IMAGE_OK_OFFSET(
     BK7258_ARTIFACT_AP_LOGICAL_SIZE)];
 
   return (cp_copy == 0xffu || cp_copy == 1u) &&

@@ -169,7 +169,7 @@
 
 #define BK7258_CPU2_PROBE_STATE_OFFSET   0x00000180u
 #define BK7258_CPU2_PROBE_STATE_MAGIC    0x32555043u /* "CPU2" */
-#define BK7258_CPU2_PROBE_STATE_VERSION  1u
+#define BK7258_CPU2_PROBE_STATE_VERSION  2u
 #define BK7258_CPU2_PROBE_TIMEOUT_MS     1000u
 #define BK7258_CPU2_PROBE_STOP_TIMEOUT_MS 100u
 
@@ -331,7 +331,7 @@ enum bk7258_ap_error_e
  * tail at shared offset 0x700.
  */
 
-#define BK7258_AP_SUPERVISOR_STATUS_VERSION 1u
+#define BK7258_AP_SUPERVISOR_STATUS_VERSION 3u
 
 #define BK7258_AP_SUPERVISOR_FLAG_ARMED       (1u << 0)
 #define BK7258_AP_SUPERVISOR_FLAG_PRIMARY     (1u << 1)
@@ -388,6 +388,7 @@ struct bk7258_ap_supervisor_status_s
   uint32_t primary_age_ms;
   uint32_t secondary_age_ms;
   uint32_t transport_age_ms;
+  uint32_t healthy_age_ms;
   uint32_t fault_count;
   uint32_t recovery_count;
   uint32_t consecutive_failures;
@@ -399,6 +400,17 @@ struct bk7258_ap_supervisor_status_s
   uint32_t fault_cfsr;
   uint32_t fault_pc;
   uint32_t fault_lr;
+  uint32_t sample_sequence;
+  uint32_t sample_age_ms;
+};
+
+struct bk7258_ap_supervisor_health_token_s
+{
+  uint32_t generation;
+  uint32_t sample_sequence;
+  uint32_t flags;
+  uint32_t healthy_age_ms;
+  uint32_t sample_age_ms;
 };
 
 enum bk7258_cpu2_probe_command_e
@@ -793,6 +805,8 @@ struct bk7258_cpu2_probe_state_s
   uint32_t initial_msp;
   uint32_t runtime_vtor;
   uint32_t runtime_msp;
+  /* Bootstrap/probe writers stop before AP READY.  Once the SMP scheduler is
+   * online this field is written only by the pinned CPU1 health task. */
   uint32_t heartbeat;
   uint32_t control;
   uint32_t fault_exception;
@@ -1212,6 +1226,9 @@ int bk7258_ap_pm_notify(uint32_t event);
 int bk7258_ap_supervisor_initialize(void);
 int bk7258_ap_supervisor_get_status(
   struct bk7258_ap_supervisor_status_s *status);
+int bk7258_ap_supervisor_health_token(
+  uint32_t expected_generation, uint32_t max_age_ms,
+  struct bk7258_ap_supervisor_health_token_s *token);
 int bk7258_ap_supervisor_recover(uint32_t timeout_ms);
 void bk7258_ap_supervisor_lifecycle_begin(void);
 void bk7258_ap_supervisor_lifecycle_end(void);

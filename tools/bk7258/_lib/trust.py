@@ -38,6 +38,7 @@ class TrustEvidence:
     bl1_security_counter: int | None = None
     rollback: str | None = None
     trailer: str | None = None
+    signature_profile: str | None = None
     images: tuple[dict[str, object], ...] = ()
 
     def manifest(self) -> dict[str, object]:
@@ -454,6 +455,7 @@ def sign_mcuboot(*, input_image: Path, output_image: Path, private_key: Path,
                 "--max-align", "8", "--align", "1",
                 "--version", version,
                 "--security-counter", str(security_counter),
+                "--pad-sig",
                 "--pad-header", "--header-size", "0x200",
                 "--slot-size", str(slot_size),
                 "--boot-record", "SPE", "--endian", "little",
@@ -471,6 +473,7 @@ def sign_mcuboot(*, input_image: Path, output_image: Path, private_key: Path,
         if len(payload) != slot_size:
             raise TrustError("padded MCUboot image does not exactly fill its slot")
         signed_length, _, _ = _mcuboot_metadata(payload)
+        _validate_mcuboot_signature_padding(payload)
         if signed_length > slot_size - MCUBOOT_TAIL_RMW_RESERVE:
             raise TrustError("signed MCUboot content enters the BK7258 trailer RMW reserve")
         _validate_mcuboot_trailer(payload, confirmed=confirmed)
@@ -529,6 +532,7 @@ def signed_evidence(*, bl1_private_key: Path, mcuboot_private_key: Path,
         bl1_security_counter=bl1_security_counter,
         rollback="otp-readonly-plus-explicit-software-floor",
         trailer="confirmed-v1",
+        signature_profile="ecdsa-der-pad72-v1",
         images=tuple(
             {
                 "artifact": name,
@@ -690,6 +694,7 @@ def signed_ota_pair(*, layout: layout_domain.Layout,
             mcuboot_public_der=public.hex(),
             rollback="otp-readonly-plus-explicit-software-floor",
             trailer="pending-v1",
+            signature_profile="ecdsa-der-pad72-v1",
             images=tuple(
                 {
                     "artifact": artifact,
@@ -826,6 +831,44 @@ def _mcuboot_metadata(data: bytes) -> tuple[int, str, int | None]:
     return tlv + total, version, security_counter
 
 
+def _validate_mcuboot_signature_padding(data: bytes) -> None:
+    """Require the pinned TinyCrypt-compatible fixed 72-byte EC256 TLV."""
+
+    if len(data) < 32:
+        raise TrustError("MCUboot image is shorter than its header")
+    _, _, header_size, protected_size, image_size = \
+        struct.unpack_from("<IIHHI", data)
+    offset = header_size + image_size + protected_size
+    if offset + 4 > len(data):
+        raise TrustError("MCUboot signature TLV area is truncated")
+    magic, total = struct.unpack_from("<HH", data, offset)
+    if magic != 0x6907 or total < 4 or offset + total > len(data):
+        raise TrustError("MCUboot signature TLV header is invalid")
+
+    end = offset + total
+    offset += 4
+    signature = None
+    while offset < end:
+        if offset + 4 > end:
+            raise TrustError("MCUboot signature TLV entry is truncated")
+        tlv_type, length = struct.unpack_from("<HH", data, offset)
+        offset += 4
+        if offset + length > end:
+            raise TrustError("MCUboot signature TLV value is truncated")
+        if tlv_type == 0x22:
+            if signature is not None:
+                raise TrustError("MCUboot image carries duplicate EC256 signatures")
+            signature = data[offset:offset + length]
+        offset += length
+
+    if signature is None or len(signature) != 72 or signature[0] != 0x30:
+        raise TrustError("MCUboot EC256 signature is not fixed DER-pad72")
+    der_size = signature[1] + 2
+    if der_size < 8 or der_size > len(signature) \
+            or any(signature[der_size:]):
+        raise TrustError("MCUboot EC256 signature padding is malformed")
+
+
 def verify_signed_material(*, security: dict[str, object],
                            layout: dict[str, object], images: dict[str, bytes],
                            official_imgtool: Path, openssl: Path,
@@ -880,6 +923,9 @@ def verify_signed_material(*, security: dict[str, object],
             for artifact in ("cp", "ap"):
                 logical = decoded(artifact)
                 length, version, counter = _mcuboot_metadata(logical)
+                if security.get("signature_profile") == \
+                        "ecdsa-der-pad72-v1":
+                    _validate_mcuboot_signature_padding(logical)
                 if length > len(logical) - MCUBOOT_TAIL_RMW_RESERVE:
                     raise TrustError(
                         f"signed {artifact} enters the BK7258 trailer RMW reserve"
@@ -941,6 +987,9 @@ def verify_signed_material(*, security: dict[str, object],
         for artifact in ("cp", "ap"):
             logical = decoded(artifact)
             length, version, counter = _mcuboot_metadata(logical)
+            if security.get("signature_profile") == \
+                    "ecdsa-der-pad72-v1":
+                _validate_mcuboot_signature_padding(logical)
             if security.get("trailer") == "confirmed-v1":
                 if length > len(logical) - MCUBOOT_TAIL_RMW_RESERVE:
                     raise TrustError(

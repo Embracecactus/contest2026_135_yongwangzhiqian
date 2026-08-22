@@ -71,9 +71,8 @@ struct bk7258_ap_supervisor_s
   clock_t secondary_tick;
   clock_t transport_tick;
   clock_t last_probe_tick;
-#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
   clock_t healthy_tick;
-#endif
+  clock_t sample_tick;
   struct bk7258_ap_supervisor_status_s status;
 };
 
@@ -145,11 +144,13 @@ static void bk7258_ap_supervisor_set_offline_locked(
   priv->status.primary_age_ms = 0;
   priv->status.secondary_age_ms = 0;
   priv->status.transport_age_ms = 0;
+  priv->status.healthy_age_ms = 0;
   priv->status.injection = BK7258_AP_SUPERVISOR_INJECT_NONE;
   priv->status.last_error = 0;
   priv->last_cp_rx = 0;
   priv->last_ap_rx = 0;
   priv->transport_activity = 0;
+  priv->healthy_tick = 0;
 }
 
 static void bk7258_ap_supervisor_disarm_locked(
@@ -172,11 +173,13 @@ static void bk7258_ap_supervisor_disarm_locked(
   priv->status.primary_age_ms = 0;
   priv->status.secondary_age_ms = 0;
   priv->status.transport_age_ms = 0;
+  priv->status.healthy_age_ms = 0;
   priv->status.injection = BK7258_AP_SUPERVISOR_INJECT_NONE;
   priv->status.last_error = 0;
   priv->last_cp_rx = 0;
   priv->last_ap_rx = 0;
   priv->transport_activity = 0;
+  priv->healthy_tick = 0;
 }
 
 static void bk7258_ap_supervisor_arm_locked(
@@ -213,20 +216,31 @@ static void bk7258_ap_supervisor_arm_locked(
   priv->status.primary_age_ms = 0;
   priv->status.secondary_age_ms = 0;
   priv->status.transport_age_ms = 0;
+  priv->status.healthy_age_ms = 0;
   priv->status.injection = BK7258_AP_SUPERVISOR_INJECT_NONE;
   priv->status.last_error = 0;
-#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
   priv->healthy_tick = 0;
-#endif
 }
 
 static bool bk7258_ap_supervisor_transport_activity_locked(
   struct bk7258_ap_supervisor_s *priv,
   volatile struct bk7258_rptun_control_s *rptun, clock_t now)
 {
-  uint32_t cp_rx = __atomic_load_n(
+  uint32_t cp_rx;
+  uint32_t ap_rx;
+
+  if (rptun->magic != BK7258_RPTUN_CONTROL_MAGIC ||
+      rptun->version != BK7258_RPTUN_CONTROL_VERSION ||
+      rptun->size != sizeof(*rptun) ||
+      rptun->generation != priv->status.generation ||
+      rptun->state != BK7258_RPTUN_STATE_CONNECTED)
+    {
+      return false;
+    }
+
+  cp_rx = __atomic_load_n(
     (uint32_t *)(uintptr_t)&rptun->cp_rx_sequence, __ATOMIC_ACQUIRE);
-  uint32_t ap_rx = __atomic_load_n(
+  ap_rx = __atomic_load_n(
     (uint32_t *)(uintptr_t)&rptun->ap_rx_sequence, __ATOMIC_ACQUIRE);
 
   if (cp_rx != priv->last_cp_rx)
@@ -338,6 +352,8 @@ static void bk7258_ap_supervisor_fault_locked(
   priv->status.last_error = error;
   priv->status.fault_count++;
   priv->status.consecutive_failures++;
+  priv->healthy_tick = 0;
+  priv->status.healthy_age_ms = 0;
   bk7258_ap_supervisor_capture_fault_locked(
     priv, fault, cpu2, priv->status.generation);
   bk7258_ap_supervisor_mark_rptun_fault(priv->status.generation, error);
@@ -413,9 +429,8 @@ static void bk7258_ap_supervisor_evaluate_locked(
     {
       priv->status.state = BK7258_AP_SUPERVISOR_SUSPECT;
       priv->status.reason = reason;
-#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
       priv->healthy_tick = 0;
-#endif
+      priv->status.healthy_age_ms = 0;
     }
   else if ((priv->status.flags &
             (BK7258_AP_SUPERVISOR_FLAG_PRIMARY |
@@ -427,13 +442,15 @@ static void bk7258_ap_supervisor_evaluate_locked(
     {
       priv->status.state = BK7258_AP_SUPERVISOR_HEALTHY;
       priv->status.reason = BK7258_AP_SUPERVISOR_REASON_NONE;
-#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
       if (priv->healthy_tick == 0)
         {
           priv->healthy_tick = now;
         }
-      else if (bk7258_ap_supervisor_age_ms(now, priv->healthy_tick) >=
-               CONFIG_BK7258_AP_SUPERVISOR_STABLE_MS)
+      priv->status.healthy_age_ms =
+        bk7258_ap_supervisor_age_ms(now, priv->healthy_tick);
+#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
+      if (priv->status.healthy_age_ms >=
+          CONFIG_BK7258_AP_SUPERVISOR_STABLE_MS)
         {
           priv->status.consecutive_failures = 0;
         }
@@ -443,6 +460,8 @@ static void bk7258_ap_supervisor_evaluate_locked(
     {
       priv->status.state = BK7258_AP_SUPERVISOR_ARMING;
       priv->status.reason = BK7258_AP_SUPERVISOR_REASON_NONE;
+      priv->healthy_tick = 0;
+      priv->status.healthy_age_ms = 0;
     }
 }
 
@@ -454,6 +473,8 @@ static bool bk7258_ap_supervisor_shared_valid(
   return boot->magic == BK7258_AP_BOOT_STATE_MAGIC &&
          boot->version == BK7258_AP_BOOT_STATE_VERSION &&
          boot->size == sizeof(*boot) && boot->generation != 0 &&
+         boot->state == BK7258_AP_STATE_READY &&
+         boot->error == BK7258_AP_ERROR_NONE &&
          cpu2->magic == BK7258_CPU2_PROBE_STATE_MAGIC &&
          cpu2->version == BK7258_CPU2_PROBE_STATE_VERSION &&
          cpu2->size == sizeof(*cpu2) &&
@@ -461,7 +482,89 @@ static bool bk7258_ap_supervisor_shared_valid(
          rptun->magic == BK7258_RPTUN_CONTROL_MAGIC &&
          rptun->version == BK7258_RPTUN_CONTROL_VERSION &&
          rptun->size == sizeof(*rptun) &&
-         rptun->generation == boot->generation;
+         rptun->generation == boot->generation &&
+         (rptun->flags & (BK7258_RPTUN_FLAG_AP_RPTUN_READY |
+                          BK7258_RPTUN_FLAG_AP_READY)) ==
+                         (BK7258_RPTUN_FLAG_AP_RPTUN_READY |
+                          BK7258_RPTUN_FLAG_AP_READY);
+}
+
+static bool bk7258_ap_supervisor_shared_snapshot(
+  struct bk7258_ap_boot_state_s *boot,
+  struct bk7258_cpu2_probe_state_s *cpu2,
+  struct bk7258_ap_fault_state_s *fault,
+  struct bk7258_rptun_control_s *rptun)
+{
+  volatile struct bk7258_ap_boot_state_s *shared_boot =
+    bk7258_ap_boot_state();
+  volatile struct bk7258_cpu2_probe_state_s *shared_cpu2 =
+    bk7258_cpu2_probe_state();
+  volatile struct bk7258_ap_fault_state_s *shared_fault =
+    bk7258_ap_fault_state();
+  volatile struct bk7258_rptun_control_s *shared_rptun =
+    bk7258_rptun_control();
+  uint32_t boot_generation;
+  uint32_t boot_state;
+  uint32_t cpu2_generation;
+  uint32_t cpu2_state;
+  uint32_t rptun_generation;
+  uint32_t rptun_state;
+  unsigned int attempt;
+
+  for (attempt = 0u; attempt < 3u; attempt++)
+    {
+      boot_generation = __atomic_load_n(
+        (uint32_t *)(uintptr_t)&shared_boot->generation,
+        __ATOMIC_ACQUIRE);
+      boot_state = __atomic_load_n(
+        (uint32_t *)(uintptr_t)&shared_boot->state, __ATOMIC_ACQUIRE);
+      cpu2_generation = __atomic_load_n(
+        (uint32_t *)(uintptr_t)&shared_cpu2->generation,
+        __ATOMIC_ACQUIRE);
+      cpu2_state = __atomic_load_n(
+        (uint32_t *)(uintptr_t)&shared_cpu2->state, __ATOMIC_ACQUIRE);
+      rptun_generation = __atomic_load_n(
+        (uint32_t *)(uintptr_t)&shared_rptun->generation,
+        __ATOMIC_ACQUIRE);
+      rptun_state = __atomic_load_n(
+        (uint32_t *)(uintptr_t)&shared_rptun->state, __ATOMIC_ACQUIRE);
+
+      memcpy(boot, (const void *)(uintptr_t)shared_boot, sizeof(*boot));
+      memcpy(cpu2, (const void *)(uintptr_t)shared_cpu2, sizeof(*cpu2));
+      memcpy(fault, (const void *)(uintptr_t)shared_fault, sizeof(*fault));
+      memcpy(rptun, (const void *)(uintptr_t)shared_rptun, sizeof(*rptun));
+      __asm volatile ("dmb sy" ::: "memory");
+
+      if (boot_generation == __atomic_load_n(
+            (uint32_t *)(uintptr_t)&shared_boot->generation,
+            __ATOMIC_ACQUIRE) &&
+          boot_state == __atomic_load_n(
+            (uint32_t *)(uintptr_t)&shared_boot->state,
+            __ATOMIC_ACQUIRE) &&
+          cpu2_generation == __atomic_load_n(
+            (uint32_t *)(uintptr_t)&shared_cpu2->generation,
+            __ATOMIC_ACQUIRE) &&
+          cpu2_state == __atomic_load_n(
+            (uint32_t *)(uintptr_t)&shared_cpu2->state,
+            __ATOMIC_ACQUIRE) &&
+          rptun_generation == __atomic_load_n(
+            (uint32_t *)(uintptr_t)&shared_rptun->generation,
+            __ATOMIC_ACQUIRE) &&
+          rptun_state == __atomic_load_n(
+            (uint32_t *)(uintptr_t)&shared_rptun->state,
+            __ATOMIC_ACQUIRE) &&
+          boot->generation == boot_generation &&
+          boot->state == boot_state &&
+          cpu2->generation == cpu2_generation &&
+          cpu2->state == cpu2_state &&
+          rptun->generation == rptun_generation &&
+          rptun->state == rptun_state)
+        {
+          return true;
+        }
+    }
+
+  return false;
 }
 
 static void bk7258_ap_supervisor_invalid_locked(
@@ -471,6 +574,9 @@ static void bk7258_ap_supervisor_invalid_locked(
   const struct bk7258_cpu2_probe_state_s *cpu2)
 {
   uint32_t age;
+
+  priv->healthy_tick = 0;
+  priv->status.healthy_age_ms = 0;
 
   if (!priv->invalid_seen)
     {
@@ -496,7 +602,24 @@ static void bk7258_ap_supervisor_invalid_locked(
     }
 }
 
-static void bk7258_ap_supervisor_monitor(void)
+static void bk7258_ap_supervisor_stale_locked(
+  struct bk7258_ap_supervisor_s *priv)
+{
+  priv->healthy_tick = 0;
+  priv->status.healthy_age_ms = 0;
+  priv->status.flags &= ~(BK7258_AP_SUPERVISOR_FLAG_PRIMARY |
+                          BK7258_AP_SUPERVISOR_FLAG_SECONDARY |
+                          BK7258_AP_SUPERVISOR_FLAG_RPMSG_OK);
+  if (priv->status.state != BK7258_AP_SUPERVISOR_FAULTED &&
+      priv->status.state != BK7258_AP_SUPERVISOR_LOCKOUT &&
+      priv->status.state != BK7258_AP_SUPERVISOR_RECOVERING)
+    {
+      priv->status.state = BK7258_AP_SUPERVISOR_ARMING;
+      priv->status.reason = BK7258_AP_SUPERVISOR_REASON_NONE;
+    }
+}
+
+static bool bk7258_ap_supervisor_monitor(void)
 {
   struct bk7258_ap_supervisor_s *priv = &g_bk7258_ap_supervisor;
   struct bk7258_rpmsg_health_result_s probe;
@@ -509,33 +632,28 @@ static void bk7258_ap_supervisor_monitor(void)
   clock_t now = clock_systime_ticks();
   bool do_probe = false;
   bool boot_header_valid;
+  bool coherent;
   bool transport_active;
   bool valid;
+  uint32_t probe_generation;
   int ret;
 
-  __asm volatile ("dmb sy" ::: "memory");
-  memcpy(&boot, (const void *)(uintptr_t)bk7258_ap_boot_state(),
-         sizeof(boot));
-  memcpy(&cpu2, (const void *)(uintptr_t)bk7258_cpu2_probe_state(),
-         sizeof(cpu2));
-  memcpy(&fault, (const void *)(uintptr_t)bk7258_ap_fault_state(),
-         sizeof(fault));
-  memcpy(&rptun, (const void *)(uintptr_t)shared_rptun, sizeof(rptun));
-  __asm volatile ("dmb sy" ::: "memory");
+  coherent = bk7258_ap_supervisor_shared_snapshot(
+               &boot, &cpu2, &fault, &rptun);
 
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
-      return;
+      return false;
     }
 
   if (priv->recovering || priv->lifecycle)
     {
       nxmutex_unlock(&priv->lock);
-      return;
+      return true;
     }
 
-  boot_header_valid =
+  boot_header_valid = coherent &&
     boot.magic == BK7258_AP_BOOT_STATE_MAGIC &&
     boot.version == BK7258_AP_BOOT_STATE_VERSION &&
     boot.size == sizeof(boot) && boot.generation != 0;
@@ -546,7 +664,7 @@ static void bk7258_ap_supervisor_monitor(void)
     {
       bk7258_ap_supervisor_set_offline_locked(priv, boot.generation);
       nxmutex_unlock(&priv->lock);
-      return;
+      return true;
     }
 
   /* An all-zero record is the normal pre-start state only while the
@@ -555,11 +673,11 @@ static void bk7258_ap_supervisor_monitor(void)
    * OFFLINE.
    */
 
-  if (boot.magic == 0 && !priv->armed && !priv->ready_seen)
+  if (coherent && boot.magic == 0 && !priv->armed && !priv->ready_seen)
     {
       bk7258_ap_supervisor_set_offline_locked(priv, 0);
       nxmutex_unlock(&priv->lock);
-      return;
+      return true;
     }
 
   if (!boot_header_valid)
@@ -569,7 +687,7 @@ static void bk7258_ap_supervisor_monitor(void)
         BK7258_AP_SUPERVISOR_REASON_BAD_SHARED_STATE,
         -EPROTO, &fault, &cpu2);
       nxmutex_unlock(&priv->lock);
-      return;
+      return true;
     }
 
   if (boot.state == BK7258_AP_STATE_FAILED)
@@ -583,7 +701,7 @@ static void bk7258_ap_supervisor_monitor(void)
         BK7258_AP_SUPERVISOR_REASON_AP_REPORTED_FAILURE,
         boot.error == 0 ? -EIO : -(int)boot.error, &fault, &cpu2);
       nxmutex_unlock(&priv->lock);
-      return;
+      return true;
     }
 
   /* A confirmed fault remains fail-closed until a new generation appears or
@@ -596,7 +714,7 @@ static void bk7258_ap_supervisor_monitor(void)
        priv->status.state == BK7258_AP_SUPERVISOR_LOCKOUT))
     {
       nxmutex_unlock(&priv->lock);
-      return;
+      return true;
     }
 
   /* AP startup can legitimately spend tens of seconds in the preserved N8
@@ -620,7 +738,7 @@ static void bk7258_ap_supervisor_monitor(void)
         }
 
       nxmutex_unlock(&priv->lock);
-      return;
+      return true;
     }
 
   if (!priv->ready_seen || priv->status.generation != boot.generation)
@@ -632,6 +750,8 @@ static void bk7258_ap_supervisor_monitor(void)
       priv->status.state = BK7258_AP_SUPERVISOR_ARMING;
       priv->status.reason = BK7258_AP_SUPERVISOR_REASON_NONE;
       priv->status.generation = boot.generation;
+      priv->healthy_tick = 0;
+      priv->status.healthy_age_ms = 0;
     }
 
   /* QUIESCING is a CP-authored lifecycle transition.  Disarm while apctl
@@ -648,10 +768,11 @@ static void bk7258_ap_supervisor_monitor(void)
       bk7258_ap_supervisor_disarm_locked(
         priv, boot.generation, BK7258_AP_SUPERVISOR_ARMING);
       nxmutex_unlock(&priv->lock);
-      return;
+      return true;
     }
 
-  valid = bk7258_ap_supervisor_shared_valid(&boot, &cpu2, &rptun);
+  valid = coherent &&
+          bk7258_ap_supervisor_shared_valid(&boot, &cpu2, &rptun);
   if (!valid ||
       cpu2.state != BK7258_CPU2_PROBE_STATE_SCHEDULER_ONLINE ||
       rptun.state != BK7258_RPTUN_STATE_CONNECTED)
@@ -686,7 +807,7 @@ static void bk7258_ap_supervisor_monitor(void)
       bk7258_ap_supervisor_invalid_locked(
         priv, now, boot.generation, reason, error, &fault, &cpu2);
       nxmutex_unlock(&priv->lock);
-      return;
+      return true;
     }
 
   priv->invalid_seen = false;
@@ -744,11 +865,10 @@ static void bk7258_ap_supervisor_monitor(void)
     {
       priv->status.last_error = -ETIMEDOUT;
     }
-  else if (!transport_active &&
-           ((priv->status.flags &
+  else if ((priv->status.flags &
             BK7258_AP_SUPERVISOR_FLAG_RPMSG_OK) == 0 ||
            (clock_t)(now - priv->last_probe_tick) >=
-             MSEC2TICK(CONFIG_BK7258_AP_HEALTH_PROBE_INTERVAL_MS)))
+             MSEC2TICK(CONFIG_BK7258_AP_HEALTH_PROBE_INTERVAL_MS))
     {
       priv->last_probe_tick = now;
       do_probe = true;
@@ -759,22 +879,39 @@ static void bk7258_ap_supervisor_monitor(void)
 
   if (!do_probe)
     {
-      return;
+      return true;
     }
 
   memset(&probe, 0, sizeof(probe));
+  probe_generation = boot.generation;
   ret = bk7258_rpmsg_health_probe(
-          boot.generation, CONFIG_BK7258_AP_HEALTH_PROBE_TIMEOUT_MS,
+          probe_generation, CONFIG_BK7258_AP_HEALTH_PROBE_TIMEOUT_MS,
           &probe);
+  coherent = bk7258_ap_supervisor_shared_snapshot(
+               &boot, &cpu2, &fault, &rptun);
   now = clock_systime_ticks();
+  if (!coherent)
+    {
+      if (nxmutex_lock(&priv->lock) >= 0)
+        {
+          bk7258_ap_supervisor_stale_locked(priv);
+          nxmutex_unlock(&priv->lock);
+          return true;
+        }
+      return false;
+    }
 
   if (nxmutex_lock(&priv->lock) < 0)
     {
-      return;
+      return false;
     }
 
   if (!priv->recovering && !priv->lifecycle && priv->armed &&
-      priv->status.generation == boot.generation &&
+      priv->status.generation == probe_generation &&
+      boot.generation == probe_generation &&
+      bk7258_ap_supervisor_shared_valid(&boot, &cpu2, &rptun) &&
+      cpu2.state == BK7258_CPU2_PROBE_STATE_SCHEDULER_ONLINE &&
+      rptun.state == BK7258_RPTUN_STATE_CONNECTED &&
       priv->status.state != BK7258_AP_SUPERVISOR_FAULTED &&
       priv->status.state != BK7258_AP_SUPERVISOR_LOCKOUT)
     {
@@ -786,13 +923,16 @@ static void bk7258_ap_supervisor_monitor(void)
         {
           priv->status.last_error = -ETIMEDOUT;
         }
-      else if (!transport_active && ret >= 0 &&
-               probe.generation == boot.generation)
+      else if (ret >= 0 && probe.generation == probe_generation)
         {
-          priv->transport_tick = now;
-          priv->status.transport_sequence = probe.sequence;
-          priv->status.flags |= BK7258_AP_SUPERVISOR_FLAG_RPMSG_READY |
-                                BK7258_AP_SUPERVISOR_FLAG_RPMSG_OK;
+          if (!transport_active)
+            {
+              priv->transport_tick = now;
+              priv->status.transport_sequence = probe.sequence;
+              priv->status.flags |= BK7258_AP_SUPERVISOR_FLAG_RPMSG_READY |
+                                    BK7258_AP_SUPERVISOR_FLAG_RPMSG_OK;
+            }
+
           priv->status.last_error = 0;
           priv->last_cp_rx = __atomic_load_n(
             (uint32_t *)(uintptr_t)&shared_rptun->cp_rx_sequence,
@@ -815,8 +955,13 @@ static void bk7258_ap_supervisor_monitor(void)
 
       bk7258_ap_supervisor_evaluate_locked(priv, now, &fault, &cpu2);
     }
+  else
+    {
+      bk7258_ap_supervisor_stale_locked(priv);
+    }
 
   nxmutex_unlock(&priv->lock);
+  return true;
 }
 
 static int bk7258_ap_supervisor_recover_internal(uint32_t timeout_ms,
@@ -869,6 +1014,8 @@ static int bk7258_ap_supervisor_recover_internal(uint32_t timeout_ms,
   priv->status.injection = BK7258_AP_SUPERVISOR_INJECT_NONE;
   priv->status.flags &= ~BK7258_AP_SUPERVISOR_FLAG_INJECTED;
   priv->status.state = BK7258_AP_SUPERVISOR_RECOVERING;
+  priv->healthy_tick = 0;
+  priv->status.healthy_age_ms = 0;
   nxmutex_unlock(&priv->lock);
 
   ret = bk7258_ap_restart(timeout_ms);
@@ -882,6 +1029,8 @@ static int bk7258_ap_supervisor_recover_internal(uint32_t timeout_ms,
   priv->armed = false;
   priv->ready_seen = false;
   priv->invalid_seen = false;
+  priv->healthy_tick = 0;
+  priv->status.healthy_age_ms = 0;
   if (ret >= 0)
     {
       priv->status.recovery_count++;
@@ -913,16 +1062,27 @@ static int bk7258_ap_supervisor_worker(int argc, char *argv[])
   for (;;)
     {
       bool recover = false;
+      bool sampled;
 
-      bk7258_ap_supervisor_monitor();
-#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
+      sampled = bk7258_ap_supervisor_monitor();
       if (nxmutex_lock(&priv->lock) >= 0)
         {
+#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
           recover = priv->auto_recover_pending && !priv->recovering;
           priv->auto_recover_pending = false;
+#endif
+          if (sampled)
+            {
+              priv->sample_tick = clock_systime_ticks();
+              if (++priv->status.sample_sequence == 0u)
+                {
+                  priv->status.sample_sequence++;
+                }
+            }
           nxmutex_unlock(&priv->lock);
         }
 
+#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
       if (recover)
         {
           (void)bk7258_ap_supervisor_recover_internal(
@@ -960,6 +1120,7 @@ int bk7258_ap_supervisor_initialize(void)
     }
 
   bk7258_ap_supervisor_status_initialize(priv);
+  priv->status.sample_age_ms = UINT32_MAX;
   priv->initialized = true;
   priv->worker = kthread_create(
     BK7258_AP_SUPERVISOR_NAME, CONFIG_BK7258_AP_SUPERVISOR_PRIORITY,
@@ -1003,7 +1164,69 @@ int bk7258_ap_supervisor_get_status(
     }
   else
     {
+      clock_t now = clock_systime_ticks();
+
       memcpy(status, &priv->status, sizeof(*status));
+      status->sample_age_ms = priv->sample_tick == 0 ? UINT32_MAX :
+        bk7258_ap_supervisor_age_ms(now, priv->sample_tick);
+      ret = OK;
+    }
+
+  nxmutex_unlock(&priv->lock);
+  return ret;
+}
+
+int bk7258_ap_supervisor_health_token(
+  uint32_t expected_generation, uint32_t max_age_ms,
+  struct bk7258_ap_supervisor_health_token_s *token)
+{
+  struct bk7258_ap_supervisor_s *priv = &g_bk7258_ap_supervisor;
+  const uint32_t required = BK7258_AP_SUPERVISOR_FLAG_ARMED |
+                            BK7258_AP_SUPERVISOR_FLAG_PRIMARY |
+                            BK7258_AP_SUPERVISOR_FLAG_SECONDARY |
+                            BK7258_AP_SUPERVISOR_FLAG_RPMSG_READY |
+                            BK7258_AP_SUPERVISOR_FLAG_RPMSG_OK;
+  uint32_t sample_age;
+  clock_t now;
+  int ret;
+
+  if (max_age_ms == 0u || token == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&priv->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  now = clock_systime_ticks();
+  sample_age = priv->sample_tick == 0 ? UINT32_MAX :
+    bk7258_ap_supervisor_age_ms(now, priv->sample_tick);
+  if (!priv->initialized || priv->worker < 0 ||
+      priv->status.generation == 0u)
+    {
+      ret = -EAGAIN;
+    }
+  else if (expected_generation != 0u &&
+           priv->status.generation != expected_generation)
+    {
+      ret = -ESTALE;
+    }
+  else if (priv->status.state != BK7258_AP_SUPERVISOR_HEALTHY ||
+           (priv->status.flags & required) != required ||
+           sample_age > max_age_ms)
+    {
+      ret = -EAGAIN;
+    }
+  else
+    {
+      token->generation = priv->status.generation;
+      token->sample_sequence = priv->status.sample_sequence;
+      token->flags = priv->status.flags;
+      token->healthy_age_ms = priv->status.healthy_age_ms;
+      token->sample_age_ms = sample_age;
       ret = OK;
     }
 
@@ -1116,6 +1339,8 @@ int bk7258_ap_supervisor_inject(uint32_t injection)
           priv->status.state = BK7258_AP_SUPERVISOR_ARMING;
           priv->status.reason = BK7258_AP_SUPERVISOR_REASON_NONE;
           priv->status.last_error = 0;
+          priv->healthy_tick = 0;
+          priv->status.healthy_age_ms = 0;
           ret = OK;
         }
     }

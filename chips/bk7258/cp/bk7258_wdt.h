@@ -48,6 +48,7 @@
 #ifdef CONFIG_BK7258_WDT
 int bk7258_wdt_initialize(void);
 int bk7258_wdt_service(void);
+void bk7258_wdt_force_system_reset(void) __attribute__((noreturn));
 void bk7258_wdt_pm_prepare(void);
 void bk7258_wdt_pm_restore(void);
 #ifdef CONFIG_BK7258_WDT_FAULT_INJECTION

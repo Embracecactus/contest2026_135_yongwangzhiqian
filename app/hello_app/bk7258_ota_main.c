@@ -8,6 +8,7 @@
 
 #include <nuttx/config.h>
 
+#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,10 +19,30 @@
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_rptun.h>
 
+static const char *bkota_pair_state(enum bk7258_ota_pair_state_e state)
+{
+  switch (state)
+    {
+      case BK7258_OTA_PAIR_PENDING:
+        return "pending";
+      case BK7258_OTA_PAIR_CONFIRMED:
+        return "confirmed";
+      default:
+        return "invalid";
+    }
+}
+
 static int bkota_status(void)
 {
   struct bk7258_ota_geometry_s geometry;
+  struct bk7258_ota_pair_snapshot_s pair;
   struct bk7258_ota_manager_status_s manager;
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  struct bk7258_ap_supervisor_status_s supervisor;
+#endif
+#ifdef CONFIG_BK7258_OTA_AUTO_CONFIRM
+  struct bk7258_ota_trial_status_s trial;
+#endif
   volatile struct bk7258_ap_boot_state_s *ap = bk7258_ap_boot_state();
   volatile struct bk7258_ap_fault_state_s *fault = bk7258_ap_fault_state();
   volatile struct bk7258_cpu2_probe_state_s *cpu2 =
@@ -41,6 +62,21 @@ static int bkota_status(void)
          geometry.inactive_slot == BK7258_BOOT_SLOT_PRIMARY ? 'A' : 'B',
          geometry.cp_raw_offset, geometry.cp_raw_size,
          geometry.ap_raw_offset, geometry.ap_raw_size);
+  ret = bk7258_ota_get_active_pair(&pair);
+  if (ret < 0)
+    {
+      printf("pair=invalid error=%d\n", ret);
+    }
+  else
+    {
+      printf("pair=%s version=%u.%u.%u+%lu counter=%lu\n",
+             bkota_pair_state(pair.state),
+             (unsigned int)pair.version.major,
+             (unsigned int)pair.version.minor,
+             (unsigned int)pair.version.revision,
+             (unsigned long)pair.version.build,
+             (unsigned long)pair.security_counter);
+    }
   printf("ap magic=%08" PRIx32 " version=%" PRIu32
          " state=%" PRIu32 " error=%" PRIu32
          " generation=%" PRIu32 " heartbeat=%" PRIu32 "\n",
@@ -84,11 +120,66 @@ static int bkota_status(void)
              (unsigned long)manager.total, (long)manager.last_error);
     }
 
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  ret = bk7258_ap_supervisor_get_status(&supervisor);
+  if (ret < 0)
+    {
+      printf("supervisor=unavailable error=%d\n", ret);
+    }
+  else
+    {
+      printf("supervisor state=%lu generation=%lu flags=%08lx "
+             "age=%lu/%lu/%lu healthy=%lu sample=%lu sequence=%lu "
+             "faults=%lu recoveries=%lu\n",
+             (unsigned long)supervisor.state,
+             (unsigned long)supervisor.generation,
+             (unsigned long)supervisor.flags,
+             (unsigned long)supervisor.primary_age_ms,
+             (unsigned long)supervisor.secondary_age_ms,
+             (unsigned long)supervisor.transport_age_ms,
+             (unsigned long)supervisor.healthy_age_ms,
+             (unsigned long)supervisor.sample_age_ms,
+             (unsigned long)supervisor.sample_sequence,
+             (unsigned long)supervisor.fault_count,
+             (unsigned long)supervisor.recovery_count);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_OTA_AUTO_CONFIRM
+  ret = bk7258_ota_trial_get_status(&trial);
+  if (ret < 0)
+    {
+      printf("trial=unavailable error=%d\n", ret);
+    }
+  else
+    {
+      printf("trial state=%lu slot=%lu version=%u.%u.%u+%lu counter=%lu "
+             "generation=%lu sample=%lu elapsed=%lu stable=%lu confirm=%lu "
+             "worker=%lu/%lu error=%ld\n",
+             (unsigned long)trial.state,
+             (unsigned long)trial.active_slot,
+             (unsigned int)trial.image_version.major,
+             (unsigned int)trial.image_version.minor,
+             (unsigned int)trial.image_version.revision,
+             (unsigned long)trial.image_version.build,
+             (unsigned long)trial.security_counter,
+             (unsigned long)trial.supervisor_generation,
+             (unsigned long)trial.sample_sequence,
+             (unsigned long)trial.elapsed_ms,
+             (unsigned long)trial.stable_age_ms,
+             (unsigned long)trial.confirm_age_ms,
+             (unsigned long)trial.policy_age_ms,
+             (unsigned long)trial.deadline_age_ms,
+             (long)trial.last_error);
+    }
+#endif
+
   return EXIT_SUCCESS;
 }
 
 int main(int argc, char *argv[])
 {
+  struct bk7258_ota_pair_snapshot_s pair;
   int ret;
 
   if (argc == 2 && strcmp(argv[1], "status") == 0)
@@ -98,7 +189,20 @@ int main(int argc, char *argv[])
 
   if (argc == 2 && strcmp(argv[1], "confirm") == 0)
     {
-      ret = bk7258_ota_confirm_pair();
+      ret = bk7258_ota_get_active_pair(&pair);
+      if (ret == 0 && pair.state == BK7258_OTA_PAIR_CONFIRMED)
+        {
+          printf("bkota: active CP/AP pair already confirmed\n");
+          return EXIT_SUCCESS;
+        }
+      if (ret == 0)
+        {
+          ret = bk7258_ota_confirm_pair(&pair);
+        }
+      if (ret == -EALREADY)
+        {
+          ret = 0;
+        }
       if (ret < 0)
         {
           fprintf(stderr, "bkota: pair confirm failed: %d\n", ret);
@@ -107,6 +211,13 @@ int main(int argc, char *argv[])
 
       printf("bkota: active CP/AP pair confirmed\n");
       return EXIT_SUCCESS;
+    }
+
+  if (argc == 2 && strcmp(argv[1], "reboot") == 0)
+    {
+      printf("bkota: rebooting through the CP whole-device watchdog\n");
+      fflush(stdout);
+      bk7258_ota_system_reset();
     }
 
   if (argc == 3 && strcmp(argv[1], "apply-file") == 0)
@@ -153,6 +264,6 @@ int main(int argc, char *argv[])
 
   fprintf(stderr, "usage: bkota status | bkota apply-file <AP-path> | "
                   "bkota apply-http <catalog-url> [AP-ca-path] | "
-                  "bkota cancel | bkota confirm\n");
+                  "bkota cancel | bkota confirm | bkota reboot\n");
   return EXIT_FAILURE;
 }

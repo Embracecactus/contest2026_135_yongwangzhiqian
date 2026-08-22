@@ -6,9 +6,9 @@
  *
  * N10 AP logical-CPU1 heartbeat publisher.  The physical CPU1/AP logical
  * CPU0 management loop already owns bk7258_ap_boot_state_s::heartbeat.  This
- * permanent task is pinned to logical CPU1 and advances the existing CPU2
- * probe heartbeat so CP can distinguish primary progress from secondary
- * scheduler progress without extending either shared-memory ABI.
+ * permanent task is pinned to logical CPU1 and advances a dedicated health
+ * heartbeat.  IPI diagnostics retain the original probe heartbeat and can no
+ * longer mask a stalled health task.
  ****************************************************************************/
 
 /****************************************************************************
@@ -70,8 +70,9 @@ static FAR void *bk7258_ap_health_worker(FAR void *arg)
           cpu2->generation == generation &&
           cpu2->state == BK7258_CPU2_PROBE_STATE_SCHEDULER_ONLINE)
         {
-          __atomic_fetch_add((uint32_t *)(uintptr_t)&cpu2->heartbeat, 1u,
-                             __ATOMIC_RELEASE);
+          __atomic_fetch_add(
+            (uint32_t *)(uintptr_t)&cpu2->heartbeat, 1u,
+            __ATOMIC_RELEASE);
         }
 
       nxsig_usleep((unsigned int)CONFIG_BK7258_AP_HEARTBEAT_PERIOD_MS *
@@ -111,8 +112,9 @@ int bk7258_ap_health_initialize(void)
       return -ESTALE;
     }
 
-  heartbeat = __atomic_load_n((uint32_t *)(uintptr_t)&cpu2->heartbeat,
-                              __ATOMIC_ACQUIRE);
+  heartbeat = __atomic_load_n(
+                (uint32_t *)(uintptr_t)&cpu2->heartbeat,
+                __ATOMIC_ACQUIRE);
   ret = pthread_attr_init(&attr);
   if (ret == 0)
     {
@@ -170,8 +172,9 @@ int bk7258_ap_health_initialize(void)
    */
 
   start = clock_systime_ticks();
-  while (__atomic_load_n((uint32_t *)(uintptr_t)&cpu2->heartbeat,
-                         __ATOMIC_ACQUIRE) == heartbeat)
+  while (__atomic_load_n(
+           (uint32_t *)(uintptr_t)&cpu2->heartbeat,
+           __ATOMIC_ACQUIRE) == heartbeat)
     {
       if ((clock_t)(clock_systime_ticks() - start) >=
           MSEC2TICK(BK7258_AP_HEALTH_START_TIMEOUT))
