@@ -27,6 +27,7 @@
 #include <debug.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/mutex.h>
 #include <nuttx/clock.h>
 #include <nuttx/irq.h>
 #include <nuttx/timers/watchdog.h>
@@ -87,6 +88,11 @@ extern void aon_pmu_drv_wdt_rst_dev_enable(void);
 struct bk7258_wdt_lowerhalf_s
 {
   struct watchdog_lowerhalf_s wdt_lh;  /* Must be first */
+  mutex_t lock;                        /* Serializes the two-key feed/start
+                                        * sequences against the second
+                                        * feeder context (automonitor vs
+                                        * client ioctl); the SDK assumes a
+                                        * single feeder owner. */
   xcpt_t handler;                      /* Pre-expiry capture callback */
   struct work_s work;                  /* Deferred capture notification */
   uint32_t timeout;                    /* Current timeout in ms */
@@ -390,28 +396,46 @@ static int bk7258_wdt_start(struct watchdog_lowerhalf_s *lower)
 {
   struct bk7258_wdt_lowerhalf_s *priv =
     (struct bk7258_wdt_lowerhalf_s *)lower;
+  int ret = OK;
+
+  if (nxmutex_lock(&priv->lock) < 0)
+    {
+      return -EINVAL;
+    }
 
   if (bk7258_wdt_sdk_start(priv->timeout) != BK_OK)
     {
       wderr("ERROR: bk_wdt_start failed\n");
-      return -EIO;
+      ret = -EIO;
+    }
+  else
+    {
+      priv->last_feed = clock_systime_ticks();
+      priv->started = true;
+      bk7258_wdt_flag_stamp();
+      wdinfo("started, timeout=%" PRIu32 " ms\n", priv->timeout);
     }
 
   bk7258_wdt_pretimeout_arm(priv->timeout);
-  priv->started = true;
-  bk7258_wdt_flag_stamp();
-  wdinfo("started, timeout=%" PRIu32 " ms\n", priv->timeout);
-  return OK;
+  nxmutex_unlock(&priv->lock);
+  return ret;
 }
 
 static int bk7258_wdt_stop(struct watchdog_lowerhalf_s *lower)
 {
   struct bk7258_wdt_lowerhalf_s *priv =
     (struct bk7258_wdt_lowerhalf_s *)lower;
+  int ret = OK;
+
+  if (nxmutex_lock(&priv->lock) < 0)
+    {
+      return -EINVAL;
+    }
 
   if (bk7258_wdt_sdk_stop() != BK_OK)
     {
       wderr("ERROR: bk_wdt_stop failed\n");
+      nxmutex_unlock(&priv->lock);
       return -EIO;
     }
 
@@ -427,11 +451,14 @@ static int bk7258_wdt_stop(struct watchdog_lowerhalf_s *lower)
   if (bk7258_wdt_sdk_aon_stop() != BK_OK)
     {
       wderr("ERROR: bk_aon_wdt_stop failed\n");
+      nxmutex_unlock(&priv->lock);
       return -EIO;
     }
 
+  priv->last_feed = 0;
   wdinfo("stopped\n");
-  return OK;
+  nxmutex_unlock(&priv->lock);
+  return ret;
 }
 
 static int bk7258_wdt_keepalive(struct watchdog_lowerhalf_s *lower)
@@ -439,8 +466,19 @@ static int bk7258_wdt_keepalive(struct watchdog_lowerhalf_s *lower)
   struct bk7258_wdt_lowerhalf_s *priv =
     (struct bk7258_wdt_lowerhalf_s *)lower;
 
-  if (bk_wdt_feed() != BK_OK)
+  if (nxmutex_lock(&priv->lock) < 0)
     {
+      return -EINVAL;
+    }
+
+  /* The SDK feed performs a two-key register sequence; concurrent access
+   * from a second feeder context can corrupt one attempt, and a lost feed
+   * cascades into starvation because later key writes stay unbalanced.
+   * Retry once before reporting failure. */
+
+  if (bk_wdt_feed() != BK_OK && bk_wdt_feed() != BK_OK)
+    {
+      nxmutex_unlock(&priv->lock);
       return -EIO;
     }
 
@@ -451,6 +489,7 @@ static int bk7258_wdt_keepalive(struct watchdog_lowerhalf_s *lower)
 
   priv->last_feed = clock_systime_ticks();
   bk7258_wdt_pretimeout_arm(priv->timeout);
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 
@@ -461,6 +500,11 @@ static int bk7258_wdt_getstatus(struct watchdog_lowerhalf_s *lower,
     (struct bk7258_wdt_lowerhalf_s *)lower;
 
   if (status == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (nxmutex_lock(&priv->lock) < 0)
     {
       return -EINVAL;
     }
@@ -495,6 +539,7 @@ static int bk7258_wdt_getstatus(struct watchdog_lowerhalf_s *lower,
       status->timeleft = priv->timeout;
     }
 
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 
@@ -504,9 +549,16 @@ static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
   struct bk7258_wdt_lowerhalf_s *priv =
     (struct bk7258_wdt_lowerhalf_s *)lower;
   uint32_t previous;
+  int ret = OK;
+
+  if (nxmutex_lock(&priv->lock) < 0)
+    {
+      return -EINVAL;
+    }
 
   if (timeout == 0)
     {
+      nxmutex_unlock(&priv->lock);
       return -EINVAL;
     }
 
@@ -563,10 +615,17 @@ int bk7258_wdt_initialize(void)
   struct bk7258_wdt_lowerhalf_s *priv = &g_bk7258_wdt;
   void *handle;
   bk_err_t err;
+  int ret;
 
   if (s_inited)
     {
       return OK;
+    }
+
+  ret = nxmutex_init(&priv->lock);
+  if (ret < 0)
+    {
+      return ret;
     }
 
   /* Initialize the SDK WDT state, then stop its TIMER_ID2 feeder.  NuttX
