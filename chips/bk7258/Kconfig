@@ -1224,6 +1224,24 @@ config BK7258_WDT
 		watchdog.  Mirrors the Armino SDK WDT BSP
 		(bk_wdt_driver_init / bk_wdt_start / bk_wdt_feed path).
 
+config BK7258_WDT_PRETIMEOUT_PANIC
+	bool "Panic with context ahead of the watchdog hardware reset"
+	default n
+	depends on BK7258_WDT
+	---help---
+		The BK7258 SDK exposes no pre-timeout interrupt, so arm a NuttX
+		software timer shortly before the hardware expiry.  The handler
+		prints panic context and routes the reset through the AON
+		watchdog so the recorded reset reason stays in the WDT family.
+		A hard irq-disabled spin still resets through plain hardware and
+		reports SYS_RWDT without the console dump.
+
+config BK7258_WDT_PRETIMEOUT_MARGIN_MS
+	int "Pre-timeout margin before the hardware expiry (milliseconds)"
+	default 500
+	range 100 2000
+	depends on BK7258_WDT_PRETIMEOUT_PANIC
+
 config BK7258_IRDA
 	bool "IrDA NEC receiver character device"
 	default n

@@ -330,16 +330,21 @@ static int bk7258_timer_getstatus(FAR struct timer_lowerhalf_s *lower,
        * the sum remains continuous throughout the ISR loop.
        */
 
+      /* Readers like udelay_accurate() spin here at kHz rates while the
+       * hard-IRQ trampoline may still be pending behind LPWORK load.  A
+       * transient overflow must degrade the reported phase, not reset the
+       * platform: clamp instead of panicking. */
+
       if (priv->pending_phase_bias_us >= BK7258_SYSTICK_TIMEOUT_US)
         {
-          PANIC();
+          priv->pending_phase_bias_us = BK7258_SYSTICK_TIMEOUT_US - 1u;
         }
 
       timeout_us = ((uint64_t)priv->compensation_ticks + 1u) *
                    BK7258_SYSTICK_TIMEOUT_US;
       if (timeout_us > UINT32_MAX)
         {
-          PANIC();
+          timeout_us = UINT32_MAX;
         }
 
       status->flags |= TCFLAGS_ACTIVE | TCFLAGS_HANDLER;

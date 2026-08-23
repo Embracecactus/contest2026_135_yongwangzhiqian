@@ -48,6 +48,24 @@
 #  include <arch/chip/bk7258_temperature.h>
 #endif
 
+#ifdef CONFIG_BOARDCTL_RESET_CAUSE
+#  include <string.h>
+#  include <sys/boardctl.h>
+#  include <components/system.h>
+
+/* The NuttX port never runs the SDK component framework, so
+ * reset_reason_init()/s_start_type stay uninitialized and
+ * bk_misc_get_reset_reason() would always report POWERON.  Two sources are
+ * used instead:
+ *
+ * - CONFIG_BK7258_WDT pre-timeout handler records the death cause in a
+ *   reserved flash sector before letting the hardware expire (BK7258 keeps
+ *   no readable hardware status for a plain APB watchdog expiry);
+ * - other warm-reset routes record their reason in AON PMU R7A[4:11].
+ */
+
+#endif
+
 #ifdef CONFIG_BK7258_AP_CONTROL
 #  include <arch/chip/bk7258_image_layout.h>
 #  include <arch/chip/bk7258_amp.h>
@@ -509,3 +527,70 @@ int bk7258_platform_initialize(void)
   nxmutex_unlock(&g_bk7258_platform_lock);
   return g_bk7258_platform_result;
 }
+
+/****************************************************************************
+ * Name: board_reset_cause
+ *
+ * Description:
+ *   Map the BK7258 recorded reset source to the NuttX boardioc reset cause.
+ *   The xTS watchdog cases require the previous reset to report
+ *   BOARDIOC_RESETCAUSE_SYS_CHIPPOR after power-on and
+ *   BOARDIOC_RESETCAUSE_SYS_RWDT after a watchdog reset.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARDCTL_RESET_CAUSE
+
+int board_reset_cause(FAR struct boardioc_reset_cause_s *cause)
+{
+  volatile uint32_t *r7a = (volatile uint32_t *)(0x44000000u + (0x7Au << 2));
+  uint32_t reason;
+  bool from_flag = false;
+
+  if (cause == NULL)
+    {
+      return -EINVAL;
+    }
+
+  memset(cause, 0, sizeof(*cause));
+  reason = (*r7a >> 4) & 0xffu;
+
+#if defined(CONFIG_BK7258_WDT)
+  /* The WDT pre-timeout flash flag wins over the PMU latch. */
+
+  int taken = bk7258_wdt_take_pending_reset_cause(&reason);
+
+  syslog(LOG_INFO, "reset-cause flag probe taken=%d\n", taken);
+  if (taken)
+    {
+      from_flag = true;
+    }
+#endif
+
+  UNUSED(r7a);
+  switch (reason)
+    {
+      case RESET_SOURCE_POWERON:
+        cause->cause = BOARDIOC_RESETCAUSE_SYS_CHIPPOR;
+        break;
+
+      case RESET_SOURCE_WATCHDOG:
+      case RESET_SOURCE_NMI_WDT:
+        cause->cause = BOARDIOC_RESETCAUSE_SYS_RWDT;
+        break;
+
+      case RESET_SOURCE_REBOOT:
+        cause->cause = BOARDIOC_RESETCAUSE_CORE_SOFT;
+        break;
+
+      default:
+        cause->cause = BOARDIOC_RESETCAUSE_NONE;
+        break;
+    }
+
+  syslog(LOG_INFO, "reset cause raw=%" PRIu32 " mapped=%d flag=%d\n",
+         reason, (int)cause->cause, (int)from_flag);
+  return OK;
+}
+
+#endif /* CONFIG_BOARDCTL_RESET_CAUSE */

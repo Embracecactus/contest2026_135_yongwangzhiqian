@@ -69,6 +69,7 @@
 
 #include "chip.h"
 #include "arm_internal.h"
+#include <components/system.h>
 #include <arch/chip/bk7258_console.h>
 #include "ram_vectors.h"
 #include "nvic.h"
@@ -398,6 +399,18 @@ uint32_t *__wrap_arm_doirq(int irq, uint32_t *regs)
  * debugger-readable at 0x2809f100.
  */
 
+/* The APB watchdog raises its expiry as an NMI (unmaskable - it fires even
+ * under cpsid i, which is exactly what the xTS -r 1 case requires).  Treat
+ * NMI as the watchdog bark: record the cause, emit the same debugger-
+ * readable dump, then force the AON whole-device reset instead of parking.
+ * Genuine HardFault/MemManage/etc. keep the parked-for-inspection path. */
+
+extern void bk_misc_set_reset_reason(uint32_t type);
+extern void bk7258_wdt_force_system_reset(void)
+  __attribute__((noreturn));
+
+#define BK7258_EXC_NMI 2u
+
 static void __attribute__((noinline, noreturn, used))
 bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
                      uint32_t exception)
@@ -483,6 +496,20 @@ bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
   bk7258_fault_putfield('Q', stacked_xpsr);
   bk7258_fault_putc('\r');
   bk7258_fault_putc('\n');
+
+  if (exception == BK7258_EXC_NMI)
+    {
+      /* Watchdog bark: record the xTS-required cause and finish with the
+       * documented whole-device reset rather than an inspection park. */
+
+      bk_misc_set_reset_reason(RESET_SOURCE_NMI_WDT);
+
+      /* Both hardware watchdogs are closed by the CP reset entry, so arm
+       * the AON route explicitly here - reuse the proven force-reset
+       * sequence rather than waiting for a dog that is not running. */
+
+      bk7258_wdt_force_system_reset();
+    }
 
   for (; ; )
     {
