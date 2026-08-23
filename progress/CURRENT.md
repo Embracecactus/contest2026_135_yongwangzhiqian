@@ -86,9 +86,20 @@ success path (pending -> automatic confirmed) and AON-reset retention.
 
 ## Exact next action
 
-Owner decision: commit and publish the reviewed branch, or continue platform
-scope.  The working tree is the hardware-accepted state; do not rebase onto a
-moving upstream without a fresh clean build.
+xTS general suite (chip layer) COMPLETE 2026-08-23: ten kernel/console
+cases PASS; watchdog -r0/-r1/-r2/-r3 ALL PASS on T5Board including the
+unmaskable NMI bark for -r1 (irq-off spin) and flash-flag cause reporting
+across warm resets (usr_config tail sector 0x509000, SDK-writable).
+NMI = watchdog bark is now handled in vectors: record NMI_WDT + dump +
+whole-device reset (matches SDK user_nmi_handler).  -r3 summary print is
+structurally truncated by the intentional no-feed spin on single core.
+See progress/verification/2026-08-23-bk7258-cp-xts-general.md.
+Working tree adds: cp_xts profile, WDT pre-timeout/flag code,
+board_reset_cause (direct AON PMU R7A read), AP-hold in CP start.
+Trust root rotated to t5board-20260823-rotation keys (persistent under
+~/.local/share/bk7258/trust); on-chip BL1/BL2 roots match since v1.13 full
+package c91e22a30f44afb8c381ebce31fcf9f83311e87814c12ae0e304b302003d7c2d.
+Board currently runs signed xts 1.24.0+25 counter 25 confirmed.
 
 ## Remaining platform scope
 
