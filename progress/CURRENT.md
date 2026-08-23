@@ -99,7 +99,13 @@ board_reset_cause (direct AON PMU R7A read), AP-hold in CP start.
 Trust root rotated to t5board-20260823-rotation keys (persistent under
 ~/.local/share/bk7258/trust); on-chip BL1/BL2 roots match since v1.13 full
 package c91e22a30f44afb8c381ebce31fcf9f83311e87814c12ae0e304b302003d7c2d.
-Board currently runs signed xts 1.24.0+25 counter 25 confirmed.
+Board currently runs signed xts v1.42.0+43 counter 43 confirmed
+(mutex-serialized feed, capture via LPWORK, clamped phase bias).
+Follow-up phases documented: ap_xts profile (RTC/timer/RNG AP-side
+drivers), GPIO jumper + UART loopback physical cases, /data partition
+gap for vela_fs/KVDB category tests, performance x10 timing tooling,
+12 h soak.  Trust root persistent under ~/.local/share/bk7258/trust;
+CLA signed as 15588296118@163.com; upstream merged through 4a5dd11.
 
 ## Remaining platform scope
 
