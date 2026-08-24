@@ -1,95 +1,63 @@
 # Current Progress
 
-Last updated: 2026-08-24
+Last updated: 2026-08-25
 Updated by: Codex
 
 ## Objective
 
 Run the official openvela Agent on the T5Board AP with LCD, GT1151 touch,
-microphone and AP networking, while CP retains OTA/platform NSH.
+microphone, speaker and AP networking, while CP retains OTA/platform NSH.
 
 ## Current state
 
-- Branch: `feat/bk7258-openvela-agent-ap`, created directly from
-  `origin/dev-ai-contest-2026@912d6aad8094` for clean PR lineage.
-- Contest changes are committed and published to the configured fork on this
-  feature branch; unrelated untracked logs remain excluded.
-- Local `app/vela_claw` is retired and its manifest/Kconfig/launch hooks are
-  removed.  The historical AP config-directory name remains unchanged.
-- Official `packages/ai_agent` is enabled on AP.  UART1 is disabled and the
-  board switch selects J-Link SWD.
-- CP WDT build/config regressions found during recovery are fixed.
-- NuttX `drivers/input/gt9xx.c` has a separate working-tree change for the
-  generic touchscreen ABI and nonblocking read behavior.  It is not part of
-  this contest-repository publication under the official-source boundary.
+- PR #76 is merged in `origin/dev-ai-contest-2026`.  The follow-up branch
+  `fix/bk7258-openvela-agent-audio` remains directly based on that branch.
+- The BK7258 chip layer now supplies the official Agent's `media_recorder_*`
+  and PCM buffer-mode `media_player_*` ABIs over the public NuttX audio
+  upper-half.  The profile still does not enable the full media framework.
+- The microphone lower-half now verifies the pinned SDK DMA programming,
+  retries through the SDK API when it is incomplete, and delivers real PCM
+  through ADC/DMA/IRQ.  ADC and DAC sessions share an explicit chip-layer
+  ownership guard.
+- Recorder close treats every nonnegative `AUDIOIOC_FREEBUFFER` return as
+  success.  This releases all buffers, the message queue and the file
+  descriptor, so repeated PTT sessions no longer fail with `-EACCES`.
+- The Agent uses a separate on-chip persistent partition CSV.  The base
+  partition layout remains unchanged.  CP owns the persistent volume at
+  `/data`; AP mounts it through RPMsgFS at `/cpdata`.
+- UIKit loads the provisioned MiSans resource from `/cpdata/font`, and the
+  Agent data directory is `/cpdata/agent`.
+- The compact 320x480 PTT/UI lifecycle change is in the separate
+  `packages/ai_agent` repository and must be published as a companion PR.
+- The separate NuttX GT9XX working-tree change remains outside this contest
+  repository publication.
 
-## Hardware checkpoint
+## Hardware acceptance
 
-- Board runs signed full package `1.68.0+69`, counter 69, with the temporary
-  microphone lifecycle option disabled again.
-- Package SHA-256:
-  `d0fba5dec040a95fa80be8074def2d3041c87f6c5f1064231d79797a2302fe55`.
+- Clean CP/AP/BL2/BL1 build: PASS.
+- Signed full package: `1.75.0+80`; SHA-256
+  `17e22736729d05081a950ee3eee8492b3765e087d07693f30e9a98b713f00f20`.
 - Package structure and public BL1/BL2/CP/AP trust verification: PASS.
-- BKFIL eight-segment write: PASS.
-- AP is READY with no fault.  Official Agent PID 25 reached launch stage 5.
-- Generic LVGL and UIKit are running and the framebuffer is scanned out, but
-  owner photos show CJK text as missing-glyph boxes; UI functional acceptance:
-  FAIL.
-- Owner physical touchscreen check: PASS.
-- PTT click dispatch reaches the Agent voice callback, but recording startup
-  fails before PCM capture; the button therefore remains blue.
-- AP PSRAM contributes a 320 KiB NuttX system-heap region; the Agent profile
-  uses one RGB565 framebuffer.  The driver retains generic two-page support.
-- TF configuration is one-bit, inserted-before-boot, no card-detect.
-- Microphone `/dev/audio/pcm0c` is enabled at 16 kHz.
+- Nine-segment full flash, including the Agent data partition: PASS.
+- AP READY with error zero; official Agent and LVGL UI running.
+- Full MiSans resource provisioned; Chinese text and the compact official
+  dark UI render correctly.  Idle PTT is blue and active PTT is red without
+  disappearing.
+- Owner completed three consecutive PTT start/stop rounds.  Recorder start,
+  worker exit and close counts were all 3; captured byte counts were 216320,
+  184960 and 229120.  There was no incomplete close, enqueue `-13`, or
+  `voice_channel_start` failure.
+- Final framebuffer returned to the blue `请说` state and showed three
+  `未识别到语音` results.  ASR returned `-2` because credentials are not yet
+  configured; this is no longer a microphone/PTT transport failure.
 
-## Root causes closed
+## Remaining work
 
-- Stale adjacent package extraction caused an old image to be reflashed.
-- PRETIMEOUT/reset-cause incremental-build residue caused the original CP
-  HardFault; the failure was not Agent image overflow.
-- BK7258 framebuffer erased the requested display page in `getplaneinfo()`.
-- GT9XX lacked `TSIOC_GETMAXPOINTS` and performed I2C on idle nonblocking
-  reads.
-- Two full framebuffers exhausted AP PSRAM available for Agent stacks.
-- LVGL scheduling initially starved Agent workers.
-- UIKit was not initialized before Agent CJK font creation.
-- TF profile incorrectly enabled unavailable card-detect.
-
-## Active blocker
-
-- The Agent microphone path cannot currently open a capture backend.  This
-  profile has both `CONFIG_MEDIA` and `CONFIG_AI_AGENT_AUDIO_ALSA_DIRECT`
-  disabled, so `audio_capture_open()` falls through to the weak
-  `media_recorder_open()` stub, which always returns `NULL`.  The registered
-  `/dev/audio/pcm0c` device is not reached by the Agent flow.
-- The UI is configured for a 466x466 round display although this board is
-  320x480.  It requests `/data/font/MiSans-Medium.ttf`, but no verified font
-  resource or `/data` provisioning exists; UIKit silently falls back to
-  Montserrat, which has no CJK glyphs.  Repeated six-box rows in the owner
-  photo are repeated `录音启动失败` messages, not valid text rendering.
-- A source-free diagnostic AP build using the existing bounded microphone
-  lifecycle test was signed and flashed as v1.67 through COM3.  The test
-  reached RECEIVE but timed out (`-ETIMEDOUT`) with two channels, zero
-  completed buffers, zero samples and zero energy.  The NuttX lower-half
-  therefore also has an unresolved ADC/DMA/IRQ data-path failure.
-- The temporary diagnostic image was replaced by signed production-config
-  v1.68 through the same eight-segment path.  AP is READY with no fault; the
-  diagnostic option and symbol are absent.  No OpenVela/Agent source was
-  changed for this investigation.
-
-## Next actions
-
-1. Without modifying OpenVela source in this task, prepare the required
-   upstream fixes and gates: repair MIC ADC/DMA/IRQ completion, add a real
-   Agent NuttX capture backend, derive layout from 320x480, and make missing
-   CJK resources an explicit failure or readable fallback.
-2. Require future acceptance to prove nonzero microphone buffers/samples/
-   energy and readable glyphs; device registration or framebuffer pixels are
-   insufficient.
+1. Publish the companion `packages/ai_agent` compact-display PTT/UI change.
+2. Configure approved ASR/LLM credentials and complete one real dialog.
 3. Verify TF mount/read/write.
-4. Configure an LLM through an approved UI/control path and run one dialog.
-5. Resume remaining xTS, loopback, `/data`, performance and soak phases.
+4. Complete remaining xTS, loopback, performance and soak phases.
+5. Keep the NuttX GT9XX generic ABI fix in its own upstream change.
 
 ## References
 

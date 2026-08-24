@@ -23,5 +23,13 @@ Date: 2026-08-24
 - Large Agent task stacks use a reserved 320 KiB AP PSRAM system-heap region.
 - The memory-constrained Agent profile uses one RGB565 framebuffer; the
   BK7258 driver still supports and has exercised the generic two-page ABI.
+- The Agent uses a dedicated partition CSV instead of changing the base board
+  layout.  The CSV remains the single source of truth for partition addresses
+  and sizes and must be selected explicitly when building the Agent package.
+- CP owns the on-chip persistent filesystem at `/data`; AP consumes it through
+  RPMsgFS at `/cpdata`.  Fonts and other Agent resources are provisioned there
+  without moving the immutable factory/calibration tail.
+- The board chip layer supplies narrow recorder and PCM-player ABI bridges
+  over NuttX audio while the full media framework remains disabled.
 - Local Vela Claw source/config/manifest hooks are removed rather than kept as
   a second application architecture.
