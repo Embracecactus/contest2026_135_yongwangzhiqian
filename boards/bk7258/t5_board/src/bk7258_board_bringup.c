@@ -13,8 +13,18 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
+#include <sched.h>
+#include <stdbool.h>
+#include <unistd.h>
 
 #include <debug.h>
+
+#if defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
+    defined(CONFIG_AI_AGENT_LVGL_UI)
+#  include <nuttx/semaphore.h>
+#  include <lvgl/lvgl.h>
+#  include <uikit/uikit.h>
+#endif
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_board_binding.h>
@@ -179,6 +189,120 @@ static const struct bk7258_gpio_config_s g_bk7258_t5_board_gpio_config =
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+#if defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
+    defined(CONFIG_AI_AGENT_LVGL_UI)
+
+#define T5_LVGL_TASK_PRIORITY  45
+#define T5_LVGL_TASK_STACKSIZE 32768
+
+static sem_t g_t5_lvgl_ready = SEM_INITIALIZER(0);
+static int g_t5_lvgl_status = -EINPROGRESS;
+static bool g_t5_lvgl_started;
+volatile uint32_t g_t5_lvgl_iterations;
+volatile uint32_t g_t5_lvgl_last_idle;
+volatile int g_t5_lvgl_last_sleep;
+
+static int bk7258_t5_board_lvgl_loop(int argc, FAR char *argv[])
+{
+  lv_nuttx_dsc_t descriptor;
+  lv_nuttx_result_t result = {0};
+  uint32_t idle;
+
+  (void)argc;
+  (void)argv;
+
+  if (lv_is_initialized())
+    {
+      g_t5_lvgl_status = -EBUSY;
+      nxsem_post(&g_t5_lvgl_ready);
+      return 1;
+    }
+
+  lv_init();
+  lv_nuttx_dsc_init(&descriptor);
+  lv_nuttx_init(&descriptor, &result);
+
+  if (result.disp == NULL || result.indev == NULL)
+    {
+      g_t5_lvgl_status = -ENODEV;
+      nxsem_post(&g_t5_lvgl_ready);
+      lv_nuttx_deinit(&result);
+      lv_deinit();
+      return 1;
+    }
+
+  /* UIKit stores its font manager in LVGL's external global context.  The
+   * official initialization order is lv_init(), lv_nuttx_init(), vg_init().
+   * Agent UI creates its CJK font later from this same event-loop task.
+   */
+
+  vg_init();
+
+  g_t5_lvgl_status = OK;
+  nxsem_post(&g_t5_lvgl_ready);
+
+  for (; ; )
+    {
+      idle = lv_timer_handler();
+      if (idle > 20u)
+        {
+          idle = 20u;
+        }
+
+      g_t5_lvgl_last_idle = idle;
+      g_t5_lvgl_iterations++;
+      g_t5_lvgl_last_sleep = usleep((idle > 0 ? idle : 1u) * 1000u);
+    }
+
+  return 0;
+}
+
+int bk7258_board_lvgl_initialize(void)
+{
+  pid_t pid;
+
+  if (g_t5_lvgl_started)
+    {
+      return g_t5_lvgl_status == -EINPROGRESS ? OK : g_t5_lvgl_status;
+    }
+
+  g_t5_lvgl_started = true;
+  pid = task_create("t5-lvgl", T5_LVGL_TASK_PRIORITY,
+                    T5_LVGL_TASK_STACKSIZE,
+                    bk7258_t5_board_lvgl_loop, NULL);
+  if (pid < 0)
+    {
+      g_t5_lvgl_started = false;
+      g_t5_lvgl_status = (int)pid;
+      return (int)pid;
+    }
+
+  return OK;
+}
+
+int bk7258_board_lvgl_wait_ready(void)
+{
+  int ret;
+
+  if (!g_t5_lvgl_started)
+    {
+      return -EAGAIN;
+    }
+
+  if (g_t5_lvgl_status == -EINPROGRESS)
+    {
+      ret = nxsem_wait_uninterruptible(&g_t5_lvgl_ready);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
+  return g_t5_lvgl_status;
+}
+
+#endif
 
 FAR const struct bk7258_gpio_config_s *bk7258_board_gpio_config(void)
 {

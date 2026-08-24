@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include <nuttx/mm/mm.h>
+#include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
 #include <nuttx/spinlock.h>
 
@@ -144,6 +145,8 @@ struct bk7258_psram_test_context_s
  ****************************************************************************/
 
 static struct mm_heap_s *g_bk7258_psram_heap;
+static void *g_bk7258_psram_system_heap;
+static size_t g_bk7258_psram_system_heap_size;
 static spinlock_t g_bk7258_psram_lock = SP_UNLOCKED;
 static struct bk7258_psram_info_s g_bk7258_psram_info;
 #ifdef CONFIG_BK7258_PSRAM_MEDIA
@@ -872,6 +875,38 @@ void bk7258_psram_free(void *ptr)
       mm_free(g_bk7258_psram_heap, ptr);
       spin_unlock_irqrestore(&g_bk7258_psram_lock, flags);
     }
+}
+
+int bk7258_psram_add_system_heap(size_t size)
+{
+  void *memory;
+
+  if (!bk7258_psram_ready() || size == 0)
+    {
+      return -EINVAL;
+    }
+
+  if (g_bk7258_psram_system_heap != NULL)
+    {
+      return g_bk7258_psram_system_heap_size == size ? OK : -EALREADY;
+    }
+
+  memory = bk7258_psram_malloc(size);
+  if (memory == NULL)
+    {
+      return -ENOMEM;
+    }
+
+  /* The private PSRAM heap keeps the enclosing block allocated permanently.
+   * NuttX may then safely manage allocations inside it as a second region;
+   * the two allocators never see overlapping free space.  The NuttX heap
+   * control block and lock remain in exclusive-store-capable internal SRAM.
+   */
+
+  kumm_addregion(memory, size);
+  g_bk7258_psram_system_heap = memory;
+  g_bk7258_psram_system_heap_size = size;
+  return OK;
 }
 
 #ifdef CONFIG_BK7258_PSRAM_MEDIA

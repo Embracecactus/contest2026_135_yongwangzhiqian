@@ -17,6 +17,7 @@
 #include <sched.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <syslog.h>
 
 #include <nuttx/kmalloc.h>
@@ -60,8 +61,104 @@
 
 extern const void *const _vectors[80];
 
-#ifdef CONFIG_BK7258_APP_VELA_CLAW
-extern int vela_claw_main(int argc, char *argv[]);
+#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
+extern int ai_agent_main(int argc, char *argv[]);
+volatile int g_bk7258_agent_pid = -1;
+volatile int g_bk7258_agent_launch_pid = -1;
+volatile int g_bk7258_agent_launch_errno;
+volatile uint32_t g_bk7258_agent_launch_stage;
+#  ifdef CONFIG_AI_AGENT_LVGL_UI
+extern int bk7258_board_lvgl_initialize(void);
+extern int bk7258_board_lvgl_wait_ready(void);
+extern void lvgl_ui_channel_show(void);
+volatile uint32_t g_bk7258_agent_ui_show_attempts;
+
+static int bk7258_agent_ui_show_task(int argc, FAR char *argv[])
+{
+  unsigned int attempt;
+
+  (void)argc;
+  (void)argv;
+
+  /* Agent phase-3 initializes the widgets and phase-5 marks the LVGL channel
+   * running.  Do not assume that both phases complete within a fixed two
+   * second window: a one-shot request made too early leaves the generic LVGL
+   * root screen visible forever.  show() is idempotent after the chat screen
+   * becomes visible, so retry for a bounded startup window.
+   */
+
+  for (attempt = 0; attempt < 30; attempt++)
+    {
+      nxsig_usleep(1000000u);
+      g_bk7258_agent_ui_show_attempts = attempt + 1u;
+      lvgl_ui_channel_show();
+    }
+
+  return 0;
+}
+#  endif
+
+static int bk7258_agent_launch_task(int argc, FAR char *argv[])
+{
+  pid_t agentpid;
+#  ifdef CONFIG_AI_AGENT_LVGL_UI
+  pid_t showpid;
+  int ret;
+#  endif
+
+  (void)argc;
+  (void)argv;
+  g_bk7258_agent_launch_stage = 2u;
+
+#  ifdef CONFIG_AI_AGENT_LVGL_UI
+  ret = bk7258_board_lvgl_wait_ready();
+  if (ret < 0)
+    {
+      g_bk7258_agent_launch_stage = 0x82u;
+      syslog(LOG_ERR, "bk7258: Agent LVGL wait failed: %d\n", ret);
+      g_bk7258_agent_pid = ret;
+      return 1;
+    }
+#  endif
+
+  g_bk7258_agent_launch_stage = 3u;
+
+  if (mkdir("/data", 0755) < 0 && errno != EEXIST)
+    {
+      syslog(LOG_ERR, "bk7258: Agent data mountpoint failed: %d\n", errno);
+    }
+
+  agentpid = task_create("ai_agent",
+                         CONFIG_EXAMPLES_AI_AGENT_VELA_PRIORITY,
+                         CONFIG_EXAMPLES_AI_AGENT_VELA_STACKSIZE,
+                         (main_t)ai_agent_main,
+                         NULL);
+  g_bk7258_agent_launch_errno = agentpid < 0 ? errno : 0;
+  g_bk7258_agent_pid = (int)agentpid;
+  g_bk7258_agent_launch_stage = agentpid < 0 ? 0x84u : 4u;
+  if (agentpid < 0)
+    {
+      syslog(LOG_ERR, "bk7258: official Agent launch failed: %d\n",
+             (int)agentpid);
+      return 1;
+    }
+
+#  ifdef CONFIG_AI_AGENT_LVGL_UI
+  showpid = task_create("agent-ui-show", 90, 2048,
+                        bk7258_agent_ui_show_task, NULL);
+  if (showpid < 0)
+    {
+      syslog(LOG_ERR, "bk7258: Agent UI show task failed: %d\n",
+             (int)showpid);
+    }
+  else
+    {
+      g_bk7258_agent_launch_stage = 5u;
+    }
+#  endif
+
+  return 0;
+}
 #endif
 
 /****************************************************************************
@@ -421,6 +518,9 @@ int bk7258_ap_main(int argc, char *argv[])
 #ifdef BK7258_AP_STARTUP_FREQ_VOTE
   bool pm_startup_vote = false;
 #endif
+#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
+  bool agent_ready = true;
+#endif
   uint32_t event;
   int error;
   int ret;
@@ -450,6 +550,16 @@ int bk7258_ap_main(int argc, char *argv[])
       bk7258_ap_publish_failure(BK7258_AP_ERROR_PSRAM);
       goto parked;
     }
+
+#ifdef CONFIG_BK7258_PSRAM_SYSTEM_HEAP
+  ret = bk7258_psram_add_system_heap(
+    CONFIG_BK7258_PSRAM_SYSTEM_HEAP_SIZE);
+  if (ret < 0)
+    {
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_PSRAM);
+      goto parked;
+    }
+#endif
 
   state->reserved[BK7258_PSRAM_AP_RESERVED_HEAP] =
     BK7258_PSRAM_AP_HEAP_BASE;
@@ -760,6 +870,16 @@ int bk7258_ap_main(int argc, char *argv[])
       goto parked;
     }
 
+#if defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
+    defined(CONFIG_AI_AGENT_LVGL_UI)
+  ret = bk7258_board_lvgl_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "bk7258: Agent LVGL service failed: %d\n", ret);
+      agent_ready = false;
+    }
+#endif
+
 
 #ifdef BK7258_AP_STARTUP_FREQ_VOTE
   ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,
@@ -784,25 +904,30 @@ int bk7258_ap_main(int argc, char *argv[])
   __asm volatile ("dmb sy" ::: "memory");
   bk7258_ap_mbox_send(BK7258_AP_EVENT_READY);
 
-#ifdef CONFIG_BK7258_APP_VELA_CLAW
-  /* The AP init task owns the lifecycle event loop; it has no NSH.  Launch
-   * the AI Toy agent directly on the console.  task_create() inherits the
-   * init task's fd table (FDCLONE not disabled), so vela_claw's stdin/stdout
-   * are bound to /dev/console (UART1) automatically.
+#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
+  /* The official openvela Agent owns the AP application plane.  Start a
+   * coordinator after publishing AP READY so a slow display/input bring-up
+   * cannot delay the platform handshake.  The coordinator waits for the
+   * generic NuttX LVGL service before launching the Agent.
    */
 
-  {
-    pid_t clawpid = task_create("vela_claw",
-                                CONFIG_BK7258_APP_VELA_CLAW_PRIORITY,
-                                CONFIG_BK7258_APP_VELA_CLAW_STACKSIZE,
-                                (main_t)vela_claw_main,
-                                NULL);
-    if (clawpid < 0)
-      {
-        syslog(LOG_ERR, "bk7258: vela_claw launch failed: %d\n",
-               (int)clawpid);
-      }
-  }
+  if (agent_ready)
+    {
+      pid_t launchpid;
+
+      g_bk7258_agent_launch_stage = 1u;
+      launchpid = task_create("agent-start", 99, 4096,
+                              bk7258_agent_launch_task, NULL);
+      g_bk7258_agent_launch_pid = (int)launchpid;
+      if (launchpid < 0)
+        {
+          g_bk7258_agent_launch_errno = errno;
+          g_bk7258_agent_launch_stage = 0x81u;
+          g_bk7258_agent_pid = (int)launchpid;
+          syslog(LOG_ERR, "bk7258: Agent coordinator failed: %d\n",
+                 (int)launchpid);
+        }
+    }
 #endif
 
 #ifdef CONFIG_BK7258_RPTUN

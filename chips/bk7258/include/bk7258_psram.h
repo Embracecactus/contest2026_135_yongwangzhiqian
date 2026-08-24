@@ -129,6 +129,7 @@ extern "C"
 int bk7258_psram_early_initialize(void);
 #endif
 int bk7258_psram_initialize(void);
+int bk7258_psram_add_system_heap(size_t size);
 bool bk7258_psram_ready(void);
 bool bk7258_psram_address(const void *ptr);
 bool bk7258_psram_heap_contains(const void *ptr);
