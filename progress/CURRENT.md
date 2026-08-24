@@ -12,8 +12,8 @@ microphone and AP networking, while CP retains OTA/platform NSH.
 
 - Branch: `feat/bk7258-openvela-agent-ap`, created directly from
   `origin/dev-ai-contest-2026@912d6aad8094` for clean PR lineage.
-- Contest changes are committed on this feature branch; unrelated untracked
-  logs remain excluded.
+- Contest changes are committed and published to the configured fork on this
+  feature branch; unrelated untracked logs remain excluded.
 - Local `app/vela_claw` is retired and its manifest/Kconfig/launch hooks are
   removed.  The historical AP config-directory name remains unchanged.
 - Official `packages/ai_agent` is enabled on AP.  UART1 is disabled and the
