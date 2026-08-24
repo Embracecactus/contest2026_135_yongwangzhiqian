@@ -28,10 +28,15 @@
                                  BK7258_MEDIA_ROOT_JPEG | \
                                  BK7258_MEDIA_ROOT_H264)
 
+#define BK7258_MEDIA_AUDIO_MIC  1u
+#define BK7258_MEDIA_AUDIO_DAC  2u
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
 
 int bk7258_media_root_initialize(uint32_t roots);
+int bk7258_media_audio_session_acquire(uint8_t owner);
+int bk7258_media_audio_session_release(uint8_t owner);
 
 #endif /* __BOARD_BK7258_CHIP_AP_BK7258_MEDIA_ROOT_H */
