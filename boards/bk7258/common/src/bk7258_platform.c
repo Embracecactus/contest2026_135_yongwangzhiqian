@@ -555,7 +555,8 @@ int board_reset_cause(FAR struct boardioc_reset_cause_s *cause)
   memset(cause, 0, sizeof(*cause));
   reason = (*r7a >> 4) & 0xffu;
 
-#if defined(CONFIG_BK7258_WDT)
+#if defined(CONFIG_BK7258_WDT) && \
+    defined(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC)
   /* The WDT pre-timeout flash flag wins over the PMU latch. */
 
   int taken = bk7258_wdt_take_pending_reset_cause(&reason);

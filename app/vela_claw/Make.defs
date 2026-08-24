@@ -1,7 +1,0 @@
-############################################################################
-# Vela-Claw app — demos aggregate Make.defs
-############################################################################
-
-ifneq ($(strip $(CONFIG_BK7258_APP_VELA_CLAW)),)
-CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_135_vela_claw
-endif

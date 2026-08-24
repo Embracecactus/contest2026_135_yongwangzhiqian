@@ -142,8 +142,8 @@ static int bk7258_wdt_getstatus(struct watchdog_lowerhalf_s *lower,
                                 struct watchdog_status_s *status);
 static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
                                  uint32_t timeout);
-static int bk7258_wdt_capture(struct watchdog_lowerhalf_s *lower,
-                              CODE xcpt_t newhandler);
+static xcpt_t bk7258_wdt_capture(struct watchdog_lowerhalf_s *lower,
+                                 CODE xcpt_t newhandler);
 
 /****************************************************************************
  * Private Data
@@ -309,14 +309,19 @@ static void bk7258_wdt_pretimeout_cancel(void)
 
 #endif
 
-static int bk7258_wdt_capture(struct watchdog_lowerhalf_s *lower,
-                              CODE xcpt_t newhandler)
+static xcpt_t bk7258_wdt_capture(struct watchdog_lowerhalf_s *lower,
+                                 CODE xcpt_t newhandler)
 {
   FAR struct bk7258_wdt_lowerhalf_s *priv =
     (FAR struct bk7258_wdt_lowerhalf_s *)lower;
+  irqstate_t flags;
+  CODE xcpt_t oldhandler;
 
+  flags = up_irq_save();
+  oldhandler = priv->handler;
   priv->handler = newhandler;
-  return OK;
+  up_irq_restore(flags);
+  return oldhandler;
 }
 
 /****************************************************************************
@@ -549,7 +554,6 @@ static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
   struct bk7258_wdt_lowerhalf_s *priv =
     (struct bk7258_wdt_lowerhalf_s *)lower;
   uint32_t previous;
-  int ret = OK;
 
   if (nxmutex_lock(&priv->lock) < 0)
     {
@@ -578,6 +582,7 @@ static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
       if (bk7258_wdt_sdk_start(priv->timeout) != BK_OK)
         {
           priv->timeout = previous;
+          nxmutex_unlock(&priv->lock);
           return -EIO;
         }
 
@@ -587,6 +592,7 @@ static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
     }
 
   wdinfo("timeout set to %" PRIu32 " ms\n", priv->timeout);
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 
@@ -715,6 +721,7 @@ void bk7258_wdt_force_system_reset(void)
     }
 }
 
+#ifdef CONFIG_BK7258_WDT_PRETIMEOUT_PANIC
 int bk7258_wdt_take_pending_reset_cause(uint32_t *reason)
 {
   uint32_t page[2];
@@ -735,6 +742,7 @@ int bk7258_wdt_take_pending_reset_cause(uint32_t *reason)
 
   return pending;
 }
+#endif
 
 void bk7258_wdt_pm_prepare(void)
 {

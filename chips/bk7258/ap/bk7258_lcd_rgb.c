@@ -325,6 +325,8 @@ static int bk7258_lcd_getplaneinfo(FAR struct fb_vtable_s *vtable,
                                    FAR struct fb_planeinfo_s *pinfo)
 {
   FAR struct bk7258_lcd_priv_s *priv = &g_bk7258_lcd;
+  size_t frame_bytes;
+  uint8_t display;
 
   (void)vtable;
 
@@ -333,15 +335,32 @@ static int bk7258_lcd_getplaneinfo(FAR struct fb_vtable_s *vtable,
       return -EINVAL;
     }
 
+  /* The framebuffer upper half carries the requested scanout page in
+   * pinfo->display while planeno remains the RGB color plane (zero).  Keep
+   * that input before clearing the result.  LVGL's generic NuttX fbdev port
+   * queries display 0 and display 1 separately when yres_virtual advertises
+   * double buffering.
+   */
+
+  display = pinfo->display;
+  if (display >= BK7258_LCD_FRAME_COUNT)
+    {
+      return -EINVAL;
+    }
+
+  frame_bytes = (size_t)priv->board->panel->width *
+                priv->board->panel->height * 2u;
   memset(pinfo, 0, sizeof(*pinfo));
-  pinfo->fbmem        = priv->framebuf;
-  pinfo->fblen        = priv->framebuf_bytes;
+  pinfo->fbmem        = priv->framebuf + (size_t)display * frame_bytes;
+  pinfo->fblen        = display == 0 ? priv->framebuf_bytes : frame_bytes;
   pinfo->stride       = priv->board->panel->width * 2u;
-  pinfo->display      = 0;
+  pinfo->display      = display;
   pinfo->bpp          = 16;
   pinfo->xres_virtual = priv->board->panel->width;
-  pinfo->yres_virtual = priv->board->panel->height *
-                        BK7258_LCD_FRAME_COUNT;
+  pinfo->yres_virtual = display == 0 ?
+                        priv->board->panel->height *
+                        BK7258_LCD_FRAME_COUNT :
+                        priv->board->panel->height;
   return OK;
 }
 
