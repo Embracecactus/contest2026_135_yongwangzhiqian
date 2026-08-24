@@ -1440,8 +1440,8 @@ config BK7258_AUD
 		amplifier.  Each reserved playback session holds the official 480-MHz
 		Audio CPU-frequency vote until RELEASE has torn down DMA, DAC and the
 		worker.  The dedicated BK7258_MIC wrapper owns capture separately; the
-		two remain mutually exclusive until their shared AUD clock-control
-		contract is completed.
+		ADC and DAC devices may coexist in one image, but their NuttX sessions
+		are mutually exclusive because both converters share the AUD clock root.
 
 config BK7258_AUD_DAC_EQ
 	bool "Private DAC hardware equalizer control"
@@ -1519,7 +1519,7 @@ config BK7258_AUD_WORKER_PRIORITY
 config BK7258_MIC
 	bool "On-board analog microphone capture"
 	default n
-	depends on !BK7258_AUD && BK7258_BOARD_HAS_MIC_BINDING
+	depends on BK7258_BOARD_HAS_MIC_BINDING
 	select BK7258_SDK_IPC_RUNTIME
 	select AUDIO
 	select AUDIO_DRIVER_SPECIFIC_BUFFERS
@@ -1527,7 +1527,8 @@ config BK7258_MIC
 		Expose the board differential microphone through a NuttX capture
 		audio lower half.  The SDK DMA engine targets AP DTCM and the small
 		DMA ring is allocated from the NuttX kernel heap.  This wrapper owns
-		the AUD ADC block while enabled.
+		the AUD ADC block for the duration of a reserved capture session; a DAC
+		playback session cannot be reserved concurrently.
 
 config BK7258_MIC_DEVNAME
 	string "Microphone device name"

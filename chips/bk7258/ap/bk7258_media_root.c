@@ -35,6 +35,7 @@
 
 static mutex_t g_bk7258_media_root_lock = NXMUTEX_INITIALIZER;
 static uint32_t g_bk7258_media_roots;
+static uint8_t g_bk7258_media_audio_owner;
 
 /****************************************************************************
  * Private Functions
@@ -157,6 +158,66 @@ int bk7258_media_root_initialize(uint32_t roots)
   ret = 0;
 
 out:
+  nxmutex_unlock(&g_bk7258_media_root_lock);
+  return ret;
+}
+
+int bk7258_media_audio_session_acquire(uint8_t owner)
+{
+  int ret;
+
+  if (owner != BK7258_MEDIA_AUDIO_MIC &&
+      owner != BK7258_MEDIA_AUDIO_DAC)
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&g_bk7258_media_root_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bk7258_media_audio_owner != 0)
+    {
+      ret = -EBUSY;
+    }
+  else
+    {
+      g_bk7258_media_audio_owner = owner;
+      ret = 0;
+    }
+
+  nxmutex_unlock(&g_bk7258_media_root_lock);
+  return ret;
+}
+
+int bk7258_media_audio_session_release(uint8_t owner)
+{
+  int ret;
+
+  if (owner != BK7258_MEDIA_AUDIO_MIC &&
+      owner != BK7258_MEDIA_AUDIO_DAC)
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&g_bk7258_media_root_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bk7258_media_audio_owner != owner)
+    {
+      ret = -EPERM;
+    }
+  else
+    {
+      g_bk7258_media_audio_owner = 0;
+      ret = 0;
+    }
+
   nxmutex_unlock(&g_bk7258_media_root_lock);
   return ret;
 }

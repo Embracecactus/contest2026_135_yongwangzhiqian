@@ -65,6 +65,10 @@
 #endif
 #include "bk7258_media_root.h"
 
+#ifdef CONFIG_BK7258_AGENT_MEDIA_PLAYER
+extern void bk7258_agent_media_player_link(void);
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -197,6 +201,7 @@ struct bk7258_aud_dev_s
   bool     pa_enabled;
   bool     frequency_voted;
   bool     frequency_uncertain;
+  bool     audio_session_owned;
 
   uint8_t          *ring_mem;
   uint8_t          *scratch;
@@ -899,6 +904,7 @@ static int bk7258_aud_frequency_release(struct bk7258_aud_dev_s *priv)
 
 static int bk7258_aud_finish_session(struct bk7258_aud_dev_s *priv)
 {
+  int session_ret;
   int ret;
 
   nxmutex_lock(&priv->worker_lock);
@@ -917,6 +923,19 @@ static int bk7258_aud_finish_session(struct bk7258_aud_dev_s *priv)
   nxmutex_unlock(&priv->lock);
 
   ret = bk7258_aud_frequency_release(priv);
+  if (ret == OK && priv->audio_session_owned)
+    {
+      session_ret = bk7258_media_audio_session_release(
+        BK7258_MEDIA_AUDIO_DAC);
+      if (session_ret < 0)
+        {
+          ret = session_ret;
+        }
+      else
+        {
+          priv->audio_session_owned = false;
+        }
+    }
 
   nxmutex_lock(&priv->lock);
   if (ret < 0 || priv->frequency_voted || priv->frequency_uncertain)
@@ -2430,6 +2449,7 @@ static int bk7258_aud_stop(struct audio_lowerhalf_s *dev)
 #endif
 {
   struct bk7258_aud_dev_s *priv = (struct bk7258_aud_dev_s *)dev;
+  bool needs_stop;
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
   if (session != priv)
@@ -2445,9 +2465,13 @@ static int bk7258_aud_stop(struct audio_lowerhalf_s *dev)
       return -EACCES;
     }
 
-  if (priv->state != BK7258_AUD_STATE_RUNNING &&
-      priv->state != BK7258_AUD_STATE_DRAINED &&
-      priv->state != BK7258_AUD_STATE_FAULT)
+  needs_stop = priv->state == BK7258_AUD_STATE_RUNNING ||
+               priv->state == BK7258_AUD_STATE_DRAINED ||
+               priv->state == BK7258_AUD_STATE_FAULT ||
+               priv->state == BK7258_AUD_STATE_STARTING ||
+               priv->outstanding != 0 || priv->pid >= 0 ||
+               bk7258_aud_resources_owned(priv);
+  if (!needs_stop)
     {
       nxmutex_unlock(&priv->lock);
       return OK;
@@ -2652,6 +2676,7 @@ static int bk7258_aud_reserve(struct audio_lowerhalf_s *dev)
 {
   struct bk7258_aud_dev_s *priv = (struct bk7258_aud_dev_s *)dev;
   int cleanup_ret;
+  int session_ret;
   int ret;
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
@@ -2679,6 +2704,17 @@ static int bk7258_aud_reserve(struct audio_lowerhalf_s *dev)
       return -EBUSY;
     }
 
+  nxmutex_unlock(&priv->lock);
+
+  ret = bk7258_media_audio_session_acquire(BK7258_MEDIA_AUDIO_DAC);
+  if (ret < 0)
+    {
+      nxmutex_unlock(&priv->worker_lock);
+      return ret;
+    }
+
+  nxmutex_lock(&priv->lock);
+  priv->audio_session_owned = true;
   __atomic_store_n(&priv->close_safe, false, __ATOMIC_RELEASE);
   nxmutex_unlock(&priv->lock);
 
@@ -2694,9 +2730,21 @@ static int bk7258_aud_reserve(struct audio_lowerhalf_s *dev)
 
       cleanup_ret = bk7258_aud_frequency_release(priv);
 
+      session_ret = OK;
+      if (cleanup_ret == OK && !priv->frequency_voted &&
+          !priv->frequency_uncertain)
+        {
+          session_ret = bk7258_media_audio_session_release(
+            BK7258_MEDIA_AUDIO_DAC);
+          if (session_ret == OK)
+            {
+              priv->audio_session_owned = false;
+            }
+        }
+
       nxmutex_lock(&priv->lock);
       if (cleanup_ret < 0 || priv->frequency_voted ||
-          priv->frequency_uncertain)
+          priv->frequency_uncertain || session_ret < 0)
         {
           priv->reserved = true;
           bk7258_aud_set_state(priv, BK7258_AUD_STATE_FAULT);
@@ -2710,7 +2758,8 @@ static int bk7258_aud_reserve(struct audio_lowerhalf_s *dev)
 
       nxmutex_unlock(&priv->lock);
       nxmutex_unlock(&priv->worker_lock);
-      return cleanup_ret < 0 ? cleanup_ret : ret;
+      return cleanup_ret < 0 ? cleanup_ret :
+             session_ret < 0 ? session_ret : ret;
     }
 
   nxmutex_lock(&priv->lock);
@@ -2783,6 +2832,10 @@ int bk7258_aud_initialize(void)
   struct bk7258_aud_dev_s *priv = &g_bk7258_aud;
   FAR const struct bk7258_aud_binding_s *binding;
   int ret;
+
+#ifdef CONFIG_BK7258_AGENT_MEDIA_PLAYER
+  bk7258_agent_media_player_link();
+#endif
 
   if (g_bk7258_aud_registered)
     {

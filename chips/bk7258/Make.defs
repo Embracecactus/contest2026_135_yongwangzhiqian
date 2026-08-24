@@ -396,6 +396,21 @@ endif
 ifeq ($(CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION),y)
 BK7258_AP_BASE_CSRCS += bk7258_mic_validation.c
 endif
+ifeq ($(CONFIG_EXAMPLES_AI_AGENT_VELA),y)
+ifeq ($(CONFIG_MEDIA),)
+ifneq ($(filter y,$(CONFIG_BK7258_MIC) $(CONFIG_BK7258_AUD)),)
+INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)..$(DELIM)frameworks$(DELIM)multimedia$(DELIM)media$(DELIM)include
+endif
+ifeq ($(CONFIG_BK7258_MIC),y)
+BK7258_AP_BASE_CSRCS += bk7258_agent_media_recorder.c
+CFLAGS += -DCONFIG_BK7258_AGENT_MEDIA_RECORDER=1
+endif
+ifeq ($(CONFIG_BK7258_AUD),y)
+BK7258_AP_BASE_CSRCS += bk7258_agent_media_player.c
+CFLAGS += -DCONFIG_BK7258_AGENT_MEDIA_PLAYER=1
+endif
+endif
+endif
 ifeq ($(CONFIG_BK7258_RTC),y)
 BK7258_AP_BASE_CSRCS += bk7258_rtc.c
 endif

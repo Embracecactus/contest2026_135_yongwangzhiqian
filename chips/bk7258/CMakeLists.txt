@@ -264,11 +264,6 @@ if(CONFIG_BK7258_WIFI_VNET)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_wifi.c)
 endif()
 
-if(CONFIG_BK7258_AUD AND CONFIG_BK7258_MIC)
-  message(FATAL_ERROR
-    "BK7258_AUD and BK7258_MIC remain exclusive until shared AUD clock ownership is enabled")
-endif()
-
 foreach(BK7258_AP_PERIPHERAL AUD GPIOE I2C I2S)
   if(CONFIG_BK7258_${BK7258_AP_PERIPHERAL})
     string(TOLOWER ${BK7258_AP_PERIPHERAL} BK7258_AP_PERIPHERAL_FILE)
@@ -386,6 +381,22 @@ endif()
 
 if(CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_mic_validation.c)
+endif()
+
+if(CONFIG_EXAMPLES_AI_AGENT_VELA AND NOT CONFIG_MEDIA AND
+   (CONFIG_BK7258_MIC OR CONFIG_BK7258_AUD))
+  set(BK7258_AGENT_MEDIA_INC
+      ${CMAKE_SOURCE_DIR}/../frameworks/multimedia/media/include)
+  if(CONFIG_BK7258_MIC)
+    list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_agent_media_recorder.c)
+    list(APPEND BK7258_AGENT_MEDIA_DEFINE
+         CONFIG_BK7258_AGENT_MEDIA_RECORDER=1)
+  endif()
+  if(CONFIG_BK7258_AUD)
+    list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_agent_media_player.c)
+    list(APPEND BK7258_AGENT_MEDIA_DEFINE
+         CONFIG_BK7258_AGENT_MEDIA_PLAYER=1)
+  endif()
 endif()
 
 if(CONFIG_BK7258_SDIO)
@@ -515,7 +526,8 @@ target_include_directories(arch PRIVATE
     ${NUTTX_DIR}/arch/arm/src/arm_m
     ${NUTTX_DIR}/arch/arm/src/armv8-m
     ${BK7258_SDK_INCLUDE_DIR}
-    ${BK7258_SDK_CONFIG_DIR})
+    ${BK7258_SDK_CONFIG_DIR}
+    ${BK7258_AGENT_MEDIA_INC})
 
 # Match the SDK header environment used by Classic Make without enabling any
 # of the SDK's FreeRTOS, watchdog or retention ownership.
@@ -534,7 +546,8 @@ target_compile_definitions(arch PRIVATE
     CONFIG_AON_RTC_64BIT=0
     CONFIG_SOC_BK7256XX=0
     CONFIG_SOC_BK7236XX=0
-    CONFIG_SOC_BK7239XX=0)
+    CONFIG_SOC_BK7239XX=0
+    ${BK7258_AGENT_MEDIA_DEFINE})
 
 if(NOT CONFIG_BK7258_AP_CORE)
   bk7258_wrap_sdk_symbol(arm_doirq nxsched_resume_scheduler)
