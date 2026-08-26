@@ -22,9 +22,11 @@ if(NOT CONFIG_BK7258_AP_CORE)
         bk7258_flash_mtd.c
         bk7258_flash_guard.c)
   endif()
+  if(CONFIG_BK7258_OTA OR CONFIG_BK7258_WDT_PRETIMEOUT_PANIC)
+    target_sources(board PRIVATE bk7258_ota_flash.c)
+  endif()
   if(CONFIG_BK7258_OTA)
     target_sources(board PRIVATE
-        bk7258_ota_flash.c
         bk7258_ota_image.c
         bk7258_ota_pair.c
         bk7258_ota_boot_control.c)

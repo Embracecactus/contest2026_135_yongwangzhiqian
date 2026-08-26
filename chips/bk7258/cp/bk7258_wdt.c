@@ -42,6 +42,7 @@
 #include <driver/wdt.h>
 #include <components/system.h>
 #include <driver/aon_wdt.h>
+#include <driver/flash.h>
 #include <driver/timer.h>
 
 /* Present in the manifest-pinned official v3.1.1.9 driver archive but not
@@ -370,8 +371,9 @@ static void bk7258_wdt_flag_stamp(void)
     {
       s_flag_stamped = true;
       syslog(LOG_INFO,
-             "BOTA FLAG stamped @%08lx magic=%08x cause=%08x\n",
-             (unsigned long)BK7258_WDT_FLAG_ADDR, page[0], page[1]);
+             "BOTA FLAG stamped @%08lx magic=%08lx cause=%08lx\n",
+             (unsigned long)BK7258_WDT_FLAG_ADDR,
+             (unsigned long)page[0], (unsigned long)page[1]);
     }
   else
     {

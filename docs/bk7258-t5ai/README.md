@@ -8,6 +8,17 @@
 
 板级原理图和验证边界见 [hardware/README.md](hardware/README.md)。
 
+openvela 官网 dev-ai-contest-2026 中文目录的逐项覆盖、剩余适配项、优先级和
+统一验收规则见
+[openvela-document-adaptation-matrix.md](openvela-document-adaptation-matrix.md)。
+
+P0 调试、xTS、压力测试和低噪声性能基线的 profile 边界、构建方法、板端命令与
+证据格式见
+[p0-diagnostics-performance.md](p0-diagnostics-performance.md)。
+generation 143 诊断镜像、generation 145 性能镜像、COM3 全量下载边界和 30 个独立
+benchmark session 的结果见
+[2026-08-27 P0 实板验证记录](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md)。
+
 把 openvela / NuttX 移植到 Beken BK7258（ARM Cortex-M33 三核、Wi-Fi 6 + BLE 5.4）Tuya T5-AI
 模组。BootROM → Tier-1 bootloader → CPU0/CP NuttX、NSH、LittleFS、CPU0 IRQ/GPIO 等既有
 阶段已有板端证据。**Stage N14 已于 2026-08-03 完成 `board-verified`**：T5-AI 实板
