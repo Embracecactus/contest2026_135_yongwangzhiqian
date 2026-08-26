@@ -124,6 +124,44 @@ T5-Board UI AP enables `CONFIG_LIBC_LOCALTIME` and sets the POSIX timezone to
 string does not require a zoneinfo image.  IANA names such as `Asia/Shanghai`
 would additionally require a mounted zoneinfo database.
 
+## System-log ownership and safety
+
+The maintained no-console AP base profiles send their NuttX syslog stream to
+the paired CP over the existing RPTUN/RPMsg link.  CP is the RPMsg syslog
+server and writes both local and received records through its early
+`up_putc()` channel to the board-owned UART0.  NuttX initializes both RPMsg
+syslog roles from the generic driver lifecycle; board code must not register a
+second client or server.  The AP profile explicitly keeps the high-priority
+work queue because the upstream RPMsg syslog client always schedules its
+drain worker on `HPWORK`.
+
+The maintained base and product profiles use buffered line output, a 512-byte
+per-CPU interrupt buffer, monotonic timestamps, priority, PID and an `ap` or
+`cp` prefix.  The AP's SMP CPU index is added independently by NuttX.  Default
+and RPMsg channel force operations are non-blocking, and the interrupt buffer
+prevents records from an ISR and a task from being interleaved.  File and
+device/console output channels are intentionally disabled: they require a
+mounted filesystem or a locking character driver and are not safe as an early
+or interrupt sink.  CP registers `/dev/log` only as the syslog ioctl/control
+frontend required by `setlogmask`; it is not configured as an output channel.
+
+CP enables the builtin registry and exposes the `setlogmask` command for
+runtime severity and channel control.  Its severity mask applies to records
+produced on CP; AP records have already been formatted and filtered before the
+server writes them to CP's output channel.  Disabling CP's `default` channel
+suppresses both sources because it is their shared final sink.
+
+Syslog timestamps remain monotonic even on the RTC-enabled T5-Board AP.  A
+formatted realtime timestamp would look authoritative while the current RTC
+is only seeded from the build date and has no trusted, power-loss-persistent
+UTC source.  Realtime/localtime logging may be enabled after network or CP
+time synchronization owns that contract.  New kernel and driver diagnostics
+must use the `debug.h` macros so production builds can compile them out; direct
+`syslog()` is reserved for application output and reviewed compatibility or
+crash-path contracts.  In particular, the SDK varargs bridge preserves its
+caller-selected priority, while the xTS watchdog pre-timeout record is emitted
+from an interrupt buffer and force-flushed before whole-device reset.
+
 On T5-Board the two switch pairs are independent:
 
 - S1-1/S1-2 ON connect the CH342F download UART to P10/P11, which are TF
