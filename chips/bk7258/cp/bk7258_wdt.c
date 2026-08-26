@@ -30,6 +30,7 @@
 #include <nuttx/mutex.h>
 #include <nuttx/clock.h>
 #include <nuttx/irq.h>
+#include <nuttx/syslog/syslog.h>
 #include <nuttx/timers/watchdog.h>
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
@@ -272,6 +273,13 @@ static void bk7258_wdt_pretimeout_expired(wdparm_t arg)
   syslog(LOG_CRIT,
          "BK7258 WDT PRETIMEOUT panic: no keepalive, timeout=%" PRIu32
          " ms; forcing whole-device reset\n", timeout);
+
+  /* This is a deliberate direct-syslog crash-path exception: debug macros
+   * can be compiled out, while the xTS contract requires this final reason.
+   * Flush the interrupt buffer through the channel's non-blocking force
+   * operation before the AON watchdog takes the whole device down. */
+
+  syslog_flush();
 
   /* The plain APB expiry resets only the CP core and wedges the next
    * bring-up behind a surviving AP image, so finish with the AON watchdog
