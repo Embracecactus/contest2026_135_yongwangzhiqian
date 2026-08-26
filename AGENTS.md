@@ -1,92 +1,20 @@
 <!-- PROJECT_MEMORY_START -->
-## Project memory protocol
+## Project memory and Git publication
 
-- Treat context compaction, a new session, an explicit continue/resume request, or conflicting visible state as a resume.
-- Before the first code search, edit, build, deployment, or hardware action after resume: read repository instructions; inspect the active Git root, branch, HEAD, and dirty state; read `memory/INDEX.md`; read `progress/CURRENT.md`; then read only the active records linked there.
-- Send the user a concise resume checksum with the objective, branch/HEAD, material work already complete, exact next action or blocker, and currently forbidden actions. If it conflicts with the latest request or repository/runtime evidence, reconcile it before acting.
-- Do not browse milestones, old branches, sibling projects, archived verification, or unrelated trust domains to fill a context gap unless `CURRENT.md` links them for the active task or the user explicitly requests them.
-- Verify important memory claims against Git, code, tests, configuration, or deployed state before acting on them.
-- Keep each fact in one canonical location: durable rules and architecture in `memory/`, the current snapshot in `progress/CURRENT.md`, and phase-level evidence in `progress/verification/`.
-- Keep `memory/INDEX.md` link-only and `progress/CURRENT.md` near 100 lines or fewer; link instead of copying status across documents.
-- Treat the primary/coordinating agent as the single writer for `progress/CURRENT.md` unless ownership is explicitly delegated.
-- At a material build, hardware result, merge, deployment, rollback, or newly confirmed blocker, replace the current snapshot in the same work turn before starting a different phase.
-- Checkpoint only accepted durable decisions, meaningful phase or handoff points, materially changed verification conclusions, and major risks or blockers. Never append a chronological log to `CURRENT.md` or leave completed work stated as its next action.
-- Do not checkpoint routine edits, builds, small tests, retries, or unchanged verification. Project memory must not create extra SOPs, campaigns, or test requirements.
-- Use the project-memory checker only as a standalone structure check; never make product build or test success depend on documentation wording.
-- Never store secrets, credentials, tokens, private keys, personal data, or raw production records in project memory.
-- Do not commit, push, deploy, delete, or overwrite user work merely because the memory protocol exists; normal authorization rules still apply.
+- Project memory is opt-in. Do not read, update, or checkpoint it unless the owner invokes `$maintain-project-memory`.
+- Exception: when the owner explicitly requests a commit, push, or PR action, read only the [Git publication ownership rules](memory/RULES.md#git-publication-ownership) before acting.
 <!-- PROJECT_MEMORY_END -->
 
-## Model routing and token discipline
+## BK7258 trust safety
 
-- Keep the coordinating Sol agent focused on requirements, architecture,
-  ambiguous root causes, tradeoffs, integration review, risky hardware
-  actions, and final acceptance.
-- Do not use Terra for this repository.
-- Use one agent by default. Delegate only an independent, bounded task whose
-  mechanical exploration would otherwise pollute the coordinating context.
-- When delegation is justified, use only `gpt-5.6-luna` at `max`. Suitable
-  work is narrow inventory, filtered long-log classification, exact-symbol
-  review, repetitive verification, or a small edit with objective acceptance
-  criteria. Sol retains architecture, ambiguous diagnosis, integration and
-  final acceptance.
-- Run at most one Luna subagent at a time. Keep it read-only when the main
-  agent is editing the same area, and reuse its thread for follow-up work.
-- In an indexed checkout, query CodeGraph before text search. Filter build and
-  hardware output to the first actionable root cause and final PASS/FAIL;
-  never relay raw logs when a short evidence summary is sufficient.
-- Require subagents to return concise conclusions, exact file or symbol
-  evidence, risks, and verification status instead of raw logs or long source
-  excerpts.
+- During active BK7258 work, do not use N17 or another historical trust domain as a source, baseline, key candidate, or fallback unless the owner explicitly reactivates it.
+- Resolve trust identity from current-project provenance and explicitly approved same-domain public fingerprints. Never search broadly for keys, infer identity from a filename, or record private material or private-key paths.
+- Reuse the existing public-only BL1/BL2 trust contract and non-halting J-Link fingerprint preflight before the apps-only loader path. Do not add a parallel key resolver, trust gate, or download policy.
 
-## Git publication ownership
+## BK7258 architecture
 
-- Before any commit, push or PR action, follow the canonical
-  [Git publication ownership rules](memory/RULES.md#git-publication-ownership).
-
-## BK7258 resume guard
-
-- During active BK7258 driver/application work, do not use or inspect N17 or
-  another historical trust domain as a source, key candidate, baseline, or
-  fallback unless the owner explicitly reactivates that phase.
-- A missing `/tmp` filename is not evidence that a trust identity is lost.
-  Before declaring a blocker or asking the owner to restore an agent-created
-  artifact, trace its current-project provenance and compare only explicitly
-  approved same-domain candidates by public fingerprint.  Never run a broad
-  key search or infer identity from a filename.
-- Do not invent a second key resolver, trust gate or download policy.  Reuse
-  the merged BK7258 flow: build a public-only trust contract from the actual
-  BL1/BL2 ELF and binaries, then require the non-halting J-Link fingerprint
-  preflight before the existing apps-only loader path.  Do not record private
-  material or private-key paths in repository memory.
-
-## BK7258 architecture guard
-
-- Before reading an old implementation as a design input, freeze four things:
-  the final public command tree, the internal domain boundaries, the sole
-  source of truth for every mutable fact, and the deletion set. If any of
-  these is unknown, stop at architecture analysis instead of adding a
-  compatibility layer.
-- Design from the accepted target architecture, not from the historical file
-  tree. Before a refactor, state the target public commands, internal domains
-  and deletion set. Never perform a one-file-to-one-file compatibility move.
-- Historical scripts, schemas, tests and documentation are evidence, not
-  requirements. Preserve a behavior only when a current build, package,
-  verification or hardware path actually consumes it.
-- `tools/bk7258/` has exactly one tracked public entry: `bk7258.py`, exposing
-  only `build`, `sdk`, `package` and `verify`. Implementation belongs under
-  `_lib` by domain; do not add public wrappers or compatibility CLIs unless the
-  owner explicitly requests one.
-- Team manifest owns SDK/toolchain identity. CP/AP profile metadata owns
-  board/role compatibility, while `--boot` is an explicit command input. The
-  selected partition CSV owns geometry, storage topology, semantic roles and
-  build/write policy. Python, shell, Make and CMake may consume these facts
-  but must not duplicate them.
-- Before accepting a BK7258 cleanup, report which old layers were deleted,
-  confirm tracked top-level file count did not grow, and search for duplicate
-  version/profile/layout truths. If a new file does not replace a real domain
-  capability, delete it rather than documenting it.
-- Reject a refactor that introduces a version, SDK checkout path, profile
-  filename, partition address or build-policy conditional outside its owning
-  manifest/profile/CSV. A changed historical test or document is never, by
-  itself, evidence that the compatibility surface must survive.
+- Before using an old implementation as design input, define the target public commands, internal domain boundaries, authoritative source for each mutable fact, and deletion set. Stop at architecture analysis if any is unknown.
+- Historical scripts, schemas, tests, and documents are evidence, not requirements. Preserve behavior only when a current build, package, verification, or hardware path consumes it; do not create one-file compatibility moves.
+- `tools/bk7258/bk7258.py` is the only tracked public entry and exposes only `build`, `sdk`, `package`, and `verify`; domain implementation belongs under `_lib`.
+- The team manifest owns SDK/toolchain identity, CP/AP profiles own board/role compatibility, `--boot` is explicit input, and the selected partition CSV owns geometry, topology, roles, and build/write policy. Consumers must not duplicate these facts.
+- Accept cleanup only after reporting deleted layers, confirming tracked top-level file count did not grow, and checking for duplicate version, profile, path, layout, or build-policy truths.
