@@ -102,6 +102,28 @@ equivalent feature set without duplicating that board's electrical database.
 The retained profiles and their CP/AP compatibility groups are documented in
 [`CONFIGS.md`](CONFIGS.md).
 
+## Time ownership and persistence
+
+`CONFIG_BK7258_RTC` exposes the SDK AON free-running counter to the AP as the
+NuttX system RTC and `/dev/rtc0`.  The counter uses the SDK-selected 32-kHz
+clock source and does not need an RTC battery while the SoC remains powered.
+The T5-Board has no fitted battery, and the available board evidence does not
+establish a separate backup-power domain on any of the three variants.
+
+The calendar value is deliberately an AP-RAM offset from the AON counter.
+Before a trusted UTC source calls `clock_settime()` or `settimeofday()`, it is
+seeded from `CONFIG_START_YEAR`, `CONFIG_START_MONTH` and `CONFIG_START_DAY`.
+The offset is not retained across an AP restart or complete power loss; adding
+a battery alone does not make this software representation persistent.  A
+future persistent UTC owner must use a CP service across RPMsg or synchronize
+from the network after connectivity is available.
+
+Timezone conversion is presentation policy rather than RTC state.  The
+T5-Board UI AP enables `CONFIG_LIBC_LOCALTIME` and sets the POSIX timezone to
+`CST-8` (UTC+8); CP and non-display roles remain on UTC.  This fixed POSIX
+string does not require a zoneinfo image.  IANA names such as `Asia/Shanghai`
+would additionally require a mounted zoneinfo database.
+
 On T5-Board the two switch pairs are independent:
 
 - S1-1/S1-2 ON connect the CH342F download UART to P10/P11, which are TF

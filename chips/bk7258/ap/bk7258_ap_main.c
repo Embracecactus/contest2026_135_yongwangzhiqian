@@ -16,6 +16,10 @@
 #include <stdbool.h>
 #include <sched.h>
 #include <stdint.h>
+#ifdef CONFIG_LIBC_LOCALTIME
+#  include <stdlib.h>
+#  include <time.h>
+#endif
 #include <string.h>
 #include <sys/stat.h>
 #include <syslog.h>
@@ -60,6 +64,52 @@
 #include "bk7258_clockdiag.h"
 
 extern const void *const _vectors[80];
+
+#ifdef CONFIG_LIBC_LOCALTIME
+static int bk7258_ap_timezone_initialize(void)
+{
+  if (setenv("TZ", CONFIG_BK7258_AP_TIMEZONE, true) < 0)
+    {
+      return -errno;
+    }
+
+  tzset();
+  return OK;
+}
+
+#ifdef CONFIG_BK7258_RTC
+static void bk7258_ap_time_report(void)
+{
+  struct timespec realtime;
+  struct tm utc;
+  struct tm local;
+  time_t now;
+
+  if (clock_gettime(CLOCK_REALTIME, &realtime) < 0)
+    {
+      syslog(LOG_ERR, "bk7258: CLOCK_REALTIME unavailable: %d\n", errno);
+      return;
+    }
+
+  now = realtime.tv_sec;
+  if (gmtime_r(&now, &utc) == NULL ||
+      localtime_r(&now, &local) == NULL)
+    {
+      syslog(LOG_ERR, "bk7258: calendar conversion failed\n");
+      return;
+    }
+
+  syslog(LOG_INFO,
+         "bk7258: time utc=%04d-%02d-%02dT%02d:%02d:%02dZ "
+         "local=%04d-%02d-%02dT%02d:%02d:%02d %s\n",
+         utc.tm_year + 1900, utc.tm_mon + 1, utc.tm_mday,
+         utc.tm_hour, utc.tm_min, utc.tm_sec,
+         local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
+         local.tm_hour, local.tm_min, local.tm_sec,
+         local.tm_zone != NULL ? local.tm_zone : "?");
+}
+#endif
+#endif
 
 #ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
 extern int ai_agent_main(int argc, char *argv[]);
@@ -869,6 +919,21 @@ int bk7258_ap_main(int argc, char *argv[])
       bk7258_ap_publish_failure(BK7258_AP_ERROR_PERIPHERALS);
       goto parked;
     }
+
+#ifdef CONFIG_LIBC_LOCALTIME
+  ret = bk7258_ap_timezone_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "bk7258: timezone setup failed: %d\n", ret);
+      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
+      goto parked;
+    }
+
+  syslog(LOG_INFO, "bk7258: timezone=%s\n", CONFIG_BK7258_AP_TIMEZONE);
+#ifdef CONFIG_BK7258_RTC
+  bk7258_ap_time_report();
+#endif
+#endif
 
 #if defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
     defined(CONFIG_AI_AGENT_LVGL_UI)

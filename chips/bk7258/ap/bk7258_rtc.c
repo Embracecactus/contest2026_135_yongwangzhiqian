@@ -34,8 +34,12 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
+#include <syslog.h>
 #include <time.h>
 
+#include <nuttx/clock.h>
+#include <nuttx/timers/arch_rtc.h>
 #include <nuttx/timers/rtc.h>
 #include <nuttx/spinlock.h>
 
@@ -87,6 +91,28 @@ static struct bk7258_rtc_priv_s g_bk7258_rtc =
   .settime_called   = false,
 };
 static bool g_bk7258_rtc_registered;
+
+static void bk7258_rtc_seed_starttime(FAR struct bk7258_rtc_priv_s *priv)
+{
+  irqstate_t flags;
+  int64_t start_us;
+  time_t start_days;
+
+  /* Match the normal no-RTC NuttX boot policy until a real UTC source calls
+   * clock_settime().  havesettime remains false so consumers can distinguish
+   * this configured fallback from an explicitly synchronized clock.
+   */
+
+  start_days = clock_calendar2utc(CONFIG_START_YEAR,
+                                  CONFIG_START_MONTH - 1,
+                                  CONFIG_START_DAY);
+  start_us = (int64_t)start_days * SEC_PER_DAY * 1000000ll;
+
+  flags = spin_lock_irqsave(&priv->lock);
+  priv->epoch_offset_us = start_us - (int64_t)bk_aon_rtc_get_us();
+  priv->settime_called = false;
+  spin_unlock_irqrestore(&priv->lock, flags);
+}
 
 static int bk7258_rtc_getepoch(FAR struct bk7258_rtc_priv_s *priv,
                                FAR time_t *seconds)
@@ -155,6 +181,8 @@ static int bk7258_rtc_rdtime(FAR struct rtc_lowerhalf_s *lower,
       return -EINVAL;
     }
 
+  memset(rtctime, 0, sizeof(*rtctime));
+
   ret = bk7258_rtc_getepoch((FAR struct bk7258_rtc_priv_s *)lower,
                             &sec);
   if (ret < 0)
@@ -202,8 +230,13 @@ static bool bk7258_rtc_havesettime(FAR struct rtc_lowerhalf_s *lower)
 {
   FAR struct bk7258_rtc_priv_s *priv =
     (FAR struct bk7258_rtc_priv_s *)lower;
+  irqstate_t flags;
+  bool havesettime;
 
-  return priv->settime_called;
+  flags = spin_lock_irqsave(&priv->lock);
+  havesettime = priv->settime_called;
+  spin_unlock_irqrestore(&priv->lock, flags);
+  return havesettime;
 }
 
 /****************************************************************************
@@ -223,48 +256,23 @@ int bk7258_rtc_initialize(void)
   if (ret >= 0)
     {
       g_bk7258_rtc_registered = true;
+      syslog(LOG_INFO,
+             "bk7258: /dev/rtc0 ready (calendar time is volatile)\n");
     }
 
   return ret;
 }
 
-/* CONFIG_RTC is a system clock source as well as the /dev/rtc upper half.
- * Supply the architecture hooks selected by BK7258_RTC so the generic clock
- * code does not depend on an unrelated SoC RTC implementation.
+/* Attach the static lower half before clock_initialize() reads the RTC.  The
+ * RTC_ARCH bridge supplies g_rtc_enabled plus the standard architecture
+ * get/set hooks; /dev/rtc0 is registered later during AP board bring-up.
  */
 
 int up_rtc_initialize(void)
 {
+  bk7258_rtc_seed_starttime(&g_bk7258_rtc);
+  up_rtc_set_lowerhalf(&g_bk7258_rtc.dev, false);
   return OK;
-}
-
-int up_rtc_getdatetime(FAR struct tm *tp)
-{
-  time_t sec;
-  int ret;
-
-  if (tp == NULL)
-    {
-      return -EINVAL;
-    }
-
-  ret = bk7258_rtc_getepoch(&g_bk7258_rtc, &sec);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  return gmtime_r(&sec, tp) == NULL ? -EINVAL : OK;
-}
-
-int up_rtc_settime(FAR const struct timespec *tp)
-{
-  if (tp == NULL)
-    {
-      return -EINVAL;
-    }
-
-  return bk7258_rtc_setepoch(&g_bk7258_rtc, tp->tv_sec, tp->tv_nsec);
 }
 
 #endif /* CONFIG_BK7258_RTC */
