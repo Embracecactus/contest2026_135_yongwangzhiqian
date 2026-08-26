@@ -1723,6 +1723,63 @@ config BK7258_DMA2D
 		The caller owns buffer lifetime and cache coherency.  Scale and rotate
 		operations remain separate from this helper.
 
+config BK7258_LVGL_FB_ACCEL
+	bool "BK7258 LVGL partial framebuffer accelerator"
+	default n
+	depends on BK7258_AP_CORE && BK7258_LCD && BK7258_PM_CLOCK
+	depends on GRAPHICS_LVGL && FB_SYNC
+	select BK7258_DMA2D
+	help
+		Render LVGL into a bounded internal-SRAM line buffer and use the
+		BK7258 DMA2D engine to update the non-cacheable PSRAM framebuffer.
+		The last partial flush is presented through the standard framebuffer
+		page-flip interface; the now-hidden page is then mirrored by DMA2D so
+		both scanout pages remain coherent for the next dirty update.
+
+		This avoids direct software rendering into PSRAM without changing an
+		LVGL application's widget tree.  The board integration must explicitly
+		create this display instead of the generic NuttX direct framebuffer
+		display.
+
+if BK7258_LVGL_FB_ACCEL
+
+config BK7258_LVGL_FB_MAX_WIDTH
+	int "Maximum accelerated framebuffer width"
+	range 320 1280
+	default 480
+	help
+		Maximum logical or physical width accepted by the static SRAM draw and
+		scale staging buffers.  Keep this no larger than the selected display
+		integration requires.
+
+config BK7258_LVGL_FB_DRAW_LINES
+	int "LVGL partial draw-buffer lines"
+	range 8 96
+	default 32
+	help
+		Number of logical RGB565 lines kept in the internal-SRAM LVGL draw
+		buffer.  Larger values reduce flush calls but consume more SRAM.
+
+config BK7258_LVGL_FB_LOGICAL_WIDTH
+	int "LVGL logical display width"
+	range 0 1280
+	default 0
+	help
+		Logical width exposed to LVGL.  Zero uses the physical framebuffer
+		width.  A larger logical canvas is aspect-fitted by the chip display
+		adapter without changing the application's widget tree.
+
+config BK7258_LVGL_FB_LOGICAL_HEIGHT
+	int "LVGL logical display height"
+	range 0 1280
+	default 0
+	help
+		Logical height exposed to LVGL.  Zero uses the physical framebuffer
+		height.  The adapter never upscales; unused physical pixels remain
+		black and touch coordinates are mapped back into the logical canvas.
+
+endif
+
 config BK7258_SCALE_ROTATE
 	bool "BK7258 hardware scale and rotate helpers"
 	default n

@@ -332,6 +332,11 @@ endif()
 
 if(CONFIG_BK7258_DMA2D)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_dma2d.c)
+  bk7258_wrap_sdk_symbol(sys_drv_dma2d_set)
+endif()
+
+if(CONFIG_BK7258_LVGL_FB_ACCEL)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lvgl_fb.c)
 endif()
 
 if(CONFIG_BK7258_SCALE_ROTATE)

@@ -70,6 +70,20 @@ static struct bk7258_dma2d_s g_bk7258_dma2d =
   .completion = SEM_INITIALIZER(0),
 };
 
+/* The immutable AP sys_hal_dma2d_clk_en() is intentionally empty: shared
+ * VIDP power is already handled by the CP-owned PM vote made immediately
+ * before this call.  Its sys_drv_dma2d_set() wrapper nevertheless acquires
+ * the SDK SYS_REG AMP lock and propagates a lock failure, which makes
+ * bk_dma2d_driver_init() fail even though there is no register operation to
+ * protect.  Keep the official driver sequence intact while making this one
+ * AP no-op explicit at the chip compatibility boundary. */
+
+bk_err_t __wrap_sys_drv_dma2d_set(uint32_t enable)
+{
+  (void)enable;
+  return BK_OK;
+}
+
 static int bk7258_dma2d_sdk_error(bk_err_t error)
 {
   switch (error)

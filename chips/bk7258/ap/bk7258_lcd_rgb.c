@@ -125,6 +125,32 @@ static struct bk7258_lcd_priv_s g_bk7258_lcd =
   .inited         = false,
 };
 
+static void *bk7258_lcd_framebuffer_alloc(size_t size)
+{
+#ifdef CONFIG_BK7258_LCD_FRAMEBUFFER_MEDIA
+  void *memory;
+
+  memory = bk7258_psram_media_malloc(BK7258_PSRAM_MEDIA_YUV, size);
+  if (memory != NULL)
+    {
+      memset(memory, 0, size);
+    }
+
+  return memory;
+#else
+  return bk7258_psram_zalloc(size);
+#endif
+}
+
+static void bk7258_lcd_framebuffer_free(void *memory)
+{
+#ifdef CONFIG_BK7258_LCD_FRAMEBUFFER_MEDIA
+  bk7258_psram_media_free(memory);
+#else
+  bk7258_psram_free(memory);
+#endif
+}
+
 
 #ifdef CONFIG_BK7258_LCD_VALIDATION_PATTERN
 static volatile uint32_t g_bk7258_lcd_eof_count;
@@ -492,7 +518,8 @@ int bk7258_lcd_initialize(void)
 
   priv->framebuf_bytes = (size_t)panel->width * panel->height * 2u *
                          BK7258_LCD_FRAME_COUNT;
-  priv->framebuf_alloc = bk7258_psram_zalloc(priv->framebuf_bytes + 15u);
+  priv->framebuf_alloc =
+    bk7258_lcd_framebuffer_alloc(priv->framebuf_bytes + 15u);
   if (priv->framebuf_alloc == NULL)
     {
       syslog(LOG_ERR, "BK7258 LCD: framebuffer allocation failed\n");
@@ -630,7 +657,7 @@ errout_with_controller:
   bk7258_lcd_unroute_ap_primary_irq();
   (void)lcd_driver_deinit();
 errout_with_framebuffer:
-  bk7258_psram_free(priv->framebuf_alloc);
+  bk7258_lcd_framebuffer_free(priv->framebuf_alloc);
   priv->framebuf_alloc = NULL;
   priv->framebuf = NULL;
   priv->framebuf_bytes = 0;

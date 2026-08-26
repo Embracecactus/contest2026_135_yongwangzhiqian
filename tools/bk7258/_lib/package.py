@@ -20,11 +20,14 @@ class PackageError(ValueError):
     """A package is malformed, unsafe, or violates its Flash contract."""
 
 
-FORMAT = "bk7258.package/1"
+FORMAT_V1 = "bk7258.package/1"
+FORMAT = "bk7258.package/2"
 MANIFEST = "manifest.json"
 OTA_FORMAT = "bk7258.ota/1"
 OTA_CATALOG = "catalog.json"
 OTA_SIGNATURE = "catalog.sig"
+FULL_UPDATE_CATALOG = "full-update.json"
+FULL_UPDATE_SIGNATURE = "full-update.sig"
 MAX_MEMBERS = 64
 MAX_MEMBER_SIZE = 16 * 1024 * 1024
 MAX_PACKAGE_SIZE = 64 * 1024 * 1024
@@ -74,6 +77,41 @@ def _ota_catalog(layout: Mapping[str, object],
     return _canonical(document)
 
 
+def _full_update_catalog(layout: Mapping[str, object],
+                         images: list[dict[str, object]],
+                         persistent: Mapping[str, object]) -> bytes:
+    """Bind every sparse write in an owner-authorized full update."""
+
+    writes = [
+        {
+            "artifact": row.get("artifact"),
+            "partition": row.get("partition"),
+            "offset": row.get("offset"),
+            "size": row.get("size"),
+            "sha256": row.get("sha256"),
+        }
+        for row in images
+    ]
+    base: dict[str, object] = {
+        "format": "bk7258.full-update/1",
+        "board_family": "bk7258",
+        "layout": {
+            "identity": layout.get("identity"),
+            "sha256": layout.get("sha256"),
+        },
+        "writes": writes,
+        "persistent": {
+            "partition": persistent.get("partition"),
+            "offset": persistent.get("offset"),
+            "size": persistent.get("size"),
+            "sha256": persistent.get("sha256"),
+        },
+    }
+    document = dict(base)
+    document["package_id"] = hashlib.sha256(_canonical(base)).hexdigest()
+    return _canonical(document)
+
+
 def _canonical(value: object) -> bytes:
     return (json.dumps(value, sort_keys=True, separators=(",", ":"),
                        ensure_ascii=True) + "\n").encode("utf-8")
@@ -97,7 +135,8 @@ def _entry(name: str, data: bytes) -> zipfile.ZipInfo:
 def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
            sdk_evidence: Mapping[str, str], trust_evidence: Mapping[str, object],
            output: Path,
-           catalog_signer: Callable[[bytes], bytes] | None = None) \
+           catalog_signer: Callable[[bytes], bytes] | None = None,
+           persistent_payload: bytes | None = None) \
            -> dict[str, object]:
     """Store already-finalized image bytes without changing them."""
 
@@ -112,6 +151,11 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
     for profile, digest in sdk_evidence.items():
         if not profile or not DIGEST_RE.fullmatch(digest):
             raise PackageError(f"invalid SDK evidence: {profile}")
+
+    if persistent_payload is not None and security_mode != "signed":
+        raise PackageError("full update requires a signed full package")
+    if persistent_payload is not None and catalog_signer is None:
+        raise PackageError("full update requires a catalog signer")
 
     members: dict[str, bytes] = {}
     images: list[dict[str, object]] = []
@@ -144,7 +188,7 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
 
     layout = image_set.layout
     document: dict[str, object] = {
-        "format": FORMAT,
+        "format": FORMAT if persistent_payload is not None else FORMAT_V1,
         "layout": {
             "identity": layout.identity,
             "sha256": layout.sha256,
@@ -181,6 +225,30 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
             for row in image_set.erases
         ],
     }
+    if persistent_payload is not None:
+        persistent = [
+            item for item in layout.partitions
+            if item.name == "persistent_data" and item.policy == "preserve"
+            and item.kind == "data" and item.writable
+        ]
+        if len(persistent) != 1 or len(persistent_payload) != persistent[0].size:
+            raise PackageError("full update persistent payload must exactly fill persistent_data")
+        member = "payloads/persistent_data.bin"
+        document["full_update"] = {
+            "partition": persistent[0].name,
+            "member": member,
+            "offset": persistent[0].offset,
+            "size": len(persistent_payload),
+            "sha256": hashlib.sha256(persistent_payload).hexdigest(),
+        }
+        members[member] = persistent_payload
+        catalog = _full_update_catalog(document["layout"], images, document["full_update"])
+        signature = catalog_signer(catalog)
+        if len(signature) < 8 or len(signature) > 80 \
+                or signature[0] != 0x30 or signature[1] != len(signature) - 2:
+            raise PackageError("full update catalog signature is not canonical DER")
+        members[FULL_UPDATE_CATALOG] = catalog
+        members[FULL_UPDATE_SIGNATURE] = signature
     if security_mode == "signed-ota":
         if catalog_signer is None:
             raise PackageError("apps-only OTA requires a catalog signer")
@@ -191,8 +259,8 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
             raise PackageError("OTA catalog signature is not canonical DER")
         members[OTA_CATALOG] = catalog
         members[OTA_SIGNATURE] = signature
-    elif catalog_signer is not None:
-        raise PackageError("only apps-only OTA packages may carry a catalog signer")
+    elif catalog_signer is not None and persistent_payload is None:
+        raise PackageError("only signed update packages may carry a catalog signer")
     manifest = _canonical(document)
     output.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{output.name}.", dir=output.parent)
@@ -338,7 +406,12 @@ def verify(path: Path) -> dict[str, object]:
         "format", "layout", "sdk", "security", "images", "erases",
         "preserved_external",
     }
-    if set(document) != expected_sections or document.get("format") != FORMAT:
+    package_format = document.get("format")
+    if package_format == FORMAT:
+        expected_sections.add("full_update")
+    elif package_format != FORMAT_V1:
+        raise PackageError("unsupported package format")
+    if set(document) != expected_sections:
         raise PackageError("unsupported package format")
     layout = document.get("layout")
     images = document.get("images")
@@ -452,9 +525,18 @@ def verify(path: Path) -> dict[str, object]:
     if not preserved_set.issubset(external_set):
         raise PackageError("package preserves an artifact that is not external")
 
+    full_update = document.get("full_update")
+    if package_format == FORMAT:
+        if security_mode != "signed" or not isinstance(full_update, dict):
+            raise PackageError("full update must be a signed full package")
+    elif full_update is not None:
+        raise PackageError("v1 package must not contain a full update")
+
     expected_members = {MANIFEST}
     if security_mode == "signed-ota":
         expected_members.update({OTA_CATALOG, OTA_SIGNATURE})
+    if package_format == FORMAT:
+        expected_members.update({FULL_UPDATE_CATALOG, FULL_UPDATE_SIGNATURE})
     ranges: list[tuple[int, int, str]] = []
     image_artifacts: set[str] = set()
     image_data: dict[str, bytes] = {}
@@ -503,6 +585,39 @@ def verify(path: Path) -> dict[str, object]:
         expected_members.add(member)
         image_artifacts.add(artifact)
         image_data[artifact] = data
+
+    if package_format == FORMAT:
+        expected_full_update_fields = {
+            "partition", "member", "offset", "size", "sha256",
+        }
+        if set(full_update) != expected_full_update_fields:
+            raise PackageError("full update payload fields are malformed")
+        partition_name = full_update.get("partition")
+        member = full_update.get("member")
+        if partition_name != "persistent_data" or partition_name not in partition_by_name \
+                or member != "payloads/persistent_data.bin" or member not in members:
+            raise PackageError("full update payload is not persistent_data")
+        partition = partition_by_name[partition_name]
+        if partition.policy != "preserve" or partition.kind != "data" \
+                or not partition.writable:
+            raise PackageError("persistent_data is not eligible for a full update")
+        offset = _integer(full_update.get("offset"), "full_update.offset")
+        size = _integer(full_update.get("size"), "full_update.size")
+        digest = full_update.get("sha256")
+        data = members[member]
+        if (offset, size) != (partition.offset, partition.size) or len(data) != size \
+                or not isinstance(digest, str) or not DIGEST_RE.fullmatch(digest) \
+                or hashlib.sha256(data).hexdigest() != digest:
+            raise PackageError("full update persistent payload does not match layout")
+        expected_members.add(member)
+        ranges.append((offset, offset + size, member))
+        catalog = members.get(FULL_UPDATE_CATALOG)
+        signature = members.get(FULL_UPDATE_SIGNATURE)
+        if catalog != _full_update_catalog(layout, images, full_update):
+            raise PackageError("full update catalog does not match package facts")
+        if signature is None or len(signature) < 8 or len(signature) > 80 \
+                or signature[0] != 0x30 or signature[1] != len(signature) - 2:
+            raise PackageError("full update catalog signature is malformed")
 
     if security_mode == "signed-ota":
         catalog = members.get(OTA_CATALOG)
@@ -567,6 +682,13 @@ def verify(path: Path) -> dict[str, object]:
             raise PackageError(f"overlapping package operations: {left[2]} and {right[2]}")
     for start, end, name in ranges:
         for blocked_start, blocked_end, blocked_name in forbidden:
+            if package_format == FORMAT and blocked_name == "persistent_data" \
+                    and (start, end, name) == (
+                        partition_by_name["persistent_data"].offset,
+                        partition_by_name["persistent_data"].end,
+                        "payloads/persistent_data.bin",
+                    ):
+                continue
             if start < blocked_end and blocked_start < end:
                 raise PackageError(f"operation {name} touches protected partition {blocked_name}")
     sdk_profiles: set[str] = set()
@@ -585,6 +707,7 @@ def verify(path: Path) -> dict[str, object]:
         "images": len(images),
         "security": security_mode,
         "preserved_external": len(preserved_external),
+        "full_update": package_format == FORMAT,
     }
 
 
@@ -612,6 +735,22 @@ def flash_contract(package: Path) -> dict[str, object]:
     verify(package)
     document, _ = _read(package)
     layout = document["layout"]
+    if document.get("format") == FORMAT:
+        persistent = document["full_update"]
+        writes = [*document["images"], persistent]
+        writes.sort(key=lambda row: (row.get("artifact") == "boot", row["offset"]))
+        return {
+            "layout": {"identity": layout["identity"], "sha256": layout["sha256"]},
+            "writes": writes,
+            "erases": document["erases"],
+            "preserved_external": document["preserved_external"],
+            "full_update": True,
+            "protected": [
+                row for row in layout["partitions"]
+                if row["policy"] in {"preserve", "immutable"}
+                and row["name"] != "persistent_data"
+            ],
+        }
     if document["security"].get("mode") == "signed-ota":
         return {
             "layout": {
@@ -639,6 +778,103 @@ def flash_contract(package: Path) -> dict[str, object]:
     }
 
 
+def materialize_full_image(package: Path, base: Path,
+                           expected_base_sha256: str,
+                           output: Path) -> dict[str, object]:
+    """Overlay one verified full update on an exact accepted-board base."""
+
+    package = package.absolute()
+    base = base.absolute()
+    output = output.absolute()
+    verify(package)
+    document, members = _read(package)
+
+    if document.get("format") != FORMAT:
+        raise PackageError("a signed full-update package is required")
+    expected_base_sha256 = expected_base_sha256.lower()
+    if not DIGEST_RE.fullmatch(expected_base_sha256):
+        raise PackageError("expected base SHA-256 must contain 64 hex digits")
+    if base.is_symlink() or not base.is_file():
+        raise PackageError("base snapshot must be a regular non-symlink file")
+    if output.exists() or output.is_symlink():
+        raise PackageError(f"full-image output already exists: {output}")
+
+    base_data = base.read_bytes()
+    observed_base_sha256 = hashlib.sha256(base_data).hexdigest()
+    if observed_base_sha256 != expected_base_sha256:
+        raise PackageError(
+            "base snapshot SHA-256 mismatch: "
+            f"expected={expected_base_sha256} observed={observed_base_sha256}"
+        )
+
+    partitions = document["layout"]["partitions"]
+    immutable_offsets = [
+        int(row["offset"])
+        for row in partitions
+        if row["policy"] == "immutable"
+    ]
+    if not immutable_offsets:
+        raise PackageError("layout has no immutable tail boundary")
+    boundary = min(immutable_offsets)
+    if len(base_data) != boundary:
+        raise PackageError(
+            "base snapshot must end at immutable tail: "
+            f"size=0x{len(base_data):x} boundary=0x{boundary:x}"
+        )
+
+    writes = [*document["images"], document["full_update"]]
+    output_data = bytearray(base_data)
+    write_ranges: list[tuple[int, int, str]] = []
+    for row in writes:
+        member = row["member"]
+        data = members[member]
+        offset = int(row["offset"])
+        end = offset + len(data)
+        if len(data) != int(row["size"]) \
+                or hashlib.sha256(data).hexdigest() != row["sha256"]:
+            raise PackageError(f"verified member metadata changed: {member}")
+        if offset < 0 or end > boundary:
+            raise PackageError(f"package write crosses immutable tail: {member}")
+        output_data[offset:end] = data
+        write_ranges.append((offset, end, member))
+
+    write_ranges.sort()
+    for left, right in zip(write_ranges, write_ranges[1:]):
+        if left[1] > right[0]:
+            raise PackageError(
+                f"overlapping package writes: {left[2]} and {right[2]}"
+            )
+
+    for row in partitions:
+        if row["policy"] != "preserve" or row["name"] == "persistent_data":
+            continue
+        start = int(row["offset"])
+        end = start + int(row["size"])
+        if output_data[start:end] != base_data[start:end]:
+            raise PackageError(f"preserved partition changed: {row['name']}")
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{output.name}.", dir=output.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(output_data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+    return {
+        "output": str(output),
+        "size": len(output_data),
+        "sha256": hashlib.sha256(output_data).hexdigest(),
+        "writes": len(writes),
+    }
+
+
 def trust_evidence(package: Path) -> dict[str, object]:
     verify(package)
     document, _ = _read(package)
@@ -660,10 +896,14 @@ def trust_material(package: Path) -> tuple[
         row["artifact"]: members[row["member"]]
         for row in document["images"]
     }
+    catalog = members.get(OTA_CATALOG) if document["security"].get("mode") == "signed-ota" \
+        else members.get(FULL_UPDATE_CATALOG)
+    catalog_signature = members.get(OTA_SIGNATURE) if document["security"].get("mode") == "signed-ota" \
+        else members.get(FULL_UPDATE_SIGNATURE)
     return (
         dict(document["security"]),
         dict(document["layout"]),
         images,
-        members.get(OTA_CATALOG),
-        members.get(OTA_SIGNATURE),
+        catalog,
+        catalog_signature,
     )
