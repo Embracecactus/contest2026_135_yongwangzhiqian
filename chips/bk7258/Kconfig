@@ -1965,10 +1965,29 @@ config BK7258_USBHOST_CH34X_VALIDATION
 config BK7258_RTC
 	bool "AON RTC lower half"
 	default n
+	depends on BK7258_AP_CORE
 	select BK7258_SDK_IPC_RUNTIME
 	select RTC
+	select RTC_ARCH
 	select RTC_DATETIME
 	select RTC_DRIVER
+	help
+		Expose the SDK AON free-running counter as the AP system RTC and
+		/dev/rtc0.  The counter uses the SDK-selected internal or external
+		32 kHz source and does not require a battery while the SoC is powered.
+
+		Calendar time is an AP-RAM offset from that counter.  It is therefore
+		not retained across an AP restart or complete power loss; persistent
+		UTC ownership must be implemented by a CP service or network time sync.
+
+config BK7258_AP_TIMEZONE
+	string "AP POSIX timezone"
+	default "UTC0"
+	depends on BK7258_AP_CORE && LIBC_LOCALTIME
+	help
+		POSIX TZ string installed before AP applications start.  Keep CP and
+		other non-display roles on UTC; a UI AP may override this with a fixed
+		offset such as CST-8.  IANA names require a mounted zoneinfo database.
 
 config BK7258_SARADC
 	bool "BK7258 SAR ADC lower half"
