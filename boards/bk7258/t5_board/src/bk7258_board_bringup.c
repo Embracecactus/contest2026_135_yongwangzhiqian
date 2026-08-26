@@ -24,6 +24,9 @@
 #  include <nuttx/semaphore.h>
 #  include <lvgl/lvgl.h>
 #  include <uikit/uikit.h>
+#  ifdef CONFIG_BK7258_LVGL_FB_ACCEL
+#    include <arch/chip/bk7258_lvgl_fb.h>
+#  endif
 #endif
 
 #include <arch/board/board.h>
@@ -207,6 +210,9 @@ static int bk7258_t5_board_lvgl_loop(int argc, FAR char *argv[])
 {
   lv_nuttx_dsc_t descriptor;
   lv_nuttx_result_t result = {0};
+#ifdef CONFIG_BK7258_LVGL_FB_ACCEL
+  FAR lv_display_t *display;
+#endif
   uint32_t idle;
 
   (void)argc;
@@ -221,7 +227,27 @@ static int bk7258_t5_board_lvgl_loop(int argc, FAR char *argv[])
 
   lv_init();
   lv_nuttx_dsc_init(&descriptor);
+#ifdef CONFIG_BK7258_LVGL_FB_ACCEL
+  display = bk7258_lvgl_fb_create("/dev/fb0");
+  if (display != NULL)
+    {
+      descriptor.fb_path = NULL;
+    }
+#endif
   lv_nuttx_init(&descriptor, &result);
+#ifdef CONFIG_BK7258_LVGL_FB_ACCEL
+  if (display != NULL)
+    {
+      result.disp = display;
+      if (result.indev != NULL &&
+          bk7258_lvgl_fb_bind_touch(display, result.indev) < 0)
+        {
+          lv_display_delete(display);
+          result.disp = NULL;
+          display = NULL;
+        }
+    }
+#endif
 
   if (result.disp == NULL || result.indev == NULL)
     {
@@ -322,7 +348,8 @@ int bk7258_board_devices_initialize(void)
 {
   int ret = OK;
 
-#if defined(CONFIG_BK7258_T5_BOARD_TF_SLOT) && defined(CONFIG_FS_FAT)
+#if defined(CONFIG_BK7258_T5_BOARD_TF_SLOT) && defined(CONFIG_FS_FAT) && \
+    !defined(CONFIG_BK7258_T5_BOARD_TF_VALIDATION)
   ret = bk7258_t5_board_tf_mount_initialize();
   if (ret < 0)
     {

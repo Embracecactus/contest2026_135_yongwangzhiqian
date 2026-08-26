@@ -84,6 +84,7 @@ extern void sys_hal_set_cis_auxs_clk_en(uint32_t value);
 
 #define BK7258_SDK_POWER_MEM3       2
 #define BK7258_SDK_POWER_VIDP       7
+#define BK7258_SDK_POWER_BAKP_SDIO  91u
 #define BK7258_SDK_POWER_AUDP_AUDIO 122u
 #define BK7258_SDK_POWER_ON         0
 #define BK7258_SDK_POWER_OFF        1
@@ -237,7 +238,36 @@ static int bk7258_pm_set_clock(enum bk7258_pm_clock_e clock, bool enable)
   switch (clock)
     {
       case BK7258_PM_CLOCK_SDIO:
+        /* The pinned AP SDK disables CONFIG_SDIO_PM_CB_SUPPORT, so its SDIO
+         * path only forwards the clock edge.  In the full product other CP
+         * clients can power-manage BAKP before the first card command.  Tie
+         * BAKP_SDIO ownership to the cross-core SDIO clock lifetime.
+         */
+
+        if (enable)
+          {
+            ret = bk_pm_module_vote_power_ctrl(
+                    BK7258_SDK_POWER_BAKP_SDIO,
+                    BK7258_SDK_POWER_ON);
+            if (ret < 0)
+              {
+                return ret;
+              }
+          }
+
         sys_drv_dev_clk_pwr_up(BK7258_SDK_CLOCK_SDIO, state);
+
+        if (!enable)
+          {
+            ret = bk_pm_module_vote_power_ctrl(
+                    BK7258_SDK_POWER_BAKP_SDIO,
+                    BK7258_SDK_POWER_OFF);
+            if (ret < 0)
+              {
+                return ret;
+              }
+          }
+
         break;
       case BK7258_PM_CLOCK_QSPI0:
         sys_drv_dev_clk_pwr_up(BK7258_SDK_CLOCK_QSPI0, state);

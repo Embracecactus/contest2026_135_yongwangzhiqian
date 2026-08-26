@@ -176,7 +176,20 @@ config BK7258_LCD
 	help
 		Enable the BK7258 RGB controller, T5-Board physical binding and
 		ILI9488 panel driver.  A single RGB565 scanout buffer is allocated
-		from AP PSRAM and exported directly as /dev/fb0.
+		from AP PSRAM and exported directly as /dev/fb0.  When the generic
+		NuttX FB_SYNC option is enabled, the driver allocates two scanout pages
+		and changes the active page on the LCD end-of-frame interrupt.
+
+config BK7258_LCD_FRAMEBUFFER_MEDIA
+	bool "Allocate the RGB framebuffer from the PSRAM media heap"
+	default n
+	depends on BK7258_LCD
+	select BK7258_PSRAM_MEDIA
+	help
+		Allocate the chip RGB driver's scanout storage from the official SDK
+		media YUV slab instead of the 640 KiB AP general-purpose PSRAM heap.
+		This leaves the AP heap available for system-heap regions while keeping
+		the allocation policy selectable by each board profile.
 
 config BK7258_LCD_VALIDATION_PATTERN
 	bool "Fill the LCD with a startup validation pattern"

@@ -366,6 +366,10 @@ BK7258_AP_BASE_CSRCS += bk7258_dvp.c
 endif
 ifeq ($(CONFIG_BK7258_DMA2D),y)
 BK7258_AP_BASE_CSRCS += bk7258_dma2d.c
+LDFLAGS += --wrap=sys_drv_dma2d_set
+endif
+ifeq ($(CONFIG_BK7258_LVGL_FB_ACCEL),y)
+BK7258_AP_BASE_CSRCS += bk7258_lvgl_fb.c
 endif
 ifeq ($(CONFIG_BK7258_SCALE_ROTATE),y)
 BK7258_AP_BASE_CSRCS += bk7258_scale_rotate.c

@@ -69,6 +69,10 @@ def _parser() -> argparse.ArgumentParser:
     create.add_argument("--sdk-profile", action="append", required=True)
     create.add_argument("--preserve-external", action="append", default=[],
                         metavar="NAME")
+    create.add_argument("--full-update", action="store_true",
+                        help="authorize a sparse persistent_data replacement")
+    create.add_argument("--persistent-payload", type=Path,
+                        help="exact persistent_data image; requires --full-update")
     security = create.add_mutually_exclusive_group(required=True)
     security.add_argument("--unsigned", action="store_true")
     security.add_argument("--signed", action="store_true")
@@ -86,6 +90,18 @@ def _parser() -> argparse.ArgumentParser:
     extract = package_commands.add_parser("extract", help="extract a verified package")
     extract.add_argument("--package", type=Path, required=True)
     extract.add_argument("--output", type=Path, required=True)
+    flash_contract = package_commands.add_parser(
+        "flash-contract", help="print the verified sparse write contract"
+    )
+    flash_contract.add_argument("--package", type=Path, required=True)
+    materialize = package_commands.add_parser(
+        "materialize", help="create one trust-verified BKFIL full image"
+    )
+    materialize.add_argument("--package", type=Path, required=True)
+    materialize.add_argument("--base", type=Path, required=True)
+    materialize.add_argument("--base-sha256", required=True)
+    materialize.add_argument("--openssl", type=Path, required=True)
+    materialize.add_argument("--output", type=Path, required=True)
 
     verify = commands.add_parser("verify", help="perform read-only verification")
     verify_commands = verify.add_subparsers(dest="verify_command", required=True)
@@ -207,10 +223,49 @@ def _sdk(args: argparse.Namespace) -> None:
         print(f"bk7258 sdk rebuild: PASS profile={row.profile} tree={row.tree_hash}")
 
 
+def _verify_package_trust(package: Path,
+                          openssl: Path) -> dict[str, object]:
+    evidence, layout, images, catalog, catalog_signature = \
+        package_domain.trust_material(package)
+    trust_domain.verify_signed_material(
+        security=evidence,
+        layout=layout,
+        images=images,
+        official_imgtool=(
+            REPOSITORY.parent / "apps/boot/mcuboot/mcuboot/scripts/imgtool.py"
+        ),
+        openssl=openssl,
+        catalog=catalog,
+        catalog_signature=catalog_signature,
+    )
+    return evidence
+
+
 def _package(args: argparse.Namespace) -> None:
     if args.package_command == "extract":
         output = package_domain.extract(args.package, args.output)
         print(f"bk7258 package extract: PASS output={output}")
+        return
+    if args.package_command == "flash-contract":
+        import json
+        print(json.dumps(package_domain.flash_contract(args.package),
+                         sort_keys=True, separators=(",", ":")))
+        return
+    if args.package_command == "materialize":
+        report = package_domain.verify(args.package)
+        if not report["full_update"]:
+            raise package_domain.PackageError(
+                "materialization requires a signed full-update package"
+            )
+        _verify_package_trust(args.package, args.openssl)
+        report = package_domain.materialize_full_image(
+            args.package, args.base, args.base_sha256, args.output
+        )
+        print(
+            "bk7258 package materialize: PASS "
+            f"output={report['output']} size=0x{report['size']:x} "
+            f"writes={report['writes']} sha256={report['sha256']}"
+        )
         return
     selected_layout = layout_domain.load(_repository_input(args.partition))
     artifact_paths = {name: Path(value) for name, value in _pairs(args.artifact, "artifact").items()}
@@ -288,6 +343,17 @@ def _package(args: argparse.Namespace) -> None:
             preserved_external=tuple(args.preserve_external),
         )
         trust_evidence = trust_domain.unsigned().manifest()
+    if args.full_update != (args.persistent_payload is not None):
+        raise package_domain.PackageError(
+            "--full-update and --persistent-payload must be supplied together"
+        )
+    if args.full_update and not args.signed:
+        raise trust_domain.TrustError("full update requires --signed")
+    persistent_payload = None
+    if args.persistent_payload is not None:
+        persistent_payload = image_domain.read_artifacts(
+            {"persistent_data": args.persistent_payload}
+        )["persistent_data"]
     member_names = _pairs(args.member, "member")
     sdk_evidence: dict[str, str] = {}
     for name in args.sdk_profile:
@@ -302,8 +368,9 @@ def _package(args: argparse.Namespace) -> None:
         catalog_signer=(
             (lambda catalog: trust_domain.sign_catalog(
                 catalog, args.mcuboot_key, args.openssl
-            )) if args.ota_apps else None
+            )) if args.ota_apps or args.full_update else None
         ),
+        persistent_payload=persistent_payload,
     )
     print(
         f"bk7258 package create: PASS output={report['package']} "
@@ -342,19 +409,7 @@ def _verify(args: argparse.Namespace) -> None:
             f"security={security} sha256={result['sha256']}"
         )
     else:
-        evidence, layout, images, catalog, catalog_signature = \
-            package_domain.trust_material(args.package)
-        trust_domain.verify_signed_material(
-            security=evidence,
-            layout=layout,
-            images=images,
-            official_imgtool=(
-                REPOSITORY.parent / "apps/boot/mcuboot/mcuboot/scripts/imgtool.py"
-            ),
-            openssl=args.openssl,
-            catalog=catalog,
-            catalog_signature=catalog_signature,
-        )
+        evidence = _verify_package_trust(args.package, args.openssl)
         if evidence.get("mode") == "signed-ota":
             print("bk7258 verify trust: PASS public MCUboot CP/AP signatures")
         else:

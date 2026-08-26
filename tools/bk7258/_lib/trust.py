@@ -962,6 +962,11 @@ def verify_signed_material(*, security: dict[str, object],
     except (KeyError, ValueError) as error:
         raise TrustError("signed full package lacks its BL1 public root") from error
 
+    if catalog is not None or catalog_signature is not None:
+        if catalog is None or catalog_signature is None:
+            raise TrustError("signed full update catalog is incomplete")
+        verify_catalog(catalog, catalog_signature, mcuboot_der, openssl)
+
     boot = decoded("boot")
     bl2_a = decoded("bl2_a")
     bl2_b = decoded("bl2_b")
