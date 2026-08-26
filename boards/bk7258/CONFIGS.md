@@ -49,10 +49,40 @@ NSH continues to `rcS` even when `BOARDIOC_FINALINIT` returns an error.  Any
 future service added to `rcS` must therefore check its own required mounts or
 devices before starting.
 
-The CP XTS and driver-check profiles intentionally retain their minimal
-diagnostic startup baseline.  AP physical peripherals still belong to
-`bk7258_ap_main()` and the selected physical-board bindings; CP ROMFS scripts
-must not initialize AP-owned LCD, touch, audio, camera or removable storage.
+The CP XTS and driver-check profiles intentionally retain their diagnostic
+startup baseline.  `t5_board_cp_xts` is also the maintained P0 diagnostic
+profile: it keeps AP/RPTUN/Wi-Fi, Trace, watchdog supervision, Backtrace,
+Allsyms, IRQ/critical-section/CPU-load monitoring and memory stress together
+so one image can reproduce system-level faults.  AP physical peripherals
+still belong to `bk7258_ap_main()` and the selected physical-board bindings;
+CP ROMFS scripts must not initialize AP-owned LCD, touch, audio, camera or
+removable storage.
+
+`t5_board_cp_perf` is the one narrow measurement-policy exception to the
+profile-directory rule below.  It does not introduce another physical-board
+or CP/AP ABI boundary: its `profile.conf` remains in compatibility group
+`t5_board_base_v1`.  A separate seed is necessary because trustworthy timing
+requires the opposite policy from diagnostics: fixed maximum board-verified
+frequency and `-O3`, with AP autostart, Wi-Fi, RPTUN, watchdogs, Trace,
+Backtrace, Allsyms and scheduler monitors disabled.  The paired AP image is
+still packaged for the common layout but is not started while measuring.
+Benchmark results are valid only when accompanied by the resolved config hash,
+image hash, frequency, command parameters and repeated-run statistics.
+Generation 144 demonstrated why the SDK IRQ bridge remains part of that
+minimal contract: polling TX reached NSH, but interrupt-driven UART RX could
+not accept commands.  Generation 145 restored only the bridge and completed
+CoreMark, Ramspeed and Whetstone in ten independent sessions each.  The exact
+config/image identities and results are recorded in
+[`../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md`](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md).
+
+Every full-flash acceptance run, including a switch between these two
+profiles, is a new trust generation.  It must use freshly generated, distinct
+BL1 and MCUboot P-256 keypairs, a strictly increasing version/counter, the
+Agent partition CSV, and one `0x7fa000` operator image at address zero.  The
+materialized image preserves all of `usr_config` and Agent persistent data;
+BK Loader must not chip-erase or reach the immutable/calibration tail.  Delete
+the temporary private-key directory after package, flash and board evidence
+are accepted.
 
 `--boot mcuboot` derives private build-local defconfigs with
 `CONFIG_BK7258_MCUBOOT_IMAGE=y`; it does not require another pair of tracked
@@ -71,5 +101,9 @@ Applications consume the mounted storage service and do not select Flash
 geometry, filesystems or cross-core transport.
 
 Do not add product catalogs, generated full configs, boot-mode copies or
-feature-specific profile directories. Add a persistent seed only for a real
-board/role compatibility boundary.
+arbitrary feature-specific profile directories. Add a persistent seed only
+for a real board/role compatibility boundary, or for a reviewed measurement
+policy whose required negative configuration cannot coexist with the normal
+or diagnostic image.  New measurement exceptions must document their negative
+contract and remain in the existing compatibility group unless the ABI really
+changes.

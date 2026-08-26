@@ -9,6 +9,9 @@
 ## 当前 BK7258 作品入口
 
 - [BK7258/T5-AI 当前状态与文档索引](docs/bk7258-t5ai/README.md)
+- [openvela 官网文档逐项适配审计矩阵](docs/bk7258-t5ai/openvela-document-adaptation-matrix.md)
+- [P0 调试、xTS 与性能基线适配/验收手册](docs/bk7258-t5ai/p0-diagnostics-performance.md)
+- [P0 generation 143/145 实板验证与 30 轮性能原始值](progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md)
 - [完整移植技术报告](docs/bk7258-t5ai/porting-report.md)
 - [SDK v3.1.1.9 迁移、legacy 回退与板测报告](docs/bk7258-t5ai/nuttx-port/sdk-v3.1.1.9-migration-report.md)
 - [SDK CP/AP 静态库编译与导入 SOP](docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md)

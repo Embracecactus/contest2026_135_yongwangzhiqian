@@ -63,6 +63,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/arch.h>
 #include <nuttx/sched.h>
 
 #include <arch/chip/bk7258_amp.h>
@@ -406,8 +407,10 @@ uint32_t *__wrap_arm_doirq(int irq, uint32_t *regs)
  * Genuine HardFault/MemManage/etc. keep the parked-for-inspection path. */
 
 extern void bk_misc_set_reset_reason(uint32_t type);
+#ifdef CONFIG_BK7258_WDT
 extern void bk7258_wdt_force_system_reset(void)
   __attribute__((noreturn));
+#endif
 
 #define BK7258_EXC_NMI 2u
 
@@ -502,13 +505,18 @@ bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
       /* Watchdog bark: record the xTS-required cause and finish with the
        * documented whole-device reset rather than an inspection park. */
 
+      /* A watchdog-enabled image uses the proven AON whole-device reset.
+       * A deliberately watchdog-free benchmark image has no AP runtime to
+       * preserve, so the generic Cortex-M system reset is its fail-safe.  Do
+       * not stamp that generic path as a watchdog reset: without the WDT
+       * contract an NMI does not prove which SoC source asserted it. */
+
+#ifdef CONFIG_BK7258_WDT
       bk_misc_set_reset_reason(RESET_SOURCE_NMI_WDT);
-
-      /* Both hardware watchdogs are closed by the CP reset entry, so arm
-       * the AON route explicitly here - reuse the proven force-reset
-       * sequence rather than waiting for a dog that is not running. */
-
       bk7258_wdt_force_system_reset();
+#else
+      up_systemreset();
+#endif
     }
 
   for (; ; )

@@ -164,11 +164,18 @@ from an interrupt buffer and force-flushed before whole-device reset.
 
 ## Trace diagnostics
 
-The maintained console CP base profiles and the T5AI-Core CP driver-check
-profile own the interactive Trace service.  They provide the NuttX `trace`
-command, `/dev/notectl` and a 32-KiB `/dev/note/ram` circular buffer.  The
-size leaves enough contiguous CP heap for the 4-KiB Trace command stack after
-the maintained T5-Board services are running.
+The maintained console CP base profiles, the T5AI-Core CP driver-check profile
+and the T5-Board CP xTS/diagnostic profile own the interactive Trace service.
+They provide the NuttX `trace` command, `/dev/notectl` and a 32-KiB
+`/dev/note/ram` circular buffer.  The size leaves enough contiguous CP heap for
+the 4-KiB Trace command stack after the maintained T5-Board services are
+running.  The separate T5-Board performance profile disables Trace and the
+other asynchronous diagnostic monitors; its contract and test procedure are
+documented in
+[`../../docs/bk7258-t5ai/p0-diagnostics-performance.md`](../../docs/bk7258-t5ai/p0-diagnostics-performance.md).
+The accepted generation 143 diagnostic capture and generation 145
+low-noise benchmark results are recorded in
+[`../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md`](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md).
 Scheduler switches, interrupt entry/exit and custom `sched_note_*` events are
 compiled in.  The default `0x3e` filter follows the openvela Trace guide;
 it masks task start/stop/suspend/resume/name records while leaving IRQ records

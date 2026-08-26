@@ -186,6 +186,34 @@ SECTIONS
         PROVIDE_HIDDEN(__stop_ipc_chan_reg = .);
     } > FLASH
 
+#ifdef CONFIG_ALLSYMS
+    /* mkallsyms.py emits g_allsyms/g_nallsyms as writable objects even
+     * though non-SIM NuttX only reads the generated symbol table.  Keeping
+     * the table in .data costs roughly 58 KiB of the CP's 256 KiB SRAM and
+     * can leave too little heap to spawn NSH after board initialization.
+     * Consume those input sections before the blanket .data rule and place
+     * the runtime-read-only table in XIP flash.  The pinned GNU ld 2.36 does
+     * not yet support the newer (READONLY) output-section type, so the FLASH
+     * memory region and the address gate below are the compatibility-safe
+     * contract.
+     */
+
+    .allsyms : ALIGN(4)
+    {
+        _sallsyms = ABSOLUTE(.);
+        KEEP(*(.data.g_allsyms))
+        KEEP(*(.data.g_nallsyms))
+        . = ALIGN(4);
+        _eallsyms = ABSOLUTE(.);
+    } > FLASH
+
+    ASSERT(SIZEOF(.allsyms) > 0,
+           "ERROR: CONFIG_ALLSYMS requires a flash-resident symbol table")
+    ASSERT(_sallsyms >= ORIGIN(FLASH) &&
+           _eallsyms <= ORIGIN(FLASH) + LENGTH(FLASH),
+           "ERROR: Allsyms table must remain inside CP XIP flash")
+#endif
+
     /* Thread-local storage (NuttX ARM convention). */
     .tdata : ALIGN(4)
     {
