@@ -420,14 +420,14 @@ static int bk7258_flash_ioctl(FAR struct mtd_dev_s *dev, int cmd,
 
       case MTDIOC_ERASESTATE:
         {
-          FAR uint8_t *state = (FAR uint8_t *)arg;
+          FAR uint8_t *erase_state = (FAR uint8_t *)arg;
 
-          if (state == NULL)
+          if (erase_state == NULL)
             {
               return -EINVAL;
             }
 
-          *state = 0xff;
+          *erase_state = 0xff;
         }
         return OK;
 

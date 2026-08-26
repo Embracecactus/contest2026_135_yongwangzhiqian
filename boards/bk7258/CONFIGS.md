@@ -10,12 +10,30 @@ Boot mode is not duplicated in the profile. Every build selects it explicitly:
 
 ```bash
 tools/bk7258/bk7258.py build \
-  --cp-config board/bk7258/configs/t5ai_core_cp_base \
-  --ap-config board/bk7258/configs/t5ai_core_ap_base \
+  --cp-config boards/bk7258/t5ai_core/configs/t5ai_core_cp_base \
+  --ap-config boards/bk7258/t5ai_core/configs/t5ai_core_ap_base \
   --boot direct \
-  --partition board/bk7258/partitions/bk7258/bk7258_ab_onchip_persistent.csv \
+  --partition boards/bk7258/common/partitions/bk7258/bk7258_ab_onchip_persistent.csv \
   --jobs 8
 ```
+
+The generated CP/AP config pair, normalized partition identity, role seed,
+profile metadata, accepted SDK bundle, locked toolchain and public signing
+source all participate in the role build identity.  CMake outputs therefore
+live below:
+
+```text
+<workspace>/out/bk7258/<cp>__<ap>/<layout-id>/roles/<boot>/<role>/<build-id>/cmake
+```
+
+An incremental build reuses only that exact identity.  `--clean` removes only
+its CMake binary directory and never configures or distcleans the NuttX source
+tree.
+
+During the OpenVela Make-to-CMake transition, every source or feature-gate
+change must be mirrored in the same component's `Make.defs` and
+`CMakeLists.txt`.  The chip, shared board and each physical board keep those
+pairs adjacent for direct review.
 
 `--boot mcuboot` derives private build-local defconfigs with
 `CONFIG_BK7258_MCUBOOT_IMAGE=y`; it does not require another pair of tracked

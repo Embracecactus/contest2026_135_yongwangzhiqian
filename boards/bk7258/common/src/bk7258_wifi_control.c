@@ -216,6 +216,7 @@ static uint32_t g_bk7258_wifi_control_sequence;
  * Private Functions
  ****************************************************************************/
 
+#ifdef CONFIG_BK7258_AP_CORE
 static bool bk7258_wifi_control_generation_ready(uint32_t generation)
 {
   volatile struct bk7258_rptun_control_s *control =
@@ -226,6 +227,7 @@ static bool bk7258_wifi_control_generation_ready(uint32_t generation)
          control->version == BK7258_RPTUN_CONTROL_VERSION &&
          control->generation == generation;
 }
+#endif
 
 static bool bk7258_wifi_control_endpoint_ready(void)
 {

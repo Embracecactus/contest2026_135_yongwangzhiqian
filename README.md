@@ -86,7 +86,20 @@ README.md                   # 作品说明（提交前请改成你自己的，�
 
 ## 四、第三步：编译与运行
 
-编译/运行步骤随作品形态不同而不同，请参考你所在赛道的教程导航：
+BK7258 适配使用仓内唯一维护入口；从团队仓根目录执行：
+
+```bash
+tools/bk7258/bk7258.py build \
+  --cp-config boards/bk7258/t5ai_core/configs/t5ai_core_cp_base \
+  --ap-config boards/bk7258/t5ai_core/configs/t5ai_core_ap_base \
+  --boot direct \
+  --partition boards/bk7258/common/partitions/bk7258/bk7258_ab_onchip_persistent.csv \
+  --jobs 8
+```
+
+完整的 direct/MCUboot、签名、打包、持久化与硬件证据边界见
+[BK7258 build/package SOP](docs/bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md)。
+其他作品形态请参考对应赛道教程导航：
 
 - 快应用 / 手表应用：[快应用教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/quickapp/quickapp_guide_index.md)（含模拟器与开发板部署）。
 - AI 硬件产品创新：[AI 硬件赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_hardware/ai_hardware_guide_index.md)（环境搭建、编译烧录、Skill 开发）。
@@ -102,7 +115,7 @@ cd ..
 ./build.sh <board-config-path> [menuconfig|distclean] [-j8]
 ```
 
-> 具体的 board config 路径、目标产物、模拟器/真机部署方式请以你所在赛道的教程导航为准。本仓 `app/` `quickapp/` `board/` 三个示例骨架对应的 Kconfig 选项可通过 `menuconfig` 启用。
+> BK7258 不直接调用通用 `build.sh`；仓内入口负责校验 CP/AP 配对、分区、SDK、工具链和最终镜像。其他示例形态的 board config 与部署方式以赛道教程为准。
 
 ---
 
