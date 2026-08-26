@@ -24,9 +24,10 @@
  * Name: board_app_initialize
  *
  * Description:
- *   Register application-facing procfs/MTD/filesystem services.  Mandatory
- *   SDK, IPC, PM and AP lifecycle initialization is owned by
- *   board_late_initialize() and does not depend on NSH.
+ *   Register application-facing procfs entries and storage devices for the
+ *   system-init script.  Mandatory SDK, IPC, PM and AP lifecycle
+ *   initialization is owned by board_late_initialize() and does not depend
+ *   on NSH.
  ****************************************************************************/
 
 int board_app_initialize(uintptr_t arg)

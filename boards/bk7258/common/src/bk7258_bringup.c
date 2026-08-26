@@ -12,19 +12,12 @@
 
 #include <nuttx/config.h>
 
-#include <sys/mount.h>
-#include <sys/stat.h>
-
 #include <debug.h>
 
 #ifdef CONFIG_BK7258_FLASH_MTD
 #  include <nuttx/fs/fs.h>
 #  include <nuttx/mtd/mtd.h>
 #  include "bk7258_flash_mtd.h"
-#endif
-
-#ifdef CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT
-#  include <nuttx/fs/fs.h>
 #endif
 
 #if defined(CONFIG_FS_PROCFS) && defined(CONFIG_BK7258_DVFS_PROCFS)
@@ -38,29 +31,16 @@
  ****************************************************************************/
 
 #ifdef CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT
-/* LittleFS bring-up: register /dev/mtdblock0 (FTL) and mount /data.  Storage
- * validation belongs to an explicitly selected application/test; normal
- * board bring-up must not create or rewrite a probe file on every boot.
+/* Register /dev/mtdblock0 before rc.sysinit runs.  The script owns the
+ * filesystem mount so the system-startup ordering remains visible and
+ * configurable; this hook only makes the block device available to it.
  */
 
-#define BK7258_FS_MOUNTPOINT  "/data"
-#define BK7258_FS_BLOCKDEV    "/dev/mtdblock0"
-static void bk7258_fs_mount(struct mtd_dev_s *mtd)
+static void bk7258_fs_register(FAR struct mtd_dev_s *mtd)
 {
   if (ftl_initialize(0, mtd) < 0)
     {
       _err("bk7258: failed to register LittleFS FTL block device\n");
-      return;
-    }
-
-  mkdir(BK7258_FS_MOUNTPOINT, 0777);
-
-  if (mount(BK7258_FS_BLOCKDEV, BK7258_FS_MOUNTPOINT, "littlefs", 0,
-            NULL) < 0)
-    {
-      _err("bk7258: failed to mount LittleFS at %s\n",
-           BK7258_FS_MOUNTPOINT);
-      return;
     }
 }
 #endif /* CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT */
@@ -74,7 +54,7 @@ static void bk7258_fs_mount(struct mtd_dev_s *mtd)
  *
  * Description:
  *   Ensure mandatory platform initialization has completed, then register
- *   application-facing procfs, MTD and filesystem services.
+ *   application-facing procfs and storage devices needed by rc.sysinit.
  ****************************************************************************/
 
 int bk7258_bringup(void)
@@ -97,25 +77,16 @@ int bk7258_bringup(void)
   (void)bk7258_dvfs_procfs_register();
 #endif
 
-  /* Mount procfs at the NSH proc mountpoint so ps, ls /proc, and cat of
-   * /proc entries work.  CONFIG_NSH_ARCHINIT activates this hook;
-   * CONFIG_FS_PROCFS provides the filesystem.
-   */
-
-#if defined(CONFIG_FS_PROCFS) && defined(CONFIG_NSH_PROC_MOUNTPOINT)
-  (void)mount(NULL, CONFIG_NSH_PROC_MOUNTPOINT, "procfs", 0, NULL);
-#endif
-
 #ifdef CONFIG_BK7258_FLASH_MTD
-  /* Create the selected on-chip persistent MTD and mount the system data
-   * service. The mount never formats the range.
+  /* Create the selected on-chip persistent MTD and expose its FTL block
+   * device.  rc.sysinit mounts the selected filesystem and never formats it.
    */
 
   FAR struct mtd_dev_s *mtd = bk7258_flash_mtd_initialize();
   if (mtd != NULL)
     {
 #ifdef CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT
-      bk7258_fs_mount(mtd);
+      bk7258_fs_register(mtd);
 #endif
     }
 #endif
