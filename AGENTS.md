@@ -8,8 +8,10 @@
 ## BK7258 trust safety
 
 - During active BK7258 work, do not use N17 or another historical trust domain as a source, baseline, key candidate, or fallback unless the owner explicitly reactivates it.
-- Resolve trust identity from current-project provenance and explicitly approved same-domain public fingerprints. Never search broadly for keys, infer identity from a filename, or record private material or private-key paths.
-- Reuse the existing public-only BL1/BL2 trust contract and non-halting J-Link fingerprint preflight before the apps-only loader path. Do not add a parallel key resolver, trust gate, or download policy.
+- Every owner-authorized full download starts a fresh trust generation: create new ephemeral P-256 key pairs independently for BL1 and MCUboot, embed their public keys in a clean build, and use their private keys to sign the complete BL1/BL2/CP/AP chain. Never reuse a previous generation's private keys for another full download.
+- Keep fresh private keys in a mode-0600 temporary directory only, never print or record their contents or paths in tracked files, and remove them after package verification and hardware acceptance. The signed package retains only public trust evidence.
+- Before a fresh-key full download, the non-halting target preflight must match the latest accepted base generation, while the new package must independently pass its complete internal trust verification and use strictly increasing rollback counters. After download, fresh boot/readback evidence must identify the new generation. Do not require the not-yet-installed public key to match the pre-download target.
+- The apps-only loader path remains bound to the already-installed public-only trust contract and its exact target fingerprint. Do not mix it with the fresh-key full-download path or add a parallel key resolver, trust gate, or download policy.
 
 ## BK7258 architecture
 

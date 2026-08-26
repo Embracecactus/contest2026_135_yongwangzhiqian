@@ -162,6 +162,52 @@ crash-path contracts.  In particular, the SDK varargs bridge preserves its
 caller-selected priority, while the xTS watchdog pre-timeout record is emitted
 from an interrupt buffer and force-flushed before whole-device reset.
 
+## Trace diagnostics
+
+The maintained console CP base profiles and the T5AI-Core CP driver-check
+profile own the interactive Trace service.  They provide the NuttX `trace`
+command, `/dev/notectl` and a 32-KiB `/dev/note/ram` circular buffer.  The
+size leaves enough contiguous CP heap for the 4-KiB Trace command stack after
+the maintained T5-Board services are running.
+Scheduler switches, interrupt entry/exit and custom `sched_note_*` events are
+compiled in.  The default `0x3e` filter follows the openvela Trace guide;
+it masks task start/stop/suspend/resume/name records while leaving IRQ records
+available.  `trace start` clears the RAM buffer and enables capture, while
+`trace stop` freezes it before `trace dump` prints Perfetto-compatible text.
+The `hello` builtin is retained as a deterministic smoke-test workload.
+
+Trace timestamps use the Armv8-M DWT cycle counter through
+`CONFIG_ARCH_PERF_EVENTS`, with 32-bit overflow correction enabled.  BK7258
+initializes the DWT conversion from the decoded live CPU clock and refreshes it
+after DVFS changes; the fixed 32-kHz scheduler SysTick remains independent.
+The CP service deliberately does not merge AP Note records into its RAM
+channel: AP and CP have independent DWT epochs, and combining their raw records
+without clock synchronization would produce a misleading shared timeline.
+
+On the CP console, the minimal hardware acceptance sequence is:
+
+```text
+nsh> trace start
+nsh> hello
+nsh> trace stop
+nsh> trace dump
+```
+
+That default sequence validates IRQ entry/exit capture.  To retain explicit
+`sched_switch` records in the small CP buffer, enable switch records and mask
+the high-rate IRQ stream before starting a second capture:
+
+```text
+nsh> trace mode +w -i
+nsh> trace start
+nsh> hello
+nsh> trace stop
+nsh> trace dump
+```
+
+The mode change is runtime-only; reboot restores the configured `0x3e`
+default.
+
 On T5-Board the two switch pairs are independent:
 
 - S1-1/S1-2 ON connect the CH342F download UART to P10/P11, which are TF
