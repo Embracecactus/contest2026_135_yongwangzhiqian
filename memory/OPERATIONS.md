@@ -1,6 +1,6 @@
 # Operations
 
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-26
 
 Do not place credentials, tokens, private keys, or sensitive production data in this file.
 
@@ -8,9 +8,10 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 
 - Workspace root contains official `nuttx/` and `apps/` siblings plus this contest repository.
 - Active physical target: T5-Board/BK7258.  The owner-confirmed current route
-  uses COM3/UART1 at 115200 8N1 for download and console.  COM4 is disabled by
-  its DIP switch and conflicts with the active debug arrangement; do not open
-  it.  Preserve the P0/P1 SWD route and RTT support.
+  reuses COM3 for both BKFIL download and the CP UART0 console at 115200 8N1;
+  AP syslog is forwarded over RPMsg to CP and therefore appears on the same
+  COM3 stream.  COM4/UART1 stays disabled because it conflicts with the P0/P1
+  SWD route; do not open or enable it.
 - Owner-confirmed hardware topology: the J-Link pin-15 RST signal is physically
   wired to board RST.  This clone probe's old firmware cannot reliably access
   the top shared-SRAM BL2 release word while caches are enabled; use bounded
@@ -46,9 +47,14 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 - `tools/bk7258/bk7258.py sdk list|verify|install|rebuild` owns profile
   discovery, tree verification and the locked rebuild/replace transaction.
   There are no standalone manifests or provenance files.
-- `tools/bk7258/bk7258.py package create|extract` and
+- `tools/bk7258/bk7258.py package create|extract|flash-contract|materialize` and
   `bk7258.py verify layout|image|package|trust` are the complete host package
   and verification surface.
+- `bk7258.py package materialize` cryptographically verifies the signed full
+  package, then combines it with an exact accepted-board base into the one
+  dense BKFIL input.  It
+  refuses a wrong base digest, a size other than the immutable-tail boundary,
+  a changed `preserve` partition, overlapping writes or an existing output.
 
 ## Required verification
 
@@ -96,17 +102,42 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 
 ## Deployment
 
-- Normal flashing consumes only a verified package Flash contract. It must
-  preserve every CSV `preserve`/`immutable` range and any explicitly omitted
-  external artifact.
+- The current owner-directed hardware loop always performs a clean full build,
+  verifies the signed `.bkpack`, then materializes one board-bound full image:
+
+  ```text
+  bk7258.py package materialize --package RELEASE.bkpack \
+    --base ACCEPTED_FULL.bin --base-sha256 SHA256 \
+    --openssl OPENSSL --output RELEASE-full.bin
+  ```
+
+  The resulting file is exactly `0x7fa000` bytes for the accepted Agent layout.
+  It contains all nine authorized writes, restores `usr_config` and every hole
+  from the accepted base, and excludes the immutable tail.
+- Give BKFIL that one file in one operation; do not extract it into a
+  `--mainBin-multi` list:
+
+  ```text
+  bk_loader.exe download -p 3 -b 6000000 -s 0 -i RELEASE-full.bin \
+    --uart-type OTHER --reboot 0 --fast-link 1
+  ```
+
+  Acceptance requires loader log index `[0]`, file length `0x7fa000`, one
+  `EraseFlash ->pass`, one `WriteFlash ->pass`, `Writing Flash OK`, and
+  `{All Finished Successfully}`.  Open COM3 at UART0 115200 only after BKFIL
+  exits, then capture a fresh reset boot.
+- The dense image is board-bound because it embeds retained bytes.  Reuse the
+  latest accepted full image as the next base only for the same board/layout.
+  If the base is uncertain or comes from a target read, read every retained
+  interval twice at 115200, require byte identity and bind its SHA-256; never
+  fill `usr_config` or holes with guessed erase bytes.
 - Every MCUboot hardware workflow in `tools/windows-hardware-debug` must
   perform the non-halting BL1/BL2 target-fingerprint preflight before starting
   `bk_loader`. Treat
   J-Link failure or an identity with no matching permitted address as a
-  package/target pairing failure; do not add a bypass.  Use
-  `--flash --sparse-flash --apps-only --no-console` for routine
-  CP/AP updates so BL1, BL2, Manifest, secondary and data regions remain
-  untouched.  Root rotation is a separately designed and authorized recovery
+  package/target pairing failure; do not add a bypass.  The current hardware
+  loop uses the full single-file flow above, not apps-only or sparse Flash.
+  Root rotation remains a separately designed and authorized recovery
   workflow, not a downloader option.
 - The current board still matches the reviewed legacy probe addresses; the
   linker-reserved fixed blocks read erased until a future explicitly authorized
@@ -117,8 +148,10 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
   any other destructive Flash action requires fresh owner authority. Chip
   erase and calibration-tail writes remain forbidden.
 - New tooling must carry a layout ID and reject pre-migration segment offsets.
-- All `s_app`, BL1 Manifest and BL2 writes require fresh, exact-range owner
-  authority. Source/dry-run verification does not grant it.
+- The standing accepted-layout full-image authority covers byte-compatible
+  `s_app`, BL1 Manifest and BL2 refreshes only after target trust identities
+  match.  A layout change, trust-root change or recovery write still requires
+  fresh exact-range authority; source/dry-run verification does not grant it.
 - A flash PASS is not sufficient: require a new serial capture, `PASS_NSH`, and the stage-specific health command.
 - MIC lower-half acceptance is a stage-specific exception with stronger
   direct evidence: exercise at least 10 complete public-audio-API cycles,

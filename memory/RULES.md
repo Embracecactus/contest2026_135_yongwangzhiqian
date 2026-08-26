@@ -1,6 +1,6 @@
 # Project Rules
 
-Last reviewed: 2026-08-21
+Last reviewed: 2026-08-26
 
 ## Domain invariants
 
@@ -46,16 +46,33 @@ Last reviewed: 2026-08-21
   other external repository state, flash a destructive factory image, or take
   an irreversible action unless the owner grants that separate authority.
 - The owner grants the primary agent standing authority for bounded,
-  recoverable hardware validation: accepted-layout sparse firmware updates,
-  UART capture/commands, read-only J-Link inspection, and normal hardware
-  reset may run without asking again.  This does not authorize chip/factory
-  erase, layout migration, calibration/persistent-data destruction, OTP/eFuse or
-  security-lifecycle writes, debug locking, or any other irreversible action.
+  recoverable hardware validation: accepted-layout firmware updates, UART
+  capture/commands, read-only J-Link inspection, and normal hardware reset may
+  run without asking again.  Every iteration must use a clean CP/AP/BL2/BL1
+  build and monotonically increasing security counters.  The sole
+  operator-facing Flash input is one BKFIL-ready full `.bin`, like a normal
+  human firmware-upgrade file; do not give BKFIL an extracted
+  `--mainBin-multi` list or ask for per-run confirmation.  A signed `.bkpack`
+  may be created internally for trust/layout verification, but it is not the
+  download input.  For the accepted Agent layout, materialize physical
+  `[0x0,0x7fa000)` with `tools/bk7258/bk7258.py package materialize`: overlay every
+  authorized signed image plus the approved `persistent_data` on an exact
+  accepted-board base, retain `usr_config` and all layout holes byte-for-byte,
+  and stop before the immutable tail.  Never synthesize protected bytes as
+  `0xff`.  Flash exactly once with BKFIL `--infile ... --startaddress 0`; reuse
+  COM3 for the UART0 console only after BKFIL exits.  A new or uncertain base
+  requires two byte-identical 115200-baud reads of every retained range before
+  materialization.  "Full" does not mean chip/factory erase: it does not
+  authorize layout migration, persistent-data clearing, immutable/calibration-
+  tail writes, OTP/eFuse or security-lifecycle writes, debug locking,
+  trust-root rotation, or any other irreversible action.
 - Preserve unrelated dirty or untracked work. Resolve exact targets before any destructive operation.
 - The owner-authorized one-time N15 layout migration and LittleFS reset was
-  consumed successfully on 2026-08-03. It did not authorize chip erase or
-  recurring factory writes; any later destructive Flash action needs fresh
-  authority. Project tools must preserve raw `0x7fa000..0x800000`.
+  consumed successfully on 2026-08-03.  The standing full-package authority
+  above permits repeated accepted-layout segment downloads, but not another
+  layout migration, chip/factory erase or data-volume clear; those actions
+  need fresh authority. Project tools must preserve raw
+  `0x7fa000..0x800000`.
 - The former N15/N17 custom OTA selector, writer, journal, validation profile
   and campaign are retired. Do not restore or reconstruct them as a second
   update framework. Any future field updater must start from the pinned NuttX
@@ -89,8 +106,10 @@ Last reviewed: 2026-08-21
   OTP/eFuse or lifecycle ranges.
 - Trust identities live in linker-owned BL1/BL2 sections. Package verification
   locates and validates their bytes; source code does not carry developer or
-  legacy probe addresses. A match authorizes only the requested normal
-  download, never an implicit boot-chain rewrite.
+  legacy probe addresses.  A match plus the separate standing full-package
+  authority permits the bounded package download, including boot-chain
+  segments that preserve the matched identities; it never permits implicit
+  trust-root rotation.
 
 ### Git publication ownership
 
@@ -206,6 +225,8 @@ Last reviewed: 2026-08-21
   from an explicit command input, and all Flash/storage geometry plus policy
   from the selected CSV. No consumer may
   repeat those facts as version/address/profile conditionals.
+- Do not add another Python file under `tools/bk7258/`.  Extend the existing
+  `bk7258.py` entry and its existing `_lib` domain modules instead.
 
 - Before the first source, build or hardware action after a resumed session,
   read `memory/INDEX.md`, then `progress/CURRENT.md`, then only the active
