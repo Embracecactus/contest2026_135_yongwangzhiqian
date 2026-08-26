@@ -27,17 +27,20 @@ Every build requires CP config, AP config, boot mode, partition CSV and jobs:
 
 ```bash
 tools/bk7258/bk7258.py build \
-  --cp-config board/bk7258/configs/t5ai_core_cp_base \
-  --ap-config board/bk7258/configs/t5ai_core_ap_base \
+  --cp-config boards/bk7258/t5ai_core/configs/t5ai_core_cp_base \
+  --ap-config boards/bk7258/t5ai_core/configs/t5ai_core_ap_base \
   --boot direct \
-  --partition board/bk7258/partitions/bk7258/bk7258_ab_onchip_persistent.csv \
+  --partition boards/bk7258/common/partitions/bk7258/bk7258_ab_onchip_persistent.csv \
   --jobs 8
 ```
 
 Repository inputs are resolved from `bk7258.py`, independent of the caller's
 working directory. Official NuttX artifacts keep their basenames under
-`out/bk7258/<config>-<boot>/cmake`; project BL1/BL2 and final images use the
-pair/layout-identity output directory.
+`out/bk7258/<cp>__<ap>/<layout-id>/roles/<boot>/<role>/<build-id>/cmake`;
+project BL1/BL2 and final images use the pair/layout-identity output directory.
+The build ID covers the role seed, profile, pair path, layout, accepted SDK,
+locked toolchain and public signing source, so changing any opaque input cannot
+reuse a stale CMake cache. `--clean` deletes only that generated CMake tree.
 
 ## MCUboot build and signed package
 

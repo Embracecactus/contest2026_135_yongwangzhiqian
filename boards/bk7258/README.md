@@ -1,8 +1,9 @@
 # BK7258 physical-board variants
 
-`board/bk7258` owns the shared BK7258 chip, CP/AP, boot-chain, SDK-wrapper,
-partition and build integration.  This directory contains only physical-PCB
-wiring and capability facts.
+`chips/bk7258` owns the shared BK7258 CP/AP, boot-chain and SDK-wrapper.
+`boards/bk7258/common` owns shared board, partition and linker integration;
+the three sibling board directories contain only physical-PCB wiring and
+capability facts.
 
 ## Naming
 
@@ -99,7 +100,7 @@ A defconfig is therefore a product feature profile, not a board description.
 Several profiles may select the same board; another board may select an
 equivalent feature set without duplicating that board's electrical database.
 The retained profiles and their CP/AP compatibility groups are documented in
-[`../configs/README.md`](../configs/README.md).
+[`CONFIGS.md`](CONFIGS.md).
 
 On T5-Board the two switch pairs are independent:
 

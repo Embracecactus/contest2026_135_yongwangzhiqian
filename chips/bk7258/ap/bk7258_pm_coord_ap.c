@@ -184,6 +184,7 @@ static void bk7258_pm_ap_trace_publish(uint32_t cpu)
   uintptr_t start =
     (uintptr_t)&g_bk7258_pm_ap_core_trace[cpu];
 
+  (void)start;
   __asm volatile ("dmb sy" ::: "memory");
   up_clean_dcache(start, start + sizeof(g_bk7258_pm_ap_core_trace[cpu]));
 }

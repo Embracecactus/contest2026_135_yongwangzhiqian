@@ -116,8 +116,8 @@ static void bk7258_debug_transport_recover(void)
  * Private Data
  ****************************************************************************/
 
-static mutex_t g_bk7258_bt_controller_lock = NXMUTEX_INITIALIZER;
 #ifdef CONFIG_BK7258_BT_IPC
+static mutex_t g_bk7258_bt_controller_lock = NXMUTEX_INITIALIZER;
 static bool g_bk7258_bt_controller_ipc_ready;
 static bool g_bk7258_bt_controller_ready;
 #endif
@@ -150,6 +150,7 @@ volatile struct bk7258_bt_lifecycle_diag_s g_bk7258_bt_cp_lifecycle =
  * Private Types
  ****************************************************************************/
 
+#if defined(CONFIG_BK7258_BT_IPC) && !defined(CONFIG_BK7258_WIFI_VNET)
 static void bk7258_bt_set_ofdm_pwd(uint32_t value)
 {
   volatile uint32_t *reg =
@@ -187,6 +188,7 @@ static const struct bk7258_bt_wifi_phy_funcs_s g_bk7258_bt_wifi_phy_funcs =
   .enter_low_analog = sys_hal_enter_low_analog,
   .exit_low_analog = sys_hal_exit_low_analog,
 };
+#endif
 
 static_assert(BK_MAC_ADDR_LEN == BK7258_SDK_MAC_ADDRESS_SIZE,
               "Beken MAC address ABI changed");

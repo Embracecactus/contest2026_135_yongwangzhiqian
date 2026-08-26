@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -72,6 +73,7 @@ class RoleBuild:
     map_file: Path
     dotconfig: Path
     generated_layout: layout_domain.GeneratedLayout
+    build_identity: str
     seed_defconfig_sha256: str
     resolved_config_sha256: str
 
@@ -261,6 +263,82 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _role_build_identity(workspace: Path, config: ConfigProfile,
+                         build_config_root: Path,
+                         selected_layout: layout_domain.Layout,
+                         toolchain: Toolchain, sdk_tree_hash: str,
+                         catalog_public_source: Path | None) -> str:
+    """Hash every non-source input that CMake cannot safely rediscover."""
+
+    try:
+        config_root = build_config_root.relative_to(workspace).as_posix()
+    except ValueError as error:
+        raise BuildError("build config is outside the OpenVela workspace") from error
+    catalog_sha256 = None
+    if catalog_public_source is not None:
+        catalog_sha256 = _sha256_file(
+            _regular(catalog_public_source, "OTA catalog public key source")
+        )
+    payload = {
+        "board": config.board,
+        "build_config_root": config_root,
+        "compatibility": config.compatibility,
+        "layout_sha256": selected_layout.sha256,
+        "ota_catalog_public_source_sha256": catalog_sha256,
+        "profile_sha256": _sha256_file(config.root / "profile.conf"),
+        "role": config.role,
+        "schema": "bk7258-role-build/1",
+        "sdk_profile": config.sdk_profile,
+        "sdk_tree_sha256": sdk_tree_hash,
+        "seed_defconfig_sha256": _sha256_file(build_config_root / "defconfig"),
+        "toolchain_archive_sha256": toolchain.revision,
+    }
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return f"bk7258-role-{hashlib.sha256(encoded).hexdigest()[:16]}"
+
+
+def _role_output_root(workspace: Path, config: ConfigProfile,
+                      build_config_root: Path,
+                      selected_layout: layout_domain.Layout,
+                      toolchain: Toolchain, sdk_tree_hash: str,
+                      catalog_public_source: Path | None) -> tuple[Path, str]:
+    pair_root = build_config_root.parent.parent.parent
+    expected_root = (workspace / "out/bk7258").resolve()
+    try:
+        pair_root.resolve().relative_to(expected_root)
+    except ValueError as error:
+        raise BuildError("generated build config is outside out/bk7258") from error
+    boot = build_config_root.parent.name
+    if boot not in {"direct", "mcuboot"}:
+        raise BuildError(f"generated build config has invalid boot mode: {boot}")
+    identity = _role_build_identity(
+        workspace, config, build_config_root, selected_layout, toolchain,
+        sdk_tree_hash, catalog_public_source,
+    )
+    return pair_root / "roles" / boot / config.role / identity, identity
+
+
+def _remove_output_tree(path: Path, workspace: Path) -> None:
+    """Remove one generated output directory without following symlinks."""
+
+    allowed_root = (workspace / "out/bk7258").resolve()
+    resolved = path.resolve(strict=False)
+    try:
+        resolved.relative_to(allowed_root)
+    except ValueError as error:
+        raise BuildError(f"refusing to clean output outside {allowed_root}: {path}") from error
+    if resolved == allowed_root:
+        raise BuildError("refusing to clean the complete BK7258 output root")
+    if path.is_symlink():
+        raise BuildError(f"build output root must not be a symlink: {path}")
+    if path.exists():
+        if not path.is_dir():
+            raise BuildError(f"build output root must be a directory: {path}")
+        shutil.rmtree(path)
 
 
 def _dotconfig(path: Path) -> dict[str, str | None]:
@@ -538,14 +616,17 @@ def _build_config_root(workspace: Path, cp: ConfigProfile, ap: ConfigProfile,
 
 
 def _role_build(repository: Path, workspace: Path, official_build: Path,
-                config: ConfigProfile, build_config_root: Path, output_name: str,
+                config: ConfigProfile, build_config_root: Path,
                 selected_layout: layout_domain.Layout, toolchain: Toolchain,
                 jobs: int, clean: bool,
                 catalog_public_source: Path | None = None) -> RoleBuild:
     sdk_report = sdk_domain.verify(repository, config.sdk_profile)
     build_config_root = _directory(build_config_root, f"{config.role} build config")
     _regular(build_config_root / "defconfig", f"{config.role} build defconfig")
-    output_root = workspace / "out/bk7258" / output_name
+    output_root, build_identity = _role_output_root(
+        workspace, config, build_config_root, selected_layout, toolchain,
+        sdk_report.tree_hash, catalog_public_source,
+    )
     binary_root = output_root / "cmake"
     generated = layout_domain.emit(selected_layout, output_root / "generated")
 
@@ -576,16 +657,7 @@ def _role_build(repository: Path, workspace: Path, official_build: Path,
     except ValueError as error:
         raise BuildError("build config is outside the OpenVela workspace") from error
     if clean:
-        _run([str(official_build), config_argument, "distclean"],
-             f"official {config.role} clean",
-             cwd=workspace, environment=environment)
-        _run(
-            [str(official_build), config_argument, "--cmake", "-b",
-             str(binary_root), "distclean"],
-            f"official {config.role} CMake clean",
-            cwd=workspace,
-            environment=environment,
-        )
+        _remove_output_tree(binary_root, workspace)
     base = [
         str(official_build), config_argument, "--cmake",
         "-b", str(binary_root),
@@ -604,6 +676,7 @@ def _role_build(repository: Path, workspace: Path, official_build: Path,
         map_file=_unique(binary_root, ("nuttx.map",), f"{config.role} map"),
         dotconfig=dotconfig,
         generated_layout=generated,
+        build_identity=build_identity,
         seed_defconfig_sha256=_sha256_file(build_config_root / "defconfig"),
         resolved_config_sha256=_sha256_file(dotconfig),
     )
@@ -824,11 +897,11 @@ def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
     )
     cp_result = _role_build(
         repository, workspace, official_build, cp, cp_build_config,
-        f"{cp.root.name}-{boot}", selected_layout, toolchain, jobs, clean
+        selected_layout, toolchain, jobs, clean
     )
     ap_result = _role_build(
         repository, workspace, official_build, ap, ap_build_config,
-        f"{ap.root.name}-{boot}", selected_layout, toolchain, jobs, clean,
+        selected_layout, toolchain, jobs, clean,
         public_sources.catalog_source if public_sources is not None else None,
     )
     _verify_storage_topology(cp_result, ap_result, selected_layout)

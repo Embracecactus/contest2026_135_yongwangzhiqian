@@ -151,8 +151,9 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 | 多核后续 | N8 AP SMP、N9 RPTUN/RPMsg与N13 BLE服务层均已板端通过；不切换 BMP、不建立 CPU2第二 peer。Wi-Fi数据面仍未进入已批准范围 |
 
 当前维护者只通过 `tools/bk7258/bk7258.py` 构建和打包。官方 NuttX
-`nuttx/nuttx.bin/nuttx.map` 保留在 `out/bk7258/<config>-<boot>/cmake`；项目
-BL1/BL2与最终 Flash段位于 pair/layout-identity 输出目录。最终交付容器是
+`nuttx/nuttx.bin/nuttx.map` 保留在
+`out/bk7258/<cp>__<ap>/<layout-id>/roles/<boot>/<role>/<build-id>/cmake`；
+项目 BL1/BL2与最终 Flash段位于 pair/layout-identity 输出目录。最终交付容器是
 `.bkpack`，必须先通过 `verify package`；签名交付还必须通过 `verify trust`。
 不存在 `bk7258-dual-image.json`、`vela_*`别名、factory计划或 metadata-only
 package plan。Flash只能使用已验证包中声明的 sparse range，并保留所有
@@ -174,11 +175,10 @@ package plan。Flash只能使用已验证包中声明的 sparse range，并保�
 - [probe/README.md](probe/README.md) —— 最小裸探针说明（烧 @ `0x02010000`，读 core/CPUID/VTOR）
 - [probe/probe.c](probe/probe.c) · [probe/probe.ld](probe/probe.ld)
 
-### Tier-1 Bootloader 源码（`board/`）
-- [board/bk7258/bootloader/README.md](../../board/bk7258/bootloader/README.md) —— Tier-1 bootloader 说明
-- [start.S](../../board/bk7258/bootloader/start.S) · [boot_main.c](../../board/bk7258/bootloader/boot_main.c) ·
-  [bootloader.ld](../../board/bk7258/bootloader/bootloader.ld) ·
-  [bk7236_pack_min_bootloader.py](../../board/bk7258/bootloader/bk7236_pack_min_bootloader.py)
+### Tier-1 Bootloader 源码（`chips/bk7258/bootloader/`）
+- [chips/bk7258/bootloader/README.md](../../chips/bk7258/bootloader/README.md) —— Tier-1 bootloader 说明
+- [start.S](../../chips/bk7258/bootloader/start.S) · [boot_main.c](../../chips/bk7258/bootloader/boot_main.c) ·
+  [bootloader.ld](../../chips/bk7258/bootloader/bootloader.ld)
 
 ### NuttX 移植 worklog / prompts（`nuttx-port/`）
 - [nuttx-port/git-worktree-sync-2026-07-27.md](nuttx-port/git-worktree-sync-2026-07-27.md) —— 主检出目录、clean worktree、构建链接与 PR 分支同步记录

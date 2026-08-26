@@ -84,8 +84,10 @@ static struct bk7258_rptun_mbox_message_s
   g_bk7258_rptun_mbox_messages[BK7258_RPTUN_MBOX_TYPE_COUNT];
 static uint32_t g_bk7258_rptun_mbox_pending;
 static uint32_t g_bk7258_rptun_lifecycle_event;
+#ifndef CONFIG_BK7258_AP_CORE
 static uint32_t g_bk7258_rptun_probe_reply;
 static uint32_t g_bk7258_rptun_probe_sequence;
+#endif
 static uint32_t g_bk7258_rptun_notify_generation;
 static uint32_t g_bk7258_rptun_notify_value;
 static bool g_bk7258_rptun_notify_pending;

@@ -530,29 +530,17 @@ target_include_directories(arch PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/ap
     ${NUTTX_DIR}/arch/arm/src/arm_m
     ${NUTTX_DIR}/arch/arm/src/armv8-m
-    ${BK7258_SDK_INCLUDE_DIR}
-    ${BK7258_SDK_CONFIG_DIR}
     ${BK7258_AGENT_MEDIA_INC})
+target_include_directories(arch SYSTEM PRIVATE
+    ${BK7258_SDK_INCLUDE_DIR}
+    ${BK7258_SDK_CONFIG_DIR})
 
-# Match the SDK header environment used by Classic Make without enabling any
-# of the SDK's FreeRTOS, watchdog or retention ownership.
+# The exported sdkconfig.h is part of the immutable static-library ABI and stays
+# authoritative.  Keep only OpenVela feature-local definitions here.
 
-target_compile_definitions(arch PRIVATE
-    CONFIG_FREERTOS=0
-    CONFIG_FREERTOS_SMP=0
-    CONFIG_INT_WDT=0
-    CONFIG_TASK_WDT=0
-    CONFIG_INT_AON_WDT=0
-    CONFIG_SYSTEM_CTRL=1
-    CONFIG_NMI_WDT_EN=1
-    CONFIG_DEBUG_VERSION=0
-    CONFIG_GPIO_RETENTION_SUPPORT=0
-    CONFIG_AON_RTC=0
-    CONFIG_AON_RTC_64BIT=0
-    CONFIG_SOC_BK7256XX=0
-    CONFIG_SOC_BK7236XX=0
-    CONFIG_SOC_BK7239XX=0
-    ${BK7258_AGENT_MEDIA_DEFINE})
+if(BK7258_AGENT_MEDIA_DEFINE)
+  target_compile_definitions(arch PRIVATE ${BK7258_AGENT_MEDIA_DEFINE})
+endif()
 
 if(NOT CONFIG_BK7258_AP_CORE)
   bk7258_wrap_sdk_symbol(arm_doirq nxsched_resume_scheduler)

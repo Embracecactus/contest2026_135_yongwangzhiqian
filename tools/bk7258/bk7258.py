@@ -162,10 +162,12 @@ def _build(args: argparse.Namespace) -> None:
         )
     print(
         f"cp elf={result.cp.elf} bin={result.cp.binary} map={result.cp.map_file} "
+        f"identity={result.cp.build_identity} "
         f"seed={result.cp.seed_defconfig_sha256} config={result.cp.resolved_config_sha256}"
     )
     print(
         f"ap elf={result.ap.elf} bin={result.ap.binary} map={result.ap.map_file} "
+        f"identity={result.ap.build_identity} "
         f"seed={result.ap.seed_defconfig_sha256} config={result.ap.resolved_config_sha256}"
     )
     for row in result.artifacts:

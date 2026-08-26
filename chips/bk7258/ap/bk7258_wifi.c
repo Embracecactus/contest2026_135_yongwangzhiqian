@@ -281,6 +281,7 @@ static int bk7258_wifi_transmit(FAR struct net_driver_s *dev)
   FAR struct bk7258_wifi_driver_s *priv = dev->d_private;
   int ret;
 
+  (void)priv;
   if (dev->d_len == 0 || dev->d_len > BK7258_WIFI_PKTBUF_SIZE)
     {
       return -EINVAL;
