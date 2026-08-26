@@ -1,0 +1,15 @@
+/****************************************************************************
+ * boards/bk7258/t5ai_core/src/etc/init.d/rcS
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+/* CP services added here must check their own runtime prerequisites: NSH
+ * calls this script after final-init even if its diagnostic check failed.
+ */
+
+#ifndef CONFIG_NSH_DISABLE_ECHO
+echo "BK7258 RCS PASS"
+#endif

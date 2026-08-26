@@ -2,6 +2,18 @@
 
 target_sources(board PRIVATE bk7258_board_bringup.c)
 
+if(CONFIG_ETC_ROMFS)
+  nuttx_add_romfs(
+    NAME etc
+    MOUNTPOINT etc
+    RCSRCS
+    etc/init.d/rc.sysinit
+    etc/init.d/rcS
+    PATH
+    ${CMAKE_CURRENT_BINARY_DIR}/etc)
+  target_link_libraries(board PRIVATE romfs_etc)
+endif()
+
 if(CONFIG_BK7258_AUD)
   target_sources(board PRIVATE bk7258_t5ai_core_audio.c)
 endif()

@@ -6,6 +6,10 @@ target_sources(board PRIVATE
     bk7258_bringup.c
     bk7258_platform.c)
 
+if(CONFIG_BOARDCTL_FINALINIT)
+  target_sources(board PRIVATE bk7258_finalinit.c)
+endif()
+
 if(NOT CONFIG_BK7258_AP_CORE)
   target_sources(board PRIVATE
       bk7258_boot_slot.c

@@ -1,0 +1,21 @@
+/****************************************************************************
+ * boards/bk7258/t5_board/src/etc/init.d/rc.sysinit
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+#ifdef CONFIG_FS_PROCFS
+mount -t procfs CONFIG_NSH_PROC_MOUNTPOINT
+#endif
+
+#if defined(CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT) && \
+    defined(CONFIG_FS_LITTLEFS)
+mkdir /data
+mount -t littlefs /dev/mtdblock0 /data
+#endif
+
+#ifndef CONFIG_NSH_DISABLE_ECHO
+echo "BK7258 SYSINIT PASS"
+#endif

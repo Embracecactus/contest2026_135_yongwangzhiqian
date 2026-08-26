@@ -35,6 +35,25 @@ change must be mirrored in the same component's `Make.defs` and
 `CMakeLists.txt`.  The chip, shared board and each physical board keep those
 pairs adjacent for direct review.
 
+The runnable CP base profiles use the standard OpenVela startup lifecycle:
+
+1. `board_app_initialize()` registers procfs entries and storage devices;
+2. `/etc/init.d/rc.sysinit` mounts procfs and the selected system storage;
+3. `board_app_finalinitialize()` verifies the ROMFS scripts and mounted
+   filesystems;
+4. `/etc/init.d/rcS` is the designated place for CP product services and is
+   currently marker-only.
+
+Final-init is a diagnostic contract, not a startup gate: the current NuttX
+NSH continues to `rcS` even when `BOARDIOC_FINALINIT` returns an error.  Any
+future service added to `rcS` must therefore check its own required mounts or
+devices before starting.
+
+The CP XTS and driver-check profiles intentionally retain their minimal
+diagnostic startup baseline.  AP physical peripherals still belong to
+`bk7258_ap_main()` and the selected physical-board bindings; CP ROMFS scripts
+must not initialize AP-owned LCD, touch, audio, camera or removable storage.
+
 `--boot mcuboot` derives private build-local defconfigs with
 `CONFIG_BK7258_MCUBOOT_IMAGE=y`; it does not require another pair of tracked
 configuration directories. It additionally requires explicit BL1 and MCUboot

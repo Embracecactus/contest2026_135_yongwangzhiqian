@@ -2,6 +2,10 @@
 
 CSRCS += bk7258_board_bringup.c
 
+ifeq ($(CONFIG_ETC_ROMFS),y)
+RCSRCS = etc/init.d/rc.sysinit etc/init.d/rcS
+endif
+
 ifeq ($(CONFIG_BK7258_AUD),y)
 CSRCS += bk7258_aidk_board_audio.c
 endif
