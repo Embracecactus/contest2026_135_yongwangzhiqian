@@ -1,5 +1,5 @@
 ############################################################################
-# Host-side unit-test build for the mailbox transport and BL1 policy cores.
+# Host-side unit-test build for maintained BK7258 chip modules.
 #
 # The REAL implementation is compiled unmodified, except that the ARM-only
 # "__asm volatile ("dmb sy" ::: "memory");" barrier is neutralized in a
@@ -15,9 +15,16 @@ CFLAGS  := -std=gnu11 -pthread -Wall -Wextra -O2
 MOCKS   := mocks
 BUILD   := build
 
-# Real implementation, relative to this repo-level tests/bk7258 directory.
-REAL_C  := ../../board/bk7258/chip/common/bk7258_rptun_mbox.c
-REAL_H  := ../../board/bk7258/chip/common/bk7258_rptun_mbox.h
+# Real chip implementation, relative to this repo-level tests/bk7258
+# directory.  Keep host fixtures on the maintained chips/bk7258 ownership
+# boundary; the retired board/bk7258 compatibility tree no longer exists.
+CHIP_ROOT := ../../chips/bk7258
+REAL_C    := $(CHIP_ROOT)/common/bk7258_rptun_mbox.c
+REAL_H    := $(CHIP_ROOT)/common/bk7258_rptun_mbox.h
+TOOLS_ROOT := ../../tools/bk7258
+PARTITION_CSV := ../../boards/bk7258/common/partitions/bk7258/bk7258_ab_agent_onchip_persistent.csv
+PARTITION_DIR := $(BUILD)/layout
+PARTITION_HEADER := $(PARTITION_DIR)/bk7258_partitions.h
 
 TARGET  := $(BUILD)/test_bk7258_rptun_mbox
 POLICY_TARGET := $(BUILD)/test_boot_bl1_policy
@@ -30,10 +37,12 @@ PM_ACTIVITY_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2
 RPTUN_CORE_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2 \
 	-DTEST_BK7258_RPTUN_CORE
 
-.PHONY: all clean bl1 bl2 ap run-bl1 run-bl2 run-ap
+.PHONY: all clean bl1 bl2 ap run run-core run-bl1 run-bl2 run-ap
 
 all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
 	$(RPTUN_CORE_CP_TARGET) $(RPTUN_CORE_AP_TARGET) bl1 bl2 ap
+
+run: run-core run-bl1 run-bl2 run-ap
 
 ############################################################################
 # BL1 framework: mock_reg32 MMIO windows, XIP flash window, tinycrypt mock.
@@ -41,16 +50,17 @@ all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
 
 FRAMEWORK := framework
 BL1_MODULES := modules/bl1
-BOOTLOADER := ../../board/bk7258/bootloader
-BOARD_INC  := ../../board/bk7258/include
-CHIP_INC   := ../../board/bk7258/chip/include
+BOOTLOADER := $(CHIP_ROOT)/bootloader
+CHIP_INC   := $(CHIP_ROOT)/include
 PATCH      := python3 $(FRAMEWORK)/patch.py
 CMOCKA     := $(shell pkg-config --cflags --libs cmocka)
+BL1_CONFIG := $(FRAMEWORK)/bk7258_bl1_config.h
+BL1_CONFIG_FLAG := -include $(abspath $(BL1_CONFIG))
 
 BL1_INC := -I $(FRAMEWORK) -I mocks -I mocks/tinycrypt \
-	-I $(BL1_MODULES) -I $(BOOTLOADER) -I $(BOARD_INC) -I $(CHIP_INC) \
-	-I $(BUILD)/bl1
-BL1_CFLAGS := -std=gnu11 -Wall -Wextra -O2 -g -DBK7258_BL1_CONSOLE_UART=1
+	-I $(BL1_MODULES) -I $(BOOTLOADER) -I $(CHIP_INC) \
+	-I $(PARTITION_DIR) -I $(BUILD)/bl1
+BL1_CFLAGS := -std=gnu11 -Wall -Wextra -O2 -g $(BL1_CONFIG_FLAG)
 
 # Framework objects shared by every BL1 test binary.
 FRAMEWORK_OBJS := $(BUILD)/mock_reg32.o $(BUILD)/mock_flash.o \
@@ -66,10 +76,6 @@ $(BUILD)/mock_tinycrypt.o: $(FRAMEWORK)/mock_tinycrypt.c \
 	$(FRAMEWORK)/mock_tinycrypt.h mocks/tinycrypt/ecc.h
 	$(CC) $(BL1_CFLAGS) -I $(FRAMEWORK) -I mocks -c $< -o $@
 
-$(BUILD)/mock_boot_jump.o: $(FRAMEWORK)/mock_boot_jump.c \
-	$(FRAMEWORK)/mock_boot_jump.h
-	$(CC) $(BL1_CFLAGS) -I $(FRAMEWORK) -c $< -o $@
-
 # Throwaway patched copies of the real bootloader sources.  The real files
 # are never modified.  -include mock_reg32.h injects the MMIO redirect into
 # the patched translation unit.
@@ -84,7 +90,15 @@ $(BUILD)/bl1/boot_wdt.h: $(BOOTLOADER)/boot_wdt.h $(FRAMEWORK)/patch.py \
 	| $(BUILD)/bl1
 	$(PATCH) boot_wdt $< $@
 
-$(BUILD)/bl1:
+$(PARTITION_DIR):
+	mkdir -p $@
+
+$(PARTITION_HEADER): $(PARTITION_CSV) $(TOOLS_ROOT)/_lib/layout.py \
+	$(FRAMEWORK)/generate_layout.py | $(PARTITION_DIR)
+	python3 $(FRAMEWORK)/generate_layout.py $(TOOLS_ROOT) \
+	  $(PARTITION_CSV) $(PARTITION_DIR)
+
+$(BUILD)/bl1: $(PARTITION_HEADER)
 	mkdir -p $(BUILD)/bl1
 
 BL1_PATCHED := $(BUILD)/bl1/boot_flash.c $(BUILD)/bl1/boot_clock.c \
@@ -111,25 +125,27 @@ $(BUILD)/bl1/boot_runtime.o: $(BUILD)/bl1/boot_wdt.h
 $(BUILD)/bl1/boot_flash.o: $(BUILD)/bl1/boot_wdt.h
 
 # Pure modules (no patch needed).
-$(BUILD)/bl1/boot_libc.o: $(BOOTLOADER)/boot_libc.c
+$(BUILD)/bl1/boot_libc.o: $(BOOTLOADER)/boot_libc.c | $(BUILD)/bl1
 	$(CC) $(BL1_CFLAGS) $(BL1_INC) -c $< -o $@
 
 $(BUILD)/bl1/boot_sha256.o: $(BOOTLOADER)/boot_sha256.c \
-	$(BOOTLOADER)/boot_sha256.h
+	$(BOOTLOADER)/boot_sha256.h | $(BUILD)/bl1
 	$(CC) $(BL1_CFLAGS) $(BL1_INC) -c $< -o $@
 
 $(BUILD)/bl1/boot_bl1_policy.o: $(BOOTLOADER)/boot_bl1_policy.c \
-	$(BOOTLOADER)/boot_bl1_policy.h $(BOOTLOADER)/boot_bl1_boot_flag_core.h
+	$(BOOTLOADER)/boot_bl1_policy.h $(BOOTLOADER)/boot_bl1_boot_flag_core.h \
+	| $(BUILD)/bl1
 	$(CC) $(BL1_CFLAGS) $(BL1_INC) -c $< -o $@
 
 $(BUILD)/bl1/boot_bl1_boot_flag_core.o: \
-	$(BOOTLOADER)/boot_bl1_boot_flag_core.c
+	$(BOOTLOADER)/boot_bl1_boot_flag_core.c | $(BUILD)/bl1
 	$(CC) $(BL1_CFLAGS) $(BL1_INC) -c $< -o $@
 
-$(BUILD)/bl1/boot_bl1_manifest_key.o: $(BOOTLOADER)/boot_bl1_manifest_key.c
+$(BUILD)/bl1/mock_bl1_public_key.o: \
+	$(FRAMEWORK)/mock_bl1_public_key.c | $(BUILD)/bl1
 	$(CC) $(BL1_CFLAGS) $(BL1_INC) -c $< -o $@
 
-$(BUILD)/bl1/test_%.o: $(BL1_MODULES)/test_%.c
+$(BUILD)/bl1/test_%.o: $(BL1_MODULES)/test_%.c | $(BUILD)/bl1
 	$(CC) $(BL1_CFLAGS) $(BL1_INC) -c $< -o $@
 
 # Test binaries.
@@ -157,7 +173,7 @@ $(BUILD)/test_boot_runtime: $(BUILD)/bl1/boot_runtime.o \
 $(BUILD)/test_bl1_manifest: $(BUILD)/bl1/boot_bl1_manifest.o \
 	$(BUILD)/bl1/boot_bl1_policy.o \
 	$(BUILD)/bl1/boot_bl1_boot_flag_core.o \
-	$(BUILD)/bl1/boot_bl1_manifest_key.o $(BUILD)/bl1/boot_sha256.o \
+	$(BUILD)/bl1/mock_bl1_public_key.o $(BUILD)/bl1/boot_sha256.o \
 	$(BUILD)/bl1/test_bl1_manifest.o $(BUILD)/mock_reg32.o \
 	$(BUILD)/mock_flash.o $(BUILD)/mock_tinycrypt.o
 	$(CC) $^ -o $@ $(CMOCKA)
@@ -178,16 +194,18 @@ run-bl1: bl1
 	./$(BUILD)/test_bl1_manifest
 
 ############################################################################
-# BL2/MCUboot board modules: security counter, flash-map backend, key hook.
+# BL2/MCUboot chip modules: security counter, flash-map and pair policy.
 ############################################################################
 
 BL2_MODULES := modules/bl2
 BL2_DIR     := $(BUILD)/bl2
+BL2_SOURCE  := $(BOOTLOADER)/bl2
 BL2_INC := -I $(BL2_DIR) -I $(BUILD) -I $(FRAMEWORK) -I mocks \
-	-I $(BL2_MODULES) -I $(BOOTLOADER) -I $(BOOTLOADER)/bl2/include \
-	-I $(BOARD_INC) -I $(CHIP_INC)
+	-I $(BL2_MODULES) -I $(BOOTLOADER) -I $(BL2_SOURCE) \
+	-I $(CHIP_INC) -I $(PARTITION_DIR) -iquote $(BL2_SOURCE)/include
 BL2_CFLAGS := -std=gnu11 -Wall -Wextra -O2 -g \
-	-DBK7258_BL2_SECURITY_COUNTER_FLOOR=7
+	-DBK7258_BL2_SECURITY_COUNTER_FLOOR=7 \
+	-DBK7258_BL2_COPY_SIZE=0x00010000u
 
 # The board flash_map backend pulls ../boot_wdt.h in by quote-include; the
 # patched header lives in $(BUILD) and is shared with BL1 modules.
@@ -195,47 +213,37 @@ $(BUILD)/boot_wdt.h: $(BOOTLOADER)/boot_wdt.h $(FRAMEWORK)/patch.py \
 	| $(BUILD)
 	$(PATCH) boot_wdt $< $@
 
-$(BL2_DIR):
+$(BL2_DIR): $(PARTITION_HEADER)
 	mkdir -p $(BL2_DIR)
 
 $(BL2_DIR)/bk7258_bl2_security_cnt.c: \
-	$(BOOTLOADER)/bl2/bk7258_bl2_security_cnt.c $(FRAMEWORK)/patch.py \
+	$(BL2_SOURCE)/bk7258_bl2_security_cnt.c $(FRAMEWORK)/patch.py \
 	| $(BL2_DIR)
 	$(PATCH) bl2_security_cnt $< $@
 
 $(BL2_DIR)/bk7258_bl2_flash_map.c: \
-	$(BOOTLOADER)/bl2/bk7258_bl2_flash_map.c $(FRAMEWORK)/patch.py \
+	$(BL2_SOURCE)/bk7258_bl2_flash_map.c $(FRAMEWORK)/patch.py \
 	| $(BL2_DIR)
 	$(PATCH) bl2_flash_map $< $@
-
-$(BL2_DIR)/bk7258_bl2_mcuboot_boot.c: \
-	$(BOOTLOADER)/bl2/bk7258_bl2_mcuboot_boot.c $(FRAMEWORK)/patch.py \
-	| $(BL2_DIR)
-	$(PATCH) bl2_mcuboot_boot $< $@
 
 # Patched BL2 modules are compiled with the framework MMIO injected.
 $(BL2_DIR)/%.o: $(BL2_DIR)/%.c | $(BUILD)/boot_wdt.h $(BL2_DIR)
 	$(CC) $(BL2_CFLAGS) -include mock_reg32.h -include mock_flash.h \
 	  $(BL2_INC) -c $< -o $@
 
-# Pure module: no MMIO, no patch.
-$(BL2_DIR)/bk7258_bl2_keys.o: $(BOOTLOADER)/bl2/bk7258_bl2_keys.c \
-	mocks/bootutil/sign_key.h | $(BL2_DIR)
+# Pure pair-ordering policy: no MMIO and no source patch.
+$(BL2_DIR)/bk7258_bl2_pair_policy.o: \
+	$(BL2_SOURCE)/bk7258_bl2_pair_policy.c \
+	$(BL2_SOURCE)/bk7258_bl2_pair_policy.h mocks/bootutil/image.h \
+	| $(BL2_DIR)
 	$(CC) $(BL2_CFLAGS) $(BL2_INC) -c $< -o $@
 
-# The mcuboot handoff module additionally needs the boot-jump hook injected.
-# Its include path deliberately omits $(BOOTLOADER)/bl2/include: that dir
-# carries a bare-metal assert.h (no static_assert) which would shadow the
-# host <assert.h> pulled in by the real image-layout header.
-BL2_BOOT_INC := -I $(BL2_DIR) -I $(BUILD) -I $(FRAMEWORK) -I mocks \
-	-I $(BL2_MODULES) -I $(BOOTLOADER) -I $(BOARD_INC) -I $(CHIP_INC)
-$(BL2_DIR)/bk7258_bl2_mcuboot_boot.o: $(BL2_DIR)/bk7258_bl2_mcuboot_boot.c \
-	$(FRAMEWORK)/mock_boot_jump.h | $(BL2_DIR)
-	$(CC) $(BL2_CFLAGS:-g=) -include mock_reg32.h -include mock_flash.h \
-	  -include mock_boot_jump.h $(BL2_BOOT_INC) -c $< -o $@
+$(BL2_DIR)/test_%.o: $(BL2_MODULES)/test_%.c | $(BL2_DIR)
+	$(CC) $(BL2_CFLAGS) $(BL2_INC) -c $< -o $@
 
-$(BL2_DIR)/test_%.o: $(BL2_MODULES)/test_%.c
-	$(CC) $(BL2_CFLAGS) $(BL2_BOOT_INC) -c $< -o $@
+$(BUILD)/mock_boot_flash.o: $(FRAMEWORK)/mock_boot_flash.c \
+	$(FRAMEWORK)/mock_boot_flash.h $(PARTITION_HEADER) | $(BUILD)
+	$(CC) $(BL2_CFLAGS) $(BL2_INC) -c $< -o $@
 
 $(BUILD)/test_bl2_security_cnt: $(BL2_DIR)/bk7258_bl2_security_cnt.o \
 	$(BL2_DIR)/test_bl2_security_cnt.o $(BUILD)/mock_reg32.o
@@ -243,20 +251,15 @@ $(BUILD)/test_bl2_security_cnt: $(BL2_DIR)/bk7258_bl2_security_cnt.o \
 
 $(BUILD)/test_bl2_flash_map: $(BL2_DIR)/bk7258_bl2_flash_map.o \
 	$(BL2_DIR)/test_bl2_flash_map.o $(BUILD)/mock_reg32.o \
-	$(BUILD)/mock_flash.o
+	$(BUILD)/mock_flash.o $(BUILD)/mock_boot_flash.o
 	$(CC) $^ -o $@ $(CMOCKA)
 
-$(BUILD)/test_bl2_keys: $(BL2_DIR)/bk7258_bl2_keys.o \
-	$(BL2_DIR)/test_bl2_keys.o
-	$(CC) $^ -o $@ $(CMOCKA)
-
-$(BUILD)/test_bl2_mcuboot_boot: $(BL2_DIR)/bk7258_bl2_mcuboot_boot.o \
-	$(BL2_DIR)/test_bl2_mcuboot_boot.o $(BUILD)/mock_reg32.o \
-	$(BUILD)/mock_flash.o $(BUILD)/mock_boot_jump.o
+$(BUILD)/test_bl2_pair_policy: $(BL2_DIR)/bk7258_bl2_pair_policy.o \
+	$(BL2_DIR)/test_bl2_pair_policy.o
 	$(CC) $^ -o $@ $(CMOCKA)
 
 BL2_TARGETS := $(BUILD)/test_bl2_security_cnt $(BUILD)/test_bl2_flash_map \
-	$(BUILD)/test_bl2_keys $(BUILD)/test_bl2_mcuboot_boot
+	$(BUILD)/test_bl2_pair_policy
 
 bl2: $(BL2_TARGETS)
 
@@ -264,8 +267,7 @@ bl2: $(BL2_TARGETS)
 run-bl2: bl2
 	./$(BUILD)/test_bl2_security_cnt
 	./$(BUILD)/test_bl2_flash_map
-	./$(BUILD)/test_bl2_keys
-	./$(BUILD)/test_bl2_mcuboot_boot
+	./$(BUILD)/test_bl2_pair_policy
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -280,7 +282,7 @@ $(BUILD)/bk7258_rptun_mbox.c: $(REAL_C) | $(BUILD)
 $(BUILD)/bk7258_rptun_mbox.h: $(REAL_H) | $(BUILD)
 	cp $(REAL_H) $@
 
-$(BUILD)/bk7258_rptun.c: ../../board/bk7258/chip/common/bk7258_rptun.c | $(BUILD)
+$(BUILD)/bk7258_rptun.c: $(CHIP_ROOT)/common/bk7258_rptun.c | $(BUILD)
 	cp $< $@
 	sed -i 's|__asm volatile ("dmb sy.*|__asm__ volatile ("" ::: "memory");|g' $@
 
@@ -294,29 +296,30 @@ $(TARGET): $(BUILD)/bk7258_rptun_mbox.c $(BUILD)/bk7258_rptun_mbox.h \
 	  -o $@ -lpthread
 
 $(POLICY_TARGET): test_boot_bl1_policy.c \
-                 ../../board/bk7258/bootloader/boot_bl1_boot_flag_core.c \
-                 ../../board/bk7258/bootloader/boot_bl1_boot_flag_core.h \
-                 ../../board/bk7258/bootloader/boot_bl1_handoff_core.c \
-                 ../../board/bk7258/bootloader/boot_bl1_handoff_core.h \
-                 ../../board/bk7258/bootloader/boot_bl1_policy.c \
-                 ../../board/bk7258/bootloader/boot_bl1_policy.h \
-                 ../../board/bk7258/bootloader/boot_bl1_manifest.h
-	$(CC) $(POLICY_CFLAGS) \
+                 $(BL1_CONFIG) \
+                 $(BOOTLOADER)/boot_bl1_boot_flag_core.c \
+                 $(BOOTLOADER)/boot_bl1_boot_flag_core.h \
+                 $(BOOTLOADER)/boot_bl1_handoff_core.c \
+                 $(BOOTLOADER)/boot_bl1_handoff_core.h \
+                 $(BOOTLOADER)/boot_bl1_policy.c \
+                 $(BOOTLOADER)/boot_bl1_policy.h \
+                 $(BOOTLOADER)/boot_bl1_manifest.h
+	$(CC) $(POLICY_CFLAGS) $(BL1_CONFIG_FLAG) \
 	  test_boot_bl1_policy.c \
-	  ../../board/bk7258/bootloader/boot_bl1_boot_flag_core.c \
-	  ../../board/bk7258/bootloader/boot_bl1_handoff_core.c \
-	  ../../board/bk7258/bootloader/boot_bl1_policy.c \
-	  -I ../../board/bk7258/bootloader \
-	  -I ../../board/bk7258/include \
+	  $(BOOTLOADER)/boot_bl1_boot_flag_core.c \
+	  $(BOOTLOADER)/boot_bl1_handoff_core.c \
+	  $(BOOTLOADER)/boot_bl1_policy.c \
+	  -I $(BOOTLOADER) \
+	  -I $(CHIP_INC) \
 	  -o $@
 
 $(PM_ACTIVITY_TARGET): test_bk7258_pm_activity.c \
-                      ../../board/bk7258/chip/common/bk7258_pm_activity.c \
-                      ../../board/bk7258/chip/common/bk7258_pm_activity.h
+                      $(CHIP_ROOT)/common/bk7258_pm_activity.c \
+                      $(CHIP_ROOT)/common/bk7258_pm_activity.h
 	$(CC) $(PM_ACTIVITY_CFLAGS) \
 	  test_bk7258_pm_activity.c \
-	  ../../board/bk7258/chip/common/bk7258_pm_activity.c \
-	  -I ../../board/bk7258/chip/common \
+	  $(CHIP_ROOT)/common/bk7258_pm_activity.c \
+	  -I $(CHIP_ROOT)/common \
 	  -o $@
 
 $(RPTUN_CORE_CP_TARGET): $(BUILD)/bk7258_rptun.c \
@@ -324,7 +327,7 @@ $(RPTUN_CORE_CP_TARGET): $(BUILD)/bk7258_rptun.c \
 	$(CC) $(RPTUN_CORE_CFLAGS) \
 	  test_bk7258_rptun_core.c \
 	  $(BUILD)/bk7258_rptun.c \
-	  -I $(MOCKS) -I ../../board/bk7258/chip/common \
+	  -I $(MOCKS) -I $(CHIP_ROOT)/common \
 	  -o $@
 
 $(RPTUN_CORE_AP_TARGET): $(BUILD)/bk7258_rptun.c \
@@ -332,11 +335,19 @@ $(RPTUN_CORE_AP_TARGET): $(BUILD)/bk7258_rptun.c \
 	$(CC) $(RPTUN_CORE_CFLAGS) -DTEST_BK7258_RPTUN_AP \
 	  test_bk7258_rptun_core.c \
 	  $(BUILD)/bk7258_rptun.c \
-	  -I $(MOCKS) -I ../../board/bk7258/chip/common \
+	  -I $(MOCKS) -I $(CHIP_ROOT)/common \
 	  -o $@
 
+run-core: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
+	$(RPTUN_CORE_CP_TARGET) $(RPTUN_CORE_AP_TARGET)
+	./$(TARGET)
+	./$(POLICY_TARGET)
+	./$(PM_ACTIVITY_TARGET)
+	./$(RPTUN_CORE_CP_TARGET)
+	./$(RPTUN_CORE_AP_TARGET)
+
 ############################################################################
-# AP board helpers.  bk7258_jpeg_decoder.c is compiled UNMODIFIED: it has no
+# AP chip helpers.  bk7258_jpeg_decoder.c is compiled UNMODIFIED: it has no
 # bare-metal MMIO or ARM barriers.  -no-pie keeps every static/allocated
 # address below 4 GiB, which the driver requires (its SDK talks to 32-bit
 # JPEG registers and rejects out-of-range caller buffers).
@@ -358,7 +369,7 @@ $(BUILD)/mock_sdk_jpeg.o: $(FRAMEWORK)/mock_sdk_jpeg.c \
 	$(FRAMEWORK)/mock_sdk_jpeg.h
 	$(CC) $(AP_CFLAGS) $(AP_INC) -c $< -o $@
 
-$(AP_DIR)/bk7258_jpeg_decoder.o: ../../board/bk7258/chip/ap/bk7258_jpeg_decoder.c \
+$(AP_DIR)/bk7258_jpeg_decoder.o: $(CHIP_ROOT)/ap/bk7258_jpeg_decoder.c \
 	$(FRAMEWORK)/mock_sdk_jpeg.h mocks/mock_nuttx_ap.c | $(AP_DIR)
 	$(CC) $(AP_CFLAGS) $(AP_INC) -c $< -o $@
 
@@ -386,7 +397,7 @@ $(BUILD)/mock_sdk_yuv_h264.o: $(FRAMEWORK)/mock_sdk_yuv_h264.c \
 	mocks/nuttx_yuv/nuttx/clock.h
 	$(CC) $(AP_CFLAGS) $(MOCK_YUV_INC) $(AP_INC) -c $< -o $@
 
-$(AP_DIR)/bk7258_yuv_h264.o: ../../board/bk7258/chip/ap/bk7258_yuv_h264.c \
+$(AP_DIR)/bk7258_yuv_h264.o: $(CHIP_ROOT)/ap/bk7258_yuv_h264.c \
 	$(FRAMEWORK)/mock_sdk_yuv_h264.h mocks/driver/dma.h \
 	mocks/driver/h264.h mocks/driver/yuv_buf.h mocks/nuttx_yuv/nuttx/semaphore.h \
 	mocks/nuttx_yuv/nuttx/clock.h | $(AP_DIR)
@@ -407,7 +418,7 @@ $(BUILD)/test_bk7258_yuv_h264: $(AP_DIR)/bk7258_yuv_h264.o \
 # apply to the throwaway copy (framework/patch.py): the ARM dsb barrier
 # and the Scale1 write-burst register poke (routed to mock_reg32); the
 # relative board include is re-pointed at the real header via CHIP_INC.
-$(BUILD)/bk7258_scale_rotate.c: ../../board/bk7258/chip/ap/bk7258_scale_rotate.c \
+$(BUILD)/bk7258_scale_rotate.c: $(CHIP_ROOT)/ap/bk7258_scale_rotate.c \
 	framework/patch.py | $(BUILD)
 	python3 framework/patch.py scale_rotate $< $@
 
@@ -431,13 +442,13 @@ $(BUILD)/test_bk7258_scale_rotate: $(AP_DIR)/bk7258_scale_rotate.o \
 	$(BUILD)/mock_sdk_scale_rotate.o $(BUILD)/mock_reg32.o
 	$(CC) $(AP_CFLAGS) $^ -o $@ $(CMOCKA) -lpthread
 
-# bk7258_irda.c: board-owned register-level NEC decoder (CP-owned).  The
+# bk7258_irda.c: chip-owned register-level NEC decoder (CP-owned).  The
 # throwaway copy is patched by framework/patch.py so the direct IRDA
 # register accessors route through mock_reg32; the SDK surface
 # (gpio_dev_map, bk_int_isr_register, register_driver) is programmable via
 # framework/mock_sdk_irda, and the key-debounce wdog fires explicitly via
 # framework/mock_wdog.
-$(BUILD)/bk7258_irda.c: ../../board/bk7258/chip/cp/bk7258_irda.c \
+$(BUILD)/bk7258_irda.c: $(CHIP_ROOT)/cp/bk7258_irda.c \
 	framework/patch.py | $(BUILD)
 	python3 framework/patch.py irda $< $@
 
@@ -482,7 +493,7 @@ $(BUILD)/mock_sdk_can.o: $(FRAMEWORK)/mock_sdk_can.c \
 	mocks/nuttx/can/can.h mocks/driver/hal/hal_can_types.h
 	$(CC) $(AP_CFLAGS) $(MOCK_CAN_INC) $(AP_INC) -c $< -o $@
 
-$(AP_DIR)/bk7258_can.o: ../../board/bk7258/chip/ap/bk7258_can.c \
+$(AP_DIR)/bk7258_can.o: $(CHIP_ROOT)/ap/bk7258_can.c \
 	$(FRAMEWORK)/mock_sdk_can.h mocks/nuttx_can/nuttx/semaphore.h | $(AP_DIR)
 	$(CC) $(AP_CFLAGS) $(MOCK_CAN_INC) $(AP_INC) -c $< -o $@
 

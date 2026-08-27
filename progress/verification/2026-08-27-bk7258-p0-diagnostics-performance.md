@@ -4,6 +4,10 @@
 > 不改写。当前性能 profile 已按 v3.1.1.9 正式表修正为 OPP 240M、CPU0 240 MHz，
 > generation 146 的新结果已另建 verification 记录；OPP 语义见
 > [`docs/chips/bk7258/sdk-clock-operating-points.md`](../../docs/chips/bk7258/sdk-clock-operating-points.md)。
+>
+> 本文证据范围截至 generation 146。后续 generation 147～149 的 CP heap 根因、
+> 当前代 xTS、签名全量下载和板端结果见
+> [generation 149 xTS 收口记录](2026-08-27-bk7258-p0-xts-completion.md)，不在本文重复展开。
 
 - 日期/时区：2026-08-27，Asia/Shanghai
 - 分支：`feat/bk7258-p0-diagnostics`
@@ -13,8 +17,8 @@
 - Agent layout identity：`bk7258-2b86faab14dca06e`
 - 总结：诊断 generation 143、历史性能 generation 145 和当前 240 MHz 性能
   generation 146 的签名全量下载、启动和目标功能均通过；两代性能镜像都完成
-  CoreMark/Ramspeed/Whetstone 各 10 次。完整 xTS、其他 benchmark 与 12 小时 soak
-  未完成，因此整个 P0 工作包仍为部分完成。generation 146 完整证据见
+  CoreMark/Ramspeed/Whetstone 各 10 次。按本文截至 generation 146 的范围，完整
+  当前代 xTS、其他 benchmark 与 12 小时 soak 未完成。generation 146 完整证据见
   [独立验证记录](2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 
 适配与复现方法见
@@ -259,12 +263,14 @@ population stddev 0.002091 MIPS。
 
 ## 9. 明确未覆盖项
 
-- 诊断：受控 fault、critmon 非零告警阈值、完整当前代 xTS；
-- 压力：真实介质 blktest、opus_ramtest、长时 memstress、12 小时 soak；
+- 诊断：受控 fault、critmon 非零告警阈值；当前代 xTS 后续状态见页首 g149 记录；
+- 压力：真实介质 blktest、opus_ramtest、长时 memstress；12 小时 soak 经 owner 于
+  2026-08-27 确认延期，本轮不阻塞；
 - 性能：Dhrystone/TinyMemBench 的可复现源码锁定，BK7258 cache API 契约与 CacheSpeed；
 - 硬件：GPIO/UART loopback 和比赛要求的其他外设矩阵；
-- 主机：`tests/bk7258/run_tests.sh` 在有效用例前被历史 fixture 路径/API 迁移阻塞，
-  不能写成 PASS。
+- 主机：后续同日已迁移 `tests/bk7258/run_tests.sh` 到现役 chip/API，core 与 281 项
+  cmocka 全部 PASS；见
+  [主机回归记录](2026-08-27-bk7258-host-regression-fixture.md)。该结果不替代板端 xTS。
 
 已观察到但不阻塞本轮门禁的启动日志：早期 BKSDIO CMD1 timeout 后 TF 正常挂载；
 早期 LVGL channel not ready 后 UI/Agent 最终 ready。若最终状态缺失，应重新判为失败。
@@ -273,6 +279,8 @@ population stddev 0.002091 MIPS。
 
 - 诊断/Allsyms/Backtrace/IRQ/critmon/cpuload/Trace/memstress 子集：PASS；
 - CoreMark/Ramspeed/Whetstone 10 次基线：PASS；
+- 现役 host fixture：PASS（core + 281 项 cmocka）；
 - 新密钥、签名包、COM3 单文件全量下载、Agent 持久数据与写入边界：PASS；
-- 完整 P0：PARTIAL，等待 §9 的完整 xTS/长稳及剩余项目；
-- 板上当前镜像：performance generation 146（`1.88.2+146`，CP/CPU0 240 MHz）。
+- 完整 P0：PARTIAL，等待 §9 与 g149 记录列出的剩余项目；12 小时长稳已延期；
+- 本文最后验证的性能镜像：generation 146（`1.88.2+146`，CP/CPU0 240 MHz）；
+  板上当前镜像已由后续 xTS generation 149（`1.88.5+149`）替代。

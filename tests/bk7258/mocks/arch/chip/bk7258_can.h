@@ -1,7 +1,7 @@
 /****************************************************************************
  * tests/bk7258/mocks/arch/chip/bk7258_can.h
  *
- * Host mock of board/bk7258/chip/include/bk7258_can.h: the public API the
+ * Host mock of chips/bk7258/include/bk7258_can.h: the public API the
  * board bring-up code would call.  The lower-half only consumes
  * bk7258_can_initialize()/uninitialize().
  ****************************************************************************/

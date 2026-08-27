@@ -881,7 +881,8 @@ int bk7258_psram_add_system_heap(size_t size)
 {
   void *memory;
 
-  if (!bk7258_psram_ready() || size == 0)
+  if (!bk7258_psram_ready() || size == 0 ||
+      size >= BK7258_PSRAM_LOCAL_HEAP_SIZE)
     {
       return -EINVAL;
     }

@@ -1,13 +1,18 @@
 #!/bin/sh
-# Build and run the BK7258 mailbox and BL1-policy host unit tests.
-set -e
+# Build and run the complete BK7258 host regression fixture.
+set -eu
 cd "$(dirname "$0")"
 ASAN_OPTIONS=${ASAN_OPTIONS:-detect_leaks=0}
 export ASAN_OPTIONS
+
+echo "BK7258_HOST_TEST_BEGIN"
+echo "git_commit=$(git rev-parse --verify HEAD)"
+echo "cc=$(${CC:-cc} --version | sed -n '1p')"
+echo "python=$(python3 --version 2>&1)"
+echo "cmocka=$(pkg-config --modversion cmocka)"
+echo "sanitizers=address,undefined:test_boot_bl1_policy"
+echo "partition_csv_sha256=$(sha256sum ../../boards/bk7258/common/partitions/bk7258/bk7258_ab_agent_onchip_persistent.csv | awk '{print $1}')"
+
 make clean >/dev/null
-make
-./build/test_bk7258_rptun_mbox
-./build/test_boot_bl1_policy
-./build/test_bk7258_pm_activity
-./build/test_bk7258_rptun_core_cp
-./build/test_bk7258_rptun_core_ap
+make run
+echo "BK7258_HOST_TEST_PASS"

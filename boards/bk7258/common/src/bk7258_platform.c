@@ -334,6 +334,32 @@ int bk7258_platform_initialize(void)
    */
 
   psramret = bk7258_psram_initialize();
+
+#if defined(CONFIG_BK7258_PSRAM_SYSTEM_HEAP) && \
+    !defined(CONFIG_BK7258_AP_CORE)
+  if (psramret >= 0)
+    {
+      int heapret;
+
+      heapret = bk7258_psram_add_system_heap(
+        CONFIG_BK7258_PSRAM_SYSTEM_HEAP_SIZE);
+      if (heapret < 0)
+        {
+          syslog(LOG_ERR,
+                 "BPSR SYSTEM HEAP FAIL status=%d size=%lu\n",
+                 heapret,
+                 (unsigned long)CONFIG_BK7258_PSRAM_SYSTEM_HEAP_SIZE);
+          psramret = heapret;
+        }
+      else
+        {
+          syslog(LOG_INFO,
+                 "BPSR SYSTEM HEAP PASS size=%lu\n",
+                 (unsigned long)CONFIG_BK7258_PSRAM_SYSTEM_HEAP_SIZE);
+        }
+    }
+#endif
+
   (void)bk7258_psram_get_info(&psram);
   if (psramret < 0)
     {
@@ -523,6 +549,20 @@ int bk7258_platform_initialize(void)
 #else
   g_bk7258_platform_result = result;
 #endif
+
+#if defined(CONFIG_BK7258_PSRAM_SYSTEM_HEAP) && \
+    !defined(CONFIG_BK7258_AP_CORE)
+  /* AP-control profiles already carry this failure through apret.  Preserve
+   * the same fail-closed contract for a future CP-only profile that enables
+   * the role-local system heap without AP control.
+   */
+
+  if (g_bk7258_platform_result >= 0 && psramret < 0)
+    {
+      g_bk7258_platform_result = psramret;
+    }
+#endif
+
   g_bk7258_platform_initialized = true;
   nxmutex_unlock(&g_bk7258_platform_lock);
   return g_bk7258_platform_result;

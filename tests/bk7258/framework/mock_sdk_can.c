@@ -9,6 +9,7 @@
  ****************************************************************************/
 
 #include <errno.h>
+#include <stdbool.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,14 +25,31 @@
 
 int nxsem_init(sem_t *sem, int pshared, unsigned int value)
 {
+  int ret;
+
   (void)pshared;
   sem->count = value;
-  return pthread_mutex_init(&sem->lock, NULL);
+  ret = pthread_mutex_init(&sem->lock, NULL);
+  if (ret != 0)
+    {
+      return ret;
+    }
+
+  ret = pthread_cond_init(&sem->cond, NULL);
+  if (ret != 0)
+    {
+      pthread_mutex_destroy(&sem->lock);
+    }
+
+  return ret;
 }
 
 int nxsem_destroy(sem_t *sem)
 {
-  return pthread_cond_destroy(&sem->cond);
+  int ret = pthread_cond_destroy(&sem->cond);
+  int mutex_ret = pthread_mutex_destroy(&sem->lock);
+
+  return ret != 0 ? ret : mutex_ret;
 }
 
 int nxsem_post(sem_t *sem)
@@ -74,12 +92,16 @@ struct mock_can_thread_s
 static void *mock_can_tramp(void *arg)
 {
   struct mock_can_thread_s *t = arg;
+  int (*entry)(int argc, FAR char *argv[]) = t->entry;
 
-  t->entry(0, NULL);
+  free(t);
+  entry(0, NULL);
   return NULL;
 }
 
 static int g_mock_can_kthreads;
+static pthread_t g_mock_can_tid;
+static bool g_mock_can_tid_valid;
 
 int kthread_create(FAR const char *name, int priority, int stack_size,
                    int (*entry)(int, FAR char *argv[]), FAR char *argv[])
@@ -91,6 +113,11 @@ int kthread_create(FAR const char *name, int priority, int stack_size,
   (void)priority;
   (void)stack_size;
   (void)argv;
+
+  if (g_mock_can_tid_valid)
+    {
+      return -EBUSY;
+    }
 
   t = malloc(sizeof(*t));
   if (t == NULL)
@@ -105,7 +132,8 @@ int kthread_create(FAR const char *name, int priority, int stack_size,
       return -EIO;
     }
 
-  pthread_detach(tid);
+  g_mock_can_tid = tid;
+  g_mock_can_tid_valid = true;
   g_mock_can_kthreads++;
   return 1;
 }
@@ -113,6 +141,17 @@ int kthread_create(FAR const char *name, int priority, int stack_size,
 int kthread_delete(pid_t pid)
 {
   (void)pid;
+
+  if (g_mock_can_tid_valid)
+    {
+      if (pthread_join(g_mock_can_tid, NULL) != 0)
+        {
+          return -EIO;
+        }
+
+      g_mock_can_tid_valid = false;
+    }
+
   return 0;
 }
 
@@ -368,7 +407,6 @@ int bk_can_receive(uint8_t *buf, uint32_t expect_size,
 
   (void)timeout;
   uint32_t remaining;
-  uint32_t n;
   int ret;
 
   ret = mock_can_get_ret(MOCK_CAN_FN_RECEIVE);

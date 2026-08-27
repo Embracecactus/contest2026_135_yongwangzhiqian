@@ -14,7 +14,7 @@ BK7258 / T5-AI 当前交付状态，用于回答三个长期问题：
 - [openvela 开源项目首页（1423）](https://doc.openvela.com/document?id=1423&version=dev-ai-contest-2026&language=cn)
 - 审计版本：dev-ai-contest-2026 / 中文
 - 审计日期：2026-08-27
-- 集成起点：`e61287519037a125373fb8a0f3c95595578cfdff`；本表同时审计当前 SDK clock 工作区差异
+- 集成起点：`ecc1c0a185896d6afce165d20ebbf1a270782683`；本表同时审计当前 P0 xTS 工作区差异
 - 动态交付状态仍以 [progress/CURRENT.md](../../progress/CURRENT.md)、当前 manifest、
   维护 defconfig 和分区 CSV 为准。
 
@@ -63,10 +63,10 @@ BK7258 / T5-AI 当前交付状态，用于回答三个长期问题：
 | [1457 时间系统](https://doc.openvela.com/document?id=1457&version=dev-ai-contest-2026&language=cn) | 🟡 | T5-Board AP 已有 AON RTC、时区和 localtime；SoC 供电时不需要 RTC 电池。断电后没有独立后备电源保持 UTC | 若产品要求断电保持时间，增加带电池 RTC、网络校时或 CP 持久化同步 |
 | [1459 Syslog](https://doc.openvela.com/document?id=1459&version=dev-ai-contest-2026&language=cn)、[1460 printf 规范](https://doc.openvela.com/document?id=1460&version=dev-ai-contest-2026&language=cn)、[1461 日志排障](https://doc.openvela.com/document?id=1461&version=dev-ai-contest-2026&language=cn) | ✅ / ⚪ | CP 为 RPMsg Syslog server，AP 为 client，前缀、PID、优先级、时间戳和缓冲已配置；printf/排障页作编码规范 | 后续只做压力、掉线重连和日志丢失统计 |
 | [1463 Trace](https://doc.openvela.com/document?id=1463&version=dev-ai-contest-2026&language=cn) | ✅ | 维护的交互式诊断/console CP profile 启用调度、IRQ、switch 和 DWT perf Trace；P0 诊断 generation 143 实板 dump 为 55,920 bytes/679 行，含 IRQ entry/exit；独立性能 profile 按低噪声契约关闭 Trace；操作见 [板级 README](../../boards/bk7258/README.md) | 发布时保留有界采样，性能采样继续使用独立 profile |
-| [1465 内存管理](https://doc.openvela.com/document?id=1465&version=dev-ai-contest-2026&language=cn) | ✅ 当前 heap / 🕰 容量基线 | 当前 T5 Agent 使用 512 KiB AP PSRAM system heap，并已随整机验收；16 MiB 可寻址、角色 heap 和边界门禁来自 [历史 N14 板测](../../progress/verification/2026-08-03-n14-psram-board-verification.md)，不能冒充当前 Agent 整机对全容量的回归 | 对当前 512 KiB workload 完成长稳和碎片统计；需要全容量声明时重跑 N14 门禁 |
+| [1465 内存管理](https://doc.openvela.com/document?id=1465&version=dev-ai-contest-2026&language=cn) | ✅ 当前 heap / 🕰 容量基线 | 当前 T5 Agent 使用 512 KiB AP PSRAM system heap；generation 149 的 CP xTS profile 另用 64 KiB role-local PSRAM system heap，Umem total 精确增加 64 KiB，mm 8/8 与 sched 16/16 实板通过。16 MiB 全容量边界仍来自 [历史 N14 板测](../../progress/verification/2026-08-03-n14-psram-board-verification.md) | 产品 profile 做长稳和碎片统计；需要全容量声明时重跑 N14 门禁。当前 xTS 证据见 [g149 记录](../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md) |
 | [1469 Cortex-M 中断嵌套](https://doc.openvela.com/document?id=1469&version=dev-ai-contest-2026&language=cn) | 🟡 | 当前 BASEPRI、异常栈和无切换恢复路径已稳定；未启用 ARCH_HIPRI_INTERRUPT，SDK 设备 IRQ 被约束为不可相互抢占 | 只有出现明确零延迟需求时，才设计 HIPRI/嵌套压力测试 |
 | [1471 原子操作](https://doc.openvela.com/document?id=1471&version=dev-ai-contest-2026&language=cn)、[1472 信号量](https://doc.openvela.com/document?id=1472&version=dev-ai-contest-2026&language=cn) | ⚪ / ✅回归 | 使用 NuttX 通用实现；AP 双核原子、信号量、远程唤醒和 ping-pong 已有实板证据 | 不另写 SoC 私有 API |
-| [1474 Pipe](https://doc.openvela.com/document?id=1474&version=dev-ai-contest-2026&language=cn)、[1475 工作队列](https://doc.openvela.com/document?id=1475&version=dev-ai-contest-2026&language=cn)、[1476 消息队列](https://doc.openvela.com/document?id=1476&version=dev-ai-contest-2026&language=cn) | ⚪ / ✅回归 | NuttX 通用能力；pipe 和调度子集已进入 xTS，网络/媒体 wrapper 使用 work queue | 在完整 xTS 中继续覆盖 |
+| [1474 Pipe](https://doc.openvela.com/document?id=1474&version=dev-ai-contest-2026&language=cn)、[1475 工作队列](https://doc.openvela.com/document?id=1475&version=dev-ai-contest-2026&language=cn)、[1476 消息队列](https://doc.openvela.com/document?id=1476&version=dev-ai-contest-2026&language=cn) | ⚪ / ✅回归 | NuttX 通用能力；generation 149 的 FIFO interlock、FIFO、PIPE redirection、PIPE 和 scheduler 16/16 实板通过，网络/媒体 wrapper 使用 work queue | 保持当前代回归；消息队列专项仍按上层需求补充 |
 | [1479 VirtIO 简介](https://doc.openvela.com/document?id=1479&version=dev-ai-contest-2026&language=cn)、[1480 VirtIO 框架](https://doc.openvela.com/document?id=1480&version=dev-ai-contest-2026&language=cn) | ⚪ | 当前 BK7258 CP/AP transport 直接使用 RPTUN/OpenAMP/RPMsg，不依赖单独 VirtIO 设备适配 | 不列为产品待办 |
 | [1482 RPMsg](https://doc.openvela.com/document?id=1482&version=dev-ai-contest-2026&language=cn) | ✅ | mailbox、RPTUN、RPMsg、RPMsgFS、health、Syslog、OTA 和 Wi-Fi VNET 均基于当前跨核链路 | 保持重连、负载和故障注入回归 |
 | [1483 RPMsg Clock](https://doc.openvela.com/document?id=1483&version=dev-ai-contest-2026&language=cn) | 🔴 可选 | 当前没有 CLK_RPMSG 配置或 openvela RPMsg Clock server/client；现有跨核 PM/时钟由 BK wrapper 协调 | 仅在 AP 需要按名字远程控制 CP 时钟资源时适配 |
@@ -131,17 +131,17 @@ BK7258 / T5-AI 当前交付状态，用于回答三个长期问题：
 |---|---|---|---|
 | [1620 GDB](https://doc.openvela.com/document?id=1620&version=dev-ai-contest-2026&language=cn) | 🟡 / ⚪ | 已有 J-Link、RTT、只读内存/寄存器和自动化硬件调试 SOP；没有把标准 GDB 会话作为当前发布门禁 | 需要源码级停机调试时再补可复现 GDB 配置 |
 | [1621 VSCode SIM](https://doc.openvela.com/document?id=1621&version=dev-ai-contest-2026&language=cn) | ➖ | 面向 SIM，不是 BK7258 实板适配 | 可供上层应用主机调试 |
-| [1623 Backtrace](https://doc.openvela.com/document?id=1623&version=dev-ai-contest-2026&language=cn) | ✅ 非破坏性 / 🟡 fault | `t5_board_cp_xts` generation 143 已在实板对当前 task 和 PID 1 输出符号化回溯，包含 `up_backtrace`、`sched_dumpstack`、`dumpstack_main`、`nsh_main`、`work_thread` | 另行设计可恢复的受控 fault；不得用未授权空指针破坏当前 Agent 数据 |
-| [1624 Allsyms](https://doc.openvela.com/document?id=1624&version=dev-ai-contest-2026&language=cn) | ✅ | Allsyms 已链接到 XIP FLASH，避免占用运行期 SRAM；generation 143 clean build、符号化 dumpstack 与 Agent 重启恢复通过；见 [P0 记录](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md) | 后续关注符号表 ROM 增量和链接脚本回归 |
-| [1626 ASan](https://doc.openvela.com/document?id=1626&version=dev-ai-contest-2026&language=cn)、[1628 LSan](https://doc.openvela.com/document?id=1628&version=dev-ai-contest-2026&language=cn) | ⚪ / 🔴可选 | 当前嵌入式 profile 未启用；更适合 SIM/host 测试，不能替代实板内存压力 | 先用于可主机编译的 wrapper/test；不强行纳入小 ROM 生产镜像 |
+| [1623 Backtrace](https://doc.openvela.com/document?id=1623&version=dev-ai-contest-2026&language=cn) | ✅ 非破坏性 / 🟡 fault | generation 143 已对当前 task 和 PID 1 输出符号化回溯；generation 149 当前代 `dumpstack` 再次输出 `up_backtrace`、`sched_dumpstack`、`dumpstack_main` 等符号 | 另行设计可恢复的受控 fault；不得用未授权空指针破坏当前 Agent 数据 |
+| [1624 Allsyms](https://doc.openvela.com/document?id=1624&version=dev-ai-contest-2026&language=cn) | ✅ | Allsyms 已链接到 XIP FLASH，避免占用运行期 SRAM；generation 143 的专项和 generation 149 clean build/符号化 dumpstack/最终冷启动均通过；见 [P0 记录](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md)与 [g149 记录](../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md) | 后续关注符号表 ROM 增量和链接脚本回归 |
+| [1626 ASan](https://doc.openvela.com/document?id=1626&version=dev-ai-contest-2026&language=cn)、[1628 LSan](https://doc.openvela.com/document?id=1628&version=dev-ai-contest-2026&language=cn) | 🟡 host / 🔴 target 可选 | 完整 host fixture 已执行；BL1 policy 目标使用 ASan+UBSan，嵌入式 profile 未启用，且 host sanitizer 不能替代实板内存压力 | 逐步扩大可主机编译模块的 sanitizer 覆盖；不强行纳入小 ROM 生产镜像 |
 | [1627 Fortify](https://doc.openvela.com/document?id=1627&version=dev-ai-contest-2026&language=cn) | 🔴 | 当前维护 profile 未形成 _FORTIFY_SOURCE 构建和负例测试 | 建立独立 hardened profile，解决告警后再决定生产启用 |
 | [1630 J-Link GDB 插件](https://doc.openvela.com/document?id=1630&version=dev-ai-contest-2026&language=cn) | 🟡 | J-Link 实板基础设施和线程外的 SWD/RTT 调试成熟；openvela 线程感知 GDB 插件未单独验收 | 与 1620 合并为一次调试工具闭环 |
 | [1632 硬件性能](https://doc.openvela.com/document?id=1632&version=dev-ai-contest-2026&language=cn) | ✅ CP 性能基线 | generation 146 已按 SDK OPP 240M 在 T5-Board 验证 CP/CPU0/Bus 240/240/240 MHz；新密钥全量下载、稳定回读、冷启动及 CoreMark/Ramspeed/Whetstone 各 10 次通过。CoreMark mean 561.576945，较旧 160 MHz 基线提升 50.030891%；AP OPP 480M/480 MHz 能力保留 | 后续只做 AP 320M/480M 动态 vote 产品 profile 回归；见 [chip 层 OPP 契约](../chips/bk7258/sdk-clock-operating-points.md)和 [generation 146 记录](../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md) |
-| [1633 irqinfo/critmon](https://doc.openvela.com/document?id=1633&version=dev-ai-contest-2026&language=cn) | ✅ 可观测 / 🟡 告警 | generation 143 的 `irqinfo` 显示 IRQ 11/15/20/70/79 有效计数；critmon daemon 可 start、输出 task/runtime 统计并 stop。resolved config 仅 `MAXTIME_THREAD=0`，其余六类为 `-1`，未配置或验证非零超限告警预算 | 用真实负载确定非零阈值，再覆盖 GPIO、timer、mailbox、LCD 的告警测试 |
-| [1634 cpuload](https://doc.openvela.com/document?id=1634&version=dev-ai-contest-2026&language=cn) | ✅ 当前功能 | generation 143 中 `cpuload -p 50` 后 task=49%、`/proc/cpuload=56.5%`；`kill -9` 后 PID 消失并回落到 7.5% | 与 PM/Agent 12 小时长稳联测 |
+| [1633 irqinfo/critmon](https://doc.openvela.com/document?id=1633&version=dev-ai-contest-2026&language=cn) | ✅ 可观测 / 🟡 告警 | generation 143 的 critmon daemon 可 start、输出 task/runtime 统计并 stop；generation 149 再次确认 IRQ 11/15/20/70/79 有效计数。resolved config 仅 `MAXTIME_THREAD=0`，其余六类为 `-1`，未配置或验证非零超限告警预算 | 用真实负载确定非零阈值，再覆盖 GPIO、timer、mailbox、LCD 的告警测试 |
+| [1634 cpuload](https://doc.openvela.com/document?id=1634&version=dev-ai-contest-2026&language=cn) | ✅ 当前功能 | generation 143 中 `cpuload -p 50` 后 task=49%、`/proc/cpuload=56.5%`；`kill -9` 后 PID 消失并回落到 7.5% | 12 小时长稳恢复后再与 PM/Agent 联测 |
 | [1636 Dhrystone](https://doc.openvela.com/document?id=1636&version=dev-ai-contest-2026&language=cn)、[1637 CoreMark](https://doc.openvela.com/document?id=1637&version=dev-ai-contest-2026&language=cn)、[1638 CacheSpeed](https://doc.openvela.com/document?id=1638&version=dev-ai-contest-2026&language=cn)、[1639 ramspeed](https://doc.openvela.com/document?id=1639&version=dev-ai-contest-2026&language=cn)、[1640 Tinymembench](https://doc.openvela.com/document?id=1640&version=dev-ai-contest-2026&language=cn)、[1641 whetstone](https://doc.openvela.com/document?id=1641&version=dev-ai-contest-2026&language=cn) | 🟡 汇总 / ✅ 三项 | generation 146 已在 CP 240 MHz 完成 CoreMark、Ramspeed、Whetstone 各 10 次，CoreMark mean=561.576945；Whetstone 明确记录上游毫秒单位换算缺陷。Dhrystone/TinyMemBench 仍依赖未锁定网络源码，CacheSpeed 缺 BK 通用 cache capability | 已支持三项只做回归；其余先锁定来源/补 cache 契约再启用 |
-| [1643 blktest](https://doc.openvela.com/document?id=1643&version=dev-ai-contest-2026&language=cn)、[1644 memstress](https://doc.openvela.com/document?id=1644&version=dev-ai-contest-2026&language=cn)、[1645 fstest](https://doc.openvela.com/document?id=1645&version=dev-ai-contest-2026&language=cn)、[1646 opus_ramtest](https://doc.openvela.com/document?id=1646&version=dev-ai-contest-2026&language=cn) | 🟡 汇总 | generation 143 的 memstress 以 256-byte/16-block/10-second/1-thread 参数运行并可终止，无 error/Panic/Fault；mm、ramtest、fstest、scanftest 仍只有历史实板证据，blktest/opus_ramtest 未闭环 | 在专用介质上执行 blktest；分层完成当前代 fstest、长时 memstress 与 opus_ramtest |
-| [1648 自测试框架](https://doc.openvela.com/document?id=1648&version=dev-ai-contest-2026&language=cn) | 🟡 | 当前代非破坏性诊断子集及 performance×10 已通过；WDT、cmocka、ostest、mm、ramtest、fstest、scanftest、hello/pipe 有 [历史实板记录](../../progress/verification/2026-08-23-bk7258-cp-xts-general.md)，但当前代完整重跑、host fixture 和 soak 尚未闭环 | 迁移 host fixture；补当前代完整 xTS、LIBCXX、AP RTC/timer/RNG、GPIO/UART loopback、driver_test 和 12h soak |
+| [1643 blktest](https://doc.openvela.com/document?id=1643&version=dev-ai-contest-2026&language=cn)、[1644 memstress](https://doc.openvela.com/document?id=1644&version=dev-ai-contest-2026&language=cn)、[1645 fstest](https://doc.openvela.com/document?id=1645&version=dev-ai-contest-2026&language=cn)、[1646 opus_ramtest](https://doc.openvela.com/document?id=1646&version=dev-ai-contest-2026&language=cn) | 🟡 汇总 | generation 143 的 10 秒 memstress 通过；generation 149 的 `mm`、4 KiB `ramtest` 和 RAM tmpfs `scanftest` 164/0 当前代通过。fstest 仍只有历史证据，blktest/opus_ramtest 未执行，避免破坏 Agent/TF 数据 | 在专用可恢复介质上执行 fstest/blktest；为 opus_ramtest 建独立 RAM 预算；长时 memstress 与 soak 后续恢复 |
+| [1648 自测试框架](https://doc.openvela.com/document?id=1648&version=dev-ai-contest-2026&language=cn) | 🟡 | [现役 host fixture](../../progress/verification/2026-08-27-bk7258-host-regression-fixture.md) 已完成公共门禁 + 281/281 cmocka；[generation 149](../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md) 已在标准 16 KiB runner 下完成 mm 8/8、sched 16/16、ostest 状态 0、getprime、mm/ramtest、scanftest 164/0、hello/pipe 和最终冷启动 | 剩余 LIBCXX、AP RTC/timer/RNG、GPIO/UART loopback、driver_test、受控 fault；破坏性存储独立隔离；12h soak 已由 owner 延期 |
 
 ## 10. 推荐的继续适配顺序
 
@@ -150,7 +150,7 @@ BK7258 / T5-AI 当前交付状态，用于回答三个长期问题：
 
 | 优先级 | 工作包 | 对应官网文档 | 完成门禁 |
 |---|---|---|---|
-| P0-1 | 完成剩余 xTS 与长稳 | 1623、1624、1632–1634、1636–1648 | 已完成非破坏性符号回溯、监控、memstress 子集和 perf×10；继续完成受控 fault、loopback、当前代完整 xTS、破坏性测试隔离与 12h soak |
+| P0-1 | 完成剩余 xTS 与长稳 | 1623、1624、1632–1634、1636–1648 | host fixture、诊断专项、当前代非破坏性 xTS 核心和 perf×10 已完成；继续完成受控 fault、LIBCXX、loopback、AP RTC/timer/RNG、driver_test 与破坏性测试隔离；12h soak 经 owner 确认延期 |
 | P0-2 | Agent 真对话 | 产品交付，不是单一 BSP 页面 | 使用获批 ASR/LLM 凭据完成一次录音→识别→LLM→播放，并验证异常 teardown |
 | P0-3 | SARADC/ADC-key 实物闭环 | 1516–1519、1648 | 新鲜全镜像下记录真实电压/按键跃迁、阈值、抖动和重复次数 |
 | P1-1 | BLE 恢复到当前 profile | 1545–1553 | 当前主线 clean build + 全量下载 + scan/advertise/GATT + 重启回归 |
@@ -160,10 +160,12 @@ BK7258 / T5-AI 当前交付状态，用于回答三个长期问题：
 | P1-5 | USB、Ethernet 和 camera 硬件决策 | 1498、1532、1586–1587 | 分别明确目标控制器、PHY carrier、pinmux 互斥；无法提供硬件则正式标 ➖ |
 | P2 | RPMsg Clock、uORB/Sensor、TFLite | 1483、1516–1519、1526–1528、1605–1608 | 仅在产品需求明确后开启，先给出 ROM/RAM/引脚/功耗预算 |
 
-下一项继续收口 P0-1：两张 profile、非破坏性符号回溯、监控、memstress 子集和三项
-benchmark×10 已完成，不再重复起步。后续优先迁移 host fixture、跑当前代完整 xTS，
-再在专用介质上执行破坏性存储测试并完成 12 小时 soak。受控 fault 和 critmon 非零
-告警阈值作为独立、可恢复的小项，不能混入产品数据盘上的普通回归。
+下一项继续收口 P0-1：两张 profile、host fixture、非破坏性符号回溯、监控、
+memstress 子集、当前代核心 xTS 和三项 benchmark×10 已完成，不再重复起步。后续按
+夹具补 LIBCXX、loopback、AP RTC/timer/RNG 和 driver_test，再在专用介质上执行破坏性
+存储测试。12 小时 soak 经 owner 于 2026-08-27 确认延期，不作为本轮阻塞门禁。
+受控 fault 和 critmon 非零告警阈值作为独立、可恢复的小项，不能混入产品数据盘上的
+普通回归。
 
 ## 11. 统一构建、全量下载和证据规则
 

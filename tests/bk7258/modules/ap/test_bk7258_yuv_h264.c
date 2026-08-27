@@ -1,7 +1,7 @@
 /****************************************************************************
  * tests/modules/ap/test_bk7258_yuv_h264.c
  *
- * Host unit tests for board/bk7258/chip/ap/bk7258_yuv_h264.c, compiled
+ * Host unit tests for chips/bk7258/ap/bk7258_yuv_h264.c, compiled
  * unmodified against the mock SDK surface in mocks/driver/.
  *
  * The mock SDK (framework/mock_sdk_yuv_h264.{c,h}) logs every call in

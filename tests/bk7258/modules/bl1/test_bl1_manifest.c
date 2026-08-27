@@ -27,9 +27,9 @@
 #define BL2_LOAD  0x28010000u
 #define BL2_SIZE  0x40u
 
-/* The manifest record lives in the XIP window, where verify_at() expects
- * it: the mock flash map is placed at the BK7258 XIP base, and the records
- * are written there directly. */
+/* The manifest record lives in the mock XIP window.  The maintained verifier
+ * consumes its buffer directly while reading the BL2 payload through the
+ * fixed XIP address encoded in the record. */
 #define MANIFEST_XIP 0x02000000u
 
 #define DUBHE_SHADOW  0x4b111000u
@@ -41,7 +41,6 @@ static uint8_t *g_manifest;
 static uint8_t g_bl2_data[BL2_SIZE];
 
 extern const uint8_t bk7258_bl1_manifest_root_public_key[64];
-extern const uint8_t bk7258_bl1_manifest_root_public_key_hash[32];
 
 static void put_le32(uint8_t *dst, uint32_t word)
 {
@@ -143,25 +142,7 @@ static int setup(void **state)
                         BK7258_HOST_FLASH_SIZE - (BL2_XIP - 0x02000000u) -
                         BL2_SIZE);
 
-  memset(g_manifest, 0xff, sizeof(uint8_t[BK7258_BL1_MANIFEST_SIZE]));
-  memcpy(g_manifest, "BKBL1M2", 7u);
-  g_manifest[7] = 0u;
-  put_le32(g_manifest + 8u,  BK7258_BL1_MANIFEST_FORMAT);
-  put_le32(g_manifest + 12u, BK7258_BL1_MANIFEST_SIGNATURE_ALG);
-  put_le32(g_manifest + 16u, BK7258_BL1_MANIFEST_DIGEST_ALG);
-  put_le32(g_manifest + 20u, BK7258_BL1_MANIFEST_KEY_ID);
-  put_le32(g_manifest + 24u, 1u); /* image version */
-  put_le32(g_manifest + 28u, 0u); /* flags */
-  put_le32(g_manifest + 32u, BL2_XIP);
-  put_le32(g_manifest + 36u, BL2_SIZE);
-  put_le32(g_manifest + 40u, BL2_LOAD);
-  put_le32(g_manifest + 44u, 0u);
-  memcpy(g_manifest + BK7258_BL1_MANIFEST_PUBLIC_KEY_OFFSET,
-         bk7258_bl1_manifest_root_public_key, 64u);
-  sha256_of(g_manifest + BK7258_BL1_MANIFEST_PUBLIC_KEY_OFFSET, 64u,
-            g_manifest + BK7258_BL1_MANIFEST_KEY_HASH_OFFSET);
-  sha256_of((const uint8_t *)BL2_XIP, BL2_SIZE,
-            g_manifest + BK7258_BL1_MANIFEST_DIGEST_OFFSET);
+  build_beken_record(g_manifest);
   return 0;
 }
 
@@ -173,12 +154,11 @@ static int teardown(void **state)
 
 static void test_valid_manifest(void **state)
 {
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
+                     g_manifest, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    0);
   assert_int_equal(mock_tinycrypt_verify_calls(), 1u);
-  /* The verifier saw the real software root public key. */
+  /* The verifier saw the 64-byte XY portion after the 0x04 prefix. */
   assert_true(mock_tinycrypt_verify_pubkey_is(
                 bk7258_bl1_manifest_root_public_key, 64u));
 }
@@ -186,21 +166,9 @@ static void test_valid_manifest(void **state)
 static void test_wrong_magic(void **state)
 {
   g_manifest[0] ^= 0xffu;
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
+                     g_manifest, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
-}
-
-static void test_beken_magic_dispatches_to_candidate(void **state)
-{
-  build_beken_record(g_manifest);
-  seed_beken_otp_root();
-
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
-                   0);
 }
 
 static void test_beken_verify_buffer(void **state)
@@ -210,10 +178,10 @@ static void test_beken_verify_buffer(void **state)
   build_beken_record(record);
   seed_beken_otp_root();
 
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    0);
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      NULL, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
 }
@@ -227,59 +195,59 @@ static void test_beken_verify_buffer_rejects(void **state)
 
   /* Wrong layout version. */
   put_le32(record + 4u, 0x00020002u);
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
   put_le32(record + 4u, BK7258_BEKEN_MANIFEST_LAYOUT_VERSION);
 
   /* Wrong total size. */
   put_le32(record + 12u, 0x100u);
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
   put_le32(record + 12u, BK7258_BEKEN_MANIFEST_TOTAL_SIZE);
 
   /* Zero / oversized image size. */
   put_le32(record + 40u, 0u);
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
   put_le32(record + 40u, BL2_SIZE + 1u);
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
   put_le32(record + 40u, BL2_SIZE);
 
   /* Erased tail missing (byte past total_size not 0xff). */
   record[BK7258_BEKEN_MANIFEST_TOTAL_SIZE] = 0x00u;
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
   record[BK7258_BEKEN_MANIFEST_TOTAL_SIZE] = 0xffu;
 
   /* Public key without the 0x04 prefix. */
   record[BK7258_BEKEN_MANIFEST_PUBLIC_KEY_OFFSET] = 0x02u;
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
   record[BK7258_BEKEN_MANIFEST_PUBLIC_KEY_OFFSET] = 0x04u;
 
   /* Digest mismatch. */
   record[BK7258_BEKEN_MANIFEST_IMAGE_DIGEST_OFFSET] ^= 0x01u;
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -2);
   record[BK7258_BEKEN_MANIFEST_IMAGE_DIGEST_OFFSET] ^= 0x01u;
 
   /* Rejected signature. */
   g_uECC_verify_result = 0;
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -3);
 
   /* Unknown magic. */
   put_le32(record, 0xdeadbeefu);
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
 }
@@ -287,35 +255,30 @@ static void test_beken_verify_buffer_rejects(void **state)
 static void test_version_floor_from_otp(void **state)
 {
   /* OTP counter bitmap 0x3 -> floor 2; version 1 must be rejected. */
+  seed_beken_otp_root();
   mock_reg32_write(OTP_COUNTER, 0x3u);
 
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
+                     g_manifest, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
 
-  put_le32(g_manifest + 24u, 2u);
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
+  put_le32(g_manifest + 8u, 2u);
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
+                     g_manifest, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    0);
-  put_le32(g_manifest + 24u, 1u);
+  put_le32(g_manifest + 8u, 1u);
 }
 
-static void test_beken_version_floor_from_otp(void **state)
+static void test_generated_version_floor(void **state)
 {
-  uint8_t record[BK7258_BL1_MANIFEST_SIZE];
-
-  build_beken_record(record);
-  seed_beken_otp_root();
-
-  mock_reg32_write(OTP_COUNTER, 0x3u);
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
-                     record, BL2_XIP, BL2_SIZE, BL2_LOAD),
+  /* Host config pins the generated software floor to 1. */
+  put_le32(g_manifest + 8u, 0u);
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
+                     g_manifest, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -1);
-  mock_reg32_write(OTP_COUNTER, 0u);
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
-                     record, BL2_XIP, BL2_SIZE, BL2_LOAD),
+  put_le32(g_manifest + 8u, 1u);
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
+                     g_manifest, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    0);
 }
 
@@ -330,50 +293,51 @@ static void test_otp_root_policy(void **state)
   mock_reg32_write(OTP_PK_HASH, 0xdeadbeefu);
   mock_reg32_write(OTP_PK_HASH + 4u, 0xcafebabeu);
 
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -4);
 
   /* Empty OTP hash + LCS != CM must also fail closed. */
   mock_reg32_reset();
   mock_reg32_write(OTP_LCS, 0x3u);
-  assert_int_equal(bk7258_beken_manifest_verify_buffer(
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
                      record, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -4);
 }
 
-static void test_key_hash_mismatch(void **state)
+static void test_public_key_hash_mismatch(void **state)
 {
-  g_manifest[BK7258_BL1_MANIFEST_KEY_HASH_OFFSET] ^= 0x01u;
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
+  g_manifest[BK7258_BEKEN_MANIFEST_PUBLIC_KEY_OFFSET + 1u] ^= 0x01u;
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
+                     g_manifest, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -4);
-  g_manifest[BK7258_BL1_MANIFEST_KEY_HASH_OFFSET] ^= 0x01u;
+  g_manifest[BK7258_BEKEN_MANIFEST_PUBLIC_KEY_OFFSET + 1u] ^= 0x01u;
 }
 
 static void test_bl2_digest_mismatch(void **state)
 {
-  g_manifest[BK7258_BL1_MANIFEST_DIGEST_OFFSET] ^= 0x01u;
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
+  g_manifest[BK7258_BEKEN_MANIFEST_IMAGE_DIGEST_OFFSET] ^= 0x01u;
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
+                     g_manifest, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -2);
-  g_manifest[BK7258_BL1_MANIFEST_DIGEST_OFFSET] ^= 0x01u;
+  g_manifest[BK7258_BEKEN_MANIFEST_IMAGE_DIGEST_OFFSET] ^= 0x01u;
 }
 
 static void test_signature_rejected(void **state)
 {
   g_uECC_verify_result = 0;
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
+  assert_int_equal(bk7258_bl1_manifest_verify_buffer(
+                     g_manifest, BL2_XIP, BL2_SIZE, BL2_LOAD),
                    -3);
 }
 
 static void test_record_field_rejections(void **state)
 {
-  uint32_t offsets[] = { 8u, 12u, 16u, 20u, 28u, 44u };
+  uint32_t offsets[] =
+  {
+    16u, 20u, 24u, 28u, 32u, 36u, 44u,
+    BK7258_BEKEN_MANIFEST_RESERVED_OFFSET
+  };
   size_t index;
 
   for (index = 0; index < sizeof(offsets) / sizeof(offsets[0]); index++)
@@ -381,40 +345,11 @@ static void test_record_field_rejections(void **state)
       uint32_t saved = get_le32(g_manifest + offsets[index]);
 
       put_le32(g_manifest + offsets[index], ~saved);
-      assert_int_equal(bk7258_bl1_manifest_verify_at(
-                         (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                         BL2_LOAD),
+      assert_int_equal(bk7258_bl1_manifest_verify_buffer(
+                         g_manifest, BL2_XIP, BL2_SIZE, BL2_LOAD),
                        -1);
       put_le32(g_manifest + offsets[index], saved);
     }
-
-  /* Fixed handoff fields must match the arguments exactly. */
-  put_le32(g_manifest + 32u, BL2_XIP + 0x10u);
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
-                   -1);
-  put_le32(g_manifest + 32u, BL2_XIP);
-  put_le32(g_manifest + 36u, BL2_SIZE + 0x10u);
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
-                   -1);
-  put_le32(g_manifest + 36u, BL2_SIZE);
-  put_le32(g_manifest + 40u, BL2_LOAD + 0x10u);
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
-                   -1);
-  put_le32(g_manifest + 40u, BL2_LOAD);
-
-  /* Reserved tail not erased. */
-  g_manifest[BK7258_BL1_MANIFEST_RESERVED_OFFSET] = 0x00u;
-  assert_int_equal(bk7258_bl1_manifest_verify_at(
-                     (uint32_t)(uintptr_t)g_manifest, BL2_XIP, BL2_SIZE,
-                     BL2_LOAD),
-                   -1);
-  g_manifest[BK7258_BL1_MANIFEST_RESERVED_OFFSET] = 0xffu;
 }
 
 int main(void)
@@ -423,17 +358,16 @@ int main(void)
   {
     cmocka_unit_test_setup_teardown(test_valid_manifest, setup, teardown),
     cmocka_unit_test_setup_teardown(test_wrong_magic, setup, teardown),
-    cmocka_unit_test_setup_teardown(test_beken_magic_dispatches_to_candidate,
-                                    setup, teardown),
     cmocka_unit_test_setup_teardown(test_beken_verify_buffer, setup, teardown),
     cmocka_unit_test_setup_teardown(test_beken_verify_buffer_rejects,
                                     setup, teardown),
     cmocka_unit_test_setup_teardown(test_version_floor_from_otp,
                                     setup, teardown),
-    cmocka_unit_test_setup_teardown(test_beken_version_floor_from_otp,
+    cmocka_unit_test_setup_teardown(test_generated_version_floor,
                                     setup, teardown),
     cmocka_unit_test_setup_teardown(test_otp_root_policy, setup, teardown),
-    cmocka_unit_test_setup_teardown(test_key_hash_mismatch, setup, teardown),
+    cmocka_unit_test_setup_teardown(test_public_key_hash_mismatch,
+                                    setup, teardown),
     cmocka_unit_test_setup_teardown(test_bl2_digest_mismatch, setup, teardown),
     cmocka_unit_test_setup_teardown(test_signature_rejected, setup, teardown),
     cmocka_unit_test_setup_teardown(test_record_field_rejections,

@@ -1,10 +1,10 @@
 /****************************************************************************
  * tests/bk7258/modules/ap/test_bk7258_irda.c
  *
- * Host unit suite for board/bk7258/chip/cp/bk7258_irda.c (true source,
+ * Host unit suite for chips/bk7258/cp/bk7258_irda.c (true source,
  * patched copy built via framework/patch.py, see Makefile).
  *
- * The driver is the board-owned register-level NEC decoder against the
+ * The driver is the chip-owned register-level NEC decoder against the
  * BK7258 IRDA base 0x458b0000.  patch.py routes bk7258_irda_reg_read/write
  * through mock_reg32, so every register transaction lands in the mock RAM
  * window.  The SDK surface (gpio_dev_map, bk_int_isr_register,

@@ -56,11 +56,11 @@ static void test_argument_validation(void **state)
 {
   uint8_t buffer[64];
 
-  assert_int_equal(bk7258_bl1_flash_read(0u, NULL, 64u), -1);
-  assert_int_equal(bk7258_bl1_flash_read(0u, buffer, 0u), -1);
-  assert_int_equal(bk7258_bl1_flash_read(0x00800000u, buffer, 1u), -1);
-  assert_int_equal(bk7258_bl1_flash_read(0x007fffffu, buffer, 2u), -1);
-  assert_int_equal(bk7258_bl1_flash_read(0u, buffer, 0x00800001u), -1);
+  assert_int_equal(bk7258_boot_flash_read(0u, NULL, 64u), -1);
+  assert_int_equal(bk7258_boot_flash_read(0u, buffer, 0u), -1);
+  assert_int_equal(bk7258_boot_flash_read(0x00800000u, buffer, 1u), -1);
+  assert_int_equal(bk7258_boot_flash_read(0x007fffffu, buffer, 2u), -1);
+  assert_int_equal(bk7258_boot_flash_read(0u, buffer, 0x00800001u), -1);
 }
 
 static void test_read_granule_unaligned(void **state)
@@ -70,7 +70,7 @@ static void test_read_granule_unaligned(void **state)
 
   /* Reading byte 4 of the granule pulls the same eight FIFO words and
    * copies from offset 4, i.e. the word-1 bytes. */
-  assert_int_equal(bk7258_bl1_flash_read(4u, buffer, 4u), 0);
+  assert_int_equal(bk7258_boot_flash_read(4u, buffer, 4u), 0);
   for (index = 0; index < 4; index++)
     {
       assert_int_equal(buffer[index], 2u);
@@ -83,7 +83,7 @@ static void test_read_unaligned_source(void **state)
 
   /* An unaligned source address: the granule is 32-byte aligned, so the
    * copy starts at block[1] (word 0 tail) and spans into word 2. */
-  assert_int_equal(bk7258_bl1_flash_read(0x21u, buffer, 8u), 0);
+  assert_int_equal(bk7258_boot_flash_read(0x21u, buffer, 8u), 0);
   assert_int_equal(buffer[0], 1u);
   assert_int_equal(buffer[1], 1u);
   assert_int_equal(buffer[2], 1u);
@@ -99,7 +99,7 @@ static void test_wait_idle_timeout(void **state)
   /* Busy stays asserted: both the pre-command and post-command waits time
    * out after FLASH_WAIT_BUDGET iterations and the read fails. */
   mock_reg32_write(FLASH_OP_CTRL, FLASH_BUSY_SW);
-  assert_int_equal(bk7258_bl1_flash_read(0u, buffer, 4u), -1);
+  assert_int_equal(bk7258_boot_flash_read(0u, buffer, 4u), -1);
 }
 
 static void test_command_sequence(void **state)
@@ -110,7 +110,7 @@ static void test_command_sequence(void **state)
   mock_reg32_write(FLASH_OP_CTRL, 0);
   mock_reg32_write(FLASH_OP_CMD, 0x12345678u);
 
-  assert_int_equal(bk7258_bl1_flash_read(0x40u, buffer, 32u), 0);
+  assert_int_equal(bk7258_boot_flash_read(0x40u, buffer, 32u), 0);
 
   /* After the read the command register must hold the granule address with
    * the READ opcode and nothing else from the previous value. */
@@ -130,7 +130,7 @@ static void test_read_across_granules(void **state)
   /* Two granules: [0x20,0x40) and [0x40,0x48).  Each granule starts a fresh
    * 8-word FIFO read (the auto-increment window wraps), so the second
    * granule re-reads words 0..1 and its 8 bytes replicate the head. */
-  assert_int_equal(bk7258_bl1_flash_read(0x20u, buffer, 40u), 0);
+  assert_int_equal(bk7258_boot_flash_read(0x20u, buffer, 40u), 0);
   for (index = 0; index < 8; index++)
     {
       assert_int_equal(buffer[index * 4u], (uint8_t)(index + 1u));

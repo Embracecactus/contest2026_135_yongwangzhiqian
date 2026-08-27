@@ -79,9 +79,10 @@ void up_allocate_heap(void **heap_start, size_t *heap_size)
 #if CONFIG_MM_REGIONS > 1
 void arm_addregion(void)
 {
-  /* AP PSRAM hardware and its role-local allocator are not ready when the
-   * common ARM up_initialize() hook runs.  bk7258_ap_main() adds the reserved
-   * PSRAM system-heap block after bk7258_psram_initialize() succeeds.
+  /* PSRAM hardware and its role-local allocator are not ready when the
+   * common ARM up_initialize() hook runs.  The role-specific late-init path
+   * adds the reserved PSRAM system-heap block after PSRAM initialization
+   * succeeds.
    */
 }
 #endif
