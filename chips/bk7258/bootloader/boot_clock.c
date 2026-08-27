@@ -9,11 +9,10 @@
  * (VDDIG=0xB).  The final handoff profile mirrors the official v3.1.1.9
  * A/B bootloader's clock selector argument 2: DPLL/4 = 120 MHz.
  *
- * Per-chip runtime frequency/voltage selection (and the VDDD->0x7 /
- * VDDIG->0xE lift the 320 M runtime tier requires) is NOT done here.  The
+ * Per-chip runtime operating-point/voltage selection is NOT done here.  The
  * bootloader keeps the analog side byte-for-byte equal to sys_hal_early_init,
  * installs the recovered vendor 120 MHz BL1 handoff profile, and the app then
- * drives bk7258_dvfs_set_freq() (mirroring the SDK runtime
+ * drives bk7258_dvfs_set_opp() (mirroring the SDK runtime
  * sys_hal_switch_cpu_bus_freq path) to step up/down per chip operating
  * point.  See chip/cp/bk7258_dvfs.{c,h}.
  *
@@ -263,11 +262,11 @@ static int step4_latched_block(void)
     if (ana_or(ANA_REG9, (1u << 9)) < 0) return -1;       /* spi_latch1v = 1 */
     if (ana_write(ANA_REG8,  0x57E62F26u) < 0) return -1;
     /* ANA_REG9: SDK default-branch value (VDDIG=0xB).  We deliberately do NOT
-     * raise VDDIG ahead of any 320/480 step here -- the bootloader only brings
+     * raise VDDIG ahead of any runtime OPP here -- the bootloader only brings
      * the DPLL up to the SDK early_init equivalent (the analog state the SDK
      * app inherits before any runtime DVFS).  Per-chip frequency selection
-     * (incl. VDDDIG lift to 0xE for the 320 M runtime tier) is done by the
-     * app's bk7258_dvfs_set_freq() lower half, mirroring the SDK's
+     * (including the exact per-OPP rail setting) is done by the
+     * app's bk7258_dvfs_set_opp() lower half, mirroring the SDK's
      * sys_hal_switch_cpu_bus_freq() runtime path.  See chip/cp/bk7258_dvfs.c. */
 
     if (ana_write(ANA_REG9,  0x787BC8A4u) < 0) return -1;

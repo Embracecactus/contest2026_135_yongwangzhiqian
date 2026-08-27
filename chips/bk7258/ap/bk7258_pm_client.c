@@ -235,7 +235,7 @@ static void bk7258_pm_sdk_reset_generation(uint32_t generation)
   g_bk7258_pm_sdk_audio_power_enabled = false;
   for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
     {
-      g_bk7258_pm_sdk_freq[i] = BK7258_PM_CPU_FREQ_DEFAULT;
+      g_bk7258_pm_sdk_freq[i] = BK7258_PM_OPP_DEFAULT;
     }
 
   __atomic_store_n(&g_bk7258_pm_sdk_generation, generation,
@@ -486,7 +486,7 @@ static int bk7258_pm_commit_reply(
            request->command == BK7258_PM_COMMAND_CPU_FREQ_VOTE)
     {
       priv->freq_active[resource] =
-        request->reserved != BK7258_PM_CPU_FREQ_DEFAULT;
+        request->reserved != BK7258_PM_OPP_DEFAULT;
       post_ret = bk7258_pm_recalc_primary_timebase();
     }
 
@@ -533,7 +533,7 @@ static int bk7258_pm_request(uint32_t resource,
 
   if (command == BK7258_PM_COMMAND_CPU_FREQ_VOTE &&
       (resource >= BK7258_PM_FREQ_CLIENT_COUNT ||
-       value > BK7258_PM_CPU_FREQ_DEFAULT))
+       value > BK7258_PM_OPP_DEFAULT))
     {
       return -EINVAL;
     }
@@ -745,7 +745,7 @@ static int bk7258_pm_recalc_primary_timebase(void)
 }
 
 int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
-                             enum bk7258_pm_cpu_freq_e frequency)
+                             bk7258_pm_opp_t opp)
 {
   /* CP changes the shared mux and refreshes its DWT conversion before
    * replying.  bk7258_pm_commit_reply() refreshes AP logical CPU0 after
@@ -754,7 +754,7 @@ int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
    */
 
   return bk7258_pm_request(client, BK7258_PM_COMMAND_CPU_FREQ_VOTE,
-                           frequency, NULL);
+                           opp, NULL);
 }
 
 int bk7258_pm_frequency_get_status(

@@ -52,6 +52,9 @@
 #include <driver/int.h>
 #include <driver/int_types.h>
 
+#include "arm_internal.h"
+#include "bk7258_clockdiag.h"
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -126,11 +129,16 @@ static void bk7258_eth_isr(void *arg);
 
 uint32_t HAL_RCC_GetHCLKFreq(void)
 {
-  /* The MAC uses this value for MDIO CSR clock and 1 us timers.  Return the
-   * BK7258 nominal AP HCLK.  A board profile may refine this later.
+  /* HCLK means the shared bus clock, not physical AP CPU1/CPU2.  In the
+   * pinned SDK HAL, the dynamic MDIO selection that calls this function is
+   * compiled out and DIV62 is unconditional.  CONFIG_ETH_LPI, which is off
+   * in the pinned AP profile, samples this value once for MAC1USTCR during
+   * MAC initialization.  Return the official current OPP bus mapping here;
+   * a future LPI + runtime-DVFS profile must also reprogram MAC1USTCR from a
+   * PM notifier after each OPP transition.
    */
 
-  return 320000000u;
+  return bk7258_clockdiag_current_bus_hz();
 }
 
 void HAL_ETH_MspInit(ETH_HandleTypeDef *heth)

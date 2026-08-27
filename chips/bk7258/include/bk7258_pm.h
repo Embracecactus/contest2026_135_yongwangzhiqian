@@ -90,7 +90,12 @@ enum bk7258_pm_freq_client_e
   BK7258_PM_FREQ_CLIENT_COUNT
 };
 
-/* Values match v3.1.1.9 pm_cpu_freq_e. */
+/* Values match the v3.1.1.9 pm_cpu_freq_e ABI exactly.  Despite the SDK type
+ * name, these values are shared SoC operating-point labels, not a direct
+ * physical-CPU frequency.  OPP 320M means CPU0/AP/bus 160/320/160 MHz; OPP
+ * 480M means 240/480/240 MHz.  Keep the legacy enumerator spelling for the
+ * vendor ABI and use the BK7258_PM_OPP_* aliases in project-owned code.
+ */
 
 enum bk7258_pm_cpu_freq_e
 {
@@ -104,10 +109,21 @@ enum bk7258_pm_cpu_freq_e
   BK7258_PM_CPU_FREQ_DEFAULT
 };
 
+typedef enum bk7258_pm_cpu_freq_e bk7258_pm_opp_t;
+
+#define BK7258_PM_OPP_26M       BK7258_PM_CPU_FREQ_26M
+#define BK7258_PM_OPP_60M       BK7258_PM_CPU_FREQ_60M
+#define BK7258_PM_OPP_80M       BK7258_PM_CPU_FREQ_80M
+#define BK7258_PM_OPP_120M      BK7258_PM_CPU_FREQ_120M
+#define BK7258_PM_OPP_240M      BK7258_PM_CPU_FREQ_240M
+#define BK7258_PM_OPP_320M      BK7258_PM_CPU_FREQ_320M
+#define BK7258_PM_OPP_480M      BK7258_PM_CPU_FREQ_480M
+#define BK7258_PM_OPP_DEFAULT   BK7258_PM_CPU_FREQ_DEFAULT
+
 struct bk7258_pm_frequency_status_s
 {
-  uint32_t current;
-  uint32_t peak;
+  uint32_t current;      /* Current shared SDK OPP enum, not CPU0 MHz. */
+  uint32_t peak;         /* Highest OPP enum requested, not peak CPU0 Hz. */
   uint32_t transitions;
 };
 
@@ -117,7 +133,7 @@ struct bk7258_pm_frequency_status_s
 
 int bk7258_pm_initialize(void);
 int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
-                             enum bk7258_pm_cpu_freq_e frequency);
+                             bk7258_pm_opp_t opp);
 int bk7258_pm_frequency_get_status(
   struct bk7258_pm_frequency_status_s *status);
 

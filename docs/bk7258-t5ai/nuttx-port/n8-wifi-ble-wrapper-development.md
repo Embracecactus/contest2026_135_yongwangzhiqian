@@ -506,7 +506,7 @@ make -j$(nproc)
 ```bash
 # 使用项目自带的 postbuild + flash 脚本
 # all-app.bin 生成后，通过 UART 或 J-Link 烧录到 0x0 物理地址
-# 具体烧录方式参考 docs/bk7258-t5ai/jlink-swd-debug-guide.md
+# 具体调试方式参考 docs/chips/bk7258/jlink-swd-debug-guide.md
 ```
 
 ### 6.3 NSH 验证

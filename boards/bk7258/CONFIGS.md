@@ -62,18 +62,26 @@ removable storage.
 profile-directory rule below.  It does not introduce another physical-board
 or CP/AP ABI boundary: its `profile.conf` remains in compatibility group
 `t5_board_base_v1`.  A separate seed is necessary because trustworthy timing
-requires the opposite policy from diagnostics: fixed maximum board-verified
-frequency and `-O3`, with AP autostart, Wi-Fi, RPTUN, watchdogs, Trace,
+requires the opposite policy from diagnostics: fixed SDK-defined CP/CPU0
+maximum of 240 MHz and `-O3`, with AP autostart, Wi-Fi, RPTUN, watchdogs, Trace,
 Backtrace, Allsyms and scheduler monitors disabled.  The paired AP image is
 still packaged for the common layout but is not started while measuring.
 Benchmark results are valid only when accompanied by the resolved config hash,
 image hash, frequency, command parameters and repeated-run statistics.
+The SDK 320M/480M names are shared OPP labels, not CPU0 frequencies; their
+CPU0/AP/bus mappings are documented in
+[`../../docs/chips/bk7258/sdk-clock-operating-points.md`](../../docs/chips/bk7258/sdk-clock-operating-points.md).
 Generation 144 demonstrated why the SDK IRQ bridge remains part of that
 minimal contract: polling TX reached NSH, but interrupt-driven UART RX could
 not accept commands.  Generation 145 restored only the bridge and completed
 CoreMark, Ramspeed and Whetstone in ten independent sessions each.  The exact
 config/image identities and results are recorded in
 [`../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md`](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md).
+Generation 146 then selected SDK OPP 240M and completed a fresh signed full
+download, stable read-back, cold boot, and another ten independent sessions
+for each benchmark.  Its exact identities and 160-to-240 MHz comparison are
+recorded in
+[`../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md`](../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md).
 
 Every full-flash acceptance run, including a switch between these two
 profiles, is a new trust generation.  It must use freshly generated, distinct

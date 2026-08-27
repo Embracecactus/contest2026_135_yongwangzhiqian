@@ -3,18 +3,21 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * /proc/dvfs interface for the BK7258 DVFS policy.  Exposes the current CPU
- * frequency tier and accepts "cur_freq <tier>" as the diagnostic APP
- * client's vote, giving userspace a way to verify the DVFS path is live
- * without bypassing other active module votes.
+ * /proc/dvfs interface for the BK7258 DVFS policy.  Exposes the current SDK
+ * shared operating point together with live CPU0/AP/bus frequencies and
+ * accepts "cur_opp <opp>" as the diagnostic APP client's vote, giving
+ * userspace a way to verify the DVFS path without confusing an SDK OPP label
+ * with physical CPU0 MHz or bypassing other active module votes.
  *
  * Modelled on arch/arm/src/lc823450/lc823450_procfs_dvfs.c (lc823450 is the
  * NuttX OSS precedent for chip-local DVFS without the PM state machine).
  *
  * Contract:
- *   read  -> "cur_freq <tier>\n"  (tier = BK7258_FREQ_* integer 0..6)
- *   write -> "cur_freq <tier>\n"  updates the APP vote to <tier>
- *           (out-of-range values are rejected by the PM policy)
+ *   read  -> cur_opp/cpu0_hz/ap_hz/bus_hz lines
+ *   write -> "cur_opp <opp>\n" updates the APP vote to SDK OPP 0..6
+ *            (the historical "cur_freq" spelling remains accepted)
+ *            while AP is stopped; an active AP is rejected with -EBUSY
+ *            until the AP timebase can be refreshed across cores
  *
  * Requires CONFIG_FS_PROCFS (independently mounted at /proc by
  * bk7258_bringup.c(board_app_initialize).  bk7258_dvfs_procfs_register()
@@ -41,6 +44,12 @@
 #  include <arch/chip/bk7258_pm.h>
 #endif
 
+#ifdef CONFIG_BK7258_AP_CONTROL
+#  include <arch/chip/bk7258_amp.h>
+#endif
+
+#include "arm_internal.h"
+#include "bk7258_clockdiag.h"
 #include "bk7258_dvfs.h"
 
 #define BK7258_DVFS_LINELEN  128
@@ -134,6 +143,9 @@ static ssize_t bk7258_dvfs_read(struct file *filep, char *buffer,
   size_t remaining;
   off_t  offset = filep->f_pos;
   int tier;
+  uint32_t cpu0_hz;
+  uint32_t ap_hz;
+  uint32_t bus_hz;
 
   if (priv == NULL)
     {
@@ -156,11 +168,21 @@ static ssize_t bk7258_dvfs_read(struct file *filep, char *buffer,
     tier = (int)status.current;
   }
 #else
-  tier = bk7258_dvfs_get_freq();
+  tier = bk7258_dvfs_get_opp();
 #endif
 
+  cpu0_hz = bk7258_clockdiag_current_cpu_hz();
+  ap_hz = bk7258_dvfs_ap_hz_for_opp(tier);
+  bus_hz = bk7258_clockdiag_current_bus_hz();
+
   priv->linesize = snprintf(priv->line, BK7258_DVFS_LINELEN,
-                            "cur_freq %d\n", tier);
+                            "cur_opp %d\n"
+                            "cpu0_hz %lu\n"
+                            "ap_hz %lu\n"
+                            "bus_hz %lu\n",
+                            tier, (unsigned long)cpu0_hz,
+                            (unsigned long)ap_hz,
+                            (unsigned long)bus_hz);
   copysize = procfs_memcpy(priv->line, priv->linesize, buffer, remaining,
                            &offset);
   totalsize += copysize;
@@ -185,16 +207,36 @@ static ssize_t bk7258_dvfs_write(struct file *filep, const char *buffer,
   memcpy(line, buffer, length);
   line[length] = '\0';
 
-  if (sscanf(line, "cur_freq %d", &tier) != 1)
+  if (sscanf(line, "cur_opp %d", &tier) != 1 &&
+      sscanf(line, "cur_freq %d", &tier) != 1)
     {
       return -EINVAL;
     }
 
+#ifdef CONFIG_BK7258_AP_CONTROL
+  /* A local CP write refreshes only the CP DWT conversion.  Hold the AP
+   * lifecycle gate across both the state check and the complete transition,
+   * so AP cannot start between them.  An AP-initiated PM vote refreshes the
+   * AP timebase through its normal request/reply path and does not use this
+   * diagnostic gate.
+   */
+
+  ret = bk7258_ap_cp_clock_transition_begin();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
 #ifdef CONFIG_BK7258_PM_POLICY
   ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_APP,
-                                 (enum bk7258_pm_cpu_freq_e)tier);
+                                 (bk7258_pm_opp_t)tier);
 #else
-  ret = bk7258_dvfs_set_freq(tier);
+  ret = bk7258_dvfs_set_opp(tier);
+#endif
+
+#ifdef CONFIG_BK7258_AP_CONTROL
+  bk7258_ap_cp_clock_transition_end();
 #endif
 
   if (ret < 0)

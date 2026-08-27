@@ -470,9 +470,9 @@ static void bk7258_pm_release_generation(
       if (priv->freq_active[i])
         {
           (void)bk7258_pm_frequency_vote(i,
-                                         BK7258_PM_CPU_FREQ_DEFAULT);
+                                         BK7258_PM_OPP_DEFAULT);
           priv->freq_active[i] = false;
-          priv->freq_votes[i] = BK7258_PM_CPU_FREQ_DEFAULT;
+          priv->freq_votes[i] = BK7258_PM_OPP_DEFAULT;
         }
     }
 
@@ -583,7 +583,7 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
   if ((clock_command && request->clock >= BK7258_PM_CLOCK_COUNT) ||
       (request->command == BK7258_PM_COMMAND_CPU_FREQ_VOTE &&
        (request->clock >= BK7258_PM_FREQ_CLIENT_COUNT ||
-        request->reserved > BK7258_PM_CPU_FREQ_DEFAULT)))
+        request->reserved > BK7258_PM_OPP_DEFAULT)))
     {
       return -EINVAL;
     }
@@ -690,7 +690,7 @@ static int bk7258_pm_server_cb(FAR struct rpmsg_endpoint *ept,
         {
           priv->freq_votes[request->clock] = request->reserved;
           priv->freq_active[request->clock] =
-            request->reserved != BK7258_PM_CPU_FREQ_DEFAULT;
+            request->reserved != BK7258_PM_OPP_DEFAULT;
         }
     }
   else if (request->command == BK7258_PM_COMMAND_CPU_FREQ_QUERY)

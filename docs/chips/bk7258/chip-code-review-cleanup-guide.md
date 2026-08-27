@@ -1,16 +1,22 @@
-# BK7258 chip/ 目录代码评审与清理优化指导（小白版）
+# BK7258 chip 层代码评审与清理优化指导（历史评审，小白版）
 
 > **来源记录**
 >
-> - 评审对象：`$BOARD/chip/`（contest 仓库 `board/bk7258/chip/`，共 33 个文件，约 8400 行）
+> - 评审对象：迁移前的 `board/bk7258/chip/`（现已拆到 `chips/bk7258/`）
 > - 评审方式：静态阅读（未编译、未烧录）
 > - 撰写日期：2026-07-27
 > - 评审基线：`$CONTEST` 的 `HEAD`（N7 提交 `38699e8` + 未提交的 UART/GPIO wrapper 工作）
 > - 重要约定：本文所有"建议删除/修改"的结论都来自**静态分析**。凡标注"需板端复核"的条目，在板上实测确认前不要动手。
+> - **2026-08-27 定位勘误：**本文是历史审计和方法参考，不是当前待办清单；源码路径
+>   一律以 `chips/bk7258/` 为准，动态状态以 `progress/CURRENT.md`、当前源码和验证记录
+>   为准。已完成或已被架构迁移取代的条目不得再次机械执行。
+> - 时钟章节是 2026-07-27 的历史评审，旧 `CLOCK_320M` probe/CPU0 频率判断已被
+>   [SDK OPP 契约](sdk-clock-operating-points.md)取代；当前配置为 CP 240 MHz，AP
+>   仍可通过共享 OPP 480M 运行到 480 MHz。
 
 ## 0. 这份文档是干什么的
 
-前一轮对 `$BOARD/chip/` 做了逐文件评审，找出两类问题：
+前一轮对迁移前的 chip 目录（现 `chips/bk7258/`）做了逐文件评审，找出两类问题：
 
 1. **调试残留**：bring-up 阶段为了"看得见"而加的打印、探针、测试代码。它们像装修时的脚手架——楼盖好了就该拆。
 2. **可优化点**：代码能跑，但有功能缺陷、语义不符或性能浪费。
@@ -54,23 +60,15 @@
 - **怎么做**：删除整个 `bk7258_systick_probe()` 函数及其上方的注释块。
 - **怎么验证**：重新编译通过即可。不删 `bk7258_hardfault_handler`（见 C1，那个有保留价值）。
 
-### A2. 关闭 defconfig 里的两个"验证后应关闭"的开关
+### A2. 关闭 defconfig 里的两个“验证后应关闭”开关（已完成）
 
-- **是什么**：`configs/cp_nsh/defconfig` 里目前还开着：
-  - `CONFIG_BK7258_CLOCK_320M_PROBE=y` —— 每次开机在串口打印一行时钟寄存器十六进制转储
-  - `CONFIG_BK7258_SDK_IRQ_TIMER_TEST=y` —— 一个手动 IRQ 桥测试命令
-- **为什么能关**：
-  - Kconfig 帮助文本原文：`BK7258_CLOCK_320M_PROBE` 写明 "for one verification build. **Disable after board-verify**"；而 git log 里 `6b29ee8` 已记录 "N4 board-verified"。任务完成了，脚手架该拆。
-  - `BK7258_SDK_IRQ_TIMER_TEST` 的 Kconfig 自述 "manual test... It never runs from board bring-up"，Stage B 验证（commit `c588afb`）早已完成。它还给固件带进一个 `bkirqtest` 命令和约 341 行测试代码。
-- **怎么做**：在 `configs/cp_nsh/defconfig` 中把两行改成：
-
-  ```text
-  # CONFIG_BK7258_CLOCK_320M_PROBE is not set
-  # CONFIG_BK7258_SDK_IRQ_TIMER_TEST is not set
-  ```
-
-- **怎么验证**：重新 `./tools/configure.sh` + 编译；开机串口不再出现 `N4Clk tier=...` 那一行。
-- **进阶（可选）**：如果确定永不复用，可进一步删除 `bk7258_clock.c` 第 56-96 行的 probe 辅助函数和第 116-147 行的打印块（约 100 行），以及 `bk7258_sdk_irq_timer_test.c` 整个文件（341 行）。删文件前先把开关关掉编译一轮，确认无引用。
+- 2026-07-27 评审时的 `CONFIG_BK7258_CLOCK_320M_PROBE` 和
+  `CONFIG_BK7258_SDK_IRQ_TIMER_TEST` 都是一次性验证脚手架，当前维护配置均未启用。
+- 2026-08-27 按 SDK 重构后，时钟探针改名为
+  `CONFIG_BK7258_CLOCK_240M_PROBE`，只用于一次性打印 OPP、CPU0 分频、
+  电压和 CPU0/bus 实测值；正常性能配置保持关闭。
+- 当前验证标准是不应看到旧 `N4Clk` 行；临时开启新探针时会看到
+  `ClockOPP` 行，采证完成后必须恢复关闭。
 
 ### A3. 清除 `bk7258_wdt.c` 的 5 处启动标记
 
@@ -121,7 +119,7 @@
   2. 如果需要 source37 派发计数，在 `bk7258_sdk_irq.c` 的 dispatch 函数里加一个计数器并暴露查询函数；不需要就删掉第 663-665 行的打印；
   3. 给 GPIO 文件补 Make.defs/CMakeLists/Kconfig 接线；
   4. 编译链接通过后，再做 B1 的 printf 清理。
-- **怎么验证**：`grep -rn "bk7258_sdk_irq_snapshot_handler" $BOARD/chip/` 的每个调用点都能找到定义；编译链接通过。
+- **怎么验证**：在 `chips/bk7258/` 中检查每个调用点都有定义；编译链接通过。
 
 ### 3.2 【功能缺陷】`os_adapt.c` 拒绝创建带参数的线程
 
@@ -139,22 +137,24 @@
 - **怎么改（思路）**：timeout=0 路径改用 try-send；队列名加唯一后缀（如指针值），或打开时加 `O_EXCL` 并在失败时先 unlink 再重建。
 - **怎么验证**：构造"队列满 + timeout=0"用例，应立刻返回失败而不是挂起。
 
-### 3.4 【疑似 2 倍频 bug】320 MHz 档的 SysTick 频率口径矛盾 —— 需板端复核
+### 3.4 【已解决】SDK OPP 名称与物理 CPU0 频率不能混用
 
-- **是什么**：
-  - `bk7258_dvfs.c` 注释（约第 87-89 行）和 Kconfig 都写"320 档时 CPU0 实际 = **160 MHz**"；
-  - 但 `bk7258_clockdiag_current_cpu_hz()`（`bk7258_clockdiag.h` 约第 220-221 行）对同一档返回 **320000000**；
-  - SysTick reload 是用这个返回值算的。如果 CPU0 真在 160 MHz，`sleep 20s` 实际会变成 40 s。
-- **为什么不确定**：`cpu0_speed` 分频位也可能只影响 WFI 休眠态时钟（那样 320 MHz 就是对的）。静态分析无法裁决，**这正是 git log `6b29ee8` "修 sleep=20s" 当时验证过的路径**，但注释与代码的口径矛盾至今没消除。
-- **怎么做**：板上跑 `sleep 20`，用秒表/逻辑分析仪量实际时长。
-  - 若实际 20s → 代码对，改掉 dvfs.c/Kconfig 里 "160 MHz" 的过时注释；
-  - 若实际 40s → `clockdiag` 的 DPLL320 分支应返回 160000000，修正后重新验证 tick。
+- SDK v3.1.1.9 已给出确定答案：`PM_CPU_FRQ_320M` 时物理 CPU0/bus 为
+  160 MHz，CPU1/CPU2 才是 320 MHz；`PM_CPU_FRQ_480M` 时分别为
+  240/480/240 MHz。`cpu0_speed` 是真实 CPU0 `/1`、`/2` 分频控制，不是
+  WFI 专用位。
+- 当前 `bk7258_clockdiag_current_cpu_hz()` 已按 CP/AP 角色和 CPU0 分频位
+  返回真实 DWT 时钟，外设使用独立的 bus 时钟口径；性能配置直接选择
+  `PM_CPU_FRQ_240M`，使 CP/CPU0 达到官方上限 240 MHz。
+- 调度 SysTick 固定使用 32 kHz，不随 DVFS 重装；DVFS 后只刷新 DWT 的
+  cycle-to-time 换算。完整表和 SDK 行号见
+  [SDK OPP 契约](sdk-clock-operating-points.md)。
 
 ### 3.5 【小修小补】三处随手能改的
 
 | 文件 | 问题 | 改法 |
 |---|---|---|
-| `bk7258_dvfs_procfs.c`（约第 173 行） | `echo "cur_freq 99" > /proc/dvfs` 越界写入静默无效 | 检查 `bk7258_dvfs_set_freq` 返回值，失败时 write 返回 `-EINVAL` |
+| `bk7258_dvfs_procfs.c` | 已解决：`echo "cur_opp 99" > /proc/dvfs` 由 `bk7258_dvfs_set_opp()` 返回 `-EINVAL`，write 原样传播；旧 `cur_freq` 仅作为兼容拼写保留 | 维持越界回归测试 |
 | `bk7258_clk_ll.h`（约第 102-109 行） | DVFS 电压稳定延时按 26 MHz 标定，160 MHz 下每次多等 6-12 倍（且在关中断区内） | 按当前频率缩放循环数；影响小，可延后 |
 | `bk7258_flash_mtd.c`（约第 241-248 行） | JEDEC ID 白名单只认 4 个型号，换料即拒挂 | 量产前改为"告警但继续"；验证期保留也合理 |
 
@@ -166,7 +166,7 @@
 
 | 文件 | 位置（约） | 现状 | 应改为 |
 |---|---|---|---|
-| `chip/Make.defs` | 第 9-19 行头部 | 还说 vectors.c 是 "66 entries"、start.c "does NOT call nx_start()" | 80 项向量表；N2 起调用 `nx_start()` |
+| `chips/bk7258/Make.defs` | 第 9-19 行头部 | 还说 vectors.c 是 "66 entries"、start.c "does NOT call nx_start()" | 80 项向量表；N2 起调用 `nx_start()` |
 | `bk7258_lowputc.c` | 第 13-14 行 | 还说 serial.c "reuses the same MMIO" | serial.c 已是 SDK wrapper，不再直接碰寄存器 |
 | `bk7258_start.c` | 第 19-22 行 | 内存图还是 640 KiB 整片 + MSP 0x2809FFFC | N7 后 CP 独占 320 KiB（0x28000000..0x2804FFFF），MSP=0x2804FFFC |
 | `bk7258_allocateheap.c` | 第 20、48 行 | `_eheap = 0x2809FFFC` | CP 的 `_eheap` 现为 0x2804FFFC |

@@ -1175,46 +1175,52 @@ config BK7258_PSRAM_TEST_STACKSIZE
 	range 2048 8192
 	depends on BK7258_PSRAM_TEST
 
-config BK7258_CLOCK_320M
-	bool "BK7258 temporary 320 MHz CPU0 bring-up target"
+config BK7258_CLOCK_240M
+	bool "BK7258 CP/CPU0 240 MHz performance startup target"
 	default n
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	select BK7258_DVFS
 	---help---
-		Select the board-verified 320 MHz tier as the initial bring-up target
-		(DPLL /1.5, the highest board-verified operating point; CPU0
-		effective 160 MHz on this single-core port -- see BK7258_DVFS)
-		at boot.  The bootloader enables + calibrates the DPLL at the SDK
-		default analog state; this option makes the app step the core up
-		to the 320 MHz runtime tier via bk7258_dvfs_set_freq().  480 MHz
-		direct is SDK-rejected and not attempted.  This is a bring-up default,
-		not the final power policy: runtime clients and a future NuttX PM/DVFS
-		governor must use the same bk7258_dvfs_set_freq() lower half.
+		Select the SDK PM_CPU_FRQ_240M operating point at boot for a CP-only
+		performance profile.  At this operating point physical CPU0, physical
+		CPU1/CPU2 and the bus all run at 240 MHz.  This is the highest effective
+		CPU0 frequency defined by the pinned v3.1.1.9 SDK table and is cheaper
+		than selecting the shared 480M operating point when AP is stopped.
 
-config BK7258_CLOCK_320M_PROBE
-	bool "BK7258 320 MHz bring-up verification probe (uart evidence line)"
+		The SDK's 320M and 480M names are shared SoC operating-point labels,
+		not CPU0 frequencies: they give CPU0/bus 160/240 MHz while AP physical
+		CPU1/CPU2 run at 320/480 MHz.  Runtime AP clients may still vote for
+		those operating points through BK7258_DVFS and BK7258_PM_POLICY.
+
+config BK7258_CLOCK_240M_PROBE
+	bool "BK7258 CP 240 MHz startup verification probe (UART evidence line)"
 	default n
-	depends on BK7258_CLOCK_320M && !BK7258_CONSOLE_NONE
+	depends on BK7258_CLOCK_240M && !BK7258_CONSOLE_NONE
 	---help---
-		Re-add a one-shot freestanding UART evidence line after the 320 MHz
-		bring-up showing M1/ANA_REG5/ANA_REG9 readback, for one
+		Add a one-shot freestanding UART evidence line after the 240 MHz
+		startup switch showing M1, CPU0 divider, ANA_REG5/ANA_REG9 and live
+		CPU/bus readback, for one
 		verification build.  Disable after board-verify.
 
 config BK7258_DVFS
-	bool "BK7258 runtime CPU-frequency switching (DVFS lower half)"
+	bool "BK7258 shared SoC operating-point switching (DVFS lower half)"
 	default n
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	---help---
-		Provide bk7258_dvfs_set_freq(int tier) -- a standalone NuttX
+		Provide bk7258_dvfs_set_opp(int opp) -- a standalone NuttX
 		overlay DVFS lower half that mirrors the Armino SDK runtime
 		sys_drv_switch_cpu_bus_freq / sys_hal_switch_cpu_bus_freq path
 		(lift VDDD/VDDIG one tier at a time per the SDK operating-point
 		table, then switch the core mux and refresh DWT conversion; scheduler
-		SysTick remains on fixed 32 kHz).  This is NOT the NuttX PM state
+		SysTick remains on fixed 32 kHz).  The numeric tier is the SDK shared
+		SoC operating point: tier 5 gives CPU0/AP/bus 160/320/160 MHz and
+		tier 6 gives 240/480/240 MHz.  It is not a direct CPU0 MHz value.
+
+		This is NOT the NuttX PM state
 		machine: it follows the lc823450 DVFS precedent of a single chip-local
 		set_freq() with no
 		governor/HPWORK dependency.  Boot-time bring-up under
-		BK7258_CLOCK_320M and BK7258_PM_POLICY select this.  The latter uses
+		BK7258_CLOCK_240M and BK7258_PM_POLICY select this.  The latter uses
 		the stock NuttX PM lifecycle plus a board-owned frequency-QoS policy;
 		runtime switching via /proc/dvfs remains available for diagnostics.
 
@@ -1225,12 +1231,15 @@ config BK7258_DVFS_PROCFS
 	select FS_PROCFS
 	select FS_PROCFS_REGISTER
 	---help---
-		Register /proc/dvfs so the current CPU frequency tier can be
-		queried (`cat /proc/dvfs`) and stepped at runtime
-		(`echo "cur_freq 80" > /proc/dvfs`), exercising the full DVFS
+		Register /proc/dvfs so the current SDK operating point plus live
+		CPU0/AP/bus frequencies can be queried (`cat /proc/dvfs`) and the
+		operating point can be changed at runtime
+		(`echo "cur_opp 4" > /proc/dvfs`), exercising the full DVFS
 		lower half from userspace.  Requires FS_PROCFS +
 		FS_PROCFS_REGISTER (both selected here) for the procfs_register
-		run-time registration API.
+		run-time registration API.  A write is rejected with EBUSY while the
+		AP is active because the diagnostic CP path cannot yet refresh the AP
+		DWT/perf timebase across cores; AP-originated PM votes remain supported.
 
 config BK7258_WDT
 	bool "BK7258 APB watchdog (WDT) lower-half driver"

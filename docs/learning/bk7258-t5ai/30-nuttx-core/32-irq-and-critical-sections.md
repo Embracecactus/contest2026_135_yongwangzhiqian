@@ -32,7 +32,7 @@
 __start()
   ├─ VTOR / FPU / .data / .bss
   ├─ arm_earlyserialinit()          ← 接口 4
-  ├─ [可选] bk7258_clock_bringup_320m()
+  ├─ [可选] bk7258_clock_bringup_240m()
   └─ nx_start()
        ├─ memory_initialize()
        │    └─ up_allocate_heap()   ← 接口 1
@@ -238,45 +238,38 @@ void clock_initialize(void)
 
 ### BK7258 实现
 
-`$BOARD/chip/common/bk7258_timerisr.c:79`
+当前实现把 scheduler SysTick 固定到芯片的 32 kHz 外部路由，不再使用 CPU clock：
 
 ```c
-void up_timer_initialize(void)
-{
-  uint32_t cpu_hz;
-  uint32_t reload;
-
-  cpu_hz = bk7258_clockdiag_current_cpu_hz();
-  reload = (cpu_hz / CLK_TCK) - 1;
-
-  putreg32(reload, NVIC_SYSTICK_RELOAD);
-
-  up_timer_set_lowerhalf(systick_initialize(true, cpu_hz, -1));
-}
+reload = (BK7258_SYSTICK_FREQUENCY_HZ / CLK_TCK) - 1;
+modifyreg32(BK7258_SYS_CPU_POWER_SLEEP_WAKEUP, 0,
+            BK7258_SYSTICK_32K_ROUTE);
+putreg32(reload, NVIC_SYSTICK_RELOAD);
+hardware = systick_initialize(false, BK7258_SYSTICK_FREQUENCY_HZ, -1);
 ```
 
-### 核心公式
+`false` 表示选择外部 SysTick source；`BK7258_SYSTICK_FREQUENCY_HZ` 为固定
+32 kHz。CPU 在 26/60/80/120/160/240/320/480 MHz 间按角色变化，都不会改变
+scheduler tick 周期。
+
+### 为什么仍然读取运行时 CPU 频率
+
+Armv8-M 的 DWT cycle counter 跟随本地 CPU，而不是 32 kHz SysTick。Trace、CoreMark
+和 `perf_gettime()` 必须通过 `bk7258_clockdiag_current_cpu_hz()` 获得当前角色的实际
+频率：同一 SDK OPP 480M 在 CP/CPU0 是 240 MHz，在 AP/CPU1/CPU2 是 480 MHz。
+
+所以初始化时有两条独立时间基准：
 
 ```text
-reload = cpu_hz / CLK_TCK - 1
-
-其中：
-  cpu_hz = 运行时从寄存器读取的实际 CPU 频率
-  CLK_TCK = 1000000 / CONFIG_USEC_PER_TICK
-  CONFIG_USEC_PER_TICK = 10000（当前配置）
-  所以 CLK_TCK = 100 Hz
+Scheduler SysTick = 固定 32 kHz / CLK_TCK
+DWT conversion    = 运行时本地 CPU Hz
 ```
-
-### 为什么用运行时检测而不是编译时常量
-
-BK7258 会在 `__start()` 中把 CPU 从 26 MHz 切换到 320 MHz（当前配置的特定场景）。如果 `up_timer_initialize()` 使用编译时的 26 MHz，但实际 CPU 已经在 320 MHz，SysTick 的 reload 值会差 12 倍，系统 tick 将严重超速。
-
-因此 `bk7258_clockdiag_current_cpu_hz()` 在运行时读取时钟寄存器，返回当前实际频率。
 
 ### `up_timer_set_lowerhalf()` 是什么
 
 ```c
-up_timer_set_lowerhalf(systick_initialize(true, cpu_hz, -1));
+up_timer_set_lowerhalf(
+  systick_initialize(false, BK7258_SYSTICK_FREQUENCY_HZ, -1));
 ```
 
 - `systick_initialize()` 返回一个 Cortex-M SysTick lower-half 实例；
@@ -291,13 +284,16 @@ up_timer_set_lowerhalf(systick_initialize(true, cpu_hz, -1));
 void bk7258_systick_recalc(void)
 ```
 
-当运行时 DVFS 改变 CPU 频率后调用，重新计算并写入 SysTick reload，确保 OS tick 周期不变。否则 `sleep(1)` 实际等的秒数会随频率变化而漂移。
+运行时 DVFS 改变 CPU 频率后调用，但它只刷新 DWT cycle-to-time conversion，绝不
+改写 SysTick route、reload 或当前相位。`sleep(1)` 不随 DVFS 漂移，因为 scheduler
+从始至终使用固定 32 kHz。
 
 ### 关键理解
 
 - `up_timer_initialize()` 必须在 IRQ 初始化之后调用，因为 SysTick 依赖中断分发；
-- 它必须在 `__start()` 中的时钟切换之后调用，否则 reload 值基于错误频率；
-- 这就是为什么 320 MHz 切换放在 `__start()` 而不是 `board_app_initialize()` 的根本原因。
+- 性能启动 OPP 在 `nx_start()` 前完成，使初始 DWT conversion 一开始就是正确值；
+- CP 性能 profile 使用 SDK OPP 240M/CPU0 240 MHz；AP 320/480 MHz 由运行时共享
+  OPP vote 管理，不能把 OPP 名称直接当成 CPU0 Hz。
 
 ## 6. 接口 4 —— `arm_earlyserialinit()`
 

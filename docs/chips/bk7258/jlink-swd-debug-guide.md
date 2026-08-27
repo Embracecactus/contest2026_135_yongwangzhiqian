@@ -1,7 +1,16 @@
-# BK7258 JLink SWD 调试指南
+# BK7258 chip 层 J-Link/SWD 调试指南
 
 > 适用环境：WSL2 (编译) + Windows (JLink GDB Server)
 > 硬件：JLink EDU/Plus + BK7258 (Cortex-M33)
+>
+> 本文只定义 BK7258/Cortex-M33 共用的 SWD、fault 和寄存器调试方法。实际 SWDIO、
+> SWCLK、RESET、GND、VTref 接线、COM 口与复位极性属于板级事实，应从对应板卡原理图
+> 和验证记录取得。自动采集优先使用
+> [`tools/windows-hardware-debug`](../../../tools/windows-hardware-debug/README.md)。
+>
+> 旧版文档使用 `bl_crc.bin + nuttx_crc.bin` direct 镜像举例；当前维护交付已改为
+> board-owned BL1 → pinned NuttX MCUboot BL2 → signed same-slot CP/AP。不得照抄旧地址
+> 进行写 Flash，本指南不授权下载、擦除、Option Byte 或 OTP/eFuse 操作。
 
 ---
 
@@ -53,7 +62,7 @@ WSL2 和 Windows 宿主之间的网络是隔离的。连接方式：
 ### 方法 A：PowerShell 内直接运行 WSL GDB（推荐）
 
 ```powershell
-wsl gdb-multiarch /home/lijian/project/open-vela/nuttx/nuttx \
+wsl gdb-multiarch '<CP_ELF>' \
   -ex "target remote localhost:2331" \
   -ex "monitor reset halt" \
   -ex "break bk7258_hardfault_handler" \
@@ -64,7 +73,7 @@ wsl gdb-multiarch /home/lijian/project/open-vela/nuttx/nuttx \
 
 ```bash
 # WSL 侧
-cp /home/lijian/project/open-vela/nuttx/nuttx /mnt/c/Users/lijian/Desktop/nuttx.elf
+cp '<CP_ELF>' /mnt/c/Users/<USER>/Desktop/nuttx.elf
 ```
 
 ```powershell
@@ -90,7 +99,7 @@ WINIP=$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}')
 # ip route show default | awk '{print $3}'
 # 或：ipconfig.exe | grep -i "IPv4" | head -1
 
-gdb-multiarch /home/lijian/project/open-vela/nuttx/nuttx
+gdb-multiarch '<CP_ELF>'
 ```
 
 GDB 内：
@@ -165,7 +174,7 @@ info line *0xXXXXXXXX          # 替换为 stacked PC
 list *0xXXXXXXXX               # 显示源码
 
 # 或者用 addr2line（WSL 终端）
-arm-none-eabi-addr2line -e /home/lijian/project/open-vela/nuttx/nuttx -f 0xXXXXXXXX
+arm-none-eabi-addr2line -e '<CP_ELF>' -f 0xXXXXXXXX
 ```
 
 ### 4.5 CFSR 位域解读
@@ -239,20 +248,19 @@ info threads               # NuttX 线程列表（如果有 RTOS 插件）
 
 ### 6.1 启动链
 
+```text
+BootROM（芯片内部固化）
+  → board-owned BL1（DPLL/早期时钟、BL2 manifest 验签和回退）
+    → pinned NuttX MCUboot BL2（同槽 CP/AP image 验签与选择）
+      → signed CP NuttX
+        → nx_start()
+          → irq/clock/up/drivers/board initialize
+          → ROMFS rc.sysinit → final-init → rcS（按 profile）
+      → signed AP NuttX（由 CP/AP control 和 profile 决定是否启动）
 ```
-BootROM (芯片内部固化)
-  → bootloader (bl_crc.bin @ 0x00000, ~68KB)
-    → NuttX app (nuttx_crc.bin @ 0x11000)
-      → nx_start()
-        → irq_initialize()        # 中断向量表、VTOR
-        → clock_initialize()      # SysTick (up_timer_initialize)
-        → up_initialize()         # 串口、网络等
-        → drivers_initialize()
-        → board_early_initialize()
-        → board_late_initialize()
-        → NSH init task
-          → board_app_initialize() # 我们的 bringup 代码
-```
+
+当前物理地址、slot 大小和下载边界只以 manifest 与权威分区 CSV 为准。历史 direct
+镜像中的 `bl_crc.bin @ 0`、`nuttx_crc.bin @ 0x11000` 不能用于当前签名镜像判读。
 
 ### 6.2 常见 Hard Fault 原因
 
@@ -261,7 +269,7 @@ BootROM (芯片内部固化)
 | 启动后立即 HF | 栈溢出、未定义指令、FPU 未启用 | 读 CFSR + stacked PC |
 | NSH 后几秒 HF | WDT 超时复位（bootloader 武装的 AON/APB WDT） | 检查 `bk_aon_wdt_stop()` 是否被调 |
 | `bk_wdt_start` 后 HF | timer ISR 未接上（`bk_timer_driver_init` 未调） | 确认 `bk_timer_driver_init()` 在 `bk_wdt_start` 前 |
-| 编译后行为变化 | 增量编译未重编关键 .o（`distclean` 后重编） | `file nuttx/nuttx` 确认 arch、`nm` 确认符号 |
+| 编译后行为变化 | 增量编译未重编关键 .o | 用统一 CLI `--clean` 重建；对最终 role ELF 执行 `file`/`nm` |
 
 ### 6.3 WDT 调试
 
@@ -286,18 +294,24 @@ x/1x 0xE000E018           # SYST_CVR (current value, 应在递减)
 
 ## 7. 构建验证检查清单
 
-每次编译后、烧录前：
+每次编译后、下载前先通过统一工具 clean build，并从输出的 layout/role identity 目录
+选择本次最终 ELF；不要使用工作区根部可能过期的 `nuttx/nuttx`：
 
 ```bash
-# 1. 确认是 ARM（不是 RISC-V）
-file nuttx/nuttx | grep ARM
+# 1. CP_ELF 必须指向本次 out/bk7258/.../roles/.../cmake/nuttx
+file "$CP_ELF" | grep ARM
 
 # 2. 确认关键符号存在
-arm-none-eabi-nm nuttx/nuttx | grep -E "board_app_initialize|bk7258_wdt_initialize|arm_lowputc"
+arm-none-eabi-nm "$CP_ELF" | grep -E "board_app_initialize|bk7258_wdt_initialize|arm_lowputc"
 
-# 3. 确认 all-app.bin 是新的
-stat -c '%y' nuttx/all-app.bin
+# 3. 记录最终 config/ELF 的哈希与 identity
+sha256sum "$CP_CONFIG" "$CP_ELF"
 
-# 4. 确认 .config 是正确的 board
-grep "CONFIG_ARCH_CHIP_CUSTOM_DIR" nuttx/.config
+# 4. 确认 resolved config，而不是只看 defconfig
+grep -E "CONFIG_ARCH_CHIP_BK7258|CONFIG_ARCH_CHIP_CUSTOM_DIR" "$CP_CONFIG"
 ```
+
+签名交付还必须依次通过 package、public trust 和 flash contract 校验。下载命令、保留
+区和禁止区由板级
+[build/package/hardware evidence SOP](../../bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md)
+定义；J-Link 调试指南本身不提供写入授权。

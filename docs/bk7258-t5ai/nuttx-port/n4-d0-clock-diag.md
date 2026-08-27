@@ -1,5 +1,11 @@
 # NuttX Stage N4-D0 / D0D — 时钟诊断 baseline + runtime SysTick bookkeeping（worklog）
 
+> 历史说明：本文记录早期 raw source/divider 探测，尚未完整解释 CPU0 speed 位；其中
+> “320/480 MHz CPU0”结论不再是当前产品契约。固定 SDK v3.1.1.9 的正式映射为
+> OPP 320M = CPU0/AP/Bus 160/320/160 MHz，OPP 480M = 240/480/240 MHz。
+> 当前实现与验证规则见
+> [`../../chips/bk7258/sdk-clock-operating-points.md`](../../chips/bk7258/sdk-clock-operating-points.md)。
+
 > 板端验证日期：2026-07-18（substage `board-verified`：仅 N4-D0/D0D；N4-D1 及整 N4 尚未板端验证）
 > 基线 commit：`4d9198e`（Stage N3 code）→ D0/D0D feature commit：`6f596b7`（3 个 overlay 文件，只读诊断 + runtime SysTick 修正）
 > → D0F feature commit：`8dab594`（defconfig 移除 100ms override，生效默认 10ms/100Hz tick）
@@ -295,44 +301,44 @@ loader 已配置的残留并测量）：
 - **480 MHz direct（M1=0x430, csrc=3, cdiv=0）失败**：板端在 `N4D0:480S` 后 stall，
   未到达 `480M` readback / NSH 提示符。
 
-### 10.2 SDK guard 证据（480M/1 为何失败）
+### 10.2 SDK guard 证据勘误（2026-08-27）
 
-Beken ARMINO SDK (`$BK7258_SDK`) 中 `sys_hal_core_bus_clock_ctrl()` 包含明确的频率上限
-guard：
+本节早期记录曾误写为“SDK 明确拒绝 480M/1”。固定 v3.1.1.9 SDK 中不存在该
+guard；`sys_hal_core_bus_clock_ctrl()` 的真实限制是：当 core source 为 320M 且
+`clkdiv_core=0` 时，CPU0 必须使用 `cpu0_speed=0`（`/2`）：
 
 ```c
-if ((cksel_core == PM_CLKSEL_CORE_480M) && (ckdiv_core == PM_CLKDIV_CORE_0))
-    return BK_FAIL;   // unsupported
+if ((cksel_core == PM_CLKSEL_CORE_320M) &&
+    (ckdiv_core == PM_CLKDIV_CORE_0) &&
+    (ckdiv_cpu0 != PM_CLKDV_CPU0_0))
+  {
+    return BK_FAIL;
+  }
 ```
 
-相关宏定义：
-- `PM_CLKSEL_CORE_320M = 2`，`PM_CLKSEL_CORE_480M = 3`
-- `PM_CLKDIV_CORE_0 = 0`（/1），`PM_CLKDIV_CORE_1 = 1`（/2）
-- `PM_VDDDIG_H_VOL_0v9 = 0xC`（320M/1 分支需拉高 VDDDIG 到 0.9V）
-- `PM_CLKDV_CPU1_1 = 0x1`（480M/2 分支有 CPU1 divider 条件）
+因此正式 OPP 的结论是：
 
-SDK `sys_hal_early_init` 的启动路径：
-```c
-sys_hal_mclk_div_set(480000000 / CONFIG_CPU_FREQ_HZ - 1);
-sys_hal_mclk_mux_set(0x3);  /* DPLL, 480M source */
-```
-证明 divider 编码为 `value + 1`（非 power-of-two）；SDK early-init 注释声称 `clk_divd 120MHz`。
-
-频率分支逻辑：
-- **320M/1**：支持，但需先检查/拉高 VDDDIG 到 0.9V。
-- **480M/2**（240 MHz）：支持，有 CPU1 divider 条件。
-- **480M/1**（480 MHz direct）：**SDK 明确 reject**（guard 返回 `BK_FAIL`）。
+- OPP 320M 调用 `(2, 0, 0, 0, 1)`，CPU0/AP/Bus=`160/320/160 MHz`；
+- OPP 480M 调用 `(3, 0, 0, 0, 1)`，CPU0/AP/Bus=`240/480/240 MHz`；
+- 历史 raw 320M `/1` 与 raw 480M `/1` 都绕过了正式 OPP 的 CPU0 分频/电压契约。
+  前者的探针测量成功不代表是产品支持档，后者 stall 也不代表 SDK 拒绝正式
+  OPP 480M。
 
 ### 10.3 结论
 
-- **480M 源存在，但 CPU core direct 480M /1 被 SDK policy 明确拒绝**，与我们的板端失败一致。
-- **当前最高板端/J-Link 验证的 loader-residue 操作点为 320 MHz**（320M 源 /1 分频）。
-- 240 MHz（480M/2）和 320 MHz（320M/1）均为 SDK 支持的操作点，已板端验证。
+- **480M 源存在，但 raw CPU0 480M `/1` 不属于 SDK 的任何正式 OPP**；板端
+  stall 只否定这条绕过 CPU0 `/2` 的历史实验。
+- 历史最高 J-Link 测量值 320 MHz 来自 raw 320M `/1`，同样不是正式 OPP 320M。
+- 固定 SDK 的 CPU0 正式上限是 240 MHz；AP 在 OPP 480M 的正式上限是 480 MHz。
 - **全冷启动 DPLL enable 仍 blocked**：NuttX 未主动 enable DPLL；上述频率阶梯均为 loader-residue
   mux/div 探测，依赖 loader 已预配的 DPLL 状态。
-- 480 MHz 操作点若要实现，需新的 SDK 证据或 vendor 指导表明安全路径；当前无此证据。
+- AP 480 MHz 必须通过官方 OPP 480M vote 获得，不能直接改 CPU0 divider。
 
-### 10.4 320 MHz deterministic bring-up（loader-path, board-verified）
+### 10.4 320 MHz deterministic bring-up（历史实现，已被 SDK OPP 适配取代）
+
+以下内容保留 2026-07-19 的 raw loader-path 实验事实，不能作为当前产品时钟
+配置说明。现行实现见 [SDK OPP 契约](../../chips/bk7258/sdk-clock-operating-points.md)：CP 性能档为
+OPP 240M/CPU0 240 MHz，AP 的 320/480 MHz 通过共享 PM vote 获取。
 
 **新增文件**（`$CONTEST/board/bk7258/chip/`）：
 

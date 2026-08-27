@@ -1014,3 +1014,39 @@ void bk7258_ap_get_status(struct bk7258_ap_boot_state_s *status)
       __asm volatile ("dmb sy" ::: "memory");
     }
 }
+
+int bk7258_ap_cp_clock_transition_begin(void)
+{
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+  int ret;
+
+  /* Serialize a CP-local shared-clock transition with initialize/start/stop/
+   * restart.  The caller keeps this gate until the transition is complete,
+   * closing the state-check/start race.  AP-originated PM requests do not use
+   * this gate because their reply path refreshes the AP timebase.
+   */
+
+  ret = nxmutex_lock(&g_bk7258_ap_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bk7258_ap_initialized)
+    {
+      __asm volatile ("dmb sy" ::: "memory");
+      if (state->state != BK7258_AP_STATE_OFF &&
+          state->state != BK7258_AP_STATE_STOPPED)
+        {
+          nxmutex_unlock(&g_bk7258_ap_lock);
+          return -EBUSY;
+        }
+    }
+
+  return OK;
+}
+
+void bk7258_ap_cp_clock_transition_end(void)
+{
+  nxmutex_unlock(&g_bk7258_ap_lock);
+}

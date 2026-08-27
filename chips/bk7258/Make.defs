@@ -193,9 +193,9 @@ BK7258_CP_CSRCS += bk7258_gpio_cp_irq.c
 BK7258_CP_CSRCS += bk7258_gpio_lowerhalf.c
 endif
 
-# Stage N4-D1: deterministic 320 MHz CPU0 clock bring-up.
+# SDK-aligned CP performance startup: physical CPU0 at 240 MHz.
 
-ifeq ($(CONFIG_BK7258_CLOCK_320M),y)
+ifeq ($(CONFIG_BK7258_CLOCK_240M),y)
 BK7258_CP_CSRCS += bk7258_clock.c
 endif
 
