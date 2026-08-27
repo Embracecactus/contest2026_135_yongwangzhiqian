@@ -851,7 +851,7 @@ int bk7258_ap_main(int argc, char *argv[])
 
 #ifdef BK7258_AP_STARTUP_FREQ_VOTE
   ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,
-                                 BK7258_PM_CPU_FREQ_320M);
+                                 BK7258_PM_OPP_320M);
   if (ret < 0)
     {
       bk7258_ap_publish_failure(BK7258_AP_ERROR_PERIPHERALS);
@@ -948,7 +948,7 @@ int bk7258_ap_main(int argc, char *argv[])
 
 #ifdef BK7258_AP_STARTUP_FREQ_VOTE
   ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,
-                                 BK7258_PM_CPU_FREQ_DEFAULT);
+                                 BK7258_PM_OPP_DEFAULT);
   if (ret < 0)
     {
       bk7258_ap_publish_failure(BK7258_AP_ERROR_PERIPHERALS);
@@ -1105,7 +1105,7 @@ parked:
   if (pm_startup_vote)
     {
       (void)bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,
-                                     BK7258_PM_CPU_FREQ_DEFAULT);
+                                     BK7258_PM_OPP_DEFAULT);
     }
 #endif
   __asm volatile ("cpsid i; dsb sy; isb sy" ::: "memory");

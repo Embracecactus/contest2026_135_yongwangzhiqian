@@ -132,9 +132,18 @@ N4-D0/D0D 的正确做法不是立即改 PLL，而是：
 
 Cortex-M SysTick reload 只有 24 bit。tick 太慢时，高频 CPU 的 reload 可能越界；项目最终采用 100 Hz 兼容设置，而不是为了“数字越大越好”直接上 1000 Hz。
 
-### 5.3 480 MHz 为什么停止
+### 5.3 为什么 CP 不是 480 MHz、AP 可以是 480 MHz
 
-项目验证了 120/160/240/320 等阶梯，320 tier 是当前 SDK 对齐产品路径；CPU0 的有效产品频率按已验证策略为 160 MHz，AP 为 320 MHz。直接追 480 MHz 缺少受支持的 SDK policy，N4-D1 因此 blocked，不能把芯片宣传上限当成当前软件已支持值。
+早期 N4 把共享时钟源名称当成了 CPU0 频率。固定的 SDK v3.1.1.9 表实际规定：
+
+- OPP 240M：CPU0/AP/Bus 都是 240 MHz；
+- OPP 320M：CPU0/AP/Bus 是 160/320/160 MHz；
+- OPP 480M：CPU0/AP/Bus 是 240/480/240 MHz。
+
+因此 CP NuttX（物理 CPU0）的正式上限是 240 MHz，AP NuttX（物理 CPU1/CPU2）
+才使用 480 MHz。直接把 CPU0 divider 改成 `/1` 强跑 480 MHz 不属于 SDK 正式 OPP。
+完整寄存器、电压和验证契约见
+[BK7258 SDK 时钟 OPP 与每核频率契约](../../chips/bk7258/sdk-clock-operating-points.md)。
 
 ## 6. N5：从裸 Flash 到文件
 

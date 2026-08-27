@@ -7,6 +7,9 @@
 > 服务。动态状态以 [`progress/CURRENT.md`](../../progress/CURRENT.md) 为准。
 
 板级原理图和验证边界见 [hardware/README.md](hardware/README.md)。
+SoC 共用的 OPP、SDK 索引、chip 清理评审和 J-Link/SWD 方法已归档到
+[BK7258 chip 层文档](../chips/bk7258/README.md)；本目录保留 T5-AI 平台、profile 与
+实板证据，分层规则见 [docs 导航](../README.md)。
 
 openvela 官网 dev-ai-contest-2026 中文目录的逐项覆盖、剩余适配项、优先级和
 统一验收规则见
@@ -15,9 +18,11 @@ openvela 官网 dev-ai-contest-2026 中文目录的逐项覆盖、剩余适配�
 P0 调试、xTS、压力测试和低噪声性能基线的 profile 边界、构建方法、板端命令与
 证据格式见
 [p0-diagnostics-performance.md](p0-diagnostics-performance.md)。
-generation 143 诊断镜像、generation 145 性能镜像、COM3 全量下载边界和 30 个独立
-benchmark session 的结果见
-[2026-08-27 P0 实板验证记录](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md)。
+generation 143 诊断镜像、generation 145 历史性能镜像和当时 30 个独立 benchmark
+session 见 [P0 实板验证记录](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md)；
+修正 SDK OPP 语义后的 generation 146 CP/CPU0 240 MHz 全量下载、回读、冷启动与
+新一轮 30 个 session 见
+[时钟适配实板记录](../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 
 把 openvela / NuttX 移植到 Beken BK7258（ARM Cortex-M33 三核、Wi-Fi 6 + BLE 5.4）Tuya T5-AI
 模组。BootROM → Tier-1 bootloader → CPU0/CP NuttX、NSH、LittleFS、CPU0 IRQ/GPIO 等既有
@@ -124,7 +129,7 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 | NuttX Stage N1（bootloader 跳进 NuttX，早期 UART） | ✅ `board-verified` |
 | NuttX Stage N2（`nx_start` → 交互式 NSH） | ✅ `board-verified`（2026-07-18，4 RX bug 全修） |
 | NuttX Stage N3（procfs + `ps`） | ✅ `board-verified`（2026-07-18） |
-| NuttX Stage N4（DPLL / 480 MHz clock bring-up） | 历史：N4-D0/D0D/D0F `board-verified`（substage，D0/D0D `6f596b7`，D0F `8dab594`）；N4-D1 blocked；当前产品路径采用已验证的 320 MHz runtime DVFS，不继续追 480 MHz |
+| NuttX Stage N4（历史 raw clock 探测） | 历史：N4-D0/D0D/D0F `board-verified`；当前以 SDK v3.1.1.9 正式 OPP 表为准：CP/CPU0 最大 240 MHz，AP CPU1/2 最大 480 MHz；见 [chip 层 OPP 契约](../chips/bk7258/sdk-clock-operating-points.md) |
 | NuttX Stage N4 — D0/D0D（时钟诊断 baseline + runtime SysTick bookkeeping） | ✅ substage `board-verified`（2026-07-18，feature commit `6f596b7`，3 个 overlay 文件） |
 | NuttX Stage N4 — D0F（100Hz SysTick tick-rate 兼容性） | ✅ substage `board-verified`（2026-07-18，feature commit `8dab594`，defconfig 移除 100ms override） |
 | NuttX Stage N5（flash layout / ID / filesystem） | **N5-D0..D4 board-observed**（2026-07-19）；**N5-D5 raw flash r/w board-verified**（2026-07-19）；**N5-D6 MTD board-verified**（方案 A，CONFIG_BK7258_FLASH_MTD）；**N5-D7 LittleFS filesystem board-verified**（/data 挂载，probe 文件重启持久化通过）；D7 版 `all-app.bin` = 192270 B = `0x2EF0E`（< `0x100000`，boot/app 区不受影响） |
@@ -249,7 +254,7 @@ package plan。Flash只能使用已验证包中声明的 sparse range，并保�
 
 ### 参考
 - [git-worktree-guide.md](git-worktree-guide.md) —— Git worktree 入门、本项目 clean worktree 与 openvela 构建工作区的关系
-- [sdk-context-index.md](sdk-context-index.md) —— BK ARMINO SDK (`bk_avdk_smp`) 上下文索引
+- [BK7258 chip 文档索引](../chips/bk7258/README.md) —— OPP、SDK 上下文、chip 清理评审与 J-Link/SWD
 
 ## 外部资源（不在本仓内）
 

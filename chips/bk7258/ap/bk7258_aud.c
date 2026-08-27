@@ -821,7 +821,7 @@ static int bk7258_aud_frequency_acquire(struct bk7258_aud_dev_s *priv)
 
   before = (uint32_t)perf_getfreq();
   ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_AUDIO,
-                                  BK7258_PM_CPU_FREQ_480M);
+                                  BK7258_PM_OPP_480M);
   if (ret < 0)
     {
       /* The PM transaction may already have committed on CP before AP's
@@ -875,7 +875,7 @@ static int bk7258_aud_frequency_release(struct bk7258_aud_dev_s *priv)
   nxmutex_unlock(&priv->lock);
 
   ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_AUDIO,
-                                  BK7258_PM_CPU_FREQ_DEFAULT);
+                                  BK7258_PM_OPP_DEFAULT);
   if (ret < 0)
     {
       nxmutex_lock(&priv->lock);

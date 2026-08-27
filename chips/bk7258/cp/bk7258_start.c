@@ -44,7 +44,7 @@
 
 #include "arm_internal.h"
 
-#ifdef CONFIG_BK7258_CLOCK_320M
+#ifdef CONFIG_BK7258_CLOCK_240M
 #include "bk7258_clock.h"
 #endif
 
@@ -253,18 +253,20 @@ void __start(void)
   arm_earlyserialinit();
 #endif
 
-#ifdef CONFIG_BK7258_CLOCK_320M
-  /* Optional bring-up-only 320 MHz override.  The v3.1.1.9 normal startup
+#ifdef CONFIG_BK7258_CLOCK_240M
+  /* Optional CP performance startup target.  The v3.1.1.9 normal startup
    * policy keeps PM_DEV_ID_DEFAULT at 120 MHz and lets modules vote upward;
    * production profiles should therefore leave this disabled.  When enabled
-   * for a performance experiment, run after early serial init so any stall is
-   * distinguishable on the console.  It still runs before nx_start() so the
-   * initial DWT conversion observes the final live CPU mux; scheduler SysTick
-   * remains on fixed 32 kHz.  UART consoles use the independent 26 MHz XTAL
-   * source and RTT does not depend on the CPU clock divider.
+   * for a CP-only performance experiment, select the SDK PM_CPU_FRQ_240M OPP:
+   * CPU0/AP/bus all run at 240 MHz without misusing the SDK 320M label whose
+   * CPU0 effective frequency is only 160 MHz.  Run after early serial init so
+   * any stall is distinguishable on the console.  It still runs before
+   * nx_start() so the initial DWT conversion observes the final live CPU mux;
+   * scheduler SysTick remains on fixed 32 kHz.  UART consoles use the
+   * independent 26 MHz XTAL source and RTT does not depend on the CPU divider.
    */
 
-  bk7258_clock_bringup_320m();
+  bk7258_clock_bringup_240m();
 #endif
 
   /* 8. Start NuttX.  nx_start() never returns; it brings up the scheduler,

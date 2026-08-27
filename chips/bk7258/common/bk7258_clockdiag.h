@@ -99,13 +99,13 @@
 #define BK7258_CDIAG_CASE_LOADER80   1   /* M1=0x423 csrc=2 cdiv=3 dplle=1:
                                          * loader --reboot 1 residue, ~80 MHz
                                          */
-#define BK7258_CDIAG_CASE_DPLL120    2
-#define BK7258_CDIAG_CASE_DPLL160    3
-#define BK7258_CDIAG_CASE_DPLL240    4
-#define BK7258_CDIAG_CASE_DPLL320    5
-#define BK7258_CDIAG_CASE_DPLL480    6
-#define BK7258_CDIAG_CASE_DPLL60     7
-#define BK7258_CDIAG_CASE_DPLL80     8
+#define BK7258_CDIAG_CASE_CORE120    2
+#define BK7258_CDIAG_CASE_CORE160    3
+#define BK7258_CDIAG_CASE_CORE240    4
+#define BK7258_CDIAG_CASE_CORE320    5
+#define BK7258_CDIAG_CASE_CORE480    6
+#define BK7258_CDIAG_CASE_CORE60     7
+#define BK7258_CDIAG_CASE_CORE80     8
 #define BK7258_CDIAG_CASE_UNKNOWN    9   /* fallback to baseline hz.        */
 
 /****************************************************************************
@@ -124,9 +124,10 @@
  *     BK7258_CDIAG_CASE_LOADER80  Tier-1 loader `--reboot 1` residue:
  *                                 M1 = 0x00000423 with csrc = 2, cdiv = 3
  *                                 and DPLL enabled -- f_cpu ~80 MHz.
- *     BK7258_CDIAG_CASE_DPLL*     DPLL-selected cases observed during
- *                                 bring-up probes (kept for recognition
- *                                 only; no probe is run by this header).
+ *     BK7258_CDIAG_CASE_CORE*     Shared core-source/divider result.  The
+ *                                 number is not necessarily the local CPU
+ *                                 frequency: CPU0 and the bus divide the SDK
+ *                                 CORE320/CORE480 cases to 160/240 MHz.
  *     BK7258_CDIAG_CASE_UNKNOWN   Any other combination; callers fall back
  *                                 to the baseline frequency.
  *
@@ -160,40 +161,78 @@ static inline int bk7258_clockdiag_last_clock_case(void)
 
   if (csrc == 3 && cdiv == 7 && dplle)
     {
-      return BK7258_CDIAG_CASE_DPLL60;
+      return BK7258_CDIAG_CASE_CORE60;
     }
 
   if (csrc == 3 && cdiv == 5 && dplle)
     {
-      return BK7258_CDIAG_CASE_DPLL80;
+      return BK7258_CDIAG_CASE_CORE80;
     }
 
   if (csrc == 3 && cdiv == 3 && dplle)
     {
-      return BK7258_CDIAG_CASE_DPLL120;
+      return BK7258_CDIAG_CASE_CORE120;
     }
 
   if (csrc == 3 && cdiv == 2 && dplle)
     {
-      return BK7258_CDIAG_CASE_DPLL160;
+      return BK7258_CDIAG_CASE_CORE160;
     }
 
   if (csrc == 3 && cdiv == 1 && dplle)
     {
-      return BK7258_CDIAG_CASE_DPLL240;
+      return BK7258_CDIAG_CASE_CORE240;
     }
 
   if (csrc == 2 && cdiv == 0 && dplle)
     {
-      return BK7258_CDIAG_CASE_DPLL320;
+      return BK7258_CDIAG_CASE_CORE320;
     }
 
   if (csrc == 3 && cdiv == 0 && dplle)
     {
-      return BK7258_CDIAG_CASE_DPLL480;
+      return BK7258_CDIAG_CASE_CORE480;
     }
 
   return BK7258_CDIAG_CASE_UNKNOWN;
+}
+
+/****************************************************************************
+ * Name: bk7258_clockdiag_core_hz_for_case
+ ****************************************************************************/
+
+static inline uint32_t bk7258_clockdiag_core_hz_for_case(int clock_case)
+{
+  switch (clock_case)
+    {
+      case BK7258_CDIAG_CASE_BASELINE:
+        return 26000000u;
+
+      case BK7258_CDIAG_CASE_LOADER80:
+      case BK7258_CDIAG_CASE_CORE80:
+        return 80000000u;
+
+      case BK7258_CDIAG_CASE_CORE60:
+        return 60000000u;
+
+      case BK7258_CDIAG_CASE_CORE120:
+        return 120000000u;
+
+      case BK7258_CDIAG_CASE_CORE160:
+        return 160000000u;
+
+      case BK7258_CDIAG_CASE_CORE240:
+        return 240000000u;
+
+      case BK7258_CDIAG_CASE_CORE320:
+        return 320000000u;
+
+      case BK7258_CDIAG_CASE_CORE480:
+        return 480000000u;
+
+      default:
+        return 26000000u;
+    }
 }
 
 /****************************************************************************
@@ -206,8 +245,9 @@ static inline int bk7258_clockdiag_last_clock_case(void)
  *   back to the 26 MHz baseline for the unknown case.  Read-only; no
  *   clock-control register is written.
  *
- *   The returned value is the CPU/DWT clock.  It is intentionally independent
- *   of the fixed 32-kHz scheduler SysTick source.  BOARD_CPU_FREQ_HZ in
+ *   The returned value is the CPU/DWT clock.  It is intentionally
+ *   independent of the fixed 32-kHz scheduler SysTick source.
+ *   BOARD_CPU_FREQ_HZ in
  *   board.h remains the build-time cold-reset fallback and matches the
  *   BK7258_CDIAG_CASE_BASELINE return.
  *
@@ -216,59 +256,17 @@ static inline int bk7258_clockdiag_last_clock_case(void)
 static inline uint32_t bk7258_clockdiag_current_cpu_hz(void)
 {
   int clock_case = bk7258_clockdiag_last_clock_case();
-  uint32_t cpu_hz;
-
-  switch (clock_case)
-    {
-      case BK7258_CDIAG_CASE_BASELINE:
-        cpu_hz = 26000000u;
-        break;
-
-      case BK7258_CDIAG_CASE_LOADER80:
-        cpu_hz = 80000000u;
-        break;
-
-      case BK7258_CDIAG_CASE_DPLL60:
-        cpu_hz = 60000000u;
-        break;
-
-      case BK7258_CDIAG_CASE_DPLL80:
-        cpu_hz = 80000000u;
-        break;
-
-      case BK7258_CDIAG_CASE_DPLL120:
-        cpu_hz = 120000000u;
-        break;
-
-      case BK7258_CDIAG_CASE_DPLL160:
-        cpu_hz = 160000000u;
-        break;
-
-      case BK7258_CDIAG_CASE_DPLL240:
-        cpu_hz = 240000000u;
-        break;
-
-      case BK7258_CDIAG_CASE_DPLL320:
-        cpu_hz = 320000000u;
-        break;
-
-      case BK7258_CDIAG_CASE_DPLL480:
-        cpu_hz = 480000000u;
-        break;
-
-      default:
-        cpu_hz = 26000000u;
-        break;
-    }
+  uint32_t cpu_hz = bk7258_clockdiag_core_hz_for_case(clock_case);
 
 #ifndef CONFIG_BK7258_AP_CORE
   /* The CP image executes on physical CPU0.  In the SDK 320/480 operating
    * points cpu0_speed=0 selects /2, while AP physical CPU1/CPU2 retain the
    * full core clock.  Keep the AP result unchanged and apply the divider
-   * only to the CP role. */
+   * only to the CP role.
+   */
 
-  if ((clock_case == BK7258_CDIAG_CASE_DPLL320 ||
-       clock_case == BK7258_CDIAG_CASE_DPLL480) &&
+  if ((clock_case == BK7258_CDIAG_CASE_CORE320 ||
+       clock_case == BK7258_CDIAG_CASE_CORE480) &&
       BK7258_CDIAG_F_CPU0_SPEED(
         getreg32(BK7258_CDIAG_SYS_CPU0_HALT_CLK_OP)) == 0)
     {
@@ -277,6 +275,32 @@ static inline uint32_t bk7258_clockdiag_current_cpu_hz(void)
 #endif
 
   return cpu_hz;
+}
+
+/****************************************************************************
+ * Name: bk7258_clockdiag_current_bus_hz
+ *
+ * Description:
+ *   Return the shared bus frequency for a recognized v3.1.1.9 SDK OPP.
+ *   The 320M/480M OPPs keep the bus at half the shared core source
+ *   (160/240 MHz), matching the official CPU0/bus ceiling.  The SDK always
+ *   requests clkdiv_bus=0 and does not program M1 bit 6, so this helper does
+ *   not claim to decode unsupported raw bit-6 states.  This role-independent
+ *   value must be used by peripherals instead of AP CPU1/CPU2 Hz.
+ ****************************************************************************/
+
+static inline uint32_t bk7258_clockdiag_current_bus_hz(void)
+{
+  int clock_case = bk7258_clockdiag_last_clock_case();
+  uint32_t bus_hz = bk7258_clockdiag_core_hz_for_case(clock_case);
+
+  if (clock_case == BK7258_CDIAG_CASE_CORE320 ||
+      clock_case == BK7258_CDIAG_CASE_CORE480)
+    {
+      bus_hz >>= 1;
+    }
+
+  return bus_hz;
 }
 
 #endif /* __ARCH_ARM_SRC_BK7258_CHIP_BK7258_CLOCKDIAG_H */

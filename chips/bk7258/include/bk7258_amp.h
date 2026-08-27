@@ -1219,6 +1219,8 @@ int bk7258_ap_stop(uint32_t timeout_ms);
 int bk7258_ap_restart(uint32_t timeout_ms);
 int bk7258_ap_ipi_test(uint32_t count, uint32_t timeout_ms);
 void bk7258_ap_get_status(struct bk7258_ap_boot_state_s *status);
+int bk7258_ap_cp_clock_transition_begin(void);
+void bk7258_ap_cp_clock_transition_end(void);
 #  ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
 int bk7258_ap_pm_notify(uint32_t event);
 #  endif

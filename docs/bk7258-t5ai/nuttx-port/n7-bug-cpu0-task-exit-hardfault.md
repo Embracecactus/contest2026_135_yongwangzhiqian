@@ -1001,6 +1001,6 @@ CPU0 task-exit / apctl / heartbeat 回归通过
 ## 16. 相关文档
 
 - [N7 CPU1 单核 AP NuttX 启动链](n7-ap-singlecore-bringup.md)
-- [BK7258 J-Link SWD 调试指南](../jlink-swd-debug-guide.md)
+- [BK7258 J-Link SWD 调试指南](../../chips/bk7258/jlink-swd-debug-guide.md)
 - [N6：约 4295 秒后 HF/WDT 重启根因](n6-bug-4295s-timer-wrap.md)
 - [BK7258 文档主索引](../README.md)

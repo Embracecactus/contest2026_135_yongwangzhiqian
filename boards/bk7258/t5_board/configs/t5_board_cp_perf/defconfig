@@ -22,7 +22,7 @@ CONFIG_ARMV8M_SYSTICK=y
 # The paired AP image remains in the package but is not started while measuring.
 # CONFIG_BK7258_AP_AUTOSTART is not set
 CONFIG_BK7258_BOARD_T5_BOARD=y
-CONFIG_BK7258_CLOCK_320M=y
+CONFIG_BK7258_CLOCK_240M=y
 CONFIG_BK7258_CONSOLE_UART0=y
 # UART RX is interrupt-driven; keep the SDK source-to-NuttX IRQ bridge even
 # though diagnostic IRQ accounting remains disabled for benchmark isolation.

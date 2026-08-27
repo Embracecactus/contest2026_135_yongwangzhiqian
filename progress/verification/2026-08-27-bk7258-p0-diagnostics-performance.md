@@ -1,14 +1,21 @@
 # BK7258 T5-Board P0 调试与性能实板验证
 
+> 本文的 generation 145 是 SDK OPP 320M、CP/CPU0 160 MHz 的历史实测，数据保留
+> 不改写。当前性能 profile 已按 v3.1.1.9 正式表修正为 OPP 240M、CPU0 240 MHz，
+> generation 146 的新结果已另建 verification 记录；OPP 语义见
+> [`docs/chips/bk7258/sdk-clock-operating-points.md`](../../docs/chips/bk7258/sdk-clock-operating-points.md)。
+
 - 日期/时区：2026-08-27，Asia/Shanghai
 - 分支：`feat/bk7258-p0-diagnostics`
 - 集成起点：`e9ba46119bac46dfc4903a9ab2b4ff9891fa46c9`
 - 目标板：T5-Board V1.0.2
 - 下载与控制台：COM3，BK Loader 2.1.11.15 / UART0 115200 8N1
 - Agent layout identity：`bk7258-2b86faab14dca06e`
-- 总结：诊断 generation 143 与性能 generation 145 的签名全量下载、启动和目标功能
-  均通过；CoreMark/Ramspeed/Whetstone 各 10 次通过。完整 xTS、其他 benchmark 与
-  12 小时 soak 未完成，因此整个 P0 工作包仍为部分完成。
+- 总结：诊断 generation 143、历史性能 generation 145 和当前 240 MHz 性能
+  generation 146 的签名全量下载、启动和目标功能均通过；两代性能镜像都完成
+  CoreMark/Ramspeed/Whetstone 各 10 次。完整 xTS、其他 benchmark 与 12 小时 soak
+  未完成，因此整个 P0 工作包仍为部分完成。generation 146 完整证据见
+  [独立验证记录](2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 
 适配与复现方法见
 [`docs/bk7258-t5ai/p0-diagnostics-performance.md`](../../docs/bk7258-t5ai/p0-diagnostics-performance.md)。
@@ -32,9 +39,11 @@ Allsyms 表由板级 linker script 固定到 XIP FLASH，避免占满 SRAM；运
 
 ### 1.2 `t5_board_cp_perf`
 
-新增性能 profile：SDK `BK7258_CLOCK_320M` 档（当前 CP CPU0 有效 160 MHz）、`-O3`、
-CoreMark、Ramspeed、Whetstone。AP autostart、Wi-Fi、RPTUN、WDT、Trace、调度监控、
-Backtrace、Allsyms 和 memstress 均关闭。保留 SDK IRQ bridge，因为 UART0 RX 依赖它。
+最初新增性能 profile 时选择 SDK `BK7258_CLOCK_320M` 档，CP CPU0 实际只有
+160 MHz。后续按 SDK 正式 OPP 表改为 `BK7258_CLOCK_240M`，CPU0/AP/Bus 均为
+240 MHz；`-O3`、CoreMark、Ramspeed、Whetstone 和 SDK IRQ bridge 保留。AP
+autostart、Wi-Fi、RPTUN、WDT、Trace、调度监控、Backtrace、Allsyms 和 memstress
+均关闭。
 
 ### 1.3 共用代码修复
 
@@ -50,10 +59,12 @@ Backtrace、Allsyms 和 memstress 均关闭。保留 SDK IRQ bridge，因为 UAR
 | 143 | `1.87.9+143` | 最终诊断/xTS 镜像 | 接受，诊断子集和重启恢复通过 |
 | 144 | `1.88.0+144` | 第一版性能镜像 | 拒绝：UART TX/NSH 正常但 RX 不响应；未计入 benchmark |
 | 145 | `1.88.1+145` | 修复 SDK IRQ bridge 后的最终性能镜像 | 接受，30 个独立 benchmark session 与重启通过 |
+| 146 | `1.88.2+146` | 修正 SDK OPP 语义后的当前 240 MHz 性能镜像 | 接受，新密钥全量下载、稳定回读、冷启动和 30 个独立 benchmark session 通过 |
 
 每个发生全量下载的 generation 均重新生成两套不同的 P-256 密钥对。本文只记录公开
-SPKI 指纹；私钥未提交。证据确认后，本轮 11 个 `fresh-keys` 临时目录均已精确删除，
-签名包、operator image、串口证据和公开指纹保留。
+SPKI 指纹；私钥未提交。证据确认后，各代 `fresh-keys` 临时目录均已精确删除；
+generation 146 私钥目录也在验收后确认不存在。签名包、operator image、串口证据和
+公开指纹保留。
 
 ## 3. 全量下载边界与持久数据
 
@@ -264,4 +275,4 @@ population stddev 0.002091 MIPS。
 - CoreMark/Ramspeed/Whetstone 10 次基线：PASS；
 - 新密钥、签名包、COM3 单文件全量下载、Agent 持久数据与写入边界：PASS；
 - 完整 P0：PARTIAL，等待 §9 的完整 xTS/长稳及剩余项目；
-- 板上当前镜像：performance generation 145（`1.88.1+145`）。
+- 板上当前镜像：performance generation 146（`1.88.2+146`，CP/CPU0 240 MHz）。

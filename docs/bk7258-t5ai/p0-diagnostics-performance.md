@@ -12,7 +12,7 @@ P0 采用两张用途互斥的 CP 镜像，不能把诊断镜像的结果当性�
 | Profile | 用途 | 2026-08-27 状态 |
 |---|---|---|
 | `t5_board_cp_xts` | 系统级诊断、Trace、压力和既有 xTS | generation 143 已完成签名全量下载；Backtrace/Allsyms、IRQ、critmon、cpuload、Trace、10 秒 memstress 与重启恢复通过 |
-| `t5_board_cp_perf` | 固定频点、`-O3`、低噪声 benchmark | generation 145 已完成签名全量下载；CoreMark、Ramspeed、Whetstone 各 10 次通过 |
+| `t5_board_cp_perf` | SDK OPP 240M、`-O3`、低噪声 benchmark | generation 145 的旧 OPP 320M/CPU0 160 MHz 基线保留为历史对照；generation 146 已完成 240 MHz 签名全量下载、回读、冷启动和三项 benchmark 各 10 次 |
 
 已闭环的是当前支持的非破坏性诊断路径和三项性能基线。以下内容仍不能宣称完成：
 
@@ -23,9 +23,11 @@ P0 采用两张用途互斥的 CP 镜像，不能把诊断镜像的结果当性�
 - 计划内 12 小时 soak；
 - `tests/bk7258/run_tests.sh` 的历史 fixture 迁移。
 
-最终原始值、哈希和下载证据见
-[2026-08-27 P0 实板验证记录](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md)。
-板子在本轮结束时保留 generation 145 性能镜像。
+generation 143/145 的原始值、哈希和下载证据见
+[2026-08-27 P0 实板验证记录](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md)；
+当前 240 MHz 基线见
+[generation 146 时钟验证记录](../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
+板子在本轮结束时保留 generation 146 性能镜像。
 
 本手册对应官网 Backtrace（1623）、Allsyms（1624）、硬件性能（1632）、
 irqinfo/critmon（1633）、cpuload（1634）、Dhrystone～Whetstone（1636～1641）、
@@ -61,8 +63,9 @@ blktest～opus_ramtest（1643～1646）和自测试框架（1648）。
 
 正向契约：
 
-- `BK7258_CLOCK_320M=y` 使用当前 SDK 的最高板级已验证档；该档在当前单核 CP 端口的
-  CPU0 有效频率为 160 MHz；
+- `BK7258_CLOCK_240M=y` 使用 SDK `PM_CPU_FRQ_240M`，CPU0/AP/Bus 都为 240 MHz；
+- SDK 320M/480M 是共享 OPP 名称，分别对应 CPU0/AP/Bus 160/320/160 MHz 和
+  240/480/240 MHz，不能作为 CPU0 MHz 解读；
 - `DEBUG_OPTLEVEL="-O3"`；
 - CoreMark 固定 1 thread、10,000 iterations；
 - 启用 CoreMark、Ramspeed、Whetstone 和 DWT performance counter；
@@ -180,15 +183,20 @@ ready，是当前已知的非阻塞启动日志；若最终挂载或 ready 缺�
 
 ## 7. 性能板测方法和基线
 
-generation 145 条件：CPU0 有效 160 MHz、`-O3`、AP/Wi-Fi/RPTUN/WDT/Trace/监控关闭，
+以下 generation 145 是**历史基线**：当时选择 SDK OPP 320M，CPU0 有效 160 MHz，
+`-O3`、AP/Wi-Fi/RPTUN/WDT/Trace/监控关闭，
 ELF `text=208900`、`data=6144`、`bss=10768`，静态 heap 约 243 KiB。每次 benchmark
 均为独立串行 session；用于调参数的并发 pilot 没有纳入正式结果。
+
+当前 profile 已按 SDK 修正为 OPP 240M/CPU0 240 MHz，并由 generation 146 实板验收。
+generation 145 数值只能用于历史对照，不能冒充当前 240 MHz 基线。
+OPP 细节见 [BK7258 SDK 时钟 OPP 与每核频率契约](../chips/bk7258/sdk-clock-operating-points.md)。
 
 ### 7.1 CoreMark
 
 命令：`coremark`，1 thread，10,000 iterations，10 次 validation 均通过。
 
-| 统计 | CoreMark | CoreMark/MHz（160 MHz） |
+| 统计 | CoreMark（generation 145） | CoreMark/MHz（历史 160 MHz） |
 |---|---:|---:|
 | mean | 374.307544 | 2.339422 |
 | median | 374.251497 | 2.339072 |
@@ -222,6 +230,26 @@ corrected MIPS = 100 * loops * iterations / duration_ms
 
 换算结果 mean 22.866551、median 22.867597、min 22.862369、max 22.867597、population
 stddev 0.002091 MIPS。该值必须同时携带“上游单位换算缺陷”说明。
+
+### 7.4 Generation 146 当前 240 MHz 基线
+
+generation 146 使用本代新密钥和 counter 146 完成签名全量下载、460800 bit/s 稳定
+回读与最终冷启动，三项各 10 个独立 session 全部通过。
+
+| 项目 | generation 145（CPU0 160 MHz） | generation 146（CPU0 240 MHz） | 变化 |
+|---|---:|---:|---:|
+| CoreMark mean | 374.307544 | 561.576945 | +50.030891% |
+| CoreMark/MHz | 2.339422 | 2.339904 | 基本不变 |
+| Ramspeed system memcpy 64 KiB mean | 103858.084 | 155827.220 | 1.500386× |
+| Ramspeed internal memcpy 64 KiB mean | 165939.601 | 248972.890 | 1.500383× |
+| Ramspeed system memset 64 KiB mean | 155758.918 | 233699.378 | 1.500392× |
+| Ramspeed internal memset 64 KiB mean | 355251.026 | 533009.086 | 1.500373× |
+| Whetstone corrected MIPS mean | 22.866551 | 30.395137 | +32.924011% |
+
+CoreMark 与四项 Ramspeed 都按 240/160 线性增长，构成实际 CPU0/Bus 240 MHz 的板端
+证据。Whetstone 混合浮点和库实现，不单独用于反推时钟。每次值、统计、UART raw
+SHA-256、签名身份和回读差异见
+[generation 146 完整记录](../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 
 ## 8. 暂缓项与退出条件
 

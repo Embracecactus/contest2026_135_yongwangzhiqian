@@ -239,14 +239,17 @@
   mux 切换 not attempted；**整 N4 not board-verified**。详见 [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md)。
   剩余收口：`6f596b7` 精确 commit 的 state-C 重编/重刷复验尚未完成。
 - **N5 flash filesystem（board-verified 2026-07-19）：**N5-D0..D4 board-observed（layout candidate、flash ID、content dump、magic scan、emptiness scan）；N5-D5 raw flash erase/write/read-back/re-erase board-verified（`0x00100000`，2026-07-19）；N5-D6 MTD lower-half board-verified（方案 A：每次 op 临时清/恢复 SR0 块保护，CONFIG_BK7258_FLASH_MTD，现位于 `src/bk7258_flash_mtd.[ch]`）；N5-D7 LittleFS filesystem board-verified（CONFIG_BK7258_FLASH_LITTLEFS，ftl 注册 `/dev/mtdblock0`，mount 到 `/data`，autoformat 仅首次，probe 文件重启持久化通过）。全链路：raw flash → MTD → ftl block device → LittleFS。D7 版 `all-app.bin` = 192270 B = `0x2EF0E`（< `0x100000`，boot/app 区不受影响）。详见 [N5 worklog](nuttx-port/n5-flash-filesystem.md)。
-- **频率阶梯 / 480 MHz recovery note：**
-  - **不要重试 `M1=0x430`（480M/1）**：Beken SDK `sys_hal_core_bus_clock_ctrl()` 中
-    `PM_CLKSEL_CORE_480M` + `PM_CLKDIV_CORE_0` 组合被 guard 明确拒绝（返回 `BK_FAIL`）；板端
-    探测在 `N4D0:480S` 后 stall，与 SDK 政策一致。
-  - **当前最高板端/J-Link 验证的 loader-residue 操作点为 320 MHz**（M1=0x420, csrc=2, cdiv=0）。
-  - 240 MHz（480M/2）和 320 MHz（320M/1）均为 SDK 支持的操作点，已板端验证。
-  - **下一步只在有新证据表明安全路径时才调查 480 MHz 操作点**；当前无此证据。
-  - 详细频率阶梯表与 SDK guard 分析见 [N4-D0 worklog §10](nuttx-port/n4-d0-clock-diag.md#10-频率阶梯证据与-sdk-guard-分析loader-residue-muxdiv-probes)。
+- **当前 SDK OPP 恢复说明（取代早期 N4 每核频率结论）：**
+  - OPP 240M = CPU0/AP/Bus 240/240/240 MHz，是 CP 性能 profile 的正式目标；
+  - OPP 320M = 160/320/160 MHz，用于 AP 320 MHz vote，不是 CPU0 320 MHz；
+  - OPP 480M = 240/480/240 MHz，用于 AP 音视频 480 MHz vote；
+  - 历史 `M1=0x420/0x430` raw 探测没有完整纳入 CPU0 speed 位，只作历史证据；
+  - 不得用 CPU0 `/1` 绕过 SDK OPP 强跑 480 MHz；
+  - 当前代码和验证以 [SDK OPP 契约](../chips/bk7258/sdk-clock-operating-points.md)为准，
+    [N4-D0 worklog](nuttx-port/n4-d0-clock-diag.md)只保留历史探测过程；
+  - generation 146 已完成新密钥全量下载、稳定回读、冷启动及三项 benchmark 各
+    10 次；CP/CPU0 240 MHz 问题已关闭，详见
+    [实板验证记录](../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 
 ## 冻结的 N3 baseline
 

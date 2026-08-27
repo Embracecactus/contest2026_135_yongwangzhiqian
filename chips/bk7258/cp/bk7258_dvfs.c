@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 runtime CPU-frequency switching (DVFS) -- NuttX overlay
+ * BK7258 shared SoC operating-point switching (DVFS) -- NuttX overlay
  * lower half.  Mirrors the Armino SDK runtime clock path:
  *
  *   sys_drv_switch_cpu_bus_freq(target)        (sys_ps_driver.c:244-289)
@@ -52,8 +52,8 @@
  * Private types
  ****************************************************************************/
 
-/* One operating-point tier.  Fields map 1:1 to the SDK case table in
- * sys_hal.c:548-686.  <vddd> is the vdighsel field value (3 bits, the 3-bit
+/* One shared operating point.  Fields map 1:1 to the SDK case table in
+ * sys_hal.c:571-707.  <vddd> is the vdighsel field value (3 bits, the 3-bit
  * raw the SDK passes to sys_hal_ctrl_vddd_h_vol), <vddig> the vcorehsel
  * field value (4 bits raw passed to sys_hal_ctrl_vdddig_h_vol).
  */
@@ -70,8 +70,8 @@ struct bk7258_dvfs_step_s
  * Private Data
  ****************************************************************************/
 
-/* Tier table -- one entry per BK7258_FREQ_*.  Order MUST be ascending
- * (bk7258_dvfs_set_freq() steps ++/-- between prev and target).
+/* OPP table -- one entry per BK7258_OPP_*.  Order MUST match the SDK enum
+ * (bk7258_dvfs_set_opp() steps ++/-- between previous and target OPP).
  *
  * Values are the SDK-defined operating points (sys_hal.c:548-686 case fields
  * for PM_CPU_FRQ_26M..480M), unconditionally the non-DCO / non-ATE branch
@@ -84,33 +84,37 @@ struct bk7258_dvfs_step_s
  * role-specific value used to refresh DWT conversion; SysTick stays at
  * 32 kHz.
  *
- * The 320 MHz tier yields CPU0 = 160 MHz.  The 480 MHz tier follows the
- * v3.1.1.9 video operating point: CPU0/bus = 240 MHz while the AP physical
- * CPU1/CPU2 cores run at 480 MHz. */
+ * The SDK enum is ordered by shared operating-point policy, not CPU0 Hz:
+ * 240M -> 320M changes CPU0 240 -> 160 MHz while raising AP 240 -> 320 MHz.
+ * The 480M OPP follows the v3.1.1.9 video/audio policy: CPU0/bus = 240 MHz
+ * while AP physical CPU1/CPU2 run at 480 MHz. */
 static const struct bk7258_dvfs_step_s g_bk7258_dvfs_steps[] =
 {
-  /* tier 0:  26  MHz  cksel=0x0 clkdiv=0x0  VDDD=0x6 VDDIG=0xB */
-  [BK7258_FREQ_26M]  = { 0x0, 0x0, 0x1, 0x6, 0xB },
-  /* tier 1:  60  MHz  cksel=0x3 clkdiv=0x7  VDDD=0x6 VDDIG=0xB */
-  [BK7258_FREQ_60M]  = { 0x3, 0x7, 0x1, 0x6, 0xB },
-  /* tier 2:  80  MHz  cksel=0x3 clkdiv=0x5  VDDD=0x6 VDDIG=0xB */
-  [BK7258_FREQ_80M]  = { 0x3, 0x5, 0x1, 0x6, 0xB },
-  /* tier 3: 120 MHz  cksel=0x3 clkdiv=0x3  VDDD=0x6 VDDIG=0xC */
-  [BK7258_FREQ_120M] = { 0x3, 0x3, 0x1, 0x6, 0xC },
-  /* tier 4: 240 MHz  cksel=0x3 clkdiv=0x1  VDDD=0x6 VDDIG=0xD */
-  [BK7258_FREQ_240M] = { 0x3, 0x1, 0x1, 0x6, 0xD },
-  /* tier 5: 320 MHz (CPU0=160)  cksel=0x2 clkdiv=0x0  VDDD=0x7 VDDIG=0xE */
-  [BK7258_FREQ_320M] = { 0x2, 0x0, 0x0, 0x7, 0xE },
-  /* tier 6: 480 MHz (CPU0=240)  cksel=0x3 clkdiv=0x0  VDDD=0x7 VDDIG=0xE */
-  [BK7258_FREQ_480M] = { 0x3, 0x0, 0x0, 0x7, 0xE },
+  /* OPP 0: CPU0/AP/bus 26/26/26 MHz; VDDD=0x6 VDDIG=0xB */
+  [BK7258_OPP_26M]  = { 0x0, 0x0, 0x1, 0x6, 0xB },
+  /* OPP 1: CPU0/AP/bus 60/60/60 MHz; VDDD=0x6 VDDIG=0xB */
+  [BK7258_OPP_60M]  = { 0x3, 0x7, 0x1, 0x6, 0xB },
+  /* OPP 2: CPU0/AP/bus 80/80/80 MHz; VDDD=0x6 VDDIG=0xB */
+  [BK7258_OPP_80M]  = { 0x3, 0x5, 0x1, 0x6, 0xB },
+  /* OPP 3: CPU0/AP/bus 120/120/120 MHz; VDDD=0x6 VDDIG=0xC */
+  [BK7258_OPP_120M] = { 0x3, 0x3, 0x1, 0x6, 0xC },
+  /* OPP 4: CPU0/AP/bus 240/240/240 MHz; VDDD=0x6 VDDIG=0xD */
+  [BK7258_OPP_240M] = { 0x3, 0x1, 0x1, 0x6, 0xD },
+  /* OPP 5: CPU0/AP/bus 160/320/160 MHz; VDDD=0x7 VDDIG=0xE */
+  [BK7258_OPP_320M] = { 0x2, 0x0, 0x0, 0x7, 0xE },
+  /* OPP 6: CPU0/AP/bus 240/480/240 MHz; VDDD=0x7 VDDIG=0xE */
+  [BK7258_OPP_480M] = { 0x3, 0x0, 0x0, 0x7, 0xE },
 };
 
-/* BL1 now enforces the recovered official 120 MHz handoff on cold and warm
- * paths before BL2/NuttX runs.  Start the runtime state machine from that
- * real operating point; the normal 320 MHz bring-up therefore walks only
- * 120 -> 240 -> 320 instead of first detouring through lower tiers. */
+/* BL1 enforces the recovered official 120 MHz selector handoff on cold and
+ * warm paths before BL2/NuttX runs.  Its analog state is still the SDK
+ * early-init default VDDIG=0xB, not the runtime 120M table's 0xC.  This
+ * mirrors the SDK exactly: sys_hal.c initializes s_pre_cpu_freq to 120M and
+ * applies only a subsequently requested different OPP.  A 240M request is
+ * safe because low_to_high raises its target rails before changing clocks.
+ */
 
-static int g_bk7258_dvfs_cur = BK7258_FREQ_120M;
+static int g_bk7258_dvfs_cur_opp = BK7258_OPP_120M;
 
 /****************************************************************************
  * Private: ANA_REG9 voltage setters (mirror SDK sys_hal_ctrl_vddd(_ig)_h_vol)
@@ -241,16 +245,16 @@ static void bk7258_dvfs_step_high_to_low(const struct bk7258_dvfs_step_s *s)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: bk7258_dvfs_set_freq
+ * Name: bk7258_dvfs_set_opp
  ****************************************************************************/
 
-int bk7258_dvfs_set_freq(int tier)
+int bk7258_dvfs_set_opp(int opp)
 {
   int prev;
   irqstate_t flags;
   int i;
 
-  if (tier < BK7258_FREQ_MIN || tier > BK7258_FREQ_MAX)
+  if (opp < BK7258_OPP_MIN || opp > BK7258_OPP_MAX)
     {
       return -EINVAL;
     }
@@ -259,25 +263,25 @@ int bk7258_dvfs_set_freq(int tier)
    * analog-SPI sequence can lose a write to the analog block. */
   flags = enter_critical_section();
 
-  prev = g_bk7258_dvfs_cur;
-  if (prev != tier)
+  prev = g_bk7258_dvfs_cur_opp;
+  if (prev != opp)
     {
-      if (tier > prev)
+      if (opp > prev)
         {
-          for (i = prev + 1; i <= tier; i++)
+          for (i = prev + 1; i <= opp; i++)
             {
               bk7258_dvfs_step_low_to_high(&g_bk7258_dvfs_steps[i]);
             }
         }
       else
         {
-          for (i = prev - 1; i >= tier; i--)
+          for (i = prev - 1; i >= opp; i--)
             {
               bk7258_dvfs_step_high_to_low(&g_bk7258_dvfs_steps[i]);
             }
         }
 
-      g_bk7258_dvfs_cur = tier;
+      g_bk7258_dvfs_cur_opp = opp;
 
       /* SysTick stays on fixed 32 kHz.  Refresh CPU-clocked DWT conversion
        * before interrupts are re-enabled. */
@@ -288,9 +292,23 @@ int bk7258_dvfs_set_freq(int tier)
   return 0;
 }
 
+int bk7258_dvfs_get_opp(void)
+{
+  return g_bk7258_dvfs_cur_opp;
+}
+
+/* Keep the historical linker ABI for external users while project-owned
+ * code uses the semantically accurate OPP API.
+ */
+
+int bk7258_dvfs_set_freq(int tier)
+{
+  return bk7258_dvfs_set_opp(tier);
+}
+
 int bk7258_dvfs_get_freq(void)
 {
-  return g_bk7258_dvfs_cur;
+  return bk7258_dvfs_get_opp();
 }
 
 #endif /* CONFIG_BK7258_DVFS */

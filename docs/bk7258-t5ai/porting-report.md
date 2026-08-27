@@ -217,16 +217,17 @@ Tier-1 bootloader **不基于某一家 binary**，而是实现 BootROM 期望的
 
 ### 5.3 三层混合结构
 
-落盘：[`board/bk7258/bootloader/`](../../board/bk7258/bootloader/)
+当前落盘：[`chips/bk7258/bootloader/`](../../chips/bk7258/bootloader/)。本节描述早期
+Tier-1 形成过程；当前目录已演进为 BL1 + pinned MCUboot BL2 安全启动实现。
 
 | 层 | 文件 | 职责 |
 |---|---|---|
-| asm 跳板 | [`start.S`](../../board/bk7258/bootloader/start.S) | 向量表（64 项）+ bl magic `"BK7236\x10\x00"` @ `.org 0x100` + 逐字保留已验证 init 序列（cpsid / SWD / WDT key / GPIO0/1+GPIO10/11 pinmux / UART1 clk+cfg）+ `bl c_main` + 硬化跳转 epilogue |
-| reset runtime | [`boot_runtime.c`](../../board/bk7258/bootloader/boot_runtime.c) | v3.1.1.9 clean-room reset/cache/MPU/core-power normalization 和 app handoff |
-| C main | [`boot_main.c`](../../board/bk7258/bootloader/boot_main.c) | FAL 分区表解析（按名找 `app`）→ app header 校验（MSP 范围 / Reset Thumb / magic 双 word）→ UART1 日志 |
+| asm 跳板 | [`start.S`](../../chips/bk7258/bootloader/start.S) | 向量表（64 项）+ bl magic `"BK7236\x10\x00"` @ `.org 0x100` + 逐字保留已验证 init 序列（cpsid / SWD / WDT key / GPIO0/1+GPIO10/11 pinmux / UART1 clk+cfg）+ `bl c_main` + 硬化跳转 epilogue |
+| reset runtime | [`boot_runtime.c`](../../chips/bk7258/bootloader/boot_runtime.c) | v3.1.1.9 clean-room reset/cache/MPU/core-power normalization 和 app handoff |
+| C main | [`boot_main.c`](../../chips/bk7258/bootloader/boot_main.c) | FAL 分区表解析（按名找 `app`）→ app header 校验（MSP 范围 / Reset Thumb / magic 双 word）→ UART1 日志 |
 | asm epilogue | （`start.S` 尾部） | `r1=app MSP`、`r2=app Reset`；`VTOR ← app_vec`；`dsb/isb`；`MSP ← app SP`；`dsb/isb`；清 r0,r1,r3..r12（保留 r2）；`dsb/isb`；`bx r2` |
-| 链接 | [`bootloader.ld`](../../board/bk7258/bootloader/bootloader.ld) | FLASH @ `0x02000000` slot 0x10000；RAM @ `0x28000000` |
-| 打包 | [`bk7236_pack_min_bootloader.py`](../../board/bk7258/bootloader/bk7236_pack_min_bootloader.py) | 32+2 CRC 扩展，输出 `bl_crc.bin` + `.json` 元数据 |
+| 链接 | [`bootloader.ld`](../../chips/bk7258/bootloader/bootloader.ld) | FLASH @ `0x02000000` slot 0x10000；RAM @ `0x28000000` |
+| 打包 | [`tools/bk7258/_lib/image.py`](../../tools/bk7258/_lib/image.py) | 当前统一的 32+2 CRC encode/verify；早期 `bk7236_pack_min_bootloader.py` 已退役 |
 
 > `bss=0` 是刻意设计：`c_main` 只用 `const`（`.rodata`）和栈局部，无需 C runtime 的 `.bss`
 > 清零，`start.S` 可直接 `bl c_main`。
@@ -346,7 +347,7 @@ BK7258 PROBE ... HALT           ← 硬化跳转 epilogue 落到现有探针
 | 项 | 开源 packer | Beken 闭源 |
 |---|---|---|
 | app 打包 | `bk7258_crc_expand_app.py`（位于 `zephyr-bk7258-port/tools/`，未入本仓） | `cmake_encrypt_crc` |
-| bootloader 打包 | [`bk7236_pack_min_bootloader.py`](../../board/bk7258/bootloader/bk7236_pack_min_bootloader.py) | 同上 |
+| bootloader 打包 | 当前 [`tools/bk7258/_lib/image.py`](../../tools/bk7258/_lib/image.py)；早期独立脚本已退役 | 同上 |
 | 源码 | 可审计 | 闭源 |
 | 加密 (`-enc`) | **不实现**（baseline 不需要） | 支持 |
 
@@ -403,7 +404,7 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 | **N1** | NuttX 最小镜像被 Tier-1 bootloader 跳进去，早期 UART 打印可见 | ✅ done（`board-verified`，commit `40495ca`） |
 | **N2** | `nx_start` kernel 起来 + UART1 console → **交互式 NSH** | ✅ done（`board-verified` 2026-07-18，code `9f45bc6` + docs `e3ad3e9`） |
 | **N3** | 挂 procfs 到 `/proc` → **`ps` / `ls /proc` / `cat /proc/*` 可用** | ✅ done（code `4d9198e` + docs `68badfe`；state-C `board-verified` 2026-07-18） |
-| **N4** | DPLL / 480 MHz CPU0 clock bring-up + 独立测量 + N3 regression | historical：N4-D0/D0D/D0F substage `board-verified`；N4-D1 blocked；产品路径采用已验证 320 MHz runtime DVFS |
+| **N4** | DPLL / raw clock 探测 + 独立测量 + N3 regression | historical：N4-D0/D0D/D0F substage `board-verified`；当前产品按 SDK 正式 OPP 建模，CP 最大 240 MHz、AP 最大 480 MHz |
 | **N5** | raw flash + MTD + LittleFS | ✅ done / `board-verified` |
 | **N6** | Beken SDK integration / WDT / IRQ / GPIO | ✅ CPU0 baseline `board-verified` |
 | **N7** | physical CPU1 independent AP NuttX | ✅ done / `board-verified` |
@@ -552,13 +553,13 @@ FreeRTOS 1 ms tick，并已随N13 50 ms GATT镜像通过独立RTS物理冷复位
 
 详细 worklog：[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md)。
 
-### 9.7 Stage N4 后续 handoff — DPLL / 480 MHz 时钟 bring-up
+### 9.7 Stage N4 历史 handoff — DPLL / raw 480 MHz 探索（已废弃）
 
-BK7258 官方核心路径为 26 MHz XTALH → DPLL（320 / 480 MHz）→ CPU core；当前
-`BOARD_CPU_FREQ_HZ=26000000`，自制 Tier-1 bootloader 未配置 DPLL。`/proc/cpuinfo` 的
-`cpu MHz : 0.000` 不能证明当前频率，N4-D0 已用寄存器 readback + 独立测量建立 baseline
-（manual-reset 约 26 MHz / loader 残留约 80 MHz）；后续 N4-D1 起才按 vendor sequence 安全切到
-CPU0 480 MHz，并回归 UART1、SysTick、NSH 与 procfs/ps。
+本节原计划把 CPU0 直接切到 480 MHz，现已由固定 SDK 源码否定。官方 OPP 480M
+是 CPU0/AP/Bus=`240/480/240 MHz`，不存在受支持的 CPU0 480 MHz 产品档。当前 BL1
+已完成 DPLL 冷启动与官方 120 MHz selector 交接，CP 性能配置选择 OPP 240M；UART、
+固定 32 kHz SysTick、DWT、NSH 与 procfs 必须按角色实际频率回归。后续不得恢复
+“CPU0 480 MHz”这条历史路线。
 
 - 主 Stage 索引 / current pointer：[`next-stage-prompt.md`](next-stage-prompt.md)
 - 当前完整 Stage N4 prompt：[`nuttx-port/prompts/04-n4-clock-bringup.md`](nuttx-port/prompts/04-n4-clock-bringup.md)
@@ -566,7 +567,7 @@ CPU0 480 MHz，并回归 UART1、SysTick、NSH 与 procfs/ps。
 N4-R → N4-D0 → N4-D1 → N4-D2（optional）→ N4-D3 → N4-V 是一个 MAIN Stage 文件内的有序
 subsection。N4-D0/D0D 已 substage 板端验证，N4-D1 blocked，D2/D3/V 尚未开始。
 
-### 9.8 N4 频率阶梯 / 480 MHz unsupported 摘要
+### 9.8 N4 历史频率探测与当前 SDK OPP 解释
 
 在 N4-D0/D0D 基础上，对 loader 预配的各频率档位进行了 mux/div 组合探测（NuttX 未主动写
 DPLL/mux/div，只读取 loader 残留并用 J-Link DWT CYCCNT 独立测量）：
@@ -577,17 +578,21 @@ DPLL/mux/div，只读取 loader 残留并用 J-Link DWT CYCCNT 独立测量）�
 | 120 MHz | `0x433` | 3 | 3 | ≈ 120.07 MHz | ✅ board-verified |
 | 160 MHz | `0x432` | 3 | 2 | ≈ 160.10 MHz | ✅ board-verified |
 | 240 MHz | `0x431` | 3 | 1 | ≈ 240.10 MHz | ✅ board-verified |
-| 320 MHz | `0x420` | 2 | 0 | ≈ 320.16 MHz | ✅ board-verified（最高） |
-| 480 MHz | `0x430` | 3 | 0 | failed/stalled | ❌ SDK guard rejects |
+| raw 320 MHz source | `0x420` | 2 | 0 | ≈ 320.16 MHz | ✅ 历史探测；不等于正式 OPP 下的 CPU0 Hz |
+| raw 480 MHz source | `0x430` | 3 | 0 | failed/stalled | ❌ 历史 CPU0 `/1` 探测，不是 SDK OPP 480M |
 
-**480 MHz direct（csrc=3/cdiv=0）失败原因**：Beken SDK `sys_hal_core_bus_clock_ctrl()` 中有明确
-guard——`PM_CLKSEL_CORE_480M` + `PM_CLKDIV_CORE_0` 组合返回 `BK_FAIL`（unsupported）。板端
-`M1=0x430` 探测在 `N4D0:480S` 后 stall，与 SDK 政策一致。480M 源存在，但 CPU core 直接 480M/1
-被 SDK 策略拒绝；320M/1（320 MHz，需 VDDDIG 0.9V）和 480M/2（240 MHz）为 SDK 支持的操作点。
+这张表只保留 N4 当时的 raw source/divider 探测事实；当时没有同时按角色解释 CPU0 speed
+位，因此不能拿它定义当前产品 OPP。固定 SDK 的正式映射是：OPP 320M 对应
+CPU0/AP/Bus 160/320/160 MHz；OPP 480M 对应 240/480/240 MHz。官方实现支持 OPP 480M，
+但不支持把 CPU0 divider 绕成 `/1` 后宣称 CPU0=480 MHz。
 
-**当前最高板端/J-Link 验证的 loader-residue 操作点为 320 MHz**。全冷启动 DPLL enable 仍 blocked；
-NuttX 未主动 enable DPLL，频率阶梯均为 loader 残留探测。详见
-[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md) §10。
+当前代码、寄存器、电压与验证门禁以
+[BK7258 SDK 时钟 OPP 与每核频率契约](../chips/bk7258/sdk-clock-operating-points.md)为准；
+[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md)只作为历史探测记录。
+generation 146 已按 OPP 240M 完成签名全量下载、稳定回读、冷启动及 CoreMark、
+Ramspeed、Whetstone 各 10 次；CoreMark 与四项 64 KiB Ramspeed 相对旧 160 MHz
+基线均约为 1.5 倍，完整身份和原始哈希见
+[CPU0 240 MHz 实板记录](../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 
 本段是 N4 时期的历史路线说明。其后 MTD/文件系统已由N5完成、SMP由N8完成、PSRAM由N14完成。
 原先“Tier-2 bootloader OTA未编号”的状态已在2026-08-03被用户批准的N15取代，当前状态见§9.11。
@@ -754,24 +759,24 @@ post-confirm完整VDD removal后的状态读取也已PASS；host rollback模型�
 ### 11.1 文件树
 
 ```
-docs/bk7258-t5ai/
-  README.md                              本目录索引（本次重写为简洁版）
-  porting-report.md                      ★ 本报告（主文档）
-  sdk-context-index.md                   BK ARMINO SDK 上下文索引
-  next-stage-prompt.md                   MAIN Stage 索引 / current handoff
-  bootloader/
-    full-reverse-synthesis.md            两家 bootloader 逆向综合
-    tuya-bootloader-reverse.md           涂鸦逐函数逆向
-    bk-official-bootloader-reverse.md    BK 官方逐函数逆向
-    vendor-bootloader-comparison.md      二进制对比
-  probe/
-    README.md / probe.c / probe.ld / Makefile   板端验证探针
-  nuttx-port/                            NuttX 移植 worklog
-    n2-nsh-console.md                    Stage N2 会话记录（boot trace + 4 RX bug + 验证证据）
-    n3-procfs-ps.md                      Stage N3 会话记录（procfs 挂载 + ps/ls/cat 板端验证）
-    n4-d0-clock-diag.md                  Stage N4-D0/D0D 会话记录（时钟诊断 + runtime SysTick + N4-D1 blocker）
-    prompts/
-      04-n4-clock-bringup.md             当前 MAIN Stage N4 完整恢复提示词
+docs/
+  README.md                              文档分层与导航
+  chips/bk7258/                          BK7258 chip 共用文档
+    README.md                            chip 层索引与归档规则
+    sdk-clock-operating-points.md        当前 SDK OPP/每核频率契约
+    sdk-context-index.md                 SDK 历史检索快照
+    chip-code-review-cleanup-guide.md    chip 历史清理评审
+    jlink-swd-debug-guide.md             chip 层 J-Link/SWD 方法
+  bk7258-t5ai/
+    README.md                            T5-AI 平台与实板证据索引
+    porting-report.md                    ★ 本报告（主文档）
+    next-stage-prompt.md                 MAIN Stage 索引 / current handoff
+    bootloader/                          T5/Tuya 对照逆向历史资产
+    probe/                               T5-AI 板端验证探针
+    nuttx-port/                          带板型/实板证据的 NuttX 移植 worklog
+      n2-nsh-console.md                  Stage N2 会话记录
+      n3-procfs-ps.md                    Stage N3 会话记录
+      n4-d0-clock-diag.md                Stage N4 历史 raw clock 探测
 
 board/bk7258/bootloader/
   start.S                                asm 跳板 + 硬化 epilogue
@@ -844,7 +849,7 @@ board/bk7258/bootloader/
 | P0 | **NuttX Stage N1**：最小 NuttX 镜像被 bootloader 跳进去，早期 UART 打印可见 | ✅ done | `board-verified`，commit `40495ca` |
 | P0 | **NuttX Stage N2**：`nx_start` + UART1 console → **交互式 NSH** | ✅ done | `board-verified` 2026-07-18，code `9f45bc6` + docs `e3ad3e9` |
 | P0 | **NuttX Stage N3**：挂 procfs 到 `/proc` → `ps` / `ls /proc` / `cat /proc/*` | ✅ done | code `4d9198e` + docs `68badfe`；state-C `board-verified` |
-| P0 | **NuttX Stage N4**：DPLL / 480 MHz CPU0 clock bring-up | historical | D0/D0D/D0F substage `board-verified`；N4-D1 blocked；产品路径采用已验证 320 MHz runtime DVFS，不继续追 480 MHz |
+| P0 | **NuttX Stage N4**：DPLL / raw clock 探测 | historical | 当前按 SDK 正式 OPP 收口：CP/CPU0 最大 240 MHz，AP CPU1/2 最大 480 MHz；历史 N4 数据不得当作每核 OPP |
 | P1 | **NuttX Stage N5**：MTD + 文件系统（LittleFS） | ✅ done | N5-D5 raw flash r/w + N5-D6 MTD + N5-D7 LittleFS 全链路 `board-verified`（2026-07-19）；D7 版 `all-app.bin` = 192270 B = `0x2EF0E` |
 | P0 | **NuttX Stage N8**：AP physical CPU1+CPU2 native SMP | ✅ done | scheduler-online、双向 IPI/wake、affinity、controlled migration、timed wake、bounded lifecycle 与 warm/RESET 3/3 已 `board-verified` |
 | P0 | **NuttX Stage N9**：CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | ✅ done / `board-verified` | 官方 wrapper 模式；单一 CP↔AP link、32 KiB carveout、Name Service、CPU0 gateway、generation reconnect、syslog、physical RESET 与 legacy/latest/baseline 构建均闭环 |

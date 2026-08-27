@@ -482,7 +482,7 @@ static int t5_camera_validate_frame(void)
   ret = bk7258_pm_frequency_get_status(&dvfs_before);
   g_t5_camera_validation_diag.dvfs_before = dvfs_before.current;
   g_t5_camera_validation_diag.transitions_before = dvfs_before.transitions;
-  if (ret < 0 || dvfs_before.current != BK7258_PM_CPU_FREQ_120M)
+  if (ret < 0 || dvfs_before.current != BK7258_PM_OPP_120M)
     {
       if (ret >= 0)
         {
@@ -571,7 +571,7 @@ static int t5_camera_validate_frame(void)
   g_t5_camera_validation_diag.ap_clock_vote_active =
     t5_camera_shared_read32(BK7258_PWR_MNG_ADDR +
                             BK7258_PWR_AP_CLOCK_VOTE_OFFSET);
-  if (ret < 0 || dvfs_active.current != BK7258_PM_CPU_FREQ_480M)
+  if (ret < 0 || dvfs_active.current != BK7258_PM_OPP_480M)
     {
       if (ret >= 0)
         {
@@ -686,8 +686,8 @@ out:
       g_t5_camera_validation_diag.transitions_after =
         dvfs_after.transitions;
       if (ret >= 0 &&
-          (dvfs_after.current != BK7258_PM_CPU_FREQ_120M ||
-           dvfs_after.peak < BK7258_PM_CPU_FREQ_480M ||
+          (dvfs_after.current != BK7258_PM_OPP_120M ||
+           dvfs_after.peak < BK7258_PM_OPP_480M ||
            dvfs_active.transitions <= dvfs_before.transitions ||
            dvfs_after.transitions < dvfs_before.transitions + 2u ||
            g_t5_camera_validation_diag.ap_sleep_vote_active == 0 ||

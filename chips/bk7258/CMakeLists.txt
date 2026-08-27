@@ -165,7 +165,7 @@ if(CONFIG_BK7258_GPIO_LOWERHALF)
        cp/bk7258_gpio_lowerhalf.c)
 endif()
 
-if(CONFIG_BK7258_CLOCK_320M)
+if(CONFIG_BK7258_CLOCK_240M)
   list(APPEND BK7258_CP_SRCS cp/bk7258_clock.c)
 endif()
 

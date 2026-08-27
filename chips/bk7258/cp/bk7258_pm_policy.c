@@ -35,7 +35,7 @@
 #define BK7258_SDK_PM_DEV_CIF           39u
 #define BK7258_SDK_PM_DEV_DEFAULT       41u
 
-#define BK7258_PM_DEFAULT_FLOOR BK7258_PM_CPU_FREQ_120M
+#define BK7258_PM_DEFAULT_FLOOR BK7258_PM_OPP_120M
 
 struct bk7258_pm_policy_s
 {
@@ -95,7 +95,7 @@ static uint8_t bk7258_pm_effective_locked(
 
   for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
     {
-      if (policy->votes[i] != BK7258_PM_CPU_FREQ_DEFAULT &&
+      if (policy->votes[i] != BK7258_PM_OPP_DEFAULT &&
           effective < policy->votes[i])
         {
           effective = policy->votes[i];
@@ -106,7 +106,7 @@ static uint8_t bk7258_pm_effective_locked(
 }
 
 int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
-                             enum bk7258_pm_cpu_freq_e frequency)
+                             bk7258_pm_opp_t opp)
 {
   FAR struct bk7258_pm_policy_s *policy = &g_bk7258_pm_policy;
   uint8_t previous;
@@ -114,7 +114,7 @@ int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
   int ret;
 
   if (client < 0 || client >= BK7258_PM_FREQ_CLIENT_COUNT ||
-      frequency < 0 || frequency > BK7258_PM_CPU_FREQ_DEFAULT)
+      opp < 0 || opp > BK7258_PM_OPP_DEFAULT)
     {
       return -EINVAL;
     }
@@ -131,12 +131,12 @@ int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
     }
 
   previous = policy->votes[client];
-  policy->votes[client] = frequency;
+  policy->votes[client] = opp;
   effective = bk7258_pm_effective_locked(policy);
 
   if (effective != policy->current)
     {
-      ret = bk7258_dvfs_set_freq(effective);
+      ret = bk7258_dvfs_set_opp(effective);
       if (ret < 0)
         {
           policy->votes[client] = previous;
@@ -205,7 +205,7 @@ bool bk7258_pm_frequency_votes_idle(void)
 
   for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
     {
-      if (policy->votes[i] != BK7258_PM_CPU_FREQ_DEFAULT)
+      if (policy->votes[i] != BK7258_PM_OPP_DEFAULT)
         {
           return false;
         }
@@ -269,10 +269,10 @@ void arm_pminitialize(void)
 
   for (i = 0; i < BK7258_PM_FREQ_CLIENT_COUNT; i++)
     {
-      policy->votes[i] = BK7258_PM_CPU_FREQ_DEFAULT;
+      policy->votes[i] = BK7258_PM_OPP_DEFAULT;
     }
 
-  policy->current = bk7258_dvfs_get_freq();
+  policy->current = bk7258_dvfs_get_opp();
   policy->peak = policy->current;
   policy->callback.prepare = bk7258_pm_prepare;
   policy->callback.notify = bk7258_pm_notify;
