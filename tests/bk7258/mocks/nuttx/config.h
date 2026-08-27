@@ -28,12 +28,6 @@
 /* The whole implementation file is guarded by this symbol. */
 #define CONFIG_BK7258_RPTUN_MBOX
 
-/* Direct-XIP handoff surface (bk7258_bl2_mcuboot_boot.c); mirrors the
- * bl2_mcuboot board defconfig. */
-#define CONFIG_BOARDCTL_BOOT_IMAGE
-#define CONFIG_MCUBOOT_PRIMARY_SLOT_PATH "/dev/bk7258-slot-a"
-#define CONFIG_MCUBOOT_SECONDARY_SLOT_PATH "/dev/bk7258-slot-b"
-
 /* Used by bk7258_rptun_mbox_initialize() -> kthread_create(). */
 #define CONFIG_BK7258_RPTUN_RX_PRIORITY 100
 #define CONFIG_BK7258_RPTUN_RX_STACKSIZE 4096

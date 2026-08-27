@@ -18,9 +18,11 @@
 #include <cmocka.h>
 
 #include "flash_map_backend/flash_map_backend.h"
+#include <bootutil/bootutil_public.h>
 #include "bk7258_bl2_abi.h"
-#include "bk7258_partition_layout.h"
+#include <bk7258_partitions.h>
 
+#include "mock_boot_flash.h"
 #include "mock_reg32.h"
 #include "mock_flash.h"
 
@@ -55,7 +57,9 @@ static int setup(void **state)
   g_xip = mock_flash_map();
   assert_non_null(g_xip);
   mock_flash_erase_fill(0, BK7258_HOST_FLASH_SIZE);
+  mock_boot_flash_reset();
   mock_reg32_reset();
+  bk7258_bl2_set_slot_limit(BK7258_BL2_SLOTS_BOTH);
   return 0;
 }
 
@@ -88,20 +92,20 @@ static void test_open_slot_geometry(void **state)
 
   (void)state;
   assert_int_equal(flash_area_open(0, &fa), 0);
-  assert_int_equal(flash_area_get_off(fa), BK7258_ROLE_SLOT_A_CP_XIP_START);
-  assert_int_equal(flash_area_get_size(fa), BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE);
+  assert_int_equal(flash_area_get_off(fa), BK7258_ARTIFACT_CP_XIP_START);
+  assert_int_equal(flash_area_get_size(fa), BK7258_ARTIFACT_CP_LOGICAL_SIZE);
 
   assert_int_equal(flash_area_open(1, &fa), 0);
   assert_int_equal(flash_area_get_off(fa), BK7258_BL2_B_CP_XIP_START);
-  assert_int_equal(flash_area_get_size(fa), BK7258_ROLE_SLOT_A_CP_LOGICAL_SIZE);
+  assert_int_equal(flash_area_get_size(fa), BK7258_ARTIFACT_CP_LOGICAL_SIZE);
 
   assert_int_equal(flash_area_open(2, &fa), 0);
-  assert_int_equal(flash_area_get_off(fa), BK7258_ROLE_SLOT_A_AP_XIP_START);
-  assert_int_equal(flash_area_get_size(fa), BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE);
+  assert_int_equal(flash_area_get_off(fa), BK7258_ARTIFACT_AP_XIP_START);
+  assert_int_equal(flash_area_get_size(fa), BK7258_ARTIFACT_AP_LOGICAL_SIZE);
 
   assert_int_equal(flash_area_open(3, &fa), 0);
   assert_int_equal(flash_area_get_off(fa), BK7258_BL2_B_AP_XIP_START);
-  assert_int_equal(flash_area_get_size(fa), BK7258_ROLE_SLOT_A_AP_LOGICAL_SIZE);
+  assert_int_equal(flash_area_get_size(fa), BK7258_ARTIFACT_AP_LOGICAL_SIZE);
 }
 
 static void test_open_invalid_id(void **state)
@@ -335,15 +339,114 @@ static void test_primary_only_alias(void **state)
   assert_int_equal(buf[0], 0x22u);
 }
 
-static void test_write_and_erase_reject(void **state)
+static uint32_t copy_done_offset(const struct flash_area *fa)
+{
+  uint32_t magic = fa->fa_size - BOOT_MAGIC_SZ;
+  uint32_t image_ok = (magic - BOOT_MAX_ALIGN) & ~(BOOT_MAX_ALIGN - 1u);
+
+  return image_ok - BOOT_MAX_ALIGN;
+}
+
+static uint16_t test_crc16(const uint8_t data[BK7258_FLASH_CRC_DATA_SIZE])
+{
+  uint16_t crc = 0xffffu;
+  uint32_t index;
+  uint32_t bit;
+
+  for (index = 0; index < BK7258_FLASH_CRC_DATA_SIZE; index++)
+    {
+      crc ^= (uint16_t)data[index] << 8;
+      for (bit = 0; bit < 8u; bit++)
+        {
+          crc = (uint16_t)((crc << 1) ^
+            ((crc & 0x8000u) != 0u ? 0x8005u : 0u));
+        }
+    }
+
+  return crc;
+}
+
+static void test_write_rejects_outside_owned_copy_done(void **state)
 {
   const struct flash_area *fa;
-  uint8_t src[4] = { 1, 2, 3, 4 };
+  uint8_t flag = BOOT_FLAG_SET;
+  uint32_t off;
 
   (void)state;
   assert_int_equal(flash_area_open(0, &fa), 0);
-  assert_int_equal(flash_area_write(fa, 0, src, sizeof(src)), -1);
-  assert_int_equal(flash_area_erase(fa, 0, 4096), -1);
+  off = copy_done_offset(fa);
+
+  assert_int_equal(flash_area_write(NULL, off, &flag, 1u), -1);
+  assert_int_equal(flash_area_write(fa, off, NULL, 1u), -1);
+  assert_int_equal(flash_area_write(fa, off - 1u, &flag, 1u), -1);
+  assert_int_equal(flash_area_write(fa, off, &flag, 2u), -1);
+  flag = 0xffu;
+  assert_int_equal(flash_area_write(fa, off, &flag, 1u), -1);
+
+  flag = BOOT_FLAG_SET;
+  assert_int_equal(flash_area_write(fa, off, &flag, 1u), -1);
+  assert_int_equal(mock_boot_flash_erase_calls(), 0u);
+  assert_int_equal(mock_boot_flash_program_calls(), 0u);
+}
+
+static void test_write_copy_done_encodes_one_crc_group(void **state)
+{
+  const struct flash_area *fa;
+  uint8_t logical[BK7258_FLASH_CRC_DATA_SIZE];
+  uint8_t flag = BOOT_FLAG_SET;
+  uint8_t *raw = mock_boot_flash_data();
+  uint32_t off;
+  uint32_t raw_off;
+  uint16_t crc;
+
+  (void)state;
+  assert_int_equal(flash_area_open(0, &fa), 0);
+  bk7258_bl2_set_slot_limit(BK7258_BL2_SLOT_PRIMARY);
+  off = copy_done_offset(fa);
+  raw_off = BK7258_CP_RAW_PHYSICAL_START +
+            (off / BK7258_FLASH_CRC_DATA_SIZE) *
+            BK7258_FLASH_CRC_TOTAL_SIZE;
+
+  memset(logical, 0xff, sizeof(logical));
+  logical[off % BK7258_FLASH_CRC_DATA_SIZE] = BOOT_FLAG_SET;
+  raw[raw_off - 1u] = 0x5au;
+  raw[raw_off + BK7258_FLASH_CRC_TOTAL_SIZE] = 0xa5u;
+
+  assert_int_equal(flash_area_write(fa, off, &flag, 1u), 0);
+  assert_memory_equal(&raw[raw_off], logical, sizeof(logical));
+  crc = test_crc16(logical);
+  assert_int_equal(raw[raw_off + BK7258_FLASH_CRC_DATA_SIZE],
+                   (uint8_t)(crc >> 8));
+  assert_int_equal(raw[raw_off + BK7258_FLASH_CRC_DATA_SIZE + 1u],
+                   (uint8_t)crc);
+  assert_int_equal(raw[raw_off - 1u], 0x5au);
+  assert_int_equal(raw[raw_off + BK7258_FLASH_CRC_TOTAL_SIZE], 0xa5u);
+  assert_int_equal(mock_boot_flash_erase_calls(), 1u);
+  assert_int_equal(mock_boot_flash_program_calls(), 1u);
+  assert_true(mock_boot_flash_read_calls() > 1u);
+}
+
+static void test_erase_requires_visible_whole_slot(void **state)
+{
+  const struct flash_area *fa;
+  uint8_t *raw = mock_boot_flash_data();
+  uint32_t last;
+
+  (void)state;
+  assert_int_equal(flash_area_open(0, &fa), 0);
+  assert_int_equal(flash_area_erase(fa, 0, fa->fa_size), -1);
+
+  bk7258_bl2_set_slot_limit(BK7258_BL2_SLOT_PRIMARY);
+  assert_int_equal(flash_area_erase(fa, 1u, fa->fa_size), -1);
+  assert_int_equal(flash_area_erase(fa, 0, fa->fa_size - 1u), -1);
+
+  last = BK7258_CP_RAW_PHYSICAL_START + BK7258_CP_RAW_PHYSICAL_SIZE - 1u;
+  raw[BK7258_CP_RAW_PHYSICAL_START] = 0x00u;
+  raw[last] = 0x00u;
+  assert_int_equal(flash_area_erase(fa, 0, fa->fa_size), 0);
+  assert_int_equal(raw[BK7258_CP_RAW_PHYSICAL_START], 0xffu);
+  assert_int_equal(raw[last], 0xffu);
+  assert_int_equal(mock_boot_flash_erase_calls(), 1u);
 }
 
 static void test_align_and_erased_val(void **state)
@@ -352,7 +455,7 @@ static void test_align_and_erased_val(void **state)
 
   (void)state;
   assert_int_equal(flash_area_open(0, &fa), 0);
-  assert_int_equal(flash_area_align(fa), 4);
+  assert_int_equal(flash_area_align(fa), 1);
   assert_int_equal(flash_area_erased_val(fa), 0xff);
 }
 
@@ -456,7 +559,12 @@ int main(void)
     cmocka_unit_test_setup_teardown(test_slot_limit_both_restores_visibility, setup, teardown),
     cmocka_unit_test_setup_teardown(test_slot_limit_invalid_resets_to_both, setup, teardown),
     cmocka_unit_test_setup_teardown(test_primary_only_alias, setup, teardown),
-    cmocka_unit_test_setup_teardown(test_write_and_erase_reject, setup, teardown),
+    cmocka_unit_test_setup_teardown(test_write_rejects_outside_owned_copy_done,
+                                    setup, teardown),
+    cmocka_unit_test_setup_teardown(test_write_copy_done_encodes_one_crc_group,
+                                    setup, teardown),
+    cmocka_unit_test_setup_teardown(test_erase_requires_visible_whole_slot,
+                                    setup, teardown),
     cmocka_unit_test_setup_teardown(test_align_and_erased_val, setup, teardown),
     cmocka_unit_test_setup_teardown(test_get_sectors_ok, setup, teardown),
     cmocka_unit_test_setup_teardown(test_get_sectors_bad_params, setup, teardown),

@@ -1,7 +1,7 @@
 /****************************************************************************
  * tests/bk7258/modules/ap/test_bk7258_scale_rotate.c
  *
- * Host unit suite for board/bk7258/chip/ap/bk7258_scale_rotate.c (true
+ * Host unit suite for chips/bk7258/ap/bk7258_scale_rotate.c (true
  * source, patched copy built via framework/patch.py, see Makefile).
  *
  * The driver wraps the SDK scale (bk_hw_scale_*) and rotator (bk_rott_*)

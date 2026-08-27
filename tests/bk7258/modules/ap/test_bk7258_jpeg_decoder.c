@@ -1,7 +1,7 @@
 /****************************************************************************
  * tests/modules/ap/test_bk7258_jpeg_decoder.c
  *
- * Host unit tests for board/bk7258/chip/ap/bk7258_jpeg_decoder.c.
+ * Host unit tests for chips/bk7258/ap/bk7258_jpeg_decoder.c.
  *
  * The real implementation is compiled unmodified; the immutable SDK
  * (libbk_jpeg_decoder.a) and the sys_driver interrupt-route ABI are

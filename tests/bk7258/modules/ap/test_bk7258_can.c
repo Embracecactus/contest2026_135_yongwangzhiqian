@@ -2,7 +2,7 @@
  * tests/bk7258/modules/ap/test_bk7258_can.c
  *
  * Host test suite for the BK7258 classic-CAN lower-half
- * (board/bk7258/chip/ap/bk7258_can.c) against the SDK mock
+ * (chips/bk7258/ap/bk7258_can.c) against the SDK mock
  * (framework/mock_sdk_can.c).  The driver is compiled UNMODIFIED:
  *
  *   - The rx thread is a real pthread: fire_rx_isr() posts the driver's
@@ -312,9 +312,14 @@ static void test_can_send_gate(FAR void **state)
   msg.cm_hdr.ch_dlc = 8;
   memcpy(msg.cm_data, data, 8);
   assert_int_equal(g_ops->co_send(g_dev, &msg), 0);
+  mock_sdk_can_fire_tx_isr();
 
+  /* CAN permits a zero-length data frame, including identifier zero. */
   memset(&msg, 0, sizeof(msg));
-  assert_int_equal(g_ops->co_send(g_dev, &msg), -EINVAL);
+  assert_int_equal(g_ops->co_send(g_dev, &msg), 0);
+  assert_int_equal(mock_sdk_can_last_tx_id(), 0u);
+  assert_int_equal(mock_sdk_can_last_tx_size(), 0u);
+  mock_sdk_can_fire_tx_isr();
   assert_int_equal(g_ops->co_send(g_dev, NULL), -EINVAL);
 
   memset(&big, 0, sizeof(big));

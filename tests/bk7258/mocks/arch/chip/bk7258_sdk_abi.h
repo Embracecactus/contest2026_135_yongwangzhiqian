@@ -1,7 +1,7 @@
 /****************************************************************************
  * tests/bk7258/mocks/arch/chip/bk7258_sdk_abi.h
  *
- * Host mock of board/bk7258/chip/include/bk7258_sdk_abi.h, restricted to
+ * Host mock of chips/bk7258/include/bk7258_sdk_abi.h, restricted to
  * the CAN ABI block (the real one is guarded by CONFIG_BK7258_CAN, which
  * mocks/nuttx/config.h keeps undefined so the driver TU sees these
  * declarations instead of the real ones).

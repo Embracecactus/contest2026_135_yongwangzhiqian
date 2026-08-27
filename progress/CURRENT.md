@@ -1,6 +1,6 @@
 # Current Progress
 
-Last updated: 2026-08-26
+Last updated: 2026-08-27
 Updated by: Codex
 
 ## Objective
@@ -11,6 +11,11 @@ OTA/platform NSH.
 
 ## Current state
 
+- The P0 follow-up branch `feat/bk7258-p0-xts-completion` is based on
+  `ecc1c0a185896d6afce165d20ebbf1a270782683`.  Its maintained host fixture
+  passes the common gates and 281/281 cmocka cases.  The CP XTS profile now
+  registers 64 KiB of role-local PSRAM as a second system-heap region while
+  retaining the standard 16 KiB testsuites runner stack.
 - The Agent audio commits are merged in `origin/dev-ai-contest-2026` at
   `8ff9deaf9e389ca9029a17602643abf08bc2d705`.  The clean follow-up branch
   `fix/bk7258-agent-display-tf-full-image` contains published implementation
@@ -34,7 +39,7 @@ OTA/platform NSH.
 - The separate NuttX GT9XX working-tree change remains outside this contest
   repository publication.
 
-## Hardware acceptance
+## Agent product hardware acceptance (generation 125)
 
 - Clean production CP/AP/BL2/BL1 build: PASS.  CP config SHA-256 is
   `1b8ff42d7380af40339a71cceed02e418e9d423ad500845b60a3a894b67d70f7`;
@@ -80,16 +85,40 @@ OTA/platform NSH.
   image.  A forged full-update signature and a symlink base were both rejected
   without output; signed v1 package structure/trust compatibility also PASS.
 
+## P0 xTS acceptance (generation 149)
+
+- A clean MCUboot CP/AP/BL1/BL2 build used fresh, distinct BL1 and MCUboot
+  P-256 keys with version/counters `1.88.5+149` / 149 / 149.  Package
+  structure, public trust and flash contract PASS; the temporary private-key
+  directory was deleted after acceptance.
+- The sole COM3 BK Loader input was one `0x7fa000` operator image at address
+  zero.  Erase/write/protect and final success markers PASS; `usr_config` and
+  the full Agent persistent range were preserved, and immutable tail/OTP/
+  lifecycle/calibration were excluded.
+- Cold boot reports `BPSR SYSTEM HEAP PASS size=65536`; Umem total is 183,192
+  bytes, exactly 64 KiB above generation 148.  `cmocka_mm_test` 8/8,
+  `cmocka_sched_test` 16/16, ostest status 0, getprime, mm, 4 KiB ramtest,
+  tmpfs scanftest 164/0, hello/FIFO/pipe and the final cold boot all PASS.
+- Destructive storage tests, fixture-bound GPIO/UART and AP peripheral cases,
+  controlled fault and non-zero critmon thresholds remain separate gates.
+  The owner deferred the 12-hour soak on 2026-08-27.
+
 ## Remaining work
 
-1. The owner creates and reviews the remote PR from the published branch.
+1. Review and publish `feat/bk7258-p0-xts-completion`; the owner then creates
+   and reviews the remote PR.
 2. Configure approved ASR/LLM credentials and complete one real dialog.
-3. Complete remaining xTS, loopback, performance and soak phases.
+3. Complete the remaining fixture-bound/isolated xTS phases: LIBCXX,
+   GPIO/UART loopback, AP RTC/timer/RNG, driver tests, controlled fault and
+   destructive-storage tests.  The core current-generation non-destructive
+   xTS is complete; 12-hour soak is owner-deferred as of 2026-08-27.
 4. Keep the NuttX GT9XX generic ABI fix in its own upstream change.
 
 ## References
 
 - [Agent AP verification](verification/2026-08-24-bk7258-openvela-agent-ap.md)
+- [P0 xTS generation 149](verification/2026-08-27-bk7258-p0-xts-completion.md)
+- [BK7258 host regression fixture](verification/2026-08-27-bk7258-host-regression-fixture.md)
 - [ADR-034](../memory/decisions/ADR-034-openvela-agent-ap-and-t5-interaction-topology.md)
 
 ## Safety constraints

@@ -58,6 +58,15 @@ still belong to `bk7258_ap_main()` and the selected physical-board bindings;
 CP ROMFS scripts must not initialize AP-owned LCD, touch, audio, camera or
 removable storage.
 
+The XTS profile alone registers 64 KiB of the CP role-local PSRAM as a second
+NuttX system-heap region (`MM_REGIONS=2`).  This keeps the upstream 16 KiB
+testsuites runner stack and supplies the concurrent task/pthread allocations
+required by the scheduler suites.  The remaining 64 KiB stays in the CP
+private PSRAM heap.  This is a diagnostic capacity policy, not a change to
+production CP/AP profiles or to the chip's role-partition ownership.  The
+generation 147--149 diagnosis and board evidence are recorded in
+[`../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md`](../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md).
+
 `t5_board_cp_perf` is the one narrow measurement-policy exception to the
 profile-directory rule below.  It does not introduce another physical-board
 or CP/AP ABI boundary: its `profile.conf` remains in compatibility group

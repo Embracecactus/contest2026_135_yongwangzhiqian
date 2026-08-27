@@ -856,7 +856,7 @@ static int bk7258_jpeg_decoder_parse_info(
   FAR const uint8_t *scan;
   FAR const uint8_t *sof;
   struct bk7258_jpeg_decoder_info_s parsed = {0};
-  uint8_t component_ids[BK7258_JPEG_SOF0_COMPONENTS];
+  uint8_t component_ids[BK7258_JPEG_SOF0_COMPONENTS] = {0};
   uint16_t segment_length;
   uint16_t width;
   uint16_t height;

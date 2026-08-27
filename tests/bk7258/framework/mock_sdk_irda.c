@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "nuttx/fs.h"
+#include "nuttx/fs/fs.h"
 
 #define MOCK_IRDA_MAX_CALLS 8
 

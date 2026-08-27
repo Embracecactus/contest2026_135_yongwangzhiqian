@@ -11,23 +11,29 @@ P0 采用两张用途互斥的 CP 镜像，不能把诊断镜像的结果当性�
 
 | Profile | 用途 | 2026-08-27 状态 |
 |---|---|---|
-| `t5_board_cp_xts` | 系统级诊断、Trace、压力和既有 xTS | generation 143 已完成签名全量下载；Backtrace/Allsyms、IRQ、critmon、cpuload、Trace、10 秒 memstress 与重启恢复通过 |
+| `t5_board_cp_xts` | 系统级诊断、Trace、压力和既有 xTS | generation 143 的诊断专项通过；generation 149 以 64 KiB CP role-local PSRAM system heap 保持标准 16 KiB runner stack，当前代 mm 8/8、sched 16/16、ostest、getprime、mm/ramtest、scanftest、hello/pipe 和冷启动通过 |
 | `t5_board_cp_perf` | SDK OPP 240M、`-O3`、低噪声 benchmark | generation 145 的旧 OPP 320M/CPU0 160 MHz 基线保留为历史对照；generation 146 已完成 240 MHz 签名全量下载、回读、冷启动和三项 benchmark 各 10 次 |
 
 已闭环的是当前支持的非破坏性诊断路径和三项性能基线。以下内容仍不能宣称完成：
 
 - 受控 fault 后的 crash/backtrace 恢复；
 - critmon 超限告警阈值，当前只验收统计可观测性；
-- 完整 xTS、真实介质 blktest、opus_ramtest；
+- 依赖外部夹具或会改写介质的 xTS：GPIO/UART loopback、AP RTC/timer/RNG、
+  `driver_test`、LIBCXX、真实介质 blktest/fstest 和 opus_ramtest；
 - Dhrystone、TinyMemBench、CacheSpeed；
-- 计划内 12 小时 soak；
-- `tests/bk7258/run_tests.sh` 的历史 fixture 迁移。
+- 计划内 12 小时 soak（owner 于 2026-08-27 确认延期，本轮不阻塞）。
+
+`tests/bk7258/run_tests.sh` 的历史 fixture 已迁移到现役 chip/API，并完成 281 项
+cmocka 加公共模块门禁；见
+[主机回归记录](../../progress/verification/2026-08-27-bk7258-host-regression-fixture.md)。
 
 generation 143/145 的原始值、哈希和下载证据见
 [2026-08-27 P0 实板验证记录](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md)；
 当前 240 MHz 基线见
 [generation 146 时钟验证记录](../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
-板子在本轮结束时保留 generation 146 性能镜像。
+当前代 xTS 的 generation 147～149 根因、签名、下载和板端证据见
+[generation 149 xTS 收口记录](../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md)。
+板子在本轮结束时保留 generation 149 xTS 镜像。
 
 本手册对应官网 Backtrace（1623）、Allsyms（1624）、硬件性能（1632）、
 irqinfo/critmon（1633）、cpuload（1634）、Dhrystone～Whetstone（1636～1641）、
@@ -49,6 +55,8 @@ blktest～opus_ramtest（1643～1646）和自测试框架（1648）。
 | 符号解析 | `ALLSYMS`、`DEBUG_FEATURES` | 回溯输出函数名而不只是 PC 地址 |
 | Trace | Note driver、scheduler instrumentation、`SYSTEM_TRACE` | `trace start/stop/dump` |
 | 内存压力 | `TESTING_MEMORY_STRESS` | `memstress` |
+| xTS 系统堆 | `BK7258_PSRAM_SYSTEM_HEAP`、size=`0x10000`、`MM_REGIONS=2` | 启动出现 `BPSR SYSTEM HEAP PASS size=65536`，`free` 的 Umem total 增加 64 KiB |
+| xTS runner | `TESTS_TESTSUITES_STACKSIZE=16384` | 保持上游标准 stack，mm 8/8、sched 16/16 |
 | 退出语义 | `SIG_DEFAULT` | `kill -9 <pid>` 后任务确实消失 |
 | 系统基线 | AP/RPTUN/Wi-Fi、WDT automonitor | Agent 双核启动与恢复日志 |
 
@@ -56,6 +64,11 @@ blktest～opus_ramtest（1643～1646）和自测试框架（1648）。
 `SCHED_CRITMONITOR_MAXTIME_THREAD=0`，WQUEUE/PREEMPTION/CSECTION/BUSYWAIT/IRQ/WDOG
 六类为 `-1`。本轮只验收 `critmon` 命令实际输出的 task/runtime 可观测性，没有配置或
 验收任何非零超限告警预算，不能将结果描述成“告警完成”。
+
+额外 64 KiB 只属于 `t5_board_cp_xts`：它在 CP 的 128 KiB role-local PSRAM 内注册为
+第二个 NuttX system-heap region，另一半继续作为 CP 私有 PSRAM heap。生产 profile、
+AP 角色分区和 AP Agent system heap 均不改变。不能通过缩小通用 testsuites runner
+stack 来替代这项容量契约。
 
 ### 2.2 低噪声性能 profile
 
@@ -181,6 +194,20 @@ ready，是当前已知的非阻塞启动日志；若最终挂载或 ready 缺�
 后续扩大 memstress 参数前必须按当前 free heap 计算；真实块设备测试只允许作用于
 专用测试介质或可恢复分区，不得覆盖 Agent 持久数据和 TF 用户数据。
 
+### 6.1 Generation 149 当前代 xTS 核心
+
+generation 147 在标准 16 KiB runner stack 下暴露 CP Umem 容量不足；generation 148
+用 8 KiB runner 验证 mm 后，又让 scheduler 的并发 stack 分配因 `ENOMEM` 失败。
+最终 generation 149 恢复标准 runner，只给 xTS profile 增加 64 KiB CP PSRAM system
+heap，冷启动 Umem total 从 117,656 增到 183,192 bytes。
+
+当前代结果：`cmocka_mm_test` 8/8、`cmocka_sched_test` 16/16、`ostest` 状态 0、
+`getprime`、`mm`、4 KiB `ramtest`、RAM tmpfs 上 `scanftest` 164/0、`hello` 和完整
+FIFO/PIPE 均 PASS，最终冷启动和 Agent ready 再次通过。`ostest` 的最终文本落在 capture
+切换间隙，判据使用完整执行输出、SWD idle 样本和同一 NSH 的退出状态 0；不得改写为
+“直接捕获最终行”。详细 generation 身份、哈希和每项 UART raw SHA-256 见
+[generation 149 xTS 收口记录](../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md)。
+
 ## 7. 性能板测方法和基线
 
 以下 generation 145 是**历史基线**：当时选择 SDK OPP 320M，CPU0 有效 160 MHz，
@@ -260,8 +287,10 @@ SHA-256、签名身份和回读差异见
 | CacheSpeed | BK7258 端尚未暴露通用 `ARCH_ICACHE && ARCH_DCACHE` capability | 实现并验证 NuttX cache API 契约，不能强行 select |
 | opus_ramtest | 内存与日志扰动较大 | 独立压力 profile、RAM 预算和限时门禁 |
 | 完整 blktest | 真实块设备测试有破坏数据风险 | 专用测试介质/分区与可恢复镜像 |
-| 完整 xTS / 12h soak | 本轮只完成 P0 关键非破坏性子集 | 当前 generation 或等价最终提交重新完整执行并入档 |
-| 主机测试 | `tests/bk7258/run_tests.sh` 仍引用迁移前 fixture/API | 单独迁移 fixture，进入有效用例后再报告 PASS |
+| 剩余 xTS | generation 149 已完成非破坏性核心；LIBCXX、GPIO/UART loopback、AP RTC/timer/RNG、`driver_test`、受控 fault 与破坏性介质用例未覆盖 | 按夹具和破坏性边界拆分执行，不能用 host 或历史记录升级当前实板状态 |
+| 12h soak | owner 于 2026-08-27 确认延期 | 后续恢复时使用产品 profile、独立日志和明确健康判据 |
+| 主机测试 | 现役 chip/API、当前 Agent 分区生成契约和全部分层目标已执行 | `run_tests.sh` exit 0 且出现 `BK7258_HOST_TEST_PASS`；见主机回归记录 |
 
-因此适配矩阵中 P0 工作包保持“部分完成”：本轮代码、诊断子集和三项性能基线已经
-闭环，但不能用它替代尚未执行的完整 xTS、破坏性介质测试和长稳。
+因此适配矩阵中 P0 工作包保持“部分完成”：本轮代码、当前代非破坏性 xTS 核心、
+诊断专项、主机回归和三项性能基线已经闭环；但不能用它们替代仍需夹具的外设用例、
+破坏性介质测试和已延期长稳。

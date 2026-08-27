@@ -6,9 +6,8 @@ are never modified.  Two classes of change are made:
 
   1. MMIO macros are re-routed to mock_reg32_ref() so register traffic lands
      in the framework's RAM map (the register address is unchanged).
-  2. Freestanding ARM barriers and the naked jump function in the MCUboot
-     handoff path are replaced with host-neutral equivalents or stubs so an
-     x86_64 compiler can assemble the file.
+  2. Freestanding ARM barriers are replaced with host-neutral equivalents so
+     an x86_64 compiler can assemble the file.
 
 Usage: patch.py <profile> <input> <output>
 """
@@ -26,66 +25,6 @@ ARM_BARRIER_LINE = re.compile(
     r"^__asm__? volatile \([^\n]*\);\s*$", re.M)
 
 NOP_BARRIER = "__asm volatile (\"nop\");"
-
-NAKED_JUMP_START = (
-    "static void __attribute__((naked, noinline, noreturn, section(\".data\")))")
-
-NAKED_JUMP_STUB = """static void __attribute__((noinline, noreturn))
-bk7258_mcuboot_jump(uint32_t msp, uint32_t reset)
-{
-  mock_boot_jump(msp, reset);
-  for (;;)
-    {
-    }
-}"""
-
-INVALID_VECTOR_LOOP = re.compile(
-    r"(\r?\n)([ \t]*)\{\r?\n[ \t]*for \(;;\)\r?\n[ \t]*\{\r?\n"
-    r"[ \t]*\}\r?\n[ \t]*\}\r?\n")
-
-
-def patch_naked_jump(src):
-    """Replace the naked ASM jump function body with a host stub."""
-    start = src.find(NAKED_JUMP_START)
-    if start < 0:
-        return src
-
-    brace = src.find("{", start)
-    if brace < 0:
-        return src
-
-    # The ASM body ends with "  );" followed by the closing brace.
-    end = src.find("\n}", brace)
-    if end < 0:
-        return src
-
-    head = src[:start]
-    tail = src[end + 2:]
-    return head + NAKED_JUMP_STUB + tail
-
-
-def patch_invalid_vector_loop(src):
-    """Replace the secondary-path "invalid vector" infinite loop with the
-    jump hook (0xffffffff markers), so the host test can observe the
-    hang.  Runs after patch_naked_jump so the stub loop never matches."""
-    match = INVALID_VECTOR_LOOP.search(src)
-    if match is None:
-        return src
-
-    newline = match.group(1)
-    indent = match.group(2)
-    hook = (newline + indent + "{\n" + indent + "  mock_boot_jump("
-            "0xffffffffu, 0xffffffffu);\n" + indent + "}\n")
-    return src[:match.start()] + hook + src[match.end():]
-
-
-def patch_ram_sections(src):
-    """Drop the board's RAM-resident section placement (.data) from the
-    handoff functions: host x86_64 marks .data non-executable."""
-    return src.replace(
-        "static void __attribute__((noinline, noreturn, section(\".data\")))",
-        "static void __attribute__((noinline, noreturn))")
-
 
 def patch_arm_barriers(src):
     replace = ("__asm volatile (\"dmb sy\" ::: \"memory\");",
@@ -194,9 +133,6 @@ PROFILES = {
     "bl1_manifest": [patch_reg32],
     "bl2_security_cnt": [patch_reg32],
     "bl2_flash_map": [patch_wdt_include],
-    "bl2_mcuboot_boot": [patch_reg32, patch_arm_barriers,
-                         patch_naked_jump, patch_invalid_vector_loop,
-                         patch_ram_sections],
     "scale_rotate": [patch_arm_barriers, patch_scale1_threshold_ref,
                      patch_scale_rotate_board_include],
     "irda": [patch_irda_reg],

@@ -73,6 +73,7 @@ struct bk7258_can_s
   uint8_t rx_header_len;
   uint8_t rx_data_len;
   uint8_t rx_dlc;
+  uint8_t rx_discard_len;
   uint32_t baud;
   int last_error;
 
@@ -155,6 +156,53 @@ static bool bk7258_can_active(FAR struct bk7258_can_s *priv)
 
 /* Return zero for one complete frame, -EAGAIN for a temporary short read. */
 
+static int bk7258_can_discard_payload(FAR struct bk7258_can_s *priv)
+{
+  uint8_t scratch[BK7258_CAN_PAYLOAD_MAX];
+  uint32_t received;
+  uint32_t request;
+  bk_err_t sdkret;
+
+  while (priv->rx_discard_len > 0u)
+    {
+      request = priv->rx_discard_len;
+      if (request > sizeof(scratch))
+        {
+          request = sizeof(scratch);
+        }
+
+      received = 0u;
+      sdkret = bk_can_receive(scratch, request, &received, 0);
+      if (received > request)
+        {
+          priv->rx_discard_len = 0u;
+          priv->rx_header_len = 0u;
+          priv->rx_data_len = 0u;
+          return -EPROTO;
+        }
+
+      priv->rx_discard_len -= (uint8_t)received;
+      if (priv->rx_discard_len == 0u)
+        {
+          priv->rx_header_len = 0u;
+          priv->rx_data_len = 0u;
+          return -EPROTO;
+        }
+
+      if (sdkret != BK_OK)
+        {
+          return bk7258_can_error(sdkret);
+        }
+
+      if (received < request)
+        {
+          return -EAGAIN;
+        }
+    }
+
+  return -EPROTO;
+}
+
 static int bk7258_can_drain_one(FAR struct bk7258_can_s *priv)
 {
   uint32_t received;
@@ -162,6 +210,11 @@ static int bk7258_can_drain_one(FAR struct bk7258_can_s *priv)
   uint32_t id;
   struct can_hdr_s hdr;
   int ret;
+
+  if (priv->rx_discard_len > 0u)
+    {
+      return bk7258_can_discard_payload(priv);
+    }
 
   if (priv->rx_header_len < BK7258_CAN_FIFO_HEADER)
     {
@@ -178,9 +231,12 @@ static int bk7258_can_drain_one(FAR struct bk7258_can_s *priv)
   priv->rx_dlc = priv->rx_header[0];
   if (priv->rx_dlc > BK7258_CAN_PAYLOAD_MAX)
     {
-      priv->rx_header_len = 0;
-      priv->rx_data_len = 0;
-      return -EPROTO;
+      /* The SDK exposes one byte-stream record as DLC + ID + payload.
+       * Discard an invalid record's declared payload before accepting the
+       * next header; otherwise payload bytes would permanently desynchronize
+       * the stream after a corrupt DLC. */
+      priv->rx_discard_len = priv->rx_dlc;
+      return bk7258_can_discard_payload(priv);
     }
 
   if (priv->rx_data_len < priv->rx_dlc)
@@ -234,6 +290,7 @@ static int bk7258_can_drain_one(FAR struct bk7258_can_s *priv)
 
   priv->rx_header_len = 0;
   priv->rx_data_len = 0;
+  priv->rx_discard_len = 0;
   return ret < 0 ? ret : 0;
 }
 
@@ -399,6 +456,7 @@ static void bk7258_can_reset(FAR struct can_dev_s *dev)
   priv->error_pending = false;
   priv->rx_header_len = 0;
   priv->rx_data_len = 0;
+  priv->rx_discard_len = 0;
   spin_unlock_irqrestore(&priv->state_lock, flags);
   bk7258_can_stop_thread(priv);
 }
@@ -450,6 +508,7 @@ static int bk7258_can_setup(FAR struct can_dev_s *dev)
   priv->tx_submitting = false;
   priv->rx_header_len = 0;
   priv->rx_data_len = 0;
+  priv->rx_discard_len = 0;
   spin_unlock_irqrestore(&priv->state_lock, flags);
   return 0;
 }

@@ -1121,21 +1121,25 @@ config BK7258_PSRAM_MEDIA
 		general-purpose PSRAM heap.
 
 config BK7258_PSRAM_SYSTEM_HEAP
-	bool "Add reserved AP PSRAM to the NuttX system heap"
+	bool "Add reserved role-local PSRAM to the NuttX system heap"
 	default n
-	depends on BK7258_PSRAM && BK7258_AP_CORE
+	depends on BK7258_PSRAM
 	depends on MM_REGIONS > 1
 	help
-		Reserve one block from the AP-local PSRAM allocator and add that block
-		as a second NuttX system-heap region.  The PSRAM allocator retains
-		ownership of the enclosing block, while NuttX manages task stacks and
-		ordinary allocations inside it.  Use this for AP application profiles
-		whose thread stacks do not fit in internal SRAM.
+		Reserve one block from the current role's private PSRAM allocator and
+		add that block as a second NuttX system-heap region.  The role-local
+		PSRAM allocator retains ownership of the enclosing block, while NuttX
+		manages task stacks and ordinary allocations inside it.  Select a size
+		that fits the role's partition: CP owns 128 KiB and AP owns 640 KiB in
+		the default 8 MiB layout.  This is useful for test or application
+		profiles whose thread stacks do not fit in internal SRAM.
 
 config BK7258_PSRAM_SYSTEM_HEAP_SIZE
-	hex "AP PSRAM system-heap region size"
-	default 0x50000
-	range 0x10000 0x80000
+	hex "Role-local PSRAM system-heap region size"
+	default 0x50000 if BK7258_AP_CORE
+	default 0x10000 if !BK7258_AP_CORE
+	range 0x10000 0x80000 if BK7258_AP_CORE
+	range 0x10000 0x1f000 if !BK7258_AP_CORE
 	depends on BK7258_PSRAM_SYSTEM_HEAP
 
 config BK7258_PSRAM_BOOT_TEST
