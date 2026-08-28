@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/common/bk7258_os_adapt.c
+ * contest2026_135_yongwangzhiqian/chips/bk7258/common/bk7258_os_adapt.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with

@@ -4,6 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import os
+import re
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -27,11 +32,21 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
 
     build = commands.add_parser("build", help="build CP and AP through OpenVela")
-    build.add_argument("--cp-config", type=Path, required=True)
-    build.add_argument("--ap-config", type=Path, required=True)
-    build.add_argument("--boot", choices=("direct", "mcuboot"), required=True)
-    build.add_argument("--partition", type=Path, required=True)
-    build.add_argument("--jobs", type=int, required=True)
+    build.add_argument(
+        "--board", metavar="NAME",
+        help="load the physical board's maintained openvela.conf declaration",
+    )
+    build.add_argument("--cp-config", type=Path)
+    build.add_argument("--ap-config", type=Path)
+    build.add_argument(
+        "--boot", choices=("direct", "mcuboot"), required=True,
+        help=(
+            "mcuboot is the only signed release chain; direct is an unsigned "
+            "bring-up/diagnostic chain and cannot be released"
+        ),
+    )
+    build.add_argument("--partition", type=Path)
+    build.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 8))
     build.add_argument("--bl1-public-key", type=Path)
     build.add_argument("--mcuboot-public-key", type=Path)
     build.add_argument("--openssl", type=Path)
@@ -60,32 +75,18 @@ def _parser() -> argparse.ArgumentParser:
     sdk_rebuild.add_argument("--jobs", type=int, required=True)
     sdk_rebuild.add_argument("--replace", action="store_true")
 
-    package = commands.add_parser("package", help="create or extract a delivery package")
+    package = commands.add_parser(
+        "package", help="inspect packages or create unsigned diagnostic packages"
+    )
     package_commands = package.add_subparsers(dest="package_command", required=True)
-    create = package_commands.add_parser("create", help="create one deterministic package")
-    create.add_argument("--partition", type=Path, required=True)
-    create.add_argument("--artifact", action="append", required=True, metavar="NAME=PATH")
-    create.add_argument("--member", action="append", required=True, metavar="NAME=BASENAME")
-    create.add_argument("--sdk-profile", action="append", required=True)
-    create.add_argument("--preserve-external", action="append", default=[],
-                        metavar="NAME")
-    create.add_argument("--full-update", action="store_true",
-                        help="authorize a sparse persistent_data replacement")
-    create.add_argument("--persistent-payload", type=Path,
-                        help="exact persistent_data image; requires --full-update")
-    security = create.add_mutually_exclusive_group(required=True)
-    security.add_argument("--unsigned", action="store_true")
-    security.add_argument("--signed", action="store_true")
-    security.add_argument("--ota-apps", action="store_true",
-                          help="create pending signed CP/AP OTA images only")
-    create.add_argument("--bl1-key", type=Path)
-    create.add_argument("--mcuboot-key", type=Path)
-    create.add_argument("--bl1-elf", type=Path)
-    create.add_argument("--bl2-elf", type=Path)
-    create.add_argument("--openssl", type=Path)
-    create.add_argument("--version")
-    create.add_argument("--security-counter", type=lambda value: int(value, 0))
-    create.add_argument("--bl1-security-counter", type=lambda value: int(value, 0))
+    create = package_commands.add_parser(
+        "create", help="create one unsigned direct-boot diagnostic package"
+    )
+    create.add_argument("--build-manifest", type=Path, required=True)
+    create.add_argument(
+        "--unsigned", action="store_true", required=True,
+        help="package already-finalized direct-boot bytes for diagnostics",
+    )
     create.add_argument("--output", type=Path, required=True)
     extract = package_commands.add_parser("extract", help="extract a verified package")
     extract.add_argument("--package", type=Path, required=True)
@@ -103,6 +104,32 @@ def _parser() -> argparse.ArgumentParser:
     materialize.add_argument("--openssl", type=Path, required=True)
     materialize.add_argument("--output", type=Path, required=True)
 
+    release = commands.add_parser(
+        "release", help="publish a hash-bound signed release from one build manifest"
+    )
+    release_commands = release.add_subparsers(
+        dest="release_command", required=True
+    )
+    full = release_commands.add_parser(
+        "full", help="create and materialize one signed full release"
+    )
+    full.add_argument("--build-manifest", type=Path, required=True)
+    full.add_argument("--bl1-key", type=Path, required=True)
+    full.add_argument("--mcuboot-key", type=Path, required=True)
+    full.add_argument("--version", required=True)
+    full.add_argument("--base", type=Path, required=True)
+    full.add_argument("--base-sha256", required=True)
+    full.add_argument("--openssl", type=Path, required=True)
+    full.add_argument("--output-dir", type=Path, required=True)
+    ota = release_commands.add_parser(
+        "ota", help="create one pending signed CP/AP OTA release"
+    )
+    ota.add_argument("--build-manifest", type=Path, required=True)
+    ota.add_argument("--mcuboot-key", type=Path, required=True)
+    ota.add_argument("--version", required=True)
+    ota.add_argument("--openssl", type=Path, required=True)
+    ota.add_argument("--output-dir", type=Path, required=True)
+
     verify = commands.add_parser("verify", help="perform read-only verification")
     verify_commands = verify.add_subparsers(dest="verify_command", required=True)
     verify_layout = verify_commands.add_parser("layout", help="verify one partition CSV")
@@ -113,6 +140,10 @@ def _parser() -> argparse.ArgumentParser:
                               metavar="NAME=PATH")
     verify_image.add_argument("--preserve-external", action="append", default=[],
                               metavar="NAME")
+    verify_manifest = verify_commands.add_parser(
+        "build-manifest", help="re-hash one build-to-release handoff"
+    )
+    verify_manifest.add_argument("--manifest", type=Path, required=True)
     verify_package = verify_commands.add_parser("package", help="verify a package")
     verify_package.add_argument("--package", type=Path, required=True)
     verify_trust = verify_commands.add_parser("trust", help="verify package trust evidence")
@@ -139,12 +170,300 @@ def _repository_input(path: Path) -> Path:
     return path if path.is_absolute() else REPOSITORY / path
 
 
+def _workspace_input(path: Path) -> Path:
+    """Resolve generated OpenVela inputs independently of the caller's cwd."""
+
+    return path if path.is_absolute() else REPOSITORY.parent / path
+
+
+def _build_inputs(args: argparse.Namespace) -> tuple[Path, Path, Path]:
+    explicit = (args.cp_config, args.ap_config, args.partition)
+    if args.board is not None:
+        if any(value is not None for value in explicit):
+            raise ValueError(
+                "--board cannot be mixed with --cp-config, --ap-config or "
+                "--partition"
+            )
+        preset = build_domain.board_preset(REPOSITORY, args.board)
+        return preset.cp_config, preset.ap_config, preset.partition
+    if any(value is None for value in explicit):
+        raise ValueError(
+            "build requires either --board or all of --cp-config, "
+            "--ap-config and --partition"
+        )
+    cp_config, ap_config, partition = explicit
+    assert cp_config is not None
+    assert ap_config is not None
+    assert partition is not None
+    return cp_config, ap_config, partition
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _release_generation(version: str) -> int:
+    match = re.fullmatch(
+        r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\."
+        r"(0|[1-9][0-9]*)\+([1-9][0-9]*)",
+        version,
+    )
+    if match is None:
+        raise ValueError(
+            "release version must be MAJOR.MINOR.REVISION+GENERATION"
+        )
+    generation = int(match.group(4), 10)
+    if generation > 0xffffffff:
+        raise ValueError("release generation exceeds the MCUboot counter range")
+    return generation
+
+
+def _release_output(path: Path) -> tuple[Path, Path]:
+    output = path.absolute()
+    if output.exists() or output.is_symlink():
+        raise ValueError(f"release output directory already exists: {output}")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{output.name}.", dir=output.parent))
+    return output, staging
+
+
+def _release_sdk_evidence(
+    manifest: build_domain.BuildManifest,
+) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for profile in manifest.sdk_profiles:
+        verified = sdk_domain.verify(REPOSITORY, profile)
+        result[profile] = verified.tree_hash
+    return result
+
+
+def _release_summary(staging: Path, document: dict[str, object]) -> None:
+    target = staging / "release.json"
+    target.write_text(
+        json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def _release(args: argparse.Namespace) -> None:
+    manifest = build_domain.load_build_manifest(
+        REPOSITORY, _workspace_input(args.build_manifest)
+    )
+    manifest_sha256 = _sha256_file(manifest.source)
+    if manifest.format != build_domain.BUILD_MANIFEST_FORMAT:
+        raise build_domain.BuildError(
+            "signed releases require a target-bound build manifest"
+        )
+    if manifest.boot != "mcuboot" or manifest.rollback_floor is None:
+        raise build_domain.BuildError(
+            "signed releases require one MCUboot build manifest"
+        )
+    generation = _release_generation(args.version)
+    if args.release_command == "full" \
+            and generation != manifest.rollback_floor:
+        raise trust_domain.TrustError(
+            "full release generation must equal the compiled rollback floor"
+        )
+    if args.release_command == "ota" \
+            and generation < manifest.rollback_floor:
+        raise trust_domain.TrustError(
+            "OTA generation is below the compiled rollback floor"
+        )
+
+    output, staging = _release_output(args.output_dir)
+    try:
+        package_root = staging / "package"
+        evidence_root = staging / "evidence"
+        package_root.mkdir(parents=True)
+        evidence_root.mkdir(parents=True)
+        toolchain = build_domain.toolchain_root(REPOSITORY) / "bin"
+        sdk_evidence = _release_sdk_evidence(manifest)
+        official_imgtool = (
+            REPOSITORY.parent / "apps/boot/mcuboot/mcuboot/scripts/imgtool.py"
+        )
+        if args.release_command == "full":
+            signed = trust_domain.signed_release(
+                layout=manifest.layout,
+                artifacts=manifest.artifacts,
+                bl1_private_key=args.bl1_key,
+                mcuboot_private_key=args.mcuboot_key,
+                bl1_elf=manifest.elfs["bl1"],
+                bl2_elf=manifest.elfs["bl2"],
+                version=args.version,
+                security_counter=generation,
+                bl1_security_counter=generation,
+                official_imgtool=official_imgtool,
+                openssl=args.openssl,
+                objcopy=toolchain / "arm-none-eabi-objcopy",
+                nm=toolchain / "arm-none-eabi-nm",
+            )
+            evidence = signed.evidence.manifest()
+            persistent_payload = package_domain.persistent_payload_from_base(
+                manifest.layout, args.base, args.base_sha256
+            )
+            suffix = "full"
+            member_names = {
+                "ap": "ap.bin",
+                "bl2_a": "bl2-a.bin",
+                "bl2_b": "bl2-b.bin",
+                "boot": "boot.bin",
+                "cp": "cp.bin",
+                "manifest_a": "manifest-a.bin",
+                "manifest_b": "manifest-b.bin",
+                "pair": "pair.bin",
+            }
+        else:
+            signed = trust_domain.signed_ota_pair(
+                layout=manifest.layout,
+                artifacts={
+                    name: manifest.artifacts[name] for name in ("cp", "ap")
+                },
+                mcuboot_private_key=args.mcuboot_key,
+                bl2_elf=manifest.elfs["bl2"],
+                version=args.version,
+                security_counter=generation,
+                official_imgtool=official_imgtool,
+                openssl=args.openssl,
+                objcopy=toolchain / "arm-none-eabi-objcopy",
+            )
+            evidence = signed.evidence.manifest()
+            persistent_payload = None
+            suffix = "ota"
+            member_names = {"ap": "ap.bin", "cp": "cp.bin"}
+
+        # No raw build input is read after this point.  Re-hash the complete
+        # handoff once more so a concurrent or accidental artifact change
+        # cannot produce a package that disagrees with its copied evidence.
+        build_domain.load_build_manifest(REPOSITORY, manifest.source)
+        if _sha256_file(manifest.source) != manifest_sha256:
+            raise build_domain.BuildError(
+                "build manifest changed while the release was being created"
+            )
+        manifest_copy = evidence_root / "build-manifest.json"
+        shutil.copyfile(manifest.source, manifest_copy)
+        if _sha256_file(manifest_copy) != manifest_sha256:
+            raise build_domain.BuildError("copied build manifest hash changed")
+
+        fingerprint_names = (
+            ("bl1_public_fingerprint", "mcuboot_public_fingerprint")
+            if args.release_command == "full"
+            else ("mcuboot_public_fingerprint",)
+        )
+        for name in fingerprint_names:
+            expected = manifest.trust_fingerprints.get(name)
+            observed = evidence.get(name)
+            if expected is not None and observed != expected:
+                raise trust_domain.TrustError(
+                    f"release key does not match build manifest: {name}"
+                )
+
+        package_path = package_root / (
+            f"firmware-{manifest.physical_board}-v{args.version}-{suffix}.bkpack"
+        )
+        package_report = package_domain.create(
+            image_set=signed.image_set,
+            member_names=member_names,
+            sdk_evidence=sdk_evidence,
+            trust_evidence=evidence,
+            physical_board=manifest.physical_board,
+            output=package_path,
+            catalog_signer=lambda catalog: trust_domain.sign_catalog(
+                catalog, args.mcuboot_key, args.openssl
+            ),
+            persistent_payload=persistent_payload,
+            publication_verifier=lambda candidate: _verify_package_trust(
+                candidate, args.openssl
+            ),
+        )
+        _verify_package_trust(package_path, args.openssl)
+
+        operator_report = None
+        materialization = None
+        if args.release_command == "full":
+            flash_root = staging / "flash"
+            flash_root.mkdir()
+            operator_path = flash_root / (
+                f"operator-{manifest.physical_board}-v{args.version}.bin"
+            )
+            operator_report = package_domain.materialize_full_image(
+                package_path,
+                args.base,
+                args.base_sha256,
+                operator_path,
+            )
+            immutable_tail = min(
+                row.offset for row in manifest.layout.partitions
+                if row.policy == "immutable"
+            )
+            materialization = {
+                "accepted_base_sha256": args.base_sha256.lower(),
+                "accepted_base_size": immutable_tail,
+                "flash_end": immutable_tail,
+                "flash_offset": 0,
+                "flash_size": immutable_tail,
+            }
+
+        summary: dict[str, object] = {
+            "build_manifest": {
+                "path": "evidence/build-manifest.json",
+                "sha256": _sha256_file(evidence_root / "build-manifest.json"),
+            },
+            "format": "bk7258.release/2",
+            "generation": generation,
+            "layout": {
+                "identity": manifest.layout.identity,
+                "sha256": manifest.layout.sha256,
+            },
+            "mode": args.release_command,
+            "package": {
+                "path": f"package/{package_path.name}",
+                "sha256": package_report["sha256"],
+            },
+            "security": {
+                key: evidence[key]
+                for key in (
+                    "bl1_public_fingerprint", "mcuboot_public_fingerprint"
+                )
+                if key in evidence
+            },
+            "target": {
+                "board_family": "bk7258",
+                "physical_board": manifest.physical_board,
+            },
+            "version": args.version,
+        }
+        if operator_report is not None:
+            operator_path = Path(str(operator_report["output"]))
+            summary["operator"] = {
+                "path": f"flash/{operator_path.name}",
+                "sha256": operator_report["sha256"],
+                "size": operator_report["size"],
+            }
+            summary["materialization"] = materialization
+        _release_summary(staging, summary)
+        os.replace(staging, output)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+
+    print(
+        f"bk7258 release {args.release_command}: PASS "
+        f"output={output} version={args.version} generation={generation}"
+    )
+
+
 def _build(args: argparse.Namespace) -> None:
+    cp_config, ap_config, partition = _build_inputs(args)
     result = build_domain.build(
         REPOSITORY,
-        _repository_input(args.cp_config),
-        _repository_input(args.ap_config),
-        _repository_input(args.partition),
+        _repository_input(cp_config),
+        _repository_input(ap_config),
+        _repository_input(partition),
         boot=args.boot,
         bl1_public_key=args.bl1_public_key,
         mcuboot_public_key=args.mcuboot_public_key,
@@ -174,6 +493,7 @@ def _build(args: argparse.Namespace) -> None:
         print(f"image {row.name}={row.path} size={row.size} sha256={row.sha256}")
     for name in result.preserved_external:
         print(f"preserve external={name}")
+    print(f"build manifest={result.manifest}")
 
 
 def _toolchain(args: argparse.Namespace) -> None:
@@ -269,110 +589,38 @@ def _package(args: argparse.Namespace) -> None:
             f"writes={report['writes']} sha256={report['sha256']}"
         )
         return
-    selected_layout = layout_domain.load(_repository_input(args.partition))
-    artifact_paths = {name: Path(value) for name, value in _pairs(args.artifact, "artifact").items()}
-    signed_inputs = (
-        args.bl1_key, args.mcuboot_key, args.bl1_elf, args.bl2_elf,
-        args.openssl, args.version, args.security_counter,
-        args.bl1_security_counter,
+    manifest = build_domain.load_build_manifest(
+        REPOSITORY, _workspace_input(args.build_manifest)
     )
-    if args.signed:
-        if any(value is None for value in signed_inputs) or args.preserve_external:
-            raise trust_domain.TrustError(
-                "signed package requires all explicit key/ELF/version/counter inputs "
-                "and cannot preserve a release artifact"
-            )
-        toolchain = build_domain.toolchain_root(REPOSITORY) / "bin"
-        release = trust_domain.signed_release(
-            layout=selected_layout,
-            artifacts=artifact_paths,
-            bl1_private_key=args.bl1_key,
-            mcuboot_private_key=args.mcuboot_key,
-            bl1_elf=args.bl1_elf,
-            bl2_elf=args.bl2_elf,
-            version=args.version,
-            security_counter=args.security_counter,
-            bl1_security_counter=args.bl1_security_counter,
-            official_imgtool=(
-                REPOSITORY.parent / "apps/boot/mcuboot/mcuboot/scripts/imgtool.py"
-            ),
-            openssl=args.openssl,
-            objcopy=toolchain / "arm-none-eabi-objcopy",
-            nm=toolchain / "arm-none-eabi-nm",
-        )
-        image_set = release.image_set
-        trust_evidence = release.evidence.manifest()
-    elif args.ota_apps:
-        required = (
-            args.mcuboot_key, args.bl2_elf, args.openssl,
-            args.version, args.security_counter,
-        )
-        forbidden = (
-            args.bl1_key, args.bl1_elf, args.bl1_security_counter,
-        )
-        if any(value is None for value in required) \
-                or any(value is not None for value in forbidden) \
-                or args.preserve_external:
-            raise trust_domain.TrustError(
-                "apps-only OTA requires MCUboot key/BL2/version/counter inputs "
-                "and forbids BL1 or preserved-release inputs"
-            )
-        toolchain = build_domain.toolchain_root(REPOSITORY) / "bin"
-        release = trust_domain.signed_ota_pair(
-            layout=selected_layout,
-            artifacts=artifact_paths,
-            mcuboot_private_key=args.mcuboot_key,
-            bl2_elf=args.bl2_elf,
-            version=args.version,
-            security_counter=args.security_counter,
-            official_imgtool=(
-                REPOSITORY.parent / "apps/boot/mcuboot/mcuboot/scripts/imgtool.py"
-            ),
-            openssl=args.openssl,
-            objcopy=toolchain / "arm-none-eabi-objcopy",
-        )
-        image_set = release.image_set
-        trust_evidence = release.evidence.manifest()
-    else:
-        if any(value is not None for value in signed_inputs):
-            raise trust_domain.TrustError(
-                "unsigned package must not receive signing inputs"
-            )
-        artifacts = image_domain.read_artifacts(artifact_paths)
-        image_set = image_domain.finalized(
-            selected_layout,
-            artifacts,
-            preserved_external=tuple(args.preserve_external),
-        )
-        trust_evidence = trust_domain.unsigned().manifest()
-    if args.full_update != (args.persistent_payload is not None):
+    if manifest.format != build_domain.BUILD_MANIFEST_FORMAT:
         raise package_domain.PackageError(
-            "--full-update and --persistent-payload must be supplied together"
+            "diagnostic packaging requires a target-bound build manifest"
         )
-    if args.full_update and not args.signed:
-        raise trust_domain.TrustError("full update requires --signed")
-    persistent_payload = None
-    if args.persistent_payload is not None:
-        persistent_payload = image_domain.read_artifacts(
-            {"persistent_data": args.persistent_payload}
-        )["persistent_data"]
-    member_names = _pairs(args.member, "member")
+    if manifest.boot != "direct":
+        raise package_domain.PackageError(
+            "unsigned diagnostic packaging requires a direct build manifest"
+        )
+    artifacts = image_domain.read_artifacts(manifest.finalized_artifacts)
+    image_set = image_domain.finalized(
+        manifest.layout,
+        artifacts,
+        preserved_external=manifest.preserved_external,
+    )
+    trust_evidence = trust_domain.unsigned().manifest()
+    member_names = {
+        name: path.name for name, path in manifest.finalized_artifacts.items()
+    }
     sdk_evidence: dict[str, str] = {}
-    for name in args.sdk_profile:
+    for name in manifest.sdk_profiles:
         row = sdk_domain.verify(REPOSITORY, name)
         sdk_evidence[name] = row.tree_hash
     report = package_domain.create(
-        image_set,
-        member_names,
-        sdk_evidence,
-        trust_evidence,
-        args.output,
-        catalog_signer=(
-            (lambda catalog: trust_domain.sign_catalog(
-                catalog, args.mcuboot_key, args.openssl
-            )) if args.ota_apps or args.full_update else None
-        ),
-        persistent_payload=persistent_payload,
+        image_set=image_set,
+        member_names=member_names,
+        sdk_evidence=sdk_evidence,
+        trust_evidence=trust_evidence,
+        physical_board=manifest.physical_board,
+        output=args.output,
     )
     print(
         f"bk7258 package create: PASS output={report['package']} "
@@ -400,6 +648,15 @@ def _verify(args: argparse.Namespace) -> None:
             f"bk7258 verify image: PASS writes={len(result.writes)} "
             f"erases={len(result.erases)}"
         )
+    elif args.verify_command == "build-manifest":
+        result = build_domain.load_build_manifest(
+            REPOSITORY, _workspace_input(args.manifest)
+        )
+        print(
+            f"bk7258 verify build-manifest: PASS boot={result.boot} "
+            f"board={result.physical_board} layout={result.layout.identity} "
+            f"source={result.source}"
+        )
     elif args.verify_command == "package":
         result = package_domain.verify(args.package)
         security = (
@@ -408,6 +665,7 @@ def _verify(args: argparse.Namespace) -> None:
         )
         print(
             f"bk7258 verify package: PASS images={result['images']} "
+            f"board={result['physical_board'] or 'legacy-unbound'} "
             f"security={security} sha256={result['sha256']}"
         )
     else:
@@ -430,6 +688,8 @@ def main(argv: list[str] | None = None) -> int:
             _sdk(args)
         elif args.command == "package":
             _package(args)
+        elif args.command == "release":
+            _release(args)
         else:
             _verify(args)
     except (

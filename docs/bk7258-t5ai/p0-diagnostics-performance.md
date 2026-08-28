@@ -11,8 +11,8 @@ P0 采用两张用途互斥的 CP 镜像，不能把诊断镜像的结果当性�
 
 | Profile | 用途 | 2026-08-27 状态 |
 |---|---|---|
-| `t5_board_cp_xts` | 系统级诊断、Trace、压力和既有 xTS | generation 143 的诊断专项通过；generation 149 以 64 KiB CP role-local PSRAM system heap 保持标准 16 KiB runner stack，当前代 mm 8/8、sched 16/16、ostest、getprime、mm/ramtest、scanftest、hello/pipe 和冷启动通过 |
-| `t5_board_cp_perf` | SDK OPP 240M、`-O3`、低噪声 benchmark | generation 145 的旧 OPP 320M/CPU0 160 MHz 基线保留为历史对照；generation 146 已完成 240 MHz 签名全量下载、回读、冷启动和三项 benchmark 各 10 次 |
+| `t5_board/configs/xts` | 系统级诊断、Trace、压力和既有 xTS | generation 143 的诊断专项通过；generation 149 以 64 KiB CP role-local PSRAM system heap 保持标准 16 KiB runner stack，当前代 mm 8/8、sched 16/16、ostest、getprime、mm/ramtest、scanftest、hello/pipe 和冷启动通过 |
+| `t5_board/configs/perf` | SDK OPP 240M、`-O3`、低噪声 benchmark | generation 145 的旧 OPP 320M/CPU0 160 MHz 基线保留为历史对照；generation 146 已完成 240 MHz 签名全量下载、回读、冷启动和三项 benchmark 各 10 次 |
 
 已闭环的是当前支持的非破坏性诊断路径和三项性能基线。以下内容仍不能宣称完成：
 
@@ -43,7 +43,7 @@ blktest～opus_ramtest（1643～1646）和自测试框架（1648）。
 
 ### 2.1 诊断/xTS profile
 
-配置目录：`boards/bk7258/t5_board/configs/t5_board_cp_xts`
+配置目录：`boards/bk7258/t5_board/configs/xts`
 
 | 能力 | 必要配置 | 板端入口 |
 |---|---|---|
@@ -65,14 +65,14 @@ blktest～opus_ramtest（1643～1646）和自测试框架（1648）。
 六类为 `-1`。本轮只验收 `critmon` 命令实际输出的 task/runtime 可观测性，没有配置或
 验收任何非零超限告警预算，不能将结果描述成“告警完成”。
 
-额外 64 KiB 只属于 `t5_board_cp_xts`：它在 CP 的 128 KiB role-local PSRAM 内注册为
+额外 64 KiB 只属于 `t5_board/configs/xts`：它在 CP 的 128 KiB role-local PSRAM 内注册为
 第二个 NuttX system-heap region，另一半继续作为 CP 私有 PSRAM heap。生产 profile、
 AP 角色分区和 AP Agent system heap 均不改变。不能通过缩小通用 testsuites runner
 stack 来替代这项容量契约。
 
 ### 2.2 低噪声性能 profile
 
-配置目录：`boards/bk7258/t5_board/configs/t5_board_cp_perf`
+配置目录：`boards/bk7258/t5_board/configs/perf`
 
 正向契约：
 
@@ -149,14 +149,14 @@ python3 -m venv <temporary-venv>
 ```bash
 env PATH=<temporary-venv>/bin:$PATH \
 tools/bk7258/bk7258.py build \
-  --cp-config boards/bk7258/t5_board/configs/t5_board_cp_xts \
-  --ap-config boards/bk7258/t5_board/configs/t5_board_ap_base_vela_claw \
+  --cp-config boards/bk7258/t5_board/configs/xts \
+  --ap-config boards/bk7258/t5_board/configs/openvela_ap \
   --boot direct \
   --partition boards/bk7258/common/partitions/bk7258/bk7258_ab_agent_onchip_persistent.csv \
   --jobs 8 --clean
 ```
 
-性能版只把 `--cp-config` 换为 `t5_board_cp_perf`。direct build 只作为编译/链接门禁；
+性能版只把 `--cp-config` 换为 `boards/bk7258/t5_board/configs/perf`。direct build 只作为编译/链接门禁；
 实际全量板测必须重新使用 `--boot mcuboot`、本代新公钥和严格递增 counter 构建。
 
 每次记录 layout identity、CP/AP build identity、resolved `.config` SHA-256、ELF/bin

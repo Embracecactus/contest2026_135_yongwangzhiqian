@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/include/board.h
+ * contest2026_135_yongwangzhiqian/boards/bk7258/common/include/bk7258_board.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *

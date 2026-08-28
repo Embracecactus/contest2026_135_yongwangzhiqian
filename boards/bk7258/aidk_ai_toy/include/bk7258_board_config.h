@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/boards/aidk_ai_toy/include/bk7258_board_config.h
+ * boards/bk7258/aidk_ai_toy/include/bk7258_board_config.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *

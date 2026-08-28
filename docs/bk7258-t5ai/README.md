@@ -168,7 +168,7 @@ SMP-safe per-core 实现补齐，AP heartbeat、CPU0 SysTick 和周期 sleep-ret
 
 当前维护者只通过 `tools/bk7258/bk7258.py` 构建和打包。官方 NuttX
 `nuttx/nuttx.bin/nuttx.map` 保留在
-`out/bk7258/<cp>__<ap>/<layout-id>/roles/<boot>/<role>/<build-id>/cmake`；
+`out/bk7258/<board>/<cp>__<ap>/<layout-id>/roles/<boot>/<role>/<build-id>/cmake`；
 项目 BL1/BL2与最终 Flash段位于 pair/layout-identity 输出目录。最终交付容器是
 `.bkpack`，必须先通过 `verify package`；签名交付还必须通过 `verify trust`。
 不存在 `bk7258-dual-image.json`、`vela_*`别名、factory计划或 metadata-only

@@ -27,9 +27,9 @@ config ARCH_CHIP_BK7258
 	select ARCH_HAVE_MPU
 	select ARCH_IDLE_CUSTOM
 	---help---
-		Beken BK7258 tri-core Cortex-M33 SoC.  This Stage N1 port targets
-		a single app core that
-		the on-board Tier-1 bootloader (board/bk7258/bootloader)
+		Beken BK7258 tri-core Cortex-M33 SoC.  This port targets a single
+		app core that the chip-owned Tier-1 bootloader
+		(chips/bk7258/bootloader)
 		jumps to at logical flash address 0x02010000 after validating
 		the app magic "BK7236\0\0" at image offset 0x100.
 
@@ -53,7 +53,7 @@ config BK7258_AP_CORE
 	---help---
 		Build the independent AP NuttX image whose primary is physical CPU1 /
 		AP logical CPU0.  Maintained AP profiles select SMP explicitly through
-		BK7258_AP_SMP_BOOTSTRAP; see board/bk7258/configs/README.md for the
+		BK7258_AP_SMP_BOOTSTRAP; see boards/bk7258/CONFIGS.md for the
 		canonical physical-board/profile catalog.
 
 menu "BK7258 debug and UART pin ownership"

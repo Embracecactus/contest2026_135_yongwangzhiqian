@@ -2,20 +2,68 @@
 
 Each maintained role seed contains only:
 
-- `defconfig`: application, physical-board capability and system policy;
-- `profile.conf`: schema, physical board, role, runnable class, CP/AP
-  compatibility and SDK profile.
+- `defconfig`: one complete openvela role/capability/system-policy seed;
+- `profile.conf`: build-tool-only schema, physical board, role, runnable class,
+  CP/AP compatibility and SDK profile. NuttX does not consume this file.
+
+Each physical board also owns one `openvela.conf`. It selects that board's
+maintained normal CP/AP pair and partition CSV for the short `--board` command.
+This is board-owned build metadata, not a NuttX defconfig and not chip policy.
+The generic tool contains no physical-board-name table: adding a board adds
+its board directory, role seeds and declaration without changing Python.
+
+## Adding another physical board
+
+Use a lowercase underscore name and add these board-owned inputs:
+
+1. `boards/bk7258/<board>/` with the normal physical binding, adjacent
+   `Make.defs`/`CMakeLists.txt`, and `CONFIG_BK7258_BOARD_<BOARD>` selector;
+2. `configs/openvela_cp/{defconfig,profile.conf}` and
+   `configs/openvela_ap/{defconfig,profile.conf}` with the same board owner and
+   CP/AP compatibility value;
+3. one strict `openvela.conf` naming those two role seeds and a partition CSV
+   below `boards/bk7258/`;
+4. a new partition CSV only when no reviewed common layout matches the new
+   board's Flash and storage topology.
+
+The existing manifest already projects the whole `boards/bk7258` directory,
+so a physical board does not add another linkfile. Build it with
+`bk7258.py build --board <board> --boot direct` (or `mcuboot` plus that
+generation's trust inputs). The resulting build manifest carries the board's
+resolved role configs and layout into the common signing, package,
+materialization and loader-image path; those stages never branch on a board
+name. If adding a board requires editing `tools/bk7258`, the descriptor or
+layout contract is incomplete and must be reviewed instead of adding a board
+special case.
+
+This follows the official openvela board-config rule: a board may have more
+than one `configs/<purpose>/defconfig`, but each must represent a real core
+function and the set should stay small. BK7258 needs two seeds for one normal
+system because CP and AP are independently linked NuttX images; they form one
+logical base pair, not two product variants.
+
+| Physical board | Normal openvela CP | Normal openvela AP | Additional maintained purpose |
+|---|---|---|---|
+| T5-Board | `openvela_cp` | `openvela_ap` | `xts`, `perf` |
+| T5AI-Core | `openvela_cp` | `openvela_ap` | paired `drivercheck_cp` / `drivercheck_ap` |
+| AIDK AI Toy | `openvela_cp` | `openvela_ap` | none |
+
+The three normal pairs expose the fitted board capabilities and openvela
+system services but do not select Vela Claw, AI Agent, UIKit/LVGL UI or another
+product application. A future application adds a purpose-specific defconfig
+only when its Kconfig contract cannot use the base unchanged. Generated full
+`.config` snapshots are build outputs and must never live under `configs/`.
 
 Boot mode is not duplicated in the profile. Every build selects it explicitly:
 
 ```bash
 tools/bk7258/bk7258.py build \
-  --cp-config boards/bk7258/t5ai_core/configs/t5ai_core_cp_base \
-  --ap-config boards/bk7258/t5ai_core/configs/t5ai_core_ap_base \
-  --boot direct \
-  --partition boards/bk7258/common/partitions/bk7258/bk7258_ab_onchip_persistent.csv \
-  --jobs 8
+  --board t5ai_core --boot direct
 ```
+
+Special-purpose pairs such as xTS, performance measurement and drivercheck
+use the explicit `--cp-config`, `--ap-config` and `--partition` form. This
+keeps diagnostic selection visible without teaching the tool any board names.
 
 The generated CP/AP config pair, normalized partition identity, role seed,
 profile metadata, accepted SDK bundle, locked toolchain and public signing
@@ -23,7 +71,7 @@ source all participate in the role build identity.  CMake outputs therefore
 live below:
 
 ```text
-<workspace>/out/bk7258/<cp>__<ap>/<layout-id>/roles/<boot>/<role>/<build-id>/cmake
+<workspace>/out/bk7258/<board>/<cp>__<ap>/<layout-id>/roles/<boot>/<role>/<build-id>/cmake
 ```
 
 An incremental build reuses only that exact identity.  `--clean` removes only
@@ -50,7 +98,7 @@ future service added to `rcS` must therefore check its own required mounts or
 devices before starting.
 
 The CP XTS and driver-check profiles intentionally retain their diagnostic
-startup baseline.  `t5_board_cp_xts` is also the maintained P0 diagnostic
+startup baseline.  `t5_board/configs/xts` is also the maintained P0 diagnostic
 profile: it keeps AP/RPTUN/Wi-Fi, Trace, watchdog supervision, Backtrace,
 Allsyms, IRQ/critical-section/CPU-load monitoring and memory stress together
 so one image can reproduce system-level faults.  AP physical peripherals
@@ -63,14 +111,14 @@ NuttX system-heap region (`MM_REGIONS=2`).  This keeps the upstream 16 KiB
 testsuites runner stack and supplies the concurrent task/pthread allocations
 required by the scheduler suites.  The remaining 64 KiB stays in the CP
 private PSRAM heap.  This is a diagnostic capacity policy, not a change to
-production CP/AP profiles or to the chip's role-partition ownership.  The
+base CP/AP profiles or to the chip's role-partition ownership.  The
 generation 147--149 diagnosis and board evidence are recorded in
 [`../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md`](../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md).
 
-`t5_board_cp_perf` is the one narrow measurement-policy exception to the
+`t5_board/configs/perf` is the one narrow measurement-policy exception to the
 profile-directory rule below.  It does not introduce another physical-board
 or CP/AP ABI boundary: its `profile.conf` remains in compatibility group
-`t5_board_base_v1`.  A separate seed is necessary because trustworthy timing
+`t5_board_openvela_v1`.  A separate seed is necessary because trustworthy timing
 requires the opposite policy from diagnostics: fixed SDK-defined CP/CPU0
 maximum of 240 MHz and `-O3`, with AP autostart, Wi-Fi, RPTUN, watchdogs, Trace,
 Backtrace, Allsyms and scheduler monitors disabled.  The paired AP image is

@@ -8,7 +8,7 @@
 > - source ref：`$CONTEST` 的 `HEAD`（撰写时）
 > - source commit：`c588afbd8e0f1d30723f5076e585673a6ace8a4e`
 > - 最后核对日期：2026-07-24
-> - 直接来源：[`$IMPL/README.md`](../../../bk7258-t5ai/README.md)、[`$IMPL/next-stage-prompt.md`](../../../bk7258-t5ai/next-stage-prompt.md)、[`$BOARD`](../../../../board/bk7258/)、[contest manifest](../../../../contest2026_135_yongwangzhiqian.xml)
+> - 直接来源：[`$IMPL/README.md`](../../../bk7258-t5ai/README.md)、[`$IMPL/next-stage-prompt.md`](../../../bk7258-t5ai/next-stage-prompt.md)、[`$BOARD`](../../../../boards/bk7258/)、[contest manifest](../../../../contest2026_135_yongwangzhiqian.xml)
 > - 教学简化：本文规定“应该去哪里取证”，不复述 current Stage、当前阻塞或下一实施动作
 
 ## 1. 路径变量
@@ -19,7 +19,7 @@ export WORKSPACE="$PWD"
 export CONTEST="$WORKSPACE/contest2026_135_yongwangzhiqian"
 export IMPL="$CONTEST/docs/bk7258-t5ai"
 export LEARN="$CONTEST/docs/learning/bk7258-t5ai"
-export BOARD="$CONTEST/board/bk7258"
+export BOARD="$CONTEST/boards/bk7258"
 ```
 
 这里的 `$IMPL` 指实施文档入口；正在开发的源码可能位于另一个 Git worktree。引用源码时必须另外记录实际仓库、分支和 commit，不能只写“当前目录”或“最新版”。
@@ -78,7 +78,7 @@ E6 行为可重复，且失败/恢复边界明确
 
 ### 4.3 队伍源码入口：`$BOARD`
 
-[`$BOARD`](../../../../board/bk7258/)是队伍拥有的 BK7258 board overlay。阅读函数前先记录：
+[`$BOARD`](../../../../boards/bk7258/)是队伍拥有的 BK7258 board overlay。阅读函数前先记录：
 
 1. 实际 Git 仓根；
 2. 分支；

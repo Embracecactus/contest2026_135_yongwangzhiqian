@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/boards/t5ai_core/include/bk7258_board_config.h
+ * boards/bk7258/t5ai_core/include/bk7258_board_config.h
  * bk7258_board_config.h
  *
  * SPDX-License-Identifier: Apache-2.0

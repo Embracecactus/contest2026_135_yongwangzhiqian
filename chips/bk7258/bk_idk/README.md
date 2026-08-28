@@ -7,7 +7,7 @@ profile is a tracked SDK config with one accepted bundle-tree hash comment:
 sdk-profiles/<manifest-version>/
   cp.config
   ap.config
-  ap-sdio4.config
+  ap-sdio4.config  # optional four-line AP capability; install/rebuild on demand
 ```
 
 Local proprietary bundles remain ignored and are never redistributed:
@@ -32,6 +32,11 @@ tools/bk7258/bk7258.py sdk rebuild \
   --jobs 8 [--replace]
 ```
 
+`sdk list` shows tracked profiles, not only locally installed proprietary
+bundles. `ap-sdio4` is an explicit hardware-capability variant; verification
+is expected to fail until that optional bundle is rebuilt or installed. It is
+not a build input unless a board seed selects it.
+
 Install and verify the separately locked Arm GNU toolchain before rebuilding
 an SDK profile:
 
@@ -43,8 +48,14 @@ tools/bk7258/bk7258.py toolchain verify
 `rebuild` requires the exact clean manifest revision, builds in a temporary
 local checkout, extracts the official app link command, removes only the
 NuttX-owned inputs declared by profile comments, patches the UART archive,
-and transactionally replaces the bundle plus its hash comment. The compiler
-is the content-addressed Arm GNU release locked by `tools/bk7258/toolchain.json`;
-there is no PATH or developer-supplied toolchain fallback. There is no
-registry, lock/set, manifest/provenance pair, version selector, or Make/CMake
-library-name map.
+and transactionally replaces the bundle plus its hash comment. Rebuilds use
+the SDK's deterministic archive mode, the manifest commit timestamp and
+canonical debug/file paths, including the UART recompilation. Independent
+temporary directories must therefore produce the same bundle-tree hash.
+
+The compiler is the content-addressed Arm GNU release locked by
+`tools/bk7258/toolchain.json`; there is no PATH or developer-supplied
+toolchain fallback. A prepared bundle accepted by `install` is an optional
+distribution cache and must already match the tracked profile hash. It is not
+a second source or version authority. There is no registry, lock/set,
+manifest/provenance pair, version selector, or Make/CMake library-name map.

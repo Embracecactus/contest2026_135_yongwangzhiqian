@@ -57,7 +57,7 @@ flowchart TD
 
 | 顺序 | Source | 关系 | Target | 直接证据 |
 |---|---|---|---|---|
-| 1 | BK7258 `defconfig` | 设置 | `CONFIG_NSH_ARCHINIT=y` | `$BOARD/configs/t5ai_core_cp_base/defconfig` |
+| 1 | BK7258 `defconfig` | 设置 | `CONFIG_NSH_ARCHINIT=y` | `$BOARD/configs/openvela_cp/defconfig` |
 | 2 | `NSH_ARCHINIT` Kconfig | `select` | `BOARDCTL` | `$WORKSPACE/apps/nshlib/Kconfig:1133-1141` |
 | 3 | NSH application `main()` | 调用 | `nsh_initialize()` | `$WORKSPACE/apps/system/nsh/nsh_main.c:51-69` |
 | 4 | `nsh_initialize()` | 调用 | `boardctl(BOARDIOC_INIT, 0)` | `$WORKSPACE/apps/nshlib/nsh_init.c:144-148` |

@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/cp/bk7258_irda.c
+ * chips/bk7258/cp/bk7258_irda.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

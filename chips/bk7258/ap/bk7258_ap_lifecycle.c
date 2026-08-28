@@ -888,7 +888,7 @@ void bk7258_ap_lifecycle_supervise(void)
   FAR struct bk7258_ap_lifecycle_s *lifecycle =
     &g_bk7258_ap_lifecycle;
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
-#ifdef CONFIG_BK7258_RPTUN
+#if defined(CONFIG_BK7258_AP_SUPERVISOR) && defined(CONFIG_BK7258_RPTUN)
   volatile struct bk7258_rptun_control_s *rptun =
     bk7258_rptun_control();
   struct sched_param startup_priority;

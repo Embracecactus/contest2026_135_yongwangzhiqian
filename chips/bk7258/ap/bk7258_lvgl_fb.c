@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/ap/bk7258_lvgl_fb.c
+ * chips/bk7258/ap/bk7258_lvgl_fb.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

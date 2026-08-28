@@ -17,7 +17,7 @@ tools/bk7258/bk7258.py sdk rebuild \
 跟踪的 profile 位于：
 
 ```text
-board/bk7258/bk_idk/sdk-profiles/<manifest-version>/
+chips/bk7258/bk_idk/sdk-profiles/<manifest-version>/
   cp.config
   ap.config
   ap-sdio4.config
@@ -27,7 +27,7 @@ board/bk7258/bk_idk/sdk-profiles/<manifest-version>/
 bundle tree SHA-256。本地 bundle 被 Git 忽略：
 
 ```text
-board/bk7258/bk_idk/armino_as_lib/versions/<version>/<profile>/
+chips/bk7258/bk_idk/armino_as_lib/versions/<version>/<profile>/
   config/
   include/
   libs/
@@ -40,3 +40,7 @@ bundle和旧 hash。
 
 没有独立 manifest/provenance、registry、set/lock、版本 Python 常量、角色库名清单或
 legacy fallback。CP/AP/OpenVela build直接校验并消费对应 profile bundle。
+
+`sdk list` 展示所有跟踪的 profile，不表示本机已经安装其专有 bundle。
+`ap-sdio4` 是按需重建/安装的 AP 四线 SDIO 硬件能力变体；只有板 seed 明确选择它
+以后才会成为构建输入。

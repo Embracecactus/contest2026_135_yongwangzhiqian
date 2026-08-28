@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * CP-owned BK7258 platform-stage implementation contract.
+ * CP-owned BK7258 platform lifecycle contract.
  ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_CP_PLATFORM_H
@@ -13,14 +13,20 @@
  * Included Files
  ****************************************************************************/
 
+#include <stdbool.h>
+
 #include <nuttx/compiler.h>
+
+#include <arch/chip/bk7258_platform.h>
 
 /****************************************************************************
  * Public Types
  ****************************************************************************/
 
-/* Stable stage identifiers are shared with the board-owned lifecycle runner
- * so diagnostics retain one mask across chip and board work.
+/* Stable stage identifiers describe the CP-owned lifecycle status.  The two
+ * board-owned operations are external checkpoints: board code executes them
+ * and reports their result, while chip code retains ordering and failure
+ * propagation without calling or discovering a board symbol.
  */
 
 enum bk7258_cp_platform_stage_e
@@ -65,16 +71,25 @@ extern "C"
  * Public Function Prototypes
  ****************************************************************************/
 
-/* Execute one configured SoC stage.  The board lifecycle owns cross-layer
- * ordering and calls this function only for chip stages.  Storage topology
- * and GPIO wiring are explicit immutable inputs; chip code never discovers
- * the selected board through a global getter or callback table.
+/* Bind immutable board storage/GPIO facts before the first lifecycle step.
+ * Checkpoints must be reached and, when eligible, completed in declaration
+ * order.  The reach/complete calls return only protocol errors; stage errors
+ * remain cached so later ALWAYS_RUN work is not suppressed.  finish() seals
+ * and returns the first mandatory failure.  Chip code never includes, calls
+ * or discovers a concrete board implementation.
  */
 
-int bk7258_cp_platform_run_stage(
-  enum bk7258_cp_platform_stage_e stage,
+int bk7258_cp_platform_begin(
   FAR const struct bk7258_storage_config_s *storage,
   FAR const struct bk7258_gpio_config_s *gpio);
+int bk7258_cp_platform_reach_ota_trial(FAR bool *eligible);
+int bk7258_cp_platform_complete_ota_trial(int result);
+int bk7258_cp_platform_reach_board_devices(FAR bool *eligible);
+int bk7258_cp_platform_complete_board_devices(int result);
+int bk7258_cp_platform_finish(void);
+int bk7258_cp_platform_result(void);
+int bk7258_cp_platform_get_status(
+  FAR struct bk7258_platform_status_s *status);
 
 #ifdef __cplusplus
 }

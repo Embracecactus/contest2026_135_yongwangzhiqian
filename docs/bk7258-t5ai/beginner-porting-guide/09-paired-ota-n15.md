@@ -83,7 +83,7 @@ raw地址给Flash API/loader，logical地址给CPU/linker。两个域不能混�
 
 ## 4. CSV不是文档附件，而是布局源
 
-team-owned [auto_partitions.csv](../../../board/bk7258/partitions/bk7258/auto_partitions.csv) 是canonical输入。生成器产出/交叉检查：
+team-owned [bk7258_ab_onchip_persistent.csv](../../../boards/bk7258/common/partitions/bk7258/bk7258_ab_onchip_persistent.csv) 是当前示例的 canonical 输入。布局模块产出/交叉检查：
 
 - SDK-compatible partition CSV；
 - C header常量；

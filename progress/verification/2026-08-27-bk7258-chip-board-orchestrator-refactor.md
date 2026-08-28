@@ -157,12 +157,24 @@ They are replaced by chip capability modules and one immutable board storage
 binding; there is no compatibility forwarding layer or second source of
 layout, profile, SDK-version or build-policy truth.
 
-The manifest-pinned SDK archive was not present in this checkout. Target
-verification used the locally prepared SDK trees rebuilt from the manifest
-source commit, then restored the tracked expected SDK pins. The resulting
-package is valid build/signature evidence, but installing the official prepared
-SDK bundle remains necessary for a byte-for-byte reproducible packaging
-environment.
+The team manifest selects `Embracecactus/bk_avdk_smp` revision
+`cb080de1655d579c7593ecf504c440997c4c137b` on
+`refs/heads/openvela/v3.1.1.9`; that exact clean checkout and the locked Arm
+GNU toolchain are the rebuild authority. A prepared bundle is only an optional
+cache accepted when it already matches the tracked profile hash, not a second
+official input.
+
+A post-merge audit found that the earlier acceptance had incorrectly restored
+stale profile hashes after rebuilding. It also found that random temporary
+paths in DWARF and non-deterministic archive metadata changed the bundle hash
+between otherwise identical runs. The maintained rebuild path now enables the
+SDK's deterministic archive mode, canonicalizes SDK-build and toolchain paths,
+uses the manifest commit timestamp, and updates the patched UART archive in
+deterministic mode. Two builds from independent temporary directories produced
+identical CP and AP bundle hashes: CP
+`b2282cc342fa2cfb269d77116ecedf3b1b85e73fdadb4bc3d8edd4195c8fb589`
+and AP
+`b757356adad182af6cfe539ada915439fa1d8f565c9e89f8b8130b47cca74180`.
 
 ## xTS capacity resolution and acceptance
 
@@ -268,3 +280,90 @@ were never input to the loader.  Both new temporary private-key directories,
 their extracted package work directories and Windows staging images were
 deleted after acceptance; only public fingerprints, signed artifacts and
 UART/loader evidence remain.
+
+## Manifest-source SDK correction and acceptance (generations 157-158)
+
+The authoritative BK7258 SDK source is the team-manifest checkout of
+`Embracecactus/bk_avdk_smp`, branch `openvela/v3.1.1.9`, commit
+`cb080de1655d579c7593ecf504c440997c4c137b`. Rebuilding from two independent
+clean directories produced the same accepted runtime hashes: CP
+`b2282cc342fa2cfb269d77116ecedf3b1b85e73fdadb4bc3d8edd4195c8fb589`
+and AP
+`b757356adad182af6cfe539ada915439fa1d8f565c9e89f8b8130b47cca74180`.
+A prepared archive remains an optional matching cache, never the source of
+authority.
+
+Generation 157 used fresh, independent BL1 and MCUboot P-256 roots for the xTS
+profile. Its public SPKI SHA-256 values are
+`344c6286a8a01c9d4456f8b6a26113dbd0eb047f69cc23488d06020d0a58f614`
+and
+`3f57778089ca6a10c63024b228547a1a7b2faff8ab338c7d0ff2daa2fde973ce`.
+The package SHA-256 is
+`2af17ffa55ce86b81296dd92087dc6219ba8181c6249c2158d4d3944397b5433`;
+the address-zero `0x7fa000` operator SHA-256 is
+`fc653889d83907d3a5ac1df272313ac920b83fe3207370d77ee06e6f6a5db140`.
+One full download and physical cold boot passed. Cmocka MM 8/8, scheduler
+16/16 and the maintained runtime gates passed.
+
+Generation 158 used another fresh independent root pair for the production
+profile. Its public SPKI SHA-256 values are
+`9b28a0f016036db552c4b1d3ce4e5ebdc77c2ebd7bc202549cfc6a85514575ea`
+and
+`007019ad5324730a6b4a5569133e605089887a18cca533df4aaa7d98a1d1423f`.
+The `18.6.98+158` package SHA-256 is
+`9173cb70a3c070a06a3cabd6b2d932400755f06ab472838698266f79ed65c523`;
+the single `0x7fa000` operator SHA-256 is
+`d78339161bb0d0c90262f9ddd302d73edc75a8e710b13d4b7d6d1467f007742b`.
+One full download, physical cold boot and all 13 production runtime gates
+passed. No upstream NuttX/apps tracked file was changed.
+
+## Build-manifest release handoff
+
+The maintainer entry now writes one canonical, hash-bound build manifest under
+`out/bk7258/.../releases/<boot>/`. It binds raw artifacts, ELFs, resolved role
+configs, SDK bundle hashes, the locked toolchain archive, partition identity,
+rollback floor and compiled public fingerprints. A failed or changed build
+cannot leave a stale publishable handoff.
+
+Only an MCUboot manifest can enter `release full|ota`. Signed release no longer
+accepts hand-entered artifact, ELF, member-name, SDK or counter lists. The
+version generation is the single counter source; private roots must match the
+compiled public roots; the complete public trust gate runs before atomic
+publication. `release full` also binds the accepted base, materializes the
+single operator image and records its exact write boundary in `release.json`.
+`package create --unsigned` now accepts only the verified direct build
+manifest. It derives the physical board, layout, finalized images, SDK
+evidence and external-preservation set from that handoff; the long manual
+artifact/member/board/partition form was removed. The pre-existing direct-boot
+build remains a bring-up diagnostic and cannot publish a signed release.
+
+Host acceptance used fresh throwaway roots and covered full plus OTA release,
+public BL1/BL2/CP/AP verification, exact persistent/base preservation, and the
+Agent `0x000000..0x7fa000` write contract. Wrong signing root, wrong base hash
+and a direct-build manifest all failed without an output directory. The same
+final source built and re-verified both the MCUboot signed-release handoff and
+the direct diagnostic handoff because they share the build orchestrator; this
+does not create two release products. These tool-only checks did not flash the
+board. The final host suite, 86-header C11/C++17 audit, SDK CP/AP verification,
+toolchain verification, Python compilation and `git diff --check` all passed.
+
+This software-rooted signing and rollback chain is deliberately not presented
+as compliance with official openvela security document 1594. The current
+BK7258 target has no OP-TEE/TEE-core integration, hardware unique-key
+provisioning or hardware-immutable Secure Boot claim; the adaptation matrix
+therefore remains partial.
+
+## Physical-target package closure (2026-08-28)
+
+Build manifest v2, package v3, release v2 and both signed update catalogs carry
+the same `{board_family, physical_board}` target. The AP catalog verifier now
+accepts only `bk7258.ota/2`, requires its exact target object and compares the
+signed `physical_board` with NuttX's compiled board identity without including
+or calling board-layer code.
+
+One fresh-key T5AI-Core MCUboot CP/AP/BL1/BL2 build compiled that verifier.
+Full and OTA publication, public trust verification, full materialization and
+the flash contract passed. Rewriting only the package manifest target from
+`t5ai_core` to `t5_board` failed with `OTA catalog does not match signed
+package facts`. This was host-only generation 1 evidence, was not flashed and
+does not replace the accepted generation-157/158 hardware evidence.

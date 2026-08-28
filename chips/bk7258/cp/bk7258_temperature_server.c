@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/cp/bk7258_temperature_server.c
+ * chips/bk7258/cp/bk7258_temperature_server.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
