@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Minimal MCUboot trailer constants consumed by the BL2 flash-map backend. */
 #ifndef BK7258_TESTS_MOCK_BOOTUTIL_PUBLIC_H
 #define BK7258_TESTS_MOCK_BOOTUTIL_PUBLIC_H

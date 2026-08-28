@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef __MOCK_NUTTX_NUTTX_H
 #define __MOCK_NUTTX_NUTTX_H
 

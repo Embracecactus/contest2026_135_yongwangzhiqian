@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* boot_runtime.h - minimal host-side declarations for boot_runtime.c. */
 #ifndef BK7258_TESTS_BOOT_RUNTIME_H
 #define BK7258_TESTS_BOOT_RUNTIME_H

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """patch.py - mechanical host-build patches for BK7258 firmware modules.
 
 Applies minimal, mechanical edits to THROWAWAY COPIES only; the real sources

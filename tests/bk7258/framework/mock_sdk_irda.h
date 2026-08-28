@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /****************************************************************************
  * tests/bk7258/framework/mock_sdk_irda.h
  *

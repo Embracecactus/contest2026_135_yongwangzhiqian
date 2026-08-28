@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """Generate the host-test partition ABI from the authoritative CSV."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef __TEST_BK7258_FLASH_REMAP_H
 #define __TEST_BK7258_FLASH_REMAP_H
 

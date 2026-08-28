@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Deterministic public-only BL1 root fixture for host tests.
  *
  * Production keys are generated into ignored build output.  Keeping an

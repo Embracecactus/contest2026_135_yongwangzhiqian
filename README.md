@@ -138,6 +138,13 @@ AI 参与了需求拆解、官方/SDK 源码交叉核对、启动与中断根因
 `logs/lijian/manifest.json`。`logs/bk7258-*` 是早期串口/安全启动原始证据，不属于
 AI 日志；新的结构化实板结论统一写入 `progress/verification/`。
 
+## 许可证
+
+除文件或目录另有声明外，本仓库原创内容按 Apache License 2.0 授权，许可证全文见
+[`LICENSE`](LICENSE)。第三方及上游派生材料继续适用其原有版权和许可证声明；manifest
+引用但未存储在本仓库中的项目由各自许可证管理。BK7258 主机测试的逐类来源说明见
+[`tests/bk7258/PROVENANCE.md`](tests/bk7258/PROVENANCE.md)。
+
 ## 评审入口
 
 - [符合性复核说明（中文）](docs/platforms/bk7258/official-compliance-review.md) /

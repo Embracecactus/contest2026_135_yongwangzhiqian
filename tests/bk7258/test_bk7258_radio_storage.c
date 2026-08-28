@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /****************************************************************************
  * Host contract test for the chip-owned BK7258 radio storage mechanism.
  ****************************************************************************/

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Host shim for the optional OTA-over-RPMsg service.
  *
  * The RPTUN core includes the public header unconditionally, while the

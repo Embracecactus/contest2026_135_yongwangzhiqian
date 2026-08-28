@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /****************************************************************************
  * tests/modules/ap/test_bk7258_jpeg_decoder.c
  *

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /****************************************************************************
  * tests/bk7258/modules/ap/test_bk7258_can.c
  *

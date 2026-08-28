@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /****************************************************************************
  * tests/modules/ap/test_bk7258_yuv_h264.c
  *
