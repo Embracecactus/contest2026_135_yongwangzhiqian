@@ -17,6 +17,10 @@
 #include <assert.h>   /* provides static_assert() used by the implementation */
 #include <stdbool.h>  /* NuttX headers normally provide bool */
 
+#ifndef DEBUGASSERT
+#  define DEBUGASSERT(c) assert(c)
+#endif
+
 /* NuttX status conventions used throughout the implementation. */
 #ifndef OK
 #define OK 0

@@ -21,6 +21,7 @@ typedef pthread_mutex_t mutex_t;
 #define NXMUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
 
 int nxmutex_lock(FAR mutex_t *mutex);
+int nxmutex_timedlock(FAR mutex_t *mutex, unsigned int timeout_ms);
 int nxmutex_unlock(FAR mutex_t *mutex);
 
 /* Test control. */

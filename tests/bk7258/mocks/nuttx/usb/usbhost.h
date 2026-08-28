@@ -1,0 +1,6 @@
+#ifndef __TESTS_BK7258_MOCKS_NUTTX_USB_USBHOST_H
+#define __TESTS_BK7258_MOCKS_NUTTX_USB_USBHOST_H
+
+struct usbhost_connection_s;
+
+#endif /* __TESTS_BK7258_MOCKS_NUTTX_USB_USBHOST_H */

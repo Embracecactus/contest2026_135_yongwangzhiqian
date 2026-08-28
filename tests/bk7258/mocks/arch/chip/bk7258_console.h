@@ -1,0 +1,8 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#ifndef __TESTS_BK7258_MOCKS_ARCH_CHIP_BK7258_CONSOLE_H
+#define __TESTS_BK7258_MOCKS_ARCH_CHIP_BK7258_CONSOLE_H
+
+#include <bk7258_console.h>
+
+#endif /* __TESTS_BK7258_MOCKS_ARCH_CHIP_BK7258_CONSOLE_H */

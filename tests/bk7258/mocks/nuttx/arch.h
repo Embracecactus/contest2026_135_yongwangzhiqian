@@ -8,4 +8,8 @@
 #ifndef __MOCK_NUTTX_ARCH_H
 #define __MOCK_NUTTX_ARCH_H
 
+#include <stdbool.h>
+
+bool up_interrupt_context(void);
+
 #endif /* __MOCK_NUTTX_ARCH_H */

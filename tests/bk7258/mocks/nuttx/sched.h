@@ -15,4 +15,6 @@
 #define INVALID_PROCESS_ID ((pid_t)-1)
 #endif
 
+pid_t nxsched_gettid(void);
+
 #endif /* __MOCK_NUTTX_SCHED_H */

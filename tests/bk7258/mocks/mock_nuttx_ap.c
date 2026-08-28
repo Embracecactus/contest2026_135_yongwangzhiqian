@@ -1,3 +1,7 @@
+#ifndef _POSIX_C_SOURCE
+#  define _POSIX_C_SOURCE 200112L
+#endif
+
 /****************************************************************************
  * tests/mocks/mock_nuttx_ap.c
  *
@@ -10,8 +14,10 @@
 #include <string.h>
 
 #include <nuttx/cache.h>
+#include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
+#include <nuttx/sched.h>
 
 static size_t g_mock_cache_linesize;
 
@@ -96,7 +102,23 @@ int nxmutex_unlock(FAR mutex_t *mutex)
   return pthread_mutex_unlock((pthread_mutex_t *)mutex) ? -EINVAL : 0;
 }
 
+int nxmutex_timedlock(FAR mutex_t *mutex, unsigned int timeout_ms)
+{
+  (void)timeout_ms;
+  return nxmutex_lock(mutex);
+}
+
 void mock_mutex_fail_next(int failures)
 {
   g_mock_mutex_failures = failures;
+}
+
+bool up_interrupt_context(void)
+{
+  return false;
+}
+
+pid_t nxsched_gettid(void)
+{
+  return (pid_t)1;
 }
