@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * probe.c - BK7258 (T5-AI, tri-core Cortex-M33) minimal bare probe.
  *

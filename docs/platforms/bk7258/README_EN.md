@@ -6,6 +6,12 @@ This is the shared platform-integration entry for T5AI Core, T5 Board, and AIDK
 AI Toy. It covers paired CP/AP builds, delivery compliance, debugging procedures,
 and retained engineering-stage records.
 
+> **Current-status correction (2026-08-10):** The custom N15/N17 OTA selector,
+> writer, journal, validation profiles, and scripts have been retired from the
+> maintained source. Their records are historical evidence only. The current
+> boot chain is board-owned BL1 → pinned NuttX MCUboot BL2 → signed same-slot
+> CP/AP images; it provides no field OTA writer, confirm, or rollback service.
+
 Use the following sources according to scope:
 
 - [Official compliance review](official-compliance-review.en.md) for the exact

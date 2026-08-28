@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Bare-metal handoff around the NuttX-pinned upstream MCUboot bootutil. */
 #include <stdint.h>
 #include <stdbool.h>

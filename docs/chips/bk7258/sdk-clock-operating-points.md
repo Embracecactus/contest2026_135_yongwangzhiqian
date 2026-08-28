@@ -133,20 +133,10 @@ CP 性能镜像至少验证：
 直接把 CPU0 speed 位设为 `/1` 并选择未分频 480 MHz，不属于固定 SDK 的任何正式
 OPP，也没有对应的供电、总线、Flash、PSRAM 和稳定性保证，不能进入产品适配。
 
-## 6. 2026-08-27 实板闭环
+## 6. 板级证据边界
 
-T5-Board generation 146 已按本契约完成：
-
-- resolved config 为 `CONFIG_BK7258_CLOCK_240M=y`，CP 性能 profile 选择 OPP 240M；
-- 使用本代新 BL1/MCUboot P-256 密钥和递增 counter 146 完成 COM3 单文件全量下载；
-- 460800 bit/s 下载后回读除 CP/AP primary trailer 的标准 `copy_done=1` 及对应 CRC
-  外全部一致，`usr_config` 和整个 Agent persistent 逐字节不变；
-- 最终冷启动到 NSH，无 HardFault、ASSERT、panic 或 ERROR；
-- CoreMark、Ramspeed、Whetstone 各 10 次通过。CoreMark mean 从旧 160 MHz 的
-  374.307544 提升到 561.576945，比例 1.500308914；四项 64 KiB Ramspeed mean
-  比例均为约 1.50038。归一化 CoreMark/MHz 基本不变，证明 CPU0/Bus 实际由
-  160 MHz 落到 240 MHz，而不只是改了配置名称。
-
-J-Link 因当时物理 RESET/SWD 连接状态未能附着，因此本结论没有冒充 live 寄存器
-读数。完整构建身份、公钥指纹、下载边界、回读差异和 30 个 UART 原始哈希见
-[generation 146 实板验证记录](../../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
+本文只维护 SoC/SDK 的 OPP 语义、分层和验收门禁，不复制任何单板当前状态。
+T5-Board generation 146 的构建身份、密钥指纹、下载边界、回读差异、冷启动结果和
+性能原始哈希保留在独立的
+[板级验证记录](../../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)；
+后续板型和提交代不得直接继承该结论。

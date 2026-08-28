@@ -49,7 +49,7 @@ profile，并保留生产 CP/AP profile 的原内存预算。
 
 ### 2.2 T5-Board xTS profile
 
-`boards/bk7258/t5_board/configs/t5_board_cp_xts/defconfig` 只增加：
+`boards/bk7258/t5_board/configs/xts/defconfig` 只增加：
 
 ```text
 CONFIG_BK7258_PSRAM_SYSTEM_HEAP=y

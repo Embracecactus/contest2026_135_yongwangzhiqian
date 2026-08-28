@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /****************************************************************************
  * contest2026_135_yongwangzhiqian/chips/bk7258/common/bk7258_os_adapt.c
  *

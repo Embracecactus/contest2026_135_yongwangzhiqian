@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Board flash-map ABI for the bare-metal, direct-XIP MCUboot BL2. */
 #include <stdint.h>
 #include <stdbool.h>

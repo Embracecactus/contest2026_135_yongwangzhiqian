@@ -1,5 +1,8 @@
 # 2026-07-16 RV1126B P1 AMP FIT packaging 记录
 
+> **历史 RV1126B 证据：**当前参赛主线为 BK7258；本记录只保留当日构建或板测事实，
+> 不代表当前实现、活动配置或下一步计划。
+
 > 本记录归档 P1 收敛候选的 AMP FIT 打包证据。打包前的源 build 记录见 [2026-07-16-rv1126b-p1-convergence-build.md](./2026-07-16-rv1126b-p1-convergence-build.md)。本次未执行 `update.img` 重新打包、烧录、或任何板端 NSH/UART 验证。
 
 ## 结论

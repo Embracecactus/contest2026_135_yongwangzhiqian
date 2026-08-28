@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * BK7258 BL1 -> BL2 -> MCUboot ABI.
  *

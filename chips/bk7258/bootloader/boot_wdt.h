@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * boot_wdt.h - BK7258 Tier-1 bootloader WDT (watchdog timer) helpers.
  *

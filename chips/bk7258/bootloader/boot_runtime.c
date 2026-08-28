@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * boot_runtime.c - BK7258 reset and application-handoff normalization.
  *

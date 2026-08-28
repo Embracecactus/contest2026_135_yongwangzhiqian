@@ -1,5 +1,8 @@
 # RV1126B P1 Runtime Verification
 
+> **历史 RV1126B 证据：**当前参赛主线为 BK7258；本记录只保留当日构建或板测事实，
+> 不代表当前实现、活动配置或下一步计划。
+
 Date: 2026-07-16
 Board: rv1126b_evb (HPMCU core)
 Candidate: P1 convergence (submit-rv1126b-nsh-baseline)

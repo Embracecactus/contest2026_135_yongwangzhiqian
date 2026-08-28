@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * bootloader.ld - BK7258 Tier-1 bootloader link script.
  *

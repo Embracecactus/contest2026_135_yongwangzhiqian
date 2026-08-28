@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * boot_main.c - BK7258 Tier-1 bootloader C main.
  *

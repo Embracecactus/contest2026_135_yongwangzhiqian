@@ -1,5 +1,8 @@
 # RV1126B SDK 侧集成与可复现打包说明
 
+> **历史赛道资料：**当前参赛主线是 BK7258。本文件只保存 2026-07 RV1126B
+> SDK 侧复现输入和当时验证边界，不代表当前交付状态。
+
 ## 目的与范围
 
 本文记录 RV1126B 自有板 HPMCU 侧 openvela / NuttX 镜像在 Rockchip / ATK SDK 中完成 AMP 打包、`update.img` 重新生成和板端验证所需的 SDK 侧前置条件。

@@ -11,28 +11,23 @@ OTA/platform NSH.
 
 ## Current state
 
-- The active branch `fix/bk7258-sdk-profile-pins` is based on the freshly
-  fetched `openvela/dev-ai-contest-2026` commit
-  `4d003d437e82a4b2a3f85bfb2756117075f89e7a`. Refactor implementation commit
-  `c4f5b5f6fdaf6ae23f35c36da1effd4f00e1fbdc` is pushed to
-  `fork/fix/bk7258-sdk-profile-pins` for review. The BK7258 platform
-  orchestrator is split by ownership: CP/AP SoC sequencing, raw reset source,
+- The maintained baseline is `openvela/dev-ai-contest-2026`; this status file
+  does not bind current behavior to a temporary review branch or commit hash.
+  The BK7258 platform orchestrator is split by ownership: CP/AP SoC sequencing,
+  raw reset source,
   raw Flash, boot-slot, OTA mechanics and Wi-Fi control are in the chip layer;
   the NuttX late hook, storage topology/guards, OTA product policy, `BOARDIOC`
   mapping and physical electrical bindings remain in the board layer. The
   manifest-source SDK correction, fresh-key generation-157 xTS and
   generation-158 production full downloads, minimal xTS and all final
   production runtime gates pass.
-- The P0 follow-up branch `feat/bk7258-p0-xts-completion` is based on
-  `ecc1c0a185896d6afce165d20ebbf1a270782683`.  Its maintained host fixture
-  passes the common gates and 281/281 cmocka cases.  The CP XTS profile now
+- The maintained host fixture passes the common gates and 281/281 cmocka
+  cases. The CP XTS profile
   registers 64 KiB of role-local PSRAM as a second system-heap region while
   retaining the standard 16 KiB testsuites runner stack.
-- The Agent audio commits are merged in `origin/dev-ai-contest-2026` at
-  `8ff9deaf9e389ca9029a17602643abf08bc2d705`.  The clean follow-up branch
-  `fix/bk7258-agent-display-tf-full-image` contains published implementation
-  commit `d961ad4fa0d0930b9e52b0007af9d2dd441a0111`; this docs-only checkpoint
-  records that state.
+- Agent audio, display, TF/storage and full-image integration are part of the
+  maintained baseline; historical feature-branch names remain only in their
+  immutable verification records.
 - The BK7258 chip layer supplies the official Agent recorder and PCM-player
   ABIs over NuttX audio.  Recorder close releases all buffers and shared
   ADC/DAC ownership prevents conflicting sessions.

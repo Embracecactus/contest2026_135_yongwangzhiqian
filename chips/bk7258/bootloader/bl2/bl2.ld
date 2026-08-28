@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 ENTRY(bk7258_bl2_reset)
 
 #include "../boot_bl2_contract.h"
