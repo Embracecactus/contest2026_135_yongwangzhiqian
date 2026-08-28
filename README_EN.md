@@ -163,6 +163,16 @@ Competition-format conversations are stored under
 secure-boot evidence and is not AI log data. New structured hardware
 conclusions belong under `progress/verification/`.
 
+## License
+
+Unless a file or directory states otherwise, original content in this
+repository is licensed under the Apache License 2.0; see [`LICENSE`](LICENSE).
+Third-party and upstream-derived material remains subject to its original
+copyright and license notices. Projects referenced by the manifest but not
+stored in this repository are governed by their own licenses. See
+[`tests/bk7258/PROVENANCE.md`](tests/bk7258/PROVENANCE.md) for the categorized
+provenance of the BK7258 host-test sources.
+
 ## Review entry points
 
 - [Official compliance review (English)](docs/platforms/bk7258/official-compliance-review.en.md) /

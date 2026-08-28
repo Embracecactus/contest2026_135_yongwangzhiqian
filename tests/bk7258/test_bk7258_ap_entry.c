@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /****************************************************************************
  * Host fault-injection test for the real board-owned AP initial entry.
  ****************************************************************************/

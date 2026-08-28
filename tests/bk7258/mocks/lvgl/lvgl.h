@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef __TESTS_BK7258_MOCKS_LVGL_LVGL_H
 #define __TESTS_BK7258_MOCKS_LVGL_LVGL_H
 

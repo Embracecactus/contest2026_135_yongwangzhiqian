@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /****************************************************************************
  * Host contract tests for the BK7258 OTA pair health-confirmation adapter.
  ****************************************************************************/

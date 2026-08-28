@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* boot_libc.h - minimal host-side declarations for boot_libc.c. */
 #ifndef BK7258_TESTS_BOOT_LIBC_H
 #define BK7258_TESTS_BOOT_LIBC_H

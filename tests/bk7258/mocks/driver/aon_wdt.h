@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef __TEST_BK7258_DRIVER_AON_WDT_H
 #define __TEST_BK7258_DRIVER_AON_WDT_H
 

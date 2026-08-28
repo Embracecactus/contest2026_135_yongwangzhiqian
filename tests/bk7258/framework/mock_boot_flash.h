@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Observable raw-flash backend for the BL2 flash-map host fixture. */
 #ifndef BK7258_TESTS_MOCK_BOOT_FLASH_H
 #define BK7258_TESTS_MOCK_BOOT_FLASH_H

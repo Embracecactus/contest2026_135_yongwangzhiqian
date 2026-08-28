@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Minimal MCUboot image-version ABI used by the BL2 pair-policy fixture. */
 #ifndef BK7258_TESTS_MOCK_BOOTUTIL_IMAGE_H
 #define BK7258_TESTS_MOCK_BOOTUTIL_IMAGE_H

@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
 # Build and run the complete BK7258 host regression fixture.
 set -eu
 cd "$(dirname "$0")"

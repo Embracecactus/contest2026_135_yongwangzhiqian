@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef __MOCK_ARCH_CHIP_BK7258_IMAGE_LAYOUT_H
 #define __MOCK_ARCH_CHIP_BK7258_IMAGE_LAYOUT_H
 
