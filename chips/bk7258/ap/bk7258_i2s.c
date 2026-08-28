@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/ap/bk7258_i2s.c
+ * chips/bk7258/ap/bk7258_i2s.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -35,9 +35,6 @@
 
 #include <driver/i2s.h>
 
-#ifndef CONFIG_BK7258_I2S_GPIO_GROUP
-#  define CONFIG_BK7258_I2S_GPIO_GROUP       0
-#endif
 #ifndef CONFIG_BK7258_I2S_WORKER_PRIORITY
 #  define CONFIG_BK7258_I2S_WORKER_PRIORITY  120
 #endif
@@ -123,7 +120,6 @@ static struct bk7258_i2s_priv_s g_bk7258_i2s =
 {
   .dev.ops      = &g_bk7258_i2s_ops,
   .lock         = NXMUTEX_INITIALIZER,
-  .gpio_group   = CONFIG_BK7258_I2S_GPIO_GROUP,
   .txchannels   = 2,
   .rxchannels   = 2,
   .samplerate   = 16000,
@@ -701,7 +697,8 @@ static int bk7258_i2s_ioctl(FAR struct i2s_dev_s *dev, int cmd,
   return -ENOTTY;
 }
 
-FAR struct i2s_dev_s *bk7258_i2s_initialize(void)
+FAR struct i2s_dev_s *bk7258_i2s_initialize(
+  FAR const struct bk7258_i2s_board_s *board)
 {
   FAR struct bk7258_i2s_priv_s *priv = &g_bk7258_i2s;
   pthread_attr_t attr;
@@ -709,6 +706,11 @@ FAR struct i2s_dev_s *bk7258_i2s_initialize(void)
   cpu_set_t cpuset;
   bool attr_ready = false;
   int ret;
+
+  if (board == NULL || board->gpio_group > 2u)
+    {
+      return NULL;
+    }
 
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
@@ -718,9 +720,17 @@ FAR struct i2s_dev_s *bk7258_i2s_initialize(void)
 
   if (priv->worker_ready)
     {
+      if (priv->gpio_group != board->gpio_group)
+        {
+          nxmutex_unlock(&priv->lock);
+          return NULL;
+        }
+
       nxmutex_unlock(&priv->lock);
       return &priv->dev;
     }
+
+  priv->gpio_group = board->gpio_group;
 
   if (!priv->queue_ready)
     {

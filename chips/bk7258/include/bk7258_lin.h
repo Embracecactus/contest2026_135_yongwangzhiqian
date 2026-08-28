@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_lin.h
+ * chips/bk7258/include/bk7258_lin.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -17,6 +17,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Public Types
@@ -56,14 +61,14 @@ struct bk7258_lin_board_s
 
 #if defined(CONFIG_BK7258_LIN) && defined(CONFIG_BK7258_AP_CORE)
 
-/* Implemented by the selected physical board. */
-
-const struct bk7258_lin_board_s *bk7258_board_lin_config(void);
-
 /* Register /dev/lin0 for the selected board LIN node. */
 
-int bk7258_lin_initialize(void);
+int bk7258_lin_initialize(const struct bk7258_lin_board_s *board);
 
 #endif /* CONFIG_BK7258_LIN && CONFIG_BK7258_AP_CORE */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_LIN_H */

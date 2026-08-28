@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_ota_rpmsg.h
+ * chips/bk7258/include/bk7258_ota_rpmsg.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
@@ -14,6 +13,11 @@
 
 #include <arch/chip/bk7258_ota.h>
 #include <arch/chip/bk7258_ota_manager.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 #define BK7258_OTA_CONTROL_PATH_SIZE 128u
 #define BK7258_OTA_CONTROL_URL_SIZE  256u
@@ -45,4 +49,8 @@ int bk7258_ota_rpmsg_manager_cancel(uint32_t timeout_ms);
 #endif
 #endif
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_OTA_RPMSG_H */

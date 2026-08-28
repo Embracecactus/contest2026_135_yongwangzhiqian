@@ -19,6 +19,10 @@
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_rptun.h>
 
+#ifdef CONFIG_BK7258_OTA_AUTO_CONFIRM
+#  include <arch/board/board.h>
+#endif
+
 static const char *bkota_pair_state(enum bk7258_ota_pair_state_e state)
 {
   switch (state)

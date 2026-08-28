@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_i2s.h
+ * chips/bk7258/include/bk7258_i2s.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -35,23 +34,36 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+struct i2s_dev_s;
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Default I2S GPIO group and device name. */
-
-#ifndef CONFIG_BK7258_I2S_GPIO_GROUP
-#  define CONFIG_BK7258_I2S_GPIO_GROUP  0
-#endif
+/* Device name used by the optional I2S character upper half. */
 
 #ifndef CONFIG_BK7258_I2S_DEVNAME
 #  define CONFIG_BK7258_I2S_DEVNAME     "i2s0"
 #endif
+
+/****************************************************************************
+ * Public Types
+ ****************************************************************************/
+
+struct bk7258_i2s_board_s
+{
+  uint8_t gpio_group;              /* Verified SDK GPIO group, 0..2 */
+};
 
 /****************************************************************************
  * Public Function Prototypes
@@ -64,20 +76,25 @@
  * Name: bk7258_i2s_initialize
  *
  * Description:
- *   Construct a NuttX I2S lower-half for the BK7258 I2S block (GPIO group
- *   CONFIG_BK7258_I2S_GPIO_GROUP) and return it to the caller for use
- *   with the audio stack (e.g. the audio0 upper half).  No hardware is
- *   touched until an i2s_* method is called; the block is brought up
- *   lazily on the first send/receive.
+ *   Construct a NuttX I2S lower-half for the BK7258 I2S block using the
+ *   selected physical board's immutable GPIO-group binding, and return it
+ *   to the caller for use with the audio stack.  No hardware is touched
+ *   until an i2s_* method is called; the block is brought up lazily on the
+ *   first send/receive.
  *
  * Returned Value:
  *   A pointer to the NuttX I2S interface, or NULL on failure.
  *
  ****************************************************************************/
 
-FAR struct i2s_dev_s *bk7258_i2s_initialize(void);
+FAR struct i2s_dev_s *bk7258_i2s_initialize(
+  FAR const struct bk7258_i2s_board_s *board);
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_I2S */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_I2S_H */

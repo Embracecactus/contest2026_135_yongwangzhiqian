@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_wifi.h
+ * chips/bk7258/include/bk7258_wifi.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
@@ -10,6 +9,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -85,6 +88,10 @@ int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
                                 uint32_t timeout_ms,
                                 struct bk7258_wifi_result_s *result);
 #  endif
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_WIFI_H */

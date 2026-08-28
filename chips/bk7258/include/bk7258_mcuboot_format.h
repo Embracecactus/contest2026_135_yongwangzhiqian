@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/include/bk7258/bk7258_mcuboot_format.h
+ * chips/bk7258/include/bk7258_mcuboot_format.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -8,11 +8,17 @@
  * second signature or boot-state authority; MCUboot remains authoritative.
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_INCLUDE_BK7258_BK7258_MCUBOOT_FORMAT_H
-#define __ARCH_ARM_INCLUDE_BK7258_BK7258_MCUBOOT_FORMAT_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_MCUBOOT_FORMAT_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_MCUBOOT_FORMAT_H
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+#  define BK7258_MCUBOOT_STATIC_ASSERT static_assert
+#else
+#  define BK7258_MCUBOOT_STATIC_ASSERT _Static_assert
+#endif
 
 #define BK7258_MCUBOOT_IMAGE_MAGIC           0x96f3b83du
 #define BK7258_MCUBOOT_IMAGE_HEADER_SIZE     32u
@@ -67,15 +73,17 @@ struct bk7258_mcuboot_tlv_s
   uint16_t length;
 } __attribute__((packed));
 
-_Static_assert(sizeof(struct bk7258_mcuboot_version_s) == 8u,
-               "BK7258 MCUboot version format changed");
-_Static_assert(sizeof(struct bk7258_mcuboot_image_header_s) ==
-               BK7258_MCUBOOT_IMAGE_HEADER_SIZE,
-               "BK7258 MCUboot header format changed");
-_Static_assert(sizeof(struct bk7258_mcuboot_tlv_info_s) == 4u,
-               "BK7258 MCUboot TLV info format changed");
-_Static_assert(sizeof(struct bk7258_mcuboot_tlv_s) == 4u,
-               "BK7258 MCUboot TLV format changed");
+BK7258_MCUBOOT_STATIC_ASSERT(sizeof(struct bk7258_mcuboot_version_s) == 8u,
+                            "BK7258 MCUboot version format changed");
+BK7258_MCUBOOT_STATIC_ASSERT(sizeof(struct bk7258_mcuboot_image_header_s) ==
+                            BK7258_MCUBOOT_IMAGE_HEADER_SIZE,
+                            "BK7258 MCUboot header format changed");
+BK7258_MCUBOOT_STATIC_ASSERT(sizeof(struct bk7258_mcuboot_tlv_info_s) == 4u,
+                            "BK7258 MCUboot TLV info format changed");
+BK7258_MCUBOOT_STATIC_ASSERT(sizeof(struct bk7258_mcuboot_tlv_s) == 4u,
+                            "BK7258 MCUboot TLV format changed");
+
+#undef BK7258_MCUBOOT_STATIC_ASSERT
 
 static inline bool bk7258_mcuboot_version_equal(
   const struct bk7258_mcuboot_version_s *left,
@@ -112,4 +120,4 @@ static inline int bk7258_mcuboot_version_compare(
   return 0;
 }
 
-#endif /* __ARCH_ARM_INCLUDE_BK7258_BK7258_MCUBOOT_FORMAT_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_MCUBOOT_FORMAT_H */

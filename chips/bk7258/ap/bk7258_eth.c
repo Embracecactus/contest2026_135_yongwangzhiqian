@@ -534,10 +534,9 @@ static int bk7258_eth_ifdown(FAR struct net_driver_s *dev)
  * Public Functions
  ****************************************************************************/
 
-int bk7258_eth_initialize(void)
+int bk7258_eth_initialize(FAR const struct bk7258_eth_board_s *board)
 {
   FAR struct bk7258_eth_driver_s *priv = &g_eth;
-  FAR const struct bk7258_eth_board_s *board;
   int ret;
 
   if (priv->registered)
@@ -545,7 +544,6 @@ int bk7258_eth_initialize(void)
       return -EBUSY;
     }
 
-  board = bk7258_board_eth_config();
   if (board == NULL || board->name == NULL)
     {
       return -EINVAL;
@@ -582,7 +580,9 @@ int bk7258_eth_initialize(void)
 
 void arm_netinitialize(void)
 {
-  (void)bk7258_eth_initialize();
+  /* Physical PHY wiring is unavailable at this architecture hook.  The
+   * selected board registers eth0 later with bk7258_eth_initialize().
+   */
 }
 
 #endif /* CONFIG_BK7258_ETH */

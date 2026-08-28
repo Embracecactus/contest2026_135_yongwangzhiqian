@@ -30,7 +30,7 @@
 #include <arch/irq.h>
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/irq.h>
-#include <arch/chip/bk7258_sdk_abi.h>
+#include "bk7258_sdk_abi.h"
 
 #include "bk7258_sdk_irq.h"
 

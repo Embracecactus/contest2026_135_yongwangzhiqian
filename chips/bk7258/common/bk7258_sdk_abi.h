@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_sdk_abi.h
+ * chips/bk7258/common/bk7258_sdk_abi.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -10,8 +10,8 @@
  * bundle.  Normal public SDK APIs must continue to use their SDK headers.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_SDK_ABI_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_SDK_ABI_H
+#ifndef __CHIPS_BK7258_COMMON_BK7258_SDK_ABI_H
+#define __CHIPS_BK7258_COMMON_BK7258_SDK_ABI_H
 
 /****************************************************************************
  * Included Files
@@ -453,16 +453,12 @@ extern void sys_hal_exit_low_analog(void);
 
 extern struct bk7258_sdk_partition_s *
   bk_flash_partition_get_info(uint32_t partition);
-extern bk_err_t bk_flash_driver_init(void);
 extern bk_err_t bk_flash_partition_read(uint32_t partition,
                                         uint8_t *buffer, uint32_t offset,
                                         uint32_t length);
 extern bk_err_t bk_flash_partition_write(uint32_t partition,
                                          const uint8_t *buffer,
                                          uint32_t offset, uint32_t length);
-extern bk_err_t bk_spec_flash_write_bytes(uint32_t partition,
-                                          const uint8_t *buffer,
-                                          uint32_t length, uint32_t offset);
 extern bk_err_t bk_trng_driver_init(void);
 extern int bk_rand(void);
 
@@ -509,4 +505,4 @@ _Static_assert(offsetof(struct bk7258_bt_wifi_phy_funcs_s, exit_low_analog) ==
 extern int temp_detect_get_temperature(uint32_t *temperature);
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_SDK_ABI_H */
+#endif /* __CHIPS_BK7258_COMMON_BK7258_SDK_ABI_H */

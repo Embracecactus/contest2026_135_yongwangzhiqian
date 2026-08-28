@@ -67,11 +67,21 @@ endif()
 # mirrors this in scripts/Make.defs.
 
 set(BK7258_BOARD_VARIANT_DIR "${NUTTX_BOARD_DIR}")
+set(BK7258_BOARD_COMMON_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 target_include_directories(board PUBLIC
-  "${BK7258_BOARD_VARIANT_DIR}/include")
+  "${BK7258_BOARD_VARIANT_DIR}/include"
+  "${BK7258_BOARD_COMMON_INCLUDE}")
 target_include_directories(arch PUBLIC
-  "${BK7258_BOARD_VARIANT_DIR}/include")
+  "${BK7258_BOARD_VARIANT_DIR}/include"
+  "${BK7258_BOARD_COMMON_INCLUDE}")
+
+# Applications include the selected public board interface through
+# <arch/board/board.h>.  Export the logical board's shared declarations via
+# NuttX's application interface so that board.h remains self-contained for
+# every application compilation unit.
+
+nuttx_include_directories_for_all_apps("${BK7258_BOARD_COMMON_INCLUDE}")
 
 add_subdirectory(src)
 

@@ -1,11 +1,16 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_usbserial_ch34x.h
+ * chips/bk7258/include/bk7258_usbserial_ch34x.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_USBSERIAL_CH34X_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_USBSERIAL_CH34X_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_USBSERIAL_CH34X_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_USBSERIAL_CH34X_H
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Public Function Prototypes
@@ -24,4 +29,8 @@
 
 int bk7258_usbserial_ch34x_initialize(void);
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_USBSERIAL_CH34X_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_USBSERIAL_CH34X_H */

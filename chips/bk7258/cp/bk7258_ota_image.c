@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/bk7258/common/src/bk7258_ota_image.c
+ * chips/bk7258/cp/bk7258_ota_image.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -15,7 +15,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <arch/chip/bk7258_image_layout.h>
 #include <arch/chip/bk7258_ota.h>
 
 #include "bk7258_ota_flash_internal.h"
@@ -47,7 +46,7 @@ static int bk7258_ota_source_logical_read(void *context, uint32_t offset,
                                          uint8_t *buffer, size_t nbytes)
 {
   struct bk7258_ota_source_reader_s *reader = context;
-  uint8_t packet[BK7258_FLASH_CRC_TOTAL_SIZE];
+  uint8_t packet[BK7258_OTA_CRC_TOTAL_SIZE];
   size_t completed = 0u;
 
   if (offset > reader->logical_size ||
@@ -59,10 +58,10 @@ static int bk7258_ota_source_logical_read(void *context, uint32_t offset,
   while (completed < nbytes)
     {
       uint32_t logical = offset + (uint32_t)completed;
-      uint32_t group = logical / BK7258_FLASH_CRC_DATA_SIZE;
-      uint32_t in_group = logical % BK7258_FLASH_CRC_DATA_SIZE;
-      uint32_t raw = group * BK7258_FLASH_CRC_TOTAL_SIZE;
-      size_t count = BK7258_FLASH_CRC_DATA_SIZE - in_group;
+      uint32_t group = logical / BK7258_OTA_CRC_DATA_SIZE;
+      uint32_t in_group = logical % BK7258_OTA_CRC_DATA_SIZE;
+      uint32_t raw = group * BK7258_OTA_CRC_TOTAL_SIZE;
+      size_t count = BK7258_OTA_CRC_DATA_SIZE - in_group;
       uint16_t crc;
       int ret;
 
@@ -71,7 +70,7 @@ static int bk7258_ota_source_logical_read(void *context, uint32_t offset,
           count = nbytes - completed;
         }
       if (raw > reader->physical_size ||
-          BK7258_FLASH_CRC_TOTAL_SIZE > reader->physical_size - raw)
+          BK7258_OTA_CRC_TOTAL_SIZE > reader->physical_size - raw)
         {
           return -EOVERFLOW;
         }
@@ -83,8 +82,8 @@ static int bk7258_ota_source_logical_read(void *context, uint32_t offset,
           return ret < 0 ? ret : -EIO;
         }
 
-      crc = ((uint16_t)packet[BK7258_FLASH_CRC_DATA_SIZE] << 8) |
-            packet[BK7258_FLASH_CRC_DATA_SIZE + 1u];
+      crc = ((uint16_t)packet[BK7258_OTA_CRC_DATA_SIZE] << 8) |
+            packet[BK7258_OTA_CRC_DATA_SIZE + 1u];
       if (crc != bk7258_ota_flash_crc16(packet))
         {
           return -EILSEQ;
@@ -241,9 +240,10 @@ static int bk7258_ota_image_metadata(
 }
 
 int bk7258_ota_source_image_metadata(
-  const struct bk7258_ota_source_ops_s *ops, void *context,
+  FAR const struct bk7258_ota_source_ops_s *ops, FAR void *context,
   enum bk7258_ota_image_e image, uint32_t physical_size,
-  uint32_t logical_size, struct bk7258_ota_image_metadata_s *metadata)
+  uint32_t logical_size,
+  FAR struct bk7258_ota_image_metadata_s *metadata)
 {
   struct bk7258_ota_source_reader_s reader;
   uint8_t magic[BK7258_MCUBOOT_TRAILER_MAGIC_SIZE];
@@ -254,13 +254,13 @@ int bk7258_ota_source_image_metadata(
 
   if (ops == NULL || ops->read_at == NULL || metadata == NULL ||
       image < BK7258_OTA_IMAGE_CP || image > BK7258_OTA_IMAGE_AP ||
-      logical_size % BK7258_FLASH_CRC_DATA_SIZE != 0u)
+      logical_size % BK7258_OTA_CRC_DATA_SIZE != 0u)
     {
       return -EINVAL;
     }
 
-  expected_physical = logical_size / BK7258_FLASH_CRC_DATA_SIZE *
-                      BK7258_FLASH_CRC_TOTAL_SIZE;
+  expected_physical = logical_size / BK7258_OTA_CRC_DATA_SIZE *
+                      BK7258_OTA_CRC_TOTAL_SIZE;
   if (physical_size != expected_physical)
     {
       return -EINVAL;
@@ -305,12 +305,12 @@ int bk7258_ota_source_image_metadata(
 
 int bk7258_ota_xip_image_metadata(
   uint32_t xip, uint32_t logical_size,
-  struct bk7258_ota_image_metadata_s *metadata)
+  FAR struct bk7258_ota_image_metadata_s *metadata)
 {
   struct bk7258_ota_xip_reader_s reader;
 
   if (xip == 0u || metadata == NULL ||
-      logical_size % BK7258_FLASH_CRC_DATA_SIZE != 0u)
+      logical_size % BK7258_OTA_CRC_DATA_SIZE != 0u)
     {
       return -EINVAL;
     }

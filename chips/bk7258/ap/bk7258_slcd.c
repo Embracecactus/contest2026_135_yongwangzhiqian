@@ -26,7 +26,7 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/mutex.h>
 
-#include <arch/chip/bk7258_sdk_abi.h>
+#include "bk7258_sdk_abi.h"
 #include <arch/chip/bk7258_slcd.h>
 
 #define BK7258_SLCD_DEVPATH       "/dev/slcd0"
@@ -268,10 +268,9 @@ static int bk7258_slcd_ioctl(FAR struct file *filep, int cmd,
   return ret;
 }
 
-int bk7258_slcd_initialize(void)
+int bk7258_slcd_initialize(FAR const struct bk7258_slcd_board_s *board)
 {
   FAR struct bk7258_slcd_priv_s *priv = &g_bk7258_slcd;
-  FAR const struct bk7258_slcd_board_s *board;
   int ret;
 
   ret = nxmutex_lock(&priv->lock);
@@ -286,7 +285,6 @@ int bk7258_slcd_initialize(void)
       return -EBUSY;
     }
 
-  board = bk7258_board_slcd_config();
   if (board == NULL || board->name == NULL ||
       (board->com_num != 4 && board->com_num != 8))
     {

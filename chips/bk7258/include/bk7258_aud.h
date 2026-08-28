@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_aud.h
+ * chips/bk7258/include/bk7258_aud.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -29,6 +28,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <nuttx/compiler.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -42,6 +48,26 @@
 #define BK7258_AUD_BITS_PER_SAMPLE     16u
 #define BK7258_AUD_BYTES_PER_SAMPLE    2u
 #define BK7258_AUD_FINAL_DRAIN_FRAMES  2u
+#define BK7258_AUD_GPIO_COUNT          56u
+
+/* Physical amplifier contract supplied explicitly by board bring-up. */
+
+struct bk7258_aud_config_s
+{
+  FAR const char *variant_name;
+  uint32_t speaker_control_gpio;
+  uint32_t speaker_on_delay_ms;
+  uint32_t speaker_off_delay_ms;
+  bool speaker_active_high;
+};
+
+struct bk7258_aud_board_s
+{
+  FAR const struct bk7258_aud_config_s *config;
+  int (*initialize)(FAR const struct bk7258_aud_config_s *config);
+  int (*set)(FAR const struct bk7258_aud_config_s *config, bool enable);
+  bool (*is_enabled)(FAR const struct bk7258_aud_config_s *config);
+};
 
 #ifdef CONFIG_BK7258_AUD_DAC_EQ
 #  define BK7258_AUD_EQ_CONFIG_VERSION       1u
@@ -218,7 +244,8 @@ struct bk7258_aud_diag_s
  *
  ****************************************************************************/
 
-int bk7258_aud_initialize(void);
+int bk7258_aud_initialize(
+  FAR const struct bk7258_aud_board_s *board);
 
 int bk7258_aud_get_diag(struct bk7258_aud_diag_s *diag);
 
@@ -228,5 +255,9 @@ int bk7258_aud_validation_start(void);
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_AUD */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_AUD_H */

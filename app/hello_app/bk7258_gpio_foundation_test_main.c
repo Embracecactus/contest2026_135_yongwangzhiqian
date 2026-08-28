@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <arch/board/board.h>
 #include <arch/chip/bk7258_gpio.h>
 
 int main(int argc, char *argv[])
@@ -19,6 +20,6 @@ int main(int argc, char *argv[])
       return EXIT_FAILURE;
     }
 
-  return bk7258_gpio_foundation_test() == 0 ?
+  return bk7258_gpio_foundation_test(&g_bk7258_board_gpio_config) == 0 ?
          EXIT_SUCCESS : EXIT_FAILURE;
 }

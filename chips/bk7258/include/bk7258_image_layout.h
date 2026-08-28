@@ -1,8 +1,16 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-#ifndef __BK7258_IMAGE_LAYOUT_H
-#define __BK7258_IMAGE_LAYOUT_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_IMAGE_LAYOUT_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_IMAGE_LAYOUT_H
 
 #include <bk7258_partitions.h>
+
+#include "bk7258_flash_remap.h"
+
+#ifdef __cplusplus
+#  define BK7258_IMAGE_LAYOUT_STATIC_ASSERT static_assert
+#else
+#  define BK7258_IMAGE_LAYOUT_STATIC_ASSERT _Static_assert
+#endif
 
 #define BK7258_FLASH_RAW_SIZE             BK7258_FLASH_SIZE
 
@@ -44,11 +52,6 @@
  * pair; CP can read the same retained registers to identify the physical
  * active slot without a second persistent boot-state owner. */
 
-#define BK7258_FLASH_REMAP_BEGIN_REG      0x44030058u
-#define BK7258_FLASH_REMAP_END_REG        0x4403005cu
-#define BK7258_FLASH_REMAP_OFFSET_REG     0x44030060u
-#define BK7258_FLASH_REMAP_ENABLE_REG     0x44030064u
-#define BK7258_FLASH_REMAP_ENABLE_BIT     0x00000001u
 #define BK7258_AB_REMAP_BEGIN             BK7258_ARTIFACT_CP_XIP_START
 #define BK7258_AB_REMAP_END               BK7258_ARTIFACT_AP_XIP_END
 #define BK7258_AB_REMAP_OFFSET            \
@@ -56,12 +59,20 @@
 
 #define BK7258_USR_CONFIG_START           BK7258_PARTITION_USR_CONFIG_OFFSET
 #define BK7258_USR_CONFIG_SIZE            BK7258_PARTITION_USR_CONFIG_SIZE
+#define BK7258_RESET_MARKER_START         \
+  BK7258_PARTITION_RESET_MARKER_OFFSET
+#define BK7258_RESET_MARKER_SIZE          BK7258_PARTITION_RESET_MARKER_SIZE
 #ifdef BK7258_STORAGE_TOPOLOGY_ONCHIP_PERSISTENT
 #  define BK7258_DATA_RAW_PHYSICAL_OFFSET \
     BK7258_PARTITION_PERSISTENT_DATA_OFFSET
 #  define BK7258_DATA_RAW_PHYSICAL_SIZE \
     BK7258_PARTITION_PERSISTENT_DATA_SIZE
 #endif
+
+BK7258_IMAGE_LAYOUT_STATIC_ASSERT(
+  BK7258_USR_CONFIG_START + BK7258_USR_CONFIG_SIZE <=
+  BK7258_RESET_MARKER_START,
+  "reset marker must not overlap vendor user configuration");
 #define BK7258_CALIBRATION_TAIL_START     BK7258_PARTITION_EASYFLASH_OFFSET
 
 #define BK7258_BL2_FLASH_ADDR             BK7258_ARTIFACT_BL2_A_XIP_START
@@ -77,22 +88,28 @@
 #define BK7258_CRC_LOGICAL_OFFSET(value) \
   (((value) / BK7258_FLASH_CRC_TOTAL_SIZE) * BK7258_FLASH_CRC_DATA_SIZE)
 
-_Static_assert(BK7258_CP_FLASH_OFFSET + BK7258_CP_FLASH_SIZE ==
-              BK7258_AP_FLASH_OFFSET,
-              "CP/AP logical images must be contiguous");
-_Static_assert(BK7258_CP_RAW_PHYSICAL_START + BK7258_CP_RAW_PHYSICAL_SIZE ==
-              BK7258_AP_RAW_PHYSICAL_START,
-              "CP/AP physical images must be contiguous");
-_Static_assert(BK7258_AP_RAW_PHYSICAL_START + BK7258_AP_RAW_PHYSICAL_SIZE ==
-              BK7258_AB_SECONDARY_START,
-              "primary images must end at the secondary pair");
-_Static_assert(BK7258_CP_RAW_PHYSICAL_SIZE + BK7258_AP_RAW_PHYSICAL_SIZE ==
-              BK7258_AB_SECONDARY_SIZE,
-              "secondary pair must match CP+AP physical size");
+BK7258_IMAGE_LAYOUT_STATIC_ASSERT(
+  BK7258_CP_FLASH_OFFSET + BK7258_CP_FLASH_SIZE == BK7258_AP_FLASH_OFFSET,
+  "CP/AP logical images must be contiguous");
+BK7258_IMAGE_LAYOUT_STATIC_ASSERT(
+  BK7258_CP_RAW_PHYSICAL_START + BK7258_CP_RAW_PHYSICAL_SIZE ==
+  BK7258_AP_RAW_PHYSICAL_START,
+  "CP/AP physical images must be contiguous");
+BK7258_IMAGE_LAYOUT_STATIC_ASSERT(
+  BK7258_AP_RAW_PHYSICAL_START + BK7258_AP_RAW_PHYSICAL_SIZE ==
+  BK7258_AB_SECONDARY_START,
+  "primary images must end at the secondary pair");
+BK7258_IMAGE_LAYOUT_STATIC_ASSERT(
+  BK7258_CP_RAW_PHYSICAL_SIZE + BK7258_AP_RAW_PHYSICAL_SIZE ==
+  BK7258_AB_SECONDARY_SIZE,
+  "secondary pair must match CP+AP physical size");
 #ifdef BK7258_STORAGE_TOPOLOGY_ONCHIP_PERSISTENT
-_Static_assert(BK7258_DATA_RAW_PHYSICAL_OFFSET +
-               BK7258_DATA_RAW_PHYSICAL_SIZE <= BK7258_CALIBRATION_TAIL_START,
-               "data partition must not overlap the immutable tail");
+BK7258_IMAGE_LAYOUT_STATIC_ASSERT(
+  BK7258_DATA_RAW_PHYSICAL_OFFSET + BK7258_DATA_RAW_PHYSICAL_SIZE <=
+  BK7258_CALIBRATION_TAIL_START,
+  "data partition must not overlap the immutable tail");
 #endif
 
-#endif /* __BK7258_IMAGE_LAYOUT_H */
+#undef BK7258_IMAGE_LAYOUT_STATIC_ASSERT
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_IMAGE_LAYOUT_H */

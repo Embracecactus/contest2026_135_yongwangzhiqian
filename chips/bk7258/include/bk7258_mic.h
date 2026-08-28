@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_mic.h
+ * chips/bk7258/include/bk7258_mic.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -21,9 +20,15 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -70,6 +75,18 @@
 #define BK7258_MIC_ANA_GAIN_MIN         0x00u
 #define BK7258_MIC_ANA_GAIN_MAX         0x0fu
 
+/* Physical microphone topology supplied explicitly by board bring-up. */
+
+#define BK7258_MIC_INPUT_MIC1            (1u << 0)
+#define BK7258_MIC_INPUT_MIC2            (1u << 1)
+
+struct bk7258_mic_config_s
+{
+  FAR const char *variant_name;
+  uint32_t flags;
+  uint8_t channels;
+};
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -91,13 +108,19 @@
  *
  ****************************************************************************/
 
-int bk7258_mic_initialize(void);
+int bk7258_mic_initialize(
+  FAR const struct bk7258_mic_config_s *config);
 
 #ifdef CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION
-int bk7258_mic_validation_start(void);
+int bk7258_mic_validation_start(
+  FAR const struct bk7258_mic_config_s *config);
 #endif
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_MIC */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_MIC_H */

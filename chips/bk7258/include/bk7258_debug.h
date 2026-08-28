@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/bk7258_debug.h
+ * chips/bk7258/include/bk7258_debug.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/

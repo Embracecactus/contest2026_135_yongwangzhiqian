@@ -25,9 +25,9 @@
  *
  * Description:
  *   Register application-facing procfs entries and storage devices for the
- *   system-init script.  Mandatory SDK, IPC, PM and AP lifecycle
- *   initialization is owned by board_late_initialize() and does not depend
- *   on NSH.
+ *   system-init script.  Mandatory SDK, IPC, PM and AP lifecycle sequencing
+ *   is owned by the chip CP orchestrator, entered once through the thin
+ *   board_late_initialize() hook, and does not depend on NSH.
  ****************************************************************************/
 
 int board_app_initialize(uintptr_t arg)

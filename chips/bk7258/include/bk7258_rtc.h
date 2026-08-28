@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_rtc.h
+ * chips/bk7258/include/bk7258_rtc.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -30,6 +29,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Public Function Prototypes
@@ -56,5 +59,9 @@ int bk7258_rtc_initialize(void);
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_RTC */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_RTC_H */

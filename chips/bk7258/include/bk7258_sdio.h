@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_sdio.h
+ * chips/bk7258/include/bk7258_sdio.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -22,8 +21,16 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
+#include <nuttx/sdio.h>
 
+#include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -63,6 +70,19 @@ struct bk7258_sdio_runtime_s
   int32_t last_width_error;
 };
 
+/* Physical slot wiring and media-detect policy.  Board bring-up passes this
+ * immutable record to the chip lower half; the chip never discovers a board
+ * through a global symbol.
+ */
+
+struct bk7258_sdio_board_s
+{
+  bool card_detect_available;
+  uint32_t media_poll_ms;
+  int (*initialize)(bool widebus);
+  bool (*card_present)(void);
+};
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -89,7 +109,9 @@ struct bk7258_sdio_runtime_s
  *
  ****************************************************************************/
 
-int bk7258_sdio_initialize(FAR struct sdio_dev_s **sdio_dev);
+int bk7258_sdio_initialize(
+  FAR struct sdio_dev_s **sdio_dev,
+  FAR const struct bk7258_sdio_board_s *board);
 
 /* Return a coherent-enough diagnostic snapshot after MMC/SD probing.  Width
  * transitions are serialized by the upper half during card initialization;
@@ -100,5 +122,9 @@ int bk7258_sdio_get_runtime(FAR struct bk7258_sdio_runtime_s *runtime);
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_SDIO */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_SDIO_H */

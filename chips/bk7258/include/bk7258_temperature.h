@@ -1,13 +1,13 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_temperature.h
+ * chips/bk7258/include/bk7258_temperature.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * BK7258 CP-owned on-die temperature sensor interface.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_TEMPERATURE_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_TEMPERATURE_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_TEMPERATURE_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_TEMPERATURE_H
 
 /****************************************************************************
  * Included Files
@@ -17,6 +17,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -115,4 +119,8 @@ int bk7258_temperature_validation_start(void);
 bool bk7258_temperature_server_idle(void);
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_TEMPERATURE_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_TEMPERATURE_H */

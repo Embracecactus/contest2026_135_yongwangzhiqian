@@ -1,13 +1,13 @@
 /****************************************************************************
- * arch/arm/include/bk7258/bk7258_rptun.h
+ * chips/bk7258/include/bk7258_rptun.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * BK7258 CP/AP N9 shared-memory and mailbox ABI.
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_INCLUDE_BK7258_BK7258_RPTUN_H
-#define __ARCH_ARM_INCLUDE_BK7258_BK7258_RPTUN_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_RPTUN_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_RPTUN_H
 
 /****************************************************************************
  * Included Files
@@ -17,6 +17,10 @@
 #include <stdint.h>
 
 #include <arch/chip/bk7258_amp.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -369,4 +373,8 @@ int bk7258_rpmsgfs_test_run(uint32_t iterations, uint32_t payload_size,
                             struct bk7258_rpmsgfs_test_result_s *result);
 #endif
 
-#endif /* __ARCH_ARM_INCLUDE_BK7258_BK7258_RPTUN_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_RPTUN_H */

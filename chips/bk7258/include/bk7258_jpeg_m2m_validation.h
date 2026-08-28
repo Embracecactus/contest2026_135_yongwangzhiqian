@@ -1,13 +1,13 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_jpeg_m2m_validation.h
+ * chips/bk7258/include/bk7258_jpeg_m2m_validation.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * Debugger-visible contract for bounded BK7258 JPEG V4L2 M2M validation.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_JPEG_M2M_VALIDATION_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_JPEG_M2M_VALIDATION_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_JPEG_M2M_VALIDATION_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_JPEG_M2M_VALIDATION_H
 
 #include <nuttx/compiler.h>
 
@@ -116,4 +116,4 @@ int bk7258_jpeg_m2m_validation_start(void);
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_JPEG_M2M_VALIDATION_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_JPEG_M2M_VALIDATION_H */

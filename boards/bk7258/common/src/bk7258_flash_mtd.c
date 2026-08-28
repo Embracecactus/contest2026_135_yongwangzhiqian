@@ -3,11 +3,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 product-partition MTD composition — SDK wrapper.
+ * BK7258 product-partition MTD composition.
  *
- * Calls bk_flash_* SDK APIs.  Zero register access.
- * Exposes the selected on-chip persistent_data range. Geometry comes only
- * from the generated partition contract.
+ * Exposes the selected on-chip persistent_data range through the chip-owned
+ * raw Flash service.  Geometry comes only from the generated partition
+ * contract.
  ****************************************************************************/
 
 /****************************************************************************
@@ -24,14 +24,14 @@
 
 #include <nuttx/mtd/mtd.h>
 
+#include <arch/chip/bk7258_flash.h>
 #include <arch/chip/bk7258_image_layout.h>
+#include <arch/chip/bk7258_storage_guard.h>
 
 #include "bk7258_flash_mtd.h"
-#include "bk7258_flash_guard.h"
 
-/* SDK API headers */
-
-#include <driver/flash.h>
+_Static_assert(BK7258_FLASH_ERASE_SIZE == BK7258_FLASH_SECTOR_SIZE,
+               "generated and chip Flash erase sizes differ");
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -45,16 +45,6 @@
 #define BK7258_FLASH_BLOCK_SIZE     BK7258_FLASH_ERASE_SIZE
 #define BK7258_FLASH_NBLOCKS        (BK7258_DATA_PART_SIZE / BK7258_FLASH_BLOCK_SIZE)
 
-/* Known compatible IDs accepted by the official driver.  Reference hardware
- * reports 0xc86517, which matches the GD25WQ64E command-set
- * identity.  This does not imply a separate board-level SPI NOR package.
- */
-
-#define BK7258_FLASH_ID_GD25WQ64E   0x00c86517u
-#define BK7258_FLASH_ID_GD25Q64E    0x00c84017u
-#define BK7258_FLASH_ID_W25Q64      0x000b4017u
-#define BK7258_FLASH_ID_TH25Q64     0x00cd6017u
-
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -65,8 +55,14 @@ struct bk7258_flash_mtd_s
   uint32_t base;
   uint32_t size;
   bool crc_encoded;
-  enum bk7258_flash_guard_owner_e owner;
+  enum bk7258_storage_guard_e owner;
   FAR const char *name;
+};
+
+struct bk7258_flash_mtd_block_range_s
+{
+  uint32_t offset;
+  uint32_t nbytes;
 };
 
 /****************************************************************************
@@ -77,7 +73,7 @@ static struct bk7258_flash_mtd_s g_bk7258_data_mtd =
 {
   .base = BK7258_DATA_PART_BASE,
   .size = BK7258_DATA_PART_SIZE,
-  .owner = BK7258_FLASH_GUARD_DATA,
+  .owner = BK7258_STORAGE_GUARD_DATA,
   .name = "bk7258-data"
 };
 
@@ -94,6 +90,48 @@ bk7258_flash_mtd_state(FAR struct mtd_dev_s *dev)
   return NULL;
 }
 
+/* Validate a block range before narrowing it to the raw-Flash API's
+ * uint32_t address and byte-count domain.  In particular, do not express
+ * the partition check as first + nblocks: callers can supply values for
+ * which that addition wraps before the comparison.
+ */
+
+static int bk7258_flash_mtd_block_range(
+    FAR const struct bk7258_flash_mtd_s *state, off_t startblock,
+    size_t nblocks, FAR struct bk7258_flash_mtd_block_range_s *range)
+{
+  size_t first;
+  size_t block_count;
+
+  if (state == NULL || range == NULL || startblock < 0 ||
+      (uintmax_t)startblock > SIZE_MAX)
+    {
+      return -EINVAL;
+    }
+
+  first = (size_t)startblock;
+
+  /* Both products below are stored in uint32_t.  Check before computing
+   * either one, independently of the generated partition's current size.
+   */
+
+  if (first > UINT32_MAX / BK7258_FLASH_BLOCK_SIZE ||
+      nblocks > UINT32_MAX / BK7258_FLASH_BLOCK_SIZE)
+    {
+      return -EINVAL;
+    }
+
+  block_count = state->size / BK7258_FLASH_BLOCK_SIZE;
+  if (first > block_count || nblocks > block_count - first)
+    {
+      return -EINVAL;
+    }
+
+  range->offset = (uint32_t)first * BK7258_FLASH_BLOCK_SIZE;
+  range->nbytes = (uint32_t)nblocks * BK7258_FLASH_BLOCK_SIZE;
+  return OK;
+}
+
 static int bk7258_flash_mtd_lock(const struct bk7258_flash_mtd_s *state,
                                  bool write)
 {
@@ -102,17 +140,18 @@ static int bk7258_flash_mtd_lock(const struct bk7258_flash_mtd_s *state,
    * the hardware-inactive image pair.
    */
 
-  if (state->owner == BK7258_FLASH_GUARD_DATA)
+  if (state->owner == BK7258_STORAGE_GUARD_DATA)
     {
-      return bk7258_flash_guard_lock(BK7258_FLASH_GUARD_DATA, write, 0);
+      return bk7258_storage_guard_lock(BK7258_STORAGE_GUARD_DATA,
+                                       write, 0u);
     }
 
-  return bk7258_flash_guard_lock(state->owner, write, 0);
+  return bk7258_storage_guard_lock(state->owner, write, 0u);
 }
 
 static void bk7258_flash_mtd_unlock(void)
 {
-  bk7258_flash_guard_unlock();
+  bk7258_storage_guard_unlock();
 }
 
 /* The boot ROM/XIP controller exposes executable Flash as 32 data bytes
@@ -159,9 +198,9 @@ static int bk7258_flash_crc_read(const struct bk7258_flash_mtd_s *state,
           count = nbytes;
         }
 
-      if (bk_flash_read_bytes(state->base +
-                              group * BK7258_FLASH_CRC_TOTAL_SIZE,
-                              packet, sizeof(packet)) != BK_OK)
+      if (bk7258_flash_read(state->base +
+                            group * BK7258_FLASH_CRC_TOTAL_SIZE,
+                            packet, sizeof(packet)) < 0)
         {
           ferr("bk7258: MCUboot CRC read failed at 0x%08" PRIx32 "\n",
                state->base + group * BK7258_FLASH_CRC_TOTAL_SIZE);
@@ -190,19 +229,25 @@ static int bk7258_flash_crc_read(const struct bk7258_flash_mtd_s *state,
  * MTD Methods
  ****************************************************************************/
 
-/* Read whole 4 KiB blocks.  SDK bk_flash_read_bytes handles alignment. */
+/* Read whole 4 KiB blocks through the chip raw-Flash service. */
 
-static ssize_t bk7258_flash_bread(FAR struct mtd_dev_s *dev, off_t startblock,
-                                  size_t nblocks, FAR uint8_t *buffer)
+static ssize_t bk7258_flash_mtd_bread(FAR struct mtd_dev_s *dev,
+                                      off_t startblock, size_t nblocks,
+                                      FAR uint8_t *buffer)
 {
   FAR struct bk7258_flash_mtd_s *state = bk7258_flash_mtd_state(dev);
-  uint32_t nbytes = (uint32_t)nblocks * BK7258_FLASH_BLOCK_SIZE;
+  struct bk7258_flash_mtd_block_range_s range;
+  int ret;
 
-  if (state == NULL || startblock < 0 ||
-      (size_t)startblock + nblocks >
-        state->size / BK7258_FLASH_BLOCK_SIZE)
+  ret = bk7258_flash_mtd_block_range(state, startblock, nblocks, &range);
+  if (ret < 0)
     {
-      return -EINVAL;
+      return ret;
+    }
+
+  if (nblocks == 0u)
+    {
+      return 0;
     }
 
   if (bk7258_flash_mtd_lock(state, false) < 0)
@@ -211,13 +256,10 @@ static ssize_t bk7258_flash_bread(FAR struct mtd_dev_s *dev, off_t startblock,
     }
 
   if ((state->crc_encoded &&
-       bk7258_flash_crc_read(state,
-                             (uint32_t)startblock * BK7258_FLASH_BLOCK_SIZE,
-                             nbytes, buffer) < 0) ||
+       bk7258_flash_crc_read(state, range.offset, range.nbytes, buffer) < 0) ||
       (!state->crc_encoded &&
-       bk_flash_read_bytes(state->base +
-                           (uint32_t)startblock * BK7258_FLASH_BLOCK_SIZE,
-                           buffer, nbytes) != BK_OK))
+       bk7258_flash_read(state->base + range.offset, buffer,
+                         range.nbytes) < 0))
     {
       bk7258_flash_mtd_unlock();
       return -EIO;
@@ -227,20 +269,27 @@ static ssize_t bk7258_flash_bread(FAR struct mtd_dev_s *dev, off_t startblock,
   return (ssize_t)nblocks;
 }
 
-/* Erase whole 4 KiB sectors.  SDK handles SR0 protection internally
- * via bk_flash_set_protect_type. */
+/* Erase whole 4 KiB sectors.  The chip service and SDK driver own controller
+ * locking, permission checks and status-register protection.
+ */
 
-static int bk7258_flash_erase(FAR struct mtd_dev_s *dev, off_t startblock,
-                              size_t nblocks)
+static int bk7258_flash_mtd_erase(FAR struct mtd_dev_s *dev,
+                                  off_t startblock, size_t nblocks)
 {
   FAR struct bk7258_flash_mtd_s *state = bk7258_flash_mtd_state(dev);
+  struct bk7258_flash_mtd_block_range_s range;
   size_t block;
+  int ret;
 
-  if (state == NULL || startblock < 0 ||
-      (size_t)startblock + nblocks >
-        state->size / BK7258_FLASH_BLOCK_SIZE)
+  ret = bk7258_flash_mtd_block_range(state, startblock, nblocks, &range);
+  if (ret < 0)
     {
-      return -EINVAL;
+      return ret;
+    }
+
+  if (nblocks == 0u)
+    {
+      return 0;
     }
 
   if (state->crc_encoded)
@@ -253,41 +302,45 @@ static int bk7258_flash_erase(FAR struct mtd_dev_s *dev, off_t startblock,
       return -EINTR;
     }
 
-  bk_flash_set_protect_type(FLASH_PROTECT_NONE);
-
   for (block = 0; block < nblocks; block++)
     {
       uint32_t addr = state->base +
-                      ((size_t)startblock + block) * BK7258_FLASH_BLOCK_SIZE;
+                      range.offset +
+                      (uint32_t)block * BK7258_FLASH_BLOCK_SIZE;
 
-      if (bk_flash_erase_sector(addr) != BK_OK)
+      if (bk7258_flash_erase_sector(addr) < 0)
         {
-          bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
           bk7258_flash_mtd_unlock();
           return -EIO;
         }
     }
 
-  bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
   bk7258_flash_mtd_unlock();
   return OK;
 }
 
-/* Write whole 4 KiB blocks.  SDK bk_flash_write_bytes handles 32-byte
- * page programming internally. */
+/* Write whole 4 KiB blocks.  The chip service handles the SDK's page
+ * programming mechanics.
+ */
 
-static ssize_t bk7258_flash_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
-                                   size_t nblocks, FAR const uint8_t *buffer)
+static ssize_t bk7258_flash_mtd_bwrite(FAR struct mtd_dev_s *dev,
+                                       off_t startblock, size_t nblocks,
+                                       FAR const uint8_t *buffer)
 {
   FAR struct bk7258_flash_mtd_s *state = bk7258_flash_mtd_state(dev);
-  uint32_t offset;
-  uint32_t nbytes = (uint32_t)nblocks * BK7258_FLASH_BLOCK_SIZE;
+  struct bk7258_flash_mtd_block_range_s range;
+  uint32_t address;
+  int ret;
 
-  if (state == NULL || startblock < 0 ||
-      (size_t)startblock + nblocks >
-        state->size / BK7258_FLASH_BLOCK_SIZE)
+  ret = bk7258_flash_mtd_block_range(state, startblock, nblocks, &range);
+  if (ret < 0)
     {
-      return -EINVAL;
+      return ret;
+    }
+
+  if (nblocks == 0u)
+    {
+      return 0;
     }
 
   if (state->crc_encoded)
@@ -295,22 +348,18 @@ static ssize_t bk7258_flash_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
       return -EROFS;
     }
 
-  offset = state->base + (uint32_t)startblock * BK7258_FLASH_BLOCK_SIZE;
+  address = state->base + range.offset;
   if (bk7258_flash_mtd_lock(state, true) < 0)
     {
       return -EINTR;
     }
 
-  bk_flash_set_protect_type(FLASH_PROTECT_NONE);
-
-  if (bk_flash_write_bytes(offset, buffer, nbytes) != BK_OK)
+  if (bk7258_flash_write(address, buffer, range.nbytes) < 0)
     {
-      bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
       bk7258_flash_mtd_unlock();
       return -EIO;
     }
 
-  bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
   bk7258_flash_mtd_unlock();
   return (ssize_t)nblocks;
 }
@@ -320,14 +369,19 @@ static ssize_t bk7258_flash_bwrite(FAR struct mtd_dev_s *dev, off_t startblock,
  * commands.
  */
 
-static ssize_t bk7258_flash_read(FAR struct mtd_dev_s *dev, off_t offset,
-                                 size_t nbytes, FAR uint8_t *buffer)
+static ssize_t bk7258_flash_mtd_read(FAR struct mtd_dev_s *dev, off_t offset,
+                                     size_t nbytes, FAR uint8_t *buffer)
 {
   FAR struct bk7258_flash_mtd_s *state = bk7258_flash_mtd_state(dev);
 
   if (state == NULL || offset < 0 || (uint64_t)offset + nbytes > state->size)
     {
       return -EINVAL;
+    }
+
+  if (nbytes == 0u)
+    {
+      return 0;
     }
 
   if (bk7258_flash_mtd_lock(state, false) < 0)
@@ -339,8 +393,8 @@ static ssize_t bk7258_flash_read(FAR struct mtd_dev_s *dev, off_t offset,
        bk7258_flash_crc_read(state, (uint32_t)offset, (uint32_t)nbytes,
                              buffer) < 0) ||
       (!state->crc_encoded &&
-       bk_flash_read_bytes(state->base + (uint32_t)offset, buffer,
-                           (uint32_t)nbytes) != BK_OK))
+       bk7258_flash_read(state->base + (uint32_t)offset, buffer,
+                         nbytes) < 0))
     {
       bk7258_flash_mtd_unlock();
       return -EIO;
@@ -351,9 +405,9 @@ static ssize_t bk7258_flash_read(FAR struct mtd_dev_s *dev, off_t offset,
 }
 
 #ifdef CONFIG_MTD_BYTE_WRITE
-static ssize_t bk7258_flash_write(FAR struct mtd_dev_s *dev, off_t offset,
-                                  size_t nbytes,
-                                  FAR const uint8_t *buffer)
+static ssize_t bk7258_flash_mtd_write(FAR struct mtd_dev_s *dev,
+                                      off_t offset, size_t nbytes,
+                                      FAR const uint8_t *buffer)
 {
   FAR struct bk7258_flash_mtd_s *state = bk7258_flash_mtd_state(dev);
 
@@ -373,16 +427,13 @@ static ssize_t bk7258_flash_write(FAR struct mtd_dev_s *dev, off_t offset,
       return -EINTR;
     }
 
-  bk_flash_set_protect_type(FLASH_PROTECT_NONE);
-  if (bk_flash_write_bytes(state->base + (uint32_t)offset, buffer,
-                           (uint32_t)nbytes) != BK_OK)
+  if (bk7258_flash_write(state->base + (uint32_t)offset, buffer,
+                         nbytes) < 0)
     {
-      bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
       bk7258_flash_mtd_unlock();
       return -EIO;
     }
 
-  bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
   bk7258_flash_mtd_unlock();
   return (ssize_t)nbytes;
 }
@@ -444,12 +495,12 @@ static int bk7258_flash_ioctl(FAR struct mtd_dev_s *dev, int cmd,
 
 static void bk7258_flash_mtd_bind(FAR struct bk7258_flash_mtd_s *state)
 {
-  state->mtd.erase  = bk7258_flash_erase;
-  state->mtd.bread  = bk7258_flash_bread;
-  state->mtd.bwrite = bk7258_flash_bwrite;
-  state->mtd.read   = bk7258_flash_read;
+  state->mtd.erase  = bk7258_flash_mtd_erase;
+  state->mtd.bread  = bk7258_flash_mtd_bread;
+  state->mtd.bwrite = bk7258_flash_mtd_bwrite;
+  state->mtd.read   = bk7258_flash_mtd_read;
 #ifdef CONFIG_MTD_BYTE_WRITE
-  state->mtd.write  = bk7258_flash_write;
+  state->mtd.write  = bk7258_flash_mtd_write;
 #endif
   state->mtd.ioctl  = bk7258_flash_ioctl;
   state->mtd.isbad  = NULL;
@@ -459,31 +510,16 @@ static void bk7258_flash_mtd_bind(FAR struct bk7258_flash_mtd_s *state)
 
 FAR struct mtd_dev_s *bk7258_flash_mtd_initialize(void)
 {
-  uint32_t id;
-
   if (g_bk7258_flash_mtd_initialized)
     {
       return &g_bk7258_data_mtd.mtd;
     }
 
-  /* Initialize the SDK flash driver (clock, protection config, etc.) */
+  /* The chip service owns controller initialization and JEDEC validation. */
 
-  if (bk_flash_driver_init() != BK_OK)
+  if (bk7258_flash_initialize() < 0)
     {
-      ferr("ERROR: bk_flash_driver_init failed\n");
-      return NULL;
-    }
-
-  /* Verify JEDEC ID for known 8 MiB parts. */
-
-  id = bk_flash_get_id() & 0x00ffffffu;
-
-  if (id != BK7258_FLASH_ID_GD25WQ64E &&
-      id != BK7258_FLASH_ID_GD25Q64E &&
-      id != BK7258_FLASH_ID_W25Q64 &&
-      id != BK7258_FLASH_ID_TH25Q64)
-    {
-      ferr("ERROR: Unknown flash ID 0x%06" PRIx32 "\n", id);
+      ferr("ERROR: BK7258 raw Flash initialization failed\n");
       return NULL;
     }
 

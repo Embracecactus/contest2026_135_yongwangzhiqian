@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_dma.h
+ * chips/bk7258/include/bk7258_dma.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -24,6 +24,10 @@
 #include <nuttx/fs/ioctl.h>
 
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -69,5 +73,9 @@ struct bk7258_dma_xfer_s
 int bk7258_dma_initialize(void);
 
 #endif /* CONFIG_BK7258_DMA && CONFIG_BK7258_AP_CORE */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_DMA_H */

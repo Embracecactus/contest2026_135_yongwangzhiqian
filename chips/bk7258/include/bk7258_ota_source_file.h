@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_ota_source_file.h
+ * chips/bk7258/include/bk7258_ota_source_file.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
@@ -14,6 +13,11 @@
 
 #include <arch/chip/bk7258_ota.h>
 #include <arch/chip/bk7258_ota_catalog.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 #define BK7258_OTA_FILE_ROOT_SIZE 128u
 #define BK7258_OTA_FILE_PATH_SIZE \
@@ -34,4 +38,8 @@ int bk7258_ota_file_source_initialize(
 const struct bk7258_ota_source_ops_s *bk7258_ota_file_source_ops(void);
 #endif
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_OTA_SOURCE_FILE_H */

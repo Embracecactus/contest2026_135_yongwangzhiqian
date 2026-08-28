@@ -4,39 +4,50 @@
 # SPDX-License-Identifier: Apache-2.0
 ############################################################################
 
-BK7258_CHIP_DIR := $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)chip
-
-CFLAGS += ${INCDIR_PREFIX}$(BK7258_CHIP_DIR)$(DELIM)common
-CFLAGS += ${INCDIR_PREFIX}$(BK7258_CHIP_DIR)$(DELIM)cp
 CFLAGS += -isystem $(BK7258_SDK_DIR)$(DELIM)include
 CFLAGS += -isystem $(BK7258_SDK_DIR)$(DELIM)config
 
 CSRCS += bk7258_appinit.c bk7258_boot.c bk7258_bringup.c
-CSRCS += bk7258_platform.c
+
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+CSRCS += bk7258_ap_bringup.c bk7258_ap_entry.c
+endif
+
+ifeq ($(CONFIG_EXAMPLES_AI_AGENT_VELA),y)
+CSRCS += bk7258_product.c
+ifeq ($(CONFIG_MEDIA),)
+ifneq ($(filter y,$(CONFIG_BK7258_MIC) $(CONFIG_BK7258_AUD)),)
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)..$(DELIM)frameworks$(DELIM)multimedia$(DELIM)media$(DELIM)include
+endif
+ifeq ($(CONFIG_BK7258_MIC),y)
+CSRCS += bk7258_product_media_recorder.c
+CFLAGS += -DCONFIG_BK7258_AGENT_MEDIA_RECORDER=1
+endif
+ifeq ($(CONFIG_BK7258_AUD),y)
+CSRCS += bk7258_product_media_player.c
+CFLAGS += -DCONFIG_BK7258_AGENT_MEDIA_PLAYER=1
+endif
+endif
+endif
 
 ifeq ($(CONFIG_BOARDCTL_FINALINIT),y)
 CSRCS += bk7258_finalinit.c
 endif
 
 ifneq ($(CONFIG_BK7258_AP_CORE),y)
-CSRCS += bk7258_boot_slot.c bk7258_sdk_partition.c
-ifneq ($(filter y,$(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
-CSRCS += bk7258_mac_storage.c
+CSRCS += bk7258_cp_bringup.c bk7258_sdk_partition.c
+ifeq ($(CONFIG_BOARDCTL_RESET_CAUSE),y)
+CSRCS += bk7258_reset_cause.c
+endif
+ifneq ($(filter y,$(CONFIG_BK7258_OTA) $(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC) $(CONFIG_BK7258_FLASH_MTD) $(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
+CSRCS += bk7258_storage_config.c
 endif
 ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
-CSRCS += bk7258_flash_mtd.c bk7258_flash_guard.c
-endif
-ifneq ($(filter y,$(CONFIG_BK7258_OTA) $(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC)),)
-CSRCS += bk7258_ota_flash.c
+CSRCS += bk7258_flash_mtd.c
 endif
 ifeq ($(CONFIG_BK7258_OTA),y)
-CSRCS += bk7258_ota_image.c bk7258_ota_pair.c \
-         bk7258_ota_boot_control.c
 ifeq ($(CONFIG_BK7258_OTA_AUTO_CONFIRM),y)
 CSRCS += bk7258_ota_trial.c
-endif
-ifneq ($(CONFIG_BK7258_FLASH_MTD),y)
-CSRCS += bk7258_flash_guard.c
 endif
 endif
 endif
@@ -46,11 +57,4 @@ VPATH += :panels
 DEPPATH += --dep-path panels
 CFLAGS += ${INCDIR_PREFIX}$(BOARD_COMMON_DIR)$(DELIM)panels
 CSRCS += ili9488_rgb.c
-endif
-
-ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
-CSRCS += bk7258_wifi_control.c
-ifeq ($(CONFIG_BK7258_AP_CORE),y)
-CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)include
-endif
 endif

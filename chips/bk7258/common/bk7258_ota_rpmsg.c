@@ -1461,7 +1461,11 @@ int bk7258_ota_rpmsg_initialize(void)
   bool expected = false;
   bool registered = false;
   bool first_sem = false;
+#if !defined(CONFIG_BK7258_AP_CORE) || \
+    defined(CONFIG_BK7258_OTA_SOURCE_FILE) || \
+    defined(CONFIG_BK7258_OTA_SOURCE_HTTP)
   bool second_sem = false;
+#endif
 #ifndef CONFIG_BK7258_AP_CORE
   bool third_sem = false;
 #endif

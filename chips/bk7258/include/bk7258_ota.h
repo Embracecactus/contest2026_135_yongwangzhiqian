@@ -1,23 +1,34 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/include/bk7258_ota.h
+ * chips/bk7258/include/bk7258_ota.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
-#ifndef __BOARDS_ARM_BK7258_INCLUDE_BK7258_OTA_H
-#define __BOARDS_ARM_BK7258_INCLUDE_BK7258_OTA_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_OTA_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_OTA_H
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include <arch/chip/bk7258_boot_slot.h>
+#include <arch/chip/bk7258_flash.h>
 #include <arch/chip/bk7258_mcuboot_format.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 #define BK7258_OTA_MANIFEST_VERSION 2u
 #define BK7258_OTA_SHA256_SIZE      32u
 #define BK7258_OTA_PACKAGE_ID_SIZE  32u
+#define BK7258_OTA_CRC_DATA_SIZE    32u
+#define BK7258_OTA_CRC_TOTAL_SIZE   34u
+#define BK7258_OTA_ERASE_SIZE       BK7258_FLASH_SECTOR_SIZE
 
 enum bk7258_ota_image_e
 {
@@ -67,37 +78,6 @@ struct bk7258_ota_pair_snapshot_s
   bool security_counter_present;
 };
 
-#define BK7258_OTA_TRIAL_STATUS_VERSION 1u
-
-enum bk7258_ota_trial_state_e
-{
-  BK7258_OTA_TRIAL_NOT_PENDING = 0,
-  BK7258_OTA_TRIAL_WAITING_HEALTH,
-  BK7258_OTA_TRIAL_STABLE,
-  BK7258_OTA_TRIAL_CONFIRMING,
-  BK7258_OTA_TRIAL_CONFIRMED,
-  BK7258_OTA_TRIAL_RESETTING,
-  BK7258_OTA_TRIAL_ERROR
-};
-
-struct bk7258_ota_trial_status_s
-{
-  uint32_t version;
-  uint32_t size;
-  uint32_t state;
-  enum bk7258_boot_slot_e active_slot;
-  struct bk7258_mcuboot_version_s image_version;
-  uint32_t security_counter;
-  uint32_t supervisor_generation;
-  uint32_t sample_sequence;
-  uint32_t elapsed_ms;
-  uint32_t stable_age_ms;
-  uint32_t confirm_age_ms;
-  uint32_t policy_age_ms;
-  uint32_t deadline_age_ms;
-  int32_t last_error;
-};
-
 enum bk7258_ota_phase_e
 {
   BK7258_OTA_PHASE_PREPARE = 0,
@@ -118,8 +98,9 @@ struct bk7258_ota_progress_s
 };
 
 /* The source owns transport and package ingestion.  open must return
- * metadata from an already authenticated package policy; the board validates
- * the selected layout, package identity, candidate CP/AP header generation,
+ * metadata from an already authenticated package policy; the CP engine
+ * validates the selected layout, package identity, candidate CP/AP header
+ * generation,
  * protected counters, exact physical sizes and both SHA-256 values before
  * committing CP sector zero.  read_at returns exactly nbytes of one finalized
  * physical (32 data + 2 CRC) image and must not write on-chip Flash.
@@ -148,16 +129,20 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
  * under the Flash guard, not service health. */
 int bk7258_ota_confirm_pair(
   const struct bk7258_ota_pair_snapshot_s *expected);
-void bk7258_ota_system_reset(void) __attribute__((noreturn));
-#  ifdef CONFIG_BK7258_OTA_AUTO_CONFIRM
+void bk7258_ota_system_reset(void) noreturn_function;
 struct bk7258_ap_supervisor_health_token_s;
+/* Confirm with generation-bound Supervisor evidence.  The caller owns the
+ * product freshness policy and supplies its maximum accepted sample age;
+ * chip code revalidates that evidence before each trailer mutation.
+ */
 int bk7258_ota_confirm_pair_health(
   const struct bk7258_ota_pair_snapshot_s *expected,
-  const struct bk7258_ap_supervisor_health_token_s *health);
-int bk7258_ota_trial_initialize(void);
-int bk7258_ota_trial_get_status(
-  struct bk7258_ota_trial_status_s *status);
-#  endif
+  const struct bk7258_ap_supervisor_health_token_s *health,
+  uint32_t health_max_age_ms);
 #endif
 
-#endif /* __BOARDS_ARM_BK7258_INCLUDE_BK7258_OTA_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_OTA_H */

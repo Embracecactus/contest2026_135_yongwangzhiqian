@@ -1,9 +1,9 @@
 /****************************************************************************
- * chips/bk7258/ap/bk7258_agent_media_recorder.c
+ * boards/bk7258/common/src/bk7258_product_media_recorder.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Small media_recorder ABI bridge for the official Agent.  The media
+ * Board product media_recorder ABI bridge for the official Agent.  The media
  * framework is intentionally disabled for this profile; the bridge keeps the
  * Agent's portable backend on the public NuttX audio upper-half ABI.
  ****************************************************************************/

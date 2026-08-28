@@ -1,9 +1,63 @@
 # BK7258 physical-board variants
 
-`chips/bk7258` owns the shared BK7258 CP/AP, boot-chain and SDK-wrapper.
-`boards/bk7258/common` owns shared board, partition and linker integration;
+`chips/bk7258` owns the shared BK7258 CP/AP, boot-chain, SDK wrapper and
+SoC lifecycle.  This follows the official [openvela platform-adaptation guide
+(id=1443)](https://doc.openvela.com/document?id=1443&version=dev-ai-contest-2026&language=cn): chip contains reusable SoC capability; board contains product
+policy and electrical binding.  `boards/bk7258/common` owns shared board,
+partition and linker integration;
 the three sibling board directories contain only physical-PCB wiring and
 capability facts.
+
+## CP/AP startup ownership
+
+`CONFIG_BOARD_LATE_INITIALIZE` is selected by the shared BK7258 board Kconfig.
+`board_late_initialize()` is therefore active and remains a thin board-level
+bridge in both roles, not the owner of SoC mechanisms.  It enters the
+board-owned role runner before NuttX starts the initial application; that
+runner invokes chip stages and board policy in an explicit order.  AP main
+later consumes the cached result and never silently reorders preparation.
+
+- Chip owns `bk7258_cp_platform_initialize()` and
+  `bk7258_ap_platform_prepare()`, SoC stage definitions and failure state,
+  raw reset-source reader, Wi-Fi controller/proxy, boot-slot selection and
+  OTA engine mechanics.
+- Board owns the partition/layout and storage binding, OTA trial/product
+  policy, lifecycle stage order, `BOARDIOC` mapping, final-init/ROMFS policy,
+  and the selected physical board's GPIO/LCD/audio/TF/camera binding.
+
+The board runner passes immutable data into chip mechanisms; chip code neither
+discovers the selected board nor retains platform-level board callbacks.  Its
+stage table has explicit `requires_mask` prerequisites: a stage runs only
+after every required earlier stage succeeded. `ALWAYS_RUN` therefore means
+“may cross an unrelated mandatory failure”, not “may ignore a failed storage
+or hardware dependency”.  For example, OTA trial policy requires a validated
+OTA layout, while WDT requires a validated reset-marker domain when pretimeout
+persistence is enabled.
+
+`board_late_initialize()` is a `void` NuttX hook, so it retains the initial
+diagnostic shell after a mandatory CP failure. This is not a degraded
+application boot: the cached chip result makes `board_app_initialize()` /
+`bk7258_bringup()` fail closed before procfs, storage and other
+application-facing registration. The shell is available only to diagnose the
+failure.
+
+The WDT pretimeout marker is a dedicated `reset_marker` erase sector declared
+by every selected board partition CSV. One immutable board storage binding
+supplies the OTA layout, marker geometry and Flash serialization policy; raw
+Flash mechanics remain chip-owned. The chip marker/WDT code does not share an
+OTA-specific Flash helper. Boot-slot remap MMIO decoding is likewise
+chip-owned.
+CP also owns `bk7258_system_reset()`: callers select the semantic
+`REBOOT`, `WATCHDOG` or `NMI_WDT` reason, and the chip performs the AON/PMU
+whole-device reset sequence with an architecture-reset fallback. OTA uses the
+explicit `REBOOT` reason. A marker is not written when WDT is armed or fed;
+only the task-context pretimeout worker writes one after independent generation
+and elapsed-time checks confirm a missed feed. PMU `POWERON` and `REBOOT` are
+primary evidence, so a stale marker never replaces them; a confirmed WDT
+marker only corroborates a PMU WDT/NMI-WDT reason or fills an unknown raw PMU
+value. The confirmed-pretimeout record is format version 2; legacy version-1
+arm-time records fail validation and therefore cannot participate in reset
+attribution.
 
 ## Naming
 
@@ -79,12 +133,14 @@ mode and word width.  Those runtime transaction values are not global board
 constants.  Only a fixed device such as the GT1151 or camera supplies a
 board-device default or maximum through its selected-board binding.
 
-`bk7258_peripherals_initialize()` may initialize enabled generic controllers.
+The board-owned AP bring-up runner may initialize enabled generic controllers.
 The selected board's `bk7258_board_early_initialize()` and
 `bk7258_board_devices_initialize()` hooks own attached-device registration and
 its ordering relative to those controllers.  A new physical board therefore
 adds its own header and hook implementation; it does not add board-name tests
-or pin literals to the shared chip orchestration.
+or pin literals to shared chip mechanisms.  SPI follows the standard NuttX
+compile-time `spiNselect`/`spiNstatus` board-hook model and is selectable only
+for a physical board that declares such a binding.
 
 The rule is applied by peripheral class as follows:
 
@@ -160,7 +216,8 @@ must use the `debug.h` macros so production builds can compile them out; direct
 `syslog()` is reserved for application output and reviewed compatibility or
 crash-path contracts.  In particular, the SDK varargs bridge preserves its
 caller-selected priority, while the xTS watchdog pre-timeout record is emitted
-from an interrupt buffer and force-flushed before whole-device reset.
+from an interrupt buffer and force-flushed before the task-context reset worker
+performs the whole-device reset.
 
 ## Trace diagnostics
 

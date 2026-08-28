@@ -29,7 +29,7 @@
 #include <nuttx/wqueue.h>
 
 #include <arch/chip/bk7258_rptun.h>
-#include <arch/chip/bk7258_sdk_abi.h>
+#include "bk7258_sdk_abi.h"
 #include <arch/chip/bk7258_temperature.h>
 
 #include <common/bk_err.h>

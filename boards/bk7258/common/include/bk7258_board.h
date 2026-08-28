@@ -15,11 +15,22 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
 
 #include <arch/chip/bk7258_image_layout.h>
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_console.h>
-#include <bk7258_board_config.h>
+#include <arch/chip/bk7258_gpio.h>
+
+#ifdef CONFIG_BK7258_AP_CORE
+#  include <arch/chip/bk7258_aud.h>
+#  include <arch/chip/bk7258_mic.h>
+#  include <arch/chip/bk7258_sdio.h>
+#endif
+
+#ifdef CONFIG_BK7258_OTA_AUTO_CONFIRM
+#  include "bk7258_ota_trial.h"
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -33,6 +44,10 @@
 
 #define BOARD_NLEDS       0
 #define BOARD_NBUTTONS    0
+
+#ifdef CONFIG_BK7258_AP_CORE
+struct bk7258_i2s_board_s;
+#endif
 
 /* Physical memory layout (informational; the authoritative copy is in
  * scripts/ld.script).
@@ -76,14 +91,59 @@
  * Public Function Prototypes
  ****************************************************************************/
 
-/* Selected physical-board hooks.  The immutable descriptor is linked into
- * both roles; AP controller composition invokes these callbacks at stable
- * ordering boundaries, while CP may consume other fields from the same
- * descriptor.  The variant owns attached devices and fixed electrical
- * policy.
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+/* Immutable physical wiring selected at build time.  Board code passes this
+ * record explicitly to chip GPIO users; chip code never discovers a board.
  */
 
-int bk7258_board_early_initialize(void);
-int bk7258_board_devices_initialize(void);
+extern const struct bk7258_gpio_config_s g_bk7258_board_gpio_config;
+
+#if defined(CONFIG_BK7258_TOUCH) && !defined(CONFIG_BK7258_AP_CORE)
+int bk7258_board_cp_devices_initialize(void);
+#endif
+
+#ifdef CONFIG_BK7258_AP_CORE
+
+/* Shared board-layer AP registration phases.  A physical board calls these
+ * around its own pre-device and attached-device initialization so controller
+ * and device ordering remains explicit.
+ */
+
+int bk7258_board_ap_controllers_initialize(
+  FAR const struct bk7258_mic_config_s *mic,
+  FAR const struct bk7258_aud_board_s *audio);
+int bk7258_board_ap_buses_initialize(
+  FAR const struct bk7258_i2s_board_s *i2s,
+  FAR const struct bk7258_sdio_board_s *sdio);
+int bk7258_board_ap_finalize_initialize(void);
+
+/* Implemented by the selected physical board. */
+
+int bk7258_board_ap_initialize(void);
+
+#ifdef CONFIG_BK7258_AUD
+extern const struct bk7258_aud_board_s g_bk7258_board_audio;
+#endif
+
+#if defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
+    defined(CONFIG_AI_AGENT_LVGL_UI)
+int bk7258_board_ui_initialize(void);
+int bk7258_board_ui_wait_ready(void);
+#endif
+
+#endif /* CONFIG_BK7258_AP_CORE */
+
+#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
+int bk7258_product_prepare(void);
+int bk7258_product_start(void);
+#endif
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_BOARD_BK7258_BOARD_H */

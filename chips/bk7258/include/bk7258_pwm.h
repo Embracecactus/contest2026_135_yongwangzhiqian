@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_pwm.h
+ * chips/bk7258/include/bk7258_pwm.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -26,6 +25,10 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -64,5 +67,9 @@ int bk7258_pwm_initialize(void);
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_PWM */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_PWM_H */

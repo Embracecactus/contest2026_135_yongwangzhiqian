@@ -46,7 +46,6 @@
 #include <nuttx/semaphore.h>
 #include <nuttx/signal.h>
 
-#include <arch/chip/bk7258_board_binding.h>
 #include <arch/chip/bk7258_aud.h>
 #include <arch/chip/bk7258_pm.h>
 
@@ -158,9 +157,9 @@ struct bk7258_aud_dev_s
 {
   struct audio_lowerhalf_s dev;       /* Must be first */
 
-  /* Immutable physical-board contract supplied by the selected binding. */
+  /* Immutable physical-board contract supplied by board bring-up. */
 
-  FAR const struct bk7258_aud_binding_s *binding;
+  FAR const struct bk7258_aud_board_s *board;
   FAR const struct bk7258_aud_config_s *board_config;
 
   mutex_t lock;                       /* State and APB ownership */
@@ -341,39 +340,27 @@ _Static_assert(sizeof(struct bk7258_aud_diag_s) == 0x110,
  * Private Functions
  ****************************************************************************/
 
-static FAR const struct bk7258_aud_binding_s *
-bk7258_aud_get_binding(void)
+static bool bk7258_aud_board_valid(
+  FAR const struct bk7258_aud_board_s *board)
 {
-  FAR const struct bk7258_board_binding_s *board;
-  FAR const struct bk7258_aud_binding_s *binding;
   FAR const struct bk7258_aud_config_s *config;
 
-  board = bk7258_board_get_binding();
-  if (board == NULL || board->version != BK7258_BINDING_VERSION ||
-      board->size < sizeof(*board))
+  if (board == NULL || board->initialize == NULL || board->set == NULL ||
+      board->is_enabled == NULL)
     {
-      return NULL;
+      return false;
     }
 
-  binding = board->audio;
-  if (binding == NULL || binding->version != BK7258_BINDING_VERSION ||
-      binding->size < sizeof(*binding) || binding->initialize == NULL ||
-      binding->set == NULL || binding->is_enabled == NULL)
-    {
-      return NULL;
-    }
-
-  config = binding->config;
-  if (config == NULL || config->version != BK7258_BINDING_VERSION ||
-      config->size < sizeof(*config) || config->variant_name == NULL ||
-      config->speaker_control_gpio >= BK7258_BINDING_GPIO_COUNT ||
+  config = board->config;
+  if (config == NULL || config->variant_name == NULL ||
+      config->speaker_control_gpio >= BK7258_AUD_GPIO_COUNT ||
       config->speaker_on_delay_ms > UINT32_MAX / 1000u ||
       config->speaker_off_delay_ms > UINT32_MAX / 1000u)
     {
-      return NULL;
+      return false;
     }
 
-  return binding;
+  return true;
 }
 
 static int bk7258_aud_result(bk_err_t error)
@@ -970,8 +957,8 @@ static int bk7258_aud_set_pa(struct bk7258_aud_dev_s *priv, bool enable)
 {
   int ret;
 
-  ret = priv->binding->set(priv->board_config, enable);
-  if (ret < 0 || priv->binding->is_enabled(priv->board_config) != enable)
+  ret = priv->board->set(priv->board_config, enable);
+  if (ret < 0 || priv->board->is_enabled(priv->board_config) != enable)
     {
       return ret < 0 ? ret : -EIO;
     }
@@ -2827,10 +2814,9 @@ static int bk7258_aud_release(struct audio_lowerhalf_s *dev)
  * Public Functions
  ****************************************************************************/
 
-int bk7258_aud_initialize(void)
+int bk7258_aud_initialize(FAR const struct bk7258_aud_board_s *board)
 {
   struct bk7258_aud_dev_s *priv = &g_bk7258_aud;
-  FAR const struct bk7258_aud_binding_s *binding;
   int ret;
 
 #ifdef CONFIG_BK7258_AGENT_MEDIA_PLAYER
@@ -2847,27 +2833,26 @@ int bk7258_aud_initialize(void)
       return -EINVAL;
     }
 
-  binding = bk7258_aud_get_binding();
-  if (binding == NULL)
+  if (!bk7258_aud_board_valid(board))
     {
-      auderr("ERROR: BK7258 audio board binding is unavailable\n");
-      return -ENODEV;
+      auderr("ERROR: BK7258 audio board configuration is invalid\n");
+      return -EINVAL;
     }
 
-  ret = binding->initialize(binding->config);
+  ret = board->initialize(board->config);
   if (ret < 0)
     {
       return ret;
     }
 
-  ret = binding->set(binding->config, false);
-  if (ret < 0 || binding->is_enabled(binding->config))
+  ret = board->set(board->config, false);
+  if (ret < 0 || board->is_enabled(board->config))
     {
       return ret < 0 ? ret : -EIO;
     }
 
-  priv->binding = binding;
-  priv->board_config = binding->config;
+  priv->board = board;
+  priv->board_config = board->config;
   priv->dev.ops = &g_bk7258_aud_ops;
   priv->samplerate = CONFIG_BK7258_AUD_SAMPLE_RATE;
   priv->channels = 1;
@@ -2941,7 +2926,7 @@ int bk7258_aud_get_diag(struct bk7258_aud_diag_s *diag)
     }
 
   nxmutex_lock(&priv->lock);
-  priv->diag.pa_enabled = priv->binding->is_enabled(priv->board_config);
+  priv->diag.pa_enabled = priv->board->is_enabled(priv->board_config);
   memcpy(diag, &priv->diag, sizeof(*diag));
   nxmutex_unlock(&priv->lock);
   return OK;

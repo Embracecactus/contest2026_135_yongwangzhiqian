@@ -30,7 +30,7 @@
 #include <nuttx/usb/usbhost.h>
 #include <nuttx/usb/usbhost_devaddr.h>
 
-#include "../include/bk7258_usbhost.h"
+#include <arch/chip/bk7258_usbhost.h>
 
 /*
  * usbh_core.h is a public SDK header, but it uses generic CONFIG_USBHOST_*

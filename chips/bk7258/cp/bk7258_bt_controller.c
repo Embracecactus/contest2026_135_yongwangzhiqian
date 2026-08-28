@@ -28,10 +28,13 @@
 #include <nuttx/mutex.h>
 
 #include <arch/chip/bk7258_bt_ipc.h>
+#include <arch/chip/bk7258_flash.h>
 #ifdef CONFIG_BK7258_RPTUN_MBOX
 #  include <arch/chip/bk7258_rptun.h>
 #endif
-#include <arch/chip/bk7258_sdk_abi.h>
+#include "bk7258_sdk_abi.h"
+
+#include "bk7258_radio_storage.h"
 
 #include <common/bk_err.h>
 #include <components/system.h>
@@ -129,7 +132,6 @@ static bool g_bk7258_bt_phy_adapter_ready;
 static bool g_bk7258_bt_wifi_adapter_ready;
 static bool g_bk7258_bt_calibration_ready;
 static mutex_t g_bk7258_bt_mac_lock = NXMUTEX_INITIALIZER;
-static const struct bk7258_bt_mac_storage_ops_s *g_bk7258_bt_mac_storage;
 static bool g_bk7258_bt_mac_ready;
 static uint8_t g_bk7258_bt_base_mac[BK_MAC_ADDR_LEN];
 #ifdef CONFIG_BK7258_BT_IPC
@@ -319,34 +321,24 @@ static uint8_t bk7258_bt_crc8(const uint8_t *buffer, uint32_t length)
   return crc;
 }
 
-static bool bk7258_bt_partition_read(enum bk7258_bt_mac_store_e store,
+static bool bk7258_bt_partition_read(enum bk7258_radio_store_e store,
                                      uint32_t offset, uint8_t *buffer,
                                      uint32_t length)
 {
-  if (g_bk7258_bt_mac_storage == NULL)
-    {
-      return false;
-    }
-
-  return g_bk7258_bt_mac_storage->read(store, offset, buffer, length) == OK;
+  return bk7258_radio_storage_read(store, offset, buffer, length) == OK;
 }
 
-static bool bk7258_bt_partition_write(enum bk7258_bt_mac_store_e store,
+static bool bk7258_bt_partition_write(enum bk7258_radio_store_e store,
                                       uint32_t offset,
                                       const uint8_t *buffer,
                                       uint32_t length)
 {
-  if (g_bk7258_bt_mac_storage == NULL)
-    {
-      return false;
-    }
-
-  return g_bk7258_bt_mac_storage->write(store, offset, buffer, length) == OK;
+  return bk7258_radio_storage_write(store, offset, buffer, length) == OK;
 }
 
 static bool bk7258_bt_sysnet_write(const uint8_t *mac)
 {
-  return bk7258_bt_partition_write(BK7258_BT_MAC_STORE_NETWORK, 0, mac,
+  return bk7258_bt_partition_write(BK7258_RADIO_STORE_NETWORK, 0, mac,
                                    BK_MAC_ADDR_LEN);
 }
 
@@ -389,7 +381,7 @@ static bool bk7258_bt_mac_read_backup(uint8_t *mac)
   int latest = BK7258_SDK_MAC_RECORD_COUNT - 1;
   int i;
 
-  if (!bk7258_bt_partition_read(BK7258_BT_MAC_STORE_BACKUP,
+  if (!bk7258_bt_partition_read(BK7258_RADIO_STORE_BACKUP,
                                 BK7258_SDK_MAC_RECORD_AREA_OFFSET,
                                 area.bytes, sizeof(area.bytes)))
     {
@@ -430,7 +422,7 @@ static bool bk7258_bt_mac_write_backup(const uint8_t *mac)
   int latest = -1;
   int i;
 
-  if (!bk7258_bt_partition_read(BK7258_BT_MAC_STORE_BACKUP,
+  if (!bk7258_bt_partition_read(BK7258_RADIO_STORE_BACKUP,
                                 BK7258_SDK_MAC_RECORD_AREA_OFFSET,
                                 area.bytes, sizeof(area.bytes)))
     {
@@ -468,7 +460,7 @@ static bool bk7258_bt_mac_write_backup(const uint8_t *mac)
   record.header_crc = bk7258_bt_crc8((const uint8_t *)&record, 3);
 
   return bk7258_bt_partition_write(
-           BK7258_BT_MAC_STORE_BACKUP,
+           BK7258_RADIO_STORE_BACKUP,
            BK7258_SDK_MAC_RECORD_AREA_OFFSET +
              (uint32_t)free_index * sizeof(record),
            (const uint8_t *)&record, sizeof(record));
@@ -496,15 +488,15 @@ static void bk7258_bt_mac_initialize_locked(void)
   /* Match CONFIG_NEW_MAC_POLICY + CONFIG_RANDOM_MAC_ADDR from the official
    * CP profile.  sys_net is authoritative, the final 512 bytes of sys_rf are
    * an append-only CRC-checked backup, and an empty board receives the Beken
-   * OUI plus three TRNG bytes.  Writes deliberately use the same exported
-   * SDK flash leaves as mac.c.  Only their orchestration lives in this board
-   * wrapper because libbk_system.a owns an incompatible FreeRTOS runtime.
+   * OUI plus three TRNG bytes.  The chip storage service owns all operations;
+   * the board contributes only the generated SYS_RF/SYS_NET topology because
+   * libbk_system.a owns an incompatible FreeRTOS runtime and is not linked.
    */
 
   memset(net_mac, UINT8_MAX, sizeof(net_mac));
   memset(backup_mac, UINT8_MAX, sizeof(backup_mac));
 
-  if (bk_flash_driver_init() != BK_OK)
+  if (bk7258_flash_initialize() < 0)
     {
       memcpy(g_bk7258_bt_base_mac, fallback, sizeof(fallback));
       g_bk7258_bt_mac_ready = true;
@@ -512,7 +504,7 @@ static void bk7258_bt_mac_initialize_locked(void)
     }
 
   net_valid = bk7258_bt_partition_read(
-                BK7258_BT_MAC_STORE_NETWORK, 0, net_mac,
+                BK7258_RADIO_STORE_NETWORK, 0, net_mac,
                 sizeof(net_mac)) &&
               bk7258_bt_mac_is_official_valid(net_mac);
   backup_valid = bk7258_bt_mac_read_backup(backup_mac) &&
@@ -664,41 +656,6 @@ bk_err_t bk_set_base_mac(const uint8_t *mac)
  * Public Functions
  ****************************************************************************/
 
-int bk7258_bt_mac_storage_register(
-  const struct bk7258_bt_mac_storage_ops_s *ops)
-{
-  int ret;
-
-  if (ops == NULL || ops->read == NULL || ops->write == NULL)
-    {
-      return -EINVAL;
-    }
-
-  ret = nxmutex_lock(&g_bk7258_bt_mac_lock);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  if (g_bk7258_bt_mac_ready)
-    {
-      ret = -EBUSY;
-    }
-  else if (g_bk7258_bt_mac_storage != NULL &&
-           g_bk7258_bt_mac_storage != ops)
-    {
-      ret = -EALREADY;
-    }
-  else
-    {
-      g_bk7258_bt_mac_storage = ops;
-      ret = OK;
-    }
-
-  nxmutex_unlock(&g_bk7258_bt_mac_lock);
-  return ret;
-}
-
 #ifdef CONFIG_BK7258_WIFI_VNET
 int bk7258_wifi_controller_initialize(void)
 {
@@ -724,7 +681,7 @@ int bk7258_wifi_controller_initialize(void)
    * table below must never replace it in a Wi-Fi build.
    */
 
-  if (bk_flash_driver_init() != BK_OK || bk_adc_driver_init() != BK_OK)
+  if (bk7258_flash_initialize() < 0 || bk_adc_driver_init() != BK_OK)
     {
       ret = -EIO;
       goto out;
@@ -819,7 +776,7 @@ int bk7258_bt_controller_ipc_initialize(void)
    */
 
 #ifndef CONFIG_BK7258_WIFI_VNET
-  if (bk_flash_driver_init() != BK_OK)
+  if (bk7258_flash_initialize() < 0)
     {
       nxmutex_unlock(&g_bk7258_bt_controller_lock);
       return -EIO;

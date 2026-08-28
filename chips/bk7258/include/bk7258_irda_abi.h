@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_irda_abi.h
+ * chips/bk7258/include/bk7258_irda_abi.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -15,8 +15,8 @@
  * unchanged, with only the Beken integer typedefs mapped to C99 stdint.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_IRDA_ABI_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_IRDA_ABI_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_IRDA_ABI_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_IRDA_ABI_H
 
 /****************************************************************************
  * Included Files
@@ -91,4 +91,4 @@ long IR_get_key(void *buffer, unsigned long size, int32_t timeout);
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_IRDA_ABI_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_IRDA_ABI_H */

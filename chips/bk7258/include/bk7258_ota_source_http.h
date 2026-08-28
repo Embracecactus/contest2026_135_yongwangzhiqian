@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_ota_source_http.h
+ * chips/bk7258/include/bk7258_ota_source_http.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
@@ -11,6 +10,11 @@
 #include <nuttx/config.h>
 
 #include <arch/chip/bk7258_ota.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 struct bk7258_ota_http_source_s
 {
@@ -24,4 +28,8 @@ int bk7258_ota_http_source_initialize(
 const struct bk7258_ota_source_ops_s *bk7258_ota_http_source_ops(void);
 #endif
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_OTA_SOURCE_HTTP_H */

@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/src/bk7258_ota_pair.c
+ * contest2026_135_yongwangzhiqian/chips/bk7258/cp/bk7258_ota_pair.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -16,14 +16,13 @@
 #include <crypto/sha2.h>
 #include <nuttx/signal.h>
 
-#include <arch/chip/bk7258_image_layout.h>
+#include <arch/chip/bk7258_flash.h>
 #include <arch/chip/bk7258_ota.h>
 
-#include <driver/flash.h>
-
-#include "bk7258_flash_guard.h"
+#include "bk7258_ota_engine_internal.h"
 #include "bk7258_ota_flash_internal.h"
 #include "bk7258_ota_image.h"
+#include "bk7258_storage_internal.h"
 #ifdef CONFIG_BK7258_WDT
 #  include "bk7258_wdt.h"
 #endif
@@ -31,11 +30,8 @@
 #define BK7258_OTA_PROGRESS_GRANULARITY (64u * 1024u)
 #define BK7258_OTA_STAGE_LOCK_TIMEOUT_MS 5000u
 
-static uint8_t g_bk7258_ota_write_sector[BK7258_FLASH_ERASE_SIZE];
-static uint8_t g_bk7258_ota_cp_commit[BK7258_FLASH_ERASE_SIZE];
-
-static const uint8_t g_bk7258_ota_layout_sha256[BK7258_OTA_SHA256_SIZE] =
-  BK7258_LAYOUT_SHA256_BYTES;
+static uint8_t g_bk7258_ota_write_sector[BK7258_OTA_ERASE_SIZE];
+static uint8_t g_bk7258_ota_cp_commit[BK7258_OTA_ERASE_SIZE];
 
 static int bk7258_ota_service_runtime(void)
 {
@@ -84,7 +80,7 @@ static int bk7258_ota_source_read(
 static int bk7258_ota_erase(
   const struct bk7258_ota_source_ops_s *ops, void *context,
   enum bk7258_ota_phase_e phase, enum bk7258_ota_image_e image,
-  uint32_t base, uint32_t size)
+  uint32_t base, uint32_t size, uint32_t erase_size)
 {
   uint32_t offset;
   int ret;
@@ -95,9 +91,9 @@ static int bk7258_ota_erase(
       return ret;
     }
 
-  for (offset = 0; offset < size; offset += BK7258_FLASH_ERASE_SIZE)
+  for (offset = 0; offset < size; offset += erase_size)
     {
-      if (bk_flash_erase_sector(base + offset) != BK_OK)
+      if (bk7258_flash_erase_sector(base + offset) < 0)
         {
           return -EIO;
         }
@@ -108,13 +104,13 @@ static int bk7258_ota_erase(
           return ret;
         }
 
-      if (offset + BK7258_FLASH_ERASE_SIZE == size ||
-          (offset + BK7258_FLASH_ERASE_SIZE) %
+      if (offset + erase_size == size ||
+          (offset + erase_size) %
             BK7258_OTA_PROGRESS_GRANULARITY == 0u)
         {
           ret = bk7258_ota_checkpoint(
                   ops, context, phase, image,
-                  offset + BK7258_FLASH_ERASE_SIZE, size);
+                  offset + erase_size, size);
           if (ret < 0)
             {
               return ret;
@@ -128,7 +124,8 @@ static int bk7258_ota_erase(
 static int bk7258_ota_program_image(
   const struct bk7258_ota_source_ops_s *ops, void *context,
   enum bk7258_ota_phase_e phase, enum bk7258_ota_image_e image,
-  uint32_t base, uint32_t size, uint32_t first_offset, SHA2_CTX *sha256)
+  uint32_t base, uint32_t size, uint32_t first_offset,
+  uint32_t erase_size, SHA2_CTX *sha256)
 {
   uint32_t offset;
   int ret;
@@ -141,7 +138,7 @@ static int bk7258_ota_program_image(
     }
 
   for (offset = first_offset; offset < size;
-       offset += BK7258_FLASH_ERASE_SIZE)
+       offset += erase_size)
     {
       ret = bk7258_ota_source_read(ops, context, image, offset,
                                    g_bk7258_ota_write_sector,
@@ -153,8 +150,9 @@ static int bk7258_ota_program_image(
 
       sha256update(sha256, g_bk7258_ota_write_sector,
                    sizeof(g_bk7258_ota_write_sector));
-      if (bk_flash_write_bytes(base + offset, g_bk7258_ota_write_sector,
-                               sizeof(g_bk7258_ota_write_sector)) != BK_OK ||
+      if (bk7258_flash_write(
+            base + offset, g_bk7258_ota_write_sector,
+            sizeof(g_bk7258_ota_write_sector)) < 0 ||
           bk7258_ota_flash_verify(base + offset,
                                   g_bk7258_ota_write_sector,
                                   sizeof(g_bk7258_ota_write_sector)) < 0)
@@ -168,13 +166,13 @@ static int bk7258_ota_program_image(
           return ret;
         }
 
-      if (offset + BK7258_FLASH_ERASE_SIZE == size ||
-          (offset + BK7258_FLASH_ERASE_SIZE) %
+      if (offset + erase_size == size ||
+          (offset + erase_size) %
             BK7258_OTA_PROGRESS_GRANULARITY == 0u)
         {
           ret = bk7258_ota_checkpoint(
                   ops, context, phase, image,
-                  offset + BK7258_FLASH_ERASE_SIZE, size);
+                  offset + erase_size, size);
           if (ret < 0)
             {
               return ret;
@@ -186,19 +184,22 @@ static int bk7258_ota_program_image(
 }
 
 static int bk7258_ota_validate_manifest(
-  const struct bk7258_ota_manifest_s *manifest)
+  const struct bk7258_ota_manifest_s *manifest,
+  const struct bk7258_ota_layout_s *layout)
 {
   bool package_id_present = false;
   size_t index;
 
   if (manifest->version != BK7258_OTA_MANIFEST_VERSION ||
-      memcmp(manifest->layout_sha256, g_bk7258_ota_layout_sha256,
-             sizeof(g_bk7258_ota_layout_sha256)) != 0 ||
+      memcmp(manifest->layout_sha256, layout->layout_sha256,
+             sizeof(layout->layout_sha256)) != 0 ||
       manifest->security_counter == 0u ||
       manifest->image[BK7258_OTA_IMAGE_CP].physical_size !=
-        BK7258_CP_RAW_PHYSICAL_SIZE ||
+        layout->slot[BK7258_BOOT_SLOT_PRIMARY]
+                    [BK7258_OTA_IMAGE_CP].raw_size ||
       manifest->image[BK7258_OTA_IMAGE_AP].physical_size !=
-        BK7258_AP_RAW_PHYSICAL_SIZE)
+        layout->slot[BK7258_BOOT_SLOT_PRIMARY]
+                    [BK7258_OTA_IMAGE_AP].raw_size)
     {
       return -EINVAL;
     }
@@ -214,7 +215,8 @@ static int bk7258_ota_validate_manifest(
 static int bk7258_ota_admit_candidate(
   const struct bk7258_ota_source_ops_s *ops, void *context,
   const struct bk7258_ota_manifest_s *manifest,
-  const struct bk7258_ota_pair_snapshot_s *active)
+  const struct bk7258_ota_pair_snapshot_s *active,
+  const struct bk7258_ota_layout_s *layout)
 {
   struct bk7258_ota_image_metadata_s cp;
   struct bk7258_ota_image_metadata_s ap;
@@ -223,13 +225,13 @@ static int bk7258_ota_admit_candidate(
   ret = bk7258_ota_source_image_metadata(
           ops, context, BK7258_OTA_IMAGE_CP,
           manifest->image[BK7258_OTA_IMAGE_CP].physical_size,
-          BK7258_ARTIFACT_CP_LOGICAL_SIZE, &cp);
+          layout->active_logical_size[BK7258_OTA_IMAGE_CP], &cp);
   if (ret == 0)
     {
       ret = bk7258_ota_source_image_metadata(
               ops, context, BK7258_OTA_IMAGE_AP,
               manifest->image[BK7258_OTA_IMAGE_AP].physical_size,
-              BK7258_ARTIFACT_AP_LOGICAL_SIZE, &ap);
+              layout->active_logical_size[BK7258_OTA_IMAGE_AP], &ap);
     }
   if (ret < 0)
     {
@@ -259,9 +261,12 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
                           void *context)
 {
   struct bk7258_ota_geometry_s geometry;
+  const struct bk7258_ota_layout_s *layout;
+  const struct bk7258_ota_layout_s *locked_layout;
   struct bk7258_ota_manifest_s manifest;
   struct bk7258_ota_pair_snapshot_s active;
-  enum bk7258_flash_guard_owner_e owner;
+  enum bk7258_boot_slot_e active_slot;
+  enum bk7258_boot_slot_e locked_active_slot;
   SHA2_CTX sha256;
   uint8_t digest[BK7258_OTA_SHA256_SIZE];
   bool opened = false;
@@ -272,23 +277,45 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
       return -EINVAL;
     }
 
-  ret = bk7258_ota_inactive_geometry(&geometry);
+  ret = bk7258_ota_resolve_layout(&layout, &active_slot);
   if (ret < 0)
     {
       return ret;
     }
 
-  owner = geometry.inactive_slot == BK7258_BOOT_SLOT_PRIMARY ?
-          BK7258_FLASH_GUARD_OTA_PRIMARY :
-          BK7258_FLASH_GUARD_OTA_SECONDARY;
-  ret = bk7258_flash_guard_lock(owner, true,
-                                BK7258_OTA_STAGE_LOCK_TIMEOUT_MS);
+  geometry.active_slot = active_slot;
+  geometry.inactive_slot = active_slot == BK7258_BOOT_SLOT_PRIMARY ?
+                           BK7258_BOOT_SLOT_SECONDARY :
+                           BK7258_BOOT_SLOT_PRIMARY;
+  geometry.cp_raw_offset =
+    layout->slot[geometry.inactive_slot][BK7258_OTA_IMAGE_CP].raw_offset;
+  geometry.cp_raw_size =
+    layout->slot[geometry.inactive_slot][BK7258_OTA_IMAGE_CP].raw_size;
+  geometry.ap_raw_offset =
+    layout->slot[geometry.inactive_slot][BK7258_OTA_IMAGE_AP].raw_offset;
+  geometry.ap_raw_size =
+    layout->slot[geometry.inactive_slot][BK7258_OTA_IMAGE_AP].raw_size;
+
+  ret = bk7258_storage_lock(
+          geometry.inactive_slot == BK7258_BOOT_SLOT_PRIMARY ?
+            BK7258_STORAGE_GUARD_OTA_STAGE_PRIMARY :
+            BK7258_STORAGE_GUARD_OTA_STAGE_SECONDARY,
+          BK7258_OTA_STAGE_LOCK_TIMEOUT_MS);
   if (ret < 0)
     {
       return ret;
     }
 
-  ret = bk7258_ota_get_active_pair(&active);
+  ret = bk7258_ota_resolve_layout(&locked_layout, &locked_active_slot);
+  if (ret == 0 &&
+      locked_active_slot != active_slot)
+    {
+      ret = -ESTALE;
+    }
+  if (ret == 0)
+    {
+      ret = bk7258_ota_get_active_pair(&active);
+    }
   if (ret == 0 && active.active_slot != geometry.active_slot)
     {
       ret = -ESTALE;
@@ -306,7 +333,7 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
     }
   if (ret == 0)
     {
-      ret = bk7258_ota_validate_manifest(&manifest);
+      ret = bk7258_ota_validate_manifest(&manifest, locked_layout);
     }
   else if (ret > 0)
     {
@@ -315,14 +342,15 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
 
   if (ret == 0)
     {
-      ret = bk7258_ota_admit_candidate(ops, context, &manifest, &active);
+      ret = bk7258_ota_admit_candidate(ops, context, &manifest, &active,
+                                       locked_layout);
     }
 
   if (ret == 0)
     {
       ret = bk7258_ota_checkpoint(ops, context, BK7258_OTA_PHASE_PREPARE,
                                   BK7258_OTA_IMAGE_CP, 0u,
-                                  BK7258_FLASH_ERASE_SIZE);
+                                  locked_layout->erase_size);
     }
   if (ret == 0)
     {
@@ -334,8 +362,8 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
     {
       ret = bk7258_ota_checkpoint(ops, context, BK7258_OTA_PHASE_PREPARE,
                                   BK7258_OTA_IMAGE_CP,
-                                  BK7258_FLASH_ERASE_SIZE,
-                                  BK7258_FLASH_ERASE_SIZE);
+                                  locked_layout->erase_size,
+                                  locked_layout->erase_size);
     }
   if (ret == 0)
     {
@@ -345,13 +373,15 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
     {
       ret = bk7258_ota_erase(ops, context, BK7258_OTA_PHASE_ERASE_CP,
                              BK7258_OTA_IMAGE_CP, geometry.cp_raw_offset,
-                             geometry.cp_raw_size);
+                             geometry.cp_raw_size,
+                             locked_layout->erase_size);
     }
   if (ret == 0)
     {
       ret = bk7258_ota_erase(ops, context, BK7258_OTA_PHASE_ERASE_AP,
                              BK7258_OTA_IMAGE_AP, geometry.ap_raw_offset,
-                             geometry.ap_raw_size);
+                             geometry.ap_raw_size,
+                             locked_layout->erase_size);
     }
   if (ret == 0)
     {
@@ -360,7 +390,8 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
                                      BK7258_OTA_PHASE_WRITE_AP,
                                      BK7258_OTA_IMAGE_AP,
                                      geometry.ap_raw_offset,
-                                     geometry.ap_raw_size, 0u, &sha256);
+                                     geometry.ap_raw_size, 0u,
+                                     locked_layout->erase_size, &sha256);
     }
   if (ret == 0)
     {
@@ -382,7 +413,8 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
                                      BK7258_OTA_IMAGE_CP,
                                      geometry.cp_raw_offset,
                                      geometry.cp_raw_size,
-                                     BK7258_FLASH_ERASE_SIZE, &sha256);
+                                     locked_layout->erase_size,
+                                     locked_layout->erase_size, &sha256);
     }
   if (ret == 0)
     {
@@ -399,12 +431,12 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
       ret = bk7258_ota_checkpoint(ops, context,
                                   BK7258_OTA_PHASE_COMMIT_CP,
                                   BK7258_OTA_IMAGE_CP, 0u,
-                                  BK7258_FLASH_ERASE_SIZE);
+                                  locked_layout->erase_size);
     }
   if (ret == 0 &&
-      (bk_flash_write_bytes(geometry.cp_raw_offset,
-                            g_bk7258_ota_cp_commit,
-                            sizeof(g_bk7258_ota_cp_commit)) != BK_OK ||
+      (bk7258_flash_write(geometry.cp_raw_offset,
+                          g_bk7258_ota_cp_commit,
+                          sizeof(g_bk7258_ota_cp_commit)) < 0 ||
        bk7258_ota_flash_verify(geometry.cp_raw_offset,
                                g_bk7258_ota_cp_commit,
                                sizeof(g_bk7258_ota_cp_commit)) < 0))
@@ -418,14 +450,14 @@ int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
       (void)bk7258_ota_checkpoint(ops, context,
                                   BK7258_OTA_PHASE_COMMIT_CP,
                                   BK7258_OTA_IMAGE_CP,
-                                  BK7258_FLASH_ERASE_SIZE,
-                                  BK7258_FLASH_ERASE_SIZE);
+                                  locked_layout->erase_size,
+                                  locked_layout->erase_size);
       (void)bk7258_ota_checkpoint(ops, context,
                                   BK7258_OTA_PHASE_COMPLETE,
                                   BK7258_OTA_IMAGE_CP, 1u, 1u);
     }
 
-  bk7258_flash_guard_unlock();
+  bk7258_storage_unlock();
   if (ret < 0 && opened && ops->cancel != NULL)
     {
       (void)ops->cancel(context);

@@ -26,7 +26,7 @@
 #include <nuttx/video/fb.h>
 
 #include <arch/chip/bk7258_lcd_8080.h>
-#include <arch/chip/bk7258_sdk_abi.h>
+#include "bk7258_sdk_abi.h"
 
 #include <driver/lcd.h>
 #include <driver/lcd_types.h>
@@ -243,10 +243,10 @@ static int bk7258_lcd_8080_ioctl(FAR struct fb_vtable_s *vtable, int cmd,
   return -ENOTTY;
 }
 
-int bk7258_lcd_8080_initialize(void)
+int bk7258_lcd_8080_initialize(
+  FAR const struct bk7258_lcd_8080_board_s *board)
 {
   FAR struct bk7258_lcd_8080_priv_s *priv = &g_bk7258_lcd_8080;
-  FAR const struct bk7258_lcd_8080_board_s *board;
   FAR const lcd_device_t *device;
   size_t framebuf_bytes;
   int ret;
@@ -263,7 +263,6 @@ int bk7258_lcd_8080_initialize(void)
       return -EBUSY;
     }
 
-  board = bk7258_board_lcd_8080_config();
   if (board == NULL || board->name == NULL || board->sdk_device == NULL ||
       board->width == 0 || board->height == 0)
     {

@@ -67,10 +67,11 @@
 #include <nuttx/sched.h>
 
 #include <arch/chip/bk7258_amp.h>
+#include <arch/chip/bk7258_reset_cause.h>
+#include <arch/chip/bk7258_system_reset.h>
 
 #include "chip.h"
 #include "arm_internal.h"
-#include <components/system.h>
 #include <arch/chip/bk7258_console.h>
 #include "ram_vectors.h"
 #include "nvic.h"
@@ -406,12 +407,6 @@ uint32_t *__wrap_arm_doirq(int irq, uint32_t *regs)
  * readable dump, then force the AON whole-device reset instead of parking.
  * Genuine HardFault/MemManage/etc. keep the parked-for-inspection path. */
 
-extern void bk_misc_set_reset_reason(uint32_t type);
-#ifdef CONFIG_BK7258_WDT
-extern void bk7258_wdt_force_system_reset(void)
-  __attribute__((noreturn));
-#endif
-
 #define BK7258_EXC_NMI 2u
 
 static void __attribute__((noinline, noreturn, used))
@@ -512,8 +507,7 @@ bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
        * contract an NMI does not prove which SoC source asserted it. */
 
 #ifdef CONFIG_BK7258_WDT
-      bk_misc_set_reset_reason(RESET_SOURCE_NMI_WDT);
-      bk7258_wdt_force_system_reset();
+      bk7258_system_reset(BK7258_RESET_SOURCE_NMI_WDT);
 #else
       up_systemreset();
 #endif

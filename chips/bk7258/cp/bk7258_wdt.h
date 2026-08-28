@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/cp/bk7258_wdt.h
+ * contest2026_135_yongwangzhiqian/chips/bk7258/cp/bk7258_wdt.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -21,7 +21,7 @@
  *
  * The Tier-1 bootloader arms both watchdogs during cold-init to recover from
  * DPLL / SPI hangs.  The CP reset entry closes them before nx_start(), and
- * board_app_initialize() registers this driver after bounded AP autostart
+ * board_late_initialize() registers this driver after bounded AP autostart
  * returns.  It then reinitializes the APB WDT with the configured period
  * (default 8 s) and exposes /dev/watchdog0.
  *
@@ -41,6 +41,13 @@
 
 #include <nuttx/config.h>
 
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -48,15 +55,15 @@
 #ifdef CONFIG_BK7258_WDT
 int bk7258_wdt_initialize(void);
 int bk7258_wdt_service(void);
-void bk7258_wdt_force_system_reset(void) __attribute__((noreturn));
 void bk7258_wdt_pm_prepare(void);
 void bk7258_wdt_pm_restore(void);
-#ifdef CONFIG_BK7258_WDT_PRETIMEOUT_PANIC
-int bk7258_wdt_take_pending_reset_cause(uint32_t *reason);
-#endif
 #ifdef CONFIG_BK7258_WDT_FAULT_INJECTION
 int bk7258_wdt_fault_validate(void);
 #endif
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_CHIP_BK7258_WDT_H */

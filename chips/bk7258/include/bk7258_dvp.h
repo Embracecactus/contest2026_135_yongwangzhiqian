@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_dvp.h
+ * chips/bk7258/include/bk7258_dvp.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -9,8 +9,8 @@
  * with it when calling capture_register().
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_DVP_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_DVP_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_DVP_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_DVP_H
 
 #include <nuttx/compiler.h>
 
@@ -123,4 +123,4 @@ int bk7258_dvp_resume(FAR struct bk7258_dvp_s *priv);
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_DVP_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_DVP_H */

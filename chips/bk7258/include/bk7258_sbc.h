@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_sbc.h
+ * chips/bk7258/include/bk7258_sbc.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -17,6 +17,10 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Public Types
@@ -50,5 +54,9 @@ int bk7258_sbc_decode_frame(const void *data, size_t len,
 int bk7258_sbc_uninitialize(void);
 
 #endif /* CONFIG_BK7258_SBC && CONFIG_BK7258_AP_CORE */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_SBC_H */

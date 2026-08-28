@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_scale_rotate.h
+ * chips/bk7258/include/bk7258_scale_rotate.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -14,8 +14,8 @@
  * the engines.  A single owner may use one engine at a time.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_SCALE_ROTATE_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_SCALE_ROTATE_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_SCALE_ROTATE_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_SCALE_ROTATE_H
 
 #include <nuttx/compiler.h>
 
@@ -138,4 +138,4 @@ int bk7258_rotate(FAR struct bk7258_scale_rotate_s *priv,
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_SCALE_ROTATE_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_SCALE_ROTATE_H */

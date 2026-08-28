@@ -30,7 +30,6 @@
 #include <nuttx/audio/audio.h>
 #include <nuttx/kthread.h>
 
-#include <arch/chip/bk7258_board_binding.h>
 #include <arch/chip/bk7258_mic.h>
 
 /****************************************************************************
@@ -116,6 +115,7 @@ struct bmicval_stats_s
  */
 
 volatile struct bmicval_diag_s g_bk7258_mic_validation_diag;
+static FAR const struct bk7258_mic_config_s *g_bmicval_config;
 
 /****************************************************************************
  * Private Functions
@@ -128,29 +128,11 @@ static int bmicval_errno(void)
 
 static FAR const struct bk7258_mic_config_s *bmicval_mic_config(void)
 {
-  FAR const struct bk7258_board_binding_s *board;
-  FAR const struct bk7258_mic_binding_s *binding;
-  FAR const struct bk7258_mic_config_s *config;
+  FAR const struct bk7258_mic_config_s *config = g_bmicval_config;
 
-  board = bk7258_board_get_binding();
-  if (board == NULL || board->version != BK7258_BINDING_VERSION ||
-      board->size < sizeof(*board))
-    {
-      return NULL;
-    }
-
-  binding = board->mic;
-  if (binding == NULL || binding->version != BK7258_BINDING_VERSION ||
-      binding->size < sizeof(*binding) || binding->initialize == NULL)
-    {
-      return NULL;
-    }
-
-  config = binding->config;
-  if (config == NULL || config->version != BK7258_BINDING_VERSION ||
-      config->size < sizeof(*config) || config->channels < 1 ||
-      config->channels > 2 || (config->flags & BK7258_MIC_BINDING_MIC1) == 0 ||
-      ((config->flags & BK7258_MIC_BINDING_MIC2) != 0) !=
+  if (config == NULL || config->channels < 1 || config->channels > 2 ||
+      (config->flags & BK7258_MIC_INPUT_MIC1) == 0 ||
+      ((config->flags & BK7258_MIC_INPUT_MIC2) != 0) !=
         (config->channels == 2))
     {
       return NULL;
@@ -617,12 +599,20 @@ static int bmicval_thread(int argc, char **argv)
  * Public Functions
  ****************************************************************************/
 
-int bk7258_mic_validation_start(void)
+int bk7258_mic_validation_start(
+  FAR const struct bk7258_mic_config_s *config)
 {
   int ret;
 
+  if (g_bmicval_config != NULL)
+    {
+      return -EALREADY;
+    }
+
+  g_bmicval_config = config;
   if (bmicval_mic_config() == NULL)
     {
+      g_bmicval_config = NULL;
       return -ENODEV;
     }
 
@@ -639,6 +629,7 @@ int bk7258_mic_validation_start(void)
       g_bk7258_mic_validation_diag.state = BMICVAL_FAILED;
       g_bk7258_mic_validation_diag.result = ret;
       g_bk7258_mic_validation_diag.stage = BMICVAL_STAGE_INIT;
+      g_bmicval_config = NULL;
       return ret;
     }
 

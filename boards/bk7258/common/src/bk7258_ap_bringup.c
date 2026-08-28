@@ -1,17 +1,18 @@
 /****************************************************************************
- * board/bk7258/chip/ap/bk7258_peripherals.c
+ * boards/bk7258/common/src/bk7258_ap_bringup.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Register AP-owned peripheral lower halves.  Self-registering drivers
+ * Board-owned registration of AP peripheral lower halves.  Self-registering
+ * drivers
  * (AUD, I2C, MIC, RTC, SARADC, SDMADC, TIMER) publish their character
  * device directly and are fatal on failure.  I2S, SDIO and SPI objects are
  * bound here to their NuttX upper halves; those bindings are best-effort
  * because an absent daughter board must not park the AP.  GPIOE remains an
  * object-only lower half: a board consumer must explicitly choose and claim
  * each pin before publishing a GPIO character device.
- * The selected board hook registers attached display, touch and camera
- * devices after their generic controller lower halves are available.
+ * The selected physical board invokes these ordered phases and registers its
+ * attached display, touch and camera devices between them.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -19,15 +20,11 @@
 #include <debug.h>
 #include <errno.h>
 
-#include <arch/chip/bk7258_board_binding.h>
-#include <arch/chip/bk7258_peripherals.h>
-#ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
-#  include <arch/chip/bk7258_sdk_runtime.h>
-#endif
+#include <arch/chip/bk7258_ap_platform.h>
+#include <arch/chip/bk7258_aud.h>
+#include <arch/chip/bk7258_mic.h>
+#include <arch/chip/bk7258_sdio.h>
 
-#ifdef CONFIG_BK7258_AUD
-#  include <arch/chip/bk7258_aud.h>
-#endif
 #ifdef CONFIG_BK7258_CAN
 #  include <nuttx/can/can.h>
 #  include <arch/chip/bk7258_can.h>
@@ -41,9 +38,6 @@
 #endif
 #ifdef CONFIG_BK7258_JPEG_M2M
 #  include <arch/chip/bk7258_jpeg_m2m.h>
-#endif
-#ifdef CONFIG_BK7258_MIC
-#  include <arch/chip/bk7258_mic.h>
 #endif
 #ifdef CONFIG_BK7258_PWM
 #  include <arch/chip/bk7258_pwm.h>
@@ -60,7 +54,6 @@
 #ifdef CONFIG_BK7258_SDIO
 #  include <nuttx/mmcsd.h>
 #  include <nuttx/sdio.h>
-#  include <arch/chip/bk7258_sdio.h>
 #endif
 #ifdef CONFIG_BK7258_SDMADC
 #  include <arch/chip/bk7258_sdmadc.h>
@@ -132,11 +125,12 @@ static void bk7258_can_bind(void)
  *
  ****************************************************************************/
 
-static void bk7258_i2s_bind(void)
+static void bk7258_i2s_bind(
+  FAR const struct bk7258_i2s_board_s *board)
 {
   FAR struct i2s_dev_s *i2s;
 
-  i2s = bk7258_i2s_initialize();
+  i2s = bk7258_i2s_initialize(board);
   if (i2s == NULL)
     {
       auderr("ERROR: bk7258_i2s_initialize failed\n");
@@ -164,12 +158,13 @@ static void bk7258_i2s_bind(void)
  *
  ****************************************************************************/
 
-static void bk7258_sdio_bind(void)
+static void bk7258_sdio_bind(
+  FAR const struct bk7258_sdio_board_s *board)
 {
   FAR struct sdio_dev_s *sdio = NULL;
   int ret;
 
-  ret = bk7258_sdio_initialize(&sdio);
+  ret = bk7258_sdio_initialize(&sdio, board);
   if (ret < 0)
     {
       mcerr("ERROR: bk7258_sdio_initialize failed: %d\n", ret);
@@ -196,8 +191,8 @@ static void bk7258_sdio_bind(void)
  *
  * Description:
  *   Publish the SPI master as /dev/spiN so transfers can be driven from
- *   user space.  Chip select stays under board control via
- *   bk7258_spi_set_csinfo().
+ *   user space.  The selected physical board supplies the standard NuttX
+ *   bus-specific select/status hooks and initializes its chip-select GPIOs.
  *
  ****************************************************************************/
 
@@ -263,31 +258,24 @@ static void bk7258_usbhost_bind(void)
  * Public Functions
  ****************************************************************************/
 
-int bk7258_peripherals_initialize(void)
+int bk7258_board_ap_controllers_initialize(
+  FAR const struct bk7258_mic_config_s *mic,
+  FAR const struct bk7258_aud_board_s *audio)
 {
-  FAR const struct bk7258_board_binding_s *board;
-  int ret;
+  int ret = OK;
 
-  board = bk7258_board_get_binding();
-  if (board == NULL || board->version != BK7258_BINDING_VERSION ||
-      board->size < sizeof(*board) || board->early_initialize == NULL ||
-      board->devices_initialize == NULL)
-    {
-      return -ENODEV;
-    }
+  (void)mic;
+  (void)audio;
 
-#ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
-  /* SDK-backed AP drivers share system-register and mailbox services.
-   * Establish them before any driver can make a synchronous SDK request.
+  /* AP-local SDK, PSRAM and pre-RPTUN clients are a hard prerequisite.
+   * Do not hide ordering bugs by initializing them again from this leaf.
    */
 
-  ret = bk7258_sdk_runtime_initialize();
+  ret = bk7258_ap_platform_result();
   if (ret < 0)
     {
       return ret;
     }
-
-#endif
 
 #ifdef CONFIG_BK7258_JPEG_M2M
   ret = bk7258_jpeg_m2m_register(CONFIG_BK7258_JPEG_M2M_DEVPATH);
@@ -298,7 +286,7 @@ int bk7258_peripherals_initialize(void)
 #endif
 
 #ifdef CONFIG_BK7258_AUD
-  ret = bk7258_aud_initialize();
+  ret = bk7258_aud_initialize(audio);
   if (ret < 0)
     {
       return ret;
@@ -314,7 +302,7 @@ int bk7258_peripherals_initialize(void)
 #endif
 
 #ifdef CONFIG_BK7258_MIC
-  ret = bk7258_mic_initialize();
+  ret = bk7258_mic_initialize(mic);
   if (ret < 0)
     {
       return ret;
@@ -338,17 +326,17 @@ int bk7258_peripherals_initialize(void)
     }
 #endif
 
-  /* Board-specific early consumers run only after their generic controller
-   * lower halves are available.  The selected physical-board implementation
-   * owns pin, polarity, pull, bus-device and conflict policy.
-   */
+  return OK;
+}
 
-  ret = board->early_initialize();
-  if (ret < 0)
-    {
-      return ret;
-    }
+int bk7258_board_ap_buses_initialize(
+  FAR const struct bk7258_i2s_board_s *i2s,
+  FAR const struct bk7258_sdio_board_s *sdio)
+{
+  int ret = OK;
 
+  (void)i2s;
+  (void)sdio;
 
 #ifdef CONFIG_BK7258_RTC
   ret = bk7258_rtc_initialize();
@@ -400,28 +388,25 @@ int bk7258_peripherals_initialize(void)
 #endif
 
 #ifdef CONFIG_BK7258_I2S
-  bk7258_i2s_bind();
+  bk7258_i2s_bind(i2s);
 #endif
 
 #ifdef CONFIG_BK7258_SDIO
-  bk7258_sdio_bind();
+  bk7258_sdio_bind(sdio);
 #endif
 
 #ifdef CONFIG_BK7258_SPI
   bk7258_spi_bind();
 #endif
 
-  ret = board->devices_initialize();
-  if (ret < 0)
-    {
-      _err("ERROR: board device registration failed: %d\n", ret);
-    }
+  return OK;
+}
 
-
+int bk7258_board_ap_finalize_initialize(void)
+{
 #ifdef CONFIG_BK7258_USBHOST
   bk7258_usbhost_bind();
 #endif
 
-  (void)ret;
-  return 0;
+  return OK;
 }

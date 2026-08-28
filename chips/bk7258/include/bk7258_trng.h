@@ -1,11 +1,11 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_trng.h
+ * chips/bk7258/include/bk7258_trng.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_TRNG_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_TRNG_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_TRNG_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_TRNG_H
 
 /****************************************************************************
  * Included Files
@@ -36,4 +36,4 @@ int bk7258_trng_initialize(void);
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_TRNG_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_TRNG_H */

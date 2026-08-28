@@ -27,7 +27,7 @@
 #include <driver/h264.h>
 #include <driver/yuv_buf.h>
 
-#include "../include/bk7258_yuv_h264.h"
+#include <arch/chip/bk7258_yuv_h264.h>
 #include "bk7258_media_root.h"
 
 #define BK7258_YUV_H264_DEFAULT_TIMEOUT_MS 5000u

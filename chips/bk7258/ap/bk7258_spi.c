@@ -29,10 +29,11 @@
  *     the live runtime setters are separate: bk_spi_set_mode(id, spi_mode_t)
  *     (POL_MODE_0..3), bk_spi_set_bit_width(id, 8/16), bk_spi_set_baud_rate().
  *     SPI_MODE_e (SPIDEV_MODE0..3) maps 1:1 onto spi_mode_t (POL_MODE_0..3).
- *  3. The Beken SPI driver has NO chip-select primitive.  CS is a board GPIO
- *     and is driven by the board-supplied callback installed via
- *     bk7258_spi_set_csinfo(); select() invokes it.  Without a callback CS
- *     is simply not toggled (the board may drive it externally).
+ *  3. The Beken SPI driver has NO chip-select primitive.  CS is a board GPIO.
+ *     Following the NuttX architecture SPI contract, the lower-half vtable
+ *     links directly to the selected board's bus-specific select/status
+ *     hooks; there is no mutable callback registration or cached board
+ *     policy in chip state.
  *  4. exchange() maps the three NuttX buffer combinations onto the SDK:
  *       tx && rx  -> bk_spi_transmit(id, tx, len, rx, len)  (full duplex)
  *       tx only   -> bk_spi_write_bytes(id, tx, len)
@@ -77,6 +78,16 @@
 
 #define BK7258_SPI_MODE_MAX            3
 
+#if CONFIG_BK7258_SPI_BUS == 0
+#  define BK7258_SPI_SELECT            bk7258_spi0select
+#  define BK7258_SPI_STATUS            bk7258_spi0status
+#elif CONFIG_BK7258_SPI_BUS == 1
+#  define BK7258_SPI_SELECT            bk7258_spi1select
+#  define BK7258_SPI_STATUS            bk7258_spi1status
+#else
+#  error "CONFIG_BK7258_SPI_BUS must select SPI controller 0 or 1"
+#endif
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -91,7 +102,6 @@ struct bk7258_spi_priv_s
   uint8_t bits;                     /* Cached bits per word (8/16) */
   bool initialized;                 /* bk_spi_init() done for this unit */
   bool driver_init;                 /* bk_spi_driver_init() done */
-  bk7258_spi_cs_cb_t cs_cb;         /* Board chip-select callback */
 };
 
 /****************************************************************************
@@ -99,15 +109,11 @@ struct bk7258_spi_priv_s
  ****************************************************************************/
 
 static int bk7258_spi_lock(FAR struct spi_dev_s *dev, bool lock);
-static void bk7258_spi_select(FAR struct spi_dev_s *dev, uint32_t devid,
-                              bool selected);
 static uint32_t bk7258_spi_setfrequency(FAR struct spi_dev_s *dev,
                                         uint32_t frequency);
 static void bk7258_spi_setmode(FAR struct spi_dev_s *dev,
                                enum spi_mode_e mode);
 static void bk7258_spi_setbits(FAR struct spi_dev_s *dev, int nbits);
-static uint8_t bk7258_spi_status(FAR struct spi_dev_s *dev,
-                                 uint32_t devid);
 #ifdef CONFIG_SPI_EXCHANGE
 static void bk7258_spi_exchange(FAR struct spi_dev_s *dev,
                                 FAR const void *txbuffer,
@@ -135,11 +141,11 @@ static struct bk7258_spi_priv_s g_bk7258_spi =
 static const struct spi_ops_s g_bk7258_spi_ops =
 {
   .lock        = bk7258_spi_lock,
-  .select      = bk7258_spi_select,
+  .select      = BK7258_SPI_SELECT,
   .setfrequency = bk7258_spi_setfrequency,
   .setmode     = bk7258_spi_setmode,
   .setbits     = bk7258_spi_setbits,
-  .status      = bk7258_spi_status,
+  .status      = BK7258_SPI_STATUS,
 #ifdef CONFIG_SPI_EXCHANGE
   .exchange    = bk7258_spi_exchange,
 #else
@@ -199,23 +205,6 @@ static int bk7258_spi_lock(FAR struct spi_dev_s *dev, bool lock)
   else
     {
       return nxmutex_unlock(&priv->lock);
-    }
-}
-
-static void bk7258_spi_select(FAR struct spi_dev_s *dev, uint32_t devid,
-                              bool selected)
-{
-  FAR struct bk7258_spi_priv_s *priv =
-    (FAR struct bk7258_spi_priv_s *)dev;
-
-  /* CS is a board GPIO; the Beken driver exposes no CS primitive.  Invoke
-   * the board callback if installed.  No callback => CS is not toggled
-   * here (board may drive it externally).
-   */
-
-  if (priv->cs_cb != NULL)
-    {
-      priv->cs_cb(devid, selected);
     }
 }
 
@@ -290,14 +279,6 @@ static void bk7258_spi_setbits(FAR struct spi_dev_s *dev, int nbits)
     {
       priv->bits = (uint8_t)nbits;
     }
-}
-
-static uint8_t bk7258_spi_status(FAR struct spi_dev_s *dev,
-                                 uint32_t devid)
-{
-  /* No device-status polling is provided by this lower half. */
-
-  return 0;
 }
 
 #ifdef CONFIG_SPI_EXCHANGE
@@ -456,11 +437,6 @@ int bk7258_spi_initialize(FAR struct spi_dev_s **spi_dev)
   priv->initialized = true;
   *spi_dev = &priv->dev;
   return OK;
-}
-
-void bk7258_spi_set_csinfo(bk7258_spi_cs_cb_t cs_cb)
-{
-  g_bk7258_spi.cs_cb = cs_cb;
 }
 
 #endif /* CONFIG_BK7258_SPI */

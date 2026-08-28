@@ -66,7 +66,14 @@ if(CONFIG_BK7258_UART0 OR CONFIG_BK7258_UART1 OR CONFIG_BK7258_UART2)
 endif()
 
 list(APPEND BK7258_CP_SRCS
-     ${BK7258_COMMON_RUNTIME_SRCS})
+     ${BK7258_COMMON_RUNTIME_SRCS}
+     common/bk7258_stage_runner.c
+     cp/bk7258_cp_platform.c
+     cp/bk7258_flash.c)
+
+if(CONFIG_BOARDCTL_RESET_CAUSE)
+  list(APPEND BK7258_CP_SRCS common/bk7258_reset_cause.c)
+endif()
 
 if(CONFIG_BK7258_SWD_DEBUG)
   list(APPEND BK7258_CP_SRCS cp/bk7258_swd_debug.c)
@@ -92,10 +99,13 @@ if(CONFIG_BK7258_AP_SUPERVISOR)
 endif()
 
 if(CONFIG_BK7258_BT_IPC OR CONFIG_BK7258_WIFI_VNET)
-  list(APPEND BK7258_CP_SRCS cp/bk7258_bt_controller.c)
+  list(APPEND BK7258_CP_SRCS
+       cp/bk7258_bt_controller.c
+       cp/bk7258_radio_storage.c)
 endif()
 
 if(CONFIG_BK7258_WIFI_VNET)
+  list(APPEND BK7258_CP_SRCS common/bk7258_wifi_control.c)
   if(NOT CONFIG_BK7258_AP_CORE)
     bk7258_wrap_sdk_symbol(malloc)
   endif()
@@ -197,6 +207,29 @@ if(CONFIG_BK7258_WDT)
   list(APPEND BK7258_CP_SRCS cp/bk7258_wdt.c)
 endif()
 
+if(CONFIG_BK7258_WDT OR CONFIG_BK7258_OTA)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_system_reset.c)
+endif()
+
+if(CONFIG_BK7258_OTA OR CONFIG_BK7258_WDT_PRETIMEOUT_PANIC OR
+   CONFIG_BK7258_FLASH_MTD OR
+   CONFIG_BK7258_BT_IPC OR CONFIG_BK7258_WIFI_VNET)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_storage.c)
+endif()
+
+if(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_reset_marker.c)
+endif()
+
+if(CONFIG_BK7258_OTA)
+  list(APPEND BK7258_CP_SRCS
+       common/bk7258_boot_slot.c
+       cp/bk7258_ota_flash.c
+       cp/bk7258_ota_image.c
+       cp/bk7258_ota_pair.c
+       cp/bk7258_ota_boot_control.c)
+endif()
+
 if(CONFIG_BK7258_IRDA)
   list(APPEND BK7258_CP_SRCS cp/bk7258_irda.c)
 endif()
@@ -215,8 +248,9 @@ set(BK7258_AP_BASE_SRCS
     ap/bk7258_ap_vectors.c
     ap/bk7258_ap_start.c
     ${BK7258_COMMON_FRONT_SRCS}
-    ap/bk7258_ap_main.c
-    ap/bk7258_peripherals.c)
+    common/bk7258_stage_runner.c
+    ap/bk7258_ap_platform.c
+    ap/bk7258_ap_lifecycle.c)
 
 if(CONFIG_BK7258_PM_COORDINATED_STANDBY)
   list(APPEND BK7258_AP_BASE_SRCS
@@ -261,7 +295,10 @@ if(CONFIG_BK7258_OTA_SOURCE_HTTP)
 endif()
 
 if(CONFIG_BK7258_WIFI_VNET)
-  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_wifi.c)
+  list(APPEND BK7258_AP_BASE_SRCS
+      ap/bk7258_wifi.c
+      common/bk7258_wifi_control.c)
+  target_include_directories(arch PRIVATE ${NUTTX_APPS_DIR}/include)
 endif()
 
 foreach(BK7258_AP_PERIPHERAL AUD GPIOE I2C I2S)
@@ -386,22 +423,6 @@ endif()
 
 if(CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_mic_validation.c)
-endif()
-
-if(CONFIG_EXAMPLES_AI_AGENT_VELA AND NOT CONFIG_MEDIA AND
-   (CONFIG_BK7258_MIC OR CONFIG_BK7258_AUD))
-  set(BK7258_AGENT_MEDIA_INC
-      ${CMAKE_SOURCE_DIR}/../frameworks/multimedia/media/include)
-  if(CONFIG_BK7258_MIC)
-    list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_agent_media_recorder.c)
-    list(APPEND BK7258_AGENT_MEDIA_DEFINE
-         CONFIG_BK7258_AGENT_MEDIA_RECORDER=1)
-  endif()
-  if(CONFIG_BK7258_AUD)
-    list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_agent_media_player.c)
-    list(APPEND BK7258_AGENT_MEDIA_DEFINE
-         CONFIG_BK7258_AGENT_MEDIA_PLAYER=1)
-  endif()
 endif()
 
 if(CONFIG_BK7258_SDIO)
@@ -529,18 +550,13 @@ target_include_directories(arch PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/cp
     ${CMAKE_CURRENT_SOURCE_DIR}/ap
     ${NUTTX_DIR}/arch/arm/src/arm_m
-    ${NUTTX_DIR}/arch/arm/src/armv8-m
-    ${BK7258_AGENT_MEDIA_INC})
+    ${NUTTX_DIR}/arch/arm/src/armv8-m)
 target_include_directories(arch SYSTEM PRIVATE
     ${BK7258_SDK_INCLUDE_DIR}
     ${BK7258_SDK_CONFIG_DIR})
 
 # The exported sdkconfig.h is part of the immutable static-library ABI and stays
 # authoritative.  Keep only OpenVela feature-local definitions here.
-
-if(BK7258_AGENT_MEDIA_DEFINE)
-  target_compile_definitions(arch PRIVATE ${BK7258_AGENT_MEDIA_DEFINE})
-endif()
 
 if(NOT CONFIG_BK7258_AP_CORE)
   bk7258_wrap_sdk_symbol(arm_doirq nxsched_resume_scheduler)
