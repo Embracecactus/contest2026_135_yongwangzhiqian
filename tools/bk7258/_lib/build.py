@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 """BK7258 orchestration over the official OpenVela build entry."""
 
 from __future__ import annotations

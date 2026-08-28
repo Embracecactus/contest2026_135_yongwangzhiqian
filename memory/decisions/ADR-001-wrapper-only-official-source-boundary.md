@@ -42,7 +42,7 @@ separate explicit authority and its own upstream PR workflow.
 
 - N14 source/ELF verifier and both v3.1.1.9 bundle checksum checks passed.
 - Official NuttX/apps tracked diffs were zero at the N14 checkpoint.
-- Canonical evidence: [N14 source verification](../../docs/bk7258-t5ai/nuttx-port/n14-psram-source-verification.md).
+- Canonical evidence: [N14 source verification](../../docs/platforms/bk7258/nuttx-port/n14-psram-source-verification.md).
 
 ## Reversal signals
 

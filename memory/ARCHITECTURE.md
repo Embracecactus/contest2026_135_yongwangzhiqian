@@ -14,7 +14,7 @@ Chip/SoC (BK7258-intrinsic mechanisms) -> Board (pins, bindings, external
 devices and bring-up).  `vendor_common_glue` and build/migration tags are
 internal responsibility labels, not additional public layers.
 
-Canonical overview: [BK7258 porting report](../docs/bk7258-t5ai/porting-report.md).
+Canonical overview: [BK7258 porting report](../docs/platforms/bk7258/porting-report.md).
 
 ## Components and ownership
 

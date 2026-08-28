@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+
 """The sole maintainer-facing BK7258 build and release workflow entry."""
 
 from __future__ import annotations

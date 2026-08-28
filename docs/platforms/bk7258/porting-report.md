@@ -325,8 +325,9 @@ BK7258 PROBE ... HALT           ← 硬化跳转 epilogue 落到现有探针
 - UART1 early-print 路径（继承 bootloader 配置，不重写 `UART1_CFG`）。
 - bootloader 跳转落点确是我们的 `Reset_Handler`。
 - Tier-1 bootloader 的 FAL 分区表解析、app header 校验、硬化跳转 epilogue 全链路板端通过。
-- 打包 + 烧录链（`bk7258_crc_expand_app.py` / `bk7236_pack_min_bootloader.py` → `bk_loader`）
-  端到端可用。
+- **历史验证链**（`bk7258_crc_expand_app.py` / `bk7236_pack_min_bootloader.py` →
+  `bk_loader`）在当时端到端可用；这些脚本现已由 `tools/bk7258/_lib/image.py` 和统一
+  `bk7258.py` 入口取代，不是当前复现命令。
 
 **回退方案**：若 Tier-1 bootloader 起不来，重烧已验证的最小 bootloader
 （`bk7236_min_bl_crc.bin` @ `0x0-0x11000`）即可恢复已知良好基线。整个验证过程没有任何一步
@@ -612,7 +613,7 @@ N5 各 substage 板端验证摘要（详细 worklog：[`nuttx-port/n5-flash-file
 | **N5-D4** emptiness scan | Candidate data partition 前 16 KB（4 x 4 KB sample）全 `0xFF` | ✅ board-observed |
 | **N5-D5** raw flash r/w | Raw flash erase/write/read-back/re-erase @ `0x00100000`（第一个 4 KB sector）；SR0 protect clear/restore required | ✅ board-verified（2026-07-19） |
 | **N5-D6** MTD lower-half | MTD read/erase/bwrite，方案 A（每次 op 临时清/恢复 SR0 块保护）；CONFIG_BK7258_FLASH_MTD；现位于 `src/bk7258_flash_mtd.[ch]` | ✅ board-verified（2026-07-19） |
-| **N5-D7** LittleFS filesystem | CONFIG_BK7258_FLASH_LITTLEFS；ftl 注册 `/dev/mtdblock0`；mount 到 `/data`（autoformat 仅首次）；probe 文件重启持久化通过 | ✅ board-verified（2026-07-19） |
+| **N5-D7** LittleFS filesystem | 现役入口 `CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT` 自动选择 `CONFIG_BK7258_FLASH_MTD` 与 `CONFIG_FS_LITTLEFS`；FTL 注册 `/dev/mtdblock0`，挂载到 `/data`；probe 文件重启持久化通过 | ✅ board-verified（2026-07-19；配置名已随现役存储拓扑更新） |
 
 **安全 candidate**：logical offset `0x00100000..0x001FFFFF`（1 MB），4 KB / 64 KB 对齐，远在当前
 image（`0x2837A` ≈ 163 KB）之外，距 image end 约 845 KB。
@@ -780,14 +781,16 @@ docs/
       n3-procfs-ps.md                    Stage N3 会话记录
       n4-d0-clock-diag.md                Stage N4 历史 raw clock 探测
 
-board/bk7258/bootloader/
-  start.S                                asm 跳板 + 硬化 epilogue
-  boot_main.c                            C main：FAL 解析 + header 校验 + 日志
-  bootloader.ld                          FLASH @ 0x02000000
-  Makefile                               arm-none-eabi-gcc freestanding
-  bk7236_pack_min_bootloader.py          开源 CRC 打包器
-  README.md                              bootloader 说明
-  (bl.bin / bl.elf / bl_crc.bin / *.o / *.map / *.json — 构建产物，已 .gitignore)
+chips/bk7258/bootloader/
+  start.S                                BL1 asm 跳板 + 硬化 epilogue
+  boot_main.c                            BL1 main：分区、镜像校验与交接
+  boot_runtime.c                         reset/cache/MPU/core-power runtime
+  bootloader.ld                          BL1 链接脚本
+  bl2/                                   pinned MCUboot BL2 适配
+  Makefile                               独立 bootloader 构建规则
+  README.md                              BL1/BL2 说明
+
+tools/bk7258/_lib/image.py               现役 32+2 CRC encode/verify 与镜像物化
 ```
 
 ### 11.2 提交记录
@@ -804,13 +807,17 @@ board/bk7258/bootloader/
 | `ceead19` | `contest2026-multi-board` | feat(bk7258): board-verified probe + Tier-1 bootloader（**11 文件，+1296 行**） |
 | `783e049` | `contest2026-multi-board` | docs(bk7258): complete bootloader reverse-engineering（Tuya + BK 官方） |
 
-构建产物（`*.bin` / `*.elf` / `*.map` / `*.o` / `__pycache__` / `bl_crc.json`）已 `.gitignore`，
-可从源码一键复现（`make` + `python3 bk7236_pack_min_bootloader.py`）。
+构建产物（`*.bin` / `*.elf` / `*.map` / `*.o` / `__pycache__`）已 `.gitignore`。
+现役可复现入口是根 README 所列的 `tools/bk7258/bk7258.py build/package/verify`；
+CRC 编码与校验由该入口内部调用 `tools/bk7258/_lib/image.py`，早期
+`bk7236_pack_min_bootloader.py` 命令已经退役。
 
 ### 11.3 回退基线
 
-最小 bootloader `bk7236_min_bl_crc.bin`（位于 `zephyr-bk7258-port/out/custom_bootloader/`）
-作为已知良好回退镜像，烧 `@0x0-0x11000` 即可恢复。
+历史最小 bootloader `bk7236_min_bl_crc.bin` 曾位于本地
+`zephyr-bk7258-port/out/custom_bootloader/`，但该构建产物不在本仓交付物中，只作为
+历史板测记录，不能作为当前复现或发布回退输入。当前回退必须使用统一构建入口生成并
+经 `verify` 校验的 BL1/BL2 产物。
 
 ---
 

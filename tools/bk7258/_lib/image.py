@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 """Pure BK7258 image codecs, placement, and materialization."""
 
 from __future__ import annotations

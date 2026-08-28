@@ -17,11 +17,14 @@ high-value delivery-documentation defect. It also classified several
 recommendations or example layouts as mandatory and missed the three CMake loops
 that generate driver source names.
 
-- **Real code defect:** enabling CP `CONFIG_BK7258_TOUCH` calls
-  `bk7258_board_cp_devices_initialize()`, but production board code does not
-  define it; the only definition is a host-test stub. No maintained defconfig
-  enables this option, so current product builds are unaffected. A board
-  implementation and a build/link gate are required before enabling it.
+- **Future code gap behind a configuration gate:** CP `CONFIG_BK7258_TOUCH`
+  calls `bk7258_board_cp_devices_initialize()`, but production board code does
+  not define it; the only definition is a host-test stub. The Kconfig symbol
+  now has no user-visible prompt and no maintained board selects it, so it
+  cannot be enabled by current configurations. Both supported build backends
+  reject an AP-side selection. A future board must implement
+  the hook and a build/link test, then use a board selector that itself depends
+  on `!BK7258_AP_CORE`.
 - **Resolved delivery-documentation defect:** the former root `README.md` was
   still the competition template and omitted the toolchain installation, SDK
   bundle rebuild, paired build, and artifact naming. It has been replaced by
@@ -121,7 +124,7 @@ compliance gate. A complete 80-entry table is a bounded architecture choice.
 | Thirteen empty config directories remain | ❌ Not a repository defect | They were untracked local empty directories. Git cannot carry empty directories, so a remote evaluator does not receive them |
 | Missing `etc/group`, `etc/passwd`, and `RCRAWS` | ❌ Not a current functional defect | Maintained configs do not enable login/account databases. The ROMFS contains only `rc.sysinit` and `rcS`, for which `RCSRCS` is correct; the official files are extensible examples |
 | Linker scripts are centralized under `common` | ✅ Fact correct, conclusion false | Shared templates are combined with per-build generated partition headers/linker inputs; all three boards retain independent CSVs and board `Make.defs` entry points |
-| `bk7258_board_cp_devices_initialize` has no production definition | ✅ Real defect | It appears only when `CONFIG_BK7258_TOUCH` is enabled, which maintained defconfigs do not do. It must be implemented before enablement; documentation cannot replace that code fix |
+| `bk7258_board_cp_devices_initialize` has no production definition | ✅ Latent gap, configuration-gated | `BK7258_TOUCH` has no user prompt and no current board selects it; both build backends reject an AP-side selection. A future board must implement the hook and a link test, then use a selector that depends on `!BK7258_AP_CORE` |
 | All three boards have identical, marker-only rc scripts | ✅ Correct and documented | Each physical board continues to own its ROMFS input. `boards/bk7258/CONFIGS.md` explicitly describes the current scripts as marker-only |
 | The `ld.script` header contains a stale path | ✅ Correct, resolved | This was a comment-only error and did not affect linking |
 | Root README is still the competition template | ✅ Correct, resolved | The new Chinese and English project descriptions cover overview, track, layout, reproduction, and AI Coding usage |
@@ -135,8 +138,11 @@ compliance gate. A complete 80-entry table is a bounded architecture choice.
 
 ## Open items
 
-1. Implement `bk7258_board_cp_devices_initialize()` for any physical board that
-   will enable `CONFIG_BK7258_TOUCH`, and add a matching build/link test.
+1. For any physical board that will support touch, implement
+   `bk7258_board_cp_devices_initialize()` and a matching build/link test, then
+   select `BK7258_TOUCH` only from a board selector that itself depends on
+   `!BK7258_AP_CORE`. Keep the CMake/Classic Make build-time guards and do not
+   restore an unconstrained global user prompt.
 2. If an evaluator requires a literal directory match despite the architecture
    note, add a clearly labeled CP-only diagnostic `configs/nsh`; do not present
    it as the normal paired CP/AP product configuration.

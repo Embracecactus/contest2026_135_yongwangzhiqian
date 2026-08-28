@@ -156,14 +156,21 @@ mode and word width.  Those runtime transaction values are not global board
 constants.  Only a fixed device such as the GT1151 or camera supplies a
 board-device default or maximum through its selected-board binding.
 
-The board-owned AP bring-up runner may initialize enabled generic controllers.
-The selected board's `bk7258_board_early_initialize()` and
-`bk7258_board_devices_initialize()` hooks own attached-device registration and
-its ordering relative to those controllers.  A new physical board therefore
-adds its own header and hook implementation; it does not add board-name tests
-or pin literals to shared chip mechanisms.  SPI follows the standard NuttX
-compile-time `spiNselect`/`spiNstatus` board-hook model and is selectable only
-for a physical board that declares such a binding.
+The selected physical board implements `bk7258_board_ap_initialize()` and
+orders its board-specific pre-device and attached-device work around the
+shared `bk7258_board_ap_controllers_initialize()`,
+`bk7258_board_ap_buses_initialize()` and
+`bk7258_board_ap_finalize_initialize()` phases.  A new physical board therefore
+adds its own header and AP composition entry; it does not add board-name tests
+or pin literals to shared chip mechanisms.  A CP-only attached device must
+provide its explicit board hook, such as
+`bk7258_board_cp_devices_initialize()` when `CONFIG_BK7258_TOUCH` is enabled.
+Its board Kconfig selector must itself depend on `!BK7258_AP_CORE`; the shared
+chip CMake and Classic Make entries deliberately reject an AP selector that
+bypasses the chip symbol's dependency through Kconfig `select`.
+SPI follows the standard NuttX compile-time `spiNselect`/`spiNstatus`
+board-hook model and is selectable only for a physical board that declares
+such a binding.
 
 The rule is applied by peripheral class as follows:
 

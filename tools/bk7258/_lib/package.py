@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 """Deterministic, independently verifiable BK7258 delivery container."""
 
 from __future__ import annotations

@@ -17,6 +17,10 @@
 
 include armv8-m/Make.defs
 
+ifeq ($(CONFIG_BK7258_TOUCH)$(CONFIG_BK7258_AP_CORE),yy)
+$(error CONFIG_BK7258_TOUCH is CP-only; the board selector must depend on !BK7258_AP_CORE)
+endif
+
 # The arch Makefile already adds chip/ itself.  Add the role subdirectories for
 # source lookup and chip-private quoted includes.
 

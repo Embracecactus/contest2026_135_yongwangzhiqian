@@ -53,7 +53,7 @@ invariants. This is executable architecture evidence, not Bootloader code.
 The future C parser must reproduce these decisions before integration. No
 firmware or board-write gate is open.
 
-Detailed design: [N17 layout/journal/migration design](../../docs/bk7258-t5ai/nuttx-port/n17-layout-journal-migration.md).
+Detailed design: [N17 layout/journal/migration design](../../docs/platforms/bk7258/nuttx-port/n17-layout-journal-migration.md).
 
 ## Reversal signals
 
