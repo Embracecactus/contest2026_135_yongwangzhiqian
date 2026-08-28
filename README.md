@@ -1,185 +1,148 @@
-# contest2026_135_yongwangzhiqian
+# BK7258 三核 openvela 适配
 
-👋 欢迎参加 **2026 首届 openvela AI 硬件开发者大赛**！
+[English](README_EN.md) | 简体中文
 
-这是组委会为你的队伍创建的**专属参赛仓库**（本仓为样例/模板，队伍编号 `135`；你看到的将是你自己的 `contest2026_<编号>_<队伍名>`）。比赛期间，你的全部参赛代码、打包产物与 AI Coding 日志都提交到这里。
+## 一、作品简介
 
-> 本仓既是「代码仓」，又内置了一键拉取整套 openvela 工程的 `repo` 清单（manifest）。你只需跟它打交道，**自始至终只动一个文件夹**。
+本作品为 Beken BK7258（三核 Arm Cortex-M33）提供完整的 openvela/NuttX
+平台适配，并在 T5-Board、T5AI-Core 和 AIDK AI Toy 三块物理板之间复用同一套
+SoC 实现。系统不是官方模板假定的单镜像模型，而是由 CPU0 上的 CP NuttX 与
+CPU1/CPU2 上的 AP SMP NuttX 组成配对系统。
 
-## 当前 BK7258 作品入口
+主要交付包括：
 
-- [仓库文档分层与导航](docs/README.md)
-- [BK7258 chip 层文档与 SDK OPP 契约](docs/chips/bk7258/README.md)
-- [BK7258/T5-AI 当前状态与文档索引](docs/bk7258-t5ai/README.md)
-- [openvela 官网文档逐项适配审计矩阵](docs/bk7258-t5ai/openvela-document-adaptation-matrix.md)
-- [P0 调试、xTS 与性能基线适配/验收手册](docs/bk7258-t5ai/p0-diagnostics-performance.md)
-- [P0 generation 143/145 实板验证与 30 轮性能原始值](progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md)
-- [Generation 146 CP/CPU0 240 MHz 实板闭环](progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)
-- [完整移植技术报告](docs/bk7258-t5ai/porting-report.md)
-- [SDK v3.1.1.9 迁移、legacy 回退与板测报告](docs/bk7258-t5ai/nuttx-port/sdk-v3.1.1.9-migration-report.md)
-- [SDK CP/AP 静态库编译与导入 SOP](docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md)
-- [N13 BLE GAP/GATT 端到端完成记录（board-verified）](docs/bk7258-t5ai/nuttx-port/prompts/13-n13-ble-gap-gatt.md)
-- [N13 BLE GAP/GATT 源码复核记录](docs/bk7258-t5ai/nuttx-port/n13-ble-gap-gatt-source-verification.md)
-- [N14 PSRAM 与 SDK 软件定时器完成记录（board-verified）](docs/bk7258-t5ai/nuttx-port/prompts/14-n14-psram.md)
-- [N14 PSRAM 源码复核记录](docs/bk7258-t5ai/nuttx-port/n14-psram-source-verification.md)
-- [N14 最终板端证据索引](docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md)
-- [Windows/WSL2 通用串口与 J-Link 调试 SOP](tools/windows-hardware-debug/README.md)
-- [Windows/WSL2 BLE 测试广播工具](tools/windows-hardware-debug/ble-advertiser/README.md)
+- CP/AP/CPU2 启动、80 槽向量表、SDK IRQ bridge、UART/NSH、定时器、堆与板级
+  bring-up；
+- RPMsg/RPTUN、Wi-Fi/Bluetooth、PSRAM、音视频及常用外设的 SDK wrapper；
+- 项目自有 BL1、NuttX MCUboot BL2、同槽签名 CP/AP 和回滚计数约束；
+- 统一的 CMake 构建、分区生成、打包、校验和主机回归入口；
+- 可追溯的源码、构建、实板串口和 AI Coding 证据。
 
----
+功能是否完成必须以当前配置和对应实板记录为边界，不能把一块板或历史 profile 的
+结果推广到所有板型。当前动态状态见 [progress/CURRENT.md](progress/CURRENT.md)，
+完整技术报告见 [移植报告](docs/platforms/bk7258/porting-report.md)，官方清单的逐条口径见
+[符合性复核说明](docs/platforms/bk7258/official-compliance-review.md)。
 
-## 一、先读这些官方文档
+## 二、选题方向
 
-**通用（所有赛道必读）：**
+**新硬件适配。** 作品重点是把 BK7258 的三核启动、芯片驱动、板级配置、Beken SDK
+和安全启动链接入 openvela，而不是在已有 BSP 上增加一个应用。三核与双镜像是本
+平台的真实架构约束，相关偏离均在符合性复核说明中显式记录。
 
-| 文档                                                                                                                                     | 用途                                           |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| [《大赛总览》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/contest_overview.md)                        | 赛道、流程、评分、资源，建议先通读             |
-| [《参赛代码提交指南》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/code_submission_guide.md)           | 仓库获取、提交流程、时间与权限（**以此为准**） |
-| [《AI Coding 日志归集与提交手册》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md) | 如何导出 AI 对话日志并提交到 `logs/`           |
+## 三、目录结构
 
-**按你的赛道选读（三选一）：**
+| 路径 | 内容 |
+|---|---|
+| `chips/bk7258/` | CP/AP/CPU2、IRQ、定时器、外设 wrapper、BL1/BL2 与芯片 Kconfig |
+| `boards/bk7258/` | 三块物理板、CP/AP 配对配置、分区 CSV、公共链接脚本和 bring-up |
+| `tools/bk7258/` | 唯一维护入口：工具链、SDK bundle、构建、签名、打包和校验 |
+| `tests/bk7258/` | 直接编译现役源码的主机回归测试；不替代固件构建或实板测试 |
+| `docs/platforms/bk7258/` | 移植报告、符合性说明、调试方法和历史阶段记录 |
+| `progress/verification/` | 带构建身份和适用边界的动态验收记录 |
+| `logs/lijian/` | 按大赛格式导出的 AI Coding JSONL 日志 |
+| `logs/bk7258-*` | 早期硬件原始证据；不是 AI 对话日志 |
+| `prebuilt/` | 本机安装的锁定工具链；二进制内容为可再生成的忽略文件 |
+| `chips/bk7258/bk_idk/armino_as_lib/` | 从 manifest 锁定 SDK 重建的本机 bundle；不分发第三方二进制 |
 
-| 赛道                  | 教程导航                                                                                                                                                 |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 快应用 / 手表应用创新 | [快应用教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/quickapp/quickapp_guide_index.md)                         |
-| AI 硬件产品创新       | [AI 硬件赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_hardware/ai_hardware_guide_index.md)              |
-| 新硬件适配            | [新硬件适配赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/hardware_porting/hardware_porting_guide_index.md) |
+Manifest 将团队维护的 chip、board、工具和应用映射到 openvela 工作区的标准位置。
+`tests/`、`docs/`、`progress/` 和 `logs/` 是团队仓内的验证/交付材料，不参与 NuttX
+源码树映射。
 
----
+## 四、运行方式
 
-## 二、第一步：拉取完整工程
+### 1. 获取完整工作区
 
-用组委会提供的命令一键拉取「openvela 全量源码 + 你的专属仓」：
+以下命令显式选中默认项目和 BK7258 SDK 组。SDK 项目没有 `notdefault` 标记，因此
+普通默认同步也会包含它；显式写出分组是为了让复现输入一目了然。
 
 ```bash
 repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian \
-  -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml
+  -b dev-ai-contest-2026 \
+  -m contest2026_135_yongwangzhiqian.xml \
+  -g default,bk7258-sdk
 repo sync -c -j8
+cd contest2026_135_yongwangzhiqian
 ```
 
-同步后，你的整个仓库位于工作区的 `contest2026_135_yongwangzhiqian/`，openvela 全量源码在外层（`nuttx/`、`apps/`、`packages/`、`vendor/` 等）。
+建议使用 Ubuntu 22.04，并预先安装 openvela 常规构建依赖、Python 3、CMake、Ninja
+和 GNU Make。Arm 编译器不从系统 `PATH` 选择。
 
----
+### 2. 安装锁定工具链
 
-## 三、第二步：在哪里写代码
+工具会从 `tools/bk7258/toolchain.json` 指定的 Arm 官方 HTTPS 地址下载归档，校验
+SHA-256 后安装到被忽略的 `prebuilt/` 目录。也可用 `--archive` 指定已下载的同一
+归档。
 
-**只在自己的仓目录 `contest2026_135_yongwangzhiqian/` 里开发。** 不同作品形态放在对应子目录，manifest 会通过 `<linkfile>` 把它们**软链**到 openvela 编译树该在的位置——你不用手动 copy：
-
-| 作品形态   | 你的代码放这里             | 系统自动映射到                                 |
-| ---------- | -------------------------- | ---------------------------------------------- |
-| 应用       | `app/hello_app/`           | `packages/demos/contest2026_135_hello_app`     |
-| 快应用     | `quickapp/hello_quickapp/` | `packages/apps/contest2026_135_hello_quickapp` |
-| SoC 适配   | `chips/bk7258/`            | `vendor/beken/chips/bk7258`                    |
-| 板级适配   | `boards/bk7258/`           | `vendor/beken/boards/bk7258`                   |
-| 预构建工具 | `prebuilt/`                | `vendor/beken/prebuilt`                        |
-
-> 只有新增尚未映射的顶层作品形态时才需要补 `<linkfile>`。整个
-> `boards/bk7258/` 已一次性映射，因此新增 BK7258 物理板只需在该目录下增加
-> 板目录，不需要修改 manifest。**生产仓库（packages/nuttx/vendor 等）零改动。**
-
-建议仓库目录约定（便于评委定位）：
-
-```text
-app/ | quickapp/ | chips/ | boards/ | prebuilt/ | tools/
-logs/                       # AI Coding 日志（主动导出后提交，格式见 logs/README.md）
-README.md                   # 作品说明（提交前请改成你自己的，见第六节）
+```bash
+tools/bk7258/bk7258.py toolchain install
+tools/bk7258/bk7258.py toolchain verify
 ```
 
-> 仓内附带了一个 `.gitignore.example`，给出了**编译产物**等不需要进仓的文件示例。如需启用，`cp .gitignore.example .gitignore` 后按需增删即可。**注意 `logs/` 下最终导出的 AI Coding 日志必须提交，不要忽略。**
->
-> `logs/` 的目录结构与提交格式见 [logs/README.md](logs/README.md)。
+### 3. 重建 SDK bundle
 
----
+SDK 源码由 manifest 固定在 `vendor/beken/bk_avdk_smp`。T5-Board 与 T5AI-Core 使用
+`cp` + `ap`；AIDK AI Toy 使用 `cp-aidk` + `ap`。
 
-## 四、第三步：编译与运行
+```bash
+tools/bk7258/bk7258.py sdk rebuild \
+  --profile cp --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk rebuild \
+  --profile ap --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk verify --profile cp
+tools/bk7258/bk7258.py sdk verify --profile ap
+```
 
-BK7258 适配使用仓内唯一维护入口；从团队仓根目录执行：
+构建 AIDK AI Toy 前，将上面的 `cp` profile 改为 `cp-aidk`。已取得与跟踪哈希一致的
+预制 bundle 时，也可使用 `sdk install --profile <name> --bundle <path>`；bundle
+仍须通过 `sdk verify`。
+
+### 4. 构建 CP/AP 配对系统
+
+下面的 direct 模式用于无签名 bring-up 和复现检查：
 
 ```bash
 tools/bk7258/bk7258.py build \
-  --board t5ai_core --boot direct
+  --board t5ai_core --boot direct --jobs 8
 ```
 
-每块物理板通过自己的 `boards/bk7258/<board>/openvela.conf` 声明正常
-CP/AP 配置和分区布局；新增板不需要修改构建或打包工具。特殊诊断配置仍可显式给出
-`--cp-config`、`--ap-config` 和 `--partition`。
+也可将板名改为 `t5_board` 或 `aidk_ai_toy`。入口会解析板级 `openvela.conf`，生成
+CP/AP 私有构建配置和分区头/链接输入，然后分别调用官方 `build.sh ... --cmake`。
+`BK7258_SDK_DIR`、工具链和分区变量是 wrapper 的受校验内部契约，用户无需手工设置。
 
-完整的 direct/MCUboot、签名、打包、持久化与硬件证据边界见
-[BK7258 build/package SOP](docs/bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md)。
-其他作品形态请参考对应赛道教程导航：
+构建结束会打印 build manifest、CP/AP ELF/原始 bin 和最终 Flash 段的精确路径与
+SHA-256。多镜像系统的产物按分区角色命名，例如 `boot.bin`、`cp.bin`、`ap.bin`、
+`pair.bin` 和签名发布中的 `bl2-a.bin`；单镜像示例名 `vela_ap.bin` 不适用于此布局。
 
-- 快应用 / 手表应用：[快应用教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/quickapp/quickapp_guide_index.md)（含模拟器与开发板部署）。
-- AI 硬件产品创新：[AI 硬件赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_hardware/ai_hardware_guide_index.md)（环境搭建、编译烧录、Skill 开发）。
-- 新硬件适配：[新硬件适配赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/hardware_porting/hardware_porting_guide_index.md)（BSP 移植、最小 NSH 基线）。
+`--boot mcuboot` 是正式签名链，但需要该次发布新生成的 BL1/MCUboot 公钥、私钥侧
+发布步骤和严格递增的回滚计数。不要复用历史私钥。完整流程和烧录边界见
+[构建/烧录/调试 SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)。
 
-子目录已通过 manifest 中的 `<linkfile>` 软链进 openvela 编译树，因此构建在 openvela 工作区**根目录**（即你这个仓的上一级）进行。openvela 使用 `build.sh` 作为统一入口，接收一个 **board config 路径**作为参数：
+### 5. 主机回归
+
+安装 `cmocka` 开发包后，从团队仓根目录执行：
 
 ```bash
-# 进入 openvela 工作区根目录（你的仓的上一级）
-cd ..
-
-# 通用语法：第一个参数是 board config 路径，第二个参数可以是 menuconfig / distclean 等
-./build.sh <board-config-path> [menuconfig|distclean] [-j8]
+./tests/bk7258/run_tests.sh
 ```
 
-> BK7258 不直接调用通用 `build.sh`；仓内入口负责校验 CP/AP 配对、分区、SDK、工具链和最终镜像。其他示例形态的 board config 与部署方式以赛道教程为准。
-
----
-
-## 五、第四步：提交作品
-
-1. **fork** 你的专属仓 → 开发 → `git commit` 并推送 → 向专属仓发起 **Pull Request**，可**自行 review 并合入**（无需等组委会）。
-2. **AI Coding 日志**：与 AI 工具的对话会自动记录到本机 staging（不会自动上传），需你**主动导出/打包**选定会话到仓内 `logs/` 目录后一并提交。详见[《AI Coding 日志归集与提交手册》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md)。
-3. 若需改动 **nuttx 等公共仓库**，不在本仓改，而是 fork 对应公共仓、以 PR 提交到 `dev-ai-contest-2026` 分支，由组委会 review 后合入。
-
-> ⏰ **提交作品截止：9 月 20 日**。截止后统一收回 push 权限，仍可查看 / clone。
->
-> 获奖后再按要求将作品 PR 至 openvela 上游对应仓库（走标准 PR + CI 流程）。
-
-### 关于 PR 与 CLA
-
-- 本仓所有改动通过 **Pull Request** 合入（分支保护强制，可自行合入自己的 PR）。
-- 首次贡献需在[**官网签署 CLA**](https://openvela.com/#/community/cla)；PR 上会自动跑 `cla/signature` 检查，在官网签署成功后，在 PR 评论 `/check-cla` 复检即可通过。
-
----
-
-## 六、提交前：把本 README 改成你的作品说明
-
-本文件目前是组委会给的**使用说明书**。**作品提交前，请把它替换成你自己作品的说明**，方便评委快速了解你做了什么、怎么跑起来。建议至少包含以下内容：
-
-```markdown
-# <你的作品名>
-
-## 一、作品简介
-<一句话/一段话说明这个作品是什么、解决什么问题、亮点在哪>
-
-## 二、选题方向
-<快应用 / 手表应用创新 ｜ AI 硬件产品创新 ｜ 新硬件适配 ｜ 自定方向，并简述理由>
-
-## 三、目录结构
-<列出你这个仓里各目录/文件的作用，例如：>
-- `app/xxx/`        — <说明>
-- `board/xxx/`      — <说明>
-- `quickapp/xxx/`   — <说明>
-- `logs/`           — AI Coding 日志
-- `docs/` 或其他    — <说明>
-
-## 四、运行方式
-<拉取工程后，如何编译、烧录/部署、运行的完整步骤；最好能让评委照着一步步复现>
+成功标志为 `BK7258_HOST_TEST_PASS`。该结果只覆盖 mock 环境中的逻辑与 ABI；硬件
+能力必须引用对应的实板记录。
 
 ## 五、AI Coding 使用说明
-<说明本作品如何借助 AI 辅助开发：
-- 在需求拆解 / 方案设计 / 编码 / 调试 / 文档等环节如何与 AI 协作；
-- AI 对开发效率或质量带来的实际帮助。
-完整对话日志见 logs/ 目录>
-```
 
-> 提示：将会根据「作品本身 + 你的 README 说明 + `logs/` 里的 AI Coding 日志」来理解和评估你的作品，README 写清楚很重要。
+AI 参与了需求拆解、官方/SDK 源码交叉核对、启动与中断根因分析、实现和测试生成、
+实板日志解释、威胁建模以及文档维护。关键做法是把 AI 结论当作待验证假设：源码
+所有权、分区、符号、构建产物和硬件结果都必须由可重复命令或原始证据确认。
 
----
+符合大赛格式的对话日志位于 `logs/lijian/<date>/<tool>__<sid>.jsonl`，会话索引见
+`logs/lijian/manifest.json`。`logs/bk7258-*` 是早期串口/安全启动原始证据，不属于
+AI 日志；新的结构化实板结论统一写入 `progress/verification/`。
 
-## 附：仓库命名规范
+## 评审入口
 
-`contest2026_<编号>_<队伍名>` — 编号三位零填充；队名 slug（全小写、英文/拼音、连字符）。例：`contest2026_135_yongwangzhiqian`。
-（仓库由组委会统一创建，**每队仅一个仓**，无需自行命名。）
+- [符合性复核说明（中文）](docs/platforms/bk7258/official-compliance-review.md) /
+  [English](docs/platforms/bk7258/official-compliance-review.en.md)
+- [openvela 文档适配矩阵](docs/platforms/bk7258/openvela-document-adaptation-matrix.md)
+- [BK7258 板级配置与架构](boards/bk7258/README.md)
+- [BK7258 主机测试说明](tests/bk7258/README.md)
+- [AI Coding 日志格式](logs/README.md)

@@ -1,9 +1,9 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/scripts/ld_ap.script
+ * contest2026_135_yongwangzhiqian/boards/bk7258/common/scripts/ld_ap.script
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Linker script for the physical CPU1 / AP logical-core-0 NuttX image.
+ * Shared linker template for the physical CPU1 / AP logical-core-0 NuttX image.
  *
  *   SPINLOCK: 0x28000000 .. 0x2800ffff (official BK7258 SMP region)
  *   FLASH : 0x02150000 .. 0x0225ffff  (logical offset 0x00150000)

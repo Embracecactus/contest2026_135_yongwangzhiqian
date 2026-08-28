@@ -252,7 +252,7 @@ the 4-KiB Trace command stack after the maintained T5-Board services are
 running.  The separate T5-Board performance profile disables Trace and the
 other asynchronous diagnostic monitors; its contract and test procedure are
 documented in
-[`../../docs/bk7258-t5ai/p0-diagnostics-performance.md`](../../docs/bk7258-t5ai/p0-diagnostics-performance.md).
+[`../../docs/platforms/bk7258/p0-diagnostics-performance.md`](../../docs/platforms/bk7258/p0-diagnostics-performance.md).
 The accepted generation 143 diagnostic capture and generation 145
 low-noise benchmark results are recorded in
 [`../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md`](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md).

@@ -28,7 +28,7 @@ without changing official NuttX/apps/SDK source or static libraries.
 ## Verification
 
 See [N14 verification record](../verification/2026-08-03-n14-psram-board-verification.md) and
-[canonical evidence index](../../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md).
+[canonical evidence index](../../docs/platforms/bk7258/nuttx-port/n14-evidence-index.md).
 
 ## Operational state and rollback
 

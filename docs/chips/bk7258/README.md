@@ -11,7 +11,7 @@
 | [J-Link/SWD 调试指南](jlink-swd-debug-guide.md) | Cortex-M33 fault、寄存器、断点和 BK7258 启动调试 | 通用方法；具体接线与端口由板级文档给出 |
 
 板卡硬件、T5-Board/T5AI-Core/AIDK profile、COM 口、下载边界和实板结论仍从
-[BK7258/T5-AI 平台文档](../../bk7258-t5ai/README.md)进入。动态状态与正式验收以
+[BK7258/T5-AI 平台文档](../../platforms/bk7258/README.md)进入。动态状态与正式验收以
 [`progress/CURRENT.md`](../../../progress/CURRENT.md)、当前 manifest、resolved config 和
 权威分区 CSV 为准。
 
