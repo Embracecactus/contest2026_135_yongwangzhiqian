@@ -1331,7 +1331,7 @@ config BK7258_SDK_IPC_RUNTIME
 		this option.
 
 config BK7258_TOUCH
-	bool "CP capacitive-touch button lower half"
+	bool
 	default n
 	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
 	select BK7258_SDK_IPC_RUNTIME
@@ -1345,8 +1345,12 @@ config BK7258_TOUCH
 		binding supplies the channel, tuning and device path; boards without a
 		verified sensor electrode cannot enable this option.
 		No maintained physical board currently supplies the required
-		bk7258_board_cp_devices_initialize() binding.  Keep this option disabled
-		until the selected board implements that function and passes a link test.
+		bk7258_board_cp_devices_initialize() binding, so this symbol intentionally
+		has no user-visible prompt and remains n.  A future physical-board selector
+		may select it only after implementing that function, passing a link test,
+		and depending on !BK7258_AP_CORE.  Both supported build backends also
+		reject an AP-side selection because Kconfig select bypasses the selected
+		symbol's dependencies.
 		The immutable v3.1.1.9 BK7258 driver does not implement its advertised
 		multi-channel scan helpers, so this integration intentionally supports
 		exactly one selected channel.  It polls through LPWORK with the SDK

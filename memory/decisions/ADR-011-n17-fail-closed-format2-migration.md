@@ -52,7 +52,7 @@ and armed loss of both format-3 banks. Only the wholly erased policy state can
 select format 2. A separately reviewed, range-specific board plan and fresh
 owner authorization remain mandatory before any physical migration.
 
-Detailed ordering and marker bytes: [N17 layout/journal/migration design](../../docs/bk7258-t5ai/nuttx-port/n17-layout-journal-migration.md).
+Detailed ordering and marker bytes: [N17 layout/journal/migration design](../../docs/platforms/bk7258/nuttx-port/n17-layout-journal-migration.md).
 
 ## Reversal signals
 

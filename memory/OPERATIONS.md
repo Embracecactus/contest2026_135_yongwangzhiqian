@@ -70,7 +70,7 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 - Require `git diff --check`; confirm the build introduced no new tracked
   changes in official `nuttx/` or `apps/` beyond their recorded baseline.
 - For a completed hardware stage, retain raw UART/J-Link logs, artifact hashes, physical reset evidence, and regression tests proportional to the change.
-- Canonical N14 matrix: [N14 evidence index](../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md).
+- Canonical N14 matrix: [N14 evidence index](../docs/platforms/bk7258/nuttx-port/n14-evidence-index.md).
 - For BL1/BL2/MCUboot changes, run the affected source/host gate and one full
   signed CP/AP integration build. Hardware fallback or destructive mutation
   remains separate, range-specific validation work.
@@ -102,7 +102,7 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 - Do not run another OpenVela configure/build concurrently with
   `bk7258.py build`; official classic clean still touches shared NuttX state,
   while CMake outputs remain under `out/bk7258/<config>/cmake`.
-- Follow [the build/flash/debug SOP](../docs/bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md) rather than reconstructing commands from memory.
+- Follow [the build/flash/debug SOP](../docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md) rather than reconstructing commands from memory.
 - The build wrapper rejects mismatched CP/AP pairs and a storage topology that
   differs from the selected CSV.
 - A successful build atomically writes one

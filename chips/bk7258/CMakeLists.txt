@@ -8,6 +8,11 @@
 # are documented where they occur.
 ############################################################################
 
+if(CONFIG_BK7258_TOUCH AND CONFIG_BK7258_AP_CORE)
+  message(FATAL_ERROR
+          "CONFIG_BK7258_TOUCH is CP-only; the board selector must depend on !BK7258_AP_CORE")
+endif()
+
 if("$ENV{BK7258_SDK_DIR}" STREQUAL "")
   message(FATAL_ERROR
           "BK7258_SDK_DIR is required; use tools/bk7258/bk7258.py build")

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 """Content-addressed BK7258 Arm GNU toolchain installation."""
 
 from __future__ import annotations

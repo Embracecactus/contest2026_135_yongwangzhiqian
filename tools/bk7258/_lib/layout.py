@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 """Data-driven BK7258 partition layout and official CSV adapter."""
 
 from __future__ import annotations

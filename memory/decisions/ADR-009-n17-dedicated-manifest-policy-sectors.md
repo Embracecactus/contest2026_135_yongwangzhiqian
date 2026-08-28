@@ -51,11 +51,10 @@ partition, OTA-layout, rotation and SDK-wrapper checks pass with 16 table
 entries and LittleFS role ID 15. Final firmware source/ELF checks for literal
 ID 12 remain an implementation gate.
 
-Detailed ABI and protocol: [N17 layout/journal/migration design](../../docs/bk7258-t5ai/nuttx-port/n17-layout-journal-migration.md).
+Detailed ABI and protocol: [N17 layout/journal/migration design](../../docs/platforms/bk7258/nuttx-port/n17-layout-journal-migration.md).
 
 ## Reversal signals
 
 - Exact official v3.1.1.9 evidence shows an undiscovered owner in the new
   sector span.
 - An immutable binary consumer requires project LittleFS numeric ID 12.
-

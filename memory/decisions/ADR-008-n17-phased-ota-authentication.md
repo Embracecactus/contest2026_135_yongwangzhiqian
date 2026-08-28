@@ -134,7 +134,7 @@ N17 architecture review must complete, in order:
    is not an N17-S acceptance test.
 
 Validation item 2's ABI portion is complete: the owner accepted the frozen
-[512-byte N17-S manifest ABI](../../docs/bk7258-t5ai/nuttx-port/n17-signed-manifest-abi.md)
+[512-byte N17-S manifest ABI](../../docs/platforms/bk7258/nuttx-port/n17-signed-manifest-abi.md)
 on 2026-08-06, and its public-only host vector passes independent OpenSSL
 verification plus 3,600 fail-closed negative checks. The future Tier-1 C
 parser must still demonstrate conformance to that same vector.

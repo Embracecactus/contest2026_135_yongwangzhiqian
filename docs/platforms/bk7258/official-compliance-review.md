@@ -13,10 +13,11 @@
 原评审发现了一个真实的可选功能链接缺口和一个高价值交付文档缺口，但把多项
 推荐/示例写法误判为强制要求，并且漏读了 CMake 中生成源文件名的三个循环。
 
-- **真实代码缺口：**开启 CP `CONFIG_BK7258_TOUCH` 时会调用
+- **受配置门禁约束的未来代码缺口：**CP `CONFIG_BK7258_TOUCH` 会调用
   `bk7258_board_cp_devices_initialize()`，当前生产板目录没有定义，唯一实现是主机
-  测试桩。现有维护 defconfig 均未开启该选项，因此当前产品构建不受影响；在任何板
-  启用该功能前必须补板级实现和构建门禁。
+  测试桩。该 Kconfig 现已移除用户可见 prompt，且没有维护板选择它，因此当前配置期
+  无法启用、产品构建不受影响；CMake 与 Classic Make 还会在 AP 侧误选时触发构建错误。未来物理板
+  必须先补实现和链接测试，再由仅在 CP 侧可见的板级 selector 选择该功能。
 - **已修复的交付文档缺口：**原根 `README.md` 仍保留大赛模板，且没有在主路径写明
   工具链安装、SDK bundle 重建、配对构建和产物命名。本次已用中英文作品说明替换。
 - **已修复的文档归属问题：**原 `docs/bk7258-t5ai/` 实际覆盖三块板，现已迁移为
@@ -99,7 +100,7 @@ IRQ 的内存优化章节，不是符合性门槛；当前选择完整 80 项数
 | 13 个空 config 目录 | ❌ 不是仓库缺口 | 这些目录存在于本地磁盘但均未被 Git 跟踪；Git 不能提交空目录，远端评审不会取得它们 |
 | 缺 `etc/group`、`etc/passwd` 和 `RCRAWS` | ❌ 不是当前功能缺口 | 维护配置未启用登录/账户数据库；ROMFS 只有 `rc.sysinit`/`rcS`，用 `RCSRCS` 正确。1443/1445 给出的是可扩展示例 |
 | 链接脚本集中 common | ✅ 事实成立，结论不成立 | 公共脚本结合每次构建生成的分区头/链接输入；三板仍有独立 CSV 和板级 `Make.defs` 入口 |
-| `bk7258_board_cp_devices_initialize` 无生产实现 | ✅ 真实缺口 | 仅在 `CONFIG_BK7258_TOUCH` 打开时暴露；当前维护 defconfig 不启用。启用前必须实现，不能用文档替代代码修复 |
+| `bk7258_board_cp_devices_initialize` 无生产实现 | ✅ 潜在缺口，已加配置门禁 | `BK7258_TOUCH` 已无用户 prompt，当前没有板选择它；两套构建后端拒绝 AP 侧误选。未来板必须先实现该函数和链接测试，再由依赖 `!BK7258_AP_CORE` 的板级 selector 选择功能 |
 | 三板 rc 脚本相同且 `rcS` marker-only | ✅ 成立且已声明 | 保持每个物理板拥有自己的 ROMFS 输入；产品服务尚未加入，`boards/bk7258/CONFIGS.md` 明确称其为 marker-only |
 | `ld.script` 头注释路径过期 | ✅ 成立，已修正 | 仅为注释，不影响链接结果 |
 | 根 README 仍是模板 | ✅ 成立，已修复 | 已改为中英文作品说明，包含简介、赛道、目录、复现和 AI Coding 五项 |
@@ -113,8 +114,10 @@ IRQ 的内存优化章节，不是符合性门槛；当前选择完整 80 项数
 
 ## 尚未关闭的事项
 
-1. 为任何准备启用 `CONFIG_BK7258_TOUCH` 的物理板实现
-   `bk7258_board_cp_devices_initialize()`，并增加对应构建/链接测试。
+1. 任何准备启用 TOUCH 的物理板先实现
+   `bk7258_board_cp_devices_initialize()`、增加对应构建/链接测试，再由自身依赖
+   `!BK7258_AP_CORE` 的板级 selector 选择 `BK7258_TOUCH`；不得恢复无板级实现约束的
+   全局用户 prompt。CMake 与 Classic Make 保留 AP 侧误选的构建期守卫。
 2. 若评审方要求目录名逐字匹配而不接受架构说明，可新增一个明确标为
    CP-only diagnostic 的 `configs/nsh`；不得把它列为正常 CP/AP 产品配置。
 3. 硬件证据目录后续可迁移到 `progress/evidence/`，但移动历史引用需要独立审计，

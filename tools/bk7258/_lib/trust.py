@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 """Explicit BK7258 key handling, signing, and public trust evidence."""
 
 from __future__ import annotations

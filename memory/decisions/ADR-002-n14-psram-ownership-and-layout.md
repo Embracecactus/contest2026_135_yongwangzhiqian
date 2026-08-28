@@ -44,7 +44,7 @@ allocate-copy-free. All cores use the non-cacheable MPU contract.
 
 - AP CPU0/CPU1 each completed 16 allocator iterations with zero errors and stable free space.
 - CP completed 256 heap iterations; warm cycle, cold reset, factory calibration, RPMsg, and Bluetooth regressions passed.
-- Canonical evidence: [N14 evidence index](../../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md).
+- Canonical evidence: [N14 evidence index](../../docs/platforms/bk7258/nuttx-port/n14-evidence-index.md).
 
 ## Reversal signals
 

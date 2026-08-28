@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 """Manifest-pinned BK7258 SDK profile and bundle lifecycle."""
 
 from __future__ import annotations
