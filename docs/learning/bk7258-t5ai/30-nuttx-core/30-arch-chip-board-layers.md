@@ -9,8 +9,8 @@
 > - `$WORKSPACE/apps` commit：`e81a73794786189f15e6c9fe9931ffddd561fd73`
 > - `$CONTEST` source commit：`c588afbd8e0f1d30723f5076e585673a6ace8a4e`
 > - 有效配置来源：当前 `$WORKSPACE/nuttx/.config`
-> - 当前配置：`CONFIG_BOARD_EARLY_INITIALIZE` 未启用，`CONFIG_BOARD_LATE_INITIALIZE` 未启用，`CONFIG_NSH_ARCHINIT=y`
-> - 最后核对日期：2026-07-24
+> - 当前配置：`CONFIG_BOARD_EARLY_INITIALIZE` 未启用；共享 BK7258 board Kconfig 强制选择 `CONFIG_BOARD_LATE_INITIALIZE=y`；`CONFIG_NSH_ARCHINIT=y`
+> - 最后核对日期：2026-08-27
 > - 未覆盖：BootROM/Tier-1 bootloader 内部实现、其他 CPU 的启动、当前实施 worktree 的未提交变化
 
 ## 1. 当前 BK7258 实际走哪条路
@@ -26,7 +26,7 @@
       → drivers_initialize()
       → [board_early_initialize 未启用]
       → nx_bringup()
-          → [board_late_initialize 未启用]
+          → board_late_initialize()（已启用：薄 board bridge）
           → 启动 NSH application
               → nsh_initialize()
                   → boardctl(BOARDIOC_INIT, 0)
@@ -44,7 +44,7 @@ flowchart TD
     UPINIT["up_initialize()<br/>ARM 架构/芯片公共初始化"]
     EARLY["board_early_initialize()<br/>当前未启用"]
     BRINGUP["nx_bringup()<br/>创建系统与 init task"]
-    LATE["board_late_initialize()<br/>当前未启用"]
+    LATE["board_late_initialize()<br/>已启用：薄 board bridge"]
     NSH["NSH main / nsh_initialize()"]
     APP["board_app_initialize()<br/>当前已启用"]
 
@@ -66,7 +66,7 @@ flowchart TD
 | `__start()` | 向量表 reset slot | 调度器前、基础 OS 服务前 | 已实现并执行 |
 | `up_initialize()` | `nx_start()` 的 hardware initialization | 基础 OS/驱动服务已建立，仍在启动路径 | ARM common 实现会执行 |
 | `board_early_initialize()` | `up_initialize()`、`drivers_initialize()` 之后 | startup initialization thread，不能等待事件 | 配置关闭、无实现 |
-| `board_late_initialize()` | initial application 启动前 | 临时 kernel thread，可等待并使用 I2C/SPI | 配置关闭、无实现 |
+| `board_late_initialize()` | initial application 启动前 | 临时 kernel thread，可等待并使用 I2C/SPI | 已启用；薄 board bridge |
 | `board_app_initialize()` | NSH `boardctl(BOARDIOC_INIT)` | NSH application task | 已实现并执行 |
 
 ## 3. 阶段零：`__start()`
@@ -283,13 +283,14 @@ NuttX 合同明确允许：
 
 ### 当前 BK7258 状态
 
-当前 `.config`：
-
-```text
-# CONFIG_BOARD_LATE_INITIALIZE is not set
-```
-
-也没有对应函数实现。因此 current firmware 不经过这一层。
+共享 `boards/bk7258/common/Kconfig` 选择 `BOARD_LATE_INITIALIZE`，且
+`boards/bk7258/common/src/bk7258_boot.c` 实现该 hook。CP/AP 都只从 board
+边界调用各自 chip orchestrator，并记录终态；NuttX 随后启动 AP initial app 时，
+AP main 只读取 cached result，不把 SDK/PM/温度/PSRAM 初始化悄悄后移。两者都不再
+让 board 承载 SDK、IPC、PSRAM、AP lifecycle 或 watchdog 的实现。late hook 的
+`void` 合同保留初始诊断 shell；但 CP 的 cached mandatory result 会使随后
+`board_app_initialize()` 的应用 bring-up 返回错误，因而 procfs、storage 等
+app-facing 服务 fail-closed；AP 则发布 cached failure 后进入 parked 状态。
 
 ## 7. 阶段四：`board_app_initialize()`
 
@@ -311,9 +312,8 @@ CONFIG_NSH_ARCHINIT=y
 CONFIG_BOARDCTL=y
 ```
 
-当前 BK7258 在这里完成：
+当前 BK7258 在这里完成应用侧 bring-up，例如：
 
-- WDT 初始化；
 - DVFS procfs entry 注册；
 - procfs mount；
 - Flash MTD 创建；
@@ -355,7 +355,7 @@ board_app_initialize()
 | 可以使用 I2C/SPI 高层接口 | 否/不应依赖 | 不适合阻塞事务 | 是 | 是 |
 | 可以挂载文件系统 | 否 | 否 | 是 | 是 |
 | 适合影响 SysTick 的时钟切换 | 是，且应在 timer init 前 | 通常太晚 | 太晚 | 太晚 |
-| 是否由当前 BK7258 使用 | 是 | 否 | 否 | 是 |
+| 是否由当前 BK7258 使用 | 是 | 否 | 是（薄 bridge） | 是 |
 
 “可以”不等于“最佳位置”。还要看依赖、启动顺序、失败策略和功能是否属于 kernel 还是 application。
 
@@ -420,28 +420,47 @@ board_app_initialize()
 | `__start()` | `void`，不应返回 | early log、停机、复位或受控降级 |
 | `up_initialize()` | `void` | architecture-specific log/assert/降级 |
 | `board_early_initialize()` | `void` | 记录错误并继续，或自行进入安全状态 |
-| `board_late_initialize()` | `void` | 记录失败；若 app 强依赖，需要设计独立门禁 |
+| `board_late_initialize()` | `void` | 记录失败并保留诊断 shell；BK7258 以 cached CP result 门禁 `board_app_initialize()`，应用 bring-up fail-closed |
 | `board_app_initialize()` | `int` | 可返回负 errno，经 `boardctl()` 转成 `ERROR + errno` |
 
 即使接口是 `void`，仍然要设计失败策略，不能因为“没有返回值”就忽略失败。
 
 ## 13. 当前 BK7258 为什么这样分层
 
-当前可见设计是：
+当前设计是：
 
 - 对 tick、异常和 C runtime 有硬依赖的工作留在 `__start()`；
 - ARM common `up_initialize()` 注册 architecture driver；
-- 暂不额外引入 early/late board hooks；
-- procfs、storage probe 等与 NSH 使用体验相关的逻辑放在 `board_app_initialize()`。
+- `board_late_initialize()` 已启用，但只保留 CP/AP board API 边界；它调用
+  相应 role 的 one-shot chip orchestrator。AP main 只消费 cached result，二者
+  均不让 board 重新拥有 chip 服务，也不改变 initial app 之前的启动时点；
+- stage runner 的每个 stage 都可声明显式 `requires_mask`。mandatory 首错被
+  缓存；只有依赖全部成功的 stage 才执行。`ALWAYS_RUN` 仅允许跨越无关失败，
+  不能跨越其声明的硬件/存储前置条件：例如 OTA trial 必须先通过 layout
+  校验，WDT pretimeout 必须先通过 reset-marker domain 校验；
+- procfs、storage probe 等 application-facing 工作保留在
+  `board_app_initialize()`。
 
-这不表示未来永远不需要 `board_late_initialize()`。如果加入必须在 NSH 前完成、又需要等待 I2C/SPI/介质响应的设备，late hook 会比继续扩大 app init 更合适。
+按官方 openvela 指南 id=1443，目录不是启动阶段的替代品：可阻塞的 late
+hook 仍可作为 board 边界存在，但 SDK/IPC/PM/PSRAM/AP lifecycle、原始
+reset cause、boot-slot remap MMIO、OTA engine 及 WDT/reset-marker 机制归 chip。
+board 只传递产品 contract、布局/介质策略（包括专用 `reset_marker` 分区）和物理
+绑定；WDT pretimeout 不再复用 OTA Flash helper。chip 还拥有
+`bk7258_system_reset()`：调用者显式选择 `REBOOT`、`WATCHDOG` 或 `NMI_WDT`，
+chip 负责 AON/PMU whole-device sequence，失败时回退 architecture reset；OTA
+whole-device reset 使用 `REBOOT`。
+
+reset marker 不是“已 arm/已喂狗”的记录。timer interrupt 只安排工作；task-context
+worker 在 generation 和已过时间二次校验后才写 confirmed-pretimeout marker。reset
+cause 以 PMU 原始值为主：`POWERON` 和 `REBOOT` 绝不被 stale marker 覆盖；已确认的
+WDT marker 只可佐证 PMU 的 `WATCHDOG`/`NMI_WDT`，或在 raw 值未知时补充 WDT 原因。
 
 ## 14. 自测题
 
 1. 为什么影响 SysTick 的时钟切换不能放在 `board_app_initialize()`？
 2. `board_early_initialize()` 已经有 OS 服务，为什么仍然不能等待 semaphore？
 3. 哪个阶段明确运行在临时 kernel thread？
-4. 当前 BK7258 是否实现了 `board_late_initialize()`？
+4. 当前 BK7258 是否实现并启用了 `board_late_initialize()`？
 5. 如果某个传感器只有 NSH 命令首次使用时才需要，是否一定要在启动时初始化？
 6. `board_app_initialize()` 与 `board_late_initialize()` 能否同时存在？谁先执行？
 
@@ -450,6 +469,6 @@ board_app_initialize()
 1. 因为 timer/SysTick 已在更早的 `up_initialize()` 路径配置。
 2. 因为它仍运行在受限 startup initialization context，NuttX 合同禁止等待事件。
 3. `board_late_initialize()`。
-4. 否；当前配置也未启用。
+4. 是；共享 board Kconfig 强制启用，它只充当薄 board bridge。
 5. 不一定，可考虑按需初始化。
 6. 可以；late init 先于 initial application，app init 在 NSH 内随后执行。

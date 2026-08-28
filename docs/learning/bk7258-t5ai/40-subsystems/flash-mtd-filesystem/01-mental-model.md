@@ -44,14 +44,16 @@ flowchart TD
     APP["应用程序<br/>open / read / write"]
     LFS["LittleFS<br/>mount / autoformat"]
     FTL["FTL<br/>ftl_initialize(0, mtd)"]
-    MTD["BK7258 MTD lower-half<br/>bk7258_flash_mtd_initialize()"]
+    MTD["Board MTD composition<br/>bk7258_flash_mtd_initialize()"]
+    CHIP["BK7258 chip Flash service<br/>bk7258_flash_read / erase / write"]
     SDK["BK7258 SDK<br/>bk_flash_read_bytes / erase / write"]
     HW["8 MiB NOR Flash<br/>GD25Q64-class, data @ 0x100000"]
 
     APP -->|"文件路径 /data/probe.txt"| LFS
     LFS -->|"块设备 /dev/mtdblock0"| FTL
     FTL -->|"erase / bread / bwrite"| MTD
-    MTD -->|"bk_flash_* calls"| SDK
+    MTD -->|"chip raw-Flash API"| CHIP
+    CHIP -->|"serialized bk_flash_* calls"| SDK
     SDK -->|"SPI/QSPI 寄存器"| HW
 ```
 
@@ -62,7 +64,8 @@ flowchart TD
 | 应用 | 文件路径 | VFS | `open()` / `read()` / `write()` |
 | LittleFS | 块设备路径 | `bread` / `bwrite` / `erase` / `ioctl` | `mount()` / `autoformat` |
 | FTL | `struct mtd_dev_s` | `struct mtd_dev_s` | `ftl_initialize()` |
-| MTD | SDK 函数 | flash 控制器 | `bk7258_flash_mtd_initialize()` |
+| Board MTD | chip raw-Flash API | 分区 MTD 组合 | `bk7258_flash_mtd_initialize()` |
+| Chip Flash | SDK 函数 | controller 生命周期、JEDEC 校验、串行与保护状态 | `bk7258_flash_initialize()` / `bk7258_flash_read()` / `bk7258_flash_write()` |
 | SDK | 硬件寄存器 | — | `bk_flash_driver_init()` |
 
 ## 3. 最底层：BK7258 Flash 硬件
@@ -128,11 +131,11 @@ struct mtd_dev_s
 
 | 方法 | 实现 | 说明 |
 |---|---|---|
-| `erase` | `bk7258_flash_erase()` | 逐扇区擦除 |
-| `bread` | `bk7258_flash_bread()` | 按 4 KiB 块读取 |
-| `bwrite` | `bk7258_flash_bwrite()` | 按 4 KiB 块写入 |
-| `read` | `NULL` | 不支持字节级读取 |
-| `write` | `NULL` | 不支持字节级写入 |
+| `erase` | `bk7258_flash_mtd_erase()` | 逐扇区擦除 |
+| `bread` | `bk7258_flash_mtd_bread()` | 按 4 KiB 块读取 |
+| `bwrite` | `bk7258_flash_mtd_bwrite()` | 按 4 KiB 块写入 |
+| `read` | `bk7258_flash_mtd_read()` | 字节级读取 |
+| `write` | `bk7258_flash_mtd_write()` | `CONFIG_MTD_BYTE_WRITE` 下的字节级写入 |
 | `ioctl` | `bk7258_flash_ioctl()` | 几何参数和擦除状态查询 |
 | `isbad` | `NULL` | NOR flash 通常没有坏块 |
 | `markbad` | `NULL` | 同上 |
@@ -144,22 +147,18 @@ struct mtd_dev_s
 ```c
 FAR struct mtd_dev_s *bk7258_flash_mtd_initialize(void)
 {
-  // 1. 初始化 SDK flash driver
-  bk_flash_driver_init();
+  // 1. 通过 chip service 初始化 controller 并验证 JEDEC ID
+  if (bk7258_flash_initialize() < 0) return NULL;
 
   // 2. 填充函数指针表
-  g_bk7258_flash_mtd.mtd.erase  = bk7258_flash_erase;
-  g_bk7258_flash_mtd.mtd.bread  = bk7258_flash_bread;
-  g_bk7258_flash_mtd.mtd.bwrite = bk7258_flash_bwrite;
-  g_bk7258_flash_mtd.mtd.ioctl  = bk7258_flash_ioctl;
+  g_bk7258_data_mtd.mtd.erase  = bk7258_flash_mtd_erase;
+  g_bk7258_data_mtd.mtd.bread  = bk7258_flash_mtd_bread;
+  g_bk7258_data_mtd.mtd.bwrite = bk7258_flash_mtd_bwrite;
+  g_bk7258_data_mtd.mtd.ioctl  = bk7258_flash_ioctl;
   ...
 
-  // 3. 验证 JEDEC ID
-  id = bk_flash_get_id() & 0x00ffffffu;
-  if (id != ...) return NULL;
-
-  // 4. 返回单例
-  return &g_bk7258_flash_mtd.mtd;
+  // 3. 返回 board-owned 分区 MTD 单例
+  return &g_bk7258_data_mtd.mtd;
 }
 ```
 
@@ -269,7 +268,8 @@ int mount(FAR const char *source, FAR const char *target,
 board_app_initialize()
   │
   ├─ bk7258_flash_mtd_initialize()
-  │    ├─ bk_flash_driver_init()
+  │    ├─ bk7258_flash_initialize()
+  │    │    └─ chip 内部完成 SDK init、JEDEC 校验和物理 I/O 锁初始化
   │    ├─ 填充 mtd_dev_s 函数指针
   │    ├─ 验证 JEDEC ID
   │    └─ return &g_bk7258_flash_mtd.mtd

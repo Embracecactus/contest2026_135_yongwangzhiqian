@@ -116,10 +116,23 @@ generation 144 曾因缺少 SDK IRQ bridge 出现“UART TX/NSH 正常、RX 不�
 
 ### 3.3 可选 WDT 组合
 
-WDT pretimeout 依赖 OTA flash helper，Make 和 CMake 现在都在 OTA 或 WDT pretimeout
-启用时编译 `bk7258_ota_flash.c`；其他 OTA 源仍只由 OTA 控制。WDT 关闭时 fault/NMI
-路径改用 `up_systemreset()`，且不伪造 WDT reset cause。WDT 开启时仍走原来的 AON
-whole-device reset。
+WDT pretimeout 使用由板级 partition CSV 声明的专用 `reset_marker` erase sector。
+board 的单一不可变 storage binding 提供该 sector 的几何和 Flash guard 串行化策略；
+chip 自己拥有原始 Flash 读、擦、写、校验，不再依赖或编译 OTA 专用 Flash helper。
+OTA pair 写入期间的 WDT service 也在 OTA 的串行运行时点执行，避免将 watchdog 喂狗
+与 Flash mutation 并发交错。WDT 关闭时 fault/NMI 路径改用
+`up_systemreset()`，且不伪造 WDT reset cause。WDT 开启时，CP chip
+`bk7258_system_reset()` 接受显式
+`REBOOT`、`WATCHDOG` 或 `NMI_WDT` 语义，先写 SDK/PMU reason 再走 AON whole-device
+reset；AON period 设置失败时回退 `up_systemreset()`。OTA whole-device reset 显式
+使用 `REBOOT`。
+
+marker 不在 WDT arm 或正常 feed 时写入。pretimeout timer interrupt 只输出有界崩溃
+记录并排队；task-context worker 对 generation 与 elapsed time 二次校验确认 missed
+feed 后才写入 marker。随后 reset-cause 以 PMU raw 为主：`POWERON`/`REBOOT` 不可被
+stale marker 覆盖，已确认 WDT marker 只佐证 PMU WDT/NMI-WDT，或在未知 raw 值时补充
+WDT 原因。当前 confirmed-pretimeout record 为 format v2；旧版 arm-time v1 record
+校验失败且不得参与 reset attribution。
 
 ## 4. 构建与产物检查
 

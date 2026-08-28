@@ -1,6 +1,6 @@
 # Current Progress
 
-Last updated: 2026-08-27
+Last updated: 2026-08-28
 Updated by: Codex
 
 ## Objective
@@ -11,6 +11,16 @@ OTA/platform NSH.
 
 ## Current state
 
+- The active branch `refactor/bk7258-platform-ownership` is based on
+  `ae83523e6d40c472a76fac4278784eaea6f34e5e`.  The BK7258 platform
+  orchestrator has been split by ownership: CP/AP SoC sequencing, raw reset
+  source, raw Flash, boot-slot, OTA mechanics and Wi-Fi control are in the chip
+  layer; the NuttX late hook, storage topology/guards, OTA product policy,
+  `BOARDIOC` mapping and physical electrical bindings remain in the board
+  layer. Host/header gates, the maintained CP/AP build matrix, fresh-key
+  generation-155 xTS and generation-156 production full downloads, the
+  current minimal xTS core and final production cold/status hardware gates all
+  pass.
 - The P0 follow-up branch `feat/bk7258-p0-xts-completion` is based on
   `ecc1c0a185896d6afce165d20ebbf1a270782683`.  Its maintained host fixture
   passes the common gates and 281/281 cmocka cases.  The CP XTS profile now
@@ -36,8 +46,9 @@ OTA/platform NSH.
 - The pinned AP SDK disables `CONFIG_SDIO_PM_CB_SUPPORT`.  The CP cross-core PM
   service therefore owns a paired SDIO BAKP+clock lifetime for the complete
   Agent/Wi-Fi workload.
-- The separate NuttX GT9XX working-tree change remains outside this contest
-  repository publication.
+- The external NuttX and apps repositories have zero tracked modifications.
+  The T5-Board uses a board-local LVGL capability adapter over the unchanged
+  generic GT9XX character ABI; no upstream patch is part of this change.
 
 ## Agent product hardware acceptance (generation 125)
 
@@ -103,21 +114,60 @@ OTA/platform NSH.
   controlled fault and non-zero critmon thresholds remain separate gates.
   The owner deferred the 12-hour soak on 2026-08-27.
 
+## Chip/board ownership refactor (generations 152-156 complete acceptance)
+
+- The former board-owned monolithic `bk7258_platform.c` and parallel board OTA,
+  boot-slot and Wi-Fi mechanism files are retired.  A typed one-shot stage
+  runner retains the first mandatory failure, honors explicit prerequisites
+  and permits only declared independent always-run leaves.
+- The full BK7258 host suite passes with `BK7258_HOST_TEST_PASS`; all 86
+  audited public/private boundary headers pass C11 and C++17 self-containment
+  in default, CP and AP feature modes with warnings as errors.  Clean
+  T5AI-Core, AIDK AI Toy, T5-Board production and T5-Board xTS CP/AP builds
+  pass.  Chip sources have no `<arch/board>`/physical-board/`BOARD_HAS_*`
+  dependency, and board sources include no chip-private directory or deep
+  relative header path.
+- The initial xTS package failed closed 6,316 bytes above the protected trailer
+  threshold. The xTS-only profile now removes the redundant local OTA/Wi-Fi
+  operator commands and GPIO sample while retaining chip OTA/RPMsg, Wi-Fi VNET,
+  GPIO lower-half, `ALLSYMS` and backtraces. Generation 153 signs with about
+  3.7 KiB margin and passes MM/scheduler cmocka, getprime, allocator/RAM,
+  scanftest 164/0, pipe and complete `ostest`, followed by a clean cold boot.
+- Full packages `18.6.98+152`, `+153` and `+154` used three new, distinct
+  BL1/MCUboot key generations. Structure, public trust and Flash contract pass
+  for each. Their SHA-256 values are `adb82349...a3f7`,
+  `9668f1f9...1f22` and `ac5e2fff...bc8c` respectively.
+- Each physical download used one address-zero `0x7fa000` BK Loader input and
+  passed erase/write/reprotect/final-success checks without touching the
+  immutable tail. Final generation 154 cold boot, AP/CPU2/RPTUN/supervisor,
+  PSRAM, WDT and Wi-Fi control status pass; CP whole-device watchdog reboot
+  restores the complete signed boot chain and the same confirmed generation.
+- The final strict pass used two further independent fresh trust generations.
+  Generation 155 package/operator SHA-256 values are
+  `42c534e8...c9b49` / `9060e09c...10f31`; its cold boot, MM 8/8,
+  scheduler 16/16, watchdog/RPTUN/RPMsg nodes and CP PSRAM pass.  Generation
+  156 production package/operator values are `dfdb0cea...64e73` /
+  `32e638e9...2fbec`; runtime confirms `18.6.98+156`, counter 156, healthy
+  AP/CPU2/RPTUN/supervisor, Wi-Fi control, nodes and CP PSRAM.  The
+  `usr_config`, `reset_marker` and complete persistent-data ranges are
+  byte-identical from generation 154 through 156.  Both temporary private-key
+  directories and Windows staging copies were deleted after acceptance.
+
 ## Remaining work
 
-1. Review and publish `feat/bk7258-p0-xts-completion`; the owner then creates
-   and reviews the remote PR.
+1. Review and publish `refactor/bk7258-platform-ownership`; the owner then
+   creates and reviews the remote PR.
 2. Configure approved ASR/LLM credentials and complete one real dialog.
 3. Complete the remaining fixture-bound/isolated xTS phases: LIBCXX,
    GPIO/UART loopback, AP RTC/timer/RNG, driver tests, controlled fault and
    destructive-storage tests.  The core current-generation non-destructive
    xTS is complete; 12-hour soak is owner-deferred as of 2026-08-27.
-4. Keep the NuttX GT9XX generic ABI fix in its own upstream change.
 
 ## References
 
 - [Agent AP verification](verification/2026-08-24-bk7258-openvela-agent-ap.md)
 - [P0 xTS generation 149](verification/2026-08-27-bk7258-p0-xts-completion.md)
+- [BK7258 chip/board orchestrator refactor](verification/2026-08-27-bk7258-chip-board-orchestrator-refactor.md)
 - [BK7258 host regression fixture](verification/2026-08-27-bk7258-host-regression-fixture.md)
 - [ADR-034](../memory/decisions/ADR-034-openvela-agent-ap-and-t5-interaction-topology.md)
 
@@ -126,5 +176,7 @@ OTA/platform NSH.
 - Do not erase the whole chip or modify OTP/eFuse/lifecycle/calibration.
 - Do not enable UART1 while the hardware switch selects SWD.
 - Do not print or record private signing keys or credentials.
+- Keep the external NuttX/apps trees unmodified; adapt through project-owned
+  chip/board code and report upstream warnings without patching them here.
 - Camera and RGB LCD/touch require an explicit runtime pin-mux design before
   simultaneous use is attempted.
