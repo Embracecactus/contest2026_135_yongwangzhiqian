@@ -1,7 +1,7 @@
 /****************************************************************************
- * tests/bk7258/mocks/arch/chip/bk7258_sdk_abi.h
+ * tests/bk7258/mocks/bk7258_sdk_abi.h
  *
- * Host mock of chips/bk7258/include/bk7258_sdk_abi.h, restricted to
+ * Host mock of chips/bk7258/common/bk7258_sdk_abi.h, restricted to
  * the CAN ABI block (the real one is guarded by CONFIG_BK7258_CAN, which
  * mocks/nuttx/config.h keeps undefined so the driver TU sees these
  * declarations instead of the real ones).
@@ -10,8 +10,8 @@
  * implements them.
  ****************************************************************************/
 
-#ifndef __MOCK_ARCH_CHIP_BK7258_SDK_ABI_H
-#define __MOCK_ARCH_CHIP_BK7258_SDK_ABI_H
+#ifndef __MOCK_BK7258_SDK_ABI_H
+#define __MOCK_BK7258_SDK_ABI_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -36,4 +36,4 @@ void can_hal_set_lbmi(uint32_t value);
 uint32_t can_hal_get_lbmi(void);
 bk_err_t can_hal_ctrl(uint32_t command, void *parameter);
 
-#endif /* __MOCK_ARCH_CHIP_BK7258_SDK_ABI_H */
+#endif /* __MOCK_BK7258_SDK_ABI_H */

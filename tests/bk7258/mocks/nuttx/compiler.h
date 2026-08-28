@@ -16,8 +16,16 @@
 #define UNUSED(x) ((void)(x))
 #endif
 
-#ifndef static_assert
-#define static_assert _Static_assert
+#ifndef noreturn_function
+#  define noreturn_function __attribute__((noreturn))
+#endif
+
+#if !defined(__cplusplus) && !defined(static_assert)
+#  define static_assert _Static_assert
+#endif
+
+#ifndef nitems
+#  define nitems(a) (sizeof(a) / sizeof((a)[0]))
 #endif
 
 #endif /* __MOCK_NUTTX_COMPILER_H */

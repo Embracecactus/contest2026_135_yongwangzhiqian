@@ -1,0 +1,6 @@
+#ifndef __MOCK_ARCH_CHIP_BK7258_STORAGE_GUARD_H
+#define __MOCK_ARCH_CHIP_BK7258_STORAGE_GUARD_H
+
+#include <bk7258_storage_guard.h>
+
+#endif /* __MOCK_ARCH_CHIP_BK7258_STORAGE_GUARD_H */
