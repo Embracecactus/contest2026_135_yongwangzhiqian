@@ -11,8 +11,11 @@ OTA/platform NSH.
 
 ## Current state
 
-- The active branch `fix/bk7258-sdk-profile-pins` is based on
-  `4d003d437e82a4b2a3f85bfb2756117075f89e7a`. The merged BK7258 platform
+- The active branch `fix/bk7258-sdk-profile-pins` is based on the freshly
+  fetched `openvela/dev-ai-contest-2026` commit
+  `4d003d437e82a4b2a3f85bfb2756117075f89e7a`. Refactor implementation commit
+  `c4f5b5f6fdaf6ae23f35c36da1effd4f00e1fbdc` is pushed to
+  `fork/fix/bk7258-sdk-profile-pins` for review. The BK7258 platform
   orchestrator is split by ownership: CP/AP SoC sequencing, raw reset source,
   raw Flash, boot-slot, OTA mechanics and Wi-Fi control are in the chip layer;
   the NuttX late hook, storage topology/guards, OTA product policy, `BOARDIOC`
