@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/panels/ili9488_rgb.h
+ * contest2026_135_yongwangzhiqian/boards/bk7258/common/panels/ili9488_rgb.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/

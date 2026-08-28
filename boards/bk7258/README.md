@@ -6,29 +6,36 @@ SoC lifecycle.  This follows the official [openvela platform-adaptation guide
 policy and electrical binding.  `boards/bk7258/common` owns shared board,
 partition and linker integration;
 the three sibling board directories contain only physical-PCB wiring and
-capability facts.
+capability facts. Each physical board's `openvela.conf` additionally owns the
+normal CP/AP config and partition selection used by the generic build entry;
+the tool contains no table of known physical boards.
 
 ## CP/AP startup ownership
 
 `CONFIG_BOARD_LATE_INITIALIZE` is selected by the shared BK7258 board Kconfig.
 `board_late_initialize()` is therefore active and remains a thin board-level
-bridge in both roles, not the owner of SoC mechanisms.  It enters the
-board-owned role runner before NuttX starts the initial application; that
-runner invokes chip stages and board policy in an explicit order.  AP main
-later consumes the cached result and never silently reorders preparation.
+bridge in both roles, not the owner of SoC mechanisms or lifecycle order.
+Before NuttX starts the initial application, the CP bridge binds immutable
+board facts and drives the chip-owned lifecycle to its two explicit board
+checkpoints.  It executes an eligible board policy/device operation and
+reports that result back to the same chip runner.  AP main later consumes the
+cached result and never silently reorders preparation.
 
-- Chip owns `bk7258_cp_platform_initialize()` and
-  `bk7258_ap_platform_prepare()`, SoC stage definitions and failure state,
-  raw reset-source reader, Wi-Fi controller/proxy, boot-slot selection and
-  OTA engine mechanics.
+- Chip owns the complete CP/AP SoC stage tables, order, prerequisites,
+  first-error propagation and cached status.  The CP entry is the
+  `bk7258_cp_platform_begin()` / checkpoint / `finish()` lifecycle; the AP
+  entry is `bk7258_ap_platform_prepare()`.  Chip also owns the raw reset-source
+  reader, Wi-Fi controller/proxy, boot-slot selection and OTA engine mechanics.
 - Board owns the partition/layout and storage binding, OTA trial/product
-  policy, lifecycle stage order, `BOARDIOC` mapping, final-init/ROMFS policy,
-  and the selected physical board's GPIO/LCD/audio/TF/camera binding.
+  policy, explicit checkpoint work, `BOARDIOC` mapping, final-init/ROMFS
+  policy, and the selected physical board's GPIO/LCD/audio/TF/camera binding.
 
-The board runner passes immutable data into chip mechanisms; chip code neither
-discovers the selected board nor retains platform-level board callbacks.  Its
-stage table has explicit `requires_mask` prerequisites: a stage runs only
-after every required earlier stage succeeded. `ALWAYS_RUN` therefore means
+The board bridge passes immutable data into chip mechanisms; chip code neither
+discovers the selected board, calls a board symbol nor retains platform-level
+board callbacks.  A checkpoint is a typed result handoff, not dependency
+inversion: its position and failure class remain in the chip stage table.  The
+table has explicit `requires_mask` prerequisites, so a stage runs only after
+every required earlier stage succeeded. `ALWAYS_RUN` therefore means
 “may cross an unrelated mandatory failure”, not “may ignore a failed storage
 or hardware dependency”.  For example, OTA trial policy requires a validated
 OTA layout, while WDT requires a validated reset-marker domain when pretimeout
@@ -125,7 +132,7 @@ board-device frequency limits, LCD timing, SD-card presence policy and mutually
 exclusive connector routes.  A value may live in `bk7258_board_config.h` or in
 a board-local binding structure when it is used only by that binding.
 
-The shared `chip/` wrappers own BK7258 controller mechanics and the NuttX
+The shared `chips/bk7258/` wrappers own BK7258 controller mechanics and the NuttX
 lower-half contract.  They must not describe a T5-Board connector or attached
 part.  In particular, the generic I2C wrapper applies each message's
 `frequency`, and the generic SPI wrapper applies the upper half's frequency,
@@ -175,10 +182,10 @@ future persistent UTC owner must use a CP service across RPMsg or synchronize
 from the network after connectivity is available.
 
 Timezone conversion is presentation policy rather than RTC state.  The
-T5-Board UI AP enables `CONFIG_LIBC_LOCALTIME` and sets the POSIX timezone to
-`CST-8` (UTC+8); CP and non-display roles remain on UTC.  This fixed POSIX
-string does not require a zoneinfo image.  IANA names such as `Asia/Shanghai`
-would additionally require a mounted zoneinfo database.
+maintained openvela AP bases remain on UTC and do not select localtime policy.
+A future UI or product config may enable `CONFIG_LIBC_LOCALTIME` and choose a
+POSIX timezone or a mounted zoneinfo database; that policy does not belong in
+the physical-board baseline.
 
 ## System-log ownership and safety
 
@@ -191,7 +198,7 @@ second client or server.  The AP profile explicitly keeps the high-priority
 work queue because the upstream RPMsg syslog client always schedules its
 drain worker on `HPWORK`.
 
-The maintained base and product profiles use buffered line output, a 512-byte
+The maintained base profiles use buffered line output, a 512-byte
 per-CPU interrupt buffer, monotonic timestamps, priority, PID and an `ap` or
 `cp` prefix.  The AP's SMP CPU index is added independently by NuttX.  Default
 and RPMsg channel force operations are non-blocking, and the interrupt buffer

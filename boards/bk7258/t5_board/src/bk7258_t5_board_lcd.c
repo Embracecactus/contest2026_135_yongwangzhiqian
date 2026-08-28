@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/boards/t5_board/src/
+ * contest2026_135_yongwangzhiqian/boards/bk7258/t5_board/src/
  * bk7258_t5_board_lcd.c
  *
  * SPDX-License-Identifier: Apache-2.0

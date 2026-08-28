@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/ap/bk7258_lcd_spi.c
+ * chips/bk7258/ap/bk7258_lcd_spi.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

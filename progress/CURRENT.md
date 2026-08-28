@@ -11,16 +11,15 @@ OTA/platform NSH.
 
 ## Current state
 
-- The active branch `refactor/bk7258-platform-ownership` is based on
-  `ae83523e6d40c472a76fac4278784eaea6f34e5e`.  The BK7258 platform
-  orchestrator has been split by ownership: CP/AP SoC sequencing, raw reset
-  source, raw Flash, boot-slot, OTA mechanics and Wi-Fi control are in the chip
-  layer; the NuttX late hook, storage topology/guards, OTA product policy,
-  `BOARDIOC` mapping and physical electrical bindings remain in the board
-  layer. Host/header gates, the maintained CP/AP build matrix, fresh-key
-  generation-155 xTS and generation-156 production full downloads, the
-  current minimal xTS core and final production cold/status hardware gates all
-  pass.
+- The active branch `fix/bk7258-sdk-profile-pins` is based on
+  `4d003d437e82a4b2a3f85bfb2756117075f89e7a`. The merged BK7258 platform
+  orchestrator is split by ownership: CP/AP SoC sequencing, raw reset source,
+  raw Flash, boot-slot, OTA mechanics and Wi-Fi control are in the chip layer;
+  the NuttX late hook, storage topology/guards, OTA product policy, `BOARDIOC`
+  mapping and physical electrical bindings remain in the board layer. The
+  manifest-source SDK correction, fresh-key generation-157 xTS and
+  generation-158 production full downloads, minimal xTS and all final
+  production runtime gates pass.
 - The P0 follow-up branch `feat/bk7258-p0-xts-completion` is based on
   `ecc1c0a185896d6afce165d20ebbf1a270782683`.  Its maintained host fixture
   passes the common gates and 281/281 cmocka cases.  The CP XTS profile now
@@ -87,14 +86,32 @@ OTA/platform NSH.
 
 ## Packaging acceptance
 
-- `bk7258.py package materialize` is the sole public full-image command; no
-  additional Python file or entry point was added.
-- The command cryptographically verifies the signed full-update package,
-  binds the exact base SHA-256, preserves `usr_config` and layout holes, and
-  stops at the immutable-tail boundary.
-- Re-materializing v125 through that command produced the accepted byte-exact
-  image.  A forged full-update signature and a symlink base were both rejected
-  without output; signed v1 package structure/trust compatibility also PASS.
+- `bk7258.py release full|ota` is the only signed publication path; no
+  additional script or maintainer entry was added. `package create --unsigned`
+  now accepts only a verified direct build manifest, derives all board/layout/
+  artifact/SDK/preservation facts from it, and cannot publish signed firmware.
+- Every build writes one canonical, hash-bound manifest. Release accepts only
+  the MCUboot form and derives artifacts, ELFs, SDK/toolchain/layout identity,
+  compiled public roots and rollback floor from it instead of requiring a
+  maintainer to enumerate them again.
+- Full release verifies both private roots against the compiled public roots,
+  performs public trust verification before atomic publication, binds the
+  exact accepted base SHA-256, preserves `usr_config` and layout holes, and
+  stops at the immutable-tail boundary. It emits the package, one BKFIL
+  operator image, copied build evidence and `release.json` together.
+- The 2026-08-28 target-bound host acceptance used fresh, distinct throwaway
+  P-256 roots and one T5AI-Core MCUboot CP/AP/BL1/BL2 build. Full package
+  `2a99ba1b73fec3ac231b24ade6fd647613aadb4316aae7fd0199e73cfbb1e21e`
+  and OTA package
+  `851e5c0e0500314adb223ba85e57edcb2d6d2f259b34c82bb8a6d4119f91d20c`
+  passed structure and public trust verification. Package, signed catalog,
+  flash contract and release summary all bind `t5ai_core`; changing only the
+  manifest target to `t5_board` was rejected. Direct manifest-only packaging
+  reproduced the prior deterministic package hash. These checks did not flash
+  the board and do not consume a production generation; generation-157/158
+  remain the accepted physical evidence.
+- This software signing/rollback chain is not an OP-TEE, hardware unique-key
+  or hardware-immutable Secure Boot claim under official document 1594.
 
 ## P0 xTS acceptance (generation 149)
 
@@ -114,7 +131,7 @@ OTA/platform NSH.
   controlled fault and non-zero critmon thresholds remain separate gates.
   The owner deferred the 12-hour soak on 2026-08-27.
 
-## Chip/board ownership refactor (generations 152-156 complete acceptance)
+## Chip/board ownership refactor (generations 152-158 complete acceptance)
 
 - The former board-owned monolithic `bk7258_platform.c` and parallel board OTA,
   boot-slot and Wi-Fi mechanism files are retired.  A typed one-shot stage
@@ -155,10 +172,13 @@ OTA/platform NSH.
 
 ## Remaining work
 
-1. Review and publish `refactor/bk7258-platform-ownership`; the owner then
+1. Complete the maintained config-entry audit for T5-Board, T5AI-Core and AIDK
+   AI Toy, keeping CP/AP build boundaries while presenting one neutral normal
+   pair per physical board.
+2. Review and publish the SDK/profile/release-tool correction; the owner then
    creates and reviews the remote PR.
-2. Configure approved ASR/LLM credentials and complete one real dialog.
-3. Complete the remaining fixture-bound/isolated xTS phases: LIBCXX,
+3. Configure approved ASR/LLM credentials and complete one real dialog.
+4. Complete the remaining fixture-bound/isolated xTS phases: LIBCXX,
    GPIO/UART loopback, AP RTC/timer/RNG, driver tests, controlled fault and
    destructive-storage tests.  The core current-generation non-destructive
    xTS is complete; 12-hour soak is owner-deferred as of 2026-08-27.

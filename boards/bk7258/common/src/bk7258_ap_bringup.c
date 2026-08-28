@@ -20,6 +20,7 @@
 #include <debug.h>
 #include <errno.h>
 
+#include <arch/board/board.h>
 #include <arch/chip/bk7258_ap_platform.h>
 #include <arch/chip/bk7258_aud.h>
 #include <arch/chip/bk7258_mic.h>
@@ -333,7 +334,10 @@ int bk7258_board_ap_buses_initialize(
   FAR const struct bk7258_i2s_board_s *i2s,
   FAR const struct bk7258_sdio_board_s *sdio)
 {
-  int ret = OK;
+#if defined(CONFIG_BK7258_RTC) || defined(CONFIG_BK7258_SARADC) || \
+    defined(CONFIG_BK7258_SDMADC) || defined(CONFIG_BK7258_TIMER)
+  int ret;
+#endif
 
   (void)i2s;
   (void)sdio;

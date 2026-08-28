@@ -1,5 +1,5 @@
 > **事实截止日期**：2026-08-04
-> **权威来源**：[ADR-001](../../../memory/decisions/ADR-001-wrapper-only-official-source-boundary.md) · [项目规则](../../../memory/RULES.md) · [项目运维](../../../memory/OPERATIONS.md) · [board Make.defs](../../../board/bk7258/chip/Make.defs) · [SDK bundle入口](../../../board/bk7258/bk_idk/README.md) · [SDK静态库导入说明](../nuttx-port/sdk-static-library-import.md) · [SDK v3.1.1.9迁移报告](../nuttx-port/sdk-v3.1.1.9-migration-report.md)
+> **权威来源**：[ADR-001](../../../memory/decisions/ADR-001-wrapper-only-official-source-boundary.md) · [项目规则](../../../memory/RULES.md) · [项目运维](../../../memory/OPERATIONS.md) · [board Make.defs](../../../boards/bk7258/common/scripts/Make.defs) · [SDK bundle入口](../../../chips/bk7258/bk_idk/README.md) · [SDK静态库导入说明](../nuttx-port/sdk-static-library-import.md) · [SDK v3.1.1.9迁移报告](../nuttx-port/sdk-v3.1.1.9-migration-report.md)
 > **证据边界**：正式流程不修改 official NuttX / apps / Beken SDK 或 vendor static libraries；当前唯一生效 SDK 版本为 v3.1.1.9；本文不描述当前 N15 进度，不包含任何烧录命令。动态状态只见[第11章](11-current-status-and-next-steps.md)。
 
 # 02 仓库 Wrapper 与构建模型
@@ -18,7 +18,7 @@
 
 ## 2. 完整路径职责表
 
-### 板级路径 `board/bk7258/`
+### 板级路径 `boards/bk7258/`
 
 | 路径 | 职责 |
 |------|------|
@@ -155,11 +155,11 @@ flowchart TD
 
 | 功能类型 | 去哪 | 约束 |
 |----------|------|------|
-| 板级驱动 / 初始化 | `board/bk7258/src` + `chip/*` | 不碰官方 NuttX 源码 |
+| 板级驱动 / 初始化 | `boards/bk7258/*/src` + `chips/bk7258/*` | 不碰官方 NuttX 源码 |
 | 应用层补充 | 根 `app/` overlay | 不碰官方 `apps` |
 | 需拦截 SDK 符号 | `--wrap` + team 实现 | 加 ABI guard |
 | SDK 行为需改且无 wrap 点 | 先评估 wrapper；不行则单独授权 upstream PR | 不本地改 SDK |
-| 配置 / profile | `board/bk7258/configs/<profile>/defconfig` 与 team-owned Kconfig/Make.defs | 维护 team 配置，不改 official Kconfig |
+| 配置 / profile | `boards/bk7258/<board>/configs/<profile>/defconfig` 与 team-owned Kconfig/Make.defs | 维护 team 配置，不改 official Kconfig |
 
 ### 5 个自测
 

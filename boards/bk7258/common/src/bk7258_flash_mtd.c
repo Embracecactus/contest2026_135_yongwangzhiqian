@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/src/bk7258_flash_mtd.c
+ * contest2026_135_yongwangzhiqian/boards/bk7258/common/src/bk7258_flash_mtd.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/ap/bk7258_saradc.c
+ * contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_saradc.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

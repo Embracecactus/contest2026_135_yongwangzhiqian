@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/ap/bk7258_media_root.h
+ * chips/bk7258/ap/bk7258_media_root.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *

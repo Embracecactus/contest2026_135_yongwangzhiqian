@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/boards/t5ai_core/src/bk7258_t5ai_core_audio.c
+ * boards/bk7258/t5ai_core/src/bk7258_t5ai_core_audio.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

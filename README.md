@@ -74,7 +74,9 @@ repo sync -c -j8
 | 板级适配   | `boards/bk7258/`           | `vendor/beken/boards/bk7258`                   |
 | 预构建工具 | `prebuilt/`                | `vendor/beken/prebuilt`                        |
 
-> 用不到的形态目录可以删掉；新增作品时按同样规则加子目录，并在 `contest2026_135_yongwangzhiqian.xml` 里补一条 `<linkfile>` 映射即可。**生产仓库（packages/nuttx/vendor 等）零改动。**
+> 只有新增尚未映射的顶层作品形态时才需要补 `<linkfile>`。整个
+> `boards/bk7258/` 已一次性映射，因此新增 BK7258 物理板只需在该目录下增加
+> 板目录，不需要修改 manifest。**生产仓库（packages/nuttx/vendor 等）零改动。**
 
 建议仓库目录约定（便于评委定位）：
 
@@ -96,12 +98,12 @@ BK7258 适配使用仓内唯一维护入口；从团队仓根目录执行：
 
 ```bash
 tools/bk7258/bk7258.py build \
-  --cp-config boards/bk7258/t5ai_core/configs/t5ai_core_cp_base \
-  --ap-config boards/bk7258/t5ai_core/configs/t5ai_core_ap_base \
-  --boot direct \
-  --partition boards/bk7258/common/partitions/bk7258/bk7258_ab_onchip_persistent.csv \
-  --jobs 8
+  --board t5ai_core --boot direct
 ```
+
+每块物理板通过自己的 `boards/bk7258/<board>/openvela.conf` 声明正常
+CP/AP 配置和分区布局；新增板不需要修改构建或打包工具。特殊诊断配置仍可显式给出
+`--cp-config`、`--ap-config` 和 `--partition`。
 
 完整的 direct/MCUboot、签名、打包、持久化与硬件证据边界见
 [BK7258 build/package SOP](docs/bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md)。

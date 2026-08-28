@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/ap/
+ * contest2026_135_yongwangzhiqian/chips/bk7258/ap/
  * bk7258_ota_catalog.c
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -23,8 +23,16 @@
 #include <arch/chip/bk7258_image_layout.h>
 #include <arch/chip/bk7258_ota_catalog.h>
 
-#define BK7258_OTA_CATALOG_FORMAT "bk7258.ota/1"
+#define BK7258_OTA_CATALOG_FORMAT "bk7258.ota/2"
 #define BK7258_OTA_BOARD_FAMILY   "bk7258"
+
+#if defined(CONFIG_ARCH_BOARD_CUSTOM_NAME)
+#  define BK7258_OTA_PHYSICAL_BOARD CONFIG_ARCH_BOARD_CUSTOM_NAME
+#elif defined(CONFIG_ARCH_BOARD)
+#  define BK7258_OTA_PHYSICAL_BOARD CONFIG_ARCH_BOARD
+#else
+#  error "BK7258 OTA requires the NuttX physical-board identity"
+#endif
 
 extern const uint8_t bk7258_ota_catalog_public_key_der[];
 extern const size_t bk7258_ota_catalog_public_key_der_size;
@@ -236,14 +244,45 @@ static int bk7258_ota_catalog_image(
     result->manifest.image[image].sha256, BK7258_OTA_SHA256_SIZE);
 }
 
+static int bk7258_ota_catalog_target(const cJSON *object)
+{
+  static const char *const fields[] =
+  {
+    "board_family", "physical_board"
+  };
+  const cJSON *item;
+
+  if (!bk7258_ota_catalog_exact_object(
+        object, fields, sizeof(fields) / sizeof(fields[0])))
+    {
+      return -EINVAL;
+    }
+
+  item = cJSON_GetObjectItemCaseSensitive(object, "board_family");
+  if (!cJSON_IsString(item) || item->valuestring == NULL ||
+      strcmp(item->valuestring, BK7258_OTA_BOARD_FAMILY) != 0)
+    {
+      return -EINVAL;
+    }
+
+  item = cJSON_GetObjectItemCaseSensitive(object, "physical_board");
+  if (!cJSON_IsString(item) || item->valuestring == NULL ||
+      strcmp(item->valuestring, BK7258_OTA_PHYSICAL_BOARD) != 0)
+    {
+      return -EINVAL;
+    }
+
+  return 0;
+}
+
 static int bk7258_ota_catalog_parse(
   const uint8_t *catalog, size_t catalog_size,
   struct bk7258_ota_catalog_s *result)
 {
   static const char *const root_fields[] =
   {
-    "format", "board_family", "layout", "version", "security_counter",
-    "cp", "ap", "package_id"
+    "format", "board_family", "target", "layout", "version",
+    "security_counter", "cp", "ap", "package_id"
   };
   static const char *const layout_fields[] = {"identity", "sha256"};
   const cJSON *layout;
@@ -267,7 +306,9 @@ static int bk7258_ota_catalog_parse(
     }
   item = cJSON_GetObjectItemCaseSensitive(root, "board_family");
   if (!cJSON_IsString(item) || item->valuestring == NULL ||
-      strcmp(item->valuestring, BK7258_OTA_BOARD_FAMILY) != 0)
+      strcmp(item->valuestring, BK7258_OTA_BOARD_FAMILY) != 0 ||
+      bk7258_ota_catalog_target(
+        cJSON_GetObjectItemCaseSensitive(root, "target")) < 0)
     {
       goto out;
     }

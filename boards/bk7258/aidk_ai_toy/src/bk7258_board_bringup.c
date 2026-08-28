@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/boards/aidk_ai_toy/src/bk7258_board_bringup.c
+ * boards/bk7258/aidk_ai_toy/src/bk7258_board_bringup.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

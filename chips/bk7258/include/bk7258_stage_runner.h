@@ -15,6 +15,7 @@
 
 #include <nuttx/config.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include <nuttx/compiler.h>
@@ -34,6 +35,7 @@ extern "C"
 #define BK7258_STAGE_ID_LIMIT        32
 #define BK7258_STAGE_ID_INVALID      UINT8_MAX
 #define BK7258_STAGE_FLAG_ALWAYS_RUN (1u << 0)
+#define BK7258_STAGE_FLAG_EXTERNAL   (1u << 1)
 
 /****************************************************************************
  * Public Types
@@ -70,6 +72,8 @@ struct bk7258_stage_runner_s
   uint8_t stage_count;
   uint8_t state;
   uint8_t first_error_stage;
+  uint8_t next_stage;
+  uint8_t waiting_stage;
 };
 
 /****************************************************************************
@@ -89,6 +93,37 @@ struct bk7258_stage_runner_s
 
 int bk7258_stage_runner_run(FAR struct bk7258_stage_runner_s *runner,
                             FAR void *context);
+
+/* Run normal stages up to the next external checkpoint.  The requested ID
+ * must be the next descriptor carrying BK7258_STAGE_FLAG_EXTERNAL.  When its
+ * prerequisites and mandatory-failure policy permit execution, *eligible is
+ * true and the runner pauses until bk7258_stage_runner_complete_external().
+ * An ineligible checkpoint is skipped and does not require completion.
+ * Initialization failures are cached but are not returned here, so callers
+ * cannot accidentally suppress later ALWAYS_RUN work.
+ */
+
+int bk7258_stage_runner_run_until(
+  FAR struct bk7258_stage_runner_s *runner,
+  FAR void *context, uint8_t external_stage,
+  FAR bool *eligible);
+
+/* Record one paused external checkpoint through the same first-error and
+ * mask logic as an ordinary stage.  A negative stage result is cached; the
+ * function itself returns only checkpoint-protocol errors.
+ */
+
+int bk7258_stage_runner_complete_external(
+  FAR struct bk7258_stage_runner_s *runner,
+  uint8_t external_stage, int stage_result);
+
+/* Run the remaining ordinary stages and seal the one-shot result.  This
+ * rejects an unhandled external checkpoint without executing past it.
+ */
+
+int bk7258_stage_runner_finish(
+  FAR struct bk7258_stage_runner_s *runner,
+  FAR void *context);
 
 /* Return the cached terminal result, or -EAGAIN until the run has completed.
  * This function waits for a currently executing run by taking the same lock.

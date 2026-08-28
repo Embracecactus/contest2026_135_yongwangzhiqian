@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/common/bk7258_pm_activity.h
+ * chips/bk7258/common/bk7258_pm_activity.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *

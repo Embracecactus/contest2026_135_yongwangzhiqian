@@ -21,9 +21,13 @@ class PackageError(ValueError):
 
 
 FORMAT_V1 = "bk7258.package/1"
-FORMAT = "bk7258.package/2"
+FORMAT_V2 = "bk7258.package/2"
+FORMAT = "bk7258.package/3"
 MANIFEST = "manifest.json"
-OTA_FORMAT = "bk7258.ota/1"
+OTA_FORMAT_V1 = "bk7258.ota/1"
+OTA_FORMAT = "bk7258.ota/2"
+FULL_UPDATE_FORMAT_V1 = "bk7258.full-update/1"
+FULL_UPDATE_FORMAT = "bk7258.full-update/2"
 OTA_CATALOG = "catalog.json"
 OTA_SIGNATURE = "catalog.sig"
 FULL_UPDATE_CATALOG = "full-update.json"
@@ -34,7 +38,23 @@ MAX_PACKAGE_SIZE = 64 * 1024 * 1024
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
-def _ota_catalog(layout: Mapping[str, object],
+def _target(physical_board: str) -> dict[str, str]:
+    if re.fullmatch(r"[a-z][a-z0-9_]*", physical_board) is None:
+        raise PackageError(f"invalid physical board name: {physical_board!r}")
+    return {"board_family": "bk7258", "physical_board": physical_board}
+
+
+def _validated_target(value: object) -> dict[str, str]:
+    if not isinstance(value, dict) \
+            or set(value) != {"board_family", "physical_board"} \
+            or value.get("board_family") != "bk7258" \
+            or not isinstance(value.get("physical_board"), str):
+        raise PackageError("package physical target is malformed")
+    return _target(value["physical_board"])
+
+
+def _ota_catalog(target: Mapping[str, object] | None,
+                 layout: Mapping[str, object],
                  images: list[dict[str, object]],
                  security: Mapping[str, object]) -> bytes:
     by_artifact = {row.get("artifact"): row for row in images}
@@ -53,7 +73,7 @@ def _ota_catalog(layout: Mapping[str, object],
     ):
         raise PackageError("OTA catalog CP/AP generation does not match")
     base: dict[str, object] = {
-        "format": OTA_FORMAT,
+        "format": OTA_FORMAT if target is not None else OTA_FORMAT_V1,
         "board_family": "bk7258",
         "layout": {
             "identity": layout.get("identity"),
@@ -72,12 +92,15 @@ def _ota_catalog(layout: Mapping[str, object],
             "sha256": by_artifact["ap"].get("sha256"),
         },
     }
+    if target is not None:
+        base["target"] = dict(target)
     document = dict(base)
     document["package_id"] = hashlib.sha256(_canonical(base)).hexdigest()
     return _canonical(document)
 
 
-def _full_update_catalog(layout: Mapping[str, object],
+def _full_update_catalog(target: Mapping[str, object] | None,
+                         layout: Mapping[str, object],
                          images: list[dict[str, object]],
                          persistent: Mapping[str, object]) -> bytes:
     """Bind every sparse write in an owner-authorized full update."""
@@ -93,7 +116,10 @@ def _full_update_catalog(layout: Mapping[str, object],
         for row in images
     ]
     base: dict[str, object] = {
-        "format": "bk7258.full-update/1",
+        "format": (
+            FULL_UPDATE_FORMAT
+            if target is not None else FULL_UPDATE_FORMAT_V1
+        ),
         "board_family": "bk7258",
         "layout": {
             "identity": layout.get("identity"),
@@ -107,6 +133,8 @@ def _full_update_catalog(layout: Mapping[str, object],
             "sha256": persistent.get("sha256"),
         },
     }
+    if target is not None:
+        base["target"] = dict(target)
     document = dict(base)
     document["package_id"] = hashlib.sha256(_canonical(base)).hexdigest()
     return _canonical(document)
@@ -134,12 +162,14 @@ def _entry(name: str, data: bytes) -> zipfile.ZipInfo:
 
 def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
            sdk_evidence: Mapping[str, str], trust_evidence: Mapping[str, object],
-           output: Path,
+           physical_board: str, output: Path,
            catalog_signer: Callable[[bytes], bytes] | None = None,
-           persistent_payload: bytes | None = None) \
+           persistent_payload: bytes | None = None,
+           publication_verifier: Callable[[Path], object] | None = None) \
            -> dict[str, object]:
     """Store already-finalized image bytes without changing them."""
 
+    target = _target(physical_board)
     output = output.absolute()
     if output.exists() or output.is_symlink():
         raise PackageError(f"package output already exists: {output}")
@@ -188,7 +218,8 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
 
     layout = image_set.layout
     document: dict[str, object] = {
-        "format": FORMAT if persistent_payload is not None else FORMAT_V1,
+        "format": FORMAT,
+        "target": target,
         "layout": {
             "identity": layout.identity,
             "sha256": layout.sha256,
@@ -242,7 +273,9 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
             "sha256": hashlib.sha256(persistent_payload).hexdigest(),
         }
         members[member] = persistent_payload
-        catalog = _full_update_catalog(document["layout"], images, document["full_update"])
+        catalog = _full_update_catalog(
+            target, document["layout"], images, document["full_update"]
+        )
         signature = catalog_signer(catalog)
         if len(signature) < 8 or len(signature) > 80 \
                 or signature[0] != 0x30 or signature[1] != len(signature) - 2:
@@ -252,7 +285,7 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
     if security_mode == "signed-ota":
         if catalog_signer is None:
             raise PackageError("apps-only OTA requires a catalog signer")
-        catalog = _ota_catalog(document["layout"], images, trust_evidence)
+        catalog = _ota_catalog(target, document["layout"], images, trust_evidence)
         signature = catalog_signer(catalog)
         if len(signature) < 8 or len(signature) > 80 \
                 or signature[0] != 0x30 or signature[1] != len(signature) - 2:
@@ -272,6 +305,8 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
             for name in sorted(members):
                 archive.writestr(_entry(name, members[name]), members[name])
         verify(temporary)
+        if publication_verifier is not None:
+            publication_verifier(temporary)
         os.replace(temporary, output)
     finally:
         temporary.unlink(missing_ok=True)
@@ -408,6 +443,10 @@ def verify(path: Path) -> dict[str, object]:
     }
     package_format = document.get("format")
     if package_format == FORMAT:
+        expected_sections.add("target")
+        if "full_update" in document:
+            expected_sections.add("full_update")
+    elif package_format == FORMAT_V2:
         expected_sections.add("full_update")
     elif package_format != FORMAT_V1:
         raise PackageError("unsupported package format")
@@ -425,6 +464,10 @@ def verify(path: Path) -> dict[str, object]:
             or not isinstance(security, dict):
         raise PackageError("package manifest sections are malformed")
     security_mode = _validate_security(security)
+    package_target = (
+        _validated_target(document.get("target"))
+        if package_format == FORMAT else None
+    )
 
     expected_layout_fields = {
         "identity", "sha256", "name", "storage_topology", "flash_size",
@@ -527,15 +570,24 @@ def verify(path: Path) -> dict[str, object]:
 
     full_update = document.get("full_update")
     if package_format == FORMAT:
+        if security_mode == "signed" and not isinstance(full_update, dict):
+            raise PackageError("full update must be a signed full package")
+        if security_mode != "signed" and full_update is not None:
+            raise PackageError("only a signed full package may carry a full update")
+        is_full_update = security_mode == "signed"
+    elif package_format == FORMAT_V2:
         if security_mode != "signed" or not isinstance(full_update, dict):
             raise PackageError("full update must be a signed full package")
+        is_full_update = True
     elif full_update is not None:
         raise PackageError("v1 package must not contain a full update")
+    else:
+        is_full_update = False
 
     expected_members = {MANIFEST}
     if security_mode == "signed-ota":
         expected_members.update({OTA_CATALOG, OTA_SIGNATURE})
-    if package_format == FORMAT:
+    if is_full_update:
         expected_members.update({FULL_UPDATE_CATALOG, FULL_UPDATE_SIGNATURE})
     ranges: list[tuple[int, int, str]] = []
     image_artifacts: set[str] = set()
@@ -586,7 +638,7 @@ def verify(path: Path) -> dict[str, object]:
         image_artifacts.add(artifact)
         image_data[artifact] = data
 
-    if package_format == FORMAT:
+    if is_full_update:
         expected_full_update_fields = {
             "partition", "member", "offset", "size", "sha256",
         }
@@ -613,7 +665,8 @@ def verify(path: Path) -> dict[str, object]:
         ranges.append((offset, offset + size, member))
         catalog = members.get(FULL_UPDATE_CATALOG)
         signature = members.get(FULL_UPDATE_SIGNATURE)
-        if catalog != _full_update_catalog(layout, images, full_update):
+        if catalog != _full_update_catalog(
+                package_target, layout, images, full_update):
             raise PackageError("full update catalog does not match package facts")
         if signature is None or len(signature) < 8 or len(signature) > 80 \
                 or signature[0] != 0x30 or signature[1] != len(signature) - 2:
@@ -622,7 +675,9 @@ def verify(path: Path) -> dict[str, object]:
     if security_mode == "signed-ota":
         catalog = members.get(OTA_CATALOG)
         signature = members.get(OTA_SIGNATURE)
-        expected_catalog = _ota_catalog(layout, images, security)
+        expected_catalog = _ota_catalog(
+            package_target, layout, images, security
+        )
         if catalog != expected_catalog:
             raise PackageError("OTA catalog does not match signed package facts")
         if signature is None or len(signature) < 8 or len(signature) > 80 \
@@ -682,7 +737,7 @@ def verify(path: Path) -> dict[str, object]:
             raise PackageError(f"overlapping package operations: {left[2]} and {right[2]}")
     for start, end, name in ranges:
         for blocked_start, blocked_end, blocked_name in forbidden:
-            if package_format == FORMAT and blocked_name == "persistent_data" \
+            if is_full_update and blocked_name == "persistent_data" \
                     and (start, end, name) == (
                         partition_by_name["persistent_data"].offset,
                         partition_by_name["persistent_data"].end,
@@ -706,8 +761,12 @@ def verify(path: Path) -> dict[str, object]:
         "layout": layout.get("identity"),
         "images": len(images),
         "security": security_mode,
+        "physical_board": (
+            package_target["physical_board"]
+            if package_target is not None else None
+        ),
         "preserved_external": len(preserved_external),
-        "full_update": package_format == FORMAT,
+        "full_update": is_full_update,
     }
 
 
@@ -735,12 +794,14 @@ def flash_contract(package: Path) -> dict[str, object]:
     verify(package)
     document, _ = _read(package)
     layout = document["layout"]
-    if document.get("format") == FORMAT:
+    device = document.get("target")
+    if "full_update" in document:
         persistent = document["full_update"]
         writes = [*document["images"], persistent]
         writes.sort(key=lambda row: (row.get("artifact") == "boot", row["offset"]))
         return {
             "layout": {"identity": layout["identity"], "sha256": layout["sha256"]},
+            "device": device,
             "writes": writes,
             "erases": document["erases"],
             "preserved_external": document["preserved_external"],
@@ -757,6 +818,7 @@ def flash_contract(package: Path) -> dict[str, object]:
                 "identity": layout["identity"],
                 "sha256": layout["sha256"],
             },
+            "device": device,
             "target": "inactive",
             "payloads": document["images"],
             "erases": [],
@@ -768,6 +830,7 @@ def flash_contract(package: Path) -> dict[str, object]:
         }
     return {
         "layout": {"identity": layout["identity"], "sha256": layout["sha256"]},
+        "device": device,
         "writes": document["images"],
         "erases": document["erases"],
         "preserved_external": document["preserved_external"],
@@ -778,27 +841,14 @@ def flash_contract(package: Path) -> dict[str, object]:
     }
 
 
-def materialize_full_image(package: Path, base: Path,
-                           expected_base_sha256: str,
-                           output: Path) -> dict[str, object]:
-    """Overlay one verified full update on an exact accepted-board base."""
-
-    package = package.absolute()
+def _read_full_base(base: Path, expected_base_sha256: str,
+                    boundary: int) -> bytes:
     base = base.absolute()
-    output = output.absolute()
-    verify(package)
-    document, members = _read(package)
-
-    if document.get("format") != FORMAT:
-        raise PackageError("a signed full-update package is required")
     expected_base_sha256 = expected_base_sha256.lower()
     if not DIGEST_RE.fullmatch(expected_base_sha256):
         raise PackageError("expected base SHA-256 must contain 64 hex digits")
     if base.is_symlink() or not base.is_file():
         raise PackageError("base snapshot must be a regular non-symlink file")
-    if output.exists() or output.is_symlink():
-        raise PackageError(f"full-image output already exists: {output}")
-
     base_data = base.read_bytes()
     observed_base_sha256 = hashlib.sha256(base_data).hexdigest()
     if observed_base_sha256 != expected_base_sha256:
@@ -806,6 +856,49 @@ def materialize_full_image(package: Path, base: Path,
             "base snapshot SHA-256 mismatch: "
             f"expected={expected_base_sha256} observed={observed_base_sha256}"
         )
+    if len(base_data) != boundary:
+        raise PackageError(
+            "base snapshot must end at immutable tail: "
+            f"size=0x{len(base_data):x} boundary=0x{boundary:x}"
+        )
+    return base_data
+
+
+def persistent_payload_from_base(layout: layout_domain.Layout, base: Path,
+                                 expected_base_sha256: str) -> bytes:
+    """Bind a full release's persistent payload to one accepted operator base."""
+
+    immutable_offsets = [
+        row.offset for row in layout.partitions if row.policy == "immutable"
+    ]
+    persistent = [
+        row for row in layout.partitions
+        if row.name == "persistent_data" and row.policy == "preserve"
+        and row.kind == "data" and row.writable
+    ]
+    if not immutable_offsets or len(persistent) != 1:
+        raise PackageError("layout lacks one persistent payload and immutable tail")
+    base_data = _read_full_base(
+        base, expected_base_sha256, min(immutable_offsets)
+    )
+    selected = persistent[0]
+    return base_data[selected.offset:selected.end]
+
+
+def materialize_full_image(package: Path, base: Path,
+                           expected_base_sha256: str,
+                           output: Path) -> dict[str, object]:
+    """Overlay one verified full update on an exact accepted-board base."""
+
+    package = package.absolute()
+    output = output.absolute()
+    report = verify(package)
+    document, members = _read(package)
+
+    if not report["full_update"]:
+        raise PackageError("a signed full-update package is required")
+    if output.exists() or output.is_symlink():
+        raise PackageError(f"full-image output already exists: {output}")
 
     partitions = document["layout"]["partitions"]
     immutable_offsets = [
@@ -816,11 +909,7 @@ def materialize_full_image(package: Path, base: Path,
     if not immutable_offsets:
         raise PackageError("layout has no immutable tail boundary")
     boundary = min(immutable_offsets)
-    if len(base_data) != boundary:
-        raise PackageError(
-            "base snapshot must end at immutable tail: "
-            f"size=0x{len(base_data):x} boundary=0x{boundary:x}"
-        )
+    base_data = _read_full_base(base, expected_base_sha256, boundary)
 
     writes = [*document["images"], document["full_update"]]
     output_data = bytearray(base_data)

@@ -246,7 +246,8 @@ int main(void)
   expect_events(expected, (int)nitems(expected));
   assert(bk7258_cp_bringup_initialize() == 0);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_bringup_result() == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert(status.failed_mask == 0);
 #elif TEST_CP_SCENARIO == 2
   static const int expected[] =
@@ -258,7 +259,7 @@ int main(void)
   g_sdk_result = -EIO;
   assert(bk7258_cp_bringup_initialize() == -EIO);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert(status.first_error_stage == BK7258_CP_STAGE_SDK_RUNTIME);
   assert((status.skipped_mask & (UINT32_C(1) << BK7258_CP_STAGE_AP_CONTROL)) != 0);
   assert((status.skipped_mask & (UINT32_C(1) << BK7258_CP_STAGE_AP_START)) != 0);
@@ -272,7 +273,7 @@ int main(void)
   g_wdt_result = -ETIMEDOUT;
   assert(bk7258_cp_bringup_initialize() == -ETIMEDOUT);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert(status.first_error_stage == BK7258_CP_STAGE_WDT);
   assert((status.succeeded_mask & (UINT32_C(1) << BK7258_CP_STAGE_IRDA)) != 0);
 #elif TEST_CP_SCENARIO == 4
@@ -284,7 +285,7 @@ int main(void)
   g_reset_marker_policy_result = -ENODEV;
   assert(bk7258_cp_bringup_initialize() == -ENODEV);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert(status.first_error_stage == BK7258_CP_STAGE_RESET_MARKER_POLICY);
 #elif TEST_CP_SCENARIO == 5
   static const int expected[] =
@@ -295,7 +296,7 @@ int main(void)
   g_ota_layout_result = -EACCES;
   assert(bk7258_cp_bringup_initialize() == -EACCES);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert(status.first_error_stage == BK7258_CP_STAGE_OTA_LAYOUT);
   assert((status.skipped_mask &
           (UINT32_C(1) << BK7258_CP_STAGE_OTA_TRIAL)) != 0);
@@ -311,7 +312,7 @@ int main(void)
   g_ap_start_result = -EHOSTDOWN;
   assert(bk7258_cp_bringup_initialize() == -EHOSTDOWN);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert(status.first_error_stage == BK7258_CP_STAGE_AP_START);
   assert((status.succeeded_mask &
           (UINT32_C(1) << BK7258_CP_STAGE_OTA_TRIAL)) != 0);
@@ -325,7 +326,7 @@ int main(void)
   g_psram_result = -ENOMEM;
   assert(bk7258_cp_bringup_initialize() == -ENOMEM);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert(status.first_error_stage == BK7258_CP_STAGE_PSRAM);
   assert((status.skipped_mask &
           (UINT32_C(1) << BK7258_CP_STAGE_AP_START)) != 0);
@@ -339,7 +340,7 @@ int main(void)
   g_ota_result = -ETIMEDOUT;
   assert(bk7258_cp_bringup_initialize() == -ETIMEDOUT);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert(status.first_error_stage ==
          BK7258_CP_STAGE_OTA_TRIAL);
   assert((status.succeeded_mask &
@@ -355,7 +356,7 @@ int main(void)
   g_sdk_result = -EIO;
   assert(bk7258_cp_bringup_initialize() == -EIO);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert(status.first_error_stage == BK7258_CP_STAGE_SDK_RUNTIME);
   assert((status.succeeded_mask &
           (UINT32_C(1) << BK7258_CP_STAGE_DEBUG_ROUTE_AFTER_SDK)) != 0);
@@ -372,7 +373,7 @@ int main(void)
   };
   assert(bk7258_cp_bringup_initialize() == 0);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert((status.succeeded_mask &
           (UINT32_C(1) << BK7258_CP_STAGE_OTA_TRIAL)) != 0);
 #elif TEST_CP_SCENARIO == 11
@@ -383,7 +384,7 @@ int main(void)
   g_radio_storage_result = -EIO;
   assert(bk7258_cp_bringup_initialize() == -EIO);
   expect_events(expected, (int)nitems(expected));
-  assert(bk7258_cp_bringup_get_status(&status) == 0);
+  assert(bk7258_cp_platform_get_status(&status) == 0);
   assert(status.first_error_stage == BK7258_CP_STAGE_RADIO_STORAGE);
   assert((status.skipped_mask &
           (UINT32_C(1) << BK7258_CP_STAGE_BT_CONTROLLER)) != 0);

@@ -1,5 +1,5 @@
 ############################################################################
-# contest2026_135_yongwangzhiqian/board/bk7258/chip/CMakeLists.txt
+# contest2026_135_yongwangzhiqian/chips/bk7258/CMakeLists.txt
 #
 # SPDX-License-Identifier: Apache-2.0
 #

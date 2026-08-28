@@ -3,8 +3,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * CP-owned BK7258 SoC platform stages.  Cross-layer sequencing is performed
- * by the board lifecycle; this file contains no board callbacks or policy.
+ * CP-owned BK7258 platform sequence.  Board-owned policy is reported through
+ * explicit checkpoints; this file contains no board callbacks or symbols.
  ****************************************************************************/
 
 /****************************************************************************
@@ -19,6 +19,7 @@
 #include <syslog.h>
 
 #include <arch/chip/bk7258_cp_platform.h>
+#include <arch/chip/bk7258_stage_runner.h>
 
 #if defined(CONFIG_BK7258_AP_CONTROL) || \
     defined(CONFIG_BK7258_AP_SUPERVISOR)
@@ -97,14 +98,27 @@
 #endif
 
 /****************************************************************************
- * Public Functions
+ * Private Types
  ****************************************************************************/
 
-int bk7258_cp_platform_run_stage(
-  enum bk7258_cp_platform_stage_e stage,
-  FAR const struct bk7258_storage_config_s *storage,
-  FAR const struct bk7258_gpio_config_s *gpio)
+struct bk7258_cp_platform_context_s
 {
+  FAR const struct bk7258_storage_config_s *storage;
+  FAR const struct bk7258_gpio_config_s *gpio;
+};
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+static int bk7258_cp_stage_execute(
+  FAR void *arg, FAR const struct bk7258_stage_desc_s *stage_desc)
+{
+  FAR const struct bk7258_cp_platform_context_s *context = arg;
+  enum bk7258_cp_platform_stage_e stage =
+    (enum bk7258_cp_platform_stage_e)stage_desc->id;
+  FAR const struct bk7258_storage_config_s *storage = context->storage;
+  FAR const struct bk7258_gpio_config_s *gpio = context->gpio;
   int ret = OK;
 
   (void)storage;
@@ -366,4 +380,330 @@ int bk7258_cp_platform_run_stage(
     }
 
   return ret;
+}
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+#define BK7258_CP_STAGE_BIT(_id) (UINT32_C(1) << (_id))
+#define BK7258_CP_STAGE(_id, _class, _flags, _requires) \
+  {(_requires), (_id), (_class), (_flags)}
+#define BK7258_CP_STAGE_COUNT_VALUE \
+  (sizeof(g_bk7258_cp_stages) / sizeof(g_bk7258_cp_stages[0]))
+
+#ifdef CONFIG_BK7258_WDT_PRETIMEOUT_PANIC
+#  define BK7258_CP_WDT_REQUIRES \
+  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_RESET_MARKER_POLICY)
+#else
+#  define BK7258_CP_WDT_REQUIRES \
+  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_STORAGE_CONFIG)
+#endif
+
+#if defined(CONFIG_BK7258_AP_CONTROL) && \
+    defined(CONFIG_BK7258_AP_AUTOSTART)
+#  define BK7258_CP_PM_COORD_AP_REQUIRES \
+  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_AP_START)
+#elif defined(CONFIG_BK7258_AP_CONTROL)
+#  define BK7258_CP_PM_COORD_AP_REQUIRES \
+  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_AP_CONTROL)
+#else
+#  define BK7258_CP_PM_COORD_AP_REQUIRES 0
+#endif
+
+#ifdef CONFIG_BK7258_PM_CLOCK
+#  define BK7258_CP_PM_COORD_REQUIRES \
+  (BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_PM_SERVER) | \
+   BK7258_CP_PM_COORD_AP_REQUIRES)
+#else
+#  define BK7258_CP_PM_COORD_REQUIRES BK7258_CP_PM_COORD_AP_REQUIRES
+#endif
+
+static const struct bk7258_stage_desc_s g_bk7258_cp_stages[] =
+{
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  BK7258_CP_STAGE(BK7258_CP_STAGE_TRACE_ENTRY,
+                  BK7258_STAGE_BEST_EFFORT,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN, 0),
+#endif
+  BK7258_CP_STAGE(BK7258_CP_STAGE_STORAGE_CONFIG,
+                  BK7258_STAGE_MANDATORY, 0, 0),
+#ifdef CONFIG_BK7258_OTA
+  BK7258_CP_STAGE(BK7258_CP_STAGE_OTA_LAYOUT,
+                  BK7258_STAGE_MANDATORY, 0,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_STORAGE_CONFIG)),
+#endif
+#ifdef CONFIG_BK7258_WDT_PRETIMEOUT_PANIC
+  BK7258_CP_STAGE(BK7258_CP_STAGE_RESET_MARKER_POLICY,
+                  BK7258_STAGE_MANDATORY,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_STORAGE_CONFIG)),
+#endif
+#ifdef CONFIG_BK7258_SDK_IPC_RUNTIME
+  BK7258_CP_STAGE(BK7258_CP_STAGE_SDK_RUNTIME,
+                  BK7258_STAGE_MANDATORY, 0,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_STORAGE_CONFIG)),
+#endif
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  BK7258_CP_STAGE(BK7258_CP_STAGE_DEBUG_ROUTE_AFTER_SDK,
+                  BK7258_STAGE_BEST_EFFORT,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_STORAGE_CONFIG)),
+#endif
+#ifdef CONFIG_BK7258_SARADC_SERVER
+  BK7258_CP_STAGE(BK7258_CP_STAGE_SARADC_SERVER,
+                  BK7258_STAGE_MANDATORY, 0, 0),
+#endif
+#ifdef CONFIG_BK7258_PM_CLOCK
+  BK7258_CP_STAGE(BK7258_CP_STAGE_PM_SERVER,
+                  BK7258_STAGE_MANDATORY, 0, 0),
+#endif
+#ifdef CONFIG_BK7258_TEMPERATURE
+  BK7258_CP_STAGE(BK7258_CP_STAGE_TEMPERATURE_SERVER,
+                  BK7258_STAGE_MANDATORY, 0, 0),
+#endif
+#if defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_WIFI_VNET)
+  BK7258_CP_STAGE(BK7258_CP_STAGE_RADIO_STORAGE,
+                  BK7258_STAGE_MANDATORY, 0,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_STORAGE_CONFIG)),
+#endif
+#ifdef CONFIG_BK7258_WIFI_VNET
+  BK7258_CP_STAGE(BK7258_CP_STAGE_WIFI_CONTROLLER,
+                  BK7258_STAGE_MANDATORY, 0,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_RADIO_STORAGE)),
+#endif
+#ifdef CONFIG_BK7258_BT_IPC
+  BK7258_CP_STAGE(BK7258_CP_STAGE_BT_CONTROLLER,
+                  BK7258_STAGE_MANDATORY, 0,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_RADIO_STORAGE)),
+#endif
+#ifdef CONFIG_BK7258_AP_CONTROL
+  BK7258_CP_STAGE(BK7258_CP_STAGE_AP_CONTROL,
+                  BK7258_STAGE_MANDATORY, 0, 0),
+#  ifdef CONFIG_BK7258_GPIO_LOWERHALF
+  BK7258_CP_STAGE(BK7258_CP_STAGE_GPIO_SERVER,
+                  BK7258_STAGE_MANDATORY, 0, 0),
+#  endif
+#endif
+#ifdef CONFIG_BK7258_PSRAM
+  BK7258_CP_STAGE(BK7258_CP_STAGE_PSRAM,
+                  BK7258_STAGE_MANDATORY,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_STORAGE_CONFIG)),
+#endif
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  BK7258_CP_STAGE(BK7258_CP_STAGE_AP_SUPERVISOR,
+                  BK7258_STAGE_MANDATORY, 0, 0),
+#endif
+#if defined(CONFIG_BK7258_AP_CONTROL) && \
+    defined(CONFIG_BK7258_AP_AUTOSTART)
+  BK7258_CP_STAGE(BK7258_CP_STAGE_AP_START,
+                  BK7258_STAGE_MANDATORY, 0, 0),
+#endif
+#ifdef CONFIG_BK7258_OTA
+  BK7258_CP_STAGE(BK7258_CP_STAGE_OTA_TRIAL,
+                  BK7258_STAGE_MANDATORY,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN |
+                  BK7258_STAGE_FLAG_EXTERNAL,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_OTA_LAYOUT)),
+#endif
+#ifdef CONFIG_BK7258_WIFI_VNET
+  BK7258_CP_STAGE(BK7258_CP_STAGE_WIFI_CONTROL,
+                  BK7258_STAGE_MANDATORY, 0, 0),
+#endif
+#ifdef CONFIG_BK7258_WDT
+  BK7258_CP_STAGE(BK7258_CP_STAGE_WDT,
+                  BK7258_STAGE_MANDATORY,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN,
+                  BK7258_CP_WDT_REQUIRES),
+#endif
+#ifdef CONFIG_BK7258_IRDA
+  BK7258_CP_STAGE(BK7258_CP_STAGE_IRDA,
+                  BK7258_STAGE_MANDATORY,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN, 0),
+#endif
+#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+  BK7258_CP_STAGE(BK7258_CP_STAGE_PM_COORD,
+                  BK7258_STAGE_BEST_EFFORT,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN,
+                  BK7258_CP_PM_COORD_REQUIRES),
+#endif
+#if defined(CONFIG_BK7258_GPIO_LOWERHALF) && \
+    !defined(CONFIG_BK7258_AP_CONTROL)
+  BK7258_CP_STAGE(BK7258_CP_STAGE_GPIO_FALLBACK,
+                  BK7258_STAGE_BEST_EFFORT,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN, 0),
+#endif
+#ifdef CONFIG_BK7258_TOUCH
+  BK7258_CP_STAGE(BK7258_CP_STAGE_BOARD_DEVICES,
+                  BK7258_STAGE_BEST_EFFORT,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN |
+                  BK7258_STAGE_FLAG_EXTERNAL,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_STORAGE_CONFIG)),
+#endif
+#ifdef CONFIG_BK7258_SWD_DEBUG
+  BK7258_CP_STAGE(BK7258_CP_STAGE_DEBUG_ROUTE_FINAL,
+                  BK7258_STAGE_BEST_EFFORT,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_STORAGE_CONFIG)),
+#endif
+};
+
+static mutex_t g_bk7258_cp_binding_lock = NXMUTEX_INITIALIZER;
+static struct bk7258_cp_platform_context_s g_bk7258_cp_context;
+static bool g_bk7258_cp_bound;
+
+static struct bk7258_stage_runner_s g_bk7258_cp_runner =
+{
+  .lock = NXMUTEX_INITIALIZER,
+  .stages = g_bk7258_cp_stages,
+  .execute = bk7258_cp_stage_execute,
+  .stage_count = BK7258_CP_STAGE_COUNT_VALUE,
+  .state = BK7258_PLATFORM_NEW,
+  .first_error_stage = BK7258_STAGE_ID_INVALID,
+  .waiting_stage = BK7258_STAGE_ID_INVALID,
+};
+
+_Static_assert(BK7258_CP_STAGE_COUNT <= BK7258_STAGE_ID_LIMIT,
+               "CP platform stage ID exceeds the status mask");
+_Static_assert(BK7258_CP_STAGE_COUNT_VALUE > 0 &&
+               BK7258_CP_STAGE_COUNT_VALUE <= BK7258_STAGE_ID_LIMIT,
+               "invalid CP platform stage table size");
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+static int bk7258_cp_platform_require_binding(void)
+{
+  int ret = nxmutex_lock(&g_bk7258_cp_binding_lock);
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = g_bk7258_cp_bound ? OK : -EAGAIN;
+  nxmutex_unlock(&g_bk7258_cp_binding_lock);
+  return ret;
+}
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
+int bk7258_cp_platform_begin(
+  FAR const struct bk7258_storage_config_s *storage,
+  FAR const struct bk7258_gpio_config_s *gpio)
+{
+  int ret = nxmutex_lock(&g_bk7258_cp_binding_lock);
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (!g_bk7258_cp_bound)
+    {
+      g_bk7258_cp_context.storage = storage;
+      g_bk7258_cp_context.gpio = gpio;
+      g_bk7258_cp_bound = true;
+      ret = OK;
+    }
+  else if (g_bk7258_cp_context.storage != storage ||
+           g_bk7258_cp_context.gpio != gpio)
+    {
+      ret = -EINVAL;
+    }
+  else
+    {
+      ret = OK;
+    }
+
+  nxmutex_unlock(&g_bk7258_cp_binding_lock);
+  return ret;
+}
+
+int bk7258_cp_platform_reach_ota_trial(FAR bool *eligible)
+{
+#ifdef CONFIG_BK7258_OTA
+  int ret = bk7258_cp_platform_require_binding();
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return bk7258_stage_runner_run_until(
+    &g_bk7258_cp_runner, &g_bk7258_cp_context,
+    BK7258_CP_STAGE_OTA_TRIAL, eligible);
+#else
+  (void)eligible;
+  return -ENOTSUP;
+#endif
+}
+
+int bk7258_cp_platform_complete_ota_trial(int result)
+{
+#ifdef CONFIG_BK7258_OTA
+  return bk7258_stage_runner_complete_external(
+    &g_bk7258_cp_runner, BK7258_CP_STAGE_OTA_TRIAL, result);
+#else
+  (void)result;
+  return -ENOTSUP;
+#endif
+}
+
+int bk7258_cp_platform_reach_board_devices(FAR bool *eligible)
+{
+#ifdef CONFIG_BK7258_TOUCH
+  int ret = bk7258_cp_platform_require_binding();
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return bk7258_stage_runner_run_until(
+    &g_bk7258_cp_runner, &g_bk7258_cp_context,
+    BK7258_CP_STAGE_BOARD_DEVICES, eligible);
+#else
+  (void)eligible;
+  return -ENOTSUP;
+#endif
+}
+
+int bk7258_cp_platform_complete_board_devices(int result)
+{
+#ifdef CONFIG_BK7258_TOUCH
+  return bk7258_stage_runner_complete_external(
+    &g_bk7258_cp_runner, BK7258_CP_STAGE_BOARD_DEVICES, result);
+#else
+  (void)result;
+  return -ENOTSUP;
+#endif
+}
+
+int bk7258_cp_platform_finish(void)
+{
+  int ret = bk7258_cp_platform_require_binding();
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return bk7258_stage_runner_finish(
+    &g_bk7258_cp_runner, &g_bk7258_cp_context);
+}
+
+int bk7258_cp_platform_result(void)
+{
+  return bk7258_stage_runner_result(&g_bk7258_cp_runner);
+}
+
+int bk7258_cp_platform_get_status(
+  FAR struct bk7258_platform_status_s *status)
+{
+  return bk7258_stage_runner_snapshot(&g_bk7258_cp_runner, status);
 }

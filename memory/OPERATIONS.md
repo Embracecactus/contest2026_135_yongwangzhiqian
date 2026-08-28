@@ -1,6 +1,6 @@
 # Operations
 
-Last reviewed: 2026-08-26
+Last reviewed: 2026-08-28
 
 Do not place credentials, tokens, private keys, or sensitive production data in this file.
 
@@ -34,32 +34,39 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
     ADR-027. `bk7258.py sdk rebuild --source` is mandatory and the supplied
     clean checkout must equal that manifest revision.
   - Imported runtime bundles live only under the ignored canonical directory
-    `board/bk7258/bk_idk/armino_as_lib/versions/<version>/<profile>` and must
+    `chips/bk7258/bk_idk/armino_as_lib/versions/<version>/<profile>` and must
     be real directories matching the tree hash in the selected profile.
   - The OpenVela ARM prebuilt at
     `prebuilts/gcc/linux-x86_64/arm-none-eabi` is pinned by the team manifest.
     OpenVela, SDK rebuild and project BL1/BL2 share it; `/usr/bin` and PATH are
     not compiler fallbacks.
-- The active compatible SDK bundle remains v3.1.1.9, with one AP-only SDIO4
-  variant derived from the same source/profile family. Matching SDK source is
-  the manifest project pinned by ADR-027; no older bundle fallback is
-  supported. BK7259 and v4 are retired and cannot replace it.
+- The active compatible SDK bundles remain v3.1.1.9 CP and AP. The tracked
+  `ap-sdio4` profile is an optional four-line hardware-capability variant and
+  may be listed while its proprietary bundle is not installed; it is not a
+  build input unless a board seed selects it. Matching SDK source is the
+  manifest project pinned by ADR-027. BK7259 and v4 are retired and cannot
+  replace it.
 - `tools/bk7258/bk7258.py sdk list|verify|install|rebuild` owns profile
   discovery, tree verification and the locked rebuild/replace transaction.
   There are no standalone manifests or provenance files.
-- `tools/bk7258/bk7258.py package create|extract|flash-contract|materialize` and
-  `bk7258.py verify layout|image|package|trust` are the complete host package
-  and verification surface.
-- `bk7258.py package materialize` cryptographically verifies the signed full
-  package, then combines it with an exact accepted-board base into the one
-  dense BKFIL input.  It
-  refuses a wrong base digest, a size other than the immutable-tail boundary,
-  a changed `preserve` partition, overlapping writes or an existing output.
+- `tools/bk7258/bk7258.py release full|ota` is the complete signed publication
+  surface. It accepts only a verified MCUboot build manifest. `package create`
+  is unsigned direct-boot diagnostics only; package extraction, flash-contract,
+  materialization and all `verify` commands are inspection or compatibility
+  operations. The build manifest, package manifest, signed update catalog and
+  release summary carry one validated physical-board target; sharing a layout
+  never makes two physical boards interchangeable update targets.
+- `release full` cryptographically verifies the signed full package and
+  combines it with an exact accepted-board base into the one dense BKFIL input
+  in one atomic output directory. It refuses a wrong base digest, a size other
+  than the immutable-tail boundary, a changed `preserve` partition,
+  overlapping writes, a direct-build manifest or an existing output.
 
 ## Required verification
 
 - Run `tools/bk7258/bk7258.py sdk verify --profile NAME` for each selected
-  bundle and the direct `verify layout|image|package` gates.
+  bundle and the applicable `verify layout|image|build-manifest|package|trust`
+  gates.
 - Require `git diff --check`; confirm the build introduced no new tracked
   changes in official `nuttx/` or `apps/` beyond their recorded baseline.
 - For a completed hardware stage, retain raw UART/J-Link logs, artifact hashes, physical reset evidence, and regression tests proportional to the change.
@@ -76,12 +83,19 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 - A compatible SDK update changes the team manifest pin, rebuilds each
   explicit profile from that clean source, records the new tree hash comment,
   and passes a real OpenVela link/build before acceptance.
-- Build requires every semantic input explicitly; there is no default pair:
+- Normal development names one physical board; its checked `openvela.conf`
+  supplies the maintained CP/AP pair and partition from one source of truth:
 
   ```text
-  bk7258.py build --cp-config PATH --ap-config PATH \
-    --boot direct|mcuboot --partition CSV --jobs N
+  bk7258.py build --board NAME --boot direct|mcuboot
   ```
+- xTS, performance and driver-check work may instead use the explicit
+  `--cp-config PATH --ap-config PATH --partition CSV` form. It cannot be mixed
+  with `--board`.
+- `direct` is the unsigned `BootROM -> BL1 -> CP` bring-up/diagnostic chain and
+  cannot be released. `mcuboot` is the only signed release chain. This
+  software-rooted chain does not claim the OP-TEE, HUK provisioning or
+  hardware-immutable Secure Boot architecture in official document 1594.
 - Every maintained CP/AP profile carries `profile.conf`.  The wrapper rejects
   board, role, feature and compatibility mismatches before build. Boot mode is
   an explicit command input; MCUboot defconfig overlays are build-local.
@@ -91,10 +105,17 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 - Follow [the build/flash/debug SOP](../docs/bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md) rather than reconstructing commands from memory.
 - The build wrapper rejects mismatched CP/AP pairs and a storage topology that
   differs from the selected CSV.
-- Signed package creation must match explicit keys to the public-anchor
-  sections in the actual BL1/BL2 ELFs before invoking official signers. Public
-  fingerprints and artifact hashes are embedded in `.bkpack`; no standalone
-  trust file or private-key path is retained.
+- A successful build atomically writes one
+  `out/bk7258/.../releases/<boot>/build-manifest.json`. Signed release accepts
+  only the MCUboot form and re-hashes its raw images, ELFs, resolved configs,
+  SDK bundles, locked toolchain, layout and public anchors. It then matches the
+  private keys to the public-anchor sections in the actual BL1/BL2 ELFs before
+  invoking official signers. Public fingerprints and artifact hashes are
+  retained; no private-key path is retained.
+- Unsigned diagnostic packaging accepts only a verified direct build manifest:
+  `bk7258.py package create --build-manifest PATH --unsigned --output PATH`.
+  It derives the board, layout, finalized images, SDK evidence and preserved
+  partitions from that single handoff and accepts no duplicate manual inputs.
 - No active N15/N17 field-update candidate, validation profile, PSRAM loader,
   board SOP or aggregate fault campaign exists. Their historical records are
   evidence only and must not be reconstructed or treated as build gates.
@@ -102,16 +123,20 @@ Do not place credentials, tokens, private keys, or sensitive production data in 
 
 ## Deployment
 
-- The current owner-directed hardware loop always performs a clean full build,
-  verifies the signed `.bkpack`, then materializes one board-bound full image:
+- The current owner-directed hardware loop always creates fresh, distinct BL1
+  and MCUboot P-256 roots, performs a clean MCUboot build, then publishes one
+  board-bound full release from the printed build manifest:
 
   ```text
-  bk7258.py package materialize --package RELEASE.bkpack \
+  bk7258.py release full --build-manifest MANIFEST \
+    --bl1-key BL1_PRIVATE --mcuboot-key MCUBOOT_PRIVATE \
+    --version MAJOR.MINOR.REVISION+GENERATION \
     --base ACCEPTED_FULL.bin --base-sha256 SHA256 \
-    --openssl OPENSSL --output RELEASE-full.bin
+    --openssl OPENSSL --output-dir RELEASE_DIR
   ```
 
-  The resulting file is exactly `0x7fa000` bytes for the accepted Agent layout.
+  The resulting operator file is exactly `0x7fa000` bytes for the accepted
+  Agent layout.
   It contains all nine authorized writes, restores `usr_config` and every hole
   from the accepted base, and excludes the immutable tail.
 - Give BKFIL that one file in one operation; do not extract it into a

@@ -24,7 +24,7 @@ export WORKSPACE="$PWD"
 export CONTEST="$WORKSPACE/contest2026_135_yongwangzhiqian"
 export IMPL="$CONTEST/docs/bk7258-t5ai"
 export LEARN="$CONTEST/docs/learning/bk7258-t5ai"
-export BOARD="$CONTEST/board/bk7258"
+export BOARD="$CONTEST/boards/bk7258"
 ```
 
 这些变量表达的是**角色**，不是某台电脑的固定路径。后续所有命令和来源记录都应继续使用它们。
@@ -37,7 +37,7 @@ export BOARD="$CONTEST/board/bk7258"
 2. 阅读[仓库地图与边界](00-orientation/02-repo-map-and-boundaries.md)，区分 `$LEARN`、`$IMPL`、队伍源码、manifest 映射和上游仓。
 3. 阅读[权威来源地图](00-orientation/03-authoritative-source-map.md)，学会为一个结论选择正确证据。
 4. 打开 [`$IMPL/README.md`](../../bk7258-t5ai/README.md) 和 [`$IMPL/next-stage-prompt.md`](../../bk7258-t5ai/next-stage-prompt.md)，只观察它们如何承担"实施状态入口"和"恢复指针"职责，不把其中 current 细节复制到学习笔记。
-5. 打开 [`$BOARD`](../../../board/bk7258/) 和 [contest manifest](../../../contest2026_135_yongwangzhiqian.xml)，尝试回答："队伍真正拥有的源文件在哪里？它们被映射到完整工作区的哪里？"
+5. 打开 [`$BOARD`](../../../boards/bk7258/) 和 [contest manifest](../../../contest2026_135_yongwangzhiqian.xml)，尝试回答："队伍真正拥有的源文件在哪里？它们被映射到完整工作区的哪里？"
 
 完成后，你应能用自己的话解释：
 

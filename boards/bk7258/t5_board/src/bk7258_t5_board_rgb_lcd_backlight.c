@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/boards/t5_board/src/bk7258_t5_board_rgb_lcd_backlight.c
+ * boards/bk7258/t5_board/src/bk7258_t5_board_rgb_lcd_backlight.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

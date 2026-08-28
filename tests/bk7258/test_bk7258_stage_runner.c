@@ -335,6 +335,134 @@ static void test_result_and_failed_reentry(void)
   test_runner_destroy(&runner);
 }
 
+static void test_external_checkpoint_success(void)
+{
+  struct test_context_s context = {0};
+  const struct bk7258_stage_desc_s stages[] =
+  {
+    {0, 1, BK7258_STAGE_MANDATORY, 0},
+    {TEST_BIT(1), 2, BK7258_STAGE_MANDATORY,
+     BK7258_STAGE_FLAG_EXTERNAL},
+    {TEST_BIT(2), 3, BK7258_STAGE_MANDATORY, 0},
+  };
+  struct bk7258_stage_runner_s runner;
+  struct bk7258_platform_status_s status;
+  bool eligible = false;
+
+  test_runner_prepare(&runner, stages, 3);
+  assert(bk7258_stage_runner_run_until(
+           &runner, &context, 2, &eligible) == 0);
+  assert(eligible);
+  assert(runner.state == BK7258_PLATFORM_PAUSED);
+  assert(context.calls[1] == 1 && context.calls[2] == 0 &&
+         context.calls[3] == 0);
+  assert(bk7258_stage_runner_result(&runner) == -EAGAIN);
+  assert(bk7258_stage_runner_finish(&runner, &context) == -EBUSY);
+  assert(bk7258_stage_runner_complete_external(&runner, 2, 0) == 0);
+  assert(bk7258_stage_runner_complete_external(&runner, 2, 0) == -EPROTO);
+  assert(bk7258_stage_runner_finish(&runner, &context) == 0);
+  assert(context.calls[3] == 1);
+  assert(bk7258_stage_runner_snapshot(&runner, &status) == 0);
+  assert(status.state == BK7258_PLATFORM_DONE);
+  assert(status.succeeded_mask ==
+         (TEST_BIT(1) | TEST_BIT(2) | TEST_BIT(3)));
+  test_runner_destroy(&runner);
+}
+
+static void test_external_failure_preserves_always_run(void)
+{
+  struct test_context_s context = {0};
+  const struct bk7258_stage_desc_s stages[] =
+  {
+    {0, 1, BK7258_STAGE_MANDATORY, 0},
+    {TEST_BIT(1), 2, BK7258_STAGE_MANDATORY,
+     BK7258_STAGE_FLAG_EXTERNAL},
+    {0, 3, BK7258_STAGE_MANDATORY, 0},
+    {0, 4, BK7258_STAGE_MANDATORY,
+     BK7258_STAGE_FLAG_ALWAYS_RUN},
+  };
+  struct bk7258_stage_runner_s runner;
+  struct bk7258_platform_status_s status;
+  bool eligible = false;
+
+  test_runner_prepare(&runner, stages, 4);
+  assert(bk7258_stage_runner_run_until(
+           &runner, &context, 2, &eligible) == 0);
+  assert(eligible);
+  assert(bk7258_stage_runner_complete_external(
+           &runner, 2, -ETIMEDOUT) == 0);
+  assert(bk7258_stage_runner_finish(&runner, &context) == -ETIMEDOUT);
+  assert(context.calls[3] == 0 && context.calls[4] == 1);
+  assert(bk7258_stage_runner_snapshot(&runner, &status) == 0);
+  assert(status.first_error_stage == 2);
+  assert((status.failed_mask & TEST_BIT(2)) != 0);
+  assert((status.skipped_mask & TEST_BIT(3)) != 0);
+  assert((status.succeeded_mask & TEST_BIT(4)) != 0);
+  test_runner_destroy(&runner);
+}
+
+static void test_external_checkpoint_prerequisite_skip(void)
+{
+  struct test_context_s context = {0};
+  const struct bk7258_stage_desc_s stages[] =
+  {
+    {0, 1, BK7258_STAGE_MANDATORY, 0},
+    {TEST_BIT(1), 2, BK7258_STAGE_MANDATORY,
+     BK7258_STAGE_FLAG_ALWAYS_RUN | BK7258_STAGE_FLAG_EXTERNAL},
+    {0, 4, BK7258_STAGE_MANDATORY,
+     BK7258_STAGE_FLAG_ALWAYS_RUN},
+  };
+  struct bk7258_stage_runner_s runner;
+  struct bk7258_platform_status_s status;
+  bool eligible = true;
+
+  context.results[1] = -ENODEV;
+  test_runner_prepare(&runner, stages, 3);
+  assert(bk7258_stage_runner_run_until(
+           &runner, &context, 2, &eligible) == 0);
+  assert(!eligible);
+  assert(runner.state == BK7258_PLATFORM_RUNNING);
+  assert(bk7258_stage_runner_complete_external(&runner, 2, 0) == -EPROTO);
+  assert(bk7258_stage_runner_finish(&runner, &context) == -ENODEV);
+  assert(context.calls[4] == 1);
+  assert(bk7258_stage_runner_snapshot(&runner, &status) == 0);
+  assert((status.skipped_mask & TEST_BIT(2)) != 0);
+  test_runner_destroy(&runner);
+}
+
+static void test_external_checkpoint_protocol_order(void)
+{
+  struct test_context_s context = {0};
+  const struct bk7258_stage_desc_s stages[] =
+  {
+    {0, 1, BK7258_STAGE_MANDATORY, 0},
+    {0, 2, BK7258_STAGE_MANDATORY, BK7258_STAGE_FLAG_EXTERNAL},
+    {0, 5, BK7258_STAGE_BEST_EFFORT, BK7258_STAGE_FLAG_EXTERNAL},
+  };
+  struct bk7258_stage_runner_s runner;
+  bool eligible = false;
+
+  test_runner_prepare(&runner, stages, 3);
+  assert(bk7258_stage_runner_run(&runner, &context) == -EINVAL);
+  assert(context.order_count == 0);
+  assert(runner.state == BK7258_PLATFORM_NEW);
+  assert(bk7258_stage_runner_run_until(
+           &runner, &context, 5, &eligible) == -EPROTO);
+  assert(context.order_count == 0);
+  assert(bk7258_stage_runner_finish(&runner, &context) == -EPROTO);
+  assert(context.order_count == 0);
+  assert(bk7258_stage_runner_run_until(
+           &runner, &context, 2, &eligible) == 0);
+  assert(eligible && context.calls[1] == 1);
+  assert(bk7258_stage_runner_complete_external(&runner, 2, 0) == 0);
+  assert(bk7258_stage_runner_run_until(
+           &runner, &context, 5, &eligible) == 0);
+  assert(eligible);
+  assert(bk7258_stage_runner_complete_external(&runner, 5, 0) == 0);
+  assert(bk7258_stage_runner_finish(&runner, &context) == 0);
+  test_runner_destroy(&runner);
+}
+
 static void *test_thread_run(void *arg)
 {
   struct test_thread_arg_s *thread = arg;
@@ -384,6 +512,10 @@ int main(void)
   test_missing_executor_is_not_executed();
   test_invalid_forward_prerequisite_is_not_executed();
   test_result_and_failed_reentry();
+  test_external_checkpoint_success();
+  test_external_failure_preserves_always_run();
+  test_external_checkpoint_prerequisite_skip();
+  test_external_checkpoint_protocol_order();
   test_concurrent_callers_execute_once();
   puts("bk7258 stage runner tests: PASS");
   return 0;

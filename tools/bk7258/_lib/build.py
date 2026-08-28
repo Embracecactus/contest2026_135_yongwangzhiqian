@@ -11,7 +11,7 @@ import stat
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from _lib import image as image_domain
 from _lib import layout as layout_domain
@@ -24,12 +24,22 @@ class BuildError(RuntimeError):
     """Explicit build inputs or an official build stage failed."""
 
 
+BUILD_MANIFEST_FORMAT_V1 = "bk7258.build-manifest/1"
+BUILD_MANIFEST_FORMAT = "bk7258.build-manifest/2"
+DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
 PROFILE_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 REQUIRED_PROFILE_FIELDS = frozenset(
     {"SCHEMA", "BOARD", "ROLE", "CLASS", "COMPAT", "SDK"}
 )
+REQUIRED_BOARD_FIELDS = frozenset(
+    {"SCHEMA", "NAME", "CP_CONFIG", "AP_CONFIG", "PARTITION"}
+)
 BOARD_ROOT = Path("boards/bk7258")
 CHIP_ROOT = Path("chips/bk7258")
+
+
 @dataclass(frozen=True)
 class ConfigProfile:
     root: Path
@@ -37,6 +47,14 @@ class ConfigProfile:
     role: str
     compatibility: str
     sdk_profile: str
+
+
+@dataclass(frozen=True)
+class BoardPreset:
+    board: str
+    cp_config: Path
+    ap_config: Path
+    partition: Path
 
 
 @dataclass(frozen=True)
@@ -114,6 +132,25 @@ class BuildResult:
     bl2: Bl2Build | None
     artifacts: tuple[BuiltArtifact, ...]
     preserved_external: tuple[str, ...]
+    manifest: Path
+
+
+@dataclass(frozen=True)
+class BuildManifest:
+    source: Path
+    format: str
+    physical_board: str
+    boot: str
+    layout: layout_domain.Layout
+    artifacts: dict[str, Path]
+    finalized_artifacts: dict[str, Path]
+    preserved_external: tuple[str, ...]
+    elfs: dict[str, Path]
+    sdk_profiles: tuple[str, ...]
+    toolchain_sha256: str
+    role_identities: dict[str, str]
+    rollback_floor: int | None
+    trust_fingerprints: dict[str, str]
 
 
 def _regular(path: Path, label: str) -> Path:
@@ -180,6 +217,12 @@ def config_profile(repository: Path, path: Path, expected_role: str) -> ConfigPr
         raise BuildError(f"config profile role/schema mismatch: {profile_path}")
     if values["CLASS"] != "runnable":
         raise BuildError(f"build config is not runnable: {profile_path}")
+    physical_board = root.parent.parent.name
+    if values["BOARD"] != physical_board \
+            or re.fullmatch(r"[a-z][a-z0-9_]*", values["BOARD"]) is None:
+        raise BuildError(
+            f"config profile board does not match its owner: {profile_path}"
+        )
     sdk = sdk_domain.profile(repository, values["SDK"])
     if sdk.role != expected_role:
         raise BuildError(f"SDK profile role mismatch: {values['SDK']}")
@@ -189,6 +232,80 @@ def config_profile(repository: Path, path: Path, expected_role: str) -> ConfigPr
         role=values["ROLE"],
         compatibility=values["COMPAT"],
         sdk_profile=values["SDK"],
+    )
+
+
+def board_preset(repository: Path, board: str) -> BoardPreset:
+    """Load one physical board's maintained OpenVela build declaration."""
+
+    if re.fullmatch(r"[a-z][a-z0-9_]*", board) is None:
+        raise BuildError(f"invalid physical board name: {board!r}")
+
+    boards_root = _directory(repository / BOARD_ROOT, "BK7258 board root")
+    board_root = _directory(boards_root / board, f"{board} board root")
+    try:
+        board_root.relative_to(boards_root)
+    except ValueError as error:
+        raise BuildError(f"physical board escapes {boards_root}: {board!r}") from error
+
+    descriptor = _regular(board_root / "openvela.conf", "board OpenVela declaration")
+    values: dict[str, str] = {}
+    for number, raw in enumerate(descriptor.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = PROFILE_RE.fullmatch(line)
+        if match is None or not match.group(1).startswith("BK7258_BOARD_"):
+            raise BuildError(f"malformed board declaration line: {descriptor}:{number}")
+        key = match.group(1).removeprefix("BK7258_BOARD_")
+        if key in values:
+            raise BuildError(f"duplicate board declaration field: {key}")
+        values[key] = match.group(2)
+    if set(values) != REQUIRED_BOARD_FIELDS:
+        missing = sorted(REQUIRED_BOARD_FIELDS - values.keys())
+        extra = sorted(values.keys() - REQUIRED_BOARD_FIELDS)
+        raise BuildError(
+            f"board declaration fields mismatch: missing={missing} extra={extra}"
+        )
+    if values["SCHEMA"] != "1" or values["NAME"] != board:
+        raise BuildError(f"board declaration name/schema mismatch: {descriptor}")
+
+    def repository_path(value: str, label: str) -> Path:
+        if "\\" in value:
+            raise BuildError(f"{label} must use a repository-relative POSIX path")
+        relative = PurePosixPath(value)
+        if relative.is_absolute() or not relative.parts \
+                or any(part in {"", ".", ".."} for part in relative.parts):
+            raise BuildError(f"invalid repository-relative {label}: {value!r}")
+        path = repository.joinpath(*relative.parts)
+        try:
+            path.resolve(strict=True).relative_to(repository.resolve(strict=True))
+        except (OSError, ValueError) as error:
+            raise BuildError(f"{label} escapes the contest repository: {value!r}") \
+                from error
+        return path
+
+    cp_config = repository_path(values["CP_CONFIG"], "CP config")
+    ap_config = repository_path(values["AP_CONFIG"], "AP config")
+    partition = repository_path(values["PARTITION"], "partition CSV")
+    cp = config_profile(repository, cp_config, "cp")
+    ap = config_profile(repository, ap_config, "ap")
+    if cp.board != board or ap.board != board:
+        raise BuildError(f"board declaration selects another physical board: {descriptor}")
+    if cp.compatibility != ap.compatibility:
+        raise BuildError(f"board declaration selects incompatible CP/AP configs: {descriptor}")
+
+    partition_file = _regular(partition, "partition CSV")
+    try:
+        partition_file.relative_to(boards_root)
+    except ValueError as error:
+        raise BuildError(f"board partition is outside {boards_root}: {partition}") from error
+    layout_domain.load(partition_file)
+    return BoardPreset(
+        board=board,
+        cp_config=cp.root,
+        ap_config=ap.root,
+        partition=partition_file,
     )
 
 
@@ -570,8 +687,11 @@ def toolchain_root(repository: Path) -> Path:
 
 def _pair_root(workspace: Path, cp: ConfigProfile, ap: ConfigProfile,
                selected_layout: layout_domain.Layout) -> Path:
+    if cp.board != ap.board:
+        raise BuildError("CP/AP config profiles have different board owners")
     return (
-        workspace / "out/bk7258" / f"{cp.root.name}__{ap.root.name}"
+        workspace / "out/bk7258" / cp.board
+        / f"{cp.root.name}__{ap.root.name}"
         / selected_layout.identity
     )
 
@@ -687,19 +807,22 @@ def _role_build(repository: Path, workspace: Path, official_build: Path,
     )
 
 
-def _common_root(workspace: Path, cp: RoleBuild, ap: RoleBuild,
-                 selected_layout: layout_domain.Layout) -> Path:
+def _release_root(workspace: Path, cp: RoleBuild, ap: RoleBuild,
+                  selected_layout: layout_domain.Layout, boot: str) -> Path:
+    if boot not in {"direct", "mcuboot"}:
+        raise BuildError(f"invalid release boot mode: {boot}")
     return (
-        workspace / "out/bk7258"
-        / f"{cp.config.root.name}__{ap.config.root.name}"
-        / selected_layout.identity
+        _pair_root(workspace, cp.config, ap.config, selected_layout)
+        / "releases" / boot
     )
 
 
 def _build_bl2(repository: Path, workspace: Path, cp: RoleBuild, ap: RoleBuild,
                selected_layout: layout_domain.Layout, toolchain: Toolchain,
                key_source: Path, rollback_floor: int, *, clean: bool) -> Bl2Build:
-    root = _common_root(workspace, cp, ap, selected_layout) / "bl2"
+    root = _release_root(
+        workspace, cp, ap, selected_layout, "mcuboot"
+    ) / "bl2"
     if root.is_symlink():
         raise BuildError(f"BL2 output root must not be a symlink: {root}")
     root.mkdir(parents=True, exist_ok=True)
@@ -771,7 +894,8 @@ def _build_bl1(repository: Path, workspace: Path, cp: RoleBuild, ap: RoleBuild,
                selected_layout: layout_domain.Layout, toolchain: Toolchain, *,
                signed: bool, bl2_copy_size: int, rollback_floor: int,
                key_source: Path | None, clean: bool) -> BootBuild:
-    root = _common_root(workspace, cp, ap, selected_layout) / "bl1"
+    boot = "mcuboot" if signed else "direct"
+    root = _release_root(workspace, cp, ap, selected_layout, boot) / "bl1"
     if root.is_symlink():
         raise BuildError(f"BL1 output root must not be a symlink: {root}")
     root.mkdir(parents=True, exist_ok=True)
@@ -833,7 +957,9 @@ def _finalize_direct_images(workspace: Path, cp: RoleBuild, ap: RoleBuild,
     image_set = image_domain.finalize(
         selected_layout, raw, preserved_external=preserved_external
     )
-    root = _common_root(workspace, cp, ap, selected_layout) / "images"
+    root = _release_root(
+        workspace, cp, ap, selected_layout, "direct"
+    ) / "images"
     if root.is_symlink():
         raise BuildError(f"final image root must not be a symlink: {root}")
     root.mkdir(parents=True, exist_ok=True)
@@ -855,6 +981,448 @@ def _finalize_direct_images(workspace: Path, cp: RoleBuild, ap: RoleBuild,
         preserved_external=preserved_external,
     )
     return tuple(result), preserved_external
+
+
+def _manifest_record(pair_root: Path, path: Path, kind: str,
+                     label: str) -> dict[str, object]:
+    source = _regular(path, label)
+    try:
+        relative = source.relative_to(pair_root.resolve(strict=True))
+    except ValueError as error:
+        raise BuildError(f"{label} is outside the paired build root") from error
+    return {
+        "kind": kind,
+        "path": relative.as_posix(),
+        "sha256": _sha256_file(source),
+        "size": source.stat().st_size,
+    }
+
+
+def _write_build_manifest(
+    repository: Path, workspace: Path, boot: str,
+    selected_layout: layout_domain.Layout, cp: RoleBuild, ap: RoleBuild,
+    bl1: BootBuild, bl2: Bl2Build | None,
+    artifacts: tuple[BuiltArtifact, ...], rollback_floor: int | None,
+    public_sources: trust_domain.PublicSources | None, toolchain: Toolchain,
+) -> Path:
+    """Publish one atomic, hash-bound handoff from build to release."""
+
+    pair_root = _directory(
+        _pair_root(workspace, cp.config, ap.config, selected_layout),
+        "paired build root",
+    )
+    release_root = _release_root(
+        workspace, cp, ap, selected_layout, boot
+    )
+    try:
+        partition = selected_layout.source.resolve(strict=True).relative_to(
+            repository.resolve(strict=True)
+        )
+    except ValueError as error:
+        raise BuildError("partition CSV is outside the contest repository") from error
+
+    raw_paths = {"boot": bl1.binary, "cp": cp.binary, "ap": ap.binary}
+    elf_paths = {"bl1": bl1.elf, "cp": cp.elf, "ap": ap.elf}
+    if boot == "mcuboot":
+        if bl2 is None or rollback_floor is None or public_sources is None:
+            raise BuildError("MCUboot build manifest lacks BL2 or trust evidence")
+        raw_paths["bl2"] = bl2.binary
+        elf_paths["bl2"] = bl2.elf
+    elif bl2 is not None or rollback_floor is not None or public_sources is not None:
+        raise BuildError("direct build manifest received MCUboot-only evidence")
+
+    sdk_rows: dict[str, dict[str, str]] = {}
+    for role, profile in (("cp", cp.config.sdk_profile),
+                          ("ap", ap.config.sdk_profile)):
+        verified = sdk_domain.verify(repository, profile)
+        sdk_rows[role] = {
+            "profile": profile,
+            "tree_sha256": verified.tree_hash,
+        }
+
+    trust_fingerprints: dict[str, str] = {}
+    if public_sources is not None:
+        trust_fingerprints = {
+            "bl1_public_fingerprint": public_sources.bl1_fingerprint,
+            "mcuboot_public_fingerprint": public_sources.mcuboot_fingerprint,
+        }
+
+    document = {
+        "boot": boot,
+        "elfs": {
+            name: _manifest_record(pair_root, path, "elf", f"{name} ELF")
+            for name, path in sorted(elf_paths.items())
+        },
+        "finalized_flash": {
+            row.name: _manifest_record(
+                pair_root, row.path, "finalized-flash",
+                f"finalized {row.name} image",
+            )
+            for row in sorted(artifacts, key=lambda item: item.name)
+        },
+        "format": BUILD_MANIFEST_FORMAT,
+        "inputs": {
+            name: _manifest_record(
+                pair_root, path, "raw-build", f"raw {name} input"
+            )
+            for name, path in sorted(raw_paths.items())
+        },
+        "layout": {
+            "identity": selected_layout.identity,
+            "partition": partition.as_posix(),
+            "sha256": selected_layout.sha256,
+        },
+        "roles": {
+            role.role: {
+                "build_identity": role.build_identity,
+                "resolved_config_sha256": role.resolved_config_sha256,
+                "sdk_profile": role.config.sdk_profile,
+                "seed_defconfig_sha256": role.seed_defconfig_sha256,
+            }
+            for role in (cp, ap)
+        },
+        "rollback_floor": rollback_floor,
+        "sdk": sdk_rows,
+        "target": {
+            "board_family": "bk7258",
+            "physical_board": cp.config.board,
+        },
+        "toolchain": {"archive_sha256": toolchain.revision},
+        "trust": trust_fingerprints,
+    }
+    manifest = release_root / "build-manifest.json"
+    _atomic_text(
+        manifest,
+        json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n",
+    )
+    return _regular(manifest, "build manifest")
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise BuildError(f"duplicate build manifest field: {key}")
+        result[key] = value
+    return result
+
+
+def _manifest_mapping(value: object, keys: set[str],
+                      label: str) -> dict[str, object]:
+    if not isinstance(value, dict) or set(value) != keys:
+        raise BuildError(f"build manifest {label} fields are invalid")
+    return value
+
+
+def _manifest_digest(value: object, label: str) -> str:
+    if not isinstance(value, str) or DIGEST_RE.fullmatch(value) is None:
+        raise BuildError(f"build manifest {label} digest is invalid")
+    return value
+
+
+def _manifest_relative_path(value: object, label: str) -> PurePosixPath:
+    if not isinstance(value, str) or not value or "\\" in value:
+        raise BuildError(f"build manifest {label} path is invalid")
+    path = PurePosixPath(value)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts) \
+            or path.as_posix() != value:
+        raise BuildError(f"build manifest {label} path is unsafe")
+    return path
+
+
+def _load_manifest_record(pair_root: Path, value: object, expected_kind: str,
+                          label: str) -> Path:
+    row = _manifest_mapping(
+        value, {"kind", "path", "sha256", "size"}, label
+    )
+    if row["kind"] != expected_kind:
+        raise BuildError(f"build manifest {label} kind is not {expected_kind}")
+    relative = _manifest_relative_path(row["path"], label)
+    source = _regular(pair_root.joinpath(*relative.parts), label)
+    try:
+        source.relative_to(pair_root)
+    except ValueError as error:
+        raise BuildError(f"build manifest {label} escapes its paired root") from error
+    size = row["size"]
+    if type(size) is not int or size <= 0 or source.stat().st_size != size:
+        raise BuildError(f"build manifest {label} size changed")
+    digest = _manifest_digest(row["sha256"], label)
+    observed = _sha256_file(source)
+    if observed != digest:
+        raise BuildError(
+            f"build manifest {label} hash changed: "
+            f"expected={digest} observed={observed}"
+        )
+    return source
+
+
+def load_build_manifest(repository: Path, path: Path) -> BuildManifest:
+    """Load and re-hash one build-owned release handoff."""
+
+    repository = _directory(repository, "contest repository")
+    workspace = _directory(repository.parent, "OpenVela workspace")
+    source = _regular(path, "build manifest")
+    out_root = _directory(workspace / "out/bk7258", "BK7258 output root")
+    try:
+        source.relative_to(out_root)
+    except ValueError as error:
+        raise BuildError("build manifest is outside the BK7258 output root") from error
+    if source.name != "build-manifest.json" \
+            or source.parent.parent.name != "releases" \
+            or source.parent.name not in {"direct", "mcuboot"}:
+        raise BuildError("build manifest path does not identify one release mode")
+    boot = source.parent.name
+    pair_root = _directory(source.parents[2], "paired build root")
+    try:
+        pair_relative = pair_root.relative_to(out_root)
+    except ValueError as error:
+        raise BuildError("paired build root escapes the BK7258 output root") \
+            from error
+    if len(pair_relative.parts) != 3 \
+            or re.fullmatch(r"[a-z][a-z0-9_]*", pair_relative.parts[0]) is None:
+        raise BuildError("paired build root does not identify one physical board")
+    path_board = pair_relative.parts[0]
+
+    if source.stat().st_size > 1024 * 1024:
+        raise BuildError("build manifest exceeds the size limit")
+    text = source.read_text(encoding="utf-8")
+    try:
+        document = json.loads(text, object_pairs_hook=_unique_json_object)
+    except json.JSONDecodeError as error:
+        raise BuildError("build manifest is not valid JSON") from error
+    canonical = json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n"
+    if text != canonical:
+        raise BuildError("build manifest is not canonical JSON")
+    manifest_format = document.get("format") if isinstance(document, dict) else None
+    root_fields = {
+        "boot", "elfs", "finalized_flash", "format", "inputs",
+        "layout", "roles", "rollback_floor", "sdk", "toolchain",
+        "trust",
+    }
+    if manifest_format == BUILD_MANIFEST_FORMAT:
+        root_fields.add("target")
+    elif manifest_format != BUILD_MANIFEST_FORMAT_V1:
+        raise BuildError("build manifest format is unsupported")
+    document = _manifest_mapping(document, root_fields, "root")
+    if document["boot"] != boot:
+        raise BuildError("build manifest format or boot mode is invalid")
+
+    if manifest_format == BUILD_MANIFEST_FORMAT:
+        target = _manifest_mapping(
+            document["target"], {"board_family", "physical_board"}, "target"
+        )
+        physical_board = target["physical_board"]
+        if target["board_family"] != "bk7258" \
+                or physical_board != path_board:
+            raise BuildError("build manifest target does not match its output root")
+    else:
+        physical_board = path_board
+
+    layout_row = _manifest_mapping(
+        document["layout"], {"identity", "partition", "sha256"}, "layout"
+    )
+    identity = layout_row["identity"]
+    if not isinstance(identity, str) or identity != pair_root.name:
+        raise BuildError("build manifest layout identity does not match its output root")
+    partition_relative = _manifest_relative_path(
+        layout_row["partition"], "partition"
+    )
+    partition = _regular(
+        repository.joinpath(*partition_relative.parts), "partition CSV"
+    )
+    try:
+        partition.relative_to((repository / BOARD_ROOT).resolve(strict=True))
+    except ValueError as error:
+        raise BuildError("build manifest partition is outside BK7258 boards") from error
+    selected_layout = layout_domain.load(partition)
+    if selected_layout.identity != identity \
+            or selected_layout.sha256 != _manifest_digest(
+                layout_row["sha256"], "layout"
+            ):
+        raise BuildError("build manifest layout evidence changed")
+
+    roles = _manifest_mapping(document["roles"], {"cp", "ap"}, "roles")
+    role_identities: dict[str, str] = {}
+    role_profiles: dict[str, str] = {}
+    for role in ("cp", "ap"):
+        row = _manifest_mapping(
+            roles[role],
+            {
+                "build_identity", "resolved_config_sha256", "sdk_profile",
+                "seed_defconfig_sha256",
+            },
+            f"{role} role",
+        )
+        identity_value = row["build_identity"]
+        profile = row["sdk_profile"]
+        if not isinstance(identity_value, str) \
+                or not re.fullmatch(r"bk7258-role-[0-9a-f]{16}", identity_value) \
+                or not isinstance(profile, str) or not profile:
+            raise BuildError(f"build manifest {role} role identity is invalid")
+        _manifest_digest(row["resolved_config_sha256"], f"{role} resolved config")
+        _manifest_digest(row["seed_defconfig_sha256"], f"{role} seed config")
+        role_identities[role] = identity_value
+        role_profiles[role] = profile
+
+    sdk = _manifest_mapping(document["sdk"], {"cp", "ap"}, "SDK")
+    sdk_profiles: list[str] = []
+    for role in ("cp", "ap"):
+        row = _manifest_mapping(
+            sdk[role], {"profile", "tree_sha256"}, f"{role} SDK"
+        )
+        profile = row["profile"]
+        if profile != role_profiles[role]:
+            raise BuildError(f"build manifest {role} SDK profile is inconsistent")
+        digest = _manifest_digest(row["tree_sha256"], f"{role} SDK")
+        verified = sdk_domain.verify(repository, profile)
+        if verified.tree_hash != digest:
+            raise BuildError(f"build manifest {role} SDK bundle changed")
+        sdk_profiles.append(profile)
+
+    toolchain_row = _manifest_mapping(
+        document["toolchain"], {"archive_sha256"}, "toolchain"
+    )
+    toolchain_sha256 = _manifest_digest(
+        toolchain_row["archive_sha256"], "toolchain archive"
+    )
+    try:
+        installed_toolchain = toolchain_domain.verify(repository)
+    except toolchain_domain.ToolchainError as error:
+        raise BuildError(str(error)) from error
+    if installed_toolchain.archive_sha256 != toolchain_sha256:
+        raise BuildError("build manifest toolchain changed")
+
+    expected_inputs = {"boot", "cp", "ap"}
+    expected_elfs = {"bl1", "cp", "ap"}
+    if boot == "mcuboot":
+        expected_inputs.add("bl2")
+        expected_elfs.add("bl2")
+    inputs = _manifest_mapping(document["inputs"], expected_inputs, "inputs")
+    elfs = _manifest_mapping(document["elfs"], expected_elfs, "ELFs")
+    artifact_paths = {
+        name: _load_manifest_record(
+            pair_root, inputs[name], "raw-build", f"raw {name} input"
+        )
+        for name in sorted(expected_inputs)
+    }
+    elf_paths = {
+        name: _load_manifest_record(
+            pair_root, elfs[name], "elf", f"{name} ELF"
+        )
+        for name in sorted(expected_elfs)
+    }
+    for role in ("cp", "ap"):
+        prefix = ("roles", boot, role, role_identities[role])
+        for label, candidate in (("input", artifact_paths[role]),
+                                 ("ELF", elf_paths[role])):
+            relative = candidate.relative_to(pair_root)
+            if relative.parts[:4] != prefix:
+                raise BuildError(
+                    f"build manifest {role} {label} is outside its role identity"
+                )
+    boot_names = ("bl1", "bl2") if boot == "mcuboot" else ("bl1",)
+    for name in boot_names:
+        candidates = [elf_paths[name]]
+        if name == "bl1":
+            candidates.append(artifact_paths["boot"])
+        elif boot == "mcuboot":
+            candidates.append(artifact_paths["bl2"])
+        for candidate in candidates:
+            relative = candidate.relative_to(pair_root)
+            if relative.parts[:3] != ("releases", boot, name):
+                raise BuildError(
+                    f"build manifest {name} artifact is outside its release mode"
+                )
+
+    finalized = document["finalized_flash"]
+    finalized_artifacts: dict[str, Path] = {}
+    preserved_external: tuple[str, ...] = ()
+    if not isinstance(finalized, dict):
+        raise BuildError("build manifest finalized Flash evidence is invalid")
+    if boot == "mcuboot" and finalized:
+        raise BuildError("MCUboot build manifest must not contain finalized Flash images")
+    if boot == "direct":
+        expected_names = {
+            row.artifact for row in selected_layout.partitions
+            if row.policy == "image" and row.artifact is not None
+        }
+        if set(finalized) != expected_names:
+            raise BuildError(
+                "direct build manifest finalized artifact set is invalid"
+            )
+        raw = image_domain.read_artifacts(
+            {name: artifact_paths[name] for name in ("boot", "cp", "ap")}
+        )
+        raw["pair"] = image_domain.pair(
+            selected_layout, raw["cp"], raw["ap"]
+        )
+        preserved_external = tuple(sorted(
+            row.artifact for row in selected_layout.partitions
+            if row.policy == "external" and row.artifact is not None
+        ))
+        expected_flash = {
+            row.artifact: row.data
+            for row in image_domain.finalize(
+                selected_layout,
+                raw,
+                preserved_external=preserved_external,
+            ).writes
+        }
+        for name, row in finalized.items():
+            path = _load_manifest_record(
+                pair_root, row, "finalized-flash", f"finalized {name} image"
+            )
+            relative = path.relative_to(pair_root)
+            if relative.parts != (
+                "releases", "direct", "images", f"{name}.bin"
+            ):
+                raise BuildError(
+                    f"direct finalized {name} image is outside its release mode"
+                )
+            if path.read_bytes() != expected_flash[name]:
+                raise BuildError(
+                    f"direct finalized {name} image differs from its raw inputs"
+                )
+            finalized_artifacts[name] = path
+
+    rollback_floor = document["rollback_floor"]
+    trust = document["trust"]
+    if boot == "mcuboot":
+        if type(rollback_floor) is not int or rollback_floor < 0:
+            raise BuildError("MCUboot build manifest rollback floor is invalid")
+        trust = _manifest_mapping(
+            trust,
+            {"bl1_public_fingerprint", "mcuboot_public_fingerprint"},
+            "trust",
+        )
+        trust_fingerprints = {
+            name: _manifest_digest(value, name)
+            for name, value in trust.items()
+        }
+        if trust_fingerprints["bl1_public_fingerprint"] == \
+                trust_fingerprints["mcuboot_public_fingerprint"]:
+            raise BuildError("BL1 and MCUboot build roots must be independent")
+    else:
+        if rollback_floor is not None or trust != {}:
+            raise BuildError("direct build manifest contains MCUboot trust evidence")
+        trust_fingerprints = {}
+
+    return BuildManifest(
+        source=source,
+        format=manifest_format,
+        physical_board=physical_board,
+        boot=boot,
+        layout=selected_layout,
+        artifacts=artifact_paths,
+        finalized_artifacts=finalized_artifacts,
+        preserved_external=preserved_external,
+        elfs=elf_paths,
+        sdk_profiles=tuple(sdk_profiles),
+        toolchain_sha256=toolchain_sha256,
+        role_identities=role_identities,
+        rollback_floor=rollback_floor,
+        trust_fingerprints=trust_fingerprints,
+    )
 
 
 def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
@@ -883,6 +1451,20 @@ def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
             "mcuboot build requires BL1/MCUboot public keys, OpenSSL and rollback floor"
         )
     selected_layout = layout_domain.load(partition)
+    release_root = (
+        _pair_root(workspace, cp, ap, selected_layout) / "releases" / boot
+    )
+    if clean:
+        _remove_output_tree(release_root, workspace)
+    elif release_root.is_symlink():
+        raise BuildError(f"release output root must not be a symlink: {release_root}")
+    stale_manifest = release_root / "build-manifest.json"
+    if stale_manifest.is_symlink() \
+            or (stale_manifest.exists() and not stale_manifest.is_file()):
+        raise BuildError(
+            f"build manifest target must be a regular file: {stale_manifest}"
+        )
+    stale_manifest.unlink(missing_ok=True)
     public_sources = None
     if boot == "mcuboot":
         assert bl1_public_key is not None
@@ -892,7 +1474,7 @@ def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
             bl1_public_key=bl1_public_key,
             mcuboot_public_key=mcuboot_public_key,
             openssl=openssl,
-            output=_pair_root(workspace, cp, ap, selected_layout) / "trust",
+            output=release_root / "trust",
         )
     cp_build_config = _build_config_root(
         workspace, cp, ap, cp, selected_layout, boot
@@ -939,6 +1521,20 @@ def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
         )
         artifacts = ()
         preserved_external = ()
+    manifest = _write_build_manifest(
+        repository,
+        workspace,
+        boot,
+        selected_layout,
+        cp_result,
+        ap_result,
+        bl1,
+        bl2,
+        artifacts,
+        rollback_floor if boot == "mcuboot" else None,
+        public_sources,
+        toolchain,
+    )
     return BuildResult(
         selected_layout.identity,
         cp_result,
@@ -947,4 +1543,5 @@ def build(repository: Path, cp_config: Path, ap_config: Path, partition: Path,
         bl2,
         artifacts,
         preserved_external,
+        manifest,
     )

@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/src/bk7258_internal.h
+ * contest2026_135_yongwangzhiqian/boards/bk7258/common/src/bk7258_internal.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -23,11 +23,8 @@ extern "C"
 
 int bk7258_bringup(void);
 #ifndef CONFIG_BK7258_AP_CORE
-struct bk7258_platform_status_s;
 int bk7258_cp_bringup_initialize(void);
 int bk7258_cp_bringup_result(void);
-int bk7258_cp_bringup_get_status(
-  FAR struct bk7258_platform_status_s *status);
 #endif
 #if !defined(CONFIG_BK7258_AP_CORE) && \
     (defined(CONFIG_BK7258_OTA) || \

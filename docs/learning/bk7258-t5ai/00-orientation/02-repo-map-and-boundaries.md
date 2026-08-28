@@ -8,7 +8,7 @@
 > - source ref：`$CONTEST` 的 `HEAD`（撰写时）
 > - source commit：`c588afbd8e0f1d30723f5076e585673a6ace8a4e`
 > - 最后核对日期：2026-07-24
-> - 直接来源：[contest README](../../../../README.md)、[contest manifest](../../../../contest2026_135_yongwangzhiqian.xml)、[`$BOARD`](../../../../board/bk7258/)
+> - 直接来源：[contest README](../../../../README.md)、[contest manifest](../../../../contest2026_135_yongwangzhiqian.xml)、[`$BOARD`](../../../../boards/bk7258/)
 > - 教学简化：目录图只展示理解所有权所需的主干，不表示每个文件都会在当前配置中编译
 
 ## 1. 路径变量
@@ -19,7 +19,7 @@ export WORKSPACE="$PWD"
 export CONTEST="$WORKSPACE/contest2026_135_yongwangzhiqian"
 export IMPL="$CONTEST/docs/bk7258-t5ai"
 export LEARN="$CONTEST/docs/learning/bk7258-t5ai"
-export BOARD="$CONTEST/board/bk7258"
+export BOARD="$CONTEST/boards/bk7258"
 ```
 
 不要把示例中的变量替换成写进文档的个人绝对路径。命令可以在本地展开变量，文档应保留变量形式。
@@ -53,7 +53,7 @@ $WORKSPACE/
 [contest manifest](../../../../contest2026_135_yongwangzhiqian.xml)把队伍拥有的目录暴露给完整 openvela 构建树。与 BK7258 board 相关的映射是：
 
 ```text
-源：$CONTEST/board/bk7258
+源：$CONTEST/boards/bk7258
 目的：$WORKSPACE/vendor/openvela/boards/contest2026_135_bk7258
 ```
 
@@ -179,7 +179,7 @@ $BOARD/
 | 我是新手，应该先学什么？ | [`$LEARN/README.md`](../README.md) 与[学习路线](01-learning-roadmap.md) |
 | 当前移植状态是什么？ | [`$IMPL/README.md`](../../../bk7258-t5ai/README.md) |
 | 当前恢复入口在哪里？ | [`$IMPL/next-stage-prompt.md`](../../../bk7258-t5ai/next-stage-prompt.md) |
-| 队伍实现源码在哪里？ | [`$BOARD`](../../../../board/bk7258/) |
+| 队伍实现源码在哪里？ | [`$BOARD`](../../../../boards/bk7258/) |
 | board 怎样进入完整构建树？ | [contest manifest](../../../../contest2026_135_yongwangzhiqian.xml) |
 | 某个结论的权威证据是什么？ | [权威来源地图](03-authoritative-source-map.md) |
 
@@ -199,7 +199,7 @@ git -C "$CONTEST" rev-parse HEAD
 # 3. 查看 manifest 中由队伍拥有的路径
 git -C "$CONTEST" ls-files \
   'contest2026_135_yongwangzhiqian.xml' \
-  'board/bk7258/**' \
+  'boards/bk7258/**' \
   'docs/bk7258-t5ai/**' \
   'docs/learning/**'
 

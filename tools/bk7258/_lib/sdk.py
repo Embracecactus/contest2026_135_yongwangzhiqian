@@ -35,6 +35,16 @@ HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 LINK_INPUT_RE = re.compile(r"[^\s\"']+\.(?:a|o|obj)(?=$|[\s\"'])")
 UART_DEFINE = "CONFIG_BK_PRINTF_DISABLE"
+AMBIENT_BUILD_FLAGS = (
+    "ARFLAGS",
+    "CFLAGS",
+    "CPPFLAGS",
+    "CXXFLAGS",
+    "EXTRA_CFLAGS",
+    "EXTRA_CPPFLAGS",
+    "EXTRA_CXXFLAGS",
+    "LDFLAGS",
+)
 
 
 @dataclass(frozen=True)
@@ -90,6 +100,25 @@ def _run(command: list[str], label: str, **kwargs: object) -> subprocess.Complet
         raise SdkError(f"{label} failed with exit status {error.returncode}") from error
     except OSError as error:
         raise SdkError(f"cannot run {label}: {command[0]}") from error
+
+
+def _reproducible_build_environment(work: Path, toolchain: Path,
+                                    source_date_epoch: str) -> dict[str, str]:
+    """Return the official SDK deterministic-build environment."""
+
+    if not source_date_epoch.isdigit():
+        raise SdkError("SDK source commit timestamp is invalid")
+    environment = os.environ.copy()
+    for name in AMBIENT_BUILD_FLAGS:
+        environment.pop(name, None)
+    prefix_maps = (
+        f"-ffile-prefix-map={work}=/openvela/bk7258-sdk-build",
+        f"-ffile-prefix-map={toolchain.parent}=/openvela/bk7258-toolchain",
+    )
+    environment["EXTRA_CPPFLAGS"] = " ".join(prefix_maps)
+    environment["SOURCE_DATE_EPOCH"] = source_date_epoch
+    environment["USE_LIBS_DETERMINED_MODE"] = "1"
+    return environment
 
 
 def manifest_sdk(repository: Path) -> ManifestSdk:
@@ -503,7 +532,7 @@ def _uart_command(compile_database: Path, role: str, output: Path,
 
 
 def _patch_uart(bundle: Path, build_root: Path, role: str, toolchain: Path,
-                work: Path) -> None:
+                work: Path, environment: dict[str, str]) -> None:
     gcc = toolchain / "arm-none-eabi-gcc"
     ar = toolchain / "arm-none-eabi-ar"
     nm = toolchain / "arm-none-eabi-nm"
@@ -515,7 +544,7 @@ def _patch_uart(bundle: Path, build_root: Path, role: str, toolchain: Path,
         raise SdkError("official SDK build must produce one compile_commands.json")
     patched = work / "uart_driver.c.obj"
     command, cwd = _uart_command(databases[0], role, patched, gcc)
-    _run(command, "SDK UART profile patch", cwd=cwd)
+    _run(command, "SDK UART profile patch", cwd=cwd, env=environment)
     _regular(patched, "patched UART object")
     owners = []
     for archive in sorted((bundle / "libs").glob("*.a")):
@@ -525,7 +554,7 @@ def _patch_uart(bundle: Path, build_root: Path, role: str, toolchain: Path,
             owners.append(archive)
     if len(owners) != 1:
         raise SdkError("resolved SDK closure must contain one UART archive owner")
-    _run([str(ar), "r", str(owners[0]), str(patched)], "SDK UART archive update")
+    _run([str(ar), "rD", str(owners[0]), str(patched)], "SDK UART archive update")
     result = _run([str(nm), "-u", str(patched)], "SDK UART symbol verification",
                   stdout=subprocess.PIPE, text=True)
     if "bk_printf_init" in result.stdout:
@@ -558,6 +587,12 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
     if _run(["git", "-C", str(source), "status", "--porcelain"],
             "SDK source cleanliness", stdout=subprocess.PIPE, text=True).stdout:
         raise SdkError("SDK source checkout must be clean")
+    source_date_epoch = _run(
+        ["git", "-C", str(source), "show", "-s", "--format=%ct", sdk.revision],
+        "SDK source commit timestamp",
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
     toolchain = toolchain.absolute()
     _directory(toolchain, "SDK toolchain directory")
 
@@ -571,6 +606,9 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
     selected.bundle.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=f"bk7258-sdk-{name}-") as temporary_name:
         work = Path(temporary_name)
+        environment = _reproducible_build_environment(
+            work, toolchain, source_date_epoch
+        )
         clone = work / "source"
         _run(["git", "clone", "--local", "--no-hardlinks", "--no-checkout",
               str(source), str(clone)], "SDK local source clone")
@@ -585,6 +623,7 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
                 f"COMPILER_TOOLCHAIN_PATH={toolchain}", f"-j{jobs}",
             ],
             "official SDK profile build",
+            env=environment,
         )
         export, role_export = _find_export(build_root, sdk_target)
         staged = work / "bundle"
@@ -592,7 +631,9 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
             export, role_export, _link_inputs(build_root), clone, build_root,
             selected, staged
         )
-        _patch_uart(staged, build_root, selected.role, toolchain, work)
+        _patch_uart(
+            staged, build_root, selected.role, toolchain, work, environment
+        )
         observed, _ = bundle_tree_hash(staged)
 
         transaction = Path(tempfile.mkdtemp(prefix=f".{name}.rebuild.", dir=selected.bundle.parent))
