@@ -108,7 +108,7 @@ BK7258 / T5-AI 当前交付状态，用于回答三个长期问题：
 | 官网文档 | 状态 | 当前证据与边界 | 后续动作 |
 |---|---|---|---|
 | [1568 Display](https://doc.openvela.com/document?id=1568&version=dev-ai-contest-2026&language=cn)、[1569 Framebuffer](https://doc.openvela.com/document?id=1569&version=dev-ai-contest-2026&language=cn)、[1570 LCD](https://doc.openvela.com/document?id=1570&version=dev-ai-contest-2026&language=cn)、[1571 VSync](https://doc.openvela.com/document?id=1571&version=dev-ai-contest-2026&language=cn) | ✅ | T5-Board RGB LCD、DMA2D、RGB565 双页、FB_SYNC、EOF page flip 和 LVGL Agent UI 已实板接受 | 做长时间翻页/撕裂/内存压力回归 |
-| [1572 Input](https://doc.openvela.com/document?id=1572&version=dev-ai-contest-2026&language=cn)、[1573 getevent](https://doc.openvela.com/document?id=1573&version=dev-ai-contest-2026&language=cn) | 🟡 | GT1151 触控和 UI 操作已实板通过；通用 GT9XX 修复仍在 NuttX 工作树外，尚需独立上游 PR；getevent 未单独记为发布验收 | 先完成 NuttX GT9XX 独立 PR，再补 getevent 坐标/中断回归 |
+| [1572 Input](https://doc.openvela.com/document?id=1572&version=dev-ai-contest-2026&language=cn)、[1573 getevent](https://doc.openvela.com/document?id=1573&version=dev-ai-contest-2026&language=cn) | 🟡 | GT1151 原始输入继续使用未修改的 NuttX GT9XX ABI；T5-Board 私有 LVGL 设备适配器只补充该单点面板所需的能力查询，UI 操作已实板通过；getevent 尚未单独记为发布验收 | 在干净上游上补 getevent 坐标/中断与 Agent UI 回归，不修改通用 GT9XX 驱动 |
 | [1575 Media Framework](https://doc.openvela.com/document?id=1575&version=dev-ai-contest-2026&language=cn)、[1576 服务端](https://doc.openvela.com/document?id=1576&version=dev-ai-contest-2026&language=cn)、[1577 客户端](https://doc.openvela.com/document?id=1577&version=dev-ai-contest-2026&language=cn)、[1578 Mediatool](https://doc.openvela.com/document?id=1578&version=dev-ai-contest-2026&language=cn) | ⚪ / 🟡 | 当前官方 Agent 通过 recorder/player ABI 使用 NuttX audio；没有把完整 media server/client/mediatool 作为 BSP 发布门禁 | 只有上层产品依赖完整 Media Framework 时再启用 |
 | [1581 Audio 配置](https://doc.openvela.com/document?id=1581&version=dev-ai-contest-2026&language=cn)、[1582 原理](https://doc.openvela.com/document?id=1582&version=dev-ai-contest-2026&language=cn)、[1583 适配](https://doc.openvela.com/document?id=1583&version=dev-ai-contest-2026&language=cn)、[1584 测试](https://doc.openvela.com/document?id=1584&version=dev-ai-contest-2026&language=cn) | ✅ | MIC/AUD、录音器、PCM player、共享 ADC/DAC ownership、PTT start/stop 和 teardown 已在 Agent 实板接受 | 增加长录放、异常关闭和音质指标 |
 | [1586 Camera](https://doc.openvela.com/document?id=1586&version=dev-ai-contest-2026&language=cn)、[1587 Camera 测试](https://doc.openvela.com/document?id=1587&version=dev-ai-contest-2026&language=cn) | 🕰 / 🟡 | DVP/PWM MJPEG 曾验证，但不是当前 Agent 默认路径；camera 与 RGB LCD/触控存在 pinmux 冲突 | 先定义显式运行时 pinmux 切换和互斥策略，再做当前全镜像实板回归 |
@@ -155,7 +155,7 @@ BK7258 / T5-AI 当前交付状态，用于回答三个长期问题：
 | P0-3 | SARADC/ADC-key 实物闭环 | 1516–1519、1648 | 新鲜全镜像下记录真实电压/按键跃迁、阈值、抖动和重复次数 |
 | P1-1 | BLE 恢复到当前 profile | 1545–1553 | 当前主线 clean build + 全量下载 + scan/advertise/GATT + 重启回归 |
 | P1-2 | Wi-Fi 稳定性和网络工具 | 1532、1534–1540 | ifconfig/ping/iperf、断连重连、并发 Agent/TF/LCD 和长稳 |
-| P1-3 | 输入上游闭环 | 1572–1573 | GT9XX 公共 NuttX PR 独立合并；getevent 和 Agent UI 回归 |
+| P1-3 | 输入回归闭环 | 1572–1573 | 在干净上游上完成 getevent 坐标/中断和 Agent UI 回归 |
 | P1-4 | RTC 产品策略 | 1457 | 明确“不要求断电保持”，或实现电池 RTC/网络校时/持久同步 |
 | P1-5 | USB、Ethernet 和 camera 硬件决策 | 1498、1532、1586–1587 | 分别明确目标控制器、PHY carrier、pinmux 互斥；无法提供硬件则正式标 ➖ |
 | P2 | RPMsg Clock、uORB/Sensor、TFLite | 1483、1516–1519、1526–1528、1605–1608 | 仅在产品需求明确后开启，先给出 ROM/RAM/引脚/功耗预算 |

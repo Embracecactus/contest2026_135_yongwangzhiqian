@@ -117,8 +117,9 @@ CP 在释放 AP 前初始化官方 `bt_ipc` worker。Controller 本体不在 CP 
 多重定义。board 因此用 SDK 导出的 flash/TRNG leaf 复现 Controller 所需的官方
 `CONFIG_NEW_MAC_POLICY + CONFIG_RANDOM_MAC_ADDR + CONFIG_BK_MAC_ADDR_CHECK` 编排：
 
-- 先调用幂等的官方 `bk_flash_driver_init()`，再读取 `sys_net` 分区 offset 0 的 6-byte
-  base MAC；有效地址还必须匹配 Beken OUI `c8:47:8c`；
+- 先调用幂等的 chip `bk7258_flash_initialize()`（它封装官方 driver init、JEDEC
+  校验和物理 I/O 串行），再读取 `sys_net` 分区 offset 0 的 6-byte base MAC；有效
+  地址还必须匹配 Beken OUI `c8:47:8c`；
 - 在 `sys_rf + 0xe00` 的最后 512 bytes 中读取 append-only 10-byte record：
   `{magic=0x4d41, data_crc, header_crc, mac[6]}`；CRC8 polynomial 为 `0x31`；
 - 数字 partition ID 只在运行时确认其 start/size 与 v3.1.1.9 官方表完全一致后才使用，
@@ -126,8 +127,9 @@ CP 在释放 AP 前初始化官方 `bt_ipc` worker。Controller 本体不在 CP 
 - `sys_net` 有效时以它为准，并在备份缺失/不一致时追加记录；只有备份有效时用备份恢复
   `sys_net`；两者都为空时初始化官方 TRNG，用 Beken OUI + 三个随机字节生成 base MAC，
   再同步写入两处分区；
-- `sys_net` 通过官方 `bk_spec_flash_write_bytes()` 做保留整 sector 的 erase/rewrite，备份
-  通过 `bk_flash_partition_write()` 追加；wrapper 不自行实现 flash 寄存器或擦写算法；
+- `sys_net` 通过 chip `bk7258_flash_partition_update()` 封装官方整-sector
+  erase/rewrite，备份通过生成分区 wrapper 进入同一个 chip raw-Flash service；board
+  不直接调用物理 Flash SDK，也不自行实现寄存器或擦写算法；
 - 拒绝全零、全 `0xff`、multicast 和非 Beken OUI 地址；flash/TRNG 失败时才使用 SDK
   默认地址 `c8:47:8c:00:00:18`，持久化不完整会明确输出 warning；
 - STA 使用 base，AP 使用 SDK virtual-interface mask 规则，Bluetooth 为 base + 1，
@@ -306,8 +308,7 @@ JOBS=8 \
 额外静态检查：
 
 - CP/AP ELF 均无 unresolved symbol；CP ELF 导出 `bkbttest_main()`、
-  `bk_rand()`、`bk_trng_driver_init()`、`bk_flash_partition_write()`、
-  `bk_spec_flash_write_bytes()` 和
+  `bk_rand()`、`bk_trng_driver_init()`、chip raw-Flash service 和
   `bk7258_bt_test_run()`，AP ELF 导出 `btnet_ioctl()`、`bt_start_scanning()` 和
   `bk7258_bt_test_initialize()`；
 - CP map 中没有 `libbk_system.a`；
