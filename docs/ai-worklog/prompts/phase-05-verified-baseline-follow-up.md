@@ -1,6 +1,6 @@
 # Phase 05 — verified-baseline follow-up
 
-> **Current handoff.** Read the [canonical RV1126B NSH port guide](../../rv1126b-nsh-port.md) and the immutable [2026-07-14 NSH baseline evidence](../../verification/2026-07-14-rv1126b-nsh-baseline.md) before making changes. This phase must preserve the distinction between the tested baseline and any later candidate.
+> **Historical handoff (retired).** This file describes the former RV1126B overlay and is retained as AI-worklog provenance; its `board/contest_board/` source tree no longer exists. Read the [canonical RV1126B NSH port guide](../../rv1126b-nsh-port.md) and the immutable [2026-07-14 NSH baseline evidence](../../verification/2026-07-14-rv1126b-nsh-baseline.md) when interpreting it. Do not use these historical ownership paths as instructions for the current BK7258 tree.
 
 ## Scope and ownership
 
@@ -29,7 +29,7 @@ Do **not** replace raw IRQ 61 with an external-IRQ offset, select UART4, restore
 - Hardware register definitions: `board/contest_board/chip/hardware/`
 - Board boot and late bring-up: `board/contest_board/src/rv1126b_boot.c` and `board/contest_board/src/rv1126b_bringup.c`
 - Tested configuration: `board/contest_board/configs/nsh/defconfig`
-- Board overview: [board README](../../../board/contest_board/README.md)
+- Board overview at the time: `board/contest_board/README.md` (retired with the former RV1126B overlay)
 - Team mapping: [contest manifest](../../../contest2026_135_yongwangzhiqian.xml)
 
 ## Cleanup-candidate provenance

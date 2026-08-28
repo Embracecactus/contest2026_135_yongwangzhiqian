@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The sole maintainer-facing BK7258 build, SDK, package, and verify entry."""
+"""The sole maintainer-facing BK7258 build and release workflow entry."""
 
 from __future__ import annotations
 

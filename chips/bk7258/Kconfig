@@ -1344,6 +1344,9 @@ config BK7258_TOUCH
 		standard NuttX buttons upper/lower-half interface.  The physical board
 		binding supplies the channel, tuning and device path; boards without a
 		verified sensor electrode cannot enable this option.
+		No maintained physical board currently supplies the required
+		bk7258_board_cp_devices_initialize() binding.  Keep this option disabled
+		until the selected board implements that function and passes a link test.
 		The immutable v3.1.1.9 BK7258 driver does not implement its advertised
 		multi-channel scan helpers, so this integration intentionally supports
 		exactly one selected channel.  It polls through LPWORK with the SDK

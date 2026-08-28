@@ -17,6 +17,6 @@
 
 - Before using an old implementation as design input, define the target public commands, internal domain boundaries, authoritative source for each mutable fact, and deletion set. Stop at architecture analysis if any is unknown.
 - Historical scripts, schemas, tests, and documents are evidence, not requirements. Preserve behavior only when a current build, package, verification, or hardware path consumes it; do not create one-file compatibility moves.
-- `tools/bk7258/bk7258.py` is the only tracked public entry and exposes only `build`, `sdk`, `package`, and `verify`; domain implementation belongs under `_lib`.
+- `tools/bk7258/bk7258.py` is the only tracked public entry.  Its top-level commands are `build`, `toolchain`, `sdk`, `package`, `release`, and `verify`; nested commands are `toolchain install|verify`, `sdk list|verify|install|rebuild`, `package create|extract|flash-contract|materialize`, `release full|ota`, and `verify layout|image|build-manifest|package|trust`.  Domain implementation belongs under `_lib`.
 - The team manifest owns SDK/toolchain identity, CP/AP profiles own board/role compatibility, `--boot` is explicit input, and the selected partition CSV owns geometry, topology, roles, and build/write policy. Consumers must not duplicate these facts.
 - Accept cleanup only after reporting deleted layers, confirming tracked top-level file count did not grow, and checking for duplicate version, profile, path, layout, or build-policy truths.
