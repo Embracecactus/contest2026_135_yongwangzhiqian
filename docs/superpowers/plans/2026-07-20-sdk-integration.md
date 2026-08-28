@@ -12,7 +12,7 @@
 > 不再作为当前操作说明。现目录为
 > `armino_as_lib/versions/<version>/{cp,ap}`，默认 `v3.1.1.9`，legacy 同样位于
 > `versions/legacy/`。请使用当前导入脚本和
-> `docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md`。
+> `docs/platforms/bk7258/nuttx-port/sdk-static-library-import.md`。
 
 ## Global Constraints
 

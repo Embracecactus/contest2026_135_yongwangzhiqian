@@ -9,7 +9,7 @@ Original SDK path: developer-local checkout (not part of the project contract)
 > 链接来源。项目源码由 manifest 固定在 `vendor/beken/bk_avdk_smp`，运行时使用
 > 校验过的 `v3.1.1.9` CP/AP bundle；旧 bundle 兼容已退役。
 > 最新来源、哈希、ABI 差异和板测证据见
-> [`docs/bk7258-t5ai/nuttx-port/sdk-v3.1.1.9-migration-report.md`](../../bk7258-t5ai/nuttx-port/sdk-v3.1.1.9-migration-report.md)。
+> [`docs/platforms/bk7258/nuttx-port/sdk-v3.1.1.9-migration-report.md`](../../platforms/bk7258/nuttx-port/sdk-v3.1.1.9-migration-report.md)。
 
 ## Register / CMSIS Headers
 

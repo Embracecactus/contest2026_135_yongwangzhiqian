@@ -313,5 +313,5 @@ grep -E "CONFIG_ARCH_CHIP_BK7258|CONFIG_ARCH_CHIP_CUSTOM_DIR" "$CP_CONFIG"
 
 签名交付还必须依次通过 package、public trust 和 flash contract 校验。下载命令、保留
 区和禁止区由板级
-[build/package/hardware evidence SOP](../../bk7258-t5ai/nuttx-port/bk7258-build-flash-debug-sop.md)
+[build/package/hardware evidence SOP](../../platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)
 定义；J-Link 调试指南本身不提供写入授权。

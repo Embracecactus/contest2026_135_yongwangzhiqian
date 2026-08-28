@@ -13,7 +13,7 @@
  * from the official BK7258 normal bootloader v3.1.1.9; see boot_runtime.c.
  * App-header validation, FAL parsing and UART logging live in boot_main.c.
  *
- * Reference: docs/bk7258-t5ai/bootloader/bk-official-bootloader-reverse.md S2.7.
+ * Reference: docs/platforms/bk7258/bootloader-analysis/bk-official-bootloader-reverse.md S2.7.
  */
 
     .syntax unified

@@ -41,9 +41,9 @@ self-delete及queued final-free。
 
 完整范围、源码约束和实板证据见：
 
-- [N14 completion](../../docs/bk7258-t5ai/nuttx-port/prompts/14-n14-psram.md)
-- [N14 source verification](../../docs/bk7258-t5ai/nuttx-port/n14-psram-source-verification.md)
-- [N14 evidence index](../../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md)
+- [N14 completion](../../docs/platforms/bk7258/nuttx-port/prompts/14-n14-psram.md)
+- [N14 source verification](../../docs/platforms/bk7258/nuttx-port/n14-psram-source-verification.md)
+- [N14 evidence index](../../docs/platforms/bk7258/nuttx-port/n14-evidence-index.md)
 
 P5 validation skeleton (opt-in with `CONFIG_BK7258_APP_BKVALIDATE=y`) exposes:
 

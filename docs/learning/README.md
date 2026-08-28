@@ -19,8 +19,8 @@
 cd "<openvela-workspace-root>"
 export WORKSPACE="$PWD"
 export CONTEST="$WORKSPACE/contest2026_135_yongwangzhiqian"
-export IMPL="$CONTEST/docs/bk7258-t5ai"
-export LEARN="$CONTEST/docs/learning/bk7258-t5ai"
+export IMPL="$CONTEST/docs/platforms/bk7258"
+export LEARN="$CONTEST/docs/learning/bk7258"
 export BOARD="$CONTEST/boards/bk7258"
 ```
 
@@ -42,18 +42,18 @@ export BOARD="$CONTEST/boards/bk7258"
 | 实施区 | `$IMPL`、`$BOARD` | 当前移植事实、源码、配置、验证记录与 handoff | 不为照顾教学叙事而改写事实，不把未验证推断写成结论 |
 | 工作区与参考区 | `$WORKSPACE/nuttx`、`$WORKSPACE/apps`、manifest 映射目标、外部 SDK/手册、构建产物 | 上游实现、外部规范、实际构建输入与产物证据 | 不直接修改生成映射或公共仓来规避队伍 overlay；不把构建产物当源文件提交 |
 
-发生冲突时，先回到[权威来源地图](bk7258-t5ai/00-orientation/03-authoritative-source-map.md)，不要让教学文档覆盖实施事实。
+发生冲突时，先回到[权威来源地图](bk7258/00-orientation/03-authoritative-source-map.md)，不要让教学文档覆盖实施事实。
 
 ## 3. 当前学习入口
 
-- [BK7258 T5-AI 小白学习入口](bk7258-t5ai/README.md)
-- [学习路线](bk7258-t5ai/00-orientation/01-learning-roadmap.md)
-- [仓库地图与边界](bk7258-t5ai/00-orientation/02-repo-map-and-boundaries.md)
-- [权威来源地图](bk7258-t5ai/00-orientation/03-authoritative-source-map.md)
-- [教学图索引](bk7258-t5ai/90-reference/95-graph-index.md)
-- [Graphify 安全使用约定](bk7258-t5ai/assets/graphify/README.md)
+- [BK7258 小白学习入口](bk7258/README.md)
+- [学习路线](bk7258/00-orientation/01-learning-roadmap.md)
+- [仓库地图与边界](bk7258/00-orientation/02-repo-map-and-boundaries.md)
+- [权威来源地图](bk7258/00-orientation/03-authoritative-source-map.md)
+- [教学图索引](bk7258/90-reference/95-graph-index.md)
+- [Graphify 安全使用约定](bk7258/assets/graphify/README.md)
 
-需要了解**当前实施状态**时，应离开学习区，阅读 [`$IMPL/README.md`](../bk7258-t5ai/README.md) 和 [`$IMPL/next-stage-prompt.md`](../bk7258-t5ai/next-stage-prompt.md)。学习材料不复制这些文件中的 current 细节。
+需要了解**当前实施状态**时，应离开学习区，阅读 [`$IMPL/README.md`](../platforms/bk7258/README.md) 和 [`$IMPL/next-stage-prompt.md`](../platforms/bk7258/next-stage-prompt.md)。学习材料不复制这些文件中的 current 细节。
 
 ## 4. 完整未来目录树
 
@@ -62,7 +62,7 @@ export BOARD="$CONTEST/boards/bk7258"
 ```text
 docs/learning/
 ├── README.md                                      # 本次已创建
-└── bk7258-t5ai/
+└── bk7258/
     ├── README.md                                  # 本次已创建
     ├── 00-orientation/
     │   ├── 01-learning-roadmap.md                 # 本次已创建

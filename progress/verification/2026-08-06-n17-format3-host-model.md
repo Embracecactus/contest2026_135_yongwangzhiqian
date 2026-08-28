@@ -12,11 +12,14 @@ counter-floor, phase-specific boot and one-way policy rules into an executable
 standard-library Python model. It does not implement the Tier-1 Bootloader or
 signature verification and performs no firmware or board write.
 
-Canonical sources:
+Canonical sources at the time of this historical gate:
 
-- [`bk7258_n17_journal.py`](../../board/bk7258/scripts/bk7258_n17_journal.py)
-- [`verify_bk7258_n17_journal.py`](../../board/bk7258/scripts/verify_bk7258_n17_journal.py)
-- [Accepted N17 layout/journal/migration design](../../docs/bk7258-t5ai/nuttx-port/n17-layout-journal-migration.md)
+- `board/bk7258/scripts/bk7258_n17_journal.py`
+- `board/bk7258/scripts/verify_bk7258_n17_journal.py`
+- [Accepted N17 layout/journal/migration design](../../docs/platforms/bk7258/nuttx-port/n17-layout-journal-migration.md)
+
+The custom N17 runtime and scripts were later retired. The first two paths are
+preserved as evidence labels and are intentionally not current repository links.
 
 ## Command and result
 

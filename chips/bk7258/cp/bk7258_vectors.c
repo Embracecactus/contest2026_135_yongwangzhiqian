@@ -52,7 +52,7 @@
  *
  * Entry [64] sits at byte offset 0x100 -- exactly what the bootloader
  * validates.  This layout is shared verbatim with the bare-metal probe
- * (docs/bk7258-t5ai/probe/probe.c) that has already been boot-verified
+ * (docs/platforms/bk7258/hardware/t5ai-core/probe/probe.c) that has already been boot-verified
  * for the BK7258 boot contract.  Slots [64]/[65] keep the bootloader magic;
  * slots [0]/[1] now follow the standard NuttX PSP/MSP reset contract, while
  * dispatcher slots route through the real NuttX handlers.

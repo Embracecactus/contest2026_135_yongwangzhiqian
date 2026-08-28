@@ -1,9 +1,9 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/scripts/ld.script
+ * contest2026_135_yongwangzhiqian/boards/bk7258/common/scripts/ld.script
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Linker script for the Beken BK7258 (T5-AI, Cortex-M33) CPU0/CP image.
+ * Shared linker template for the Beken BK7258 Cortex-M33 CPU0/CP image.
  *
  * ADR-004 aligns the executable pair with the official v3.1.1.9 A/B layout:
  *

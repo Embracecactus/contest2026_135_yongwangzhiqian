@@ -22,7 +22,7 @@
   [独立验证记录](2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 
 适配与复现方法见
-[`docs/bk7258-t5ai/p0-diagnostics-performance.md`](../../docs/bk7258-t5ai/p0-diagnostics-performance.md)。
+[`docs/platforms/bk7258/p0-diagnostics-performance.md`](../../docs/platforms/bk7258/p0-diagnostics-performance.md)。
 
 ## 1. 本轮实现
 

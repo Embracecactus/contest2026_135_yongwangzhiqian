@@ -50,6 +50,6 @@ allocate-copy-free realloc. No unresolved functional failure remains in N14.
 
 ## Evidence locations
 
-- [N14 evidence index](../../docs/bk7258-t5ai/nuttx-port/n14-evidence-index.md).
+- [N14 evidence index](../../docs/platforms/bk7258/nuttx-port/n14-evidence-index.md).
 - Raw logs: `logs/bk7258-n14/`.
-- [N14 source verification](../../docs/bk7258-t5ai/nuttx-port/n14-psram-source-verification.md).
+- [N14 source verification](../../docs/platforms/bk7258/nuttx-port/n14-psram-source-verification.md).

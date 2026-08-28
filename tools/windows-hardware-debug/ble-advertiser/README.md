@@ -92,7 +92,7 @@ Reference hardware validation on 2026-08-02 used payload
 `4e31325601020304`. The Windows publisher reached `Started`, and BK7258 reported
 two packets; it selected index 1 with `n12v_match=1`, RSSI `-49`, and AD bytes
 `0b ff fe ff 4e 31 32 56 01 02 03 04`. The complete N12 evidence is
-recorded in the [BK7258 N12 worklog](../../../docs/bk7258-t5ai/nuttx-port/n12-beken-bt-ipc-wrapper.md).
+recorded in the [BK7258 N12 worklog](../../../docs/platforms/bk7258/nuttx-port/n12-beken-bt-ipc-wrapper.md).
 
 ## Exit codes
 

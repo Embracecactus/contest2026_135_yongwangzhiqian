@@ -9,7 +9,7 @@
 > **归档说明（2026-07-31）：** 本文保留最初设计时的单层
 > `armino_as_lib/{cp,ap}` 路径用于追溯；当前实现已统一为
 > `armino_as_lib/versions/<version>/{cp,ap}`，默认 `v3.1.1.9`。当前操作请以
-> `docs/bk7258-t5ai/nuttx-port/sdk-static-library-import.md` 为准。
+> `docs/platforms/bk7258/nuttx-port/sdk-static-library-import.md` 为准。
 
 ---
 
@@ -612,9 +612,9 @@ Tuya 和 Beken 官方大小不同（31KB vs 52KB），说明它们是不同的�
 
 **设计文档**：
 - `docs/superpowers/specs/2026-07-20-sdk-integration-design.md`（本文档）
-- `docs/bk7258-t5ai/nuttx-port/n6-sdk-integration-framework.md`（框架设计）
-- `docs/bk7258-t5ai/nuttx-port/n6a-sdk-integration-research.md`（flash 调研）
-- `docs/bk7258-t5ai/nuttx-port/b2-wdt-fix.md`（WDT 审查与修复）
+- `docs/platforms/bk7258/nuttx-port/n6-sdk-integration-framework.md`（框架设计）
+- `docs/platforms/bk7258/nuttx-port/n6a-sdk-integration-research.md`（flash 调研）
+- `docs/platforms/bk7258/nuttx-port/b2-wdt-fix.md`（WDT 审查与修复）
 
 **SDK 源**：
 - `$BK_AVDK` (`/home/lijian/project/armino/bk_avdk_smp`) — Beken 官方 SDK

@@ -15,7 +15,7 @@
 验证摘要和契约，不能据此声称已重新取得原始串口证据。
 
 复现方法与配置边界见
-[P0 调试、xTS 与性能基线适配手册](../../docs/bk7258-t5ai/p0-diagnostics-performance.md)。
+[P0 调试、xTS 与性能基线适配手册](../../docs/platforms/bk7258/p0-diagnostics-performance.md)。
 现役主机夹具的迁移过程和 281 项 cmocka 结果见
 [主机回归记录](2026-08-27-bk7258-host-regression-fixture.md)。
 
