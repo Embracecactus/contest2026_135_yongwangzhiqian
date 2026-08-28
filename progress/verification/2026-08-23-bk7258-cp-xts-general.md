@@ -2,7 +2,7 @@
 
 - Date: 2026-08-23 Asia/Shanghai
 - Branch: `feat/bk7258-ota-admission-hardening` + uncommitted xTS additions
-  (`boards/bk7258/t5_board/configs/t5_board_cp_xts/`, WDT pretimeout +
+  (`boards/bk7258/t5_board/configs/xts/`, WDT pretimeout +
   `board_reset_cause` in chips/boards)
 - Firmware: apps-only signed `1.13.0+16` counter 16,
   sha256 `ae2692c99d48c4024818eab8163b7f3d9e90ac2ef408ef91fb83e13a6711ee32`,

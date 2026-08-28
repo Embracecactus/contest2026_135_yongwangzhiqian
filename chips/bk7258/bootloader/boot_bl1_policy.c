@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #include "boot_bl1_policy.h"
 #include "boot_bl1_manifest.h"
 

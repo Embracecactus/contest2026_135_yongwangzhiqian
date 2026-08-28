@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * probe.ld - linker script for the BK7258 (T5-AI, Cortex-M33) bare probe.
  *

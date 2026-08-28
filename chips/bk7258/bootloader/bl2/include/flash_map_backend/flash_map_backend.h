@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Minimal bare-metal implementation of MCUboot's portable flash-map ABI. */
 #ifndef __BK7258_BL2_FLASH_MAP_H
 #define __BK7258_BL2_FLASH_MAP_H

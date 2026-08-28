@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef BK7258_BOOT_BL1_MANIFEST_H
 #define BK7258_BOOT_BL1_MANIFEST_H
 

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* First instruction reached by BL1 after it has copied the valid BL2 payload. */
     .syntax unified
     .cpu cortex-m33

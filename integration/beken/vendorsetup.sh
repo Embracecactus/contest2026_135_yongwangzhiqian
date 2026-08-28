@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
 
 # OpenVela sources vendor setup files after adding its global prebuilts.
 # NuttX's ARM CMake toolchain probes a bare arm-none-eabi-gcc before CMake

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* MCUboot logging is deliberately routed through the tiny BL2 UART hook. */
 #ifndef __BK7258_BL2_MCUBOOT_LOGGING_H
 #define __BK7258_BL2_MCUBOOT_LOGGING_H

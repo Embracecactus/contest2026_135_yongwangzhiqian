@@ -1,6 +1,6 @@
 # GPIO Lower-half：用户态 `/dev/gpioN` 驱动
 
-本篇讲解 NuttX GPIO 的 upper/lower half 架构、用户态 ioctl 接口，以及 BK7258 T5-AI 板上两个 GPIO 实例（P9 LED 和 P29 USERKEY）从寄存器到中断回调的完整实现。
+本篇讲解 NuttX GPIO 的 upper/lower half 架构、用户态 ioctl 接口，以及 BK7258 T5-AI 板上两个 GPIO 实例（P9 LED 和 P29 USERKEY）从寄存器到中断回调的完整实现。文中的板端结果是固定日期的教学证据快照，不代表当前产品验收状态；动态状态只在 `$IMPL/progress/` 维护。
 
 > **来源记录**
 >
@@ -8,7 +8,7 @@
 > - `$CONTEST` source commit：`c588afbd8e0f1d30723f5076e585673a6ace8a4e`
 > - 实现 source：`$BOARD/chip/cp/bk7258_gpio_lowerhalf.c`
 > - 最后核对日期：2026-07-27
-> - 验证状态：C0（LED 轮询）/ C1（USERKEY route gate）/ C2（USERKEY 边沿中断）均已 board-verified
+> - 历史证据快照：截至 2026-07-27，C0/C1/C2 均有对应 board-verified 记录
 > - 教学简化：本文复用 NuttX 标准 GPIO upper-half 概念，不展开其内部 `ioctl` 转发链的完整实现
 
 ## 1. NuttX GPIO 分层模型
@@ -155,7 +155,7 @@ BK7258 GPIO 中断启用时有三层使能必须全部打开，这也是 C0/C1/C
 
 验证方法：按下 USERKEY → 中断计数递增 → 回调触发
 
-**当前状态：C0/C1/C2 均已 board-verified。**
+**教学证据快照（2026-07-27）：C0/C1/C2 均有 board-verified 记录。**
 
 ## 4. 中断回调的完整链路
 

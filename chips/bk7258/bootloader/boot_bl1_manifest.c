@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Board-owned verifier for the one maintained Beken-shaped BL1 Manifest.
  * BL2, not this record, authenticates CP/AP through MCUboot. This does not
  * claim that an unprovisioned BK7258 BootROM accepts the record directly.

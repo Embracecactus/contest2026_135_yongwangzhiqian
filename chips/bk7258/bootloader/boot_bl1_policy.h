@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Reversible BL1 slot-order and Manifest-version policy.
  *
  * The complete 0x28-byte record matches the public Beken boot_flag partition

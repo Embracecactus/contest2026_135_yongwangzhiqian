@@ -1,5 +1,8 @@
 # 2026-07-15 RV1126B 当前提交 AMP 分区 NSH 复测记录
 
+> **历史 RV1126B 证据：**当前参赛主线为 BK7258；本记录只保留当日构建或板测事实，
+> 不代表当前实现、活动配置或下一步计划。
+
 ## 结论
 
 本次复测证明：基于当前 contest 仓提交 `ec43ebb` 构建出的 openvela / NuttX HPMCU 镜像，可以通过 Rockchip / ATK SDK 的 AMP FIT 包装链路生成 `amp.img`，并在 RV1126B 自有板上通过**只更新 AMP 分区**的方式启动到 NSH，完成 UART 控制台交互、`uname -a` 与 `help` 验证。

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Board-owned read-only security-counter backend for MCUboot.
  *
  * Official v3.1.1.9 BK7258 otp1.csv places the 64-byte BL2 counter at

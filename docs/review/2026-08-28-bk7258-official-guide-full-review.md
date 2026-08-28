@@ -33,12 +33,11 @@
 | 稳定性测试 | 1443 五章 | 🔴 12 小时资格长稳未完成 | 已有约 14 分钟连续压力和两轮无注入 soak；12 小时项目门禁明确延期 |
 | 性能测试 | 1443 五章 | ✅ 有实板数据 | `2026-08-27-bk7258-p0-diagnostics-performance.md:17-20` |
 | Vendor 仓定位 | 1445 | ✅ 符合 | `contest2026_135_yongwangzhiqian.xml:25-26` linkfile |
-| 许可证 | 1650:51 | 🟡 仓级文本、tools 与 tests 已闭环；少量其他源码仍待溯源 | 顶层 `LICENSE` 已补；`tools 11/11`、`tests 160/160`，测试来源见 `tests/bk7258/PROVENANCE.md` |
-| 文档与源码一致性 | 仓库分层规则 | 🔴 已确认死引用已修；仍有历史与分层问题 | 见第五节 |
+| 许可证 | 1650:51 | ✅ 仓级文本与审计范围内源码闭环 | 非 tests 341/341、tests 160/160，合计 501/501；来源见 `SOURCE_PROVENANCE.md` 与 `tests/bk7258/PROVENANCE.md` |
+| 文档与源码一致性 | 仓库分层规则 | 🟡 已关闭已确认失真；剩余为结构性 P2 | AIDK、CURRENT、xTS 路径、英文勘误、索引、分层和 RV1126B 历史标签已修 |
 
 **一句话结论**：芯片层与板级层的**功能适配**齐全，自评结论基本成立；当前真正影响
-验收的是正式外设自测矩阵和 12 小时资格长稳；少量非 tests 新增源码许可证头仍需
-按来源收尾。TOUCH 已
+验收的是正式外设自测矩阵和 12 小时资格长稳。审计范围内源码许可证已按来源闭环；TOUCH 已
 前移为配置期门禁；README 的 SDK 默认分组说明经 repo 源码复核确认正确，不属于整改项。
 
 ## 二、芯片层（`chips/bk7258/`）
@@ -157,13 +156,16 @@
    scanftest 首次失败的直接原因已由记录说明为 pseudo-root `/tmp` 不能创建普通文件；
    挂载 RAM tmpfs 后 164/0 通过。软链接配置不能解释普通文件能力，二者不得关联。
 
-4. **测试源码与仓库级许可证已闭环；少量其他源码仍待溯源**
+4. **仓库级许可证与审计范围内源码头已闭环**
    1650 明确要求所有新增文件带标准许可证头。`tools` 脚本口径（`*.py`/`*.sh`）已从
    3/11 达到 11/11；本轮根据 Git 创建历史、manifest 固定的 Beken SDK 许可证、NuttX
    公开头及各类最小 mock 的内容边界完成测试溯源，使 `tests` 从 31/160 达到
    **160/160**。分类证据写入 `tests/bk7258/PROVENANCE.md`，并补仓库级 Apache-2.0
-   `LICENSE`；根 README 同时明确第三方与上游派生材料继续适用原声明。此前盘点的少量
-   非 tests 源码仍应逐类核对，不能仅因本仓默认许可而机械覆盖第三方声明。
+   `LICENSE`；根 README 同时明确第三方与上游派生材料继续适用原声明。第三轮又对
+   39 个非 tests 缺失文件逐类核对：33 个为本仓直接创建，5 个 Beken Ethernet 头和
+   `bk7258_os_adapt.c` 已有完整 Apache-2.0 正文、只缺 SPDX。整改后非 tests 为
+   另外 2 个 C++ 与 8 个 PowerShell 文件原本已带 SPDX。扩展口径后非 tests 为
+   **341/341**，连同 tests 共 **501/501**；证据见 `SOURCE_PROVENANCE.md`。
 
 ### 4.3 🟠 呈现风险
 
@@ -179,7 +181,7 @@
 - `tools/bk7258/`（11 个文件）与 `integration/beken/` 无独立 README；`vendorsetup.sh` 未注入变量时是静默 no-op，建议补生效条件注释。
 - `round4-ap/`、`round4-cp/` 为空目录、未被 git 跟踪，但也没写进 `.gitignore`，建议补两行（当前不进提交，无风险）。
 - `tests/` 目录名与 1445:28「tests 由主仓提供」冲突，本仓实为主机端 mock 单测（`tests/bk7258/README.md:3-5` 已声明"不代替实板 xTS"），建议改名 `host-tests/` 或顶部加粗声明。
-- Kconfig 规范：chip 76/216、board 8/44 缺 help 文本；70 处 `select` 目标带 `depends on`。需人工复核的高风险项：`chips/bk7258/Kconfig:1360`（`BK7258_AUD → ARCH_PERF_EVENTS`，依赖未被 select 的 `ARCH_HAVE_PERF_EVENTS`）、`boards/bk7258/common/Kconfig:242,201,119,155`。
+- Kconfig help 覆盖仍属样式债务（chip 76/216、board 8/44 缺 help），但第三轮已否定原“高风险 select”判断：`ARCH_CORTEXM33 → ARCH_ARMV8M → ARCH_HAVE_PERF_EVENTS` 满足 `BK7258_AUD → ARCH_PERF_EVENTS`；`common/Kconfig:119,155,201,242` 的被选符号依赖也分别由 selector 自身或 `BK7258_SDIO → ARCH_HAVE_SDIO` 闭合。当前维护配置生成结果与上述链路一致，无代码缺陷。
 
 ## 五、文档与源码一致性及处置状态
 
@@ -194,16 +196,16 @@
 | 5 | 配置 `cp_nsh_psram` + `ap_smp_psram` | `platforms/bk7258/README.md:54` | 不存在，现役为 `openvela_cp` / `openvela_ap` |
 | 6 | 配置 `ap_smp_online` / `ap_smp_affinity` | `platforms/bk7258/README.md:71,160` | 已退役，仅残留 `bk7258_ap_smp_affinity_selftest()`（`chips/bk7258/ap/bk7258_ap_smp.c:1641`） |
 | 7 | 8 份文档曾引用 `docs/bk7258-t5ai/` 路径 | `memory/ARCHITECTURE.md`、`memory/OPERATIONS.md` 及 ADR-001/002/008/009/010/011 | ✅ 已把 9 个真实 Markdown 链接迁移到 `docs/platforms/bk7258/` 并验证目标实存；报告中的旧路径迁移叙述有意保留 |
-| 8 | "RV1126B port 是当前实现" | `docs/rv1126b-nsh-port.md:3`、`docs/ai-worklog/README.md:9,21-22` | 主线已转 BK7258；`docs/rv1126b-sdk-integration.md` 全文无历史标注；`docs/verification/2026-07-*`（7 篇）无"已被 BK7258 取代"标注 |
-| 9 | 活动分支 `fix/bk7258-sdk-profile-pins` | `progress/CURRENT.md:14` | 实际检出 `fix/bk7258-review-followup` |
-| 10 | bootloader-analysis 索引"完整" | `platforms/bk7258/README.md:201-205` | 只列 4 个，实存 7 个，漏 `reverse-attempt-assets-N17.md`、`reverse-synthesis-N17.md`、`reverse-sop-cd-jlink.md` |
+| 8 | "RV1126B port 是当前实现" | `docs/rv1126b-nsh-port.md`、`docs/ai-worklog/README.md` 等 | ✅ 两份主文档、AI worklog 与 7 份验证记录均补“历史 RV1126B、当前 BK7258”边界 |
+| 9 | 活动分支 `fix/bk7258-sdk-profile-pins` | 原 `progress/CURRENT.md:14` | ✅ 删除临时分支/提交绑定，改为维护基线与稳定能力描述 |
+| 10 | bootloader-analysis 索引"完整" | 原 `platforms/bk7258/README.md:201-205` | ✅ 补齐 `reverse-attempt-assets-N17.md`、`reverse-synthesis-N17.md`、`reverse-sop-cd-jlink.md`，现为 7/7 |
 
 其他文档问题：
 
-- **分层越界**：`docs/chips/bk7258/sdk-clock-operating-points.md:136-152` 整节为 T5-Board generation 146 的单板实板验收结论，违反 `docs/README.md:10`；`docs/learning/bk7258/` 有 4 处出现"当前状态/board-verified"（如 `40-subsystems/gpio/01-mental-model.md:158`），与 `docs/learning/README.md:141`「不复制 current 状态」自相矛盾。
-- **中英不同步**：`platforms/bk7258/README_EN.md` 是 1.1 KB 索引（中文 41 KB），缺中文 `:15-19` 的「2026-08-10 N15 已退役」勘误——英文读者看不到最关键的现状更正。
-- **路径漂移**：多处文档引用 `t5_board_cp_xts` / `t5_board_cp_perf`，实际目录是 `boards/bk7258/t5_board/configs/xts` 与 `perf`。
-- **板级 README 失准**：`boards/bk7258/README.md:123-124` 称 AIDK "reviewed bindings cover SC7A20H I2C0 on P20/P21 and MFRC522 UART1 on P0/P1"，但全仓只有能力宏与引脚常量（`aidk_ai_toy/include/bk7258_board_config.h:54-55,204-206,213-214`），**无绑定源码、无 Kconfig 选项**。`:78` 称 AIDK 修订为 `schematic-only`，实际宏值为 `"schematic-v1.0"`。
+- **✅ 分层越界已修**：chip OPP 文档只保留 SoC 契约和板级证据入口；learning 文档把板端标签改为固定日期的教学快照，动态状态继续只在 `progress/` 维护。
+- **✅ 关键中英状态已同步**：`platforms/bk7258/README_EN.md` 已补 N15/N17 自定义 OTA 退役勘误和现役 BL1→MCUboot BL2→CP/AP 边界；英文索引仍保持精简入口定位。
+- **✅ 路径漂移已修**：两处把不存在的 `configs/t5_board_cp_xts/` 改为现役 `configs/xts/`；作为历史产物/profile 标签出现的 `t5_board_cp_xts`/`t5_board_cp_perf` 不改名。
+- **✅ 板级 README 已校正**：AIDK 修订统一为 `schematic-v1.0`；SC7A20H/MFRC522 明确为已启用控制器路由和布线/冲突记录，当前无设备 binding、probe 或生产驱动。
 
 ## 六、交付完整性（新增发现，自评未覆盖）
 
@@ -229,16 +231,16 @@ TTS 研究目录仍单独保留在交付范围外：已增加醒目的“研究�
 5. 补齐正式外设验收矩阵：GPIO/UART loopback、I2C/SPI 传输、RTC
 6. 补 12 小时发布级 soak 连续记录，或保持明确延期、健康判据与后续计划
 7. ✅ 已删除 xTS 孤立符号；scanftest 的 pseudo-root 原因已明确，不建立错误关联
-8. 🟡 `tools` 脚本已达 11/11，`tests` 已按来源从 31/160 修至 160/160，并补顶层 `LICENSE`；少量非 tests 源码继续溯源
+8. ✅ `tools`、`tests` 与 341 个非 tests 源码已按来源闭环；审计范围总覆盖 501/501，顶层 `LICENSE` 与两份 provenance 记录齐全
 9. ✅ `BK7258_TOUCH` 已无用户 prompt、当前无板选择，且 AP 侧误选有构建期守卫；未来板仍须补生产实现与链接测试
 
 ### P2（质量与可维护性）
 
 10. 三板 `etc/init.d/rc.sysinit`、`rcS` 与 `include/board.h` 下沉 `common/`（NuttX 原生支持，`Board.mk:33`、`Unix.mk:291-295`）
-11. 修 `docs/chips/bk7258/sdk-clock-operating-points.md:136-152` 与 `docs/learning/` 4 处分层越界
-12. ✅ 已修 8 份 `memory/` 文档的 9 条 `docs/bk7258-t5ai/` 断链；RV1126B 历史标注仍待统一处理
+11. ✅ 已修 `docs/chips/bk7258/sdk-clock-operating-points.md` 与 `docs/learning/` 动态状态分层越界
+12. ✅ 已修 8 份 `memory/` 文档的 9 条断链，并统一 RV1126B 主文档/worklog/验证记录的历史标注
 13. 为 20 个 `BK7258_BOARD_*` 能力宏加静态断言头；AP 角色下门控 `board_app_initialize`
-14. `platforms/bk7258/README_EN.md` 补 N15 退役勘误；修 `progress/CURRENT.md:14` 活动分支
+14. ✅ `platforms/bk7258/README_EN.md` 已补 N15/N17 退役勘误；`progress/CURRENT.md` 已移除过期活动分支与提交绑定
 
 ### P0/P1/P2 状态追踪
 
@@ -282,7 +284,7 @@ TTS 研究目录仍单独保留在交付范围外：已增加醒目的“研究�
 | 稳定性测试零记录 | ❌ 复审误判；准确缺口是无 12 小时资格长稳 | 本文 `:147-151` 已列约 14 分钟连续压力和两轮无注入 full-suite soak；`progress/CURRENT.md:135,187` 与 xTS 完成记录明确写 12 小时 soak 延期 |
 | 删除孤立符号后，旧 281/281 与当前 defconfig 不对应 | ❌ 混淆两类证据 | `281/281` 是 host cmocka，与板端 xTS defconfig 无关。未定义符号不会进入生成配置；删除它只清理无效输入。板端 scanftest 已在 tmpfs 上 164/0，通过原因与软链接无关。新的实板 xTS 仍可作为发布复验，但不是这次一行清理的因果回归 |
 | 顶层无 LICENSE | ✅ owner 已确认并完成 | 新增 Apache License 2.0 全文；中英文 README 明确其覆盖本仓原创内容，第三方与上游派生材料保留原声明 |
-| `tests` 与少量其他源码缺许可证头 | 🟡 tests 已完成，其他源码待续 | 129 个 tests 缺失文件已按原创逻辑、SDK/NuttX ABI 替身、MCUboot/TinyCrypt 最小声明、LVGL 前置声明及公开密钥夹具分类溯源，现为 160/160；证据见 `tests/bk7258/PROVENANCE.md` |
+| `tests` 与少量其他源码缺许可证头 | ✅ 全部完成 | tests 160/160；非 tests 341/341；总计 501/501。Beken/ASF 已有许可正文、本仓直接创建文件及已带 SPDX 的 C++/PowerShell 工具分别核对，见两份 provenance 记录 |
 | 正式必测矩阵未闭环 | ✅ 成立 | GPIO/UART 已有功能证据，但正式 loopback、I2C/SPI 专项传输和 RTC 仍待实板补齐 |
 
 ### 8.3 新增观察（第二轮发现）
@@ -310,11 +312,10 @@ TTS 研究目录仍单独保留在交付范围外：已增加醒目的“研究�
 
 **仍需继续处理或实板验证的 P1：**
 
-1. 继续逐文件确认少量非 tests 源码来源，再补正确头部。
-2. 补正式 GPIO/UART loopback、I2C/SPI 传输、RTC 板端记录；owner 已明确延期到后续实板验收。
-3. 执行 12 小时发布级 soak；owner 已明确延期，当前保持“已有短时稳定性证据、12 小时延期”的准确状态。
-4. 若需要当前提交代的发布复验，重新构建并执行板端 xTS；不得把 host 281/281 写成板端结果。
-5. TTS 研究目录继续保持未跟踪，等待 owner 明确脱敏范围；`BK7258_TOUCH` 延期到后续 AIToy 板适配，当前门禁不扩展为实现。
+1. 补正式 GPIO/UART loopback、I2C/SPI 传输、RTC 板端记录；owner 已明确延期到后续实板验收。
+2. 执行 12 小时发布级 soak；owner 已明确延期，当前保持“已有短时稳定性证据、12 小时延期”的准确状态。
+3. 若需要当前提交代的发布复验，重新构建并执行板端 xTS；不得把 host 281/281 写成板端结果。
+4. TTS 研究目录继续保持未跟踪，等待 owner 明确脱敏范围；`BK7258_TOUCH` 延期到后续 AIToy 板适配，当前门禁不扩展为实现。
 
 ## 九、本次整改验证
 
@@ -323,6 +324,9 @@ TTS 研究目录仍单独保留在交付范围外：已增加醒目的“研究�
 - 顶层 `LICENSE`：Apache License 2.0 全文；中英文 README 已声明原创内容与第三方例外边界
 - `tests/bk7258/**/*.{c,h,py,sh}`：160 个源码 SPDX 覆盖 160/160；脚本 shebang 保持首行，
   分类溯源见 `tests/bk7258/PROVENANCE.md`
+- 非 tests `*.{c,cpp,h,S,s,ld,py,sh,ps1}`：341 个源码 SPDX 覆盖 341/341；
+  审计范围合计 501/501，
+  分类溯源见 `SOURCE_PROVENANCE.md`
 - TOUCH 配置门禁：`BK7258_TOUCH` 无用户 prompt；维护板 Kconfig 与全部 defconfig
   均无 `select`/赋值，当前产品配置不可达；CMake 与 Classic Make 拒绝 AP 侧误选
 - TOUCH 守卫回归：CMake 和 Classic Make 的 AP+TOUCH 负向配置均命中预期错误；

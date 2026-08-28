@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * start.S - BK7258 Tier-1 bootloader : asm trampoline + hardened jump epilogue.
  *

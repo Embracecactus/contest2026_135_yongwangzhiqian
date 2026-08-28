@@ -171,7 +171,9 @@ Third-party and upstream-derived material remains subject to its original
 copyright and license notices. Projects referenced by the manifest but not
 stored in this repository are governed by their own licenses. See
 [`tests/bk7258/PROVENANCE.md`](tests/bk7258/PROVENANCE.md) for the categorized
-provenance of the BK7258 host-test sources.
+provenance of the BK7258 host-test sources and
+[`SOURCE_PROVENANCE.md`](SOURCE_PROVENANCE.md) for the repository-wide source
+audit.
 
 ## Review entry points
 

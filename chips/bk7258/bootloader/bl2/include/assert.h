@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef __BK7258_BL2_ASSERT_H
 #define __BK7258_BL2_ASSERT_H
 

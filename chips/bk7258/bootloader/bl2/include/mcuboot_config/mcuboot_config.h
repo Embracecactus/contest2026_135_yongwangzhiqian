@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Bare-metal board configuration for the NuttX-pinned MCUboot source. */
 #ifndef __BK7258_BL2_MCUBOOT_CONFIG_H
 #define __BK7258_BL2_MCUBOOT_CONFIG_H

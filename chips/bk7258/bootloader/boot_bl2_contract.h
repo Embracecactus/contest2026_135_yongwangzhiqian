@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Board-owned BL1/BL2 size contract.
  *
  * The partition reserves the same 128 KiB logical capacity described by the

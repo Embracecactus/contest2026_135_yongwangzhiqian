@@ -1,6 +1,9 @@
 # RV1126B HPMCU NSH port guide
 
-This is the current implementation guide for the Team 135 RV1126B HPMCU OpenVela/NuttX port. The authoritative record of what was observed on hardware is the immutable [2026-07-14 NSH baseline evidence](verification/2026-07-14-rv1126b-nsh-baseline.md). This guide links to that record instead of reproducing its artifact hashes or terminal transcript.
+> **历史赛道资料：**当前参赛主线是 BK7258。本文件只保存 2026-07 RV1126B
+> 基线及其复现边界，不代表仓库当前实现或下一步计划。
+
+This is the historical implementation guide for the Team 135 RV1126B HPMCU OpenVela/NuttX port. The authoritative record of what was observed on hardware is the immutable [2026-07-14 NSH baseline evidence](verification/2026-07-14-rv1126b-nsh-baseline.md). This guide links to that record instead of reproducing its artifact hashes or terminal transcript.
 
 ## Status and terminology
 

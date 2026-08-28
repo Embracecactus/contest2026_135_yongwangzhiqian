@@ -75,7 +75,7 @@ revision:
 |---|---|---|---|
 | T5AI-Core | `t5ai_core` | `CONFIG_BK7258_BOARD_T5AI_CORE` | V1.0.1 |
 | T5-Board | `t5_board` | `CONFIG_BK7258_BOARD_T5_BOARD` | V1.0.2 |
-| AIDK AI Toy | `aidk_ai_toy` | `CONFIG_BK7258_BOARD_AIDK_AI_TOY` | schematic-only |
+| AIDK AI Toy | `aidk_ai_toy` | `CONFIG_BK7258_BOARD_AIDK_AI_TOY` | schematic-v1.0 |
 
 Hardware revisions live in `BK7258_BOARD_HARDWARE_VERSION`.  A revision gets
 its own selector only if it changes a software-visible electrical contract.
@@ -120,8 +120,11 @@ pin-compatible profiles.
 
 The AIDK AI Toy has one maintained normal OpenVela CP/AP pair.  Its reviewed
 bindings currently cover UART0 at 115200 8N1, P40/P8 user GPIO, P50 speaker
-control, MIC1 plus the MIC2 AEC-reference capture input, soldered SD NAND,
-SC7A20H's I2C0 controller route on P20/P21 and MFRC522's UART1 route on P0/P1.
+control, MIC1 plus the MIC2 AEC-reference capture input and soldered SD NAND.
+The maintained AP profile enables the I2C0 controller route on P20/P21 and
+UART1 on P0/P1 because the schematic connects SC7A20H and MFRC522 there, but
+the current tree has no sensor/NFC device binding, probe or production driver;
+the capability and conflict macros record wiring only.
 Flow control, SWD, boot hold, RTT and RTS/DTR reset stay disabled.  COM/USB port
 identity is dynamic transport metadata and is not a board or product identity.
 The unpopulated X2/C16/C17 network does not reserve P8/P9: P8 is enabled as

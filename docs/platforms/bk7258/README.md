@@ -203,6 +203,9 @@ package plan。Flash只能使用已验证包中声明的 sparse range，并保�
 - [tuya-bootloader-reverse.md](bootloader-analysis/tuya-bootloader-reverse.md) —— 涂鸦 65 KB bootloader 逐函数逆向
 - [bk-official-bootloader-reverse.md](bootloader-analysis/bk-official-bootloader-reverse.md) —— BK 官方 52 KB bootloader 逐函数逆向
 - [vendor-bootloader-comparison.md](bootloader-analysis/vendor-bootloader-comparison.md) —— 两家 binary 对比
+- [reverse-attempt-assets-N17.md](bootloader-analysis/reverse-attempt-assets-N17.md) —— N17 逆向尝试资产与边界
+- [reverse-synthesis-N17.md](bootloader-analysis/reverse-synthesis-N17.md) —— N17 逆向结论收敛
+- [reverse-sop-cd-jlink.md](bootloader-analysis/reverse-sop-cd-jlink.md) —— CD/J-Link 逆向操作规程
 
 ### T5AI Core 板端验证探针（`hardware/t5ai-core/probe/`）
 - [探针说明](hardware/t5ai-core/probe/README.md) —— 最小裸探针（烧 @ `0x02010000`，读 core/CPUID/VTOR）

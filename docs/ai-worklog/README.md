@@ -1,12 +1,16 @@
 # AI collaboration worklog
 
+> **Historical track:** the current contest implementation is BK7258. This
+> directory preserves the July 2026 RV1126B chronology only and is not the
+> current implementation or handoff entry.
+
 This directory preserves the development chronology and recovery prompts for the RV1126B HPMCU OpenVela/NuttX port. It is not the final contest AI log; exported JSONL session logs belong under `logs/<github-login>/` according to `logs/README.md`.
 
-## Current reading order
+## Historical reading order
 
-1. [Canonical RV1126B NSH port guide](../rv1126b-nsh-port.md) — current implementation, build/package procedure, and limits.
+1. [Canonical RV1126B NSH port guide](../rv1126b-nsh-port.md) — historical implementation, build/package procedure, and limits.
 2. [Immutable 2026-07-14 NSH baseline evidence](../verification/2026-07-14-rv1126b-nsh-baseline.md) — formal board-test record, separate from this worklog.
-3. [Phase 05 verified-baseline follow-up](prompts/phase-05-verified-baseline-follow-up.md) — current handoff and remaining work.
+3. [Phase 05 verified-baseline follow-up](prompts/phase-05-verified-baseline-follow-up.md) — historical handoff and then-remaining work.
 4. [Porting stage record](2026-07-12-rv1126b-openvela-porting.md) — historical development chronology with final-status correction.
 
 ## Phase index
@@ -17,7 +21,7 @@ This directory preserves the development chronology and recovery prompts for the
 | 02 | Image packaging and first board boot | Historical, complete | [Prompt](prompts/phase-02-boot-verify.md) |
 | 03 | DCache/startup corrections and NSH TX | Historical, complete | [Prompt](prompts/phase-03-dcache-fix-verify.md) |
 | 04 | UART RX and interactive NSH restoration | Historical, complete and board-verified | [Prompt](prompts/phase-04-nsh-uart-rx-restore.md) |
-| 05 | Preserve baseline, synchronize documentation, make a candidate, and collect missing evidence | **Current** | [Prompt](prompts/phase-05-verified-baseline-follow-up.md) |
+| 05 | Preserve baseline, synchronize documentation, make a candidate, and collect missing evidence | Historical final phase | [Prompt](prompts/phase-05-verified-baseline-follow-up.md) |
 
 The formal baseline evidence is deliberately outside the phase sequence: [2026-07-14 RV1126B NSH baseline](../verification/2026-07-14-rv1126b-nsh-baseline.md). It verifies boot, prompt, RX, `help`, and prompt return, but not `uname -a`, board revision, the exact flash command, or a timestamped capture.
 
