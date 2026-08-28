@@ -50,9 +50,11 @@ config BK7258_BOARD_AIDK_AI_TOY
 	select BK7258_BOARD_HAS_USER_GPIO_BINDING
 	help
 		AIDK AI Toy (BK7258 AI Demo) board: UART0 console, CH340E UART0,
-		SC7A20H gyro on I2C1, GC2145 DVP camera + touch on I2C2, 160x160
-		QSPI LCD, 1GB SD NAND, analog MIC/PA audio, motor, keys/LEDs,
-		MFRC522 NFC and Type-C USB.  Hardware verification still pending.
+		SC7A20H accelerometer on SoC I2C0 (P20/P21), GC2145 SCCB on SoC
+		I2C1 map mode 1 (P42/P43), 1GB SD NAND, MIC1 plus MIC2
+		AEC-reference/PA audio, keys/LEDs, MFRC522 NFC and Type-C USB.  CN5's
+		single-screen module and CN10's motor are not connected on the current
+		board and are not initialized.  Hardware verification is still pending.
 
 endchoice
 
@@ -125,6 +127,26 @@ config BK7258_AIDK_SD_NAND
 		Bind the chip SDIO host to the AIDK soldered 1GB SD NAND on
 		SDIO map mode 1 (P14-P19).  No card detect is available; the
 		media is always present.
+
+config BK7258_AIDK_CAMERA_PHASE0
+	bool "Probe AIDK GC2145 identity at boot"
+	default n
+	depends on BK7258_AP_CORE && BK7258_I2C && BK7258_PM_CLOCK
+	help
+		Perform the bounded AIDK camera Phase 0 check during AP board bring-up.
+		Power the GC2145 from P49, drive its active-low reset on P28, provide
+		24 MHz MCLK on P27, route hardware I2C1 to P42/P43, and read only
+		registers 0xf0 and 0xf1.  The expected identity is 0x2145.  This option
+		does not load a sensor register table or initialize the DVP datapath.
+
+config CAMERA_PWR_ACTIVE_HIGH
+	bool "Camera power control is active high"
+	default n
+	depends on BK7258_AIDK_CAMERA_PHASE0
+	help
+		Assert that the AIDK DVP_PWR_CTL signal on P49 enables both camera
+		LDOs at a high level.  The schematic's R31 pull-down keeps both rails
+		off before software claims the pin.
 
 endif
 

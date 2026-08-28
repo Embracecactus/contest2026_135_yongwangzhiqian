@@ -13,3 +13,7 @@ endif
 ifeq ($(CONFIG_BK7258_AIDK_SD_NAND),y)
 CSRCS += bk7258_aidk_board_sdio.c
 endif
+
+ifeq ($(CONFIG_BK7258_AIDK_CAMERA_PHASE0),y)
+CSRCS += bk7258_aidk_camera_phase0.c
+endif

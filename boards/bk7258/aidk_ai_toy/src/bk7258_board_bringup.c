@@ -3,7 +3,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * AIDK board hook: UART0 console, MIC, SD NAND and PA speaker bindings.
+ * AIDK board hook: UART0 console, MIC, SD NAND, PA speaker and the bounded
+ * GC2145 Phase 0 identity probe.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -14,9 +15,18 @@
 #include <arch/chip/bk7258_gpio.h>
 
 #ifdef CONFIG_BK7258_AP_CORE
+#ifdef CONFIG_BK7258_AIDK_CAMERA_PHASE0
+extern int bk7258_aidk_camera_phase0_probe(void);
+#endif
+
 static const struct bk7258_mic_config_s g_bk7258_aidk_mic_config =
 {
-  .channels = 2,
+  /* MIC1 is the primary microphone; MIC2 carries the speaker loopback used
+   * as the AEC reference.  The input flag names are SoC ADC input names, not
+   * a claim that two physical microphones are fitted.
+   */
+
+  .channels = BK7258_BOARD_CAPTURE_CHANNELS,
   .flags = BK7258_MIC_INPUT_MIC1 | BK7258_MIC_INPUT_MIC2,
   .variant_name = BK7258_BOARD_VARIANT_NAME,
 };
@@ -72,6 +82,14 @@ int bk7258_board_ap_initialize(void)
     {
       return ret;
     }
+
+#ifdef CONFIG_BK7258_AIDK_CAMERA_PHASE0
+  ret = bk7258_aidk_camera_phase0_probe();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
 
   return bk7258_board_ap_finalize_initialize();
 }
