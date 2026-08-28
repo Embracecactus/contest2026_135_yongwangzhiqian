@@ -1,0 +1,8 @@
+# 工具库（Utils）
+
+> 官方来源：[doc.openvela.com](https://doc.openvela.com/document?id=1728&version=dev-ai-contest-2026&language=cn)  
+> 版本：dev-ai-contest-2026（中文）  
+> 官方更新时间：2026-06-09 19:32:38  
+> 本地拉取日期：2026-08-28
+
+\-

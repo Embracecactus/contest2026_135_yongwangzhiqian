@@ -1,0 +1,8 @@
+# USB 设备模拟 (SIM) 驱动程序指南
+
+> 官方来源：[doc.openvela.com](https://doc.openvela.com/document?id=1499&version=dev-ai-contest-2026&language=cn)  
+> 版本：dev-ai-contest-2026（中文）  
+> 官方更新时间：2026-06-09 19:50:51  
+> 本地拉取日期：2026-08-28
+
+> 注意：官方正文接口当前返回 content: null；本地镜像未补写非官方内容。

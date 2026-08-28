@@ -1,0 +1,306 @@
+# openvela 信号量：同步、互斥与优先级管理
+
+> 官方来源：[doc.openvela.com](https://doc.openvela.com/document?id=1472&version=dev-ai-contest-2026&language=cn)  
+> 版本：dev-ai-contest-2026（中文）  
+> 官方更新时间：2026-06-09 19:50:38  
+> 本地拉取日期：2026-08-28
+
+\[ [English](https://github.com/open-vela/docs/tree/dev-ai-contest-2026//https:/github.com/open-vela/docs/blob/dev/en/device_dev_guide/kernel/resource_sync/semaphore_mechanism.md) | 简体中文 \]
+
+# 一、概述
+
+在 openvela 实时操作系统中，信号量 (Semaphore) 是实现任务间同步与互斥的核心机制。它遵循 POSIX 标准，为开发者提供了管理共享资源、协调任务执行顺序的强大工具。
+
+与使用 <span class="reference">sched\_lock()</span> 禁用调度器相比，信号量是保护共享资源的首选方案。<span class="reference">sched\_lock()</span> 会无差别地阻塞所有其他任务（包括不访问该资源的高优先级任务），可能导致系统响应性下降。而信号量则提供了一种更精细的控制，仅阻塞尝试访问同一资源的具体任务。
+
+本文档将详细介绍 openvela 信号量的核心概念、使用模式、API 接口以及解决优先级反转的策略。
+
+# 二、核心概念
+
+## 1、信号量 (Semaphore)
+
+信号量本质上是一个受保护的计数器，用于控制对有限资源的访问。
+
+  - **互斥 (Mutex)**：当信号量初始值为 1 时，它可作为互斥锁，确保在任意时刻只有一个任务能够访问被其保护的临界区代码。
+  - **同步 (Synchronization)**：任务可以等待（wait）一个信号量，直到另一个任务或中断服务程序（ISR）释放（post）该信号量，从而实现任务间的执行顺序协调。
+
+## 2、优先级反转 (Priority Inversion)
+
+优先级反转是抢占式多任务系统中一个常见的问题。当一个高优先级任务需要等待一个被低优先级任务持有的资源（如信号量）时，它将被阻塞。如果此时出现一个中等优先级的任务，它会抢占低优先级任务的执行，导致持有资源的任务迟迟无法释放资源，从而间接阻塞了高优先级任务。
+
+### 典型场景
+
+1.  **低优先级任务 C** 获取信号量，进入临界区。
+2.  **高优先级任务 A** 启动，尝试获取同一信号量，因资源被占用而阻塞。
+3.  **中优先级任务 B** 启动，由于其优先级高于任务 C，它抢占了 CPU。
+4.  **结果**：任务 B（以及其他中等优先级任务）持续运行，导致任务 C 无法执行并释放信号量。这使得高优先级任务 A 被中等优先级任务 B 无限期地阻塞，仿佛任务 A 的优先级低于任务 B。
+
+为解决此问题，openvela 引入了优先级保护和优先级继承机制。
+
+# 三、信号量使用模式
+
+在 openvela 中，信号量主要有两种应用模式：**互斥锁模式**和**信号通知模式**。正确区分并使用它们对于系统稳定至关重要。
+
+## 1、互斥锁模式 (Locking Semaphore)
+
+此模式用于保护共享资源，实现临界区的互斥访问。
+
+  - **用途**：确保同一时间只有一个任务可以访问某个共享数据结构或硬件资源。
+
+  - **特点**：
+    
+      - 获取（<span class="reference">wait</span>）和释放（<span class="reference">post</span>）信号量的操作由**同一个任务**完成。
+      - **强烈建议启用**优先级继承或优先级保护，以避免优先级反转。
+
+## 2、信号通知模式 (Signaling Semaphore)
+
+此模式用于任务间的同步或通信。
+
+  - **用途**：一个任务（或 ISR）通知另一个任务某个事件已发生。例如，任务 A 等待一个信号量，直到任务 B 完成数据准备后释放该信号量以唤醒任务 A。
+
+  - **特点**：
+    
+      - 获取（<span class="reference">wait</span>）和释放（<span class="reference">post</span>）信号量的操作由**不同的任务**（或任务与 ISR）完成。
+      - **必须禁用**优先级继承。否则，释放信号量的任务 B 可能会错误地继承等待任务 A 的优先级，引发意外的调度行为。
+
+**最佳实践**：在初始化信号量时，根据其用途通过 <span class="reference">sem\_setprotocol()</span> 设置正确的优先级策略。
+
+# 四、解决优先级反转
+
+openvela 提供了两种策略来解决优先级反转问题：优先级保护和优先级继承。
+
+## 1、优先级保护 (Priority Protection)
+
+优先级保护基于优先级天花板协议 (Priority Ceiling Protocol) 的思想。
+
+### 概述
+
+当一个任务获取信号量时，系统会立即将其优先级提升到为该信号量预设的“天花板”优先级。该优先级通常设置为可能访问此信号量的所有任务中的最高优先级。任务释放信号量后，其优先级恢复为原始值。
+
+这种机制实现简单，能有效防止持有锁的任务被其他任务抢占。
+
+### 配置
+
+通过 Kconfig 选项 <span class="reference">CONFIG\_PRIORITY\_PROTECT</span> 启用此功能。
+
+### 实现
+
+优先级保护通过两个核心函数 <span class="reference">nxsem\_protect\_wait</span> 和 <span class="reference">nxsem\_protect\_post</span> 实现。
+
+## 2、优先级继承 (Priority Inheritance)
+
+优先级继承是一种动态调整优先级的策略。
+
+### 概述
+
+当一个高优先级任务因等待信号量而被阻塞时，系统会自动将当前持有该信号量的低优先级任务的优先级临时提升至与被阻塞的高优先级任务相同。这使得持有锁的任务能尽快完成其临界区操作并释放锁，从而最大限度地减少高优先级任务的阻塞时间。当锁被释放后，持有任务的优先级将恢复。
+
+由于信号量是 openvela 中最基础的同步原语，为它实现优先级继承意味着互斥锁（Mutex）等上层机制也自动具备了此能力。
+
+### 数据结构
+
+优先级继承的实现依赖于以下核心数据结构：
+
+  - <span class="reference">struct sem\_s</span>：描述信号量本身，包含计数值、等待任务列表以及持有者信息。
+  - <span class="reference">struct semholder\_s</span>：描述信号量的持有关系，将任务控制块 (Task Control Block, TCB) 与其持有的信号量关联起来。
+
+**<span class="reference">struct sem\_s</span> 关键成员**  
+
+    /* This is the generic semaphore structure. */
+    struct sem_s
+    {
+      volatile int32_t semcount;      // >0: 可用资源数; <0: 等待任务数
+      uint8_t flags;                  // 协议标志 (SEM_PRIO_INHERIT, etc.)
+      dq_queue_t waitlist;            // 等待任务的优先级队列
+    
+    #ifdef CONFIG_PRIORITY_INHERITANCE
+    #  if CONFIG_SEM_PREALLOCHOLDERS > 0
+      FAR struct semholder_s *hhead;  // 持有者链表头指针
+    #  else
+      struct semholder_s holder;      // 单一持有者槽位
+    #  endif
+    #endif
+    #ifdef CONFIG_PRIORITY_PROTECT
+      uint8_t ceiling;                // 优先级天花板
+      uint8_t saved;                  // 任务原始优先级
+    #endif
+    };
+
+**<span class="reference">struct semholder\_s</span> 关键成员**  
+
+    /* This structure contains information about the holder of a semaphore */
+    struct semholder_s
+    {
+      FAR struct semholder_s *flink;  // 指向同一信号量的下一个持有者
+      FAR struct semholder_s *tlink;  // 指向同一任务持有的下一个信号量
+      FAR struct sem_s *sem;          // 指向对应的信号量
+      FAR struct tcb_s *htcb;         // 指向持有者任务的TCB
+      int32_t counts;                 // 持有计数
+    };
+
+### 实现过程
+
+1.  **获取与继承**：当任务尝试获取一个已被占用的信号量时，系统会将持有该信号量的低优先级任务的优先级提升到当前任务的优先级。
+2.  **恢复**：当任务释放信号量时，系统会重新计算其优先级。它会检查该任务是否还持有其他信号量，并根据等待这些信号量的最高优先级任务来设置其新优先级。如果它不再持有任何导致优先级提升的信号量，则其优先级恢复为基础值。
+
+### 配置
+
+  - <span class="reference">CONFIG\_PRIORITY\_INHERITANCE</span>：启用优先级继承功能。
+  - <span class="reference">CONFIG\_SEM\_PREALLOCHOLDERS</span>：定义预分配的 <span class="reference">semholder\_s</span> 结构数量，决定了一个信号量能被多少个不同任务同时持有（适用于计数值大于1的信号量）。
+
+# 五、API 参考
+
+## <span class="reference">int sem\_init(sem\_t \*sem, int pshared, unsigned int value)</span>
+
+  - **功能**：初始化一个未命名信号量。
+  - **参数**：
+      - <span class="reference">sem</span>：指向要初始化的信号量对象。
+      - <span class="reference">pshared</span>：在 openvela 中未使用，应设为 0。
+      - <span class="reference">value</span>：信号量的初始计数值。
+  - **说明**：初始化后，该信号量可被 <span class="reference">sem\_wait()</span>、<span class="reference">sem\_post()</span> 等函数使用。
+
+## <span class="reference">int sem\_destroy(sem\_t \*sem)</span>
+
+  - **功能**：销毁一个通过 <span class="reference">sem\_init()</span> 初始化的未命名信号量。
+  - **注意**：
+      - 销毁一个正在被其他任务等待的信号量会导致未定义行为。
+      - 此函数不能用于销毁命名信号量。
+
+## <span class="reference">sem\_t \*sem\_open(const char \*name, int oflag, ...)</span>
+
+  - **功能**：打开或创建一个命名信号量，并建立连接。
+  - **说明**：允许不相关的任务通过同一个名字访问同一个信号量。
+
+## <span class="reference">int sem\_close(sem\_t \*sem)</span>
+
+  - **功能**：关闭一个命名信号量的连接。
+  - **说明**：释放当前任务对该信号量的引用。当所有引用都被关闭，且 <span class="reference">sem\_unlink()</span> 已被调用后，信号量资源才会被系统回收。
+
+## <span class="reference">int sem\_unlink(const char \*name)</span>
+
+  - **功能**：从系统中移除一个命名信号量。
+  - **说明**：如果仍有任务在使用该信号量，移除操作将延迟到最后一个任务调用 <span class="reference">sem\_close()</span> 之后。
+
+## <span class="reference">int sem\_wait(sem\_t \*sem)</span>
+
+  - **功能**：获取（或等待）信号量。
+  - **说明**：使信号量计数值减 1。如果计数值变为负数，表示资源不可用，调用任务将被阻塞，直到其他任务释放该信号量。
+
+## <span class="reference">int sem\_timedwait(sem\_t \*sem, const struct timespec \*abstime)</span>
+
+  - **功能**：带超时的 <span class="reference">sem\_wait()</span>。
+  - **说明**：如果在 <span class="reference">abstime</span> 指定的绝对时间之前未能获取信号量，函数将超时返回错误 <span class="reference">ETIMEDOUT</span>。
+
+## <span class="reference">int sem\_trywait(sem\_t \*sem)</span>
+
+  - **功能**：非阻塞地尝试获取信号量。
+  - **说明**：如果信号量立即可用，则获取它并返回成功。否则，立即返回错误，调用任务不会被阻塞。
+
+## <span class="reference">int sem\_post(sem\_t \*sem)</span>
+
+  - **功能**：释放（或发送）信号量。
+  - **说明**：使信号量计数值加 1。如果有任务正在等待该信号量，系统将唤醒其中一个（通常是优先级最高的）任务。此函数可在中断服务程序中安全调用。
+
+## <span class="reference">int sem\_getvalue(sem\_t \*sem, int \*sval)</span>
+
+  - **功能**：获取信号量的当前计数值。
+  - **说明**：
+      - 如果值大于 0，表示可用资源数。
+      - 如果值为 0，表示无可用资源，且无任务等待。
+      - 如果值小于 0，其绝对值表示正在等待该信号量的任务数量。
+
+## <span class="reference">int sem\_setprotocol(pthread\_mutexattr\_t \*attr, int protocol)</span>
+
+  - **功能**：设置信号量的优先级协议。
+  - **参数** **<span class="reference">protocol</span>**：
+      - <span class="reference">SEM\_PRIO\_NONE</span>：无特殊协议（用于信号通知模式）。
+      - <span class="reference">SEM\_PRIO\_INHERIT</span>：使用优先级继承。
+      - <span class="reference">SEM\_PRIO\_PROTECT</span>：使用优先级保护。
+
+## <span class="reference">int sem\_getprotocol(const pthread\_mutexattr\_t \*attr, int \*protocol)</span>
+
+  - **功能**：获取信号量的当前优先级协议。
+
+# 六、实现原理
+
+本章节深入探讨 openvela 信号量的内部实现，面向希望理解底层机制或进行系统开发的读者。
+
+## 1、核心框架
+
+openvela 的信号量实现围绕 <span class="reference">struct sem\_s</span> 核心结构、一个全局持有者池和一个等待任务队列构建。
+
+  - **<span class="reference">struct sem\_s</span>**：信号量的核心数据结构，维护计数值、等待队列 (<span class="reference">waitlist</span>) 和持有者链表 (<span class="reference">hhead</span>)。
+  - **<span class="reference">g\_freeholders</span>**：一个全局的 <span class="reference">semholder\_s</span> 结构体池，用于在启用优先级继承时按需分配和回收持有者对象，避免了动态内存分配的开销。
+  - **<span class="reference">waitlist</span>**：一个按任务优先级排序的双向链表，用于存放所有阻塞在该信号量上的任务。
+
+## 2、关键函数分析
+
+### <span class="reference">nxsem\_wait\_slow()</span> (sem\_wait 核心)
+
+执行流程：
+
+1.  **进入临界区**：禁用中断以保证操作的原子性。
+
+2.  **尝试获取**：原子地将信号量计数值减 1。
+
+3.  **成功获取**：如果减 1 后的值仍大于等于 0，表示获取成功。
+    
+      - 若启用优先级保护，调用 <span class="reference">nxsem\_protect\_wait()</span> 提升任务优先级。
+      - 若启用优先级继承，调用 <span class="reference">nxsem\_add\_holder()</span> 将当前任务注册为持有者。
+
+4.  **阻塞等待**：如果减 1 后的值为负，表示资源已被占用。
+    
+      - 将当前任务状态设置为 <span class="reference">TSTATE\_WAIT\_SEM</span>。
+      - 若启用优先级继承，调用 <span class="reference">nxsem\_boost\_priority()</span> 提升其他持有者的优先级。
+      - 将当前任务从就绪队列中移除，并添加到信号量的 <span class="reference">waitlist</span> 中。
+      - 调用 <span class="reference">up\_switch\_context()</span> 执行上下文切换，让出 CPU。
+
+5.  **唤醒**：当任务被 <span class="reference">sem\_post()</span> 唤醒后，它将从 <span class="reference">up\_switch\_context()</span> 返回，并检查是否有错误（如被信号中断）。
+
+6.  **退出临界区**：恢复中断，函数返回。
+
+### <span class="reference">nxsem\_post\_slow()</span> (sem\_post 核心)
+
+执行流程：
+
+1.  **进入临界区**：禁用中断。
+
+2.  **原子增加计数值**：原子地将信号量计数值加 1，并检查是否溢出。
+
+3.  **释放持有者**：若启用优先级继承，调用 <span class="reference">nxsem\_release\_holder()</span> 减少当前任务的持有计数。
+
+4.  **检查等待者**：如果增加前的计数值小于 0，说明有任务正在等待。
+    
+      - 从 <span class="reference">waitlist</span> 中取出优先级最高的任务。
+      - 如果该任务设置了看门狗超时，则取消它。
+      - 将该任务注册为新的信号量持有者。
+      - 调用 <span class="reference">nxsched\_add\_readytorun()</span> 将其移入就绪队列。
+      - 如果被唤醒的任务优先级高于当前任务，执行上下文切换。
+
+5.  **恢复优先级**：若启用优先级继承或保护，调用相应函数恢复相关任务的优先级。
+
+6.  **退出临界区**：恢复中断，函数返回。
+
+### <span class="reference">nxsem\_clockwait()</span> 与超时处理
+
+带超时的等待函数 (<span class="reference">sem\_timedwait</span>) 的核心逻辑在 <span class="reference">nxsem\_clockwait</span> 中实现。
+
+  - **定时器设置**：在尝试获取信号量失败后，它会启动一个看门狗定时器 (<span class="reference">wd\_start\_...</span>)，并将超时回调函数设置为 <span class="reference">nxsem\_timeout</span>。
+
+  - **超时唤醒**：如果定时器到期，<span class="reference">nxsem\_timeout</span> 会被调用。该函数的核心工作是调用 <span class="reference">nxsem\_wait\_irq</span>。
+
+  - **中断/超时处理**：<span class="reference">nxsem\_wait\_irq</span> 负责处理唤醒逻辑，它会：
+    
+    1.  调用 <span class="reference">nxsem\_canceled()</span> 来恢复可能被提升的优先级。
+    2.  将信号量计数值加 1（抵消 <span class="reference">wait</span> 操作的减 1）。
+    3.  将任务从 <span class="reference">waitlist</span> 中移除。
+    4.  将任务重新加入就绪队列。
+
+# 七、总结
+
+openvela 的信号量机制是构建健壮多任务应用程序的基石。开发者应充分理解其核心功能，并根据应用场景选择恰当的使用模式：
+
+  - **互斥访问**：使用 **LockingSemaphore**，并配合**优先级继承**或**优先级保护**来防止优先级反转。
+  - **任务同步**：使用 **Signaling Semaphore**，并**禁用**优先级相关协议 (<span class="reference">SEM\_PRIO\_NONE</span>)，以确保调度行为符合预期。
+
+通过熟练运用这些机制，可以有效保证系统的实时性、稳定性和任务调度的效率。
