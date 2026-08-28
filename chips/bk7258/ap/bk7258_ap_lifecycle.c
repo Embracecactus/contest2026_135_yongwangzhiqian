@@ -1,9 +1,9 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/ap/bk7258_ap_main.c
+ * chips/bk7258/ap/bk7258_ap_lifecycle.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Minimal AP NuttX init task for physical CPU1.
+ * Chip-owned AP startup, READY publication and supervision lifecycle.
  ****************************************************************************/
 
 /****************************************************************************
@@ -16,19 +16,14 @@
 #include <stdbool.h>
 #include <sched.h>
 #include <stdint.h>
-#ifdef CONFIG_LIBC_LOCALTIME
-#  include <stdlib.h>
-#  include <time.h>
-#endif
 #include <string.h>
-#include <sys/stat.h>
-#include <syslog.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
 
 #include <arch/chip/bk7258_amp.h>
-#include <arch/chip/bk7258_peripherals.h>
+#include <arch/chip/bk7258_ap_lifecycle.h>
+#include <arch/chip/bk7258_ap_platform.h>
 
 #ifdef CONFIG_BK7258_PSRAM
 #  include <arch/chip/bk7258_psram.h>
@@ -64,152 +59,6 @@
 #include "bk7258_clockdiag.h"
 
 extern const void *const _vectors[80];
-
-#ifdef CONFIG_LIBC_LOCALTIME
-static int bk7258_ap_timezone_initialize(void)
-{
-  if (setenv("TZ", CONFIG_BK7258_AP_TIMEZONE, true) < 0)
-    {
-      return -errno;
-    }
-
-  tzset();
-  return OK;
-}
-
-#ifdef CONFIG_BK7258_RTC
-static void bk7258_ap_time_report(void)
-{
-  struct timespec realtime;
-  struct tm utc;
-  struct tm local;
-  time_t now;
-
-  if (clock_gettime(CLOCK_REALTIME, &realtime) < 0)
-    {
-      syslog(LOG_ERR, "bk7258: CLOCK_REALTIME unavailable: %d\n", errno);
-      return;
-    }
-
-  now = realtime.tv_sec;
-  if (gmtime_r(&now, &utc) == NULL ||
-      localtime_r(&now, &local) == NULL)
-    {
-      syslog(LOG_ERR, "bk7258: calendar conversion failed\n");
-      return;
-    }
-
-  syslog(LOG_INFO,
-         "bk7258: time utc=%04d-%02d-%02dT%02d:%02d:%02dZ "
-         "local=%04d-%02d-%02dT%02d:%02d:%02d %s\n",
-         utc.tm_year + 1900, utc.tm_mon + 1, utc.tm_mday,
-         utc.tm_hour, utc.tm_min, utc.tm_sec,
-         local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
-         local.tm_hour, local.tm_min, local.tm_sec,
-         local.tm_zone != NULL ? local.tm_zone : "?");
-}
-#endif
-#endif
-
-#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
-extern int ai_agent_main(int argc, char *argv[]);
-volatile int g_bk7258_agent_pid = -1;
-volatile int g_bk7258_agent_launch_pid = -1;
-volatile int g_bk7258_agent_launch_errno;
-volatile uint32_t g_bk7258_agent_launch_stage;
-#  ifdef CONFIG_AI_AGENT_LVGL_UI
-extern int bk7258_board_lvgl_initialize(void);
-extern int bk7258_board_lvgl_wait_ready(void);
-extern void lvgl_ui_channel_show(void);
-volatile uint32_t g_bk7258_agent_ui_show_attempts;
-
-static int bk7258_agent_ui_show_task(int argc, FAR char *argv[])
-{
-  unsigned int attempt;
-
-  (void)argc;
-  (void)argv;
-
-  /* Agent phase-3 initializes the widgets and phase-5 marks the LVGL channel
-   * running.  Do not assume that both phases complete within a fixed two
-   * second window: a one-shot request made too early leaves the generic LVGL
-   * root screen visible forever.  show() is idempotent after the chat screen
-   * becomes visible, so retry for a bounded startup window.
-   */
-
-  for (attempt = 0; attempt < 30; attempt++)
-    {
-      nxsig_usleep(1000000u);
-      g_bk7258_agent_ui_show_attempts = attempt + 1u;
-      lvgl_ui_channel_show();
-    }
-
-  return 0;
-}
-#  endif
-
-static int bk7258_agent_launch_task(int argc, FAR char *argv[])
-{
-  pid_t agentpid;
-#  ifdef CONFIG_AI_AGENT_LVGL_UI
-  pid_t showpid;
-  int ret;
-#  endif
-
-  (void)argc;
-  (void)argv;
-  g_bk7258_agent_launch_stage = 2u;
-
-#  ifdef CONFIG_AI_AGENT_LVGL_UI
-  ret = bk7258_board_lvgl_wait_ready();
-  if (ret < 0)
-    {
-      g_bk7258_agent_launch_stage = 0x82u;
-      syslog(LOG_ERR, "bk7258: Agent LVGL wait failed: %d\n", ret);
-      g_bk7258_agent_pid = ret;
-      return 1;
-    }
-#  endif
-
-  g_bk7258_agent_launch_stage = 3u;
-
-  if (mkdir("/data", 0755) < 0 && errno != EEXIST)
-    {
-      syslog(LOG_ERR, "bk7258: Agent data mountpoint failed: %d\n", errno);
-    }
-
-  agentpid = task_create("ai_agent",
-                         CONFIG_EXAMPLES_AI_AGENT_VELA_PRIORITY,
-                         CONFIG_EXAMPLES_AI_AGENT_VELA_STACKSIZE,
-                         (main_t)ai_agent_main,
-                         NULL);
-  g_bk7258_agent_launch_errno = agentpid < 0 ? errno : 0;
-  g_bk7258_agent_pid = (int)agentpid;
-  g_bk7258_agent_launch_stage = agentpid < 0 ? 0x84u : 4u;
-  if (agentpid < 0)
-    {
-      syslog(LOG_ERR, "bk7258: official Agent launch failed: %d\n",
-             (int)agentpid);
-      return 1;
-    }
-
-#  ifdef CONFIG_AI_AGENT_LVGL_UI
-  showpid = task_create("agent-ui-show", 90, 2048,
-                        bk7258_agent_ui_show_task, NULL);
-  if (showpid < 0)
-    {
-      syslog(LOG_ERR, "bk7258: Agent UI show task failed: %d\n",
-             (int)showpid);
-    }
-  else
-    {
-      g_bk7258_agent_launch_stage = 5u;
-    }
-#  endif
-
-  return 0;
-}
-#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -271,6 +120,33 @@ static_assert(BK7258_AP_RPTUN_INIT_PRIORITY > CONFIG_RPTUN_PRIORITY,
      defined(CONFIG_BK7258_BLE_GATT))
 #  define BK7258_AP_STARTUP_FREQ_VOTE 1
 #endif
+
+/****************************************************************************
+ * Private Types
+ ****************************************************************************/
+
+struct bk7258_ap_lifecycle_s
+{
+  bool startup_called;
+  bool startup_complete;
+  bool ready_published;
+#ifdef CONFIG_BK7258_RPTUN
+  struct sched_param saved_priority;
+  bool priority_raised;
+#endif
+#ifdef CONFIG_BK7258_PSRAM_TEST
+  struct bk7258_psram_test_result_s psram_test;
+#endif
+#ifdef BK7258_AP_STARTUP_FREQ_VOTE
+  bool pm_startup_vote;
+#endif
+};
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static struct bk7258_ap_lifecycle_s g_bk7258_ap_lifecycle;
 
 /****************************************************************************
  * Private Functions
@@ -373,6 +249,32 @@ static void bk7258_ap_publish_failure(uint32_t error)
   state->state = BK7258_AP_STATE_FAILED;
   __asm volatile ("dmb sy" ::: "memory");
   bk7258_ap_mbox_send(BK7258_AP_EVENT_FAILED);
+}
+
+static int bk7258_ap_startup_failed(FAR uint32_t *failure,
+                                    uint32_t error, int ret)
+{
+  *failure = error;
+  return ret < 0 ? ret : -EIO;
+}
+
+static void bk7258_ap_park(void) noreturn_function;
+static void bk7258_ap_park(void)
+{
+#ifdef BK7258_AP_STARTUP_FREQ_VOTE
+  if (g_bk7258_ap_lifecycle.pm_startup_vote)
+    {
+      (void)bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,
+                                     BK7258_PM_OPP_DEFAULT);
+      g_bk7258_ap_lifecycle.pm_startup_vote = false;
+    }
+#endif
+
+  __asm volatile ("cpsid i; dsb sy; isb sy" ::: "memory");
+  for (; ; )
+    {
+      __asm volatile ("wfe");
+    }
 }
 
 static int bk7258_ap_validate_runtime(void)
@@ -546,68 +448,83 @@ static int bk7258_ap_validate_secondary_bootstrap(void)
  * Public Functions
  ****************************************************************************/
 
-int bk7258_ap_main(int argc, char *argv[])
+int bk7258_ap_lifecycle_startup(FAR uint32_t *failure)
 {
+  FAR struct bk7258_ap_lifecycle_s *lifecycle =
+    &g_bk7258_ap_lifecycle;
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
 #ifdef CONFIG_BK7258_RPTUN
   volatile struct bk7258_rptun_control_s *rptun =
     bk7258_rptun_control();
-  struct sched_param saved_priority;
   struct sched_param startup_priority;
-  bool priority_raised = false;
-#endif
-#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
-  volatile struct bk7258_ap_smp_state_s *smp = bk7258_ap_smp_state();
 #endif
 #ifdef CONFIG_BK7258_BLE_GATT
   struct bk7258_ble_gatt_stats_s ble_gatt;
 #endif
-#ifdef CONFIG_BK7258_PSRAM_TEST
-  struct bk7258_psram_test_result_s psram_test;
-#endif
-#ifdef BK7258_AP_STARTUP_FREQ_VOTE
-  bool pm_startup_vote = false;
-#endif
-#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
-  bool agent_ready = true;
-#endif
-  uint32_t event;
   int error;
   int ret;
 
-  (void)argc;
-  (void)argv;
+  if (failure == NULL)
+    {
+      return -EINVAL;
+    }
+
+  *failure = BK7258_AP_ERROR_NONE;
+  if (lifecycle->startup_called)
+    {
+      return -EALREADY;
+    }
+
+  lifecycle->startup_called = true;
 
   if (state->magic != BK7258_AP_BOOT_STATE_MAGIC ||
       state->version != BK7258_AP_BOOT_STATE_VERSION ||
       state->size != sizeof(struct bk7258_ap_boot_state_s))
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_BAD_BOOT_STATE, -EINVAL);
     }
 
   error = bk7258_ap_validate_runtime();
   if (error != BK7258_AP_ERROR_NONE)
     {
-      bk7258_ap_publish_failure((uint32_t)error);
-      goto parked;
+      return bk7258_ap_startup_failed(failure, (uint32_t)error, -EIO);
+    }
+
+  /* board_late_initialize() has already run the AP chip preparation before
+   * NuttX starts this initial application.  Consume only its cached result so
+   * a missing or reordered late hook fails closed instead of silently moving
+   * SDK/PM/temperature/PSRAM initialization later in boot.
+   */
+
+  ret = bk7258_ap_platform_result();
+  if (ret < 0)
+    {
+      struct bk7258_platform_status_s platform;
+      uint32_t platform_error = BK7258_AP_ERROR_PERIPHERALS;
+
+      if (bk7258_ap_platform_get_status(&platform) >= 0 &&
+          platform.first_error_stage == BK7258_AP_STAGE_PSRAM)
+        {
+          platform_error = BK7258_AP_ERROR_PSRAM;
+        }
+
+      return bk7258_ap_startup_failed(failure, platform_error, ret);
     }
 
 #ifdef CONFIG_BK7258_PSRAM
-  ret = bk7258_psram_initialize();
-  if (ret < 0)
-    {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_PSRAM);
-      goto parked;
-    }
-
 #ifdef CONFIG_BK7258_PSRAM_SYSTEM_HEAP
+  /* Preserve the baseline boundary: AP validates its boot contract before
+   * donating a region from the already initialized private PSRAM heap to the
+   * NuttX system heap.
+   */
+
   ret = bk7258_psram_add_system_heap(
     CONFIG_BK7258_PSRAM_SYSTEM_HEAP_SIZE);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_PSRAM);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_PSRAM, ret);
     }
 #endif
 
@@ -616,9 +533,9 @@ int bk7258_ap_main(int argc, char *argv[])
   state->reserved[BK7258_PSRAM_AP_RESERVED_GATE] =
     BK7258_PSRAM_AP_HEAP_READY;
 #ifdef CONFIG_BK7258_PSRAM_TEST
-  memset(&psram_test, 0, sizeof(psram_test));
+  memset(&lifecycle->psram_test, 0, sizeof(lifecycle->psram_test));
   state->reserved[BK7258_PSRAM_AP_RESERVED_RESULT] =
-    (uint32_t)(uintptr_t)&psram_test;
+    (uint32_t)(uintptr_t)&lifecycle->psram_test;
   state->reserved[BK7258_PSRAM_AP_RESERVED_MAGIC] =
     BK7258_PSRAM_AP_RESULT_READY;
 #endif
@@ -635,38 +552,37 @@ int bk7258_ap_main(int argc, char *argv[])
    * supervisor priority; profiles without N10 restore the init priority.
    */
 
-  ret = sched_getparam(0, &saved_priority);
+  ret = sched_getparam(0, &lifecycle->saved_priority);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_BAD_BOOT_STATE, ret);
     }
 
-  startup_priority = saved_priority;
+  startup_priority = lifecycle->saved_priority;
   startup_priority.sched_priority = BK7258_AP_RPTUN_INIT_PRIORITY;
   ret = sched_setparam(0, &startup_priority);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_BAD_BOOT_STATE, ret);
     }
 
-  priority_raised = true;
+  lifecycle->priority_raised = true;
 #endif
 
 #ifdef CONFIG_BK7258_AP_SMP_BOOTSTRAP
   error = bk7258_ap_validate_secondary_bootstrap();
   if (error != BK7258_AP_ERROR_NONE)
     {
-      bk7258_ap_publish_failure((uint32_t)error);
-      goto parked;
+      return bk7258_ap_startup_failed(failure, (uint32_t)error, -EIO);
     }
 #else
   ret = bk7258_cpu2_probe_start(BK7258_CPU2_PROBE_TIMEOUT_MS);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_PROBE);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_CPU2_PROBE, ret);
     }
 #endif
 
@@ -675,8 +591,8 @@ int bk7258_ap_main(int argc, char *argv[])
     BK7258_AP_SMP_DEFAULT_TIMEOUT_MS);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_SMP_SCHEDULER);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_CPU2_SMP_SCHEDULER, ret);
     }
 #endif
 
@@ -694,13 +610,13 @@ int bk7258_ap_main(int argc, char *argv[])
   if (ret < 0)
     {
 #ifdef CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE_LOOP
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_SEM_WAKE_LOOP);
+      error = BK7258_AP_ERROR_CPU2_SEM_WAKE_LOOP;
 #elif defined(CONFIG_BK7258_AP_SMP_CPU1_SEM_WAKE)
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_SEM_WAKE);
+      error = BK7258_AP_ERROR_CPU2_SEM_WAKE;
 #else
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_AFFINITY);
+      error = BK7258_AP_ERROR_CPU2_AFFINITY;
 #endif
-      goto parked;
+      return bk7258_ap_startup_failed(failure, (uint32_t)error, ret);
     }
 #endif
 
@@ -708,50 +624,52 @@ int bk7258_ap_main(int argc, char *argv[])
   ret = bk7258_ap_smp_bp2p_selftest(BK7258_AP_ADV_TIMEOUT_MS);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BP2P);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_CPU2_BP2P, ret);
     }
 #elif defined(CONFIG_BK7258_AP_SMP_CPU1_DUALTASK)
   ret = bk7258_ap_smp_bdul_selftest(BK7258_AP_ADV_TIMEOUT_MS);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BDUL);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_CPU2_BDUL, ret);
     }
 #elif defined(CONFIG_BK7258_AP_SMP_CONTROLLED_MIGRATION)
   ret = bk7258_ap_smp_bmig_selftest(BK7258_AP_ADV_TIMEOUT_MS);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BMIG);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_CPU2_BMIG, ret);
     }
 #elif defined(CONFIG_BK7258_AP_SMP_CPU1_TIMED_WAKE)
   ret = bk7258_ap_smp_btim_selftest(BK7258_AP_ADV_TIMEOUT_MS);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BTIM);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_CPU2_BTIM, ret);
     }
 #elif defined(CONFIG_BK7258_AP_SMP_LIFECYCLE_QUIESCE)
   ret = bk7258_ap_smp_blcy_selftest(BK7258_AP_ADV_TIMEOUT_MS);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_CPU2_BLCY);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_CPU2_BLCY, ret);
     }
 #endif
 
 #ifdef CONFIG_BK7258_PSRAM_TEST
   ret = bk7258_psram_heap_test(CONFIG_BK7258_PSRAM_TEST_ITERATIONS,
-                               true, &psram_test);
-  if (ret < 0 || psram_test.status < 0 ||
-      psram_test.completed[0] != CONFIG_BK7258_PSRAM_TEST_ITERATIONS ||
-      psram_test.completed[1] != CONFIG_BK7258_PSRAM_TEST_ITERATIONS ||
-      psram_test.observed_cpu[0] != 0u ||
-      psram_test.observed_cpu[1] != 1u)
+                               true, &lifecycle->psram_test);
+  if (ret < 0 || lifecycle->psram_test.status < 0 ||
+      lifecycle->psram_test.completed[0] !=
+        CONFIG_BK7258_PSRAM_TEST_ITERATIONS ||
+      lifecycle->psram_test.completed[1] !=
+        CONFIG_BK7258_PSRAM_TEST_ITERATIONS ||
+      lifecycle->psram_test.observed_cpu[0] != 0u ||
+      lifecycle->psram_test.observed_cpu[1] != 1u)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_PSRAM);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_PSRAM, ret);
     }
 
   state->reserved[BK7258_PSRAM_AP_RESERVED_GATE] =
@@ -769,8 +687,8 @@ int bk7258_ap_main(int argc, char *argv[])
   ret = bk7258_ap_health_initialize();
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_SUPERVISOR);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_SUPERVISOR, ret);
     }
 #endif
 
@@ -790,8 +708,8 @@ int bk7258_ap_main(int argc, char *argv[])
   ret = bk7258_rptun_mbox_initialize();
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_BAD_BOOT_STATE, ret);
     }
 
 #ifdef CONFIG_BK7258_RPTUN
@@ -806,16 +724,16 @@ int bk7258_ap_main(int argc, char *argv[])
   ret = bk7258_rptun_initialize(state->generation);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_BAD_BOOT_STATE, ret);
     }
 
 #ifdef CONFIG_BK7258_RPMSGFS
   ret = bk7258_rpmsgfs_initialize();
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_RPMSGFS);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_RPMSGFS, ret);
     }
 #endif
 
@@ -827,21 +745,16 @@ int bk7258_ap_main(int argc, char *argv[])
   ret = bk7258_ota_manager_initialize();
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_PERIPHERALS);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_PERIPHERALS, ret);
     }
 
 #endif
 
 #ifdef CONFIG_BK7258_PM_CLOCK
-  ret = bk7258_pm_initialize();
-  if (ret < 0)
-    {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_PERIPHERALS);
-      goto parked;
-    }
-
-  /* The v3.1.1.9 radio startup path faults when the shared CPU clock is only
+  /* Recheck the idempotent PM-client registration after RPTUN creation, at
+   * the same boundary as the baseline AP path.  The v3.1.1.9 radio startup
+   * path faults when the shared CPU clock is only
    * 120 MHz.  Radio profiles hold a bounded AP-startup vote while Wi-Fi and
    * BT/BLE are initialized.  A transport-only profile must not issue this
    * request before RPMsg Name Service has connected: it has no high-load
@@ -849,16 +762,23 @@ int bk7258_ap_main(int argc, char *argv[])
    * link is ready.
    */
 
+  ret = bk7258_pm_initialize();
+  if (ret < 0)
+    {
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_PERIPHERALS, ret);
+    }
+
 #ifdef BK7258_AP_STARTUP_FREQ_VOTE
   ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,
                                  BK7258_PM_OPP_320M);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_PERIPHERALS);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_PERIPHERALS, ret);
     }
 
-  pm_startup_vote = true;
+  lifecycle->pm_startup_vote = true;
 #endif
 #endif
 
@@ -866,16 +786,16 @@ int bk7258_ap_main(int argc, char *argv[])
   ret = bk7258_wifi_initialize();
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_WIFI);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_WIFI, ret);
     }
 
 
   ret = bk7258_wifi_control_initialize();
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_WIFI);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_WIFI, ret);
     }
 
 
@@ -885,8 +805,8 @@ int bk7258_ap_main(int argc, char *argv[])
   ret = bk7258_bt_hci_initialize();
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_BLUETOOTH);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_BLUETOOTH, ret);
     }
 #endif
 
@@ -894,8 +814,8 @@ int bk7258_ap_main(int argc, char *argv[])
   ret = bk7258_ble_gatt_initialize();
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_BLUETOOTH);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_BLUETOOTH, ret);
     }
 
   ret = bk7258_ble_gatt_get_stats(&ble_gatt);
@@ -903,59 +823,50 @@ int bk7258_ap_main(int argc, char *argv[])
       ble_gatt.state != BK7258_BLE_GATT_STATE_ADVERTISING ||
       ble_gatt.worker_cpu != 0u)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_BLUETOOTH);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_BLUETOOTH,
+               ret < 0 ? ret : -EIO);
     }
 #endif
 
-  /* Publish AP-owned NuttX character devices only after the transport and
-   * shared radio services are ready.  Registration itself remains lazy:
-   * drivers such as I2C do not touch hardware until their first open.
-   */
+  lifecycle->startup_complete = true;
+  return OK;
+}
 
-  ret = bk7258_peripherals_initialize();
-  if (ret < 0)
+int bk7258_ap_lifecycle_publish_ready(FAR uint32_t *failure)
+{
+  FAR struct bk7258_ap_lifecycle_s *lifecycle =
+    &g_bk7258_ap_lifecycle;
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+#ifdef CONFIG_BK7258_RPTUN
+  volatile struct bk7258_rptun_control_s *rptun =
+    bk7258_rptun_control();
+#endif
+#ifdef BK7258_AP_STARTUP_FREQ_VOTE
+  int ret;
+#endif
+
+  if (failure == NULL)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_PERIPHERALS);
-      goto parked;
+      return -EINVAL;
     }
 
-#ifdef CONFIG_LIBC_LOCALTIME
-  ret = bk7258_ap_timezone_initialize();
-  if (ret < 0)
+  *failure = BK7258_AP_ERROR_NONE;
+  if (!lifecycle->startup_complete || lifecycle->ready_published)
     {
-      syslog(LOG_ERR, "bk7258: timezone setup failed: %d\n", ret);
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_BAD_BOOT_STATE);
-      goto parked;
+      return -EALREADY;
     }
-
-  syslog(LOG_INFO, "bk7258: timezone=%s\n", CONFIG_BK7258_AP_TIMEZONE);
-#ifdef CONFIG_BK7258_RTC
-  bk7258_ap_time_report();
-#endif
-#endif
-
-#if defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
-    defined(CONFIG_AI_AGENT_LVGL_UI)
-  ret = bk7258_board_lvgl_initialize();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "bk7258: Agent LVGL service failed: %d\n", ret);
-      agent_ready = false;
-    }
-#endif
-
 
 #ifdef BK7258_AP_STARTUP_FREQ_VOTE
   ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,
                                  BK7258_PM_OPP_DEFAULT);
   if (ret < 0)
     {
-      bk7258_ap_publish_failure(BK7258_AP_ERROR_PERIPHERALS);
-      goto parked;
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_PERIPHERALS, ret);
     }
 
-  pm_startup_vote = false;
+  lifecycle->pm_startup_vote = false;
 #endif
 
   state->error      = BK7258_AP_ERROR_NONE;
@@ -968,49 +879,49 @@ int bk7258_ap_main(int argc, char *argv[])
 #endif
   __asm volatile ("dmb sy" ::: "memory");
   bk7258_ap_mbox_send(BK7258_AP_EVENT_READY);
+  lifecycle->ready_published = true;
+  return OK;
+}
 
-#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
-  /* The official openvela Agent owns the AP application plane.  Start a
-   * coordinator after publishing AP READY so a slow display/input bring-up
-   * cannot delay the platform handshake.  The coordinator waits for the
-   * generic NuttX LVGL service before launching the Agent.
-   */
-
-  if (agent_ready)
-    {
-      pid_t launchpid;
-
-      g_bk7258_agent_launch_stage = 1u;
-      launchpid = task_create("agent-start", 99, 4096,
-                              bk7258_agent_launch_task, NULL);
-      g_bk7258_agent_launch_pid = (int)launchpid;
-      if (launchpid < 0)
-        {
-          g_bk7258_agent_launch_errno = errno;
-          g_bk7258_agent_launch_stage = 0x81u;
-          g_bk7258_agent_pid = (int)launchpid;
-          syslog(LOG_ERR, "bk7258: Agent coordinator failed: %d\n",
-                 (int)launchpid);
-        }
-    }
+void bk7258_ap_lifecycle_supervise(void)
+{
+  FAR struct bk7258_ap_lifecycle_s *lifecycle =
+    &g_bk7258_ap_lifecycle;
+  volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
+#ifdef CONFIG_BK7258_RPTUN
+  volatile struct bk7258_rptun_control_s *rptun =
+    bk7258_rptun_control();
+  struct sched_param startup_priority;
 #endif
+#ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
+  volatile struct bk7258_ap_smp_state_s *smp = bk7258_ap_smp_state();
+#endif
+  uint32_t event;
+  int ret;
+
+  if (!lifecycle->ready_published)
+    {
+      bk7258_ap_lifecycle_fail_and_park(
+        BK7258_AP_ERROR_BAD_BOOT_STATE);
+    }
 
 #ifdef CONFIG_BK7258_RPTUN
-  if (priority_raised)
+  if (lifecycle->priority_raised)
     {
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
-      startup_priority = saved_priority;
+      startup_priority = lifecycle->saved_priority;
       startup_priority.sched_priority =
         CONFIG_BK7258_AP_SUPERVISOR_PRIORITY;
       ret = sched_setparam(0, &startup_priority);
       if (ret < 0)
         {
-          bk7258_ap_publish_failure(BK7258_AP_ERROR_SUPERVISOR);
-          goto parked;
+          bk7258_ap_lifecycle_fail_and_park(
+            BK7258_AP_ERROR_SUPERVISOR);
         }
 #else
-      (void)sched_setparam(0, &saved_priority);
+      (void)sched_setparam(0, &lifecycle->saved_priority);
 #endif
+      lifecycle->priority_raised = false;
     }
 #endif
 
@@ -1100,19 +1011,16 @@ int bk7258_ap_main(int argc, char *argv[])
 #endif
     }
 
-parked:
-#ifdef BK7258_AP_STARTUP_FREQ_VOTE
-  if (pm_startup_vote)
+  bk7258_ap_park();
+}
+
+void bk7258_ap_lifecycle_fail_and_park(uint32_t failure)
+{
+  if (failure == BK7258_AP_ERROR_NONE)
     {
-      (void)bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CPU1,
-                                     BK7258_PM_OPP_DEFAULT);
-    }
-#endif
-  __asm volatile ("cpsid i; dsb sy; isb sy" ::: "memory");
-  for (; ; )
-    {
-      __asm volatile ("wfe");
+      failure = BK7258_AP_ERROR_BAD_BOOT_STATE;
     }
 
-  return 0;
+  bk7258_ap_publish_failure(failure);
+  bk7258_ap_park();
 }

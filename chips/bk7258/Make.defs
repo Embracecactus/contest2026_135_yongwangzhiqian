@@ -83,6 +83,12 @@ ifneq ($(filter y,$(CONFIG_BK7258_UART0) $(CONFIG_BK7258_UART1) $(CONFIG_BK7258_
 BK7258_CP_CSRCS += bk7258_serial.c
 endif
 BK7258_CP_CSRCS += $(BK7258_RUNTIME_CSRCS)
+BK7258_CP_CSRCS += bk7258_stage_runner.c
+BK7258_CP_CSRCS += bk7258_cp_platform.c
+BK7258_CP_CSRCS += bk7258_flash.c
+ifeq ($(CONFIG_BOARDCTL_RESET_CAUSE),y)
+BK7258_CP_CSRCS += bk7258_reset_cause.c
+endif
 
 ifeq ($(CONFIG_BK7258_SWD_DEBUG),y)
 BK7258_CP_CSRCS += bk7258_swd_debug.c
@@ -115,9 +121,11 @@ endif
 
 ifneq ($(filter y,$(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
 BK7258_CP_CSRCS += bk7258_bt_controller.c
+BK7258_CP_CSRCS += bk7258_radio_storage.c
 endif
 
 ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+BK7258_CP_CSRCS += bk7258_wifi_control.c
 ifneq ($(CONFIG_BK7258_AP_CORE),y)
 LDFLAGS += --wrap=malloc
 endif
@@ -240,6 +248,26 @@ ifeq ($(CONFIG_BK7258_WDT),y)
 BK7258_CP_CSRCS += bk7258_wdt.c
 endif
 
+ifneq ($(filter y,$(CONFIG_BK7258_WDT) $(CONFIG_BK7258_OTA)),)
+BK7258_CP_CSRCS += bk7258_system_reset.c
+endif
+
+ifneq ($(filter y,$(CONFIG_BK7258_OTA) $(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC) $(CONFIG_BK7258_FLASH_MTD) $(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
+BK7258_CP_CSRCS += bk7258_storage.c
+endif
+
+ifeq ($(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC),y)
+BK7258_CP_CSRCS += bk7258_reset_marker.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA),y)
+BK7258_CP_CSRCS += bk7258_boot_slot.c
+BK7258_CP_CSRCS += bk7258_ota_flash.c
+BK7258_CP_CSRCS += bk7258_ota_image.c
+BK7258_CP_CSRCS += bk7258_ota_pair.c
+BK7258_CP_CSRCS += bk7258_ota_boot_control.c
+endif
+
 ifeq ($(CONFIG_BK7258_IRDA),y)
 BK7258_CP_CSRCS += bk7258_irda.c
 endif
@@ -259,8 +287,9 @@ endif
 BK7258_AP_BASE_CSRCS  = bk7258_ap_vectors.c
 BK7258_AP_BASE_CSRCS += bk7258_ap_start.c
 BK7258_AP_BASE_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
-BK7258_AP_BASE_CSRCS += bk7258_ap_main.c
-BK7258_AP_BASE_CSRCS += bk7258_peripherals.c
+BK7258_AP_BASE_CSRCS += bk7258_stage_runner.c
+BK7258_AP_BASE_CSRCS += bk7258_ap_platform.c
+BK7258_AP_BASE_CSRCS += bk7258_ap_lifecycle.c
 
 ifeq ($(CONFIG_BK7258_PM_COORDINATED_STANDBY),y)
 BK7258_AP_BASE_CSRCS += bk7258_pm_activity.c
@@ -275,11 +304,24 @@ ifeq ($(CONFIG_BK7258_PSRAM),y)
 BK7258_AP_BASE_CSRCS += bk7258_psram.c
 endif
 
+ifeq ($(CONFIG_BK7258_BT_IPC),y)
+BK7258_AP_BASE_CSRCS += bk7258_bt_hci.c
+endif
+
+ifeq ($(CONFIG_BK7258_BLE_GATT),y)
+BK7258_AP_BASE_CSRCS += bk7258_ble_gatt.c
+endif
+
 ifeq ($(CONFIG_BK7258_OTA_MANAGER),y)
 ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
 ifeq ($(wildcard $(BK7258_OTA_CATALOG_PUBLIC_SOURCE)),)
 $(error BK7258_OTA_MANAGER requires the generated catalog public root)
 endif
+endif
+BK7258_AP_BASE_CSRCS += bk7258_ota_manager.c
+BK7258_AP_BASE_CSRCS += bk7258_ota_catalog.c
+BK7258_AP_BASE_CSRCS += $(BK7258_OTA_CATALOG_PUBLIC_SOURCE)
+INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)include
 endif
 
 ifeq ($(CONFIG_BK7258_OTA_SOURCE_FILE),y)
@@ -289,22 +331,11 @@ endif
 ifeq ($(CONFIG_BK7258_OTA_SOURCE_HTTP),y)
 BK7258_AP_BASE_CSRCS += bk7258_ota_source_http.c
 endif
-BK7258_AP_BASE_CSRCS += bk7258_ota_manager.c
-BK7258_AP_BASE_CSRCS += bk7258_ota_catalog.c
-BK7258_AP_BASE_CSRCS += $(BK7258_OTA_CATALOG_PUBLIC_SOURCE)
-INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)include
-endif
-
-ifeq ($(CONFIG_BK7258_BT_IPC),y)
-BK7258_AP_BASE_CSRCS += bk7258_bt_hci.c
-endif
-
-ifeq ($(CONFIG_BK7258_BLE_GATT),y)
-BK7258_AP_BASE_CSRCS += bk7258_ble_gatt.c
-endif
 
 ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
 BK7258_AP_BASE_CSRCS += bk7258_wifi.c
+BK7258_AP_BASE_CSRCS += bk7258_wifi_control.c
+INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)include
 endif
 
 # AP-owned NuttX peripheral wrappers.  Keep these in AP_BASE so AP-UP and
@@ -399,21 +430,6 @@ BK7258_AP_BASE_CSRCS += bk7258_mic.c
 endif
 ifeq ($(CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION),y)
 BK7258_AP_BASE_CSRCS += bk7258_mic_validation.c
-endif
-ifeq ($(CONFIG_EXAMPLES_AI_AGENT_VELA),y)
-ifeq ($(CONFIG_MEDIA),)
-ifneq ($(filter y,$(CONFIG_BK7258_MIC) $(CONFIG_BK7258_AUD)),)
-INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)..$(DELIM)frameworks$(DELIM)multimedia$(DELIM)media$(DELIM)include
-endif
-ifeq ($(CONFIG_BK7258_MIC),y)
-BK7258_AP_BASE_CSRCS += bk7258_agent_media_recorder.c
-CFLAGS += -DCONFIG_BK7258_AGENT_MEDIA_RECORDER=1
-endif
-ifeq ($(CONFIG_BK7258_AUD),y)
-BK7258_AP_BASE_CSRCS += bk7258_agent_media_player.c
-CFLAGS += -DCONFIG_BK7258_AGENT_MEDIA_PLAYER=1
-endif
-endif
 endif
 ifeq ($(CONFIG_BK7258_RTC),y)
 BK7258_AP_BASE_CSRCS += bk7258_rtc.c

@@ -12,6 +12,7 @@ primary_cp_app,,1360K,code,TRUE,FALSE,cp,image
 primary_ap_app,,1156K,code,TRUE,FALSE,ap,image
 s_app,,2516K,data,TRUE,FALSE,pair,image
 usr_config,0x4fc000,56K,data,TRUE,TRUE,,preserve
+reset_marker,0x50a000,4K,data,TRUE,TRUE,,preserve
 primary_manifest,0x50b000,4K,data,TRUE,FALSE,manifest_a,external
 secondary_manifest,,4K,data,TRUE,FALSE,manifest_b,external
 primary_bl2,0x51d000,136K,code,TRUE,FALSE,bl2_a,external

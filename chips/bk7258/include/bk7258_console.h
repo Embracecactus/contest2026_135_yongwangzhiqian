@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_console.h
+ * chips/bk7258/include/bk7258_console.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -8,8 +7,8 @@
  * MMIO output, the SDK-backed serial lower half and fault diagnostics.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_CONSOLE_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_CONSOLE_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_CONSOLE_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_CONSOLE_H
 
 #include <nuttx/config.h>
 
@@ -129,4 +128,4 @@ void bk7258_uart_pm_restore(void);
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_CONSOLE_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_CONSOLE_H */

@@ -463,7 +463,8 @@ static int bk7258_lcd_ioctl(FAR struct fb_vtable_s *vtable, int cmd,
   return -ENOTTY;
 }
 
-int bk7258_lcd_initialize(void)
+int bk7258_lcd_initialize(
+  FAR const struct bk7258_lcd_board_s *board)
 {
   FAR struct bk7258_lcd_priv_s *priv = &g_bk7258_lcd;
   const struct bk7258_lcd_panel_s *panel;
@@ -485,7 +486,7 @@ int bk7258_lcd_initialize(void)
       return OK;
     }
 
-  priv->board = bk7258_board_lcd_config();
+  priv->board = board;
   if (priv->board == NULL || priv->board->panel == NULL ||
       priv->board->panel->initialize == NULL ||
       priv->board->rgb_pins_initialize == NULL ||

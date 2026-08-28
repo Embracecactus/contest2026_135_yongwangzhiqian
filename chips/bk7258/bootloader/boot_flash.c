@@ -10,7 +10,7 @@
 
 #include "boot_flash.h"
 #include "boot_wdt.h"
-#include "../include/bk7258_image_layout.h"
+#include "bk7258_image_layout.h"
 #include <bk7258_partitions.h>
 
 #define BL1_REG32(address) (*(volatile uint32_t *)(uintptr_t)(address))

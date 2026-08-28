@@ -6,11 +6,15 @@
 #include <stdint.h>
 
 #include <bk7258_partitions.h>
-#include <driver/flash.h>
 #include <driver/flash_partition.h>
+#include <driver/flash_types.h>
 
-#if defined(CONFIG_BK7258_FLASH_MTD) || defined(CONFIG_BK7258_OTA)
-#  include "bk7258_flash_guard.h"
+#include <arch/chip/bk7258_flash.h>
+
+#if defined(CONFIG_BK7258_FLASH_MTD) || defined(CONFIG_BK7258_OTA) || \
+    defined(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC) || \
+    defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_WIFI_VNET)
+#  include <arch/chip/bk7258_storage_guard.h>
 #endif
 
 #define BK7258_OPTIONS(execute, read, write) \
@@ -64,8 +68,13 @@ bk_err_t __wrap_bk_flash_partition_read(bk_partition_t partition,
       return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
     }
 
-  return bk_flash_read_bytes(info->partition_start_addr + offset,
-                             buffer, size);
+  if (size == 0u)
+    {
+      return BK_OK;
+    }
+
+  return bk7258_flash_read(info->partition_start_addr + offset,
+                           buffer, size) == 0 ? BK_OK : BK_FAIL;
 }
 
 bk_err_t __wrap_bk_flash_partition_write(bk_partition_t partition,
@@ -85,8 +94,13 @@ bk_err_t __wrap_bk_flash_partition_write(bk_partition_t partition,
       return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
     }
 
-  return bk_flash_write_bytes(info->partition_start_addr + offset,
-                              buffer, size);
+  if (size == 0u)
+    {
+      return BK_OK;
+    }
+
+  return bk7258_flash_write(info->partition_start_addr + offset,
+                            buffer, size) == 0 ? BK_OK : BK_FAIL;
 }
 
 bk_err_t __wrap_bk_flash_partition_erase(bk_partition_t partition,
@@ -114,11 +128,11 @@ bk_err_t __wrap_bk_flash_partition_erase(bk_partition_t partition,
   uint32_t last = (offset + size - 1u) / BK7258_FLASH_ERASE_SIZE;
   for (uint32_t sector = first; sector <= last; sector++)
     {
-      bk_err_t result = bk_flash_erase_sector(
-          info->partition_start_addr + sector * BK7258_FLASH_ERASE_SIZE);
-      if (result != BK_OK)
+      int result = bk7258_flash_erase_sector(
+        info->partition_start_addr + sector * BK7258_FLASH_ERASE_SIZE);
+      if (result < 0)
         {
-          return result;
+          return BK_FAIL;
         }
     }
 
@@ -129,11 +143,13 @@ bk_err_t __wrap_bk_flash_partition_write_perm_check_by_addr(
     uint32_t address, uint32_t size, uint32_t magic_code)
 {
   (void)magic_code;
-#if defined(CONFIG_BK7258_FLASH_MTD) || defined(CONFIG_BK7258_OTA)
-  /* The generated layout remains read-only for executable partitions.  OTA
-   * receives a narrower task-scoped capability for exactly the inactive pair
-   * (or the active pair's two trailer sectors during health confirmation). */
-  if (bk7258_flash_guard_write_authorized(address, size))
+#if defined(CONFIG_BK7258_FLASH_MTD) || defined(CONFIG_BK7258_OTA) || \
+    defined(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC) || \
+    defined(CONFIG_BK7258_BT_IPC) || defined(CONFIG_BK7258_WIFI_VNET)
+  /* Generated policy remains authoritative.  Chip storage clients receive a
+   * task-scoped capability for only their configured data/radio/OTA/marker
+   * range; all other writes still follow the partition table's options. */
+  if (bk7258_storage_guard_write_authorized(address, size))
     {
       return BK_OK;
     }

@@ -1,13 +1,13 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_jpeg_m2m.h
+ * chips/bk7258/include/bk7258_jpeg_m2m.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * BK7258 JPEG decoder V4L2 memory-to-memory adapter.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_JPEG_M2M_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_JPEG_M2M_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_JPEG_M2M_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_JPEG_M2M_H
 
 #include <nuttx/compiler.h>
 
@@ -33,4 +33,4 @@ int bk7258_jpeg_m2m_register(FAR const char *devpath);
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_JPEG_M2M_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_JPEG_M2M_H */

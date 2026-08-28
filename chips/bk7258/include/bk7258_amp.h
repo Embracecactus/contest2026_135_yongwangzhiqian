@@ -1,13 +1,13 @@
 /****************************************************************************
- * arch/arm/include/bk7258/bk7258_amp.h
+ * chips/bk7258/include/bk7258_amp.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * BK7258 CP/AP image layout and the N7/N8 shared boot-state protocol.
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_INCLUDE_BK7258_BK7258_AMP_H
-#define __ARCH_ARM_INCLUDE_BK7258_BK7258_AMP_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_AMP_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_AMP_H
 
 /****************************************************************************
  * Included Files
@@ -1241,7 +1241,6 @@ int bk7258_ap_supervisor_inject(uint32_t injection);
 #endif
 
 #ifdef CONFIG_BK7258_AP_CORE
-int bk7258_ap_main(int argc, char *argv[]);
 #  ifdef CONFIG_BK7258_AP_SMP_BOOTSTRAP
 int bk7258_ap_smp_secondary_stop(uint32_t timeout_ms);
 #    ifdef CONFIG_BK7258_AP_IPI
@@ -1285,4 +1284,4 @@ int bk7258_cpu2_probe_stop(uint32_t timeout_ms);
 }
 #endif
 
-#endif /* __ARCH_ARM_INCLUDE_BK7258_BK7258_AMP_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_AMP_H */

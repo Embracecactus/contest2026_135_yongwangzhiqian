@@ -45,10 +45,10 @@ static struct bk7258_dmic_priv_s g_bk7258_dmic =
   .started = false,
 };
 
-int bk7258_dmic_initialize(void)
+int bk7258_dmic_initialize(
+  FAR const struct bk7258_dmic_board_s *board)
 {
   FAR struct bk7258_dmic_priv_s *priv = &g_bk7258_dmic;
-  FAR const struct bk7258_dmic_board_s *board;
   aud_dmic_config_t config;
   bk_err_t sdkret;
   int ret;
@@ -65,7 +65,6 @@ int bk7258_dmic_initialize(void)
       return -EBUSY;
     }
 
-  board = bk7258_board_dmic_config();
   if (board == NULL || board->name == NULL ||
       board->sample_rate < 8000 || board->sample_rate > 48000)
     {

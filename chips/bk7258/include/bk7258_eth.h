@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_eth.h
+ * chips/bk7258/include/bk7258_eth.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -18,8 +18,14 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
 
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Public Types
@@ -49,14 +55,14 @@ struct bk7258_eth_board_s
 
 #if defined(CONFIG_BK7258_ETH) && defined(CONFIG_BK7258_AP_CORE)
 
-/* Implemented by the selected physical board. */
-
-FAR const struct bk7258_eth_board_s *bk7258_board_eth_config(void);
-
 /* Register the ethernet netdev (eth0). */
 
-int bk7258_eth_initialize(void);
+int bk7258_eth_initialize(FAR const struct bk7258_eth_board_s *board);
 
 #endif /* CONFIG_BK7258_ETH && CONFIG_BK7258_AP_CORE */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_ETH_H */

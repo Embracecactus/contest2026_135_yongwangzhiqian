@@ -23,7 +23,7 @@
 #include <components/avdk_utils/avdk_error.h>
 #include <components/media_types.h>
 
-#include "../include/bk7258_jpeg_decoder.h"
+#include <arch/chip/bk7258_jpeg_decoder.h>
 
 /* The v3.1.1.9 jpeg_dec_driver.c routes JPEGDEC to CPU2 unconditionally.
  * AP NuttX executes on CPU1, so migrate the interrupt route after the SDK

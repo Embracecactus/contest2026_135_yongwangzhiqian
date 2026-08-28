@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_DEBUG_ROUTE_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_DEBUG_ROUTE_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_DEBUG_ROUTE_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_DEBUG_ROUTE_H
 
 #define BK7258_SWD_PIN_GROUP_0       0 /* P20/P21 */
 #define BK7258_SWD_PIN_GROUP_1       1 /* P0/P1 */
@@ -44,4 +44,4 @@
 #define BK7258_SWD_BOOT_RELEASE_ADDRESS 0x2809f7f0
 #define BK7258_SWD_BOOT_RELEASE_MAGIC   0x4a4c4e4b /* "JLNK" */
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_DEBUG_ROUTE_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_DEBUG_ROUTE_H */

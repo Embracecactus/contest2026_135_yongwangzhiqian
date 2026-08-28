@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_saradc.h
+ * chips/bk7258/include/bk7258_saradc.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -38,6 +37,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -304,5 +307,9 @@ int bk7258_saradc_validation_start(
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_SARADC */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_SARADC_H */

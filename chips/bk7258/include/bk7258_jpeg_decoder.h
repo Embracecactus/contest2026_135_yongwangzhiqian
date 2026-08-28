@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_jpeg_decoder.h
+ * chips/bk7258/include/bk7258_jpeg_decoder.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -10,8 +10,8 @@
  * owner may adapt it to V4L2 queue operations.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_JPEG_DECODER_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_JPEG_DECODER_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_JPEG_DECODER_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_JPEG_DECODER_H
 
 #include <nuttx/compiler.h>
 
@@ -116,4 +116,4 @@ int bk7258_jpeg_decoder_decode(
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_JPEG_DECODER_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_JPEG_DECODER_H */

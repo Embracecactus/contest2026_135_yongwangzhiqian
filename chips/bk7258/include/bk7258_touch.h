@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_touch.h
+ * chips/bk7258/include/bk7258_touch.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -27,7 +27,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <nuttx/compiler.h>
 #include <nuttx/input/buttons.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -35,6 +41,7 @@
 
 #define BK7258_TOUCH_CHANNEL_COUNT 16u
 #define BK7258_TOUCH_CHANNEL_MASK  ((1u << BK7258_TOUCH_CHANNEL_COUNT) - 1u)
+#define BK7258_TOUCH_CONFIG_VERSION 1u
 
 /****************************************************************************
  * Public Types
@@ -42,6 +49,8 @@
 
 struct bk7258_touch_config_s
 {
+  uint16_t version;
+  uint16_t size;
   uint32_t channel_mask;       /* Exactly one bit from bits 0..15 */
   uint32_t poll_interval_ms;   /* NuttX work-queue sample period */
   uint8_t  sensitivity_level;  /* SDK values 0..3 */
@@ -100,5 +109,9 @@ int bk7258_touch_deinitialize(void);
 int bk7258_touch_last_error(void);
 
 #endif /* CONFIG_BK7258_TOUCH */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_TOUCH_H */

@@ -1,16 +1,20 @@
 /****************************************************************************
- * arch/arm/include/bk7258/bk7258_pm.h
+ * chips/bk7258/include/bk7258_pm.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * BK7258 CP-owned peripheral clock service.
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_INCLUDE_BK7258_BK7258_PM_H
-#define __ARCH_ARM_INCLUDE_BK7258_BK7258_PM_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_PM_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_PM_H
 
 #include <stdbool.h>
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Public Types
@@ -147,4 +151,8 @@ int bk7258_pm_clock_get(enum bk7258_pm_clock_e clock);
 int bk7258_pm_clock_put(enum bk7258_pm_clock_e clock);
 #endif
 
-#endif /* __ARCH_ARM_INCLUDE_BK7258_BK7258_PM_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_PM_H */

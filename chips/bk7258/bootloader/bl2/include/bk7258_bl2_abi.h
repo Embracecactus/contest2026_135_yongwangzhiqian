@@ -1,5 +1,5 @@
 /*
- * Board-owned BL1 -> BL2 -> MCUboot ABI.
+ * BK7258 BL1 -> BL2 -> MCUboot ABI.
  *
  * The v3.1.1.9 flash stream stores 32 data bytes followed by two CRC bytes.
  * MCUboot sees the decoded logical XIP view, while BL1 copies the same
@@ -10,8 +10,8 @@
 #define __BK7258_BL2_ABI_H
 
 #include <bk7258_partitions.h>
-#include "../../../include/bk7258_image_layout.h"
-#include "../../boot_bl2_contract.h"
+#include <bk7258_image_layout.h>
+#include <boot_bl2_contract.h>
 
 #define BK7258_BL2_CRC_PHYSICAL_SIZE(logical_size) \
   ((logical_size) / BK7258_FLASH_CRC_DATA_SIZE * \
@@ -55,7 +55,16 @@ enum bk7258_bl2_slot_limit
   BK7258_BL2_SLOT_SECONDARY = 1
 };
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 void bk7258_bl2_set_slot_limit(int slot);
+
+#ifdef __cplusplus
+}
+#endif
 
 /* BL1 copies only the signed logical image length, but BL2 is linked inside
  * the same 128 KiB SRAM contract.  Keep this assertion in the BL2 build too;

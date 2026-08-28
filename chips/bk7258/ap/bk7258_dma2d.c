@@ -28,7 +28,7 @@
 #include <common/bk_err.h>
 #include <driver/dma2d.h>
 
-#include "../include/bk7258_dma2d.h"
+#include <arch/chip/bk7258_dma2d.h>
 
 #define BK7258_DMA2D_DEFAULT_TIMEOUT_MS 1000
 #define BK7258_DMA2D_OFFSET_MAX         0x3fff

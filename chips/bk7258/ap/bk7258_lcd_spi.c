@@ -232,9 +232,9 @@ static int bk7258_lcd_spi_ioctl(FAR struct fb_vtable_s *vtable, int cmd,
   return -ENOTTY;
 }
 
-int bk7258_lcd_spi_initialize(void)
+int bk7258_lcd_spi_initialize(
+  FAR const struct bk7258_lcd_spi_board_s *board)
 {
-  FAR const struct bk7258_lcd_spi_board_s *board;
   FAR struct bk7258_lcd_spi_priv_s *priv = &g_bk7258_lcd_spi;
   FAR const lcd_device_t *device;
   size_t framebuf_bytes;
@@ -252,7 +252,6 @@ int bk7258_lcd_spi_initialize(void)
       return -EBUSY;
     }
 
-  board = bk7258_board_lcd_spi_config();
   if (board == NULL || board->name == NULL || board->sdk_device == NULL ||
       board->width == 0 || board->height == 0)
     {

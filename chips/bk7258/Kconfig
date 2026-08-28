@@ -58,35 +58,7 @@ config BK7258_AP_CORE
 
 menu "BK7258 debug and UART pin ownership"
 
-config BK7258_SWD_DEBUG
-	bool "Enable the board-owned J-Link SWD route"
-	default n
-	depends on !BK7258_AP_CORE && BK7258_BOARD_HAS_SWD_ROUTE
-	---help---
-		Keep one explicit BK7258 SWD route active from BL1 through BL2, CP
-		startup and later restore boundaries.  This controls the physical
-		debug route only; RTT and UART console selection are independent.
-
 if BK7258_SWD_DEBUG
-
-choice
-	prompt "SWD pin group"
-	default BK7258_SWD_PINS_P0_P1
-
-config BK7258_SWD_PINS_P20_P21
-	bool "SDK group 0: P20/P21"
-	help
-		Use P20 as SWCLK and P21 as SWDIO.  These pins also carry alternate
-		I2C and display signals, so the selected CP/AP profile pair must
-		reject conflicting owners.
-
-config BK7258_SWD_PINS_P0_P1
-	bool "SDK group 1: P0/P1"
-	help
-		Use P0 as SWCLK and P1 as SWDIO.  This route is mutually exclusive
-		with UART1 and any selected-board device on the same pins.
-
-endchoice
 
 choice
 	prompt "SWD target core"
@@ -241,22 +213,6 @@ config BK7258_UART2
 	select SERIAL
 	select SERIAL_TERMIOS
 
-choice
-	prompt "UART2 pin group"
-	default BK7258_UART2_PINS_P30_P31
-	depends on BK7258_UART2
-
-config BK7258_UART2_PINS_P30_P31
-	bool "P31 TX / P30 RX"
-
-config BK7258_UART2_PINS_P40_P41
-	bool "P41 TX / P40 RX"
-	help
-		This alternate chip mux shares P40/P41 with display and I2S2
-		functions. The paired CP/AP build validation checks ownership.
-
-endchoice
-
 config BK7258_UART2_BAUD
 	int "UART2 initial baud rate"
 	default 115200
@@ -303,8 +259,9 @@ config BK7258_MCUBOOT_IMAGE
 		Reserve the standard 0x200-byte MCUboot header before the CP or AP
 		vector table.  The resulting NuttX binary is a payload, not a direct
 		BL1 application: it must be signed by MCUboot imgtool and is entered
-		through the board-owned BL2.  This changes neither the Beken SDK nor
-		NuttX sources and is deliberately separate from the MCUboot BL2 profile.
+		through the project-owned BK7258 BL2.  This changes neither the Beken
+		SDK nor NuttX sources and is deliberately separate from the MCUboot
+		BL2 profile.
 
 config BK7258_AP_SMP_BOOTSTRAP
 	bool "N8-B1 AP SMP secondary bootstrap"
@@ -780,7 +737,7 @@ config BK7258_AP_SUPERVISOR
 	depends on BK7258_AP_CORE || BK7258_AP_CONTROL
 	depends on !BK7258_AP_CORE || (SMP && BK7258_AP_SMP_SCHED_ONLINE)
 	---help---
-		Enable the board-owned N10 management plane without modifying NuttX or
+		Enable the chip-owned N10 management plane without modifying NuttX or
 		the Beken SDK.  The AP publishes independent physical-CPU1 and logical-
 		CPU1 progress counters and a small RPMsg health endpoint.  The CP owns a
 		persistent supervisor thread which applies generation checks, bounded
@@ -883,8 +840,8 @@ config BK7258_RPMSGFS
 	---help---
 		Keep flash, MTD and LittleFS ownership on CP.  CP enables the stock
 		NuttX RPMsgFS server; AP enables the stock client and mounts CP /data
-		at /cpdata.  The board wrapper never modifies the NuttX protocol or
-		the Beken SDK.
+		at /cpdata.  The BK7258 chip adapter never modifies the NuttX protocol
+		or the Beken SDK.
 
 config BK7258_RPMSGFS_TEST
 	bool "N11 bounded RPMsgFS functional and recovery test"
@@ -892,7 +849,7 @@ config BK7258_RPMSGFS_TEST
 	depends on BK7258_RPMSGFS && !DISABLE_PTHREAD
 	depends on !BK7258_AP_CORE || SMP
 	---help---
-		Add a board-owned RPMsgFS test control endpoint.  The bkrpmsgfstest
+		Add a chip-owned RPMsgFS test control endpoint.  The bkrpmsgfstest
 		command is a separate application (BK7258_APP_RPMSGFS_TEST).  The AP
 		endpoint callback only queues work; one permanent logical-CPU0 worker
 		performs bounded-size operations below /cpdata/rpmsgfs-n11.  CP waits
@@ -922,7 +879,7 @@ config BK7258_BT_IPC
 	---help---
 		Use the official SDK MB_CHNL_BT_CMD protocol without modifying either
 		NuttX or the SDK.  The CP image starts the Beken controller-side IPC
-		worker.  The AP image registers a board-owned bt_driver_s lower half,
+		worker.  The AP image registers a chip-owned bt_driver_s lower half,
 		translates NuttX HCI command/ACL packets to bt_ipc_* calls and copies
 		SDK event/ACL callbacks into the stock NuttX Bluetooth Host.
 
@@ -957,7 +914,7 @@ config BK7258_WIFI_VNET
 	---help---
 		Keep the official Beken v3.1.1.9 Wi-Fi controller, RF/PHY,
 		supplicant and mailbox data plane on CP.  On AP, use the official
-		vendor vnet proxy only below a board-owned NuttX wlan0 adapter; the
+		vendor vnet proxy only below a chip-owned NuttX wlan0 adapter; the
 		SDK lwIP and FreeRTOS runtimes remain unlinked.
 
 		The first profile is STA-only.  Wi-Fi initialization and all AP-side
@@ -999,7 +956,7 @@ config BK7258_BT_IPC_TEST
 	depends on BK7258_BT_IPC && BK7258_RPTUN && !DISABLE_PTHREAD
 	depends on !BK7258_AP_CORE || NETDEV_IOCTL
 	---help---
-		Add a board-owned Bluetooth IPC diagnostic endpoint.  The bkbttest
+		Add a chip-owned Bluetooth IPC diagnostic endpoint.  The bkbttest
 		command is a separate application (BK7258_APP_BT_IPC_TEST).  The AP
 		endpoint callback only queues requests; a permanent logical-CPU0
 		worker uses the stock NuttX Bluetooth socket ioctls to report the
@@ -1029,7 +986,7 @@ config BK7258_BT_IPC_TRACE
 		Wrap the stock NuttX Bluetooth host boundary functions and expose
 		monotonic counters through the existing bkbttest stats operation.
 		Except for separately selected compatibility fixes, the wrappers call
-		the original implementation unchanged.  They are a board-owned
+		the original implementation unchanged.  They are a chip-owned
 		diagnostic aid for the HCI, L2CAP/ATT and connection-TX path and do not
 		modify NuttX or the Beken SDK.
 
@@ -1044,7 +1001,7 @@ config BK7258_BT_CONN_RX_REF_COMPAT
 		ACL packet but does not release it, so a completed GATT session leaves
 		the single connection slot permanently occupied.
 
-		This board-owned link wrapper keeps NuttX unmodified.  The N13 verifier
+		This chip-owned link wrapper keeps NuttX unmodified.  The N13 verifier
 		checks the exact upstream ownership pattern and fails closed if the
 		NuttX implementation changes, preventing a future double release.
 
@@ -1057,7 +1014,7 @@ config BK7258_BT_ATT_MTU_COMPAT
 		limit to that limit before passing it to the unmodified host stack.
 		This preserves the normal server-side minimum negotiation while working
 		around the stock host rejecting newer peers that advertise a larger
-		receive capability.  The wrapper is board-owned and exposes a hit count
+		receive capability.  The wrapper is chip-owned and exposes a hit count
 		through bkbttest stats.
 
 config BK7258_BLE_GATT
@@ -1069,7 +1026,7 @@ config BK7258_BLE_GATT
 		Replace the stock startup-only GAP database with one static combined
 		GAP plus N13 service table, advertise the N13 UUID/name, and run all
 		lifecycle and notification work in a logical-CPU0 kernel thread.  This
-		is a board wrapper over the unmodified NuttX Host; the Beken SDK remains
+		is a chip adapter over the unmodified NuttX Host; the Beken SDK remains
 		Controller-only.
 
 config BK7258_BLE_GATT_PRIORITY
@@ -1101,7 +1058,7 @@ config BK7258_PSRAM
 	depends on ARCH_CHIP_BK7258
 	---help---
 		Initialize PSRAM only from CP through the official Beken bk_psram_init
-		API, then expose disjoint board-owned NuttX MM heaps to the SDK
+		API, then expose disjoint role-local NuttX MM heaps to the SDK
 		psram_* ABI.  The heap ranges exactly preserve the v3.1.1.9 default
 		8 MiB ram_regions.csv contract: CP 0x60700000+0x20000 and AP
 		0x60720000+0xa0000.  Matching the official v3.1.1.9 MPU table,
@@ -1225,7 +1182,7 @@ config BK7258_DVFS
 		set_freq() with no
 		governor/HPWORK dependency.  Boot-time bring-up under
 		BK7258_CLOCK_240M and BK7258_PM_POLICY select this.  The latter uses
-		the stock NuttX PM lifecycle plus a board-owned frequency-QoS policy;
+		the stock NuttX PM lifecycle plus a chip-owned frequency-QoS policy;
 		runtime switching via /proc/dvfs remains available for diagnostics.
 
 config BK7258_DVFS_PROCFS
@@ -1265,7 +1222,9 @@ config BK7258_WDT_PRETIMEOUT_PANIC
 		prints panic context and routes the reset through the AON
 		watchdog so the recorded reset reason stays in the WDT family.
 		A hard irq-disabled spin still resets through plain hardware and
-		reports SYS_RWDT without the console dump.
+		reports SYS_RWDT without the console dump.  The chip owns the marker
+		format and lifecycle; the board must bind a dedicated generated
+		reset_marker partition through the immutable storage binding.
 
 config BK7258_WDT_PRETIMEOUT_MARGIN_MS
 	int "Pre-timeout margin before the hardware expiry (milliseconds)"
@@ -1324,7 +1283,6 @@ config BK7258_GPIO_FOUNDATION_TEST
 	bool
 	default n
 	depends on ARCH_CHIP_BK7258 && SYSTEM_NSH && !BK7258_AP_CORE
-	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
 	---help---
 		Internal implementation gate selected by BK7258_APP_GPIO_TEST.
 
@@ -1332,7 +1290,6 @@ config BK7258_GPIO_IRQ_TEST
 	bool
 	default n
 	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
-	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
 	---help---
 		Internal implementation gate selected by BK7258_APP_GPIO_IRQ_TEST.
 
@@ -1340,7 +1297,6 @@ config BK7258_GPIO_LOWERHALF
 	bool "BK7258 selected-board NuttX GPIO lower-half"
 	default n
 	depends on BK7258_SDK_IRQ_BRIDGE
-	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
 	select DEV_GPIO
 	---help---
 		Register the selected board's LED as /dev/gpio0 and its user key as
@@ -1370,7 +1326,7 @@ config BK7258_SDK_IPC_RUNTIME
 	help
 		Initialize only the v3.1.1.9 system-register AMP lock and mailbox
 		layers needed by SDK-backed AP peripheral wrappers.  This is a
-		board-owned wrapper and does not call the SDK's full driver_init().
+		chip-owned wrapper and does not call the SDK's full driver_init().
 		Enable it in the matching CP image whenever an AP peripheral selects
 		this option.
 
@@ -1385,54 +1341,15 @@ config BK7258_TOUCH
 	select SCHED_LPWORK
 	help
 		Expose one CP-owned internal capacitive-touch channel through the
-		standard NuttX buttons upper/lower-half interface at /dev/buttons.
+		standard NuttX buttons upper/lower-half interface.  The physical board
+		binding supplies the channel, tuning and device path; boards without a
+		verified sensor electrode cannot enable this option.
 		The immutable v3.1.1.9 BK7258 driver does not implement its advertised
 		multi-channel scan helpers, so this integration intentionally supports
 		exactly one selected channel.  It polls through LPWORK with the SDK
 		touch IRQ disabled, avoiding the SDK ISR's hidden TIMER_ID1 ownership.
 		Touch channels remap GPIO pins; the paired AP profile must not use the
 		same pin for LCD, I2S, SPI, CAN, Ethernet or another peripheral.
-
-config BK7258_TOUCH_CHANNEL
-	int "Touch channel"
-	default 3
-	range 0 15
-	depends on BK7258_TOUCH
-	help
-		Select one physical BK7258 touch channel.  Channel 3 maps to GPIO29;
-		only use it when the selected board's resource contract assigns that
-		pin to touch.  Do not combine it with BK7258_GPIO_LOWERHALF.
-
-config BK7258_TOUCH_POLL_INTERVAL_MS
-	int "Touch polling interval (ms)"
-	default 10
-	range 1 1000
-	depends on BK7258_TOUCH
-
-config BK7258_TOUCH_SENSITIVITY
-	int "Touch sensitivity level"
-	default 1
-	range 0 3
-	depends on BK7258_TOUCH
-
-config BK7258_TOUCH_THRESHOLD
-	int "Touch detection threshold"
-	default 6
-	range 0 7
-	depends on BK7258_TOUCH
-
-config BK7258_TOUCH_RANGE
-	int "Touch capacitance range"
-	default 0
-	range 0 3
-	depends on BK7258_TOUCH
-	help
-		SDK values 0..3 select 8 pF, 12 pF, 19 pF and 27 pF respectively.
-
-config BK7258_TOUCH_CALIBRATE
-	bool "Calibrate selected touch channel during bring-up"
-	default y
-	depends on BK7258_TOUCH
 
 menu "BK7258 AP peripheral wrappers"
 	depends on BK7258_AP_CORE
@@ -1441,7 +1358,6 @@ config BK7258_AUD
 	bool "On-board analog speaker playback"
 	default n
 	depends on BK7258_PM_CLOCK
-	depends on BK7258_BOARD_HAS_AUDIO_BINDING
 	select ARCH_PERF_EVENTS
 	select BK7258_SDK_IPC_RUNTIME
 	select AUDIO
@@ -1532,7 +1448,6 @@ config BK7258_AUD_WORKER_PRIORITY
 config BK7258_MIC
 	bool "On-board analog microphone capture"
 	default n
-	depends on BK7258_BOARD_HAS_MIC_BINDING
 	select BK7258_SDK_IPC_RUNTIME
 	select AUDIO
 	select AUDIO_DRIVER_SPECIFIC_BUFFERS
@@ -1637,15 +1552,14 @@ config BK7258_I2C_BUS
 config BK7258_I2S
 	bool "I2S lower half"
 	default n
+	depends on BK7258_AP_CORE
 	select BK7258_SDK_IPC_RUNTIME
 	select AUDIO
 	select I2S
-
-config BK7258_I2S_GPIO_GROUP
-	int "I2S GPIO group"
-	default 0
-	range 0 2
-	depends on BK7258_I2S
+	help
+		Expose the AP-owned I2S controller only when the selected physical
+		board provides a verified GPIO-group binding.  The board passes that
+		immutable binding to the chip lower half during AP bring-up.
 
 config BK7258_I2S_WORKER_PRIORITY
 	int "I2S worker priority"
@@ -1938,7 +1852,7 @@ config BK7258_YUV_H264
 config BK7258_USBHOST
 	bool "BK7258 native USB host controller"
 	default n
-	depends on BK7258_AP_CORE && BK7258_BOARD_HAS_NATIVE_USB_HOST
+	depends on BK7258_AP_CORE
 	select SCHED_HPWORK
 	select USBHOST
 	select USBHOST_HAVE_ASYNCH
@@ -1947,8 +1861,8 @@ config BK7258_USBHOST
 		Expose the BK7258 MUSB controller through NuttX's standard USB host
 		controller interface.  NuttX owns enumeration and class drivers; the
 		immutable v3.1.1.9 SDK supplies only power/PHY setup and the low-level
-		HCD pipe/URB implementation.  The option is visible only when the
-		selected board advertises a powered native-host connector.
+		HCD pipe/URB implementation.  A physical board may enable this mechanism
+		only after providing and validating its VBUS/connector power policy.
 
 config BK7258_USBHOST_CH34X
 	bool "CH340/CH341 USB host serial class"
@@ -1961,7 +1875,7 @@ config BK7258_USBHOST_CH34X
 	select SERIAL_TERMIOS
 	select USBHOST_ASYNCH
 	help
-		Register a board-owned NuttX USB host class for Winchiphead
+		Register a chip-owned NuttX USB host class for Winchiphead
 		VID 0x1a86/PID 0x7523 and publish the connected converter as
 		/dev/ttyUSB0.  The first implementation is deliberately limited to
 		115200 8N1 with no flow control.
@@ -2058,16 +1972,17 @@ config BK7258_SARADC_VALIDATION
 config BK7258_SDIO
 	bool
 	default n
-	depends on BK7258_PM_CLOCK && BK7258_BOARD_HAS_SDIO_BINDING
+	depends on BK7258_PM_CLOCK
 	select BK7258_SDK_IPC_RUNTIME
 	select ARCH_HAVE_SDIO
 	select SCHED_HPWORK
 	help
 		Expose the BK7258 SDK blocking SDIO host controller as a NuttX
 		sdio_dev_s lower half.  Physical pin mux, slot presence policy and
-		bus-width prerequisites belong to the selected board binding, which
-		selects this hidden controller capability.  HPWORK remains required by
-		NuttX's unconditional SDIO callback-registration ABI.
+		bus-width prerequisites belong to the selected board binding.  Board
+		Kconfig selects this hidden chip mechanism only for a concrete slot or
+		soldered device.  HPWORK remains required by NuttX's unconditional SDIO
+		callback-registration ABI.
 
 config BK7258_SDMADC
 	bool "Sigma-delta ADC lower half"
@@ -2091,8 +2006,14 @@ config BK7258_SDMADC_BUS
 config BK7258_SPI
 	bool "SPI master lower half"
 	default n
+	depends on BK7258_AP_CORE
 	select BK7258_SDK_IPC_RUNTIME
 	select SPI
+	help
+		Expose the BK7258 SPI master controller mechanism.  A physical board that
+		enables it must provide the standard NuttX bus-specific select/status
+		hooks and chip-select GPIO initialization.  The chip lower half owns
+		controller mechanics; the board owns attached-device selection/status.
 
 config BK7258_SPI_BUS
 	int "SPI controller"
@@ -2192,7 +2113,7 @@ config BK7258_LCD_SPI
 		paths; this lower half owns the RGB565 framebuffer, dirty-area
 		tracking and device registration.  A selected board supplies the SDK
 		panel descriptor, controller index and RESET/DC pins through
-		bk7258_board_lcd_spi_config().
+		bk7258_lcd_spi_initialize().
 
 		The first implementation supports one RGB565 SPI panel.  It is
 		mutually exclusive with the RGB controller wrapper because both
@@ -2220,22 +2141,9 @@ config BK7258_ETH
 		Register the BK7258 Ethernet MAC as the native NuttX netdev eth0.
 		The v3.1.1.9 AP SDK exports the STM32H7-compatible HAL_ETH driver
 		and the LAN8742 PHY (CONFIG_ETH=y); this wrapper adds the netdev
-		layer, the board GPIO mux (RMII pin group) and the INT_SRC_ETH
-		receive path.  Select the PHY pin group below; GROUP0 conflicts
-		with DVP, GROUP1 conflicts with LCD.
-
-choice
-	prompt "Ethernet RMII pin group"
-	depends on BK7258_ETH
-	default BK7258_ETH_PIN_GROUP0
-
-config BK7258_ETH_PIN_GROUP0
-	bool "Pin group 0 (27, 29-39)"
-
-config BK7258_ETH_PIN_GROUP1
-	bool "Pin group 1 (46-55)"
-
-endchoice # Ethernet RMII pin group
+		layer and the INT_SRC_ETH receive path.  The selected physical board
+		supplies its RMII pin group and station MAC through the driver-specific
+		initialization contract; chip Kconfig does not choose PCB wiring.
 
 config BK7258_DMA
 	bool "General-purpose DMA character device"

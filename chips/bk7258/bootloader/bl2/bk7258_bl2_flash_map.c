@@ -5,8 +5,8 @@
 #include "flash_map_backend/flash_map_backend.h"
 #include <bootutil/bootutil_public.h>
 #include "bk7258_bl2_abi.h"
-#include "../boot_flash.h"
-#include "../boot_wdt.h"
+#include "boot_flash.h"
+#include "boot_wdt.h"
 
 #define FLASH_CP_PRIMARY 0
 #define FLASH_CP_SECONDARY 1

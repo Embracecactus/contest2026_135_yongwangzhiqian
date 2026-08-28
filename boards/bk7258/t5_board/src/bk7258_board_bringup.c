@@ -30,7 +30,6 @@
 #endif
 
 #include <arch/board/board.h>
-#include <arch/chip/bk7258_board_binding.h>
 #include <arch/chip/bk7258_gpio.h>
 
 /* Physical-device entry points are private to the selected T5-Board
@@ -46,6 +45,10 @@ int bk7258_board_gt1151_initialize(void);
 int bk7258_t5_board_camera_initialize(void);
 #endif
 
+#ifdef CONFIG_BK7258_LCD
+int bk7258_t5_board_lcd_initialize(void);
+#endif
+
 #ifdef CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
 int bk7258_t5_board_rgb_lcd_backlight_validation_initialize(void);
 #endif
@@ -54,37 +57,16 @@ int bk7258_t5_board_rgb_lcd_backlight_validation_initialize(void);
 int bk7258_t5_board_tf_validation_initialize(void);
 #endif
 
-static int bk7258_t5_board_mic_initialize(void)
-{
-  /* The two analog microphone routes are fixed on the T5-Board schematic;
-   * no runtime pin mux is required for capture.
-   */
-
-  return OK;
-}
-
+#ifdef CONFIG_BK7258_AP_CORE
 static const struct bk7258_mic_config_s g_bk7258_t5_board_mic_config =
 {
-  .version = BK7258_BINDING_VERSION,
-  .size = sizeof(struct bk7258_mic_config_s),
   .channels = 2,
-  .flags = BK7258_MIC_BINDING_MIC1 | BK7258_MIC_BINDING_MIC2,
+  .flags = BK7258_MIC_INPUT_MIC1 | BK7258_MIC_INPUT_MIC2,
   .variant_name = "T5-Board",
 };
 
-static const struct bk7258_mic_binding_s g_bk7258_t5_board_mic_binding =
-{
-  .version = BK7258_BINDING_VERSION,
-  .size = sizeof(struct bk7258_mic_binding_s),
-  .config = &g_bk7258_t5_board_mic_config,
-  .initialize = bk7258_t5_board_mic_initialize,
-};
-
 #ifdef CONFIG_BK7258_T5_BOARD_TF_SLOT
-/* The SDIO physical binding remains implemented in the dedicated source;
- * these declarations keep the aggregate descriptor independent from its
- * legacy helper names while the generic host consumes only typed callbacks.
- */
+/* The dedicated board source owns the slot pins and card-presence policy. */
 
 extern int bk7258_board_sdio_initialize(bool widebus);
 extern bool bk7258_board_sdio_card_present(void);
@@ -92,47 +74,15 @@ extern bool bk7258_board_sdio_card_present(void);
 extern int bk7258_t5_board_tf_mount_initialize(void);
 #endif
 
-static const struct bk7258_sdio_config_s g_bk7258_t5_board_sdio_config =
+static const struct bk7258_sdio_board_s g_bk7258_t5_board_sdio =
 {
-  .version = BK7258_BINDING_VERSION,
-  .size = sizeof(struct bk7258_sdio_config_s),
   .card_detect_available = false,
   .media_poll_ms = 0,
-};
-
-static const struct bk7258_sdio_binding_s g_bk7258_t5_board_sdio_binding =
-{
-  .version = BK7258_BINDING_VERSION,
-  .size = sizeof(struct bk7258_sdio_binding_s),
-  .config = &g_bk7258_t5_board_sdio_config,
   .initialize = bk7258_board_sdio_initialize,
   .card_present = bk7258_board_sdio_card_present,
 };
 #endif
-
-static const struct bk7258_board_binding_s g_bk7258_t5_board_binding =
-{
-  .version = BK7258_BINDING_VERSION,
-  .size = sizeof(struct bk7258_board_binding_s),
-  .mic = &g_bk7258_t5_board_mic_binding,
-#ifdef CONFIG_BK7258_T5_BOARD_TF_SLOT
-  .sdio = &g_bk7258_t5_board_sdio_binding,
-#else
-  .sdio = NULL,
-#endif
-#ifdef CONFIG_BK7258_AUD
-  .audio = &g_bk7258_board_audio_binding,
-#else
-  .audio = NULL,
-#endif
-  .early_initialize = bk7258_board_early_initialize,
-  .devices_initialize = bk7258_board_devices_initialize,
-};
-
-const struct bk7258_board_binding_s *bk7258_board_get_binding(void)
-{
-  return &g_bk7258_t5_board_binding;
-}
+#endif /* CONFIG_BK7258_AP_CORE */
 #ifdef CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION
 #  include <arch/chip/bk7258_aud.h>
 #endif
@@ -177,10 +127,8 @@ g_bk7258_t5_board_adc_key_validation =
  * Private Data
  ****************************************************************************/
 
-static const struct bk7258_gpio_config_s g_bk7258_t5_board_gpio_config =
+const struct bk7258_gpio_config_s g_bk7258_board_gpio_config =
 {
-  .version                 = BK7258_GPIO_BINDING_VERSION,
-  .size                    = sizeof(struct bk7258_gpio_config_s),
   .name                    = BK7258_BOARD_VARIANT_NAME,
   .user_led_gpio           = BK7258_BOARD_USER_LED_GPIO,
   .user_led_active_high    = BK7258_BOARD_USER_LED_ACTIVE_HIGH,
@@ -227,6 +175,10 @@ static int bk7258_t5_board_lvgl_loop(int argc, FAR char *argv[])
 
   lv_init();
   lv_nuttx_dsc_init(&descriptor);
+#if defined(CONFIG_BK7258_GT1151) && \
+    defined(CONFIG_LV_USE_NUTTX_TOUCHSCREEN)
+  descriptor.input_path = BK7258_BOARD_TOUCH_LVGL_DEVPATH;
+#endif
 #ifdef CONFIG_BK7258_LVGL_FB_ACCEL
   display = bk7258_lvgl_fb_create("/dev/fb0");
   if (display != NULL)
@@ -284,7 +236,7 @@ static int bk7258_t5_board_lvgl_loop(int argc, FAR char *argv[])
   return 0;
 }
 
-int bk7258_board_lvgl_initialize(void)
+int bk7258_board_ui_initialize(void)
 {
   pid_t pid;
 
@@ -307,7 +259,7 @@ int bk7258_board_lvgl_initialize(void)
   return OK;
 }
 
-int bk7258_board_lvgl_wait_ready(void)
+int bk7258_board_ui_wait_ready(void)
 {
   int ret;
 
@@ -330,12 +282,8 @@ int bk7258_board_lvgl_wait_ready(void)
 
 #endif
 
-FAR const struct bk7258_gpio_config_s *bk7258_board_gpio_config(void)
-{
-  return &g_bk7258_t5_board_gpio_config;
-}
-
-int bk7258_board_early_initialize(void)
+#ifdef CONFIG_BK7258_AP_CORE
+static int bk7258_t5_board_pre_devices_initialize(void)
 {
 #ifdef CONFIG_BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
   return bk7258_t5_board_rgb_lcd_backlight_validation_initialize();
@@ -344,7 +292,7 @@ int bk7258_board_early_initialize(void)
 #endif
 }
 
-int bk7258_board_devices_initialize(void)
+static int bk7258_t5_board_attached_devices_initialize(void)
 {
   int ret = OK;
 
@@ -358,7 +306,7 @@ int bk7258_board_devices_initialize(void)
 #endif
 
 #ifdef CONFIG_BK7258_LCD
-  ret = bk7258_lcd_initialize();
+  ret = bk7258_t5_board_lcd_initialize();
   if (ret < 0)
     {
       lcderr("ERROR: LCD framebuffer registration failed: %d\n", ret);
@@ -414,3 +362,46 @@ int bk7258_board_devices_initialize(void)
   (void)ret;
   return OK;
 }
+
+int bk7258_board_ap_initialize(void)
+{
+  FAR const struct bk7258_aud_board_s *audio = NULL;
+  FAR const struct bk7258_sdio_board_s *sdio = NULL;
+  int ret;
+
+#ifdef CONFIG_BK7258_AUD
+  audio = &g_bk7258_board_audio;
+#endif
+
+#ifdef CONFIG_BK7258_T5_BOARD_TF_SLOT
+  sdio = &g_bk7258_t5_board_sdio;
+#endif
+
+  ret = bk7258_board_ap_controllers_initialize(
+          &g_bk7258_t5_board_mic_config, audio);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_t5_board_pre_devices_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_board_ap_buses_initialize(NULL, sdio);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_t5_board_attached_devices_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return bk7258_board_ap_finalize_initialize();
+}
+#endif

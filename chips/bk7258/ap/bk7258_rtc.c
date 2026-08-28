@@ -44,7 +44,7 @@
 #include <nuttx/spinlock.h>
 
 #include <arch/chip/bk7258_rtc.h>
-#include <arch/chip/bk7258_sdk_abi.h>
+#include "bk7258_sdk_abi.h"
 
 /****************************************************************************
  * Pre-processor Definitions

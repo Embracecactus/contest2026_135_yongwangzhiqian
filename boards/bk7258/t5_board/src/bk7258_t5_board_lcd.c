@@ -200,9 +200,9 @@ static const struct bk7258_lcd_board_s g_t5_board_lcd =
   .set_backlight           = t5_board_lcd_set_backlight,
 };
 
-const struct bk7258_lcd_board_s *bk7258_board_lcd_config(void)
+int bk7258_t5_board_lcd_initialize(void)
 {
-  return &g_t5_board_lcd;
+  return bk7258_lcd_initialize(&g_t5_board_lcd);
 }
 
 #endif /* CONFIG_BK7258_LCD */

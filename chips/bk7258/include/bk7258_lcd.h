@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/bk7258_lcd.h
+ * chips/bk7258/include/bk7258_lcd.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -17,6 +17,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Public Types
@@ -88,14 +93,14 @@ struct bk7258_lcd_board_s
 
 #if defined(CONFIG_BK7258_LCD) && defined(CONFIG_BK7258_AP_CORE)
 
-/* Implemented by the selected physical board. */
-
-const struct bk7258_lcd_board_s *bk7258_board_lcd_config(void);
-
 /* Register the selected RGB panel as the standard NuttX /dev/fb0 device. */
 
-int bk7258_lcd_initialize(void);
+int bk7258_lcd_initialize(const struct bk7258_lcd_board_s *board);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_LCD_H */

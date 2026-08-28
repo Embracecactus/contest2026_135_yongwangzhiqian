@@ -1,13 +1,13 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_lvgl_fb.h
+ * chips/bk7258/include/bk7258_lvgl_fb.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * BK7258 accelerated LVGL framebuffer display.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_LVGL_FB_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_LVGL_FB_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_LVGL_FB_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_LVGL_FB_H
 
 #include <nuttx/compiler.h>
 
@@ -36,4 +36,4 @@ int bk7258_lvgl_fb_bind_touch(FAR lv_display_t *display,
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_LVGL_FB_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_LVGL_FB_H */

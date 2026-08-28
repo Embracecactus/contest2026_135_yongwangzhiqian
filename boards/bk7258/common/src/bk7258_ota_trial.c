@@ -27,6 +27,7 @@
 
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_ota.h>
+#include <arch/board/board.h>
 
 #define BK7258_OTA_TRIAL_NAME "bk7258-ota-trial"
 
@@ -261,7 +262,9 @@ static int bk7258_ota_trial_worker(int argc, char *argv[])
 
       if (confirm)
         {
-          ret = bk7258_ota_confirm_pair_health(&priv->expected, &token);
+          ret = bk7258_ota_confirm_pair_health(
+                  &priv->expected, &token,
+                  CONFIG_BK7258_OTA_TRIAL_HEALTH_MAX_AGE_MS);
           if (ret == 0 || ret == -EALREADY)
             {
               if (nxmutex_lock(&priv->lock) >= 0)

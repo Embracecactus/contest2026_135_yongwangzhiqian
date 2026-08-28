@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_ota_catalog.h
+ * chips/bk7258/include/bk7258_ota_catalog.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
@@ -14,6 +13,11 @@
 #include <stdint.h>
 
 #include <arch/chip/bk7258_ota.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 #define BK7258_OTA_CATALOG_MAX_SIZE       2048u
 #define BK7258_OTA_CATALOG_MAX_SIGNATURE  80u
@@ -37,4 +41,8 @@ int bk7258_ota_catalog_verify(const uint8_t *catalog, size_t catalog_size,
                               struct bk7258_ota_catalog_s *result);
 #endif
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_OTA_CATALOG_H */

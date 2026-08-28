@@ -390,7 +390,8 @@ static int bk7258_gpioirq_run_edge(gpio_int_type_t type,
  * Public Functions
  ****************************************************************************/
 
-int bk7258_gpio_irq_test(void)
+int bk7258_gpio_irq_test(
+  FAR const struct bk7258_gpio_config_s *config)
 {
   int_group_isr_t gpio_handler = NULL;
   uint32_t saved_key = 0;
@@ -410,16 +411,14 @@ int bk7258_gpio_irq_test(void)
       return -EBUSY;
     }
 
-  g_bk7258_gpioirq_config = bk7258_board_gpio_config();
+  g_bk7258_gpioirq_config = config;
   if (g_bk7258_gpioirq_config == NULL ||
-      g_bk7258_gpioirq_config->version != BK7258_GPIO_BINDING_VERSION ||
-      g_bk7258_gpioirq_config->size < sizeof(*g_bk7258_gpioirq_config) ||
       g_bk7258_gpioirq_config->name == NULL ||
       g_bk7258_gpioirq_config->user_button_gpio >= GPIO_NUM ||
       BK7258_GPIOIRQ_RESERVED(
         g_bk7258_gpioirq_config->user_button_gpio))
     {
-      printf("bkgpioirq: FAIL no valid GPIO board binding\n");
+      printf("bkgpioirq: FAIL no valid GPIO board configuration\n");
       bk7258_gpioirq_release();
       return -ENODEV;
     }

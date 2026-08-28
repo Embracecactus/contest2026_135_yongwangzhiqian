@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_dma2d.h
+ * chips/bk7258/include/bk7258_dma2d.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -10,8 +10,8 @@
  * operations; hardware scale/rotate are deliberately outside this helper.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_DMA2D_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_DMA2D_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_DMA2D_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_DMA2D_H
 
 #include <nuttx/compiler.h>
 
@@ -174,4 +174,4 @@ int bk7258_dma2d_blend(FAR struct bk7258_dma2d_s *priv,
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_DMA2D_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_DMA2D_H */

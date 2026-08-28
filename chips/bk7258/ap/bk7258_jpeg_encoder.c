@@ -29,7 +29,7 @@
 #include <driver/jpeg_enc.h>
 #include <driver/yuv_buf.h>
 
-#include "../include/bk7258_jpeg_encoder.h"
+#include <arch/chip/bk7258_jpeg_encoder.h>
 #include "bk7258_media_root.h"
 
 #define BK7258_JPEG_ENCODER_FLEXA_LINES       8u

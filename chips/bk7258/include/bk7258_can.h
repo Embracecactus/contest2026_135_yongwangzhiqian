@@ -1,13 +1,16 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_can.h
+ * chips/bk7258/include/bk7258_can.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_INCLUDE_BK7258_CAN_H
-#define __BOARD_BK7258_CHIP_INCLUDE_BK7258_CAN_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_CAN_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_CAN_H
 
 #include <nuttx/can/can.h>
+#include <nuttx/compiler.h>
+
+struct can_dev_s;
 
 #ifdef __cplusplus
 extern "C"
@@ -39,4 +42,4 @@ int bk7258_can_uninitialize(FAR struct can_dev_s *dev);
 }
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_INCLUDE_BK7258_CAN_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_CAN_H */

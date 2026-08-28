@@ -208,8 +208,7 @@ static bool bk7258_gpio_led_available(
 static int bk7258_gpio_validate_config(
   FAR const struct bk7258_gpio_config_s *config)
 {
-  if (config == NULL || config->version != BK7258_GPIO_BINDING_VERSION ||
-      config->size < sizeof(*config) || config->name == NULL)
+  if (config == NULL || config->name == NULL)
     {
       return -ENODEV;
     }
@@ -797,9 +796,9 @@ static int bk7258_gpio_key_setmask(FAR struct gpio_dev_s *dev, bool enable)
  *
  ****************************************************************************/
 
-int bk7258_gpio_lowerhalf_initialize(void)
+int bk7258_gpio_lowerhalf_initialize(
+  FAR const struct bk7258_gpio_config_s *config)
 {
-  FAR const struct bk7258_gpio_config_s *config;
   uint32_t saved_led = 0;
   uint32_t saved_key;
   bool led_configured = false;
@@ -820,7 +819,6 @@ int bk7258_gpio_lowerhalf_initialize(void)
       return OK;
     }
 
-  config = bk7258_board_gpio_config();
   result = bk7258_gpio_validate_config(config);
   if (result < 0)
     {

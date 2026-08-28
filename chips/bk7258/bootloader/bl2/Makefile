@@ -56,12 +56,14 @@ $(error missing pinned upstream MCUboot sources)
 endif
 
 CPUFLAGS := -mcpu=cortex-m33 -mthumb -mfloat-abi=soft
-CPPFLAGS := -I$(SOURCE) -I$(SOURCE)/include -I$(SOURCE)/../../include \
+CPPFLAGS := -I$(SOURCE) -I$(SOURCE)/include -I$(SOURCE)/.. \
+            -I$(SOURCE)/../../include \
             -I$(dir $(PARTITION_HEADER)) -I$(BOOTUTIL)/include \
             -I$(BOOTUTIL)/src -I$(TINYCRYPT)/include -I$(ASN1)/include \
             -include $(CONFIG_HEADER)
 CFLAGS := $(CPUFLAGS) -Os -g -ffreestanding -fno-builtin \
           -fdata-sections -ffunction-sections -Wall -Wextra $(CPPFLAGS)
+BK7258_CFLAGS := $(CFLAGS) -Werror
 ASFLAGS := $(CPUFLAGS) -Os -g -ffreestanding $(CPPFLAGS)
 LDFLAGS := $(CPUFLAGS) -nostdlib -Wl,--gc-sections -Wl,--build-id=none \
            -T $(OUT)/bl2.ld -Wl,-Map=$(OUT)/bl2.map
@@ -107,7 +109,7 @@ $(OUT)/bl2_start.o: $(SOURCE)/bl2_start.S $(PARTITION_HEADER) \
 
 $(OUT)/bk7258_bl2_%.o: $(SOURCE)/bk7258_bl2_%.c $(PARTITION_HEADER) \
                         $(CONFIG_HEADER) | $(OUT)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(BK7258_CFLAGS) -c $< -o $@
 
 $(OUT)/loader.o $(OUT)/swap_scratch.o $(OUT)/image_validate.o \
 $(OUT)/tlv.o $(OUT)/bootutil_misc.o $(OUT)/bootutil_public.o \
@@ -125,10 +127,10 @@ $(OUT)/asn1parse.o $(OUT)/platform_util.o: $(OUT)/%.o: \
 
 $(OUT)/boot_libc.o $(OUT)/boot_flash.o $(OUT)/boot_runtime.o: $(OUT)/%.o: \
     $(SOURCE)/../%.c $(CONFIG_HEADER) | $(OUT)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(BK7258_CFLAGS) -c $< -o $@
 
 $(OUT)/bk7258_bl2_keys.o: $(KEY_SOURCE) $(CONFIG_HEADER) | $(OUT)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(BK7258_CFLAGS) -c $< -o $@
 
 $(OUT)/bl2.elf: $(OBJECTS) $(OUT)/bl2.ld
 	$(CC) $(LDFLAGS) $(OBJECTS) -o $@

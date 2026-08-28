@@ -8,29 +8,18 @@ config ARCH_BOARD_BK7258
 	default y
 	select BOARD_LATE_INITIALIZE
 	---help---
-		Shared BK7258 CP/AP, boot-chain and peripheral integration. Select
-		the physical carrier below so
-		board-level GPIOs and capabilities match the assembled hardware.
+		Board-level bindings for the shared BK7258 chip implementation.  The
+		late hook runs the board-owned stage order and passes immutable product
+		storage topology into chip mechanisms.  Select the physical carrier
+		below so GPIOs and capabilities match the assembled hardware.
 
-# Hidden physical capabilities consumed by chip-generic controller options.
-# A board selector owns these facts; chip Kconfig must not name a PCB.
-
-config BK7258_BOARD_HAS_AUDIO_BINDING
-	bool
-
-config BK7258_BOARD_HAS_MIC_BINDING
-	bool
+# Hidden physical capabilities used only by board/application policy.  Chip
+# Kconfig exposes SoC mechanisms without depending on board-layer symbols.
 
 config BK7258_BOARD_HAS_USER_GPIO_BINDING
 	bool
 
 config BK7258_BOARD_HAS_SDIO_BINDING
-	bool
-
-config BK7258_BOARD_HAS_SWD_ROUTE
-	bool
-
-config BK7258_BOARD_HAS_NATIVE_USB_HOST
 	bool
 
 choice
@@ -40,8 +29,6 @@ choice
 
 config BK7258_BOARD_T5AI_CORE
 	bool "T5AI-Core V1.0.1"
-	select BK7258_BOARD_HAS_AUDIO_BINDING
-	select BK7258_BOARD_HAS_MIC_BINDING
 	select BK7258_BOARD_HAS_USER_GPIO_BINDING
 	help
 		Compact T5-E1 core board with battery management, dual USB-UART,
@@ -50,12 +37,8 @@ config BK7258_BOARD_T5AI_CORE
 
 config BK7258_BOARD_T5_BOARD
 	bool "T5-Board V1.0.2"
-	select BK7258_BOARD_HAS_AUDIO_BINDING
-	select BK7258_BOARD_HAS_MIC_BINDING
 	select BK7258_BOARD_HAS_SDIO_BINDING
 	select BK7258_BOARD_HAS_USER_GPIO_BINDING
-	select BK7258_BOARD_HAS_SWD_ROUTE
-	select BK7258_BOARD_HAS_NATIVE_USB_HOST
 	help
 		Full T5-E1-IPEX development board with TF card, RGB LCD and DVP
 		camera connectors, P1 user LED and P12 ADC key.  Selecting this
@@ -63,8 +46,6 @@ config BK7258_BOARD_T5_BOARD
 
 config BK7258_BOARD_AIDK_AI_TOY
 	bool "AIDK AI Toy"
-	select BK7258_BOARD_HAS_AUDIO_BINDING
-	select BK7258_BOARD_HAS_MIC_BINDING
 	select BK7258_BOARD_HAS_SDIO_BINDING
 	select BK7258_BOARD_HAS_USER_GPIO_BINDING
 	help
@@ -74,6 +55,62 @@ config BK7258_BOARD_AIDK_AI_TOY
 		MFRC522 NFC and Type-C USB.  Hardware verification still pending.
 
 endchoice
+
+config BK7258_SWD_DEBUG
+	bool "Enable the T5-Board J-Link SWD route"
+	default n
+	depends on !BK7258_AP_CORE && BK7258_BOARD_T5_BOARD
+	---help---
+		Keep one verified T5-Board SWD route active from BL1 through BL2,
+		CP startup and later restore boundaries.  This controls physical board
+		wiring; the chip implementation only applies the selected route.  RTT
+		and UART console selection remain independent.
+
+# Physical route choices are board policy even though chip drivers perform
+# the corresponding SoC mux operation.  Only verified board capabilities may
+# make these choices visible.
+
+if BK7258_SWD_DEBUG
+
+choice
+	prompt "Board SWD pin route"
+	default BK7258_SWD_PINS_P0_P1
+
+config BK7258_SWD_PINS_P20_P21
+	bool "SDK group 0: P20/P21"
+	help
+		Use P20 as SWCLK and P21 as SWDIO.  These pins also carry alternate
+		I2C and display signals, so the selected CP/AP profile pair must
+		reject conflicting owners.
+
+config BK7258_SWD_PINS_P0_P1
+	bool "SDK group 1: P0/P1"
+	help
+		Use P0 as SWCLK and P1 as SWDIO.  This route is mutually exclusive
+		with UART1 and any selected-board device on the same pins.
+
+endchoice
+
+endif
+
+if BK7258_UART2
+
+choice
+	prompt "Board UART2 pin route"
+	default BK7258_UART2_PINS_P30_P31
+
+config BK7258_UART2_PINS_P30_P31
+	bool "P31 TX / P30 RX"
+
+config BK7258_UART2_PINS_P40_P41
+	bool "P41 TX / P40 RX"
+	help
+		This alternate chip mux shares P40/P41 with display and I2S2
+		functions.  The paired CP/AP build validation checks ownership.
+
+endchoice
+
+endif
 
 if BK7258_BOARD_AIDK_AI_TOY
 
@@ -336,13 +373,14 @@ config BK7258_OTA
 	select CRYPTO
 	select BK7258_WDT
 	---help---
-		Expose the board-owned CP/AP pair updater.  It writes only the physical
-		inactive pair, completes AP before CP, and commits CP sector zero last.
-		The updater validates the selected layout, exact physical sizes and
+		Enable the chip-owned CP/AP pair update engine with the board-owned
+		layout and serialized storage binding.  The engine writes only the
+		physical inactive pair, completes AP before CP, and commits CP sector
+		zero last.  It validates the selected layout, exact physical sizes and
 		streamed SHA-256 digests supplied by an authenticated source manifest.
 		Runtime health confirmation updates both standard MCUboot image_ok
-		trailers.  The application owns transport and package download; CP owns
-		the optional generation-bound trial policy and on-chip Flash.
+		trailers.  The application owns transport and package download; the
+		board owns the optional generation-bound trial policy.
 
 if BK7258_OTA
 

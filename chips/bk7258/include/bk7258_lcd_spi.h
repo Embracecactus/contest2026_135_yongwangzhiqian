@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_lcd_spi.h
+ * chips/bk7258/include/bk7258_lcd_spi.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -16,6 +16,11 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Public Types
@@ -51,14 +56,15 @@ struct bk7258_lcd_spi_board_s
 
 #if defined(CONFIG_BK7258_LCD_SPI) && defined(CONFIG_BK7258_AP_CORE)
 
-/* Implemented by the selected physical board. */
-
-const struct bk7258_lcd_spi_board_s *bk7258_board_lcd_spi_config(void);
-
 /* Register the selected SPI panel as the standard NuttX /dev/fb0 device. */
 
-int bk7258_lcd_spi_initialize(void);
+int bk7258_lcd_spi_initialize(
+  const struct bk7258_lcd_spi_board_s *board);
 
 #endif /* CONFIG_BK7258_LCD_SPI && CONFIG_BK7258_AP_CORE */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_LCD_SPI_H */

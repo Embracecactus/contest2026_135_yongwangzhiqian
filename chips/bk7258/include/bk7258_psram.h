@@ -1,12 +1,11 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_psram.h
+ * chips/bk7258/include/bk7258_psram.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_INCLUDE_BK7258_BK7258_PSRAM_H
-#define __ARCH_ARM_INCLUDE_BK7258_BK7258_PSRAM_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_PSRAM_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_PSRAM_H
 
 /****************************************************************************
  * Included Files
@@ -160,4 +159,4 @@ int bk7258_psram_heap_test(uint32_t iterations, bool concurrent,
 }
 #endif
 
-#endif /* __ARCH_ARM_INCLUDE_BK7258_BK7258_PSRAM_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_PSRAM_H */

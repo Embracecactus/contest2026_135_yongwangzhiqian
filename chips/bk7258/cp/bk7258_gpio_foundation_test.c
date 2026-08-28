@@ -151,7 +151,8 @@ static void bk7258_gpioc0_record_key(bool level, bool *seen_high,
  * Public Functions
  ****************************************************************************/
 
-int bk7258_gpio_foundation_test(void)
+int bk7258_gpio_foundation_test(
+  FAR const struct bk7258_gpio_config_s *config)
 {
   uint32_t saved_led;
   uint32_t saved_key;
@@ -173,10 +174,8 @@ int bk7258_gpio_foundation_test(void)
       return -EBUSY;
     }
 
-  g_bk7258_gpioc0_config = bk7258_board_gpio_config();
+  g_bk7258_gpioc0_config = config;
   if (g_bk7258_gpioc0_config == NULL ||
-      g_bk7258_gpioc0_config->version != BK7258_GPIO_BINDING_VERSION ||
-      g_bk7258_gpioc0_config->size < sizeof(*g_bk7258_gpioc0_config) ||
       g_bk7258_gpioc0_config->name == NULL ||
       g_bk7258_gpioc0_config->user_led_gpio >= GPIO_NUM ||
       g_bk7258_gpioc0_config->user_button_gpio >= GPIO_NUM ||
@@ -185,7 +184,7 @@ int bk7258_gpio_foundation_test(void)
       BK7258_GPIOC0_RESERVED(g_bk7258_gpioc0_config->user_led_gpio) ||
       BK7258_GPIOC0_RESERVED(g_bk7258_gpioc0_config->user_button_gpio))
     {
-      printf("bkgpioc0: FAIL no valid GPIO board binding\n");
+      printf("bkgpioc0: FAIL no valid GPIO board configuration\n");
       bk7258_gpioc0_release();
       return -ENODEV;
     }

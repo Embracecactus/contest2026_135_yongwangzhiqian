@@ -124,15 +124,12 @@ BK7258_DECLARE_UART(2, UART_ID_2, CONFIG_BK7258_UART2_BAUD,
 #  define CONSOLE_DEV g_bk7258_uart2dev
 #endif
 
+#ifdef BK7258_HAVE_UART_CONSOLE
 static bool bk7258_uart_is_console(struct uart_dev_s *dev)
 {
-#ifdef BK7258_HAVE_UART_CONSOLE
   return dev == &CONSOLE_DEV;
-#else
-  (void)dev;
-  return false;
-#endif
 }
+#endif
 
 static uart_data_bits_t bk7258_uart_data_bits(uint8_t bits)
 {

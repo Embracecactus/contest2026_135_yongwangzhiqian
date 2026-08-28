@@ -24,8 +24,8 @@
 
 #include <lvgl/lvgl.h>
 
-#include "../include/bk7258_dma2d.h"
-#include "../include/bk7258_lvgl_fb.h"
+#include <arch/chip/bk7258_dma2d.h>
+#include <arch/chip/bk7258_lvgl_fb.h>
 
 #define BK7258_LVGL_FB_BYTES_PER_PIXEL 2u
 #define BK7258_LVGL_FB_TIMEOUT_MS      100u

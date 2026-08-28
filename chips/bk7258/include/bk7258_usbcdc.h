@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_usbcdc.h
+ * chips/bk7258/include/bk7258_usbcdc.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -14,6 +14,10 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Public Function Prototypes
@@ -30,5 +34,9 @@ int bk7258_usbcdc_initialize(void);
 int bk7258_usbcdc_uninitialize(void);
 
 #endif /* CONFIG_BK7258_USBCDC && CONFIG_BK7258_AP_CORE */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_USBCDC_H */

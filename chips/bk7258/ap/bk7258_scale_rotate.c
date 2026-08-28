@@ -26,7 +26,7 @@
 #include <nuttx/semaphore.h>
 #include <nuttx/spinlock.h>
 
-#include "../include/bk7258_scale_rotate.h"
+#include <arch/chip/bk7258_scale_rotate.h>
 
 #define BK7258_SCALE_ROTATE_DEFAULT_TIMEOUT_MS 1000
 #define BK7258_SCALE_ROTATE_MAX_DIM            1280

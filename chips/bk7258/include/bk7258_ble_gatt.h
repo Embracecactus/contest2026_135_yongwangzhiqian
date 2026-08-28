@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_ble_gatt.h
+ * chips/bk7258/include/bk7258_ble_gatt.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -21,6 +20,10 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -115,6 +118,10 @@ static_assert(sizeof(struct bk7258_ble_gatt_stats_s) == 76u,
 int bk7258_ble_gatt_initialize(void);
 void bk7258_ble_gatt_hci_event(const uint8_t *buffer, uint16_t length);
 int bk7258_ble_gatt_get_stats(struct bk7258_ble_gatt_stats_s *stats);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_BLE_GATT_H */

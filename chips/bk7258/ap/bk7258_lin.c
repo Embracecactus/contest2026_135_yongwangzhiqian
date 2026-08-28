@@ -27,7 +27,7 @@
 #include <nuttx/mutex.h>
 
 #include <arch/chip/bk7258_lin.h>
-#include <arch/chip/bk7258_sdk_abi.h>
+#include "bk7258_sdk_abi.h"
 
 #define BK7258_LIN_DEVPATH      "/dev/lin0"
 #define BK7258_LIN_MAX_FRAME    8
@@ -309,10 +309,9 @@ static int bk7258_lin_ioctl(FAR struct file *filep, int cmd,
   return -ENOTTY;
 }
 
-int bk7258_lin_initialize(void)
+int bk7258_lin_initialize(FAR const struct bk7258_lin_board_s *board)
 {
   FAR struct bk7258_lin_priv_s *priv = &g_bk7258_lin;
-  FAR const struct bk7258_lin_board_s *board;
   int ret;
 
   ret = nxmutex_lock(&priv->lock);
@@ -327,7 +326,6 @@ int bk7258_lin_initialize(void)
       return -EBUSY;
     }
 
-  board = bk7258_board_lin_config();
   if (board == NULL || board->name == NULL ||
       board->data_length < 1 || board->data_length > BK7258_LIN_MAX_FRAME)
     {

@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_spi.h
+ * chips/bk7258/include/bk7258_spi.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -22,6 +21,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
 #include <nuttx/spi/spi.h>
 
 #include <stdint.h>
@@ -45,23 +45,16 @@
 #define BK7258_SPI_BAUD_DEFAULT        1000000u /* 1 MHz */
 
 /****************************************************************************
- * Public Types
- ****************************************************************************/
-
-/* Board-provided chip-select callback.  The Beken SPI driver has no CS
- * primitive; asserting/de-asserting the slave select is a board GPIO
- * responsibility.  The board assigns this hook (e.g. in board_bringup) so
- * the lower half's select() can toggle the right pin for a given devid.
- */
-
-typedef void (*bk7258_spi_cs_cb_t)(uint32_t devid, bool selected);
-
-/****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
 
 #ifdef CONFIG_BK7258_SPI
 #ifdef CONFIG_BK7258_AP_CORE
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Name: bk7258_spi_initialize
@@ -70,12 +63,12 @@ typedef void (*bk7258_spi_cs_cb_t)(uint32_t devid, bool selected);
  *   Bring up the BK7258 SPI master unit and publish it as a NuttX SPI
  *   lower-half (struct spi_dev_s).  No transfer happens until the upper
  *   half calls lock()/select()/exchange().  Returns the lower-half pointer
- *   through the caller's argument; NULL on failure.
+ *   through the caller's argument.
  *
  *   The underlying Beken SPI driver (bk_spi_driver_init) is initialised
- *   once here.  The caller (board code) typically wires the returned
- *   spi_dev_s into an SPI device / bus and sets the CS callback with
- *   bk7258_spi_set_csinfo().
+ *   once here.  Board logic must provide the bus-specific select/status
+ *   hooks declared below, following the standard NuttX SPI lower-half
+ *   contract.
  *
  * Returned Value:
  *   OK on success; a negated errno value on failure.
@@ -85,17 +78,31 @@ typedef void (*bk7258_spi_cs_cb_t)(uint32_t devid, bool selected);
 int bk7258_spi_initialize(FAR struct spi_dev_s **spi_dev);
 
 /****************************************************************************
- * Name: bk7258_spi_set_csinfo
+ * Name: bk7258_spiNselect / bk7258_spiNstatus
  *
  * Description:
- *   Install the board chip-select callback used by the lower half's
- *   select().  Must be called before any transfer that relies on CS
- *   toggling.  Passing NULL restores the default no-op (CS left to the
- *   board to drive externally).
+ *   These hooks are implemented by the selected physical board.  The select
+ *   hook drives the attached device's chip-select GPIO; status reports any
+ *   board/device-specific SPI status bits.  This is the same compile-time
+ *   board hook model used by NuttX architecture SPI lower halves.
  *
  ****************************************************************************/
 
-void bk7258_spi_set_csinfo(bk7258_spi_cs_cb_t cs_cb);
+#if CONFIG_BK7258_SPI_BUS == 0
+void bk7258_spi0select(FAR struct spi_dev_s *dev, uint32_t devid,
+                       bool selected);
+uint8_t bk7258_spi0status(FAR struct spi_dev_s *dev, uint32_t devid);
+#elif CONFIG_BK7258_SPI_BUS == 1
+void bk7258_spi1select(FAR struct spi_dev_s *dev, uint32_t devid,
+                       bool selected);
+uint8_t bk7258_spi1status(FAR struct spi_dev_s *dev, uint32_t devid);
+#else
+#  error "CONFIG_BK7258_SPI_BUS must select SPI controller 0 or 1"
+#endif
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_SPI */

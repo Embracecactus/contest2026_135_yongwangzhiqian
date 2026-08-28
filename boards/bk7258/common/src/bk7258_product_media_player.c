@@ -1,9 +1,9 @@
 /****************************************************************************
- * chips/bk7258/ap/bk7258_agent_media_player.c
+ * boards/bk7258/common/src/bk7258_product_media_player.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * PCM buffer-mode media_player bridge for the official Agent.  This board
+ * Board product PCM media_player bridge for the official Agent.  This board
  * profile intentionally omits the full media framework, so URL decoding and
  * seeking remain unsupported.  Voice playback stays on the public NuttX
  * audio upper-half ABI and the BK7258 speaker lower half.

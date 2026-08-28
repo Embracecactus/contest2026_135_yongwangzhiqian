@@ -8,8 +8,9 @@
  *
  * The carrier routes SCL/SDA to GPIO13/GPIO15.  Those pins are not a valid
  * BK7258 hardware-I2C pair, so this binding deliberately uses NuttX's
- * standard i2c_bitbang lower half.  The Goodix protocol and input ABI remain
- * owned by NuttX's gt9xx driver; this file owns board wiring only.
+ * standard i2c_bitbang lower half.  The Goodix protocol and raw input ABI
+ * remain owned by NuttX's gt9xx driver.  This file owns the board wiring and
+ * a narrow LVGL-facing capability adapter selected by this physical board.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -23,16 +24,19 @@
 #include <sched.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/ioctl.h>
 #include <syslog.h>
 #include <unistd.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/fs/fs.h>
 #include <nuttx/i2c/i2c_bitbang.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/input/gt9xx.h>
 #include <nuttx/input/touchscreen.h>
 #include <nuttx/irq.h>
 #include <nuttx/kthread.h>
+#include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
 #include <nuttx/spinlock.h>
 
@@ -45,8 +49,6 @@
  */
 
 extern bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
-
-#define T5_GT1151_DEVPATH "/dev/input0"
 
 #if CONFIG_INPUT_GT9XX_I2C_FREQUENCY > \
     BK7258_BOARD_TOUCH_I2C_MAX_FREQUENCY
@@ -73,6 +75,14 @@ static int t5_gt1151_i2c_transfer(FAR struct i2c_master_s *dev,
                                   FAR struct i2c_msg_s *msgs, int count);
 static int t5_gt1151_i2c_setup(FAR struct i2c_master_s *dev);
 static int t5_gt1151_i2c_shutdown(FAR struct i2c_master_s *dev);
+static int t5_gt1151_lvgl_open(FAR struct file *filep);
+static int t5_gt1151_lvgl_close(FAR struct file *filep);
+static ssize_t t5_gt1151_lvgl_read(FAR struct file *filep,
+                                   FAR char *buffer, size_t buflen);
+static int t5_gt1151_lvgl_ioctl(FAR struct file *filep, int cmd,
+                                unsigned long arg);
+static int t5_gt1151_lvgl_poll(FAR struct file *filep,
+                               FAR struct pollfd *fds, bool setup);
 
 static const struct i2c_bitbang_lower_ops_s g_t5_gt1151_bitbang_ops =
 {
@@ -100,12 +110,127 @@ static struct t5_gt1151_i2c_s g_t5_gt1151_i2c =
   .dev.ops = &g_t5_gt1151_i2c_ops,
 };
 
+/* The upstream GT9XX character driver intentionally remains registered at
+ * the board's generic touch path.  The selected LVGL backend additionally
+ * requires TSIOC_GETMAXPOINTS, so expose a private board adapter rather than
+ * changing the generic driver or replacing its public ABI.
+ */
+
+static const struct file_operations g_t5_gt1151_lvgl_fops =
+{
+  .open  = t5_gt1151_lvgl_open,
+  .close = t5_gt1151_lvgl_close,
+  .read  = t5_gt1151_lvgl_read,
+  .ioctl = t5_gt1151_lvgl_ioctl,
+  .poll  = t5_gt1151_lvgl_poll,
+};
+
 static xcpt_t g_t5_gt1151_isr;
 static FAR void *g_t5_gt1151_isr_arg;
 static bool g_t5_gt1151_registered;
 static bool g_t5_gt1151_irq_registered;
 static void t5_gt1151_invoke_isr(gpio_id_t gpio_id);
 static void t5_gt1151_sdk_isr(gpio_id_t gpio_id);
+
+static FAR struct file *t5_gt1151_lvgl_backend(FAR struct file *filep)
+{
+  return filep == NULL ? NULL : (FAR struct file *)filep->f_priv;
+}
+
+static int t5_gt1151_lvgl_open(FAR struct file *filep)
+{
+  FAR struct file *backend;
+  int ret;
+
+  if (filep == NULL || filep->f_priv != NULL)
+    {
+      return -EINVAL;
+    }
+
+  backend = kmm_zalloc(sizeof(*backend));
+  if (backend == NULL)
+    {
+      return -ENOMEM;
+    }
+
+  ret = file_open(backend, BK7258_BOARD_TOUCH_DEVPATH, filep->f_oflags);
+  if (ret < 0)
+    {
+      kmm_free(backend);
+      return ret;
+    }
+
+  filep->f_priv = backend;
+  return OK;
+}
+
+static int t5_gt1151_lvgl_close(FAR struct file *filep)
+{
+  FAR struct file *backend = t5_gt1151_lvgl_backend(filep);
+  int ret;
+
+  if (backend == NULL)
+    {
+      return -EBADF;
+    }
+
+  filep->f_priv = NULL;
+  ret = file_close(backend);
+  kmm_free(backend);
+  return ret;
+}
+
+static ssize_t t5_gt1151_lvgl_read(FAR struct file *filep,
+                                   FAR char *buffer, size_t buflen)
+{
+  FAR struct file *backend = t5_gt1151_lvgl_backend(filep);
+
+  if (backend == NULL)
+    {
+      return -EBADF;
+    }
+
+  return file_read(backend, buffer, buflen);
+}
+
+static int t5_gt1151_lvgl_ioctl(FAR struct file *filep, int cmd,
+                                unsigned long arg)
+{
+  FAR struct file *backend = t5_gt1151_lvgl_backend(filep);
+  FAR uint8_t *maxpoints;
+
+  if (backend == NULL)
+    {
+      return -EBADF;
+    }
+
+  if (cmd == TSIOC_GETMAXPOINTS)
+    {
+      if (arg == 0)
+        {
+          return -EINVAL;
+        }
+
+      maxpoints = (FAR uint8_t *)(uintptr_t)arg;
+      *maxpoints = 1;
+      return OK;
+    }
+
+  return file_ioctl(backend, cmd, arg);
+}
+
+static int t5_gt1151_lvgl_poll(FAR struct file *filep,
+                               FAR struct pollfd *fds, bool setup)
+{
+  FAR struct file *backend = t5_gt1151_lvgl_backend(filep);
+
+  if (backend == NULL)
+    {
+      return -EBADF;
+    }
+
+  return file_poll(backend, fds, setup);
+}
 
 #ifdef CONFIG_BK7258_GT1151_VALIDATION
 static bool g_t5_gt1151_product_logged;
@@ -145,6 +270,7 @@ static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
   struct touch_sample_s sample;
   struct pollfd pfd;
   ssize_t nread;
+  uint8_t maxpoints = 0;
   int fd;
   int ret;
   bool hw_irq_logged = false;
@@ -153,7 +279,7 @@ static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
   (void)argc;
   (void)argv;
 
-  fd = open(T5_GT1151_DEVPATH, O_RDONLY);
+  fd = open(BK7258_BOARD_TOUCH_LVGL_DEVPATH, O_RDONLY);
   if (fd < 0)
     {
       syslog(LOG_ERR, "bk7258-touch: GT1151 probe failed: %d\n", errno);
@@ -161,7 +287,21 @@ static int t5_gt1151_validation_thread(int argc, FAR char *argv[])
     }
 
   syslog(LOG_INFO, "bk7258-touch: GT1151 probe PASS at %s\n",
-         T5_GT1151_DEVPATH);
+         BK7258_BOARD_TOUCH_LVGL_DEVPATH);
+
+  ret = ioctl(fd, TSIOC_GETMAXPOINTS, (unsigned long)(uintptr_t)&maxpoints);
+  if (ret < 0 || maxpoints != 1)
+    {
+      syslog(LOG_ERR,
+             "bk7258-touch: LVGL capability adapter failed: %d/%u\n",
+             ret < 0 ? errno : 0, (unsigned int)maxpoints);
+      close(fd);
+      return ret < 0 ? -errno : -EPROTO;
+    }
+
+  syslog(LOG_INFO,
+         "bk7258-touch: LVGL capability adapter PASS maxpoints=%u\n",
+         (unsigned int)maxpoints);
 
   pfd.fd = fd;
   pfd.events = POLLIN;
@@ -547,16 +687,32 @@ int bk7258_board_gt1151_initialize(void)
       return ret;
     }
 
-  ret = gt9xx_register(T5_GT1151_DEVPATH, &g_t5_gt1151_i2c.dev,
-                       BK7258_BOARD_TOUCH_I2C_ADDRESS,
-                       &g_t5_gt1151_board);
+  /* Publish the adapter first.  No application can run during this board
+   * initialization phase; doing this ordering lets a GT9XX registration
+   * failure remove the adapter cleanly without relying on a GT9XX-specific
+   * destructor that the generic driver does not expose.
+   */
+
+  ret = register_driver(BK7258_BOARD_TOUCH_LVGL_DEVPATH,
+                        &g_t5_gt1151_lvgl_fops, 0666, NULL);
   if (ret < 0)
     {
       return ret;
     }
 
+  ret = gt9xx_register(BK7258_BOARD_TOUCH_DEVPATH, &g_t5_gt1151_i2c.dev,
+                       BK7258_BOARD_TOUCH_I2C_ADDRESS,
+                       &g_t5_gt1151_board);
+  if (ret < 0)
+    {
+      (void)unregister_driver(BK7258_BOARD_TOUCH_LVGL_DEVPATH);
+      return ret;
+    }
+
   g_t5_gt1151_registered = true;
-  iinfo("T5-Board GT1151 registered at %s\n", T5_GT1151_DEVPATH);
+  iinfo("T5-Board GT1151 registered at %s (LVGL adapter %s)\n",
+        BK7258_BOARD_TOUCH_DEVPATH,
+        BK7258_BOARD_TOUCH_LVGL_DEVPATH);
 
 #ifdef CONFIG_BK7258_GT1151_VALIDATION
   ret = kthread_create("bk7258-touch", SCHED_PRIORITY_DEFAULT, 2048,

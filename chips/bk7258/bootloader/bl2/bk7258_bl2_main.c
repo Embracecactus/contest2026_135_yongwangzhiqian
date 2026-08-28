@@ -9,8 +9,8 @@
 #include "bk7258_bl2_abi.h"
 #include "bk7258_bl2_pair_policy.h"
 #include "bk7258_mcuboot_format.h"
-#include "../boot_flash.h"
-#include "../boot_wdt.h"
+#include "boot_flash.h"
+#include "boot_wdt.h"
 #include "bk7258_debug_route.h"
 
 #define SCB_VTOR 0xe000ed08u

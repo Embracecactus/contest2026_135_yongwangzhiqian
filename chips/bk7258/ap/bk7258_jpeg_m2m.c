@@ -21,8 +21,8 @@
 #include <nuttx/video/v4l2_m2m.h>
 #include <nuttx/wqueue.h>
 
-#include "../include/bk7258_jpeg_decoder.h"
-#include "../include/bk7258_jpeg_m2m.h"
+#include <arch/chip/bk7258_jpeg_decoder.h>
+#include <arch/chip/bk7258_jpeg_m2m.h>
 
 /****************************************************************************
  * Pre-processor Definitions

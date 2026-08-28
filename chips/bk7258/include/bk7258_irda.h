@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_irda.h
+ * chips/bk7258/include/bk7258_irda.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -21,7 +21,12 @@
 
 #include <nuttx/fs/ioctl.h>
 
+#include <stdbool.h>
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -57,5 +62,9 @@
 int bk7258_irda_initialize(void);
 
 #endif /* CONFIG_BK7258_IRDA && !CONFIG_BK7258_AP_CORE */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_IRDA_H */

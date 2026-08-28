@@ -1,6 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/include/
- * bk7258_ota_manager.h
+ * chips/bk7258/include/bk7258_ota_manager.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
@@ -13,6 +12,11 @@
 #include <stdint.h>
 
 #include <arch/chip/bk7258_ota.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 enum bk7258_ota_manager_state_e
 {
@@ -47,4 +51,8 @@ int bk7258_ota_manager_get_status(
   struct bk7258_ota_manager_status_s *status);
 #endif
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_OTA_MANAGER_H */

@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/cp/bk7258_touch.c
+ * chips/bk7258/cp/bk7258_touch.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -171,7 +171,8 @@ static int bk7258_touch_map_error(bk_err_t error)
 static int bk7258_touch_validate_config(
   FAR const struct bk7258_touch_config_s *config)
 {
-  if (config == NULL || config->channel_mask == 0 ||
+  if (config == NULL || config->version != BK7258_TOUCH_CONFIG_VERSION ||
+      config->size < sizeof(*config) || config->channel_mask == 0 ||
       (config->channel_mask & ~BK7258_TOUCH_CHANNEL_MASK) != 0)
     {
       return -EINVAL;

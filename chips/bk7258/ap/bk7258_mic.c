@@ -69,7 +69,6 @@
 #include <nuttx/kthread.h>
 #include <nuttx/audio/audio.h>
 
-#include <arch/chip/bk7258_board_binding.h>
 #include <arch/chip/bk7258_mic.h>
 #include <arch/chip/bk7258_psram.h>
 
@@ -204,7 +203,6 @@ struct bk7258_mic_dev_s
 
   /* Immutable physical-board contract supplied by board bring-up. */
 
-  FAR const struct bk7258_mic_binding_s *binding;
   FAR const struct bk7258_mic_config_s *config;
 
   /* Negotiated format */
@@ -274,11 +272,6 @@ static void bk7258_mic_deinterleave(int16_t *dest, const int16_t *src,
 static int  bk7258_mic_capture_thread(int argc, char **argv);
 static void bk7258_mic_flush_pending(struct bk7258_mic_dev_s *priv);
 static void bk7258_mic_stop_thread(struct bk7258_mic_dev_s *priv);
-
-/* Physical-board binding validation. */
-
-static FAR const struct bk7258_mic_binding_s *
-  bk7258_mic_get_binding(void);
 
 /* audio_ops_s */
 
@@ -515,45 +508,6 @@ retry_deinit:
   auderr("ERROR: DMA%u configuration failed after %u attempts: %d\n",
          (unsigned int)priv->dma_id, BK7258_MIC_DMA_PROGRAM_ATTEMPTS, ret);
   return ret;
-}
-
-/****************************************************************************
- * Name: bk7258_mic_get_binding
- ****************************************************************************/
-
-static FAR const struct bk7258_mic_binding_s *
-  bk7258_mic_get_binding(void)
-{
-  FAR const struct bk7258_board_binding_s *board;
-  FAR const struct bk7258_mic_binding_s *binding;
-  FAR const struct bk7258_mic_config_s *config;
-
-  board = bk7258_board_get_binding();
-  if (board == NULL || board->version != BK7258_BINDING_VERSION ||
-      board->size < sizeof(*board))
-    {
-      return NULL;
-    }
-
-  binding = board->mic;
-  if (binding == NULL || binding->version != BK7258_BINDING_VERSION ||
-      binding->size < sizeof(*binding) || binding->initialize == NULL)
-    {
-      return NULL;
-    }
-
-  config = binding->config;
-  if (config == NULL || config->version != BK7258_BINDING_VERSION ||
-      config->size < sizeof(*config) || config->channels < 1 ||
-      config->channels > BK7258_MIC_FIFO_CHANNELS ||
-      (config->flags & BK7258_MIC_BINDING_MIC1) == 0 ||
-      ((config->flags & BK7258_MIC_BINDING_MIC2) != 0) !=
-        (config->channels == 2))
-    {
-      return NULL;
-    }
-
-  return binding;
 }
 
 /****************************************************************************
@@ -1868,10 +1822,10 @@ static int bk7258_mic_release(struct audio_lowerhalf_s *dev)
  *
  ****************************************************************************/
 
-int bk7258_mic_initialize(void)
+int bk7258_mic_initialize(
+  FAR const struct bk7258_mic_config_s *config)
 {
   struct bk7258_mic_dev_s *priv = &g_bk7258_mic;
-  FAR const struct bk7258_mic_binding_s *binding;
   int ret;
 
 #ifdef CONFIG_BK7258_AGENT_MEDIA_RECORDER
@@ -1887,24 +1841,18 @@ int bk7258_mic_initialize(void)
   priv->samplerate = CONFIG_BK7258_MIC_SAMPLE_RATE;
   __atomic_store_n(&priv->close_safe, true, __ATOMIC_RELEASE);
 
-  binding = bk7258_mic_get_binding();
-  if (binding == NULL)
+  if (config == NULL || config->channels < 1 ||
+      config->channels > BK7258_MIC_FIFO_CHANNELS ||
+      (config->flags & BK7258_MIC_INPUT_MIC1) == 0 ||
+      ((config->flags & BK7258_MIC_INPUT_MIC2) != 0) !=
+        (config->channels == 2))
     {
-      auderr("ERROR: BK7258 microphone board binding is unavailable\n");
-      return -ENODEV;
+      auderr("ERROR: BK7258 microphone configuration is invalid\n");
+      return -EINVAL;
     }
 
-  ret = binding->initialize();
-  if (ret < 0)
-    {
-      auderr("ERROR: BK7258 microphone board binding initialization failed: %d\n",
-             ret);
-      return ret;
-    }
-
-  priv->binding   = binding;
-  priv->config    = binding->config;
-  priv->channels  = binding->config->channels;
+  priv->config    = config;
+  priv->channels  = config->channels;
   priv->dig_gain   = CONFIG_BK7258_MIC_DIG_GAIN;
   priv->ana_gain   = CONFIG_BK7258_MIC_ANA_GAIN;
   priv->dma_id     = DMA_ID_MAX + 1;   /* Not a valid channel */
@@ -1962,7 +1910,7 @@ int bk7258_mic_initialize(void)
          (unsigned)priv->ana_gain);
 
 #ifdef CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION
-  ret = bk7258_mic_validation_start();
+  ret = bk7258_mic_validation_start(config);
   if (ret < 0)
     {
       syslog(LOG_ERR, "BMICVAL FAIL stage=worker ret=%d\n", ret);

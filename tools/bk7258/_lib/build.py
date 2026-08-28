@@ -653,9 +653,14 @@ def _role_build(repository: Path, workspace: Path, official_build: Path,
     environment["CCACHE_DIR"] = str(ccache_root)
     environment["CCACHE_TEMPDIR"] = str(ccache_temp)
     try:
-        config_argument = build_config_root.relative_to(workspace).as_posix()
+        config_relative = build_config_root.relative_to(workspace).as_posix()
     except ValueError as error:
         raise BuildError("build config is outside the OpenVela workspace") from error
+    # The official build.sh CMake preflight removes the first three path
+    # characters before checking defconfig.  Use the equivalent ".//"
+    # relative prefix: both the unmodified argument consumed by lunch() and
+    # the preflight argument after that removal resolve to config_relative.
+    config_argument = f".//{config_relative}"
     if clean:
         _remove_output_tree(binary_root, workspace)
     base = [

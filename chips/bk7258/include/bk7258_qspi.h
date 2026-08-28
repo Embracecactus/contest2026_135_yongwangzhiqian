@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_qspi.h
+ * chips/bk7258/include/bk7258_qspi.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -21,7 +21,12 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/compiler.h>
 #include <nuttx/spi/qspi.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -77,5 +82,9 @@ FAR struct qspi_dev_s *bk7258_qspi_initialize(int intf);
 
 #endif /* CONFIG_BK7258_AP_CORE */
 #endif /* CONFIG_BK7258_QSPI */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_QSPI_H */

@@ -31,7 +31,7 @@
 #include <driver/hal/hal_can_types.h>
 
 #include <arch/chip/bk7258_can.h>
-#include <arch/chip/bk7258_sdk_abi.h>
+#include "bk7258_sdk_abi.h"
 
 #if defined(CONFIG_CAN_EXTID) || defined(CONFIG_CAN_FD)
 #  error "BK7258 CAN lower-half requires classic 11-bit CAN configuration"

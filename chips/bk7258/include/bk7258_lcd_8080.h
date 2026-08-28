@@ -1,5 +1,5 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_lcd_8080.h
+ * chips/bk7258/include/bk7258_lcd_8080.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -16,6 +16,11 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /****************************************************************************
  * Public Types
@@ -37,9 +42,13 @@ struct bk7258_lcd_8080_board_s
 
 #if defined(CONFIG_BK7258_LCD_8080) && defined(CONFIG_BK7258_AP_CORE)
 
-const struct bk7258_lcd_8080_board_s *bk7258_board_lcd_8080_config(void);
-int bk7258_lcd_8080_initialize(void);
+int bk7258_lcd_8080_initialize(
+  const struct bk7258_lcd_8080_board_s *board);
 
 #endif /* CONFIG_BK7258_LCD_8080 && CONFIG_BK7258_AP_CORE */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_LCD_8080_H */

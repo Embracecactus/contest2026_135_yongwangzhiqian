@@ -14,7 +14,7 @@
 #include <stdbool.h>
 
 #include <arch/board/board.h>
-#include <arch/chip/bk7258_board_binding.h>
+#include <arch/chip/bk7258_aud.h>
 
 #include <driver/gpio.h>
 
@@ -24,8 +24,6 @@ static bool g_bk7258_speaker_initialized;
 
 static const struct bk7258_aud_config_s g_bk7258_t5_audio_config =
 {
-  .version = BK7258_BINDING_VERSION,
-  .size = sizeof(struct bk7258_aud_config_s),
   .variant_name = BK7258_BOARD_VARIANT_NAME,
   .speaker_control_gpio = BK7258_BOARD_SPEAKER_CONTROL_GPIO,
   .speaker_on_delay_ms = BK7258_BOARD_SPEAKER_ON_DELAY_MS,
@@ -117,10 +115,8 @@ static bool bk7258_t5_audio_is_enabled(
   return high == config->speaker_active_high;
 }
 
-const struct bk7258_aud_binding_s g_bk7258_board_audio_binding =
+const struct bk7258_aud_board_s g_bk7258_board_audio =
 {
-  .version = BK7258_BINDING_VERSION,
-  .size = sizeof(struct bk7258_aud_binding_s),
   .config = &g_bk7258_t5_audio_config,
   .initialize = bk7258_t5_audio_initialize,
   .set = bk7258_t5_audio_set,

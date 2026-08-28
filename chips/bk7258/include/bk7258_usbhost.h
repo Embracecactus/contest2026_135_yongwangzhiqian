@@ -1,12 +1,13 @@
 /****************************************************************************
- * board/bk7258/chip/include/bk7258_usbhost.h
+ * chips/bk7258/include/bk7258_usbhost.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_USBHOST_H
-#define __BOARD_BK7258_USBHOST_H
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_USBHOST_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_USBHOST_H
 
+#include <nuttx/compiler.h>
 #include <nuttx/usb/usbhost.h>
 
 #ifdef __cplusplus
@@ -35,4 +36,4 @@ int bk7258_usbhost_uninitialize(void);
 }
 #endif
 
-#endif /* __BOARD_BK7258_USBHOST_H */
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_USBHOST_H */

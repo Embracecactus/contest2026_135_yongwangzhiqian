@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/board/bk7258/chip/cp/bk7258_wdt.c
+ * contest2026_135_yongwangzhiqian/chips/bk7258/cp/bk7258_wdt.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -35,21 +35,17 @@
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
 
+#include <arch/chip/bk7258_reset_cause.h>
+#include <arch/chip/bk7258_system_reset.h>
+
 #include "bk7258_wdt.h"
+#include "bk7258_reset_marker_internal.h"
 
 /* SDK API headers */
 
 #include <driver/wdt.h>
-#include <components/system.h>
 #include <driver/aon_wdt.h>
-#include <driver/flash.h>
 #include <driver/timer.h>
-
-/* Present in the manifest-pinned official v3.1.1.9 driver archive but not
- * exported by its reduced public header bundle. */
-
-extern void aon_pmu_drv_wdt_change_not_rosc_clk(void);
-extern void aon_pmu_drv_wdt_rst_dev_enable(void);
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -69,12 +65,6 @@ extern void aon_pmu_drv_wdt_rst_dev_enable(void);
 #ifdef CONFIG_BK7258_WDT_PRETIMEOUT_PANIC
 
 #define BK7258_WDT_PRETIMEOUT_ARM_GUARD_MS 100u
-
-/* Flash flag sector: reserved_data tail, untouched by OTA/boot flows. */
-
-#define BK7258_WDT_FLAG_ADDR   0x509000u /* usr_config tail, SDK-writable */
-#define BK7258_WDT_FLAG_SECTOR 4096u /* BK7258 flash sector size */
-#define BK7258_WDT_FLAG_MAGIC  0x57445447u /* "WTDG" */
 
 #endif
 
@@ -96,7 +86,12 @@ struct bk7258_wdt_lowerhalf_s
                                         * client ioctl); the SDK assumes a
                                         * single feeder owner. */
   xcpt_t handler;                      /* Pre-expiry capture callback */
-  struct work_s work;                  /* Deferred capture notification */
+  struct work_s capture_work;          /* Deferred capture notification */
+#ifdef CONFIG_BK7258_WDT_PRETIMEOUT_PANIC
+  struct work_s panic_work;            /* Task-context marker + reset */
+  uint32_t pretimeout_generation;      /* Invalidates stale queued work */
+  uint32_t panic_generation;           /* Generation observed by timer */
+#endif
   uint32_t timeout;                    /* Current timeout in ms */
   clock_t  last_feed;                  /* Tick of the most recent feed */
   bool     started;                    /* WDT is armed */
@@ -161,7 +156,10 @@ static const struct watchdog_ops_s g_bk7258_wdt_ops =
   .capture    = bk7258_wdt_capture,
 };
 
-static struct bk7258_wdt_lowerhalf_s g_bk7258_wdt;
+static struct bk7258_wdt_lowerhalf_s g_bk7258_wdt =
+{
+  .lock = NXMUTEX_INITIALIZER,
+};
 static bool g_bk7258_wdt_pm_resume;
 
 #ifdef CONFIG_BK7258_WDT_FAULT_INJECTION
@@ -249,10 +247,69 @@ static void bk7258_wdt_capture_notify(void *arg)
     }
 }
 
+static void bk7258_wdt_pretimeout_panic(void *arg)
+{
+  FAR struct bk7258_wdt_lowerhalf_s *priv =
+    (FAR struct bk7258_wdt_lowerhalf_s *)arg;
+  uint32_t generation;
+  uint32_t elapsed_ticks;
+  uint32_t threshold_ticks;
+  int ret;
+
+  if (priv == NULL || nxmutex_lock(&priv->lock) < 0)
+    {
+      return;
+    }
+
+  generation = __atomic_load_n(&priv->pretimeout_generation,
+                               __ATOMIC_ACQUIRE);
+  if (!priv->started ||
+      __atomic_load_n(&priv->panic_generation, __ATOMIC_ACQUIRE) != generation)
+    {
+      nxmutex_unlock(&priv->lock);
+      return;
+    }
+
+  elapsed_ticks = (uint32_t)(clock_systime_ticks() - priv->last_feed);
+  threshold_ticks = MSEC2TICK(priv->timeout -
+                              CONFIG_BK7258_WDT_PRETIMEOUT_MARGIN_MS);
+  if (elapsed_ticks < threshold_ticks)
+    {
+      /* A keepalive raced the timer callback before this worker acquired
+       * the lower-half lock.  Its generation normally catches that race;
+       * retain the time check as an independent fail-safe.
+       */
+
+      nxmutex_unlock(&priv->lock);
+      return;
+    }
+
+  /* Flash is forbidden in the watchdog timer interrupt.  At this point a
+   * task-context worker has revalidated the missed-feed generation, so the
+   * marker records a confirmed pretimeout rather than merely an armed WDT.
+   * A failed marker is diagnostic only: the PMU reason and hardware reset
+   * remain authoritative.
+   */
+
+  ret = bk7258_reset_marker_stamp(BK7258_RESET_SOURCE_WATCHDOG);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "BWDT confirmed marker stamp failed: %d\n", ret);
+    }
+  else
+    {
+      syslog(LOG_INFO, "BWDT confirmed marker stamped\n");
+    }
+
+  syslog_flush();
+  bk7258_system_reset(BK7258_RESET_SOURCE_WATCHDOG);
+}
+
 static void bk7258_wdt_pretimeout_expired(wdparm_t arg)
 {
   struct bk7258_wdt_lowerhalf_s *priv = &g_bk7258_wdt;
-  uint32_t timeout = (uint32_t)arg;
+  uint32_t generation = (uint32_t)arg;
+  int ret;
 
   if (priv->handler != NULL)
     {
@@ -261,19 +318,20 @@ static void bk7258_wdt_pretimeout_expired(wdparm_t arg)
        * semaphores, which is illegal in this timer-interrupt context.
        * The armed APB watchdog remains the last-resort reset source. */
 
-      work_queue(LPWORK, &priv->work, bk7258_wdt_capture_notify,
+      work_queue(LPWORK, &priv->capture_work, bk7258_wdt_capture_notify,
                  priv, 0);
       return;
     }
 
-  /* Runs in timer-interrupt context: no flash access is possible here.
-   * The death cause was already recorded by the task-context keepalive
-   * path (mirroring the SDK AP-side feed stamping); this dump plus the
-   * imminent hardware expiry completes the xTS watchdog contract. */
+  /* Runs in timer-interrupt context: emit the bounded crash record now, then
+   * defer persistent Flash evidence and the whole-device reset to LPWORK.
+   * If that task cannot run, the armed APB watchdog/NMI path is still the
+   * final reset source and records its own PMU reason.
+   */
 
   syslog(LOG_CRIT,
          "BK7258 WDT PRETIMEOUT panic: no keepalive, timeout=%" PRIu32
-         " ms; forcing whole-device reset\n", timeout);
+         " ms; scheduling whole-device reset\n", priv->timeout);
 
   /* This is a deliberate direct-syslog crash-path exception: debug macros
    * can be compiled out, while the xTS contract requires this final reason.
@@ -282,17 +340,26 @@ static void bk7258_wdt_pretimeout_expired(wdparm_t arg)
 
   syslog_flush();
 
-  /* The plain APB expiry resets only the CP core and wedges the next
-   * bring-up behind a surviving AP image, so finish with the AON watchdog
-   * PMU route: a clean whole-device reset.  The death cause is already in
-   * the reserved flash sector from the keepalive path. */
-
-  bk7258_wdt_force_system_reset();
+  __atomic_store_n(&priv->panic_generation, generation, __ATOMIC_RELEASE);
+  ret = work_queue(LPWORK, &priv->panic_work,
+                   bk7258_wdt_pretimeout_panic, priv, 0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "BWDT panic worker queue failed: %d\n", ret);
+      syslog_flush();
+      bk7258_system_reset(BK7258_RESET_SOURCE_WATCHDOG);
+    }
 }
 
 static void bk7258_wdt_pretimeout_arm(uint32_t timeout)
 {
+  struct bk7258_wdt_lowerhalf_s *priv = &g_bk7258_wdt;
   uint32_t margin = CONFIG_BK7258_WDT_PRETIMEOUT_MARGIN_MS;
+  uint32_t generation;
+
+  generation = __atomic_add_fetch(&priv->pretimeout_generation, 1u,
+                                  __ATOMIC_ACQ_REL);
+  (void)work_cancel(LPWORK, &priv->panic_work);
 
   if (timeout <= margin + BK7258_WDT_PRETIMEOUT_ARM_GUARD_MS)
     {
@@ -303,12 +370,15 @@ static void bk7258_wdt_pretimeout_arm(uint32_t timeout)
     }
 
   wd_start(&g_bk7258_wdt_pretimeout, MSEC2TICK(timeout - margin),
-           bk7258_wdt_pretimeout_expired, (wdparm_t)timeout);
+           bk7258_wdt_pretimeout_expired, (wdparm_t)generation);
 }
 
 static void bk7258_wdt_pretimeout_cancel(void)
 {
+  __atomic_add_fetch(&g_bk7258_wdt.pretimeout_generation, 1u,
+                     __ATOMIC_ACQ_REL);
   wd_cancel(&g_bk7258_wdt_pretimeout);
+  (void)work_cancel(LPWORK, &g_bk7258_wdt.panic_work);
 }
 
 #else
@@ -334,76 +404,6 @@ static xcpt_t bk7258_wdt_capture(struct watchdog_lowerhalf_s *lower,
 }
 
 /****************************************************************************
- * Private: pending-cause flash flag (task context only)
- ****************************************************************************/
-
-#ifdef CONFIG_BK7258_WDT_PRETIMEOUT_PANIC
-
-static bool s_flag_stamped;
-
-static void bk7258_wdt_flag_stamp(void)
-{
-  extern int bk7258_ota_flash_initialize(void);
-  uint32_t page[2] = { BK7258_WDT_FLAG_MAGIC, RESET_SOURCE_WATCHDOG };
-  int ret;
-
-  /* Hot path: once the sector carries the magic, skip all flash access so
-   * the keepalive latency stays inside the xTS -r3 tolerance. */
-
-  if (s_flag_stamped)
-    {
-      return;
-    }
-
-  ret = bk7258_ota_flash_initialize();
-  if (ret == OK)
-    {
-      ret = bk_flash_erase_sector(BK7258_WDT_FLAG_ADDR);
-    }
-
-  if (ret == OK)
-    {
-      ret = bk_flash_write_bytes(BK7258_WDT_FLAG_ADDR,
-                                 (const uint8_t *)page, sizeof(page));
-    }
-
-  if (ret == OK)
-    {
-      s_flag_stamped = true;
-      syslog(LOG_INFO,
-             "BOTA FLAG stamped @%08lx magic=%08lx cause=%08lx\n",
-             (unsigned long)BK7258_WDT_FLAG_ADDR,
-             (unsigned long)page[0], (unsigned long)page[1]);
-    }
-  else
-    {
-      syslog(LOG_ERR, "BOTA FLAG stamp FAILED ret=%d addr=%08lx\n",
-             ret, (unsigned long)BK7258_WDT_FLAG_ADDR);
-    }
-}
-
-static void bk7258_wdt_flag_withdraw(void)
-{
-  uint32_t current;
-
-  if (bk_flash_read_bytes(BK7258_WDT_FLAG_ADDR, (uint8_t *)&current,
-                          sizeof(current)) == BK_OK &&
-      current == BK7258_WDT_FLAG_MAGIC)
-    {
-      (void)bk_flash_erase_sector(BK7258_WDT_FLAG_ADDR);
-    }
-
-  s_flag_stamped = false;
-}
-
-#else
-
-#define bk7258_wdt_flag_stamp()    ((void)0)
-#define bk7258_wdt_flag_withdraw() ((void)0)
-
-#endif
-
-/****************************************************************************
  * Private: lower-half operations
  ****************************************************************************/
 
@@ -427,11 +427,14 @@ static int bk7258_wdt_start(struct watchdog_lowerhalf_s *lower)
     {
       priv->last_feed = clock_systime_ticks();
       priv->started = true;
-      bk7258_wdt_flag_stamp();
       wdinfo("started, timeout=%" PRIu32 " ms\n", priv->timeout);
     }
 
-  bk7258_wdt_pretimeout_arm(priv->timeout);
+  if (ret == OK)
+    {
+      bk7258_wdt_pretimeout_arm(priv->timeout);
+    }
+
   nxmutex_unlock(&priv->lock);
   return ret;
 }
@@ -455,7 +458,6 @@ static int bk7258_wdt_stop(struct watchdog_lowerhalf_s *lower)
     }
 
   bk7258_wdt_pretimeout_cancel();
-  bk7258_wdt_flag_withdraw();
 
   /* The NuttX lower half owns the APB watchdog.  Commit its stopped state
    * after that hardware transition succeeds, even if the independent AON
@@ -497,10 +499,10 @@ static int bk7258_wdt_keepalive(struct watchdog_lowerhalf_s *lower)
       return -EIO;
     }
 
-  /* Hot path: no flash access here.  The death-cause flag was already
-   * written once at arm time; stamping per-feed would stall the LPWORK
-   * thread past the SYSTICK compensation window and panic the timer
-   * proxy's phase check. */
+  /* Hot path: no flash access here.  Persistent evidence is written only
+   * after a generation-checked pretimeout, never merely because the WDT is
+   * armed or fed.
+   */
 
   priv->last_feed = clock_systime_ticks();
   bk7258_wdt_pretimeout_arm(priv->timeout);
@@ -598,7 +600,6 @@ static int bk7258_wdt_settimeout(struct watchdog_lowerhalf_s *lower,
 
       priv->last_feed = clock_systime_ticks();
       bk7258_wdt_pretimeout_arm(priv->timeout);
-      bk7258_wdt_flag_stamp();
     }
 
   wdinfo("timeout set to %" PRIu32 " ms\n", priv->timeout);
@@ -631,17 +632,13 @@ int bk7258_wdt_initialize(void)
   struct bk7258_wdt_lowerhalf_s *priv = &g_bk7258_wdt;
   void *handle;
   bk_err_t err;
+#ifdef CONFIG_BK7258_WDT_PRETIMEOUT_PANIC
   int ret;
+#endif
 
   if (s_inited)
     {
       return OK;
-    }
-
-  ret = nxmutex_init(&priv->lock);
-  if (ret < 0)
-    {
-      return ret;
     }
 
   /* Initialize the SDK WDT state, then stop its TIMER_ID2 feeder.  NuttX
@@ -681,6 +678,15 @@ int bk7258_wdt_initialize(void)
       return -EIO;
     }
 
+#ifdef CONFIG_BK7258_WDT_PRETIMEOUT_PANIC
+  ret = bk7258_reset_marker_capture_previous();
+  if (ret < 0)
+    {
+      wderr("ERROR: failed to capture prior reset marker: %d\n", ret);
+      return ret;
+    }
+#endif
+
   priv->wdt_lh.ops = &g_bk7258_wdt_ops;
   priv->timeout    = BK7258_WDT_DEFAULT_TIMEOUT_MS;
   priv->started    = false;
@@ -702,57 +708,35 @@ int bk7258_wdt_initialize(void)
 
 int bk7258_wdt_service(void)
 {
-  if (!g_bk7258_wdt.started)
+  struct bk7258_wdt_lowerhalf_s *priv = &g_bk7258_wdt;
+  int ret = OK;
+
+  if (nxmutex_lock(&priv->lock) < 0)
     {
-      return OK;
+      return -EINVAL;
     }
 
-  return bk_wdt_feed() == BK_OK ? OK : -EIO;
+  if (priv->started)
+    {
+      /* OTA checkpoints are a second feeder context.  Serialize their SDK
+       * two-key sequence with automonitor and re-arm the software pretimeout
+       * from the same feed timestamp.
+       */
+
+      if (bk_wdt_feed() != BK_OK && bk_wdt_feed() != BK_OK)
+        {
+          ret = -EIO;
+        }
+      else
+        {
+          priv->last_feed = clock_systime_ticks();
+          bk7258_wdt_pretimeout_arm(priv->timeout);
+        }
+    }
+
+  nxmutex_unlock(&priv->lock);
+  return ret;
 }
-
-void bk7258_wdt_force_system_reset(void)
-{
-  irqstate_t flags;
-
-  /* CONFIG_NMI_WDT_EN makes the SDK bk_wdt_force_reboot() deliberately raise
-   * an NMI so FreeRTOS can dump state before resetting.  NuttX owns that NMI
-   * vector, so calling it only records a fault and never reaches a whole-SoC
-   * reset.  Use the SDK's AON watchdog and PMU reset routing directly: this
-   * is the same hardware reset source without depending on a FreeRTOS trap. */
-
-  flags = up_irq_save();
-  (void)flags;
-  aon_pmu_drv_wdt_change_not_rosc_clk();
-  aon_pmu_drv_wdt_rst_dev_enable();
-  (void)bk_aon_wdt_set_period(10u);
-
-  for (;;)
-    {
-    }
-}
-
-#ifdef CONFIG_BK7258_WDT_PRETIMEOUT_PANIC
-int bk7258_wdt_take_pending_reset_cause(uint32_t *reason)
-{
-  uint32_t page[2];
-  int pending;
-
-  if (bk_flash_read_bytes(BK7258_WDT_FLAG_ADDR, (uint8_t *)page,
-                          sizeof(page)) != BK_OK)
-    {
-      return 0;
-    }
-
-  pending = page[0] == BK7258_WDT_FLAG_MAGIC;
-  if (pending)
-    {
-      *reason = page[1];
-      (void)bk_flash_erase_sector(BK7258_WDT_FLAG_ADDR);
-    }
-
-  return pending;
-}
-#endif
 
 void bk7258_wdt_pm_prepare(void)
 {

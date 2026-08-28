@@ -21,7 +21,7 @@
 #endif
 
 #if defined(CONFIG_FS_PROCFS) && defined(CONFIG_BK7258_DVFS_PROCFS)
-#  include "bk7258_dvfs.h"
+#  include <arch/chip/bk7258_dvfs_procfs.h>
 #endif
 
 #include "bk7258_internal.h"
@@ -59,13 +59,17 @@ static void bk7258_fs_register(FAR struct mtd_dev_s *mtd)
 
 int bk7258_bringup(void)
 {
+#ifndef CONFIG_BK7258_AP_CORE
   int ret;
+#endif
 
-  ret = bk7258_platform_initialize();
+#ifndef CONFIG_BK7258_AP_CORE
+  ret = bk7258_cp_bringup_result();
   if (ret < 0)
     {
       return ret;
     }
+#endif
 
   /* Register the BK7258 DVFS /proc/dvfs entry *before* mounting procfs: the
    * fs_procfs NOTE requires the procfs entry table to be stable at mount
