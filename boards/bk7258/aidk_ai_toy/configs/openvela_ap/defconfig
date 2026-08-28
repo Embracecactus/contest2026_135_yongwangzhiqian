@@ -28,10 +28,17 @@ CONFIG_BK7258_AP_SMP_BOOTSTRAP=y
 CONFIG_BK7258_AP_SMP_SCHED_ONLINE=y
 CONFIG_BK7258_AUD=y
 CONFIG_BK7258_BOARD_AIDK_AI_TOY=y
-# Board peripherals (HAS_* in bk7258_board_config.h) — device nodes only,
-# no board .c needed: SC7A20 accelerometer on I2C1, MFRC522 NFC on UART1.
+# GC2145 Phase 0 only: P49 powers both LDOs active-high, P28 is active-low
+# reset, and I2C1 map mode 1 uses P42/P43.  Do not enable the DVP pipeline.
+CONFIG_BK7258_AIDK_CAMERA_PHASE0=y
+CONFIG_CAMERA_PWR_ACTIVE_HIGH=y
+# SC7A20H is on the SoC I2C0 route at P20/P21.  Schematic net name IIC1
+# counts buses from one and must not be copied into the zero-based HW ID.
 CONFIG_BK7258_I2C=y
-CONFIG_BK7258_I2C_BUS=1
+CONFIG_BK7258_I2C_BUS=0
+# MIC1 is the primary microphone and MIC2 is the populated AEC loopback.
+CONFIG_BK7258_MIC=y
+# MFRC522 is on UART1 at P0/P1.
 CONFIG_BK7258_UART1=y
 CONFIG_BK7258_PM_CLOCK=y
 CONFIG_BK7258_OTA_MANAGER=y

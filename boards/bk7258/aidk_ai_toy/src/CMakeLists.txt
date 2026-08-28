@@ -21,3 +21,7 @@ endif()
 if(CONFIG_BK7258_AIDK_SD_NAND)
   target_sources(board PRIVATE bk7258_aidk_board_sdio.c)
 endif()
+
+if(CONFIG_BK7258_AIDK_CAMERA_PHASE0)
+  target_sources(board PRIVATE bk7258_aidk_camera_phase0.c)
+endif()
