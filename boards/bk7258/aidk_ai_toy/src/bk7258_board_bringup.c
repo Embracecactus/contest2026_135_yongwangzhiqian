@@ -3,13 +3,14 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * AIDK board hook: UART0 console, MIC, SD NAND, PA speaker and the bounded
- * GC2145 Phase 0 identity probe.
+ * AIDK board hook: UART0 console, MIC, SD NAND, PA speaker, GC2145 camera
+ * and the bounded SC7A20H Phase 0 identity probe.
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
 #include <errno.h>
+#include <syslog.h>
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_gpio.h>
@@ -17,6 +18,15 @@
 #ifdef CONFIG_BK7258_AP_CORE
 #ifdef CONFIG_BK7258_AIDK_CAMERA_PHASE0
 extern int bk7258_aidk_camera_phase0_probe(void);
+#endif
+#ifdef CONFIG_BK7258_AIDK_CAMERA
+extern int bk7258_aidk_camera_initialize(void);
+#endif
+#ifdef CONFIG_BK7258_AIDK_SC7A20_PHASE0
+extern int bk7258_aidk_sc7a20_phase0_probe(void);
+#endif
+#ifdef CONFIG_BK7258_AIDK_USB_OTA
+extern int bk7258_aidk_usb_ota_initialize(void);
 #endif
 
 static const struct bk7258_mic_config_s g_bk7258_aidk_mic_config =
@@ -77,6 +87,14 @@ int bk7258_board_ap_initialize(void)
       return ret;
     }
 
+#ifdef CONFIG_BK7258_AIDK_SC7A20_PHASE0
+  ret = bk7258_aidk_sc7a20_phase0_probe();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
   ret = bk7258_board_ap_buses_initialize(NULL, sdio);
   if (ret < 0)
     {
@@ -91,6 +109,35 @@ int bk7258_board_ap_initialize(void)
     }
 #endif
 
-  return bk7258_board_ap_finalize_initialize();
+#ifdef CONFIG_BK7258_AIDK_CAMERA
+  ret = bk7258_aidk_camera_initialize();
+  if (ret < 0)
+    {
+      /* Match the proven T5-Board policy: an attached camera is useful but
+       * it is not a prerequisite for AP/RPTUN health or signed recovery.
+       * Keep the failure visible while allowing the USB OTA path below to
+       * start, so a camera-only fault can be repaired without another full
+       * provisioning cycle.
+       */
+
+      syslog(LOG_ERR, "AIDK GC2145 registration failed: %d\n", ret);
+    }
+#endif
+
+  ret = bk7258_board_ap_finalize_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+#ifdef CONFIG_BK7258_AIDK_USB_OTA
+  ret = bk7258_aidk_usb_ota_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+  return OK;
 }
 #endif /* CONFIG_BK7258_AP_CORE */

@@ -149,6 +149,27 @@
 #define BK7258_BOARD_GC2145_ID_LOW_REG          0xf1
 #define BK7258_BOARD_GC2145_ID_LOW_VALUE        0x45
 #define BK7258_BOARD_GC2145_ID                  0x2145
+#define BK7258_BOARD_CAMERA_DEVPATH              "/dev/video0"
+#define BK7258_BOARD_CAMERA_WIDTH                640u
+#define BK7258_BOARD_CAMERA_HEIGHT               480u
+#define BK7258_BOARD_CAMERA_FPS                  30u
+#define BK7258_BOARD_CAMERA_FRAME_COUNT          2u
+#define BK7258_BOARD_CAMERA_DMA_ALIGNMENT        32u
+
+/* SC7A20H accelerometer on I2C0.  The schematic ties SDO low through fitted
+ * R35 (0 Ohm), selecting 7-bit address 0x18.  G_VDD is supplied directly
+ * from VDDGPIO through fitted R37, so Phase 0 needs no power-control GPIO.
+ * It reads only WHO_AM_I and leaves the sensor in its reset power-down mode.
+ */
+
+#define BK7258_BOARD_SC7A20_I2C_BUS               0
+#define BK7258_BOARD_SC7A20_I2C_FREQUENCY    100000u
+#define BK7258_BOARD_SC7A20_I2C_SCL_GPIO          20
+#define BK7258_BOARD_SC7A20_I2C_SDA_GPIO          21
+#define BK7258_BOARD_SC7A20_I2C_ADDRESS          0x18
+#define BK7258_BOARD_SC7A20_WHO_AM_I_REG         0x0f
+#define BK7258_BOARD_SC7A20_WHO_AM_I_VALUE       0x11
+#define BK7258_BOARD_SC7A20_POWER_ALWAYS_ON         1
 
 /* Schematic-derived pin map (BK7258 pin -> net). */
 
