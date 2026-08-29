@@ -18,6 +18,7 @@
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_lcd.h>
+#include <arch/chip/bk7258_pinmux.h>
 
 #include <driver/gpio.h>
 
@@ -30,14 +31,6 @@
 extern bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
 extern bk_err_t gpio_dev_map(gpio_id_t gpio_id, gpio_dev_t dev);
 
-/* GPIO_CONFIG6 selects alternate functions for GPIO48..55.  Clear only the
- * four panel-control selectors; GPIO51/52/54/55 may belong to other devices.
- */
-
-#define T5_BOARD_GPIO_CONFIG6_REG       0x440100d8u
-#define T5_BOARD_LCD_CONTROL_MASK       ((0xfu << 0)  | (0xfu << 4) | \
-                                         (0xfu << 8)  | (0xfu << 20))
-
 static int t5_board_lcd_control_pins_initialize(
   const struct bk7258_lcd_board_s *board)
 {
@@ -49,7 +42,10 @@ static int t5_board_lcd_control_pins_initialize(
     (gpio_id_t)board->control.reset_gpio,
     (gpio_id_t)BK7258_BOARD_LCD_BACKLIGHT_GPIO,
   };
+  struct bk7258_pinmux_config_s configs[
+    sizeof(pins) / sizeof(pins[0])];
   bk_err_t ret;
+  int pinmux_ret;
   unsigned int i;
 
   ret = bk_gpio_driver_init();
@@ -67,10 +63,18 @@ static int t5_board_lcd_control_pins_initialize(
                  pins[i], ret);
           return -EIO;
         }
+
+      configs[i].pin = (uint8_t)pins[i];
+      configs[i].function = 0u;
+      configs[i].peripheral = false;
     }
 
-  *(volatile uint32_t *)T5_BOARD_GPIO_CONFIG6_REG &=
-    ~T5_BOARD_LCD_CONTROL_MASK;
+  pinmux_ret = bk7258_pinmux_apply(configs,
+                                   sizeof(configs) / sizeof(configs[0]));
+  if (pinmux_ret < 0)
+    {
+      return pinmux_ret;
+    }
 
   for (i = 0; i < sizeof(pins) / sizeof(pins[0]); i++)
     {

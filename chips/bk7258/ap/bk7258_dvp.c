@@ -29,6 +29,7 @@
 #include <components/dvp_camera.h>
 #include <driver/dma.h>
 #include <driver/h264.h>
+#include <driver/i2c.h>
 #include <driver/jpeg_enc.h>
 #include <driver/yuv_buf.h>
 #include <sdkconfig.h>
@@ -147,6 +148,161 @@ static int bk7258_dvp_error(bk_err_t error)
         return -EIO;
     }
 }
+
+#ifdef CONFIG_BK7258_DVP_BOARD_GLUE
+extern bk_err_t __real_bk_i2c_init_v2(i2c_id_t id,
+                                      FAR const i2c_config_t *config);
+extern bk_err_t __real_bk_i2c_deinit_v2(i2c_id_t id);
+extern bk_err_t __real_bk_i2c_memory_read_v2(
+  i2c_id_t id, FAR const i2c_mem_param_t *param);
+extern bk_err_t __real_bk_i2c_memory_write_v2(
+  i2c_id_t id, FAR const i2c_mem_param_t *param);
+extern void __real_dvp_camera_mclk_enable(mclk_freq_t mclk);
+
+static FAR const struct bk7258_dvp_i2c_ops_s *
+bk7258_dvp_board_i2c(i2c_id_t id)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+
+  if (binding == NULL || binding->i2c == NULL ||
+      (unsigned int)id != binding->i2c_bus)
+    {
+      return NULL;
+    }
+
+  return binding->i2c;
+}
+
+static bk_err_t bk7258_dvp_board_i2c_result(int ret)
+{
+  if (ret == 0)
+    {
+      return BK_OK;
+    }
+
+  if (ret == -EBUSY)
+    {
+      return BK_ERR_I2C_SM_BUS_BUSY;
+    }
+
+  if (ret == -ETIMEDOUT)
+    {
+      return BK_ERR_I2C_ACK_TIMEOUT;
+    }
+
+  return BK_FAIL;
+}
+
+static bk_err_t bk7258_dvp_board_i2c_transfer(
+  i2c_id_t id, FAR const i2c_mem_param_t *param, bool read)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+  FAR const struct bk7258_dvp_i2c_ops_s *ops =
+    bk7258_dvp_board_i2c(id);
+  struct bk7258_dvp_i2c_transfer_s transfer;
+  int ret;
+
+  if (ops == NULL)
+    {
+      return read ? __real_bk_i2c_memory_read_v2(id, param) :
+                    __real_bk_i2c_memory_write_v2(id, param);
+    }
+
+  if (param == NULL || param->data == NULL || param->data_size == 0)
+    {
+      return BK_ERR_PARAM;
+    }
+
+  if (param->mem_addr_size == I2C_MEM_ADDR_SIZE_8BIT)
+    {
+      transfer.memory_address_bytes = 1u;
+    }
+  else if (param->mem_addr_size == I2C_MEM_ADDR_SIZE_16BIT)
+    {
+      transfer.memory_address_bytes = 2u;
+    }
+  else
+    {
+      return BK_ERR_PARAM;
+    }
+
+  transfer.address = param->dev_addr;
+  transfer.memory_address = param->mem_addr;
+  transfer.buffer = param->data;
+  transfer.length = param->data_size;
+  if (read)
+    {
+      ret = ops->read == NULL ? -ENOSYS :
+            ops->read(binding->arg, &transfer);
+    }
+  else
+    {
+      ret = ops->write == NULL ? -ENOSYS :
+            ops->write(binding->arg, &transfer);
+    }
+
+  return bk7258_dvp_board_i2c_result(ret);
+}
+
+bk_err_t __wrap_bk_i2c_init_v2(i2c_id_t id,
+                                FAR const i2c_config_t *config)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+  FAR const struct bk7258_dvp_i2c_ops_s *ops =
+    bk7258_dvp_board_i2c(id);
+
+  if (ops == NULL)
+    {
+      return __real_bk_i2c_init_v2(id, config);
+    }
+
+  return bk7258_dvp_board_i2c_result(
+    ops->initialize == NULL ? 0 : ops->initialize(binding->arg));
+}
+
+bk_err_t __wrap_bk_i2c_deinit_v2(i2c_id_t id)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+  FAR const struct bk7258_dvp_i2c_ops_s *ops =
+    bk7258_dvp_board_i2c(id);
+
+  if (ops == NULL)
+    {
+      return __real_bk_i2c_deinit_v2(id);
+    }
+
+  return bk7258_dvp_board_i2c_result(
+    ops->uninitialize == NULL ? 0 : ops->uninitialize(binding->arg));
+}
+
+bk_err_t __wrap_bk_i2c_memory_read_v2(
+  i2c_id_t id, FAR const i2c_mem_param_t *param)
+{
+  return bk7258_dvp_board_i2c_transfer(id, param, true);
+}
+
+bk_err_t __wrap_bk_i2c_memory_write_v2(
+  i2c_id_t id, FAR const i2c_mem_param_t *param)
+{
+  return bk7258_dvp_board_i2c_transfer(id, param, false);
+}
+
+void __wrap_dvp_camera_mclk_enable(mclk_freq_t mclk)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+
+  __real_dvp_camera_mclk_enable(mclk);
+  if (binding != NULL && binding->mclk_started != NULL)
+    {
+      binding->mclk_started(binding->arg);
+    }
+}
+#endif /* CONFIG_BK7258_DVP_BOARD_GLUE */
 
 #ifdef CONFIG_BK7258_DVP_H264_COMPAT
 extern bk_err_t __real_bk_h264_encode_enable(void);
@@ -1023,6 +1179,18 @@ static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
     {
       nxmutex_unlock(&priv->api_lock);
       return ret;
+    }
+
+  if (priv->config.binding != NULL &&
+      priv->config.binding->prepare != NULL)
+    {
+      ret = priv->config.binding->prepare(priv->config.binding->arg);
+      if (ret != 0)
+        {
+          (void)bk7258_dvp_pm_release(priv);
+          nxmutex_unlock(&priv->api_lock);
+          return ret < 0 ? ret : -EIO;
+        }
     }
 
 #ifdef CONFIG_BK7258_DVP_H264_COMPAT

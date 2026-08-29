@@ -14,6 +14,7 @@
 
 #include <nuttx/compiler.h>
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <components/dvp_camera_types.h>
@@ -33,7 +34,7 @@ struct bk7258_dvp_s;
  * hold value; the lower half replays the original write after open has
  * completed. */
 
-#define BK7258_DVP_BINDING_VERSION       1u
+#define BK7258_DVP_BINDING_VERSION       2u
 #define BK7258_DVP_DEFERRED_I2C_WRITES   4u
 
 enum bk7258_dvp_i2c_write_action_e
@@ -54,12 +55,43 @@ typedef int (*bk7258_dvp_i2c_write_cb_t)(FAR void *arg,
                                          FAR struct
                                            bk7258_dvp_i2c_write_s *write);
 
+/* Board-specific sensor-control transports are described with an errno
+ * based contract.  The chip lower half owns the immutable SDK wrappers and
+ * translates its SDK I2C request into this stable board-facing structure.
+ */
+
+struct bk7258_dvp_i2c_transfer_s
+{
+  uint16_t address;
+  uint32_t memory_address;
+  uint8_t memory_address_bytes;
+  FAR uint8_t *buffer;
+  size_t length;
+};
+
+struct bk7258_dvp_i2c_ops_s
+{
+  int (*initialize)(FAR void *arg);
+  int (*uninitialize)(FAR void *arg);
+  int (*read)(FAR void *arg,
+              FAR const struct bk7258_dvp_i2c_transfer_s *transfer);
+  int (*write)(FAR void *arg,
+               FAR const struct bk7258_dvp_i2c_transfer_s *transfer);
+};
+
+typedef int (*bk7258_dvp_prepare_cb_t)(FAR void *arg);
+typedef void (*bk7258_dvp_mclk_started_cb_t)(FAR void *arg);
+
 struct bk7258_dvp_binding_s
 {
   uint16_t version;
   uint16_t size;
   FAR void *arg;
   bk7258_dvp_i2c_write_cb_t i2c_write;
+  bk7258_dvp_prepare_cb_t prepare;
+  bk7258_dvp_mclk_started_cb_t mclk_started;
+  uint8_t i2c_bus;
+  FAR const struct bk7258_dvp_i2c_ops_s *i2c;
 };
 
 /* A caller-owned, DMA-capable frame backing store.  The wrapper never

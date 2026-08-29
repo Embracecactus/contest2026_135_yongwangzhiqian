@@ -1665,8 +1665,10 @@ config BK7258_DVP_BOARD_GLUE
 	bool
 	depends on BK7258_DVP
 	help
-		Internal capability selected by a physical camera binding that needs
-		the SDK sensor-I2C and MCLK compatibility wrappers.
+		Internal compatibility dispatcher selected by a physical camera
+		binding that supplies lifecycle or sensor-I2C operations.  The chip
+		lower half owns all immutable-SDK wrappers; boards only register typed
+		callbacks through bk7258_dvp_binding_s.
 
 config BK7258_DVP_H264_COMPAT
 	bool

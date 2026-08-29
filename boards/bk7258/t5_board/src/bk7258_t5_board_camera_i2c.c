@@ -8,9 +8,9 @@
  * BK7258 has two hardware I2C controllers, while the P10 camera connector
  * uses GPIO13/GPIO15 and therefore reaches the SDK through simulated I2C2.
  * The immutable v3.1.1.9 simulated driver uses a CPU-cycle delay calibrated
- * for a different clock.  This board-owned link wrapper keeps the SDK DVP
- * implementation intact while providing clock-independent 5 us half cycles
- * for I2C2.  Hardware I2C0/I2C1 continue to use the original SDK functions.
+ * for a different clock.  This board-owned transport is registered through
+ * the chip DVP binding and provides clock-independent 5 us half cycles for
+ * I2C2 without exporting or replacing SDK symbols from the board layer.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -21,34 +21,28 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <syslog.h>
 
 #include <nuttx/arch.h>
-#include <nuttx/irq.h>
 #include <nuttx/mutex.h>
 #include <nuttx/signal.h>
 
 #include <arch/board/board.h>
+#include <arch/chip/bk7258_dvp.h>
+#include <arch/chip/bk7258_pinmux.h>
 #include <arch/chip/bk7258_pm.h>
 
-#include <components/dvp_camera_types.h>
 #include <driver/gpio.h>
-#include <driver/i2c.h>
 
-#define T5_CAMERA_I2C_ID             BK7258_BOARD_DVP_I2C_BUS
+#include "bk7258_t5_board_camera_i2c.h"
+
 #define T5_CAMERA_I2C_HALF_PERIOD_US 5u
 #define T5_CAMERA_RESET_SETTLE_US    20000u
 #define T5_CAMERA_RESET_ASSERT_US    100000u
 #define T5_CAMERA_RESET_RELEASE_US   100000u
 #define T5_CAMERA_MCLK_SETTLE_US     40000u
-#define T5_CAMERA_SYS_REG_BASE       0x44010000u
 #define T5_CAMERA_GPIO_REG_BASE      0x44000400u
-#define T5_CAMERA_GPIO_CFG_BASE      (T5_CAMERA_SYS_REG_BASE + 0xc0u)
-#define T5_CAMERA_GPIO_PER_MUX_REG   8u
-#define T5_CAMERA_GPIO_MUX_WIDTH     4u
 #define T5_CAMERA_DVP_INPUT_MUX_MODE 0u
 #define T5_CAMERA_MCLK_MUX_MODE      1u
-#define T5_CAMERA_GPIO_2_FUNC_EN     (1u << 6)
 #define T5_CAMERA_GPIO_INPUT          ((1u << 5) | (1u << 4) | \
                                       (1u << 3) | (1u << 2) | (1u << 1))
 #define T5_CAMERA_GPIO_OUTPUT_HIGH    (1u << 1)
@@ -58,22 +52,6 @@
   (*(FAR volatile uint32_t *)(uintptr_t)(address))
 
 static mutex_t g_t5_camera_i2c_lock = NXMUTEX_INITIALIZER;
-
-extern bk_err_t __real_bk_i2c_init_v2(i2c_id_t id,
-                                       const i2c_config_t *config);
-extern bk_err_t __real_bk_i2c_deinit_v2(i2c_id_t id);
-extern bk_err_t __real_bk_i2c_memory_read_v2(
-  i2c_id_t id, const i2c_mem_param_t *param);
-extern bk_err_t __real_bk_i2c_memory_write_v2(
-  i2c_id_t id, const i2c_mem_param_t *param);
-extern void __real_dvp_camera_mclk_enable(mclk_freq_t mclk);
-extern uint32_t sys_amp_res_acquire(void);
-extern uint32_t sys_amp_res_release(void);
-
-static bool t5_camera_i2c_is_board_bus(i2c_id_t id)
-{
-  return (unsigned int)id == T5_CAMERA_I2C_ID;
-}
 
 static gpio_id_t t5_camera_i2c_scl(void)
 {
@@ -278,10 +256,9 @@ static bool t5_camera_i2c_read_byte(uint8_t *byte, bool last)
   return true;
 }
 
-static bool t5_camera_i2c_write_address(uint32_t address,
-                                         i2c_mem_addr_size_t size)
+static bool t5_camera_i2c_write_address(uint32_t address, uint8_t size)
 {
-  if (size == I2C_MEM_ADDR_SIZE_16BIT &&
+  if (size == 2u &&
       !t5_camera_i2c_write_byte((uint8_t)(address >> 8)))
     {
       return false;
@@ -290,15 +267,17 @@ static bool t5_camera_i2c_write_address(uint32_t address,
   return t5_camera_i2c_write_byte((uint8_t)address);
 }
 
-static bool t5_camera_i2c_valid_param(const i2c_mem_param_t *param)
+static bool t5_camera_i2c_valid_param(
+  FAR const struct bk7258_dvp_i2c_transfer_s *transfer)
 {
-  return param != NULL && param->dev_addr <= 0x7f &&
-         param->data != NULL && param->data_size != 0 &&
-         (param->mem_addr_size == I2C_MEM_ADDR_SIZE_8BIT ||
-          param->mem_addr_size == I2C_MEM_ADDR_SIZE_16BIT);
+  return transfer != NULL && transfer->address <= 0x7f &&
+         transfer->buffer != NULL && transfer->length != 0 &&
+         (transfer->memory_address_bytes == 1u ||
+          transfer->memory_address_bytes == 2u);
 }
 
-static bk_err_t t5_camera_i2c_memory_read(const i2c_mem_param_t *param);
+static int t5_camera_i2c_memory_read(
+  FAR const struct bk7258_dvp_i2c_transfer_s *transfer);
 
 static void t5_camera_sensor_reset(void)
 {
@@ -319,123 +298,74 @@ static void t5_camera_sensor_reset(void)
   (void)nxsig_usleep(T5_CAMERA_RESET_RELEASE_US);
 }
 
-static void t5_camera_dvp_pinmux_set(uint8_t pin, uint32_t mode)
-{
-  uintptr_t address = T5_CAMERA_GPIO_CFG_BASE +
-                      pin / T5_CAMERA_GPIO_PER_MUX_REG * sizeof(uint32_t);
-  uint32_t shift = pin % T5_CAMERA_GPIO_PER_MUX_REG *
-                   T5_CAMERA_GPIO_MUX_WIDTH;
-  uint32_t mask = 0x0fu << shift;
-  uint32_t value = T5_CAMERA_REG32(address);
-
-  T5_CAMERA_REG32(address) =
-    (value & ~mask) | (mode << shift);
-
-  /* gpio_dev_map() returns BK_OK even when gpio_hal_func_map() rejects an
-   * already-owned pin.  In that path the sysctrl selector may look right
-   * while the pad remains in GPIO mode.  The DVP group is board-exclusive,
-   * so also enforce the documented peripheral-enable bit on each pad. */
-
-  address = T5_CAMERA_GPIO_REG_BASE + pin * sizeof(uint32_t);
-  T5_CAMERA_REG32(address) |= T5_CAMERA_GPIO_2_FUNC_EN;
-}
-
 static int t5_camera_dvp_pinmux_apply(void)
 {
-  static const uint8_t g_dvp_pins[] =
+  static const struct bk7258_pinmux_config_s configs[] =
   {
-    BK7258_BOARD_DVP_MCLK_GPIO,
-    BK7258_BOARD_DVP_PCLK_GPIO,
-    BK7258_BOARD_DVP_HSYNC_GPIO,
-    BK7258_BOARD_DVP_VSYNC_GPIO,
-    BK7258_BOARD_DVP_D0_GPIO,
-    BK7258_BOARD_DVP_D1_GPIO,
-    BK7258_BOARD_DVP_D2_GPIO,
-    BK7258_BOARD_DVP_D3_GPIO,
-    BK7258_BOARD_DVP_D4_GPIO,
-    BK7258_BOARD_DVP_D5_GPIO,
-    BK7258_BOARD_DVP_D6_GPIO,
-    BK7258_BOARD_DVP_D7_GPIO,
+    { BK7258_BOARD_DVP_MCLK_GPIO, T5_CAMERA_MCLK_MUX_MODE, true },
+    { BK7258_BOARD_DVP_PCLK_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
+    { BK7258_BOARD_DVP_HSYNC_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
+    { BK7258_BOARD_DVP_VSYNC_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
+    { BK7258_BOARD_DVP_D0_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
+    { BK7258_BOARD_DVP_D1_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
+    { BK7258_BOARD_DVP_D2_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
+    { BK7258_BOARD_DVP_D3_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
+    { BK7258_BOARD_DVP_D4_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
+    { BK7258_BOARD_DVP_D5_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
+    { BK7258_BOARD_DVP_D6_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
+    { BK7258_BOARD_DVP_D7_GPIO, T5_CAMERA_DVP_INPUT_MUX_MODE, true },
   };
-  irqstate_t flags;
-  unsigned int index;
 
-  /* These pins belong to the AP camera datapath.  v3.1.1.9's public
-   * gpio_dev_map() discards the lower-level mapping failure, so apply the
-   * BK7258 DVP slots here after the real SDK helper.  Use the same AMP
-   * sys-register lock as the SDK sys_ctrl implementation, plus a local
-   * critical section to make each register RMW atomic on AP SMP. */
-
-  if (sys_amp_res_acquire() != 0)
-    {
-      return -EBUSY;
-    }
-
-  flags = up_irq_save();
-  for (index = 0; index < sizeof(g_dvp_pins); index++)
-    {
-      /* GPIO27 uses the second peripheral slot for CLK_AUXS_CIS.  The
-       * remaining BK7258 DVP signals are all in the first peripheral slot:
-       * P29/P30/P31 are PCLK/HSYNC/VSYNC and P32..P39 are D0..D7. */
-
-      t5_camera_dvp_pinmux_set(g_dvp_pins[index],
-        g_dvp_pins[index] == BK7258_BOARD_DVP_MCLK_GPIO ?
-        T5_CAMERA_MCLK_MUX_MODE : T5_CAMERA_DVP_INPUT_MUX_MODE);
-    }
-
-  __asm volatile ("dmb sy" ::: "memory");
-  up_irq_restore(flags);
-
-  return sys_amp_res_release() == 0 ? OK : -EIO;
+  return bk7258_pinmux_apply(configs, sizeof(configs) / sizeof(configs[0]));
 }
 
-void __wrap_dvp_camera_mclk_enable(mclk_freq_t mclk)
+int bk7258_t5_camera_prepare(FAR void *arg)
 {
-  /* Reproduce the T5AI board sequence before the immutable SDK performs
-   * sensor auto-detection: idle SCCB high, reset high/low/high, then enable
-   * the sensor clock.  This wrapper is board-scoped and leaves the SDK's
-   * clock source/divider implementation unchanged. */
+  int ret;
 
+  (void)arg;
   t5_camera_i2c_drive_high(t5_camera_i2c_scl());
   t5_camera_i2c_drive_high(t5_camera_i2c_sda());
   t5_camera_sensor_reset();
-  __real_dvp_camera_mclk_enable(mclk);
-  if (t5_camera_dvp_pinmux_apply() < 0)
-    {
-      syslog(LOG_ERR, "BKCAM DVP AP pinmux apply failed\n");
-    }
+  ret = t5_camera_dvp_pinmux_apply();
+  return ret;
+}
 
+void bk7258_t5_camera_mclk_started(FAR void *arg)
+{
+  (void)arg;
   (void)nxsig_usleep(T5_CAMERA_MCLK_SETTLE_US);
 }
 
-static bk_err_t t5_camera_i2c_memory_write(const i2c_mem_param_t *param)
+static int t5_camera_i2c_memory_write(
+  FAR const struct bk7258_dvp_i2c_transfer_s *transfer)
 {
   uint32_t index;
   bool success = false;
   int ret;
 
-  if (!t5_camera_i2c_valid_param(param))
+  if (!t5_camera_i2c_valid_param(transfer))
     {
-      return BK_FAIL;
+      return -EINVAL;
     }
 
   ret = nxmutex_lock(&g_t5_camera_i2c_lock);
   if (ret < 0)
     {
-      return BK_FAIL;
+      return ret;
     }
 
   if (!t5_camera_i2c_start() ||
-      !t5_camera_i2c_write_byte((uint8_t)(param->dev_addr << 1)) ||
-      !t5_camera_i2c_write_address(param->mem_addr,
-                                   param->mem_addr_size))
+      !t5_camera_i2c_write_byte((uint8_t)(transfer->address << 1)) ||
+      !t5_camera_i2c_write_address(transfer->memory_address,
+                                   transfer->memory_address_bytes))
     {
       goto out;
     }
 
-  for (index = 0; index < param->data_size; index++)
+  for (index = 0; index < transfer->length; index++)
     {
-      if (!t5_camera_i2c_write_byte(param->data[index]))
+      if (!t5_camera_i2c_write_byte(transfer->buffer[index]))
         {
           goto out;
         }
@@ -446,40 +376,41 @@ static bk_err_t t5_camera_i2c_memory_write(const i2c_mem_param_t *param)
 out:
   t5_camera_i2c_stop();
   nxmutex_unlock(&g_t5_camera_i2c_lock);
-  return success ? BK_OK : BK_ERR_I2C_ACK_TIMEOUT;
+  return success ? 0 : -ETIMEDOUT;
 }
 
-static bk_err_t t5_camera_i2c_memory_read(const i2c_mem_param_t *param)
+static int t5_camera_i2c_memory_read(
+  FAR const struct bk7258_dvp_i2c_transfer_s *transfer)
 {
   uint32_t index;
   bool success = false;
   int ret;
 
-  if (!t5_camera_i2c_valid_param(param))
+  if (!t5_camera_i2c_valid_param(transfer))
     {
-      return BK_FAIL;
+      return -EINVAL;
     }
 
   ret = nxmutex_lock(&g_t5_camera_i2c_lock);
   if (ret < 0)
     {
-      return BK_FAIL;
+      return ret;
     }
 
   if (!t5_camera_i2c_start() ||
-      !t5_camera_i2c_write_byte((uint8_t)(param->dev_addr << 1)) ||
-      !t5_camera_i2c_write_address(param->mem_addr,
-                                   param->mem_addr_size) ||
+      !t5_camera_i2c_write_byte((uint8_t)(transfer->address << 1)) ||
+      !t5_camera_i2c_write_address(transfer->memory_address,
+                                   transfer->memory_address_bytes) ||
       !t5_camera_i2c_start() ||
-      !t5_camera_i2c_write_byte((uint8_t)((param->dev_addr << 1) | 1u)))
+      !t5_camera_i2c_write_byte((uint8_t)((transfer->address << 1) | 1u)))
     {
       goto out;
     }
 
-  for (index = 0; index < param->data_size; index++)
+  for (index = 0; index < transfer->length; index++)
     {
-      if (!t5_camera_i2c_read_byte(&param->data[index],
-                                   index + 1u == param->data_size))
+      if (!t5_camera_i2c_read_byte(&transfer->buffer[index],
+                                   index + 1u == transfer->length))
         {
           goto out;
         }
@@ -490,52 +421,49 @@ static bk_err_t t5_camera_i2c_memory_read(const i2c_mem_param_t *param)
 out:
   t5_camera_i2c_stop();
   nxmutex_unlock(&g_t5_camera_i2c_lock);
-  return success ? BK_OK : BK_ERR_I2C_ACK_TIMEOUT;
+  return success ? 0 : -ETIMEDOUT;
 }
 
-bk_err_t __wrap_bk_i2c_init_v2(i2c_id_t id,
-                                const i2c_config_t *config)
+static int t5_camera_i2c_initialize(FAR void *arg)
 {
-  if (!t5_camera_i2c_is_board_bus(id))
-    {
-      return __real_bk_i2c_init_v2(id, config);
-    }
-
-  (void)config;
+  (void)arg;
   t5_camera_i2c_drive_high(t5_camera_i2c_scl());
   t5_camera_i2c_drive_high(t5_camera_i2c_sda());
   t5_camera_i2c_delay();
   return t5_camera_i2c_get_input(t5_camera_i2c_scl()) &&
-         t5_camera_i2c_get_input(t5_camera_i2c_sda()) ? BK_OK :
-         BK_ERR_I2C_SM_BUS_BUSY;
+         t5_camera_i2c_get_input(t5_camera_i2c_sda()) ? 0 : -EBUSY;
 }
 
-bk_err_t __wrap_bk_i2c_deinit_v2(i2c_id_t id)
+static int t5_camera_i2c_uninitialize(FAR void *arg)
 {
-  if (!t5_camera_i2c_is_board_bus(id))
-    {
-      return __real_bk_i2c_deinit_v2(id);
-    }
-
+  (void)arg;
   t5_camera_i2c_drive_high(t5_camera_i2c_scl());
   t5_camera_i2c_drive_high(t5_camera_i2c_sda());
-  return BK_OK;
+  return 0;
 }
 
-bk_err_t __wrap_bk_i2c_memory_read_v2(
-  i2c_id_t id, const i2c_mem_param_t *param)
+static int t5_camera_i2c_read(
+  FAR void *arg,
+  FAR const struct bk7258_dvp_i2c_transfer_s *transfer)
 {
-  return t5_camera_i2c_is_board_bus(id) ?
-         t5_camera_i2c_memory_read(param) :
-         __real_bk_i2c_memory_read_v2(id, param);
+  (void)arg;
+  return t5_camera_i2c_memory_read(transfer);
 }
 
-bk_err_t __wrap_bk_i2c_memory_write_v2(
-  i2c_id_t id, const i2c_mem_param_t *param)
+static int t5_camera_i2c_write(
+  FAR void *arg,
+  FAR const struct bk7258_dvp_i2c_transfer_s *transfer)
 {
-  return t5_camera_i2c_is_board_bus(id) ?
-         t5_camera_i2c_memory_write(param) :
-         __real_bk_i2c_memory_write_v2(id, param);
+  (void)arg;
+  return t5_camera_i2c_memory_write(transfer);
 }
+
+const struct bk7258_dvp_i2c_ops_s g_bk7258_t5_camera_i2c_ops =
+{
+  .initialize = t5_camera_i2c_initialize,
+  .uninitialize = t5_camera_i2c_uninitialize,
+  .read = t5_camera_i2c_read,
+  .write = t5_camera_i2c_write,
+};
 
 #endif /* CONFIG_BK7258_T5_BOARD_CAMERA */

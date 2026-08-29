@@ -43,6 +43,8 @@
 
 #include <sdkconfig.h>
 
+#include "bk7258_t5_board_camera_i2c.h"
+
 #define T5_CAMERA_DEVPATH            "/dev/video0"
 #define T5_CAMERA_WIDTH              640u
 #define T5_CAMERA_HEIGHT             480u
@@ -126,6 +128,10 @@ static const struct bk7258_dvp_binding_s g_t5_camera_dvp_binding =
   .size = sizeof(struct bk7258_dvp_binding_s),
   .arg = NULL,
   .i2c_write = t5_camera_dvp_i2c_write,
+  .prepare = bk7258_t5_camera_prepare,
+  .mclk_started = bk7258_t5_camera_mclk_started,
+  .i2c_bus = BK7258_BOARD_DVP_I2C_BUS,
+  .i2c = &g_bk7258_t5_camera_i2c_ops,
 };
 
 #if defined(CONFIG_BK7258_T5_BOARD_CAMERA_VALIDATION) || \
