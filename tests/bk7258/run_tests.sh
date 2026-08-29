@@ -14,6 +14,7 @@ echo "cmocka=$(pkg-config --modversion cmocka)"
 echo "sanitizers=address,undefined:test_boot_bl1_policy"
 echo "partition_csv_sha256=$(sha256sum ../../boards/bk7258/common/partitions/bk7258/bk7258_ab_agent_onchip_persistent.csv | awk '{print $1}')"
 
+./test_aidk_scripts.sh
 make clean >/dev/null
 make run
 echo "BK7258_HOST_TEST_PASS"
