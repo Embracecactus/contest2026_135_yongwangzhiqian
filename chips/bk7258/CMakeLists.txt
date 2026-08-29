@@ -254,6 +254,7 @@ set(BK7258_AP_BASE_SRCS
     ap/bk7258_ap_start.c
     ${BK7258_COMMON_FRONT_SRCS}
     common/bk7258_stage_runner.c
+    ap/bk7258_pinmux.c
     ap/bk7258_ap_platform.c
     ap/bk7258_ap_lifecycle.c)
 

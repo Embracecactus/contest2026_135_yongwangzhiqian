@@ -292,6 +292,7 @@ BK7258_AP_BASE_CSRCS  = bk7258_ap_vectors.c
 BK7258_AP_BASE_CSRCS += bk7258_ap_start.c
 BK7258_AP_BASE_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
 BK7258_AP_BASE_CSRCS += bk7258_stage_runner.c
+BK7258_AP_BASE_CSRCS += bk7258_pinmux.c
 BK7258_AP_BASE_CSRCS += bk7258_ap_platform.c
 BK7258_AP_BASE_CSRCS += bk7258_ap_lifecycle.c
 

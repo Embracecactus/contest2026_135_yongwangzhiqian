@@ -34,6 +34,8 @@
 #include <driver/gpio.h>
 #include <sdkconfig.h>
 
+#include "bk7258_aidk_camera_glue.h"
+
 #define AIDK_CAMERA_ENCODE_BUFFER_SIZE \
   (BK7258_BOARD_CAMERA_WIDTH * 16u * 2u)
 #define AIDK_CAMERA_FRAME_SIZE          CONFIG_JPEG_FRAME_SIZE
@@ -401,7 +403,7 @@ int bk7258_aidk_camera_initialize(void)
   sdk.img_format = IMAGE_MJPEG;
 
   config.sdk = sdk;
-  config.binding = NULL;
+  config.binding = bk7258_aidk_camera_binding();
   config.frames = g_aidk_camera_frames;
   config.frame_count = BK7258_BOARD_CAMERA_FRAME_COUNT;
   config.encode_buffer = encode_buffer;
