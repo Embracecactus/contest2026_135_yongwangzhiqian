@@ -28,6 +28,9 @@ This subtree is the complete ownership boundary for AIDK AI Toy adaptation.
   RESET once when `Getting Bus` appears.  Holding a BOOT key is not required.
 - The second Type-C port is native BK7258 USB0 Device.  It carries only signed
   OTA object reads into the unified OTA Manager; it is not raw DFU/MSC Flash.
+  That transport is the chip-level `BK7258_OTA_SOURCE_USB` source, one OTA
+  source beside the file and HTTP sources, so this board only selects it and
+  supplies the port wiring; do not re-implement the wire protocol here.
   AP stages the pair, CP is the only on-chip writer, BL2 owns trial/revert, and
   the CP Supervisor policy owns automatic confirmation.
 

@@ -35,7 +35,3 @@ endif()
 if(CONFIG_BK7258_AIDK_SC7A20_PHASE0)
   target_sources(board PRIVATE bk7258_aidk_sc7a20_phase0.c)
 endif()
-
-if(CONFIG_BK7258_AIDK_USB_OTA)
-  target_sources(board PRIVATE bk7258_aidk_usb_ota.c)
-endif()

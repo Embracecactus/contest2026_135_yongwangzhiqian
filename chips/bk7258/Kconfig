@@ -730,6 +730,41 @@ config BK7258_OTA_SOURCE_HTTP_PLAINTEXT
 		but transport confidentiality and server authentication are absent.
 		Production profiles should keep this disabled and use HTTPS with a CA.
 
+config BK7258_OTA_SOURCE_USB
+	bool "Native USB CDC-ACM OTA source"
+	default n
+	depends on BK7258_AP_CORE && BK7258_OTA_MANAGER && BK7258_OTA_RPMSG
+	select BK7258_USBCDC
+	---help---
+		Serve authenticated catalog and CP/AP object reads to the existing OTA
+		Manager over the CDC-ACM transport on BK7258 USB0.  This is one OTA
+		source beside the file and HTTP sources: the chip layer owns the wire
+		protocol, the framed request/response state machine and the pinned
+		worker, so any board that wires the USB device port may select it.
+		The host answers bounded random reads directly from one verified
+		.bkpack, so no staging cache is required.  It never exposes raw
+		on-chip Flash and cannot replace the initial BK Loader provisioning
+		step.
+
+if BK7258_OTA_SOURCE_USB
+
+config BK7258_OTA_SOURCE_USB_PRIORITY
+	int "USB OTA source worker priority"
+	default 95
+	range 1 199
+
+config BK7258_OTA_SOURCE_USB_STACKSIZE
+	int "USB OTA source worker stack size"
+	default 16384
+	range 8192 32768
+
+config BK7258_OTA_SOURCE_USB_IO_TIMEOUT_MS
+	int "USB OTA source per-frame timeout (milliseconds)"
+	default 15000
+	range 1000 60000
+
+endif # BK7258_OTA_SOURCE_USB
+
 config BK7258_AP_SUPERVISOR
 	bool "N10 AP SMP liveness and RPTUN health supervisor"
 	default n
@@ -2209,12 +2244,12 @@ config BK7258_USBCDC
 	select SERIAL
 	help
 		Expose the BK7258 MUSB controller as a USB device CDC-ACM serial
-		gadget through the standard NuttX serial device /dev/ttyGS0.  The
-		immutable v3.1.1.9 CherryUSB component owns the device controller
-		and class control requests; this lower half owns the device/config
-		descriptors, CDC data endpoints and the serial ring path.  It is
-		mutually exclusive with the USB host wrapper because both share the
-		single MUSB controller.
+		gadget.  By default it publishes the standard NuttX serial device
+		/dev/ttyGS0; a board product may instead bind descriptors and typed
+		endpoint/class callbacks through bk7258_usbcdc_config_s.  The chip
+		lower half remains the sole owner of CherryUSB registration in both
+		modes.  It is mutually exclusive with the USB host wrapper because
+		both share the single MUSB controller.
 
 config BK7258_USBCDC_VID
 	hex "USB CDC gadget vendor ID"
