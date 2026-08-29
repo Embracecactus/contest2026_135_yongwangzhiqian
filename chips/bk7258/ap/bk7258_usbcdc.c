@@ -6,9 +6,10 @@
  * BK7258 USB device CDC-ACM serial gadget.
  *
  * The immutable v3.1.1.9 CherryUSB component owns the MUSB device
- * controller, endpoint management and class control requests.  This board
- * wrapper owns the device/configuration descriptors, the CDC data
- * endpoints and the NuttX serial lower half /dev/ttyGS0.
+ * controller and endpoint management.  This chip wrapper owns the single
+ * class/controller registration and optionally publishes the NuttX serial
+ * lower half /dev/ttyGS0.  Board transports bind typed callbacks instead of
+ * replacing class symbols or registering endpoints a second time.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -84,9 +85,11 @@ struct bk7258_usbcdc_priv_s
   bool rx_enabled;
   bool tx_enabled;
   bool tx_pending;
+  bool serial_registered;
+  struct bk7258_usbcdc_config_s config;
 };
 
-static const uint8_t g_bk7258_usbcdc_device_desc[] =
+static const uint8_t g_bk7258_usbcdc_descriptors[] =
 {
   18,                       /* bLength */
   USB_DT_DEVICE,            /* bDescriptorType */
@@ -103,11 +106,8 @@ static const uint8_t g_bk7258_usbcdc_device_desc[] =
   0,                        /* iManufacturer */
   0,                        /* iProduct */
   0,                        /* iSerialNumber */
-  1                         /* bNumConfigurations */
-};
+  1,                        /* bNumConfigurations */
 
-static const uint8_t g_bk7258_usbcdc_config_desc[] =
-{
   /* Configuration */
   9, USB_DT_CONFIG, 0x43, 0x00, 2, 1, 0, 0xc0, 0x32,
 
@@ -137,6 +137,8 @@ static const uint8_t g_bk7258_usbcdc_config_desc[] =
   /* Endpoint: bulk IN */
   7, USB_DT_ENDPOINT, BK7258_USBCDC_EP_BULK_IN,
   USB_ENDPOINT_XFER_BULK, BK7258_USBCDC_MPS_BULK, 0x00, 0x00,
+
+  0,
 };
 
 static struct usbd_endpoint g_bk7258_usbcdc_ep_intr;
@@ -166,6 +168,10 @@ static void bk7258_usbcdc_send(FAR struct uart_dev_s *uartdev, int ch);
 static void bk7258_usbcdc_txint(FAR struct uart_dev_s *uartdev, bool enable);
 static bool bk7258_usbcdc_txready(FAR struct uart_dev_s *uartdev);
 static bool bk7258_usbcdc_txempty(FAR struct uart_dev_s *uartdev);
+static int bk7258_usbcdc_class_request(
+  FAR struct usb_setup_packet *setup, FAR uint8_t **data,
+  FAR uint32_t *length);
+static void bk7258_usbcdc_notify(uint8_t event, FAR void *arg);
 
 static const struct uart_ops_s g_bk7258_usbcdc_uart_ops =
 {
@@ -181,6 +187,22 @@ static const struct uart_ops_s g_bk7258_usbcdc_uart_ops =
   .txint       = bk7258_usbcdc_txint,
   .txready     = bk7258_usbcdc_txready,
   .txempty     = bk7258_usbcdc_txempty,
+};
+
+static const struct bk7258_usbcdc_config_s g_bk7258_usbcdc_default_config =
+{
+  .version = BK7258_USBCDC_CONFIG_VERSION,
+  .size = sizeof(struct bk7258_usbcdc_config_s),
+  .descriptors = g_bk7258_usbcdc_descriptors,
+  .ep_intr_in = BK7258_USBCDC_EP_INTR_IN,
+  .ep_bulk_out = BK7258_USBCDC_EP_BULK_OUT,
+  .ep_bulk_in = BK7258_USBCDC_EP_BULK_IN,
+  .ep_out_callback = bk7258_usbcdc_ep_out_cb,
+  .ep_in_callback = bk7258_usbcdc_ep_in_cb,
+  .class_request = bk7258_usbcdc_class_request,
+  .notify = bk7258_usbcdc_notify,
+  .register_serial = true,
+  .devname = BK7258_USBCDC_DEVNAME,
 };
 
 static inline uint16_t bk7258_usbcdc_ring_used(
@@ -223,7 +245,7 @@ static bool bk7258_usbcdc_ring_pop(FAR struct bk7258_usbcdc_ring_s *ring,
 
 static void bk7258_usbcdc_arm_rx(void)
 {
-  int ret = usbd_ep_start_read(BK7258_USBCDC_EP_BULK_OUT,
+  int ret = usbd_ep_start_read(g_bk7258_usbcdc.config.ep_bulk_out,
                                g_bk7258_usbcdc.rxbuf,
                                sizeof(g_bk7258_usbcdc.rxbuf));
   if (ret < 0)
@@ -232,12 +254,76 @@ static void bk7258_usbcdc_arm_rx(void)
     }
 }
 
+static int bk7258_usbcdc_class_request(
+  FAR struct usb_setup_packet *setup, FAR uint8_t **data,
+  FAR uint32_t *length)
+{
+  static struct cdc_line_coding coding =
+  {
+    .dwDTERate = 115200,
+    .bCharFormat = 0,
+    .bParityType = 0,
+    .bDataBits = 8,
+  };
+
+  if (setup == NULL || data == NULL || length == NULL)
+    {
+      return -1;
+    }
+
+  switch (setup->bRequest)
+    {
+      case CDC_REQUEST_SET_LINE_CODING:
+        if (setup->wLength != sizeof(coding) || *data == NULL)
+          {
+            return -1;
+          }
+
+        memcpy(&coding, *data, sizeof(coding));
+        return 0;
+
+      case CDC_REQUEST_GET_LINE_CODING:
+        *data = (FAR uint8_t *)&coding;
+        *length = sizeof(coding);
+        return 0;
+
+      case CDC_REQUEST_SET_CONTROL_LINE_STATE:
+      case CDC_REQUEST_SEND_BREAK:
+        return 0;
+
+      default:
+        return -1;
+    }
+}
+
+static void bk7258_usbcdc_notify(uint8_t event, FAR void *arg)
+{
+  FAR struct bk7258_usbcdc_priv_s *priv = &g_bk7258_usbcdc;
+
+  (void)arg;
+  if (event == USBD_EVENT_CONFIGURED)
+    {
+      if (!priv->configured)
+        {
+          priv->configured = true;
+          bk7258_usbcdc_arm_rx();
+        }
+    }
+  else if (event == USBD_EVENT_RESET || event == USBD_EVENT_DISCONNECTED)
+    {
+      priv->configured = false;
+      priv->tx_pending = false;
+    }
+}
+
 void usbd_configure_done_callback(void)
 {
   FAR struct bk7258_usbcdc_priv_s *priv = &g_bk7258_usbcdc;
 
-  priv->configured = true;
-  bk7258_usbcdc_arm_rx();
+  if (priv->serial_registered)
+    {
+      bk7258_usbcdc_notify(USBD_EVENT_CONFIGURED, NULL);
+    }
 }
 
 static void bk7258_usbcdc_ep_out_cb(uint8_t ep, uint32_t nbytes)
@@ -315,7 +401,7 @@ static void bk7258_usbcdc_kick_tx(FAR struct bk7258_usbcdc_priv_s *priv)
   priv->tx_pending = true;
   leave_critical_section(flags);
 
-  ret = usbd_ep_start_write(BK7258_USBCDC_EP_BULK_IN, priv->txbuf, used);
+  ret = usbd_ep_start_write(priv->config.ep_bulk_in, priv->txbuf, used);
   if (ret < 0)
     {
       flags = enter_critical_section();
@@ -445,8 +531,28 @@ static bool bk7258_usbcdc_txempty(FAR struct uart_dev_s *uartdev)
 
 int bk7258_usbcdc_initialize(void)
 {
+  return bk7258_usbcdc_initialize_with_config(
+    &g_bk7258_usbcdc_default_config);
+}
+
+int bk7258_usbcdc_initialize_with_config(
+  FAR const struct bk7258_usbcdc_config_s *config)
+{
   FAR struct bk7258_usbcdc_priv_s *priv = &g_bk7258_usbcdc;
+  FAR const char *devname;
   int ret;
+
+  if (config == NULL ||
+      config->version != BK7258_USBCDC_CONFIG_VERSION ||
+      config->size < sizeof(*config) || config->descriptors == NULL ||
+      config->ep_intr_in == 0u || config->ep_bulk_out == 0u ||
+      config->ep_bulk_in == 0u || config->ep_out_callback == NULL ||
+      config->ep_in_callback == NULL || config->class_request == NULL ||
+      (config->register_serial &&
+       (config->devname == NULL || config->devname[0] == '\0')))
+    {
+      return -EINVAL;
+    }
 
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
@@ -460,47 +566,75 @@ int bk7258_usbcdc_initialize(void)
       return -EBUSY;
     }
 
-  g_bk7258_usbcdc_ep_intr.ep_addr = BK7258_USBCDC_EP_INTR_IN;
-  g_bk7258_usbcdc_ep_intr.ep_cb   = NULL;
-  g_bk7258_usbcdc_ep_out.ep_addr  = BK7258_USBCDC_EP_BULK_OUT;
-  g_bk7258_usbcdc_ep_out.ep_cb    = bk7258_usbcdc_ep_out_cb;
-  g_bk7258_usbcdc_ep_in.ep_addr   = BK7258_USBCDC_EP_BULK_IN;
-  g_bk7258_usbcdc_ep_in.ep_cb     = bk7258_usbcdc_ep_in_cb;
+  memcpy(&priv->config, config, sizeof(priv->config));
+  devname = priv->config.devname;
+  memset(&g_bk7258_usbcdc_ep_intr, 0,
+         sizeof(g_bk7258_usbcdc_ep_intr));
+  memset(&g_bk7258_usbcdc_ep_out, 0,
+         sizeof(g_bk7258_usbcdc_ep_out));
+  memset(&g_bk7258_usbcdc_ep_in, 0,
+         sizeof(g_bk7258_usbcdc_ep_in));
+  memset(&g_bk7258_usbcdc_intf, 0, sizeof(g_bk7258_usbcdc_intf));
+  memset(&g_bk7258_usbcdc_data_intf, 0,
+         sizeof(g_bk7258_usbcdc_data_intf));
 
-  usbd_desc_register(g_bk7258_usbcdc_config_desc);
-  usbd_cdc_acm_init_intf(0, &g_bk7258_usbcdc_intf);
+  g_bk7258_usbcdc_ep_intr.ep_addr = config->ep_intr_in;
+  g_bk7258_usbcdc_ep_intr.ep_cb   = NULL;
+  g_bk7258_usbcdc_ep_out.ep_addr  = config->ep_bulk_out;
+  g_bk7258_usbcdc_ep_out.ep_cb    = config->ep_out_callback;
+  g_bk7258_usbcdc_ep_in.ep_addr   = config->ep_bulk_in;
+  g_bk7258_usbcdc_ep_in.ep_cb     = config->ep_in_callback;
+
+  g_bk7258_usbcdc_intf.class_interface_handler = config->class_request;
+  g_bk7258_usbcdc_intf.class_endpoint_handler = NULL;
+  g_bk7258_usbcdc_intf.vendor_handler = NULL;
+  g_bk7258_usbcdc_intf.notify_handler = config->notify;
+
+  usbd_desc_register(config->descriptors);
   usbd_add_interface(&g_bk7258_usbcdc_intf);
   usbd_add_interface(&g_bk7258_usbcdc_data_intf);
   usbd_add_endpoint(&g_bk7258_usbcdc_ep_intr);
   usbd_add_endpoint(&g_bk7258_usbcdc_ep_out);
   usbd_add_endpoint(&g_bk7258_usbcdc_ep_in);
 
-  priv->uartdev.recv.size   = sizeof(priv->rx.data);
-  priv->uartdev.recv.buffer = (FAR uint8_t *)priv->rx.data;
-  priv->uartdev.xmit.size   = sizeof(priv->tx.data);
-  priv->uartdev.xmit.buffer = (FAR uint8_t *)priv->tx.data;
-  priv->uartdev.ops         = &g_bk7258_usbcdc_uart_ops;
-  priv->uartdev.priv        = priv;
-
-  ret = uart_register(BK7258_USBCDC_DEVNAME, &priv->uartdev);
-  if (ret < 0)
+  if (config->register_serial)
     {
-      nxmutex_unlock(&priv->lock);
-      return ret;
+      memset(&priv->rx, 0, sizeof(priv->rx));
+      memset(&priv->tx, 0, sizeof(priv->tx));
+      priv->uartdev.recv.size   = sizeof(priv->rx.data);
+      priv->uartdev.recv.buffer = (FAR uint8_t *)priv->rx.data;
+      priv->uartdev.xmit.size   = sizeof(priv->tx.data);
+      priv->uartdev.xmit.buffer = (FAR uint8_t *)priv->tx.data;
+      priv->uartdev.ops         = &g_bk7258_usbcdc_uart_ops;
+      priv->uartdev.priv        = priv;
+
+      ret = uart_register(devname, &priv->uartdev);
+      if (ret < 0)
+        {
+          nxmutex_unlock(&priv->lock);
+          return ret;
+        }
+
+      priv->serial_registered = true;
     }
 
   ret = usbd_initialize();
   if (ret < 0)
     {
-      unregister_driver(BK7258_USBCDC_DEVNAME);
+      if (priv->serial_registered)
+        {
+          unregister_driver(devname);
+          priv->serial_registered = false;
+        }
+
       nxmutex_unlock(&priv->lock);
       return ret;
     }
 
   priv->inited = true;
-  syslog(LOG_INFO, "BK7258 USBCDC: ready %s vid=%04x pid=%04x\n",
-         BK7258_USBCDC_DEVNAME, CONFIG_BK7258_USBCDC_VID,
-         CONFIG_BK7258_USBCDC_PID);
+  syslog(LOG_INFO, "BK7258 USBCDC: ready consumer=%s vid=%04x pid=%04x\n",
+         priv->serial_registered ? devname : "callback",
+         CONFIG_BK7258_USBCDC_VID, CONFIG_BK7258_USBCDC_PID);
 
   nxmutex_unlock(&priv->lock);
   return OK;
@@ -524,9 +658,15 @@ int bk7258_usbcdc_uninitialize(void)
     }
 
   (void)usbd_deinitialize();
-  unregister_driver(BK7258_USBCDC_DEVNAME);
+  if (priv->serial_registered)
+    {
+      unregister_driver(priv->config.devname);
+      priv->serial_registered = false;
+    }
+
   priv->inited = false;
   priv->configured = false;
+  memset(&priv->config, 0, sizeof(priv->config));
 
   nxmutex_unlock(&priv->lock);
   return OK;

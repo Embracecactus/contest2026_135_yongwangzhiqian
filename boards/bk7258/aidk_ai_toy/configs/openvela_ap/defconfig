@@ -35,7 +35,7 @@ CONFIG_BK7258_PSRAM=y
 CONFIG_BK7258_PSRAM_SYSTEM_HEAP=y
 CONFIG_BK7258_PSRAM_SYSTEM_HEAP_SIZE=0x80000
 CONFIG_BK7258_AIDK_CAMERA=y
-CONFIG_BK7258_AIDK_USB_OTA=y
+CONFIG_BK7258_OTA_SOURCE_USB=y
 # SC7A20H is on the SoC I2C0 route at P20/P21.  Schematic net name IIC1
 # counts buses from one and must not be copied into the zero-based HW ID.
 # Keep the identity-only Phase 0 probe opt-in: a sensor diagnostic must not

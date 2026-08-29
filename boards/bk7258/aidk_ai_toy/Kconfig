@@ -27,37 +27,3 @@ config BK7258_AIDK_CAMERA
 		NuttX V4L2 capture upper half.  The initial production profile exposes
 		640x480, 30 fps MJPEG through /dev/video0.  This replaces the bounded
 		identity-only Phase 0 probe and must not be enabled with it.
-
-config BK7258_AIDK_USB_OTA
-	bool "AIDK signed paired OTA over the native USB device port"
-	default n
-	depends on BK7258_BOARD_AIDK_AI_TOY
-	depends on BK7258_AP_CORE && BK7258_OTA_MANAGER && BK7258_OTA_RPMSG
-	select BK7258_USBCDC
-	help
-		Use the Type-C port wired directly to BK7258 USB0 as a CDC-ACM
-		transport for signed CP/AP OTA packages.  The board protocol only
-		serves authenticated catalog and image reads to the existing OTA
-		Manager; it never exposes raw on-chip Flash and cannot replace the
-		initial BK Loader provisioning step.  The host answers bounded random
-		reads directly from one verified .bkpack, so fixed NAND is not used as
-		a mandatory staging cache.
-
-if BK7258_AIDK_USB_OTA
-
-config BK7258_AIDK_USB_OTA_PRIORITY
-	int "AIDK USB OTA worker priority"
-	default 95
-	range 1 199
-
-config BK7258_AIDK_USB_OTA_STACKSIZE
-	int "AIDK USB OTA worker stack size"
-	default 16384
-	range 8192 32768
-
-config BK7258_AIDK_USB_OTA_IO_TIMEOUT_MS
-	int "AIDK USB OTA per-frame timeout (milliseconds)"
-	default 15000
-	range 1000 60000
-
-endif # BK7258_AIDK_USB_OTA

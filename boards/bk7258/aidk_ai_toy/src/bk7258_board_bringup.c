@@ -14,6 +14,7 @@
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_gpio.h>
+#include <arch/chip/bk7258_ota_source_usb.h>
 
 #ifdef CONFIG_BK7258_AP_CORE
 #ifdef CONFIG_BK7258_AIDK_CAMERA_PHASE0
@@ -25,10 +26,6 @@ extern int bk7258_aidk_camera_initialize(void);
 #ifdef CONFIG_BK7258_AIDK_SC7A20_PHASE0
 extern int bk7258_aidk_sc7a20_phase0_probe(void);
 #endif
-#ifdef CONFIG_BK7258_AIDK_USB_OTA
-extern int bk7258_aidk_usb_ota_initialize(void);
-#endif
-
 static const struct bk7258_mic_config_s g_bk7258_aidk_mic_config =
 {
   /* MIC1 is the primary microphone; MIC2 carries the speaker loopback used
@@ -130,8 +127,8 @@ int bk7258_board_ap_initialize(void)
       return ret;
     }
 
-#ifdef CONFIG_BK7258_AIDK_USB_OTA
-  ret = bk7258_aidk_usb_ota_initialize();
+#ifdef CONFIG_BK7258_OTA_SOURCE_USB
+  ret = bk7258_ota_source_usb_initialize();
   if (ret < 0)
     {
       return ret;

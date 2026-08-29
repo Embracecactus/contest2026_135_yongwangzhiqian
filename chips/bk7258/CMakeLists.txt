@@ -299,6 +299,10 @@ if(CONFIG_BK7258_OTA_SOURCE_HTTP)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_ota_source_http.c)
 endif()
 
+if(CONFIG_BK7258_OTA_SOURCE_USB)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_ota_source_usb.c)
+endif()
+
 if(CONFIG_BK7258_WIFI_VNET)
   list(APPEND BK7258_AP_BASE_SRCS
       ap/bk7258_wifi.c

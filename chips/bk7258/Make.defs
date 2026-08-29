@@ -336,6 +336,10 @@ ifeq ($(CONFIG_BK7258_OTA_SOURCE_HTTP),y)
 BK7258_AP_BASE_CSRCS += bk7258_ota_source_http.c
 endif
 
+ifeq ($(CONFIG_BK7258_OTA_SOURCE_USB),y)
+BK7258_AP_BASE_CSRCS += bk7258_ota_source_usb.c
+endif
+
 ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
 BK7258_AP_BASE_CSRCS += bk7258_wifi.c
 BK7258_AP_BASE_CSRCS += bk7258_wifi_control.c

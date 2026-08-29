@@ -1,14 +1,17 @@
 /****************************************************************************
- * boards/bk7258/aidk_ai_toy/src/bk7258_aidk_usb_ota.c
+ * chips/bk7258/ap/bk7258_ota_source_usb.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * AIDK native-USB transport for the existing signed paired OTA manager.
+ * Native-USB transport for the existing signed paired OTA manager.  It is one
+ * OTA source beside the file and HTTP sources: the chip layer owns the wire
+ * protocol, the pinned worker and the source operations, while a physical
+ * board only selects it and supplies its USB device binding.
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_BK7258_AIDK_USB_OTA
+#ifdef CONFIG_BK7258_OTA_SOURCE_USB
 
 #include <errno.h>
 #include <sched.h>
@@ -29,39 +32,38 @@
 #include <components/cherryusb/usbd_cdc.h>
 #include <components/cherryusb/usb_cdc.h>
 
-#define AIDK_USB_OTA_MAGIC            0x314f5441u /* "ATO1", little-endian */
-#define AIDK_USB_OTA_VERSION          1u
-#define AIDK_USB_OTA_HEADER_SIZE      36u
-#define AIDK_USB_OTA_MAX_PAYLOAD      128u
-#define AIDK_USB_OTA_PROGRESS_STEP    (64u * 1024u)
-#define AIDK_USB_OTA_EP_OUT           0x02u
-#define AIDK_USB_OTA_EP_IN            0x82u
-#define AIDK_USB_OTA_EP_MAXPACKET     64u
-#define AIDK_USB_OTA_RX_RING_SIZE     512u
-#define AIDK_USB_OTA_REENUMERATE_US   250000u
+#define BK7258_OTA_USB_MAGIC            0x314f5441u /* "ATO1", little-endian */
+#define BK7258_OTA_USB_VERSION          1u
+#define BK7258_OTA_USB_HEADER_SIZE      36u
+#define BK7258_OTA_USB_MAX_PAYLOAD      128u
+#define BK7258_OTA_USB_PROGRESS_STEP    (64u * 1024u)
+#define BK7258_OTA_USB_EP_OUT           0x02u
+#define BK7258_OTA_USB_EP_IN            0x82u
+#define BK7258_OTA_USB_EP_MAXPACKET     64u
+#define BK7258_OTA_USB_RX_RING_SIZE     512u
 
-enum aidk_usb_ota_type_e
+enum bk7258_ota_usb_type_e
 {
-  AIDK_USB_OTA_HELLO = 1,
-  AIDK_USB_OTA_ACK,
-  AIDK_USB_OTA_START,
-  AIDK_USB_OTA_READ,
-  AIDK_USB_OTA_DATA,
-  AIDK_USB_OTA_PROGRESS,
-  AIDK_USB_OTA_DONE,
-  AIDK_USB_OTA_CANCEL,
-  AIDK_USB_OTA_ERROR
+  BK7258_OTA_USB_HELLO = 1,
+  BK7258_OTA_USB_ACK,
+  BK7258_OTA_USB_START,
+  BK7258_OTA_USB_READ,
+  BK7258_OTA_USB_DATA,
+  BK7258_OTA_USB_PROGRESS,
+  BK7258_OTA_USB_DONE,
+  BK7258_OTA_USB_CANCEL,
+  BK7258_OTA_USB_ERROR
 };
 
-enum aidk_usb_ota_object_e
+enum bk7258_ota_usb_object_e
 {
-  AIDK_USB_OTA_OBJECT_CATALOG = 0,
-  AIDK_USB_OTA_OBJECT_SIGNATURE,
-  AIDK_USB_OTA_OBJECT_CP,
-  AIDK_USB_OTA_OBJECT_AP
+  BK7258_OTA_USB_OBJECT_CATALOG = 0,
+  BK7258_OTA_USB_OBJECT_SIGNATURE,
+  BK7258_OTA_USB_OBJECT_CP,
+  BK7258_OTA_USB_OBJECT_AP
 };
 
-struct aidk_usb_ota_frame_s
+struct bk7258_ota_usb_frame_s
 {
   uint16_t type;
   uint32_t sequence;
@@ -70,10 +72,10 @@ struct aidk_usb_ota_frame_s
   int32_t status;
   uint32_t value;
   uint32_t payload_size;
-  uint8_t payload[AIDK_USB_OTA_MAX_PAYLOAD];
+  uint8_t payload[BK7258_OTA_USB_MAX_PAYLOAD];
 };
 
-struct aidk_usb_ota_source_s
+struct bk7258_ota_usb_source_s
 {
   uint32_t next_sequence;
   uint32_t catalog_size;
@@ -90,10 +92,10 @@ struct aidk_usb_ota_source_s
  * on Cortex-M33, so the IRQ path never depends on a non-exported OS lock.
  */
 
-struct aidk_usb_ota_link_s
+struct bk7258_ota_usb_link_s
 {
-  uint8_t rx_packet[AIDK_USB_OTA_EP_MAXPACKET];
-  uint8_t rx_ring[AIDK_USB_OTA_RX_RING_SIZE];
+  uint8_t rx_packet[BK7258_OTA_USB_EP_MAXPACKET];
+  uint8_t rx_ring[BK7258_OTA_USB_RX_RING_SIZE];
   volatile uint16_t rx_head;
   volatile uint16_t rx_tail;
   volatile bool rx_overflow;
@@ -102,17 +104,14 @@ struct aidk_usb_ota_link_s
   volatile uint32_t tx_completed;
 };
 
-static struct aidk_usb_ota_link_s g_aidk_usb_ota_link;
-static struct usbd_endpoint g_aidk_usb_ota_ep_out;
-static struct usbd_endpoint g_aidk_usb_ota_ep_in;
+static struct bk7258_ota_usb_link_s g_bk7258_ota_usb_link;
 
 /* CherryUSB consumes one flat descriptor stream terminated by zero.  The
- * reusable CDC lower half owns endpoints and class requests; this physical
- * board supplies the complete device+configuration stream and installs it
- * immediately after lower-half registration, before AP READY is published.
+ * chip USB device lower half owns the one-time class/controller registration;
+ * this physical board supplies the complete descriptor and typed callbacks.
  */
 
-static const uint8_t g_aidk_usb_ota_descriptors[] =
+static const uint8_t g_bk7258_ota_usb_descriptors[] =
 {
   /* Device descriptor. */
 
@@ -147,13 +146,13 @@ static const uint8_t g_aidk_usb_ota_descriptors[] =
  * not copy the received FIFO bytes into its generic serial buffer.
  */
 
-static void aidk_usb_ota_ep_out_callback(uint8_t ep, uint32_t nbytes)
+static void bk7258_ota_usb_ep_out_callback(uint8_t ep, uint32_t nbytes)
 {
-  struct aidk_usb_ota_link_s *link = &g_aidk_usb_ota_link;
+  struct bk7258_ota_usb_link_s *link = &g_bk7258_ota_usb_link;
   uint32_t index;
   int ret;
 
-  if (ep != AIDK_USB_OTA_EP_OUT || nbytes == 0u ||
+  if (ep != BK7258_OTA_USB_EP_OUT || nbytes == 0u ||
       nbytes > sizeof(link->rx_packet))
     {
       link->rx_overflow = true;
@@ -187,11 +186,11 @@ static void aidk_usb_ota_ep_out_callback(uint8_t ep, uint32_t nbytes)
     }
 }
 
-static void aidk_usb_ota_ep_in_callback(uint8_t ep, uint32_t nbytes)
+static void bk7258_ota_usb_ep_in_callback(uint8_t ep, uint32_t nbytes)
 {
-  struct aidk_usb_ota_link_s *link = &g_aidk_usb_ota_link;
+  struct bk7258_ota_usb_link_s *link = &g_bk7258_ota_usb_link;
 
-  if (ep != AIDK_USB_OTA_EP_IN)
+  if (ep != BK7258_OTA_USB_EP_IN)
     {
       return;
     }
@@ -200,7 +199,7 @@ static void aidk_usb_ota_ep_in_callback(uint8_t ep, uint32_t nbytes)
   link->tx_pending = false;
 }
 
-static int aidk_usb_ota_cdc_request(struct usb_setup_packet *setup,
+static int bk7258_ota_usb_cdc_request(struct usb_setup_packet *setup,
                                     uint8_t **data, uint32_t *length)
 {
   static struct cdc_line_coding coding =
@@ -236,9 +235,9 @@ static int aidk_usb_ota_cdc_request(struct usb_setup_packet *setup,
     }
 }
 
-static void aidk_usb_ota_cdc_notify(uint8_t event, void *arg)
+static void bk7258_ota_usb_cdc_notify(uint8_t event, void *arg)
 {
-  struct aidk_usb_ota_link_s *link = &g_aidk_usb_ota_link;
+  struct bk7258_ota_usb_link_s *link = &g_bk7258_ota_usb_link;
   int ret;
 
   (void)arg;
@@ -255,13 +254,13 @@ static void aidk_usb_ota_cdc_notify(uint8_t event, void *arg)
        * the real FIFO copy and rearms every following packet.
        */
 
-      ret = usbd_ep_start_read(AIDK_USB_OTA_EP_OUT, link->rx_packet,
+      ret = usbd_ep_start_read(BK7258_OTA_USB_EP_OUT, link->rx_packet,
                                sizeof(link->rx_packet));
       if (ret < 0)
         {
           link->configured = false;
           link->rx_overflow = true;
-          syslog(LOG_ERR, "AIDK USB OTA: initial RX arm failed: %d\n", ret);
+          syslog(LOG_ERR, "BK7258 USB OTA: initial RX arm failed: %d\n", ret);
         }
     }
   else if (event == USBD_EVENT_RESET ||
@@ -273,35 +272,24 @@ static void aidk_usb_ota_cdc_notify(uint8_t event, void *arg)
     }
 }
 
-struct usbd_interface *usbd_cdc_acm_init_intf(
-  uint8_t busid, struct usbd_interface *intf)
-{
-  (void)busid;
-  intf->class_interface_handler = aidk_usb_ota_cdc_request;
-  intf->class_endpoint_handler = NULL;
-  intf->vendor_handler = NULL;
-  intf->notify_handler = aidk_usb_ota_cdc_notify;
-  return intf;
-}
-
-static uint16_t aidk_usb_ota_get16(const uint8_t *value)
+static uint16_t bk7258_ota_usb_get16(const uint8_t *value)
 {
   return (uint16_t)value[0] | (uint16_t)value[1] << 8;
 }
 
-static uint32_t aidk_usb_ota_get32(const uint8_t *value)
+static uint32_t bk7258_ota_usb_get32(const uint8_t *value)
 {
   return (uint32_t)value[0] | (uint32_t)value[1] << 8 |
          (uint32_t)value[2] << 16 | (uint32_t)value[3] << 24;
 }
 
-static void aidk_usb_ota_put16(uint8_t *output, uint16_t value)
+static void bk7258_ota_usb_put16(uint8_t *output, uint16_t value)
 {
   output[0] = value & 0xffu;
   output[1] = value >> 8;
 }
 
-static void aidk_usb_ota_put32(uint8_t *output, uint32_t value)
+static void bk7258_ota_usb_put32(uint8_t *output, uint32_t value)
 {
   output[0] = value & 0xffu;
   output[1] = (value >> 8) & 0xffu;
@@ -309,7 +297,7 @@ static void aidk_usb_ota_put32(uint8_t *output, uint32_t value)
   output[3] = value >> 24;
 }
 
-static uint32_t aidk_usb_ota_crc32(const uint8_t *data, size_t size)
+static uint32_t bk7258_ota_usb_crc32(const uint8_t *data, size_t size)
 {
   uint32_t crc = 0xffffffffu;
   size_t index;
@@ -329,11 +317,11 @@ static uint32_t aidk_usb_ota_crc32(const uint8_t *data, size_t size)
   return crc ^ 0xffffffffu;
 }
 
-static int aidk_usb_ota_transfer(uint8_t *buffer, size_t size, bool writing)
+static int bk7258_ota_usb_transfer(uint8_t *buffer, size_t size, bool writing)
 {
-  struct aidk_usb_ota_link_s *link = &g_aidk_usb_ota_link;
+  struct bk7258_ota_usb_link_s *link = &g_bk7258_ota_usb_link;
   clock_t started = clock_systime_ticks();
-  clock_t limit = MSEC2TICK(CONFIG_BK7258_AIDK_USB_OTA_IO_TIMEOUT_MS);
+  clock_t limit = MSEC2TICK(CONFIG_BK7258_OTA_SOURCE_USB_IO_TIMEOUT_MS);
   size_t done = 0;
   int ret;
 
@@ -347,7 +335,7 @@ static int aidk_usb_ota_transfer(uint8_t *buffer, size_t size, bool writing)
       link->tx_completed = 0;
       link->tx_pending = true;
 
-      ret = usbd_ep_start_write(AIDK_USB_OTA_EP_IN, buffer, size);
+      ret = usbd_ep_start_write(BK7258_OTA_USB_EP_IN, buffer, size);
       if (ret < 0)
         {
           link->tx_pending = false;
@@ -414,9 +402,9 @@ static int aidk_usb_ota_transfer(uint8_t *buffer, size_t size, bool writing)
   return OK;
 }
 
-static int aidk_usb_ota_read_frame(struct aidk_usb_ota_frame_s *frame)
+static int bk7258_ota_usb_read_frame(struct bk7258_ota_usb_frame_s *frame)
 {
-  uint8_t header[AIDK_USB_OTA_HEADER_SIZE];
+  uint8_t header[BK7258_OTA_USB_HEADER_SIZE];
   uint32_t window = 0;
   uint32_t crc;
   uint8_t byte;
@@ -424,7 +412,7 @@ static int aidk_usb_ota_read_frame(struct aidk_usb_ota_frame_s *frame)
 
   do
     {
-      ret = aidk_usb_ota_transfer(&byte, 1, false);
+      ret = bk7258_ota_usb_transfer(&byte, 1, false);
       if (ret < 0)
         {
           return ret;
@@ -432,29 +420,29 @@ static int aidk_usb_ota_read_frame(struct aidk_usb_ota_frame_s *frame)
 
       window = (window >> 8) | (uint32_t)byte << 24;
     }
-  while (window != AIDK_USB_OTA_MAGIC);
+  while (window != BK7258_OTA_USB_MAGIC);
 
-  aidk_usb_ota_put32(header, AIDK_USB_OTA_MAGIC);
-  ret = aidk_usb_ota_transfer(header + 4, sizeof(header) - 4, false);
+  bk7258_ota_usb_put32(header, BK7258_OTA_USB_MAGIC);
+  ret = bk7258_ota_usb_transfer(header + 4, sizeof(header) - 4, false);
   if (ret < 0)
     {
       return ret;
     }
 
-  if (aidk_usb_ota_get16(header + 4) != AIDK_USB_OTA_VERSION)
+  if (bk7258_ota_usb_get16(header + 4) != BK7258_OTA_USB_VERSION)
     {
       return -EPROTO;
     }
 
   memset(frame, 0, sizeof(*frame));
-  frame->type = aidk_usb_ota_get16(header + 6);
-  frame->sequence = aidk_usb_ota_get32(header + 8);
-  frame->object = aidk_usb_ota_get32(header + 12);
-  frame->offset = aidk_usb_ota_get32(header + 16);
-  frame->status = (int32_t)aidk_usb_ota_get32(header + 20);
-  frame->value = aidk_usb_ota_get32(header + 24);
-  frame->payload_size = aidk_usb_ota_get32(header + 28);
-  crc = aidk_usb_ota_get32(header + 32);
+  frame->type = bk7258_ota_usb_get16(header + 6);
+  frame->sequence = bk7258_ota_usb_get32(header + 8);
+  frame->object = bk7258_ota_usb_get32(header + 12);
+  frame->offset = bk7258_ota_usb_get32(header + 16);
+  frame->status = (int32_t)bk7258_ota_usb_get32(header + 20);
+  frame->value = bk7258_ota_usb_get32(header + 24);
+  frame->payload_size = bk7258_ota_usb_get32(header + 28);
+  crc = bk7258_ota_usb_get32(header + 32);
   if (frame->payload_size > sizeof(frame->payload))
     {
       return -EMSGSIZE;
@@ -462,53 +450,53 @@ static int aidk_usb_ota_read_frame(struct aidk_usb_ota_frame_s *frame)
 
   if (frame->payload_size > 0)
     {
-      ret = aidk_usb_ota_transfer(frame->payload, frame->payload_size, false);
+      ret = bk7258_ota_usb_transfer(frame->payload, frame->payload_size, false);
       if (ret < 0)
         {
           return ret;
         }
     }
 
-  return aidk_usb_ota_crc32(frame->payload, frame->payload_size) == crc ?
+  return bk7258_ota_usb_crc32(frame->payload, frame->payload_size) == crc ?
          OK : -EBADMSG;
 }
 
-static int aidk_usb_ota_write_frame(uint16_t type,
+static int bk7258_ota_usb_write_frame(uint16_t type,
                                     uint32_t sequence, uint32_t object,
                                     uint32_t offset, int32_t status,
                                     uint32_t value, const uint8_t *payload,
                                     uint32_t payload_size)
 {
-  uint8_t wire[AIDK_USB_OTA_HEADER_SIZE + AIDK_USB_OTA_MAX_PAYLOAD];
+  uint8_t wire[BK7258_OTA_USB_HEADER_SIZE + BK7258_OTA_USB_MAX_PAYLOAD];
 
   if ((payload == NULL) != (payload_size == 0u) ||
-      payload_size > AIDK_USB_OTA_MAX_PAYLOAD)
+      payload_size > BK7258_OTA_USB_MAX_PAYLOAD)
     {
       return -EINVAL;
     }
 
-  aidk_usb_ota_put32(wire, AIDK_USB_OTA_MAGIC);
-  aidk_usb_ota_put16(wire + 4, AIDK_USB_OTA_VERSION);
-  aidk_usb_ota_put16(wire + 6, type);
-  aidk_usb_ota_put32(wire + 8, sequence);
-  aidk_usb_ota_put32(wire + 12, object);
-  aidk_usb_ota_put32(wire + 16, offset);
-  aidk_usb_ota_put32(wire + 20, (uint32_t)status);
-  aidk_usb_ota_put32(wire + 24, value);
-  aidk_usb_ota_put32(wire + 28, payload_size);
-  aidk_usb_ota_put32(wire + 32,
-                     aidk_usb_ota_crc32(payload, payload_size));
+  bk7258_ota_usb_put32(wire, BK7258_OTA_USB_MAGIC);
+  bk7258_ota_usb_put16(wire + 4, BK7258_OTA_USB_VERSION);
+  bk7258_ota_usb_put16(wire + 6, type);
+  bk7258_ota_usb_put32(wire + 8, sequence);
+  bk7258_ota_usb_put32(wire + 12, object);
+  bk7258_ota_usb_put32(wire + 16, offset);
+  bk7258_ota_usb_put32(wire + 20, (uint32_t)status);
+  bk7258_ota_usb_put32(wire + 24, value);
+  bk7258_ota_usb_put32(wire + 28, payload_size);
+  bk7258_ota_usb_put32(wire + 32,
+                     bk7258_ota_usb_crc32(payload, payload_size));
   if (payload_size > 0)
     {
-      memcpy(wire + AIDK_USB_OTA_HEADER_SIZE, payload, payload_size);
+      memcpy(wire + BK7258_OTA_USB_HEADER_SIZE, payload, payload_size);
     }
 
-  return aidk_usb_ota_transfer(wire,
-                               AIDK_USB_OTA_HEADER_SIZE + payload_size, true);
+  return bk7258_ota_usb_transfer(wire,
+                               BK7258_OTA_USB_HEADER_SIZE + payload_size, true);
 }
 
-static int aidk_usb_ota_fetch(struct aidk_usb_ota_source_s *source,
-                              enum aidk_usb_ota_object_e object,
+static int bk7258_ota_usb_fetch(struct bk7258_ota_usb_source_s *source,
+                              enum bk7258_ota_usb_object_e object,
                               uint32_t offset, uint8_t *buffer,
                               size_t nbytes)
 {
@@ -516,7 +504,7 @@ static int aidk_usb_ota_fetch(struct aidk_usb_ota_source_s *source,
 
   while (done < nbytes)
     {
-      struct aidk_usb_ota_frame_s reply;
+      struct bk7258_ota_usb_frame_s reply;
       uint32_t count = nbytes - done;
       uint32_t sequence;
       int ret;
@@ -526,9 +514,9 @@ static int aidk_usb_ota_fetch(struct aidk_usb_ota_source_s *source,
           return -ECANCELED;
         }
 
-      if (count > AIDK_USB_OTA_MAX_PAYLOAD)
+      if (count > BK7258_OTA_USB_MAX_PAYLOAD)
         {
-          count = AIDK_USB_OTA_MAX_PAYLOAD;
+          count = BK7258_OTA_USB_MAX_PAYLOAD;
         }
 
       if (++source->next_sequence == 0u)
@@ -537,7 +525,7 @@ static int aidk_usb_ota_fetch(struct aidk_usb_ota_source_s *source,
         }
 
       sequence = source->next_sequence;
-      ret = aidk_usb_ota_write_frame(AIDK_USB_OTA_READ,
+      ret = bk7258_ota_usb_write_frame(BK7258_OTA_USB_READ,
                                      sequence, object, offset + done, 0,
                                      count, NULL, 0);
       if (ret < 0)
@@ -545,19 +533,19 @@ static int aidk_usb_ota_fetch(struct aidk_usb_ota_source_s *source,
           return ret;
         }
 
-      ret = aidk_usb_ota_read_frame(&reply);
+      ret = bk7258_ota_usb_read_frame(&reply);
       if (ret < 0)
         {
           return ret;
         }
 
-      if (reply.type == AIDK_USB_OTA_CANCEL)
+      if (reply.type == BK7258_OTA_USB_CANCEL)
         {
           source->canceled = true;
           return -ECANCELED;
         }
 
-      if (reply.type != AIDK_USB_OTA_DATA || reply.sequence != sequence ||
+      if (reply.type != BK7258_OTA_USB_DATA || reply.sequence != sequence ||
           reply.object != (uint32_t)object ||
           reply.offset != offset + done || reply.status < 0 ||
           reply.payload_size != count)
@@ -572,10 +560,10 @@ static int aidk_usb_ota_fetch(struct aidk_usb_ota_source_s *source,
   return OK;
 }
 
-static int aidk_usb_ota_source_open(
+static int bk7258_ota_usb_source_open(
   void *context, struct bk7258_ota_manifest_s *manifest)
 {
-  struct aidk_usb_ota_source_s *source = context;
+  struct bk7258_ota_usb_source_s *source = context;
   uint8_t catalog[BK7258_OTA_CATALOG_MAX_SIZE];
   uint8_t signature[BK7258_OTA_CATALOG_MAX_SIGNATURE];
   int ret;
@@ -589,11 +577,11 @@ static int aidk_usb_ota_source_open(
       return -EINVAL;
     }
 
-  ret = aidk_usb_ota_fetch(source, AIDK_USB_OTA_OBJECT_CATALOG, 0,
+  ret = bk7258_ota_usb_fetch(source, BK7258_OTA_USB_OBJECT_CATALOG, 0,
                            catalog, source->catalog_size);
   if (ret == 0)
     {
-      ret = aidk_usb_ota_fetch(source, AIDK_USB_OTA_OBJECT_SIGNATURE, 0,
+      ret = bk7258_ota_usb_fetch(source, BK7258_OTA_USB_OBJECT_SIGNATURE, 0,
                                signature, source->signature_size);
     }
   if (ret == 0)
@@ -610,12 +598,12 @@ static int aidk_usb_ota_source_open(
   return ret;
 }
 
-static int aidk_usb_ota_source_read(
+static int bk7258_ota_usb_source_read(
   void *context, enum bk7258_ota_image_e image, uint32_t offset,
   uint8_t *buffer, size_t nbytes)
 {
-  struct aidk_usb_ota_source_s *source = context;
-  enum aidk_usb_ota_object_e object;
+  struct bk7258_ota_usb_source_s *source = context;
+  enum bk7258_ota_usb_object_e object;
 
   if (source == NULL || buffer == NULL || nbytes == 0u ||
       image < BK7258_OTA_IMAGE_CP || image > BK7258_OTA_IMAGE_AP ||
@@ -625,15 +613,15 @@ static int aidk_usb_ota_source_read(
       return -EINVAL;
     }
 
-  object = image == BK7258_OTA_IMAGE_CP ? AIDK_USB_OTA_OBJECT_CP :
-                                         AIDK_USB_OTA_OBJECT_AP;
-  return aidk_usb_ota_fetch(source, object, offset, buffer, nbytes);
+  object = image == BK7258_OTA_IMAGE_CP ? BK7258_OTA_USB_OBJECT_CP :
+                                         BK7258_OTA_USB_OBJECT_AP;
+  return bk7258_ota_usb_fetch(source, object, offset, buffer, nbytes);
 }
 
-static int aidk_usb_ota_source_checkpoint(
+static int bk7258_ota_usb_source_checkpoint(
   void *context, const struct bk7258_ota_progress_s *progress)
 {
-  struct aidk_usb_ota_source_s *source = context;
+  struct bk7258_ota_usb_source_s *source = context;
   uint8_t total[4];
 
   if (source == NULL || progress == NULL)
@@ -649,14 +637,14 @@ static int aidk_usb_ota_source_checkpoint(
   if (!source->have_progress || source->last_phase != progress->phase ||
       progress->completed == progress->total ||
       progress->completed - source->last_completed >=
-        AIDK_USB_OTA_PROGRESS_STEP)
+        BK7258_OTA_USB_PROGRESS_STEP)
     {
-      aidk_usb_ota_put32(total, progress->total);
+      bk7258_ota_usb_put32(total, progress->total);
       source->last_phase = progress->phase;
       source->last_completed = progress->completed;
       source->have_progress = true;
-      return aidk_usb_ota_write_frame(
-               AIDK_USB_OTA_PROGRESS, 0,
+      return bk7258_ota_usb_write_frame(
+               BK7258_OTA_USB_PROGRESS, 0,
                (uint32_t)progress->phase, (uint32_t)progress->image, 0,
                progress->completed, total, sizeof(total));
     }
@@ -664,9 +652,9 @@ static int aidk_usb_ota_source_checkpoint(
   return OK;
 }
 
-static int aidk_usb_ota_source_cancel(void *context)
+static int bk7258_ota_usb_source_cancel(void *context)
 {
-  struct aidk_usb_ota_source_s *source = context;
+  struct bk7258_ota_usb_source_s *source = context;
 
   if (source != NULL)
     {
@@ -676,9 +664,9 @@ static int aidk_usb_ota_source_cancel(void *context)
   return OK;
 }
 
-static void aidk_usb_ota_source_close(void *context)
+static void bk7258_ota_usb_source_close(void *context)
 {
-  struct aidk_usb_ota_source_s *source = context;
+  struct bk7258_ota_usb_source_s *source = context;
 
   if (source != NULL)
     {
@@ -686,128 +674,115 @@ static void aidk_usb_ota_source_close(void *context)
     }
 }
 
-static const struct bk7258_ota_source_ops_s g_aidk_usb_ota_source_ops =
+static const struct bk7258_ota_source_ops_s g_bk7258_ota_usb_source_ops =
 {
-  .open = aidk_usb_ota_source_open,
-  .read_at = aidk_usb_ota_source_read,
-  .checkpoint = aidk_usb_ota_source_checkpoint,
-  .cancel = aidk_usb_ota_source_cancel,
-  .close = aidk_usb_ota_source_close,
+  .open = bk7258_ota_usb_source_open,
+  .read_at = bk7258_ota_usb_source_read,
+  .checkpoint = bk7258_ota_usb_source_checkpoint,
+  .cancel = bk7258_ota_usb_source_cancel,
+  .close = bk7258_ota_usb_source_close,
 };
 
-static int aidk_usb_ota_worker(int argc, char *argv[])
+static int bk7258_ota_usb_worker(int argc, char *argv[])
 {
   (void)argc;
   (void)argv;
 
   for (;;)
     {
-      struct aidk_usb_ota_source_s source;
-      struct aidk_usb_ota_frame_s frame;
+      struct bk7258_ota_usb_source_s source;
+      struct bk7258_ota_usb_frame_s frame;
       int ret;
 
-      ret = aidk_usb_ota_read_frame(&frame);
+      ret = bk7258_ota_usb_read_frame(&frame);
       if (ret == -ETIMEDOUT)
         {
           continue;
         }
 
-      if (ret < 0 || frame.type != AIDK_USB_OTA_HELLO ||
+      if (ret < 0 || frame.type != BK7258_OTA_USB_HELLO ||
           frame.payload_size != 0u)
         {
           continue;
         }
 
-      ret = aidk_usb_ota_write_frame(AIDK_USB_OTA_ACK,
+      ret = bk7258_ota_usb_write_frame(BK7258_OTA_USB_ACK,
                                      frame.sequence, 0, 0, 0, 0, NULL, 0);
       if (ret < 0)
         {
           continue;
         }
 
-      ret = aidk_usb_ota_read_frame(&frame);
-      if (ret < 0 || frame.type != AIDK_USB_OTA_START ||
+      ret = bk7258_ota_usb_read_frame(&frame);
+      if (ret < 0 || frame.type != BK7258_OTA_USB_START ||
           frame.payload_size != 8u)
         {
           continue;
         }
 
       memset(&source, 0, sizeof(source));
-      source.catalog_size = aidk_usb_ota_get32(frame.payload);
-      source.signature_size = aidk_usb_ota_get32(frame.payload + 4);
+      source.catalog_size = bk7258_ota_usb_get32(frame.payload);
+      source.signature_size = bk7258_ota_usb_get32(frame.payload + 4);
       if (source.catalog_size == 0u ||
           source.catalog_size > BK7258_OTA_CATALOG_MAX_SIZE ||
           source.signature_size == 0u ||
           source.signature_size > BK7258_OTA_CATALOG_MAX_SIGNATURE)
         {
-          (void)aidk_usb_ota_write_frame(AIDK_USB_OTA_ERROR,
+          (void)bk7258_ota_usb_write_frame(BK7258_OTA_USB_ERROR,
                                          frame.sequence, 0, 0, -EINVAL, 0,
                                          NULL, 0);
           continue;
         }
 
-      ret = aidk_usb_ota_write_frame(AIDK_USB_OTA_ACK,
+      ret = bk7258_ota_usb_write_frame(BK7258_OTA_USB_ACK,
                                      frame.sequence, 0, 0, 0, 0, NULL, 0);
       if (ret == 0)
         {
           ret = bk7258_ota_manager_apply(
-                  &g_aidk_usb_ota_source_ops, &source,
+                  &g_bk7258_ota_usb_source_ops, &source,
                   CONFIG_BK7258_OTA_RPMSG_CONTROL_TIMEOUT_MS);
         }
 
-      (void)aidk_usb_ota_write_frame(AIDK_USB_OTA_DONE,
+      (void)bk7258_ota_usb_write_frame(BK7258_OTA_USB_DONE,
                                      frame.sequence, 0, 0, ret, 0, NULL, 0);
       syslog(ret == 0 ? LOG_INFO : LOG_ERR,
-             "AIDK USB OTA: staging %s: %d\n",
+             "BK7258 USB OTA: staging %s: %d\n",
              ret == 0 ? "complete" : "failed", ret);
     }
 
   return OK;
 }
 
-int bk7258_aidk_usb_ota_initialize(void)
+int bk7258_ota_source_usb_initialize(void)
 {
+  static const struct bk7258_usbcdc_config_s usb_config =
+  {
+    .version = BK7258_USBCDC_CONFIG_VERSION,
+    .size = sizeof(struct bk7258_usbcdc_config_s),
+    .descriptors = g_bk7258_ota_usb_descriptors,
+    .ep_intr_in = 0x81u,
+    .ep_bulk_out = BK7258_OTA_USB_EP_OUT,
+    .ep_bulk_in = BK7258_OTA_USB_EP_IN,
+    .ep_out_callback = bk7258_ota_usb_ep_out_callback,
+    .ep_in_callback = bk7258_ota_usb_ep_in_callback,
+    .class_request = bk7258_ota_usb_cdc_request,
+    .notify = bk7258_ota_usb_cdc_notify,
+    .register_serial = false,
+    .devname = NULL,
+  };
   pid_t pid;
   int ret;
 
-  ret = bk7258_usbcdc_initialize();
+  ret = bk7258_usbcdc_initialize_with_config(&usb_config);
   if (ret < 0)
     {
       return ret;
     }
 
-  /* Replace the generic serial endpoint callbacks with the board OTA packet
-   * pump, then force a visible disconnect interval.  This also guarantees
-   * that the host enumerates the complete board descriptor registered below,
-   * rather than retaining a pre-reset Windows CDC session.
-   */
-
-  ret = usb_dc_deinit();
-  if (ret < 0)
-    {
-      (void)bk7258_usbcdc_uninitialize();
-      return ret;
-    }
-
-  usbd_desc_register(g_aidk_usb_ota_descriptors);
-  g_aidk_usb_ota_ep_out.ep_addr = AIDK_USB_OTA_EP_OUT;
-  g_aidk_usb_ota_ep_out.ep_cb = aidk_usb_ota_ep_out_callback;
-  g_aidk_usb_ota_ep_in.ep_addr = AIDK_USB_OTA_EP_IN;
-  g_aidk_usb_ota_ep_in.ep_cb = aidk_usb_ota_ep_in_callback;
-  usbd_add_endpoint(&g_aidk_usb_ota_ep_out);
-  usbd_add_endpoint(&g_aidk_usb_ota_ep_in);
-  nxsig_usleep(AIDK_USB_OTA_REENUMERATE_US);
-  ret = usb_dc_init();
-  if (ret < 0)
-    {
-      (void)bk7258_usbcdc_uninitialize();
-      return ret;
-    }
-
-  pid = kthread_create("aidk-usb-ota",
-                       CONFIG_BK7258_AIDK_USB_OTA_PRIORITY,
-                       CONFIG_BK7258_AIDK_USB_OTA_STACKSIZE,
-                       aidk_usb_ota_worker, NULL);
+  pid = kthread_create("ota-usb-source",
+                       CONFIG_BK7258_OTA_SOURCE_USB_PRIORITY,
+                       CONFIG_BK7258_OTA_SOURCE_USB_STACKSIZE,
+                       bk7258_ota_usb_worker, NULL);
   if (pid < 0)
     {
       ret = (int)pid;
@@ -832,10 +807,10 @@ int bk7258_aidk_usb_ota_initialize(void)
 #endif
 
   syslog(LOG_INFO,
-         "AIDK USB OTA: ready ep=%02x/%02x protocol=%u max-payload=%u\n",
-         AIDK_USB_OTA_EP_OUT, AIDK_USB_OTA_EP_IN,
-         AIDK_USB_OTA_VERSION, AIDK_USB_OTA_MAX_PAYLOAD);
+         "BK7258 USB OTA: ready ep=%02x/%02x protocol=%u max-payload=%u\n",
+         BK7258_OTA_USB_EP_OUT, BK7258_OTA_USB_EP_IN,
+         BK7258_OTA_USB_VERSION, BK7258_OTA_USB_MAX_PAYLOAD);
   return OK;
 }
 
-#endif /* CONFIG_BK7258_AIDK_USB_OTA */
+#endif /* CONFIG_BK7258_OTA_SOURCE_USB */
