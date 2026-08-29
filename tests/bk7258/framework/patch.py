@@ -114,6 +114,17 @@ def patch_irda_reg(src):
     return src
 
 
+def patch_pinmux_reg(src):
+    """Route the public getreg32/putreg32 accessors through mock MMIO."""
+    src = src.replace('#include "arm_internal.h"\n', "")
+    src = src.replace(
+        "#include <arch/chip/bk7258_pinmux.h>",
+        "#include \"bk7258_pinmux.h\"\n#include \"mock_reg32.h\"",
+    )
+    src = src.replace("getreg32(", "mock_reg32_read(")
+    return src.replace("putreg32(", "mock_putreg32(")
+
+
 def patch_wdt_include(src):
     """Point ../boot_wdt.h at the patched copy in the build dir."""
     return src.replace('#include "../boot_wdt.h"', '#include "boot_wdt.h"')
@@ -137,6 +148,7 @@ PROFILES = {
     "scale_rotate": [patch_arm_barriers, patch_scale1_threshold_ref,
                      patch_scale_rotate_board_include],
     "irda": [patch_irda_reg],
+    "pinmux": [patch_arm_barriers, patch_pinmux_reg],
 }
 
 

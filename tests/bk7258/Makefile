@@ -994,6 +994,25 @@ $(BUILD)/test_bk7258_irda: $(AP_DIR)/bk7258_irda.o \
 	$(BUILD)/mock_reg32.o
 	$(CC) $(AP_CFLAGS) $^ -o $@ $(CMOCKA) -lpthread
 
+# bk7258_pinmux.c: centralized SYS selector and pad ownership.  The host
+# copy only redirects MMIO and the ARM barrier; the AMP/IRQ behavior is
+# supplied and asserted by the test translation unit.
+$(BUILD)/bk7258_pinmux.c: $(CHIP_ROOT)/ap/bk7258_pinmux.c \
+	framework/patch.py | $(BUILD)
+	python3 framework/patch.py pinmux $< $@
+
+$(AP_DIR)/bk7258_pinmux.o: $(BUILD)/bk7258_pinmux.c \
+	$(FRAMEWORK)/mock_reg32.h | $(AP_DIR)
+	$(CC) $(AP_CFLAGS) $(AP_INC) -DCONFIG_BK7258_AP_CORE=1 -c $< -o $@
+
+$(AP_DIR)/test_bk7258_pinmux.o: $(AP_MODULES)/test_bk7258_pinmux.c \
+	$(FRAMEWORK)/mock_reg32.h | $(AP_DIR)
+	$(CC) $(AP_CFLAGS) $(AP_INC) -c $< -o $@
+
+$(BUILD)/test_bk7258_pinmux: $(AP_DIR)/bk7258_pinmux.o \
+	$(AP_DIR)/test_bk7258_pinmux.o $(BUILD)/mock_reg32.o
+	$(CC) $(AP_CFLAGS) $^ -o $@
+
 # bk7258_can.c: zero-patch template -- no bare-metal MMIO or ARM
 # barriers.  The suite mock TU provides its own real-blocking nxsem_*
 # (mocks/nuttx_can/nuttx/semaphore.h, selected by MOCK_CAN_INC) and the
@@ -1025,7 +1044,8 @@ AP_TARGETS := $(BUILD)/test_bk7258_jpeg_decoder \
 	$(BUILD)/test_bk7258_yuv_h264 \
 	$(BUILD)/test_bk7258_scale_rotate \
 	$(BUILD)/test_bk7258_can \
-	$(BUILD)/test_bk7258_irda
+	$(BUILD)/test_bk7258_irda \
+	$(BUILD)/test_bk7258_pinmux
 
 ap: $(AP_TARGETS)
 
@@ -1036,6 +1056,7 @@ run-ap: ap
 	./$(BUILD)/test_bk7258_scale_rotate
 	./$(BUILD)/test_bk7258_can
 	./$(BUILD)/test_bk7258_irda
+	./$(BUILD)/test_bk7258_pinmux
 
 clean:
 	rm -rf $(BUILD)

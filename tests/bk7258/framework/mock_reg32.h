@@ -40,6 +40,11 @@ uint32_t mock_reg32_read(uintptr_t addr);
 void mock_reg32_write(uintptr_t addr, uint32_t value);
 void mock_reg32_set(uintptr_t addr, uint32_t value);
 
+static inline void mock_putreg32(uint32_t value, uintptr_t addr)
+{
+  mock_reg32_write(addr, value);
+}
+
 /* Zero every mapped window.  Call in setUp() for a deterministic map. */
 void mock_reg32_reset(void);
 
