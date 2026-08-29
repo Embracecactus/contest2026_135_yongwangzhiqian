@@ -16,12 +16,15 @@ state_dir=$2
 generation=$3
 password_file=${AIDK_KEY_BROKER_PASSWORD_FILE:-}
 openssl_bin=${AIDK_OPENSSL:-/usr/bin/openssl}
+iterations=${AIDK_KEY_BROKER_ITERATIONS:-600000}
 
 [[ $generation =~ ^[1-9][0-9]*$ ]] || die "invalid generation"
 [[ -n $password_file ]] || die "AIDK_KEY_BROKER_PASSWORD_FILE is required"
 [[ -f $password_file && ! -L $password_file ]] || die "password file is not regular"
 [[ $(stat -c '%a' "$password_file") == 600 ]] || die "password file mode must be 0600"
 [[ -x $openssl_bin ]] || die "OpenSSL executable is unavailable"
+[[ $iterations =~ ^[1-9][0-9]*$ && $iterations -ge 100000 ]] ||
+  die "AIDK_KEY_BROKER_ITERATIONS must be an integer of at least 100000"
 
 mkdir -p "$state_dir/sealed"
 chmod 700 "$state_dir" "$state_dir/sealed"
@@ -34,7 +37,7 @@ case "$action" in
     [[ ! -e $sealed && ! -L $sealed ]] || die "sealed generation already exists"
     temporary="$sealed.pending.$$"
     trap 'test ! -e "$temporary" || { shred -u "$temporary" 2>/dev/null || true; }' EXIT
-    "$openssl_bin" pkcs8 -topk8 -v2 aes-256-cbc \
+    "$openssl_bin" pkcs8 -topk8 -v2 aes-256-cbc -iter "$iterations" \
       -in "$4" -out "$temporary" -passout "file:$password_file"
     chmod 600 "$temporary"
     mv "$temporary" "$sealed"

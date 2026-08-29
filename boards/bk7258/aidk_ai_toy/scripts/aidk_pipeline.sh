@@ -9,12 +9,13 @@ board_dir=$(cd "$script_dir/.." && pwd -P)
 repo_root=$(cd "$board_dir/../../.." && pwd -P)
 workspace=$(cd "$repo_root/.." && pwd -P)
 bk7258="$repo_root/tools/bk7258/bk7258.py"
-transport="$script_dir/aidk_usb_ota.py"
+transport="$repo_root/tools/bk7258-deploy/bk7258_deploy.py"
 default_broker="$script_dir/aidk_key_broker.sh"
 openssl_bin=${AIDK_OPENSSL:-/usr/bin/openssl}
 python_bin=${AIDK_PYTHON:-python3}
 jobs=${AIDK_JOBS:-12}
 download_baud=${AIDK_DOWNLOAD_BAUD:-460800}
+board=${AIDK_BOARD:-aidk_ai_toy}
 
 die()
 {
@@ -28,10 +29,16 @@ usage()
     "usage:" \
     "  $0 provision --state-dir DIR --base FILE --version X.Y.Z+N" \
     "       --output DIR --loader EXE --port COMN [--reset-hook EXE]" \
+    "       [--board NAME]" \
     "  $0 ota --state-dir DIR --version X.Y.Z+N --output DIR" \
     "       [--ota-port PORT] [--control-port PORT] [--no-deploy]" \
+    "       [--board NAME]" \
     "  $0 deploy-ota --package FILE [--state-dir DIR --version X.Y.Z+N]" \
-    "       [--ota-port PORT] [--control-port PORT]"
+    "       [--ota-port PORT] [--control-port PORT] [--board NAME]" \
+    "" \
+    "  --board NAME  physical board to build.  Defaults to AIDK_BOARD or" \
+    "                aidk_ai_toy.  Any board with a maintained openvela.conf" \
+    "                declaration may use this pipeline."
 }
 
 absolute_dir()
@@ -50,6 +57,24 @@ outside_repo()
     "$repo_root/"*) return 1 ;;
     *) return 0 ;;
   esac
+}
+
+materialization_range()
+{
+  # Emit "<flash_offset> <flash_end>" from the release summary.  The selected
+  # partition CSV owns the Flash geometry and bk7258.py publishes it, so this
+  # pipeline must not keep a second copy of the address.
+
+  local release_json=$1
+  "$python_bin" - "$release_json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    materialization = json.load(handle)["materialization"]
+
+print(materialization["flash_offset"], materialization["flash_end"])
+PY
 }
 
 generation_of()
@@ -74,6 +99,21 @@ safe_delete_keydir()
   rmdir "$directory" 2>/dev/null || true
 }
 
+arm_signal_cleanup()
+{
+  # Bash does not run an EXIT trap when an unhandled signal terminates the
+  # shell.  Convert the two operator/runner termination signals into ordinary
+  # exits so the single key cleanup path remains authoritative.
+
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+}
+
+disarm_key_cleanup()
+{
+  trap - EXIT INT TERM
+}
+
 run_transport()
 {
   local arguments=("$@")
@@ -87,7 +127,11 @@ run_transport()
         converted+=("$item")
       fi
     done
-    "$AIDK_WINDOWS_PYTHON" "$windows_script" "${converted[@]}"
+    # Windows rejects \\.\COMx opens (ERROR_FILE_NOT_FOUND) while the process
+    # working directory is a UNC \\wsl.localhost path, so launch the transport
+    # from the interpreter's own always-local directory instead.
+    (cd "$(dirname "$AIDK_WINDOWS_PYTHON")" &&
+      exec "$AIDK_WINDOWS_PYTHON" "$windows_script" "${converted[@]}")
   else
     "$python_bin" "$transport" "${arguments[@]}"
   fi
@@ -107,7 +151,7 @@ write_state()
   local temporary="$state_dir/accepted.env.pending.$$"
   {
     printf 'STATE_SCHEMA=1\n'
-    printf 'BOARD=aidk_ai_toy\n'
+    printf 'BOARD=%s\n' "$board"
     printf 'ROOT_GENERATION=%s\n' "$root_generation"
     printf 'ACCEPTED_GENERATION=%s\n' "$accepted_generation"
     printf 'ACCEPTED_VERSION=%s\n' "$version"
@@ -131,6 +175,7 @@ provision()
       --loader) loader=$2; shift 2 ;;
       --port) port=$2; shift 2 ;;
       --reset-hook) reset_hook=$2; shift 2 ;;
+      --board) board=$2; shift 2 ;;
       *) die "unknown provision option: $1" ;;
     esac
   done
@@ -143,6 +188,7 @@ provision()
   [[ $download_baud =~ ^[1-9][0-9]*$ ]] ||
     die "AIDK_DOWNLOAD_BAUD must be a positive integer"
   local generation broker state previous=0 base_sha manifest operator operator_size
+  local flash_offset flash_end
   generation=$(generation_of "$version")
   state_dir=$(absolute_dir "$state_dir")
   outside_repo "$state_dir" || die "state/secrets directory must be outside the repository"
@@ -162,6 +208,7 @@ provision()
   chmod 700 "$keydir"
   local sealed=0 accepted=0
   trap 'status=$?; if (( status != 0 && sealed != 0 && accepted == 0 )); then "$broker" discard "$state_dir" "$generation" || true; fi; safe_delete_keydir; exit "$status"' EXIT
+  arm_signal_cleanup
 
   "$openssl_bin" ecparam -name prime256v1 -genkey -noout -out "$keydir/bl1-private.pem"
   "$openssl_bin" pkey -in "$keydir/bl1-private.pem" -pubout -out "$keydir/bl1-public.pem"
@@ -171,7 +218,7 @@ provision()
 
   local build_log
   build_log=$(mktemp /tmp/aidk-build.XXXXXX.log)
-  "$python_bin" "$bk7258" build --board aidk_ai_toy --boot mcuboot --clean \
+  "$python_bin" "$bk7258" build --board "$board" --boot mcuboot --clean \
     --jobs "$jobs" --bl1-public-key "$keydir/bl1-public.pem" \
     --mcuboot-public-key "$keydir/mcuboot-public.pem" \
     --openssl "$openssl_bin" --rollback-floor "$generation" | tee "$build_log"
@@ -188,10 +235,18 @@ provision()
   "$broker" seal "$state_dir" "$generation" "$keydir/mcuboot-private.pem"
   sealed=1
 
+  local release_json=$output/release.json
+  [[ -f $release_json ]] || die "release summary is missing: $release_json"
+  local geometry
+  geometry=$(materialization_range "$release_json")
+  read -r flash_offset flash_end <<<"$geometry"
+  [[ -n $flash_offset && -n $flash_end ]] ||
+    die "release summary has no materialization range"
   operator=$(find "$output/flash" -maxdepth 1 -type f -name 'operator-*.bin' -print)
   [[ $(printf '%s\n' "$operator" | sed '/^$/d' | wc -l) -eq 1 ]] || die "release has no unique operator image"
   operator_size=$(stat -c '%s' "$operator")
-  [[ $operator_size -eq $((0x7fa000)) ]] || die "operator image size is not 0x7fa000"
+  [[ $operator_size -eq $flash_end ]] ||
+    die "operator image size $operator_size does not match the materialized flash end $flash_end"
   if [[ -n $reset_hook ]]; then
     [[ -x $reset_hook ]] || die "reset hook is not executable"
     "$reset_hook" &
@@ -209,7 +264,7 @@ provision()
   local loader_status
   set +e
   "$loader" download -p "$port_number" -b "$download_baud" --uart-type OTHER \
-    --mainBin-multi "${windows_operator}@0x0-0x7fa000" \
+    --mainBin-multi "${windows_operator}@0x$(printf '%x' "$flash_offset")-0x$(printf '%x' "$flash_end")" \
     --reboot 1 | tee "$output/logs/bk-loader.log"
   loader_status=${PIPESTATUS[0]}
   set -e
@@ -241,7 +296,7 @@ provision()
   write_state "$state_dir" "$generation" "$generation" "$version"
   accepted=1
   safe_delete_keydir
-  trap - EXIT
+  disarm_key_cleanup
   printf 'AIDK provision: PASS version=%s release=%s\n' "$version" "$output"
 }
 
@@ -256,6 +311,7 @@ ota()
       --ota-port) ota_port=$2; shift 2 ;;
       --control-port) control_port=$2; shift 2 ;;
       --no-deploy) deploy=0; shift ;;
+      --board) board=$2; shift 2 ;;
       *) die "unknown ota option: $1" ;;
     esac
   done
@@ -267,6 +323,11 @@ ota()
   outside_repo "$state_dir" || die "state/secrets directory must be outside the repository"
   state="$state_dir/accepted.env"
   [[ -f $state && ! -L $state ]] || die "accepted device state is unavailable"
+  local state_board
+  state_board=$(state_get BOARD "$state") ||
+    die "accepted device state has no board identity"
+  [[ $state_board == "$board" ]] ||
+    die "accepted state belongs to board $state_board, not $board"
   root_generation=$(state_get ROOT_GENERATION "$state")
   accepted_generation=$(state_get ACCEPTED_GENERATION "$state")
   accepted_version=$(state_get ACCEPTED_VERSION "$state")
@@ -280,10 +341,11 @@ ota()
   keydir=$(mktemp -d /tmp/aidk-trust.XXXXXX)
   chmod 700 "$keydir"
   trap 'status=$?; safe_delete_keydir; exit "$status"' EXIT
+  arm_signal_cleanup
   "$broker" unseal "$state_dir" "$root_generation" "$keydir/mcuboot-private.pem"
 
   build_log=$(mktemp /tmp/aidk-build.XXXXXX.log)
-  "$python_bin" "$bk7258" build --board aidk_ai_toy --boot mcuboot --clean \
+  "$python_bin" "$bk7258" build --board "$board" --boot mcuboot --clean \
     --jobs "$jobs" --bl1-public-key "$state_dir/bl1-public.pem" \
     --mcuboot-public-key "$state_dir/mcuboot-public.pem" \
     --openssl "$openssl_bin" --rollback-floor "$root_generation" | tee "$build_log"
@@ -298,7 +360,7 @@ ota()
   safe_delete_keydir
 
   if (( deploy != 0 )); then
-    local arguments=(--package "$package")
+    local arguments=(--package "$package" --expected-board "$board")
     if [[ $control_port != none ]]; then
       local recovery=(--reboot-only --expected-version "$accepted_version"
         --expected-counter "$accepted_generation")
@@ -310,7 +372,7 @@ ota()
     run_transport "${arguments[@]}"
     write_state "$state_dir" "$root_generation" "$generation" "$version"
   fi
-  trap - EXIT
+  disarm_key_cleanup
   printf 'AIDK OTA: PASS version=%s release=%s deployed=%s\n' \
     "$version" "$output" "$deploy"
 }
@@ -325,6 +387,7 @@ deploy_ota()
       --version) version=$2; shift 2 ;;
       --ota-port) ota_port=$2; shift 2 ;;
       --control-port) control_port=$2; shift 2 ;;
+      --board) board=$2; shift 2 ;;
       *) die "unknown deploy-ota option: $1" ;;
     esac
   done
@@ -347,7 +410,8 @@ deploy_ota()
     (( generation > accepted_generation )) ||
       die "deployed OTA generation must exceed $accepted_generation"
     run_transport --package "$package" --inspect-only \
-      --expected-version "$version" --expected-counter "$generation"
+      --expected-board "$board" --expected-version "$version" \
+      --expected-counter "$generation"
     if [[ $control_port != none ]]; then
       local recovery=(--reboot-only --expected-version "$accepted_version"
         --expected-counter "$accepted_generation")
