@@ -1,2 +1,63 @@
 # Shared BK7258 options; this board's defconfigs select AIDK AI Toy.
 source "../vendor/beken/boards/bk7258/common/Kconfig"
+
+config BK7258_AIDK_SC7A20_PHASE0
+	bool "Probe AIDK SC7A20H identity at boot"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE
+	depends on BK7258_I2C && BK7258_I2C_BUS = 0
+	help
+		Perform a bounded, read-only SC7A20H identity check during AP board
+		bring-up.  The board opens the maintained I2C0 character device, reads
+		only WHO_AM_I at register 0x0f and requires value 0x11.  It does not
+		configure output data rate, axes, FIFO or interrupts and therefore is
+		not a production accelerometer driver.
+
+config BK7258_AIDK_CAMERA
+	bool "AIDK GC2145 DVP camera as /dev/video0"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE && BK7258_DVP && BK7258_PSRAM
+	depends on !BK7258_AIDK_CAMERA_PHASE0
+	select BK7258_DVP_BOARD_GLUE
+	help
+		Bind the fitted AIDK GC2145 and its board-specific power/reset/pinmux
+		sequence to the reusable BK7258 DVP imgdata lower half and the standard
+		NuttX V4L2 capture upper half.  The initial production profile exposes
+		640x480, 30 fps MJPEG through /dev/video0.  This replaces the bounded
+		identity-only Phase 0 probe and must not be enabled with it.
+
+config BK7258_AIDK_USB_OTA
+	bool "AIDK signed paired OTA over the native USB device port"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE && BK7258_OTA_MANAGER && BK7258_OTA_RPMSG
+	select BK7258_USBCDC
+	help
+		Use the Type-C port wired directly to BK7258 USB0 as a CDC-ACM
+		transport for signed CP/AP OTA packages.  The board protocol only
+		serves authenticated catalog and image reads to the existing OTA
+		Manager; it never exposes raw on-chip Flash and cannot replace the
+		initial BK Loader provisioning step.  The host answers bounded random
+		reads directly from one verified .bkpack, so fixed NAND is not used as
+		a mandatory staging cache.
+
+if BK7258_AIDK_USB_OTA
+
+config BK7258_AIDK_USB_OTA_PRIORITY
+	int "AIDK USB OTA worker priority"
+	default 95
+	range 1 199
+
+config BK7258_AIDK_USB_OTA_STACKSIZE
+	int "AIDK USB OTA worker stack size"
+	default 16384
+	range 8192 32768
+
+config BK7258_AIDK_USB_OTA_IO_TIMEOUT_MS
+	int "AIDK USB OTA per-frame timeout (milliseconds)"
+	default 15000
+	range 1000 60000
+
+endif # BK7258_AIDK_USB_OTA
