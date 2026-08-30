@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
- * probe.c - BK7258 (T5-AI, tri-core Cortex-M33) minimal bare probe.
+ * probe.c - BK7258 (T5AI-Core, tri-core Cortex-M33) minimal bare probe.
  *
  * Linked to flash/XIP logical 0x02010000 (the app Reset_Handler entry the
  * bootloader jumps to after validating the app magic). On reset it reads the
@@ -11,8 +11,7 @@
  *   - the UART1 early-print path (no libc, no interrupts)
  *   - the bootloader's actual jump landing in our Reset_Handler
  *
- * The addresses and registers below are shared verbatim with the future
- * NuttX BSP for BK7258.
+ * The addresses and registers below record the historical probe contract.
  *
  * Freestanding: no libc, no headers.
  */

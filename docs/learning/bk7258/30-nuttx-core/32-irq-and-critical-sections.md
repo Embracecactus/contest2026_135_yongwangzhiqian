@@ -7,9 +7,9 @@
 > - 教学主题：NuttX 启动链中的五个标准架构接口及其在 BK7258 中的实现
 > - `$WORKSPACE/nuttx` commit：`e02f581e235fc7b527d57ff62b668ce625d139ab`
 > - `$CONTEST` source commit：`c588afbd8e0f1d30723f5076e585673a6ace8a4e`
-> - 有效配置来源：当前 `$WORKSPACE/nuttx/.config`
+> - 有效配置来源：2026-07-24 撰写时的 `$WORKSPACE/nuttx/.config`；不作为现行配置
 > - 最后核对日期：2026-07-24
-> - 重要纠正：BK7258 部分源码注释写 "Called from up_initialize()"，但当前 NuttX 代码中 `up_irqinitialize()` 实际由 `irq_initialize()` 调用、`up_timer_initialize()` 由 `clock_initialize()` 调用，二者都在 `up_initialize()` 之前；只有 `arm_serialinit()` 确实由 `up_initialize()` 调用
+> - 重要纠正：BK7258 部分源码注释写 "Called from up_initialize()"，但该源码快照的 NuttX 代码中 `up_irqinitialize()` 实际由 `irq_initialize()` 调用、`up_timer_initialize()` 由 `clock_initialize()` 调用，二者都在 `up_initialize()` 之前；只有 `arm_serialinit()` 确实由 `up_initialize()` 调用
 > - 未覆盖：MPU 完整配置、Tickless 模式、完整 UART DMA、其他核的启动路径
 
 ## 1. 五个接口的总览
@@ -43,7 +43,7 @@ __start()
        │    │    └─ up_timer_initialize() ← 接口 3
        │    └─ up_initialize()
        │         └─ arm_serialinit()     ← 接口 5
-       ├─ board_early_initialize()  [当前未启用]
+       ├─ board_early_initialize()  [教程基线未启用]
        └─ nx_bringup()
 ```
 
@@ -238,7 +238,7 @@ void clock_initialize(void)
 
 ### BK7258 实现
 
-当前实现把 scheduler SysTick 固定到芯片的 32 kHz 外部路由，不再使用 CPU clock：
+教程基线实现把 scheduler SysTick 固定到芯片的 32 kHz 外部路由，不再使用 CPU clock：
 
 ```c
 reload = (BK7258_SYSTICK_FREQUENCY_HZ / CLK_TCK) - 1;
@@ -440,7 +440,7 @@ static const struct uart_ops_s g_bk7258_uart_ops =
 - `arm_earlyserialinit()` 先让轮询输出工作；
 - `arm_serialinit()` 后注册 `/dev/console`，使标准文件操作可用；
 - 两者可以使用同一个 `struct uart_dev_s` 实例；
-- 当前 BK7258 的 TX 是轮询模拟（`txint` 直接排空缓冲区），RX 是中断驱动。
+- 教程基线中 BK7258 的 TX 是轮询模拟（`txint` 直接排空缓冲区），RX 是中断驱动。
 
 ## 8. 弱符号覆盖机制
 
@@ -482,7 +482,7 @@ CHIP_CSRCS += bk7258_allocateheap.c
 
 如果某个文件没有加入构建，对应的函数定义就不存在，链接器会报 undefined reference。
 
-"文件存在于目录"只说明源码在那里，不代表它进入了当前构建。
+"文件存在于目录"只说明源码在那里，不代表它进入了所分析构建。
 
 ## 10. 教学简化与真实路径
 
@@ -520,4 +520,4 @@ BK7258 `bk7258_timerisr.c:73` 注释：
 3. 因为 CPU 可能在 `__start()` 中从 26 MHz 切换到 320 MHz；如果 reload 基于错误频率，tick 周期会严重偏差。
 4. early serial 在 `__start()` 中用轮询模式工作，不注册设备；formal serial 在 `up_initialize()` 中注册 `/dev/console`。
 5. 链接器报 undefined reference `up_timer_initialize`。
-6. 不完全准确。当前 NuttX 代码中真实调用者是 `irq_initialize()`，它在 `up_initialize()` 之前执行。注释应理解为"在 `nx_start()` 硬件初始化阶段"。
+6. 不完全准确。该 NuttX 源码快照中的真实调用者是 `irq_initialize()`，它在 `up_initialize()` 之前执行。注释应理解为"在 `nx_start()` 硬件初始化阶段"。

@@ -1,9 +1,12 @@
-# BK7258 N14 PSRAM / timer wrapper 源码复核
+# BK7258 N14 PSRAM / timer wrapper 源码复核（2026-08-03 快照）
 
 > 日期：2026-08-03
 > 状态：**source-verified + build-verified + board-verified**
-> 对应 N14 PSRAM Stage 计划已归档；本文件仅记录源码核验。
-> 自动门禁：`tools/bk7258/verify_bk7258_psram.py`
+> 对应 N14 PSRAM Stage 计划及专用 verifier 已归档；本文件仅记录当时的源码和板端核验，
+> 不提供现行构建或验证入口。现行入口见 [BK7258 平台文档](../README.md)与
+> [构建、烧录与调试 SOP](bk7258-build-flash-debug-sop.md)。
+> 实板范围：本文的 `board-verified` PSRAM/timer 结果仅对应涂鸦 T5AI-Core 首板；
+> 芯片 wrapper 设计可复用，但容量、器件和生命周期结论不能外推到其他板卡。
 
 ## 1. 结论先行
 
@@ -29,14 +32,14 @@ v3.1.1.9 archive并通过最小 ABI调用 PSRAM/CPU1 PM vote；AP只通过 board
 | 输入 | 路径 / 版本 | 用途 |
 |---|---|---|
 | Beken product page | [BK7258 product page](https://www.bekencorp.com/index/goods/detail/cid/60.html) | 芯片宣称最高 16 MB PSRAM；不替代板端容量识别 |
-| latest SDK source | `/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9` | PM、PSRAM、MPU、clock、AP SMP allocator语义 |
+| latest SDK source | `<sdk-v3.1.1.9-checkout>` | PM、PSRAM、MPU、clock、AP SMP allocator语义 |
 | immutable SDK bundle | `board/bk7258/bk_idk/armino_as_lib/versions/v3.1.1.9` | CP/AP最终链接输入 |
 | CP manifest | `bk_idk/manifests/v3.1.1.9/cp.sha256` | SHA-256 `438c1bf16a37cbfe13adda7e7e99c5f757c82d7b6cc04d61521ca1836155c7be` |
 | AP manifest | `bk_idk/manifests/v3.1.1.9/ap.sha256` | SHA-256 `5d4b7908fd21201a5f5ec3537915209aaed0273dc9779d8ba72a40ab82056edc` |
 | official NuttX/apps checkout | workspace sibling repos | wrapper兼容性与最终 zero-diff边界 |
 
 产品页只回答“芯片能支持多少”；`0x8d08/0x8d1a`、anti-alias和 full-capacity boot test才回答
-“当前 T5-AI板上实际装了多少且是否可用”。
+“该轮 T5AI-Core 板上实际装了多少且是否可用”。
 
 ## 3. official SDK 逐项核验
 
@@ -174,9 +177,9 @@ NuttX watchdog callback只更新状态并入队；`bk-sdk-timer` task执行 SDK 
 运行中只 detach handle并标记 delete；如果对象已经 queued，service entry在 callback返回后完成
 final free。`bktimertest`同时验证普通 self-delete和 long-callback queued self-delete。
 
-## 5. 自动 verifier 门禁
+## 5. 当时的自动 verifier 门禁
 
-`verify_bk7258_psram.py`检查：
+退休的 `verify_bk7258_psram.py` 当时检查：
 
 - N14 profiles只在N13基础上增加批准的PSRAM/timer gate，且必须CP/AP成对构建；
 - frozen 16 MiB physical window、低8 MiB official ABI和upper-8 policy；

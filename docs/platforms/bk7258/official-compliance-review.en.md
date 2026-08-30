@@ -1,6 +1,10 @@
-# BK7258 Official Compliance Reassessment
+# BK7258 Official Compliance Reassessment (2026-08-28 Snapshot)
 
 English | [简体中文](official-compliance-review.md)
+
+> This is an audit snapshot of one commit and documentation version, not a
+> live defect or task list. Re-establish current facts from source, resolved
+> configuration, build artifacts, and newer matching verification records.
 
 - Review date: 2026-08-28
 - Reviewed commit: `ce435f5ed66f5744339a3dc846405d9f7bc4b93a`
@@ -32,7 +36,7 @@ that generate driver source names.
 - **Resolved documentation-ownership issue:** `docs/bk7258-t5ai/` covered three
   boards despite its name and is now `docs/platforms/bk7258/`. Learner material
   is under `docs/learning/bk7258/`, reverse-engineering records are explicitly
-  `bootloader-analysis/`, and the T5AI Core-only probe is under
+  `bootloader-analysis/`, and the T5AI-Core-only probe is under
   `hardware/t5ai-core/probe/`. Active source comments, navigation, and
   verification-document references were updated with the move.
 - **Not a defect:** the claim that CMake omits 13 drivers is false. Three
@@ -140,7 +144,7 @@ compliance gate. A complete 80-entry table is a bounded architecture choice.
 | SDK bundles are not committed | ✅ Fact correct, third-party boundary | The manifest pins source and revision; bundles are rebuilt deterministically from a clean SDK checkout. The README documents rebuild and verification |
 | Hardware evidence and AI logs both live under `logs/` | ✅ Low-risk organization issue | Only `logs/lijian/` is competition-format AI log data. The seven `logs/bk7258-*` trees are early hardware evidence. New structured evidence belongs under `docs/verification/bk7258/` |
 
-## Open items
+## Boundaries not covered on the review date
 
 1. For any physical board that will support touch, implement
    `bk7258_board_cp_devices_initialize()` and a matching build/link test, then

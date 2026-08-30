@@ -1,10 +1,17 @@
-# Stage N5 — Flash Layout / ID / MTD / LittleFS Filesystem
+# BK7258 Stage N5 — Flash Layout / ID / MTD / LittleFS（历史验收）
+
+> 本文保留 2026-07 的 Flash/MTD/LittleFS 根因与板端证据。N4/N5 阶段名、
+> `board/bk7258/` 路径、地址候选和构建产物均是历史坐标，不定义现行分区或烧录流程；
+> 现行分区由所选 partition CSV 负责，操作见
+> [构建、烧录与调试 SOP](bk7258-build-flash-debug-sop.md)。
 
 > **范围**：read-only flash layout/ID/scan，destructive raw flash erase/write，MTD lower-half，
 > ftl block device，LittleFS format/mount/persistence。
 > **状态**：N5-D0..D4 board-observed；N5-D5 raw flash erase/write board-verified；N5-D6 MTD lower-half
 > read/erase/bwrite board-verified（方案 A SR0 清/恢复）；**N5-D7 LittleFS filesystem board-verified**。
-> **下一步**：N5 收口；后续可进 N6（如 procfs/应用/其它外设）。
+>
+> 实板范围：上述结果仅对应涂鸦 T5AI-Core 首板；Flash/MTD 机制可在 BK7258 板卡间复用，
+> 但容量、分区和文件系统验收必须由各板所选 partition CSV 与独立证据确认。
 
 ---
 
@@ -12,7 +19,7 @@
 
 - Stage N4（DPLL / 480 MHz clock bring-up）尚未整体 `board-verified`；N5 read-only flash
   exploration 不依赖 N4 DPLL 结果，可并行推进。
-- 当前可用 artifact：N4-D0/D0D/F 候选 `$FW/all-app.bin` = 164730 B = `0x2837A`（2026-07-18
+- 当时使用的 artifact：N4-D0/D0D/F 候选 `$FW/all-app.bin` = 164730 B = `0x2837A`（2026-07-18
   构建时间戳 `Jul 18 2026 22:11:54`）。
 
 ---
@@ -32,7 +39,7 @@ DSTA=00100000 DSIZ=00100000 DEND=001fffff
 
 | 字段 | 值 | 含义 |
 |---|---|---|
-| `FSIZ` | `0x00800000` | 8 MB flash candidate（= T5-AI 标称 flash 容量） |
+| `FSIZ` | `0x00800000` | 8 MB flash candidate（= T5AI-Core 标称 flash 容量） |
 | `IMGL` | `0x0002837A` | 当前 image length（= `$FW/all-app.bin` 164730 B） |
 | `REND` | `0x000FFFFF` | reserved 区结束 @ 1 MB 边界 |
 | `DSTA` | `0x00100000` | data candidate 起始（1 MB 偏移） |

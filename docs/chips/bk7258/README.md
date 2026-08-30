@@ -10,8 +10,8 @@
 | [chip 代码评审与清理指导](chip-code-review-cleanup-guide.md) | 迁移前 chip 目录的逐项静态审计与后来状态勘误 | 历史评审；不是当前待办清单 |
 | [J-Link/SWD 调试指南](jlink-swd-debug-guide.md) | Cortex-M33 fault、寄存器、断点和 BK7258 启动调试 | 通用方法；具体接线与端口由板级文档给出 |
 
-板卡硬件、T5-Board/T5AI-Core/AIDK profile、COM 口、下载边界和实板结论仍从
-[BK7258/T5-AI 平台文档](../../platforms/bk7258/README.md)进入。动态状态与正式验收以
+板卡硬件、各板 profile、COM 口、下载边界和实板结论仍从
+[BK7258 平台文档](../../platforms/bk7258/README.md)进入。动态状态与正式验收以
 `boards/bk7258/CONFIGS.md`、当前 manifest、resolved config 和
 权威分区 CSV 为准。
 

@@ -1,10 +1,13 @@
-# BK7258 N9 RPTUN source verification
+# BK7258 N9 RPTUN source verification（2026-07-31 snapshot）
 
 > 日期：2026-07-31
 > 状态：`board-verified`
-> 边界：官方 NuttX 与 Beken SDK 只读；永久实现全部位于 contest board/app overlay
+> 边界：官方 NuttX 与 Beken SDK 只读；本文的 `board/...` 路径和 checkout hash 是
+> 当时审计坐标，不是现行源码入口。现行架构见 [BK7258 平台文档](../README.md)。
+> 实板范围：`board-verified` 仅对应涂鸦 T5AI-Core 首板和冻结镜像；RPTUN lower-half
+> 的芯片级设计可复用，但不自动证明其他板卡或 profile。
 
-冻结 checkout：NuttX/OpenAMP/libmetal 均来自当前 openvela checkout
+冻结 checkout：NuttX/OpenAMP/libmetal 均来自该轮 openvela checkout
 `e02f581e235fc7b527d57ff62b668ce625d139ab`；构建选择 `open-amp.manual` 与
 `libmetal.manual`，二者是构建生成/准备的只读工作目录，不承载 team patch。
 

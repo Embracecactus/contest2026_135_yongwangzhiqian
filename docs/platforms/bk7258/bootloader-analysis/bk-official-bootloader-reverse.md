@@ -1,4 +1,8 @@
-# BK7258 官方 Bootloader 完整逆向分析
+# BK7258 官方 Bootloader 全文件逆向笔记（历史）
+
+> 本文保存特定官方二进制样本的逆向证据，不定义现行启动链、信任链或下载流程。
+> 现行入口见 [BK7258 平台文档](../README.md)与
+> [构建、烧录与调试 SOP](../nuttx-port/bk7258-build-flash-debug-sop.md)。
 
 > 目标二进制: `bk7258/bootloader/normal_bootloader/bootloader.bin` (52352 bytes)
 > 处理器: Cortex-M33 (Thumb-2), 链接基址 0x02000000
@@ -10,7 +14,7 @@
 > v3.1.1.9 的 exact binary 为 52352 bytes，SHA-256
 > `105161bb603eedafbffcb5efb8f7c06a0c8503e42ba4da46490c2c21ed813de6`，
 > version `bc31115`，base `0x02000000`、SP `0x28030000`、reset
-> `0x020001c1`。Ghidra 当前在另行种入 FAL 入口后识别 140 个函数，并确认 reset/handoff
+> `0x020001c1`。该轮 Ghidra 在另行种入 FAL 入口后识别 140 个函数，并确认 reset/handoff
 > 包含早期 SoC、flash、WDT、UART、clock、MSPLIM、runtime、cache/MPU 清理和 app
 > 跳转。项目只 clean-room 复现 raw NuttX 启动必需的硬件契约，没有移植官方
 > RBL/OTA/download 全部协议。
@@ -416,7 +420,7 @@ loop:
 
 > **2026-08-03 N15勘误：**旧稿把这一格式误写成`magic@+0x08`、SHA-256和variable
 > signature。对exact v3.1.1.9 packager source与normal/AB binary重新交叉验证后，确认该描述
-> 不成立。下面是当前可复现的准确结构。
+> 不成立。下面是该轮可复现的准确结构。
 
 | offset | size | field |
 |---:|---:|---|

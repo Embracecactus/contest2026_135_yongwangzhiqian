@@ -2,11 +2,17 @@
 
 日期：2026-07-30（2026-07-31 完成最终收口）
 
+> 本文是该次故障的固定历史综合，不维护现行支持状态或操作流程；现行操作以
+> [构建、烧录与调试 SOP](bk7258-build-flash-debug-sop.md)为准。
+
 最终状态：`resolved / final image board-verified / warm 3/3 / physical-reset 3/3 / AP SMP passed`
+
+> 实板范围：本复盘对应涂鸦 T5AI-Core 首板（原记录称 T5-AI）及当时镜像；其中
+> 冷复位和 SMP 机制可作为 BK7258 调试参考，但不能替代其他板卡的独立验收。
 
 关联 SOP：[BK7258 自动编译、下载与板端调试 SOP](bk7258-build-flash-debug-sop.md)
 
-详细原始记录：[n8-cold-reset-nsh-hang-investigation.md](n8-cold-reset-nsh-hang-investigation.md)
+原始调查、临时路标与自动化过程中的可复用结论已合并到本文；一次性工作日志不再单独维护。
 
 ## 1. 文档目的
 
@@ -28,7 +34,8 @@ UART 静默、AP READY timeout 和 bootloader 冷启动契约是三个相互影�
 ### 2.1 硬件
 
 ```text
-SoC / module: Beken BK7258 / Tuya T5-AI
+SoC:          Beken BK7258
+First board:  Tuya T5AI-Core (historical name: T5-AI)
 CP:           physical CPU0，运行 NuttX/NSH
 AP:           physical CPU1 + CPU2，运行 NuttX SMP
 console:      UART1，460800 8N1
@@ -62,7 +69,7 @@ AP_CONFIG_NAME=ap_smp_bidir
 最终烧录文件：
 
 ```text
-/home/lijian/project/open-vela/nuttx/bk7258-dual/all-app-factory.bin
+<openvela-workspace>/nuttx/bk7258-dual/all-app-factory.bin
 ```
 
 不要用 root `nuttx/all-app.bin` 代替。root 文件只包含 bootloader + CP，不包含 AP。
@@ -158,7 +165,7 @@ A7       AP wait 返回
 F1/F2    AP timeout 后 reset/power-down cleanup
 ```
 
-完整路标实现见：[n8-cold-reset-diagnostic-checkpoints.md](n8-cold-reset-diagnostic-checkpoints.md)。
+这些路标仅用于该轮定位，并已在最终镜像中删除；必要含义保留在本节。
 
 ## 6. Phase A 定位结果
 
@@ -309,7 +316,7 @@ bk7258_serial.c 修改:  23:08:39
 执行：
 
 ```bash
-cd /home/lijian/project/open-vela
+cd <openvela-workspace>
 
 AP_CONFIG_NAME=ap_smp_bidir \
   ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
@@ -551,7 +558,7 @@ bk_uart_init() 返回后重新声明 UART1 clock/config，再输出 U2
 2. SDK UART 初始化完成后恢复板级 UART1 clock/config；
 3. SDK 接管 GPIO0/1 前，把最后一个 raw-console 字节真正发送完。
 
-## 15. 当前状态矩阵
+## 15. 验收时状态矩阵
 
 | 项目 | 状态 |
 |---|---|
@@ -583,329 +590,14 @@ bk_uart_init() 返回后重新声明 UART1 clock/config，再输出 U2
 剩余边界只有 physical power cut。它比 RESET 更强，适合发布前追加，但不能否定当前已经
 完成的 warm/physical-reset 闭环。最终 commit/push 也尚未执行，避免越过用户授权。
 
-## 17. 证据索引
-
-```text
-主调查：docs/platforms/bk7258/nuttx-port/n8-cold-reset-nsh-hang-investigation.md
-路标代码：docs/platforms/bk7258/nuttx-port/n8-cold-reset-diagnostic-checkpoints.md
-自动化实现说明：docs/platforms/bk7258/nuttx-port/n8-cold-reset-automation.md
-正式 SOP：docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md
-交接记录：docs/platforms/bk7258/nuttx-port/n8-cold-reset-session-handoff-2026-07-30.md
-自动化日志：/home/lijian/project/open-vela/logs/bk7258-auto-debug/
-```
-
-## 18. 收口任务执行授权
-
-用户已明确授权由自动化代理接管以下任务，包括构建、Windows 下载、COM11 串口采集和板端判读：
-
-1. 完成当前 checkpoint 镜像的 physical cold-reset 重复性矩阵；
-2. 定位并修复独立的 AP READY timeout；
-3. 在上述门禁通过后删除临时 checkpoint；
-4. 重建、下载最终无诊断路标镜像并执行 warm/cold 回归；
-5. 探测现有 J-Link/USB 设备是否能真正控制目标电源；普通 reset 不计作 power cycle。
-
-执行顺序固定为：
-
-```text
-checkpoint image repeatability
-  -> AP timeout fix
-  -> repeat verification
-  -> checkpoint cleanup
-  -> final image build/download
-  -> final cold regression
-```
-
-当前主线程负责硬件闭环；AP timeout 源码分析和 checkpoint 清理范围可以并行进行，但在板端门禁完成前不提前删除路标。
-
-### 18.1 J-Link RESETPIN 自动复位实测失败
-
-自动采集 COM11 后，J-Link 已连接 STAR target 并执行：
-
-```text
-RSetType 2
-Reset
-Go
-```
-
-Commander 明确显示 `Reset type: RESETPIN`，但随后报告：
-
-```text
-WARNING: RESET (pin 15) high, but should be low. Please check target hardware.
-```
-
-COM11 30 秒采集为 0 字节，没有 `BClk/S0`。因此现有 J-Link RESET 接线或电气路径不能实际拉低 SoC nRESET，本次不计入 physical cold-reset 矩阵。
-
-下一自动化候选为 CH342-A/COM7 的 DTR/RTS 控制线和 J-Link target-power 输出。任何候选都必须以串口重新出现 `BClk/JMP/S0` 为有效判据。
-
-### 18.2 CH342-A RTS 自动 physical reset 已验证
-
-在 COM11 raw capture 提前打开的条件下，对 COM7/CH342-A 分别测试 150 ms 控制线脉冲：
-
-```text
-DTR       -> 0 字节，无复位
-RTS       -> BClk/JMP/S0/U2...，真实 physical cold reset
-DTR + RTS -> 0 字节，无复位
-```
-
-RTS 测试日志明确出现：
-
-```text
-u_bootloader enter
-BClk A5=8407A76C A9=787BC8A4
-partition app @ 0x02010000
-jump to:0x02010000
-JMP
-S0 U0 G1 U1 U2 U3 U4 U5
-C0 C1 C2 C3
-A0..A6 W0 W1
-```
-
-因此 COM7 的 RTS 控制线已经由板端 `BClk` 证实可等价于手动按键 RESET，可用于自动完成 physical cold-reset 重复矩阵。DTR 不应单独或与 RTS 同时切换。
-
-
-### 18.3 自动 cold-repeat 首轮未通过
-
-使用已验证的 COM7 RTS physical reset，COM11 30 秒原始日志为：
-
-```text
-BClk -> JMP -> S0/U0/G1/U1 -> U2/U3/U4/U5
--> C0/C1/C2/C3 -> A0..A6 -> W0/W1
-```
-
-随后 30 秒内没有 `A7/F1/F2/C4..C8/NSH`。因此重复性矩阵当前不能判定通过；AP READY wait 在重复 cold state 下仍可能不返回或超长延迟。
-
-自动 summary 同时发现一个 host-side 判读缺陷：旧实现按任意 substring 搜索 `A7/C8`，会误匹配 `BClk A5=8407A76C A9=787BC8A4` 中的十六进制字符。判读器已改为按去空白后的整行精确匹配 checkpoint；该次实际最后路标是 `W1`。
-
-下一步执行 90 秒长采样；若仍无 `A7`，则把问题收敛为 repeated-cold 下 `bk7258_ap_wait()` timeout 机制失效或时间基准异常，而不是普通 AP READY timeout。
-
-### 18.4 90 秒长采样确认 CP timeout 机制失效
-
-2026-07-31 使用同一 COM7 RTS physical-reset 路径执行 90 秒原始采集：
-
-```text
-logs/bk7258-auto-debug/20260731-011502/
-```
-
-结果仍精确停在：
-
-```text
-BClk -> JMP -> S0/U0/G1/U1 -> U2/U3/U4/U5
--> C0/C1/C2/C3 -> A0..A6 -> W0 -> W1
-```
-
-`serial_bytes=362`，整行判读为 `STOP_AFTER_W1`；90 秒内没有
-`A7/F1/F2/C4..C8/NSH`。这排除了普通 AP 启动延迟，并证明当前
-`bk7258_ap_wait()` 的 3000 次循环没有在预期约 3 秒内结束。
-
-`W1` 证明第一次 `nxsig_usleep(1000)` 返回；之后没有 `A7`，说明后续
-sleep/clock-wait 不再推进。当前 timeout 实现因此存在循环依赖：AP 启动控制
-需要 timeout 保护，但 timeout 自身依赖 repeated-cold 下不可靠的 NuttX
-SysTick/signal sleep。
-
-下一最小修复是仅把 CP `bk7258_ap_wait()` 的每毫秒等待替换为
-`up_mdelay(1)`。该路径本来就是同步硬件启动/停止控制，busy wait 可确保
-即使调度器 tick 异常也会确定地返回 `-ETIMEDOUT`。checkpoint 暂不删除；
-修复镜像必须先证明 `A7/F1/F2/C8/NSH` 能在 repeated-cold 下稳定出现，
-再继续定位 AP 自身是否仍被同一时基问题阻塞。
-
-### 18.5 CP 独立 timeout 时基修复首次 cold 验证通过
-
-CP `bk7258_ap_wait()` 已把循环内的 `nxsig_usleep(1000)` 替换为
-`up_mdelay(1)`，使同步 AP 硬件控制 timeout 不依赖 NuttX signal sleep。
-
-首次因果验证使用 `cp_nsh + ap_smp` 基础配置：
-
-1. fresh CP/AP/bootloader 全量构建成功；
-2. factory image 下载成功；
-3. loader warm capture 在 30 秒内得到
-   `A7 -> C4..C8 -> NuttShell`；
-4. 随后的 COM7 RTS physical cold reset 同样在 30 秒内得到
-   `BClk -> ... -> W0/W1 -> A7 -> C4..C8 -> NuttShell`；
-5. 两次均没有 `F1/F2`，说明 AP 已 READY，而不是仅靠 timeout cleanup
-   恢复 NSH。
-
-证据目录：
-
-```text
-warm: logs/bk7258-auto-debug/20260731-012015/
-cold: logs/bk7258-auto-debug/20260731-012051/
-```
-
-该结果证明纯粹依赖逐次 sleep 计数的旧 timeout 与 repeated-cold 启动时序相关，
-busy-wait 是有效的因果探针。基础 `ap_smp` 仅用于快速验证；后续正式实现改为 CP
-绝对 tick deadline + scheduled sleep，并在 AP self-test 中使用
-`up_mdelay(1) + sched_yield()`。最终 `cp_nsh + ap_smp_bidir` 结果见 18.7 至
-18.9，不能把本节的临时实现当成当前源码。
-
-### 18.6 官方 SDK 和 bootloader 契约补齐
-
-本轮使用技术支持提供的最新 SDK，而不是仓库中较旧的摘录：
-
-```text
-Windows 原始包:
-C:\Users\lijian\Downloads\BK7258_SMP\bk_avdk_smp-release-v3.1.1.9.tar.gz
-
-WSL 只读分析副本:
-/tmp/bk7258-sdk.oPn1zx/bk_avdk_smp-release-v3.1.1.9
-```
-
-官方 AP 初始化给出的关键契约是：
-
-- shared SRAM `0x28000000..0x3fffffff` 映射为 Inner Shareable、
-  Normal non-cacheable，MAIR attribute 1 为 `0x44`；
-- 启用 D-cache 前执行 clean/invalidate，复位残留不能直接继承；
-- `SystemInit()` 负责 I-cache；
-- WDT stop 需要同时处理 APB/AON ownership；
-- UART1 使用 GPIO0/1，SDK 初始化会先输出 GPIO 占用提示，然后 unmap 并重新映射引脚。
-
-Ghidra 对官方 v3.1.1.9 `normal_bootloader/bootloader.bin` 的分析确认：
-
-```text
-size:          52352 bytes
-SHA-256:       105161bb603eedafbffcb5efb8f7c06a0c8503e42ba4da46490c2c21ed813de6
-link base:     0x02000000
-initial SP:    0x28030000
-reset entry:   0x020001c1
-version:       bc31115
-functions:     134
-call edges:    224
-```
-
-官方 reset path 不只是检查 header 后跳转，还包含早期 SoC/flash/WDT/UART/clock、
-MSPLIM、runtime data、cache/MPU 清理与 app handoff。当前 Tier-1 仍保留项目自己的
-raw-NuttX/FAL 分区模型，没有照搬官方 RBL、下载、OTA 等协议；补齐的是启动所需的硬件
-状态契约，不宣称逐字节复刻完整 52 KB 官方功能。
-
-### 18.7 AP/SMP 最终修复
-
-最终实现包含以下相互配合的修复：
-
-1. AP 的 stackless 早期入口在使用 shared SRAM 前关闭并 set/way invalidate D-cache；
-2. MPU region 15 将 `0x28000000..0x3fffffff` 映射为 non-cacheable shared memory；
-3. CPU2 使用 uncached shared control 的 boot-ready、post-bringup、
-   scheduler-unlock 三阶段 token，避免“CPU 已运行”和“调度器已可接任务”混为一谈；
-4. CP 等待使用绝对 tick 截止条件；控制轮询中组合 `up_mdelay(1)` 与
-   `sched_yield()`，既保留硬件超时，又允许远端 IPI 唤醒后的本地 task 真正运行；
-5. CP 在 `nx_start()` 前关闭 bootloader 遗留的 AON/APB WDT，NuttX WDT 注册移动到
-   AP autostart 之后，避免启动所有权交叉。
-
-板端 `apctl status` 的最终状态：
-
-```text
-AP                    READY, error=0
-CPU2                  SCHEDULER_ONLINE, error=0, online mask=0x3
-AP SMP                PASSED, error=0
-affinity               PASSED, error=0
-semaphore wake         PASSED, error=0
-semaphore loop         PASSED, error=0
-bidirectional pingpong PASSED, error=0
-```
-
-`ap_smp_bidir` 只启用了 BP2P advanced mode；BDUL/BMIG/BTIM/BLCY 没有在该
-配置中启用，因此状态输出中没有这些行是预期行为，不是漏测。
-
-### 18.8 正式镜像 UART ownership handoff 修复
-
-删除 checkpoint 后，正式镜像稳定只收到 205 字节，最后停在：
-
-```text
-gpio: 0 is used.Please confirm unmap isn't impact...
-```
-
-把采集延长到 25 秒和 40 秒仍完全一致，说明不是 AP 启动慢。官方 SDK 源码表明，
-`bk_uart_init(UART1)` 打印这条提示后会立即：
-
-```text
-gpio_dev_unmap(GPIO0)
-gpio_dev_unmap(GPIO1)
-重新映射 UART1 TX/RX
-```
-
-旧 `arm_lowputc()` 只等待 UART FIFO `WR_READY`（bit 20），字符进入 FIFO 就返回；
-GPIO0 pinmux 随后被切走时，最后一个字符可能还没有从发送移位寄存器发完。临时
-checkpoint 增加了时间，恰好掩盖了这个 race。
-
-最终改法只在 SDK ownership handoff 窗口启用有界 `TX_EMPTY`（bit 17）等待：
-
-```text
-handoff=false: 等 WR_READY，保持正常 console 性能
-handoff=true:  写字符后再等 TX_EMPTY，最多轮询 100000 次
-```
-
-`bk7258_serial.c` 在调用 `bk_uart_init()` 前后打开/关闭 handoff，再恢复板级
-clock/config。这样既保证最后一个诊断字符真正发出，也不会让日常 console 每个字符都
-同步等待硬件完全空闲。
-
-### 18.9 最终正式镜像、重复性和哈希
-
-最终 sparse factory 布局固定为 4 KiB 对齐的三个 segment：
-
-```text
-0x000000..0x011000  bl_crc.bin
-0x011000..0x02f000  app_crc_flash.bin
-0x220000..0x232000  app1_crc_flash.bin
-```
-
-最终哈希：
-
-| 产物 | 大小 | SHA-256 |
-|---|---:|---|
-| boot padded segment | 69632 | `8908ebdc8df5aea5ed837e561e94b15c21ec6cdfaf393c8a340ecff376e29184` |
-| CP padded segment | 192512 | `379a96cef05e2a1cccd167891083e0cc57930ac4fd85358d89c2acab463fa191` |
-| AP padded segment | 73728 | `3144dd41d77cb27dafbae7abb2c5143ad85ca0ec946ad664ac5a47ce35c23c2a` |
-| factory image | 2301952 | `f7b62cb0b784612f552a6019728760778b601f6eadfac976e1b260da5c45b95b` |
-
-无临时 checkpoint 的 exact image 连续通过：
-
-```text
-warm:
-  logs/bk7258-auto-debug/20260731-130256  PASS_NSH
-  logs/bk7258-auto-debug/20260731-130415  PASS_NSH
-  logs/bk7258-auto-debug/20260731-130500  PASS_NSH
-
-COM7 RTS physical reset:
-  logs/bk7258-auto-debug/20260731-130551  PASS_NSH, cold_path=yes
-  logs/bk7258-auto-debug/20260731-130627  PASS_NSH, cold_path=yes
-  logs/bk7258-auto-debug/20260731-130701  PASS_NSH, cold_path=yes
-```
-
-三次 cold 日志均包含 `BClk`，因此确实走了 bootloader cold path；三次 warm 日志
-均无 `BClk`，判读器没有把二者混淆。第一次和第三次 cold 后又通过 COM11 执行
-`apctl status`，所有已启用 gate 均为 `PASSED/error=0`。
-
-最终静态门禁也通过：
-
-```text
-bootloader make clean all verify
-CP/AP full build
-git diff --check
-bash -n
-Python py_compile
-PowerShell parser
-git -C /home/lijian/project/open-vela/nuttx diff --exit-code -- .
-```
-
-最后一条证明没有修改 NuttX 官方源码。项目修复全部位于 team overlay、bootloader、
-打包和自动化脚本中。
-
-### 18.10 最终代码评审
-
-对所有本轮差异按启动顺序复核：
-
-- Tier-1 reset/handoff 的寄存器地址、barrier、set/way 终止条件和 MPU region clear；
-- UART handoff flag 的开启/关闭范围，以及两条 polling path 都有固定上限；
-- AP MPU region、MAIR、CPU1/CPU2 telemetry 一致性；
-- CP/AP WDT ownership 和 bringup 顺序；
-- CPU2 三阶段 token 不与 reset/power bits 冲突；
-- SMP self-test 的 timeout 与 `sched_yield()` 只用于 task context；
-- sparse segment 的 4 KiB padding、上限检查、offset/length 传给 bk_loader 的格式；
-- 自动判读按整行 checkpoint 和 `BClk` 前缀匹配，并拒绝任意 `->fail`。
-
-未发现阻塞合入的功能缺陷。一个保留风险是 CPU2 post-bringup /
-scheduler-unlock 的底层 `WFE` handshake 没有独立 timeout：这是 scheduler lock
-交接区，不能安全调用普通 clock/sleep API。当前 warm/reset 6 次和 `apctl status`
-都通过，但“在该窗口故意杀死一颗 core 后自动恢复”没有验证；如有产品级 fault
-injection 要求，应单独设计硬件 deadline 和跨核 recovery。
-
-另一个测试边界仍是 physical power cut 未执行。两项都已记录，不影响本次可复现
-physical-reset 修复结论，但不能在发布说明中写成已验证。
+## 17. 保留证据
+
+- 本文第 5 至 16 节：原始调查、诊断路标和自动化过程的合并结论；
+- [构建、烧录与调试 SOP](bk7258-build-flash-debug-sop.md)：现行操作入口；
+- [Bootloader 逆向综合快照](../bootloader-analysis/full-reverse-synthesis.md)：该轮
+  cold-reset 状态契约的二进制与源码依据；
+- [2026-08-01 压力测试报告](../../../verification/bk7258/2026-08-01-bk7258-stress-test-report.md)：
+  后续不可变板端验收证据。
+
+原始串口日志、会话交接、执行授权和临时 checkpoint 文件是一次性工作材料，不作为
+现行文档层保留。

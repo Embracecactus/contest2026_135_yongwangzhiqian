@@ -1,13 +1,17 @@
-# BK7258 CP/AP 双 NuttX 与 RPTUN/RPMsg 架构探索总结
+# BK7258 CP/AP 双 NuttX 与 RPTUN/RPMsg 架构探索（2026-07-26 快照）
 
 > 日期：2026-07-26
-> 状态：architecture research + N9 implementation closure；RPTUN/RPMsg wrapper 已 `board-verified`
-> 权威工作树：`/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian`
-> 外部参考：`/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9`、`/home/lijian/project/armino/vendor_beken`
+> 状态：固定架构调研与 N9 验收快照；不维护现行支持范围、源码位置或操作命令。
+> 当时队伍工作树：`<contest-repository>`
+> 当时只读参考：`<sdk-v3.1.1.9-checkout>`、`<vendor-beken-checkout>`
+> 现行架构与操作入口见 [BK7258 平台文档](../README.md)和
+> [构建、烧录与调试 SOP](bk7258-build-flash-debug-sop.md)。
 
 ## 1. 目标与边界
 
-本轮探索为 BK7258/T5-AI 后续 CP/AP 全面适配确定架构边界。最终目标固定为：
+本轮以涂鸦 T5AI-Core 首板探索 BK7258 CP/AP 适配并确定当时的架构边界。板端结果
+只证明该首板和对应镜像；芯片级架构可复用，但不自动构成其他板卡的验收证据。该轮采用的
+架构为：
 
 ```text
 物理 CPU0 / CP:
@@ -41,11 +45,11 @@ CP/AP:
 
 本轮只读调查覆盖：
 
-1. `/home/lijian/project/armino/vendor_beken`
+1. `<vendor-beken-checkout>`
    - Beken SDK/HAL 如何被包装进 NuttX。
    - OSAL、IRQ、lower-half、netdev、构建和打包边界。
    - Wi-Fi/BLE 的源码与预编译库边界。
-2. `/home/lijian/project/armino/bk_avdk_smp`
+2. `<legacy-sdk-checkout>`
    - CP/AP 镜像、CPU1/CPU2 启动链。
    - mailbox、`mb_chnl`、`mb_ipc`、virtual UART、日志、心跳。
    - Wi-Fi/BLE/Flash/PM 等服务 owner。
@@ -82,7 +86,7 @@ openvela board/chip build integration
 
 板级 defconfig 通过 custom dir 接入 vendor board/chip：
 
-- `/home/lijian/project/armino/vendor_beken/boards/bk7236n/bk7236n-evb/configs/nsh/defconfig:13-20`
+- `<vendor-beken-checkout>/boards/bk7236n/bk7236n-evb/configs/nsh/defconfig:13-20`
 
 主要配置为：
 
@@ -101,10 +105,10 @@ CONFIG_ARCH_BOARD_CUSTOM_DIR="../vendor/beken/boards/bk7236n/bk7236n-evb"
 
 关键位置：
 
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/CMakeLists.txt:21-74`
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/CMakeLists.txt:76-176`
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/Make.defs:31-129`
-- `/home/lijian/project/armino/vendor_beken/boards/bk7236n/bk7236n-evb/CMakeLists.txt:23-49`
+- `<vendor-beken-checkout>/chips/bk7236n/CMakeLists.txt:21-74`
+- `<vendor-beken-checkout>/chips/bk7236n/CMakeLists.txt:76-176`
+- `<vendor-beken-checkout>/chips/bk7236n/Make.defs:31-129`
+- `<vendor-beken-checkout>/boards/bk7236n/bk7236n-evb/CMakeLists.txt:23-49`
 
 ### 3.3 OSAL
 
@@ -124,10 +128,10 @@ CONFIG_ARCH_BOARD_CUSTOM_DIR="../vendor/beken/boards/bk7236n/bk7236n-evb"
 
 证据：
 
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_os_adapt.c:160-227`
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_os_adapt.c:273-383`
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_os_adapt.c:421-899`
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_os_adapt.c:990-1525`
+- `<vendor-beken-checkout>/chips/bk7236n/beken_os_adapt.c:160-227`
+- `<vendor-beken-checkout>/chips/bk7236n/beken_os_adapt.c:273-383`
+- `<vendor-beken-checkout>/chips/bk7236n/beken_os_adapt.c:421-899`
+- `<vendor-beken-checkout>/chips/bk7236n/beken_os_adapt.c:990-1525`
 
 该模式可直接指导 BK7258 的 SDK source/library adaptation，但 BK7258 需要自己的 OSAL 审计，不能直接使用 BK7236N 二进制。
 
@@ -144,8 +148,8 @@ irq_detach();
 
 证据：
 
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_interrupt_base.c:54-93`
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_interrupt_base.c:111-183`
+- `<vendor-beken-checkout>/chips/bk7236n/beken_interrupt_base.c:54-93`
+- `<vendor-beken-checkout>/chips/bk7236n/beken_interrupt_base.c:111-183`
 
 这与当前 BK7258 CPU0 已完成的 SDK IRQ bridge 属于同一种适配模式。
 
@@ -167,8 +171,8 @@ irq_detach();
 
 例如 I2C lower-half 最终调用 `bk_i2c_master_read/write()`：
 
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_i2c_lowerhalf.c:66-89`
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_i2c_lowerhalf.c:120-177`
+- `<vendor-beken-checkout>/chips/bk7236n/beken_i2c_lowerhalf.c:66-89`
+- `<vendor-beken-checkout>/chips/bk7236n/beken_i2c_lowerhalf.c:120-177`
 
 因此 BK7258 后续单个外设应继续遵循：
 
@@ -193,8 +197,8 @@ Wi-Fi 已真正接入 NuttX netdev：
 
 证据：
 
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_wlan.c:97-123`
-- `/home/lijian/project/armino/vendor_beken/chips/bk7236n/beken_wlan.c:1124-1143`
+- `<vendor-beken-checkout>/chips/bk7236n/beken_wlan.c:97-123`
+- `<vendor-beken-checkout>/chips/bk7236n/beken_wlan.c:1124-1143`
 
 数据路径为：
 
@@ -209,7 +213,7 @@ bk_wifi_get_rx_buffer() -> NuttX netpkt
 
 BLE 侧则只看到 `bk_bluetooth_init()` 和厂商 API，没有完整 NuttX HCI/host integration：
 
-- `/home/lijian/project/armino/vendor_beken/boards/bk7236n/bk7236n-evb/src/beken_ap.c:176-178`
+- `<vendor-beken-checkout>/boards/bk7236n/bk7236n-evb/src/beken_ap.c:176-178`
 
 ### 3.7 预编译依赖
 
@@ -231,8 +235,8 @@ libcom_phy.a
 
 构建会链接目录内全部 `.a`：
 
-- `/home/lijian/project/armino/vendor_beken/boards/bk7236n/bk7236n-evb/CMakeLists.txt:23-30`
-- `/home/lijian/project/armino/vendor_beken/boards/bk7236n/bk7236n-evb/scripts/Make.defs:40-49`
+- `<vendor-beken-checkout>/boards/bk7236n/bk7236n-evb/CMakeLists.txt:23-30`
+- `<vendor-beken-checkout>/boards/bk7236n/bk7236n-evb/scripts/Make.defs:40-49`
 
 所以 `vendor_beken` 应被描述为：
 
@@ -255,7 +259,7 @@ AP 的 CPU1 和 CPU2 共用一个 AP image，不存在独立 CPU2 flash image。
 
 AP linker script 将多套向量表打进同一个 image：
 
-- `/home/lijian/project/armino/bk_avdk_smp/ap/middleware/soc/bk7258_ap/bk7258_ap_bsp.ld:102-122`
+- `<legacy-sdk-checkout>/ap/middleware/soc/bk7258_ap/bk7258_ap_bsp.ld:102-122`
 
 当前 AP 配置是两核 SMP，因此实际使用：
 
@@ -275,11 +279,11 @@ __vector_core1_table
 
 全 SoC physical ID 为 0/1/2：
 
-- `/home/lijian/project/armino/bk_avdk_smp/ap/components/cmsis/CMSIS_5/Device/Beken/bk7236xx/Include/cpu_id.h:17-22`
+- `<legacy-sdk-checkout>/ap/components/cmsis/CMSIS_5/Device/Beken/bk7236xx/Include/cpu_id.h:17-22`
 
 AP API 层对本地 core ID 加 1，因此对外返回 physical 1/2：
 
-- `/home/lijian/project/armino/bk_avdk_smp/ap/include/os/os.h:1281-1292`
+- `<legacy-sdk-checkout>/ap/include/os/os.h:1281-1292`
 
 后续 NuttX SMP 必须显式区分：
 
@@ -292,7 +296,7 @@ BK physical CPU ID:    1 / 2
 
 CP 只从 `BK_PARTITION_APPLICATION1` 获取 AP image：
 
-- `/home/lijian/project/armino/bk_avdk_smp/cp/components/bk_startup/system_main.c:142-171`
+- `<legacy-sdk-checkout>/cp/components/bk_startup/system_main.c:142-171`
 
 低层启动序列：
 
@@ -303,7 +307,7 @@ sys_drv_set_cpu1_boot_address_offset(offset >> 8);
 sys_drv_set_cpu1_reset(1);
 ```
 
-- `/home/lijian/project/armino/bk_avdk_smp/cp/components/bk_startup/system_main.c:173-195`
+- `<legacy-sdk-checkout>/cp/components/bk_startup/system_main.c:173-195`
 
 官方路径还对 CRC-packed flash 地址执行 34/32 换算，并叠加 `SOC_FLASH_DATA_BASE`。团队 dual-image packer 必须统一“physical packed address”和“CPU-visible logical/XIP address”的定义，不能直接复制常量。
 
@@ -323,9 +327,9 @@ reset_cpu2_core((uint32_t)&__vector_core1_table, 1);
 
 证据：
 
-- `/home/lijian/project/armino/bk_avdk_smp/ap/components/os_source/freertos_smp_v2p0/FreeRTOS-Kernel/portable/GCC/ARM_CM33_NTZ/non_secure/port.c:1202-1223`
-- `/home/lijian/project/armino/bk_avdk_smp/ap/components/cmsis/CMSIS_5/Device/Beken/bk7236xx/Source/smp/startup_cpu1.c:259-267`
-- `/home/lijian/project/armino/bk_avdk_smp/ap/components/cmsis/CMSIS_5/Device/Beken/bk7236xx/Source/smp/startup_cpu1.c:296-318`
+- `<legacy-sdk-checkout>/ap/components/os_source/freertos_smp_v2p0/FreeRTOS-Kernel/portable/GCC/ARM_CM33_NTZ/non_secure/port.c:1202-1223`
+- `<legacy-sdk-checkout>/ap/components/cmsis/CMSIS_5/Device/Beken/bk7236xx/Source/smp/startup_cpu1.c:259-267`
+- `<legacy-sdk-checkout>/ap/components/cmsis/CMSIS_5/Device/Beken/bk7236xx/Source/smp/startup_cpu1.c:296-318`
 
 因此：
 
@@ -338,9 +342,9 @@ reset_cpu2_core((uint32_t)&__vector_core1_table, 1);
 
 释放 CPU1 不等于 AP service 已可用。官方 AP 在 `bk_init()` 完成后发送 `PM_CPU1_BOOT_READY_CMD`：
 
-- AP 发 ready：`/home/lijian/project/armino/bk_avdk_smp/ap/components/bk_init/bk_init.c:343-347`
-- AP mailbox send：`/home/lijian/project/armino/bk_avdk_smp/ap/middleware/driver/pwr_clk/pwr_clk.c:132-139`
-- CP 接收：`/home/lijian/project/armino/bk_avdk_smp/cp/middleware/driver/pwr_clk/pwr_clk.c:226-233`
+- AP 发 ready：`<legacy-sdk-checkout>/ap/components/bk_init/bk_init.c:343-347`
+- AP mailbox send：`<legacy-sdk-checkout>/ap/middleware/driver/pwr_clk/pwr_clk.c:132-139`
+- CP 接收：`<legacy-sdk-checkout>/cp/middleware/driver/pwr_clk/pwr_clk.c:226-233`
 
 团队实现也必须保留等价状态机：
 
@@ -381,7 +385,7 @@ CPU0/CP 明确负责或作为 server/backend：
 
 Flash/SARADC/PHY 的 server/client ID 明确编码在：
 
-- `/home/lijian/project/armino/bk_avdk_smp/cp/include/driver/mb_ipc_port_cfg.h:34-59`
+- `<legacy-sdk-checkout>/cp/include/driver/mb_ipc_port_cfg.h:34-59`
 
 ### 5.2 AP owner
 
@@ -403,9 +407,9 @@ media_service_init();
 
 证据：
 
-- `/home/lijian/project/armino/bk_avdk_smp/projects/asr_service_example/ap/ap_main.c:7-14`
-- `/home/lijian/project/armino/bk_avdk_smp/projects/audio_player_example/ap/ap_main.c:7-14`
-- `/home/lijian/project/armino/bk_avdk_smp/projects/video_pipeline_example/ap/ap_main.c:36-46`
+- `<legacy-sdk-checkout>/projects/asr_service_example/ap/ap_main.c:7-14`
+- `<legacy-sdk-checkout>/projects/audio_player_example/ap/ap_main.c:7-14`
+- `<legacy-sdk-checkout>/projects/video_pipeline_example/ap/ap_main.c:36-46`
 
 ### 5.3 BLE 分层
 
@@ -485,9 +489,9 @@ mb_ipc / mb_uart / bk_api_ipc / Wi-Fi IPC / BT IPC / log
 
 关键文件：
 
-- `/home/lijian/project/armino/bk_avdk_smp/ap/middleware/soc/common/hal/include/mbox0_hal.h`
-- `/home/lijian/project/armino/bk_avdk_smp/ap/middleware/soc/common/hal/mbox0_hal.c`
-- `/home/lijian/project/armino/bk_avdk_smp/ap/middleware/driver/mailbox/mbox0_drv.c`
+- `<legacy-sdk-checkout>/ap/middleware/soc/common/hal/include/mbox0_hal.h`
+- `<legacy-sdk-checkout>/ap/middleware/soc/common/hal/mbox0_hal.c`
+- `<legacy-sdk-checkout>/ap/middleware/driver/mailbox/mbox0_drv.c`
 
 ### 6.2 `mb_chnl`
 
@@ -516,10 +520,10 @@ mb_ipc / mb_uart / bk_api_ipc / Wi-Fi IPC / BT IPC / log
 
 证据：
 
-- `/home/lijian/project/armino/bk_avdk_smp/ap/include/driver/mb_ipc.h:27-101`
-- `/home/lijian/project/armino/bk_avdk_smp/ap/middleware/driver/mailbox/mb_ipc.c:68-177`
-- `/home/lijian/project/armino/bk_avdk_smp/ap/middleware/driver/mailbox/mb_ipc.c:1761-1766`
-- `/home/lijian/project/armino/bk_avdk_smp/ap/middleware/driver/mailbox/mb_ipc.c:1971-1985`
+- `<legacy-sdk-checkout>/ap/include/driver/mb_ipc.h:27-101`
+- `<legacy-sdk-checkout>/ap/middleware/driver/mailbox/mb_ipc.c:68-177`
+- `<legacy-sdk-checkout>/ap/middleware/driver/mailbox/mb_ipc.c:1761-1766`
+- `<legacy-sdk-checkout>/ap/middleware/driver/mailbox/mb_ipc.c:1971-1985`
 
 因此正式架构应为：
 
@@ -792,7 +796,7 @@ AP_PSRAM_HEAP     0x60720000 size 0xA0000
 AP_PSRAM_SECTION  0x607C0000 size 0x40000
 ```
 
-- `/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9/build/bk7258/app/partitions/ram_regions.h:6-29`
+- `<sdk-v3.1.1.9-checkout>/build/bk7258/app/partitions/ram_regions.h:6-29`
 
 ### 10.1 与团队双 NuttX linker 的关系
 
@@ -928,86 +932,7 @@ AP:
 
 ---
 
-## 12. 建议实施阶段
-
-### Phase A：dual-image 与 AP primary
-
-目标：CP NuttX 启动团队 AP NuttX UP，暂不启 CPU2/RPMsg。
-
-1. 固定 CP/AP flash partitions 和 CRC pack 规则。
-2. 创建 AP linker script，入口为 AP local core0。
-3. CP 实现 CPU1 power/boot/reset sequence。
-4. AP early trace 或共享 boot-state 可观测。
-5. 验证 CPU1 physical ID、VTOR、stack、clock、timer。
-
-验收：CPU0 NuttX 保持稳定，CPU1 独立执行团队 AP image 并报告 ready。
-
-### Phase B：AP NuttX SMP
-
-目标：CPU1/AP local core0 启动物理 CPU2/AP local core1。
-
-1. AP local/physical CPU ID mapping。
-2. secondary vector/stack/VTOR/NVIC/cache 初始化。
-3. NuttX SMP scheduler hooks。
-4. CPU1↔CPU2 IPI。
-5. shared spinlock/critical section。
-6. per-core timer与 interrupt affinity。
-
-验收：两个 AP logical CPU 均进入 NuttX scheduler，能执行固定 affinity task 和 IPI test。
-
-### Phase C：RPTUN transport
-
-目标：CPU0 CP 与整个 AP SMP cluster 建立一条 RPMsg link。
-
-1. 分配 `CP_AP_RPMSG` carveout。
-2. 实现 CP/AP 两侧 `bk7258_rptun.c`。
-3. static resource table 和 role/phase。
-4. mailbox notify/register_callback。
-5. CPU1-only RPMsg IRQ affinity。
-6. `rpmsg_char` ping/echo。
-
-验收：双向 endpoint 创建、nameservice、重复 reset/reconnect 均通过。
-
-### Phase D：基础系统服务
-
-按顺序启用：
-
-1. `syslog_rpmsg`。
-2. boot-ready/heartbeat/recovery management endpoint。
-3. `rpmsgfs`。
-4. reset/clock/regulator services。
-5. 按需加入 UART/MTD/block。
-
-### Phase E：BLE
-
-1. CP controller initialization。
-2. HCI transport over RPMsg。
-3. AP NuttX Bluetooth host。
-4. scan/advertising/connect/GATT regression。
-5. AP restart、CP restart和 controller recovery。
-
-### Phase F：Wi-Fi
-
-1. CP controller/PHY/RF bring-up。
-2. Wi-Fi control endpoint。
-3. AP wireless netdev frontend。
-4. packet data path。
-5. scan/connect/DHCP/DNS/TCP/UDP。
-6. reconnect、power-save、AP reset、CP reset。
-7. throughput 和 zero-copy/shared-ring 优化。
-
-### Phase G：鲁棒性和低功耗
-
-1. heartbeat timeout policy。
-2. AP局部 restart 与整机 WDT policy。
-3. crash dump。
-4. shared-memory generation counter。
-5. cache-on regression。
-6. suspend/resume 和低功耗网络保持。
-
----
-
-## 13. 明确禁止的错误方向
+## 12. 明确禁止的错误方向
 
 1. 不把 CPU0+CPU1+CPU2 描述为一个三核 NuttX SMP。
 2. 不由 CPU0 直接启动/管理 AP secondary CPU2。
@@ -1023,18 +948,7 @@ AP:
 
 ---
 
-## 14. N9 后续未决项
-
-1. BK7258 Wi-Fi/BLE/PHY/controller 的最终 source/archive/firmware 清单和许可。
-2. N9 以后新增服务、无线固件和文件系统需求对现有 CP/AP flash 分区的容量影响。
-3. 当前 non-cacheable 首版之后，cache-on 正式版的 MPU/cache maintenance policy。
-4. Wi-Fi 最终选择纯 RPMsg copy、`rpmsgdrv` 还是 shared packet ring。
-5. CP/AP heartbeat timeout 后采用 AP restart 还是整机 WDT reset。
-6. AP secure-only 初版之后是否需要 TrustZone/Non-Secure 分层。
-
----
-
-## 15. 当前收敛结论
+## 13. 当轮收敛结论
 
 1. `vendor_beken` 证明了“官方 SDK/HAL/静态库 + NuttX OSAL/IRQ/lower-half”模式可行，但它不是 CP/AP IPC 方案，也不是完整源码无线实现。
 2. BK7258 最终应保持 CPU0 NuttX UP + CPU1/CPU2 独立 NuttX SMP 两个系统、两个镜像。
@@ -1047,10 +961,9 @@ AP:
 9. BLE 最适合使用 CP controller + AP NuttX host + `bt_rpmsghci`。
 10. Wi-Fi 最终推荐 CP controller/backend + AP NuttX netdev/network stack，并在 RPMsg 上实现 BK7258 专用 control/data service。
 
-Phase A、N7 AP primary、N8 AP SMP 和 N9 RPTUN/RPMsg wrapper 均已完成并取得板端证据。
-N9 冻结结果为：32 KiB carveout、CP resource/master + AP remote、SDK mailbox channel
-wrapper、AP CPU0-only OpenAMP gateway、shared pending level state、动态 Name Service、
-generation reconnect 和 `syslog_rpmsg`。下一项工程工作应在这个 transport 基线上选择
-独立服务，不再回到 N9-R/N9-A 规划状态。原 N9 计划与 17 项评审处置均为
-已归档过程材料；[source verification](n9-rptun-source-verification.md) 保留作为
-可复核技术证据，现役结论应以源码、配置和最新验证记录为准。
+Phase A、N7 AP primary、N8 AP SMP 和 N9 RPTUN/RPMsg wrapper 在该轮均已完成并取得
+板端证据。N9 快照结果为：32 KiB carveout、CP resource/master + AP remote、SDK mailbox
+channel wrapper、AP CPU0-only OpenAMP gateway、shared pending level state、动态 Name
+Service、generation reconnect 和 `syslog_rpmsg`。原实施阶段、未决项和 17 项评审处置均为
+已归档过程材料；[source verification](n9-rptun-source-verification.md) 保留作为可复核
+技术证据，现行结论以平台入口、源码、配置和不可变验证记录为准。

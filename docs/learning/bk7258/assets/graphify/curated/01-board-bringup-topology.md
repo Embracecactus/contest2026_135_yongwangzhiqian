@@ -83,7 +83,7 @@ Manual review: rejected; L29 actually includes <nuttx/board.h>
 
 Graphify 的 JSON 顶层将图标为 `directed: false`，但每条关系仍记录 `source` 和 `target`。本教学图用箭头表达关系记录中的 source/target，不把箭头解释为完整运行时控制流。
 
-## 5. 下一步怎样扩图
+## 5. 扩图规则
 
 不要直接扫描整个工作区。要回答“谁调用 `board_app_initialize()`”，下一张图应只增加：
 

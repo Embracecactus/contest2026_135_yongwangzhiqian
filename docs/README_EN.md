@@ -2,33 +2,34 @@
 
 English | [简体中文](README.md)
 
-Documents are organized by the scope of the claims they make. This prevents a
-single-board observation from becoming an SoC-wide claim and prevents historical
-worklogs from overriding current source, configuration, or acceptance evidence.
+Documentation is organized by claim scope. A single-board observation is not
+an SoC contract, and historical acceptance evidence does not override current
+source, configuration, or build artifacts.
 
 | Layer | Directory | Content and boundary |
 |---|---|---|
-| Chip / SoC | [`chips/<soc>/`](chips/) | Registers, core startup, IRQ, DVFS/PM, SDK ABI, chip bootloaders, and shared debug contracts; no board-only pinout or acceptance claims |
-| Platform integration | [`platforms/<soc>/`](platforms/) | Cross-board CP/AP pairing, build and delivery, compliance, debug procedures, and retained engineering-stage records |
-| Learning | [`learning/`](learning/) | Tutorials and mental models derived from verified sources; never the current implementation status |
-| Workflow | [`workflows/`](workflows/) | Git and collaboration procedures not owned by a single SoC or board |
-| Verification | [`verification/<soc>/`](verification/) | Immutable host and board acceptance records with build identity and applicability; current claims must also agree with source/configuration |
+| Chip / SoC | [`chips/<soc>/`](chips/) | Board-independent register, startup, IRQ, clock, PM, SDK ABI, and shared-debug contracts |
+| Platform integration | [`platforms/<soc>/`](platforms/) | Cross-board build, boot/update model, delivery method, compliance notes, and explicitly historical engineering records |
+| Learning | [`learning/`](learning/) | Source-versioned tutorials and mental models; never live implementation or board-acceptance status |
+| Workflow | [`workflows/`](workflows/) | Git and collaboration procedures not owned by one SoC or board |
+| Verification | [`verification/<soc>/`](verification/) | Immutable, dated host/board acceptance records with build identity and applicability |
+
+Board names, profiles, partitions, and release policy are source/configuration
+facts and are not duplicated under `docs/`. For BK7258, use
+`boards/bk7258/CONFIGS.md` and `boards/bk7258/README.md`.
 
 ## BK7258 entry points
 
-- [Platform integration](platforms/bk7258/README_EN.md), covering T5AI Core,
-  T5 Board, and AIDK AI Toy;
-- [Official compliance review](platforms/bk7258/official-compliance-review.en.md),
-  separating mandatory requirements, recommendations, example layouts, and
-  architecture-specific differences in documents 1443/1444/1445;
-- [SoC-level documentation](chips/bk7258/README.md);
-- [Learner documentation](learning/bk7258/README.md); and
-- [Three-board configuration contract](../boards/bk7258/CONFIGS.md).
+- [SoC and board integration](platforms/bk7258/README_EN.md) for the cross-board
+  build, boot, update, and delivery boundary;
+- [SoC documentation](chips/bk7258/README.md) for shared BK7258 contracts;
+- [Learner documentation](learning/bk7258/README.md) for source-versioned tutorials;
+- [Acceptance records](verification/bk7258/) for immutable, dated evidence;
+- `boards/bk7258/CONFIGS.md` for the current supported-board, profile,
+  partition, and configuration contract; and
+- `SOURCE_PROVENANCE.md` for licenses and the origin of source, tables,
+  protocols, and initialization sequences.
 
-The former `docs/bk7258-t5ai/` name incorrectly implied that cross-board material
-was specific to T5-AI, so it has moved to `docs/platforms/bk7258/`. For the same
-reason, `docs/learning/bk7258-t5ai/` is now `docs/learning/bk7258/`. The platform
-tree still contains historical stage records under `nuttx-port/`, `bootloader-analysis/`,
-and parts of `research/`; current claims must be checked against the platform
-entry, compliance review, current source/configuration, and
-`docs/verification/bk7258/`.
+A document marked historical, snapshot, or retired is bounded by its recorded
+date and build identity. It must not be used as the current command, trust-root,
+partition, or board-status source.

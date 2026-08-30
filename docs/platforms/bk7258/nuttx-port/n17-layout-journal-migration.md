@@ -1,22 +1,23 @@
 > **Historical / retired design:** the custom N17 journal, policy sector and
 > migration implementation were removed from active source on 2026-08-10.
-> Preserve this file only as architecture history; current boot uses BL1 plus
-> pinned NuttX MCUboot BL2 and has no field-update journal.
+> Preserve this file only as architecture history. The current BL1/MCUboot A/B
+> update design is separate and is documented by the platform SOP; do not use
+> this file as a partition, journal, signing, or migration source.
 
-# N17 Manifest placement, format-3 journal, and migration design
+# BK7258 N17 Manifest placement, format-3 journal, and migration design
 
 - Status: Accepted and frozen architecture; host layout/vector/format-3 model
   complete, firmware and board-write gates closed
 - Date: 2026-08-06
-- Scope: N17-S recoverable software-root architecture only
+- Scope: N17-S recoverable software-root architecture for the historical Tuya
+  T5AI-Core layout only; it never established a multi-board contract
 - Approval evidence: project owner explicitly accepted all three decisions
   together on 2026-08-06
 - Authority: partition source/generator, public vector, portable format-3
   model and host verification; no Bootloader format-3 implementation,
   firmware build, Flash write, OTP/eFuse operation, or board action is
   authorized
-- Prerequisites:
-  [ADR-008](../../../../memory/decisions/ADR-008-n17-phased-ota-authentication.md)
+- Historical prerequisite: `memory/decisions/ADR-008-n17-phased-ota-authentication.md`
   and the frozen
   [512-byte signed Manifest ABI](n17-signed-manifest-abi.md)
 
@@ -278,7 +279,7 @@ recovery path.
 
 ## 5. Format-2 to format-3 migration
 
-The current Tier-1 bootloader is single-copy, so installing the new dual-format
+The retired N17 Tier-1 bootloader design was single-copy, so installing the new dual-format
 bootloader is a controlled wired/factory prerequisite, not a normal in-field
 self-update. The new bootloader initially supports both formats and leaves the
 policy sector erased.
@@ -359,14 +360,9 @@ without modifying official SDK, NuttX or apps:
    been retired, so this path is intentionally retained as historical text and
    is not a current repository link.
 
-The remaining implementation gates are:
-
-4. Make the future Tier-1 C Manifest parser consume the existing public vector
-   before integrating it with the journal selector.
-5. Verify all SDK partition IDs, final ELF references, Flash/RAM/stack budgets
-   and exact write ranges.
-6. Keep every firmware, Flash and board gate zero until a separate
-   implementation review and an explicit board-write authorization.
+The proposed firmware, Flash-write and board gates were never enabled before
+this design was retired. They are not pending work for the current BL1/MCUboot
+A/B architecture.
 
 ## 8. Reversal signals
 

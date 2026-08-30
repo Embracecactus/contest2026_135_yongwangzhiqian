@@ -7,7 +7,7 @@
 > - 教学主题：BK7258 Flash → MTD → FTL → LittleFS 完整存储栈
 > - `$CONTEST` source commit：`c588afbd8e0f1d30723f5076e585673a6ace8a4e`
 > - `$WORKSPACE/nuttx` commit：`e02f581e235fc7b527d57ff62b668ce625d139ab`
-> - 有效配置来源：当前 `$WORKSPACE/nuttx/.config`
+> - 有效配置来源：2026-07-24 撰写时的 `$WORKSPACE/nuttx/.config`；不作为现行配置
 > - 最后核对日期：2026-07-24
 > - 未覆盖：SmartFS、NXFFS、分区表工具、外部 SPI flash
 
@@ -70,7 +70,7 @@ flowchart TD
 
 ## 3. 最底层：BK7258 Flash 硬件
 
-当前板使用 8 MiB NOR flash，JEDEC ID 包括：
+教程基线的 T5AI-Core 使用 8 MiB NOR flash，JEDEC ID 包括：
 
 ```text
 GD25Q64   0x00c86517
@@ -79,7 +79,7 @@ W25Q64    0x000b4017
 TH25Q64   0x00cd6017
 ```
 
-flash 被逻辑分为若干区域，当前 MTD driver 只暴露 **1 MiB data 分区**：
+flash 被逻辑分为若干区域，教程基线的 MTD driver 只暴露 **1 MiB data 分区**：
 
 ```text
 物理地址 0x00100000 .. 0x001FFFFF（1 MiB）
@@ -127,7 +127,7 @@ struct mtd_dev_s
 
 这是一个**函数指针表**，类似 UART 的 `uart_ops_s`。每种 flash 芯片提供自己的实现，上层通过统一接口调用。
 
-当前 BK7258 的实现：
+教程基线中的 BK7258 实现：
 
 | 方法 | 实现 | 说明 |
 |---|---|---|
@@ -313,7 +313,7 @@ board_app_initialize()
 源码存在 ≠ 配置启用 ≠ 构建成功 ≠ 板上执行 ≠ 复位后数据仍在
 ```
 
-## 9. 当前实现的已知边界
+## 9. 教程基线的已知边界
 
 - 只暴露 1 MiB data 分区，不是整个 8 MiB flash；
 - 只支持 NOR flash 的 4 KiB 扇区擦除，没有坏块管理；
@@ -337,4 +337,4 @@ board_app_initialize()
 3. 当块设备上没有有效的 LittleFS 元数据时（通常是首次使用或格式化后）。
 4. 因为 flash 有硬件写保护（SR0 block protect），必须临时解除才能写入/擦除。
 5. 因为 `sync()` 只保证数据提交到 flash 控制器，复位后仍能读回才证明持久性。
-6. `bread` 按块操作（当前 4 KiB），`read` 按字节操作（当前未实现）。
+6. `bread` 按块操作（教程基线为 4 KiB），`read` 按字节操作（教程基线未实现）。

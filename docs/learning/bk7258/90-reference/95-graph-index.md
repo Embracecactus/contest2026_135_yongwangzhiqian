@@ -15,7 +15,6 @@
 
 | 状态 | 含义 |
 |---|---|
-| `planned` | 已定义问题和范围，尚未生成 |
 | `raw-generated` | 工具已生成原始图，但尚未人工核对 |
 | `curated-static` | 已核对静态源码路径和 AST 关系，可用于教学导航 |
 | `runtime-checked` | 静态图另有匹配的运行证据；必须链接证据来源 |
@@ -96,15 +95,3 @@ $GRAPHIFY_ROOT/runs/01-board-bringup/ast-input/graphify-out/.graphify_analysis.j
 - `board_app_initialize()` 在板上是否执行；
 - 输入范围之外的函数、宏、动态注册和外部依赖；
 - 当前实施 worktree 的未提交变化。
-
-## 4. 规划中的图
-
-| ID | 主题 | 首选范围 | 生成前置条件 | 状态 |
-|---|---|---|---|---|
-| G-002 | manifest/linkfile 所有权图 | contest manifest + board 映射 | 先人工确定映射语义；Graphify 不一定识别 XML/linkfile | `planned` |
-| G-003 | 启动链概览 | bootloader + 固定 NuttX 启动入口 | 固定同一 checkpoint，并人工补汇编/链接边 | `planned` |
-| G-004 | IRQ/vector bridge | 最小 IRQ bridge 源码集合 | 当前实施形成稳定 checkpoint | `planned` |
-| G-005 | flash → MTD → filesystem | board storage + 对应 NuttX upper layers | 先定义跨仓快照清单 | `planned` |
-| G-006 | GPIO upper/lower-half | board GPIO + NuttX GPIO framework | 实施接口稳定并完成源码复核 | `planned` |
-
-一次只生成一张图。先提出一个明确问题、收敛输入，再运行工具；不扫描整个 `$WORKSPACE`。

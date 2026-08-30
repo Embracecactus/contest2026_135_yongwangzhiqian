@@ -5,14 +5,16 @@ Last reviewed: 2026-08-30
 ## One host entry
 
 ```bash
-cd <openvela-workspace>/contest2026_135_yongwangzhiqian
+cd <contest-repository>
 tools/bk7258/bk7258.py --help
 ```
 
 - `build`: official OpenVela CP/AP plus project BL1/BL2 and a verified handoff manifest;
+- `toolchain`: install or verify the manifest-locked Arm GNU toolchain;
 - `sdk`: manifest-selected SDK bundle lifecycle;
 - `release`: the only signed full/OTA publication and product-ZIP path;
 - `package`: package inspection plus unsigned direct-boot diagnostics;
+- `deploy`: inspect or deliver one verified signed OTA package to a target;
 - `verify`: read-only layout, image, package and trust verification.
 
 There is no parallel product framework, build plan, executor, board postbuild
@@ -151,8 +153,7 @@ tools/bk7258/bk7258.py verify delivery \
 
 The deterministic ZIP contains one dense `recovery/*-full-flash.bin` for BKFIL
 at offset zero, the verified `.bkpack`, `release.json`, build/release-policy
-and accepted-base evidence, `SHA256SUMS` and `FLASHING.md`.  Its BIN size equals
-`FLASH_CAPACITY` from the selected CSV (8 MiB for the current three boards).
+and accepted-base evidence, `SHA256SUMS` and `FLASHING.md`.  Its BIN size equals `FLASH_CAPACITY` from the selected CSV.
 Firmware partitions are cleanly replaced, `reset_marker` is reset, and
 configuration, persistent, device-unique and unmapped bytes come from the
 exact device base.  It remains explicitly unsigned and diagnostic-only, and
@@ -212,12 +213,12 @@ block or fixed block. Ordinary build, package, boot and update preserve data;
 none auto-format a medium. Provisioning/formatting is a separately named and
 authorized action.
 
-For the current T5-Board Agent layout, the authoritative CSV is
-`boards/bk7258/common/partitions/bk7258/bk7258_ab_agent_onchip_persistent.csv`.
-Before materialization, read and validate one coherent accepted base.  Preserve
-all of `usr_config [0x4fc000,0x50a000)` and Agent persistent data
-`[0x561000,0x7fa000)`; preserving only the historical 1-MiB persistent window
-is invalid for this layout.
+The selected board's `openvela.conf`, partition CSV and release-policy CSV own
+the exact storage ranges and semantics. Before materialization, read and
+validate one coherent accepted base; derive every preserve, factory-init,
+device-unique and transactional range from those selected inputs. Do not copy
+the historical 1-MiB window or any address from an older layout into the
+operator procedure.
 
 `release full` validates the complete accepted-base evidence and digest, then materializes one
 complete-Flash operator image in the same atomic publication.  The live board
@@ -237,16 +238,16 @@ UART, J-Link and Flash transport remain in:
 - [Chinese SOP](../../../../tools/windows-hardware-debug/SOP.zh-CN.md)
 - [Agent safety rules](../../../../tools/windows-hardware-debug/AI_AGENT_SOP.md)
 
-For current full-image acceptance, use COM3 and pass only the single verified
-operator image to BK Loader/bk_loader at address zero.  Do not chip erase.
+For full-image acceptance, use the fixture-selected loader/control port and pass only
+the single verified operator image to BK Loader/bk_loader at address zero.  Do not chip erase.
 `usr_config` and Agent persistent data are already materialized into that one
 image; do not add parallel sparse inputs.  The complete-Flash image carries
 the same device's immutable/calibration tail byte-for-byte and is therefore
 valid only for that unit.  Never substitute another board's tail or modify
 OTP/eFuse, lifecycle or debug-lock state.
 
-Record the input count, start/end address, image SHA-256 and loader success
-texts.  `WriteFlash ->pass`, `Writing Flash OK` and
+Record the selected port, input count, start/end address, image SHA-256 and loader
+success texts. The host COM number is fixture state, not a board identity.  `WriteFlash ->pass`, `Writing Flash OK` and
 `All Finished Successfully` are transport evidence, not boot or application
 acceptance. Before writing, match the package/release physical target to the
 connected board. A valid run also records the new generation, public

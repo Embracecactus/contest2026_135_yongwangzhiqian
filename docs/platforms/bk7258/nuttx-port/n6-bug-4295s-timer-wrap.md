@@ -2,7 +2,14 @@
 
 日期：2026-07-23
 
+> 本文是已关闭故障的固定根因记录。`board/bk7258/`、精确产物位置和命令均为
+> 当时坐标，不是现行源码或操作入口；现行流程见
+> [构建、烧录与调试 SOP](bk7258-build-flash-debug-sop.md)。
+
 状态：**BOARD-VERIFIED（2026-07-23）。团队 overlay 已启用 `CONFIG_SYSTEM_TIME64=y`；干净构建、最终 ELF 反汇编及越过 4400 秒的板测均通过，最高观测 `/proc/uptime` 为 5834.58 秒，未再发生 `HF`/WDT 复位。**
+
+> 实板范围：该关闭结论仅对应涂鸦 T5AI-Core 首板和当时镜像；时间宽度根因属于
+> 芯片/系统软件问题，但其他板卡仍需通过自己的构建与长时验收取得结论。
 
 ## 现象
 
@@ -24,7 +31,7 @@ u_bootloader enter
 
 位于 `board/bk7258/bootloader/boot_main.c:187`。
 
-`HF` 来自 `board/bk7258/chip/cp/bk7258_vectors.c:243-249` 的临时故障处理器。该处理器同时占用向量槽 2（NMI）和槽 3（HardFault），因此当前日志不能区分 NMI 与 HardFault。结合后述喂狗链，最可能是 APB WDT 超时产生的 NMI；`F` 与下一次启动的 `u_bootloader enter` 相连，形成 `Fu_bootloader enter`。
+`HF` 来自 `board/bk7258/chip/cp/bk7258_vectors.c:243-249` 的临时故障处理器。该处理器同时占用向量槽 2（NMI）和槽 3（HardFault），因此该轮日志不能区分 NMI 与 HardFault。结合后述喂狗链，最可能是 APB WDT 超时产生的 NMI；`F` 与下一次启动的 `u_bootloader enter` 相连，形成 `Fu_bootloader enter`。
 
 ## 已确认根因
 
@@ -120,14 +127,14 @@ TICK2USEC(timebase)  /* timebase * 10000 */
 构建前检查未发现正在运行的 openvela/NuttX build、distclean、烧录或占用同一输出目录的进程。先执行干净构建：
 
 ```sh
-cd /home/lijian/project/open-vela
+cd <openvela-workspace>
 ./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh distclean  # exit 0
 ./build.sh vendor/openvela/boards/contest2026_135_bk7258/configs/cp_nsh -j8       # 首次 exit 2
 ```
 
 首次链接失败是 IRQ timer test 只包含 `<nuttx/irq.h>`，导致 `enter_critical_section()` / `leave_critical_section()` 被隐式声明为外部函数。最小修复仅把团队 overlay 文件 `board/bk7258/chip/cp/bk7258_sdk_irq_timer_test.c` 的包含头替换为 `<nuttx/spinlock.h>`，使这两个 NuttX API 在当前单核配置下正确展开为 `up_irq_save()` / `up_irq_restore()`。随后执行同一构建命令，退出码为 0，完整日志保存在 `/tmp/bk7258-4295s-build-after-irq-fix.log`。
 
-最终 `/home/lijian/project/open-vela/nuttx/.config` 实测为：
+最终 `<openvela-workspace>/nuttx/.config` 实测为：
 
 ```text
 CONFIG_SYSTEM_TIME64=y
@@ -150,10 +157,10 @@ CONFIG_USEC_PER_TICK=10000
 生成产物：
 
 ```text
-/home/lijian/project/open-vela/nuttx/nuttx
-/home/lijian/project/open-vela/nuttx/nuttx.bin
-/home/lijian/project/open-vela/nuttx/nuttx_crc.bin
-/home/lijian/project/open-vela/nuttx/all-app.bin
+<openvela-workspace>/nuttx/nuttx
+<openvela-workspace>/nuttx/nuttx.bin
+<openvela-workspace>/nuttx/nuttx_crc.bin
+<openvela-workspace>/nuttx/all-app.bin
 ```
 
 `all-app.bin` 大小为 240618 字节，SHA-256 为 `21a4f281cccf87500bd7c67a31d6aa097cfe0bb175ab9730d5a0bf5f44f589e9`。静态检查 `git diff --check` 退出码为 0。

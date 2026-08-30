@@ -1,4 +1,4 @@
-# Hardware Context Index — bk_avdk_smp
+# BK7258 SDK Hardware Context Index — `bk_avdk_smp`（历史）
 
 Generated: 2026-07-17T09:03:31Z
 Original SDK path: developer-local checkout (not part of the project contract)

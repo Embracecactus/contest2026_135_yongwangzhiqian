@@ -1,8 +1,12 @@
-# BK7258 N13 BLE GAP/GATT source verification
+# BK7258 N13 BLE GAP/GATT source verification（2026-08-03 快照）
 
 > 日期：2026-08-03
+> 文档边界：固定源码与板端验收快照；文中的“当前”和“后续”均指该轮调查，不维护
+> 现行 API、profile 或任务状态。现行入口见 [BK7258 平台文档](../README.md)。
 > 状态：**`source-verified` + `build-verified` + `board-verified`**；四类negative、
 > 20轮uncached重连、BLE 100帧与RPMsg/RPMsgFS主动并发、最终系统健康及连接引用归零均已闭环
+> 实板范围：上述 `board-verified` 结果仅对应涂鸦 T5AI-Core 首板和冻结镜像；
+> BLE/HCI 芯片级实现可复用，但不自动构成其他板卡的验收证据。
 > 基线：contest `d4661fd`，NuttX `e02f581e235fc7b527d57ff62b668ce625d139ab`，
 > apps `e81a73794786189f15e6c9fe9931ffddd561fd73`
 > 边界：官方 NuttX 与 Beken SDK 只读；永久实现按职责进入 contest
@@ -328,7 +332,7 @@ g_attr_count = count;
 `BT_GATT_CCC` 必须提供固定-size `bt_gatt_ccc_cfg_s` array；`bt_gatt_notify()` 会从 value
 handle 向后查找 CCC，然后向已连接 peer 发送 ATT notification。
 
-当前实现限制：
+该轮实现限制：
 
 - API 返回 `void`，不能把本地调用解释为 peer 已收到；
 - 源码含 `TODO: Handle indications`，首版禁止 indication；

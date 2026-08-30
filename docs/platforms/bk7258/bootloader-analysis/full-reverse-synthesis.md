@@ -1,17 +1,22 @@
-# BK7258 Bootloader 逆向综合与当前实现边界
+# BK7258 Bootloader 逆向综合（2026-07-31 快照）
 
 日期：2026-07-31
+
+> 本文是固定日期的逆向与实现快照。文中的“当前”和“Tier-1”均指该轮样本，
+> 不能作为现行构建、信任链或下载流程的依据。现行入口见
+> [BK7258 平台文档](../README.md)与
+> [构建、烧录与调试 SOP](../nuttx-port/bk7258-build-flash-debug-sop.md)。
 
 这份文档替代旧的“最小 bootloader 已完全符合、无需修改”结论。旧结论只覆盖
 header/VTOR/MSP/branch 主路径，没有覆盖 cold reset 下的 cache、MPU、watchdog、
 secondary-core power 和 UART ownership，因此不够完整。
 
-## 1. 当前分析对象
+## 1. 分析对象
 
 技术支持提供的 SDK：
 
 ```text
-C:\Users\lijian\Downloads\BK7258_SMP\bk_avdk_smp-release-v3.1.1.9.tar.gz
+<sdk-v3.1.1.9-source-archive>
 ```
 
 官方 normal bootloader：
@@ -30,7 +35,7 @@ C:\Users\lijian\Downloads\BK7258_SMP\bk_avdk_smp-release-v3.1.1.9.tar.gz
 
 ## 2. BootROM 与 flash 格式契约
 
-当前仍成立的基础事实：
+该轮确认、且可由后续材料交叉验证的基础事实：
 
 ```text
 Bootloader logical base: 0x02000000
@@ -81,12 +86,12 @@ SCB 正确基址是：
 - 自己的 4 KiB padded sparse factory image；
 - CP app 自己启动 AP/CPU2。
 
-直接替换成官方 binary 可能让 app header、分区表或升级协议不兼容。当前策略是
+直接替换成官方 binary 可能让 app header、分区表或升级协议不兼容。该轮策略是
 clean-room 复现“运行 raw NuttX 必需的硬件状态契约”，并保留项目已有功能。
 
-## 5. 当前 Tier-1 功能对照
+## 5. 快照中的 Tier-1 功能对照
 
-| 能力 | 当前状态 | 说明 |
+| 能力 | 快照状态 | 说明 |
 |---|---|---|
 | BootROM magic / CRC-packed boot image | 已实现 | 保持现有烧录兼容 |
 | CP app 固定分区选择与向量检查 | 已实现 | 保持 raw NuttX 路径 |
@@ -98,11 +103,11 @@ clean-room 复现“运行 raw NuttX 必需的硬件状态契约”，并保留�
 | app 接管前 WDT ownership | 已实现 | CP reset 关闭 boot AON/APB WDT |
 | UART1 boot trace | 已实现 | 保留 `BClk` 等现有可观测性 |
 | 官方 RBL 分区协议 | 刻意不复制 | 与 raw NuttX/FAL 模型冲突 |
-| 官方 OTA/download 全协议 | 刻意不复制 | 不是当前产品需求 |
-| 官方全部 134 函数语义等价 | 未宣称 | 当前只覆盖启动所需路径 |
-| 52 KB binary-by-binary parity | 未完成也非当前目标 | 不能写成“完全逆向” |
+| 官方 OTA/download 全协议 | 刻意不复制 | 不是该轮产品需求 |
+| 官方全部 134 函数语义等价 | 未宣称 | 该轮只覆盖启动所需路径 |
+| 52 KB binary-by-binary parity | 未完成也非该轮目标 | 不能写成“完全逆向” |
 
-当前 bootloader text 为 2980 bytes。体积小不代表缺失当前启动必需契约，也不表示与官方
+当时 bootloader text 为 2980 bytes。体积小不代表缺失该轮启动必需契约，也不表示与官方
 功能全集等价；它只说明项目选择了更窄的功能范围。
 
 ## 6. 与 AP SMP 的边界
@@ -133,7 +138,7 @@ CP NuttX
 - SDK 的 `system_main.c` 只在 JTAG debug 模式主动 `bk_wdt_stop()`，不是所有启动场景
   自动替 app 清理。
 
-所以当前所有权为：
+所以该快照记录的所有权为：
 
 ```text
 Tier-1 cold init：WDT 保护
@@ -141,9 +146,9 @@ CP reset entry：关闭 boot 遗留 AON + APB WDT
 AP autostart 完成后：注册 NuttX watchdog
 ```
 
-## 8. 验证结果与不能过度声称的部分
+## 8. 验证快照与不能过度声称的部分
 
-当前 exact Tier-1 padded segment：
+当时的 exact Tier-1 padded segment：
 
 ```text
 size       69632
@@ -158,9 +163,9 @@ SHA-256    8908ebdc8df5aea5ed837e561e94b15c21ec6cdfaf393c8a340ecff376e29184
   `PASSED/error=0`；
 - bootloader `make clean all verify`。
 
-尚未执行真正的 power cut。因此当前准确表述是：
+该轮尚未执行真正的 power cut。因此对这份快照的准确表述是：
 
-> 已用官方 v3.1.1.9 binary/SDK 复核并补齐当前 raw NuttX 启动所需的 bootloader
+> 已用官方 v3.1.1.9 binary/SDK 复核并补齐该轮 raw NuttX 启动所需的 bootloader
 > 契约，physical reset 板测通过；没有宣称完整复刻官方 RBL/OTA/download 功能，也没有
 > 完成 52 KB 全函数的语义等价证明。
 

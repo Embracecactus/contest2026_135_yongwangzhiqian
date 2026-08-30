@@ -6,10 +6,10 @@
 
 ## 权威入口
 
-- 当前三板配置、profile 与分区：`boards/bk7258/CONFIGS.md`
+- 当前支持板卡、profile 与分区：`boards/bk7258/CONFIGS.md`
 - 板级引脚和实例策略：`boards/bk7258/README.md`
 - SoC 共用契约：[BK7258 chip 文档](../../chips/bk7258/README.md)
-- 平台说明：[BK7258 平台入口](../../platforms/bk7258/README.md)
+- 芯片与板卡集成：[BK7258 平台入口](../../platforms/bk7258/README.md)
 - 日期化验收证据：[BK7258 verification](../../verification/bk7258/)
 - 队伍目录映射：`contest2026_135_yongwangzhiqian.xml`
 
@@ -50,7 +50,7 @@ UART 教程记录的是首次迁移过程，适合解释 wrapper 思路，但不
 
 - 文件存在只证明源码层事实；有效 `.config` 才证明一次构建选择了它。
 - 编译成功不等于最终 ELF、镜像或下载包包含该路径；继续检查 map、符号和包清单。
-- 旧板测只证明当时板型和镜像，不自动覆盖当前三板配置。
+- 旧板测只证明当时板型和镜像，不自动覆盖其他板卡或当前配置。
 - SDK、NuttX、外部资料和队伍仓分别记录版本；不要笼统写“工作区最新版”。
 - 教学图和历史教程用于理解关系，不发布 current 状态、下一步或恢复指针。
 
