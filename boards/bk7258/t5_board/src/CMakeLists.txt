@@ -18,7 +18,7 @@ if(CONFIG_BK7258_AUD)
   target_sources(board PRIVATE bk7258_t5_board_audio.c)
 endif()
 
-if(CONFIG_BK7258_LCD)
+if(CONFIG_BK7258_T5_BOARD_LCD)
   target_sources(board PRIVATE bk7258_t5_board_lcd.c)
 endif()
 

@@ -51,10 +51,3 @@ CSRCS += bk7258_ota_trial.c
 endif
 endif
 endif
-
-ifeq ($(CONFIG_BK7258_LCD),y)
-VPATH += :panels
-DEPPATH += --dep-path panels
-CFLAGS += ${INCDIR_PREFIX}$(BOARD_COMMON_DIR)$(DELIM)panels
-CSRCS += ili9488_rgb.c
-endif

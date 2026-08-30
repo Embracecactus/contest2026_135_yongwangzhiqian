@@ -1697,7 +1697,7 @@ config BK7258_DMA2D
 config BK7258_LVGL_FB_ACCEL
 	bool "BK7258 LVGL partial framebuffer accelerator"
 	default n
-	depends on BK7258_AP_CORE && BK7258_LCD && BK7258_PM_CLOCK
+	depends on BK7258_AP_CORE && BK7258_LCD_RGB && BK7258_PM_CLOCK
 	depends on GRAPHICS_LVGL && FB_SYNC
 	select BK7258_DMA2D
 	help
@@ -2087,7 +2087,7 @@ config BK7258_CAN
 	bool "Classic CAN controller lower half"
 	default n
 	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
-	depends on !BK7258_LCD
+	depends on !BK7258_LCD_RGB
 	depends on !BK7258_SPI || BK7258_SPI_BUS != 0
 	select BK7258_SDK_IPC_RUNTIME
 	select CAN
@@ -2143,25 +2143,38 @@ config BK7258_TRNG
 		the architecture-backed /dev/urandom implementation rather than a
 		software PRNG.
 
+source "../vendor/beken/nuttx/drivers/lcd/Kconfig.gc9d01"
+source "../vendor/beken/nuttx/drivers/lcd/Kconfig.ili9488_rgb"
+
+config BK7258_LCD_RGB
+	bool
+	depends on BK7258_AP_CORE && BK7258_PSRAM
+	select BK7258_SDK_IPC_RUNTIME
+	select DRIVERS_VIDEO
+	select VIDEO_FB
+	help
+		Enable the BK7258 RGB scanout controller mechanism.  A selected board
+		must supply the physical RGB/control pins, timing and panel setup.
+
+config BK7258_LCD_FRAMEBUFFER_MEDIA
+	bool "Allocate the RGB framebuffer from the PSRAM media heap"
+	default n
+	depends on BK7258_LCD_RGB
+	select BK7258_PSRAM_MEDIA
+	help
+		Allocate the BK7258 RGB driver's scanout storage from the official SDK
+		media YUV slab rather than the AP general-purpose PSRAM heap.
+
 config BK7258_LCD_SPI
 	bool "SPI LCD framebuffer lower half"
 	default n
 	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
 	select BK7258_SDK_IPC_RUNTIME
-	select DRIVERS_VIDEO
-	select VIDEO_FB
 	help
-		Expose one BK7258 SPI-attached panel through the standard NuttX
-		/dev/fb0 framebuffer interface.  The immutable v3.1.1.9 SDK owns
-		the SPI-LCD controller, panel init sequence and frame/partial DMA
-		paths; this lower half owns the RGB565 framebuffer, dirty-area
-		tracking and device registration.  A selected board supplies the SDK
-		panel descriptor, controller index and RESET/DC pins through
-		bk7258_lcd_spi_initialize().
-
-		The first implementation supports one RGB565 SPI panel.  It is
-		mutually exclusive with the RGB controller wrapper because both
-		share the single display service.
+		Provide a generic BK7258 SPI-over-QSPI transport for NuttX LCD panel
+		drivers.  The immutable SDK owns only the SoC QSPI/DMA controller path;
+		panel commands, state and the public LCD ABI remain in NuttX drivers.
+		One independent RGB565 panel may use each QSPI controller.
 
 config BK7258_LIN
 	bool "LIN controller lower half"
@@ -2267,7 +2280,7 @@ config BK7258_LCD_8080
 	bool "8080-MCU LCD framebuffer lower half"
 	default n
 	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
-	depends on !BK7258_LCD && !BK7258_LCD_SPI
+	depends on !BK7258_LCD_RGB && !BK7258_LCD_SPI
 	select BK7258_SDK_IPC_RUNTIME
 	select DRIVERS_VIDEO
 	select VIDEO_FB

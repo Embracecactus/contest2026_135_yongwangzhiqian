@@ -75,12 +75,16 @@ revision:
 |---|---|---|---|
 | T5AI-Core | `t5ai_core` | `CONFIG_BK7258_BOARD_T5AI_CORE` | V1.0.1 |
 | T5-Board | `t5_board` | `CONFIG_BK7258_BOARD_T5_BOARD` | V1.0.2 |
-| AIDK AI Toy | `aidk_ai_toy` | `CONFIG_BK7258_BOARD_AIDK_AI_TOY` | schematic-v1.0 |
+| AIToyBoard (AIDK AI Toy) | `aidk_ai_toy` | `CONFIG_BK7258_BOARD_AIDK_AI_TOY` | schematic-v1.0 |
 
 Hardware revisions live in `BK7258_BOARD_HARDWARE_VERSION`.  A revision gets
 its own selector only if it changes a software-visible electrical contract.
 T5AI-Core is the default so all existing configurations retain their verified
 board behavior.
+
+`AIToyBoard` and `AIDK AI Toy` name the same physical-board adaptation.  Keep
+`aidk_ai_toy` as the machine-facing directory, CLI, manifest and package ID;
+the human-facing alias must not create a second board implementation.
 
 ## Source boundary
 
@@ -265,7 +269,7 @@ documented in
 [`../../docs/platforms/bk7258/p0-diagnostics-performance.md`](../../docs/platforms/bk7258/p0-diagnostics-performance.md).
 The accepted generation 143 diagnostic capture and generation 145
 low-noise benchmark results are recorded in
-[`../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md`](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md).
+[`../../docs/verification/bk7258/2026-08-27-bk7258-p0-diagnostics-performance.md`](../../docs/verification/bk7258/2026-08-27-bk7258-p0-diagnostics-performance.md).
 Scheduler switches, interrupt entry/exit and custom `sched_note_*` events are
 compiled in.  The default `0x3e` filter follows the openvela Trace guide;
 it masks task start/stop/suspend/resume/name records while leaving IRQ records

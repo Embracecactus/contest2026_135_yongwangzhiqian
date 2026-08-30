@@ -1,0 +1,19 @@
+config LCD_GC9D01
+	bool "GalaxyCore GC9D01 TFT Controller"
+	default n
+	select LCD_NOGETRUN
+	help
+		Enable the transport-independent GC9D01 160x160 RGB565 LCD driver.
+		The board or SoC lower half supplies reset, command, pixel-transfer and
+		optional backlight callbacks.
+
+if LCD_GC9D01
+
+config LCD_GC9D01_NINTERFACES
+	int "Number of GC9D01 devices"
+	default 1
+	range 1 4
+	help
+		Specifies the number of independently connected GC9D01 panels.
+
+endif # LCD_GC9D01

@@ -34,8 +34,8 @@ enum bk7258_lcd_pixel_format_e
 
 struct bk7258_lcd_board_s;
 
-/* A panel owns its register protocol and geometry.  It does not configure
- * the BK7258 RGB controller or choose physical RGB pins.
+/* A panel descriptor supplies scanout geometry.  Its register protocol is
+ * initialized by the board through a transport-independent panel driver.
  */
 
 struct bk7258_lcd_panel_s
@@ -44,7 +44,6 @@ struct bk7258_lcd_panel_s
   uint16_t width;
   uint16_t height;
   enum bk7258_lcd_pixel_format_e format;
-  int (*initialize)(const struct bk7258_lcd_board_s *board);
 };
 
 /* RGB timing belongs to the physical board/panel combination. */
@@ -91,7 +90,7 @@ struct bk7258_lcd_board_s
  * Public Function Prototypes
  ****************************************************************************/
 
-#if defined(CONFIG_BK7258_LCD) && defined(CONFIG_BK7258_AP_CORE)
+#if defined(CONFIG_BK7258_LCD_RGB) && defined(CONFIG_BK7258_AP_CORE)
 
 /* Register the selected RGB panel as the standard NuttX /dev/fb0 device. */
 

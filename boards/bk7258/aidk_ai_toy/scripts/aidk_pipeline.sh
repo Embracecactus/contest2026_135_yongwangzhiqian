@@ -9,7 +9,6 @@ board_dir=$(cd "$script_dir/.." && pwd -P)
 repo_root=$(cd "$board_dir/../../.." && pwd -P)
 workspace=$(cd "$repo_root/.." && pwd -P)
 bk7258="$repo_root/tools/bk7258/bk7258.py"
-transport="$repo_root/tools/bk7258-deploy/bk7258_deploy.py"
 default_broker="$script_dir/aidk_key_broker.sh"
 openssl_bin=${AIDK_OPENSSL:-/usr/bin/openssl}
 python_bin=${AIDK_PYTHON:-python3}
@@ -119,7 +118,7 @@ run_transport()
   local arguments=("$@")
   if [[ -n ${AIDK_WINDOWS_PYTHON:-} ]]; then
     local windows_script converted=() item
-    windows_script=$(wslpath -w "$transport")
+    windows_script=$(wslpath -w "$bk7258")
     for item in "${arguments[@]}"; do
       if [[ $item == /* && -e $item ]]; then
         converted+=("$(wslpath -w "$item")")
@@ -131,9 +130,9 @@ run_transport()
     # working directory is a UNC \\wsl.localhost path, so launch the transport
     # from the interpreter's own always-local directory instead.
     (cd "$(dirname "$AIDK_WINDOWS_PYTHON")" &&
-      exec "$AIDK_WINDOWS_PYTHON" "$windows_script" "${converted[@]}")
+      exec "$AIDK_WINDOWS_PYTHON" "$windows_script" deploy "${converted[@]}")
   else
-    "$python_bin" "$transport" "${arguments[@]}"
+    "$python_bin" "$bk7258" deploy "${arguments[@]}"
   fi
 }
 

@@ -1,0 +1,7 @@
+config LCD_ILI9488_RGB
+	bool "ILI9488 RGB panel initializer"
+	default n
+	help
+		Enable the transport-independent ILI9488 RGB panel register
+		initializer.  A board and SoC transport supply reset and command/data
+		write callbacks; this driver does not configure RGB scanout hardware.

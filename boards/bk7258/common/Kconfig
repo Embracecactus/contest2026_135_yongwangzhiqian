@@ -114,6 +114,22 @@ endchoice
 
 endif
 
+# The Beken V2 SDIO data helpers compile the bus width into the selected SDK
+# bundle.  Keep the NuttX capability and SDK profile choice explicit and
+# constrained by physical-board wiring.
+
+config BK7258_SDIO_4BIT
+	bool "Use four-bit SDIO bus"
+	default y if BK7258_AIDK_SD_NAND
+	depends on BK7258_AIDK_SD_NAND || (BK7258_T5_BOARD_TF_SLOT && BK7258_T5_BOARD_SDIO_D2_D3_ISOLATED)
+	help
+		Enable D1/D2/D3 in addition to CLK/CMD/D0.  AIDK routes all six
+		signals directly to its soldered SD NAND and therefore defaults to
+		four bits.  T5-Board may select four bits only when S1 isolates its
+		D2/D3 pins from UART0.  This option requires the separately identified
+		v3.1.1.9-sdio4 AP SDK bundle because the vendor data helpers reapply
+		their compile-time width on every transfer.
+
 if BK7258_BOARD_AIDK_AI_TOY
 
 config BK7258_AIDK_SD_NAND
@@ -175,19 +191,6 @@ config BK7258_T5_BOARD_SDIO_D2_D3_ISOLATED
 		S1-1 and S1-2 are OFF, disconnecting the CH342F download UART from
 		P10/P11 (TF D2/D3).  Optional serial flash U3 must remain NC/DNP.
 
-config BK7258_SDIO_4BIT
-	bool "Use four-bit TF bus"
-	default n
-	depends on BK7258_T5_BOARD_TF_SLOT
-	depends on BK7258_T5_BOARD_SDIO_D2_D3_ISOLATED
-	help
-		Enable D1/D2/D3 in addition to CLK/CMD/D0.  The safe T5-Board
-		default is one bit because D2/D3 share the CH342F UART0 switch route.
-		P0/P1 SWD and RTT are independent of this choice.  This selection is
-		bound to the separately identified v3.1.1.9-sdio4 AP SDK bundle; the
-		default one-line bundle is rejected because its data helpers force the
-		controller back to one bit on every transfer.
-
 config BK7258_T5_BOARD_TF_VALIDATION
 	bool "Validate T5-Board TF fixed-media read/write"
 	default n
@@ -225,68 +228,11 @@ config BK7258_AUD_LIFECYCLE_VALIDATION
 		DAC and amplifier ownership diagnostics; audible output still requires
 		a speaker connected to the T5-Board P6 connector.
 
-config BK7258_LCD
-	bool "T5-Board RGB framebuffer with ILI9488 panel"
-	default n
-	depends on BK7258_AP_CORE && BK7258_PSRAM
-	select BK7258_SDK_IPC_RUNTIME
-	select DRIVERS_VIDEO
-	select VIDEO_FB
-	help
-		Enable the BK7258 RGB controller, T5-Board physical binding and
-		ILI9488 panel driver.  A single RGB565 scanout buffer is allocated
-		from AP PSRAM and exported directly as /dev/fb0.  When the generic
-		NuttX FB_SYNC option is enabled, the driver allocates two scanout pages
-		and changes the active page on the LCD end-of-frame interrupt.
-
-config BK7258_LCD_FRAMEBUFFER_MEDIA
-	bool "Allocate the RGB framebuffer from the PSRAM media heap"
-	default n
-	depends on BK7258_LCD
-	select BK7258_PSRAM_MEDIA
-	help
-		Allocate the chip RGB driver's scanout storage from the official SDK
-		media YUV slab instead of the 640 KiB AP general-purpose PSRAM heap.
-		This leaves the AP heap available for system-heap regions while keeping
-		the allocation policy selectable by each board profile.
-
-config BK7258_LCD_VALIDATION_PATTERN
-	bool "Fill the LCD with a startup validation pattern"
-	default n
-	depends on BK7258_LCD
-	help
-		Fill /dev/fb0 with red, green, blue and white bars after framebuffer
-		registration.  This is intended only for board-level display bring-up;
-		normal applications should leave it disabled and render through fb0.
-
-config BK7258_GT1151
-	bool "T5-Board GT1151 capacitive touch panel"
-	default n
-	depends on BK7258_AP_CORE
-	select I2C
-	select I2C_BITBANG
-	select INPUT
-	select INPUT_GT9XX
-	help
-		Register the LCD sub-board GT1151 through NuttX's standard GT9xx
-		touchscreen driver as /dev/input0.  GPIO13/GPIO15 form a board-owned
-		bitbang-I2C bus rather than an unsupported hardware-I2C pin mapping.
-
-config BK7258_GT1151_VALIDATION
-	bool "Continuously report GT1151 validation samples"
-	default n
-	depends on BK7258_GT1151
-	help
-		Open /dev/input0 from a kernel thread after board bring-up.  A
-		successful open proves that the product ID can be read over the real
-		board bus; subsequent touch samples are written to syslog.  This is
-		intended for drivercheck configurations only.
-
 config BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
 	bool "Cycle the T5-Board RGB LCD backlight through PWM3/P9"
 	default n
 	depends on BK7258_PWM && BK7258_PWM_CHAN = 3
-	depends on !BK7258_LCD
+	depends on !BK7258_T5_BOARD_LCD
 	help
 		Run a bounded board-level validation through the normal NuttX
 		/dev/pwm0 upper half.  The worker drives LCD_PWM_BL through P9/PWM3 at
@@ -296,7 +242,7 @@ config BK7258_T5_BOARD_CAMERA
 	bool "T5-Board P10 DVP camera as /dev/video0"
 	default n
 	depends on BK7258_DVP && BK7258_PSRAM
-	depends on !BK7258_LCD && !BK7258_GT1151
+	depends on !BK7258_T5_BOARD_LCD && !BK7258_GT1151
 	select BK7258_DVP_BOARD_GLUE
 	help
 		Bind the T5-Board V1.0.2 P10 camera connector to the generic BK7258
