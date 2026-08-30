@@ -19,7 +19,7 @@
 
   <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian">
     <linkfile src="app/hello_app" dest="packages/demos/contest2026_135_hello_app"/>
-    <linkfile src="app/bk7258" dest="packages/demos/contest2026_135_bk7258"/>
+    <linkfile src="app/bk7258" dest="apps/system/bk7258"/>
     <linkfile src="quickapp/hello_quickapp" dest="packages/apps/contest2026_135_hello_quickapp"/>
     <linkfile src="chips/bk7258" dest="vendor/beken/chips/bk7258"/>
     <linkfile src="boards/bk7258" dest="vendor/beken/boards/bk7258"/>

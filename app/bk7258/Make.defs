@@ -13,5 +13,5 @@ ifneq ($(strip $(CONFIG_BK7258_APP_BKVALIDATE) \
                  $(CONFIG_BK7258_APP_GPIO_IRQ_TEST) \
                  $(CONFIG_BK7258_APP_IRQ_TIMER_TEST) \
                  $(CONFIG_BK7258_APP_TIMER_SELFTEST)),)
-CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_135_bk7258
+CONFIGURED_APPS += $(APPDIR)/system/bk7258
 endif

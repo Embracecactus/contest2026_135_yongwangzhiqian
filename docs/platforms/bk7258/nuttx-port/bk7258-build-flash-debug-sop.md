@@ -1,6 +1,6 @@
 # BK7258 build, package and hardware evidence SOP
 
-Last reviewed: 2026-08-28
+Last reviewed: 2026-08-30
 
 ## One host entry
 
@@ -11,12 +11,12 @@ tools/bk7258/bk7258.py --help
 
 - `build`: official OpenVela CP/AP plus project BL1/BL2 and a verified handoff manifest;
 - `sdk`: manifest-selected SDK bundle lifecycle;
-- `release`: the only signed full/OTA publication path;
+- `release`: the only signed full/OTA publication and product-ZIP path;
 - `package`: package inspection plus unsigned direct-boot diagnostics;
 - `verify`: read-only layout, image, package and trust verification.
 
-There is no product, framework, build plan, executor, board postbuild or old
-command alias.
+There is no parallel product framework, build plan, executor, board postbuild
+or old command alias.
 
 ## Inputs
 
@@ -25,9 +25,11 @@ declared projects before building; the command does not fall back to
 `/usr/bin` or a developer PATH compiler.
 
 Normal development names the physical board and boot mode. The board-owned
-`openvela.conf` supplies its maintained CP/AP pair and partition CSV; the
-generic tool has no board-name table. The following example is the unsigned
-bring-up/diagnostic chain, not a product release:
+`openvela.conf` supplies its maintained CP/AP pair, partition CSV and release-
+policy CSV; the generic tool has no board-name table.  The partition file owns
+geometry/build writes while the policy file maps partition names to product
+update semantics without repeating offsets or capacity.  The following
+example is the unsigned bring-up/diagnostic chain, not a product release:
 
 ```bash
 tools/bk7258/bk7258.py build \
@@ -73,21 +75,32 @@ counter lists. Use that manifest and one version whose `+GENERATION` equals the
 compiled rollback floor:
 
 ```bash
+tools/bk7258/bk7258.py package accept-base \
+  --board "$BOARD" --base "$ACCEPTED_BASE" \
+  --device-id "$DEVICE_ID" --capture-method fixture-readback \
+  --output "$ACCEPTED_BASE_EVIDENCE"
+
 tools/bk7258/bk7258.py release full \
   --build-manifest "$MANIFEST" \
   --bl1-key "$BL1_PRIVATE" --mcuboot-key "$MCUBOOT_PRIVATE" \
   --version "$VERSION" \
-  --base "$ACCEPTED_BASE" --base-sha256 "$ACCEPTED_BASE_SHA256" \
+  --base "$ACCEPTED_BASE" --base-evidence "$ACCEPTED_BASE_EVIDENCE" \
   --openssl "$OPENSSL" --output-dir "$RELEASE_DIR"
 ```
 
-The command reloads and re-hashes the build handoff, matches both private roots
+`$ACCEPTED_BASE` must be one exact complete-Flash readback from the device that
+will receive this recovery.  Its canonical evidence binds the hash/size to the
+board, layout, stable device ID and capture method; a raw caller-provided hash
+is not sufficient.  This is operator acceptance evidence rather than hardware
+attestation, so the operator/fixture owns proof that the named unit produced
+the readback.  The command reloads and re-hashes the build handoff, matches both private roots
 to the public roots compiled into BL1/BL2, signs CP/AP with the pinned official
 imgtool component, creates Manifest A/B, verifies the complete public trust
 chain before publication, and atomically emits:
 
 - `package/firmware-<BOARD>-v<VERSION>-full.bkpack`;
 - `flash/operator-<BOARD>-v<VERSION>.bin`;
+- `evidence/accepted-base.json`;
 - `evidence/build-manifest.json`;
 - `release.json` with the exact hashes, layout and write boundary.
 
@@ -95,17 +108,56 @@ chain before publication, and atomically emits:
 emits only the signed CP/AP candidate package, and rejects a generation below
 the compiled floor. Official imgtool remains a single-image signing component;
 the project release command owns the BK7258 multi-image/layout transaction.
-
-`package create --unsigned` is deliberately limited to one verified direct
-build manifest and cannot sign or publish a production image. It does not
-accept hand-entered board, partition, artifact, member-name, SDK or preserved-
-partition lists:
+After the full and optional OTA directories independently pass verification,
+assemble the operator-facing artifact with:
 
 ```bash
-tools/bk7258/bk7258.py package create \
-  --build-manifest "$DIRECT_MANIFEST" --unsigned \
-  --output "$DIAGNOSTIC_PACKAGE"
+tools/bk7258/bk7258.py release product \
+  --full-release "$FULL_RELEASE_DIR" --base "$ACCEPTED_BASE" \
+  --ota-release "$OTA_RELEASE_DIR" \
+  --ota-required-source-version "$SOURCE_VERSION" \
+  --openssl "$OPENSSL" --output "$BOARD-$VERSION.zip"
 ```
+
+Omit both OTA arguments when no compatible OTA is available.  The product
+command accepts different full/OTA build manifests so a wired full release may
+rotate its fresh root while the OTA remains signed by the root installed on
+the source devices.  `release.json` records these separately as the recovery's
+`installed_root` and the OTA's `required_source_root`; they need not be equal.
+Board, layout and target version must still match.
+
+NuttX produces a board flash binary and OpenVela leaves the final multi-image
+delivery format to the SoC/product; neither project defines a universal BK7258
+firmware ZIP.  This repository therefore owns one versioned product contract.
+`package create --unsigned` remains the low-level, sparse verification
+container for one direct build and is not an operator handoff.  A complete
+direct diagnostic handoff uses `package delivery`:
+
+```bash
+tools/bk7258/bk7258.py package accept-base \
+  --board "$BOARD" --base "$DEVICE_BASE" \
+  --device-id "$DEVICE_ID" --capture-method fixture-readback \
+  --output "$DEVICE_BASE_EVIDENCE"
+
+tools/bk7258/bk7258.py package delivery \
+  --build-manifest "$DIRECT_MANIFEST" --unsigned \
+  --version "$VERSION" \
+  --base "$DEVICE_BASE" --base-evidence "$DEVICE_BASE_EVIDENCE" \
+  --output "$DIAGNOSTIC_DELIVERY.zip"
+
+tools/bk7258/bk7258.py verify delivery \
+  --delivery "$DIAGNOSTIC_DELIVERY.zip"
+```
+
+The deterministic ZIP contains one dense `recovery/*-full-flash.bin` for BKFIL
+at offset zero, the verified `.bkpack`, `release.json`, build/release-policy
+and accepted-base evidence, `SHA256SUMS` and `FLASHING.md`.  Its BIN size equals
+`FLASH_CAPACITY` from the selected CSV (8 MiB for the current three boards).
+Firmware partitions are cleanly replaced, `reset_marker` is reset, and
+configuration, persistent, device-unique and unmapped bytes come from the
+exact device base.  It remains explicitly unsigned and diagnostic-only, and
+must not be copied to another unit.  Never hand off the sparse container,
+`pair.bin` or loose segments as the sole whole-device download.
 
 Both unsigned diagnostics and signed releases obtain the physical board only
 from their verified build manifest. The physical target is present in the
@@ -120,10 +172,12 @@ Public verification is read-only:
 tools/bk7258/bk7258.py verify package --package firmware.bkpack
 tools/bk7258/bk7258.py verify trust \
   --package firmware.bkpack --openssl /path/to/openssl
+tools/bk7258/bk7258.py verify delivery \
+  --delivery product.zip --openssl /path/to/openssl
 ```
 
-The second command verifies both BL1 Manifests, packaged BL1/BL2 roots and CP/AP
-MCUboot signatures without private keys.
+The trust and signed-delivery commands verify both BL1 Manifests, packaged
+BL1/BL2 roots and CP/AP MCUboot signatures without private keys.
 
 ## Fresh trust generation for every full download
 
@@ -165,12 +219,15 @@ all of `usr_config [0x4fc000,0x50a000)` and Agent persistent data
 `[0x561000,0x7fa000)`; preserving only the historical 1-MiB persistent window
 is invalid for this layout.
 
-`release full` validates the accepted base digest and materializes the operator
-image in the same atomic publication. Its current Agent operator image is
-exactly one `0x7fa000`-byte file for address `0x000000`; the write ends before
-`[0x7fa000,0x800000)`. `package materialize` remains only for read-only
-verification/materialization of an already signed compatible package; it is
-not a signed release creation path.
+`release full` validates the complete accepted-base evidence and digest, then materializes one
+complete-Flash operator image in the same atomic publication.  The live board
+release policy resets only transactional state and proves all preserve,
+factory-init and device-unique ranges remain byte-identical to that base.
+`package materialize` remains only for read-only verification/materialization
+of an already signed compatible package; it is not a signed release creation
+path.  A universal factory image is not inferred from this device-bound base:
+until a reviewed production provisioner assigns per-unit MAC/RF/Bluetooth and
+calibration state, the product ZIP records `requires-provisioning`.
 
 ## Hardware boundary
 
@@ -183,8 +240,10 @@ UART, J-Link and Flash transport remain in:
 For current full-image acceptance, use COM3 and pass only the single verified
 operator image to BK Loader/bk_loader at address zero.  Do not chip erase.
 `usr_config` and Agent persistent data are already materialized into that one
-image; do not add parallel sparse inputs.  Never write the immutable tail,
-factory calibration, OTP/eFuse, lifecycle or debug-lock state.
+image; do not add parallel sparse inputs.  The complete-Flash image carries
+the same device's immutable/calibration tail byte-for-byte and is therefore
+valid only for that unit.  Never substitute another board's tail or modify
+OTP/eFuse, lifecycle or debug-lock state.
 
 Record the input count, start/end address, image SHA-256 and loader success
 texts.  `WriteFlash ->pass`, `Writing Flash OK` and

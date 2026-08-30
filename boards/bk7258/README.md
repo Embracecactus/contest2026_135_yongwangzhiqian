@@ -7,8 +7,11 @@ policy and electrical binding.  `boards/bk7258/common` owns shared board,
 partition and linker integration;
 the three sibling board directories contain only physical-PCB wiring and
 capability facts. Each physical board's `openvela.conf` additionally owns the
-normal CP/AP config and partition selection used by the generic build entry;
-the tool contains no table of known physical boards.
+normal CP/AP config, partition selection and release-policy selection used by
+the generic build/product entry; the tool contains no table of known physical
+boards.  Partition CSVs own geometry and build/write policy.  Release-policy
+CSVs cover the same partition names with update semantics only and never
+repeat offsets, sizes or Flash capacity.
 
 ## CP/AP startup ownership
 

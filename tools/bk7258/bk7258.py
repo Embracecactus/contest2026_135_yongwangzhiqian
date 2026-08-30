@@ -13,7 +13,7 @@ import re
 import shutil
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 
 TOOLS = Path(__file__).resolve().parent
@@ -25,6 +25,7 @@ from _lib import deploy as deploy_domain  # noqa: E402
 from _lib import image as image_domain  # noqa: E402
 from _lib import layout as layout_domain  # noqa: E402
 from _lib import package as package_domain  # noqa: E402
+from _lib import product as product_domain  # noqa: E402
 from _lib import sdk as sdk_domain  # noqa: E402
 from _lib import toolchain as toolchain_domain  # noqa: E402
 from _lib import trust as trust_domain  # noqa: E402
@@ -87,6 +88,15 @@ def _parser() -> argparse.ArgumentParser:
         "package", help="inspect packages or create unsigned diagnostic packages"
     )
     package_commands = package.add_subparsers(dest="package_command", required=True)
+    accept_base = package_commands.add_parser(
+        "accept-base",
+        help="bind one complete device readback to its board/layout identity",
+    )
+    accept_base.add_argument("--board", required=True)
+    accept_base.add_argument("--base", type=Path, required=True)
+    accept_base.add_argument("--device-id", required=True)
+    accept_base.add_argument("--capture-method", required=True)
+    accept_base.add_argument("--output", type=Path, required=True)
     create = package_commands.add_parser(
         "create", help="create one unsigned direct-boot diagnostic package"
     )
@@ -96,6 +106,19 @@ def _parser() -> argparse.ArgumentParser:
         help="package already-finalized direct-boot bytes for diagnostics",
     )
     create.add_argument("--output", type=Path, required=True)
+    delivery = package_commands.add_parser(
+        "delivery",
+        help="create one full-Flash, accepted-device diagnostic recovery ZIP",
+    )
+    delivery.add_argument("--build-manifest", type=Path, required=True)
+    delivery.add_argument(
+        "--unsigned", action="store_true", required=True,
+        help="label the complete operator image as diagnostic-only",
+    )
+    delivery.add_argument("--version", required=True)
+    delivery.add_argument("--base", type=Path, required=True)
+    delivery.add_argument("--base-evidence", type=Path, required=True)
+    delivery.add_argument("--output", type=Path, required=True)
     extract = package_commands.add_parser("extract", help="extract a verified package")
     extract.add_argument("--package", type=Path, required=True)
     extract.add_argument("--output", type=Path, required=True)
@@ -108,7 +131,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     materialize.add_argument("--package", type=Path, required=True)
     materialize.add_argument("--base", type=Path, required=True)
-    materialize.add_argument("--base-sha256", required=True)
+    materialize.add_argument("--base-evidence", type=Path, required=True)
     materialize.add_argument("--openssl", type=Path, required=True)
     materialize.add_argument("--output", type=Path, required=True)
 
@@ -126,7 +149,7 @@ def _parser() -> argparse.ArgumentParser:
     full.add_argument("--mcuboot-key", type=Path, required=True)
     full.add_argument("--version", required=True)
     full.add_argument("--base", type=Path, required=True)
-    full.add_argument("--base-sha256", required=True)
+    full.add_argument("--base-evidence", type=Path, required=True)
     full.add_argument("--openssl", type=Path, required=True)
     full.add_argument("--output-dir", type=Path, required=True)
     ota = release_commands.add_parser(
@@ -137,6 +160,19 @@ def _parser() -> argparse.ArgumentParser:
     ota.add_argument("--version", required=True)
     ota.add_argument("--openssl", type=Path, required=True)
     ota.add_argument("--output-dir", type=Path, required=True)
+    product = release_commands.add_parser(
+        "product",
+        help=(
+            "assemble one verified per-board ZIP; OTA source trust may differ "
+            "from the new wired-recovery root during key rotation"
+        ),
+    )
+    product.add_argument("--full-release", type=Path, required=True)
+    product.add_argument("--base", type=Path, required=True)
+    product.add_argument("--ota-release", type=Path)
+    product.add_argument("--ota-required-source-version")
+    product.add_argument("--openssl", type=Path, required=True)
+    product.add_argument("--output", type=Path, required=True)
 
     verify = commands.add_parser("verify", help="perform read-only verification")
     verify_commands = verify.add_subparsers(dest="verify_command", required=True)
@@ -154,6 +190,11 @@ def _parser() -> argparse.ArgumentParser:
     verify_manifest.add_argument("--manifest", type=Path, required=True)
     verify_package = verify_commands.add_parser("package", help="verify a package")
     verify_package.add_argument("--package", type=Path, required=True)
+    verify_delivery = verify_commands.add_parser(
+        "delivery", help="verify a complete BK7258 product delivery ZIP"
+    )
+    verify_delivery.add_argument("--delivery", type=Path, required=True)
+    verify_delivery.add_argument("--openssl", type=Path)
     verify_trust = verify_commands.add_parser("trust", help="verify package trust evidence")
     verify_trust.add_argument("--package", type=Path, required=True)
     verify_trust.add_argument("--openssl", type=Path, required=True)
@@ -258,7 +299,218 @@ def _release_summary(staging: Path, document: dict[str, object]) -> None:
     )
 
 
+def _release_input(
+    root: Path, expected_mode: str
+) -> tuple[dict[str, object], Path, Path, Path | None, Path | None]:
+    """Load one atomic signed-release directory without trusting its paths."""
+
+    root = root.absolute()
+    if root.is_symlink() or not root.is_dir():
+        raise package_domain.PackageError(
+            f"{expected_mode} release must be a non-symlink directory: {root}"
+        )
+    summary = root / "release.json"
+    if summary.is_symlink() or not summary.is_file():
+        raise package_domain.PackageError(
+            f"{expected_mode} release has no regular release.json"
+        )
+    data = summary.read_bytes()
+    try:
+        document = json.loads(data.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise package_domain.PackageError(
+            f"{expected_mode} release.json is malformed"
+        ) from error
+    canonical = (
+        json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    if not isinstance(document, dict) or data != canonical \
+            or document.get("format") != "bk7258.release/2" \
+            or document.get("mode") != expected_mode:
+        raise package_domain.PackageError(
+            f"unsupported {expected_mode} release directory"
+        )
+
+    def member(row: object, label: str) -> Path:
+        if not isinstance(row, dict) or not isinstance(row.get("path"), str) \
+                or not isinstance(row.get("sha256"), str) \
+                or re.fullmatch(r"[0-9a-f]{64}", row["sha256"]) is None:
+            raise package_domain.PackageError(
+                f"{expected_mode} release {label} metadata is malformed"
+            )
+        relative = PurePosixPath(row["path"])
+        if relative.is_absolute() or not relative.parts \
+                or any(part in {"", ".", ".."} for part in relative.parts):
+            raise package_domain.PackageError(
+                f"{expected_mode} release {label} path is unsafe"
+            )
+        selected = root.joinpath(*relative.parts)
+        if selected.is_symlink() or not selected.is_file():
+            raise package_domain.PackageError(
+                f"{expected_mode} release {label} is not a regular file"
+            )
+        try:
+            selected.resolve(strict=True).relative_to(root.resolve(strict=True))
+        except (OSError, ValueError) as error:
+            raise package_domain.PackageError(
+                f"{expected_mode} release {label} escapes its directory"
+            ) from error
+        if _sha256_file(selected) != row["sha256"]:
+            raise package_domain.PackageError(
+                f"{expected_mode} release {label} hash changed"
+            )
+        if "size" in row and row["size"] != selected.stat().st_size:
+            raise package_domain.PackageError(
+                f"{expected_mode} release {label} size changed"
+            )
+        return selected
+
+    package = member(document.get("package"), "package")
+    build_manifest = member(document.get("build_manifest"), "build manifest")
+    operator = (
+        member(document.get("operator"), "operator")
+        if expected_mode == "full" else None
+    )
+    materialization = document.get("materialization")
+    base_evidence = None
+    if expected_mode == "full":
+        if not isinstance(materialization, dict):
+            raise package_domain.PackageError(
+                "full release has no materialization evidence"
+            )
+        base_evidence = member(
+            materialization.get("accepted_base"), "accepted-base evidence"
+        )
+    return document, package, build_manifest, operator, base_evidence
+
+
+def _release_product(args: argparse.Namespace) -> None:
+    full, full_package, build_manifest, operator, base_evidence_path = _release_input(
+        args.full_release, "full"
+    )
+    if operator is None or base_evidence_path is None:
+        raise package_domain.PackageError(
+            "full release has no recovery operator/base evidence"
+        )
+    materialization = full.get("materialization")
+    if not isinstance(materialization, dict) \
+            or set(materialization) != {
+                "accepted_base", "flash_end", "flash_offset", "flash_size",
+            } or materialization.get("flash_offset") != 0 \
+            or materialization.get("flash_end") != materialization.get("flash_size") \
+            or operator.stat().st_size != materialization.get("flash_size"):
+        raise package_domain.PackageError(
+            "full release is not a complete-Flash recovery release"
+        )
+    manifest = product_domain.validate_build_manifest_evidence(
+        build_manifest, full_package
+    )
+    target = full.get("target")
+    layout = full.get("layout")
+    manifest_target = manifest.get("target")
+    manifest_layout = manifest.get("layout")
+    if not isinstance(target, dict) or not isinstance(layout, dict) \
+            or not isinstance(manifest_target, dict) \
+            or not isinstance(manifest_layout, dict) \
+            or target != manifest_target \
+            or layout.get("identity") != manifest_layout.get("identity") \
+            or layout.get("sha256") != manifest_layout.get("sha256") \
+            or full.get("version") is None:
+        raise package_domain.PackageError(
+            "full release summary/build manifest identity changed"
+        )
+    _verify_package_trust(full_package, args.openssl)
+    physical_board = target.get("physical_board")
+    if not isinstance(physical_board, str):
+        raise package_domain.PackageError("full release target is malformed")
+    preset = build_domain.board_preset(REPOSITORY, physical_board)
+    selected_layout = layout_domain.load(preset.partition)
+    if selected_layout.identity != layout.get("identity") \
+            or selected_layout.sha256 != layout.get("sha256"):
+        raise package_domain.PackageError(
+            "full release layout differs from the selected board declaration"
+        )
+    policy = product_domain.load_policy(preset.release_policy, selected_layout)
+    base_evidence = product_domain.load_base_evidence(
+        base_evidence_path, target, selected_layout
+    )
+    accepted_base = materialization.get("accepted_base")
+    if not isinstance(accepted_base, dict) \
+            or set(accepted_base) != {"device_id", "path", "sha256", "size"} \
+            or accepted_base.get("device_id") != base_evidence.device_id \
+            or accepted_base.get("sha256") != base_evidence.sha256 \
+            or accepted_base.get("size") != len(base_evidence.data):
+        raise package_domain.PackageError(
+            "full release accepted-base identity changed"
+        )
+    recovery = product_domain.materialize_recovery(
+        full_package, policy, args.base, base_evidence
+    )
+    if recovery.data != operator.read_bytes():
+        raise package_domain.PackageError(
+            "full release operator differs from policy materialization"
+        )
+
+    ota_package = None
+    if args.ota_release is None:
+        if args.ota_required_source_version is not None:
+            raise package_domain.PackageError(
+                "--ota-required-source-version requires --ota-release"
+            )
+    else:
+        ota, ota_package, ota_manifest, ota_operator, ota_base = _release_input(
+            args.ota_release, "ota"
+        )
+        ota_build = product_domain.validate_build_manifest_evidence(
+            ota_manifest, ota_package
+        )
+        ota_target = ota_build.get("target")
+        ota_layout = ota_build.get("layout")
+        if ota_operator is not None or ota_base is not None \
+                or ota_target != target \
+                or not isinstance(ota_layout, dict) \
+                or ota_layout.get("identity") != selected_layout.identity \
+                or ota_layout.get("sha256") != selected_layout.sha256 \
+                or ota.get("target") != target or ota.get("layout") != layout \
+                or ota.get("version") != full.get("version"):
+            raise package_domain.PackageError(
+                "full and OTA release identities are incompatible"
+            )
+        if args.ota_required_source_version is None:
+            raise package_domain.PackageError(
+                "--ota-release requires --ota-required-source-version"
+            )
+        _verify_package_trust(ota_package, args.openssl)
+
+    verifier = lambda candidate: _verify_package_trust(
+        candidate, args.openssl
+    )
+    report = product_domain.create_delivery(
+        package=full_package,
+        build_manifest=build_manifest,
+        policy=policy,
+        recovery=recovery,
+        base_evidence=base_evidence,
+        version=str(full["version"]),
+        output=args.output,
+        ota_package=ota_package,
+        ota_required_source_version=args.ota_required_source_version,
+        package_verifier=verifier,
+    )
+    print(
+        "bk7258 release product: PASS "
+        f"output={report['delivery']} board={report['physical_board']} "
+        f"device={report['device_id']} "
+        f"version={report['version']} factory={report['factory']} "
+        f"ota={report['ota']} operator-size=0x{report['operator_size']:x} "
+        f"sha256={report['sha256']}"
+    )
+
+
 def _release(args: argparse.Namespace) -> None:
+    if args.release_command == "product":
+        _release_product(args)
+        return
     manifest = build_domain.load_build_manifest(
         REPOSITORY, _workspace_input(args.build_manifest)
     )
@@ -283,6 +535,17 @@ def _release(args: argparse.Namespace) -> None:
             "OTA generation is below the compiled rollback floor"
         )
 
+    accepted_base = None
+    if args.release_command == "full":
+        accepted_base = product_domain.load_base_evidence(
+            args.base_evidence,
+            {
+                "board_family": "bk7258",
+                "physical_board": manifest.physical_board,
+            },
+            manifest.layout,
+        )
+
     output, staging = _release_output(args.output_dir)
     try:
         package_root = staging / "package"
@@ -295,6 +558,7 @@ def _release(args: argparse.Namespace) -> None:
             REPOSITORY.parent / "apps/boot/mcuboot/mcuboot/scripts/imgtool.py"
         )
         if args.release_command == "full":
+            assert accepted_base is not None
             signed = trust_domain.signed_release(
                 layout=manifest.layout,
                 artifacts=manifest.artifacts,
@@ -312,7 +576,7 @@ def _release(args: argparse.Namespace) -> None:
             )
             evidence = signed.evidence.manifest()
             persistent_payload = package_domain.persistent_payload_from_base(
-                manifest.layout, args.base, args.base_sha256
+                manifest.layout, args.base, accepted_base.base_sha256
             )
             suffix = "full"
             member_names = {
@@ -356,6 +620,14 @@ def _release(args: argparse.Namespace) -> None:
         shutil.copyfile(manifest.source, manifest_copy)
         if _sha256_file(manifest_copy) != manifest_sha256:
             raise build_domain.BuildError("copied build manifest hash changed")
+        accepted_base_copy = None
+        if accepted_base is not None:
+            accepted_base_copy = evidence_root / "accepted-base.json"
+            accepted_base_copy.write_bytes(accepted_base.data)
+            if _sha256_file(accepted_base_copy) != accepted_base.sha256:
+                raise build_domain.BuildError(
+                    "copied accepted-base evidence hash changed"
+                )
 
         fingerprint_names = (
             ("bl1_public_fingerprint", "mcuboot_public_fingerprint")
@@ -393,27 +665,36 @@ def _release(args: argparse.Namespace) -> None:
         operator_report = None
         materialization = None
         if args.release_command == "full":
+            assert accepted_base is not None
+            assert accepted_base_copy is not None
             flash_root = staging / "flash"
             flash_root.mkdir()
             operator_path = flash_root / (
                 f"operator-{manifest.physical_board}-v{args.version}.bin"
             )
+            preset = build_domain.board_preset(
+                REPOSITORY, manifest.physical_board
+            )
+            release_policy = product_domain.load_policy(
+                preset.release_policy, manifest.layout
+            )
             operator_report = package_domain.materialize_full_image(
                 package_path,
                 args.base,
-                args.base_sha256,
+                accepted_base.base_sha256,
                 operator_path,
-            )
-            immutable_tail = min(
-                row.offset for row in manifest.layout.partitions
-                if row.policy == "immutable"
+                release_policy.by_partition,
             )
             materialization = {
-                "accepted_base_sha256": args.base_sha256.lower(),
-                "accepted_base_size": immutable_tail,
-                "flash_end": immutable_tail,
+                "accepted_base": {
+                    "device_id": accepted_base.device_id,
+                    "path": "evidence/accepted-base.json",
+                    "sha256": accepted_base.sha256,
+                    "size": len(accepted_base.data),
+                },
+                "flash_end": manifest.layout.flash_size,
                 "flash_offset": 0,
-                "flash_size": immutable_tail,
+                "flash_size": manifest.layout.flash_size,
             }
 
         summary: dict[str, object] = {
@@ -454,7 +735,9 @@ def _release(args: argparse.Namespace) -> None:
             }
             summary["materialization"] = materialization
         _release_summary(staging, summary)
-        os.replace(staging, output)
+        package_domain.publish_directory_no_replace(
+            staging, output, f"{args.release_command} release"
+        )
     finally:
         if staging.exists():
             shutil.rmtree(staging)
@@ -575,7 +858,64 @@ def _verify_package_trust(package: Path,
     return evidence
 
 
+def _create_unsigned_package(
+    build_manifest: Path, output: Path
+) -> tuple[build_domain.BuildManifest, dict[str, object]]:
+    manifest = build_domain.load_build_manifest(
+        REPOSITORY, _workspace_input(build_manifest)
+    )
+    if manifest.format != build_domain.BUILD_MANIFEST_FORMAT:
+        raise package_domain.PackageError(
+            "diagnostic packaging requires a target-bound build manifest"
+        )
+    if manifest.boot != "direct":
+        raise package_domain.PackageError(
+            "unsigned diagnostic packaging requires a direct build manifest"
+        )
+    artifacts = image_domain.read_artifacts(manifest.finalized_artifacts)
+    image_set = image_domain.finalized(
+        manifest.layout,
+        artifacts,
+        preserved_external=manifest.preserved_external,
+    )
+    member_names = {
+        name: path.name for name, path in manifest.finalized_artifacts.items()
+    }
+    sdk_evidence: dict[str, str] = {}
+    for name in manifest.sdk_profiles:
+        row = sdk_domain.verify(REPOSITORY, name)
+        sdk_evidence[name] = row.tree_hash
+    report = package_domain.create(
+        image_set=image_set,
+        member_names=member_names,
+        sdk_evidence=sdk_evidence,
+        trust_evidence=trust_domain.unsigned().manifest(),
+        physical_board=manifest.physical_board,
+        output=output,
+    )
+    return manifest, report
+
+
 def _package(args: argparse.Namespace) -> None:
+    if args.package_command == "accept-base":
+        preset = build_domain.board_preset(REPOSITORY, args.board)
+        layout = layout_domain.load(preset.partition)
+        report = product_domain.create_base_evidence(
+            physical_board=args.board,
+            layout=layout,
+            base=args.base,
+            device_id=args.device_id,
+            capture_method=args.capture_method,
+            output=args.output,
+        )
+        print(
+            "bk7258 package accept-base: PASS "
+            f"output={report['evidence']} board={report['physical_board']} "
+            f"device={report['device_id']} size=0x{report['size']:x} "
+            f"base-sha256={report['base_sha256']} "
+            f"evidence-sha256={report['sha256']}"
+        )
+        return
     if args.package_command == "extract":
         output = package_domain.extract(args.package, args.output)
         print(f"bk7258 package extract: PASS output={output}")
@@ -592,8 +932,28 @@ def _package(args: argparse.Namespace) -> None:
                 "materialization requires a signed full-update package"
             )
         _verify_package_trust(args.package, args.openssl)
+        target = package_domain.flash_contract(args.package)["device"]
+        board = target.get("physical_board")
+        if not isinstance(board, str):
+            raise package_domain.PackageError(
+                "materialization requires a target-bound package"
+            )
+        preset = build_domain.board_preset(REPOSITORY, board)
+        layout = layout_domain.load(preset.partition)
+        policy = product_domain.load_policy(preset.release_policy, layout)
+        if layout.identity != report["layout"]:
+            raise package_domain.PackageError(
+                "package layout differs from the board's maintained layout"
+            )
+        base_evidence = product_domain.load_base_evidence(
+            args.base_evidence, target, layout
+        )
         report = package_domain.materialize_full_image(
-            args.package, args.base, args.base_sha256, args.output
+            args.package,
+            args.base,
+            base_evidence.base_sha256,
+            args.output,
+            policy.by_partition,
         )
         print(
             "bk7258 package materialize: PASS "
@@ -601,39 +961,54 @@ def _package(args: argparse.Namespace) -> None:
             f"writes={report['writes']} sha256={report['sha256']}"
         )
         return
-    manifest = build_domain.load_build_manifest(
-        REPOSITORY, _workspace_input(args.build_manifest)
-    )
-    if manifest.format != build_domain.BUILD_MANIFEST_FORMAT:
-        raise package_domain.PackageError(
-            "diagnostic packaging requires a target-bound build manifest"
+    if args.package_command == "delivery":
+        delivery = args.output.absolute()
+        delivery.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(
+            prefix=f".{delivery.name}.", dir=delivery.parent
+        ) as temporary:
+            package = Path(temporary) / "firmware.bkpack"
+            manifest, _ = _create_unsigned_package(
+                args.build_manifest, package
+            )
+            preset = build_domain.board_preset(
+                REPOSITORY, manifest.physical_board
+            )
+            policy = product_domain.load_policy(
+                preset.release_policy, manifest.layout
+            )
+            base_evidence = product_domain.load_base_evidence(
+                args.base_evidence,
+                {
+                    "board_family": "bk7258",
+                    "physical_board": manifest.physical_board,
+                },
+                manifest.layout,
+            )
+            recovery = product_domain.materialize_recovery(
+                package, policy, args.base, base_evidence
+            )
+            report = product_domain.create_delivery(
+                package=package,
+                build_manifest=manifest.source,
+                policy=policy,
+                recovery=recovery,
+                base_evidence=base_evidence,
+                version=args.version,
+                output=delivery,
+            )
+        print(
+            "bk7258 package delivery: PASS "
+            f"output={report['delivery']} board={report['physical_board']} "
+            f"device={report['device_id']} "
+            f"version={report['version']} factory={report['factory']} "
+            f"ota={report['ota']} "
+            f"operator-size=0x{report['operator_size']:x} "
+            f"operator-sha256={report['operator_sha256']} "
+            f"sha256={report['sha256']}"
         )
-    if manifest.boot != "direct":
-        raise package_domain.PackageError(
-            "unsigned diagnostic packaging requires a direct build manifest"
-        )
-    artifacts = image_domain.read_artifacts(manifest.finalized_artifacts)
-    image_set = image_domain.finalized(
-        manifest.layout,
-        artifacts,
-        preserved_external=manifest.preserved_external,
-    )
-    trust_evidence = trust_domain.unsigned().manifest()
-    member_names = {
-        name: path.name for name, path in manifest.finalized_artifacts.items()
-    }
-    sdk_evidence: dict[str, str] = {}
-    for name in manifest.sdk_profiles:
-        row = sdk_domain.verify(REPOSITORY, name)
-        sdk_evidence[name] = row.tree_hash
-    report = package_domain.create(
-        image_set=image_set,
-        member_names=member_names,
-        sdk_evidence=sdk_evidence,
-        trust_evidence=trust_evidence,
-        physical_board=manifest.physical_board,
-        output=args.output,
-    )
+        return
+    _, report = _create_unsigned_package(args.build_manifest, args.output)
     print(
         f"bk7258 package create: PASS output={report['package']} "
         f"sha256={report['sha256']}"
@@ -680,6 +1055,26 @@ def _verify(args: argparse.Namespace) -> None:
             f"board={result['physical_board'] or 'legacy-unbound'} "
             f"security={security} sha256={result['sha256']}"
         )
+    elif args.verify_command == "delivery":
+        verifier = (
+            (lambda candidate: _verify_package_trust(
+                candidate, args.openssl
+            ))
+            if args.openssl is not None else None
+        )
+        result = product_domain.verify_delivery(
+            args.delivery, package_verifier=verifier
+        )
+        print(
+            "bk7258 verify delivery: PASS "
+            f"board={result['physical_board']} "
+            f"device={result['device_id']} "
+            f"version={result['version']} factory={result['factory']} "
+            f"ota={result['ota']} "
+            f"operator-size=0x{result['operator_size']:x} "
+            f"operator-sha256={result['operator_sha256']} "
+            f"sha256={result['sha256']}"
+        )
     else:
         evidence = _verify_package_trust(args.package, args.openssl)
         if evidence.get("mode") == "signed-ota":
@@ -711,6 +1106,7 @@ def main(argv: list[str] | None = None) -> int:
         image_domain.ImageError,
         layout_domain.LayoutError,
         package_domain.PackageError,
+        product_domain.ProductError,
         deploy_domain.PackageError,
         sdk_domain.SdkError,
         toolchain_domain.ToolchainError,

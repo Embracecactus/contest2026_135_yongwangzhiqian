@@ -174,11 +174,13 @@ tools/bk7258/bk7258.py build \
 4. 包必须依次通过结构、公开信任链、flash contract 和 materialize 校验。
 5. 使用当前 Agent 分区 CSV：
    `bk7258_ab_agent_onchip_persistent.csv`。全量 operator image 必须是一个文件，
-   地址 `0x000000`、长度精确 `0x7fa000`。
+   地址 `0x000000`、长度等于 CSV 声明的完整 Flash（当前为 `0x800000`）。
 6. materialize 时保留 `usr_config [0x4fc000,0x50a000)` 以及整个 Agent persistent
-   `[0x561000,0x7fa000)`；既不能只保留旧版 1 MiB persistent，也不能混用两次读回。
-7. 只用 COM3 与 BK Loader 全量写入，不执行 chip erase。禁止触碰
-   `[0x7fa000,0x800000)`、工厂校准、OTP/eFuse、lifecycle 和 debug lock。
+   `[0x561000,0x7fa000)`；基底必须是同一设备的一次完整连贯读回，不能只保留旧版
+   1 MiB persistent，也不能混用两次读回。
+7. 只用 COM3 与 BK Loader 全量写入，不执行 chip erase。operator 中
+   `[0x7fa000,0x800000)` 必须与该设备基底逐字节相同，禁止跨设备复制或修改工厂
+   校准、OTP/eFuse、lifecycle 和 debug lock。
 8. `WriteFlash ->pass`、`Writing Flash OK`、`All Finished Successfully` 只是下载器门禁；
    仍须验证签名启动链和目标功能。
 9. 包、下载和板端证据确认后删除本代临时私钥目录；签名包、公钥指纹和哈希可留存。

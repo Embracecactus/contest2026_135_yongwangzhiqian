@@ -192,7 +192,7 @@ HEADER_CHECK_FLAGS := -Wall -Wextra -Werror -fsyntax-only \
 	-I $(BOARD_ROOT)/common/src \
 	-I $(PARTITION_DIR)
 
-.PHONY: all check check-aidk-scripts clean bl1 bl2 ap headers platform storage-contract flash \
+.PHONY: all check check-package-tools clean bl1 bl2 ap headers platform storage-contract flash \
 	ota-contract reset-marker run \
 	run-core run-bl1 run-bl2 run-ap run-headers run-platform \
 	run-storage-contract run-ota-contract run-ota-confirmation \
@@ -209,14 +209,14 @@ check:
 	printf 'partition_csv_sha256=%s\n' \
 	  "$$(sha256sum $(PARTITION_CSV) | awk '{print $$1}')"; \
 	$(MAKE) clean >/dev/null; \
-	$(MAKE) check-aidk-scripts; \
+	$(MAKE) check-package-tools; \
 	ASAN_OPTIONS=$${ASAN_OPTIONS:-detect_leaks=0}; \
 	export ASAN_OPTIONS; \
 	$(MAKE) run; \
 	printf '%s\n' 'BK7258_HOST_TEST_PASS'
 
-check-aidk-scripts:
-	@./test_aidk_scripts.sh
+check-package-tools:
+	@python3 ./test_bk7258_package_delivery.py
 
 all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
 	$(RPTUN_CORE_CP_TARGET) $(RPTUN_CORE_AP_TARGET) \

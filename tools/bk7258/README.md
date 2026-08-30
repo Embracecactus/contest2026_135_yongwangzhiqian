@@ -23,5 +23,5 @@ Use `--status-only` or `--reboot-only` with `--expected-version`,
 `--control-port none` stages the pair without rebooting it.  Python 3 and
 `pyserial` are required only when a serial port is opened.
 
-The signed catalog may be scoped with `--expected-board`; the AIDK pipeline
-always supplies its selected physical board.
+The signed catalog may be scoped with `--expected-board`; product automation
+must always supply its selected physical board.

@@ -35,7 +35,9 @@
 
 ### CP/AP 配对，而不是单镜像产品
 
-每块物理板的 `openvela.conf` 选择一个兼容的 CP/AP 配置对和一个分区 CSV。
+每块物理板的 `openvela.conf` 选择一个兼容的 CP/AP 配置对、一个分区 CSV 和一个
+发布策略 CSV。分区 CSV 唯一决定几何与构建写入；发布策略只按分区名声明产品升级
+语义，不复制地址或容量。
 `tools/bk7258/bk7258.py build` 先后通过官方 `build.sh ... --cmake` 构建两个角色，
 再校验二者的板型、SDK profile、内存和存储拓扑。CP 的 `openvela_cp` 已以
 `nsh_main` 为入口并启用 `CONFIG_SYSTEM_NSH`，所以“没有 NSH 基线”不准确；准确
@@ -70,7 +72,8 @@ CP 是系统启动 owner：其 `__start()` 完成 C 运行时、早期串口和�
 同一 SoC 段布局。物理板仍通过 `openvela.conf` 选择分区 CSV；构建器由 CSV 生成
 `BK7258_PARTITION_HEADER` 和 `BK7258_PARTITION_LINKER`，Make/CMake 都把生成文件
 作为链接输入。因此“公共脚本导致各板无法定制内存布局”不成立。只有段组织真的
-不同的新板才需要板级脚本覆盖。
+不同的新板才需要板级脚本覆盖。发布策略同样由 `openvela.conf` 数据化选择；新增
+板型不需要向 Python 增加板名分支。
 
 ### 选择 arch_timer 和完整 IRQ 表
 

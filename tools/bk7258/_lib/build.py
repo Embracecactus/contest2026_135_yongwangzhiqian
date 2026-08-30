@@ -36,7 +36,10 @@ REQUIRED_PROFILE_FIELDS = frozenset(
     {"SCHEMA", "BOARD", "ROLE", "CLASS", "COMPAT", "SDK"}
 )
 REQUIRED_BOARD_FIELDS = frozenset(
-    {"SCHEMA", "NAME", "CP_CONFIG", "AP_CONFIG", "PARTITION"}
+    {
+        "SCHEMA", "NAME", "CP_CONFIG", "AP_CONFIG", "PARTITION",
+        "RELEASE_POLICY",
+    }
 )
 BOARD_ROOT = Path("boards/bk7258")
 CHIP_ROOT = Path("chips/bk7258")
@@ -57,6 +60,7 @@ class BoardPreset:
     cp_config: Path
     ap_config: Path
     partition: Path
+    release_policy: Path
 
 
 @dataclass(frozen=True)
@@ -290,6 +294,9 @@ def board_preset(repository: Path, board: str) -> BoardPreset:
     cp_config = repository_path(values["CP_CONFIG"], "CP config")
     ap_config = repository_path(values["AP_CONFIG"], "AP config")
     partition = repository_path(values["PARTITION"], "partition CSV")
+    release_policy = repository_path(
+        values["RELEASE_POLICY"], "release policy"
+    )
     cp = config_profile(repository, cp_config, "cp")
     ap = config_profile(repository, ap_config, "ap")
     if cp.board != board or ap.board != board:
@@ -298,16 +305,22 @@ def board_preset(repository: Path, board: str) -> BoardPreset:
         raise BuildError(f"board declaration selects incompatible CP/AP configs: {descriptor}")
 
     partition_file = _regular(partition, "partition CSV")
+    release_policy_file = _regular(release_policy, "release policy")
     try:
         partition_file.relative_to(boards_root)
+        release_policy_file.relative_to(boards_root)
     except ValueError as error:
-        raise BuildError(f"board partition is outside {boards_root}: {partition}") from error
+        raise BuildError(
+            "board partition or release policy is outside "
+            f"{boards_root}: {descriptor}"
+        ) from error
     layout_domain.load(partition_file)
     return BoardPreset(
         board=board,
         cp_config=cp.root,
         ap_config=ap.root,
         partition=partition_file,
+        release_policy=release_policy_file,
     )
 
 

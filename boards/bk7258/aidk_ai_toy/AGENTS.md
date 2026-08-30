@@ -15,14 +15,17 @@ This subtree is the complete ownership boundary for AIDK AI Toy adaptation.
   Plaintext private keys exist only below a mode-0700 `/tmp/aidk-trust.*`
   directory and are destroyed after acceptance or failure.
 - OTA is different from full provisioning: it must use the MCUboot root already
-  installed on that device and a strictly higher generation.  The default key
-  broker stores only an encrypted PKCS#8 copy outside the repository and
-  materializes plaintext only in the temporary directory.  Never log key paths,
+  installed on that device and a strictly higher generation.  Store the signer
+  only in the operator's approved vault/HSM or external secret manager; this
+  repository does not provide a board-private key broker.  Never log key paths,
   store secrets in Git, or copy secrets into project memory.
 - Do one complete package verification and one end-to-end hardware acceptance.
   Do not replace acceptance with repeated partial read/probe/download loops.
-- The initial full download is one operator image at `0x0-0x7fa000`; the
-  immutable tail `[0x7fa000,0x800000)` is not written.  Do not use chip erase.
+- A wired recovery uses one complete 8-MiB operator image at address zero,
+  materialized from an exact full readback and accepted-base evidence for that
+  same unit.  Do not use chip
+  erase or copy the image to another unit; the tail
+  `[0x7fa000,0x800000)` must remain byte-identical to the accepted base.
 - The fitted CH340E exposes UART0 but its RTS/CTS pins are not connected to
   CEN.  Without an external open-drain reset hook, start BK Loader and press K1
   RESET once when `Getting Bus` appears.  Holding a BOOT key is not required.

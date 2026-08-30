@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -162,6 +164,86 @@ def _entry(name: str, data: bytes) -> zipfile.ZipInfo:
     return info
 
 
+def _read_stored_zip(
+    path: Path, *, label: str, first_member: str, maximum_size: int
+) -> dict[str, bytes]:
+    path = path.absolute()
+    if path.is_symlink() or not path.is_file():
+        raise PackageError(f"{label} must be a regular non-symlink file")
+    if path.stat().st_size > maximum_size:
+        raise PackageError(f"{label} exceeds size limit")
+    try:
+        with zipfile.ZipFile(path, "r") as archive:
+            infos = archive.infolist()
+            names = [info.filename for info in infos]
+            if not infos or len(infos) > MAX_MEMBERS \
+                    or len(names) != len(set(names)) or names[0] != first_member:
+                raise PackageError(
+                    f"{label} {first_member} must be the first unique member"
+                )
+            members: dict[str, bytes] = {}
+            for info in infos:
+                _safe_member(info.filename)
+                if info.is_dir() or info.compress_type != zipfile.ZIP_STORED \
+                        or info.file_size > MAX_MEMBER_SIZE \
+                        or info.file_size != info.compress_size:
+                    raise PackageError(
+                        f"invalid {label} member metadata: {info.filename}"
+                    )
+                members[info.filename] = archive.read(info)
+    except (OSError, zipfile.BadZipFile) as error:
+        raise PackageError(f"cannot read {label}: {path}") from error
+    return members
+
+
+def _publish_no_replace(temporary: Path, output: Path, label: str) -> None:
+    """Atomically publish a durable same-filesystem file without overwriting."""
+
+    with temporary.open("rb") as stream:
+        os.fsync(stream.fileno())
+    try:
+        os.link(temporary, output)
+    except FileExistsError as error:
+        raise PackageError(f"{label} output already exists: {output}") from error
+    temporary.unlink()
+
+
+def publish_directory_no_replace(staging: Path, output: Path, label: str) -> None:
+    """Atomically publish a same-filesystem directory without replacement."""
+
+    try:
+        renameat2 = ctypes.CDLL(None, use_errno=True).renameat2
+    except AttributeError as error:
+        raise PackageError(
+            f"{label} needs renameat2(RENAME_NOREPLACE) support"
+        ) from error
+
+    renameat2.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    renameat2.restype = ctypes.c_int
+    result = renameat2(
+        -100,
+        os.fsencode(staging),
+        -100,
+        os.fsencode(output),
+        1,
+    )
+    if result == 0:
+        return
+
+    observed = ctypes.get_errno()
+    if observed in {errno.EEXIST, errno.ENOTEMPTY}:
+        raise PackageError(f"{label} output already exists: {output}")
+    raise PackageError(
+        f"cannot atomically publish {label}: {os.strerror(observed)}"
+    )
+
+
 def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
            sdk_evidence: Mapping[str, str], trust_evidence: Mapping[str, object],
            physical_board: str, output: Path,
@@ -309,7 +391,7 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
         verify(temporary)
         if publication_verifier is not None:
             publication_verifier(temporary)
-        os.replace(temporary, output)
+        _publish_no_replace(temporary, output, "package")
     finally:
         temporary.unlink(missing_ok=True)
     return {
@@ -322,28 +404,12 @@ def create(image_set: image_domain.ImageSet, member_names: Mapping[str, str],
 
 def _read(path: Path) -> tuple[dict[str, object], dict[str, bytes]]:
     path = path.absolute()
-    if path.is_symlink() or not path.is_file():
-        raise PackageError(f"package must be a regular non-symlink file: {path}")
-    if path.stat().st_size > MAX_PACKAGE_SIZE:
-        raise PackageError("package exceeds size limit")
-    try:
-        with zipfile.ZipFile(path, "r") as archive:
-            infos = archive.infolist()
-            if not infos or len(infos) > MAX_MEMBERS:
-                raise PackageError("invalid package member count")
-            names = [info.filename for info in infos]
-            if len(names) != len(set(names)) or names[0] != MANIFEST:
-                raise PackageError("manifest must be the first unique package member")
-            result: dict[str, bytes] = {}
-            for info in infos:
-                _safe_member(info.filename)
-                if (info.is_dir() or info.compress_type != zipfile.ZIP_STORED
-                        or info.file_size > MAX_MEMBER_SIZE
-                        or info.file_size != info.compress_size):
-                    raise PackageError(f"invalid package member metadata: {info.filename}")
-                result[info.filename] = archive.read(info)
-    except (OSError, zipfile.BadZipFile) as error:
-        raise PackageError(f"cannot read package: {path}") from error
+    result = _read_stored_zip(
+        path,
+        label="package",
+        first_member=MANIFEST,
+        maximum_size=MAX_PACKAGE_SIZE,
+    )
     try:
         document = json.loads(result[MANIFEST].decode("utf-8"))
     except (KeyError, UnicodeError, json.JSONDecodeError) as error:
@@ -844,7 +910,7 @@ def flash_contract(package: Path) -> dict[str, object]:
 
 
 def _read_full_base(base: Path, expected_base_sha256: str,
-                    boundary: int) -> bytes:
+                    flash_size: int) -> bytes:
     base = base.absolute()
     expected_base_sha256 = expected_base_sha256.lower()
     if not DIGEST_RE.fullmatch(expected_base_sha256):
@@ -858,10 +924,10 @@ def _read_full_base(base: Path, expected_base_sha256: str,
             "base snapshot SHA-256 mismatch: "
             f"expected={expected_base_sha256} observed={observed_base_sha256}"
         )
-    if len(base_data) != boundary:
+    if len(base_data) != flash_size:
         raise PackageError(
-            "base snapshot must end at immutable tail: "
-            f"size=0x{len(base_data):x} boundary=0x{boundary:x}"
+            "base snapshot must cover the complete Flash: "
+            f"size=0x{len(base_data):x} flash=0x{flash_size:x}"
         )
     return base_data
 
@@ -870,18 +936,15 @@ def persistent_payload_from_base(layout: layout_domain.Layout, base: Path,
                                  expected_base_sha256: str) -> bytes:
     """Bind a full release's persistent payload to one accepted operator base."""
 
-    immutable_offsets = [
-        row.offset for row in layout.partitions if row.policy == "immutable"
-    ]
     persistent = [
         row for row in layout.partitions
         if row.name == "persistent_data" and row.policy == "preserve"
         and row.kind == "data" and row.writable
     ]
-    if not immutable_offsets or len(persistent) != 1:
-        raise PackageError("layout lacks one persistent payload and immutable tail")
+    if len(persistent) != 1:
+        raise PackageError("layout lacks one persistent payload")
     base_data = _read_full_base(
-        base, expected_base_sha256, min(immutable_offsets)
+        base, expected_base_sha256, layout.flash_size
     )
     selected = persistent[0]
     return base_data[selected.offset:selected.end]
@@ -889,7 +952,9 @@ def persistent_payload_from_base(layout: layout_domain.Layout, base: Path,
 
 def materialize_full_image(package: Path, base: Path,
                            expected_base_sha256: str,
-                           output: Path) -> dict[str, object]:
+                           output: Path,
+                           release_policies: Mapping[str, str]) \
+                           -> dict[str, object]:
     """Overlay one verified full update on an exact accepted-board base."""
 
     package = package.absolute()
@@ -903,20 +968,27 @@ def materialize_full_image(package: Path, base: Path,
         raise PackageError(f"full-image output already exists: {output}")
 
     partitions = document["layout"]["partitions"]
-    immutable_offsets = [
-        int(row["offset"])
-        for row in partitions
-        if row["policy"] == "immutable"
-    ]
-    if not immutable_offsets:
-        raise PackageError("layout has no immutable tail boundary")
-    boundary = min(immutable_offsets)
-    base_data = _read_full_base(base, expected_base_sha256, boundary)
+    flash_size = _integer(document["layout"].get("flash_size"), "layout.flash_size")
+    base_data = _read_full_base(base, expected_base_sha256, flash_size)
 
-    writes = [*document["images"], document["full_update"]]
+    full_update = document["full_update"]
+    writes = [(False, row) for row in document["images"]]
+    writes.append((True, full_update))
     output_data = bytearray(base_data)
+    partition_by_name = {row["name"]: row for row in partitions}
+    selected_policies = dict(release_policies)
+    if set(selected_policies) != set(partition_by_name):
+        raise PackageError("release policy does not cover the package layout")
+    for name, policy in selected_policies.items():
+        if policy == "transactional":
+            row = partition_by_name[name]
+            start = int(row["offset"])
+            output_data[start:start + int(row["size"])] = bytes(
+                [image_domain.ERASE_BYTE]
+            ) * int(row["size"])
+
     write_ranges: list[tuple[int, int, str]] = []
-    for row in writes:
+    for is_full_update, row in writes:
         member = row["member"]
         data = members[member]
         offset = int(row["offset"])
@@ -924,8 +996,26 @@ def materialize_full_image(package: Path, base: Path,
         if len(data) != int(row["size"]) \
                 or hashlib.sha256(data).hexdigest() != row["sha256"]:
             raise PackageError(f"verified member metadata changed: {member}")
-        if offset < 0 or end > boundary:
-            raise PackageError(f"package write crosses immutable tail: {member}")
+        if offset < 0 or end > flash_size:
+            raise PackageError(f"package write crosses Flash: {member}")
+        partition_name = row["partition"]
+        release_policy = selected_policies[partition_name]
+        if not is_full_update:
+            if release_policy != "replace":
+                raise PackageError(
+                    f"package image writes non-replace partition: {partition_name}"
+                )
+            partition = partition_by_name[partition_name]
+            partition_start = int(partition["offset"])
+            partition_size = int(partition["size"])
+            output_data[
+                partition_start:partition_start + partition_size
+            ] = bytes([image_domain.ERASE_BYTE]) * partition_size
+        elif release_policy != "replace" \
+                and data != base_data[offset:end]:
+            raise PackageError(
+                f"full update changes protected device data: {partition_name}"
+            )
         output_data[offset:end] = data
         write_ranges.append((offset, end, member))
 
@@ -937,12 +1027,20 @@ def materialize_full_image(package: Path, base: Path,
             )
 
     for row in partitions:
-        if row["policy"] != "preserve" or row["name"] == "persistent_data":
-            continue
         start = int(row["offset"])
         end = start + int(row["size"])
-        if output_data[start:end] != base_data[start:end]:
-            raise PackageError(f"preserved partition changed: {row['name']}")
+        release_policy = selected_policies[row["name"]]
+        if release_policy in {
+            "preserve", "factory-init", "device-unique", "immutable"
+        } and output_data[start:end] != base_data[start:end]:
+            raise PackageError(f"protected partition changed: {row['name']}")
+        if release_policy == "transactional" \
+                and output_data[start:end] != bytes(
+                    [image_domain.ERASE_BYTE]
+                ) * (end - start):
+            raise PackageError(
+                f"transactional partition was not reset: {row['name']}"
+            )
 
     output.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
@@ -954,7 +1052,7 @@ def materialize_full_image(package: Path, base: Path,
             stream.write(output_data)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, output)
+        _publish_no_replace(temporary, output, "full-image")
     finally:
         temporary.unlink(missing_ok=True)
 
