@@ -4,7 +4,7 @@
 > 历史，但对应自定义 OTA selector/writer/journal/validation 实现已从现役源码
 > 删除。当前架构为 board-owned BL1 → pinned NuttX MCUboot BL2 → signed
 > same-slot CP/AP；没有 field OTA lifecycle。动态状态见
-> [`progress/CURRENT.md`](../../../progress/CURRENT.md)。
+> [`boards/bk7258/CONFIGS.md`](../../../boards/bk7258/CONFIGS.md)。
 
 > 移植目标：Beken BK7258 芯片（Tuya T5-AI 模组，三核 Cortex-M33，Wi-Fi 6 + BLE 5.4）。
 > 赛道：openvela 2026 新硬件移植 + AI Coding。
@@ -410,13 +410,13 @@ Reset Thumb / magic）作为构建期检查。**baseline 不做加密**。
 | **N6** | Beken SDK integration / WDT / IRQ / GPIO | ✅ CPU0 baseline `board-verified` |
 | **N7** | physical CPU1 independent AP NuttX | ✅ done / `board-verified` |
 | **N8** | AP physical CPU1+CPU2 native SMP | ✅ done / `board-verified`，含 warm/physical RESET 3/3 closure |
-| **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | ✅ done / `board-verified`；官方 SDK/NuttX 只读 wrapper，Name Service、SMP 双 producer、reconnect、syslog、兼容构建与 cold RESET closure；见 [N9 completion](nuttx-port/prompts/09-n9-rptun-rpmsg.md) |
+| **N9** | CP NuttX UP ↔ AP NuttX SMP RPTUN/OpenAMP/RPMsg | ✅ done / `board-verified`；官方 SDK/NuttX 只读 wrapper，Name Service、SMP 双 producer、reconnect、syslog、兼容构建与 cold RESET closure；见 [N9 source verification](nuttx-port/n9-rptun-source-verification.md) |
 | **N10** | AP heartbeat/crash supervision | ✅ done / `board-verified`；三路健康信号、故障注入、fail-closed与人工恢复闭环 |
 | **N11** | AP经RPMsgFS访问CP LittleFS | ✅ done / `board-verified`；stock RPMsgFS wrapper、四档payload与generation recovery闭环 |
 | **N12** | official Beken Bluetooth IPC + AP stock NuttX Host | ✅ done / `board-verified`；真实RF report与RPMsg/RPMsgFS/SMP共存闭环 |
 | **N13** | BLE GAP/GATT Peripheral end-to-end | ✅ done / `board-verified`；negative、20/20重连、主动并发与connection ref closure |
-| **N14** | 16 MiB PSRAM + SDK software-timer wrapper | ✅ done / `board-verified`；full-capacity boot gate、CP/AP private heap、AP双核allocator、warm/cold/factory闭环；见 [N14 completion](nuttx-port/prompts/14-n14-psram.md) |
-| **N15** | Tier-2 paired CP/AP OTA + rollback | **COMPLETE / 批准的最小physical范围 `board-verified`**；generation 314 confirmed B、generation 315 confirmed A、双bank/两槽回归、RTS及post-confirm完整掉电恢复PASS；板端已恢复normal gates-zero；见 [N15 worklog](nuttx-port/prompts/15-n15-tier2-ota.md) / [physical evidence](../../../progress/verification/2026-08-04-n15-physical-symmetric-lifecycle.md) |
+| **N14** | 16 MiB PSRAM + SDK software-timer wrapper | ✅ done / `board-verified`；full-capacity boot gate、CP/AP private heap、AP双核allocator、warm/cold/factory闭环；见 [N14 evidence index](nuttx-port/n14-evidence-index.md) |
+| **N15** | Tier-2 paired CP/AP OTA + rollback | **COMPLETE / 批准的最小physical范围 `board-verified`**；generation 314 confirmed B、generation 315 confirmed A、双bank/两槽回归、RTS及post-confirm完整掉电恢复PASS；板端已恢复normal gates-zero；见 [N15 source verification](nuttx-port/n15-ota-source-verification.md) / [physical evidence](../../../docs/verification/bk7258/2026-08-04-n15-physical-symmetric-lifecycle.md) |
 
 N1 判据（已满足）：bootloader 跳进 NuttX 后，NuttX 早期 console 打印出现在 UART1（复用已验证的
 UART1 路径）。N2 判据（已满足）：NSH 提示符出现且 `help` / `uname -a` / `echo` / 键盘输入 + 回显
@@ -562,8 +562,8 @@ FreeRTOS 1 ms tick，并已随N13 50 ms GATT镜像通过独立RTS物理冷复位
 固定 32 kHz SysTick、DWT、NSH 与 procfs 必须按角色实际频率回归。后续不得恢复
 “CPU0 480 MHz”这条历史路线。
 
-- 主 Stage 索引 / current pointer：[`next-stage-prompt.md`](next-stage-prompt.md)
-- 当前完整 Stage N4 prompt：[`nuttx-port/prompts/04-n4-clock-bringup.md`](nuttx-port/prompts/04-n4-clock-bringup.md)
+- 当前 SDK OPP 与实测口径：[P0 diagnostics and performance](p0-diagnostics-performance.md)
+- 历史 Stage N4 技术记录：[`nuttx-port/n4-d0-clock-diag.md`](nuttx-port/n4-d0-clock-diag.md)
 
 N4-R → N4-D0 → N4-D1 → N4-D2（optional）→ N4-D3 → N4-V 是一个 MAIN Stage 文件内的有序
 subsection。N4-D0/D0D 已 substage 板端验证，N4-D1 blocked，D2/D3/V 尚未开始。
@@ -593,7 +593,7 @@ CPU0/AP/Bus 160/320/160 MHz；OPP 480M 对应 240/480/240 MHz。官方实现支�
 generation 146 已按 OPP 240M 完成签名全量下载、稳定回读、冷启动及 CoreMark、
 Ramspeed、Whetstone 各 10 次；CoreMark 与四项 64 KiB Ramspeed 相对旧 160 MHz
 基线均约为 1.5 倍，完整身份和原始哈希见
-[CPU0 240 MHz 实板记录](../../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
+[CPU0 240 MHz 实板记录](../../../docs/verification/bk7258/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 
 本段是 N4 时期的历史路线说明。其后 MTD/文件系统已由N5完成、SMP由N8完成、PSRAM由N14完成。
 原先“Tier-2 bootloader OTA未编号”的状态已在2026-08-03被用户批准的N15取代，当前状态见§9.11。
@@ -639,7 +639,7 @@ official AP `mem_arch.c`采用bounded allocate-copy-free。SDK software timer ca
 实板闭环包括AP CPU0/CPU1各16轮、CP heap 256轮、timer 256轮、AP warm cycle 10、RPMsg六场景
 各100、Bluetooth info、physical RESET 3/3、final clean cold、factory首次校准与校准后cold；heap
 free均恢复，AP/RPTUN/supervisor/SMP保持健康。完整记录见
-[N14 plan](nuttx-port/prompts/14-n14-psram.md)、
+[N14 board verification](../../../docs/verification/bk7258/2026-08-03-n14-psram-board-verification.md)、
 [source verification](nuttx-port/n14-psram-source-verification.md)和
 [evidence index](nuttx-port/n14-evidence-index.md)。official NuttX/apps/SDK source及SDK archive零改动。
 
@@ -672,8 +672,8 @@ N15-M factory先在A/B放入同一CP/AP pair，但B明确
 LittleFS autoformat/persistence、PSRAM、SDK timer、RPMsg六场景、RPMsgFS四档、Bluetooth info和
 physical reset 3/3全部PASS。迁移前8 MiB读取使用6 Mbps，后续发现该模式偶发插入128-byte
 全零块，因此只作forensic reference，禁止直接回刷；关键区验收改为115200连续两次byte-identical。
-完整证据见[N15 plan](nuttx-port/prompts/15-n15-tier2-ota.md)和
-[N15-M verification](../../../progress/verification/2026-08-03-n15-migration-board-verification.md)。
+完整证据见[N15 source verification](nuttx-port/n15-ota-source-verification.md)和
+[N15-M verification](../../../docs/verification/bk7258/2026-08-03-n15-migration-board-verification.md)。
 
 N15-A随后在team-owned host wrapper中完成`bk7258-cp-ap-pair-v1`：CP/AP raw image按逻辑
 `0/0x140000`合成一个generation，构造exact algorithm-0 96-byte RBL并放在logical
@@ -681,14 +681,14 @@ N15-A随后在team-owned host wrapper中完成`bk7258-cp-ap-pair-v1`：CP/AP raw
 verifier解码每个CRC packet并重新构造canonical bundle，交叉检查vector、address、size、layout、
 version、digest和CP/AP generation。official header/CRC golden vector、exact v3.1.1.9 source hash、
 两次deterministic build、2 positive/13 negative与真实clean-build bundle全部PASS；完整证据见
-[N15-A verification](../../../progress/verification/2026-08-03-n15-a-host-pair-bundle.md)。
+[N15-A verification](../../../docs/verification/bk7258/2026-08-03-n15-a-host-pair-bundle.md)。
 
 N15-B随后实现CP-only staging wrapper与portable core。deterministic 384-byte descriptor在任何
 mutation前绑定并验证完整physical/logical CP/AP pair；shared Flash guard与MTD/LittleFS owner串行化，
 每个4 KiB sector执行erase/program/read-back，最后校验full-slot SHA-256。portable harness通过
 2 positive/21 negative，target incremental、exact v3.1.1.9完整dual build与final ELF gate/symbol
 closure均PASS。compile/runtime gate仍为零，最终ELF无enable setter/command，且未写板。完整证据见
-[N15-B verification](../../../progress/verification/2026-08-04-n15-b-host-staging.md)。
+[N15-B verification](../../../docs/verification/bk7258/2026-08-04-n15-b-host-staging.md)。
 
 N15-C再由[ADR-005](../../../memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md)冻结
 `BKOTA15C` append-only metadata ABI。portable selector对trusted A执行全部CRC16、padding、vectors、
@@ -697,14 +697,14 @@ CP magic和full-pair SHA-256，并复用N15-B core完整验证B；坏metadata/ca
 source/binary交叉验证，5 positive/28 negative、4 SHA vectors、`-Werror`、`-fanalyzer`、final boot
 ELF workspace/symbol/四个zero gate及完整dual build均PASS。generation-17 pending metadata只存在host
 artifact，factory metadata仍erased，未写板。完整证据见
-[N15-C verification](../../../progress/verification/2026-08-04-n15-c-host-boot-selection.md)。
+[N15-C verification](../../../docs/verification/bk7258/2026-08-04-n15-c-host-boot-selection.md)。
 
 N15-D实现append/read-back `TRIAL_STARTED`和one-trial confirm/revert：4 positive/113 negative、
 48 reset boundaries、SRAM writer与final Boot/CP ELF均PASS。N15-E再完成pending publication与
 bounded metadata reclamation：完整live A/B验证先于mutation，5 positive/142 negative、8 erase、
 112 program/reset boundaries和static analyzer均PASS。详见
-[N15-D verification](../../../progress/verification/2026-08-04-n15-d-host-trial.md)和
-[N15-E verification](../../../progress/verification/2026-08-04-n15-e-host-publication.md)。
+[N15-D verification](../../../docs/verification/bk7258/2026-08-04-n15-d-host-trial.md)和
+[N15-E verification](../../../docs/verification/bk7258/2026-08-04-n15-e-host-publication.md)。
 
 N15-F冻结目标侧5000 ms health-confirm policy（250 ms轮询）：trusted trial generation、secondary
 mapping、AP supervisor healthy/fault-free、generation/fault count continuity和monotonic time必须
@@ -713,18 +713,18 @@ mapping、AP supervisor healthy/fault-free、generation/fault count continuity�
 命令还要求exact generation token。validation candidate通过固定upper-PSRAM
 `0x60800000..0x60a76200`传输；normal profile仍upper-8 unallocated且无`bkota`。health 7/15、
 5 continuity resets、validation/normal full build、transfer verifier和loader dry-run均PASS。详见
-[N15-F verification](../../../progress/verification/2026-08-04-n15-f-host-validation.md)。
+[N15-F verification](../../../docs/verification/bk7258/2026-08-04-n15-f-host-validation.md)。
 
 N15-V host closure新增generation/operation-bound one-shot target failpoint与单字节candidate PSRAM
 corruption；7 positive/12 negative harness PASS。format-2 campaign生成16份独立
 RBL/version/timestamp/metadata身份，独立verifier重查path/fault/hash/identity并重跑逐包
 pair/transfer/loader dry-run，全部PASS；每个case要求controlled complete-power-cycle，terminal
 case从已确认B回切并确认A。详见
-[N15-V host verification](../../../progress/verification/2026-08-04-n15-v-host-fault-injection.md)。
+[N15-V host verification](../../../docs/verification/bk7258/2026-08-04-n15-v-host-fault-injection.md)。
 
 随后获批的最小板端流程已经完成generation 314 A→confirmed B和generation 315 B→confirmed A，
 包括双metadata bank、两次完整slot read-back/SHA、两槽N14保留服务回归及confirmed-A RTS恢复。
-详见[N15 physical evidence](../../../progress/verification/2026-08-04-n15-physical-symmetric-lifecycle.md)。
+详见[N15 physical evidence](../../../docs/verification/bk7258/2026-08-04-n15-physical-symmetric-lifecycle.md)。
 post-confirm完整VDD removal后的状态读取也已PASS；host rollback模型仍不冒充physical rollback。
 随后normal sparse恢复的三段erase/write、NSH和轻量保留功能回归也全部PASS。
 
@@ -773,7 +773,7 @@ docs/
     README_EN.md                         英文平台导航
     official-compliance-review.md        中英文官方符合性复核入口
     porting-report.md                    ★ 本报告（主文档）
-    next-stage-prompt.md                 MAIN Stage 索引 / current handoff
+    历史 MAIN Stage 索引                已归档，不作为 current handoff
     bootloader-analysis/                 T5/Tuya bootloader 逆向与对照研究
     hardware/t5ai-core/probe/            T5AI Core 专属板端验证探针
     nuttx-port/                          带板型/实板证据的 NuttX 移植 worklog
@@ -825,7 +825,7 @@ CRC 编码与校验由该入口内部调用 `tools/bk7258/_lib/image.py`，早�
 
 > **2026-08-03 路线更新：**本报告前文的 N4 CURRENT / SMP planned later 是历史快照。
 > latest fully closed baseline 已推进至 N14 PSRAM + SDK timer wrapper；N13仍是不含PSRAM的
-> BLE service回退基线。权威记录见[N14 plan](nuttx-port/prompts/14-n14-psram.md)和
+> BLE service回退基线。权威记录见[N14 board verification](../../../docs/verification/bk7258/2026-08-03-n14-psram-board-verification.md)和
 > [N14 evidence index](nuttx-port/n14-evidence-index.md)。
 >
 > **N13完成：**board wrapper实现combined GAP+custom GATT、20-byte echo/notify和无GUI WinRT

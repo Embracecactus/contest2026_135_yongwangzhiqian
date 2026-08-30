@@ -53,7 +53,7 @@ export BOARD="$CONTEST/boards/bk7258"
 - [教学图索引](bk7258/90-reference/95-graph-index.md)
 - [Graphify 安全使用约定](bk7258/assets/graphify/README.md)
 
-需要了解**当前实施状态**时，应离开学习区，阅读 [`$IMPL/README.md`](../platforms/bk7258/README.md) 和 [`$IMPL/next-stage-prompt.md`](../platforms/bk7258/next-stage-prompt.md)。学习材料不复制这些文件中的 current 细节。
+需要了解**当前实施状态**时，应离开学习区，阅读 [`$IMPL/README.md`](../platforms/bk7258/README.md) 和仓库逻辑入口 `docs/platforms/bk7258/README.md`。学习材料不复制这些文件中的 current 细节。
 
 ## 4. 完整未来目录树
 

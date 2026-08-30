@@ -5,7 +5,8 @@
 ## 一、作品简介
 
 本作品为 Beken BK7258（三核 Arm Cortex-M33）提供完整的 openvela/NuttX
-平台适配，并在 T5-Board、T5AI-Core 和 AIDK AI Toy 三块物理板之间复用同一套
+平台适配，并在 T5-Board、T5AI-Core 和 AIToyBoard（工程标识 `aidk_ai_toy`，
+既有文档名 AIDK AI Toy）三块物理板之间复用同一套
 SoC 实现。系统不是官方模板假定的单镜像模型，而是由 CPU0 上的 CP NuttX 与
 CPU1/CPU2 上的 AP SMP NuttX 组成配对系统。
 
@@ -19,8 +20,9 @@ CPU1/CPU2 上的 AP SMP NuttX 组成配对系统。
 - 可追溯的源码、构建、实板串口和 AI Coding 证据。
 
 功能是否完成必须以当前配置和对应实板记录为边界，不能把一块板或历史 profile 的
-结果推广到所有板型。当前动态状态见 [progress/CURRENT.md](progress/CURRENT.md)，
-完整技术报告见 [移植报告](docs/platforms/bk7258/porting-report.md)，官方清单的逐条口径见
+结果推广到所有板型。三板维护配置见 [板级配置说明](boards/bk7258/CONFIGS.md)，
+对应验收记录见 [`docs/verification/bk7258/`](docs/verification/bk7258/)；完整技术报告见
+[移植报告](docs/platforms/bk7258/porting-report.md)，官方清单的逐条口径见
 [符合性复核说明](docs/platforms/bk7258/official-compliance-review.md)。
 
 ## 二、选题方向
@@ -35,18 +37,20 @@ CPU1/CPU2 上的 AP SMP NuttX 组成配对系统。
 |---|---|
 | `chips/bk7258/` | CP/AP/CPU2、IRQ、定时器、外设 wrapper、BL1/BL2 与芯片 Kconfig |
 | `boards/bk7258/` | 三块物理板、CP/AP 配对配置、分区 CSV、公共链接脚本和 bring-up |
-| `tools/bk7258/` | 唯一维护入口：工具链、SDK bundle、构建、签名、打包和校验 |
-| `tests/bk7258/` | 直接编译现役源码的主机回归测试；不替代固件构建或实板测试 |
+| `tools/bk7258/` | 唯一维护入口：工具链、SDK bundle、构建、签名、打包、部署和校验 |
+| `tests/host/bk7258/` | 直接编译现役源码的主机回归；不映射进 OpenVela 应用树 |
+| `app/testing/bk7258/` | 三块 BK7258 板共用的官方格式 CMocka 板上应用 |
+| `tests/pytest/test_bk7258/` | 链入官方 pytest 串口框架的三板实板验收 |
 | `docs/platforms/bk7258/` | 移植报告、符合性说明、调试方法和历史阶段记录 |
-| `progress/verification/` | 带构建身份和适用边界的动态验收记录 |
+| `docs/verification/bk7258/` | 带构建身份和适用边界的不可变验收记录 |
 | `logs/lijian/` | 按大赛格式导出的 AI Coding JSONL 日志 |
 | `logs/bk7258-*` | 早期硬件原始证据；不是 AI 对话日志 |
 | `prebuilt/` | 本机安装的锁定工具链；二进制内容为可再生成的忽略文件 |
 | `chips/bk7258/bk_idk/armino_as_lib/` | 从 manifest 锁定 SDK 重建的本机 bundle；不分发第三方二进制 |
 
-Manifest 将团队维护的 chip、board、工具和应用映射到 openvela 工作区的标准位置。
-`tests/`、`docs/`、`progress/` 和 `logs/` 是团队仓内的验证/交付材料，不参与 NuttX
-源码树映射。
+Manifest 将团队维护的 chip、board、工具、应用和目标端测试映射到 openvela 工作区的
+标准扩展位置。Host 测试、`docs/` 和 `logs/` 只存在于团队仓；目标端
+CMocka 链接到官方 `apps/testing/bk7258` 自动发现点，串口用例只链接到官方 pytest 的测试子目录。
 
 ## 四、运行方式
 
@@ -122,11 +126,19 @@ SHA-256。多镜像系统的产物按分区角色命名，例如 `boot.bin`、`c
 安装 `cmocka` 开发包后，从团队仓根目录执行：
 
 ```bash
-./tests/bk7258/run_tests.sh
+make -C tests/host/bk7258 check
 ```
 
 成功标志为 `BK7258_HOST_TEST_PASS`。该结果只覆盖 mock 环境中的逻辑与 ABI；硬件
 能力必须引用对应的实板记录。
+
+### 6. 官方目标端与串口测试
+
+三块板各自的 `configs/xts` CP 配置与同板 `openvela_ap` 配对，启用同一个
+`cmocka_bk7258_board_test`。下载后可从 CP NuttShell 直接运行，或从工作区
+`tests/scripts` 使用官方 pytest，并把 `-B` 设为 `t5_board`、`t5ai_core` 或
+`aidk_ai_toy`。具体参数见
+[`tests/pytest/test_bk7258/README.md`](tests/pytest/test_bk7258/README.md)。
 
 ## 五、AI Coding 使用说明
 
@@ -136,14 +148,14 @@ AI 参与了需求拆解、官方/SDK 源码交叉核对、启动与中断根因
 
 符合大赛格式的对话日志位于 `logs/lijian/<date>/<tool>__<sid>.jsonl`，会话索引见
 `logs/lijian/manifest.json`。`logs/bk7258-*` 是早期串口/安全启动原始证据，不属于
-AI 日志；新的结构化实板结论统一写入 `progress/verification/`。
+AI 日志；新的结构化实板结论统一写入 `docs/verification/bk7258/`。
 
 ## 许可证
 
 除文件或目录另有声明外，本仓库原创内容按 Apache License 2.0 授权，许可证全文见
 [`LICENSE`](LICENSE)。第三方及上游派生材料继续适用其原有版权和许可证声明；manifest
 引用但未存储在本仓库中的项目由各自许可证管理。BK7258 主机测试的逐类来源说明见
-[`tests/bk7258/PROVENANCE.md`](tests/bk7258/PROVENANCE.md)，全仓源码分类与许可证审计见
+[`tests/host/bk7258/PROVENANCE.md`](tests/host/bk7258/PROVENANCE.md)，全仓源码分类与许可证审计见
 [`SOURCE_PROVENANCE.md`](SOURCE_PROVENANCE.md)。
 
 ## 评审入口
@@ -152,5 +164,6 @@ AI 日志；新的结构化实板结论统一写入 `progress/verification/`。
   [English](docs/platforms/bk7258/official-compliance-review.en.md)
 - [openvela 文档适配矩阵](docs/platforms/bk7258/openvela-document-adaptation-matrix.md)
 - [BK7258 板级配置与架构](boards/bk7258/README.md)
-- [BK7258 主机测试说明](tests/bk7258/README.md)
+- [BK7258 主机测试说明](tests/host/bk7258/README.md)
+- [BK7258 OpenVela 板上测试](app/testing/bk7258/README.md)
 - [AI Coding 日志格式](logs/README.md)

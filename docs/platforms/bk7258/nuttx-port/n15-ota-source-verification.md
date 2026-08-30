@@ -6,7 +6,7 @@
 
 > 日期：2026-08-03
 > 状态：**HISTORICAL / ADR-003 R1/R2 rejected-option evidence**
-> 对应Stage：[15-n15-tier2-ota.md](prompts/15-n15-tier2-ota.md)
+> 对应 N15 Tier-2 OTA Stage 计划已归档；本文件仅记录源码核验。
 > 自动门禁：`verify_bk7258_ota_layout.py`、`inspect_bk7258_rbl.py`、
 > `simulate_bk7258_ota_journal.py`、`bk7258_ota_metadata.py`、
 > `verify_bk7258_ota_sram.py`
@@ -14,7 +14,7 @@
 > **状态勘误：**本文记录的是后来被否决的 ADR-003 sector-swap 路线，保留其
 > source/model 证据，不再是 active implementation guide。项目已接受
 > [ADR-004](../../../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md)，
-> 并完成 [N15-M 新布局板端迁移验证](../../../../progress/verification/2026-08-03-n15-migration-board-verification.md)。
+> 并完成 [N15-M 新布局板端迁移验证](../../../../docs/verification/bk7258/2026-08-03-n15-migration-board-verification.md)。
 > 本文中的“推荐”“下一步”和旧地址不得用于当前构建、恢复或烧录。
 
 ## 1. 结论
@@ -239,7 +239,7 @@ Tier-1 linker把`.ota_sram`映射为SRAM VMA `0x28000000`、boot-Flash LMA `0x02
 verifier还对exact v3.1.1.9 Flash driver/LL/register、SYS secondary-core、WDT register和sdkconfig
 做source-fragment与SHA-256检查。C86517保护处理只修改BP/CMP位并保留其余status位；未来parser必须
 把reset后的保护恢复纳入recovery。完整证据见
-[N15-R2 verification](../../../../progress/verification/2026-08-03-n15-r2-sram-metadata.md)。
+[N15-R2 verification](../../../../docs/verification/bk7258/2026-08-03-n15-r2-sram-metadata.md)。
 
 参考：
 

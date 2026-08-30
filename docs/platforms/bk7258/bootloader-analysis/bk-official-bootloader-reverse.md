@@ -456,7 +456,7 @@ ASCII `bkbl`，`+0x40` 是前 `0x40` bytes 的 CRC32，`+0x1c/+0x20` 分别是 p
 其页内记录的阶段字节在代码中按 `0xfc -> 0xf0 -> 0xc0 -> 0x00` 写入。字段未命名
 部分及 FAL 的外部进入条件仍未恢复，不能将此 normal-FAL 私有 journal 与 A/B 的
 `ota_fina_executive` 状态扇区混为一谈。可复现证据见
-[normal bootloader Ghidra 记录](../../../../progress/verification/2026-08-07-ghidra-bk7258-normal-bootloader.md)。
+[normal bootloader Ghidra 记录](../../../../docs/verification/bk7258/2026-08-07-ghidra-bk7258-normal-bootloader.md)。
 
 ---
 

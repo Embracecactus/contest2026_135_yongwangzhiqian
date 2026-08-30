@@ -5,7 +5,8 @@
 > 20轮uncached重连、BLE 100帧与RPMsg/RPMsgFS主动并发、最终系统健康及连接引用归零均已闭环
 > 基线：contest `d4661fd`，NuttX `e02f581e235fc7b527d57ff62b668ce625d139ab`，
 > apps `e81a73794786189f15e6c9fe9931ffddd561fd73`
-> 边界：官方 NuttX 与 Beken SDK 只读；永久实现只能进入 contest board/app/tool overlay
+> 边界：官方 NuttX 与 Beken SDK 只读；永久实现按职责进入 contest
+> `chips/`、`boards/`、`app/` 或 `tools/` overlay
 > 证据索引：[N13 evidence index](n13-evidence-index.md)
 
 ## 1. 结论先行
@@ -17,9 +18,9 @@ Windows Central / GATT client
         ↕ BLE air link
 CP: official Beken BLE Controller-only archive
         ↕ official MB_CHNL_BT_CMD pointer IPC
-AP: board HCI lower-half → stock NuttX BLE Host/GAP/GATT
+AP: BK7258 HCI lower-half → stock NuttX BLE Host/GAP/GATT
         ↕
-board-owned N13 GATT service + bounded validation control plane
+team-owned N13 GATT service + bounded validation control plane
 ```
 
 冻结结论：
@@ -44,7 +45,7 @@ board-owned N13 GATT service + bounded validation control plane
 
 实现、历史诊断与最终证据（按时间记录；末尾闭环状态覆盖较早的pending描述）：
 
-- board overlay 已新增 combined GAP+N13 静态表、CPU0 worker、被动 HCI lifecycle observer、
+- BK7258 adapter 已新增 combined GAP+N13 静态表、CPU0 worker、被动 HCI lifecycle observer、
   MTU 527→517 兼容、HCI/ATT 诊断、独立 CP/AP profile、静态 verifier 和 Windows WinRT CLI；
 - official NuttX、apps 与 v3.1.1.9 SDK 源码/静态库均未修改；
 - board-owned SDK wrapper原先把`bk_delay_us()`实现为空函数，而official v3.1.1.9
@@ -214,7 +215,7 @@ NuttX Host 同时拥有 HCI、connection 和 attribute database，明确禁止�
 
 ### 3.1 AP → CP/Controller
 
-`board/bk7258/chip/ap/bk7258_bt_hci.c` 的 `bk7258_bt_send()` 已实现：
+`chips/bk7258/ap/bk7258_bt_hci.c` 的 `bk7258_bt_send()` 已实现：
 
 | NuttX type | wrapper validation | SDK call |
 |---|---|---|
@@ -386,7 +387,7 @@ board无错误并恢复广播；显式90秒bounded复跑在45.41秒内同时完�
 ### 5.2 connection observer
 
 当前 NuttX 的 `bt_conn_cb_register()` 只声明在 internal `bt_hcicore.h`，没有 unregister，
-并且 `bt_initialize()` 会清空全局 callback list。为避免 board wrapper绑定 private source ABI，
+并且 `bt_initialize()` 会清空全局 callback list。为避免 BK7258 wrapper 绑定 private source ABI，
 N13 首版不直接调用该 internal API。
 
 实现是在 AP HCI wrapper完成 `bt_netdev_receive()` 复制/投递后，被动解析标准 HCI
@@ -396,7 +397,7 @@ observer 不消费、不改写 packet，也不替 stock Host决定 connection st
 实板推翻了“只依赖 stock auto-enable 即可”的源码假设。进一步逐行复核表明：legacy
 Controller在接受连接时已经自动停止 advertising，但当前 NuttX没有同步清除
 `g_btdev.adv_enable`；所以 `hci_disconn_complete()` 会基于陈旧 flag排队一次auto-enable。
-旧board worker随后再disable/full-start，形成 enable→disable→enable竞态，即使三次completion
+旧 BK7258 worker 随后再 disable/full-start，形成 enable→disable→enable 竞态，即使三次 completion
 都success，RF也可能保持静默。
 
 最终候选实现把职责拆开：priority 96 connect worker在stock LPWORK处理Connection Complete后
@@ -429,7 +430,7 @@ caller-owned引用。该兼容由`CONFIG_BK7258_BT_CONN_RX_REF_COMPAT`显式启�
 检查同级official `bt_hcicore.c`和`bt_conn.c`；若未来upstream在任一处开始release，构建会
 fail-closed，避免double release。
 
-最终negative后的`2/2`、20轮后的`22/22`和全部主动并发后的`25/25`三个J-Link采样均显示
+最终 negative 后的 `2/2`、20 轮后的 `22/22` 和全部主动并发后的 `25/25` 三个 J-Link 采样均显示
 `ref=0`、state=DISCONNECTED。它们与Host/HCI/N13 lifecycle完全相等，是修复有效且无过度释放
 的板端证据。
 
@@ -439,10 +440,10 @@ NuttX 在释放每个 `BT_ACL_IN` buffer时发送 HCI Host Number Of Completed P
 (`0x0c35`)。BK7258 Controller即使已关闭 Controller-to-Host flow control，仍会为它返回非标准
 Command Complete `status=0x07, ncmd=0`；足够多 ATT traffic后会耗尽/卡住 command credit。
 
-N13 profile固定 `CONFIG_BLUETOOTH_CNTRL_HOST_FLOW_DISABLE=y`，board HCI lower-half只在该
+N13 profile 固定 `CONFIG_BLUETOOTH_CNTRL_HOST_FLOW_DISABLE=y`，BK7258 HCI lower-half 只在该
 配置下丢弃 `0x0c35`，并累加 `host_num_completed_dropped`。修复后的实板统计为
 `command_tx=22`、`complete=22`、最后 completion `0x200a/status0/ncmd10`、drop `11`，且
-connected/disconnected `2/2`、HCI/ACL error为0。该兼容仅位于 board wrapper，不改 NuttX或SDK。
+connected/disconnected `2/2`、HCI/ACL error 为 0。该兼容仅位于 BK7258 wrapper，不改 NuttX 或 SDK。
 
 ### 5.5 SDK wrapper timing 与 notify backpressure
 
@@ -537,13 +538,13 @@ Advertising data放 flags + 128-bit service UUID；scan response放完整 local 
 | 方案 | 优点 | 主要问题 | 决策 |
 |---|---|---|---|
 | A. 只使用 stock GAP table | 零代码即可做首个连接探针 | 没有 custom write/notify，无法完成 N13目标 | 只用于 N13-A probe |
-| B. board wrapper调用 stock NuttX GAP/GATT server API | 延续 N12 owner；不改 NuttX/SDK；可独立 Kconfig回退 | 需处理全局 table replace、callback context 和当前 API限制 | **采用** |
+| B. BK7258 adapter 调用 stock NuttX GAP/GATT server API | 延续 N12 owner；不改 NuttX/SDK；可独立 Kconfig回退 | 需处理全局 table replace、callback context 和当前 API限制 | **采用** |
 | C. AP 链接 Beken BLE Host/GATT archive | 官方 sample完整 | 与 NuttX Host双 owner，重复 HCI/connection/GATT state，破坏 N12架构 | 禁止 |
 
 ### ADR-N13-001：由 AP stock NuttX Host 唯一拥有 GAP/GATT
 
 - 状态：Accepted（用户于 2026-08-02 确认 N13 方向与先规划后实现）
-- 决策：CP 保持 Controller-only；AP 的 board wrapper使用 stock NuttX GATT server API，
+- 决策：CP 保持 Controller-only；AP 的 BK7258 adapter 使用 stock NuttX GATT server API，
   一张完整静态 table，单连接、20-byte write/read/notify。
 - 正面结果：无新增 SDK library、无官方源码 patch、N12 transport边界不变、可通过独立
   Kconfig/profile回退。
@@ -582,7 +583,7 @@ Advertising data放 flags + 128-bit service UUID；scan response放完整 local 
 - [x] N13-A 零代码实板 probe：Windows发现、连接、service discovery、GAP name read。
 - [x] custom service gate：GAP name、handle discovery、20-byte echo、100/100 notify、unsubscribe、
       post-close rediscovery，Windows sequence/CRC/lost/duplicate全通过。
-- [x] 定位并在 board wrapper隔离 BK7258 `0x0c35`非标准 completion。
+- [x] 定位并在 BK7258 wrapper 隔离 BK7258 `0x0c35` 非标准 completion。
 - [x] 定位空`bk_delay_us()` wrapper并以`up_udelay()`恢复official archive所需微秒时序；
       N13 CP profile固定SDK等价1 ms tick。
 - [x] 复核`bt_gatt_notify()` void/无buffer错误回传语义，以50 ms安全间隔完成100-frame gate。

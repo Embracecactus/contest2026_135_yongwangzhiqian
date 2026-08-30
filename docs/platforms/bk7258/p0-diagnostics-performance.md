@@ -23,16 +23,16 @@ P0 采用两张用途互斥的 CP 镜像，不能把诊断镜像的结果当性�
 - Dhrystone、TinyMemBench、CacheSpeed；
 - 计划内 12 小时 soak（owner 于 2026-08-27 确认延期，本轮不阻塞）。
 
-`tests/bk7258/run_tests.sh` 的历史 fixture 已迁移到现役 chip/API，并完成 281 项
+`make -C tests/host/bk7258 check` 的 host fixture 已迁移到现役 chip/API，并完成 281 项
 cmocka 加公共模块门禁；见
-[主机回归记录](../../../progress/verification/2026-08-27-bk7258-host-regression-fixture.md)。
+[主机回归记录](../../../docs/verification/bk7258/2026-08-27-bk7258-host-regression-fixture.md)。
 
 generation 143/145 的原始值、哈希和下载证据见
-[2026-08-27 P0 实板验证记录](../../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md)；
+[2026-08-27 P0 实板验证记录](../../../docs/verification/bk7258/2026-08-27-bk7258-p0-diagnostics-performance.md)；
 当前 240 MHz 基线见
-[generation 146 时钟验证记录](../../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
+[generation 146 时钟验证记录](../../../docs/verification/bk7258/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 当前代 xTS 的 generation 147～149 根因、签名、下载和板端证据见
-[generation 149 xTS 收口记录](../../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md)。
+[generation 149 xTS 收口记录](../../../docs/verification/bk7258/2026-08-27-bk7258-p0-xts-completion.md)。
 板子在本轮结束时保留 generation 149 xTS 镜像。
 
 本手册对应官网 Backtrace（1623）、Allsyms（1624）、硬件性能（1632）、
@@ -219,7 +219,7 @@ heap，冷启动 Umem total 从 117,656 增到 183,192 bytes。
 FIFO/PIPE 均 PASS，最终冷启动和 Agent ready 再次通过。`ostest` 的最终文本落在 capture
 切换间隙，判据使用完整执行输出、SWD idle 样本和同一 NSH 的退出状态 0；不得改写为
 “直接捕获最终行”。详细 generation 身份、哈希和每项 UART raw SHA-256 见
-[generation 149 xTS 收口记录](../../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md)。
+[generation 149 xTS 收口记录](../../../docs/verification/bk7258/2026-08-27-bk7258-p0-xts-completion.md)。
 
 ## 7. 性能板测方法和基线
 
@@ -289,7 +289,7 @@ generation 146 使用本代新密钥和 counter 146 完成签名全量下载、4
 CoreMark 与四项 Ramspeed 都按 240/160 线性增长，构成实际 CPU0/Bus 240 MHz 的板端
 证据。Whetstone 混合浮点和库实现，不单独用于反推时钟。每次值、统计、UART raw
 SHA-256、签名身份和回读差异见
-[generation 146 完整记录](../../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
+[generation 146 完整记录](../../../docs/verification/bk7258/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 
 ## 8. 暂缓项与退出条件
 
@@ -302,7 +302,7 @@ SHA-256、签名身份和回读差异见
 | 完整 blktest | 真实块设备测试有破坏数据风险 | 专用测试介质/分区与可恢复镜像 |
 | 剩余 xTS | generation 149 已完成非破坏性核心；LIBCXX、GPIO/UART loopback、AP RTC/timer/RNG、`driver_test`、受控 fault 与破坏性介质用例未覆盖 | 按夹具和破坏性边界拆分执行，不能用 host 或历史记录升级当前实板状态 |
 | 12h soak | owner 于 2026-08-27 确认延期 | 后续恢复时使用产品 profile、独立日志和明确健康判据 |
-| 主机测试 | 现役 chip/API、当前 Agent 分区生成契约和全部分层目标已执行 | `run_tests.sh` exit 0 且出现 `BK7258_HOST_TEST_PASS`；见主机回归记录 |
+| 主机测试 | 现役 chip/API、当前 Agent 分区生成契约和全部分层目标已执行 | `make -C tests/host/bk7258 check` exit 0 且出现 `BK7258_HOST_TEST_PASS`；见主机回归记录 |
 
 因此适配矩阵中 P0 工作包保持“部分完成”：本轮代码、当前代非破坏性 xTS 核心、
 诊断专项、主机回归和三项性能基线已经闭环；但不能用它们替代仍需夹具的外设用例、

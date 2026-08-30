@@ -110,7 +110,7 @@ IRQ 的内存优化章节，不是符合性门槛；当前选择完整 80 项数
 | 产物不叫 `vela_ap.bin` | ✅ 事实成立，属于多镜像设计 | 产物按分区角色命名，避免把 CP/AP/BL1/BL2 或 pair 混成一个泛化名称；README 已说明 |
 | 团队 `tests/` 没有 linkfile | 🟠 事实成立，不需要修复 | 测试从团队仓直接运行并编译现役源码；它不是 NuttX 编译树的一部分，根 README 已给唯一入口 |
 | SDK bundle 未入库 | ✅ 事实成立，属于第三方边界 | manifest 固定源码和 revision，本机从干净 SDK checkout 确定性重建；忽略第三方二进制，README 已给重建/校验步骤 |
-| 硬件证据与 AI 日志同在 `logs/` | ✅ 低风险组织问题 | `logs/lijian/` 才是官方格式 AI 日志；七个 `logs/bk7258-*` 是早期硬件证据。README 已区分，新证据统一进入 `progress/verification/` |
+| 硬件证据与 AI 日志同在 `logs/` | ✅ 低风险组织问题 | `logs/lijian/` 才是官方格式 AI 日志；七个 `logs/bk7258-*` 是早期硬件证据。README 已区分，新证据统一进入 `docs/verification/bk7258/` |
 
 ## 尚未关闭的事项
 
@@ -120,5 +120,5 @@ IRQ 的内存优化章节，不是符合性门槛；当前选择完整 80 项数
    全局用户 prompt。CMake 与 Classic Make 保留 AP 侧误选的构建期守卫。
 2. 若评审方要求目录名逐字匹配而不接受架构说明，可新增一个明确标为
    CP-only diagnostic 的 `configs/nsh`；不得把它列为正常 CP/AP 产品配置。
-3. 硬件证据目录后续可迁移到 `progress/evidence/`，但移动历史引用需要独立审计，
-   本次只澄清边界。
+3. 早期 `logs/bk7258-*` 原始证据按比赛留痕要求保留；新的结构化结论只写入
+   `docs/verification/bk7258/`，不再建立第二套动态进度目录。

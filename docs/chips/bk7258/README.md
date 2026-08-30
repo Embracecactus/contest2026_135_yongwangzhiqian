@@ -1,6 +1,6 @@
 # BK7258 chip 层文档
 
-本目录对应源码 [`chips/bk7258/`](../../../chips/bk7258/)，只收录不依赖某一块板卡
+本目录对应源码 `chips/bk7258/`，只收录不依赖某一块板卡
 原理图、引脚或单板配置的 SoC 共用契约与调试资料。
 
 | 文档 | 定位 | 时效 |
@@ -12,13 +12,13 @@
 
 板卡硬件、T5-Board/T5AI-Core/AIDK profile、COM 口、下载边界和实板结论仍从
 [BK7258/T5-AI 平台文档](../../platforms/bk7258/README.md)进入。动态状态与正式验收以
-[`progress/CURRENT.md`](../../../progress/CURRENT.md)、当前 manifest、resolved config 和
+`boards/bk7258/CONFIGS.md`、当前 manifest、resolved config 和
 权威分区 CSV 为准。
 
 ## 归档规则
 
 - 修改 `chips/bk7258/` 的共享 ABI、IRQ、clock、PM、bootloader 或 SDK wrapper 时，
   同步更新本目录；
-- 只在某一块板上验证过的结果必须写明板型，并放在板级文档或 `progress/verification/`；
+- 只在某一块板上验证过的结果必须写明板型，并放在板级文档或 `docs/verification/bk7258/`；
 - 历史文档保留当时事实，但必须在开头注明已经被哪份当前契约取代；
 - 不把 SDK OPP 名称直接当成某个物理 CPU 的 MHz。

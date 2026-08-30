@@ -1051,7 +1051,6 @@ Phase A、N7 AP primary、N8 AP SMP 和 N9 RPTUN/RPMsg wrapper 均已完成并�
 N9 冻结结果为：32 KiB carveout、CP resource/master + AP remote、SDK mailbox channel
 wrapper、AP CPU0-only OpenAMP gateway、shared pending level state、动态 Name Service、
 generation reconnect 和 `syslog_rpmsg`。下一项工程工作应在这个 transport 基线上选择
-独立服务，不再回到 N9-R/N9-A 规划状态。详细实现和 gate 见
-[N9 正式计划/完成记录](prompts/09-n9-rptun-rpmsg.md)、
-[source verification](n9-rptun-source-verification.md)及
-[17 项评审处置](n9-plan-review-2026-07-31.md)。
+独立服务，不再回到 N9-R/N9-A 规划状态。原 N9 计划与 17 项评审处置均为
+已归档过程材料；[source verification](n9-rptun-source-verification.md) 保留作为
+可复核技术证据，现役结论应以源码、配置和最新验证记录为准。

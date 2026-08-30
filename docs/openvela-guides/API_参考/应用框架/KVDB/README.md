@@ -1,3 +1,0 @@
-# API_参考/应用框架/KVDB
-
-- [1733-KVDB_API](1733-KVDB_API.md)
