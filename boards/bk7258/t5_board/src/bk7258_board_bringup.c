@@ -45,7 +45,7 @@ int bk7258_board_gt1151_initialize(void);
 int bk7258_t5_board_camera_initialize(void);
 #endif
 
-#ifdef CONFIG_BK7258_LCD
+#ifdef CONFIG_BK7258_T5_BOARD_LCD
 int bk7258_t5_board_lcd_initialize(void);
 #endif
 
@@ -87,7 +87,7 @@ static const struct bk7258_sdio_board_s g_bk7258_t5_board_sdio =
 #  include <arch/chip/bk7258_aud.h>
 #endif
 
-#ifdef CONFIG_BK7258_LCD
+#ifdef CONFIG_BK7258_T5_BOARD_LCD
 #  include <arch/chip/bk7258_lcd.h>
 #endif
 
@@ -305,7 +305,7 @@ static int bk7258_t5_board_attached_devices_initialize(void)
     }
 #endif
 
-#ifdef CONFIG_BK7258_LCD
+#ifdef CONFIG_BK7258_T5_BOARD_LCD
   ret = bk7258_t5_board_lcd_initialize();
   if (ret < 0)
     {

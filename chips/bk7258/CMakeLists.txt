@@ -21,6 +21,7 @@ set(BK7258_SDK_DIR "$ENV{BK7258_SDK_DIR}")
 set(BK7258_SDK_INCLUDE_DIR "${BK7258_SDK_DIR}/include")
 set(BK7258_SDK_CONFIG_DIR "${BK7258_SDK_DIR}/config")
 set(BK7258_SDK_LIBS_DIR "${BK7258_SDK_DIR}/libs")
+set(BK7258_NUTTX_OVERLAY_DIR "${NUTTX_DIR}/../vendor/beken/nuttx")
 
 function(bk7258_wrap_sdk_symbol)
   foreach(BK7258_SYMBOL ${ARGN})
@@ -319,12 +320,24 @@ foreach(BK7258_AP_PERIPHERAL AUD GPIOE I2C I2S)
   endif()
 endforeach()
 
-if(CONFIG_BK7258_LCD)
-  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lcd_rgb.c)
+if(CONFIG_BK7258_LCD_RGB)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ap/bk7258_lcd_rgb.c
+       ap/bk7258_lcd_3wire.c)
+endif()
+
+if(CONFIG_LCD_ILI9488_RGB)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/lcd/ili9488_rgb.c)
 endif()
 
 if(CONFIG_BK7258_LCD_SPI)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lcd_spi.c)
+endif()
+
+if(CONFIG_LCD_GC9D01)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/lcd/gc9d01.c)
 endif()
 
 if(CONFIG_BK7258_LIN)
@@ -559,6 +572,7 @@ target_include_directories(arch PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/cp
     ${CMAKE_CURRENT_SOURCE_DIR}/ap
+    ${BK7258_NUTTX_OVERLAY_DIR}/include
     ${NUTTX_DIR}/arch/arm/src/arm_m
     ${NUTTX_DIR}/arch/arm/src/armv8-m)
 target_include_directories(arch SYSTEM PRIVATE

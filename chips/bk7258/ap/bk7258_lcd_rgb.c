@@ -13,7 +13,7 @@
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_BK7258_LCD
+#ifdef CONFIG_BK7258_LCD_RGB
 
 #include <errno.h>
 #include <stdbool.h>
@@ -488,7 +488,6 @@ int bk7258_lcd_initialize(
 
   priv->board = board;
   if (priv->board == NULL || priv->board->panel == NULL ||
-      priv->board->panel->initialize == NULL ||
       priv->board->rgb_pins_initialize == NULL ||
       priv->board->set_backlight == NULL)
     {
@@ -530,14 +529,6 @@ int bk7258_lcd_initialize(
 
   priv->framebuf = (FAR uint8_t *)
     (((uintptr_t)priv->framebuf_alloc + 15u) & ~(uintptr_t)15u);
-
-  ret = panel->initialize(priv->board);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "BK7258 LCD: %s init failed: %d\n",
-             panel->name, ret);
-      goto errout_with_framebuffer;
-    }
 
   ret = priv->board->rgb_pins_initialize(priv->board);
   if (ret < 0)
@@ -668,4 +659,4 @@ errout:
   return ret;
 }
 
-#endif /* CONFIG_BK7258_LCD */
+#endif /* CONFIG_BK7258_LCD_RGB */

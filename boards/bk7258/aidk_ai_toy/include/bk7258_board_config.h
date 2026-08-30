@@ -35,8 +35,9 @@
 #define BK7258_BOARD_HAS_RTT                     0
 
 /* Board capabilities from BK7258 AI Demo schematic V1.0 plus the current
- * assembly state supplied by the owner.  CN5's single-screen module and
- * CN10's motor are not connected, so their routes must not be initialized.
+ * assembly state supplied by the owner.  CN5's optional single-screen module
+ * and CN10's motor are not connected.  The two directly fitted GC9D01 panels
+ * are independent of CN5 and are initialized by this profile.
  */
 
 #define BK7258_BOARD_HAS_USB_UART                1  /* CH340E -> UART0 (P10/P11) */
@@ -48,12 +49,15 @@
 #define BK7258_BOARD_HAS_SPI_LCD_CONNECTOR       0
 #define BK7258_BOARD_HAS_QSPI_LCD_CONNECTOR      1  /* CN5, QSPI P2-P7 */
 #define BK7258_BOARD_HAS_QSPI_LCD                0  /* CN5 module disconnected */
+#define BK7258_BOARD_HAS_DUAL_SPI_LCD            1  /* 2 x GC9D01, 160x160 */
 #define BK7258_BOARD_HAS_DVP_CONNECTOR           1  /* GC2145 24pin DVP */
 #define BK7258_BOARD_HAS_CAMERA                  1
 #define BK7258_BOARD_HAS_MOTOR                   0  /* CN10 disconnected */
 #define BK7258_BOARD_HAS_MFRC522                 1  /* NFC UART1 (P0/P1) */
 #define BK7258_BOARD_HAS_SC7A20                  1  /* SoC I2C0 (P20/P21) */
 #define BK7258_BOARD_HAS_USB0                    1  /* Type-C DP/DM to chip */
+#define BK7258_BOARD_LCD_PANEL_COUNT             2
+#define BK7258_BOARD_LCD_SHARED_BACKLIGHT        1
 
 #define BK7258_BOARD_CN5_DISPLAY_CONNECTED       0
 #define BK7258_BOARD_CN10_MOTOR_CONNECTED        0
@@ -88,7 +92,45 @@
 #define BK7258_BOARD_SPEAKER_ON_DELAY_MS         10u
 #define BK7258_BOARD_SPEAKER_OFF_DELAY_MS        30u
 
-/* SD NAND on SDIO map mode 1 (P14-P19), soldered, no card detect. */
+/* Both LCD panels share LCD_BL.  P25 drives Q3 through R61, so a high PWM
+ * level turns on the common low-side NPN and enables both backlights.
+ */
+
+#define BK7258_BOARD_LCD_BACKLIGHT_PWM_GPIO      25
+#define BK7258_BOARD_LCD_BACKLIGHT_PWM_CHANNEL    5
+#define BK7258_BOARD_LCD_BACKLIGHT_ACTIVE_HIGH    1
+
+/* The fitted GC9D01 panels are four-wire SPI devices refreshed through the
+ * SDK's QSPI mapping mode.  LCD1 uses QSPI1 and LCD2 uses QSPI0.  P6/P7 are
+ * control GPIOs for LCD2, not quad data lanes.  LEDA/VDD are tied to the
+ * shared P52-controlled LDO_3V3 rail, so LCD holds its own SDK PM vote.
+ */
+
+#define BK7258_BOARD_LCD_WIDTH                   160u
+#define BK7258_BOARD_LCD_HEIGHT                  160u
+#define BK7258_BOARD_LCD_LDO_GPIO                 52
+
+#define BK7258_BOARD_LCD1_FBNO                     0
+#define BK7258_BOARD_LCD1_SPI_ID                   1
+#define BK7258_BOARD_LCD1_CLK_GPIO                 2
+#define BK7258_BOARD_LCD1_CS_GPIO                  3
+#define BK7258_BOARD_LCD1_DATA_GPIO                4
+#define BK7258_BOARD_LCD1_DC_GPIO                  5
+#define BK7258_BOARD_LCD1_RESET_GPIO              45
+
+#define BK7258_BOARD_LCD2_FBNO                     1
+#define BK7258_BOARD_LCD2_SPI_ID                   0
+#define BK7258_BOARD_LCD2_CLK_GPIO                22
+#define BK7258_BOARD_LCD2_CS_GPIO                 23
+#define BK7258_BOARD_LCD2_DATA_GPIO               24
+#define BK7258_BOARD_LCD2_DC_GPIO                  7
+#define BK7258_BOARD_LCD2_RESET_GPIO               6
+
+/* SD NAND on SDIO map mode 1 (P14-P19), soldered, no card detect.
+ * NAND_VDD is tied through R45 to the active-high LDO_3V3 rail controlled by
+ * P52 LDO33_EN.  SDIO, NFC and LCD must hold independent SDK PM votes on that
+ * shared rail.
+ */
 
 #define BK7258_BOARD_SDIO_MAP_MODE                1
 #define BK7258_BOARD_SDIO_CLK_GPIO               14
@@ -228,6 +270,18 @@
 
 #define BK7258_BOARD_MINIMAL_BRINGUP             0
 #define BK7258_BOARD_HARDWARE_VERIFIED           0
+
+/* Battery facts confirmed by the official AIDK SDK implementation.  ADC0 is
+ * the internal VBAT path.  P51 high means external 5 V is present; while it
+ * is high, P26 low means charge complete and P26 high means charging.
+ */
+
+#define BK7258_BOARD_VBAT_ADC_DEV              "/dev/adc0"
+#define BK7258_BOARD_VBAT_SCALE_NUMERATOR       667u
+#define BK7258_BOARD_VBAT_SCALE_DENOMINATOR    1000u
+#define BK7258_BOARD_VBAT_OFFSET_MV               40u
+#define BK7258_BOARD_5V_DET_ACTIVE_HIGH             1
+#define BK7258_BOARD_FULL_DET_ACTIVE_LOW            1
 
 /* Schematic conflict records; no route is enabled from these facts. */
 

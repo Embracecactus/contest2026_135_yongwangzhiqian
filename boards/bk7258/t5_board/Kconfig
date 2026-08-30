@@ -1,2 +1,41 @@
 # Shared BK7258 options; this board's defconfigs select T5-Board.
 source "../vendor/beken/boards/bk7258/common/Kconfig"
+
+config BK7258_T5_BOARD_LCD
+	bool "RGB framebuffer with ILI9488 panel"
+	default n
+	depends on BK7258_BOARD_T5_BOARD && BK7258_AP_CORE && BK7258_PSRAM
+	select BK7258_LCD_RGB
+	select LCD_ILI9488_RGB
+	help
+		Bind the T5-Board V1.0.2 RGB connector and T35P128CQ-02 ILI9488
+		panel to the BK7258 RGB framebuffer controller.  The scanout buffer
+		is exported as /dev/fb0.
+
+config BK7258_LCD_VALIDATION_PATTERN
+	bool "Fill the LCD with a startup validation pattern"
+	default n
+	depends on BK7258_T5_BOARD_LCD
+	help
+		Fill /dev/fb0 with red, green, blue and white bars after framebuffer
+		registration.  This is a T5-Board display bring-up option.
+
+config BK7258_GT1151
+	bool "GT1151 capacitive touch panel"
+	default n
+	depends on BK7258_AP_CORE
+	select I2C
+	select I2C_BITBANG
+	select INPUT
+	select INPUT_GT9XX
+	help
+		Register the T5-Board LCD sub-board GT1151 through NuttX's standard
+		GT9xx driver.  GPIO13/GPIO15 form its board-owned bitbang-I2C bus.
+
+config BK7258_GT1151_VALIDATION
+	bool "Continuously report GT1151 validation samples"
+	default n
+	depends on BK7258_GT1151
+	help
+		Report samples from the T5-Board GT1151 /dev/input0 device for
+		driver-check configurations.

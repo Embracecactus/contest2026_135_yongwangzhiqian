@@ -29,6 +29,8 @@ VPATH += chip$(DELIM)cp
 VPATH += chip$(DELIM)ap
 VPATH += chip$(DELIM)bootloader$(DELIM)bl2
 VPATH += armv8-m
+BK7258_NUTTX_OVERLAY := $(TOPDIR)$(DELIM)..$(DELIM)vendor$(DELIM)beken$(DELIM)nuttx
+VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)lcd
 
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)common
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)cp
@@ -42,6 +44,7 @@ INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)armv8-m
 # them.
 
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)arm_m
+INCLUDES += ${INCDIR_PREFIX}$(BK7258_NUTTX_OVERLAY)$(DELIM)include
 
 # The unified builder injects the one verified SDK profile for this role.
 
@@ -365,11 +368,17 @@ endif
 ifeq ($(CONFIG_BK7258_I2S),y)
 BK7258_AP_BASE_CSRCS += bk7258_i2s.c
 endif
-ifeq ($(CONFIG_BK7258_LCD),y)
-BK7258_AP_BASE_CSRCS += bk7258_lcd_rgb.c
+ifeq ($(CONFIG_BK7258_LCD_RGB),y)
+BK7258_AP_BASE_CSRCS += bk7258_lcd_rgb.c bk7258_lcd_3wire.c
+endif
+ifeq ($(CONFIG_LCD_ILI9488_RGB),y)
+BK7258_AP_BASE_CSRCS += ili9488_rgb.c
 endif
 ifeq ($(CONFIG_BK7258_LCD_SPI),y)
 BK7258_AP_BASE_CSRCS += bk7258_lcd_spi.c
+endif
+ifeq ($(CONFIG_LCD_GC9D01),y)
+BK7258_AP_BASE_CSRCS += gc9d01.c
 endif
 ifeq ($(CONFIG_BK7258_LIN),y)
 BK7258_AP_BASE_CSRCS += bk7258_lin.c

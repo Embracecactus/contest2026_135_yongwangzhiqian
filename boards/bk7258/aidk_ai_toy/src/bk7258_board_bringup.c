@@ -3,8 +3,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * AIDK board hook: UART0 console, MIC, SD NAND, PA speaker, GC2145 camera
- * and the bounded SC7A20H Phase 0 identity probe.
+ * AIDK board hook: UART0 console, audio, SD NAND, dual GC9D01 displays,
+ * GC2145 camera, sensors, NFC, battery status and recovery transports.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -25,6 +25,18 @@ extern int bk7258_aidk_camera_initialize(void);
 #endif
 #ifdef CONFIG_BK7258_AIDK_SC7A20_PHASE0
 extern int bk7258_aidk_sc7a20_phase0_probe(void);
+#endif
+#ifdef CONFIG_BK7258_AIDK_SC7A20
+extern int bk7258_aidk_sc7a20_initialize(void);
+#endif
+#ifdef CONFIG_BK7258_AIDK_MFRC522
+extern int bk7258_aidk_mfrc522_initialize(void);
+#endif
+#ifdef CONFIG_BK7258_AIDK_BATTERY
+extern int bk7258_aidk_battery_initialize(void);
+#endif
+#ifdef CONFIG_BK7258_AIDK_DUAL_LCD
+extern int bk7258_aidk_dual_lcd_initialize(void);
 #endif
 static const struct bk7258_mic_config_s g_bk7258_aidk_mic_config =
 {
@@ -98,6 +110,19 @@ int bk7258_board_ap_initialize(void)
       return ret;
     }
 
+#ifdef CONFIG_BK7258_AIDK_DUAL_LCD
+  /* SDIO initialization above releases the SDK's stale P2-P4 mapping before
+   * LCD1 claims QSPI1.  Initialize LCD2 before camera and battery bring-up,
+   * which subsequently reclaim QSPI0's unused P27 and P26 lanes.
+   */
+
+  ret = bk7258_aidk_dual_lcd_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "AIDK dual GC9D01 init failed: %d\n", ret);
+    }
+#endif
+
 #ifdef CONFIG_BK7258_AIDK_CAMERA_PHASE0
   ret = bk7258_aidk_camera_phase0_probe();
   if (ret < 0)
@@ -126,6 +151,30 @@ int bk7258_board_ap_initialize(void)
     {
       return ret;
     }
+
+#ifdef CONFIG_BK7258_AIDK_SC7A20
+  ret = bk7258_aidk_sc7a20_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "AIDK SC7A20H init failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_AIDK_MFRC522
+  ret = bk7258_aidk_mfrc522_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "AIDK MFRC522 init failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_AIDK_BATTERY
+  ret = bk7258_aidk_battery_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "AIDK battery init failed: %d\n", ret);
+    }
+#endif
 
 #ifdef CONFIG_BK7258_OTA_SOURCE_USB
   ret = bk7258_ota_source_usb_initialize();

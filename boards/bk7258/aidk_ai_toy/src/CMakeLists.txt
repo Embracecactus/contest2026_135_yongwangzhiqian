@@ -35,3 +35,19 @@ endif()
 if(CONFIG_BK7258_AIDK_SC7A20_PHASE0)
   target_sources(board PRIVATE bk7258_aidk_sc7a20_phase0.c)
 endif()
+
+if(CONFIG_BK7258_AIDK_SC7A20)
+  target_sources(board PRIVATE bk7258_aidk_sc7a20.c)
+endif()
+
+if(CONFIG_BK7258_AIDK_MFRC522)
+  target_sources(board PRIVATE bk7258_aidk_mfrc522.c)
+endif()
+
+if(CONFIG_BK7258_AIDK_BATTERY)
+  target_sources(board PRIVATE bk7258_aidk_battery.c)
+endif()
+
+if(CONFIG_BK7258_AIDK_DUAL_LCD)
+  target_sources(board PRIVATE bk7258_aidk_dual_lcd.c)
+endif()

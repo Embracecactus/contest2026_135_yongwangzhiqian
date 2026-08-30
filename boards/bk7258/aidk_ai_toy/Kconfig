@@ -14,6 +14,66 @@ config BK7258_AIDK_SC7A20_PHASE0
 		configure output data rate, axes, FIFO or interrupts and therefore is
 		not a production accelerometer driver.
 
+config BK7258_AIDK_SC7A20
+	bool "AIDK SC7A20H accelerometer"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE
+	depends on BK7258_I2C && BK7258_I2C_BUS = 0
+	select SENSORS
+	help
+		Bind the fitted SC7A20H accelerometer on I2C0 to the standard NuttX
+		sensor upper half as /dev/uorb/sensor_accel0.  Samples use struct
+		sensor_accel and SI units.  This is the production sensor binding and
+		must not be enabled with the identity-only Phase 0 probe.
+
+config BK7258_AIDK_MFRC522
+	bool "AIDK MFRC522 NFC reader as /dev/nfc0"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE
+	depends on BK7258_UART1
+	select DRIVERS_CONTACTLESS
+	select CL_MFRC522
+	help
+		Bind the MFRC522 RFID/NFC reader on the UART1 host interface (P0/P1)
+		as /dev/nfc0.  The board supplies only a UART register-transport adapter;
+		the standard NuttX MFRC522 driver owns ISO14443-A anticollision, cascade
+		selection, CRC and the MFRC522IOC_* interface.
+
+config BK7258_AIDK_BATTERY
+	bool "AIDK battery/charge status as /dev/battery"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE
+	select BATTERY_CHARGER
+	select BK7258_SARADC
+	help
+		Expose the ETA4322 charger and VBAT cell through the standard NuttX
+		battery charger upper half at /dev/bat0.  BATIOC_STATE uses P51 5V_DET
+		and active-low P26 FULL_DET; BATIOC_GET_VOLTAGE triggers the ADC0 VBAT
+		conversion.  The paired CP image must select BK7258_SARADC_SERVER.
+
+config BK7258_AIDK_DUAL_LCD
+	bool "AIDK dual GC9D01 SPI framebuffers"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE && BK7258_PSRAM
+	select BK7258_LCD_SPI
+	select LCD
+	select LCD_GC9D01
+	select LCD_FRAMEBUFFER
+	select LCD_EXTERNINIT
+	select DRIVERS_VIDEO
+	select VIDEO_FB
+	help
+		Bind both fitted 160x160 GC9D01 panels to the standard NuttX
+		framebuffer ABI.  LCD1 is /dev/fb0 on QSPI1 and LCD2 is /dev/fb1 on
+		QSPI0.  The board owns the distinct RESET/DC pins and arbitrates the
+		P25 backlight and P52 LDO vote shared by both panels.  The generic
+		NuttX GC9D01 driver owns panel commands and state; the BK7258 chip
+		transport owns only the SPI-over-QSPI DMA data path.
+
 config BK7258_AIDK_CAMERA
 	bool "AIDK GC2145 DVP camera as /dev/video0"
 	default n

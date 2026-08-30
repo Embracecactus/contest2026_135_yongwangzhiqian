@@ -3,6 +3,7 @@
 .DEFAULT_GOAL := all
 
 SOURCE := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+CHIP_ROOT := $(abspath $(SOURCE)/../..)
 
 ifeq ($(strip $(OUT)),)
 $(error OUT is required)
@@ -57,7 +58,7 @@ endif
 
 CPUFLAGS := -mcpu=cortex-m33 -mthumb -mfloat-abi=soft
 CPPFLAGS := -I$(SOURCE) -I$(SOURCE)/include -I$(SOURCE)/.. \
-            -I$(SOURCE)/../../include \
+            -I$(CHIP_ROOT)/include \
             -I$(dir $(PARTITION_HEADER)) -I$(BOOTUTIL)/include \
             -I$(BOOTUTIL)/src -I$(TINYCRYPT)/include -I$(ASN1)/include \
             -include $(CONFIG_HEADER)

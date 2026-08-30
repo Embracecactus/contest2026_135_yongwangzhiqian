@@ -9,7 +9,7 @@
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_BK7258_LCD
+#ifdef CONFIG_BK7258_T5_BOARD_LCD
 
 #include <errno.h>
 #include <stdbool.h>
@@ -18,11 +18,12 @@
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_lcd.h>
+#include <arch/chip/bk7258_lcd_3wire.h>
 #include <arch/chip/bk7258_pinmux.h>
 
-#include <driver/gpio.h>
+#include <nuttx/lcd/ili9488_rgb.h>
 
-#include "ili9488_rgb.h"
+#include <driver/gpio.h>
 
 /* The v3.1.1.9 AP archive exposes the GPIO device mapper but not its internal
  * header through the board wrapper bundle.
@@ -177,10 +178,18 @@ static int t5_board_lcd_set_backlight(
          OK : -EIO;
 }
 
+static const struct bk7258_lcd_panel_s g_t5_board_ili9488_panel =
+{
+  .name   = "ili9488",
+  .width  = 320,
+  .height = 480,
+  .format = BK7258_LCD_PIXEL_FORMAT_RGB565,
+};
+
 static const struct bk7258_lcd_board_s g_t5_board_lcd =
 {
   .name  = "T5-Board V1.0.2 T35P128CQ-02",
-  .panel = &g_bk7258_ili9488_rgb_panel,
+  .panel = &g_t5_board_ili9488_panel,
   .timing =
   {
     .pixel_clock_mhz            = 15,
@@ -204,9 +213,50 @@ static const struct bk7258_lcd_board_s g_t5_board_lcd =
   .set_backlight           = t5_board_lcd_set_backlight,
 };
 
+static struct bk7258_lcd_3wire_s g_t5_board_lcd_3wire =
+{
+  .clock_gpio       = BK7258_BOARD_LCD_SPI_CLK_GPIO,
+  .chip_select_gpio = BK7258_BOARD_LCD_SPI_CS_GPIO,
+  .data_gpio        = BK7258_BOARD_LCD_SPI_SDI_GPIO,
+  .reset_gpio       = BK7258_BOARD_LCD_RESET_GPIO,
+};
+
+static const struct ili9488_rgb_ops_s g_t5_board_ili9488_ops =
+{
+  .reset = bk7258_lcd_3wire_reset,
+  .write = bk7258_lcd_3wire_write,
+};
+
 int bk7258_t5_board_lcd_initialize(void)
 {
+  int ret;
+
+  ret = g_t5_board_lcd.control_pins_initialize(&g_t5_board_lcd);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = g_t5_board_lcd.set_backlight(&g_t5_board_lcd, false);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_lcd_3wire_initialize(&g_t5_board_lcd_3wire);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = ili9488_rgb_initialize(&g_t5_board_ili9488_ops,
+                                &g_t5_board_lcd_3wire);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   return bk7258_lcd_initialize(&g_t5_board_lcd);
 }
 
-#endif /* CONFIG_BK7258_LCD */
+#endif /* CONFIG_BK7258_T5_BOARD_LCD */

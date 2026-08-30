@@ -45,8 +45,8 @@ logical base pair, not two product variants.
 | Physical board | Normal openvela CP | Normal openvela AP | Additional maintained purpose |
 |---|---|---|---|
 | T5-Board | `openvela_cp` | `openvela_ap` | `xts`, `perf` |
-| T5AI-Core | `openvela_cp` | `openvela_ap` | paired `drivercheck_cp` / `drivercheck_ap` |
-| AIDK AI Toy | `openvela_cp` | `openvela_ap` | none |
+| T5AI-Core | `openvela_cp` | `openvela_ap` | `xts`; paired `drivercheck_cp` / `drivercheck_ap` |
+| AIDK AI Toy | `openvela_cp` | `openvela_ap` | `xts` CP paired with `openvela_ap` |
 
 The three normal pairs expose the fitted board capabilities and openvela
 system services but do not select Vela Claw, AI Agent, UIKit/LVGL UI or another
@@ -97,14 +97,16 @@ NSH continues to `rcS` even when `BOARDIOC_FINALINIT` returns an error.  Any
 future service added to `rcS` must therefore check its own required mounts or
 devices before starting.
 
-The CP XTS and driver-check profiles intentionally retain their diagnostic
-startup baseline.  `t5_board/configs/xts` is also the maintained P0 diagnostic
-profile: it keeps AP/RPTUN/Wi-Fi, Trace, watchdog supervision, Backtrace,
-Allsyms, IRQ/critical-section/CPU-load monitoring and memory stress together
-so one image can reproduce system-level faults.  AP physical peripherals
-still belong to `bk7258_ap_main()` and the selected physical-board bindings;
-CP ROMFS scripts must not initialize AP-owned LCD, touch, audio, camera or
-removable storage.
+The three CP XTS profiles retain the normal CP diagnostic startup baseline.
+`t5_board/configs/xts` is also the maintained P0 diagnostic profile: it keeps
+AP/RPTUN/Wi-Fi, Trace, watchdog supervision, Backtrace, Allsyms,
+IRQ/critical-section/CPU-load monitoring and memory stress together so one
+image can reproduce system-level faults.  The separate T5AI-Core
+`drivercheck_cp` profile intentionally has no ROMFS startup scripts or
+SYSINIT/FINALINIT/RCS marker contract and is not accepted by the XTS pytest
+suite.  AP physical peripherals still belong to `bk7258_ap_main()` and the
+selected physical-board bindings; CP ROMFS scripts must not initialize
+AP-owned LCD, touch, audio, camera or removable storage.
 
 The XTS profile alone registers 64 KiB of the CP role-local PSRAM as a second
 NuttX system-heap region (`MM_REGIONS=2`).  This keeps the upstream 16 KiB
@@ -113,7 +115,14 @@ required by the scheduler suites.  The remaining 64 KiB stays in the CP
 private PSRAM heap.  This is a diagnostic capacity policy, not a change to
 base CP/AP profiles or to the chip's role-partition ownership.  The
 generation 147--149 diagnosis and board evidence are recorded in
-[`../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md`](../../progress/verification/2026-08-27-bk7258-p0-xts-completion.md).
+[`../../docs/verification/bk7258/2026-08-27-bk7258-p0-xts-completion.md`](../../docs/verification/bk7258/2026-08-27-bk7258-p0-xts-completion.md).
+
+Each physical board has a CP `xts` profile paired with that board's normal
+`openvela_ap` profile.  These profiles enable the same linked BK7258 CMocka
+CP/AP lifecycle contract; the normal product profiles do not carry test
+applications.  Official pytest drives that CMocka program over the UART0 CP
+NuttShell, applies a BK7258-wide boot baseline, then selects additional markers
+from an explicit `t5_board`, `t5ai_core`, or `aidk_ai_toy` board contract.
 
 `t5_board/configs/perf` is the one narrow measurement-policy exception to the
 profile-directory rule below.  It does not introduce another physical-board
@@ -133,12 +142,12 @@ minimal contract: polling TX reached NSH, but interrupt-driven UART RX could
 not accept commands.  Generation 145 restored only the bridge and completed
 CoreMark, Ramspeed and Whetstone in ten independent sessions each.  The exact
 config/image identities and results are recorded in
-[`../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md`](../../progress/verification/2026-08-27-bk7258-p0-diagnostics-performance.md).
+[`../../docs/verification/bk7258/2026-08-27-bk7258-p0-diagnostics-performance.md`](../../docs/verification/bk7258/2026-08-27-bk7258-p0-diagnostics-performance.md).
 Generation 146 then selected SDK OPP 240M and completed a fresh signed full
 download, stable read-back, cold boot, and another ten independent sessions
 for each benchmark.  Its exact identities and 160-to-240 MHz comparison are
 recorded in
-[`../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md`](../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md).
+[`../../docs/verification/bk7258/2026-08-27-bk7258-sdk-clock-240m-validation.md`](../../docs/verification/bk7258/2026-08-27-bk7258-sdk-clock-240m-validation.md).
 
 Every full-flash acceptance run, including a switch between these two
 profiles, is a new trust generation.  It must use freshly generated, distinct

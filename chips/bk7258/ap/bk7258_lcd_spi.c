@@ -3,12 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 SPI display controller to NuttX framebuffer wrapper.
- *
- * Panel commands and physical pin assignments are intentionally outside
- * this file.  The selected board binds an SDK panel descriptor and the RESET
- * / DC control pins; this chip layer owns only the SPI-LCD controller,
- * framebuffer storage and the standard /dev/fb0 interface.
+ * BK7258 SPI-over-QSPI transport for NuttX LCD panel drivers.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -20,305 +15,231 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <syslog.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
-#include <nuttx/video/fb.h>
 
 #include <arch/chip/bk7258_lcd_spi.h>
 
+#include <sdkconfig.h>
+#include <driver/gpio.h>
 #include <driver/lcd_spi.h>
 #include <driver/lcd_types.h>
 
-/* The RGB565 framebuffer is exposed to NuttX users directly.  The SDK SPI
- * driver sends the panel a byte stream whose format is fixed by the SDK
- * CONFIG_LCD_SPI_COLOR_DEPTH_BYTE setting; this wrapper only supports the
- * two-byte RGB565 contract that the existing display path already uses.
- */
+#define BK7258_LCD_SPI_CONTROLLERS     2
+#define BK7258_LCD_SPI_PIXEL_BYTES     2u
+#define BK7258_LCD_SPI_DMA_ALIGNMENT  16u
 
-#define BK7258_LCD_SPI_BYTES_PER_PIXEL 2u
+#if !CONFIG_LCD_SPI_REFRESH_WITH_QSPI_MAPPING_MODE
+#  error "BK7258 NuttX LCD transport requires QSPI mapping-mode refresh"
+#endif
 
-struct bk7258_lcd_spi_priv_s
+#if CONFIG_LCD_SPI_COLOR_DEPTH_BYTE != BK7258_LCD_SPI_PIXEL_BYTES
+#  error "BK7258 NuttX LCD transport requires the SDK RGB565 data path"
+#endif
+
+struct bk7258_lcd_spi_bus_s
 {
-  struct fb_vtable_s vtable;
-  mutex_t lock;
-  const struct bk7258_lcd_spi_board_s *board;
-  uint8_t *framebuf_alloc;
-  uint8_t *framebuf;
-  size_t framebuf_bytes;
-  uint16_t power;
-  bool inited;
+  struct bk7258_lcd_spi_config_s config;
+  FAR uint8_t *txbuf_alloc;
+  FAR uint8_t *txbuf;
+  size_t txbuf_bytes;
 };
 
-static int bk7258_lcd_spi_getvideoinfo(FAR struct fb_vtable_s *vtable,
-                                       FAR struct fb_videoinfo_s *vinfo);
-static int bk7258_lcd_spi_getplaneinfo(FAR struct fb_vtable_s *vtable,
-                                       int planeno,
-                                       FAR struct fb_planeinfo_s *pinfo);
-#ifdef CONFIG_FB_UPDATE
-static int bk7258_lcd_spi_updatearea(FAR struct fb_vtable_s *vtable,
-                                     FAR const struct fb_area_s *area);
-#endif
-static int bk7258_lcd_spi_getpower(FAR struct fb_vtable_s *vtable);
-static int bk7258_lcd_spi_setpower(FAR struct fb_vtable_s *vtable,
-                                   int power);
-static int bk7258_lcd_spi_ioctl(FAR struct fb_vtable_s *vtable, int cmd,
-                                unsigned long arg);
+static mutex_t g_bk7258_lcd_spi_lock = NXMUTEX_INITIALIZER;
+static bool g_bk7258_lcd_spi_used[BK7258_LCD_SPI_CONTROLLERS];
 
-static struct bk7258_lcd_spi_priv_s g_bk7258_lcd_spi =
+int bk7258_lcd_spi_bus_initialize(
+  FAR const struct bk7258_lcd_spi_config_s *config,
+  FAR struct bk7258_lcd_spi_bus_s **bus)
 {
-  .vtable =
-  {
-    .getvideoinfo = bk7258_lcd_spi_getvideoinfo,
-    .getplaneinfo = bk7258_lcd_spi_getplaneinfo,
-#ifdef CONFIG_FB_UPDATE
-    .updatearea   = bk7258_lcd_spi_updatearea,
-#endif
-    .getpower     = bk7258_lcd_spi_getpower,
-    .setpower     = bk7258_lcd_spi_setpower,
-    .ioctl        = bk7258_lcd_spi_ioctl,
-  },
-  .lock           = NXMUTEX_INITIALIZER,
-  .board          = NULL,
-  .framebuf_alloc = NULL,
-  .framebuf       = NULL,
-  .framebuf_bytes = 0,
-  .power          = 0,
-  .inited         = false,
-};
-
-static int bk7258_lcd_spi_getvideoinfo(FAR struct fb_vtable_s *vtable,
-                                       FAR struct fb_videoinfo_s *vinfo)
-{
-  FAR struct bk7258_lcd_spi_priv_s *priv =
-    (FAR struct bk7258_lcd_spi_priv_s *)vtable;
-
-  if (vinfo == NULL || priv->board == NULL)
-    {
-      return -EINVAL;
-    }
-
-  vinfo->fmt     = FB_FMT_RGB16_565;
-  vinfo->xres    = priv->board->width;
-  vinfo->yres    = priv->board->height;
-  vinfo->nplanes = 1;
-  return OK;
-}
-
-static int bk7258_lcd_spi_getplaneinfo(FAR struct fb_vtable_s *vtable,
-                                       int planeno,
-                                       FAR struct fb_planeinfo_s *pinfo)
-{
-  FAR struct bk7258_lcd_spi_priv_s *priv =
-    (FAR struct bk7258_lcd_spi_priv_s *)vtable;
-
-  if (planeno != 0 || pinfo == NULL || priv->framebuf == NULL)
-    {
-      return -EINVAL;
-    }
-
-  pinfo->fbmem  = priv->framebuf;
-  pinfo->fblen  = priv->framebuf_bytes;
-  pinfo->stride = priv->board->width * BK7258_LCD_SPI_BYTES_PER_PIXEL;
-  pinfo->display = 0;
-  pinfo->bpp    = 16;
-  return OK;
-}
-
-#ifdef CONFIG_FB_UPDATE
-static int bk7258_lcd_spi_updatearea(FAR struct fb_vtable_s *vtable,
-                                     FAR const struct fb_area_s *area)
-{
-  FAR struct bk7258_lcd_spi_priv_s *priv =
-    (FAR struct bk7258_lcd_spi_priv_s *)vtable;
-  lcd_display_area_t sdk_area;
-  FAR uint8_t *data;
-  uint16_t width;
-  size_t offset;
-  bk_err_t sdkret;
+  FAR struct bk7258_lcd_spi_bus_s *priv;
+  lcd_qspi_init_cmd_t empty_init = {0};
+  lcd_spi_t spi_config;
+  lcd_device_t device;
+  size_t bytes;
   int ret;
 
-  if (area == NULL || priv->board == NULL || priv->framebuf == NULL)
+  if (config == NULL || bus == NULL || config->name == NULL ||
+      config->spi_id >= BK7258_LCD_SPI_CONTROLLERS ||
+      config->width == 0 || config->height == 0)
     {
       return -EINVAL;
     }
 
-  if (area->xmin > area->xmax || area->ymin > area->ymax ||
-      area->xmax >= priv->board->width ||
-      area->ymax >= priv->board->height)
+  bytes = (size_t)config->width * config->height *
+          BK7258_LCD_SPI_PIXEL_BYTES;
+  if (bytes / BK7258_LCD_SPI_PIXEL_BYTES / config->width != config->height)
     {
-      return -EINVAL;
+      return -EOVERFLOW;
     }
 
-  width = priv->board->width;
-  sdk_area.x_start = area->xmin;
-  sdk_area.y_start = area->ymin;
-  sdk_area.x_end   = area->xmax;
-  sdk_area.y_end   = area->ymax;
-
-  offset = ((size_t)area->ymin * width + area->xmin) *
-           BK7258_LCD_SPI_BYTES_PER_PIXEL;
-  data = priv->framebuf + offset;
-
-  ret = nxmutex_lock(&priv->lock);
-  if (ret < 0)
+  priv = kmm_zalloc(sizeof(*priv));
+  if (priv == NULL)
     {
-      return ret;
-    }
-
-  sdkret = bk_lcd_spi_partial_display(priv->board->spi_id, &sdk_area, data);
-  nxmutex_unlock(&priv->lock);
-
-  return sdkret == BK_OK ? OK : -EIO;
-}
-#endif /* CONFIG_FB_UPDATE */
-
-static int bk7258_lcd_spi_getpower(FAR struct fb_vtable_s *vtable)
-{
-  FAR struct bk7258_lcd_spi_priv_s *priv =
-    (FAR struct bk7258_lcd_spi_priv_s *)vtable;
-
-  return priv->power ? 1 : 0;
-}
-
-static int bk7258_lcd_spi_setpower(FAR struct fb_vtable_s *vtable,
-                                   int power)
-{
-  FAR struct bk7258_lcd_spi_priv_s *priv =
-    (FAR struct bk7258_lcd_spi_priv_s *)vtable;
-  bk_err_t sdkret;
-  int ret;
-
-  if (priv->board == NULL || priv->framebuf == NULL)
-    {
-      return -EIO;
-    }
-
-  ret = nxmutex_lock(&priv->lock);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  if (power > 0 && !priv->power)
-    {
-      sdkret = bk_lcd_spi_frame_display(priv->board->spi_id,
-                                        priv->framebuf,
-                                        priv->framebuf_bytes);
-      if (sdkret != BK_OK)
-        {
-          nxmutex_unlock(&priv->lock);
-          return -EIO;
-        }
-
-      priv->power = 1;
-    }
-  else if (power <= 0 && priv->power)
-    {
-      priv->power = 0;
-    }
-
-  nxmutex_unlock(&priv->lock);
-  return OK;
-}
-
-static int bk7258_lcd_spi_ioctl(FAR struct fb_vtable_s *vtable, int cmd,
-                                unsigned long arg)
-{
-  (void)vtable;
-  (void)cmd;
-  (void)arg;
-  return -ENOTTY;
-}
-
-int bk7258_lcd_spi_initialize(
-  FAR const struct bk7258_lcd_spi_board_s *board)
-{
-  FAR struct bk7258_lcd_spi_priv_s *priv = &g_bk7258_lcd_spi;
-  FAR const lcd_device_t *device;
-  size_t framebuf_bytes;
-  int ret;
-
-  ret = nxmutex_lock(&priv->lock);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  if (priv->inited)
-    {
-      nxmutex_unlock(&priv->lock);
-      return -EBUSY;
-    }
-
-  if (board == NULL || board->name == NULL || board->sdk_device == NULL ||
-      board->width == 0 || board->height == 0)
-    {
-      nxmutex_unlock(&priv->lock);
-      return -EINVAL;
-    }
-
-  if (board->spi_id > 1)
-    {
-      syslog(LOG_ERR, "BK7258 LCD SPI: invalid controller %u\n",
-             board->spi_id);
-      nxmutex_unlock(&priv->lock);
-      return -EINVAL;
-    }
-
-  device = (FAR const lcd_device_t *)board->sdk_device;
-  framebuf_bytes = (size_t)board->width * board->height *
-                   BK7258_LCD_SPI_BYTES_PER_PIXEL;
-
-  priv->framebuf_alloc = kmm_zalloc(framebuf_bytes + 15u);
-  if (priv->framebuf_alloc == NULL)
-    {
-      syslog(LOG_ERR, "BK7258 LCD SPI: framebuffer allocation failed\n");
-      nxmutex_unlock(&priv->lock);
       return -ENOMEM;
     }
 
-  priv->framebuf = (FAR uint8_t *)
-    (((uintptr_t)priv->framebuf_alloc + 15u) & ~(uintptr_t)15u);
-  priv->framebuf_bytes = framebuf_bytes;
-  priv->board = board;
-
-  if (board->control_pins_initialize != NULL)
+  priv->txbuf_alloc = kmm_malloc(bytes + BK7258_LCD_SPI_DMA_ALIGNMENT - 1u);
+  if (priv->txbuf_alloc == NULL)
     {
-      ret = board->control_pins_initialize(board);
-      if (ret < 0)
-        {
-          goto errout_with_framebuffer;
-        }
+      kmm_free(priv);
+      return -ENOMEM;
     }
 
-  bk_lcd_spi_init(board->spi_id, device, board->reset_gpio, board->dc_gpio);
+  priv->txbuf = (FAR uint8_t *)
+    (((uintptr_t)priv->txbuf_alloc + BK7258_LCD_SPI_DMA_ALIGNMENT - 1u) &
+     ~(uintptr_t)(BK7258_LCD_SPI_DMA_ALIGNMENT - 1u));
+  priv->txbuf_bytes = bytes;
+  memcpy(&priv->config, config, sizeof(*config));
 
-  ret = fb_register_device(0, 0, &priv->vtable);
+  ret = nxmutex_lock(&g_bk7258_lcd_spi_lock);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "BK7258 LCD SPI: fb_register failed: %d\n", ret);
-      goto errout_with_framebuffer;
+      kmm_free(priv->txbuf_alloc);
+      kmm_free(priv);
+      return ret;
     }
 
-  priv->inited = true;
-  syslog(LOG_INFO,
-         "BK7258 LCD SPI: ready board=%s panel=%ux%u RGB565 spi=%u fb=%p\n",
-         board->name, board->width, board->height, board->spi_id,
-         priv->framebuf);
+  if (g_bk7258_lcd_spi_used[config->spi_id])
+    {
+      nxmutex_unlock(&g_bk7258_lcd_spi_lock);
+      kmm_free(priv->txbuf_alloc);
+      kmm_free(priv);
+      return -EBUSY;
+    }
 
-  nxmutex_unlock(&priv->lock);
+  g_bk7258_lcd_spi_used[config->spi_id] = true;
+  nxmutex_unlock(&g_bk7258_lcd_spi_lock);
+
+  /* The SDK owns only the BK7258 QSPI/DMA controller implementation.  This
+   * empty descriptor initializes that transport; the NuttX panel driver owns
+   * every GC9D01 command and state transition.
+   */
+
+  memset(&spi_config, 0, sizeof(spi_config));
+  spi_config.clk = LCD_QSPI_60M;
+  spi_config.init_cmd = &empty_init;
+  spi_config.device_init_cmd_len = 0;
+  spi_config.frame_len = bytes;
+
+  memset(&device, 0, sizeof(device));
+  device.name = (FAR char *)config->name;
+  device.type = LCD_TYPE_SPI;
+  device.width = config->width;
+  device.height = config->height;
+  device.spi = &spi_config;
+
+  bk_lcd_spi_init(config->spi_id, &device, config->reset_gpio,
+                  config->dc_gpio);
+
+  *bus = priv;
   return OK;
+}
 
-errout_with_framebuffer:
-  kmm_free(priv->framebuf_alloc);
-  priv->framebuf_alloc = NULL;
-  priv->framebuf = NULL;
-  priv->framebuf_bytes = 0;
-  priv->board = NULL;
-  nxmutex_unlock(&priv->lock);
-  return ret;
+void bk7258_lcd_spi_bus_uninitialize(
+  FAR struct bk7258_lcd_spi_bus_s *bus)
+{
+  if (bus == NULL)
+    {
+      return;
+    }
+
+  bk_lcd_spi_deinit(bus->config.spi_id, bus->config.reset_gpio,
+                    bus->config.dc_gpio);
+
+  if (nxmutex_lock(&g_bk7258_lcd_spi_lock) == OK)
+    {
+      g_bk7258_lcd_spi_used[bus->config.spi_id] = false;
+      nxmutex_unlock(&g_bk7258_lcd_spi_lock);
+    }
+
+  kmm_free(bus->txbuf_alloc);
+  kmm_free(bus);
+}
+
+int bk7258_lcd_spi_reset(FAR struct bk7258_lcd_spi_bus_s *bus,
+                         bool asserted)
+{
+  bk_err_t ret;
+
+  if (bus == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = bk_gpio_set_output_value((gpio_id_t)bus->config.reset_gpio,
+                                 asserted ? 0 : 1);
+  return ret == BK_OK ? OK : -EIO;
+}
+
+int bk7258_lcd_spi_writecmd(FAR struct bk7258_lcd_spi_bus_s *bus,
+                            uint8_t cmd, FAR const uint8_t *params,
+                            size_t nparams)
+{
+  if (bus == NULL || (nparams > 0 && params == NULL) ||
+      nparams > UINT32_MAX)
+    {
+      return -EINVAL;
+    }
+
+  bk_lcd_spi_send_cmd(bus->config.spi_id, cmd);
+  if (nparams > 0)
+    {
+      bk_lcd_spi_send_data(bus->config.spi_id, (FAR uint8_t *)params,
+                           (uint32_t)nparams);
+    }
+
+  return OK;
+}
+
+int bk7258_lcd_spi_writegram(FAR struct bk7258_lcd_spi_bus_s *bus,
+                             FAR const uint16_t *pixels, size_t width,
+                             size_t height, size_t stride)
+{
+  FAR const uint8_t *src;
+  FAR uint8_t *dst;
+  size_t row_bytes;
+  size_t bytes;
+  size_t y;
+  size_t x;
+
+  if (bus == NULL || pixels == NULL || width == 0 || height == 0)
+    {
+      return -EINVAL;
+    }
+
+  row_bytes = width * BK7258_LCD_SPI_PIXEL_BYTES;
+  if (row_bytes / BK7258_LCD_SPI_PIXEL_BYTES != width ||
+      stride < row_bytes || height > SIZE_MAX / row_bytes)
+    {
+      return -EOVERFLOW;
+    }
+
+  bytes = row_bytes * height;
+  if (bytes > bus->txbuf_bytes || bytes > UINT32_MAX)
+    {
+      return -E2BIG;
+    }
+
+  src = (FAR const uint8_t *)pixels;
+  dst = bus->txbuf;
+  for (y = 0; y < height; y++)
+    {
+      for (x = 0; x < row_bytes; x += BK7258_LCD_SPI_PIXEL_BYTES)
+        {
+          *dst++ = src[x + 1u];
+          *dst++ = src[x];
+        }
+
+      src += stride;
+    }
+
+  bk_lcd_spi_send_data_with_qspi_mapping_mode(bus->config.spi_id,
+                                               bus->txbuf,
+                                               (uint32_t)bytes);
+  return bk_lcd_spi_wait_display_complete(bus->config.spi_id) == BK_OK ?
+         OK : -EIO;
 }
 
 #endif /* CONFIG_BK7258_LCD_SPI */

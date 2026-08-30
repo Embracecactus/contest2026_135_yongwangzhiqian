@@ -57,13 +57,6 @@ if(NOT CONFIG_BK7258_AP_CORE)
   endif()
 endif()
 
-if(CONFIG_BK7258_LCD)
-  target_sources(board PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}/../panels/ili9488_rgb.c)
-  target_include_directories(board PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}/../panels)
-endif()
-
 target_include_directories(board PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 target_include_directories(board SYSTEM PRIVATE
