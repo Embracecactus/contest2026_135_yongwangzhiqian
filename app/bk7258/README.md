@@ -1,6 +1,7 @@
 # BK7258 board diagnostic built-ins
 
-映射到 openvela `packages/demos/contest2026_135_bk7258`。
+映射到 openvela `apps/system/bk7258`，由官方 `apps/system/`
+CMake、Kconfig 和 Make 递归机制自动发现。
 本目录只承载由 App Kconfig 显式选择的 BK7258 NSH 维护与诊断命令；初始化模板
 `app/hello_app` 保持独立且不承载产品功能。每个命令都有独立的
 `CONFIG_BK7258_APP_*` 开关；底层 Driver/Test

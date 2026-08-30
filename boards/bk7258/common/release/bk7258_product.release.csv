@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+# FORMAT=bk7258.release-policy/1
+# FACTORY_MODE=provision-required
+# Partition,ReleasePolicy
+primary_bootloader,replace
+primary_cp_app,replace
+primary_ap_app,replace
+s_app,replace
+usr_config,factory-init
+reset_marker,transactional
+primary_manifest,replace
+secondary_manifest,replace
+primary_bl2,replace
+secondary_bl2,replace
+persistent_data,factory-init
+easyflash,device-unique
+easyflash_ap,device-unique
+sys_rf,device-unique
+sys_net,device-unique

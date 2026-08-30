@@ -17,8 +17,9 @@
 
 - Before using an old implementation as design input, define the target public commands, internal domain boundaries, authoritative source for each mutable fact, and deletion set. Stop at architecture analysis if any is unknown.
 - Historical scripts, schemas, tests, and documents are evidence, not requirements. Preserve behavior only when a current build, package, verification, or hardware path consumes it; do not create one-file compatibility moves.
-- `tools/bk7258/bk7258.py` is the only tracked public entry.  Its top-level commands are `build`, `toolchain`, `sdk`, `package`, `release`, `deploy`, and `verify`; nested commands are `toolchain install|verify`, `sdk list|verify|install|rebuild`, `package create|extract|flash-contract|materialize`, `release full|ota`, and `verify layout|image|build-manifest|package|trust`.  Domain implementation belongs under `_lib`.
-- The team manifest owns SDK/toolchain identity, CP/AP profiles own board/role compatibility, `--boot` is explicit input, and the selected partition CSV owns geometry, topology, roles, and build/write policy. Consumers must not duplicate these facts.
+- `tools/bk7258/bk7258.py` is the only tracked public entry.  Its top-level commands are `build`, `toolchain`, `sdk`, `package`, `release`, `deploy`, and `verify`; nested commands are `toolchain install|verify`, `sdk list|verify|install|rebuild`, `package accept-base|create|delivery|extract|flash-contract|materialize`, `release full|ota|product`, and `verify layout|image|build-manifest|package|delivery|trust`.  Domain implementation belongs under `_lib`.
+- The team manifest owns SDK/toolchain identity, CP/AP profiles own board/role compatibility, `--boot` is explicit input, and the selected partition CSV owns geometry, topology, roles, and build/write policy.  The board-selected release-policy CSV owns only product update semantics (`replace`, `preserve`, `device-unique`, `transactional`, `factory-init`, `immutable`) and must cover every partition by name without repeating offsets or sizes.  Consumers must not duplicate these facts.
+- Descriptor-only board extension applies to the current BK7258 dual-core BL1/BL2 and MCUboot A/B product model.  A different boot/update model requires a separately reviewed product-mode contract; never implement it as a physical-board-name branch or silently reinterpret the current `boot`/`cp`/`ap`/BL2/manifest/`persistent_data` contract.
 - Accept cleanup only after reporting deleted layers, confirming tracked top-level file count did not grow, and checking for duplicate version, profile, path, layout, or build-policy truths.
 
 ## Upstream-oriented peripheral drivers
@@ -89,6 +90,13 @@
   features belong in a separately named directory such as `app/bk7258` with
   its own manifest mapping; never turn the hello example into a product-app
   compatibility container.
+- Map a NuttX built-in product command below an official application discovery
+  boundary that actually recurses through CMake, Kconfig and Make, such as
+  `apps/system/bk7258`.  Do not place such a command below `packages/demos`
+  merely because the generated hello template uses that package location.
+  After changing an application mapping or symbol, verify the resolved
+  `.config` and the ELF/builtin table; a symbol present only in the seed
+  defconfig is not integrated.
 - Keep the repository layers literal: reusable SoC mechanisms in `chips/`,
   physical wiring and instance policy in `boards/`, upstream-shaped overlays
   in `nuttx/`, product apps in `app/`, host tests in `tests/host/`, target
@@ -133,6 +141,10 @@
   consumer, keep policy in the existing Python domain modules, and add a
   mechanically verifiable check.  Delete superseded entry points in the same
   change so two scripts never own one workflow.
+- A board `scripts/` directory may retain the NuttX-required `Make.defs` build
+  hook.  Do not place product build/sign/package/key-broker/deploy workflows
+  beside it; those remain commands/domains of the sole BK7258 CLI, while
+  unavoidable button/cable operations are documented as manual fixture steps.
 - Optimize for human maintenance: use explicit layer names and small cohesive
   modules, avoid generated-looking wrappers and speculative frameworks, and
   do not preserve an obsolete abstraction merely to reduce the apparent diff.
@@ -149,6 +161,11 @@
   Kconfig, manifest, CLI, test and package paths.  Record marketing, schematic
   or colloquial names as documented aliases; never create a second board tree
   or compatibility script merely because the same board has another name.
+- Each board `openvela.conf` selects its CP/AP profiles, partition CSV and one
+  release-policy CSV.  Adding a board may add or reuse those declarations but
+  must not add a board-name branch to the packaging code.  Flash capacity and
+  operator length always come from the selected partition CSV; the release
+  policy cannot override geometry.
 - Define a chip-wide Kconfig/build requirement once, while every board/profile
   keeps its own explicit defconfig choices.  A configuration fix must be made
   at the narrowest correct owner: shared chip/test contract for all boards,
@@ -232,3 +249,38 @@
   result; do not call a loose pair of binaries a verified full package.  A
   direct or unsigned diagnostic artifact must be labelled as such and must not
   be presented as a fresh-key full-trust download.
+- Every whole-device download handoff must include one dense, single-input
+  operator `.bin` for Flash offset zero whose size equals the complete Flash
+  capacity declared by the selected partition CSV.  A `.bkpack`/`.bkpkg`,
+  `pair.bin`, sparse fragments or a build directory is supporting evidence,
+  never the sole downloadable artifact.  Do not concatenate, pad or archive
+  release bytes outside the maintained CLI.
+- A normal wired recovery is device-bound: materialize it from one exact
+  complete readback of that same unit, replace firmware partitions, reset only
+  transactional state, and preserve `preserve`, `factory-init`,
+  `device-unique`, `immutable` and unmapped bytes.  Its ZIP must record the
+  canonical `package accept-base` evidence binding the hash/size to the board,
+  layout, stable device ID and capture method, and warn that it cannot be
+  copied to another unit.  A caller-supplied raw hash alone is not acceptance
+  evidence; the operator or controlled fixture remains responsible for proving
+  which unit produced the readback.
+- A universal factory image is a different product.  Generate one only when a
+  reviewed manufacturing provisioner assigns per-device MAC/RF/Bluetooth and
+  calibration state.  Until then, the product manifest must say
+  `requires-provisioning`; never turn a board readback or an all-`0xff` tail
+  into a purported universal factory image.
+- Direct diagnostics use `package delivery` with an explicit version, complete
+  base and accepted-base evidence.  Signed full/OTA releases are combined with
+  `release product`; the resulting verified ZIP contains `release.json`,
+  `SHA256SUMS`, `FLASHING.md`, accepted-base/build/release-policy evidence, the complete
+  device-bound recovery BIN and any compatible OTA package.  OTA updates only
+  CP/AP and state their accepted source version plus the root required on the
+  source device.  Wired recovery separately states the new root it installs;
+  these roots may differ during intentional key rotation.  OTA never claims to
+  be a whole-device download.  A root/BL2/layout transition remains a wired
+  full recovery rather than an apps-only OTA.
+- Publish release directories and product ZIPs atomically with no-replace
+  semantics; an existing target, including an empty directory, is an error.
+  A copied `evidence/build-manifest.json` must validate against its packaged
+  target/layout/security facts without depending on the original `out/` path.
+  Only initial release construction may consume the path-bound build handoff.

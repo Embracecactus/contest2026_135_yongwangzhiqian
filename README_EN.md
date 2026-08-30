@@ -135,6 +135,38 @@ artifacts are named by partition role, such as `boot.bin`, `cp.bin`, `ap.bin`,
 `pair.bin`, and `bl2-a.bin` in a signed release. The generic single-image name
 `vela_ap.bin` does not describe this product.
 
+Loose partition artifacts are not a whole-device handoff.  An unsigned direct
+recovery requires one exact complete readback from the same device:
+
+```bash
+tools/bk7258/bk7258.py package accept-base \
+  --board "$BOARD" --base "$DEVICE_BASE" \
+  --device-id "$DEVICE_ID" --capture-method fixture-readback \
+  --output "$DEVICE_BASE_EVIDENCE"
+tools/bk7258/bk7258.py package delivery \
+  --build-manifest "$DIRECT_MANIFEST" --unsigned \
+  --version 0.1.0+1 \
+  --base "$DEVICE_BASE" --base-evidence "$DEVICE_BASE_EVIDENCE" \
+  --output "$BOARD-direct-diagnostic.zip"
+tools/bk7258/bk7258.py verify delivery \
+  --delivery "$BOARD-direct-diagnostic.zip"
+```
+
+`accept-base` binds the readback to the board, layout, stable device ID, and
+capture method.  It prevents accidental cross-board reuse of equal-sized
+readbacks; the operator/controlled fixture still owns proof of physical source.
+The ZIP carries that evidence and a full-Flash
+`recovery/*-full-flash.bin`; its size is derived
+from the selected partition CSV (8 MiB on the current three boards).  It
+preserves configuration, persistent data, MAC/RF/network calibration, and
+unmapped bytes from that device, so it must not be copied to another unit.
+Until manufacturing provisioning assigns per-device state, the manifest marks
+the universal factory image `requires-provisioning` rather than fabricating
+one.  Signed full and OTA directories are combined with `release product`.
+The manifest distinguishes the new root installed by wired recovery from the
+root required on OTA source devices; intentional key rotation may make them
+different.
+
 `--boot mcuboot` selects the signed release chain. It requires newly generated
 BL1 and MCUboot public keys for that release, private-key-side release steps,
 and a strictly increasing rollback counter. Historical private keys must never

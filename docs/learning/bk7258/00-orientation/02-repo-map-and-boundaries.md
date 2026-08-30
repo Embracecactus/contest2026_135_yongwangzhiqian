@@ -38,7 +38,7 @@ contest2026_135_yongwangzhiqian/
 | 队伍仓源目录 | 工作区目标 | 用途 |
 |---|---|---|
 | `app/hello_app` | `packages/demos/contest2026_135_hello_app` | 原始 native 示例 |
-| `app/bk7258` | `packages/demos/contest2026_135_bk7258` | BK7258 产品/验证命令 |
+| `app/bk7258` | `apps/system/bk7258` | BK7258 产品/验证命令 |
 | `quickapp/hello_quickapp` | `packages/apps/contest2026_135_hello_quickapp` | 原始 QuickApp 示例 |
 | `chips/bk7258` | `vendor/beken/chips/bk7258` | NuttX custom chip |
 | `boards/bk7258` | `vendor/beken/boards/bk7258` | 三块 custom board |

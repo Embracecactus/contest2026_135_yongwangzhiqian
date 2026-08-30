@@ -116,10 +116,41 @@ CP/AP 私有构建配置和分区头/链接输入，然后分别调用官方 `bu
 构建结束会打印 build manifest、CP/AP ELF/原始 bin 和最终 Flash 段的精确路径与
 SHA-256。多镜像系统的产物按分区角色命名，例如 `boot.bin`、`cp.bin`、`ap.bin`、
 `pair.bin` 和签名发布中的 `bl2-a.bin`；单镜像示例名 `vela_ap.bin` 不适用于此布局。
+这些分区产物不能单独作为整机下载交付。direct 调试包必须继续通过唯一入口生成并
+验证完整 ZIP。`$DEVICE_BASE` 是从同一块目标板读取的完整 Flash，不能使用另一块板
+的 dump：
+
+```bash
+tools/bk7258/bk7258.py package accept-base \
+  --board "$BOARD" --base "$DEVICE_BASE" \
+  --device-id "$DEVICE_ID" --capture-method fixture-readback \
+  --output "$DEVICE_BASE_EVIDENCE"
+tools/bk7258/bk7258.py package delivery \
+  --build-manifest "$DIRECT_MANIFEST" --unsigned \
+  --version 0.1.0+1 \
+  --base "$DEVICE_BASE" --base-evidence "$DEVICE_BASE_EVIDENCE" \
+  --output "$BOARD-direct-diagnostic.zip"
+tools/bk7258/bk7258.py verify delivery \
+  --delivery "$BOARD-direct-diagnostic.zip"
+```
+
+`accept-base` 会把完整读回绑定到板型、布局、稳定设备 ID 和采集方式；它防止误把
+同容量的另一板读回混入产品包，但操作者/受控夹具仍负责证明读回确实来自该设备。
+ZIP 同时包含 accepted-base/release/build manifest、板级发布策略、SHA-256、烧录说明和底层可
+验证包；`recovery/*-full-flash.bin` 的长度由板级分区 CSV 推导，当前三板均为完整
+8 MiB。它保留同一设备的配置、持久数据和 MAC/RF/网络校准状态，因此是设备绑定的
+恢复包，不能复制到另一块板。unsigned direct 仍只用于 bring-up/诊断，不能冒充
+正式签名发布。未接入量产写号与校准流程前，清单会明确标记工厂镜像
+`requires-provisioning`，不会伪造一个通用 factory BIN。
 
 `--boot mcuboot` 是正式签名链，但需要该次发布新生成的 BL1/MCUboot 公钥、私钥侧
 发布步骤和严格递增的回滚计数。不要复用历史私钥。完整流程和烧录边界见
 [构建/烧录/调试 SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)。
+正式版本分别通过 `release full` 与 `release ota` 生成并验证，再使用
+`release product --full-release ... --base ... --ota-release ...
+--ota-required-source-version ...` 合成每块板、每个版本独立的产品 ZIP。OTA 只更新 CP/AP，
+并在清单中绑定来源版本和来源设备当前必须信任的 MCUboot 根；有线恢复另行记录它
+安装的新根，密钥轮换时两者允许不同。
 
 ### 5. 主机回归
 

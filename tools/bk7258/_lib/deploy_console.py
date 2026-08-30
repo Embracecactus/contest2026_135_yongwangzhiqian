@@ -67,7 +67,7 @@ def reboot_and_confirm(
                 ):
                     result = "reboot and automatic confirmation" if reboot else \
                              "running generation confirmation"
-                    print(f"AIDK OTA: {result} PASS")
+                    print(f"BK7258 OTA: {result} PASS")
                     return
             now = time.monotonic()
             if now >= next_status:

@@ -50,7 +50,10 @@ dimensions.
 ### Paired CP/AP product, not a single-image product
 
 Each physical board owns an `openvela.conf` that selects a compatible CP/AP
-configuration pair and one partition CSV. `tools/bk7258/bk7258.py build` invokes
+configuration pair, one partition CSV, and one release-policy CSV.  The
+partition file alone owns geometry/build writes; the release policy maps
+partition names to product-update semantics without copying offsets or Flash
+capacity. `tools/bk7258/bk7258.py build` invokes
 the official `build.sh ... --cmake` once per role, then verifies the board, SDK
 profile, memory, and storage topology of the pair. The CP `openvela_cp` profile
 uses `nsh_main` and enables `CONFIG_SYSTEM_NSH`. The accurate statement is thus
@@ -91,7 +94,8 @@ selects its own partition CSV in `openvela.conf`. The build generates
 `BK7258_PARTITION_HEADER` and `BK7258_PARTITION_LINKER`, and both Make and CMake
 consume those generated inputs. Sharing the template therefore does not prevent
 per-board memory layout. A board-specific script is needed only when the section
-organization itself differs.
+organization itself differs.  Release-policy selection is likewise data-driven
+through `openvela.conf`; adding a board does not add a Python board-name branch.
 
 ### `arch_timer` and the complete IRQ table are deliberate choices
 

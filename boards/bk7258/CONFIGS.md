@@ -21,12 +21,17 @@ Use a lowercase underscore name and add these board-owned inputs:
 2. `configs/openvela_cp/{defconfig,profile.conf}` and
    `configs/openvela_ap/{defconfig,profile.conf}` with the same board owner and
    CP/AP compatibility value;
-3. one strict `openvela.conf` naming those two role seeds and a partition CSV
-   below `boards/bk7258/`;
+3. one strict `openvela.conf` naming those two role seeds, a partition CSV and
+   a release-policy CSV below `boards/bk7258/`;
 4. a new partition CSV only when no reviewed common layout matches the new
    board's Flash and storage topology.
 
-The existing manifest already projects the whole `boards/bk7258` directory,
+The partition CSV remains the only geometry/build-write source.  The release
+policy maps every selected partition name to product semantics without copying
+an offset, size or Flash capacity.  A new board may reuse a reviewed policy
+when every partition name and semantic matches; otherwise it adds its own
+small policy CSV.  The existing manifest already projects the whole
+`boards/bk7258` directory,
 so a physical board does not add another linkfile. Build it with
 `bk7258.py build --board <board> --boot direct` (or `mcuboot` plus that
 generation's trust inputs). The resulting build manifest carries the board's
@@ -35,6 +40,14 @@ materialization and loader-image path; those stages never branch on a board
 name. If adding a board requires editing `tools/bk7258`, the descriptor or
 layout contract is incomplete and must be reviewed instead of adding a board
 special case.
+
+This descriptor-only extension guarantee is intentionally bounded to the
+current BK7258 dual-core BL1/BL2, MCUboot A/B product model. Its signed
+release contract uses `boot`, `cp`, `ap`, `bl2_a`, `bl2_b`,
+`manifest_a`, `manifest_b`, `pair` and a writable `persistent_data`
+partition. A board with a different boot chain or update model must introduce
+a reviewed product-mode contract; it must not be hidden behind a board-name
+branch or forced into the current partition semantics.
 
 This follows the official openvela board-config rule: a board may have more
 than one `configs/<purpose>/defconfig`, but each must represent a real core
@@ -152,11 +165,15 @@ recorded in
 Every full-flash acceptance run, including a switch between these two
 profiles, is a new trust generation.  It must use freshly generated, distinct
 BL1 and MCUboot P-256 keypairs, a strictly increasing version/counter, the
-Agent partition CSV, and one `0x7fa000` operator image at address zero.  The
-materialized image preserves all of `usr_config` and Agent persistent data;
-BK Loader must not chip-erase or reach the immutable/calibration tail.  Delete
-the temporary private-key directory after package, flash and board evidence
-are accepted.
+Agent partition CSV, and one complete-Flash operator image at address zero.
+The accepted base must be one exact full-device readback whose canonical
+`package accept-base` evidence binds its hash/size to the board, selected
+layout, stable device ID and capture method.  Materialization
+preserves `usr_config`, Agent persistent data and device-unique calibration/
+network state while resetting only declared transactional state; BK Loader
+must not chip-erase.  The resulting recovery is bound to that device and must
+not be copied to another board.  Delete the temporary private-key directory
+after package, flash and board evidence are accepted.
 
 `--boot mcuboot` derives private build-local defconfigs with
 `CONFIG_BK7258_MCUBOOT_IMAGE=y`; it does not require another pair of tracked
