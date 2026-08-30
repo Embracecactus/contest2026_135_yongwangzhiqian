@@ -1,9 +1,0 @@
-# BK7258 unified OTA manager command
-
-if(CONFIG_BK7258_APP_OTA_AGENT)
-  nuttx_add_application(
-    NAME ${CONFIG_BK7258_APP_OTA_AGENT_PROGNAME}
-    SRCS ota_agent_main.c
-    STACKSIZE ${CONFIG_BK7258_APP_OTA_AGENT_STACKSIZE}
-    PRIORITY ${CONFIG_BK7258_APP_OTA_AGENT_PRIORITY})
-endif()

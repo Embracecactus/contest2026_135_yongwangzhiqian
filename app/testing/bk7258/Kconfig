@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config TESTS_BK7258_CMOCKA
+	tristate "BK7258 CP/AP lifecycle contract tests"
+	default n
+	depends on TESTING_CMOCKA
+	depends on ARCH_SETJMP_H
+	depends on ARCH_CHIP_BK7258
+	depends on ARCH_BOARD_BK7258
+	depends on !BK7258_AP_CORE
+	depends on BK7258_AP_CONTROL
+	help
+		Build the target-side CMocka contract shared by every maintained
+		BK7258 physical board.  It publishes the configured board identity
+		and verifies the public UART0 device contract and the versioned AP
+		lifecycle and supervisor interfaces without calling vendor SDK APIs.
+
+if TESTS_BK7258_CMOCKA
+
+config TESTS_BK7258_CMOCKA_PRIORITY
+	int "BK7258 CMocka task priority"
+	default 100
+
+config TESTS_BK7258_CMOCKA_STACKSIZE
+	int "BK7258 CMocka task stack size"
+	default 4096
+
+endif
