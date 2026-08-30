@@ -13,19 +13,20 @@
            remote="git"
            revision="cb080de1655d579c7593ecf504c440997c4c137b"
            upstream="refs/heads/openvela/v3.1.1.9"
+           sync-c="true"
+           clone-depth="1"
            groups="bk7258-sdk"/>
 
   <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian">
     <linkfile src="app/hello_app" dest="packages/demos/contest2026_135_hello_app"/>
-    <linkfile src="app/ota_agent" dest="packages/demos/contest2026_135_ota_agent"/>
-    <linkfile src="app/demos/Make.defs" dest="packages/demos/Make.defs"/>
-    <linkfile src="app/demos/CMakeLists.txt" dest="packages/demos/CMakeLists.txt"/>
-    <linkfile src="app/demos/Kconfig" dest="packages/demos/Kconfig"/>
+    <linkfile src="app/bk7258" dest="packages/demos/contest2026_135_bk7258"/>
     <linkfile src="quickapp/hello_quickapp" dest="packages/apps/contest2026_135_hello_quickapp"/>
     <linkfile src="chips/bk7258" dest="vendor/beken/chips/bk7258"/>
     <linkfile src="boards/bk7258" dest="vendor/beken/boards/bk7258"/>
+    <linkfile src="nuttx" dest="vendor/beken/nuttx"/>
+    <linkfile src="app/testing/bk7258" dest="apps/testing/bk7258"/>
+    <linkfile src="tests/pytest/test_bk7258" dest="tests/scripts/script/test_bk7258"/>
     <linkfile src="prebuilt" dest="vendor/beken/prebuilt"/>
-    <linkfile src="integration/beken/vendorsetup.sh" dest="vendor/beken/build/bk7258/vendorsetup.sh"/>
     <linkfile src="tools/bk7258" dest="vendor/openvela/tools/contest2026_135_bk7258"/>
   </project>
 </manifest>

@@ -1,5 +1,7 @@
 # Build artifacts (see .gitignore.example)
 build/
+!boards/bk7258/build/
+!boards/bk7258/build/vendorsetup.sh
 out/
 *.o
 *.a

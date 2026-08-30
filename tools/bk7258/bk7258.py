@@ -21,6 +21,7 @@ REPOSITORY = TOOLS.parents[1]
 sys.path.insert(0, str(TOOLS))
 
 from _lib import build as build_domain  # noqa: E402
+from _lib import deploy as deploy_domain  # noqa: E402
 from _lib import image as image_domain  # noqa: E402
 from _lib import layout as layout_domain  # noqa: E402
 from _lib import package as package_domain  # noqa: E402
@@ -54,6 +55,11 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--openssl", type=Path)
     build.add_argument("--rollback-floor", type=lambda value: int(value, 0))
     build.add_argument("--clean", action="store_true")
+
+    deploy = commands.add_parser(
+        "deploy", help="deliver a verified signed OTA package to a BK7258 device"
+    )
+    deploy_domain.add_arguments(deploy)
 
     toolchain = commands.add_parser("toolchain", help="manage the locked Arm GNU toolchain")
     toolchain_commands = toolchain.add_subparsers(dest="toolchain_command", required=True)
@@ -498,6 +504,10 @@ def _build(args: argparse.Namespace) -> None:
     print(f"build manifest={result.manifest}")
 
 
+def _deploy(args: argparse.Namespace) -> None:
+    deploy_domain.run(args)
+
+
 def _toolchain(args: argparse.Namespace) -> None:
     if args.toolchain_command == "install":
         report = toolchain_domain.install(
@@ -684,6 +694,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "build":
             _build(args)
+        elif args.command == "deploy":
+            _deploy(args)
         elif args.command == "toolchain":
             _toolchain(args)
         elif args.command == "sdk":
@@ -699,6 +711,7 @@ def main(argv: list[str] | None = None) -> int:
         image_domain.ImageError,
         layout_domain.LayoutError,
         package_domain.PackageError,
+        deploy_domain.PackageError,
         sdk_domain.SdkError,
         toolchain_domain.ToolchainError,
         trust_domain.TrustError,

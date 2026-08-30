@@ -1,3 +1,0 @@
-ifneq ($(CONFIG_BK7258_APP_OTA_AGENT),)
-CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_135_ota_agent
-endif

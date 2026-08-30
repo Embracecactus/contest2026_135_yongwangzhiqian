@@ -1,0 +1,339 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+# Each user-visible NSH command has its own application Kconfig.  The
+# underlying driver/feature symbols must never register an application;
+# CMake and Classic Make register commands only from CONFIG_BK7258_APP_*.
+
+config BK7258_APP_OTA
+	bool "BK7258 paired OTA operator command"
+	default n
+	depends on BK7258_OTA && BK7258_OTA_RPMSG && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Build the trusted-maintainer bkota status/apply-file/cancel/confirm
+		command.  File paths are forwarded to the AP OTA Manager; CP never opens
+		the file and remains only the Pair Installer/Flash owner.  Manual confirm
+		is a physical maintenance fallback; product profiles may enable the
+		generation-bound CP automatic trial policy.
+
+if BK7258_APP_OTA
+
+config BK7258_APP_OTA_PROGNAME
+	string "bkota program name"
+	default "bkota"
+
+config BK7258_APP_OTA_PRIORITY
+	int "bkota priority"
+	default 100
+
+config BK7258_APP_OTA_STACKSIZE
+	int "bkota stack size"
+	default 4096
+
+endif
+
+config BK7258_APP_BKVALIDATE
+	bool "BK7258 public-API validation dispatcher"
+	default n
+	depends on SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Build the metadata-driven bkvalidate list/run/all-compatible dispatcher.
+		The dispatcher uses public device APIs or versioned diagnostic records and
+		never calls vendor SDK entry points.  Generic JPEG and temperature
+		validation start only through their explicit run commands.
+
+if BK7258_APP_BKVALIDATE
+
+config BK7258_APP_BKVALIDATE_PROGNAME
+	string "bkvalidate program name"
+	default "bkvalidate"
+
+config BK7258_APP_BKVALIDATE_PRIORITY
+	int "bkvalidate priority"
+	default 100
+
+config BK7258_APP_BKVALIDATE_STACKSIZE
+	int "bkvalidate stack size"
+	default 3072
+
+endif
+
+config BK7258_APP_APCTL
+	bool "BK7258 AP start/stop/restart command (apctl)"
+	default n
+	depends on BK7258_AP_CONTROL
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Enable the manual apctl NSH command for the CPU0 AP control
+		wrapper.  The wrapper itself is a driver feature owned by
+		BK7258_AP_CONTROL and may run with the command disabled.
+
+if BK7258_APP_APCTL
+
+config BK7258_APP_APCTL_PROGNAME
+	string "apctl program name"
+	default "apctl"
+
+config BK7258_APP_APCTL_PRIORITY
+	int "apctl priority"
+	default 100
+
+config BK7258_APP_APCTL_STACKSIZE
+	int "apctl stack size"
+	default 2048
+
+endif
+
+config BK7258_APP_RPMSG_TEST
+	bool "BK7258 RPMsg bounded concurrency test command"
+	default n
+	depends on BK7258_RPMSG_TEST && !BK7258_AP_CORE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Enable the CP-side bkrpmsgtest NSH command.  The RPMsg test
+		endpoint is owned by BK7258_RPMSG_TEST and is enabled
+		independently of this command.
+
+if BK7258_APP_RPMSG_TEST
+
+config BK7258_APP_RPMSG_TEST_PROGNAME
+	string "bkrpmsgtest program name"
+	default "bkrpmsgtest"
+
+config BK7258_APP_RPMSG_TEST_PRIORITY
+	int "bkrpmsgtest priority"
+	default 100
+
+config BK7258_APP_RPMSG_TEST_STACKSIZE
+	int "bkrpmsgtest stack size"
+	default 3072
+
+endif
+
+config BK7258_APP_RPMSGFS_TEST
+	bool "BK7258 RPMsgFS functional and recovery test command"
+	default n
+	depends on BK7258_RPMSGFS_TEST && !BK7258_AP_CORE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Enable the CP-side bkrpmsgfstest NSH command.  The RPMsgFS test
+		endpoint is owned by BK7258_RPMSGFS_TEST and is enabled
+		independently of this command.
+
+if BK7258_APP_RPMSGFS_TEST
+
+config BK7258_APP_RPMSGFS_TEST_PROGNAME
+	string "bkrpmsgfstest program name"
+	default "bkrpmsgfstest"
+
+config BK7258_APP_RPMSGFS_TEST_PRIORITY
+	int "bkrpmsgfstest priority"
+	default 100
+
+config BK7258_APP_RPMSGFS_TEST_STACKSIZE
+	int "bkrpmsgfstest stack size"
+	default 3072
+
+endif
+
+config BK7258_APP_BT_IPC_TEST
+	bool "BK7258 Bluetooth IPC hardware test command"
+	default n
+	depends on BK7258_BT_IPC_TEST && !BK7258_AP_CORE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Enable the CP-side bkbttest NSH command.  The Bluetooth IPC test
+		endpoint is owned by BK7258_BT_IPC_TEST and is enabled
+		independently of this command.
+
+if BK7258_APP_BT_IPC_TEST
+
+config BK7258_APP_BT_IPC_TEST_PROGNAME
+	string "bkbttest program name"
+	default "bkbttest"
+
+config BK7258_APP_BT_IPC_TEST_PRIORITY
+	int "bkbttest priority"
+	default 100
+
+config BK7258_APP_BT_IPC_TEST_STACKSIZE
+	int "bkbttest stack size"
+	default 3072
+
+endif
+
+config BK7258_APP_WIFI
+	bool "BK7258 Wi-Fi STA command (bkwifi)"
+	default n
+	depends on BK7258_WIFI_VNET && !BK7258_AP_CORE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Enable the CP-side bkwifi NSH command.  The Wi-Fi VNET driver is
+		owned by BK7258_WIFI_VNET and is enabled independently of this
+		command.
+
+if BK7258_APP_WIFI
+
+config BK7258_APP_WIFI_PROGNAME
+	string "bkwifi program name"
+	default "bkwifi"
+
+config BK7258_APP_WIFI_PRIORITY
+	int "bkwifi priority"
+	default 100
+
+config BK7258_APP_WIFI_STACKSIZE
+	int "bkwifi stack size"
+	default 4096
+
+endif
+
+config BK7258_APP_PSRAM_TEST
+	bool "BK7258 bounded PSRAM allocator test command"
+	default n
+	depends on BK7258_PSRAM_TEST && !BK7258_AP_CORE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Enable the CP-side bkpsramtest NSH command.  The PSRAM allocator
+		gate is owned by BK7258_PSRAM_TEST and runs independently of this
+		command.
+
+if BK7258_APP_PSRAM_TEST
+
+config BK7258_APP_PSRAM_TEST_PROGNAME
+	string "bkpsramtest program name"
+	default "bkpsramtest"
+
+config BK7258_APP_PSRAM_TEST_PRIORITY
+	int "bkpsramtest priority"
+	default 100
+
+config BK7258_APP_PSRAM_TEST_STACKSIZE
+	int "bkpsramtest stack size"
+	default 3072
+
+endif
+
+config BK7258_APP_GPIO_TEST
+	bool "BK7258 selected-board GPIO foundation test command"
+	default n
+	depends on ARCH_CHIP_BK7258 && SYSTEM_NSH && !BK7258_AP_CORE
+	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
+	select BK7258_GPIO_FOUNDATION_TEST
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Enable the manual bkgpioc0 NSH command.  The board GPIO binding is
+		owned by the selected board and is enabled independently of this
+		command.
+
+if BK7258_APP_GPIO_TEST
+
+config BK7258_APP_GPIO_TEST_PROGNAME
+	string "bkgpioc0 program name"
+	default "bkgpioc0"
+
+config BK7258_APP_GPIO_TEST_PRIORITY
+	int "bkgpioc0 priority"
+	default 100
+
+config BK7258_APP_GPIO_TEST_STACKSIZE
+	int "bkgpioc0 stack size"
+	default 2048
+
+endif
+
+config BK7258_APP_GPIO_IRQ_TEST
+	bool "BK7258 selected-board key GPIO edge IRQ test command"
+	default n
+	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
+	depends on BK7258_BOARD_HAS_USER_GPIO_BINDING
+	select BK7258_GPIO_IRQ_TEST
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Enable the manual bkgpioirq NSH command.  The SDK IRQ bridge and
+		board GPIO binding are driver features enabled independently of
+		this command.
+
+if BK7258_APP_GPIO_IRQ_TEST
+
+config BK7258_APP_GPIO_IRQ_TEST_PROGNAME
+	string "bkgpioirq program name"
+	default "bkgpioirq"
+
+config BK7258_APP_GPIO_IRQ_TEST_PRIORITY
+	int "bkgpioirq priority"
+	default 100
+
+config BK7258_APP_GPIO_IRQ_TEST_STACKSIZE
+	int "bkgpioirq stack size"
+	default 2048
+
+endif
+
+config BK7258_APP_IRQ_TIMER_TEST
+	bool "Beken SDK IRQ bridge TIMER1 manual test command"
+	default n
+	depends on BK7258_SDK_IRQ_BRIDGE && SYSTEM_NSH
+	select BK7258_SDK_IRQ_TIMER_TEST
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Enable the manual bkirqtest NSH command.  The SDK IRQ bridge is a
+		driver feature enabled independently of this command.
+
+if BK7258_APP_IRQ_TIMER_TEST
+
+config BK7258_APP_IRQ_TIMER_TEST_PROGNAME
+	string "bkirqtest program name"
+	default "bkirqtest"
+
+config BK7258_APP_IRQ_TIMER_TEST_PRIORITY
+	int "bkirqtest priority"
+	default 100
+
+config BK7258_APP_IRQ_TIMER_TEST_STACKSIZE
+	int "bkirqtest stack size"
+	default 2048
+
+endif
+
+config BK7258_APP_TIMER_SELFTEST
+	bool "Beken SDK software-timer lifecycle regression test command"
+	default n
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE && SYSTEM_NSH
+	select BK7258_SDK_TIMER_SELFTEST
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Enable the manual bktimertest NSH command.  The SDK software-timer
+		service is a driver feature enabled independently of this command.
+
+if BK7258_APP_TIMER_SELFTEST
+
+config BK7258_APP_TIMER_SELFTEST_PROGNAME
+	string "bktimertest program name"
+	default "bktimertest"
+
+config BK7258_APP_TIMER_SELFTEST_PRIORITY
+	int "bktimertest priority"
+	default 100
+
+config BK7258_APP_TIMER_SELFTEST_STACKSIZE
+	int "bktimertest stack size"
+	default 2048
+
+endif
