@@ -8,7 +8,7 @@
 > - source ref：`$CONTEST` 的 `HEAD`（撰写时）
 > - source commit：`c588afbd8e0f1d30723f5076e585673a6ace8a4e`
 > - 最后核对日期：2026-07-24
-> - 直接来源：[`$IMPL/README.md`](../../../platforms/bk7258/README.md)、[`$IMPL/next-stage-prompt.md`](../../../platforms/bk7258/next-stage-prompt.md)、[`$BOARD`](../../../../boards/bk7258/)、[contest manifest](../../../../contest2026_135_yongwangzhiqian.xml)
+> - 直接来源：`docs/platforms/bk7258/README.md`、`boards/bk7258/`、`contest2026_135_yongwangzhiqian.xml`
 > - 教学简化：本文规定“应该去哪里取证”，不复述 current Stage、当前阻塞或下一实施动作
 
 ## 1. 路径变量
@@ -28,8 +28,8 @@ export BOARD="$CONTEST/boards/bk7258"
 
 | 问题 | 第一权威来源 | 还需要什么 | 不能单独作为结论的材料 |
 |---|---|---|---|
-| 哪个仓库拥有这份代码？ | [contest manifest](../../../../contest2026_135_yongwangzhiqian.xml)和各 Git 仓根 | linkfile/项目映射的只读核对 | 工作区里恰好出现的同名文件 |
-| 当前实施做到哪里？ | [`$IMPL/next-stage-prompt.md`](../../../platforms/bk7258/next-stage-prompt.md)及其指向的 worklog | 对应分支、checkpoint 和最新证据 | 教学文章、旧恢复提示、聊天印象 |
+| 哪个仓库拥有这份代码？ | `contest2026_135_yongwangzhiqian.xml` 和各 Git 仓根 | linkfile/项目映射的只读核对 | 工作区里恰好出现的同名文件 |
+| 当前支持与实现是什么？ | `boards/bk7258/CONFIGS.md`、实施入口和当前源码 | 对应分支、commit、配置及最新验证记录 | 教学文章、旧恢复提示、聊天印象 |
 | 某个函数当前怎样实现？ | 实际实施仓中固定 commit 的源码 | 调用者、配置、构建后端和动态注册关系 | 函数名、注释、Graphify 单独输出 |
 | 某个选项是否启用？ | 本次构建生成的 `.config` | Kconfig 定义与 defconfig 请求值 | 只看 defconfig 或 `#ifdef` |
 | 某个源文件是否进入固件？ | 编译记录、对象、ELF/map 和最终打包链 | 有效配置及当前构建后端 | 文件存在、CMake/Make 中出现路径 |
@@ -68,17 +68,17 @@ E6 行为可重复，且失败/恢复边界明确
 
 用于概念解释、阅读顺序、只读练习、术语和人工整理的图。它回答“怎样学”，不回答“现在该实施什么”。
 
-### 4.2 实施状态入口：`$IMPL`
+### 4.2 实施事实入口：`$IMPL`
 
 - [`$IMPL/README.md`](../../../platforms/bk7258/README.md)：实施文档总入口。
-- [`$IMPL/next-stage-prompt.md`](../../../platforms/bk7258/next-stage-prompt.md)：恢复指针，应继续指向当前 worklog 和最小下一步。
-- `$IMPL/nuttx-port/`、`$IMPL/bootloader-analysis/` 等：保存设计、调查、验证和阶段证据。
+- `boards/bk7258/CONFIGS.md`：三块板和各 profile 的唯一支持矩阵。
+- `$IMPL/nuttx-port/`、`$IMPL/bootloader-analysis/` 等：保存稳定设计与调查材料；日期化验收证据位于 `docs/verification/bk7258/`。
 
-学习文档只链接这些入口，不复制 current 状态表。
+学习文档只链接这些入口，不复制实时状态表或下一步计划。
 
 ### 4.3 队伍源码入口：`$BOARD`
 
-[`$BOARD`](../../../../boards/bk7258/)是队伍拥有的 BK7258 board overlay。阅读函数前先记录：
+`boards/bk7258/` 是队伍拥有的 BK7258 board overlay。阅读函数前先记录：
 
 1. 实际 Git 仓根；
 2. 分支；
@@ -152,6 +152,6 @@ Graphify 可以帮助发现：
 2. Graphify 显示函数 A 调用函数 B，是否足以证明板上一定走到 B？
 3. 某次串口日志出现成功标志，是否足以证明另一份镜像也成功？
 4. 映射目标目录中能看到源文件，是否说明应该直接在那里编辑？
-5. 实施 worklog 与教程不一致时，应该先修改哪一边？
+5. 当前源码/配置与教程不一致时，应该先修改哪一边？
 
 推荐答案依次是：否、否、否、否、先核对并更新实施事实，再更新教学解释。

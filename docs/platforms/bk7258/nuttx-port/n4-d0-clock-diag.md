@@ -11,8 +11,8 @@
 > → D0F feature commit：`8dab594`（defconfig 移除 100ms override，生效默认 10ms/100Hz tick）
 > 改动范围：D0/D0D — `$CONTEST/board/bk7258/chip/`（`chip/common/bk7258_clockdiag.h` 新增、`chip/cp/bk7258_start.c` 接入、`chip/common/bk7258_timerisr.c` runtime SysTick 选择）；D0F — `$CONTEST/board/bk7258/configs/cp_nsh/defconfig`
 
-> 占位符：`$WORKSPACE`、`$CONTEST`、`$FW` 与 README / next-stage-prompt.md 一致。本 docs 提交 SHA
-> 不在本文内写出（见 [`../next-stage-prompt.md`](../next-stage-prompt.md) 命名与维护规则）。
+> 占位符：`$WORKSPACE`、`$CONTEST`、`$FW` 与当时的 README 约定一致。本 docs 提交 SHA
+> 不在本文内写出；该历史恢复提示已归档，当前实施状态应以源码、配置和最新验证记录为准。
 
 ## 1. Scope（与 N4 prompt §2 对齐）
 
@@ -371,8 +371,6 @@ cold-start 保持 26 MHz baseline 安全进 NSH。板端验证 2026-07-19。
 
 ## 11. 参考
 
-- 主 Stage 索引 / current handoff：[`../next-stage-prompt.md`](../next-stage-prompt.md)
-- N4 完整恢复提示词：[`prompts/04-n4-clock-bringup.md`](prompts/04-n4-clock-bringup.md)（N4-D0
-  见 §2，N4-D1 见 §3）
+- 主 Stage 索引与 N4 恢复提示词已归档；本记录保留 N4-D0、N4-D1 的具体命令、预期读数、错误分支和停止条件。
 - N3 baseline worklog：[`n3-procfs-ps.md`](n3-procfs-ps.md)
 - 详细移植报告 §9.6（N4 handoff）：[`../porting-report.md`](../porting-report.md)

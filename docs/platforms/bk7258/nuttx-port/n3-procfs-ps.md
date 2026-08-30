@@ -246,8 +246,7 @@ BK7258 官方时钟树为 26 MHz XTALH → DPLL（320 / 480 MHz）→ CPU core�
 因此下一 MAIN Stage 固定为 N4：先证明当前频率，再分段完成 DPLL lock、CPU0 480 MHz 切换和
 UART1 / SysTick / NSH / procfs 回归。
 
-- 主 Stage 顺序与 current pointer：[`../next-stage-prompt.md`](../next-stage-prompt.md)
-- 当前 N4 完整恢复提示词：[`prompts/04-n4-clock-bringup.md`](prompts/04-n4-clock-bringup.md)
+- 原主 Stage 顺序与 N4 恢复提示词已归档；当前实施状态应以源码、配置和最新验证记录为准。
 
 N4-R → N4-D0 → N4-D1 → N4-D2（optional）→ N4-D3 → N4-V 是**同一个 N4 文件内**的有序
 subsection，不拆成多个 Stage 或提示词文件。

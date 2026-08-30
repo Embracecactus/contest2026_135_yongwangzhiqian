@@ -59,7 +59,7 @@ JLinkExe -device BK7258 -if SWD -speed 4000
 - 当前 direct-XIP 配置允许初始 VTOR/入口位于 AP Flash XIP 区，并把运行期向量、
   MSP/heap 放入团队已验证的 `0x28050000..0x2809f000` AP SRAM；不要套用
   BK7236 单核或另一官方分区配置的固定 SRAM 地址。
-- `0x2809f000` telemetry 区交接标记与 `n17-signed-manifest-abi.md` / CURRENT.md 记录一致。
+- `0x2809f000` telemetry 区交接标记与 `n17-signed-manifest-abi.md` 记录一致。
 任何不符 → 触发 ADR-022「reversal signal」：隔离该阶段并比对 Ghidra 官方反汇编。
 
 ### C.4 2026-08-08 实测

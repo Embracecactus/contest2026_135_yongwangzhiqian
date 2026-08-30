@@ -1,8 +1,0 @@
-# VirtIO
-
-> 官方来源：[doc.openvela.com](https://doc.openvela.com/document?id=1478&version=dev-ai-contest-2026&language=cn)  
-> 版本：dev-ai-contest-2026（中文）  
-> 官方更新时间：2026-06-09 19:31:46  
-> 本地拉取日期：2026-08-28
-
-\-

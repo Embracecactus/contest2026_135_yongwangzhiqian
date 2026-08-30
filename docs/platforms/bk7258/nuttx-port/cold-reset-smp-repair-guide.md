@@ -2,7 +2,8 @@
 
 日期：2026-07-31
 
-状态：正式镜像 `board-verified`，warm 3/3、physical reset 3/3，AP SMP 全部通过
+状态：2026-07-31 历史镜像 `board-verified`，warm 3/3、physical reset 3/3、AP SMP
+全部通过；当前构建与下载命令以统一 CLI 为准
 
 这篇文档面向第一次接触 BK7258、多核启动或 bootloader 的同学。先不用记寄存器，
 只要抓住一个原则：
@@ -281,14 +282,12 @@ CP reset entry：关闭 boot AON + APB WDT
 
 ## 11. 如何构建和自动验证
 
-在 open-vela 工作区执行：
+在比赛仓根目录执行当前统一构建入口：
 
 ```bash
-cd /home/lijian/project/open-vela
-
-CP_CONFIG_NAME=cp_nsh \
-AP_CONFIG_NAME=ap_smp_bidir \
-  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
+cd <contest-repository-root>
+./tools/bk7258/bk7258.py build \
+  --board t5_board --boot direct --jobs <N> --clean
 ```
 
 烧录和自动采集使用项目脚本。正式执行前先阅读
@@ -331,7 +330,7 @@ nsh> apctl status
 日志根目录：
 
 ```text
-/home/lijian/project/open-vela/logs/bk7258-auto-debug/
+logs/bk7258-auto-debug/
 ```
 
 最终 factory：
@@ -347,7 +346,7 @@ SHA-256    f7b62cb0b784612f552a6019728760778b601f6eadfac976e1b260da5c45b95b
 - CP/AP 全量构建通过；
 - shell、Python、PowerShell 脚本语法通过；
 - 没有临时 checkpoint；
-- `git -C /home/lijian/project/open-vela/nuttx diff --exit-code -- .` 返回 0，
+- `git -C <openvela-workspace-root>/nuttx diff --exit-code -- .` 返回 0，
   即 NuttX 官方源码没有任何改动。
 
 ## 13. 当前还没有验证什么

@@ -6,7 +6,7 @@
 > 本文只定义 BK7258/Cortex-M33 共用的 SWD、fault 和寄存器调试方法。实际 SWDIO、
 > SWCLK、RESET、GND、VTref 接线、COM 口与复位极性属于板级事实，应从对应板卡原理图
 > 和验证记录取得。自动采集优先使用
-> [`tools/windows-hardware-debug`](../../../tools/windows-hardware-debug/README.md)。
+> `tools/windows-hardware-debug/`。
 >
 > 旧版文档使用 `bl_crc.bin + nuttx_crc.bin` direct 镜像举例；当前维护交付已改为
 > board-owned BL1 → pinned NuttX MCUboot BL2 → signed same-slot CP/AP。不得照抄旧地址

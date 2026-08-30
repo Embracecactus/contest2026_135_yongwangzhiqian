@@ -62,9 +62,8 @@ L0 方向感
 然后只读查看：
 
 - [`$IMPL/README.md`](../../../platforms/bk7258/README.md)；
-- [`$IMPL/next-stage-prompt.md`](../../../platforms/bk7258/next-stage-prompt.md)；
-- [`$BOARD`](../../../../boards/bk7258/)；
-- [contest manifest](../../../../contest2026_135_yongwangzhiqian.xml)。
+- 队伍板级源码 `boards/bk7258/`；
+- 队伍 manifest `contest2026_135_yongwangzhiqian.xml`。
 
 ### 退出条件
 

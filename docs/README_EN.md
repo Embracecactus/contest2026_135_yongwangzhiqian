@@ -12,8 +12,7 @@ worklogs from overriding current source, configuration, or acceptance evidence.
 | Platform integration | [`platforms/<soc>/`](platforms/) | Cross-board CP/AP pairing, build and delivery, compliance, debug procedures, and retained engineering-stage records |
 | Learning | [`learning/`](learning/) | Tutorials and mental models derived from verified sources; never the current implementation status |
 | Workflow | [`workflows/`](workflows/) | Git and collaboration procedures not owned by a single SoC or board |
-| Historical design | [`superpowers/`](superpowers/), [`ai-worklog/`](ai-worklog/) | Plans, prompts, and decisions as they existed at the time; not current implementation truth |
-| Dynamic evidence | [`../progress/`](../progress/) | Current tasks, build identity, and hardware verification; dynamic claims must resolve here and in source/configuration |
+| Verification | [`verification/<soc>/`](verification/) | Immutable host and board acceptance records with build identity and applicability; current claims must also agree with source/configuration |
 
 ## BK7258 entry points
 
@@ -24,7 +23,7 @@ worklogs from overriding current source, configuration, or acceptance evidence.
   architecture-specific differences in documents 1443/1444/1445;
 - [SoC-level documentation](chips/bk7258/README.md);
 - [Learner documentation](learning/bk7258/README.md); and
-- [Current status](../progress/CURRENT.md).
+- [Three-board configuration contract](../boards/bk7258/CONFIGS.md).
 
 The former `docs/bk7258-t5ai/` name incorrectly implied that cross-board material
 was specific to T5-AI, so it has moved to `docs/platforms/bk7258/`. For the same
@@ -32,4 +31,4 @@ reason, `docs/learning/bk7258-t5ai/` is now `docs/learning/bk7258/`. The platfor
 tree still contains historical stage records under `nuttx-port/`, `bootloader-analysis/`,
 and parts of `research/`; current claims must be checked against the platform
 entry, compliance review, current source/configuration, and
-`progress/verification/`.
+`docs/verification/bk7258/`.

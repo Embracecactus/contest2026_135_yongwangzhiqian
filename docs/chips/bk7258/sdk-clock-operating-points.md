@@ -138,5 +138,5 @@ OPP，也没有对应的供电、总线、Flash、PSRAM 和稳定性保证，不
 本文只维护 SoC/SDK 的 OPP 语义、分层和验收门禁，不复制任何单板当前状态。
 T5-Board generation 146 的构建身份、密钥指纹、下载边界、回读差异、冷启动结果和
 性能原始哈希保留在独立的
-[板级验证记录](../../../progress/verification/2026-08-27-bk7258-sdk-clock-240m-validation.md)；
+[板级验证记录](../../verification/bk7258/2026-08-27-bk7258-sdk-clock-240m-validation.md)；
 后续板型和提交代不得直接继承该结论。

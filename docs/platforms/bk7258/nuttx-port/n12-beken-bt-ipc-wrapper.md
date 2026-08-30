@@ -6,7 +6,8 @@
 >
 > 适用 SDK：`v3.1.1.9`，来源为官方 `bk_avdk_smp-release-v3.1.1.9`。
 >
-> 约束：不修改 NuttX 源码，不修改 Beken SDK 源码；实现只位于 BK7258 board overlay。
+> 约束：不修改官方 NuttX 或 Beken SDK 源码；HCI/Controller 适配位于
+> `chips/bk7258/`，板层只选择实例和 profile。
 
 ## 1. 架构决策
 
@@ -17,7 +18,7 @@ N12 使用官方 SDK 已有的 CP/AP Bluetooth mailbox IPC，并在 AP 侧实现
 AP NuttX Bluetooth Host
         │ bt_driver_s: command / ACL
         ▼
-board/bk7258/chip/ap/bk7258_bt_hci.c
+chips/bk7258/ap/bk7258_bt_hci.c
         │ bt_ipc_hci_send_cmd() / bt_ipc_hci_send_acl_data()
         ▼
 official MB_CHNL_BT_CMD mailbox IPC
@@ -35,13 +36,13 @@ CP controller HCI event / ACL
   → AP mailbox ISR
   → official SDK queue
   → bt_ipc_thd
-  → board callback
+  → chip-adapter callback
   → bt_netdev_receive()
   → stock NuttX Bluetooth Host HP/LP workers
 ```
 
 该方案与官方 SDK 的 CPU 分工一致：CP 保留射频和 BLE Controller，AP 运行 Host。
-board wrapper 只转换 HCI framing 和 NuttX driver contract，不重新实现 mailbox
+chip wrapper 只转换 HCI framing 和 NuttX driver contract，不重新实现 mailbox
 协议、控制器或 Host。
 
 ## 2. 与 RPTUN、RPMsgHCI 和 SMP 的关系
@@ -78,7 +79,7 @@ NuttX Host/Controller 分核边界、RPTUN/RPMsg transport 和 `bt_driver_s` 接
 4. 接收 callback 返回后 SDK 会释放临时 H4 buffer；`bt_netdev_receive()` 在返回前同步
    复制完整 HCI packet，之后才交给 NuttX HP/LP worker。
 5. 跨核 packet 的原始分配由源核释放。接收核通过 `HCI_FREE_PKT` 把地址返回给源核，
-   不能由 board wrapper 提前释放或改写。
+   不能由 chip wrapper 提前释放或改写。
 6. Controller init/deinit 通过 vendor opcode `0xfefe` 和 subopcode `0x0001/0x0002`
    完成。AP SDK 对成功响应调用其拼写固定的 ABI
    `bk_bluetooth_init_deinit_compelete()`。
@@ -89,7 +90,7 @@ NuttX Host/Controller 分核边界、RPTUN/RPMsg transport 和 `bt_driver_s` 接
 
 ### 4.1 AP HCI lower-half
 
-实现文件：`board/bk7258/chip/ap/bk7258_bt_hci.c`。
+实现文件：`chips/bk7258/ap/bk7258_bt_hci.c`。
 
 | NuttX 输入 | SDK 调用 | 校验 |
 |---|---|---|
@@ -107,14 +108,14 @@ deinit，最后注销 callback。
 
 ### 4.2 CP bootstrap 和系统服务
 
-实现文件：`board/bk7258/chip/cp/bk7258_bt_controller.c`。
+实现文件：`chips/bk7258/cp/bk7258_bt_controller.c`。
 
 CP 在释放 AP 前初始化官方 `bt_ipc` worker。Controller 本体不在 CP boot 时立即启动，
 而是在收到 AP vendor-init 后由官方 IPC object 调用 `bk_bluetooth_init()`。
 
 官方 Controller 需要 `bk_get_mac()`。不能直接链接 `libbk_system.a`，因为该 archive 同时
-带入 FreeRTOS tick、printf、delay 和 system runtime，会与 NuttX board adapter 发生
-多重定义。board 因此用 SDK 导出的 flash/TRNG leaf 复现 Controller 所需的官方
+带入 FreeRTOS tick、printf、delay 和 system runtime，会与 NuttX chip adapter 发生
+多重定义。chip adapter 因此用 SDK 导出的 flash/TRNG leaf 复现 Controller 所需的官方
 `CONFIG_NEW_MAC_POLICY + CONFIG_RANDOM_MAC_ADDR + CONFIG_BK_MAC_ADDR_CHECK` 编排：
 
 - 先调用幂等的 chip `bk7258_flash_initialize()`（它封装官方 driver init、JEDEC
@@ -164,7 +165,7 @@ CP 在释放 AP 前初始化官方 `bt_ipc` worker。Controller 本体不在 CP 
 
 PHY/RF/calibration 和 Controller lifecycle 会在其公共调用返回前后重置共享 UART block，
 但 SDK UART 软件状态仍可能报告“已初始化”。本板 console 固定为 UART1/GPIO0/1，因而在
-board wrapper 中建立统一硬件不变量：
+chip wrapper 中建立统一硬件不变量：
 
 - global control `0x45830008 = 1`；
 - UART config `0x45830010 = 0x371b`（26 MHz、460800 8N1）；

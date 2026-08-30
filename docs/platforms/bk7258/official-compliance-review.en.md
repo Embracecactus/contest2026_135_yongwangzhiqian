@@ -134,7 +134,7 @@ compliance gate. A complete 80-entry table is a bounded architecture choice.
 | Artifacts do not use `vela_ap.bin` | ✅ Fact correct, multi-image design | Names follow partition roles so CP, AP, BL1, BL2, and pair artifacts cannot be confused; the README documents the names |
 | Team `tests/` has no linkfile mapping | 🟠 Fact correct, no fix required | Tests run directly from the team repository and compile active sources; they are not part of the NuttX source tree. The root README gives the entry point |
 | SDK bundles are not committed | ✅ Fact correct, third-party boundary | The manifest pins source and revision; bundles are rebuilt deterministically from a clean SDK checkout. The README documents rebuild and verification |
-| Hardware evidence and AI logs both live under `logs/` | ✅ Low-risk organization issue | Only `logs/lijian/` is competition-format AI log data. The seven `logs/bk7258-*` trees are early hardware evidence. New structured evidence belongs under `progress/verification/` |
+| Hardware evidence and AI logs both live under `logs/` | ✅ Low-risk organization issue | Only `logs/lijian/` is competition-format AI log data. The seven `logs/bk7258-*` trees are early hardware evidence. New structured evidence belongs under `docs/verification/bk7258/` |
 
 ## Open items
 
@@ -146,6 +146,6 @@ compliance gate. A complete 80-entry table is a bounded architecture choice.
 2. If an evaluator requires a literal directory match despite the architecture
    note, add a clearly labeled CP-only diagnostic `configs/nsh`; do not present
    it as the normal paired CP/AP product configuration.
-3. Early hardware-evidence directories may later move to `progress/evidence/`,
-   but historical references require a separate link audit. This change only
-   clarifies their boundary.
+3. Retain the early `logs/bk7258-*` raw evidence for competition traceability.
+   Put new structured conclusions only in `docs/verification/bk7258/`; do not
+   create a second dynamic progress tree.

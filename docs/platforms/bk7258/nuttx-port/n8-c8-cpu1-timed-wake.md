@@ -46,7 +46,7 @@ Defconfig: `configs/ap_smp_timedwait/defconfig`.
 
 ## 6. Current board gate
 
-N8-C8 is now the CURRENT stage.  Build with
+N8-C8 was the current stage when this record was written.  Build with
 `AP_CONFIG_NAME=ap_smp_timedwait` and require:
 
 - AP `READY`, error 0;

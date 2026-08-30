@@ -2,7 +2,7 @@
 
 > 日期：2026-08-03
 > 状态：**COMPLETED / `board-verified`**
-> 对应计划：[14-n14-psram.md](prompts/14-n14-psram.md)
+> 对应 N14 PSRAM Stage 计划已归档；本文件保留可复核的证据索引。
 > 源码复核：[n14-psram-source-verification.md](n14-psram-source-verification.md)
 
 ## 1. Frozen build baseline

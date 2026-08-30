@@ -2,7 +2,7 @@
 
 > 日期：2026-08-03
 > 状态：**source-verified + build-verified + board-verified**
-> 对应 Stage：[14-n14-psram.md](prompts/14-n14-psram.md)
+> 对应 N14 PSRAM Stage 计划已归档；本文件仅记录源码核验。
 > 自动门禁：`tools/bk7258/verify_bk7258_psram.py`
 
 ## 1. 结论先行
