@@ -2,7 +2,12 @@
 
 日期：2026-07-29
 
-状态：**BOARD-VERIFIED。最终最小修复不修改官方 `nuttx/` 源码，只修改团队 overlay 中 4 个文件。清理所有错误假设和临时实验后，重新编译、下载并在真实 T5-AI 板卡上验证成功。**
+> 本文是已关闭故障的固定根因记录。文中的 `board/bk7258/` 路径、profile 和命令均为
+> 当时坐标，不是现行源码或操作入口；现行入口见
+> [BK7258 平台文档](../README.md)与
+> [构建、烧录与调试 SOP](bk7258-build-flash-debug-sop.md)。
+
+状态：**BOARD-VERIFIED。最终最小修复不修改官方 `nuttx/` 源码，只修改团队 overlay 中 4 个文件。清理所有错误假设和临时实验后，重新编译、下载并在真实 T5AI-Core 板卡上验证成功。**
 
 ## 1. 一分钟读懂
 
@@ -447,7 +452,7 @@ UART1   = 0xc0
 
 ```text
 UART1 IRQ 进入 arm_doirq
-  -> 尚未完成
+  -> 外层执行尚未返回
   -> SysTick 抢占 UART1
        -> 内层再次进入 arm_doirq
        -> 覆盖全局 fallback 状态
@@ -799,7 +804,7 @@ nuttx/arch/arm/src/arm_m/arm_schedulesigaction.c
 
 ## 12.1 完整修复后的第一轮验证
 
-用户在真实 T5-AI 板卡上确认：
+用户在真实 T5AI-Core 板卡（历史称 T5-AI）上确认：
 
 - 反复下载后 CPU0 正常进入 NSH；
 - 连续输入空提示符不再触发故障；
@@ -1000,7 +1005,6 @@ CPU0 task-exit / apctl / heartbeat 回归通过
 
 ## 16. 相关文档
 
-- [N7 CPU1 单核 AP NuttX 启动链](n7-ap-singlecore-bringup.md)
 - [BK7258 J-Link SWD 调试指南](../../../chips/bk7258/jlink-swd-debug-guide.md)
 - [N6：约 4295 秒后 HF/WDT 重启根因](n6-bug-4295s-timer-wrap.md)
 - [BK7258 文档主索引](../README.md)

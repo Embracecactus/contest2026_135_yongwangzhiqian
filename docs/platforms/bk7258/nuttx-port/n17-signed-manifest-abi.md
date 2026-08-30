@@ -1,21 +1,23 @@
 > **Historical / retired design:** this documents the former N17 OTA release
 > Manifest ABI. Its journal/policy/runtime publication path was removed on
-> 2026-08-10. Do not confuse it with the read-only BL1 Manifest pages used by
-> the current BL1/MCUboot boot chain.
+> 2026-08-10. The current BL1/MCUboot A/B update contract is separate; do not
+> use this file as a current manifest, signing-key, partition, or release source.
 
-# N17-S signed CP/AP release manifest ABI
+# BK7258 N17-S signed CP/AP release manifest ABI
 
-- Status: Accepted and frozen ABI; firmware implementation and board-write gates remain closed
-- Scope: recoverable N17-S software-root phase from
-  [ADR-008](../../../../memory/decisions/ADR-008-n17-phased-ota-authentication.md)
-- Active SDK baseline: immutable official Beken v3.1.1.9
+- Status: Historical accepted ABI; its firmware and board-write gates were never enabled
+- Scope: recoverable N17-S software-root phase for the historical Tuya
+  T5AI-Core identity (`board_id=bk7258-t5ai`), from historical decision
+  `memory/decisions/ADR-008-n17-phased-ota-authentication.md`; this ABI never
+  established a multi-board release contract
+- Historical SDK baseline: immutable official Beken v3.1.1.9
 - Date: 2026-08-06
 - Approval evidence: project owner accepted this 512-byte ABI on 2026-08-06
 
 ## 1. Purpose and boundary
 
-This document defines the immutable release-authorization object that N17-S
-will authenticate before either BK7258 executable slot may boot. It does not
+This document defined the immutable release-authorization object that the proposed N17-S
+would authenticate before either BK7258 executable slot may boot. It does not
 change N15 format-2 metadata, allocate Flash sectors, implement a verifier,
 enable an OTA downloader, or authorize a board write.
 
@@ -42,7 +44,7 @@ The manifest is exactly 512 bytes:
           SHA-256 + ECDSA-P256 verification                64 bytes
 
 SHA-256(the first 448 signed bytes) = immutable release-manifest identity
-referenced by the future format-3 lifecycle journal. The signature is proof
+referenced by the proposed format-3 lifecycle journal. The signature is proof
 for that identity, not part of the identity itself.
 ```
 
@@ -110,7 +112,7 @@ digest = SHA-256(manifest[0x000:0x1c0])
 signature = ECDSA-P256-SHA256(digest, prehashed=true)
 ```
 
-An implementation must hash the signed region exactly once. An API that
+The proposed implementation was required to hash the signed region exactly once. An API that
 accepts message bytes receives the 448 bytes; an API that accepts a precomputed
 digest receives the 32-byte digest with its prehashed mode. Passing the digest
 to a message-hashing API would incorrectly hash it a second time.
@@ -137,7 +139,7 @@ additional project canonicalization rule, not a claim that FIPS requires it.
 
 ## 4. Parser and verification order
 
-The future Tier-1 verifier must fail closed in this order:
+The proposed Tier-1 verifier was required to fail closed in this order:
 
 1. Read exactly 512 manifest bytes with bounded raw-Flash reads.
 2. Validate magic, sizes, version, algorithms, flags, reserved bytes and
@@ -177,9 +179,9 @@ accepted the positive vector and rejected all 3,584 single-bit mutations of
 the signed region plus 16 payload, identity, scalar, encoding, reserved-byte,
 counter and domain-separation negative checks. These custom N17 assets have
 since been retired; the paths above are evidence labels, not current links. The
-future Tier-1 C parser must
-consume this same vector and produce the same decisions before its
-implementation gate can pass.
+proposed Tier-1 C parser was required to
+consume this same vector and produce the same decisions; this was the intended
+implementation gate.
 
 The vector payloads are deterministic synthetic byte streams, not bootable
 RBL images. Their `sha256-counter-v1` recipe makes the exact pair, CP and AP
@@ -204,7 +206,7 @@ This ABI deliberately does not decide:
   details.
 
 The Manifest sectors, format-3 lifecycle record, software counter-floor
-ordering and fail-closed migration are accepted in the linked design. Their
-firmware implementation, Tier-1 crypto closure and every board-write gate
-remain separate. Freezing this ABI does not authorize any runtime
+ordering and fail-closed migration were accepted in the linked design. Their firmware
+implementation, Tier-1 crypto closure and board-write gates were not completed before
+retirement. Freezing this ABI does not authorize any runtime
 Flash/security mutation.

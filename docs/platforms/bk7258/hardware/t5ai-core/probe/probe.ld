@@ -1,13 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
- * probe.ld - linker script for the BK7258 (T5-AI, Cortex-M33) bare probe.
+ * probe.ld - linker script for the BK7258 (T5AI-Core, Cortex-M33) bare probe.
  *
  * The probe is linked at flash/XIP logical address 0x02010000, which is the
- * app Reset_Handler entry the bootloader jumps to after validating the app
- * magic. Burning the produced probe.bin (after CRC-expand) at physical flash
- * offset 0x11000 makes the CPU see it at logical 0x02010000.
+ * app Reset_Handler entry used by the historical bootloader experiment.
+ * This source is retained for evidence and is not a current download input.
  *
- * Memory map (reverse-engineered, shared with the future NuttX BSP):
+ * Memory map used by the historical probe:
  *   FLASH : 0x02010000 .. 0x0201FFFF  (64 KiB app window, XIP view)
  *   RAM   : 0x28000000 .. 0x2809FFFF  (640 KiB SRAM)
  *   MSP   : 0x2809FFFC  (top of usable SRAM, slot 0 of the vector table)

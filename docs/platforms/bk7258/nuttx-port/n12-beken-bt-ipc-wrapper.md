@@ -1,8 +1,15 @@
-# N12 — Beken Bluetooth IPC 的 NuttX HCI Wrapper
+# BK7258 N12 — Beken Bluetooth IPC 的 NuttX HCI Wrapper（2026-08-02 快照）
 
+> 本文是固定日期的源码与板端验收快照，不维护现行 profile、构建命令或支持范围。
+> 现行入口见 [BK7258 平台文档](../README.md)与
+> [构建、烧录与调试 SOP](bk7258-build-flash-debug-sop.md)。
+>
 > 状态：N12 批准的冷启动范围已完整 `board-verified`。Controller/Host 握手、HCI info、
 > MAC 持久化、UART 生命周期恢复、RPTUN/RPMsg/RPMsgFS 共存和真实 BLE advertising
 > report 均已实板闭环。
+>
+> 实板范围：上述 `board-verified` 结果仅对应涂鸦 T5AI-Core 首板和冻结镜像；
+> BK7258 Bluetooth IPC/HCI 机制可供其他板卡复用，但每块板仍须独立验收。
 >
 > 适用 SDK：`v3.1.1.9`，来源为官方 `bk_avdk_smp-release-v3.1.1.9`。
 >
@@ -285,9 +292,9 @@ vendor-init handler 还会忽略 `bk_bluetooth_init()` 的返回值并固定发�
 任一步骤超时都应拒绝 warm restart，转为整芯片冷复位，不能带着不确定 pointer state
 继续运行。
 
-## 9. 构建与静态验收
+## 9. 构建与静态验收快照
 
-构建命令：
+当时构建命令（入口已退役，仅用于复现实验坐标）：
 
 ```sh
 CP_CONFIG_NAME=cp_nsh_btipc \

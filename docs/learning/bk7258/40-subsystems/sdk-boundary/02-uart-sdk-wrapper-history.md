@@ -425,7 +425,7 @@ void arm_serialinit(void)
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 (T5-AI, CP 核) UART1 串口下层 —— SDK WRAPPER 模式。
+ * BK7258 CP UART1 串口下层 —— SDK WRAPPER 模式。
  * 本文件零寄存器访问，所有硬件操作转发给 bk_uart_* SDK API。
  ****************************************************************************/
 

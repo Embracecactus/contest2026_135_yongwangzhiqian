@@ -71,7 +71,7 @@ E6 行为可重复，且失败/恢复边界明确
 ### 4.2 实施事实入口：`$IMPL`
 
 - [`$IMPL/README.md`](../../../platforms/bk7258/README.md)：实施文档总入口。
-- `boards/bk7258/CONFIGS.md`：三块板和各 profile 的唯一支持矩阵。
+- `boards/bk7258/CONFIGS.md`：当前支持板卡和各 profile 的唯一支持矩阵。
 - `$IMPL/nuttx-port/`、`$IMPL/bootloader-analysis/` 等：保存稳定设计与调查材料；日期化验收证据位于 `docs/verification/bk7258/`。
 
 学习文档只链接这些入口，不复制实时状态表或下一步计划。

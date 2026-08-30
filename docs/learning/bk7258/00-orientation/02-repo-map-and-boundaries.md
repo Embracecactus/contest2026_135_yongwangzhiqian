@@ -12,9 +12,9 @@ contest2026_135_yongwangzhiqian/
 │   ├── bk7258/                 # 队伍自有 BK7258 命令应用
 │   └── testing/bk7258/         # 可上游的 target CMocka 应用
 ├── quickapp/hello_quickapp/    # 系统生成的原始快应用示例
-├── chips/bk7258/               # 三板共享的 SoC 机制
+├── chips/bk7258/               # BK7258 板卡共享的 SoC 机制
 ├── boards/bk7258/
-│   ├── common/                 # 三板共享的板级基础设施
+│   ├── common/                 # 所有使用它的板卡共享的基础设施
 │   ├── t5_board/               # T5-Board 物理策略
 │   ├── t5ai_core/              # T5AI-Core 物理策略
 │   ├── aidk_ai_toy/            # AIDK AI Toy 物理策略

@@ -1,8 +1,15 @@
-# BK7258 P0 调试、xTS 与性能基线适配手册
+# BK7258 T5-Board P0 调试、xTS 与性能基线适配（2026-08-27 快照）
+
+> 文件名为避免破坏日期化 verification 的既有引用而保留；本文范围始终只对应 T5-Board。
 
 - 最后复核：2026-08-27
 - 目标板：T5-Board V1.0.2
-- 下载与控制台：COM3，BK Loader 2.1.11.15 / UART0 115200 8N1
+- 当时测试夹具：COM3，BK Loader 2.1.11.15 / UART0 115200 8N1
+
+> 本文是固定日期的专项验收快照；COM 号只标识当时夹具，不是板卡身份。文中的“当前”、
+> “现役”和“退出条件”均指 2026-08-27 复核时点，不维护现行支持矩阵或操作流程。
+> 现行支持范围见 `boards/bk7258/CONFIGS.md`，操作入口见
+> [构建、烧录与调试 SOP](nuttx-port/bk7258-build-flash-debug-sop.md)。
 
 ## 1. 结论与边界
 
@@ -14,7 +21,7 @@ P0 采用两张用途互斥的 CP 镜像，不能把诊断镜像的结果当性�
 | `t5_board/configs/xts` | 系统级诊断、Trace、压力和既有 xTS | generation 143 的诊断专项通过；generation 149 以 64 KiB CP role-local PSRAM system heap 保持标准 16 KiB runner stack，当前代 mm 8/8、sched 16/16、ostest、getprime、mm/ramtest、scanftest、hello/pipe 和冷启动通过 |
 | `t5_board/configs/perf` | SDK OPP 240M、`-O3`、低噪声 benchmark | generation 145 的旧 OPP 320M/CPU0 160 MHz 基线保留为历史对照；generation 146 已完成 240 MHz 签名全量下载、回读、冷启动和三项 benchmark 各 10 次 |
 
-已闭环的是当前支持的非破坏性诊断路径和三项性能基线。以下内容仍不能宣称完成：
+该轮已闭环非破坏性诊断路径和三项性能基线。以下内容仍不能宣称完成：
 
 - 受控 fault 后的 crash/backtrace 恢复；
 - critmon 超限告警阈值，当前只验收统计可观测性；
@@ -293,9 +300,9 @@ CoreMark 与四项 Ramspeed 都按 240/160 线性增长，构成实际 CPU0/Bus 
 SHA-256、签名身份和回读差异见
 [generation 146 完整记录](../../../docs/verification/bk7258/2026-08-27-bk7258-sdk-clock-240m-validation.md)。
 
-## 8. 暂缓项与退出条件
+## 8. 验收时未覆盖边界
 
-| 官网项 | 当前边界 | 退出条件 |
+| 官网项 | 截至复核日的边界 | 若另行验收所需前提 |
 |---|---|---|
 | Dhrystone | 构建会下载未固定的 GitHub `master.zip` | 固定版本、哈希和许可证来源后启用 |
 | TinyMemBench | 同样存在未锁定下载，Kconfig/官网命名需统一 | 锁定来源并验证 Armv8-M 非 NEON 路径 |
@@ -306,6 +313,6 @@ SHA-256、签名身份和回读差异见
 | 12h soak | owner 于 2026-08-27 确认延期 | 后续恢复时使用产品 profile、独立日志和明确健康判据 |
 | 主机测试 | 现役 chip/API、当前 Agent 分区生成契约和全部分层目标已执行 | `make -C tests/host/bk7258 check` exit 0 且出现 `BK7258_HOST_TEST_PASS`；见主机回归记录 |
 
-因此适配矩阵中 P0 工作包保持“部分完成”：本轮代码、当前代非破坏性 xTS 核心、
+因此在 2026-08-27 适配快照中，P0 工作包记录为“部分完成”：本轮代码、当前代非破坏性 xTS 核心、
 诊断专项、主机回归和三项性能基线已经闭环；但不能用它们替代仍需夹具的外设用例、
 破坏性介质测试和已延期长稳。

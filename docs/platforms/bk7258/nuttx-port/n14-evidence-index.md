@@ -3,6 +3,8 @@
 > 日期：2026-08-03
 > 状态：**COMPLETED / `board-verified`**
 > 对应 N14 PSRAM Stage 计划已归档；本文件保留可复核的证据索引。
+> 实板范围：16 MiB PSRAM、timer 与生命周期结果仅对应涂鸦 T5AI-Core 首板；
+> 其他 BK7258 板卡必须按各自实装器件与 profile 独立验收。
 > 源码复核：[n14-psram-source-verification.md](n14-psram-source-verification.md)
 
 ## 1. Frozen build baseline

@@ -1,6 +1,9 @@
-# BK7258 官方符合性复核说明
+# BK7258 官方符合性复核说明（2026-08-28 快照）
 
 [English](official-compliance-review.en.md) | 简体中文
+
+> 本文是固定提交和官网版本上的审计快照，不是当前缺口或任务清单。
+> 当前事实仍须从源码、resolved config、构建产物和更新日期的 verification 记录确认。
 
 - 复核日期：2026-08-28
 - 复核提交：`ce435f5ed66f5744339a3dc846405d9f7bc4b93a`
@@ -22,7 +25,7 @@
   工具链安装、SDK bundle 重建、配对构建和产物命名。本次已用中英文作品说明替换。
 - **已修复的文档归属问题：**原 `docs/bk7258-t5ai/` 实际覆盖三块板，现已迁移为
   `docs/platforms/bk7258/`；学习资料迁为 `docs/learning/bk7258/`，逆向资料改名为
-  `bootloader-analysis/`，T5AI Core 专属探针下沉到
+  `bootloader-analysis/`，T5AI-Core 专属探针下沉到
   `hardware/t5ai-core/probe/`。现役源码、导航和验证文档中的引用同步更新。
 - **不是缺口：**所谓“CMake 漏编 13 个驱动”不成立；13 个名称正好由三个
   `foreach` 循环生成。当前 CMake/Ninja 产物也包含维护 profile 已启用的
@@ -115,7 +118,7 @@ IRQ 的内存优化章节，不是符合性门槛；当前选择完整 80 项数
 | SDK bundle 未入库 | ✅ 事实成立，属于第三方边界 | manifest 固定源码和 revision，本机从干净 SDK checkout 确定性重建；忽略第三方二进制，README 已给重建/校验步骤 |
 | 硬件证据与 AI 日志同在 `logs/` | ✅ 低风险组织问题 | `logs/lijian/` 才是官方格式 AI 日志；七个 `logs/bk7258-*` 是早期硬件证据。README 已区分，新证据统一进入 `docs/verification/bk7258/` |
 
-## 尚未关闭的事项
+## 截至复核日的未覆盖边界
 
 1. 任何准备启用 TOUCH 的物理板先实现
    `bk7258_board_cp_devices_initialize()`、增加对应构建/链接测试，再由自身依赖

@@ -5,6 +5,9 @@
 状态：2026-07-31 历史镜像 `board-verified`，warm 3/3、physical reset 3/3、AP SMP
 全部通过；当前构建与下载命令以统一 CLI 为准
 
+> 实板范围：本文的验证结果仅对应涂鸦 T5AI-Core 首板（历史资料也称 T5-AI）；
+> 修复方法中的芯片级机制可以复用，但不自动构成其他板卡的验收证据。
+
 这篇文档面向第一次接触 BK7258、多核启动或 bootloader 的同学。先不用记寄存器，
 只要抓住一个原则：
 
@@ -74,7 +77,7 @@ checkpoint 会增加几十到几百微秒延迟，可能把 race 暂时隐藏。
 本次分析的技术支持 SDK 是：
 
 ```text
-C:\Users\lijian\Downloads\BK7258_SMP\bk_avdk_smp-release-v3.1.1.9.tar.gz
+<sdk-v3.1.1.9-source-archive>
 ```
 
 只在 `/tmp` 解出需要的文件做只读分析，没有修改官方包：
@@ -363,7 +366,7 @@ power cut not yet verified
 ```
 
 此外，本次只复现了官方 bootloader 对当前 raw NuttX 启动必要的硬件契约，不包含官方
-RBL/OTA/download 全部功能。若将来要兼容官方升级协议，应单独立项，不能把当前 Tier-1
+RBL/OTA/download 全部功能。若将来要兼容官方升级协议，应单独立项，不能把该轮 Tier-1
 当成官方 52 KB 镜像的完整替代品。
 
 ## 14. 遇到类似问题时的最短排查清单

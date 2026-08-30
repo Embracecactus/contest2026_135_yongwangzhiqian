@@ -1,6 +1,6 @@
-# T5AI Core V1.0.1 硬件连接与验证边界
+# T5AI-Core V1.0.1 硬件连接与验证边界
 
-本目录只适用于 T5AI Core V1.0.1。板级验证记录见
+本目录只适用于 T5AI-Core V1.0.1。板级验证记录见
 [validation-2026-08-09.md](validation-2026-08-09.md)，最小裸机启动/UART 探针见
 [probe/README.md](probe/README.md)。
 
@@ -54,7 +54,7 @@ P20/P21 <-> SWCLK/SWDIO，并同时引出到 J2
 | 主调试串口 | UART0_TX/RX | 连接 CH342F 通道 0 | Windows 会枚举为两路 COM 中的一路，需用日志内容确认端口。 |
 | 第二串口 | P0/P1 | 连接 CH342F 通道 1 | 与专用 UART0 引脚不同，不能交换配置。 |
 | 自动复位 | DTR0/RTS0 -> Q2 -> T5_RST | 双控制线晶体管电路 | 工具必须按已验证的 DTR/RTS 组合动作，不能只切换一根线。 |
-| 原生 USB | USB_P/USB_N | Core 板没有可用接口 | 不属于 Core 板验证范围，留到完整 T5-Board。 |
+| 原生 USB | USB_P/USB_N | Core 板没有可用接口 | 不属于 T5AI-Core 的验证范围；不能借用 T5-Board 的结论。 |
 | SWD | P20/P21 | SWCLK/SWDIO，同时引出到 J2 | J-Link 连接期间不得把 P20/P21 配置为普通 GPIO。 |
 | 电池采样 | P28/ADC_BAT | BAT 经 3 MΩ/1 MΩ 分压和 100 Ω 输入 | 换算关系约为 `VBAT = VADC * 4`；实际精度仍需 ADC 校准和实测确认。 |
 | 充电检测 | P38/CHG_DET_N | 低有效命名 | 需要 USB/电池状态组合才能完整验证。 |
@@ -84,7 +84,9 @@ P20/P21 <-> SWCLK/SWDIO，并同时引出到 J2
 - RGB LCD 连接器；
 - DVP 摄像头连接器。
 
-这些控制器可以完成编译、链接和底层接口审查，但不能把“驱动已编译”表述成“Core 板硬件已验证”。完整 T5-Board 应作为后续独立板型验证。
+这些控制器可以完成编译、链接和底层接口审查，但不能把“驱动已编译”表述成
+“T5AI-Core 硬件已验证”。T5-Board 和 AIDK AI Toy 必须使用各自板型的配置与
+日期化验收记录。
 
 ## 6. 安全边界
 
@@ -96,9 +98,9 @@ P20/P21 <-> SWCLK/SWDIO，并同时引出到 J2
 6. 单 MIC 验证先使用正常环境声和低风险采集配置，不把未采样的音频能力标为通过。
 7. 外设验证必须记录接线、电压域和所用排针，不将外部扩展板能力归属为 Core 板板载能力。
 
-## 7. 与当前板型配置的核对
+## 7. 与板型配置的核对
 
-`board/bk7258/boards/t5ai_core/include/bk7258_board_config.h` 中的以下定义与 V1.0.1 原理图一致：
+`boards/bk7258/t5ai_core/include/bk7258_board_config.h` 中的以下定义与 V1.0.1 原理图一致：
 
 - P9：板载 LED，高有效；
 - P29：用户按键，低有效；

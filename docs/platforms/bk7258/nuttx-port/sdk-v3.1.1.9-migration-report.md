@@ -1,34 +1,32 @@
-# BK7258 SDK v3.1.1.9 迁移与板测报告
+# BK7258 SDK v3.1.1.9 迁移与板测报告（2026-07-31 历史快照）
 
-状态：`board-verified`
 日期：2026-07-31
-默认 bundle：`v3.1.1.9`
-回退 bundle：`legacy`
 
-> 2026-08-03 active policy：本文保留的legacy比较、产物和命令均为历史证据。当前及后续功能开发
-> 只允许official v3.1.1.9；待功能完整完成并在v3.1.1.9实板闭环后，才可由owner另开任务验证
-> legacy，不得在当前stage重跑双版本矩阵。
+> 本文记录当时从 legacy SDK 切换到 v3.1.1.9 的迁移证据。文中的 default、fallback、
+> bundle 路径和构建命令均不是现行入口；legacy 不得作为当前 BK7258 信任、构建或下载
+> 的候选与回退。现行 SDK 身份由 team manifest 负责，操作入口见
+> [构建、烧录与调试 SOP](bk7258-build-flash-debug-sop.md)。
 
 ## 1. 结论
 
 官方技术支持提供的 `bk_avdk_smp-release-v3.1.1.9` 已完成 CP/AP 编译、静态库导入、
-ABI 比较、双镜像构建和真实 T5-AI 板冷启动验证。项目现默认链接 `v3.1.1.9`，
+ABI 比较、双镜像构建和真实 T5AI-Core 板冷启动验证。该轮迁移后默认链接 `v3.1.1.9`，
 迁移前的 legacy SDK、旧 SDK 源码和 GitHub `vendor_beken` 参考仓均原样保留。
 
-本次没有修改 `/home/lijian/project/open-vela/nuttx` 官方源码；所有实现均位于
-`contest2026_135_yongwangzhiqian/` team overlay，受限 SDK bundle 仍不进入 Git。
+本次没有修改 `<openvela-workspace>/nuttx` 官方源码；所有实现均位于
+contest repository 的 team overlay，受限 SDK bundle 仍不进入 Git。
 
 ## 2. 来源与保留策略
 
 | 项目 | 路径 / 身份 | 处理 |
 |---|---|---|
-| 官方压缩包 | `C:\Users\lijian\Downloads\BK7258_SMP\bk_avdk_smp-release-v3.1.1.9.tar.gz` | 保留 |
-| WSL 压缩包路径 | `/mnt/c/Users/lijian/Downloads/BK7258_SMP/bk_avdk_smp-release-v3.1.1.9.tar.gz` | 只读来源 |
-| 最新 SDK source tree | `/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9` | 新增、完整解压 |
-| 旧 SDK source tree | `/home/lijian/project/armino/bk_avdk_smp` | 原样保留 |
-| GitHub 参考仓 | `/home/lijian/project/armino/vendor_beken`，commit `85a08bf9761a873fb0f80e0b557f44de93005c65` | 原样保留 |
-| legacy bundle | `bk_idk/armino_as_lib/versions/legacy/{cp,ap}` | 不覆盖、可回退 |
-| latest bundle | `bk_idk/armino_as_lib/versions/v3.1.1.9/{cp,ap}` | 当前默认 |
+| 官方压缩包 | `<sdk-v3.1.1.9-source-archive>` | 保留 |
+| WSL 压缩包路径 | `<sdk-v3.1.1.9-source-archive>` | 只读来源 |
+| v3.1.1.9 source snapshot | `<sdk-v3.1.1.9-checkout>` | 新增、完整解压 |
+| legacy source snapshot | `<legacy-sdk-checkout>` | 原样保留 |
+| GitHub 参考仓 | `<vendor-beken-checkout>`，commit `85a08bf9761a873fb0f80e0b557f44de93005c65` | 原样保留 |
+| legacy bundle | `bk_idk/armino_as_lib/versions/legacy/{cp,ap}` | 当时保留的比较样本 |
+| v3.1.1.9 bundle | `bk_idk/armino_as_lib/versions/v3.1.1.9/{cp,ap}` | 当时默认 |
 
 官方压缩包大小为 `207144722` bytes，SHA-256：
 
@@ -50,10 +48,10 @@ arm-none-eabi-gcc (15:10.3-2021.07-4) 10.3.1 20210621 (release)
 官方 SDK CP/AP target：
 
 ```bash
-make -C /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9 \
+make -C <sdk-v3.1.1.9-checkout> \
   bk7258_cp PROJECT=app COMPILER_TOOLCHAIN_PATH=/usr/bin -j8
 
-make -C /home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9 \
+make -C <sdk-v3.1.1.9-checkout> \
   bk7258_ap PROJECT=app COMPILER_TOOLCHAIN_PATH=/usr/bin -j8
 ```
 
@@ -133,8 +131,8 @@ mb_flash_op_prepare
 保存的构建目录：
 
 ```text
-/home/lijian/project/open-vela/nuttx/bk7258-dual-sdk-legacy
-/home/lijian/project/open-vela/nuttx/bk7258-dual-sdk-v3.1.1.9
+<openvela-workspace>/nuttx/bk7258-dual-sdk-legacy
+<openvela-workspace>/nuttx/bk7258-dual-sdk-v3.1.1.9
 ```
 
 raw image：
@@ -161,23 +159,23 @@ CP/AP 的全部 symbol address 也完全一致。AP raw image 逐字节一致；
 烧录 latest factory：
 
 ```text
-/home/lijian/project/open-vela/nuttx/
+<openvela-workspace>/nuttx/
   bk7258-dual-sdk-v3.1.1.9/all-app-factory.bin
 ```
 
 烧录日志：
 
 ```text
-/home/lijian/project/open-vela/logs/bk7258-auto-debug/20260731-140133
+<openvela-workspace>/logs/bk7258-auto-debug/20260731-140133
 ```
 
 BK loader 完成 erase/write/reboot；warm capture 为 `PASS_NSH`。随后使用 RTS 执行三轮
 物理 RESET，均为 `PASS_NSH` 且 `cold_path=yes`：
 
 ```text
-/home/lijian/project/open-vela/logs/bk7258-auto-debug/20260731-140223
-/home/lijian/project/open-vela/logs/bk7258-auto-debug/20260731-140257
-/home/lijian/project/open-vela/logs/bk7258-auto-debug/20260731-140327
+<openvela-workspace>/logs/bk7258-auto-debug/20260731-140223
+<openvela-workspace>/logs/bk7258-auto-debug/20260731-140257
+<openvela-workspace>/logs/bk7258-auto-debug/20260731-140327
 ```
 
 每轮均出现：
@@ -195,19 +193,10 @@ nsh>
 
 `create_socket failed.` 仍是已知非致命输出，与迁移前一致。
 
-## 7. 默认、回退与边界
+## 7. 历史边界
 
-不设置环境变量时，Make、CMake、校验脚本、导入脚本和双镜像脚本统一默认
-`v3.1.1.9`。回退只需：
+该轮曾验证 v3.1.1.9 默认 bundle 与 legacy 切换，但相关环境变量、目录和双镜像脚本均已
+退出公共接口。现行流程不得从本文恢复 legacy 回退路径，也不得把历史 bundle 当作当前
+SDK 身份；SDK 版本、来源与安装状态以 team manifest 和统一 CLI 的 `sdk` 域为准。
 
-```bash
-BK7258_SDK_BUNDLE_VERSION=legacy JOBS=8 \
-  ./contest2026_135_yongwangzhiqian/board/bk7258/scripts/build_dual_image.sh
-```
-
-legacy 目录不可由导入脚本覆盖。任何未知版本都会 fail closed。每次双镜像构建在
-`build-profile.txt` 记录 bundle 路径及 manifest/provenance 哈希。
-
-这次迁移验证的是 SDK 静态库来源切换，不等同于宣称当前 Tier-1 bootloader 已完整
-实现官方 52 KiB bootloader 的所有功能。Bootloader 完整逆向仍作为独立后续工作，
-不会因为 SDK 更新而被掩盖。
+这次迁移只验证了当时的 SDK 静态库来源切换，不等同于现行启动链或信任链验收。

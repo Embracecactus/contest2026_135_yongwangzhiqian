@@ -1,6 +1,6 @@
 # 多核基础：BK7258 三核架构与 CP/AP 分离
 
-本篇讲解 BK7258 芯片的多核架构、CPU0（CP）与 CPU1（AP）的独立 NuttX 镜像模型、启动链、mailbox doorbell 通信协议和共享内存 boot state 设计。阶段标签是来源日期对应的教学快照，不代表当前产品状态；当前事实以源码、维护配置和 `$IMPL/docs/verification/bk7258/` 中匹配板型的记录为准。
+本篇讲解 BK7258 芯片的多核架构、CPU0（CP）与 CPU1（AP）的独立 NuttX 镜像模型、启动链、mailbox doorbell 通信协议和共享内存 boot state 设计。阶段标签是来源日期对应的教学快照，不代表当前产品状态；当前事实以源码、维护配置和 `docs/verification/bk7258/` 中匹配板型的记录为准。
 
 > **来源记录**
 >

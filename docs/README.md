@@ -2,29 +2,28 @@
 
 [English](README_EN.md) | 简体中文
 
-文档位置按“结论适用范围”划分，避免把某块板的实测结果推广为芯片契约，也避免用
-历史工作记录覆盖当前源码、配置和验收状态。
+文档按结论的适用范围分层。单板观察不能升级为 SoC 契约，历史验收也不能覆盖
+当前源码、配置和构建产物。
 
 | 层级 | 目录 | 内容与边界 |
 |---|---|---|
-| Chip / SoC | [`chips/<soc>/`](chips/) | 寄存器、启动核、IRQ、DVFS/PM、SDK ABI、芯片 bootloader 和通用调试契约；不得放单板引脚或单板验收结论 |
-| Platform integration | [`platforms/<soc>/`](platforms/) | 跨板卡的 CP/AP 配对、构建交付、符合性、调试方法和按阶段保留的工程记录 |
-| Learning | [`learning/`](learning/) | 从源码和已验证结论提炼的教程与心智模型；不发布当前实施状态 |
-| Workflow | [`workflows/`](workflows/) | 不依赖某一芯片或板卡的 Git/协作流程 |
-| Verification | [`verification/<soc>/`](verification/) | 带构建身份和适用边界的不可变主机/实板验收记录；当前事实还必须与源码/config 一致 |
+| Chip / SoC | [`chips/<soc>/`](chips/) | 不依赖具体板卡的寄存器、启动、IRQ、时钟、PM、SDK ABI 和通用调试契约 |
+| Platform integration | [`platforms/<soc>/`](platforms/) | 跨板构建、启动与更新模型、交付方法、符合性说明，以及明确标为历史的工程记录 |
+| Learning | [`learning/`](learning/) | 带来源版本的教程和心智模型；不发布当前实施进度或板端验收状态 |
+| Workflow | [`workflows/`](workflows/) | 不属于特定芯片或板卡的 Git 与协作流程 |
+| Verification | [`verification/<soc>/`](verification/) | 带日期、构建身份和适用边界的不可变主机/实板验收记录 |
+
+板型、profile、分区和发布策略是源码/配置事实，不在 `docs/` 复制维护。BK7258 的
+权威入口是 `boards/bk7258/CONFIGS.md` 与 `boards/bk7258/README.md`。
 
 ## BK7258 入口
 
-- [平台集成文档](platforms/bk7258/README.md)：T5AI Core、T5 Board 和 AIDK AI Toy
-  共用的交付入口；
-- [官方符合性复核](platforms/bk7258/official-compliance-review.md)：官方 1443/1444/1445
-  的硬性要求、推荐项、示例目录和架构差异；
-- [芯片级文档](chips/bk7258/README.md)：对 BK7258 SoC 成立的稳定契约；
-- [学习文档](learning/bk7258/README.md)：面向初学者的渐进式材料；
-- [三板配置契约](../boards/bk7258/CONFIGS.md)：当前可维护的 CP/AP 配置入口。
+- [芯片与板卡集成](platforms/bk7258/README.md)：BK7258 跨板构建、启动、更新和交付入口；
+- [芯片级文档](chips/bk7258/README.md)：BK7258 SoC 共用契约；
+- [学习文档](learning/bk7258/README.md)：按固定来源版本编写的教程；
+- [正式验收记录](verification/bk7258/)：按日期保存的不可变证据；
+- `boards/bk7258/CONFIGS.md`：当前支持板卡、profile、分区与配置契约；
+- `SOURCE_PROVENANCE.md`：源码、表格、协议和初始化序列的许可证及来源。
 
-原目录名 `docs/bk7258-t5ai/` 会把跨三块板的内容误解成只适用于 T5-AI，因此已迁移
-为 `docs/platforms/bk7258/`。学习区同理由 `docs/learning/bk7258-t5ai/` 改为
-`docs/learning/bk7258/`。平台目录中的 `nuttx-port/`、`bootloader-analysis/` 和部分 research
-文件保留阶段技术记录属性；当前结论必须回到平台入口、符合性说明、当前源码/config 和
-`docs/verification/bk7258/` 复核。
+阅读历史资料时，以其记录日期和构建身份为边界。凡标题或开头标为“历史”“快照”
+或“retired”的内容，只用于解释当时决策，不能作为当前命令、信任根、分区或板型状态。

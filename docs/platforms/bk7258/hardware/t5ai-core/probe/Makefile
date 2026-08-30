@@ -1,8 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+
 # Makefile - BK7258 (Cortex-M33) bare probe.
 #
-# Produces probe.elf / probe.bin in this directory. The binary is the raw
-# logical image linked at 0x02010000; CRC-expand it (see README) before
-# burning at physical flash offset 0x11000.
+# Produces historical probe.elf / probe.bin for source review only. These
+# outputs are not current package or download inputs; see README.md.
 
 # Toolchain: prefer arm-none-eabi- (any Cortex-M capable gcc works).
 CROSS   ?= arm-none-eabi-

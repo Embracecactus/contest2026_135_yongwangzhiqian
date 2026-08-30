@@ -1,9 +1,11 @@
 # Platform Integration Documentation
 
-This directory contains integration documentation that spans SoC support, board
-configurations, and delivery tooling. SoC-level contracts live under
-`docs/chips/`, learner-oriented tutorials under `docs/learning/`, and changing
-verification evidence under `docs/verification/bk7258/`.
+This directory documents integration across SoC support, physical-board
+configuration, and delivery tooling. Shared SoC contracts live under
+`docs/chips/`, board pinout and instance policy under `boards/`, tutorials
+under `docs/learning/`, and immutable dated acceptance records under
+`docs/verification/`.
 
-- [BK7258 platform integration](bk7258/README_EN.md): covers T5AI Core, T5 Board, and AIDK AI Toy.
+- [BK7258 SoC and board integration](bk7258/README_EN.md): use that entry and
+  `boards/bk7258/CONFIGS.md` for the current supported-board set.
 - [中文](README.md)

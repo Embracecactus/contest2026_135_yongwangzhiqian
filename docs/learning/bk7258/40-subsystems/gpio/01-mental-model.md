@@ -1,6 +1,6 @@
 # GPIO Lower-half：用户态 `/dev/gpioN` 驱动
 
-本篇讲解 NuttX GPIO 的 upper/lower half 架构、用户态 ioctl 接口，以及 BK7258 T5-AI 板上两个 GPIO 实例（P9 LED 和 P29 USERKEY）从寄存器到中断回调的完整实现。文中的板端结果是固定日期的教学证据快照，不代表当前产品验收状态；当前事实以源码、维护配置和 `$IMPL/docs/verification/bk7258/` 中匹配板型的记录为准。
+本篇讲解 NuttX GPIO 的 upper/lower half 架构、用户态 ioctl 接口，以及 T5AI-Core 上两个 GPIO 实例（P9 LED 和 P29 USERKEY）从寄存器到中断回调的完整实现。文中的板端结果是固定日期的教学证据快照，不代表当前产品验收状态；当前事实以源码、维护配置和 `docs/verification/bk7258/` 中匹配板型的记录为准。
 
 > **来源记录**
 >

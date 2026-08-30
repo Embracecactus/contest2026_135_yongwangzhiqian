@@ -1,4 +1,8 @@
-# T5-AI Bootloader (t5ai_bootloader.bin) 逆向分析报告
+# 涂鸦 T5-AI Bootloader 样本逆向笔记（历史）
+
+> 本文只保存 `t5ai_bootloader.bin` 样本的逆向证据，不定义现行板级命名、启动链、
+> 信任链或下载流程。现行入口见 [BK7258 平台文档](../README.md)与
+> [构建、烧录与调试 SOP](../nuttx-port/bk7258-build-flash-debug-sop.md)。
 
 ## 0. 元信息
 
@@ -12,10 +16,10 @@
 
 ---
 
-## 1. 完整启动流程图
+## 1. 历史重建的启动流程
 
 ```
-BootROM (mask ROM @ 0x28000000)
+BootROM (mask ROM @ 0x06000000)
   |
   |-- 从 flash physical 0x0 读取 bootloader 区域 (CRC-expanded 0x11000)
   |-- 校验 bootloader magic @ logical 0x100: "BK7236\x10\x00"
@@ -437,49 +441,35 @@ str   r0, [r2, #84]      ; 写 command register
 
 ---
 
-## 10. 与 BK 官方的差异
+## 10. 与 BK 官方样本的可确认比较
 
-### 10.1 Tuya Bootloader vs BK 官方启动链路
+### 10.1 地址视图必须区分
 
-| 项目 | BK 官方 (startup_cpu0.c) | Tuya Bootloader |
-|------|-------------------------|-----------------|
-| 向量表大小 | 66 entries (含 magic) | 64 entries (标准) |
-| Magic 位置 | IRQ48/49 (offset 0x100) | offset 0x110 (物理) |
-| MSP | `__StackTopCpu0` (链接器定义) | `0x28030000` (硬编码) |
-| Reset_Handler | `Reset_Handler_Cpu0` | `0x020001C1` |
-| 系统初始化 | `SystemInitCpu0()` | 内联在 Reset_Handler |
-| C 运行时 | `__PROGRAM_START()` | 无 (纯裸机) |
-| 分区表 | 运行时从 flash 读取 | FAL 内嵌 |
-| OTA 支持 | 无 (由 app 处理) | diff2ya/bspatch 内嵌 |
-| 多核启动 | `start_cpu1_core()` | 无 (由 app 处理) |
+| 项目 | BK 官方 normal bootloader 样本 | 涂鸦样本 | 结论 |
+|---|---|---|---|
+| Bootloader magic | logical `0x100` | packed physical `0x110` | 均对应 logical `0x100` |
+| Magic 值 | `BK7236\x10\x00` | `BK7236\x10\x00` | 相同 |
+| MSP | `0x28030000` | `0x28030000` | 相同 |
+| Reset_Handler | `0x020001C1` | `0x020001C1` | 相同 |
 
-### 10.2 Magic 差异
+涂鸦样本以 32-byte data + 2-byte CRC16 的物理展开格式观察时，logical `0x100`
+映射为 physical `0x110`。因此不能把 `0x110` 与官方逻辑镜像中的 `0x100`
+解释成两套不同的 magic 契约。
 
-| 位置 | BK 官方 | Tuya |
-|------|---------|------|
-| Bootloader magic | `BK7236\x10\x00` @ offset 0x100 | `BK7236\x10\x00` @ offset 0x110 (物理) |
-| App magic | `BK7236\0\0` @ offset 0x100 | `BK7236\0\0` @ offset 0x100 |
-| Magic 在向量表 | IRQ48/49 位置 | 不在向量表 (独立区域) |
+### 10.2 比较边界
 
-### 10.3 代码组织差异
+该样本包含 FAL、差分升级和 UART 输出相关字符串，但字符串和线性反汇编不能单独证明
+完整运行时调用链。官方 startup 源码、官方 normal bootloader 二进制与涂鸦样本也不是
+同一种证据对象；不能据此维护“谁支持 OTA”或“完整功能差异”的现行表格。
 
-| 项目 | BK 官方 | Tuya |
-|------|---------|------|
-| 语言 | C + ARM 汇编 | 主要是 C (编译后二进制) |
-| 代码大小 | ~73KB (bootrom.bin) | 64KB (t5ai_bootloader.bin) |
-| 功能 | 最小启动 + TFM 安全启动 | 完整 OTA + 分区管理 |
-| Flash 驱动 | 直接寄存器操作 | FAL 抽象层 |
-| 调试输出 | 无 (TFM 模式) | UART1 printf |
+### 10.3 可复用的格式结论
 
-### 10.4 关键兼容点
-
-两者兼容的格式要求:
-1. **Bootloader magic**: `BK7236\x10\x00` @ logical offset 0x100
-2. **App magic**: `BK7236\0\0` @ logical offset 0x100
-3. **Flash format**: 32-byte data + 2-byte CRC16 (big-endian)
-4. **MSP range**: `0x28000000 - 0x280A0000`
-5. **Reset_Handler**: Thumb address (bit0 = 1)
-6. **VTOR**: `0xE000ED08` (ARM 标准)
+1. **Bootloader magic**：`BK7236\x10\x00` @ logical offset `0x100`
+2. **App magic**：`BK7236\0\0` @ logical offset `0x100`
+3. **Flash format**：32-byte data + 2-byte CRC16（big-endian）
+4. **MSP range**：`0x28000000 - 0x280A0000`
+5. **Reset_Handler**：Thumb address（bit0 = 1）
+6. **VTOR**：`0xE000ED08`
 
 ---
 

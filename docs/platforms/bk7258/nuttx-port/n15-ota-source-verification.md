@@ -1,21 +1,26 @@
 > **Historical / retired:** this file records evidence for the former custom
 > N15 OTA lifecycle. Its runtime implementation and dedicated verification
-> scripts were removed on 2026-08-10; it is not the active update design.
+> scripts were removed on 2026-08-10. The current A/B OTA implementation is a
+> separate design documented by the platform SOP; no address, command, profile,
+> or trust rule in this file is a current update input.
 
 # BK7258 N15 OTA / AB source verification
 
 > 日期：2026-08-03
 > 状态：**HISTORICAL / ADR-003 R1/R2 rejected-option evidence**
 > 对应 N15 Tier-2 OTA Stage 计划已归档；本文件仅记录源码核验。
-> 自动门禁：`verify_bk7258_ota_layout.py`、`inspect_bk7258_rbl.py`、
+> 当时自动门禁：`verify_bk7258_ota_layout.py`、`inspect_bk7258_rbl.py`、
 > `simulate_bk7258_ota_journal.py`、`bk7258_ota_metadata.py`、
 > `verify_bk7258_ota_sram.py`
 
 > **状态勘误：**本文记录的是后来被否决的 ADR-003 sector-swap 路线，保留其
 > source/model 证据，不再是 active implementation guide。项目已接受
-> [ADR-004](../../../../memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md)，
-> 并完成 [N15-M 新布局板端迁移验证](../../../../docs/verification/bk7258/2026-08-03-n15-migration-board-verification.md)。
+> ADR-004 (`memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md`)，
+> 并完成 [N15-M 新布局板端迁移验证](../../../verification/bk7258/2026-08-03-n15-migration-board-verification.md)。
 > 本文中的“推荐”“下一步”和旧地址不得用于当前构建、恢复或烧录。
+>
+> 历史实板范围：N15-M 迁移及后续物理生命周期证据来自涂鸦 T5AI-Core 首板
+> （当时记录为 T5-AI）；该布局和板端结果从未构成其他 BK7258 板卡的兼容性证明。
 
 ## 1. 结论
 
@@ -44,8 +49,8 @@ N15-R1只使用官方Beken SDK v3.1.1.9，确认了以下事实：
 
 | 输入 | 路径 | SHA-256 / 状态 |
 |---|---|---|
-| official source | `/home/lijian/project/armino/bk_avdk_smp-release-v3.1.1.9` | active baseline only |
-| source archive | `/mnt/c/Users/lijian/Downloads/BK7258_SMP/bk_avdk_smp-release-v3.1.1.9.tar.gz` | preserved input |
+| official source | `<manifest-sdk-checkout>` | active baseline only |
+| source archive | `<sdk-v3.1.1.9-source-archive>` | preserved input |
 | normal boot | `cp/components/bk_libs/bk7258/bootloader/normal_bootloader/bootloader.bin` | `105161bb603eedafbffcb5efb8f7c06a0c8503e42ba4da46490c2c21ed813de6`, 52352 B |
 | AB boot | `cp/components/bk_libs/bk7258/bootloader/ab_bootloader/bootloader.bin` | `3b27958ef78cbb7e56b57695585008465c759a7671cfd776334fec49d3164047`, 18720 B |
 
@@ -239,7 +244,7 @@ Tier-1 linker把`.ota_sram`映射为SRAM VMA `0x28000000`、boot-Flash LMA `0x02
 verifier还对exact v3.1.1.9 Flash driver/LL/register、SYS secondary-core、WDT register和sdkconfig
 做source-fragment与SHA-256检查。C86517保护处理只修改BP/CMP位并保留其余status位；未来parser必须
 把reset后的保护恢复纳入recovery。完整证据见
-[N15-R2 verification](../../../../docs/verification/bk7258/2026-08-03-n15-r2-sram-metadata.md)。
+[N15-R2 verification](../../../verification/bk7258/2026-08-03-n15-r2-sram-metadata.md)。
 
 参考：
 
@@ -279,19 +284,3 @@ clean build同时通过SDK CP/AP checksum、RPTUN layout、BLE GATT和PSRAM veri
 - AP raw/CRC/padded：`173640 / 184518 / 188416 (0x2e000)` bytes。
 
 这些是host build证据，不是board boot/Flash验证。
-
-## 9. R2退出与后续未决项
-
-R2的raw controller source closure、SRAM link/copy/stack证明和metadata ABI已完成，且所有工具仍
-fail-closed为`writes_enabled=false`。R2技术退出条件满足；ADR-003仍需owner明确接受或拒绝，不能由
-实现者自动改为Accepted。
-
-后续stage仍必须完成：
-
-1. N15-A：CP/AP pair manifest、deterministic bundle/parser、version policy和完整负例；
-2. N15-B：CP-only staging owner/quiesce、全slot read-back和pending publication；
-3. N15-C/D/E：boot parser、保护恢复、journal resume、one-trial health/confirm/revert；
-4. N15-F：controller timeout/WDT预算、全pair digest耗时、固定phase实板reset/power-loss注入；
-5. wear/time基线、失败后的人工recovery与全量N14回归。
-
-这些门禁继续阻止任何staging或swap写路径启用；接受ADR也不等于允许把write gate改为非零。

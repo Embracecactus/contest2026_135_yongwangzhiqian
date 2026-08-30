@@ -1,10 +1,13 @@
 # T5AI-Core V1.0.1 全面验证记录（2026-08-09）
 
+> 本文是固定日期的硬件证据，不维护现行支持矩阵、待办或下一阶段。现行板卡与 profile
+> 支持范围以 `boards/bk7258/CONFIGS.md` 为准。
+
 ## 1. 结论
 
 T5AI-Core V1.0.1 已完成第一轮分层验证。启动安全链、CP/AP 双镜像、AP SMP、RPTUN/RPMsg、RPMsgFS、PSRAM、LittleFS、UART、J-Link SWD、Wi-Fi、Bluetooth HCI 和 BLE GATT 板内广播状态均获得实板证据。
 
-当前不能宣布“整板全部通过”，原因有两类：
+截至该轮不能宣布“整板全部通过”，原因有两类：
 
 1. 单 MIC 音频、电池采样及排针外设需要额外接线、声学观察或外部器件，未把“驱动可编译”误记为“硬件已验证”；
 2. Wi-Fi 功能闭环已经通过，但官方 AP archive 仍会输出一次 `wdrv_tx_msg: cmd confirm timeout`；命令实际完成、缓冲区已释放，暂作为稳定性观察项保留。
@@ -151,17 +154,10 @@ BBTT N13 state=2 last_error=0
 
 此外 `/data/probe.txt` 在 cold boot 后仍可见，证明本次全断电没有破坏 LittleFS 持久数据。
 
-## 5. 本轮发现的问题
+## 5. 验收时未覆盖边界
 
-1. **Wi-Fi archive 残余诊断**：连接和停止期间仍可见一次 `wdrv_tx_msg: cmd confirm timeout`，但命令在 CP 已执行、mailbox 计数对齐、命令缓冲区最终释放。另有一次正确凭据恢复瞬态超时，紧接重试和第二轮完整矩阵均通过；后续耐久轮次继续统计，不把该日志直接静默掉。
-2. **动态调频尚未闭环**：原先的 26 MHz 是诊断误判，真实稳态为官方 60 MHz。CP 单边切到 120 MHz 已证明不安全，后续需要实现 CP/AP 一致的投票、切频通知和 SysTick 更新时间；不要重新写死 320 MHz，也不要只修改单核。
+1. **Wi-Fi archive 残余诊断**：连接和停止期间仍可见一次 `wdrv_tx_msg: cmd confirm timeout`，但命令在 CP 已执行、mailbox 计数对齐、命令缓冲区最终释放。另有一次正确凭据恢复瞬态超时，紧接重试和第二轮完整矩阵均通过；该轮未执行更长耐久统计，也没有把该日志静默掉。
+2. **动态调频尚未闭环**：原先的 26 MHz 是诊断误判，真实稳态为官方 60 MHz。CP 单边切到 120 MHz 已证明不安全，该轮未实现 CP/AP 一致的投票、切频通知和 SysTick 更新时间；不要重新写死 320 MHz，也不要只修改单核。
 3. **聚合 drivercheck 存在资源争用**：聚合配置会占用 P9/P29 及部分 SPI/DMA GPIO，不能用其结果否定单个 lower-half。GPIO 已用无争用专用配置复测通过软件读写。
-4. **启动警告仍需归类**：BLE 配置启动时出现一次 `[ipc_svr] create_socket failed.`，但 AP READY、HCI 和 GATT 后续均通过。应确认它是重复服务注册还是可忽略的 SDK 诊断，不能直接静默删除。
-5. **J-Link 型号匹配警告**：J-Link 以 `CORTEX-M33` 连接后实际识别为 STAR r1p0；老固件还提示 cache 调试支持有限。只读访问可靠，但后续断点/cache 调试要采用 STAR 对应配置并重新验证。
-
-## 6. 下一步顺序
-
-1. 参考 v3.1.1.9 设计 CP/AP 协调的动态调频适配，并在每个频点重跑 RPMsg、Bluetooth 和 Wi-Fi 回归；当前 60 MHz 稳态不再作为故障处理。
-2. 在后续正常 Wi-Fi 使用中累计重连轮次，观察 archive 的确认超时日志和偶发恢复超时，不再为此提前增加 campaign 脚本。
-3. 设计 Core 板单 MIC、电池 ADC 和充电检测的低风险人工测试步骤。
-4. 切换完整 T5-Board，验证原生 USB 与其余板载总线外设。
+4. **启动警告仍需归类**：BLE 配置启动时出现一次 `[ipc_svr] create_socket failed.`，但 AP READY、HCI 和 GATT 后续均通过。该轮未确认它是重复服务注册还是可忽略的 SDK 诊断，因此没有静默删除。
+5. **J-Link 型号匹配警告**：J-Link 以 `CORTEX-M33` 连接后实际识别为 STAR r1p0；老固件还提示 cache 调试支持有限。只读访问可靠，该轮未验证 STAR 对应配置下的断点/cache 调试。

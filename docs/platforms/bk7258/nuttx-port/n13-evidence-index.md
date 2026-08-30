@@ -2,6 +2,8 @@
 
 > Snapshot: 2026-08-03
 > Status: **`board-verified`**
+> Physical-board scope: Tuya T5AI-Core first-board image only; this index does
+> not validate another BK7258 board or profile.
 > Profiles: `cp_nsh_ble_gatt + ap_smp_ble_gatt`
 > Boundary: official NuttX, apps and Beken SDK sources/static libraries remain read-only
 
