@@ -334,6 +334,10 @@ foreach(BK7258_AP_PERIPHERAL AUD GPIOE I2C I2S)
   endif()
 endforeach()
 
+if(CONFIG_BK7258_AUDIO_PREPROCESS)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_audio_preprocess.c)
+endif()
+
 if(CONFIG_BK7258_LCD_RGB)
   list(APPEND BK7258_AP_BASE_SRCS
        ap/bk7258_lcd_rgb.c

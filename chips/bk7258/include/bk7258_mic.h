@@ -21,6 +21,10 @@
 
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+#  include <nuttx/fs/ioctl.h>
+#  include <arch/chip/bk7258_audio_preprocess.h>
+#endif
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -79,12 +83,20 @@ extern "C"
 
 #define BK7258_MIC_INPUT_MIC1            (1u << 0)
 #define BK7258_MIC_INPUT_MIC2            (1u << 1)
+#define BK7258_MIC_INPUT_MIC2_AEC_REFERENCE (1u << 8)
+
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+#  define BK7258_AUDIOIOC_GET_MIC_PREPROCESS _AUDIOIOC(0x81)
+#endif
 
 struct bk7258_mic_config_s
 {
   FAR const char *variant_name;
   uint32_t flags;
+  uint16_t aec_delay_samples;
   uint8_t channels;
+  uint8_t mic1_ana_gain;
+  uint8_t mic2_ana_gain;
 };
 
 /****************************************************************************

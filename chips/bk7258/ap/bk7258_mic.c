@@ -35,8 +35,10 @@
  *     mic2_en HAL helper is empty.
  *  3. The ADC FIFO is always a 32-bit L/R word.  The current official
  *     onboard_mic_stream therefore initializes AUD_ADC_CHL_LR and uses a
- *     32-bit DMA for both stream formats.  Mono capture drops the unused
- *     right half; stereo capture preserves the MIC1/MIC2 sample pair.
+ *     32-bit DMA for both stream formats.  Stereo preserves the raw
+ *     MIC1/MIC2 pair.  Mono normally selects MIC1; a board may instead mark
+ *     MIC2 as an AEC reference, in which case only the mono path consumes it
+ *     through the optional chip-side preprocessor.
  *  4. Start order is DMA then ADC; stop order is DMA then ADC.
  *  5. ring_buffer_read() must run in task context: it re-reads the DMA
  *     destination write pointer and rewrites the DMA pause address, which
@@ -126,18 +128,6 @@
 #define BK7258_MIC_DMA_REQ_MUX_MASK      0x3f7ff3ffu
 #define BK7258_MIC_DMA_REQ_MUX_VALUE     0x0030000eu
 
-#ifndef CONFIG_BK7258_MIC_SAMPLE_RATE
-#  define CONFIG_BK7258_MIC_SAMPLE_RATE BK7258_MIC_RATE_16000
-#endif
-
-#ifndef CONFIG_BK7258_MIC_DIG_GAIN
-#  define CONFIG_BK7258_MIC_DIG_GAIN    BK7258_MIC_DIG_GAIN_0DB
-#endif
-
-#ifndef CONFIG_BK7258_MIC_ANA_GAIN
-#  define CONFIG_BK7258_MIC_ANA_GAIN    0
-#endif
-
 /* Frames of one channel carried per DMA completion.  The DMA transfer
  * length is derived from this and is always two channels wide because the
  * FIFO is interleaved.
@@ -210,7 +200,8 @@ struct bk7258_mic_dev_s
   uint32_t samplerate;
   uint8_t  channels;
   uint8_t  dig_gain;
-  uint8_t  ana_gain;
+  uint8_t  mic1_ana_gain;
+  uint8_t  mic2_ana_gain;
 
   /* Beken DMA / ring-buffer context */
 
@@ -224,6 +215,9 @@ struct bk7258_mic_dev_s
   /* De-interleave scratch: one interleaved DMA frame */
 
   uint8_t          *scratch;
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+  bool              preprocess_ready;
+#endif
 
   /* Capture thread */
 
@@ -356,28 +350,24 @@ _Static_assert((BK7258_MIC_DMA_FRAME_BYTES % BK7258_MIC_FIFO_WORD_BYTES)
                == 0,
                "BK7258 MIC DMA frame must be a whole number of FIFO words");
 
-_Static_assert(CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_8000 ||
-               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_11025 ||
-               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_12000 ||
-               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_16000 ||
-               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_22050 ||
-               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_24000 ||
-               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_32000 ||
-               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_44100 ||
-               CONFIG_BK7258_MIC_SAMPLE_RATE == BK7258_MIC_RATE_48000,
-               "BK7258 MIC default sample rate must be supported by SDK");
+static bool bk7258_mic_has_aec_reference(
+  FAR const struct bk7258_mic_config_s *config)
+{
+  return config != NULL &&
+         (config->flags & BK7258_MIC_INPUT_MIC2_AEC_REFERENCE) != 0;
+}
 
-_Static_assert(CONFIG_BK7258_MIC_DIG_GAIN <= BK7258_MIC_DIG_GAIN_MAX,
-               "BK7258 MIC digital gain exceeds the SDK field");
-
-_Static_assert(CONFIG_BK7258_MIC_DIG_GAIN >= BK7258_MIC_DIG_GAIN_MIN,
-               "BK7258 MIC digital gain is below the SDK field");
-
-_Static_assert(CONFIG_BK7258_MIC_ANA_GAIN <= BK7258_MIC_ANA_GAIN_MAX,
-               "BK7258 MIC analog gain exceeds the hardware field");
-
-_Static_assert(CONFIG_BK7258_MIC_ANA_GAIN >= BK7258_MIC_ANA_GAIN_MIN,
-               "BK7258 MIC analog gain is below the hardware field");
+static bool bk7258_mic_preprocess_selected(
+  FAR const struct bk7258_mic_dev_s *priv, uint8_t channels)
+{
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+  return channels == 1 && bk7258_mic_has_aec_reference(priv->config);
+#else
+  (void)priv;
+  (void)channels;
+  return false;
+#endif
+}
 
 /****************************************************************************
  * Private Functions
@@ -564,6 +554,7 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
 {
   aud_adc_config_t cfg = DEFAULT_AUD_ADC_CONFIG();
   dma_config_t dma_cfg;
+  bool capture_both;
   uint32_t fifo_addr = 0;
   bk_err_t err;
   int ret;
@@ -609,8 +600,9 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
    * explicit and the code stays portable to parts where it is wired.
    */
 
-  err = bk_aud_adc_set_mic_mode(priv->channels == 2 ? AUD_MIC_BOTH :
-                                                      AUD_MIC_MIC1,
+  capture_both = priv->channels == 2 ||
+                 bk7258_mic_preprocess_selected(priv, priv->channels);
+  err = bk_aud_adc_set_mic_mode(capture_both ? AUD_MIC_BOTH : AUD_MIC_MIC1,
                                 AUD_ADC_MODE_DIFFEN);
   if (err != BK_OK)
     {
@@ -621,7 +613,7 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
 
   /* ana_mic0 == ANA_REG19 == hardware MIC1 == MICP1/MICN1. */
 
-  err = bk_aud_set_ana_mic0_gain(priv->ana_gain);
+  err = bk_aud_set_ana_mic0_gain(priv->mic1_ana_gain);
   if (err != BK_OK)
     {
       auderr("ERROR: bk_aud_set_ana_mic0_gain failed: %d\n", err);
@@ -631,9 +623,9 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
 
   /* ana_mic1 == ANA_REG27 == hardware MIC2 == MICP2/MICN2. */
 
-  if (priv->channels == 2)
+  if (capture_both)
     {
-      err = bk_aud_set_ana_mic1_gain(priv->ana_gain);
+      err = bk_aud_set_ana_mic1_gain(priv->mic2_ana_gain);
       if (err != BK_OK)
         {
           auderr("ERROR: bk_aud_set_ana_mic1_gain failed: %d\n", err);
@@ -669,6 +661,28 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
       ret = -ENOMEM;
       goto err_ring_mem;
     }
+
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+  if (bk7258_mic_preprocess_selected(priv, priv->channels))
+    {
+      struct bk7258_audio_preprocess_config_s preprocess =
+      {
+        .sample_rate = priv->samplerate,
+        .frame_samples = CONFIG_BK7258_MIC_FRAME_SAMPLES,
+        .aec_delay_samples = priv->config->aec_delay_samples,
+      };
+
+      ret = bk7258_audio_preprocess_initialize(&preprocess);
+      if (ret < 0)
+        {
+          auderr("ERROR: audio preprocessor initialization failed: %d\n",
+                 ret);
+          goto err_scratch;
+        }
+
+      priv->preprocess_ready = true;
+    }
+#endif
 
   /* The API comment says "> DMA_ID_MAX", but every official v3.1.1.9
    * audio caller treats DMA_ID_MAX as the failure sentinel.  Follow the
@@ -737,8 +751,10 @@ static int bk7258_mic_hw_setup(struct bk7258_mic_dev_s *priv)
                    priv->dma_id, RB_DMA_TYPE_WRITE);
   priv->ring_valid = true;
 
-  audinfo("AUD ADC ready: %" PRIu32 " Hz, %u ch, dig 0x%02x, ana 0x%02x\n",
-          priv->samplerate, priv->channels, priv->dig_gain, priv->ana_gain);
+  audinfo("AUD ADC ready: %" PRIu32 " Hz, %u ch, dig 0x%02x, "
+          "ana 0x%02x/0x%02x\n",
+          priv->samplerate, priv->channels, priv->dig_gain,
+          priv->mic1_ana_gain, priv->mic2_ana_gain);
 
   return OK;
 
@@ -747,6 +763,13 @@ err_dma_alloc:
   priv->dma_allocated = false;
 
 err_scratch:
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+  if (priv->preprocess_ready)
+    {
+      bk7258_audio_preprocess_deinitialize();
+      priv->preprocess_ready = false;
+    }
+#endif
   kmm_free(priv->scratch);
   priv->scratch = NULL;
 
@@ -797,6 +820,14 @@ static void bk7258_mic_hw_teardown(struct bk7258_mic_dev_s *priv)
    */
 
   bk_aud_adc_deinit();
+
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+  if (priv->preprocess_ready)
+    {
+      bk7258_audio_preprocess_deinitialize();
+      priv->preprocess_ready = false;
+    }
+#endif
 
   kmm_free(priv->scratch);
   priv->scratch = NULL;
@@ -1037,14 +1068,34 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
         {
           unsigned int capacity = apb->nmaxbytes /
                                   BK7258_MIC_BYTES_PER_SAMPLE;
+          int preprocess_ret = -ENODEV;
 
           if (frames > capacity)
             {
               frames = capacity;
             }
 
-          bk7258_mic_deinterleave((int16_t *)apb->samp,
-                                  (const int16_t *)priv->scratch, frames);
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+          if (priv->preprocess_ready)
+            {
+              preprocess_ret = bk7258_audio_preprocess_process(
+                (const int16_t *)priv->scratch, frames,
+                (int16_t *)apb->samp);
+              if (preprocess_ret < 0)
+                {
+                  audwarn("WARNING: audio preprocess failed, raw MIC1 "
+                          "fallback: %d\n", preprocess_ret);
+                }
+            }
+#endif
+
+          if (preprocess_ret < 0)
+            {
+              bk7258_mic_deinterleave((int16_t *)apb->samp,
+                                      (const int16_t *)priv->scratch,
+                                      frames);
+            }
+
           apb->nbytes = frames * BK7258_MIC_BYTES_PER_SAMPLE;
         }
       else
@@ -1158,7 +1209,8 @@ static int bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
         switch (caps->ac_subtype)
           {
             case AUDIO_TYPE_QUERY:
-              caps->ac_controls.b[0] = AUDIO_TYPE_INPUT;
+              caps->ac_controls.b[0] = AUDIO_TYPE_INPUT |
+                                       AUDIO_TYPE_FEATURE;
               caps->ac_format.hw = 1 << (AUDIO_FMT_PCM - 1);
               break;
 
@@ -1188,6 +1240,14 @@ static int bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
 
             default:
               break;
+          }
+        break;
+
+      case AUDIO_TYPE_FEATURE:
+        caps->ac_channels = g_bk7258_mic.config->channels;
+        if (caps->ac_subtype == AUDIO_FU_UNDEF)
+          {
+            caps->ac_controls.b[0] = AUDIO_FU_VOLUME;
           }
         break;
 
@@ -1265,6 +1325,21 @@ static int bk7258_mic_configure(struct audio_lowerhalf_s *dev,
                 return -EINVAL;
             }
 
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+          if (bk7258_mic_preprocess_selected(priv, channels) &&
+              (rate != BK7258_AUDIO_PREPROCESS_RATE ||
+               CONFIG_BK7258_MIC_FRAME_SAMPLES !=
+                 BK7258_AUDIO_PREPROCESS_FRAME_SAMPLES))
+            {
+              auderr("ERROR: processed mono requires %u Hz/%u samples, "
+                     "got %" PRIu32 " Hz/%u samples\n",
+                     BK7258_AUDIO_PREPROCESS_RATE,
+                     BK7258_AUDIO_PREPROCESS_FRAME_SAMPLES, rate,
+                     CONFIG_BK7258_MIC_FRAME_SAMPLES);
+              return -ENOTSUP;
+            }
+#endif
+
           nxmutex_lock(&priv->lock);
 
           if (priv->state == BK7258_MIC_STATE_RUNNING ||
@@ -1286,13 +1361,51 @@ static int bk7258_mic_configure(struct audio_lowerhalf_s *dev,
         break;
 
       case AUDIO_TYPE_FEATURE:
+        {
+          uint16_t volume;
+          uint8_t gain;
+          bool hardware_active;
+          bk_err_t error = BK_OK;
 
-        /* Gain is exposed through AUDIOIOC_* volume semantics; treat an
-         * unrecognised feature unit as unsupported rather than silently
-         * accepting it.
-         */
+          if (caps->ac_format.hw != AUDIO_FU_VOLUME)
+            {
+              return -ENOTTY;
+            }
 
-        ret = -ENOTTY;
+          volume = caps->ac_controls.hw[0];
+          if (volume > AUDIO_VOLUME_MAX)
+            {
+              return -ERANGE;
+            }
+
+          gain = (uint8_t)((volume * BK7258_MIC_DIG_GAIN_MAX +
+                            AUDIO_VOLUME_MAX / 2u) /
+                           AUDIO_VOLUME_MAX);
+          ret = nxmutex_lock(&priv->lock);
+          if (ret < 0)
+            {
+              return ret;
+            }
+
+          hardware_active = priv->state == BK7258_MIC_STATE_RUNNING ||
+                            priv->state == BK7258_MIC_STATE_PAUSED;
+          if (hardware_active)
+            {
+              error = bk_aud_adc_set_gain(gain);
+            }
+
+          if (error == BK_OK)
+            {
+              priv->dig_gain = gain;
+              ret = OK;
+            }
+          else
+            {
+              ret = bk7258_mic_result(error);
+            }
+
+          nxmutex_unlock(&priv->lock);
+        }
         break;
 
       default:
@@ -1671,6 +1784,13 @@ static int bk7258_mic_ioctl(struct audio_lowerhalf_s *dev, int cmd,
         break;
 #endif
 
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+      case BK7258_AUDIOIOC_GET_MIC_PREPROCESS:
+        ret = bk7258_audio_preprocess_get_diag(
+          (struct bk7258_audio_preprocess_diag_s *)arg);
+        break;
+#endif
+
       default:
         ret = -ENOTTY;
         break;
@@ -1831,14 +1951,19 @@ int bk7258_mic_initialize(
     }
 
   priv->dev.ops    = &g_bk7258_mic_ops;
-  priv->samplerate = CONFIG_BK7258_MIC_SAMPLE_RATE;
+  priv->samplerate = BK7258_MIC_RATE_16000;
   __atomic_store_n(&priv->close_safe, true, __ATOMIC_RELEASE);
 
   if (config == NULL || config->channels < 1 ||
       config->channels > BK7258_MIC_FIFO_CHANNELS ||
       (config->flags & BK7258_MIC_INPUT_MIC1) == 0 ||
       ((config->flags & BK7258_MIC_INPUT_MIC2) != 0) !=
-        (config->channels == 2))
+        (config->channels == 2) ||
+      (bk7258_mic_has_aec_reference(config) &&
+       ((config->flags & BK7258_MIC_INPUT_MIC2) == 0 ||
+        config->channels != 2 || config->aec_delay_samples > 1000u)) ||
+      config->mic1_ana_gain > BK7258_MIC_ANA_GAIN_MAX ||
+      config->mic2_ana_gain > BK7258_MIC_ANA_GAIN_MAX)
     {
       auderr("ERROR: BK7258 microphone configuration is invalid\n");
       return -EINVAL;
@@ -1846,26 +1971,16 @@ int bk7258_mic_initialize(
 
   priv->config    = config;
   priv->channels  = config->channels;
-  priv->dig_gain   = CONFIG_BK7258_MIC_DIG_GAIN;
-  priv->ana_gain   = CONFIG_BK7258_MIC_ANA_GAIN;
+  priv->dig_gain   = BK7258_MIC_DIG_GAIN_0DB;
+  priv->mic1_ana_gain = config->mic1_ana_gain;
+  priv->mic2_ana_gain = config->mic2_ana_gain;
   priv->dma_id     = DMA_ID_MAX + 1;   /* Not a valid channel */
   priv->pid        = -1;
   priv->state      = BK7258_MIC_STATE_RESET;
   priv->reserved   = false;
-
-  if (priv->ana_gain > BK7258_MIC_ANA_GAIN_MAX)
-    {
-      audwarn("WARNING: analog gain 0x%02x exceeds 0x%02x, clamping\n",
-              priv->ana_gain, BK7258_MIC_ANA_GAIN_MAX);
-      priv->ana_gain = BK7258_MIC_ANA_GAIN_MAX;
-    }
-
-  if (priv->dig_gain > BK7258_MIC_DIG_GAIN_MAX)
-    {
-      audwarn("WARNING: digital gain 0x%02x exceeds 0x%02x, clamping\n",
-              priv->dig_gain, BK7258_MIC_DIG_GAIN_MAX);
-      priv->dig_gain = BK7258_MIC_DIG_GAIN_MAX;
-    }
+#ifdef CONFIG_BK7258_AUDIO_PREPROCESS
+  priv->preprocess_ready = false;
+#endif
 
   dq_init(&priv->pendq);
   ret = nxsem_init(&priv->dmasem, 0, 0);
@@ -1895,12 +2010,13 @@ int bk7258_mic_initialize(
 
   syslog(LOG_INFO,
          "BMIC BOOT PASS board=%s dev=/dev/audio/%s rate=%u max_ch=%u "
-         "dig=0x%02x ana=0x%02x\n",
+         "dig=0x%02x ana=0x%02x/0x%02x\n",
          priv->config->variant_name != NULL ? priv->config->variant_name :
            "unknown",
          CONFIG_BK7258_MIC_DEVNAME, (unsigned)priv->samplerate,
          (unsigned)priv->channels, (unsigned)priv->dig_gain,
-         (unsigned)priv->ana_gain);
+         (unsigned)priv->mic1_ana_gain,
+         (unsigned)priv->mic2_ana_gain);
 
 #ifdef CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION
   ret = bk7258_mic_validation_start(config);

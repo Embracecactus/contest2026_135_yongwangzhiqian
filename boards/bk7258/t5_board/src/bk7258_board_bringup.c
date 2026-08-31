@@ -61,6 +61,9 @@ static const struct bk7258_mic_config_s g_bk7258_t5_board_mic_config =
 {
   .channels = 2,
   .flags = BK7258_MIC_INPUT_MIC1 | BK7258_MIC_INPUT_MIC2,
+  .aec_delay_samples = BK7258_BOARD_MIC_AEC_DELAY_SAMPLES,
+  .mic1_ana_gain = BK7258_BOARD_MIC1_ANA_GAIN,
+  .mic2_ana_gain = BK7258_BOARD_MIC2_ANA_GAIN,
   .variant_name = "T5-Board",
 };
 

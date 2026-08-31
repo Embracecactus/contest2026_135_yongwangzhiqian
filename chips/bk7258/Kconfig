@@ -1528,35 +1528,6 @@ config BK7258_MIC_DEVNAME
 	default "pcm0c"
 	depends on BK7258_MIC
 
-config BK7258_MIC_SAMPLE_RATE
-	int "Default microphone sample rate"
-	default 16000
-	depends on BK7258_MIC
-	help
-		Initial capture rate before an application supplies its stream
-		format through AUDIOIOC_CONFIGURE.  Supported values are 8000,
-		11025, 12000, 16000, 22050, 24000, 32000, 44100 and 48000 Hz.
-
-config BK7258_MIC_DIG_GAIN
-	int "Default microphone digital gain"
-	default 45
-	range 0 63
-	depends on BK7258_MIC
-	help
-		Initial raw AUD ADC digital-gain field.  45 (0x2d) is the SDK's
-		0 dB setting.  This is product policy, not a physical-board wiring
-		fact.
-
-config BK7258_MIC_ANA_GAIN
-	int "Default microphone analog gain"
-	default 0
-	range 0 15
-	depends on BK7258_MIC
-	help
-		Initial raw four-bit analog gain applied equally to every fitted
-		microphone.  MIC1 uses ANA_REG19 and MIC2, when present, uses
-		ANA_REG27.  This is product policy, not a channel-count selector.
-
 config BK7258_MIC_FRAME_SAMPLES
 	int "Samples per channel in each DMA frame"
 	default 320
@@ -1568,6 +1539,20 @@ config BK7258_MIC_RING_FRAMES
 	default 4
 	range 2 16
 	depends on BK7258_MIC
+
+config BK7258_AUDIO_PREPROCESS
+	bool "AEC/NS/AGC/VAD microphone preprocessing"
+	default n
+	depends on BK7258_MIC && BK7258_AP_CORE && ARCH_SETJMP_H
+	help
+		Process a board-declared MIC1 near-end plus MIC2 speaker-reference
+		pair through the pinned SDK's AEC/NS, AGC and VAD libraries.  A mono
+		upper-half request receives processed 16-kHz, 20-ms PCM frames; a
+		stereo request continues to expose the unmodified diagnostic pair.
+		Boards without an explicit MIC2 AEC-reference flag remain unchanged.
+		Per-input analog gain and AEC reference delay are physical-board
+		calibration values supplied through bk7258_mic_config_s.  Runtime
+		digital gain remains an application-controlled NuttX audio feature.
 
 config BK7258_MIC_LIFECYCLE_VALIDATION
 	bool "Run bounded microphone capture lifecycle validation"

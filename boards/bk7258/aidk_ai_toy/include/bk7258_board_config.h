@@ -76,6 +76,9 @@
 #define BK7258_BOARD_MIC1_IS_PRIMARY_MIC           1
 #define BK7258_BOARD_MIC2_IS_AEC_REFERENCE         1
 #define BK7258_BOARD_MIC2_IS_PHYSICAL_MIC          0
+#define BK7258_BOARD_MIC1_ANA_GAIN                 0
+#define BK7258_BOARD_MIC2_ANA_GAIN                 0
+#define BK7258_BOARD_MIC_AEC_DELAY_SAMPLES        16
 
 /* GPIO lower-half binding (LED1/KEY3 as the user-visible pair). */
 
