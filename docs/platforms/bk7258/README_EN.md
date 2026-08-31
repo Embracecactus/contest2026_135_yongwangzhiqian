@@ -41,6 +41,10 @@ addresses, scripts, or trust policy from historical N15/N17 documents.
 
 ## Platform documents
 
+- [RF calibration and factory-provisioning contract](rf-calibration-and-factory-provisioning.md):
+  the maintained Chinese product contract for device-unique RF state, Beken
+  calibration/test tool roles, station flow, recovery, OTA, and universal
+  factory-image boundaries;
 - [Official compliance reassessment](official-compliance-review.en.md) /
   [中文](official-compliance-review.md): a 2026-08-28 audit snapshot of openvela
   documents 1443/1444/1445;
