@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/common/bk7258_timerisr.c
+ * chips/bk7258/common/bk7258_timerisr.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

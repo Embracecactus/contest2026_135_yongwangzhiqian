@@ -31,8 +31,9 @@ extern "C"
  * CANIOC_{GET,SET}_CONNMODES ioctl and maps to the SDK's internal LBMI bit.
  *
  * The SDK fixes CAN0 to GPIO44 (TX), GPIO45 (RX), and GPIO46 (standby).
- * This private API does not alter pin mux or arbitrate those pins with the
- * T5 board RGB LCD; board integration must select a non-conflicting owner.
+ * This private API does not alter pin mux or arbitrate those pins with other
+ * selected functions; platform integration must select a non-conflicting
+ * owner.
  */
 
 int bk7258_can_initialize(FAR struct can_dev_s **dev);

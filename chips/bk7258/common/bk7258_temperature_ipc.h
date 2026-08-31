@@ -6,8 +6,8 @@
  * Private CP/AP wire ABI for the BK7258 on-die temperature service.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_COMMON_BK7258_TEMPERATURE_IPC_H
-#define __BOARD_BK7258_CHIP_COMMON_BK7258_TEMPERATURE_IPC_H
+#ifndef __ARCH_ARM_SRC_BK7258_COMMON_BK7258_TEMPERATURE_IPC_H
+#define __ARCH_ARM_SRC_BK7258_COMMON_BK7258_TEMPERATURE_IPC_H
 
 #include <stdint.h>
 
@@ -41,4 +41,4 @@ struct bk7258_temperature_wire_s
 _Static_assert(sizeof(struct bk7258_temperature_wire_s) == 32u,
                "BK7258 temperature wire ABI must remain 32 bytes");
 
-#endif /* __BOARD_BK7258_CHIP_COMMON_BK7258_TEMPERATURE_IPC_H */
+#endif /* __ARCH_ARM_SRC_BK7258_COMMON_BK7258_TEMPERATURE_IPC_H */

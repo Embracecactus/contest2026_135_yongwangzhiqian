@@ -1,12 +1,12 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/common/
+ * chips/bk7258/common/
  * bk7258_wifi_packet_diag.h
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
-#ifndef __CONTEST2026_135_BOARD_BK7258_CHIP_COMMON_WIFI_PACKET_DIAG_H
-#define __CONTEST2026_135_BOARD_BK7258_CHIP_COMMON_WIFI_PACKET_DIAG_H
+#ifndef __ARCH_ARM_SRC_BK7258_COMMON_BK7258_WIFI_PACKET_DIAG_H
+#define __ARCH_ARM_SRC_BK7258_COMMON_BK7258_WIFI_PACKET_DIAG_H
 
 /****************************************************************************
  * Included Files
@@ -87,4 +87,4 @@ extern volatile struct bk7258_wifi_packet_diag_s
 
 void bk7258_wifi_packet_diag_reset(void);
 
-#endif /* __CONTEST2026_135_BOARD_BK7258_CHIP_COMMON_WIFI_PACKET_DIAG_H */
+#endif /* __ARCH_ARM_SRC_BK7258_COMMON_BK7258_WIFI_PACKET_DIAG_H */

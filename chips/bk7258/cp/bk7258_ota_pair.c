@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/cp/bk7258_ota_pair.c
+ * chips/bk7258/cp/bk7258_ota_pair.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

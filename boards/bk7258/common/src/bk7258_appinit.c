@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/boards/bk7258/common/src/bk7258_appinit.c
+ * boards/bk7258/common/src/bk7258_appinit.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

@@ -18,8 +18,7 @@
  * NuttX vector layout expects exactly slots [16..79] for IRQs.  The two
  * app-magic words at [64]/[65] occupy logical IRQ numbers 48 and 49 and
  * are runtime-repaired via arm_ramvec_attach after VTOR switches to RAM.
- * This is exactly the layout the BK7258 Tier-1 bootloader
- * validates (see docs/platforms/bk7258/hardware/t5ai-core/probe/probe.c).
+ * This is exactly the layout the BK7258 Tier-1 bootloader validates.
  *
  * A1 enables interrupts; the common ARMv8-M code needs the NVIC priority
  * macros below at compile time, so they are defined here.

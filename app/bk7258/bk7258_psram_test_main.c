@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/app/bk7258/
+ * app/bk7258/bk7258_psram_test_main.c
  * bk7258_psram_test_main.c
  *
  * SPDX-License-Identifier: Apache-2.0

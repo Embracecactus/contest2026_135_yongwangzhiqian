@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/common/bk7258_boot_slot.c
+ * chips/bk7258/common/bk7258_boot_slot.c
  *
  * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/

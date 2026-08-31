@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/app/bk7258/
+ * app/bk7258/bk7258_sdk_timer_selftest_main.c
  * bk7258_sdk_timer_selftest_main.c
  *
  * SPDX-License-Identifier: Apache-2.0
