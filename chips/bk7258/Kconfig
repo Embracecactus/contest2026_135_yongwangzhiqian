@@ -973,8 +973,10 @@ config BK7258_WIFI_VNET
 		vendor vnet proxy only below a chip-owned NuttX wlan0 adapter; the
 		SDK lwIP and FreeRTOS runtimes remain unlinked.
 
-		The first profile is STA-only.  Wi-Fi initialization and all AP-side
-		SDK-facing workers are owned by AP logical CPU0.
+		The native NuttX data plane remains STA-only.  The control plane may
+		suspend STA and enter the SDK's passive monitor mode, but it does not
+		expose raw frame contents or transmission.  Wi-Fi initialization and
+		all AP-side SDK-facing workers are owned by AP logical CPU0.
 
 config BK7258_WIFI_PACKET_DIAG
 	bool "CP Wi-Fi DHCP packet boundary diagnostics"
