@@ -22,6 +22,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include <syslog.h>
 
 #include <nuttx/clock.h>
@@ -61,6 +62,7 @@
 #define BK7258_BT_ATT_OP_MTU_REQ         0x02u
 #define BK7258_BT_ATT_MTU_REQ_SIZE       3u
 #define BK7258_BT_ATT_MAX_LE_MTU         517u
+#define BK7258_BT_OP_HOST_BUFFER_SIZE    0x0c33u
 #define BK7258_BT_OP_HOST_NUM_COMPLETED  0x0c35u
 
 #define BK7258_BT_EVT_DISCONNECTED       0x05u
@@ -70,9 +72,17 @@
 #define BK7258_BT_SUBEVT_LE_CONNECTED    0x01u
 #define BK7258_BT_SUBEVT_LE_ENH_CONNECTED 0x0au
 
+#define BK7258_BT_STATUS_UNSUPPORTED     0x11u
+#define BK7258_BT_HOST_BUFFER_EVENT_SIZE 7u
+
 #if defined(CONFIG_BK7258_BLE_GATT) && \
     !defined(CONFIG_BLUETOOTH_CNTRL_HOST_FLOW_DISABLE)
 #  error "BK7258 N13 requires Controller-to-Host flow control disabled"
+#endif
+
+#if defined(CONFIG_BK7258_BT_HOST_BUFFER_SIZE_COMPAT) && \
+    !defined(CONFIG_BLUETOOTH_CNTRL_HOST_FLOW_DISABLE)
+#  error "Host Buffer Size compatibility requires Host flow control disabled"
 #endif
 
 /****************************************************************************
@@ -174,6 +184,31 @@ static uint16_t bk7258_bt_get_le16(const uint8_t *data)
 {
   return (uint16_t)data[0] | (uint16_t)data[1] << 8;
 }
+
+#ifdef CONFIG_BK7258_BT_HOST_BUFFER_SIZE_COMPAT
+static bool bk7258_bt_accept_host_buffer_size(uint8_t *output,
+                                             const uint8_t *input,
+                                             size_t length)
+{
+  if (length != BK7258_BT_HOST_BUFFER_EVENT_SIZE ||
+      input[0] != BK7258_BT_H4_EVENT ||
+      input[1] != BK7258_BT_EVT_COMMAND_COMPLETE || input[2] != 4u ||
+      bk7258_bt_get_le16(&input[4]) != BK7258_BT_OP_HOST_BUFFER_SIZE ||
+      input[6] != BK7258_BT_STATUS_UNSUPPORTED)
+    {
+      return false;
+    }
+
+  /* Copy the SDK-owned frame and change only its status byte.  Delivery still
+   * waits for the real Controller completion, so NuttX retains the original
+   * ncmd credit and sent_cmd ordering.
+   */
+
+  memcpy(output, input, length);
+  output[6] = 0u;
+  return true;
+}
+#endif
 
 #ifdef CONFIG_BK7258_BT_ATT_MTU_COMPAT
 static void bk7258_bt_put_le16(uint8_t *data, uint16_t value)
@@ -436,6 +471,9 @@ out:
 static void bk7258_bt_sdk_receive(uint8_t *buffer, uint16_t length)
 {
   struct bk7258_bt_hci_s *priv = &g_bk7258_bt_hci;
+#ifdef CONFIG_BK7258_BT_HOST_BUFFER_SIZE_COMPAT
+  uint8_t host_buffer_event[BK7258_BT_HOST_BUFFER_EVENT_SIZE];
+#endif
   enum bt_buf_type_e type;
   uint16_t payload_length;
   int ret;
@@ -469,6 +507,17 @@ static void bk7258_bt_sdk_receive(uint8_t *buffer, uint16_t length)
             bk7258_bt_count_invalid_rx(priv);
             return;
           }
+
+#ifdef CONFIG_BK7258_BT_HOST_BUFFER_SIZE_COMPAT
+        if (bk7258_bt_accept_host_buffer_size(host_buffer_event, buffer,
+                                              length))
+          {
+            buffer = host_buffer_event;
+            syslog(LOG_INFO,
+                   "BK7258 BT: accepted unsupported Host Buffer Size "
+                   "with Host flow control disabled\n");
+          }
+#endif
 
         __atomic_fetch_add(&priv->stats.event_rx, 1u, __ATOMIC_RELAXED);
         __atomic_store_n(&priv->stats.last_event_header,
