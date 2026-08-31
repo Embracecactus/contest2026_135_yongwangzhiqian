@@ -43,6 +43,7 @@ PM_ACTIVITY_TARGET := $(BUILD)/test_bk7258_pm_activity
 RPTUN_CORE_CP_TARGET := $(BUILD)/test_bk7258_rptun_core_cp
 RPTUN_CORE_AP_TARGET := $(BUILD)/test_bk7258_rptun_core_ap
 STAGE_RUNNER_TARGET := $(BUILD)/test_bk7258_stage_runner
+SDK_RUNTIME_TARGET := $(BUILD)/test_bk7258_sdk_runtime
 CP_PLATFORM_SUCCESS_TARGET := $(BUILD)/test_bk7258_cp_platform_success
 CP_PLATFORM_SDK_FAIL_TARGET := $(BUILD)/test_bk7258_cp_platform_sdk_fail
 CP_PLATFORM_WDT_FAIL_TARGET := $(BUILD)/test_bk7258_cp_platform_wdt_fail
@@ -88,6 +89,7 @@ RESET_MARKER_OPERATIONS_TARGET := $(BUILD)/test_bk7258_reset_marker_operations
 RESET_CAUSE_TARGET := $(BUILD)/test_bk7258_reset_cause
 SYSTEM_RESET_TARGET := $(BUILD)/test_bk7258_system_reset
 FLASH_TARGET := $(BUILD)/test_bk7258_flash
+SDK_PARTITION_TARGET := $(BUILD)/test_bk7258_sdk_partition
 RESET_MARKER_TARGETS := $(RESET_MARKER_UNBOUND_TARGET) \
 	$(RESET_MARKER_BINDING_TARGET) $(RESET_MARKER_CAPTURE_TARGET) \
 	$(RESET_MARKER_EMPTY_TARGET) $(RESET_MARKER_TORN_TARGET) \
@@ -98,7 +100,8 @@ RESET_MARKER_INC := -I $(MOCKS) -I $(CHIP_ROOT)/include \
 	-I $(CHIP_ROOT)/common -I $(CHIP_ROOT)/cp
 FLASH_CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O2 -pthread \
 	-DCONFIG_BK7258_FLASH_MTD -Dferr=_err
-FLASH_INC := -I $(MOCKS) -I $(CHIP_ROOT)/include -I $(BOARD_COMMON_SRC)
+FLASH_INC := -I $(MOCKS) -I $(CHIP_ROOT)/include -I $(CHIP_ROOT)/common \
+	-I $(CHIP_ROOT)/cp
 RESET_MARKER_TEST_SRCS := test_bk7258_reset_marker.c \
 	$(CHIP_ROOT)/cp/bk7258_reset_marker.c \
 	$(CHIP_ROOT)/cp/bk7258_storage.c $(MOCKS)/mock_nuttx_ap.c
@@ -133,7 +136,7 @@ AP_PLATFORM_CFLAGS := $(PLATFORM_TEST_CFLAGS) -DCONFIG_BK7258_AP_CORE \
 	-DCONFIG_BK7258_PM_CLOCK -DCONFIG_BK7258_TEMPERATURE \
 	-DCONFIG_BK7258_PSRAM_SYSTEM_HEAP_SIZE=2048u
 AP_ENTRY_CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O2 \
-	-DCONFIG_BK7258_AP_CORE -DCONFIG_EXAMPLES_AI_AGENT_VELA
+	-DCONFIG_BK7258_AP_CORE -DCONFIG_BK7258_AP_APPLICATION_LIFECYCLE
 PLATFORM_TEST_INC := -I $(MOCKS) -I $(CHIP_ROOT)/include \
 	-I $(CHIP_ROOT)/common -I $(CHIP_ROOT)/cp -I $(BOARD_COMMON_SRC)
 HEADER_PUBLIC_HEADERS := $(notdir \
@@ -220,7 +223,8 @@ check-package-tools:
 
 all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
 	$(RPTUN_CORE_CP_TARGET) $(RPTUN_CORE_AP_TARGET) \
-	$(STAGE_RUNNER_TARGET) $(CP_PLATFORM_SUCCESS_TARGET) \
+	$(STAGE_RUNNER_TARGET) $(SDK_RUNTIME_TARGET) \
+	$(CP_PLATFORM_SUCCESS_TARGET) \
 	$(CP_PLATFORM_SDK_FAIL_TARGET) $(CP_PLATFORM_WDT_FAIL_TARGET) \
 	$(CP_PLATFORM_RESET_MARKER_FAIL_TARGET) \
 	$(CP_PLATFORM_OTA_LAYOUT_FAIL_TARGET) $(CP_PLATFORM_AP_START_FAIL_TARGET) \
@@ -231,10 +235,18 @@ all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
 	$(AP_PLATFORM_PSRAM_FAIL_TARGET) $(AP_PLATFORM_PM_FAIL_TARGET) \
 	$(AP_ENTRY_TARGET) \
 	$(OTA_CONTRACT_TARGETS) $(OTA_CONFIRMATION_TARGETS) \
-	$(RESET_MARKER_TARGETS) $(FLASH_TARGET) bl1 bl2 ap
+	$(RESET_MARKER_TARGETS) $(FLASH_TARGET) $(SDK_PARTITION_TARGET) bl1 bl2 ap
 
 run: run-headers run-core run-platform run-flash run-ota-confirmation \
 	run-bl1 run-bl2 run-ap
+
+.PHONY: board-layers
+
+board-layers:
+	@command -v rg >/dev/null 2>&1 || { echo "rg is required for the BK7258 board layer audit" >&2; exit 1; }
+	@if rg -n -g '*.[ch]' '#[[:space:]]*include[[:space:]]*[<"](common|components|driver|modules)/|#[[:space:]]*include[[:space:]]*[<"]sdkconfig\.h|\b(bk_err_t|gpio_id_t|gpio_dev_t|gpio_output_state_e|bk_dvp_config_t)\b|\b(bk_gpio|gpio_dev|bk_qspi|bk_pm_module|bk_dvp)_[[:alnum:]_]+|^[[:space:]]*extern[^;]*\b(bk|gpio|rtos)_[[:alnum:]_]+|\b(getreg|putreg)[0-9]*\b|REG32|0x(44|48)[0-9a-fA-F]{6}' $(BOARD_ROOT); then echo "BK7258 board code must not consume Beken SDK headers, types, symbols, or raw SoC registers" >&2; exit 1; fi
+	@if rg -n '#[[:space:]]*include[[:space:]]*[<"](components|driver)/|#[[:space:]]*include[[:space:]]*[<"]sdkconfig\.h|\bbk_dvp_config_t\b' $(CHIP_ROOT)/include/bk7258_dvp.h; then echo "BK7258 DVP public ABI must not expose the Beken SDK" >&2; exit 1; fi
+	@echo "BK7258_BOARD_LAYER_AUDIT_PASS boards=all"
 
 headers: $(PARTITION_HEADER)
 	@set -eu; \
@@ -579,6 +591,16 @@ $(STAGE_RUNNER_TARGET): test_bk7258_stage_runner.c \
 	  -I $(MOCKS) -I $(CHIP_ROOT)/include -I $(CHIP_ROOT)/common \
 	  -o $@
 
+$(SDK_RUNTIME_TARGET): test_bk7258_sdk_runtime.c \
+			$(CHIP_ROOT)/common/bk7258_sdk_runtime.c \
+			$(MOCKS)/driver/ckmn.h \
+			$(MOCKS)/mock_nuttx_ap.c | $(BUILD)
+	$(CC) -std=gnu11 -Wall -Wextra -Werror -O2 -pthread \
+	  test_bk7258_sdk_runtime.c \
+	  $(CHIP_ROOT)/common/bk7258_sdk_runtime.c \
+	  $(MOCKS)/mock_nuttx_ap.c \
+	  -I $(MOCKS) -I $(CHIP_ROOT)/include -o $@
+
 $(CP_PLATFORM_SUCCESS_TARGET): $(CP_PLATFORM_TEST_SRCS) | $(BUILD)
 	$(CC) $(CP_PLATFORM_CFLAGS) -DTEST_CP_SCENARIO=1 \
 	  $(CP_PLATFORM_TEST_SRCS) \
@@ -695,7 +717,8 @@ $(AP_ENTRY_TARGET): test_bk7258_ap_entry.c \
 	  $(BOARD_COMMON_SRC)/bk7258_ap_entry.c \
 	  -I $(MOCKS) -I $(CHIP_ROOT)/include -o $@
 
-platform: $(STAGE_RUNNER_TARGET) $(CP_PLATFORM_SUCCESS_TARGET) \
+platform: $(STAGE_RUNNER_TARGET) $(SDK_RUNTIME_TARGET) \
+	$(CP_PLATFORM_SUCCESS_TARGET) \
 	$(CP_PLATFORM_SDK_FAIL_TARGET) $(CP_PLATFORM_WDT_FAIL_TARGET) \
 	$(CP_PLATFORM_RESET_MARKER_FAIL_TARGET) \
 	$(CP_PLATFORM_OTA_LAYOUT_FAIL_TARGET) $(CP_PLATFORM_AP_START_FAIL_TARGET) \
@@ -799,19 +822,30 @@ $(SYSTEM_RESET_TARGET): test_bk7258_system_reset.c \
 	  $(RESET_MARKER_INC) -o $@
 
 $(FLASH_TARGET): test_bk7258_flash.c $(CHIP_ROOT)/cp/bk7258_flash.c \
-	$(BOARD_COMMON_SRC)/bk7258_flash_mtd.c \
+	$(CHIP_ROOT)/cp/bk7258_flash_mtd.c \
 	$(MOCKS)/driver/flash.h $(MOCKS)/driver/flash_partition.h \
 	$(MOCKS)/nuttx/mtd/mtd.h \
-	$(MOCKS)/mock_nuttx_ap.c | $(BUILD)
+	$(MOCKS)/mock_nuttx_ap.c $(PARTITION_HEADER) | $(BUILD)
 	$(CC) $(FLASH_CFLAGS) test_bk7258_flash.c \
-	  $(CHIP_ROOT)/cp/bk7258_flash.c $(BOARD_COMMON_SRC)/bk7258_flash_mtd.c \
+	  $(CHIP_ROOT)/cp/bk7258_flash.c $(CHIP_ROOT)/cp/bk7258_flash_mtd.c \
 	  $(MOCKS)/mock_nuttx_ap.c \
-	  $(FLASH_INC) -o $@
+	  $(FLASH_INC) -I $(PARTITION_DIR) -o $@
 
-flash: $(FLASH_TARGET)
+$(SDK_PARTITION_TARGET): test_bk7258_sdk_partition.c \
+	$(CHIP_ROOT)/common/bk7258_sdk_partition.c \
+	$(MOCKS)/driver/flash_partition.h $(MOCKS)/driver/flash_types.h \
+	$(PARTITION_HEADER) | $(BUILD)
+	$(CC) -std=c11 -Wall -Wextra -Werror -O2 \
+	  test_bk7258_sdk_partition.c \
+	  $(CHIP_ROOT)/common/bk7258_sdk_partition.c \
+	  -I $(MOCKS) -I $(CHIP_ROOT)/include -I $(CHIP_ROOT)/common \
+	  -I $(PARTITION_DIR) -o $@
+
+flash: $(FLASH_TARGET) $(SDK_PARTITION_TARGET)
 
 run-flash: flash
 	./$(FLASH_TARGET)
+	./$(SDK_PARTITION_TARGET)
 
 storage-contract: $(STORAGE_CONTRACT_TARGETS)
 
@@ -847,6 +881,7 @@ run-reset-marker: reset-marker
 
 run-platform: platform
 	./$(STAGE_RUNNER_TARGET)
+	./$(SDK_RUNTIME_TARGET)
 	./$(CP_PLATFORM_SUCCESS_TARGET)
 	./$(CP_PLATFORM_SDK_FAIL_TARGET)
 	./$(CP_PLATFORM_WDT_FAIL_TARGET)

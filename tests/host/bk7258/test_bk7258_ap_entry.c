@@ -21,9 +21,9 @@ enum event_e
 {
   EVENT_CHIP_STARTUP,
   EVENT_BOARD_DEVICES,
-  EVENT_PRODUCT_PREPARE,
+  EVENT_APPLICATION_PREPARE,
   EVENT_CHIP_READY,
-  EVENT_PRODUCT_START,
+  EVENT_APPLICATION_START,
   EVENT_CHIP_SUPERVISE,
   EVENT_CHIP_FAIL,
 };
@@ -33,9 +33,9 @@ enum scenario_e
   SCENARIO_SUCCESS,
   SCENARIO_STARTUP_FAIL,
   SCENARIO_BOARD_FAIL,
-  SCENARIO_PRODUCT_PREPARE_FAIL,
+  SCENARIO_APPLICATION_PREPARE_FAIL,
   SCENARIO_READY_FAIL,
-  SCENARIO_PRODUCT_START_FAIL,
+  SCENARIO_APPLICATION_START_FAIL,
 };
 
 static jmp_buf g_exit;
@@ -69,10 +69,10 @@ int bk7258_board_ap_initialize(void)
   return g_scenario == SCENARIO_BOARD_FAIL ? -ENODEV : 0;
 }
 
-int bk7258_product_prepare(void)
+int bk7258_ap_application_prepare(void)
 {
-  event(EVENT_PRODUCT_PREPARE);
-  return g_scenario == SCENARIO_PRODUCT_PREPARE_FAIL ? -EIO : 0;
+  event(EVENT_APPLICATION_PREPARE);
+  return g_scenario == SCENARIO_APPLICATION_PREPARE_FAIL ? -EIO : 0;
 }
 
 int bk7258_ap_lifecycle_publish_ready(uint32_t *failure)
@@ -89,10 +89,10 @@ int bk7258_ap_lifecycle_publish_ready(uint32_t *failure)
   return 0;
 }
 
-int bk7258_product_start(void)
+int bk7258_ap_application_start(void)
 {
-  event(EVENT_PRODUCT_START);
-  return g_scenario == SCENARIO_PRODUCT_START_FAIL ? -EAGAIN : 0;
+  event(EVENT_APPLICATION_START);
+  return g_scenario == SCENARIO_APPLICATION_START_FAIL ? -EAGAIN : 0;
 }
 
 void bk7258_ap_lifecycle_supervise(void)
@@ -135,8 +135,8 @@ int main(void)
 {
   static const int success[] =
   {
-    EVENT_CHIP_STARTUP, EVENT_BOARD_DEVICES, EVENT_PRODUCT_PREPARE,
-    EVENT_CHIP_READY, EVENT_PRODUCT_START, EVENT_CHIP_SUPERVISE
+    EVENT_CHIP_STARTUP, EVENT_BOARD_DEVICES, EVENT_APPLICATION_PREPARE,
+    EVENT_CHIP_READY, EVENT_APPLICATION_START, EVENT_CHIP_SUPERVISE
   };
   static const int startup_fail[] =
   {
@@ -148,12 +148,12 @@ int main(void)
   };
   static const int prepare_fail[] =
   {
-    EVENT_CHIP_STARTUP, EVENT_BOARD_DEVICES, EVENT_PRODUCT_PREPARE,
+    EVENT_CHIP_STARTUP, EVENT_BOARD_DEVICES, EVENT_APPLICATION_PREPARE,
     EVENT_CHIP_READY, EVENT_CHIP_SUPERVISE
   };
   static const int ready_fail[] =
   {
-    EVENT_CHIP_STARTUP, EVENT_BOARD_DEVICES, EVENT_PRODUCT_PREPARE,
+    EVENT_CHIP_STARTUP, EVENT_BOARD_DEVICES, EVENT_APPLICATION_PREPARE,
     EVENT_CHIP_READY, EVENT_CHIP_FAIL
   };
 
@@ -163,11 +163,11 @@ int main(void)
                (int)nitems(startup_fail), 2, BK7258_AP_ERROR_PSRAM);
   run_scenario(SCENARIO_BOARD_FAIL, board_fail, (int)nitems(board_fail), 2,
                BK7258_AP_ERROR_PERIPHERALS);
-  run_scenario(SCENARIO_PRODUCT_PREPARE_FAIL, prepare_fail,
+  run_scenario(SCENARIO_APPLICATION_PREPARE_FAIL, prepare_fail,
                (int)nitems(prepare_fail), 1, BK7258_AP_ERROR_NONE);
   run_scenario(SCENARIO_READY_FAIL, ready_fail, (int)nitems(ready_fail), 2,
                BK7258_AP_ERROR_BAD_BOOT_STATE);
-  run_scenario(SCENARIO_PRODUCT_START_FAIL, success,
+  run_scenario(SCENARIO_APPLICATION_START_FAIL, success,
                (int)nitems(success), 1, BK7258_AP_ERROR_NONE);
 
   puts("bk7258 AP entry tests: PASS");

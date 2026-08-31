@@ -9,7 +9,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <bk7258_partitions.h>
+
 #include <arch/chip/bk7258_flash.h>
+#include <arch/chip/bk7258_flash_mtd.h>
 #include <arch/chip/bk7258_image_layout.h>
 #include <arch/chip/bk7258_storage_guard.h>
 
@@ -18,8 +21,6 @@
 
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/mutex.h>
-
-#include "bk7258_flash_mtd.h"
 
 #define TEST_FLASH_SIZE 0x00800000u
 
@@ -38,7 +39,6 @@ static int g_read_calls;
 static int g_erase_calls;
 static int g_write_calls;
 static int g_update_calls;
-static int g_partition_info_calls;
 static int g_protect_none_calls;
 static int g_protect_restore_calls;
 static int g_guard_lock_result;
@@ -46,10 +46,32 @@ static int g_guard_lock_calls;
 static int g_guard_unlock_calls;
 static enum bk7258_storage_guard_e g_guard_owner;
 static bool g_guard_write_access;
-static bool g_partition_present;
-static bk_logic_partition_t g_partition_info;
-
 static uint8_t g_mtd_buffer[BK7258_FLASH_ERASE_SIZE];
+
+static const struct bk7258_flash_mtd_config_s g_mtd_config =
+{
+  .base = BK7258_DATA_RAW_PHYSICAL_OFFSET,
+  .size = BK7258_DATA_RAW_PHYSICAL_SIZE,
+  .owner = BK7258_STORAGE_GUARD_DATA,
+  .name = "bk7258-test-data"
+};
+
+int bk7258_sdk_partition_from_layout(uint32_t layout_partition,
+                                     uint32_t *sdk_partition)
+{
+  if (sdk_partition == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (layout_partition != BK7258_PARTITION_EASYFLASH_INDEX)
+    {
+      return -ENOENT;
+    }
+
+  *sdk_partition = BK_PARTITION_EASYFLASH;
+  return 0;
+}
 
 int bk7258_storage_guard_lock(enum bk7258_storage_guard_e owner,
                               bool write_access, uint32_t timeout_ms)
@@ -125,18 +147,11 @@ bk_err_t bk_spec_flash_write_bytes(bk_partition_t partition,
                                     const uint8_t *buffer,
                                     uint32_t size, uint32_t offset)
 {
-  assert(partition == 7u);
+  assert(partition == BK_PARTITION_EASYFLASH);
   assert(offset == 4u);
   assert(buffer != NULL && size == 8u);
   g_update_calls++;
   return g_update_result;
-}
-
-bk_logic_partition_t *bk_flash_partition_get_info(
-  bk_partition_t partition)
-{
-  g_partition_info_calls++;
-  return partition == 7u && g_partition_present ? &g_partition_info : NULL;
 }
 
 static void reset_mutation_results(void)
@@ -163,7 +178,7 @@ static void test_mtd_block_ranges(void)
   int locks;
   int unlocks;
 
-  mtd = bk7258_flash_mtd_initialize();
+  mtd = bk7258_flash_mtd_initialize(&g_mtd_config);
   assert(mtd != NULL);
   assert(mtd->ioctl(mtd, MTDIOC_GEOMETRY,
                     (unsigned long)(uintptr_t)&geometry) == 0);
@@ -249,21 +264,13 @@ int main(void)
   assert(bk7258_flash_initialize() == 0);
   assert(g_driver_calls == calls);
 
-  calls = g_partition_info_calls;
-  assert(bk7258_flash_partition_get_info(7u, NULL) == -EINVAL);
-  assert(g_partition_info_calls == calls);
-  assert(bk7258_flash_partition_get_info(7u, &partition) == -ENOENT);
-  g_partition_present = true;
-  g_partition_info.partition_start_addr = 0x1000u;
-  g_partition_info.partition_length = 0u;
-  assert(bk7258_flash_partition_get_info(7u, &partition) == -EINVAL);
-  g_partition_info.partition_start_addr = UINT32_MAX - 3u;
-  g_partition_info.partition_length = 4u;
-  assert(bk7258_flash_partition_get_info(7u, &partition) == -EINVAL);
-  g_partition_info.partition_start_addr = 0x1000u;
-  g_partition_info.partition_length = 0x2000u;
-  assert(bk7258_flash_partition_get_info(7u, &partition) == 0);
-  assert(partition.start == 0x1000u && partition.size == 0x2000u);
+  assert(bk7258_flash_partition_get_info(
+           BK7258_PARTITION_EASYFLASH_INDEX, NULL) == -EINVAL);
+  assert(bk7258_flash_partition_get_info(UINT32_MAX, &partition) == -ENOENT);
+  assert(bk7258_flash_partition_get_info(
+           BK7258_PARTITION_EASYFLASH_INDEX, &partition) == 0);
+  assert(partition.start == BK7258_PARTITION_EASYFLASH_OFFSET &&
+         partition.size == BK7258_PARTITION_EASYFLASH_SIZE);
 
   assert(bk7258_flash_read(0u, NULL, sizeof(buffer)) == -EINVAL);
   assert(bk7258_flash_read(0u, buffer, 0u) == -EINVAL);
@@ -307,17 +314,24 @@ int main(void)
          g_protect_restore_calls == 1);
 
   reset_mutation_results();
-  assert(bk7258_flash_partition_update(7u, 4u, NULL,
+  assert(bk7258_flash_partition_update(
+           BK7258_PARTITION_EASYFLASH_INDEX, 4u, NULL,
                                        sizeof(buffer)) == -EINVAL);
-  assert(bk7258_flash_partition_update(7u, 4u, buffer, 0u) == -EINVAL);
-  assert(bk7258_flash_partition_update(7u, 4u, buffer,
+  assert(bk7258_flash_partition_update(
+           BK7258_PARTITION_EASYFLASH_INDEX, 4u, buffer, 0u) == -EINVAL);
+  assert(bk7258_flash_partition_update(
+           BK7258_PARTITION_SECONDARY_MANIFEST_INDEX, 4u, buffer,
+           sizeof(buffer)) == -ENOENT);
+  assert(bk7258_flash_partition_update(
+           BK7258_PARTITION_EASYFLASH_INDEX, 4u, buffer,
                                        sizeof(buffer)) == 0);
   assert(g_update_calls == 1 && g_protect_none_calls == 1 &&
          g_protect_restore_calls == 1);
 
   reset_mutation_results();
   g_update_result = BK_FAIL;
-  assert(bk7258_flash_partition_update(7u, 4u, buffer,
+  assert(bk7258_flash_partition_update(
+           BK7258_PARTITION_EASYFLASH_INDEX, 4u, buffer,
                                        sizeof(buffer)) == -EIO);
   assert(g_update_calls == 1 && g_protect_restore_calls == 1);
 

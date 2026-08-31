@@ -23,9 +23,4 @@ int bk7258_board_cp_devices_initialize(void);
 int bk7258_board_ap_initialize(void);
 #endif
 
-#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
-int bk7258_product_prepare(void);
-int bk7258_product_start(void);
-#endif
-
 #endif /* __TESTS_BK7258_MOCKS_ARCH_BOARD_BOARD_H */
