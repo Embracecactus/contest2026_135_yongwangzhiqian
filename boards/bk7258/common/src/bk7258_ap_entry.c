@@ -84,8 +84,8 @@ static void bk7258_board_time_report(void)
 int bk7258_ap_main(int argc, FAR char *argv[])
 {
   uint32_t failure = BK7258_AP_ERROR_BAD_BOOT_STATE;
-#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
-  bool product_ready = true;
+#ifdef CONFIG_BK7258_AP_APPLICATION_LIFECYCLE
+  bool application_ready = true;
 #endif
   int ret;
 
@@ -118,12 +118,12 @@ int bk7258_ap_main(int argc, FAR char *argv[])
 #  endif
 #endif
 
-#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
-  ret = bk7258_product_prepare();
+#ifdef CONFIG_BK7258_AP_APPLICATION_LIFECYCLE
+  ret = bk7258_ap_application_prepare();
   if (ret < 0)
     {
-      syslog(LOG_ERR, "bk7258: product prepare failed: %d\n", ret);
-      product_ready = false;
+      syslog(LOG_ERR, "bk7258: application prepare failed: %d\n", ret);
+      application_ready = false;
     }
 #endif
 
@@ -133,13 +133,13 @@ int bk7258_ap_main(int argc, FAR char *argv[])
       bk7258_ap_lifecycle_fail_and_park(failure);
     }
 
-#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
-  if (product_ready)
+#ifdef CONFIG_BK7258_AP_APPLICATION_LIFECYCLE
+  if (application_ready)
     {
-      ret = bk7258_product_start();
+      ret = bk7258_ap_application_start();
       if (ret < 0)
         {
-          syslog(LOG_ERR, "bk7258: product start failed: %d\n", ret);
+          syslog(LOG_ERR, "bk7258: application start failed: %d\n", ret);
         }
     }
 #endif

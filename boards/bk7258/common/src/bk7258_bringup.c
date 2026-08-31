@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/boards/bk7258/common/src/bk7258_bringup.c
+ * boards/bk7258/common/src/bk7258_bringup.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -17,7 +17,9 @@
 #ifdef CONFIG_BK7258_FLASH_MTD
 #  include <nuttx/fs/fs.h>
 #  include <nuttx/mtd/mtd.h>
-#  include "bk7258_flash_mtd.h"
+#  include <arch/chip/bk7258_flash.h>
+#  include <arch/chip/bk7258_flash_mtd.h>
+#  include <arch/chip/bk7258_image_layout.h>
 #endif
 
 #if defined(CONFIG_FS_PROCFS) && defined(CONFIG_BK7258_DVFS_PROCFS)
@@ -31,6 +33,17 @@
  ****************************************************************************/
 
 #ifdef CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT
+_Static_assert(BK7258_FLASH_ERASE_SIZE == BK7258_FLASH_SECTOR_SIZE,
+               "partition and Flash erase sizes differ");
+
+static const struct bk7258_flash_mtd_config_s g_bk7258_data_mtd_config =
+{
+  .base = BK7258_DATA_RAW_PHYSICAL_OFFSET,
+  .size = BK7258_DATA_RAW_PHYSICAL_SIZE,
+  .owner = BK7258_STORAGE_GUARD_DATA,
+  .name = "bk7258-persistent-data"
+};
+
 /* Register /dev/mtdblock0 before rc.sysinit runs.  The script owns the
  * filesystem mount so the system-startup ordering remains visible and
  * configurable; this hook only makes the block device available to it.
@@ -86,7 +99,8 @@ int bk7258_bringup(void)
    * device.  rc.sysinit mounts the selected filesystem and never formats it.
    */
 
-  FAR struct mtd_dev_s *mtd = bk7258_flash_mtd_initialize();
+  FAR struct mtd_dev_s *mtd =
+    bk7258_flash_mtd_initialize(&g_bk7258_data_mtd_config);
   if (mtd != NULL)
     {
 #ifdef CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT

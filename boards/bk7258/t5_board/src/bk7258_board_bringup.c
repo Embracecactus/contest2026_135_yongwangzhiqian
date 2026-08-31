@@ -19,8 +19,7 @@
 
 #include <debug.h>
 
-#if defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
-    defined(CONFIG_AI_AGENT_LVGL_UI)
+#ifdef CONFIG_BK7258_BOARD_HAS_LVGL_UI_BINDING
 #  include <nuttx/semaphore.h>
 #  include <lvgl/lvgl.h>
 #  include <uikit/uikit.h>
@@ -68,7 +67,8 @@ static const struct bk7258_mic_config_s g_bk7258_t5_board_mic_config =
 #ifdef CONFIG_BK7258_T5_BOARD_TF_SLOT
 /* The dedicated board source owns the slot pins and card-presence policy. */
 
-extern int bk7258_board_sdio_initialize(bool widebus);
+extern const struct bk7258_sdio_pin_config_s g_bk7258_board_sdio_pins;
+extern int bk7258_board_sdio_prepare(bool widebus);
 extern bool bk7258_board_sdio_card_present(void);
 #ifdef CONFIG_FS_FAT
 extern int bk7258_t5_board_tf_mount_initialize(void);
@@ -76,9 +76,10 @@ extern int bk7258_t5_board_tf_mount_initialize(void);
 
 static const struct bk7258_sdio_board_s g_bk7258_t5_board_sdio =
 {
+  .pins = &g_bk7258_board_sdio_pins,
   .card_detect_available = false,
   .media_poll_ms = 0,
-  .initialize = bk7258_board_sdio_initialize,
+  .prepare = bk7258_board_sdio_prepare,
   .card_present = bk7258_board_sdio_card_present,
 };
 #endif
@@ -141,8 +142,7 @@ const struct bk7258_gpio_config_s g_bk7258_board_gpio_config =
  * Public Functions
  ****************************************************************************/
 
-#if defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
-    defined(CONFIG_AI_AGENT_LVGL_UI)
+#ifdef CONFIG_BK7258_BOARD_HAS_LVGL_UI_BINDING
 
 #define T5_LVGL_TASK_PRIORITY  45
 #define T5_LVGL_TASK_STACKSIZE 32768
@@ -177,7 +177,7 @@ static int bk7258_t5_board_lvgl_loop(int argc, FAR char *argv[])
   lv_nuttx_dsc_init(&descriptor);
 #if defined(CONFIG_BK7258_GT1151) && \
     defined(CONFIG_LV_USE_NUTTX_TOUCHSCREEN)
-  descriptor.input_path = BK7258_BOARD_TOUCH_LVGL_DEVPATH;
+  descriptor.input_path = BK7258_BOARD_TOUCH_DEVPATH;
 #endif
 #ifdef CONFIG_BK7258_LVGL_FB_ACCEL
   display = bk7258_lvgl_fb_create("/dev/fb0");

@@ -16,6 +16,7 @@
 #include <nuttx/config.h>
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -30,6 +31,37 @@ extern "C"
 enum bk7258_lcd_pixel_format_e
 {
   BK7258_LCD_PIXEL_FORMAT_RGB565 = 0,
+};
+
+enum bk7258_lcd_rgb_signal_e
+{
+  BK7258_LCD_RGB_R3 = 0,
+  BK7258_LCD_RGB_R4,
+  BK7258_LCD_RGB_R5,
+  BK7258_LCD_RGB_R6,
+  BK7258_LCD_RGB_R7,
+  BK7258_LCD_RGB_G2,
+  BK7258_LCD_RGB_G3,
+  BK7258_LCD_RGB_G4,
+  BK7258_LCD_RGB_G5,
+  BK7258_LCD_RGB_G6,
+  BK7258_LCD_RGB_G7,
+  BK7258_LCD_RGB_B3,
+  BK7258_LCD_RGB_B4,
+  BK7258_LCD_RGB_B5,
+  BK7258_LCD_RGB_B6,
+  BK7258_LCD_RGB_B7,
+  BK7258_LCD_RGB_CLK,
+  BK7258_LCD_RGB_DE,
+  BK7258_LCD_RGB_HSYNC,
+  BK7258_LCD_RGB_VSYNC,
+  BK7258_LCD_RGB_SIGNAL_COUNT,
+};
+
+struct bk7258_lcd_rgb_pin_s
+{
+  enum bk7258_lcd_rgb_signal_e signal;
+  uint8_t pin;
 };
 
 struct bk7258_lcd_board_s;
@@ -95,6 +127,13 @@ struct bk7258_lcd_board_s
 /* Register the selected RGB panel as the standard NuttX /dev/fb0 device. */
 
 int bk7258_lcd_initialize(const struct bk7258_lcd_board_s *board);
+
+/* Bind one complete physical RGB bus.  The chip implementation translates
+ * logical RGB signals to the private SDK device-selector namespace.
+ */
+
+int bk7258_lcd_rgb_configure_pins(
+  const struct bk7258_lcd_rgb_pin_s *pins, size_t count);
 
 #endif
 

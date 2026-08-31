@@ -749,12 +749,12 @@ static void bk7258_dvp_timestamp(FAR struct timeval *tv)
 static void bk7258_dvp_complete_worker(FAR void *arg)
 {
   FAR struct bk7258_dvp_s *priv = arg;
-  irqstate_t flags;
+  irqstate_t state_flags;
 
-  flags = spin_lock_irqsave(&priv->lock);
+  state_flags = spin_lock_irqsave(&priv->lock);
   priv->worker_running = true;
   priv->worker_tid = nxsched_gettid();
-  spin_unlock_irqrestore(&priv->lock, flags);
+  spin_unlock_irqrestore(&priv->lock, state_flags);
 
   for (;;)
     {
@@ -1066,6 +1066,140 @@ static uint32_t bk7258_dvp_fps_hz(frame_fps_t fps)
       default:
         return 0;
     }
+}
+
+static int bk7258_dvp_make_sdk_config(
+  FAR const struct bk7258_dvp_sensor_config_s *sensor,
+  FAR bk_dvp_config_t *sdk)
+{
+  frame_fps_t fps;
+  uint16_t format;
+
+  if (sensor == NULL || sdk == NULL || sensor->width == 0 ||
+      sensor->height == 0 || sensor->i2c_frequency == 0 ||
+      sensor->mclk_hz != BK7258_DVP_MCLK_24MHZ)
+    {
+      return -EINVAL;
+    }
+
+  switch (sensor->data_width)
+    {
+      case BK7258_DVP_DATA_WIDTH_8:
+      case BK7258_DVP_DATA_WIDTH_10:
+      case BK7258_DVP_DATA_WIDTH_12:
+      case BK7258_DVP_DATA_WIDTH_16:
+        break;
+
+      default:
+        return -EINVAL;
+    }
+
+  switch (sensor->fps)
+    {
+      case 5:
+        fps = FPS5;
+        break;
+      case 10:
+        fps = FPS10;
+        break;
+      case 15:
+        fps = FPS15;
+        break;
+      case 20:
+        fps = FPS20;
+        break;
+      case 25:
+        fps = FPS25;
+        break;
+      case 30:
+        fps = FPS30;
+        break;
+      default:
+        return -ENOTSUP;
+    }
+
+  switch (sensor->format)
+    {
+      case BK7258_DVP_FORMAT_YUV:
+        format = IMAGE_YUV;
+        break;
+      case BK7258_DVP_FORMAT_MJPEG:
+        format = IMAGE_MJPEG;
+        break;
+      case BK7258_DVP_FORMAT_H264:
+        format = IMAGE_H264;
+        break;
+      default:
+        return -ENOTSUP;
+    }
+
+  memset(sdk, 0, sizeof(*sdk));
+  sdk->i2c_config.id = sensor->i2c_bus;
+  sdk->i2c_config.scl_pin = sensor->i2c_scl_pin;
+  sdk->i2c_config.sda_pin = sensor->i2c_sda_pin;
+  sdk->i2c_config.baud_rate = sensor->i2c_frequency;
+  sdk->reset_pin = sensor->reset_pin;
+  sdk->pwdn_pin = sensor->pwdn_pin;
+  sdk->io_config.data_width = (sensor_bits_width_t)sensor->data_width;
+  memcpy(sdk->io_config.data_pin, sensor->data_pin,
+         sizeof(sdk->io_config.data_pin));
+  sdk->io_config.vsync_pin = sensor->vsync_pin;
+  sdk->io_config.hsync_pin = sensor->hsync_pin;
+  sdk->io_config.xclk_pin = sensor->mclk_pin;
+  sdk->io_config.pclk_pin = sensor->pclk_pin;
+  sdk->clk_source = MCLK_24M;
+  sdk->width = sensor->width;
+  sdk->height = sensor->height;
+  sdk->fps = fps;
+  sdk->img_format = format;
+  return OK;
+}
+
+int bk7258_dvp_get_buffer_requirements(
+  FAR const struct bk7258_dvp_sensor_config_s *sensor,
+  FAR struct bk7258_dvp_buffer_requirements_s *requirements)
+{
+  bk_dvp_config_t sdk;
+  uint64_t frame_size;
+  uint64_t encode_size;
+  int ret;
+
+  if (requirements == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = bk7258_dvp_make_sdk_config(sensor, &sdk);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (sdk.img_format == IMAGE_YUV)
+    {
+      frame_size = (uint64_t)sdk.width * sdk.height * 2u;
+      encode_size = 0u;
+    }
+  else if (sdk.img_format == IMAGE_H264)
+    {
+      frame_size = CONFIG_H264_FRAME_SIZE;
+      encode_size = (uint64_t)sdk.width * 32u * 2u;
+    }
+  else
+    {
+      frame_size = CONFIG_JPEG_FRAME_SIZE;
+      encode_size = (uint64_t)sdk.width * 16u * 2u;
+    }
+
+  if (frame_size == 0u || frame_size > UINT32_MAX ||
+      encode_size > UINT32_MAX)
+    {
+      return -EOVERFLOW;
+    }
+
+  requirements->frame_size = (uint32_t)frame_size;
+  requirements->encode_buffer_size = (uint32_t)encode_size;
+  return OK;
 }
 
 static int bk7258_dvp_validate_frame_setting(
@@ -1650,9 +1784,9 @@ static const struct imgdata_ops_s g_bk7258_dvp_data_ops =
 int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
                           FAR struct bk7258_dvp_s **out)
 {
+  struct bk7258_dvp_buffer_requirements_s requirements;
+  bk_dvp_config_t sdk;
   irqstate_t flags;
-  uint64_t encode_buffer_size;
-  uint64_t yuv_size;
   uint8_t i;
   int ret;
 
@@ -1669,47 +1803,34 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
       return -EINVAL;
     }
 
-  if (config->sdk.width == 0 || config->sdk.height == 0 ||
-      bk7258_dvp_fps_hz((frame_fps_t)config->sdk.fps) == 0 ||
-      (config->sdk.img_format != IMAGE_YUV &&
-       config->sdk.img_format != IMAGE_MJPEG &&
-       config->sdk.img_format != IMAGE_H264))
+  ret = bk7258_dvp_make_sdk_config(&config->sensor, &sdk);
+  if (ret < 0)
     {
-      return -ENOTSUP;
+      return ret;
     }
 
-  if ((config->sdk.img_format == IMAGE_MJPEG ||
-       config->sdk.img_format == IMAGE_H264) &&
+  ret = bk7258_dvp_get_buffer_requirements(&config->sensor,
+                                            &requirements);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (requirements.encode_buffer_size != 0u &&
       (config->encode_buffer == NULL || config->encode_buffer_size == 0))
     {
       return -EINVAL;
     }
 
-  encode_buffer_size = (uint64_t)config->sdk.width *
-                       (config->sdk.img_format == IMAGE_H264 ? 32u : 16u) *
-                       2u;
-  if (config->sdk.img_format != IMAGE_YUV &&
-      (encode_buffer_size > UINT32_MAX ||
-       config->encode_buffer_size < encode_buffer_size))
+  if (config->encode_buffer_size < requirements.encode_buffer_size)
     {
       return -EINVAL;
     }
 
-  yuv_size = (uint64_t)config->sdk.width * config->sdk.height * 2;
-  if (yuv_size > UINT32_MAX)
-    {
-      return -EOVERFLOW;
-    }
-
   for (i = 0; i < config->frame_count; i++)
     {
-      uint32_t required = config->sdk.img_format == IMAGE_YUV ?
-                          (uint32_t)yuv_size :
-                          config->sdk.img_format == IMAGE_H264 ?
-                          CONFIG_H264_FRAME_SIZE : CONFIG_JPEG_FRAME_SIZE;
-
       if (config->frames[i].addr == NULL ||
-          config->frames[i].size < required)
+          config->frames[i].size < requirements.frame_size)
         {
           return -EINVAL;
         }
@@ -1729,8 +1850,8 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
                   g_bk7258_dvp.config.encode_buffer == config->encode_buffer &&
                   g_bk7258_dvp.config.encode_buffer_size ==
                   config->encode_buffer_size &&
-                  memcmp(&g_bk7258_dvp.sdk_config, &config->sdk,
-                         sizeof(config->sdk)) == 0;
+                  memcmp(&g_bk7258_dvp.sdk_config, &sdk,
+                         sizeof(sdk)) == 0;
 
       nxmutex_unlock(&g_bk7258_dvp.api_lock);
       if (same)
@@ -1743,7 +1864,7 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
 
   spin_lock_init(&g_bk7258_dvp.lock);
   g_bk7258_dvp.config = *config;
-  g_bk7258_dvp.sdk_config = config->sdk;
+  g_bk7258_dvp.sdk_config = sdk;
   g_bk7258_dvp.deferred_i2c_count = 0;
   g_bk7258_dvp.data.ops = &g_bk7258_dvp_data_ops;
   g_bk7258_dvp.configured = true;

@@ -1,3 +1,19 @@
+if(CONFIG_BK7258_APP_AGENT)
+  target_sources(apps PRIVATE bk7258_agent_product.c)
+  if(NOT CONFIG_MEDIA)
+    if(CONFIG_BK7258_MIC OR CONFIG_BK7258_AUD)
+      target_include_directories(apps PRIVATE
+          ${NUTTX_APPS_DIR}/frameworks/multimedia/media/include)
+    endif()
+    if(CONFIG_BK7258_MIC)
+      target_sources(apps PRIVATE bk7258_agent_media_recorder.c)
+    endif()
+    if(CONFIG_BK7258_AUD)
+      target_sources(apps PRIVATE bk7258_agent_media_player.c)
+    endif()
+  endif()
+endif()
+
 if(CONFIG_BK7258_APP_OTA)
   nuttx_add_application(
     NAME ${CONFIG_BK7258_APP_OTA_PROGNAME}

@@ -41,16 +41,16 @@ int bk7258_flash_erase_sector(uint32_t address);
 int bk7258_flash_write(uint32_t address, FAR const void *buffer,
                        size_t nbytes);
 
-/* Resolve one SDK logical partition through the selected board's generated
- * partition table.  This exposes topology data, never SDK-private types.
+/* Resolve one selected-layout partition by its generated row identifier.
+ * This exposes topology data, never SDK-private types or SDK row ordering.
  */
 
 int bk7258_flash_partition_get_info(
   uint32_t partition, FAR struct bk7258_flash_partition_info_s *info);
 
-/* Preserve the rest of an SDK logical partition while updating one range.
- * The caller supplies a generated partition identifier; the chip owns the
- * physical erase/rewrite transaction.
+/* Preserve the rest of a generated logical partition while updating one
+ * range.  The chip translates the generated identifier to the pinned SDK's
+ * semantic identifier and owns the physical erase/rewrite transaction.
  */
 
 int bk7258_flash_partition_update(uint32_t partition, uint32_t offset,

@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Local build integration for the upstream-oriented GT9xx replacement.
+# The implementation is kept as a complete NuttX input driver so the
+# standard ioctl addition can move upstream without BK7258 board policy.
+
+config INPUT_GT9XX_STANDARD_IOCTL
+	bool "Goodix GT9xx driver with standard touchscreen ioctl"
+	default n
+	select INPUT_TOUCHSCREEN
+	help
+		Enable the Goodix GT9xx input driver with the standard
+		TSIOC_GETMAXPOINTS touchscreen capability query.  This is a
+		drop-in replacement for INPUT_GT9XX and must not be enabled with
+		the official driver at the same time.
+
+if INPUT_GT9XX_STANDARD_IOCTL
+
+config INPUT_GT9XX_STANDARD_IOCTL_NPOLLWAITERS
+	int "Number of waiters to poll"
+	default 1
+	help
+		Maximum number of threads that can be waiting on poll().
+
+config INPUT_GT9XX_STANDARD_IOCTL_I2C_FREQUENCY
+	int "I2C frequency (Hz)"
+	default 400000
+	help
+		I2C frequency in Hz.
+
+endif # INPUT_GT9XX_STANDARD_IOCTL

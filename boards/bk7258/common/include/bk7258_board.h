@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/boards/bk7258/common/include/bk7258_board.h
+ * boards/bk7258/common/include/bk7258_board.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -129,18 +129,12 @@ int bk7258_board_ap_initialize(void);
 extern const struct bk7258_aud_board_s g_bk7258_board_audio;
 #endif
 
-#if defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
-    defined(CONFIG_AI_AGENT_LVGL_UI)
+#ifdef CONFIG_BK7258_BOARD_HAS_LVGL_UI_BINDING
 int bk7258_board_ui_initialize(void);
 int bk7258_board_ui_wait_ready(void);
 #endif
 
 #endif /* CONFIG_BK7258_AP_CORE */
-
-#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
-int bk7258_product_prepare(void);
-int bk7258_product_start(void);
-#endif
 
 #ifdef __cplusplus
 }

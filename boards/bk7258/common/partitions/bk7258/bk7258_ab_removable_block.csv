@@ -17,7 +17,7 @@ primary_manifest,0x50b000,4K,data,TRUE,FALSE,manifest_a,external
 secondary_manifest,,4K,data,TRUE,FALSE,manifest_b,external
 primary_bl2,0x51d000,136K,code,TRUE,FALSE,bl2_a,external
 secondary_bl2,,136K,code,TRUE,FALSE,bl2_b,external
-reserved_data,0x600000,1M,data,TRUE,FALSE,,preserve
+persistent_data,0x600000,1M,data,TRUE,FALSE,,preserve
 easyflash,0x7fa000,8K,data,TRUE,TRUE,,immutable
 easyflash_ap,0x7fc000,8K,data,TRUE,TRUE,,immutable
 sys_rf,0x7fe000,4K,data,TRUE,TRUE,,immutable

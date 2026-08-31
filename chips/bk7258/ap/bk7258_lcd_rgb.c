@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_lcd_rgb.c
+ * chips/bk7258/ap/bk7258_lcd_rgb.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -32,6 +32,10 @@
 #include <arch/chip/bk7258_psram.h>
 
 #include <driver/lcd.h>
+#include <driver/gpio.h>
+
+extern bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
+extern bk_err_t gpio_dev_map(gpio_id_t gpio_id, gpio_dev_t dev);
 
 extern int32_t sys_drv_core_intr_group1_disable(uint32_t core_id,
                                                 uint32_t param);
@@ -243,6 +247,84 @@ static int bk7258_lcd_sdk_clock(uint8_t mhz, FAR lcd_clk_t *clock)
       default:
         return -ENOTSUP;
     }
+}
+
+int bk7258_lcd_rgb_configure_pins(
+  const struct bk7258_lcd_rgb_pin_s *pins, size_t count)
+{
+  static const gpio_dev_t devices[BK7258_LCD_RGB_SIGNAL_COUNT] =
+  {
+    GPIO_DEV_LCD_R3,
+    GPIO_DEV_LCD_R4,
+    GPIO_DEV_LCD_R5,
+    GPIO_DEV_LCD_R6,
+    GPIO_DEV_LCD_R7,
+    GPIO_DEV_LCD_G2,
+    GPIO_DEV_LCD_G3,
+    GPIO_DEV_LCD_G4,
+    GPIO_DEV_LCD_G5,
+    GPIO_DEV_LCD_G6,
+    GPIO_DEV_LCD_G7,
+    GPIO_DEV_LCD_B3,
+    GPIO_DEV_LCD_B4,
+    GPIO_DEV_LCD_B5,
+    GPIO_DEV_LCD_B6,
+    GPIO_DEV_LCD_B7,
+    GPIO_DEV_LCD_CLK,
+    GPIO_DEV_LCD_DE,
+    GPIO_DEV_LCD_HSYNC,
+    GPIO_DEV_LCD_VSYNC,
+  };
+  uint32_t signals = 0u;
+  size_t index;
+  size_t other;
+
+  if (pins == NULL || count != BK7258_LCD_RGB_SIGNAL_COUNT)
+    {
+      return -EINVAL;
+    }
+
+  for (index = 0u; index < count; index++)
+    {
+      if (pins[index].signal >= BK7258_LCD_RGB_SIGNAL_COUNT ||
+          pins[index].pin >= 56u ||
+          (signals & (1u << pins[index].signal)) != 0u)
+        {
+          return -EINVAL;
+        }
+
+      for (other = 0u; other < index; other++)
+        {
+          if (pins[other].pin == pins[index].pin)
+            {
+              return -EINVAL;
+            }
+        }
+
+      signals |= 1u << pins[index].signal;
+    }
+
+  if (bk_gpio_driver_init() != BK_OK)
+    {
+      return -EIO;
+    }
+
+  for (index = 0u; index < count; index++)
+    {
+      gpio_id_t pin = (gpio_id_t)pins[index].pin;
+
+      if (gpio_dev_unmap(pin) != BK_OK ||
+          gpio_dev_map(pin, devices[pins[index].signal]) != BK_OK ||
+          bk_gpio_enable_output(pin) != BK_OK ||
+          bk_gpio_set_capacity(pin, GPIO_DRIVER_CAPACITY_1) != BK_OK)
+        {
+          syslog(LOG_ERR, "BK7258 LCD: RGB GPIO%u route failed\n",
+                 (unsigned int)pins[index].pin);
+          return -EIO;
+        }
+    }
+
+  return OK;
 }
 
 static void bk7258_lcd_restore_sync_widths(

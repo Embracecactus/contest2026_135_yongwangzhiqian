@@ -1,5 +1,5 @@
 ############################################################################
-# contest2026_135_yongwangzhiqian/chips/bk7258/Make.defs
+# chips/bk7258/Make.defs
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -31,7 +31,12 @@ VPATH += chip$(DELIM)bootloader$(DELIM)bl2
 VPATH += armv8-m
 BK7258_NUTTX_OVERLAY := $(TOPDIR)$(DELIM)..$(DELIM)vendor$(DELIM)beken$(DELIM)nuttx
 VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)lcd
+VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)input
 VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)sensors
+
+ifeq ($(CONFIG_INPUT_GT9XX_STANDARD_IOCTL)$(CONFIG_INPUT_GT9XX),yy)
+$(error select exactly one GT9xx implementation)
+endif
 
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)common
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)cp
@@ -94,6 +99,10 @@ BK7258_CP_CSRCS += $(BK7258_RUNTIME_CSRCS)
 BK7258_CP_CSRCS += bk7258_stage_runner.c
 BK7258_CP_CSRCS += bk7258_cp_platform.c
 BK7258_CP_CSRCS += bk7258_flash.c
+BK7258_CP_CSRCS += bk7258_sdk_partition.c
+ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
+BK7258_CP_CSRCS += bk7258_flash_mtd.c
+endif
 ifeq ($(CONFIG_BOARDCTL_RESET_CAUSE),y)
 BK7258_CP_CSRCS += bk7258_reset_cause.c
 endif
@@ -383,6 +392,9 @@ BK7258_AP_BASE_CSRCS += gc9d01.c
 endif
 ifeq ($(CONFIG_SENSORS_SC7A20),y)
 BK7258_AP_BASE_CSRCS += sc7a20.c
+endif
+ifeq ($(CONFIG_INPUT_GT9XX_STANDARD_IOCTL),y)
+BK7258_AP_BASE_CSRCS += gt9xx.c
 endif
 ifeq ($(CONFIG_BK7258_LIN),y)
 BK7258_AP_BASE_CSRCS += bk7258_lin.c

@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_mic.c
+ * chips/bk7258/ap/bk7258_mic.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -277,9 +277,6 @@ static void bk7258_mic_stop_thread(struct bk7258_mic_dev_s *priv);
 
 static int  bk7258_mic_getcaps(struct audio_lowerhalf_s *dev, int type,
                                struct audio_caps_s *caps);
-#ifdef CONFIG_BK7258_AGENT_MEDIA_RECORDER
-extern void bk7258_agent_media_recorder_link(void);
-#endif
 #ifdef CONFIG_AUDIO_MULTI_SESSION
 static int  bk7258_mic_configure(struct audio_lowerhalf_s *dev,
                                  void *session,
@@ -1827,10 +1824,6 @@ int bk7258_mic_initialize(
 {
   struct bk7258_mic_dev_s *priv = &g_bk7258_mic;
   int ret;
-
-#ifdef CONFIG_BK7258_AGENT_MEDIA_RECORDER
-  bk7258_agent_media_recorder_link();
-#endif
 
   if (g_bk7258_mic_registered)
     {

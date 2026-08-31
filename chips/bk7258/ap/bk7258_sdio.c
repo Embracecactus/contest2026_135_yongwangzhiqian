@@ -1,10 +1,10 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_sdio.c
+ * chips/bk7258/ap/bk7258_sdio.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * BK7258 SDIO host controller — NuttX sdio_dev_s lower-half over the
- * official Beken bk_sdio_host_* SDK API.  Zero register access.
+ * official Beken bk_sdio_host_* SDK API.
  *
  * Role ownership: AP only.  The 24 bk_sdio_host_* symbols are compiled into
  * the AP libdriver.a exclusively; the CP bundle ships the headers but
@@ -13,33 +13,43 @@
  * Data path:
  *
  *   NuttX MMCSD/SDIO upper half (sdio_dev_s ops):
- *     sendcmd(cmd,arg)  -> bk_sdio_host_send_command + bk_sdio_host_wait_..
- *     recv_r1..r7()     -> bk_sdio_host_wait_cmd_response +
- *                           bk_sdio_host_get_cmd_rsp_argument
+ *     sendcmd(cmd,arg)  -> bk_sdio_host_send_command + SDK queue completion
+ *     recv_r1..r7()     -> bk_sdio_host_get_cmd_rsp_argument
  *     widebus(enable)   -> re-init with 1/4 line
  *     clock(rate)       -> bk_sdio_host_set_clock_freq
- *     recvsetup(buf,len)-> bk_sdio_host_config_data(RD) + read_blks_fifo +
- *                           bk_sdio_host_wait_receive_data
+ *     recvsetup(buf,len)-> cache the NuttX transfer contract
+ *     data sendcmd()     -> bk_sdio_host_config_data(RD) + command +
+ *                           bk_sdio_host_wait_receive_data + FIFO drain
  *     sendsetup(buf,len)-> bk_sdio_host_config_data(WR) + write_fifo
  *
  * Notes on SDK behaviour that shaped this driver (verified against the
  * v3.1.1.9 headers, not assumed):
  *
  *  1. bk_sdio_host_driver_init() is a global one-time resource init;
- *     bk_sdio_host_init(config) powers up the unit and applies GPIO mapping.
- *     Both are one-shot; we call driver_init once and host_init once at
- *     bk7258_sdio_initialize(), then re-init only on reset()/widebus().
+ *     bk_sdio_host_init(config) powers up the unit.  The selected v3.1.1.9
+ *     bundle has CONFIG_GPIO_DEFAULT_SET_SUPPORT, so that call assumes the
+ *     SDK application's default GPIO table rather than selecting a route.
+ *     NuttX must therefore restore the generated board route after every
+ *     host init, before the first command.  We call driver_init once and
+ *     host_init once at bk7258_sdio_initialize(), then re-init only on
+ *     reset()/widebus().
  *  2. The Beken SDIO host API is blocking.  NuttX, however, calls
- *     recvsetup() before it sends the read command.  recvsetup() therefore
- *     only configures the data path and records the buffer; sendcmd() drains
- *     the FIFO after the matching read command has completed.  Write setup
- *     occurs after the command and can finish synchronously in sendsetup().
- *     eventwait() then replays only the resulting completion/error bits.
+ *     recvsetup() before it sends the read command and may insert CMD55 before
+ *     an application data command.  recvsetup() therefore records only the
+ *     transfer contract; sendcmd() arms the SDK data path immediately before
+ *     the matching command, then drains the FIFO after command completion.
+ *     Write setup occurs after the command and can finish synchronously in
+ *     sendsetup().  eventwait() then replays only the resulting
+ *     completion/error bits.
  *  3. Command response type maps from the NuttX 32-bit cmd field: no-response
  *     -> SDIO_HOST_CMD_RSP_NONE; R2 (128-bit) -> SDIO_HOST_CMD_RSP_LONG;
  *     R1/R3/R4/R5/R6/R7 (48-bit) -> SDIO_HOST_CMD_RSP_SHORT.  CRC is checked
  *     for R1/R2/R6/R7 (the response types the spec CRC-protects); R3/R4/R5
  *     have no CRC and are sent without crc_check.
+ *  4. The SDK ISR remains the sole owner of command and data status.  Its
+ *     public queue wait has a four-millisecond slice, so the lower half waits
+ *     repeatedly for the same in-flight command up to the NuttX deadline; it
+ *     never masks the SDK IRQ or reads/acknowledges controller status itself.
  ****************************************************************************/
 
 /****************************************************************************
@@ -67,13 +77,14 @@
 
 #include "bk7258_sdk_abi.h"
 
+#include <arch/chip/bk7258_pinmux.h>
 #include <arch/chip/bk7258_sdio.h>
 
 /* SDK API headers (Beken).  bk_err_t / BK_OK come via common/bk_err.h. */
 
 #include <driver/sdio_host.h>
 #include <driver/sdio_host_types.h>
-#include <driver/int_types.h>
+#include <driver/gpio.h>
 
 #if defined(CONFIG_BK7258_SDIO_4BIT) && \
     !defined(CONFIG_SDCARD_BUSWIDTH_4LINE)
@@ -82,9 +93,6 @@
       defined(CONFIG_SDCARD_BUSWIDTH_4LINE)
 #  error "Four-bit-only AP SDK bundle cannot serve a one-bit SDIO profile"
 #endif
-
-#include "arm_internal.h"
-#include "bk7258_sdk_irq.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -106,20 +114,21 @@
 
 #define SDIO_NUTTX_RSP_SHIFT           6
 
-#define BK7258_SDIO_INT_STATUS         0x458d0034u
-#define BK7258_SDIO_CMD_NO_RSP_END     (1u << 0)
-#define BK7258_SDIO_CMD_RSP_END        (1u << 1)
-#define BK7258_SDIO_CMD_RSP_TIMEOUT    (1u << 2)
-#define BK7258_SDIO_CMD_CRC_OK         (1u << 10)
-#define BK7258_SDIO_CMD_CRC_FAIL       (1u << 11)
-#define BK7258_SDIO_CMD_STATUS_MASK    (BK7258_SDIO_CMD_NO_RSP_END | \
-                                        BK7258_SDIO_CMD_RSP_END | \
-                                        BK7258_SDIO_CMD_RSP_TIMEOUT | \
-                                        BK7258_SDIO_CMD_CRC_OK | \
-                                        BK7258_SDIO_CMD_CRC_FAIL)
-#define BK7258_SDIO_IRQ                (BK7258_IRQ_FIRST + INT_SRC_SDIO)
-#define BK7258_SDIO_CMD_POLL_US        100000u
+#define BK7258_SDIO_CMD_WAIT_MS        100u
 #define SDIO_NUTTX_RSP_MASK            (15 << SDIO_NUTTX_RSP_SHIFT)
+#define BK7258_SDIO_MAP_COUNT           2u
+#define BK7258_SDIO_PIN_COUNT           6u
+#define BK7258_SDIO_SDK_DEFAULT_COUNT   3u
+
+#ifdef CONFIG_DEBUG_FS_INFO
+#  define BKSDIO_TRACE(fmt, ...) \
+     syslog(LOG_INFO, "BKSDIO TRACE " fmt "\n", ##__VA_ARGS__)
+#else
+#  define BKSDIO_TRACE(fmt, ...) do { } while (0)
+#endif
+
+extern bk_err_t gpio_sdio_sel(int mode);
+extern bk_err_t gpio_sdio_one_line_sel(int mode);
 
 /****************************************************************************
  * Private Types
@@ -278,6 +287,142 @@ static int bk7258_sdio_map_err(bk_err_t err)
     }
 }
 
+/* v3.1.1.9 waits only four milliseconds in each public command-queue call.
+ * Keep the same command in flight and repeat that public wait until the
+ * NuttX command deadline expires.  The SDK ISR remains the sole owner of
+ * command status and queue delivery throughout the transaction.
+ */
+
+static bk_err_t bk7258_sdio_wait_command(uint32_t cmd_index)
+{
+  clock_t start;
+  clock_t limit;
+  bk_err_t err;
+
+  start = clock_systime_ticks();
+  limit = MSEC2TICK(BK7258_SDIO_CMD_WAIT_MS);
+  if (limit < 1)
+    {
+      limit = 1;
+    }
+
+  do
+    {
+      err = bk_sdio_host_wait_cmd_response(cmd_index);
+      if (err != BK_ERR_SDIO_HOST_CMD_RSP_TIMEOUT)
+        {
+          return err;
+        }
+    }
+  while (clock_systime_ticks() - start < limit);
+
+  return BK_ERR_SDIO_HOST_CMD_RSP_TIMEOUT;
+}
+
+static int bk7258_sdio_configure_pins(
+  FAR const struct bk7258_sdio_pin_config_s *pins)
+{
+  static const uint8_t expected[BK7258_SDIO_MAP_COUNT]
+                               [BK7258_SDIO_PIN_COUNT] =
+  {
+    {2u, 3u, 4u, 5u, 10u, 11u},
+    {14u, 15u, 16u, 17u, 18u, 19u},
+  };
+  static const uint8_t sdk_defaults[BK7258_SDIO_SDK_DEFAULT_COUNT] =
+  {
+    2u, 3u, 4u
+  };
+  struct bk7258_pinmux_config_s reclaim[
+    BK7258_SDIO_SDK_DEFAULT_COUNT + BK7258_SDIO_PIN_COUNT];
+  const uint8_t *selected;
+  gpio_id_t gpio;
+  size_t count;
+  size_t index;
+  size_t selected_count;
+  bk_err_t error;
+  int ret;
+
+  if (pins == NULL || pins->map_mode >= BK7258_SDIO_MAP_COUNT)
+    {
+      return -EINVAL;
+    }
+
+  selected = expected[pins->map_mode];
+  if (pins->clk_pin != selected[0] || pins->cmd_pin != selected[1] ||
+      memcmp(pins->data_pin, &selected[2], sizeof(pins->data_pin)) != 0)
+    {
+      return -EINVAL;
+    }
+
+  if (bk_gpio_driver_init() != BK_OK)
+    {
+      return -EIO;
+    }
+
+#ifdef CONFIG_BK7258_SDIO_4BIT
+  /* Physical pin ownership and the negotiated protocol width are different
+   * facts.  A four-line instance must own and pull up DAT1-DAT3 from power-on
+   * even though the controller starts in one-line identification mode.  The
+   * SDK default tables can leave optional SDIO data pins in unrelated output
+   * functions; leaving DAT3 there can hold the card-select signal low during
+   * CMD0 and put an attached device into SPI mode.  ACMD6 still remains the
+   * only point that changes the controller's bus width.
+   */
+
+  selected_count = BK7258_SDIO_PIN_COUNT;
+#else
+  selected_count = 3u;
+#endif
+  count = 0u;
+  for (index = 0u; index < BK7258_SDIO_SDK_DEFAULT_COUNT; index++)
+    {
+      reclaim[count].pin = sdk_defaults[index];
+      reclaim[count].function = 0u;
+      reclaim[count].peripheral = false;
+      count++;
+    }
+
+  /* A one-bit binding owns only CLK/CMD/D0 and leaves every unselected data
+   * pin available to its selected platform function.
+   */
+
+  for (index = 0u; index < selected_count; index++)
+    {
+      reclaim[count].pin = selected[index];
+      reclaim[count].function = 0u;
+      reclaim[count].peripheral = false;
+      count++;
+    }
+
+  ret = bk7258_pinmux_apply(reclaim, count);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+#ifdef CONFIG_BK7258_SDIO_4BIT
+  error = gpio_sdio_sel(pins->map_mode);
+#else
+  error = gpio_sdio_one_line_sel(pins->map_mode);
+#endif
+  if (error != BK_OK)
+    {
+      return -EIO;
+    }
+
+  for (index = 0u; index < selected_count; index++)
+    {
+      gpio = (gpio_id_t)selected[index];
+      if (bk_gpio_pull_up(gpio) != BK_OK ||
+          bk_gpio_set_capacity(gpio, GPIO_DRIVER_CAPACITY_3) != BK_OK)
+        {
+          return -EIO;
+        }
+    }
+
+  return OK;
+}
+
 static bool bk7258_sdio_card_detect_enabled(
   FAR const struct bk7258_sdio_priv_s *priv)
 {
@@ -309,12 +454,10 @@ static void bk7258_sdio_finish_stop_transmission(void)
  *   bk_sdio_host_read_blks_fifo() hard-codes 512-byte blocks, while NuttX
  *   also requests short protocol records such as the 8-byte SCR.  Drain the
  *   public word FIFO directly so the configured block geometry is honoured.
- *   Drain each block before waiting for its completion token.  The card clock
- *   remains continuous, matching the official SDK initialization path, so
- *   starting the FIFO drain immediately after the command response prevents
- *   the following block from overflowing while NuttX wakes.  The completion
- *   token is still consumed after every block to validate the SDK's CRC/error
- *   result before advancing to the next block.
+ *   Follow the official SDK CPU-FIFO order for every block: wait for the data
+ *   completion token first, validate its CRC/error result, then drain the
+ *   FIFO.  The selected profile constrains NuttX to single-block transfers,
+ *   so this preserves the SDK contract without a multiblock overflow window.
  ****************************************************************************/
 
 static int bk7258_sdio_complete_read(
@@ -343,6 +486,21 @@ static int bk7258_sdio_complete_read(
           chunk = priv->xfer_nbytes - offset;
         }
 
+      err = bk_sdio_host_wait_receive_data();
+      if (err != BK_OK)
+        {
+          syslog(LOG_ERR,
+                 "BKSDIO CMD%lu RX wait failed: block=%lu/%lu "
+                 "blocklen=%lu bytes=%lu sdk=%d\n",
+                 (unsigned long)cmd_index,
+                 (unsigned long)block,
+                 (unsigned long)priv->nblocks,
+                 (unsigned long)priv->blocklen,
+                 (unsigned long)priv->xfer_nbytes, err);
+          priv->xfer_pending = false;
+          return bk7258_sdio_map_err(err);
+        }
+
       copied = 0;
       while (copied < chunk)
         {
@@ -353,12 +511,11 @@ static int bk7258_sdio_complete_read(
             {
               syslog(LOG_ERR,
                      "BKSDIO CMD%lu RX fifo failed: block=%lu/%lu offset=%lu "
-                     "sdk=%d status=%08lx\n",
+                     "sdk=%d\n",
                      (unsigned long)cmd_index,
                      (unsigned long)block,
                      (unsigned long)priv->nblocks,
-                     (unsigned long)(offset + copied),
-                     err, (unsigned long)getreg32(BK7258_SDIO_INT_STATUS));
+                     (unsigned long)(offset + copied), err);
               priv->xfer_pending = false;
               return bk7258_sdio_map_err(err);
             }
@@ -370,22 +527,6 @@ static int bk7258_sdio_complete_read(
 
           memcpy(priv->xfer_buf + offset + copied, &word, bytes);
           copied += bytes;
-        }
-
-      err = bk_sdio_host_wait_receive_data();
-      if (err != BK_OK)
-        {
-          syslog(LOG_ERR,
-                 "BKSDIO CMD%lu RX wait failed: block=%lu/%lu "
-                 "blocklen=%lu bytes=%lu sdk=%d status=%08lx\n",
-                 (unsigned long)cmd_index,
-                 (unsigned long)block,
-                 (unsigned long)priv->nblocks,
-                 (unsigned long)priv->blocklen,
-                 (unsigned long)priv->xfer_nbytes,
-                 err, (unsigned long)getreg32(BK7258_SDIO_INT_STATUS));
-          priv->xfer_pending = false;
-          return bk7258_sdio_map_err(err);
         }
 
       offset += chunk;
@@ -409,6 +550,7 @@ static int bk7258_sdio_host_init_locked(FAR struct bk7258_sdio_priv_s *priv,
 {
   sdio_host_config_t cfg;
   bk_err_t err;
+  int ret;
 
   /* Init the host at the slowest supported clock: SD card protocol wants
    * 400 kHz, but the V2.0 enum's slowest divider is 100 kHz.
@@ -443,6 +585,20 @@ static int bk7258_sdio_host_init_locked(FAR struct bk7258_sdio_priv_s *priv,
   err = bk_sdio_host_init(&cfg);
   if (err == BK_OK)
     {
+      /* v3.1.1.9 sdio_host_init_common() trusts its SDK-application GPIO
+       * default table when CONFIG_GPIO_DEFAULT_SET_SUPPORT is enabled.  That
+       * table is not a board binding for NuttX, so re-apply the generated
+       * physical route after every init.  Keep this inside the single re-init
+       * path so reset and the post-ACMD6 width transition preserve it.
+       */
+
+      ret = bk7258_sdio_configure_pins(priv->board->pins);
+      if (ret < 0)
+        {
+          (void)bk_sdio_host_deinit();
+          return ret;
+        }
+
       /* The official SD-card wrapper gives the powered controller and card
        * 30 ms to settle before issuing CMD0.
        */
@@ -454,62 +610,6 @@ static int bk7258_sdio_host_init_locked(FAR struct bk7258_sdio_priv_s *priv,
       priv->data_timeout = BK7258_SDIO_ID_DATA_TIMEOUT;
     }
   return bk7258_sdio_map_err(err);
-}
-
-/* v3.1.1.9 waits for command completion through a FreeRTOS queue with a
- * four-tick timeout.  Under the NuttX adapter that queue can miss the first
- * edge and leave a completion latched, so the following command consumes
- * stale state.  Command completion is inherently synchronous in the NuttX
- * sdio_dev_s contract; poll the documented BK7258 status register while the
- * SDK ISR line is masked, acknowledge only command bits, then restore the
- * line for data-transfer completion.  This leaves the vendor data path and
- * its semaphores unchanged.
- */
-
-static bk_err_t bk7258_sdio_wait_command_polled(void)
-{
-  uint32_t status = 0;
-  unsigned int elapsed;
-
-  for (elapsed = 0; elapsed < BK7258_SDIO_CMD_POLL_US; elapsed += 10)
-    {
-      status = getreg32(BK7258_SDIO_INT_STATUS);
-      if ((status & (BK7258_SDIO_CMD_NO_RSP_END |
-                     BK7258_SDIO_CMD_RSP_END |
-                     BK7258_SDIO_CMD_RSP_TIMEOUT)) != 0)
-        {
-          break;
-        }
-
-      up_udelay(10);
-    }
-
-  if ((status & BK7258_SDIO_CMD_STATUS_MASK) != 0)
-    {
-      putreg32(status & BK7258_SDIO_CMD_STATUS_MASK,
-               BK7258_SDIO_INT_STATUS);
-    }
-
-  /* The SDK ISR shares this line for command and data completion.  Do not
-   * clear NVIC pending after acknowledging only the command W1C bits: short
-   * data such as SCR may already have asserted the same line.  Re-enabling
-   * the IRQ lets the SDK consume any remaining data status.
-   */
-
-  UP_DSB();
-
-  if ((status & BK7258_SDIO_CMD_RSP_TIMEOUT) != 0 ||
-      elapsed >= BK7258_SDIO_CMD_POLL_US)
-    {
-      return BK_ERR_SDIO_HOST_CMD_RSP_TIMEOUT;
-    }
-
-  if ((status & BK7258_SDIO_CMD_CRC_FAIL) != 0)
-    {
-      return BK_ERR_SDIO_HOST_CMD_RSP_CRC_FAIL;
-    }
-
-  return BK_OK;
 }
 
 static void bk7258_sdio_reset(FAR struct sdio_dev_s *dev)
@@ -692,7 +792,7 @@ static void bk7258_sdio_clock(FAR struct sdio_dev_s *dev,
 
 static int bk7258_sdio_attach(FAR struct sdio_dev_s *dev)
 {
-  /* No interrupt wiring required by this polling framework. */
+  /* The SDK owns and registers the controller ISR. */
 
   return OK;
 }
@@ -718,6 +818,11 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
   host_cmd.argument  = arg;
   host_cmd.wait_rsp_timeout = priv->cmd_timeout;
   host_cmd.crc_check = true;
+
+  BKSDIO_TRACE("CMD_BEGIN CMD%lu arg=%08lx flags=%08lx pending=%u",
+               (unsigned long)host_cmd.cmd_index,
+               (unsigned long)arg, (unsigned long)cmd,
+               priv->xfer_pending);
 
   rsp_type = (cmd & SDIO_NUTTX_RSP_MASK) >> SDIO_NUTTX_RSP_SHIFT;
   switch (rsp_type)
@@ -772,16 +877,13 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
   bk_sdio_clk_gate_config(1);
 #endif
 
-  up_disable_irq(BK7258_SDIO_IRQ);
   err = bk_sdio_host_send_command(&host_cmd);
   if (err != BK_OK)
     {
       syslog(LOG_ERR,
-             "BKSDIO command start failed: CMD%lu arg=%08lx sdk=%d "
-             "status=%08lx\n",
+             "BKSDIO command start failed: CMD%lu arg=%08lx sdk=%d\n",
              (unsigned long)host_cmd.cmd_index,
-             (unsigned long)host_cmd.argument, err,
-             (unsigned long)getreg32(BK7258_SDIO_INT_STATUS));
+             (unsigned long)host_cmd.argument, err);
 #ifdef CONFIG_SDIO_V2P0
       if (stop_transmission)
         {
@@ -789,8 +891,6 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
         }
 #endif
 
-      bk7258_clear_pending_irq(BK7258_SDIO_IRQ);
-      up_enable_irq(BK7258_SDIO_IRQ);
       priv->xfer_result = bk7258_sdio_map_err(err);
       priv->events = SDIOWAIT_ERROR;
       if ((cmd & MMCSD_DATAXFR_MASK) != 0)
@@ -801,12 +901,7 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
       return priv->xfer_result;
     }
 
-  /* Complete the synchronous NuttX command contract without the SDK's
-   * FreeRTOS-oriented command-event queue.  Re-enable the ISR immediately
-   * afterward so data completion remains interrupt-driven by the SDK.
-   */
-
-  err = bk7258_sdio_wait_command_polled();
+  err = bk7258_sdio_wait_command(host_cmd.cmd_index);
 #ifdef CONFIG_SDIO_V2P0
   if (stop_transmission)
     {
@@ -814,17 +909,17 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
     }
 #endif
 
-  up_enable_irq(BK7258_SDIO_IRQ);
   priv->xfer_result = bk7258_sdio_map_err(err);
+  BKSDIO_TRACE("CMD_DONE CMD%lu sdk=%d result=%d",
+               (unsigned long)host_cmd.cmd_index, err, priv->xfer_result);
   if (err != BK_OK)
     {
       syslog(LOG_ERR,
              "BKSDIO command failed: CMD%lu arg=%08lx timeout=%lu "
-             "sdk=%d status=%08lx\n",
+             "sdk=%d\n",
              (unsigned long)host_cmd.cmd_index,
              (unsigned long)host_cmd.argument,
-             (unsigned long)host_cmd.wait_rsp_timeout, err,
-             (unsigned long)getreg32(BK7258_SDIO_INT_STATUS));
+             (unsigned long)host_cmd.wait_rsp_timeout, err);
       priv->events = SDIOWAIT_ERROR;
       if ((cmd & MMCSD_DATAXFR_MASK) != 0)
         {
@@ -914,15 +1009,12 @@ static int bk7258_sdio_recvsetup(FAR struct sdio_dev_s *dev,
   dcfg.data_block_size = (uint32_t)priv->blocklen;
   dcfg.data_dir        = SDIO_HOST_DATA_DIR_RD;
 
-#ifdef CONFIG_SDIO_V2P0
-  /* The BK7258 controller pre-reads beyond a completed block transaction.
-   * The official v3.1.1.9 SD-card path resets that data/FIFO state and
-   * discards one stale RX semaphore before every non-contiguous block read.
-   * Each NuttX block request is a discrete transaction, so apply the same
-   * sequence for 512-byte media blocks while leaving short protocol records
-   * such as the SCR on the generic FIFO path.
-   */
+  BKSDIO_TRACE("RX_CONFIG len=%lu blocks=%lu bytes=%lu",
+               (unsigned long)priv->blocklen,
+               (unsigned long)priv->nblocks,
+               (unsigned long)nbytes);
 
+#ifdef CONFIG_SDIO_V2P0
   if (priv->blocklen == 512u)
     {
       bk_sdio_host_reset_sd_state();
@@ -935,18 +1027,15 @@ static int bk7258_sdio_recvsetup(FAR struct sdio_dev_s *dev,
     {
       syslog(LOG_ERR,
              "BKSDIO RX config failed: blocklen=%lu blocks=%lu bytes=%lu "
-             "sdk=%d status=%08lx\n",
+             "sdk=%d\n",
              (unsigned long)priv->blocklen,
              (unsigned long)priv->nblocks,
-             (unsigned long)nbytes, err,
-             (unsigned long)getreg32(BK7258_SDIO_INT_STATUS));
+             (unsigned long)nbytes, err);
       priv->xfer_result = bk7258_sdio_map_err(err);
       priv->events = SDIOWAIT_ERROR;
       priv->xfer_pending = false;
       return priv->xfer_result;
     }
-
-  /* Do not touch the FIFO here.  NuttX has not sent the read command yet. */
 
   priv->xfer_result = OK;
   return OK;
@@ -1051,13 +1140,11 @@ static int bk7258_sdio_waitresponse(FAR struct sdio_dev_s *dev,
   FAR struct bk7258_sdio_priv_s *priv =
     (FAR struct bk7258_sdio_priv_s *)dev;
 
-  /* sendcmd() already consumed the response (it called
-   * bk_sdio_host_wait_cmd_response(), which pops one response from the
-   * SDK's irq_cmd_msg queue).  Calling it again here would either block
-   * to timeout or pop the *next* command's response, so we only replay the
-   * cached result.
+  /* sendcmd() already completed this command through the SDK command queue.
+   * Do not consume the SDK queue twice; simply replay the cached result.
    */
 
+  (void)cmd;
   return priv->xfer_result;
 }
 
@@ -1175,12 +1262,13 @@ static sdio_eventset_t bk7258_sdio_eventwait(FAR struct sdio_dev_s *dev)
 {
   FAR struct bk7258_sdio_priv_s *priv =
     (FAR struct bk7258_sdio_priv_s *)dev;
+  sdio_eventset_t ev;
 
   /* Replay the cached completion status.  For a successful transfer this is
    * SDIOWAIT_CMDDONE | SDIOWAIT_TRANSFERDONE; on error SDIOWAIT_ERROR.
    */
 
-  sdio_eventset_t ev = priv->events & priv->waitset;
+  ev = priv->events & priv->waitset;
 
   if ((priv->events & SDIOWAIT_ERROR) != 0)
     {
@@ -1328,7 +1416,7 @@ int bk7258_sdio_initialize(
   FAR struct bk7258_sdio_priv_s *priv = &g_bk7258_sdio;
   bk_err_t err;
 
-  if (sdio_dev == NULL || board == NULL || board->initialize == NULL ||
+  if (sdio_dev == NULL || board == NULL || board->pins == NULL ||
       board->card_present == NULL ||
       (board->card_detect_available && board->media_poll_ms == 0))
     {
@@ -1366,10 +1454,13 @@ int bk7258_sdio_initialize(
   priv->nblocks = 0;
   priv->xfer_is_read = false;
   priv->xfer_pending = false;
-  err = priv->board->initialize(BK7258_SDIO_BUS_WIDTH_4BIT != 0);
-  if (err < 0)
+  if (priv->board->prepare != NULL)
     {
-      return err;
+      err = priv->board->prepare(BK7258_SDIO_BUS_WIDTH_4BIT != 0);
+      if (err < 0)
+        {
+          return err;
+        }
     }
 
   if (bk7258_sdio_card_detect_enabled(priv))

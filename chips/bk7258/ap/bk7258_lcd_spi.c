@@ -21,6 +21,7 @@
 
 #include <arch/chip/bk7258_lcd_spi.h>
 
+#include <common/bk_err.h>
 #include <sdkconfig.h>
 #include <driver/gpio.h>
 #include <driver/lcd_spi.h>
@@ -48,6 +49,8 @@ struct bk7258_lcd_spi_bus_s
 
 static mutex_t g_bk7258_lcd_spi_lock = NXMUTEX_INITIALIZER;
 static bool g_bk7258_lcd_spi_used[BK7258_LCD_SPI_CONTROLLERS];
+
+extern bk_err_t bk_qspi_driver_init(void);
 
 int bk7258_lcd_spi_bus_initialize(
   FAR const struct bk7258_lcd_spi_config_s *config,
@@ -107,6 +110,20 @@ int bk7258_lcd_spi_bus_initialize(
       kmm_free(priv->txbuf_alloc);
       kmm_free(priv);
       return -EBUSY;
+    }
+
+  /* bk_lcd_spi_init() initializes a QSPI channel but assumes the shared
+   * controller driver already exists.  The SDK application bootstrap normally
+   * supplies that prerequisite; NuttX does not.  Keep it in the chip transport
+   * and serialize it with channel ownership so no board has to call SDK APIs.
+   */
+
+  if (bk_qspi_driver_init() != BK_OK)
+    {
+      nxmutex_unlock(&g_bk7258_lcd_spi_lock);
+      kmm_free(priv->txbuf_alloc);
+      kmm_free(priv);
+      return -EIO;
     }
 
   g_bk7258_lcd_spi_used[config->spi_id] = true;

@@ -31,6 +31,16 @@ int bk7258_ap_lifecycle_startup(FAR uint32_t *failure);
 
 int bk7258_ap_lifecycle_publish_ready(FAR uint32_t *failure);
 
+#ifdef CONFIG_BK7258_AP_APPLICATION_LIFECYCLE
+/* Product-owned extension points around READY publication.  The selected
+ * application supplies both functions; the chip contract intentionally has
+ * no knowledge of a specific product.
+ */
+
+int bk7258_ap_application_prepare(void);
+int bk7258_ap_application_start(void);
+#endif
+
 /* Publish a terminal startup failure, release transient chip resources and
  * park the AP with interrupts disabled.
  */

@@ -1,2 +1,10 @@
 # Shared BK7258 options; this board's defconfigs select T5AI-Core.
 source "../vendor/beken/boards/bk7258/common/Kconfig"
+
+config BK7258_BOARD_T5AI_CORE
+	bool
+	default y
+	select BK7258_BOARD_HAS_USER_GPIO_BINDING
+	help
+		Compact T5-E1 core board with battery management, dual USB-UART,
+		P9 user LED, P29 user key, microphone and speaker amplifier.

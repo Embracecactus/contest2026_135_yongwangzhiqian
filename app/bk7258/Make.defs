@@ -13,6 +13,7 @@ ifneq ($(strip $(CONFIG_BK7258_APP_BKVALIDATE) \
                  $(CONFIG_BK7258_APP_GPIO_IRQ_TEST) \
                  $(CONFIG_BK7258_APP_IRQ_TIMER_TEST) \
                  $(CONFIG_BK7258_APP_TIMER_SELFTEST) \
-                 $(CONFIG_BK7258_APP_USBMODE)),)
+                 $(CONFIG_BK7258_APP_USBMODE) \
+                 $(CONFIG_BK7258_APP_AGENT)),)
 CONFIGURED_APPS += $(APPDIR)/system/bk7258
 endif

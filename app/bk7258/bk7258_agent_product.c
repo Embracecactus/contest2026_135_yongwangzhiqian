@@ -1,14 +1,14 @@
 /****************************************************************************
- * boards/bk7258/common/src/bk7258_product.c
+ * app/bk7258/bk7258_agent_product.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Board-owned product application lifecycle for the official openvela Agent.
+ * BK7258 product application lifecycle for the official openvela Agent.
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_EXAMPLES_AI_AGENT_VELA
+#ifdef CONFIG_BK7258_APP_AGENT
 
 #include <errno.h>
 #include <sched.h>
@@ -19,6 +19,15 @@
 #include <nuttx/signal.h>
 
 #include <arch/board/board.h>
+#include <arch/chip/bk7258_ap_lifecycle.h>
+
+#if defined(CONFIG_BK7258_AUD) && !defined(CONFIG_MEDIA)
+extern void bk7258_agent_media_player_link(void);
+#endif
+
+#if defined(CONFIG_BK7258_MIC) && !defined(CONFIG_MEDIA)
+extern void bk7258_agent_media_recorder_link(void);
+#endif
 
 extern int ai_agent_main(int argc, FAR char *argv[]);
 
@@ -54,7 +63,7 @@ static int bk7258_agent_ui_show_task(int argc, FAR char *argv[])
 }
 #endif
 
-int bk7258_product_prepare(void)
+int bk7258_ap_application_prepare(void)
 {
 #ifdef CONFIG_AI_AGENT_LVGL_UI
   return bk7258_board_ui_initialize();
@@ -124,9 +133,23 @@ static int bk7258_agent_launch_task(int argc, FAR char *argv[])
   return OK;
 }
 
-int bk7258_product_start(void)
+int bk7258_ap_application_start(void)
 {
   pid_t launchpid;
+
+  /* Keep the product media backends reachable from the lifecycle object.
+   * The official Agent also provides weak ABI stubs, so relying on unresolved
+   * media symbols would not extract these strong implementations from the
+   * application archive.
+   */
+
+#if defined(CONFIG_BK7258_AUD) && !defined(CONFIG_MEDIA)
+  bk7258_agent_media_player_link();
+#endif
+
+#if defined(CONFIG_BK7258_MIC) && !defined(CONFIG_MEDIA)
+  bk7258_agent_media_recorder_link();
+#endif
 
   g_bk7258_agent_launch_stage = 1u;
   launchpid = task_create("agent-start", 99, 4096,
@@ -145,4 +168,4 @@ int bk7258_product_start(void)
   return OK;
 }
 
-#endif /* CONFIG_EXAMPLES_AI_AGENT_VELA */
+#endif /* CONFIG_BK7258_APP_AGENT */

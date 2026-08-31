@@ -10,8 +10,8 @@ config ARCH_BOARD_BK7258
 	---help---
 		Board-level bindings for the shared BK7258 chip implementation.  The
 		late hook runs the board-owned stage order and passes immutable product
-		storage topology into chip mechanisms.  Select the physical carrier
-		below so GPIOs and capabilities match the assembled hardware.
+		storage topology into chip mechanisms.  The selected physical-board
+		directory supplies its own identity, GPIOs and capabilities.
 
 # Hidden physical capabilities used only by board/application policy.  Chip
 # Kconfig exposes SoC mechanisms without depending on board-layer symbols.
@@ -22,80 +22,24 @@ config BK7258_BOARD_HAS_USER_GPIO_BINDING
 config BK7258_BOARD_HAS_SDIO_BINDING
 	bool
 
-choice
-	prompt "BK7258 physical board"
-	default BK7258_BOARD_T5AI_CORE
-	depends on ARCH_BOARD_BK7258
+config BK7258_BOARD_HAS_SDIO_4BIT
+	bool
 
-config BK7258_BOARD_T5AI_CORE
-	bool "T5AI-Core V1.0.1"
-	select BK7258_BOARD_HAS_USER_GPIO_BINDING
-	help
-		Compact T5-E1 core board with battery management, dual USB-UART,
-		P9 user LED, P29 user key, microphone and speaker amplifier.  This
-		is the existing board-verified target and remains the default.
+config BK7258_BOARD_DEFAULT_SDIO_4BIT
+	bool
+	depends on BK7258_BOARD_HAS_SDIO_4BIT
 
-config BK7258_BOARD_T5_BOARD
-	bool "T5-Board V1.0.2"
-	select BK7258_BOARD_HAS_SDIO_BINDING
-	select BK7258_BOARD_HAS_USER_GPIO_BINDING
-	help
-		Full T5-E1-IPEX development board with TF card, RGB LCD and DVP
-		camera connectors, P1 user LED and P12 ADC key.  Selecting this
-		changes board wiring only; chip, CP/AP and boot code remain shared.
+config BK7258_BOARD_HAS_UART2_ROUTE
+	bool
 
-config BK7258_BOARD_AIDK_AI_TOY
-	bool "AIDK AI Toy"
-	select BK7258_BOARD_HAS_SDIO_BINDING
-	select BK7258_BOARD_HAS_USER_GPIO_BINDING
-	help
-		AIDK AI Toy (BK7258 AI Demo) board: UART0 console, CH340E UART0,
-		SC7A20H accelerometer on SoC I2C0 (P20/P21), GC2145 SCCB on SoC
-		I2C1 map mode 1 (P42/P43), 1GB SD NAND, MIC1 plus MIC2
-		AEC-reference/PA audio, keys/LEDs, MFRC522 NFC and Type-C USB.  CN5's
-		single-screen module and CN10's motor are not connected on the current
-		board and are not initialized.  Hardware verification is still pending.
+config BK7258_BOARD_HAS_LVGL_UI_BINDING
+	bool
 
-endchoice
+# UART2 is a chip controller, but the legal pin group is physical-board
+# wiring.  A board must explicitly publish a verified route capability before
+# this choice becomes visible.
 
-config BK7258_SWD_DEBUG
-	bool "Enable the T5-Board J-Link SWD route"
-	default n
-	depends on !BK7258_AP_CORE && BK7258_BOARD_T5_BOARD
-	---help---
-		Keep one verified T5-Board SWD route active from BL1 through BL2,
-		CP startup and later restore boundaries.  This controls physical board
-		wiring; the chip implementation only applies the selected route.  RTT
-		and UART console selection remain independent.
-
-# Physical route choices are board policy even though chip drivers perform
-# the corresponding SoC mux operation.  Only verified board capabilities may
-# make these choices visible.
-
-if BK7258_SWD_DEBUG
-
-choice
-	prompt "Board SWD pin route"
-	default BK7258_SWD_PINS_P0_P1
-
-config BK7258_SWD_PINS_P20_P21
-	bool "SDK group 0: P20/P21"
-	help
-		Use P20 as SWCLK and P21 as SWDIO.  These pins also carry alternate
-		I2C and display signals, so the selected CP/AP profile pair must
-		reject conflicting owners.
-
-config BK7258_SWD_PINS_P0_P1
-	bool "SDK group 1: P0/P1"
-	help
-		Use P0 as SWCLK and P1 as SWDIO.  This route is mutually exclusive
-		with UART1 and any selected-board device on the same pins.
-
-endchoice
-
-endif
-
-if BK7258_UART2
+if BK7258_UART2 && BK7258_BOARD_HAS_UART2_ROUTE
 
 choice
 	prompt "Board UART2 pin route"
@@ -120,176 +64,14 @@ endif
 
 config BK7258_SDIO_4BIT
 	bool "Use four-bit SDIO bus"
-	default y if BK7258_AIDK_SD_NAND
-	depends on BK7258_AIDK_SD_NAND || (BK7258_T5_BOARD_TF_SLOT && BK7258_T5_BOARD_SDIO_D2_D3_ISOLATED)
+	default y if BK7258_BOARD_DEFAULT_SDIO_4BIT
+	depends on BK7258_BOARD_HAS_SDIO_4BIT
 	help
-		Enable D1/D2/D3 in addition to CLK/CMD/D0.  AIDK routes all six
-		signals directly to its soldered SD NAND and therefore defaults to
-		four bits.  T5-Board may select four bits only when S1 isolates its
-		D2/D3 pins from UART0.  This option requires the separately identified
+		Enable D1/D2/D3 in addition to CLK/CMD/D0.  The selected physical
+		board decides whether those pins are routed safely and whether four-bit
+		operation is the default.  This option requires the separately identified
 		v3.1.1.9-sdio4 AP SDK bundle because the vendor data helpers reapply
 		their compile-time width on every transfer.
-
-if BK7258_BOARD_AIDK_AI_TOY
-
-config BK7258_AIDK_SD_NAND
-	bool "AIDK 1GB SD NAND"
-	default n
-	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
-	select BK7258_SDIO
-	select MMCSD
-	select MMCSD_SDIO
-	help
-		Bind the chip SDIO host to the AIDK soldered 1GB SD NAND on
-		SDIO map mode 1 (P14-P19).  No card detect is available; the
-		media is always present.
-
-config BK7258_AIDK_CAMERA_PHASE0
-	bool "Probe AIDK GC2145 identity at boot"
-	default n
-	depends on BK7258_AP_CORE && BK7258_I2C && BK7258_PM_CLOCK
-	help
-		Perform the bounded AIDK camera Phase 0 check during AP board bring-up.
-		Power the GC2145 from P49, drive its active-low reset on P28, provide
-		24 MHz MCLK on P27, route hardware I2C1 to P42/P43, and read only
-		registers 0xf0 and 0xf1.  The expected identity is 0x2145.  This option
-		does not load a sensor register table or initialize the DVP datapath.
-
-config CAMERA_PWR_ACTIVE_HIGH
-	bool "Camera power control is active high"
-	default n
-	depends on BK7258_AIDK_CAMERA_PHASE0
-	help
-		Assert that the AIDK DVP_PWR_CTL signal on P49 enables both camera
-		LDOs at a high level.  The schematic's R31 pull-down keeps both rails
-		off before software claims the pin.
-
-endif
-
-if BK7258_BOARD_T5_BOARD
-
-config BK7258_T5_BOARD_TF_SLOT
-	bool "T5-Board TF-card slot"
-	default n
-	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
-	select BK7258_SDIO
-	select MMCSD
-	select MMCSD_SDIO
-	help
-		Bind the chip SDIO host to the T5-Board V1.0.2 TF socket.  Board
-		wiring is CLK/CMD/D0/D1/D2/D3 = P2/P3/P4/P5/P10/P11.  Real-board
-		validation found no usable P6 insertion edge, so profiles must disable
-		MMCSD_HAVE_CARDDETECT and insert media before reset.  Hotplug is not
-		supported.
-
-config BK7258_T5_BOARD_SDIO_D2_D3_ISOLATED
-	bool "S1 isolates UART0 from TF D2/D3"
-	default n
-	depends on BK7258_T5_BOARD_TF_SLOT
-	help
-		Assert the physical prerequisite for four-bit TF-card operation:
-		S1-1 and S1-2 are OFF, disconnecting the CH342F download UART from
-		P10/P11 (TF D2/D3).  Optional serial flash U3 must remain NC/DNP.
-
-config BK7258_T5_BOARD_TF_VALIDATION
-	bool "Validate T5-Board TF fixed-media read/write"
-	default n
-	depends on BK7258_T5_BOARD_TF_SLOT && FS_FAT
-	help
-		Run a bounded, non-destructive test through /dev/mmcsd0 and FAT.  It
-		creates, fsyncs, reopens, verifies and removes one 4 KiB file, unmounts,
-		then repeats once without removing the card.  It never formats media.
-		Insert the card before reset and use only in a validation profile.
-
-config BK7258_T5_BOARD_SARADC_KEY_VALIDATION
-	bool "Validate T5-Board ADC key on P12/ADC14"
-	default n
-	depends on BK7258_AP_CORE && BK7258_SARADC
-	depends on BK7258_SARADC_CHAN = 14
-	depends on BK7258_SARADC_BUS = 0
-	select BK7258_SARADC_VALIDATION
-	help
-		Bind the chip-generic /dev/adcN validator to the T5-Board V1.0.2
-		SW5 ADC key.  The board contributes only the physical P12/ADC14,
-		active-low direction and relative transition thresholds; sampling and
-		lifecycle logic remain in the reusable chip implementation.
-
-		This is an interactive validation option.  Leave SW5 released for the
-		initial phase, press it when prompted, then release it when prompted.
-		A static unpressed reading is not a physical key PASS.
-
-config BK7258_AUD_LIFECYCLE_VALIDATION
-	bool "Run bounded T5-Board speaker lifecycle validation"
-	default n
-	depends on BK7258_AUD
-	help
-		Generate mono 1-kHz PCM in memory and exercise the public NuttX audio
-		ABI through two open/play/teardown cycles.  The validation checks DMA,
-		DAC and amplifier ownership diagnostics; audible output still requires
-		a speaker connected to the T5-Board P6 connector.
-
-config BK7258_T5_BOARD_RGB_LCD_PWM_VALIDATION
-	bool "Cycle the T5-Board RGB LCD backlight through PWM3/P9"
-	default n
-	depends on BK7258_PWM && BK7258_PWM_CHAN = 3
-	depends on !BK7258_T5_BOARD_LCD
-	help
-		Run a bounded board-level validation through the normal NuttX
-		/dev/pwm0 upper half.  The worker drives LCD_PWM_BL through P9/PWM3 at
-		1 kHz and cycles 100, 0, 10, 50 and 90 percent duty.
-
-config BK7258_T5_BOARD_CAMERA
-	bool "T5-Board P10 DVP camera as /dev/video0"
-	default n
-	depends on BK7258_DVP && BK7258_PSRAM
-	depends on !BK7258_T5_BOARD_LCD && !BK7258_GT1151
-	select BK7258_DVP_BOARD_GLUE
-	help
-		Bind the T5-Board V1.0.2 P10 camera connector to the generic BK7258
-		DVP imgdata lower half and NuttX V4L2 capture upper half.  The first
-		board profile is 640x480, 30 fps MJPEG and uses PSRAM for both SDK
-		frames and V4L2 MMAP buffers.
-
-config BK7258_T5_BOARD_CAMERA_RAW_YUV
-	bool "Expose the T5-Board camera as raw YUYV"
-	default n
-	depends on BK7258_T5_BOARD_CAMERA
-	select BK7258_PSRAM_MEDIA
-	help
-		Configure the GC2145/DVP path for 640x480 packed YUYV frames instead
-		of MJPEG.  /dev/video0 remains a standard NuttX V4L2 capture device.
-
-config BK7258_T5_BOARD_CAMERA_H264
-	bool "Expose the T5-Board camera as live H.264"
-	default n
-	depends on BK7258_T5_BOARD_CAMERA && !BK7258_T5_BOARD_CAMERA_RAW_YUV
-	depends on BK7258_AP_SMP_SCHED_ONLINE
-	select BK7258_DVP_H264_COMPAT
-	help
-		Configure the GC2145 and the official v3.1.1.9 DVP/YUV/H.264
-		pipeline as one live stream.  /dev/video0 advertises standard H.264
-		and returns Annex-B access units.  Logical CPU1 must be online because
-		the SDK routes the H.264 interrupt to the second AP hardware core.
-
-config BK7258_T5_BOARD_CAMERA_VALIDATION
-	bool "Capture one MJPEG frame during T5-Board camera bring-up"
-	default n
-	depends on BK7258_T5_BOARD_CAMERA && !BK7258_T5_BOARD_CAMERA_RAW_YUV
-	depends on !BK7258_T5_BOARD_CAMERA_H264
-	help
-		Run one bounded V4L2 USERPTR capture, verify a 640x480 MJPEG frame,
-		report BKCAM PASS/FAIL and close the stream.  Enable this only in a
-		drivercheck configuration.
-
-config BK7258_T5_BOARD_CAMERA_H264_VALIDATION
-	bool "Capture one live H.264 frame during T5-Board bring-up"
-	default n
-	depends on BK7258_T5_BOARD_CAMERA_H264
-	help
-		Run one bounded V4L2 USERPTR capture, validate a non-empty 640x480
-		Annex-B frame, report BKCAMH264 PASS/FAIL and close the stream.
-
-endif # BK7258_BOARD_T5_BOARD
 
 # Persistent storage is a system topology, independent of any application or
 # physical-board name.  A selected board supplies only the required hardware
@@ -322,16 +104,6 @@ config BK7258_STORAGE_FIXED_BLOCK
 	help
 		Use an already provisioned soldered block medium.  Capacity is read
 		from the device; no nominal board size becomes a coded end address.
-
-config BK7258_FLASH_MTD
-	bool
-	default n
-	depends on BK7258_STORAGE_ONCHIP_PERSISTENT
-	select MTD
-	---help---
-		Expose the selected layout's writable persistent_data range as a NuttX
-		MTD instance.  read/erase/bwrite use the option-A SR0 block-protect
-		policy (cleared around each op, restored afterwards).
 
 config BK7258_OTA
 	bool "Paired MCUboot OTA staging on CP"

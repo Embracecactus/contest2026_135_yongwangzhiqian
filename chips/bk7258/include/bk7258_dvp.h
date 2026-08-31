@@ -17,8 +17,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <components/dvp_camera_types.h>
-
 #ifdef __cplusplus
 extern "C"
 {
@@ -36,6 +34,8 @@ struct bk7258_dvp_s;
 
 #define BK7258_DVP_BINDING_VERSION       2u
 #define BK7258_DVP_DEFERRED_I2C_WRITES   4u
+#define BK7258_DVP_DATA_PIN_COUNT        16u
+#define BK7258_DVP_MCLK_24MHZ            24000000u
 
 enum bk7258_dvp_i2c_write_action_e
 {
@@ -105,18 +105,65 @@ struct bk7258_dvp_frame_mem_s
   uint32_t size;
 };
 
+enum bk7258_dvp_format_e
+{
+  BK7258_DVP_FORMAT_YUV = 0,
+  BK7258_DVP_FORMAT_MJPEG,
+  BK7258_DVP_FORMAT_H264,
+};
+
+enum bk7258_dvp_data_width_e
+{
+  BK7258_DVP_DATA_WIDTH_8 = 8,
+  BK7258_DVP_DATA_WIDTH_10 = 10,
+  BK7258_DVP_DATA_WIDTH_12 = 12,
+  BK7258_DVP_DATA_WIDTH_16 = 16,
+};
+
+/* Board-owned physical route and immutable stream profile.  SDK enums and
+ * structures intentionally do not cross the chips/boards boundary.
+ */
+
+struct bk7258_dvp_sensor_config_s
+{
+  uint8_t i2c_bus;
+  uint8_t i2c_scl_pin;
+  uint8_t i2c_sda_pin;
+  uint32_t i2c_frequency;
+  uint8_t reset_pin;
+  uint8_t pwdn_pin;
+  enum bk7258_dvp_data_width_e data_width;
+  uint8_t data_pin[BK7258_DVP_DATA_PIN_COUNT];
+  uint8_t vsync_pin;
+  uint8_t hsync_pin;
+  uint8_t mclk_pin;
+  uint8_t pclk_pin;
+  uint32_t mclk_hz;
+  uint16_t width;
+  uint16_t height;
+  uint8_t fps;
+  enum bk7258_dvp_format_e format;
+};
+
 /* The SDK's encode_buffer has no size parameter in bk_dvp_open().  The size
- * is retained here for board validation/documentation; the board remains
- * responsible for supplying a buffer large enough for its immutable SDK
- * configuration (two 8-line JPEG banks or two 16-line H.264 banks). */
+ * is retained here for validation/documentation; the board supplies a buffer
+ * large enough for the selected stream (two 8-line JPEG banks or two 16-line
+ * H.264 banks).
+ */
 
 struct bk7258_dvp_config_s
 {
-  bk_dvp_config_t sdk;
+  struct bk7258_dvp_sensor_config_s sensor;
   FAR const struct bk7258_dvp_binding_s *binding;
   FAR struct bk7258_dvp_frame_mem_s *frames;
   uint8_t frame_count;
   FAR uint8_t *encode_buffer;
+  uint32_t encode_buffer_size;
+};
+
+struct bk7258_dvp_buffer_requirements_s
+{
+  uint32_t frame_size;
   uint32_t encode_buffer_size;
 };
 
@@ -129,6 +176,10 @@ struct bk7258_dvp_config_s
  * the standard V4L2 H.264 fourcc.  The pinned NuttX imgdata bridge lacks an
  * internal H.264 token, so the implementation contains a private, instance-
  * scoped compatibility mapping without changing NuttX or its public ABI. */
+
+int bk7258_dvp_get_buffer_requirements(
+  FAR const struct bk7258_dvp_sensor_config_s *sensor,
+  FAR struct bk7258_dvp_buffer_requirements_s *requirements);
 
 int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
                           FAR struct bk7258_dvp_s **out);

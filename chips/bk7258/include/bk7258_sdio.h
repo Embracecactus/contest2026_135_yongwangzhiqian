@@ -57,8 +57,9 @@ extern "C"
  ****************************************************************************/
 
 /* Runtime width evidence for board validation and fault diagnosis.  The
- * fixed-width SDK bundle is an implementation constraint, so callers must be
- * able to distinguish the requested profile from a completed host re-init.
+ * SDK data-path bundle has a compile-time maximum width, so callers must be
+ * able to distinguish the routed physical instance from a completed runtime
+ * host-width transition.
  */
 
 struct bk7258_sdio_runtime_s
@@ -70,6 +71,19 @@ struct bk7258_sdio_runtime_s
   int32_t last_width_error;
 };
 
+/* One board-selected route through the BK7258 SDIO pin groups.  The board
+ * records its physical wiring; the chip lower half validates the route and
+ * owns SDK pinmux calls.
+ */
+
+struct bk7258_sdio_pin_config_s
+{
+  uint8_t map_mode;
+  uint8_t clk_pin;
+  uint8_t cmd_pin;
+  uint8_t data_pin[4];
+};
+
 /* Physical slot wiring and media-detect policy.  Board bring-up passes this
  * immutable record to the chip lower half; the chip never discovers a board
  * through a global symbol.
@@ -77,9 +91,10 @@ struct bk7258_sdio_runtime_s
 
 struct bk7258_sdio_board_s
 {
+  FAR const struct bk7258_sdio_pin_config_s *pins;
   bool card_detect_available;
   uint32_t media_poll_ms;
-  int (*initialize)(bool widebus);
+  int (*prepare)(bool widebus);
   bool (*card_present)(void);
 };
 

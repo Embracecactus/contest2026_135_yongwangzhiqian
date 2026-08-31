@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_aud.c
+ * chips/bk7258/ap/bk7258_aud.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -63,10 +63,6 @@
 #  include "arm_internal.h"
 #endif
 #include "bk7258_media_root.h"
-
-#ifdef CONFIG_BK7258_AGENT_MEDIA_PLAYER
-extern void bk7258_agent_media_player_link(void);
-#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -2818,10 +2814,6 @@ int bk7258_aud_initialize(FAR const struct bk7258_aud_board_s *board)
 {
   struct bk7258_aud_dev_s *priv = &g_bk7258_aud;
   int ret;
-
-#ifdef CONFIG_BK7258_AGENT_MEDIA_PLAYER
-  bk7258_agent_media_player_link();
-#endif
 
   if (g_bk7258_aud_registered)
     {

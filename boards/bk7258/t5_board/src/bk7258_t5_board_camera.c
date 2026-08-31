@@ -41,8 +41,6 @@
 #include <arch/chip/bk7258_pm.h>
 #include <arch/chip/bk7258_psram.h>
 
-#include <sdkconfig.h>
-
 #include "bk7258_t5_board_camera_i2c.h"
 
 #define T5_CAMERA_DEVPATH            "/dev/video0"
@@ -51,7 +49,6 @@
 #define T5_CAMERA_FPS                30u
 #define T5_CAMERA_FRAME_COUNT        2u
 #define T5_CAMERA_DMA_ALIGNMENT      32u
-#define T5_CAMERA_RAW_FRAME_SIZE     (T5_CAMERA_WIDTH * T5_CAMERA_HEIGHT * 2u)
 #define T5_CAMERA_VALIDATION_TIMEOUT 3000
 #define T5_CAMERA_VALIDATION_DELAY_US 1000000u
 #define T5_CAMERA_VALIDATION_STACK    4096
@@ -74,25 +71,19 @@
 /* bk7258_dvp.c keeps H264 public at the V4L2 boundary and maps it to the
  * pinned capture upper-half's internal compressed token. */
 #  define T5_CAMERA_SENSOR_FORMAT    IMGSENSOR_PIX_FMT_JPEG_WITH_SUBIMG
-#  define T5_CAMERA_SDK_FORMAT       IMAGE_H264
-#  define T5_CAMERA_FRAME_SIZE       CONFIG_H264_FRAME_SIZE
-#  define T5_CAMERA_ENCODE_BUFFER_SIZE (T5_CAMERA_WIDTH * 32u * 2u)
+#  define T5_CAMERA_DVP_FORMAT       BK7258_DVP_FORMAT_H264
 #  define T5_CAMERA_FORMAT_FLAGS     V4L2_FMT_FLAG_COMPRESSED
 #  define T5_CAMERA_FORMAT_NAME      "H264"
 #elif defined(CONFIG_BK7258_T5_BOARD_CAMERA_RAW_YUV)
 #  define T5_CAMERA_V4L2_FORMAT      V4L2_PIX_FMT_YUYV
 #  define T5_CAMERA_SENSOR_FORMAT    IMGSENSOR_PIX_FMT_YUYV
-#  define T5_CAMERA_SDK_FORMAT       IMAGE_YUV
-#  define T5_CAMERA_FRAME_SIZE       T5_CAMERA_RAW_FRAME_SIZE
-#  define T5_CAMERA_ENCODE_BUFFER_SIZE 0u
+#  define T5_CAMERA_DVP_FORMAT       BK7258_DVP_FORMAT_YUV
 #  define T5_CAMERA_FORMAT_FLAGS     0
 #  define T5_CAMERA_FORMAT_NAME      "YUYV"
 #else
 #  define T5_CAMERA_V4L2_FORMAT      V4L2_PIX_FMT_JPEG
 #  define T5_CAMERA_SENSOR_FORMAT    IMGSENSOR_PIX_FMT_JPEG
-#  define T5_CAMERA_SDK_FORMAT       IMAGE_MJPEG
-#  define T5_CAMERA_FRAME_SIZE       CONFIG_JPEG_FRAME_SIZE
-#  define T5_CAMERA_ENCODE_BUFFER_SIZE (T5_CAMERA_WIDTH * 16u * 2u)
+#  define T5_CAMERA_DVP_FORMAT       BK7258_DVP_FORMAT_MJPEG
 #  define T5_CAMERA_FORMAT_FLAGS     V4L2_FMT_FLAG_COMPRESSED
 #  define T5_CAMERA_FORMAT_NAME      "MJPEG"
 #endif
@@ -103,7 +94,37 @@ static struct bk7258_dvp_frame_mem_s
 static FAR void *g_t5_camera_frame_bases[T5_CAMERA_FRAME_COUNT];
 static FAR void *g_t5_camera_encode_base;
 static FAR struct bk7258_dvp_s *g_t5_camera_dvp;
+static uint32_t g_t5_camera_frame_size;
 static bool g_t5_camera_registered;
+
+static void t5_camera_sensor_config(
+  FAR struct bk7258_dvp_sensor_config_s *sensor)
+{
+  sensor->i2c_bus = BK7258_BOARD_DVP_I2C_BUS;
+  sensor->i2c_scl_pin = BK7258_BOARD_DVP_I2C_SCL_GPIO;
+  sensor->i2c_sda_pin = BK7258_BOARD_DVP_I2C_SDA_GPIO;
+  sensor->i2c_frequency = BK7258_BOARD_DVP_I2C_FREQUENCY;
+  sensor->reset_pin = BK7258_BOARD_DVP_RESET_GPIO;
+  sensor->pwdn_pin = BK7258_BOARD_DVP_PWDN_GPIO;
+  sensor->data_width = BK7258_DVP_DATA_WIDTH_8;
+  sensor->data_pin[0] = BK7258_BOARD_DVP_D0_GPIO;
+  sensor->data_pin[1] = BK7258_BOARD_DVP_D1_GPIO;
+  sensor->data_pin[2] = BK7258_BOARD_DVP_D2_GPIO;
+  sensor->data_pin[3] = BK7258_BOARD_DVP_D3_GPIO;
+  sensor->data_pin[4] = BK7258_BOARD_DVP_D4_GPIO;
+  sensor->data_pin[5] = BK7258_BOARD_DVP_D5_GPIO;
+  sensor->data_pin[6] = BK7258_BOARD_DVP_D6_GPIO;
+  sensor->data_pin[7] = BK7258_BOARD_DVP_D7_GPIO;
+  sensor->vsync_pin = BK7258_BOARD_DVP_VSYNC_GPIO;
+  sensor->hsync_pin = BK7258_BOARD_DVP_HSYNC_GPIO;
+  sensor->mclk_pin = BK7258_BOARD_DVP_MCLK_GPIO;
+  sensor->pclk_pin = BK7258_BOARD_DVP_PCLK_GPIO;
+  sensor->mclk_hz = BK7258_DVP_MCLK_24MHZ;
+  sensor->width = T5_CAMERA_WIDTH;
+  sensor->height = T5_CAMERA_HEIGHT;
+  sensor->fps = T5_CAMERA_FPS;
+  sensor->format = T5_CAMERA_DVP_FORMAT;
+}
 
 static int t5_camera_dvp_i2c_write(FAR void *arg,
                                    FAR struct bk7258_dvp_i2c_write_s
@@ -177,7 +198,7 @@ static bool t5_camera_sensor_is_available(FAR struct imgsensor_s *sensor)
 {
   (void)sensor;
 
-  /* The SDK performs the real I2C probe from IMGDATA_INIT/bk_dvp_open().
+  /* The SDK performs the real I2C probe from its IMGDATA_INIT/open path.
    * capture_register() asks this question before that combined resource is
    * opened, so availability here means that the physical board route exists.
    * An absent or unsupported module is reported as -ENODEV on open. */
@@ -509,9 +530,9 @@ static int t5_camera_validate_frame(void)
 
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_RAW_YUV
   frame = t5_camera_alloc_media_aligned(BK7258_PSRAM_MEDIA_YUV,
-                                        T5_CAMERA_FRAME_SIZE, &frame_base);
+                                        g_t5_camera_frame_size, &frame_base);
 #else
-  frame = t5_camera_alloc_aligned(T5_CAMERA_FRAME_SIZE, &frame_base);
+  frame = t5_camera_alloc_aligned(g_t5_camera_frame_size, &frame_base);
 #endif
   if (frame == NULL)
     {
@@ -550,7 +571,7 @@ static int t5_camera_validate_frame(void)
   buffer.memory = V4L2_MEMORY_USERPTR;
   buffer.index = 0;
   buffer.m.userptr = (uintptr_t)frame;
-  buffer.length = T5_CAMERA_FRAME_SIZE;
+  buffer.length = g_t5_camera_frame_size;
   stage = "qbuf";
   if (ioctl(fd, VIDIOC_QBUF, (uintptr_t)&buffer) < 0)
     {
@@ -619,7 +640,7 @@ static int t5_camera_validate_frame(void)
   g_t5_camera_validation_diag.bytesused = bytesused;
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_H264_VALIDATION
   stage = "h264";
-  if (bytesused < 5 || bytesused > T5_CAMERA_FRAME_SIZE ||
+  if (bytesused < 5 || bytesused > g_t5_camera_frame_size ||
       !t5_camera_h264_has_annexb(frame, bytesused))
     {
       ret = -EBADMSG;
@@ -637,7 +658,7 @@ static int t5_camera_validate_frame(void)
     }
 #else
   stage = "jpeg";
-  if (bytesused < 4 || bytesused > T5_CAMERA_FRAME_SIZE ||
+  if (bytesused < 4 || bytesused > g_t5_camera_frame_size ||
       frame[0] != 0xff || frame[1] != 0xd8 ||
       frame[bytesused - 2] != 0xff || frame[bytesused - 1] != 0xd9)
     {
@@ -784,10 +805,10 @@ static int t5_camera_validation_thread(int argc, FAR char *argv[])
 
 int bk7258_t5_board_camera_initialize(void)
 {
+  struct bk7258_dvp_buffer_requirements_s requirements;
   struct bk7258_dvp_config_s config;
   FAR struct imgsensor_s *sensors[] = {&g_t5_camera_sensor};
   FAR uint8_t *encode_buffer = NULL;
-  bk_dvp_config_t sdk = BK_DVP_864X480_30FPS_MJPEG_CONFIG();
   uint8_t index;
   int ret;
 
@@ -819,15 +840,24 @@ int bk7258_t5_board_camera_initialize(void)
 #endif
 
   memset(&config, 0, sizeof(config));
+  t5_camera_sensor_config(&config.sensor);
+  ret = bk7258_dvp_get_buffer_requirements(&config.sensor, &requirements);
+  if (ret < 0)
+    {
+      nxmutex_unlock(&g_t5_camera_lock);
+      return ret;
+    }
+
+  g_t5_camera_frame_size = requirements.frame_size;
   for (index = 0; index < T5_CAMERA_FRAME_COUNT; index++)
     {
 #ifdef CONFIG_BK7258_T5_BOARD_CAMERA_RAW_YUV
       g_t5_camera_frames[index].addr = t5_camera_alloc_media_aligned(
-        BK7258_PSRAM_MEDIA_YUV, T5_CAMERA_FRAME_SIZE,
+        BK7258_PSRAM_MEDIA_YUV, requirements.frame_size,
         &g_t5_camera_frame_bases[index]);
 #else
       g_t5_camera_frames[index].addr =
-        t5_camera_alloc_aligned(T5_CAMERA_FRAME_SIZE,
+        t5_camera_alloc_aligned(requirements.frame_size,
                                 &g_t5_camera_frame_bases[index]);
 #endif
       if (g_t5_camera_frames[index].addr == NULL)
@@ -836,7 +866,7 @@ int bk7258_t5_board_camera_initialize(void)
           goto errout_with_memory;
         }
 
-      g_t5_camera_frames[index].size = T5_CAMERA_FRAME_SIZE;
+      g_t5_camera_frames[index].size = requirements.frame_size;
     }
 
 #ifndef CONFIG_BK7258_T5_BOARD_CAMERA_RAW_YUV
@@ -846,7 +876,7 @@ int bk7258_t5_board_camera_initialize(void)
    * and are drained there by DMA1. */
 
   encode_buffer = kmm_memalign(T5_CAMERA_DMA_ALIGNMENT,
-                               T5_CAMERA_ENCODE_BUFFER_SIZE);
+                               requirements.encode_buffer_size);
   if (encode_buffer == NULL)
     {
       ret = -ENOMEM;
@@ -856,38 +886,12 @@ int bk7258_t5_board_camera_initialize(void)
   g_t5_camera_encode_base = encode_buffer;
 #endif
 
-  sdk.i2c_config.id = BK7258_BOARD_DVP_I2C_BUS;
-  sdk.i2c_config.scl_pin = BK7258_BOARD_DVP_I2C_SCL_GPIO;
-  sdk.i2c_config.sda_pin = BK7258_BOARD_DVP_I2C_SDA_GPIO;
-  sdk.i2c_config.baud_rate = BK7258_BOARD_DVP_I2C_FREQUENCY;
-  sdk.reset_pin = BK7258_BOARD_DVP_RESET_GPIO;
-  sdk.pwdn_pin = BK7258_BOARD_DVP_PWDN_GPIO;
-  sdk.io_config.data_width = SENSOR_BITS_WIDTH_8BIT;
-  sdk.io_config.data_pin[0] = BK7258_BOARD_DVP_D0_GPIO;
-  sdk.io_config.data_pin[1] = BK7258_BOARD_DVP_D1_GPIO;
-  sdk.io_config.data_pin[2] = BK7258_BOARD_DVP_D2_GPIO;
-  sdk.io_config.data_pin[3] = BK7258_BOARD_DVP_D3_GPIO;
-  sdk.io_config.data_pin[4] = BK7258_BOARD_DVP_D4_GPIO;
-  sdk.io_config.data_pin[5] = BK7258_BOARD_DVP_D5_GPIO;
-  sdk.io_config.data_pin[6] = BK7258_BOARD_DVP_D6_GPIO;
-  sdk.io_config.data_pin[7] = BK7258_BOARD_DVP_D7_GPIO;
-  sdk.io_config.vsync_pin = BK7258_BOARD_DVP_VSYNC_GPIO;
-  sdk.io_config.hsync_pin = BK7258_BOARD_DVP_HSYNC_GPIO;
-  sdk.io_config.xclk_pin = BK7258_BOARD_DVP_MCLK_GPIO;
-  sdk.io_config.pclk_pin = BK7258_BOARD_DVP_PCLK_GPIO;
-  sdk.clk_source = MCLK_24M;
-  sdk.width = T5_CAMERA_WIDTH;
-  sdk.height = T5_CAMERA_HEIGHT;
-  sdk.fps = FPS30;
-  sdk.img_format = T5_CAMERA_SDK_FORMAT;
-
-  config.sdk = sdk;
   config.binding = &g_t5_camera_dvp_binding;
   config.frames = g_t5_camera_frames;
   config.frame_count = T5_CAMERA_FRAME_COUNT;
   config.encode_buffer = encode_buffer;
   config.encode_buffer_size = encode_buffer == NULL ? 0 :
-                              T5_CAMERA_ENCODE_BUFFER_SIZE;
+                              requirements.encode_buffer_size;
 
   ret = bk7258_dvp_initialize(&config, &g_t5_camera_dvp);
   if (ret < 0)

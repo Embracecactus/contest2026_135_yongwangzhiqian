@@ -20,9 +20,8 @@
 #include <syslog.h>
 
 #include <arch/board/board.h>
+#include <arch/chip/bk7258_pinmux.h>
 #include <arch/chip/bk7258_sdio.h>
-
-#include <driver/gpio.h>
 
 #ifdef CONFIG_FS_FAT
 #  include <nuttx/fs/fs.h>
@@ -34,18 +33,6 @@
 #if BK7258_BOARD_SDIO_U3_FLASH_FITTED
 #  error "T5-Board TF and optional U3 flash cannot share the SDIO/SFC pins"
 #endif
-
-/* These v3.1.1.9 functions are exported by libdriver.a and used by the
- * official SDIO driver, but its immutable wrapper bundle omits the private
- * gpio_driver.h declaration.  Keep the ABI declarations local to this
- * physical-board wrapper.
- */
-
-extern bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
-extern bk_err_t gpio_sdio_sel(int mode);
-extern bk_err_t gpio_sdio_one_line_sel(int mode);
-
-#define T5_BOARD_SDIO_PIN_GROUP0 0
 
 #ifdef CONFIG_FS_FAT
 #  define T5_BOARD_TF_BLOCKDEV       "/dev/mmcsd0"
@@ -278,121 +265,40 @@ int bk7258_t5_board_tf_mount_initialize(void)
 }
 #endif
 
-static int bk7258_t5_board_sdio_unmap_pin(gpio_id_t gpio_id)
+const struct bk7258_sdio_pin_config_s g_bk7258_board_sdio_pins =
 {
-  return gpio_dev_unmap(gpio_id) == BK_OK ? OK : -EIO;
-}
+  .map_mode = BK7258_BOARD_SDIO_MAP_MODE,
+  .clk_pin = BK7258_BOARD_SDIO_CLK_GPIO,
+  .cmd_pin = BK7258_BOARD_SDIO_CMD_GPIO,
+  .data_pin =
+  {
+    BK7258_BOARD_SDIO_D0_GPIO,
+    BK7258_BOARD_SDIO_D1_GPIO,
+    BK7258_BOARD_SDIO_D2_GPIO,
+    BK7258_BOARD_SDIO_D3_GPIO,
+  },
+};
 
-static int bk7258_t5_board_sdio_configure_pin(gpio_id_t gpio_id)
+int bk7258_board_sdio_prepare(bool widebus)
 {
-  if (bk_gpio_pull_up(gpio_id) != BK_OK ||
-      bk_gpio_set_capacity(gpio_id, GPIO_DRIVER_CAPACITY_3) != BK_OK)
-    {
-      return -EIO;
-    }
-
-  return OK;
-}
-
-int bk7258_board_sdio_initialize(bool widebus)
-{
-  bk_err_t ret;
+  (void)widebus;
 
   if (g_t5_board_sdio_initialized)
     {
       return OK;
     }
 
-  ret = bk_gpio_driver_init();
-  if (ret != BK_OK)
-    {
-      return -EIO;
-    }
-
-  /* The pinned SDK's default GPIO table enables P2/P3/P4 as SDIO but P10
-   * and P11 as UART0.  gpio_sdio_sel() silently ignores an individual
-   * gpio_hal_func_map() failure when a pin is already owned, so explicitly
-   * release every default-mapped pin before selecting the group.  This
-   * matches the official/Tuya sdio_host_init_gpio() ordering and is
-   * essential for four-bit D2/D3.  P5/D1 is absent from the pinned default
-   * table and therefore starts unmapped; gpio_dev_unmap(P5) would itself
-   * return BK_ERR_GPIO_INVALID_OPERATE.
-   */
-
-  if (bk7258_t5_board_sdio_unmap_pin(
-        (gpio_id_t)BK7258_BOARD_SDIO_CLK_GPIO) < 0 ||
-      bk7258_t5_board_sdio_unmap_pin(
-        (gpio_id_t)BK7258_BOARD_SDIO_CMD_GPIO) < 0 ||
-      bk7258_t5_board_sdio_unmap_pin(
-        (gpio_id_t)BK7258_BOARD_SDIO_D0_GPIO) < 0 ||
-      (widebus &&
-       (bk7258_t5_board_sdio_unmap_pin(
-          (gpio_id_t)BK7258_BOARD_SDIO_D2_GPIO) < 0 ||
-        bk7258_t5_board_sdio_unmap_pin(
-          (gpio_id_t)BK7258_BOARD_SDIO_D3_GPIO) < 0)))
-    {
-      return -EIO;
-    }
-
-  /* Re-assert the profile-selected SDIO pin group here.  A four-bit
-   * profile maps all four data pins even though the host initially starts
-   * at one bit; NuttX switches the host only after the card accepts ACMD6.
-   * The SDK archive was built with GPIO_DEFAULT_SET_SUPPORT, so
-   * bk_sdio_host_init() deliberately skips its own pin-group setup and
-   * assumes the board did it beforehand.
-   */
-
-  ret = widebus ? gpio_sdio_sel(T5_BOARD_SDIO_PIN_GROUP0) :
-                  gpio_sdio_one_line_sel(T5_BOARD_SDIO_PIN_GROUP0);
-  if (ret != BK_OK)
-    {
-      return -EIO;
-    }
-
-  if (bk7258_t5_board_sdio_configure_pin(
-        (gpio_id_t)BK7258_BOARD_SDIO_CLK_GPIO) < 0 ||
-      bk7258_t5_board_sdio_configure_pin(
-        (gpio_id_t)BK7258_BOARD_SDIO_CMD_GPIO) < 0 ||
-      bk7258_t5_board_sdio_configure_pin(
-        (gpio_id_t)BK7258_BOARD_SDIO_D0_GPIO) < 0)
-    {
-      return -EIO;
-    }
-
-  if (widebus)
-    {
-      if (bk7258_t5_board_sdio_configure_pin(
-            (gpio_id_t)BK7258_BOARD_SDIO_D1_GPIO) < 0 ||
-          bk7258_t5_board_sdio_configure_pin(
-            (gpio_id_t)BK7258_BOARD_SDIO_D2_GPIO) < 0 ||
-          bk7258_t5_board_sdio_configure_pin(
-            (gpio_id_t)BK7258_BOARD_SDIO_D3_GPIO) < 0)
-        {
-          return -EIO;
-        }
-    }
-
-  /* Only configure a card-detect GPIO when the physical board has a
-   * verified insertion edge.  T5-Board V1.0.2 keeps P6 high with and
-   * without media, so its board contract leaves the pin untouched and uses
-   * NuttX's fixed-media probing model instead.
+  /* T5-Board V1.0.2 has no verified insertion edge.  Keep this optional
+   * branch for a future reviewed board revision without giving the board
+   * ownership of the SDIO controller pin group.
    */
 
 #if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
-  ret = gpio_dev_unmap((gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);
-  if (ret != BK_OK)
+  if (bk7258_gpio_configure_input(BK7258_BOARD_SDIO_CARD_DETECT_GPIO,
+                                   BK7258_GPIO_PULL_UP) < 0)
     {
       return -EIO;
     }
-
-  (void)bk_gpio_disable_output(
-    (gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);
-  (void)bk_gpio_enable_input(
-    (gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);
-  (void)bk_gpio_enable_pull(
-    (gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);
-  (void)bk_gpio_pull_up(
-    (gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);
 #endif
 
   g_t5_board_sdio_initialized = true;
@@ -411,8 +317,12 @@ bool bk7258_board_sdio_card_present(void)
     }
 
 #if BK7258_BOARD_SDIO_CARD_DETECT_AVAILABLE
-  level = bk_gpio_get_input(
-    (gpio_id_t)BK7258_BOARD_SDIO_CARD_DETECT_GPIO);
+  if (bk7258_gpio_read_input(BK7258_BOARD_SDIO_CARD_DETECT_GPIO,
+                              &level) < 0)
+    {
+      return false;
+    }
+
   return BK7258_BOARD_SDIO_CARD_DETECT_ACTIVE_LOW ? !level : level;
 #else
   /* NuttX documents an always-present status for slots without reliable
