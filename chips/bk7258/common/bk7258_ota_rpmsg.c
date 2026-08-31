@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/common/
+ * chips/bk7258/common/
  * bk7258_ota_rpmsg.c
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -30,6 +30,7 @@
 
 #include <arch/chip/bk7258_ota.h>
 #include <arch/chip/bk7258_ota_rpmsg.h>
+#include <arch/chip/bk7258_usbmode.h>
 #if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_OTA_SOURCE_FILE)
 #  include <arch/chip/bk7258_ota_source_file.h>
 #endif
@@ -65,6 +66,8 @@ enum bk7258_ota_rpmsg_command_e
   BK7258_OTA_RPMSG_APPLY_HTTP,
   BK7258_OTA_RPMSG_MANAGER_STATUS,
   BK7258_OTA_RPMSG_MANAGER_CANCEL,
+  BK7258_OTA_RPMSG_USBMODE_GET,
+  BK7258_OTA_RPMSG_USBMODE_SET,
   BK7258_OTA_RPMSG_CONTROL_REPLY
 };
 
@@ -112,13 +115,18 @@ struct bk7258_ota_rpmsg_dev_s
   const struct bk7258_ota_source_ops_s *source;
   void *source_context;
 #if defined(CONFIG_BK7258_OTA_SOURCE_FILE) || \
-    defined(CONFIG_BK7258_OTA_SOURCE_HTTP)
+    defined(CONFIG_BK7258_OTA_SOURCE_HTTP) || \
+    defined(CONFIG_BK7258_USBMODE)
   sem_t control_sem;
   volatile bool control_busy;
   uint16_t control_command;
   uint32_t control_timeout_ms;
   char control_location[BK7258_OTA_CONTROL_URL_SIZE];
   char control_ca_path[BK7258_OTA_CONTROL_CA_SIZE];
+#ifdef CONFIG_BK7258_USBMODE
+  uint32_t control_session;
+  enum bk7258_usbmode_e control_usbmode;
+#endif
 #endif
 #else
   sem_t worker_sem;
@@ -422,7 +430,12 @@ static bool bk7258_ota_rpmsg_valid(
       case BK7258_OTA_RPMSG_CONTROL_REPLY:
         return payload == msg->header.length &&
                (payload == 0u ||
+                payload == sizeof(uint32_t) ||
                 payload == sizeof(struct bk7258_ota_manager_status_s));
+
+      case BK7258_OTA_RPMSG_USBMODE_SET:
+        return payload == sizeof(uint32_t) &&
+               msg->header.length == payload;
 
       case BK7258_OTA_RPMSG_READ:
       case BK7258_OTA_RPMSG_PROGRESS:
@@ -430,6 +443,7 @@ static bool bk7258_ota_rpmsg_valid(
       case BK7258_OTA_RPMSG_COMPLETE:
       case BK7258_OTA_RPMSG_MANAGER_STATUS:
       case BK7258_OTA_RPMSG_MANAGER_CANCEL:
+      case BK7258_OTA_RPMSG_USBMODE_GET:
         return payload == 0u;
 
       default:
@@ -473,7 +487,8 @@ static int bk7258_ota_rpmsg_control_reply(uint32_t session, int status,
 }
 
 #if defined(CONFIG_BK7258_OTA_SOURCE_FILE) || \
-    defined(CONFIG_BK7258_OTA_SOURCE_HTTP)
+    defined(CONFIG_BK7258_OTA_SOURCE_HTTP) || \
+    defined(CONFIG_BK7258_USBMODE)
 static int bk7258_ota_rpmsg_control_worker(int argc, char *argv[])
 {
   struct bk7258_ota_rpmsg_dev_s *priv = &g_bk7258_ota_rpmsg;
@@ -484,6 +499,10 @@ static int bk7258_ota_rpmsg_control_worker(int argc, char *argv[])
     {
       uint16_t command;
       uint32_t timeout_ms;
+#ifdef CONFIG_BK7258_USBMODE
+      uint32_t session;
+      enum bk7258_usbmode_e usbmode;
+#endif
       char location[BK7258_OTA_CONTROL_URL_SIZE];
       char ca_path[BK7258_OTA_CONTROL_CA_SIZE];
       bool manager_called = false;
@@ -496,9 +515,30 @@ static int bk7258_ota_rpmsg_control_worker(int argc, char *argv[])
 
       command = priv->control_command;
       timeout_ms = priv->control_timeout_ms;
+#ifdef CONFIG_BK7258_USBMODE
+      session = priv->control_session;
+      usbmode = priv->control_usbmode;
+#endif
       memcpy(location, priv->control_location, sizeof(location));
       memcpy(ca_path, priv->control_ca_path, sizeof(ca_path));
       __asm volatile ("dmb sy" ::: "memory");
+
+#ifdef CONFIG_BK7258_USBMODE
+      if (command == BK7258_OTA_RPMSG_USBMODE_SET)
+        {
+          enum bk7258_usbmode_e actual;
+          uint32_t wire_actual;
+
+          ret = bk7258_usbmode_set(usbmode);
+          actual = bk7258_usbmode_get();
+          wire_actual = (uint32_t)actual;
+          (void)bk7258_ota_rpmsg_control_reply(
+                  session, ret, &wire_actual, sizeof(wire_actual), true);
+          __atomic_store_n(&priv->control_busy, false,
+                           __ATOMIC_RELEASE);
+          continue;
+        }
+#endif
 
 #ifdef CONFIG_BK7258_OTA_SOURCE_FILE
       if (command == BK7258_OTA_RPMSG_APPLY_FILE)
@@ -886,7 +926,7 @@ static const struct bk7258_ota_source_ops_s g_bk7258_ota_proxy_ops =
 static int bk7258_ota_rpmsg_control_request(
   uint16_t command, const void *payload, uint32_t length,
   uint32_t operation_timeout_ms,
-  struct bk7258_ota_manager_status_s *manager_status)
+  void *reply, uint32_t reply_size)
 {
   struct bk7258_ota_rpmsg_dev_s *priv = &g_bk7258_ota_rpmsg;
   struct bk7258_ota_rpmsg_message_s request;
@@ -895,6 +935,7 @@ static int bk7258_ota_rpmsg_control_request(
   int ret;
 
   if ((payload == NULL) != (length == 0u) ||
+      (reply == NULL) != (reply_size == 0u) ||
       length > sizeof(request.payload) || operation_timeout_ms == 0u)
     {
       return -EINVAL;
@@ -966,16 +1007,15 @@ static int bk7258_ota_rpmsg_control_request(
   else
     {
       ret = priv->control_reply_status;
-      if (manager_status != NULL)
+      if (reply != NULL)
         {
-          if (priv->control_reply_length != sizeof(*manager_status))
+          if (priv->control_reply_length == reply_size)
+            {
+              memcpy(reply, priv->control_reply, reply_size);
+            }
+          else if (ret >= 0 || priv->control_reply_length != 0u)
             {
               ret = -EPROTO;
-            }
-          else
-            {
-              memcpy(manager_status, priv->control_reply,
-                     sizeof(*manager_status));
             }
         }
       else if (priv->control_reply_length != 0u)
@@ -1012,7 +1052,7 @@ int bk7258_ota_rpmsg_apply_file(const char *root, uint32_t timeout_ms)
 
   return bk7258_ota_rpmsg_control_request(
            BK7258_OTA_RPMSG_APPLY_FILE, root, length + 1u,
-           timeout_ms, NULL);
+           timeout_ms, NULL, 0u);
 }
 
 int bk7258_ota_rpmsg_apply_http(const char *catalog_url,
@@ -1041,7 +1081,7 @@ int bk7258_ota_rpmsg_apply_http(const char *catalog_url,
   memcpy(payload + url_length + 1u, ca_path, ca_length + 1u);
   return bk7258_ota_rpmsg_control_request(
            BK7258_OTA_RPMSG_APPLY_HTTP, payload,
-           url_length + ca_length + 2u, timeout_ms, NULL);
+           url_length + ca_length + 2u, timeout_ms, NULL, 0u);
 }
 
 int bk7258_ota_rpmsg_manager_status(
@@ -1054,14 +1094,76 @@ int bk7258_ota_rpmsg_manager_status(
 
   return bk7258_ota_rpmsg_control_request(
            BK7258_OTA_RPMSG_MANAGER_STATUS, NULL, 0u,
-           timeout_ms, status);
+           timeout_ms, status, sizeof(*status));
 }
 
 int bk7258_ota_rpmsg_manager_cancel(uint32_t timeout_ms)
 {
   return bk7258_ota_rpmsg_control_request(
            BK7258_OTA_RPMSG_MANAGER_CANCEL, NULL, 0u,
-           timeout_ms, NULL);
+           timeout_ms, NULL, 0u);
+}
+
+int bk7258_ota_rpmsg_usbmode_get(enum bk7258_usbmode_e *mode,
+                                 uint32_t timeout_ms)
+{
+  uint32_t wire_mode;
+  int ret;
+
+  if (mode == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = bk7258_ota_rpmsg_control_request(
+          BK7258_OTA_RPMSG_USBMODE_GET, NULL, 0u,
+          timeout_ms, &wire_mode, sizeof(wire_mode));
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (wire_mode != (uint32_t)BK7258_USBMODE_CDC &&
+      wire_mode != (uint32_t)BK7258_USBMODE_MSC)
+    {
+      return -EPROTO;
+    }
+
+  *mode = (enum bk7258_usbmode_e)wire_mode;
+  return OK;
+}
+
+int bk7258_ota_rpmsg_usbmode_set(enum bk7258_usbmode_e mode,
+                                 enum bk7258_usbmode_e *actual,
+                                 uint32_t timeout_ms)
+{
+  uint32_t wire_actual = (uint32_t)BK7258_USBMODE_NONE;
+  uint32_t wire_mode;
+  int ret;
+
+  if ((mode != BK7258_USBMODE_CDC && mode != BK7258_USBMODE_MSC) ||
+      actual == NULL)
+    {
+      return -EINVAL;
+    }
+
+  wire_mode = (uint32_t)mode;
+  ret = bk7258_ota_rpmsg_control_request(
+          BK7258_OTA_RPMSG_USBMODE_SET, &wire_mode, sizeof(wire_mode),
+          timeout_ms, &wire_actual, sizeof(wire_actual));
+  if (wire_actual == (uint32_t)BK7258_USBMODE_CDC ||
+      wire_actual == (uint32_t)BK7258_USBMODE_MSC)
+    {
+      *actual = (enum bk7258_usbmode_e)wire_actual;
+    }
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return wire_actual == (uint32_t)BK7258_USBMODE_CDC ||
+         wire_actual == (uint32_t)BK7258_USBMODE_MSC ? OK : -EPROTO;
 }
 
 static int bk7258_ota_rpmsg_worker(int argc, char *argv[])
@@ -1142,6 +1244,69 @@ static int bk7258_ota_rpmsg_ept_cb(FAR struct rpmsg_endpoint *ept,
 #endif
       return bk7258_ota_rpmsg_control_reply(
                msg->header.session, ret, NULL, 0u, false);
+    }
+
+  if (msg->header.command == BK7258_OTA_RPMSG_USBMODE_GET)
+    {
+      enum bk7258_usbmode_e mode = BK7258_USBMODE_NONE;
+      uint32_t wire_mode;
+      int ret;
+
+#ifdef CONFIG_BK7258_USBMODE
+      mode = bk7258_usbmode_get();
+      ret = OK;
+#else
+      ret = -ENOSYS;
+#endif
+      wire_mode = (uint32_t)mode;
+      return bk7258_ota_rpmsg_control_reply(
+               msg->header.session, ret,
+               ret == OK ? &wire_mode : NULL,
+               ret == OK ? sizeof(wire_mode) : 0u, false);
+    }
+
+  if (msg->header.command == BK7258_OTA_RPMSG_USBMODE_SET)
+    {
+#if defined(CONFIG_BK7258_USBMODE)
+      enum bk7258_usbmode_e mode;
+      uint32_t wire_mode;
+      bool expected = false;
+      int ret;
+
+      memcpy(&wire_mode, msg->payload, sizeof(wire_mode));
+      mode = (enum bk7258_usbmode_e)wire_mode;
+      if (mode != BK7258_USBMODE_CDC && mode != BK7258_USBMODE_MSC)
+        {
+          return bk7258_ota_rpmsg_control_reply(
+                   msg->header.session, -EINVAL, NULL, 0u, false);
+        }
+
+      if (!__atomic_compare_exchange_n(&priv->control_busy, &expected, true,
+                                       false, __ATOMIC_ACQ_REL,
+                                       __ATOMIC_ACQUIRE))
+        {
+          return bk7258_ota_rpmsg_control_reply(
+                   msg->header.session, -EBUSY, NULL, 0u, false);
+        }
+
+      priv->control_command = msg->header.command;
+      priv->control_session = msg->header.session;
+      priv->control_usbmode = mode;
+      __asm volatile ("dmb sy" ::: "memory");
+      ret = nxsem_post(&priv->control_sem);
+      if (ret < 0)
+        {
+          __atomic_store_n(&priv->control_busy, false,
+                           __ATOMIC_RELEASE);
+          return bk7258_ota_rpmsg_control_reply(
+                   msg->header.session, ret, NULL, 0u, false);
+        }
+
+      return OK;
+#else
+      return bk7258_ota_rpmsg_control_reply(
+               msg->header.session, -ENOSYS, NULL, 0u, false);
+#endif
     }
 
   if (msg->header.command == BK7258_OTA_RPMSG_APPLY_FILE ||
@@ -1463,7 +1628,8 @@ int bk7258_ota_rpmsg_initialize(void)
   bool first_sem = false;
 #if !defined(CONFIG_BK7258_AP_CORE) || \
     defined(CONFIG_BK7258_OTA_SOURCE_FILE) || \
-    defined(CONFIG_BK7258_OTA_SOURCE_HTTP)
+    defined(CONFIG_BK7258_OTA_SOURCE_HTTP) || \
+    defined(CONFIG_BK7258_USBMODE)
   bool second_sem = false;
 #endif
 #ifndef CONFIG_BK7258_AP_CORE
@@ -1498,7 +1664,8 @@ int bk7258_ota_rpmsg_initialize(void)
 
 #if defined(CONFIG_BK7258_AP_CORE) && \
     (defined(CONFIG_BK7258_OTA_SOURCE_FILE) || \
-     defined(CONFIG_BK7258_OTA_SOURCE_HTTP))
+     defined(CONFIG_BK7258_OTA_SOURCE_HTTP) || \
+     defined(CONFIG_BK7258_USBMODE))
   if (ret >= 0)
     {
       ret = nxsem_init(&priv->control_sem, 0, 0);
@@ -1528,7 +1695,8 @@ int bk7258_ota_rpmsg_initialize(void)
 
 #if defined(CONFIG_BK7258_AP_CORE) && \
     (defined(CONFIG_BK7258_OTA_SOURCE_FILE) || \
-     defined(CONFIG_BK7258_OTA_SOURCE_HTTP))
+     defined(CONFIG_BK7258_OTA_SOURCE_HTTP) || \
+     defined(CONFIG_BK7258_USBMODE))
   if (ret >= 0)
     {
       pid_t pid;
@@ -1593,7 +1761,8 @@ int bk7258_ota_rpmsg_initialize(void)
           (void)nxsem_destroy(&priv->data_sem);
         }
 #elif defined(CONFIG_BK7258_OTA_SOURCE_FILE) || \
-      defined(CONFIG_BK7258_OTA_SOURCE_HTTP)
+      defined(CONFIG_BK7258_OTA_SOURCE_HTTP) || \
+      defined(CONFIG_BK7258_USBMODE)
       if (second_sem)
         {
           (void)nxsem_destroy(&priv->control_sem);

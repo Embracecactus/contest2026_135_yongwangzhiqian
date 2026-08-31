@@ -29,23 +29,12 @@
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_dvp.h>
+#include <arch/chip/bk7258_pinmux.h>
 #include <arch/chip/bk7258_psram.h>
-
-#include <driver/gpio.h>
-#include <sdkconfig.h>
 
 #include "bk7258_aidk_camera_glue.h"
 
-#define AIDK_CAMERA_ENCODE_BUFFER_SIZE \
-  (BK7258_BOARD_CAMERA_WIDTH * 16u * 2u)
-#define AIDK_CAMERA_FRAME_SIZE          CONFIG_JPEG_FRAME_SIZE
 #define AIDK_CAMERA_POWER_SETTLE_US     10000u
-
-extern bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
-
-#if defined(CONFIG_BK7258_AIDK_CAMERA_PHASE0)
-#  error "AIDK camera Phase 0 and production bindings are mutually exclusive"
-#endif
 
 #if BK7258_BOARD_DVP_POWER_GPIO != 49 || \
     BK7258_BOARD_DVP_POWER_ACTIVE_HIGH != 1 || \
@@ -71,21 +60,45 @@ static FAR struct bk7258_dvp_s *g_aidk_camera_dvp;
 static bool g_aidk_camera_powered;
 static bool g_aidk_camera_registered;
 
+static void aidk_camera_sensor_config(
+  FAR struct bk7258_dvp_sensor_config_s *sensor)
+{
+  sensor->i2c_bus = BK7258_BOARD_DVP_I2C_BUS;
+  sensor->i2c_scl_pin = BK7258_BOARD_DVP_I2C_SCL_GPIO;
+  sensor->i2c_sda_pin = BK7258_BOARD_DVP_I2C_SDA_GPIO;
+  sensor->i2c_frequency = BK7258_BOARD_DVP_I2C_FREQUENCY;
+  sensor->reset_pin = BK7258_BOARD_DVP_RESET_GPIO;
+  sensor->pwdn_pin = BK7258_BOARD_DVP_PWDN_GPIO;
+  sensor->data_width = BK7258_DVP_DATA_WIDTH_8;
+  sensor->data_pin[0] = BK7258_BOARD_DVP_D0_GPIO;
+  sensor->data_pin[1] = BK7258_BOARD_DVP_D1_GPIO;
+  sensor->data_pin[2] = BK7258_BOARD_DVP_D2_GPIO;
+  sensor->data_pin[3] = BK7258_BOARD_DVP_D3_GPIO;
+  sensor->data_pin[4] = BK7258_BOARD_DVP_D4_GPIO;
+  sensor->data_pin[5] = BK7258_BOARD_DVP_D5_GPIO;
+  sensor->data_pin[6] = BK7258_BOARD_DVP_D6_GPIO;
+  sensor->data_pin[7] = BK7258_BOARD_DVP_D7_GPIO;
+  sensor->vsync_pin = BK7258_BOARD_DVP_VSYNC_GPIO;
+  sensor->hsync_pin = BK7258_BOARD_DVP_HSYNC_GPIO;
+  sensor->mclk_pin = BK7258_BOARD_DVP_MCLK_GPIO;
+  sensor->pclk_pin = BK7258_BOARD_DVP_PCLK_GPIO;
+  sensor->mclk_hz = BK7258_DVP_MCLK_24MHZ;
+  sensor->width = BK7258_BOARD_CAMERA_WIDTH;
+  sensor->height = BK7258_BOARD_CAMERA_HEIGHT;
+  sensor->fps = BK7258_BOARD_CAMERA_FPS;
+  sensor->format = BK7258_DVP_FORMAT_MJPEG;
+}
+
 static int aidk_camera_power_on(void)
 {
-  gpio_id_t power = (gpio_id_t)BK7258_BOARD_DVP_POWER_GPIO;
-
   if (g_aidk_camera_powered)
     {
       return OK;
     }
 
-  if (bk_gpio_driver_init() != BK_OK ||
-      gpio_dev_unmap(power) != BK_OK ||
-      bk_gpio_disable_input(power) != BK_OK ||
-      bk_gpio_set_output_low(power) != BK_OK ||
-      bk_gpio_enable_output(power) != BK_OK ||
-      bk_gpio_set_output_high(power) != BK_OK)
+  if (bk7258_gpio_configure_output(BK7258_BOARD_DVP_POWER_GPIO, false,
+                                    BK7258_GPIO_DRIVE_0) < 0 ||
+      bk7258_gpio_write(BK7258_BOARD_DVP_POWER_GPIO, true) < 0)
     {
       return -EIO;
     }
@@ -122,7 +135,7 @@ static int aidk_camera_sensor_uninit(FAR struct imgsensor_s *sensor)
   (void)sensor;
 
   /* The pinned V4L2 upper half calls sensor uninit before imgdata uninit.
-   * Keep P49 asserted so bk_dvp_close() can finish while the GC2145 is still
+   * Keep P49 asserted so the DVP close backend can finish while the GC2145 is
    * powered.  The rail remains on after first use until the next reset.
    */
 
@@ -285,7 +298,13 @@ static FAR uint8_t *aidk_camera_alloc_aligned(size_t size,
       return NULL;
     }
 
-  base = bk7258_psram_malloc(
+  /* Completed MJPEG frames belong to the SDK's dedicated encode slab.  The
+   * AP private PSRAM heap also backs the NuttX system-heap region and cannot
+   * hold two CONFIG_JPEG_FRAME_SIZE buffers after that reservation.
+   */
+
+  base = bk7258_psram_media_malloc(
+    BK7258_PSRAM_MEDIA_ENCODE,
     size + BK7258_BOARD_CAMERA_DMA_ALIGNMENT - 1u);
   if (base == NULL)
     {
@@ -306,7 +325,7 @@ static void aidk_camera_release_memory(void)
     {
       if (g_aidk_camera_frame_bases[index] != NULL)
         {
-          bk7258_psram_free(g_aidk_camera_frame_bases[index]);
+          bk7258_psram_media_free(g_aidk_camera_frame_bases[index]);
         }
 
       g_aidk_camera_frame_bases[index] = NULL;
@@ -320,13 +339,13 @@ static void aidk_camera_release_memory(void)
 
 int bk7258_aidk_camera_initialize(void)
 {
+  struct bk7258_dvp_buffer_requirements_s requirements;
   struct bk7258_dvp_config_s config;
   FAR struct imgsensor_s *sensors[] =
   {
     &g_aidk_camera_sensor
   };
   FAR uint8_t *encode_buffer;
-  bk_dvp_config_t sdk = BK_DVP_864X480_30FPS_MJPEG_CONFIG();
   uint8_t index;
   int ret;
 
@@ -349,18 +368,37 @@ int bk7258_aidk_camera_initialize(void)
     }
 
   memset(&config, 0, sizeof(config));
+  aidk_camera_sensor_config(&config.sensor);
+  ret = bk7258_dvp_get_buffer_requirements(&config.sensor, &requirements);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "AIDK GC2145 memory plan failed: %d\n", ret);
+      nxmutex_unlock(&g_aidk_camera_lock);
+      return ret;
+    }
+
+  syslog(LOG_INFO,
+         "AIDK GC2145 memory plan: frames=%u frame=%lu encode=%lu align=%u\n",
+         BK7258_BOARD_CAMERA_FRAME_COUNT,
+         (unsigned long)requirements.frame_size,
+         (unsigned long)requirements.encode_buffer_size,
+         BK7258_BOARD_CAMERA_DMA_ALIGNMENT);
+
   for (index = 0; index < BK7258_BOARD_CAMERA_FRAME_COUNT; index++)
     {
       g_aidk_camera_frames[index].addr =
-        aidk_camera_alloc_aligned(AIDK_CAMERA_FRAME_SIZE,
+        aidk_camera_alloc_aligned(requirements.frame_size,
                                   &g_aidk_camera_frame_bases[index]);
       if (g_aidk_camera_frames[index].addr == NULL)
         {
+          syslog(LOG_ERR,
+                 "AIDK GC2145 PSRAM allocation failed: frame=%u bytes=%lu\n",
+                 index, (unsigned long)requirements.frame_size);
           ret = -ENOMEM;
           goto errout_with_memory;
         }
 
-      g_aidk_camera_frames[index].size = AIDK_CAMERA_FRAME_SIZE;
+      g_aidk_camera_frames[index].size = requirements.frame_size;
     }
 
   /* The SDK uses this AP-SRAM buffer as a two-bank, 16-line JPEG cache.
@@ -368,50 +406,28 @@ int bk7258_aidk_camera_initialize(void)
    */
 
   encode_buffer = kmm_memalign(BK7258_BOARD_CAMERA_DMA_ALIGNMENT,
-                               AIDK_CAMERA_ENCODE_BUFFER_SIZE);
+                               requirements.encode_buffer_size);
   if (encode_buffer == NULL)
     {
+      syslog(LOG_ERR,
+             "AIDK GC2145 SRAM allocation failed: encode_bytes=%lu\n",
+             (unsigned long)requirements.encode_buffer_size);
       ret = -ENOMEM;
       goto errout_with_memory;
     }
 
   g_aidk_camera_encode_base = encode_buffer;
 
-  sdk.i2c_config.id = BK7258_BOARD_DVP_I2C_BUS;
-  sdk.i2c_config.scl_pin = BK7258_BOARD_DVP_I2C_SCL_GPIO;
-  sdk.i2c_config.sda_pin = BK7258_BOARD_DVP_I2C_SDA_GPIO;
-  sdk.i2c_config.baud_rate = BK7258_BOARD_DVP_I2C_FREQUENCY;
-  sdk.reset_pin = BK7258_BOARD_DVP_RESET_GPIO;
-  sdk.pwdn_pin = BK7258_BOARD_DVP_PWDN_GPIO;
-  sdk.io_config.data_width = SENSOR_BITS_WIDTH_8BIT;
-  sdk.io_config.data_pin[0] = BK7258_BOARD_DVP_D0_GPIO;
-  sdk.io_config.data_pin[1] = BK7258_BOARD_DVP_D1_GPIO;
-  sdk.io_config.data_pin[2] = BK7258_BOARD_DVP_D2_GPIO;
-  sdk.io_config.data_pin[3] = BK7258_BOARD_DVP_D3_GPIO;
-  sdk.io_config.data_pin[4] = BK7258_BOARD_DVP_D4_GPIO;
-  sdk.io_config.data_pin[5] = BK7258_BOARD_DVP_D5_GPIO;
-  sdk.io_config.data_pin[6] = BK7258_BOARD_DVP_D6_GPIO;
-  sdk.io_config.data_pin[7] = BK7258_BOARD_DVP_D7_GPIO;
-  sdk.io_config.vsync_pin = BK7258_BOARD_DVP_VSYNC_GPIO;
-  sdk.io_config.hsync_pin = BK7258_BOARD_DVP_HSYNC_GPIO;
-  sdk.io_config.xclk_pin = BK7258_BOARD_DVP_MCLK_GPIO;
-  sdk.io_config.pclk_pin = BK7258_BOARD_DVP_PCLK_GPIO;
-  sdk.clk_source = MCLK_24M;
-  sdk.width = BK7258_BOARD_CAMERA_WIDTH;
-  sdk.height = BK7258_BOARD_CAMERA_HEIGHT;
-  sdk.fps = FPS30;
-  sdk.img_format = IMAGE_MJPEG;
-
-  config.sdk = sdk;
   config.binding = bk7258_aidk_camera_binding();
   config.frames = g_aidk_camera_frames;
   config.frame_count = BK7258_BOARD_CAMERA_FRAME_COUNT;
   config.encode_buffer = encode_buffer;
-  config.encode_buffer_size = AIDK_CAMERA_ENCODE_BUFFER_SIZE;
+  config.encode_buffer_size = requirements.encode_buffer_size;
 
   ret = bk7258_dvp_initialize(&config, &g_aidk_camera_dvp);
   if (ret < 0)
     {
+      syslog(LOG_ERR, "AIDK GC2145 DVP initialize failed: %d\n", ret);
       goto errout_with_memory;
     }
 
@@ -420,6 +436,7 @@ int bk7258_aidk_camera_initialize(void)
                          sensors, 1);
   if (ret < 0)
     {
+      syslog(LOG_ERR, "AIDK GC2145 V4L2 register failed: %d\n", ret);
       (void)bk7258_dvp_uninitialize(g_aidk_camera_dvp);
       g_aidk_camera_dvp = NULL;
       goto errout_with_memory;

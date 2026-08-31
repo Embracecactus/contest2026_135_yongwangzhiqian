@@ -3,12 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * SC7A20H lower half for the standard NuttX sensor upper half.
- *
- * The register values, I2C route and 0x11 identity come from Beken's official
- * AIDK SC7A20 implementation.  NuttX owns I2C0 and the public sensor ABI;
- * this board file contains only the chip-specific register operations that
- * the upstream LIS2DH driver cannot use because it requires identity 0x33.
+ * AIDK AI Toy physical binding for the generic NuttX SC7A20 driver.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -17,87 +12,190 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 #include <syslog.h>
 
 #include <nuttx/fs/fs.h>
 #include <nuttx/i2c/i2c_master.h>
-#include <nuttx/mutex.h>
-#include <nuttx/sensors/sensor.h>
+#include <nuttx/sensors/sc7a20.h>
+#include <nuttx/signal.h>
 
 #include <arch/board/board.h>
+#include <arch/chip/bk7258_pinmux.h>
 
-#define AIDK_SC7A20_I2C_DEVPATH       "/dev/i2c0"
-
-#define AIDK_SC7A20_REG_CTRL1         0x20
-#define AIDK_SC7A20_REG_CTRL4         0x23
-#define AIDK_SC7A20_REG_OUT_X_L       0x28
-
-#define AIDK_SC7A20_CTRL1_POWER_DOWN  0x08
-#define AIDK_SC7A20_CTRL1_AXES        0x07
-#define AIDK_SC7A20_CTRL4_FS2G        0x00
-#define AIDK_SC7A20_AUTOINCREMENT     0x80
-
-#define AIDK_SC7A20_DEFAULT_ODR       0x50
-#define AIDK_SC7A20_MG_PER_COUNT      4.0f
-#define AIDK_SC7A20_ONE_G             9.80665f
+#define AIDK_SC7A20_STRINGIFY_(value) #value
+#define AIDK_SC7A20_STRINGIFY(value)  AIDK_SC7A20_STRINGIFY_(value)
+#define AIDK_SC7A20_I2C_DEVPATH       \
+  "/dev/i2c" AIDK_SC7A20_STRINGIFY(BK7258_BOARD_SC7A20_I2C_BUS)
+#define AIDK_SC7A20_I2C_MUX_MODE      0
+#define AIDK_SC7A20_RECOVERY_CLOCKS   9
+#define AIDK_SC7A20_RECOVERY_HALF_US  5
 
 #if BK7258_BOARD_HAS_SC7A20 != 1 || \
     BK7258_BOARD_SC7A20_I2C_BUS != 0 || \
     BK7258_BOARD_SC7A20_I2C_SCL_GPIO != 20 || \
     BK7258_BOARD_SC7A20_I2C_SDA_GPIO != 21 || \
     BK7258_BOARD_SC7A20_I2C_ADDRESS != 0x18 || \
-    BK7258_BOARD_SC7A20_WHO_AM_I_VALUE != 0x11
+    BK7258_BOARD_SC7A20_POWER_ALWAYS_ON != 1
 #  error "AIDK SC7A20H binding no longer matches the board"
 #endif
 
-struct aidk_sc7a20_dev_s
+#if CONFIG_BK7258_I2C_BUS != BK7258_BOARD_SC7A20_I2C_BUS
+#  error "AIDK AP profile must publish the SC7A20H hardware I2C bus"
+#endif
+
+struct aidk_sc7a20_i2c_s
 {
-  struct sensor_lowerhalf_s lower;
-  mutex_t lock;
-  uint8_t odr;
-  bool active;
+  FAR const char *devpath;
+  uint32_t frequency;
+  uint16_t address;
 };
 
-static int aidk_sc7a20_activate(FAR struct sensor_lowerhalf_s *lower,
-                                FAR struct file *filep, bool enable);
-static int aidk_sc7a20_set_interval(FAR struct sensor_lowerhalf_s *lower,
-                                    FAR struct file *filep,
-                                    FAR uint32_t *period_us);
-static int aidk_sc7a20_fetch(FAR struct sensor_lowerhalf_s *lower,
-                             FAR struct file *filep, FAR char *buffer,
-                             size_t buflen);
-
-static const struct sensor_ops_s g_aidk_sc7a20_ops =
+static int aidk_sc7a20_restore_i2c_pinmux(void)
 {
-  .activate     = aidk_sc7a20_activate,
-  .set_interval = aidk_sc7a20_set_interval,
-  .fetch        = aidk_sc7a20_fetch,
-};
-
-static struct aidk_sc7a20_dev_s g_aidk_sc7a20 =
-{
-  .lower =
+  static const struct bk7258_pinmux_config_s configs[] =
+  {
     {
-      .type = SENSOR_TYPE_ACCELEROMETER,
-      .nbuffer = 1,
-      .ops = &g_aidk_sc7a20_ops,
+      BK7258_BOARD_SC7A20_I2C_SCL_GPIO,
+      AIDK_SC7A20_I2C_MUX_MODE,
+      true
     },
-  .lock = NXMUTEX_INITIALIZER,
-  .odr = AIDK_SC7A20_DEFAULT_ODR,
-};
+    {
+      BK7258_BOARD_SC7A20_I2C_SDA_GPIO,
+      AIDK_SC7A20_I2C_MUX_MODE,
+      true
+    },
+  };
 
-static int aidk_sc7a20_transfer(FAR struct i2c_msg_s *messages,
-                                int message_count)
+  return bk7258_pinmux_apply(configs,
+                             sizeof(configs) / sizeof(configs[0]));
+}
+
+static int aidk_sc7a20_read_lines(FAR bool *scl, FAR bool *sda)
 {
-  struct i2c_transfer_s transfer;
-  struct file i2c;
   int ret;
 
-  ret = file_open(&i2c, AIDK_SC7A20_I2C_DEVPATH, O_RDWR);
+  ret = bk7258_gpio_read_input(BK7258_BOARD_SC7A20_I2C_SCL_GPIO, scl);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return bk7258_gpio_read_input(BK7258_BOARD_SC7A20_I2C_SDA_GPIO, sda);
+}
+
+static int aidk_sc7a20_recover_bus(void)
+{
+  bool scl_before = false;
+  bool sda_before = false;
+  bool scl_after = false;
+  bool sda_after = false;
+  int restore_ret;
+  int pulses = 0;
+  int ret;
+
+  ret = bk7258_gpio_configure_open_drain(
+          BK7258_BOARD_SC7A20_I2C_SCL_GPIO, BK7258_GPIO_PULL_UP);
+  if (ret < 0)
+    {
+      goto restore;
+    }
+
+  ret = bk7258_gpio_configure_open_drain(
+          BK7258_BOARD_SC7A20_I2C_SDA_GPIO, BK7258_GPIO_PULL_UP);
+  if (ret < 0)
+    {
+      goto restore;
+    }
+
+  (void)bk7258_gpio_open_drain_write(
+          BK7258_BOARD_SC7A20_I2C_SCL_GPIO, true);
+  (void)bk7258_gpio_open_drain_write(
+          BK7258_BOARD_SC7A20_I2C_SDA_GPIO, true);
+  (void)nxsig_usleep(AIDK_SC7A20_RECOVERY_HALF_US);
+
+  ret = aidk_sc7a20_read_lines(&scl_before, &sda_before);
+  if (ret < 0)
+    {
+      goto restore;
+    }
+
+  if (!scl_before)
+    {
+      ret = -ETIMEDOUT;
+      goto sample;
+    }
+
+  while (!sda_before && pulses < AIDK_SC7A20_RECOVERY_CLOCKS)
+    {
+      (void)bk7258_gpio_open_drain_write(
+              BK7258_BOARD_SC7A20_I2C_SCL_GPIO, false);
+      (void)nxsig_usleep(AIDK_SC7A20_RECOVERY_HALF_US);
+      (void)bk7258_gpio_open_drain_write(
+              BK7258_BOARD_SC7A20_I2C_SCL_GPIO, true);
+      (void)nxsig_usleep(AIDK_SC7A20_RECOVERY_HALF_US);
+      pulses++;
+
+      ret = aidk_sc7a20_read_lines(&scl_after, &sda_before);
+      if (ret < 0 || !scl_after)
+        {
+          ret = ret < 0 ? ret : -ETIMEDOUT;
+          goto sample;
+        }
+    }
+
+  /* Generate a STOP after releasing a slave that was waiting for clocks. */
+
+  (void)bk7258_gpio_open_drain_write(
+          BK7258_BOARD_SC7A20_I2C_SDA_GPIO, false);
+  (void)nxsig_usleep(AIDK_SC7A20_RECOVERY_HALF_US);
+  (void)bk7258_gpio_open_drain_write(
+          BK7258_BOARD_SC7A20_I2C_SCL_GPIO, true);
+  (void)nxsig_usleep(AIDK_SC7A20_RECOVERY_HALF_US);
+  (void)bk7258_gpio_open_drain_write(
+          BK7258_BOARD_SC7A20_I2C_SDA_GPIO, true);
+  (void)nxsig_usleep(AIDK_SC7A20_RECOVERY_HALF_US);
+
+sample:
+  if (aidk_sc7a20_read_lines(&scl_after, &sda_after) < 0)
+    {
+      scl_after = false;
+      sda_after = false;
+      if (ret >= 0)
+        {
+          ret = -EIO;
+        }
+    }
+  else if (ret >= 0 && (!scl_after || !sda_after))
+    {
+      ret = -EBUSY;
+    }
+
+restore:
+  restore_ret = aidk_sc7a20_restore_i2c_pinmux();
+  if (ret >= 0 && restore_ret < 0)
+    {
+      ret = restore_ret;
+    }
+
+  syslog(ret < 0 ? LOG_ERR : LOG_WARNING,
+         "AIDK SC7A20H I2C recovery: lines=%d/%d->%d/%d "
+         "clocks=%d ret=%d restore=%d\n",
+         scl_before, sda_before, scl_after, sda_after,
+         pulses, ret, restore_ret);
+  return ret;
+}
+
+static int aidk_sc7a20_transfer_once(FAR struct aidk_sc7a20_i2c_s *i2c,
+                                     FAR struct i2c_msg_s *messages,
+                                     int message_count)
+{
+  struct i2c_transfer_s transfer;
+  struct file filep;
+  int ret;
+
+  ret = file_open(&filep, i2c->devpath, O_RDWR);
   if (ret < 0)
     {
       return ret;
@@ -105,264 +203,105 @@ static int aidk_sc7a20_transfer(FAR struct i2c_msg_s *messages,
 
   transfer.msgv = messages;
   transfer.msgc = message_count;
-  ret = file_ioctl(&i2c, I2CIOC_TRANSFER,
+  ret = file_ioctl(&filep, I2CIOC_TRANSFER,
                    (unsigned long)(uintptr_t)&transfer);
-  file_close(&i2c);
+  file_close(&filep);
   return ret;
 }
 
-static int aidk_sc7a20_write_reg(uint8_t reg, uint8_t value)
+static int aidk_sc7a20_transfer(FAR struct aidk_sc7a20_i2c_s *i2c,
+                                FAR struct i2c_msg_s *messages,
+                                int message_count)
 {
-  struct i2c_msg_s message;
-  uint8_t data[2] = {reg, value};
+  int recovery_ret;
+  int ret;
 
-  message.frequency = BK7258_BOARD_SC7A20_I2C_FREQUENCY;
-  message.addr = BK7258_BOARD_SC7A20_I2C_ADDRESS;
-  message.flags = 0;
-  message.buffer = data;
-  message.length = sizeof(data);
-  return aidk_sc7a20_transfer(&message, 1);
+  ret = aidk_sc7a20_transfer_once(i2c, messages, message_count);
+  if (ret != -ETIMEDOUT && ret != -EBUSY)
+    {
+      return ret;
+    }
+
+  recovery_ret = aidk_sc7a20_recover_bus();
+  if (recovery_ret < 0)
+    {
+      return ret;
+    }
+
+  ret = aidk_sc7a20_transfer_once(i2c, messages, message_count);
+  syslog(ret < 0 ? LOG_ERR : LOG_WARNING,
+         "AIDK SC7A20H I2C retry after timeout: %d\n", ret);
+  return ret;
 }
 
-static int aidk_sc7a20_read_regs(uint8_t reg, FAR uint8_t *data,
-                                 uint8_t length)
+static int aidk_sc7a20_read(FAR void *arg, uint8_t reg,
+                            FAR uint8_t *buffer, size_t buflen)
 {
+  FAR struct aidk_sc7a20_i2c_s *i2c =
+    (FAR struct aidk_sc7a20_i2c_s *)arg;
   struct i2c_msg_s messages[2];
 
-  messages[0].frequency = BK7258_BOARD_SC7A20_I2C_FREQUENCY;
-  messages[0].addr = BK7258_BOARD_SC7A20_I2C_ADDRESS;
+  messages[0].frequency = i2c->frequency;
+  messages[0].addr = i2c->address;
   messages[0].flags = I2C_M_NOSTOP;
   messages[0].buffer = &reg;
   messages[0].length = 1;
 
-  messages[1].frequency = BK7258_BOARD_SC7A20_I2C_FREQUENCY;
-  messages[1].addr = BK7258_BOARD_SC7A20_I2C_ADDRESS;
+  messages[1].frequency = i2c->frequency;
+  messages[1].addr = i2c->address;
   messages[1].flags = I2C_M_READ;
-  messages[1].buffer = data;
-  messages[1].length = length;
+  messages[1].buffer = buffer;
+  messages[1].length = buflen;
 
-  return aidk_sc7a20_transfer(messages, 2);
+  return aidk_sc7a20_transfer(i2c, messages, 2);
 }
 
-static int aidk_sc7a20_activate(FAR struct sensor_lowerhalf_s *lower,
-                                FAR struct file *filep, bool enable)
+static int aidk_sc7a20_write(FAR void *arg, uint8_t reg, uint8_t value)
 {
-  FAR struct aidk_sc7a20_dev_s *priv =
-    (FAR struct aidk_sc7a20_dev_s *)lower;
-  int ret;
+  FAR struct aidk_sc7a20_i2c_s *i2c =
+    (FAR struct aidk_sc7a20_i2c_s *)arg;
+  struct i2c_msg_s message;
+  uint8_t data[2] = {reg, value};
 
-  (void)filep;
+  message.frequency = i2c->frequency;
+  message.addr = i2c->address;
+  message.flags = 0;
+  message.buffer = data;
+  message.length = sizeof(data);
 
-  ret = nxmutex_lock(&priv->lock);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  ret = aidk_sc7a20_write_reg(
-    AIDK_SC7A20_REG_CTRL1,
-    enable ? priv->odr | AIDK_SC7A20_CTRL1_AXES :
-             AIDK_SC7A20_CTRL1_POWER_DOWN);
-  if (ret >= 0)
-    {
-      priv->active = enable;
-    }
-
-  nxmutex_unlock(&priv->lock);
-  return ret;
+  return aidk_sc7a20_transfer(i2c, &message, 1);
 }
 
-static int aidk_sc7a20_set_interval(FAR struct sensor_lowerhalf_s *lower,
-                                    FAR struct file *filep,
-                                    FAR uint32_t *period_us)
+static struct aidk_sc7a20_i2c_s g_aidk_sc7a20_i2c =
 {
-  FAR struct aidk_sc7a20_dev_s *priv =
-    (FAR struct aidk_sc7a20_dev_s *)lower;
-  uint32_t actual;
-  uint8_t odr;
-  int ret;
+  .devpath = AIDK_SC7A20_I2C_DEVPATH,
+  .frequency = BK7258_BOARD_SC7A20_I2C_FREQUENCY,
+  .address = BK7258_BOARD_SC7A20_I2C_ADDRESS,
+};
 
-  (void)filep;
-
-  if (period_us == NULL)
-    {
-      return -EINVAL;
-    }
-
-  if (*period_us <= 2500)
-    {
-      odr = 0x70;
-      actual = 2500;
-    }
-  else if (*period_us <= 5000)
-    {
-      odr = 0x60;
-      actual = 5000;
-    }
-  else if (*period_us <= 10000)
-    {
-      odr = 0x50;
-      actual = 10000;
-    }
-  else if (*period_us <= 20000)
-    {
-      odr = 0x40;
-      actual = 20000;
-    }
-  else if (*period_us <= 40000)
-    {
-      odr = 0x30;
-      actual = 40000;
-    }
-  else if (*period_us <= 100000)
-    {
-      odr = 0x20;
-      actual = 100000;
-    }
-  else
-    {
-      odr = 0x10;
-      actual = 1000000;
-    }
-
-  ret = nxmutex_lock(&priv->lock);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  if (priv->active)
-    {
-      ret = aidk_sc7a20_write_reg(AIDK_SC7A20_REG_CTRL1,
-                                  odr | AIDK_SC7A20_CTRL1_AXES);
-      if (ret < 0)
-        {
-          nxmutex_unlock(&priv->lock);
-          return ret;
-        }
-    }
-
-  priv->odr = odr;
-  *period_us = actual;
-  nxmutex_unlock(&priv->lock);
-  return OK;
-}
-
-static int aidk_sc7a20_fetch(FAR struct sensor_lowerhalf_s *lower,
-                             FAR struct file *filep, FAR char *buffer,
-                             size_t buflen)
+static const struct sc7a20_config_s g_aidk_sc7a20_config =
 {
-  FAR struct aidk_sc7a20_dev_s *priv =
-    (FAR struct aidk_sc7a20_dev_s *)lower;
-  struct sensor_accel sample;
-  int16_t raw_x;
-  int16_t raw_y;
-  int16_t raw_z;
-  uint8_t raw[6];
-  int ret;
-
-  (void)filep;
-
-  if (buffer == NULL || buflen < sizeof(sample))
-    {
-      return -EINVAL;
-    }
-
-  ret = nxmutex_lock(&priv->lock);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  if (!priv->active)
-    {
-      nxmutex_unlock(&priv->lock);
-      return -EAGAIN;
-    }
-
-  ret = aidk_sc7a20_read_regs(
-    AIDK_SC7A20_REG_OUT_X_L | AIDK_SC7A20_AUTOINCREMENT,
-    raw, sizeof(raw));
-  nxmutex_unlock(&priv->lock);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  /* In the official normal-mode configuration the 10-bit sample is left
-   * justified in the 16-bit output.  At +/-2 g each count is 4 mg.
-   */
-
-  raw_x = (int16_t)((uint16_t)raw[0] | ((uint16_t)raw[1] << 8)) / 64;
-  raw_y = (int16_t)((uint16_t)raw[2] | ((uint16_t)raw[3] << 8)) / 64;
-  raw_z = (int16_t)((uint16_t)raw[4] | ((uint16_t)raw[5] << 8)) / 64;
-
-  sample.timestamp = sensor_get_timestamp();
-  sample.x = raw_x * AIDK_SC7A20_MG_PER_COUNT *
-             AIDK_SC7A20_ONE_G / 1000.0f;
-  sample.y = raw_y * AIDK_SC7A20_MG_PER_COUNT *
-             AIDK_SC7A20_ONE_G / 1000.0f;
-  sample.z = raw_z * AIDK_SC7A20_MG_PER_COUNT *
-             AIDK_SC7A20_ONE_G / 1000.0f;
-  sample.temperature = NAN;
-  sample.status = 0;
-
-  memcpy(buffer, &sample, sizeof(sample));
-  return sizeof(sample);
-}
+  .arg = &g_aidk_sc7a20_i2c,
+  .read = aidk_sc7a20_read,
+  .write = aidk_sc7a20_write,
+};
 
 int bk7258_aidk_sc7a20_initialize(void)
 {
-  uint8_t whoami = 0;
   int ret;
 
 #ifdef CONFIG_BK7258_AIDK_SC7A20_PHASE0
 #  error "SC7A20H Phase 0 and production bindings are mutually exclusive"
 #endif
 
-  ret = nxmutex_lock(&g_aidk_sc7a20.lock);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  ret = aidk_sc7a20_read_regs(BK7258_BOARD_SC7A20_WHO_AM_I_REG,
-                              &whoami, 1);
-  if (ret >= 0 && whoami != BK7258_BOARD_SC7A20_WHO_AM_I_VALUE)
-    {
-      ret = -ENODEV;
-    }
-
+  ret = sc7a20_register(0, &g_aidk_sc7a20_config);
   if (ret >= 0)
     {
-      ret = aidk_sc7a20_write_reg(AIDK_SC7A20_REG_CTRL1,
-                                  AIDK_SC7A20_CTRL1_POWER_DOWN);
+      syslog(LOG_INFO,
+             "AIDK SC7A20H registered: /dev/uorb/sensor_accel0\n");
     }
 
-  if (ret >= 0)
-    {
-      ret = aidk_sc7a20_write_reg(AIDK_SC7A20_REG_CTRL4,
-                                  AIDK_SC7A20_CTRL4_FS2G);
-    }
-
-  nxmutex_unlock(&g_aidk_sc7a20.lock);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "AIDK SC7A20H probe/config failed: %d id=0x%02x\n",
-             ret, whoami);
-      return ret;
-    }
-
-  ret = sensor_register(&g_aidk_sc7a20.lower, 0);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  syslog(LOG_INFO,
-         "AIDK SC7A20H registered: /dev/uorb/sensor_accel0 id=0x%02x\n",
-         whoami);
-  return OK;
+  return ret;
 }
 
 #endif /* CONFIG_BK7258_AIDK_SC7A20 */

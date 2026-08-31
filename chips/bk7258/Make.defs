@@ -31,6 +31,7 @@ VPATH += chip$(DELIM)bootloader$(DELIM)bl2
 VPATH += armv8-m
 BK7258_NUTTX_OVERLAY := $(TOPDIR)$(DELIM)..$(DELIM)vendor$(DELIM)beken$(DELIM)nuttx
 VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)lcd
+VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)sensors
 
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)common
 INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)cp
@@ -380,6 +381,9 @@ endif
 ifeq ($(CONFIG_LCD_GC9D01),y)
 BK7258_AP_BASE_CSRCS += gc9d01.c
 endif
+ifeq ($(CONFIG_SENSORS_SC7A20),y)
+BK7258_AP_BASE_CSRCS += sc7a20.c
+endif
 ifeq ($(CONFIG_BK7258_LIN),y)
 BK7258_AP_BASE_CSRCS += bk7258_lin.c
 endif
@@ -400,6 +404,12 @@ BK7258_AP_BASE_CSRCS += bk7258_dmic.c
 endif
 ifeq ($(CONFIG_BK7258_USBCDC),y)
 BK7258_AP_BASE_CSRCS += bk7258_usbcdc.c
+endif
+ifeq ($(CONFIG_BK7258_USBMSC),y)
+BK7258_AP_BASE_CSRCS += bk7258_usbmsc.c
+endif
+ifeq ($(CONFIG_BK7258_USBMODE),y)
+BK7258_AP_BASE_CSRCS += bk7258_usbmode.c
 endif
 ifeq ($(CONFIG_BK7258_LCD_8080),y)
 BK7258_AP_BASE_CSRCS += bk7258_lcd_8080.c

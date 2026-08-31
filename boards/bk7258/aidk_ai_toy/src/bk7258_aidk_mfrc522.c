@@ -38,17 +38,19 @@
 #include <nuttx/spi/spi.h>
 
 #include <arch/board/board.h>
-
-#include <driver/gpio.h>
+#include <arch/chip/bk7258_pinmux.h>
 
 #define AIDK_NFC_DEVPATH              "/dev/nfc0"
 #define AIDK_NFC_UART_DEVPATH         "/dev/ttyS1"
 #define AIDK_NFC_UART_BAUD            B9600
 #define AIDK_NFC_UART_TIMEOUT_LOOPS   20
 #define AIDK_NFC_POWER_SETTLE_US      10000
+#define AIDK_NFC_UART_PROBE_ATTEMPTS  2
+#define AIDK_NFC_UART_RESYNC_US       5000
 
 #define AIDK_NFC_REG_SERIAL_SPEED     0x1f
 #define AIDK_NFC_REG_TEST_PIN_EN      0x33
+#define AIDK_NFC_REG_VERSION          0x37
 #define AIDK_NFC_TEST_RS232_LINE_EN   0x80
 
 #if BK7258_BOARD_HAS_MFRC522 != 1 || \
@@ -72,15 +74,6 @@ struct aidk_nfc_uart_s
   bool read;
   int last_error;
 };
-
-/* This public SDK function is declared locally just as the official AIDK
- * NFC component does.  Including driver/pwr_clk.h would pull private SDK PM
- * headers that are intentionally outside the NuttX board include surface.
- */
-
-extern bk_err_t bk_pm_module_vote_ctrl_external_ldo(
-  uint32_t module, gpio_id_t gpio_id, gpio_output_state_e value);
-extern bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
 
 static int aidk_nfc_spi_lock(FAR struct spi_dev_s *spi, bool lock);
 static void aidk_nfc_spi_select(FAR struct spi_dev_s *spi, uint32_t devid,
@@ -405,20 +398,19 @@ static void aidk_nfc_spi_recvblock(FAR struct spi_dev_s *spi,
 
 static int aidk_nfc_power_on(void)
 {
-  gpio_id_t pin = (gpio_id_t)BK7258_BOARD_PIN_LDO33_EN;
-  bk_err_t error;
+  int ret;
 
   /* The external 3.3 V rail is owned by the SDK power manager and may be
    * serviced by CP.  Use the same module vote as the official AIDK NFC
    * implementation; direct AP GPIO ownership fails when CP owns LDO control.
    */
 
-  error = bk_pm_module_vote_ctrl_external_ldo(
-            GPIO_CTRL_LDO_MODULE_NFC, pin, GPIO_OUTPUT_STATE_HIGH);
-  if (error != BK_OK)
+  ret = bk7258_shared_rail_vote(BK7258_SHARED_RAIL_NFC,
+                                 BK7258_BOARD_PIN_LDO33_EN, true);
+  if (ret < 0)
     {
-      syslog(LOG_ERR, "AIDK MFRC522 LDO vote failed: %d\n", error);
-      return -EIO;
+      syslog(LOG_ERR, "AIDK MFRC522 LDO vote failed: %d\n", ret);
+      return ret;
     }
 
   (void)nxsig_usleep(AIDK_NFC_POWER_SETTLE_US);
@@ -427,33 +419,22 @@ static int aidk_nfc_power_on(void)
 
 static int aidk_nfc_configure_sideband(void)
 {
-  gpio_config_t config =
-  {
-    .io_mode = GPIO_INPUT_ENABLE,
-    .pull_mode = GPIO_PULL_UP_EN,
-    .func_mode = GPIO_SECOND_FUNC_DISABLE,
-  };
-
   /* The SDK default table maps P53-P55 as LCD outputs.  On AIDK they are
    * MFRC522 outputs: IRQ plus the unused UART MX/DTRQ handshake pair.  Keep
    * the SoC side high-impedance to avoid electrical contention.  The NuttX
    * protocol driver polls MFRC522 registers, so no GPIO ISR is required.
    */
 
-  if (gpio_dev_unmap((gpio_id_t)BK7258_BOARD_PIN_NFC_IRQ) != BK_OK ||
-      bk_gpio_set_config((gpio_id_t)BK7258_BOARD_PIN_NFC_IRQ,
-                         &config) != BK_OK)
+  if (bk7258_gpio_configure_input(BK7258_BOARD_PIN_NFC_IRQ,
+                                   BK7258_GPIO_PULL_UP) < 0)
     {
       return -EIO;
     }
 
-  config.pull_mode = GPIO_PULL_DISABLE;
-  if (gpio_dev_unmap((gpio_id_t)BK7258_BOARD_PIN_NFC_MX) != BK_OK ||
-      bk_gpio_set_config((gpio_id_t)BK7258_BOARD_PIN_NFC_MX,
-                         &config) != BK_OK ||
-      gpio_dev_unmap((gpio_id_t)BK7258_BOARD_PIN_NFC_DTRQ) != BK_OK ||
-      bk_gpio_set_config((gpio_id_t)BK7258_BOARD_PIN_NFC_DTRQ,
-                         &config) != BK_OK)
+  if (bk7258_gpio_configure_input(BK7258_BOARD_PIN_NFC_MX,
+                                   BK7258_GPIO_PULL_NONE) < 0 ||
+      bk7258_gpio_configure_input(BK7258_BOARD_PIN_NFC_DTRQ,
+                                   BK7258_GPIO_PULL_NONE) < 0)
     {
       return -EIO;
     }
@@ -500,17 +481,84 @@ errout:
   return ret;
 }
 
+static bool aidk_nfc_version_supported(uint8_t version)
+{
+  switch (version)
+    {
+      case 0x88:
+      case 0x90:
+      case 0x91:
+      case 0x92:
+        return true;
+
+      default:
+        return false;
+    }
+}
+
+static int aidk_nfc_uart_probe(FAR struct aidk_nfc_uart_s *priv,
+                               FAR uint8_t *version)
+{
+  uint8_t speed[2] = {0, 0};
+  int attempt;
+  int ret = -ETIMEDOUT;
+
+  for (attempt = 1; attempt <= AIDK_NFC_UART_PROBE_ATTEMPTS; attempt++)
+    {
+      speed[0] = 0;
+      speed[1] = 0;
+      *version = 0;
+
+      /* Match the official reset path: consume two SerialSpeedReg replies
+       * before the first software reset so that power-on UART noise cannot
+       * be mistaken for a later register response.
+       */
+
+      (void)file_ioctl(&priv->uart, TCFLSH, TCIOFLUSH);
+      ret = aidk_nfc_uart_read_reg(priv, AIDK_NFC_REG_SERIAL_SPEED,
+                                   &speed[0]);
+      if (ret >= 0)
+        {
+          ret = aidk_nfc_uart_read_reg(priv, AIDK_NFC_REG_SERIAL_SPEED,
+                                       &speed[1]);
+        }
+
+      if (ret >= 0)
+        {
+          ret = aidk_nfc_uart_read_reg(priv, AIDK_NFC_REG_VERSION,
+                                       version);
+        }
+
+      syslog(ret < 0 || !aidk_nfc_version_supported(*version) ?
+             LOG_ERR : LOG_INFO,
+             "AIDK MFRC522 UART probe: attempt=%d speed=%02x/%02x "
+             "version=%02x ret=%d\n",
+             attempt, speed[0], speed[1], *version, ret);
+
+      if (ret >= 0 && aidk_nfc_version_supported(*version))
+        {
+          return OK;
+        }
+
+      if (ret >= 0)
+        {
+          ret = -ENODEV;
+        }
+
+      if (attempt < AIDK_NFC_UART_PROBE_ATTEMPTS)
+        {
+          (void)nxsig_usleep(AIDK_NFC_UART_RESYNC_US);
+        }
+    }
+
+  return ret;
+}
+
 int bk7258_aidk_mfrc522_initialize(void)
 {
   FAR struct aidk_nfc_uart_s *priv = &g_aidk_nfc_uart;
   uint8_t value;
   int ret;
-
-  ret = bk_gpio_driver_init();
-  if (ret != BK_OK)
-    {
-      return -EIO;
-    }
 
   ret = aidk_nfc_configure_sideband();
   if (ret < 0)
@@ -528,21 +576,28 @@ int bk7258_aidk_mfrc522_initialize(void)
   ret = aidk_nfc_uart_open(priv);
   if (ret < 0)
     {
+      syslog(LOG_ERR, "AIDK MFRC522 UART1 open/config failed: %d\n", ret);
       return ret;
     }
 
-  /* Match the official board driver: discard the two startup bytes seen on
-   * SerialSpeedReg before the first software reset.
-   */
-
-  (void)aidk_nfc_uart_read_reg(priv, AIDK_NFC_REG_SERIAL_SPEED, &value);
-  (void)aidk_nfc_uart_read_reg(priv, AIDK_NFC_REG_SERIAL_SPEED, &value);
-
-  ret = mfrc522_register(AIDK_NFC_DEVPATH, &priv->spi);
+  value = 0;
+  ret = aidk_nfc_uart_probe(priv, &value);
   if (ret < 0)
     {
       file_close(&priv->uart);
       return ret;
+    }
+
+  priv->last_error = OK;
+  ret = mfrc522_register(AIDK_NFC_DEVPATH, &priv->spi);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "AIDK MFRC522 protocol registration failed: ret=%d "
+             "uart=%d probed_version=%02x\n",
+             ret, priv->last_error, value);
+      file_close(&priv->uart);
+      return priv->last_error < 0 ? priv->last_error : ret;
     }
 
   /* The reset value exposes MX/DTRQ as RS232 handshake outputs.  The AIDK

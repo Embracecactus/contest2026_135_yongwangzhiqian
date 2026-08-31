@@ -1,6 +1,33 @@
 # Shared BK7258 options; this board's defconfigs select AIDK AI Toy.
 source "../vendor/beken/boards/bk7258/common/Kconfig"
 
+config BK7258_BOARD_AIDK_AI_TOY
+	bool
+	default y
+	select BK7258_BOARD_HAS_SDIO_BINDING
+	select BK7258_BOARD_HAS_USER_GPIO_BINDING
+	help
+		AIDK AI Toy (BK7258 AI Demo) board: UART0 console, CH340E UART0,
+		SC7A20H accelerometer on SoC I2C0 (P20/P21), GC2145 SCCB on SoC
+		I2C1 map mode 1 (P42/P43), 1GB SD NAND, MIC1 plus MIC2
+		AEC-reference/PA audio, keys/LEDs, MFRC522 NFC and Type-C USB.  CN5's
+		single-screen module and CN10's motor are not connected on the current
+		board and are not initialized.  Hardware verification is still pending.
+
+config BK7258_AIDK_SD_NAND
+	bool "AIDK 1GB SD NAND"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_BOARD_HAS_SDIO_4BIT
+	select BK7258_BOARD_DEFAULT_SDIO_4BIT
+	select BK7258_SDIO
+	select MMCSD
+	select MMCSD_SDIO
+	help
+		Bind the chip SDIO host to the AIDK soldered 1GB SD NAND on
+		SDIO map mode 1 (P14-P19).  No card detect is available; the
+		media is always present.
+
 config BK7258_AIDK_SC7A20_PHASE0
 	bool "Probe AIDK SC7A20H identity at boot"
 	default n
@@ -20,7 +47,9 @@ config BK7258_AIDK_SC7A20
 	depends on BK7258_BOARD_AIDK_AI_TOY
 	depends on BK7258_AP_CORE
 	depends on BK7258_I2C && BK7258_I2C_BUS = 0
+	depends on !BK7258_AIDK_SC7A20_PHASE0
 	select SENSORS
+	select SENSORS_SC7A20
 	help
 		Bind the fitted SC7A20H accelerometer on I2C0 to the standard NuttX
 		sensor upper half as /dev/uorb/sensor_accel0.  Samples use struct
@@ -79,11 +108,10 @@ config BK7258_AIDK_CAMERA
 	default n
 	depends on BK7258_BOARD_AIDK_AI_TOY
 	depends on BK7258_AP_CORE && BK7258_DVP && BK7258_PSRAM
-	depends on !BK7258_AIDK_CAMERA_PHASE0
 	select BK7258_DVP_BOARD_GLUE
+	select BK7258_PSRAM_MEDIA
 	help
 		Bind the fitted AIDK GC2145 and its board-specific power/reset/pinmux
 		sequence to the reusable BK7258 DVP imgdata lower half and the standard
 		NuttX V4L2 capture upper half.  The initial production profile exposes
-		640x480, 30 fps MJPEG through /dev/video0.  This replaces the bounded
-		identity-only Phase 0 probe and must not be enabled with it.
+		640x480, 30 fps MJPEG through /dev/video0.

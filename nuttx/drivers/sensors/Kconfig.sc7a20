@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config SENSORS_SC7A20
+	bool "SC7A20 accelerometer"
+	default n
+	depends on SENSORS
+	help
+		Enable the transport-independent SC7A20 accelerometer driver.  A board
+		or SoC binding supplies register read/write callbacks; the driver owns
+		device identity, output-rate control, SI-unit conversion and the
+		standard NuttX uORB sensor lower half.
