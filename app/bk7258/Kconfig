@@ -211,14 +211,14 @@ config BK7258_APP_BT_IPC_TEST_STACKSIZE
 endif
 
 config BK7258_APP_WIFI
-	bool "BK7258 Wi-Fi control and passive monitor command (bkwifi)"
+	bool "BK7258 Wi-Fi control, scan and passive monitor command (bkwifi)"
 	default n
 	depends on BK7258_WIFI_VNET && !BK7258_AP_CORE && SYSTEM_NSH
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	---help---
-		Enable the CP-side bkwifi NSH command.  Besides STA connectivity,
-		it can request AP-owned passive monitor mode and read bounded
+		Enable the CP-side bkwifi NSH command.  Besides STA connectivity and
+		bounded active discovery, it can request AP-owned passive monitor and read
 		aggregate metadata.  It does not expose frame transmission or raw frame
 		contents.  The Wi-Fi VNET driver is owned by BK7258_WIFI_VNET and is
 		enabled independently of this command.
