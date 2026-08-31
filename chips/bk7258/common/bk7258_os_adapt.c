@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/common/bk7258_os_adapt.c
+ * chips/bk7258/common/bk7258_os_adapt.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -137,9 +137,12 @@
 
 #define BK7258_EVENT_TASK_STACKSIZE   3072u
 
+#define BK7258_SDK_THREAD_ARG_BUFSIZE (2u + sizeof(uintptr_t) * 2u + 1u)
+
 #ifdef CONFIG_BK7258_AP_CORE
-#  define BK7258_SDK_THREAD_ARG_BUFSIZE (2u + sizeof(uintptr_t) * 2u + 1u)
-#  define BK7258_DVP_THREAD_NAME         "dvp_work_thread"
+#  define BK7258_SDK_ARG_THREAD_NAME "dvp_work_thread"
+#else
+#  define BK7258_SDK_ARG_THREAD_NAME "tempd"
 #endif
 
 
@@ -222,13 +225,11 @@ struct mq_adpt_s
   char       cname[32];
 };
 
-#ifdef CONFIG_BK7258_AP_CORE
 struct bk7258_sdk_thread_start_s
 {
   beken_thread_function_t function;
   beken_thread_arg_t arg;
 };
-#endif
 
 #if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
 /* Match the SDK SMP implementation of rtos_enter_critical(): first mask
@@ -876,7 +877,6 @@ uint32_t bk_get_second(void)
  * Public Functions - Thread Management
  ****************************************************************************/
 
-#ifdef CONFIG_BK7258_AP_CORE
 static int bk7258_sdk_thread_trampoline(int argc, FAR char *argv[])
 {
   FAR struct bk7258_sdk_thread_start_s *start;
@@ -912,14 +912,12 @@ static int bk7258_sdk_thread_trampoline(int argc, FAR char *argv[])
   function(arg);
   return 0;
 }
-#endif
 
 bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
                             const char *name,
                             beken_thread_function_t function,
                             uint32_t stack_size, beken_thread_arg_t arg)
 {
-#ifdef CONFIG_BK7258_AP_CORE
   FAR struct bk7258_sdk_thread_start_s *start = NULL;
   char context[BK7258_SDK_THREAD_ARG_BUFSIZE];
   FAR char *argv[] = {context, NULL};
@@ -930,12 +928,13 @@ bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
       return BK_FAIL;
     }
 
-  /* Keep the board-verified no-argument path unchanged.  The official DVP
-   * worker is the only v3.1.1.9 AP call site proven to require its non-NULL
-   * context.  Do not generalize this bridge: doing so also starts the SDK IPC
-   * worker, whose semaphore ABI is not compatible with this NuttX wrapper and
-   * was observed to fault in nxsem_wait_slow.  All other non-NULL arguments
-   * therefore retain the established fail-closed behavior.
+  /* Keep the verified no-argument path unchanged.  Exactly one immutable
+   * v3.1.1.9 call site per role is allowed to cross the NuttX main_t boundary
+   * with a context: AP's DVP worker, or CP's temperature daemon.  The latter
+   * receives the OTP temperature code as its non-NULL argument.  Do not
+   * generalize this bridge: the SDK IPC worker has an incompatible semaphore
+   * ABI and was observed to fault in nxsem_wait_slow.  Every other non-NULL
+   * argument retains fail-closed behavior.
    */
 
   if (arg == NULL)
@@ -945,7 +944,7 @@ bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
                            stack_size,
                            (main_t)function, NULL);
     }
-  else if (strcmp(name, BK7258_DVP_THREAD_NAME) == 0)
+  else if (strcmp(name, BK7258_SDK_ARG_THREAD_NAME) == 0)
     {
       start = kmm_malloc(sizeof(*start));
       if (start == NULL)
@@ -977,33 +976,6 @@ bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
       wlerr("ERROR: Failed to create thread(%s): %d\n", name, pid);
       return BK_FAIL;
     }
-#else
-  pid_t pid = -1;
-
-  /* Preserve the established CP ABI exactly.  Enabling previously rejected
-   * non-NULL SDK thread arguments during early CP startup corrupts the
-   * scheduler before NSH; CP support needs separate call-site evidence.
-   */
-
-  if (arg)
-    {
-      wlerr("Task(%s)'s arg is NOT NULL\n", name);
-    }
-  else
-    {
-      pid = kthread_create(name,
-                           SCHED_PRIORITY_DEFAULT + 2 - priority,
-                           stack_size,
-                           (main_t)function, NULL);
-    }
-
-  if (pid <= 0)
-    {
-      wlerr("ERROR: Failed to create thread(%s): %d\n", name, pid);
-      return BK_FAIL;
-    }
-#endif
-
   if (thread)
     {
       *thread = (void *)((uintptr_t)pid);
