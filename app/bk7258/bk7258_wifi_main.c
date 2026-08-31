@@ -154,6 +154,10 @@ static void bkwifi_usage(void)
          "  bkwifi ping    [timeout_ms=%u]\n"
          "  bkwifi tcp <ipv4> <port> [count=%u] [size=%u] [timeout_ms=%u]\n"
          "  bkwifi udp <ipv4> <port> [count=%u] [size=%u] [timeout_ms=%u]\n"
+         "  bkwifi monitor start <channel> [timeout_ms=%u]\n"
+         "  bkwifi monitor channel <channel> [timeout_ms=%u]\n"
+         "  bkwifi monitor status [timeout_ms=%u]\n"
+         "  bkwifi monitor stop [timeout_ms=%u]\n"
          "SSID and password are read with terminal echo disabled.\n",
          BK7258_WIFI_CONNECT_DEFAULT_MS,
          BK7258_WIFI_CONNECT_DEFAULT_MS,
@@ -164,7 +168,11 @@ static void bkwifi_usage(void)
          BK7258_WIFI_ECHO_DEFAULT_MS,
          BK7258_WIFI_ECHO_COUNT_DEFAULT,
          BK7258_WIFI_ECHO_SIZE_DEFAULT,
-         BK7258_WIFI_ECHO_DEFAULT_MS);
+         BK7258_WIFI_ECHO_DEFAULT_MS,
+         BK7258_WIFI_MONITOR_DEFAULT_MS,
+         BK7258_WIFI_MONITOR_DEFAULT_MS,
+         BK7258_WIFI_MONITOR_DEFAULT_MS,
+         BK7258_WIFI_MONITOR_DEFAULT_MS);
 }
 
 static void bkwifi_format_ipv4(uint32_t address, char *buffer,
@@ -227,6 +235,108 @@ static void bkwifi_print_result(enum bk7258_wifi_operation_e operation,
     }
 }
 
+static const char *bkwifi_monitor_operation_name(
+  enum bk7258_wifi_operation_e operation)
+{
+  switch (operation)
+    {
+      case BK7258_WIFI_OPERATION_MONITOR_START:
+        return "start";
+      case BK7258_WIFI_OPERATION_MONITOR_STOP:
+        return "stop";
+      case BK7258_WIFI_OPERATION_MONITOR_CHANNEL:
+        return "channel";
+      default:
+        return "status";
+    }
+}
+
+static int bkwifi_monitor_main(int argc, char *argv[])
+{
+  struct bk7258_wifi_monitor_result_s result;
+  enum bk7258_wifi_operation_e operation;
+  uint32_t timeout_ms = BK7258_WIFI_MONITOR_DEFAULT_MS;
+  uint32_t channel = 0;
+  bool channel_operation;
+  int ret;
+
+  if (argc < 3)
+    {
+      bkwifi_usage();
+      return EXIT_FAILURE;
+    }
+
+  if (strcmp(argv[2], "start") == 0)
+    {
+      operation = BK7258_WIFI_OPERATION_MONITOR_START;
+      channel_operation = true;
+    }
+  else if (strcmp(argv[2], "channel") == 0)
+    {
+      operation = BK7258_WIFI_OPERATION_MONITOR_CHANNEL;
+      channel_operation = true;
+    }
+  else if (strcmp(argv[2], "status") == 0)
+    {
+      operation = BK7258_WIFI_OPERATION_MONITOR_STATUS;
+      channel_operation = false;
+    }
+  else if (strcmp(argv[2], "stop") == 0)
+    {
+      operation = BK7258_WIFI_OPERATION_MONITOR_STOP;
+      channel_operation = false;
+    }
+  else
+    {
+      bkwifi_usage();
+      return EXIT_FAILURE;
+    }
+
+  if (channel_operation)
+    {
+      if (argc < 4 || argc > 5 || bkwifi_u32(argv[3], &channel) < 0 ||
+          channel < BK7258_WIFI_MONITOR_CHANNEL_MIN ||
+          channel > BK7258_WIFI_MONITOR_CHANNEL_MAX ||
+          (argc == 5 && bkwifi_u32(argv[4], &timeout_ms) < 0))
+        {
+          bkwifi_usage();
+          return EXIT_FAILURE;
+        }
+    }
+  else if (argc > 4 ||
+           (argc == 4 && bkwifi_u32(argv[3], &timeout_ms) < 0))
+    {
+      bkwifi_usage();
+      return EXIT_FAILURE;
+    }
+
+  if (timeout_ms < BK7258_WIFI_MONITOR_MIN_MS ||
+      timeout_ms > BK7258_WIFI_CONNECT_MAX_MS)
+    {
+      bkwifi_usage();
+      return EXIT_FAILURE;
+    }
+
+  memset(&result, 0, sizeof(result));
+  ret = bk7258_wifi_monitor_request(operation, channel, timeout_ms, &result);
+  printf("BKWIFI MONITOR operation=%s status=%d active=%" PRIu32
+         " session=%" PRIu32 " channel=%" PRIu32
+         " frames=%" PRIu32 " bytes=%" PRIu32,
+         bkwifi_monitor_operation_name(operation), ret, result.active,
+         result.session, result.channel, result.frame_count,
+         result.byte_count);
+  if (result.frame_count != 0)
+    {
+      printf(" rssi_last=%" PRId32 " rssi_min=%" PRId32
+             " rssi_max=%" PRId32 " tsf=%08" PRIx32 "%08" PRIx32,
+             result.last_rssi, result.min_rssi, result.max_rssi,
+             result.last_tsf_hi, result.last_tsf_lo);
+    }
+
+  printf("\n");
+  return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
+}
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -252,6 +362,11 @@ int main(int argc, char *argv[])
     {
       bkwifi_usage();
       return EXIT_FAILURE;
+    }
+
+  if (strcmp(argv[1], "monitor") == 0)
+    {
+      return bkwifi_monitor_main(argc, argv);
     }
 
   if (strcmp(argv[1], "connect") == 0)

@@ -4,9 +4,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Minimal CP-to-AP Wi-Fi STA control plane.  CP supplies ephemeral runtime
- * credentials; AP logical CPU0 calls the official v3.1.1.9 proxy and applies
- * the CP VNET lease to native NuttX wlan0.
+ * CP-to-AP Wi-Fi control plane.  CP supplies ephemeral runtime credentials
+ * and passive monitor requests; AP logical CPU0 calls the official
+ * v3.1.1.9 proxy and applies the CP VNET lease to native NuttX wlan0.
  ****************************************************************************/
 
 /****************************************************************************
@@ -63,7 +63,7 @@
 
 #define BK7258_WIFI_CONTROL_EPT_NAME          "bk7258-wifi"
 #define BK7258_WIFI_CONTROL_MAGIC             0x49465742u /* "BWFI" */
-#define BK7258_WIFI_CONTROL_VERSION           2u
+#define BK7258_WIFI_CONTROL_VERSION           3u
 #define BK7258_WIFI_CONTROL_SEND_TIMEOUT_MS   500u
 #define BK7258_WIFI_CONTROL_ENDPOINT_WAIT_MS  3000u
 #define BK7258_WIFI_CONTROL_POLL_MS            100u
@@ -111,8 +111,10 @@ struct bk7258_wifi_control_wire_s
   uint32_t timeout_ms;
   uint32_t ssid_len;
   uint32_t password_len;
+  uint32_t monitor_channel;
   struct bk7258_wifi_echo_s echo;
   struct bk7258_wifi_result_s result;
+  struct bk7258_wifi_monitor_result_s monitor_result;
   char ssid[BK7258_WIFI_SSID_MAX_LEN + 1u];
   char password[BK7258_WIFI_PASSWORD_MAX_LEN + 1u];
 };
@@ -136,6 +138,7 @@ struct bk7258_wifi_control_dev_s
   uint32_t waiting_generation;
   uint32_t waiting_sequence;
   struct bk7258_wifi_result_s report;
+  struct bk7258_wifi_monitor_result_s monitor_report;
 #endif
 };
 
@@ -168,6 +171,45 @@ struct bk7258_wifi_sta_config_s
   uint8_t reserved[32];
 };
 
+struct bk7258_wifi_monitor_channel_s
+{
+  uint8_t primary;
+  uint8_t second;
+};
+
+/* Only the stable prefix consumed by this wrapper is described here.  The
+ * immutable SDK owns the complete wifi_frame_info_t, including its private
+ * tail.  Monitor data frames may already be converted to 802.3 by that SDK,
+ * so this MVP deliberately aggregates metadata and never interprets or
+ * exports frame bytes.
+ */
+
+struct bk7258_wifi_monitor_frame_info_s
+{
+  int32_t rssi;
+  uint32_t len;
+  uint32_t tsf_lo;
+  uint32_t tsf_hi;
+};
+
+typedef int (*bk7258_wifi_monitor_callback_t)(
+  FAR const uint8_t *frame, uint32_t len,
+  FAR const struct bk7258_wifi_monitor_frame_info_s *frame_info);
+
+struct bk7258_wifi_monitor_runtime_s
+{
+  uint32_t active;
+  uint32_t session;
+  uint32_t channel;
+  uint32_t frame_count;
+  uint32_t byte_count;
+  int32_t last_rssi;
+  int32_t min_rssi;
+  int32_t max_rssi;
+  uint32_t last_tsf_lo;
+  uint32_t last_tsf_hi;
+};
+
 /* The official archive is compiled with -fshort-enums.  Keep the enum-backed
  * fields byte-sized even though this wrapper intentionally avoids importing
  * the SDK headers into a NuttX translation unit.  The offsets and copy sizes
@@ -180,6 +222,8 @@ _Static_assert(offsetof(struct bk7258_wifi_sta_config_s, password) == 41,
                "v3.1.1.9 STA password offset changed");
 _Static_assert(sizeof(struct bk7258_wifi_sta_config_s) == 260,
                "v3.1.1.9 STA config ABI changed");
+_Static_assert(sizeof(struct bk7258_wifi_monitor_channel_s) == 2,
+               "v3.1.1.9 monitor channel ABI changed");
 #endif
 
 _Static_assert(sizeof(struct bk7258_wifi_control_wire_s) <=
@@ -195,6 +239,12 @@ extern int bk_wifi_sta_set_config(
   FAR const struct bk7258_wifi_sta_config_s *config);
 extern int bk_wifi_sta_start(void);
 extern int bk_wifi_sta_stop(void);
+extern int bk_wifi_monitor_start(void);
+extern int bk_wifi_monitor_stop(void);
+extern int bk_wifi_monitor_set_channel(
+  FAR const struct bk7258_wifi_monitor_channel_s *channel);
+extern int bk_wifi_monitor_register_cb(
+  bk7258_wifi_monitor_callback_t callback);
 extern int wifi_send_com_api_cmd(uint32_t command, uint32_t argc, ...);
 
 static int bk7258_wifi_sync_native_link(
@@ -206,6 +256,10 @@ static int bk7258_wifi_sync_native_link(
  ****************************************************************************/
 
 static struct bk7258_wifi_control_dev_s g_bk7258_wifi_control;
+
+#ifdef CONFIG_BK7258_AP_CORE
+static struct bk7258_wifi_monitor_runtime_s g_bk7258_wifi_monitor;
+#endif
 
 #ifndef CONFIG_BK7258_AP_CORE
 static mutex_t g_bk7258_wifi_control_lock = NXMUTEX_INITIALIZER;
@@ -319,6 +373,213 @@ static int bk7258_wifi_stop_sta(void)
 
       nxsig_usleep(BK7258_WIFI_CONTROL_POLL_MS * 1000u);
     }
+}
+
+static void bk7258_wifi_monitor_add_saturated(FAR uint32_t *counter,
+                                              uint32_t value)
+{
+  uint32_t current;
+  uint32_t next;
+
+  current = __atomic_load_n(counter, __ATOMIC_RELAXED);
+  for (;;)
+    {
+      next = UINT32_MAX - current < value ? UINT32_MAX : current + value;
+      if (__atomic_compare_exchange_n(counter, &current, next, false,
+                                      __ATOMIC_RELEASE, __ATOMIC_RELAXED))
+        {
+          return;
+        }
+    }
+}
+
+static void bk7258_wifi_monitor_update_min(FAR int32_t *minimum,
+                                           int32_t value)
+{
+  int32_t current = __atomic_load_n(minimum, __ATOMIC_RELAXED);
+
+  while (value < current &&
+         !__atomic_compare_exchange_n(minimum, &current, value, false,
+                                      __ATOMIC_RELAXED, __ATOMIC_RELAXED))
+    {
+    }
+}
+
+static void bk7258_wifi_monitor_update_max(FAR int32_t *maximum,
+                                           int32_t value)
+{
+  int32_t current = __atomic_load_n(maximum, __ATOMIC_RELAXED);
+
+  while (value > current &&
+         !__atomic_compare_exchange_n(maximum, &current, value, false,
+                                      __ATOMIC_RELAXED, __ATOMIC_RELAXED))
+    {
+    }
+}
+
+static int bk7258_wifi_monitor_callback(
+  FAR const uint8_t *frame, uint32_t len,
+  FAR const struct bk7258_wifi_monitor_frame_info_s *frame_info)
+{
+  FAR struct bk7258_wifi_monitor_runtime_s *monitor =
+    &g_bk7258_wifi_monitor;
+
+  (void)frame;
+  if (__atomic_load_n(&monitor->active, __ATOMIC_ACQUIRE) == 0)
+    {
+      return OK;
+    }
+
+  if (frame_info != NULL)
+    {
+      __atomic_store_n(&monitor->last_rssi, frame_info->rssi,
+                       __ATOMIC_RELAXED);
+      bk7258_wifi_monitor_update_min(&monitor->min_rssi,
+                                     frame_info->rssi);
+      bk7258_wifi_monitor_update_max(&monitor->max_rssi,
+                                     frame_info->rssi);
+      __atomic_store_n(&monitor->last_tsf_lo, frame_info->tsf_lo,
+                       __ATOMIC_RELAXED);
+      __atomic_store_n(&monitor->last_tsf_hi, frame_info->tsf_hi,
+                       __ATOMIC_RELAXED);
+    }
+
+  bk7258_wifi_monitor_add_saturated(&monitor->byte_count, len);
+  bk7258_wifi_monitor_add_saturated(&monitor->frame_count, 1u);
+
+  return OK;
+}
+
+static void bk7258_wifi_monitor_snapshot(
+  FAR struct bk7258_wifi_monitor_result_s *result)
+{
+  FAR struct bk7258_wifi_monitor_runtime_s *monitor =
+    &g_bk7258_wifi_monitor;
+  uint32_t frames;
+
+  memset(result, 0, sizeof(*result));
+  result->session = __atomic_load_n(&monitor->session, __ATOMIC_ACQUIRE);
+  result->channel = __atomic_load_n(&monitor->channel, __ATOMIC_ACQUIRE);
+  frames = __atomic_load_n(&monitor->frame_count, __ATOMIC_ACQUIRE);
+  result->frame_count = frames;
+  result->byte_count = __atomic_load_n(&monitor->byte_count,
+                                        __ATOMIC_RELAXED);
+  if (frames != 0)
+    {
+      result->last_rssi = __atomic_load_n(&monitor->last_rssi,
+                                          __ATOMIC_RELAXED);
+      result->min_rssi = __atomic_load_n(&monitor->min_rssi,
+                                         __ATOMIC_RELAXED);
+      result->max_rssi = __atomic_load_n(&monitor->max_rssi,
+                                         __ATOMIC_RELAXED);
+      result->last_tsf_lo = __atomic_load_n(&monitor->last_tsf_lo,
+                                            __ATOMIC_RELAXED);
+      result->last_tsf_hi = __atomic_load_n(&monitor->last_tsf_hi,
+                                            __ATOMIC_RELAXED);
+    }
+
+  result->active = __atomic_load_n(&monitor->active, __ATOMIC_ACQUIRE);
+}
+
+static int bk7258_wifi_monitor_set_channel(uint32_t channel)
+{
+  struct bk7258_wifi_monitor_channel_s vendor_channel;
+  int ret;
+
+  if (channel < BK7258_WIFI_MONITOR_CHANNEL_MIN ||
+      channel > BK7258_WIFI_MONITOR_CHANNEL_MAX)
+    {
+      return -EINVAL;
+    }
+
+  vendor_channel.primary = (uint8_t)channel;
+  vendor_channel.second = 0;
+  ret = bk7258_wifi_vendor_result(
+    bk_wifi_monitor_set_channel(&vendor_channel));
+  if (ret == OK)
+    {
+      __atomic_store_n(&g_bk7258_wifi_monitor.channel, channel,
+                       __ATOMIC_RELEASE);
+    }
+
+  return ret;
+}
+
+static int bk7258_wifi_monitor_start_capture(uint32_t channel)
+{
+  FAR struct bk7258_wifi_monitor_runtime_s *monitor =
+    &g_bk7258_wifi_monitor;
+  uint32_t session;
+  int ret;
+
+  if (__atomic_load_n(&monitor->active, __ATOMIC_ACQUIRE) != 0)
+    {
+      return -EALREADY;
+    }
+
+  ret = bk7258_wifi_stop_sta();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_wifi_monitor_set_channel(channel);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_wifi_vendor_result(
+    bk_wifi_monitor_register_cb(bk7258_wifi_monitor_callback));
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  session = __atomic_load_n(&monitor->session, __ATOMIC_RELAXED) + 1u;
+  if (session == 0)
+    {
+      session = 1u;
+    }
+
+  __atomic_store_n(&monitor->session, session, __ATOMIC_RELAXED);
+  __atomic_store_n(&monitor->frame_count, 0u, __ATOMIC_RELAXED);
+  __atomic_store_n(&monitor->byte_count, 0u, __ATOMIC_RELAXED);
+  __atomic_store_n(&monitor->last_rssi, 0, __ATOMIC_RELAXED);
+  __atomic_store_n(&monitor->min_rssi, INT32_MAX, __ATOMIC_RELAXED);
+  __atomic_store_n(&monitor->max_rssi, INT32_MIN, __ATOMIC_RELAXED);
+  __atomic_store_n(&monitor->last_tsf_lo, 0u, __ATOMIC_RELAXED);
+  __atomic_store_n(&monitor->last_tsf_hi, 0u, __ATOMIC_RELAXED);
+  __atomic_store_n(&monitor->active, 1u, __ATOMIC_RELEASE);
+
+  ret = bk7258_wifi_vendor_result(bk_wifi_monitor_start());
+  if (ret < 0)
+    {
+      __atomic_store_n(&monitor->active, 0u, __ATOMIC_RELEASE);
+      (void)bk_wifi_monitor_stop();
+    }
+
+  return ret;
+}
+
+static int bk7258_wifi_monitor_stop_capture(void)
+{
+  FAR struct bk7258_wifi_monitor_runtime_s *monitor =
+    &g_bk7258_wifi_monitor;
+  int ret;
+
+  if (__atomic_load_n(&monitor->active, __ATOMIC_ACQUIRE) == 0)
+    {
+      return OK;
+    }
+
+  ret = bk7258_wifi_vendor_result(bk_wifi_monitor_stop());
+  if (ret == OK)
+    {
+      __atomic_store_n(&monitor->active, 0u, __ATOMIC_RELEASE);
+    }
+
+  return ret;
 }
 
 static uint16_t bk7258_wifi_icmp_checksum(FAR const void *buffer,
@@ -1065,6 +1326,7 @@ static void bk7258_wifi_control_report_immediate(
   report.sequence = request->sequence;
   report.operation = request->operation;
   report.result.status = status;
+  report.monitor_result.status = status;
 
   /* This helper runs in the RPMsg receive callback.  Never sleep there. */
 
@@ -1101,7 +1363,9 @@ static FAR void *bk7258_wifi_control_worker(FAR void *arg)
 
       if (wait_ret == -ETIMEDOUT)
         {
-          if (!__atomic_load_n(&priv->busy, __ATOMIC_ACQUIRE))
+          if (!__atomic_load_n(&priv->busy, __ATOMIC_ACQUIRE) &&
+              __atomic_load_n(&g_bk7258_wifi_monitor.active,
+                              __ATOMIC_ACQUIRE) == 0)
             {
               (void)bk7258_wifi_sync_native_link(&link);
             }
@@ -1135,6 +1399,12 @@ static FAR void *bk7258_wifi_control_worker(FAR void *arg)
         {
           status = -ESTALE;
         }
+      else if (request.operation == BK7258_WIFI_OPERATION_CONNECT &&
+               __atomic_load_n(&g_bk7258_wifi_monitor.active,
+                               __ATOMIC_ACQUIRE) != 0)
+        {
+          status = -EBUSY;
+        }
       else if (request.operation == BK7258_WIFI_OPERATION_CONNECT)
         {
           status = bk7258_wifi_connect(&request, &report.result);
@@ -1145,13 +1415,60 @@ static FAR void *bk7258_wifi_control_worker(FAR void *arg)
         }
       else if (request.operation == BK7258_WIFI_OPERATION_PING)
         {
-          status = bk7258_wifi_ping_gateway(&report.result,
-                                            request.timeout_ms);
+          if (__atomic_load_n(&g_bk7258_wifi_monitor.active,
+                              __ATOMIC_ACQUIRE) != 0)
+            {
+              status = -EBUSY;
+            }
+          else
+            {
+              status = bk7258_wifi_ping_gateway(&report.result,
+                                                request.timeout_ms);
+            }
         }
       else if (request.operation == BK7258_WIFI_OPERATION_TCP_ECHO ||
                request.operation == BK7258_WIFI_OPERATION_UDP_ECHO)
         {
-          status = bk7258_wifi_echo_exchange(&request, &report.result);
+          if (__atomic_load_n(&g_bk7258_wifi_monitor.active,
+                              __ATOMIC_ACQUIRE) != 0)
+            {
+              status = -EBUSY;
+            }
+          else
+            {
+              status = bk7258_wifi_echo_exchange(&request, &report.result);
+            }
+        }
+      else if (request.operation == BK7258_WIFI_OPERATION_MONITOR_START)
+        {
+          status = bk7258_wifi_monitor_start_capture(
+            request.monitor_channel);
+          bk7258_wifi_monitor_snapshot(&report.monitor_result);
+        }
+      else if (request.operation == BK7258_WIFI_OPERATION_MONITOR_STOP)
+        {
+          status = bk7258_wifi_monitor_stop_capture();
+          bk7258_wifi_monitor_snapshot(&report.monitor_result);
+        }
+      else if (request.operation == BK7258_WIFI_OPERATION_MONITOR_STATUS)
+        {
+          status = OK;
+          bk7258_wifi_monitor_snapshot(&report.monitor_result);
+        }
+      else if (request.operation == BK7258_WIFI_OPERATION_MONITOR_CHANNEL)
+        {
+          if (__atomic_load_n(&g_bk7258_wifi_monitor.active,
+                              __ATOMIC_ACQUIRE) == 0)
+            {
+              status = -ENETDOWN;
+            }
+          else
+            {
+              status = bk7258_wifi_monitor_set_channel(
+                request.monitor_channel);
+            }
+
+          bk7258_wifi_monitor_snapshot(&report.monitor_result);
         }
       else
         {
@@ -1159,6 +1476,7 @@ static FAR void *bk7258_wifi_control_worker(FAR void *arg)
         }
 
       report.result.status = status;
+      report.monitor_result.status = status;
       (void)bk7258_wifi_control_send_bounded(&report);
       explicit_bzero(&request, sizeof(request));
       __atomic_store_n(&priv->busy, false, __ATOMIC_RELEASE);
@@ -1271,6 +1589,8 @@ static int bk7258_wifi_control_ept_cb(FAR struct rpmsg_endpoint *ept,
       message->sequence == priv->waiting_sequence)
     {
       memcpy(&priv->report, &message->result, sizeof(priv->report));
+      memcpy(&priv->monitor_report, &message->monitor_result,
+             sizeof(priv->monitor_report));
       __asm volatile ("dmb sy" ::: "memory");
       priv->report_valid = true;
       (void)nxsem_post(&priv->report_sem);
@@ -1443,11 +1763,12 @@ int bk7258_wifi_control_initialize(void)
 }
 
 #ifndef CONFIG_BK7258_AP_CORE
-int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
-                                const char *ssid, const char *password,
-                                const struct bk7258_wifi_echo_s *echo,
-                                uint32_t timeout_ms,
-                                struct bk7258_wifi_result_s *result)
+static int bk7258_wifi_control_exchange(
+  enum bk7258_wifi_operation_e operation,
+  FAR const char *ssid, FAR const char *password,
+  FAR const struct bk7258_wifi_echo_s *echo, uint32_t monitor_channel,
+  uint32_t timeout_ms, FAR struct bk7258_wifi_result_s *result,
+  FAR struct bk7258_wifi_monitor_result_s *monitor_result)
 {
   struct bk7258_wifi_control_dev_s *priv = &g_bk7258_wifi_control;
   volatile struct bk7258_rptun_control_s *control =
@@ -1460,15 +1781,41 @@ int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
 
   bool echo_operation = operation == BK7258_WIFI_OPERATION_TCP_ECHO ||
                         operation == BK7258_WIFI_OPERATION_UDP_ECHO;
+  bool monitor_operation =
+    operation == BK7258_WIFI_OPERATION_MONITOR_START ||
+    operation == BK7258_WIFI_OPERATION_MONITOR_STOP ||
+    operation == BK7258_WIFI_OPERATION_MONITOR_STATUS ||
+    operation == BK7258_WIFI_OPERATION_MONITOR_CHANNEL;
+  bool monitor_channel_operation =
+    operation == BK7258_WIFI_OPERATION_MONITOR_START ||
+    operation == BK7258_WIFI_OPERATION_MONITOR_CHANNEL;
 
   if (result == NULL ||
       (operation != BK7258_WIFI_OPERATION_CONNECT &&
        operation != BK7258_WIFI_OPERATION_STATUS &&
        operation != BK7258_WIFI_OPERATION_PING &&
-       !echo_operation) ||
-      timeout_ms < (echo_operation ? BK7258_WIFI_ECHO_MIN_MS :
-                                      BK7258_WIFI_CONNECT_MIN_MS) ||
+       !echo_operation && !monitor_operation) ||
+      timeout_ms < (monitor_operation ? BK7258_WIFI_MONITOR_MIN_MS :
+                    echo_operation ? BK7258_WIFI_ECHO_MIN_MS :
+                                     BK7258_WIFI_CONNECT_MIN_MS) ||
       timeout_ms > BK7258_WIFI_CONNECT_MAX_MS)
+    {
+      return -EINVAL;
+    }
+
+  if (monitor_operation)
+    {
+      if (monitor_result == NULL || echo != NULL || ssid != NULL ||
+          password != NULL ||
+          (monitor_channel_operation &&
+           (monitor_channel < BK7258_WIFI_MONITOR_CHANNEL_MIN ||
+            monitor_channel > BK7258_WIFI_MONITOR_CHANNEL_MAX)) ||
+          (!monitor_channel_operation && monitor_channel != 0))
+        {
+          return -EINVAL;
+        }
+    }
+  else if (monitor_result != NULL || monitor_channel != 0)
     {
       return -EINVAL;
     }
@@ -1507,6 +1854,11 @@ int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
     }
 
   memset(result, 0, sizeof(*result));
+  if (monitor_result != NULL)
+    {
+      memset(monitor_result, 0, sizeof(*monitor_result));
+    }
+
   ret = bk7258_wifi_control_initialize();
   if (ret < 0)
     {
@@ -1544,6 +1896,7 @@ int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
   priv->waiting_sequence = g_bk7258_wifi_control_sequence;
   priv->report_valid = false;
   memset(&priv->report, 0, sizeof(priv->report));
+  memset(&priv->monitor_report, 0, sizeof(priv->monitor_report));
 
   memset(&request, 0, sizeof(request));
   request.magic = BK7258_WIFI_CONTROL_MAGIC;
@@ -1555,6 +1908,7 @@ int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
   request.timeout_ms = timeout_ms;
   request.ssid_len = (uint32_t)ssid_len;
   request.password_len = (uint32_t)password_len;
+  request.monitor_channel = monitor_channel;
   if (echo_operation)
     {
       memcpy(&request.echo, echo, sizeof(request.echo));
@@ -1589,11 +1943,38 @@ int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
     }
 
   memcpy(result, &priv->report, sizeof(*result));
+  if (monitor_result != NULL)
+    {
+      memcpy(monitor_result, &priv->monitor_report,
+             sizeof(*monitor_result));
+    }
+
   ret = result->status;
 
 out_unlock:
   nxmutex_unlock(&g_bk7258_wifi_control_lock);
   return ret;
+}
+
+int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
+                                FAR const char *ssid,
+                                FAR const char *password,
+                                FAR const struct bk7258_wifi_echo_s *echo,
+                                uint32_t timeout_ms,
+                                FAR struct bk7258_wifi_result_s *result)
+{
+  return bk7258_wifi_control_exchange(operation, ssid, password, echo, 0,
+                                      timeout_ms, result, NULL);
+}
+
+int bk7258_wifi_monitor_request(
+  enum bk7258_wifi_operation_e operation, uint32_t channel,
+  uint32_t timeout_ms, FAR struct bk7258_wifi_monitor_result_s *result)
+{
+  struct bk7258_wifi_result_s ignored;
+
+  return bk7258_wifi_control_exchange(operation, NULL, NULL, NULL, channel,
+                                      timeout_ms, &ignored, result);
 }
 #endif
 

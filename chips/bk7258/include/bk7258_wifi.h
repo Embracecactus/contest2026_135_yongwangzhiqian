@@ -29,6 +29,10 @@ extern "C"
 #define BK7258_WIFI_ECHO_COUNT_MAX     32u
 #define BK7258_WIFI_ECHO_SIZE_DEFAULT  64u
 #define BK7258_WIFI_ECHO_SIZE_MAX      256u
+#define BK7258_WIFI_MONITOR_CHANNEL_MIN 1u
+#define BK7258_WIFI_MONITOR_CHANNEL_MAX 14u
+#define BK7258_WIFI_MONITOR_MIN_MS      1000u
+#define BK7258_WIFI_MONITOR_DEFAULT_MS  20000u
 
 /****************************************************************************
  * Public Types
@@ -40,7 +44,11 @@ enum bk7258_wifi_operation_e
   BK7258_WIFI_OPERATION_STATUS,
   BK7258_WIFI_OPERATION_PING,
   BK7258_WIFI_OPERATION_TCP_ECHO,
-  BK7258_WIFI_OPERATION_UDP_ECHO
+  BK7258_WIFI_OPERATION_UDP_ECHO,
+  BK7258_WIFI_OPERATION_MONITOR_START,
+  BK7258_WIFI_OPERATION_MONITOR_STOP,
+  BK7258_WIFI_OPERATION_MONITOR_STATUS,
+  BK7258_WIFI_OPERATION_MONITOR_CHANNEL
 };
 
 struct bk7258_wifi_echo_s
@@ -61,6 +69,21 @@ struct bk7258_wifi_result_s
   uint32_t router;
   uint32_t echo_count;
   uint32_t echo_bytes;
+};
+
+struct bk7258_wifi_monitor_result_s
+{
+  int32_t status;
+  uint32_t active;
+  uint32_t session;
+  uint32_t channel;
+  uint32_t frame_count;
+  uint32_t byte_count;
+  int32_t last_rssi;
+  int32_t min_rssi;
+  int32_t max_rssi;
+  uint32_t last_tsf_lo;
+  uint32_t last_tsf_hi;
 };
 
 /****************************************************************************
@@ -87,6 +110,9 @@ int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
                                 const struct bk7258_wifi_echo_s *echo,
                                 uint32_t timeout_ms,
                                 struct bk7258_wifi_result_s *result);
+int bk7258_wifi_monitor_request(enum bk7258_wifi_operation_e operation,
+                                uint32_t channel, uint32_t timeout_ms,
+                                struct bk7258_wifi_monitor_result_s *result);
 #  endif
 #endif
 
