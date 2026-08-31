@@ -25,8 +25,7 @@
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_lcd_spi.h>
-
-#include <driver/gpio.h>
+#include <arch/chip/bk7258_pinmux.h>
 
 #define AIDK_LCD_POWER_SETTLE_US 10000u
 
@@ -38,10 +37,6 @@ struct aidk_lcd_panel_s
   FAR struct lcd_dev_s *lcddev;
   uint8_t fbno;
 };
-
-extern bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
-extern bk_err_t bk_pm_module_vote_ctrl_external_ldo(
-  uint32_t module, gpio_id_t gpio_id, gpio_output_state_e value);
 
 _Static_assert(BK7258_BOARD_LCD_PANEL_COUNT == 2,
                "AIDK LCD binding requires two panels");
@@ -131,7 +126,6 @@ static FAR struct aidk_lcd_panel_s *aidk_lcd_from_transport(
 
 static int aidk_lcd_backlight_drive(bool on)
 {
-  gpio_id_t gpio = (gpio_id_t)BK7258_BOARD_LCD_BACKLIGHT_PWM_GPIO;
   bool level = on ? BK7258_BOARD_LCD_BACKLIGHT_ACTIVE_HIGH :
                     !BK7258_BOARD_LCD_BACKLIGHT_ACTIVE_HIGH;
 
@@ -140,16 +134,9 @@ static int aidk_lcd_backlight_drive(bool on)
    * driving the shared active-high backlight transistor.
    */
 
-  if (gpio_dev_unmap(gpio) != BK_OK ||
-      bk_gpio_disable_input(gpio) != BK_OK ||
-      bk_gpio_enable_output(gpio) != BK_OK ||
-      bk_gpio_set_capacity(gpio, GPIO_DRIVER_CAPACITY_0) != BK_OK ||
-      bk_gpio_set_output_value(gpio, level) != BK_OK)
-    {
-      return -EIO;
-    }
-
-  return OK;
+  return bk7258_gpio_configure_output(
+           BK7258_BOARD_LCD_BACKLIGHT_PWM_GPIO, level,
+           BK7258_GPIO_DRIVE_0);
 }
 
 static int aidk_lcd_backlight_restore(void)
@@ -222,6 +209,8 @@ FAR struct lcd_dev_s *board_graphics_setup(unsigned int devno)
 
   if (devno >= nitems(g_aidk_lcd_panels))
     {
+      syslog(LOG_ERR, "AIDK GC9D01 setup failed stage=devno fb=%u\n",
+             devno);
       return NULL;
     }
 
@@ -229,6 +218,9 @@ FAR struct lcd_dev_s *board_graphics_setup(unsigned int devno)
   ret = nxmutex_lock(&g_aidk_lcd_setup_lock);
   if (ret < 0)
     {
+      syslog(LOG_ERR,
+             "AIDK GC9D01 setup failed stage=lock fb=%u ret=%d\n",
+             panel->fbno, ret);
       return NULL;
     }
 
@@ -238,20 +230,16 @@ FAR struct lcd_dev_s *board_graphics_setup(unsigned int devno)
       return panel->lcddev;
     }
 
-  ret = bk_gpio_driver_init();
-  if (ret != BK_OK)
-    {
-      goto errout;
-    }
-
   if (!g_aidk_lcd_power_voted)
     {
-      ret = bk_pm_module_vote_ctrl_external_ldo(
-              GPIO_CTRL_LDO_MODULE_LCD,
-              (gpio_id_t)BK7258_BOARD_LCD_LDO_GPIO,
-              GPIO_OUTPUT_STATE_HIGH);
-      if (ret != BK_OK)
+      ret = bk7258_shared_rail_vote(BK7258_SHARED_RAIL_LCD,
+                                     BK7258_BOARD_LCD_LDO_GPIO, true);
+      if (ret < 0)
         {
+          syslog(LOG_ERR,
+                 "AIDK GC9D01 setup failed stage=power fb=%u "
+                 "ldo=P%u ret=%d\n",
+                 panel->fbno, BK7258_BOARD_LCD_LDO_GPIO, ret);
           goto errout;
         }
 
@@ -266,18 +254,28 @@ FAR struct lcd_dev_s *board_graphics_setup(unsigned int devno)
   ret = aidk_lcd_backlight_drive(false);
   if (ret < 0)
     {
+      syslog(LOG_ERR,
+             "AIDK GC9D01 setup failed stage=backlight-off fb=%u "
+             "gpio=P%u ret=%d\n",
+             panel->fbno, BK7258_BOARD_LCD_BACKLIGHT_PWM_GPIO, ret);
       goto errout;
     }
 
   ret = bk7258_lcd_spi_bus_initialize(&panel->bus_config, &panel->bus);
   if (ret < 0)
     {
+      syslog(LOG_ERR,
+             "AIDK GC9D01 setup failed stage=bus fb=%u spi=%u ret=%d\n",
+             panel->fbno, panel->bus_config.spi_id, ret);
       goto errout_restore_backlight;
     }
 
   panel->lcddev = gc9d01_lcdinitialize(&panel->transport, panel->fbno);
   if (panel->lcddev == NULL)
     {
+      syslog(LOG_ERR,
+             "AIDK GC9D01 setup failed stage=panel-init fb=%u spi=%u\n",
+             panel->fbno, panel->bus_config.spi_id);
       bk7258_lcd_spi_bus_uninitialize(panel->bus);
       panel->bus = NULL;
       goto errout_restore_backlight;
@@ -304,12 +302,18 @@ int bk7258_aidk_dual_lcd_initialize(void)
   ret = fb_register(BK7258_BOARD_LCD1_FBNO, 0);
   if (ret < 0)
     {
+      syslog(LOG_ERR,
+             "AIDK GC9D01 registration failed fb=%u ret=%d\n",
+             BK7258_BOARD_LCD1_FBNO, ret);
       return ret;
     }
 
   ret = fb_register(BK7258_BOARD_LCD2_FBNO, 0);
   if (ret < 0)
     {
+      syslog(LOG_ERR,
+             "AIDK GC9D01 registration failed fb=%u ret=%d\n",
+             BK7258_BOARD_LCD2_FBNO, ret);
       (void)aidk_lcd_backlight_restore();
       return ret;
     }

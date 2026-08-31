@@ -7,6 +7,32 @@
 # underlying driver/feature symbols must never register an application;
 # CMake and Classic Make register commands only from CONFIG_BK7258_APP_*.
 
+config BK7258_APP_USBMODE
+	bool "BK7258 USB0 CDC/MSC mode command"
+	default n
+	depends on !BK7258_AP_CORE && BK7258_OTA_RPMSG && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	---help---
+		Build the usbmode status/cdc/msc command.  The command calls only the
+		CP-to-AP RPMsg control API; it never registers CherryUSB classes itself.
+
+if BK7258_APP_USBMODE
+
+config BK7258_APP_USBMODE_PROGNAME
+	string "usbmode program name"
+	default "usbmode"
+
+config BK7258_APP_USBMODE_PRIORITY
+	int "usbmode priority"
+	default 100
+
+config BK7258_APP_USBMODE_STACKSIZE
+	int "usbmode stack size"
+	default 2048
+
+endif
+
 config BK7258_APP_OTA
 	bool "BK7258 paired OTA operator command"
 	default n

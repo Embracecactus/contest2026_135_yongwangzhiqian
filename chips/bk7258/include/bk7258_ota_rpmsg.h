@@ -13,6 +13,7 @@
 
 #include <arch/chip/bk7258_ota.h>
 #include <arch/chip/bk7258_ota_manager.h>
+#include <arch/chip/bk7258_usbmode.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -46,6 +47,11 @@ int bk7258_ota_rpmsg_apply_http(const char *catalog_url,
 int bk7258_ota_rpmsg_manager_status(
   struct bk7258_ota_manager_status_s *status, uint32_t timeout_ms);
 int bk7258_ota_rpmsg_manager_cancel(uint32_t timeout_ms);
+int bk7258_ota_rpmsg_usbmode_get(enum bk7258_usbmode_e *mode,
+                                 uint32_t timeout_ms);
+int bk7258_ota_rpmsg_usbmode_set(enum bk7258_usbmode_e mode,
+                                 enum bk7258_usbmode_e *actual,
+                                 uint32_t timeout_ms);
 #endif
 #endif
 

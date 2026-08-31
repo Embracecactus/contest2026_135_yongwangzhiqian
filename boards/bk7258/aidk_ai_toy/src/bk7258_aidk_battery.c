@@ -29,8 +29,7 @@
 #include <nuttx/power/battery_ioctl.h>
 
 #include <arch/board/board.h>
-
-#include <driver/gpio.h>
+#include <arch/chip/bk7258_pinmux.h>
 
 #define AIDK_BATTERY_DEVPATH  "/dev/bat0"
 
@@ -92,12 +91,18 @@ static struct aidk_battery_dev_s g_aidk_battery =
 
 static bool aidk_battery_5v_present(void)
 {
-  return bk_gpio_get_input((gpio_id_t)BK7258_BOARD_PIN_5V_DET) != 0;
+  bool high;
+
+  return bk7258_gpio_read_input(BK7258_BOARD_PIN_5V_DET, &high) == OK &&
+         high;
 }
 
 static bool aidk_battery_full(void)
 {
-  return bk_gpio_get_input((gpio_id_t)BK7258_BOARD_PIN_FULL_DET) == 0;
+  bool high;
+
+  return bk7258_gpio_read_input(BK7258_BOARD_PIN_FULL_DET, &high) == OK &&
+         !high;
 }
 
 static int aidk_battery_state(FAR struct battery_charger_dev_s *dev,
@@ -274,14 +279,10 @@ int bk7258_aidk_battery_initialize(void)
 {
   int ret;
 
-  ret = bk_gpio_driver_init();
-  if (ret != BK_OK)
-    {
-      return -EIO;
-    }
-
-  if (bk_gpio_enable_input((gpio_id_t)BK7258_BOARD_PIN_5V_DET) != BK_OK ||
-      bk_gpio_enable_input((gpio_id_t)BK7258_BOARD_PIN_FULL_DET) != BK_OK)
+  if (bk7258_gpio_configure_input(BK7258_BOARD_PIN_5V_DET,
+                                   BK7258_GPIO_PULL_NONE) < 0 ||
+      bk7258_gpio_configure_input(BK7258_BOARD_PIN_FULL_DET,
+                                   BK7258_GPIO_PULL_NONE) < 0)
     {
       return -EIO;
     }

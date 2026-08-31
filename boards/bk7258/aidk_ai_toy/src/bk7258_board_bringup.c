@@ -15,11 +15,9 @@
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_gpio.h>
 #include <arch/chip/bk7258_ota_source_usb.h>
+#include <arch/chip/bk7258_usbmode.h>
 
 #ifdef CONFIG_BK7258_AP_CORE
-#ifdef CONFIG_BK7258_AIDK_CAMERA_PHASE0
-extern int bk7258_aidk_camera_phase0_probe(void);
-#endif
 #ifdef CONFIG_BK7258_AIDK_CAMERA
 extern int bk7258_aidk_camera_initialize(void);
 #endif
@@ -51,14 +49,16 @@ static const struct bk7258_mic_config_s g_bk7258_aidk_mic_config =
 };
 
 #ifdef CONFIG_BK7258_SDIO
-extern int bk7258_board_sdio_initialize(bool widebus);
+extern const struct bk7258_sdio_pin_config_s g_bk7258_board_sdio_pins;
+extern int bk7258_board_sdio_prepare(bool widebus);
 extern bool bk7258_board_sdio_card_present(void);
 
 static const struct bk7258_sdio_board_s g_bk7258_aidk_sdio =
 {
+  .pins = &g_bk7258_board_sdio_pins,
   .card_detect_available = false,
   .media_poll_ms = BK7258_BOARD_SDIO_MEDIA_POLL_MS,
-  .initialize = bk7258_board_sdio_initialize,
+  .prepare = bk7258_board_sdio_prepare,
   .card_present = bk7258_board_sdio_card_present,
 };
 #endif
@@ -123,14 +123,6 @@ int bk7258_board_ap_initialize(void)
     }
 #endif
 
-#ifdef CONFIG_BK7258_AIDK_CAMERA_PHASE0
-  ret = bk7258_aidk_camera_phase0_probe();
-  if (ret < 0)
-    {
-      return ret;
-    }
-#endif
-
 #ifdef CONFIG_BK7258_AIDK_CAMERA
   ret = bk7258_aidk_camera_initialize();
   if (ret < 0)
@@ -176,7 +168,13 @@ int bk7258_board_ap_initialize(void)
     }
 #endif
 
-#ifdef CONFIG_BK7258_OTA_SOURCE_USB
+#ifdef CONFIG_BK7258_USBMODE
+  ret = bk7258_usbmode_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#elif defined(CONFIG_BK7258_OTA_SOURCE_USB)
   ret = bk7258_ota_source_usb_initialize();
   if (ret < 0)
     {

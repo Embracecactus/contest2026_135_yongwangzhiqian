@@ -2145,6 +2145,7 @@ config BK7258_TRNG
 
 source "../vendor/beken/nuttx/drivers/lcd/Kconfig.gc9d01"
 source "../vendor/beken/nuttx/drivers/lcd/Kconfig.ili9488_rgb"
+source "../vendor/beken/nuttx/drivers/sensors/Kconfig.sc7a20"
 
 config BK7258_LCD_RGB
 	bool
@@ -2275,6 +2276,74 @@ config BK7258_USBCDC_PID
 	hex "USB CDC gadget product ID"
 	default 0x0001
 	depends on BK7258_USBCDC
+
+config BK7258_USBMSC
+	bool "USB device mass-storage gadget over a NuttX block device"
+	default n
+	depends on BK7258_AP_CORE
+	depends on !BK7258_USBHOST
+	help
+		Expose a NuttX block device through the BK7258 USB0 device controller.
+		CherryUSB owns USB enumeration and Bulk-Only/SCSI transport while this
+		chip wrapper exclusively uses NuttX block_operations for capacity,
+		sector reads and sector writes.  It never starts the SDK bk_sd_card_*
+		storage stack.
+
+config BK7258_USBMSC_VID
+	hex "USB MSC gadget vendor ID"
+	default 0x1209
+	depends on BK7258_USBMSC
+
+config BK7258_USBMSC_PID
+	hex "USB MSC gadget product ID"
+	default 0x0002
+	depends on BK7258_USBMSC
+
+config BK7258_USBMSC_BUFFER_SIZE
+	int "USB MSC transfer buffer size"
+	default 4096
+	range 512 16384
+	depends on BK7258_USBMSC
+	help
+		Size of the aligned worker buffer used between CherryUSB and the NuttX
+		block driver.  The selected block device sector size must divide this
+		value exactly.
+
+config BK7258_USBMSC_STACKSIZE
+	int "USB MSC worker stack size"
+	default 4096
+	range 2048 16384
+	depends on BK7258_USBMSC
+
+config BK7258_USBMSC_PRIORITY
+	int "USB MSC worker SDK priority"
+	default 4
+	range 0 15
+	depends on BK7258_USBMSC
+
+config BK7258_USBMODE
+	bool "Dynamic USB0 CDC/MSC mode manager"
+	default n
+	depends on BK7258_AP_CORE && BK7258_SDIO
+	depends on !BK7258_USBHOST && !BK7258_OTA_SOURCE_USB
+	select BK7258_USBCDC
+	select BK7258_USBMSC
+	help
+		Own USB0 and switch it between the NuttX /dev/ttyGS0 CDC gadget and
+		a CherryUSB MSC gadget.  Each switch disconnects and re-enumerates the
+		device.  USB CDC OTA cannot own the controller at the same time; file
+		and HTTP OTA sources remain independent.
+
+config BK7258_USBMODE_BLOCKDEV
+	string "USB MSC backing block device"
+	default "/dev/mmcsd0"
+	depends on BK7258_USBMODE
+
+config BK7258_USBMODE_REENUM_DELAY_MS
+	int "USB disconnect interval during mode switch"
+	default 300
+	range 100 2000
+	depends on BK7258_USBMODE
 
 config BK7258_LCD_8080
 	bool "8080-MCU LCD framebuffer lower half"

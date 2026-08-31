@@ -86,6 +86,7 @@ struct bk7258_usbcdc_priv_s
   bool tx_enabled;
   bool tx_pending;
   bool serial_registered;
+  bool opened;
   struct bk7258_usbcdc_config_s config;
 };
 
@@ -413,13 +414,17 @@ static void bk7258_usbcdc_kick_tx(FAR struct bk7258_usbcdc_priv_s *priv)
 
 static int bk7258_usbcdc_setup(FAR struct uart_dev_s *uartdev)
 {
-  (void)uartdev;
+  FAR struct bk7258_usbcdc_priv_s *priv = uartdev->priv;
+
+  priv->opened = true;
   return OK;
 }
 
 static void bk7258_usbcdc_shutdown(FAR struct uart_dev_s *uartdev)
 {
-  (void)uartdev;
+  FAR struct bk7258_usbcdc_priv_s *priv = uartdev->priv;
+
+  priv->opened = false;
 }
 
 static int bk7258_usbcdc_attach(FAR struct uart_dev_s *uartdev)
@@ -602,11 +607,12 @@ int bk7258_usbcdc_initialize_with_config(
       memset(&priv->rx, 0, sizeof(priv->rx));
       memset(&priv->tx, 0, sizeof(priv->tx));
       priv->uartdev.recv.size   = sizeof(priv->rx.data);
-      priv->uartdev.recv.buffer = (FAR uint8_t *)priv->rx.data;
+      priv->uartdev.recv.buffer = (FAR char *)priv->rx.data;
       priv->uartdev.xmit.size   = sizeof(priv->tx.data);
-      priv->uartdev.xmit.buffer = (FAR uint8_t *)priv->tx.data;
+      priv->uartdev.xmit.buffer = (FAR char *)priv->tx.data;
       priv->uartdev.ops         = &g_bk7258_usbcdc_uart_ops;
       priv->uartdev.priv        = priv;
+      priv->opened              = false;
 
       ret = uart_register(devname, &priv->uartdev);
       if (ret < 0)
@@ -657,7 +663,19 @@ int bk7258_usbcdc_uninitialize(void)
       return -ENODEV;
     }
 
-  (void)usbd_deinitialize();
+  if (priv->serial_registered && priv->opened)
+    {
+      nxmutex_unlock(&priv->lock);
+      return -EBUSY;
+    }
+
+  ret = usbd_deinitialize();
+  if (ret < 0)
+    {
+      nxmutex_unlock(&priv->lock);
+      return ret;
+    }
+
   if (priv->serial_registered)
     {
       unregister_driver(priv->config.devname);

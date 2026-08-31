@@ -340,6 +340,11 @@ if(CONFIG_LCD_GC9D01)
        ${BK7258_NUTTX_OVERLAY_DIR}/drivers/lcd/gc9d01.c)
 endif()
 
+if(CONFIG_SENSORS_SC7A20)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/sensors/sc7a20.c)
+endif()
+
 if(CONFIG_BK7258_LIN)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lin.c)
 endif()
@@ -366,6 +371,14 @@ endif()
 
 if(CONFIG_BK7258_USBCDC)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_usbcdc.c)
+endif()
+
+if(CONFIG_BK7258_USBMSC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_usbmsc.c)
+endif()
+
+if(CONFIG_BK7258_USBMODE)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_usbmode.c)
 endif()
 
 if(CONFIG_BK7258_LCD_8080)

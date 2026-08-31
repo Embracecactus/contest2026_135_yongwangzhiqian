@@ -19,8 +19,6 @@
 #include <arch/chip/bk7258_dvp.h>
 #include <arch/chip/bk7258_pinmux.h>
 
-#include <driver/gpio.h>
-
 #include "bk7258_aidk_camera_glue.h"
 
 #define AIDK_CAMERA_RESET_SETTLE_US     20000u
@@ -30,9 +28,6 @@
 #define AIDK_CAMERA_DVP_INPUT_MUX_MODE  0u
 #define AIDK_CAMERA_MCLK_MUX_MODE       1u
 #define AIDK_CAMERA_I2C1_MUX_MODE       0u
-
-extern bk_err_t gpio_dev_map(gpio_id_t gpio_id, gpio_dev_t dev);
-extern bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
 
 #if BK7258_BOARD_DVP_I2C_BUS != 1 || \
     BK7258_BOARD_DVP_I2C_MAP_MODE != 1 || \
@@ -55,39 +50,25 @@ static int aidk_camera_i2c_route_apply(void)
     { BK7258_BOARD_DVP_I2C_SCL_GPIO, AIDK_CAMERA_I2C1_MUX_MODE, true },
     { BK7258_BOARD_DVP_I2C_SDA_GPIO, AIDK_CAMERA_I2C1_MUX_MODE, true },
   };
-  gpio_id_t scl = (gpio_id_t)BK7258_BOARD_DVP_I2C_SCL_GPIO;
-  gpio_id_t sda = (gpio_id_t)BK7258_BOARD_DVP_I2C_SDA_GPIO;
-
-  if (gpio_dev_unmap(scl) != BK_OK ||
-      gpio_dev_unmap(sda) != BK_OK ||
-      gpio_dev_map(scl, GPIO_DEV_I2C1_SCL) != BK_OK ||
-      gpio_dev_map(sda, GPIO_DEV_I2C1_SDA) != BK_OK)
-    {
-      return -EIO;
-    }
-
   return bk7258_pinmux_apply(configs, sizeof(configs) / sizeof(configs[0]));
 }
 
 static int aidk_camera_sensor_reset(void)
 {
-  gpio_id_t reset = (gpio_id_t)BK7258_BOARD_DVP_RESET_GPIO;
-
-  if (bk_gpio_disable_input(reset) != BK_OK ||
-      bk_gpio_set_output_high(reset) != BK_OK ||
-      bk_gpio_enable_output(reset) != BK_OK)
+  if (bk7258_gpio_configure_output(BK7258_BOARD_DVP_RESET_GPIO, true,
+                                    BK7258_GPIO_DRIVE_0) < 0)
     {
       return -EIO;
     }
 
   (void)nxsig_usleep(AIDK_CAMERA_RESET_SETTLE_US);
-  if (bk_gpio_set_output_low(reset) != BK_OK)
+  if (bk7258_gpio_write(BK7258_BOARD_DVP_RESET_GPIO, false) < 0)
     {
       return -EIO;
     }
 
   (void)nxsig_usleep(AIDK_CAMERA_RESET_ASSERT_US);
-  if (bk_gpio_set_output_high(reset) != BK_OK)
+  if (bk7258_gpio_write(BK7258_BOARD_DVP_RESET_GPIO, true) < 0)
     {
       return -EIO;
     }
