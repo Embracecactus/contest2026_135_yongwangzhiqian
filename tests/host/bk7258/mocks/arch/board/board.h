@@ -21,6 +21,9 @@ int bk7258_board_cp_devices_initialize(void);
 
 #ifdef CONFIG_BK7258_AP_CORE
 int bk7258_board_ap_initialize(void);
+#ifdef CONFIG_BK7258_BOARD_DEFERRED_INIT
+int bk7258_board_ap_deferred_initialize(void);
+#endif
 #endif
 
 #endif /* __TESTS_BK7258_MOCKS_ARCH_BOARD_BOARD_H */

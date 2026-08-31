@@ -23,6 +23,7 @@ enum event_e
   EVENT_BOARD_DEVICES,
   EVENT_APPLICATION_PREPARE,
   EVENT_CHIP_READY,
+  EVENT_BOARD_DEFERRED,
   EVENT_APPLICATION_START,
   EVENT_CHIP_SUPERVISE,
   EVENT_CHIP_FAIL,
@@ -35,6 +36,7 @@ enum scenario_e
   SCENARIO_BOARD_FAIL,
   SCENARIO_APPLICATION_PREPARE_FAIL,
   SCENARIO_READY_FAIL,
+  SCENARIO_DEFERRED_FAIL,
   SCENARIO_APPLICATION_START_FAIL,
 };
 
@@ -89,6 +91,12 @@ int bk7258_ap_lifecycle_publish_ready(uint32_t *failure)
   return 0;
 }
 
+int bk7258_board_ap_deferred_initialize(void)
+{
+  event(EVENT_BOARD_DEFERRED);
+  return g_scenario == SCENARIO_DEFERRED_FAIL ? -EAGAIN : 0;
+}
+
 int bk7258_ap_application_start(void)
 {
   event(EVENT_APPLICATION_START);
@@ -136,7 +144,8 @@ int main(void)
   static const int success[] =
   {
     EVENT_CHIP_STARTUP, EVENT_BOARD_DEVICES, EVENT_APPLICATION_PREPARE,
-    EVENT_CHIP_READY, EVENT_APPLICATION_START, EVENT_CHIP_SUPERVISE
+    EVENT_CHIP_READY, EVENT_BOARD_DEFERRED, EVENT_APPLICATION_START,
+    EVENT_CHIP_SUPERVISE
   };
   static const int startup_fail[] =
   {
@@ -149,7 +158,7 @@ int main(void)
   static const int prepare_fail[] =
   {
     EVENT_CHIP_STARTUP, EVENT_BOARD_DEVICES, EVENT_APPLICATION_PREPARE,
-    EVENT_CHIP_READY, EVENT_CHIP_SUPERVISE
+    EVENT_CHIP_READY, EVENT_BOARD_DEFERRED, EVENT_CHIP_SUPERVISE
   };
   static const int ready_fail[] =
   {
@@ -167,6 +176,8 @@ int main(void)
                (int)nitems(prepare_fail), 1, BK7258_AP_ERROR_NONE);
   run_scenario(SCENARIO_READY_FAIL, ready_fail, (int)nitems(ready_fail), 2,
                BK7258_AP_ERROR_BAD_BOOT_STATE);
+  run_scenario(SCENARIO_DEFERRED_FAIL, success,
+               (int)nitems(success), 1, BK7258_AP_ERROR_NONE);
   run_scenario(SCENARIO_APPLICATION_START_FAIL, success,
                (int)nitems(success), 1, BK7258_AP_ERROR_NONE);
 
