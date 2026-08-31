@@ -1,0 +1,8 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+#ifndef __MOCK_DRIVER_FLASH_TYPES_H
+#define __MOCK_DRIVER_FLASH_TYPES_H
+
+#define BK_ERR_FLASH_PARTITION_NOT_FOUND (-2001)
+#define BK_ERR_FLASH_ADDR_OUT_OF_RANGE    (-2002)
+
+#endif /* __MOCK_DRIVER_FLASH_TYPES_H */

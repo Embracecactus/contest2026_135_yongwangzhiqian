@@ -15,6 +15,13 @@
 
 typedef uint32_t gpio_id_t;
 
+typedef void (*gpio_isr_t)(gpio_id_t gpio_id);
+
+typedef enum
+{
+  GPIO_INT_TYPE_FALLING_EDGE = 0,
+} gpio_int_type_t;
+
 #define GPIO_25  ((gpio_id_t)25)
 
 typedef uint32_t gpio_dev_t;

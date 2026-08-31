@@ -17,7 +17,10 @@
  * header by the implementation); do not redefine it here. */
 
 #define MSEC2TICK(ms) ((clock_t)(ms))
+#define clock_compare(tick1, tick2) \
+  ((int64_t)((tick2) - (tick1)) >= 0)
 
+clock_t clock_systime_ticks(void);
 int clock_systime_timespec(struct timespec *ts);
 
 #endif /* __MOCK_NUTTX_CLOCK_H */
