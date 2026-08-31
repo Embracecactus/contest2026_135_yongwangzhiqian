@@ -5,14 +5,14 @@
 
 本记录覆盖 Git 已跟踪的 `*.c`、`*.cpp`、`*.h`、`*.S`、`*.s`、`*.ld`、
 `*.py`、`*.sh` 和 `*.ps1` 编译/可执行源码，AI 对话日志不作为源码统计。
-2026-08-30 按当前拟提交工作树（包含拟提交的未跟踪新增文件，排除删除项、`logs/`、
+2026-08-31 按当前拟提交工作树（包含拟提交的未跟踪新增文件，排除删除项、`logs/`、
 `memory/` 及忽略的 SDK/工具链/构建产物）复核结果为：
 
-- 非测试源码 363 个，其中 362 个声明 Apache-2.0 SPDX；唯一例外是保持初始化原样的
+- 非测试源码 370 个，其中 369 个声明 Apache-2.0 SPDX；唯一例外是保持初始化原样的
   `app/hello_app/hello_app_main.c`，由仓库根 `LICENSE` 管理；
-- `tests/host/bk7258/`、`app/testing/bk7258/` 和 `tests/pytest/` 共 164 个测试源码，
-  Apache-2.0 SPDX 覆盖 164/164；
-- 合计 527 个，Apache-2.0 SPDX 覆盖 526/527，另有上述一个明确模板例外。
+- `tests/host/bk7258/`、`app/testing/bk7258/` 和 `tests/pytest/` 共 169 个测试源码，
+  Apache-2.0 SPDX 覆盖 169/169；
+- 合计 539 个，Apache-2.0 SPDX 覆盖 538/539，另有上述一个明确模板例外。
 
 本轮新增源码在创建时声明 SPDX；既有源码若只缺机器可读标识，则在保留原版权与
 完整许可正文的前提下补齐。任何从 SDK 或外部仓提取的协议/初始化序列均在下表固定
@@ -23,12 +23,15 @@
 | 范围 | 来源与许可处理 |
 |---|---|
 | `app/hello_app/hello_app_main.c` | 来自本仓初始脚手架提交 `8987bbc`，并在 `7d9c26c` 统一为 team 135；本轮按该基线逐字恢复，不为许可证格式单独改写模板。仓库根 `LICENSE` 为 Apache-2.0。 |
-| `app/bk7258/*.c` | 12 个 BK7258 命令均由本仓创建，原创建提交为 `38699e8`、`77ed92f`、`095b013`、`6fef975`、`36fc6a2`、`ecea356`、`7923cb4`、`c588afb`、`56d8cfd` 和 `0cc5ef7`；本轮从 hello 模板目录分离到独立产品应用，适用 Apache-2.0。 |
+| `app/bk7258/*.c` | 13 个 BK7258 命令与 3 个 Agent 生命周期/轻量音频桥接源均由本仓创建；命令从 hello 模板目录分离到独立产品应用，Agent 源则从板层迁入应用层。全部适用 Apache-2.0。 |
 | `boards/bk7258/*/include/board.h` | 本仓提交 `eaef241` 创建的三个最小板级转发头，不复制其他 NuttX 板实现；适用仓库默认 Apache-2.0。 |
 | `nuttx/drivers/lcd/gc9d01.c` | 初始化序列源自 Beken BK-AVDK v3.1.1.9 的 `components/bk_peripheral/src/lcd/spi/lcd_spi_gc9d01.c`（Apache-2.0）；本仓重写为传输无关、可上游化的 NuttX LCD 驱动，未暴露 SDK 私有面板对象。 |
 | `nuttx/drivers/lcd/ili9488_rgb.c` | 初始化序列源自 `tuya/TuyaOpen-T5AI` 固定提交 `13379b63e07e78770fb4d0bffe36db2754658132` 的 `tuyaos/tuyaos_adapter/src/test/test_dvp/lcd_ill9488.c`（仓库根许可证 Apache-2.0）；本仓实现仅保留通用寄存器序列和传输回调，并复用官方 NuttX `ili9488.h` 命令定义。 |
+| `nuttx/drivers/input/gt9xx.c` | 基线逐文件来自 manifest 工作区 `open-vela/nuttx` 固定提交 `76354c637858ecb0aa4601629327acb6f44a26bb` 的 `drivers/input/gt9xx.c`（Apache-2.0）；本仓仅补齐标准 `TSIOC_GETMAXPOINTS` ioctl，并以独立 Kconfig/build gate 替代而非同时链接官方实现。GPIO、复位、电源和 bitbang-I2C 实例策略仍由物理板绑定提供。 |
+| `nuttx/drivers/sensors/sc7a20.c` | 设备 ID、寄存器、量程和 ODR 语义源自 manifest 固定的 Beken BK-AVDK v3.1.1.9 提交 `cb080de1655d579c7593ecf504c440997c4c137b` 的 `ap/components/bk_gsensor/gsensor_sc7a20.c`（仓库根许可证 Apache-2.0）；本仓重写为硬件无关寄存器 transport 和标准 NuttX uORB sensor lower-half，未复制 SDK 线程、私有回调或 I2C/GPIO 实例策略。 |
 | `chips/bk7258/bootloader/` | BL1、BL2、链接脚本及板级 MCUboot 配置/ABI 由本仓提交创建。BL2 在构建时链接工作区 `apps/boot/mcuboot/mcuboot` 的固定上游源码；仓内文件只是 BK7258 启动、Flash map、安全计数和最小配置适配，不包含上游 bootutil/TinyCrypt 实现副本。两侧均为 Apache-2.0。 |
 | `chips/bk7258/common/bk7258_os_adapt.c` | 本仓面向 NuttX 编写的 SDK OS 适配层，文件原有完整 ASF Apache-2.0 许可正文；本轮仅增加 SPDX。 |
+| `chips/bk7258/common/bk7258_sdk_partition.{c,h}` | 本仓实现的 SDK 语义分区 ID 与生成布局行之间的显式转换；枚举顺序对齐 manifest 固定的 Beken BK-AVDK v3.1.1.9 提交 `cb080de1655d579c7593ecf504c440997c4c137b` 所产出 SDK profile `chips/bk7258/bk_idk/armino_as_lib/versions/v3.1.1.9/cp-aidk/include/partitions.h`（生产源的 `cp/include/driver/flash_partition.h` 通过 `<partitions.h>` 消费该枚举），未复制 SDK Flash 实现。上述 SDK 头及本仓实现均为 Apache-2.0。 |
 | `chips/bk7258/include/eth_mac*.h`、`lan8742.h` | 来自 manifest 固定的 Beken SDK v3.1.1.9 Ethernet 公开头。原文件保留 Beken 版权和完整 Apache-2.0 正文；其中 `lan8742.h` 与 SDK 相同，其余仅有换行或已注明的 NuttX 符号兼容调整。 |
 | `docs/platforms/bk7258/hardware/t5ai-core/probe/*.{c,ld}` | 本仓提交 `56b303e` 创建的历史实板探针源码，适用仓库默认 Apache-2.0。 |
 | `boards/bk7258/build/vendorsetup.sh` | 本仓提交 `eaef241` 创建的构建环境适配脚本；随完整板目录映射进入 OpenVela 的 vendor 树，适用仓库默认 Apache-2.0。 |

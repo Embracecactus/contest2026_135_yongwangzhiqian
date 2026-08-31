@@ -252,10 +252,10 @@ N5FS:D5 OK
 
 **新增文件**：
 
-- `board/bk7258/src/bk7258_flash_mtd.h` — 暴露 `bk7258_flash_mtd_initialize()`
-  及（gated）`bk7258_flash_mtd_selftest()`。
-- `board/bk7258/src/bk7258_flash_mtd.c` — board-owned `struct mtd_dev_s`
-  分区组合实现。
+- 历史路径 `board/bk7258/src/bk7258_flash_mtd.{c,h}` 曾暴露
+  `bk7258_flash_mtd_initialize()` 及（gated）`bk7258_flash_mtd_selftest()`。
+- 当前分层将 Flash controller 与 MTD lower-half 归于 BK7258 chip；物理板只通过
+  所选 partition CSV 与配置提供可暴露范围和实例策略，不拥有另一套 MTD lower-half。
 
 **MTD 接口**：
 
