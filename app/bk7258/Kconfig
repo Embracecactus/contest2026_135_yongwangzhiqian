@@ -239,6 +239,32 @@ config BK7258_APP_WIFI_STACKSIZE
 
 endif
 
+config BK7258_APP_IDENTITY
+	bool "BK7258 read-only device identity command"
+	default n
+	depends on BK7258_IDENTITY && !BK7258_AP_CORE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Build the CP-side bkidentity command.  It prints only the SDK-derived
+		SHA-256 device identity and provides no OTP/eFuse write operation.
+
+if BK7258_APP_IDENTITY
+
+config BK7258_APP_IDENTITY_PROGNAME
+	string "bkidentity program name"
+	default "bkidentity"
+
+config BK7258_APP_IDENTITY_PRIORITY
+	int "bkidentity priority"
+	default 100
+
+config BK7258_APP_IDENTITY_STACKSIZE
+	int "bkidentity stack size"
+	default 2048
+
+endif
+
 config BK7258_APP_PSRAM_TEST
 	bool "BK7258 bounded PSRAM allocator test command"
 	default n

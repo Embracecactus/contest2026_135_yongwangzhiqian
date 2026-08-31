@@ -103,6 +103,9 @@ BK7258_CP_CSRCS += bk7258_sdk_partition.c
 ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
 BK7258_CP_CSRCS += bk7258_flash_mtd.c
 endif
+ifeq ($(CONFIG_BK7258_IDENTITY),y)
+BK7258_CP_CSRCS += bk7258_identity.c
+endif
 ifeq ($(CONFIG_BOARDCTL_RESET_CAUSE),y)
 BK7258_CP_CSRCS += bk7258_reset_cause.c
 endif
