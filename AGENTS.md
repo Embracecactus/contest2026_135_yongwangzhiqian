@@ -13,6 +13,33 @@
 - Before a fresh-key full download, the non-halting target preflight must match the latest accepted base generation, while the new package must independently pass its complete internal trust verification and use strictly increasing rollback counters. After download, fresh boot/readback evidence must identify the new generation. Do not require the not-yet-installed public key to match the pre-download target.
 - The apps-only loader path remains bound to the already-installed public-only trust contract and its exact target fingerprint. Do not mix it with the fresh-key full-download path or add a parallel key resolver, trust gate, or download policy.
 
+## BK7258 hardware-first debugging
+
+- Active BK7258 bring-up and adaptation defaults to hardware-fast mode.  State
+  `current mode: hardware-fast iteration` once at the start, then keep updates
+  short and action-oriented.  Context compaction or a new session must not
+  silently return the task to final-acceptance mode.
+- In hardware-fast mode, follow the shortest useful loop: use the current board
+  log to select one evidence-based hypothesis, make the smallest correctly
+  layered change, incrementally build only the affected target, perform only
+  the minimum image-integrity check, and hand off the directly flashable
+  artifact immediately.  Real-board results are the acceptance signal for the
+  iteration.
+- A debug-artifact handoff is not a final project handoff.  Defer broad host
+  regression, unrelated-board clean builds, documentation and provenance
+  audits, official-checkout audits, ZIP/release assembly and other final
+  acceptance work until the owner reports that the hardware path passes.  Do
+  not introduce speculative tests merely to delay the next hardware attempt.
+- Mandatory device-data and trust protections still apply.  If an iteration
+  requires a whole-device BIN, perform only the minimum required accepted-base,
+  fresh-key, signature, rollback and exact-Flash-size checks, then hand off the
+  BIN without unrelated gates or a ZIP.  Prefer the installed apps-only path
+  when its existing trust contract permits the affected CP/AP update.
+- Exit hardware-fast mode only when the owner explicitly requests final
+  acceptance/release work or reports that the relevant hardware behavior has
+  passed.  Then run the deferred regression, multi-board, provenance and final
+  delivery checks before claiming completion.
+
 ## BK7258 architecture
 
 - Before using an old implementation as design input, define the target public commands, internal domain boundaries, authoritative source for each mutable fact, and deletion set. Stop at architecture analysis if any is unknown.
@@ -284,3 +311,12 @@
   A copied `evidence/build-manifest.json` must validate against its packaged
   target/layout/security facts without depending on the original `out/` path.
   Only initial release construction may consume the path-bound build handoff.
+
+
+<claude-mem-context>
+# Memory Context
+
+# [contest2026_135_yongwangzhiqian] recent context, 2026-08-31 11:30am GMT+8
+
+No previous sessions found.
+</claude-mem-context>
