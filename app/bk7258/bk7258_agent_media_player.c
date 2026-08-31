@@ -1,9 +1,9 @@
 /****************************************************************************
- * boards/bk7258/common/src/bk7258_product_media_player.c
+ * app/bk7258/bk7258_agent_media_player.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Board product PCM media_player bridge for the official Agent.  This board
+ * BK7258 product PCM media_player bridge for the official Agent.  This product
  * profile intentionally omits the full media framework, so URL decoding and
  * seeking remain unsupported.  Voice playback stays on the public NuttX
  * audio upper-half ABI and the BK7258 speaker lower half.
@@ -11,9 +11,8 @@
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_AUD) && \
-    defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
-    defined(CONFIG_BK7258_AGENT_MEDIA_PLAYER) && !defined(CONFIG_MEDIA)
+#if defined(CONFIG_BK7258_APP_AGENT) && defined(CONFIG_BK7258_AUD) && \
+    !defined(CONFIG_MEDIA)
 
 #include <errno.h>
 #include <fcntl.h>
@@ -596,8 +595,8 @@ static int bk7258_agent_player_cleanup_locked(
   return first;
 }
 
-/* Referenced by bk7258_aud.c so this object is extracted from libarch.a even
- * though the ABI symbols only satisfy weak definitions in the Agent. */
+/* Referenced by the product lifecycle so this object is extracted from the
+ * application archive even though the Agent provides weak ABI stubs. */
 
 __attribute__((used)) void bk7258_agent_media_player_link(void)
 {
@@ -1153,6 +1152,4 @@ int media_policy_set_stream_volume(const char *stream, int volume)
   return ret;
 }
 
-#endif /* CONFIG_BK7258_AP_CORE && CONFIG_BK7258_AUD &&
-        * CONFIG_EXAMPLES_AI_AGENT_VELA &&
-        * CONFIG_BK7258_AGENT_MEDIA_PLAYER && !CONFIG_MEDIA */
+#endif /* CONFIG_BK7258_APP_AGENT && CONFIG_BK7258_AUD && !CONFIG_MEDIA */

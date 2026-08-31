@@ -1,5 +1,5 @@
 ############################################################################
-# contest2026_135_yongwangzhiqian/chips/bk7258/CMakeLists.txt
+# chips/bk7258/CMakeLists.txt
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -22,6 +22,11 @@ set(BK7258_SDK_INCLUDE_DIR "${BK7258_SDK_DIR}/include")
 set(BK7258_SDK_CONFIG_DIR "${BK7258_SDK_DIR}/config")
 set(BK7258_SDK_LIBS_DIR "${BK7258_SDK_DIR}/libs")
 set(BK7258_NUTTX_OVERLAY_DIR "${NUTTX_DIR}/../vendor/beken/nuttx")
+
+if(CONFIG_INPUT_GT9XX_STANDARD_IOCTL AND CONFIG_INPUT_GT9XX)
+  message(FATAL_ERROR
+          "select exactly one GT9xx implementation")
+endif()
 
 function(bk7258_wrap_sdk_symbol)
   foreach(BK7258_SYMBOL ${ARGN})
@@ -75,7 +80,12 @@ list(APPEND BK7258_CP_SRCS
      ${BK7258_COMMON_RUNTIME_SRCS}
      common/bk7258_stage_runner.c
      cp/bk7258_cp_platform.c
-     cp/bk7258_flash.c)
+     cp/bk7258_flash.c
+     common/bk7258_sdk_partition.c)
+
+if(CONFIG_BK7258_FLASH_MTD)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_flash_mtd.c)
+endif()
 
 if(CONFIG_BOARDCTL_RESET_CAUSE)
   list(APPEND BK7258_CP_SRCS common/bk7258_reset_cause.c)
@@ -343,6 +353,11 @@ endif()
 if(CONFIG_SENSORS_SC7A20)
   list(APPEND BK7258_AP_BASE_SRCS
        ${BK7258_NUTTX_OVERLAY_DIR}/drivers/sensors/sc7a20.c)
+endif()
+
+if(CONFIG_INPUT_GT9XX_STANDARD_IOCTL)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/input/gt9xx.c)
 endif()
 
 if(CONFIG_BK7258_LIN)

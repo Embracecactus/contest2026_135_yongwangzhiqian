@@ -16,8 +16,11 @@
 
 #include <arch/chip/bk7258_flash.h>
 
+#include <bk7258_partitions.h>
 #include <driver/flash.h>
 #include <driver/flash_partition.h>
+
+#include "bk7258_sdk_partition.h"
 
 #define BK7258_FLASH_ID_GD25WQ64E 0x00c86517u
 #define BK7258_FLASH_ID_GD25Q64E  0x00c84017u
@@ -27,6 +30,28 @@
 static mutex_t g_bk7258_flash_lock = NXMUTEX_INITIALIZER;
 static bool g_bk7258_flash_ready;
 static uint32_t g_bk7258_flash_size;
+
+struct bk7258_layout_partition_s
+{
+  uint32_t start;
+  uint32_t size;
+};
+
+#define BK7258_LAYOUT_PARTITION_ROW(id, name, offset, length, execute, read, \
+                                    write) \
+  [id] = {offset, length},
+
+static const struct bk7258_layout_partition_s
+  g_bk7258_layout_partitions[BK7258_PARTITION_COUNT] =
+{
+  BK7258_PARTITION_FOREACH(BK7258_LAYOUT_PARTITION_ROW)
+};
+
+static bool bk7258_layout_partition_valid(uint32_t partition)
+{
+  return partition < BK7258_PARTITION_COUNT &&
+         (BK7258_PARTITION_VALID_MASK & (1u << partition)) != 0u;
+}
 
 static bool bk7258_flash_id_supported(uint32_t id)
 {
@@ -213,34 +238,33 @@ int bk7258_flash_write(uint32_t address, FAR const void *buffer,
 int bk7258_flash_partition_get_info(
   uint32_t partition, FAR struct bk7258_flash_partition_info_s *result)
 {
-  FAR const bk_logic_partition_t *info;
+  FAR const struct bk7258_layout_partition_s *info;
 
   if (result == NULL)
     {
       return -EINVAL;
     }
 
-  info = bk_flash_partition_get_info((bk_partition_t)partition);
-  if (info == NULL)
+  if (!bk7258_layout_partition_valid(partition))
     {
       return -ENOENT;
     }
 
-  if (info->partition_length == 0u ||
-      info->partition_start_addr >
-        UINT32_MAX - info->partition_length)
+  info = &g_bk7258_layout_partitions[partition];
+  if (info->size == 0u || info->start > UINT32_MAX - info->size)
     {
       return -EINVAL;
     }
 
-  result->start = info->partition_start_addr;
-  result->size = info->partition_length;
+  result->start = info->start;
+  result->size = info->size;
   return 0;
 }
 
 int bk7258_flash_partition_update(uint32_t partition, uint32_t offset,
                                   FAR const void *buffer, size_t nbytes)
 {
+  uint32_t sdk_partition;
   int ret;
 
   if (buffer == NULL || nbytes == 0u ||
@@ -250,6 +274,12 @@ int bk7258_flash_partition_update(uint32_t partition, uint32_t offset,
       nbytes > UINT32_MAX - offset)
     {
       return -EINVAL;
+    }
+
+  ret = bk7258_sdk_partition_from_layout(partition, &sdk_partition);
+  if (ret < 0)
+    {
+      return ret;
     }
 
   ret = nxmutex_lock(&g_bk7258_flash_lock);
@@ -262,7 +292,7 @@ int bk7258_flash_partition_update(uint32_t partition, uint32_t offset,
   if (ret == 0)
     {
       if (bk_flash_set_protect_type(FLASH_PROTECT_NONE) != BK_OK ||
-          bk_spec_flash_write_bytes(partition, buffer,
+          bk_spec_flash_write_bytes((bk_partition_t)sdk_partition, buffer,
                                     (uint32_t)nbytes, offset) != BK_OK)
         {
           ret = -EIO;

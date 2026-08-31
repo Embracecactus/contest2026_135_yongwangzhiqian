@@ -4,6 +4,21 @@
 
 include $(APPDIR)/Make.defs
 
+ifeq ($(CONFIG_BK7258_APP_AGENT),y)
+CSRCS += bk7258_agent_product.c
+ifeq ($(CONFIG_MEDIA),)
+ifneq ($(filter y,$(CONFIG_BK7258_MIC) $(CONFIG_BK7258_AUD)),)
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)frameworks$(DELIM)multimedia$(DELIM)media$(DELIM)include
+endif
+ifeq ($(CONFIG_BK7258_MIC),y)
+CSRCS += bk7258_agent_media_recorder.c
+endif
+ifeq ($(CONFIG_BK7258_AUD),y)
+CSRCS += bk7258_agent_media_player.c
+endif
+endif
+endif
+
 ifeq ($(CONFIG_BK7258_APP_OTA),y)
 PROGNAME  += $(CONFIG_BK7258_APP_OTA_PROGNAME)
 PRIORITY  += $(CONFIG_BK7258_APP_OTA_PRIORITY)

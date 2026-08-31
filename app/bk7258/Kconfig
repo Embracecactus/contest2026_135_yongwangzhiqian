@@ -7,6 +7,18 @@
 # underlying driver/feature symbols must never register an application;
 # CMake and Classic Make register commands only from CONFIG_BK7258_APP_*.
 
+config BK7258_APP_AGENT
+	bool "Start the official openvela Agent on the BK7258 AP"
+	default y if EXAMPLES_AI_AGENT_VELA
+	depends on BK7258_AP_CORE && EXAMPLES_AI_AGENT_VELA
+	depends on !AI_AGENT_LVGL_UI || BK7258_BOARD_HAS_LVGL_UI_BINDING
+	select BK7258_AP_APPLICATION_LIFECYCLE
+	help
+		Bind the official Agent package to the generic BK7258 AP application
+		lifecycle.  Product startup and the optional lightweight audio ABI
+		backends live in this application directory; chip and board code remain
+		independent of the Agent product.
+
 config BK7258_APP_USBMODE
 	bool "BK7258 USB0 CDC/MSC mode command"
 	default n

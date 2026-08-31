@@ -29,9 +29,6 @@
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_dvp.h>
 #include <arch/chip/bk7258_pinmux.h>
-#include <arch/chip/bk7258_pm.h>
-
-#include <driver/gpio.h>
 
 #include "bk7258_t5_board_camera_i2c.h"
 
@@ -40,27 +37,19 @@
 #define T5_CAMERA_RESET_ASSERT_US    100000u
 #define T5_CAMERA_RESET_RELEASE_US   100000u
 #define T5_CAMERA_MCLK_SETTLE_US     40000u
-#define T5_CAMERA_GPIO_REG_BASE      0x44000400u
 #define T5_CAMERA_DVP_INPUT_MUX_MODE 0u
 #define T5_CAMERA_MCLK_MUX_MODE      1u
-#define T5_CAMERA_GPIO_INPUT          ((1u << 5) | (1u << 4) | \
-                                      (1u << 3) | (1u << 2) | (1u << 1))
-#define T5_CAMERA_GPIO_OUTPUT_HIGH    (1u << 1)
-#define T5_CAMERA_GPIO_OUTPUT_LOW     0u
-
-#define T5_CAMERA_REG32(address) \
-  (*(FAR volatile uint32_t *)(uintptr_t)(address))
 
 static mutex_t g_t5_camera_i2c_lock = NXMUTEX_INITIALIZER;
 
-static gpio_id_t t5_camera_i2c_scl(void)
+static uint8_t t5_camera_i2c_scl(void)
 {
-  return (gpio_id_t)BK7258_BOARD_DVP_I2C_SCL_GPIO;
+  return BK7258_BOARD_DVP_I2C_SCL_GPIO;
 }
 
-static gpio_id_t t5_camera_i2c_sda(void)
+static uint8_t t5_camera_i2c_sda(void)
 {
-  return (gpio_id_t)BK7258_BOARD_DVP_I2C_SDA_GPIO;
+  return BK7258_BOARD_DVP_I2C_SDA_GPIO;
 }
 
 static void t5_camera_i2c_delay(void)
@@ -86,40 +75,49 @@ static void t5_camera_i2c_delay(void)
     }
 }
 
-static void t5_camera_i2c_drive_low(gpio_id_t pin)
+static void t5_camera_i2c_drive_low(uint8_t pin)
 {
-  /* Match v3.1.1.9 sim_i2c_driver.c: its fast path writes the complete
-   * per-pin AON GPIO word instead of walking three public GPIO calls on
-   * every SCCB edge.  P13/P15 are board-exclusive while the camera is open.
+  /* The chip helper owns the timing-sensitive AON GPIO mechanism.  P13/P15
+   * are board-exclusive while the camera is open.
    */
 
-  T5_CAMERA_REG32(T5_CAMERA_GPIO_REG_BASE +
-                  (uintptr_t)pin * sizeof(uint32_t)) =
-    T5_CAMERA_GPIO_OUTPUT_LOW;
+  (void)bk7258_gpio_fast_write(pin, false);
 }
 
-static void t5_camera_i2c_drive_high(gpio_id_t pin)
+static void t5_camera_i2c_drive_high(uint8_t pin)
 {
-  T5_CAMERA_REG32(T5_CAMERA_GPIO_REG_BASE +
-                  (uintptr_t)pin * sizeof(uint32_t)) =
-    T5_CAMERA_GPIO_OUTPUT_HIGH;
+  (void)bk7258_gpio_fast_write(pin, true);
 }
 
-static void t5_camera_i2c_release(gpio_id_t pin)
+static void t5_camera_i2c_release(uint8_t pin)
 {
   /* Output disabled, input and internal pull-up enabled.  Keep the output
    * latch high so returning to output mode cannot create a low glitch.
    */
 
-  T5_CAMERA_REG32(T5_CAMERA_GPIO_REG_BASE +
-                  (uintptr_t)pin * sizeof(uint32_t)) =
-    T5_CAMERA_GPIO_INPUT;
+  (void)bk7258_gpio_fast_release_pullup(pin);
 }
 
-static bool t5_camera_i2c_get_input(gpio_id_t pin)
+static bool t5_camera_i2c_get_input(uint8_t pin)
 {
-  return (T5_CAMERA_REG32(T5_CAMERA_GPIO_REG_BASE +
-                         (uintptr_t)pin * sizeof(uint32_t)) & 1u) != 0;
+  bool high = false;
+
+  return bk7258_gpio_read_input(pin, &high) == 0 && high;
+}
+
+static int t5_camera_i2c_configure_lines(void)
+{
+  int ret;
+
+  ret = bk7258_gpio_configure_output(t5_camera_i2c_scl(), true,
+                                     BK7258_GPIO_DRIVE_0);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return bk7258_gpio_configure_output(t5_camera_i2c_sda(), true,
+                                      BK7258_GPIO_DRIVE_0);
 }
 
 static bool t5_camera_i2c_release_scl(void)
@@ -279,23 +277,38 @@ static bool t5_camera_i2c_valid_param(
 static int t5_camera_i2c_memory_read(
   FAR const struct bk7258_dvp_i2c_transfer_s *transfer);
 
-static void t5_camera_sensor_reset(void)
+static int t5_camera_sensor_reset(void)
 {
-  gpio_id_t reset = (gpio_id_t)BK7258_BOARD_DVP_RESET_GPIO;
+  uint8_t reset = BK7258_BOARD_DVP_RESET_GPIO;
+  int ret;
 
   /* The immutable SDK toggles RESET low/high without an asserted interval.
    * GC2145's public data sheet omits this board-level delay, while the
    * source-available Tuya T5 binding for the same sensor holds active-low
    * RESET for 100 ms and waits another 100 ms before enabling DVP/MCLK. */
 
-  bk_gpio_disable_input(reset);
-  bk_gpio_set_output_high(reset);
-  bk_gpio_enable_output(reset);
+  ret = bk7258_gpio_configure_output(reset, true, BK7258_GPIO_DRIVE_0);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   (void)nxsig_usleep(T5_CAMERA_RESET_SETTLE_US);
-  bk_gpio_set_output_low(reset);
+  ret = bk7258_gpio_write(reset, false);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   (void)nxsig_usleep(T5_CAMERA_RESET_ASSERT_US);
-  bk_gpio_set_output_high(reset);
+  ret = bk7258_gpio_write(reset, true);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   (void)nxsig_usleep(T5_CAMERA_RESET_RELEASE_US);
+  return OK;
 }
 
 static int t5_camera_dvp_pinmux_apply(void)
@@ -324,9 +337,18 @@ int bk7258_t5_camera_prepare(FAR void *arg)
   int ret;
 
   (void)arg;
-  t5_camera_i2c_drive_high(t5_camera_i2c_scl());
-  t5_camera_i2c_drive_high(t5_camera_i2c_sda());
-  t5_camera_sensor_reset();
+  ret = t5_camera_i2c_configure_lines();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = t5_camera_sensor_reset();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   ret = t5_camera_dvp_pinmux_apply();
   return ret;
 }
@@ -426,9 +448,15 @@ out:
 
 static int t5_camera_i2c_initialize(FAR void *arg)
 {
+  int ret;
+
   (void)arg;
-  t5_camera_i2c_drive_high(t5_camera_i2c_scl());
-  t5_camera_i2c_drive_high(t5_camera_i2c_sda());
+  ret = t5_camera_i2c_configure_lines();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   t5_camera_i2c_delay();
   return t5_camera_i2c_get_input(t5_camera_i2c_scl()) &&
          t5_camera_i2c_get_input(t5_camera_i2c_sda()) ? 0 : -EBUSY;

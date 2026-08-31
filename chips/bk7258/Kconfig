@@ -56,6 +56,26 @@ config BK7258_AP_CORE
 		BK7258_AP_SMP_BOOTSTRAP; see boards/bk7258/CONFIGS.md for the
 		canonical physical-board/profile catalog.
 
+config BK7258_AP_APPLICATION_LIFECYCLE
+	bool
+	default n
+	depends on BK7258_AP_CORE
+	help
+		Enable the generic AP application prepare/start callbacks around the
+		chip READY publication.  A product application selects this contract
+		and supplies both callbacks; chip and board code do not select or name
+		a product.
+
+config BK7258_FLASH_MTD
+	bool
+	default n
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
+	select MTD
+	help
+		Provide the BK7258 raw-Flash NuttX MTD lower half.  A board storage
+		policy selects this mechanism and supplies the selected partition's
+		physical geometry and storage-guard owner.
+
 menu "BK7258 debug and UART pin ownership"
 
 if BK7258_SWD_DEBUG
@@ -706,8 +726,9 @@ config BK7258_OTA_SOURCE_FILE
 	depends on BK7258_OTA_MANAGER
 	---help---
 		Read an extracted signed catalog, signature and CP/AP objects from one
-		mounted directory.  T5Board TF and AIDK fixed NAND share this backend;
-		media mounting and durable download checkpoints remain board policy.
+		mounted directory.  Removable and fixed block-media boards may share
+		this backend; media mounting and durable download checkpoints remain
+		board policy.
 
 config BK7258_OTA_SOURCE_HTTP
 	bool "HTTPS Range OTA source"
@@ -2145,6 +2166,7 @@ config BK7258_TRNG
 
 source "../vendor/beken/nuttx/drivers/lcd/Kconfig.gc9d01"
 source "../vendor/beken/nuttx/drivers/lcd/Kconfig.ili9488_rgb"
+source "../vendor/beken/nuttx/drivers/input/Kconfig.gt9xx"
 source "../vendor/beken/nuttx/drivers/sensors/Kconfig.sc7a20"
 
 config BK7258_LCD_RGB

@@ -87,7 +87,6 @@
 #define BK7258_BOARD_TOUCH_INTERRUPT_GPIO         55
 #define BK7258_BOARD_TOUCH_RESET_GPIO             54
 #define BK7258_BOARD_TOUCH_DEVPATH                "/dev/input0"
-#define BK7258_BOARD_TOUCH_LVGL_DEVPATH           "/dev/bk7258-gt1151-lvgl"
 
 /* DVP camera connector P10, source-verified from T5-Board V1.0.2.  GPIO13
  * and GPIO15 are the camera sensor's control bus on this board; this wiring
@@ -125,6 +124,7 @@
 
 #define BK7258_BOARD_SDIO_D2_GPIO                10
 #define BK7258_BOARD_SDIO_D3_GPIO                11
+#define BK7258_BOARD_SDIO_MAP_MODE                0
 #define BK7258_BOARD_SDIO_CLK_GPIO               2
 #define BK7258_BOARD_SDIO_CMD_GPIO               3
 #define BK7258_BOARD_SDIO_D0_GPIO                4

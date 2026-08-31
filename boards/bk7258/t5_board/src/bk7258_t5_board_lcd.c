@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/boards/bk7258/t5_board/src/
+ * boards/bk7258/t5_board/src/
  * bk7258_t5_board_lcd.c
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -14,7 +14,6 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <syslog.h>
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_lcd.h>
@@ -23,77 +22,37 @@
 
 #include <nuttx/lcd/ili9488_rgb.h>
 
-#include <driver/gpio.h>
-
-/* The v3.1.1.9 AP archive exposes the GPIO device mapper but not its internal
- * header through the board wrapper bundle.
- */
-
-extern bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
-extern bk_err_t gpio_dev_map(gpio_id_t gpio_id, gpio_dev_t dev);
-
 static int t5_board_lcd_control_pins_initialize(
   const struct bk7258_lcd_board_s *board)
 {
-  const gpio_id_t pins[] =
+  const uint8_t pins[] =
   {
-    (gpio_id_t)board->control.clock_gpio,
-    (gpio_id_t)board->control.chip_select_gpio,
-    (gpio_id_t)board->control.data_gpio,
-    (gpio_id_t)board->control.reset_gpio,
-    (gpio_id_t)BK7258_BOARD_LCD_BACKLIGHT_GPIO,
+    board->control.clock_gpio,
+    board->control.chip_select_gpio,
+    board->control.data_gpio,
+    board->control.reset_gpio,
+    BK7258_BOARD_LCD_BACKLIGHT_GPIO,
   };
-  struct bk7258_pinmux_config_s configs[
-    sizeof(pins) / sizeof(pins[0])];
-  bk_err_t ret;
-  int pinmux_ret;
+  const bool initial_high[] =
+  {
+    true,
+    true,
+    false,
+    false,
+    BK7258_BOARD_LCD_BACKLIGHT_ACTIVE_HIGH == 0,
+  };
   unsigned int i;
-
-  ret = bk_gpio_driver_init();
-  if (ret != BK_OK)
-    {
-      return -EIO;
-    }
+  int ret;
 
   for (i = 0; i < sizeof(pins) / sizeof(pins[0]); i++)
     {
-      ret = gpio_dev_unmap(pins[i]);
-      if (ret != BK_OK)
+      ret = bk7258_gpio_configure_output(
+        pins[i], initial_high[i],
+        i < 4 ? BK7258_GPIO_DRIVE_3 : BK7258_GPIO_DRIVE_0);
+      if (ret < 0)
         {
-          syslog(LOG_ERR, "T5-Board LCD: GPIO%d unmap failed: %d\n",
-                 pins[i], ret);
-          return -EIO;
+          return ret;
         }
-
-      configs[i].pin = (uint8_t)pins[i];
-      configs[i].function = 0u;
-      configs[i].peripheral = false;
-    }
-
-  pinmux_ret = bk7258_pinmux_apply(configs,
-                                   sizeof(configs) / sizeof(configs[0]));
-  if (pinmux_ret < 0)
-    {
-      return pinmux_ret;
-    }
-
-  for (i = 0; i < sizeof(pins) / sizeof(pins[0]); i++)
-    {
-      ret = bk_gpio_disable_input(pins[i]);
-      if (ret != BK_OK)
-        {
-          return -EIO;
-        }
-
-      ret = bk_gpio_enable_output(pins[i]);
-      if (ret != BK_OK)
-        {
-          return -EIO;
-        }
-
-      (void)bk_gpio_set_capacity(pins[i],
-                                 i < 4 ? GPIO_DRIVER_CAPACITY_3 :
-                                         GPIO_DRIVER_CAPACITY_0);
     }
 
   return OK;
@@ -102,68 +61,33 @@ static int t5_board_lcd_control_pins_initialize(
 static int t5_board_lcd_rgb_pins_initialize(
   const struct bk7258_lcd_board_s *board)
 {
-  static const struct
+  static const struct bk7258_lcd_rgb_pin_s pins[] =
   {
-    gpio_id_t pin;
-    gpio_dev_t dev;
-  } pins[] =
-  {
-    { GPIO_23, GPIO_DEV_LCD_R3 },
-    { GPIO_22, GPIO_DEV_LCD_R4 },
-    { GPIO_21, GPIO_DEV_LCD_R5 },
-    { GPIO_20, GPIO_DEV_LCD_R6 },
-    { GPIO_19, GPIO_DEV_LCD_R7 },
-    { GPIO_42, GPIO_DEV_LCD_G2 },
-    { GPIO_41, GPIO_DEV_LCD_G3 },
-    { GPIO_40, GPIO_DEV_LCD_G4 },
-    { GPIO_26, GPIO_DEV_LCD_G5 },
-    { GPIO_25, GPIO_DEV_LCD_G6 },
-    { GPIO_24, GPIO_DEV_LCD_G7 },
-    { GPIO_47, GPIO_DEV_LCD_B3 },
-    { GPIO_46, GPIO_DEV_LCD_B4 },
-    { GPIO_45, GPIO_DEV_LCD_B5 },
-    { GPIO_44, GPIO_DEV_LCD_B6 },
-    { GPIO_43, GPIO_DEV_LCD_B7 },
-    { GPIO_14, GPIO_DEV_LCD_CLK },
-    { GPIO_16, GPIO_DEV_LCD_DE },
-    { GPIO_17, GPIO_DEV_LCD_HSYNC },
-    { GPIO_18, GPIO_DEV_LCD_VSYNC },
+    { BK7258_LCD_RGB_R3, 23 },
+    { BK7258_LCD_RGB_R4, 22 },
+    { BK7258_LCD_RGB_R5, 21 },
+    { BK7258_LCD_RGB_R6, 20 },
+    { BK7258_LCD_RGB_R7, 19 },
+    { BK7258_LCD_RGB_G2, 42 },
+    { BK7258_LCD_RGB_G3, 41 },
+    { BK7258_LCD_RGB_G4, 40 },
+    { BK7258_LCD_RGB_G5, 26 },
+    { BK7258_LCD_RGB_G6, 25 },
+    { BK7258_LCD_RGB_G7, 24 },
+    { BK7258_LCD_RGB_B3, 47 },
+    { BK7258_LCD_RGB_B4, 46 },
+    { BK7258_LCD_RGB_B5, 45 },
+    { BK7258_LCD_RGB_B6, 44 },
+    { BK7258_LCD_RGB_B7, 43 },
+    { BK7258_LCD_RGB_CLK, 14 },
+    { BK7258_LCD_RGB_DE, 16 },
+    { BK7258_LCD_RGB_HSYNC, 17 },
+    { BK7258_LCD_RGB_VSYNC, 18 },
   };
-  bk_err_t ret;
-  unsigned int i;
 
   (void)board;
-
-  for (i = 0; i < sizeof(pins) / sizeof(pins[0]); i++)
-    {
-      ret = gpio_dev_unmap(pins[i].pin);
-      if (ret != BK_OK)
-        {
-          syslog(LOG_ERR, "T5-Board LCD: RGB GPIO%d unmap failed: %d\n",
-                 pins[i].pin, ret);
-          return -EIO;
-        }
-
-      ret = gpio_dev_map(pins[i].pin, pins[i].dev);
-      if (ret != BK_OK)
-        {
-          syslog(LOG_ERR, "T5-Board LCD: RGB GPIO%d map failed: %d\n",
-                 pins[i].pin, ret);
-          return -EIO;
-        }
-
-      ret = bk_gpio_enable_output(pins[i].pin);
-      if (ret != BK_OK)
-        {
-          syslog(LOG_ERR, "T5-Board LCD: RGB GPIO%d output failed: %d\n",
-                 pins[i].pin, ret);
-          return -EIO;
-        }
-
-      (void)bk_gpio_set_capacity(pins[i].pin, GPIO_DRIVER_CAPACITY_1);
-    }
-
-  return OK;
+  return bk7258_lcd_rgb_configure_pins(
+    pins, sizeof(pins) / sizeof(pins[0]));
 }
 
 static int t5_board_lcd_set_backlight(
@@ -173,9 +97,7 @@ static int t5_board_lcd_set_backlight(
                     !BK7258_BOARD_LCD_BACKLIGHT_ACTIVE_HIGH;
 
   (void)board;
-  return bk_gpio_set_output_value(
-           (gpio_id_t)BK7258_BOARD_LCD_BACKLIGHT_GPIO, level) == BK_OK ?
-         OK : -EIO;
+  return bk7258_gpio_write(BK7258_BOARD_LCD_BACKLIGHT_GPIO, level);
 }
 
 static const struct bk7258_lcd_panel_s g_t5_board_ili9488_panel =

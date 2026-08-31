@@ -1,18 +1,17 @@
 /****************************************************************************
- * boards/bk7258/common/src/bk7258_product_media_recorder.c
+ * app/bk7258/bk7258_agent_media_recorder.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Board product media_recorder ABI bridge for the official Agent.  The media
+ * BK7258 product media_recorder ABI bridge for the official Agent.  The media
  * framework is intentionally disabled for this profile; the bridge keeps the
  * Agent's portable backend on the public NuttX audio upper-half ABI.
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_MIC) && \
-    defined(CONFIG_EXAMPLES_AI_AGENT_VELA) && \
-    defined(CONFIG_BK7258_AGENT_MEDIA_RECORDER) && !defined(CONFIG_MEDIA)
+#if defined(CONFIG_BK7258_APP_AGENT) && defined(CONFIG_BK7258_MIC) && \
+    !defined(CONFIG_MEDIA)
 
 #include <errno.h>
 #include <fcntl.h>
@@ -352,8 +351,8 @@ static void bk7258_agent_audio_copy_frames(
     }
 }
 
-/* Referenced by bk7258_mic.c so this object is extracted from libarch.a even
- * though the six ABI symbols only satisfy weak definitions in the Agent. */
+/* Referenced by the product lifecycle so this object is extracted from the
+ * application archive even though the Agent provides weak ABI stubs. */
 __attribute__((used)) void bk7258_agent_media_recorder_link(void)
 {
 }
@@ -844,6 +843,4 @@ int media_recorder_close(void *handle)
   return ret < 0 ? ret : cleanup_ret;
 }
 
-#endif /* CONFIG_BK7258_AP_CORE && CONFIG_BK7258_MIC &&
-        * CONFIG_EXAMPLES_AI_AGENT_VELA &&
-        * CONFIG_BK7258_AGENT_MEDIA_RECORDER && !CONFIG_MEDIA */
+#endif /* CONFIG_BK7258_APP_AGENT && CONFIG_BK7258_MIC && !CONFIG_MEDIA */
