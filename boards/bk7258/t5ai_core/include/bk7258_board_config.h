@@ -31,6 +31,9 @@
 #define BK7258_BOARD_MIC_CHANNELS                 1
 #define BK7258_BOARD_HAS_MIC1                     1
 #define BK7258_BOARD_HAS_MIC2                     0
+#define BK7258_BOARD_MIC1_ANA_GAIN                0
+#define BK7258_BOARD_MIC2_ANA_GAIN                0
+#define BK7258_BOARD_MIC_AEC_DELAY_SAMPLES        0
 
 #define BK7258_BOARD_USER_LED_GPIO               9
 #define BK7258_BOARD_USER_LED_ACTIVE_HIGH        1

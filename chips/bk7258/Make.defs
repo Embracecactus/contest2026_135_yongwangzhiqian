@@ -369,6 +369,9 @@ endif
 ifeq ($(CONFIG_BK7258_AUD),y)
 BK7258_AP_BASE_CSRCS += bk7258_aud.c
 endif
+ifeq ($(CONFIG_BK7258_AUDIO_PREPROCESS),y)
+BK7258_AP_BASE_CSRCS += bk7258_audio_preprocess.c
+endif
 ifeq ($(CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION),y)
 BK7258_AP_BASE_CSRCS += bk7258_aud_validation.c
 endif

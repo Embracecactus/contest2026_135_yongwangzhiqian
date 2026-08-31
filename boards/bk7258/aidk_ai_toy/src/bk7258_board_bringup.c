@@ -44,7 +44,11 @@ static const struct bk7258_mic_config_s g_bk7258_aidk_mic_config =
    */
 
   .channels = BK7258_BOARD_CAPTURE_CHANNELS,
-  .flags = BK7258_MIC_INPUT_MIC1 | BK7258_MIC_INPUT_MIC2,
+  .flags = BK7258_MIC_INPUT_MIC1 | BK7258_MIC_INPUT_MIC2 |
+           BK7258_MIC_INPUT_MIC2_AEC_REFERENCE,
+  .aec_delay_samples = BK7258_BOARD_MIC_AEC_DELAY_SAMPLES,
+  .mic1_ana_gain = BK7258_BOARD_MIC1_ANA_GAIN,
+  .mic2_ana_gain = BK7258_BOARD_MIC2_ANA_GAIN,
   .variant_name = BK7258_BOARD_VARIANT_NAME,
 };
 
