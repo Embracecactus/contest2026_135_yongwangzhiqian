@@ -8,6 +8,7 @@ ifneq ($(strip $(CONFIG_BK7258_APP_BKVALIDATE) \
                  $(CONFIG_BK7258_APP_RPMSGFS_TEST) \
                  $(CONFIG_BK7258_APP_BT_IPC_TEST) \
                  $(CONFIG_BK7258_APP_WIFI) \
+                 $(CONFIG_BK7258_APP_IDENTITY) \
                  $(CONFIG_BK7258_APP_PSRAM_TEST) \
                  $(CONFIG_BK7258_APP_GPIO_TEST) \
                  $(CONFIG_BK7258_APP_GPIO_IRQ_TEST) \

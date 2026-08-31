@@ -87,6 +87,10 @@ if(CONFIG_BK7258_FLASH_MTD)
   list(APPEND BK7258_CP_SRCS cp/bk7258_flash_mtd.c)
 endif()
 
+if(CONFIG_BK7258_IDENTITY)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_identity.c)
+endif()
+
 if(CONFIG_BOARDCTL_RESET_CAUSE)
   list(APPEND BK7258_CP_SRCS common/bk7258_reset_cause.c)
 endif()

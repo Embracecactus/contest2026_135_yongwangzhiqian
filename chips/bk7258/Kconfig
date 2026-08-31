@@ -1416,6 +1416,15 @@ config BK7258_TOUCH
 		Touch channels remap GPIO pins; the paired AP profile must not use the
 		same pin for LCD, I2S, SPI, CAN, Ethernet or another peripheral.
 
+config BK7258_IDENTITY
+	bool "Read-only derived device identity"
+	default n
+	depends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE
+	help
+		Expose the immutable SDK UID service through a chip-owned CP API.  The
+		SDK normalizes raw OTP identity bytes and returns their SHA-256 digest;
+		this option intentionally exposes no raw OTP or eFuse write interface.
+
 menu "BK7258 AP peripheral wrappers"
 	depends on BK7258_AP_CORE
 
