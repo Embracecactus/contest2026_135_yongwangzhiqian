@@ -44,7 +44,7 @@ flowchart TD
     APP["应用程序<br/>open / read / write"]
     LFS["LittleFS<br/>mount / autoformat"]
     FTL["FTL<br/>ftl_initialize(0, mtd)"]
-    MTD["Board MTD composition<br/>bk7258_flash_mtd_initialize()"]
+    MTD["BK7258 chip MTD lower-half<br/>board-selected range/config"]
     CHIP["BK7258 chip Flash service<br/>bk7258_flash_read / erase / write"]
     SDK["BK7258 SDK<br/>bk_flash_read_bytes / erase / write"]
     HW["8 MiB NOR Flash<br/>GD25Q64-class, data @ 0x100000"]
@@ -64,7 +64,7 @@ flowchart TD
 | 应用 | 文件路径 | VFS | `open()` / `read()` / `write()` |
 | LittleFS | 块设备路径 | `bread` / `bwrite` / `erase` / `ioctl` | `mount()` / `autoformat` |
 | FTL | `struct mtd_dev_s` | `struct mtd_dev_s` | `ftl_initialize()` |
-| Board MTD | chip raw-Flash API | 分区 MTD 组合 | `bk7258_flash_mtd_initialize()` |
+| Chip MTD lower-half | chip raw-Flash API | board-selected range/config | `bk7258_flash_mtd_initialize()` |
 | Chip Flash | SDK 函数 | controller 生命周期、JEDEC 校验、串行与保护状态 | `bk7258_flash_initialize()` / `bk7258_flash_read()` / `bk7258_flash_write()` |
 | SDK | 硬件寄存器 | — | `bk_flash_driver_init()` |
 
@@ -142,7 +142,7 @@ struct mtd_dev_s
 
 ### 初始化过程
 
-`$BOARD/src/bk7258_flash_mtd.c`
+BK7258 chip MTD lower-half（由板级所选 range/config 实例化）
 
 ```c
 FAR struct mtd_dev_s *bk7258_flash_mtd_initialize(void)
@@ -157,7 +157,7 @@ FAR struct mtd_dev_s *bk7258_flash_mtd_initialize(void)
   g_bk7258_data_mtd.mtd.ioctl  = bk7258_flash_ioctl;
   ...
 
-  // 3. 返回 board-owned 分区 MTD 单例
+  // 3. 返回 board-selected range/config 的分区 MTD 单例
   return &g_bk7258_data_mtd.mtd;
 }
 ```

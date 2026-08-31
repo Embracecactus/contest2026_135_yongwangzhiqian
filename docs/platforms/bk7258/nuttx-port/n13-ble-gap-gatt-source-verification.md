@@ -557,66 +557,10 @@ Advertising data放 flags + 128-bit service UUID；scan response放完整 local 
 - 反转条件：NuttX checkout切换到具有稳定 dynamic service registry/public connection
   callback/notification completion 的新 API，或项目明确决定放弃 NuttX Host。
 
-## 8. 不确定性账本
+## 8. 最终历史结论
 
-| ID | 类型 | 当前结论 | 关闭条件 |
-|---|---|---|---|
-| U13-01 | closed | stock `ADV_IND`、connect、GAP Device Name `NuttX` 已由无 GUI CLI实板完成 | `$WORKSPACE/logs/bk7258-n13/n13-a-stock-gap-pass.json` |
-| U13-02 | closed | custom read/write/notify与双向 ACL/L2CAP/ATT已 air-link observed | 完整CLI echo + 100/100 burst + unsubscribe + rediscovery PASS |
-| U13-03 | closed / repeat gate pending | 最终镜像board lifecycle累计`connected/disconnected/readvertised=6/6/6`、error 0 | 功能风险已关闭；N13-B仍需20次正式重复门禁 |
-| U13-04 | closed/tool policy | 已实现无 GUI WinRT CLI；用户明确禁止运行 `BLEDebug.EXE`，后续验证不得启动它 | CLI保存 JSON/JSONL与明确 exit code |
-| U13-05 | closed / API limitation retained | notify没有返回/complete API；50 ms pacing下100/100实板通过 | 继续以Windows逐帧sequence+CRC/count为完成真值；本地attempted不得替代 |
-| U13-06 | deferred | AP-only warm restart缺少 Bluetooth pointer quiesce | 维持整芯片 cold reset验证，不纳入 N13 |
-| U13-07 | host repeat blocker | device-wide与按UUID uncached discovery在当前Windows session都在ATT前timeout；板端可正常断开并重广播 | 清洁Windows host状态下完成negative与正式20轮，不在timeout后堆叠重试 |
-| U13-08 | partial / host blocker | cached索引+uncached read已实板取得length ATT `0x0d`；WinRT HRESULT语义已适配；targeted模式已build/probe但未取得ATT | clean host下完成magic/version/CRC及valid echo；cached索引不得替代20轮uncached discovery |
-
-## 9. N13-R checklist
-
-- [x] 冻结 contest/NuttX/apps/SDK archive版本与 hash。
-- [x] 追踪 AP/CP official HCI command/event/ACL pointer ownership。
-- [x] 确认 SDK callback不是 ISR，NuttX receive在返回前复制。
-- [x] 确认 stock Host自动注册 GAP并启动 connectable advertising。
-- [x] 确认 GATT database是单一全局 replace、无 unregister/append/lock。
-- [x] 确认 read/write callback同步发生在 ATT RX路径。
-- [x] 确认默认 ATT MTU 23与首版20-byte上限。
-- [x] 确认 notify依赖 CCC、返回 void、indication仍为 TODO。
-- [x] 识别 multi-peer CCC aggregate风险并冻结 single connection。
-- [x] 识别 write-command源码差异并排除 write without response。
-- [x] 对照官方 v3.1.1.9 GATT server的 AP/CP owner、worker和重新广播模式。
-- [x] 冻结不改 NuttX/SDK、不新增 Beken Host、不更新 SDK static libs。
-- [x] N13-A 零代码实板 probe：Windows发现、连接、service discovery、GAP name read。
-- [x] custom service gate：GAP name、handle discovery、20-byte echo、100/100 notify、unsubscribe、
-      post-close rediscovery，Windows sequence/CRC/lost/duplicate全通过。
-- [x] 定位并在 BK7258 wrapper 隔离 BK7258 `0x0c35` 非标准 completion。
-- [x] 定位空`bk_delay_us()` wrapper并以`up_udelay()`恢复official archive所需微秒时序；
-      N13 CP profile固定SDK等价1 ms tick。
-- [x] 复核`bt_gatt_notify()` void/无buffer错误回传语义，以50 ms安全间隔完成100-frame gate。
-- [x] connect-side Host flag sync + disconnect-side single restart镜像 build、static verify、flash并
-      到达`PASS_NSH`；冷态scan PASS。
-- [x] 最终板端`connected/disconnected/readvertised=6/6/6`、state/error=`2/0`，无HCI/Host
-      error；同一CLI完整100-frame gate和post-close rediscovery exit0。
-- [x] `--n13-negative`四类注入、status/exact-HRESULT判定、valid-echo link probe、cache marker和
-      JSON fail-closed均已实现，Windows `/W4` build/probe PASS。
-- [x] cached exact-instance/legacy single-UUID边界与独立targeted-uncached服务查询已实现，
-      `/W4` build/probe和板端fail-closed行为PASS；当前host未产生ATT，因此不算功能gate PASS。
-- [x] N13-C invalid length实板：uncached live read后ATT `0x0d`、bad_length `0→1`、link断开后
-      正常重广播；host classifier问题已修正。
-- [x] N13-E advertising-idle smoke：RPMsg六场景×5、RPMsgFS四档×1、pre/post health与BLE
-      stats全PASS且heap稳定。
-- [x] N13-V部分构建回退：N12 latest/legacy和恢复N13 latest完整构建、verifier、official tree
-      zero tracked diff均PASS。
-- [x] N13-V physical RTS cold startup 3/3 `PASS_NSH`/`cold_path=yes`，cold后BLE/AP/RPTUN/
-      supervisor/CPU2状态复核健康。
-- [x] N13-V focused review：HCI顺序、callback/queue/lock、lifecycle、ATT error mapping、
-      wrapper/link隔离与host timeout cleanup无新增blocker；Kconfig默认优先级已对齐96。
-- [x] N13-C四类negative：length/magic/version/CRC全部被真实ATT拒绝，post-reject合法echo、
-      notify、unsubscribe及rediscovery PASS。
-- [x] N13-B正式20轮：20/20 uncached connect/discover/read/echo/notify/disconnect/rediscovery，
-      结束后Host/HCI/N13=`22/22/22`且连接引用为0。
-- [x] N13-E active/full-load：BLE 100帧分别与RPMsg六场景×100、RPMsgFS四档×20并发PASS；
-      post health、heap、SMP/supervisor及最终`25/25/25` lifecycle闭环。
-- [x] N13-V最终证据索引、final image hash、静态verifier和official tree zero-diff复核完成。
-
-N13 在批准的首版范围内已整体`board-verified`。主动RPMsg满载下BLE会话45.41秒是已记录的
-性能基线；所有功能和资源gate仍在显式90秒deadline内完成。
-`BLEDebug.EXE`不再是工具选项，也不得启动。
+N13 在批准的首版范围内已整体`board-verified`：正式 20/20 uncached
+connect/discover/read/echo/notify/disconnect/rediscovery 完成，结束后
+Host/HCI/N13=`22/22/22`且连接引用为零；BLE 100 帧与 RPMsg/RPMsgFS 满载并发也完成
+闭环。主动 RPMsg 满载下 BLE 会话 45.41 秒是已记录的性能基线；所有功能和资源 gate
+仍在显式 90 秒 deadline 内完成。`BLEDebug.EXE`不再是工具选项，也不得启动。

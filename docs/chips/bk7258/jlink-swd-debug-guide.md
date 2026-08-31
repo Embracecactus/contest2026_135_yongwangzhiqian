@@ -73,7 +73,9 @@ wsl gdb-multiarch '<CP_ELF>' \
 
 ```bash
 # WSL 侧
-cp '<CP_ELF>' /mnt/c/Users/<USER>/Desktop/nuttx.elf
+win_desktop=$(powershell.exe -NoProfile -Command \
+  '[Environment]::GetFolderPath("Desktop")' | tr -d '\r')
+cp '<CP_ELF>' "$(wslpath "$win_desktop")/nuttx.elf"
 ```
 
 ```powershell
