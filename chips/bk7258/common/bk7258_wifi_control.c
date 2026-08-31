@@ -48,6 +48,7 @@
 
 #include <arch/chip/bk7258_rptun.h>
 #include <arch/chip/bk7258_amp.h>
+#include <arch/chip/bk7258_radio_mode.h>
 #include <arch/chip/bk7258_wifi.h>
 
 #if defined(CONFIG_BK7258_WIFI_PACKET_DIAG) && \
@@ -63,7 +64,7 @@
 
 #define BK7258_WIFI_CONTROL_EPT_NAME          "bk7258-wifi"
 #define BK7258_WIFI_CONTROL_MAGIC             0x49465742u /* "BWFI" */
-#define BK7258_WIFI_CONTROL_VERSION           3u
+#define BK7258_WIFI_CONTROL_VERSION           4u
 #define BK7258_WIFI_CONTROL_SEND_TIMEOUT_MS   500u
 #define BK7258_WIFI_CONTROL_ENDPOINT_WAIT_MS  3000u
 #define BK7258_WIFI_CONTROL_POLL_MS            100u
@@ -74,6 +75,8 @@
 #define BK7258_WIFI_STOP_BARRIER_MS            8000u
 #define BK7258_WIFI_PING_DATALEN              32u
 #define BK7258_WIFI_PING_REPLY_SIZE           128u
+#define BK7258_WIFI_EVENT_MOD_WIFI            1u
+#define BK7258_WIFI_EVENT_SCAN_DONE           0
 
 #ifdef CONFIG_BK7258_AP_CORE
 #  define BK7258_WIFI_CONTROL_REMOTE_NAME     "cp"
@@ -115,6 +118,7 @@ struct bk7258_wifi_control_wire_s
   struct bk7258_wifi_echo_s echo;
   struct bk7258_wifi_result_s result;
   struct bk7258_wifi_monitor_result_s monitor_result;
+  struct bk7258_wifi_scan_result_s scan_result;
   char ssid[BK7258_WIFI_SSID_MAX_LEN + 1u];
   char password[BK7258_WIFI_PASSWORD_MAX_LEN + 1u];
 };
@@ -127,6 +131,7 @@ struct bk7258_wifi_control_dev_s
   int connection_error;
 #ifdef CONFIG_BK7258_AP_CORE
   sem_t request_sem;
+  sem_t scan_sem;
   bool abort;
   bool busy;
   bool native_link_valid;
@@ -139,6 +144,7 @@ struct bk7258_wifi_control_dev_s
   uint32_t waiting_sequence;
   struct bk7258_wifi_result_s report;
   struct bk7258_wifi_monitor_result_s monitor_report;
+  struct bk7258_wifi_scan_result_s scan_report;
 #endif
 };
 
@@ -210,6 +216,27 @@ struct bk7258_wifi_monitor_runtime_s
   uint32_t last_tsf_hi;
 };
 
+struct bk7258_wifi_scan_ap_sdk_s
+{
+  char ssid[33];
+  uint8_t bssid[6];
+  int32_t rssi;
+  uint8_t channel;
+  uint8_t security;
+  uint8_t reserved[16];
+};
+
+struct bk7258_wifi_scan_result_sdk_s
+{
+  int32_t ap_num;
+  FAR struct bk7258_wifi_scan_ap_sdk_s *aps;
+};
+
+typedef int (*bk7258_wifi_event_callback_t)(FAR void *arg,
+                                             uint8_t event_module,
+                                             int event_id,
+                                             FAR void *event_data);
+
 /* The official archive is compiled with -fshort-enums.  Keep the enum-backed
  * fields byte-sized even though this wrapper intentionally avoids importing
  * the SDK headers into a NuttX translation unit.  The offsets and copy sizes
@@ -224,6 +251,14 @@ _Static_assert(sizeof(struct bk7258_wifi_sta_config_s) == 260,
                "v3.1.1.9 STA config ABI changed");
 _Static_assert(sizeof(struct bk7258_wifi_monitor_channel_s) == 2,
                "v3.1.1.9 monitor channel ABI changed");
+_Static_assert(offsetof(struct bk7258_wifi_scan_ap_sdk_s, rssi) == 40,
+               "v3.1.1.9 scan RSSI offset changed");
+_Static_assert(offsetof(struct bk7258_wifi_scan_ap_sdk_s, channel) == 44,
+               "v3.1.1.9 scan channel offset changed");
+_Static_assert(sizeof(struct bk7258_wifi_scan_ap_sdk_s) == 64,
+               "v3.1.1.9 scan AP ABI changed");
+_Static_assert(sizeof(struct bk7258_wifi_scan_result_sdk_s) == 8,
+               "v3.1.1.9 scan result ABI changed");
 #endif
 
 _Static_assert(sizeof(struct bk7258_wifi_control_wire_s) <=
@@ -245,6 +280,17 @@ extern int bk_wifi_monitor_set_channel(
   FAR const struct bk7258_wifi_monitor_channel_s *channel);
 extern int bk_wifi_monitor_register_cb(
   bk7258_wifi_monitor_callback_t callback);
+extern int bk_wifi_scan_start(FAR const void *config);
+extern int bk_wifi_scan_stop(void);
+extern int bk_wifi_scan_get_result(
+  FAR struct bk7258_wifi_scan_result_sdk_s *result);
+extern void bk_wifi_scan_free_result(
+  FAR struct bk7258_wifi_scan_result_sdk_s *result);
+extern int bk_event_register_cb(uint8_t event_module, int event_id,
+                                bk7258_wifi_event_callback_t callback,
+                                FAR void *arg);
+extern int bk_event_unregister_cb(uint8_t event_module, int event_id,
+                                  bk7258_wifi_event_callback_t callback);
 extern int wifi_send_com_api_cmd(uint32_t command, uint32_t argc, ...);
 
 static int bk7258_wifi_sync_native_link(
@@ -517,23 +563,29 @@ static int bk7258_wifi_monitor_start_capture(uint32_t channel)
       return -EALREADY;
     }
 
-  ret = bk7258_wifi_stop_sta();
+  ret = bk7258_radio_mode_acquire(BK7258_RADIO_MODE_WIFI_MONITOR);
   if (ret < 0)
     {
       return ret;
     }
 
+  ret = bk7258_wifi_stop_sta();
+  if (ret < 0)
+    {
+      goto err_release;
+    }
+
   ret = bk7258_wifi_monitor_set_channel(channel);
   if (ret < 0)
     {
-      return ret;
+      goto err_release;
     }
 
   ret = bk7258_wifi_vendor_result(
     bk_wifi_monitor_register_cb(bk7258_wifi_monitor_callback));
   if (ret < 0)
     {
-      return ret;
+      goto err_release;
     }
 
   session = __atomic_load_n(&monitor->session, __ATOMIC_RELAXED) + 1u;
@@ -557,8 +609,13 @@ static int bk7258_wifi_monitor_start_capture(uint32_t channel)
     {
       __atomic_store_n(&monitor->active, 0u, __ATOMIC_RELEASE);
       (void)bk_wifi_monitor_stop();
+      goto err_release;
     }
 
+  return ret;
+
+err_release:
+  (void)bk7258_radio_mode_release(BK7258_RADIO_MODE_WIFI_MONITOR);
   return ret;
 }
 
@@ -577,8 +634,176 @@ static int bk7258_wifi_monitor_stop_capture(void)
   if (ret == OK)
     {
       __atomic_store_n(&monitor->active, 0u, __ATOMIC_RELEASE);
+      ret = bk7258_radio_mode_release(BK7258_RADIO_MODE_WIFI_MONITOR);
     }
 
+  return ret;
+}
+
+static int bk7258_wifi_scan_event(FAR void *arg, uint8_t event_module,
+                                  int event_id, FAR void *event_data)
+{
+  FAR struct bk7258_wifi_control_dev_s *priv = arg;
+
+  (void)event_data;
+  if (priv == NULL || event_module != BK7258_WIFI_EVENT_MOD_WIFI ||
+      event_id != BK7258_WIFI_EVENT_SCAN_DONE)
+    {
+      return -EINVAL;
+    }
+
+  (void)nxsem_post(&priv->scan_sem);
+  return OK;
+}
+
+static void bk7258_wifi_scan_copy_ap(
+  FAR struct bk7258_wifi_scan_ap_s *dest,
+  FAR const struct bk7258_wifi_scan_ap_sdk_s *source)
+{
+  memset(dest, 0, sizeof(*dest));
+  memcpy(dest->ssid, source->ssid, BK7258_WIFI_SSID_MAX_LEN);
+  dest->ssid[BK7258_WIFI_SSID_MAX_LEN] = '\0';
+  memcpy(dest->bssid, source->bssid, sizeof(dest->bssid));
+  dest->rssi = source->rssi;
+  dest->channel = source->channel;
+  dest->security = source->security;
+}
+
+static void bk7258_wifi_scan_select_strongest(
+  FAR struct bk7258_wifi_scan_result_s *result,
+  FAR const struct bk7258_wifi_scan_result_sdk_s *sdk)
+{
+  struct bk7258_wifi_scan_ap_s candidate;
+  uint32_t found;
+  uint32_t index;
+  uint32_t position;
+
+  found = sdk->ap_num > 0 ? (uint32_t)sdk->ap_num : 0u;
+  result->found = found;
+  if (sdk->aps == NULL)
+    {
+      return;
+    }
+
+  for (index = 0; index < found; index++)
+    {
+      bk7258_wifi_scan_copy_ap(&candidate, &sdk->aps[index]);
+      if (result->returned < BK7258_WIFI_SCAN_MAX_RESULTS)
+        {
+          position = result->returned++;
+        }
+      else if (candidate.rssi <=
+               result->aps[BK7258_WIFI_SCAN_MAX_RESULTS - 1u].rssi)
+        {
+          continue;
+        }
+      else
+        {
+          position = BK7258_WIFI_SCAN_MAX_RESULTS - 1u;
+        }
+
+      while (position > 0 &&
+             candidate.rssi > result->aps[position - 1u].rssi)
+        {
+          memcpy(&result->aps[position], &result->aps[position - 1u],
+                 sizeof(result->aps[position]));
+          position--;
+        }
+
+      memcpy(&result->aps[position], &candidate, sizeof(candidate));
+    }
+
+  result->truncated = result->found - result->returned;
+}
+
+static int bk7258_wifi_scan(uint32_t timeout_ms,
+                            FAR struct bk7258_wifi_scan_result_s *result)
+{
+  FAR struct bk7258_wifi_control_dev_s *priv = &g_bk7258_wifi_control;
+  struct bk7258_wifi_scan_result_sdk_s sdk;
+  bool callback_registered = false;
+  bool scan_started = false;
+  int cleanup_ret;
+  int ret;
+
+  memset(result, 0, sizeof(*result));
+  memset(&sdk, 0, sizeof(sdk));
+  ret = bk7258_radio_mode_acquire(BK7258_RADIO_MODE_WIFI_SCAN);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  while (nxsem_trywait(&priv->scan_sem) == OK)
+    {
+    }
+
+  ret = bk7258_wifi_vendor_result(
+    bk_event_register_cb(BK7258_WIFI_EVENT_MOD_WIFI,
+                         BK7258_WIFI_EVENT_SCAN_DONE,
+                         bk7258_wifi_scan_event, priv));
+  if (ret < 0)
+    {
+      goto out;
+    }
+
+  callback_registered = true;
+  ret = bk7258_wifi_vendor_result(bk_wifi_scan_start(NULL));
+  if (ret < 0)
+    {
+      goto out;
+    }
+
+  scan_started = true;
+  ret = nxsem_tickwait_uninterruptible(&priv->scan_sem,
+                                        MSEC2TICK(timeout_ms));
+  if (ret < 0)
+    {
+      goto out;
+    }
+
+  scan_started = false;
+  ret = bk7258_wifi_vendor_result(bk_wifi_scan_get_result(&sdk));
+  if (ret >= 0)
+    {
+      bk7258_wifi_scan_select_strongest(result, &sdk);
+    }
+
+out:
+  if (sdk.aps != NULL)
+    {
+      bk_wifi_scan_free_result(&sdk);
+    }
+
+  if (scan_started)
+    {
+      cleanup_ret = bk7258_wifi_vendor_result(bk_wifi_scan_stop());
+      if (ret >= 0 && cleanup_ret < 0)
+        {
+          ret = cleanup_ret;
+        }
+    }
+
+  if (callback_registered)
+    {
+      cleanup_ret = bk7258_wifi_vendor_result(
+        bk_event_unregister_cb(BK7258_WIFI_EVENT_MOD_WIFI,
+                               BK7258_WIFI_EVENT_SCAN_DONE,
+                               bk7258_wifi_scan_event));
+      if (ret >= 0 && cleanup_ret < 0)
+        {
+          ret = cleanup_ret;
+        }
+    }
+
+  cleanup_ret =
+    bk7258_radio_mode_release(BK7258_RADIO_MODE_WIFI_SCAN);
+  if (ret >= 0 && cleanup_ret < 0)
+    {
+      ret = cleanup_ret;
+    }
+
+  result->status = ret;
   return ret;
 }
 
@@ -1327,6 +1552,7 @@ static void bk7258_wifi_control_report_immediate(
   report.operation = request->operation;
   report.result.status = status;
   report.monitor_result.status = status;
+  report.scan_result.status = status;
 
   /* This helper runs in the RPMsg receive callback.  Never sleep there. */
 
@@ -1439,6 +1665,11 @@ static FAR void *bk7258_wifi_control_worker(FAR void *arg)
               status = bk7258_wifi_echo_exchange(&request, &report.result);
             }
         }
+      else if (request.operation == BK7258_WIFI_OPERATION_SCAN)
+        {
+          status = bk7258_wifi_scan(request.timeout_ms,
+                                    &report.scan_result);
+        }
       else if (request.operation == BK7258_WIFI_OPERATION_MONITOR_START)
         {
           status = bk7258_wifi_monitor_start_capture(
@@ -1477,6 +1708,7 @@ static FAR void *bk7258_wifi_control_worker(FAR void *arg)
 
       report.result.status = status;
       report.monitor_result.status = status;
+      report.scan_result.status = status;
       (void)bk7258_wifi_control_send_bounded(&report);
       explicit_bzero(&request, sizeof(request));
       __atomic_store_n(&priv->busy, false, __ATOMIC_RELEASE);
@@ -1591,6 +1823,8 @@ static int bk7258_wifi_control_ept_cb(FAR struct rpmsg_endpoint *ept,
       memcpy(&priv->report, &message->result, sizeof(priv->report));
       memcpy(&priv->monitor_report, &message->monitor_result,
              sizeof(priv->monitor_report));
+      memcpy(&priv->scan_report, &message->scan_result,
+             sizeof(priv->scan_report));
       __asm volatile ("dmb sy" ::: "memory");
       priv->report_valid = true;
       (void)nxsem_post(&priv->report_sem);
@@ -1720,6 +1954,14 @@ int bk7258_wifi_control_initialize(void)
   priv->connection_error = -ENOTCONN;
 #ifdef CONFIG_BK7258_AP_CORE
   ret = nxsem_init(&priv->request_sem, 0, 0);
+  if (ret >= 0)
+    {
+      ret = nxsem_init(&priv->scan_sem, 0, 0);
+      if (ret < 0)
+        {
+          nxsem_destroy(&priv->request_sem);
+        }
+    }
 #else
   ret = nxsem_init(&priv->report_sem, 0, 0);
 #endif
@@ -1740,6 +1982,7 @@ int bk7258_wifi_control_initialize(void)
     {
 #ifdef CONFIG_BK7258_AP_CORE
       nxsem_destroy(&priv->request_sem);
+      nxsem_destroy(&priv->scan_sem);
 #else
       nxsem_destroy(&priv->report_sem);
 #endif
@@ -1754,6 +1997,7 @@ int bk7258_wifi_control_initialize(void)
         priv, bk7258_wifi_control_device_created,
         bk7258_wifi_control_device_destroy, NULL, NULL);
       nxsem_destroy(&priv->request_sem);
+      nxsem_destroy(&priv->scan_sem);
       return ret;
     }
 #endif
@@ -1768,7 +2012,8 @@ static int bk7258_wifi_control_exchange(
   FAR const char *ssid, FAR const char *password,
   FAR const struct bk7258_wifi_echo_s *echo, uint32_t monitor_channel,
   uint32_t timeout_ms, FAR struct bk7258_wifi_result_s *result,
-  FAR struct bk7258_wifi_monitor_result_s *monitor_result)
+  FAR struct bk7258_wifi_monitor_result_s *monitor_result,
+  FAR struct bk7258_wifi_scan_result_s *scan_result)
 {
   struct bk7258_wifi_control_dev_s *priv = &g_bk7258_wifi_control;
   volatile struct bk7258_rptun_control_s *control =
@@ -1781,6 +2026,7 @@ static int bk7258_wifi_control_exchange(
 
   bool echo_operation = operation == BK7258_WIFI_OPERATION_TCP_ECHO ||
                         operation == BK7258_WIFI_OPERATION_UDP_ECHO;
+  bool scan_operation = operation == BK7258_WIFI_OPERATION_SCAN;
   bool monitor_operation =
     operation == BK7258_WIFI_OPERATION_MONITOR_START ||
     operation == BK7258_WIFI_OPERATION_MONITOR_STOP ||
@@ -1794,8 +2040,9 @@ static int bk7258_wifi_control_exchange(
       (operation != BK7258_WIFI_OPERATION_CONNECT &&
        operation != BK7258_WIFI_OPERATION_STATUS &&
        operation != BK7258_WIFI_OPERATION_PING &&
-       !echo_operation && !monitor_operation) ||
+       !echo_operation && !monitor_operation && !scan_operation) ||
       timeout_ms < (monitor_operation ? BK7258_WIFI_MONITOR_MIN_MS :
+                    scan_operation ? BK7258_WIFI_SCAN_MIN_MS :
                     echo_operation ? BK7258_WIFI_ECHO_MIN_MS :
                                      BK7258_WIFI_CONNECT_MIN_MS) ||
       timeout_ms > BK7258_WIFI_CONNECT_MAX_MS)
@@ -1806,7 +2053,7 @@ static int bk7258_wifi_control_exchange(
   if (monitor_operation)
     {
       if (monitor_result == NULL || echo != NULL || ssid != NULL ||
-          password != NULL ||
+          password != NULL || scan_result != NULL ||
           (monitor_channel_operation &&
            (monitor_channel < BK7258_WIFI_MONITOR_CHANNEL_MIN ||
             monitor_channel > BK7258_WIFI_MONITOR_CHANNEL_MAX)) ||
@@ -1816,6 +2063,19 @@ static int bk7258_wifi_control_exchange(
         }
     }
   else if (monitor_result != NULL || monitor_channel != 0)
+    {
+      return -EINVAL;
+    }
+
+  if (scan_operation)
+    {
+      if (scan_result == NULL || echo != NULL || ssid != NULL ||
+          password != NULL)
+        {
+          return -EINVAL;
+        }
+    }
+  else if (scan_result != NULL)
     {
       return -EINVAL;
     }
@@ -1859,6 +2119,11 @@ static int bk7258_wifi_control_exchange(
       memset(monitor_result, 0, sizeof(*monitor_result));
     }
 
+  if (scan_result != NULL)
+    {
+      memset(scan_result, 0, sizeof(*scan_result));
+    }
+
   ret = bk7258_wifi_control_initialize();
   if (ret < 0)
     {
@@ -1897,6 +2162,7 @@ static int bk7258_wifi_control_exchange(
   priv->report_valid = false;
   memset(&priv->report, 0, sizeof(priv->report));
   memset(&priv->monitor_report, 0, sizeof(priv->monitor_report));
+  memset(&priv->scan_report, 0, sizeof(priv->scan_report));
 
   memset(&request, 0, sizeof(request));
   request.magic = BK7258_WIFI_CONTROL_MAGIC;
@@ -1949,6 +2215,11 @@ static int bk7258_wifi_control_exchange(
              sizeof(*monitor_result));
     }
 
+  if (scan_result != NULL)
+    {
+      memcpy(scan_result, &priv->scan_report, sizeof(*scan_result));
+    }
+
   ret = result->status;
 
 out_unlock:
@@ -1964,7 +2235,7 @@ int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
                                 FAR struct bk7258_wifi_result_s *result)
 {
   return bk7258_wifi_control_exchange(operation, ssid, password, echo, 0,
-                                      timeout_ms, result, NULL);
+                                      timeout_ms, result, NULL, NULL);
 }
 
 int bk7258_wifi_monitor_request(
@@ -1974,7 +2245,17 @@ int bk7258_wifi_monitor_request(
   struct bk7258_wifi_result_s ignored;
 
   return bk7258_wifi_control_exchange(operation, NULL, NULL, NULL, channel,
-                                      timeout_ms, &ignored, result);
+                                      timeout_ms, &ignored, result, NULL);
+}
+
+int bk7258_wifi_scan_request(
+  uint32_t timeout_ms, FAR struct bk7258_wifi_scan_result_s *result)
+{
+  struct bk7258_wifi_result_s ignored;
+
+  return bk7258_wifi_control_exchange(BK7258_WIFI_OPERATION_SCAN,
+                                      NULL, NULL, NULL, 0, timeout_ms,
+                                      &ignored, NULL, result);
 }
 #endif
 

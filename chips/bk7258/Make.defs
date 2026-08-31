@@ -359,6 +359,9 @@ BK7258_AP_BASE_CSRCS += bk7258_wifi.c
 BK7258_AP_BASE_CSRCS += bk7258_wifi_control.c
 INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)include
 endif
+ifneq ($(filter y,$(CONFIG_BK7258_WIFI_VNET) $(CONFIG_BK7258_BT_IPC_TEST)),)
+BK7258_AP_BASE_CSRCS += bk7258_radio_mode.c
+endif
 
 # AP-owned NuttX peripheral wrappers.  Keep these in AP_BASE so AP-UP and
 # AP-SMP use the same lower-half implementations.

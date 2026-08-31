@@ -46,6 +46,9 @@
 #if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_BLE_GATT)
 #  include <arch/chip/bk7258_ble_gatt.h>
 #endif
+#ifdef CONFIG_BK7258_AP_CORE
+#  include <arch/chip/bk7258_radio_mode.h>
+#endif
 #include <arch/chip/bk7258_rptun.h>
 
 #include "bk7258_rptun.h"
@@ -387,7 +390,14 @@ static int bk7258_bt_test_scan(int socket_fd, uint32_t duration_ms,
   uint8_t selected = 0;
   uint8_t i;
   int stop_ret = OK;
+  int release_ret;
   int ret;
+
+  ret = bk7258_radio_mode_acquire(BK7258_RADIO_MODE_BLE_SCAN);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
   bk7258_bt_test_prepare_request(&request);
   request.btr_dupenable = true;
@@ -395,7 +405,8 @@ static int bk7258_bt_test_scan(int socket_fd, uint32_t duration_ms,
               (unsigned long)((uintptr_t)&request));
   if (ret < 0)
     {
-      return bk7258_bt_test_neg_errno();
+      ret = bk7258_bt_test_neg_errno();
+      goto out_release;
     }
 
   scanning = true;
@@ -456,6 +467,13 @@ static int bk7258_bt_test_scan(int socket_fd, uint32_t duration_ms,
         {
           stop_ret = bk7258_bt_test_neg_errno();
         }
+    }
+
+out_release:
+  release_ret = bk7258_radio_mode_release(BK7258_RADIO_MODE_BLE_SCAN);
+  if (ret >= 0 && stop_ret >= 0 && release_ret < 0)
+    {
+      return release_ret;
     }
 
   return ret < 0 ? ret : stop_ret;

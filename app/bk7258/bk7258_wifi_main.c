@@ -152,6 +152,7 @@ static void bkwifi_usage(void)
          "  bkwifi connect-args <ssid> <password> [timeout_ms=%u]\n"
          "  bkwifi status  [timeout_ms=%u]\n"
          "  bkwifi ping    [timeout_ms=%u]\n"
+         "  bkwifi scan    [timeout_ms=%u]\n"
          "  bkwifi tcp <ipv4> <port> [count=%u] [size=%u] [timeout_ms=%u]\n"
          "  bkwifi udp <ipv4> <port> [count=%u] [size=%u] [timeout_ms=%u]\n"
          "  bkwifi monitor start <channel> [timeout_ms=%u]\n"
@@ -163,6 +164,7 @@ static void bkwifi_usage(void)
          BK7258_WIFI_CONNECT_DEFAULT_MS,
          BK7258_WIFI_CONNECT_DEFAULT_MS,
          BK7258_WIFI_CONNECT_DEFAULT_MS,
+         BK7258_WIFI_SCAN_DEFAULT_MS,
          BK7258_WIFI_ECHO_COUNT_DEFAULT,
          BK7258_WIFI_ECHO_SIZE_DEFAULT,
          BK7258_WIFI_ECHO_DEFAULT_MS,
@@ -337,6 +339,43 @@ static int bkwifi_monitor_main(int argc, char *argv[])
   return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
+static int bkwifi_scan_main(int argc, char *argv[])
+{
+  struct bk7258_wifi_scan_result_s result;
+  uint32_t timeout_ms = BK7258_WIFI_SCAN_DEFAULT_MS;
+  uint32_t index;
+  int ret;
+
+  if (argc > 3 ||
+      (argc == 3 && bkwifi_u32(argv[2], &timeout_ms) < 0) ||
+      timeout_ms < BK7258_WIFI_SCAN_MIN_MS ||
+      timeout_ms > BK7258_WIFI_CONNECT_MAX_MS)
+    {
+      bkwifi_usage();
+      return EXIT_FAILURE;
+    }
+
+  memset(&result, 0, sizeof(result));
+  ret = bk7258_wifi_scan_request(timeout_ms, &result);
+  printf("BKWIFI SCAN status=%d found=%" PRIu32 " returned=%" PRIu32
+         " truncated=%" PRIu32 "\n",
+         ret, result.found, result.returned, result.truncated);
+  for (index = 0; index < result.returned; index++)
+    {
+      const struct bk7258_wifi_scan_ap_s *ap = &result.aps[index];
+
+      printf("BKWIFI AP index=%" PRIu32 " ssid=\"%s\" "
+             "bssid=%02x:%02x:%02x:%02x:%02x:%02x channel=%u "
+             "rssi=%" PRId32 " security=%u\n",
+             index, ap->ssid,
+             ap->bssid[0], ap->bssid[1], ap->bssid[2],
+             ap->bssid[3], ap->bssid[4], ap->bssid[5],
+             ap->channel, ap->rssi, ap->security);
+    }
+
+  return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
+}
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -367,6 +406,11 @@ int main(int argc, char *argv[])
   if (strcmp(argv[1], "monitor") == 0)
     {
       return bkwifi_monitor_main(argc, argv);
+    }
+
+  if (strcmp(argv[1], "scan") == 0)
+    {
+      return bkwifi_scan_main(argc, argv);
     }
 
   if (strcmp(argv[1], "connect") == 0)

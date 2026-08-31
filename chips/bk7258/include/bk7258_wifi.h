@@ -33,6 +33,9 @@ extern "C"
 #define BK7258_WIFI_MONITOR_CHANNEL_MAX 14u
 #define BK7258_WIFI_MONITOR_MIN_MS      1000u
 #define BK7258_WIFI_MONITOR_DEFAULT_MS  20000u
+#define BK7258_WIFI_SCAN_MIN_MS          1000u
+#define BK7258_WIFI_SCAN_DEFAULT_MS      15000u
+#define BK7258_WIFI_SCAN_MAX_RESULTS     4u
 
 /****************************************************************************
  * Public Types
@@ -48,7 +51,8 @@ enum bk7258_wifi_operation_e
   BK7258_WIFI_OPERATION_MONITOR_START,
   BK7258_WIFI_OPERATION_MONITOR_STOP,
   BK7258_WIFI_OPERATION_MONITOR_STATUS,
-  BK7258_WIFI_OPERATION_MONITOR_CHANNEL
+  BK7258_WIFI_OPERATION_MONITOR_CHANNEL,
+  BK7258_WIFI_OPERATION_SCAN
 };
 
 struct bk7258_wifi_echo_s
@@ -86,6 +90,25 @@ struct bk7258_wifi_monitor_result_s
   uint32_t last_tsf_hi;
 };
 
+struct bk7258_wifi_scan_ap_s
+{
+  char ssid[BK7258_WIFI_SSID_MAX_LEN + 1u];
+  uint8_t bssid[6];
+  int32_t rssi;
+  uint8_t channel;
+  uint8_t security;
+  uint8_t reserved[2];
+};
+
+struct bk7258_wifi_scan_result_s
+{
+  int32_t status;
+  uint32_t found;
+  uint32_t returned;
+  uint32_t truncated;
+  struct bk7258_wifi_scan_ap_s aps[BK7258_WIFI_SCAN_MAX_RESULTS];
+};
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -113,6 +136,8 @@ int bk7258_wifi_control_request(enum bk7258_wifi_operation_e operation,
 int bk7258_wifi_monitor_request(enum bk7258_wifi_operation_e operation,
                                 uint32_t channel, uint32_t timeout_ms,
                                 struct bk7258_wifi_monitor_result_s *result);
+int bk7258_wifi_scan_request(uint32_t timeout_ms,
+                             struct bk7258_wifi_scan_result_s *result);
 #  endif
 #endif
 
