@@ -91,7 +91,7 @@ static void bk7258_debug_transport_recover(void)
 /* Match the relevant ordering from the official CP startup sequence.  Driver
  * initialization makes flash calibration data readable.  The SDK
  * components_early_init installs the PHY/RF adapter tables, and the normal
- * Wi-Fi path subsequently initializes calibration.  The board wrapper
+ * Wi-Fi path subsequently initializes calibration.  The chip adapter
  * invokes none of those SDK top-level routines, so call their exported leaf
  * initializers explicitly before the Controller can open RF.
  */
@@ -104,7 +104,7 @@ static void bk7258_debug_transport_recover(void)
 
 /* The generated SDK bundle omits partitions_gen.h, so including the private
  * flash_partition.h is not possible.  Keep the small binary ABI used here
- * in the board-private SDK ABI header and guard the numeric partition IDs
+ * in the chip-private SDK ABI header and guard the numeric partition IDs
  * against the official v3.1.1.9 table at runtime before every read or write.
  */
 

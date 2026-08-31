@@ -6,7 +6,7 @@
  *
  * NuttX bt_driver_s lower half over the Beken AP-side Bluetooth mailbox IPC.
  * The Beken object owns MB_CHNL_BT_CMD, its pointer-return protocol and its
- * deferred receive thread.  This board wrapper owns only HCI framing and the
+ * deferred receive thread.  This chip adapter owns only HCI framing and the
  * NuttX driver registration boundary.
  ****************************************************************************/
 
@@ -696,7 +696,7 @@ static int bk7258_bt_send(struct bt_driver_s *driver,
          * traffic then consumes the command credit and prevents the stock
          * disconnect path from re-enabling advertising.  The Controller was
          * explicitly told not to use Host flow control, so drop only this
-         * now-unnecessary acknowledgement at the board wrapper boundary.
+         * now-unnecessary acknowledgement at the chip adapter boundary.
          */
 
         if (value == BK7258_BT_OP_HOST_NUM_COMPLETED)

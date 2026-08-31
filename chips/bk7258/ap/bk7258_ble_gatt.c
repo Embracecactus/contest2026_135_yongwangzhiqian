@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Board-owned N13 BLE peripheral service over the unmodified NuttX GATT
+ * Chip-owned N13 BLE peripheral service over the unmodified NuttX GATT
  * server.  ATT callbacks are bounded producers; all lifecycle commands and
  * notification work run in one logical-CPU0 kernel thread.
  ****************************************************************************/
@@ -113,7 +113,7 @@ struct bk7258_ble_gatt_event_s
 
 /* The current NuttX checkout exposes its GATT database API publicly but
  * keeps advertising lifecycle declarations in bt_hcicore.h.  Declare only
- * the two pinned symbols used by this board wrapper; do not include or edit
+ * the two pinned symbols used by this chip adapter; do not include or edit
  * the private upstream header.
  */
 
