@@ -195,7 +195,7 @@ HEADER_CHECK_FLAGS := -Wall -Wextra -Werror -fsyntax-only \
 	-I $(BOARD_ROOT)/common/src \
 	-I $(PARTITION_DIR)
 
-.PHONY: all check check-package-tools clean bl1 bl2 ap headers platform storage-contract flash \
+.PHONY: all check check-layers check-package-tools clean bl1 bl2 ap headers platform storage-contract flash \
 	ota-contract reset-marker run \
 	run-core run-bl1 run-bl2 run-ap run-headers run-platform \
 	run-storage-contract run-ota-contract run-ota-confirmation \
@@ -212,13 +212,18 @@ check:
 	printf 'partition_csv_sha256=%s\n' \
 	  "$$(sha256sum $(PARTITION_CSV) | awk '{print $$1}')"; \
 	$(MAKE) clean >/dev/null; \
+	$(MAKE) check-layers; \
 	$(MAKE) check-package-tools; \
 	ASAN_OPTIONS=$${ASAN_OPTIONS:-detect_leaks=0}; \
 	export ASAN_OPTIONS; \
 	$(MAKE) run; \
 	printf '%s\n' 'BK7258_HOST_TEST_PASS'
 
+check-layers:
+	@python3 $(TOOLS_ROOT)/bk7258.py verify layers
+
 check-package-tools:
+	@python3 ./test_bk7258_layers.py
 	@python3 ./test_bk7258_package_delivery.py
 
 all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
@@ -242,11 +247,8 @@ run: run-headers run-core run-platform run-flash run-ota-confirmation \
 
 .PHONY: board-layers
 
-board-layers:
-	@command -v rg >/dev/null 2>&1 || { echo "rg is required for the BK7258 board layer audit" >&2; exit 1; }
-	@if rg -n -g '*.[ch]' '#[[:space:]]*include[[:space:]]*[<"](common|components|driver|modules)/|#[[:space:]]*include[[:space:]]*[<"]sdkconfig\.h|\b(bk_err_t|gpio_id_t|gpio_dev_t|gpio_output_state_e|bk_dvp_config_t)\b|\b(bk_gpio|gpio_dev|bk_qspi|bk_pm_module|bk_dvp)_[[:alnum:]_]+|^[[:space:]]*extern[^;]*\b(bk|gpio|rtos)_[[:alnum:]_]+|\b(getreg|putreg)[0-9]*\b|REG32|0x(44|48)[0-9a-fA-F]{6}' $(BOARD_ROOT); then echo "BK7258 board code must not consume Beken SDK headers, types, symbols, or raw SoC registers" >&2; exit 1; fi
-	@if rg -n '#[[:space:]]*include[[:space:]]*[<"](components|driver)/|#[[:space:]]*include[[:space:]]*[<"]sdkconfig\.h|\bbk_dvp_config_t\b' $(CHIP_ROOT)/include/bk7258_dvp.h; then echo "BK7258 DVP public ABI must not expose the Beken SDK" >&2; exit 1; fi
-	@echo "BK7258_BOARD_LAYER_AUDIT_PASS boards=all"
+board-layers: check-layers
+	@echo "BK7258_BOARD_LAYER_AUDIT_PASS boards=all implementation=verify-layers"
 
 headers: $(PARTITION_HEADER)
 	@set -eu; \

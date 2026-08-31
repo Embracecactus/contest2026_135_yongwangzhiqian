@@ -1,0 +1,15 @@
+{
+  "product_protocol_files": [
+    {
+      "path": "chips/bk7258/ap/bk7258_ble_gatt.c",
+      "reason": "Legacy N13 validation service. It remains disabled in AIDK profiles and must move to app before feature work.",
+      "sha256": "a1d12979324f7c3f3476d2061ae27b8464939f1b93df6cfa50ab493095e34f54"
+    },
+    {
+      "path": "chips/bk7258/include/bk7258_ble_gatt.h",
+      "reason": "Legacy N13 validation wire contract paired with the hash-bound service implementation.",
+      "sha256": "e621a2af3538c88b2dabaea0ee0598b616a6fce05f2feac480c08da9bad0c59f"
+    }
+  ],
+  "version": 1
+}

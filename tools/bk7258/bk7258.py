@@ -24,6 +24,7 @@ from _lib import build as build_domain  # noqa: E402
 from _lib import deploy as deploy_domain  # noqa: E402
 from _lib import image as image_domain  # noqa: E402
 from _lib import layout as layout_domain  # noqa: E402
+from _lib import layers as layers_domain  # noqa: E402
 from _lib import package as package_domain  # noqa: E402
 from _lib import product as product_domain  # noqa: E402
 from _lib import sdk as sdk_domain  # noqa: E402
@@ -176,6 +177,9 @@ def _parser() -> argparse.ArgumentParser:
 
     verify = commands.add_parser("verify", help="perform read-only verification")
     verify_commands = verify.add_subparsers(dest="verify_command", required=True)
+    verify_commands.add_parser(
+        "layers", help="verify board/chip/app source ownership boundaries"
+    )
     verify_layout = verify_commands.add_parser("layout", help="verify one partition CSV")
     verify_layout.add_argument("--partition", type=Path, required=True)
     verify_image = verify_commands.add_parser("image", help="verify artifact placement")
@@ -749,6 +753,12 @@ def _release(args: argparse.Namespace) -> None:
 
 
 def _build(args: argparse.Namespace) -> None:
+    layers = layers_domain.verify(REPOSITORY)
+    print(
+        "bk7258 layer gate: PASS "
+        f"sources={layers.source_files} kconfig={layers.kconfig_symbols} "
+        f"legacy-exceptions={layers.legacy_exceptions}"
+    )
     cp_config, ap_config, partition = _build_inputs(args)
     result = build_domain.build(
         REPOSITORY,
@@ -1016,7 +1026,14 @@ def _package(args: argparse.Namespace) -> None:
 
 
 def _verify(args: argparse.Namespace) -> None:
-    if args.verify_command == "layout":
+    if args.verify_command == "layers":
+        result = layers_domain.verify(REPOSITORY)
+        print(
+            "bk7258 verify layers: PASS "
+            f"sources={result.source_files} kconfig={result.kconfig_symbols} "
+            f"legacy-exceptions={result.legacy_exceptions}"
+        )
+    elif args.verify_command == "layout":
         row = layout_domain.load(_repository_input(args.partition))
         print(
             f"bk7258 verify layout: PASS identity={row.identity} "
