@@ -1076,7 +1076,7 @@ config BK7258_BT_ATT_MTU_COMPAT
 		through bkbttest stats.
 
 config BK7258_BLE_GATT
-	bool "N13 board BLE GAP/GATT peripheral service"
+	bool "N13 chip BLE GAP/GATT peripheral service adapter"
 	default n
 	depends on BK7258_BT_IPC && BK7258_AP_CORE
 	depends on WIRELESS_BLUETOOTH_HOST

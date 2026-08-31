@@ -3,8 +3,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Board-owned integration boundary between NuttX Bluetooth and the Beken
- * CP/AP Bluetooth mailbox IPC implementation.
+ * Chip-owned integration boundary between NuttX Bluetooth and the Beken
+ * CP/AP Bluetooth mailbox IPC implementation.  Physical boards only select
+ * this capability in their role profiles.
  ****************************************************************************/
 
 #ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_BT_IPC_H

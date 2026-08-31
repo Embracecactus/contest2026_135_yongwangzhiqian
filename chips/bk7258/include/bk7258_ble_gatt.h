@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Board-owned N13 BLE peripheral service ABI.  The Beken SDK remains the
+ * Chip-owned N13 BLE peripheral service ABI.  The Beken SDK remains the
  * controller owner and the unmodified NuttX Bluetooth stack remains the
  * host/ATT/GATT owner.
  ****************************************************************************/
