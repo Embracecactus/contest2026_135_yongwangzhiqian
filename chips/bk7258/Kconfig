@@ -1048,6 +1048,19 @@ config BK7258_BT_IPC_TRACE
 		diagnostic aid for the HCI, L2CAP/ATT and connection-TX path and do not
 		modify NuttX or the Beken SDK.
 
+config BK7258_BT_HOST_BUFFER_SIZE_COMPAT
+	bool "Accept unsupported Host Buffer Size with Host flow control disabled"
+	default n
+	depends on BK7258_BT_IPC && BK7258_AP_CORE
+	depends on BLUETOOTH_CNTRL_HOST_FLOW_DISABLE
+	---help---
+		The BK7258 Controller reports HCI status 0x11 for Host Buffer Size
+		(opcode 0x0c33).  When the Host has explicitly disabled
+		Controller-to-Host flow control, accept only that exact real Command
+		Complete as successful.  The chip adapter preserves the Controller's
+		completion timing and command credit and does not mask any other event,
+		opcode or status.
+
 config BK7258_BT_CONN_RX_REF_COMPAT
 	bool "N13 inbound ACL connection-reference compatibility wrapper"
 	default n
