@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/common/bk7258_idle.c
+ * chips/bk7258/common/bk7258_idle.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

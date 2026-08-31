@@ -6,8 +6,8 @@
  * Small role-neutral model of the v3.1.1.9 SDK sleep-vote set-state API.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_COMMON_BK7258_PM_ACTIVITY_H
-#define __BOARD_BK7258_CHIP_COMMON_BK7258_PM_ACTIVITY_H
+#ifndef __ARCH_ARM_SRC_BK7258_COMMON_BK7258_PM_ACTIVITY_H
+#define __ARCH_ARM_SRC_BK7258_COMMON_BK7258_PM_ACTIVITY_H
 
 /****************************************************************************
  * Included Files
@@ -46,4 +46,4 @@ int bk7258_pm_activity_vote(struct bk7258_pm_activity_s *activity,
 bool bk7258_pm_activity_idle(
   const struct bk7258_pm_activity_s *activity);
 
-#endif /* __BOARD_BK7258_CHIP_COMMON_BK7258_PM_ACTIVITY_H */
+#endif /* __ARCH_ARM_SRC_BK7258_COMMON_BK7258_PM_ACTIVITY_H */

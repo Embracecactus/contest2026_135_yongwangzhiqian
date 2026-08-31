@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/cp/bk7258_start.c
+ * chips/bk7258/cp/bk7258_start.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -18,7 +18,7 @@
  *     arm_earlyserialinit()   (bring up the polled console early)
  *     nx_start()              (kernel: scheduler, SysTick, init/NSH)
  *
- * Memory map (shared verbatim with docs/platforms/bk7258/hardware/t5ai-core/probe/probe.c):
+ * Memory map (the verified BK7258 platform contract):
  *   FLASH/logical app base : 0x02010000  (vector table, .text, .data LMA)
  *   AP SMP spinlocks        : 0x28000000 .. 0x2800FFFF (reserved)
  *   CP RAM                  : 0x28010000 .. 0x2804FFFF (256 KiB SRAM)

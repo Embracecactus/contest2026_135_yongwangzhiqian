@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/cp/
+ * chips/bk7258/cp/
  * bk7258_ap_supervisor.c
  *
  * SPDX-License-Identifier: Apache-2.0

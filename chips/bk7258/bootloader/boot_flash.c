@@ -61,7 +61,7 @@ struct bk7258_boot_flash_profile_s
   uint8_t default_protect;
 };
 
-/* The T5Board hardware checkpoint reports C86517.  Keep boot-stage mutation
+/* The verified hardware checkpoint reports C86517.  Keep boot-stage mutation
  * deliberately narrower than the runtime SDK table until each additional
  * status-register command set has been exercised on real hardware. */
 static const struct bk7258_boot_flash_profile_s g_flash_profiles[] =

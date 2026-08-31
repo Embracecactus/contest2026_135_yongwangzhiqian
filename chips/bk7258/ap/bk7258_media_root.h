@@ -6,8 +6,8 @@
  * Private AP-wide ownership boundary for immutable SDK media drivers.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_AP_BK7258_MEDIA_ROOT_H
-#define __BOARD_BK7258_CHIP_AP_BK7258_MEDIA_ROOT_H
+#ifndef __ARCH_ARM_SRC_BK7258_AP_BK7258_MEDIA_ROOT_H
+#define __ARCH_ARM_SRC_BK7258_AP_BK7258_MEDIA_ROOT_H
 
 /****************************************************************************
  * Included Files
@@ -39,4 +39,4 @@ int bk7258_media_root_initialize(uint32_t roots);
 int bk7258_media_audio_session_acquire(uint8_t owner);
 int bk7258_media_audio_session_release(uint8_t owner);
 
-#endif /* __BOARD_BK7258_CHIP_AP_BK7258_MEDIA_ROOT_H */
+#endif /* __ARCH_ARM_SRC_BK7258_AP_BK7258_MEDIA_ROOT_H */

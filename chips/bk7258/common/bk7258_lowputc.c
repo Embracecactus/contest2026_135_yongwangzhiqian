@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/common/bk7258_lowputc.c
+ * chips/bk7258/common/bk7258_lowputc.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -7,8 +7,8 @@
  *
  * arm_lowputc(ch) and up_putc(ch) push a single byte out by polling
  * the TX-ready bit and writing the FIFO data port -- exactly the freestanding
- * sequence the verified probe (docs/platforms/bk7258/hardware/t5ai-core/probe/probe.c) and the N1
- * banner use.  These are the chip-level polled primitives; the serial
+ * sequence used by verified platform bring-up and the N1 banner.  These are
+ * the chip-level polled primitives; the serial
  * lower-half in bk7258_serial.c reuses the same MMIO via its own send/txready
  * ops and calls arm_lowputc() for the console's poll path.
  *

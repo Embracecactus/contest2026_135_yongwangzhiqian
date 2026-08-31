@@ -6,8 +6,8 @@
  * Private CP/AP interface for the v3.1.1.9 coordinated low-voltage path.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_COMMON_BK7258_PM_COORD_H
-#define __BOARD_BK7258_CHIP_COMMON_BK7258_PM_COORD_H
+#ifndef __ARCH_ARM_SRC_BK7258_COMMON_BK7258_PM_COORD_H
+#define __ARCH_ARM_SRC_BK7258_COMMON_BK7258_PM_COORD_H
 
 /****************************************************************************
  * Included Files
@@ -90,4 +90,4 @@ bool bk7258_pm_cp_can_standby(void);
 bool bk7258_pm_cp_standby(void);
 #endif
 
-#endif /* __BOARD_BK7258_CHIP_COMMON_BK7258_PM_COORD_H */
+#endif /* __ARCH_ARM_SRC_BK7258_COMMON_BK7258_PM_COORD_H */

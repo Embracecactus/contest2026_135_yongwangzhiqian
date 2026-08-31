@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/common/
+ * chips/bk7258/common/
  * bk7258_pm_ipc.h
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -7,8 +7,8 @@
  * Private CP/AP wire ABI for the BK7258 peripheral clock service.
  ****************************************************************************/
 
-#ifndef __BOARD_BK7258_CHIP_COMMON_BK7258_PM_IPC_H
-#define __BOARD_BK7258_CHIP_COMMON_BK7258_PM_IPC_H
+#ifndef __ARCH_ARM_SRC_BK7258_COMMON_BK7258_PM_IPC_H
+#define __ARCH_ARM_SRC_BK7258_COMMON_BK7258_PM_IPC_H
 
 #include <stdint.h>
 
@@ -47,4 +47,4 @@ struct bk7258_pm_wire_s
 _Static_assert(sizeof(struct bk7258_pm_wire_s) == 32u,
                "BK7258 PM wire ABI must remain 32 bytes");
 
-#endif /* __BOARD_BK7258_CHIP_COMMON_BK7258_PM_IPC_H */
+#endif /* __ARCH_ARM_SRC_BK7258_COMMON_BK7258_PM_IPC_H */

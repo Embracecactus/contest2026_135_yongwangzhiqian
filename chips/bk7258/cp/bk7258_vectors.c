@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/cp/bk7258_vectors.c
+ * chips/bk7258/cp/bk7258_vectors.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -51,9 +51,8 @@
  *   [66..79] exception_common (upper external IRQs 48..63)
  *
  * Entry [64] sits at byte offset 0x100 -- exactly what the bootloader
- * validates.  This layout is shared verbatim with the bare-metal probe
- * (docs/platforms/bk7258/hardware/t5ai-core/probe/probe.c) that has already been boot-verified
- * for the BK7258 boot contract.  Slots [64]/[65] keep the bootloader magic;
+ * validates.  This layout matches the verified BK7258 boot contract.  Slots
+ * [64]/[65] keep the bootloader magic;
  * slots [0]/[1] now follow the standard NuttX PSP/MSP reset contract, while
  * dispatcher slots route through the real NuttX handlers.
  ****************************************************************************/
@@ -89,7 +88,7 @@
   (_ebss + CONFIG_IDLETHREAD_STACKSIZE)
 
 /* App magic, little-endian.  'B''K''7''2' | '3''6''\0''\0'.
- * Verified against board/bootloader behaviour; see probe.c.
+ * Verified against the bootloader ABI.
  */
 
 #define BK7258_APP_MAGIC_WORD0          0x32374b42u   /* "BK72" */

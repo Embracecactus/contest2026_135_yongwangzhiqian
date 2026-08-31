@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/app/bk7258/bk7258_ota_main.c
+ * app/bk7258/bk7258_ota_main.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

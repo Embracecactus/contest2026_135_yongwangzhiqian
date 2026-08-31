@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/cp/bk7258_dvfs.c
+ * chips/bk7258/cp/bk7258_dvfs.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

@@ -1,5 +1,5 @@
 /****************************************************************************
- * contest2026_135_yongwangzhiqian/chips/bk7258/common/bk7258_sdk_irq.h
+ * chips/bk7258/common/bk7258_sdk_irq.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
