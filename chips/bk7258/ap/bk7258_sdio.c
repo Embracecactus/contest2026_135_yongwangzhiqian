@@ -1414,6 +1414,7 @@ int bk7258_sdio_initialize(
   FAR const struct bk7258_sdio_board_s *board)
 {
   FAR struct bk7258_sdio_priv_s *priv = &g_bk7258_sdio;
+  clock_t started;
   bk_err_t err;
 
   if (sdio_dev == NULL || board == NULL || board->pins == NULL ||
@@ -1422,6 +1423,8 @@ int bk7258_sdio_initialize(
     {
       return -EINVAL;
     }
+
+  started = clock_systime_ticks();
 
   if (priv->board == NULL)
     {
@@ -1456,11 +1459,20 @@ int bk7258_sdio_initialize(
   priv->xfer_pending = false;
   if (priv->board->prepare != NULL)
     {
+      syslog(LOG_INFO, "BKSDIO INIT stage=prepare-enter wide=%u\n",
+             BK7258_SDIO_BUS_WIDTH_4BIT != 0 ? 4u : 1u);
       err = priv->board->prepare(BK7258_SDIO_BUS_WIDTH_4BIT != 0);
       if (err < 0)
         {
+          syslog(LOG_ERR,
+                 "BKSDIO INIT stage=prepare-fail ret=%d elapsed=%lu ms\n",
+                 err,
+                 (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
           return err;
         }
+
+      syslog(LOG_INFO, "BKSDIO INIT stage=prepare-pass elapsed=%lu ms\n",
+             (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
     }
 
   if (bk7258_sdio_card_detect_enabled(priv))
@@ -1470,13 +1482,20 @@ int bk7258_sdio_initialize(
 
   if (!priv->driver_init)
     {
+      syslog(LOG_INFO, "BKSDIO INIT stage=driver-enter\n");
       err = bk_sdio_host_driver_init();
       if (err != BK_OK)
         {
+          syslog(LOG_ERR,
+                 "BKSDIO INIT stage=driver-fail ret=%d elapsed=%lu ms\n",
+                 err,
+                 (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
           return bk7258_sdio_map_err(err);
         }
 
       priv->driver_init = true;
+      syslog(LOG_INFO, "BKSDIO INIT stage=driver-pass elapsed=%lu ms\n",
+             (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
     }
 
   /* Every SD card powers up in one-bit mode.  The four-bit profile maps
@@ -1485,6 +1504,7 @@ int bk7258_sdio_initialize(
    * ACMD6 successfully and calls bk7258_sdio_widebus(true).
    */
 
+  syslog(LOG_INFO, "BKSDIO INIT stage=host-enter width=1\n");
   err = bk7258_sdio_host_init_locked(priv, false);
   if (err != BK_OK)
     {
@@ -1494,9 +1514,15 @@ int bk7258_sdio_initialize(
           priv->driver_init = false;
         }
 
+      syslog(LOG_ERR,
+             "BKSDIO INIT stage=host-fail ret=%d elapsed=%lu ms\n",
+             err,
+             (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
       return err;
     }
 
+  syslog(LOG_INFO, "BKSDIO INIT PASS width=1 elapsed=%lu ms\n",
+         (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
   *sdio_dev = &priv->dev;
   return OK;
 }

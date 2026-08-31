@@ -19,6 +19,7 @@
 
 #include <debug.h>
 #include <errno.h>
+#include <syslog.h>
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_ap_platform.h>
@@ -53,6 +54,7 @@
 #  include <arch/chip/bk7258_saradc.h>
 #endif
 #ifdef CONFIG_BK7258_SDIO
+#  include <nuttx/clock.h>
 #  include <nuttx/mmcsd.h>
 #  include <nuttx/sdio.h>
 #endif
@@ -150,7 +152,7 @@ static void bk7258_i2s_bind(
 
 #ifdef CONFIG_BK7258_SDIO
 /****************************************************************************
- * Name: bk7258_sdio_bind
+ * Name: bk7258_board_ap_sdio_initialize
  *
  * Description:
  *   Attach the SDIO lower half to the MMC/SD upper half.  A missing or
@@ -159,30 +161,45 @@ static void bk7258_i2s_bind(
  *
  ****************************************************************************/
 
-static void bk7258_sdio_bind(
+int bk7258_board_ap_sdio_initialize(
   FAR const struct bk7258_sdio_board_s *board)
 {
   FAR struct sdio_dev_s *sdio = NULL;
+  clock_t started = clock_systime_ticks();
   int ret;
 
+  syslog(LOG_INFO, "BSDIO stage=lower-enter\n");
   ret = bk7258_sdio_initialize(&sdio, board);
   if (ret < 0)
     {
-      mcerr("ERROR: bk7258_sdio_initialize failed: %d\n", ret);
-      return;
+      mcerr("ERROR: BSDIO stage=lower-fail ret=%d elapsed=%lu ms\n",
+            ret, (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+      return ret;
     }
+
+  syslog(LOG_INFO, "BSDIO stage=lower-pass elapsed=%lu ms\n",
+         (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
 
 #ifdef CONFIG_MMCSD_SDIO
   /* The lower half follows the selected slot binding, probes media that is
    * already present and delivers configured insert/eject edges from HPWORK.
    */
 
+  syslog(LOG_INFO, "BSDIO stage=mmcsd-enter slot=%d\n",
+         CONFIG_BK7258_SDIO_SLOTNO);
   ret = mmcsd_slotinitialize(CONFIG_BK7258_SDIO_SLOTNO, sdio);
   if (ret < 0)
     {
-      mcerr("ERROR: mmcsd_slotinitialize failed: %d\n", ret);
+      mcerr("ERROR: BSDIO stage=mmcsd-fail ret=%d elapsed=%lu ms\n",
+            ret, (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+      return ret;
     }
 #endif
+
+  syslog(LOG_INFO, "BSDIO BOOT PASS slot=%d elapsed=%lu ms\n",
+         CONFIG_BK7258_SDIO_SLOTNO,
+         (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+  return OK;
 }
 #endif
 
@@ -389,7 +406,10 @@ int bk7258_board_ap_buses_initialize(
 #endif
 
 #ifdef CONFIG_BK7258_SDIO
-  bk7258_sdio_bind(sdio);
+  if (sdio != NULL)
+    {
+      (void)bk7258_board_ap_sdio_initialize(sdio);
+    }
 #endif
 
 #ifdef CONFIG_BK7258_SPI

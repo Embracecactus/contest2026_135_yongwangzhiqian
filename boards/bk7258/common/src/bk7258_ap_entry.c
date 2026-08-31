@@ -133,6 +133,19 @@ int bk7258_ap_main(int argc, FAR char *argv[])
       bk7258_ap_lifecycle_fail_and_park(failure);
     }
 
+#ifdef CONFIG_BK7258_BOARD_DEFERRED_INIT
+  /* The physical board hook may only start deferred work.  READY is already
+   * visible to CP, and an optional attached-device failure must not take the
+   * AP heartbeat or signed recovery path down with it.
+   */
+
+  ret = bk7258_board_ap_deferred_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "bk7258: deferred board init start failed: %d\n", ret);
+    }
+#endif
+
 #ifdef CONFIG_BK7258_AP_APPLICATION_LIFECYCLE
   if (application_ready)
     {

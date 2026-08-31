@@ -35,6 +35,16 @@ config BK7258_BOARD_HAS_UART2_ROUTE
 config BK7258_BOARD_HAS_LVGL_UI_BINDING
 	bool
 
+config BK7258_BOARD_DEFERRED_INIT
+	bool
+	depends on BK7258_AP_CORE
+	help
+		The selected physical board provides a non-blocking post-READY hook
+		which starts low-priority discovery of optional attached devices.
+		The hook itself must return promptly: storage/media probing and other
+		potentially blocking device work belongs in the task it starts, never
+		in the AP readiness path.
+
 # UART2 is a chip controller, but the legal pin group is physical-board
 # wiring.  A board must explicitly publish a verified route capability before
 # this choice becomes visible.

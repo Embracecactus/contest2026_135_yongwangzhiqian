@@ -4,6 +4,7 @@ source "../vendor/beken/boards/bk7258/common/Kconfig"
 config BK7258_BOARD_AIDK_AI_TOY
 	bool
 	default y
+	select BK7258_BOARD_DEFERRED_INIT if BK7258_AP_CORE
 	select BK7258_BOARD_HAS_SDIO_BINDING
 	select BK7258_BOARD_HAS_USER_GPIO_BINDING
 	help
@@ -27,6 +28,21 @@ config BK7258_AIDK_SD_NAND
 		Bind the chip SDIO host to the AIDK soldered 1GB SD NAND on
 		SDIO map mode 1 (P14-P19).  No card detect is available; the
 		media is always present.
+
+config BK7258_AIDK_DEFERRED_PRIORITY
+	int "AIDK attached-device worker priority"
+	default 80
+	range 1 199
+	depends on BK7258_BOARD_DEFERRED_INIT
+	help
+		SCHED_FIFO priority for post-READY SD NAND and optional attached-device
+		bring-up.  It remains below the AP supervisor, RPTUN and radio workers.
+
+config BK7258_AIDK_DEFERRED_STACKSIZE
+	int "AIDK attached-device worker stack size"
+	default 6144
+	range 4096 16384
+	depends on BK7258_BOARD_DEFERRED_INIT
 
 config BK7258_AIDK_SC7A20_PHASE0
 	bool "Probe AIDK SC7A20H identity at boot"

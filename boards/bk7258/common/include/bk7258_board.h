@@ -120,10 +120,17 @@ int bk7258_board_ap_buses_initialize(
   FAR const struct bk7258_i2s_board_s *i2s,
   FAR const struct bk7258_sdio_board_s *sdio);
 int bk7258_board_ap_finalize_initialize(void);
+#ifdef CONFIG_BK7258_SDIO
+int bk7258_board_ap_sdio_initialize(
+  FAR const struct bk7258_sdio_board_s *sdio);
+#endif
 
 /* Implemented by the selected physical board. */
 
 int bk7258_board_ap_initialize(void);
+#ifdef CONFIG_BK7258_BOARD_DEFERRED_INIT
+int bk7258_board_ap_deferred_initialize(void);
+#endif
 
 #ifdef CONFIG_BK7258_AUD
 extern const struct bk7258_aud_board_s g_bk7258_board_audio;
