@@ -3,10 +3,10 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Board-owned wrapper for the minimum v3.1.1.9 system-register and mailbox
- * runtime required by SDK-backed drivers.  This deliberately does not call
- * the SDK's full driver_init(), because NuttX owns peripheral selection and
- * initialization.
+ * Chip-owned wrapper for the minimum v3.1.1.9 system-register, mailbox and
+ * CP clock-monitor runtime required by SDK-backed drivers.  This deliberately
+ * does not call the SDK's full driver_init(), because NuttX owns peripheral
+ * selection and initialization.
  ****************************************************************************/
 
 /****************************************************************************
@@ -26,6 +26,10 @@
 #endif
 
 #include <common/bk_err.h>
+
+#ifndef CONFIG_BK7258_AP_CORE
+#  include <driver/ckmn.h>
+#endif
 
 /****************************************************************************
  * Private Function Prototypes
@@ -79,6 +83,22 @@ int bk7258_sdk_runtime_initialize(void)
 #endif
 
   sys_drv_init();
+
+#ifndef CONFIG_BK7258_AP_CORE
+  /* The immutable CP Wi-Fi library starts temp_detect, whose periodic ROSC
+   * compensation calls bk_rosc_32k_ckest_prog().  Official driver_init()
+   * initializes CKMN before launching Wi-Fi; the NuttX-owned minimal runtime
+   * must preserve that hardware dependency explicitly.  Without it every
+   * temperature interval returns BK_ERR_CKMN_DRIVER_NOT_INIT (-0x4601).
+   */
+
+  ret = bk_ckmn_driver_init();
+  if (ret != BK_OK)
+    {
+      result = -EIO;
+      goto out;
+    }
+#endif
 
 #ifdef CONFIG_BK7258_SWD_DEBUG
   bk7258_swd_trace_snapshot(BK7258_SWD_TRACE_SDK_AFTER_SYS);
