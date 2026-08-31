@@ -228,7 +228,10 @@ factory-init and device-unique ranges remain byte-identical to that base.
 of an already signed compatible package; it is not a signed release creation
 path.  A universal factory image is not inferred from this device-bound base:
 until a reviewed production provisioner assigns per-unit MAC/RF/Bluetooth and
-calibration state, the product ZIP records `requires-provisioning`.
+calibration state, the product ZIP records `requires-provisioning`. RF data
+origin, station ownership, Beken calibration/test tool roles and the production
+acceptance gates are defined by the maintained
+[RF calibration and factory-provisioning contract](../rf-calibration-and-factory-provisioning.md).
 
 ## Hardware boundary
 

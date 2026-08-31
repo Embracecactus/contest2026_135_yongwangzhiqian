@@ -38,6 +38,8 @@ N15/N17 文档恢复旧地址、旧脚本或旧信任设计。
 
 ## 平台文档
 
+- [RF 校准与工厂烧录规范](rf-calibration-and-factory-provisioning.md)：设备唯一 RF
+  数据、Beken 量产/测试工具职责、工位流程及恢复/OTA/通用工厂镜像边界；
 - [官方符合性复核](official-compliance-review.md) / [English](official-compliance-review.en.md)：
   2026-08-28 审计快照，解释 openvela 1443/1444/1445 的强制项与架构差异；
 - [官网文档适配矩阵](openvela-document-adaptation-matrix.md)：2026-08-28 能力审计快照，
