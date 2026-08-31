@@ -167,12 +167,14 @@ static int bk7258_bt_test_sem_init(sem_t *sem)
   return ret;
 }
 
+#ifndef CONFIG_BK7258_AP_CORE
 static void bk7258_bt_test_flush_sem(sem_t *sem)
 {
   while (nxsem_trywait(sem) == OK)
     {
     }
 }
+#endif
 
 static bool bk7258_bt_test_generation_ready(uint32_t generation)
 {

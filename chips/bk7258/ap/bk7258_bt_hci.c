@@ -175,11 +175,13 @@ static uint16_t bk7258_bt_get_le16(const uint8_t *data)
   return (uint16_t)data[0] | (uint16_t)data[1] << 8;
 }
 
+#ifdef CONFIG_BK7258_BT_ATT_MTU_COMPAT
 static void bk7258_bt_put_le16(uint8_t *data, uint16_t value)
 {
   data[0] = (uint8_t)value;
   data[1] = (uint8_t)(value >> 8);
 }
+#endif
 
 static uint32_t bk7258_bt_pack_bytes(const uint8_t *data, size_t length)
 {
