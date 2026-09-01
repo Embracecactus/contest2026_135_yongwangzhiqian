@@ -10,6 +10,9 @@ endif
 
 ifeq ($(CONFIG_BK7258_APP_AGENT),y)
 CSRCS += bk7258_agent_product.c
+endif
+
+ifneq ($(filter y,$(CONFIG_BK7258_APP_AGENT) $(CONFIG_BK7258_VOICE_SERVICE)),)
 ifeq ($(CONFIG_MEDIA),)
 ifeq ($(CONFIG_BK7258_MIC),y)
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)frameworks$(DELIM)multimedia$(DELIM)media$(DELIM)include
@@ -29,7 +32,8 @@ endif
 
 ifeq ($(CONFIG_BK7258_VOICE_SERVICE),y)
 CSRCS += bk7258_voice_service.c bk7258_voice_pack.c \
-	bk7258_voice_companion.c bk7258_voice_turn.c
+	bk7258_voice_companion.c bk7258_voice_turn.c \
+	bk7258_voice_turn_audio.c
 endif
 
 ifeq ($(CONFIG_BK7258_APP_VOICE),y)

@@ -23,6 +23,7 @@ BUILD   := build
 
 TEST_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 REPOSITORY_ROOT := $(abspath $(TEST_ROOT)/../../..)
+OPENVELA_ROOT := $(abspath $(REPOSITORY_ROOT)/..)
 BOARD_ROOT := $(REPOSITORY_ROOT)/boards/bk7258
 
 # Real chip implementation, relative to tests/host/bk7258.  Keep host fixtures
@@ -200,13 +201,16 @@ VOICE_PACK_ROOT := $(REPOSITORY_ROOT)/app/bk7258
 VOICE_PACK_CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O2
 VOICE_COMPANION_TARGET := $(BUILD)/test_bk7258_voice_companion
 VOICE_TURN_TARGET := $(BUILD)/test_bk7258_voice_turn
+VOICE_TURN_AUDIO_TARGET := $(BUILD)/test_bk7258_voice_turn_audio
+MEDIA_INCLUDE := $(OPENVELA_ROOT)/apps/frameworks/multimedia/media/include
 
 .PHONY: all check check-layers check-package-tools clean bl1 bl2 ap headers platform storage-contract flash \
-	ota-contract reset-marker voice-pack voice-companion voice-turn run \
+	ota-contract reset-marker voice-pack voice-companion voice-turn \
+	voice-turn-audio run \
 	run-core run-bl1 run-bl2 run-ap run-headers run-platform \
 	run-storage-contract run-ota-contract run-ota-confirmation \
 		run-reset-marker run-flash run-voice-pack run-voice-companion \
-		run-voice-turn \
+		run-voice-turn run-voice-turn-audio \
 		ota-confirmation
 
 check:
@@ -250,11 +254,12 @@ all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
 	$(OTA_CONTRACT_TARGETS) $(OTA_CONFIRMATION_TARGETS) \
 	$(RESET_MARKER_TARGETS) $(FLASH_TARGET) $(SDK_PARTITION_TARGET) \
 	$(VOICE_PACK_TARGET) $(VOICE_COMPANION_TARGET) $(VOICE_TURN_TARGET) \
+	$(VOICE_TURN_AUDIO_TARGET) \
 	bl1 bl2 ap
 
 run: run-headers run-core run-platform run-flash run-ota-confirmation \
 	run-bl1 run-bl2 run-ap run-voice-pack run-voice-companion \
-	run-voice-turn
+	run-voice-turn run-voice-turn-audio
 
 $(VOICE_PACK_TARGET): test_bk7258_voice_pack.c \
 	$(VOICE_PACK_ROOT)/bk7258_voice_pack.c \
@@ -292,6 +297,21 @@ voice-turn: $(VOICE_TURN_TARGET)
 
 run-voice-turn: voice-turn
 	./$(VOICE_TURN_TARGET)
+
+$(VOICE_TURN_AUDIO_TARGET): test_bk7258_voice_turn_audio.c \
+	$(VOICE_PACK_ROOT)/bk7258_voice_turn.c \
+	$(VOICE_PACK_ROOT)/bk7258_voice_turn.h \
+	$(VOICE_PACK_ROOT)/bk7258_voice_turn_audio.c \
+	$(VOICE_PACK_ROOT)/bk7258_voice_turn_audio.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) test_bk7258_voice_turn_audio.c \
+		$(VOICE_PACK_ROOT)/bk7258_voice_turn.c \
+		$(VOICE_PACK_ROOT)/bk7258_voice_turn_audio.c \
+		-I $(VOICE_PACK_ROOT) -I $(MEDIA_INCLUDE) -o $@
+
+voice-turn-audio: $(VOICE_TURN_AUDIO_TARGET)
+
+run-voice-turn-audio: voice-turn-audio
+	./$(VOICE_TURN_AUDIO_TARGET)
 
 .PHONY: board-layers
 

@@ -4,12 +4,13 @@ endif()
 
 if(CONFIG_BK7258_APP_AGENT)
   target_sources(apps PRIVATE bk7258_agent_product.c)
-  if(NOT CONFIG_MEDIA)
-    if(CONFIG_BK7258_MIC)
-      target_include_directories(apps PRIVATE
-          ${NUTTX_APPS_DIR}/frameworks/multimedia/media/include)
-      target_sources(apps PRIVATE bk7258_agent_media_recorder.c)
-    endif()
+endif()
+
+if(CONFIG_BK7258_APP_AGENT OR CONFIG_BK7258_VOICE_SERVICE)
+  if(NOT CONFIG_MEDIA AND CONFIG_BK7258_MIC)
+    target_include_directories(apps PRIVATE
+        ${NUTTX_APPS_DIR}/frameworks/multimedia/media/include)
+    target_sources(apps PRIVATE bk7258_agent_media_recorder.c)
   endif()
 endif()
 
@@ -24,7 +25,8 @@ endif()
 if(CONFIG_BK7258_VOICE_SERVICE)
   target_sources(apps PRIVATE bk7258_voice_service.c bk7258_voice_pack.c
                               bk7258_voice_companion.c
-                              bk7258_voice_turn.c)
+                              bk7258_voice_turn.c
+                              bk7258_voice_turn_audio.c)
 endif()
 
 if(CONFIG_BK7258_APP_VOICE)
