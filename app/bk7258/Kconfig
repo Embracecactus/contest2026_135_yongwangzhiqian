@@ -56,7 +56,8 @@ config BK7258_VOICE_SERVICE
 		bkvoice-pack-v1 manifest that attests explicit speaker consent and labels
 		the output as synthetic, then streams 16 kHz mono signed-16 PCM WAV clips
 		through the public NuttX audio ABI.  It also builds the transport-neutral
-		companion-v1 framing/session contract; no Gateway transport is enabled by
+		companion-v1 framing/session contract and the hardware-neutral half-duplex
+		turn arbiter.  The arbiter is not connected to a recorder or Gateway by
 		this symbol.  Storage mounting, model training and physical audio wiring
 		remain outside this application.
 
