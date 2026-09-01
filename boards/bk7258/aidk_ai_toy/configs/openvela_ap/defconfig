@@ -46,6 +46,7 @@ CONFIG_BK7258_AIDK_CAMERA=y
 # USB0 starts as /dev/ttyGS0 and can re-enumerate as MSC backed only by the
 # existing NuttX /dev/mmcsd0 block device.  File/HTTP bkota remain available.
 CONFIG_BK7258_USBMODE=y
+CONFIG_BK7258_VOICE_SERVICE=y
 # SC7A20H is on the SoC I2C0 route at P20/P21.  Schematic net name IIC1
 # counts buses from one and must not be copied into the zero-based HW ID.
 # Keep the identity-only Phase 0 probe opt-in: a sensor diagnostic must not
