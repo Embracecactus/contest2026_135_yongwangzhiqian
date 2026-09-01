@@ -24,6 +24,8 @@ make run-core
 make run-bl1
 make run-bl2
 make run-ap
+make run-voice-pack
+make run-voice-companion
 ```
 
 ## 当前覆盖
@@ -32,6 +34,8 @@ make run-ap
 - BL1：libc、SHA-256、flash、clock、runtime 和现行 Beken manifest；
 - BL2：security counter、flash-map/CRC trailer 写入和 CP/AP pair policy；
 - AP/CP 外设：JPEG、YUV/H.264、scale/rotate、CAN 和 IrDA。
+- App 纯逻辑：授权 voice-pack/WAV gate，以及 transport-neutral `companion-v1`
+  network-byte-order codec、sequence/window/cancel/reconnect 状态契约。
 
 分区头不使用历史副本，而是由
 `boards/bk7258/common/partitions/bk7258/bk7258_ab_agent_onchip_persistent.csv`
