@@ -120,6 +120,10 @@ bkvoice stress <manifest> <clip-id> <count:1..100>
   回收实机验收使用；
 - 任一解析、文件、reserve、queue、播放或清理错误都返回失败，不能用成功日志掩盖。
 
+当前 `status` 必须报告 `mode=playback-only` 和 `transport=not-installed`。仓内已有
+`companion-v1` 的 transport-neutral codec/session contract 及 fake-server host test，但还
+没有把 PTT、录音或 TLS/WSS 数据面接入产品运行时。
+
 ## 6. 证据状态与 OpenVela 全树能力矩阵
 
 任何组件必须分别记录四种状态，禁止把“源码树存在”写成“产品已适配”：
@@ -432,7 +436,9 @@ UIKit 的完整 video/media 组合在独立 Media profile 通过后再启用。�
 
 ### P2：按键说话端到端纵切
 
-1. 先用 deterministic fake-TTS server 验 `companion-v1` 的 request/cancel/window/reconnect；
+1. 已加入 transport-neutral `companion-v1` network-byte-order codec 和单会话状态机，并用
+   deterministic fake server host-test request/cancel/window/reconnect、sequence replay、旧
+   session/turn 与 synthetic TTS 标识；真实 socket/TLS/WSS transport 尚未安装；
 2. PTT 开始 capture，上传到用户 Gateway，由 ASR/LLM 和 P1 胜出的 TTS 热模型处理；
 3. Gateway 首个生成 chunk 立即重采样为 16 kHz/mono/S16/20 ms，禁止等整句 WAV；
 4. AIDK 严格执行 MIC release -> DAC reserve -> playback -> drain/release；
@@ -494,8 +500,8 @@ CI/交付门槛：
 
 无硬件阶段：
 
-- manifest/WAV/parser/protocol 和微信方向关联 host tests 通过；尚未实现的 KWS、Gateway
-  transport 和 resource-state 测试不得列为已通过；
+- manifest/WAV/parser、RPMsg wire ABI 和 `companion-v1` codec/session host tests 通过；
+  尚未实现的 PTT、KWS、Gateway transport 和 resource-state 测试不得列为已通过；
 - source audit 明确列出 `received/sent/collision` 数量与总时长，训练 worklog 明确区分
   `NOT_STARTED/PREPARED/TRAINING/EVALUATED/SELECTED`，双方音频绝不混合；
 - layer gate、Classic Make/CMake、AIDK AP/CP 及每个独立 component profile 构建通过；

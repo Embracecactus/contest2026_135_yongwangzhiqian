@@ -76,10 +76,14 @@ because the dispatcher is enabled.
 
 ## AIDK 本地授权语音 App
 
-`CONFIG_BK7258_APP_VOICE=y` 注册 `bkvoice`。当前纵切只做严格语音包校验和
-16 kHz/单声道/S16 PCM WAV 流式播放；端侧意图模型尚未安装，因此命令不会把
-固定规则冒充成 AI。语音包必须声明说话者明确授权，并在每次播放前输出
-`BKVOICE SYNTHETIC` 标识。
+`CONFIG_BK7258_APP_VOICE=y` 注册 `bkvoice`。当前板上纵切只做严格语音包校验和
+16 kHz/单声道/S16 PCM WAV 流式播放，状态明确报告 `playback-only`；端侧意图模型、
+PTT capture 和 Gateway transport 尚未安装，因此命令不会把固定规则冒充成 AI。
+语音包必须声明说话者明确授权，并在每次播放前输出 `BKVOICE SYNTHETIC` 标识。
+
+AP 同时编译 transport-neutral 的 `companion-v1` 帧编解码与单会话状态契约。它已用
+deterministic fake server 覆盖 network byte order、严格 sequence、window credit、取消、
+重连、旧 session/turn 和 synthetic TTS 标识，但不代表 TLS/WSS、PTT 或录音已接通。
 
 ```text
 bkvoice status
