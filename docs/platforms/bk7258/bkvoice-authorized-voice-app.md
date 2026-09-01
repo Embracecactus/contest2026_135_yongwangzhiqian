@@ -122,8 +122,11 @@ bkvoice stress <manifest> <clip-id> <count:1..100>
 
 当前 `status` 必须报告 `mode=playback-only` 和 `transport=not-installed`。仓内已有
 `companion-v1` 的 transport-neutral codec/session contract，以及硬件无关的半双工 turn
-arbiter。host test 已覆盖协议、MIC/DAC 生命周期、超时、取消和故障回滚，但还没有把 PTT、
-真实 recorder audio ops 或 TLS/WSS 数据面接入产品运行时。
+arbiter。App 私有 adapter 已把该资源契约映射到公共 `media_recorder/media_player` ABI，
+并随 AP voice-service 生命周期完成无设备占用的初始化；host fake-media test 已覆盖真实
+wrapper 的 MIC/DAC 调用顺序、超时、取消、stop 重试和 close 失败后的故障回滚。PTT、阻塞
+录音 reader 的 stop/join owner、上行传输以及 TLS/WSS 数据面仍未接入产品运行时，因此当前
+产品模式仍是 playback-only，不能写成实机对话已完成。
 
 ## 6. 证据状态与 OpenVela 全树能力矩阵
 
@@ -445,12 +448,31 @@ UIKit 的完整 video/media 组合在独立 Media profile 通过后再启用。�
    `acquire/prepare/start -> drain/stop/release`，包括超时、取消、乱序、旧 token、partial
    write 与 release 失败后的 fail-closed recovery；session 必须显式打开且 ID 单调递增，
    control/downlink 两个 arbiter-local sequence 分别从 1 严格连续增长，overflow 必须销毁
-   session；尚未绑定真实 recorder/player；
-3. PTT 开始 capture，上传到用户 Gateway，由 ASR/LLM 和 P1 胜出的 TTS 热模型处理；
-4. Gateway 首个生成 chunk 立即重采样为 16 kHz/mono/S16/20 ms，禁止等整句 WAV；
-5. AIDK 运行时接线必须继续满足 MIC 完全 release 后才允许 DAC reserve；
-6. 第一版只有 standalone BKVoice 会话/audio owner，断网回退固定 voice pack。AI Agent 若
+   session；
+3. 已加入 App 私有 `bk7258_voice_turn_audio`，只通过公共 media ABI 将上述 ops 映射到现有
+   standalone recorder/player。voice-service 启动仅初始化空 backend，不提前打开设备；
+   `media_player_stop()` 的 drain/stop/release 折叠语义由 adapter 显式幂等化，两个 raw
+   bridge 的 `close()` 保证“负值即句柄仍可重试”，避免 fail-closed recovery 重试悬空指针。
+   host fake-media 已验证正常录放、MIC close recovery、DAC stop retry 和 DAC close recovery；
+   recorder reader 还必须显式 attach/detach，reader 未退出时 drain/release 一律 `-EBUSY`，
+   防止 close 销毁仍被阻塞 read 使用的句柄；AIDK 构建不等于实机资源闭环；
+4. 下一刀由 PTT 开始 capture，上传到用户 Gateway，由 ASR/LLM 和 P1 胜出的 TTS 热模型处理；
+   capture reader 必须由明确 owner 在 stop 后 join，再允许 arbiter drain/release，不能让
+   RPMsg/GPIO callback 直接阻塞读取或操作音频句柄；
+5. Gateway 首个生成 chunk 立即重采样为 16 kHz/mono/S16/20 ms，禁止等整句 WAV；
+6. AIDK 运行时接线必须继续满足 MIC 完全 release 后才允许 DAC reserve；
+7. 第一版只有 standalone BKVoice 会话/audio owner，断网回退固定 voice pack。AI Agent 若
    替换它必须另做二选一 profile，不能并存第二套状态机。
+
+本次 adapter 的 ownership 记录：
+
+| 问题 | 决策 |
+|---|---|
+| SoC/Board 物理差异 | adapter 不感知；MIC/DAC 节点、通道数、PA GPIO 和极性继续由 Chip lower-half 与 Board 配置负责 |
+| 产品差异 | 16 kHz/mono/S16、半双工顺序、超时与恢复归 App |
+| 公共 ABI | 只调用 `media_recorder_*` / `media_player_*`，不 include Board 头、不访问寄存器或 SDK 私有 API |
+| 生命周期 | voice-service 启动只初始化空 context；会话 owner 才 acquire，release 成功才允许换向 |
+| 当前证据 | host fake-media 调用/故障测试和 AIDK build；尚无 PTT、Gateway 或实机 MIC/DAC turn 证据 |
 
 ### P3：OpenVela 独立组件 profile
 
@@ -507,9 +529,9 @@ CI/交付门槛：
 
 无硬件阶段：
 
-- manifest/WAV/parser、RPMsg wire ABI、`companion-v1` codec/session 和纯 turn-arbiter host
-  tests 通过；尚未实现的真实 audio resource-state、PTT、KWS 和 Gateway transport 不得列为
-  已通过；
+- manifest/WAV/parser、RPMsg wire ABI、`companion-v1` codec/session、纯 turn-arbiter 和
+  public-media adapter host tests 通过；adapter 只证明 ABI 映射与故障回滚，尚未实现的 PTT、
+  capture reader/uplink、KWS、Gateway transport 和实机 audio turn 不得列为已通过；
 - source audit 明确列出 `received/sent/collision` 数量与总时长，训练 worklog 明确区分
   `NOT_STARTED/PREPARED/TRAINING/EVALUATED/SELECTED`，双方音频绝不混合；
 - layer gate、Classic Make/CMake、AIDK AP/CP 及每个独立 component profile 构建通过；
