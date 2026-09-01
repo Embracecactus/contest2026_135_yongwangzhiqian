@@ -17,6 +17,15 @@
            clone-depth="1"
            groups="bk7258-sdk"/>
 
+  <project path="third_party/consent-vox"
+           name="Embracecactus/ConsentVox"
+           remote="git"
+           revision="d1fd0ebd7b92ad5ae48332ceb1dfef411fa5fa34"
+           upstream="refs/tags/v0.1.1"
+           groups="default,host-tools">
+    <linkfile src="src" dest="vendor/openvela/tools/consent-vox"/>
+  </project>
+
   <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian">
     <linkfile src="app/hello_app" dest="packages/demos/contest2026_135_hello_app"/>
     <linkfile src="app/bk7258" dest="apps/system/bk7258"/>
