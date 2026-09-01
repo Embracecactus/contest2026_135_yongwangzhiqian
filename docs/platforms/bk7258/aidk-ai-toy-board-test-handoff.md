@@ -5,7 +5,7 @@
 Snapshot date: 2026-09-01
 Repository: `contest2026_135_yongwangzhiqian`
 Branch: `dev-ai-contest-2026`
-Hardware-code HEAD: `102c8b9` (`fix(bk7258): honor SDK SRAM allocation contract`)
+Hardware-code HEAD: `e270b43` (`fix(bk7258): restore ICMP ping socket support`)
 
 This is a live hardware-debug handoff, not an immutable verification record.
 Begin the next session with `current mode: hardware-fast iteration`, read the
@@ -14,17 +14,11 @@ the target state changes.
 
 ## Scope boundary
 
-The next session owns only the AIDK AI Toy board-test loop:
-
-- finish post-connect reachability and the remaining health checks on
-  generation 188;
-- reconfirm the already-successful MFRC522 probe if the board is rebooted;
-- preserve AP/RPTUN/CPU2, Bluetooth and deferred-bring-up behavior;
-- build or hand off a directly flashable artifact only when the owner requests
-  it and the applicable trust/device-data gates pass.
-
-Voice-model training, private voice artifacts and OpenAI feedback belong to
-other sessions. Do not read, stage, move or commit them during board debugging.
+This session owns only the AIDK AI Toy board-test loop. Preserve the working
+AP/RPTUN/CPU2, Bluetooth, Wi-Fi and deferred-device behavior. Reconfirm the
+MFRC522 probe only after a reboot or contradictory runtime evidence. Voice-model
+training, private voice artifacts and OpenAI feedback belong to other sessions;
+do not read, stage, move or commit them during board debugging.
 
 ## Git and artifact boundary
 
@@ -39,41 +33,45 @@ The hardware closure after `de3e9af` is:
 | `de3e9af` | stabilize interactive Wi-Fi input and validate PSKs | foreground input and bounded returns observed |
 | `56a7ef6` | re-enter the chip UART lifecycle before the MFRC522 open | MFRC522 probe passed on generation 187 |
 | `102c8b9` | honor SDK SRAM-only allocation and PSRAM free ownership | WPA handshake and DHCP passed on generation 188 |
+| `e270b43` | select the AP ICMP socket dependency with BK7258 Wi-Fi vnet | connected status and gateway ping passed on generation 189 |
 
-Unrelated owner/parallel work was still present at handoff creation:
+Unrelated owner/parallel work remained in the checkout:
 
 - modified `AGENTS.md`;
 - untracked `tests/host/bk7258/test_wechat_voice_manifest.py`;
 - untracked `tools/bkvoice/`.
 
-Those paths were not staged or committed. Re-run
-`git status --short --branch` before every edit or commit and stage only the
-board-test dependency closure.
+Those paths were not staged or committed. Run `git status --short --branch`
+before each edit or commit and stage only the board-test closure.
 
 ## Installed test artifact
 
 The board reported:
 
 ```text
-pair=confirmed version=18.6.128+188 counter=188
+pair=confirmed version=18.6.129+189 counter=189
 ```
 
 The signed, same-unit delivery was:
 
-- product: `aidk_ai_toy-v18.6.128+188-wifi-sram-tx.zip`;
+- product: `aidk_ai_toy-v18.6.129+189-icmp-ping.zip`;
 - product SHA-256:
-  `63d507c6dd983d50fe1fba0a129651589d07570f2c64e48b33e9a654577243eb`;
-- dense recovery SHA-256:
-  `2a8ac6d4f13d9baf7dfda06990e434a4a26588d97ef7d1b0a94f89d625e75070`;
+  `8eedd1b7bd4a1b5ba53d141e1fecb3b1a77a53c6bb1e8077596531a73356cc1a`;
+- dense operator image SHA-256:
+  `d324e4b37a5645ef11c01a523e79965f831bfae4362b817f445f1a24d0015b72`;
+- full package SHA-256:
+  `5739b35f749f5e7f96722ff86b57fe7c623625472e6dcff5215e5bb6db7e160a`;
 - device: `C8:47:8C:CB:7F:80` only;
-- generation: 188;
+- generation: 189;
 - OTA component: not included.
 
-Package, public trust and delivery verification passed. Independent comparisons
-confirmed that `usr_config`, the 1 MiB `persistent_data` window, the complete
-device-unique tail and `sys_rf` matched the accepted same-unit base. The 4 KiB
+Package, public-trust and delivery verification passed. Independent comparisons
+confirmed that `usr_config`, `persistent_data`, `easyflash`, `easyflash_ap`,
+`sys_rf` and `sys_net` matched the accepted same-unit source. The 4 KiB
 `sys_rf` digest remained
 `b6cb961f09a3ad8c3c5d749a27c63dbb010015f67cb06c77ea37f211c8cee781`.
+The clean build used fresh independent ephemeral P-256 BL1/MCUboot roots; the
+temporary private-key directory was removed after package verification.
 
 ## Fresh board evidence
 
@@ -89,108 +87,112 @@ AIDK DEFERRED stage=mfrc522-pass
 AIDK DEFERRED DONE failures=0
 ```
 
-The board layer still owns only the UART1 device binding and probe policy. It
-requests `bk7258_uart_runtime_reinitialize(1)` before opening the device; the
-chip layer owns locking and the public SDK deinitialize/initialize lifecycle.
-The register snapshot is bounded diagnostic evidence, not a board-owned UART
-implementation.
+The board layer owns the UART1 binding and probe policy only. It requests
+`bk7258_uart_runtime_reinitialize(1)` before opening the device; the chip layer
+owns locking and the public SDK deinitialize/initialize lifecycle. The register
+snapshot is bounded diagnostic evidence, not a board-owned UART implementation.
+Relevant code did not change between generations 187 and 189.
 
-### Wi-Fi association and DHCP passed
+### Wi-Fi association, DHCP and ping passed
 
-On generation 188, an initial attempt returned an ordinary timeout because its
-directed scan matched no SSID. A retry with the intended SSID reached every
-required connection stage:
+Generation 189 reached every connection stage and returned a DHCP lease without
+exposing the entered credential:
 
 ```text
-scanu_confirm: status=0 upload_cnt=22 recv_cnt=48 result=1
+scanu_confirm: status=0 upload_cnt=19 recv_cnt=63 result=1
 State: SCANNING -> ASSOCIATING
 State: ASSOCIATING -> ASSOCIATED
 State: ASSOCIATED -> 4WAY_HANDSHAKE
 State: 4WAY_HANDSHAKE -> GROUP_HANDSHAKE
 State: GROUP_HANDSHAKE -> COMPLETED
 sta:DHCP_ACK received
-BKWIFI RESULT operation=connect status=0 link=3 rssi=-40
+BKWIFI RESULT operation=connect status=0 link=3 rssi=-37 ip=192.168.0.102
+BKWIFI RESULT operation=ping status=0 link=3 rssi=-37 ip=192.168.0.102
+BKWIFI RESULT operation=status status=0 link=3 rssi=-37 ip=192.168.0.102
+BKWIFI RESULT operation=ping status=0 link=3 rssi=-37 ip=192.168.0.102
 ```
 
-No `__l2_packet_send: send timeout`, allocator failure, PSRAM rejection,
-assertion, panic, credential echo or shell-input interleaving occurred. The
-fix keeps the 96 KiB CP PSRAM system-heap extension but reserves a separate
-16 KiB internal-SRAM heap for the SDK's SRAM-only allocation API. The CP RAM
-trace buffer was reduced from 32 KiB to 16 KiB, leaving MCUboot CP BSS within
-16 bytes of the previous generation.
+Generation 188 had returned `status=-93` while retaining the link and lease.
+Git history showed that the original ping implementation selected
+`CONFIG_NET_ICMP_SOCKET`, while the later AIDK networking integration retained
+ICMP but omitted the socket interface. `bk7258_wifi_ping_gateway()` uses a raw
+`IPPROTO_ICMP` socket, so the INET dispatcher returned `-EPROTONOSUPPORT`.
+Commit `e270b43` makes `BK7258_WIFI_VNET` select `NET_ICMP_SOCKET` on the AP
+core. It changes neither SDK nor NuttX source. The clean generation-189 AP
+configuration resolved both `CONFIG_NET_ICMP=y` and
+`CONFIG_NET_ICMP_SOCKET=y`.
 
-The same generation-188 boot also established, before the successful retry:
+The `bkwifi ping 1000` invocation printed usage because its timeout was outside
+the accepted range; the later default-timeout and 10-second pings both passed.
+There was no allocator failure, assertion, panic, reboot, credential echo or
+shell-input interleaving.
 
-- standalone scan passed with 20 results;
-- `bkbttest scan` ended with `BBTT PASS` and `BBTT SUITE PASS`;
-- AP was `READY`, CPU2 was `SCHEDULER_ONLINE`, RPTUN was `CONNECTED`;
-- the supervisor was `HEALTHY` with zero faults and zero recoveries.
+### Bluetooth passed; optional N12V target was absent
 
-### Post-connect ping returned a bounded error
-
-After the successful connection, the ping command retained the connected link,
-RSSI and DHCP lease but returned a nonzero status:
+Generation 189 retained the compatibility state and passed ordinary discovery,
+the combined suite, controller information and statistics:
 
 ```text
-BKWIFI RESULT operation=ping status=-93 link=3 rssi=-40 ip=192.168.0.102 mask=255.255.255.0 router=192.168.0.1
+BBTT PASS operation=scan gen=1 sequence=1
+BBTT SUITE PASS info=0 scan=1
+BBTT PASS operation=info gen=1 sequence=4
+BBTT SUITE PASS info=1 scan=0
+BBTT PASS operation=scan gen=1 sequence=6
+BBTT SUITE PASS info=1 scan=1
+BBTT HCI command_tx=23 event_rx=629 invalid_rx=0 receive_errors=0
+BBTT PASS operation=stats gen=1 sequence=7
+```
+
+The targeted `bkbttest n12v` invocation completed a valid scan but reported
+`n12v_match=0` and suite status `-99` because no matching N12V advertisement
+was present. This does not contradict the ordinary Bluetooth scan acceptance;
+it is not evidence that an N12V peer was validated.
+
+### Generation-189 topology remained healthy
+
+After Wi-Fi traffic, the installed pair and supervisor remained healthy:
+
+```text
+pair=confirmed version=18.6.129+189 counter=189
+ap state=2 error=0
+cpu2 state=8 error=0 ready=1 online=00000003
+rptun state=4 error=0
+supervisor state=2 faults=0 recoveries=0
 AP supervisor state=HEALTHY(2) reason=NONE(0)
 Supervisor faults/recoveries/consecutive=0/0/0
 ```
 
-The command returned to NSH without an assertion, panic or reboot, and the
-post-connect supervisor health check passed. This is useful bounded failure
-evidence, but `status=-93` is not proof of network reachability and still needs
-diagnosis.
+## Remaining evidence boundary
 
-Do not record the real SSID or password in this document or in captured logs.
-
-## Remaining hardware checks
-
-The successful connection returned a DHCP lease, and post-connect
-`apctl health` passed. The following commands were not recaptured after that
-successful attempt:
-
-```text
-bkwifi status
-bkwifi scan 15000
-bkbttest scan
-apctl status
-bkota status
-```
-
-Acceptance requires status to remain connected, scan to return normally,
-Bluetooth to retain `BBTT PASS`, and the full AP/CPU2/RPTUN topology to stay
-healthy after Wi-Fi traffic. Diagnose the bounded ping `status=-93` and obtain
-positive reachability evidence before declaring ping passed. An ordinary
-network error is useful evidence, but must not be reported as reachability
-success.
-
-If the board is rebooted, also retain the bounded MFRC522 `open-ready`, probe
-result and `mfrc522-pass` lines. Do not reopen the UART repair solely because a
-new boot log was not captured; reopen it only on contradictory runtime evidence.
+An independent `bkwifi scan 15000` was not recaptured on generation 189.
+Generation 188 passed standalone Wi-Fi scanning, and the generation-189 delta
+only enables the AP ICMP socket. Boot latency remains accepted from generation
+184, and the MFRC522 success log remains from generation 187. Report those
+generation boundaries explicitly; do not relabel older evidence as generation
+189. Reopen a closed driver hypothesis only when new runtime evidence conflicts.
 
 ## Acceptance matrix
 
 | Area | Pass condition | Current handoff state |
 |---|---|---|
-| Boot latency | RCS near the 1.3-second baseline; SDIO/MMC remains deferred | passed on `18.6.124+184`; not recaptured on generation 188 |
-| AP topology | AP READY, CPU2 online, RPTUN connected, supervisor healthy/faults 0 | full status passed before the final retry; supervisor health passed after connect |
-| Bluetooth | compatibility information plus `BBTT PASS` | passed on generation 188 before the final Wi-Fi retry |
-| Wi-Fi association | directed scan, WPA handshake and DHCP, no assertion or input race | passed on `18.6.128+188` |
-| Wi-Fi reachability | connected status, ping and scan after successful connect | ping retained link/IP but returned `-93`; open |
-| MFRC522 | configured UART snapshot, valid response and `mfrc522-pass` | passed on generation 187; unchanged in generation 188 |
-| RF/device data | same-unit `sys_rf` and device-unique tail preserved byte-for-byte | package verified; prior runtime acceptance retained |
+| Boot latency | RCS near the 1.3-second baseline; SDIO/MMC remains deferred | passed on `18.6.124+184`; not recaptured on generation 189 |
+| AP topology | AP READY, CPU2 online, RPTUN connected, supervisor healthy/faults 0 | generation-189 `bkota status` and post-traffic health passed |
+| Bluetooth | compatibility information plus `BBTT PASS` | ordinary scan and combined suite passed on generation 189; N12V peer not found |
+| Wi-Fi association | directed scan, WPA handshake and DHCP, no assertion or input race | passed on `18.6.129+189` |
+| Wi-Fi reachability | connected status and gateway ping after successful connect | status and two pings passed on `18.6.129+189`; standalone scan not recaptured |
+| MFRC522 | configured UART snapshot, valid response and `mfrc522-pass` | passed on generation 187; relevant code unchanged through generation 189 |
+| RF/device data | same-unit `sys_rf` and device-unique tail preserved byte-for-byte | generation-189 package verified; prior runtime acceptance retained |
 
 ## Flash and trust guardrails
 
-- Do not flash merely because this handoff exists. Wait for the owner's explicit
-  request and identify the exact target artifact first.
+- Do not flash merely because this handoff exists. Wait for explicit owner
+  authorization and identify the exact artifact first.
 - Do not use J-Link in the AIDK board-test loop.
-- Prefer an installed apps-only path only when the installed public trust root
-  accepts the CP/AP change.
+- Prefer an installed apps-only path only when its public trust root accepts the
+  CP/AP change.
 - Every authorized MCUboot whole-device download starts a clean build and a new
-  pair of independent ephemeral P-256 BL1/MCUboot keys with a strictly
-  increasing rollback generation. Never reuse old private keys.
+  pair of independent ephemeral P-256 roots with a strictly increasing rollback
+  generation. Never reuse private keys.
 - A dense 8 MiB image must materialize `sys_rf` and the device-unique tail from
   the accepted complete readback of this same unit. Never copy it to another
   board and never chip-erase the target.
@@ -199,7 +201,7 @@ new boot log was not captured; reopen it only on contradictory runtime evidence.
 
 Use the maintained
 [build, package and hardware evidence SOP](nuttx-port/bk7258-build-flash-debug-sop.md)
-for any authorized build or package operation.
+for an authorized build or package operation.
 
 ## Copy-ready prompt for the next session
 
@@ -207,11 +209,11 @@ for any authorized build or package operation.
 接管 AIDK AI Toy 板上快速调试。先完整阅读仓库 AGENTS.md 和
 docs/platforms/bk7258/aidk-ai-toy-board-test-handoff.md，并声明
 current mode: hardware-fast iteration。只处理板测，不接管语音训练或 OpenAI
-反馈。当前板上是已确认的 18.6.128+188/counter 188；MFRC522 已在 generation
-187 探测成功，Wi-Fi 已在 generation 188 完成 WPA 握手和 DHCP；联网后 ping
-保留 link=3 和 DHCP 地址但返回 status=-93，supervisor health 仍通过。先诊断
-ping 的有界错误并补采 status/scan，再复核 Bluetooth 和完整 AP/CPU2/RPTUN
-状态。
-不要使用 J-Link，不要泄漏 Wi-Fi 凭据，不要碰 sys_rf，也不要执行未授权全量
-烧录。只有新板证据与当前记录冲突时才重新打开已经闭环的驱动假设。
+反馈。当前板上是已确认的 18.6.129+189/counter 189；Wi-Fi 已完成 WPA 握手、
+DHCP、连接状态和两次 gateway ping，ping 均返回 status=0；普通 Bluetooth
+scan/all/info/stats 与 post-traffic supervisor health 通过。N12V 定向测试只因
+现场未发现匹配广播而未通过，不代表基础蓝牙失败。MFRC522 已在 generation 187
+探测成功，相关代码到 generation 189 未再变化。若需要同代际全量矩阵，只补采
+bkwifi scan 15000。不要使用 J-Link，不要泄漏 Wi-Fi 凭据，不要碰 sys_rf，也
+不要执行未授权全量烧录。只有新板证据与当前记录冲突时才重新打开已闭环假设。
 ```
