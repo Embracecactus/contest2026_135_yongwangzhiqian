@@ -97,7 +97,8 @@ static int bkvoice_status(void)
          (response.flags & BKVOICE_STATUS_SERVICE_READY) != 0 ?
          "ready" : "not-ready");
   printf("BKVOICE AUDIO owner=ap dev=/dev/audio/pcm0p rate=16000 "
-         "channels=1 bits=16 mode=record-then-play\n");
+         "channels=1 bits=16 mode=playback-only\n");
+  printf("BKVOICE COMPANION transport=not-installed state=disabled\n");
   printf("BKVOICE STORAGE owner=ap block=/dev/mmcsd0 ready=%u "
          "mount=board-policy path=ap-namespace\n",
          (response.flags & BKVOICE_STATUS_BLOCK_PRESENT) != 0 ? 1u : 0u);

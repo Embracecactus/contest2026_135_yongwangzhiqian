@@ -22,7 +22,8 @@ if(CONFIG_BK7258_APP_AGENT OR CONFIG_BK7258_VOICE_SERVICE)
 endif()
 
 if(CONFIG_BK7258_VOICE_SERVICE)
-  target_sources(apps PRIVATE bk7258_voice_service.c bk7258_voice_pack.c)
+  target_sources(apps PRIVATE bk7258_voice_service.c bk7258_voice_pack.c
+                              bk7258_voice_companion.c)
 endif()
 
 if(CONFIG_BK7258_APP_VOICE)
