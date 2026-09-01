@@ -274,12 +274,15 @@ config BK7258_APP_WIFI
 	depends on BK7258_WIFI_VNET && !BK7258_AP_CORE && SYSTEM_NSH
 	select BUILTIN
 	select NSH_BUILTIN_APPS
+	select SCHED_WAITPID
 	---help---
 		Enable the CP-side bkwifi NSH command.  Besides STA connectivity and
 		bounded active discovery, it can request AP-owned passive monitor and read
 		aggregate metadata.  It does not expose frame transmission or raw frame
 		contents.  The Wi-Fi VNET driver is owned by BK7258_WIFI_VNET and is
-		enabled independently of this command.
+		enabled independently of this command.  SCHED_WAITPID keeps built-ins in
+		the foreground so the interactive credential reader exclusively owns the
+		NSH terminal until it has restored terminal echo.
 
 if BK7258_APP_WIFI
 

@@ -37,6 +37,7 @@
 
 #include <inttypes.h>
 #include <errno.h>
+#include <malloc.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -53,6 +54,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <syslog.h>
 #include <irq/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/event.h>
@@ -2722,6 +2724,7 @@ uint32_t rtos_get_timer_expiry_time(beken_timer_t *timer)
 
 #if defined(CONFIG_BK7258_WIFI_VNET) && !defined(CONFIG_BK7258_AP_CORE)
 static bool g_bk7258_wifi_zero_malloc;
+static bool g_bk7258_wifi_malloc_failure_logged;
 static pid_t g_bk7258_wifi_malloc_owner_pid;
 
 extern void *__real_malloc(size_t size);
@@ -2729,6 +2732,20 @@ extern void *__real_malloc(size_t size);
 void *__wrap_malloc(size_t size)
 {
   void *mem = __real_malloc(size);
+
+  if (mem == NULL &&
+      !__atomic_exchange_n(&g_bk7258_wifi_malloc_failure_logged, true,
+                           __ATOMIC_RELAXED))
+    {
+      struct mallinfo info = mallinfo();
+
+      syslog(LOG_ERR,
+             "BK7258 WIFI MALLOC FAIL pid=%ld size=%lu total=%lu "
+             "used=%lu free=%lu maxfree=%lu\n",
+             (long)nxsched_gettid(), (unsigned long)size,
+             (unsigned long)info.arena, (unsigned long)info.uordblks,
+             (unsigned long)info.fordblks, (unsigned long)info.mxordblk);
+    }
 
   /* The official v3.1.1.9 CP starts Wi-Fi against a fresh, zero-filled
    * FreeRTOS heap.  Some of its Wi-Fi objects, including the station table,
