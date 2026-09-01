@@ -59,6 +59,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/event.h>
 #include <nuttx/mqueue.h>
+#include <nuttx/mm/mm.h>
 #include <nuttx/mutex.h>
 #include <nuttx/queue.h>
 #include <nuttx/semaphore.h>
@@ -72,6 +73,7 @@
 #include <nuttx/tls.h>
 
 #include <arch/chip/bk7258_console.h>
+#include <arch/chip/bk7258_os_adapt.h>
 
 #ifdef CONFIG_BK7258_PSRAM
 #  include <arch/chip/bk7258_psram.h>
@@ -2783,6 +2785,35 @@ void bk7258_os_wifi_malloc_zero_end(void)
 }
 #endif
 
+#ifdef CONFIG_BK7258_SDK_SRAM_HEAP
+static uint8_t g_bk7258_sdk_sram_heap_area
+  [CONFIG_BK7258_SDK_SRAM_HEAP_SIZE] __attribute__((aligned(32)));
+static FAR struct mm_heap_s *g_bk7258_sdk_sram_heap;
+static bool g_bk7258_sdk_sram_reject_logged;
+
+static bool bk7258_os_sram_heap_contains(FAR const void *ptr)
+{
+  uintptr_t address = (uintptr_t)ptr;
+  uintptr_t start = (uintptr_t)g_bk7258_sdk_sram_heap_area;
+
+  return address >= start && address < start +
+         sizeof(g_bk7258_sdk_sram_heap_area);
+}
+
+int bk7258_os_sram_heap_initialize(void)
+{
+  if (g_bk7258_sdk_sram_heap != NULL)
+    {
+      return OK;
+    }
+
+  g_bk7258_sdk_sram_heap = mm_initialize(
+    "bk-sdk-sram", g_bk7258_sdk_sram_heap_area,
+    sizeof(g_bk7258_sdk_sram_heap_area));
+  return g_bk7258_sdk_sram_heap != NULL ? OK : -ENOMEM;
+}
+#endif
+
 /* Memory functions — provided here for NuttX (libbk_rtos.a excluded to
  * avoid FreeRTOS-based implementations conflicting with ours). */
 
@@ -2935,10 +2966,28 @@ void *os_malloc(size_t size)
 
 void os_free(void *ptr)
 {
+#ifdef CONFIG_BK7258_SDK_SRAM_HEAP
+  if (bk7258_os_sram_heap_contains(ptr))
+    {
+      mm_free(g_bk7258_sdk_sram_heap, ptr);
+      return;
+    }
+#endif
+
 #ifdef CONFIG_BK7258_PSRAM
   if (bk7258_psram_address(ptr))
     {
-      if (bk7258_psram_heap_contains(ptr))
+      /* A role-local PSRAM block may be transferred permanently to the
+       * NuttX system heap as a second region.  Its allocations still have
+       * PSRAM addresses, but their metadata belongs to NuttX rather than
+       * the enclosing private PSRAM heap.
+       */
+
+      if (bk7258_psram_system_heap_contains(ptr))
+        {
+          kmm_free(ptr);
+        }
+      else if (bk7258_psram_heap_contains(ptr))
         {
           bk7258_psram_free(ptr);
         }
@@ -2961,24 +3010,80 @@ void *os_zalloc(size_t size)
 
 void *os_sram_malloc(size_t size)
 {
-  return kmm_malloc(size);
+  void *ptr = NULL;
+
+#ifdef CONFIG_BK7258_SDK_SRAM_HEAP
+  if (g_bk7258_sdk_sram_heap != NULL)
+    {
+      ptr = mm_malloc(g_bk7258_sdk_sram_heap, size);
+      if (ptr != NULL)
+        {
+          return ptr;
+        }
+    }
+#endif
+
+  ptr = kmm_malloc(size);
+#if defined(CONFIG_BK7258_SDK_SRAM_HEAP) && defined(CONFIG_BK7258_PSRAM)
+  if (bk7258_psram_address(ptr))
+    {
+      kmm_free(ptr);
+      if (!g_bk7258_sdk_sram_reject_logged)
+        {
+          g_bk7258_sdk_sram_reject_logged = true;
+          wlerr("ERROR: Refusing SDK SRAM allocation from PSRAM size=%zu\n",
+                size);
+        }
+
+      return NULL;
+    }
+#endif
+
+  return ptr;
 }
 
 void *os_sram_calloc(size_t a, size_t b)
 {
-  return kmm_calloc(a, b);
+  size_t size;
+  void *ptr;
+
+  if (b != 0 && a > SIZE_MAX / b)
+    {
+      return NULL;
+    }
+
+  size = a * b;
+  ptr = os_sram_malloc(size);
+  if (ptr != NULL)
+    {
+      memset(ptr, 0, size);
+    }
+
+  return ptr;
 }
 
 void *os_sram_zalloc(size_t size)
 {
-  return kmm_zalloc(size);
+  return os_sram_calloc(1, size);
 }
 
 void *os_realloc(void *ptr, size_t size)
 {
+#ifdef CONFIG_BK7258_SDK_SRAM_HEAP
+  if (bk7258_os_sram_heap_contains(ptr))
+    {
+      return mm_realloc(g_bk7258_sdk_sram_heap, ptr, size);
+    }
+#endif
+
 #ifdef CONFIG_BK7258_PSRAM
   if (bk7258_psram_address(ptr))
     {
+      if (bk7258_psram_system_heap_contains(ptr))
+        {
+          return kmm_realloc(ptr, size);
+        }
+
       return bk7258_psram_realloc(ptr, size);
     }
 #endif
@@ -3043,7 +3148,7 @@ void *os_sram_malloc_debug(const char *func_name, int line, size_t size,
   (void)func_name;
   (void)line;
 
-  return need_zero ? kmm_zalloc(size) : kmm_malloc(size);
+  return need_zero ? os_sram_zalloc(size) : os_sram_malloc(size);
 }
 
 void *psram_malloc_debug(const char *func_name, int line, size_t size,

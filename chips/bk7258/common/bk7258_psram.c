@@ -752,6 +752,16 @@ bool bk7258_psram_heap_contains(const void *ptr)
                    BK7258_PSRAM_LOCAL_HEAP_SIZE;
 }
 
+bool bk7258_psram_system_heap_contains(const void *ptr)
+{
+  uintptr_t address = (uintptr_t)ptr;
+  uintptr_t start = (uintptr_t)g_bk7258_psram_system_heap;
+
+  return g_bk7258_psram_system_heap != NULL &&
+         address > start &&
+         address < start + g_bk7258_psram_system_heap_size;
+}
+
 bool bk7258_psram_mpu_valid(void)
 {
   uint32_t rnr = BK7258_MPU_RNR;

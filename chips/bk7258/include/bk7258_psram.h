@@ -132,6 +132,7 @@ int bk7258_psram_add_system_heap(size_t size);
 bool bk7258_psram_ready(void);
 bool bk7258_psram_address(const void *ptr);
 bool bk7258_psram_heap_contains(const void *ptr);
+bool bk7258_psram_system_heap_contains(const void *ptr);
 bool bk7258_psram_mpu_valid(void);
 
 void *bk7258_psram_malloc(size_t size);
