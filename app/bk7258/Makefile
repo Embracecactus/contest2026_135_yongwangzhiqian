@@ -28,7 +28,8 @@ endif
 endif
 
 ifeq ($(CONFIG_BK7258_VOICE_SERVICE),y)
-CSRCS += bk7258_voice_service.c bk7258_voice_pack.c
+CSRCS += bk7258_voice_service.c bk7258_voice_pack.c \
+	bk7258_voice_companion.c
 endif
 
 ifeq ($(CONFIG_BK7258_APP_VOICE),y)
