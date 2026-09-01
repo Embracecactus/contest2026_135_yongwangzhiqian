@@ -4,19 +4,39 @@
 
 include $(APPDIR)/Make.defs
 
+ifneq ($(filter y,$(CONFIG_BK7258_APP_AGENT) $(CONFIG_BK7258_VOICE_SERVICE)),)
+CSRCS += bk7258_product_lifecycle.c
+endif
+
 ifeq ($(CONFIG_BK7258_APP_AGENT),y)
 CSRCS += bk7258_agent_product.c
 ifeq ($(CONFIG_MEDIA),)
-ifneq ($(filter y,$(CONFIG_BK7258_MIC) $(CONFIG_BK7258_AUD)),)
-CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)frameworks$(DELIM)multimedia$(DELIM)media$(DELIM)include
-endif
 ifeq ($(CONFIG_BK7258_MIC),y)
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)frameworks$(DELIM)multimedia$(DELIM)media$(DELIM)include
 CSRCS += bk7258_agent_media_recorder.c
 endif
+endif
+endif
+
+ifneq ($(filter y,$(CONFIG_BK7258_APP_AGENT) $(CONFIG_BK7258_VOICE_SERVICE)),)
+ifeq ($(CONFIG_MEDIA),)
 ifeq ($(CONFIG_BK7258_AUD),y)
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)frameworks$(DELIM)multimedia$(DELIM)media$(DELIM)include
 CSRCS += bk7258_agent_media_player.c
 endif
 endif
+endif
+
+ifeq ($(CONFIG_BK7258_VOICE_SERVICE),y)
+CSRCS += bk7258_voice_service.c bk7258_voice_pack.c
+endif
+
+ifeq ($(CONFIG_BK7258_APP_VOICE),y)
+PROGNAME  += $(CONFIG_BK7258_APP_VOICE_PROGNAME)
+PRIORITY  += $(CONFIG_BK7258_APP_VOICE_PRIORITY)
+STACKSIZE += $(CONFIG_BK7258_APP_VOICE_STACKSIZE)
+MAINSRC   += bk7258_voice_main.c
+CSRCS     += bk7258_voice_client.c
 endif
 
 ifeq ($(CONFIG_BK7258_APP_OTA),y)

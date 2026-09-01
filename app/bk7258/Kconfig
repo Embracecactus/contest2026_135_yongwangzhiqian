@@ -19,6 +19,57 @@ config BK7258_APP_AGENT
 		backends live in this application directory; chip and board code remain
 		independent of the Agent product.
 
+config BK7258_APP_VOICE
+	bool "BK7258 authorized-voice service command (bkvoice)"
+	default n
+	depends on !BK7258_AP_CORE && BK7258_RPTUN && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Build the CP-visible bkvoice status/verify/play/stress command.  It uses
+		a versioned application RPMsg protocol to reach the AP-owned voice service;
+		it never opens AP storage or audio devices from CP.
+
+if BK7258_APP_VOICE
+
+config BK7258_APP_VOICE_PROGNAME
+	string "bkvoice program name"
+	default "bkvoice"
+
+config BK7258_APP_VOICE_PRIORITY
+	int "bkvoice priority"
+	default 100
+
+config BK7258_APP_VOICE_STACKSIZE
+	int "bkvoice stack size"
+	default 8192
+
+endif
+
+config BK7258_VOICE_SERVICE
+	bool "BK7258 AP authorized-voice service"
+	default n
+	depends on BK7258_AP_CORE && BK7258_AUD && BK7258_RPTUN && !MEDIA
+	select BK7258_AP_APPLICATION_LIFECYCLE
+	help
+		Start the AP-resident endpoint used by bkvoice.  It accepts only a strict
+		bkvoice-pack-v1 manifest that attests explicit speaker consent and labels
+		the output as synthetic, then streams 16 kHz mono signed-16 PCM WAV clips
+		through the public NuttX audio ABI.  Storage mounting, model training and
+		physical audio wiring remain outside this application.
+
+if BK7258_VOICE_SERVICE
+
+config BK7258_VOICE_SERVICE_PRIORITY
+	int "BKVoice AP worker priority"
+	default 90
+
+config BK7258_VOICE_SERVICE_STACKSIZE
+	int "BKVoice AP worker stack size"
+	default 8192
+
+endif
+
 config BK7258_APP_USBMODE
 	bool "BK7258 USB0 CDC/MSC mode command"
 	default n

@@ -19,8 +19,6 @@
 #include <nuttx/signal.h>
 
 #include <arch/board/board.h>
-#include <arch/chip/bk7258_ap_lifecycle.h>
-
 #if defined(CONFIG_BK7258_AUD) && !defined(CONFIG_MEDIA)
 extern void bk7258_agent_media_player_link(void);
 #endif
@@ -63,7 +61,7 @@ static int bk7258_agent_ui_show_task(int argc, FAR char *argv[])
 }
 #endif
 
-int bk7258_ap_application_prepare(void)
+int bk7258_agent_product_prepare(void)
 {
 #ifdef CONFIG_AI_AGENT_LVGL_UI
   return bk7258_board_ui_initialize();
@@ -133,7 +131,7 @@ static int bk7258_agent_launch_task(int argc, FAR char *argv[])
   return OK;
 }
 
-int bk7258_ap_application_start(void)
+int bk7258_agent_product_start(void)
 {
   pid_t launchpid;
 
