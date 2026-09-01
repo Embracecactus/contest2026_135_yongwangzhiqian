@@ -16,6 +16,22 @@ extern "C"
 {
 #endif
 
+/* Read-only controller state used by bounded board bring-up diagnostics.
+ * FIFO data is deliberately excluded because reading it consumes RX bytes.
+ */
+
+struct bk7258_uart_debug_snapshot_s
+{
+  uint32_t config;
+  uint32_t fifo_status;
+  uint32_t int_enable;
+  uint32_t int_status;
+  uint32_t flow_control;
+};
+
+int bk7258_uart_debug_snapshot(unsigned int uart,
+                              struct bk7258_uart_debug_snapshot_s *snapshot);
+
 #ifdef CONFIG_BK7258_SWD_DEBUG
 #  define BK7258_SWD_TRACE_ADDRESS 0x2804f800u
 #  define BK7258_SWD_TRACE_MAGIC   0x53574454u /* "SWDT" */

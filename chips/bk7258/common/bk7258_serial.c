@@ -22,10 +22,12 @@
 #include <driver/gpio.h>
 #include <driver/uart.h>
 #include <driver/uart_types.h>
+#include <soc/reg_base.h>
 
 #include "arm_internal.h"
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_console.h>
+#include <arch/chip/bk7258_debug.h>
 
 #if defined(CONFIG_BK7258_UART0) || defined(CONFIG_BK7258_UART1) || \
     defined(CONFIG_BK7258_UART2)
@@ -35,6 +37,11 @@
 #ifdef BK7258_HAVE_UART_DEVICE
 
 #define BK7258_UART0_FLOW_THRESHOLD 127u
+#define BK7258_UART_CONFIG_OFFSET       0x10u
+#define BK7258_UART_FIFO_STATUS_OFFSET  0x18u
+#define BK7258_UART_INT_ENABLE_OFFSET   0x20u
+#define BK7258_UART_INT_STATUS_OFFSET   0x24u
+#define BK7258_UART_FLOW_CONTROL_OFFSET 0x28u
 
 /* v3.1.1.9 exports these GPIO mapper entry points but omits their public
  * prototypes from the packaged wrapper header.
@@ -58,6 +65,39 @@ struct bk7258_uart_s
 
 static const struct uart_ops_s g_bk7258_uart_ops;
 static bool g_bk7258_uart_driver_initialized;
+
+int bk7258_uart_debug_snapshot(unsigned int uart,
+                              struct bk7258_uart_debug_snapshot_s *snapshot)
+{
+  uintptr_t base;
+
+  if (snapshot == NULL)
+    {
+      return -EINVAL;
+    }
+
+  switch (uart)
+    {
+      case 0:
+        base = SOC_UART0_REG_BASE;
+        break;
+      case 1:
+        base = SOC_UART1_REG_BASE;
+        break;
+      case 2:
+        base = SOC_UART2_REG_BASE;
+        break;
+      default:
+        return -EINVAL;
+    }
+
+  snapshot->config = getreg32(base + BK7258_UART_CONFIG_OFFSET);
+  snapshot->fifo_status = getreg32(base + BK7258_UART_FIFO_STATUS_OFFSET);
+  snapshot->int_enable = getreg32(base + BK7258_UART_INT_ENABLE_OFFSET);
+  snapshot->int_status = getreg32(base + BK7258_UART_INT_STATUS_OFFSET);
+  snapshot->flow_control = getreg32(base + BK7258_UART_FLOW_CONTROL_OFFSET);
+  return OK;
+}
 
 #define BK7258_DECLARE_UART(n, uartid, initial_baud, initial_bits, \
                             initial_parity, initial_stop, initial_flow) \
@@ -693,6 +733,8 @@ void bk7258_uart_recover_console(void)
   (void)bk_uart_disable_rx_interrupt(priv->id);
   (void)bk7258_uart_apply_pin_route(priv);
   (void)bk7258_uart_apply_format(&CONSOLE_DEV);
+  (void)bk_uart_set_enable_tx(priv->id, true);
+  (void)bk_uart_set_enable_rx(priv->id, true);
   (void)bk_uart_disable_sw_fifo(priv->id);
   (void)bk_uart_set_rx_full_threshold(priv->id, 1);
   (void)bk_uart_register_rx_isr(priv->id, bk7258_uart_sdk_isr,
@@ -764,8 +806,11 @@ static void bk7258_uart_pm_restore_one(struct uart_dev_s *dev)
       return;
     }
 
+  (void)bk_uart_disable_rx_interrupt(priv->id);
   (void)bk7258_uart_apply_pin_route(priv);
   (void)bk7258_uart_apply_format(dev);
+  (void)bk_uart_set_enable_tx(priv->id, true);
+  (void)bk_uart_set_enable_rx(priv->id, true);
   (void)bk_uart_disable_sw_fifo(priv->id);
   (void)bk_uart_set_rx_full_threshold(priv->id, 1);
   (void)bk_uart_register_rx_isr(priv->id, bk7258_uart_sdk_isr, dev);
