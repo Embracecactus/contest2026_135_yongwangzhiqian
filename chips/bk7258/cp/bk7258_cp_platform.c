@@ -55,6 +55,10 @@
 #  include <arch/chip/bk7258_psram.h>
 #endif
 
+#ifdef CONFIG_BK7258_SDK_SRAM_HEAP
+#  include <arch/chip/bk7258_os_adapt.h>
+#endif
+
 #ifdef CONFIG_BK7258_SARADC_SERVER
 #  include <arch/chip/bk7258_saradc_server.h>
 #endif
@@ -264,6 +268,27 @@ static int bk7258_cp_stage_execute(
 
           memset(&psram, 0, sizeof(psram));
           ret = bk7258_psram_initialize();
+
+#  ifdef CONFIG_BK7258_SDK_SRAM_HEAP
+          if (ret >= 0)
+            {
+              int heapret = bk7258_os_sram_heap_initialize();
+
+              if (heapret < 0)
+                {
+                  syslog(LOG_ERR,
+                         "BSDK SRAM HEAP FAIL status=%d size=%lu\n",
+                         heapret,
+                         (unsigned long)CONFIG_BK7258_SDK_SRAM_HEAP_SIZE);
+                  ret = heapret;
+                }
+              else
+                {
+                  syslog(LOG_INFO, "BSDK SRAM HEAP PASS size=%lu\n",
+                         (unsigned long)CONFIG_BK7258_SDK_SRAM_HEAP_SIZE);
+                }
+            }
+#  endif
 
 #  ifdef CONFIG_BK7258_PSRAM_SYSTEM_HEAP
           if (ret >= 0)

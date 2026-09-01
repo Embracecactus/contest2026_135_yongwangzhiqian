@@ -1170,6 +1170,23 @@ config BK7258_PSRAM_SYSTEM_HEAP_SIZE
 	range 0x10000 0x1f000 if !BK7258_AP_CORE
 	depends on BK7258_PSRAM_SYSTEM_HEAP
 
+config BK7258_SDK_SRAM_HEAP
+	bool "Reserve internal SRAM for SDK SRAM-only allocations"
+	default n
+	depends on BK7258_PSRAM_SYSTEM_HEAP
+	help
+		Reserve an internal-SRAM heap for SDK allocation APIs whose public
+		contract requires SRAM.  A NuttX system heap extended with PSRAM may
+		otherwise return a PSRAM address from os_sram_malloc(), which is not
+		valid for Wi-Fi pbufs and hardware descriptors.  The selected board
+		profile must budget the reserve against another internal-SRAM user.
+
+config BK7258_SDK_SRAM_HEAP_SIZE
+	hex "SDK SRAM-only heap size"
+	default 0x4000
+	range 0x1000 0x10000
+	depends on BK7258_SDK_SRAM_HEAP
+
 config BK7258_PSRAM_BOOT_TEST
 	bool "N14 destructive full-capacity PSRAM boot test"
 	default n
