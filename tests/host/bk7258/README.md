@@ -26,6 +26,7 @@ make run-bl2
 make run-ap
 make run-voice-pack
 make run-voice-companion
+make run-voice-turn
 ```
 
 ## 当前覆盖
@@ -35,7 +36,8 @@ make run-voice-companion
 - BL2：security counter、flash-map/CRC trailer 写入和 CP/AP pair policy；
 - AP/CP 外设：JPEG、YUV/H.264、scale/rotate、CAN 和 IrDA。
 - App 纯逻辑：授权 voice-pack/WAV gate，以及 transport-neutral `companion-v1`
-  network-byte-order codec、sequence/window/cancel/reconnect 状态契约。
+  network-byte-order codec、sequence/window/cancel/reconnect 状态契约；半双工 turn arbiter
+  的 MIC/DAC 严格释放顺序、重放/旧 token、超时、取消和逐阶段故障回滚。
 
 分区头不使用历史副本，而是由
 `boards/bk7258/common/partitions/bk7258/bk7258_ab_agent_onchip_persistent.csv`

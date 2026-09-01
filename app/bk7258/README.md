@@ -85,6 +85,11 @@ AP 同时编译 transport-neutral 的 `companion-v1` 帧编解码与单会话状
 deterministic fake server 覆盖 network byte order、严格 sequence、window credit、取消、
 重连、旧 session/turn 和 synthetic TTS 标识，但不代表 TLS/WSS、PTT 或录音已接通。
 
+AP 还编译纯 App 层的半双工 turn arbiter。主机故障注入已经覆盖 MIC
+`acquire/prepare/start -> stop/drain/release`、DAC
+`acquire/prepare/start -> drain/stop/release`、超时、取消、乱序和旧 token；真实 audio ops、
+PTT 事件与 Gateway 尚未绑定，因此 `status` 仍必须报告 `playback-only`。
+
 ```text
 bkvoice status
 bkvoice verify /mnt/voice/voicepack.ini
