@@ -77,6 +77,7 @@
 #define BK7258_WIFI_PING_REPLY_SIZE           128u
 #define BK7258_WIFI_EVENT_MOD_WIFI            1u
 #define BK7258_WIFI_EVENT_SCAN_DONE           0
+#define BK7258_WIFI_PASSWORD_MIN_LEN           8u
 
 #ifdef CONFIG_BK7258_AP_CORE
 #  define BK7258_WIFI_CONTROL_REMOTE_NAME     "cp"
@@ -98,6 +99,13 @@ enum bk7258_wifi_link_state_e
   BK7258_WIFI_LINK_CONNECTED,
   BK7258_WIFI_LINK_CONNECT_FAILED
 };
+
+static bool bk7258_wifi_password_length_valid(size_t length)
+{
+  return length == 0 ||
+         (length >= BK7258_WIFI_PASSWORD_MIN_LEN &&
+          length <= BK7258_WIFI_PASSWORD_MAX_LEN);
+}
 
 /****************************************************************************
  * Private Types
@@ -1423,7 +1431,7 @@ static int bk7258_wifi_connect(
 
   if (request->ssid_len == 0 ||
       request->ssid_len > BK7258_WIFI_SSID_MAX_LEN ||
-      request->password_len > BK7258_WIFI_PASSWORD_MAX_LEN ||
+      !bk7258_wifi_password_length_valid(request->password_len) ||
       request->ssid[request->ssid_len] != '\0' ||
       request->password[request->password_len] != '\0')
     {
@@ -2107,7 +2115,7 @@ static int bk7258_wifi_control_exchange(
       password_len = strnlen(password,
                              BK7258_WIFI_PASSWORD_MAX_LEN + 1u);
       if (ssid_len == 0 || ssid_len > BK7258_WIFI_SSID_MAX_LEN ||
-          password_len > BK7258_WIFI_PASSWORD_MAX_LEN)
+          !bk7258_wifi_password_length_valid(password_len))
         {
           return -EINVAL;
         }
