@@ -121,8 +121,9 @@ bkvoice stress <manifest> <clip-id> <count:1..100>
 - 任一解析、文件、reserve、queue、播放或清理错误都返回失败，不能用成功日志掩盖。
 
 当前 `status` 必须报告 `mode=playback-only` 和 `transport=not-installed`。仓内已有
-`companion-v1` 的 transport-neutral codec/session contract 及 fake-server host test，但还
-没有把 PTT、录音或 TLS/WSS 数据面接入产品运行时。
+`companion-v1` 的 transport-neutral codec/session contract，以及硬件无关的半双工 turn
+arbiter。host test 已覆盖协议、MIC/DAC 生命周期、超时、取消和故障回滚，但还没有把 PTT、
+真实 recorder audio ops 或 TLS/WSS 数据面接入产品运行时。
 
 ## 6. 证据状态与 OpenVela 全树能力矩阵
 
@@ -439,10 +440,16 @@ UIKit 的完整 video/media 组合在独立 Media profile 通过后再启用。�
 1. 已加入 transport-neutral `companion-v1` network-byte-order codec 和单会话状态机，并用
    deterministic fake server host-test request/cancel/window/reconnect、sequence replay、旧
    session/turn 与 synthetic TTS 标识；真实 socket/TLS/WSS transport 尚未安装；
-2. PTT 开始 capture，上传到用户 Gateway，由 ASR/LLM 和 P1 胜出的 TTS 热模型处理；
-3. Gateway 首个生成 chunk 立即重采样为 16 kHz/mono/S16/20 ms，禁止等整句 WAV；
-4. AIDK 严格执行 MIC release -> DAC reserve -> playback -> drain/release；
-5. 第一版只有 standalone BKVoice 会话/audio owner，断网回退固定 voice pack。AI Agent 若
+2. 已加入硬件无关的单实例 turn arbiter，并以 fake audio ops 逐阶段验证 MIC
+   `acquire/prepare/start -> stop/drain/release` 和 DAC
+   `acquire/prepare/start -> drain/stop/release`，包括超时、取消、乱序、旧 token、partial
+   write 与 release 失败后的 fail-closed recovery；session 必须显式打开且 ID 单调递增，
+   control/downlink 两个 arbiter-local sequence 分别从 1 严格连续增长，overflow 必须销毁
+   session；尚未绑定真实 recorder/player；
+3. PTT 开始 capture，上传到用户 Gateway，由 ASR/LLM 和 P1 胜出的 TTS 热模型处理；
+4. Gateway 首个生成 chunk 立即重采样为 16 kHz/mono/S16/20 ms，禁止等整句 WAV；
+5. AIDK 运行时接线必须继续满足 MIC 完全 release 后才允许 DAC reserve；
+6. 第一版只有 standalone BKVoice 会话/audio owner，断网回退固定 voice pack。AI Agent 若
    替换它必须另做二选一 profile，不能并存第二套状态机。
 
 ### P3：OpenVela 独立组件 profile
@@ -500,8 +507,9 @@ CI/交付门槛：
 
 无硬件阶段：
 
-- manifest/WAV/parser、RPMsg wire ABI 和 `companion-v1` codec/session host tests 通过；
-  尚未实现的 PTT、KWS、Gateway transport 和 resource-state 测试不得列为已通过；
+- manifest/WAV/parser、RPMsg wire ABI、`companion-v1` codec/session 和纯 turn-arbiter host
+  tests 通过；尚未实现的真实 audio resource-state、PTT、KWS 和 Gateway transport 不得列为
+  已通过；
 - source audit 明确列出 `received/sent/collision` 数量与总时长，训练 worklog 明确区分
   `NOT_STARTED/PREPARED/TRAINING/EVALUATED/SELECTED`，双方音频绝不混合；
 - layer gate、Classic Make/CMake、AIDK AP/CP 及每个独立 component profile 构建通过；
