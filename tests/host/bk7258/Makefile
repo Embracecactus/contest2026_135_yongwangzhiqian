@@ -199,12 +199,14 @@ VOICE_PACK_TARGET := $(BUILD)/test_bk7258_voice_pack
 VOICE_PACK_ROOT := $(REPOSITORY_ROOT)/app/bk7258
 VOICE_PACK_CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O2
 VOICE_COMPANION_TARGET := $(BUILD)/test_bk7258_voice_companion
+VOICE_TURN_TARGET := $(BUILD)/test_bk7258_voice_turn
 
 .PHONY: all check check-layers check-package-tools clean bl1 bl2 ap headers platform storage-contract flash \
-	ota-contract reset-marker voice-pack voice-companion run \
+	ota-contract reset-marker voice-pack voice-companion voice-turn run \
 	run-core run-bl1 run-bl2 run-ap run-headers run-platform \
 	run-storage-contract run-ota-contract run-ota-confirmation \
 		run-reset-marker run-flash run-voice-pack run-voice-companion \
+		run-voice-turn \
 		ota-confirmation
 
 check:
@@ -247,10 +249,12 @@ all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
 	$(AP_ENTRY_TARGET) \
 	$(OTA_CONTRACT_TARGETS) $(OTA_CONFIRMATION_TARGETS) \
 	$(RESET_MARKER_TARGETS) $(FLASH_TARGET) $(SDK_PARTITION_TARGET) \
-	$(VOICE_PACK_TARGET) $(VOICE_COMPANION_TARGET) bl1 bl2 ap
+	$(VOICE_PACK_TARGET) $(VOICE_COMPANION_TARGET) $(VOICE_TURN_TARGET) \
+	bl1 bl2 ap
 
 run: run-headers run-core run-platform run-flash run-ota-confirmation \
-	run-bl1 run-bl2 run-ap run-voice-pack run-voice-companion
+	run-bl1 run-bl2 run-ap run-voice-pack run-voice-companion \
+	run-voice-turn
 
 $(VOICE_PACK_TARGET): test_bk7258_voice_pack.c \
 	$(VOICE_PACK_ROOT)/bk7258_voice_pack.c \
@@ -276,6 +280,18 @@ voice-companion: $(VOICE_COMPANION_TARGET)
 
 run-voice-companion: voice-companion
 	./$(VOICE_COMPANION_TARGET)
+
+$(VOICE_TURN_TARGET): test_bk7258_voice_turn.c \
+	$(VOICE_PACK_ROOT)/bk7258_voice_turn.c \
+	$(VOICE_PACK_ROOT)/bk7258_voice_turn.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) test_bk7258_voice_turn.c \
+		$(VOICE_PACK_ROOT)/bk7258_voice_turn.c \
+		-I $(VOICE_PACK_ROOT) -o $@
+
+voice-turn: $(VOICE_TURN_TARGET)
+
+run-voice-turn: voice-turn
+	./$(VOICE_TURN_TARGET)
 
 .PHONY: board-layers
 
