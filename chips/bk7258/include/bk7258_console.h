@@ -120,6 +120,7 @@ void bk7258_uart_recover_console(void);
 
 #if defined(CONFIG_BK7258_UART0) || defined(CONFIG_BK7258_UART1) || \
     defined(CONFIG_BK7258_UART2)
+int bk7258_uart_runtime_reinitialize(unsigned int uart);
 int bk7258_uart_pm_prepare(void);
 void bk7258_uart_pm_restore(void);
 #endif

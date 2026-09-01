@@ -38,6 +38,7 @@
 #include <nuttx/spi/spi.h>
 
 #include <arch/board/board.h>
+#include <arch/chip/bk7258_console.h>
 #include <arch/chip/bk7258_debug.h>
 #include <arch/chip/bk7258_pinmux.h>
 
@@ -498,6 +499,12 @@ static int aidk_nfc_uart_open(FAR struct aidk_nfc_uart_s *priv)
 {
   struct termios term;
   int ret;
+
+  ret = bk7258_uart_runtime_reinitialize(1);
+  if (ret < 0)
+    {
+      return ret;
+    }
 
   ret = file_open(&priv->uart, AIDK_NFC_UART_DEVPATH,
                   O_RDWR | O_NONBLOCK);

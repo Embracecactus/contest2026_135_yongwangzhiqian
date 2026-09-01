@@ -17,6 +17,7 @@
 #include <termios.h>
 
 #include <nuttx/fs/fs.h>
+#include <nuttx/mutex.h>
 #include <nuttx/serial/serial.h>
 
 #include <driver/gpio.h>
@@ -412,6 +413,77 @@ static int bk7258_uart_setup(struct uart_dev_s *dev)
 
 fail:
   bk7258_uart_rollback_setup(dev);
+  return ret;
+}
+
+int bk7258_uart_runtime_reinitialize(unsigned int uart)
+{
+  struct uart_dev_s *dev;
+  struct bk7258_uart_s *priv;
+  int ret;
+
+  /* arm_serialinit() has to register the NuttX device before the AP RPMsg
+   * clock service exists.  The v3.1.1.9 SDK ignores the failed early clock
+   * vote and nevertheless marks the UART initialized, so a later
+   * bk_uart_init() becomes a no-op.  Re-enter the public SDK lifecycle once
+   * from normal task context, after RPTUN is connected and before the first
+   * open.  Do not perform this from uart_ops_s::setup(): NuttX calls setup
+   * with the UART spinlock held and interrupts disabled, while the AP clock
+   * request can wait for an RPMsg reply.
+   */
+
+  switch (uart)
+    {
+#ifdef CONFIG_BK7258_UART0
+      case 0:
+        dev = &g_bk7258_uart0dev;
+        break;
+#endif
+#ifdef CONFIG_BK7258_UART1
+      case 1:
+        dev = &g_bk7258_uart1dev;
+        break;
+#endif
+#ifdef CONFIG_BK7258_UART2
+      case 2:
+        dev = &g_bk7258_uart2dev;
+        break;
+#endif
+      default:
+        return -ENODEV;
+    }
+
+  priv = dev->priv;
+  if (!priv->initialized)
+    {
+      return -EAGAIN;
+    }
+
+  ret = nxmutex_lock(&dev->closelock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (dev->open_count != 0)
+    {
+      ret = -EBUSY;
+      goto out;
+    }
+
+  if (!priv->initialized || bk_uart_deinit(priv->id) != BK_OK)
+    {
+      ret = -EIO;
+      goto out;
+    }
+
+  priv->initialized = false;
+  priv->rx_enabled = false;
+  priv->rxbyte = -1;
+  ret = bk7258_uart_setup(dev);
+
+out:
+  nxmutex_unlock(&dev->closelock);
   return ret;
 }
 
