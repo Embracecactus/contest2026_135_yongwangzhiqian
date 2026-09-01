@@ -49,7 +49,8 @@ endif
 config BK7258_VOICE_SERVICE
 	bool "BK7258 AP authorized-voice service"
 	default n
-	depends on BK7258_AP_CORE && BK7258_AUD && BK7258_RPTUN && !MEDIA
+	depends on BK7258_AP_CORE && BK7258_AUD && BK7258_MIC
+	depends on BK7258_RPTUN && !MEDIA
 	select BK7258_AP_APPLICATION_LIFECYCLE
 	help
 		Start the AP-resident endpoint used by bkvoice.  It accepts only a strict
@@ -57,9 +58,12 @@ config BK7258_VOICE_SERVICE
 		the output as synthetic, then streams 16 kHz mono signed-16 PCM WAV clips
 		through the public NuttX audio ABI.  It also builds the transport-neutral
 		companion-v1 framing/session contract and the hardware-neutral half-duplex
-		turn arbiter.  The arbiter is not connected to a recorder or Gateway by
-		this symbol.  Storage mounting, model training and physical audio wiring
-		remain outside this application.
+		turn arbiter.  The App-private turn audio adapter binds that arbiter's
+		resource contract to the public recorder/player ABI without owning any
+		device path, pin, MIC channel or PA policy.  PTT events, a capture/uplink
+		worker and Gateway transport are not installed by this symbol.  Storage
+		mounting, model training and physical audio wiring remain outside this
+		application.
 
 if BK7258_VOICE_SERVICE
 

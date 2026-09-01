@@ -14,6 +14,7 @@
 #include "bk7258_product_lifecycle.h"
 #include "bk7258_voice_pack.h"
 #include "bk7258_voice_protocol.h"
+#include "bk7258_voice_turn_audio.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -53,6 +54,8 @@ struct bkvoice_service_s
   struct bkvoice_rpc_request_s active_request;
   struct bkvoice_rpc_request_s last_request;
   struct bkvoice_rpc_response_s last_response;
+  struct bkvoice_turn_audio_s turn_audio;
+  const struct bkvoice_turn_audio_ops_s *turn_audio_ops;
 };
 
 static struct bkvoice_service_s g_bkvoice_service =
@@ -63,6 +66,7 @@ static struct bkvoice_service_s g_bkvoice_service =
 };
 
 extern void bk7258_agent_media_player_link(void);
+extern void bk7258_agent_media_recorder_link(void);
 
 static int bkvoice_errno(void)
 {
@@ -591,7 +595,18 @@ int bk7258_voice_service_start(void)
     }
 
   bk7258_agent_media_player_link();
-  ret = nxsem_init(&service->request_sem, 0, 0);
+  bk7258_agent_media_recorder_link();
+  ret = bkvoice_turn_audio_initialize(&service->turn_audio);
+  if (ret >= 0)
+    {
+      service->turn_audio_ops = bkvoice_turn_audio_ops();
+      ret = service->turn_audio_ops != NULL ? 0 : -ENOSYS;
+    }
+
+  if (ret >= 0)
+    {
+      ret = nxsem_init(&service->request_sem, 0, 0);
+    }
   if (ret >= 0)
     {
       semaphore_initialized = true;
@@ -659,6 +674,7 @@ int bk7258_voice_service_start(void)
 
       service->active = false;
       service->replay_valid = false;
+      service->turn_audio_ops = NULL;
     }
 
   nxmutex_unlock(&service->init_lock);

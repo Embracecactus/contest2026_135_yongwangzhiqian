@@ -3,14 +3,16 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 product media_recorder ABI bridge for the official Agent.  The media
- * framework is intentionally disabled for this profile; the bridge keeps the
- * Agent's portable backend on the public NuttX audio upper-half ABI.
+ * BK7258 product media_recorder ABI bridge for the official Agent and
+ * BKVoice.  The media framework is intentionally disabled for this profile;
+ * the bridge keeps portable App backends on the public NuttX audio upper-half
+ * ABI.
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_BK7258_APP_AGENT) && defined(CONFIG_BK7258_MIC) && \
+#if (defined(CONFIG_BK7258_APP_AGENT) || \
+     defined(CONFIG_BK7258_VOICE_SERVICE)) && defined(CONFIG_BK7258_MIC) && \
     !defined(CONFIG_MEDIA)
 
 #include <errno.h>
@@ -839,8 +841,16 @@ int media_recorder_close(void *handle)
       return ret < 0 ? ret : (cleanup_ret < 0 ? cleanup_ret : -EBUSY);
     }
 
+  /* A negative close result is also the retry signal used by the BKVoice
+   * fail-closed owner.  Once this function destroys the handle it must report
+   * success; an earlier STOP/cleanup error was recovered by the terminal
+   * release sequence above and the handle can no longer be retried.
+   */
+
   bk7258_agent_audio_dispose(rec);
-  return ret < 0 ? ret : cleanup_ret;
+  return 0;
 }
 
-#endif /* CONFIG_BK7258_APP_AGENT && CONFIG_BK7258_MIC && !CONFIG_MEDIA */
+#endif /* (CONFIG_BK7258_APP_AGENT || CONFIG_BK7258_VOICE_SERVICE) &&
+        * CONFIG_BK7258_MIC && !CONFIG_MEDIA
+        */

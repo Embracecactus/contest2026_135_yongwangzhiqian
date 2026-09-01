@@ -1078,7 +1078,13 @@ int media_player_close(void *handle, int pending_stop)
   nxmutex_destroy(&player->lock);
   free(player);
   nxmutex_unlock(&g_bk7258_agent_player_lock);
-  return first;
+
+  /* A negative close result is also the retry signal used by the BKVoice
+   * fail-closed owner.  Once the handle is destroyed, terminal release has
+   * succeeded and the caller must not be told to retry a stale pointer.
+   */
+
+  return 0;
 }
 
 int media_player_pause(void *handle)
