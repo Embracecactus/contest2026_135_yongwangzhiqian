@@ -23,6 +23,7 @@
 #include <nuttx/power/pm.h>
 
 #include <arch/chip/bk7258_amp.h>
+#include <arch/chip/bk7258_console.h>
 #include <arch/chip/bk7258_rptun.h>
 
 #include "arm_internal.h"
@@ -380,6 +381,19 @@ static void bk7258_pm_ap_deep_wfi(uint32_t cpu)
 
   if (cpu == BK7258_AP_LOGICAL_CPU0)
     {
+#if defined(CONFIG_BK7258_UART0) || defined(CONFIG_BK7258_UART1) || \
+    defined(CONFIG_BK7258_UART2)
+      /* The packaged SDK has UART low-voltage backup disabled.  Drain every
+       * NuttX-owned UART before AP0 starts the shared standby transition;
+       * the matching restore runs after the SDK wake callbacks below.
+       */
+
+      if (bk7258_uart_pm_prepare() < 0)
+        {
+          return;
+        }
+#endif
+
       g_bk7258_pm_ap_diag.forward_attempts++;
       g_bk7258_pm_ap_diag.forward_last_ret =
         up_send_smp_sched(BK7258_AP_LOGICAL_CPU1);
@@ -482,6 +496,18 @@ static void bk7258_pm_ap_deep_wfi(uint32_t cpu)
     {
       bk_pm_handle_lv_sleep_callback(1); /* PM_LV_EXIT_SLEEP */
     }
+
+#if defined(CONFIG_BK7258_UART0) || defined(CONFIG_BK7258_UART1) || \
+    defined(CONFIG_BK7258_UART2)
+  if (cpu == BK7258_AP_LOGICAL_CPU0)
+    {
+      /* Run after the SDK exit callbacks so the chip lower-half is the final
+       * owner of UART format, FIFO, interrupt, and enable state.
+       */
+
+      bk7258_uart_pm_restore();
+    }
+#endif
 
   /* The SDK uses vPortYieldCore() after restoring the local wake state.
    * NuttX's scheduler IPI is the equivalent explicit peer RELEASE edge.

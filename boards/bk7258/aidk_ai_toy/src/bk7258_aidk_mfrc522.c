@@ -38,6 +38,7 @@
 #include <nuttx/spi/spi.h>
 
 #include <arch/board/board.h>
+#include <arch/chip/bk7258_debug.h>
 #include <arch/chip/bk7258_pinmux.h>
 
 #define AIDK_NFC_DEVPATH              "/dev/nfc0"
@@ -72,6 +73,7 @@ struct aidk_nfc_uart_s
   bool selected;
   bool have_address;
   bool read;
+  unsigned int debug_tx_snapshots;
   int last_error;
 };
 
@@ -141,6 +143,29 @@ static struct aidk_nfc_uart_s g_aidk_nfc_uart =
   .lock = NXMUTEX_INITIALIZER,
 };
 
+static void aidk_nfc_uart_snapshot(FAR const char *stage)
+{
+  struct bk7258_uart_debug_snapshot_s snapshot;
+  int ret;
+
+  ret = bk7258_uart_debug_snapshot(1, &snapshot);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "AIDK MFRC522 UART SNAP stage=%s ret=%d\n",
+             stage, ret);
+      return;
+    }
+
+  syslog(LOG_WARNING,
+         "AIDK MFRC522 UART SNAP stage=%s cfg=%08lx fifo=%08lx "
+         "ien=%08lx ista=%08lx flow=%08lx\n",
+         stage, (unsigned long)snapshot.config,
+         (unsigned long)snapshot.fifo_status,
+         (unsigned long)snapshot.int_enable,
+         (unsigned long)snapshot.int_status,
+         (unsigned long)snapshot.flow_control);
+}
+
 static int aidk_nfc_uart_write_byte(FAR struct aidk_nfc_uart_s *priv,
                                     uint8_t value)
 {
@@ -152,6 +177,15 @@ static int aidk_nfc_uart_write_byte(FAR struct aidk_nfc_uart_s *priv,
 
       if (ret == 1)
         {
+          if (priv->debug_tx_snapshots < 4)
+            {
+              syslog(LOG_WARNING,
+                     "AIDK MFRC522 UART TX index=%u value=%02x\n",
+                     priv->debug_tx_snapshots, value);
+              aidk_nfc_uart_snapshot("tx-done");
+              priv->debug_tx_snapshots++;
+            }
+
           return OK;
         }
 
@@ -169,11 +203,16 @@ static int aidk_nfc_uart_write_byte(FAR struct aidk_nfc_uart_s *priv,
 static int aidk_nfc_uart_read_byte(FAR struct aidk_nfc_uart_s *priv,
                                    FAR uint8_t *value)
 {
+  int eagain = 0;
+  int eintr = 0;
+  int last = 0;
   int i;
 
   for (i = 0; i < AIDK_NFC_UART_TIMEOUT_LOOPS; i++)
     {
       ssize_t ret = file_read(&priv->uart, (FAR char *)value, 1);
+
+      last = (int)ret;
 
       if (ret == 1)
         {
@@ -185,9 +224,22 @@ static int aidk_nfc_uart_read_byte(FAR struct aidk_nfc_uart_s *priv,
           return (int)ret;
         }
 
+      if (ret == -EAGAIN)
+        {
+          eagain++;
+        }
+      else if (ret == -EINTR)
+        {
+          eintr++;
+        }
+
       (void)nxsig_usleep(1000);
     }
 
+  aidk_nfc_uart_snapshot("rx-timeout");
+  syslog(LOG_WARNING,
+         "AIDK MFRC522 UART RX timeout loops=%d eagain=%d eintr=%d last=%d\n",
+         AIDK_NFC_UART_TIMEOUT_LOOPS, eagain, eintr, last);
   return -ETIMEDOUT;
 }
 
@@ -474,6 +526,7 @@ static int aidk_nfc_uart_open(FAR struct aidk_nfc_uart_s *priv)
     }
 
   (void)file_ioctl(&priv->uart, TCFLSH, TCIOFLUSH);
+  aidk_nfc_uart_snapshot("open-ready");
   return OK;
 
 errout:
@@ -581,9 +634,11 @@ int bk7258_aidk_mfrc522_initialize(void)
     }
 
   value = 0;
+  priv->debug_tx_snapshots = 0;
   ret = aidk_nfc_uart_probe(priv, &value);
   if (ret < 0)
     {
+      aidk_nfc_uart_snapshot("probe-fail");
       file_close(&priv->uart);
       return ret;
     }
