@@ -966,6 +966,7 @@ config BK7258_WIFI_VNET
 	depends on BK7258_RPTUN_MBOX && BK7258_RPTUN
 	depends on !BK7258_AP_CORE || (SMP && NET)
 	select NETUTILS_NETLIB if BK7258_AP_CORE
+	select NET_ICMP_SOCKET if BK7258_AP_CORE
 	select NET_SOCKOPTS if BK7258_AP_CORE
 	---help---
 		Keep the official Beken v3.1.1.9 Wi-Fi controller, RF/PHY,
