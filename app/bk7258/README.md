@@ -21,6 +21,8 @@ CONFIG_BK7258_APP_GPIO_TEST
 CONFIG_BK7258_APP_GPIO_IRQ_TEST
 CONFIG_BK7258_APP_IRQ_TIMER_TEST
 CONFIG_BK7258_APP_TIMER_SELFTEST
+CONFIG_BK7258_APP_VOICE
+CONFIG_BK7258_VOICE_SERVICE
 ```
 
 每个开关还带有 `_PROGNAME`、`_PRIORITY`、`_STACKSIZE` 子配置，可在
@@ -70,4 +72,25 @@ because the dispatcher is enabled.
 - CP/AP 公共生命周期契约通过 `app/testing/bk7258/` 的官方格式 CMocka 板上应用执行；
   三块板的 UART0 自动化由 `tests/pytest/test_bk7258/` 链入官方 pytest。需要显式操作
   硬件的 rpmsg / gpio / psram / bt / irq / timer 命令仍保留
-  `CONFIG_BK7258_APP_*` 形态，再由 pytest 调用，不在测试中复制产品实现。
+`CONFIG_BK7258_APP_*` 形态，再由 pytest 调用，不在测试中复制产品实现。
+
+## AIDK 本地授权语音 App
+
+`CONFIG_BK7258_APP_VOICE=y` 注册 `bkvoice`。当前纵切只做严格语音包校验和
+16 kHz/单声道/S16 PCM WAV 流式播放；端侧意图模型尚未安装，因此命令不会把
+固定规则冒充成 AI。语音包必须声明说话者明确授权，并在每次播放前输出
+`BKVOICE SYNTHETIC` 标识。
+
+```text
+bkvoice status
+bkvoice verify /mnt/voice/voicepack.ini
+bkvoice play /mnt/voice/voicepack.ini greeting
+bkvoice stress /mnt/voice/voicepack.ini greeting 100
+```
+
+`stress` 先验证一次语音包，再有界重复播放 1 到 100 次；首次失败会报告精确轮次，
+用于配合播放前后的 heap、fd、mqueue、audio reserve 和 `apctl status` 对比。
+
+AIDK 的 SD NAND 只注册为 `/dev/mmcsd0`，App 不自动挂载，也不把 `/data`
+误认为 SD NAND。详细格式、挂载互斥、训练边界和验收步骤见
+[BKVoice 本地授权语音应用](../../docs/platforms/bk7258/bkvoice-authorized-voice-app.md)。
