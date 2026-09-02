@@ -20,8 +20,8 @@
   <project path="third_party/consent-vox"
            name="Embracecactus/ConsentVox"
            remote="git"
-           revision="d1fd0ebd7b92ad5ae48332ceb1dfef411fa5fa34"
-           upstream="refs/tags/v0.1.1"
+           revision="ced2bb0daa7dafe5fb6b7b0d92be317a0a9d8c42"
+           upstream="refs/tags/v0.2.0"
            groups="default,host-tools">
     <linkfile src="src" dest="vendor/openvela/tools/consent-vox"/>
   </project>
