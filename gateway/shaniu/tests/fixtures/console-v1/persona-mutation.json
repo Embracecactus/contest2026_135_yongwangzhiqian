@@ -1,0 +1,1 @@
+{"protocol":"console-v1","kind":"mutation","request_id":"persona-1","device_id":"board-1","generation":1,"expected_revision":0,"issued_at_ms":1000,"expires_at_ms":31000,"operation":"persona_mode.set","arguments":{"persona_mode":"quiet"}}

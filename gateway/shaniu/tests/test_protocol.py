@@ -1,9 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import unittest
+import struct
 
 from shaniu_gateway.protocol import (
     AUDIO_FRAME_BYTES,
+    CAP_VOLUME,
+    CAP_OTA,
+    CAP_STATUS_REPORT,
     HEADER_BYTES,
     MAGIC,
     MAX_WINDOW,
@@ -15,12 +19,131 @@ from shaniu_gateway.protocol import (
     ProtocolError,
     SessionEvent,
     SessionState,
+    StatusReport,
+    decode_status_report,
+    decode_ota_report,
     decode_window_credit,
     encode_window_credit,
 )
 
 
 class FrameTest(unittest.TestCase):
+    def test_ota_capability_and_report_contract(self) -> None:
+        session = GatewaySession()
+        session.receive(Frame(MessageType.HELLO, 0, 7, 1, 0, 1, 0,
+                              struct.pack('!I', CAP_OTA)))
+        request = session.make_ota_request('a' * 64)
+        self.assertEqual((request.message_type, request.flags, request.turn_id,
+                          request.payload), (MessageType.OTA_REQUEST, 0, 0, b'\xaa' * 32))
+        payload = struct.pack('!IiBBH32s', request.sequence, 0, 1, 0, 0, b'\xaa' * 32)
+        report = Frame(MessageType.OTA_REPORT, 0, 7, 1, 0, 2, 0, payload)
+        self.assertEqual(session.receive(report).event, SessionEvent.OTA_REPORT)
+        self.assertEqual(decode_ota_report(payload).manifest_sha256, 'a' * 64)
+        for result, phase, progress, reserved in ((1, 1, 0, 0), (-1, 1, 0, 0),
+                                                   (0, 8, 0, 0), (0, 1, 101, 0),
+                                                   (0, 1, 0, 1)):
+            with self.subTest(values=(result, phase, progress, reserved)):
+                with self.assertRaisesRegex(ProtocolError, 'invalid_ota_report'):
+                    Frame(MessageType.OTA_REPORT, 0, 7, 1, 0, 3, 0,
+                          struct.pack('!IiBBH32s', request.sequence, result, phase,
+                                      progress, reserved, b'\xaa' * 32)).encode()
+        legacy = GatewaySession()
+        legacy.receive(Frame(MessageType.HELLO, 0, 7, 1, 0, 1, 0))
+        with self.assertRaisesRegex(ProtocolError, 'ota_not_supported'):
+            legacy.make_ota_request('a' * 64)
+
+    def test_status_report_requires_declared_capability_and_valid_contract(self) -> None:
+        payload = struct.pack('!BBBBIHHHHI', 1, 73, 1, 4, 3800, 1, 2, 3, 0, 4)
+        frame = Frame(MessageType.STATUS_REPORT, 0, 7, 1, 0, 2, 0, payload)
+        self.assertEqual(Frame.decode(frame.encode()), frame)
+        self.assertEqual(decode_status_report(payload), StatusReport(
+            battery_percent=73,
+            charging=True,
+            battery_state='charging',
+            battery_voltage_mv=3800,
+            firmware_version='1.2.3+4',
+            firmware_root_sha256=None,
+        ))
+
+        root = bytes(range(32))
+        payload_v2 = struct.pack(
+            '!BBBBIHHHHI32s', 2, 73, 1, 4, 3800, 1, 2, 3, 0, 4, root,
+        )
+        self.assertEqual(
+            decode_status_report(payload_v2).firmware_root_sha256, root.hex())
+        self.assertEqual(
+            Frame.decode(Frame(MessageType.STATUS_REPORT, 0, 7, 1, 0, 2, 0,
+                               payload_v2).encode()).payload,
+            payload_v2,
+        )
+
+        legacy = GatewaySession()
+        legacy.receive(Frame(MessageType.HELLO, 0, 7, 1, 0, 1, 0))
+        with self.assertRaisesRegex(ProtocolError, 'status_report_not_supported'):
+            legacy.receive(frame)
+
+        session = GatewaySession()
+        session.receive(Frame(MessageType.HELLO, 0, 7, 1, 0, 1, 0,
+                              struct.pack('!I', CAP_STATUS_REPORT)))
+        self.assertEqual(session.receive(frame).event, SessionEvent.STATUS_REPORT)
+        with self.assertRaisesRegex(ProtocolError, 'invalid_direction'):
+            session._outbound(MessageType.STATUS_REPORT, turn_id=0)
+
+        for changed in (
+            struct.pack('!BBBBIHHHHI', 2, 73, 1, 4, 3800, 1, 2, 3, 0, 4),
+            struct.pack('!BBBBIHHHHI', 1, 73, 0, 4, 3800, 1, 2, 3, 0, 4),
+            struct.pack('!BBBBIHHHHI', 1, 73, 0, 0xff, 3800, 1, 2, 3, 0, 4),
+            struct.pack('!BBBBIHHHHI', 1, 73, 1, 4, 3800, 0xffff, 2, 3, 0, 4),
+            struct.pack('!BBBBIHHHHI32s', 2, 73, 1, 4, 3800, 1, 2, 3, 0, 4,
+                        bytes(32)),
+            struct.pack('!BBBBIHHHHI32s', 2, 73, 1, 4, 3800, 0xffff, 0xffff,
+                        0xffff, 0, 0xffffffff, root),
+        ):
+            with self.subTest(payload=changed), self.assertRaisesRegex(ProtocolError, 'invalid_status_report'):
+                Frame(MessageType.STATUS_REPORT, 0, 7, 1, 0, 2, 0, changed).encode()
+        with self.assertRaisesRegex(ProtocolError, 'invalid_status_report'):
+            Frame(MessageType.STATUS_REPORT, int(Flag.SYNTHETIC), 7, 1, 0, 2, 0, payload).encode()
+
+    def test_volume_capabilities_and_report_contract(self) -> None:
+        legacy = GatewaySession()
+        legacy.receive(Frame(MessageType.HELLO, 0, 7, 1, 0, 1, 0))
+        with self.assertRaisesRegex(ProtocolError, 'volume_not_supported'):
+            legacy.make_volume_request(50)
+
+        session = GatewaySession()
+        session.receive(Frame(MessageType.HELLO, 0, 7, 1, 0, 1, 0,
+                              struct.pack('!I', CAP_VOLUME)))
+        request = session.make_volume_request(65)
+        self.assertEqual(request.message_type, MessageType.VOLUME_SET)
+        self.assertEqual(request.turn_id, 0)
+        self.assertEqual(request.payload, b'\x00\x00\x00A')
+        report = Frame(MessageType.VOLUME_REPORT, 0, 7, 1, 0, 2, 0,
+                       struct.pack('!IiI', request.sequence, 0, 65))
+        self.assertEqual(Frame.decode(report.encode()), report)
+        self.assertEqual(session.receive(report).event, SessionEvent.VOLUME_REPORT)
+        self.assertEqual(session.make_volume_request().message_type, MessageType.VOLUME_GET)
+        for value in (-1, 101, True, 1.5, '0' * 64, 'f' * 64):
+            with self.subTest(value=value), self.assertRaises(ProtocolError):
+                session.make_volume_request(value)
+
+    def test_volume_rejects_invalid_wire_values(self) -> None:
+        for request, result, volume in ((0, 0, 50), (0xffffffff, 0, 50),
+                                        (3, 1, 50), (3, 0, 101), (3, -5, 50)):
+            with self.subTest(values=(request, result, volume)):
+                with self.assertRaisesRegex(ProtocolError, 'invalid_volume_report'):
+                    Frame(MessageType.VOLUME_REPORT, 0, 7, 1, 0, 2, 0,
+                          struct.pack('!IiI', request, result, volume)).encode()
+        failure = Frame(MessageType.VOLUME_REPORT, 0, 7, 1, 0, 2, 0,
+                        struct.pack('!IiI', 3, -5, 0xffffffff))
+        self.assertEqual(Frame.decode(failure.encode()), failure)
+        for kind, turn, payload in ((MessageType.VOLUME_GET, 1, b''),
+                                    (MessageType.VOLUME_GET, 0, b'x'),
+                                    (MessageType.VOLUME_SET, 0, b'xxx'),
+                                    (MessageType.VOLUME_SET, 0, struct.pack('!I', 101)),
+                                    (MessageType.HELLO, 0, b'x')):
+            with self.subTest(kind=kind, turn=turn), self.assertRaises(ProtocolError):
+                Frame(kind, 0, 7, 1, turn, 2, 0, payload).encode()
+
     def test_wire_layout_matches_the_board_contract(self) -> None:
         frame = Frame(
             message_type=MessageType.HELLO,
@@ -154,6 +277,27 @@ class GatewaySessionTest(unittest.TestCase):
                     encode_window_credit(1),
                 )
             )
+
+    def test_remote_cancel_keeps_sequence_and_new_turn_boundaries(self) -> None:
+        with self.assertRaisesRegex(ProtocolError, 'stale_turn'):
+            self.session.make_cancel(0)
+        self.session.receive(Frame(MessageType.TURN_START, 0, 7, 3, 1, 2, 1))
+        cancel = self.session.make_cancel(1)
+        self.assertEqual(cancel.message_type, MessageType.CANCEL)
+        crossed = Frame(MessageType.AUDIO_UP, 0, 7, 3, 1, 3, 1,
+                        bytes(AUDIO_FRAME_BYTES))
+        self.assertEqual(self.session.receive(crossed).event, SessionEvent.DISCARDED_AUDIO)
+        with self.assertRaisesRegex(ProtocolError, 'sequence_replay'):
+            self.session.receive(crossed)
+        self.session.receive(Frame(MessageType.CANCEL, 0, 7, 3, 1, 4, 1))
+        self.session.receive(Frame(MessageType.TURN_START, 0, 7, 3, 2, 5, 1))
+        with self.assertRaisesRegex(ProtocolError, 'stale_turn'):
+            self.session.make_cancel(1)
+        with self.assertRaisesRegex(ProtocolError, 'stale_turn'):
+            self.session.receive(Frame(MessageType.AUDIO_UP, 0, 7, 3, 1, 6, 1,
+                                       bytes(AUDIO_FRAME_BYTES)))
+        self.assertEqual(self.session.state, SessionState.UPLINK)
+        self.assertEqual(self.session.turn_id, 2)
 
     def test_complete_turn_consumes_both_direction_windows(self) -> None:
         self.session.receive(

@@ -16,9 +16,102 @@ AUDIO_FRAME_BYTES = 640
 MAX_PAYLOAD = 64 * 1024
 MAX_WINDOW = 256 * 1024
 UINT32_MAX = (1 << 32) - 1
+CAP_VOLUME = 1 << 0
+CAP_PLAYBACK_ACK = 1 << 1
+CAP_STATUS_REPORT = 1 << 2
+CAP_OTA = 1 << 3
 
 _HEADER = struct.Struct("!IBBHHHIIIIIQ")
 _WINDOW = struct.Struct("!I")
+_VOLUME_REPORT = struct.Struct('!IiI')
+_OTA_REPORT = struct.Struct('!IiBBH32s')
+_STATUS_REPORT_V1 = struct.Struct('!BBBBIHHHHI')
+_STATUS_REPORT_V2 = struct.Struct('!BBBBIHHHHI32s')
+
+_BATTERY_STATES = {
+    0: 'unknown',
+    1: 'idle',
+    2: 'full',
+    3: 'discharging',
+    4: 'charging',
+    5: 'fault',
+}
+
+
+@dataclass(frozen=True, slots=True)
+class StatusReport:
+    battery_percent: int | None
+    charging: bool | None
+    battery_state: str | None
+    battery_voltage_mv: int | None
+    firmware_version: str | None
+    firmware_root_sha256: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OtaReport:
+    request_sequence: int
+    result: int
+    phase: int
+    progress_percent: int
+    manifest_sha256: str
+
+
+_OTA_PHASES = frozenset(range(1, 9))
+_OTA_FAILED_PHASE = 8
+
+
+def decode_ota_report(payload: bytes) -> OtaReport:
+    if not isinstance(payload, bytes) or len(payload) != _OTA_REPORT.size:
+        raise ProtocolError('invalid_ota_report')
+    request_sequence, result, phase, progress, reserved, digest = _OTA_REPORT.unpack(payload)
+    if (request_sequence in (0, UINT32_MAX) or result > 0
+            or phase not in _OTA_PHASES or progress > 100 or reserved != 0
+            or (result < 0) != (phase == _OTA_FAILED_PHASE)):
+        raise ProtocolError('invalid_ota_report')
+    return OtaReport(request_sequence, result, phase, progress, digest.hex())
+
+
+def decode_status_report(payload: bytes) -> StatusReport:
+    if not isinstance(payload, bytes):
+        raise ProtocolError('invalid_status_report')
+    if len(payload) == _STATUS_REPORT_V1.size:
+        schema_expected = 1
+        root = None
+        fields = _STATUS_REPORT_V1.unpack(payload)
+    elif len(payload) == _STATUS_REPORT_V2.size:
+        schema_expected = 2
+        *fields, root_bytes = _STATUS_REPORT_V2.unpack(payload)
+        if root_bytes in (bytes(32), bytes([0xff]) * 32):
+            raise ProtocolError('invalid_status_report')
+        root = root_bytes.hex()
+    else:
+        raise ProtocolError('invalid_status_report')
+    schema, percent, charging, state, voltage, major, minor, revision, reserved, build = fields
+    if (schema != schema_expected or (percent > 100 and percent != 0xff)
+            or charging not in (0, 1, 2)
+            or (state > 5 and state != 0xff) or reserved != 0):
+        raise ProtocolError('invalid_status_report')
+    unknown_firmware = (major, minor, revision, build) == (
+        0xffff, 0xffff, 0xffff, UINT32_MAX,
+    )
+    if not unknown_firmware and (major == 0xffff or minor == 0xffff
+                                 or revision == 0xffff or build == UINT32_MAX):
+        raise ProtocolError('invalid_status_report')
+    if root is not None and unknown_firmware:
+        raise ProtocolError('invalid_status_report')
+    expected_charging = {0: 2, 1: 0, 2: 0, 3: 0, 4: 1, 5: 2, 0xff: 2}[state]
+    if charging != expected_charging:
+        raise ProtocolError('invalid_status_report')
+    return StatusReport(
+        battery_percent=None if percent == 0xff else percent,
+        charging=None if charging == 2 else charging == 1,
+        battery_state=None if state == 0xff else _BATTERY_STATES[state],
+        battery_voltage_mv=None if voltage == UINT32_MAX else voltage,
+        firmware_version=(None if unknown_firmware
+                          else f'{major}.{minor}.{revision}+{build}'),
+        firmware_root_sha256=root,
+    )
 
 
 class MessageType(enum.IntEnum):
@@ -38,6 +131,12 @@ class MessageType(enum.IntEnum):
     WINDOW_UPDATE = 14
     HEARTBEAT = 15
     ERROR = 16
+    VOLUME_GET = 17
+    VOLUME_SET = 18
+    VOLUME_REPORT = 19
+    STATUS_REPORT = 20
+    OTA_REQUEST = 21
+    OTA_REPORT = 22
 
 
 class Flag(enum.IntFlag):
@@ -137,6 +236,33 @@ class Frame:
             raise ProtocolError("invalid_window_update")
         if self.message_type in _EMPTY_PAYLOAD_TYPES and self.payload:
             raise ProtocolError("unexpected_payload")
+        if self.message_type is MessageType.HELLO and len(self.payload) not in (0, 4):
+            raise ProtocolError('invalid_capabilities')
+        if self.message_type in {MessageType.VOLUME_GET, MessageType.VOLUME_SET, MessageType.VOLUME_REPORT}:
+            if self.turn_id != 0:
+                raise ProtocolError('invalid_turn')
+            expected = {MessageType.VOLUME_GET: 0, MessageType.VOLUME_SET: 4,
+                        MessageType.VOLUME_REPORT: 12}[self.message_type]
+            if len(self.payload) != expected:
+                raise ProtocolError('invalid_volume_payload')
+            if self.message_type is MessageType.VOLUME_SET and _WINDOW.unpack(self.payload)[0] > 100:
+                raise ProtocolError('invalid_volume')
+            if self.message_type is MessageType.VOLUME_REPORT:
+                request, result, volume = _VOLUME_REPORT.unpack(self.payload)
+                if (request in (0, UINT32_MAX) or result > 0
+                        or (volume > 100 if result == 0 else volume != UINT32_MAX)):
+                    raise ProtocolError('invalid_volume_report')
+        if self.message_type is MessageType.OTA_REQUEST:
+            if self.flags != 0 or self.turn_id != 0 or len(self.payload) != 32:
+                raise ProtocolError('invalid_ota_request')
+        if self.message_type is MessageType.OTA_REPORT:
+            if self.flags != 0 or self.turn_id != 0:
+                raise ProtocolError('invalid_ota_report')
+            decode_ota_report(self.payload)
+        if self.message_type is MessageType.STATUS_REPORT:
+            if self.flags != 0 or self.turn_id != 0:
+                raise ProtocolError('invalid_status_report')
+            decode_status_report(self.payload)
 
         synthetic = bool(self.flags & Flag.SYNTHETIC)
         if (self.message_type in _SYNTHETIC_TYPES) != synthetic:
@@ -234,6 +360,10 @@ class SessionEvent(enum.Enum):
     CANCELLED = "cancelled"
     PEER_ERROR = "peer_error"
     CONTROL = "control"
+    DISCARDED_AUDIO = "discarded_audio"
+    VOLUME_REPORT = 'volume_report'
+    STATUS_REPORT = 'status_report'
+    OTA_REPORT = 'ota_report'
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,6 +384,8 @@ class GatewaySession:
         self.outgoing_sequence = 0
         self.uplink_credit = 0
         self.downlink_credit = 0
+        self._cancelled_turn = 0
+        self.capabilities = 0
 
     @property
     def identity_bound(self) -> bool:
@@ -288,6 +420,7 @@ class GatewaySession:
             raise ProtocolError("sequence_gap")
 
         self.boot_generation = frame.boot_generation
+        self.capabilities = _WINDOW.unpack(frame.payload)[0] if frame.payload else 0
         self.session_id = frame.session_id
         self.incoming_sequence = frame.sequence
         self.state = SessionState.IDLE
@@ -297,6 +430,33 @@ class GatewaySession:
 
     def _transition(self, frame: Frame) -> ReceiveResult:
         message_type = frame.message_type
+        if message_type is MessageType.VOLUME_REPORT:
+            self._require_ready()
+            if not self.capabilities & CAP_VOLUME:
+                raise ProtocolError('volume_not_supported')
+            return ReceiveResult(SessionEvent.VOLUME_REPORT)
+        if message_type is MessageType.STATUS_REPORT:
+            self._require_ready()
+            if not self.capabilities & CAP_STATUS_REPORT:
+                raise ProtocolError('status_report_not_supported')
+            return ReceiveResult(SessionEvent.STATUS_REPORT)
+        if message_type is MessageType.OTA_REPORT:
+            self._require_ready()
+            if not self.capabilities & CAP_OTA:
+                raise ProtocolError('ota_not_supported')
+            return ReceiveResult(SessionEvent.OTA_REPORT)
+        # Frames sent before the peer sees CANCEL may cross it on the wire.
+        # Keep sequence/identity/window validation, but never submit their PCM.
+        if (self.state is SessionState.IDLE and self._cancelled_turn != 0
+                and frame.turn_id == self._cancelled_turn):
+            if message_type is MessageType.AUDIO_UP:
+                if self.uplink_credit < len(frame.payload):
+                    raise ProtocolError('uplink_window_exhausted')
+                self.uplink_credit -= len(frame.payload)
+                return ReceiveResult(SessionEvent.DISCARDED_AUDIO,
+                                     (self._grant_uplink(len(frame.payload)),))
+            if message_type in {MessageType.TURN_END, MessageType.CANCEL}:
+                return ReceiveResult(SessionEvent.CONTROL)
         if message_type is MessageType.WINDOW_UPDATE:
             self._require_ready()
             self._require_control_turn(frame.turn_id)
@@ -314,6 +474,7 @@ class GatewaySession:
             if self.turn_id == UINT32_MAX or frame.turn_id != self.turn_id + 1:
                 raise ProtocolError("stale_turn")
             self.turn_id = frame.turn_id
+            self._cancelled_turn = 0
             self.state = SessionState.UPLINK
             return ReceiveResult(SessionEvent.TURN_STARTED)
 
@@ -369,6 +530,40 @@ class GatewaySession:
         self.state = SessionState.DOWNLINK
         return frame
 
+    def make_heartbeat(self) -> Frame:
+        self._require_ready()
+        return self._outbound(MessageType.HEARTBEAT, turn_id=0)
+
+    def make_cancel(self, turn_id: int) -> Frame:
+        self._require_ready()
+        if turn_id == 0 or turn_id != self.turn_id:
+            raise ProtocolError('stale_turn')
+        frame = self._outbound(MessageType.CANCEL, turn_id=turn_id)
+        self._cancelled_turn = turn_id
+        self.state = SessionState.IDLE
+        return frame
+
+    def make_volume_request(self, percent: int | None = None) -> Frame:
+        self._require_ready()
+        if not self.capabilities & CAP_VOLUME:
+            raise ProtocolError('volume_not_supported')
+        if percent is not None and (type(percent) is not int or not 0 <= percent <= 100):
+            raise ProtocolError('invalid_volume')
+        return self._outbound(MessageType.VOLUME_GET if percent is None else MessageType.VOLUME_SET,
+                              turn_id=0, payload=b'' if percent is None else _WINDOW.pack(percent))
+
+    def make_ota_request(self, manifest_sha256: str) -> Frame:
+        self._require_ready()
+        if not self.capabilities & CAP_OTA:
+            raise ProtocolError('ota_not_supported')
+        if (not isinstance(manifest_sha256, str)
+                or len(manifest_sha256) != 64
+                or any(char not in '0123456789abcdef' for char in manifest_sha256)
+                or manifest_sha256 in {'0' * 64, 'f' * 64}):
+            raise ProtocolError('invalid_ota_request')
+        return self._outbound(MessageType.OTA_REQUEST, turn_id=0,
+                              payload=bytes.fromhex(manifest_sha256))
+
     def make_audio_down(self, turn_id: int, payload: bytes, *, final: bool) -> Frame:
         self._require_state_and_turn(SessionState.DOWNLINK, turn_id)
         if self.downlink_credit < len(payload):
@@ -421,6 +616,8 @@ class GatewaySession:
         flags: int = 0,
         payload: bytes = b"",
     ) -> Frame:
+        if message_type in {MessageType.STATUS_REPORT, MessageType.OTA_REPORT}:
+            raise ProtocolError('invalid_direction')
         if not self.identity_bound:
             raise ProtocolError("identity_not_bound")
         if self.outgoing_sequence >= UINT32_MAX - 1:
