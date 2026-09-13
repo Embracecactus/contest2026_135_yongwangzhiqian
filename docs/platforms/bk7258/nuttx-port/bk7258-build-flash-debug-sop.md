@@ -1,6 +1,6 @@
 # BK7258 build, package and hardware evidence SOP
 
-Last reviewed: 2026-08-30
+Last reviewed: 2026-09-13 (instruction scope and workflow routing only)
 
 ## One host entry
 
@@ -22,8 +22,8 @@ or old command alias.
 
 ## Inputs
 
-The team manifest pins both the SDK and OpenVela ARM prebuilt. Synchronize the
-declared projects before building; the command does not fall back to
+The team manifest pins both the SDK and OpenVela ARM prebuilt. Synchronize any
+missing projects required by the selected build; the command does not fall back to
 `/usr/bin` or a developer PATH compiler.
 
 Normal development names the physical board and boot mode. The board-owned
@@ -274,7 +274,11 @@ hashes plus UART/J-Link evidence for any hardware claim.
 
 ## Handoff gates by stage
 
-Read only the stage relevant to the requested delivery.
+Read only the stage relevant to the requested delivery. Passing a hardware-fast
+observation completes that iteration and does not itself request final source
+acceptance, a multi-board campaign, or a product release. Continue remaining
+work already covered by the task; apply final gates only when that delivery is
+in scope.
 
 - **Hardware-fast debug iteration:** follow the repository's hardware-fast
   loop, build only the affected target and hand off the exact debug artifact
@@ -320,3 +324,65 @@ Read only the stage relevant to the requested delivery.
 
 Host/Flash completion does not establish boot, function or physical acceptance.
 Keep the separate target-side evidence described under Hardware boundary.
+
+## Repository synchronization and checkout hygiene
+
+Read this section when synchronization or checkout-conflict handling is needed.
+
+- Treat the manifest as the repository inventory. Before syncing, inspect the
+  relevant materialized projects, remotes and pinned revisions. Do not
+  re-download an already complete project merely because it also exists upstream.
+- Synchronize missing task projects and their required dependencies with normal,
+  non-forced `repo sync`. Synchronize the complete manifest for full workspace
+  initialization or an explicit full-sync request; one missing project does not
+  require a full sync. Do not use `--force-sync`. A China-hosted mirror may be
+  used when the original host is slow only when it serves the same repository
+  and object identity; verify the pinned commit after syncing.
+- A sync conflict may expose a team adaptation outside its owner. Inspect the
+  change first; move verified team adaptations into this repository through the
+  supported manifest/build extension, then clean only that verified accidental
+  checkout change and retry. Never discard unrelated user work, explicitly
+  excluded OpenAMP experiments or unknown untracked files as bulk cleanup.
+- The manifest-pinned Beken SDK identity is authoritative and may point to the
+  owner's fork. Do not silently replace that fork with vendor upstream or rebuild
+  an installed bundle from an arbitrary local SDK tree. Verify remote, commit,
+  profile and provenance first; synchronize or rebuild only when the pinned
+  project or required object is actually absent or invalid.
+
+## Workspace integration
+
+Read this section when changing manifest mappings or application registration.
+Paths below are relative to the contest repository or named official workspace.
+
+- A `linkfile` source is relative to the contest project root and its destination
+  is the official workspace discovery location. Link one coherent directory,
+  not individual implementation files, and verify both the manifest source and
+  the materialized destination symlink after changing it.
+- Preserve `app/hello_app` and `quickapp/hello_quickapp` as generated template
+  examples. Product commands and features belong in a separately named directory
+  such as `app/bk7258` with its own manifest mapping; never turn the hello example
+  into a product-app compatibility container.
+- Map a NuttX built-in product command below an official application discovery
+  boundary that recurses through CMake, Kconfig and Make, such as
+  `apps/system/bk7258`. Do not place it below `packages/demos` merely because the
+  generated hello template uses that location. After changing a mapping or
+  symbol, verify the resolved `.config` and ELF/builtin table; a symbol present
+  only in the seed defconfig is not integrated.
+
+## Test integration
+
+Read only the matching path when adding or changing test integration. These
+are ownership rules, not a requirement to run every test path for each change.
+
+- Linux-native mock and sanitizer regression stays under `tests/host/` in the
+  contest checkout. Never map its host Makefile into the official OpenVela
+  `tests/` application tree.
+- Target CMocka applications stay under `app/testing/`, mirroring their official
+  `apps/testing/` destination and using official Kconfig, Make.defs and
+  Application.mk contracts. Expose the whole application through one manifest
+  linkfile below `apps/testing/`; do not route it through `external/` when the
+  standard location already supplies Kconfig, Make and CMake child discovery.
+  Keep it ready to move upstream without a product-only build wrapper.
+- Add board serial automation as a linked child below official pytest
+  `tests/scripts/script/`. Reuse parent fixtures and the UART0 control channel;
+  do not fork `conftest.py`, `utils/common.py` or `pytest.ini`.
