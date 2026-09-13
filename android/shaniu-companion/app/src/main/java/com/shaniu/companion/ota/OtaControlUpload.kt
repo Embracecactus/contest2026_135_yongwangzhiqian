@@ -25,12 +25,17 @@ internal class OtaControlUpload(
     private var pending: DeviceControlProtocol.Command? = null
     private var pendingCount = 0
     private var uploaded = 0
+    private var appendedChunks = 0
     private var cancelRequested = false
 
     var state: State = State.READY
         private set
     var error: Int? = null
         private set
+    /** Aggregate source-record progress only; no record bytes or endpoint data. */
+    val totalBytes: Int get() = if (state in setOf(State.FAILED, State.CANCELED)) 0 else ownedRecord.size
+    val uploadedBytes: Int get() = if (state in setOf(State.FAILED, State.CANCELED)) 0 else uploaded
+    val appendCount: Int get() = if (state in setOf(State.FAILED, State.CANCELED)) 0 else appendedChunks
 
     fun start(): Boolean {
         if (state != State.READY) return false
@@ -93,6 +98,7 @@ internal class OtaControlUpload(
 
     private fun afterAppendAck() {
         uploaded += pendingCount
+        appendedChunks++
         pendingCount = 0
         if (cancelRequested) {
             transmitCancel()

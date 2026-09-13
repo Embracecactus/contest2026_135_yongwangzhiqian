@@ -436,20 +436,29 @@ class MainActivity : Activity() {
 
     private fun directStatus(): String = directSnapshot?.statusText() ?: directMessage
 
-    private fun closeDirect() {
+    private fun closeDirect(preserveAcceptedOtaSource: Boolean = false): Boolean {
+        val preserveOtaSource = preserveAcceptedOtaSource && foreground && !destroyed &&
+            otaServer?.running == true && otaVerificationPending &&
+            (otaUpload?.state == OtaControlUpload.State.ACCEPTED || otaStatus?.state in 1L..2L)
         directEpoch++
         directScanner?.close(); directScanner = null
         directDialog?.dismiss(); directDialog = null
         directConnection?.close(); directConnection = null
         directSnapshot = null; directFirmwareInfo = null; directPending = false; directConnecting = false
         memoryResultMessage = null; memoryDesiredEnabled = null; memoryRequestAccepted = false
-        otaUpload?.close(); otaUpload = null; otaStatus = null
-        otaVerificationPending = false
-        otaStartGate.release()
-        setOtaKeepAwake(false)
-        closeOtaServer("升级传输已中断；重新连接后会核对设备状态。")
-        directMessage = "手机未连接；设备可继续独立对话。"
+        if (preserveOtaSource) {
+            otaMessage = "蓝牙已断开，手机仍在提供固件；请保持此页并重新连接查看进度。"
+            directMessage = otaMessage
+        } else {
+            otaUpload?.close(); otaUpload = null; otaStatus = null
+            otaVerificationPending = false
+            otaStartGate.release()
+            setOtaKeepAwake(false)
+            closeOtaServer("升级传输已中断；重新连接后会核对设备状态。")
+        }
+        if (!preserveOtaSource) directMessage = "手机未连接；设备可继续独立对话。"
         mainHandler.removeCallbacks(directPoll)
+        return preserveOtaSource
     }
 
     private fun selectTab(value: Int) {
@@ -548,24 +557,39 @@ class MainActivity : Activity() {
             render()
             return
         }
-        otaUpload?.response(command, snapshot)
+        val upload = otaUpload
+        upload?.response(command, snapshot)
         otaMessage = when {
-            snapshot.error != 0 -> "设备拒绝升级请求（${snapshot.error}）。"
-            otaUpload?.state == OtaControlUpload.State.ACCEPTED -> {
+            upload?.state == OtaControlUpload.State.FAILED -> {
+                val message = "设备拒绝${otaCommandLabel(command)}（${upload.error ?: snapshot.error}）；升级来源未完成。"
+                closeOtaServer()
+                /* The board retains a rejected source record until this GATT
+                 * session closes.  Do not retry BEGIN on the same channel. */
+                closeDirect()
+                "$message 已断开设备连接，请重新连接后重试。"
+            }
+            upload?.state == OtaControlUpload.State.ACCEPTED -> {
+                otaStatus = null
                 otaVerificationPending = true
                 "设备已接受升级来源，正在等待设备报告升级状态。"
             }
-            otaUpload?.state == OtaControlUpload.State.CANCELED -> "设备已确认取消升级请求。"
-            otaUpload?.state == OtaControlUpload.State.FAILED -> {
-                otaUpload = null
-                closeOtaServer()
-                otaStartGate.release()
-                setOtaKeepAwake(false)
-                "升级传输未完成，请重新连接后核对设备状态。"
-            }
-            else -> "正在向设备发送升级来源…"
+            upload?.state == OtaControlUpload.State.CANCELED -> "设备已确认取消升级请求。"
+            command == DeviceControlProtocol.Command.OTA_BEGIN ->
+                "设备已接受升级来源准备，正在发送来源记录（0/${upload?.totalBytes ?: 0} 字节）。"
+            command == DeviceControlProtocol.Command.OTA_APPEND && upload != null &&
+                (upload.uploadedBytes == upload.totalBytes || upload.uploadedBytes % 256 == 0) ->
+                "正在发送升级来源记录（${upload.uploadedBytes}/${upload.totalBytes} 字节，${upload.appendCount} 段）。"
+            else -> otaMessage
         }
         render()
+    }
+
+    private fun otaCommandLabel(command: DeviceControlProtocol.Command) = when (command) {
+        DeviceControlProtocol.Command.OTA_BEGIN -> "升级来源准备"
+        DeviceControlProtocol.Command.OTA_APPEND -> "升级来源记录"
+        DeviceControlProtocol.Command.OTA_START -> "升级开始请求"
+        DeviceControlProtocol.Command.OTA_CANCEL -> "取消升级请求"
+        else -> "升级请求"
     }
 
     private fun startLocalOta() {
@@ -582,6 +606,7 @@ class MainActivity : Activity() {
             render(); return
         }
         if (!otaStartGate.acquire()) return
+        mainHandler.removeCallbacks(directPoll)
         val epoch = directEpoch
         otaMessage = "正在准备本机升级来源…"
         setOtaKeepAwake(true)
@@ -593,6 +618,7 @@ class MainActivity : Activity() {
                     opened.getOrNull()?.let { server -> ioExecutor.execute { server.close() } }
                     return@post
                 }
+                mainHandler.postDelayed(directPoll, 2000)
                 val server = opened.getOrNull()
                 if (server == null) {
                     otaMessage = "无法建立本机升级来源，请检查 Wi‑Fi 和已验证的固件包。"
@@ -636,16 +662,23 @@ class MainActivity : Activity() {
         render()
     }
 
-    private fun confirmExpectedOta() {
-        val info = directFirmwareInfo ?: return
-        val expectedVersion = preferences.getString(KEY_OTA_EXPECTED_VERSION, null) ?: return
+    private fun expectedOtaConfirmed(): Boolean {
+        val info = directFirmwareInfo ?: return false
+        val expectedVersion = preferences.getString(KEY_OTA_EXPECTED_VERSION, null) ?: return false
         val expectedCounter = preferences.getLong(KEY_OTA_EXPECTED_COUNTER, -1L)
-        val expectedDeviceId = preferences.getString(KEY_OTA_EXPECTED_DEVICE, null) ?: return
+        val expectedDeviceId = preferences.getString(KEY_OTA_EXPECTED_DEVICE, null) ?: return false
         val version = "${info.major}.${info.minor}.${info.revision}+${info.build}"
-        val status = otaStatus ?: return
-        val confirmed = OtaUpdatePolicy.confirmed(expectedDeviceId, provisionedDeviceId,
+        val status = otaStatus ?: return false
+        return OtaUpdatePolicy.confirmed(expectedDeviceId, provisionedDeviceId,
             expectedVersion, expectedCounter, version, info.securityCounter,
             status.state, status.phase, status.result)
+    }
+
+    private fun confirmExpectedOta() {
+        val info = directFirmwareInfo ?: return
+        val status = otaStatus ?: return
+        val version = "${info.major}.${info.minor}.${info.revision}+${info.build}"
+        val confirmed = expectedOtaConfirmed()
         if (confirmed) {
             otaMessage = "设备已确认完成升级：$version。"
             otaUpload = null
@@ -698,7 +731,7 @@ class MainActivity : Activity() {
         if (permissions.any { checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }) {
             requestPermissions(permissions, 6042); return
         }
-        closeDirect()
+        closeDirect(preserveAcceptedOtaSource = true)
         val epoch = directEpoch
         val found = mutableListOf<android.bluetooth.BluetoothDevice>()
         val labels = android.widget.ArrayAdapter<String>(this, android.R.layout.simple_list_item_1)
@@ -774,16 +807,17 @@ class MainActivity : Activity() {
                 } },
                 { reason -> mainHandler.post {
                     if (epoch == directEpoch && !destroyed) {
-                        closeDirect()
-                        directMessage = when (reason) {
-                            "control_timeout" -> "设备控制响应超时，请重新连接后重试。"
-                            "session_timeout", "handshake_timeout", "write_timeout" ->
-                                "设备连接超时，请重新连接后重试。"
-                            "bluetooth_permission_denied" -> "蓝牙连接权限被拒绝，请允许附近设备权限后重试。"
-                            "service_discovery_failed", "provision_service_missing" ->
-                                "未发现设备控制服务，请重新选择设备后重试。"
-                            "disconnected" -> "连接已断开，请重新连接后重试。"
-                            else -> "设备连接异常，请重新连接后重试。"
+                        if (!closeDirect(preserveAcceptedOtaSource = true)) {
+                            directMessage = when (reason) {
+                                "control_timeout" -> "设备控制响应超时，请重新连接后重试。"
+                                "session_timeout", "handshake_timeout", "write_timeout" ->
+                                    "设备连接超时，请重新连接后重试。"
+                                "bluetooth_permission_denied" -> "蓝牙连接权限被拒绝，请允许附近设备权限后重试。"
+                                "service_discovery_failed", "provision_service_missing" ->
+                                    "未发现设备控制服务，请重新选择设备后重试。"
+                                "disconnected" -> "连接已断开，请重新连接后重试。"
+                                else -> "设备连接异常，请重新连接后重试。"
+                            }
                         }
                         render()
                     }
@@ -937,7 +971,7 @@ class MainActivity : Activity() {
                         0L -> "空闲"
                         1L -> "已排队"
                         2L -> "升级中"
-                        3L -> "已结束，等待版本核对"
+                        3L -> if (expectedOtaConfirmed()) "已确认完成升级" else "已结束，等待版本核对"
                         else -> "状态未知"
                     }
                     val phase = when (ota.phase) {

@@ -27,6 +27,7 @@ int bkvoice_ota_flow_decide(
 {
   bool source;
   bool target;
+  bool distinct_target;
   bool same_boot;
 
   if (intent == NULL || pair == NULL || action == NULL ||
@@ -37,10 +38,22 @@ int bkvoice_ota_flow_decide(
       return -EINVAL;
     }
 
+  if ((intent->state != BKVOICE_OTA_DOWNLOADING &&
+       intent->state != BKVOICE_OTA_STAGED &&
+       intent->state != BKVOICE_OTA_REBOOTING &&
+       intent->state != BKVOICE_OTA_TRIAL) ||
+      (intent->source_security_counter == intent->target_security_counter &&
+       bk7258_mcuboot_version_equal(&intent->source_version,
+                                    &intent->target_version)))
+    {
+      return -EINVAL;
+    }
+
   source = bkvoice_ota_pair_matches(pair, &intent->source_version,
                                     intent->source_security_counter);
   target = bkvoice_ota_pair_matches(pair, &intent->target_version,
                                     intent->target_security_counter);
+  distinct_target = target && !source;
   same_boot = current_boot_generation == intent->source_boot_generation;
 
   if (intent->state == BKVOICE_OTA_DOWNLOADING)
@@ -51,7 +64,7 @@ int bkvoice_ota_flow_decide(
           return 0;
         }
 
-      if (!same_boot && target)
+      if (distinct_target)
         {
           *action = pair->state == BK7258_OTA_PAIR_PENDING ?
                     BKVOICE_OTA_FLOW_TRIAL :
@@ -62,35 +75,29 @@ int bkvoice_ota_flow_decide(
       return -ESTALE;
     }
 
-  if (intent->state == BKVOICE_OTA_STAGED ||
-      intent->state == BKVOICE_OTA_REBOOTING)
+  if ((intent->state == BKVOICE_OTA_STAGED ||
+       intent->state == BKVOICE_OTA_REBOOTING) && same_boot)
     {
-      if (same_boot)
+      if (source && pair->state == BK7258_OTA_PAIR_CONFIRMED)
         {
-          if (source && pair->state == BK7258_OTA_PAIR_CONFIRMED)
-            {
-              *action = BKVOICE_OTA_FLOW_REBOOT;
-              return 0;
-            }
-
-          return -ESTALE;
+          *action = BKVOICE_OTA_FLOW_REBOOT;
+          return 0;
         }
     }
-  else if (intent->state != BKVOICE_OTA_TRIAL)
+
+  if (distinct_target)
     {
-      return -EINVAL;
+      /* AP generation can repeat after a whole-chip reboot.  A fully matched,
+       * distinct target pair is the evidence that the new image is running.
+       */
+      *action = pair->state == BK7258_OTA_PAIR_PENDING ?
+                BKVOICE_OTA_FLOW_TRIAL : BKVOICE_OTA_FLOW_CONFIRMED;
+      return 0;
     }
 
   if (same_boot)
     {
       return -ESTALE;
-    }
-
-  if (target)
-    {
-      *action = pair->state == BK7258_OTA_PAIR_PENDING ?
-                BKVOICE_OTA_FLOW_TRIAL : BKVOICE_OTA_FLOW_CONFIRMED;
-      return 0;
     }
 
   if (source && pair->state == BK7258_OTA_PAIR_CONFIRMED)

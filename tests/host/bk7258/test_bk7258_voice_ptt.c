@@ -516,6 +516,45 @@ static void test_normal_ptt_order(void)
   test_finish(&ptt, &source);
 }
 
+static void test_quiescent_ota_admission_state(void)
+{
+  struct bkvoice_turn_token_s token;
+  struct bkvoice_ptt_s ptt;
+  struct test_trace_s trace;
+  struct test_audio_s audio;
+  struct test_source_s source;
+  struct test_sink_s sink;
+
+  memset(&ptt, 0, sizeof(ptt));
+  assert(!bkvoice_ptt_quiescent(&ptt));
+  test_initialize(&ptt, &trace, &audio, &source, &sink, 1000);
+  /* A cloud-open PTT session has capture_ready set, but owns no hardware. */
+  assert(bkvoice_ptt_quiescent(&ptt));
+
+  assert(bkvoice_ptt_down(&ptt, 10, &token) == 0);
+  test_sem_wait(&source.audio_sent);
+  assert(!bkvoice_ptt_quiescent(&ptt));
+  assert(bkvoice_ptt_up(&ptt, 20) == 0);
+  assert(!bkvoice_ptt_quiescent(&ptt)); /* WAITING_TTS owns the turn. */
+
+  token = ptt.token;
+  token.sequence = 1;
+  assert(bkvoice_turn_tts_start(&ptt.turn, &token, 30) == 0);
+  assert(!bkvoice_ptt_quiescent(&ptt)); /* PLAYING owns the DAC. */
+  assert(bkvoice_ptt_cancel(&ptt, -ECANCELED) == 0);
+  assert(bkvoice_ptt_quiescent(&ptt));
+
+  ptt.turn.state = BKVOICE_TURN_FAULTED;
+  assert(!bkvoice_ptt_quiescent(&ptt));
+  assert(bkvoice_turn_recover(&ptt.turn) == 0);
+  assert(bkvoice_ptt_quiescent(&ptt));
+  ptt.worker_joinable = true;
+  assert(!bkvoice_ptt_quiescent(&ptt));
+  ptt.worker_joinable = false;
+  assert(bkvoice_ptt_quiescent(&ptt));
+  test_finish(&ptt, &source);
+}
+
 static void test_prefill_order(void)
 {
   static const enum test_call_e expected[] =
@@ -641,16 +680,20 @@ static void test_join_timeout_is_retryable(void)
   assert(bkvoice_ptt_down(&ptt, 10, &token) == 0);
   test_sem_wait(&source.audio_sent);
   assert(bkvoice_ptt_up(&ptt, 20) == -ETIMEDOUT);
+  assert(!bkvoice_ptt_quiescent(&ptt));
   bkvoice_ptt_snapshot(&ptt, &snapshot);
   assert(snapshot.worker_joinable && snapshot.capture.source_attached);
   assert(snapshot.turn.mic_acquired && source.attached);
 
   source.wake_on_interrupt = true;
   assert(bkvoice_ptt_up(&ptt, 30) == 0);
+  assert(!bkvoice_ptt_quiescent(&ptt));
   assert(source.interrupts == 2 && sink.end_calls == 1);
   bkvoice_ptt_snapshot(&ptt, &snapshot);
   assert(!snapshot.worker_joinable && !snapshot.turn.mic_acquired &&
          !snapshot.capture.source_attached);
+  assert(bkvoice_ptt_cancel(&ptt, -ECANCELED) == 0);
+  assert(bkvoice_ptt_quiescent(&ptt));
   test_finish(&ptt, &source);
 }
 
@@ -892,6 +935,7 @@ static void test_guards(void)
 int main(void)
 {
   test_normal_ptt_order();
+  test_quiescent_ota_admission_state();
   test_prefill_order();
   test_prefill_failure_cleans_up();
   test_worker_failure_cancels();

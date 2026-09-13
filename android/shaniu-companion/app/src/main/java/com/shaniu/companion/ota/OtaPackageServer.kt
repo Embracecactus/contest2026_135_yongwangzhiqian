@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
 import java.io.File
 import java.io.RandomAccessFile
 import java.math.BigInteger
@@ -81,6 +82,9 @@ internal class OtaPackageServer private constructor(
     private val deadlineTimer = Timer("shaniu-ota-expiry", true)
     private var workerStarted = false
     private val cleaned = AtomicBoolean(false)
+    private val listenerLogged = AtomicBoolean(false)
+    private val acceptedLogged = AtomicBoolean(false)
+    private val tlsLogged = AtomicBoolean(false)
 
     val running: Boolean
         get() = workerRunning && !closed
@@ -107,6 +111,9 @@ internal class OtaPackageServer private constructor(
     }
 
     private fun start() {
+        if (listenerLogged.compareAndSet(false, true)) {
+            Log.i(LOG_TAG, "listener ${serverSocket.inetAddress.hostAddress}:${serverSocket.localPort}")
+        }
         workerRunning = true
         worker.start()
         workerStarted = true
@@ -145,6 +152,9 @@ internal class OtaPackageServer private constructor(
                         runCatching { socket.close() }
                         continue
                     }
+                    if (acceptedLogged.compareAndSet(false, true)) {
+                        Log.i(LOG_TAG, "first_tcp_accepted")
+                    }
                     try {
                         serve(socket)
                     } catch (_: Exception) {
@@ -182,6 +192,9 @@ internal class OtaPackageServer private constructor(
         socket.wantClientAuth = false
         try {
             socket.startHandshake()
+            if (tlsLogged.compareAndSet(false, true)) {
+                Log.i(LOG_TAG, "first_tls_handshake")
+            }
         } catch (error: Exception) {
             recordFailure("tls", error)
             throw error
@@ -219,6 +232,7 @@ internal class OtaPackageServer private constructor(
             .joinToString(">")
         lastError = "$stage:$classes"
         lastFailureSequence++
+        Log.w(LOG_TAG, "failure:$stage:$classes")
     }
 
     private fun readHeader(socket: SSLSocket): ByteArray {
@@ -252,6 +266,7 @@ internal class OtaPackageServer private constructor(
         private const val MAX_METADATA_BYTES = 64L * 1024L
         private const val MAX_IMAGE_BYTES = 8L * 1024L * 1024L
         private const val TLS_CIPHER = "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+        private const val LOG_TAG = "ShaniuOtaSource"
         private val packageEntries = listOf(
             "manifest.json", "catalog.json", "catalog.sig",
             "images/ap/ap.bin", "images/cp/cp.bin"

@@ -248,14 +248,19 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
               return true;
             }
         }
-      if (!bkprov_gatt_open() || now - g_owner.opened >= WINDOW_MS)
-        { close_window(-ETIMEDOUT); return false; }
       uint32_t generation = bkprov_gatt_generation();
+      /* Discovery age must not shorten an accepted control session.  TLS
+       * retains its independent handshake/authentication/session deadlines. */
+      if (!bkprov_gatt_open() ||
+          (now - g_owner.opened >= WINDOW_MS &&
+           (g_owner.control->tls.initialized || generation == 0)))
+        { close_window(-ETIMEDOUT); return false; }
       if (!g_owner.control->tls.initialized && generation != 0)
         {
           ret = bkcontrol_pair_start(g_owner.control, generation,
                   g_owner.certificate, g_owner.key, g_owner.control_key,
                   owner_now, NULL, g_owner.execute, g_owner.control_context);
+          if (ret == 0) g_owner.opened = now;
           if (ret == 0 && g_owner.ota != NULL)
             {
               if (!g_owner.control->session.open ||
