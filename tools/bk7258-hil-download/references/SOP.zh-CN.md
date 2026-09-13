@@ -16,7 +16,7 @@
 
 | Profile | 下载/控制台拓扑 | BK Loader 输入 | 复位规则 |
 |---|---|---|---|
-| `aidk_ai_toy` | 同一 CH340 UART0 | 8 MiB 单 BIN | BK Loader 原子发送 `reset reboot`；禁止 RTS/DTR；必要时人工 K1 |
+| `aidk_ai_toy` | 同一 CH340 UART0 | 8 MiB 单 BIN，或有界已签名 CP/AP-B 段 | BK Loader 原子发送 `reset reboot`；禁止 RTS/DTR；必要时人工 K1 |
 | `t5_board` | 同一 UART0 COM | 单 BIN 或受清单约束的多段 | USB 转串口支持同口内联 RTS；不借用 AIDK 软件重启参数 |
 | `t5ai_core` | 下载/复位 COM 与 UART0 console 分离 | 单 BIN 或受清单约束的多段 | 在下载/复位 COM 上发 RTS；console COM 只采集；J-Link 独立授权 |
 
@@ -31,7 +31,8 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py profiles --board t5board
 
 执行写入前同时确认：
 
-1. 用户当前请求明确授权该物理板的本次烧录。
+1. 当前会话中仍有效的授权覆盖该物理板、本次产物、端口和写入范围。
+   明确的同板迭代授权可在其约定边界内沿用；一次烧录授权仍只覆盖一次写入。
 2. 板型、下载 COM、控制台 COM 及两者关系已经确认。
 3. 固件来源、类型、大小、SHA256 和写入范围已知；设备绑定镜像只用于其
    `device-id` 对应设备。
@@ -76,7 +77,31 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py run \
 BK Loader 必须独占“软件 reboot → Boot ROM”窗口。不要另起延时串口发送器，
 不要补做 COM8 RTS/DTR。
 
-## 5. T5-Board / T5AI-Core 多段流程
+## 5. AIDK 有界 CP/AP-B 多段流程
+
+仅当当前设备的 inactive-slot/layout 证据已给出待写物理范围时，才可使用
+`signed-segments`。每个 `--write-bound START-LENGTH` 是本次操作员授权的物理
+范围，必须为正、4 KiB 对齐、互不重叠，并完全包含对应段；工具不会内置 AIDK
+分区地址。AIDK 的已知容量为 8 MiB，越界范围会在打开硬件前被拒绝。每段必须
+有按顺序匹配的 SHA256。此流程不证明签名或硬件通过，仍须先完成项目 trust
+校验。
+
+```bash
+python3 <skill-dir>/scripts/bk7258_hil_download.py preflight \
+  --board aidk_ai_toy --transport multi --artifact-kind signed-segments \
+  --loader /mnt/c/path/to/bk_loader.exe --port COM8 \
+  --segment /path/cp_b.bin@<cp-b-start>-<cp-b-length> \
+  --segment /path/ap_b.bin@<ap-b-start>-<ap-b-length> \
+  --segment-sha256 <cp-b-sha256> --segment-sha256 <ap-b-sha256> \
+  --write-bound <cp-b-start>-<cp-b-length> \
+  --write-bound <ap-b-start>-<ap-b-length>
+```
+
+预检命令应保留 profile 的 `--swrst 'reset reboot'`、`--hard-reset 0` 与
+`--fast-link 1`；不得以 RTS/DTR 代替。范围必须来自本次设备证据，不能由本文
+示例或工具推断。
+
+## 6. T5-Board / T5AI-Core 多段流程
 
 只使用已经通过项目 package/trust 校验并由 manifest 声明的物理范围。每个
 `--segment` 使用 `PATH@OFFSET-LENGTH`，其中 LENGTH 必须等于文件实际大小；
@@ -113,7 +138,7 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py preflight \
   --expected-size <manifest-size> --expected-sha256 <64-hex>
 ```
 
-## 6. 下载后的通用调试交接
+## 7. 下载后的通用调试交接
 
 `debug-plan` 只生成命令，不打开串口、不复位。生成后检查 profile、端口、
 动作和 regex，再运行其 `command` 字段。
@@ -151,7 +176,7 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py debug-plan \
 RTS/J-Link 都属于目标控制，实际执行前必须有当前授权。T5 的 RTS 能力不能
 外推给 AIDK。
 
-## 7. 判定与证据
+## 8. 判定与证据
 
 下载目录包含：
 

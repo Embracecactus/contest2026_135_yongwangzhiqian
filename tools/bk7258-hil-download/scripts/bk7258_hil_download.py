@@ -233,16 +233,53 @@ def parse_segment(
     }
 
 
-def validate_nonoverlap(segments: list[dict[str, Any]]) -> None:
-    ordered = sorted(segments, key=lambda item: item["offset"])
+def parse_write_bound(spec: str) -> dict[str, Any]:
+    try:
+        start_text, length_text = spec.split("-", 1)
+    except ValueError as exc:
+        raise ValueError(
+            "--write-bound must use START-LENGTH, for example 0x410000-0x20000"
+        ) from exc
+    start = parse_integer(start_text, "write bound start")
+    length = parse_integer(length_text, "write bound length")
+    if length < 1:
+        raise ValueError("write bound length must be positive")
+    if start % 4096 or length % 4096:
+        raise ValueError("write bound start and length must be 4 KiB aligned")
+    return {
+        "offset": start,
+        "offset_hex": canonical_hex(start),
+        "length": length,
+        "length_hex": canonical_hex(length),
+        "end": start + length,
+    }
+
+
+def validate_nonoverlap(ranges: list[dict[str, Any]], label: str) -> None:
+    ordered = sorted(ranges, key=lambda item: item["offset"])
     for previous, current in zip(ordered, ordered[1:]):
         if current["offset"] < previous["end"]:
             raise ValueError(
-                "segment ranges overlap: "
-                f"{previous['image']} [{previous['offset_hex']}, "
+                f"{label} ranges overlap: "
+                f"{previous.get('image', label)} [{previous['offset_hex']}, "
                 f"{canonical_hex(previous['end'])}) and "
-                f"{current['image']} [{current['offset_hex']}, "
+                f"{current.get('image', label)} [{current['offset_hex']}, "
                 f"{canonical_hex(current['end'])})"
+            )
+
+
+def validate_segments_in_bounds(
+    segments: list[dict[str, Any]], bounds: list[dict[str, Any]]
+) -> None:
+    for segment in segments:
+        if not any(
+            segment["offset"] >= bound["offset"] and segment["end"] <= bound["end"]
+            for bound in bounds
+        ):
+            raise ValueError(
+                "segment range is outside every operator-authorized write bound: "
+                f"{segment['image']} [{segment['offset_hex']}, "
+                f"{canonical_hex(segment['end'])})"
             )
 
 
@@ -301,6 +338,11 @@ def add_download_arguments(parser: argparse.ArgumentParser) -> None:
         "--segment-sha256",
         action="append",
         help="optional repeatable expected hash paired with each --segment",
+    )
+    parser.add_argument(
+        "--write-bound",
+        action="append",
+        help="repeatable operator-authorized START-LENGTH range for transport=multi",
     )
     parser.add_argument("--expected-sha256")
     parser.add_argument("--expected-size", type=int)
@@ -366,6 +408,8 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
                 f"{rendered} are single-image options and cannot be used with "
                 "transport=multi"
             )
+    elif args.write_bound:
+        raise ValueError("--write-bound is only valid with transport=multi")
 
     resolved_values: dict[str, Any] = {}
     overridden: list[str] = []
@@ -396,6 +440,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
 
     port = normalize_port(args.port)
     artifacts: list[dict[str, Any]] = []
+    write_bounds: list[dict[str, Any]] = []
     command: list[str] = [
         str(loader),
         "download",
@@ -460,12 +505,36 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
                 "use paired --segment-sha256 values for multi"
             )
         expected_hashes = args.segment_sha256 or []
+        require_hashes = bool(profile_download.get("require_segment_sha256"))
+        if require_hashes and len(expected_hashes) != len(args.segment):
+            raise ValueError(
+                f"board {canonical_board} requires one --segment-sha256 for every "
+                "--segment"
+            )
         if expected_hashes and len(expected_hashes) != len(args.segment):
             raise ValueError("provide one --segment-sha256 for every --segment, or none")
         for index, spec in enumerate(args.segment):
             expected = expected_hashes[index] if expected_hashes else None
             artifacts.append(parse_segment(spec, loader, expected))
-        validate_nonoverlap(artifacts)
+        validate_nonoverlap(artifacts, "segment")
+        write_bounds = [parse_write_bound(spec) for spec in args.write_bound or []]
+        if profile_download.get("require_segment_bounds") and not write_bounds:
+            raise ValueError(
+                f"board {canonical_board} requires at least one --write-bound for "
+                "transport=multi"
+            )
+        if write_bounds:
+            validate_nonoverlap(write_bounds, "write bound")
+            capacity = profile_download.get("single_image_size")
+            if capacity is not None:
+                for bound in write_bounds:
+                    if bound["end"] > capacity:
+                        raise ValueError(
+                            "write bound exceeds known flash capacity: "
+                            f"[{bound['offset_hex']}, {canonical_hex(bound['end'])}) "
+                            f"> {capacity} bytes"
+                        )
+            validate_segments_in_bounds(artifacts, write_bounds)
         command.extend(
             [
                 "--uart-type",
@@ -475,11 +544,12 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             ]
         )
 
-    if transport == "single":
+    if transport == "single" or profile_download.get("multi_emit_reset_options"):
         if resolved_values["reset_command"] is not None:
             command.extend(["--swrst", str(resolved_values["reset_command"])])
         if resolved_values["hard_reset"] is not None:
             command.extend(["--hard-reset", str(resolved_values["hard_reset"])])
+    if transport == "single":
         command.extend(["--uart-type", str(resolved_values["uart_type"])])
     command.extend(
         [
@@ -499,6 +569,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
         "artifact_trust_verified_by_helper": False,
         "transport": transport,
         "artifacts": artifacts,
+        "operator_authorized_write_bounds": write_bounds,
         "loader": str(loader),
         "port": port,
         "port_role": profile_download["port_role"],

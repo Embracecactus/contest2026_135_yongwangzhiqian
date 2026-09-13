@@ -22,13 +22,17 @@ two skills compose; neither silently broadens the other's safety boundary.
    [references/SOP.zh-CN.md](references/SOP.zh-CN.md), then run `preflight`.
    Use `single` for one bounded/full BIN and `multi` for reviewed
    `PATH@OFFSET-LENGTH` segments. Every segment length must equal its file size,
-   ranges must not overlap, and hashes are recorded.
+   ranges must not overlap, and hashes are recorded. AIDK multi-segment writes
+   require explicit 4 KiB-aligned `--write-bound START-LENGTH` ranges from the
+   current device's inactive-slot/layout evidence, plus one SHA256 per segment.
 4. Treat `artifact_kind_claim` as an operator label, not signature proof. For a
    signed package, first use the repository's package/trust verifier and only
    then pass the verified extracted BIN or manifest-declared segments. Signed
    OTA stays on `tools/bk7258/bk7258.py deploy`.
-5. Execute `run --execute --evidence-dir <new-directory>` only when the current
-   user request authorizes that exact board, artifact, port, and Flash write.
+5. Execute `run --execute --evidence-dir <new-directory>` only when still-valid
+   authorization in the current conversation covers that exact board, artifact,
+   port, and Flash write. Reuse explicit same-board iteration authority within
+   its stated bounds; one-shot authorization remains limited to one write.
    Do not automatically retry a failed erase or write.
 6. After BK Loader releases the COM port, run `debug-plan` to generate a
    board-safe command for `windows-hardware-debug`. Inspect it, then execute the
@@ -38,8 +42,10 @@ two skills compose; neither silently broadens the other's safety boundary.
 
 ## Current board profiles
 
-- `aidk_ai_toy`: one 8 MiB BIN, CH340 UART0, loader-owned `reset reboot`, and no
-  RTS/DTR reset. K1 is the manual fallback.
+- `aidk_ai_toy`: one 8 MiB BIN or bounded signed CP/AP-B segments, CH340 UART0,
+  loader-owned `reset reboot`, and no RTS/DTR reset. Multi-segment bounds must
+  preserve A/data/boot and come from current device evidence; K1 is the manual
+  fallback.
 - `t5_board`: single or manifest-bounded multi-segment BK Loader input. UART0 is
   download plus console, and its USB-UART path supports inline RTS reset.
 - `t5ai_core`: single or manifest-bounded multi-segment input. Download/reset
