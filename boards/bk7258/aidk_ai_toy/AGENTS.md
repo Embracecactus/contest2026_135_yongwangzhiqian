@@ -10,16 +10,17 @@ This subtree is the complete ownership boundary for AIDK AI Toy adaptation.
 - Use the board preset (`--board aidk_ai_toy`) and MCUboot for every release.
   A release build is always clean.  The board CSV is the only Flash geometry
   source.
-- One owner-authorized full download means one newly generated, independent
-  BL1/MCUboot P-256 generation.  Never reuse a previous full-download key.
-  Plaintext private keys exist only below a mode-0700 `/tmp/aidk-trust.*`
-  directory and are destroyed after acceptance or failure.
+- A full download does not authorize key generation, rotation or destruction.
+  Follow the repository's trust rules and reuse compatible approved identities
+  and artifacts. Reprovisioning requires explicit identity-operation authority;
+  ordinary download acceptance or failure does not authorize key destruction.
 - OTA is different from full provisioning: it must use the MCUboot root already
   installed on that device and a strictly higher generation.  Store the signer
   only in the operator's approved vault/HSM or external secret manager; this
   repository does not provide a board-private key broker.  Never log key paths,
   store secrets in Git, or copy secrets into project memory.
-- Do one complete package verification and one end-to-end hardware acceptance.
+- For final delivery, do one complete package verification and one end-to-end
+  hardware acceptance. Debug iterations use the repository's hardware-fast gates.
   Do not replace acceptance with repeated partial read/probe/download loops.
 - A wired recovery uses one complete 8-MiB operator image at address zero,
   materialized from an exact full readback and accepted-base evidence for that

@@ -41,21 +41,22 @@
 - A debug-artifact handoff is not a final project handoff.  Defer broad host
   regression, unrelated-board clean builds, documentation and provenance
   audits, official-checkout audits, ZIP/release assembly and other final
-  acceptance work until the owner reports that the hardware path passes.  Do
-  not introduce speculative tests merely to delay the next hardware attempt.
+  acceptance work until the task includes that final delivery and the relevant
+  hardware path passes. Do not introduce speculative tests merely to delay the
+  next hardware attempt.
 - Mandatory device-data and trust protections still apply.  If an iteration
   requires a whole-device BIN, perform only the minimum required accepted-base,
   signer-reference, signature, rollback and exact-Flash-size checks, then hand
   off the BIN without unrelated gates or a ZIP.  Prefer the installed apps-only path
   when its existing trust contract permits the affected CP/AP update.
-- Exit hardware-fast mode only when the owner explicitly requests final
-  acceptance/release work or reports that the relevant hardware behavior has
-  passed.  Then run the deferred regression, multi-board, provenance and final
-  delivery checks before claiming completion.
+- Passing the requested hardware observation completes that iteration; it does
+  not add final acceptance or release work to the task. Continue any remaining
+  authorized iterations. Enter final-acceptance mode only when the current task
+  includes final acceptance or release, and apply only its matching handoff gates.
 
 ## BK7258 validation tiers
 
-- Ordinary increment: build only the affected role/target and run its directly
+- Ordinary code/config increment: build only the affected role/target and run its directly
   relevant host or target regression. Reuse the established build tree and
   signing identity; neither `--clean` nor signing is a default validation step.
 - Impacted regression: run the tests and builds selected by changed ownership
@@ -68,6 +69,9 @@
 - Boot/trust/layout change: run the dedicated clean, package, signature,
   rollback, readback and boot evidence path. This is an explicit specialist
   workflow, not a gate for ordinary app or driver increments.
+- Documentation-only changes need format and affected-link review, not firmware
+  builds or application tests. Reuse passing checks while their inputs remain
+  unchanged.
 
 ## BK7258 delegation boundaries
 
@@ -91,8 +95,8 @@
 
 - This rule applies to every external peripheral class, including displays,
   sensors, storage, NFC, audio codecs, chargers, cameras and future devices.
-- Before implementing a peripheral driver, search the fully synchronized
-  NuttX/OpenVela trees first.  Reuse an existing standard driver and ABI when
+- Before implementing a peripheral driver, search the relevant manifest-pinned
+  NuttX/OpenVela trees first. Reuse an existing standard driver and ABI when
   one exists; provide only the missing SoC lower half and board binding.
 - A vendor SDK private device object, component driver or example is reference
   material and, when unavoidable, a SoC transport backend.  It must not be
@@ -125,20 +129,8 @@
 
 - The contest repository is the canonical source for every BK7258 test.  Do
   not edit or copy an official OpenVela test runner merely to add this board.
-- Keep Linux-native mock and sanitizer regression under `tests/host/`; run it
-  directly from the contest checkout and never map its host Makefile into the
-  official OpenVela `tests/` application tree.
-- Keep target CMocka applications under `app/testing/`, mirroring their
-  official `apps/testing/` destination and structured with the
-  official Kconfig, Make.defs and Application.mk contracts.  Expose the whole
-  application directory through one manifest linkfile below the official
-  `apps/testing/` auto-discovery point; do not route a test application through
-  `external/` when `apps/testing/` already provides Kconfig, Make and CMake
-  child discovery.  This keeps the directory ready to move upstream without a
-  product-only build wrapper.
-- Add board serial automation as a linked child below the official pytest
-  `tests/scripts/script/` tree.  Reuse its parent fixtures and UART0 control
-  channel; do not fork `conftest.py`, `utils/common.py` or `pytest.ini`.
+- When adding or changing test integration, use the matching host, CMocka or
+  pytest rules in the [test integration SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md#test-integration).
 
 ## Workspace and manifest ownership
 
@@ -146,22 +138,9 @@
   checked-out official NuttX, OpenVela apps, tests, packages and documentation
   projects free of team-owned tracked edits; expose team-owned trees with
   manifest `linkfile` entries instead.
-- A `linkfile` source is relative to this project root and its destination is
-  the official workspace discovery location.  Link one coherent directory,
-  not individual implementation files, and verify both the manifest source
-  and the materialized destination symlink after changing it.
-- Preserve the generated contest examples in `app/hello_app` and
-  `quickapp/hello_quickapp` as template examples.  Product commands and
-  features belong in a separately named directory such as `app/bk7258` with
-  its own manifest mapping; never turn the hello example into a product-app
-  compatibility container.
-- Map a NuttX built-in product command below an official application discovery
-  boundary that actually recurses through CMake, Kconfig and Make, such as
-  `apps/system/bk7258`.  Do not place such a command below `packages/demos`
-  merely because the generated hello template uses that package location.
-  After changing an application mapping or symbol, verify the resolved
-  `.config` and the ELF/builtin table; a symbol present only in the seed
-  defconfig is not integrated.
+- When changing manifest mappings or application registration, read the
+  [workspace integration SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md#workspace-integration)
+  for discovery boundaries and verification of the materialized mapping.
 - Keep the repository layers literal: reusable SoC mechanisms in `chips/`,
   physical wiring and instance policy in `boards/`, upstream-shaped overlays
   in `nuttx/`, product apps in `app/`, host tests in `tests/host/`, target
@@ -175,26 +154,11 @@
 
 ## Repository synchronization and checkout hygiene
 
-- Treat the manifest as the repository inventory.  Before syncing, inspect the
-  materialized projects, remotes and pinned revisions.  Do not re-download an
-  already complete project merely because it also exists upstream.
-- If a manifest project is missing, synchronize the complete manifest with
-  normal, non-forced `repo sync`; do not keep a hand-picked partial workspace
-  and do not use `--force-sync`.  A China-hosted mirror may be used when the
-  original host is slow only when it serves the same repository and object
-  identity; the manifest revision and post-sync commit verification remain
-  mandatory.
-- A sync conflict in an official checkout is evidence that a team adaptation
-  escaped its owner.  Move the adaptation into this repository and expose it
-  through the supported manifest/build extension, then clean only the verified
-  accidental team-owned checkout change and retry.  Never discard unrelated
-  user work, explicitly excluded OpenAMP experiments or unknown untracked
-  files as part of bulk cleanup.
-- The manifest-pinned Beken SDK identity is authoritative and may point to the
-  owner's fork.  Do not silently replace that fork with the vendor upstream or
-  rebuild an installed bundle from an arbitrary local SDK tree.  Verify remote,
-  commit, profile and provenance first; synchronize or rebuild only when the
-  pinned project or required object is actually absent or invalid.
+- The manifest pins repository and SDK identities. Synchronize only missing
+  task dependencies; use full-manifest sync for full initialization or an
+  explicit full-sync request. Before syncing or resolving checkout conflicts,
+  read the [synchronization SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md#repository-synchronization-and-checkout-hygiene).
+  Never force-sync, replace the pinned SDK fork, or discard unrelated user work.
 
 ## Change economy and maintainability
 
@@ -244,11 +208,8 @@
   helpers for a UART peripheral, touch optional data pins in one-bit SDIO mode,
   or infer wiring from another board.  Record the schematic-derived mapping in
   the board documentation/config and verify the selected pinmux in the image.
-- At final acceptance, shared chip/common/test/build changes require clean-build
-  coverage for every supported board/profile; a board-only wiring change
-  requires that board's clean build plus shared host regression. During
-  hardware-fast iteration, defer these broad checks as described above.
-  Never claim multi-board support from one successful image.
+- Apply the handoff policy's board/profile coverage only for requested final
+  acceptance. Never claim multi-board support from one successful image.
 
 ## Portable paths and build integration
 
@@ -277,22 +238,9 @@
   platform entry in `docs/platforms/bk7258/README.md`.  Other documents link
   to these sources and must not maintain a second current-status table,
   roadmap or next-stage pointer.
-- `docs/verification/bk7258/` contains dated, immutable acceptance evidence;
-  `docs/learning/bk7258/` contains version-labelled teaching material; neither
-  is a live task tracker.  Preserve unique hardware/reverse-engineering
-  evidence, but delete copied upstream manuals, completed prompts, worklogs,
-  superseded plans, duplicate reviews and documents whose only purpose was to
-  describe a retired intermediate layout.
-- Follow the official Markdown convention for links inside one documentation
-  tree.  For a cross-tree source/config reference that would require three or
-  more parent traversals, prefer a repository-root logical path in code font,
-  such as `boards/bk7258/CONFIGS.md`, instead of an absolute checkout path or
-  repository-name-bound URL.  Never create placeholder files only to keep an
-  obsolete link alive.
-- After moving or deleting documentation, remove empty directories, repair
-  every retained local Markdown link, scan for stale `current`, `progress`,
-  prompt and old-board claims, and report the deleted layers and the evidence
-  categories deliberately retained.
+- For documentation edits or cleanup, use the [maintenance rules](docs/README.md#文档维护).
+  Moving or deleting a document requires checking its affected incoming links
+  and claims, not a whole-repository link or status audit.
 
 ## Source provenance and acceptance
 
