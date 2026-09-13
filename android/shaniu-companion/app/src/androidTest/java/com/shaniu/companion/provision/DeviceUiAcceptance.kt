@@ -902,6 +902,8 @@ internal object DeviceUiAcceptance {
                 confirmExpectedOta.invoke(activity)
                 render.invoke(activity)
                 check(text("设备已确认完成升级：1.2.3+4。"))
+                check(containsText("已确认完成升级"))
+                check(!containsText("已结束，等待版本核对"))
 
                 /* A terminal device error must remain visible and can never
                  * reuse the confirmation success wording. */

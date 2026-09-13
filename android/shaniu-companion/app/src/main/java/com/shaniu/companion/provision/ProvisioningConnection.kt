@@ -73,15 +73,24 @@ class ProvisioningConnection internal constructor(
     private val transport: Transport = (transportFactory ?: { events ->
         AndroidTransport(context, device, tls, events)
     })(object : Transport.Events {
-            override fun tlsEstablished() = protocol.start()
+            override fun tlsEstablished() {
+                tlsEstablished = true
+                protocol.start()
+            }
             override fun plaintext(bytes: ByteArray) = protocol.receive(bytes)
             override fun tick() { }
             override fun closed(reason: String) {
+                val protocolState = protocol.state
+                val failureStage = protocol.failureStage
+                val failureCode = protocol.failureCode
                 transportFailure = transportFailureFor(reason)
-                Log.w(CLAIM_LOG_TAG, "claim_transport_closed category=$transportFailure")
+                Log.w(CLAIM_LOG_TAG, "claim_transport_closed category=$transportFailure " +
+                    "tls_established=$tlsEstablished protocol_state=$protocolState " +
+                    "failure_stage=${failureStage ?: "none"} failure_code=${failureCode ?: "none"}")
                 try { protocol.disconnected() } finally { protocol.close() }
             }
         })
+    @Volatile private var tlsEstablished = false
     @Volatile private var transportFailure: TransportFailure? = null
 
     private enum class TransportFailure { HANDSHAKE_TIMEOUT, CONNECTION_CLOSED, OTHER }

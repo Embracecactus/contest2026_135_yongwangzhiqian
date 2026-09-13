@@ -53,6 +53,20 @@ static void expect(enum bkvoice_ota_state_e state, uint32_t boot,
   assert(actual == expected);
 }
 
+static void expect_same_generation_target(
+  enum bkvoice_ota_state_e state,
+  enum bk7258_ota_pair_state_e pair_state,
+  enum bkvoice_ota_flow_action_e expected)
+{
+  struct bkvoice_ota_intent_s saved = intent(state);
+  struct bk7258_ota_pair_snapshot_s active = pair(pair_state, true);
+  enum bkvoice_ota_flow_action_e actual = 0;
+
+  saved.source_boot_generation = 1;
+  assert(bkvoice_ota_flow_decide(&saved, 1, &active, &actual) == 0);
+  assert(actual == expected);
+}
+
 int main(void)
 {
   struct bkvoice_ota_intent_s saved = intent(BKVOICE_OTA_STAGED);
@@ -75,10 +89,56 @@ int main(void)
   expect(BKVOICE_OTA_TRIAL, 9, BK7258_OTA_PAIR_CONFIRMED, false,
          BKVOICE_OTA_FLOW_ROLLED_BACK);
 
+  expect_same_generation_target(BKVOICE_OTA_DOWNLOADING,
+                                BK7258_OTA_PAIR_PENDING,
+                                BKVOICE_OTA_FLOW_TRIAL);
+  expect_same_generation_target(BKVOICE_OTA_DOWNLOADING,
+                                BK7258_OTA_PAIR_CONFIRMED,
+                                BKVOICE_OTA_FLOW_CONFIRMED);
+  expect_same_generation_target(BKVOICE_OTA_STAGED,
+                                BK7258_OTA_PAIR_PENDING,
+                                BKVOICE_OTA_FLOW_TRIAL);
+  expect_same_generation_target(BKVOICE_OTA_STAGED,
+                                BK7258_OTA_PAIR_CONFIRMED,
+                                BKVOICE_OTA_FLOW_CONFIRMED);
+  expect_same_generation_target(BKVOICE_OTA_REBOOTING,
+                                BK7258_OTA_PAIR_PENDING,
+                                BKVOICE_OTA_FLOW_TRIAL);
+  expect_same_generation_target(BKVOICE_OTA_REBOOTING,
+                                BK7258_OTA_PAIR_CONFIRMED,
+                                BKVOICE_OTA_FLOW_CONFIRMED);
+  expect_same_generation_target(BKVOICE_OTA_TRIAL,
+                                BK7258_OTA_PAIR_PENDING,
+                                BKVOICE_OTA_FLOW_TRIAL);
+  expect_same_generation_target(BKVOICE_OTA_TRIAL,
+                                BK7258_OTA_PAIR_CONFIRMED,
+                                BKVOICE_OTA_FLOW_CONFIRMED);
+
   assert(bkvoice_ota_flow_decide(&saved, 7, &active, &action) == -ESTALE);
   active = pair(BK7258_OTA_PAIR_CONFIRMED, true);
   active.security_counter++;
   assert(bkvoice_ota_flow_decide(&saved, 8, &active, &action) == -ESTALE);
+  active = pair(BK7258_OTA_PAIR_CONFIRMED, true);
+  active.security_counter_present = false;
+  assert(bkvoice_ota_flow_decide(&saved, 1, &active, &action) == -ESTALE);
+  active = pair(BK7258_OTA_PAIR_CONFIRMED, true);
+  active.version.revision++;
+  assert(bkvoice_ota_flow_decide(&saved, 1, &active, &action) == -ESTALE);
+  active = pair(BK7258_OTA_PAIR_CONFIRMED, true);
+  active.security_counter++;
+  assert(bkvoice_ota_flow_decide(&saved, 1, &active, &action) == -ESTALE);
+  active = pair(BK7258_OTA_PAIR_CONFIRMED, true);
+  active.state = (enum bk7258_ota_pair_state_e)99;
+  assert(bkvoice_ota_flow_decide(&saved, 1, &active, &action) == -EINVAL);
+  active = pair(BK7258_OTA_PAIR_CONFIRMED, true);
+  saved.state = (enum bkvoice_ota_state_e)99;
+  assert(bkvoice_ota_flow_decide(&saved, 1, &active, &action) == -EINVAL);
+  saved = intent(BKVOICE_OTA_STAGED);
+  saved.target_version = saved.source_version;
+  saved.target_security_counter = saved.source_security_counter;
+  active = pair(BK7258_OTA_PAIR_CONFIRMED, false);
+  assert(bkvoice_ota_flow_decide(&saved, 1, &active, &action) == -EINVAL);
+
   assert(bkvoice_ota_flow_decide(NULL, 8, &active, &action) == -EINVAL);
 
   puts("BKVOICE_OTA_FLOW_HOST_PASS");

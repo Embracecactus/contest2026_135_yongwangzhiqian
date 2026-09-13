@@ -38,6 +38,9 @@ class OtaControlUploadTest {
         upload.response(DeviceControlProtocol.Command.OTA_APPEND, ack())
         upload.response(DeviceControlProtocol.Command.OTA_APPEND, ack())
         assertEquals(listOf(32, 32, 6), sent.drop(1).take(3).map { it.payload.size })
+        assertEquals(70, upload.totalBytes)
+        assertEquals(70, upload.uploadedBytes)
+        assertEquals(3, upload.appendCount)
         assertEquals(DeviceControlProtocol.Command.OTA_START, sent.last().command)
         assertEquals(OtaControlUpload.State.WAITING, upload.state)
 
@@ -75,6 +78,9 @@ class OtaControlUploadTest {
         upload.response(DeviceControlProtocol.Command.OTA_BEGIN, ack(-16))
         assertEquals(OtaControlUpload.State.FAILED, upload.state)
         assertEquals(-16, upload.error)
+        assertEquals(0, upload.totalBytes)
+        assertEquals(0, upload.uploadedBytes)
+        assertEquals(0, upload.appendCount)
         assertFalse(upload.start())
 
         val mismatch = OtaControlUpload(record(44)) { command, bytes ->
@@ -108,6 +114,9 @@ class OtaControlUploadTest {
         assertEquals(DeviceControlProtocol.Command.OTA_CANCEL, sent.last().command)
         duringAppend.response(DeviceControlProtocol.Command.OTA_CANCEL, ack())
         assertEquals(OtaControlUpload.State.CANCELED, duringAppend.state)
+        assertEquals(0, duringAppend.totalBytes)
+        assertEquals(0, duringAppend.uploadedBytes)
+        assertEquals(0, duringAppend.appendCount)
 
         val duringStart = OtaControlUpload(record(44)) { command, bytes ->
             sent += Sent(command, bytes.copyOf())

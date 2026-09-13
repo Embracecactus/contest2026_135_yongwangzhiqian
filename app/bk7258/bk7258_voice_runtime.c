@@ -3729,7 +3729,7 @@ int bkvoice_runtime_control_ota(void *context,
       (runtime->cloud != NULL && bkcloud_runtime_busy(runtime->cloud)) ||
       runtime->receiver_joinable || runtime->session.connected ||
       runtime->upload != NULL || runtime->cleanup_pending || runtime->pressed ||
-      (runtime->ptt != NULL && runtime->ptt->capture_ready))
+      (runtime->ptt != NULL && !bkvoice_ptt_quiescent(runtime->ptt)))
     {
       ret = -EBUSY;
       goto free_request;

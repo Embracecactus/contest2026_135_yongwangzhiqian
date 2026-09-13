@@ -206,8 +206,11 @@ static uint64_t bknfc_now_ms(void *arg)
 }
 #endif
 
-static int bknfc_hce(void *context)
+static int bknfc_hce_exchange(void *context, bool report)
 {
+  const char *stage = "rf-prepare";
+  int ret = -ENOSYS;
+
 #if defined(CONFIG_CL_ISODEP) && defined(CONFIG_CL_MFRC522_FRAME)
   static const struct isodep_transport_s transport =
   {
@@ -227,23 +230,23 @@ static int bknfc_hce(void *context)
   struct picc_uid_s uid = {0};
   uint8_t response[32];
   size_t length = sizeof(response);
-  int ret;
-
   bknfc_release_rf(source);
   ret = nxsig_usleep(6000);
   if (ret < 0)
     {
-      return ret;
+      goto out;
     }
 
   if (ioctl(source->fd, MFRC522IOC_SET_RF, 1) < 0)
     {
-      return bknfc_errno();
+      ret = bknfc_errno();
+      goto out;
     }
 
   ret = nxsig_usleep(6000);
   if (ret >= 0)
     {
+      stage = "uid-select";
       ret = ioctl(source->fd, MFRC522IOC_GET_PICC_UID, (unsigned long)&uid);
       if (ret < 0)
         {
@@ -253,12 +256,14 @@ static int bknfc_hce(void *context)
 
   if (ret >= 0)
     {
+      stage = "isodep-activate";
       ret = isodep_activate(&session, &transport, source, uid.sak);
     }
 
   memset(&uid, 0, sizeof(uid));
   if (ret >= 0)
     {
+      stage = "select-aid";
       ret = isodep_transceive(&session, select, sizeof(select), response,
                               &length, 3000);
       if (ret == 0 && (length != sizeof(expected) ||
@@ -273,6 +278,7 @@ static int bknfc_hce(void *context)
     {
       uint8_t command[5 + BKPROV_GATT_LOCATOR_SIZE] =
         {0x80, 0xda, 0x00, 0x00, BKPROV_GATT_LOCATOR_SIZE};
+      stage = "locator-exchange";
       ret = bkprov_gatt_locator(command + 5);
       if (ret == 0)
         {
@@ -292,11 +298,24 @@ static int bknfc_hce(void *context)
   memset(response, 0, sizeof(response));
   isodep_release(&session);
   bknfc_release_rf(source);
-  return ret;
+
+out:
 #else
   (void)context;
-  return -ENOSYS;
 #endif
+
+  if (report)
+    {
+      syslog(ret == 0 ? LOG_INFO : LOG_WARNING,
+             "BKNFC HCE terminal stage=%s ret=%d\n", stage, ret);
+    }
+
+  return ret;
+}
+
+static int bknfc_hce(void *context)
+{
+  return bknfc_hce_exchange(context, true);
 }
 
 static const struct bknfc_source_ops_s g_bknfc_ops =
@@ -398,7 +417,7 @@ static int bknfc_worker(int argc, char **argv)
                     memcmp(delivered, locator, sizeof(locator)) != 0) &&
                    bknfc_open(&server->source) == 0)
             {
-              int result = bknfc_hce(&server->source);
+              int result = bknfc_hce_exchange(&server->source, false);
               (void)bknfc_close(&server->source);
               if (result == 0)
                 {

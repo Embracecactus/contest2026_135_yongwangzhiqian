@@ -740,6 +740,26 @@ int bkvoice_ptt_up(struct bkvoice_ptt_s *ptt, uint64_t now_ms)
   return 0;
 }
 
+bool bkvoice_ptt_quiescent(const struct bkvoice_ptt_s *ptt)
+{
+  if (ptt == NULL || !ptt->initialized || ptt->worker_joinable ||
+      ptt->turn.state != BKVOICE_TURN_IDLE ||
+      ptt->turn.mic_acquired || ptt->turn.mic_prepared ||
+      ptt->turn.mic_started || ptt->turn.dac_acquired ||
+      ptt->turn.dac_prepared || ptt->turn.dac_started)
+    {
+      return false;
+    }
+
+  if (!ptt->capture_ready)
+    {
+      return true;
+    }
+
+  return bkvoice_ptt_capture_state(ptt) == BKVOICE_CAPTURE_IDLE &&
+         !ptt->capture.source_attached && !ptt->capture.sink_started;
+}
+
 void bkvoice_ptt_snapshot(const struct bkvoice_ptt_s *ptt,
                           struct bkvoice_ptt_snapshot_s *snapshot)
 {

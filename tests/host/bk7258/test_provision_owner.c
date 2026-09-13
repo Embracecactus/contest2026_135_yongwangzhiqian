@@ -194,14 +194,35 @@ int main(void)
   store_status = 0;
   assert(!sample(1, false, true));
   assert(window && bkprov_owner_busy() && !bkprov_owner_pairing());
+  /* An unconnected control window still expires.  A valid generation that
+   * arrives after the old advertising deadline starts its own TLS window. */
+  (void)sample(120000, false, true);
+  assert(!window && !bkprov_owner_busy() && bkprov_owner_error() == -ETIMEDOUT);
+  (void)sample(5000, false, true); assert(window && bkprov_owner_busy());
+  (void)sample(119990, false, true); assert(window && control_starts == 0);
   generation = 7;
   assert(!sample(20, false, false));
   assert(control_starts == 1 && control_steps == 1 && !bkprov_owner_pairing());
-  assert(!sample(100, false, true) && window); /* No input/link requirement. */
+  assert(!sample(119999, false, true) && window); /* No input/link requirement. */
+  (void)sample(1, false, true);
+  assert(!window && !bkprov_owner_busy() && bkprov_owner_error() == -ETIMEDOUT);
+
+  /* Existing disconnect, GATT polling, and TLS-generation cleanup remain terminal. */
+  (void)sample(5000, false, true); generation = 8;
+  assert(!sample(20, false, true) && window);
+  window = false;
+  (void)sample(20, false, true);
+  assert(!window && bkprov_owner_error() == -ETIMEDOUT);
+  (void)sample(5000, false, true); generation = 9;
+  assert(!sample(20, false, true) && window);
   assert(bkprov_owner_unbind() == -EBUSY);
   radio_error = -EIO;
   (void)sample(20, false, true); assert(!window && bkprov_owner_error() == -EIO);
   radio_error = 0;
+  (void)sample(5000, false, true); generation = 10;
+  assert(!sample(20, false, true) && window);
+  generation = 11;
+  (void)sample(20, false, true); assert(!window && bkprov_owner_error() == -ESTALE);
   assert(bkprov_owner_control(NULL, NULL, NULL) == 0);
   assert(bkprov_owner_unbind() == 0);
   puts("BKPROV_OWNER_PASS: automatic discovery, proof gates, lifecycle");

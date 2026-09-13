@@ -93,6 +93,11 @@ int bkvoice_ptt_down_prefill(
   size_t prefill_frames, bkvoice_capture_live_observer_t live_observer,
   void *live_context, struct bkvoice_turn_token_s *token);
 int bkvoice_ptt_up(struct bkvoice_ptt_s *ptt, uint64_t now_ms);
+/* Read-only OTA admission predicate.  The serialized owner may admit a
+ * direct OTA only when no capture worker or turn/audio resource remains.
+ * An initialized PTT without a capture session is quiescent only if its turn
+ * and worker are also idle. */
+bool bkvoice_ptt_quiescent(const struct bkvoice_ptt_s *ptt);
 void bkvoice_ptt_snapshot(const struct bkvoice_ptt_s *ptt,
                           struct bkvoice_ptt_snapshot_s *snapshot);
 

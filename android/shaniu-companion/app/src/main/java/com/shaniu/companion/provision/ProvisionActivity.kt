@@ -302,11 +302,11 @@ class ProvisionActivity : Activity() {
         revealStatus()
     }
     private fun nextPage() {
-        if (selected == null) { status.text = "请先选择附近的傻妞。"; return }
+        if (selected == null) { reportStatus("请先选择附近的傻妞。"); return }
         // Owner activation is required before collecting a Wi-Fi password.
         if (bootstrap == null ||
             (developerMode && (ca == null || host.text.isNullOrBlank() || address.text.isNullOrBlank()))) {
-            status.text = "请先导入随设备提供的激活资料，再继续设置网络。"
+            reportStatus("请先导入随设备提供的激活资料，再继续设置网络。")
             return
         }
         val pending = hasPending(bootstrap!!.deviceId) ?: return
@@ -382,8 +382,8 @@ class ProvisionActivity : Activity() {
                         }
                         nextButton.text = if (pending) "核对添加结果" else "下一步"
                         activationButton.visibility = View.GONE
-                        status.text = if (pending) "上次添加结果需要核对。请把设备放在手机旁并保持通电，App 会先验证已保存的控制凭据。"
-                            else "资料已就绪。请把设备放在手机旁并保持通电，App 将验证所有权后继续。"
+                        reportStatus(if (pending) "上次添加结果需要核对。请把设备放在手机旁并保持通电，App 会先验证已保存的控制凭据。"
+                            else "资料已就绪。请把设备放在手机旁并保持通电，App 将验证所有权后继续。")
                     }
                 } finally {
                     input.fill('\u0000')
@@ -406,9 +406,9 @@ class ProvisionActivity : Activity() {
                     .generateCertificate(bytes.inputStream()) as java.security.cert.X509Certificate
                 require(cert.basicConstraints >= 0 && cert.encoded.contentEquals(bytes))
                 ca?.fill(0); ca = bytes.copyOf()
-                status.text = "Gateway CA 已载入。"
+                reportStatus("Gateway CA 已载入。")
             }
-        } catch (_: Exception) { status.text = "文件无效或无法读取；未开始认领。" }
+        } catch (_: Exception) { reportStatus("文件无效或无法读取；未开始认领。") }
         finally { bytes?.fill(0) }
     }
 
