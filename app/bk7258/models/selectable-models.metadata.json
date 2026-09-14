@@ -407,17 +407,17 @@
       "label": "nihao_shaniu",
       "phrase": "你好傻妞",
       "package_path": "android/shaniu-companion/app/src/main/assets/wake-models/nihao_shaniu.wkm",
-      "package_sha256": "c6c44c7ff46084b8458ae0b97a40fe5c8c70dcefba198c743bc58111e88e9f47",
+      "package_sha256": "d363c8253f18f3303e24f34e20accb415df04869b7f6c7cec4249ac7e4228045",
       "package_bytes": 23776,
       "model_bytes": 23640,
-      "model_sha256": "09a0b691d80ed0002b25993bc72c6f39969074d125883c945a50db33dd671f4a",
-      "training_metadata_sha256": "82f0ce4e06c71f96274f4c58bfe6d636ee239e3dba1a4d769ac26d74231be68a",
+      "model_sha256": "2ade86dd6e203deb8bdc34ce8aaa4c2417e153fe8fe978c84360fbeca6469368",
+      "training_metadata_sha256": "69293fd888dbde58737a32639da1210a6522c5b2f81fc12d81fbe1a33d59b748",
       "training": {
-        "epochs_completed": 27,
-        "best_validation_epoch": 7,
-        "best_validation_loss": 0.09541605412960052,
-        "seed": 20260915,
-        "batch_size": 16,
+        "epochs_completed": 24,
+        "best_validation_epoch": 19,
+        "best_validation_loss": 0.1333926022052765,
+        "seed": 20260914,
+        "batch_size": 32,
         "counts": {
           "test": {
             "nihao_shaniu": 12,
@@ -434,7 +434,8 @@
             "silence": 6,
             "unknown": 36
           }
-        }
+        },
+        "positive_end_window_ms": 1200
       },
       "runtime": {
         "input_shape": [
@@ -513,15 +514,22 @@
             "unknown_samples": 36
           },
           "stream": {
-            "background_false_positives": 10,
+            "background_false_positives": 8,
             "expected_wakes": 10,
             "gap_ms": 0,
             "listening_ms": 90000,
-            "missed_wakes": 10,
+            "missed_wakes": 8,
             "paused_ms": 0,
             "repeated_wakes": 0,
             "sessions": 10,
             "wake_events": 10
+          },
+          "word_end_delay_ms": {
+            "minimum": -56,
+            "median": 122,
+            "maximum": 248,
+            "strict_interval_metrics_unchanged": true,
+            "sessions_with_one_event": 10
           }
         },
         "test": {
@@ -565,34 +573,62 @@
             "unknown_samples": 42
           },
           "stream": {
-            "background_false_positives": 11,
+            "background_false_positives": 7,
             "expected_wakes": 12,
             "gap_ms": 0,
             "listening_ms": 108000,
-            "missed_wakes": 11,
+            "missed_wakes": 7,
             "paused_ms": 0,
             "repeated_wakes": 0,
             "sessions": 12,
             "wake_events": 12
+          },
+          "word_end_delay_ms": {
+            "minimum": -128,
+            "median": 69,
+            "maximum": 216,
+            "strict_interval_metrics_unchanged": true,
+            "sessions_with_one_event": 12
           }
         }
       },
       "board_loading": {
         "status": "verified",
-        "firmware": "18.6.363+520",
+        "firmware": "18.6.363+525",
         "arena_used_bytes": 40692,
-        "evidence": "voice520-shaniu-activation/serial.raw",
+        "evidence": "app0515-shaniu-model-activation/result.json",
         "app_expected_hash_readback": true,
+        "first_listener_inference_us": 80688,
         "physical_acoustic_wake": {
           "status": "observed",
-          "evidence": "voice520-shaniu-acoustic-bounded/serial.raw",
           "source": "heldout synthetic phone-speaker replay",
           "hotword_events": 1,
-          "playback_drained_and_rearmed": true,
-          "post_drain_observation_seconds_approx": 44
+          "fresh_image_bytes": 20419,
+          "image_agent_error": -110,
+          "complete_image_reply": false,
+          "rearmed_after_timeout": true
         },
-        "independent_human_generalization": "not_verified"
-      }
+        "independent_human_generalization": "not_verified",
+        "physical_ordinary_voice": {
+          "status": "completed_and_rearmed",
+          "evidence": "voice525-fresh-shaniu-ordinary/result.json",
+          "tts_pcm_bytes": 483840,
+          "hotword_to_dac_ms": 16306.281,
+          "drain_to_mic_ms": 229.219,
+          "xrun_underflow_lines": 0,
+          "post_drain_kws_observed_ms": 135716.969
+        },
+        "normal_reboot": {
+          "status": "verified_with_app_model_readback",
+          "evidence": "voice525-fresh-shaniu-reboot/result.json"
+        },
+        "restoration": {
+          "status": "original_bingbing_selection_restored_new_shaniu_kept_previous",
+          "evidence": "voice525-fresh-shaniu-reboot/app-restoration.json"
+        }
+      },
+      "selection_note": "Selected from validation before new frozen test: same target classification, event delay from annotated word end median 122 ms/max248 versus previous175.5/max772; strict interval missed/outside retained as8/8. Not independent human evidence.",
+      "replaced_candidate_sha256": "09a0b691d80ed0002b25993bc72c6f39969074d125883c945a50db33dd671f4a"
     }
   ],
   "limits": [
