@@ -1,0 +1,40 @@
+--- a/server/media_player.c
++++ b/server/media_player.c
+@@ -986,24 +986,30 @@
+         return ret;
+     else if (ret == AVERROR_EOF) {
+         if (!media_player_is_queue_empty(ctx)) {
+-
++            int output_ret = 0;
++            bool transitioned = false;
++
++            /* Preserve input EOF for the poll loop while decoded frames
++             * drain. Only an output transition supplies a playback error. */
+             pthread_mutex_lock(&ctx->mutex);
+             if (ctx->audio_output_state & MEDIA_AUDIO_OUTPUT_STARTING) {
+                 ctx->audio_output_state &= ~MEDIA_AUDIO_OUTPUT_STARTING;
+-                ret = media_player_start_audio(ctx);
++                transitioned = true;
++                output_ret = media_player_start_audio(ctx);
+             } else if (ctx->audio_output_state & MEDIA_AUDIO_OUTPUT_XRUN) {
+                 ctx->audio_output_state &= ~MEDIA_AUDIO_OUTPUT_XRUN;
+-                ret = media_player_resume_audio(ctx, true);
++                transitioned = true;
++                output_ret = media_player_resume_audio(ctx, true);
+             }
+ 
+-            if (ret >= 0)
++            if (transitioned && output_ret >= 0)
+                 ctx->audio_output_state |= MEDIA_AUDIO_OUTPUT_STARTED;
+ 
+             pthread_mutex_unlock(&ctx->mutex);
+ 
+-            if (ret < 0) {
+-                MEDIA_ERR("audio play/resume failed: %s\n", av_err2str(ret));
+-                return ret;
++            if (output_ret < 0) {
++                MEDIA_ERR("audio play/resume failed: %s\n", av_err2str(output_ret));
++                return output_ret;
+             }
+         }
+     }

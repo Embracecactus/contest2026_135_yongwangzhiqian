@@ -13,8 +13,13 @@
 #ifdef CONFIG_BK7258_AP_APPLICATION_LIFECYCLE
 
 #include <errno.h>
+#include <syslog.h>
 
 #include "bk7258_product_lifecycle.h"
+
+#if defined(CONFIG_MEDIA) && defined(CONFIG_BK7258_VOICE_SERVICE)
+#include "bk7258_voice_media.h"
+#endif
 
 #if defined(CONFIG_BK7258_OTA_SOURCE_FILE) && defined(CONFIG_BK7258_USBMODE)
 #include "bk7258_media_volume.h"
@@ -118,6 +123,16 @@ int bk7258_ap_application_prepare(void)
 int bk7258_ap_application_start(void)
 {
   int ret;
+
+#if defined(CONFIG_MEDIA) && defined(CONFIG_BK7258_VOICE_SERVICE)
+  ret = bkvoice_media_start();
+  if (ret < 0)
+    {
+      /* Device management and signed recovery must remain reachable when an
+       * audio route cannot start. Recorder/player calls report unavailable. */
+      syslog(LOG_ERR, "BKVOICE audio unavailable ret=%d\n", ret);
+    }
+#endif
 
 #ifdef CONFIG_DOLPHIN_UI
   ret = dolphin_ui_start();

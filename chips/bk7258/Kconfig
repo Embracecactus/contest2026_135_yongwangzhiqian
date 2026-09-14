@@ -22,6 +22,7 @@ config ARCH_CHIP_BK7258
 	select ARCH_CORTEXM33
 	select ARCH_HAVE_TRUSTZONE
 	select ARCH_HAVE_FPU
+	select ARM_HAVE_DSP
 	select ARCH_HAVE_CUSTOM_VECTORS
 	select ARCH_RAMVECTORS
 	select ARCH_HAVE_MPU
@@ -1210,6 +1211,23 @@ config BK7258_PSRAM_SYSTEM_HEAP_SIZE
 	range 0x10000 0x80000 if BK7258_AP_CORE
 	range 0x10000 0x1f000 if !BK7258_AP_CORE
 	depends on BK7258_PSRAM_SYSTEM_HEAP
+
+config BK7258_PSRAM_EXT_SYSTEM_HEAP
+	bool "Use the high PSRAM bank for the AP system heap"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PSRAM_SYSTEM_HEAP
+	depends on MM_REGIONS > 2
+	help
+		Donate a separate region above the SDK's fixed low 8 MiB layout to
+		the NuttX allocator. CP must publish a detected, non-aliased 16 MiB
+		capacity for this boot generation. A smaller or unknown part fails
+		AP startup instead of aliasing SDK media or CP storage.
+
+config BK7258_PSRAM_EXT_SYSTEM_HEAP_SIZE
+	hex "AP high-bank system heap size"
+	default 0x400000
+	range 0x100000 0x800000
+	depends on BK7258_PSRAM_EXT_SYSTEM_HEAP
 
 config BK7258_SDK_SRAM_HEAP
 	bool "Reserve internal SRAM for SDK SRAM-only allocations"

@@ -87,10 +87,10 @@ int bkvoice_ptt_cancel(struct bkvoice_ptt_s *ptt, int reason);
 int bkvoice_ptt_timeout(struct bkvoice_ptt_s *ptt, uint64_t now_ms);
 int bkvoice_ptt_down(struct bkvoice_ptt_s *ptt, uint64_t now_ms,
                      struct bkvoice_turn_token_s *token);
-int bkvoice_ptt_down_prefill(
+int bkvoice_ptt_down_stream(
   struct bkvoice_ptt_s *ptt, uint64_t now_ms,
   bkvoice_capture_prefill_read_t read_frame, void *prefill_context,
-  size_t prefill_frames, bkvoice_capture_live_observer_t live_observer,
+  size_t prefill_frames, bkvoice_capture_frame_filter_t frame_filter,
   void *live_context, struct bkvoice_turn_token_s *token);
 int bkvoice_ptt_up(struct bkvoice_ptt_s *ptt, uint64_t now_ms);
 /* Read-only OTA admission predicate.  The serialized owner may admit a

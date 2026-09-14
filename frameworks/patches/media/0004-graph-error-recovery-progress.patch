@@ -1,0 +1,90 @@
+Subject: [PATCH] media: keep graph teardown progressing after activation errors
+
+SPDX-License-Identifier: Apache-2.0
+
+Applied after 0003 to the manifest-pinned Media graph. Defer each failed
+filter only within the current scheduling pass, retain its pending work,
+and keep draining other filters and queued stop/unlink commands. This
+prevents a busy capture source from starving the playback sink that must
+release the same audio device. Errors still reach the Media main loop.
+
+--- a/server/audio_graph.c
++++ b/server/audio_graph.c
+@@ -617,20 +617,24 @@
+ static int audio_graph_run_all(AVFilterGraph* graph)
+ {
+     FFFilterContext* ctxi;
++    bool deferred[graph->nb_filters ? graph->nb_filters : 1];
++    unsigned selected = 0;
+     unsigned i;
+-    int ret;
+-
++    int first_error = 0;
++    int ret;
++
++    memset(deferred, 0, sizeof(deferred));
+     while (1) {
+-        ctxi = fffilterctx(graph->filters[0]);
+-        for (i = 1; i < graph->nb_filters; i++) {
++        ctxi = NULL;
++        for (i = 0; i < graph->nb_filters; i++) {
+             FFFilterContext* ctxi_other = fffilterctx(graph->filters[i]);
+-            if (ctxi_other->ready > ctxi->ready)
++            if (!deferred[i] && (!ctxi || ctxi_other->ready > ctxi->ready)) {
+                 ctxi = ctxi_other;
+-        }
+-        if (!ctxi->ready) {
+-            ret = 0;
++                selected = i;
++            }
++        }
++        if (!ctxi || !ctxi->ready)
+             break;
+-        }
+ 
+         /* A device state notification can request a source before its first
+          * dynamic route has negotiated the links.  Such links intentionally
+@@ -658,11 +662,18 @@
+         ret = ff_filter_activate(&ctxi->p);
+         if (ret < 0 && ret != AVERROR_EOF && ret != AVERROR(EAGAIN)) {
+             av_log(graph, AV_LOG_ERROR, "%s %s activate failed, ret %d.\n", __func__, ctxi->p.name, ret);
+-            break;
+-        }
+-    }
+-
+-    return ret;
++            /* A failed source can requeue itself at high priority while a
++             * sink still owns the shared audio device. Let other ready
++             * filters drain/release before retrying this source next time.
++             * Preserve its ready flag and report the original error.
++             */
++            deferred[selected] = true;
++            if (!first_error)
++                first_error = ret;
++        }
++    }
++
++    return first_error;
+ }
+ 
+ static int audio_graph_run_once(MediadPlugin* ctx)
+@@ -670,14 +681,15 @@
+     MediaGraphPriv* priv = ctx->priv;
+     int ret;
+ 
+-    ret = audio_graph_run_all(priv->graph);
+-    if (ret < 0)
+-        return ret;
+-
++    int graph_error = audio_graph_run_all(priv->graph);
++
++    /* STOP/unlink commands must remain serviceable after activation fails. */
+     do {
+         ret = audio_graph_dequeue_command(priv, true);
+     } while (ret >= 0);
+ 
++    if (graph_error < 0)
++        return graph_error;
+     return ret == -EAGAIN ? 0 : ret;
+ }
+ 

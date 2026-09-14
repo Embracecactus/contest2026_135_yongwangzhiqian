@@ -387,7 +387,11 @@ static int bk7258_ota_rpmsg_send(
         {
           return OK;
         }
-      if (ret != -ENOMEM && ret != -EAGAIN)
+      /* OpenAMP reports an exhausted TX ring with its own error code.
+       * No message was accepted, so wait within the existing send deadline.
+       */
+
+      if (ret != RPMSG_ERR_NO_BUFF && ret != -ENOMEM && ret != -EAGAIN)
         {
           return ret;
         }

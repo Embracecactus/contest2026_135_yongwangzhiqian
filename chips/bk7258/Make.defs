@@ -165,7 +165,7 @@ endif
 
 ifeq ($(CONFIG_BK7258_BT_IPC),y)
 ifneq ($(CONFIG_BK7258_AP_CORE),y)
-LDFLAGS += --wrap=bk_bluetooth_init --wrap=bk_bluetooth_deinit
+LDFLAGS += --wrap=bk_bluetooth_init --wrap=bk_bluetooth_deinit --wrap=rand
 endif
 endif
 

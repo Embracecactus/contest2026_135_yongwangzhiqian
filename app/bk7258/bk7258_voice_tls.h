@@ -3,14 +3,15 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * mbedTLS provider for the BKVoice WSS transport.
+ * Verified mbedTLS byte-stream provider for cloud HTTP and legacy WSS.
  ****************************************************************************/
 
 #ifndef __APP_BK7258_BK7258_VOICE_TLS_H
 #define __APP_BK7258_BK7258_VOICE_TLS_H
 
-#include "bk7258_voice_wss.h"
+#include "bk7258_voice_transport.h"
 
+#include <pthread.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/pk.h>
@@ -24,7 +25,7 @@
 /* The deployment owns these credentials until uninitialize().  It must not
  * modify them, and the private-key context is exclusive to this provider.
  * They are borrowed handles, never filenames or logged identities.  The
- * dialing address is provisioned separately from the WSS certificate name:
+ * dialing address is provisioned separately from the peer certificate name:
  * no unbounded synchronous DNS call is hidden inside open_verified().
  *
  * trusted_time() must reject an unset/untrusted system wall clock, which
@@ -68,7 +69,7 @@ struct bkvoice_tls_s
   bool opened;
 };
 
-/* As with the WSS contract, open/close/uninitialize belong to one owner.
+/* As with the byte-stream contract, open/close/uninitialize belong to one owner.
  * One sender and one receiver may run concurrently.  All mbedTLS calls on
  * shared contexts are serialized.  Idle reads release the lock while waiting;
  * writes retain it through WANT_WRITE retries to preserve record identity.

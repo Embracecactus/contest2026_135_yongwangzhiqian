@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
+#include <syslog.h>
 
 #include <crypto/sha2.h>
 #include <nuttx/signal.h>
@@ -145,19 +146,33 @@ static int bk7258_ota_program_image(
                                    sizeof(g_bk7258_ota_write_sector));
       if (ret < 0)
         {
+          syslog(LOG_ERR,
+                 "BKOTA stage read image=%u offset=%lu error=%d\n",
+                 (unsigned int)image, (unsigned long)offset, ret);
           return ret;
         }
 
       sha256update(sha256, g_bk7258_ota_write_sector,
                    sizeof(g_bk7258_ota_write_sector));
-      if (bk7258_flash_write(
-            base + offset, g_bk7258_ota_write_sector,
-            sizeof(g_bk7258_ota_write_sector)) < 0 ||
-          bk7258_ota_flash_verify(base + offset,
-                                  g_bk7258_ota_write_sector,
-                                  sizeof(g_bk7258_ota_write_sector)) < 0)
+      ret = bk7258_flash_write(base + offset, g_bk7258_ota_write_sector,
+                                sizeof(g_bk7258_ota_write_sector));
+      if (ret < 0)
         {
-          return -EIO;
+          syslog(LOG_ERR,
+                 "BKOTA stage write image=%u offset=%lu error=%d\n",
+                 (unsigned int)image, (unsigned long)offset, ret);
+          return ret;
+        }
+
+      ret = bk7258_ota_flash_verify(base + offset,
+                                    g_bk7258_ota_write_sector,
+                                    sizeof(g_bk7258_ota_write_sector));
+      if (ret < 0)
+        {
+          syslog(LOG_ERR,
+                 "BKOTA stage verify image=%u offset=%lu error=%d\n",
+                 (unsigned int)image, (unsigned long)offset, ret);
+          return ret;
         }
 
       ret = bk7258_ota_service_runtime();

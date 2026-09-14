@@ -10,6 +10,9 @@
 #include <errno.h>
 #include <netdb.h>
 #include <stdlib.h>
+#ifdef __NuttX__
+#include <malloc.h>
+#endif
 #include <string.h>
 #include <syslog.h>
 #include <mbedtls/platform_util.h>
@@ -155,7 +158,12 @@ static int capture_audio(void *context, const struct bkvoice_turn_token_s *token
 {
   struct bkcloud_runtime_s *r=context;(void)token;
   if(size>BKCLOUD_PCM_MAX-r->pcm_size) return -EFBIG;
-  memcpy(r->pcm+r->pcm_size,pcm,size);r->pcm_size+=size;return 0;
+  memcpy(r->pcm+r->pcm_size,pcm,size);r->pcm_size+=size;
+  /* The ASR limit includes pre-roll. End on the last accepted frame instead
+   * of failing the following frame before the live-only VAD duration ends.
+   * The sink never stops Media or joins its own capture worker.
+   */
+  return r->pcm_size == BKCLOUD_PCM_MAX ? 1 : 0;
 }
 static int capture_end(void *context, const struct bkvoice_turn_token_s *token)
 { (void)context;(void)token;return 0; }
@@ -221,6 +229,39 @@ static bool camera_consent(const char *input)
          ((size_t)(end - begin) == sizeof(second) - 1 &&
           !memcmp(begin, second, sizeof(second) - 1));
 }
+
+struct bkcloud_camera_turn_s
+{
+  struct bkcloud_runtime_s *runtime;
+  uint64_t deadline;
+  uint8_t *jpeg;
+};
+
+static int capture_current_view(void *context, const uint8_t **jpeg,
+                                size_t *size)
+{
+  struct bkcloud_camera_turn_s *camera = context;
+  if (cancelled(camera->runtime)) return -ECANCELED;
+  if (bkvoice_config_now_ms(NULL) >= camera->deadline) return -ETIMEDOUT;
+  if (camera->jpeg != NULL) return -EALREADY;
+  camera->jpeg = calloc(1, BKCLOUD_JPEG_MAX);
+  if (camera->jpeg == NULL) return -ENOMEM;
+  int ret = bk7258_vision_capture_jpeg(camera->jpeg, BKCLOUD_JPEG_MAX, size);
+  if (cancelled(camera->runtime)) return -ECANCELED;
+  if (bkvoice_config_now_ms(NULL) >= camera->deadline) return -ETIMEDOUT;
+  if (ret == 0) *jpeg = camera->jpeg;
+  return ret;
+}
+
+static void release_current_view(struct bkcloud_camera_turn_s *camera)
+{
+  if (camera->jpeg != NULL)
+    {
+      mbedtls_platform_zeroize(camera->jpeg, BKCLOUD_JPEG_MAX);
+      free(camera->jpeg);
+      camera->jpeg = NULL;
+    }
+}
 #endif
 static int resolve_endpoint(struct bkcloud_runtime_s *r)
 {
@@ -257,12 +298,24 @@ static void *work(void *context)
   struct bkcloud_tts_s *decoder=NULL;
   struct bkcloud_playback_s *play=NULL;
 #ifdef CONFIG_BK7258_VISION_SERVICE
-  uint8_t *jpeg=NULL;
-  size_t jpeg_size=0;
+  struct bkcloud_camera_turn_s camera_turn = {.runtime = r};
+  const struct bkcloud_camera_s camera = {capture_current_view, &camera_turn};
 #endif
+  const struct bkcloud_camera_s *offered_camera = NULL;
   int ret=-ENOMEM;
   const char *stage="client_alloc";
-  if(!client) goto out;
+  if(!client)
+    {
+#ifdef __NuttX__
+      struct mallinfo memory = mallinfo();
+      syslog(LOG_WARNING,
+             "BKVOICE CLOUD allocation=%lu free=%lu maxfree=%lu\n",
+             (unsigned long)sizeof(*client),
+             (unsigned long)memory.fordblks,
+             (unsigned long)memory.mxordblk);
+#endif
+      goto out;
+    }
   uint64_t deadline=bkvoice_config_now_ms(NULL)+90000;
   if(cancelled(r)) {stage="cancel";ret=-ECANCELED;goto out;}
   stage="resolve";
@@ -273,11 +326,15 @@ static void *work(void *context)
       stage="chat";
       ret=bkcloud_chat(client,&r->config,bkvoice_tls_ops(),&r->tls,deadline,
                        "Reply with OK.",&r->history,"Connection check.",
-                       r->reply,sizeof(r->reply));
+                       NULL,r->reply,sizeof(r->reply));
       goto out;
     }
+  stage="asr";
   ret=bkcloud_recognize(client,&r->config,bkvoice_tls_ops(),&r->tls,deadline,
                         r->pcm,r->pcm_size,r->input,sizeof(r->input));
+  /* ASR has returned and the capture worker has already joined. Release its
+   * raw audio before allocating camera/TTS resources for the same turn. */
+  wipe_audio(r);
   if(ret) goto out;
   if(cancelled(r)) {ret=-ECANCELED;goto out;}
   char prompt[512];
@@ -293,52 +350,31 @@ static void *work(void *context)
 #ifdef CONFIG_BK7258_VISION_SERVICE
   if (camera_consent(r->input))
     {
-      /* Persona/history restoration may have consumed the remaining turn
-       * budget. Recheck before acquiring a new physical camera frame too.
-       */
-      if (cancelled(r) || bkvoice_config_now_ms(NULL) >= deadline)
-        {
-          ret=cancelled(r) ? -ECANCELED : -ETIMEDOUT;
-          goto out;
-        }
-      jpeg=calloc(1,BKCLOUD_JPEG_MAX);
-      if (!jpeg)
-        {
-          ret=-ENOMEM;
-          goto out;
-        }
-      ret=bk7258_vision_capture_jpeg(jpeg,BKCLOUD_JPEG_MAX,&jpeg_size);
-      if (!ret && (cancelled(r) || bkvoice_config_now_ms(NULL) >= deadline))
-        {
-          ret=cancelled(r) ? -ECANCELED : -ETIMEDOUT;
-        }
-      if (!ret)
-        {
-          ret=bkcloud_understand_jpeg(client,&r->config,bkvoice_tls_ops(),
-              &r->tls,deadline,prompt,&r->history,r->input,jpeg,jpeg_size,
-              r->reply,sizeof(r->reply));
-        }
-      mbedtls_platform_zeroize(jpeg,BKCLOUD_JPEG_MAX);
-      free(jpeg);
-      jpeg=NULL;
+      camera_turn.deadline = deadline;
+      offered_camera = &camera;
     }
-  else
 #endif
-    ret=bkcloud_chat(client,&r->config,bkvoice_tls_ops(),&r->tls,deadline,
-        prompt,
-        &r->history,r->input,r->reply,sizeof(r->reply));
+  stage="agent";
+  ret=bkcloud_chat(client,&r->config,bkvoice_tls_ops(),&r->tls,deadline,
+      prompt,&r->history,r->input,offered_camera,r->reply,sizeof(r->reply));
+#ifdef CONFIG_BK7258_VISION_SERVICE
+  release_current_view(&camera_turn);
+#endif
   if(ret) goto out;
   if(cancelled(r)) {ret=-ECANCELED;goto out;}
   decoder=calloc(1,sizeof(*decoder));play=calloc(1,sizeof(*play));
   if(!decoder || !play) {ret=-ENOMEM;goto out;}
+  stage="tts";
   ret=bkcloud_synthesize_turn(client,decoder,play,&r->ptt->turn,&r->config,
                                bkvoice_tls_ops(),&r->tls,deadline,
                                bkvoice_config_now_ms,NULL,r->reply);
 out:
 #ifdef CONFIG_BK7258_VISION_SERVICE
-  if(jpeg) {mbedtls_platform_zeroize(jpeg,BKCLOUD_JPEG_MAX);free(jpeg);}
+  release_current_view(&camera_turn);
 #endif
   bkcloud_probe_failure(r->probe, stage, ret);
+  if (!r->probe && ret < 0)
+    syslog(LOG_WARNING, "BKVOICE CLOUD turn stage=%s ret=%d\n", stage, ret);
   if(client) {mbedtls_platform_zeroize(client,sizeof(*client));free(client);}
   if(decoder) {bkcloud_tts_clear(decoder);free(decoder);}
   if(play) {mbedtls_platform_zeroize(play,sizeof(*play));free(play);}
@@ -538,8 +574,7 @@ int bkcloud_runtime_clear_history(struct bkcloud_runtime_s *r)
 }
 int bkcloud_runtime_auto_begin(
   struct bkcloud_runtime_s *r,
-  bkvoice_capture_prefill_read_t read_frame, void *prefill_context,
-  size_t prefill_frames, bkvoice_capture_live_observer_t live_observer,
+  bkvoice_capture_frame_filter_t frame_filter,
   void *live_context)
 {
   struct bkvoice_turn_token_s token;
@@ -550,9 +585,7 @@ int bkcloud_runtime_auto_begin(
       return -ENOTCONN;
     }
 
-  if (read_frame == NULL || prefill_frames == 0 ||
-      prefill_frames > BKVOICE_CAPTURE_MAX_PREFILL_FRAMES ||
-      (live_observer == NULL && live_context != NULL))
+  if (frame_filter == NULL)
     {
       return -EINVAL;
     }
@@ -574,9 +607,9 @@ int bkcloud_runtime_auto_begin(
       return -ENOMEM;
     }
 
-  ret = bkvoice_ptt_down_prefill(
-    r->ptt, bkvoice_config_now_ms(NULL), read_frame, prefill_context,
-    prefill_frames, live_observer, live_context, &token);
+  ret = bkvoice_ptt_down_stream(
+    r->ptt, bkvoice_config_now_ms(NULL), NULL, NULL,
+    0, frame_filter, live_context, &token);
   if (ret < 0 && r->ptt->worker_joinable)
     {
       /* The capture worker may still hold the sink PCM.  Preserve it until
@@ -686,6 +719,13 @@ void bkcloud_runtime_status(const struct bkcloud_runtime_s *r,
   status->pressed=r->pressed;
   status->busy=bkcloud_runtime_busy(r);
   status->worker_active=r->joinable;
+  if (r->automatic_capture)
+    {
+      enum bkvoice_capture_state_e state =
+        __atomic_load_n(&r->ptt->capture.state, __ATOMIC_ACQUIRE);
+      status->capture_finished = state == BKVOICE_CAPTURE_STOPPED ||
+                                 state == BKVOICE_CAPTURE_FAULTED;
+    }
   status->turn_state=r->joinable ? UINT32_MAX : (uint32_t)r->ptt->turn.state;
   if(!r->joinable) status->last_error=r->ptt->turn.last_error;
 #ifdef BKCLOUD_MEMORY_RUNTIME
@@ -720,8 +760,14 @@ void bkcloud_runtime_step(struct bkcloud_runtime_s *r,bool link,bool level,uint3
           bkvoice_tls_ops()->interrupt(&r->tls);
           if(reap(r)) return;
         }
-      int ret=bkvoice_ptt_cancel(r->ptt,-ECANCELED);
-      if(ret || r->ptt->worker_joinable) return;
+      /* The cloud worker can already have closed the turn after TLS was
+       * interrupted. PTT then reports EALREADY (or has no capture session).
+       * Completion depends on released resources, not a second cancel's
+       * return code; otherwise cancel_requested keeps wake disabled forever.
+       */
+      if (!bkvoice_ptt_quiescent(r->ptt))
+        (void)bkvoice_ptt_cancel(r->ptt, -ECANCELED);
+      if (!bkvoice_ptt_quiescent(r->ptt)) return;
       wipe_audio(r);wipe_text(r);r->pressed=false;r->automatic_capture=false;
       r->cancel_requested=false;
       /* A held key must be released before a new capture can start. */
@@ -748,9 +794,10 @@ void bkcloud_runtime_step(struct bkcloud_runtime_s *r,bool link,bool level,uint3
     {
       if (!link || changed)
         {
-          int ret = bkvoice_ptt_cancel(r->ptt, -ENOTCONN);
+          if (!bkvoice_ptt_quiescent(r->ptt))
+            (void)bkvoice_ptt_cancel(r->ptt, -ENOTCONN);
           r->armed = false;
-          if (ret || r->ptt->worker_joinable)
+          if (!bkvoice_ptt_quiescent(r->ptt))
             {
               return;
             }
@@ -773,9 +820,10 @@ void bkcloud_runtime_step(struct bkcloud_runtime_s *r,bool link,bool level,uint3
     }
   if(!link || changed)
     {
-      int ret=bkvoice_ptt_cancel(r->ptt,-ENOTCONN);
+      if (!bkvoice_ptt_quiescent(r->ptt))
+        (void)bkvoice_ptt_cancel(r->ptt, -ENOTCONN);
       r->armed=false;
-      if(ret || r->ptt->worker_joinable) return;
+      if (!bkvoice_ptt_quiescent(r->ptt)) return;
       wipe_audio(r);wipe_text(r);r->pressed=false;return;
     }
   if(r->pending_history)

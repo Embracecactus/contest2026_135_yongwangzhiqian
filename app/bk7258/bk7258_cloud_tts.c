@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "bk7258_cloud_tts.h"
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <mbedtls/base64.h>
 #include <mbedtls/platform_util.h>
@@ -10,11 +11,59 @@
 #  include <cJSON.h>
 #endif
 
+/* The provider does not fix SSE audio chunk sizes. Bound JSON working memory
+ * separately from the 90-second PCM budget and grow only for received data.
+ * Decode base64 into a small reusable block instead of a second full chunk.
+ */
+#define BKCLOUD_TTS_EVENT_MAX (256u * 1024u)
+
+static void release_buffers(struct bkcloud_tts_s *tts)
+{
+  if (tts->line)
+    {
+      mbedtls_platform_zeroize(tts->line, tts->line_capacity + 1);
+      free(tts->line);
+    }
+  if (tts->event)
+    {
+      mbedtls_platform_zeroize(tts->event, tts->event_capacity + 1);
+      free(tts->event);
+    }
+  tts->line = tts->event = NULL;
+  tts->line_capacity = tts->event_capacity = 0;
+  tts->line_size = tts->event_size = 0;
+}
+
+static int reserve(char **buffer, size_t *capacity, size_t used, size_t need)
+{
+  if (need > BKCLOUD_TTS_EVENT_MAX) return -E2BIG;
+  if (need <= *capacity) return 0;
+  size_t next = *capacity ? *capacity : 4096;
+  while (next < need) next *= 2;
+  char *grown = malloc(next + 1);
+  if (!grown) return -ENOMEM;
+  if (*buffer)
+    {
+      memcpy(grown, *buffer, used);
+      mbedtls_platform_zeroize(*buffer, *capacity + 1);
+      free(*buffer);
+    }
+  grown[used] = 0;
+  *buffer = grown;
+  *capacity = next;
+  return 0;
+}
+
 void bkcloud_tts_clear(struct bkcloud_tts_s *tts)
-{ if (tts) mbedtls_platform_zeroize(tts, sizeof(*tts)); }
+{
+  if (!tts) return;
+  release_buffers(tts);
+  mbedtls_platform_zeroize(tts, sizeof(*tts));
+}
 void bkcloud_tts_init(struct bkcloud_tts_s *tts, bkcloud_write_t write, void *context)
 {
-  bkcloud_tts_clear(tts);
+  /* Initialize fresh storage; active streams must be cleared before reuse. */
+  if (tts) memset(tts, 0, sizeof(*tts));
   if (tts) { tts->write = write; tts->context = context; }
 }
 
@@ -65,14 +114,19 @@ static int event(struct bkcloud_tts_s *tts)
                    (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
                    c == '+' || c == '/')) goto out;
         }
-      if (mbedtls_base64_decode(tts->pcm, sizeof(tts->pcm), &bytes,
-                                (const unsigned char *)encoded, size) != 0 ||
-          bytes % 2 || bytes > 90u * 24000u * 2u - tts->total) goto out;
-      if (bytes)
+      size_t decoded = size / 4 * 3 - padding;
+      if (decoded % 2 || decoded > 90u * 24000u * 2u - tts->total) goto out;
+      for (size_t offset = 0; offset < size; )
         {
+          size_t chunk = size - offset;
+          if (chunk > 4096) chunk = 4096;
+          if (mbedtls_base64_decode(tts->pcm, sizeof(tts->pcm), &bytes,
+              (const unsigned char *)encoded + offset, chunk) != 0)
+            { ret = -EBADMSG; goto out; }
           ret = tts->write(tts->context, tts->pcm, bytes);
           if (ret != 0) { if (ret > 0) ret = -EIO; goto out; }
           tts->total += bytes;
+          offset += chunk;
         }
     }
   if (cJSON_IsString(reason)) tts->stopped = true;
@@ -92,7 +146,7 @@ static int line(struct bkcloud_tts_s *tts)
       if (!tts->event_size) return 0;
       tts->event_size--; /* Remove the final SSE data newline. */
       int ret = event(tts);
-      mbedtls_platform_zeroize(tts->event, sizeof(tts->event));
+      mbedtls_platform_zeroize(tts->event, tts->event_size);
       tts->event_size = 0;
       return ret;
     }
@@ -100,7 +154,9 @@ static int line(struct bkcloud_tts_s *tts)
     {
       size_t start = 5;
       if (size > start && tts->line[start] == ' ') start++;
-      if (size - start + 1 > sizeof(tts->event) - tts->event_size) return -E2BIG;
+      int ret = reserve(&tts->event, &tts->event_capacity, tts->event_size,
+                         tts->event_size + size - start + 1);
+      if (ret) return ret;
       memcpy(tts->event + tts->event_size, tts->line + start, size - start);
       tts->event_size += size - start;
       tts->event[tts->event_size++] = '\n';
@@ -119,14 +175,19 @@ int bkcloud_tts_feed(void *context, const void *data, size_t size)
       if (bytes[i] == '\n')
         {
           tts->error = line(tts);
-          mbedtls_platform_zeroize(tts->line, sizeof(tts->line));
+          if (tts->line) mbedtls_platform_zeroize(tts->line, tts->line_size);
           tts->line_size = 0;
         }
-      else if (!bytes[i] || tts->line_size == sizeof(tts->line))
-        tts->error = -E2BIG;
-      else tts->line[tts->line_size++] = bytes[i];
-      if (tts->error) return tts->error;
+      else if (!bytes[i]) tts->error = -EBADMSG;
+      else
+        {
+          tts->error = reserve(&tts->line, &tts->line_capacity,
+                               tts->line_size, tts->line_size + 1);
+          if (!tts->error) tts->line[tts->line_size++] = bytes[i];
+        }
+      if (tts->error) { release_buffers(tts); return tts->error; }
     }
+  if (tts->done && !tts->line_size && !tts->event_size) release_buffers(tts);
   return 0;
 }
 int bkcloud_tts_finish(struct bkcloud_tts_s *tts)

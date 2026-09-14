@@ -16,6 +16,8 @@ class ProvisionGattSession internal constructor(
     plaintext: (ByteArray) -> Unit,
     private val nowMs: () -> Long,
 ) : AutoCloseable {
+    private enum class Policy { PROVISIONING, CONTROL }
+
     constructor(tls: ProvisionTls, plaintext: (ByteArray) -> Unit,
                 nowMs: () -> Long = { System.nanoTime() / 1_000_000 }) :
         this(tls::newChannel, plaintext, nowMs)
@@ -33,6 +35,8 @@ class ProvisionGattSession internal constructor(
     private var pending: Write? = null
     private var pendingAt = 0L
     private val startedAt = nowMs()
+    private var policy = Policy.PROVISIONING
+    private var controlActivityAt = startedAt
     private var lastNow = startedAt
     private var started = false
     private val channel = factory(::queueCiphertext, plaintext)
@@ -41,6 +45,23 @@ class ProvisionGattSession internal constructor(
     var failure: String? = null
         private set
     val established: Boolean get() = !closed && channel.established
+
+    /** Switch only after the control protocol has accepted its AUTH response.
+     * Provisioning remains an absolute 120-second window; an authenticated
+     * control connection expires after 120 seconds without a validated control
+     * response. Raw ATT/TLS traffic never changes this deadline.
+     */
+    fun promoteToControl() = guarded {
+        check(channel.established) { "TLS authentication incomplete" }
+        policy = Policy.CONTROL
+        controlActivityAt = lastNow
+    }
+
+    /** Call only for a fully decoded and validated control-protocol response. */
+    fun touchControlActivity() = guarded {
+        check(policy == Policy.CONTROL) { "Control session not promoted" }
+        controlActivityAt = lastNow
+    }
 
     fun start() = guarded {
         check(!started) { "GATT session already started" }
@@ -131,14 +152,17 @@ class ProvisionGattSession internal constructor(
     }
 
     /** Monotonic deadlines: complete handshake in 30 s, each write in 5 s,
-     * entire provisioning connection in 120 s. No traffic extends the window.
+     * and retain a 120 s absolute provisioning window until control AUTH
+     * succeeds. Promoted control sessions use a 120 s validated-response idle
+     * deadline; GATT fragments and TLS ciphertext never refresh it.
      */
     fun tick() {
         if (closed) return
         val now = nowMs()
         if (now < lastNow) { abort("clock_regressed"); return }
         lastNow = now
-        if (now - startedAt >= 120_000) abort("session_timeout")
+        if (policy == Policy.PROVISIONING && now - startedAt >= 120_000) abort("session_timeout")
+        else if (policy == Policy.CONTROL && now - controlActivityAt >= 120_000) abort("idle_timeout")
         else if (!channel.established && now - startedAt >= 30_000) abort("handshake_timeout")
         else if (pending != null && now - pendingAt >= 5_000) abort("write_timeout")
     }

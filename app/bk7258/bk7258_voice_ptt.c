@@ -576,7 +576,7 @@ int bkvoice_ptt_timeout(struct bkvoice_ptt_s *ptt, uint64_t now_ms)
 static int bkvoice_ptt_down_start(
   struct bkvoice_ptt_s *ptt, uint64_t now_ms,
   bkvoice_capture_prefill_read_t read_frame, void *prefill_context,
-  size_t prefill_frames, bkvoice_capture_live_observer_t live_observer,
+  size_t prefill_frames, bkvoice_capture_frame_filter_t frame_filter,
   void *live_context, struct bkvoice_turn_token_s *token)
 {
   uint32_t sequence;
@@ -585,7 +585,7 @@ static int bkvoice_ptt_down_start(
   if (ptt == NULL || token == NULL || !ptt->initialized ||
       !ptt->capture_ready ||
       ((read_frame == NULL) != (prefill_frames == 0)) ||
-      (live_observer == NULL && live_context != NULL) ||
+      (frame_filter == NULL && live_context != NULL) ||
       prefill_frames > BKVOICE_CAPTURE_MAX_PREFILL_FRAMES)
     {
       return -EINVAL;
@@ -634,10 +634,10 @@ static int bkvoice_ptt_down_start(
         }
     }
 
-  if (live_observer != NULL)
+  if (frame_filter != NULL)
     {
-      ret = bkvoice_capture_set_live_observer(
-        &ptt->capture, live_observer, live_context);
+      ret = bkvoice_capture_set_frame_filter(
+        &ptt->capture, frame_filter, live_context);
       if (ret < 0)
         {
           return bkvoice_ptt_abort(ptt, ret);
@@ -664,20 +664,20 @@ int bkvoice_ptt_down(struct bkvoice_ptt_s *ptt, uint64_t now_ms,
                                 token);
 }
 
-int bkvoice_ptt_down_prefill(
+int bkvoice_ptt_down_stream(
   struct bkvoice_ptt_s *ptt, uint64_t now_ms,
   bkvoice_capture_prefill_read_t read_frame, void *prefill_context,
-  size_t prefill_frames, bkvoice_capture_live_observer_t live_observer,
+  size_t prefill_frames, bkvoice_capture_frame_filter_t frame_filter,
   void *live_context, struct bkvoice_turn_token_s *token)
 {
-  if (read_frame == NULL || prefill_frames == 0)
+  if (read_frame == NULL && frame_filter == NULL)
     {
       return -EINVAL;
     }
 
   return bkvoice_ptt_down_start(
     ptt, now_ms, read_frame, prefill_context, prefill_frames,
-    live_observer, live_context, token);
+    frame_filter, live_context, token);
 }
 
 int bkvoice_ptt_up(struct bkvoice_ptt_s *ptt, uint64_t now_ms)

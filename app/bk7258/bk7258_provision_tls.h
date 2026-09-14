@@ -27,11 +27,13 @@ struct bkprov_tls_s
   uint64_t last_now;
   uint64_t next_send;
   uint64_t write_started;
+  uint64_t control_activity;
   uint32_t generation;
   size_t pending_size;
   unsigned char pending[1024];
   bool initialized;
   bool established;
+  bool control;
 };
 
 /* Zero-initialize before first use. All calls are nonblocking except crypto.
@@ -47,5 +49,12 @@ int bkprov_tls_start(struct bkprov_tls_s *tls, uint32_t generation,
 int bkprov_tls_step(struct bkprov_tls_s *tls);
 int bkprov_tls_queue(struct bkprov_tls_s *tls, const void *data, size_t size);
 ssize_t bkprov_tls_read(struct bkprov_tls_s *tls, void *data, size_t size);
+/* Provisioning has a non-extendable 120s lifetime.  A control owner may
+ * promote only after its authenticated AUTH packet succeeds; later calls to
+ * touch require a validated authenticated control packet and set its 120s
+ * idle deadline.  Neither raw GATT/TLS input nor a pending write refreshes it.
+ */
+int bkprov_tls_promote_control(struct bkprov_tls_s *tls);
+int bkprov_tls_touch_control(struct bkprov_tls_s *tls);
 void bkprov_tls_close(struct bkprov_tls_s *tls);
 #endif

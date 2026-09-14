@@ -37,6 +37,7 @@ int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
   int ret;
   ssize_t size;
   uint64_t now;
+  bool authenticated;
   if (pair == NULL || !pair->tls.initialized) return -ENOTCONN;
   now = pair->tls.now_ms(pair->tls.clock_context);
   ret = bkprov_tls_step(&pair->tls);
@@ -78,11 +79,16 @@ int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
       pair->expected += payload;
       if (payload != 0) return 0;
     }
+  authenticated = pair->session.authenticated;
   ret = bkcontrol_session_packet(&pair->session, pair->input,
                                  pair->received, pair->response);
   mbedtls_platform_zeroize(pair->input, sizeof(pair->input));
   pair->received = 0;
   pair->expected = 16;
+  if (ret < 0) goto fail;
+  ret = !authenticated && pair->session.authenticated ?
+        bkprov_tls_promote_control(&pair->tls) :
+        bkprov_tls_touch_control(&pair->tls);
   if (ret < 0) goto fail;
   pair->report = true;
   return 0;

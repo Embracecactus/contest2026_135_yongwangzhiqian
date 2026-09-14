@@ -13,8 +13,8 @@ android {
         applicationId = "com.shaniu.companion"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.0-a1"
+        versionCode = 10
+        versionName = "0.5.5-control"
         testInstrumentationRunner = "com.shaniu.companion.provision.ControlKeyInstrumentation"
     }
 

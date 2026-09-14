@@ -97,6 +97,7 @@ struct bk7258_mic_config_s
   uint8_t channels;
   uint8_t mic1_ana_gain;
   uint8_t mic2_ana_gain;
+  int8_t digital_gain_db;  /* Initial ADC gain; zero keeps the SDK 0 dB default. */
 
   /* Optional board acoustic interlock.  quiet=true must synchronously stop
    * interfering actuators and reject new actions before ADC/DMA start.

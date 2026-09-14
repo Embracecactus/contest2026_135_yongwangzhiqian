@@ -4,6 +4,20 @@
 #include <errno.h>
 #include <math.h>
 #include <string.h>
+#ifdef __NuttX__
+#include <syslog.h>
+#endif
+
+void bkvoice_kws_default_policy(struct bkvoice_kws_policy_s *policy)
+{
+  if (policy != NULL)
+    {
+      policy->threshold = .85f;
+      policy->release_threshold = .20f;
+      policy->consecutive = 2;
+      policy->cooldown_ms = 1000u;
+    }
+}
 
 void bkvoice_kws_pause(struct bkvoice_kws_s *kws)
 {
@@ -170,12 +184,27 @@ int bkvoice_kws_feed(struct bkvoice_kws_s *kws, const int16_t *pcm,
       scores[BKVOICE_KWS_WAKE_CLASS] <= scores[0] ||
       scores[BKVOICE_KWS_WAKE_CLASS] <= scores[1])
     {
+#ifdef __NuttX__
+      if (kws->hits != 0)
+        {
+          syslog(LOG_INFO, "BKVOICE KWS candidate released hits=%u "
+                 "scores=%u/%u/%u\n", kws->hits,
+                 (unsigned int)(scores[0] * 1000),
+                 (unsigned int)(scores[1] * 1000),
+                 (unsigned int)(scores[2] * 1000));
+        }
+#endif
       kws->hits = 0;
       return 0;
     }
 
   if (++kws->hits < kws->policy.consecutive)
     {
+#ifdef __NuttX__
+      syslog(LOG_INFO, "BKVOICE KWS candidate hits=%u/%u score=%u\n",
+             kws->hits, kws->policy.consecutive,
+             (unsigned int)(scores[BKVOICE_KWS_WAKE_CLASS] * 1000));
+#endif
       return 0;
     }
 

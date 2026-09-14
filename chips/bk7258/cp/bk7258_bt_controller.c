@@ -22,10 +22,14 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 
 #include <nuttx/mutex.h>
+#include <nuttx/arch.h>
+#include <nuttx/irq.h>
+#include <nuttx/spinlock.h>
 
 #include <arch/chip/bk7258_bt_ipc.h>
 #include <arch/chip/bk7258_flash.h>
@@ -65,6 +69,32 @@ extern void bk7258_os_wifi_malloc_zero_end(void);
 #ifdef CONFIG_BK7258_BT_IPC
 extern void bk7258_os_bt_ipc_init_begin(void);
 extern void bk7258_os_bt_ipc_init_end(void);
+
+/* The immutable controller calls rand() from lld_adv_frm_isr for radio
+ * scheduling jitter. NuttX rand() uses the interrupted task's TLS, which
+ * does not exist for the idle task. Reuse libc's explicit-state PRNG in
+ * interrupt context; task calls retain normal libc semantics. This is not
+ * an entropy source: pairing/TLS continue to use the hardware TRNG path.
+ */
+
+extern int __real_rand(void);
+
+int __wrap_rand(void)
+{
+  static unsigned int irq_seed = 1;
+  irqstate_t flags;
+  int value;
+
+  if (!up_interrupt_context())
+    {
+      return __real_rand();
+    }
+
+  flags = enter_critical_section();
+  value = rand_r(&irq_seed);
+  leave_critical_section(flags);
+  return value;
+}
 #endif
 
 /* Restore every build-selected physical diagnostic owner after SDK leaves

@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <string.h>
+#include <syslog.h>
 
 #include <arch/chip/bk7258_flash.h>
 
@@ -27,6 +28,7 @@ int bk7258_ota_flash_verify(uint32_t address,
 {
   uint8_t observed[32];
   uint32_t offset;
+  int ret;
 
   for (offset = 0; offset < nbytes; offset += sizeof(observed))
     {
@@ -36,9 +38,29 @@ int bk7258_ota_flash_verify(uint32_t address,
           count = sizeof(observed);
         }
 
-      if (bk7258_flash_read(address + offset, observed, count) < 0 ||
-          memcmp(observed, expected + offset, count) != 0)
+      ret = bk7258_flash_read(address + offset, observed, count);
+      if (ret < 0)
         {
+          syslog(LOG_ERR,
+                 "BKOTA verify read address=%08lx size=%lu error=%d\n",
+                 (unsigned long)(address + offset),
+                 (unsigned long)count, ret);
+          return ret;
+        }
+
+      if (memcmp(observed, expected + offset, count) != 0)
+        {
+          uint32_t first = 0;
+
+          while (first < count && observed[first] == expected[offset + first])
+            {
+              first++;
+            }
+
+          /* Report the location, never image or persistent-data contents. */
+
+          syslog(LOG_ERR, "BKOTA verify mismatch address=%08lx\n",
+                 (unsigned long)(address + offset + first));
           return -EIO;
         }
     }

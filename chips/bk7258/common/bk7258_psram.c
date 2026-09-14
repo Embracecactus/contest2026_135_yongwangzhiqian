@@ -29,6 +29,9 @@
 #include <nuttx/spinlock.h>
 
 #include <arch/chip/bk7258_psram.h>
+#ifdef CONFIG_BK7258_AP_CORE
+#  include <arch/chip/bk7258_amp.h>
+#endif
 
 #ifndef CONFIG_BK7258_AP_CORE
 #  include <components/system.h>
@@ -147,6 +150,9 @@ struct bk7258_psram_test_context_s
 static struct mm_heap_s *g_bk7258_psram_heap;
 static void *g_bk7258_psram_system_heap;
 static size_t g_bk7258_psram_system_heap_size;
+#ifdef CONFIG_BK7258_PSRAM_EXT_SYSTEM_HEAP
+static bool g_bk7258_psram_extended_heap;
+#endif
 static spinlock_t g_bk7258_psram_lock = SP_UNLOCKED;
 static struct bk7258_psram_info_s g_bk7258_psram_info;
 #ifdef CONFIG_BK7258_PSRAM_MEDIA
@@ -692,6 +698,18 @@ int bk7258_psram_initialize(void)
   memset(&g_bk7258_psram_info, 0, sizeof(g_bk7258_psram_info));
   g_bk7258_psram_info.init_status = -EINPROGRESS;
   g_bk7258_psram_info.capacity = BK7258_PSRAM_8M_SIZE;
+  volatile const struct bk7258_psram_boot_s *boot =
+    (volatile const struct bk7258_psram_boot_s *)
+      (BK7258_SHARED_RAM_BASE + BK7258_PSRAM_BOOT_OFFSET);
+  __asm volatile ("dmb sy" ::: "memory");
+  if (boot->magic == BK7258_PSRAM_BOOT_MAGIC &&
+      boot->version == BK7258_PSRAM_BOOT_VERSION &&
+      boot->generation == bk7258_ap_boot_state()->generation &&
+      (boot->capacity == BK7258_PSRAM_8M_SIZE ||
+       boot->capacity == BK7258_PSRAM_16M_SIZE))
+    {
+      g_bk7258_psram_info.capacity = boot->capacity;
+    }
 #else
   /* Normally completed by CP board_app_initialize() after the immutable
    * PHY/RF calibration path.  Keep this fallback in the shared role wrapper
@@ -756,6 +774,16 @@ bool bk7258_psram_system_heap_contains(const void *ptr)
 {
   uintptr_t address = (uintptr_t)ptr;
   uintptr_t start = (uintptr_t)g_bk7258_psram_system_heap;
+
+#ifdef CONFIG_BK7258_PSRAM_EXT_SYSTEM_HEAP
+  if (g_bk7258_psram_extended_heap &&
+      address > BK7258_PSRAM_AP_EXT_HEAP_BASE &&
+      address < BK7258_PSRAM_AP_EXT_HEAP_BASE +
+                CONFIG_BK7258_PSRAM_EXT_SYSTEM_HEAP_SIZE)
+    {
+      return true;
+    }
+#endif
 
   return g_bk7258_psram_system_heap != NULL &&
          address > start &&
@@ -919,6 +947,35 @@ int bk7258_psram_add_system_heap(size_t size)
   g_bk7258_psram_system_heap_size = size;
   return OK;
 }
+
+#ifdef CONFIG_BK7258_PSRAM_EXT_SYSTEM_HEAP
+int bk7258_psram_add_extended_system_heap(void)
+{
+  if (!bk7258_psram_ready() || !bk7258_psram_mpu_valid())
+    {
+      return -ENODEV;
+    }
+
+  if (g_bk7258_psram_info.capacity != BK7258_PSRAM_16M_SIZE)
+    {
+      return -ENOSPC;
+    }
+
+  if (!g_bk7258_psram_extended_heap)
+    {
+      /* CP validated capacity and aliasing before AP release. No SDK slab
+       * or private allocator owns this bank. Keep the NuttX heap metadata
+       * and its SMP lock in SRAM, as for the original system region.
+       */
+
+      kumm_addregion((void *)BK7258_PSRAM_AP_EXT_HEAP_BASE,
+                     CONFIG_BK7258_PSRAM_EXT_SYSTEM_HEAP_SIZE);
+      g_bk7258_psram_extended_heap = true;
+    }
+
+  return OK;
+}
+#endif
 
 #ifdef CONFIG_BK7258_PSRAM_MEDIA
 int bk7258_psram_media_initialize(void)

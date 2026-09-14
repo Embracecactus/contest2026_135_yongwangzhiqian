@@ -166,6 +166,7 @@ struct bk7258_aud_dev_s
   struct dq_queue_s pendq;
   struct ap_buffer_s *active;
   uint16_t outstanding;
+  uint8_t  nbuffers;                  /* Session's preferred APB count */
 
   uint32_t samplerate;
   uint8_t  channels;
@@ -293,6 +294,7 @@ static struct bk7258_aud_dev_s g_bk7258_aud =
   .worker_lock = NXMUTEX_INITIALIZER,
   .dma_id      = DMA_ID_MAX,
   .pid         = -1,
+  .nbuffers    = CONFIG_BK7258_AUD_QUEUE_DEPTH,
 };
 
 static bool g_bk7258_aud_registered;
@@ -789,11 +791,10 @@ static int bk7258_aud_eq_set_config(struct bk7258_aud_dev_s *priv,
 
 #endif /* CONFIG_BK7258_AUD_DAC_EQ */
 
-/* The official v3.1.1.9 on-board speaker stream holds PM_DEV_ID_AUDIO at
- * 480 MHz from open through close.  Use the stable board-owned client ID,
- * not the role-dependent SDK enum, and keep this vote outside the stream
- * resource predicate: STOP tears down DMA/DAC but a reserved NuttX session
- * continues to own its frequency vote until RELEASE.
+/* The active speaker stream requires the SDK's 480-MHz audio contract.
+ * A Media graph may reserve the DAC for its whole lifetime. Only START
+ * acquires the shared MIC/DAC lease and frequency vote; STOP releases them
+ * after DMA, the worker and queued buffers have all been returned.
  */
 
 static int bk7258_aud_frequency_acquire(struct bk7258_aud_dev_s *priv)
@@ -885,7 +886,8 @@ static int bk7258_aud_frequency_release(struct bk7258_aud_dev_s *priv)
  * CONFIGURE/START admission window while the vote is being released.
  */
 
-static int bk7258_aud_finish_session(struct bk7258_aud_dev_s *priv)
+static int bk7258_aud_finish_session(struct bk7258_aud_dev_s *priv,
+                                      bool release_reservation)
 {
   int session_ret;
   int ret;
@@ -933,15 +935,21 @@ static int bk7258_aud_finish_session(struct bk7258_aud_dev_s *priv)
     }
   else
     {
-      priv->reserved = false;
       priv->configured = false;
       priv->final_queued = false;
-      priv->complete_sent = false;
+      if (release_reservation)
+        {
+          priv->reserved = false;
+          priv->complete_sent = false;
+          priv->nbuffers = CONFIG_BK7258_AUD_QUEUE_DEPTH;
 #ifdef CONFIG_BK7258_AUD_DAC_EQ
-      bk7258_aud_eq_clear_shadow_locked(priv);
+          bk7258_aud_eq_clear_shadow_locked(priv);
 #endif
-      bk7258_aud_set_state(priv, BK7258_AUD_STATE_RESET);
-      __atomic_store_n(&priv->close_safe, true, __ATOMIC_RELEASE);
+        }
+      bk7258_aud_set_state(priv, release_reservation ?
+                          BK7258_AUD_STATE_RESET : BK7258_AUD_STATE_RESERVED);
+      __atomic_store_n(&priv->close_safe, release_reservation,
+                       __ATOMIC_RELEASE);
     }
 
   nxmutex_unlock(&priv->lock);
@@ -2057,6 +2065,11 @@ static int bk7258_aud_stop_internal(struct bk7258_aud_dev_s *priv)
 
   nxmutex_unlock(&priv->lock);
 
+  if (first == OK)
+    {
+      first = bk7258_aud_finish_session(priv, false);
+    }
+
   if (first < 0)
     {
       bk7258_aud_notify_error(priv, first);
@@ -2345,6 +2358,20 @@ static int bk7258_aud_start(struct audio_lowerhalf_s *dev)
   nxmutex_unlock(&priv->lock);
 
   nxmutex_lock(&priv->worker_lock);
+  ret = bk7258_media_audio_session_acquire(BK7258_MEDIA_AUDIO_DAC);
+  if (ret < 0)
+    {
+      goto errout_locked;
+    }
+
+  priv->audio_session_owned = true;
+  __atomic_store_n(&priv->close_safe, false, __ATOMIC_RELEASE);
+  ret = bk7258_aud_frequency_acquire(priv);
+  if (ret < 0)
+    {
+      goto errout_locked;
+    }
+
   ret = bk7258_aud_hw_setup(priv);
   if (ret < 0)
     {
@@ -2419,6 +2446,8 @@ errout_locked:
   nxmutex_unlock(&priv->worker_lock);
 
   bk7258_aud_return_buffers(priv, buffers, count);
+  int cleanup = bk7258_aud_finish_session(priv, false);
+  if (cleanup < 0) ret = cleanup;
   bk7258_aud_notify_error(priv, ret);
   bk7258_aud_notify_complete(priv);
   return ret;
@@ -2523,7 +2552,7 @@ static int bk7258_aud_shutdown(struct audio_lowerhalf_s *dev)
       return ret;
     }
 
-  return bk7258_aud_finish_session(priv);
+  return bk7258_aud_finish_session(priv, true);
 }
 
 static int bk7258_aud_enqueuebuffer(struct audio_lowerhalf_s *dev,
@@ -2620,13 +2649,62 @@ static int bk7258_aud_cancelbuffer(struct audio_lowerhalf_s *dev,
 static int bk7258_aud_ioctl(struct audio_lowerhalf_s *dev, int cmd,
                             unsigned long arg)
 {
+#ifdef CONFIG_AUDIO_DRIVER_SPECIFIC_BUFFERS
+  struct bk7258_aud_dev_s *priv = (struct bk7258_aud_dev_s *)dev;
   struct ap_buffer_info_s *info;
+  int ret;
+#endif
 
   (void)dev;
 
   switch (cmd)
     {
 #ifdef CONFIG_AUDIO_DRIVER_SPECIFIC_BUFFERS
+      case AUDIOIOC_SETBUFFERINFO:
+        info = (struct ap_buffer_info_s *)(uintptr_t)arg;
+        if (info == NULL)
+          {
+            return -EINVAL;
+          }
+
+        /* The client chooses its pipeline buffer count. The physical DMA
+         * frame and maximum outstanding APB capacity remain SoC constraints;
+         * neither requires a client to allocate all eight available slots.
+         */
+
+        if (info->buffer_size != BK7258_AUD_FRAME_BYTES ||
+            info->nbuffers == 0 ||
+            info->nbuffers > CONFIG_BK7258_AUD_QUEUE_DEPTH)
+          {
+            return -ERANGE;
+          }
+
+        ret = nxmutex_lock(&priv->lock);
+        if (ret < 0)
+          {
+            return ret;
+          }
+
+        if (!priv->reserved)
+          {
+            ret = -EACCES;
+          }
+        else if ((priv->state != BK7258_AUD_STATE_RESERVED &&
+                  priv->state != BK7258_AUD_STATE_CONFIGURED) ||
+                 priv->outstanding != 0 || priv->pid >= 0 ||
+                 bk7258_aud_resources_owned(priv))
+          {
+            ret = -EBUSY;
+          }
+        else
+          {
+            priv->nbuffers = info->nbuffers;
+            ret = OK;
+          }
+
+        nxmutex_unlock(&priv->lock);
+        return ret;
+
       case AUDIOIOC_GETBUFFERINFO:
         info = (struct ap_buffer_info_s *)(uintptr_t)arg;
         if (info == NULL)
@@ -2634,8 +2712,15 @@ static int bk7258_aud_ioctl(struct audio_lowerhalf_s *dev, int cmd,
             return -EINVAL;
           }
 
+        ret = nxmutex_lock(&priv->lock);
+        if (ret < 0)
+          {
+            return ret;
+          }
+
         info->buffer_size = BK7258_AUD_FRAME_BYTES;
-        info->nbuffers = CONFIG_BK7258_AUD_QUEUE_DEPTH;
+        info->nbuffers = priv->nbuffers;
+        nxmutex_unlock(&priv->lock);
         return OK;
 #endif
 
@@ -2658,10 +2743,6 @@ static int bk7258_aud_reserve(struct audio_lowerhalf_s *dev)
 #endif
 {
   struct bk7258_aud_dev_s *priv = (struct bk7258_aud_dev_s *)dev;
-  int cleanup_ret;
-  int session_ret;
-  int ret;
-
 #ifdef CONFIG_AUDIO_MULTI_SESSION
   if (psession == NULL)
     {
@@ -2671,82 +2752,25 @@ static int bk7258_aud_reserve(struct audio_lowerhalf_s *dev)
   *psession = NULL;
 #endif
 
-  /* Serialize the blocking AP/CP vote with START/RELEASE.  Do not publish a
-   * reserved session until the vote is confirmed and the AP timebase reports
-   * the required 480-MHz clock.
+  /* Reserve only this endpoint. The official Media graph keeps its DAC
+   * handle open while the MIC is active; the shared SoC lease belongs to
+   * START/STOP, not the lifetime of this handle.
    */
 
   nxmutex_lock(&priv->worker_lock);
   nxmutex_lock(&priv->lock);
   if (priv->reserved || priv->state != BK7258_AUD_STATE_RESET ||
       priv->outstanding != 0 || bk7258_aud_resources_owned(priv) ||
-      priv->frequency_voted || priv->frequency_uncertain)
+      priv->audio_session_owned || priv->frequency_voted ||
+      priv->frequency_uncertain)
     {
       nxmutex_unlock(&priv->lock);
       nxmutex_unlock(&priv->worker_lock);
       return -EBUSY;
     }
 
-  nxmutex_unlock(&priv->lock);
-
-  ret = bk7258_media_audio_session_acquire(BK7258_MEDIA_AUDIO_DAC);
-  if (ret < 0)
-    {
-      nxmutex_unlock(&priv->worker_lock);
-      return ret;
-    }
-
-  nxmutex_lock(&priv->lock);
-  priv->audio_session_owned = true;
-  __atomic_store_n(&priv->close_safe, false, __ATOMIC_RELEASE);
-  nxmutex_unlock(&priv->lock);
-
-  ret = bk7258_aud_frequency_acquire(priv);
-  if (ret < 0)
-    {
-      /* A successful remote vote followed by a local frequency mismatch is
-       * still owned.  Roll it back before reporting RESERVE failure.  If that
-       * rollback fails, retain an internal reserved/fault state so last-close
-       * cannot hide the leak; the caller's explicit SHUTDOWN can retry before
-       * close (slow last-close cleanup is unsafe in the NuttX upper lock).
-       */
-
-      cleanup_ret = bk7258_aud_frequency_release(priv);
-
-      session_ret = OK;
-      if (cleanup_ret == OK && !priv->frequency_voted &&
-          !priv->frequency_uncertain)
-        {
-          session_ret = bk7258_media_audio_session_release(
-            BK7258_MEDIA_AUDIO_DAC);
-          if (session_ret == OK)
-            {
-              priv->audio_session_owned = false;
-            }
-        }
-
-      nxmutex_lock(&priv->lock);
-      if (cleanup_ret < 0 || priv->frequency_voted ||
-          priv->frequency_uncertain || session_ret < 0)
-        {
-          priv->reserved = true;
-          bk7258_aud_set_state(priv, BK7258_AUD_STATE_FAULT);
-          __atomic_store_n(&priv->close_safe, false, __ATOMIC_RELEASE);
-        }
-      else
-        {
-          bk7258_aud_set_state(priv, BK7258_AUD_STATE_RESET);
-          __atomic_store_n(&priv->close_safe, true, __ATOMIC_RELEASE);
-        }
-
-      nxmutex_unlock(&priv->lock);
-      nxmutex_unlock(&priv->worker_lock);
-      return cleanup_ret < 0 ? cleanup_ret :
-             session_ret < 0 ? session_ret : ret;
-    }
-
-  nxmutex_lock(&priv->lock);
   priv->reserved = true;
+  __atomic_store_n(&priv->close_safe, false, __ATOMIC_RELEASE);
   priv->configured = false;
   priv->final_queued = false;
   priv->complete_sent = false;
@@ -2803,7 +2827,7 @@ static int bk7258_aud_release(struct audio_lowerhalf_s *dev)
         }
     }
 
-  return bk7258_aud_finish_session(priv);
+  return bk7258_aud_finish_session(priv, true);
 }
 
 /****************************************************************************

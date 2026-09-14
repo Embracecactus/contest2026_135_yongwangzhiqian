@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Build
@@ -203,6 +204,10 @@ class AndroidProvisionGatt(
     /** Serialize product control requests with TLS receive and timeout events. */
     internal fun execute(action: () -> Unit) = post { action() }
 
+    /** These are called by a decoded control response on this worker only. */
+    internal fun promoteToControl() = session.promoteToControl()
+    internal fun touchControlActivity() = session.touchControlActivity()
+
     private fun stop(reason: String, gattStatus: Int? = null) {
         synchronized(eventLock) {
             if (!stopping.get()) {
@@ -229,7 +234,12 @@ class AndroidProvisionGatt(
 
     private val worker = Thread({
         try {
-            gatt = device.connectGatt(appContext, false, callback, BluetoothDevice.TRANSPORT_LE)
+            // Do not register clients against a disabled/restarting adapter.
+            // The control owner may retry later; provisioning keeps its
+            // bounded transaction and neither path changes the user's radio.
+            val adapter = appContext.getSystemService(BluetoothManager::class.java)?.adapter
+            if (adapter?.isEnabled != true) stop("bluetooth_disabled")
+            else gatt = device.connectGatt(appContext, false, callback, BluetoothDevice.TRANSPORT_LE)
                 ?: throw IOException("GATT connect rejected")
             while (!stopping.get()) {
                 val event = queue.poll(100, TimeUnit.MILLISECONDS)

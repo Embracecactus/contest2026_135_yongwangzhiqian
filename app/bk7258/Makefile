@@ -97,10 +97,12 @@ ifeq ($(CONFIG_BK7258_VOICE_SERVICE),y)
 	CSRCS += bk7258_voice_service.c bk7258_voice_pack.c \
 		bk7258_voice_companion.c bk7258_voice_capture.c \
 		bk7258_voice_ptt.c bk7258_voice_transport.c \
-		bk7258_voice_wss.c \
-		bk7258_voice_gateway.c bk7258_voice_session.c \
 		bk7258_voice_turn.c \
 		bk7258_voice_turn_audio.c
+ifeq ($(CONFIG_BK7258_VOICE_LEGACY_GATEWAY),y)
+	CSRCS += bk7258_voice_wss.c bk7258_voice_gateway.c \
+		bk7258_voice_session.c
+endif
 ifeq ($(CONFIG_BK7258_VOICE_TLS),y)
 	CSRCS += bk7258_voice_tls.c bk7258_voice_config.c bk7258_voice_runtime.c
 	CSRCS += bk7258_cloud_config.c bk7258_cloud_request.c bk7258_cloud_http.c bk7258_cloud_client.c bk7258_cloud_history.c bk7258_cloud_tts.c bk7258_cloud_playback.c bk7258_cloud_runtime.c
@@ -118,10 +120,9 @@ ifeq ($(CONFIG_BK7258_VOICE_KWS),y)
 BKVOICE_TFLM := $(APPDIR)/mlearning/tflite-micro/tflite-micro
 BKVOICE_FRONTEND := $(BKVOICE_TFLM)/tensorflow/lite/experimental/microfrontend/lib
 CSRCS += bk7258_voice_kws.c bk7258_voice_kws_frontend.c \
-	bk7258_voice_wake_window.c bk7258_voice_wake_listener.c \
-	bk7258_voice_wake_owner.c
+	bk7258_voice_wake_window.c
 ifeq ($(CONFIG_BK7258_VOICE_WAKE_RUNTIME),y)
-CSRCS += bk7258_voice_wake_session.c
+$(error BK7258_VOICE_WAKE_RUNTIME requires the maintained CMake build and Media Trigger integration)
 endif
 CSRCS += $(addprefix $(BKVOICE_FRONTEND)/,frontend.c frontend_util.c \
   filterbank.c filterbank_util.c log_lut.c log_scale.c log_scale_util.c \

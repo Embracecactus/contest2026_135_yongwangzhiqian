@@ -380,9 +380,12 @@ def _run(command: list[str], label: str, *, cwd: Path,
 
 
 def _unique(root: Path, names: tuple[str, ...], label: str) -> Path:
+    # These are the NuttX outputs in the explicit CMake binary directory.
+    # External libraries (notably FFmpeg) have their own nested .config files;
+    # they are dependencies, never the resolved target configuration.
     matches = []
     for name in names:
-        matches.extend(path for path in root.rglob(name) if path.is_file() and not path.is_symlink())
+        matches.extend(path for path in root.glob(name) if path.is_file() and not path.is_symlink())
     unique = sorted(set(path.resolve() for path in matches))
     if len(unique) != 1:
         raise BuildError(f"official build must produce one {label}: {unique}")
@@ -781,6 +784,88 @@ def _pair_root(workspace: Path, cp: ConfigProfile, ap: ConfigProfile,
     )
 
 
+def _media_apps_overlay(workspace: Path, root: Path) -> Path:
+    """Use the official apps/FFmpeg build with reviewed source replacements.
+
+    FFmpeg is an imported Make archive, not a CMake source target. A sparse
+    generated apps view lets its unchanged build rules consume the patched
+    translation unit without editing a manifest checkout or replacing archives.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    source = workspace / "apps"
+    output = root / "apps"
+    # Some pinned apps configure helpers still locate ../nuttx from APPDIR.
+    # Preserve that existing workspace relationship in this generated view.
+    kernel = root / "nuttx"
+    expected_kernel = str((workspace / "nuttx").resolve())
+    if not kernel.is_symlink() or os.readlink(kernel) != expected_kernel:
+        if kernel.exists() or kernel.is_symlink():
+            raise BuildError(f"unexpected generated Media kernel entry: {kernel}")
+        kernel.symlink_to(expected_kernel)
+    def link_children(source_dir: Path, output_dir: Path, excluded: set[str]) -> None:
+        if output_dir.is_symlink():
+            if os.readlink(output_dir) != str(source_dir.resolve()):
+                raise BuildError(f"unexpected generated Media source link: {output_dir}")
+            output_dir.unlink()  # Expand only our previously generated link.
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for child in source_dir.iterdir():
+            if child.name in excluded or child.name == ".git":
+                continue
+            link = output_dir / child.name
+            expected = str(child.resolve())
+            if link.is_symlink() and os.readlink(link) == expected:
+                continue
+            if link.exists() or link.is_symlink():
+                raise BuildError(f"unexpected generated Media source entry: {link}")
+            link.symlink_to(expected)
+
+    for fork in ("external", "ffmpeg"):
+        link_children(source, output, {fork})
+        source = source / fork
+        output = output / fork
+
+    files = {"": {"CMakeLists.txt", "Makefile"},
+             "ffmpeg/libavfilter": {"asink_adevsink.c", "af_asubgraph.c",
+                                     "af_aresample.c"},
+             "ffmpeg/libavdevice": {"nuttx.c", "nuttx.h", "nuttx_enc.c"},
+             "ffmpeg/libavutil": {"opt.c"}}
+    link_children(source, output, {"ffmpeg", *files[""]})
+    link_children(source / "ffmpeg", output / "ffmpeg",
+                  {"libavfilter", "libavdevice", "libavutil"})
+    for directory, names in files.items():
+        if directory:
+            link_children(source / directory, output / directory, names)
+    patch_root = workspace / "vendor/beken/external/patches/ffmpeg"
+    with tempfile.TemporaryDirectory(prefix="bk7258-ffmpeg-") as temporary:
+        stage = Path(temporary)
+        for directory, names in files.items():
+            (stage / directory).mkdir(parents=True, exist_ok=True)
+            for name in names:
+                shutil.copyfile(source / directory / name, stage / directory / name)
+        for name in ("0001-adevsink-acknowledge-end-of-stream.patch",
+                     "0002-nuttx-stream-reservation.patch",
+                     "0003-build-source-dependencies.patch",
+                     "0004-asubgraph-preserve-drain-errors.patch",
+                     "0005-aresample-report-invalid-configuration.patch",
+                     "0006-opt-respect-format-enum-width.patch"):
+            patch = patch_root / name
+            patch_cwd = stage if name.startswith("0003-") else stage / "ffmpeg"
+            _run(["git", "apply", "--check", str(patch)], "FFmpeg patch check",
+                 cwd=patch_cwd, environment=os.environ.copy())
+            _run(["git", "apply", str(patch)], "FFmpeg patch",
+                 cwd=patch_cwd, environment=os.environ.copy())
+        for directory, names in files.items():
+            for name in names:
+                target = stage / directory / name
+                destination = output / directory / name
+                if destination.is_symlink():
+                    if os.readlink(destination) != str((source / directory / name).resolve()):
+                        raise BuildError(f"unexpected generated Media source link: {destination}")
+                    destination.unlink()
+                _atomic_text(destination, target.read_text(encoding="utf-8"))
+    return root / "apps"
+
+
 def _build_config_root(workspace: Path, cp: ConfigProfile, ap: ConfigProfile,
                        selected: ConfigProfile,
                        selected_layout: layout_domain.Layout,
@@ -802,6 +887,14 @@ def _build_config_root(workspace: Path, cp: ConfigProfile, ap: ConfigProfile,
         else "# CONFIG_BK7258_MCUBOOT_IMAGE is not set"
     )
     lines.extend(("", boot_setting))
+    if "CONFIG_MEDIA=y" in lines and "CONFIG_LIB_FFMPEG=y" in lines:
+        if any(line.startswith("CONFIG_APPS_DIR=") for line in lines):
+            raise BuildError("Media source patches require the manifest apps directory")
+        apps = _media_apps_overlay(workspace, root)
+        # Pinned NuttX checks CONFIG_APPS_DIR before resolving relative paths.
+        # This generated config derives the absolute path from this build;
+        # no machine-specific path is stored in the source profile.
+        lines.append(f'CONFIG_APPS_DIR="{apps}"')
     # NuttX otherwise touches lib_utsname.c on every invocation, forcing a
     # relink even with unchanged inputs.  Provenance lives in the manifest.
     # An explicit profile setting still takes precedence.
@@ -875,7 +968,12 @@ def _role_build(repository: Path, workspace: Path, official_build: Path,
     # relative prefix: both the unmodified argument consumed by lunch() and
     # the preflight argument after that removal resolve to config_relative.
     config_argument = f".//{config_relative}"
-    if clean:
+    # A failed first CMake configure can leave .config/CMakeCache.txt but no
+    # build graph. Official lunch then mistakes it for a configured tree.
+    # Discard only that incomplete role tree; successful builds stay incremental.
+    if clean or (binary_root.exists() and
+                 not (binary_root / "build.ninja").is_file() and
+                 not (binary_root / "Makefile").is_file()):
         _remove_output_tree(binary_root, workspace)
     base = [
         str(official_build), config_argument, "--cmake",
@@ -1107,7 +1205,7 @@ def _source_provenance(repository: Path, cp: ConfigProfile, ap: ConfigProfile,
         raise BuildError("product must be a stable lowercase identifier")
     scopes = ["chips/bk7258", "boards/bk7258/common",
               f"boards/bk7258/{cp.board}", "nuttx", "app/bk7258",
-              "app/dolphin", "tools/bk7258"]
+              "app/dolphin", "frameworks", "external", "tools/bk7258"]
     state = _source_tree_state(repository, scopes)
     workspace = workspace or repository.parent
     dependencies = {}
@@ -1151,7 +1249,7 @@ def _source_tree_state(repository: Path, scopes: list[str], *,
         "--", *scopes).split(b"\0")
     suffixes = {".c", ".h", ".S", ".s", ".cpp", ".cc", ".cxx", ".hpp",
                 ".py", ".sh", ".cmake", ".mk", ".defs", ".ld", ".csv",
-                ".conf", ".json"}
+                ".conf", ".json", ".patch", ".pfw", ".txt", ".tflite"}
     names = {"Makefile", "CMakeLists.txt", "Kconfig", "defconfig", "Make.defs", "rcS"}
     tree = hashlib.sha256()
     dirty = False

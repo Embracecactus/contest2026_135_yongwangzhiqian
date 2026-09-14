@@ -32,6 +32,32 @@ endforeach()
 
 set(BK7258_NUTTX_OVERLAY_DIR "${NUTTX_DIR}/../vendor/beken/nuttx")
 
+# Arm GNU's C++ wrappers use include_next for the C library. Put the
+# matching toolchain C++ headers before NuttX's C headers so that wrappers
+# resolve stdlib.h/string.h to NuttX, rather than to the bundled Newlib ABI.
+function(bk7258_configure_toolchain_cxx_headers)
+  execute_process(COMMAND "${CMAKE_CXX_COMPILER}" -print-sysroot
+                  OUTPUT_VARIABLE sysroot OUTPUT_STRIP_TRAILING_WHITESPACE
+                  COMMAND_ERROR_IS_FATAL ANY)
+  execute_process(COMMAND "${CMAKE_CXX_COMPILER}" -dumpfullversion
+                  OUTPUT_VARIABLE version OUTPUT_STRIP_TRAILING_WHITESPACE
+                  COMMAND_ERROR_IS_FATAL ANY)
+  set(headers "${sysroot}/include/c++/${version}")
+  if(NOT EXISTS "${headers}/cstdlib")
+    message(FATAL_ERROR "Missing C++ headers for selected Arm GNU toolchain")
+  endif()
+  get_target_property(targets nuttx_target_interface ALL_TARGETS)
+  foreach(target IN LISTS targets)
+    target_include_directories(${target} SYSTEM BEFORE PRIVATE
+                               "$<$<COMPILE_LANGUAGE:CXX>:${headers}>")
+  endforeach()
+endfunction()
+
+if(CONFIG_LIBCXXTOOLCHAIN AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}"
+                 CALL bk7258_configure_toolchain_cxx_headers)
+endif()
+
 if(CONFIG_CL_MFRC522_FRAME AND CONFIG_CL_MFRC522)
   message(FATAL_ERROR "select exactly one MFRC522 implementation")
 endif()
@@ -158,7 +184,7 @@ if(CONFIG_BK7258_WIFI_PACKET_DIAG)
 endif()
 
 if(CONFIG_BK7258_BT_IPC AND NOT CONFIG_BK7258_AP_CORE)
-  bk7258_wrap_sdk_symbol(bk_bluetooth_init bk_bluetooth_deinit)
+  bk7258_wrap_sdk_symbol(bk_bluetooth_init bk_bluetooth_deinit rand)
 endif()
 
 if(CONFIG_BK7258_RPTUN_MBOX)

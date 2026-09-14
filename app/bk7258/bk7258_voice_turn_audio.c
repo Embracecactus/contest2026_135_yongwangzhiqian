@@ -5,7 +5,7 @@
  *
  * BKVoice MIC/DAC lifecycle adapter.  Device paths, channels, PA polarity and
  * pin ownership stay behind the public recorder/player ABI and its lower
- * halves; this App layer owns only the product's fixed PCM tuple.
+ * halves; this App layer declares the product's source PCM format.
  ****************************************************************************/
 
 #ifdef __NuttX__
@@ -25,7 +25,16 @@
 #include "bk7258_voice_volume_store.h"
 #endif
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
+#ifdef CONFIG_MEDIA
+#include "bk7258_voice_media.h"
+#include <fcntl.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <syslog.h>
+#include <time.h>
+#endif
 
 #define BKVOICE_TURN_AUDIO_OPTIONS \
   "format=s16le:sample_rate=16000:ch_layout=mono"
@@ -35,11 +44,107 @@ static int bkvoice_turn_audio_errno(void)
   return errno > 0 ? -errno : -EIO;
 }
 
+#ifdef CONFIG_MEDIA
+static int bkvoice_turn_audio_nonblocking(int fd)
+{
+  int flags;
+  if (fd < 0) return fd;
+  flags = fcntl(fd, F_GETFL, 0);
+  if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+    return bkvoice_turn_audio_errno();
+  return 0;
+}
+
+/* The pinned NuttX local socket uses FIFOs and does not consume SO_*TIMEO.
+ * Poll a nonblocking public Media socket with one deadline for the transfer.
+ * The product still calls the official read/write API and owns no new worker.
+ */
+static ssize_t bkvoice_turn_audio_transfer(void *handle, bool player,
+                                           void *data, size_t bytes,
+                                           unsigned int timeout_ms)
+{
+  struct timespec now;
+  struct pollfd pfd = {
+    .fd = player ? media_player_get_socket(handle) :
+                   media_recorder_get_socket(handle),
+    .events = player ? POLLOUT : POLLIN
+  };
+  uint64_t started;
+  uint64_t deadline;
+  uint64_t current;
+  size_t done = 0;
+  ssize_t result;
+  const char *stage = "deadline";
+  int ret;
+
+  if (pfd.fd < 0) return -EPIPE;
+  if (clock_gettime(CLOCK_MONOTONIC, &now) < 0)
+    return bkvoice_turn_audio_errno();
+  started = (uint64_t)now.tv_sec * 1000u + now.tv_nsec / 1000000u;
+  deadline = started + timeout_ms;
+  while (done < bytes)
+    {
+      if (clock_gettime(CLOCK_MONOTONIC, &now) < 0)
+        return bkvoice_turn_audio_errno();
+      current = (uint64_t)now.tv_sec * 1000u + now.tv_nsec / 1000000u;
+      if (current >= deadline) { ret = -ETIMEDOUT; goto failed; }
+      /* A nonblocking transfer is the authoritative progress check. Avoid
+       * setting up a poll on every small PCM frame when the stream already
+       * has capacity; wait only after the public API reports backpressure.
+       */
+      result = player ? media_player_write_data(handle, (uint8_t *)data + done,
+                                                 bytes - done) :
+                        media_recorder_read_data(handle, data, bytes);
+      if (result == -EINTR) continue;
+      if (result == -EAGAIN || result == -EWOULDBLOCK)
+        {
+          if (clock_gettime(CLOCK_MONOTONIC, &now) < 0)
+            return bkvoice_turn_audio_errno();
+          current = (uint64_t)now.tv_sec * 1000u + now.tv_nsec / 1000000u;
+          if (current >= deadline) { ret = -ETIMEDOUT; goto failed; }
+          pfd.revents = 0;
+          ret = poll(&pfd, 1, (int)(deadline - current));
+          if (ret < 0 && errno == EINTR) continue;
+          if (ret < 0)
+            { ret = bkvoice_turn_audio_errno(); stage = "poll"; goto failed; }
+          /* Keep the original monotonic deadline authoritative, including
+           * when a platform poll timeout returns at a tick boundary. */
+          if (ret == 0) continue;
+          if (!(pfd.revents & pfd.events))
+            { ret = -EPIPE; stage = "poll-event"; goto failed; }
+          continue;
+        }
+      if (result <= 0)
+        {
+          ret = result == 0 || result == -ECONNRESET ? -EPIPE : result;
+          stage = "io";
+          goto failed;
+        }
+      if (!player) return result;
+      done += result;
+    }
+  return (ssize_t)done;
+
+failed:
+  if (player)
+    {
+      if (clock_gettime(CLOCK_MONOTONIC, &now) == 0)
+        current = (uint64_t)now.tv_sec * 1000u + now.tv_nsec / 1000000u;
+      syslog(LOG_WARNING, "BKVOICE player write stage=%s ret=%d "
+             "bytes=%lu/%lu elapsed_ms=%llu timeout_ms=%u events=%x\n",
+             stage, ret, (unsigned long)done, (unsigned long)bytes,
+             (unsigned long long)(current - started), timeout_ms,
+             (unsigned int)pfd.revents);
+    }
+  return ret;
+}
+#endif
+
 bool bkvoice_turn_audio_released(const struct bkvoice_turn_audio_s *audio)
 {
   return audio != NULL && audio->mic_handle == NULL &&
          audio->dac_handle == NULL && !audio->mic_prepared &&
-         !audio->mic_started &&
+         !audio->mic_started && !audio->mic_policy_active &&
          !__atomic_load_n(&audio->mic_reader_active, __ATOMIC_ACQUIRE) &&
          !audio->dac_prepared &&
          !audio->dac_started;
@@ -96,10 +201,34 @@ static int bkvoice_turn_audio_mic_prepare(void *context)
   if (ret >= 0)
     {
       audio->mic_prepared = true;
+#ifdef CONFIG_MEDIA
+      ret = bkvoice_turn_audio_nonblocking(
+        media_recorder_get_socket(audio->mic_handle));
+      if (ret < 0) return ret;
+#endif
       return 0;
     }
 
   return ret;
+}
+
+/* The product's MIC permission follows its serialized turn. Resolve the
+ * configured stream through public policy; no physical device name belongs
+ * in this adapter. The Media policy owns starting/stopping the device route. */
+static int bkvoice_turn_audio_mic_policy(struct bkvoice_turn_audio_s *audio,
+                                        bool active)
+{
+#ifdef CONFIG_MEDIA
+  int ret;
+  if (audio->mic_policy_active == active) return 0;
+  ret = bkvoice_media_source_set_active(MEDIA_SOURCE_MIC, active);
+  if (ret < 0) return ret;
+  audio->mic_policy_active = active;
+#else
+  (void)audio;
+  (void)active;
+#endif
+  return 0;
 }
 
 static int bkvoice_turn_audio_mic_start(void *context)
@@ -117,13 +246,17 @@ static int bkvoice_turn_audio_mic_start(void *context)
       return -EALREADY;
     }
 
+  ret = bkvoice_turn_audio_mic_policy(audio, true);
+  if (ret < 0) return ret;
   ret = media_recorder_start(audio->mic_handle);
   if (ret >= 0)
     {
       audio->mic_started = true;
-      return 0;
+      return ret;
     }
 
+  int cleanup = bkvoice_turn_audio_mic_policy(audio, false);
+  if (cleanup < 0) return cleanup;
   return ret;
 }
 
@@ -187,7 +320,12 @@ ssize_t bkvoice_turn_audio_read(struct bkvoice_turn_audio_s *audio,
       return -EPERM;
     }
 
+#ifdef CONFIG_MEDIA
+  return bkvoice_turn_audio_transfer(audio->mic_handle, false, pcm, bytes,
+                                      CONFIG_BK7258_MEDIA_RECORDER_NO_FRAME_TIMEOUT_MS);
+#else
   return media_recorder_read_data(audio->mic_handle, pcm, bytes);
+#endif
 }
 
 static int bkvoice_turn_audio_mic_stop(void *context)
@@ -200,12 +338,23 @@ static int bkvoice_turn_audio_mic_stop(void *context)
       return -EINVAL;
     }
 
-  if (!audio->mic_started)
+  if (!audio->mic_started && !audio->mic_policy_active)
     {
       return 0;
     }
 
+  /* Official Media pins its socket while read_data() is blocked. Shutdown
+   * wakes that reader without closing/reusing its fd beneath it. */
+#ifdef CONFIG_MEDIA
+  if (__atomic_load_n(&audio->mic_reader_active, __ATOMIC_ACQUIRE))
+    {
+      int fd = media_recorder_get_socket(audio->mic_handle);
+      if (fd >= 0) (void)shutdown(fd, SHUT_RD);
+    }
+#endif
   ret = media_recorder_stop(audio->mic_handle);
+  int policy_ret = bkvoice_turn_audio_mic_policy(audio, false);
+  if (ret >= 0 && policy_ret < 0) ret = policy_ret;
   if (ret >= 0)
     {
       audio->mic_started = false;
@@ -245,12 +394,11 @@ static int bkvoice_turn_audio_mic_drain(void *context)
       return -EINVAL;
     }
 
-  /* media_recorder_stop() synchronously stops the lower half and wakes its
-   * blocking mqueue reader.  The future capture owner must join that reader
-   * before invoking this serialized drain/release sequence.
+  /* Stop interrupts the public reader and disables the capture route. The
+   * capture owner joins that reader before this drain/release sequence.
    */
 
-  return audio->mic_started ||
+  return audio->mic_started || audio->mic_policy_active ||
          __atomic_load_n(&audio->mic_reader_active, __ATOMIC_ACQUIRE) ?
          -EBUSY : 0;
 }
@@ -275,6 +423,9 @@ static int bkvoice_turn_audio_mic_release(void *context)
       return 0;
     }
 
+  ret = bkvoice_turn_audio_mic_policy(audio, false);
+  if (ret < 0) return ret;
+
   ret = media_recorder_close(audio->mic_handle);
   if (ret >= 0)
     {
@@ -286,9 +437,7 @@ static int bkvoice_turn_audio_mic_release(void *context)
       return 0;
     }
 
-  /* The BK7258 recorder bridge guarantees that a negative close result
-   * leaves the handle alive for a later fail-closed recovery attempt.
-   */
+  /* A negative public close result retains the handle for cleanup retry. */
 
   return ret;
 }
@@ -475,9 +624,13 @@ static int bkvoice_turn_audio_apply_volume(struct bkvoice_turn_audio_s *audio)
   return ret;
 }
 
-static int bkvoice_turn_audio_dac_prepare(void *context)
+static int bkvoice_turn_audio_dac_prepare(void *context,
+                                         unsigned int sample_rate)
 {
   struct bkvoice_turn_audio_s *audio = context;
+#ifdef CONFIG_MEDIA
+  char options[96];
+#endif
   int ret;
 
   if (audio == NULL || audio->dac_handle == NULL)
@@ -490,6 +643,16 @@ static int bkvoice_turn_audio_dac_prepare(void *context)
       return -EALREADY;
     }
 
+#ifdef CONFIG_MEDIA
+  if (sample_rate == 0) return -EINVAL;
+  ret = snprintf(options, sizeof(options),
+                 "format=s16le:sample_rate=%u:ch_layout=mono:datqmax=66",
+                 sample_rate);
+  if (ret < 0 || ret >= sizeof(options)) return -EMSGSIZE;
+#else
+  if (sample_rate != 16000) return -ENOTSUP;
+#endif
+
   __atomic_store_n(&audio->dac_completed, false, __ATOMIC_RELEASE);
   ret = media_player_set_event_callback(audio->dac_handle, audio,
                                         bkvoice_turn_audio_event);
@@ -498,11 +661,29 @@ static int bkvoice_turn_audio_dac_prepare(void *context)
       return ret;
     }
 
+  /* The board graph explicitly converts the declared source rate for its
+   * sink. The PCM demuxer emits 2048 samples per frame at 24 kHz. The SSE
+   * adapter validates a complete event before publishing its PCM. Its
+   * 256-KiB JSON limit permits up to 192 KiB of PCM (48 frames), so buffering
+   * only individual TLS read gaps still starves between events. Reserve
+   * that event budget plus 18 frames of network margin: 270336 PCM bytes,
+   * or 5.632 seconds at 24 kHz. Short replies start at EOF. Queue ownership,
+   * bounded socket writes and EOF draining stay in the official player.
+   */
   ret = media_player_prepare(audio->dac_handle, NULL,
+#ifdef CONFIG_MEDIA
+                             options);
+#else
                              BKVOICE_TURN_AUDIO_OPTIONS);
+#endif
   if (ret >= 0)
     {
       audio->dac_prepared = true;
+#ifdef CONFIG_MEDIA
+      ret = bkvoice_turn_audio_nonblocking(
+        media_player_get_socket(audio->dac_handle));
+      if (ret < 0) return ret;
+#endif
       /* Mark prepared before applying policy so failures still release the
        * player's reservation and buffers through the normal turn cleanup.
        */
@@ -555,7 +736,12 @@ static ssize_t bkvoice_turn_audio_dac_write(void *context,
       return -EPERM;
     }
 
+#ifdef CONFIG_MEDIA
+  return bkvoice_turn_audio_transfer(audio->dac_handle, true, (void *)pcm, bytes,
+                                      CONFIG_BK7258_MEDIA_PLAYER_WRITE_TIMEOUT_MS);
+#else
   return media_player_write_data(audio->dac_handle, pcm, bytes);
+#endif
 }
 
 static int bkvoice_turn_audio_dac_drain(void *context)
@@ -640,8 +826,7 @@ static int bkvoice_turn_audio_dac_release(void *context)
       return 0;
     }
 
-  /* The BK7258 player bridge guarantees that a negative close result leaves
-   * the handle alive for a later fail-closed recovery attempt.
+  /* A negative public close result retains the handle for cleanup retry.
    */
 
   return ret;

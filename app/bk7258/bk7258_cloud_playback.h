@@ -8,18 +8,15 @@
  */
 struct bkcloud_playback_s
 {
-  void *filter;
   struct bkvoice_turn_s *turn;
   struct bkvoice_turn_token_s token;
   uint64_t (*now_ms)(void *context);
   void *clock_context;
   uint8_t frame[1280];
   size_t frame_size;
-  uint64_t input_samples;
-  uint64_t output_samples;
+  uint64_t input_bytes;
   int error;
-  uint8_t low_byte;
-  bool partial_sample;
+  bool active;
 };
 int bkcloud_playback_begin(struct bkcloud_playback_s *play,
                            struct bkvoice_turn_s *turn,

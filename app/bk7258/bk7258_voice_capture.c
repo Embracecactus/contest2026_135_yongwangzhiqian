@@ -36,8 +36,8 @@ static void bkvoice_capture_clear_active(struct bkvoice_capture_s *capture)
 {
   memset(&capture->token, 0, sizeof(capture->token));
   memset(capture->frame, 0, sizeof(capture->frame));
-  capture->live_observer = NULL;
-  capture->live_observer_context = NULL;
+  capture->frame_filter = NULL;
+  capture->frame_filter_context = NULL;
   capture->frame_fill = 0;
   __atomic_store_n(&capture->source_attached, false, __ATOMIC_RELEASE);
   __atomic_store_n(&capture->sink_started, false, __ATOMIC_RELEASE);
@@ -106,8 +106,8 @@ int bkvoice_capture_start(
   __atomic_store_n(&capture->last_error, 0, __ATOMIC_RELEASE);
   __atomic_store_n(&capture->stop_requested, false, __ATOMIC_RELEASE);
   __atomic_store_n(&capture->run_started, false, __ATOMIC_RELEASE);
-  capture->live_observer = NULL;
-  capture->live_observer_context = NULL;
+  capture->frame_filter = NULL;
+  capture->frame_filter_context = NULL;
   memcpy(&capture->token, token, sizeof(*token));
 
   ret = capture->source_ops.attach(capture->source_context);
@@ -241,8 +241,9 @@ int bkvoice_capture_prefill(
       ret = capture->sink_ops.audio(
         capture->sink_context, &capture->token, capture->frame,
         sizeof(capture->frame));
-      if (ret < 0)
+      if (ret != 0)
         {
+          if (ret > 0) ret = -ENOSPC;
           goto failed;
         }
 
@@ -263,9 +264,9 @@ failed:
   return bkvoice_capture_prefill_abort(capture, ret);
 }
 
-int bkvoice_capture_set_live_observer(
+int bkvoice_capture_set_frame_filter(
   struct bkvoice_capture_s *capture,
-  bkvoice_capture_live_observer_t observer, void *context)
+  bkvoice_capture_frame_filter_t observer, void *context)
 {
   if (capture == NULL || observer == NULL)
     {
@@ -283,13 +284,13 @@ int bkvoice_capture_set_live_observer(
       return -EBUSY;
     }
 
-  if (capture->live_observer != NULL)
+  if (capture->frame_filter != NULL)
     {
       return -EALREADY;
     }
 
-  capture->live_observer = observer;
-  capture->live_observer_context = context;
+  capture->frame_filter = observer;
+  capture->frame_filter_context = context;
   return 0;
 }
 
@@ -406,6 +407,22 @@ int bkvoice_capture_run(struct bkvoice_capture_s *capture)
       capture->frame_fill += (size_t)nread;
       if (capture->frame_fill == BKVOICE_CAPTURE_FRAME_BYTES)
         {
+          if (capture->frame_filter != NULL)
+            {
+              ret = capture->frame_filter(capture->frame_filter_context,
+                                           &capture->token, capture->frame);
+              if (ret < 0)
+                {
+                  first = ret;
+                  break;
+                }
+              if (ret == 0)
+                {
+                  capture->frame_fill = 0;
+                  continue;
+                }
+            }
+
           if (__atomic_load_n(&capture->frames_sent, __ATOMIC_ACQUIRE) ==
               UINT32_MAX ||
               __atomic_load_n(&capture->bytes_sent, __ATOMIC_ACQUIRE) >
@@ -429,13 +446,11 @@ int bkvoice_capture_run(struct bkvoice_capture_s *capture)
           (void)__atomic_add_fetch(&capture->bytes_sent,
                                    BKVOICE_CAPTURE_FRAME_BYTES,
                                    __ATOMIC_RELEASE);
-          if (capture->live_observer != NULL)
-            {
-              capture->live_observer(capture->live_observer_context,
-                                     &capture->token, capture->frame);
-            }
-
           capture->frame_fill = 0;
+          if (ret > 0)
+            {
+              break;
+            }
         }
     }
 

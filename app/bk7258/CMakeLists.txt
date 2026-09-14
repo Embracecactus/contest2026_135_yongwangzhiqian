@@ -38,17 +38,23 @@ if(CONFIG_BK7258_APP_AGENT OR CONFIG_BK7258_VOICE_SERVICE)
 endif()
 
 if(CONFIG_BK7258_VOICE_SERVICE)
+  if(CONFIG_MEDIA)
+    include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/media_trigger.cmake)
+    target_sources(apps PRIVATE bk7258_voice_media.c)
+  endif()
   target_sources(apps PRIVATE bk7258_voice_service.c bk7258_voice_pack.c
                               bk7258_voice_companion.c
                               bk7258_voice_capture.c
                               bk7258_voice_ptt.c
                               bk7258_voice_transport.c
-                              bk7258_voice_wss.c
-                              bk7258_voice_gateway.c
-                              bk7258_voice_session.c
                               bk7258_voice_turn.c
                               bk7258_voice_turn_audio.c)
+  if(CONFIG_BK7258_VOICE_LEGACY_GATEWAY)
+    target_sources(apps PRIVATE bk7258_voice_wss.c bk7258_voice_gateway.c
+                                bk7258_voice_session.c)
+  endif()
   if(CONFIG_BK7258_VOICE_TLS)
+    include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_provider.cmake)
     target_sources(apps PRIVATE bk7258_voice_tls.c bk7258_voice_config.c
                                bk7258_cloud_config.c bk7258_cloud_request.c bk7258_cloud_http.c bk7258_cloud_client.c bk7258_cloud_history.c bk7258_cloud_tts.c bk7258_cloud_playback.c bk7258_cloud_runtime.c
                                 bk7258_voice_runtime.c)
@@ -67,6 +73,7 @@ if(CONFIG_BK7258_VOICE_SERVICE)
                                 bk7258_voice_ota_flow.c)
   endif()
   if(CONFIG_BK7258_VOICE_KWS)
+    include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/tflm.cmake)
     set(BKVOICE_TFLM ${NUTTX_APPS_DIR}/mlearning/tflite-micro/tflite-micro)
     set(BKVOICE_FRONTEND ${BKVOICE_TFLM}/tensorflow/lite/experimental/microfrontend/lib)
     set(BKVOICE_FRONTEND_SOURCES
@@ -78,17 +85,19 @@ if(CONFIG_BK7258_VOICE_SERVICE)
     target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_voice_kws_frontend.c
                                 bk7258_voice_kws_model.cc
                                 bk7258_voice_wake_window.c
-                                bk7258_voice_wake_listener.c
-                                bk7258_voice_wake_owner.c
                                 ${BKVOICE_FRONTEND_SOURCES})
     target_include_directories(apps PRIVATE ${BKVOICE_TFLM}
         ${NUTTX_APPS_DIR}/math/kissfft/kissfft)
     # TfLiteTensor layout and kernel selection must match the runtime library.
-    set_property(SOURCE bk7258_voice_kws_model.cc APPEND PROPERTY COMPILE_OPTIONS
+    set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/bk7258_voice_kws_model.cc"
+                 TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_OPTIONS
                  "$<TARGET_PROPERTY:tflite_micro,COMPILE_OPTIONS>")
     target_link_libraries(apps PRIVATE tflite_micro)
     if(CONFIG_BK7258_VOICE_WAKE_RUNTIME)
-      target_sources(apps PRIVATE bk7258_voice_wake_session.c)
+      target_sources(apps PRIVATE bk7258_voice_wake_session.c
+                                  bk7258_voice_wake_listener.c
+                                  bk7258_voice_wake_owner.c
+                                  bk7258_voice_trigger_model.c)
     endif()
   endif()
 endif()

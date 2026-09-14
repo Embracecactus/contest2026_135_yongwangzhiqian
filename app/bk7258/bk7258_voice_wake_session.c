@@ -16,23 +16,14 @@
 #include <mbedtls/sha256.h>
 
 #define BKVOICE_WAKE_SHA256_HEX_BYTES 64u
-#define BKVOICE_WAKE_ARENA_MIN_BYTES (16u * 1024u)
-#define BKVOICE_WAKE_ARENA_MAX_BYTES (512u * 1024u)
 
 struct bkvoice_wake_session_s
 {
-  struct bkvoice_kws_model_s *model;
-  struct bkvoice_kws_s kws;
   struct bkvoice_wake_window_s window;
   struct bkvoice_wake_listener_s listener;
   struct bkvoice_wake_owner_s owner;
   unsigned char *model_bytes;
-  void *arena_allocation;
-  void *arena;
-  int16_t *pre_roll;
   size_t model_size;
-  size_t arena_size;
-  bool kws_initialized;
   bool window_initialized;
   bool listener_initialized;
   bool owner_initialized;
@@ -152,23 +143,12 @@ out:
 
 static void release_allocations(struct bkvoice_wake_session_s *session)
 {
-  if (session->arena_allocation != NULL)
-    {
-      mbedtls_platform_zeroize(session->arena_allocation,
-                               session->arena_size + 15u);
-      free(session->arena_allocation);
-    }
   if (session->model_bytes != NULL)
     {
       mbedtls_platform_zeroize(session->model_bytes, session->model_size);
       free(session->model_bytes);
     }
-  if (session->pre_roll != NULL)
-    {
-      mbedtls_platform_zeroize(session->pre_roll,
-        BKVOICE_WAKE_PRE_ROLL_SAMPLES * sizeof(*session->pre_roll));
-      free(session->pre_roll);
-    }
+
 }
 
 static void close_partial(struct bkvoice_wake_session_s *session)
@@ -179,8 +159,6 @@ static void close_partial(struct bkvoice_wake_session_s *session)
     (void)bkvoice_wake_listener_uninitialize(&session->listener);
   if (session->window_initialized)
     bkvoice_wake_window_uninitialize(&session->window);
-  if (session->kws_initialized) bkvoice_kws_uninitialize(&session->kws);
-  bkvoice_kws_model_close(session->model);
   release_allocations(session);
   mbedtls_platform_zeroize(session, sizeof(*session));
   free(session);
@@ -190,24 +168,16 @@ int bkvoice_wake_session_open(struct bkvoice_wake_session_s **output,
   const struct bkvoice_wake_session_config_s *config,
   struct bkvoice_ptt_s *ptt, struct bkcloud_runtime_s *cloud, sem_t *wake)
 {
-  static const struct bkvoice_kws_policy_s kws_policy =
-    {.threshold = .90f, .release_threshold = .20f, .consecutive = 2,
-     .cooldown_ms = 1000u};
   static const struct bkvoice_wake_window_policy_s window_policy =
     {.minimum_speech_mean_abs = 200u, .speech_to_noise_q8 = 384u,
-     .speech_confirm_frames = 3u, .silence_end_frames = 25u,
+     .speech_confirm_frames = 3u, .wake_quiet_frames = 8u,
+     .silence_end_frames = 25u,
      .no_speech_frames = 250u, .maximum_turn_frames = 1500u};
   struct bkvoice_wake_session_s *session;
-  struct bkvoice_kws_model_spec_s spec;
-  uintptr_t aligned;
   int ret;
 
   if (output == NULL || *output != NULL || config == NULL || ptt == NULL ||
-      !ptt->initialized || cloud == NULL || wake == NULL ||
-      config->arena_bytes < BKVOICE_WAKE_ARENA_MIN_BYTES ||
-      config->arena_bytes > BKVOICE_WAKE_ARENA_MAX_BYTES ||
-      config->listener_stack_size == 0 ||
-      config->listener_join_timeout_ms == 0)
+      !ptt->initialized || cloud == NULL || wake == NULL)
     return -EINVAL;
 
   session = calloc(1, sizeof(*session));
@@ -217,38 +187,11 @@ int bkvoice_wake_session_open(struct bkvoice_wake_session_s **output,
           &session->model_size);
   if (ret < 0) { close_partial(session); return ret; }
 
-  session->arena_size = config->arena_bytes;
-  session->arena_allocation = malloc(session->arena_size + 15u);
-  session->pre_roll = calloc(BKVOICE_WAKE_PRE_ROLL_SAMPLES,
-                             sizeof(*session->pre_roll));
-  if (session->arena_allocation == NULL || session->pre_roll == NULL)
-    { close_partial(session); return -ENOMEM; }
-  aligned = ((uintptr_t)session->arena_allocation + 15u) & ~(uintptr_t)15u;
-  session->arena = (void *)aligned;
-
-  memset(&spec, 0, sizeof(spec));
-  spec.data = session->model_bytes;
-  spec.bytes = session->model_size;
-  spec.frontend = BKVOICE_KWS_FRONTEND_ID;
-  spec.labels[0] = "silence";
-  spec.labels[1] = "unknown";
-  spec.labels[2] = BKVOICE_KWS_LABEL;
-  ret = bkvoice_kws_model_open(&spec, session->arena, session->arena_size,
-                               &session->model);
-  if (ret < 0) { close_partial(session); return ret; }
-  ret = bkvoice_kws_initialize(&session->kws, &kws_policy,
-                               bkvoice_kws_model_infer, session->model);
-  if (ret < 0) { close_partial(session); return ret; }
-  session->kws_initialized = true;
-  ret = bkvoice_wake_window_initialize(&session->window, session->pre_roll,
-          BKVOICE_WAKE_PRE_ROLL_SAMPLES, &window_policy);
+  ret = bkvoice_wake_window_initialize(&session->window, &window_policy);
   if (ret < 0) { close_partial(session); return ret; }
   session->window_initialized = true;
   ret = bkvoice_wake_listener_initialize(&session->listener,
-          &ptt->turn.ops, ptt->turn.audio_context,
-          &ptt->source_ops, ptt->source_context, &session->kws,
-          &session->window, wake, config->listener_stack_size,
-          config->listener_join_timeout_ms);
+          session->model_bytes, session->model_size, &session->window, wake);
   if (ret < 0) { close_partial(session); return ret; }
   session->listener_initialized = true;
   ret = bkvoice_wake_owner_initialize(&session->owner, &session->listener,
@@ -296,13 +239,6 @@ int bkvoice_wake_session_close(struct bkvoice_wake_session_s **sessionp)
       bkvoice_wake_window_uninitialize(&session->window);
       session->window_initialized = false;
     }
-  if (session->kws_initialized)
-    {
-      bkvoice_kws_uninitialize(&session->kws);
-      session->kws_initialized = false;
-    }
-  bkvoice_kws_model_close(session->model);
-  session->model = NULL;
   release_allocations(session);
   mbedtls_platform_zeroize(session, sizeof(*session));
   free(session);

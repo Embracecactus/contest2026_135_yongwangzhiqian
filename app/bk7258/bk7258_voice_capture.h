@@ -24,7 +24,7 @@ typedef int (*bkvoice_capture_prefill_read_t)(
   void *context, size_t frame_index,
   uint8_t pcm[BKVOICE_CAPTURE_FRAME_BYTES]);
 
-typedef void (*bkvoice_capture_live_observer_t)(
+typedef int (*bkvoice_capture_frame_filter_t)(
   void *context, const struct bkvoice_turn_token_s *token,
   const uint8_t pcm[BKVOICE_CAPTURE_FRAME_BYTES]);
 
@@ -49,6 +49,10 @@ struct bkvoice_capture_sink_ops_s
 {
   int (*start)(void *context,
                const struct bkvoice_turn_token_s *token);
+  /* Zero accepts a frame and continues; positive accepts the final live
+   * frame. run() then detaches without publishing end or releasing the MIC:
+   * the owner must still join and complete the turn. Prefill requires zero.
+   */
   int (*audio)(void *context,
                const struct bkvoice_turn_token_s *token,
                const uint8_t *pcm, size_t bytes);
@@ -81,8 +85,8 @@ struct bkvoice_capture_s
   struct bkvoice_turn_token_s token;
   void *source_context;
   void *sink_context;
-  bkvoice_capture_live_observer_t live_observer;
-  void *live_observer_context;
+  bkvoice_capture_frame_filter_t frame_filter;
+  void *frame_filter_context;
   uint8_t frame[BKVOICE_CAPTURE_FRAME_BYTES];
   uint32_t frames_sent;
   uint32_t prefill_frames_sent;
@@ -124,15 +128,15 @@ int bkvoice_capture_prefill(
   struct bkvoice_capture_s *capture,
   bkvoice_capture_prefill_read_t read_frame, void *context,
   size_t frames);
-/* Install a synchronous, read-only observer before run().  It is called only
- * after a complete live frame has been accepted by the sink; prefill frames
- * are excluded.  The callback may publish a bounded event but must not stop,
- * complete or cancel this capture from the worker context.
+/* Decide before a complete live frame reaches the sink: positive accepts,
+ * zero discards, negative fails the capture. Prefill is a separate explicit
+ * input and is excluded. The callback may publish a bounded event but must
+ * not stop, complete or cancel capture from the worker context.
  */
 
-int bkvoice_capture_set_live_observer(
+int bkvoice_capture_set_frame_filter(
   struct bkvoice_capture_s *capture,
-  bkvoice_capture_live_observer_t observer, void *context);
+  bkvoice_capture_frame_filter_t observer, void *context);
 int bkvoice_capture_run(struct bkvoice_capture_s *capture);
 int bkvoice_capture_request_stop(struct bkvoice_capture_s *capture);
 int bkvoice_capture_complete(struct bkvoice_capture_s *capture);

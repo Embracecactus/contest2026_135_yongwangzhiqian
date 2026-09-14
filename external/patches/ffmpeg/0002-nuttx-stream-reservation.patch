@@ -1,0 +1,175 @@
+Subject: [PATCH] avdevice/nuttx: reacquire reservations for subsequent streams
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Base: open-vela/external_ffmpeg 4b4723f2f66ccfdbadbd5d4c52dd5c41d6116418
+
+Track the reservation owned by this device object across asynchronous drain,
+failed preparation and re-open. Reopen the public NuttX file after a
+released session to discard stale upper-half preparation state. Reset the per-stream DTS origin and discard
+an aborted packet when finishing so it cannot enter the next voice turn.
+
+--- a/libavdevice/nuttx.h
++++ b/libavdevice/nuttx.h
+@@ -42,6 +42,7 @@
+     bool            nonblock;
+     bool            stopped;      ///< stop required by apps
+     bool            running;
++    bool            reserved;
+     bool            draining;
+     bool            paused;
+     bool            ioerr;
+--- a/libavdevice/nuttx.c
++++ b/libavdevice/nuttx.c
+@@ -515,6 +515,18 @@
+     return ret;
+ }
+ 
++static int ff_nuttx_release(NuttxPriv *priv)
++{
++    int ret;
++
++    if (!priv->reserved)
++        return 0;
++    ret = ff_nuttx_ioctl(priv->fd, AUDIOIOC_RELEASE, 0);
++    if (ret >= 0)
++        priv->reserved = false;
++    return ret;
++}
++
+ int ff_nuttx_init(NuttxPriv *priv, const char *device, bool playback)
+ {
+     int ret;
+@@ -525,6 +537,7 @@
+     };
+ 
+     /* open device */
++    priv->mq = -1;
+     priv->fd = open(device, O_RDWR | O_CLOEXEC);
+     if (priv->fd < 0)
+         return AVERROR(errno);
+@@ -533,6 +546,8 @@
+     ret = ff_nuttx_ioctl(priv->fd, AUDIOIOC_RESERVE, 0);
+     if (ret < 0)
+         goto out;
++
++    priv->reserved = true;
+ 
+     /* create message queue */
+     snprintf(priv->mqname, sizeof(priv->mqname), "/tmp/%p", priv);
+@@ -557,13 +572,12 @@
+ 
+ void ff_nuttx_deinit(NuttxPriv *priv)
+ {
+-    if (priv->fd < 0)
+-        return;
+-
+-    ff_nuttx_close(priv, false);
++    if (priv->fd >= 0)
++        ff_nuttx_close(priv, false);
+ 
+     if (priv->mq >= 0) {
+-        ff_nuttx_ioctl(priv->fd, AUDIOIOC_UNREGISTERMQ, 0);
++        if (priv->fd >= 0)
++            ff_nuttx_ioctl(priv->fd, AUDIOIOC_UNREGISTERMQ, 0);
+ 
+         mq_close(priv->mq);
+         priv->mq = -1;
+@@ -571,9 +585,10 @@
+         mq_unlink(priv->mqname);
+     }
+ 
+-    ff_nuttx_ioctl(priv->fd, AUDIOIOC_RELEASE, 0);
+-
+-    close(priv->fd);
++    ff_nuttx_release(priv);
++
++    if (priv->fd >= 0)
++        close(priv->fd);
+     priv->fd = -1;
+ }
+ 
+@@ -586,6 +601,27 @@
+ 
+     if (priv->running || priv->draining)
+         return AVERROR(EAGAIN);
++
++    /* A persistent device object can serve many streams. Completion releases
++     * the previous reservation; acquire a new one before configuring again.
++     */
++    if (!priv->reserved) {
++        /* RELEASE ends the lower-half session, while a retained NuttX file
++         * can still carry upper-half PREPARED/DRAINING state. Reopen after
++         * the completed drain so CONFIGURE reaches the new session instead
++         * of accepting the previous file's cached preparation.
++         */
++        if (priv->fd >= 0)
++            close(priv->fd);
++        priv->fd = open(priv->devname, O_RDWR | O_CLOEXEC);
++        if (priv->fd < 0)
++            return AVERROR(errno);
++        ret = ff_nuttx_ioctl(priv->fd, AUDIOIOC_RESERVE, 0);
++        if (ret < 0)
++            return ret;
++        priv->reserved = true;
++    }
++    priv->ioerr = false;
+ 
+     bps = av_get_bits_per_sample(priv->codec);
+     if (bps == 0)
+@@ -606,7 +642,7 @@
+     av_log(NULL, AV_LOG_INFO, "[%s][%s] configure, sr:%"PRIu32" ch:%d ret:%d\n",
+         __func__, priv->devname, priv->sample_rate, priv->ch_layout.nb_channels, ret);
+     if (ret < 0)
+-        return ret;
++        goto out;
+ 
+     if (priv->periods) {
+         /* try to set BUFINFO and don't care the returns */
+@@ -702,6 +738,9 @@
+         if (nonblock)
+             break;
+     }
++
++    if (!priv->running && !priv->draining)
++        ff_nuttx_release(priv);
+ 
+     priv->paused = false;
+ }
+@@ -750,9 +789,11 @@
+             priv->draining = false;
+             if (priv->mq >= 0)
+                 ff_nuttx_ioctl(priv->fd, AUDIOIOC_UNREGISTERMQ, 0);
+-            if (!priv->running)
+-                ff_nuttx_ioctl(priv->fd, AUDIOIOC_RELEASE, NULL);
+-            else
++            if (!priv->running) {
++                ret = ff_nuttx_release(priv);
++                if (ret < 0)
++                    return ret;
++            } else
+                 return AVERROR_EXIT;
+         } else if (msg.msg_id == AUDIO_MSG_UNDERRUN) {
+             av_log(priv, AV_LOG_WARNING, "[%s][%s] underflow! pause.\n", __func__, priv->devname);
+--- a/libavdevice/nuttx_enc.c
++++ b/libavdevice/nuttx_enc.c
+@@ -86,8 +86,11 @@
+     av_channel_layout_copy(&priv->ch_layout, &st->codecpar->ch_layout);
+ 
+     ret = ff_nuttx_open(s1->priv_data);
+-    if (ret >= 0)
++    if (ret >= 0) {
++        /* The same graph device starts a new timestamp domain each stream. */
++        ffstream(st)->cur_dts = AV_NOPTS_VALUE;
+         avpriv_set_pts_info(st, 64, 1, priv->sample_rate);
++    }
+ 
+     return ret;
+ }
+@@ -98,6 +101,7 @@
+     NuttxPriv *priv = s1->priv_data;
+ 
+     ff_nuttx_close(priv);
++    av_packet_free(&priv->lastpkt);
+     priv->timestamp = 0;
+     if (sti->bsfc) {
+         av_bsf_flush(sti->bsfc);

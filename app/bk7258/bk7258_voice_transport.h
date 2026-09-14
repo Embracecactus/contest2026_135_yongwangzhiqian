@@ -14,6 +14,38 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+/* A successful open_verified() means that DNS/TCP/TLS has completed and the
+ * peer certificate chain, the exact host name and trusted wall-clock time
+ * have all been verified.  It also applies the deployment's client
+ * credential through an opaque provider/handle when that deployment requires
+ * one.  Implementations must fail closed; plaintext or verification-bypass
+ * modes are outside this interface.
+ *
+ * send()/recv() obey the absolute deadline passed by the session owner and
+ * may each have one concurrent caller.  interrupt() wakes either caller but
+ * does not release the stream.  close() is called only after both callers
+ * have joined; a negative close result means the owner may retry it.
+ *
+ * random() supplies cryptographically strong bytes.  sha1() is used only for
+ * RFC 6455 Sec-WebSocket-Accept validation; the target provider can bind it
+ * to the already selected TLS crypto implementation.
+ */
+
+struct bkvoice_wss_tls_ops_s
+{
+  int (*open_verified)(void *context, const char *host, uint16_t port,
+                       uint64_t deadline_ms);
+  ssize_t (*send)(void *context, const uint8_t *buffer, size_t bytes,
+                  uint64_t deadline_ms);
+  ssize_t (*recv)(void *context, uint8_t *buffer, size_t bytes,
+                  uint64_t deadline_ms);
+  int (*interrupt)(void *context);
+  int (*close)(void *context);
+  int (*random)(void *context, uint8_t *buffer, size_t bytes);
+  int (*sha1)(void *context, const uint8_t *buffer, size_t bytes,
+              uint8_t digest[20]);
+};
+
 struct bkvoice_transport_ops_s
 {
   int (*open)(void *context, uint64_t deadline_ms);

@@ -16,9 +16,6 @@ struct bkvoice_wake_session_config_s
 {
   const char *model_path;
   const char *model_sha256_hex;
-  size_t arena_bytes;
-  size_t listener_stack_size;
-  uint32_t listener_join_timeout_ms;
 };
 
 /* The configured path is fixed by the signed firmware.  The file itself is

@@ -20,8 +20,67 @@
 
 ## 来源分类
 
+本轮 Media Trigger 集成使用官方 Media 提交
+`fb7db0e9f826fb6d71937c948e7da1eb10ffc896` 的 `server/media_trigger.c`
+及公开 `media_trigger*.h`；团队 Apache-2.0 补丁
+`frameworks/patches/media/0001-trigger-resource-lifetime.patch` 修正 Trigger 资源生命周期，
+`0002-stream-io-lifetime.patch` 修正同版本 `client/media_graph.c` 的准备失败清理、
+短传输和可重试错误处理，均通过现有 CMake 构建副本应用。
+同版本的 `0003-wait-for-audio-route-format.patch` 与
+`0004-graph-error-recovery-progress.patch` 修改 `server/audio_graph.c`，
+处理格式协商和错误后的拆链；`0005-player-eof-drain.patch` 修改
+`server/media_player.c`，保留 EOF 后尚未播放的数据直到排空。均保留 Apache-2.0。
+`bk7258_voice_trigger_model.c` 为本项目适配，
+推理及前处理仍取下表 TFLM 版本。`frameworks/cmake/tflm.cmake` 选择 Ruy
+实际检出 `cf455c059506d2f64103d7cbb640b99e816b23c7` 的 Apache-2.0
+`ruy/profiler/instrumentation.cc` 组件，未复制矩阵引擎或另建线程池。
+板级 Media 音量命令依据实际 FFmpeg 检出
+`4b4723f2f66ccfdbadbd5d4c52dd5c41d6116418` 的 `libavfilter/asrc_abufsrc.c` 的
+`set_parameter` 与 `volume.c` 表达式解析接口；两者保留上游 LGPL-2.1-or-later。
+同一 FFmpeg 版本的 `libavfilter/asink_adevsink.c` 由团队
+`external/patches/ffmpeg/0001-adevsink-acknowledge-end-of-stream.patch`
+修正 EOF 确认和设备输出收尾，保留 LGPL-2.1-or-later；现有 BK7258 构建入口
+通过生成的 apps 源码视图交给官方 FFmpeg Make 规则编译，官方检出不修改。
+`0002-nuttx-stream-reservation.patch` 同样基于该版本、保留 LGPL-2.1-or-later，
+修复 `libavdevice/nuttx.[ch]`、`nuttx_enc.c` 的跨轮设备预留与输出时间戳生命周期。
+`0003-build-source-dependencies.patch` 基于 `open-vela/external`
+`f2c1425ef199e1dc7393a6b1d9ce14e52a430068` 的 `ffmpeg/CMakeLists.txt` 与
+`ffmpeg/Makefile`，保留 Apache-2.0；修正导入归档的同轮链接依赖，并使用编译器
+依赖文件跟踪实际输出对象的头文件变化，仍由原 CMake/Make 入口执行。
+`0004-asubgraph-preserve-drain-errors.patch` 基于上述 FFmpeg 版本的
+`libavfilter/af_asubgraph.c`，保留 LGPL-2.1-or-later；修复排空时赋值代替比较、
+调用者吞掉混音和内部输入错误的问题，由同一生成源码视图集成。
+`0005-aresample-report-invalid-configuration.patch` 基于同版本
+`libavfilter/af_aresample.c`，保留 LGPL-2.1-or-later；检查选项读取结果并保留
+采样率、格式及声道一致性条件，失败时返回真实错误，避免终止共享Media进程。
+`0006-opt-respect-format-enum-width.patch` 基于同版本 `libavutil/opt.c`，
+保留 LGPL-2.1-or-later；格式选项读取使用 API 声明的枚举类型，消除 ARM
+短枚举下的四字节越界读写，与已有数值读写处理一致，沿用同一源码视图。
+
+官方 Agent 扩展基于 `open-vela/packages_ai_agent` 提交
+`41723c61725c4e845bfee724f3ad2fafc416b6e1`，许可 Apache-2.0。
+`frameworks/patches/ai_agent/0001-request-scoped-provider.patch` 修改其
+`Kconfig`、`CMakeLists.txt`、`src/llm/llm_proxy.[ch]`、
+`src/core/agent_loop.c`，并提取 `src/core/agent_turn.[ch]`。
+对话消息、provider 封包与工具循环来自该官方实现；产品仅注入现有传输、期限、
+取消和当次摄像头接口。补丁由 `frameworks/cmake/agent_provider.cmake`
+应用到构建副本，不依赖官方检出中的本地修改。
+
+`nuttx/patches/fs/0002-drain-block-writes-before-sync-unmount.patch` 与
+`0003-support-fat-open-file-path.patch` 基于 `open-vela/nuttx`
+`76354c637858ecb0aa4601629327acb6f44a26bb` 的 `fs/fat/fs_fat32.[ch]`，
+保留 Apache-2.0，依次叠加既有 `0001` 补丁。它们分别补齐块设备同步收尾和
+`FIOC_FILEPATH`，由现有隔离构建补丁机制消费，不复制 FAT 实现。
+
+CP 蓝牙 `rand()` 中断适配依据本项目 440 ELF 的
+`lld_adv_frm_isr → rand → nrand` 调用及 manifest NuttX
+`76354c637858ecb0aa4601629327acb6f44a26bb` 的
+`libs/libc/stdlib/lib_srand.c`/`include/nuttx/spinlock.h`，调用既有
+`rand_r()`，未复制随机数算法或改变硬件熵源；适配代码 Apache-2.0。
+
 | 范围 | 来源与许可处理 |
 |---|---|
+| `app/bk7258/models/nihao_openvela.tflite` 与对应 metadata | 本项目通过既有 `voice kws train` 训练的通用合成语音候选，产品唤醒词为“你好，open-vela”；当前 v46 正例实际合成文本为“你好，open vila”，用于得到产品词 open-vela 的 /ˈoʊpən vˈiːlə/（维拉）发音；依据为同一 Kokoro/sherpa 运行时 ConvertTextToTokenIds 输出及模型 tokens.txt 反解，不以静态词典代替实际发音，不包含私人录音或声纹训练。标准 TTS 为 [Kokoro-82M-v1.1-zh](https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh) 的 sherpa-onnx 多语言 INT8 分发（模型 SHA256 `bda15858163726a492d02a9a727bc263551b86ac77f90812c4b30ff41d380e26`，Apache-2.0）；普通语音训练反例为 [Google FLEURS](https://huggingface.co/datasets/google/fleurs) `cmn_hans_cn` dev 的 30 条录音（CC-BY-4.0，保留 Google FLEURS 署名与许可）。训练和独立合成评估按原始音色、录音来源分组；实际生成提示、音素依据、速度覆盖、音频哈希与冻结 manifest 保存在交付模型资产中。当前 v46 沿用的背景资产包含 [Microsoft MS-SNSD](https://github.com/microsoft/MS-SNSD) 的 6 段 noise_train 录音切出的 72 个训练背景窗口；按其 Freesound CC0 / DEMAND CC-BY-SA-3.0 混合来源说明保留署名与许可，原项目缺少逐文件原始谱系映射，不能把这些素材统一宣称为 CC0。环境回归使用不同 noise_test 文件，但不能仅凭文件哈希不同宣称原始来源完全独立。它们均不作为真人目标词证据。真人泛化、实际端侧资源与声学效果仍须分别核验。 |
 | `nuttx/drivers/contactless/isodep.c`、`nuttx/include/nuttx/contactless/isodep.h` | 团队 Apache-2.0 实现，激活参数依据 ISO/IEC 14443-4:2018 第 5 节（公开预览）与 NXP AN12057 Rev. 1.2（2026-07-03）；不复制外部协议栈代码。 |
 | `nuttx/drivers/contactless/mfrc522.{c,h}`、`nuttx/include/nuttx/contactless/mfrc522_frame.h` 与 `nuttx/patches/contactless/0001-*` 至 `0005-*` | 基于 `https://github.com/open-vela/nuttx` 提交 `76354c637858ecb0aa4601629327acb6f44a26bb` 的 `drivers/contactless/mfrc522.{c,h}` 和 `include/nuttx/contactless/ioctl.h`（Apache-2.0），保留上游许可。团队差分提供错误传播、CRC_A 帧交换与超时控制；定时器行为参照 NXP MFRC522 Rev. 3.9（2016-04-27）手册 8.5、9.3.3.10 节，不复制手册正文。 |
 | `app/bk7258/bk7258_voice_kws*`、`tools/bk7258/_lib/voice_kws.py` 和对应 host tests | 本仓 Apache-2.0 适配；直接编译工作区 `apps/mlearning/tflite-micro/tflite-micro` 的 `tensorflow/lite/experimental/microfrontend/lib`，调用同树 `tensorflow/lite/micro/{micro_interpreter.h,micro_mutable_op_resolver.h}`（Apache-2.0），不复制前端或推理实现。本轮验证的实际 TFLM 提交为 `94f7cee178aeceb492a074b4e092db2706d7c9c2`；manifest 跟随 `openvela/dev-ai-contest-2026`，并非外层 Make 下载回退值 `cfa4c91…`。固定点 FFT 由上游 `kiss_fft_int16.cc` 编入现有 `apps/math/kissfft/kissfft` v130 的 `kiss_fft.c`、`tools/kiss_fftr.c` 及头文件，许可 BSD-3-Clause（Mark Borgerding，见该目录 `COPYING`）。候选 metadata 保存实际前端源/头内容哈希；发布时保留这些上游许可。训练采用 TensorFlow/Keras 2.15.1；真实语料与权重的许可和验收随资产独立提供。 |

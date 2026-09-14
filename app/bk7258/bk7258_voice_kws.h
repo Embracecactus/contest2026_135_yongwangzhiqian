@@ -13,7 +13,7 @@ extern "C"
 
 #define BKVOICE_KWS_CLASSES 3
 #define BKVOICE_KWS_WAKE_CLASS 2
-#define BKVOICE_KWS_INFER_HOPS 5
+#define BKVOICE_KWS_INFER_HOPS 15
 
 typedef int (*bkvoice_kws_infer_t)(void *context, const float *features,
                                   float scores[BKVOICE_KWS_CLASSES]);
@@ -25,6 +25,11 @@ struct bkvoice_kws_policy_s
   unsigned int consecutive;
   uint32_t cooldown_ms;
 };
+
+/* Existing product defaults, not a model quality claim. Host event evaluation
+ * and the wake session use this same policy; tune only on validation data.
+ */
+void bkvoice_kws_default_policy(struct bkvoice_kws_policy_s *policy);
 
 struct bkvoice_kws_s
 {
@@ -46,9 +51,9 @@ struct bkvoice_kws_s
 
 /* No recorder, task or Gateway is opened here. The AP audio owner supplies
  * ordered 20 ms frames and handles a returned wake event. Pausing flushes all
- * PCM/features; resuming or a timestamp gap requires a fresh two-second
+ * PCM/features; resuming or a timestamp gap requires a fresh three-second
  * window. Events must be rechecked against the owner's current IDLE state
- * and session generation before handing the MIC to the existing PTT path.
+ * and session generation before handing the MIC to the product voice turn.
  */
 
 /* Initialize an unused object. Call bkvoice_kws_uninitialize before reusing

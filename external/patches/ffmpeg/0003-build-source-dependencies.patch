@@ -1,0 +1,48 @@
+Subject: [PATCH] ffmpeg: track out-of-tree source and header dependencies
+
+SPDX-License-Identifier: Apache-2.0
+Base: open-vela/external f2c1425ef199e1dc7393a6b1d9ce14e52a430068
+Paths: ffmpeg/CMakeLists.txt, ffmpeg/Makefile (apply in ffmpeg wrapper)
+
+Keep the existing CMake/Make entry points. Source changes must update the
+imported archive before Ninja decides the final link; compiler-generated
+header dependencies must name the actual prefixed object files.
+
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -17,6 +17,21 @@
+ 
+   # call origin build system to generate libffmpeg
+   nuttx_call_apps_makefile(TARGET ffmpeg TARGET_BIN libffmpeg.a)
++
++  # The Make archive can change in ExternalProject's install step. Make
++  # source inputs normal dependencies so Ninja schedules the final link in
++  # the same invocation, instead of deciding from yesterday's archive.
++  file(GLOB_RECURSE ffmpeg_build_inputs FOLLOW_SYMLINKS CONFIGURE_DEPENDS
++       "${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg/*.c"
++       "${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg/*.h"
++       "${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg/*.S"
++       "${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg/*.asm"
++       "${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg/*.mak"
++       "${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg/*Makefile")
++  add_custom_command(
++    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libffmpeg.a APPEND
++    DEPENDS ${ffmpeg_build_inputs} ${CMAKE_CURRENT_SOURCE_DIR}/Makefile
++            ${CMAKE_CURRENT_SOURCE_DIR}/configure)
+ 
+   # only do register in cmake
+   macro(register_ffmpeg_app PROG)
+--- a/Makefile
++++ b/Makefile
+@@ -315,3 +315,11 @@
+ 	find ./ -name "*_list.c" | xargs rm -f
+ 
+ include $(APPDIR)/Application.mk
++
++# Compiler dependency files retain the full out-of-tree object target.
++# The generic mkdeps output can name only a basename when VPATH has several
++# entries, which does not match this module's PREFIX/subdirectory objects.
++CFLAGS += -MMD -MP
++
++$(COBJS) $(MAINCOBJ): Makefile
++-include $(COBJS:$(OBJEXT)=.d) $(MAINCOBJ:$(OBJEXT)=.d)
