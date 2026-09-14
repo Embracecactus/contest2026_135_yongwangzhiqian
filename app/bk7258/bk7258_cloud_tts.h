@@ -18,6 +18,9 @@ struct bkcloud_tts_s
   size_t line_size;
   size_t event_size;
   size_t total;
+  size_t audio_events;
+  size_t first_audio_bytes;
+  size_t max_audio_bytes;
   int error;
   bool stopped;
   bool done;

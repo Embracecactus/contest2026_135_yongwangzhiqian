@@ -38,6 +38,7 @@
 #include <driver/mailbox_channel.h>
 
 #include "bk7258_rptun_mbox.h"
+#include "bk7258_sdk_abi.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -597,6 +598,27 @@ int bk7258_rptun_mbox_initialize(void)
       nxsem_destroy(&g_bk7258_rptun_probe_sem);
       return -EIO;
     }
+
+#ifdef CONFIG_BK7258_AP_CORE
+  /* CP's SDK Flash driver sends start/finish on MB_CHNL_FLASH. The normal
+   * SDK Flash-client init registers this receiver; NuttX intentionally does
+   * not create that parallel storage client. Initialize just the actual SDK
+   * notification leaf so CP receives its peer's completion ACK. This is not
+   * a remote-CPU/XIP pause: media/storage admission remains with its owners.
+   */
+
+  ret = mb_flash_ipc_init();
+  if (ret != BK_OK)
+    {
+      mb_chnl_close(MB_CHNL_FLASH);
+      mb_chnl_close(BK7258_RPTUN_MBOX_CHANNEL);
+      mb_chnl_close(BK7258_PM_WAKE_MBOX_CHANNEL);
+      kthread_delete(pid);
+      nxsem_destroy(&g_bk7258_rptun_mbox_sem);
+      nxsem_destroy(&g_bk7258_rptun_probe_sem);
+      return -EIO;
+    }
+#endif
 
   bk7258_rptun_mbox_mark(BK7258_RPTUN_FLAG_AP_MBOX_CBS);
 

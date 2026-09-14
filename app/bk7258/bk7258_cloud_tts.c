@@ -116,6 +116,11 @@ static int event(struct bkcloud_tts_s *tts)
         }
       size_t decoded = size / 4 * 3 - padding;
       if (decoded % 2 || decoded > 90u * 24000u * 2u - tts->total) goto out;
+      if (decoded)
+        {
+          if (tts->audio_events++ == 0) tts->first_audio_bytes = decoded;
+          if (decoded > tts->max_audio_bytes) tts->max_audio_bytes = decoded;
+        }
       for (size_t offset = 0; offset < size; )
         {
           size_t chunk = size - offset;

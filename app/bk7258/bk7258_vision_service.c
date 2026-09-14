@@ -641,10 +641,6 @@ int bk7258_vision_capture_jpeg(uint8_t *destination,
 {
   struct bkvision_rpc_request_s request;
   struct bkvision_rpc_response_s response;
-  int ret;
-#ifdef CONFIG_BK7258_DISPLAY_SERVICE
-  struct bkvision_feedback_s feedback;
-#endif
 
   if (destination_size != NULL)
     {
@@ -660,16 +656,12 @@ int bk7258_vision_capture_jpeg(uint8_t *destination,
   memset(&request, 0, sizeof(request));
   memset(&response, 0, sizeof(response));
   request.command = BKVISION_RPC_SNAPSHOT;
-#ifdef CONFIG_BK7258_DISPLAY_SERVICE
-  bkvision_feedback_initialize(&feedback, &g_bkvision_feedback_ops);
-  bkvision_feedback_snapshot_begin(&feedback);
-#endif
-  ret = bkvision_capture(&request, &response, destination,
-                         destination_capacity, destination_size);
-#ifdef CONFIG_BK7258_DISPLAY_SERVICE
-  bkvision_feedback_snapshot_finish(&feedback, ret == 0);
-#endif
-  return ret;
+  /* The voice session owns its thinking/speaking/error presentation.  A
+   * nested snapshot must not render a second sequence or hold the cloud
+   * worker while a happy expression is displayed.  Standalone snapshot
+   * commands keep their feedback in bkvision_worker(). */
+  return bkvision_capture(&request, &response, destination,
+                           destination_capacity, destination_size);
 }
 
 static int bkvision_send(

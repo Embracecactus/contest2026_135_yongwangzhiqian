@@ -18,18 +18,21 @@ internal class DeviceControlProtocol(
         AUTH(1), STATUS(2), CANCEL(3), VOLUME(4), PERSONA(5), CLEAR_HISTORY(6),
         MEMORY_SET(7), MEMORY_DELETE(8), INFO(9), OTA_BEGIN(10), OTA_APPEND(11),
         OTA_START(12), OTA_STATUS(13), OTA_CANCEL(14),
+        CONFIG_READ(15), CONFIG_BEGIN(16), CONFIG_APPEND(17), CONFIG_APPLY(18), CONFIG_CANCEL(19),
     }
     data class FirmwareInfo(val major: Long, val minor: Long, val revision: Long,
                             val build: Long, val securityCounter: Long)
     data class OtaStatus(val state: Long?, val phase: Long?, val progress: Long?,
                          val total: Long?, val result: Int)
+    data class ConfigChunk(val totalLength: Int, val bytes: ByteArray)
     data class Snapshot(val error: Int, val ready: Boolean, val busy: Boolean,
                         val volume: Int?, val persona: Int?, val turn: Int?, val runtimeError: Int?,
                         val memorySupported: Boolean = false, val memoryEnabled: Boolean? = null,
                         val memoryPending: Boolean = false, val memoryFailed: Boolean = false,
                         val wifiReady: Boolean? = null, val infoSupported: Boolean = false,
                         val firmwareInfo: FirmwareInfo? = null,
-                        val otaSupported: Boolean = false, val otaStatus: OtaStatus? = null)
+                        val otaSupported: Boolean = false, val otaStatus: OtaStatus? = null,
+                        val publicConfigSupported: Boolean = false, val configChunk: ConfigChunk? = null)
     private val secret = key.copyOf().also { require(it.size == 32 && it.any { b -> b != 0.toByte() }) }
     private val input = ByteArray(40)
     private var used = 0
@@ -51,7 +54,7 @@ internal class DeviceControlProtocol(
 
     fun request(command: Command, value: Int = 0): Boolean {
         check(!closed && authenticated)
-        require(command != Command.AUTH && !command.isOta)
+        require(command != Command.AUTH && !command.isOta && !command.isConfig)
         require(when (command) {
             Command.VOLUME -> value in 0..100
             Command.PERSONA -> value in 0..4
@@ -73,6 +76,27 @@ internal class DeviceControlProtocol(
                 ByteBuffer.wrap(payload).int.toUInt().toLong() in 44L..3371L
             Command.OTA_APPEND -> payload.size in 1..32
             Command.OTA_START, Command.OTA_STATUS, Command.OTA_CANCEL -> payload.isEmpty()
+            else -> false
+        })
+        if (pending != null) return false
+        val copy = payload.copyOf()
+        try { transmit(command, copy) } finally { copy.fill(0) }
+        return true
+    }
+
+    fun requestPayload(command: Command, payload: ByteArray): Boolean {
+        check(!closed && authenticated)
+        require(command.isConfig)
+        require(when (command) {
+            Command.CONFIG_READ -> payload.size == 4 && ByteBuffer.wrap(payload).let {
+                val argument = it.int
+                val kind = argument ushr 16; val offset = argument and 0xffff
+                (kind in 1..2 && offset % 16 == 0) || (kind == 0x7fff && offset == 0) }
+            Command.CONFIG_BEGIN -> payload.size == 8 && ByteBuffer.wrap(payload).let {
+                val kind = it.int; val size = it.int
+                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65672; 3 -> size == 4; else -> false } }
+            Command.CONFIG_APPEND -> payload.size in 1..512
+            Command.CONFIG_APPLY, Command.CONFIG_CANCEL -> payload.isEmpty()
             else -> false
         })
         if (pending != null) return false
@@ -140,7 +164,17 @@ internal class DeviceControlProtocol(
                         complete(command, snapshot)
                         continue
                     }
-                    require(error <= 0 && flags and 16383 == flags)
+                    if (command == Command.CONFIG_READ) {
+                        require(error <= 0)
+                        val chunk = if (error == 0) {
+                            require(flags in 12..393)
+                            ConfigChunk(flags, input.copyOfRange(24, 40))
+                        } else null
+                        complete(command, Snapshot(error, false, false, null, null, null, null,
+                            configChunk = chunk))
+                        continue
+                    }
+                    require(error <= 0 && flags and 32767 == flags)
                     require(flags and 2048 == 0 || flags and 1024 != 0)
                     require(flags and 64 == 0 || flags and 32 != 0)
                     require(flags and 480 == 0 || flags and 512 != 0)
@@ -159,7 +193,8 @@ internal class DeviceControlProtocol(
                         flags and 512 != 0, (flags and 64 != 0).takeIf { flags and 32 != 0 },
                         flags and 128 != 0, flags and 256 != 0,
                         (flags and 2048 != 0).takeIf { flags and 1024 != 0 }, flags and 4096 != 0,
-                        otaSupported = flags and 8192 != 0)
+                        otaSupported = flags and 8192 != 0,
+                        publicConfigSupported = flags and 16384 != 0)
                     complete(command, snapshot)
                 }
             }
@@ -177,6 +212,8 @@ internal class DeviceControlProtocol(
 
     private val Command.isOta: Boolean
         get() = wire in Command.OTA_BEGIN.wire..Command.OTA_CANCEL.wire
+    private val Command.isConfig: Boolean
+        get() = wire in Command.CONFIG_READ.wire..Command.CONFIG_CANCEL.wire
 
     private fun Int.unsignedOrNull(): Long? =
         takeUnless { it == -1 }?.toUInt()?.toLong()

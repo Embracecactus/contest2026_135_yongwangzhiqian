@@ -74,6 +74,13 @@ int bkcloud_runtime_memory_owner(struct bkcloud_runtime_s *runtime,
  * after durable policy publication. Uncertain publication requires restart.
  */
 int bkcloud_runtime_memory_set(struct bkcloud_runtime_s *runtime, bool enabled, bool erase);
+/* MCP1 public model selection. Set is accepted asynchronously only while the
+ * runtime and PTT are quiescent. Read returns EAGAIN while it is pending and
+ * the actual persistence error after a failed or uncertain publication. */
+int bkcloud_runtime_models_read(struct bkcloud_runtime_s *runtime,
+                                uint8_t *out, size_t capacity, size_t *size);
+int bkcloud_runtime_models_set(struct bkcloud_runtime_s *runtime,
+                               const uint8_t *record, size_t size);
 /* Owner-thread, idle-only deletion of RAM conversation context. Never writes
  * storage or changes credentials/persona; does not delete provider-side logs.
  */

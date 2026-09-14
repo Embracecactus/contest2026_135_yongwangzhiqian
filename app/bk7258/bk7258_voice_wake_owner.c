@@ -4,6 +4,9 @@
 #include <errno.h>
 #include <string.h>
 #include <syslog.h>
+#ifdef CONFIG_BK7258_HAPTIC_SERVICE
+#include "bk7258_haptic_service.h"
+#endif
 
 static void publish(struct bkvoice_wake_owner_s *owner,
                     unsigned int event, int error)
@@ -212,6 +215,13 @@ static int begin_capture(struct bkvoice_wake_owner_s *owner)
   /* After auto_begin() succeeds, only its capture worker advances this
    * timestamp.  It is initialized before that worker is allowed to run. */
   owner->live_next_ms = snapshot.last_frame_ms;
+#ifdef CONFIG_BK7258_HAPTIC_SERVICE
+  /* The board inhibits its motor while MIC is live. Complete this short
+   * acknowledgement after listener stop and before acquiring capture. */
+  ret = bkhaptic_service_pulse_wait(35u);
+  if (ret < 0)
+    syslog(LOG_WARNING, "BKVOICE wake haptic=%d\n", ret);
+#endif
   /* Claim ownership before auto_begin(): a failure can still leave borrowed
    * capture state which only the normal cloud cancel/drain path may release. */
   owner->automatic_owned = true;

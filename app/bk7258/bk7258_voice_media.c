@@ -8,6 +8,7 @@
 #include <media_policy.h>
 #include <sched.h>
 #include <string.h>
+#include <stdint.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <syslog.h>
@@ -27,6 +28,61 @@ int bkvoice_media_source_set_active(const char *source, bool active)
   if (name == NULL || name[1] == '\0') return -EPROTO;
   return active ? media_policy_include("ActiveStreams", name + 1, MEDIA_POLICY_APPLY) :
                   media_policy_exclude("ActiveStreams", name + 1, MEDIA_POLICY_APPLY);
+}
+
+/* Official policy applies to the active Speaker graph as well as the next
+ * player. Physical keys and the turn adapter share this mapping/readback. */
+int bkvoice_media_volume(bool apply, unsigned int requested, unsigned int *volume)
+{
+  int minimum;
+  int maximum;
+  int index;
+  int observed;
+  int ret;
+
+  if (volume == NULL || (apply && requested > 100u))
+    {
+      return -EINVAL;
+    }
+
+  ret = media_policy_get_range(MEDIA_STREAM_MUSIC MEDIA_POLICY_VOLUME,
+                                &minimum, &maximum);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (minimum < 0 || maximum <= minimum)
+    {
+      return -ERANGE;
+    }
+
+  index = minimum + (int)(((uint64_t)requested *
+                           (maximum - minimum) + 50u) / 100u);
+  if (apply)
+    {
+      ret = media_policy_set_stream_volume(MEDIA_STREAM_MUSIC, index);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
+  ret = media_policy_get_stream_volume(MEDIA_STREAM_MUSIC, &observed);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (observed < minimum || observed > maximum ||
+      (apply && observed != index))
+    {
+      return -EIO;
+    }
+
+  *volume = (unsigned int)(((uint64_t)(observed - minimum) * 100u +
+                            (maximum - minimum) / 2u) / (maximum - minimum));
+  return 0;
 }
 
 int bkvoice_media_start(void)

@@ -40,7 +40,6 @@ struct gpio_ff_dev_s
   struct ff_lowerhalf_s lower;
   struct gpio_ff_config_s config;
   mutex_t power_lock;
-  spinlock_t lock;
   sem_t stop_sem;
   struct work_s work;
   struct wdog_s watchdog;
@@ -64,6 +63,18 @@ struct gpio_ff_dev_s
 
 static void gpio_ff_worker(void *arg);
 
+/* Keep the SMP critical-section bookkeeping out of every small state branch
+ * on constrained targets. The watchdog callback uses the same lock domain. */
+static noinline_function irqstate_t gpio_ff_lock(void)
+{
+  return enter_critical_section();
+}
+
+static noinline_function void gpio_ff_unlock(irqstate_t flags)
+{
+  leave_critical_section(flags);
+}
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -75,7 +86,10 @@ static void gpio_ff_drain_stop_sem(struct gpio_ff_dev_s *dev)
     }
 }
 
-/* The caller holds dev->lock with interrupts disabled. */
+/* Watchdog callbacks already hold the NuttX SMP critical section. Use that
+ * same reentrant lock for state and wd_start/wd_cancel: a private spinlock
+ * would invert its order against the watchdog and semaphore scheduler locks.
+ * Power changes and waits remain outside this short critical section. */
 
 static int gpio_ff_stop_locked(struct gpio_ff_dev_s *dev, bool wake_worker)
 {
@@ -113,13 +127,13 @@ static void gpio_ff_timeout(wdparm_t arg)
   struct gpio_ff_dev_s *dev = (struct gpio_ff_dev_s *)(uintptr_t)arg;
   irqstate_t flags;
 
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   if (!dev->destroyed)
     {
       gpio_ff_stop_locked(dev, true);
     }
 
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
 }
 
 static void gpio_ff_worker(void *arg)
@@ -135,20 +149,20 @@ static void gpio_ff_worker(void *arg)
 
   if (nxmutex_lock(&dev->power_lock) < 0)
     {
-      flags = spin_lock_irqsave(&dev->lock);
+      flags = gpio_ff_lock();
       dev->request = false;
       dev->inflight = false;
       dev->generation++;
       (void)dev->config.set_output(dev->config.arg, false);
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       return;
     }
 
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   if (!dev->request || dev->inhibited || dev->destroyed)
     {
       dev->inflight = false;
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       nxmutex_unlock(&dev->power_lock);
       return;
     }
@@ -156,30 +170,30 @@ static void gpio_ff_worker(void *arg)
   dev->request = false;
   generation = dev->generation;
   duration_ms = dev->duration_ms;
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
 
 #ifdef CONFIG_PM
   pm_stay(PM_IDLE_DOMAIN, PM_NORMAL);
   pm_held = true;
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   dev->pm_held = true;
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
 #endif
 
   ret = dev->config.set_power(dev->config.arg, true);
   if (ret < 0)
     {
-      flags = spin_lock_irqsave(&dev->lock);
+      flags = gpio_ff_lock();
       (void)dev->config.set_output(dev->config.arg, false);
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       goto power_off;
     }
 
   gpio_ff_drain_stop_sem(dev);
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   if (dev->generation != generation || dev->inhibited || dev->destroyed)
     {
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       goto power_off;
     }
 
@@ -192,7 +206,7 @@ static void gpio_ff_worker(void *arg)
   if (ret < 0)
     {
       (void)gpio_ff_stop_locked(dev, false);
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       goto power_off;
     }
 
@@ -201,26 +215,26 @@ static void gpio_ff_worker(void *arg)
   if (ret < 0)
     {
       (void)gpio_ff_stop_locked(dev, false);
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       goto power_off;
     }
 
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
 
   (void)nxsem_tickwait_uninterruptible(&dev->stop_sem,
                                        MSEC2TICK(duration_ms));
 
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   if (dev->generation == generation && dev->output_on)
     {
       (void)gpio_ff_stop_locked(dev, false);
     }
 
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
 
 power_off:
   /* Every route above has either not raised the output or has attempted
-   * to lower it under the spinlock.  A failed shutdown latches output_fault
+   * to lower it in the critical section.  A failed shutdown latches output_fault
    * and blocks further pulses.  Always release this driver's power vote.
    */
 
@@ -228,16 +242,16 @@ power_off:
 #ifdef CONFIG_PM
   if (pm_held)
     {
-      flags = spin_lock_irqsave(&dev->lock);
+      flags = gpio_ff_lock();
       dev->pm_held = false;
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       pm_relax(PM_IDLE_DOMAIN, PM_NORMAL);
     }
 #endif
 
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   dev->inflight = false;
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
 
   nxmutex_unlock(&dev->power_lock);
 }
@@ -260,22 +274,22 @@ static int gpio_ff_upload(struct ff_lowerhalf_s *lower,
       return -EINVAL;
     }
 
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   if (dev->destroyed)
     {
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       return -ENODEV;
     }
 
   if (dev->inflight || dev->output_on)
     {
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       return -EBUSY;
     }
 
   dev->duration_ms = effect->replay.length;
   dev->uploaded = true;
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
   return OK;
 }
 
@@ -290,10 +304,10 @@ static int gpio_ff_erase(struct ff_lowerhalf_s *lower, int effect_id)
       return -EINVAL;
     }
 
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   ret = gpio_ff_stop_locked(dev, true);
   dev->uploaded = false;
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
   return ret;
 }
 
@@ -309,7 +323,7 @@ static int gpio_ff_playback(struct ff_lowerhalf_s *lower, int effect_id,
       return -EINVAL;
     }
 
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   if (value == 0)
     {
       ret = gpio_ff_stop_locked(dev, true);
@@ -344,16 +358,16 @@ static int gpio_ff_playback(struct ff_lowerhalf_s *lower, int effect_id,
       dev->generation++;
     }
 
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
   if (ret == OK && value == 1 &&
       work_queue(LPWORK, &dev->work, gpio_ff_worker, dev, 0) < 0)
     {
-      flags = spin_lock_irqsave(&dev->lock);
+      flags = gpio_ff_lock();
       dev->request = false;
       dev->inflight = false;
       dev->generation++;
       (void)dev->config.set_output(dev->config.arg, false);
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       ret = -EIO;
     }
 
@@ -368,11 +382,11 @@ static void gpio_ff_destroy(struct ff_lowerhalf_s *lower)
   bool pm_held;
 #endif
 
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   dev->destroyed = true;
   dev->inhibited = true;
   gpio_ff_stop_locked(dev, true);
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
 
   (void)work_cancel_sync(LPWORK, &dev->work);
   (void)wd_cancel(&dev->watchdog);
@@ -381,10 +395,10 @@ static void gpio_ff_destroy(struct ff_lowerhalf_s *lower)
   (void)dev->config.set_power(dev->config.arg, false);
 
 #ifdef CONFIG_PM
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   pm_held = dev->pm_held;
   dev->pm_held = false;
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
   if (pm_held)
     {
       pm_relax(PM_IDLE_DOMAIN, PM_NORMAL);
@@ -480,10 +494,10 @@ int gpio_ff_inhibit(struct ff_lowerhalf_s *lower, bool inhibited)
       return -EINVAL;
     }
 
-  flags = spin_lock_irqsave(&dev->lock);
+  flags = gpio_ff_lock();
   if (dev->destroyed)
     {
-      spin_unlock_irqrestore(&dev->lock, flags);
+      gpio_ff_unlock(flags);
       return -ENODEV;
     }
 
@@ -493,7 +507,7 @@ int gpio_ff_inhibit(struct ff_lowerhalf_s *lower, bool inhibited)
       stop_ret = gpio_ff_stop_locked(dev, true);
     }
 
-  spin_unlock_irqrestore(&dev->lock, flags);
+  gpio_ff_unlock(flags);
   if (!inhibited)
     {
       return stop_ret;

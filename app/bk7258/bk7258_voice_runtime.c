@@ -11,8 +11,14 @@
 #include <arch/chip/bk7258_wifi.h>
 #endif
 #include "bk7258_voice_button.h"
+#ifdef CONFIG_MEDIA
+#include "bk7258_voice_media.h"
+#endif
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
 #include "bk7258_product_keys.h"
+#endif
+#ifdef CONFIG_BK7258_HAPTIC_SERVICE
+#include "bk7258_haptic_service.h"
 #endif
 #if defined(CONFIG_BK7258_PRODUCT_KEYS) && defined(CONFIG_BK7258_PM_SOFT_OFF)
 #include <arch/chip/bk7258_pm.h>
@@ -30,6 +36,8 @@
 #endif
 #ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
 #include "bk7258_voice_wake_session.h"
+#include "bk7258_voice_wake_package.h"
+#include <sys/stat.h>
 #endif
 #ifdef CONFIG_BK7258_OTA_MANAGER
 #include <arch/chip/bk7258_active_image.h>
@@ -223,6 +231,29 @@ struct bkvoice_runtime_s
   struct bkvoice_wake_session_s *wake_session;
   int wake_result;
   bool wake_attempted;
+  struct bkvoice_wake_package_descriptor_s wake_active;
+  struct bkvoice_wake_package_descriptor_s wake_previous;
+  struct bkvoice_wake_package_descriptor_s wake_desired;
+  struct bkvoice_wake_package_descriptor_s wake_loaded_previous;
+  uint64_t wake_revision;
+  uint64_t wake_loaded_revision;
+  pthread_t wake_package_worker;
+  uint8_t *wake_package_record;
+  size_t wake_package_size;
+  int wake_package_action;
+  int wake_package_result;
+  int wake_package_error;
+  bool wake_package_joinable;
+  bool wake_package_done;
+  bool wake_package_restored;
+  bool wake_package_uncertain;
+  unsigned int wake_package_phase;
+  size_t wake_active_size;
+  size_t wake_builtin_size;
+  size_t wake_previous_size;
+  size_t wake_desired_size;
+  size_t wake_loaded_previous_size;
+  char wake_candidate_sha256[65];
 #endif
 };
 
@@ -266,6 +297,9 @@ static void bkvoice_soft_off_mutation_leave(struct bkvoice_runtime_s *runtime)
 
 static int bkvoice_soft_off_admit(const struct bkvoice_runtime_s *runtime)
 {
+#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+  if (runtime->wake_package_phase || runtime->wake_package_joinable) return -EBUSY;
+#endif
 #ifdef BKVOICE_RUNTIME_OTA
   if (__atomic_load_n(&runtime->soft_off_mutations, __ATOMIC_ACQUIRE) != 0u)
     {
@@ -310,6 +344,241 @@ static int bkvoice_soft_off_admit(const struct bkvoice_runtime_s *runtime)
 #endif
 
 #ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+enum wake_package_action_e
+{
+  WAKE_PACKAGE_LOAD = 1, WAKE_PACKAGE_STAGE, WAKE_PACKAGE_COMMIT,
+  WAKE_PACKAGE_RECONCILE
+};
+enum wake_package_phase_e
+{
+  WAKE_PACKAGE_IDLE, WAKE_PACKAGE_IO, WAKE_PACKAGE_TRIAL,
+  WAKE_PACKAGE_COMMITTING, WAKE_PACKAGE_RESTORE, WAKE_PACKAGE_RECONCILING
+};
+
+static void wake_builtin(struct bkvoice_wake_package_descriptor_s *d)
+{
+  memset(d, 0, sizeof(*d));
+  snprintf(d->model_path, sizeof(d->model_path), "%s", CONFIG_BK7258_VOICE_KWS_MODEL_PATH);
+  snprintf(d->sha256_hex, sizeof(d->sha256_hex), "%s", CONFIG_BK7258_VOICE_KWS_MODEL_SHA256);
+  snprintf(d->label, sizeof(d->label), "%s", "nihao_openvela");
+  snprintf(d->phrase, sizeof(d->phrase), "%s", "你好，open-vela");
+}
+
+static int wake_file_size(const struct bkvoice_wake_package_descriptor_s *d, size_t *size)
+{
+  struct stat info;
+  *size = 0;
+  if (!d->model_path[0]) return 0;
+  if (stat(d->model_path, &info) < 0) return -errno;
+  if (!S_ISREG(info.st_mode) || info.st_size <= 0 ||
+      info.st_size > BKVOICE_WAKE_PACKAGE_MAX_MODEL) return -EBADMSG;
+  *size = info.st_size;
+  return 0;
+}
+
+static void *wake_package_work(void *context)
+{
+  struct bkvoice_runtime_s *r = context;
+  int ret;
+  if (r->wake_package_action == WAKE_PACKAGE_LOAD)
+    {
+      struct bkvoice_wake_package_descriptor_s builtin;
+      wake_builtin(&builtin);
+      (void)wake_file_size(&builtin, &r->wake_builtin_size);
+    }
+  if (r->wake_package_action == WAKE_PACKAGE_STAGE)
+    {
+      struct bkvoice_wake_package_s spec;
+      ret = bkvoice_wake_package_decode(r->wake_package_record, r->wake_package_size, &spec);
+      if (!ret) ret = bkvoice_wake_package_validate(&spec);
+      if (!ret) ret = bkvoice_wake_package_stage(&spec, &r->wake_desired);
+      if (!ret) r->wake_desired_size = spec.model_size;
+    }
+  else if (r->wake_package_action == WAKE_PACKAGE_COMMIT)
+    ret = bkvoice_wake_package_commit(&r->wake_desired, &r->wake_active, r->wake_revision);
+  else
+    {
+      ret = bkvoice_wake_package_load(&r->wake_desired, &r->wake_loaded_previous,
+                                       &r->wake_loaded_revision);
+      if (ret == -ENOENT && r->wake_package_action == WAKE_PACKAGE_LOAD)
+        {
+          wake_builtin(&r->wake_desired);
+          memset(&r->wake_loaded_previous, 0, sizeof(r->wake_loaded_previous));
+          r->wake_loaded_revision = 0;
+          ret = 0;
+        }
+      if (!ret) ret = wake_file_size(&r->wake_desired, &r->wake_desired_size);
+      if (!ret)
+        {
+          int prior = wake_file_size(&r->wake_loaded_previous, &r->wake_loaded_previous_size);
+          if (prior)
+            {
+              memset(&r->wake_loaded_previous, 0, sizeof(r->wake_loaded_previous));
+              r->wake_loaded_previous_size = 0;
+            }
+        }
+    }
+  r->wake_package_result = ret;
+  __atomic_store_n(&r->wake_package_done, true, __ATOMIC_RELEASE);
+  sem_post(r->wake);
+  return NULL;
+}
+
+static int wake_package_launch(struct bkvoice_runtime_s *r, int action)
+{
+  pthread_attr_t attr;
+  if (r->wake_package_joinable) return -EBUSY;
+  int ret = pthread_attr_init(&attr);
+  if (ret) return -ret;
+  ret = pthread_attr_setstacksize(&attr, 16384);
+  r->wake_package_action = action;
+  r->wake_package_result = 0;
+  __atomic_store_n(&r->wake_package_done, false, __ATOMIC_RELEASE);
+  if (!ret) ret = pthread_create(&r->wake_package_worker, &attr, wake_package_work, r);
+  pthread_attr_destroy(&attr);
+  if (!ret) r->wake_package_joinable = true;
+  return ret ? -ret : 0;
+}
+
+static int wake_open_selected(struct bkvoice_runtime_s *r,
+  const struct bkvoice_wake_package_descriptor_s *d, uint64_t now)
+{
+  struct bkvoice_wake_session_config_s config =
+    { .model_path = d->model_path, .model_sha256_hex = d->sha256_hex };
+  int ret = bkvoice_wake_session_open(&r->wake_session, &config, r->ptt, r->cloud, r->wake);
+  if (!ret) ret = bkvoice_wake_session_step(r->wake_session, true, now);
+  return ret;
+}
+
+/* One product thread performs all listener changes. The filesystem worker
+ * cannot acquire MIC/DAC or publish configuration. It returns staged inputs
+ * to this owner; callbacks from a retired listener have joined before trial.
+ */
+static bool wake_package_progress(struct bkvoice_runtime_s *r, uint64_t now)
+{
+  int ret;
+#ifdef BKVOICE_RUNTIME_SOFT_OFF
+  if (bkvoice_soft_off_pending(r)) return false;
+#endif
+  if (!r->wake_package_restored && !r->wake_package_phase)
+    {
+      if (!r->cloud || bkcloud_runtime_ready(r->cloud) <= 0 || !r->identity_bound)
+        return false;
+      ret = wake_package_launch(r, WAKE_PACKAGE_LOAD);
+      if (ret) { r->wake_package_error = ret; return false; }
+      r->wake_package_phase = WAKE_PACKAGE_IO;
+    }
+  if (r->wake_package_joinable)
+    {
+      if (!__atomic_load_n(&r->wake_package_done, __ATOMIC_ACQUIRE)) return true;
+      ret = pthread_join(r->wake_package_worker, NULL);
+      if (ret) { r->wake_package_error = -ret; return true; }
+      r->wake_package_joinable = false;
+      ret = r->wake_package_result;
+      if (r->wake_package_record)
+        {
+          mbedtls_platform_zeroize(r->wake_package_record, r->wake_package_size);
+          free(r->wake_package_record); r->wake_package_record = NULL;
+          r->wake_package_size = 0;
+        }
+      if (r->wake_package_action == WAKE_PACKAGE_LOAD)
+        {
+          if (ret)
+            {
+              wake_builtin(&r->wake_active);
+              r->wake_package_uncertain = true;
+              r->wake_package_error = ret;
+              r->wake_active_size = r->wake_builtin_size;
+              syslog(LOG_ERR, "BKVOICE wake model restore=%d fallback=builtin\n", ret);
+            }
+          else
+            {
+              r->wake_active = r->wake_desired;
+              r->wake_previous = r->wake_loaded_previous;
+              r->wake_active_size = r->wake_desired_size;
+              r->wake_previous_size = r->wake_loaded_previous_size;
+              r->wake_revision = r->wake_loaded_revision;
+            }
+          r->wake_package_restored = true;
+          r->wake_package_phase = WAKE_PACKAGE_IDLE;
+        }
+      else if (r->wake_package_action == WAKE_PACKAGE_STAGE)
+        {
+          r->wake_package_error = ret;
+          r->wake_package_phase = ret ? WAKE_PACKAGE_IDLE : WAKE_PACKAGE_TRIAL;
+        }
+      else if (r->wake_package_action == WAKE_PACKAGE_COMMIT)
+        {
+          if (!ret)
+            {
+              r->wake_previous = r->wake_active;
+              r->wake_previous_size = r->wake_active_size;
+              r->wake_active = r->wake_desired;
+              r->wake_active_size = r->wake_desired_size;
+              r->wake_revision++;
+              r->wake_package_error = 0;
+              r->wake_package_phase = WAKE_PACKAGE_IDLE;
+              syslog(LOG_NOTICE, "BKVOICE wake model activated label=%s revision=%llu\n",
+                     r->wake_active.label, (unsigned long long)r->wake_revision);
+            }
+          else if (ret == -EINPROGRESS)
+            {
+              r->wake_package_error = ret;
+              r->wake_package_phase = WAKE_PACKAGE_RECONCILING;
+              ret = wake_package_launch(r, WAKE_PACKAGE_RECONCILE);
+              if (ret)
+                { r->wake_package_uncertain = true; r->wake_package_phase = WAKE_PACKAGE_RESTORE; }
+            }
+          else
+            { r->wake_package_error = ret; r->wake_package_phase = WAKE_PACKAGE_RESTORE; }
+        }
+      else
+        {
+          if (!ret && !strcmp(r->wake_desired.sha256_hex, r->wake_candidate_sha256))
+            {
+              r->wake_active = r->wake_desired;
+              r->wake_previous = r->wake_loaded_previous;
+              r->wake_active_size = r->wake_desired_size;
+              r->wake_previous_size = r->wake_loaded_previous_size;
+              r->wake_revision = r->wake_loaded_revision;
+              r->wake_package_error = 0;
+              r->wake_package_phase = WAKE_PACKAGE_IDLE;
+            }
+          else
+            {
+              r->wake_package_uncertain = ret || strcmp(r->wake_desired.sha256_hex, r->wake_active.sha256_hex);
+              r->wake_package_phase = WAKE_PACKAGE_RESTORE;
+            }
+        }
+    }
+  if (r->wake_package_phase == WAKE_PACKAGE_TRIAL)
+    {
+      ret = bkvoice_wake_session_close(&r->wake_session);
+      if (ret) return true;
+      ret = wake_open_selected(r, &r->wake_desired, now);
+      if (!ret)
+        {
+          snprintf(r->wake_candidate_sha256, sizeof(r->wake_candidate_sha256), "%s", r->wake_desired.sha256_hex);
+          ret = wake_package_launch(r, WAKE_PACKAGE_COMMIT);
+        }
+      if (ret)
+        { r->wake_package_error = ret; r->wake_package_phase = WAKE_PACKAGE_RESTORE; }
+      else r->wake_package_phase = WAKE_PACKAGE_COMMITTING;
+    }
+  if (r->wake_package_phase == WAKE_PACKAGE_RESTORE)
+    {
+      ret = bkvoice_wake_session_close(&r->wake_session);
+      if (ret) return true;
+      ret = wake_open_selected(r, &r->wake_active, now);
+      r->wake_attempted = ret == 0;
+      r->wake_result = ret;
+      if (ret && bkvoice_wake_session_close(&r->wake_session)) return true;
+      r->wake_package_phase = WAKE_PACKAGE_IDLE;
+      syslog(LOG_WARNING, "BKVOICE wake model rollback result=%d cause=%d\n", ret, r->wake_package_error);
+    }
+  return r->wake_package_phase != WAKE_PACKAGE_IDLE;
+}
+
 static bool bkvoice_wake_committed(const struct bkvoice_runtime_s *runtime)
 {
   return runtime->cloud != NULL && runtime->config.initialized &&
@@ -319,7 +588,7 @@ static bool bkvoice_wake_committed(const struct bkvoice_runtime_s *runtime)
 
 static int bkvoice_wake_prepare(struct bkvoice_runtime_s *runtime)
 {
-  const struct bkvoice_wake_session_config_s config =
+  struct bkvoice_wake_session_config_s config =
   {
     .model_path = CONFIG_BK7258_VOICE_KWS_MODEL_PATH,
     .model_sha256_hex = CONFIG_BK7258_VOICE_KWS_MODEL_SHA256,
@@ -327,15 +596,59 @@ static int bkvoice_wake_prepare(struct bkvoice_runtime_s *runtime)
   int ret;
 
   if (runtime->wake_session != NULL) return 0;
+  if (!runtime->wake_package_restored || runtime->wake_package_phase) return -EAGAIN;
   if (runtime->wake_attempted) return runtime->wake_result;
   if (!bkvoice_wake_committed(runtime)) return -EAGAIN;
   ret = bkcloud_runtime_ready(runtime->cloud);
   if (ret <= 0) return ret < 0 ? ret : -EAGAIN;
 
   runtime->wake_attempted = true;
+  if (runtime->wake_active.model_path[0])
+    {
+      config.model_path = runtime->wake_active.model_path;
+      config.model_sha256_hex = runtime->wake_active.sha256_hex;
+    }
   ret = bkvoice_wake_session_open(&runtime->wake_session, &config,
                                   runtime->ptt, runtime->cloud,
                                   runtime->wake);
+  if (ret < 0 && strcmp(config.model_path, CONFIG_BK7258_VOICE_KWS_MODEL_PATH))
+    {
+      struct bkvoice_wake_package_descriptor_s fallback;
+      int original = ret;
+      size_t fallback_size = 0;
+
+      /* A valid activation record can outlive a damaged model file. Opening
+       * verifies bytes and tensors before acquiring MIC. Keep the durable
+       * revision, report the failure, and recover a runnable local model. */
+      if (runtime->wake_previous.model_path[0] &&
+          strcmp(runtime->wake_previous.sha256_hex, runtime->wake_active.sha256_hex))
+        {
+          fallback = runtime->wake_previous;
+          fallback_size = runtime->wake_previous_size;
+          config.model_path = fallback.model_path;
+          config.model_sha256_hex = fallback.sha256_hex;
+          ret = bkvoice_wake_session_open(&runtime->wake_session, &config,
+                                          runtime->ptt, runtime->cloud, runtime->wake);
+        }
+      if (ret < 0)
+        {
+          wake_builtin(&fallback);
+          fallback_size = runtime->wake_builtin_size;
+          config.model_path = fallback.model_path;
+          config.model_sha256_hex = fallback.sha256_hex;
+          ret = bkvoice_wake_session_open(&runtime->wake_session, &config,
+                                          runtime->ptt, runtime->cloud, runtime->wake);
+        }
+      if (ret == 0)
+        {
+          runtime->wake_active = fallback;
+          runtime->wake_active_size = fallback_size;
+          memset(&runtime->wake_previous, 0, sizeof(runtime->wake_previous));
+          runtime->wake_previous_size = 0;
+        }
+      runtime->wake_package_error = original;
+      syslog(LOG_WARNING, "BKVOICE wake model fallback cause=%d result=%d\n", original, ret);
+    }
   runtime->wake_result = ret;
   if (ret < 0)
     {
@@ -2210,7 +2523,13 @@ static void bkvoice_runtime_product_keys(struct bkvoice_runtime_s *runtime,
       unsigned int volume;
       int delta = (action & BKVOICE_PRODUCT_KEY_VOLUME_UP) != 0 ? 5 : -5;
 
+      /* Start from the actual policy step: a five-percent change from an
+       * unquantized stored value can otherwise select the same volume. */
+#ifdef CONFIG_MEDIA
+      ret = bkvoice_media_volume(false, 0, &volume);
+#else
       ret = bk7258_preferences_playback_volume(&volume);
+#endif
       if (ret == 0)
         {
           if (delta < 0)
@@ -2223,6 +2542,21 @@ static void bkvoice_runtime_product_keys(struct bkvoice_runtime_s *runtime,
             }
 
           ret = bk7258_preferences_set_volume(volume);
+#ifdef CONFIG_MEDIA
+          if (ret == 0)
+            {
+              unsigned int observed;
+              ret = bkvoice_media_volume(true, volume, &observed);
+              if (ret == 0) volume = observed;
+            }
+#endif
+          if (ret == 0)
+            {
+              syslog(LOG_NOTICE, "BKVOICE KEYS volume=%u stored=1\n", volume);
+#ifdef CONFIG_BK7258_HAPTIC_SERVICE
+              (void)bkhaptic_service_pulse(35u);
+#endif
+            }
         }
 
       if (ret < 0)
@@ -2514,6 +2848,12 @@ static int bkvoice_soft_off_progress(struct bkvoice_runtime_s *runtime)
       if (ret < 0) return bkvoice_soft_off_fail(runtime, ret);
     }
 
+  /* Capture interlocks have now released the motor. Finish the bounded
+   * shutdown acknowledgement before CP enters its one-shot sleep path. */
+#ifdef CONFIG_BK7258_HAPTIC_SERVICE
+  ret = bkhaptic_service_pulse_wait(100u);
+  if (ret < 0) syslog(LOG_WARNING, "BKVOICE power haptic=%d\n", ret);
+#endif
   sync();
   ret = bk7258_pm_soft_off_request();
   if (ret < 0)
@@ -2547,6 +2887,7 @@ static int bkvoice_runtime_clear(struct bkvoice_runtime_s *runtime)
 {
   int ret;
 #ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+  if (runtime->wake_package_phase || runtime->wake_package_joinable) return -EBUSY;
   ret = bkvoice_wake_close(runtime);
   if (ret < 0) return ret;
 #endif
@@ -3008,6 +3349,8 @@ static void bkvoice_control_progress(struct bkvoice_runtime_s *runtime)
     {
       ret = bkprov_owner_control(settings.control_key,
                                  bkvoice_runtime_control, runtime);
+      if (ret == 0)
+        ret = bkprov_owner_control_config(bkvoice_runtime_control_config);
 #ifdef BKVOICE_RUNTIME_OTA
       if (ret == 0)
         {
@@ -3302,6 +3645,9 @@ void bkvoice_runtime_step(bool command_link)
 #endif
 #endif
 
+#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+  if (wake_package_progress(runtime, now)) return;
+#endif
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
   /* Product keys are never a provisioning confirmation or a PTT level. */
   bkvoice_runtime_product_keys(runtime, now);
@@ -3631,6 +3977,9 @@ void bkvoice_runtime_step(bool command_link)
  */
 static bool bkvoice_runtime_volume_busy(void)
 {
+#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+  if (g_runtime.wake_package_phase || g_runtime.wake_package_joinable) return true;
+#endif
 #ifdef BKVOICE_RUNTIME_SOFT_OFF
   if (bkvoice_soft_off_pending(&g_runtime)) return true;
 #endif
@@ -3756,11 +4105,18 @@ int bkvoice_runtime_control(void *context, enum bkcontrol_command_e command,
       (cloud.memory_known ? 32u : 0u) | (cloud.memory_enabled ? 64u : 0u) |
       (cloud.memory_pending ? 128u : 0u) | (cloud.memory_failed ? 256u : 0u) |
       (cloud.memory_supported ? 512u : 0u);
+#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+  if (g_runtime.wake_package_phase || g_runtime.wake_package_joinable)
+    status->flags |= 2u;
+#endif
 #ifdef CONFIG_BK7258_OTA_MANAGER
   status->flags |= 4096u;
 #endif
 #ifdef BKVOICE_RUNTIME_OTA
   status->flags |= 8192u;
+#endif
+#if defined(CONFIG_BK7258_PROVISION_GATT) && defined(CONFIG_BK7258_PREFERENCES)
+  status->flags |= 16384u;
 #endif
 #ifdef CONFIG_BK7258_WIFI_VNET
   /* A coherent local link snapshot plus the AP lease, not an Internet or
@@ -3811,6 +4167,138 @@ int bkvoice_runtime_control(void *context, enum bkcontrol_command_e command,
     }
 #endif
   return 0;
+}
+
+#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+static void wake_wire_u32(uint8_t *p, uint32_t n)
+{ p[0] = n >> 24; p[1] = n >> 16; p[2] = n >> 8; p[3] = n; }
+
+static void wake_wire_descriptor(uint8_t *p,
+  const struct bkvoice_wake_package_descriptor_s *d, size_t size)
+{
+  memset(p, 0, BKVOICE_WAKE_PACKAGE_HEADER);
+  if (!d->model_path[0] || !size) return;
+  memcpy(p, "WKM1", 4);
+  wake_wire_u32(p + 4, size);
+  for (size_t i = 0; i < 32; i++)
+    {
+      unsigned int value = 0;
+      (void)sscanf(d->sha256_hex + 2 * i, "%2x", &value);
+      p[8 + i] = value;
+    }
+  memcpy(p + 40, d->label, sizeof(d->label));
+  memcpy(p + 72, d->phrase, sizeof(d->phrase));
+}
+
+static int wake_package_control(struct bkvoice_runtime_s *r,
+  enum bkcontrol_command_e command, uint32_t kind, uint32_t offset,
+  const uint8_t *record, size_t size, struct bkcontrol_status_s *status)
+{
+  int ret;
+#ifdef BKVOICE_RUNTIME_SOFT_OFF
+  if (bkvoice_soft_off_pending(r)) return -ESHUTDOWN;
+#endif
+  if (!r->wake_package_restored) return -EAGAIN;
+  if (command == BKCONTROL_CONFIG_READ)
+    {
+      uint8_t wire[12u + 2u * BKVOICE_WAKE_PACKAGE_HEADER] = {'W','K','S','1'};
+      if (kind != BKCONTROL_CONFIG_WAKE_MODEL || offset >= sizeof(wire) || (offset & 15u)) return -ERANGE;
+      wake_wire_u32(wire + 4, r->wake_package_phase ? 1 : 0);
+      wake_wire_u32(wire + 8, r->wake_package_phase ? 0 : (uint32_t)r->wake_package_error);
+      wake_wire_descriptor(wire + 12, &r->wake_active, r->wake_active_size);
+      wake_wire_descriptor(wire + 12 + BKVOICE_WAKE_PACKAGE_HEADER, &r->wake_previous, r->wake_previous_size);
+      status->config_total = sizeof(wire);
+      memset(status->config_chunk, 0, sizeof(status->config_chunk));
+      size_t count = sizeof(wire) - offset;
+      if (count > sizeof(status->config_chunk)) count = sizeof(status->config_chunk);
+      memcpy(status->config_chunk, wire + offset, count);
+      return 0;
+    }
+  if (command != BKCONTROL_CONFIG_BEGIN && command != BKCONTROL_CONFIG_APPLY) return -EINVAL;
+  if (r->wake_package_uncertain) return -EINPROGRESS;
+  if (bkvoice_runtime_settings_busy() || bkvoice_runtime_busy()) return -EBUSY;
+  if ((kind == BKCONTROL_CONFIG_WAKE_MODEL && (size <= BKVOICE_WAKE_PACKAGE_HEADER ||
+       size > BKVOICE_WAKE_PACKAGE_HEADER + BKVOICE_WAKE_PACKAGE_MAX_MODEL)) ||
+      (kind == BKCONTROL_CONFIG_WAKE_RESTORE && size != 4)) return -EMSGSIZE;
+  if (kind == BKCONTROL_CONFIG_WAKE_RESTORE && !r->wake_previous.model_path[0]) return -ENOENT;
+  if (command == BKCONTROL_CONFIG_BEGIN) return bkvoice_runtime_control(r, BKCONTROL_STATUS, 0, status);
+  if (!record) return -EINVAL;
+  if (kind == BKCONTROL_CONFIG_WAKE_MODEL)
+    {
+      struct bkvoice_wake_package_s spec;
+      ret = bkvoice_wake_package_decode(record, size, &spec);
+      if (ret) return ret;
+      r->wake_package_record = malloc(size);
+      if (!r->wake_package_record) return -ENOMEM;
+      memcpy(r->wake_package_record, record, size);
+      r->wake_package_size = size;
+      ret = wake_package_launch(r, WAKE_PACKAGE_STAGE);
+      if (ret)
+        {
+          mbedtls_platform_zeroize(r->wake_package_record, size);
+          free(r->wake_package_record); r->wake_package_record = NULL;
+          r->wake_package_size = 0;
+          return ret;
+        }
+      r->wake_package_phase = WAKE_PACKAGE_IO;
+    }
+  else
+    {
+      if (memcmp(record, "WKR1", 4)) return -EBADMSG;
+      r->wake_desired = r->wake_previous;
+      r->wake_desired_size = r->wake_previous_size;
+      r->wake_package_phase = WAKE_PACKAGE_TRIAL;
+      sem_post(r->wake);
+    }
+  r->wake_package_error = 0;
+  return bkvoice_runtime_control(r, BKCONTROL_STATUS, 0, status);
+}
+#endif
+
+int bkvoice_runtime_control_config(void *context, enum bkcontrol_command_e command,
+                                   uint32_t kind, uint32_t offset,
+                                   const uint8_t *record, size_t size,
+                                   struct bkcontrol_status_s *status)
+{
+  struct bkvoice_runtime_s *runtime = context;
+  uint8_t models[12u + 3u * 127u];
+  size_t length = 0;
+  int ret;
+
+  if (runtime == NULL || status == NULL) return -EINVAL;
+#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+  if (kind == BKCONTROL_CONFIG_WAKE_MODEL || kind == BKCONTROL_CONFIG_WAKE_RESTORE)
+    return wake_package_control(runtime, command, kind, offset, record, size, status);
+#endif
+  if (kind != BKCONTROL_CONFIG_CLOUD_MODELS) return -ENOTSUP;
+  if (runtime->cloud == NULL) return -ENOTCONN;
+#ifdef BKVOICE_RUNTIME_SOFT_OFF
+  if (bkvoice_soft_off_pending(runtime)) return -ESHUTDOWN;
+#endif
+  if (command == BKCONTROL_CONFIG_READ)
+    {
+      ret = bkcloud_runtime_models_read(runtime->cloud, models,
+                                        sizeof(models), &length);
+      if (ret < 0) return ret;
+      if (offset >= length || (offset & 15u) != 0) return -ERANGE;
+      status->config_total = length;
+      memset(status->config_chunk, 0, sizeof(status->config_chunk));
+      size_t count = length - offset;
+      if (count > sizeof(status->config_chunk)) count = sizeof(status->config_chunk);
+      memcpy(status->config_chunk, models + offset, count);
+      return 0;
+    }
+  if (command != BKCONTROL_CONFIG_BEGIN && command != BKCONTROL_CONFIG_APPLY)
+    return -EINVAL;
+  if (size < 15u || size > sizeof(models)) return -EMSGSIZE;
+  if (bkvoice_runtime_settings_busy()) return -EBUSY;
+  if (command == BKCONTROL_CONFIG_APPLY)
+    {
+      if (record == NULL) return -EINVAL;
+      ret = bkcloud_runtime_models_set(runtime->cloud, record, size);
+      if (ret < 0) return ret;
+    }
+  return bkvoice_runtime_control(runtime, BKCONTROL_STATUS, 0, status);
 }
 
 int bkvoice_runtime_control_ota(void *context,
@@ -3993,6 +4481,9 @@ free_request:
 
 bool bkvoice_runtime_settings_busy(void)
 {
+#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+  if (g_runtime.wake_package_phase || g_runtime.wake_package_joinable) return true;
+#endif
 #ifdef BKVOICE_RUNTIME_SOFT_OFF
   if (bkvoice_soft_off_pending(&g_runtime)) return true;
 #endif
@@ -4008,6 +4499,9 @@ bool bkvoice_runtime_settings_busy(void)
 
 bool bkvoice_runtime_busy(void)
 {
+#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+  if (g_runtime.wake_package_phase || g_runtime.wake_package_joinable) return true;
+#endif
 #ifdef BKVOICE_RUNTIME_SOFT_OFF
   if (bkvoice_soft_off_pending(&g_runtime)) return true;
 #endif
@@ -4209,6 +4703,9 @@ int bkvoice_runtime_uninitialize(void)
     {
       return 0;
     }
+#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+  if (runtime->wake_package_phase || runtime->wake_package_joinable) return -EBUSY;
+#endif
 
 #ifdef BKVOICE_RUNTIME_SOFT_OFF
   if (bkvoice_soft_off_pending(runtime)) return -EBUSY;

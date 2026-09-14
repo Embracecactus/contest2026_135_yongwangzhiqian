@@ -97,6 +97,7 @@ if(CONFIG_BK7258_VOICE_SERVICE)
       target_sources(apps PRIVATE bk7258_voice_wake_session.c
                                   bk7258_voice_wake_listener.c
                                   bk7258_voice_wake_owner.c
+                                  bk7258_voice_wake_package.c
                                   bk7258_voice_trigger_model.c)
     endif()
   endif()

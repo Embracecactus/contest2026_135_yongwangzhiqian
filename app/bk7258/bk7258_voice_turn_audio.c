@@ -479,54 +479,10 @@ static int bkvoice_turn_audio_volume_policy(struct bkvoice_turn_audio_s *audio,
                                             unsigned int requested,
                                             unsigned int *volume)
 {
-  int minimum;
-  int maximum;
-  int index;
-  int observed;
   int ret;
-
-  if (audio == NULL || volume == NULL || (apply && requested > 100u))
-    {
-      return -EINVAL;
-    }
-
-  ret = media_policy_get_range(MEDIA_STREAM_MUSIC MEDIA_POLICY_VOLUME,
-                                &minimum, &maximum);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  if (minimum < 0 || maximum <= minimum)
-    {
-      return -ERANGE;
-    }
-
-  index = minimum + (int)(((uint64_t)requested *
-                           (maximum - minimum) + 50u) / 100u);
-  if (apply)
-    {
-      ret = media_policy_set_stream_volume(MEDIA_STREAM_MUSIC, index);
-      if (ret < 0)
-        {
-          return ret;
-        }
-    }
-
-  ret = media_policy_get_stream_volume(MEDIA_STREAM_MUSIC, &observed);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  if (observed < minimum || observed > maximum ||
-      (apply && observed != index))
-    {
-      return -EIO;
-    }
-
-  *volume = (unsigned int)(((uint64_t)(observed - minimum) * 100u +
-                            (maximum - minimum) / 2u) / (maximum - minimum));
+  if (audio == NULL) return -EINVAL;
+  ret = bkvoice_media_volume(apply, requested, volume);
+  if (ret < 0) return ret;
   if (apply)
     {
       audio->volume_override = true;
@@ -646,7 +602,7 @@ static int bkvoice_turn_audio_dac_prepare(void *context,
 #ifdef CONFIG_MEDIA
   if (sample_rate == 0) return -EINVAL;
   ret = snprintf(options, sizeof(options),
-                 "format=s16le:sample_rate=%u:ch_layout=mono:datqmax=66",
+                 "format=s16le:sample_rate=%u:ch_layout=mono:datqmax=30",
                  sample_rate);
   if (ret < 0 || ret >= sizeof(options)) return -EMSGSIZE;
 #else
@@ -661,14 +617,15 @@ static int bkvoice_turn_audio_dac_prepare(void *context,
       return ret;
     }
 
-  /* The board graph explicitly converts the declared source rate for its
-   * sink. The PCM demuxer emits 2048 samples per frame at 24 kHz. The SSE
-   * adapter validates a complete event before publishing its PCM. Its
-   * 256-KiB JSON limit permits up to 192 KiB of PCM (48 frames), so buffering
-   * only individual TLS read gaps still starves between events. Reserve
-   * that event budget plus 18 frames of network margin: 270336 PCM bytes,
-   * or 5.632 seconds at 24 kHz. Short replies start at EOF. Queue ownership,
-   * bounded socket writes and EOF draining stay in the official player.
+  /* The board graph converts the declared source rate for its sink. At
+   * 24 kHz the PCM demuxer emits 2048 samples per frame. Keep 30 frames
+   * (122880 bytes / 2.56 seconds) to cover complete SSE event delivery and
+   * network gaps. Real device responses have used events up to 23040 bytes;
+   * using the parser's maximum accepted JSON size as the startup budget
+   * delayed short replies almost until their end. This is a buffering
+   * policy, not a smaller protocol limit: larger valid events remain
+   * accepted. Queue bounds, XRUN resume, socket writes and EOF draining
+   * stay in the official player. Short replies may still start at EOF.
    */
   ret = media_player_prepare(audio->dac_handle, NULL,
 #ifdef CONFIG_MEDIA

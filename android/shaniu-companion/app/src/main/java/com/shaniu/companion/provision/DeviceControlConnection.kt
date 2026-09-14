@@ -66,5 +66,13 @@ internal class DeviceControlConnection(
             }
         }
     }
+    fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray,
+                       accepted: (Boolean) -> Unit = {}) {
+        val owned = payload.copyOf()
+        transport.execute {
+            try { accepted(if (protocol.authenticated && !protocol.closed) protocol.requestPayload(command, owned) else false) }
+            finally { owned.fill(0) }
+        }
+    }
     override fun close() = transport.close()
 }

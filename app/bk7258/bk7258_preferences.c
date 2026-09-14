@@ -6,6 +6,7 @@
 
 #include "bk7258_preferences.h"
 #include "bk7258_preferences_storage.h"
+#include "bk7258_provision_store.h"
 #include <nuttx/config.h>
 #ifdef CONFIG_BK7258_VOICE_VOLUME_PERSISTENCE
 #include "bk7258_voice_volume_store.h"
@@ -14,6 +15,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include <kvdb.h>
 #include <nuttx/mutex.h>
@@ -21,6 +23,7 @@
 #define BK7258_PREFERENCES_VOLUME_KEY  "persist.shaniu.volume"
 #define BK7258_PREFERENCES_PERSONA_KEY "persist.shaniu.persona"
 #define BK7258_PREFERENCES_DEFAULT_VOLUME 50u
+#define BK7258_CLOUD_MODELS_ROOT "/cpdata/shaniu/cloud-models"
 
 /* One owner serializes disk operations and publication of the last confirmed
  * volume. Playback can use this value while the shared medium is unavailable.
@@ -41,6 +44,65 @@ int bk7258_preferences_with_storage(int (*operation)(void *), void *context)
   nxmutex_unlock(&g_preferences_lock);
   return ret;
 }
+
+#ifdef CONFIG_BK7258_PROVISION_GATT
+static int bk7258_preferences_cloud_models_open(struct bkprov_store_s *store)
+{
+  if (mkdir(BK7258_CLOUD_MODELS_ROOT, 0700) < 0 && errno != EEXIST)
+    return -errno;
+  return bkprov_store_open(store, BK7258_CLOUD_MODELS_ROOT);
+}
+
+int bk7258_preferences_cloud_models_get(struct bkcloud_models_s *models)
+{
+  struct bkprov_store_s store;
+  uint8_t record[BKCLOUD_MODELS_RECORD_MAX];
+  size_t size; uint64_t revision;
+  int ret;
+  if (!models) return -EINVAL;
+  ret = nxmutex_lock(&g_preferences_lock);
+  if (ret < 0) return ret;
+  ret = bk7258_preferences_cloud_models_open(&store);
+  if (!ret) ret = bkprov_store_load(&store, record, sizeof(record), &size,
+                                    &revision, NULL);
+  if (!ret) ret = bkcloud_models_decode(models, record, size);
+  memset(record, 0, sizeof(record));
+  nxmutex_unlock(&g_preferences_lock);
+  return ret;
+}
+
+int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models)
+{
+  struct bkprov_store_s store;
+  uint8_t record[BKCLOUD_MODELS_RECORD_MAX], transaction[16] = {'M','C','P','1'};
+  size_t size; uint64_t revision;
+  int ret;
+  if (!models) return -EINVAL;
+  ret = nxmutex_lock(&g_preferences_lock);
+  if (ret < 0) return ret;
+  ret = bk7258_preferences_cloud_models_open(&store);
+  if (!ret) ret = bkprov_store_load(&store, record, sizeof(record), &size,
+                                    &revision, NULL);
+  if (ret == -ENOENT) { revision = 0; ret = 0; }
+  else if (!ret) ret = bkcloud_models_decode(&(struct bkcloud_models_s){0}, record, size);
+  if (!ret && revision == UINT64_MAX) ret = -EOVERFLOW;
+  if (!ret) ret = bkcloud_models_encode(models, record, sizeof(record), &size);
+  if (!ret)
+    {
+      uint64_t next = revision + 1u;
+      for (int i = 11; i >= 4; i--) { transaction[i] = next; next >>= 8; }
+      ret = bkprov_store_commit(&store, revision, transaction, record, size);
+    }
+  memset(record, 0, sizeof(record)); memset(transaction, 0, sizeof(transaction));
+  nxmutex_unlock(&g_preferences_lock);
+  return ret;
+}
+#else
+int bk7258_preferences_cloud_models_get(struct bkcloud_models_s *models)
+{ (void)models; return -ENOTSUP; }
+int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models)
+{ (void)models; return -ENOTSUP; }
+#endif
 
 struct bk7258_persona_name_s
 {

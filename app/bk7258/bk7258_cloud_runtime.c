@@ -50,15 +50,22 @@ struct bkcloud_runtime_s
   bool cancel_requested;
   bool pending_history;
   bool memory_job;
+  bool models_job;
+  bool models_pending;
+  bool models_uncertain;
+  bool models_restore;
+  bool models_connect_pending;
   bool memory_bound;
   bool memory_restored;
   bool memory_enabled;
   bool memory_known;
   bool memory_uncertain;
   int memory_error;
+  int models_error;
   enum memory_action_e memory_action;
   uint8_t memory_owner[32];
   enum bk7258_persona_e persona;
+  struct bkcloud_models_s models_desired;
 };
 static const char *persona_style(enum bk7258_persona_e persona)
 {
@@ -246,10 +253,18 @@ static int capture_current_view(void *context, const uint8_t **jpeg,
   if (camera->jpeg != NULL) return -EALREADY;
   camera->jpeg = calloc(1, BKCLOUD_JPEG_MAX);
   if (camera->jpeg == NULL) return -ENOMEM;
+  uint64_t started = bkvoice_config_now_ms(NULL);
   int ret = bk7258_vision_capture_jpeg(camera->jpeg, BKCLOUD_JPEG_MAX, size);
-  if (cancelled(camera->runtime)) return -ECANCELED;
-  if (bkvoice_config_now_ms(NULL) >= camera->deadline) return -ETIMEDOUT;
+  uint64_t finished = bkvoice_config_now_ms(NULL);
+  if (cancelled(camera->runtime)) ret = -ECANCELED;
+  else if (finished >= camera->deadline) ret = -ETIMEDOUT;
+  else if (ret == 0 && *size == 0) ret = -ENODATA;
+  else if (ret == 0 && *size > BKCLOUD_JPEG_MAX) ret = -EOVERFLOW;
   if (ret == 0) *jpeg = camera->jpeg;
+  /* Report only this request's result, never its image or conversation. */
+  syslog(LOG_INFO, "BKVOICE vision capture ret=%d bytes=%lu elapsed_ms=%llu\n",
+         ret, (unsigned long)(ret == 0 ? *size : 0),
+         (unsigned long long)(finished - started));
   return ret;
 }
 
@@ -465,6 +480,41 @@ static int memory_launch(struct bkcloud_runtime_s *r, enum memory_action_e actio
   return 0;
 }
 #endif
+static void *models_work(void *context)
+{
+  struct bkcloud_runtime_s *r = context;
+#if defined(CONFIG_BK7258_PREFERENCES) && defined(CONFIG_BK7258_PROVISION_GATT)
+  if (r->models_restore)
+    {
+      r->result = bk7258_preferences_cloud_models_get(&r->models_desired);
+      if (r->result == -ENOENT) r->result = 0;
+    }
+  else r->result = bk7258_preferences_cloud_models_set(&r->models_desired);
+#else
+  r->result = -ENOTSUP;
+#endif
+  __atomic_store_n(&r->done, true, __ATOMIC_RELEASE);
+  if (r->wake) sem_post(r->wake);
+  return NULL;
+}
+static int models_launch(struct bkcloud_runtime_s *r)
+{
+  pthread_attr_t attr;
+  int ret = pthread_attr_init(&attr);
+  if (ret) return -ret;
+  ret = pthread_attr_setstacksize(&attr, 16384);
+  r->models_job = true; r->models_pending = true; r->result = 0;
+  __atomic_store_n(&r->done, false, __ATOMIC_RELEASE);
+  if (!ret) ret = pthread_create(&r->worker, &attr, models_work, r);
+  pthread_attr_destroy(&attr);
+  if (ret)
+    {
+      r->models_job = false; r->models_pending = false;
+      return -ret;
+    }
+  r->joinable = true;
+  return 0;
+}
 static int reap(struct bkcloud_runtime_s *r)
 {
   if(!r->joinable) return 0;
@@ -472,9 +522,60 @@ static int reap(struct bkcloud_runtime_s *r)
   int ret=pthread_join(r->worker,NULL);
   if(ret) return -ret;
   r->joinable=false;
-  ret=r->memory_job ? 0 : bkvoice_tls_uninitialize(&r->tls);
+  ret=(r->memory_job || r->models_job) ? 0 : bkvoice_tls_uninitialize(&r->tls);
   return ret;
 }
+
+/* The provisioning owner polls ready() before the normal voice loop may run.
+ * Both paths must advance the same model job; neither may wait for the other
+ * to finish network admission. Only this owner joins and publishes results. */
+static bool models_progress(struct bkcloud_runtime_s *r, bool link, bool level)
+{
+  int ret;
+  if (!r->joinable || !r->models_job) return false;
+  ret = reap(r);
+  if (ret)
+    {
+      if (ret != -EAGAIN) r->models_error = ret;
+      return true;
+    }
+  r->models_job = false; r->models_pending = false;
+  r->models_error = r->result;
+  if (!r->result)
+    {
+      memcpy(r->config.asr_model, r->models_desired.asr_model,
+             sizeof(r->config.asr_model));
+      memcpy(r->config.chat_model, r->models_desired.chat_model,
+             sizeof(r->config.chat_model));
+      memcpy(r->config.tts_model, r->models_desired.tts_model,
+             sizeof(r->config.tts_model));
+      if (r->models_restore)
+        {
+          r->models_restore = false;
+          if (r->models_connect_pending)
+            {
+              r->models_connect_pending = false;
+              r->models_error = launch(r, true);
+            }
+        }
+      else
+        {
+          bkcloud_history_clear(&r->history);
+          wipe_text(r);
+        }
+    }
+  else if (r->result == -EINPROGRESS)
+    r->models_uncertain = true;
+  if (r->result && r->models_restore)
+    {
+      r->models_restore = false;
+      r->models_connect_pending = false;
+    }
+  mbedtls_platform_zeroize(&r->models_desired, sizeof(r->models_desired));
+  r->armed = link && !level;
+  return true;
+}
+
 int bkcloud_runtime_create(struct bkcloud_runtime_s **output,
                             const void *record,size_t size,
                             struct bkvoice_config_s *trust,
@@ -486,14 +587,36 @@ int bkcloud_runtime_create(struct bkcloud_runtime_s **output,
   int ret=bkcloud_config_decode(&r->config,record,size);
   if(!ret && (strcmp(r->config.host,trust->host) || r->config.port!=trust->port)) ret=-EINVAL;
   if(ret) {mbedtls_platform_zeroize(r,sizeof(*r));free(r);return ret;}
+  memcpy(r->models_desired.asr_model, r->config.asr_model,
+         sizeof(r->models_desired.asr_model));
+  memcpy(r->models_desired.chat_model, r->config.chat_model,
+         sizeof(r->models_desired.chat_model));
+  memcpy(r->models_desired.tts_model, r->config.tts_model,
+         sizeof(r->models_desired.tts_model));
+#if defined(CONFIG_BK7258_PREFERENCES) && defined(CONFIG_BK7258_PROVISION_GATT)
+  r->models_restore = true;
+#endif
   r->trust=trust;r->ptt=ptt;r->wake=wake;*output=r;return 0;
 }
 int bkcloud_runtime_connect(struct bkcloud_runtime_s *r)
-{ return r ? launch(r,true) : -EINVAL; }
+{
+  if (!r) return -EINVAL;
+  if (!r->ready && r->models_error) return r->models_error;
+  if (r->models_restore)
+    {
+      if (r->joinable) return -EAGAIN;
+      r->models_connect_pending = true;
+      return models_launch(r);
+    }
+  return launch(r,true);
+}
 int bkcloud_runtime_ready(struct bkcloud_runtime_s *r)
 {
   if(!r) return -EINVAL;
+  (void)models_progress(r, false, false);
   if(r->ready) return 1;
+  if (r->models_error) return r->models_error;
+  if (r->models_job || r->models_restore) return r->models_error ? r->models_error : 0;
   int ret=reap(r);
   if(ret==-EAGAIN) return 0;
   if(ret) return ret;
@@ -511,7 +634,7 @@ int bkcloud_runtime_clear(struct bkcloud_runtime_s **runtime)
   if(r->joinable)
     {
       __atomic_store_n(&r->cancelled,true,__ATOMIC_RELEASE);
-      if (!r->memory_job) bkvoice_tls_ops()->interrupt(&r->tls);
+      if (!r->memory_job && !r->models_job) bkvoice_tls_ops()->interrupt(&r->tls);
       int ret=reap(r);if(ret) return ret;
     }
   int ret=bkvoice_ptt_session_close(r->ptt,-ECANCELED);
@@ -529,7 +652,46 @@ int bkcloud_runtime_clear(struct bkcloud_runtime_s **runtime)
 }
 bool bkcloud_runtime_busy(const struct bkcloud_runtime_s *r)
 { return r && (r->joinable || r->pressed || r->automatic_capture ||
-               r->pending_history || r->cancel_requested); }
+               r->pending_history || r->cancel_requested || r->models_pending); }
+int bkcloud_runtime_models_read(struct bkcloud_runtime_s *r,
+                                uint8_t *out, size_t capacity, size_t *size)
+{
+  struct bkcloud_models_s actual;
+  if (!r || !out || !size) return -EINVAL;
+  if (r->models_restore || r->models_pending) return -EAGAIN;
+  if (r->models_error) return r->models_error;
+  memset(&actual, 0, sizeof(actual));
+  memcpy(actual.asr_model, r->config.asr_model, sizeof(actual.asr_model));
+  memcpy(actual.chat_model, r->config.chat_model, sizeof(actual.chat_model));
+  memcpy(actual.tts_model, r->config.tts_model, sizeof(actual.tts_model));
+  int ret = bkcloud_models_encode(&actual, out, capacity, size);
+  mbedtls_platform_zeroize(&actual, sizeof(actual));
+  return ret;
+}
+int bkcloud_runtime_models_set(struct bkcloud_runtime_s *r,
+                               const uint8_t *record, size_t size)
+{
+  if (!r || !record) return -EINVAL;
+#if !defined(CONFIG_BK7258_PREFERENCES) || !defined(CONFIG_BK7258_PROVISION_GATT)
+  (void)size;
+  return -ENOTSUP;
+#else
+  struct bkcloud_models_s desired;
+  int ret = bkcloud_models_decode(&desired, record, size);
+  if (ret) return ret;
+  if (!r->ready) return -ENOTCONN;
+  if (r->models_uncertain) return -EINPROGRESS;
+  if (bkcloud_runtime_busy(r) || r->ptt->worker_joinable ||
+      r->ptt->turn.state != BKVOICE_TURN_IDLE)
+    return -EBUSY;
+  memcpy(&r->models_desired, &desired, sizeof(desired));
+  mbedtls_platform_zeroize(&desired, sizeof(desired));
+  r->models_error = 0;
+  ret = models_launch(r);
+  if (ret) mbedtls_platform_zeroize(&r->models_desired, sizeof(r->models_desired));
+  return ret;
+#endif
+}
 int bkcloud_runtime_memory_owner(struct bkcloud_runtime_s *r, const uint8_t owner[32])
 {
   if (!r || !owner) return -EINVAL;
@@ -688,7 +850,7 @@ int bkcloud_runtime_cancel(struct bkcloud_runtime_s *r)
   if(r->joinable)
     {
       __atomic_store_n(&r->cancelled,true,__ATOMIC_RELEASE);
-      if (!r->memory_job) bkvoice_tls_ops()->interrupt(&r->tls);
+      if (!r->memory_job && !r->models_job) bkvoice_tls_ops()->interrupt(&r->tls);
     }
   return 0;
 }
@@ -741,7 +903,9 @@ void bkcloud_runtime_status(const struct bkcloud_runtime_s *r,
 }
 void bkcloud_runtime_step(struct bkcloud_runtime_s *r,bool link,bool level,uint32_t epoch)
 {
-  if(!r || !r->ready) return;
+  if(!r) return;
+  if (models_progress(r, link, level)) return;
+  if(!r->ready) return;
   if (r->joinable && r->memory_job)
     {
       if (reap(r)) return;

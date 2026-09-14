@@ -1,0 +1,605 @@
+{
+  "schema": "shaniu-selectable-wake-models/1",
+  "status": "integration_candidates",
+  "data_sources": [
+    {
+      "name": "Kokoro v1.1 multi-voice synthesis",
+      "license": "Apache-2.0",
+      "use": "targets and speech negatives; held-out synthetic voices retained"
+    },
+    {
+      "name": "FLEURS cmn_hans_cn dev",
+      "license": "CC-BY-4.0",
+      "use": "ordinary-speech training negatives"
+    },
+    {
+      "name": "authorized private continuous recordings",
+      "use": "single human source, train only, conservative automated candidates; no source-confirmed voice identity"
+    },
+    {
+      "name": "generated silence and uniform PCM noise",
+      "use": "background variation, not real environmental recordings"
+    }
+  ],
+  "independent_human_generalization": "not_verified",
+  "runtime_infer_interval_ms": 300,
+  "models": [
+    {
+      "label": "nihao_openvela",
+      "phrase": "你好，open-vela",
+      "package_path": "android/shaniu-companion/app/src/main/assets/wake-models/nihao_openvela.wkm",
+      "package_sha256": "f6b9519bf610db2b6df4b9c9a23dbb64cbc5a178253c8a7794eb2d12d0696928",
+      "package_bytes": 23776,
+      "model_bytes": 23640,
+      "model_sha256": "0d05f073df667d7b595a0a0478f4a527b04bbe710c22016205ae24611c860b5b",
+      "training_metadata_sha256": "3a4fb0d2a66cb61dc34e3d4ef9be0dea4589941bcca6f13c278637fd056c0016",
+      "training": {
+        "epochs_completed": 24,
+        "best_validation_epoch": 12,
+        "best_validation_loss": 0.1071738600730896,
+        "seed": 20260914,
+        "batch_size": 32,
+        "counts": {
+          "test": {
+            "nihao_openvela": 10,
+            "silence": 6,
+            "unknown": 42
+          },
+          "train": {
+            "nihao_openvela": 40,
+            "silence": 88,
+            "unknown": 209
+          },
+          "validation": {
+            "nihao_openvela": 8,
+            "silence": 6,
+            "unknown": 36
+          }
+        }
+      },
+      "runtime": {
+        "input_shape": [
+          1,
+          149,
+          40,
+          1
+        ],
+        "output_shape": [
+          1,
+          3
+        ],
+        "input_quantization": [
+          3.5490195751190186,
+          -128
+        ],
+        "output_quantization": [
+          0.00390625,
+          -128
+        ],
+        "exported_operators": [
+          "AVERAGE_POOL_2D",
+          "CONV_2D",
+          "DEPTHWISE_CONV_2D",
+          "FULLY_CONNECTED",
+          "RESHAPE",
+          "SOFTMAX"
+        ],
+        "runtime_policy": {
+          "consecutive": 2,
+          "cooldown_ms": 1000,
+          "release_threshold": 0.20000000298023224,
+          "source": "bkvoice_kws_default_policy",
+          "threshold": 0.8500000238418579
+        }
+      },
+      "evaluation": {
+        "validation": {
+          "status": "candidate",
+          "classification": {
+            "actual_counts": {
+              "nihao_openvela": 8,
+              "silence": 6,
+              "unknown": 36
+            },
+            "confusion_matrix": [
+              [
+                0,
+                6,
+                0
+              ],
+              [
+                0,
+                36,
+                0
+              ],
+              [
+                0,
+                0,
+                8
+              ]
+            ],
+            "labels": [
+              "silence",
+              "unknown",
+              "nihao_openvela"
+            ],
+            "positive_false_negative_rate": 0.0,
+            "positive_samples": 8,
+            "predicted_counts": {
+              "nihao_openvela": 8,
+              "silence": 0,
+              "unknown": 42
+            },
+            "unknown_false_positive_rate": 0.0,
+            "unknown_samples": 36
+          },
+          "stream": {
+            "background_false_positives": 1,
+            "expected_wakes": 8,
+            "gap_ms": 0,
+            "listening_ms": 72000,
+            "missed_wakes": 1,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 8,
+            "wake_events": 8
+          }
+        },
+        "test": {
+          "status": "candidate",
+          "classification": {
+            "actual_counts": {
+              "nihao_openvela": 10,
+              "silence": 6,
+              "unknown": 42
+            },
+            "confusion_matrix": [
+              [
+                0,
+                6,
+                0
+              ],
+              [
+                0,
+                42,
+                0
+              ],
+              [
+                0,
+                0,
+                10
+              ]
+            ],
+            "labels": [
+              "silence",
+              "unknown",
+              "nihao_openvela"
+            ],
+            "positive_false_negative_rate": 0.0,
+            "positive_samples": 10,
+            "predicted_counts": {
+              "nihao_openvela": 10,
+              "silence": 0,
+              "unknown": 48
+            },
+            "unknown_false_positive_rate": 0.0,
+            "unknown_samples": 42
+          },
+          "stream": {
+            "background_false_positives": 0,
+            "expected_wakes": 10,
+            "gap_ms": 0,
+            "listening_ms": 90000,
+            "missed_wakes": 0,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 10,
+            "wake_events": 10
+          }
+        }
+      },
+      "board_loading": {
+        "status": "verified",
+        "firmware": "18.6.363+519",
+        "activation_firmware": "18.6.363+517",
+        "arena_used_bytes": 40692,
+        "evidence": "voice519-adapt-acoustic-openvela/serial.raw",
+        "app_expected_hash_readback": true,
+        "physical_synthetic_replay": "wake_capture_cloud_tts_drain_rearm_observed",
+        "independent_human_generalization": "not_verified"
+      }
+    },
+    {
+      "label": "nihao_bingbing",
+      "phrase": "你好冰冰",
+      "package_path": "android/shaniu-companion/app/src/main/assets/wake-models/nihao_bingbing.wkm",
+      "package_sha256": "20345f85b58ffccdf0e3d09cd3f0e3a3549c49c92bc2bcd665e7ef8c2e4345ba",
+      "package_bytes": 23776,
+      "model_bytes": 23640,
+      "model_sha256": "2ced56715079b8dcbed076ceef95d6340098949c7e52aea9001810baced15040",
+      "training_metadata_sha256": "bc9a1bc45b89e23f1c6ad722b16a985562842244506c993efcad031da8d4fb82",
+      "training": {
+        "epochs_completed": 24,
+        "best_validation_epoch": 19,
+        "best_validation_loss": 0.12578387558460236,
+        "seed": 20260914,
+        "batch_size": 32,
+        "counts": {
+          "test": {
+            "nihao_bingbing": 12,
+            "silence": 6,
+            "unknown": 42
+          },
+          "train": {
+            "nihao_bingbing": 73,
+            "silence": 88,
+            "unknown": 181
+          },
+          "validation": {
+            "nihao_bingbing": 10,
+            "silence": 6,
+            "unknown": 36
+          }
+        },
+        "positive_end_window_ms": 1200
+      },
+      "runtime": {
+        "input_shape": [
+          1,
+          149,
+          40,
+          1
+        ],
+        "output_shape": [
+          1,
+          3
+        ],
+        "input_quantization": [
+          3.5490195751190186,
+          -128
+        ],
+        "output_quantization": [
+          0.00390625,
+          -128
+        ],
+        "exported_operators": [
+          "AVERAGE_POOL_2D",
+          "CONV_2D",
+          "DEPTHWISE_CONV_2D",
+          "FULLY_CONNECTED",
+          "RESHAPE",
+          "SOFTMAX"
+        ],
+        "runtime_policy": {
+          "consecutive": 2,
+          "cooldown_ms": 1000,
+          "release_threshold": 0.20000000298023224,
+          "source": "bkvoice_kws_default_policy",
+          "threshold": 0.8500000238418579
+        }
+      },
+      "evaluation": {
+        "validation": {
+          "status": "candidate",
+          "classification": {
+            "actual_counts": {
+              "nihao_bingbing": 10,
+              "silence": 6,
+              "unknown": 36
+            },
+            "confusion_matrix": [
+              [
+                0,
+                6,
+                0
+              ],
+              [
+                0,
+                36,
+                0
+              ],
+              [
+                0,
+                1,
+                9
+              ]
+            ],
+            "labels": [
+              "silence",
+              "unknown",
+              "nihao_bingbing"
+            ],
+            "positive_false_negative_rate": 0.1,
+            "positive_samples": 10,
+            "predicted_counts": {
+              "nihao_bingbing": 9,
+              "silence": 0,
+              "unknown": 43
+            },
+            "unknown_false_positive_rate": 0.0,
+            "unknown_samples": 36
+          },
+          "stream": {
+            "background_false_positives": 1,
+            "expected_wakes": 10,
+            "gap_ms": 0,
+            "listening_ms": 90000,
+            "missed_wakes": 1,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 10,
+            "wake_events": 10
+          }
+        },
+        "test": {
+          "status": "candidate",
+          "classification": {
+            "actual_counts": {
+              "nihao_bingbing": 12,
+              "silence": 6,
+              "unknown": 42
+            },
+            "confusion_matrix": [
+              [
+                0,
+                6,
+                0
+              ],
+              [
+                0,
+                42,
+                0
+              ],
+              [
+                0,
+                0,
+                12
+              ]
+            ],
+            "labels": [
+              "silence",
+              "unknown",
+              "nihao_bingbing"
+            ],
+            "positive_false_negative_rate": 0.0,
+            "positive_samples": 12,
+            "predicted_counts": {
+              "nihao_bingbing": 12,
+              "silence": 0,
+              "unknown": 48
+            },
+            "unknown_false_positive_rate": 0.0,
+            "unknown_samples": 42
+          },
+          "stream": {
+            "background_false_positives": 3,
+            "expected_wakes": 12,
+            "gap_ms": 0,
+            "listening_ms": 108000,
+            "missed_wakes": 3,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 12,
+            "wake_events": 12
+          }
+        },
+        "stream_metric_limit": "background_false_positives counts events outside expected windows; these short target sessions do not establish ordinary-background FAR"
+      },
+      "board_loading": {
+        "status": "verified",
+        "firmware": "18.6.363+525",
+        "arena_used_bytes": 40692,
+        "evidence": "app0511-525-external-model-activation/readback.json",
+        "app_expected_hash_readback": true,
+        "physical_acoustic_wake": {
+          "status": "observed",
+          "evidence": "voice525-fresh1200-bingbing-image-r1/serial.raw",
+          "firmware": "18.6.363+525",
+          "source": "heldout synthetic phone-speaker replay; not a new independent-human test",
+          "wake_events": 1,
+          "fresh_camera_bytes": 7267,
+          "playback_drained_and_rearmed": true
+        },
+        "independent_human_generalization": "not_verified"
+      }
+    },
+    {
+      "label": "nihao_shaniu",
+      "phrase": "你好傻妞",
+      "package_path": "android/shaniu-companion/app/src/main/assets/wake-models/nihao_shaniu.wkm",
+      "package_sha256": "c6c44c7ff46084b8458ae0b97a40fe5c8c70dcefba198c743bc58111e88e9f47",
+      "package_bytes": 23776,
+      "model_bytes": 23640,
+      "model_sha256": "09a0b691d80ed0002b25993bc72c6f39969074d125883c945a50db33dd671f4a",
+      "training_metadata_sha256": "82f0ce4e06c71f96274f4c58bfe6d636ee239e3dba1a4d769ac26d74231be68a",
+      "training": {
+        "epochs_completed": 27,
+        "best_validation_epoch": 7,
+        "best_validation_loss": 0.09541605412960052,
+        "seed": 20260915,
+        "batch_size": 16,
+        "counts": {
+          "test": {
+            "nihao_shaniu": 12,
+            "silence": 6,
+            "unknown": 42
+          },
+          "train": {
+            "nihao_shaniu": 50,
+            "silence": 88,
+            "unknown": 204
+          },
+          "validation": {
+            "nihao_shaniu": 10,
+            "silence": 6,
+            "unknown": 36
+          }
+        }
+      },
+      "runtime": {
+        "input_shape": [
+          1,
+          149,
+          40,
+          1
+        ],
+        "output_shape": [
+          1,
+          3
+        ],
+        "input_quantization": [
+          3.5490195751190186,
+          -128
+        ],
+        "output_quantization": [
+          0.00390625,
+          -128
+        ],
+        "exported_operators": [
+          "AVERAGE_POOL_2D",
+          "CONV_2D",
+          "DEPTHWISE_CONV_2D",
+          "FULLY_CONNECTED",
+          "RESHAPE",
+          "SOFTMAX"
+        ],
+        "runtime_policy": {
+          "consecutive": 2,
+          "cooldown_ms": 1000,
+          "release_threshold": 0.20000000298023224,
+          "source": "bkvoice_kws_default_policy",
+          "threshold": 0.8500000238418579
+        }
+      },
+      "evaluation": {
+        "validation": {
+          "status": "candidate",
+          "classification": {
+            "actual_counts": {
+              "nihao_shaniu": 10,
+              "silence": 6,
+              "unknown": 36
+            },
+            "confusion_matrix": [
+              [
+                0,
+                6,
+                0
+              ],
+              [
+                0,
+                36,
+                0
+              ],
+              [
+                0,
+                0,
+                10
+              ]
+            ],
+            "labels": [
+              "silence",
+              "unknown",
+              "nihao_shaniu"
+            ],
+            "positive_false_negative_rate": 0.0,
+            "positive_samples": 10,
+            "predicted_counts": {
+              "nihao_shaniu": 10,
+              "silence": 0,
+              "unknown": 42
+            },
+            "unknown_false_positive_rate": 0.0,
+            "unknown_samples": 36
+          },
+          "stream": {
+            "background_false_positives": 10,
+            "expected_wakes": 10,
+            "gap_ms": 0,
+            "listening_ms": 90000,
+            "missed_wakes": 10,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 10,
+            "wake_events": 10
+          }
+        },
+        "test": {
+          "status": "candidate",
+          "classification": {
+            "actual_counts": {
+              "nihao_shaniu": 12,
+              "silence": 6,
+              "unknown": 42
+            },
+            "confusion_matrix": [
+              [
+                0,
+                6,
+                0
+              ],
+              [
+                0,
+                42,
+                0
+              ],
+              [
+                0,
+                0,
+                12
+              ]
+            ],
+            "labels": [
+              "silence",
+              "unknown",
+              "nihao_shaniu"
+            ],
+            "positive_false_negative_rate": 0.0,
+            "positive_samples": 12,
+            "predicted_counts": {
+              "nihao_shaniu": 12,
+              "silence": 0,
+              "unknown": 48
+            },
+            "unknown_false_positive_rate": 0.0,
+            "unknown_samples": 42
+          },
+          "stream": {
+            "background_false_positives": 11,
+            "expected_wakes": 12,
+            "gap_ms": 0,
+            "listening_ms": 108000,
+            "missed_wakes": 11,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 12,
+            "wake_events": 12
+          }
+        }
+      },
+      "board_loading": {
+        "status": "verified",
+        "firmware": "18.6.363+520",
+        "arena_used_bytes": 40692,
+        "evidence": "voice520-shaniu-activation/serial.raw",
+        "app_expected_hash_readback": true,
+        "physical_acoustic_wake": {
+          "status": "observed",
+          "evidence": "voice520-shaniu-acoustic-bounded/serial.raw",
+          "source": "heldout synthetic phone-speaker replay",
+          "hotword_events": 1,
+          "playback_drained_and_rearmed": true,
+          "post_drain_observation_seconds_approx": 44
+        },
+        "independent_human_generalization": "not_verified"
+      }
+    }
+  ],
+  "limits": [
+    "Private audio, slices and transcripts remain local; this file contains only aggregate metadata.",
+    "Synthetic classification is not continuous wake acceptance.",
+    "Shorter-word triggers often arrive after the unchanged annotated windows; these are not passing stream results.",
+    "Training-source diagnostics are not independent acceptance.",
+    "Host inference does not prove board TFLM loading, resource use or physical accuracy."
+  ]
+}

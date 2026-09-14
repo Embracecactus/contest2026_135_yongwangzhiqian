@@ -31,6 +31,10 @@ bool bkvoice_runtime_settings_busy(void);
  */
 int bkvoice_runtime_control(void *context, enum bkcontrol_command_e command,
                             uint32_t value, struct bkcontrol_status_s *status);
+int bkvoice_runtime_control_config(void *context, enum bkcontrol_command_e command,
+                                   uint32_t kind, uint32_t offset,
+                                   const uint8_t *record, size_t size,
+                                   struct bkcontrol_status_s *status);
 /* Optional SDC1 OTA callback. START copies the borrowed transport record
  * before accepting it; STATUS and CANCEL receive NULL/zero. Wire state is
  * idle=0, queued=1, active=2, terminal=3. Phase is a

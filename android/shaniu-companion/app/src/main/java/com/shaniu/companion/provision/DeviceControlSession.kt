@@ -15,6 +15,7 @@ internal class DeviceControlSession(
     interface Transport {
         fun request(command: DeviceControlProtocol.Command, value: Int, accepted: (Boolean) -> Unit)
         fun requestOta(command: DeviceControlProtocol.Command, payload: ByteArray, accepted: (Boolean) -> Unit)
+        fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray, accepted: (Boolean) -> Unit)
         fun close()
     }
     interface Factory { fun open(events: Events): Transport }
@@ -39,7 +40,8 @@ internal class DeviceControlSession(
     private data class Request(val command: DeviceControlProtocol.Command, val value: Int = 0,
                                val payload: ByteArray? = null, val verification: Boolean = false) {
         val read get() = command == DeviceControlProtocol.Command.STATUS ||
-            command == DeviceControlProtocol.Command.INFO || command == DeviceControlProtocol.Command.OTA_STATUS
+            command == DeviceControlProtocol.Command.INFO || command == DeviceControlProtocol.Command.OTA_STATUS ||
+            command == DeviceControlProtocol.Command.CONFIG_READ
         fun clear() { payload?.fill(0) }
     }
     private data class Confirmation(val command: DeviceControlProtocol.Command, val expected: Int?)
@@ -59,6 +61,8 @@ internal class DeviceControlSession(
     private var confirmation: Confirmation? = null
     private var requestToken = 0L
     private var infoNeeded = false
+    private var configTransaction = false
+    private var configCancelRequested = false
 
     fun observe(observer: (State) -> Unit): Cancel {
         observers += observer
@@ -97,13 +101,31 @@ internal class DeviceControlSession(
         }
     }
     fun request(command: DeviceControlProtocol.Command, value: Int = 0): Boolean {
-        if (isOta(command) || command == DeviceControlProtocol.Command.AUTH) return false
+        if (isOta(command) || isConfig(command) || command == DeviceControlProtocol.Command.AUTH || configTransaction) return false
         return enqueue(Request(command, value))
     }
     fun requestOta(command: DeviceControlProtocol.Command, payload: ByteArray = ByteArray(0)): Boolean {
-        if (!isOta(command)) return false
+        if (!isOta(command) || configTransaction) return false
         return enqueue(Request(command, payload = payload.copyOf()))
     }
+    fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray): Boolean {
+        if (!isConfig(command)) return false
+        if (command == DeviceControlProtocol.Command.CONFIG_BEGIN) {
+            if (configTransaction) return false
+            configTransaction = true
+        } else if (command != DeviceControlProtocol.Command.CONFIG_READ && !configTransaction) return false
+        val accepted = enqueue(Request(command, payload = payload.copyOf()))
+        if (!accepted && command == DeviceControlProtocol.Command.CONFIG_BEGIN) configTransaction = false
+        return accepted
+    }
+    fun cancelConfigTransaction(): Boolean {
+        if (!configTransaction) return false
+        configCancelRequested = true
+        queued?.clear(); queued = null
+        if (inFlight == null) pump()
+        return true
+    }
+    fun finishConfigTransaction() { configTransaction = false; configCancelRequested = false; pump() }
     private fun enqueue(request: Request): Boolean {
         if (!foreground || !state.authenticated || transport == null || queued != null ||
             confirmation != null || inFlight?.read == false) {
@@ -163,7 +185,13 @@ internal class DeviceControlSession(
             DeviceControlProtocol.Command.INFO -> {
                 if (snapshot.error == 0) next = next.copy(firmwareInfo = snapshot.firmwareInfo)
             }
-            else -> if (!isOta(command)) {
+            else -> if (isConfig(command)) {
+                // The transaction owner cancels a failed partial upload. A
+                // command error alone does not release the board's staging slot.
+                if (command == DeviceControlProtocol.Command.CONFIG_CANCEL) {
+                    configTransaction = false
+                }
+            } else if (!isOta(command)) {
                 if (snapshot.error == 0) {
                     confirmation = Confirmation(command, when (command) {
                         DeviceControlProtocol.Command.VOLUME -> snapshot.volume ?: request?.value
@@ -188,6 +216,11 @@ internal class DeviceControlSession(
         if (transport == null || !state.authenticated || inFlight != null) { publish(state); return }
         poll?.cancel(); poll = null
         val next = when {
+            configCancelRequested -> {
+                configCancelRequested = false
+                queued?.clear(); queued = null
+                Request(DeviceControlProtocol.Command.CONFIG_CANCEL)
+            }
             confirmation != null -> Request(DeviceControlProtocol.Command.STATUS, verification = true)
             queued != null -> queued.also { queued = null }
             infoNeeded -> { infoNeeded = false; Request(DeviceControlProtocol.Command.INFO) }
@@ -204,6 +237,11 @@ internal class DeviceControlSession(
         publish(state)
         val accepted: (Boolean) -> Unit = { ok -> post {
             if (generation == state.generation && token == requestToken && inFlight === request && !ok) {
+                if (isConfig(request.command)) {
+                    received(generation, request.command, DeviceControlProtocol.Snapshot(
+                        -16, false, false, null, null, null, null))
+                    return@post
+                }
                 inFlight = null
                 request.clear()
                 if (!request.read) confirmation = null
@@ -213,6 +251,7 @@ internal class DeviceControlSession(
         } }
         try {
             if (isOta(request.command)) target.requestOta(request.command, request.payload ?: ByteArray(0), accepted)
+            else if (isConfig(request.command)) target.requestPayload(request.command, request.payload ?: ByteArray(0), accepted)
             else target.request(request.command, request.value, accepted)
         } catch (_: Exception) { lost(generation, "control_send_failed") }
     }
@@ -252,6 +291,7 @@ internal class DeviceControlSession(
         queued?.clear(); queued = null
         inFlight?.clear(); inFlight = null
         confirmation = null
+        configTransaction = false; configCancelRequested = false
         requestToken++
         val old = transport
         transport = null
@@ -273,5 +313,6 @@ internal class DeviceControlSession(
             else -> "操作未完成（$error），已保留设备原值"
         }
         private fun isOta(command: DeviceControlProtocol.Command) = command.wire in 10..14
+        private fun isConfig(command: DeviceControlProtocol.Command) = command.wire in 15..19
     }
 }

@@ -24,13 +24,34 @@
  * never proof of Internet/provider reachability. Older firmware omits both. A successful CANCEL acknowledges the request, not drain.
  * No API key, Wi-Fi credential, factory secret or owner key is returned.
  */
-#define BKCONTROL_REQUEST_MAX 48u
+#define BKCONTROL_CONFIG_APPEND_MAX 512u
+#define BKCONTROL_REQUEST_MAX (16u + BKCONTROL_CONFIG_APPEND_MAX)
 #define BKCONTROL_RESPONSE_SIZE 40u
 enum bkcontrol_command_e
 { BKCONTROL_AUTH = 1, BKCONTROL_STATUS, BKCONTROL_CANCEL,
   BKCONTROL_VOLUME, BKCONTROL_PERSONA, BKCONTROL_CLEAR_HISTORY, BKCONTROL_MEMORY_SET, BKCONTROL_MEMORY_DELETE, BKCONTROL_INFO,
   BKCONTROL_OTA_BEGIN, BKCONTROL_OTA_APPEND, BKCONTROL_OTA_START,
-  BKCONTROL_OTA_STATUS, BKCONTROL_OTA_CANCEL };
+  BKCONTROL_OTA_STATUS, BKCONTROL_OTA_CANCEL,
+  BKCONTROL_CONFIG_READ, BKCONTROL_CONFIG_BEGIN, BKCONTROL_CONFIG_APPEND,
+  BKCONTROL_CONFIG_APPLY, BKCONTROL_CONFIG_CANCEL };
+/* Public configuration uses the same authenticated, serialized connection.
+ * READ: BE32(kind << 16 | byte offset), response error/total/16 data bytes.
+ * BEGIN: BE32 kind + BE32 size; APPEND: 1..512 bytes; APPLY/CANCEL: empty.
+ * Clients default to 32-byte APPEND until READ kind 0x7fff/offset 0 returns
+ * CAP1 + BE32 revision 1 + BE32 maximum APPEND size (12 bytes total).
+ * Unsupported capability reads on older firmware retain the 32-byte limit.
+ * Other responses retain the normal STATUS layout. APPEND/CANCEL acknowledge
+ * the staging operation with unknown snapshot fields; they do not read the
+ * product's devices. Bit 16384 advertises
+ * support. Kind 1 is MCP1 ASR/chat/TTS names only, never credentials.
+ * The staging buffer is shared with OTA, so transfers cannot interleave.
+ * APPLY acknowledges a worker request; READ must confirm its actual result.
+ */
+#define BKCONTROL_CONFIG_CLOUD_MODELS 1u
+#define BKCONTROL_CONFIG_WAKE_MODEL 2u
+#define BKCONTROL_CONFIG_WAKE_RESTORE 3u
+#define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
+#define BKCONTROL_CONFIG_RECORD_MAX (136u + 65536u)
 struct bkcontrol_device_info_s
 {
   uint32_t major;
@@ -56,6 +77,8 @@ struct bkcontrol_status_s
   int32_t error;
   struct bkcontrol_device_info_s device_info;
   struct bkcontrol_ota_status_s ota;
+  uint32_t config_total;
+  uint8_t config_chunk[16];
 };
 /* Serialized AP owner callback, never ATT/CCC callback. No implicit retry.
  * Return 0 only for an accepted operation; populate confirmed fields only.
@@ -69,6 +92,9 @@ typedef int (*bkcontrol_execute_t)(void *, enum bkcontrol_command_e,
 typedef int (*bkcontrol_ota_t)(void *, enum bkcontrol_command_e,
                               const uint8_t *, size_t,
                               struct bkcontrol_status_s *);
+typedef int (*bkcontrol_config_t)(void *, enum bkcontrol_command_e,
+                                 uint32_t, uint32_t, const uint8_t *, size_t,
+                                 struct bkcontrol_status_s *);
 struct bkcontrol_session_s
 {
   uint8_t secret[32];
@@ -76,9 +102,15 @@ struct bkcontrol_session_s
   bkcontrol_execute_t execute;
   void *context;
   bkcontrol_ota_t ota;
-  uint8_t ota_record[3371];
+  bkcontrol_config_t config;
+  union
+  {
+    uint8_t ota_record[3371];
+    uint8_t config_record[BKCONTROL_CONFIG_RECORD_MAX];
+  };
   uint32_t ota_total;
   uint32_t ota_received;
+  uint32_t record_kind;
   bool open;
   bool authenticated;
 };
@@ -90,6 +122,7 @@ struct bkcontrol_session_s
 int bkcontrol_session_open(struct bkcontrol_session_s *, const uint8_t[32],
                            bkcontrol_execute_t, void *);
 int bkcontrol_session_set_ota_handler(struct bkcontrol_session_s *, bkcontrol_ota_t);
+int bkcontrol_session_set_config_handler(struct bkcontrol_session_s *, bkcontrol_config_t);
 int bkcontrol_session_packet(struct bkcontrol_session_s *, const uint8_t *,
                              size_t, uint8_t[BKCONTROL_RESPONSE_SIZE]);
 void bkcontrol_session_close(struct bkcontrol_session_s *);

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Offline candidate training for the BK7258 ``nihao_openvela`` wake-word model.
+"""Offline candidate training for a manifest-selected BK7258 wake-word model.
 
 This module intentionally has no corpus discovery or upload behaviour.  The
 operator supplies a consented, local manifest; audit reports are aggregate
@@ -25,8 +25,9 @@ from typing import Any, Iterable
 
 SCHEMA = "bkvoice-kws-dataset-v1"
 FRONTEND = "bkvoice-microfrontend-v1"
-LABELS = ("silence", "unknown", "nihao_openvela")
-WAKE_PHRASE = "你好，open-vela"
+DEFAULT_WAKE_LABEL = "nihao_openvela"
+DEFAULT_WAKE_PHRASE = "你好，open-vela"
+BASE_LABELS = ("silence", "unknown")
 SPLITS = ("train", "validation", "test")
 # The deployed frontend consumes a three-second 16 kHz rolling context.  With
 # its 30 ms window and 20 ms hop that produces 149 40-bin feature rows.
@@ -37,6 +38,29 @@ FEATURES = FEATURE_ROWS * 40
 
 class KwsError(RuntimeError):
     """A non-sensitive manifest or training error."""
+
+
+def _wake_contract(document: dict[str, Any]) -> tuple[str, str, tuple[str, str, str]]:
+    """Return the one target identity declared by a dataset manifest.
+
+    Legacy manifests deliberately retain the original identity.  A new target
+    must declare both an ASCII runtime label and the product phrase so a model
+    cannot be relabelled after training without changing its provenance.
+    """
+    label = document.get("wake_label", DEFAULT_WAKE_LABEL)
+    phrase = document.get("wake_phrase", DEFAULT_WAKE_PHRASE)
+    explicit_label = "wake_label" in document
+    explicit_phrase = "wake_phrase" in document
+    if explicit_label != explicit_phrase:
+        _fail("manifest_wake_contract_incomplete")
+    if (not isinstance(label, str) or
+            not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", label) or
+            label in BASE_LABELS):
+        _fail("manifest_wake_label_invalid")
+    if (not isinstance(phrase, str) or not phrase.strip() or len(phrase) > 160 or
+            any(ord(character) < 32 for character in phrase)):
+        _fail("manifest_wake_phrase_invalid")
+    return label, phrase, (*BASE_LABELS, label)
 
 
 def add_arguments(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -58,6 +82,8 @@ def add_arguments(subparsers: argparse._SubParsersAction[argparse.ArgumentParser
                        help="initial Conv2D frequency stride; time stride remains two")
     train.add_argument("--onset-hard-negatives", type=int, default=0,
                        help="train-only silence-to-speech rolling windows; disabled by default")
+    train.add_argument("--positive-end-window-ms", type=int, default=0,
+                       help="keep complete positive phrase ends in the final 100..3000 ms of a rolling window; 0 retains all legal positions")
     train.add_argument("--pcm-level-augmentation", action="store_true",
                        help="retain train PCM windows and add quiet copies at 0.25/0.1 gain before the official frontend")
     train.add_argument("--room-augmentation", action="store_true",
@@ -74,6 +100,10 @@ def add_arguments(subparsers: argparse._SubParsersAction[argparse.ArgumentParser
                           help="validation may select a policy; test is a frozen independent report")
     evaluate.add_argument("--frozen-policy", required=True, type=Path,
                           help="new validation binding, or existing binding required for test")
+    package = commands.add_parser("package", help="package a candidate as a WKM1 model")
+    package.add_argument("--model", required=True, type=Path)
+    package.add_argument("--metadata", required=True, type=Path)
+    package.add_argument("--output", required=True, type=Path)
 
 
 def _fail(reason: str) -> None:
@@ -148,10 +178,11 @@ def _read_manifest(path: Path) -> dict[str, Any]:
     return data
 
 
-def _validate(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _validate(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, Any], tuple[str, str, tuple[str, str, str]]]:
     document = _read_manifest(manifest_path)
+    wake_label, wake_phrase, labels = _wake_contract(document)
     if (document.get("schema") != SCHEMA or document.get("frontend") != FRONTEND or
-            document.get("labels") != list(LABELS) or not isinstance(document.get("entries"), list)):
+            document.get("labels") != list(labels) or not isinstance(document.get("entries"), list)):
         _fail("manifest_contract_invalid")
     root = manifest_path.parent.resolve()
     records: list[dict[str, Any]] = []
@@ -165,7 +196,7 @@ def _validate(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]
         label, split, speaker, declared, source_id, recording_kind = (
             entry.get("label"), entry.get("split"), entry.get("speaker"), entry.get("sha256"),
             entry.get("source_id"), entry.get("recording_kind"))
-        if label not in LABELS or split not in SPLITS:
+        if label not in labels or split not in SPLITS:
             _fail("entry_label_or_split_invalid")
         if not isinstance(speaker, str) or not speaker or len(speaker) > 128:
             _fail("entry_speaker_invalid")
@@ -183,7 +214,7 @@ def _validate(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]
         if actual != declared:
             _fail("entry_hash_mismatch")
         pcm = _pcm16(audio)
-        if label == "nihao_openvela" and not any(pcm):
+        if label == wake_label and not any(pcm):
             _fail("positive_audio_silent")
         speaker_splits.setdefault(speaker, set()).add(split)
         source_splits.setdefault(source_id, set()).add(split)
@@ -205,15 +236,16 @@ def _validate(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]
         _fail("source_cross_split")
     if any(len(value) > 1 for value in hash_splits.values()):
         _fail("audio_cross_split")
-    if any(counts[(split, label)] == 0 for split in SPLITS for label in LABELS):
+    if any(counts[(split, label)] == 0 for split in SPLITS for label in labels):
         _fail("class_or_split_missing")
     identity = [{key: record[key] for key in ("split", "label", "speaker", "source_id", "sha256")}
                 for record in records]
     encoded = json.dumps(sorted(identity, key=lambda item: json.dumps(item, sort_keys=True)),
                          sort_keys=True, separators=(",", ":")).encode("utf-8")
-    report = {"schema": SCHEMA, "frontend": FRONTEND, "labels": list(LABELS),
+    report = {"schema": SCHEMA, "frontend": FRONTEND, "labels": list(labels),
+              "wake_label": wake_label, "wake_phrase": wake_phrase,
               "status": "candidate", "entries": len(records),
-              "counts": {split: {label: counts[(split, label)] for label in LABELS}
+              "counts": {split: {label: counts[(split, label)] for label in labels}
                          for split in SPLITS},
               "recording_kind_counts": {
                   kind: sum(record["recording_kind"] == kind for record in records)
@@ -223,12 +255,12 @@ def _validate(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]
               "model_acceptance": {"accepted": False,
                                    "reason": "minimum_real_corpus_and_streaming_evidence_not_recorded"},
               "dataset_sha256": hashlib.sha256(encoded).hexdigest()}
-    return records, report
+    return records, report, (wake_label, wake_phrase, labels)
 
 
 def audit(manifest: Path) -> dict[str, Any]:
     """Return a privacy-preserving aggregate audit report or raise ``KwsError``."""
-    records, report = _validate(manifest)
+    records, report, _ = _validate(manifest)
     document = _read_manifest(manifest)
     if "sessions" in document:
         sessions = _validate_sessions(document, manifest, records)
@@ -332,14 +364,15 @@ def _rate(numerator: int, denominator: int) -> float | None:
     return None if denominator == 0 else numerator / denominator
 
 
-def _confusion_matrix(labels: Any, predicted: Any, numpy: Any) -> list[list[int]]:
-    matrix = numpy.zeros((len(LABELS), len(LABELS)), dtype=numpy.int64)
+def _confusion_matrix(labels: Any, predicted: Any, numpy: Any, class_labels: tuple[str, str, str]) -> list[list[int]]:
+    matrix = numpy.zeros((len(class_labels), len(class_labels)), dtype=numpy.int64)
     for actual, result in zip(labels, predicted):
         matrix[int(actual), int(result)] += 1
     return matrix.tolist()
 
 
-def _evaluate_float(model: Any, features: Any, labels: Any, numpy: Any) -> dict[str, Any]:
+def _evaluate_float(model: Any, features: Any, labels: Any, numpy: Any,
+                    class_labels: tuple[str, str, str]) -> dict[str, Any]:
     """Record the restored float model's validation classification in metadata."""
     labels = numpy.asarray(labels)
     predicted = numpy.argmax(model.predict(features, verbose=0), axis=1)
@@ -351,15 +384,16 @@ def _evaluate_float(model: Any, features: Any, labels: Any, numpy: Any) -> dict[
                                                    int(numpy.sum(unknown))),
             "positive_samples": int(numpy.sum(positives)),
             "unknown_samples": int(numpy.sum(unknown)),
-            "confusion_matrix": _confusion_matrix(labels, predicted, numpy),
+            "confusion_matrix": _confusion_matrix(labels, predicted, numpy, class_labels),
             "actual_counts": {label: int(numpy.sum(labels == index))
-                              for index, label in enumerate(LABELS)},
+                              for index, label in enumerate(class_labels)},
             "predicted_counts": {label: int(numpy.sum(predicted == index))
-                                 for index, label in enumerate(LABELS)},
-            "labels": list(LABELS)}
+                                 for index, label in enumerate(class_labels)},
+            "labels": list(class_labels)}
 
 
-def _evaluate_int8(interpreter: Any, features: Any, labels: Any, numpy: Any) -> dict[str, Any]:
+def _evaluate_int8(interpreter: Any, features: Any, labels: Any, numpy: Any,
+                   class_labels: tuple[str, str, str]) -> dict[str, Any]:
     details_in = interpreter.get_input_details()[0]
     details_out = interpreter.get_output_details()[0]
     scale, zero = details_in["quantization"]
@@ -383,12 +417,12 @@ def _evaluate_int8(interpreter: Any, features: Any, labels: Any, numpy: Any) -> 
                                                    int(numpy.sum(unknown))),
             "positive_samples": int(numpy.sum(positives)),
             "unknown_samples": int(numpy.sum(unknown)),
-            "confusion_matrix": _confusion_matrix(labels, predicted, numpy),
+            "confusion_matrix": _confusion_matrix(labels, predicted, numpy, class_labels),
             "actual_counts": {label: int(numpy.sum(labels == index))
-                              for index, label in enumerate(LABELS)},
+                              for index, label in enumerate(class_labels)},
             "predicted_counts": {label: int(numpy.sum(predicted == index))
-                                 for index, label in enumerate(LABELS)},
-            "labels": list(LABELS)}
+                                 for index, label in enumerate(class_labels)},
+            "labels": list(class_labels)}
 
 
 def _speech_span(pcm: bytes) -> tuple[int, int]:
@@ -419,7 +453,9 @@ def _insert(background: bytes, speech: bytes, offset: int) -> bytes:
     return bytes(result)
 
 
-def _training_derivatives(records: list[dict[str, Any]], *, onset_hard_negatives: int = 0) -> list[dict[str, Any]]:
+def _training_derivatives(records: list[dict[str, Any]], wake_label: str,
+                          *, onset_hard_negatives: int = 0,
+                          positive_end_window_ms: int = 0) -> list[dict[str, Any]]:
     """Make train-only continuous-window positives and confusable negatives.
 
     A source lineage never crosses a split: this deliberately derives solely
@@ -429,11 +465,15 @@ def _training_derivatives(records: list[dict[str, Any]], *, onset_hard_negatives
     partial phrase variants remain unknown rather than delayed wakes.
     """
     train = [record for record in records if record["split"] == "train"]
-    positives = [record for record in train if record["label"] == "nihao_openvela"]
+    positives = [record for record in train if record["label"] == wake_label]
     backgrounds = [record for record in train if record["label"] in ("unknown", "silence")]
     unknowns = [record for record in train if record["label"] == "unknown"]
     if onset_hard_negatives < 0 or onset_hard_negatives > len(unknowns):
         _fail("onset_hard_negatives_invalid")
+    if (positive_end_window_ms != 0 and
+            (positive_end_window_ms < 100 or positive_end_window_ms > 3000 or
+             positive_end_window_ms % 100 != 0)):
+        _fail("positive_end_window_invalid")
     if not positives or not backgrounds or not unknowns:
         _fail("training_augmentation_invalid")
     derived: list[dict[str, Any]] = []
@@ -446,6 +486,12 @@ def _training_derivatives(records: list[dict[str, Any]], *, onset_hard_negatives
         # positive labels.
         minimum = -((start // 1600) * 1600)
         maximum = ((SAMPLES - end) // 1600) * 1600
+        if positive_end_window_ms:
+            # A two-hit 300 ms runtime decision needs examples whose complete
+            # phrase remains fresh in both adjacent scoring windows.
+            fresh_minimum = SAMPLES - positive_end_window_ms * 16 - end
+            fresh_minimum = ((fresh_minimum + 1599) // 1600) * 1600
+            minimum = max(minimum, fresh_minimum)
         # Cover every legal 100 ms position in the three-second rolling
         # context.  Restricting this to a narrow central band teaches one
         # phrase position and delays a live trigger until trailing silence.
@@ -460,7 +506,7 @@ def _training_derivatives(records: list[dict[str, Any]], *, onset_hard_negatives
             else:
                 cut = -shift
                 pcm = positive["pcm"][cut * 2:] + background["pcm"][:cut * 2]
-            derived.append(_derived_record(positive, pcm, "nihao_openvela",
+            derived.append(_derived_record(positive, pcm, wake_label,
                                            "complete_target_sliding_window"))
         # Prefix, suffix and middle portions are deliberately incomplete.
         length = len(speech) // 2
@@ -516,7 +562,8 @@ def _regular_file(path: Path, error: str) -> None:
         _fail(error)
 
 
-def _read_candidate_metadata(model: Path) -> tuple[dict[str, Any], Path]:
+def _read_candidate_metadata(model: Path, wake_contract: tuple[str, str, tuple[str, str, str]]) -> tuple[dict[str, Any], Path]:
+    wake_label, wake_phrase, labels = wake_contract
     _regular_file(model, "model_unavailable")
     metadata_path = model.with_name("metadata.json")
     try:
@@ -527,14 +574,62 @@ def _read_candidate_metadata(model: Path) -> tuple[dict[str, Any], Path]:
     authorization = metadata.get("model_authorization") if isinstance(metadata, dict) else None
     if (not isinstance(metadata, dict) or metadata.get("model_sha256") != _sha256(model) or
             metadata.get("schema") != SCHEMA or metadata.get("frontend") != FRONTEND or
-            metadata.get("labels") != list(LABELS) or
+            metadata.get("labels") != list(labels) or
             not isinstance(authorization, dict) or authorization.get("status") != "candidate" or
             authorization.get("training_data_authorization") != "manifest_entry_consent_true" or
             not isinstance(metadata.get("dataset_sha256"), str)):
         _fail("model_metadata_contract_invalid")
     if metadata.get("frontend_inputs_sha256") != _frontend_provenance():
         _fail("model_frontend_provenance_mismatch")
+    # Old default candidates predate explicit fields; non-default candidates
+    # must bind both identity values in their metadata.
+    if (metadata.get("wake_label", DEFAULT_WAKE_LABEL) != wake_label or
+            metadata.get("wake_phrase", DEFAULT_WAKE_PHRASE) != wake_phrase):
+        _fail("model_wake_contract_mismatch")
     return metadata, metadata_path
+
+def package(model: Path, metadata_path: Path, output: Path) -> dict[str, Any]:
+    _regular_file(model, "model_unavailable"); _regular_file(metadata_path, "model_metadata_unavailable")
+    if not 1 <= model.stat().st_size <= 65536:
+        _fail("model_size_invalid")
+    try: metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error: raise KwsError("model_metadata_unavailable") from error
+    if not isinstance(metadata, dict):
+        _fail("model_metadata_contract_invalid")
+    label = metadata.get("wake_label"); phrase = metadata.get("wake_phrase"); raw = model.read_bytes()
+    if (not isinstance(label, str) or not re.fullmatch(r"[a-z0-9_]{1,31}", label) or
+            not isinstance(phrase, str) or not phrase.strip() or any(ord(c) < 32 for c in phrase) or len(phrase.encode("utf-8")) > 63 or
+            metadata.get("model_sha256") != hashlib.sha256(raw).hexdigest() or
+            metadata.get("frontend") != FRONTEND or metadata.get("labels") != ["silence", "unknown", label] or
+            len(raw) not in range(1, 65537)):
+        _fail("model_metadata_contract_invalid")
+    try:
+        import numpy as np
+        import tensorflow as tf
+    except ImportError as error: raise KwsError("training_dependencies_unavailable") from error
+    interpreter = tf.lite.Interpreter(model_path=str(model)); interpreter.allocate_tensors()
+    if len(interpreter.get_input_details()) != 1 or len(interpreter.get_output_details()) != 1:
+        _fail("model_tensor_count_invalid")
+    inp, out = interpreter.get_input_details()[0], interpreter.get_output_details()[0]
+    operators = sorted({x["op_name"] for x in interpreter._get_ops_details() if x["op_name"] != "DELEGATE"})
+    expected = ["AVERAGE_POOL_2D", "CONV_2D", "DEPTHWISE_CONV_2D", "FULLY_CONNECTED", "RESHAPE", "SOFTMAX"]
+    if (inp["shape"].tolist() != [1,149,40,1] or out["shape"].tolist() != [1,3] or
+            inp["dtype"] != np.int8 or out["dtype"] != np.int8 or operators != expected): _fail("model_export_incompatible")
+    for name, tensor in (("input", inp), ("output", out)):
+        scale, zero = tensor["quantization"]
+        if (not np.isfinite(scale) or scale <= 0 or zero not in range(-128, 128) or
+                metadata.get(name + "_shape") != tensor["shape"].tolist() or
+                metadata.get(name + "_quantization") != [float(scale), int(zero)]):
+            _fail("model_quantization_mismatch")
+    header = b"WKM1" + len(raw).to_bytes(4,"big") + hashlib.sha256(raw).digest() + label.encode("ascii").ljust(32,b"\0") + phrase.encode("utf-8").ljust(64,b"\0")
+    payload = header + raw
+    if output.exists():
+        if output.is_file() and output.read_bytes() == payload: return {"status":"candidate","sha256":hashlib.sha256(payload).hexdigest(),"bytes":len(payload),"label":label,"phrase":phrase}
+        _fail("package_output_exists")
+    if not output.parent.is_dir(): _fail("package_output_invalid")
+    with output.open("xb") as stream:
+        stream.write(payload)
+    return {"status":"candidate","sha256":hashlib.sha256(payload).hexdigest(),"bytes":len(payload),"label":label,"phrase":phrase}
 
 
 def _session_digest(sessions: Iterable[dict[str, Any]]) -> str:
@@ -735,7 +830,8 @@ def evaluate(manifest: Path, model: Path, output: Path, frozen_policy: Path, spl
     Synthetic sessions remain candidate-only evidence; the TFLite interpreter
     is a host callback and TFLM board equivalence remains separate work.
     """
-    records, report = _validate(manifest)
+    records, report, wake_contract = _validate(manifest)
+    wake_label, wake_phrase, class_labels = wake_contract
     document = _read_manifest(manifest)
     sessions = _validate_sessions(document, manifest, records)
     chosen_records = [record for record in records if record["split"] == split_name]
@@ -746,7 +842,7 @@ def evaluate(manifest: Path, model: Path, output: Path, frozen_policy: Path, spl
         _fail("evaluation_output_invalid")
     if split_name == "validation" and (frozen_policy.exists() or not frozen_policy.parent.is_dir()):
         _fail("frozen_policy_output_invalid")
-    metadata, metadata_path = _read_candidate_metadata(model)
+    metadata, metadata_path = _read_candidate_metadata(model, wake_contract)
     try:
         import numpy as np
         import tensorflow as tf
@@ -757,11 +853,11 @@ def evaluate(manifest: Path, model: Path, output: Path, frozen_policy: Path, spl
     details_in = interpreter.get_input_details()[0]
     details_out = interpreter.get_output_details()[0]
     if (list(details_in["shape"]) != [1, FEATURE_ROWS, 40, 1] or
-            list(details_out["shape"]) != [1, len(LABELS)] or
+            list(details_out["shape"]) != [1, len(class_labels)] or
             details_in["dtype"] != np.int8 or details_out["dtype"] != np.int8):
         _fail("tflite_shape_or_type_invalid")
     if (metadata.get("input_shape") != [1, FEATURE_ROWS, 40, 1] or
-            metadata.get("output_shape") != [1, len(LABELS)] or
+            metadata.get("output_shape") != [1, len(class_labels)] or
             metadata.get("input_quantization") != [float(details_in["quantization"][0]),
                                                  int(details_in["quantization"][1])] or
             metadata.get("output_quantization") != [float(details_out["quantization"][0]),
@@ -777,6 +873,10 @@ def evaluate(manifest: Path, model: Path, output: Path, frozen_policy: Path, spl
                "evaluation_manifest_sha256": manifest_sha,
                "validation_session_sha256": _session_digest(
                    session for session in sessions if session["split"] == "validation")}
+    # The target identity is part of all new policy bindings.  A legacy policy
+    # can only be accepted for the unchanged default contract.
+    binding.update({"wake_label": wake_label, "wake_phrase": wake_phrase,
+                    "labels": list(class_labels)})
     if split_name == "test":
         try:
             _regular_file(frozen_policy, "frozen_policy_unavailable")
@@ -784,21 +884,22 @@ def evaluate(manifest: Path, model: Path, output: Path, frozen_policy: Path, spl
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             raise KwsError("frozen_policy_unavailable") from error
         if (not isinstance(supplied, dict) or
-                any(supplied.get(key) != value for key, value in binding.items()) or
+                any(supplied.get(key) != value for key, value in binding.items()
+                    if key in supplied or wake_label != DEFAULT_WAKE_LABEL) or
                 supplied.get("validation_status") != "completed_candidate" or
                 not isinstance(supplied.get("validation_result_sha256"), str) or
                 not re.fullmatch(r"[0-9a-f]{64}", supplied["validation_result_sha256"])):
             _fail("frozen_policy_binding_mismatch")
     # A test binding is checked above, before either slice or stream inference.
     features = _features(chosen_records, np)
-    labels = np.asarray([LABELS.index(record["label"]) for record in chosen_records], dtype=np.int32)
-    slices = _evaluate_int8(interpreter, features, labels, np)
+    labels = np.asarray([class_labels.index(record["label"]) for record in chosen_records], dtype=np.int32)
+    slices = _evaluate_int8(interpreter, features, labels, np, class_labels)
     slice_errors: Counter[str] = Counter()
     for record, feature, actual in zip(chosen_records, features, labels):
         predicted, _ = _predict_int8(interpreter, feature, np)
-        if actual == LABELS.index("nihao_openvela") and predicted != actual:
+        if actual == class_labels.index(wake_label) and predicted != actual:
             slice_errors[f"target_false_negative:{record['category']}"] += 1
-        elif actual == LABELS.index("unknown") and predicted == LABELS.index("nihao_openvela"):
+        elif actual == class_labels.index("unknown") and predicted == class_labels.index(wake_label):
             slice_errors[f"unknown_false_positive:{record['category']}"] += 1
     events: list[tuple[str, int, int, float]] = []
     expected: list[tuple[str, list[int]]] = []
@@ -892,6 +993,7 @@ def evaluate(manifest: Path, model: Path, output: Path, frozen_policy: Path, spl
               "frontend_inputs_sha256": _frontend_provenance(),
               "runtime": {"policy_source": "bkvoice_kws_default_policy",
                           "inference": "python_tflite_callback_not_tflm_board_equivalence"},
+              "wake_label": wake_label, "wake_phrase": wake_phrase,
               "dataset": {"dataset_sha256": report["dataset_sha256"],
                           "recording_kind_counts": report["recording_kind_counts"]}}
     if split_name == "validation":
@@ -906,13 +1008,19 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
           onset_hard_negatives: int = 0, channels: int = 32,
           initial_frequency_stride: int = 2,
           pcm_level_augmentation: bool = False,
-          room_augmentation: bool = False) -> dict[str, Any]:
+          room_augmentation: bool = False,
+          positive_end_window_ms: int = 0) -> dict[str, Any]:
     """Train and export a full-INT8 candidate; imports ML packages only here."""
     if (epochs < 1 or batch_size < 1 or channels < 1 or channels > 32 or
             initial_frequency_stride not in (1, 2, 4) or
             output.exists() or not output.parent.is_dir()):
         _fail("training_arguments_invalid")
-    records, report = _validate(manifest)
+    if (positive_end_window_ms != 0 and
+            (positive_end_window_ms < 100 or positive_end_window_ms > 3000 or
+             positive_end_window_ms % 100 != 0)):
+        _fail("positive_end_window_invalid")
+    records, report, wake_contract = _validate(manifest)
+    wake_label, wake_phrase, class_labels = wake_contract
     document = _read_manifest(manifest)
     if "sessions" in document:
         _validate_sessions(document, manifest, records)
@@ -926,8 +1034,24 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
         tf.config.experimental.enable_op_determinism()
     except (AttributeError, RuntimeError):
         pass
-    augmented = _training_derivatives(records, onset_hard_negatives=onset_hard_negatives)
-    train_records = [*records, *augmented]
+    positive_end_window_samples = positive_end_window_ms * 16
+    original_train_positive_excluded = 0
+    base_records = records
+    if positive_end_window_samples:
+        base_records = []
+        for record in records:
+            if record["split"] == "train" and record["label"] == wake_label:
+                _, end = _speech_span(record["pcm"])
+                if end < SAMPLES - positive_end_window_samples:
+                    # Never relabel a complete phrase as unknown: it is simply
+                    # outside this train-only fresh-end sampling policy.
+                    original_train_positive_excluded += 1
+                    continue
+            base_records.append(record)
+    augmented = _training_derivatives(records, wake_label,
+                                      onset_hard_negatives=onset_hard_negatives,
+                                      positive_end_window_ms=positive_end_window_ms)
+    train_records = [*base_records, *augmented]
     pcm_gains = (0.25, 0.1) if pcm_level_augmentation else ()
     amplitude_copies = 2 if pcm_level_augmentation else 1
     pcm_gain_counts: Counter[float] = Counter()
@@ -979,13 +1103,13 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
         train_records.extend(room_records)
         amplitude_copies *= 2
     features = _features(train_records, np)
-    targets = np.asarray([LABELS.index(record["label"]) for record in train_records], dtype=np.int32)
+    targets = np.asarray([class_labels.index(record["label"]) for record in train_records], dtype=np.int32)
     split = np.asarray([record["split"] for record in train_records])
     train_mask = split == "train"
     validation_mask = split == "validation"
     positive_by_source = Counter(
         record["source_id"] for record in train_records
-        if record["split"] == "train" and record["label"] == "nihao_openvela")
+        if record["split"] == "train" and record["label"] == wake_label)
     positive_total = sum(positive_by_source.values())
     source_count = len(positive_by_source)
     if not positive_by_source or positive_total <= 0 or source_count <= 0:
@@ -1022,11 +1146,31 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
         for source_id, count in ordinary_unknown_by_source.items()
     }
     for index, record in enumerate(train_records):
-        if record["split"] == "train" and record["label"] == "nihao_openvela":
+        if record["split"] == "train" and record["label"] == wake_label:
             sample_weights[index] = positive_weights[record["source_id"]]
         elif (record["split"] == "train" and record["label"] == "unknown" and
               record.get("augmentation") in (None, "ordinary_speech_zero_padded_shift")):
             sample_weights[index] = ordinary_unknown_weights[record["source_id"]]
+    # Feature extraction has consumed PCM. Retain source/label metadata, but
+    # release the much larger augmented waveforms before TensorFlow fits.
+    for record in train_records:
+        record.pop("pcm", None)
+    train_indices = np.flatnonzero(train_mask)
+    shuffle_rng = np.random.default_rng(seed)
+
+    def training_rows():
+        # Avoid a full advanced-index copy and another complete TensorFlow
+        # tensor of the same features. Only one batch is prefetched.
+        for index in shuffle_rng.permutation(train_indices):
+            yield features[index], targets[index], sample_weights[index]
+
+    training_data = tf.data.Dataset.from_generator(training_rows, output_signature=(
+        tf.TensorSpec((FEATURE_ROWS, 40, 1), tf.float32),
+        tf.TensorSpec((), tf.int32), tf.TensorSpec((), tf.float32)))
+    data_options = tf.data.Options()
+    data_options.experimental_deterministic = True
+    data_options.threading.private_threadpool_size = 1
+    training_data = training_data.with_options(data_options).batch(batch_size).prefetch(1)
     depthwise_blocks = (((3, 3), (2, 1)), ((3, 3), (2, 1)),
                         ((9, 3), (1, 1)), ((9, 3), (1, 1)))
     model = tf.keras.Sequential([tf.keras.layers.Input((FEATURE_ROWS, 40, 1)),
@@ -1044,8 +1188,7 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
     early = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=20,
                                              restore_best_weights=True)
-    history = model.fit(features[train_mask], targets[train_mask], sample_weight=sample_weights[train_mask],
-              epochs=epochs, batch_size=batch_size,
+    history = model.fit(training_data, epochs=epochs,
               validation_data=(features[validation_mask], targets[validation_mask]), verbose=0,
               callbacks=[early])
     # Keras restores best_weights only when its patience actually stops the
@@ -1053,7 +1196,8 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
     if early.best_weights is None:
         _fail("training_best_weights_unavailable")
     model.set_weights(early.best_weights)
-    float_validation = _evaluate_float(model, features[validation_mask], targets[validation_mask], np)
+    float_validation = _evaluate_float(model, features[validation_mask], targets[validation_mask], np,
+                                       class_labels)
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
     converter.representative_dataset = lambda: ([features[index:index + 1]]
@@ -1073,17 +1217,18 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
                                if detail["op_name"] != "DELEGATE"})
     expected_operators = ["AVERAGE_POOL_2D", "CONV_2D", "DEPTHWISE_CONV_2D", "FULLY_CONNECTED",
                           "RESHAPE", "SOFTMAX"]
-    if (actual_input_shape != [1, FEATURE_ROWS, 40, 1] or actual_output_shape != [1, len(LABELS)] or
+    if (actual_input_shape != [1, FEATURE_ROWS, 40, 1] or actual_output_shape != [1, len(class_labels)] or
             actual_operators != expected_operators):
         _fail("model_export_incompatible")
     # Test stays frozen until a separately bound ``kws evaluate --split test``.
     metrics = {"float_validation": float_validation,
                "validation": _evaluate_int8(interpreter, features[validation_mask],
-                                              targets[validation_mask], np)}
+                                              targets[validation_mask], np, class_labels)}
     in_q = interpreter.get_input_details()[0]["quantization"]
     out_q = interpreter.get_output_details()[0]["quantization"]
     runtime_policy = _policy_from_c(_kws_library())
-    metadata = {**report, "wake_phrase": WAKE_PHRASE, "audio_seconds": 3,
+    metadata = {**report, "wake_label": wake_label, "wake_phrase": wake_phrase, "audio_seconds": 3,
+                "input_pipeline": "source_preserving_tf_data_one_prefetched_batch",
                 "architecture": f"ds-cnn-conv{channels}-10x4-s2xf{initial_frequency_stride}-dw3x3-s2-dw3x3-s2-dw9x3-dw9x3-pw{channels}-bn-relu-global-pool19x{(40 + initial_frequency_stride - 1) // initial_frequency_stride}-flatten-dense3",
                 "channels": channels,
                 "initial_frequency_stride": initial_frequency_stride,
@@ -1119,6 +1264,11 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
                                     "unknown_zero_padded_shifts": any(
                                         record.get("augmentation") == "ordinary_speech_zero_padded_shift"
                                         for record in augmented),
+                                    "positive_end_window": {
+                                        "milliseconds": positive_end_window_ms,
+                                        "mode": ("all_legal_complete_positions" if not positive_end_window_ms
+                                                 else "complete_phrase_end_within_final_window"),
+                                        "original_train_positive_excluded": original_train_positive_excluded},
                                     "positive_source_weighting": {
                                         "rule": "unaugmented_positive_total/(positive_source_count*source_positive_windows)",
                                         "positive_windows": positive_total,
@@ -1130,7 +1280,7 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
                                             positive_weights[record["source_id"]]
                                             for record in train_records
                                             if record["split"] == "train" and
-                                            record["label"] == "nihao_openvela"),
+                                            record["label"] == wake_label),
                                         "non_positive_weight": 1.0 / amplitude_copies,
                                         "validation_weighting": "none"},
                                     "ordinary_unknown_source_weighting": {
@@ -1191,8 +1341,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                      channels=args.channels,
                      initial_frequency_stride=args.initial_frequency_stride,
                      pcm_level_augmentation=args.pcm_level_augmentation,
-                     room_augmentation=args.room_augmentation)
+                     room_augmentation=args.room_augmentation,
+                     positive_end_window_ms=args.positive_end_window_ms)
     if args.kws_command == "evaluate":
         return evaluate(args.manifest, args.model, args.output, args.frozen_policy,
                         args.split)
+    if args.kws_command == "package":
+        return package(args.model, args.metadata, args.output)
     raise KwsError("command_invalid")
