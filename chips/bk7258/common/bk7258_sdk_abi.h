@@ -37,6 +37,14 @@
 #define BK7258_SDK_ABI_VERSION_V3119       0x03010109u
 #define BK7258_SDK_ABI_VERSION             BK7258_SDK_ABI_VERSION_V3119
 
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_RPTUN_MBOX)
+/* AIDK v3.1.1.9 flash_notify.c.obj leaf. The AP does not start the SDK
+ * Flash client: CP owns physical Flash and NuttX remote storage owns its
+ * clients. Retain only the SDK's peer operation-notification receiver.
+ */
+extern bk_err_t mb_flash_ipc_init(void);
+#endif
+
 /****************************************************************************
  * AP-local cross-core mailbox ABI
  ****************************************************************************/

@@ -9,6 +9,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include "bk7258_cloud_config.h"
 
 enum bk7258_persona_e
 {
@@ -39,6 +40,10 @@ int bk7258_preferences_set_persona(const char *persona);
  * call preferences APIs recursively. Cleanup failure is returned to caller.
  */
 int bk7258_preferences_with_storage(int (*operation)(void *), void *context);
+/* Public cloud model selections are a separate atomic CP-data record.  They
+ * never contain, read, or overwrite CCF1 credentials. */
+int bk7258_preferences_cloud_models_get(struct bkcloud_models_s *models);
+int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models);
 /* Stable names are shared by the AP store and CP command without linking
  * the CP command to a second KVDB owner.
  */

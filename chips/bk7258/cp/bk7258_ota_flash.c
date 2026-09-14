@@ -50,17 +50,40 @@ int bk7258_ota_flash_verify(uint32_t address,
 
       if (memcmp(observed, expected + offset, count) != 0)
         {
+          uint8_t reread[32];
           uint32_t first = 0;
+          uint32_t missing_zero_bits = 0;
+          uint32_t extra_zero_bits = 0;
 
           while (first < count && observed[first] == expected[offset + first])
             {
               first++;
             }
 
-          /* Report the location, never image or persistent-data contents. */
+          /* Classify a failed write without logging image or persistent-data
+           * contents. One bounded reread distinguishes unstable observation;
+           * it never turns a failed verify into success or retries a write.
+           */
 
-          syslog(LOG_ERR, "BKOTA verify mismatch address=%08lx\n",
-                 (unsigned long)(address + offset + first));
+          for (uint32_t i = 0; i < count; i++)
+            {
+              uint8_t missing = observed[i] & ~expected[offset + i];
+              uint8_t extra = expected[offset + i] & ~observed[i];
+              for (unsigned int bit = 0; bit < 8; bit++)
+                {
+                  missing_zero_bits += (missing >> bit) & 1u;
+                  extra_zero_bits += (extra >> bit) & 1u;
+                }
+            }
+
+          ret = bk7258_flash_read(address + offset, reread, count);
+
+          syslog(LOG_ERR, "BKOTA verify mismatch address=%08lx "
+                 "missing_zero_bits=%lu extra_zero_bits=%lu reread=%d stable=%d\n",
+                 (unsigned long)(address + offset + first),
+                 (unsigned long)missing_zero_bits,
+                 (unsigned long)extra_zero_bits, ret,
+                 ret == 0 && memcmp(observed, reread, count) == 0);
           return -EIO;
         }
     }

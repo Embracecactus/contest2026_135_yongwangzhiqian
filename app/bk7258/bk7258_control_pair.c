@@ -74,7 +74,10 @@ int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
   if (pair->expected == 16)
     {
       uint32_t payload = get32(pair->input + 12);
-      if (memcmp(pair->input, "SDC1", 4) || payload > 32)
+      uint32_t limit = pair->session.authenticated &&
+          get32(pair->input + 4) == BKCONTROL_CONFIG_APPEND ?
+          BKCONTROL_CONFIG_APPEND_MAX : 32u;
+      if (memcmp(pair->input, "SDC1", 4) || payload > limit)
         { ret = -EPROTO; goto fail; }
       pair->expected += payload;
       if (payload != 0) return 0;

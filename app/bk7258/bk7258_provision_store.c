@@ -78,7 +78,9 @@ int bkprov_store_check_filesystem(const char *root)
        !strcmp(root, "/cpdata/shaniu/identity") ||
        !strcmp(root, "/cpdata/shaniu/voice-volume") ||
        !strcmp(root, "/cpdata/shaniu/voice-ota") ||
-       !strcmp(root, "/cpdata/shaniu/memory-policy")))
+       !strcmp(root, "/cpdata/shaniu/memory-policy") ||
+       !strcmp(root, "/cpdata/shaniu/cloud-models") ||
+       !strcmp(root, "/cpdata/shaniu/wake-models")))
     return fs.f_blocks > 0 && fs.f_bsize > 0 ? 0 : -ENODEV;
 #endif
   return -EXDEV;
@@ -194,16 +196,25 @@ int bkprov_store_commit(struct bkprov_store_s *store, uint64_t expected,
   if (close(fd) < 0 && ret == 0) ret = -errno;
   if (ret < 0) { unlink(store->pending); return ret; }
   if (rename(store->pending, store->active) < 0) return -EINPROGRESS;
+  return bkprov_store_sync_directory(store->directory);
+}
+
+int bkprov_store_sync_directory(const char *directory)
+{
 #ifndef __NuttX__
+  int fd;
+  int ret;
   /* Host POSIX requires the containing directory to be synced. NuttX
    * LittleFS rename commits its metadata before returning; it does not
    * implement directory descriptors usable with fsync.
    */
-  fd = open(store->directory, O_RDONLY | O_DIRECTORY);
+  fd = open(directory, O_RDONLY | O_DIRECTORY);
   if (fd < 0) return -EINPROGRESS;
   ret = fsync(fd);
   if (close(fd) < 0) ret = -1;
   if (ret < 0) return -EINPROGRESS;
+#else
+  (void)directory;
 #endif
   return 0;
 }

@@ -19,6 +19,63 @@ static bool alnum(uint8_t c)
          (c >= '0' && c <= '9');
 }
 
+static bool model_valid(const uint8_t *p, size_t size)
+{
+  if (size == 0 || size > BKCLOUD_NAME_MAX) return false;
+  for (size_t i = 0; i < size; i++)
+    if (!alnum(p[i]) && p[i] != '.' && p[i] != '_' && p[i] != ':' &&
+        p[i] != '/' && p[i] != '-') return false;
+  return true;
+}
+
+int bkcloud_models_decode(struct bkcloud_models_s *models,
+                          const void *record, size_t size)
+{
+  const uint8_t *p = record;
+  size_t lengths[3], total = 12, offset = 12;
+  char *fields[] = {models ? models->asr_model : NULL,
+                    models ? models->chat_model : NULL,
+                    models ? models->tts_model : NULL};
+  if (!models) return -EINVAL;
+  memset(models, 0, sizeof(*models));
+  if (!p || size < 12 || size > BKCLOUD_MODELS_RECORD_MAX ||
+      memcmp(p, "MCP1", 4) || p[10] || p[11]) return -EBADMSG;
+  for (size_t i = 0; i < 3; i++)
+    {
+      lengths[i] = ((size_t)p[4 + 2 * i] << 8) | p[5 + 2 * i];
+      if (lengths[i] > size - total) return -EBADMSG;
+      if (!model_valid(p + offset, lengths[i])) return -EBADMSG;
+      total += lengths[i]; offset += lengths[i];
+    }
+  if (total != size) return -EBADMSG;
+  offset = 12;
+  for (size_t i = 0; i < 3; i++)
+    { memcpy(fields[i], p + offset, lengths[i]); offset += lengths[i]; }
+  return 0;
+}
+
+int bkcloud_models_encode(const struct bkcloud_models_s *models,
+                          uint8_t *record, size_t capacity, size_t *size)
+{
+  const char *fields[3]; size_t lengths[3], total = 12, offset = 12;
+  if (!models || !record || !size) return -EINVAL;
+  fields[0] = models->asr_model; fields[1] = models->chat_model;
+  fields[2] = models->tts_model;
+  for (size_t i = 0; i < 3; i++)
+    {
+      lengths[i] = strnlen(fields[i], BKCLOUD_NAME_MAX + 1u);
+      if (!model_valid((const uint8_t *)fields[i], lengths[i])) return -EINVAL;
+      total += lengths[i];
+    }
+  if (total > capacity) return -ENOSPC;
+  memset(record, 0, total); memcpy(record, "MCP1", 4);
+  for (size_t i = 0; i < 3; i++)
+    { record[4 + 2 * i] = lengths[i] >> 8; record[5 + 2 * i] = lengths[i]; }
+  for (size_t i = 0; i < 3; i++)
+    { memcpy(record + offset, fields[i], lengths[i]); offset += lengths[i]; }
+  *size = total; return 0;
+}
+
 static bool host_valid(const uint8_t *p, size_t size)
 {
   size_t label = 0;

@@ -73,6 +73,17 @@ internal class AndroidDeviceControlFactory(
             }
         }
 
+        override fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray,
+                                    accepted: (Boolean) -> Unit) {
+            val owned = payload.copyOf()
+            executor.execute {
+                val target = synchronized(lock) { if (closed) null else connection }
+                if (target == null) { owned.fill(0); post { accepted(false) } }
+                else try { target.requestPayload(command, owned) { ok -> post { accepted(ok) } } }
+                finally { owned.fill(0) }
+            }
+        }
+
         override fun close() {
             val target = synchronized(lock) {
                 closed = true

@@ -24,6 +24,7 @@ int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
  * credential removal or owner unbind.
  */
 int bkprov_owner_control_ota(bkcontrol_ota_t ota);
+int bkprov_owner_control_config(bkcontrol_config_t config);
 int bkprov_owner_error(void);
 /* Feed the current owner-service snapshot. While idle, a bound identity,
  * writable claim operations, and a storage snapshot proven absent make the

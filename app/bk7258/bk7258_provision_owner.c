@@ -27,6 +27,7 @@ static struct
   uint8_t control_key[32];
   bkcontrol_execute_t execute;
   bkcontrol_ota_t ota;
+  bkcontrol_config_t config;
   void *control_context;
   uint64_t retry_at;
   bool recovery_requested;
@@ -72,6 +73,7 @@ int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
       mbedtls_platform_zeroize(g_owner.control_key, 32);
       g_owner.execute = NULL;
       g_owner.ota = NULL;
+      g_owner.config = NULL;
       g_owner.control_context = NULL;
       return 0;
     }
@@ -81,6 +83,7 @@ int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
   memcpy(g_owner.control_key, key, 32);
   g_owner.execute = execute;
   g_owner.ota = NULL;
+  g_owner.config = NULL;
   g_owner.control_context = context;
   return 0;
 }
@@ -98,6 +101,14 @@ int bkprov_owner_control_ota(bkcontrol_ota_t ota)
     }
 
   g_owner.ota = ota;
+  return 0;
+}
+
+int bkprov_owner_control_config(bkcontrol_config_t config)
+{
+  if (bkprov_owner_busy()) return -EBUSY;
+  if (config != NULL && g_owner.execute == NULL) return -EINVAL;
+  g_owner.config = config;
   return 0;
 }
 
@@ -125,6 +136,7 @@ int bkprov_owner_bind(mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
   mbedtls_platform_zeroize(g_owner.control_key, 32);
   g_owner.execute = NULL;
   g_owner.ota = NULL;
+  g_owner.config = NULL;
   g_owner.control_context = NULL;
   g_owner.recovery_requested = false;
   return 0;
@@ -143,6 +155,7 @@ int bkprov_owner_unbind(void)
   mbedtls_platform_zeroize(g_owner.control_key, 32);
   g_owner.execute = NULL;
   g_owner.ota = NULL;
+  g_owner.config = NULL;
   g_owner.control_context = NULL;
   g_owner.recovery_requested = false;
   return 0;
@@ -275,6 +288,9 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
                   g_owner.control->session.ota = g_owner.ota;
                 }
             }
+          if (ret == 0 && g_owner.config != NULL)
+            ret = bkcontrol_session_set_config_handler(
+                &g_owner.control->session, g_owner.config);
         }
       if (ret == 0 && g_owner.control->tls.initialized)
         ret = bkcontrol_pair_step(g_owner.control);

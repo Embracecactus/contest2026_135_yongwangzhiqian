@@ -2,12 +2,162 @@
 
 状态：`IN_PROGRESS`
 
-当前执行状态（2026-09-13）：新claim-20260913-nfc436身份的真实NFC发现→认证BLE扫描→手机配置→COMMITTED→正常重启恢复已通过，使用436及APK b426e0…。新配置和身份均已落盘，旧原件仍保留；App进程重启后重新认证并读到设备已连接Wi-Fi。用户随后再次复位，串口仍为configured1/CLOUD ready1。按最新“整个开发过程先禁用mipay”授权，Mi10的com.miui.tsmclient已再次停用并回读确认，开发期间保持停用；不再按单轮测试自动恢复。原钱包共存结果仍未通过。本轮转向真实唤醒/语音看图，已核对436实际配置与ELF，缺有效官方词模型，尚未开始真实唤醒验收。未新增身份、重刷或重做OTA。
+集中 Skill 沉淀已完成，能力分别归档，见[能力映射](shaniu-skill-capability-map.md)。原有 Android 连接、切页及音量 P0 保留。本轮按更新授权继续三词切换、云端模型配置、私人录音适配和板载按键/马达，不新增测试代码。
 
-当前开发基线：官方`cae8d99d`，工作分支`feat/shaniu-feature-acceptance`。已核对本次官方合并与0abfd2fc源码树完全一致；2026-09-13按用户本次授权提交并推送到个人`fork`同名分支。产品修复、HIL工具、规则与进度说明分别提交；原始串口日志、三份未跟踪SDIO探针、固件/设备资料及凭据不纳入Git。
-当前实板18.6.355+436（A槽confirmed、B435保留），当前手机Mi10/59d707dc安装APK `b426e0162eba394a2ac5951c57f3b2428e4aabfae2f29a19a267fa9d81c07267`。既有App OTA 432→434、434→435、正常重启后435→436证据保持有效，本轮没有重复升级。新身份436的配置及重启恢复使用本轮独立证据，不沿用426结果。真实语音唤醒及语音触发图片理解仍缺有效官方模型，未验收；原钱包共存、长期连接及完整产品验收仍未完成。
+当前已核验实板：`18.6.363+525 / counter525 / pair=confirmed`；已覆盖安装 APK `0.5.14-model-input`（code 19），SHA256 `41ba6cf1dd37f6f12c6459342f7a2227e60d106a0e14ebf5af67778fa3016b44`。525 完整镜像 `voice525-camera-owner-full/` SHA256 `e8990588a07ad680709be923d8902180244eb7774615609554e7337b555f8465`，同设备身份、信任、校准、配置与原模型保留。构建输入快照 `voice525-camera-owner-source/` 含 651 个输入及实际 AP/CP ELF，源码树 SHA256 `661a39109f9b66501442b327296f009525891a17652033d5f26c4c586a53bd5d` 与构建 manifest 一致。证据均在工作区 `out/shaniu-p0-20260913/`；设备绑定完整镜像和私人素材不公开。
 
-本次发布核对：复用下述OTA flow/store/cancel、NFC UART、Android及436实板证据；HIL现有15项单测另行执行通过，日志`feature-acceptance436-publication-hil-tests.log`。差异格式和新增行秘密模式检查通过。此次是源码分支交付，不新增固件构建、签发、刷机或完整产品验收；远端分支SHA及与官方基线的比较结果以发布后核验记录为准，PR由用户创建。
+523→525 延迟切片已进入真实产品：官方 Media 队列从 66 帧改为 30 帧，仍由 Media 处理缓冲、欠载恢复和排空；语音取图接口退出独立表情序列，语音会话独占 thinking/speaking/error，独立拍照命令保留自身反馈。523/524/525 留出合成手机扬声器回放均完成真实唤醒、当次 JPEG、理解、TTS 和重新监听；取图 4429/4475/1305ms，播放器打开到 DAC 启动 8907/4175/4153ms，唤醒到 DAC 27222/23931/19858ms。每轮云回答与网络时序不同，这些是实际单轮观测，不是受控性能基准。525 JPEG 7935B、TTS 445440B/ret0/done1，排空后 MIC 约 454ms 重开，随后约 84 秒持续 KWS；本轮无 XRUN/underflow，重开时的短暂 -16 日志仍保留，不称为全部音频问题已消除。证据 `voice523-boot-image-stream/`、`voice524-boot-image-stream/`、`voice525-camera-owner-image/`。
+
+522/0.5.10 的真实升级后回归已完成：20 轮/60 次底部切页，已确认可观测的原生 GATT/扫描日志窗口无新增连接或扫描事件；音量回读 40%、60%，最终恢复 73%。0.5.11 修复实测新增导入问题：系统文件选择器超过前台宽限后，所选模型曾在认证未完成时被误判为设备忙而丢弃；现仅为尚未发送的本次选择保留 30 秒有界等待，认证、状态和能力回读后单次提交，主动断开/离开前台/取消会丢弃等待项，已发送的事务不重放。0.5.11 真机在文件选择器停留约 403 秒后，仅选择一次新 WKM，完成自动认证、下发、激活和期望 SHA 回读。0.5.12 随 APK 提供该候选，并显示当前/上一模型短哈希；实际往返恢复 `2ced5671→d3256841→2ced5671` 均回读确认。正常软件重启后 525 confirmed、Wi-Fi/云服务/KWS 自动恢复，App 自动重连并读回新模型。20 轮/60 次切页持续约 150 秒，本 App PID 的 GATT connect/register、扫描及关闭事件均为 0；其他进程的周期扫描分列，未混作 App 回归。证据 `app0511-long-picker-import.json`、`app0511-525-external-model-activation/readback.json`、`app0512-model-restore-readbacks.json`、`voice525-new-model-reboot/`、`app0512-tabs20.json`。 0.5.12 音量实际回读 40%、60%，最终恢复原请求值 70%（官方 Media 档位回读 73%）；证据 `app0512-volume-readbacks.json`，不将 UI 自动化误落到其他页面的早期观察记作设备设置失败。
+
+当前冰冰模型为 fresh-end1200 候选：TFLite SHA256 `2ced56715079b8dcbed076ceef95d6340098949c7e52aea9001810baced15040`，23640B；WKM SHA256 `20345f85b58ffccdf0e3d09cd3f0e3a3549c49c92bc2bcd665e7ef8c2e4345ba`，23776B。仅调整完整正例在训练窗口的位置，验证/测试数据及 0.85/0.2、连续 2 次、1000ms 政策不变。验证分类 9/10、普通语音 0/36 误判，冻结测试 12/12、0/42；严格连续窗口漏检/窗外事件从旧模型验证 7/7、测试 9/9 降至 1/1、3/3，不能将窗外事件统称普通背景 FAR。原录音 33/33 切片命中，但密集连续诊断仍受释放锁存影响，属于训练来源诊断；真人泛化未验证。525 上新模型实板完成一次留出合成声学唤醒、当次 JPEG 7267B/1244ms、TTS 775680B、排空后约 357ms 恢复 MIC，随后约 54 秒 KWS。证据 `voice525-fresh1200-bingbing-image-r1/result.json`；本轮无 XRUN/underflow 或重开 -16。上一冰冰 WKM 与板内上一模型均保留。
+
+交付对应关系：525 固件源码快照与 ELF 保持封存，0.5.14 源码/三模型包快照为 `app0514-source/`，APK 内模型字节已逐一核对；外置新模型由 App 部署，不能声称原 525 完整镜像已包含该次配置。再次全量烧录前必须保全最新模型选择与配置；pre521 基础恢复材料仍是旧选择，禁止直接覆盖当前选择。
+
+0.5.14 模型 ID 字段使用可见、无组合的 ASCII 单行输入。实测当前讯飞输入法仍会在 0.5.13 的 URI 字段中改写/重排连字符，已核对新安装版本与实际 EditorInfo，未把该候选写成修复通过；0.5.14 精确输入和设备配置回读通过。自动化保存必须在键盘收起、对话框位置稳定后取得新鲜控件范围，不能用旧坐标误判保存失败。525 实际声学唤醒后已观察 ASR HTTP200、对话 HTTP400/ret=-121、turn_fail=-121 与 KWS 重新运行；App 已恢复原 ASR/对话/TTS ID 并回读确认；服务错误后约 211ms 重开 MIC、3.262 秒取得首个 KWS 窗口。下一轮再次唤醒、ASR 与工具路由 HTTP200、新 JPEG 7975B/1226ms，但未在采集内完成播报；之后只读状态确认 `last_error=-110 / turn=0 / busy=0` 与持续 KWS。超时转换发生在两段采集之间，未补造具体时刻或 HTTP 阶段。证据 `voice525-service-error-recovery/`、`voice525-after-service-error/`、`voice525-after-error-state/`，超时后的下一轮普通语音已完成：ASR/对话/TTS HTTP200，322560 PCM 字节/ret0/done1，播放排空后约 691ms 恢复 MIC，随后约 115 秒持续 KWS，未记录 XRUN/underflow；证据 `voice525-after-timeout-ordinary/result.json`。该次唤醒到 DAC 约 15.95 秒，为单轮观测。
+
+525/0.5.14 已完成活动请求 Wi-Fi 中断恢复：原手机热点仅临时开启，原 SSID/密码/安全模式/频段未改；板卡通过既有 RAM 会话连接，未覆盖持久配网。真实唤醒及 ASR HTTP200 后关闭热点，记录实际断链、后续请求 ret=-129、turn_fail=-129，约 116ms 重开 MIC、3.294 秒出现 KWS 窗口。热点恢复后无需板端重连或有副作用的 STATUS 命令，即自行关联并完成 DHCP；下一轮 ASR/对话/TTS 三次 HTTP200，491520 PCM 字节/ret0/done1，排空后约 85ms 重开 MIC。该轮有一次 Media 欠载暂停/恢复，对应三条 XRUN/underflow 日志，不能写成无欠载通过。最初自动化错误匹配唤醒日志的轮次未执行断网，已分列且未计为中断通过。证据 `voice525-active-wifi-recovery/result.json` 与两段完整 UART 原始采集；手机与原网络恢复另见 `voice525-original-network-restored/`。
+
+WKM1 已通过真实 App 完成一条下发/存储/激活/回读链：517 上选择“你好，open-vela”，App 按期望 SHA 确认 `0d05f073df667d7b595a0a0478f4a527b04bbe710c22016205ae24611c860b5b` 生效，随后恢复材料保留同一选择。514/515 的 `-36` 原因已整改：当前 VFS 连 32 字符中间目录也会在斜线前拒绝，改为 24/24/16 保留全部哈希位；模型与配置共用既有存储持久化规则，删除不适用的 NuttX 目录 fsync。519 的分片 ACK/取消不再为每 32B 读取完整产品 STATUS；单请求串行、认证、序号、APPLY 校验和最终 READ 确认保持。0.5.9 增加发送百分比。519 已完成“你好冰冰”真实 App 激活与期望 SHA 回读，arena 40692B；520 全量烧录后 App 回读仍为冰冰，云配置 ready=1/busy=0，原身份和设置保留。520/0.5.10 使用认证后的 CAP1 只读能力协商，将 CONFIG_APPEND 上限提高到 512B，旧固件回退 32B；AUTH、OTA 和底层 GATT 写入期限不变。520 上第三词约 132 秒完成实际传输和激活，App 按期望 SHA 确认；同样 23776B 旧分片操作约 7 分钟，不是仅按理论分片数估算。恢复上一模型已回读确认为冰冰，普通软件重启后 520 pair confirmed、cloud ready 和 KWS 运行通过；App 重启后已回读“当前：你好冰冰”。既有 C 控制会话/TLS 测试通过；Android 单元测试因既有 Peer 未实现之前新增的 requestPayload 接口而编译失败，未新增或修改测试。MCP1 经原配置所有者保存公开 ASR/对话/TTS ID；520/0.5.10 上对话模型已从 mimo-v2.5 改为 mimo-v2.5-pro，并由设备回读确认，真实冰冰词合成物理回放已完成 ASR/新对话模型/TTS 三次 HTTP200、391680 PCM 字节、排空及约 54 秒持续监听；随后 App 恢复原对话模型，串口配置摘要与原记录一致。ASR/TTS 字段本轮保持原值，不能称三个服务分别切换验收通过。
+
+519 的留出合成手机扬声器回放已通过真实 MIC 唤醒、用户收音、云请求、TTS 537600 PCM 字节/ret0/done1、playback_complete1 和持续重新监听。新模型 arena_used 为 40692B，恢复后的首次推理 81562µs。该轮 GC2145 有新打开/关闭记录，但没有独立的帧返回成功记录，不将图片理解完整验收判为通过；仍有 Media 停启阶段 `-32/-22` 与格式日志，完整原始证据保留于 `voice519-adapt-acoustic-openvela/`。这是合成语音物理回放，不是真人泛化或主观扬声器/马达体感验收。
+
+520 傻妞词的有界留出合成手机回放：一次 hotword → waiting-user → user-speech → 新 GC2145 打开/关闭 → TTS 606720 PCM 字节/ret0/done1 → playback_complete1，MIC 于排空后约 358ms 重开；其后约 44 秒连续监听无额外触发。实际 DAC START 距本次 hotword 约 28.9 秒，首响延迟仍需优化。前一轮音乐播放器仍处于播放状态并伴随额外触发，排除其作为自唤醒判定依据；本轮在唤醒时停止手机目标词播放，检测到命令语音后 2.2 秒停止手机播放器。没有真人泛化、板上物理按键或主观振感证明。证据 `voice520-shaniu-acoustic-bounded/`。
+
+板载交互保持功能键 KEY1/P13 音量减、KEY3/P8 音量加、KEY2/P12 独占长按 3 秒后松开提交软关机，P12 为板级超深睡唤醒输入。原理图另有位号 K1 的 CEN 复位键，不能与功能键 KEY1 混用。515 起按实际 Media 音量档位计算，避免一次按键仍落在原档位。唤醒与关机通过标准 force-feedback 设备，在 MIC 释放后等待有界脉冲完成；保留录音抑制马达。517 首次物理唤醒后 AP/CP 通信停滞，源码确认 GPIO FF 私有自旋锁与 NuttX watchdog 全局临界区顺序反转；519 改用同一 NuttX SMP 临界区，实际同音频复验已越过该停点并完成语音恢复。旧 GPIO FF 主机替身未提供此临界区 API，无法编译，未改测试或计为通过；目标构建/签名及实板证据分列。真实按键、电源唤醒与震动体感仍未验收。
+
+0.5.8 已在真机完成 20 轮、60 次底部切页，GATT connect/register 无新增；已认证的滚动位置跨轮询保持。0.5.9 仅在其上增加模型发送百分比，已覆盖安装；回归证据不冒充 0.5.9 的新实测。三个候选均 23640B、INT8 `[1,149,40,1]`、三标签六算子，WKM 包 23776B。留出合成分类目标命中 10/10、12/12、12/12，普通语音各 0/42 目标误判；原严格连续测试漏检/窗口外事件为 0/0、9/9、11/11，重复 0，后两词迟触发仍需改进，未扩大窗口或降低阈值。原录音训练来源诊断候选匹配 1/5、2/33、5/10，未归属事件 12、3、10 不直接称误报；原文件已经用于训练，该结果不是独立验收。当前工具核对未发现批量/流式前处理窗口错配，不据此臆造修复。
+
+真实 App OTA：511→513 在 AP 偏移 258048/地址 `0x0043b9e4` 校验失败；514→515 在 36%、AP 偏移 1290240/地址 `0x00537bb2` 再次失败（均 `-5`）。位置不同，不能推断固定坏扇区。521 已接入原 AP 构建未链接的 AIDK SDK Flash 通知接收入口；SDK 通知 ACK 不代表远端 XIP 暂停，也不启动另一套 AP Flash 客户端。目标链接、既有存储/OTA 合同及实板启动通过。原校验失败分支增加一次有界读回与位差数量日志，仍保留失败，不重写或掩盖错误。522 OTA 包 SHA256 `c24b890f626365f1b5c5096db1a3a54b2c2b0904ad2c84ea04ed577350898de0`，编译 floor 为 521、签名版本/计数为 522，符合现有 OTA 契约。该包已由真实 App 单次发起，完成 AP/CP 写入、自动重启、`BOTA TRIAL CONFIRMED slot=1 counter=522`；手机重新认证后实际回读构建 522/计数 522、100%、已确认完成升级、无错误，KWS 已恢复。证据 `app-ota-522-apply-uart/`、`app-ota-522-apply-uart-continuation/` 与 `app-ota-522-confirmed.json`。这是一轮本版本真实 OTA 成功，不据此断言历史间歇写入错误的所有原因均已消除。全量烧录与 App OTA 验收分列。
+
+剩余必做：三词迟触发和效果继续改进，独立真人泛化仍未验证；ASR/TTS 各自更换另一可用服务模型的实测尚未完成（对话模型切换已回读并真实运行）；新增任意词可沿已有训练入口生成 WKM 并在 App 导入，但尚未对三词以外的第四词完成训练至实板验收。KEY1/KEY2/KEY3 实体按压、关机后实体唤醒与马达触感没有自动物理执行条件，仍未验收。低延迟仍受云端首包和网络供数影响；保留本轮热点链路的实际欠载事件，不宣称连续播放质量已完全收口。已完成的切页/音量、WKM 导入激活/回读/恢复、服务错误和断网恢复不重新列为待做。历史间歇 Flash 校验问题仅在真实复现时继续定位，不无变化地重复升级。项目仍为 `IN_PROGRESS`。
+
+以下为按版本保留的历史记录，不代表当前运行版本或当前范围。
+
+506 历史实板为 `18.6.355+506 / counter506`，原AIDK COM8全量部署与pair confirmed通过；模型及构建配置均为纠正发音后的v46，SHA256 `922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910`。505因遗漏模型配置SHA pin返回wake unavailable=-129，不能作为可用唤醒版本；506已修正pin，并在既有ROMFS构建中加入模型与配置哈希一致性检查。原签名、六个同设备保留分区及日志恢复回读通过，未清手机数据。源码包 `voice506-diag-team-sources.tar.gz` SHA256 `dc93e86b0f3e1af81098e86f9859b47b1539349deb906ef78ee88877f3db0f2e`，完整BIN SHA256 `4702e4460a408ea7739f4e90ce90273a68dfe5181a4cac745e3ac55ba783d59c`；APK仍0.5.4。
+
+506已用原Mi10扬声器播放实际音素为 /ˈoʊpən vˈiːlə/ 的留出合成音频，经真实MIC产生本地wake→waiting-user→user-speech→ASR/Agent→当次GC2145取图→图片理解HTTP200→TTS 1098240 PCM字节/ret0/done1→playback_complete1→持续KWS。证据 `voice506-physical-wake-image-synced-r1/`；模型23640B、实际arena_used40692B、首次推理78125µs。这是合成语音的物理声学链路，非真人泛化验证。播报仍有3次underflow；显示状态更新EYES=-11，随后现有status确认display ERROR/-110/sequence0，为启动等待设备超时，具体缺失节点尚未确认。当前整体仍未完成。
+
+v46由全部62条正例纠音后重训，保留40/10/12划分与原负例；24轮CPU训练6分11秒，最佳epoch5/val_loss0.099193。现有连续评估验证10/10、原测试12/12、扩展纠音回归14/14，窗口外/重复触发均0；扩展14包含原12，非独立26条。未降低0.85连续两次/300ms策略，评估复用已观察的合成音色，不能称新盲测或真人效果。模型与完整纠音资产归档 `kws-v46-viila-assets.tar.gz`（25451864B，SHA256 `17de5340831d4182f3bc92323daabce4f82dc2e63af304b9875eb3f82e584c43`），训练和实际token解码记录随包保留。
+
+506 阶段曾将手机 App 换词列为后期扩展；此范围限制已被后续三词及自定义模型授权取代。503→504实际App OTA及其后60次底部切页/原凭据连接超过120秒的证据继续有效；当前506→507正通过同一真实App单次执行，未提前记为通过。以下保留按版本区分的历史发现，不替代上述当前事实。
+
+501→502真实App OTA仅启动一次，在0%返回原始connect -101，供包端无TCP、未写Flash；504标准OTA包于06:25:17 UTC从真实App只启动一次；真实TCP/TLS供包后，实板TRIAL ARM slot1/counter504并重启，手机原凭据自动恢复，回读构建504/counter504及“已确认完成升级、100%、无错误”。证据 `phone504-app-ota-run-r1/`，包SHA256 `e6e400d5ed9145c368f8070c13e82bcdccdc8fe04f0d90a1a9b2d485982a7843`。这是本次OTA成功证据，不足以宣布所有历史-101或Flash回读间歇故障根因已消除。503两次物理合成回放均没有正式唤醒事件，未播放后续命令，不能声称新Media播放路径已验证。**本轮核对发现实际回放sid043/sid045的文件哈希与final-v37-fresh生成记录一致，而记录为vela /ˈvɛlə/，不符合用户指定 /ˈviːlə/“维拉”。此前将这批合成回放当作标准发音验收输入的判断撤回；历史触发和下游链路日志保留，但不作为正确唤醒词发音的验收通过。** 已停止沿用这两份音频作正式验收。进一步核对v31冻结manifest的runtime_warning确认：62条训练/验证/测试正例也沿用实际 /vɛlə/ 路径，条目中的 /viːlə/ 只是词典参考，与实际不符。v45不能作为用户指定“维拉”唤醒的交付模型，已保持原40/10/12说话人划分重生成全部62条正例，406条总资产及22条连续流由现有audit校验通过，v46沿v45的24轮/32通道/频率步长4/幅度与房间增强配方训练完成，结果见当前记录，未改触发阈值。新的 `pronunciation-viila-r2` 两条合成通过实际token IDs反解确认 /ˈoʊpən vˈiːlə/，已以新文件名复制原Mi10并验hash；sid043单次手机扬声器物理回放已执行，旧v45峰值0.988但只命中一次、没有正式事件，不能写为正确发音唤醒通过（`voice504-corrected-pronunciation-playback-r1/`）；实际合成辅助拼写为 `你好，open vila`，产品拼写仍 `你好，open-vela`。第一轮r1候选仍走错音素，已废弃，不作为正确音频。证据 `kws-tts-train/final-v37-fresh/manifest.json`、`voice503-physical-wake-command-synced-r{1,2}/`。
+
+500同次启动真实结果：第一轮Mi10唤醒后未检测到用户语音，按5秒无语音路径退出并恢复KWS；第二轮最高分0.839未过现行0.85门限、没有正式事件。第三轮复用已有串口实时输出，以板端waiting-user为同步点播放“看看眼前”，真实MIC触发本地wake→user-speech→ASR/Agent→当次GC2145打开/取图关闭→图片理解HTTP200→TTS 506880 PCM字节/ret0/done1→playback_complete1→连续KWS。证据 `voice500-physical-wake-{command-r1,image-r1,image-synced-r2}/`。未用PTT、软件注入或缓存图；这是合成留出音频的物理回放，非真人泛化/听感通过。跨设备时钟未校准，撤回仅凭手机/板端时间差判断早收口的结论；wake预录无条件进ASR的问题由源码独立确认。当前仍有播放underflow、Media边界错误和EYES=-11，整体项目未完成。
+
+498只针对当前缺口修改产品代码：OTA连接等待保留原始errno并记录失败阶段，不再将所有等待错误伪装为-101；KWS在已有日志中记录候选命中/释放转换，不改模型、0.85门限或连续两次规则。增量目标实际编译链接通过；已有HTTP/TLS主机回归退出0（仅主机同步套接字路径，不覆盖板端异步poll）。已有KWS主机测试在旧2秒/100ms假设`state.calls == 1`处失败，与现行3秒/300ms合同不符，未改断言、未写成通过、未新增测试。证据 `voice498-connect-candidate-build.log`、`voice498-existing-http-host-authorized.log`、`voice498-existing-kws-host.log`。
+
+496→497真实手机App OTA本轮失败：手机listener READY，但无TCP/TLS接入；板端manager-apply返回-101、进度0，仍confirmed496，失败后自动重新加载Trigger并持续推理，supervisor faults0/recoveries0。不能把此轮写成升级成功，也未执行`bkwifi status`改变租约后掩盖原状态。证据 `phone497-app-ota-run/`、`voice496-after-ota497-status/`。499标准App OTA包由498同份源码/构建签发；手机重新选中原Shaniu BLE 7F:81并以原凭据认证后，实时回读498。05:17 UTC从真实App启动499，TCP/TLS接入成功；05:21在38%失败，AP image=1 offset=1331200的写后回读校验返回-5，仍confirmed498。后续status确认manager state7/phase3/error-5，supervisor faults0/recoveries0，Trigger自动恢复并连续推理超过5分钟；当前日志不能区分Flash读失败和内容不符，未重试同包。证据 `phone499-app-ota-run/{uart,uart-progress}/`、`during-3-ui.xml`。
+
+498同次启动的两轮Mi10回放均触发正式本地唤醒，ASR/Agent/TTS HTTP200且回到持续KWS；但第二轮在“看看眼前”播放前已收口、没有相机调用，不能写成语音看图通过或指令正确收录。证据 `voice498-physical-wake-{command,image}-r1/`。代码确认冻结的一秒wake PCM会无条件送入ASR，live observer又在sink之后才判定端点；500已将过滤移到同一worker的sink之前，丢弃wake尾音，连续160ms静音后等待用户语音，保留原5秒无语音/30秒总期限与原取消join路径。已删除无人再用的32KB wake pre-roll及其读取接口；泛用历史协议prefill仍由原合法调用者使用。500已增量编译、签名校验并完成全量部署：`voice500-diag-full/`、`voice500-wake-segment-build.log`、`voice500-diag-team-sources.tar.gz`，源码包SHA256 `178703ce8cb22203d28486566968c78ec2a7572d69c2d6016954086aab0995a2`、完整BIN `774ce1fea425ac80444a4954a039c2f8ab6e6abe6ebb459da93815423693dbbc`。未改相机consent、模型或KWS阈值，未新增测试。
+
+v45在496的两条Mi10留出物理回放峰值分别0.878、0.980，均未产生正式唤醒事件；原始留出源在同一C前处理/运行策略中有连续高分，尚不能归因于发音时长。498重启实测模型23640B、arena_used40692B（实际arena分配262144B）、Trigger栈10240B、首次推理79938µs；真人泛化未验证。498源码包 `voice498-diag-team-sources.tar.gz` SHA256 `f93587afb767acb1ed9c188adead4fb4da4b0be2cfa2dbeef2775d176d2880e8`，647项树 `59d1141462fbff3455653d9025594b66781841e3d5ce13074e85ef72c15d124c`；AP ELF `79f0584cbfaa9a7e7d04fc45e88217e7bcd549f7ae5cd6e7b2eb157652599835`，完整BIN `eb523fe02c7511f824923cba0affbbb9961322f72e197cc62bf165c06f5a9496`。APK仍0.5.4、Android P0成果保留；正式唤醒、当前同版本完整产品链和真实OTA仍未验收。
+
+494失联及496交接记录（2026-09-14）：原板已由用户物理复位，COM8单条状态/ps/目录查询均恢复；实板确认 `18.6.355+494 / counter494`、manager idle/error0、supervisor faults0/recoveries0。用户确认复位前眼睛画面静止，只能说明LCD保留帧，不能证明AP活跃。494导出配置误用了AP本地 `/data/kws-in494`，实际CP持久存储在AP挂载于 `/cpdata`；原日志全程ENOENT，CP目录为空且短文件不存在，本轮没有PCM资产。此前“rename后停止保存”的推断撤回，不再尝试读回不存在的文件。该回放max_wake=0.933但没有正式事件。命令共201字节、sleep后155字节，小于当前256字节RX环的255字节容量，不能把NSH失联归为已确认的软件环溢出。495真实App OTA只到手机供包READY，没有TCP接入，板端Trigger/recorder/MIC停止和close均成功后AP日志停止，CP Wi-Fi日志继续；不能归为整板死机或Media stop死锁，失联根因仍未闭环。原生BK Loader read未建立握手、无备份，出现未核实do_reset_signal后该路径已停止。496关闭导出并包含v45，已沿原板既有可信备份全量部署；版本与身份保护沿现有契约。证据 `voice494-after-user-reset-{status,threads,pcm-list,pcm-stat}/`、`voice494-official-trigger-input/`、`phone495-app-ota-run/`。 496首次下载为safe_prewrite_failure，所有擦写成功标记缺失；CP uptime持续至约500秒，未发生软件重启。随后首条ps被握手残留字节污染并返回command-not-found，下一条ps正常，说明本次可不复位恢复NSH。当前实际编译的NuttX upper已有uart_is_termios_hw_change过滤，撤回“只改变回显就会重配硬件”的候选解释；尚不改UART驱动。证据 `voice496-hil-full/`、`voice496-loader-failure-{observe,console,console-recovered}/`。
+
+模型v45-room-f4已通过现有训练和连续评估：24轮CPU训练，最佳第21轮/val_loss0.107240，23640B，SHA256 `7c9765f943ee76d62a9e48736ae1fe13dafdc390cb94520bc0d80aba429c93e7`；频率步长4使理论卷积MAC从4.85056M降为2.42528M，尚非实测延迟。输入/标签/官方前处理及300ms、0.85连续两次的产品政策保持。原验证10/10、原测试12/12、另一批来源留出6/6均命中，窗外/重复事件均0；后一组132秒含24秒MS-SNSD背景，不能外推环境FAR。切片背景被分为unknown，非三分类全对；真实说话人泛化仍未验证。模型已进入团队源码，496已构建、签名及包/信任校验通过，496/v45已全量部署且实板版本确认，效果需以当前物理回放证据判断。报告在 `kws-tts-train/candidate-v45-room-f4/`，原训练及评估元数据保持不可变。 496源码包 `voice496-diag-team-sources.tar.gz` SHA256 `4c22c53747bca27ef19acae8847dd5fc9fff63b5e52558552de189f8fe058e86`，647项树 `39609ce0c8b25c068d339eb281846315b9d1429ca82f2cbef385bc71e6ba8fa0`；AP ELF `096b4be0e8398d9e94b2a856ee6b727377e0a93d3d9c502b148966fa5871f30e`，完整BIN `d8b23e6dc965e1769e00f8e4bfbbae5411e9b04bc15714d4fbf1b9a07821e3c2`。产物在 `voice496-diag-full/` 及同前缀manifest/ELF；APK仍0.5.4、未改Android源码或新增测试代码。
+
+前一个正常运行模型检查点为 `18.6.355+493 / counter493`，状态确认configured=1/cloud ready=1/busy=0。493使用v44-room候选，首次正式入口Mi10音色43留出回放的max_wake=0.476、未触发；同样参数下487/v38回放记录为0。这证明产生目标响应，不等于正式唤醒通过，未降低阈值。证据 `voice493-diag-status/serial.raw`、`voice493-physical-wake-command-r1/`。第二次音色45留出回放max_wake=0.871，但未满足连续两次0.85条件，仍未触发，证据 `voice493-physical-wake-command-r2/`。已构建/签名494，临时启用官方MEDIA_TRIGGER_DUMP进行限时、本地声学输入定位；不新增采集程序或测试代码，诊断后恢复关闭。
+
+493源码包 `voice493-diag-team-sources.tar.gz` SHA256 `e9abd6fcf595888a52c6a2990eeed72e9abcd22a8a17d6b89d53e82f2733bc07`，647项树 `d60338e8acf186a82144ba45a9019db5d209cb5e469da083107c9dc735722408`；AP ELF `e493d29ac16268b2e1d7c339cdb0d8b27369673726e26ee117c06d76bb917331`，完整BIN `c195e0b2ee077b8713fb27b24e0f733d0761edf0f30caca8948af0b5e1999e61`，对应产物见 `voice493-diag-full/`及manifest/ELF目录。包与信任校验、保护尾区一致及BK Loader全量写入通过；未重建身份或清App数据。
+
+已完成的音频迁移实板检查点为 `18.6.355+492 / counter492`，全量烧录、原身份/配置保留及启动确认通过。492通过现有FFmpeg补丁机制在已释放音频流重新reserve前关闭并重开标准设备fd，使NuttX upper-half与lower-half重新执行同一轮configure；未绕过busy/权限检查。491的官方Media调度修复同时保留：本轮暂缓失败节点，让其他节点与STOP/unlink继续排空，错误仍上报。官方Media/FFmpeg工作树没有仅本机的tracked修改。
+
+492同次启动已完成两轮普通语音诊断：实板MIC→ASR→官方Agent→TTS→DAC停止→MIC/KWS恢复，第二轮未复现491的EACCES。两轮PCM分别238080B、222720B，均ret=0/stopped=1/done=1/parser=0；第二轮DAC start=0，02:27:36.916完成后MIC 02:27:36.986启动、02:27:40.137恢复推理。仍有播放欠载与Media收尾错误日志，不能把完整接收/恢复写成听感通过；诊断采集不等于正式唤醒。证据 `voice492-diag-ordinary-r{1,2}/uart/serial.raw`。同次启动第三轮语音看图也完成：当次GC2145 open/close 02:29:32.51–32.60，Agent后续理解HTTP200，TTS正文1440411B/PCM1059840B、ret=0/stopped=1/done=1/parser=0，DAC再次START=0，MIC 02:30:07.116启动、KWS 02:30:10.211恢复。证据 `voice492-diag-image-r1/uart/serial.raw`；不将诊断输入或网络成功冒充正式唤醒及听感验收。
+
+490启用官方TCP SACK与2144B乱序缓存后，首轮TTS由489的接收超时转为完整接收，但随后因Media失败节点饿死其他节点而未恢复。491修复调度后首轮恢复通过，第二轮语音看图已当次GC2145取图、Agent理解HTTP200，但DAC enqueue=-EACCES造成局部背压超时；错误后KWS恢复。492针对该实际第二轮设备生命周期整改，未新增第二个音频所有者或测试代码。历史证据 `voice490-diag-ordinary-r1/`、`voice491-diag-{ordinary,image}-r1/`。
+
+492交付输入为 `voice492-diag-team-sources.tar.gz`（647项，SHA256 `4572ca27f185f6a7cd7262bbda67c0f59156542cd210af8e7045bfa3dc2101e2`）、对应build-manifest/ELF及 `voice492-diag-full/`。源码树 `d1d14b8234b6475359c371a6541e36e9e17d383b54f221b1b47eef03cd2e0c32`，AP ELF `68b3ff65f857c2b5bf2dcb4ce35ecd292f3f51760aabab199146e3543a023179`，完整BIN `062c752ce8b809d8398576a2c31aa627ff6bcb79e5b58b5f264f6428cd08a0f4`。492仍使用v38模型；493已接入v44并完成部署，具体身份与正式唤醒结果见顶部，不将两者混为同一版本。
+
+自主训练v44房间声学增强候选已完成24轮CPU训练（TensorFlow2.15.1，当前无可用GPU），模型 `kws-tts-train/candidate-v44-room/model_int8.tflite` 23640B，SHA256 `2f87fbc82725b2058621e5e44e90ad19253632fef27e4ef44ad212aa40e6a72a`。训练仅增加原训练集的合成反射、带宽、噪声和幅度变化，未改标签、说话人或验证/测试来源。输入149×40 INT8、六算子与现有运行时兼容；固定产品触发参数下，原验证连续9/10命中且1次近音误触发，原测试10/12命中且1次窗外事件，独立来源留出5/6命中且1次窗外事件，均无重复触发。分别使用对应manifest生成验证绑定后执行测试，未跨manifest伪造绑定。切片结果不替代连续触发；当前尚未替换板上v38，真人泛化与新候选实板效果未验证。
+
+已完成的App OTA回归（2026-09-14，历史版本）：原 AIDK/COM8 已由真实手机App OTA升级至 `18.6.355+489 / counter489`；串口确认TRIAL CONFIRMED，App重新认证并回读新版本。487采用板级初始MIC数字增益+12dB，chip只提供有界增益机制，模拟增益/校准不变；ELF实例字节与寄存器转换已核对。手机留出回放期间帧均幅峰值从484约211升至487约864，但max_wake仍为0，正式唤醒未通过。连续480/320 PCM窗与149×40特征顺序同主机，尚无实际声学PCM对照；不能把音量提高写成模型问题修复。证据 `voice487-diag-status/serial.raw`、`voice487-physical-wake-command-r1/`。
+
+486即时TCP确认没有消除TTS停顿：117次读取、38次超过200ms、最长5229ms、接收累计76169ms，最终PCM345600B完成；487主机curl对同一既有赛事端点请求公开TTS文本，HTTP200、157206B、首字节0.602秒、总计1.191秒。主机回复与板端长度不同，不能据此量化改善；仍需定位板端停顿。证据 `voice486-diag-ordinary-r1/uart/serial.raw`、`voice487-host-tts-timing.json`。用户已补充授权全部项目请求，先前出站审批问题已解除。
+
+487诊断语音“看看眼前”ASR200，但Agent400，未进入取图；错误后MIC/KWS恢复。根因已由当前官方源码确认：产品传入OpenAI封装工具，而Agent要求name/description/input_schema，二次封装后function.name缺失。488已将产品定义改为官方工具输入合同，保留唯一Agent循环、当次取图和产品期限；增量构建、包/信任校验及全量部署通过，实板确认18.6.355+488/counter488。现有provider回归1项通过；构建清单项仍期待旧两文件列表、因新增已生效agent_turn.c而失败，未修改测试或记为通过。488源码646项树SHA256 `2c2943e8395760bda8f6c9335a883413330f36441ab617f1e572a497970efb31`，源码包 `voice488-diag-team-sources.tar.gz` SHA256 `fd01a1ee0b15f01bf1b2169dd74dec30b2d91c77ce6b32f71ea88b70fbfde7a7`，AP ELF `8f7becf159b60b62f69a4f07c98c64195e3342a8e4770988aa4f8dc0347d1afe`，8MiB BIN `783496b1898993b8d56b9bb7a1f53a9fbf205bbb92ff040834a6265be9e426b5`；产物见 `voice488-diag-full/`、manifest及ELF目录。APK仍0.5.4，未重做身份供应或用户配置。正式唤醒、流畅TTS、真实看图和新版本App OTA仍未验收。
+
+488修复后的真实图像诊断已执行：Mi10播放合法“看看眼前”→实板MIC/ASR200→Agent工具请求200→GC2145在当次请求后open/close→携带新JPEG的Agent后续请求200（1025B）。TTS仍HTTP200/ret=-110，正文219548B、PCM161280B，receive70346ms/consume1406ms、57次读/18次慢读/最长20118ms，未收齐结束事件；随后MIC/KWS恢复。证据 `voice488-diag-image-r1/uart/serial.raw`，摄像头当次open/close为01:02:55–56，后续理解返回01:03:04。未记录或导出当次图像；未将诊断采集当正式唤醒，也未把不完整播报写成闭环通过。精确摄像头图像外发授权已取得。
+
+489候选在原有HTTP摘要中增加系统TCP计数差值（所有TCP流量范围、非单连接独占），用于定位板端停收；使用NuttX既有统计，不新增探针程序或测试代码。构建/签名/包/信任校验通过：源码646项树SHA256 `3c7061a43cb6bef7e6369cccf1184c3b0917802b78de6903c5624f5dd5cf5dc3`，源码包SHA256 `bed5357e8ca6577df5d5e17e3fdf62f52b94c19d53e564b7feabf53b08d3ad42`，AP ELF `64008a9163f5b6fcdc0af306a840e9b31add8cf2b9fe37f6fe8fa86b834f7de8`，完整BIN `fe7c240b11ba0db6e56978b61a7436e3f50c3f2f1fc67d45e850aa113e4e1a9a`，bkpack `dd24bbec2097ff85f601911fa04688b5f75b35983a914ad7167db8504c67fd56`。上述为完整烧录包；App正确拒绝其作为OTA输入，未改验签逻辑。随后经现有release ota入口生成标准五成员CP/AP包 `voice489-app-ota/package/`，SHA256 `451fbcbdb2651aa20649cc2bf334a811110ac70cde6f7b60c78ff9ffcaa9a768`，大小2859880B。手机系统文件选择器选包并校验通过，01:24:44单击一次开始，手机日志确认TCP与TLS接入，设备下载后重启，串口BOTA TRIAL CONFIRMED slot=1 counter=489，App回读489/100%/已确认完成/无错误。证据 `phone489-app-ota-run/`、`phone489-app-ota-follow/serial.raw`；初次读回和23%进度保留，当前成功结果见progress3-ui.xml。文件选择器长时间后台后，控制会话自动恢复并重新读取OTA状态，未手动扫描或重新认领。488手机设置页仍回读音量53%且入口enabled/clickable，固件更新页真实读取488，未清空数据或重认领。
+
+485历史运行结果：原 AIDK/COM8 已确认运行 `18.6.355+485 / counter485`，本轮继续全量烧录，保留既有VOICE_HIL_TEST诊断配置。485采用官方播放器六帧预缓冲；首轮手机普通指令回放加诊断采集的ASR/Agent/TTS均HTTP200、TTS ret=0，PCM345600B、stopped=1/done=1/parser=0，receive8346ms/consume2199ms。官方SpeakerRate执行24k→16k，DAC configure/start均0、间隔约167ms，DAC complete后重新配置MIC，KWS恢复。仍有4次DAC欠载及图收尾错误日志，不能宣称听感通过；484较短回复有5次欠载，输入回复长度不同，不能仅以次数宣称量化改善。首轮后手机仍已连接，音量53%入口enabled/clickable=true。同次启动第二轮再次TTS接收超时：HTTP200/ret=-110，156962B正文、PCM115200B，receive81729ms/consume1047ms，stopped=0/done=0/parser=0；重采样与DAC启动正常，错误后MIC及KWS重新运行。第二轮超时后手机仍“已连接傻妞”，单独提示对话未完成，音量53%入口继续可用（`voice485-phone-after-error-{home,settings}-ui.xml`）。485不是稳定闭环，下一项定位接收停顿，不继续仅调缓冲。证据 `voice485-diag-status/serial.raw`、`voice485-diag-ordinary-r{1,2}/uart/serial.raw`、`voice485-phone-after-voice-{home,settings}-ui.xml`。
+
+本次迁移的实际合同：云端24k PCM原样经既有turn资源所有者进入官方Media；App内Speex转换、延迟补偿与flush循环已删除，TLS不再选择SpeexDSP，481新配置及ELF均无Speex重采样。`dac_prepare`接收源采样率，历史协议调用者明确16k；MIC录音与音量仍走原入口。AIDK主图使用官方`asubgraph`承载`aresample`，因为当前官方主图显式禁用自动格式转换。团队`0004-asubgraph-preserve-drain-errors.patch`修正排空错误被赋值及调用者吞掉的问题，经现有apps视图集成；相关官方源文件无本地tracked改动。没有新增测试代码。既有旧固定采样率回调测试不再对应本次接口，未将其写成通过。
+
+478实板已经证明标准缓冲合同的改进：lower-half接受官方FFmpeg的4块缓冲请求，保留8块物理队列上限与固定DMA帧；DAC从configure到真正START约224ms，477约12秒。478 ASR/Agent均HTTP200；TTS仍在receive82308ms、consume1180ms后超时，PCM99840B、stopped=0/done=0/parser=0，IOB36/36空闲。错误后MIC恢复，手机仍“已连接傻妞”、单独显示对话失败，音量53%启用。证据 `voice478-diag-ordinary-r1/uart/serial.raw`、`voice478-phone-after-voice-ui.xml`、`voice478-phone-after-voice-settings-ui.xml`。479将24k直接送到DAC返回-ERANGE，480缺少启用asubgraph的精简配置、未烧录；这些均不算迁移验收通过。
+
+485交付输入对应 `voice485-diag-full/`、`voice485-diag-build-manifest.json`、`voice485-diag-elfs/`、`voice485-diag-team-sources.tar.gz`。源码646项，树SHA256 `bfe59a53715ae89b3d820e144828fce1fa6c886ceed3fd6735769ac8258ee9f1`，源码包SHA256 `40975cd570dfcfb8fc9868baaa4e40838d68d64adc027cb3d9f78992773d6829`；AP ELF `d4ed9b57bc1d1127560745ccbb26945870cec55d9d3671652d8bcd098bcc9113`，8MiB BIN `49f45b75f48566201a5a967c5ff65d5f6ced760c4e822043fc538ac1a2588f83`。manifest、包及信任验证通过，保护尾区与原板有效base一致。APK仍为0.5.4，未更改认领或用户设置；未新增测试代码，未提交/推送。484首次完成下游的原始证据及同版本产物保留在 `voice484-diag-*`，不作为485本次运行结果。
+
+482因重采样一致性断言终止Media，483通过0005返回错误并恢复MIC/KWS，日志显示16000/256。实际ELF确认AVSampleFormat为1字节，格式变量在sp+47、采样率在sp+48，官方get_format的int指针四字节读写覆盖相邻变量；484通过团队0006按实际枚举类型访问修复，反汇编已确认byte/halfword访问。官方源检出未修改。证据 `voice483-format-overwrite-disassembly.txt`、`voice484-format-getter-disassembly.txt`。
+
+484正式入口的手机扬声器留出回放仍未唤醒：目标音频SHA256 `ab3ce2c3d233a8e3f5fa342847f8d7f94cb2e7b5ef6f97a8b8faef93699419df` 与本地原件一致，播放器确认完整播放目标词及普通指令，但板端max_wake=0，无云请求。41项前处理输入哈希、窗口/步长/量化/张量合同一致；这不验证实际声学输入或真人泛化。证据 `voice484-physical-wake-command-r1/`。正式唤醒、流畅播报、语音看图和本版本真实App OTA仍未验收，不将诊断入口当产品完成。
+
+476历史回合：ASR/Agent均HTTP200，TTS94,376B/PCM69,120B，仍接收超时82,392ms、consume867ms、stopped=0/done=0/parser=0；解码器22:13:03.65完成，DAC22:13:37.85才configure/start ret0，多次欠载，错误后恢复Trigger/MIC，无断言。三帧参数没有取得起播改善。证据 `voice476-diag-ordinary-r1/uart/serial.raw`。
+
+476对应交付输入为 `voice476-diag-team-sources.tar.gz`（643项，SHA256 `b2b6da6e899a48cc2c7e653b85e2017c491c08a072c787ecdf3a1982c73b967e`）、`voice476-diag-build-manifest.json`、`voice476-diag-elfs/` 与 `voice476-diag-full/`。源码树 `d20073238315598bb2f3a1460c32b62c2daf903110e743c5e00aa20056d2ece3`；8MiB镜像SHA256 `6d20d651150de1c4780cf8fa44dab189863b68fea62eb9fc26c135fa1b5addb2`。包/信任/manifest/HIL预检及全量写入通过，复用同设备有效base，保护尾区一致。此为诊断版本，不是项目完成。
+
+475完成的会话架构切片已保留：AIDK AP 已显式关闭 `BK7258_VOICE_LEGACY_GATEWAY`：旧 WSS/Gateway/session 源文件、运行时对象、接收线程和回退调用退出产品构建；ELF 相关符号从62个降为0，`g_runtime` 从8496B降为2064B。公共验证TLS接口移出WSS header，cloud HTTP、认领、直接控制与OTA继续使用各自原入口；不创建第二个MIC/DAC或请求所有者。旧三模块仅由历史配置开关保留。现有WSS主机回归和TLS并发9项通过，没有新增测试代码。
+
+475 启动后配置自动恢复，`CLOUD ready=1 busy=0`，本地Trigger监听运行。Mi10原APK打开后已连接；设置页音量53%启用，真实语音错误后仍已连接、单独提示对话未完成。未修改音量、认领或信任数据。证据 `voice475-diag-status/serial.raw`、`voice475-phone-{initial,settings,after-voice,after-voice-settings}-ui.xml`；不替代465已有的20轮切页回归，也不宣称本轮完成真实OTA。
+
+475 的普通指令诊断为手机合法合成音频回放→实板MIC→ASR/官方Agent均HTTP200；TTS收到115,238B、解码84,480B PCM，DAC configure/start均返回0，但流接收81,869ms后仍超时，stopped=0/done=0/parser=0。IOB为36/36空闲，消费累计931ms；多次播放欠载，未完成整段播报。错误后播放器关闭并恢复MIC监听，无断言。证据 `voice475-diag-ordinary-r1/uart/serial.raw`。对应 `voice475-diag-full/`、`voice475-diag-team-sources.tar.gz`、`voice475-diag-build-manifest.json`、`voice475-diag-elfs/`；源码树 `bd99c06365c4ebb0988514654e0f14d286925098e3d653cfa2a4a7d41dfe9944`，643项。该诊断入口不等于正式唤醒验收。
+
+474仅收到7,680B PCM而未启动DAC的现象现已由实际Media源码解释：s16le 16k单声道每帧约2048B，默认六帧队列需约12KiB后起播；EOF也能启动未满队列。产品将仅在官方Media播放prepare参数中使用已有`datqmax=3`（约192ms预缓冲），不改录音参数、不新增播放器。476已构建、签名并全量部署；起播延迟未改善，正在重新核对实际解码帧、队列和STARTING转换，先前按原始PCM包大小推导的门槛不能作为充分解释。这只能改善首段起播等待，不能解释或宣称修复TTS网络停收。完整SSE终止后的HTTP关闭路径仍未取得实板终止事件证据；下一步继续定位接收停顿，并完成正式唤醒及语音看图。
+
+473 的手机回归使用已保存认领凭据正常认证，TTS 错误后仍显示“已连接傻妞”，单独提示对话未完成；切到设置页回读音量53%，入口启用。“收音或播报时暂不可调整”是启用时的固定说明，不是当前 busy。未改变音量、认领或信任数据；证据 `voice473-phone-auth-ui.xml`、`voice473-phone-settings-ui.xml`。期望音量默认50与官方Media离散档位回读53需区分，不能把两者差异视作配置丢失。
+
+472 留出目标音频的第二次物理回放已补齐播放器证明：UTC21:02:47开始、21:02:50完成，AudioFlinger与MUSIC均指向手机扬声器。同期 MIC 帧均幅最大216、max_wake=0，无队列溢出；未触发唤醒。当前采集为16kHz PCM16单声道MIC1，数字0dB、模拟码0、未启用前处理；未依据弱输入盲调增益或阈值。实际到达MIC的声压/摆位尚不能自动确认，正式唤醒和真人泛化仍未验证。证据 `voice472-physical-wake-playback-proof/`。
+
+摄像头云端联调已获用户对当前画面及指定服务的明确授权；此前执行环境自动审批的拒绝不再是当前阻塞。
+
+唤醒模型仍为 v38。新增幅度训练候选 v42、v43 均未替换产品模型：v42 正常幅度验证流新增 2 次误触发；v43 在三组独立合成目标流中为 16/24、7 次误触发，劣于 v38 的 23/24、1 次。原 v38 在 0.25 倍幅度验证流为 10/10、0 次误触发，0.1 倍为 9/10、1 次误触发。报告与确切训练源码在 `kws-tts-train/candidate-v42-level/`、`candidate-v43-level-preserved/` 与 `validation-level-{025,010}/`；这些均是主机合成语音连续触发评估，不是实板或真人泛化证据。
+
+465 让 OTA prepare/status 共享“已确认且版本和安全计数均严格高于旧事务两端”的判定；状态查询只读返回 IDLE，不清旧记录、不回放也不宣称旧OTA成功。可信保留记录为 source435/target436，当前板为465，不能将436当作实板基线。既有 `run-voice-ota-flow` 通过，流程源码未改。
+
+当前 APK 为 `shaniu-companion-0.5.4-ota-status.apk`（SHA256 `d4b91aa1052325b0c375cdb903c4a7e6ec9380caf8684dea6049518a11dd270a`）。升级页经原单请求调度轮询 OTA_STATUS、INFO 后按代次重读，OTA新鲜度与普通 snapshot 分离；真机读465/counter465，显示“当前没有进行中的升级任务”与音量53%启用。系统蓝牙 off/on 后未点连接即恢复并重读当前OTA状态（动作UTC18:12:35）。文件选择器第一次Back仅返回上级目录，检查期间超过30秒后台宽限；取消后UTC18:16:01自动重连，重读465与当前OTA空闲状态。此连接持续超过6分钟后完成20轮切页（60次点击，UTC18:22:08–18:22:16），窗口内GATT connect和扫描日志均为0，前后音量53%启用；另一次文件选择器2.04秒取消返回也无新增连接/扫描日志，未选择文件。证据为工作区输出中的 `ota465-phone-v054-picker-recovery.log`、`ota465-phone-v054-tabs-*`、`ota465-phone-v054-picker-short-*`；不将首次Back导航误判为连接故障，也不把超过宽限后的恢复写成长时间后台保活。
+
+`ota465-confirmed-camera/serial.raw` 记录当次 BKVISION SNAPSHOT 640×480 JPEG 26,607B、SOI/EOI完整、V4L2无错误；这不是图片理解或完整语音看图链。正式实板唤醒、完整播报与语音看图仍未验收；下文 465 及更早记录均为对应历史版本证据。
+
+`trigger442-build-v17.log` 记录相同模型的增量构建通过：AP 原始镜像 1,471,512 字节、SHA256 `57fb4e3f16b80c66c7f180087dace42553cd7f2eae544bb1224e9a097e9f90cf`，模型在镜像中恰好出现一次，配置固定哈希匹配；使用锁定 GCC 的 STL、Ruy instrumentation 和官方 Media graph/policy/Trigger。对应 `trigger442-full/release.json` 已用原受信 BL1/MCUboot 身份签发 `18.6.355+442 / floor442`，package、trust 与 HIL preflight 通过，8 MiB operator SHA256 `cebb990f7464600ed0e4dc79b27010af99ae291d1cd9eb0cf391b7b7ecc05bab`。同设备基底和唯一数据尾区哈希匹配，未新增备份或设备写入；软件复位仍无响应，烧录与实板加载/arena/延迟/声学联调等待 K1 物理复位。
+
+新增音频恢复修正已进入 `18.6.355+443 / floor443` 候选：当前 NuttX 本地套接字的 FIFO 读写不使用 `SO_RCVTIMEO/SO_SNDTIMEO`，产品改用非阻塞官方 Media API 与单次传输 1000 ms 的 `poll` 期限；短写在同一期限内续传，取消/EOF 回到原会话清理。团队 `0002-stream-io-lifetime.patch` 修正官方客户端准备失败遗漏监听 FD、短传输误判和关闭后 FD 状态，未修改官方依赖仓。`media443-build-v20.log` 构建通过，AP 1,471,880 字节、SHA256 `60ae240c8013b3339f22b627b0f54284c56e52ebff78ddea052e00b1b9e7485a`；原 turn/audio 与音量主机回归通过，它们不覆盖真实 Media/FIFO/MIC/DAC。`media443-full/release.json` 的包/信任/HIL 预检通过，8 MiB operator SHA256 `fd1526936cc31b28995fea22fae9745de40541d167c29c59be46cc862bebd67c`，尚未烧录。`media443-team-sources.tar.gz` 保留 637 个构建输入，来源树 `69e21d23…5a13`，归档 SHA256 `673e030d8a70c35670f7379dd53d61271e06e85fd24380ba47d33a9937cfc34f`；实际 AP 中 v30 模型仅一份。442 保留为前一候选，不覆盖其签名产物。 最新 `media443-target-readiness/serial.raw` 仍为 0 字节，短 `bkota status` 没有回包；尚未取得 K1 复位后的启动证据，不能执行软件复位接管。实板仍仅能引用此前最后确认的 440，443 的模型 arena 实占、推理时延、录放/摄像头和 Android 跨端回归均未核验。
+
+上述证据位于工作区 `out/shaniu-p0-20260913/`；`trigger442-v30-build-manifest.json` 与 `trigger442-team-sources.tar.gz` 保留该候选的实际源码状态（636 个构建范围文件，来源树 `10019e9b…a816`），不依赖后续训练工具改动。441 OTA 包和旧事务/串口故障日志继续保留；它们不表示 442 已运行。本轮没有新增测试代码、夹具、探针、验收脚本，也未暂存、提交或推送。本次原生 Codex 会话的公开消息和工具调用经格式映射后复用比赛 collector 导出，保留原时间戳/内容并由原工具脱敏；未导出内部推理或系统指令。`logs/lijian/2026-09-13/codex__01a098d3-72cb-7a91-89fc-038599cc8cb1.jsonl` 当时导出 1,385 个事件（历史快照），原生快照哈希及映射说明在 `contest-log-export/export-provenance.json`，对应单会话官方格式校验通过。
+
+v30 的原训练配方及构建输入仅封存在 442 归档，不能调用当前训练入口或换入 v31 环境 manifest 后仍称同一模型；canonical v38 按其候选目录中的元数据与当前训练代码复现。443 及更早构建命令、镜像和部署叙述均为历史证据；当时待执行的是 K1 复位后的 445 部署、官方 Media 路由格式协商、v38 实板模型加载与真实声学联调，不能提前写为通过。
+
+当前开发身份：官方仓库 `open-vela/contest2026_135_yongwangzhiqian`，`Embracecactus` 为 fork；本地 `openvela` / `fork` remote 分别指向两者，分支 `feat/shaniu-feature-acceptance`、HEAD `1acfefe024c80339c54eebaf1a5c0b5b0eb6597e`。保留进入本轮时的 KWS/监听/测试/计划改动和未跟踪日志；未暂存、提交、推送。当前 manifest HEAD `fe2feda23ddf3fd9671036e5712a93b5775fe3e4`；实际 Agent `41723c61…`、Media `fb7db0e9…`、TFLM `94f7cee1…`、SDK `cb080de1…`。活动 manifest 和团队新版 linkfile 有差异，未覆盖；现有隔离构建树提供所需 overlay。
+
+本 goal 启动时的历史基线（后续版本与现状以上方为准）：当时 COM8 读取得到 `18.6.355+436 / counter=436 / confirmed`，云服务 ready=1、busy=0；此处 436 仅来自当时串口记录。手机 Mi10/59d707dc 原 APK 0.5.0-a1（SHA256 `b426e016…`）；新版 0.5.1-control 已 `install -r` 成功，保留数据。冻结的 P0 437 仍是原 voice-service 配置；随后 provider 候选已经链接官方 Agent 请求库，但未启动完整 Agent loop、官方 Media 服务或有效 KWS 模型，不能计作核心架构或真实唤醒已完成。
+
+本批证据统一位于工作区 `out/shaniu-p0-20260913/`，主机和实板证据分别归类。旧发布、旧身份、其他参赛仓库均不证明本批功能完成。
+
+## 2026-09-13 当前两个 P0 与迁移合同
+
+| 现有职责 | 官方实现或扩展接口 | 保留产品差异 | 被替代实现 | 验收点 |
+| --- | --- | --- | --- | --- |
+| 页面直接管理控制连接与快照 | 原 GATT/TLS + 单一 DeviceControlSession 调度 | 主动断开、前台策略、设备回读确认 | 页面连接字段、空快照当断线、日常绝对 120 秒期限 | 同连接切页 20 轮；前台超过 120 秒；返回 Activity；真实音量回读 |
+| 自有对话请求/消息/工具 | 官方 Agent request/provider 与后续会话扩展 | 认领、隐私、取消与产品会话策略 | 自有请求序列化/解析和重复工具循环 | 目标配置编译链接并实际调用，一次请求仅一个重试所有者 |
+| App 同名 Media ABI 桥与音频路径 | 官方 Media graph/policy、FFmpeg NuttX 音频接口 | 半双工交互与取消策略 | 桥接伪实现及重复通用音频机制 | 收音→ASR→对话→TTS→真实 drain；MIC/DAC 单一仲裁 |
+| 本地唤醒监听 | 官方 Media Trigger、TFLM 和前处理 | 唤醒阈值、前滚与隐私窗口 | 重复 MIC 生命周期及可替代前处理 | 有效模型真实唤醒；合成 fixture 不作为产品证据 |
+| 语音看图及硬件边界 | Agent 多模态/工具、V4L2；chip 机制、board 实例 | 当轮取图和用户交互 | 重复多模态封包及越层实例控制 | 真实语音→当次摄像头→理解→播报 |
+
+- CP 实测 16 MiB 容量以同 generation 的 boot record 交给 AP。
+- SDK 的低 8 MiB 地址保持不变，高区 4 MiB 由 NuttX 唯一 `systemheap` 使用。
+- board 选择 `MM_REGIONS=3`；容量不匹配拒绝启动，上游既有 64 MiB MPU aperture 无需修改。
+
+- 已复现原 APK 认证后音量仍灰色；无切页持续连接在 `120062ms` 记录 `session_timeout`，约 140 秒界面断连。现有 Android 与板端均有绝对期限，整改为配网有界事务、认证控制按有效活动续期，保留握手/ATT 写/命令超时。
+- 新控制 owner 串行调度读写并共用全部标签；连接、快照新鲜度、读写进度及操作失败分离。背景 STATUS 不锁全部控件；写入必须随后 STATUS 回读才确认，旧代次回调和掉线前操作不重放。离开前台只保留 30 秒 grace；主动断开不自动重连。
+- 音量 STATUS 不再因 SD 偏好读取失败而一同丢失，读写接入现有唯一播放音量回调及持久存储；读取失败、未知、处理中、设备忙分别提示。当前播放/收音期间调音仍不支持，界面明确提示结束后调整，未只删 App busy 条件。
+- 已安装版本在真实 Mi10 完成三个底部标签往返 20 轮（60 次点击），该窗口内无新增 GATT connect；系统文件选择器打开并取消返回耗时 8.56 秒，未新增 GATT connect，版本仍可读取。旧 436 在 121.38 秒主动断开后，新 App 自动重连认证并恢复状态；这不是 437 长连接通过。证据 `tabs20-*`、`picker-short-*`、`file-picker-gatt.log`。
+- APK `shaniu-companion-0.5.1-control-final.apk` SHA256 `92afe9d6bccc870688e8051395e340f111e98cdcc02a137a5e99854d6e3e820b`；Android 155 项中 153 通过、2 项按原互操作条件跳过。控制 owner 假时钟覆盖 >120 秒、配网期限保留、20 轮页面观察订阅、串行写回读、错误不掉线、断线不重放、主动断开和有界后台。
+- 既有 host `test-control-pair`、`run-voice-turn-audio` 与 `test_provision_tls.py` 通过；包含真实 mbedTLS 分片/认证期限及音量量化读回。实板音量两个值和扬声器效果、437 超过 120 秒及完整 OTA/取消回归尚未验证。
+- 最终 APK install-r 与相同实机流程复验通过：20 轮标签往返、系统文件选择器 8.21 秒取消返回，全程单个 GATT connect、0 个 transport_close，真实回读仍为 436。扫描日志没有可用 startScan 标记，不能用零条日志独立证明扫描调用次数；页面动作未调用扫描入口。证据 `final-phone-validation.json` 与 `final-phone-*`。
+- 官方 Agent provider 已经通过 build-tree 补丁机制编译/链接到 AIDK AP；`bkcloud_chat` 与 `bkcloud_understand_jpeg` 经统一适配实际 ARM call 到 `llm_chat_tools_request`，旧 chat/image 的重复请求封包和文本解析退出两条主调用路径。已用当前官方源码与真实 OpenVela webclient/mbedTLS loopback验证原 model、两 dialect、ASR/TTS/JPEG wire 合同；产品仍持有唯一会话与 TLS 取消/期限，Agent request API 不自重试。此批未上板，官方完整 loop、工具执行及 Media 仍待迁移，不能标记架构完成。官方 Media 仍须替换 App 同名 ABI 桥。兼容真实唤醒模型/授权真实语料缺失，已有两份合成候选不满足正式验收。
+
+此前源码分支发布记录（不作为本 goal 新功能验收）：复用下述OTA flow/store/cancel、NFC UART、Android及436实板证据；HIL现有15项单测另行执行通过，日志`feature-acceptance436-publication-hil-tests.log`。差异格式和新增行秘密模式检查通过。该次是源码分支交付，不新增固件构建、签发、刷机或完整产品验收；远端分支SHA及与官方基线的比较结果以发布后核验记录为准，PR由用户创建。
 
 ## 2026-09-13 开发期停用Mi Pay，核对真实唤醒入口
 

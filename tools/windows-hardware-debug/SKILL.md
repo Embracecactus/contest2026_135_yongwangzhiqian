@@ -46,6 +46,12 @@ COM port, baud rate, CPU, address, or reset polarity.
 7. Report the exact command, `session.json` path when applicable, BLE host
    evidence when applicable, target evidence, and unresolved uncertainty.
 
+When another action depends on a live UART state (for example, starting
+physical audio after capture becomes ready), read
+[correlated capture](references/correlated-capture.md). Use the existing ready
+signal and live echo, then inspect final raw bytes; an empty buffered raw file
+during capture does not by itself mean that the target is silent.
+
 For a BLE scan test, first run the advertiser with `--probe`; require
 `low_energy=1 peripheral=1`. Use a non-secret, uniquely identifiable payload
 and bounded duration, start the advertiser before target capture/scan, and

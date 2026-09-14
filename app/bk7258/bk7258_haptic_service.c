@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <nuttx/input/ff.h>
 #include <nuttx/irq.h>
+#include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/rpmsg/rpmsg.h>
 #include <nuttx/semaphore.h>
@@ -37,13 +38,21 @@ struct bkhaptic_server_s
   bool connected;
   bool stop_pending;
   bool pending;
+  bool local_pending;
+  bool local_stop_pending;
   bool active;
+  bool local_active;
+  bool local_owned;
   bool replay_valid;
   bool notice_pending;
   uint32_t epoch;
   uint32_t request_epoch;
   uint32_t notice_epoch;
   struct bkhaptic_rpc_request_s request;
+  unsigned int local_duration_ms;
+  uint32_t local_sequence;
+  uint32_t local_completed;
+  int local_result;
   struct bkhaptic_rpc_request_s last_request;
   struct bkhaptic_rpc_response_s last_response;
   struct bkhaptic_rpc_response_s notice;
@@ -157,12 +166,24 @@ static int bkhaptic_open(struct bkhaptic_server_s *s)
   return ret;
 }
 
+static int bkhaptic_pulse(struct bkhaptic_server_s *s, unsigned int duration)
+{
+  struct ff_effect effect = {0};
+  int ret = bkhaptic_open(s);
+  if (ret < 0) return ret;
+  effect.id = s->effect_id; effect.type = FF_RUMBLE; effect.replay.length = duration;
+  effect.u.rumble.strong_magnitude = UINT16_MAX;
+  if (ioctl(s->fd, EVIOCSFF, (unsigned long)(uintptr_t)&effect) < 0) return bkhaptic_errno();
+  s->effect_id = effect.id; ret = bkhaptic_event(s, 1);
+  if (ret < 0) (void)bkhaptic_stop(s);
+  return ret;
+}
+
 static int bkhaptic_execute(struct bkhaptic_server_s *s,
                            const struct bkhaptic_rpc_request_s *request,
                            struct bkhaptic_rpc_response_s *response,
                            uint32_t epoch)
 {
-  struct ff_effect effect = {0};
   int ret;
 
   if (!bkhaptic_connected(s, epoch))
@@ -175,16 +196,10 @@ static int bkhaptic_execute(struct bkhaptic_server_s *s,
       return bkhaptic_stop(s);
     }
 
-  ret = bkhaptic_open(s);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
   response->ready = 1;
   if (request->command == BKHAPTIC_RPC_STATUS)
     {
-      return 0;
+      return bkhaptic_open(s);
     }
 
   if (!bkhaptic_connected(s, epoch))
@@ -196,32 +211,18 @@ static int bkhaptic_execute(struct bkhaptic_server_s *s,
    * a new pulse must never stop an existing pulse just to upload another.
    */
 
-  effect.id = s->effect_id;
-  effect.type = FF_RUMBLE;
-  effect.replay.length = request->duration_ms;
-  effect.u.rumble.strong_magnitude = UINT16_MAX;
-  if (ioctl(s->fd, EVIOCSFF, (unsigned long)(uintptr_t)&effect) < 0)
-    {
-      return bkhaptic_errno();
-    }
-
-  s->effect_id = effect.id;
+  ret = bkhaptic_pulse(s, request->duration_ms);
+  if (ret < 0) return ret;
   if (!bkhaptic_connected(s, epoch))
     {
       (void)bkhaptic_stop(s);
       return -ENOTCONN;
     }
 
-  ret = bkhaptic_event(s, 1);
-  if (ret < 0)
-    {
-      (void)bkhaptic_stop(s);
-      return ret;
-    }
-
   response->accepted_ms = request->duration_ms;
   return 0;
 }
+
 
 static int bkhaptic_send(struct bkhaptic_server_s *s,
                         const struct bkhaptic_rpc_response_s *response,
@@ -258,6 +259,7 @@ static int bkhaptic_worker(int argc, char **argv)
   bool replay;
   bool stale;
   bool cleanup;
+  int ret;
 
   (void)argc;
   (void)argv;
@@ -283,6 +285,38 @@ static int bkhaptic_worker(int argc, char **argv)
               s->notice_pending = false;
               spin_unlock_irqrestore(&s->lock, flags);
               (void)bkhaptic_send(s, &response, epoch);
+            continue;
+          }
+
+          if (s->local_stop_pending)
+            {
+              s->local_stop_pending = false;
+              spin_unlock_irqrestore(&s->lock, flags);
+              (void)bkhaptic_stop(s);
+              flags = spin_lock_irqsave(&s->lock);
+              s->local_owned = false;
+              spin_unlock_irqrestore(&s->lock, flags);
+              continue;
+            }
+
+          if (s->local_pending)
+            {
+              unsigned int duration = s->local_duration_ms;
+              uint32_t sequence = s->local_sequence;
+              s->local_pending = false; s->active = true; s->local_active = true;
+              spin_unlock_irqrestore(&s->lock, flags);
+              ret = bkhaptic_pulse(s, duration);
+              if (ret < 0) syslog(LOG_ERR, "BKHAPTIC local pulse: %d\n", ret);
+              if (ret >= 0)
+                {
+                  (void)usleep(duration * 1000);
+                  ret = bkhaptic_stop(s);
+                }
+              flags = spin_lock_irqsave(&s->lock); s->active = false; s->local_active = false;
+              s->local_owned = false;
+              s->local_result = ret;
+              s->local_completed = sequence;
+              spin_unlock_irqrestore(&s->lock, flags);
               continue;
             }
 
@@ -368,8 +402,11 @@ static int bkhaptic_server_cb(struct rpmsg_endpoint *endpoint, void *data,
       return -ENOTCONN;
     }
 
-  if (!error && (s->pending || s->active))
+  if (!error && (s->pending || s->active || s->local_pending || s->local_owned))
     {
+      if (s->local_active || s->local_pending || s->local_owned) error = -EBUSY;
+      else
+        {
       if (memcmp(&request, &s->request, sizeof(request)) == 0)
         {
           spin_unlock_irqrestore(&s->lock, flags);
@@ -378,6 +415,7 @@ static int bkhaptic_server_cb(struct rpmsg_endpoint *endpoint, void *data,
 
       error = request.session == s->request.session &&
               request.sequence == s->request.sequence ? -EPROTO : -EBUSY;
+        }
     }
 
   if (error)
@@ -409,7 +447,7 @@ static void bkhaptic_disconnect(struct bkhaptic_server_s *s)
 
   s->connected = false;
   s->epoch++;
-  s->stop_pending = true;
+  s->stop_pending = !s->local_pending && !s->local_active && !s->local_owned;
   s->pending = false;
   s->notice_pending = false;
   s->replay_valid = false;
@@ -547,5 +585,62 @@ int bkhaptic_service_initialize(void)
 
   nxmutex_unlock(&s->init_lock);
   return ret;
+}
+
+static int bkhaptic_product_queue(unsigned int duration_ms, uint32_t *sequence)
+{
+  struct bkhaptic_server_s *s = &g_bkhaptic;
+  irqstate_t flags;
+  if (duration_ms == 0 || duration_ms > 32767) return -EINVAL;
+  flags = spin_lock_irqsave(&s->lock);
+  if (!s->initialized) { spin_unlock_irqrestore(&s->lock, flags); return -ENODEV; }
+  if (s->pending || s->active || s->local_pending || s->local_owned || s->local_stop_pending || s->stop_pending)
+    { spin_unlock_irqrestore(&s->lock, flags); return -EBUSY; }
+  s->local_duration_ms = duration_ms; s->local_pending = true;
+  s->local_sequence++;
+  if (sequence) *sequence = s->local_sequence;
+  spin_unlock_irqrestore(&s->lock, flags);
+  return nxsem_post(&s->sem);
+}
+
+int bkhaptic_service_pulse(unsigned int duration_ms)
+{
+  return bkhaptic_product_queue(duration_ms, NULL);
+}
+
+int bkhaptic_service_pulse_wait(unsigned int duration_ms)
+{
+  struct bkhaptic_server_s *s = &g_bkhaptic;
+  uint32_t sequence;
+  clock_t deadline;
+  int ret;
+
+  /* Only the serialized product owner may wait, and only between MIC owners.
+   * A failed motor must not hold up capture indefinitely or play a late pulse. */
+  if (duration_ms == 0 || duration_ms > 100u) return -EINVAL;
+  ret = bkhaptic_product_queue(duration_ms, &sequence);
+  if (ret < 0) return ret;
+  deadline = clock_systime_ticks() + MSEC2TICK(duration_ms + 100u);
+  for (;;)
+    {
+      irqstate_t flags = spin_lock_irqsave(&s->lock);
+      bool done = s->local_completed == sequence;
+      ret = s->local_result;
+      spin_unlock_irqrestore(&s->lock, flags);
+      if (done) return ret;
+      if ((sclock_t)(clock_systime_ticks() - deadline) >= 0) break;
+      (void)usleep(2000);
+    }
+  (void)bkhaptic_service_stop_product();
+  return -ETIMEDOUT;
+}
+
+int bkhaptic_service_stop_product(void)
+{
+  struct bkhaptic_server_s *s = &g_bkhaptic; irqstate_t flags = spin_lock_irqsave(&s->lock);
+  if (!s->initialized) { spin_unlock_irqrestore(&s->lock, flags); return -ENODEV; }
+  if (!s->local_active && !s->local_pending && !s->local_owned) { spin_unlock_irqrestore(&s->lock, flags); return 0; }
+  s->local_pending = false; s->local_stop_pending = true;
+  spin_unlock_irqrestore(&s->lock, flags); return nxsem_post(&s->sem);
 }
 #endif

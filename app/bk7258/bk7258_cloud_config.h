@@ -7,6 +7,17 @@
 #define BKCLOUD_KEY_MAX 4096u
 #define BKCLOUD_NAME_MAX 127u
 #define BKCLOUD_CONFIG_MAX (24u + BKCLOUD_KEY_MAX + 5u * BKCLOUD_NAME_MAX)
+#define BKCLOUD_MODELS_RECORD_MAX (12u + 3u * BKCLOUD_NAME_MAX)
+
+/* MCP1 is deliberately public: it carries only the three selected model
+ * identifiers.  CCF1 retains the endpoint, dialect and credential material.
+ */
+struct bkcloud_models_s
+{
+  char asr_model[128];
+  char chat_model[128];
+  char tts_model[128];
+};
 
 /* CCF1 is a secret provisioning payload, not a readable status record.
  * Header (network byte order): magic[4], dialect[1], reserved[1], port[2],
@@ -30,5 +41,9 @@ struct bkcloud_config_s
 /* Clear output on error; record must not alias output. */
 int bkcloud_config_decode(struct bkcloud_config_s *config,
                           const void *record, size_t size);
+int bkcloud_models_decode(struct bkcloud_models_s *models,
+                          const void *record, size_t size);
+int bkcloud_models_encode(const struct bkcloud_models_s *models,
+                          uint8_t *record, size_t capacity, size_t *size);
 void bkcloud_config_clear(struct bkcloud_config_s *config);
 #endif

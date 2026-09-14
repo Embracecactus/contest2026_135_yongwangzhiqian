@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.InputType
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -22,6 +23,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import com.shaniu.companion.provision.AndroidDeviceControlFactory
 import com.shaniu.companion.provision.DeviceControlSession
 import com.shaniu.companion.provision.DeviceControlPresentation
@@ -95,6 +98,11 @@ class MainActivity : Activity() {
     private lateinit var tokenStore: AndroidKeystoreTokenStore
     private lateinit var provisionBindingStore: ProvisionBindingStore
     private lateinit var content: LinearLayout
+    private lateinit var contentScroll: ScrollView
+    private var renderedTab: Int? = null
+    private var renderTicket = 0L
+    private var touchActive = false
+    private var renderDeferred = false
 
     private val ioExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -162,6 +170,39 @@ class MainActivity : Activity() {
     private var memoryRequestAccepted = false
     private var directConnecting = false
     private var directMessage = "尚未连接设备"
+    private data class CloudModels(val asr: String, val chat: String, val tts: String)
+    private var cloudModels: CloudModels? = null
+    private var cloudModelsGeneration: Long? = null
+    private var cloudModelsReadError: String? = null
+    private var cloudModelsWire: ByteArray? = null
+    private var cloudModelsOffset = 0
+    private var cloudModelsTotal = -1
+    private var cloudModelsExpected: CloudModels? = null
+    private var cloudModelsReadDeadline = 0L
+    private var cloudModelsReadTicket = 0L
+    private var cloudModelsCanceling = false
+    private enum class ConfigFlow { NONE, CAPABILITIES, CLOUD, WAKE }
+    private var configFlow = ConfigFlow.NONE
+    private var configAppendMax = 32
+    private var configCapabilitiesGeneration: Long? = null
+    private var wakePackage: WakeModelPackage? = null
+    private var wakePayload: ByteArray? = null
+    private var wakeExpectedSha: ByteArray? = null
+    private var wakeStatus: WakeModelPackage.Companion.Status? = null
+    private var wakeStatusGeneration: Long? = null
+    private var wakeRestoreRequested = false
+    private var wakeApplied = false
+    private var wakeCanceling = false
+    private var wakeReadTicket = 0L
+    private var wakeOffset = 0
+    private var wakeRead = ByteArray(0)
+    private var wakeReadTotal = -1
+    private var wakeDeadline = 0L
+    private var wakeMessage: String? = null
+    private var pendingWakeImport: WakeModelPackage? = null
+    private var wakeImportDeviceId = ""
+    private var wakeImportDeadline = 0L
+    private var wakeImportTicket = 0L
     private val navigation = mutableMapOf<Int, TextView>()
     private var lastAction = "请配置 HTTPS Gateway、设备 ID 和访问令牌"
 
@@ -190,6 +231,19 @@ class MainActivity : Activity() {
             if (state.generation != directObservedGeneration) {
                 directObservedGeneration = state.generation
                 directEpoch++
+                cloudModelsWire?.fill(0); cloudModelsWire = null; cloudModelsExpected = null
+                cloudModelsOffset = 0; cloudModelsTotal = -1
+                cloudModelsReadDeadline = 0; cloudModelsReadTicket++
+                cloudModelsCanceling = false
+                cloudModelsGeneration = null
+                configFlow = ConfigFlow.NONE
+                configAppendMax = 32; configCapabilitiesGeneration = null
+                wakePackage = null; wakePayload = null; wakeExpectedSha = null
+                wakeStatusGeneration = null; wakeRestoreRequested = false
+                wakeApplied = false; wakeCanceling = false; wakeReadTicket++
+                wakeRead = ByteArray(0); wakeReadTotal = -1; wakeOffset = 0
+                wakeMessage = "连接恢复后读取实际唤醒词模型；未完成的操作不会重发"
+                cloudModelsReadError = "连接恢复后读取设备实际模型配置"
                 otaStatusReadError = null
                 // A new transport cannot resume a partially sent OTA record.
                 // An accepted HTTP source may finish during the foreground or
@@ -239,6 +293,9 @@ class MainActivity : Activity() {
         // The shared session keeps a bounded grace period for file pickers and
         // other Activities. Foreground return resumes the same authenticated link.
         foreground = false
+        cancelPendingWakeImport("已取消等待导入，尚未向设备发送模型")
+        touchActive = false
+        renderDeferred = false
         firmwareInspectionEpoch++
         firmwareInspectionPending = false
         directSession.setForeground(false)
@@ -259,6 +316,7 @@ class MainActivity : Activity() {
         if (resultCode != RESULT_OK) return
         when (requestCode) {
             FIRMWARE_PACKAGE_REQUEST -> inspectFirmwarePackage(data?.data)
+            WAKE_MODEL_REQUEST -> data?.data?.let(::selectWakeModel)
             PROVISION_REQUEST -> {
                 val deviceId = ProvisionBootstrap.validDeviceId(
                     data?.getStringExtra(ProvisionActivity.EXTRA_PROVISIONED_DEVICE_ID),
@@ -405,8 +463,9 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(26), dp(8), dp(26), dp(24))
         }
+        contentScroll = ScrollView(this).apply { addView(content) }
         root.addView(
-            ScrollView(this).apply { addView(content) },
+            contentScroll,
             LinearLayout.LayoutParams(0, 0).apply {
                 width = ViewGroup.LayoutParams.MATCH_PARENT
                 height = 0
@@ -445,8 +504,31 @@ class MainActivity : Activity() {
         return root
     }
 
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) touchActive = true
+        val handled = super.dispatchTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP ||
+            event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            touchActive = false
+            if (renderDeferred) {
+                renderDeferred = false
+                mainHandler.post { render() }
+            }
+        }
+        return handled
+    }
+
     private fun render() {
         if (destroyed) return
+        // Polling must not remove the target between touch-down and click.
+        if (touchActive) { renderDeferred = true; return }
+        val scrollY = if (renderedTab == currentTab) contentScroll.scrollY else 0
+        renderedTab = currentTab
+        val ticket = ++renderTicket
+        contentScroll.post {
+            if (!destroyed && ticket == renderTicket && !touchActive)
+                contentScroll.scrollTo(0, scrollY)
+        }
         val selectedTab = when (currentTab) {
             TAB_INTERACTION -> TAB_OVERVIEW
             TAB_PRIVACY, TAB_UPDATE -> TAB_SETTINGS
@@ -497,6 +579,7 @@ class MainActivity : Activity() {
     }
 
     private fun closeDirect(preserveAcceptedOtaSource: Boolean = false): Boolean {
+        cancelPendingWakeImport("连接已关闭，尚未向设备发送模型")
         val preserveOtaSource = preserveAcceptedOtaSource && foreground && !destroyed &&
             otaServer?.running == true && otaVerificationPending &&
             (otaUpload?.state == OtaControlUpload.State.ACCEPTED || otaStatus?.state in 1L..2L)
@@ -506,6 +589,9 @@ class MainActivity : Activity() {
         directSession.disconnect()
         directConnecting = false
         memoryResultMessage = null; memoryDesiredEnabled = null; memoryRequestAccepted = false
+        cloudModelsWire?.fill(0); cloudModelsWire = null; cloudModelsExpected = null
+        cloudModelsOffset = 0; cloudModelsTotal = -1
+        cloudModelsReadDeadline = 0; cloudModelsReadTicket++
         if (preserveOtaSource) {
             otaMessage = "蓝牙已断开，手机仍在提供固件；请保持此页并重新连接查看进度。"
             directMessage = otaMessage
@@ -526,6 +612,7 @@ class MainActivity : Activity() {
             firmwareInspectionPending = false
         }
         currentTab = value
+        if (value == TAB_SETTINGS) requestCloudModelsRead()
     }
 
     private fun closeOtaServer(message: String? = null) {
@@ -549,6 +636,240 @@ class MainActivity : Activity() {
                                  payload: ByteArray = ByteArray(0)): Boolean {
         if (!foreground) return false
         return directSession.requestOta(command, payload)
+    }
+
+    private fun directConfigRequest(command: DeviceControlProtocol.Command, payload: ByteArray): Boolean =
+        foreground && directSession.requestPayload(command, payload)
+
+    private fun configAvailable(): Boolean = foreground && directSession.current().authenticated &&
+        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && !directPending &&
+        otaUpload == null && !otaVerificationPending && otaStatus?.state !in 1L..2L
+
+    private fun requestConfigCapabilities() {
+        if (!configAvailable()) return
+        configFlow = ConfigFlow.CAPABILITIES
+        if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_READ,
+                ByteBuffer.allocate(4).putInt(0x7fff shl 16).array())) configFlow = ConfigFlow.NONE
+    }
+
+    private fun handleConfigCapabilities(snapshot: DeviceControlProtocol.Snapshot) {
+        // A capability belongs to this authenticated connection, never an INFO
+        // version guess. Old firmware can reject the read without disconnecting.
+        configAppendMax = 32
+        val chunk = snapshot.configChunk
+        if (snapshot.error == 0 && chunk?.totalLength == 12 && chunk.bytes.size >= 12) {
+            val record = ByteBuffer.wrap(chunk.bytes)
+            if (record.int == 0x43415031 && record.int == 1) {
+                val maximum = record.int
+                if (maximum in 32..512) configAppendMax = maximum
+            }
+        }
+        configCapabilitiesGeneration = directSession.current().generation
+        configFlow = ConfigFlow.NONE
+    }
+
+    private fun beginWakePackage(pack: WakeModelPackage) {
+        if (!configAvailable()) { wakeMessage = "设备忙或当前固件不支持模型部署"; render(); return }
+        configFlow = ConfigFlow.WAKE
+        wakePackage = pack; wakePayload = pack.bytes; wakeExpectedSha = pack.sha256
+        wakeStatusGeneration = null
+        wakeOffset = 0; wakeApplied = false; wakeCanceling = false
+        wakeMessage = "正在发送 ${pack.phrase} 模型"
+        if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                ByteBuffer.allocate(8).putInt(2).putInt(pack.bytes.size).array()))
+            finishWake("设备忙，尚未开始模型传输")
+        render()
+    }
+
+    private fun selectWakeModel(uri: android.net.Uri) {
+        val pack = try { contentResolver.openInputStream(uri)?.use(WakeModelPackage::read) } catch (_: Exception) { null }
+        if (pack == null) { wakeMessage = "唤醒词模型包格式、长度或校验值无效"; render(); return }
+        // A long file picker expires the foreground grace. Keep only this
+        // unsent user selection while the existing session authenticates and
+        // reads fresh capabilities; never resume a transmitted transaction.
+        pendingWakeImport = pack
+        wakeImportDeviceId = provisionedDeviceId
+        wakeImportDeadline = android.os.SystemClock.elapsedRealtime() + 30_000
+        val ticket = ++wakeImportTicket
+        wakeMessage = "等待设备验证后导入 ${pack.phrase}"
+        mainHandler.post { advanceWakeImport(ticket) }
+    }
+
+    private fun cancelPendingWakeImport(message: String) {
+        if (pendingWakeImport == null) return
+        pendingWakeImport = null
+        wakeImportDeviceId = ""
+        wakeImportDeadline = 0L
+        wakeImportTicket++
+        wakeMessage = message
+    }
+
+    private fun advanceWakeImport(ticket: Long) {
+        if (destroyed || ticket != wakeImportTicket) return
+        val pack = pendingWakeImport ?: return
+        val state = directSession.current()
+        val failure = when {
+            wakeImportDeviceId.isBlank() || wakeImportDeviceId != provisionedDeviceId -> "设备已改变，请重新选择模型"
+            android.os.SystemClock.elapsedRealtime() >= wakeImportDeadline -> "设备未及时就绪，尚未发送模型；请重新选择"
+            foreground && state.connection == DeviceControlSession.Connection.DISCONNECTED -> "连接已关闭，尚未向设备发送模型"
+            state.authenticated && state.snapshotFresh && directSnapshot?.publicConfigSupported != true -> "当前固件不支持模型部署"
+            else -> null
+        }
+        if (failure != null) {
+            cancelPendingWakeImport(failure)
+            if (foreground) render()
+            return
+        }
+        if (state.snapshotFresh && configCapabilitiesGeneration == state.generation && configAvailable()) {
+            // Consume the selection before CONFIG_BEGIN can invoke callbacks.
+            // Later connection loss follows the normal no-replay cleanup.
+            cancelPendingWakeImport("")
+            beginWakePackage(pack)
+            return
+        }
+        val message = when {
+            !state.authenticated -> "正在验证设备，模型尚未发送"
+            !state.snapshotFresh || configCapabilitiesGeneration != state.generation -> "正在读取设备能力，模型尚未发送"
+            else -> "等待当前设备操作结束，模型尚未发送"
+        }
+        if (wakeMessage != message) {
+            wakeMessage = message
+            if (foreground) render()
+        }
+        mainHandler.postDelayed({ advanceWakeImport(ticket) }, 200)
+    }
+
+    private fun selectBundledWakeModel(label: String) {
+        val pack = try { assets.open("wake-models/$label.wkm").use(WakeModelPackage::read) } catch (_: Exception) { null }
+        if (pack == null) { wakeMessage = "尚未随 APK 提供有效模型包"; render(); return }
+        beginWakePackage(pack)
+    }
+
+    private fun wakeModelSummary(descriptor: WakeModelPackage.Companion.Descriptor): String =
+        "${descriptor.phrase} · 模型 ${descriptor.sha256.take(4).joinToString("") { "%02x".format(it.toInt() and 0xff) }}"
+
+    private fun restoreWakeModel() {
+        if (!configAvailable()) return
+        configFlow = ConfigFlow.WAKE; wakeRestoreRequested = true
+        wakeDeadline = android.os.SystemClock.elapsedRealtime() + 10_000
+        wakeMessage = "正在读取设备保存的上一模型"
+        requestWakeStatus()
+    }
+
+    private fun requestWakeStatus() {
+        if (configFlow == ConfigFlow.NONE) {
+            if (!configAvailable()) return
+            configFlow = ConfigFlow.WAKE
+            wakeDeadline = android.os.SystemClock.elapsedRealtime() + 10_000
+        }
+        if (configFlow != ConfigFlow.WAKE || wakeCanceling) return
+        wakeOffset = 0; wakeReadTotal = -1; wakeRead = ByteArray(0)
+        if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_READ,
+                ByteBuffer.allocate(4).putInt(2 shl 16).array())) retryWakeRead()
+    }
+
+    private fun retryWakeRead() {
+        if (android.os.SystemClock.elapsedRealtime() >= wakeDeadline) {
+            finishWake("模型状态未在期限内确认；请重新读取，未重发设置")
+            return
+        }
+        val ticket = ++wakeReadTicket
+        val generation = directSession.current().generation
+        mainHandler.postDelayed({
+            if (!destroyed && foreground && ticket == wakeReadTicket &&
+                generation == directSession.current().generation && configFlow == ConfigFlow.WAKE)
+                requestWakeStatus()
+        }, 250)
+    }
+
+    private fun finishWake(message: String) {
+        wakeMessage = message; wakePackage = null; wakePayload = null; wakeExpectedSha = null
+        wakeRestoreRequested = false; wakeApplied = false; wakeCanceling = false
+        wakeRead = ByteArray(0); wakeReadTotal = -1; wakeOffset = 0; wakeReadTicket++
+        configFlow = ConfigFlow.NONE
+        directSession.finishConfigTransaction()
+    }
+
+    private fun failWake(message: String) {
+        wakeMessage = message; wakeReadTicket++
+        wakeStatusGeneration = null
+        if (!wakeApplied && directSession.cancelConfigTransaction()) {
+            wakeCanceling = true
+        } else finishWake(message)
+    }
+
+    private fun requestCloudModelsRead() {
+        val snapshot = directSnapshot ?: return
+        if (!foreground || !directSession.current().authenticated || !snapshot.publicConfigSupported ||
+            configFlow !in listOf(ConfigFlow.NONE, ConfigFlow.CLOUD) || cloudModelsWire != null || directPending ||
+            otaUpload != null || otaVerificationPending || otaStatus?.state in 1L..2L) return
+        configFlow = ConfigFlow.CLOUD
+        cloudModelsOffset = 0; cloudModelsTotal = -1; cloudModelsReadError = null; cloudModelsWire = ByteArray(0)
+        if (cloudModelsReadDeadline == 0L) cloudModelsReadDeadline = android.os.SystemClock.elapsedRealtime() + 10_000
+        val request = ByteBuffer.allocate(4).putInt(1 shl 16).array()
+        if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_READ, request)) {
+            cloudModelsWire = null
+            if (cloudModelsExpected == null) configFlow = ConfigFlow.NONE
+        }
+    }
+
+    private fun validModelId(value: String): Boolean = value.length in 1..127 &&
+        value.all { it.code in 0x21..0x7e && (it.isLetterOrDigit() || it in "._:/-") }
+
+    private fun encodeCloudModels(models: CloudModels): ByteArray? {
+        if (!listOf(models.asr, models.chat, models.tts).all(::validModelId)) return null
+        val a = models.asr.toByteArray(StandardCharsets.US_ASCII)
+        val c = models.chat.toByteArray(StandardCharsets.US_ASCII)
+        val t = models.tts.toByteArray(StandardCharsets.US_ASCII)
+        return ByteBuffer.allocate(12 + a.size + c.size + t.size).put("MCP1".toByteArray())
+            .putShort(a.size.toShort()).putShort(c.size.toShort()).putShort(t.size.toShort()).putShort(0)
+            .put(a).put(c).put(t).array()
+    }
+
+    private fun decodeCloudModels(bytes: ByteArray): CloudModels? = try {
+        if (bytes.size < 12 || !bytes.copyOfRange(0, 4).contentEquals("MCP1".toByteArray())) null else {
+            val b = ByteBuffer.wrap(bytes); b.position(4)
+            val al = b.short.toInt() and 0xffff; val cl = b.short.toInt() and 0xffff; val tl = b.short.toInt() and 0xffff
+            if (b.short.toInt() != 0 || al !in 1..127 || cl !in 1..127 || tl !in 1..127 || 12 + al + cl + tl != bytes.size) null
+            else CloudModels(String(bytes, 12, al, StandardCharsets.US_ASCII),
+                String(bytes, 12 + al, cl, StandardCharsets.US_ASCII),
+                String(bytes, 12 + al + cl, tl, StandardCharsets.US_ASCII)).takeIf {
+                    validModelId(it.asr) && validModelId(it.chat) && validModelId(it.tts) }
+        }
+    } catch (_: Exception) { null }
+
+    private fun editCloudModels() {
+        val old = cloudModels ?: return
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), 0, dp(20), 0) }
+        fun field(label: String, value: String) = EditText(this).apply {
+            hint = label
+            // Public IDs stay visible. Disable IME composition as well as
+            // suggestions: URI mode still rewrites hyphens with some IMEs.
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = android.view.inputmethod.EditorInfo.IME_FLAG_FORCE_ASCII or
+                android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            isSingleLine = true
+            setText(value)
+        }.also { box.addView(it) }
+        val asr = field("语音识别模型", old.asr); val chat = field("对话模型", old.chat); val tts = field("语音合成模型", old.tts)
+        directDialog = AlertDialog.Builder(this).setTitle("云端模型") .setMessage("仅可保存公开模型 ID，不包含地址或密钥。")
+            .setView(box).setNegativeButton("取消", null).setPositiveButton("保存") { _, _ ->
+                val desired = CloudModels(asr.text.toString().trim(), chat.text.toString().trim(), tts.text.toString().trim())
+                val wire = encodeCloudModels(desired)
+                if (wire == null) { directMessage = "模型 ID 需为 1–127 位 ASCII 字符（字母、数字及 . _ : / -）"; render(); return@setPositiveButton }
+                if (!configAvailable()) { directMessage = "设备忙，无法开始模型配置"; render(); return@setPositiveButton }
+                configFlow = ConfigFlow.CLOUD
+                cloudModelsGeneration = null
+                cloudModelsExpected = desired; cloudModelsWire = wire; cloudModelsOffset = 0; cloudModelsReadError = null
+                cloudModelsReadDeadline = 0; cloudModelsReadTicket++
+                val begin = ByteBuffer.allocate(8).putInt(1).putInt(wire.size).array()
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_BEGIN, begin)) {
+                    cloudModelsWire?.fill(0); cloudModelsWire = null; cloudModelsExpected = null
+                    configFlow = ConfigFlow.NONE
+                    directMessage = "设备忙，无法开始模型配置"; render()
+                }
+            }.show()
     }
 
     private fun otaErrorSnapshot(error: Int) = DeviceControlProtocol.Snapshot(
@@ -836,6 +1157,16 @@ class MainActivity : Activity() {
 
     private fun onDirectResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
         if (destroyed) return
+        if (command.wire in DeviceControlProtocol.Command.CONFIG_READ.wire..DeviceControlProtocol.Command.CONFIG_CANCEL.wire) {
+            when (configFlow) {
+                ConfigFlow.CAPABILITIES -> handleConfigCapabilities(snapshot)
+                ConfigFlow.WAKE -> handleWakeResult(command, snapshot)
+                ConfigFlow.CLOUD -> handleCloudModelsResult(command, snapshot)
+                ConfigFlow.NONE -> Unit
+            }
+            if (foreground) render()
+            return
+        }
         if (command.wire in DeviceControlProtocol.Command.OTA_BEGIN.wire..DeviceControlProtocol.Command.OTA_CANCEL.wire) {
             handleOtaResult(command, snapshot, directEpoch)
             return
@@ -863,10 +1194,186 @@ class MainActivity : Activity() {
                 memoryResultMessage = null; memoryDesiredEnabled = null; memoryRequestAccepted = false
             }
         }
+        if (command == DeviceControlProtocol.Command.STATUS && snapshot.error == 0 &&
+            currentTab == TAB_SETTINGS && snapshot.publicConfigSupported &&
+            configFlow == ConfigFlow.NONE) {
+            if (configCapabilitiesGeneration != directSession.current().generation) requestConfigCapabilities()
+            else if (cloudModelsGeneration != directSession.current().generation) requestCloudModelsRead()
+            else if (wakeStatusGeneration != directSession.current().generation) requestWakeStatus()
+        }
         if (foreground && command != DeviceControlProtocol.Command.STATUS && snapshot.error != 0) {
             android.widget.Toast.makeText(this, DeviceControlSession.operationError(snapshot.error), android.widget.Toast.LENGTH_SHORT).show()
         }
         if (foreground) render()
+    }
+
+    private fun handleWakeResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
+        if (command == DeviceControlProtocol.Command.CONFIG_CANCEL) {
+            finishWake(if (snapshot.error == 0) wakeMessage ?: "模型传输已取消"
+                else "模型取消未确认（${snapshot.error}）；请重新读取状态")
+            return
+        }
+        if (wakeCanceling) return
+        if (command == DeviceControlProtocol.Command.CONFIG_READ && snapshot.error == -11) {
+            retryWakeRead(); return
+        }
+        if (snapshot.error != 0) {
+            failWake("唤醒词模型操作失败（${snapshot.error}）；未确认模型变更")
+            return
+        }
+        when (command) {
+            DeviceControlProtocol.Command.CONFIG_BEGIN, DeviceControlProtocol.Command.CONFIG_APPEND -> {
+                val payload = wakePayload ?: run { failWake("模型传输数据已取消"); return }
+                wakeMessage = "正在发送模型（${wakeOffset * 100 / payload.size}%）"
+                if (wakeOffset < payload.size) {
+                    val end = minOf(payload.size, wakeOffset + configAppendMax)
+                    if (directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPEND, payload.copyOfRange(wakeOffset, end)))
+                        wakeOffset = end
+                    else failWake("设备忙，模型传输已停止")
+                } else if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0)))
+                    failWake("设备忙，模型尚未应用")
+            }
+            DeviceControlProtocol.Command.CONFIG_APPLY -> {
+                wakeApplied = true
+                wakeDeadline = android.os.SystemClock.elapsedRealtime() + 60_000
+                wakeMessage = "设备正在激活模型，正在回读确认"
+                requestWakeStatus()
+            }
+            DeviceControlProtocol.Command.CONFIG_READ -> {
+                val chunk = snapshot.configChunk ?: run { failWake("设备未返回模型状态"); return }
+                if (chunk.totalLength != 284) { failWake("模型状态长度无效"); return }
+                if (wakeReadTotal < 0) { wakeReadTotal = 284; wakeRead = ByteArray(284) }
+                if (wakeOffset !in wakeRead.indices) { failWake("模型状态偏移无效"); return }
+                val count = minOf(16, wakeRead.size - wakeOffset)
+                chunk.bytes.copyInto(wakeRead, wakeOffset, 0, count); wakeOffset += count
+                if (wakeOffset < wakeRead.size) {
+                    if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_READ,
+                            ByteBuffer.allocate(4).putInt((2 shl 16) or wakeOffset).array())) retryWakeRead()
+                    return
+                }
+                val status = WakeModelPackage.status(wakeRead) ?: run { failWake("模型状态格式无效"); return }
+                wakeStatus = status; wakeStatusGeneration = directSession.current().generation
+                if (status.busy) { retryWakeRead(); return }
+                if (wakeRestoreRequested) {
+                    wakeRestoreRequested = false
+                    val previous = status.previous ?: run { finishWake("设备没有可恢复的上一模型"); return }
+                    wakeExpectedSha = previous.sha256; wakePayload = "WKR1".toByteArray()
+                    wakeOffset = 0; wakeApplied = false
+                    wakeMessage = "正在恢复 ${previous.phrase}"
+                    if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                            ByteBuffer.allocate(8).putInt(3).putInt(4).array()))
+                        finishWake("设备忙，尚未开始恢复")
+                    return
+                }
+                val expected = wakeExpectedSha
+                if (status.error != 0) {
+                    finishWake("当前为 ${status.active.phrase}；上次模型操作失败（${status.error}）")
+                } else if (expected == null) {
+                    finishWake("当前：${wakeModelSummary(status.active)}")
+                } else if (status.active.sha256.contentEquals(expected)) {
+                    finishWake("${wakeModelSummary(status.active)} 已生效并回读确认")
+                } else {
+                    finishWake("设备当前仍为 ${status.active.phrase}；未确认所选模型生效")
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun failCloudModels(message: String) {
+        cloudModelsWire?.fill(0); cloudModelsWire = null; cloudModelsTotal = -1; cloudModelsOffset = 0
+        cloudModelsExpected = null; cloudModelsReadError = message
+        cloudModelsGeneration = null
+        cloudModelsReadDeadline = 0; cloudModelsReadTicket++
+        if (!cloudModelsCanceling && directSession.cancelConfigTransaction()) {
+            cloudModelsCanceling = true
+            return
+        }
+        cloudModelsCanceling = false
+        configFlow = ConfigFlow.NONE
+        directSession.finishConfigTransaction()
+    }
+
+    private fun handleCloudModelsResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
+        if (command == DeviceControlProtocol.Command.CONFIG_CANCEL) {
+            cloudModelsCanceling = true
+            failCloudModels(if (snapshot.error == 0) cloudModelsReadError ?: "模型配置已取消"
+                else "模型配置取消未确认（${snapshot.error}）；请重新读取状态")
+            return
+        }
+        if (cloudModelsCanceling) return
+        if (command == DeviceControlProtocol.Command.CONFIG_READ && snapshot.error == -11 &&
+            android.os.SystemClock.elapsedRealtime() < cloudModelsReadDeadline) {
+            cloudModelsWire?.fill(0); cloudModelsWire = null
+            cloudModelsOffset = 0; cloudModelsTotal = -1
+            cloudModelsReadError = "设备正在保存或恢复模型配置，正在回读…"
+            val generation = directSession.current().generation
+            val ticket = ++cloudModelsReadTicket
+            mainHandler.postDelayed({
+                if (!destroyed && foreground && generation == directSession.current().generation &&
+                    ticket == cloudModelsReadTicket) requestCloudModelsRead()
+            }, 250)
+            return
+        }
+        if (snapshot.error != 0) {
+            failCloudModels(if (snapshot.error == -11 || snapshot.error == -115)
+                "保存结果尚未确认，请重新读取设备配置；未自动重发设置"
+                else "模型配置操作失败（${snapshot.error}），请读取设备当前配置")
+            return
+        }
+        when (command) {
+            DeviceControlProtocol.Command.CONFIG_READ -> {
+                val chunk = snapshot.configChunk ?: run { failCloudModels("设备未返回模型配置"); return }
+                if (cloudModelsTotal < 0) {
+                    cloudModelsTotal = chunk.totalLength
+                    cloudModelsWire = ByteArray(chunk.totalLength)
+                    cloudModelsOffset = 0
+                }
+                val target = cloudModelsWire
+                if (target == null || chunk.totalLength != cloudModelsTotal || cloudModelsOffset >= target.size) {
+                    failCloudModels("模型配置响应无效"); return
+                }
+                val count = minOf(16, target.size - cloudModelsOffset)
+                chunk.bytes.copyInto(target, cloudModelsOffset, 0, count); cloudModelsOffset += count
+                if (cloudModelsOffset < target.size) {
+                    val next = ByteBuffer.allocate(4).putInt((1 shl 16) or cloudModelsOffset).array()
+                    if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_READ, next)) failCloudModels("设备忙，无法继续读取模型配置")
+                } else {
+                    val decoded = decodeCloudModels(target)
+                    target.fill(0); cloudModelsWire = null
+                    if (decoded == null) { failCloudModels("设备返回的模型配置格式无效"); return }
+                    cloudModels = decoded; cloudModelsGeneration = directSession.current().generation; cloudModelsReadError = null
+                    cloudModelsReadDeadline = 0; cloudModelsReadTicket++
+                    val expected = cloudModelsExpected
+                    configFlow = ConfigFlow.NONE
+                    if (expected != null) {
+                        cloudModelsExpected = null
+                        directSession.finishConfigTransaction()
+                        directMessage = if (decoded == expected) "云端模型已保存并回读确认" else "设备回读的模型配置未确认保存"
+                    }
+                }
+            }
+            DeviceControlProtocol.Command.CONFIG_BEGIN -> {
+                val payload = cloudModelsWire ?: run { failCloudModels("模型配置数据已取消"); return }
+                val n = minOf(configAppendMax, payload.size)
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPEND, payload.copyOfRange(0, n))) failCloudModels("设备忙，无法写入模型配置")
+                else cloudModelsOffset = n
+            }
+            DeviceControlProtocol.Command.CONFIG_APPEND -> {
+                val payload = cloudModelsWire ?: run { failCloudModels("模型配置数据已取消"); return }
+                if (cloudModelsOffset < payload.size) {
+                    val end = minOf(payload.size, cloudModelsOffset + configAppendMax)
+                    if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPEND, payload.copyOfRange(cloudModelsOffset, end))) failCloudModels("设备忙，无法继续写入模型配置")
+                    else cloudModelsOffset = end
+                } else if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))) failCloudModels("设备忙，无法应用模型配置")
+            }
+            DeviceControlProtocol.Command.CONFIG_APPLY -> {
+                cloudModelsWire?.fill(0); cloudModelsWire = null; cloudModelsOffset = 0; cloudModelsTotal = -1
+                requestCloudModelsRead()
+            }
+            DeviceControlProtocol.Command.CONFIG_CANCEL -> failCloudModels("模型配置已取消")
+            else -> Unit
+        }
     }
 
     override fun onRequestPermissionsResult(code: Int, permissions: Array<out String>, results: IntArray) {
@@ -1064,6 +1571,48 @@ class MainActivity : Activity() {
                     settingsRow("扬声器音量", volumeControl.reason, enabled = volumeControl.enabled) { editDirectVolume() }
                     settingsRow("聊天风格", directSnapshot?.persona?.let { directPersonas[it] }
                         ?: "选择你喜欢的陪伴方式") { selectTab(TAB_PERSONALITY); render() }
+                    val configSupported = directSnapshot?.publicConfigSupported == true
+                    val configMutationReady = configAvailable() && pendingWakeImport == null
+                    val modelsCurrent = cloudModelsGeneration == directSession.current().generation
+                    val modelText = when {
+                        !directSession.current().authenticated -> "连接并验证设备后读取模型"
+                        !directSession.current().snapshotFresh -> "正在读取设备能力…"
+                        !configSupported -> "设备固件未提供公开模型设置"
+                        cloudModelsWire != null -> "正在读取或保存模型配置…"
+                        !modelsCurrent -> cloudModelsReadError ?: "正在读取设备模型配置…"
+                        cloudModels != null -> "ASR ${cloudModels!!.asr}\n对话 ${cloudModels!!.chat}\nTTS ${cloudModels!!.tts}"
+                        else -> cloudModelsReadError ?: "尚未读取模型配置"
+                    }
+                    settingsRow("云端模型", modelText, enabled = configMutationReady && modelsCurrent) { editCloudModels() }
+                    if (cloudModelsExpected != null) settingsRow("取消模型保存", "停止当前配置事务；不会重放未完成写入", enabled = true) {
+                        if (!directSession.cancelConfigTransaction()) directMessage = "当前模型配置已结束"
+                        else directMessage = "正在取消模型配置"
+                        render()
+                    }
+                    settingsRow("导入唤醒词模型", wakeMessage ?: "从本地导入已训练的唤醒词模型",
+                        enabled = configMutationReady) {
+                        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            type = "application/octet-stream"; addCategory(Intent.CATEGORY_OPENABLE)
+                        }, WAKE_MODEL_REQUEST)
+                    }
+                    val bundled = listOf("nihao_openvela", "nihao_bingbing", "nihao_shaniu")
+                    val wakeNames = listOf("你好，open-vela", "你好冰冰", "你好傻妞")
+                    bundled.forEachIndexed { index, label ->
+                        val available = try { assets.open("wake-models/$label.wkm").use(WakeModelPackage::read) != null } catch (_: Exception) { false }
+                        settingsRow(wakeNames[index], if (available) "切换到此唤醒词" else "此版本暂未提供", enabled = available && configMutationReady) { selectBundledWakeModel(label) }
+                    }
+                    val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation }
+                    settingsRow("读取当前唤醒词", currentWake?.active?.let(::wakeModelSummary) ?: "从设备读取实际模型", enabled = configMutationReady) { requestWakeStatus() }
+                    if (pendingWakeImport != null)
+                        settingsRow("取消模型导入", "取消等待；模型尚未发送", enabled = true) {
+                            cancelPendingWakeImport("已取消导入，尚未向设备发送模型"); render()
+                        }
+                    if (configFlow == ConfigFlow.WAKE && wakePayload != null && !wakeApplied)
+                        settingsRow("取消模型传输", "保留设备当前模型", enabled = !wakeCanceling) {
+                            failWake("模型传输已取消，保留原模型"); render()
+                        }
+                    settingsRow("恢复上一唤醒词模型", currentWake?.previous?.let { "恢复为 ${wakeModelSummary(it)}" }
+                        ?: "恢复前先读取设备保存的上一模型", enabled = configMutationReady) { restoreWakeModel() }
                     settingsRow("设备配置", "配网与添加结果核对", !busy) { startProvisioning() }
                 }
                 sectionTitle("隐私与管理")
@@ -2516,6 +3065,7 @@ class MainActivity : Activity() {
         private const val TAB_PRIVACY = 3
         private const val TAB_UPDATE = 4
         private const val FIRMWARE_PACKAGE_REQUEST = 6043
+        private const val WAKE_MODEL_REQUEST = 6044
         private const val TAB_SETTINGS = 5
         private val TABS = listOf(TAB_OVERVIEW to "陪伴", TAB_PERSONALITY to "心情", TAB_SETTINGS to "设置")
 

@@ -16,6 +16,10 @@ struct bkprov_store_s
 };
 int bkprov_store_open(struct bkprov_store_s *store, const char *root);
 int bkprov_store_check_filesystem(const char *root);
+/* Finish a rename on storage accepted by check_filesystem. The NuttX
+ * LittleFS commit is synchronous; host POSIX also requires directory fsync.
+ * A host barrier failure returns -EINPROGRESS for caller reconciliation. */
+int bkprov_store_sync_directory(const char *directory);
 int bkprov_store_load(struct bkprov_store_s *store, void *bundle,
                       size_t capacity, size_t *size, uint64_t *revision,
                       uint8_t transaction[16]);

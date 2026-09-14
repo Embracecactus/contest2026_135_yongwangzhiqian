@@ -25,6 +25,8 @@ CPU1/CPU2 上的 AP SMP NuttX 组成配对系统。
 [移植报告](docs/platforms/bk7258/porting-report.md)，官方清单的逐条口径见
 [符合性复核说明](docs/platforms/bk7258/official-compliance-review.md)。
 
+傻妞当前源码、APK、固件、模型与实板验证入口见 [Master Plan](docs/platforms/bk7258/shaniu-master-plan.md)。产品路径复用官方 Agent、Media、Trigger/TFLM 和标准设备接口；已完成的声学回放、手机控制和 App OTA 与尚未完成的真人泛化、物理按键及振感验收分别记录。
+
 ## 二、选题方向
 
 **新硬件适配。** 作品重点是把 BK7258 的三核启动、芯片驱动、板级配置、Beken SDK

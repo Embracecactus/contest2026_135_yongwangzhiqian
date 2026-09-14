@@ -448,8 +448,12 @@ out:
    * an incomplete audio response from waiting for the HTTP connection to end.
    */
   syslog(LOG_INFO, "BKVOICE TTS stream ret=%d pcm_bytes=%lu stopped=%d "
-         "done=%d parser=%d\n", ret, (unsigned long)decoder->total,
-         decoder->stopped, decoder->done, decoder->error);
+         "done=%d parser=%d events=%lu first_event_pcm=%lu max_event_pcm=%lu\n",
+         ret, (unsigned long)decoder->total,
+         decoder->stopped, decoder->done, decoder->error,
+         (unsigned long)decoder->audio_events,
+         (unsigned long)decoder->first_audio_bytes,
+         (unsigned long)decoder->max_audio_bytes);
   cJSON_Delete(root);
   bkcloud_tts_clear(decoder);
   bkcloud_request_clear(&body_data, &body_size, &body_capacity);
