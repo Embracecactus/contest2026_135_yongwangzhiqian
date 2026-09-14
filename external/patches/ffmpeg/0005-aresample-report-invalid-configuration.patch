@@ -1,0 +1,68 @@
+Subject: [PATCH] avfilter/aresample: propagate invalid output configuration
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Base: open-vela/external_ffmpeg 4b4723f2f66ccfdbadbd5d4c52dd5c41d6116418
+
+Check option reads and retain all rate/layout/format consistency conditions.
+Reject mismatches with their actual values instead of aborting the shared
+Media process, so the product can report failure and release its resources.
+
+--- a/libavfilter/af_aresample.c
++++ b/libavfilter/af_aresample.c
+@@ -24,6 +24,8 @@
+  * resampling audio filter
+  */
+ 
++#include <inttypes.h>
++
+ #include "libavutil/avstring.h"
+ #include "libavutil/channel_layout.h"
+ #include "libavutil/opt.h"
+@@ -146,14 +148,28 @@
+     if (ret < 0)
+         return ret;
+ 
+-    av_opt_get_int(aresample->swr, "osr", 0, &out_rate);
+-    av_opt_get_chlayout(aresample->swr, "ochl", 0, &out_layout);
+-    av_opt_get_sample_fmt(aresample->swr, "osf", 0, &out_format);
++    ret = av_opt_get_int(aresample->swr, "osr", 0, &out_rate);
++    if (ret < 0)
++        goto fail;
++    ret = av_opt_get_chlayout(aresample->swr, "ochl", 0, &out_layout);
++    if (ret < 0)
++        goto fail;
++    ret = av_opt_get_sample_fmt(aresample->swr, "osf", 0, &out_format);
++    if (ret < 0)
++        goto fail;
++
++    if (outlink->sample_rate != out_rate ||
++        av_channel_layout_compare(&outlink->ch_layout, &out_layout) ||
++        outlink->format != out_format) {
++        av_log(ctx, AV_LOG_ERROR,
++               "resampler output mismatch rate=%d/%"PRId64
++               " format=%d/%d channels=%d/%d\n",
++               outlink->sample_rate, out_rate, outlink->format, out_format,
++               outlink->ch_layout.nb_channels, out_layout.nb_channels);
++        ret = AVERROR(EINVAL);
++        goto fail;
++    }
+     outlink->time_base = (AVRational) {1, out_rate};
+-
+-    av_assert0(outlink->sample_rate == out_rate);
+-    av_assert0(!av_channel_layout_compare(&outlink->ch_layout, &out_layout));
+-    av_assert0(outlink->format == out_format);
+ 
+     av_channel_layout_uninit(&out_layout);
+ 
+@@ -166,6 +182,11 @@
+            inlink ->ch_layout.nb_channels, inchl_buf,  av_get_sample_fmt_name(inlink->format),  inlink->sample_rate,
+            outlink->ch_layout.nb_channels, outchl_buf, av_get_sample_fmt_name(outlink->format), outlink->sample_rate);
+     return 0;
++
++fail:
++    av_log(ctx, AV_LOG_ERROR, "resampler configuration failed: %d\n", ret);
++    av_channel_layout_uninit(&out_layout);
++    return ret;
+ }
+ 
+ static int filter_frame(AVFilterLink *inlink, AVFrame *insamplesref)

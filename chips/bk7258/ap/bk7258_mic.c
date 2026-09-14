@@ -2191,7 +2191,10 @@ int bk7258_mic_initialize(
        ((config->flags & BK7258_MIC_INPUT_MIC2) == 0 ||
         config->channels != 2 || config->aec_delay_samples > 1000u)) ||
       config->mic1_ana_gain > BK7258_MIC_ANA_GAIN_MAX ||
-      config->mic2_ana_gain > BK7258_MIC_ANA_GAIN_MAX)
+      config->mic2_ana_gain > BK7258_MIC_ANA_GAIN_MAX ||
+      config->digital_gain_db < -(int)BK7258_MIC_DIG_GAIN_0DB ||
+      config->digital_gain_db >
+        (int)(BK7258_MIC_DIG_GAIN_MAX - BK7258_MIC_DIG_GAIN_0DB))
     {
       auderr("ERROR: BK7258 microphone configuration is invalid\n");
       return -EINVAL;
@@ -2199,7 +2202,8 @@ int bk7258_mic_initialize(
 
   priv->config    = config;
   priv->channels  = config->channels;
-  priv->dig_gain   = BK7258_MIC_DIG_GAIN_0DB;
+  priv->dig_gain = (uint8_t)((int)BK7258_MIC_DIG_GAIN_0DB +
+                            config->digital_gain_db);
   priv->mic1_ana_gain = config->mic1_ana_gain;
   priv->mic2_ana_gain = config->mic2_ana_gain;
   priv->dma_id     = DMA_ID_MAX + 1;   /* Not a valid channel */

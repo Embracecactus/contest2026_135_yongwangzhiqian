@@ -8,7 +8,9 @@
 
 /* Conservative notification pacing until measured HCI flow-control acceptance.
  * A positive GATT result means queued once, never retry that fragment. TLS
- * record authentication detects stream loss; the absolute deadlines abort it.
+ * record authentication detects stream loss; provisioning uses an absolute
+ * deadline while an authenticated control session uses a validated-packet
+ * idle deadline.
  */
 #define SEND_INTERVAL_MS 10u
 #define HANDSHAKE_MS 30000u
@@ -41,7 +43,9 @@ static int fail(struct bkprov_tls_s *tls, int error)
 
 static bool expired(const struct bkprov_tls_s *tls, uint64_t now)
 {
-  return now < tls->last_now || now - tls->started >= SESSION_MS ||
+  return now < tls->last_now ||
+         (!tls->control && now - tls->started >= SESSION_MS) ||
+         (tls->control && now - tls->control_activity >= SESSION_MS) ||
          (!tls->established && now - tls->started >= HANDSHAKE_MS) ||
          (tls->pending_size && now - tls->write_started >= WRITE_MS);
 }
@@ -279,4 +283,35 @@ ssize_t bkprov_tls_read(struct bkprov_tls_s *tls, void *data, size_t size)
       return -ECONNRESET;
     }
   return ret;
+}
+
+int bkprov_tls_promote_control(struct bkprov_tls_s *tls)
+{
+  int ret = check(tls);
+  if (ret < 0)
+    {
+      return ret;
+    }
+  if (!tls->established)
+    {
+      return -EAGAIN;
+    }
+  tls->control = true;
+  tls->control_activity = tls->last_now;
+  return 0;
+}
+
+int bkprov_tls_touch_control(struct bkprov_tls_s *tls)
+{
+  int ret = check(tls);
+  if (ret < 0)
+    {
+      return ret;
+    }
+  if (!tls->control)
+    {
+      return -EPERM;
+    }
+  tls->control_activity = tls->last_now;
+  return 0;
 }

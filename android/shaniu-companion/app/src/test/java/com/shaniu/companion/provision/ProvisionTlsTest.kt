@@ -84,14 +84,15 @@ class ProvisionTlsTest {
         }
         val context = SSLContext.getInstance("TLS").apply { init(keys.keyManagers, null, null) }
         val serverPlain = java.io.ByteArrayOutputStream()
-        val client = ProvisionGattSession(ProvisionTls(pin), {}, { 1000L })
+        var now = 1000L
+        val client = ProvisionGattSession(ProvisionTls(pin), {}, { now })
         val server = ProvisionGattSession({ output, input ->
             ProvisionTlsChannel(context.createSSLEngine().apply {
                 useClientMode = false
                 enabledProtocols = arrayOf("TLSv1.2")
                 enabledCipherSuites = arrayOf("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256")
             }, output, input)
-        }, { serverPlain.write(it) }, { 1000L })
+        }, { serverPlain.write(it) }, { now })
         var maximumPayload = 20
         fun deliver(from: ProvisionGattSession, to: ProvisionGattSession): Boolean {
             val write = from.nextWrite() ?: return false
@@ -122,6 +123,7 @@ class ProvisionTlsTest {
             client.start()
             drain()
             assertTrue(client.established && server.established)
+            client.promoteToControl()
             client.negotiatedMtu(client.generation, 70)
             server.negotiatedMtu(server.generation, 70)
             val message = ByteArray(4096) { (it % 251).toByte() }
@@ -133,8 +135,19 @@ class ProvisionTlsTest {
             client.send(message)
             drain()
             assertArrayEquals(message + message, serverPlain.toByteArray())
+            /* Valid control responses renew only a promoted control lease. Two
+             * activity periods exceed the former absolute 120s lifetime. */
+            now += 119_999
+            client.touchControlActivity()
+            now += 119_999
+            client.touchControlActivity()
+            assertFalse(client.closed)
+            client.negotiatedMtu(client.generation - 1, 23) // stale callbacks never renew a lease
+            now += 120_000
+            client.tick()
+            assertEquals("idle_timeout", client.failure)
             client.disconnected(client.generation - 1)
-            assertTrue(client.established)
+            assertFalse(client.established)
             client.disconnected(client.generation)
             assertTrue(client.closed)
             assertFalse(client.established)
@@ -162,6 +175,11 @@ class ProvisionTlsTest {
         now += 30000
         handshake.tick()
         assertEquals("handshake_timeout", handshake.failure)
+        now = 0
+        val provisioning = session()
+        now = 120_000
+        provisioning.tick()
+        assertEquals("session_timeout", provisioning.failure)
         val full = session()
         repeat(256) { full.enqueueIncoming(full.generation, byteArrayOf(1)) }
         assertThrows(java.io.IOException::class.java) {

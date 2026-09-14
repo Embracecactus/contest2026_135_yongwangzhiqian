@@ -154,6 +154,15 @@
 #define BK7258_AP_FAULT_STATE_MAGIC      0x544c4641u /* "AFLT" */
 #define BK7258_AP_FAULT_STATE_VERSION    1u
 
+/* CP publishes detected, non-aliased PSRAM capacity before releasing AP.
+ * This immutable boot input occupies the gap after the AP fault record;
+ * neither AP fault capture nor runtime telemetry owns these bytes.
+ */
+
+#define BK7258_PSRAM_BOOT_OFFSET         0x000000d0u
+#define BK7258_PSRAM_BOOT_MAGIC          0x31525350u /* "PSR1" */
+#define BK7258_PSRAM_BOOT_VERSION        1u
+
 /* CPU0 owns a separate record so an AP-side peripheral or mailbox operation
  * that faults CP cannot overwrite the AP exception evidence.
  */
@@ -766,6 +775,14 @@ struct bk7258_ap_fault_state_s
   uint32_t stacked_xpsr;
 };
 
+struct bk7258_psram_boot_s
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t generation;
+  uint32_t capacity;
+};
+
 struct bk7258_cp_fault_state_s
 {
   uint32_t magic;
@@ -999,8 +1016,12 @@ static_assert(sizeof(struct bk7258_ap_boot_state_s) ==
               "AP boot-state ABI must remain 0x80 bytes");
 static_assert(BK7258_AP_FAULT_STATE_OFFSET +
               sizeof(struct bk7258_ap_fault_state_s) <=
+              BK7258_PSRAM_BOOT_OFFSET,
+              "AP fault state overlaps PSRAM boot input");
+static_assert(BK7258_PSRAM_BOOT_OFFSET +
+              sizeof(struct bk7258_psram_boot_s) <=
               BK7258_CP_FAULT_STATE_OFFSET,
-              "AP and CP fault states overlap");
+              "PSRAM boot input overlaps CP fault state");
 static_assert(BK7258_CP_FAULT_STATE_OFFSET +
               sizeof(struct bk7258_cp_fault_state_s) <=
               BK7258_CPU2_PROBE_STATE_OFFSET,

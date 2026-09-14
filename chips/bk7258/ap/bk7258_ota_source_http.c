@@ -27,6 +27,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <syslog.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <nuttx/kmalloc.h>
@@ -274,6 +276,9 @@ static int bk7258_ota_http_read_tls(
         }
       if (ret <= 0)
         {
+          syslog(LOG_ERR, "BKOTA HTTP read tls=%u result=%d done=%u size=%u\n",
+                 priv->tls_active ? 1u : 0u, ret,
+                 (unsigned int)done, (unsigned int)size);
           return ret == 0 ? -ECONNRESET : -EIO;
         }
       done += (size_t)ret;
@@ -343,6 +348,7 @@ static int bk7258_ota_http_wait_connected(
   socklen_t error_size = sizeof(int);
   int socket_error = 0;
   bool polling = false;
+  const char *stage = "poll-setup";
   int ret;
 
   ret = nxsem_init(&sem, 0, 0);
@@ -362,6 +368,7 @@ static int bk7258_ota_http_wait_connected(
       polling = true;
       if (pfd.revents == 0)
         {
+          stage = "poll-wait";
           ret = nxsem_tickwait_uninterruptible(
                   &sem, MSEC2TICK(BK7258_OTA_HTTP_IO_TIMEOUT_MS));
         }
@@ -372,26 +379,40 @@ static int bk7258_ota_http_wait_connected(
       int teardown = psock_poll(&priv->socket, &pfd, false);
       if (ret >= 0 && teardown < 0)
         {
+          stage = "poll-teardown";
           ret = teardown;
         }
     }
   (void)nxsem_destroy(&sem);
   if (ret < 0)
     {
-      return ret == -ETIMEDOUT ? ret : -ENETUNREACH;
+      /* Preserve the actual failure: callback exhaustion or cancellation is
+       * not evidence that the network has no route to the phone. */
+      syslog(LOG_ERR, "BKOTA HTTP connect stage=%s error=%d events=%x\n",
+             stage, ret, (unsigned int)pfd.revents);
+      return ret;
     }
 
   ret = psock_getsockopt(&priv->socket, SOL_SOCKET, SO_ERROR,
                          &socket_error, &error_size);
   if (ret < 0)
     {
+      syslog(LOG_ERR, "BKOTA HTTP connect stage=socket-status error=%d\n",
+             ret);
       return ret;
     }
   if (socket_error != 0)
     {
+      syslog(LOG_ERR, "BKOTA HTTP connect stage=socket-error error=%d "
+             "events=%x\n", socket_error, (unsigned int)pfd.revents);
       return socket_error < 0 ? socket_error : -socket_error;
     }
 
+  if ((pfd.revents & POLLOUT) == 0)
+    {
+      syslog(LOG_ERR, "BKOTA HTTP connect stage=not-writable events=%x\n",
+             (unsigned int)pfd.revents);
+    }
   return (pfd.revents & POLLOUT) != 0 ? 0 : -ENETUNREACH;
 }
 
@@ -456,6 +477,9 @@ static int bk7258_ota_http_connect(
 
   for (address = addresses; address != NULL; address = address->ai_next)
     {
+      struct timespec connect_started;
+      bool connect_clock_valid;
+
       ret = psock_socket(address->ai_family,
                          address->ai_socktype | SOCK_NONBLOCK,
                          address->ai_protocol, &priv->socket);
@@ -480,8 +504,26 @@ static int bk7258_ota_http_connect(
           continue;
         }
 
+      connect_clock_valid = clock_gettime(CLOCK_MONOTONIC,
+                                           &connect_started) == 0;
       ret = psock_connect(&priv->socket, address->ai_addr,
                           address->ai_addrlen);
+      if (ret < 0 && ret != -EINPROGRESS)
+        {
+          struct timespec finished;
+          long elapsed_ms = -1;
+
+          if (connect_clock_valid &&
+              clock_gettime(CLOCK_MONOTONIC, &finished) == 0)
+            {
+              elapsed_ms = (finished.tv_sec - connect_started.tv_sec) * 1000 +
+                (finished.tv_nsec - connect_started.tv_nsec) / 1000000;
+            }
+
+          syslog(LOG_ERR,
+                 "BKOTA HTTP connect stage=connect error=%d elapsed_ms=%ld\n",
+                 ret, elapsed_ms);
+        }
       if (ret == -EINPROGRESS)
         {
           ret = bk7258_ota_http_wait_connected(priv);
@@ -951,6 +993,10 @@ static int bk7258_ota_http_read_at(
           bk7258_ota_http_disconnect(priv);
           if (ret < 0)
             {
+              syslog(LOG_ERR,
+                     "BKOTA HTTP range image=%u offset=%lu size=%lu error=%d\n",
+                     (unsigned int)image, (unsigned long)position,
+                     (unsigned long)length, ret);
               return ret;
             }
 

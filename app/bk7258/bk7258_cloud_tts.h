@@ -10,9 +10,11 @@
  */
 struct bkcloud_tts_s
 {
-  char line[32768];
-  char event[32768];
-  uint8_t pcm[24576];
+  char *line;
+  char *event;
+  size_t line_capacity;
+  size_t event_capacity;
+  uint8_t pcm[3072];
   size_t line_size;
   size_t event_size;
   size_t total;

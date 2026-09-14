@@ -1,0 +1,18 @@
+domain: MicDomain
+    conf: capture
+        ActiveStreams Includes Capture0
+        FFmpegCommand = pcm0c,start,;
+    conf: off
+        ALL
+        FFmpegCommand = pcm0c,stop,;
+
+domain: MusicVolumeDomain
+    conf: mute
+        MusicVolume In 0
+        FFmpegCommand = Music0,set_parameter,volume=0;
+    conf: index-%MusicVolume
+        MusicVolume In [1,14]
+        FFmpegCommand = Music0,set_parameter,volume=10^(-4*(15-%MusicVolume%)/20);
+    conf: full
+        MusicVolume In 15
+        FFmpegCommand = Music0,set_parameter,volume=1;

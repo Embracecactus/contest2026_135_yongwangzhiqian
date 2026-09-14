@@ -14,6 +14,10 @@ struct bkcloud_runtime_status_s
   bool pressed;
   bool busy;
   bool worker_active;
+  /* Automatic capture has stopped or faulted; its owner must still end or
+   * cancel the turn to join the worker and release borrowed audio resources.
+   */
+  bool capture_finished;
   uint32_t turn_state;
   int last_error;
   bool memory_supported;
@@ -41,14 +45,13 @@ void bkcloud_runtime_step(struct bkcloud_runtime_s *runtime,
  * product OTA/provisioning gate before begin().  These functions do not
  * inspect board GPIO state and never synthesize a physical button level.
  *
- * begin() consumes oldest-to-newest prefill frames, then starts the existing
- * live capture worker.  end() is retriable while that worker is joining; only
+ * begin() starts the existing live capture worker with the product frame
+ * filter, without sending wake history. end() is retriable while joining; only
  * a successful end with captured PCM starts the cloud worker.
  */
 int bkcloud_runtime_auto_begin(
   struct bkcloud_runtime_s *runtime,
-  bkvoice_capture_prefill_read_t read_frame, void *prefill_context,
-  size_t prefill_frames, bkvoice_capture_live_observer_t live_observer,
+  bkvoice_capture_frame_filter_t frame_filter,
   void *live_context);
 int bkcloud_runtime_auto_end(struct bkcloud_runtime_s *runtime);
 bool bkcloud_runtime_busy(const struct bkcloud_runtime_s *runtime);

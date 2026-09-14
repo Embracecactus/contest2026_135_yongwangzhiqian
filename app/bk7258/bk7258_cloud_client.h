@@ -29,23 +29,21 @@ int bkcloud_recognize(struct bkcloud_client_s *client,
 void bkcloud_history_clear(struct bkcloud_history_s *history);
 int bkcloud_history_commit(struct bkcloud_history_s *history,
                             const char *user, const char *assistant);
+/* A camera is offered only after this turn's explicit product consent. The
+ * owner captures on invocation and keeps the fresh JPEG alive until chat
+ * returns. Agent tools never borrow a previous turn's image. */
+struct bkcloud_camera_s
+{
+  int (*capture)(void *context, const uint8_t **jpeg, size_t *size);
+  void *context;
+};
 int bkcloud_chat(struct bkcloud_client_s *client,
                  const struct bkcloud_config_s *config,
                  const struct bkvoice_wss_tls_ops_s *tls, void *tls_context,
                  uint64_t deadline_ms, const char *persona,
                  const struct bkcloud_history_s *history, const char *input,
+                 const struct bkcloud_camera_s *camera,
                  char *text, size_t capacity);
-/* Explicit, synchronous image-understanding request. JPEG remains borrowed
- * until return; no camera, UI, history mutation or playback is performed.
- */
-int bkcloud_understand_jpeg(struct bkcloud_client_s *client,
-                            const struct bkcloud_config_s *config,
-                            const struct bkvoice_wss_tls_ops_s *tls,
-                            void *tls_context, uint64_t deadline_ms,
-                            const char *persona,
-                            const struct bkcloud_history_s *history,
-                            const char *prompt, const uint8_t *jpeg,
-                            size_t jpeg_size, char *text, size_t capacity);
 /* Both adapters supply 24000 Hz PCM16-LE mono. Dialect 1 uses audio/speech
  * (voice alloy, response_format pcm); dialect 2 uses MiMo SSE pcm16. Callback may receive
  * partial audio before a terminal error; the owner must abort its player.

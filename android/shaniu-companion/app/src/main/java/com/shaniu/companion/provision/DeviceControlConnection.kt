@@ -26,7 +26,6 @@ internal class DeviceControlConnection(
             else store.usePendingControlIdentity(deviceId, requireNotNull(pendingTransaction), borrow)
         }
     private val protocol: DeviceControlProtocol = credentials.second
-    private var infoRequested = false
     private val transport: AndroidProvisionGatt = try { AndroidProvisionGatt(context, device, credentials.first,
         object : AndroidProvisionGatt.Events {
             override fun tlsEstablished() = protocol.start()
@@ -41,13 +40,13 @@ internal class DeviceControlConnection(
     init { transport.start() }
     private fun send(bytes: ByteArray): Unit = transport.send(bytes)
     private fun received(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
-        if (command == DeviceControlProtocol.Command.AUTH) protocol.request(DeviceControlProtocol.Command.STATUS)
+        if (command == DeviceControlProtocol.Command.AUTH) {
+            transport.promoteToControl()
+            protocol.request(DeviceControlProtocol.Command.STATUS)
+        }
         else {
+            transport.touchControlActivity()
             result(command, snapshot)
-            if (command == DeviceControlProtocol.Command.STATUS && snapshot.infoSupported && !infoRequested) {
-                infoRequested = true
-                protocol.request(DeviceControlProtocol.Command.INFO)
-            }
         }
     }
     fun request(command: DeviceControlProtocol.Command, value: Int = 0,

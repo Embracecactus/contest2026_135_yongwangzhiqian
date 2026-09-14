@@ -2,7 +2,7 @@
  * app/bk7258/bk7258_voice_runtime.c
  * SPDX-License-Identifier: Apache-2.0
  *
- * One AP owner for physical PTT, the authenticated companion and audio.
+ * One AP product owner for voice, authenticated control and audio.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -23,8 +23,11 @@
 #define BKVOICE_RUNTIME_SOFT_OFF 1
 #endif
 #include "bk7258_voice_config.h"
+#include "bk7258_voice_companion.h"
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
 #include "bk7258_voice_session.h"
 #include "bk7258_voice_tls.h"
+#endif
 #ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
 #include "bk7258_voice_wake_session.h"
 #endif
@@ -76,10 +79,13 @@
 #include <nuttx/rpmsg/rpmsg.h>
 #include <nuttx/spinlock.h>
 
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
 #define BKVOICE_RX_SLOTS 4u
 #define BKVOICE_IO_MS 3000u
 #define BKVOICE_CONNECT_MS 12000u
 #define BKVOICE_RX_IDLE_MS 300000u
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
+
 #define BKVOICE_UPLOAD_MS 30000u
 #ifdef BKVOICE_RUNTIME_SOFT_OFF
 #define BKVOICE_SOFT_OFF_STATUS_POLL_MS 1000u
@@ -120,9 +126,12 @@ struct bkvoice_runtime_s
   uint64_t provision_restore_ms;
   uint64_t configuration_restore_ms;
 #endif
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   struct bkvoice_tls_s tls;
   struct bkvoice_wss_s wss;
   struct bkvoice_session_s session;
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
+
   struct bkvoice_ptt_s *ptt;
   uint32_t boot_generation;
   sem_t *wake;
@@ -155,6 +164,7 @@ struct bkvoice_runtime_s
   int last_error;
   bool cleanup_pending;
   bool initialized;
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   pthread_t receiver;
   sem_t receiver_done;
   bool receiver_joinable;
@@ -162,12 +172,17 @@ struct bkvoice_runtime_s
   struct bkvoice_gateway_frame_s rx[BKVOICE_RX_SLOTS];
   volatile uint32_t rx_head;
   volatile uint32_t rx_tail;
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
+
   uint8_t *upload;
   size_t upload_size;
   size_t uploaded;
   uint64_t upload_deadline;
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   uint32_t status_connection_generation;
   uint32_t status_health_sequence;
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
+
 #ifdef CONFIG_BK7258_OTA_MANAGER
   struct bk7258_mcuboot_version_s firmware_version;
   uint8_t firmware_root_sha256[BK7258_OTA_SHA256_SIZE];
@@ -308,9 +323,6 @@ static int bkvoice_wake_prepare(struct bkvoice_runtime_s *runtime)
   {
     .model_path = CONFIG_BK7258_VOICE_KWS_MODEL_PATH,
     .model_sha256_hex = CONFIG_BK7258_VOICE_KWS_MODEL_SHA256,
-    .arena_bytes = CONFIG_BK7258_VOICE_KWS_ARENA_BYTES,
-    .listener_stack_size = CONFIG_BK7258_VOICE_CAPTURE_STACKSIZE,
-    .listener_join_timeout_ms = CONFIG_BK7258_VOICE_CAPTURE_JOIN_TIMEOUT_MS,
   };
   int ret;
 
@@ -346,6 +358,7 @@ static int bkvoice_wake_close(struct bkvoice_runtime_s *runtime)
 }
 #endif
 
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
 #ifdef CONFIG_BK7258_HEALTH_SERVICE
 static uint8_t bkvoice_runtime_battery_state(uint32_t state)
 {
@@ -469,6 +482,8 @@ static int bkvoice_runtime_report_device_status(
 
   return ret;
 }
+
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
 
 #ifdef BKVOICE_RUNTIME_OTA
 struct bkvoice_ota_source_proxy_s
@@ -855,6 +870,7 @@ static void *bkvoice_ota_worker(void *context)
   mbedtls_x509_crt direct_ca;
   struct in_addr direct_peer;
   bool direct_ca_initialized = false;
+  const char *stage = "admission";
   int ret;
 
   if (__atomic_load_n(&runtime->ota_cancel_requested, __ATOMIC_ACQUIRE))
@@ -865,6 +881,7 @@ static void *bkvoice_ota_worker(void *context)
 
   if (runtime->ota_direct_request != NULL)
     {
+      stage = "server-ca";
       mbedtls_x509_crt_init(&direct_ca);
       direct_ca_initialized = true;
       ret = mbedtls_x509_crt_parse(
@@ -879,11 +896,13 @@ static void *bkvoice_ota_worker(void *context)
 
       memcpy(&direct_peer.s_addr, runtime->ota_direct_request->ipv4,
              sizeof(direct_peer.s_addr));
+      stage = "source-init";
       ret = bk7258_ota_http_source_initialize_with_server_ca(
               &source, runtime->ota_catalog_url, &direct_peer, &direct_ca);
     }
   else
     {
+      stage = "source-init";
       ret = bk7258_ota_http_source_initialize_with_credentials(
               &source, runtime->ota_catalog_url,
               &runtime->config.peer_address, &runtime->config.ca,
@@ -896,6 +915,7 @@ static void *bkvoice_ota_worker(void *context)
 
   if (runtime->ota_direct_request != NULL)
     {
+      stage = "catalog-pin";
       ret = bk7258_ota_http_source_expect_catalog(
               &source, runtime->ota_direct_request->catalog_sha256);
       if (ret < 0)
@@ -914,6 +934,7 @@ static void *bkvoice_ota_worker(void *context)
     }
   else
     {
+      stage = "manager-apply";
       ret = bk7258_ota_manager_apply(
               &g_bkvoice_ota_source_ops, &proxy,
               CONFIG_BK7258_OTA_RPMSG_CONTROL_TIMEOUT_MS);
@@ -938,6 +959,11 @@ close_source:
     }
 
 out:
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "BKVOICE OTA worker stage=%s error=%d\n", stage, ret);
+    }
+
   if (direct_ca_initialized)
     {
       mbedtls_x509_crt_free(&direct_ca);
@@ -1332,7 +1358,9 @@ static int bkvoice_ota_report(struct bkvoice_runtime_s *runtime, int result,
                               enum bkvoice_companion_ota_phase_e phase,
                               uint8_t progress)
 {
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   int ret;
+#endif
 
   if (runtime->ota_direct)
     {
@@ -1366,6 +1394,7 @@ static int bkvoice_ota_report(struct bkvoice_runtime_s *runtime, int result,
       return 0;
     }
 
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   if (runtime->ota_report_phase == (uint8_t)phase &&
       runtime->ota_report_progress == progress)
     {
@@ -1382,6 +1411,9 @@ static int bkvoice_ota_report(struct bkvoice_runtime_s *runtime, int result,
     }
 
   return ret;
+#else
+  return -ENOTSUP;
+#endif
 }
 
 static uint8_t bkvoice_ota_progress(
@@ -1438,6 +1470,11 @@ static int bkvoice_ota_fail(struct bkvoice_runtime_s *runtime, int error,
                             bool clear_intent)
 {
   int ret = 0;
+
+  syslog(LOG_ERR, "BKVOICE OTA failed state=%u error=%d clear_intent=%u\n",
+         (unsigned int)__atomic_load_n(&runtime->ota_job_state,
+                                        __ATOMIC_ACQUIRE),
+         error, clear_intent ? 1u : 0u);
 
   if (clear_intent)
     {
@@ -1511,6 +1548,24 @@ static int bkvoice_ota_finish_terminal(
   return ret;
 }
 
+static bool bkvoice_ota_intent_superseded(
+  const struct bkvoice_runtime_s *runtime,
+  const struct bk7258_ota_pair_snapshot_s *pair)
+{
+  /* A restored intent cannot describe a confirmed pair that is strictly
+   * newer than both ends of that transaction. Keep one rule for status and
+   * admission; neither an unconfirmed pair nor a version-only match suffices.
+   */
+  return pair->state == BK7258_OTA_PAIR_CONFIRMED &&
+         pair->security_counter_present &&
+         pair->security_counter > runtime->ota_intent.source_security_counter &&
+         pair->security_counter > runtime->ota_intent.target_security_counter &&
+         bk7258_mcuboot_version_compare(&pair->version,
+           &runtime->ota_intent.source_version) > 0 &&
+         bk7258_mcuboot_version_compare(&pair->version,
+           &runtime->ota_intent.target_version) > 0;
+}
+
 static int bkvoice_ota_prepare_request(struct bkvoice_runtime_s *runtime)
 {
   struct bk7258_ota_pair_snapshot_s pair;
@@ -1536,6 +1591,17 @@ static int bkvoice_ota_prepare_request(struct bkvoice_runtime_s *runtime)
   if (!runtime->ota_intent_present)
     {
       return bkvoice_ota_begin_new(runtime, &pair);
+    }
+
+  /* A device-bound full recovery can preserve an older OTA intent. Only a
+   * confirmed, strictly newer signed pair proves that intent was superseded.
+   * Retire it when accepting this new request; never resume its old source or
+   * report the old OTA as successful. Pending/current pairs retain protection.
+   */
+  if (bkvoice_ota_intent_superseded(runtime, &pair))
+    {
+      ret = bkvoice_ota_store_clear_runtime(runtime);
+      return ret < 0 ? ret : bkvoice_ota_begin_new(runtime, &pair);
     }
 
   ret = bkvoice_ota_flow_decide(&runtime->ota_intent,
@@ -1926,6 +1992,15 @@ static int bkvoice_ota_control_status(struct bkvoice_runtime_s *runtime,
           return ret;
         }
 
+      if (bkvoice_ota_intent_superseded(runtime, &pair))
+        {
+          /* There is no update for this installed pair. Status stays read-only:
+           * preserve the old record until admission of a new explicit request
+           * retires it, and never report the old OTA as successfully completed.
+           */
+          return 0;
+        }
+
       ret = bkvoice_ota_flow_decide(&runtime->ota_intent,
                                     runtime->boot_generation, &pair,
                                     &action);
@@ -2049,7 +2124,7 @@ static int bkvoice_button_receive(struct rpmsg_endpoint *endpoint,
 
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
 static void bkvoice_runtime_product_keys(struct bkvoice_runtime_s *runtime,
-                                         bool command_link, uint64_t now)
+                                         uint64_t now)
 {
   uint32_t mask;
   uint32_t epoch;
@@ -2060,7 +2135,7 @@ static void bkvoice_runtime_product_keys(struct bkvoice_runtime_s *runtime,
   int ret;
 
   flags = spin_lock_irqsave(&runtime->button_lock);
-  link = command_link && runtime->button_link && runtime->button_sequence != 0 &&
+  link = runtime->button_link && runtime->button_sequence != 0 &&
          now >= runtime->button_received_ms &&
          now - runtime->button_received_ms < BKVOICE_BUTTON_LEASE_MS;
   epoch = runtime->button_epoch;
@@ -2213,6 +2288,7 @@ static void bkvoice_button_device_destroyed(struct rpmsg_device *rdev,
     }
 }
 
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
 static void *bkvoice_receiver(void *arg)
 {
   struct bkvoice_runtime_s *runtime = arg;
@@ -2254,10 +2330,14 @@ static void *bkvoice_receiver(void *arg)
   return NULL;
 }
 
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
+
 static int bkvoice_runtime_disconnect(struct bkvoice_runtime_s *runtime,
                                       int reason)
 {
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   struct timespec deadline;
+#endif
   int ret;
 
   runtime->armed = false;
@@ -2274,6 +2354,7 @@ static int bkvoice_runtime_disconnect(struct bkvoice_runtime_s *runtime,
 #ifdef CONFIG_BK7258_VOICE_HIL_TEST
   runtime->test_until = 0;
 #endif
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   if (!runtime->session.initialized)
     {
       runtime->cleanup_pending = false;
@@ -2314,6 +2395,20 @@ static int bkvoice_runtime_disconnect(struct bkvoice_runtime_s *runtime,
     }
 
   ret = bkvoice_session_disconnect(&runtime->session, reason);
+#else
+  /* Cloud teardown has already joined its request worker. Any retained
+   * capture cleanup still belongs to this same AP audio owner. */
+  if (runtime->ptt == NULL || bkvoice_ptt_quiescent(runtime->ptt))
+    {
+      ret = runtime->ptt != NULL && runtime->ptt->capture_ready ?
+            bkvoice_ptt_session_close(runtime->ptt, reason) : 0;
+    }
+  else
+    {
+      ret = runtime->ptt->capture_ready ?
+            bkvoice_ptt_session_close(runtime->ptt, reason) : -EBUSY;
+    }
+#endif
   if (ret < 0)
     {
       runtime->last_error = ret;
@@ -2408,8 +2503,10 @@ static int bkvoice_soft_off_progress(struct bkvoice_runtime_s *runtime)
       if (ret < 0) return bkvoice_soft_off_fail(runtime, ret);
     }
 
-  if (runtime->session.connected || runtime->receiver_joinable ||
-      runtime->cleanup_pending ||
+  if (runtime->cleanup_pending ||
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
+      runtime->session.connected || runtime->receiver_joinable ||
+#endif
       (runtime->ptt != NULL && runtime->ptt->capture_ready))
     {
       ret = bkvoice_runtime_disconnect(runtime, -ECANCELED);
@@ -2462,6 +2559,7 @@ static int bkvoice_runtime_clear(struct bkvoice_runtime_s *runtime)
       return ret;
     }
 
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   if (runtime->session.initialized)
     {
       ret = bkvoice_session_uninitialize(&runtime->session);
@@ -2489,11 +2587,14 @@ static int bkvoice_runtime_clear(struct bkvoice_runtime_s *runtime)
         }
     }
 
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
+
   bkvoice_config_clear(&runtime->config);
   bkvoice_upload_clear(runtime);
   return 0;
 }
 
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
 static int bkvoice_runtime_connect(struct bkvoice_runtime_s *runtime)
 {
   struct bkvoice_tls_config_s tls_config;
@@ -2615,6 +2716,8 @@ static int bkvoice_runtime_connect(struct bkvoice_runtime_s *runtime)
   return 0;
 }
 
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
+
 static int bkvoice_decimal(const char *text, size_t limit, size_t *value)
 {
   size_t result = 0;
@@ -2669,16 +2772,19 @@ static bool bkvoice_provision_available(void *context)
 #ifdef BKVOICE_RUNTIME_SOFT_OFF
   if (bkvoice_soft_off_pending(runtime)) return false;
 #endif
-#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
-  if (runtime->wake_session != NULL &&
-      bkvoice_wake_session_suspend(runtime->wake_session) < 0)
-    {
-      return false;
-    }
+  /* This predicate is also polled by configuration restoration. It must
+   * never stop a committed product listener merely to discover that initial
+   * provisioning is unavailable. Retained wake cleanup stays exclusive.
+   */
+  return !runtime->config.initialized &&
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
+         !runtime->receiver_joinable && !runtime->session.connected &&
 #endif
-  return !runtime->config.initialized && !runtime->receiver_joinable &&
-         !runtime->session.connected && !runtime->ptt->capture_ready &&
+         !runtime->ptt->capture_ready &&
          runtime->upload == NULL && !runtime->cleanup_pending
+#ifdef CONFIG_BK7258_VOICE_WAKE_RUNTIME
+         && runtime->wake_session == NULL
+#endif
 #ifdef BKVOICE_RUNTIME_OTA
          && runtime->ota_store_ready
 #endif
@@ -2690,7 +2796,15 @@ static int bkvoice_provision_load(void *context, const void *data, size_t size)
 #ifdef BKVOICE_RUNTIME_SOFT_OFF
   if (bkvoice_soft_off_pending(runtime)) return -ESHUTDOWN;
 #endif
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   return bkvoice_config_load(&runtime->config, data, size);
+#else
+  (void)runtime;
+  (void)data;
+  (void)size;
+  /* This product requires the cloud envelope, not companion-v1 credentials. */
+  return -ENOTSUP;
+#endif
 }
 static int bkvoice_provision_load_cloud(void *context, const void *trust,
                                         size_t trust_size, const void *cloud,
@@ -2712,16 +2826,24 @@ static int bkvoice_provision_connect(void *context)
 #ifdef BKVOICE_RUNTIME_SOFT_OFF
   if (bkvoice_soft_off_pending(runtime)) return -ESHUTDOWN;
 #endif
-  return runtime->cloud ? bkcloud_runtime_connect(runtime->cloud) :
-                          bkvoice_runtime_connect(runtime);
+  if (runtime->cloud) return bkcloud_runtime_connect(runtime->cloud);
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
+  return bkvoice_runtime_connect(runtime);
+#else
+  return -ENOTSUP;
+#endif
 }
 static int bkvoice_provision_ready(void *context)
 {
   struct bkvoice_runtime_s *runtime = context;
   if (runtime->cloud) return bkcloud_runtime_ready(runtime->cloud);
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   if (!runtime->session.connected)
     return runtime->last_error < 0 ? runtime->last_error : -ENOTCONN;
   return runtime->session.ready ? 1 : 0;
+#else
+  return runtime->last_error < 0 ? runtime->last_error : -ENOTCONN;
+#endif
 }
 static int bkvoice_provision_clear(void *context)
 {
@@ -2921,7 +3043,17 @@ int bkvoice_runtime_command(const struct bkvoice_rpc_request_s *request,
 #endif
 
 #ifdef CONFIG_BK7258_PROVISION_GATT
-  if (bkprov_owner_busy() || bkprov_network_busy()) return -EBUSY;
+  if (bkprov_network_busy()) return -EBUSY;
+#ifdef CONFIG_BK7258_VOICE_HIL_TEST
+  /* Daily control discovery is not a provisioning transaction. Recording
+   * uses the same admission as product wake; configuration stays exclusive. */
+  if (request->command == BKVOICE_RPC_HIL_CAPTURE)
+    {
+      if (bkprov_owner_pairing()) return -EBUSY;
+    }
+  else
+#endif
+    if (bkprov_owner_busy()) return -EBUSY;
   if (runtime->identity_pending && request->command != BKVOICE_RPC_CONFIG_COMMIT)
     return -EBUSY;
 #endif
@@ -2944,6 +3076,7 @@ int bkvoice_runtime_command(const struct bkvoice_rpc_request_s *request,
                    (unsigned int)count);
             break;
           }
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
         if (!runtime->session.ready) return -ENOTCONN;
         if (runtime->test_until != 0 || runtime->pressed || !runtime->armed ||
             runtime->ptt->turn.state != BKVOICE_TURN_IDLE) return -EBUSY;
@@ -2951,9 +3084,16 @@ int bkvoice_runtime_command(const struct bkvoice_rpc_request_s *request,
         syslog(LOG_NOTICE, "BKVOICE HIL start ms=%u physical=0\n",
                (unsigned int)count);
         break;
+#else
+        return -ENOTCONN;
+#endif
 #endif
       case BKVOICE_RPC_CONNECT:
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
         ret = runtime->cloud ? -EALREADY : bkvoice_runtime_connect(runtime);
+#else
+        ret = runtime->cloud ? -EALREADY : -ENOTSUP;
+#endif
         break;
 
       case BKVOICE_RPC_DISCONNECT:
@@ -3078,8 +3218,12 @@ int bkvoice_runtime_command(const struct bkvoice_rpc_request_s *request,
           }
         else
 #endif
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
           ret = bkvoice_config_load(&runtime->config, runtime->upload,
                                     runtime->upload_size);
+#else
+          ret = -ENOTSUP;
+#endif
         bkvoice_upload_clear(runtime);
         break;
 
@@ -3099,7 +3243,8 @@ int bkvoice_runtime_command(const struct bkvoice_rpc_request_s *request,
 void bkvoice_runtime_step(bool command_link)
 {
   struct bkvoice_runtime_s *runtime = &g_runtime;
-#ifndef CONFIG_BK7258_PRODUCT_KEYS
+#if defined(CONFIG_BK7258_VOICE_LEGACY_GATEWAY) && \
+    !defined(CONFIG_BK7258_PRODUCT_KEYS)
   struct bkvoice_turn_token_s token;
 #endif
   uint64_t now = bkvoice_now();
@@ -3141,13 +3286,17 @@ void bkvoice_runtime_step(bool command_link)
   spin_unlock_irqrestore(&runtime->button_lock, flags);
   bool pairing = bkprov_owner_step(now, epoch, link, level,
                      runtime->cloud ? !bkcloud_runtime_busy(runtime->cloud) :
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
                      !runtime->session.connected && !runtime->receiver_joinable &&
+#endif
                      !runtime->ptt->capture_ready && runtime->upload == NULL &&
                      !runtime->cleanup_pending && !bkprov_network_busy());
 #else
   bool pairing = bkprov_owner_step(now, 0, false, false,
                      runtime->cloud ? !bkcloud_runtime_busy(runtime->cloud) :
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
                      !runtime->session.connected && !runtime->receiver_joinable &&
+#endif
                      !runtime->ptt->capture_ready && runtime->upload == NULL &&
                      !runtime->cleanup_pending && !bkprov_network_busy());
 #endif
@@ -3155,7 +3304,7 @@ void bkvoice_runtime_step(bool command_link)
 
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
   /* Product keys are never a provisioning confirmation or a PTT level. */
-  bkvoice_runtime_product_keys(runtime, command_link, now);
+  bkvoice_runtime_product_keys(runtime, now);
   epoch = runtime->boot_generation;
 #ifdef BKVOICE_RUNTIME_SOFT_OFF
   if (bkvoice_soft_off_pending(runtime))
@@ -3234,9 +3383,14 @@ void bkvoice_runtime_step(bool command_link)
         }
 #endif
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
-      /* Service transport follows its command link, never a GPIO lease. */
+      /* The product owns its cloud session.  The optional CP shell RPC
+       * endpoint is neither an authentication state nor a readiness gate. */
       epoch = runtime->boot_generation;
-      link = command_link;
+      link = runtime->config.initialized &&
+             bkcloud_runtime_ready(runtime->cloud) > 0;
+#ifdef CONFIG_BK7258_PROVISION_GATT
+      link = link && runtime->identity_bound && !runtime->identity_pending;
+#endif
       level = false;
 #else
       flags = spin_lock_irqsave(&runtime->button_lock);
@@ -3264,11 +3418,11 @@ void bkvoice_runtime_step(bool command_link)
             }
           else
             {
-              /* Continuous listening follows the authenticated service
-               * channel, not the physical button lease.  Disconnect drains
-               * a wake-owned turn and releases the microphone. */
+              /* A committed identity/configuration and ready cloud owner
+               * enable wake without a diagnostic client or phone session. */
               ret = bkvoice_wake_session_step(runtime->wake_session,
-                                              command_link, now);
+                bkvoice_wake_committed(runtime) &&
+                bkcloud_runtime_ready(runtime->cloud) > 0, now);
             }
           if (ret < 0 && ret != -EAGAIN && ret != runtime->wake_result)
             {
@@ -3308,6 +3462,7 @@ void bkvoice_runtime_step(bool command_link)
       bkvoice_upload_clear(runtime);
     }
 
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   if (!command_link)
     {
       if (runtime->session.connected || runtime->receiver_joinable)
@@ -3466,12 +3621,41 @@ void bkvoice_runtime_step(bool command_link)
       syslog(LOG_WARNING, "BKVOICE COMPANION status_fail=%d\n", ret);
       (void)bkvoice_runtime_disconnect(runtime, ret);
     }
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
+
+}
+
+/* Volume policy belongs to the serialized audio owner.  It must not depend on
+ * cloud readiness, but never races an active capture/playback turn, OTA, or
+ * provisioning mutation.
+ */
+static bool bkvoice_runtime_volume_busy(void)
+{
+#ifdef BKVOICE_RUNTIME_SOFT_OFF
+  if (bkvoice_soft_off_pending(&g_runtime)) return true;
+#endif
+#ifdef CONFIG_BK7258_PROVISION_GATT
+  if (bkprov_owner_pairing() || bkprov_network_busy() || g_runtime.identity_pending)
+    {
+      return true;
+    }
+#endif
+#ifdef BKVOICE_RUNTIME_OTA
+  if (__atomic_load_n(&g_runtime.ota_job_state, __ATOMIC_ACQUIRE) !=
+      BKVOICE_OTA_JOB_EMPTY)
+    {
+      return true;
+    }
+#endif
+  if (bkcloud_runtime_busy(g_runtime.cloud)) return true;
+  return g_runtime.ptt == NULL || !bkvoice_ptt_quiescent(g_runtime.ptt);
 }
 
 int bkvoice_runtime_control(void *context, enum bkcontrol_command_e command,
                             uint32_t value, struct bkcontrol_status_s *status)
 {
   struct bkcloud_runtime_status_s cloud;
+  unsigned int observed_volume;
   int ret = 0;
   (void)context;
   if (status == NULL) return -EINVAL;
@@ -3518,7 +3702,8 @@ int bkvoice_runtime_control(void *context, enum bkcontrol_command_e command,
    * service has not been configured or cannot be created.  Mutations retain
    * their existing readiness gate.
    */
-  if (g_runtime.cloud == NULL && command != BKCONTROL_STATUS) return -ENOTCONN;
+  if (g_runtime.cloud == NULL && command != BKCONTROL_STATUS &&
+      command != BKCONTROL_VOLUME) return -ENOTCONN;
   switch (command)
     {
       case BKCONTROL_STATUS:
@@ -3537,23 +3722,37 @@ int bkvoice_runtime_control(void *context, enum bkcontrol_command_e command,
         ret = bkcloud_runtime_memory_set(g_runtime.cloud, value != 0,
                                          command == BKCONTROL_MEMORY_DELETE);
         break;
-      case BKCONTROL_VOLUME:
       case BKCONTROL_PERSONA:
-        if (value > (command == BKCONTROL_VOLUME ? 100u : 4u)) return -EINVAL;
+        if (value > 4u) return -EINVAL;
         if (bkvoice_runtime_settings_busy()) return -EBUSY;
 #ifdef CONFIG_BK7258_PREFERENCES
-        ret = command == BKCONTROL_VOLUME ? bk7258_preferences_set_volume(value) :
-              bk7258_preferences_set_persona(bk7258_preferences_persona_name(value));
+        ret = bk7258_preferences_set_persona(bk7258_preferences_persona_name(value));
 #else
         ret = -ENOTSUP;
 #endif
+        break;
+      case BKCONTROL_VOLUME:
+        if (value > 100u) return -EINVAL;
+        if (bkvoice_runtime_volume_busy()) return -EBUSY;
+        if (g_runtime.ptt->turn.ops.volume == NULL)
+          {
+            return -ENOTSUP;
+          }
+        ret = g_runtime.ptt->turn.ops.volume(g_runtime.ptt->turn.audio_context,
+                                             true, value, &observed_volume);
+        if (ret == 0)
+          {
+            status->volume = observed_volume;
+            status->flags |= 8u;
+          }
         break;
       default:
         return -EINVAL;
     }
   if (ret < 0) return ret;
   bkcloud_runtime_status(g_runtime.cloud, &cloud);
-  status->flags = (cloud.ready ? 1u : 0u) | (cloud.busy ? 2u : 0u) |
+  status->flags = (status->flags & 8u) |
+      (cloud.ready ? 1u : 0u) | (cloud.busy ? 2u : 0u) |
       (cloud.memory_known ? 32u : 0u) | (cloud.memory_enabled ? 64u : 0u) |
       (cloud.memory_pending ? 128u : 0u) | (cloud.memory_failed ? 256u : 0u) |
       (cloud.memory_supported ? 512u : 0u);
@@ -3581,10 +3780,24 @@ int bkvoice_runtime_control(void *context, enum bkcontrol_command_e command,
       status->turn = cloud.turn_state;
       status->error = cloud.last_error;
     }
-#ifdef CONFIG_BK7258_PREFERENCES
-  /* Never add filesystem work to cancellation or an in-flight audio turn.
-   * A failed preference read leaves the fields explicitly unknown.
+  /* The media policy owns volume.  Query it only while its audio owner is
+   * quiescent, so a busy turn exposes volume as unknown rather than racing
+   * its Media handle.  This local result stays available without cloud.
    */
+  if (!(status->flags & 8u) && command != BKCONTROL_CANCEL &&
+      !bkvoice_runtime_volume_busy() && g_runtime.ptt->turn.ops.volume != NULL)
+    {
+      unsigned int volume;
+      if (g_runtime.ptt->turn.ops.volume(g_runtime.ptt->turn.audio_context,
+                                         false, 0, &volume) == 0)
+        {
+          status->flags |= 8u;
+          status->volume = volume;
+        }
+    }
+#ifdef CONFIG_BK7258_PREFERENCES
+  /* Persona remains a settings record. Never add filesystem work to
+   * cancellation or an in-flight turn. */
   if (command != BKCONTROL_CANCEL && command != BKCONTROL_CLEAR_HISTORY &&
       !cloud.busy &&
       cloud.turn_state == BKVOICE_TURN_IDLE)
@@ -3592,8 +3805,7 @@ int bkvoice_runtime_control(void *context, enum bkcontrol_command_e command,
       struct bk7258_preferences_s preferences;
       if (bk7258_preferences_get(&preferences) == 0)
         {
-          status->flags |= 8u | 16u;
-          status->volume = preferences.volume_percent;
+          status->flags |= 16u;
           status->persona = preferences.persona;
         }
     }
@@ -3727,7 +3939,9 @@ int bkvoice_runtime_control_ota(void *context,
       __atomic_load_n(&runtime->ota_job_state, __ATOMIC_ACQUIRE) !=
         BKVOICE_OTA_JOB_EMPTY ||
       (runtime->cloud != NULL && bkcloud_runtime_busy(runtime->cloud)) ||
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
       runtime->receiver_joinable || runtime->session.connected ||
+#endif
       runtime->upload != NULL || runtime->cleanup_pending || runtime->pressed ||
       (runtime->ptt != NULL && !bkvoice_ptt_quiescent(runtime->ptt)))
     {
@@ -3799,7 +4013,10 @@ bool bkvoice_runtime_busy(void)
 #endif
   if (bkcloud_runtime_busy(g_runtime.cloud)) return true;
 #ifdef CONFIG_BK7258_PROVISION_GATT
-  if (bkprov_owner_busy() || bkprov_network_busy() || g_runtime.identity_pending) return true;
+  /* The control window owns authentication, not MIC/DAC. The same voice
+   * worker serializes local playback and control requests; only an actual
+   * provisioning transaction or an active audio turn blocks playback. */
+  if (bkprov_owner_pairing() || bkprov_network_busy() || g_runtime.identity_pending) return true;
 #endif
 #ifdef BKVOICE_RUNTIME_OTA
   if (__atomic_load_n(&g_runtime.ota_job_state, __ATOMIC_ACQUIRE) !=
@@ -3808,8 +4025,11 @@ bool bkvoice_runtime_busy(void)
       return true;
     }
 #endif
-  return g_runtime.receiver_joinable || g_runtime.session.connected ||
-         (g_runtime.ptt != NULL && g_runtime.ptt->capture_ready);
+  return
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
+         g_runtime.receiver_joinable || g_runtime.session.connected ||
+#endif
+         (g_runtime.ptt != NULL && !bkvoice_ptt_quiescent(g_runtime.ptt));
 }
 
 void bkvoice_runtime_status(struct bkvoice_rpc_response_s *response)
@@ -3825,6 +4045,7 @@ void bkvoice_runtime_status(struct bkvoice_rpc_response_s *response)
       response->flags |= BKVOICE_STATUS_CONFIGURED;
     }
 
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   if (runtime->session.connected)
     {
       response->flags |= BKVOICE_STATUS_CONNECTED;
@@ -3835,6 +4056,8 @@ void bkvoice_runtime_status(struct bkvoice_rpc_response_s *response)
     {
       response->flags |= BKVOICE_STATUS_GATEWAY_READY;
     }
+
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
 
   flags = spin_lock_irqsave(&runtime->button_lock);
   if (runtime->button_link && runtime->button_sequence != 0 &&
@@ -3867,6 +4090,7 @@ void bkvoice_runtime_status(struct bkvoice_rpc_response_s *response)
   response->result.live.turn_state = turn.state;
   response->result.live.presses = runtime->presses;
   response->result.live.last_error = runtime->last_error;
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   if (runtime->session.initialized)
     {
       struct bkvoice_gateway_snapshot_s gateway;
@@ -3874,6 +4098,8 @@ void bkvoice_runtime_status(struct bkvoice_rpc_response_s *response)
       response->data_bytes = gateway.tx_frames;
       response->duration_ms = gateway.rx_frames;
     }
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
+
 }
 
 int bkvoice_runtime_initialize(struct bkvoice_ptt_s *ptt,
@@ -3912,11 +4138,14 @@ int bkvoice_runtime_initialize(struct bkvoice_ptt_s *ptt,
     bk7258_ota_catalog_public_fingerprint(
       runtime->firmware_root_sha256) == 0;
 #endif
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   ret = sem_init(&runtime->receiver_done, 0, 0);
   if (ret < 0)
     {
       return -errno;
     }
+
+#endif /* CONFIG_BK7258_VOICE_LEGACY_GATEWAY */
 
 #ifdef BKVOICE_RUNTIME_OTA
   bkvoice_ota_clear(runtime);
@@ -3932,7 +4161,9 @@ int bkvoice_runtime_initialize(struct bkvoice_ptt_s *ptt,
   if (ret < 0)
     {
       ret = -errno;
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
       (void)sem_destroy(&runtime->receiver_done);
+#endif
       return ret;
     }
 
@@ -3941,7 +4172,9 @@ int bkvoice_runtime_initialize(struct bkvoice_ptt_s *ptt,
     {
       ret = -errno;
       (void)sem_destroy(&runtime->ota_done);
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
       (void)sem_destroy(&runtime->receiver_done);
+#endif
       return ret;
     }
 #endif
@@ -3954,7 +4187,9 @@ int bkvoice_runtime_initialize(struct bkvoice_ptt_s *ptt,
       (void)sem_destroy(&runtime->ota_target_decision);
       (void)sem_destroy(&runtime->ota_done);
 #endif
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
       (void)sem_destroy(&runtime->receiver_done);
+#endif
     }
 
   else
@@ -4009,7 +4244,9 @@ int bkvoice_runtime_uninitialize(void)
       nxmutex_unlock(&runtime->endpoint_lock);
     }
 
+#ifdef CONFIG_BK7258_VOICE_LEGACY_GATEWAY
   (void)sem_destroy(&runtime->receiver_done);
+#endif
 #ifdef BKVOICE_RUNTIME_OTA
   (void)sem_destroy(&runtime->ota_target_decision);
   (void)sem_destroy(&runtime->ota_done);

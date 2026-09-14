@@ -34,7 +34,7 @@ static int bkvoice_session_tts_start(
       return -ENOTCONN;
     }
 
-  return bkvoice_turn_tts_start(&session->ptt->turn, token, now_ms);
+  return bkvoice_turn_tts_start(&session->ptt->turn, token, 16000, now_ms);
 }
 
 static int bkvoice_session_tts_audio(
@@ -459,7 +459,7 @@ int bkvoice_session_ptt_down(struct bkvoice_session_s *session,
 int bkvoice_session_ptt_down_prefill(
   struct bkvoice_session_s *session, uint64_t now_ms,
   bkvoice_capture_prefill_read_t read_frame, void *prefill_context,
-  size_t prefill_frames, bkvoice_capture_live_observer_t live_observer,
+  size_t prefill_frames, bkvoice_capture_frame_filter_t frame_filter,
   void *live_context, struct bkvoice_turn_token_s *token)
 {
   int ret;
@@ -469,9 +469,9 @@ int bkvoice_session_ptt_down_prefill(
       return -ENOTCONN;
     }
 
-  ret = bkvoice_ptt_down_prefill(
+  ret = bkvoice_ptt_down_stream(
     session->ptt, now_ms, read_frame, prefill_context, prefill_frames,
-    live_observer, live_context, token);
+    frame_filter, live_context, token);
   session->last_error = ret;
   return ret;
 }

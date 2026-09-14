@@ -57,7 +57,8 @@ struct bkvoice_turn_audio_ops_s
   int (*mic_release)(void *context);
 
   int (*dac_acquire)(void *context);
-  int (*dac_prepare)(void *context);
+  /* Source PCM16-LE mono rate; the media backend negotiates the sink rate. */
+  int (*dac_prepare)(void *context, unsigned int sample_rate);
   int (*dac_start)(void *context);
   ssize_t (*dac_write)(void *context, const uint8_t *pcm, size_t bytes);
   int (*dac_drain)(void *context);
@@ -156,7 +157,7 @@ int bkvoice_turn_ptt_up(
 int bkvoice_turn_tts_start(
   struct bkvoice_turn_s *turn,
   const struct bkvoice_turn_token_s *token,
-  uint64_t now_ms);
+  unsigned int sample_rate, uint64_t now_ms);
 int bkvoice_turn_tts_audio(
   struct bkvoice_turn_s *turn,
   const struct bkvoice_turn_token_s *token,

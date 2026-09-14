@@ -267,6 +267,21 @@ static void bk7258_ap_state_prepare(void)
   state->ram_end     = BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE;
   state->flash_start = g_bk7258_ap_image.slot_start;
   state->flash_end   = g_bk7258_ap_image.slot_end;
+  volatile struct bk7258_psram_boot_s *psram =
+    (volatile struct bk7258_psram_boot_s *)
+      (BK7258_SHARED_RAM_BASE + BK7258_PSRAM_BOOT_OFFSET);
+  psram->magic = 0;
+#ifdef CONFIG_BK7258_PSRAM
+  struct bk7258_psram_info_s info;
+  if (bk7258_psram_get_info(&info) == 0 && info.ready && info.mpu_valid)
+    {
+      psram->version = BK7258_PSRAM_BOOT_VERSION;
+      psram->generation = generation;
+      psram->capacity = info.capacity;
+      __asm volatile ("dmb sy" ::: "memory");
+      psram->magic = BK7258_PSRAM_BOOT_MAGIC;
+    }
+#endif
   __asm volatile ("dmb sy" ::: "memory");
 }
 

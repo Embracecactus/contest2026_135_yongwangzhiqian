@@ -82,8 +82,10 @@ static struct bkvoice_service_s g_bkvoice_service =
   .request_lock = SP_UNLOCKED,
 };
 
+#ifndef CONFIG_MEDIA
 extern void bk7258_agent_media_player_link(void);
 extern void bk7258_agent_media_recorder_link(void);
+#endif
 
 static int bkvoice_errno(void)
 {
@@ -838,8 +840,10 @@ int bk7258_voice_service_start(void)
       return OK;
     }
 
+#ifndef CONFIG_MEDIA
   bk7258_agent_media_player_link();
   bk7258_agent_media_recorder_link();
+#endif
   ret = bkvoice_turn_audio_initialize(&service->turn_audio);
   if (ret >= 0)
     {

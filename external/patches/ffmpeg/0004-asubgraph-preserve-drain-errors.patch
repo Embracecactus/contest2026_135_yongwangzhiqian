@@ -1,0 +1,33 @@
+Subject: [PATCH] avfilter/asubgraph: preserve failures while draining
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Base: open-vela/external_ffmpeg 4b4723f2f66ccfdbadbd5d4c52dd5c41d6116418
+
+Only EAGAIN means that the mixer has no more frames available. Do not turn
+other read/write errors into success or replace them with the next EOF call.
+
+--- a/libavfilter/af_asubgraph.c
++++ b/libavfilter/af_asubgraph.c
+@@ -587,7 +587,7 @@
+     }
+ 
+     priv->drained = true;
+-    if (ret = AVERROR(EAGAIN))
++    if (ret == AVERROR(EAGAIN))
+         ret = 0;
+     av_log(ctx, AV_LOG_INFO, "%s: drain mix %d\n", ctx->name, ret);
+     for (int i = 0; i < priv->nb_inputs; i++)
+@@ -671,8 +671,12 @@
+     int i;
+ 
+     if (need_drain && !priv->drained) {
+-        asubgraph_drain_mix(ctx);
++        ret = asubgraph_drain_mix(ctx);
++        if (ret < 0)
++            return ret;
+         ret = av_buffersrc_add_frame_flags(priv->graph_inst.src_filter, NULL, 0);
++        if (ret < 0)
++            return ret;
+         av_log(ctx, AV_LOG_INFO, "%s: EOF is reached, send the eos to graph_inst.\n",
+                ctx->name);
+     }

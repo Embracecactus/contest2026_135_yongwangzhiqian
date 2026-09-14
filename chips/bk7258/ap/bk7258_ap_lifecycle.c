@@ -17,6 +17,7 @@
 #include <sched.h>
 #include <stdint.h>
 #include <string.h>
+#include <syslog.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
@@ -530,6 +531,18 @@ int bk7258_ap_lifecycle_startup(FAR uint32_t *failure)
       return bk7258_ap_startup_failed(
                failure, BK7258_AP_ERROR_PSRAM, ret);
     }
+#ifdef CONFIG_BK7258_PSRAM_EXT_SYSTEM_HEAP
+  ret = bk7258_psram_add_extended_system_heap();
+  if (ret < 0)
+    {
+      return bk7258_ap_startup_failed(
+               failure, BK7258_AP_ERROR_PSRAM, ret);
+    }
+
+  syslog(LOG_NOTICE, "BPSR AP SYSTEM HEAP base=%08lx size=%lu\n",
+         (unsigned long)BK7258_PSRAM_AP_EXT_HEAP_BASE,
+         (unsigned long)CONFIG_BK7258_PSRAM_EXT_SYSTEM_HEAP_SIZE);
+#endif
 #endif
 
   state->reserved[BK7258_PSRAM_AP_RESERVED_HEAP] =

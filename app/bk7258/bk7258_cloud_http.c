@@ -4,7 +4,38 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+#include <syslog.h>
+#include <time.h>
 #include <mbedtls/platform_util.h>
+#if defined(__NuttX__) && defined(CONFIG_NET_STATISTICS) && \
+    defined(CONFIG_NET_TCP)
+#  include <nuttx/net/net.h>
+#  include <nuttx/net/netstats.h>
+#  define BKCLOUD_HAVE_TCP_STATS 1
+#endif
+#if defined(__NuttX__) && defined(CONFIG_MM_IOB) && \
+    defined(CONFIG_FS_PROCFS) && !defined(CONFIG_DISABLE_MOUNTPOINT) && \
+    !defined(CONFIG_FS_PROCFS_EXCLUDE_IOBINFO)
+#  include <nuttx/mm/iob.h>
+#  define BKCLOUD_HAVE_IOB_STATS 1
+#endif
+
+static uint64_t monotonic_ms(void)
+{
+  struct timespec now;
+  if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) return 0;
+  return (uint64_t)now.tv_sec * 1000u + now.tv_nsec / 1000000u;
+}
+
+#ifdef BKCLOUD_HAVE_TCP_STATS
+static bool read_tcp_stats(struct tcp_stats_s *stats)
+{
+  if (net_lock() < 0) return false;
+  *stats = g_netstats.tcp;
+  net_unlock();
+  return true;
+}
+#endif
 
 static int connect_tls(void *context, const char *host, const char *port,
                        unsigned int timeout,
@@ -44,7 +75,28 @@ static ssize_t recv_tls(void *context,
   struct bkcloud_http_s *http = context;
   if (connection != (struct webclient_tls_connection *)http ||
       !http->connected) return -ENOTCONN;
-  return http->tls->recv(http->tls_context, data, size, http->deadline_ms);
+  uint64_t started = monotonic_ms();
+  ssize_t ret = http->tls->recv(http->tls_context, data, size, http->deadline_ms);
+  uint64_t elapsed = monotonic_ms() - started;
+  http->receive_ms += elapsed;
+  http->receive_calls++;
+  if (elapsed >= 200u) http->slow_receives++;
+  if (elapsed > http->max_receive_ms) http->max_receive_ms = elapsed;
+#ifdef BKCLOUD_HAVE_IOB_STATS
+  if (ret < 0 && ret != -ECANCELED)
+    {
+      /* Observe network buffer pressure before webclient closes the socket
+       * and returns its queued buffers. No packet or endpoint is retained.
+       */
+      struct iob_stats_s stats;
+      iob_getstats(&stats);
+      syslog(LOG_WARNING, "BKVOICE HTTP receive ret=%d iob=%u/%u "
+             "waiting=%u throttle=%u\n", (int)ret,
+             (unsigned int)stats.nfree, (unsigned int)stats.ntotal,
+             (unsigned int)stats.nwait, (unsigned int)stats.nthrottle);
+    }
+#endif
+  return ret;
 }
 
 static int close_tls(void *context,
@@ -109,7 +161,18 @@ static int sink(char **buffer, int offset, int end, int *length, void *context)
       if (count > http->capacity - http->received) return -E2BIG;
       http->received += count;
       if (http->pcm_response ? !http->pcm_stream : !http->event_stream) return -EPROTO;
+      uint64_t started = monotonic_ms();
       int ret = http->consume(http->consume_context, *buffer + offset, count);
+      http->consume_ms += monotonic_ms() - started;
+      if (ret == BKCLOUD_HTTP_STREAM_COMPLETE && !http->pcm_response)
+        {
+          /* webclient's sink error path closes the connection. Keep a
+           * separate completion fact so an actual cancellation stays an
+           * error, even though both terminate its receive loop.
+           */
+          http->stream_complete = true;
+          return -ECANCELED;
+        }
       return ret > 0 ? -EIO : ret;
     }
   if (count >= http->capacity - http->received) return -E2BIG;
@@ -204,10 +267,44 @@ static int post(struct bkcloud_http_s *http,
   client.header_callback_arg = http;
   client.tls_ops = &g_tls;
   client.tls_ctx = http;
+#ifdef BKCLOUD_HAVE_TCP_STATS
+  struct tcp_stats_s tcp_before;
+  bool have_tcp_before = read_tcp_stats(&tcp_before);
+#endif
   ret = webclient_perform(&client);
   http->status = client.http_status;
   if (http->connected) close_tls(http, (void *)http);
+  if (ret == -ECANCELED && http->stream_complete) ret = 0;
   if (ret == 0) ret = response_error(http->status);
+  /* One bounded summary per request; never include credentials, user text,
+   * response bodies or audio. Separate remote waits from local backpressure.
+   */
+  syslog(LOG_INFO,
+         "BKVOICE HTTP request=%s status=%u ret=%d bytes=%lu receive_ms=%llu consume_ms=%llu read_calls=%lu slow_reads=%lu max_read_ms=%llu\n",
+         endpoint, http->status, ret, (unsigned long)http->received,
+         (unsigned long long)http->receive_ms,
+         (unsigned long long)http->consume_ms,
+         (unsigned long)http->receive_calls,
+         (unsigned long)http->slow_receives,
+         (unsigned long long)http->max_receive_ms);
+#ifdef BKCLOUD_HAVE_TCP_STATS
+  struct tcp_stats_s tcp_after;
+  if (have_tcp_before && read_tcp_stats(&tcp_after))
+    {
+      /* Native stack counters cover all TCP traffic during this request,
+       * including other clients. Keep only aggregate deltas, never packets.
+       */
+      syslog(LOG_INFO, "BKVOICE HTTP system_tcp_delta rx=%u tx=%u drop=%u "
+             "checksum=%u ack=%u retransmit=%u reset=%u\n",
+             (unsigned int)(net_stats_t)(tcp_after.recv - tcp_before.recv),
+             (unsigned int)(net_stats_t)(tcp_after.sent - tcp_before.sent),
+             (unsigned int)(net_stats_t)(tcp_after.drop - tcp_before.drop),
+             (unsigned int)(net_stats_t)(tcp_after.chkerr - tcp_before.chkerr),
+             (unsigned int)(net_stats_t)(tcp_after.ackerr - tcp_before.ackerr),
+             (unsigned int)(net_stats_t)(tcp_after.rexmit - tcp_before.rexmit),
+             (unsigned int)(net_stats_t)(tcp_after.rst - tcp_before.rst));
+    }
+#endif
   mbedtls_platform_zeroize(http->authorization, sizeof(http->authorization));
   mbedtls_platform_zeroize(http->buffer, sizeof(http->buffer));
   http->config = NULL;

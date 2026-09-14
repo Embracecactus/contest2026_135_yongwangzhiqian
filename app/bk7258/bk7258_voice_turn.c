@@ -513,12 +513,12 @@ int bkvoice_turn_ptt_up(
 int bkvoice_turn_tts_start(
   struct bkvoice_turn_s *turn,
   const struct bkvoice_turn_token_s *token,
-  uint64_t now_ms)
+  unsigned int sample_rate, uint64_t now_ms)
 {
   int cleanup;
   int ret;
 
-  if (turn == NULL)
+  if (turn == NULL || sample_rate == 0)
     {
       return -EINVAL;
     }
@@ -543,7 +543,7 @@ int bkvoice_turn_tts_start(
     }
 
   turn->dac_acquired = true;
-  ret = turn->ops.dac_prepare(turn->audio_context);
+  ret = turn->ops.dac_prepare(turn->audio_context, sample_rate);
   if (ret < 0)
     {
       goto fail;

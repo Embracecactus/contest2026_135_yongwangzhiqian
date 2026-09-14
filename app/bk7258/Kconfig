@@ -261,7 +261,9 @@ config BK7258_VOICE_SERVICE
 	bool "BK7258 AP authorized-voice service"
 	default n
 	depends on BK7258_AP_CORE && BK7258_AUD && BK7258_MIC
-	depends on BK7258_RPTUN && !MEDIA && !DISABLE_PTHREAD
+	depends on BK7258_RPTUN && !DISABLE_PTHREAD
+	depends on !MEDIA || (MEDIA_SERVER && MEDIA_GRAPH && MEDIA_POLICY)
+	depends on !EXAMPLES_AI_AGENT_VELA
 	select BK7258_AP_APPLICATION_LIFECYCLE
 	help
 		Start the AP-resident endpoint used by bkvoice.  It accepts only a strict
@@ -287,6 +289,15 @@ config BK7258_VOICE_SERVICE
 		audio wiring remain outside this application.
 
 if BK7258_VOICE_SERVICE
+
+config BK7258_VOICE_LEGACY_GATEWAY
+	bool "Build companion-v1 WSS Gateway session"
+	default y
+	help
+		Build the legacy companion-v1 WebSocket transport, Gateway dispatcher and
+		session owner. Existing historical voice configurations keep this enabled.
+		The Shaniu direct-cloud product explicitly disables it and uses its own
+		request-scoped TLS/cloud owner instead.
 
 config BK7258_PREFERENCES
 	bool "BKVoice KVDB product preferences"
@@ -323,7 +334,6 @@ config BK7258_VOICE_VOLUME_PERSISTENCE
 	bool "Persist remote BKVoice volume on CP LittleFS"
 	default n
 	depends on BK7258_PROVISION_GATT && BK7258_RPMSGFS
-	depends on !BK7258_PREFERENCES
 	help
 		Persist only the device playback volume in the CP-owned on-chip
 		LittleFS. AP reaches the store through RPMsgFS. The setting uses the
@@ -331,8 +341,9 @@ config BK7258_VOICE_VOLUME_PERSISTENCE
 		directory separate from provisioning identity and network data.
 		Startup performs no filesystem I/O and never mounts or formats storage.
 		A remote set is reported successful only after durable publication and
-		media-policy readback. Gateway-owned conversation persona is not stored
-		here.
+		media-policy readback. When BK7258_PREFERENCES is enabled, its volume
+		accessors delegate to this same store; persona keeps its existing KVDB
+		backend. There is no second stored volume value in the product path.
 
 config BK7258_VOICE_OTA_PERSISTENCE
 	bool "Persist Shaniu authenticated OTA intent on CP LittleFS"
@@ -375,10 +386,9 @@ config BK7258_VOICE_KWS
 	default n
 	depends on TFLITEMICRO && HAVE_CXX && !DISABLE_PTHREAD
 	help
-		Build a two-second upstream TFLM microfrontend, INT8 DS-CNN runner
-		and streaming trigger gate for the official nihao_openvela model.
-		Includes an explicitly started AP-owner MIC listener; selecting this
-		option alone does not enable background listening.
+		Build the official TFLM microfrontend and INT8 model runner for the
+		product nihao_openvela model. Selecting this option alone does not
+		enable background listening.
 		A trained, authenticated model and AP audio-owner integration with
 		pre-roll/VAD and physical acceptance are required before enabling
 		wake-word interaction.
@@ -409,13 +419,15 @@ config BK7258_VOICE_WAKE_RUNTIME
 	bool "Enable authenticated continuous wake-word runtime"
 	default n
 	depends on BK7258_VOICE_KWS
+	depends on MEDIA_TRIGGER && MEDIA_SERVER && MEDIA_POLICY
 	depends on BK7258_VOICE_TLS
 	depends on BK7258_PROVISION_GATT
 	depends on BK7258_VOICE_KWS_MODEL_PATH != ""
 	depends on BK7258_VOICE_KWS_MODEL_SHA256 != ""
 	help
 		Load the fixed-path model into bounded memory, verify it against the
-		firmware-pinned SHA-256, then attach the existing single AP audio owner
+		firmware-pinned SHA-256, then start official Media Trigger through the
+		existing single AP product owner
 		only after a cloud configuration has committed or restored. This keeps
 		the existing half-duplex MIC/DAC exclusion; playback-time acoustic
 		barge-in is not provided.
@@ -427,7 +439,6 @@ config BK7258_VOICE_TLS
 	select MBEDTLS_HAVE_TIME_DATE
 	select NETUTILS_CJSON
 	select NETUTILS_WEBCLIENT
-	select AUDIOUTILS_SPEEXDSP
 	help
 		Build the bounded, interruptible mbedTLS provider for companion WSS.
 		The deployment supplies a numeric IPv4 dialing address, a separately
@@ -470,11 +481,19 @@ config BK7258_MEDIA_RECORDER_NO_FRAME_TIMEOUT_MS
 	default 1000
 	range 100 5000
 	help
-		Bound how long the App recorder bridge may wait without receiving an
-		audio-buffer completion.  Normal digital silence still delivers buffers;
+		Bound how long the product recorder may wait without receiving an
+		audio frame. Normal digital silence still delivers buffers;
 		this timeout detects a stalled MIC/DMA producer and lets the PTT owner
 		perform its existing join and resource cleanup instead of pinning the
 		calling control path indefinitely.
+
+config BK7258_MEDIA_PLAYER_WRITE_TIMEOUT_MS
+	int "BKVoice player stalled-write timeout in milliseconds"
+	default 1000
+	range 100 5000
+	help
+		Bound a PCM write to the official Media player socket so a stalled
+		playback route returns to the serialized turn's error cleanup.
 
 config BK7258_VOICE_CAPTURE_TIMEOUT_MS
 	int "BKVoice maximum PTT capture time in milliseconds"

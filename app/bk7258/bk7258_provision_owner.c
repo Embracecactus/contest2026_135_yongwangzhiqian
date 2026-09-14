@@ -249,11 +249,13 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
             }
         }
       uint32_t generation = bkprov_gatt_generation();
-      /* Discovery age must not shorten an accepted control session.  TLS
-       * retains its independent handshake/authentication/session deadlines. */
+      /* Bound only the unconnected discovery window here. Once a peer is
+       * accepted, the pair owns handshake/authentication and validated-control
+       * idle deadlines. An absolute owner window must not terminate that
+       * authenticated session while requests are still being processed. */
       if (!bkprov_gatt_open() ||
-          (now - g_owner.opened >= WINDOW_MS &&
-           (g_owner.control->tls.initialized || generation == 0)))
+          (!g_owner.control->tls.initialized && generation == 0 &&
+           now - g_owner.opened >= WINDOW_MS))
         { close_window(-ETIMEDOUT); return false; }
       if (!g_owner.control->tls.initialized && generation != 0)
         {

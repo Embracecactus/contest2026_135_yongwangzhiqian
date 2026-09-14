@@ -3,17 +3,7 @@
 
 #include <errno.h>
 #include <string.h>
-
-static int prefill_read(void *context, size_t frame, uint8_t pcm[])
-{
-  int16_t aligned[BKVOICE_WAKE_FRAME_SAMPLES];
-  int ret = bkvoice_wake_window_read_pre_roll(context, frame, aligned);
-  if (ret == 0)
-    {
-      memcpy(pcm, aligned, sizeof(aligned));
-    }
-  return ret;
-}
+#include <syslog.h>
 
 static void publish(struct bkvoice_wake_owner_s *owner,
                     unsigned int event, int error)
@@ -26,7 +16,7 @@ static void publish(struct bkvoice_wake_owner_s *owner,
     }
 }
 
-void bkvoice_wake_owner_live_observer(
+int bkvoice_wake_owner_frame_filter(
   void *context, const struct bkvoice_turn_token_s *token,
   const uint8_t pcm[BKVOICE_CAPTURE_FRAME_BYTES])
 {
@@ -34,20 +24,22 @@ void bkvoice_wake_owner_live_observer(
   enum bkvoice_wake_window_event_e event = BKVOICE_WAKE_EVENT_NONE;
   int16_t aligned[BKVOICE_WAKE_FRAME_SAMPLES];
   uint64_t end_ms;
+  bool waiting_quiet;
   int ret;
 
   (void)token;
   if (owner == NULL || pcm == NULL)
     {
-      return;
+      return -EINVAL;
     }
   if (__atomic_load_n(&owner->terminal_latched, __ATOMIC_ACQUIRE))
     {
-      return;
+      return 0;
     }
 
-  /* The capture worker is the only live writer.  The frozen pre-roll was
-   * read before that worker started, after the listener had joined. */
+  /* The capture worker is the only live writer after the listener joined.
+   * Discard wake audio before the cloud sink receives any PCM. */
+  waiting_quiet = owner->window->state == BKVOICE_WAKE_WINDOW_WAITING_QUIET;
   owner->live_next_ms += 20u;
   end_ms = owner->live_next_ms;
   memcpy(aligned, pcm, sizeof(aligned));
@@ -57,6 +49,7 @@ void bkvoice_wake_owner_live_observer(
     {
       __atomic_store_n(&owner->terminal_latched, true, __ATOMIC_RELEASE);
       publish(owner, BKVOICE_WAKE_OWNER_EVENT_FAULT, ret);
+      return ret;
     }
   else if (event == BKVOICE_WAKE_EVENT_END_OF_SPEECH ||
            event == BKVOICE_WAKE_EVENT_NO_SPEECH ||
@@ -65,6 +58,12 @@ void bkvoice_wake_owner_live_observer(
       __atomic_store_n(&owner->terminal_latched, true, __ATOMIC_RELEASE);
       publish(owner, event, 0);
     }
+  if (waiting_quiet &&
+      owner->window->state == BKVOICE_WAKE_WINDOW_WAITING_SPEECH)
+    syslog(LOG_INFO, "BKVOICE wake capture waiting-user\n");
+  if (event == BKVOICE_WAKE_EVENT_SPEECH_STARTED)
+    syslog(LOG_INFO, "BKVOICE wake capture user-speech\n");
+  return !waiting_quiet && event != BKVOICE_WAKE_EVENT_NO_SPEECH ? 1 : 0;
 }
 
 int bkvoice_wake_owner_initialize(struct bkvoice_wake_owner_s *owner,
@@ -191,7 +190,6 @@ int bkvoice_wake_owner_close(struct bkvoice_wake_owner_s *owner)
 static int begin_capture(struct bkvoice_wake_owner_s *owner)
 {
   struct bkvoice_wake_window_snapshot_s snapshot;
-  size_t frames;
   int ret;
 
   ret = stop_listener(owner);
@@ -201,8 +199,7 @@ static int begin_capture(struct bkvoice_wake_owner_s *owner)
     }
 
   bkvoice_wake_window_snapshot(owner->window, &snapshot);
-  frames = bkvoice_wake_window_pre_roll_frames(owner->window);
-  if (frames == 0 || snapshot.last_frame_ms == 0)
+  if (snapshot.last_frame_ms == 0)
     {
       owner->last_error = -EINVAL;
       owner->cancel_requested = true;
@@ -218,8 +215,8 @@ static int begin_capture(struct bkvoice_wake_owner_s *owner)
   /* Claim ownership before auto_begin(): a failure can still leave borrowed
    * capture state which only the normal cloud cancel/drain path may release. */
   owner->automatic_owned = true;
-  ret = bkcloud_runtime_auto_begin(owner->cloud, prefill_read, owner->window,
-                                   frames, bkvoice_wake_owner_live_observer,
+  ret = bkcloud_runtime_auto_begin(owner->cloud,
+                                   bkvoice_wake_owner_frame_filter,
                                    owner);
   if (ret < 0)
     {
@@ -240,6 +237,7 @@ int bkvoice_wake_owner_step(struct bkvoice_wake_owner_s *owner, bool allowed,
                             uint64_t now_ms)
 {
   struct bkvoice_wake_listener_status_s status;
+  struct bkcloud_runtime_status_s cloud_status = {0};
   unsigned int event;
   int observer_error;
   int ret;
@@ -257,6 +255,14 @@ int bkvoice_wake_owner_step(struct bkvoice_wake_owner_s *owner, bool allowed,
   /* A terminal event is a capture-worker latch.  Do not exchange it while
    * auto_end() is retried: that would let a later frame replace END with a
    * spurious EALREADY fault. */
+  if (owner->automatic_started)
+    {
+      /* Read worker completion before its observer latch. A completed frame
+       * can publish NO_SPEECH as well as fill the PCM buffer: cancellation
+       * must win before this same owner decides whether to start ASR.
+       */
+      bkcloud_runtime_status(owner->cloud, &cloud_status);
+    }
   event = __atomic_load_n(&owner->event, __ATOMIC_ACQUIRE);
   observer_error = event == BKVOICE_WAKE_EVENT_NONE ? 0 :
     __atomic_load_n(&owner->observer_error, __ATOMIC_ACQUIRE);
@@ -268,7 +274,8 @@ int bkvoice_wake_owner_step(struct bkvoice_wake_owner_s *owner, bool allowed,
       return cancel_and_drain(owner);
     }
   if (event == BKVOICE_WAKE_EVENT_END_OF_SPEECH ||
-      event == BKVOICE_WAKE_EVENT_MAX_DURATION)
+      event == BKVOICE_WAKE_EVENT_MAX_DURATION ||
+      cloud_status.capture_finished)
     {
       ret = bkcloud_runtime_auto_end(owner->cloud);
       if (ret == -EAGAIN)

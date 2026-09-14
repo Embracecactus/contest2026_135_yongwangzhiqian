@@ -90,7 +90,7 @@ int bkvoice_session_ptt_down(struct bkvoice_session_s *session,
 int bkvoice_session_ptt_down_prefill(
   struct bkvoice_session_s *session, uint64_t now_ms,
   bkvoice_capture_prefill_read_t read_frame, void *prefill_context,
-  size_t prefill_frames, bkvoice_capture_live_observer_t live_observer,
+  size_t prefill_frames, bkvoice_capture_frame_filter_t frame_filter,
   void *live_context, struct bkvoice_turn_token_s *token);
 int bkvoice_session_ptt_up(struct bkvoice_session_s *session,
                            uint64_t now_ms);

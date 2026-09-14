@@ -1,0 +1,581 @@
+{
+  "architecture": "ds-cnn-conv32-10x4-s2xf4-dw3x3-s2-dw3x3-s2-dw9x3-dw9x3-pw32-bn-relu-global-pool19x10-flatten-dense3",
+  "audio_seconds": 3,
+  "batch_size": 32,
+  "best_validation_epoch": 5,
+  "best_validation_loss": 0.09919266402721405,
+  "channels": 32,
+  "counts": {
+    "test": {
+      "nihao_openvela": 12,
+      "silence": 6,
+      "unknown": 42
+    },
+    "train": {
+      "nihao_openvela": 40,
+      "silence": 88,
+      "unknown": 166
+    },
+    "validation": {
+      "nihao_openvela": 10,
+      "silence": 6,
+      "unknown": 36
+    }
+  },
+  "dataset_sha256": "628f9cafff3daecd1f06191b9873138c333e69eefda9aaa82d43913078376360",
+  "delivery_evidence": {
+    "limitations": [
+      "Target recordings are synthetic; human-speaker generalization is unverified.",
+      "Evaluation reuses previously observed synthetic speakers; it is not a new blind benchmark.",
+      "No extrapolation of limited background duration to field false-alarm rate.",
+      "Board and physical-loop evidence is recorded separately against the signed firmware version."
+    ],
+    "replaced_model_sha256": "7c9765f943ee76d62a9e48736ae1fe13dafdc390cb94520bc0d80aba429c93e7",
+    "replacement_reason": "Correct the actual target pronunciation in all 62 positive source clips; retain frontend, operator set, source/speaker splits, negative audio and runtime trigger thresholds.",
+    "reports": [
+      {
+        "evaluation_manifest_sha256": "e260939c146950941e766a80ea626391363ca3eed9b7a7ab7d7bfb38d49f4f03",
+        "path": "candidate-v46-viila-room-f4/validation-stream.json",
+        "sha256": "a74846de5fd8f02976e448b88e1a6840e96b76f70cf8096b68682d222f9e59d1",
+        "stream_metrics": {
+          "background_false_positives": 0,
+          "expected_wakes": 10,
+          "gap_ms": 0,
+          "listening_ms": 90000,
+          "missed_wakes": 0,
+          "paused_ms": 0,
+          "repeated_wakes": 0,
+          "sessions": 10,
+          "wake_events": 10
+        }
+      },
+      {
+        "evaluation_manifest_sha256": "e260939c146950941e766a80ea626391363ca3eed9b7a7ab7d7bfb38d49f4f03",
+        "path": "candidate-v46-viila-room-f4/dataset-test-stream.json",
+        "sha256": "afc041fe8f758a802d3346e6dd36d9960f82b005838f03f39d55354c04673b3d",
+        "stream_metrics": {
+          "background_false_positives": 0,
+          "expected_wakes": 12,
+          "gap_ms": 0,
+          "listening_ms": 108000,
+          "missed_wakes": 0,
+          "paused_ms": 0,
+          "repeated_wakes": 0,
+          "sessions": 12,
+          "wake_events": 12
+        }
+      },
+      {
+        "evaluation_manifest_sha256": "45bf2e847ced6358b04b2563486b1b7296192478fbbbec1b985de4da0c55ce51",
+        "path": "candidate-v46-viila-room-f4/heldout-validation-stream.json",
+        "sha256": "a7a8efcbcc1c2aa0313674622105683c7262e79b341d74dbb8a927d88a59f15d",
+        "stream_metrics": {
+          "background_false_positives": 0,
+          "expected_wakes": 10,
+          "gap_ms": 0,
+          "listening_ms": 90000,
+          "missed_wakes": 0,
+          "paused_ms": 0,
+          "repeated_wakes": 0,
+          "sessions": 10,
+          "wake_events": 10
+        }
+      },
+      {
+        "evaluation_manifest_sha256": "45bf2e847ced6358b04b2563486b1b7296192478fbbbec1b985de4da0c55ce51",
+        "path": "candidate-v46-viila-room-f4/heldout-test-stream.json",
+        "sha256": "3ed5ab3c2df4a05a010c0bc4746c8ec36ee5e4658bf5f407a82c2caf4dffe2c0",
+        "stream_metrics": {
+          "background_false_positives": 0,
+          "expected_wakes": 14,
+          "gap_ms": 0,
+          "listening_ms": 144000,
+          "missed_wakes": 0,
+          "paused_ms": 0,
+          "repeated_wakes": 0,
+          "sessions": 16,
+          "wake_events": 14
+        }
+      }
+    ],
+    "root": "out/shaniu-p0-20260913/kws-tts-train"
+  },
+  "depthwise_blocks": [
+    {
+      "kernel": [
+        3,
+        3
+      ],
+      "strides": [
+        2,
+        1
+      ]
+    },
+    {
+      "kernel": [
+        3,
+        3
+      ],
+      "strides": [
+        2,
+        1
+      ]
+    },
+    {
+      "kernel": [
+        9,
+        3
+      ],
+      "strides": [
+        1,
+        1
+      ]
+    },
+    {
+      "kernel": [
+        9,
+        3
+      ],
+      "strides": [
+        1,
+        1
+      ]
+    }
+  ],
+  "entries": 406,
+  "epochs": 24,
+  "epochs_completed": 24,
+  "exported_operators": [
+    "AVERAGE_POOL_2D",
+    "CONV_2D",
+    "DEPTHWISE_CONV_2D",
+    "FULLY_CONNECTED",
+    "RESHAPE",
+    "SOFTMAX"
+  ],
+  "frontend": "bkvoice-microfrontend-v1",
+  "frontend_inputs_sha256": {
+    "apps/math/kissfft/kissfft/_kiss_fft_guts.h": "dd5c9aecd44f4b1587a02424167fff8f70b5963537f10acfb5d87b6320319319",
+    "apps/math/kissfft/kissfft/kiss_fft.c": "63ca2dc3c534833c52da1b17cfa6c2918c2a0b98a109f15fe90c29f1750a7a65",
+    "apps/math/kissfft/kissfft/kiss_fft.h": "a56e45e711bfa07376b4221329715dc2472a7ba9135478c196de5291cb7b0129",
+    "apps/math/kissfft/kissfft/tools/kiss_fftr.c": "71d0aaf7a49c7c6bc1f1a20e53a5b490ce52d1b2800b2db1e864e4bf82548826",
+    "apps/math/kissfft/kissfft/tools/kiss_fftr.h": "4495841cc3b614b8211666dd4178e092ee0507a1999d20346c782ba04a88c5c5",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/bits.h": "10251fd508996bf0a3f0af34eed093d3edb83124204c1504db39f35987a015a0",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/fft.cc": "83340ac07d4281c7afaa0fe03bb2f886735176398e6845c4884e6598f7717f05",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/fft.h": "5d730a623766027dc2326a5131c65be6ec8c6c900f34a2d05d726a9475eab509",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/fft_util.cc": "65b3879e4599fe86c5764081bbc5daba72f03d86c8d8cdb0b2c1aa5c80c0ddab",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/fft_util.h": "bd613d33db3795a43ab27e2155f6a47611ecc83c6ec6ff2ae1bec338a49ec928",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/filterbank.c": "ee5274e05be0ac58d9e185b9b074d3682c09aa88695130498441a99d53626e19",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/filterbank.h": "46159287a955c8ead10d73bb5e94c18679f9a805454f09f3f6979b0678fe333e",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/filterbank_util.c": "b06f95eac9f5d53147896afe0e8deafc9984d68a68cf2f3118efd4da50fde8c8",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/filterbank_util.h": "63bafdec450bfc89278fd0c93a6015d109d38f04ec35743ab222c471fa6e3302",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/frontend.c": "0598d172c3b75c81c55ca64652f5d179dba35939840af64af1b87b6200b64300",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/frontend.h": "46ac313857158ea99148f648d4f3c45fca0e78b58757882b5b524803337a8fed",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/frontend_util.c": "06f926fdb4276f93c2f9b6ba2a00a2273a5f4f9039b8007cf289ce6438b207bc",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/frontend_util.h": "a46432fb2dfd0af985a3d20ede2f6c9e3c0501500fd155491006c867c49cdce1",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/kiss_fft_common.h": "d22e5539ae17c9e39627404b061928c7254a6b931cafb6ea02715012e8693cfa",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/kiss_fft_int16.cc": "54a210b219d680cb39e941790d0961628018094c8559be9ddbd25edb9c794b36",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/kiss_fft_int16.h": "3ad494e50fab5f5a9e791a2997d29e6e250ae7ceee60c15fe6146f547ae20278",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_lut.c": "057c040484526b8a6f84e95bb040d90da3f48d93e846ab8aa1c8e9f46c812e08",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_lut.h": "38bc096e21af8494866080d66438454da2382ee910edbd4a36b77eb9e824a3c0",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_scale.c": "ffcc82bdb44df8e219c186f4137be1d90b9697ad98575fe48b4fc321958874dd",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_scale.h": "2c90d6bc5fd5620f4b30e9ceb61fef689bac358819b56b2b2aec3f8120363150",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_scale_util.c": "650875cbdfbbc89ae2627bfac7d29939d3d204822b1ddf2a8f6eaaf707cd2390",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_scale_util.h": "c3d096b028a3cb1230c6895cc51212114c79a825ed91996c7b934293f81a241a",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/noise_reduction.c": "73b688d001dea7e9d543cf9d51549ea8c2a163f3b6145e6158adf208c5eea8ac",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/noise_reduction.h": "f5f9b8c303f9c28357bf5ba17867b483ee0a2bf9c1732dc740834a7ca6ce66aa",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/noise_reduction_util.c": "116afa4b0fb79cc83aea1a2eaf023c1f76ca6b64c172aec2014f8495f499672e",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/noise_reduction_util.h": "e02d09d5873e5a5826da1d73b6a972af49dddc23b54db7245e52a4ba07a4a445",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/pcan_gain_control.c": "b0119d03931f312c10fce099cfef7e01874d5aad085069c1129de2c679e2cf60",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/pcan_gain_control.h": "820ab1e4c8712661c0af4c5a579552b9cafb3ad6ea622329028a6f9430fbe575",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/pcan_gain_control_util.c": "4481862cc4d2dd2c8267791334ea9589ece77657d29231e3417d7c88574361bb",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/pcan_gain_control_util.h": "9715d7b9c03ae534f28fa4598da26621b99c17a049a28099ed7ea68a987876e5",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/window.c": "9facbb75884f4bdd0f90d8d876e547d7213bb99344fa6ccb682e45290c36dbfa",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/window.h": "e4ca258111c2b0ffbd9e702cb9586de095c5c86cca5709a13c1b85dc79026075",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/window_util.c": "2c45a8445c53efcdb0d32e5c8a657fc5eb97df168bfac6ccc510874ca06aac07",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/window_util.h": "d069df14ec078dcc45f61c4198fc050f0fe37439b1fd3c328400468a58e625a4",
+    "contest2026_135_yongwangzhiqian/app/bk7258/bk7258_voice_kws_frontend.c": "dd87343768cbc13c60c86cd7006831cf83f2283fca5877744f3f76d7df704514",
+    "contest2026_135_yongwangzhiqian/app/bk7258/bk7258_voice_kws_frontend.h": "610ce52faf8c00991294a7ddb54e2bd5fa40e2aaff3d5ffb6c95854d0f412a59"
+  },
+  "initial_frequency_stride": 4,
+  "input_quantization": [
+    3.5490195751190186,
+    -128
+  ],
+  "input_shape": [
+    1,
+    149,
+    40,
+    1
+  ],
+  "labels": [
+    "silence",
+    "unknown",
+    "nihao_openvela"
+  ],
+  "metrics": {
+    "float_validation": {
+      "actual_counts": {
+        "nihao_openvela": 10,
+        "silence": 6,
+        "unknown": 36
+      },
+      "confusion_matrix": [
+        [
+          0,
+          6,
+          0
+        ],
+        [
+          0,
+          36,
+          0
+        ],
+        [
+          0,
+          0,
+          10
+        ]
+      ],
+      "labels": [
+        "silence",
+        "unknown",
+        "nihao_openvela"
+      ],
+      "positive_false_negative_rate": 0.0,
+      "positive_samples": 10,
+      "predicted_counts": {
+        "nihao_openvela": 10,
+        "silence": 0,
+        "unknown": 42
+      },
+      "unknown_false_positive_rate": 0.0,
+      "unknown_samples": 36
+    },
+    "validation": {
+      "actual_counts": {
+        "nihao_openvela": 10,
+        "silence": 6,
+        "unknown": 36
+      },
+      "confusion_matrix": [
+        [
+          0,
+          6,
+          0
+        ],
+        [
+          0,
+          36,
+          0
+        ],
+        [
+          0,
+          0,
+          10
+        ]
+      ],
+      "labels": [
+        "silence",
+        "unknown",
+        "nihao_openvela"
+      ],
+      "positive_false_negative_rate": 0.0,
+      "positive_samples": 10,
+      "predicted_counts": {
+        "nihao_openvela": 10,
+        "silence": 0,
+        "unknown": 42
+      },
+      "unknown_false_positive_rate": 0.0,
+      "unknown_samples": 36
+    }
+  },
+  "model_acceptance": {
+    "accepted": false,
+    "reason": "minimum_real_corpus_and_streaming_evidence_not_recorded"
+  },
+  "model_authorization": {
+    "accepted_for_board": false,
+    "status": "candidate",
+    "training_data_authorization": "manifest_entry_consent_true"
+  },
+  "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+  "onset_hard_negatives": 0,
+  "output_quantization": [
+    0.00390625,
+    -128
+  ],
+  "output_shape": [
+    1,
+    3
+  ],
+  "real_environment_train_entries": 72,
+  "recording_kind_counts": {
+    "real": 102,
+    "synthetic": 304
+  },
+  "runtime_infer_hops": 15,
+  "runtime_infer_interval_ms": 300,
+  "runtime_policy": {
+    "consecutive": 2,
+    "cooldown_ms": 1000,
+    "release_threshold": 0.20000000298023224,
+    "source": "bkvoice_kws_default_policy",
+    "threshold": 0.8500000238418579
+  },
+  "schema": "bkvoice-kws-dataset-v1",
+  "seed": 20260913,
+  "status": "candidate",
+  "stream_evaluation": {
+    "reports": [
+      "candidate-v46-viila-room-f4/validation-stream.json",
+      "candidate-v46-viila-room-f4/dataset-test-stream.json",
+      "candidate-v46-viila-room-f4/heldout-validation-stream.json",
+      "candidate-v46-viila-room-f4/heldout-test-stream.json"
+    ],
+    "status": "synthetic_streams_evaluated"
+  },
+  "synthesis_provenance": {
+    "actual_synthesis_text": "你好，open vila",
+    "corrected_positive_counts": {
+      "test": 12,
+      "train": 40,
+      "validation": 10
+    },
+    "evidence_source": "Kokoro ConvertTextToTokenIds debug output, decoded with the same model package tokens.txt",
+    "open_ipa": "ˈoʊpən",
+    "product_wake_phrase": "你好，open-vela",
+    "reason_for_phonetic_spelling": "This sherpa/Kokoro model uses eSpeak for English; literal vela produces /vɛlə/ even when the configured English lexicon says /vilə/. vila yields the required runtime tokens.",
+    "runtime_english_token_ids": [
+      156,
+      57,
+      135,
+      58,
+      83,
+      56,
+      16,
+      64,
+      156,
+      51,
+      158,
+      54,
+      83
+    ],
+    "runtime_english_tokens": "ˈ o ʊ p ə n [space] v ˈ i ː l ə",
+    "training_manifest_file_sha256": "e260939c146950941e766a80ea626391363ca3eed9b7a7ab7d7bfb38d49f4f03",
+    "tts_license": "Apache-2.0",
+    "tts_model_sha256": "bda15858163726a492d02a9a727bc263551b86ac77f90812c4b30ff41d380e26",
+    "tts_voices_sha256": "e64a5a581d8c2a350d848f51c3121657cd83aa07ed6109172177345874a7244c",
+    "vela_chinese_transliteration": "维拉",
+    "vela_ipa": "ˈviːlə"
+  },
+  "tensorflow_version": "2.15.1",
+  "test_evaluation": {
+    "frozen_policy": "unchanged 0.85 threshold, two consecutive windows, 300ms cadence",
+    "human_generalization_verified": false,
+    "reports": [
+      "candidate-v46-viila-room-f4/dataset-test-stream.json",
+      "candidate-v46-viila-room-f4/heldout-test-stream.json"
+    ],
+    "status": "synthetic_continuous_streams_evaluated"
+  },
+  "theoretical_compute_note": "architecture estimate; not board latency or measured MAC evidence",
+  "theoretical_convolution_mac_per_inference": 2425280,
+  "theoretical_receptive_field_feature_frames": 150,
+  "theoretical_receptive_field_ms": 3000,
+  "training_curve": {
+    "accuracy": [
+      0.910725474357605,
+      0.9919519424438477,
+      0.9939934015274048,
+      0.9938363432884216,
+      0.9941896796226501,
+      0.9925015568733215,
+      0.9932082295417786,
+      0.9946607947349548,
+      0.9970163106918335,
+      0.9957600235939026,
+      0.9962704181671143,
+      0.9953674674034119,
+      0.9964274764060974,
+      0.996662974357605,
+      0.9959955811500549,
+      0.9961526393890381,
+      0.9964274764060974,
+      0.9963881969451904,
+      0.9959563612937927,
+      0.9941896796226501,
+      0.9958385825157166,
+      0.9943467378616333,
+      0.9962704181671143,
+      0.9961919188499451
+    ],
+    "loss": [
+      0.027965670451521873,
+      0.005276641808450222,
+      0.0032277891878038645,
+      0.0027359433006495237,
+      0.002247666008770466,
+      0.0029917131178081036,
+      0.002477120840921998,
+      0.0021301312372088432,
+      0.0016828738152980804,
+      0.0019092524889856577,
+      0.0019135166658088565,
+      0.0022217100486159325,
+      0.0017407600535079837,
+      0.0015961587196215987,
+      0.001749038347043097,
+      0.0016021226765587926,
+      0.001558588701300323,
+      0.001605859026312828,
+      0.0015051731606945395,
+      0.0020361992064863443,
+      0.0014964072033762932,
+      0.001347265555523336,
+      0.0013359367148950696,
+      0.0012822585413232446
+    ],
+    "val_accuracy": [
+      0.8269230723381042,
+      0.75,
+      0.8653846383094788,
+      0.75,
+      0.8846153616905212,
+      0.75,
+      0.8846153616905212,
+      0.8846153616905212,
+      0.8846153616905212,
+      0.8846153616905212,
+      0.8846153616905212,
+      0.6538461446762085,
+      0.8846153616905212,
+      0.8846153616905212,
+      0.8846153616905212,
+      0.75,
+      0.8653846383094788,
+      0.8653846383094788,
+      0.8846153616905212,
+      0.8846153616905212,
+      0.8653846383094788,
+      0.8846153616905212,
+      0.8846153616905212,
+      0.8846153616905212
+    ],
+    "val_loss": [
+      0.3572443723678589,
+      0.9170661568641663,
+      0.31111907958984375,
+      1.1190762519836426,
+      0.09919266402721405,
+      0.3849433362483978,
+      0.167280912399292,
+      0.11896694451570511,
+      0.11875541508197784,
+      0.1396487057209015,
+      0.15043991804122925,
+      0.8895746469497681,
+      0.12834663689136505,
+      0.11264066398143768,
+      0.11579863727092743,
+      0.842718243598938,
+      0.13623957335948944,
+      0.25112465023994446,
+      0.14149364829063416,
+      0.13170374929904938,
+      0.13160519301891327,
+      0.15990200638771057,
+      0.15363803505897522,
+      0.12310680001974106
+    ]
+  },
+  "training_derivatives": {
+    "complete_target_sliding_window": 476,
+    "incomplete_target_hard_negative": 120,
+    "ordinary_speech_join_hard_negative": 166,
+    "ordinary_speech_zero_padded_shift": 5312
+  },
+  "training_metadata_sha256": "c5d8078ecff300fdbcb29c9292a8b07861f5d38f19acdec6546a1232ce3a3b56",
+  "training_recipe": {
+    "base": "trigger442 archived v30",
+    "batch_normalization_momentum": 0.99,
+    "complete_target_sliding_windows": true,
+    "optimizer": "keras Adam defaults",
+    "ordinary_unknown_source_weighting": {
+      "eligible_records": "original_unknown_or_ordinary_speech_zero_padded_shift",
+      "other_derived_unknown_weight": 0.25,
+      "source_count": 166,
+      "source_counts_by_category": {
+        "incomplete_phrase": 40,
+        "near_homophone": 40,
+        "ordinary_command": 40,
+        "public_ordinary_speech": 30,
+        "uniform_pcm_noise": 16
+      },
+      "source_total_weight_by_category": {
+        "near_homophone": 12.9,
+        "other_unknown": 5.0
+      },
+      "total_weight": 1145.9999999998176,
+      "validation_weighting": "none",
+      "weight_max": 0.09772727272727273,
+      "weight_min": 0.03787878787878788
+    },
+    "pcm_level_augmentation": {
+      "assignment": "sha256(source_id) first 32 bits plus source window index modulo gain count",
+      "gains": [
+        1.0,
+        0.25,
+        0.1
+      ],
+      "preserve_full_level_windows": true,
+      "stage": "train PCM after label-preserving window derivation, before official frontend",
+      "validation_and_test": "unchanged",
+      "window_counts": {
+        "0.1": 3185,
+        "0.25": 3183,
+        "1.0": 6368
+      }
+    },
+    "positive_source_weighting": {
+      "non_positive_weight": 0.25,
+      "per_source_total_weight": 12.9,
+      "positive_source_count": 40,
+      "positive_total_weight": 516.0000000000057,
+      "positive_windows": 2064,
+      "rule": "unaugmented_positive_total/(positive_source_count*source_positive_windows)",
+      "validation_weighting": "none",
+      "weight_max": 0.645,
+      "weight_min": 0.18970588235294117
+    },
+    "room_augmentation": {
+      "bandwidth_hz": {
+        "high": [
+          3200,
+          6500
+        ],
+        "low": [
+          90,
+          180
+        ]
+      },
+      "enabled": true,
+      "gain": [
+        0.3,
+        1.0
+      ],
+      "noise_pcm_stddev": [
+        3,
+        15
+      ],
+      "response": "synthetic three reflections at 18-180 ms; not measured RIR",
+      "stage": "train PCM before official frontend; original labels and source IDs retained",
+      "validation_and_test": "unchanged",
+      "window_count": 12736
+    },
+    "unknown_zero_padded_shifts": true
+  },
+  "training_source_sha256": "c9e49c56ea3fec5041ab36c85f3b2623d65fef3d0cd4c4839dc99f4bb176f909",
+  "wake_phrase": "你好，open-vela"
+}

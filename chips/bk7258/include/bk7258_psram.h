@@ -42,6 +42,12 @@
 #define BK7258_PSRAM_MEDIA_BASE         0x60000000u
 #define BK7258_PSRAM_MEDIA_SIZE         0x00700000u
 
+/* The pinned SDK uses the low 8 MiB only. On a detected 16 MiB part,
+ * the high bank belongs exclusively to the AP NuttX system allocator.
+ */
+
+#define BK7258_PSRAM_AP_EXT_HEAP_BASE   (BK7258_PSRAM_BASE + BK7258_PSRAM_8M_SIZE)
+
 enum bk7258_psram_media_heap_e
 {
   BK7258_PSRAM_MEDIA_USER = 0,
@@ -129,6 +135,9 @@ int bk7258_psram_early_initialize(void);
 #endif
 int bk7258_psram_initialize(void);
 int bk7258_psram_add_system_heap(size_t size);
+#ifdef CONFIG_BK7258_PSRAM_EXT_SYSTEM_HEAP
+int bk7258_psram_add_extended_system_heap(void);
+#endif
 bool bk7258_psram_ready(void);
 bool bk7258_psram_address(const void *ptr);
 bool bk7258_psram_heap_contains(const void *ptr);

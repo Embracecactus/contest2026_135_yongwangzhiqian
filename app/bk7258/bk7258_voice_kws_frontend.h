@@ -15,11 +15,12 @@ extern "C"
 
 #define BKVOICE_KWS_FRONTEND_ID "bkvoice-microfrontend-v1"
 #define BKVOICE_KWS_RATE         16000
-#define BKVOICE_KWS_SAMPLES      32000
+#define BKVOICE_KWS_SAMPLES      (3 * BKVOICE_KWS_RATE)
 #define BKVOICE_KWS_WINDOW       480
 #define BKVOICE_KWS_HOP          320
 #define BKVOICE_KWS_BINS         40
-#define BKVOICE_KWS_ROWS         99
+#define BKVOICE_KWS_ROWS         \
+  (1 + (BKVOICE_KWS_SAMPLES - BKVOICE_KWS_WINDOW) / BKVOICE_KWS_HOP)
 #define BKVOICE_KWS_FEATURES     (BKVOICE_KWS_ROWS * BKVOICE_KWS_BINS)
 
 /* TFLM microfrontend, configured for a 30 ms / 20 ms 16 kHz window, 40
@@ -39,7 +40,7 @@ void bkvoice_kws_frontend_uninitialize(struct bkvoice_kws_frontend_s *frontend);
 int bkvoice_kws_frontend_frame(struct bkvoice_kws_frontend_s *frontend,
                                const int16_t *pcm, float *features);
 
-/* Host training boundary. Exactly two seconds in, 99 x 40 row-major out.
+/* Host training boundary. Exactly three seconds in, 149 x 40 row-major out.
  * Firmware retains a persistent frontend state and does no per-frame
  * allocation. Each frame is independently reset before it is processed so
  * this batch path and the existing 20 ms streaming wrapper agree exactly.

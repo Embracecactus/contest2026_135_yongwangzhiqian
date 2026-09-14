@@ -64,7 +64,7 @@ int bkvoice_wake_owner_close(struct bkvoice_wake_owner_s *owner);
 
 /* Installed in bkcloud_runtime_auto_begin().  It runs in the capture worker:
  * it only feeds the endpoint window and publishes a terminal event. */
-void bkvoice_wake_owner_live_observer(
+int bkvoice_wake_owner_frame_filter(
   void *context, const struct bkvoice_turn_token_s *token,
   const uint8_t pcm[BKVOICE_CAPTURE_FRAME_BYTES]);
 

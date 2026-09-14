@@ -22,6 +22,7 @@ struct bkvoice_turn_audio_s
   void *dac_handle;
   bool mic_prepared;
   bool mic_started;
+  bool mic_policy_active;
   volatile bool mic_reader_active;
   bool dac_prepared;
   bool dac_started;

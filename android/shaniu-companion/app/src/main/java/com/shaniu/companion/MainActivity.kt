@@ -22,7 +22,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
-import com.shaniu.companion.provision.DeviceControlConnection
+import com.shaniu.companion.provision.AndroidDeviceControlFactory
+import com.shaniu.companion.provision.DeviceControlSession
+import com.shaniu.companion.provision.DeviceControlPresentation
 import com.shaniu.companion.provision.DeviceControlProtocol
 import com.shaniu.companion.provision.DeviceControlScanner
 import com.shaniu.companion.gateway.AndroidKeystoreTokenStore
@@ -65,6 +67,8 @@ import com.shaniu.companion.provision.ProvisionBootstrap
 import com.shaniu.companion.ota.BkpackInspector
 import com.shaniu.companion.ota.OtaControlUpload
 import com.shaniu.companion.ota.OtaPackageServer
+import com.shaniu.companion.ota.OtaPackageServerException
+import com.shaniu.companion.ota.OtaPackageServerStage
 import com.shaniu.companion.ota.OtaStartGate
 import com.shaniu.companion.ota.OtaUpdatePolicy
 import java.util.concurrent.Executors
@@ -103,7 +107,9 @@ class MainActivity : Activity() {
     private var otaServer: OtaPackageServer? = null
     private var otaUpload: OtaControlUpload? = null
     private var otaStatus: DeviceControlProtocol.OtaStatus? = null
+    private var otaStatusGeneration: Long? = null
     private var otaMessage = ""
+    private var otaStatusReadError: String? = null
     private var otaVerificationPending = false
     private val otaStartGate = OtaStartGate()
 
@@ -123,29 +129,39 @@ class MainActivity : Activity() {
     private var destroyed = false
     private var developerPanel = false
     private var legacyConsoleMode = false
-    private var directConnection: DeviceControlConnection? = null
+    private val directSession by lazy {
+        DeviceControlSession(
+            nowMs = { android.os.SystemClock.elapsedRealtime() },
+            post = { action -> mainHandler.post { action() }; Unit },
+            schedule = { delay, action ->
+                val task = Runnable { action() }
+                mainHandler.postDelayed(task, delay)
+                object : DeviceControlSession.Cancel {
+                    override fun cancel() { mainHandler.removeCallbacks(task) }
+                }
+            },
+            pollCommand = {
+                if (currentTab == TAB_UPDATE || otaUpload != null ||
+                    otaVerificationPending || otaStatus?.state in 1L..2L)
+                    DeviceControlProtocol.Command.OTA_STATUS else DeviceControlProtocol.Command.STATUS
+            },
+        )
+    }
+    private val directConnection: DeviceControlSession?
+        get() = directSession.takeIf { it.current().authenticated }
+    private val directSubscriptions = mutableListOf<DeviceControlSession.Cancel>()
+    private var directObservedGeneration = 0L
     private var directScanner: DeviceControlScanner? = null
     private var directDialog: AlertDialog? = null
-    private var directSnapshot: DeviceControlProtocol.Snapshot? = null
-    private var directFirmwareInfo: DeviceControlProtocol.FirmwareInfo? = null
+    private val directSnapshot get() = directSession.current().snapshot
+    private val directFirmwareInfo get() = directSession.current().firmwareInfo
     private var directEpoch = 0L
-    private var directPending = false
+    private val directPending get() = directSession.current().writePending
     private var memoryResultMessage: String? = null
     private var memoryDesiredEnabled: Boolean? = null
     private var memoryRequestAccepted = false
     private var directConnecting = false
     private var directMessage = "尚未连接设备"
-    private val directPoll = object : Runnable {
-        override fun run() {
-            if (!foreground || directConnection == null) return
-            if (!directPending) {
-                if (otaUpload != null || otaVerificationPending || otaStatus?.state in 1L..2L)
-                    directOtaRequest(DeviceControlProtocol.Command.OTA_STATUS)
-                else directRequest(DeviceControlProtocol.Command.STATUS)
-            }
-            mainHandler.postDelayed(this, 2000)
-        }
-    }
     private val navigation = mutableMapOf<Int, TextView>()
     private var lastAction = "请配置 HTTPS Gateway、设备 ID 和访问令牌"
 
@@ -170,6 +186,28 @@ class MainActivity : Activity() {
         reloadLocalConfiguration()
         setContentView(buildRoot().apply { applySystemInsets() })
         installSystemBack { navigateBack() }
+        directSubscriptions += directSession.observe { state ->
+            if (state.generation != directObservedGeneration) {
+                directObservedGeneration = state.generation
+                directEpoch++
+                otaStatusReadError = null
+                // A new transport cannot resume a partially sent OTA record.
+                // An accepted HTTP source may finish during the foreground or
+                // the bounded Activity grace; the next connection reads status.
+                val accepted = otaVerificationPending &&
+                    (otaUpload?.state == OtaControlUpload.State.ACCEPTED || otaStatus?.state in 1L..2L)
+                otaUpload?.close(); otaUpload = null
+                if (otaServer != null && (!accepted || !foreground || destroyed)) {
+                    otaStatus = null; otaStatusGeneration = null; otaVerificationPending = false
+                    otaStartGate.release()
+                    setOtaKeepAwake(false)
+                    closeOtaServer("控制会话已结束；返回后读取设备实际升级状态，未完成的请求不会重发。")
+                }
+            }
+            if (state.authenticated) directConnecting = false
+            if (foreground && !destroyed) render()
+        }
+        directSubscriptions += directSession.observeResults(::onDirectResult)
         render()
     }
 
@@ -189,6 +227,7 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         foreground = true
+        directSession.setForeground(true)
         reloadLocalConfiguration()
         if (legacyConsoleMode && autoReconnectAllowed && !busy && runtime == null && !controlCredentialRequired &&
             draftOrigin.isNotBlank() && draftDeviceId.isNotBlank()) {
@@ -197,12 +236,19 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
-        // Device speech remains board-owned. Only the phone's observer and
-        // pending local connection generation end when its UI is hidden.
+        // The shared session keeps a bounded grace period for file pickers and
+        // other Activities. Foreground return resumes the same authenticated link.
         foreground = false
         firmwareInspectionEpoch++
         firmwareInspectionPending = false
-        closeDirect()
+        directSession.setForeground(false)
+        if (otaUpload?.state == OtaControlUpload.State.WAITING) {
+            // Do not leave a half-sent source record waiting on an invisible UI.
+            directSession.disconnect(user = false)
+        }
+        directScanner?.close(); directScanner = null
+        directDialog?.dismiss(); directDialog = null
+        directConnecting = false
         closeRuntime(clearReportedState = true)
         super.onStop()
     }
@@ -261,6 +307,8 @@ class MainActivity : Activity() {
         selectedFirmwareFile?.delete()
         selectedFirmwareFile = null
         inspectedFirmware = null
+        directSubscriptions.forEach { it.cancel() }
+        directSubscriptions.clear()
         closeDirect()
         closeRuntime(clearReportedState = true)
         // Let the queued TLS/session close finish off the main thread.
@@ -434,7 +482,19 @@ class MainActivity : Activity() {
     private val directPersonaDescriptions = listOf("慢慢聊，温柔回应", "轻松一点，多一点趣味",
         "留些空间，听你说完", "一起理清思路", "带一点俏皮的小别扭")
 
-    private fun directStatus(): String = directSnapshot?.statusText() ?: directMessage
+    private fun directStatus(): String {
+        val state = directSession.current()
+        return when (state.connection) {
+            DeviceControlSession.Connection.CONNECTING -> "正在连接并验证设备…"
+            DeviceControlSession.Connection.RECONNECT_WAIT -> "连接已中断，正在重新连接…"
+            DeviceControlSession.Connection.SUSPENDED -> "连接已暂停，返回后重新验证设备"
+            DeviceControlSession.Connection.DISCONNECTED -> state.error?.let { "连接已断开（$it），可重新连接" } ?: directMessage
+            DeviceControlSession.Connection.CONNECTED -> when {
+                !state.snapshotFresh -> state.error ?: "已验证设备，正在读取状态…"
+                else -> listOfNotNull(state.snapshot?.statusText(), state.operationMessage).joinToString("\n")
+            }
+        }
+    }
 
     private fun closeDirect(preserveAcceptedOtaSource: Boolean = false): Boolean {
         val preserveOtaSource = preserveAcceptedOtaSource && foreground && !destroyed &&
@@ -443,21 +503,20 @@ class MainActivity : Activity() {
         directEpoch++
         directScanner?.close(); directScanner = null
         directDialog?.dismiss(); directDialog = null
-        directConnection?.close(); directConnection = null
-        directSnapshot = null; directFirmwareInfo = null; directPending = false; directConnecting = false
+        directSession.disconnect()
+        directConnecting = false
         memoryResultMessage = null; memoryDesiredEnabled = null; memoryRequestAccepted = false
         if (preserveOtaSource) {
             otaMessage = "蓝牙已断开，手机仍在提供固件；请保持此页并重新连接查看进度。"
             directMessage = otaMessage
         } else {
-            otaUpload?.close(); otaUpload = null; otaStatus = null
+            otaUpload?.close(); otaUpload = null; otaStatus = null; otaStatusGeneration = null
             otaVerificationPending = false
             otaStartGate.release()
             setOtaKeepAwake(false)
             closeOtaServer("升级传输已中断；重新连接后会核对设备状态。")
         }
         if (!preserveOtaSource) directMessage = "手机未连接；设备可继续独立对话。"
-        mainHandler.removeCallbacks(directPoll)
         return preserveOtaSource
     }
 
@@ -482,40 +541,14 @@ class MainActivity : Activity() {
     }
 
     private fun directRequest(command: DeviceControlProtocol.Command, value: Int = 0): Boolean {
-        val connection = directConnection ?: return false
-        if (directPending || !foreground) return false
-        val epoch = directEpoch
-        directPending = true
-        connection.request(command, value) { accepted ->
-            if (!accepted) mainHandler.post {
-                if (epoch == directEpoch && !destroyed) {
-                    directPending = false
-                    if (command == DeviceControlProtocol.Command.MEMORY_SET || command == DeviceControlProtocol.Command.MEMORY_DELETE) {
-                        memoryResultMessage = null; memoryDesiredEnabled = null; memoryRequestAccepted = false
-                    }
-                    render()
-                }
-            }
-        }
-        if (command != DeviceControlProtocol.Command.STATUS) render()
-        return true
+        if (!foreground) return false
+        return directSession.request(command, value)
     }
 
     private fun directOtaRequest(command: DeviceControlProtocol.Command,
                                  payload: ByteArray = ByteArray(0)): Boolean {
-        val connection = directConnection ?: return false
-        if (directPending || !foreground) return false
-        val epoch = directEpoch
-        directPending = true
-        connection.requestOta(command, payload) { accepted ->
-            if (!accepted) mainHandler.post {
-                if (epoch == directEpoch && !destroyed) {
-                    directPending = false
-                    handleOtaResult(command, otaErrorSnapshot(-11), epoch)
-                }
-            }
-        }
-        return true
+        if (!foreground) return false
+        return directSession.requestOta(command, payload)
     }
 
     private fun otaErrorSnapshot(error: Int) = DeviceControlProtocol.Snapshot(
@@ -524,11 +557,19 @@ class MainActivity : Activity() {
     private fun handleOtaResult(command: DeviceControlProtocol.Command,
                                 snapshot: DeviceControlProtocol.Snapshot, epoch: Long) {
         if (epoch != directEpoch || !foreground || destroyed) return
-        directPending = false
         if (command == DeviceControlProtocol.Command.OTA_STATUS) {
-            otaStatus = snapshot.otaStatus
-            if (snapshot.error != 0) otaMessage = "无法读取升级状态（${snapshot.error}）。"
-            confirmExpectedOta()
+            if (snapshot.error == 0 && snapshot.otaStatus != null) {
+                otaStatus = snapshot.otaStatus
+                otaStatusGeneration = directSession.current().generation
+                otaStatusReadError = null
+                confirmExpectedOta()
+            } else {
+                otaStatusReadError = if (snapshot.error != 0) {
+                    "无法读取升级状态（${snapshot.error}）。"
+                } else {
+                    "设备未返回升级状态。"
+                }
+            }
             render()
             return
         }
@@ -569,7 +610,7 @@ class MainActivity : Activity() {
                 "$message 已断开设备连接，请重新连接后重试。"
             }
             upload?.state == OtaControlUpload.State.ACCEPTED -> {
-                otaStatus = null
+                otaStatus = null; otaStatusGeneration = null
                 otaVerificationPending = true
                 "设备已接受升级来源，正在等待设备报告升级状态。"
             }
@@ -592,12 +633,24 @@ class MainActivity : Activity() {
         else -> "升级请求"
     }
 
+    private fun otaSourceOpenFailureMessage(failure: Throwable?): String = when (
+        (failure as? OtaPackageServerException)?.stage
+    ) {
+        OtaPackageServerStage.WIFI -> "无法建立本机升级来源：手机需要连接 Wi‑Fi 并获得 IPv4 地址。"
+        OtaPackageServerStage.PACKAGE -> "升级包无法重新核验或准备，请重新选择已验证的固件包。"
+        OtaPackageServerStage.KEYSTORE -> "手机无法创建本机升级证书，请解锁设备后重试。"
+        OtaPackageServerStage.TLS -> "手机无法启动本机 HTTPS 升级服务，请检查 Wi‑Fi 后重试。"
+        OtaPackageServerStage.LOCAL_IO -> "手机本地存储不可用，无法准备升级来源。"
+        null -> "无法建立本机升级来源，请检查 Wi‑Fi 和已验证的固件包。"
+    }
+
     private fun startLocalOta() {
         val file = selectedFirmwareFile ?: return
         val pack = inspectedFirmware ?: return
         val snapshot = directSnapshot
         val connection = directConnection
         val info = directFirmwareInfo
+        android.util.Log.i("ShaniuOta", "start generation=$directEpoch authenticated=${directSession.current().authenticated} supported=${snapshot?.otaSupported} writePending=$directPending upload=${otaUpload?.state}")
         if (connection == null || snapshot?.otaSupported != true || directPending || otaUpload != null) return
         if (info == null) { otaMessage = "正在读取设备版本，暂不能开始升级。"; render(); return }
         if (!OtaUpdatePolicy.mayStart(pack.board, DEVICE_BOARD, info.securityCounter, pack.securityCounter)) {
@@ -605,23 +658,27 @@ class MainActivity : Activity() {
                 else "设备安全计数不低于目标固件，不能降级或重复升级。"
             render(); return
         }
-        if (!otaStartGate.acquire()) return
-        mainHandler.removeCallbacks(directPoll)
+        if (!otaStartGate.acquire()) {
+            android.util.Log.i("ShaniuOta", "start generation=$directEpoch skipped=preparing")
+            return
+        }
         val epoch = directEpoch
         otaMessage = "正在准备本机升级来源…"
         setOtaKeepAwake(true)
         render()
         ioExecutor.execute {
+            val started = android.os.SystemClock.elapsedRealtime()
             val opened = runCatching { OtaPackageServer.open(applicationContext, file) }
+            val failure = opened.exceptionOrNull()
+            android.util.Log.i("ShaniuOta", "source generation=$epoch elapsedMs=${android.os.SystemClock.elapsedRealtime() - started} stage=${(failure as? OtaPackageServerException)?.stage ?: "READY"} error=${failure?.javaClass?.simpleName ?: "none"}")
             mainHandler.post {
                 if (epoch != directEpoch || !foreground || destroyed) {
                     opened.getOrNull()?.let { server -> ioExecutor.execute { server.close() } }
                     return@post
                 }
-                mainHandler.postDelayed(directPoll, 2000)
                 val server = opened.getOrNull()
                 if (server == null) {
-                    otaMessage = "无法建立本机升级来源，请检查 Wi‑Fi 和已验证的固件包。"
+                    otaMessage = otaSourceOpenFailureMessage(opened.exceptionOrNull())
                     otaStartGate.release(); setOtaKeepAwake(false)
                     render()
                     return@post
@@ -643,6 +700,8 @@ class MainActivity : Activity() {
                 if (!upload.start()) {
                     otaUpload = null; closeOtaServer(); otaStartGate.release(); setOtaKeepAwake(false)
                     otaMessage = "设备控制通道不可用，未开始升级。"
+                } else {
+                    otaMessage = "升级来源已准备，正在请求设备接受升级。"
                 }
                 render()
             }
@@ -663,6 +722,9 @@ class MainActivity : Activity() {
     }
 
     private fun expectedOtaConfirmed(): Boolean {
+        val sessionState = directSession.current()
+        if (!sessionState.authenticated || otaStatusGeneration != sessionState.generation ||
+            otaStatusReadError != null) return false
         val info = directFirmwareInfo ?: return false
         val expectedVersion = preferences.getString(KEY_OTA_EXPECTED_VERSION, null) ?: return false
         val expectedCounter = preferences.getLong(KEY_OTA_EXPECTED_COUNTER, -1L)
@@ -675,6 +737,9 @@ class MainActivity : Activity() {
     }
 
     private fun confirmExpectedOta() {
+        val sessionState = directSession.current()
+        if (!sessionState.authenticated || otaStatusGeneration != sessionState.generation ||
+            otaStatusReadError != null) return
         val info = directFirmwareInfo ?: return
         val status = otaStatus ?: return
         val version = "${info.major}.${info.minor}.${info.revision}+${info.build}"
@@ -685,7 +750,7 @@ class MainActivity : Activity() {
             otaVerificationPending = false
             closeOtaServer()
             otaStartGate.release(); setOtaKeepAwake(false)
-        } else if (status.state == 3L) {
+        } else if (status.state == 3L && otaVerificationPending) {
             otaMessage = "设备未确认本次升级完成，请根据设备状态重试或恢复。"
             otaUpload?.close(); otaUpload = null; otaVerificationPending = false
             closeOtaServer(); otaStartGate.release(); setOtaKeepAwake(false)
@@ -760,79 +825,48 @@ class MainActivity : Activity() {
     }
 
     private fun connectDirect(device: android.bluetooth.BluetoothDevice, epoch: Long) {
+        if (epoch != directEpoch || !foreground || destroyed) return
         directScanner?.close(); directScanner = null
         directDialog?.dismiss(); directDialog = null
-        directConnecting = true; directMessage = "正在验证并连接傻妞…"; render()
-        val deviceId = provisionedDeviceId
-        ioExecutor.execute {
-            val connection = runCatching { DeviceControlConnection(applicationContext, device, deviceId,
-                { command, snapshot -> mainHandler.post {
-                    if (epoch == directEpoch && foreground && !destroyed) {
-                        if (command.wire in DeviceControlProtocol.Command.OTA_BEGIN.wire..
-                            DeviceControlProtocol.Command.OTA_CANCEL.wire) {
-                            handleOtaResult(command, snapshot, epoch)
-                            return@post
-                        }
-                        directConnecting = false; directPending = false
-                        if (command == DeviceControlProtocol.Command.INFO) {
-                            directFirmwareInfo = snapshot.firmwareInfo
-                            confirmExpectedOta()
-                            if (snapshot.error == 0 && snapshot.firmwareInfo != null &&
-                                preferences.contains(KEY_OTA_EXPECTED_VERSION) && otaStatus == null) {
-                                directOtaRequest(DeviceControlProtocol.Command.OTA_STATUS)
-                            }
-                        } else directSnapshot = snapshot.takeIf { it.error == 0 }
-                        directMessage = if (snapshot.error != 0) "设备未完成操作，请稍后重试。"
-                            else if (command == DeviceControlProtocol.Command.CLEAR_HISTORY) "设备上的近期对话已清空"
-                            else "设备状态已更新"
-                        if (command == DeviceControlProtocol.Command.MEMORY_SET || command == DeviceControlProtocol.Command.MEMORY_DELETE) {
-                            if (snapshot.error != 0) {
-                                memoryResultMessage = null; memoryDesiredEnabled = null; memoryRequestAccepted = false
-                            } else { memoryRequestAccepted = true; directMessage = "正在保存记忆设置…" }
-                        }
-                        if (memoryRequestAccepted && memoryResultMessage != null && snapshot.error == 0 && !snapshot.memoryPending) {
-                            val completed = snapshot.memoryEnabled != null && snapshot.memoryEnabled == memoryDesiredEnabled
-                            if (snapshot.memoryFailed || completed) {
-                                directMessage = if (snapshot.memoryFailed) "记忆操作未确认，请重新连接核对；重启前不要视为已完成。" else memoryResultMessage!!
-                                android.widget.Toast.makeText(this, directMessage, android.widget.Toast.LENGTH_LONG).show()
-                                memoryResultMessage = null; memoryDesiredEnabled = null; memoryRequestAccepted = false
-                            }
-                        }
-                        if (command == DeviceControlProtocol.Command.CLEAR_HISTORY && snapshot.error == 0)
-                            android.widget.Toast.makeText(this, directMessage, android.widget.Toast.LENGTH_SHORT).show()
-                        if (command != DeviceControlProtocol.Command.STATUS && snapshot.error != 0)
-                            android.widget.Toast.makeText(this, directMessage, android.widget.Toast.LENGTH_SHORT).show()
-                        render()
-                    }
-                } },
-                { reason -> mainHandler.post {
-                    if (epoch == directEpoch && !destroyed) {
-                        if (!closeDirect(preserveAcceptedOtaSource = true)) {
-                            directMessage = when (reason) {
-                                "control_timeout" -> "设备控制响应超时，请重新连接后重试。"
-                                "session_timeout", "handshake_timeout", "write_timeout" ->
-                                    "设备连接超时，请重新连接后重试。"
-                                "bluetooth_permission_denied" -> "蓝牙连接权限被拒绝，请允许附近设备权限后重试。"
-                                "service_discovery_failed", "provision_service_missing" ->
-                                    "未发现设备控制服务，请重新选择设备后重试。"
-                                "disconnected" -> "连接已断开，请重新连接后重试。"
-                                else -> "设备连接异常，请重新连接后重试。"
-                            }
-                        }
-                        render()
-                    }
-                } }) }
-            mainHandler.post {
-                if (epoch != directEpoch || !foreground || destroyed) connection.getOrNull()?.close()
-                else connection.fold(onSuccess = {
-                    directConnection = it
-                    mainHandler.removeCallbacks(directPoll)
-                    mainHandler.postDelayed(directPoll, 2000)
-                }, onFailure = {
-                    closeDirect(); directMessage = "无法读取设备控制凭据，请核对认领结果。"; render()
-                })
+        directConnecting = false
+        directMessage = "正在验证并连接傻妞…"
+        directSession.connect(AndroidDeviceControlFactory(applicationContext, device, provisionedDeviceId,
+            ioExecutor, { action -> mainHandler.post { action() }; Unit }))
+    }
+
+    private fun onDirectResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
+        if (destroyed) return
+        if (command.wire in DeviceControlProtocol.Command.OTA_BEGIN.wire..DeviceControlProtocol.Command.OTA_CANCEL.wire) {
+            handleOtaResult(command, snapshot, directEpoch)
+            return
+        }
+        if (command == DeviceControlProtocol.Command.INFO) {
+            confirmExpectedOta()
+            if (snapshot.error == 0 && snapshot.firmwareInfo != null &&
+                (currentTab == TAB_UPDATE || otaStatus != null ||
+                 preferences.contains(KEY_OTA_EXPECTED_VERSION)) &&
+                otaStatusGeneration != directSession.current().generation) {
+                directOtaRequest(DeviceControlProtocol.Command.OTA_STATUS)
             }
         }
+        if (command == DeviceControlProtocol.Command.MEMORY_SET || command == DeviceControlProtocol.Command.MEMORY_DELETE) {
+            if (snapshot.error != 0) {
+                memoryResultMessage = null; memoryDesiredEnabled = null; memoryRequestAccepted = false
+            } else memoryRequestAccepted = true
+        }
+        if (command == DeviceControlProtocol.Command.STATUS && memoryRequestAccepted &&
+            memoryResultMessage != null && snapshot.error == 0 && !snapshot.memoryPending) {
+            val completed = snapshot.memoryEnabled != null && snapshot.memoryEnabled == memoryDesiredEnabled
+            if (snapshot.memoryFailed || completed) {
+                directMessage = if (snapshot.memoryFailed) "记忆操作未确认，请核对设备状态" else memoryResultMessage!!
+                if (foreground) android.widget.Toast.makeText(this, directMessage, android.widget.Toast.LENGTH_LONG).show()
+                memoryResultMessage = null; memoryDesiredEnabled = null; memoryRequestAccepted = false
+            }
+        }
+        if (foreground && command != DeviceControlProtocol.Command.STATUS && snapshot.error != 0) {
+            android.widget.Toast.makeText(this, DeviceControlSession.operationError(snapshot.error), android.widget.Toast.LENGTH_SHORT).show()
+        }
+        if (foreground) render()
     }
 
     override fun onRequestPermissionsResult(code: Int, permissions: Array<out String>, results: IntArray) {
@@ -861,8 +895,8 @@ class MainActivity : Activity() {
                 content.addView(CompanionPortraitView(this), LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, dp(portraitHeight)).apply { bottomMargin = dp(12) })
                 if (bound) {
-                    addCard(if (directSnapshot != null) "已连接傻妞" else "已保存认领结果", directStatus())
-                    if (directSnapshot == null)
+                    addCard(if (directSession.current().authenticated) "已连接傻妞" else "已保存认领结果", directStatus())
+                    if (!directSession.current().authenticated && directSession.current().connection != DeviceControlSession.Connection.CONNECTING && directSession.current().connection != DeviceControlSession.Connection.RECONNECT_WAIT)
                         primaryButton(if (directConnecting) "正在连接…" else "连接我的傻妞", !directConnecting) { scanDirect() }
                     if (directSnapshot?.busy == true && directSnapshot?.memoryPending != true)
                         actionButton("停止这次对话", !directPending) { directRequest(DeviceControlProtocol.Command.CANCEL) }
@@ -885,10 +919,10 @@ class MainActivity : Activity() {
                 addMuted("傻妞是 AI 伴侣，声音由模型合成。")
                 addCard("每一种心情，都值得被听见", "选择聊天的语气，让陪伴更合心意。")
                 addCard("人物设置", directSnapshot?.persona?.let { directPersonas[it] } ?: "连接设备后查看和设置人物风格。")
-                if (directSnapshot != null) {
+                if (directSession.current().authenticated && directSnapshot != null) {
                     directPersonas.forEachIndexed { index, name ->
                         settingsRow(name, directPersonaDescriptions[index],
-                            enabled = !directPending && directSnapshot?.busy == false,
+                            enabled = !directPending && directSession.current().snapshotFresh && directSnapshot?.busy == false,
                             selected = directSnapshot?.persona == index) {
                             directRequest(DeviceControlProtocol.Command.PERSONA, index)
                         }
@@ -901,9 +935,9 @@ class MainActivity : Activity() {
                 addCard("云端语音", "开始对话后，设备采集的语音会发送到你配置的服务，用于识别、回答和合成声音。")
                 addCard("服务凭据", "由手机配置到设备。App 不提供密钥明文回读。")
                 addCard("对话记忆", "默认只保留本次开机的近期上下文。开启跨重启记忆后，设备会加密保存最近三轮对话；关闭会停止读取和保存，已保存内容可单独删除。")
-                if (directSnapshot != null) {
+                if (directSession.current().authenticated && directSnapshot != null) {
                     val memory = directSnapshot!!
-                    val canManage = !directPending && memoryResultMessage == null && memory.ready && !memory.busy && memory.memoryEnabled != null
+                    val canManage = directSession.current().snapshotFresh && !directPending && memoryResultMessage == null && memory.ready && !memory.busy && memory.memoryEnabled != null
                     settingsRow("跨重启记忆", when {
                         !memory.memorySupported -> "设备固件尚未提供此功能"
                         memory.memoryPending -> "正在处理，请稍候"
@@ -935,7 +969,7 @@ class MainActivity : Activity() {
                     }
                     settingsRow("清空近期对话", if (directSnapshot?.busy == true)
                         "请等待当前对话结束" else "让下一次聊天从新的话题开始",
-                        enabled = !directPending && directSnapshot?.ready == true && directSnapshot?.busy == false) {
+                        enabled = directSession.current().snapshotFresh && !directPending && directSnapshot?.ready == true && directSnapshot?.busy == false) {
                         confirm("清空近期对话", "清除设备用于继续聊天的近期上下文。云端服务可能保留的记录不在此清除范围内，人物与配网设置会保留。") {
                             directRequest(DeviceControlProtocol.Command.CLEAR_HISTORY)
                         }
@@ -965,6 +999,15 @@ class MainActivity : Activity() {
                 val localState = directSnapshot
                 val ota = otaStatus
                 if (ota != null) {
+                    val sessionState = directSession.current()
+                    val otaCurrent = sessionState.authenticated &&
+                        otaStatusGeneration == sessionState.generation && otaStatusReadError == null
+                    val otaStaleReason = when {
+                        otaCurrent -> ""
+                        !sessionState.authenticated -> "\n当前未连接；连接后读取设备实际升级状态。"
+                        otaStatusReadError != null -> "\n当前连接读取升级状态失败；正在重新读取。"
+                        else -> "\n当前连接正在重新读取升级状态。"
+                    }
                     val percent = if (ota.progress != null && ota.total != null && ota.total > 0)
                         ((ota.progress * 100L) / ota.total).coerceIn(0L, 100L) else null
                     val label = when (ota.state) {
@@ -987,11 +1030,14 @@ class MainActivity : Activity() {
                         else -> "未知阶段（${ota.phase}）"
                     }
                     val result = if (ota.result == 0) "无错误" else "设备错误 ${ota.result}"
-                    addCard("设备升级状态", "$label\n阶段：$phase\n" +
-                        "进度：${percent?.let { "$it%" } ?: "未知"}\n" +
-                        "结果：$result")
+                    val body = if (ota.state == 0L && ota.result == 0)
+                        "当前没有进行中的升级任务。" else "$label\n阶段：$phase\n" +
+                        "进度：${percent?.let { "$it%" } ?: "未知"}\n结果：$result"
+                    addCard(if (otaCurrent) "设备升级状态" else "设备升级状态（上次读取）",
+                        body + otaStaleReason)
                 }
                 if (otaMessage.isNotBlank()) addMuted(otaMessage)
+                otaStatusReadError?.let(::addMuted)
                 val canStart = inspectedFirmware != null && selectedFirmwareFile != null &&
                     localState?.otaSupported == true && directConnection != null &&
                     otaUpload == null && !directPending
@@ -1012,11 +1058,10 @@ class MainActivity : Activity() {
                     if (bound) directStatus() else "先连接你的设备，再设置声音和聊天风格。")
                 if (!bound) primaryButton("添加我的傻妞", !busy) { startProvisioning() }
                 else {
-                    if (directSnapshot == null)
+                    if (!directSession.current().authenticated && directSession.current().connection != DeviceControlSession.Connection.CONNECTING && directSession.current().connection != DeviceControlSession.Connection.RECONNECT_WAIT)
                         primaryButton(if (directConnecting) "正在连接…" else "连接我的傻妞", !directConnecting) { scanDirect() }
-                    settingsRow("扬声器音量", directSnapshot?.volume?.let { "$it%" }
-                        ?: "连接设备后设置", enabled = directSnapshot?.volume != null &&
-                        !directPending && directSnapshot?.busy == false) { editDirectVolume() }
+                    val volumeControl = DeviceControlPresentation.volume(directSession.current())
+                    settingsRow("扬声器音量", volumeControl.reason, enabled = volumeControl.enabled) { editDirectVolume() }
                     settingsRow("聊天风格", directSnapshot?.persona?.let { directPersonas[it] }
                         ?: "选择你喜欢的陪伴方式") { selectTab(TAB_PERSONALITY); render() }
                     settingsRow("设备配置", "配网与添加结果核对", !busy) { startProvisioning() }
@@ -1956,6 +2001,9 @@ class MainActivity : Activity() {
     private fun isCurrent(epoch: Long): Boolean = !destroyed && epoch == connectionEpoch
 
     private fun startProvisioning(developerMode: Boolean = false) {
+        // The provisioning transaction uses the same GATT service. Release
+        // daily control before handing ownership to that Activity.
+        directSession.disconnect(user = false)
         startActivityForResult(
             Intent(this, ProvisionActivity::class.java)
                 .putExtra("developer_mode", developerMode),
