@@ -30,6 +30,9 @@
 `0004-graph-error-recovery-progress.patch` 修改 `server/audio_graph.c`，
 处理格式协商和错误后的拆链；`0005-player-eof-drain.patch` 修改
 `server/media_player.c`，保留 EOF 后尚未播放的数据直到排空。均保留 Apache-2.0。
+`0006-player-output-release.patch` 基于同一 Media 提交的 `server/media_player.c`，
+保留 Apache-2.0；设备释放和 graph unlink 确认后才发布播放终态，避免软件队列
+排空早于硬件完成。它是构建时应用的本地未合入补丁。
 `bk7258_voice_trigger_model.c` 为本项目适配，
 推理及前处理仍取下表 TFLM 版本。`frameworks/cmake/tflm.cmake` 选择 Ruy
 实际检出 `cf455c059506d2f64103d7cbb640b99e816b23c7` 的 Apache-2.0
@@ -56,6 +59,10 @@
 `0006-opt-respect-format-enum-width.patch` 基于同版本 `libavutil/opt.c`，
 保留 LGPL-2.1-or-later；格式选项读取使用 API 声明的枚举类型，消除 ARM
 短枚举下的四字节越界读写，与已有数值读写处理一致，沿用同一源码视图。
+`0007-output-drain-release.patch` 基于同一 FFmpeg 提交的
+`libavdevice/nuttx.[ch]`、`nuttx_enc.c`、`libavfilter/asink_adevsink.c` 和
+`asrc_abufsrc.c`，保留 LGPL-2.1-or-later；将独占输出的设备 COMPLETE/RELEASE
+传递到 graph unlink，并保留设备错误。补丁只在生成源码视图应用。
 
 官方 Agent 扩展基于 `open-vela/packages_ai_agent` 提交
 `41723c61725c4e845bfee724f3ad2fafc416b6e1`，许可 Apache-2.0。
@@ -82,6 +89,8 @@
 | `0005-external-network-configuration.patch` | `src/infra/network_manager.c` | 原硬件网络路径固定通过 shell/wapi 重新配置 Wi-Fi；补观察既有网络服务的通用选择。 |
 | `0006-optional-service-startup.patch` | `src/agent_main.c`、`src/tools/tool_registry.c` | CLI、WebSocket、cron、heartbeat 默认无条件启动；补通用构建选择，正式产品关闭无需求的模块。 |
 | `0007-voice-auto-endpoint.patch` | `include/voice/{audio_capture,voice_asr,voice_tts}.h`、`src/{agent_main.c,core/{agent_loop,message_bus.[ch]},llm/llm_proxy.[ch],tools/{skill_loader,tool_registry}.c,voice/{audio_capture,voice_asr,voice_channel.[ch],voice_tts}.c}` | 上游没有产品所需的单轮终态关联、自动端点和端到端取消边界：补 voice request ID/终态及自动端点；message bus/Agent/outbound 透传结果；受控外部 LLM transport 与开始前取消检查；可选 capture route 回调；工具和 builtin skills 按既有或新增 Kconfig 选择。它们是通用接口扩展，不含板号、厂商传输或产品状态机。 |
+| `0008-playback-wait-output-release.patch` | `src/voice/audio_playback.c` | 等待 Media 的输出释放终态后才销毁播放资源；关闭失败保留回调所有者，有界等待不以固定延时替代完成事件。 |
+| `0009-camera-device-format.patch` | `src/tools/tool_camera.c`、`src/llm/{llm_proxy.c,llm_internal.h,llm_vision.c}` | 通过 V4L2 枚举固定 JPEG 尺寸并校验返回缓冲边界；视觉请求接受已选择的外部鉴权传输，不要求通用客户端另存一份 API key。 |
 
 这些通用选项暂由团队 `app/bk7258/Kconfig` 声明，因为官方 Kconfig 在 CMake
 派生源码之前已被读取；没有声称构建期改写 Kconfig 生效。配置同启官方 Agent 与
@@ -91,6 +100,8 @@
 `0002` 至 `0006` 本轮未改；`0007` 同样只应用于构建派生副本。官方 pin 仍为
 `41723c61725c4e845bfee724f3ad2fafc416b6e1`，官方 checkout 未编辑；构建派生确实
 应用补丁。以上是来源和构建输入说明，不表示已部署或语音链路已验证。
+`0008`、`0009` 也基于同一官方 pin，保留 Apache-2.0，并由同一构建入口应用；
+播放与相机的实际部署和验收范围以现有 Master Plan 当前状态为准。
 
 `app/bk7258/bk7258_cloud_audio.[ch]` 从本仓 cloud client 提取现有音频服务协议；
 `bk7258_agent_cloud.[ch]` 在官方 ops 下注册 MiMo/OpenAI 音频协议，持有配置快照、
@@ -219,6 +230,13 @@ X509Certificate 和 MessageDigest API，没有复制密码库或上游 Bluetooth
 测试身份由本机 JDK keytool 临时生成，测试结束删除，不包含真实设备凭据。
 
 ## 摄像头与 SDIO 录像适配
+
+- `chips/bk7258/bk_idk/sdk-profiles/v3.1.1.9/cp-flash-notification-errors.patch`
+  基于 `https://github.com/Embracecactus/bk_avdk_smp` 固定提交
+  `cb080de1655d579c7593ecf504c440997c4c137b`（v3.1.1.9）的
+  `cp/middleware/driver/flash/{flash_notify,flash_driver}.c`，保留 Beken Apache-2.0。
+  它传播跨核 ACK 耗尽和 prepare/finish 错误，平衡调度与锁清理；仅在 `cp-aidk`
+  的临时构建克隆应用。该修复不等于 App OTA 写后校验故障已解决。
 
 - `nuttx/drivers/video/gc2145.c`、公开头文件及板级回调为本项目 Apache-2.0
   实现。控制寄存器依据 GalaxyCore GC2145 CSP DataSheet V1.0

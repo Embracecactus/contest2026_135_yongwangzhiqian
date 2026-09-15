@@ -1,0 +1,209 @@
+Subject: [PATCH] player: retain the graph owner until output release
+
+Local, not upstream. Applies after the existing pinned-source patch series.
+SPDX-License-Identifier: Apache-2.0
+
+--- a/server/media_player.c
++++ b/server/media_player.c
+@@ -81,6 +81,7 @@
+     MEDIA_PLAYER_STATE_PREPARED,
+     MEDIA_PLAYER_STATE_STARTED,
+     MEDIA_PLAYER_STATE_PAUSED,
++    MEDIA_PLAYER_STATE_DRAINING,
+     MEDIA_PLAYER_STATE_STOPPED,
+     MEDIA_PLAYER_STATE_COMPLETED,
+ };
+@@ -177,6 +178,8 @@
+ 
+     /* audio or video output */
+     int audio_output_state;
++    int output_terminal_event;
++    int output_result;
+     AVFilterContext* audio_output;
+     MediaVOutputContext* video_output;
+ } MediaPlayerContext;
+@@ -190,6 +193,8 @@
+  ****************************************************************************/
+ static int media_player_seek(MediaPlayerContext* ctx, uint32_t ms, int flush);
+ static int media_player_start(MediaPlayerContext* ctx);
++static int media_player_finish_output(MediaPlayerContext* ctx);
++static int media_player_end_output(MediaPlayerContext* ctx, int event, int result);
+ static int media_player_stop(MediaPlayerContext* ctx);
+ static void media_player_poll(MediaPlayerContext* ctx);
+ static AVFrame* media_player_queue_pop(MediaPlayerContext* ctx, int type);
+@@ -209,7 +214,7 @@
+ {
+     int is_exit;
+     pthread_mutex_lock(&ctx->mutex);
+-    is_exit = ctx->exit && (!ctx->audio_output_state || !ctx->audio_stream);
++    is_exit = ctx->exit && !ctx->audio_output_state && !ctx->output_terminal_event;
+     pthread_mutex_unlock(&ctx->mutex);
+     return is_exit;
+ }
+@@ -288,6 +293,8 @@
+         MEDIA_INFO("ctx %p received unlink event form audio_output.", ctx);
+         pthread_mutex_lock(&ctx->mutex);
+         ctx->audio_output_state = 0;
++        if (args < 0 && !ctx->output_result)
++            ctx->output_result = (int)args;
+         write(ctx->event_fd, &cnt, sizeof(cnt));
+         pthread_mutex_unlock(&ctx->mutex);
+         return 0;
+@@ -364,7 +371,7 @@
+ {
+     int ret;
+ 
+-    if (ctx->state >= MEDIA_PLAYER_STATE_STOPPED)
++    if (ctx->state >= MEDIA_PLAYER_STATE_DRAINING)
+         return 0;
+ 
+     /* As long as one data queue less than nb_queue_max, continue read */
+@@ -1014,17 +1021,10 @@
+         }
+     }
+ 
+-    if (media_player_is_queue_empty(ctx)) {
+-        if (ret == AVERROR_EOF)
+-            ret = 0;
+-        ctx->state = MEDIA_PLAYER_STATE_COMPLETED;
+-        media_player_event_cb(ctx, MEDIA_EVENT_COMPLETED, ret, NULL);
+-    }
+-
+-    if (!ctx->pending_stop)
+-        return ret;
+-
+-    return media_player_stop(ctx);
++    if (media_player_is_queue_empty(ctx))
++        return media_player_end_output(ctx, MEDIA_EVENT_COMPLETED,
++                                       ret == AVERROR_EOF ? 0 : ret);
++    return ret;
+ }
+ 
+ static int media_player_seek(MediaPlayerContext* ctx, uint32_t ms, int flush)
+@@ -1124,6 +1124,9 @@
+     ctx->loop_count = 0;
+     ctx->offload = 0;
+     ctx->pending_stop = 0;
++    ctx->output_terminal_event = 0;
++    ctx->output_result = 0;
++    ctx->audio_output_state = 0;
+     ctx->event = 0;
+     av_freep(&ctx->audio_stream);
+     av_freep(&ctx->video_stream);
+@@ -1179,30 +1182,68 @@
+     return 0;
+ }
+ 
++/* Software queues becoming empty only initiates unlink. The graph owns the
++ * callback until the exclusive sink has drained and released its device. */
++static int media_player_finish_output(MediaPlayerContext* ctx)
++{
++    int event, result;
++    pthread_mutex_lock(&ctx->mutex);
++    event = ctx->output_terminal_event;
++    if (!event || ctx->audio_output_state) {
++        pthread_mutex_unlock(&ctx->mutex);
++        return AVERROR(EAGAIN);
++    }
++    result = ctx->output_result;
++    ctx->output_terminal_event = 0;
++    pthread_mutex_unlock(&ctx->mutex);
++
++    if (event == MEDIA_EVENT_STOPPED) {
++        if (ctx->video_output && ctx->video_stream)
++            media_video_output_close(&ctx->video_output);
++        media_player_close_demuxer(ctx);
++        ctx->pending_stop = 0;
++        ctx->state = MEDIA_PLAYER_STATE_STOPPED;
++    } else {
++        ctx->state = MEDIA_PLAYER_STATE_COMPLETED;
++    }
++    media_player_event_cb(ctx, event, result, NULL);
++    if (ctx->pending_stop)
++        return media_player_stop(ctx);
++    return 0;
++}
++
++static int media_player_end_output(MediaPlayerContext* ctx, int event, int result)
++{
++    int active, ret = 0;
++    pthread_mutex_lock(&ctx->mutex);
++    if (result < 0 && !ctx->output_result)
++        ctx->output_result = result;
++    if (ctx->output_terminal_event && event != MEDIA_EVENT_STOPPED) {
++        pthread_mutex_unlock(&ctx->mutex);
++        return AVERROR(EAGAIN);
++    }
++    ctx->output_terminal_event = event;
++    ctx->state = MEDIA_PLAYER_STATE_DRAINING;
++    active = ctx->audio_output_state & MEDIA_AUDIO_OUTPUT_STARTED;
++    /* STARTING means no graph callback was installed yet. */
++    if (!active)
++        ctx->audio_output_state = 0;
++    pthread_mutex_unlock(&ctx->mutex);
++
++    if (active && ctx->audio_output) {
++        ret = audio_graph_stop(ctx->audio_output);
++        if (ret < 0) {
++            MEDIA_ERR("output unlink failed: %d; retaining owner", ret);
++            return ret;
++        }
++    }
++    return media_player_finish_output(ctx);
++}
++
+ static int media_player_stop(MediaPlayerContext* ctx)
+ {
+-    if (ctx->state == MEDIA_PLAYER_STATE_STOPPED)
+-        return 0;
+-
+     media_player_clear_queue(ctx, MEDIA_PLAYER_DATA_QUEUE_IDX);
+-
+-    if (ctx->audio_output && ctx->audio_stream)
+-        audio_graph_stop(ctx->audio_output);
+-
+-    if (ctx->video_output && ctx->video_stream)
+-        media_video_output_close(&ctx->video_output);
+-
+-    media_player_close_demuxer(ctx);
+-
+-    pthread_mutex_lock(&ctx->mutex);
+-    ctx->audio_output_state = 0;
+-    pthread_mutex_unlock(&ctx->mutex);
+-
+-    ctx->pending_stop = 0;
+-    ctx->state = MEDIA_PLAYER_STATE_STOPPED;
+-
+-    media_player_event_cb(ctx, MEDIA_EVENT_STOPPED, 0, NULL);
+-    return 0;
++    return media_player_end_output(ctx, MEDIA_EVENT_STOPPED, 0);
+ }
+ 
+ static int media_player_start(MediaPlayerContext* ctx)
+@@ -1225,6 +1266,8 @@
+     media_player_set_avsync_mode(ctx);
+ 
+     pthread_mutex_lock(&ctx->mutex);
++    if (ctx->state != MEDIA_PLAYER_STATE_PAUSED)
++        ctx->output_result = 0;
+     if (ctx->audio_stream
+         && ff_framequeue_queued_frames(&ctx->audio_stream->queue)
+             >= ctx->audio_stream->nb_queue_max) {
+@@ -1876,6 +1919,17 @@
+             media_player_proc_cmd(ctx, msg);
+         }
+ 
++        /* A device error can arrive while the demuxer still has data. It
++         * terminates this player; it must not wait for a hypothetical EOF. */
++        pthread_mutex_lock(&ctx->mutex);
++        int output_error = ctx->output_result;
++        pthread_mutex_unlock(&ctx->mutex);
++        if (output_error < 0 && ctx->state < MEDIA_PLAYER_STATE_DRAINING) {
++            media_player_clear_queue(ctx, MEDIA_PLAYER_DATA_QUEUE_IDX);
++            media_player_end_output(ctx, MEDIA_EVENT_COMPLETED, output_error);
++        }
++        media_player_finish_output(ctx);
++
+         if (media_player_dat_available(ctx) && media_player_proc_dat(ctx) >= 0) {
+             write(ctx->event_fd, &cnt, sizeof(cnt));
+         }

@@ -2,7 +2,143 @@
 
 状态：`IN_PROGRESS`
 
-## 2026-09-15 当前迁移状态（4c22a945）
+## 2026-09-15 比赛冲刺当前状态（基于 4da7f80e）
+
+状态仍为 `IN_PROGRESS`。`4da7f80e` 与已提交的 `073fb7ec` 内容树相同；本节之后
+的 531/532 记录是历史失败证据，不继承为新版本通过。源码、增量构建、下载和实板验收分别记录。
+
+- 当前聚焦 CP HardFault、播放完成/MIC 恢复和 App OTA 写入校验三项阻塞。
+  没有训练、依赖升级、额外测试平台或旧语音 runtime 回退。
+- 已核对 531 CP 签名段解码后的完整载荷与故障分析时的 CP BIN 一致。
+  `PC=0/CFSR=00020000/LR=02016747` 仍未定位根因。新的只读 procfs 显示 OTA
+  线程栈在片内 SRAM，BLE 栈在 CP PSRAM；不能将两类故障直接归为 PSRAM 栈问题。
+  现有 HardFault UART 记录补发已经保存的 R0–R3/R12，不改变异常或复位策略。
+  历史 `voice521-522-retained-build/cp.elf` 的 SHA256 为
+  `8a6568bc33eea71d96cee845ce165de54dc4294beadc09325f59ad7a08ce4b77`，与 531
+  故障产物一致；522、526、531 的 CP raw SHA256 均为
+  `eced44137d444dbb51a4584a52b01f30938832d4b9c2da1c483e4f6f23c448ac`。
+- 本地 FFmpeg 0007、Media 0006、Agent 0008 补丁接通独占 Music 路径的设备
+  FINAL/COMPLETE、STOP/RELEASE、graph unlink、Media 终态和 playback close。
+  普通结束等待设备释放；取消/失败保留清理回调，等待有界。没有 sleep 或假 latency。
+  官方 checkout 无受跟踪修改；这些是构建时应用的本地未合入补丁。
+  533 单次独立合成物理回放中，设备日志顺序为 pcm0p complete（09:52:09.765531）
+  → voice request complete（09:52:09.804281）→ Trigger rearm（09:52:10.094344）。
+  125 秒观察内无 CP HardFault、MIC -EBUSY 或 pcm0p IOERR；这不证明 CP 根因已修复。
+- CP SDK `cp-flash-notification-errors.patch` 修复 ACK 循环耗尽仍成功和擦写忽略
+  prepare/finish 错误。只重建 `cp-aidk`，SDK pin 不变，bundle tree 从
+  `d62004bf57db326149324184cf3c818914d77f46c66ad5ef8d053b67569c68d0` 更新为
+  `86ca1ff783e9ea357eee646903e9f34d2b02ff1012de238e3e23c570e4b20fb1`。
+  AP SDK 不变。它不补充 AP 停核协议，也不证明 532 读回不一致根因已解决。
+  校验仍失败关闭，补充记录失败后重读是否匹配，不重试写入或放宽接受条件。
+- `sprint-p1-build.log`、`sprint-cp-sdk-build.log`、`sprint-p2-build.log` 均成功。
+  533 调试包通过既有信任校验，包 SHA256 为
+  `3fcea09f248c96004e6a1d50d5501d8db909ab3e940b40a4aab19484a1e3b405`。
+  下载前回读是 531/A confirmed；此次仅授权范围内 B 槽 CP `0x2ca000+0x132000`、
+  AP `0x3fc000+0x187000`，保留 A/数据/启动信任。下载完成并确认 533/B、counter533；
+  受控下载不计作 App OTA 通过。证据：`hil533-bootstrap/`、`voice533-boot.raw`。
+- `sprint-camera-final-build.log` 的 camera/vision 增量构建成功（此前
+  `sprint-camera-build.log` 是格式日志修正前的构建）。AP 角色
+  `bk7258-role-3cfae67149d8362b` 的 raw 为 1478500B / SHA256
+  `e076b62b5809e3e36906b61512d0664c21b3c2f2ff5aced0d467a31c1973f5a3`；CP 复用
+  `d7443a041021ef71d86beead193d6e36a5f48eb3ca10335944ea0031083e255f`。
+  解析配置启用 `CONFIG_AI_AGENT_CAMERA`、`CONFIG_VIDEO` 和
+  `CONFIG_AI_AGENT_NETWORK_EXTERNAL`，链接图含 `tool_camera`、`tool_vision`、
+  `llm_vision`。本地 0009 补丁只让原 camera_capture 在固定尺寸 V4L2 JPEG
+  设备上协商格式并校验缓冲边界；已编入不等于 `/dev/video0`、外置 LLM 传输或当次
+  图片工具已经在实板验证。
+- 533 独立合成物理回放 1 次尝试、1 次接受，Mi10 扬声器→MIC→官方 Trigger/自动收音
+  → MiMo 批处理 ASR→官方 Agent/LLM→MiMo 全文本、逐块音频 TTS→Media 排空→重新监听。
+  证据 `voice533-acoustic-r1*`。App 21/0.5.16-shaniu-ota 重新读取当前词为“你好冰冰”，
+  设备实际模型 nihao_bingbing / SHA256
+  `2ced56715079b8dcbed076ceef95d6340098949c7e52aea9001810baced15040`。
+- 533 的无有效语音观察 1 次：录音 4.97 秒后 request2 返回 `-ENODATA`（-61），
+  Media 关闭 MIC 后 Trigger 重新监听，之后持续收到 MIC 帧。紧接的普通语音观察
+  1 次尝试、1 次唤醒、request3 complete=0，10:50:49.685562 pcm0p complete
+  → 49.706281 output_released → 49.723531 request complete → 50.015000 Trigger rearm。
+  证据 `voice533-no-speech-r1*`（65 秒）、`voice533-after-no-speech-r1*`（85 秒）；
+  均为已有独立合成素材经手机扬声器回放，均未观察到 HardFault。没有改变门限、
+  注入事件或发送无语音请求到云端；尚不构成最终候选三轮连续验收或真人效果验证。
+- 首次 533→534 真实 App OTA 启动一次，534 包 SHA256 为
+  `fc654c2a44acb2f8371c01eded41fda012bfed5e22843cf162a005f70080fd1d`。
+  10:09:20 在 A 槽 AP 偏移 356352、地址 `0x0019afa4` 校验失败：missing_zero_bits=5、
+  extra_zero_bits=0、stable=1、reread_matches_expected=0，manager-apply=-5/staged=0。
+  App 显示设备错误 -5，仍回读 533；Trigger 随后恢复。A 槽已被失败升级部分覆盖，
+  不能继续视为完整 531 恢复槽；当前 B/533 confirmed 保持有效。证据 `app534-ota.raw`、
+  `app534-final-ui.xml`。SDK ACK 修复未解决此故障，当时停止重复发送；后续有新观察条件的
+  同包恢复尝试另列于下方。
+  对照历史 `app-ota-522-confirmed.json` 与 525→526 日志，两次确有 App OTA 成功；
+  522 至迁移基线的 CP 固件完全相同，AP Flash 通知接收也仍在。优先比较 AP 迁移后的
+  实际运行/跨核条件；历史已有间歇 Flash 校验失败，尚不能将本次根因归为迁移或硬件。
+- 已用既有受信身份生成 535 的 CP/AP OTA 开发包（未安装），版本 `18.6.363+535`，
+  2859879B / SHA256 `b7f2c8a77d8a3769e86ee6118713f4e3ecf3f431c2fa4e34a52e75eeff8564ac`。
+  `verify535-package.log`、`verify535-trust.log` 均通过；对应 ELF/map/config/BIN 冻结于
+  `voice535-ota/debug/`，没有重签 BL1/BL2。它包含当次图片接线，不包含已证明有效的
+  OTA 校验根因修复；生成时尚未再次 App OTA，不作为稳定比赛候选。
+  当时 App `app533-after-recovery-ui.xml` 回读 533/counter533 和 534 升级失败 -5。
+  随后独立读取失败扇区 `0x0019a000+0x1000` 与 534 目标载荷比较；只读工具无
+  软件复位选项，需要现场硬件 RESET 配合。第一轮只读工具打开 COM8，但 GetBus
+  超时，未生成扇区文件（工具退出码 0 不代表读取成功），证据
+  `flash534-failed-sector-read-r1.log`。宿主曾因审批模型容量拒绝执行，随后已恢复。
+  第二轮实际成功接管、报告读取完成，但工具错误拼接 UNC 输出路径，未生成文件；
+  不能据 Read Flash OK 宣称已拿到数据（`flash534-failed-sector-read-r2.log`）。
+  改用短文件名后的第3/4轮接管超时。第5轮通过立即最终消息提示松开而接管成功，
+  但文件名遗漏 `.bin` 导致工具实际只读地址0，不能用于本故障判断；未发生写入。
+  第6轮使用短文件名加 `.bin@0x0019a000-0x1000`，成功保存目标4096B：SHA256
+  `652e922d15e12ab12fa800bc738f90375bf57020f4d59b6f2fcbac76fdf6a1bb`。独立Loader回读
+  仍只有 `0x0019afa4` 从应有 `0x98` 变成 `0xff`，5个missing_zero_bits，其余4095B
+  与534目标一致，证明错误持久存在；不能仅归为运行时校验读错。证据
+  `flash534-failed-sector-read-r6.{bin,log,comparison.json}`。
+  为区分介质与运行时编程路径，已沿同板有界下载授权，仅向失败闲置A槽
+  `0x0019a000+0x1000` 下发534已验签AP载荷的对应4096B；原失败数据已保存，
+  B/533 confirmed、manager idle、USB CDC 已在操作前回读。来源切片SHA256
+  `95480bce9f01e6bc74031b08d2697f11633f62d3320af20618ed3f21980ce395`，证据
+  `hil534-sector-program/`，下载报告成功。工具日志使用64K Erase文案，实际擦除边界
+  当时尚须独立回读A槽 `0x190000+0x10000` 核对邻区。它不是新固件安装或App OTA通过。
+  后续64KiB只读在21:08:41（本地时间）握手成功，确认起址和长度后进入ReadFlash，
+  随即LinkCheck Timeout，60秒有界停止且未生成文件（`flash534-after-rom-read.log`）。
+  不能据此判定目标写入或邻区完整性。后续使用现有CLI支持的逗号分段读取，
+  将相同64KiB范围拆为16个4KiB；4KiB大小已有第6轮成功依据。分段首轮于21:12:37
+  在握手阶段GetBus fail，未进入ReadFlash、没有文件（`flash534-after-rom-read-sectors.log`），
+  不能用于判断分段参数或Flash数据。分段第2轮成功保存0x190000至0x196fff共7个扇区，
+  28672B逐字节匹配534 AP载荷，已读取邻区未丢失；随后第8段失联，目标扇区仍未取得。
+  证据`flash534-after-rom-read-sectors-r2.{log,result.json}`及逐扇区BIN。60秒有界停止，
+  未写Flash。随后目标优先的3段只读全部完成（`flash534-after-rom-read-target.{log,result.json}`）：
+  0x19a000扇区4096B完全匹配534载荷，SHA256为前述95480bce…ce395；相对失败原件，
+  仅偏移4004由0xff变为0x98。前邻区0x199000也匹配，后邻区0x19b000全为0xff，
+  符合失败后尚未写到的记录。只能证明该位置本次Loader编程成功，不能宣称App OTA修复。
+  回读后仍为B/533 confirmed、manager idle（`flash534-after-rom-board-status.raw`）。
+  利用533已编译的NSH `xd`及同版CP ELF只读取得SDK状态：ID=c86517、容量8MiB、
+  线模式4、时钟选择字段1/分频字段1（`flash533-runtime-config-read.raw`）。这些是
+  控制器/SDK事实，不能单凭JEDEC ID确定封装内Flash的外部器件时序条件或故障根因。
+  Git提交`6b79a1bfa`（2026-08-03）已在[N5硬件结论](nuttx-port/n5-flash-filesystem.md)
+  与[N15接口边界](nuttx-port/n15-ota-source-verification.md)明确集成Flash及外部手册仅作旁证；
+  本轮漏查该既有结论，新增时钟方案已撤回，未生成或部署新固件。SDK已恢复为
+  原86ca1ff7…0fb1，恢复构建PASS（`sprint-cp-sdk-restore-approved.log`），既有ACK修复保留。
+- 535 包已通过现有签名校验并在 App 选择；14:06:42 UTC 的真实 App START 被设备
+  接受，但随后 `stage=intent result=-114 staged=0`，未进入镜像擦写。当前仍为
+  533/B confirmed。上次 534 的受保护 DOWNLOADING 事务已记录目标，现有恢复契约
+  只接受相同 catalog 的 RESTAGE；不能清除事务或换包绕过。证据 `app535-ota.raw`
+  与 `app535-start-actions.json`，不记为 535 部署或 Flash 写入诊断通过。
+  现有 NSH `xd 44030024 8` 读到 CRC 开启、计数为0；该计数属于 Flash→CPU
+  读取路径，不等于编程成功或 OTA 写后校验，零值不能排除实际写入错误。
+- 按同一受保护 catalog 重供原534包，14:13:30 UTC接受，14:17:00再次真实校验失败：
+  地址`0x0027b4a4`、AP偏移1277952，missing_zero_bits=3、extra_zero_bits=0，
+  两次读回一致且均不匹配；没有再次重试写入。`app534-crc-ota.raw` SHA256
+  `e0a6d7460a12d8eabd1daa9b8a796c9f11df6a238db1c0e576f501a3be25b9bc`，
+  `app534-crc-final-ui.xml`回读仍533/计数533、失败-5。600秒记录中10次CRC读数
+  都为0且检查开启，没有HardFault，失败后Trigger恢复MIC帧；不构成OTA或稳定候选通过。
+  失败后用533 CP ELF定位、只读SRAM `g_bk7258_ota_write_sector` 4096B，与签名包
+  对应扇区完全一致（SHA256 `4b45a463c95763066a20da798a59725bc77d310e7b521ed61b171fed21d75d38`）；
+  证据`app534-crc-retained-buffer-compare.json`，不代表已排除SDK内部瞬态错误。
+  实际ELF的SDK临界区使用BASEPRI=0x80，纠正先前按配置推断PRIMASK的错误；
+  `flash533-nvic-read.raw`回读64个外部IRQ优先级均0x80，因此没有外部IRQ穿过该阈值的证据。
+  实际AP链接的Flash client经IPC到CP，未发现AP直接操作Flash FIFO的实链。
+  写入故障仍未定位，未调整时钟、屏蔽异常、增加写入重试或放宽校验。
+- 三轮连续普通交互、当次拍照、App 控制/模型切换及成功 App OTA 尚未在本候选集中验收。
+  camera_capture 与外置 LLM 传输现已编入，App persona/云模型写入和按键仍待必要迁移。
+  现场真人效果未验证；本地 TTS 引擎/模型未验证，旧加密长期记忆保留未迁移。
+
+## 2026-09-15 历史迁移证据（4c22a945 至 531/532）
 
 本轮增量基于已合并的 `4c22a945`，其父提交为 `447b91fa`；没有依赖升级，官方 Agent、Media、
 NuttX 与 apps 均保持原 pin。本轮仍是产品适配迁移，不将旧 voice runtime 重新作为

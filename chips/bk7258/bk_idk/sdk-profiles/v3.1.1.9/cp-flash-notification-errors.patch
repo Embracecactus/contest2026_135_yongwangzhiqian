@@ -1,0 +1,167 @@
+Subject: [PATCH] flash: fail mutations when cross-core notification is not acknowledged
+
+Local CP SDK fix against the pinned v3.1.1.9 source. Keep scheduler and
+mutex release balanced on preparation or finish errors. This does not
+implement an AP pause protocol or relax Flash readback verification.
+Original source license is unchanged.
+SPDX-License-Identifier: Apache-2.0
+
+--- a/cp/middleware/driver/flash/flash_notify.c
++++ b/cp/middleware/driver/flash/flash_notify.c
+@@ -104,7 +104,7 @@
+ 		}
+ 	}
+ 
+-	return BK_OK;
++	return flash_erase_ipc_state == IPC_FLASH_OP_ACK ? BK_OK : BK_FAIL;
+ }
+ 
+ bk_err_t mb_flash_op_prepare(void)			// CPU0 notify CPU1 before flash operation
+--- a/cp/middleware/driver/flash/flash_driver.c
++++ b/cp/middleware/driver/flash/flash_driver.c
+@@ -150,35 +150,46 @@
+ }
+ #endif
+ 
+-static void flash_lock(void)
+-{
++static bk_err_t flash_lock(void)
++{
++	bk_err_t ret;
+ 	if(rtos_is_in_interrupt_context() || rtos_local_irq_disabled())
+ 	{
+-		return;
++		return BK_OK;
+ 	}
+ 
+ #ifdef CONFIG_FREERTOS_SMP
+ 	rtos_lock_mutex(&s_flash_mutex);
+ #endif
+ 	vTaskSuspendAll();
+-
+-	mb_flash_op_prepare();
+-}
+-
+-static void flash_unlock(void)
+-{
++	ret = mb_flash_op_prepare();
++	if (ret != BK_OK)
++	{
++		/* A delayed START must still be paired with END, but no Flash
++		 * mutation is permitted without a successful prepare. */
++		mb_flash_op_finish();
++		xTaskResumeAll();
++#ifdef CONFIG_FREERTOS_SMP
++		rtos_unlock_mutex(&s_flash_mutex);
++#endif
++	}
++	return ret;
++}
++
++static bk_err_t flash_unlock(void)
++{
++	bk_err_t ret;
+ 	if(rtos_is_in_interrupt_context() || rtos_local_irq_disabled())
+ 	{
+-		return;
+-	}
+-
+-	mb_flash_op_finish();
+-
++		return BK_OK;
++	}
++
++	ret = mb_flash_op_finish();
+ 	xTaskResumeAll();
+-
+ #ifdef CONFIG_FREERTOS_SMP
+ 	rtos_unlock_mutex(&s_flash_mutex);
+ #endif
++	return ret;
+ }
+ 
+ #endif
+@@ -683,13 +694,13 @@
+ 		return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
+ 	}
+ 
+-	flash_lock();
+-
+-	bk_err_t ret_val = flash_erase_no_lock(address, FLASH_OP_CMD_SE);
+-
+-	flash_unlock();
+-
+-	return ret_val;
++	bk_err_t ret_val = flash_lock();
++	if (ret_val != BK_OK)
++		return ret_val;
++
++	ret_val = flash_erase_no_lock(address, FLASH_OP_CMD_SE);
++	bk_err_t finish_ret = flash_unlock();
++	return ret_val != BK_OK ? ret_val : finish_ret;
+ }
+ 
+ bk_err_t bk_flash_erase_32k(uint32_t address)
+@@ -699,13 +710,13 @@
+ 		return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
+ 	}
+ 
+-	flash_lock();
+-
+-	bk_err_t  ret_val = flash_erase_no_lock(address, FLASH_OP_CMD_BE1);
+-
+-	flash_unlock();
+-
+-	return ret_val;
++	bk_err_t ret_val = flash_lock();
++	if (ret_val != BK_OK)
++		return ret_val;
++
++	ret_val = flash_erase_no_lock(address, FLASH_OP_CMD_BE1);
++	bk_err_t finish_ret = flash_unlock();
++	return ret_val != BK_OK ? ret_val : finish_ret;
+ }
+ 
+ bk_err_t bk_flash_erase_block(uint32_t address)
+@@ -715,13 +726,13 @@
+ 		return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
+ 	}
+ 
+-	flash_lock();
+-
+-	bk_err_t  ret_val = flash_erase_no_lock(address, FLASH_OP_CMD_BE2);
+-
+-	flash_unlock();
+-
+-	return ret_val;
++	bk_err_t ret_val = flash_lock();
++	if (ret_val != BK_OK)
++		return ret_val;
++
++	ret_val = flash_erase_no_lock(address, FLASH_OP_CMD_BE2);
++	bk_err_t finish_ret = flash_unlock();
++	return ret_val != BK_OK ? ret_val : finish_ret;
+ }
+ 
+ bk_err_t bk_flash_read_bytes(uint32_t address, uint8_t *user_buf, uint32_t size)
+@@ -786,13 +797,13 @@
+ 		return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
+ 	}
+ 
+-	flash_lock();
+-
+-	bk_err_t    ret_val = flash_write_no_lock(address, user_buf, size);
+-
+-	flash_unlock();
+-
+-	return ret_val;
++	bk_err_t ret_val = flash_lock();
++	if (ret_val != BK_OK)
++		return ret_val;
++
++	ret_val = flash_write_no_lock(address, user_buf, size);
++	bk_err_t finish_ret = flash_unlock();
++	return ret_val != BK_OK ? ret_val : finish_ret;
+ }
+ 
+ uint32_t bk_flash_get_id(void)
