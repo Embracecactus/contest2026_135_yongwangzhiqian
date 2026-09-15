@@ -531,6 +531,16 @@ bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
   bk7258_fault_putfield('P', stacked_pc);
   bk7258_fault_putfield('L', stacked_lr);
   bk7258_fault_putfield('Q', stacked_xpsr);
+  /* Keep the existing bounded UART fault record useful after the automatic
+   * reset. In particular, PC=0 and a valid LR do not identify which return
+   * or indirect branch failed without the saved argument/scratch registers.
+   */
+
+  bk7258_fault_putfield('0', stacked_r0);
+  bk7258_fault_putfield('1', stacked_r1);
+  bk7258_fault_putfield('2', stacked_r2);
+  bk7258_fault_putfield('3', stacked_r3);
+  bk7258_fault_putfield('R', stacked_r12);
   bk7258_fault_putc('\r');
   bk7258_fault_putc('\n');
 

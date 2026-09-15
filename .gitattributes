@@ -2,3 +2,5 @@ docs/openvela-guides/** -whitespace
 # Unified diff context preserves blank lines and the upstream indentation.
 nuttx/patches/**/*.patch -whitespace
 chips/bk7258/bk_idk/sdk-profiles/**/*.patch -whitespace
+frameworks/patches/**/*.patch -whitespace
+external/patches/**/*.patch -whitespace

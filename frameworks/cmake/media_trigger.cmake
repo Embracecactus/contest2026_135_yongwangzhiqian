@@ -9,7 +9,8 @@ function(bkvoice_apply_media_patches)
   set(patches 0002-stream-io-lifetime.patch
               0003-wait-for-audio-route-format.patch
               0004-graph-error-recovery-progress.patch
-              0005-player-eof-drain.patch)
+              0005-player-eof-drain.patch
+              0006-player-output-release.patch)
   if(CONFIG_MEDIA_TRIGGER)
     list(APPEND files server/media_trigger.c)
     list(APPEND patches 0001-trigger-resource-lifetime.patch)

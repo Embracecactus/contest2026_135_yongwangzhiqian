@@ -826,7 +826,7 @@ def _media_apps_overlay(workspace: Path, root: Path) -> Path:
 
     files = {"": {"CMakeLists.txt", "Makefile"},
              "ffmpeg/libavfilter": {"asink_adevsink.c", "af_asubgraph.c",
-                                     "af_aresample.c"},
+                                     "af_aresample.c", "asrc_abufsrc.c"},
              "ffmpeg/libavdevice": {"nuttx.c", "nuttx.h", "nuttx_enc.c"},
              "ffmpeg/libavutil": {"opt.c"}}
     link_children(source, output, {"ffmpeg", *files[""]})
@@ -847,7 +847,8 @@ def _media_apps_overlay(workspace: Path, root: Path) -> Path:
                      "0003-build-source-dependencies.patch",
                      "0004-asubgraph-preserve-drain-errors.patch",
                      "0005-aresample-report-invalid-configuration.patch",
-                     "0006-opt-respect-format-enum-width.patch"):
+                     "0006-opt-respect-format-enum-width.patch",
+                     "0007-output-drain-release.patch"):
             patch = patch_root / name
             patch_cwd = stage if name.startswith("0003-") else stage / "ffmpeg"
             _run(["git", "apply", "--check", str(patch)], "FFmpeg patch check",

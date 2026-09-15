@@ -1,0 +1,198 @@
+Subject: [PATCH] tools: use camera device format and selected LLM transport
+
+Local, not upstream. The official ai_agent source is pinned at
+41723c61725c4e845bfee724f3ad2fafc416b6e1. Fixed-size V4L2 JPEG devices
+need their advertised discrete size; camera buffer results must be bounded.
+Vision requests must accept the same externally authenticated LLM transport
+as ordinary chat, without requiring a second API key in the generic client.
+The existing camera tool, request transport, Agent and Media remain owners.
+Original source licenses are unchanged. Apply after patches 0002 through 0008.
+SPDX-License-Identifier: Apache-2.0
+
+--- a/src/tools/tool_camera.c
++++ b/src/tools/tool_camera.c
+@@ -73,6 +73,48 @@
+     "If there is text, read it. If there are objects, identify them."
+ 
+ /* ── V4L2 capture helper ─────────────────────────────────── */
++
++static void camera_format_init(struct v4l2_format *fmt, int width, int height,
++                               uint32_t pixelformat)
++{
++    memset(fmt, 0, sizeof(*fmt));
++    fmt->type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++    fmt->fmt.pix.width       = width;
++    fmt->fmt.pix.height      = height;
++    fmt->fmt.pix.pixelformat = pixelformat;
++    fmt->fmt.pix.sizeimage   = CAM_BUF_SIZE;
++    fmt->fmt.pix.field       = V4L2_FIELD_NONE;
++}
++
++static int camera_set_format(int fd, struct v4l2_format *fmt,
++                             int width, int height)
++{
++    struct v4l2_frmsizeenum framesize;
++
++    camera_format_init(fmt, width, height, V4L2_PIX_FMT_JPEG);
++    if (ioctl(fd, VIDIOC_S_FMT, (uintptr_t)fmt) == 0) return OK;
++    if (errno != EINVAL && errno != ENOTSUP) return -errno;
++
++    memset(&framesize, 0, sizeof(framesize));
++    framesize.index = 0;
++    framesize.pixel_format = V4L2_PIX_FMT_JPEG;
++    framesize.buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++    if (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, (uintptr_t)&framesize) == 0) {
++        if (framesize.type == V4L2_FRMSIZE_TYPE_DISCRETE &&
++            framesize.discrete.width != 0 && framesize.discrete.height != 0) {
++            camera_format_init(fmt, framesize.discrete.width,
++                               framesize.discrete.height, V4L2_PIX_FMT_JPEG);
++            if (ioctl(fd, VIDIOC_S_FMT, (uintptr_t)fmt) == 0) return OK;
++            if (errno != EINVAL && errno != ENOTSUP) return -errno;
++        }
++    } else if (errno != EINVAL && errno != ENOTTY && errno != ENOTSUP) {
++        return -errno;
++    }
++
++    camera_format_init(fmt, width, height, V4L2_PIX_FMT_ENTROPY);
++    if (ioctl(fd, VIDIOC_S_FMT, (uintptr_t)fmt) < 0) return -errno;
++    return OK;
++}
+ 
+ /**
+  * Capture one JPEG frame from the camera via V4L2.
+@@ -116,26 +158,17 @@
+         goto cleanup;
+     }
+ 
+-    /* Set format: hardware JPEG encoder */
++    /* Prefer the requested JPEG size, then a fixed JPEG device size. */
+     struct v4l2_format fmt;
+-    memset(&fmt, 0, sizeof(fmt));
+-    fmt.type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+-    fmt.fmt.pix.width       = width;
+-    fmt.fmt.pix.height      = height;
+-    fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_JPEG;
+-    fmt.fmt.pix.sizeimage   = CAM_BUF_SIZE;
+-    fmt.fmt.pix.field       = V4L2_FIELD_NONE;
+-
+-    if (ioctl(fd, VIDIOC_S_FMT, (uintptr_t)&fmt) < 0) {
+-        /* Fallback: try V4L2_PIX_FMT_ENTROPY (BES hardware JPEG) */
+-        fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_ENTROPY;
+-        if (ioctl(fd, VIDIOC_S_FMT, (uintptr_t)&fmt) < 0) {
+-            syslog(LOG_ERR, "[%s] VIDIOC_S_FMT failed: %d\n", TAG, errno);
+-            goto cleanup;
+-        }
+-    }
+-
+-    syslog(LOG_INFO, "[%s] Format set: %dx%d\n", TAG, width, height);
++    int format_ret = camera_set_format(fd, &fmt, width, height);
++    if (format_ret < 0) {
++        syslog(LOG_ERR, "[%s] VIDIOC_S_FMT failed: %d\n", TAG, -format_ret);
++        goto cleanup;
++    }
++
++    syslog(LOG_INFO, "[%s] Format set: %lux%lu\n", TAG,
++           (unsigned long)fmt.fmt.pix.width,
++           (unsigned long)fmt.fmt.pix.height);
+ 
+     /* Request buffers */
+     struct v4l2_requestbuffers req;
+@@ -149,6 +181,11 @@
+         goto cleanup;
+     }
+ 
++    if (req.count == 0 || req.count > CAM_NUM_BUFFERS) {
++        syslog(LOG_ERR, "[%s] VIDIOC_REQBUFS returned invalid count %lu\n",
++               TAG, (unsigned long)req.count);
++        goto cleanup;
++    }
+     nbuffers = req.count;
+ 
+     /* Query and mmap buffers */
+@@ -216,20 +253,26 @@
+         goto cleanup;
+     }
+ 
++    if (dqbuf.index >= nbuffers || dqbuf.bytesused == 0 ||
++        dqbuf.bytesused > buf_sizes[dqbuf.index]) {
++        syslog(LOG_ERR, "[%s] Invalid frame: %u bytes from buffer %u\n",
++               TAG, dqbuf.bytesused, dqbuf.index);
++        ioctl(fd, VIDIOC_STREAMOFF, (uintptr_t)&type);
++        goto cleanup;
++    }
++
+     syslog(LOG_INFO, "[%s] Captured frame: %u bytes from buffer %u\n",
+            TAG, dqbuf.bytesused, dqbuf.index);
+ 
+     /* Copy JPEG data out (mmap buffer will be released) */
+-    if (dqbuf.bytesused > 0 && dqbuf.index < nbuffers) {
+-        *out_data = malloc(dqbuf.bytesused);
+-        if (*out_data) {
+-            memcpy(*out_data, buffers[dqbuf.index], dqbuf.bytesused);
+-            *out_size = dqbuf.bytesused;
+-            ret = OK;
+-        } else {
+-            syslog(LOG_ERR, "[%s] OOM copying frame (%u bytes)\n",
+-                   TAG, dqbuf.bytesused);
+-        }
++    *out_data = malloc(dqbuf.bytesused);
++    if (*out_data) {
++        memcpy(*out_data, buffers[dqbuf.index], dqbuf.bytesused);
++        *out_size = dqbuf.bytesused;
++        ret = OK;
++    } else {
++        syslog(LOG_ERR, "[%s] OOM copying frame (%u bytes)\n",
++               TAG, dqbuf.bytesused);
+     }
+ 
+     /* Stop streaming */
+--- a/src/llm/llm_proxy.c
++++ b/src/llm/llm_proxy.c
+@@ -76,6 +76,15 @@
+     int busy = s_transport_users != 0;
+     pthread_mutex_unlock(&s_llm_lock);
+     return busy;
++}
++
++/* External transports own authentication outside the generic client. */
++int llm_transport_configured(void)
++{
++    pthread_mutex_lock(&s_llm_lock);
++    int configured = s_transport != NULL;
++    pthread_mutex_unlock(&s_llm_lock);
++    return configured;
+ }
+ 
+ int llm_set_transport(const char *model, const char *host,
+--- a/src/llm/llm_internal.h
++++ b/src/llm/llm_internal.h
+@@ -54,6 +54,9 @@
+ int llm_http_call(const char* post_data, resp_buf_t* rb,
+     int* out_status);
+ 
++/* Read-only selection check; request dispatch still acquires its own lease. */
++int llm_transport_configured(void);
++
+ /* ── Config snapshot helpers ──────────────────────────────── */
+ 
+ void llm_snapshot_config(char* model, size_t model_sz,
+--- a/src/llm/llm_vision.c
++++ b/src/llm/llm_vision.c
+@@ -47,7 +47,7 @@
+         api_key, sizeof(api_key),
+         llm_host, sizeof(llm_host));
+ 
+-    if (api_key[0] == '\0') {
++    if (api_key[0] == '\0' && !llm_transport_configured()) {
+         snprintf(response_buf, buf_size, "Error: No API key configured");
+         return ERROR;
+     }
+@@ -219,7 +219,7 @@
+         api_key, sizeof(api_key),
+         llm_host, sizeof(llm_host));
+ 
+-    if (api_key[0] == '\0') {
++    if (api_key[0] == '\0' && !llm_transport_configured()) {
+         snprintf(response_buf, buf_size, "Error: No API key configured");
+         return ERROR;
+     }

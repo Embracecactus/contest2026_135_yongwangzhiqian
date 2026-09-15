@@ -623,18 +623,19 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
         _run(["git", "-C", str(clone), "checkout", "--detach", sdk.revision],
              "SDK source checkout")
         _merge_profile(clone / official_config, selected)
-        if selected.name == "ap-aidk":
+        source_patches = {
+            "cp-aidk": ("cp-flash-notification-errors.patch",),
+            "ap-aidk": ("ap-sdio-tx-start.patch", "ap-dvp-register-errors.patch"),
+        }.get(selected.name, ())
+        if source_patches:
             # Only patch the disposable build clone, never the pinned checkout.
-            for patch_name in (
-                "ap-sdio-tx-start.patch",
-                "ap-dvp-register-errors.patch",
-            ):
+            for patch_name in source_patches:
                 patch = repository / PROFILE_ROOT / sdk.version / patch_name
-                _regular(patch, "SDK AP source patch")
+                _regular(patch, "SDK source patch")
                 _run(["git", "-C", str(clone), "apply", "--check", str(patch)],
-                     "SDK AP patch preflight")
+                     "SDK patch preflight")
                 _run(["git", "-C", str(clone), "apply", str(patch)],
-                     "SDK AP source patch")
+                     "SDK source patch")
         build_root = work / "build"
         _run(
             [
