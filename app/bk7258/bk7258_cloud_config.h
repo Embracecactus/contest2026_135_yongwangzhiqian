@@ -36,6 +36,9 @@ struct bkcloud_config_s
   char asr_model[128];
   char chat_model[128];
   char tts_model[128];
+  /* Optional protocol voice selection; CCF1/MCP1 wire formats are unchanged.
+   * The official TTS configuration adapter fills this non-secret value. */
+  char tts_voice[128];
 };
 
 /* Clear output on error; record must not alias output. */

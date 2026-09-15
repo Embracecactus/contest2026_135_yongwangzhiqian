@@ -6,93 +6,13 @@
 #include "llm/llm_proxy.h"
 #include "core/agent_turn.h"
 #include <string.h>
-#include <syslog.h>
 #include <mbedtls/platform_util.h>
 #ifdef __NuttX__
 #  include <netutils/cJSON.h>
 #else
 #  include <cJSON.h>
 #endif
-
 #define BKCLOUD_REQUEST_CAPACITY 65536u
-
-static int bkcloud_request_serialize(cJSON *root, char **body,
-                                     size_t *body_size, size_t *body_capacity)
-{
-  size_t capacity = 256;
-
-  *body = NULL;
-  *body_size = 0;
-  *body_capacity = 0;
-  for (;;)
-    {
-      char *request = cJSON_malloc(capacity);
-      if (request == NULL) return -ENOMEM;
-      if (cJSON_PrintPreallocated(root, request, capacity, false))
-        {
-          *body = request;
-          *body_size = strlen(request);
-          *body_capacity = capacity;
-          return 0;
-        }
-      mbedtls_platform_zeroize(request, capacity);
-      cJSON_free(request);
-      if (capacity == BKCLOUD_REQUEST_CAPACITY) return -E2BIG;
-      capacity *= 2;
-      if (capacity > BKCLOUD_REQUEST_CAPACITY)
-        capacity = BKCLOUD_REQUEST_CAPACITY;
-    }
-}
-
-static void bkcloud_request_clear(char **body, size_t *body_size,
-                                  size_t *body_capacity)
-{
-  if (*body != NULL)
-    {
-      mbedtls_platform_zeroize(*body, *body_capacity);
-      cJSON_free(*body);
-    }
-  *body = NULL;
-  *body_size = 0;
-  *body_capacity = 0;
-}
-
-int bkcloud_recognize(struct bkcloud_client_s *client,
-                     const struct bkcloud_config_s *config,
-                     const struct bkvoice_wss_tls_ops_s *tls, void *tls_context,
-                     uint64_t deadline_ms, const uint8_t *pcm, size_t pcm_size,
-                     char *text, size_t capacity)
-{
-  int ret;
-  if (text == NULL || capacity == 0) return -EINVAL;
-  memset(text, 0, capacity);
-  if (client == NULL || config == NULL) return -EINVAL;
-  memset(client, 0, sizeof(*client));
-  /* These two configured dialects currently share Chat Completions audio
-   * input. Other providers must add their actual request/response adapter.
-   */
-  if (config->dialect != 1 && config->dialect != 2) return -ENOTSUP;
-  ret = bkcloud_asr_source_init(&client->source, config->asr_model, pcm,
-                               pcm_size);
-  if (ret == 0)
-    ret = bkcloud_http_post(&client->http, config, "chat/completions", tls,
-                            tls_context, deadline_ms, bkcloud_asr_body,
-                            &client->source, client->source.length,
-                            client->response, sizeof(client->response));
-  if (ret == 0)
-    ret = bkcloud_text_parse(client->response, client->http.received,
-                             text, capacity);
-  bkcloud_asr_source_clear(&client->source);
-  mbedtls_platform_zeroize(client->response, sizeof(client->response));
-  return ret;
-}
-
-static bool valid_text(const char *text)
-{
-  if (text == NULL) return false;
-  size_t size = strnlen(text, BKCLOUD_TEXT_MAX + 1);
-  return size > 0 && size <= BKCLOUD_TEXT_MAX;
-}
 
 void bkcloud_history_clear(struct bkcloud_history_s *history)
 {
@@ -103,7 +23,7 @@ int bkcloud_history_commit(struct bkcloud_history_s *history,
                             const char *user, const char *assistant)
 {
   if (history == NULL || history->count > BKCLOUD_HISTORY_TURNS ||
-      !valid_text(user) || !valid_text(assistant)) return -EINVAL;
+      !bkcloud_audio_valid_text(user) || !bkcloud_audio_valid_text(assistant)) return -EINVAL;
   /* Inputs must not alias history: the owner passes pending-turn storage. */
   if (history->count == BKCLOUD_HISTORY_TURNS)
     {
@@ -297,13 +217,13 @@ static int bkcloud_agent_chat(struct bkcloud_agent_request_s *transport,
   if (text == NULL || capacity == 0) return -EINVAL;
   memset(text, 0, capacity);
   if (transport->client == NULL || transport->config == NULL ||
-      !valid_text(persona) || !valid_text(input) || history == NULL ||
+      !bkcloud_audio_valid_text(persona) || !bkcloud_audio_valid_text(input) || history == NULL ||
       history->count > BKCLOUD_HISTORY_TURNS) return -EINVAL;
   const struct bkcloud_config_s *config = transport->config;
   if (config->dialect != 1 && config->dialect != 2) return -ENOTSUP;
   for (size_t i = 0; i < history->count; i++)
-    if (!valid_text(history->turns[i].user) ||
-        !valid_text(history->turns[i].assistant)) return -EINVAL;
+    if (!bkcloud_audio_valid_text(history->turns[i].user) ||
+        !bkcloud_audio_valid_text(history->turns[i].assistant)) return -EINVAL;
   memset(transport->client, 0, sizeof(*transport->client));
   messages = cJSON_CreateArray();
   parameters = cJSON_CreateObject();
@@ -367,97 +287,6 @@ int bkcloud_chat(struct bkcloud_client_s *client,
     .tls_context = tls_context, .deadline_ms = deadline_ms, .camera = camera
   };
   return bkcloud_agent_chat(&request, persona, history, input, text, capacity);
-}
-
-static int synthesize_pcm(struct bkcloud_client_s *client,
-                          const struct bkcloud_config_s *config,
-                          const struct bkvoice_wss_tls_ops_s *tls, void *tls_context,
-                          uint64_t deadline_ms, const char *text,
-                          bkcloud_write_t pcm, void *context)
-{
-  int ret = -ENOMEM;
-  char *body_data = NULL;
-  size_t body_size = 0;
-  size_t body_capacity = 0;
-  memset(client, 0, sizeof(*client));
-  cJSON *root = cJSON_CreateObject();
-  if (!root) return ret;
-  /* CCF1 has no voice selector. Use the standard built-in voice explicitly;
-   * custom-provider voices require a future versioned configuration field.
-   */
-  if (!cJSON_AddStringToObject(root, "model", config->tts_model) ||
-      !cJSON_AddStringToObject(root, "input", text) ||
-      !cJSON_AddStringToObject(root, "voice", "alloy") ||
-      !cJSON_AddStringToObject(root, "response_format", "pcm")) goto done;
-  ret = bkcloud_request_serialize(root, &body_data, &body_size, &body_capacity);
-  if (ret != 0) goto done;
-  ret = bkcloud_http_pcm(&client->http, config, tls, tls_context, deadline_ms,
-      body_data, body_size, pcm, context, 8u * 1024u * 1024u);
-done:
-  cJSON_Delete(root);
-  bkcloud_request_clear(&body_data, &body_size, &body_capacity);
-  return ret;
-}
-
-static int tts_events(void *context, const void *data, size_t size)
-{
-  struct bkcloud_tts_s *decoder = context;
-  int ret = bkcloud_tts_feed(decoder, data, size);
-  if (ret != 0 || !decoder->done) return ret;
-  ret = bkcloud_tts_finish(decoder);
-  return ret == 0 ? BKCLOUD_HTTP_STREAM_COMPLETE : ret;
-}
-
-int bkcloud_synthesize(struct bkcloud_client_s *client,
-                       struct bkcloud_tts_s *decoder,
-                       const struct bkcloud_config_s *config,
-                       const struct bkvoice_wss_tls_ops_s *tls, void *tls_context,
-                       uint64_t deadline_ms, const char *text,
-                       bkcloud_write_t pcm, void *context)
-{
-  cJSON *root = NULL, *messages, *audio;
-  char *body_data = NULL;
-  size_t body_size = 0;
-  size_t body_capacity = 0;
-  int ret = -ENOMEM;
-  if (!client || !decoder || !config || !pcm || !valid_text(text)) return -EINVAL;
-  if (config->dialect == 1)
-    return synthesize_pcm(client, config, tls, tls_context, deadline_ms, text, pcm, context);
-  if (config->dialect != 2) return -ENOTSUP;
-  memset(client, 0, sizeof(*client));
-  bkcloud_tts_init(decoder, pcm, context);
-  root = cJSON_CreateObject();
-  if (!root) goto out;
-  messages = cJSON_AddArrayToObject(root, "messages");
-  audio = cJSON_AddObjectToObject(root, "audio");
-  if (!messages || !audio ||
-      !cJSON_AddStringToObject(root, "model", config->tts_model) ||
-      !cJSON_AddBoolToObject(root, "stream", true) ||
-      !cJSON_AddStringToObject(audio, "format", "pcm16") ||
-      !cJSON_AddStringToObject(audio, "voice", "mimo_default") ||
-      !add_message(messages, "assistant", text)) goto out;
-  ret = bkcloud_request_serialize(root, &body_data, &body_size, &body_capacity);
-  if (ret != 0) goto out;
-  cJSON_Delete(root); root = NULL;
-  ret = bkcloud_http_events(&client->http, config, tls, tls_context, deadline_ms,
-                            body_data, body_size,
-                            tts_events, decoder, 8u * 1024u * 1024u);
-  if (ret == 0) ret = bkcloud_tts_finish(decoder);
-out:
-  /* Preserve only stream progress before clearing the decoder. This separates
-   * an incomplete audio response from waiting for the HTTP connection to end.
-   */
-  syslog(LOG_INFO, "BKVOICE TTS stream ret=%d pcm_bytes=%lu stopped=%d "
-         "done=%d parser=%d events=%lu first_event_pcm=%lu max_event_pcm=%lu\n",
-         ret, (unsigned long)decoder->total,
-         decoder->stopped, decoder->done, decoder->error,
-         (unsigned long)decoder->audio_events,
-         (unsigned long)decoder->first_audio_bytes,
-         (unsigned long)decoder->max_audio_bytes);
-  cJSON_Delete(root);
-  bkcloud_tts_clear(decoder);
-  bkcloud_request_clear(&body_data, &body_size, &body_capacity);
-  return ret;
 }
 
 struct playback_sink_s

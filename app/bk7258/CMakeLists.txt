@@ -1,3 +1,7 @@
+if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_SERVICE)
+  message(FATAL_ERROR "Official Agent and legacy voice service cannot own one product configuration")
+endif()
+
 if(CONFIG_BK7258_PROVISION_GATT)
   include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/gatt_ccc_patch.cmake)
   target_sources(apps PRIVATE bk7258_provision_gatt.c bk7258_provision_tls.c
@@ -18,7 +22,12 @@ if(CONFIG_BK7258_AP_APPLICATION_LIFECYCLE)
 endif()
 
 if(CONFIG_BK7258_APP_AGENT)
+  include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_framework.cmake)
   target_sources(apps PRIVATE bk7258_agent_product.c)
+  if(CONFIG_MEDIA)
+    include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/media_trigger.cmake)
+    target_sources(apps PRIVATE bk7258_voice_media.c)
+  endif()
 endif()
 
 if(CONFIG_BK7258_APP_AGENT OR CONFIG_BK7258_VOICE_SERVICE OR CONFIG_DOLPHIN_RECORDER)
@@ -56,9 +65,19 @@ if(CONFIG_BK7258_VOICE_SERVICE)
   if(CONFIG_BK7258_VOICE_TLS)
     include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_provider.cmake)
     target_sources(apps PRIVATE bk7258_voice_tls.c bk7258_voice_config.c
-                               bk7258_cloud_config.c bk7258_cloud_request.c bk7258_cloud_http.c bk7258_cloud_client.c bk7258_cloud_history.c bk7258_cloud_tts.c bk7258_cloud_playback.c bk7258_cloud_runtime.c
+                               bk7258_cloud_config.c bk7258_cloud_request.c bk7258_cloud_http.c bk7258_cloud_audio.c bk7258_cloud_client.c bk7258_cloud_history.c bk7258_cloud_tts.c bk7258_cloud_playback.c bk7258_cloud_runtime.c
                                 bk7258_voice_runtime.c)
   endif()
+endif()
+
+if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
+  target_sources(apps PRIVATE bk7258_voice_tls.c bk7258_voice_config.c
+                              bk7258_cloud_config.c bk7258_cloud_request.c
+                              bk7258_cloud_http.c bk7258_cloud_tts.c
+                              bk7258_cloud_audio.c bk7258_agent_cloud.c)
+endif()
+
+if(CONFIG_BK7258_VOICE_SERVICE OR CONFIG_BK7258_APP_AGENT)
   if(CONFIG_BK7258_PREFERENCES)
     include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/kvdb_patches.cmake)
     target_sources(apps PRIVATE bk7258_preferences.c bk7258_preferences_storage.c)
@@ -82,10 +101,14 @@ if(CONFIG_BK7258_VOICE_SERVICE)
         noise_reduction_util.c pcan_gain_control.c pcan_gain_control_util.c
         window.c window_util.c fft.cc fft_util.cc kiss_fft_int16.cc)
     list(TRANSFORM BKVOICE_FRONTEND_SOURCES PREPEND "${BKVOICE_FRONTEND}/")
-    target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_voice_kws_frontend.c
+    target_sources(apps PRIVATE bk7258_voice_kws_frontend.c
                                 bk7258_voice_kws_model.cc
-                                bk7258_voice_wake_window.c
                                 ${BKVOICE_FRONTEND_SOURCES})
+    if(CONFIG_BK7258_VOICE_SERVICE)
+      target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_voice_wake_window.c)
+    elseif(CONFIG_BK7258_APP_AGENT AND CONFIG_MEDIA_TRIGGER)
+      target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_agent_trigger.c)
+    endif()
     target_include_directories(apps PRIVATE ${BKVOICE_TFLM}
         ${NUTTX_APPS_DIR}/math/kissfft/kissfft)
     # TfLiteTensor layout and kernel selection must match the runtime library.
