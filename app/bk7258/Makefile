@@ -105,7 +105,7 @@ ifeq ($(CONFIG_BK7258_VOICE_LEGACY_GATEWAY),y)
 endif
 ifeq ($(CONFIG_BK7258_VOICE_TLS),y)
 	CSRCS += bk7258_voice_tls.c bk7258_voice_config.c bk7258_voice_runtime.c
-	CSRCS += bk7258_cloud_config.c bk7258_cloud_request.c bk7258_cloud_http.c bk7258_cloud_client.c bk7258_cloud_history.c bk7258_cloud_tts.c bk7258_cloud_playback.c bk7258_cloud_runtime.c
+	CSRCS += bk7258_cloud_config.c bk7258_cloud_request.c bk7258_cloud_http.c bk7258_cloud_audio.c bk7258_cloud_client.c bk7258_cloud_history.c bk7258_cloud_tts.c bk7258_cloud_playback.c bk7258_cloud_runtime.c
 endif
 ifeq ($(CONFIG_BK7258_PREFERENCES),y)
 $(error BK7258_PREFERENCES requires the maintained CMake build and KVDB patches)

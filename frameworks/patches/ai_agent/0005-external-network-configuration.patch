@@ -1,0 +1,27 @@
+diff --git a/src/infra/network_manager.c b/src/infra/network_manager.c
+index 00cc296..4c7fe74 100644
+--- a/src/infra/network_manager.c
++++ b/src/infra/network_manager.c
+@@ -765,6 +765,22 @@ int network_wifi_reconnect(void)
+     return network_rpmsg_init();
+ }
+ 
++#elif defined(CONFIG_AI_AGENT_NETWORK_EXTERNAL)
++#include <errno.h>
++
++int network_wifi_connect(const char* iface, const char* ssid, const char* pass)
++{
++    (void)iface;
++    (void)ssid;
++    (void)pass;
++    return -ENOTSUP;
++}
++
++int network_wifi_reconnect(void)
++{
++    return network_is_connected() ? OK : -ENETDOWN;
++}
++
+ #else
+ /* Real hardware: use NuttX wapi shell command to join WiFi */
+ #include "infra/config_store.h"
