@@ -66,6 +66,43 @@
 取消和当次摄像头接口。补丁由 `frameworks/cmake/agent_provider.cmake`
 应用到构建副本，不依赖官方检出中的本地修改。
 
+2026-09-15 完整框架迁移继续使用上述 Agent 提交与原许可证。远端比赛分支
+`31faed70f683a6f5e690437c5507891360f0814a` 已只读核对，与本地 `41723c61`
+具有相同源码树 `39c1309387084fdf079ed7d9b10c3b83cca119ec`，无需升级。
+
+以下均为**本地未合入补丁**，不是上游原有能力。官方检出不修改；构建通过
+`frameworks/cmake/agent_framework.cmake` 对受影响文件逐个检查、应用补丁并替换
+完整官方应用目标的输入。补丁不适用或源目标不唯一时明确失败；未复制一套 Agent。
+
+| 补丁 | 必须修改的官方文件 | 现有接口不能完成的原因 |
+| --- | --- | --- |
+| `0002-voice-backend-stream-dispatch.patch` | `include/agent_config.h`、`include/voice/voice_{asr,tts}.h`、`src/voice/voice_{asr,tts}.c`、`volc_asr.c`、`volc_tts.c`、`volc_tts.h`、`volc_tts_ws.c` | 原流式操作绕过注册后端；补可选流式、取消、请求准备、忙时拒绝切换和实际格式/能力快照。已有 Volc 适配同一契约并停止请求中重读配置，不增加通用层厂商分支。 |
+| `0003-media-playback-completion.patch` | `include/voice/audio_playback.h`、`src/voice/audio_playback.c`、`voice_channel.c` | 原 close 立即 stop；补 Media 完成/失败排空及关闭失败时的回调资源保留、下次 open 前清理。 |
+| `0004-voice-channel-capabilities.patch` | `src/voice/voice_channel.c` | 原通道预连接不支持的 ASR，流式失败只重试尾部 PCM；按能力选同后端批处理、传播错误、先 join 后释放、按请求绑定格式播放，取消同时到后端。 |
+| `0005-external-network-configuration.patch` | `src/infra/network_manager.c` | 原硬件网络路径固定通过 shell/wapi 重新配置 Wi-Fi；补观察既有网络服务的通用选择。 |
+| `0006-optional-service-startup.patch` | `src/agent_main.c`、`src/tools/tool_registry.c` | CLI、WebSocket、cron、heartbeat 默认无条件启动；补通用构建选择，正式产品关闭无需求的模块。 |
+
+这些通用选项暂由团队 `app/bk7258/Kconfig` 声明，因为官方 Kconfig 在 CMake
+派生源码之前已被读取；没有声称构建期改写 Kconfig 生效。配置同启官方 Agent 与
+旧 voice service 会明确构建失败。旧请求级 `0001`/`agent_provider.cmake` 仅由
+`VOICE_SERVICE` 路径消费（目前 `drivercheck_ap` 仍启用），不进入新正式目标。
+
+`app/bk7258/bk7258_cloud_audio.[ch]` 从本仓 cloud client 提取现有音频服务协议；
+`bk7258_agent_cloud.[ch]` 在官方 ops 下注册 MiMo/OpenAI 音频协议，持有配置快照、
+TLS 及单次请求工作区，复用既有证书/主机名/可信时间验证、HTTP 和流式解码。
+两者无录音、播放器、对话上下文、历史、线程或整轮恢复。新增 TTS 选择键复用官方
+配置机制，区分 backend/model/voice/location；云适配拒绝未验证的音色和 device
+执行位置。现有 CCF1/MCP1 编码、认领身份及 KWS 模型包格式不改变。
+
+`bk7258_agent_trigger.c` 是 Media Trigger 下的 TFLM 模型适配，保留已维护的
+模型张量/前处理和冻结分数策略；没有搬入旧 wake window、VAD、Recorder、Agent
+或会话 owner。此保留不等于新链路或真人唤醒效果已经验证。
+
+本地 TTS 接入边界已准备，具体引擎与模型未验证。通用接口不要求联网、地址或
+API Key；init/deinit 负责准备/释放，prepare_request 只负责短请求状态重置。
+切换先释放旧模型再加载新模型，失败不自动回退；资源预算为 0 时表示未知。
+没有新增本地空实现、模型平台、训练任务或私有音色资产。
+
 `nuttx/patches/fs/0002-drain-block-writes-before-sync-unmount.patch` 与
 `0003-support-fat-open-file-path.patch` 基于 `open-vela/nuttx`
 `76354c637858ecb0aa4601629327acb6f44a26bb` 的 `fs/fat/fs_fat32.[ch]`，

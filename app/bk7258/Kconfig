@@ -7,6 +7,50 @@
 # underlying driver/feature symbols must never register an application;
 # CMake and Classic Make register commands only from CONFIG_BK7258_APP_*.
 
+# Generic options for the locally maintained Agent patches. These declarations
+# live here because the manifest-owned Agent Kconfig is read before CMake can
+# derive patched sources. Their implementation contains no product branches.
+config AI_AGENT_NETWORK_EXTERNAL
+	bool "Agent observes an externally configured network"
+	depends on EXAMPLES_AI_AGENT_VELA
+	default y if BK7258_APP_AGENT
+	help
+		Keep network provisioning and credentials with the existing system
+		service. Agent observes interface readiness without executing wapi.
+
+config AI_AGENT_VOICE_VOLCENGINE
+	bool "Register the built-in Volcengine voice backends"
+	depends on EXAMPLES_AI_AGENT_VELA
+	default n if BK7258_APP_AGENT
+	default y
+	help
+		Disable when external voice backends are registered by the product.
+		This does not choose or enable a replacement provider implicitly.
+
+config AI_AGENT_NSH_CHANNEL
+	bool "Agent interactive shell channel"
+	depends on EXAMPLES_AI_AGENT_VELA
+	default n if BK7258_APP_AGENT
+	default y
+
+config AI_AGENT_WS_CHANNEL
+	bool "Agent WebSocket server channel"
+	depends on EXAMPLES_AI_AGENT_VELA
+	default n if BK7258_APP_AGENT
+	default y
+
+config AI_AGENT_CRON
+	bool "Agent scheduled jobs and tools"
+	depends on EXAMPLES_AI_AGENT_VELA
+	default n if BK7258_APP_AGENT
+	default y
+
+config AI_AGENT_HEARTBEAT
+	bool "Agent proactive heartbeat"
+	depends on EXAMPLES_AI_AGENT_VELA
+	default n if BK7258_APP_AGENT
+	default y
+
 config BK7258_APP_AGENT
 	bool "Start the official openvela Agent on the BK7258 AP"
 	default y if EXAMPLES_AI_AGENT_VELA
@@ -288,11 +332,12 @@ config BK7258_VOICE_SERVICE
 		installed by this symbol.  Storage mounting, model training and physical
 		audio wiring remain outside this application.
 
-if BK7258_VOICE_SERVICE
+if BK7258_VOICE_SERVICE || BK7258_APP_AGENT
 
 config BK7258_VOICE_LEGACY_GATEWAY
 	bool "Build companion-v1 WSS Gateway session"
 	default y
+	depends on BK7258_VOICE_SERVICE
 	help
 		Build the legacy companion-v1 WebSocket transport, Gateway dispatcher and
 		session owner. Existing historical voice configurations keep this enabled.
@@ -418,6 +463,7 @@ config BK7258_VOICE_KWS_ARENA_BYTES
 config BK7258_VOICE_WAKE_RUNTIME
 	bool "Enable authenticated continuous wake-word runtime"
 	default n
+	depends on BK7258_VOICE_SERVICE
 	depends on BK7258_VOICE_KWS
 	depends on MEDIA_TRIGGER && MEDIA_SERVER && MEDIA_POLICY
 	depends on BK7258_VOICE_TLS

@@ -19,6 +19,9 @@
 #include <nuttx/signal.h>
 
 #include <arch/board/board.h>
+#ifdef CONFIG_BK7258_VOICE_TLS
+#include "bk7258_agent_cloud.h"
+#endif
 #if defined(CONFIG_BK7258_AUD) && !defined(CONFIG_MEDIA)
 extern void bk7258_agent_media_player_link(void);
 #endif
@@ -63,6 +66,10 @@ static int bk7258_agent_ui_show_task(int argc, FAR char *argv[])
 
 int bk7258_agent_product_prepare(void)
 {
+#ifdef CONFIG_BK7258_VOICE_TLS
+  int ret = bkagent_cloud_register();
+  if (ret != 0) return ret;
+#endif
 #ifdef CONFIG_AI_AGENT_LVGL_UI
   return bk7258_board_ui_initialize();
 #else

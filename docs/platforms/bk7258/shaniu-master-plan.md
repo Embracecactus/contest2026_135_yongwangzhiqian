@@ -2,6 +2,90 @@
 
 状态：`IN_PROGRESS`
 
+## 2026-09-15 官方框架替换式重构（当前任务）
+
+本次授权替换通用框架，验收以官方主干真实运行、旧框架退出及产品能力迁移为准。
+下方 525/0.5.15 为进入本轮时的历史实板证据，不是新架构验收；真人多次漏唤醒
+仍需独立核验，不能由框架迁移或单次合成回放推定修复。不新增测试程序、框架或
+探针脚本；沿用现有构建、部署、训练及回放工具。保留进入本轮的测试、日志改动。
+
+本地基线：团队 HEAD `60dff48f2894376bbf8086622a17e5d7884f6786`；实际 manifest
+`fe2feda23ddf3fd9671036e5712a93b5775fe3e4`，入口 include 为
+`contest2026_135_yongwangzhiqian.xml`。官方 Agent
+`41723c61725c4e845bfee724f3ad2fafc416b6e1`，Media
+`fb7db0e9f826fb6d71937c948e7da1eb10ffc896`，NuttX
+`76354c637858ecb0aa4601629327acb6f44a26bb`，apps
+`550cd3ba60a03f8ebf9ac7b72f6eed6aea3bedbe`。本次核对四仓均无受跟踪修改；
+NuttX/apps 既有未跟踪映射及依赖目录保留。不执行全量 sync。
+
+| 现有职责 | 官方接管者 | 必要适配 | 旧实现退出方式 |
+| --- | --- | --- | --- |
+| 唤醒、收音、重新监听 | Media Trigger、Agent voice channel | 三词模型资产、设备与产品事件映射 | 退出 wake owner/session 及 PTT/turn 编排 |
+| ASR/TTS 服务 | `voice_asr_ops_t`、`voice_tts_ops_t` | 认证、MiMo 协议、流式解码和原生采样率 | 退出整轮 cloud runtime，仅提取协议职责 |
+| 对话、历史、工具循环 | `message_bus`、`agent_loop`、`context_builder`、`session_mgr` | 服务传输、当次拍照工具、受保护存储 | 退出请求级 Agent 静态库和自研通用历史 |
+| 播放、排空、音量 | Media Player/Policy 与完成、失败事件 | 表情、马达及 App 状态映射 | 退出重复播放及音频仲裁 |
+| App、认领、配置、OTA | 现有系统及产品服务接口 | 保留认证、数据格式、模型恢复及迁移 | 从旧 voice runtime 拆出设备管理职责 |
+
+已核对的官方缺口：通用 ASR/TTS 流式函数绕过已选择的后端而直接调用 Volc；
+voice channel 仅有 PTT 录音控制，录音停止后提前回到 IDLE；播放器关闭直接 stop，
+没有将排空完成/失败返回语音生命周期；启动目录硬编码与配置目录不一致。
+这些不是官方已提供的产品能力。必要修改作为团队维护、无板号及旧框架依赖的
+独立补丁集成，保留官方原始仓库；不能将整套旧状态机迁入补丁或适配器。
+
+当前实施与证据边界（仍为 `IN_PROGRESS`）：
+
+- 远端比赛分支已核对为 `31faed70f683a6f5e690437c5507891360f0814a`，与本地
+  `41723c61` 的源码树同为 `39c1309387084fdf079ed7d9b10c3b83cca119ec`。
+  只读取得单分支作比较，未升级工作区、未 sync；本地 dev/trunk 也未提供所缺接口。
+- 完整官方应用目标已增量构建、链接；不再 include 请求级 Agent provider，正式配置
+  关闭旧 voice service/wake runtime 和内置 Volc。五份本地补丁及必要性见
+  [SOURCE_PROVENANCE](../../../SOURCE_PROVENANCE.md)。官方 Agent/Media 检出无受跟踪改动；
+  构建确实应用补丁，这两项分别成立。
+- 启动代码已接入 `mimo` / `openai-audio` 外置后端注册，仅持有服务配置、TLS 和请求资源。
+  ASR 是完整 16kHz/PCM16/mono 输入、完整文本输出的批处理；TTS 接收完整文本，
+  输出 24kHz/PCM16/mono 的音频块，不接受增量文本。普通与流式均走同一选择，
+  不支持的模式明确失败；旧 16kHz 批处理入口在不兼容时不发请求，新格式入口随
+  结果返回格式快照。PCM 的字节分片在协议适配内拼成完整采样，不重采样、不误标。
+- 后端在请求期间拒绝切换；准备与单次请求分离，取消向实际 TLS 传递且由请求方
+  释放资源。通道不再预连接已知不支持的 ASR，也不重试残余 PCM；Media 排空
+  使用真实完成/失败事件。上述是实现和构建证据，尚无新主链取消/超时/切换实板证据。
+- **本地接入边界已准备，具体引擎与模型未验证。** TTS backend/model/voice/location
+  复用现有配置；通用接口允许设备端、离线执行，描述联网、流式输出、非增量文本、
+  取消、PCM 和未知资源预算。切换不要求双模型驻留，加载失败不自动转云端；
+  无空后端、固定 PCM、新训练或模型管理平台，KWS 资产不当作 TTS 包。
+- `official-framework-build-8.log` 已通过（最终显式关闭旧 wake/示例可选服务的配置）。
+  AP 诊断 BIN 为 1484716B，SHA256
+  `5a1afe3f1788e5715f578cdb537bb798acfcd49ff2deaa32066f9e75c1aa00b2`，
+  `.config` SHA256 `9e28f3e3cc4c8a690ba2a55752117c53af6600af70a5bca0575c7e433a3d4b3a`；
+  AP role `bk7258-role-b5ceab089e6f41f3`，见既有
+  [构建 manifest](../../../../out/bk7258-plan-validation/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-34dfff5891ff2b05/releases/mcuboot/build-manifest.json)。没有签发新 OTA
+  或将该诊断构建作为可交付运行固件。符号确认 `ai_agent_main`、
+  `agent_loop_start`、`session_append`、官方 TTS/Media 排空进入 ELF；旧
+  `bkcloud_runtime_create`、`bkvoice_runtime_command`、`agent_turn_run` 和 Volc
+  流式实现未进入 ELF。**关闭示例 CLI 后 `voice_channel_start`/ASR 调用因尚无真实
+  Trigger 消费入口而被回收，不能算架构 A 或语音闭环通过。** 旧源码清理也未完成；
+  `drivercheck_ap` 仍是旧 voice/TLS 的实际独立消费者。
+- 既有 cloud-request 回归 1 项通过，既有 TLS 回归 6 项通过（沙箱外仅本机回环
+  套接字）。cloud-http 旧测试仍使用已退出的 JPEG/旧 chat 签名，未通过；提取时
+  遗漏的旧 client 请求容量常量已修正，未修改旧断言冒充通过。未新增测试程序。三个已派生的 Volc C 文件亦用本次 ARM 编译参数完成语法编译；
+  不代表 Volc 服务、取消或现场模式已测试。
+- App 本轮回读仍为 `0.5.15-shaniu-model` / code 20；没有新 APK 安装。关闭 MobaXterm
+  后只读重试 COM8 成功（115200/8N1、8 秒、无 DTR/RTS）：`bkvoice status` 返回
+  `provider=ap ready=1 configured=1 connected=0 gateway_ready=0 tls_available=1`、
+  `PTT ready=1 link=1`、`CLOUD ready=1 busy=0`，采集 1443 字节，SHA256
+  `24c4e588df7c409a6d8dde2075430830c2acf9548e715815beb6bd83853e41f7`；同时看到
+  `BKVOICE trigger input`、KWS 窗口/分数及 Media 音量策略日志。证据
+  `out/shaniu-p0-20260913/official-framework-baseline/serial-retry-20260915.{raw,json}`。
+  这是当前板运行状态和触发输入的只读证据，不是官方 Agent 端到端语音闭环或真人现场通过；
+  未复位、烧录或 OTA。当前活动模型 SHA 与 App 选择仍未完成新的设备一致性回读，不能用界面
+  默认词代替实际状态。
+- 仍须完成：Trigger→官方通道的真实入口及自动端点、Agent 在途关联/取消与重监听、
+  SCB3 配置到官方后端激活、官方 LLM 传输及受保护会话存储、相机/模型切换/按键/
+  App/OTA 交互迁移，随后清理无消费者的旧框架并集中实板验收。现有 SpeexDSP
+  1.2.1 的 VAD 源码自称临时实现，官方构建仅启用 resampler；不能据源码存在
+  就认定有可直接部署的成熟端点方案。真人现场唤醒、泛化和新路径首响均未验证。
+
+
 集中 Skill 沉淀已完成，能力分别归档，见[能力映射](shaniu-skill-capability-map.md)。原有 Android 连接、切页及音量 P0 保留。本轮按更新授权继续三词切换、云端模型配置、私人录音适配和板载按键/马达，不新增测试代码。
 
 当前已核验实板：`18.6.363+525 / counter525 / pair=confirmed`；已覆盖安装 APK `0.5.15-shaniu-model`（code 20），SHA256 `25d260b9ccf0bf66a688327ff2ab5a2c840880b3f372a8907b608773503133c8`。525 完整镜像 `voice525-camera-owner-full/` SHA256 `e8990588a07ad680709be923d8902180244eb7774615609554e7337b555f8465`，同设备身份、信任、校准、配置与原模型保留。构建输入快照 `voice525-camera-owner-source/` 含 651 个输入及实际 AP/CP ELF，源码树 SHA256 `661a39109f9b66501442b327296f009525891a17652033d5f26c4c586a53bd5d` 与构建 manifest 一致。证据均在工作区 `out/shaniu-p0-20260913/`；设备绑定完整镜像和私人素材不公开。
