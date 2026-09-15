@@ -3,12 +3,16 @@
 #include "bk7258_cloud_audio.h"
 #include "bk7258_voice_config.h"
 #include "bk7258_voice_tls.h"
+#include "bk7258_preferences.h"
 #include "voice/voice_asr.h"
 #include "voice/voice_tts.h"
 #include "agent_config.h"
 #include "infra/config_store.h"
+#include "llm/llm_proxy.h"
 
 #include <errno.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdlib.h>
@@ -38,6 +42,7 @@ static pthread_mutex_t g_config_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct cloud_settings_s *g_selected;
 static struct cloud_backend_s g_asr;
 static struct cloud_backend_s g_tts;
+static struct cloud_backend_s g_llm;
 
 static void settings_release(struct cloud_settings_s *settings)
 {
@@ -142,6 +147,14 @@ static int cloud_open(void *context, const char *host, uint16_t port,
 {
   struct cloud_backend_s *backend = context;
   if (atomic_load(&backend->canceled)) return -ECANCELED;
+  struct addrinfo hints = { .ai_family = AF_INET, .ai_socktype = SOCK_STREAM };
+  struct addrinfo *addresses = NULL;
+  int resolved = getaddrinfo(host, NULL, &hints, &addresses);
+  if (resolved != 0 || !addresses) return -EHOSTUNREACH;
+  backend->tls.config.peer_address =
+    ((struct sockaddr_in *)addresses->ai_addr)->sin_addr;
+  freeaddrinfo(addresses);
+  if (atomic_load(&backend->canceled)) return -ECANCELED;
   int ret = bkvoice_tls_ops()->open_verified(&backend->tls, host, port, deadline);
   if (atomic_load(&backend->canceled))
     {
@@ -184,6 +197,75 @@ static int asr_mimo_prepare(void) { return backend_prepare(&g_asr, 2); }
 static int asr_audio_prepare(void) { return backend_prepare(&g_asr, 1); }
 static int tts_mimo_prepare(void) { return backend_prepare(&g_tts, 2); }
 static int tts_audio_prepare(void) { return backend_prepare(&g_tts, 1); }
+
+struct llm_body_s { const char *data; size_t size; size_t offset; };
+
+static int llm_body(void *buffer, size_t *size, const void **data,
+                    size_t requested, void *context)
+{
+  struct llm_body_s *body = context;
+  (void)buffer;
+  size_t count = body->size - body->offset;
+  if (count > requested) count = requested;
+  *data = body->data + body->offset;
+  *size = count;
+  body->offset += count;
+  return 0;
+}
+
+static int llm_transport(const char *request, char *response, size_t capacity,
+                         size_t *length, int *status, void *context,
+                         int (*check)(void *), void *request_context)
+{
+  struct cloud_backend_s *backend = context;
+  struct bkcloud_http_s *http = calloc(1, sizeof(*http));
+  if (!http) return -ENOMEM;
+  struct llm_body_s body = { .data = request, .size = strlen(request) };
+  *length = 0;
+  *status = 0;
+  int ret = request_prepare(backend);
+  if (!ret && check) ret = check(request_context);
+  if (!ret) ret = bkcloud_http_post(http, &backend->service, "chat/completions",
+    &g_transport, backend, bkvoice_config_now_ms(NULL) + 60000u,
+    llm_body, &body, body.size, response, capacity);
+  if (atomic_load(&backend->canceled)) ret = -ECANCELED;
+  *status = http->status;
+  if (!ret) *length = http->received;
+  mbedtls_platform_zeroize(http, sizeof(*http));
+  free(http);
+  syslog(LOG_INFO, "AGENT LLM transport=verified-cloud status=%d ret=%d bytes=%zu\n",
+         *status, ret, *length);
+  return ret;
+}
+
+static int llm_cancel(void *context) { return request_cancel(context); }
+
+int bkagent_cloud_activate_llm(void)
+{
+  if (llm_request_busy()) return -EBUSY;
+  backend_release(&g_llm);
+  pthread_mutex_lock(&g_config_lock);
+  uint8_t dialect = g_selected ? g_selected->service.dialect : 0;
+  pthread_mutex_unlock(&g_config_lock);
+  int ret = backend_prepare(&g_llm, dialect);
+  if (!ret) ret = llm_set_transport(g_llm.service.chat_model, g_llm.service.host,
+                                   llm_transport, llm_cancel, &g_llm);
+  if (ret) backend_release(&g_llm);
+  return ret;
+}
+
+int bkagent_cloud_verify_service(void)
+{
+  struct cloud_backend_s *backend = &g_llm;
+  int ret = request_prepare(backend);
+  if (!ret) ret = cloud_open(backend, backend->service.host,
+                             backend->service.port,
+                             bkvoice_config_now_ms(NULL) + 15000u);
+  int closed = cloud_close(backend);
+  if (!ret) ret = closed;
+  syslog(LOG_INFO, "AGENT service TLS verified=%d result=%d\n", ret == 0, ret);
+  return ret;
+}
 static int asr_request_prepare(void) { return request_prepare(&g_asr); }
 static int tts_request_prepare(void) { return request_prepare(&g_tts); }
 static int asr_cancel(void) { return request_cancel(&g_asr); }
@@ -344,11 +426,24 @@ int bkagent_cloud_register(void)
 int bkagent_cloud_configure(const void *trust, size_t trust_size,
                            const void *cloud, size_t cloud_size)
 {
-  if (voice_asr_is_busy() || voice_tts_is_busy()) return -EBUSY;
+  if (voice_asr_is_busy() || voice_tts_is_busy() || llm_request_busy()) return -EBUSY;
   struct cloud_settings_s *next = calloc(1, sizeof(*next));
   if (!next) return -ENOMEM;
   next->references = 1;
   int ret = bkcloud_config_decode(&next->service, cloud, cloud_size);
+  if (!ret)
+    {
+      struct bkcloud_models_s models;
+      int selected = bk7258_preferences_cloud_models_get(&models);
+      if (!selected)
+        {
+          memcpy(next->service.asr_model, models.asr_model, sizeof(models.asr_model));
+          memcpy(next->service.chat_model, models.chat_model, sizeof(models.chat_model));
+          memcpy(next->service.tts_model, models.tts_model, sizeof(models.tts_model));
+        }
+      else if (selected != -ENOENT) ret = selected;
+      mbedtls_platform_zeroize(&models, sizeof(models));
+    }
   if (ret == 0) ret = bkvoice_config_load(&next->trust, trust, trust_size);
   if (ret == 0 && (strcmp(next->trust.host, next->service.host) ||
                    next->trust.port != next->service.port)) ret = -EINVAL;

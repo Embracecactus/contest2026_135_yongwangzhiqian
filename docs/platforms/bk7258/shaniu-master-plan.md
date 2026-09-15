@@ -2,47 +2,154 @@
 
 状态：`IN_PROGRESS`
 
-## 2026-09-15 官方框架替换式重构（当前任务）
+## 2026-09-15 当前迁移状态（4c22a945）
 
-### 447b91fa 后纵向闭环接线（2026-09-15）
+本轮增量基于已合并的 `4c22a945`，其父提交为 `447b91fa`；没有依赖升级，官方 Agent、Media、
+NuttX 与 apps 均保持原 pin。本轮仍是产品适配迁移，不将旧 voice runtime 重新作为
+正式消费者。
 
-官方基线以 `447b91fafc608c9f717b31d4fb04c0e0566458e3` 为准；官方
-`packages/ai_agent` 工作区保持无受跟踪修改，构建通过补丁入口应用团队补丁。
-新增 `0007-voice-auto-endpoint.patch` 仅扩展通用 voice channel：提供自动端点、
-捕获/TTS完成事件，并让流式及批处理 ASR 的失败、取消和空结果返回明确错误。
-该补丁不含厂商、板号或产品状态机。
+候选源树是 `out/shaniu-official-candidate-source/contest2026_135_yongwangzhiqian`；
+现有唯一构建入口仍映射原工作树，本轮固件构建时其 HEAD 为 `1cd4a8c0`、包含未提交增量。候选文件
+逐项校验后同步，未覆盖无关修改；构建 manifest 如实记录该 HEAD、dirty 和输入树哈希，
+不能把单独的 `4c22a945` 当作可复现此次二进制的完整源码身份。
+本次 PR 提交已有迁移进度；531/532 和 App21 的下述证据保留各自构建身份，
+不将源码发布记为新的部署或稳定候选验收。
 
-产品侧 `bk7258_agent_product.c` 从受保护 provisioning 存储读取身份、信任和云配置，
-调用官方 cloud configure 后显式选择并激活同一 ASR/TTS 后端；配置读取、注册、激活
-和实际请求仍分开记录。`bk7258_agent_trigger.c` 使用 Media Trigger 加载并校验活动
-模型 SHA，收到官方唤醒事件后停止识别、启动官方自动 voice channel，识别文本通过
-官方 message bus 进入 Agent；TTS 播放排空或捕获失败后按事件重新监听。Trigger、
-voice channel、Agent 和 Media 之间没有新增会话历史或整轮调度器。
+- 敏感配置缓冲在 heap 上统一 zeroize；`g_identity` 是唯一借用 provisioning 生命周期
+  的身份对象。受保护 config 已接现有 network restore/time/owner 泵，ASR、LLM、TTS
+  由各自配置独立激活。
+- 官方 message metadata 已关联 terminal；`480000B` PCM 对应 15 秒，5 秒无话等待。
+  Media Trigger 以 WKM1/SHA 管理活动资产，WKS1 READ 回读实际加载者，并复用既有 CAS
+  导入/恢复事务。TTS 本地接口只预留，尚未实现。
+- 官方 session manager 目前仍使用临时 tmpfs；旧加密长期记忆保留、尚未迁移。
+- 本次仅裁除无本轮消费者的 Web/files/music tools、依赖它们的 builtin skills 和 fb
+  example；没有裁除 Media、Agent、voice、camera 或 OTA 机制。
 
-同一 `aidk_ai_toy/shaniu` 增量构建已通过（CP/AP、链接、`nuttx.bin`、System.map）。
-AP `.config` SHA 为 `9e28f3e3cc4c8a690ba2a55752117c53af6600af70a5bca0575c7e433a3d4b3a`，
-AP role 为 `bk7258-role-b5ceab089e6f41f3`，产物和 manifest 位于
-`out/bk7258-plan-validation/.../releases/mcuboot/`。这只是构建证据；尚未将诊断 BIN
-作为交付物，也尚未取得新主链实板端到端运行证据。
+当前 `.su` 单函数证据为：product-config 120B、identity_load 1016B、cloud_configure
+416B；它们不是完整调用链峰值。当前增量构建 `build-p0-12.log` 通过；模型适配器
+使用显式分配、placement construction 和成对析构，避免两处 `new(nothrow)` 引入
+未使用的 C++ 异常运行库。AP 链接预算现在包含签名 TLV 和现有尾部保护空间。
+之前 p0-4～10 的体积或签名失败仅为迭代历史，不是当前产物结果。
 
-当前仍未完成：COM8 上 Trigger→收音→ASR→Agent→TTS→Media 排空→重新唤醒的连续多轮
-验证，活动模型 SHA 与 App 选择的新鲜回读，取消/超时/断网恢复及安全发布。本人现场
-唤醒、训练录音回放和其他真人泛化分别记录，不能互相替代。**本地接入边界已准备，
-具体引擎与模型未验证**；不以云端或预录音冒充板端本地 TTS。
+当前实板为 `18.6.363+531 / counter531 / slot0`：`BOTA TRIAL CONFIRMED` 与启动日志
+已确认，App 也刚刚实际回读 531。531 启动直接恢复原持久选择“你好冰冰”并进入
+Trigger 推理；这证明当前版本/槽位/模型恢复，不代表真人唤醒、完整语音轮或现场通过。
+同 raw payload 的 App 验证包 532 已准备，App OTA 尚未完成；不得把 531 的受控槽位
+安装或版本回读写成 532 OTA 通过。
 
-本次授权替换通用框架，验收以官方主干真实运行、旧框架退出及产品能力迁移为准。
-下方 525/0.5.15 为进入本轮时的历史实板证据，不是新架构验收；真人多次漏唤醒
-仍需独立核验，不能由框架迁移或单次合成回放推定修复。不新增测试程序、框架或
-探针脚本；沿用现有构建、部署、训练及回放工具。保留进入本轮的测试、日志改动。
+531→532 的第一次真实 App OTA 于 07:50:06Z 点击，07:50:16.632 已接受，App 曾显示
+4% 与 33%；07:54:23.936 `manager-apply=-5`、`staged=0` 终止。CP 在 image1、offset
+1511424 的 `0x56de65` 报 verify mismatch：`missing_zero_bits=3`、`extra_zero_bits=0`、
+`reread=0`、`stable=0`。这只说明两次观测不同，不能断言永久坏块或第二次已匹配 expected。
+失败后 07:54:24.754 Trigger 已重新加载“你好冰冰” SHA
+`2ced56715079b8dcbed076ceef95d6340098949c7e52aea9001810baced15040` 且 `wake ready=1`；
+新鲜 `bkota status` 为 pair confirmed、531/slot0，manager state=7、phase=3、image=1、
+progress=1507328/1601536、error=-5，supervisor faults/recoveries 均为 0。
 
-本地基线：团队 HEAD `60dff48f2894376bbf8086622a17e5d7884f6786`；实际 manifest
-`fe2feda23ddf3fd9671036e5712a93b5775fe3e4`，入口 include 为
-`contest2026_135_yongwangzhiqian.xml`。官方 Agent
-`41723c61725c4e845bfee724f3ad2fafc416b6e1`，Media
-`fb7db0e9f826fb6d71937c948e7da1eb10ffc896`，NuttX
-`76354c637858ecb0aa4601629327acb6f44a26bb`，apps
-`550cd3ba60a03f8ebf9ac7b72f6eed6aea3bedbe`。本次核对四仓均无受跟踪修改；
-NuttX/apps 既有未跟踪映射及依赖目录保留。不执行全量 sync。
+**当前 531 仍不可按稳定候选验收。** OTA 失败后的一次独立合成物理回放（Mi10 扬声器、
+媒体音量 130/150，既有冰冰词＋普通命令）触发了真实自动收音：113280B，MiMo ASR batch
+ret=0，官方 message_bus/Agent 的 LLM ret=0，MiMo TTS 完整文本/逐块音频 ret=0，
+798720B、24kHz/PCM16/mono。AP 时钟中 request1 在 08:09:45.430969 报 complete=0，
+pcm0p 至 45.686094 才报告 complete，期间 MIC 多次 -EBUSY，且播放器出现 I/O error；
+随后恢复 MIC 输入。两种完成时间不一致的问题在当前固件再次复现，不能算完整闭环通过。
+LLM 7289ms、TTS 首块 2004ms 是设备软件计时；主机与设备时钟未对齐，不跨时钟计算首响。
+
+同一采集随后出现 CP HardFault 与整板重启：
+`E=3 X=ffffffed S=60703288 H=40000000 C=00020000 V=1 P=0 L=02016747 Q=60000000`。
+当前 CP ELF 将 LR 邻近地址定位到 `systick_getstatus` 的 64 位除法调用返回处；这不是
+根因证明，也不能据时间先后断言由语音或 OTA 引起。当前 `CONFIG_TIMER_ARCH` 下，
+`arch_timer.current_usec → TIMER_GETSTATUS` 也服务普通线程与内核时钟读取，不能归因于
+idle 路径。重启后 `/proc/19/stack` 的 BLE 栈范围包含该 SP，只能证明当前地址重用，
+不能确定故障前任务；沿用既有 `ps`/procfs 取证，未新建探针。未发重启命令，
+已停止后续回放/升级。
+重启后只读状态仍为 pair confirmed 531、counter531、slot0，模型完整 SHA 保持不变。
+此时 supervisor 的 0 计数属于新启动周期，不能抹掉刚捕获的硬故障。
+证据 `voice531-acoustic-r1.raw`、`voice531-acoustic-r1-actions.json`、
+`voice531-phone-audio-route.log`、`voice531-post-fault-status.raw`；本轮声学尝试1次、
+接受唤醒1次，完整稳定通过0次。未做无话第二轮、10轮、真人现场或泛化验收。
+
+527 是历史构建与声学证据：其候选包曾完成 CP/AP 公钥验签和包结构检查，启动重试曾
+恢复受保护配置、Wi-Fi/时间、ASR/LLM/TTS 与 Media Trigger。527 的恢复下载不记为
+App OTA 通过；历史 525→526 的 App OTA 后，526 曾因过早读取 CP 文件系统并缓存
+`-ENODEV` 而未激活身份/配置。
+
+两次既有独立合成素材通过 Mi10 扬声器→实板 MIC 进行尝试，目标均为“你好冰冰”，
+实际 Trigger 模型 SHA 为 `2ced56715079b8dcbed076ceef95d6340098949c7e52aea9001810baced15040`。
+第一次唤醒后不播放命令：成功进入自动收音，之后恢复 Trigger 输入；终态处采集有间隙，
+不记为完整无话恢复通过。第二次唤醒并播放既有普通命令：ASR MiMo batch ret=0，官方
+message_bus/Agent 调用所选 LLM ret=0，MiMo TTS 完整文本/逐块 PCM 输出 ret=0，645120B、
+24kHz/PCM16/mono，经官方 Media 单次转换到设备 16kHz，request=2 complete=0 后恢复收音。
+见 `voice527-acoustic-r1*.raw` 和 `voice527-acoustic-r2-actions.json`；未做真人现场或泛化。
+
+这还不是完整恢复验收：Media 播放器队列完成后，request=2 在 06:27:40.488 结束，
+MIC 重开短暂 `-EBUSY`，pcm0p 停止完成日志在 40.741。官方队列完成不能替代硬件排空；
+当前 `get_latency` 在 NuttX adevsink 路径未实现，不能据此伪造完成确认。还需闭合输出
+释放与重新监听的时序。首段日志为 LLM 5533ms、TTS 首块 1845ms；自动收音结束至设备
+首次 write/start 约 12.384s，仅为这一轮软件时间证据，不是声学首响测量。
+
+实板还发现短促开麦高幅度数据可使不足 200ms 的声音取消“无有效语音等待”，进而
+等到 15 秒上限。0007 已将 5 秒条件按最低有效语音时长判断，并修正 auto/ptt 日志；
+另补 SDC1 整轮 idle/未知错误字段映射。该增量通过 `build-p0-13.log`，已包含在当前
+531 的 p0-19 构建中；不能把包含修复等同于端点/恢复实板验收通过。
+
+App 已保留原数据安装 `0.5.16-shaniu-ota / code21`，APK SHA256
+`d2e444bad32a6dafaa5bd12e1d2ef098ca06ac8581e687b4870b73ed0fdef1a6`。531 已由 App
+实际回读版本；历史 527 的 WKS1 READ 显示“你好冰冰 · 模型 2ced5671”，与当时设备
+加载 SHA 一致。527 升级页曾返回 `-138`、普通 STATUS 未声明 INFO/OTA 能力位，
+不能以旧缓存替代当前 531 回读，也不能把该历史失败混作 532 OTA 结果。
+App 21 已修正 OTA active/queued 的 `-115` 显示，并修正 MCP1 不支持时无限优先重读而
+饿死 WKS1；增量 `assembleDebug` 通过，APK 5877438B、SHA256
+`d2e444bad32a6dafaa5bd12e1d2ef098ca06ac8581e687b4870b73ed0fdef1a6`。原身份重新认证后，
+App21 已自动回读“你好冰冰 · 模型 2ced5671”，与当前 531 Trigger 完整 SHA 一致；
+见 `app21-install.log`、`app21-model-readback.json/png`。这验证了 WKS1 不再被失败的
+MCP1 读取饿死；MCP1 配置迁移及新文案下成功 OTA 尚未验证。
+现有 KWS host harness 的加载/推理/释放、目标标签和无效输入检查通过，但不代表
+真人效果。本轮尚未开始 10 轮集中稳定性验收，旧 525 成绩不继承。
+
+App OTA 产品接线新增于 `bk7258_agent_ota.c`：只持有一次 App 来源请求、HTTPS CA、
+源生命周期和受保护 BVO2 intent；既有 AP OTA manager 仍拥有 Flash 写入、验签与取消，
+板级 trial 服务仍拥有启动确认。产品回调先停 Trigger，拒绝活动语音/模型/配置事务；
+普通 STATUS 声明既有 INFO/OTA 位，并注册 START/STATUS/CANCEL。目标身份在 image write
+前经原 CAS 存储提交；不确定提交保留，取消需等待源关闭和 worker join，最多 5 秒。
+中断后的手机供包不能自动重建；仅明确再次 START 同一 catalog 可恢复未决下载。
+既有 OTA store/flow/manager host 检查通过（`ota-existing-host.log`）；最终接线增量
+`build-p0-17.log` 通过，AP 原始 1474332B，SHA256
+`813f0125cb97fd97aae0b36b0f3bdbe76e2bc786fbd7d40654819a4b4fa6aa79`。OTA worker 单函数
+栈 424B，沿用 16384B 的 AP OTA 栈；不是完整调用链峰值。528/529 复用同一 raw payload
+并按各自版本/计数重新签名，未重签启动组件。528 包 SHA256
+`d007d72ea01a821bed3536d40c56ae4d9b4221ad13bafd8d866f7e2fe35edb64`，529 包 SHA256
+`6f8779afaa3b481773f72771583a0c6c24763b8b7710e8e44348fe654d7951c9`，公钥验签均通过。
+528 已通过同板非活动 B 槽分段安装并 `BOTA TRIAL CONFIRMED slot=1 counter=528`；
+ASR/LLM/TTS 与受保护配置恢复。App 原凭据重连后已实际回读 build/counter528，OTA
+status idle，见 `app528-ota-info.xml`；能力位和状态回调已实板通过，升级传输尚未通过。
+528 Trigger 启动失败 `-ENOTBLK(-15)`：WKA1/WKM1 实际位于受保护 `/cpdata`，旧
+`preferences_with_storage` 却要求先挂载 SD/FAT。已改为模型存储自身互斥，保留原有
+文件完整性检查和 CAS，不移动/覆盖用户选择。增量 `build-p0-18.log` 通过，AP raw
+1474068B，SHA256 `b4528aa0347224acb7c654d2ca22d41b07401212a59fe0eb71c72364e9af279e`。
+实际 App OTA 改用包含该修复的 530；已签发的 529 未安装、不复用版本标识覆盖包。
+530 包 SHA256 `359b05d61753541cdc1fda5c0acd48c5849737e53f2578f077575ae86e5581f6`，
+验签及手机文件回读通过。App 单次开始 528→530 在 START 返回 `-EINVAL(-22)`，
+未进入 manager/镜像写入，见 `app530-start-actions.json`、`app530-after-start.png`、
+`app530-ota*.log/raw`。新增 adapter 调用 `bkcontrol_ota_request_parse` 的实参顺序错误；
+旧构建的 pointer/int conversion 警告曾被遗漏。该函数还在输入校验前清零输出，因此
+该错误不仅是包格式拒绝，也存在向错误地址写入的风险；不在该旧适配上重复请求。
+已修正调用，为此源文件把不兼容指针、整数/指针转换和隐式声明提升为编译错误。
+`build-p0-19.log` 通过，修正源无此类警告；531 已通过原受控非活动 A 槽安装并 `BOTA TRIAL CONFIRMED slot=0 counter=531`，
+启动直接加载原持久选择“你好冰冰”，完整 SHA `2ced56715079b8dcbed076ceef95d6340098949c7e52aea9001810baced15040`，
+`wake ready=1` 后连续推理；这验证了移除错误 SD 前置依赖后的模型启动，但不代表
+真人唤醒或语音全轮通过。包 531 SHA256 `93bd52925b4c0b7a66169231d7c3b058e444dfde107489cf2b9ff6bef0f6e48d`；
+同 raw payload 的 App 验证包 532 SHA256 `c2564e0a3f504c7ac217b50f6bd7c14a88b0e84dfb7741cc90a6334712c9cbbe`。
+531/532 的 raw AP SHA256 `82b1955ab8cadd35aedc263ffa3a6201f30e253734794952b5ea93e5d6860e2a`，1474052B。
+531 的 App START 实际调用尚待 532 升级尝试验证。不把复用组件的 host 通过当成新入口验收。527 没有该接收入口，需先
+受限安装修复，再由真实 App 完成后续候选包升级验证。未增加官方补丁或测试程序。
+
+待迁移产品能力：App persona/云模型写入、加密记忆、当前拍照工具、App OTA 实板验收、按键、
+表情和马达。项目保持 `IN_PROGRESS`。
+
+### 447b91fa 后纵向闭环接线（历史构建证据，2026-09-15）
+
+以下记录的是父提交 `447b91fa` 的构建与接线证据，不代表当前 `4c22a945` 已通过构建、
+部署或实板验收。
 
 | 现有职责 | 官方接管者 | 必要适配 | 旧实现退出方式 |
 | --- | --- | --- | --- |

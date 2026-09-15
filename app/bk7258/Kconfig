@@ -51,6 +51,21 @@ config AI_AGENT_HEARTBEAT
 	default n if BK7258_APP_AGENT
 	default y
 
+config AI_AGENT_TOOLS_WEB
+	bool "Agent web search and URL tools"
+	depends on EXAMPLES_AI_AGENT_VELA
+	default y
+
+config AI_AGENT_TOOLS_FILES
+	bool "Agent file manipulation tools"
+	depends on EXAMPLES_AI_AGENT_VELA
+	default y
+
+config AI_AGENT_TOOLS_MUSIC
+	bool "Agent music search and independent playback tools"
+	depends on EXAMPLES_AI_AGENT_VELA
+	default y
+
 config BK7258_APP_AGENT
 	bool "Start the official openvela Agent on the BK7258 AP"
 	default y if EXAMPLES_AI_AGENT_VELA

@@ -22,6 +22,7 @@ if(CONFIG_BK7258_AP_APPLICATION_LIFECYCLE)
 endif()
 
 if(CONFIG_BK7258_APP_AGENT)
+  target_include_directories(apps PRIVATE ${NUTTX_APPS_DIR}/netutils/cjson/cJSON)
   include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_framework.cmake)
   target_sources(apps PRIVATE bk7258_agent_product.c)
   if(CONFIG_MEDIA)
@@ -71,6 +72,18 @@ if(CONFIG_BK7258_VOICE_SERVICE)
 endif()
 
 if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
+  if(CONFIG_BK7258_OTA_MANAGER AND CONFIG_BK7258_OTA_SOURCE_HTTP AND
+     CONFIG_BK7258_VOICE_OTA_PERSISTENCE)
+    target_sources(apps PRIVATE bk7258_agent_ota.c)
+    set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/bk7258_agent_ota.c"
+      TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_OPTIONS "-fstack-usage"
+      "-Werror=incompatible-pointer-types" "-Werror=int-conversion"
+      "-Werror=implicit-function-declaration")
+  endif()
+  foreach(source bk7258_agent_product.c bk7258_agent_cloud.c bk7258_provision_identity.c)
+    set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/${source}"
+      TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_OPTIONS "-fstack-usage")
+  endforeach()
   target_sources(apps PRIVATE bk7258_voice_tls.c bk7258_voice_config.c
                               bk7258_cloud_config.c bk7258_cloud_request.c
                               bk7258_cloud_http.c bk7258_cloud_tts.c
@@ -107,7 +120,8 @@ if(CONFIG_BK7258_VOICE_SERVICE OR CONFIG_BK7258_APP_AGENT)
     if(CONFIG_BK7258_VOICE_SERVICE)
       target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_voice_wake_window.c)
     elseif(CONFIG_BK7258_APP_AGENT AND CONFIG_MEDIA_TRIGGER)
-      target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_agent_trigger.c)
+      target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_agent_trigger.c
+                                  bk7258_voice_wake_package.c)
     endif()
     target_include_directories(apps PRIVATE ${BKVOICE_TFLM}
         ${NUTTX_APPS_DIR}/math/kissfft/kissfft)

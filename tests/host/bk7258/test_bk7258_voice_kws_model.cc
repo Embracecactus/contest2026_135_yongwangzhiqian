@@ -58,7 +58,12 @@ int main(int argc, char **argv)
   assert(total > 0.95f && total < 1.05f);
   bkvoice_kws_model_close(model);
 
-  spec.labels[2] = "wrong";
+  /* The selected package owns the target label; only the two background
+   * classes and the three-output tensor contract are fixed. */
+  spec.labels[2] = "nihao_bingbing";
+  assert(bkvoice_kws_model_open(&spec, arena, sizeof(arena), &model) == 0);
+  bkvoice_kws_model_close(model);
+  spec.labels[2] = "";
   assert(bkvoice_kws_model_open(&spec, arena, sizeof(arena), &model) < 0);
   spec = spec_for(model_bytes.data(), model_bytes.size());
   spec.frontend = "wrong";
