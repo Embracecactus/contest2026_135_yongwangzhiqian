@@ -4,6 +4,32 @@
 
 ## 2026-09-15 官方框架替换式重构（当前任务）
 
+### 447b91fa 后纵向闭环接线（2026-09-15）
+
+官方基线以 `447b91fafc608c9f717b31d4fb04c0e0566458e3` 为准；官方
+`packages/ai_agent` 工作区保持无受跟踪修改，构建通过补丁入口应用团队补丁。
+新增 `0007-voice-auto-endpoint.patch` 仅扩展通用 voice channel：提供自动端点、
+捕获/TTS完成事件，并让流式及批处理 ASR 的失败、取消和空结果返回明确错误。
+该补丁不含厂商、板号或产品状态机。
+
+产品侧 `bk7258_agent_product.c` 从受保护 provisioning 存储读取身份、信任和云配置，
+调用官方 cloud configure 后显式选择并激活同一 ASR/TTS 后端；配置读取、注册、激活
+和实际请求仍分开记录。`bk7258_agent_trigger.c` 使用 Media Trigger 加载并校验活动
+模型 SHA，收到官方唤醒事件后停止识别、启动官方自动 voice channel，识别文本通过
+官方 message bus 进入 Agent；TTS 播放排空或捕获失败后按事件重新监听。Trigger、
+voice channel、Agent 和 Media 之间没有新增会话历史或整轮调度器。
+
+同一 `aidk_ai_toy/shaniu` 增量构建已通过（CP/AP、链接、`nuttx.bin`、System.map）。
+AP `.config` SHA 为 `9e28f3e3cc4c8a690ba2a55752117c53af6600af70a5bca0575c7e433a3d4b3a`，
+AP role 为 `bk7258-role-b5ceab089e6f41f3`，产物和 manifest 位于
+`out/bk7258-plan-validation/.../releases/mcuboot/`。这只是构建证据；尚未将诊断 BIN
+作为交付物，也尚未取得新主链实板端到端运行证据。
+
+当前仍未完成：COM8 上 Trigger→收音→ASR→Agent→TTS→Media 排空→重新唤醒的连续多轮
+验证，活动模型 SHA 与 App 选择的新鲜回读，取消/超时/断网恢复及安全发布。本人现场
+唤醒、训练录音回放和其他真人泛化分别记录，不能互相替代。**本地接入边界已准备，
+具体引擎与模型未验证**；不以云端或预录音冒充板端本地 TTS。
+
 本次授权替换通用框架，验收以官方主干真实运行、旧框架退出及产品能力迁移为准。
 下方 525/0.5.15 为进入本轮时的历史实板证据，不是新架构验收；真人多次漏唤醒
 仍需独立核验，不能由框架迁移或单次合成回放推定修复。不新增测试程序、框架或

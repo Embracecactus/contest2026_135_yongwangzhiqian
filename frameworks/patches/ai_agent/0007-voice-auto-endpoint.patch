@@ -1,0 +1,237 @@
+--- a/src/voice/voice_channel.c
++++ b/src/voice/voice_channel.c
+@@ -46,6 +46,10 @@
+ #include <unistd.h>
+ 
+ static const char* TAG = "voice";
++#define AUTO_ENDPOINT_SILENCE_MS 900u
++#define AUTO_ENDPOINT_MAX_MS 15000u
++#define AUTO_ENDPOINT_MIN_SPEECH_MS 200u
++#define AUTO_ENDPOINT_MEAN_ABS 180u
+ #ifdef CONFIG_AI_AGENT_VOICE_VOLCENGINE
+ static int s_backends_registered;
+ #endif
+@@ -224,10 +228,14 @@
+     int tts_active;
+     audio_playback_t* tts_pb; /* active TTS playback handle (or NULL) */
+     pthread_mutex_t speak_lock; /* serialize concurrent speak calls */
++    int auto_endpoint;
++    atomic_int auto_finalize_started;
++    voice_channel_event_cb event_cb;
+ } s_voice = {
+     .state = VOICE_IDLE,
+     .lock = PTHREAD_MUTEX_INITIALIZER,
+     .speak_lock = PTHREAD_MUTEX_INITIALIZER,
++    .auto_finalize_started = 0,
+ };
+ 
+ /* ── File-based helpers (kept for QEMU test commands) ──── */
+@@ -355,6 +363,34 @@
+ 
+ /* ── Recording thread (PTT mode — streaming ASR) ─────────── */
+ 
++static void notify_channel_event(int event, int result)
++{
++    voice_channel_event_cb cb;
++    pthread_mutex_lock(&s_voice.lock);
++    cb = s_voice.event_cb;
++    pthread_mutex_unlock(&s_voice.lock);
++    if (cb) cb(event, result);
++}
++
++static void* auto_finalize_task(void* arg)
++{
++    (void)arg;
++    char text[512];
++    int ret = voice_channel_stop_with_text(text, sizeof(text));
++    if (ret == 0 && text[0] != '\0') {
++        agent_msg_t msg;
++        memset(&msg, 0, sizeof(msg));
++        strncpy(msg.channel, AGENT_CHAN_VOICE, sizeof(msg.channel) - 1);
++        strncpy(msg.chat_id, "voice", sizeof(msg.chat_id) - 1);
++        msg.content = strdup(text);
++        if (msg.content && message_bus_push_inbound(&msg) != 0)
++            free(msg.content);
++    }
++    notify_channel_event(VOICE_CHANNEL_EVENT_CAPTURE_COMPLETE, ret);
++    atomic_store(&s_voice.auto_finalize_started, 0);
++    return NULL;
++}
++
+ static void* recording_thread(void* arg)
+ {
+     (void)arg;
+@@ -365,6 +401,7 @@
+     size_t total_bytes_sent = 0;
+     int chunk_count = 0;
+     int abnormal_exit = 0;
++    unsigned int elapsed_ms = 0, speech_ms = 0, silence_ms = 0;
+ 
+     syslog(LOG_INFO, "[%s] recording thread started (streaming)\n", TAG);
+ 
+@@ -459,15 +496,45 @@
+         preproc_chunk(pp, chunk, n);
+ #endif
+ 
+-        int processed = process_audio_chunk(&stream, chunk, (size_t)n,
++        int process_ret = process_audio_chunk(&stream, chunk, (size_t)n,
+             &need_fallback, &total_bytes_sent);
+-        if (processed < 0) {
++        if (process_ret < 0) {
+             pthread_mutex_lock(&s_voice.lock);
+-            s_voice.capture_error = processed;
++            s_voice.capture_error = process_ret;
+             pthread_mutex_unlock(&s_voice.lock);
+             abnormal_exit = 1;
+             break;
+         }
++        if (s_voice.auto_endpoint) {
++            int64_t sum = 0;
++            int16_t *samples = (int16_t *)chunk;
++            int sample_count = n / (int)sizeof(int16_t);
++            for (int i = 0; i < sample_count; i++) {
++                int32_t v = samples[i];
++                sum += v < 0 ? -v : v;
++            }
++            unsigned int chunk_ms = sample_count ?
++                (unsigned int)((sample_count * 1000u) / AGENT_VOICE_SAMPLE_RATE) : 0;
++            unsigned int mean = sample_count ? (unsigned int)(sum / sample_count) : 0;
++            elapsed_ms += chunk_ms;
++            if (mean >= AUTO_ENDPOINT_MEAN_ABS) { speech_ms += chunk_ms; silence_ms = 0; }
++            else if (speech_ms >= AUTO_ENDPOINT_MIN_SPEECH_MS) silence_ms += chunk_ms;
++            if ((speech_ms >= AUTO_ENDPOINT_MIN_SPEECH_MS && silence_ms >= AUTO_ENDPOINT_SILENCE_MS) ||
++                elapsed_ms >= AUTO_ENDPOINT_MAX_MS) {
++                if (atomic_exchange(&s_voice.auto_finalize_started, 1) == 0) {
++                    int finalize_ret = agent_task_create(auto_finalize_task,
++                        "voice_auto_stop", 8192, NULL, AGENT_VOICE_PRIO);
++                    if (finalize_ret != OK) {
++                        atomic_store(&s_voice.auto_finalize_started, 0);
++                        pthread_mutex_lock(&s_voice.lock);
++                        s_voice.capture_error = -EIO;
++                        pthread_mutex_unlock(&s_voice.lock);
++                        break;
++                    }
++                }
++                break;
++            }
++        }
+     }
+ 
+ #ifdef CONFIG_AI_AGENT_AUDIO_PREPROCESS
+@@ -634,6 +701,8 @@
+     s_voice.asr_stream = NULL;
+     s_voice.tts_abort = 0;
+     s_voice.tts_pb = NULL;
++    s_voice.auto_endpoint = 0;
++    atomic_store(&s_voice.auto_finalize_started, 0);
+     sem_init(&s_voice.rec_ready, 0, 0);
+ 
+ #ifdef CONFIG_AI_AGENT_VOICE_VOLCENGINE
+@@ -812,6 +881,33 @@
+     return 0;
+ }
+ 
++int voice_channel_start_auto(void)
++{
++    pthread_mutex_lock(&s_voice.lock);
++    s_voice.auto_endpoint = 1;
++    s_voice.capture_error = 0;
++    pthread_mutex_unlock(&s_voice.lock);
++    int ret = voice_channel_start();
++    if (ret != 0) {
++        pthread_mutex_lock(&s_voice.lock);
++        s_voice.auto_endpoint = 0;
++        pthread_mutex_unlock(&s_voice.lock);
++    }
++    return ret;
++}
++
++int voice_channel_set_event_callback(voice_channel_event_cb callback)
++{
++    pthread_mutex_lock(&s_voice.lock);
++    if (s_voice.state != VOICE_IDLE || s_voice.tts_active) {
++        pthread_mutex_unlock(&s_voice.lock);
++        return -EBUSY;
++    }
++    s_voice.event_cb = callback;
++    pthread_mutex_unlock(&s_voice.lock);
++    return 0;
++}
++
+ int voice_channel_stop(void)
+ {
+     pthread_mutex_lock(&s_voice.lock);
+@@ -981,12 +1077,14 @@
+         s_voice.pcm_buf = NULL;
+ 
+         if (ret == 0 && text[0] != '\0') {
+-            syslog(LOG_INFO, "[%s] stream ASR (with_text): %s\n",
+-                TAG, text);
++            syslog(LOG_INFO, "[%s] stream ASR (with_text): %s\n", TAG, text);
+             strncpy(text_out, text, text_cap - 1);
+             text_out[text_cap - 1] = '\0';
++            return 0;
+         }
+-        return 0;
++        if (ret == 0) ret = -ENODATA;
++        syslog(LOG_WARNING, "[%s] stream ASR (with_text) failed/empty: %d\n", TAG, ret);
++        return ret;
+     }
+ 
+     /* Batch fallback: synchronous ASR inline (no thread) */
+@@ -1016,7 +1114,8 @@
+             TAG, ret);
+     }
+ 
+-    return 0;
++    if (ret == 0 && text[0] == '\0') ret = -ENODATA;
++    return ret;
+ }
+ 
+ /* Strip Markdown formatting that TTS would read aloud.
+@@ -1068,6 +1167,7 @@
+ int voice_channel_speak(const char* text)
+ {
+     if (!text || text[0] == '\0') {
++        notify_channel_event(VOICE_CHANNEL_EVENT_TTS_COMPLETE, -EINVAL);
+         return -EINVAL;
+     }
+ 
+@@ -1115,6 +1215,7 @@
+     if (clean[0] == '\0') {
+         free(clean);
+         pthread_mutex_unlock(&s_voice.speak_lock);
++        notify_channel_event(VOICE_CHANNEL_EVENT_TTS_COMPLETE, 0);
+         return 0;
+     }
+ 
+@@ -1177,6 +1278,7 @@
+     if (ret != 0) {
+         syslog(LOG_ERR, "[%s] TTS stream failed: %d\n", TAG, ret);
+         pthread_mutex_unlock(&s_voice.speak_lock);
++        notify_channel_event(VOICE_CHANNEL_EVENT_TTS_COMPLETE, ret);
+         return ret;
+     }
+ 
+@@ -1187,6 +1289,7 @@
+     syslog(LOG_INFO, "[%s] speak done: total %ldms (play wait %ldms)\n",
+         TAG, total_ms, total_ms - net_ms);
+     pthread_mutex_unlock(&s_voice.speak_lock);
++    notify_channel_event(VOICE_CHANNEL_EVENT_TTS_COMPLETE, 0);
+     return 0;
+ }
+ 
+--- a/src/voice/voice_channel.h
++++ b/src/voice/voice_channel.h
+@@ -27,6 +27,11 @@
+ 
+ /* Start voice recording, ASR, then push text to agent via message_bus. */
+ int voice_channel_start(void);
++int voice_channel_start_auto(void);
++typedef void (*voice_channel_event_cb)(int event, int result);
++#define VOICE_CHANNEL_EVENT_TTS_COMPLETE 1
++#define VOICE_CHANNEL_EVENT_CAPTURE_COMPLETE 2
++int voice_channel_set_event_callback(voice_channel_event_cb callback);
+ 
+ /* Stop an active voice session. */
+ int voice_channel_stop(void);

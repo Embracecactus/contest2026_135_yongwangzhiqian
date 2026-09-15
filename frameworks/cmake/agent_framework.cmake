@@ -15,7 +15,8 @@ function(bk7258_apply_agent_framework_patches)
               0003-media-playback-completion.patch
               0004-voice-channel-capabilities.patch
               0005-external-network-configuration.patch
-              0006-optional-service-startup.patch)
+              0006-optional-service-startup.patch
+              0007-voice-auto-endpoint.patch)
   set(files)
   foreach(name IN LISTS patches)
     set(patch "${patch_root}/${name}")
