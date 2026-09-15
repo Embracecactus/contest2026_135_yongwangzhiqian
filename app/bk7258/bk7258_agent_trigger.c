@@ -5,6 +5,9 @@
  * Media serializes load/detect/unload on its trigger worker. */
 #include "bk7258_voice_kws.h"
 #include "bk7258_voice_kws_model.h"
+#include "bk7258_voice_wake_package.h"
+#include "bk7258_voice_media.h"
+#include "bk7258_control_session.h"
 
 #include <nuttx/config.h>
 #include <media_trigger.h>
@@ -100,11 +103,19 @@ void *media_trigger_model_load(const void *data, size_t size,
   struct bkvoice_kws_policy_s policy;
   uintptr_t aligned;
   int ret;
+  struct bkvoice_wake_package_s package;
 
-  if (data == NULL || size == 0 || size > BKVOICE_KWS_MODEL_MAX_BYTES)
+  /* Media carries the existing asset envelope so the model backend validates
+   * the same label and bytes that the product reports to the App. */
+  if (bkvoice_wake_package_decode(data, size, &package) != 0)
     {
       return NULL;
     }
+  uint8_t hash[32];
+  if (mbedtls_sha256(package.model, package.model_size, hash, 0) != 0 ||
+      memcmp(hash, package.sha256, sizeof(hash))) return NULL;
+  data = package.model;
+  size = package.model_size;
 
   if (g_trigger != NULL)
     {
@@ -138,7 +149,7 @@ void *media_trigger_model_load(const void *data, size_t size,
   spec.frontend = BKVOICE_KWS_FRONTEND_ID;
   spec.labels[0] = "silence";
   spec.labels[1] = "unknown";
-  spec.labels[2] = BKVOICE_KWS_LABEL;
+  spec.labels[2] = package.label;
   ret = bkvoice_kws_model_open(&spec, context->arena,
                                CONFIG_BK7258_VOICE_KWS_ARENA_BYTES,
                                &context->model);
@@ -295,142 +306,312 @@ int media_trigger_model_poll_available(void *context)
   return context == NULL ? -EINVAL : -ENOSYS;
 }
 
-struct bk7258_agent_trigger_s
-{
+/* Serialized by the product worker. Callback threads only publish a wake
+ * for the currently armed Media handle; no conversational state lives here. */
+static struct {
   void *handle;
-  unsigned char *model;
-  size_t model_size;
+  bool loaded;
+  bool recognizing;
+  bool policy_active;
+  bool selection_known;
+  bool uncertain;
+  uint64_t revision;
+  atomic_uint generation;
+  atomic_bool accepting;
   atomic_bool turn_pending;
-};
+  atomic_int callback_error;
+  struct bkvoice_wake_package_descriptor_s active;
+  struct bkvoice_wake_package_descriptor_s previous;
+  size_t active_size;
+  size_t previous_size;
+  uint8_t *pending_record;
+  size_t pending_size;
+  uint32_t pending_kind;
+  int error;
+} g_agent_trigger;
 
-static struct bk7258_agent_trigger_s g_agent_trigger;
+extern void bk7258_agent_product_event(int event, int result);
 
-static int trigger_load_model(void)
+static void wire_u32(uint8_t *p, uint32_t n)
+{ p[0] = n >> 24; p[1] = n >> 16; p[2] = n >> 8; p[3] = n; }
+
+static void wire_descriptor(uint8_t *p,
+  const struct bkvoice_wake_package_descriptor_s *d, size_t size)
+{
+  memset(p, 0, BKVOICE_WAKE_PACKAGE_HEADER);
+  if (!d->model_path[0] || !size) return;
+  memcpy(p, "WKM1", 4);
+  wire_u32(p + 4, size);
+  for (size_t i = 0; i < 32; i++) {
+    unsigned int value = 0;
+    (void)sscanf(d->sha256_hex + 2 * i, "%2x", &value);
+    p[8 + i] = value;
+  }
+  memcpy(p + 40, d->label, sizeof(d->label));
+  memcpy(p + 72, d->phrase, sizeof(d->phrase));
+}
+
+static size_t model_file_size(const struct bkvoice_wake_package_descriptor_s *d)
 {
   struct stat st;
-  uint8_t hash[32];
-  char hex[65];
-  mbedtls_sha256_context sha;
-  size_t used = 0;
-  int fd = open(CONFIG_BK7258_VOICE_KWS_MODEL_PATH, O_RDONLY | O_NOFOLLOW);
-  if (fd < 0) return -errno;
-  if (fstat(fd, &st) < 0 || st.st_size <= 0 ||
-      st.st_size > BKVOICE_KWS_MODEL_MAX_BYTES)
-    { close(fd); return -EBADMSG; }
-  g_agent_trigger.model = malloc((size_t)st.st_size);
-  if (!g_agent_trigger.model) { close(fd); return -ENOMEM; }
-  while (used < (size_t)st.st_size)
-    {
-      ssize_t n = read(fd, g_agent_trigger.model + used,
-                       (size_t)st.st_size - used);
-      if (n < 0 && errno == EINTR) continue;
-      if (n <= 0) { close(fd); return n < 0 ? -errno : -EIO; }
-      used += (size_t)n;
-    }
-  close(fd);
-  g_agent_trigger.model_size = used;
-  mbedtls_sha256_init(&sha);
-  if (mbedtls_sha256_starts(&sha, 0) ||
-      mbedtls_sha256_update(&sha, g_agent_trigger.model, used) ||
-      mbedtls_sha256_finish(&sha, hash))
-    { mbedtls_sha256_free(&sha); return -EIO; }
-  mbedtls_sha256_free(&sha);
-  for (unsigned int i = 0; i < sizeof(hash); i++)
-    snprintf(hex + i * 2, 3, "%02x", hash[i]);
-  hex[64] = '\0';
-  if (strcmp(hex, CONFIG_BK7258_VOICE_KWS_MODEL_SHA256) != 0)
-    return -EKEYREJECTED;
-  return 0;
-}
-
-static void trigger_voice_event(int event, int result)
-{
-  if (!g_agent_trigger.handle) return;
-  if (event == VOICE_CHANNEL_EVENT_CAPTURE_COMPLETE && result < 0)
-    {
-      int ret = media_trigger_start_recognition(g_agent_trigger.handle);
-      syslog(LOG_WARNING,
-             "BKVOICE official Trigger rearm after capture failure=%d ret=%d\n",
-             result, ret);
-      return;
-    }
-  if (event != VOICE_CHANNEL_EVENT_TTS_COMPLETE) return;
-  int ret = media_trigger_start_recognition(g_agent_trigger.handle);
-  syslog(result == 0 ? LOG_INFO : LOG_WARNING,
-         "BKVOICE official Trigger rearm after Media TTS result=%d ret=%d\n",
-         result, ret);
-}
-
-static int trigger_turn_task(int argc, FAR char *argv[])
-{
-  int ret;
-  (void)argc;
-  (void)argv;
-  ret = media_trigger_stop_recognition(g_agent_trigger.handle);
-  if (ret == 0) ret = voice_channel_start_auto();
-  if (ret < 0)
-    {
-      syslog(LOG_WARNING, "BKVOICE official Trigger turn start failed: %d\n", ret);
-      (void)media_trigger_start_recognition(g_agent_trigger.handle);
-    }
-  atomic_store(&g_agent_trigger.turn_pending, false);
-  return ret;
-}
-
-static void *trigger_turn_worker(void *arg)
-{
-  (void)arg;
-  (void)trigger_turn_task(0, NULL);
-  return NULL;
+  if (!d->model_path[0] || lstat(d->model_path, &st) ||
+      !S_ISREG(st.st_mode) || st.st_size <= 0 ||
+      st.st_size > BKVOICE_KWS_MODEL_MAX_BYTES) return 0;
+  return st.st_size;
 }
 
 static void trigger_event(void *cookie, int event, int result, const char *extra)
 {
-  (void)cookie;
   (void)extra;
-  if (event == 0 && result == 0 &&
-      !atomic_exchange(&g_agent_trigger.turn_pending, true))
-    {
-      int ret = agent_task_create(trigger_turn_worker, "voice_trigger_turn",
-                                  8192, NULL, 90);
-      if (ret != OK)
-        {
-          atomic_store(&g_agent_trigger.turn_pending, false);
-          syslog(LOG_ERR, "BKVOICE official Trigger turn task failed=%d\n", ret);
-        }
-    }
+  if ((uintptr_t)cookie != atomic_load(&g_agent_trigger.generation) ||
+      !atomic_exchange(&g_agent_trigger.accepting, false)) return;
+  if (event != 0 || result != 0)
+    atomic_store(&g_agent_trigger.callback_error, result < 0 ? result : -EIO);
+  atomic_store(&g_agent_trigger.turn_pending, true);
+  bk7258_agent_product_event(100, result);
+}
+
+static int trigger_pause(void)
+{
+  atomic_store(&g_agent_trigger.accepting, false);
+  if (g_agent_trigger.recognizing) {
+    int ret = media_trigger_stop_recognition(g_agent_trigger.handle);
+    if (ret < 0) return ret;
+    g_agent_trigger.recognizing = false;
+  }
+  if (g_agent_trigger.policy_active) {
+    int ret = bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, false);
+    if (ret < 0) return ret;
+    g_agent_trigger.policy_active = false;
+  }
+  return 0;
+}
+
+int bk7258_agent_trigger_stop(void)
+{
+  int ret = trigger_pause();
+  if (ret < 0) return ret;
+  atomic_store(&g_agent_trigger.turn_pending, false);
+  if (g_agent_trigger.loaded) {
+    ret = media_trigger_unload_sound_model(g_agent_trigger.handle);
+    if (ret < 0) return ret;
+    g_agent_trigger.loaded = false;
+    g_agent_trigger.active_size = 0;
+  }
+  if (g_agent_trigger.handle) {
+    ret = media_trigger_close(g_agent_trigger.handle);
+    if (ret < 0) return ret;
+    g_agent_trigger.handle = NULL;
+  }
+  return 0;
+}
+
+bool bk7258_agent_trigger_armed(void)
+{
+  return g_agent_trigger.handle && g_agent_trigger.loaded &&
+         g_agent_trigger.recognizing && g_agent_trigger.policy_active &&
+         !g_agent_trigger.uncertain &&
+         atomic_load(&g_agent_trigger.accepting);
+}
+
+int bk7258_agent_trigger_rearm(void)
+{
+  if (!g_agent_trigger.handle || !g_agent_trigger.loaded ||
+      !voice_channel_is_idle() || g_agent_trigger.uncertain) return -EBUSY;
+  if (g_agent_trigger.recognizing) return 0;
+  int ret = bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, true);
+  if (!ret) {
+    g_agent_trigger.policy_active = true;
+    atomic_store(&g_agent_trigger.callback_error, 0);
+    atomic_store(&g_agent_trigger.accepting, true);
+    ret = media_trigger_start_recognition(g_agent_trigger.handle);
+    if (!ret) g_agent_trigger.recognizing = true;
+  }
+  if (ret) {
+    atomic_store(&g_agent_trigger.accepting, false);
+    (void)trigger_pause();
+  }
+  syslog(ret ? LOG_WARNING : LOG_INFO, "BKVOICE official Trigger rearm ret=%d\n", ret);
+  return ret;
+}
+
+static int trigger_open_model(const struct bkvoice_wake_package_descriptor_s *selected)
+{
+  size_t size = model_file_size(selected), used = 0;
+  if (!size) return -EBADMSG;
+  uint8_t *record = malloc(BKVOICE_WAKE_PACKAGE_HEADER + size);
+  if (!record) return -ENOMEM;
+  wire_descriptor(record, selected, size);
+  int fd = open(selected->model_path, O_RDONLY | O_NOFOLLOW);
+  int ret = fd < 0 ? -errno : 0;
+  while (!ret && used < size) {
+    ssize_t n = read(fd, record + BKVOICE_WAKE_PACKAGE_HEADER + used, size - used);
+    if (n < 0 && errno == EINTR) continue;
+    if (n <= 0) { ret = n < 0 ? -errno : -EIO; break; }
+    used += n;
+  }
+  if (fd >= 0 && close(fd) < 0 && !ret) ret = -errno;
+  uint8_t hash[32];
+  if (!ret && (mbedtls_sha256(record + BKVOICE_WAKE_PACKAGE_HEADER, size, hash, 0) ||
+               memcmp(hash, record + 8, 32))) ret = -EKEYREJECTED;
+  if (!ret) {
+    g_agent_trigger.handle = media_trigger_open("default");
+    if (!g_agent_trigger.handle) ret = -ENODEV;
+  }
+  if (!ret) {
+    unsigned int generation = atomic_fetch_add(&g_agent_trigger.generation, 1) + 1;
+    ret = media_trigger_set_event_callback(g_agent_trigger.handle,
+      (void *)(uintptr_t)generation, trigger_event);
+  }
+  if (!ret) ret = media_trigger_load_sound_model(g_agent_trigger.handle, record,
+                                                 BKVOICE_WAKE_PACKAGE_HEADER + size);
+  memset(record, 0, BKVOICE_WAKE_PACKAGE_HEADER + size);
+  free(record);
+  if (!ret) {
+    g_agent_trigger.loaded = true;
+    ret = bk7258_agent_trigger_rearm();
+  }
+  if (ret) { (void)bk7258_agent_trigger_stop(); return ret; }
+  g_agent_trigger.active = *selected;
+  g_agent_trigger.active_size = size;
+  syslog(LOG_INFO, "BKVOICE official Trigger active label=%s sha256=%s bytes=%zu\n",
+         selected->label, selected->sha256_hex, size);
+  return 0;
 }
 
 int bk7258_agent_trigger_start(void)
 {
-  int ret;
-  if (g_agent_trigger.handle) return 0;
-  ret = voice_channel_set_event_callback(trigger_voice_event);
-  if (ret < 0) return ret;
-  ret = trigger_load_model();
-  if (ret < 0) goto fail;
-  g_agent_trigger.handle = media_trigger_open("default");
-  if (!g_agent_trigger.handle) { ret = -ENODEV; goto fail; }
-  ret = media_trigger_set_event_callback(g_agent_trigger.handle,
-                                         &g_agent_trigger, trigger_event);
-  if (ret < 0) goto fail;
-  ret = media_trigger_load_sound_model(g_agent_trigger.handle,
-                                       g_agent_trigger.model,
-                                       g_agent_trigger.model_size);
-  if (ret < 0) goto fail;
-  ret = media_trigger_start_recognition(g_agent_trigger.handle);
-  if (ret < 0) goto fail;
-  syslog(LOG_INFO, "BKVOICE official Trigger active model=%s bytes=%zu\n",
-         CONFIG_BK7258_VOICE_KWS_MODEL_SHA256, g_agent_trigger.model_size);
+  if (g_agent_trigger.handle) return bk7258_agent_trigger_rearm();
+  struct bkvoice_wake_package_descriptor_s selected = {0}, previous = {0};
+  uint64_t revision = 0;
+  int ret = bkvoice_wake_package_load(&selected, &previous, &revision);
+  if (ret == -ENOENT) {
+    snprintf(selected.model_path, sizeof(selected.model_path), "%s", CONFIG_BK7258_VOICE_KWS_MODEL_PATH);
+    snprintf(selected.sha256_hex, sizeof(selected.sha256_hex), "%s", CONFIG_BK7258_VOICE_KWS_MODEL_SHA256);
+    snprintf(selected.label, sizeof(selected.label), "%s", BKVOICE_KWS_LABEL);
+    snprintf(selected.phrase, sizeof(selected.phrase), "%s", "你好，open-vela");
+    syslog(LOG_INFO, "BKVOICE model selection=builtin reason=no-persistent-selection\n");
+  } else if (ret) { g_agent_trigger.error = ret; return ret; }
+  g_agent_trigger.revision = revision;
+  g_agent_trigger.previous = previous;
+  g_agent_trigger.previous_size = model_file_size(&previous);
+  g_agent_trigger.selection_known = true;
+  ret = trigger_open_model(&selected);
+  g_agent_trigger.error = ret;
+  return ret;
+}
+
+/* Existing asset transaction only: no audio turn, history or retry scheduler.
+ * Old and candidate inference arenas never need to coexist. */
+bool bk7258_agent_trigger_model_pending(void)
+{
+  return g_agent_trigger.pending_record != NULL;
+}
+
+int bk7258_agent_trigger_model_step(void)
+{
+  if (!g_agent_trigger.pending_record) return 0;
+  if (!voice_channel_is_idle()) return -EBUSY;
+  struct bkvoice_wake_package_descriptor_s old = g_agent_trigger.active;
+  struct bkvoice_wake_package_descriptor_s desired = g_agent_trigger.previous;
+  int ret = bk7258_agent_trigger_stop();
+  if (!ret && g_agent_trigger.pending_kind == BKCONTROL_CONFIG_WAKE_MODEL) {
+    struct bkvoice_wake_package_s spec;
+    ret = bkvoice_wake_package_decode(g_agent_trigger.pending_record,
+                                       g_agent_trigger.pending_size, &spec);
+    if (!ret) ret = bkvoice_wake_package_validate(&spec);
+    if (!ret) ret = bkvoice_wake_package_stage(&spec, &desired);
+  }
+  if (!ret) ret = trigger_open_model(&desired);
+  /* Trial recognition is stopped until the persistent selection is definite. */
+  if (!ret) ret = trigger_pause();
+  if (!ret) ret = bkvoice_wake_package_commit(&desired, &old, g_agent_trigger.revision);
+  if (!ret) {
+    g_agent_trigger.revision++;
+    g_agent_trigger.previous = old;
+    g_agent_trigger.previous_size = model_file_size(&old);
+    ret = bk7258_agent_trigger_rearm();
+  } else {
+    int stopped = bk7258_agent_trigger_stop();
+    if (ret == -EINPROGRESS) {
+      /* Do not overwrite an uncertain CAS publication or advertise either
+       * model as usable. Reboot reloads the existing journal safely. */
+      g_agent_trigger.uncertain = true;
+    } else if (!stopped) {
+      int restored = trigger_open_model(&old);
+      if (restored) ret = restored;
+    } else ret = stopped;
+  }
+  memset(g_agent_trigger.pending_record, 0, g_agent_trigger.pending_size);
+  free(g_agent_trigger.pending_record);
+  g_agent_trigger.pending_record = NULL;
+  g_agent_trigger.pending_size = 0;
+  g_agent_trigger.error = ret;
+  syslog(ret ? LOG_WARNING : LOG_INFO, "BKVOICE model apply result=%d loaded=%d\n",
+         ret, g_agent_trigger.loaded);
+  return ret;
+}
+
+int bk7258_agent_trigger_control(void *context, enum bkcontrol_command_e command,
+  uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
+  struct bkcontrol_status_s *status)
+{
+  (void)context;
+  if (kind != BKCONTROL_CONFIG_WAKE_MODEL && kind != BKCONTROL_CONFIG_WAKE_RESTORE)
+    return -ENOTSUP;
+  if (command == BKCONTROL_CONFIG_READ) {
+    if (!g_agent_trigger.selection_known || !g_agent_trigger.active_size)
+      return g_agent_trigger.error ? g_agent_trigger.error : -EAGAIN;
+    uint8_t wire[12 + 2 * BKVOICE_WAKE_PACKAGE_HEADER] = {'W','K','S','1'};
+    if (kind != BKCONTROL_CONFIG_WAKE_MODEL || offset >= sizeof(wire) || (offset & 15u))
+      return -ERANGE;
+    wire_u32(wire + 4, g_agent_trigger.pending_record != NULL);
+    wire_u32(wire + 8, (uint32_t)g_agent_trigger.error);
+    wire_descriptor(wire + 12, &g_agent_trigger.active, g_agent_trigger.active_size);
+    wire_descriptor(wire + 12 + BKVOICE_WAKE_PACKAGE_HEADER,
+                      &g_agent_trigger.previous, g_agent_trigger.previous_size);
+    status->config_total = sizeof(wire);
+    memset(status->config_chunk, 0, sizeof(status->config_chunk));
+    size_t count = sizeof(wire) - offset;
+    if (count > sizeof(status->config_chunk)) count = sizeof(status->config_chunk);
+    memcpy(status->config_chunk, wire + offset, count);
+    return 0;
+  }
+  if (command != BKCONTROL_CONFIG_BEGIN && command != BKCONTROL_CONFIG_APPLY) return -EINVAL;
+  if (!g_agent_trigger.selection_known) return -EAGAIN;
+  if (g_agent_trigger.uncertain) return -EINPROGRESS;
+  if (!voice_channel_is_idle() || g_agent_trigger.pending_record) return -EBUSY;
+  if ((kind == BKCONTROL_CONFIG_WAKE_MODEL &&
+      (size <= BKVOICE_WAKE_PACKAGE_HEADER || size > BKCONTROL_CONFIG_RECORD_MAX)) ||
+      (kind == BKCONTROL_CONFIG_WAKE_RESTORE && size != 4)) return -EMSGSIZE;
+  if (kind == BKCONTROL_CONFIG_WAKE_RESTORE && !g_agent_trigger.previous_size) return -ENOENT;
+  if (command == BKCONTROL_CONFIG_BEGIN) return 0;
+  if (!record) return -EINVAL;
+  if (kind == BKCONTROL_CONFIG_WAKE_RESTORE && memcmp(record, "WKR1", 4)) return -EBADMSG;
+  if (kind == BKCONTROL_CONFIG_WAKE_MODEL) {
+    struct bkvoice_wake_package_s spec;
+    int ret = bkvoice_wake_package_decode(record, size, &spec);
+    if (ret) return ret;
+  }
+  g_agent_trigger.pending_record = malloc(size);
+  if (!g_agent_trigger.pending_record) return -ENOMEM;
+  memcpy(g_agent_trigger.pending_record, record, size);
+  g_agent_trigger.pending_size = size;
+  g_agent_trigger.pending_kind = kind;
+  g_agent_trigger.error = 0;
   return 0;
-fail:
-  if (g_agent_trigger.handle)
-    {
-      (void)media_trigger_close(g_agent_trigger.handle);
-      g_agent_trigger.handle = NULL;
-    }
-  free(g_agent_trigger.model);
-  g_agent_trigger.model = NULL;
-  g_agent_trigger.model_size = 0;
+}
+
+int bk7258_agent_trigger_process(void)
+{
+  if (!atomic_exchange(&g_agent_trigger.turn_pending, false)) return 0;
+  int ret = trigger_pause();
+  int callback_error = atomic_exchange(&g_agent_trigger.callback_error, 0);
+  if (!ret && callback_error) ret = callback_error;
+  if (!ret) ret = voice_channel_start_auto();
+  if (ret < 0) {
+    syslog(LOG_WARNING, "BKVOICE official Trigger turn start failed=%d\n", ret);
+    if (voice_channel_is_idle() && !callback_error) (void)bk7258_agent_trigger_rearm();
+  }
   return ret;
 }

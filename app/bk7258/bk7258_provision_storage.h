@@ -11,6 +11,9 @@
  * (AP via RPMsgFS); no filesystem is mounted or formatted here.
  */
 int bkprov_storage_start(const char *root);
+/* One product consumer; notification carries no private data, is invoked
+ * outside the storage mutex, and must only schedule work. */
+void bkprov_storage_set_notify(void (*notify)(void));
 /* Immutable factory identity, separate from the mutable network record.
  * Install accepts only a caller-validated BPI1 record; exact repeated polls
  * are idempotent, and an existing different identity is never overwritten.

@@ -6,6 +6,10 @@
 /* Service-protocol backends for the official voice registries. No capture,
  * playback, conversation, history, worker or recovery owner lives here. */
 int bkagent_cloud_register(void);
+int bkagent_cloud_activate_llm(void);
+/* Verify the selected server's TLS identity. This does not claim ASR/LLM/TTS
+ * request success. Called before the product enables voice requests. */
+int bkagent_cloud_verify_service(void);
 
 /* Called by the existing authenticated configuration owner at an idle voice
  * boundary. BVC1 and CCF1 remain secret records in the existing storage path.

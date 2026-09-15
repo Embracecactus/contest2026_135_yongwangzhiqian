@@ -81,11 +81,16 @@
 | `0004-voice-channel-capabilities.patch` | `src/voice/voice_channel.c` | 原通道预连接不支持的 ASR，流式失败只重试尾部 PCM；按能力选同后端批处理、传播错误、先 join 后释放、按请求绑定格式播放，取消同时到后端。 |
 | `0005-external-network-configuration.patch` | `src/infra/network_manager.c` | 原硬件网络路径固定通过 shell/wapi 重新配置 Wi-Fi；补观察既有网络服务的通用选择。 |
 | `0006-optional-service-startup.patch` | `src/agent_main.c`、`src/tools/tool_registry.c` | CLI、WebSocket、cron、heartbeat 默认无条件启动；补通用构建选择，正式产品关闭无需求的模块。 |
+| `0007-voice-auto-endpoint.patch` | `include/voice/{audio_capture,voice_asr,voice_tts}.h`、`src/{agent_main.c,core/{agent_loop,message_bus.[ch]},llm/llm_proxy.[ch],tools/{skill_loader,tool_registry}.c,voice/{audio_capture,voice_asr,voice_channel.[ch],voice_tts}.c}` | 上游没有产品所需的单轮终态关联、自动端点和端到端取消边界：补 voice request ID/终态及自动端点；message bus/Agent/outbound 透传结果；受控外部 LLM transport 与开始前取消检查；可选 capture route 回调；工具和 builtin skills 按既有或新增 Kconfig 选择。它们是通用接口扩展，不含板号、厂商传输或产品状态机。 |
 
 这些通用选项暂由团队 `app/bk7258/Kconfig` 声明，因为官方 Kconfig 在 CMake
 派生源码之前已被读取；没有声称构建期改写 Kconfig 生效。配置同启官方 Agent 与
 旧 voice service 会明确构建失败。旧请求级 `0001`/`agent_provider.cmake` 仅由
 `VOICE_SERVICE` 路径消费（目前 `drivercheck_ap` 仍启用），不进入新正式目标。
+
+`0002` 至 `0006` 本轮未改；`0007` 同样只应用于构建派生副本。官方 pin 仍为
+`41723c61725c4e845bfee724f3ad2fafc416b6e1`，官方 checkout 未编辑；构建派生确实
+应用补丁。以上是来源和构建输入说明，不表示已部署或语音链路已验证。
 
 `app/bk7258/bk7258_cloud_audio.[ch]` 从本仓 cloud client 提取现有音频服务协议；
 `bk7258_agent_cloud.[ch]` 在官方 ops 下注册 MiMo/OpenAI 音频协议，持有配置快照、
@@ -97,6 +102,12 @@ TLS 及单次请求工作区，复用既有证书/主机名/可信时间验证�
 `bk7258_agent_trigger.c` 是 Media Trigger 下的 TFLM 模型适配，保留已维护的
 模型张量/前处理和冻结分数策略；没有搬入旧 wake window、VAD、Recorder、Agent
 或会话 owner。此保留不等于新链路或真人唤醒效果已经验证。
+
+`bk7258_agent_ota.[ch]` 是本地产品升级来源适配，复用本仓已授权的 App SDC1
+协议、HTTPS source、AP OTA manager 与受保护 BVO2 store/flow。它只拥有一次请求
+的来源/CA/worker 和 intent 发布；Flash 事务及启动确认仍归原系统服务。没有复制
+旧 voice runtime 的语音调度、gateway、会话或 OTA 引擎，也没有修改官方源码。
+断电后不自动重建临时手机 URL；同一 catalog 的重试须由 App 明确再次发起。
 
 本地 TTS 接入边界已准备，具体引擎与模型未验证。通用接口不要求联网、地址或
 API Key；init/deinit 负责准备/释放，prepare_request 只负责短请求状态重置。
