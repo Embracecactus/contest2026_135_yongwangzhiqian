@@ -7,14 +7,22 @@
 #include "bk7258_voice_kws_model.h"
 
 #include <nuttx/config.h>
+#include <media_trigger.h>
 #include <media_trigger_model.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <stdatomic.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
+#include <mbedtls/sha256.h>
+#include "voice/voice_channel.h"
+#include "agent_compat.h"
 
 #define BKVOICE_TRIGGER_RATE 16000u
 #define BKVOICE_TRIGGER_SAMPLES 320u
@@ -285,4 +293,144 @@ int media_trigger_model_get_poll_fd(void *context)
 int media_trigger_model_poll_available(void *context)
 {
   return context == NULL ? -EINVAL : -ENOSYS;
+}
+
+struct bk7258_agent_trigger_s
+{
+  void *handle;
+  unsigned char *model;
+  size_t model_size;
+  atomic_bool turn_pending;
+};
+
+static struct bk7258_agent_trigger_s g_agent_trigger;
+
+static int trigger_load_model(void)
+{
+  struct stat st;
+  uint8_t hash[32];
+  char hex[65];
+  mbedtls_sha256_context sha;
+  size_t used = 0;
+  int fd = open(CONFIG_BK7258_VOICE_KWS_MODEL_PATH, O_RDONLY | O_NOFOLLOW);
+  if (fd < 0) return -errno;
+  if (fstat(fd, &st) < 0 || st.st_size <= 0 ||
+      st.st_size > BKVOICE_KWS_MODEL_MAX_BYTES)
+    { close(fd); return -EBADMSG; }
+  g_agent_trigger.model = malloc((size_t)st.st_size);
+  if (!g_agent_trigger.model) { close(fd); return -ENOMEM; }
+  while (used < (size_t)st.st_size)
+    {
+      ssize_t n = read(fd, g_agent_trigger.model + used,
+                       (size_t)st.st_size - used);
+      if (n < 0 && errno == EINTR) continue;
+      if (n <= 0) { close(fd); return n < 0 ? -errno : -EIO; }
+      used += (size_t)n;
+    }
+  close(fd);
+  g_agent_trigger.model_size = used;
+  mbedtls_sha256_init(&sha);
+  if (mbedtls_sha256_starts(&sha, 0) ||
+      mbedtls_sha256_update(&sha, g_agent_trigger.model, used) ||
+      mbedtls_sha256_finish(&sha, hash))
+    { mbedtls_sha256_free(&sha); return -EIO; }
+  mbedtls_sha256_free(&sha);
+  for (unsigned int i = 0; i < sizeof(hash); i++)
+    snprintf(hex + i * 2, 3, "%02x", hash[i]);
+  hex[64] = '\0';
+  if (strcmp(hex, CONFIG_BK7258_VOICE_KWS_MODEL_SHA256) != 0)
+    return -EKEYREJECTED;
+  return 0;
+}
+
+static void trigger_voice_event(int event, int result)
+{
+  if (!g_agent_trigger.handle) return;
+  if (event == VOICE_CHANNEL_EVENT_CAPTURE_COMPLETE && result < 0)
+    {
+      int ret = media_trigger_start_recognition(g_agent_trigger.handle);
+      syslog(LOG_WARNING,
+             "BKVOICE official Trigger rearm after capture failure=%d ret=%d\n",
+             result, ret);
+      return;
+    }
+  if (event != VOICE_CHANNEL_EVENT_TTS_COMPLETE) return;
+  int ret = media_trigger_start_recognition(g_agent_trigger.handle);
+  syslog(result == 0 ? LOG_INFO : LOG_WARNING,
+         "BKVOICE official Trigger rearm after Media TTS result=%d ret=%d\n",
+         result, ret);
+}
+
+static int trigger_turn_task(int argc, FAR char *argv[])
+{
+  int ret;
+  (void)argc;
+  (void)argv;
+  ret = media_trigger_stop_recognition(g_agent_trigger.handle);
+  if (ret == 0) ret = voice_channel_start_auto();
+  if (ret < 0)
+    {
+      syslog(LOG_WARNING, "BKVOICE official Trigger turn start failed: %d\n", ret);
+      (void)media_trigger_start_recognition(g_agent_trigger.handle);
+    }
+  atomic_store(&g_agent_trigger.turn_pending, false);
+  return ret;
+}
+
+static void *trigger_turn_worker(void *arg)
+{
+  (void)arg;
+  (void)trigger_turn_task(0, NULL);
+  return NULL;
+}
+
+static void trigger_event(void *cookie, int event, int result, const char *extra)
+{
+  (void)cookie;
+  (void)extra;
+  if (event == 0 && result == 0 &&
+      !atomic_exchange(&g_agent_trigger.turn_pending, true))
+    {
+      int ret = agent_task_create(trigger_turn_worker, "voice_trigger_turn",
+                                  8192, NULL, 90);
+      if (ret != OK)
+        {
+          atomic_store(&g_agent_trigger.turn_pending, false);
+          syslog(LOG_ERR, "BKVOICE official Trigger turn task failed=%d\n", ret);
+        }
+    }
+}
+
+int bk7258_agent_trigger_start(void)
+{
+  int ret;
+  if (g_agent_trigger.handle) return 0;
+  ret = voice_channel_set_event_callback(trigger_voice_event);
+  if (ret < 0) return ret;
+  ret = trigger_load_model();
+  if (ret < 0) goto fail;
+  g_agent_trigger.handle = media_trigger_open("default");
+  if (!g_agent_trigger.handle) { ret = -ENODEV; goto fail; }
+  ret = media_trigger_set_event_callback(g_agent_trigger.handle,
+                                         &g_agent_trigger, trigger_event);
+  if (ret < 0) goto fail;
+  ret = media_trigger_load_sound_model(g_agent_trigger.handle,
+                                       g_agent_trigger.model,
+                                       g_agent_trigger.model_size);
+  if (ret < 0) goto fail;
+  ret = media_trigger_start_recognition(g_agent_trigger.handle);
+  if (ret < 0) goto fail;
+  syslog(LOG_INFO, "BKVOICE official Trigger active model=%s bytes=%zu\n",
+         CONFIG_BK7258_VOICE_KWS_MODEL_SHA256, g_agent_trigger.model_size);
+  return 0;
+fail:
+  if (g_agent_trigger.handle)
+    {
+      (void)media_trigger_close(g_agent_trigger.handle);
+      g_agent_trigger.handle = NULL;
+    }
+  free(g_agent_trigger.model);
+  g_agent_trigger.model = NULL;
+  g_agent_trigger.model_size = 0;
+  return ret;
 }
