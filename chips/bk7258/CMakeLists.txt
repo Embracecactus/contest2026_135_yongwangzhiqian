@@ -430,11 +430,6 @@ if(CONFIG_LCD_GC9D01)
        ${BK7258_NUTTX_OVERLAY_DIR}/drivers/lcd/gc9d01.c)
 endif()
 
-if(CONFIG_VIDEO_GC2145_CONTROLS)
-  list(APPEND BK7258_AP_BASE_SRCS
-       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/video/gc2145.c)
-endif()
-
 if(CONFIG_CL_MFRC522_FRAME)
   list(APPEND BK7258_AP_BASE_SRCS
        ${NUTTX_DIR}/drivers/contactless/mfrc522.c)
@@ -453,11 +448,6 @@ endif()
 if(CONFIG_INPUT_GT9XX_STANDARD_IOCTL)
   list(APPEND BK7258_AP_BASE_SRCS
        ${NUTTX_DIR}/drivers/input/gt9xx.c)
-endif()
-
-if(CONFIG_INPUT_GPIO_FF)
-  list(APPEND BK7258_AP_BASE_SRCS
-       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/input/gpio_ff.c)
 endif()
 
 if(CONFIG_BK7258_LIN)

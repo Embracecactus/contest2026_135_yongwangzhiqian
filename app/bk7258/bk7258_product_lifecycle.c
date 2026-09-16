@@ -17,8 +17,7 @@
 
 #include "bk7258_product_lifecycle.h"
 
-#if defined(CONFIG_MEDIA) && (defined(CONFIG_BK7258_VOICE_SERVICE) || \
-                             defined(CONFIG_BK7258_APP_AGENT))
+#if defined(CONFIG_MEDIA) && defined(CONFIG_BK7258_APP_AGENT)
 #include "bk7258_voice_media.h"
 #endif
 
@@ -106,14 +105,6 @@ int bk7258_ap_application_prepare(void)
     }
 #endif
 
-#ifdef CONFIG_BK7258_VOICE_SERVICE
-  ret = bk7258_voice_service_prepare();
-  if (ret < 0)
-    {
-      return ret;
-    }
-#endif
-
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
   ret = bk7258_display_service_prepare();
   if (ret < 0)
@@ -145,8 +136,7 @@ int bk7258_ap_application_start(void)
 {
   int ret;
 
-#if defined(CONFIG_MEDIA) && (defined(CONFIG_BK7258_VOICE_SERVICE) || \
-                             defined(CONFIG_BK7258_APP_AGENT))
+#if defined(CONFIG_MEDIA) && defined(CONFIG_BK7258_APP_AGENT)
   ret = bkvoice_media_start();
   if (ret < 0)
     {
@@ -250,14 +240,6 @@ int bk7258_ap_application_start(void)
 
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
   ret = bk7258_display_service_start();
-  if (ret < 0)
-    {
-      return ret;
-    }
-#endif
-
-#ifdef CONFIG_BK7258_VOICE_SERVICE
-  ret = bk7258_voice_service_start();
   if (ret < 0)
     {
       return ret;

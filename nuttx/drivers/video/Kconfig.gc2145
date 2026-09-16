@@ -1,8 +1,0 @@
-# SPDX-License-Identifier: Apache-2.0
-config VIDEO_GC2145_CONTROLS
-	bool "GC2145 image sensor register controls"
-	depends on VIDEO_STREAM
-	help
-		Provide standard imgsensor controls over an errno-based, serialized
-		register transport. Exposure uses sensor rows; absolute exposure time
-		is not advertised without a verified sensor clock model.

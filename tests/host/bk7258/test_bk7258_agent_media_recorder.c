@@ -25,7 +25,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define CONFIG_BK7258_VOICE_SERVICE 1
+#define CONFIG_BK7258_APP_AGENT 1
 #define CONFIG_BK7258_MIC 1
 #define CONFIG_BK7258_MIC_DEVNAME "pcm0c"
 

@@ -20,11 +20,6 @@ int bk7258_agent_product_prepare(void);
 int bk7258_agent_product_start(void);
 #endif
 
-#ifdef CONFIG_BK7258_VOICE_SERVICE
-int bk7258_voice_service_prepare(void);
-int bk7258_voice_service_start(void);
-#endif
-
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
 int bk7258_display_service_prepare(void);
 int bk7258_display_service_start(void);

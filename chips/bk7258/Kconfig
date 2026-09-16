@@ -2239,7 +2239,7 @@ config BK7258_SDIO_CAPACITY_WRITE_PROBE
 	default n
 	depends on BK7258_SDIO_CAPACITY_PROBE
 	depends on !BK7258_DISPLAY_SERVICE && !BK7258_VISION_SERVICE
-	depends on !BK7258_VOICE_SERVICE && !BK7258_USBMSC
+	depends on !BK7258_USBMSC
 	help
 		Dedicated diagnostic image only. Destroys SD contents at every boot.
 		Write address-specific patterns within reported geometry, check for
@@ -2377,7 +2377,6 @@ source "../vendor/beken/nuttx/drivers/lcd/Kconfig.gc9d01"
 source "../vendor/beken/nuttx/drivers/lcd/Kconfig.ili9488_rgb"
 source "../vendor/beken/nuttx/drivers/input/Kconfig.gt9xx"
 source "../vendor/beken/nuttx/drivers/contactless/Kconfig.mfrc522"
-source "../vendor/beken/nuttx/drivers/input/Kconfig.gpio_ff"
 source "../vendor/beken/nuttx/drivers/sensors/Kconfig.sc7a20"
 
 config BK7258_LCD_RGB
@@ -2596,5 +2595,3 @@ config BK7258_LCD_8080
 		A selected board supplies the SDK panel descriptor and geometry.
 
 endmenu
-
-source "../vendor/beken/nuttx/drivers/video/Kconfig.gc2145"

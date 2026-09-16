@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -20,6 +19,11 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+try:
+    import fcntl
+except ModuleNotFoundError:  # Windows may still use the deploy-only CLI path.
+    fcntl = None
 
 
 class SdkError(RuntimeError):
@@ -342,6 +346,8 @@ def _copy_bundle(source: Path, destination: Path) -> None:
 def _lock(timeout: int):
     if timeout <= 0:
         raise SdkError("lock timeout must be positive")
+    if fcntl is None or not hasattr(os, "getuid"):
+        raise SdkError("SDK install/rebuild locking requires a POSIX host")
     path = Path(tempfile.gettempdir()) / f"openvela-bk7258-sdk-{os.getuid()}.lock"
     stream = path.open("a+b")
     try:
