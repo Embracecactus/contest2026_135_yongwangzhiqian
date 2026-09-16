@@ -43,6 +43,9 @@ class DeviceControlSessionTest {
             override fun requestOta(command: DeviceControlProtocol.Command, payload: ByteArray, accepted: (Boolean) -> Unit) {
                 request(command, 0, accepted)
             }
+            override fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray, accepted: (Boolean) -> Unit) {
+                request(command, 0, accepted)
+            }
             override fun close() { closed = true }
             fun reply(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) = events.result(command, snapshot)
         }
@@ -152,14 +155,19 @@ class DeviceControlSessionTest {
         f.clock.advance(130_000)
         assertEquals(2, f.peers.size)
     }
-    @Test fun failedReconnectHasOneBoundedBackoffSequence() {
+    @Test fun failedReconnectKeepsOneCappedForegroundRetry() {
         val f = Fixture(); f.connect(); f.peer.events.closed("disconnected")
-        for (delay in listOf(1000L, 2000L, 4000L)) {
-            f.clock.advance(delay)
+        for (delay in listOf(1000L, 2000L, 4000L, 8000L, 16000L, 30000L, 30000L)) {
+            val count = f.peers.size
+            f.clock.advance(delay - 1)
+            assertEquals(count, f.peers.size)
+            f.clock.advance(1)
+            assertEquals(count + 1, f.peers.size)
             f.peer.events.closed("handshake_timeout")
         }
+        f.session.disconnect()
         f.clock.advance(130_000)
-        assertEquals(4, f.peers.size)
+        assertEquals(8, f.peers.size)
         assertEquals(DeviceControlSession.Connection.DISCONNECTED, f.session.current().connection)
     }
     @Test fun otherActivityGraceAndForegroundReturnHaveDifferentPolicies() {
