@@ -1,4 +1,5 @@
-InclusiveCriterion ActiveStreams : Music0 Capture0
+InclusiveCriterion ActiveStreams : Music0 Capture0 = Music0
 ExclusiveCriterion Music : abufsrc@Music0
 ExclusiveCriterion Capture Hotword : abufsink@Capture0
+ExclusiveCriterion CaptureLifecycle : Boot Ready = Boot
 NumericalCriterion MusicVolume : [0,15] = 8

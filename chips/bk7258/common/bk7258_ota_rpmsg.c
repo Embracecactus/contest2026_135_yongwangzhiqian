@@ -208,7 +208,7 @@ static struct bk7258_ota_rpmsg_dev_s g_bk7258_ota_rpmsg =
 };
 
 #define BK7258_OTA_SHARED_PROGRESS_MAGIC 0x50544f42u /* "BOTP" */
-#define BK7258_OTA_SHARED_PROGRESS_VERSION 1u
+#define BK7258_OTA_SHARED_PROGRESS_VERSION 2u
 #define BK7258_OTA_SHARED_PROGRESS_ADDR \
   (BK7258_RPTUN_RESOURCE_ADDR + BK7258_RPTUN_RESOURCE_SIZE)
 
@@ -223,6 +223,7 @@ struct bk7258_ota_shared_progress_s
   int32_t status;
   uint32_t phase;
   uint32_t image;
+  uint32_t operation;
   uint32_t completed;
   uint32_t total;
 };
@@ -261,6 +262,7 @@ static void bk7258_ota_rpmsg_publish_progress(
   shared->status = 0;
   shared->phase = progress->phase;
   shared->image = progress->image;
+  shared->operation = progress->operation;
   shared->completed = progress->completed;
   shared->total = progress->total;
   __asm volatile ("dmb sy" ::: "memory");
@@ -302,6 +304,8 @@ static bool bk7258_ota_rpmsg_snapshot_progress(
 
       progress->phase = (enum bk7258_ota_phase_e)shared->phase;
       progress->image = (enum bk7258_ota_image_e)shared->image;
+      progress->operation =
+        (enum bk7258_ota_operation_e)shared->operation;
       progress->completed = shared->completed;
       progress->total = shared->total;
       __asm volatile ("dmb sy" ::: "memory");
@@ -1812,6 +1816,7 @@ static int bk7258_ota_rpmsg_ept_cb(FAR struct rpmsg_endpoint *ept,
         (enum bk7258_ota_phase_e)msg->header.status;
       priv->progress.image =
         (enum bk7258_ota_image_e)msg->header.image;
+      priv->progress.operation = BK7258_OTA_OPERATION_NONE;
       priv->progress.completed = msg->header.offset;
       priv->progress.total = msg->header.length;
       priv->progress_pending = true;

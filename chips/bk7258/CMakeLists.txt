@@ -437,7 +437,7 @@ endif()
 
 if(CONFIG_CL_MFRC522_FRAME)
   list(APPEND BK7258_AP_BASE_SRCS
-       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/contactless/mfrc522.c)
+       ${NUTTX_DIR}/drivers/contactless/mfrc522.c)
 endif()
 
 if(CONFIG_CL_ISODEP)
@@ -452,7 +452,7 @@ endif()
 
 if(CONFIG_INPUT_GT9XX_STANDARD_IOCTL)
   list(APPEND BK7258_AP_BASE_SRCS
-       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/input/gt9xx.c)
+       ${NUTTX_DIR}/drivers/input/gt9xx.c)
 endif()
 
 if(CONFIG_INPUT_GPIO_FF)

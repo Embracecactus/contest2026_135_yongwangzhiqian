@@ -61,6 +61,7 @@ static void bk7258_ota_manager_status(
     {
       manager->status.phase = progress->phase;
       manager->status.image = progress->image;
+      manager->status.operation = progress->operation;
       manager->status.completed = progress->completed;
       manager->status.total = progress->total;
     }

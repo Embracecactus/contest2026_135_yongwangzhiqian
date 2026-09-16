@@ -156,7 +156,13 @@ static void bk7258_cpu2_fpu_initialize(void)
   BK7258_SCB_CPACR &= ~((3u << 20) | (3u << 22));
   __asm volatile ("dsb sy; isb sy" ::: "memory");
   BK7258_FPU_FPCCR &= ~((1u << 31) | (1u << 30) | (1u << 29));
+#ifdef CONFIG_ARCH_FPU
+  /* 每个核独立建立 NuttX 浮点上下文，不能继承另一核的 FPCA 状态。 */
+
+  arm_fpuconfig();
+#else
   BK7258_SCB_CPACR |= ((3u << 20) | (3u << 22));
+#endif
   __asm volatile ("dsb sy; isb sy" ::: "memory");
 }
 

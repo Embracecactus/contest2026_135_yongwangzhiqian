@@ -241,7 +241,13 @@ void __start(void)
   BK7258_SCB_CPACR &= ~((3u << 20) | (3u << 22));
   __asm volatile ("dsb sy; isb sy" ::: "memory");
   BK7258_FPU_FPCCR &= ~((1u << 31) | (1u << 30) | (1u << 29));
+#ifdef CONFIG_ARCH_FPU
+  /* 由官方入口建立 FPCA，不能只启用 FPU 而省略异常上下文初始化。 */
+
+  arm_fpuconfig();
+#else
   BK7258_SCB_CPACR |= ((3u << 20) | (3u << 22));
+#endif
   __asm volatile ("dsb sy; isb sy" ::: "memory");
 
 #ifndef CONFIG_BUILD_PIC

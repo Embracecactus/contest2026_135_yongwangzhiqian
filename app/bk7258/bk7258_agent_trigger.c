@@ -25,7 +25,6 @@
 #include <unistd.h>
 #include <mbedtls/sha256.h>
 #include "voice/voice_channel.h"
-#include "agent_compat.h"
 
 #define BKVOICE_TRIGGER_RATE 16000u
 #define BKVOICE_TRIGGER_SAMPLES 320u
@@ -54,6 +53,7 @@ struct bkvoice_trigger_model_s
 };
 
 static struct bkvoice_trigger_model_s *g_trigger;
+static atomic_bool g_model_stream_reset_pending;
 
 static void trigger_error(struct bkvoice_trigger_model_s *context, int error)
 {
@@ -179,6 +179,58 @@ fail:
   return NULL;
 }
 
+static int trigger_model_reset(void *opaque)
+{
+  struct bkvoice_trigger_model_s *context = opaque;
+  int ret;
+
+  if (context == NULL || g_trigger != context ||
+      !context->kws_initialized || !context->model_open)
+    {
+      return -EINVAL;
+    }
+
+  /* Media worker 串行调用；新音频流不能继承上一轮窗口和触发锁存。
+   * 保留 TFLM arena、模型和前处理分配，不改变分数门限或连续帧策略。
+   */
+
+  bkvoice_kws_pause(&context->kws);
+
+  /* 新流没有过去三秒的声音，用同一前处理生成静音历史。若从 rows=0
+   * 等待收满窗口，紧接播报说出的短词会在首次推理前滑出有效位置，
+   * 无法满足模型原有的连续两帧条件。这里只补缺失历史；后续输入、
+   * 分数门限及事件仍完全来自正常 MIC 检测路径。
+   */
+
+  ret = bkvoice_kws_frontend_frame(&context->kws.frontend,
+                                   context->kws.pcm,
+                                   context->kws.features);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  for (unsigned int row = 1; row < BKVOICE_KWS_ROWS; row++)
+    {
+      memcpy(context->kws.features + row * BKVOICE_KWS_BINS,
+             context->kws.features, BKVOICE_KWS_BINS * sizeof(float));
+    }
+
+  context->kws.rows = BKVOICE_KWS_ROWS;
+  context->kws.pending = BKVOICE_KWS_WINDOW - BKVOICE_KWS_HOP;
+  context->kws.last_ms = 0;
+  context->kws.triggered_ms = 0;
+  context->kws.timestamp_valid = false;
+  context->kws.armed = true;
+  context->frame_used = 0;
+  context->next_frame_ms = 0;
+  context->input_frames = 0;
+  context->score = 0;
+  context->error_reported = false;
+  syslog(LOG_INFO, "BKVOICE Trigger model stream reset\n");
+  return 0;
+}
+
 void media_trigger_model_get_options(void *context, char *options, size_t size)
 {
   if (context == NULL || options == NULL || size == 0)
@@ -208,9 +260,27 @@ bool media_trigger_model_detect_hotword(void *opaque, const char *buffer,
     {
       return false;
     }
-  if (g_trigger != context || context->error_reported)
+  if (g_trigger != context)
     {
           return false;
+    }
+
+  /* 控制线程只标记新流；特征、锁存和分帧状态仍由 Media worker 独占。
+   * 已有 stop 返回后才会请求下一次 start，不并发清理正在推理的窗口。
+   */
+
+  if (atomic_exchange(&g_model_stream_reset_pending, false))
+    {
+      error = trigger_model_reset(context);
+      if (error < 0)
+        {
+          trigger_error(context, error);
+          return false;
+        }
+    }
+  if (context->error_reported)
+    {
+      return false;
     }
   while (size > 0)
     {
@@ -330,7 +400,7 @@ static struct {
   int error;
 } g_agent_trigger;
 
-extern void bk7258_agent_product_event(int event, int result);
+extern void bk7258_agent_product_wake(void);
 
 static void wire_u32(uint8_t *p, uint32_t n)
 { p[0] = n >> 24; p[1] = n >> 16; p[2] = n >> 8; p[3] = n; }
@@ -368,21 +438,21 @@ static void trigger_event(void *cookie, int event, int result, const char *extra
   if (event != 0 || result != 0)
     atomic_store(&g_agent_trigger.callback_error, result < 0 ? result : -EIO);
   atomic_store(&g_agent_trigger.turn_pending, true);
-  bk7258_agent_product_event(100, result);
+  bk7258_agent_product_wake();
 }
 
 static int trigger_pause(void)
 {
   atomic_store(&g_agent_trigger.accepting, false);
-  if (g_agent_trigger.recognizing) {
-    int ret = media_trigger_stop_recognition(g_agent_trigger.handle);
-    if (ret < 0) return ret;
-    g_agent_trigger.recognizing = false;
-  }
   if (g_agent_trigger.policy_active) {
     int ret = bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, false);
     if (ret < 0) return ret;
     g_agent_trigger.policy_active = false;
+  }
+  if (g_agent_trigger.recognizing) {
+    int ret = media_trigger_stop_recognition(g_agent_trigger.handle);
+    if (ret < 0) return ret;
+    g_agent_trigger.recognizing = false;
   }
   return 0;
 }
@@ -417,15 +487,20 @@ bool bk7258_agent_trigger_armed(void)
 int bk7258_agent_trigger_rearm(void)
 {
   if (!g_agent_trigger.handle || !g_agent_trigger.loaded ||
-      !voice_channel_is_idle() || g_agent_trigger.uncertain) return -EBUSY;
-  if (g_agent_trigger.recognizing) return 0;
-  int ret = bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, true);
+      g_agent_trigger.uncertain) return -EBUSY;
+  if (g_agent_trigger.recognizing)
+    return g_agent_trigger.policy_active &&
+           atomic_load(&g_agent_trigger.accepting) ? 0 : -EBUSY;
+  int ret = media_trigger_start_recognition(g_agent_trigger.handle);
   if (!ret) {
-    g_agent_trigger.policy_active = true;
-    atomic_store(&g_agent_trigger.callback_error, 0);
-    atomic_store(&g_agent_trigger.accepting, true);
-    ret = media_trigger_start_recognition(g_agent_trigger.handle);
-    if (!ret) g_agent_trigger.recognizing = true;
+    g_agent_trigger.recognizing = true;
+    ret = bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, true);
+    if (!ret) {
+      g_agent_trigger.policy_active = true;
+      atomic_store(&g_agent_trigger.callback_error, 0);
+      atomic_store(&g_agent_trigger.accepting, true);
+      atomic_store(&g_model_stream_reset_pending, true);
+    }
   }
   if (ret) {
     atomic_store(&g_agent_trigger.accepting, false);
@@ -435,7 +510,8 @@ int bk7258_agent_trigger_rearm(void)
   return ret;
 }
 
-static int trigger_open_model(const struct bkvoice_wake_package_descriptor_s *selected)
+static int trigger_open_model(
+  const struct bkvoice_wake_package_descriptor_s *selected, bool arm)
 {
   size_t size = model_file_size(selected), used = 0;
   if (!size) return -EBADMSG;
@@ -469,19 +545,18 @@ static int trigger_open_model(const struct bkvoice_wake_package_descriptor_s *se
   free(record);
   if (!ret) {
     g_agent_trigger.loaded = true;
-    ret = bk7258_agent_trigger_rearm();
+    g_agent_trigger.active = *selected;
+    g_agent_trigger.active_size = size;
+    if (arm) ret = bk7258_agent_trigger_rearm();
   }
   if (ret) { (void)bk7258_agent_trigger_stop(); return ret; }
-  g_agent_trigger.active = *selected;
-  g_agent_trigger.active_size = size;
   syslog(LOG_INFO, "BKVOICE official Trigger active label=%s sha256=%s bytes=%zu\n",
          selected->label, selected->sha256_hex, size);
   return 0;
 }
 
-int bk7258_agent_trigger_start(void)
+static int trigger_load_selected(bool arm)
 {
-  if (g_agent_trigger.handle) return bk7258_agent_trigger_rearm();
   struct bkvoice_wake_package_descriptor_s selected = {0}, previous = {0};
   uint64_t revision = 0;
   int ret = bkvoice_wake_package_load(&selected, &previous, &revision);
@@ -496,9 +571,22 @@ int bk7258_agent_trigger_start(void)
   g_agent_trigger.previous = previous;
   g_agent_trigger.previous_size = model_file_size(&previous);
   g_agent_trigger.selection_known = true;
-  ret = trigger_open_model(&selected);
+  ret = trigger_open_model(&selected, arm);
   g_agent_trigger.error = ret;
   return ret;
+}
+
+int bk7258_agent_trigger_prepare(void)
+{
+  if (g_agent_trigger.handle && g_agent_trigger.loaded) return 0;
+  return trigger_load_selected(false);
+}
+
+int bk7258_agent_trigger_start(void)
+{
+  if (g_agent_trigger.handle && g_agent_trigger.loaded)
+    return bk7258_agent_trigger_rearm();
+  return trigger_load_selected(true);
 }
 
 /* Existing asset transaction only: no audio turn, history or retry scheduler.
@@ -508,10 +596,11 @@ bool bk7258_agent_trigger_model_pending(void)
   return g_agent_trigger.pending_record != NULL;
 }
 
-int bk7258_agent_trigger_model_step(void)
+int bk7258_agent_trigger_model_step(bool arm)
 {
   if (!g_agent_trigger.pending_record) return 0;
-  if (!voice_channel_is_idle()) return -EBUSY;
+  if (g_agent_trigger.handle && g_agent_trigger.recognizing &&
+      !bk7258_agent_trigger_armed()) return -EBUSY;
   struct bkvoice_wake_package_descriptor_s old = g_agent_trigger.active;
   struct bkvoice_wake_package_descriptor_s desired = g_agent_trigger.previous;
   int ret = bk7258_agent_trigger_stop();
@@ -522,7 +611,7 @@ int bk7258_agent_trigger_model_step(void)
     if (!ret) ret = bkvoice_wake_package_validate(&spec);
     if (!ret) ret = bkvoice_wake_package_stage(&spec, &desired);
   }
-  if (!ret) ret = trigger_open_model(&desired);
+  if (!ret) ret = trigger_open_model(&desired, arm);
   /* Trial recognition is stopped until the persistent selection is definite. */
   if (!ret) ret = trigger_pause();
   if (!ret) ret = bkvoice_wake_package_commit(&desired, &old, g_agent_trigger.revision);
@@ -530,7 +619,7 @@ int bk7258_agent_trigger_model_step(void)
     g_agent_trigger.revision++;
     g_agent_trigger.previous = old;
     g_agent_trigger.previous_size = model_file_size(&old);
-    ret = bk7258_agent_trigger_rearm();
+    if (arm) ret = bk7258_agent_trigger_rearm();
   } else {
     int stopped = bk7258_agent_trigger_stop();
     if (ret == -EINPROGRESS) {
@@ -538,7 +627,7 @@ int bk7258_agent_trigger_model_step(void)
        * model as usable. Reboot reloads the existing journal safely. */
       g_agent_trigger.uncertain = true;
     } else if (!stopped) {
-      int restored = trigger_open_model(&old);
+      int restored = trigger_open_model(&old, arm);
       if (restored) ret = restored;
     } else ret = stopped;
   }
@@ -580,7 +669,8 @@ int bk7258_agent_trigger_control(void *context, enum bkcontrol_command_e command
   if (command != BKCONTROL_CONFIG_BEGIN && command != BKCONTROL_CONFIG_APPLY) return -EINVAL;
   if (!g_agent_trigger.selection_known) return -EAGAIN;
   if (g_agent_trigger.uncertain) return -EINPROGRESS;
-  if (!voice_channel_is_idle() || g_agent_trigger.pending_record) return -EBUSY;
+  if ((g_agent_trigger.recognizing && !bk7258_agent_trigger_armed()) ||
+      g_agent_trigger.pending_record) return -EBUSY;
   if ((kind == BKCONTROL_CONFIG_WAKE_MODEL &&
       (size <= BKVOICE_WAKE_PACKAGE_HEADER || size > BKCONTROL_CONFIG_RECORD_MAX)) ||
       (kind == BKCONTROL_CONFIG_WAKE_RESTORE && size != 4)) return -EMSGSIZE;
@@ -608,10 +698,10 @@ int bk7258_agent_trigger_process(void)
   int ret = trigger_pause();
   int callback_error = atomic_exchange(&g_agent_trigger.callback_error, 0);
   if (!ret && callback_error) ret = callback_error;
-  if (!ret) ret = voice_channel_start_auto();
+  if (!ret) ret = voice_channel_start();
   if (ret < 0) {
     syslog(LOG_WARNING, "BKVOICE official Trigger turn start failed=%d\n", ret);
-    if (voice_channel_is_idle() && !callback_error) (void)bk7258_agent_trigger_rearm();
+    if (!callback_error) (void)bk7258_agent_trigger_rearm();
   }
   return ret;
 }

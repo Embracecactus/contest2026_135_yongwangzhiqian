@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -19,11 +20,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
-
-try:
-    import fcntl
-except ModuleNotFoundError:  # Windows may still use the deploy-only CLI path.
-    fcntl = None
 
 
 class SdkError(RuntimeError):
@@ -346,8 +342,6 @@ def _copy_bundle(source: Path, destination: Path) -> None:
 def _lock(timeout: int):
     if timeout <= 0:
         raise SdkError("lock timeout must be positive")
-    if fcntl is None or not hasattr(os, "getuid"):
-        raise SdkError("SDK install/rebuild locking requires a POSIX host")
     path = Path(tempfile.gettempdir()) / f"openvela-bk7258-sdk-{os.getuid()}.lock"
     stream = path.open("a+b")
     try:
@@ -623,19 +617,6 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
         _run(["git", "-C", str(clone), "checkout", "--detach", sdk.revision],
              "SDK source checkout")
         _merge_profile(clone / official_config, selected)
-        source_patches = {
-            "cp-aidk": ("cp-flash-notification-errors.patch",),
-            "ap-aidk": ("ap-sdio-tx-start.patch", "ap-dvp-register-errors.patch"),
-        }.get(selected.name, ())
-        if source_patches:
-            # Only patch the disposable build clone, never the pinned checkout.
-            for patch_name in source_patches:
-                patch = repository / PROFILE_ROOT / sdk.version / patch_name
-                _regular(patch, "SDK source patch")
-                _run(["git", "-C", str(clone), "apply", "--check", str(patch)],
-                     "SDK patch preflight")
-                _run(["git", "-C", str(clone), "apply", str(patch)],
-                     "SDK source patch")
         build_root = work / "build"
         _run(
             [
