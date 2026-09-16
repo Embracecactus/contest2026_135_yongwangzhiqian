@@ -94,6 +94,10 @@ def _parser() -> argparse.ArgumentParser:
     sdk_rebuild = sdk_commands.add_parser("rebuild", help="rebuild one SDK profile")
     sdk_rebuild.add_argument("--profile", required=True)
     sdk_rebuild.add_argument("--source", type=Path, required=True)
+    sdk_rebuild.add_argument(
+        "--in-place-build-dir", type=Path,
+        help="build directly from the prepared source checkout using this persistent build directory",
+    )
     sdk_rebuild.add_argument("--jobs", type=int, required=True)
     sdk_rebuild.add_argument("--replace", action="store_true")
 
@@ -708,8 +712,13 @@ def _sdk(args: argparse.Namespace) -> None:
             build_domain.toolchain_root(REPOSITORY) / "bin",
             jobs=args.jobs,
             replace=args.replace,
+            in_place_build_dir=args.in_place_build_dir,
         )
-        print(f"bk7258 sdk rebuild: PASS profile={row.profile} tree={row.tree_hash}")
+        mode = (
+            f" direct-source={args.source.absolute()} build-dir={args.in_place_build_dir.absolute()}"
+            if args.in_place_build_dir is not None else ""
+        )
+        print(f"bk7258 sdk rebuild: PASS profile={row.profile} tree={row.tree_hash}{mode}")
 
 
 def _verify_package_trust(package: Path,

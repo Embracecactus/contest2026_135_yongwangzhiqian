@@ -3527,6 +3527,15 @@ static bool bk7258_sdk_log_allowed(const char *fmt)
          !bk7258_sdk_log_is_sensitive(fmt);
 }
 
+int bk_printf_init(void)
+{
+  /* 日志已由 NuttX 启动流程初始化，下面的 SDK 输出入口直接使用 syslog。
+   * 不再启动 FreeRTOS printf 锁或重新配置已由 NuttX 占用的控制台 UART。
+   */
+
+  return OK;
+}
+
 void bk_printf_ext(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;

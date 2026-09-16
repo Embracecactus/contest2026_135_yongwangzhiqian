@@ -89,10 +89,28 @@ enum bk7258_ota_phase_e
   BK7258_OTA_PHASE_COMPLETE
 };
 
+/* The phase identifies the pair-install lifecycle.  Operation identifies the
+ * exact primitive that failed inside that phase; NONE is used for ordinary
+ * progress.  This remains transport-neutral and lets the existing manager
+ * status distinguish source, controller and readback failures without logs in
+ * the Flash-sensitive window.
+ */
+
+enum bk7258_ota_operation_e
+{
+  BK7258_OTA_OPERATION_NONE = 0,
+  BK7258_OTA_OPERATION_ERASE,
+  BK7258_OTA_OPERATION_SOURCE_READ,
+  BK7258_OTA_OPERATION_FLASH_WRITE,
+  BK7258_OTA_OPERATION_FLASH_VERIFY,
+  BK7258_OTA_OPERATION_RUNTIME
+};
+
 struct bk7258_ota_progress_s
 {
   enum bk7258_ota_phase_e phase;
   enum bk7258_ota_image_e image;
+  enum bk7258_ota_operation_e operation;
   uint32_t completed;
   uint32_t total;
 };

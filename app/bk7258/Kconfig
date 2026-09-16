@@ -7,65 +7,6 @@
 # underlying driver/feature symbols must never register an application;
 # CMake and Classic Make register commands only from CONFIG_BK7258_APP_*.
 
-# Generic options for the locally maintained Agent patches. These declarations
-# live here because the manifest-owned Agent Kconfig is read before CMake can
-# derive patched sources. Their implementation contains no product branches.
-config AI_AGENT_NETWORK_EXTERNAL
-	bool "Agent observes an externally configured network"
-	depends on EXAMPLES_AI_AGENT_VELA
-	default y if BK7258_APP_AGENT
-	help
-		Keep network provisioning and credentials with the existing system
-		service. Agent observes interface readiness without executing wapi.
-
-config AI_AGENT_VOICE_VOLCENGINE
-	bool "Register the built-in Volcengine voice backends"
-	depends on EXAMPLES_AI_AGENT_VELA
-	default n if BK7258_APP_AGENT
-	default y
-	help
-		Disable when external voice backends are registered by the product.
-		This does not choose or enable a replacement provider implicitly.
-
-config AI_AGENT_NSH_CHANNEL
-	bool "Agent interactive shell channel"
-	depends on EXAMPLES_AI_AGENT_VELA
-	default n if BK7258_APP_AGENT
-	default y
-
-config AI_AGENT_WS_CHANNEL
-	bool "Agent WebSocket server channel"
-	depends on EXAMPLES_AI_AGENT_VELA
-	default n if BK7258_APP_AGENT
-	default y
-
-config AI_AGENT_CRON
-	bool "Agent scheduled jobs and tools"
-	depends on EXAMPLES_AI_AGENT_VELA
-	default n if BK7258_APP_AGENT
-	default y
-
-config AI_AGENT_HEARTBEAT
-	bool "Agent proactive heartbeat"
-	depends on EXAMPLES_AI_AGENT_VELA
-	default n if BK7258_APP_AGENT
-	default y
-
-config AI_AGENT_TOOLS_WEB
-	bool "Agent web search and URL tools"
-	depends on EXAMPLES_AI_AGENT_VELA
-	default y
-
-config AI_AGENT_TOOLS_FILES
-	bool "Agent file manipulation tools"
-	depends on EXAMPLES_AI_AGENT_VELA
-	default y
-
-config AI_AGENT_TOOLS_MUSIC
-	bool "Agent music search and independent playback tools"
-	depends on EXAMPLES_AI_AGENT_VELA
-	default y
-
 config BK7258_APP_AGENT
 	bool "Start the official openvela Agent on the BK7258 AP"
 	default y if EXAMPLES_AI_AGENT_VELA
@@ -74,68 +15,14 @@ config BK7258_APP_AGENT
 	select BK7258_AP_APPLICATION_LIFECYCLE
 	help
 		Bind the official Agent package to the generic BK7258 AP application
-		lifecycle.  Product startup and the optional lightweight audio ABI
-		backends live in this application directory; chip and board code remain
+		lifecycle. Product startup and service backends live in this application
+		directory; chip and board code remain
 		independent of the Agent product.
-
-config BK7258_APP_VOICE
-	bool "BK7258 authorized-voice service command (bkvoice)"
-	default n
-	depends on !BK7258_AP_CORE && BK7258_RPTUN && SYSTEM_NSH
-	select BUILTIN
-	select NSH_BUILTIN_APPS
-	help
-		Build the CP-visible bkvoice status/capture-test/verify/play/stress
-		command.  It uses
-		a versioned application RPMsg protocol to reach the AP-owned voice service;
-		it never opens AP storage or audio devices from CP.
-
-if BK7258_APP_VOICE
-
-config BK7258_APP_VOICE_PROGNAME
-	string "bkvoice program name"
-	default "bkvoice"
-
-config BK7258_APP_VOICE_PRIORITY
-	int "bkvoice priority"
-	default 100
-
-config BK7258_APP_VOICE_STACKSIZE
-	int "bkvoice stack size"
-	default 8192
-
-config BK7258_VOICE_PTT_BUTTON
-	bool "Physical PTT through a board GPIO device"
-	default n
-	depends on DEV_GPIO && !DISABLE_PTHREAD
-
-if BK7258_VOICE_PTT_BUTTON
-
-config BK7258_VOICE_PTT_AUTOSTART
-	bool "Keep physical PTT available before cloud configuration"
-	default n
-	help
-		The product startup script starts the GPIO lease publisher. Voice
-		disconnect or a failed cloud connection must not stop physical claiming.
-
-config BK7258_VOICE_PTT_DEVPATH
-	string "Board GPIO device for PTT"
-	default ""
-	help
-		The board profile supplies its public GPIO lower-half device path.
-
-config BK7258_VOICE_PTT_ACTIVE_LOW
-	bool "PTT is active low"
-	default n
-
-endif
-
-endif
 
 config BK7258_PRODUCT_KEYS
 	bool "Product keys through /dev/buttons"
 	default n
-	depends on (BK7258_APP_VOICE || BK7258_VOICE_SERVICE)
+	depends on BK7258_APP_AGENT
 	depends on BK7258_RPTUN && !DISABLE_PTHREAD
 	help
 		Use the standard buttons lower-half instead of the diagnostic GPIO PTT
@@ -305,59 +192,7 @@ config BK7258_APP_VISION_STACKSIZE
 
 endif
 
-config BK7258_VOICE_HIL_TEST
-	bool "Enable bounded operator-triggered voice capture tests"
-	default n
-	depends on BK7258_APP_VOICE || (BK7258_VOICE_SERVICE && BK7258_VOICE_TLS)
-	help
-		Development-only serial command for unattended real-microphone tests.
-		Never auto-starts. Each request is limited to 200..5000 milliseconds.
-		Requires an already configured and ready cloud service or Gateway. Synthetic triggers
-		are logged explicitly and do not count as physical button presses.
-		Keep disabled in product firmware.
-
-config BK7258_VOICE_SERVICE
-	bool "BK7258 AP authorized-voice service"
-	default n
-	depends on BK7258_AP_CORE && BK7258_AUD && BK7258_MIC
-	depends on BK7258_RPTUN && !DISABLE_PTHREAD
-	depends on !MEDIA || (MEDIA_SERVER && MEDIA_GRAPH && MEDIA_POLICY)
-	depends on !EXAMPLES_AI_AGENT_VELA
-	select BK7258_AP_APPLICATION_LIFECYCLE
-	help
-		Start the AP-resident endpoint used by bkvoice.  It accepts only a strict
-		bkvoice-pack-v1 manifest that attests explicit speaker consent and labels
-		the output as synthetic, then streams 16 kHz mono signed-16 PCM WAV clips
-		through the public NuttX audio ABI.  It also builds the transport-neutral
-		companion-v1 framing/session contract and the hardware-neutral half-duplex
-		turn arbiter.  A bounded App-private RFC 6455 adapter maps exactly one
-		companion-v1 frame to one masked binary WebSocket message, but only over
-		a separately supplied verified-TLS stream.  The App-private turn audio
-		adapter binds that arbiter's
-		resource contract to the public recorder/player ABI without owning any
-		device path, pin, MIC channel or PA policy.  A task-neutral capture pump
-		and its recorder source adapter enforce fixed 20 ms uplink frames.  The
-		joinable PTT worker owner implements bounded stop/join, MIC release and
-		TURN_END ordering.  An explicit operator-only capture-test may open a
-		short-lived aggregate-only sink to verify nonzero MIC delivery without
-		storing or returning raw PCM.  An operator-only tone-test streams a
-		fixed, low-amplitude non-speech signal through the same public player
-		ABI without reading persistent storage.  Product PTT event binding, the real
-		companion sink and the target DNS/TLS/credential/time provider are not
-		installed by this symbol.  Storage mounting, model training and physical
-		audio wiring remain outside this application.
-
-if BK7258_VOICE_SERVICE || BK7258_APP_AGENT
-
-config BK7258_VOICE_LEGACY_GATEWAY
-	bool "Build companion-v1 WSS Gateway session"
-	default y
-	depends on BK7258_VOICE_SERVICE
-	help
-		Build the legacy companion-v1 WebSocket transport, Gateway dispatcher and
-		session owner. Existing historical voice configurations keep this enabled.
-		The Shaniu direct-cloud product explicitly disables it and uses its own
-		request-scoped TLS/cloud owner instead.
+if BK7258_APP_AGENT
 
 config BK7258_PREFERENCES
 	bool "BKVoice KVDB product preferences"
@@ -376,9 +211,6 @@ config BK7258_PREFERENCES
 		The board must separately configure and
 		validate its KVDB service/backend, missing-key errno and persistent
 		partition before enabling this option. No credentials are stored.
-		The maintained CMake build applies the journal/error-propagation
-		patches in its output directory. Classic Make is not supported for
-		this option until it consumes the same maintained patches.
 		The database path must be one file immediately under /mnt/sdnand.
 		Each operation leases the shared media, mounts FAT and unmounts
 		before release. Busy media and cleanup failures are reported.
@@ -433,9 +265,9 @@ config BK7258_PROVISION_GATT
 	select BK7258_AP_APPLICATION_LIFECYCLE
 	help
 		Build the complete product GAP/GATT table and bounded ciphertext
-		queue and TLS 1.2 server. Requires the maintained Bluetooth
-		notification-result and connection-lifecycle patches, plus
-		mbedTLS ECDHE-ECDSA server support.
+		queue and TLS 1.2 server using the Bluetooth Host lifecycle and
+		notification result interfaces from the selected official baseline,
+		plus mbedTLS ECDHE-ECDSA server support.
 		Registers the product table after Host startup. The product owner
 		opens a bounded first-claim window only for an authenticated local
 		identity with confirmed empty ownership storage. Existing bindings
@@ -475,24 +307,6 @@ config BK7258_VOICE_KWS_ARENA_BYTES
 	range 16384 524288
 	depends on BK7258_VOICE_KWS
 
-config BK7258_VOICE_WAKE_RUNTIME
-	bool "Enable authenticated continuous wake-word runtime"
-	default n
-	depends on BK7258_VOICE_SERVICE
-	depends on BK7258_VOICE_KWS
-	depends on MEDIA_TRIGGER && MEDIA_SERVER && MEDIA_POLICY
-	depends on BK7258_VOICE_TLS
-	depends on BK7258_PROVISION_GATT
-	depends on BK7258_VOICE_KWS_MODEL_PATH != ""
-	depends on BK7258_VOICE_KWS_MODEL_SHA256 != ""
-	help
-		Load the fixed-path model into bounded memory, verify it against the
-		firmware-pinned SHA-256, then start official Media Trigger through the
-		existing single AP product owner
-		only after a cloud configuration has committed or restored. This keeps
-		the existing half-duplex MIC/DAC exclusion; playback-time acoustic
-		barge-in is not provided.
-
 config BK7258_VOICE_TLS
 	bool "BKVoice verified mTLS provider"
 	default n
@@ -501,75 +315,9 @@ config BK7258_VOICE_TLS
 	select NETUTILS_CJSON
 	select NETUTILS_WEBCLIENT
 	help
-		Build the bounded, interruptible mbedTLS provider for companion WSS.
-		The deployment supplies a numeric IPv4 dialing address, a separately
-		verified WSS hostname, server trust and client credential handles, and
-		an authoritative check that the system wall clock is trusted.  This
-		Operator commands provision bounded volatile credentials through hidden
-		console input and explicitly connect/disconnect the AP session.  A
-		separate CP GPIO event channel supplies physical PTT leases.  Credentials
-		are cleared on reboot; this is not persistent product provisioning.
-
-config BK7258_VOICE_SERVICE_PRIORITY
-	int "BKVoice AP worker priority"
-	default 90
-
-config BK7258_VOICE_SERVICE_STACKSIZE
-	int "BKVoice AP worker stack size"
-	default 8192
-
-config BK7258_VOICE_CAPTURE_PRIORITY
-	int "BKVoice PTT capture worker priority"
-	default BK7258_VOICE_SERVICE_PRIORITY
-	range 1 255
-
-config BK7258_VOICE_CAPTURE_STACKSIZE
-	int "BKVoice PTT capture worker stack size"
-	default 8192
-	range 2048 65536
-
-config BK7258_VOICE_CAPTURE_JOIN_TIMEOUT_MS
-	int "BKVoice PTT capture join timeout in milliseconds"
-	default 3000
-	range 1 10000
-	help
-		Bound how long the serialized PTT owner waits after interrupting the
-		recorder.  A timeout keeps the worker and MIC pinned for a safe retry;
-		it never releases a recorder still referenced by a reader task.
-
-config BK7258_MEDIA_RECORDER_NO_FRAME_TIMEOUT_MS
-	int "BKVoice recorder no-frame timeout in milliseconds"
-	default 1000
-	range 100 5000
-	help
-		Bound how long the product recorder may wait without receiving an
-		audio frame. Normal digital silence still delivers buffers;
-		this timeout detects a stalled MIC/DMA producer and lets the PTT owner
-		perform its existing join and resource cleanup instead of pinning the
-		calling control path indefinitely.
-
-config BK7258_MEDIA_PLAYER_WRITE_TIMEOUT_MS
-	int "BKVoice player stalled-write timeout in milliseconds"
-	default 1000
-	range 100 5000
-	help
-		Bound a PCM write to the official Media player socket so a stalled
-		playback route returns to the serialized turn's error cleanup.
-
-config BK7258_VOICE_CAPTURE_TIMEOUT_MS
-	int "BKVoice maximum PTT capture time in milliseconds"
-	default 60000
-	range 100 600000
-
-config BK7258_VOICE_WAITING_TTS_TIMEOUT_MS
-	int "BKVoice Gateway response timeout in milliseconds"
-	default 120000
-	range 100 600000
-
-config BK7258_VOICE_PLAYBACK_TIMEOUT_MS
-	int "BKVoice streaming playback timeout in milliseconds"
-	default 120000
-	range 100 600000
+		Build the bounded, interruptible verified-TLS provider used by the
+		selected cloud ASR/TTS protocol adapters. The deployment supplies
+		server trust and an authoritative trusted-time check.
 
 endif
 

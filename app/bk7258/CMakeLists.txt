@@ -1,17 +1,13 @@
-if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_SERVICE)
-  message(FATAL_ERROR "Official Agent and legacy voice service cannot own one product configuration")
-endif()
-
 if(CONFIG_BK7258_PROVISION_GATT)
-  include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/gatt_ccc_patch.cmake)
+  # 固定 NuttX 版本已有连接观察接口，直接使用原头文件，不扩写公共头文件。
+  target_include_directories(apps PRIVATE ${NUTTX_DIR}/wireless/bluetooth)
   target_sources(apps PRIVATE bk7258_provision_gatt.c bk7258_provision_tls.c
                               bk7258_provision_claim.c bk7258_provision_store.c
                               bk7258_provision_pair.c bk7258_provision_scan.c bk7258_provision_settings.c
                               bk7258_provision_storage.c bk7258_provision_owner.c
                               bk7258_provision_identity.c bk7258_provision_network.c
                               bk7258_provision_time.c bk7258_control_session.c
-                              bk7258_control_pair.c bk7258_control_ota_request.c
-                              bk7258_cloud_memory.c)
+                              bk7258_control_pair.c bk7258_control_ota_request.c)
 endif()
 
 if(CONFIG_BK7258_AP_APPLICATION_LIFECYCLE)
@@ -26,48 +22,7 @@ if(CONFIG_BK7258_APP_AGENT)
   include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_framework.cmake)
   target_sources(apps PRIVATE bk7258_agent_product.c)
   if(CONFIG_MEDIA)
-    include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/media_trigger.cmake)
     target_sources(apps PRIVATE bk7258_voice_media.c)
-  endif()
-endif()
-
-if(CONFIG_BK7258_APP_AGENT OR CONFIG_BK7258_VOICE_SERVICE OR CONFIG_DOLPHIN_RECORDER)
-  if(NOT CONFIG_MEDIA AND CONFIG_BK7258_MIC)
-    target_include_directories(apps PRIVATE
-        ${NUTTX_APPS_DIR}/frameworks/multimedia/media/include)
-    target_sources(apps PRIVATE bk7258_agent_media_recorder.c)
-  endif()
-endif()
-
-if(CONFIG_BK7258_APP_AGENT OR CONFIG_BK7258_VOICE_SERVICE)
-  if(NOT CONFIG_MEDIA AND CONFIG_BK7258_AUD)
-    target_include_directories(apps PRIVATE
-        ${NUTTX_APPS_DIR}/frameworks/multimedia/media/include)
-    target_sources(apps PRIVATE bk7258_agent_media_player.c)
-  endif()
-endif()
-
-if(CONFIG_BK7258_VOICE_SERVICE)
-  if(CONFIG_MEDIA)
-    include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/media_trigger.cmake)
-    target_sources(apps PRIVATE bk7258_voice_media.c)
-  endif()
-  target_sources(apps PRIVATE bk7258_voice_service.c bk7258_voice_pack.c
-                              bk7258_voice_companion.c
-                              bk7258_voice_capture.c
-                              bk7258_voice_ptt.c
-                              bk7258_voice_transport.c
-                              bk7258_voice_turn.c
-                              bk7258_voice_turn_audio.c)
-  if(CONFIG_BK7258_VOICE_LEGACY_GATEWAY)
-    target_sources(apps PRIVATE bk7258_voice_wss.c bk7258_voice_gateway.c
-                                bk7258_voice_session.c)
-  endif()
-  if(CONFIG_BK7258_VOICE_TLS)
-    include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_provider.cmake)
-    target_sources(apps PRIVATE bk7258_voice_tls.c bk7258_voice_config.c
-                               bk7258_cloud_config.c bk7258_cloud_request.c bk7258_cloud_http.c bk7258_cloud_audio.c bk7258_cloud_client.c bk7258_cloud_history.c bk7258_cloud_tts.c bk7258_cloud_playback.c bk7258_cloud_runtime.c
-                                bk7258_voice_runtime.c)
   endif()
 endif()
 
@@ -90,9 +45,8 @@ if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
                               bk7258_cloud_audio.c bk7258_agent_cloud.c)
 endif()
 
-if(CONFIG_BK7258_VOICE_SERVICE OR CONFIG_BK7258_APP_AGENT)
+if(CONFIG_BK7258_APP_AGENT)
   if(CONFIG_BK7258_PREFERENCES)
-    include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/kvdb_patches.cmake)
     target_sources(apps PRIVATE bk7258_preferences.c bk7258_preferences_storage.c)
     target_include_directories(apps PRIVATE
         ${NUTTX_APPS_DIR}/frameworks/system/utils/include)
@@ -117,9 +71,7 @@ if(CONFIG_BK7258_VOICE_SERVICE OR CONFIG_BK7258_APP_AGENT)
     target_sources(apps PRIVATE bk7258_voice_kws_frontend.c
                                 bk7258_voice_kws_model.cc
                                 ${BKVOICE_FRONTEND_SOURCES})
-    if(CONFIG_BK7258_VOICE_SERVICE)
-      target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_voice_wake_window.c)
-    elseif(CONFIG_BK7258_APP_AGENT AND CONFIG_MEDIA_TRIGGER)
+    if(CONFIG_MEDIA_TRIGGER)
       target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_agent_trigger.c
                                   bk7258_voice_wake_package.c)
     endif()
@@ -130,13 +82,6 @@ if(CONFIG_BK7258_VOICE_SERVICE OR CONFIG_BK7258_APP_AGENT)
                  TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_OPTIONS
                  "$<TARGET_PROPERTY:tflite_micro,COMPILE_OPTIONS>")
     target_link_libraries(apps PRIVATE tflite_micro)
-    if(CONFIG_BK7258_VOICE_WAKE_RUNTIME)
-      target_sources(apps PRIVATE bk7258_voice_wake_session.c
-                                  bk7258_voice_wake_listener.c
-                                  bk7258_voice_wake_owner.c
-                                  bk7258_voice_wake_package.c
-                                  bk7258_voice_trigger_model.c)
-    endif()
   endif()
 endif()
 
@@ -189,20 +134,8 @@ if(CONFIG_BK7258_VISION_SERVICE OR CONFIG_BK7258_DISPLAY_SERVICE OR CONFIG_BK725
   target_sources(apps PRIVATE bk7258_media_volume.c)
 endif()
 
-if(CONFIG_BK7258_VOICE_SERVICE AND CONFIG_BK7258_DISPLAY_SERVICE)
-  target_sources(apps PRIVATE bk7258_voice_feedback.c)
-endif()
-
-if(CONFIG_BK7258_VOICE_PTT_BUTTON OR CONFIG_BK7258_PRODUCT_KEYS)
+if(CONFIG_BK7258_PRODUCT_KEYS)
   target_sources(apps PRIVATE bk7258_voice_button.c)
-endif()
-
-if(CONFIG_BK7258_APP_VOICE)
-  nuttx_add_application(
-    NAME ${CONFIG_BK7258_APP_VOICE_PROGNAME}
-    SRCS bk7258_voice_main.c bk7258_voice_client.c
-    STACKSIZE ${CONFIG_BK7258_APP_VOICE_STACKSIZE}
-    PRIORITY ${CONFIG_BK7258_APP_VOICE_PRIORITY})
 endif()
 
 if(CONFIG_BK7258_APP_DISPLAY)

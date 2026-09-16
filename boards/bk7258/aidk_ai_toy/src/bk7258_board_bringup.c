@@ -18,6 +18,7 @@
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_gpio.h>
+#include <arch/chip/bk7258_pinmux.h>
 #include <arch/chip/bk7258_ota_source_usb.h>
 #include <arch/chip/bk7258_usbmode.h>
 
@@ -104,6 +105,26 @@ int bk7258_board_ap_initialize(void)
 {
   FAR const struct bk7258_aud_board_s *audio = NULL;
   int ret;
+
+#ifdef CONFIG_BK7258_APP_AGENT
+  /* 原理图网名 LED2 对应 P41/R64/LED4 用户绿灯，高电平点亮。
+   * 产品默认关闭，避免近距离照射摄像头；不影响充电芯片的指示灯。
+   */
+
+  ret = bk7258_gpio_configure_output(BK7258_BOARD_PIN_LED2, false,
+                                     BK7258_GPIO_DRIVE_0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "AIDK user green LED off failed ret=%d\n", ret);
+    }
+  else
+    {
+      bool high = true;
+      ret = bk7258_gpio_read_output(BK7258_BOARD_PIN_LED2, &high);
+      syslog(ret < 0 || high ? LOG_ERR : LOG_INFO,
+             "AIDK user green LED P41 output=%d ret=%d\n", high, ret);
+    }
+#endif
 
 #ifdef CONFIG_BK7258_AUD
   audio = &g_bk7258_board_audio;

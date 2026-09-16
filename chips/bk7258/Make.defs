@@ -35,6 +35,8 @@ VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)input
 VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)sensors
 VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)video
 VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)contactless
+VPATH += $(TOPDIR)$(DELIM)drivers$(DELIM)contactless
+VPATH += $(TOPDIR)$(DELIM)drivers$(DELIM)input
 
 ifeq ($(CONFIG_CL_MFRC522_FRAME)$(CONFIG_CL_MFRC522),yy)
 $(error select exactly one MFRC522 implementation)

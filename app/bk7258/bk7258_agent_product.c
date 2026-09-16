@@ -27,6 +27,18 @@
 #include <nuttx/signal.h>
 
 #include <arch/board/board.h>
+#include "agent_compat.h"
+#include "agent_config.h"
+#include "core/agent_loop.h"
+#include "core/memory_store.h"
+#include "core/message_bus.h"
+#include "core/session_mgr.h"
+#include "infra/config_store.h"
+#include "infra/http_proxy.h"
+#include "llm/llm_proxy.h"
+#include "llm/llm_router.h"
+#include "tools/tool_guard.h"
+#include "voice/voice_channel.h"
 #ifdef CONFIG_BK7258_VOICE_TLS
 #include "bk7258_agent_cloud.h"
 #include "bk7258_agent_ota.h"
@@ -35,73 +47,53 @@
 #include "bk7258_provision_claim.h"
 #include "bk7258_provision_settings.h"
 #include "bk7258_provision_storage.h"
+#include "bk7258_provision_time.h"
 #include "bk7258_provision_owner.h"
 #include "bk7258_provision_gatt.h"
 #include "bk7258_provision_network.h"
 #include "bk7258_voice_media.h"
 #include "bk7258_voice_volume_store.h"
+#include "bk7258_preferences.h"
 #include <arch/chip/bk7258_wifi.h>
 #include <arch/chip/bk7258_active_image.h>
 #include <arch/chip/bk7258_ota_rpmsg.h>
-#include "core/session_mgr.h"
 #include "bk7258_voice_config.h"
-#include "voice/voice_asr.h"
-#include "voice/voice_tts.h"
-#include "voice/voice_channel.h"
-#include "voice/audio_capture.h"
-#include <media_recorder.h>
-#include "agent_config.h"
-#include "infra/config_store.h"
 #endif
-#if defined(CONFIG_BK7258_AUD) && !defined(CONFIG_MEDIA)
-extern void bk7258_agent_media_player_link(void);
-#endif
-
-#if defined(CONFIG_BK7258_MIC) && !defined(CONFIG_MEDIA)
-extern void bk7258_agent_media_recorder_link(void);
-#endif
-
-extern int ai_agent_main(int argc, FAR char *argv[]);
 
 #ifdef CONFIG_BK7258_VOICE_TLS
 /* The existing provisioning owner borrows this identity for its lifetime.
  * It is never copied or freed while a claim/control session uses it. */
 static struct bkprov_identity_s g_identity;
 static bool g_identity_bound;
+static bool g_cloud_loaded;
 static bool g_configured;
 static bool g_trigger_started;
 static int g_product_error;
 static int g_service_result = -ENOTCONN;
+static int g_probe_result = -ENOTCONN;
 static uint64_t g_config_revision;
 static sem_t g_product_wake;
 static atomic_uint g_product_events;
-static atomic_bool g_voice_initialized;
-static atomic_bool g_agent_ready;
+static atomic_bool g_agent_core_ready;
+static atomic_bool g_trigger_prepare_pending = ATOMIC_VAR_INIT(true);
 
+extern int bk7258_agent_trigger_prepare(void);
 extern int bk7258_agent_trigger_start(void);
 extern int bk7258_agent_trigger_stop(void);
 extern int bk7258_agent_trigger_process(void);
-extern int bk7258_agent_trigger_model_step(void);
+extern int bk7258_agent_trigger_model_step(bool arm);
 extern bool bk7258_agent_trigger_model_pending(void);
 extern int bk7258_agent_trigger_rearm(void);
 extern bool bk7258_agent_trigger_armed(void);
 extern int bk7258_agent_trigger_control(void *, enum bkcontrol_command_e,
   uint32_t, uint32_t, const uint8_t *, size_t, struct bkcontrol_status_s *);
 
-/* The official voice channel is the sole conversational lifecycle owner.
- * These flags describe product readiness and existing protocol work only. */
-void bk7258_agent_product_event(int event, int result)
+/* Media Trigger reports only product wake admission here. The official voice
+ * channel remains the sole conversational lifecycle owner. */
+void bk7258_agent_product_wake(void)
 {
-  unsigned int flags = 0;
-  if (event == VOICE_CHANNEL_EVENT_INITIALIZED) {
-    atomic_store(&g_voice_initialized, result == 0);
-    flags = 1;
-  } else if (event == VOICE_CHANNEL_EVENT_SERVICE_READY) {
-    atomic_store(&g_agent_ready, result == 0);
-    flags = 1;
-  } else if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE) flags = 2;
-  else if (event == 100) flags = 4;
-  if (flags) { atomic_fetch_or(&g_product_events, flags); sem_post(&g_product_wake); }
+  atomic_fetch_or(&g_product_events, 4);
+  sem_post(&g_product_wake);
 }
 
 static void bk7258_agent_storage_changed(void)
@@ -141,14 +133,17 @@ static int product_control(void *context, enum bkcontrol_command_e command,
           return 0;
         }
       case BKCONTROL_STATUS: break;
-      case BKCONTROL_CANCEL: ret = voice_channel_cancel(); break;
+      case BKCONTROL_CANCEL:
+        /* The fixed official API exposes finalize-and-dispatch, not request
+         * cancellation. Do not turn an App cancel into a submitted utterance. */
+        ret = -ENOTSUP;
+        break;
       case BKCONTROL_CLEAR_HISTORY:
-        if (!voice_channel_is_idle()) return -EBUSY;
+        if (g_trigger_started && !bk7258_agent_trigger_armed()) return -EBUSY;
         ret = session_clear("voice");
         break;
       case BKCONTROL_VOLUME:
         if (value > 100u) return -EINVAL;
-        if (!voice_channel_is_idle()) return -EBUSY;
         ret = bkvoice_media_volume(true, value, &volume);
         if (!ret) {
           status->volume = volume;
@@ -158,15 +153,14 @@ static int product_control(void *context, enum bkcontrol_command_e command,
       default: return -ENOTSUP;
     }
   if (ret < 0) return ret;
-  bool idle = atomic_load(&g_voice_initialized) && voice_channel_is_idle();
+  bool idle = !g_configured || bk7258_agent_trigger_armed();
   status->flags = (g_configured && bk7258_agent_trigger_armed() ? 1u : 0u) |
                   (!idle || bkagent_ota_busy() ? 2u : 0u) | 16384u;
 #ifdef BKAGENT_APP_OTA_ENABLED
   status->flags |= 4096u | 8192u;
 #endif
-  /* Expose the official whole-turn idle result using the existing SDC1 value.
-   * Unknown phases require a zero error field in SDC1. No recorder state is
-   * used to infer completion, and no second turn state is retained. */
+  /* SDC1 reports only the product admission boundary. The fixed official
+   * channel has no public whole-turn completion state. */
   status->error = 0;
   if (idle) {
     status->flags |= 4u;
@@ -189,15 +183,19 @@ static int product_control(void *context, enum bkcontrol_command_e command,
 static bool product_available(void *unused)
 {
   (void)unused;
-  return atomic_load(&g_voice_initialized) && atomic_load(&g_agent_ready) &&
-         voice_channel_is_idle() && !g_configured && !bkagent_ota_busy();
+  return !g_configured && !bkagent_ota_busy() && !bkprov_network_busy();
 }
+
+static int product_models(enum bkcontrol_command_e command, uint32_t offset,
+  const uint8_t *record, size_t size, struct bkcontrol_status_s *status);
 
 static int product_config(void *context, enum bkcontrol_command_e command,
   uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
 {
   if (bkagent_ota_busy()) return -EBUSY;
+  if (kind == BKCONTROL_CONFIG_CLOUD_MODELS)
+    return product_models(command, offset, record, size, status);
   return bk7258_agent_trigger_control(context, command, kind, offset,
                                      record, size, status);
 }
@@ -208,15 +206,13 @@ static int product_ota(void *context, enum bkcontrol_command_e command,
 {
   if (command == BKCONTROL_OTA_START) {
     if (bkagent_ota_busy() || !g_identity_bound ||
-        !atomic_load(&g_voice_initialized) || !voice_channel_is_idle() ||
         bkprov_network_busy() || bk7258_agent_trigger_model_pending()) return -EBUSY;
+    if (g_trigger_started && !bk7258_agent_trigger_armed()) return -EBUSY;
     int ret;
-    if (g_trigger_started) {
-      ret = bk7258_agent_trigger_stop();
-      if (ret) return ret;
-      g_trigger_started = false;
-    }
-    if (!voice_channel_is_idle()) return -EBUSY;
+    ret = bk7258_agent_trigger_stop();
+    if (ret) return ret;
+    g_trigger_started = false;
+    atomic_store(&g_trigger_prepare_pending, true);
   }
   return bkagent_ota_control(context, command, record, size, status);
 }
@@ -233,53 +229,124 @@ static int product_load_cloud(void *unused, const void *trust, size_t trust_size
   if (!decoded) return -ENOMEM;
   int ret = bkcloud_config_decode(decoded, cloud, cloud_size);
   if (!ret) ret = bkagent_cloud_configure(trust, trust_size, cloud, cloud_size);
-  if (!ret) {
-    const char *backend = decoded->dialect == 2 ? "mimo" : "openai-audio";
-    char asr[64] = {0}, tts[64] = {0}, location[32] = {0};
-    (void)claw_config_get("asr_backend", asr, sizeof(asr));
-    (void)claw_config_get(AGENT_CFG_KEY_TTS_BACKEND, tts, sizeof(tts));
-    (void)claw_config_get(AGENT_CFG_KEY_TTS_LOCATION, location, sizeof(location));
-    if (!asr[0]) snprintf(asr, sizeof(asr), "%s", backend);
-    if (!tts[0] && (!location[0] || !strcmp(location, "remote")))
-      snprintf(tts, sizeof(tts), "%s", backend);
-    ret = voice_asr_set_backend(asr);
-    syslog(LOG_INFO, "BKVOICE ASR activation backend=%s result=%d\n", asr, ret);
-    if (!ret) {
-      ret = bkagent_cloud_activate_llm();
-      syslog(LOG_INFO, "BKVOICE LLM activation result=%d\n", ret);
+  if (!ret) ret = bkagent_cloud_activate_asr(decoded->dialect);
+  g_cloud_loaded = ret == 0;
+  if (!ret)
+    {
+      /* Fixed upstream streaming ASR/TTS still calls the Volc implementation,
+       * and its LLM transport cannot consume this protected CA. Keep the
+       * configuration readable, but do not arm a path that would cross the
+       * selected provider or weaken certificate verification. */
+      g_service_result = -ENOTSUP;
+      syslog(LOG_WARNING,
+             "BKVOICE cloud loaded; official stream/LLM adapters unavailable=%d\n",
+             g_service_result);
     }
-    if (!ret) {
-      ret = tts[0] ? voice_tts_set_backend(tts) : -ENOTSUP;
-      syslog(LOG_INFO, "BKVOICE TTS activation backend=%s result=%d\n", tts, ret);
+  else
+    {
+      g_service_result = ret;
     }
-  }
   bkcloud_config_clear(decoded);
   free(decoded);
-  g_service_result = ret ? ret : -EAGAIN;
+  return ret;
+}
+
+static int product_models(enum bkcontrol_command_e command, uint32_t offset,
+  const uint8_t *record, size_t size, struct bkcontrol_status_s *status)
+{
+  struct bkcloud_models_s models;
+  int ret;
+  if (command == BKCONTROL_CONFIG_READ) {
+    uint8_t wire[BKCLOUD_MODELS_RECORD_MAX];
+    size_t total = 0;
+    if (!g_cloud_loaded) return g_product_error ? g_product_error : -EAGAIN;
+    ret = bkagent_cloud_models_get(&models);
+    if (!ret) ret = bkcloud_models_encode(&models, wire, sizeof(wire), &total);
+    if (ret) return ret;
+    if (offset >= total || (offset & 15u)) return -ERANGE;
+    status->config_total = total;
+    memset(status->config_chunk, 0, sizeof(status->config_chunk));
+    size_t count = total - offset;
+    if (count > sizeof(status->config_chunk)) count = sizeof(status->config_chunk);
+    memcpy(status->config_chunk, wire + offset, count);
+    return 0;
+  }
+  if (command != BKCONTROL_CONFIG_BEGIN && command != BKCONTROL_CONFIG_APPLY)
+    return -EINVAL;
+  if (size < 12 || size > BKCLOUD_MODELS_RECORD_MAX) return -EMSGSIZE;
+  if (!g_identity_bound) return -ENOKEY;
+  if ((g_trigger_started && !bk7258_agent_trigger_armed()) ||
+      bkprov_network_busy() ||
+      bk7258_agent_trigger_model_pending()) return -EBUSY;
+  if (command == BKCONTROL_CONFIG_BEGIN) return 0;
+  ret = bkcloud_models_decode(&models, record, size);
+  if (ret) return ret;
+
+  /* Reuse the accepted protected configuration and the normal backend
+   * activation path. This changes public model names, never Wi-Fi, trust,
+   * identity or the independent choice of a local TTS backend. */
+  struct model_workspace_s {
+    uint8_t bundle[BKPROV_BUNDLE_MAX];
+    uint8_t voice[BKVOICE_CONFIG_MAX_BYTES];
+    uint8_t transaction[16];
+    struct bkprov_settings_s settings;
+  } *work = calloc(1, sizeof(*work));
+  if (!work) return -ENOMEM;
+  size_t bundle_size = 0, voice_size = 0;
+  uint64_t revision = 0;
+  ret = bkprov_storage_snapshot(work->bundle, sizeof(work->bundle),
+                                &bundle_size, &revision, work->transaction);
+  if (!ret && revision != g_config_revision) ret = -EAGAIN;
+  if (!ret) ret = bkprov_settings_decode(&work->settings, work->bundle, bundle_size);
+  if (!ret && !work->settings.cloud_size) ret = -ENOTSUP;
+  /* The persisted UTC is a floor, not the current time. Match the existing
+   * restore path before the config loader installs a fresh clock anchor. */
+  if (!ret) ret = bkprov_time_get(work->settings.utc, &work->settings.utc);
+  if (!ret) ret = bkprov_settings_voice(&work->settings,
+    g_identity.record + 48, g_identity.certificate_size,
+    g_identity.record + 48 + g_identity.certificate_size, g_identity.key_size,
+    work->voice, sizeof(work->voice), &voice_size);
+  if (!ret && g_trigger_started) {
+    ret = bk7258_agent_trigger_stop();
+    if (!ret) g_trigger_started = false;
+  }
+  if (!ret) ret = bk7258_preferences_cloud_models_set(&models);
+  if (!ret) {
+    g_configured = false;
+    ret = product_load_cloud(NULL, work->voice, voice_size,
+                              work->settings.cloud, work->settings.cloud_size);
+    g_configured = ret == 0 && g_service_result == 0;
+  }
+  g_product_error = ret;
+  mbedtls_platform_zeroize(work, sizeof(*work));
+  free(work);
+  syslog(ret ? LOG_WARNING : LOG_INFO,
+         "BKVOICE cloud model apply result=%d ready=%d\n", ret, g_configured);
   return ret;
 }
 
 static int product_connect(void *unused)
 {
   (void)unused;
-  g_service_result = bkagent_cloud_verify_service();
-  return g_service_result;
+  g_probe_result = bkagent_cloud_verify_service();
+  return g_probe_result;
 }
 
 static int product_ready(void *unused)
-{ (void)unused; return g_service_result == 0 ? 1 : g_service_result; }
+{ (void)unused; return g_probe_result == 0 ? 1 : g_probe_result; }
 
 static int product_clear(void *unused)
 {
   (void)unused;
-  if (!voice_channel_is_idle()) return -EBUSY;
+  if (g_trigger_started && !bk7258_agent_trigger_armed()) return -EBUSY;
   g_configured = false;
+  g_cloud_loaded = false;
   g_service_result = -ENOTCONN;
-  if (g_trigger_started) {
-    int ret = bk7258_agent_trigger_stop();
-    if (ret < 0) return ret;
-    g_trigger_started = false;
-  }
+  g_probe_result = -ENOTCONN;
+  int ret = bk7258_agent_trigger_stop();
+  if (ret < 0) return ret;
+  g_trigger_started = false;
+  atomic_store(&g_trigger_prepare_pending, true);
   return 0;
 }
 
@@ -287,9 +354,6 @@ static const struct bkprov_voice_ops_s g_provision_voice = {
   product_available, product_load_legacy, product_connect, product_ready,
   product_clear, product_load_cloud
 };
-
-static int product_capture_route(int active)
-{ return bkvoice_media_source_set_active(MEDIA_SOURCE_MIC, active != 0); }
 
 /* One bounded, zeroized workspace for protected storage reads. Parsed
  * identity owns its own allocation; settings borrow only this workspace. */
@@ -374,8 +438,10 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
     if (waited < 0 && errno != ETIMEDOUT) return -errno;
     unsigned int events = atomic_exchange(&g_product_events, 0);
     bkagent_ota_poll();
-    if (events & 8) pending = true;
-    if (!atomic_load(&g_voice_initialized) || !atomic_load(&g_agent_ready)) continue;
+    if (events & 8) {
+      pending = true;
+      atomic_store(&g_trigger_prepare_pending, true);
+    }
     uint64_t now = bkvoice_config_now_ms(NULL);
     uint32_t generation = bkprov_gatt_generation();
     if (!storage_deadline) storage_deadline = now + 15000;
@@ -410,7 +476,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
              g_configured, g_product_error, (unsigned long long)g_config_revision);
     }
     network_was_busy = network_busy;
-    if (pending && !bkagent_ota_busy() && voice_channel_is_idle() &&
+    if (!atomic_load(&g_agent_core_ready)) continue;
+    if (pending && !bkagent_ota_busy() &&
+        (!g_trigger_started || bk7258_agent_trigger_armed()) &&
         !network_busy && !bkprov_owner_busy()) {
       int ret = bk7258_agent_activate_cloud(&storage_waiting);
       if (storage_waiting && now < storage_deadline) storage_retry_at = now + 250;
@@ -423,10 +491,23 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       network_was_busy = bkprov_network_busy();
     }
     (void)bkprov_owner_step(bkvoice_config_now_ms(NULL), 0, false, false,
-      voice_channel_is_idle() && !bkprov_network_busy() && !bkagent_ota_busy());
+      (!g_trigger_started || bk7258_agent_trigger_armed()) &&
+      !bkprov_network_busy() && !bkagent_ota_busy());
     if (bkagent_ota_busy()) continue;
-    int model_result = bk7258_agent_trigger_model_step();
+    bool model_was_pending = bk7258_agent_trigger_model_pending();
+    int model_result = bk7258_agent_trigger_model_step(g_configured);
     if (model_result < 0 && model_result != -EBUSY) g_product_error = model_result;
+    if (model_was_pending && !bk7258_agent_trigger_model_pending() &&
+        model_result == 0)
+      atomic_store(&g_trigger_prepare_pending, false);
+    if (atomic_load(&g_trigger_prepare_pending) && !pending && !network_busy &&
+        !bkprov_owner_busy() && !bk7258_agent_trigger_model_pending()) {
+      int ret = bk7258_agent_trigger_prepare();
+      if (ret != -EBUSY) atomic_store(&g_trigger_prepare_pending, false);
+      if (ret < 0 && ret != -EBUSY) g_product_error = ret;
+      syslog(ret ? LOG_WARNING : LOG_INFO,
+             "BKVOICE wake model prepared=%d result=%d\n", ret == 0, ret);
+    }
     if (!g_configured || pending || bkprov_network_busy()) continue;
     if (!g_trigger_started) {
       unsigned int saved, observed;
@@ -441,9 +522,6 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       /* A failed model/media load is unavailable until a configuration,
        * model or readiness event arrives; do not reopen it at 50 Hz. */
       if (ret) g_configured = false;
-    } else if (events & 2) {
-      int ret = bk7258_agent_trigger_rearm();
-      if (ret < 0) { g_product_error = ret; g_configured = false; }
     }
     if (g_trigger_started && (events & 4)) {
       int ret = bk7258_agent_trigger_process();
@@ -457,6 +535,92 @@ volatile int g_bk7258_agent_pid = -1;
 volatile int g_bk7258_agent_launch_pid = -1;
 volatile int g_bk7258_agent_launch_errno;
 volatile uint32_t g_bk7258_agent_launch_stage;
+
+/* The fixed official package has no core-only bootstrap entry: its sole main
+ * also starts CLI, WebSocket, cron, heartbeat and a competing network owner.
+ * This product entry only initializes the retained official core and maps its
+ * outbound voice channel to the official voice output. It does not implement
+ * a second Agent loop, session store, ASR/TTS pipeline or recovery scheduler. */
+int ai_agent_main(int argc, FAR char *argv[])
+{
+  static const char *directories[] =
+    {
+      "/data/agent", "/data/agent/config", "/data/agent/memory",
+      "/data/agent/sessions", "/data/agent/skills"
+    };
+  int ret;
+
+  (void)argc;
+  (void)argv;
+
+  for (unsigned int i = 0; i < sizeof(directories) / sizeof(directories[0]); i++)
+    {
+      if (mkdir(directories[i], 0755) < 0 && errno != EEXIST)
+        {
+          syslog(LOG_ERR, "bk7258: Agent directory %s failed: %d\n",
+                 directories[i], errno);
+          return ERROR;
+        }
+    }
+
+  ret = config_store_init();
+  if (!ret) ret = message_bus_init();
+  if (!ret) ret = memory_store_init();
+  if (!ret) ret = session_mgr_init();
+  if (!ret) ret = http_proxy_init();
+  if (!ret) ret = llm_proxy_init();
+  if (!ret) ret = llm_router_init();
+  if (!ret) ret = tool_guard_init();
+  if (!ret) ret = agent_loop_init();
+  if (!ret) ret = voice_channel_init();
+  if (!ret) ret = agent_loop_start();
+  if (ret)
+    {
+      syslog(LOG_ERR, "bk7258: official Agent core init failed: %d\n", ret);
+#ifdef CONFIG_BK7258_VOICE_TLS
+      g_product_error = ret;
+#endif
+      return ERROR;
+    }
+
+#ifdef CONFIG_BK7258_VOICE_TLS
+  atomic_store(&g_agent_core_ready, true);
+  sem_post(&g_product_wake);
+#endif
+  syslog(LOG_INFO, "bk7258: official Agent core ready\n");
+
+  while (!agent_shutdown_requested())
+    {
+      agent_msg_t message;
+      ret = message_bus_pop_outbound(&message, 1000);
+      if (ret != OK) continue;
+      if (!strcmp(message.channel, AGENT_CHAN_VOICE) && message.content)
+        {
+          ret = voice_channel_speak(message.content);
+#ifdef CONFIG_BK7258_VOICE_TLS
+          if (!ret && g_trigger_started)
+            {
+              ret = bk7258_agent_trigger_rearm();
+            }
+          if (ret)
+            {
+              g_product_error = ret;
+              syslog(LOG_WARNING,
+                     "bk7258: official voice output/rearm failed: %d\n", ret);
+            }
+#endif
+        }
+      else
+        {
+          syslog(LOG_WARNING, "bk7258: unsupported Agent output channel=%s\n",
+                 message.channel);
+        }
+      message_bus_msg_free(&message);
+    }
+
+  message_bus_wakeup();
+  return OK;
+}
 
 #ifdef CONFIG_AI_AGENT_LVGL_UI
 extern void lvgl_ui_channel_show(void);
@@ -490,11 +654,7 @@ int bk7258_agent_product_prepare(void)
 #ifdef CONFIG_BK7258_VOICE_TLS
   int ret = bkagent_cloud_register();
   if (ret != 0) return ret;
-  ret = audio_capture_set_route(product_capture_route);
-  if (ret != 0) return ret;
   if (sem_init(&g_product_wake, 0, 0) < 0) return -errno;
-  ret = voice_channel_set_event_callback(bk7258_agent_product_event);
-  if (ret != 0) return ret;
   bkprov_storage_set_notify(bk7258_agent_storage_changed);
 #endif
 #ifdef CONFIG_AI_AGENT_LVGL_UI
@@ -573,20 +733,6 @@ int bk7258_agent_product_start(void)
 {
   pid_t launchpid;
   pid_t configpid;
-
-  /* Keep the product media backends reachable from the lifecycle object.
-   * The official Agent also provides weak ABI stubs, so relying on unresolved
-   * media symbols would not extract these strong implementations from the
-   * application archive.
-   */
-
-#if defined(CONFIG_BK7258_AUD) && !defined(CONFIG_MEDIA)
-  bk7258_agent_media_player_link();
-#endif
-
-#if defined(CONFIG_BK7258_MIC) && !defined(CONFIG_MEDIA)
-  bk7258_agent_media_recorder_link();
-#endif
 
   g_bk7258_agent_launch_stage = 1u;
   launchpid = task_create("agent-start", 99, 4096,

@@ -13,6 +13,8 @@
 #include <sys/stat.h>
 #include <syslog.h>
 
+#define BKVOICE_MEDIA_CAPTURE_LIFECYCLE "CaptureLifecycle"
+
 /* Board ROMFS supplies physical routes. The product starts the official
  * daemon once, before any recorder/player client or wake listener. */
 extern const unsigned char shaniu_media_img[];
@@ -26,6 +28,14 @@ int bkvoice_media_source_set_active(const char *source, bool active)
   if (ret < 0) return ret;
   const char *name = strchr(filter, '@');
   if (name == NULL || name[1] == '\0') return -EPROTO;
+  if (active)
+    {
+      /* The boot policy leaves the capture device untouched until Recorder
+       * has linked its real format. Afterwards normal policy owns start/stop. */
+      ret = media_policy_set_string(BKVOICE_MEDIA_CAPTURE_LIFECYCLE, "Ready",
+                                    MEDIA_POLICY_NOT_APPLY);
+      if (ret < 0) return ret;
+    }
   return active ? media_policy_include("ActiveStreams", name + 1, MEDIA_POLICY_APPLY) :
                   media_policy_exclude("ActiveStreams", name + 1, MEDIA_POLICY_APPLY);
 }

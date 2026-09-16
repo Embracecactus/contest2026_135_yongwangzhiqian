@@ -15,7 +15,6 @@
 #define GC2145_EXPOSURE_H 0x03
 #define GC2145_EXPOSURE_L 0x04
 #define GC2145_FLIP       0x17
-#define GC2145_GAIN       0xb0
 #define GC2145_AE         0xb6
 
 static const int32_t g_gc2145_ae[] =
@@ -46,12 +45,6 @@ int gc2145_get_supported_value(uint32_t id,
         value->u.range.minimum = 1;
         value->u.range.maximum = 8191;
         value->u.range.default_value = 1250;
-        return 0;
-      case IMGSENSOR_ID_GAIN:
-        /* Sensor global gain, unsigned 4.4 fixed point (16 = unity). */
-        value->u.range.minimum = 16;
-        value->u.range.maximum = 255;
-        value->u.range.default_value = 85;
         return 0;
       case IMGSENSOR_ID_HFLIP_VIDEO:
       case IMGSENSOR_ID_VFLIP_VIDEO:
@@ -133,7 +126,6 @@ int gc2145_get_value(FAR const struct gc2145_control_s *c,
     }
 
   reg = id == IMGSENSOR_ID_EXPOSURE_AUTO ? GC2145_AE :
-        id == IMGSENSOR_ID_GAIN ? GC2145_GAIN :
         id == IMGSENSOR_ID_EXPOSURE ? GC2145_EXPOSURE_H : GC2145_FLIP;
   ret = c->read(c->arg, reg, &hi);
   result = hi;
@@ -227,10 +219,6 @@ int gc2145_set_value(FAR const struct gc2145_control_s *c,
         {
           ret = c->write(c->arg, GC2145_EXPOSURE_L, setting & 0xff);
         }
-    }
-  else if (id == IMGSENSOR_ID_GAIN)
-    {
-      ret = c->write(c->arg, GC2145_GAIN, setting);
     }
   else
     {
