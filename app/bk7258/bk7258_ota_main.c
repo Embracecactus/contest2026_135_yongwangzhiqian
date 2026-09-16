@@ -118,9 +118,12 @@ static int bkota_status(void)
     }
   else
     {
-      printf("manager state=%u phase=%u image=%u progress=%lu/%lu error=%ld\n",
+      printf("manager state=%u phase=%u image=%u operation=%u "
+             "progress=%lu/%lu error=%ld\n",
              (unsigned int)manager.state, (unsigned int)manager.phase,
-             (unsigned int)manager.image, (unsigned long)manager.completed,
+             (unsigned int)manager.image,
+             (unsigned int)manager.operation,
+             (unsigned long)manager.completed,
              (unsigned long)manager.total, (long)manager.last_error);
     }
 

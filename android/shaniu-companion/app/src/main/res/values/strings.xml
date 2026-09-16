@@ -1,0 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="app_name">傻妞</string>
+    <string name="volume_slider_format">音量滑块：%1$d%%（松手后提交）</string>
+</resources>

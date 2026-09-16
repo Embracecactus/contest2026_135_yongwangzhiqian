@@ -900,10 +900,24 @@ static int bk7258_mic_hw_start(struct bk7258_mic_dev_s *priv)
         }
     }
 
+  if (priv->config->set_capture_quiet != NULL)
+    {
+      ret = priv->config->set_capture_quiet(true);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
   err = bk_dma_start(priv->dma_id);
   if (err != BK_OK)
     {
       auderr("ERROR: bk_dma_start failed: %d\n", err);
+      if (priv->config->set_capture_quiet != NULL)
+        {
+          (void)priv->config->set_capture_quiet(false);
+        }
+
       return bk7258_mic_result(err);
     }
 
@@ -912,6 +926,11 @@ static int bk7258_mic_hw_start(struct bk7258_mic_dev_s *priv)
     {
       auderr("ERROR: bk_aud_adc_start failed: %d\n", err);
       bk_dma_stop(priv->dma_id);
+      if (priv->config->set_capture_quiet != NULL)
+        {
+          (void)priv->config->set_capture_quiet(false);
+        }
+
       return bk7258_mic_result(err);
     }
 
@@ -920,8 +939,14 @@ static int bk7258_mic_hw_start(struct bk7258_mic_dev_s *priv)
 
 static void bk7258_mic_hw_stop(struct bk7258_mic_dev_s *priv)
 {
-  bk_dma_stop(priv->dma_id);
-  bk_aud_adc_stop();
+  bk_err_t dma_ret = bk_dma_stop(priv->dma_id);
+  bk_err_t adc_ret = bk_aud_adc_stop();
+
+  if (dma_ret == BK_OK && adc_ret == BK_OK &&
+      priv->config->set_capture_quiet != NULL)
+    {
+      (void)priv->config->set_capture_quiet(false);
+    }
 }
 
 /****************************************************************************
@@ -1963,7 +1988,10 @@ int bk7258_mic_initialize(
        ((config->flags & BK7258_MIC_INPUT_MIC2) == 0 ||
         config->channels != 2 || config->aec_delay_samples > 1000u)) ||
       config->mic1_ana_gain > BK7258_MIC_ANA_GAIN_MAX ||
-      config->mic2_ana_gain > BK7258_MIC_ANA_GAIN_MAX)
+      config->mic2_ana_gain > BK7258_MIC_ANA_GAIN_MAX ||
+      config->digital_gain_db < -(int)BK7258_MIC_DIG_GAIN_0DB ||
+      config->digital_gain_db >
+        (int)(BK7258_MIC_DIG_GAIN_MAX - BK7258_MIC_DIG_GAIN_0DB))
     {
       auderr("ERROR: BK7258 microphone configuration is invalid\n");
       return -EINVAL;
@@ -1971,7 +1999,8 @@ int bk7258_mic_initialize(
 
   priv->config    = config;
   priv->channels  = config->channels;
-  priv->dig_gain   = BK7258_MIC_DIG_GAIN_0DB;
+  priv->dig_gain = (uint8_t)((int)BK7258_MIC_DIG_GAIN_0DB +
+                            config->digital_gain_db);
   priv->mic1_ana_gain = config->mic1_ana_gain;
   priv->mic2_ana_gain = config->mic2_ana_gain;
   priv->dma_id     = DMA_ID_MAX + 1;   /* Not a valid channel */

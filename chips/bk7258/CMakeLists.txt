@@ -23,6 +23,32 @@ set(BK7258_SDK_CONFIG_DIR "${BK7258_SDK_DIR}/config")
 set(BK7258_SDK_LIBS_DIR "${BK7258_SDK_DIR}/libs")
 set(BK7258_NUTTX_OVERLAY_DIR "${NUTTX_DIR}/../vendor/beken/nuttx")
 
+# Arm GNU's C++ wrappers use include_next for the C library.  Put the
+# matching C++ headers before NuttX's C headers so wrappers resolve the
+# platform libc instead of mixing in the bundled Newlib ABI.
+function(bk7258_configure_toolchain_cxx_headers)
+  execute_process(COMMAND "${CMAKE_CXX_COMPILER}" -print-sysroot
+                  OUTPUT_VARIABLE sysroot OUTPUT_STRIP_TRAILING_WHITESPACE
+                  COMMAND_ERROR_IS_FATAL ANY)
+  execute_process(COMMAND "${CMAKE_CXX_COMPILER}" -dumpfullversion
+                  OUTPUT_VARIABLE version OUTPUT_STRIP_TRAILING_WHITESPACE
+                  COMMAND_ERROR_IS_FATAL ANY)
+  set(headers "${sysroot}/include/c++/${version}")
+  if(NOT EXISTS "${headers}/cstdlib")
+    message(FATAL_ERROR "Missing C++ headers for selected Arm GNU toolchain")
+  endif()
+  get_target_property(targets nuttx_target_interface ALL_TARGETS)
+  foreach(target IN LISTS targets)
+    target_include_directories(${target} SYSTEM BEFORE PRIVATE
+                               "$<$<COMPILE_LANGUAGE:CXX>:${headers}>")
+  endforeach()
+endfunction()
+
+if(CONFIG_LIBCXXTOOLCHAIN AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}"
+                 CALL bk7258_configure_toolchain_cxx_headers)
+endif()
+
 if(CONFIG_INPUT_GT9XX_STANDARD_IOCTL AND CONFIG_INPUT_GT9XX)
   message(FATAL_ERROR
           "select exactly one GT9xx implementation")
@@ -301,6 +327,7 @@ if(CONFIG_BK7258_OTA_MANAGER)
             "BK7258_OTA_MANAGER requires the generated catalog public root")
   endif()
   list(APPEND BK7258_AP_BASE_SRCS
+       ap/bk7258_active_image.c
        ap/bk7258_ota_manager.c
        ap/bk7258_ota_catalog.c
        "$ENV{BK7258_OTA_CATALOG_PUBLIC_SOURCE}")

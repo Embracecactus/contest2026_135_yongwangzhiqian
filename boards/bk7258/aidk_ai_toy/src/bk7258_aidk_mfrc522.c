@@ -27,12 +27,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/poll.h>
 #include <syslog.h>
 #include <termios.h>
 
+#include <nuttx/clock.h>
 #include <nuttx/contactless/mfrc522.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/mutex.h>
+#include <nuttx/semaphore.h>
 #include <nuttx/serial/tioctl.h>
 #include <nuttx/signal.h>
 #include <nuttx/spi/spi.h>
@@ -46,6 +49,7 @@
 #define AIDK_NFC_UART_DEVPATH         "/dev/ttyS1"
 #define AIDK_NFC_UART_BAUD            B9600
 #define AIDK_NFC_UART_TIMEOUT_LOOPS   20
+#define AIDK_NFC_UART_RX_TIMEOUT_MS   200
 #define AIDK_NFC_POWER_SETTLE_US      10000
 #define AIDK_NFC_UART_PROBE_ATTEMPTS  2
 #define AIDK_NFC_UART_RESYNC_US       5000
@@ -201,40 +205,128 @@ static int aidk_nfc_uart_write_byte(FAR struct aidk_nfc_uart_s *priv,
   return -ETIMEDOUT;
 }
 
+static int aidk_nfc_uart_wait_readable(FAR struct aidk_nfc_uart_s *priv,
+                                       uint32_t timeout_ms)
+{
+  struct pollfd pfd;
+  sem_t sem;
+  bool poll_setup = false;
+  int teardown;
+  int ret;
+
+  ret = nxsem_init(&sem, 0, 0);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  memset(&pfd, 0, sizeof(pfd));
+  pfd.fd = -1;
+  pfd.events = POLLIN | POLLERR | POLLHUP;
+  pfd.arg = &sem;
+  pfd.cb = poll_default_cb;
+
+  ret = file_poll(&priv->uart, &pfd, true);
+  if (ret >= 0)
+    {
+      poll_setup = true;
+      if (pfd.revents == 0)
+        {
+          ret = nxsem_tickwait_uninterruptible(&sem,
+                                                MSEC2TICK(timeout_ms));
+        }
+    }
+
+  if (poll_setup)
+    {
+      teardown = file_poll(&priv->uart, &pfd, false);
+      if (ret >= 0 && teardown < 0)
+        {
+          ret = teardown;
+        }
+    }
+
+  (void)nxsem_destroy(&sem);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if ((pfd.revents & POLLIN) == 0)
+    {
+      if ((pfd.revents & POLLNVAL) != 0)
+        {
+          return -EBADF;
+        }
+
+      if ((pfd.revents & POLLHUP) != 0)
+        {
+          return -EPIPE;
+        }
+
+      if ((pfd.revents & POLLERR) != 0)
+        {
+          return -EIO;
+        }
+    }
+
+  return OK;
+}
+
 static int aidk_nfc_uart_read_byte(FAR struct aidk_nfc_uart_s *priv,
                                    FAR uint8_t *value)
 {
   int eagain = 0;
   int eintr = 0;
   int last = 0;
-  int i;
+  uint32_t elapsed_ms;
+  uint32_t remaining_ms;
+  clock_t started;
+  int ret;
 
-  for (i = 0; i < AIDK_NFC_UART_TIMEOUT_LOOPS; i++)
+  started = clock_systime_ticks();
+  for (;;)
     {
-      ssize_t ret = file_read(&priv->uart, (FAR char *)value, 1);
+      ssize_t bytes = file_read(&priv->uart, (FAR char *)value, 1);
 
-      last = (int)ret;
+      last = (int)bytes;
 
-      if (ret == 1)
+      if (bytes == 1)
         {
           return OK;
         }
 
-      if (ret < 0 && ret != -EAGAIN && ret != -EINTR)
+      if (bytes < 0 && bytes != -EAGAIN && bytes != -EINTR)
         {
-          return (int)ret;
+          return (int)bytes;
         }
 
-      if (ret == -EAGAIN)
-        {
-          eagain++;
-        }
-      else if (ret == -EINTR)
+      if (bytes == -EINTR)
         {
           eintr++;
         }
+      else
+        {
+          eagain++;
+        }
 
-      (void)nxsig_usleep(1000);
+      elapsed_ms = (uint32_t)TICK2MSEC(clock_systime_ticks() - started);
+      if (elapsed_ms >= AIDK_NFC_UART_RX_TIMEOUT_MS)
+        {
+          break;
+        }
+
+      remaining_ms = AIDK_NFC_UART_RX_TIMEOUT_MS - elapsed_ms;
+      ret = aidk_nfc_uart_wait_readable(priv, remaining_ms);
+      if (ret == -ETIMEDOUT)
+        {
+          break;
+        }
+
+      if (ret < 0 && ret != -EINTR)
+        {
+          return ret;
+        }
     }
 
   aidk_nfc_uart_snapshot("rx-timeout");

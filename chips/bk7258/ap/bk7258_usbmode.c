@@ -11,6 +11,7 @@
 #ifdef CONFIG_BK7258_USBMODE
 
 #include <errno.h>
+#include <limits.h>
 #include <syslog.h>
 
 #include <nuttx/mutex.h>
@@ -22,6 +23,7 @@
 
 static mutex_t g_bk7258_usbmode_lock = NXMUTEX_INITIALIZER;
 static enum bk7258_usbmode_e g_bk7258_usbmode = BK7258_USBMODE_NONE;
+static unsigned int g_bk7258_blockdev_leases;
 
 const char *bk7258_usbmode_name(enum bk7258_usbmode_e mode)
 {
@@ -108,6 +110,12 @@ int bk7258_usbmode_set(enum bk7258_usbmode_e mode)
     }
 
   previous = g_bk7258_usbmode;
+  if (mode == BK7258_USBMODE_MSC && g_bk7258_blockdev_leases != 0)
+    {
+      nxmutex_unlock(&g_bk7258_usbmode_lock);
+      return -EBUSY;
+    }
+
   if (previous == mode)
     {
       nxmutex_unlock(&g_bk7258_usbmode_lock);
@@ -166,6 +174,52 @@ enum bk7258_usbmode_e bk7258_usbmode_get(void)
   mode = g_bk7258_usbmode;
   nxmutex_unlock(&g_bk7258_usbmode_lock);
   return mode;
+}
+
+int bk7258_usbmode_blockdev_acquire(void)
+{
+  int ret = nxmutex_lock(&g_bk7258_usbmode_lock);
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bk7258_usbmode == BK7258_USBMODE_MSC)
+    {
+      nxmutex_unlock(&g_bk7258_usbmode_lock);
+      return -EBUSY;
+    }
+
+  if (g_bk7258_blockdev_leases == UINT_MAX)
+    {
+      nxmutex_unlock(&g_bk7258_usbmode_lock);
+      return -EOVERFLOW;
+    }
+
+  g_bk7258_blockdev_leases++;
+  nxmutex_unlock(&g_bk7258_usbmode_lock);
+  return OK;
+}
+
+int bk7258_usbmode_blockdev_release(void)
+{
+  int ret = nxmutex_lock(&g_bk7258_usbmode_lock);
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bk7258_blockdev_leases == 0)
+    {
+      nxmutex_unlock(&g_bk7258_usbmode_lock);
+      return -EINVAL;
+    }
+
+  g_bk7258_blockdev_leases--;
+  nxmutex_unlock(&g_bk7258_usbmode_lock);
+  return OK;
 }
 
 #endif /* CONFIG_BK7258_USBMODE */

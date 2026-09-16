@@ -1,0 +1,157 @@
+{
+  "format": "shaniu-eye-source/1",
+  "pack_id": "shaniu-default-v1",
+  "revision": 1,
+  "renderer_api": 1,
+  "description": "Shaniu AIDK 160x160 dual-eye baseline",
+  "canvas": {
+    "width": 160,
+    "height": 160
+  },
+  "palette": [
+    "#090B13",
+    "#F5F7FF",
+    "#5EE7F5",
+    "#18213A",
+    "#FFFFFF",
+    "#FF87B7",
+    "#FFCC66",
+    "#FF5267",
+    "#293453",
+    "#9EF4FF",
+    "#6977A8"
+  ],
+  "expressions": [
+    {
+      "id": "neutral",
+      "side": "shared",
+      "mirror_for_right": true,
+      "background": 0,
+      "layers": [
+        {"type": "ellipse", "color": 1, "cx": 80, "cy": 80, "rx": 57, "ry": 46},
+        {"type": "ellipse", "color": 2, "cx": 71, "cy": 81, "rx": 25, "ry": 31},
+        {"type": "ellipse", "color": 3, "cx": 71, "cy": 82, "rx": 12, "ry": 18},
+        {"type": "ellipse", "color": 4, "cx": 64, "cy": 70, "rx": 5, "ry": 6},
+        {"type": "ellipse", "color": 9, "cx": 77, "cy": 95, "rx": 4, "ry": 3}
+      ]
+    },
+    {
+      "id": "happy",
+      "side": "shared",
+      "mirror_for_right": true,
+      "background": 0,
+      "layers": [
+        {"type": "ellipse", "color": 2, "cx": 80, "cy": 84, "rx": 59, "ry": 42},
+        {"type": "ellipse", "color": 0, "cx": 80, "cy": 66, "rx": 61, "ry": 39},
+        {"type": "ellipse", "color": 9, "cx": 80, "cy": 108, "rx": 31, "ry": 8},
+        {"type": "ellipse", "color": 5, "cx": 133, "cy": 121, "rx": 16, "ry": 7}
+      ]
+    },
+    {
+      "id": "shy",
+      "side": "shared",
+      "mirror_for_right": true,
+      "background": 0,
+      "layers": [
+        {"type": "ellipse", "color": 1, "cx": 80, "cy": 80, "rx": 55, "ry": 44},
+        {"type": "ellipse", "color": 2, "cx": 57, "cy": 86, "rx": 23, "ry": 29},
+        {"type": "ellipse", "color": 3, "cx": 57, "cy": 87, "rx": 11, "ry": 17},
+        {"type": "ellipse", "color": 4, "cx": 51, "cy": 77, "rx": 4, "ry": 5},
+        {"type": "ellipse", "color": 5, "cx": 126, "cy": 121, "rx": 21, "ry": 9},
+        {"type": "ellipse", "color": 5, "cx": 138, "cy": 105, "rx": 8, "ry": 4}
+      ]
+    },
+    {
+      "id": "sad",
+      "side": "shared",
+      "mirror_for_right": true,
+      "background": 0,
+      "layers": [
+        {"type": "ellipse", "color": 1, "cx": 80, "cy": 84, "rx": 56, "ry": 44},
+        {"type": "ellipse", "color": 2, "cx": 75, "cy": 93, "rx": 23, "ry": 28},
+        {"type": "ellipse", "color": 3, "cx": 75, "cy": 96, "rx": 11, "ry": 16},
+        {"type": "ellipse", "color": 4, "cx": 68, "cy": 86, "rx": 4, "ry": 5},
+        {"type": "polygon", "color": 0, "points": [[13, 26], [147, 26], [147, 66], [20, 51]]},
+        {"type": "ellipse", "color": 2, "cx": 132, "cy": 124, "rx": 5, "ry": 10}
+      ]
+    },
+    {
+      "id": "surprised",
+      "side": "shared",
+      "mirror_for_right": true,
+      "background": 0,
+      "layers": [
+        {"type": "ellipse", "color": 1, "cx": 80, "cy": 80, "rx": 47, "ry": 59},
+        {"type": "ellipse", "color": 2, "cx": 80, "cy": 82, "rx": 30, "ry": 37},
+        {"type": "ellipse", "color": 3, "cx": 80, "cy": 84, "rx": 17, "ry": 23},
+        {"type": "ellipse", "color": 4, "cx": 69, "cy": 69, "rx": 7, "ry": 8},
+        {"type": "ellipse", "color": 9, "cx": 90, "cy": 103, "rx": 5, "ry": 4}
+      ]
+    },
+    {
+      "id": "thinking",
+      "side": "shared",
+      "mirror_for_right": false,
+      "background": 0,
+      "layers": [
+        {"type": "ellipse", "color": 1, "cx": 80, "cy": 80, "rx": 56, "ry": 45},
+        {"type": "ellipse", "color": 2, "cx": 105, "cy": 69, "rx": 22, "ry": 28},
+        {"type": "ellipse", "color": 3, "cx": 108, "cy": 69, "rx": 11, "ry": 16},
+        {"type": "ellipse", "color": 4, "cx": 101, "cy": 60, "rx": 4, "ry": 5},
+        {"type": "ellipse", "color": 10, "cx": 34, "cy": 128, "rx": 5, "ry": 5},
+        {"type": "ellipse", "color": 10, "cx": 20, "cy": 115, "rx": 3, "ry": 3}
+      ]
+    },
+    {
+      "id": "listening",
+      "side": "shared",
+      "mirror_for_right": true,
+      "background": 0,
+      "layers": [
+        {"type": "ellipse", "color": 9, "cx": 80, "cy": 80, "rx": 61, "ry": 51},
+        {"type": "ellipse", "color": 0, "cx": 80, "cy": 80, "rx": 56, "ry": 46},
+        {"type": "ellipse", "color": 1, "cx": 80, "cy": 80, "rx": 51, "ry": 41},
+        {"type": "ellipse", "color": 2, "cx": 72, "cy": 81, "rx": 25, "ry": 30},
+        {"type": "ellipse", "color": 3, "cx": 72, "cy": 82, "rx": 11, "ry": 17},
+        {"type": "ellipse", "color": 4, "cx": 66, "cy": 71, "rx": 4, "ry": 5}
+      ]
+    },
+    {
+      "id": "speaking",
+      "side": "shared",
+      "mirror_for_right": true,
+      "background": 0,
+      "layers": [
+        {"type": "ellipse", "color": 1, "cx": 80, "cy": 80, "rx": 57, "ry": 46},
+        {"type": "ellipse", "color": 6, "cx": 72, "cy": 81, "rx": 27, "ry": 32},
+        {"type": "ellipse", "color": 3, "cx": 72, "cy": 82, "rx": 12, "ry": 18},
+        {"type": "ellipse", "color": 4, "cx": 65, "cy": 70, "rx": 5, "ry": 6},
+        {"type": "polygon", "color": 6, "points": [[130, 43], [135, 54], [147, 59], [135, 64], [130, 75], [125, 64], [113, 59], [125, 54]]}
+      ]
+    },
+    {
+      "id": "offline",
+      "side": "shared",
+      "mirror_for_right": false,
+      "background": 0,
+      "layers": [
+        {"type": "ellipse", "color": 8, "cx": 80, "cy": 80, "rx": 57, "ry": 43},
+        {"type": "ellipse", "color": 0, "cx": 80, "cy": 78, "rx": 51, "ry": 36},
+        {"type": "rectangle", "color": 10, "x": 39, "y": 78, "width": 82, "height": 5},
+        {"type": "ellipse", "color": 9, "cx": 132, "cy": 80, "rx": 3, "ry": 3}
+      ]
+    },
+    {
+      "id": "error",
+      "side": "shared",
+      "mirror_for_right": false,
+      "background": 0,
+      "layers": [
+        {"type": "ellipse", "color": 8, "cx": 80, "cy": 80, "rx": 58, "ry": 48},
+        {"type": "polygon", "color": 7, "points": [[37, 28], [132, 123], [122, 133], [27, 38]]},
+        {"type": "polygon", "color": 7, "points": [[123, 28], [133, 38], [38, 133], [28, 123]]},
+        {"type": "ellipse", "color": 4, "cx": 80, "cy": 80, "rx": 5, "ry": 5}
+      ]
+    }
+  ]
+}

@@ -10,13 +10,39 @@ config BK7258_BOARD_AIDK_AI_TOY
 	help
 		AIDK AI Toy (BK7258 AI Demo) board: UART0 console, CH340E UART0,
 		SC7A20H accelerometer on SoC I2C0 (P20/P21), GC2145 SCCB on SoC
-		I2C1 map mode 1 (P42/P43), 1GB SD NAND, MIC1 plus MIC2
+		I2C1 map mode 1 (P42/P43), SD NAND, MIC1 plus MIC2
 		AEC-reference/PA audio, keys/LEDs, MFRC522 NFC and Type-C USB.  CN5's
-		single-screen module and CN10's motor are not connected on the current
-		board and are not initialized.  Hardware verification is still pending.
+		single-screen module is disconnected. CN10's motor is fitted and
+		P9 is reserved for its active-high control; fitting does not imply
+		that the motor driver has passed hardware verification.
+
+config BK7258_AIDK_BUTTONS
+	bool "AIDK three polled keys as /dev/buttons"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY && !BK7258_AP_CORE
+	select ARCH_BUTTONS
+	select INPUT
+	select INPUT_BUTTONS
+	select BK7258_CP_GPIO_INPUT
+	help
+		Expose KEY1 (P13, volume down), KEY2 (P12, power), and KEY3
+		(P8, volume up) through the standard NuttX /dev/buttons upper half.
+		The physical keys are active-low and sampled on read. This board has
+		no button IRQ implementation, so BTNIOC_REGISTER and poll wakeups are
+		not supported; consumers must use bounded timed reads.
+
+config BK7258_AIDK_MOTOR
+	bool "AIDK CN10 motor product adapter"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY && BK7258_AP_CORE
+	help
+		Bind the fitted CN10 motor to the product haptic service. P9 is
+		high-active; only finite pulses with a cooldown are accepted.
+		Cancel and MIC capture stop the output. P52 uses a separate motor
+		vote. Initialization leaves the motor stopped.
 
 config BK7258_AIDK_SD_NAND
-	bool "AIDK 1GB SD NAND"
+	bool "AIDK SD NAND"
 	default n
 	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
 	select BK7258_BOARD_HAS_SDIO_4BIT
@@ -25,9 +51,13 @@ config BK7258_AIDK_SD_NAND
 	select MMCSD
 	select MMCSD_SDIO
 	help
-		Bind the chip SDIO host to the AIDK soldered 1GB SD NAND on
-		SDIO map mode 1 (P14-P19).  No card detect is available; the
-		media is always present.
+		Bind the chip SDIO host to the AIDK soldered CSNP1GCR01-BOW
+		SD NAND on SDIO map mode 1 (P14-P19). The photographed U7 part
+		is specified as 1 Gbit by its manufacturer. Its current CSD
+		reports 126877696 bytes (247808 512-byte sectors, 121 MiB).
+		The schematic's 1 GB label does not match this fitted part.
+		Capacity remains CSD-derived. No card detect is available;
+		the media is always present.
 
 config BK7258_AIDK_DEFERRED_PRIORITY
 	int "AIDK attached-device worker priority"
@@ -125,6 +155,7 @@ config BK7258_AIDK_CAMERA
 	depends on BK7258_BOARD_AIDK_AI_TOY
 	depends on BK7258_AP_CORE && BK7258_DVP && BK7258_PSRAM
 	select BK7258_DVP_BOARD_GLUE
+	select BK7258_DVP_SENSOR_GC2145
 	select BK7258_PSRAM_MEDIA
 	help
 		Bind the fitted AIDK GC2145 and its board-specific power/reset/pinmux

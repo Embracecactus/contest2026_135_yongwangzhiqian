@@ -73,6 +73,7 @@ enum bk7258_shared_rail_client_e
   BK7258_SHARED_RAIL_SDIO = 0,
   BK7258_SHARED_RAIL_LCD,
   BK7258_SHARED_RAIL_NFC,
+  BK7258_SHARED_RAIL_MOTOR,
 };
 
 /****************************************************************************

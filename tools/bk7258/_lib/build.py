@@ -804,7 +804,7 @@ def _role_build(repository: Path, workspace: Path, official_build: Path,
     ]
     _run(base + [f"-j{jobs}"], f"official {config.role} build",
          cwd=workspace, environment=environment)
-    dotconfig = _unique(binary_root, (".config",), f"{config.role} .config")
+    dotconfig = _regular(binary_root / ".config", f"{config.role} .config")
     return RoleBuild(
         role=config.role,
         config=config,

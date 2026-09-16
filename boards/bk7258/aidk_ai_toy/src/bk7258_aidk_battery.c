@@ -89,25 +89,53 @@ static struct aidk_battery_dev_s g_aidk_battery =
   .dev.ops = &g_aidk_battery_ops,
 };
 
-static bool aidk_battery_5v_present(void)
+static int aidk_battery_5v_present(FAR bool *present)
 {
   bool high;
+  int ret;
 
-  return bk7258_gpio_read_input(BK7258_BOARD_PIN_5V_DET, &high) == OK &&
-         high;
+  if (present == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = bk7258_gpio_read_input(BK7258_BOARD_PIN_5V_DET, &high);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  *present = high;
+  return OK;
 }
 
-static bool aidk_battery_full(void)
+static int aidk_battery_full(FAR bool *full)
 {
   bool high;
+  int ret;
 
-  return bk7258_gpio_read_input(BK7258_BOARD_PIN_FULL_DET, &high) == OK &&
-         !high;
+  if (full == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = bk7258_gpio_read_input(BK7258_BOARD_PIN_FULL_DET, &high);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  *full = !high;
+  return OK;
 }
 
 static int aidk_battery_state(FAR struct battery_charger_dev_s *dev,
                               FAR int *status)
 {
+  bool full;
+  bool present;
+  int ret;
+
   (void)dev;
 
   if (status == NULL)
@@ -115,17 +143,25 @@ static int aidk_battery_state(FAR struct battery_charger_dev_s *dev,
       return -EINVAL;
     }
 
-  if (!aidk_battery_5v_present())
+  ret = aidk_battery_5v_present(&present);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (!present)
     {
       *status = BATTERY_DISCHARGING;
     }
-  else if (aidk_battery_full())
-    {
-      *status = BATTERY_FULL;
-    }
   else
     {
-      *status = BATTERY_CHARGING;
+      ret = aidk_battery_full(&full);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      *status = full ? BATTERY_FULL : BATTERY_CHARGING;
     }
 
   return OK;

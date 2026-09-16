@@ -36,6 +36,8 @@ extern "C"
 #define BK7258_WIFI_SCAN_MIN_MS          1000u
 #define BK7258_WIFI_SCAN_DEFAULT_MS      15000u
 #define BK7258_WIFI_SCAN_MAX_RESULTS     4u
+/* AP-local scan snapshots are never serialized on the CP control wire. */
+#define BK7258_WIFI_AP_SCAN_MAX_RESULTS  32u
 
 /****************************************************************************
  * Public Types
@@ -109,6 +111,15 @@ struct bk7258_wifi_scan_result_s
   struct bk7258_wifi_scan_ap_s aps[BK7258_WIFI_SCAN_MAX_RESULTS];
 };
 
+struct bk7258_wifi_scan_snapshot_s
+{
+  int32_t status;
+  uint32_t found;
+  uint32_t returned;
+  uint32_t truncated;
+  struct bk7258_wifi_scan_ap_s aps[BK7258_WIFI_AP_SCAN_MAX_RESULTS];
+};
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -119,9 +130,33 @@ int bk7258_wifi_initialize(void);
 int bk7258_wifi_read_link(struct bk7258_wifi_result_s *result);
 int bk7258_wifi_refresh_carrier(void);
 int bk7258_wifi_retire_link(void);
+bool bk7258_wifi_native_lease_matches(
+  const struct bk7258_wifi_result_s *result);
 int bk7258_wifi_set_native_lease(
   const struct bk7258_wifi_result_s *result);
 int bk7258_wifi_clear_native_lease(void);
+/* Poll or cancel a trial submitted below. Poll consumes one completion;
+ * -EAGAIN means pending. Cancellation is cooperative and must be joined
+ * before reusing the network. Tickets never match an old completion. */
+int bk7258_wifi_connect_poll(uint32_t ticket,
+                             struct bk7258_wifi_result_s *result);
+int bk7258_wifi_connect_cancel(uint32_t ticket);
+/* Scan completion is consumed with scan_snapshot_poll, including after
+ * leaving a UI page. It shares the worker with connect/CP requests and
+ * returns -EBUSY while reserved. */
+int bk7258_wifi_scan_async(uint32_t timeout_ms, uint32_t *ticket);
+int bk7258_wifi_scan_snapshot_poll(
+  uint32_t ticket, struct bk7258_wifi_scan_snapshot_s *result);
+/* A trial retains exclusive control after connect completion. Consume the
+ * start completion with connect_poll, then finish with commit=true only after
+ * durable product publication; otherwise restore the previous worker-owned
+ * credentials. Finish itself is asynchronous and returns a new poll ticket.
+ * A failed restore retains the lease; retry restore or restart, never reuse
+ * the network under another owner. Unknown pre-existing credentials are not
+ * overwritten. */
+int bk7258_wifi_trial_start(const char *ssid, const char *password,
+                            uint32_t timeout_ms, uint32_t *lease);
+int bk7258_wifi_trial_finish(uint32_t lease, bool commit, uint32_t *ticket);
 #  else
 int bk7258_wifi_controller_initialize(void);
 bool bk7258_wifi_controller_active(void);

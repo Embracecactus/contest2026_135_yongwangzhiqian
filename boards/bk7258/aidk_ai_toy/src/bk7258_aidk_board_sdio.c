@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * AIDK AI Toy 1GB SD NAND physical binding (SDIO map mode 1, P14-P19).
+ * AIDK AI Toy SD NAND physical binding (SDIO map mode 1, P14-P19).
  * NAND_VDD shares the P52-controlled LDO_3V3 rail with NFC.
  ****************************************************************************/
 
