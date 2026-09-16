@@ -173,6 +173,7 @@ class MainActivity : Activity() {
     private data class CloudModels(val asr: String, val chat: String, val tts: String)
     private var cloudModels: CloudModels? = null
     private var cloudModelsGeneration: Long? = null
+    private var cloudModelsFailedGeneration: Long? = null
     private var cloudModelsReadError: String? = null
     private var cloudModelsWire: ByteArray? = null
     private var cloudModelsOffset = 0
@@ -236,6 +237,7 @@ class MainActivity : Activity() {
                 cloudModelsReadDeadline = 0; cloudModelsReadTicket++
                 cloudModelsCanceling = false
                 cloudModelsGeneration = null
+                cloudModelsFailedGeneration = null
                 configFlow = ConfigFlow.NONE
                 configAppendMax = 32; configCapabilitiesGeneration = null
                 wakePackage = null; wakePayload = null; wakeExpectedSha = null
@@ -1198,7 +1200,8 @@ class MainActivity : Activity() {
             currentTab == TAB_SETTINGS && snapshot.publicConfigSupported &&
             configFlow == ConfigFlow.NONE) {
             if (configCapabilitiesGeneration != directSession.current().generation) requestConfigCapabilities()
-            else if (cloudModelsGeneration != directSession.current().generation) requestCloudModelsRead()
+            else if (cloudModelsGeneration != directSession.current().generation &&
+                cloudModelsFailedGeneration != directSession.current().generation) requestCloudModelsRead()
             else if (wakeStatusGeneration != directSession.current().generation) requestWakeStatus()
         }
         if (foreground && command != DeviceControlProtocol.Command.STATUS && snapshot.error != 0) {
@@ -1284,6 +1287,9 @@ class MainActivity : Activity() {
         cloudModelsWire?.fill(0); cloudModelsWire = null; cloudModelsTotal = -1; cloudModelsOffset = 0
         cloudModelsExpected = null; cloudModelsReadError = message
         cloudModelsGeneration = null
+        // A failed optional read must not starve other configuration kinds.
+        // A new connection or an explicit read can retry; no write is replayed.
+        cloudModelsFailedGeneration = directSession.current().generation
         cloudModelsReadDeadline = 0; cloudModelsReadTicket++
         if (!cloudModelsCanceling && directSession.cancelConfigTransaction()) {
             cloudModelsCanceling = true
@@ -1291,7 +1297,7 @@ class MainActivity : Activity() {
         }
         cloudModelsCanceling = false
         configFlow = ConfigFlow.NONE
-        directSession.finishConfigTransaction()
+        directSession.finishConfigTransaction(message)
     }
 
     private fun handleCloudModelsResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
@@ -1348,8 +1354,8 @@ class MainActivity : Activity() {
                     configFlow = ConfigFlow.NONE
                     if (expected != null) {
                         cloudModelsExpected = null
-                        directSession.finishConfigTransaction()
                         directMessage = if (decoded == expected) "云端模型已保存并回读确认" else "设备回读的模型配置未确认保存"
+                        directSession.finishConfigTransaction(directMessage)
                     }
                 }
             }
@@ -1536,7 +1542,11 @@ class MainActivity : Activity() {
                         null -> "未知"
                         else -> "未知阶段（${ota.phase}）"
                     }
-                    val result = if (ota.result == 0) "无错误" else "设备错误 ${ota.result}"
+                    val result = when {
+                        ota.result == 0 -> "无错误"
+                        ota.state in 1L..2L && ota.result == -115 -> "进行中"
+                        else -> "设备错误 ${ota.result}"
+                    }
                     val body = if (ota.state == 0L && ota.result == 0)
                         "当前没有进行中的升级任务。" else "$label\n阶段：$phase\n" +
                         "进度：${percent?.let { "$it%" } ?: "未知"}\n结果：$result"
@@ -1583,7 +1593,10 @@ class MainActivity : Activity() {
                         cloudModels != null -> "ASR ${cloudModels!!.asr}\n对话 ${cloudModels!!.chat}\nTTS ${cloudModels!!.tts}"
                         else -> cloudModelsReadError ?: "尚未读取模型配置"
                     }
-                    settingsRow("云端模型", modelText, enabled = configMutationReady && modelsCurrent) { editCloudModels() }
+                    settingsRow("云端模型", modelText, enabled = configMutationReady) {
+                        if (modelsCurrent) editCloudModels()
+                        else { requestCloudModelsRead(); render() }
+                    }
                     if (cloudModelsExpected != null) settingsRow("取消模型保存", "停止当前配置事务；不会重放未完成写入", enabled = true) {
                         if (!directSession.cancelConfigTransaction()) directMessage = "当前模型配置已结束"
                         else directMessage = "正在取消模型配置"
