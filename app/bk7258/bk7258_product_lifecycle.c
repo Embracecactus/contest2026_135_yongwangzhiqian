@@ -49,6 +49,26 @@
 #include "bk7258_haptic_service.h"
 #endif
 
+#ifdef CONFIG_BK7258_NFC_SERVICE
+#include "bk7258_nfc_service.h"
+#endif
+
+#ifdef CONFIG_BK7258_VISION_SERVICE
+#include "bk7258_vision_service.h"
+#endif
+
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+#include "bk7258_display_service.h"
+#endif
+
+#ifdef CONFIG_BK7258_HEALTH_SERVICE
+#include "bk7258_health_service.h"
+#endif
+
+#ifdef CONFIG_BK7258_MOTION_SERVICE
+#include "bk7258_motion_service.h"
+#endif
+
 int bk7258_ap_application_prepare(void)
 {
   int ret = 0;

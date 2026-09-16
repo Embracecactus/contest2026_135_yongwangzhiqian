@@ -21,6 +21,8 @@ int bk7258_board_buttons_initialize(void);
 #ifdef CONFIG_BK7258_AIDK_MOTOR
 #  include <stdbool.h>
 int bk7258_aidk_motor_initialize(void);
+bool bk7258_aidk_motor_ready(void);
+int bk7258_aidk_motor_set(bool enable);
 int bk7258_aidk_motor_capture_quiet(bool quiet);
 #endif
 

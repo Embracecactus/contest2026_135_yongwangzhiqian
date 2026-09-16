@@ -2,8 +2,8 @@
  * app/bk7258/bk7258_haptic_service.c
  * SPDX-License-Identifier: Apache-2.0
  *
- * AP worker owns the standard FF descriptor and effect. RPMsg callbacks
- * perform no VFS operations, including on disconnect.
+ * AP worker owns the bounded board haptic adapter. RPMsg callbacks perform
+ * no device operations, including on disconnect.
  ****************************************************************************/
 #include <nuttx/config.h>
 #ifdef CONFIG_BK7258_HAPTIC_SERVICE
@@ -11,14 +11,12 @@
 #include "bk7258_haptic_protocol.h"
 #include "bk7258_haptic_service.h"
 #include <errno.h>
-#include <fcntl.h>
 #include <sched.h>
 #include <stdbool.h>
 #include <string.h>
-#include <sys/ioctl.h>
 #include <syslog.h>
 #include <unistd.h>
-#include <nuttx/input/ff.h>
+#include <arch/board/board.h>
 #include <nuttx/irq.h>
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
@@ -56,8 +54,6 @@ struct bkhaptic_server_s
   struct bkhaptic_rpc_request_s last_request;
   struct bkhaptic_rpc_response_s last_response;
   struct bkhaptic_rpc_response_s notice;
-  int fd;
-  int effect_id;
 };
 
 static struct bkhaptic_server_s g_bkhaptic =
@@ -65,8 +61,6 @@ static struct bkhaptic_server_s g_bkhaptic =
   .init_lock = NXMUTEX_INITIALIZER,
   .endpoint_lock = NXMUTEX_INITIALIZER,
   .lock = SP_UNLOCKED,
-  .fd = -1,
-  .effect_id = -1
 };
 
 static int bkhaptic_errno(void)
@@ -84,97 +78,28 @@ static bool bkhaptic_connected(struct bkhaptic_server_s *s, uint32_t epoch)
 
 static int bkhaptic_close(struct bkhaptic_server_s *s)
 {
-  int fd = s->fd;
-
-  s->fd = -1;
-  s->effect_id = -1;
-  return fd >= 0 && close(fd) < 0 ? bkhaptic_errno() : 0;
-}
-
-static int bkhaptic_event(struct bkhaptic_server_s *s, int value)
-{
-  struct ff_event_s event = { .code = s->effect_id, .value = value };
-  ssize_t ret = write(s->fd, &event, sizeof(event));
-  return ret < 0 ? bkhaptic_errno() :
-         (ret == (ssize_t)sizeof(event) ? 0 : -EIO);
+  (void)s;
+  return bk7258_aidk_motor_set(false);
 }
 
 static int bkhaptic_stop(struct bkhaptic_server_s *s)
 {
-  int ret = 0;
-  int erased;
-
-  if (s->fd >= 0 && s->effect_id >= 0)
-    {
-      ret = bkhaptic_event(s, 0);
-      erased = ioctl(s->fd, EVIOCRMFF, (unsigned long)s->effect_id);
-      if (erased < 0 && ret == 0)
-        {
-          ret = bkhaptic_errno();
-        }
-
-      if (ret < 0)
-        {
-          /* The upper half's close hook retries stopping owned effects. */
-
-          (void)bkhaptic_close(s);
-        }
-      else
-        {
-          s->effect_id = -1;
-        }
-    }
-
-  return ret;
+  (void)s;
+  return bk7258_aidk_motor_set(false);
 }
 
 static int bkhaptic_open(struct bkhaptic_server_s *s)
 {
-  unsigned long bits[BITS_TO_LONGS(FF_CNT)] = {0};
-  int effects = 0;
-  int ret;
-
-  if (s->fd < 0)
-    {
-      s->fd = open(CONFIG_BK7258_HAPTIC_DEVPATH, O_RDWR);
-      if (s->fd < 0)
-        {
-          return bkhaptic_errno();
-        }
-    }
-
-  ret = ioctl(s->fd, EVIOCGBIT, (unsigned long)(uintptr_t)bits);
-  if (ret >= 0)
-    {
-      ret = ioctl(s->fd, EVIOCGEFFECTS, (unsigned long)(uintptr_t)&effects);
-    }
-
-  if (ret < 0)
-    {
-      ret = bkhaptic_errno();
-    }
-  else if (!test_bit(FF_RUMBLE, bits) || effects < 1)
-    {
-      ret = -ENOTSUP;
-    }
-
-  if (ret < 0)
-    {
-      (void)bkhaptic_close(s);
-    }
-
-  return ret;
+  (void)s;
+  return bk7258_aidk_motor_ready() ? OK : -ENODEV;
 }
 
 static int bkhaptic_pulse(struct bkhaptic_server_s *s, unsigned int duration)
 {
-  struct ff_effect effect = {0};
   int ret = bkhaptic_open(s);
   if (ret < 0) return ret;
-  effect.id = s->effect_id; effect.type = FF_RUMBLE; effect.replay.length = duration;
-  effect.u.rumble.strong_magnitude = UINT16_MAX;
-  if (ioctl(s->fd, EVIOCSFF, (unsigned long)(uintptr_t)&effect) < 0) return bkhaptic_errno();
-  s->effect_id = effect.id; ret = bkhaptic_event(s, 1);
+  if (duration == 0 || duration > BK7258_BOARD_MOTOR_MAX_ON_MS) return -EINVAL;
+  ret = bk7258_aidk_motor_set(true);
   if (ret < 0) (void)bkhaptic_stop(s);
   return ret;
 }
@@ -212,6 +137,9 @@ static int bkhaptic_execute(struct bkhaptic_server_s *s,
    */
 
   ret = bkhaptic_pulse(s, request->duration_ms);
+  if (ret < 0) return ret;
+  (void)usleep(request->duration_ms * 1000);
+  ret = bkhaptic_stop(s);
   if (ret < 0) return ret;
   if (!bkhaptic_connected(s, epoch))
     {
@@ -565,8 +493,8 @@ int bkhaptic_service_initialize(void)
   if (ret >= 0)
     {
       s->initialized = true;
-      syslog(LOG_INFO, "BKHAPTIC SERVICE READY endpoint=%s device=%s\n",
-             BKHAPTIC_RPC_ENDPOINT, CONFIG_BK7258_HAPTIC_DEVPATH);
+      syslog(LOG_INFO, "BKHAPTIC SERVICE READY endpoint=%s adapter=board\n",
+             BKHAPTIC_RPC_ENDPOINT);
     }
   else
     {
