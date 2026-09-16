@@ -21,12 +21,12 @@ CONFIG_BK7258_APP_GPIO_TEST
 CONFIG_BK7258_APP_GPIO_IRQ_TEST
 CONFIG_BK7258_APP_IRQ_TIMER_TEST
 CONFIG_BK7258_APP_TIMER_SELFTEST
-CONFIG_BK7258_APP_VOICE
+CONFIG_BK7258_APP_AGENT
+CONFIG_BK7258_PRODUCT_KEYS
 CONFIG_BK7258_APP_DISPLAY
 CONFIG_BK7258_APP_HEALTH
 CONFIG_BK7258_APP_NFC
 CONFIG_BK7258_APP_VISION
-CONFIG_BK7258_VOICE_SERVICE
 CONFIG_BK7258_DISPLAY_SERVICE
 CONFIG_BK7258_HEALTH_SERVICE
 CONFIG_BK7258_NFC_SERVICE
@@ -82,127 +82,23 @@ because the dispatcher is enabled.
   硬件的 rpmsg / gpio / psram / bt / irq / timer 命令仍保留
 `CONFIG_BK7258_APP_*` 形态，再由 pytest 调用，不在测试中复制产品实现。
 
-## AIDK 本地授权语音 App
+## AIDK 官方 Agent 产品适配
 
-产品伴侣名为“傻妞”，稳定 machine ID 是 `shaniu`。它的关系叙事可以采用
-`fictional-ex-girlfriend` 风格，但机器状态始终声明 `role=ai-companion` 和
-`disclosure=synthetic-ai`；不得把人物设定、真实身份或授权音色混为一件事。
+产品伴侣名为“傻妞”，稳定 machine ID 是 `shaniu`。`CONFIG_BK7258_APP_AGENT=y`
+把产品启动、受保护配置、云端 ASR/TTS 协议、唤醒模型和设备交互接到官方
+Agent、voice channel、message bus 与 Media 主链。产品代码只保留服务协议、板级设备、
+模型资产、App 控制和产品事件适配；对话上下文、会话与整轮语音生命周期由官方框架负责。
 
-`CONFIG_BK7258_APP_VOICE=y` 在 CP 注册 `bkvoice`；AIDK 产品配置同时启用 AP
-`VOICE_SERVICE/VOICE_TLS` 和 CP GPIO1 低有效 PTT。`bkvoice status` 分开报告服务、配置、
-连接、Gateway、TLS、PTT 链路、按键与 turn 状态。另保留显式 `capture-test` 麦克风诊断、
-16 kHz/单声道/S16 PCM WAV 流式播放，以及固定 1 kHz、500 ms 的 `tone-test` 喇叭诊断。
-前者只返回帧数、字节数、非零样本数和峰值，不保存或回传原始 PCM；后者生成低幅度、
-首尾渐变的非语音 PCM，不依赖 SD NAND 或 voice pack。
-产品 PTT、mTLS/WSS 和 Gateway transport 已进入配对配置及 AIDK AP 构建；当前缺的是
-实板 PTT→真实 PCM→MiMo→扬声器验收，不能把构建或诊断结果冒充为物理闭环。
-语音包必须声明说话者明确授权，并在每次播放前输出 `BKVOICE SYNTHETIC` 标识。
-
-AP 同时编译 transport-neutral 的 `companion-v1` 帧编解码、Gateway adapter 和串行 session
-owner。host 纵切已覆盖 `HELLO/WELCOME`、PTT/MIC 上行、MIC release 后的 `TURN_END`、
-synthetic PCM 下行/DAC、远端取消、network byte order、严格 sequence、window credit、重连和
-旧 session/turn。安全 WSS provider 和 session owner 已进入当前 AIDK AP ELF；主机
-TLS/WSS 互操作与交叉编译通过仍不代表物理 PTT、板上网络或实板录放音已接通。
-
-下行窗口是滚动背压：每个完整 640-byte `AUDIO_DOWN` 只有在 DAC 接口确认整帧已交给
-本地播放队列后，Gateway adapter 才在同一串行 owner 内返还等量 `WINDOW_UPDATE`。
-返还失败会使连接 fail closed；不会提前放大窗口或从音频回调重入 gateway mutex。主机
-回归使用一帧初始额度连续接收六帧，覆盖超过产品四帧初始窗口的回复。
-
-App-private `bk7258_voice_wss` 已冻结一条可测试的安全边界：每条 binary WebSocket message
-只承载一个完整 `companion-v1` frame，客户端强制掩码，严格检查 HTTP 101、Accept 和
-`companion-v1` subprotocol，并对分片、ping/pong、partial I/O、deadline、interrupt 和关闭重试
-做有界处理。它只接受名为 `open_verified` 的 TLS stream contract。AP 主配置已有
-socket、DNS、mbedTLS 和硬件 TRNG 熵的构建基础。`BK7258_VOICE_TLS` 可编译
-`bk7258_voice_tls`：TLS 1.2 双向认证、链/hostname/有效期校验，带 deadline 的非阻塞
-I/O 和 interrupt；未可信系统时间拒绝连接。部署层须提供独立于证书主机名的 IPv4
-拨号地址、借用的 CA/客户端证书/私钥句柄及可信时间检查，provider 不自行配置这些事实。
-写操作跨 WANT_WRITE 重试保持 SSL context 独占；空闲读放锁允许上行，终止错误使双向
-失效直到 close/open。主机实连 Gateway 的测试通过不表示这些依赖已安装到实板。
-
-独立 RX task 使用 `bkvoice_gateway_receive_frame()`，把带连接代次的有界帧或错误交给
-唯一 owner 调用 `bkvoice_session_dispatch_frame()`；RX 不调用 PTT/下行音频回调。
-旧代次帧和错误被拒绝，WELCOME 由 owner 分发后才开放 sink。错误事件也必须送达 owner，
-关闭前仍须 interrupt、join RX 和 capture，再关闭 transport。RX task、产品队列和 CP→AP
-PTT 事件路径均已接入；GPIO 电平、队列运行和断线恢复仍需同一块实板验证。
-
-AP 还编译纯 App 层的半双工 turn arbiter、task-neutral capture pump 和 joinable PTT worker
-owner。主机故障注入已经覆盖 MIC
-`acquire/prepare/start -> stop/drain/release`、DAC
-`acquire/prepare/start -> drain/stop/release`、超时、取消、断连、控制序号溢出、乱序和旧
-token；产品 PTT 事件与 WSS session 已绑定。除显式 `capture-test` 的短生命周期本地统计
-sink 外，PTT owner 只有在真实 companion sink 建立 session 后才启动 worker；capture pump
-只拼接并提交完整 640-byte/20 ms 帧。PTT release
-必须先 interrupt recorder，再有界 join/detach worker，随后由 arbiter release MIC，最后才允许
-sink 发布 `TURN_END`；join 超时会保留 worker/MIC 供安全重试，不会销毁仍被 reader 引用的
-recorder。控制序号耗尽会在清理资源后终止 session。
-
-同时启用 `CONFIG_BK7258_VOICE_SERVICE` 与 `CONFIG_BK7258_DISPLAY_SERVICE`
-时，turn arbiter 的已提交状态会由低优先级 worker 异步映射为双眼表情：
-`CAPTURING=listening`、`WAITING_TTS=thinking`、`PLAYING=speaking`、
-`IDLE=neutral`、`FAULTED=error`。显示更新是 best-effort，LCD/资源包失败只记日志，
-不会改变 MIC/DAC 状态或语音请求结果；显示较慢时允许合并短暂中间状态。
-`bkvoice play` 的本地授权语音播放也会在实际 player 启动后显示 `speaking`，资源释放后
-恢复 `neutral`。这些仅是代码与构建证据，仍需在实板观察两块 LCD 才能验收。
-
-```text
-bkvoice status
-bkvoice capture-test 1000
-bkvoice tone-test
-bkvoice verify /mnt/voice/voicepack.ini
-bkvoice play /mnt/voice/voicepack.ini greeting
-bkvoice stress /mnt/voice/voicepack.ini greeting 100
-```
-
-Gateway/App 的运行时音量查询与设置随语音服务提供，不依赖 KVDB；设置值保留在
-本次启动的媒体策略中，并在后续播放 prepare 后重新应用。非秘密持久偏好接口仍由
-AP 的 `CONFIG_BK7258_PREFERENCES` 门控，默认关闭并依赖 KVDB：
-
-```text
-bkvoice prefs
-bkvoice prefs volume 50
-bkvoice prefs persona gentle
-```
-
-复用现有 voice RPC，不新建跨核存储协议。支持 0–100 音量以及 `gentle/playful/quiet/serious/tsundere_lite`
-五种 persona，拒绝无效值并返回 KVDB 错误；`default_flags` 的 bit 0/1 表示音量/persona
-使用缺省值。输出 `desired_*` 表示存储的意图；启用此功能后，下一轮 PTT 回复在
-播放器 prepare 完成后，按公共策略查询到的范围映射并设置音量，再读回核对后启动。
-档位量化可能使实际百分比与请求值不同；正在播放的本轮不被设置命令打断。
-播放使用已确认的音量缓存，首次使用才读取数据库；`bkvoice prefs` 显式刷新、成功
-设置或重启后首次加载会更新它。介质忙不会影响已有缓存；提交或清理结果不确定时缓存
-失效，下一次必须重读。MSC 外部编辑不会自动改变正在使用的音量。
-配置读取或策略操作失败会返回错误并释放播放器，不能记为音量生效。
-Gateway 人物配置由鉴权后的 console 控制链路持久化并应用于活动 MiMo 会话；板端
-KVDB persona 仍只属于本地偏好接口，两者不能互相冒充确认状态。
-须先配置并验证 KVDB 后端、持久分区和断电恢复才能启用；凭据不经过此接口。
-KWS 库的 microfrontend 参数、训练入口及启用条件见
-[训练与推理契约](../../docs/platforms/bk7258/bkvoice-authorized-voice-app.md#训练与推理契约)。
-同一 KWS 构建门还包含纯 App 层的 wake window：它用 caller-owned 32 KiB 环保存最近
-50 个 20 ms PCM 帧，命中后冻结并按时间顺序提供 1 秒 pre-roll，再以可配置的环境噪声比、
-连续语音/静音帧和最大时长给出免提收音结束事件。它不打开 MIC、不充当唤醒模型，阈值也
-没有实板标定；正式模型资产、AP 单一 audio owner、PTT/播放切换及 Gateway pre-roll 上行
-仍须接入后才能启用产品 KWS。
-
-`stress` 先验证一次语音包，再有界重复播放 1 到 100 次；首次失败会报告精确轮次，
-用于配合播放前后的 heap、fd、mqueue、audio reserve 和 `apctl status` 对比。
-`capture-test` 需要操作者显式执行，时长范围 100..5000 ms；请求时长从麦克风完成启动后
-开始计算，日志同时报告启动耗时、实际活动时长、期望帧数和帧覆盖率。PASS 要求帧覆盖率
-不低于 80%，并且存在完整帧、非零样本和非零峰值；原始音频不写文件、不经 RPMsg 返回，
-也不能替代真人听感、通道映射或长稳验收。AEC v3 的 EC 与外置 AGC 默认启用；BPF/DRC/CNI
-和内置 NS 分别由 `CONFIG_BK7258_AUDIO_PREPROCESS_POSTFILTERS`、
-`CONFIG_BK7258_AUDIO_PREPROCESS_INTEGRATED_NS` 门控，只有连续实板测试能满足每 20 ms
-一帧的实时覆盖率后才可启用。
-`tone-test` 同样只由操作者显式执行；AP 通过公共 `media_player` 按 640-byte/20 ms 帧播放，
-对 partial write、零写、RPMsg 断开以及 stop/close 错误均失败关闭。PTT session、MIC/DAC
-worker 或未释放的音频句柄存在时返回 `-EBUSY`，不会抢占产品会话。命令 PASS 只证明数据已被
-播放器接受且清理成功；仍需实板确认可听音、失真/爆音、PA P50 时序及重复执行后的资源回收。
+`CONFIG_BK7258_PRODUCT_KEYS` 使用标准 `/dev/buttons` 事件提供 K1/K3 音量和 K2 电源；
+`CONFIG_BK7258_VOICE_KWS` 注册 Trigger 使用的本地模型后端。`BK7258_VOICE_TLS` 只提供
+云端后端共用的受信 TLS 传输，不拥有 Agent 或会话。历史 `bkvoice` 命令、Gateway、PTT、
+turn/session 和整轮 cloud runtime 已退出正式构建。
 
 AIDK 的 SD NAND 只注册为 `/dev/mmcsd0`，不把 `/data` 误认为 SD NAND。
 BKDisplay 仅在持有 USBMODE 块设备 lease 时短暂挂载它，并在释放给 MSC
 之前完成卸载。双眼资源包的生成、首次拷贝、目录和回退契约见
-[Shaniu eye assets](assets/display/README.md)。语音包详细格式、挂载互斥、训练边界和验收步骤见
-[BKVoice 本地授权语音应用](../../docs/platforms/bk7258/bkvoice-authorized-voice-app.md)。
+[Shaniu eye assets](assets/display/README.md)。构建成功只证明源码与配置可链接；真实唤醒、
+云端交互、播放完成、再次监听和 App OTA 仍须在同一候选固件上分别验收。
 
 `CONFIG_BK7258_APP_DISPLAY=y` 在 CP 注册最小板端控制入口。命令通过独立的
 `bkdisplay-v1` RPMsg 协议请求 AP 显示服务，CP 不直接访问 SD NAND 或 LCD：

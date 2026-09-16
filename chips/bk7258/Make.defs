@@ -425,10 +425,6 @@ endif
 ifeq ($(CONFIG_LCD_GC9D01),y)
 BK7258_AP_BASE_CSRCS += gc9d01.c
 endif
-ifeq ($(CONFIG_VIDEO_GC2145_CONTROLS),y)
-BK7258_AP_BASE_CSRCS += gc2145.c
-endif
-
 ifeq ($(CONFIG_CL_MFRC522_FRAME),y)
 BK7258_AP_BASE_CSRCS += mfrc522.c
 endif
@@ -440,9 +436,6 @@ BK7258_AP_BASE_CSRCS += sc7a20.c
 endif
 ifeq ($(CONFIG_INPUT_GT9XX_STANDARD_IOCTL),y)
 BK7258_AP_BASE_CSRCS += gt9xx.c
-endif
-ifeq ($(CONFIG_INPUT_GPIO_FF),y)
-BK7258_AP_BASE_CSRCS += gpio_ff.c
 endif
 ifeq ($(CONFIG_BK7258_LIN),y)
 BK7258_AP_BASE_CSRCS += bk7258_lin.c

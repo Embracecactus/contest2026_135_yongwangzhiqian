@@ -3,17 +3,16 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 product media_recorder ABI bridge for the official Agent and
- * BKVoice.  The media framework is intentionally disabled for this profile;
+ * BK7258 product media_recorder ABI bridge for the official Agent. The media
+ * framework is intentionally disabled for this profile;
  * the bridge keeps portable App backends on the public NuttX audio upper-half
  * ABI.
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#if (defined(CONFIG_BK7258_APP_AGENT) || \
-     defined(CONFIG_BK7258_VOICE_SERVICE) || \
-     defined(CONFIG_DOLPHIN_RECORDER)) && defined(CONFIG_BK7258_MIC) && \
+#if (defined(CONFIG_BK7258_APP_AGENT) || defined(CONFIG_DOLPHIN_RECORDER)) && \
+    defined(CONFIG_BK7258_MIC) && \
     !defined(CONFIG_MEDIA)
 
 #include <errno.h>
@@ -1030,6 +1029,6 @@ int media_recorder_close(void *handle)
   return 0;
 }
 
-#endif /* (CONFIG_BK7258_APP_AGENT || CONFIG_BK7258_VOICE_SERVICE) &&
+#endif /* (CONFIG_BK7258_APP_AGENT || CONFIG_DOLPHIN_RECORDER) &&
         * CONFIG_BK7258_MIC && !CONFIG_MEDIA
         */

@@ -202,25 +202,6 @@ def test_app_and_board_build_sdk_boundaries() -> None:
         assert "SDK_LINK_WRAP" in found
 
 
-def test_nuttx_gpio_force_feedback_contract() -> None:
-    with tempfile.TemporaryDirectory(prefix="bk7258-layers-ff-") as temporary:
-        root = Path(temporary)
-        _fixture(root)
-        path = _write(
-            root,
-            "boards/bk7258/test/src/board.c",
-            "#include <nuttx/input/gpio_ff.h>\n"
-            "struct gpio_ff_config_s config;\n"
-            "int f(void) { gpio_ff_inhibit(0, 1); "
-            "return gpio_ff_register(0, &config, 0); }\n",
-        )
-        issues, _ = layers.audit(root)
-        assert not issues, issues
-        with path.open("a") as output:
-            output.write("int bad(void) { return gpio_set_output_high(9); }\n")
-        assert "SDK_SYMBOL" in _codes(root)
-
-
 def test_legacy_exception_is_hash_bound() -> None:
     with tempfile.TemporaryDirectory(prefix="bk7258-layers-legacy-") as temporary:
         root = Path(temporary)

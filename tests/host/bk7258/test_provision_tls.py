@@ -67,15 +67,6 @@ class ProvisionTlsTest(unittest.TestCase):
                 run(['cmake', '--build', build, '-j8'])
                 run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
                      '-I', source / 'include', '-I', ROOT / 'app/bk7258',
-                     ROOT / 'tests/host/bk7258/test_cloud_memory.c',
-                     ROOT / 'app/bk7258/bk7258_cloud_memory.c',
-                     ROOT / 'app/bk7258/bk7258_cloud_history.c',
-                     ROOT / 'app/bk7258/bk7258_provision_store.c',
-                     '-Wl,--wrap=fsync', build / 'library/libmbedcrypto.a',
-                     '-o', temp / 'memory'])
-                run([temp / 'memory', temp / 'memory-policy'])
-                run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
-                     '-I', source / 'include', '-I', ROOT / 'app/bk7258',
                      ROOT / 'tests/host/bk7258/test_provision_settings.c',
                      ROOT / 'app/bk7258/bk7258_provision_settings.c',
                      ROOT / 'app/bk7258/bk7258_cloud_config.c',

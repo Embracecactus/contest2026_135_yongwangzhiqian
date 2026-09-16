@@ -10,7 +10,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#define CONFIG_BK7258_VOICE_SERVICE 1
+#define CONFIG_BK7258_APP_AGENT 1
 #define CONFIG_BK7258_AUD 1
 #define CONFIG_BK7258_AUD_QUEUE_DEPTH 4
 #define CONFIG_BK7258_AUD_DEVNAME "pcm0p"

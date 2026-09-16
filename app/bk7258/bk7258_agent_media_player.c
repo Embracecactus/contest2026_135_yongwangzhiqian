@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 product PCM media_player bridge for the official Agent and bkvoice.
+ * BK7258 product PCM media_player bridge for the official Agent.
  * These product profiles intentionally omit the full media framework, so URL
  * decoding and seeking remain unsupported.  Voice playback stays on the
  * public NuttX audio upper-half ABI and the BK7258 speaker lower half.
@@ -11,8 +11,7 @@
 
 #include <nuttx/config.h>
 
-#if (defined(CONFIG_BK7258_APP_AGENT) || \
-     defined(CONFIG_BK7258_VOICE_SERVICE)) && defined(CONFIG_BK7258_AUD) && \
+#if defined(CONFIG_BK7258_APP_AGENT) && defined(CONFIG_BK7258_AUD) && \
     !defined(CONFIG_MEDIA)
 
 #include <errno.h>
@@ -1341,5 +1340,4 @@ int media_policy_set_stream_volume(const char *stream, int volume)
   return ret;
 }
 
-#endif /* (CONFIG_BK7258_APP_AGENT || CONFIG_BK7258_VOICE_SERVICE) &&
-        * CONFIG_BK7258_AUD && !CONFIG_MEDIA */
+#endif /* CONFIG_BK7258_APP_AGENT && CONFIG_BK7258_AUD && !CONFIG_MEDIA */

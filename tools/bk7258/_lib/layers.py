@@ -35,14 +35,6 @@ _RAW_SDK_SYMBOL = re.compile(
     r"\b(?:bk_(?!7258)|gpio_|rtos_|sys_drv_)[A-Za-z0-9_]+\b"
 )
 _CHIP_LINK_INTERCEPT = re.compile(r"\b__(?:wrap|real)_[A-Za-z0-9_]+\b")
-# These exact names belong to the generic NuttX input overlay, not the
-# Beken GPIO ABI.  Do not exempt the gpio_ prefix or an entire source file.
-_NUTTX_GPIO_FF_SYMBOLS = {
-    "gpio_ff",  # Header basename in <nuttx/input/gpio_ff.h>.
-    "gpio_ff_config_s",
-    "gpio_ff_inhibit",
-    "gpio_ff_register",
-}
 _RAW_SDK_TYPE = re.compile(
     r"\b(?:bk_err_t|gpio_id_t|gpio_dev_t|gpio_output_state_e|"
     r"bk_dvp_config_t)\b|\bBK_(?:OK|FAIL)\b"
@@ -241,9 +233,6 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
                     (_RAW_REGISTER, "RAW_REGISTER"),
                 ):
                     for match in pattern.finditer(code):
-                        if name == "SDK_SYMBOL" and \
-                                match.group() in _NUTTX_GPIO_FF_SYMBOLS:
-                            continue
                         issues.append(Issue(
                             relative,
                             _line_number(code, match.start()),
