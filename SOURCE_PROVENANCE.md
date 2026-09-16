@@ -1,6 +1,17 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 源码许可证与来源记录
 
+## 2026-09-16 官方修改完全回退
+
+按用户最新要求，SDK、Agent、Media、FFmpeg、KVDB 与 NuttX 本地补丁及其应用入口已撤回。
+SDK UART 对象重编/归档替换入口也已移除；SDK 保留团队板型配置和 RTOS 适配边界。
+实际 NuttX 构建副本中 14 个差异文件恢复固定官方基线；MFRC522/GT9xx 修改副本退出，
+构建改为引用原驱动。新增板级/芯片适配和本项目独立驱动仍保留，没有移植回旧语音运行时。
+
+以下关于已删除补丁的条目仅保留历史来源追溯，**不代表当前构建仍应用它们**。
+回退后的编译与适配缺口、在板版本以 Master Plan 当前状态为准；旧 SDK 归档和 562 固件
+不能作为无补丁构建或验证证据。
+
 ## 审计范围
 
 本记录覆盖 Git 已跟踪的 `*.c`、`*.cpp`、`*.h`、`*.S`、`*.s`、`*.ld`、
@@ -18,7 +29,11 @@
 完整许可正文的前提下补齐。任何从 SDK 或外部仓提取的协议/初始化序列均在下表固定
 仓库、版本、路径和许可证，不因改写为 NuttX 组织形式而省略来源。
 
-## 来源分类
+## 历史补丁来源
+
+本节记录已经撤回的补丁来源和许可证，只用于追溯旧版本。文中的“应用”“构建入口”
+均描述当时的历史状态；当前构建不包含这些补丁或入口。仍在使用的团队适配从下文
+“当前保留的本地适配”开始记录。
 
 本轮 Media Trigger 集成使用官方 Media 提交
 `fb7db0e9f826fb6d71937c948e7da1eb10ffc896` 的 `server/media_trigger.c`
@@ -30,6 +45,9 @@
 `0004-graph-error-recovery-progress.patch` 修改 `server/audio_graph.c`，
 处理格式协商和错误后的拆链；`0005-player-eof-drain.patch` 修改
 `server/media_player.c`，保留 EOF 后尚未播放的数据直到排空。均保留 Apache-2.0。
+`0006-player-output-release.patch` 基于同一 Media 提交的 `server/media_player.c`，
+保留 Apache-2.0；设备释放和 graph unlink 确认后才发布播放终态，避免软件队列
+排空早于硬件完成。它是构建时应用的本地未合入补丁。
 `bk7258_voice_trigger_model.c` 为本项目适配，
 推理及前处理仍取下表 TFLM 版本。`frameworks/cmake/tflm.cmake` 选择 Ruy
 实际检出 `cf455c059506d2f64103d7cbb640b99e816b23c7` 的 Apache-2.0
@@ -56,6 +74,10 @@
 `0006-opt-respect-format-enum-width.patch` 基于同版本 `libavutil/opt.c`，
 保留 LGPL-2.1-or-later；格式选项读取使用 API 声明的枚举类型，消除 ARM
 短枚举下的四字节越界读写，与已有数值读写处理一致，沿用同一源码视图。
+`0007-output-drain-release.patch` 基于同一 FFmpeg 提交的
+`libavdevice/nuttx.[ch]`、`nuttx_enc.c`、`libavfilter/asink_adevsink.c` 和
+`asrc_abufsrc.c`，保留 LGPL-2.1-or-later；将独占输出的设备 COMPLETE/RELEASE
+传递到 graph unlink，并保留设备错误。补丁只在生成源码视图应用。
 
 官方 Agent 扩展基于 `open-vela/packages_ai_agent` 提交
 `41723c61725c4e845bfee724f3ad2fafc416b6e1`，许可 Apache-2.0。
@@ -66,11 +88,11 @@
 取消和当次摄像头接口。补丁由 `frameworks/cmake/agent_provider.cmake`
 应用到构建副本，不依赖官方检出中的本地修改。
 
-2026-09-15 完整框架迁移继续使用上述 Agent 提交与原许可证。远端比赛分支
+2026-09-15 的框架迁移曾使用上述 Agent 提交与原许可证。远端比赛分支
 `31faed70f683a6f5e690437c5507891360f0814a` 已只读核对，与本地 `41723c61`
 具有相同源码树 `39c1309387084fdf079ed7d9b10c3b83cca119ec`，无需升级。
 
-以下均为**本地未合入补丁**，不是上游原有能力。官方检出不修改；构建通过
+以下均为当时的**本地未合入补丁**，不是上游原有能力。官方检出未修改；当时构建通过
 `frameworks/cmake/agent_framework.cmake` 对受影响文件逐个检查、应用补丁并替换
 完整官方应用目标的输入。补丁不适用或源目标不唯一时明确失败；未复制一套 Agent。
 
@@ -81,11 +103,14 @@
 | `0004-voice-channel-capabilities.patch` | `src/voice/voice_channel.c` | 原通道预连接不支持的 ASR，流式失败只重试尾部 PCM；按能力选同后端批处理、传播错误、先 join 后释放、按请求绑定格式播放，取消同时到后端。 |
 | `0005-external-network-configuration.patch` | `src/infra/network_manager.c` | 原硬件网络路径固定通过 shell/wapi 重新配置 Wi-Fi；补观察既有网络服务的通用选择。 |
 | `0006-optional-service-startup.patch` | `src/agent_main.c`、`src/tools/tool_registry.c` | CLI、WebSocket、cron、heartbeat 默认无条件启动；补通用构建选择，正式产品关闭无需求的模块。 |
+| `0007-voice-auto-endpoint.patch` | `include/voice/{audio_capture,voice_asr,voice_tts}.h`、`src/{agent_main.c,core/{agent_loop,message_bus.[ch]},llm/llm_proxy.[ch],tools/{skill_loader,tool_registry}.c,voice/{audio_capture,voice_asr,voice_channel.[ch],voice_tts}.c}` | 上游没有产品所需的单轮终态关联、自动端点和端到端取消边界：补 voice request ID/终态及自动端点；message bus/Agent/outbound 透传结果；受控外部 LLM transport 与开始前取消检查；可选 capture route 回调；工具和 builtin skills 按既有或新增 Kconfig 选择。它们是通用接口扩展，不含板号、厂商传输或产品状态机。 |
+| `0008-playback-wait-output-release.patch` | `src/voice/audio_playback.c` | 等待 Media 的输出释放终态后才销毁播放资源；关闭失败保留回调所有者，有界等待不以固定延时替代完成事件。 |
+| `0009-camera-device-format.patch` | `src/tools/tool_camera.c`、`src/llm/{llm_proxy.c,llm_internal.h,llm_vision.c}` | 通过 V4L2 枚举固定 JPEG 尺寸并校验返回缓冲边界；视觉请求接受已选择的外部鉴权传输，不要求通用客户端另存一份 API key。 |
 
-这些通用选项暂由团队 `app/bk7258/Kconfig` 声明，因为官方 Kconfig 在 CMake
-派生源码之前已被读取；没有声称构建期改写 Kconfig 生效。配置同启官方 Agent 与
-旧 voice service 会明确构建失败。旧请求级 `0001`/`agent_provider.cmake` 仅由
-`VOICE_SERVICE` 路径消费（目前 `drivercheck_ap` 仍启用），不进入新正式目标。
+这些选项和补丁应用入口现已删除。官方 pin 仍为
+`41723c61725c4e845bfee724f3ad2fafc416b6e1`，官方 checkout 没有受跟踪修改。
+
+## 当前保留的本地适配
 
 `app/bk7258/bk7258_cloud_audio.[ch]` 从本仓 cloud client 提取现有音频服务协议；
 `bk7258_agent_cloud.[ch]` 在官方 ops 下注册 MiMo/OpenAI 音频协议，持有配置快照、
@@ -97,6 +122,12 @@ TLS 及单次请求工作区，复用既有证书/主机名/可信时间验证�
 `bk7258_agent_trigger.c` 是 Media Trigger 下的 TFLM 模型适配，保留已维护的
 模型张量/前处理和冻结分数策略；没有搬入旧 wake window、VAD、Recorder、Agent
 或会话 owner。此保留不等于新链路或真人唤醒效果已经验证。
+
+`bk7258_agent_ota.[ch]` 是本地产品升级来源适配，复用本仓已授权的 App SDC1
+协议、HTTPS source、AP OTA manager 与受保护 BVO2 store/flow。它只拥有一次请求
+的来源/CA/worker 和 intent 发布；Flash 事务及启动确认仍归原系统服务。没有复制
+旧 voice runtime 的语音调度、gateway、会话或 OTA 引擎，也没有修改官方源码。
+断电后不自动重建临时手机 URL；同一 catalog 的重试须由 App 明确再次发起。
 
 本地 TTS 接入边界已准备，具体引擎与模型未验证。通用接口不要求联网、地址或
 API Key；init/deinit 负责准备/释放，prepare_request 只负责短请求状态重置。
@@ -208,6 +239,16 @@ X509Certificate 和 MessageDigest API，没有复制密码库或上游 Bluetooth
 测试身份由本机 JDK keytool 临时生成，测试结束删除，不包含真实设备凭据。
 
 ## 摄像头与 SDIO 录像适配
+
+本节提到的 SDK/NuttX 补丁均为历史来源，当前已经撤回；保留的产品和板级适配仍按
+各自文件中的许可证与来源执行。
+
+- `chips/bk7258/bk_idk/sdk-profiles/v3.1.1.9/cp-flash-notification-errors.patch`
+  基于 `https://github.com/Embracecactus/bk_avdk_smp` 固定提交
+  `cb080de1655d579c7593ecf504c440997c4c137b`（v3.1.1.9）的
+  `cp/middleware/driver/flash/{flash_notify,flash_driver}.c`，保留 Beken Apache-2.0。
+  它传播跨核 ACK 耗尽和 prepare/finish 错误，平衡调度与锁清理；仅在 `cp-aidk`
+  的临时构建克隆应用。该修复不等于 App OTA 写后校验故障已解决。
 
 - `nuttx/drivers/video/gc2145.c`、公开头文件及板级回调为本项目 Apache-2.0
   实现。控制寄存器依据 GalaxyCore GC2145 CSP DataSheet V1.0
