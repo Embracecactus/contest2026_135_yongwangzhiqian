@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/random.h>
+#include "bt_hcicore.h"
+#include "bt_conn.h"
 #include "bk7258_provision_gatt.h"
 
 #ifdef CONFIG_BK7258_BLE_GATT
@@ -407,7 +409,6 @@ ssize_t bkprov_gatt_send(uint32_t generation, const void *data, size_t size)
 {
   struct bt_conn_s *peer;
   irqstate_t flags;
-  int ret;
   if (data == NULL || size == 0 || size > 20)
     {
       return -EINVAL;
@@ -420,7 +421,10 @@ ssize_t bkprov_gatt_send(uint32_t generation, const void *data, size_t size)
     {
       return -ESTALE;
     }
-  ret = bt_gatt_notify_peer(peer, 0x14, data, size);
+  /* This fixed NuttX release exposes only the CCC-routed notification API.
+   * CONFIG_BLUETOOTH_MAX_CONN=1 and the generation/ref checks above bind the
+   * send to the authenticated product peer before the public call. */
+  bt_gatt_notify(0x14, data, size);
   bt_conn_release(peer);
-  return ret > 0 ? (ssize_t)size : ret;
+  return (ssize_t)size;
 }

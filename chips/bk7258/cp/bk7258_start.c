@@ -157,15 +157,9 @@ void __start(void)
   BK7258_APB_WDT_CTRL = BK7258_APB_WDT_KEY2;
   __asm volatile ("dsb sy" ::: "memory");
 
-  /* 4. FPU: clear FPCCR.ASPEN/LSPEN/LSPENS (disable lazy + automatic FP
-   *    context stacking), then enable CP10/CP11.  The BootROM leaves lazy
-   *    stacking enabled; with CPACR enabled, the first exception (SysTick)
-   *    hung inside that protocol without raising HardFault.  This reset-state
-   *    normalization cannot rely on arm_fpuconfig(): that helper is available
-   *    only when CONFIG_ARCH_FPU is enabled.  Keep the sequence explicit and
-   *    ordered per the ARMv8-M rule "do not change ASPEN/LSPEN while CPACR
-   *    permits CP10/CP11": deny CP first, clear the bits, re-enable CP.
-   *    (FPCCR @ 0xE000EF34; ASPEN=bit31, LSPEN=bit30, LSPENS=bit29.)
+  /* 4. 先清理 BootROM 遗留的 Secure/Non-secure lazy stacking；启用 FPU
+   *    的配置随后交给 NuttX 设置 CONTROL.FPCA 和 CP10/CP11。只开启协处理器
+   *    不能建立异常处理所需的浮点上下文契约。无 FPU 的早期配置保留原入口。
    */
 
   BK7258_SCB_CPACR &= ~((3u << 20) | (3u << 22));             /* deny CP10/CP11 */
@@ -175,7 +169,11 @@ void __start(void)
    * (LSPENS, bit29) is the one that engages on Secure exceptions -- clearing
    * only 30/31 was not enough.  All three off -> no lazy/auto FP stacking.  */
   *(volatile uint32_t *)0xE000EF34u &= ~((1u << 31) | (1u << 30) | (1u << 29));
-  BK7258_SCB_CPACR |= ((3u << 20) | (3u << 22));             /* CP10/CP11 full access */
+#ifdef CONFIG_ARCH_FPU
+  arm_fpuconfig();
+#else
+  BK7258_SCB_CPACR |= ((3u << 20) | (3u << 22));
+#endif
   __asm volatile ("dsb; isb");
 
 #ifdef CONFIG_BK7258_SWD_DEBUG

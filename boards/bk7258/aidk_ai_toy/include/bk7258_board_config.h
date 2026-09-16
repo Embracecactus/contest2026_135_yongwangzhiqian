@@ -258,6 +258,7 @@
 #define BK7258_BOARD_PIN_DVP_D5                 37
 #define BK7258_BOARD_PIN_DVP_D6                 38
 #define BK7258_BOARD_PIN_DVP_D7                 39
+/* 原理图网名 LED1/LED2 分别连接 LED3 红灯、LED4 绿灯，均高有效。 */
 #define BK7258_BOARD_PIN_LED1                   40
 #define BK7258_BOARD_PIN_LED2                   41
 #define BK7258_BOARD_PIN_I2C1_SCL               42

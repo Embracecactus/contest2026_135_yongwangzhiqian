@@ -54,11 +54,9 @@ CONFIG_VIDEO_REQBUFS_COUNT_MAX=8
 # USB0 starts as /dev/ttyGS0 and can re-enumerate as MSC backed only by the
 # existing NuttX /dev/mmcsd0 block device.  File/HTTP bkota remain available.
 CONFIG_BK7258_USBMODE=y
-CONFIG_BK7258_VOICE_SERVICE=y
 CONFIG_BK7258_VOICE_TLS=y
 CONFIG_CRYPTO_MBEDTLS=y
 CONFIG_MBEDTLS_ENTROPY_HARDWARE_ALT=y
-CONFIG_BK7258_VOICE_SERVICE_STACKSIZE=16384
 # Diagnostic candidate: journaled non-secret preferences on the shared SD
 # NAND. This profile enables link/runtime validation, not power-loss acceptance.
 CONFIG_TLS_TASK_NELEM=4

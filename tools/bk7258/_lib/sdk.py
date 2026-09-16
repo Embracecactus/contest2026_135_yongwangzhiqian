@@ -40,7 +40,6 @@ PROFILE_RE = re.compile(r"^(cp|ap)(?:-([a-z][a-z0-9_-]*))?$")
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 LINK_INPUT_RE = re.compile(r"[^\s\"']+\.(?:a|o|obj)(?=$|[\s\"'])")
-UART_DEFINE = "CONFIG_BK_PRINTF_DISABLE"
 AMBIENT_BUILD_FLAGS = (
     "ARFLAGS",
     "CFLAGS",
@@ -109,7 +108,9 @@ def _run(command: list[str], label: str, **kwargs: object) -> subprocess.Complet
 
 
 def _reproducible_build_environment(work: Path, toolchain: Path,
-                                    source_date_epoch: str) -> dict[str, str]:
+                                    source_date_epoch: str, *,
+                                    source: Path | None = None,
+                                    build_root: Path | None = None) -> dict[str, str]:
     """Return the official SDK deterministic-build environment."""
 
     if not source_date_epoch.isdigit():
@@ -117,10 +118,12 @@ def _reproducible_build_environment(work: Path, toolchain: Path,
     environment = os.environ.copy()
     for name in AMBIENT_BUILD_FLAGS:
         environment.pop(name, None)
-    prefix_maps = (
-        f"-ffile-prefix-map={work}=/openvela/bk7258-sdk-build",
-        f"-ffile-prefix-map={toolchain.parent}=/openvela/bk7258-toolchain",
-    )
+    prefix_maps = [f"-ffile-prefix-map={work}=/openvela/bk7258-sdk-build"]
+    if source is not None:
+        prefix_maps.append(f"-ffile-prefix-map={source}=/openvela/bk7258-sdk-source")
+    if build_root is not None:
+        prefix_maps.append(f"-ffile-prefix-map={build_root}=/openvela/bk7258-sdk-build")
+    prefix_maps.append(f"-ffile-prefix-map={toolchain.parent}=/openvela/bk7258-toolchain")
     environment["EXTRA_CPPFLAGS"] = " ".join(prefix_maps)
     environment["SOURCE_DATE_EPOCH"] = source_date_epoch
     environment["USE_LIBS_DETERMINED_MODE"] = "1"
@@ -505,70 +508,6 @@ def _stage_export(export: Path, role_export: Path,
         shutil.copy2(item, target)
 
 
-def _uart_command(compile_database: Path, role: str, output: Path,
-                  compiler: Path) -> tuple[list[str], Path]:
-    entries = json.loads(compile_database.read_text(encoding="utf-8"))
-    suffix = f"/{role}/middleware/driver/uart/uart_driver.c"
-    matches = [
-        row for row in entries
-        if isinstance(row, dict)
-        and isinstance(row.get("file"), str)
-        and row["file"].replace("\\", "/").endswith(suffix)
-    ]
-    if len(matches) != 1:
-        raise SdkError(f"official compile database must contain one {role} UART source")
-    row = matches[0]
-    if isinstance(row.get("arguments"), list):
-        command = [str(value) for value in row["arguments"]]
-    elif isinstance(row.get("command"), str):
-        command = shlex.split(row["command"])
-    else:
-        raise SdkError("official UART compile entry has no command")
-    command[0] = str(compiler)
-    define = f"-D{UART_DEFINE}"
-    if define not in command:
-        command.insert(1, define)
-    try:
-        index = command.index("-o") + 1
-        command[index] = str(output)
-    except (ValueError, IndexError) as error:
-        raise SdkError("official UART compile command has no output") from error
-    directory = row.get("directory")
-    if not isinstance(directory, str):
-        raise SdkError("official UART compile entry has no directory")
-    return command, Path(directory)
-
-
-def _patch_uart(bundle: Path, build_root: Path, role: str, toolchain: Path,
-                work: Path, environment: dict[str, str]) -> None:
-    gcc = toolchain / "arm-none-eabi-gcc"
-    ar = toolchain / "arm-none-eabi-ar"
-    nm = toolchain / "arm-none-eabi-nm"
-    for tool in (gcc, ar, nm):
-        if not tool.is_file() or not os.access(tool, os.X_OK):
-            raise SdkError(f"required SDK tool is missing: {tool}")
-    databases = list(build_root.rglob("compile_commands.json"))
-    if len(databases) != 1:
-        raise SdkError("official SDK build must produce one compile_commands.json")
-    patched = work / "uart_driver.c.obj"
-    command, cwd = _uart_command(databases[0], role, patched, gcc)
-    _run(command, "SDK UART profile patch", cwd=cwd, env=environment)
-    _regular(patched, "patched UART object")
-    owners = []
-    for archive in sorted((bundle / "libs").glob("*.a")):
-        result = _run([str(ar), "t", str(archive)], "SDK archive inspection",
-                      stdout=subprocess.PIPE, text=True)
-        if "uart_driver.c.obj" in result.stdout.splitlines():
-            owners.append(archive)
-    if len(owners) != 1:
-        raise SdkError("resolved SDK closure must contain one UART archive owner")
-    _run([str(ar), "rD", str(owners[0]), str(patched)], "SDK UART archive update")
-    result = _run([str(nm), "-u", str(patched)], "SDK UART symbol verification",
-                  stdout=subprocess.PIPE, text=True)
-    if "bk_printf_init" in result.stdout:
-        raise SdkError("patched UART object still references bk_printf_init")
-
-
 def _profile_with_hash(path: Path, tree_hash: str) -> str:
     lines = [
         line for line in path.read_text(encoding="utf-8").splitlines()
@@ -579,7 +518,8 @@ def _profile_with_hash(path: Path, tree_hash: str) -> str:
 
 
 def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
-            jobs: int, replace: bool, lock_timeout: int = 600) -> BundleReport:
+            jobs: int, replace: bool, in_place_build_dir: Path | None = None,
+            lock_timeout: int = 600) -> BundleReport:
     """Rebuild one SDK profile from the exact manifest-pinned source."""
 
     if jobs <= 0:
@@ -592,9 +532,20 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
                 "SDK source identity", stdout=subprocess.PIPE, text=True).stdout.strip()
     if head != sdk.revision:
         raise SdkError(f"SDK source revision mismatch: expected={sdk.revision} observed={head}")
-    if _run(["git", "-C", str(source), "status", "--porcelain"],
-            "SDK source cleanliness", stdout=subprocess.PIPE, text=True).stdout:
+    direct = in_place_build_dir is not None
+    if not direct and _run(["git", "-C", str(source), "status", "--porcelain",
+                           "--untracked-files=no"],
+                           "SDK source cleanliness", stdout=subprocess.PIPE,
+                           text=True).stdout:
         raise SdkError("SDK source checkout must be clean")
+    build_dir = in_place_build_dir.resolve() if direct else None
+    if build_dir is not None:
+        try:
+            build_dir.relative_to(source.resolve())
+        except ValueError:
+            pass
+        else:
+            raise SdkError("in-place SDK build directory must be outside the source checkout")
     source_date_epoch = _run(
         ["git", "-C", str(source), "show", "-s", "--format=%ct", sdk.revision],
         "SDK source commit timestamp",
@@ -614,28 +565,21 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
     selected.bundle.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=f"bk7258-sdk-{name}-") as temporary_name:
         work = Path(temporary_name)
+        build_root = build_dir or (work / "build")
         environment = _reproducible_build_environment(
-            work, toolchain, source_date_epoch
+            work, toolchain, source=source if direct else None,
+            build_root=build_root if direct else None,
+            source_date_epoch=source_date_epoch,
         )
-        clone = work / "source"
-        _run(["git", "clone", "--local", "--no-hardlinks", "--no-checkout",
-              str(source), str(clone)], "SDK local source clone")
-        _run(["git", "-C", str(clone), "checkout", "--detach", sdk.revision],
-             "SDK source checkout")
-        _merge_profile(clone / official_config, selected)
-        if selected.name == "ap-aidk":
-            # Only patch the disposable build clone, never the pinned checkout.
-            for patch_name in (
-                "ap-sdio-tx-start.patch",
-                "ap-dvp-register-errors.patch",
-            ):
-                patch = repository / PROFILE_ROOT / sdk.version / patch_name
-                _regular(patch, "SDK AP source patch")
-                _run(["git", "-C", str(clone), "apply", "--check", str(patch)],
-                     "SDK AP patch preflight")
-                _run(["git", "-C", str(clone), "apply", str(patch)],
-                     "SDK AP source patch")
-        build_root = work / "build"
+        if direct:
+            clone = source
+        else:
+            clone = work / "source"
+            _run(["git", "clone", "--local", "--no-hardlinks", "--no-checkout",
+                  str(source), str(clone)], "SDK local source clone")
+            _run(["git", "-C", str(clone), "checkout", "--detach", sdk.revision],
+                 "SDK source checkout")
+            _merge_profile(clone / official_config, selected)
         _run(
             [
                 "make", "-C", str(clone), role_target, "PROJECT=app",
@@ -650,9 +594,6 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
         _stage_export(
             export, role_export, _link_inputs(build_root), clone, build_root,
             selected, staged
-        )
-        _patch_uart(
-            staged, build_root, selected.role, toolchain, work, environment
         )
         observed, _ = bundle_tree_hash(staged)
 

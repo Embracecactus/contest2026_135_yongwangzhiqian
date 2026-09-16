@@ -49,6 +49,14 @@ struct storage_s
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_wake = PTHREAD_COND_INITIALIZER;
 static struct storage_s *g_storage;
+static void (*g_notify)(void);
+
+void bkprov_storage_set_notify(void (*notify)(void))
+{
+  pthread_mutex_lock(&g_lock);
+  g_notify = notify;
+  pthread_mutex_unlock(&g_lock);
+}
 
 static int prepare_directory(const char *root)
 {
@@ -161,6 +169,10 @@ static void *worker(void *context)
            * next transaction or shutdown, never owned by the BLE session. */
         }
       s->job = JOB_IDLE;
+      void (*notify)(void) = g_notify;
+      pthread_mutex_unlock(&g_lock);
+      if (notify) notify();
+      pthread_mutex_lock(&g_lock);
     }
   pthread_mutex_unlock(&g_lock);
   return NULL;

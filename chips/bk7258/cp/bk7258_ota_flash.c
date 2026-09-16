@@ -79,11 +79,13 @@ int bk7258_ota_flash_verify(uint32_t address,
           ret = bk7258_flash_read(address + offset, reread, count);
 
           syslog(LOG_ERR, "BKOTA verify mismatch address=%08lx "
-                 "missing_zero_bits=%lu extra_zero_bits=%lu reread=%d stable=%d\n",
+                 "missing_zero_bits=%lu extra_zero_bits=%lu reread=%d "
+                 "stable=%d reread_matches_expected=%d\n",
                  (unsigned long)(address + offset + first),
                  (unsigned long)missing_zero_bits,
                  (unsigned long)extra_zero_bits, ret,
-                 ret == 0 && memcmp(observed, reread, count) == 0);
+                 ret == 0 && memcmp(observed, reread, count) == 0,
+                 ret == 0 && memcmp(expected + offset, reread, count) == 0);
           return -EIO;
         }
     }

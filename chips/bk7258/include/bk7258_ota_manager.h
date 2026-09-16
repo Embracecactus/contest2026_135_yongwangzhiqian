@@ -36,6 +36,7 @@ struct bk7258_ota_manager_status_s
   enum bk7258_ota_manager_state_e state;
   enum bk7258_ota_phase_e phase;
   enum bk7258_ota_image_e image;
+  enum bk7258_ota_operation_e operation;
   uint32_t completed;
   uint32_t total;
   int32_t last_error;

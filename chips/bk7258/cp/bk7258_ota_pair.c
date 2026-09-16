@@ -63,9 +63,35 @@ static int bk7258_ota_checkpoint(
 
   progress.phase = phase;
   progress.image = image;
+  progress.operation = BK7258_OTA_OPERATION_NONE;
   progress.completed = completed;
   progress.total = total;
   return ops->checkpoint(context, &progress);
+}
+
+static void bk7258_ota_failure_checkpoint(
+  const struct bk7258_ota_source_ops_s *ops, void *context,
+  enum bk7258_ota_phase_e phase, enum bk7258_ota_image_e image,
+  enum bk7258_ota_operation_e operation, uint32_t offset, uint32_t total)
+{
+  struct bk7258_ota_progress_s progress;
+
+  if (ops->checkpoint == NULL)
+    {
+      return;
+    }
+
+  progress.phase = phase;
+  progress.image = image;
+  progress.operation = operation;
+  progress.completed = offset;
+  progress.total = total;
+
+  /* Preserve the original operation error.  This checkpoint only records
+   * where it occurred; failure cleanup still follows the normal stage path.
+   */
+
+  (void)ops->checkpoint(context, &progress);
 }
 
 static int bk7258_ota_source_read(
@@ -96,12 +122,18 @@ static int bk7258_ota_erase(
     {
       if (bk7258_flash_erase_sector(base + offset) < 0)
         {
+          bk7258_ota_failure_checkpoint(
+            ops, context, phase, image, BK7258_OTA_OPERATION_ERASE,
+            offset, size);
           return -EIO;
         }
 
       ret = bk7258_ota_service_runtime();
       if (ret < 0)
         {
+          bk7258_ota_failure_checkpoint(
+            ops, context, phase, image, BK7258_OTA_OPERATION_RUNTIME,
+            offset + erase_size, size);
           return ret;
         }
 
@@ -146,6 +178,9 @@ static int bk7258_ota_program_image(
                                    sizeof(g_bk7258_ota_write_sector));
       if (ret < 0)
         {
+          bk7258_ota_failure_checkpoint(
+            ops, context, phase, image, BK7258_OTA_OPERATION_SOURCE_READ,
+            offset, size);
           syslog(LOG_ERR,
                  "BKOTA stage read image=%u offset=%lu error=%d\n",
                  (unsigned int)image, (unsigned long)offset, ret);
@@ -158,6 +193,9 @@ static int bk7258_ota_program_image(
                                 sizeof(g_bk7258_ota_write_sector));
       if (ret < 0)
         {
+          bk7258_ota_failure_checkpoint(
+            ops, context, phase, image, BK7258_OTA_OPERATION_FLASH_WRITE,
+            offset, size);
           syslog(LOG_ERR,
                  "BKOTA stage write image=%u offset=%lu error=%d\n",
                  (unsigned int)image, (unsigned long)offset, ret);
@@ -169,6 +207,9 @@ static int bk7258_ota_program_image(
                                     sizeof(g_bk7258_ota_write_sector));
       if (ret < 0)
         {
+          bk7258_ota_failure_checkpoint(
+            ops, context, phase, image, BK7258_OTA_OPERATION_FLASH_VERIFY,
+            offset, size);
           syslog(LOG_ERR,
                  "BKOTA stage verify image=%u offset=%lu error=%d\n",
                  (unsigned int)image, (unsigned long)offset, ret);
@@ -178,6 +219,9 @@ static int bk7258_ota_program_image(
       ret = bk7258_ota_service_runtime();
       if (ret < 0)
         {
+          bk7258_ota_failure_checkpoint(
+            ops, context, phase, image, BK7258_OTA_OPERATION_RUNTIME,
+            offset + erase_size, size);
           return ret;
         }
 

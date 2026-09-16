@@ -24,7 +24,7 @@ endif()
 
 if(CONFIG_MEDIA AND CONFIG_MEDIA_SERVER)
   set(media_assets etc/media/graph.conf etc/media/criteria.txt etc/media/settings.pfw)
-  if(CONFIG_BK7258_VOICE_WAKE_RUNTIME)
+  if(CONFIG_BK7258_VOICE_KWS)
     set(wake_model "${NUTTX_APPS_DIR}/system/bk7258/models/nihao_openvela.tflite")
     file(SHA256 "${wake_model}" wake_model_sha256)
     string(REPLACE "\"" "" wake_model_expected_sha256
@@ -33,8 +33,9 @@ if(CONFIG_MEDIA AND CONFIG_MEDIA_SERVER)
       message(FATAL_ERROR
         "KWS model SHA256 does not match CONFIG_BK7258_VOICE_KWS_MODEL_SHA256; update the reviewed model and its configured hash together")
     endif()
-    configure_file("${wake_model}"
-      "${CMAKE_CURRENT_BINARY_DIR}/etc/media/nihao_openvela.tflite" COPYONLY)
+    set(wake_model_staged
+      "${CMAKE_CURRENT_BINARY_DIR}/etc/media/nihao_openvela.tflite")
+    configure_file("${wake_model}" "${wake_model_staged}" COPYONLY)
   endif()
   nuttx_add_romfs(
     NAME media
@@ -42,7 +43,7 @@ if(CONFIG_MEDIA AND CONFIG_MEDIA_SERVER)
     NONCONST
     RCRAWS
     ${media_assets}
-    DEPENDS ${wake_model}
+    DEPENDS ${wake_model} ${wake_model_staged}
     PATH
     ${CMAKE_CURRENT_BINARY_DIR}/etc/media)
   target_link_libraries(board PRIVATE romfs_media)

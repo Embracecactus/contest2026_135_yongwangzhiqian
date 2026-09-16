@@ -1,103 +1,54 @@
 # SPDX-License-Identifier: Apache-2.0
-# Apply reviewed extensions to the full official Agent target.  Its original
-# CMake source list remains authoritative; no request-only library is created.
-
-function(bk7258_apply_agent_framework_patches)
+# 保持官方源码检出不变，只选择本产品实际使用的官方核心模块。
+function(bk7258_configure_agent_framework)
   set(source "${NUTTX_APPS_DIR}/packages/ai_agent")
-  set(stage "${CMAKE_BINARY_DIR}/ai-agent-framework-stage")
-  set(output "${CMAKE_BINARY_DIR}/ai-agent-framework")
-  set(patch_root "${NUTTX_DIR}/../vendor/beken/frameworks/patches/ai_agent")
   set(target "apps_${CONFIG_EXAMPLES_AI_AGENT_VELA_PROGNAME}")
   if(NOT TARGET "${target}")
     message(FATAL_ERROR "The full official Agent application is required")
   endif()
-  set(patches 0002-voice-backend-stream-dispatch.patch
-              0003-media-playback-completion.patch
-              0004-voice-channel-capabilities.patch
-              0005-external-network-configuration.patch
-              0006-optional-service-startup.patch)
-  set(files)
-  foreach(name IN LISTS patches)
-    set(patch "${patch_root}/${name}")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${patch}")
-    file(STRINGS "${patch}" paths REGEX "^\\+\\+\\+ b/")
-    foreach(path IN LISTS paths)
-      string(REGEX REPLACE "^\\+\\+\\+ b/" "" path "${path}")
-      if(path MATCHES "(^/|\\.\\.)")
-        message(FATAL_ERROR "Invalid Agent patch path: ${path}")
-      endif()
-      list(APPEND files "${path}")
-    endforeach()
+
+  # 当前官方比赛分支把 CLI、WebSocket、定时任务、心跳、网络接管和全部
+  # 内置工具无条件编入同一目标。傻妞由产品层提供网络、配置和交互入口，
+  # 这里只从目标中移除没有消费者的可选服务；Agent loop、消息总线、会话、
+  # LLM、voice channel 与 Media 仍使用官方实现。
+  get_target_property(agent_sources "${target}" SOURCES)
+  set(unused_agent_sources
+      src/agent_main.c
+      src/core/message_bus_tap.c
+      src/infra/network_manager.c
+      src/infra/cron_service.c
+      src/infra/heartbeat.c
+      src/channels/nsh_commands.c
+      src/channels/cmd_llm.c
+      src/channels/cmd_voice.c
+      src/channels/cmd_channel.c
+      src/channels/ws_server.c
+      src/tools/tool_files.c
+      src/tools/tool_get_time.c
+      src/tools/tool_web_search.c
+      src/tools/tool_cron.c
+      src/tools/tool_fetch_url.c
+      src/tools/tool_feishu_doc.c
+      src/tools/tool_feishu_chat.c
+      src/tools/tool_vision.c
+      src/tools/tool_shell.c
+      src/tools/tool_system.c
+      src/tools/tool_health.c
+      src/tools/tool_control.c
+      src/tools/tool_media.c
+      src/tools/tool_proxyquickapp.c
+      src/tools/tool_amap.c
+      src/ui/qrcode_display.c)
+  foreach(unused_source IN LISTS unused_agent_sources)
+    list(FILTER agent_sources EXCLUDE REGEX "(^|/)${unused_source}$")
   endforeach()
-  list(REMOVE_DUPLICATES files)
-  file(REMOVE_RECURSE "${stage}")
-  foreach(path IN LISTS files)
-    get_filename_component(directory "${stage}/${path}" DIRECTORY)
-    file(MAKE_DIRECTORY "${directory}")
-    if(EXISTS "${source}/${path}")
-      configure_file("${source}/${path}" "${stage}/${path}" COPYONLY)
-    endif()
-  endforeach()
-  find_package(Git REQUIRED)
-  foreach(name IN LISTS patches)
-    execute_process(COMMAND "${GIT_EXECUTABLE}" apply --check "${patch_root}/${name}"
-      WORKING_DIRECTORY "${stage}" RESULT_VARIABLE result ERROR_VARIABLE error)
-    if(NOT result EQUAL 0)
-      message(FATAL_ERROR "Agent framework patch no longer applies (${name}): ${error}")
-    endif()
-    execute_process(COMMAND "${GIT_EXECUTABLE}" apply "${patch_root}/${name}"
-      WORKING_DIRECTORY "${stage}" RESULT_VARIABLE result ERROR_VARIABLE error)
-    if(NOT result EQUAL 0)
-      message(FATAL_ERROR "Agent framework patch failed (${name}): ${error}")
-    endif()
-  endforeach()
-  get_target_property(root "${target}" SOURCE_DIR)
-  get_target_property(sources "${target}" SOURCES)
-  foreach(path IN LISTS files)
-    get_filename_component(directory "${output}/${path}" DIRECTORY)
-    file(MAKE_DIRECTORY "${directory}")
-    configure_file("${stage}/${path}" "${output}/${path}" COPYONLY)
-    if(NOT path MATCHES "\\.c$")
-      continue()
-    endif()
-    get_filename_component(original_directory "${source}/${path}" DIRECTORY)
-    target_include_directories("${target}" PRIVATE "${original_directory}")
-    set(updated)
-    set(count 0)
-    foreach(item IN LISTS sources)
-      get_filename_component(absolute "${item}" ABSOLUTE BASE_DIR "${root}")
-      if(absolute STREQUAL "${source}/${path}")
-        list(APPEND updated "${output}/${path}")
-        math(EXPR count "${count} + 1")
-      else()
-        list(APPEND updated "${item}")
-      endif()
-    endforeach()
-    if(EXISTS "${source}/${path}")
-      if(NOT count EQUAL 1)
-        message(FATAL_ERROR "Expected one official Agent ${path}, got ${count}")
-      endif()
-    else()
-      list(APPEND updated "${output}/${path}")
-    endif()
-    set(sources "${updated}")
-  endforeach()
-  if(NOT CONFIG_AI_AGENT_VOICE_VOLCENGINE)
-    list(FILTER sources EXCLUDE REGEX "/?src/voice/volc_(asr|tts|tts_ws)\\.c$")
-  endif()
-  set_property(TARGET "${target}" PROPERTY SOURCES "${sources}")
-  target_include_directories("${target}" BEFORE PRIVATE
-    "${output}/include" "${output}/src")
-  target_include_directories("${target}" PRIVATE
-    "${source}/src/voice" "${source}/src/core" "${source}/src/llm")
-  target_include_directories(apps PRIVATE "${output}/include" "${output}/src"
-    "${source}/include" "${source}/src")
-  # Source identity is already recorded by the product build manifest.
-  # Do not touch the manifest checkout just to refresh a build timestamp.
+  set_property(TARGET "${target}" PROPERTY SOURCES "${agent_sources}")
+
+  target_include_directories(apps PRIVATE "${source}/include" "${source}/src")
+  # 构建身份由 manifest 记录，避免官方构建目标 touch 源文件。
   if(TARGET agent_touch_main)
     set_property(TARGET agent_touch_main PROPERTY EXCLUDE_FROM_ALL TRUE)
   endif()
 endfunction()
-
 cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}"
-  CALL bk7258_apply_agent_framework_patches)
+  CALL bk7258_configure_agent_framework)

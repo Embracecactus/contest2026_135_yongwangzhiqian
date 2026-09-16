@@ -2,11 +2,11 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "bk7258_voice_wake_package.h"
-#include "bk7258_preferences.h"
 #include "bk7258_provision_store.h"
 #include "bk7258_voice_kws_model.h"
 #include "bk7258_voice_kws_frontend.h"
 #include <nuttx/config.h>
+#include <nuttx/mutex.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -21,6 +21,19 @@
 #define WKA_SIZE (4u + 2u * WKA_DESC)
 
 static const char g_root[] = BKVOICE_WAKE_PACKAGE_ROOT;
+static mutex_t g_model_store_lock = NXMUTEX_INITIALIZER;
+
+/* WKA1 selection and WKM1 assets live in the existing protected CP store.
+ * Serialize only this asset transaction; mounting the unrelated SD/FAT
+ * preferences volume would make model loading depend on removable storage. */
+static int with_model_store(int (*operation)(void *), void *context)
+{
+  int ret = nxmutex_lock(&g_model_store_lock);
+  if (ret < 0) return ret;
+  ret = operation(context);
+  nxmutex_unlock(&g_model_store_lock);
+  return ret;
+}
 
 static int bounded(const char *s, size_t cap, size_t *n)
 {
@@ -134,7 +147,7 @@ int bkvoice_wake_package_validate(const struct bkvoice_wake_package_s *s)
     .data = s ? s->model : NULL,
     .bytes = s ? s->model_size : 0,
     .frontend = BKVOICE_KWS_FRONTEND_ID,
-    .labels = {"silence", "unknown", BKVOICE_KWS_LABEL}
+    .labels = {"silence", "unknown", s ? s->label : NULL}
   };
 
   if (!s || !s->model || !s->model_size ||
@@ -317,7 +330,7 @@ int bkvoice_wake_package_stage(const struct bkvoice_wake_package_s *s,
   strcpy(d->label, s->label);
   strcpy(d->phrase, s->phrase);
   x = (struct stage_s){s, d, 0};
-  ret = bk7258_preferences_with_storage(stage_io, &x);
+  ret = with_model_store(stage_io, &x);
   return ret ? ret : x.ret;
 }
 
@@ -414,7 +427,7 @@ int bkvoice_wake_package_load(struct bkvoice_wake_package_descriptor_s *a,
 
   if (!a || !p || !r)
     return -EINVAL;
-  e = bk7258_preferences_with_storage(load_io, &x);
+  e = with_model_store(load_io, &x);
   return e ? e : x.ret;
 }
 
@@ -456,6 +469,6 @@ int bkvoice_wake_package_commit(
 
   if (descriptor_valid(d, false) || descriptor_valid(o, true))
     return -EINVAL;
-  e = bk7258_preferences_with_storage(commit_io, &x);
+  e = with_model_store(commit_io, &x);
   return e ? e : x.ret;
 }

@@ -4,6 +4,7 @@
 
 #include <cerrno>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <new>
 
@@ -43,7 +44,7 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
                            void *arena, size_t arena_bytes,
                            struct bkvoice_kws_model_s **model)
 {
-  static const char *const labels[] = {"silence", "unknown", BKVOICE_KWS_LABEL};
+  static const char *const labels[] = {"silence", "unknown"};
   const tflite::Model *flatmodel;
   struct bkvoice_kws_model_s *instance;
 
@@ -62,13 +63,19 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
       return -EINVAL;
     }
 
-  for (unsigned int i = 0; i < BKVOICE_KWS_CLASSES; i++)
+  for (unsigned int i = 0; i < 2; i++)
     {
       if (spec->labels[i] == nullptr || std::strcmp(spec->labels[i], labels[i]))
         {
           return -EINVAL;
         }
     }
+
+  /* Class 2 is the selected asset's target word. The package owns its label
+   * and SHA; the tensor contract remains silence / unknown / target. */
+  if (spec->labels[2] == nullptr || spec->labels[2][0] == '\0' ||
+      std::strlen(spec->labels[2]) >= 32)
+    return -EINVAL;
 
   flatbuffers::Verifier verifier(spec->data, spec->bytes);
   if (!tflite::VerifyModelBuffer(verifier))
@@ -90,11 +97,15 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
       return -ENOTSUP;
     }
 
-  instance = new (std::nothrow) bkvoice_kws_model_s;
-  if (instance == nullptr)
+  /* Use bounded heap allocation and placement construction. The toolchain's
+   * nothrow new still links its exception runtime in this no-exceptions
+   * target; allocation failure belongs to this model adapter's error path. */
+  void *storage = std::malloc(sizeof(bkvoice_kws_model_s));
+  if (storage == nullptr)
     {
       return -ENOMEM;
     }
+  instance = new (storage) bkvoice_kws_model_s;
 
   auto &resolver = instance->resolver;
   if (resolver.AddConv2D(tflite::Register_CONV_2D_INT8()) != kTfLiteOk ||
@@ -104,7 +115,7 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
       resolver.AddFullyConnected(tflite::Register_FULLY_CONNECTED_INT8()) != kTfLiteOk ||
       resolver.AddSoftmax(tflite::Register_SOFTMAX_INT8()) != kTfLiteOk)
     {
-      delete instance;
+      bkvoice_kws_model_close(instance);
       return -ENOTSUP;
     }
 
@@ -114,17 +125,18 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
    */
   if (arena_bytes < tflite::MicroAllocator::GetDefaultTailUsage(false))
     {
-      delete instance;
+      bkvoice_kws_model_close(instance);
       return -ENOMEM;
     }
 
-  instance->interpreter = new (std::nothrow) tflite::MicroInterpreter(
-    flatmodel, resolver, static_cast<uint8_t *>(arena), arena_bytes);
-  if (instance->interpreter == nullptr)
+  storage = std::malloc(sizeof(tflite::MicroInterpreter));
+  if (storage == nullptr)
     {
-      delete instance;
+      bkvoice_kws_model_close(instance);
       return -ENOMEM;
     }
+  instance->interpreter = new (storage) tflite::MicroInterpreter(
+    flatmodel, resolver, static_cast<uint8_t *>(arena), arena_bytes);
 
   if (instance->interpreter->AllocateTensors() != kTfLiteOk)
     {
@@ -256,7 +268,12 @@ void bkvoice_kws_model_close(struct bkvoice_kws_model_s *model)
 {
   if (model != nullptr)
     {
-      delete model->interpreter;
-      delete model;
+      if (model->interpreter != nullptr)
+        {
+          model->interpreter->~MicroInterpreter();
+          std::free(model->interpreter);
+        }
+      model->~bkvoice_kws_model_s();
+      std::free(model);
     }
 }

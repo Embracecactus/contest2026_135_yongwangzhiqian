@@ -1,9 +1,16 @@
 domain: MicDomain
+    conf: boot
+        CaptureLifecycle Is Boot
+        FFmpegCommand = ;
     conf: capture
-        ActiveStreams Includes Capture0
+        ALL
+            CaptureLifecycle Is Ready
+            ActiveStreams Includes Capture0
         FFmpegCommand = pcm0c,start,;
     conf: off
         ALL
+            CaptureLifecycle Is Ready
+            ActiveStreams Excludes Capture0
         FFmpegCommand = pcm0c,stop,;
 
 domain: MusicVolumeDomain

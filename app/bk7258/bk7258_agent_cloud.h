@@ -2,10 +2,18 @@
 #ifndef __APP_BK7258_AGENT_CLOUD_H
 #define __APP_BK7258_AGENT_CLOUD_H
 #include <stddef.h>
+#include <stdint.h>
+struct bkcloud_models_s;
 
-/* Service-protocol backends for the official voice registries. No capture,
+/* ASR service protocol backends for the official registry. No capture,
  * playback, conversation, history, worker or recovery owner lives here. */
 int bkagent_cloud_register(void);
+int bkagent_cloud_activate_asr(uint8_t dialect);
+/* Public MCP1 names from the installed service configuration, never keys. */
+int bkagent_cloud_models_get(struct bkcloud_models_s *models);
+/* Verify the selected server's TLS identity. This does not claim ASR/LLM/TTS
+ * request success. Called before the product enables voice requests. */
+int bkagent_cloud_verify_service(void);
 
 /* Called by the existing authenticated configuration owner at an idle voice
  * boundary. BVC1 and CCF1 remain secret records in the existing storage path.
