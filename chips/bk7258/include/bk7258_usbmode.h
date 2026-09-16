@@ -30,6 +30,13 @@ int bk7258_usbmode_set(enum bk7258_usbmode_e mode);
 enum bk7258_usbmode_e bk7258_usbmode_get(void);
 const char *bk7258_usbmode_name(enum bk7258_usbmode_e mode);
 
+/* Serialize local filesystem users with USB MSC export of the backing block
+ * device. Every successful acquire must have one matching release.
+ */
+
+int bk7258_usbmode_blockdev_acquire(void);
+int bk7258_usbmode_blockdev_release(void);
+
 #endif
 
 #ifdef __cplusplus

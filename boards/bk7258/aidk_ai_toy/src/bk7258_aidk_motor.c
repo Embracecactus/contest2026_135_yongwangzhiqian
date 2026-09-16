@@ -3,75 +3,142 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * CN10/P9 binding for the standard NuttX GPIO force-feedback lower half.
+ * CN10/P9 motor binding for the Shaniu product haptic adapter.
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
 #include <errno.h>
 #include <stdbool.h>
-#include <stddef.h>
 
-#include <nuttx/input/gpio_ff.h>
+#include <nuttx/clock.h>
+#include <nuttx/mutex.h>
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_pinmux.h>
 
-static FAR struct ff_lowerhalf_s *g_aidk_motor;
+static mutex_t g_aidk_motor_lock = NXMUTEX_INITIALIZER;
+static bool g_aidk_motor_ready;
+static bool g_aidk_motor_active;
+static bool g_aidk_motor_quiet;
+static bool g_aidk_motor_stopped_once;
+static clock_t g_aidk_motor_stopped_at;
 
-static int aidk_motor_output(FAR void *arg, bool enable)
-{
-  (void)arg;
-
-  /* The timer and capture interlock must be able to stop the transistor
-   * directly in interrupt context.  P9 is exclusively configured here.
-   */
-
-  return bk7258_gpio_fast_write(BK7258_BOARD_PIN_MOTOR,
-             enable == (BK7258_BOARD_MOTOR_ACTIVE_HIGH != 0));
-}
-
-static int aidk_motor_power(FAR void *arg, bool enable)
-{
-  (void)arg;
-
-  /* The SDK aggregates independent consumers of P52.  Never drive the
-   * common rail directly when releasing this motor's vote.
-   */
-
-  return bk7258_shared_rail_vote(BK7258_SHARED_RAIL_MOTOR,
-                                 BK7258_BOARD_PIN_LDO33_EN, enable);
-}
-
-static const struct gpio_ff_config_s g_aidk_motor_config =
-{
-  .set_output = aidk_motor_output,
-  .set_power = aidk_motor_power,
-  .max_on_ms = BK7258_BOARD_MOTOR_MAX_ON_MS,
-  .min_off_ms = BK7258_BOARD_MOTOR_MIN_OFF_MS,
-};
-
-int bk7258_aidk_motor_initialize(void)
+static int aidk_motor_set_locked(bool enable)
 {
   int ret;
 
-  if (g_aidk_motor != NULL)
+  if (!g_aidk_motor_ready)
     {
+      return -ENODEV;
+    }
+
+  if (enable)
+    {
+      if (g_aidk_motor_quiet)
+        {
+          return -EBUSY;
+        }
+
+      if (g_aidk_motor_active)
+        {
+          return OK;
+        }
+
+      if (g_aidk_motor_stopped_once &&
+          (clock_t)(clock_systime_ticks() - g_aidk_motor_stopped_at) <
+          MSEC2TICK(BK7258_BOARD_MOTOR_MIN_OFF_MS))
+        {
+          return -EAGAIN;
+        }
+
+      ret = bk7258_shared_rail_vote(BK7258_SHARED_RAIL_MOTOR,
+                                    BK7258_BOARD_PIN_LDO33_EN, true);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      ret = bk7258_gpio_write(BK7258_BOARD_PIN_MOTOR,
+                              BK7258_BOARD_MOTOR_ACTIVE_HIGH != 0);
+      if (ret < 0)
+        {
+          (void)bk7258_shared_rail_vote(BK7258_SHARED_RAIL_MOTOR,
+                                        BK7258_BOARD_PIN_LDO33_EN, false);
+          return ret;
+        }
+
+      g_aidk_motor_active = true;
       return OK;
     }
 
-  ret = bk7258_gpio_configure_output(BK7258_BOARD_PIN_MOTOR,
-             BK7258_BOARD_MOTOR_ACTIVE_HIGH == 0, BK7258_GPIO_DRIVE_0);
+  ret = bk7258_gpio_write(BK7258_BOARD_PIN_MOTOR,
+                          BK7258_BOARD_MOTOR_ACTIVE_HIGH == 0);
+  if (g_aidk_motor_active)
+    {
+      int power_ret = bk7258_shared_rail_vote(BK7258_SHARED_RAIL_MOTOR,
+                                              BK7258_BOARD_PIN_LDO33_EN,
+                                              false);
+
+      if (ret >= 0)
+        {
+          g_aidk_motor_active = false;
+          g_aidk_motor_stopped_once = true;
+          g_aidk_motor_stopped_at = clock_systime_ticks();
+          ret = power_ret;
+        }
+    }
+
+  return ret;
+}
+
+int bk7258_aidk_motor_initialize(void)
+{
+  int ret = nxmutex_lock(&g_aidk_motor_lock);
+
   if (ret < 0)
     {
       return ret;
     }
 
-  ret = gpio_ff_register("/dev/input_ff0", &g_aidk_motor_config,
-                          &g_aidk_motor);
-  if (ret < 0)
+  if (g_aidk_motor_ready)
     {
-      (void)aidk_motor_output(NULL, false);
+      nxmutex_unlock(&g_aidk_motor_lock);
+      return OK;
+    }
+
+  ret = bk7258_gpio_configure_output(BK7258_BOARD_PIN_MOTOR,
+             BK7258_BOARD_MOTOR_ACTIVE_HIGH == 0, BK7258_GPIO_DRIVE_0);
+  if (ret >= 0)
+    {
+      g_aidk_motor_ready = true;
+    }
+
+  nxmutex_unlock(&g_aidk_motor_lock);
+  return ret;
+}
+
+bool bk7258_aidk_motor_ready(void)
+{
+  bool ready = false;
+
+  if (nxmutex_lock(&g_aidk_motor_lock) >= 0)
+    {
+      ready = g_aidk_motor_ready;
+      nxmutex_unlock(&g_aidk_motor_lock);
+    }
+
+  return ready;
+}
+
+int bk7258_aidk_motor_set(bool enable)
+{
+  int ret = nxmutex_lock(&g_aidk_motor_lock);
+
+  if (ret >= 0)
+    {
+      ret = aidk_motor_set_locked(enable);
+      nxmutex_unlock(&g_aidk_motor_lock);
     }
 
   return ret;
@@ -79,14 +146,23 @@ int bk7258_aidk_motor_initialize(void)
 
 int bk7258_aidk_motor_capture_quiet(bool quiet)
 {
-  /* MIC starts only after board initialization has registered this owner.
-   * A missing owner fails capture closed instead of bypassing the interlock.
-   */
+  int ret = nxmutex_lock(&g_aidk_motor_lock);
 
-  if (g_aidk_motor == NULL)
+  if (ret < 0)
     {
-      return -ENODEV;
+      return ret;
     }
 
-  return gpio_ff_inhibit(g_aidk_motor, quiet);
+  if (!g_aidk_motor_ready)
+    {
+      ret = -ENODEV;
+    }
+  else
+    {
+      g_aidk_motor_quiet = quiet;
+      ret = quiet ? aidk_motor_set_locked(false) : OK;
+    }
+
+  nxmutex_unlock(&g_aidk_motor_lock);
+  return ret;
 }

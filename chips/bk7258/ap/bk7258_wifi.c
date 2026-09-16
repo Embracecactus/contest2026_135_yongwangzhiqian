@@ -733,6 +733,28 @@ int bk7258_wifi_refresh_carrier(void)
   return OK;
 }
 
+bool bk7258_wifi_native_lease_matches(
+  const struct bk7258_wifi_result_s *result)
+{
+  FAR struct bk7258_wifi_driver_s *priv = &g_bk7258_wifi;
+  bool matches;
+
+  if (result == NULL)
+    {
+      return false;
+    }
+
+  net_lock();
+  matches = priv->registered && priv->ifup &&
+            (priv->dev.d_flags & (IFF_UP | IFF_RUNNING)) ==
+              (IFF_UP | IFF_RUNNING) &&
+            priv->dev.d_ipaddr == result->ipaddr &&
+            priv->dev.d_netmask == result->netmask &&
+            priv->dev.d_draddr == result->router;
+  net_unlock();
+  return matches;
+}
+
 int bk7258_wifi_set_native_lease(
   const struct bk7258_wifi_result_s *result)
 {

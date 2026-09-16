@@ -32,19 +32,14 @@ config BK7258_AIDK_BUTTONS
 		not supported; consumers must use bounded timed reads.
 
 config BK7258_AIDK_MOTOR
-	bool "AIDK CN10 motor as standard force feedback"
+	bool "AIDK CN10 motor product adapter"
 	default n
 	depends on BK7258_BOARD_AIDK_AI_TOY && BK7258_AP_CORE
-	select INPUT
-	select INPUT_FF
-	select INPUT_GPIO_FF
 	help
-		Bind fitted CN10 to /dev/input_ff0 using the standard NuttX
-		FF_RUMBLE interface. P9 is high-active; only finite pulses with
-		a cooldown are accepted. Expiry/cancel stops P9 directly and
-		MIC capture inhibits actions. P52 uses a separate motor vote.
-		Enabling registers a stopped device; it never starts a test pulse.
-		The adapter uses the selected official NuttX input/FF lifecycle.
+		Bind the fitted CN10 motor to the product haptic service. P9 is
+		high-active; only finite pulses with a cooldown are accepted.
+		Cancel and MIC capture stop the output. P52 uses a separate motor
+		vote. Initialization leaves the motor stopped.
 
 config BK7258_AIDK_SD_NAND
 	bool "AIDK SD NAND"
@@ -114,7 +109,7 @@ config BK7258_AIDK_MFRC522
 	depends on BK7258_AP_CORE
 	depends on BK7258_UART1
 	select DRIVERS_CONTACTLESS
-	select CL_MFRC522_FRAME
+	select CL_MFRC522
 	help
 		Bind the MFRC522 RFID/NFC reader on the UART1 host interface (P0/P1)
 		as /dev/nfc0.  The board supplies only a UART register-transport adapter;
@@ -161,7 +156,6 @@ config BK7258_AIDK_CAMERA
 	depends on BK7258_AP_CORE && BK7258_DVP && BK7258_PSRAM
 	select BK7258_DVP_BOARD_GLUE
 	select BK7258_DVP_SENSOR_GC2145
-	select VIDEO_GC2145_CONTROLS
 	select BK7258_PSRAM_MEDIA
 	help
 		Bind the fitted AIDK GC2145 and its board-specific power/reset/pinmux

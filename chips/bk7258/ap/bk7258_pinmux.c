@@ -460,6 +460,10 @@ int bk7258_shared_rail_vote(enum bk7258_shared_rail_client_e client,
         module = GPIO_CTRL_LDO_MODULE_NFC;
         break;
 
+      case BK7258_SHARED_RAIL_MOTOR:
+        module = GPIO_CTRL_LDO_MODULE_MOTOR;
+        break;
+
       default:
         return -EINVAL;
     }

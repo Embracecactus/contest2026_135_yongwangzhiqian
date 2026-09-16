@@ -16,6 +16,9 @@ endif
 
 ifneq ($(CONFIG_BK7258_AP_CORE),y)
 CSRCS += bk7258_cp_bringup.c
+ifeq ($(CONFIG_BOARDCTL_RESET),y)
+CSRCS += bk7258_reset.c
+endif
 ifeq ($(CONFIG_BOARDCTL_RESET_CAUSE),y)
 CSRCS += bk7258_reset_cause.c
 endif

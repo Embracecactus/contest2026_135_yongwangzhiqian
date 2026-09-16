@@ -97,6 +97,13 @@ struct bk7258_mic_config_s
   uint8_t channels;
   uint8_t mic1_ana_gain;
   uint8_t mic2_ana_gain;
+  int8_t digital_gain_db;
+
+  /* Optional board acoustic interlock.  Called in task context before
+   * capture starts and after the hardware has stopped.
+   */
+
+  CODE int (*set_capture_quiet)(bool quiet);
 };
 
 /****************************************************************************

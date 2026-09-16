@@ -95,9 +95,6 @@ const struct bk7258_gpio_config_s g_bk7258_board_gpio_config =
   .user_led_console_shared = BK7258_BOARD_USER_LED_CONSOLE_SHARED,
   .user_button_gpio        = BK7258_BOARD_USER_BUTTON_GPIO,
   .user_button_active_low  = BK7258_BOARD_USER_BUTTON_ACTIVE_LOW,
-  .power_button_enabled   = true,
-  .power_button_gpio      = BK7258_BOARD_PIN_KEY2,
-  .power_button_active_low = true,
 };
 
 #ifdef CONFIG_BK7258_AP_CORE

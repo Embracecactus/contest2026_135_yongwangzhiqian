@@ -3527,6 +3527,13 @@ static bool bk7258_sdk_log_allowed(const char *fmt)
          !bk7258_sdk_log_is_sensitive(fmt);
 }
 
+int bk_printf_init(void)
+{
+  /* NuttX already owns the console and the SDK log path below uses syslog. */
+
+  return OK;
+}
+
 void bk_printf_ext(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;

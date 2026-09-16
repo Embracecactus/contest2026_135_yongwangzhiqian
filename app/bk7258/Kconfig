@@ -385,20 +385,16 @@ config BK7258_MOTION_RPC_STACKSIZE
 endif
 
 config BK7258_HAPTIC_SERVICE
-	bool "BK7258 AP force-feedback service"
+	bool "BK7258 AP product haptic service"
 	default n
-	depends on BK7258_AP_CORE && BK7258_RPTUN && INPUT_FF
+	depends on BK7258_AP_CORE && BK7258_RPTUN && BK7258_AIDK_MOTOR
 	select BK7258_AP_APPLICATION_LIFECYCLE
 	help
-		Serve bkhaptic requests through standard NuttX force-feedback ioctls
-		in a dedicated worker.  The lower half owns pulse bounds and capture
-		inhibition.  Link teardown stops and closes the owned effect.
+		Serve bounded bkhaptic requests in a dedicated worker through the
+		board motor adapter. The board owns pins and the shared power vote;
+		link teardown and MIC capture stop the active pulse.
 
 if BK7258_HAPTIC_SERVICE
-
-config BK7258_HAPTIC_DEVPATH
-	string "Force-feedback device path"
-	default "/dev/input_ff0"
 
 config BK7258_HAPTIC_RPC_PRIORITY
 	int "Force-feedback RPMsg worker priority"
