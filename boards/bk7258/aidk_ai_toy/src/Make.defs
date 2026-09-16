@@ -2,6 +2,14 @@
 
 CSRCS += bk7258_board_bringup.c
 
+ifeq ($(CONFIG_BK7258_AIDK_BUTTONS),y)
+CSRCS += bk7258_aidk_buttons.c
+endif
+
+ifeq ($(CONFIG_BK7258_AIDK_MOTOR),y)
+CSRCS += bk7258_aidk_motor.c
+endif
+
 ifeq ($(CONFIG_ETC_ROMFS),y)
 RCSRCS = etc/init.d/rc.sysinit etc/init.d/rcS
 endif

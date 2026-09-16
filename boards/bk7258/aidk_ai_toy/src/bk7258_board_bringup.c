@@ -18,6 +18,7 @@
 
 #include <arch/board/board.h>
 #include <arch/chip/bk7258_gpio.h>
+#include <arch/chip/bk7258_pinmux.h>
 #include <arch/chip/bk7258_ota_source_usb.h>
 #include <arch/chip/bk7258_usbmode.h>
 
@@ -53,7 +54,11 @@ static const struct bk7258_mic_config_s g_bk7258_aidk_mic_config =
   .aec_delay_samples = BK7258_BOARD_MIC_AEC_DELAY_SAMPLES,
   .mic1_ana_gain = BK7258_BOARD_MIC1_ANA_GAIN,
   .mic2_ana_gain = BK7258_BOARD_MIC2_ANA_GAIN,
+  .digital_gain_db = BK7258_BOARD_MIC_DIGITAL_GAIN_DB,
   .variant_name = BK7258_BOARD_VARIANT_NAME,
+#ifdef CONFIG_BK7258_AIDK_MOTOR
+  .set_capture_quiet = bk7258_aidk_motor_capture_quiet,
+#endif
 };
 
 #ifdef CONFIG_BK7258_BOARD_DEFERRED_INIT
@@ -90,6 +95,9 @@ const struct bk7258_gpio_config_s g_bk7258_board_gpio_config =
   .user_led_console_shared = BK7258_BOARD_USER_LED_CONSOLE_SHARED,
   .user_button_gpio        = BK7258_BOARD_USER_BUTTON_GPIO,
   .user_button_active_low  = BK7258_BOARD_USER_BUTTON_ACTIVE_LOW,
+  .power_button_enabled   = true,
+  .power_button_gpio      = BK7258_BOARD_PIN_KEY2,
+  .power_button_active_low = true,
 };
 
 #ifdef CONFIG_BK7258_AP_CORE
@@ -98,8 +106,36 @@ int bk7258_board_ap_initialize(void)
   FAR const struct bk7258_aud_board_s *audio = NULL;
   int ret;
 
+#ifdef CONFIG_BK7258_APP_AGENT
+  /* 原理图网名 LED2 对应 P41/R64/LED4 用户绿灯，高电平点亮。
+   * 产品默认关闭，避免近距离照射摄像头；不影响充电芯片的指示灯。
+   */
+
+  ret = bk7258_gpio_configure_output(BK7258_BOARD_PIN_LED2, false,
+                                     BK7258_GPIO_DRIVE_0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "AIDK user green LED off failed ret=%d\n", ret);
+    }
+  else
+    {
+      bool high = true;
+      ret = bk7258_gpio_read_output(BK7258_BOARD_PIN_LED2, &high);
+      syslog(ret < 0 || high ? LOG_ERR : LOG_INFO,
+             "AIDK user green LED P41 output=%d ret=%d\n", high, ret);
+    }
+#endif
+
 #ifdef CONFIG_BK7258_AUD
   audio = &g_bk7258_board_audio;
+#endif
+
+#ifdef CONFIG_BK7258_AIDK_MOTOR
+  ret = bk7258_aidk_motor_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
 #endif
 
   ret = bk7258_board_ap_controllers_initialize(

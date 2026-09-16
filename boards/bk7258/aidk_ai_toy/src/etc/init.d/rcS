@@ -6,6 +6,16 @@
 
 #include <nuttx/config.h>
 
+#if defined(CONFIG_BK7258_PRODUCT_KEYS) || defined(CONFIG_BK7258_VOICE_PTT_AUTOSTART)
+/* Publish product key state independently of network and cloud setup. */
+CONFIG_BK7258_APP_VOICE_PROGNAME buttons
+#endif
+
+#ifdef CONFIG_DOLPHIN
+/* List compiled local tools; startup does not transmit or scan RF. */
+dolphin list
+#endif
+
 /* CP services added here must check their own runtime prerequisites: NSH
  * calls this script after final-init even if its diagnostic check failed.
  */

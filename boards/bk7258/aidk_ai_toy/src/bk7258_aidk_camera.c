@@ -21,10 +21,10 @@
 #include <string.h>
 #include <syslog.h>
 
-#include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
 #include <nuttx/signal.h>
 #include <nuttx/video/imgsensor.h>
+#include <nuttx/video/gc2145.h>
 #include <nuttx/video/v4l2_cap.h>
 
 #include <arch/board/board.h>
@@ -35,6 +35,7 @@
 #include "bk7258_aidk_camera_glue.h"
 
 #define AIDK_CAMERA_POWER_SETTLE_US     10000u
+#define AIDK_CAMERA_ENCODE_SRAM_SIZE    (20u * 1024u)
 
 #if BK7258_BOARD_DVP_POWER_GPIO != 49 || \
     BK7258_BOARD_DVP_POWER_ACTIVE_HIGH != 1 || \
@@ -55,7 +56,13 @@ static struct bk7258_dvp_frame_mem_s
   g_aidk_camera_frames[BK7258_BOARD_CAMERA_FRAME_COUNT];
 static FAR void *g_aidk_camera_frame_bases[
   BK7258_BOARD_CAMERA_FRAME_COUNT];
-static FAR void *g_aidk_camera_encode_base;
+/* Reserve the VGA JPEG line cache in AP SRAM.  The NuttX heap also contains
+ * PSRAM, so a heap allocation can move this latency-sensitive cache there
+ * when display and other services consume internal memory first.
+ */
+
+static uint8_t g_aidk_camera_encode_buffer[AIDK_CAMERA_ENCODE_SRAM_SIZE]
+  aligned_data(BK7258_BOARD_CAMERA_DMA_ALIGNMENT);
 static FAR struct bk7258_dvp_s *g_aidk_camera_dvp;
 static bool g_aidk_camera_powered;
 static bool g_aidk_camera_registered;
@@ -220,6 +227,64 @@ static int aidk_camera_sensor_get_interval(
   return OK;
 }
 
+static int aidk_camera_control_lock(FAR void *arg)
+{
+  (void)arg;
+  return bk7258_dvp_sensor_lock(g_aidk_camera_dvp);
+}
+
+static void aidk_camera_control_unlock(FAR void *arg)
+{
+  (void)arg;
+  bk7258_dvp_sensor_unlock(g_aidk_camera_dvp);
+}
+
+static int aidk_camera_control_read(FAR void *arg, uint8_t reg,
+                                    FAR uint8_t *value)
+{
+  (void)arg;
+  return bk7258_dvp_sensor_read(g_aidk_camera_dvp, reg, value);
+}
+
+static int aidk_camera_control_write(FAR void *arg, uint8_t reg, uint8_t value)
+{
+  (void)arg;
+  return bk7258_dvp_sensor_write(g_aidk_camera_dvp, reg, value);
+}
+
+static const struct gc2145_control_s g_aidk_camera_control =
+{
+  .arg = NULL,
+  .lock = aidk_camera_control_lock,
+  .unlock = aidk_camera_control_unlock,
+  .read = aidk_camera_control_read,
+  .write = aidk_camera_control_write,
+};
+
+static int aidk_camera_get_supported(FAR struct imgsensor_s *sensor,
+                                     uint32_t id,
+                                     FAR imgsensor_supported_value_t *value)
+{
+  (void)sensor;
+  return gc2145_get_supported_value(id, value);
+}
+
+static int aidk_camera_get_control(FAR struct imgsensor_s *sensor,
+                                   uint32_t id, uint32_t size,
+                                   FAR imgsensor_value_t *value)
+{
+  (void)sensor;
+  return gc2145_get_value(&g_aidk_camera_control, id, size, value);
+}
+
+static int aidk_camera_set_control(FAR struct imgsensor_s *sensor,
+                                   uint32_t id, uint32_t size,
+                                   imgsensor_value_t value)
+{
+  (void)sensor;
+  return gc2145_set_value(&g_aidk_camera_control, id, size, value);
+}
+
 static const struct imgsensor_ops_s g_aidk_camera_sensor_ops =
 {
   .is_available = aidk_camera_sensor_is_available,
@@ -230,6 +295,9 @@ static const struct imgsensor_ops_s g_aidk_camera_sensor_ops =
   .start_capture = aidk_camera_sensor_start,
   .stop_capture = aidk_camera_sensor_stop,
   .get_frame_interval = aidk_camera_sensor_get_interval,
+  .get_supported_value = aidk_camera_get_supported,
+  .get_value = aidk_camera_get_control,
+  .set_value = aidk_camera_set_control,
 };
 
 static const struct v4l2_fmtdesc g_aidk_camera_formats[] =
@@ -332,9 +400,6 @@ static void aidk_camera_release_memory(void)
       g_aidk_camera_frames[index].addr = NULL;
       g_aidk_camera_frames[index].size = 0;
     }
-
-  kmm_free(g_aidk_camera_encode_base);
-  g_aidk_camera_encode_base = NULL;
 }
 
 int bk7258_aidk_camera_initialize(void)
@@ -345,7 +410,6 @@ int bk7258_aidk_camera_initialize(void)
   {
     &g_aidk_camera_sensor
   };
-  FAR uint8_t *encode_buffer;
   uint8_t index;
   int ret;
 
@@ -384,6 +448,15 @@ int bk7258_aidk_camera_initialize(void)
          (unsigned long)requirements.encode_buffer_size,
          BK7258_BOARD_CAMERA_DMA_ALIGNMENT);
 
+  if (requirements.encode_buffer_size > sizeof(g_aidk_camera_encode_buffer))
+    {
+      syslog(LOG_ERR,
+             "AIDK GC2145 SRAM reservation too small: encode_bytes=%lu\n",
+             (unsigned long)requirements.encode_buffer_size);
+      nxmutex_unlock(&g_aidk_camera_lock);
+      return -E2BIG;
+    }
+
   for (index = 0; index < BK7258_BOARD_CAMERA_FRAME_COUNT; index++)
     {
       g_aidk_camera_frames[index].addr =
@@ -401,27 +474,10 @@ int bk7258_aidk_camera_initialize(void)
       g_aidk_camera_frames[index].size = requirements.frame_size;
     }
 
-  /* The SDK uses this AP-SRAM buffer as a two-bank, 16-line JPEG cache.
-   * Completed compressed frames remain in the caller-owned PSRAM stores.
-   */
-
-  encode_buffer = kmm_memalign(BK7258_BOARD_CAMERA_DMA_ALIGNMENT,
-                               requirements.encode_buffer_size);
-  if (encode_buffer == NULL)
-    {
-      syslog(LOG_ERR,
-             "AIDK GC2145 SRAM allocation failed: encode_bytes=%lu\n",
-             (unsigned long)requirements.encode_buffer_size);
-      ret = -ENOMEM;
-      goto errout_with_memory;
-    }
-
-  g_aidk_camera_encode_base = encode_buffer;
-
   config.binding = bk7258_aidk_camera_binding();
   config.frames = g_aidk_camera_frames;
   config.frame_count = BK7258_BOARD_CAMERA_FRAME_COUNT;
-  config.encode_buffer = encode_buffer;
+  config.encode_buffer = g_aidk_camera_encode_buffer;
   config.encode_buffer_size = requirements.encode_buffer_size;
 
   ret = bk7258_dvp_initialize(&config, &g_aidk_camera_dvp);

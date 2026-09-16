@@ -10,7 +10,7 @@
 mount -t procfs CONFIG_NSH_PROC_MOUNTPOINT
 #endif
 
-#if defined(CONFIG_BK7258_STORAGE_ONCHIP_PERSISTENT) && \
+#if defined(CONFIG_BK7258_ONCHIP_DATAFS) && \
     defined(CONFIG_FS_LITTLEFS)
 mkdir /data
 mount -t littlefs /dev/mtdblock0 /data

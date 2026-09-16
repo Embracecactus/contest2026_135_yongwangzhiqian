@@ -12,9 +12,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <arch/chip/bk7258_ota_rpmsg.h>
+#include <arch/chip/bk7258_usbmode_rpmsg.h>
 
 #define USBMODE_TIMEOUT_MS 10000u
+#define USBMODE_RECONCILE_TIMEOUT_MS 2000u
 
 static const char *usbmode_name(enum bk7258_usbmode_e mode)
 {
@@ -48,7 +49,7 @@ int main(int argc, char **argv)
 
   if (strcmp(argv[1], "status") == 0)
     {
-      ret = bk7258_ota_rpmsg_usbmode_get(&mode, USBMODE_TIMEOUT_MS);
+      ret = bk7258_usbmode_rpmsg_get(&mode, USBMODE_TIMEOUT_MS);
       if (ret < 0)
         {
           fprintf(stderr, "usbmode: status failed: %d\n", ret);
@@ -77,15 +78,38 @@ int main(int argc, char **argv)
     }
 
   requested = mode;
-  ret = bk7258_ota_rpmsg_usbmode_set(requested, &mode,
-                                     USBMODE_TIMEOUT_MS);
+  ret = bk7258_usbmode_rpmsg_set(requested, &mode, USBMODE_TIMEOUT_MS);
+  if (ret == -ETIMEDOUT)
+    {
+      enum bk7258_usbmode_e confirmed;
+      int confirm_ret;
+
+      /* A first-time MSC start creates the class worker and can delay or
+       * lose the SET reply even though AP completed the transition.  GET is
+       * side-effect free, so reconcile the observable state before reporting
+       * a false failure to the operator.  Any mismatch or second timeout
+       * preserves the original SET error.
+       */
+
+      confirm_ret = bk7258_usbmode_rpmsg_get(
+                      &confirmed, USBMODE_RECONCILE_TIMEOUT_MS);
+      if (confirm_ret >= 0 && confirmed == requested)
+        {
+          mode = confirmed;
+          ret = 0;
+          fprintf(stderr,
+                  "usbmode: SET reply timed out; target mode confirmed by status\n");
+        }
+    }
+
   if (ret < 0)
     {
       fprintf(stderr, "usbmode: switch to %s failed: %d\n",
               usbmode_name(requested), ret);
       if (ret == -EBUSY && requested == BK7258_USBMODE_MSC)
         {
-          fprintf(stderr, "usbmode: close /dev/ttyGS0 and retry\n");
+          fprintf(stderr,
+                  "usbmode: close /dev/ttyGS0 and wait for AP storage users, then retry\n");
         }
 
       return EXIT_FAILURE;

@@ -15,77 +15,639 @@ config BK7258_APP_AGENT
 	select BK7258_AP_APPLICATION_LIFECYCLE
 	help
 		Bind the official Agent package to the generic BK7258 AP application
-		lifecycle.  Product startup and the optional lightweight audio ABI
-		backends live in this application directory; chip and board code remain
+		lifecycle. Product startup and service backends live in this application
+		directory; chip and board code remain
 		independent of the Agent product.
 
-config BK7258_APP_VOICE
-	bool "BK7258 authorized-voice service command (bkvoice)"
+config BK7258_PRODUCT_KEYS
+	bool "Product keys through /dev/buttons"
+	default n
+	depends on BK7258_APP_AGENT
+	depends on BK7258_RPTUN && !DISABLE_PTHREAD
+	help
+		Use the standard buttons lower-half instead of the diagnostic GPIO PTT
+		device. Bit 0 is volume down, bit 1 is power, and bit 2 is volume up.
+		The AP accepts only the product-key RPMsg contract. When
+		BK7258_PM_SOFT_OFF is enabled, a three-second K2-only hold followed by
+		full release requests the CP-owned whole-chip reset-to-sleep path after
+		bounded AP resource cleanup. When USB mode is built, shutdown also holds
+		the shared block-device lease so an active MSC export rejects the request.
+		Without the PM option the request reports ENOTSUP.
+
+config BK7258_APP_DISPLAY
+	bool "BK7258 Shaniu display command (bkdisplay)"
 	default n
 	depends on !BK7258_AP_CORE && BK7258_RPTUN && SYSTEM_NSH
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	help
-		Build the CP-visible bkvoice status/verify/play/stress command.  It uses
-		a versioned application RPMsg protocol to reach the AP-owned voice service;
-		it never opens AP storage or audio devices from CP.
+		Build the CP-visible bkdisplay status/mood command.  It uses a
+		versioned application RPMsg endpoint to reach the AP-owned display
+		service; CP never mounts /dev/mmcsd0 or writes a framebuffer.
 
-if BK7258_APP_VOICE
+if BK7258_APP_DISPLAY
 
-config BK7258_APP_VOICE_PROGNAME
-	string "bkvoice program name"
-	default "bkvoice"
+config BK7258_APP_DISPLAY_PROGNAME
+	string "bkdisplay program name"
+	default "bkdisplay"
 
-config BK7258_APP_VOICE_PRIORITY
-	int "bkvoice priority"
+config BK7258_APP_DISPLAY_PRIORITY
+	int "bkdisplay priority"
 	default 100
 
-config BK7258_APP_VOICE_STACKSIZE
-	int "bkvoice stack size"
-	default 8192
+config BK7258_APP_DISPLAY_STACKSIZE
+	int "bkdisplay stack size"
+	default 4096
 
 endif
 
-config BK7258_VOICE_SERVICE
-	bool "BK7258 AP authorized-voice service"
+config BK7258_APP_HEALTH
+	bool "BK7258 Shaniu device-health command (bkhealth)"
 	default n
-	depends on BK7258_AP_CORE && BK7258_AUD && BK7258_MIC
-	depends on BK7258_RPTUN && !MEDIA
+	depends on !BK7258_AP_CORE && BK7258_RPTUN && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Build the CP-visible read-only bkhealth status command.  It uses a
+		versioned application RPMsg endpoint to query the AP-owned battery and
+		on-die temperature sources.  Battery percentage is deliberately not
+		estimated without a characterized cell discharge curve.
+
+if BK7258_APP_HEALTH
+
+config BK7258_APP_HEALTH_PROGNAME
+	string "bkhealth program name"
+	default "bkhealth"
+
+config BK7258_APP_HEALTH_PRIORITY
+	int "bkhealth priority"
+	default 100
+
+config BK7258_APP_HEALTH_STACKSIZE
+	int "bkhealth stack size"
+	default 4096
+
+endif
+
+config BK7258_APP_MOTION
+	bool "BK7258 Shaniu accelerometer sample command (bkmotion)"
+	default n
+	depends on !BK7258_AP_CORE && BK7258_RPTUN && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Build the CP-visible read-only bkmotion sample command.  It asks the
+		AP-owned service for one sample from the standard NuttX accelerometer
+		upper half.  Only a timestamp, fixed-point SI axes and sensor status
+		cross RPMsg; no I2C registers or raw bus bytes are exposed.
+
+if BK7258_APP_MOTION
+
+config BK7258_APP_MOTION_PROGNAME
+	string "bkmotion program name"
+	default "bkmotion"
+
+config BK7258_APP_MOTION_PRIORITY
+	int "bkmotion priority"
+	default 100
+
+config BK7258_APP_MOTION_STACKSIZE
+	int "bkmotion stack size"
+	default 4096
+
+endif
+
+config BK7258_APP_HAPTIC
+	bool "BK7258 bounded force-feedback command (bkhaptic)"
+	default n
+	depends on !BK7258_AP_CORE && BK7258_RPTUN && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Query, explicitly request one bounded pulse, or stop the AP-owned
+		standard force-feedback device.  Startup never requests a pulse.
+
+if BK7258_APP_HAPTIC
+
+config BK7258_APP_HAPTIC_PROGNAME
+	string "bkhaptic program name"
+	default "bkhaptic"
+
+config BK7258_APP_HAPTIC_PRIORITY
+	int "bkhaptic priority"
+	default 100
+
+config BK7258_APP_HAPTIC_STACKSIZE
+	int "bkhaptic stack size"
+	default 4096
+
+endif
+
+config BK7258_APP_NFC
+	bool "BK7258 Shaniu NFC presence command (bknfc)"
+	default n
+	depends on !BK7258_AP_CORE && BK7258_RPTUN && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Build the CP-visible bknfc scan command.  It asks the AP-owned NFC
+		service only whether a card is present; card UIDs are never returned.
+
+if BK7258_APP_NFC
+
+config BK7258_APP_NFC_PROGNAME
+	string "bknfc program name"
+	default "bknfc"
+
+config BK7258_APP_NFC_PRIORITY
+	int "bknfc priority"
+	default 100
+
+config BK7258_APP_NFC_STACKSIZE
+	int "bknfc stack size"
+	default 4096
+
+endif
+
+config BK7258_APP_VISION
+	bool "BK7258 camera command (bkvision)"
+	default n
+	depends on !BK7258_AP_CORE && BK7258_RPTUN && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+
+if BK7258_APP_VISION
+
+config BK7258_APP_VISION_PROGNAME
+	string "bkvision program name"
+	default "bkvision"
+
+config BK7258_APP_VISION_PRIORITY
+	int "bkvision priority"
+	default 100
+
+config BK7258_APP_VISION_STACKSIZE
+	int "bkvision stack size"
+	default 4096
+
+endif
+
+if BK7258_APP_AGENT
+
+config BK7258_PREFERENCES
+	bool "BKVoice KVDB product preferences"
+	default n
+	depends on KVDB && KVDB_DIRECT && KVDB_UNQLITE && FS_FAT
+	help
+		Store non-secret desired volume and persona through the public KVDB
+		API, serialized by the AP voice owner. The CP bkvoice prefs command
+		uses the existing voice endpoint. Each PTT reply applies the stored
+		volume through public media policy before playback; changes take effect
+		on the next reply. Direct cloud dialogue reads the stored persona for
+		each request; the historical Gateway personality path is separate.
+		Playback reuses the last confirmed volume without accessing storage.
+		First use and explicit preference queries load/refresh it; uncertain
+		write or cleanup results invalidate it and require a new read.
+		The board must separately configure and
+		validate its KVDB service/backend, missing-key errno and persistent
+		partition before enabling this option. No credentials are stored.
+		The database path must be one file immediately under /mnt/sdnand.
+		Each operation leases the shared media, mounts FAT and unmounts
+		before release. Busy media and cleanup failures are reported.
+
+config BK7258_PREFERENCES_BLOCKDEV
+	string "Preference database block device"
+	depends on BK7258_PREFERENCES
+	default "/dev/mmcsd0"
+	help
+		Must refer to the same SD NAND managed by the media/USB MSC lease.
+
+config BK7258_VOICE_VOLUME_PERSISTENCE
+	bool "Persist remote BKVoice volume on CP LittleFS"
+	default n
+	depends on BK7258_PROVISION_GATT && BK7258_RPMSGFS
+	help
+		Persist only the device playback volume in the CP-owned on-chip
+		LittleFS. AP reaches the store through RPMsgFS. The setting uses the
+		existing hash, revision, fsync and rename transaction contract in a
+		directory separate from provisioning identity and network data.
+		Startup performs no filesystem I/O and never mounts or formats storage.
+		A remote set is reported successful only after durable publication and
+		media-policy readback. When BK7258_PREFERENCES is enabled, its volume
+		accessors delegate to this same store; persona keeps its existing KVDB
+		backend. There is no second stored volume value in the product path.
+
+config BK7258_VOICE_OTA_PERSISTENCE
+	bool "Persist Shaniu authenticated OTA intent on CP LittleFS"
+	default n
+	depends on BK7258_VOICE_TLS && BK7258_PROVISION_GATT && BK7258_RPMSGFS
+	depends on BK7258_OTA_MANAGER && BK7258_OTA_SOURCE_HTTP
+	depends on BK7258_OTA_RPMSG
+	help
+		Persist one device-bound OTA manifest and its verified source/target
+		pair identity before download, reboot and trial side effects. The AP
+		voice owner resumes only the same manifest after disconnect or reboot;
+		CP remains the pair installer, reset owner and health confirmation
+		owner. Startup performs no filesystem I/O and never formats storage.
+
+config BK7258_PROVISION_GATT
+	bool "Shaniu product provisioning GATT transport"
+	default n
+	depends on BK7258_AP_CORE && BK7258_BT_IPC && WIRELESS_BLUETOOTH_HOST
+	depends on !BK7258_BLE_GATT && BK7258_WIFI_VNET
+	depends on NETUTILS_NTPCLIENT && !NETUTILS_NTPCLIENT_STAY_ON
+	depends on SCHED_HAVE_PARENT && SCHED_CHILD_STATUS && SCHED_WAITPID
+	depends on NETDB_DNSCLIENT
+	depends on CRYPTO_MBEDTLS
+	depends on BK7258_VOICE_TLS
+	depends on MBEDTLS_SSL_SRV_C && MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
+	depends on MBEDTLS_GCM_C
 	select BK7258_AP_APPLICATION_LIFECYCLE
 	help
-		Start the AP-resident endpoint used by bkvoice.  It accepts only a strict
-		bkvoice-pack-v1 manifest that attests explicit speaker consent and labels
-		the output as synthetic, then streams 16 kHz mono signed-16 PCM WAV clips
-		through the public NuttX audio ABI.  It also builds the transport-neutral
-		companion-v1 framing/session contract and the hardware-neutral half-duplex
-		turn arbiter.  The App-private turn audio adapter binds that arbiter's
-		resource contract to the public recorder/player ABI without owning any
-		device path, pin, MIC channel or PA policy.  PTT events, a capture/uplink
-		worker and Gateway transport are not installed by this symbol.  Storage
-		mounting, model training and physical audio wiring remain outside this
-		application.
+		Build the complete product GAP/GATT table and bounded ciphertext
+		queue and TLS 1.2 server using the Bluetooth Host lifecycle and
+		notification result interfaces from the selected official baseline,
+		plus mbedTLS ECDHE-ECDSA server support.
+		Registers the product table after Host startup. The product owner
+		opens a bounded first-claim window only for an authenticated local
+		identity with confirmed empty ownership storage. Existing bindings
+		and recovery protections remain enforced; no PTT press is required.
 
-if BK7258_VOICE_SERVICE
+config BK7258_VOICE_KWS
+	bool "BKVoice official wake-word inference library"
+	default n
+	depends on TFLITEMICRO && HAVE_CXX && !DISABLE_PTHREAD
+	help
+		Build the official TFLM microfrontend and INT8 model runner for the
+		product nihao_openvela model. Selecting this option alone does not
+		enable background listening.
+		A trained, authenticated model and AP audio-owner integration with
+		pre-roll/VAD and physical acceptance are required before enabling
+		wake-word interaction.
 
-config BK7258_VOICE_SERVICE_PRIORITY
-	int "BKVoice AP worker priority"
-	default 90
+config BK7258_VOICE_KWS_MODEL_PATH
+	string "Authenticated wake-word model path"
+	default ""
+	depends on BK7258_VOICE_KWS
+	help
+		Absolute path fixed into the signed AP firmware. The application does
+		not mount storage or download a model; unavailable files disable the
+		listener without acquiring the microphone.
 
-config BK7258_VOICE_SERVICE_STACKSIZE
-	int "BKVoice AP worker stack size"
-	default 8192
+config BK7258_VOICE_KWS_MODEL_SHA256
+	string "Wake-word model SHA-256"
+	default ""
+	depends on BK7258_VOICE_KWS
+	help
+		Exactly 64 hexadecimal characters fixed into the signed AP firmware.
+
+config BK7258_VOICE_KWS_ARENA_BYTES
+	int "Wake-word tensor arena bytes"
+	default 262144
+	range 16384 524288
+	depends on BK7258_VOICE_KWS
+
+config BK7258_VOICE_TLS
+	bool "BKVoice verified mTLS provider"
+	default n
+	depends on NET_TCP && CRYPTO_MBEDTLS
+	select MBEDTLS_HAVE_TIME_DATE
+	select NETUTILS_CJSON
+	select NETUTILS_WEBCLIENT
+	help
+		Build the bounded, interruptible verified-TLS provider used by the
+		selected cloud ASR/TTS protocol adapters. The deployment supplies
+		server trust and an authoritative trusted-time check.
+
+endif
+
+config BK7258_HEALTH_SERVICE
+	bool "BK7258 AP Shaniu device-health service"
+	default n
+	depends on BK7258_AP_CORE && BK7258_RPTUN
+	depends on BATTERY_CHARGER && BK7258_TEMPERATURE
+	select BK7258_AP_APPLICATION_LIFECYCLE
+	help
+		Start the AP-resident endpoint used by bkhealth.  The service reads the
+		public battery-charger ABI and the public BK7258 temperature API from a
+		dedicated worker, never from an RPMsg callback.  It exposes raw battery
+		millivolts and temperature ADC data with per-field validity.  Celsius is
+		reported only when the device has a valid per-chip temperature
+		calibration.  The worker also refreshes a non-blocking AP product cache;
+		state of charge remains unavailable until the product cell curve is
+		characterized.
+
+if BK7258_HEALTH_SERVICE
+
+config BK7258_HEALTH_BATTERY_DEVPATH
+	string "BKHealth battery device path"
+	default "/dev/bat0"
+
+config BK7258_HEALTH_RPC_PRIORITY
+	int "BKHealth RPMsg worker priority"
+	default 80
+	range 1 255
+
+config BK7258_HEALTH_RPC_STACKSIZE
+	int "BKHealth RPMsg worker stack size"
+	default 4096
+	range 2048 32768
+
+endif
+
+config BK7258_MOTION_SERVICE
+	bool "BK7258 AP Shaniu accelerometer sample service"
+	default n
+	depends on BK7258_AP_CORE && BK7258_RPTUN && SENSORS_SC7A20
+	select BK7258_AP_APPLICATION_LIFECYCLE
+	help
+		Start the AP-resident endpoint used by bkmotion.  Each request opens,
+		reads one sample from, and closes the configured standard NuttX sensor
+		device in a dedicated worker.  Axis values cross RPMsg as millimetres
+		per second squared; the service does not expose sensor registers.
+
+if BK7258_MOTION_SERVICE
+
+config BK7258_MOTION_DEVPATH
+	string "BKMotion accelerometer device path"
+	default "/dev/uorb/sensor_accel0"
+
+config BK7258_MOTION_RPC_PRIORITY
+	int "BKMotion RPMsg worker priority"
+	default 80
+	range 1 255
+
+config BK7258_MOTION_RPC_STACKSIZE
+	int "BKMotion RPMsg worker stack size"
+	default 4096
+	range 2048 32768
+
+endif
+
+config BK7258_HAPTIC_SERVICE
+	bool "BK7258 AP force-feedback service"
+	default n
+	depends on BK7258_AP_CORE && BK7258_RPTUN && INPUT_FF
+	select BK7258_AP_APPLICATION_LIFECYCLE
+	help
+		Serve bkhaptic requests through standard NuttX force-feedback ioctls
+		in a dedicated worker.  The lower half owns pulse bounds and capture
+		inhibition.  Link teardown stops and closes the owned effect.
+
+if BK7258_HAPTIC_SERVICE
+
+config BK7258_HAPTIC_DEVPATH
+	string "Force-feedback device path"
+	default "/dev/input_ff0"
+
+config BK7258_HAPTIC_RPC_PRIORITY
+	int "Force-feedback RPMsg worker priority"
+	default 80
+	range 1 255
+
+config BK7258_HAPTIC_RPC_STACKSIZE
+	int "Force-feedback RPMsg worker stack size"
+	default 4096
+	range 2048 32768
+
+endif
+
+config BK7258_NFC_SERVICE
+	bool "BK7258 AP Shaniu NFC presence service"
+	default n
+	depends on BK7258_AP_CORE && BK7258_RPTUN
+	depends on CL_MFRC522 || CL_MFRC522_FRAME
+	select BK7258_AP_APPLICATION_LIFECYCLE
+	help
+		Start the AP-resident endpoint used by bknfc.  Each request opens,
+		uses /dev/nfc0 in a dedicated worker, and closes the device after
+		each request. The standard SPI driver supports presence checks;
+		the frame driver also supports bounded ISO-DEP handover and idle
+		RF release. Presence responses contain no UID.
+
+if BK7258_NFC_SERVICE
+
+config BK7258_NFC_DEVPATH
+	string "BKNFC device path"
+	default "/dev/nfc0"
+
+config BK7258_NFC_RPC_PRIORITY
+	int "BKNFC RPMsg worker priority"
+	default 80
+	range 1 255
+
+config BK7258_NFC_RPC_STACKSIZE
+	int "BKNFC RPMsg worker stack size"
+	default 4096
+	range 2048 32768
+
+endif
+
+config BK7258_VISION_SERVICE
+	bool "BK7258 AP camera snapshot and local recording service"
+	default n
+	depends on BK7258_AP_CORE && BK7258_RPTUN && BK7258_AIDK_CAMERA
+	depends on !SYSTEM_NXCAMERA && !EXAMPLES_CAMERA
+	select BK7258_AP_APPLICATION_LIFECYCLE
+	help
+		Start the AP-resident endpoint used by bkvision.  Each request opens
+		the configured V4L2 capture device, obtains one driver-managed MMAP
+		buffer, validates the JPEG boundaries, stops capture, and closes the
+		device so the sole-owner close releases the device-global buffer heap.
+		Snapshot returns metadata only. Explicit record requests keep a FIFO
+		of MMAP buffers queued and save silent MJPEG AVI to an existing FAT
+		volume on /dev/mmcsd0. Recording never formats the volume and is
+		bounded to 60 seconds and 64 MiB per file. USB MSC must be inactive.
+		The service must remain the sole application owner of the configured
+		V4L2 device because the current NuttX capture buffers are device-global.
+
+if BK7258_VISION_SERVICE
+
+config BK7258_VISION_DEVPATH
+	string "BKVision V4L2 capture device"
+	default "/dev/video0"
+
+config BK7258_VISION_WIDTH
+	int "BKVision snapshot width"
+	default 640
+	range 1 4096
+
+config BK7258_VISION_HEIGHT
+	int "BKVision snapshot height"
+	default 480
+	range 1 4096
+
+config BK7258_VISION_FPS
+	int "BKVision requested capture frame rate"
+	default 30
+	range 1 30
+	help
+		Request this rate with VIDIOC_S_PARM and verify VIDIOC_G_PARM before
+		queuing capture buffers. The sensor must support the selected rate;
+		unsupported requests fail instead of silently using another rate.
+
+config BK7258_VISION_JPEG_BUFFER_BYTES
+	int "BKVision maximum JPEG buffer size"
+	default 102400
+	range 4096 1048576
+	help
+		Maximum compressed-frame allocation requested through V4L2.  The
+		AIDK GC2145/DVP profile uses the SDK's 102400-byte JPEG frame size.
+		The value must be reviewed together with any camera profile change.
+
+config BK7258_VISION_RECORD_BUFFERS
+	int "BKVision continuous capture buffer count"
+	default 8 if VIDEO_REQBUFS_COUNT_MAX >= 8
+	default 3
+	range 3 VIDEO_REQBUFS_COUNT_MAX
+	help
+		Number of V4L2 MMAP buffers queued in FIFO mode during recording
+		or capture measurement. Additional buffers absorb storage latency
+		while the application holds a dequeued frame until its write ends.
+		Eight VGA JPEG buffers consume about 800 KiB of the AIDK encode
+		heap, in addition to the two transport buffers. Review the memory
+		budget when changing the frame size or running another encoder.
+
+config BK7258_VISION_CAPTURE_TIMEOUT_MS
+	int "BKVision snapshot timeout in milliseconds"
+	default 3000
+	range 100 30000
+
+config BK7258_VISION_RPC_PRIORITY
+	int "BKVision RPMsg worker priority"
+	default 80
+	range 1 255
+
+config BK7258_VISION_RPC_STACKSIZE
+	int "BKVision RPMsg worker stack size"
+	default 6144
+	range 2048 32768
+
+endif
+
+config BK7258_DISPLAY_SERVICE
+	bool "BK7258 AP Shaniu dual-eye display service"
+	default n
+	depends on BK7258_AP_CORE && BK7258_AIDK_DUAL_LCD && BK7258_SDIO
+	depends on (BK7258_USBMODE || BK7258_OTA_SOURCE_USB) && FS_FAT && FAT_LFN && FB_UPDATE
+	depends on !AI_AGENT_LVGL_UI
+	select BK7258_AP_APPLICATION_LIFECYCLE
+	help
+		Load versioned shaniu-eye-pack-v1 resources from the soldered SD NAND
+		exposed as /dev/mmcsd0 and render logical expressions to the two AIDK
+		GC9D01 framebuffers.  When dynamic USB MSC is selected, the volume is
+		mounted only while holding its block-device lease.  When native USB is
+		dedicated to signed OTA, no host block-device owner exists and the
+		display service serializes its own short-lived mounts.  FAT long-file-name
+		support is required by active.json and the
+		versioned .bkep names.  A fully verified staging pack is renamed into packs before an
+		fsync-and-rename active marker update.  On first boot, a missing marker
+		falls back only to shaniu-default-v1.bkep.  Physical left/right mapping
+		is deliberately unverified: shared neutral content is initially painted
+		identically to /dev/fb0 and /dev/fb1.
+
+if BK7258_DISPLAY_SERVICE
+
+config BK7258_DISPLAY_BLOCKDEV
+	string "BKDisplay asset block device"
+	default "/dev/mmcsd0"
+	help
+		Block device containing the versioned eye asset packs.  A board using
+		dynamic USB MSC must keep this equal to BK7258_USBMODE_BLOCKDEV.
+
+config BK7258_DISPLAY_SERVICE_PRIORITY
+	int "BKDisplay initialization worker priority"
+	default 75
+	range 1 255
+
+config BK7258_DISPLAY_SERVICE_STACKSIZE
+	int "BKDisplay initialization worker stack size"
+	default 6144
+	range 2048 32768
+
+config BK7258_DISPLAY_RPC_PRIORITY
+	int "BKDisplay RPMsg worker priority"
+	default 80
+	range 1 255
+
+config BK7258_DISPLAY_RPC_STACKSIZE
+	int "BKDisplay RPMsg worker stack size"
+	default 6144
+	range 2048 32768
+
+config BK7258_DISPLAY_DEVICE_TIMEOUT_MS
+	int "BKDisplay deferred device wait timeout in milliseconds"
+	default 20000
+	range 1000 120000
+
+endif
+
+config BK7258_VISION_SERVICE
+	bool "BK7258 AP camera recording service"
+	default n
+	depends on BK7258_AP_CORE && BK7258_RPTUN && BK7258_AIDK_CAMERA
+	depends on !SYSTEM_NXCAMERA && !EXAMPLES_CAMERA
+	select BK7258_AP_APPLICATION_LIFECYCLE
+
+if BK7258_VISION_SERVICE
+
+config BK7258_VISION_DEVPATH
+	string "BKVision V4L2 capture device"
+	default "/dev/video0"
+
+config BK7258_VISION_WIDTH
+	int "BKVision capture width"
+	default 640
+	range 1 4096
+
+config BK7258_VISION_HEIGHT
+	int "BKVision capture height"
+	default 480
+	range 1 4096
+
+config BK7258_VISION_FPS
+	int "BKVision requested capture frame rate"
+	default 30
+	range 1 30
+
+config BK7258_VISION_JPEG_BUFFER_BYTES
+	int "BKVision maximum JPEG buffer size"
+	default 102400
+	range 4096 1048576
+
+config BK7258_VISION_RECORD_BUFFERS
+	int "BKVision continuous capture buffer count"
+	default 8 if VIDEO_REQBUFS_COUNT_MAX >= 8
+	default 3
+	range 3 VIDEO_REQBUFS_COUNT_MAX
+
+config BK7258_VISION_CAPTURE_TIMEOUT_MS
+	int "BKVision capture timeout in milliseconds"
+	default 3000
+	range 100 30000
+
+config BK7258_VISION_RPC_PRIORITY
+	int "BKVision RPMsg worker priority"
+	default 80
+	range 1 255
+
+config BK7258_VISION_RPC_STACKSIZE
+	int "BKVision RPMsg worker stack size"
+	default 6144
+	range 2048 32768
 
 endif
 
 config BK7258_APP_USBMODE
 	bool "BK7258 USB0 CDC/MSC mode command"
 	default n
-	depends on !BK7258_AP_CORE && BK7258_OTA_RPMSG && SYSTEM_NSH
+	depends on !BK7258_AP_CORE && BK7258_USBMODE_RPMSG && SYSTEM_NSH
 	select BUILTIN
 	select NSH_BUILTIN_APPS
 	---help---
 		Build the usbmode status/cdc/msc command.  The command calls only the
-		CP-to-AP RPMsg control API; it never registers CherryUSB classes itself.
+		independent CP-to-AP RPMsg control API; it never registers CherryUSB
+		classes, enables OTA, or writes Flash itself.
 
 if BK7258_APP_USBMODE
 
@@ -99,6 +661,29 @@ config BK7258_APP_USBMODE_PRIORITY
 
 config BK7258_APP_USBMODE_STACKSIZE
 	int "usbmode stack size"
+	default 2048
+
+endif
+
+config BK7258_APP_RESET_ALIAS
+	bool "BK7258 reset command alias"
+	default n
+	depends on !BK7258_AP_CORE && BOARDCTL_RESET && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Register reset as an alias for the NSH reboot command.  Both commands
+		enter BOARDIOC_RESET and the CP-owned AON watchdog whole-device reset
+		path; neither command depends on the COM-port RTS/DTR lines.
+
+if BK7258_APP_RESET_ALIAS
+
+config BK7258_APP_RESET_ALIAS_PRIORITY
+	int "reset alias priority"
+	default 100
+
+config BK7258_APP_RESET_ALIAS_STACKSIZE
+	int "reset alias stack size"
 	default 2048
 
 endif

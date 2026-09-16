@@ -1,0 +1,25 @@
+domain: MicDomain
+    conf: boot
+        CaptureLifecycle Is Boot
+        FFmpegCommand = ;
+    conf: capture
+        ALL
+            CaptureLifecycle Is Ready
+            ActiveStreams Includes Capture0
+        FFmpegCommand = pcm0c,start,;
+    conf: off
+        ALL
+            CaptureLifecycle Is Ready
+            ActiveStreams Excludes Capture0
+        FFmpegCommand = pcm0c,stop,;
+
+domain: MusicVolumeDomain
+    conf: mute
+        MusicVolume In 0
+        FFmpegCommand = Music0,set_parameter,volume=0;
+    conf: index-%MusicVolume
+        MusicVolume In [1,14]
+        FFmpegCommand = Music0,set_parameter,volume=10^(-4*(15-%MusicVolume%)/20);
+    conf: full
+        MusicVolume In 15
+        FFmpegCommand = Music0,set_parameter,volume=1;
