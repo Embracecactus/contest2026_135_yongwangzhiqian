@@ -55,8 +55,10 @@
 #include "bk7258_voice_volume_store.h"
 #include "bk7258_preferences.h"
 #include <arch/chip/bk7258_wifi.h>
+#ifdef BKAGENT_APP_OTA_ENABLED
 #include <arch/chip/bk7258_active_image.h>
 #include <arch/chip/bk7258_ota_rpmsg.h>
+#endif
 #include "bk7258_voice_config.h"
 #endif
 
@@ -115,6 +117,7 @@ static int product_control(void *context, enum bkcontrol_command_e command,
   switch (command)
     {
       case BKCONTROL_INFO:
+#ifdef BKAGENT_APP_OTA_ENABLED
         {
           struct bk7258_mcuboot_version_s version;
           struct bk7258_ota_pair_snapshot_s pair;
@@ -132,6 +135,9 @@ static int product_control(void *context, enum bkcontrol_command_e command,
           status->device_info.security_counter = pair.security_counter;
           return 0;
         }
+#else
+        return -ENOTSUP;
+#endif
       case BKCONTROL_STATUS: break;
       case BKCONTROL_CANCEL:
         /* The fixed official API exposes finalize-and-dispatch, not request
