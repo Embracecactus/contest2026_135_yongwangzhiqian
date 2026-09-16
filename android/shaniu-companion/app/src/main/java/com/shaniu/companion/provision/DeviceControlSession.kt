@@ -125,7 +125,12 @@ internal class DeviceControlSession(
         if (inFlight == null) pump()
         return true
     }
-    fun finishConfigTransaction() { configTransaction = false; configCancelRequested = false; pump() }
+    fun finishConfigTransaction(message: String? = null) {
+        configTransaction = false
+        configCancelRequested = false
+        publish(state.copy(operationMessage = message))
+        pump()
+    }
     private fun enqueue(request: Request): Boolean {
         if (!foreground || !state.authenticated || transport == null || queued != null ||
             confirmation != null || inFlight?.read == false) {

@@ -1297,7 +1297,7 @@ class MainActivity : Activity() {
         }
         cloudModelsCanceling = false
         configFlow = ConfigFlow.NONE
-        directSession.finishConfigTransaction()
+        directSession.finishConfigTransaction(message)
     }
 
     private fun handleCloudModelsResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
@@ -1354,8 +1354,8 @@ class MainActivity : Activity() {
                     configFlow = ConfigFlow.NONE
                     if (expected != null) {
                         cloudModelsExpected = null
-                        directSession.finishConfigTransaction()
                         directMessage = if (decoded == expected) "云端模型已保存并回读确认" else "设备回读的模型配置未确认保存"
+                        directSession.finishConfigTransaction(directMessage)
                     }
                 }
             }
