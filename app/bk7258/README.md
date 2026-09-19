@@ -1,13 +1,18 @@
-# BK7258 board diagnostic built-ins
+# BK7258 产品适配与受控维护入口
 
 映射到 openvela `apps/system/bk7258`，由官方 `apps/system/`
 CMake、Kconfig 和 Make 递归机制自动发现。
-本目录只承载由 App Kconfig 显式选择的 BK7258 NSH 维护与诊断命令；初始化模板
+本目录承载傻妞产品适配及由 App Kconfig 显式选择的 NSH 维护命令；初始化模板
 `app/hello_app` 保持独立且不承载产品功能。每个命令都有独立的
 `CONFIG_BK7258_APP_*` 开关；底层 Driver/Test
 符号只负责能力/端点，不再自动注册应用。
 
-可用 App 开关：
+当前产品通过官方 Agent/Session/Voice/Media 运行，Android 工程位于
+`android/shaniu-companion/`，不会在这里新增另一套对话运行时。
+现役接入、635 Skill 验证和 634 App OTA 见仓库 README 与 Master Plan。
+AIDK 的 xTS/drivercheck 配置已退役，相关源码保留，不属于产品启动或构建前置。
+
+源码中保留的可选 App 开关（不代表产品全部启用）：
 
 ```text
 CONFIG_BK7258_APP_BKVALIDATE
@@ -135,7 +140,10 @@ bkhealth status
 芯片提供有效的 25 摄氏度参考原始码后，才输出 `temperature_mC` 和
 `calibrated=yes`。host 与目标构建通过仍不等于实板读数验收。
 
-## AIDK NFC 在场 App
+## NFC 适配与非产品维护入口
+
+MFRC522 芯片驱动/总线适配已完成，但未接入本次板端产品交互。
+以下可选维护命令不是碰一碰认领通过的证明，不作为比赛演示前置。
 
 `CONFIG_BK7258_APP_NFC=y` 在 CP 注册 `bknfc`，AP 的 `bknfc-v1`
 服务按次独占打开、读取并关闭 `/dev/nfc0`：

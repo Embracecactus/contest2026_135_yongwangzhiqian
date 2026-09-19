@@ -121,9 +121,9 @@ equivalent to T5-Board V1.0.2 and is not used as a pin source.
 | Charge detect | P38 | not fitted | P51 `5V_DET`; P26 `FULL_DET` |
 | Audio capture | MIC1 on MICP1/MICN1 (mono) | MIC1 on MICP1/MICN1 + MIC2 on MICP2/MICN2 (stereo) | MIC1 primary microphone; MIC2 input is AUDLP/AUDLN loopback for AEC, not a second microphone |
 | Block media | not fitted | TF: CLK P2, CMD P3, D0 P4, D1 P5, D2 P10, D3 P11; P6 CD label has no verified edge | soldered SD NAND: CLK P14, CMD P15, D0..D3 P16..P19 |
-| Display connector | not fitted | RGB LCD fitted | CN5 QSPI route present; single-screen module not connected |
-| DVP camera connector | not fitted | fitted | GC2145 connected; Phase 0 identity probe only |
-| Motor | not fitted | not fitted | CN10 route on P9 present; motor not connected |
+| Display connector | not fitted | RGB LCD fitted | two fitted GC9D01 160×160 panels; optional CN5 single-screen module disconnected |
+| DVP camera connector | not fitted | fitted | GC2145 connected; current product captures JPEG through the single V4L2 owner |
+| Motor | not fitted | not fitted | CN10 motor fitted, P9 active high; bounded product vibration |
 | External 32.768 kHz crystal | not fitted | schematic-dependent | X2/C16/C17 not fitted |
 
 The Core board is the broad hardware-verified baseline.  T5-Board entries are
@@ -136,26 +136,35 @@ pin-compatible profiles.
 The AIDK AI Toy has one maintained normal OpenVela CP/AP pair.  Its reviewed
 bindings currently cover UART0 at 115200 8N1, P40/P8 user GPIO, P50 speaker
 control, MIC1 plus the MIC2 AEC-reference capture input and soldered SD NAND.
-The maintained AP profile enables the I2C0 controller route on P20/P21 and
-UART1 on P0/P1 because the schematic connects SC7A20H and MFRC522 there, but
-the current tree has no sensor/NFC device binding, probe or production driver;
-the capability and conflict macros record wiring only.
+The maintained AP profile binds SC7A20H on I2C0 P20/P21 to the acceleration
+service. MFRC522 driver/bus adaptation on UART1 P0/P1 is present, but NFC is
+not used in the current contest product interaction; a probe or device node
+does not establish a working tap-to-claim flow.
 Flow control, SWD, boot hold, RTT and RTS/DTR reset stay disabled.  COM/USB port
 identity is dynamic transport metadata and is not a board or product identity.
-The unpopulated X2/C16/C17 network does not reserve P8/P9: P8 is enabled as
-KEY3, while P9 remains unclaimed because no motor is connected to CN10.  The
-CN5 single-screen module is likewise disconnected, so its QSPI/display route
-is recorded but not initialized.  The AIDK CP SDK overlay also disables the
+The unpopulated X2/C16/C17 network does not reserve P8/P9: P8 is KEY3 and P9
+belongs to the fitted motor. The optional CN5 single-screen module is
+disconnected; the two GC9D01 eye panels are separate bindings and are active.
+The AIDK CP SDK overlay also disables the
 vendor MP_A external-32-kHz override and retains the calibrated internal ROSC
 as the low-power clock source.
 
-The normal AP config performs only the GC2145 Phase 0 identity check.  It
-enables both camera LDOs through active-high P49, supplies 24 MHz MCLK on P27,
-releases active-low reset on P28, and uses hardware I2C1 map mode 1 on P42/P43
-to read register `0xf0` followed by `0xf1`.  A value of `0x21`/`0x45` reports
-ID `0x2145`; no sensor initialization register table or DVP capture path is
-run, and the probe asserts reset and powers the camera off again before board
-bring-up continues.
+The current GC2145 product route is no longer Phase-0-only. P49 supplies the
+camera LDOs, P27 carries MCLK and P28 is reset; I2C1 map mode 1 uses P42/P43.
+The chip driver and board binding expose `/dev/video0`; the product vision
+service owns capture, and Agent requests reuse that owner. JPEG capture and
+recognition have real-board evidence; color accuracy is not guaranteed.
+
+Current applications are T5-Board Dolphin and AIToyBoard Shaniu. Shaniu uses
+K1/K3 for volume, K2 for power policy and the wake word for conversation.
+K2's low-power current acceptance remains separate from button detection.
+The source declaration of a P40 user GPIO must not be read as a claim that
+the board's red/green charging LEDs can be switched off in software.
+
+Three-board build commands and current publication limitations are in the
+root README. Normal SDK pairs are `cp + ap` for Core/Board and
+`cp-aidk + ap-aidk` for AIToyBoard. Firmware 635 Skill/voice/display and
+firmware 634 App OTA have separate evidence boundaries in the Master Plan.
 
 ## Peripheral configuration boundary
 

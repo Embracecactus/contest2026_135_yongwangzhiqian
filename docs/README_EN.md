@@ -20,6 +20,10 @@ facts and are not duplicated under `docs/`. For BK7258, use
 
 ## BK7258 entry points
 
+- [Contest report (Chinese)](contest/技术报告-BK7258三核适配与傻妞AI伴侣.md);
+- [Videos and three-board build guide](../README_EN.md), including the unpublished Agent dependency boundary;
+- [635 runtime Skill evidence](verification/bk7258/2026-09-20-shaniu-runtime-skill-635.md): user-confirmed voice/display; App OTA remains the separate 634 result.
+
 - [SoC and board integration](platforms/bk7258/README_EN.md) for the cross-board
   build, boot, update, and delivery boundary;
 - [SoC documentation](chips/bk7258/README.md) for shared BK7258 contracts;

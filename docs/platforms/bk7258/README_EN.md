@@ -20,9 +20,10 @@ device population, or acceptance result to an SoC fact.
 - `--boot direct` is an unsigned bring-up/diagnostic path, not a product release.
 - The signed product chain is board-owned BL1 → pinned NuttX MCUboot BL2 →
   signed same-slot CP/AP images in an A/B model.
-- Wired whole-device recovery and apps-only OTA are distinct. Every authorized
-  full download uses fresh temporary BL1 and MCUboot key pairs; OTA remains
-  bound to the public trust contract already installed on the target.
+- Wired whole-device recovery and apps-only OTA are distinct. Ordinary builds
+  and downloads reuse the approved trust identities; they do not authorize
+  generating or rotating BL1/MCUboot keys. The 635 full package has floor 635;
+  its OTA-only counterpart does not replace BL1/BL2.
 
 The [build, release, and hardware-evidence SOP](nuttx-port/bk7258-build-flash-debug-sop.md)
 is the maintained command and safety reference. Do not recover current
@@ -40,6 +41,12 @@ addresses, scripts, or trust policy from historical N15/N17 documents.
 | Licenses and derived-source origin | `SOURCE_PROVENANCE.md` |
 
 ## Platform documents
+
+- [Contest report](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) and the root README
+  contain the videos and build guide. The official Agent dependency still has
+  unpublished local changes; a clean public-manifest reproduction is not claimed.
+- [Shaniu Master Plan](shaniu-master-plan.md) separates 635 Skill/voice/display
+  acceptance from the 634 App control/OTA results.
 
 - [RF calibration and factory-provisioning contract](rf-calibration-and-factory-provisioning.md):
   the maintained Chinese product contract for device-unique RF state, Beken

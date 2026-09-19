@@ -61,6 +61,12 @@ logical base pair, not two product variants.
 | T5AI-Core | `app` | `openvela_ap` | `xts`; paired `drivercheck_cp` / `drivercheck_ap` |
 | AIDK AI Toy | `app` | `openvela_ap` | None; product-local `xts` and `drivercheck` configurations retired, source retained |
 
+The SDK pair is selected by the two role profile files, not inferred from the
+word "AP": T5AI-Core and T5-Board use `cp + ap`, while AIToyBoard uses
+`cp-aidk + ap-aidk`. Install/rebuild and verify the exact pair before building.
+The root README contains all three normal build commands and discloses the
+unpublished Agent dependency that still prevents claiming clean product reproduction.
+
 Each physical board owns exactly one normal application entry at
 `configs/app/defconfig`. It is a complete CP configuration, not a shared
 cross-board fragment. `configs/openvela_ap/defconfig` remains the companion

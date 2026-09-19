@@ -1,7 +1,9 @@
-# BKVoice AIDK 授权音色伴侣：产品架构与适配计划
+# BKVoice AIDK 授权音色伴侣：历史方案（已退出当前产品主线）
 
-本文是 [傻妞全项目 Master Plan](shaniu-master-plan.md) 的板端 App、Gateway AI、模型资产与
-OpenVela 能力专项计划。跨设备、Android、发布和项目级优先级以 Master Plan 为准。
+本文保留早期自有 Gateway、语音运行时与授权音色探索的设计来源和历史证据，不是
+当前适配任务清单，也不要求恢复文中旧入口。当前设备端采用官方 Agent/Session/Voice/
+Media，控制 App 不承担对话或音频中转；现状与优先级只见
+[傻妞全项目 Master Plan](shaniu-master-plan.md)。历史源码按当前调用者及复现用途保留。
 
 ## 1. 产品目标与当前边界
 
@@ -453,19 +455,16 @@ delivery profile。独立仓的 `docs/SOP.zh-CN.md` 是“来源 -> 授权 workl
 草稿 -> 显式转写接受 -> speaker consistency -> 候选生成 -> 客观门 -> 匿名盲听 -> 产品选择/
 签发”的唯一主机 SOP。
 
-独立仓已发布到 `https://github.com/Embracecactus/ConsentVox.git`。OpenVela manifest 不跟随
-浮动分支，而是固定到 `v0.2.0` 所指向的 40 位提交
-`ced2bb0daa7dafe5fb6b7b0d92be317a0a9d8c42`。当前接入状态为：
+历史外部仓记录为 `https://github.com/Embracecactus/ConsentVox.git`、`v0.2.0` /
+`ced2bb0daa7dafe5fb6b7b0d92be317a0a9d8c42`，不代表当前参赛清单已经接入。
+2026-09-18 核对本仓 `contest2026_135_yongwangzhiqian.xml`，没有对应 project 或
+linkfile；因此干净同步不能据本文推断存在 `third_party/consent-vox` 或
+`vendor/openvela/tools/consent-vox`。历史独立 checkout、import 和 22 项测试记录
+也不继承为当前 manifest 验证。
 
-1. 在 workspace 的 `.repo/manifests/contest2026_135_yongwangzhiqian.xml` 中增加
-   独立 project，将其物化到 `third_party/consent-vox`；
-2. 用一个目录级 `linkfile` 把其 `src` 暴露到
-   `vendor/openvela/tools/consent-vox`，通过
-   `PYTHONPATH=vendor/openvela/tools/consent-vox python3 -m consentvox` 调用；
-3. 固定 checkout、tag、linkfile import、独立仓 22 项 synthetic tests 和当前 BK7258
-   微信 manifest host regression 均已验证通过；
-4. 该 host tool 不进入 CMake/Make source、固件 manifest、完整下载包或 OTA。迁移剩余
-   调用方和历史证据后再删除 `tools/bkvoice`，避免在脏工作树中提前破坏复现入口。
+若后续确需迁移，由实际消费者决定固定依赖及调用方式，使用现有工具验证后再
+退役被替代入口；本轮不为语音音色扩展新项目或自动同步该依赖。该主机工具不进入
+产品 CMake/Make、固件或 OTA；现有 `tools/bkvoice` 源码和历史复现入口保留。
 
 当前 `tools/bkvoice` 只保留为本次可复现证据入口，不再新增通用功能。ConsentVox
 公开 source manifest 只有 path hash，私有 manifest 才含相对路径；`operator-attested`

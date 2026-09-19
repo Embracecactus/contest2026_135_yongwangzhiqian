@@ -8,6 +8,7 @@ sdk-profiles/<manifest-version>/
   cp.config
   cp-aidk.config   # AIDK internal-ROSC overlay; no external 32.768 kHz crystal
   ap.config
+  ap-aidk.config  # normal AIDK AP profile; selected by openvela_ap/profile.conf
   ap-sdio4.config  # optional four-line AP capability; install/rebuild on demand
 ```
 
@@ -36,7 +37,10 @@ tools/bk7258/bk7258.py sdk rebuild \
 `sdk list` shows tracked profiles, not only locally installed proprietary
 bundles. `cp-aidk` disables the vendor MP_A external-32-kHz override because
 the AIDK X2/C16/C17 network is not fitted; the internal calibrated ROSC remains
-the low-power source. `ap-sdio4` is an explicit hardware-capability variant.
+the low-power source. AIToyBoard's normal product pair selects `cp-aidk` and
+`ap-aidk`, while T5AI-Core and T5-Board select `cp` and `ap`.
+Use the selected board's role profiles rather than inferring a profile from
+its CPU role alone. `ap-sdio4` is an explicit hardware-capability variant.
 Verification is expected to fail until an optional bundle is rebuilt or
 installed. A variant is not a build input unless a board seed selects it.
 

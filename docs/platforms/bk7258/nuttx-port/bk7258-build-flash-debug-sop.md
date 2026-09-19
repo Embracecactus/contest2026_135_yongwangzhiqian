@@ -1,6 +1,21 @@
 # BK7258 build, package and hardware evidence SOP
 
-Last reviewed: 2026-09-13 (instruction scope and workflow routing only)
+Last reviewed: 2026-09-20 (publication inputs and board SDK mapping)
+
+## Current reproduction and evidence boundary
+
+The root README is the judge-facing three-board build entry. T5AI-Core and
+T5-Board select SDK `cp + ap`; AIToyBoard selects `cp-aidk + ap-aidk`.
+Keep the manifest checkout name `contest2026_135_yongwangzhiqian`: the SDK
+loader reads that directory's same-named XML. A clone without the complete
+OpenVela workspace and linkfiles is not a build-ready workspace.
+
+635 runtime Skill, voice and display were confirmed by the user with CodeBuddy;
+App control and actual App OTA retain their separate 634 acceptance. The 635
+full package has rollback floor 635; OTA-only does not replace BL1/BL2.
+Public Agent `e65550f` still has unpublished local extensions in the working
+build: a team-repository push is not clean-manifest reproduction. Do not
+restore retired patches or silently substitute dependency source to hide it.
 
 ## One host entry
 
