@@ -31,9 +31,34 @@ live in `app/dolphin`, while existing Shaniu services remain in `app/bk7258`.
 IndexTTS/server/phone/training components do not acquire a NuttX link merely by
 being part of the product; source ownership and build registration are separate.
 No new Git repository or `ttsindex` manifest project is introduced here.
-Existing `frameworks`/`external` links retain their patch-integration purpose.
+Existing `frameworks`/`external` links carry maintained build integration.
+The historical framework/FFmpeg patch and generated-source replacement chain
+is retired; do not recreate it to satisfy a stale instruction.
 For the explicit development remote override and official delivery distinction,
 see the root [README](../../README.md).
+
+## Model development is optional for firmware builds
+
+The current public model and metadata live in `app/bk7258/models`; Android's
+builtin WKM lives in its own assets directory. Both are versioned in the team
+repository. No separate training repository or NuttX linkfile is required.
+Private training recordings/candidates are excluded from public publication.
+Training inputs must have an authorized local dataset manifest and preserved
+source/voice split; exporting a candidate is not board or human acceptance.
+
+Reuse the maintained commands and inspect their current arguments:
+
+```sh
+tools/bk7258/bk7258.py voice kws audit --help
+tools/bk7258/bk7258.py voice kws train --help
+tools/bk7258/bk7258.py voice kws evaluate --help
+```
+
+The documented training runs used TensorFlow 2.15.1 in a separate environment.
+Ordinary firmware builds use the existing model and do not require TensorFlow,
+a training corpus, private voice-cloning weights or cloud credentials.
+See `.agents/skills/edge-wakeword-training/` for the reusable workflow and the
+contest report for builtin-versus-App-activated model identities.
 
 ## Source-layer gate
 
@@ -84,7 +109,7 @@ Use `--status-only` or `--reboot-only` with `--expected-version`,
 The signed catalog may be scoped with `--expected-board`; product automation
 must always supply its selected physical board.
 
-### Read-only Gateway release catalog
+### Historical Gateway release catalog (not used by current Shaniu)
 
 After `release product` has produced one device-bound delivery ZIP, export the
 metadata consumed by the authenticated Android console with:

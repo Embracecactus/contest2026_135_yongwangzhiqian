@@ -2,6 +2,639 @@
 
 状态：`IN_PROGRESS`
 
+## 2026-09-20 代码与比赛材料发布收口
+
+- 代码快照 `82610138` 已推送开发 fork 的
+  `feat/shaniu-contest-delivery-20260920`，基于官方 `7079493e`；原开发工作树
+  保留，未创建或合入官方 PR，不将 fork 推送写成比赛正式提交完成。
+- 635 Skill 产品入口与 CMake 文件已逐字节核对，与发布快照一致；不重跑
+  用户与 CodeBuddy 刚完成的语音/显示实测。公开摘要见
+  [635 验证记录](../../verification/bk7258/2026-09-20-shaniu-runtime-skill-635.md)。
+  App 控制与 App OTA 保持 634 的版本边界，635 未重测。
+- README、英文入口、技术报告、板型/SDK、App、Skill 和来源文档统一更新；
+  主视频 287.905 秒、App 补充 85.612 秒，分开发布，不拼入 5 分钟主片。
+- 复用 `verify layers` 通过（499 sources / 252 Kconfig / 2 legacy exceptions）；
+  三板配置/分区均解析正常，SDK 为 Core/Board 的 `cp + ap` 与 AIDK 的
+  `cp-aidk + ap-aidk`。这是静态核查，不是三板干净编译或实板重验。
+- 公开复现仍有缺口：`packages/ai_agent@e65550f` 的 21 个本地修改未形成
+  可获取的公共提交。无新 patch、无虚构 fork、无依赖升级；依赖发布、
+  最终干净复现和正式比赛提交仍须分别收口。
+
+## 2026-09-20 运行时 Skill 补齐（已实板验证通过）
+
+- 背景：比赛要求 AI 硬件产品创新赛道说明运行时 Skill（`/data/agent/skills/`）的
+  定义与触发场景；实测此前候选日志为 `Skills summary: 0 bytes`——`/data` 为
+  tmpfs、ROMFS 无技能资产、产品入口只创建目录（`runtime_skill_evidence` 子代理
+  只读结论，2026-09-19）。
+- 适配（仅产品层，不新造运行时）：`app/bk7258/bk7258_agent_product.c` 在启动时
+  安装内置技能 `device-assistant.md`（只描述本产品真实注册的 `device_status`/
+  `device_motion`/`device_control` 工具，不含凭据与用户数据，tmpfs 下每次开机重装）；
+  产品工具 provider 增加 `read_file`（转发官方 `tool_read_file_execute`，路径由
+  官方校验限定在 `/data/agent`）；`frameworks/cmake/agent_framework.cmake` 将
+  官方 `src/tools/tool_files.c` 恢复编入（此前作为无消费者模块被排除，现由技能
+  读取链路消费）。技能加载/热重载/触发沿用官方 `agent_loop`/`context_builder`
+  既有机制，未改官方依赖源码与 NuttX/SDK。
+- 验证：direct 构建通过（BL1/CP/AP），AP raw 1,681,640 B、SHA256
+  `f755aee6726217a489402b3fee1619207da018b6a9dce76ebcc463ece2600bac`；`strings`
+  确认 `# Device Assistant` 与 `device-assistant.md` 已编入固件。
+- 签名包：复用同板 BL1/MCUboot 开发身份（floor 632）完成 mcuboot 构建与
+  `release ota`，`18.6.399+635` / generation 635 位于
+  `out/shaniu-official-candidate/voice635-runtime-skill/`；包 3,416,936 B、
+  SHA256 `05b7a741b1994ab4decf1dd015f52408334eb3331f20f927a1e06e62b55f5815`，
+  CP/AP 分别写非活动槽（1,253,376 / 2,158,592 B）；`verify trust` PASS
+  （公钥 MCUboot CP/AP 签名）。
+- 整机全量包（full 要求 generation==floor，故以 `--rollback-floor 635` 重构建后生成）：
+  `out/shaniu-official-candidate/voice635-runtime-skill-full/`，bkpack 7,980,187 B、
+  SHA256 `08482726118468fd27121313839dfcea932137fb3066979131d504fe060a3532`；
+  8 MiB 全片 bin SHA256 `9418afb0529075bbde4e2ac3c8614731984958ff595505ded4c577174e1c8e43`；
+  绑定同板 621 基线（`layout621-private-base`，device `REDACTED-SAME-BOARD`，
+  method `same-device-partition-relocation`），可供已授权的全片写入，
+  `verify trust` PASS（BL1/BL2/CP/AP 四层）。语义差异：OTA 保留设备当前数据；
+  全量闪存把设备恢复到 621 基线数据并写入 635 固件，且此后 OTA 需 ≥635。
+- **实板已验证（2026-09-20，用户操作）**：串口确认
+  `bk7258: runtime skill installed: /data/agent/skills/device-assistant.md`、
+  `[tools] Registered tool provider: bk7258-device` / `bk7258-camera`、
+  `[tools] Tools JSON built (0 builtin + 2 providers)` + `Tools JSON loaded: 2012 bytes`、
+  `BKVOICE wake ready=1 result=0`、`BKDISPLAY SERVICE READY pack=shaniu-cyan-v2 revision=2`、
+  `AIDK DEFERRED DONE failures=0`；用户确认语音验证成功（运行时 Skill 缺口闭环）。
+  用户另确认双屏显示正常（`BKDISPLAY RENDER PASS ... pack=shaniu-cyan-v2 revision=2 fallback=0`）。
+  日志要点存 `out/shaniu-official-candidate/voice635-runtime-skill/hil-verify/`。
+  非阻塞观察沿用既有记录（启动早期 restore=-16 后自动恢复、BT 0x2006/0x200a 0x0c、
+  MFRC522 驱动探测成功但产品未接入）。
+- **验证边界（用户确认口径）**：App 控制与 App OTA 沿用 634 实测结论，本轮未改动
+  二者代码路径（本轮仅新增运行时 Skill 安装与 read_file 工具），故未在 635 上重测；
+  635 的 CP/AP 二进制哈希与 634 不同（CP `6f489f22→c13a404b`、AP `77221096→450c82e2`，
+  差异来自本轮 Skill/tool_files 改动与编译参数），不把"未改路径"写成"已重新验证"。
+- 来源与报告同步：`SOURCE_PROVENANCE.md` 已把过时的补丁路径叙述改为依赖工作树
+  未合入修改的显式披露（官方 Agent 检出 `e65550f` + 21 文件 +1830/-549，构建直接
+  编译该工作树，非干净 manifest 复现，公共仓 PR 未创建）；技术报告 3.4.5 已按
+  "已内置 + 可扩展"口径更新，NFC 按"驱动适配完成、未用到板子上"更正。
+- 公开提交排除项：`app/bk7258/models/datasets/` 与
+  `models/candidates/` 因用户录音与"仅本地训练/评估"授权记录退出提交范围
+  （已加入 `.gitignore`），其构成与指标在报告中披露；不扩大私人语料公开范围。
+
+## 2026-09-19 手动 App OTA 与眼睛重启保持（634，已实测通过）
+
+- 当前 633 实板已完成 App Wi-Fi 配置及 MiMo Token Plan 保存；用户随后确认
+  设备设置和眼睛资源安装均已恢复，原 `-22` 已闭环。安装资源期间出现的
+  `media_recorder_queue_push` 告警对应 KWS 消费延迟后的丢最老帧策略，只作为
+  重负载窗口实时性限制记录，不归因于 FAT 或设备设置事务。
+- 复用当前 633 对应 build manifest 生成下一计数签名包
+  `18.6.398+634`，未再改 SDIO、Media、SDK、NuttX 或产品功能源码。包 SHA256
+  `082d7091be0df391b179081f0e791194245705ae759b01865af171561da0ad9e`，
+  MCUboot CP/AP 公钥验签和 `aidk_ai_toy` App OTA 静态检查均通过。
+- 候选位于 `out/shaniu-official-candidate/voice634-manual-app-ota/`，并已复制到
+  手机 `Download`；手机端文件大小 3416935 B、SHA256 与主机一致。用户通过 App
+  发起真实 OTA，进度约 93% 时设备按升级流程断开控制连接，App 随后恢复并显示
+  100% 成功。重启后的板端原始回读确认 `18.6.398+634 counter=634`、
+  `pair=confirmed`、活动 B 槽、trial 已确认且 supervisor faults/recoveries 均为 0；
+  证据位于 `out/shaniu-official-candidate/hil634-manual-app-ota/post-ota/serial.raw`，
+  SHA256 `57bd4c99bd7ebcc6e170bf223899b627d7f02b5995e638ba42709bd9982dbd02`。
+  采集会话因期望正则把 `+` 过度转义而被工具标为 error，不影响原始串口中的版本、
+  计数和确认状态，也不重复执行已经通过的升级。
+- OTA 后用户重新安装 `shaniu-cyan-v2` 眼睛资源并复位，肉眼确认眼睛持续显示；
+  独立重启后状态回读为 `service=ready state=READY(3) last_error=0`、
+  `pack=shaniu-cyan-v2 revision=2`。证据位于
+  `out/shaniu-official-candidate/hil634-manual-app-ota/eyes-after-reboot/serial.raw`，
+  SHA256 `e8ac372c347817ed8f8b5527dac1bb62f6c70473b98f8e0e52f03b79d498b653`。
+- 旧卷曾出现 66 B `active.json` 全零且 Windows `chkdsk` 报 FAT 一致性错误；当前
+  同一显示存储实现经资源重装和复位未再复现。现有存储租约会串行化 display、
+  preferences、vision、OTA、power 与 MSC，资源安装完成后也会重新挂载并读取标记，
+  因而没有证据把旧故障归因于并发双挂载、缺少 `sync()` 或确定的 SDIO/上游缺陷。
+  本候选不增加默认包回退，也不基于未复现假设修改文件系统或 SDK。
+
+## 2026-09-19 已认领设备 Wi-Fi 扫描分流（632，已部署并实测通过）
+
+- App 27 七次扫描连接失败：六次停在 TLS 阶段并收到 GATT status 19，一次连接阶段
+  status 62；没有扫描结果。源码确认已认领设备只接收 `SDC1`，App 只读扫描发送
+  `SPV1`，原处理必然按协议错误断开；旧失败没有同次板端日志，不将全部断连
+  归因于同一原因。修复后的真实扫描结果如下。
+- 最小适配在既有控制连接按首帧分流，借用同一 TLS 与原扫描状态机；验证原持有
+  证明后仅允许 SCAN，拒绝配置/认领写入，不输出或更换控制密钥。取消仍走原扫描
+  ticket 收尾。未改 NuttX、SDK、FFmpeg、App 或模型，未新增测试/诊断工具。
+- 增量构建通过，ELF 已含 `bkprov_pair_attach_scan`；AP raw 1602584 B，
+  SHA256 `3663a5f43454004cf12a8f844d1d9bcb4e51b4d0421b2758f04516032b36d27e`。
+  签名 CP/AP 候选 `18.6.396+632` 位于 `out/shaniu-official-candidate/voice632-claimed-wifi-scan/`，
+  包 SHA256 `78afe3b8e067cd16ee48c2f65917daf8b34a7961c8a872a437c6efc339b9da7e`。
+  仅生成升级格式签名包供既有部署流程使用，未执行 App OTA。
+- 用户重新连接后找回原 CH340/COM8；新读取确认 631 活动 A/非活动 B，再通过
+  原 MCUboot 公钥签名校验，一次有线写入非活动 B 的 CP/AP，无全量擦除、无数据
+  清空。下载成功，启动为 `18.6.396+632 counter=632 pair=confirmed`，活动 B；
+  该观察窗口 supervisor faults/recoveries=0，唤醒推理继续运行。
+- App 27 一次真实扫描成功：CP 扫描 21 条记录，App 在 18:38:19 收到
+  `wifi_scan_result status=0 count=14 truncated=false`，界面显示可选网络。
+  第一次采集因主机误用非空检查而没有点击（ready 文件按契约为空），不计扫描
+  尝试；修正主机调用后唯一实际扫描通过。证据位于
+  `out/shaniu-official-candidate/hil632-claimed-wifi-scan/`。
+- 本轮没有改 App、NuttX、SDK、FFmpeg 或模型，没有执行 App OTA。扫描通过不
+  等于删除 App 控制凭据后的重新绑定已修复；该入口仍未完成。另观察到眼睛资源
+  `active-read ret=-20` 持续重试，尚未定位，不能继承 631 的资源恢复结论。
+
+## 2026-09-19 启动恢复与控制 App 修订（App 27 已安装，固件未部署）
+
+- 仍以实板 631 / App 26 为观察对象。新增适配：SD 忙时延后恢复心情、回答模式
+  和唤醒阈值，启动音量/Trigger 的 `-EBUSY` 不再永久置服务不可用；眼睛安装后
+  启动动画 worker 不覆盖已经确认的 READY。马达声明与实际接口统一为 1..100 ms，
+  提示词要求每次动作重新调用工具，不把历史成功当作本次执行。
+- 新默认唤醒阈值 0.60，App CONFIG kind 6 可配置并保存 50..90%；模型权重未变。
+  当前实板 631 仍是 0.65，不能将源码值当作已经生效。
+- App 27 / `0.5.22-shaniu-sensitivity` 已覆盖安装至同一 Mi10，保留 App 数据。
+  图标按用户意见改为红色水晶手机与原创少女，不使用纯文字或通用机器人眼睛，
+  板端 LCD 图集不变。服务就绪后重读启动期间失败的配置，不重发设置。
+  APK 8992974 B，SHA256
+  `953c607f5e37f40d0317070966f0c75e9c9609995100c5ec4d240f46b8904683`；
+  安装前签名一致，安装后版本与手机实际 APK 哈希匹配。首次安装命令因 ADB
+  offline 未执行成功；手机重新授权后安装成功，未清数据或卸载。
+- 经用户授权，将既有同板四字段认证文件传至手机下载目录，传输后哈希一致；
+  证书及持有证明与保存的同板身份记录匹配，未生成新身份或传输私钥。
+  文件导入及删除本机绑定后的重新认证尚未验收，不能把文件传输当作认证成功。
+- 固件构建通过，AP raw 1602184 B，SHA256
+  `3d0f1de7f02b49298a08ea20871d4ad9b92f6ffd11c9349e35631f06cd5677fb`；
+  实际 AP role 为 `bk7258-role-8224677315ad604b`，`MEDIA_LOG_WARN=y`，
+  只减少正常过程输出，保留 WARN/ERROR。未改 bootloader、上游、SDK 或依赖 revision，
+  未签发新固件、烧录或执行 OTA；串口仍由用户操作。
+- 新阻塞：当前固件的 NFC 帧交换和 ISO-DEP 未编入；团队 MFRC522 扩展实现已在
+  `3a84b99a` 移除，现有官方驱动没有所需 EXCHANGE/SET_RF ioctl，单开配置无效。
+  App 删除本机绑定会丢弃旧随机控制凭据；已有 receipt recovery 只核对未完成事务，
+  不是已绑定设备的重新绑定入口。禁止以清设备配置、绕过认证或替换控制密钥冒充修复。
+  NFC、完整重新认证流程、复位重连及新候选 OTA 均未通过。
+- NFC 例外依据：实际 NuttX `76354c637858ecb0aa4601629327acb6f44a26bb` 的
+  `drivers/contactless/mfrc522.c:1533` 仅支持 UID、MIFARE 数据与状态 ioctl，
+  对 EXCHANGE/SET_RF 必然返回 `-ENOTTY`（源码契约结论，未冒充新实板调用）。
+  631 日志已见 UART probe version=92、`/dev/nfc0` 注册成功；Android 已注册正确
+  HCE AID。现有 `bknfc_hce_exchange` 与 ISO-DEP 需要选卡后 CRC_A 帧和 RF 控制，
+  UID/MIFARE 读接口不能替代。最小例外应只补该驱动及公开 ioctl 定义，接回现有
+  ISO-DEP/NFC worker，用已有 `bknfc hce` 和手机碰一碰验证；不恢复整份驱动副本、
+  不改内核/SDK、不绕私有符号。用户已批准该最小例外，尚未实施或实板验收。
+
+## 2026-09-19 眼睛包 Wi-Fi 安装（631，格式化后安装与渲染通过）
+
+- 16 张生成的通用眼睛加 offline 别名，BKep 108634 B，SHA256
+  `050f1175dc4b7305836eecba4ba14faac0e0210f13e3933ff4638b58176ebe79`。
+  现有 AP 显示 worker 缓存眨眼/视线帧，Agent 通过既有 provider 选择表情。
+  不使用真人肖像，不新建捕获/对话/显示 owner。
+- App 26 `0.5.21-shaniu-eyes` 已安装，APK SHA256
+  `73d27af183067ad160b9c63010acd66fff34b739c9dcefb00f9ae6c2def05049`。
+  复用现有 App OTA HTTPS 供包服务，BLE 只传 EYE2 来源记录，512 B CONFIG
+  分片上限不变；设备验证 CA、主机名、可信时间、整包 SHA 后进入原资源事务。
+- 增量构建及包/信任校验通过，一次有线写入非活动 A 槽 CP/AP；实际启动为
+  `18.6.395+631 counter=631 pair=confirmed`，该启动窗口 faults/recoveries=0。
+  签名包 SHA256 `3de81312d439f284585fff746968bf15b592751a29ef399c357f2437b5b2ea26`；
+  产物 `out/shaniu-official-candidate/voice631-eye-app-wifi/`。旧未刷入的同计数
+  `voice631-animated-eyes` 不是当前运行产物。未改上游或重刷身份/校准区。
+- 一次真实 App 安装收到全部 108634 B，返回 `BKDISPLAY APP IMPORT
+  transport=https result=-22`，App 如实显示未确认。重新捕获启动定位为
+  `BKDISPLAY RENDER FAIL stage=volume-open ret=-22`，不是下载失败。
+  Windows 同一 126877696 B USB SD NAND 卷也不识别文件系统；原因尚未定位。
+- 用户随后明确允许快速格式化：CIM FAT 格式化返回 Invalid Parameter；
+  换用系统 format 的 FAT16/2048 B 快速格式化进入 FAT 初始化后报 0 号磁道
+  无法使用，未完成。可能已覆盖文件系统元数据；无备份，不承诺恢复旧 SD 文件。
+  不由此认定 SDK/内核缺陷或物理介质损坏，也不反复格式化。
+- 用户进一步授权完整格式化且不备份：同一 USB SD NAND 执行非快速
+  FAT16/2048 B 格式化成功（exit=0，61822 可用簇，Windows 可挂载 SDNAND）。
+  旧 SD 文件已清除；未修改 SDIO/USB 适配，也未擦写 NOR 身份或校准区。
+- 格式化后一次真实 App Wi-Fi 安装成功：READY=3、error=0、revision=2，
+  动画渲染序号继续增长；复位后恢复同一眼睛包。App 首次读取因 READY 被 worker
+  启动覆盖而显示不一致，显式重读成功；该状态覆盖在上述新源码中修正。
+- 用户确认多次真人唤醒及拍照成功；现有串口记录包含真实 JPEG 20251 B、所选
+  MiMo 视觉、Agent `eyes=happy` 渲染和播放后继续收音。马达首次工具执行成功，
+  后续三次仅生成回复而没有工具调用，不能认定再次振动通过。
+- 证据 `out/shaniu-official-candidate/hil631-eye-wifi/`；用户提供的后续启动日志
+  另观察到 SD 争用引起心情/回答模式恢复 `-16`。631 的新候选 OTA 尚未验收；
+  629 冻结候选保留，历史 OTA 成功不继承。
+
+## 2026-09-19 设备工具与唤醒阈值快速迭代（630，已启动，人工验证中）
+
+- 仅改产品适配：通过既有官方 provider 注册 `device_status`、`device_motion`、
+  `device_control`，复用电池缓存、同一加速度采样 owner、音量持久化、心情配置
+  和限时振动接口。无任意 GPIO、无新运行时；电量百分比返回未知，SC7A20H
+  明确是加速度计而非陀螺仪。AP/CP 运动请求共用采样锁及原清理路径。
+- 用户授权将阈值 0.85 降为 0.65；连续两次、300 ms 判断间隔、冷却和模型权重
+  `536ebba8…` 不变。依据是 629 曾出现 0.933→0.671 的拒绝候选，不把它当作
+  已对齐的真人唤醒，也不宣称低分漏检或误唤醒已解决；既有训练报告仍是旧策略。
+- 增量构建、包/签名校验、一次有线非活动 B 槽烧录通过；AP raw 1603208 B
+  （比 629 增加 3304 B），CP raw 与 BL1/BL2 不变。签名包 SHA256
+  `46541664b15194cec8d352f106227cfe2bcc1e9aeb6385b06f065d12ac745ed9`。
+  板端已确认 `18.6.394+630 counter=630`，启动状态 faults/recoveries 均为 0；
+  这不是 App OTA。未新增测试、修改 SDK/FFmpeg/官方核心或覆盖冻结 629 候选。
+- 证据在 `out/shaniu-official-candidate/hil630-device-tools-wired-b-20260919/`。
+  新工具真实语音调用、控制效果与调整后真人唤醒待本次日志和用户反馈确认。
+  629 人工反馈补记：K1/K3 各两次音量调整成功；普通语速多次漏唤醒，慢说改善；
+  红色物品被描述成黄/粉红，颜色识别未通过，尚不能归因白平衡。
+
+## 2026-09-19 首次唤醒本地应答与 App OTA（628→629，有限实板回归）
+
+- 仅在产品适配中播放本地“我在”，复用现有 Agent 播放、排空与释放接口，随后自动收音；会话内追问不重复提示。未新增测试或修改上游。
+- 复用此前盲听选定的 IndexTTS-2.5 BASE/P006-LIVELY，未重训；离线生成约 0.975 秒，16 kHz/mono/PCM16 为 31208 B，SHA256 `772a8aa9841a96bf96acdce733e4e6a67c2b46968333edb51fedc7511e3cc42f`。私人提示音已加入 Git 忽略，只进入本地镜像。
+- 628 增量构建及签名校验通过，AP raw 1599904 B，较 627 增加 32052 B；一次有线写入非活动 B 槽成功，启动确认 `18.6.392+628 pair=confirmed slot=1`。`context-recovery` 声学回放：一次唤醒、本地提示音播放完成、实际 ASR/LLM/TTS 回答 10→20，追问不重复唤醒；第三句由唯一 camera owner 抓拍并完成云端分析及播放，无语音后返回待机。控制 App 全程关闭。两轮算术收音线程结束至 TTS 首块约 4.802/4.458 秒，不冒充真人词尾到可闻声音的延迟。
+- 保留失败：先前 `controlled-context` 第一轮 ASR 传输 `-5`，第二句已恢复但不算上下文通过；早先未受控多轮及低音量未触发的回放不计为正式对话成功。没有调模型阈值、伪造返回或静默换服务商。
+- App 25 实际设置回读音量 100→60→80→100%、gentle→playful→gentle；活动模型读回 `536ebba8…`，不是 APK 内旧默认模型。LCD 服务、加速度样本及电池电压可读；振动在 MIC 采集静音保护下返回 `-EBUSY`，未证明物理振感。未操作实体按键/电源键；暗场视觉回复不证明亮场识物正确性。
+- 私有 `demo628-frozen` 已保留源码 HEAD+工作区补丁+新增源码、依赖 manifest、CP/AP 配置/ELF/map、签名包、活动模型、私有提示音、APK 及日志，哈希复核通过。APK SHA256 `d6bf5045ec4b98869400e37838d80b29edf910b6a5c875a709f5b140777938e4` 与手机安装件相同。不是设备数据备份、正式干净复现或比赛提交。
+- 复用相同 CP/AP raw，仅重新签入 `18.6.393+629`，包 SHA256 `26a4e06e9b90dd62a6a92d9f0346634f81b39d1e5faae4c2dd1b360d2a5470e0`。一次真实 App 本地 HTTPS OTA 已完成：设备 `BOTA TRIAL CONFIRMED slot=0 counter=629`，App 新连接回读版本/计数 629、已确认完成、100%、无错误。未全量烧录冒充 OTA，没有第二次发送。629 启动恢复 gentle、音量 15/15、记忆关闭及活动模型 `536ebba8…`，App 回读一致；`post-ota-smoke` 再次完成一次唤醒后的 10→20 关联问答、真实新抓拍/云端分析/播放、无语音回待机，控制 App 关闭。算术收音结束至首块约 4.908/4.519 秒；LCD/加速度/电压回读在同版通过，未观察到该短窗口崩溃。
+- 证据：`out/shaniu-official-candidate/hil628-local-wake-reply-wired-b-20260919/`、`hil629-real-app-ota-20260919/`。本轮没有新增上游/SDK 修改、测试代码或诊断平台；真人提示音听感、实体键/振动确认、正式干净复现及参赛材料/提交不因这次快速回归自动通过。
+- 629 `rewake-haptic`：退出后再次声学唤醒、提示音、完整算术回答、再回待机通过；日志确认 MIC 已关闭后短振动请求 `accepted_ms=100`，不绕过采集静音保护，实际触感仍未人工确认。629 合计两次声学唤醒、四次完整回答（含一次视觉）、两次无语音退出、一次 App OTA，均无本窗口失败；此前 628 的 ASR `-5` 不抹去。最终私有候选为 `demo629-frozen`；实体键、亮场识物、旧密文实迁、正式干净复现/材料/提交仍未全部验收。
+
+## 2026-09-18 扩容训练模型部署到 627（已激活，真人唤醒未通过）
+
+- 用户指定训练 session `01a0b424-3c4d-7e43-97ed-8bc482e7d785` 的最终选中
+  候选：`app/bk7258/models/candidates/openvela-expanded-20260918/model_int8.tflite`，
+  64 通道 DS-CNN INT8，47672 B，SHA256
+  `536ebba87a8cdc8c6e6c19ad871d7749a64a4ebc5933915c259893eea534b83c`。
+  复用原训练环境与 `voice kws package`，前端、149×40 输入、三类 INT8 输出、
+  量化及六种算子校验通过；不重训、不调整触发阈值或推理周期。
+- 只在私有部署元数据中将显示词规范为“你好，openvela”，不改权重或训练报告。
+  WKM1 包 47808 B，SHA256 `e4738d61ee33d74b820c7f2949ae84b58698356489d3e3d12032bb6bfc832c1c`，
+  保存在私有输出 `model-expanded-20260918`，通过已安装 App 25 的现有导入入口
+  发送。用户协助文件选择，未升级 APK、重烧固件或清除认领/网络/用户数据。
+  App 导入前实际模型为 `922eba91…`；导入后完整 SHA 匹配，UI 显示
+  `536ebba8 已生效并回读确认`，板端恢复 KWS 监听。不是只替换默认值。
+- 两次扫描未发现设备后，普通重启捕获到 HCI `0x2006/0x200a status=0x0c`；
+  新启动窗口中发现并成功连接同一设备，随后导入完成。该控制发现/重开问题尚未
+  定位，不能据此宣称 SDK 缺陷，也未修改公共蓝牙栈。全部扫描、启动及导入窗口
+  保留在 `hil627-asr-iob-wired-a-20260918/model-*`。
+- 已关闭控制 App，转入用户真人配合窗口 `human-new-model`，没有自动声学回放。
+  旧采集窗口与新窗口之间有间隙，缺失部分不算验收。新模型的重启恢复、板端
+  arena 实测及本次真人问答仍待对应证据；训练报告的主机 arena 80320 B 不冒充
+  板端结果。该用户录音已入训，本次同一用户新说话的观察不等于独立说话人泛化。
+- 原训练报告保留 3/38 严格时间窗命中及词尾后延迟问题，不用 38/38 训练片段
+  过阈值覆盖它。用户授权本机部署，不推断包含其录音的权重已获公开发布许可。
+- 用户本次反馈为多次唤醒仅一次成功，总尝试数未记录，不能计算真人成功率。
+  `human-new-model` 捕获到一次声学触发及同一交互中的三次处理，不能写成三次
+  唤醒通过，也不能仅凭处理完成认领三次正确回答。无有效语音后回到待机；
+  后续 `human-wake-localize` 中麦克风帧及 KWS 推理仍持续，不等于每次说话都已
+  被识别。首问收音结束至 TTS 首块约 8.611 s，其中 LLM 5.538 s；另两次为
+  12.217/8.837 s，LLM 9.221/6.560 s。当前主阻塞改为真人唤醒，LLM 延迟随后继续。
+- 按用户授权接管训练后，复用原 C 策略桥接及原始录音复算：3/38 严格计分结果
+  可重现，另 29 次在词尾后 30–500 ms 触发。这些迟于标注的事件不能全部当作
+  真实漏检；首段在主机初始窗口就绪前结束，数段快速连说时高分发生在触发锁存
+  尚未释放期间。合成流的 3 秒片段区间与真人词尾标注不是同一计分边界，主机
+  连续喂入也没有模拟完整官方交互期间的暂停/重新监听，因此不据此修改会话机制。
+- 原有 38 个独立片段流在原音量、0.25 和 0.1 增益下均有触发；原音量下 8 段
+  短句等待词尾后 1130–1740 ms，原严格区间加 1000 ms 诊断关联为 30/38。
+  这些都是已入训单人录音的文件输入诊断，标注仍为自动候选，不是实板回放或
+  独立真人泛化。保持原标注、0.85 阈值、连续两次与 300 ms 推理周期不变。
+- 已开始一个受限训练对照，仅启用现有 `positive_end_window_ms=1200`，使完整
+  目标词尾落在正例窗口的最后 1.2 秒；不是放宽评估区间。数据、64 通道结构、
+  seed、24 轮上限及其余增强保持原样。冻结假设、拒绝条件及输出位于工作区
+  `out/kws-takeover-20260918-fresh-end/`。24 轮训练已完成，按原合成验证损失恢复
+  第 6 轮；INT8 候选 `cd10a8c3…` 为 47672 B，主机 arena 80320 B。合成验证
+  18/18 连续流触发且无区间外事件，但同一 38 个人声独立片段流从 38 次有触发
+  降为 28 次，前 8 个短句均未触发。首事件词尾延迟中位数从 375 ms 变为 440 ms；
+  新候选较低的 P90 排除了十条无事件流，不能称作提速。根据训练前固定条件已
+  否决，未继续打开最终回归集，未打包或烧入该退步候选。
+  本轮没有修改训练源码、板端模型、固件、App 或上游代码。用户已授权直接全量
+  烧录并配合实板，下一步先对应当前监听状态与真实说话分数，再决定新的修复；
+  不为了执行烧录而覆盖现有较好模型。
+- 随后的 `human-model-reassessment` 窗口确认仍运行 `18.6.391+627`，麦克风和
+  KWS 推理持续。用户报告一次“唤醒词加问答”未响应；对应 UART 时间
+  `16:30:40.803812` 出现 `hits=1/2 score=945`，约 300 ms 后下一次分数为
+  `765`，低于固定 `850` 门槛，候选被释放，未进入正式触发或 ASR/LLM。
+  本次首个未通过环节为唤醒检测的连续分数条件，不是扬声器或云服务调用。
+  是否由紧随的普通语音、声学条件或模型本身造成分数下降仍需区分；接下来的
+  人工对照只说一次唤醒词、不紧接问题，保持距离、音量、模型及策略不变。
+
+## 2026-09-18 ASR 上传分段优化（626 / 627，验证进行中）
+
+- 626 仅在团队请求适配中将 PCM 主体改为连续块 Base64 编码；WAV 交界、
+  非对齐分块与末尾填充沿用原路径，请求字节与取消契约不变，不增加整份编码副本。
+  既有 HTTP 单请求摘要补充 `body_bytes/total_ms/connect_ms/send_ms/send_calls`，
+  不增加探针、测试平台或模拟服务。既有请求编码主机用例通过；既有 HTTP 用例
+  在返回码断言失败，未记作通过、未修改测试。源码复核发现 302 无 Location 的
+  旧预期 `-EPERM` 与当前 webclient 的 `-EPROTO` 冲突，但未运行定位到具体分例。
+- 626 一次有线写入非活动 B 槽，通过包/信任校验及启动确认，实际
+  `18.6.390+626 pair=confirmed`。手机媒体音量 150/150，控制 App 关闭，一次
+  公开声学唤醒后两轮关联问答分别答出 10、20，第二轮不重复唤醒；无语音后正常
+  退出。只计声学回放，不计真人泛化；此窗口有 5 条 xrun/overflow 及 18 条
+  `write to mix failed` 日志，不能把本次闭环成功写成这些现象已消除。
+
+| 626 受控样本 | ASR 请求体 B | HTTP 连接 / 发送 / 接收 ms | 收音结束至 ASR s | LLM s | TTS 首块 s | 收音结束至首块 s |
+|---|---:|---|---:|---:|---:|---:|
+| 首问（播放前等待 1.64 s） | 191360 | 547 / 1622 / 617 | 3.084 | 1.752 | 1.412 | 6.250 |
+| 同会话关联追问 | 184532 | 420 / 1511 / 753 | 2.981 | 1.237 | 1.552 | 5.771 |
+
+- 发送占 ASR 请求约一半，据此只在 AIDK AP 配置将 `IOB_NBUFFERS` 从默认 36
+  增至 128，`IOB_BUFSIZE=196`、`IOB_NCHAINS=36`、throttle 和 TCP 实现不变。
+  627 ELF 确认静态 SRAM 增加 19136 B，AP raw 为 1567852 B，链接 Flash 容量
+  余 454548 B。627 包与信任校验通过，一次有线写入非活动 A 槽，实际
+  `18.6.391+627 pair=confirmed`，启动状态窗口 supervisor `faults=0 recoveries=0`。
+  用户随后要求部署另一个训练 session 的新模型，原定 627 同模型延迟复测暂缓；
+  不能把构建/启动通过当成缓冲调优已证明提速。
+- 两版均沿用布局 `bk7258-559f52beaec8a54e`、CP raw 与已安装信任根；没有
+  写启动区、校准或用户数据，没有 Flash 回读或 App OTA。626/627 清单的
+  NuttX/apps revision、依赖输入摘要及 SDK 摘要一致，没有新增上游修改或升级。
+  不掩盖此前工作树已有的未合入补丁。
+- 626 输入树 632 项，SHA256 `e98a4c934d767e412fcae5dae11adbfd726f20bc3e1113ade0e005168786c582`；
+  包 `voice626-asr-bulk` SHA256 `d852c69622cd7f4c8827b2f884709abd6423f0a03c779410a61ea80475e5281f`。
+  627 输入树 661 项，SHA256 `108cc7e6bec2e23f8090ddc5f7ceae2f37b02ee32c0dfb37560517de14c4cbcb`；
+  AP 配置 SHA256 `c66436975b2321e60f0c780b5eb181f6b849bd617aed047f56003c487e1089d2`，
+  AP raw SHA256 `06fa35ad0736e082cfcfb0add3e8d20e8d4fa75386e31fe75e2704c63865d0fa`；
+  包 `voice627-asr-iob` SHA256 `ed0c16bd83cbabf50f567a5a627f3ae5170a4ec5408343eb6d285c680d5e0867`。
+  证据分别保留于 `hil626-asr-bulk-wired-b-20260918` 和
+  `hil627-asr-iob-wired-a-20260918`，原冻结演示候选未覆盖。
+
+## 2026-09-18 受保护 TLS 会话复用与连续追问（625，有限实板通过）
+
+- 本轮只改团队 `bk7258_voice_tls.[ch]`、`bk7258_agent_cloud.c`，在同一配置
+  快照中给 ASR/LLM/TTS 共享 TLS 1.2 恢复会话；活动连接仍独立。保留 CA、主机名、
+  可信时间与原 deadline，缓存证书链有效期在握手前后检查，配置替换后不跨快照复用。
+  不增加预热线程、HTTP 重试、音频/答案缓存或自有语音 runtime。先用系统 OpenSSL
+  验证 MiMo 公开端点支持经 CA 验证的 TLS 1.2 恢复；板端 `offered=1` 仅表示提交
+  恢复会话，不冒充已确认服务器接受。小智及独立社区服务端只读参考见来源记录。
+- 625 增量构建、签名包与信任校验通过。输入树 618 项，SHA256
+  `fdb6898644f6cb04f43bdba0ea84ccd020198d81632a92627503d63931fce4f1`；
+  AP raw 1567532 B（较 624 增加 1208 B，链接容量余 454868 B），SHA256
+  `f27699d407a1acb76bdfcea066e5da19a6cea5d69d2e03f1bfc4b9a1ef880f7a`。
+  AP 配置、CP raw、布局和已安装信任根不变；624/625 清单中 NuttX/apps 来源
+  revision 与变更摘要相同，官方 Agent/FFmpeg/SDK 本轮没有新增修改或升级。
+  既有未合入依赖仍保留，不能据此声称官方工作树原本无改动。
+- 只写当时非活动 A 槽 CP `0x11000+0x132000`、AP `0x143000+0x20f000`，
+  一次有线 Loader 成功标记齐全，重启后 `pair=confirmed version=18.6.389+625
+  counter=625`，该状态窗口 supervisor `faults=0 recoveries=0`。未写启动区、
+  身份、校准或用户数据，没有 Flash 回读、App 安装、OTA 尝试或模型训练。
+- 手机扬声器音量核对为 150/150，控制 App 关闭；使用既有公开声学回放，不是
+  真人泛化、热词事件注入或模拟服务。首次采集接入时已有一次未归属回答正在结束，
+  随后自动播放算术问题，得到下表会话内样本；该窗口另发送一次唤醒音频但未取得
+  对应完整触发证据，不计唤醒通过。后两次回放将唤醒/问题播放分别绑定实时 KWS
+  监听日志与收音就绪日志，均有完整受控声学触发证据，没有丢弃未归属窗口。
+
+| 625 样本 | 录音读取 B | 收音结束至 ASR（秒） | LLM（秒） | TTS 首块（秒） | 收音结束至首块（秒） |
+|---|---:|---:|---:|---:|---:|
+| 首窗口的会话内问题 | 154880 | 4.072 | 1.126 | 1.202 | 6.403 |
+| 受控唤醒，立即播放问题 | 87680 | 2.280 | 5.129 | 1.188 | 8.599 |
+| 再次唤醒，问题前等待 1.64 s | 166400 | 3.394 | 2.053 | 1.160 | 6.610 |
+| 同会话追问，不再次唤醒 | 136960 | 3.004 | 1.130 | 1.205 | 5.343 |
+
+- 最后一次唤醒后的两轮分别回答七加三为 10、将上一结果乘二为 20；两轮均
+  ASR/LLM/TTS 实际调用成功，播放释放后 `interaction=active next=capture`，
+  随后无语音 `-61` 正常回到待机。此前受控窗口的退出与本次再唤醒也已对应。
+  控制 App 未参与维持对话；本轮未另测连接中主动断开，也未继承真人验收。
+- TTS 首块四样本为 1.160–1.205 s；624 两样本为 1.651/2.028 s。整轮仍为
+  5.343–8.599 s，较长样本 LLM 为 5.129 s，其中 HTTP 接收等待 4.487 s。
+  服务端/网络波动、历史上下文和录音长度不同，不能把差值全部归因于 TLS，更不能
+  宣称稳定即时回答。录音读取量不是 HTTP 上传体字节；首块提交不是物理首声。
+  三个窗口分别仍有 4/6/6 条 xrun/overflow 日志，没有本窗口观察到的崩溃或卡死，
+  不把自动恢复写成这些底层现象已消除。
+- 签名候选 `voice625-tls-session`，包 SHA256
+  `dd6627ce274eb4a0a00ac8a998fc9e80151499328d2328e3c5e05f030b51c598`；
+  证据 `hil625-tls-session-wired-a-20260918/{boot,latency,latency-gated,latency-context}`。
+  原 `demo621-frozen` 未覆盖。下一瓶颈为整段 ASR 上传及完整 LLM 文本等待；
+  当前接口能力与适配局限不等于上游实现缺陷。当前活动模型仍需重训/真人验证，
+  正式干净复现、比赛材料/提交、Git 合入和 OTA 未因此完成。
+
+## 2026-09-18 竞品对照与 Wi-Fi MTU 适配（624，未证明整轮提速）
+
+- 只读核对竞品 `d28df626a07ed6cbc2c041b933a875b74a0b7dc3` 与官方
+  `packages_demos` Gitee `dev` 的 `b5bb9407146f6a2f2afe576c7b0aef0ef80bfd20`。
+  前者使用豆包实时长连接，但播放器等整轮 TTS 收齐才播放；后者 `ai_chat` 有
+  实时语音增量/Media 接线，`mimo` 则是文字示例。没有同条件板测延迟，不能据此
+  宣称竞品更快。未复制会话引擎、改服务商或沿用放宽 TLS 验证的示例设置，来源
+  与具体能力边界见 `SOURCE_PROVENANCE.md`。
+- 本轮唯一产品改动为 AIDK AP `CONFIG_NET_ETH_PKTSIZE=590 → 1514`，MTU
+  由 576 变为 1500。锁定 SDK 的 VNET 最大以太帧本就为 `1500+14`，现有团队
+  Wi-Fi 收发缓冲从同一配置派生；不改 NuttX、Agent、FFmpeg、SDK 或依赖版本，
+  不调整 IOB 数量、ASR/LLM/TTS、端点等待、活动模型或 App。这里只证明本次没有
+  新增上游修改，不表示既有未合入补丁已经消失。
+- 首次编译对象完成后，来源校验发现并行模型数据记录变化而拒绝出包，未部署该
+  不一致结果；输入稳定后复用对象增量构建通过。624 的 599 项输入树 SHA256
+  `19cd4d039761f86b86e333ca31885e7b1cc053c83f4fa55d379c25cd60c10bb0`，
+  AP 配置 SHA256 `0eb96d48940a92a3522af10c56344477a7f0efae115e59291bd77791af090881`。
+  AP raw 1566324 B（增加 8 B，链接容量余 456076 B），SHA256
+  `8504bddec5d6ed273f5eec177e873c06167edc4a18863af1e7a6481d934476ea`；CP raw 不变。
+- `18.6.388+624` 签名与包校验通过，沿用布局 `bk7258-559f52beaec8a54e` 和
+  已安装信任根；一次有线写入当时非活动 B 槽 CP `0x352000+0x132000`、AP
+  `0x484000+0x20f000`，Loader 标记通过，板端 `pair=confirmed counter=624`。
+  未写 BL1/BL2、身份、校准或数据区；没有 Flash 回读、App 安装或 OTA 尝试。
+- 关闭控制 App，手机媒体音量 150/150，同一公开唤醒/算术音频经扬声器到板麦。
+  第一轮按收音就绪立即播放问题；第二轮增加 1.64 s 的主机侧播放等待，使录音
+  字节数接近 623。该等待不是产品端点或语音逻辑修改，也不计入下表的收音后延迟。
+
+| 单样本指标 | 623 快速模式 | 624 即时播放问题 | 624 近似等长对照 |
+|---|---:|---:|---:|
+| 录音读取字节 | 144640 | 92160 | 142720 |
+| 收音线程结束至 ASR 成功（秒） | 3.870 | 3.035 | 3.662 |
+| 官方 Voice LLM latency（秒） | 1.846 | 3.492 | 3.486 |
+| 官方 Voice TTS first chunk（秒） | 1.943 | 1.651 | 2.028 |
+| 收音线程结束至首块交给播放器（秒） | 7.660 | 8.180 | 9.180 |
+| ASR 请求期间系统 TCP 发送包增量 | 497 | 207 | 350 |
+
+- 近似等长对照的 ASR 少约 0.21 s，但总等待更长；现有 HTTP 日志显示 LLM
+  接收等待由 917 ms 变为 2565–2574 ms，未进一步拆分网络与服务端原因。
+  系统 TCP 计数不是单连接抓包；录音并非逐字节相同，回复长度也有变化，不能
+  将差值全部归因于 MTU，更不能用单样本证明稳定提速。首块提交不是扬声器物理
+  首声。当前仍为整段 ASR、完整文本 LLM、流式音频 TTS，尚未达到即时回答。
+- 全数保留 624 的两次受控唤醒/问答，均真实 ASR/LLM/TTS 成功、播放完成后
+  `interaction=active next=capture`；各一次无语音 `-61` 后正常回到热词监听。
+  第二次也验证了退出后可以再次唤醒，但不是双轮关联上下文或真人泛化验收。
+  两个窗口分别有 5 / 1 条 xrun/overflow 匹配日志，无本窗口观察到的崩溃或卡死。
+  部署前 623 只读窗口另观察到一次已在进行的收音无语音退出，触发来源未归属，
+  不计有效延迟。
+- 当前实板/签名候选为 624，证据 `hil624-mtu-wired-b-20260918/{boot,latency,latency-matched}`；
+  产物 `voice624-wifi-mtu`，包 SHA256
+  `4355ce83947df12da73accbf4574b3e3eb4281255fae0a15f5bbffb11c1828d2`。
+  MTU 配置可用已验证，整轮提速未证明。下一优化需解决当前所选服务和官方 Agent
+  接线中的串行等待，不把 ASR 的 SSE 文字输出伪装成实时 PCM 上传，也不在协议
+  适配内私建会话/分句播放器。正式干净复现、提交/合入和 OTA 均未因此完成。
+
+## 2026-09-18 回答模式与首轮延迟优化（623 / App 25，有限实板通过）
+
+- 暂停唤醒词重训，等待用户收集新资源；本轮不改模型、端点时间、Provider、
+  Agent 会话或 Media 生命周期。只在产品/服务协议适配及控制 App 增加回答模式：
+  “快速对话”关闭 MiMo 深度思考，“深度思考”开启。既有受保护 SDC1 配置事务
+  kind 4 保存到设备 KVDB，回读一致后才确认；旧固件/其他服务明确显示不支持，
+  不另建控制连接，不关闭证书验证，不替换所选 ASR/LLM/TTS。
+- 固件 `18.6.387+623` 与 App `0.5.20-shaniu-response-mode`（code 25）构建通过。
+  沿用 `bk7258-559f52beaec8a54e`，AP raw 1566316 B，链接容量余 456084 B，
+  SHA256 `42ff9d9f88e6a2733c089db3cc22c4c614dcde6248e3744516dad5401f02ac01`；
+  CP raw 不变。现有签名包和 trust 校验通过，一次有线写入当时非活动 A 槽
+  CP `0x11000+0x132000`、AP `0x143000+0x20f000`，Loader 成功标记齐全。
+  没有写 BL1/BL2、数据或校准区，没有备份/Flash 回读或设备/App OTA。
+- 板端实际 `pair=confirmed version=18.6.387+623 counter=623`，无本窗口观察到的
+  supervisor 故障。App 保留数据升级安装，安装前后签名身份一致；设备安装 APK
+  与候选 SHA256 均为 `d6bf5045ec4b98869400e37838d80b29edf910b6a5c875a709f5b140777938e4`。
+  App 初始读到快速模式，保存深度模式后回读成功；关闭 App、普通重启，设备
+  `restore result=0 thinking=1`，App 重新连接仍读到深度模式。再保存快速模式
+  并回读成功，随后关闭 App 完成独立语音调用，实际日志确认 `thinking=disabled`。
+  显式深度模式的云端请求未另做语音测量，不据此宣称两档延迟已统计验收。
+- 同一公开算术音频，经手机扬声器到板麦克风；手机媒体音量实际 150/150，设备
+  音量保持此前实际 100%，模型回读仍为 `922eba91…`，所选服务仍为
+  `mimo-v2.5-asr / mimo-v2.5 / mimo-v2.5-tts`。两次有效样本都是实际服务响应，
+  不是文本/热词事件注入、答案缓存或模拟云返回。
+
+| 本次单样本分段（秒） | 622 默认思考 | 623 快速模式 |
+|---|---:|---:|
+| 收音线程结束至 ASR 成功 | 3.891 | 3.870 |
+| 官方 Voice 日志 LLM latency | 4.315 | 1.846 |
+| 官方 Voice 日志 TTS first chunk | 1.932 | 1.943 |
+| 收音线程结束至首块交给播放器 | 10.140 | 7.660 |
+
+- 总等待本次减少约 2.48 s / 24.5%，但尚未达到“问完立刻回答”。首块是软件
+  播放提交标记，不是实测扬声器出声时间；没有将两端未校准的时钟相减，也不把
+  单样本当平均值/分位数。ASR 仍为整段请求、LLM 仍完整文本返回，TTS 为音频流。
+  剩余主要时间在 ASR 与 TTS，连接建立、上传和服务端耗时尚未进一步分离。
+- 尝试全数保留：622 第一窗口有一次来源未归属的声学触发和一次受控手机唤醒，
+  均无语音 `-61`；后者因自动操作错过收音窗口，不计有效延迟。622 第二窗口
+  一次受控唤醒完成算术问答；623 一次受控唤醒完成同题问答。两次有效回答后均
+  自动继续收音，再因无语音正常退出到热词监听。623 仍有 3 条 xrun/overflow
+  匹配日志，不宣称长期稳定或真人泛化通过，不继承 621 的双轮上下文验收。
+- 证据分别保留在私有输出 `hil622-review-fixes-wired-b-20260918/latency-before*`、
+  `hil623-response-mode-wired-a-20260918`、`app25-response-mode`；签名产物及
+  581 项构建输入身份在 `voice623-response-mode`，输入树 SHA256 为
+  `a124407f2c2202037c6d1e77df6fdd125db257c987d3a410621cc7e209ed0d7e`。
+  原有 `demo621-frozen` 保留；本轮未新增官方 Agent/FFmpeg/NuttX/SDK 修改或升级，
+  历史未合入依赖仍存在。尚未进行正式干净复现、Git 提交/合入或比赛提交，OTA 最后处理。
+
+## 2026-09-18 评审修复候选有线部署（622，人工验证中）
+
+- 沿用 621 的布局 `bk7258-559f52beaec8a54e` 和已安装 MCUboot 信任根，增量构建
+  并签名 `18.6.386+622`。AP raw 仍为 1565292 B / `04a6f596…`，CP raw 不变；
+  未发布新的 BL1/BL2。复用 `release ota` 仅生成现有签名 CP/AP 封装，实际部署为
+  BK Loader 有线分段写入，不是设备/App OTA，也未执行升级专项。
+- 首次只读预采集因用户串口工具占用 COM8 被拒绝，没有擦写。用户关闭后，当前板端
+  确认 621 / A active、B inactive、USB CDC；按该实时范围一次写入
+  CP `0x352000+0x132000`、AP `0x484000+0x20f000`。两段签名及哈希校验通过，
+  BK Loader 两段 `WriteFlash ->pass` 和总成功终态齐全；退出码 1 仅记附加警告。
+  没有全量擦除、重新备份或 Flash 回读，配置、身份、校准和启动区不在写入范围内。
+- 签名物理 CP SHA256 `dc67750cc56e85094be21ae3fce3ee24a6c45caf53aed727091e4c2f8895d90a`，
+  AP SHA256 `78b9479c5b35de2f31e4e77f532d47c8fd7cab541b316a738c19839eb4e08642`；
+  来源及签名材料在私有输出 `voice622-review-fixes`，运行证据在
+  `hil622-review-fixes-wired-b-20260918`，既有 `demo621-frozen` 未改动。
+- 启动后实际状态为 B active、`pair=confirmed version=18.6.386+622 counter=622`，
+  AP/CPU2/RPTUN 正常，supervisor `faults=0 recoveries=0`；用户确认 LCD 眼睛正常。
+  本次启动采集在初始化之后接入，不能据此声称完整启动配置/模型身份日志已经覆盖。
+  `manual-voice-r1` 正在采集真人唤醒和连续关联问答，尚未取得本版真人语音通过证据。
+
+## 2026-09-18 独立评审五项修复（未操作设备）
+
+- 加密记忆：SMH1 的心情字节只校验合法范围，不再要求与当前回复风格相同。
+  同一所有者切换心情后可读取原快照；AEAD 校验、旧密文兼容读取及失败时禁止覆盖
+  均保留，不清除用户数据、不转明文。
+- MIC：立体声只复制缓冲能够容纳的完整 L/R 帧，`nbytes` 与 `nsamples` 同步；
+  入队至少容纳当前声道数的一帧，已有排队缓冲时拒绝切声道。AIDK 当前是单声道，
+  此项不能算作立体声实板验证。
+- 视觉取消：Agent 串行/并行工具传递原消息的检查回调和上下文；摄像头适配在拍摄
+  前后检查，并经 `llm_chat_tools_checked` 传入新视觉请求。取消仍归原 Voice 请求，
+  摄像头仍只有已有 owner；不新增请求或会话 runtime。
+- 回复缓存与快捷入口：移除 Agent 仅凭本句文本命中/写入的回复缓存；自然语言
+  时间、电量、健康、天气和音乐捷径只在所需工具已注册时执行，未注册则走正常 Agent。
+  已执行工具的失败不作为重新调用理由，不重新启用已退役的应用和工具集合。
+- AIDK 既有 CP/AP 构建目录增量构建通过，编译输入和链接符号已核对；AP raw
+  1565292 B，SHA256 `04a6f59630331d5c3b2dc8e43745a9b87f544c3b487e5e102c9606d09f6a25e5`，
+  比修复前少 96 B；CP raw 及配置不变。沿用 621 构建计数仅用于未签名开发构建，
+  不将新 raw 冒充板上 621。当前无直接覆盖 MIC/Agent 记忆适配的现役主机测试，
+  因此没有运行无关测试、恢复退役测试或新增测试平台。
+- NuttX/SDK/FFmpeg 和依赖 revision 本轮不改；Agent 有四个责任文件的新增修复，
+  精确差分及先前未合入扩展依赖见 `SOURCE_PROVENANCE.md`。未提交/合入，未作
+  干净 manifest 复现；未签名、烧录、操作 App 或运行 OTA，私有 `demo621-frozen`
+  不改动。拍摄中取消、心情切换后重启恢复、重复关联问题及无工具捷径仍待本候选实机验证。
+
+## 2026-09-18 等待人工配合期间的维护收口（不操作设备）
+
+- `manual-keys-r1` 只有只读采集，用户尚未准备好；实体按键门槛未执行，不计按键失败。
+  采集已结束并释放串口；板上仍为 621，私有 `demo621-frozen` 不改动。
+- 复核并修正团队 `rtos_lock_mutex_timeout` 将相对时长当成绝对时间的问题：有限等待
+  使用已有 `nxmutex_timedlock`，零等待用 trylock，无限等待用 lock。NuttX/SDK 不改。
+  AIDK CP/AP 增量构建通过，两个 BIN 哈希与 621 均相同；最终 System.map 无该符号，
+  nuttx.map 显示其被丢弃。因此是适配源码契约修复，不声称解决了云端超时，也不为此重烧。
+- 7 份原本仅用户级安装的通用 Skill 及必要参考文件纳入 `.agents/skills/`，中文 PR
+  入口改用同仓依赖和实际 remote/base/head；硬件 Skill 去除固定 B 槽与示例端口/地址，
+  保留真实板级电气限制。一次回答的音频释放与整个交互退出分开，不固定切页压力次数。
+- 只读脚本消费者核对未找到可安全删除的现役脚本；保留下载、UART/J-Link/BLE 与
+  仍有历史复现消费者的 BKVoice 源码。撤回“当前 manifest 已接入 ConsentVox”的失真
+  文档声明，标明历史方案与当前清单的区别；不自动引入外部工具或扩大音色项目。
+- 10 个相关 Skill 的既有元数据校验通过，必要相对引用已核对；HIL profile 读取和
+  不同示例端口的 debug-plan 生成通过，`executes_hardware=false`。只读场景复核覆盖
+  非作者仓库的中文 PR 草稿、不同端口/槽位的下载前置条件和会话内连续对话；不作为
+  跨项目硬件实测。当前仍是未提交的工作树修改，新增 Skill 必须随后续源码提交，
+  不能声称现在 clone 远端默认分支就已经取得它们。
+
+## 2026-09-18 按键接线与 8 MiB 扩容（621，已全量写入并启动）
+
+- 仅在产品/板级适配接通 CP 标准 `/dev/buttons` → 既有 KEY1 RPMsg → AP 产品事件：K1/K3 调官方 Media 音量，K2 沿用既有长按松开策略。修正 CP 选项误依赖 AP Agent、退役旧 voice 启动命令并注册 `bkkeys`，以及采样消息错误发送布尔值而丢失三键掩码的问题。关机只在资源空闲时接入既有 CP soft-off，未把按键改成云端或 PTT 入口。源码/链接通过不算物理按键通过。
+- 原布局 AP 超出 1740 B。按用户要求扩分区，不裁掉加速度、健康或其他产品能力：新布局 `bk7258-559f52beaec8a54e`，每套 CP 1224 KiB / AP 2108 KiB，两套配对槽共 6664 KiB；保留 1 MiB 持久数据、必要配置、启动及校准区，仅余 72 KiB 对齐空隙。AP 扣 CRC 后逻辑容量 1984 KiB、链接容量 2022400 B，比旧版增加 448 KiB。
+- 新布局 CP/AP/BL1/BL2 已构建通过；AP raw 1565388 B，剩余链接空间 457012 B；CP raw 1107276 B。AP SHA256 `9ae4b925ac8760231af49703779dffae8284d72c339dbf57241e23494c8e4ceb`，CP SHA256 `b4e35e14f088ee939b0f60ed9be2499cd6b0e3ea6bf467302b47a713a1fa80b0`。FFmpeg/NuttX/SDK 源码和版本未新增修改；签名/尾部保留区未缩减。
+- 现有 `package accept-base` 增加显式源布局与私有迁移基底输出，只按同名保护分区搬移原始字节、保留大小/权限/策略，不解析或解密内容；immutable 尾部不允许搬动。历史同板基底的主机搬移检查通过，不当作当前设备数据迁移证据。BK Loader read 拒绝软件复位参数，返回 109，未读取或擦写；用户随后明确要求不备份、直接全量烧录。后续使用已有同板基底，晚于基底的片上配置/加密记忆不能声称保留，SD NAND 不擦除。
+- 621 / `18.6.385+621` 全量包及签名校验通过，8 MiB BIN SHA256 `d7e5021d3ba3ea78c5afa34eb5fa7eb4df047b727c8c7ea30af07537919fb441`，包 SHA256 `29a21437e27b58e44f26d27e6bcd1882bce1f66ef01742f5b8c96697d52b4e45`，沿用原有 BL1/MCUboot 公钥指纹。主机打包前两次分别因不存在的密钥文件名、artifact-id 格式被拒绝，均未部署；修正明确输入后成功，日志不覆盖。
+- 有线前 5 秒 CP 状态采集为空；首次全量下载软件复位握手超时，`safe_prewrite_failure=true`，未进入擦写。用户实体复位后第二次出现 `Gotten Bus`、擦除和写入通过、`All Finished Successfully`，完整写入 8 MiB；Loader 退出码 1 由成功终态限定为附加警告。未新做备份或 Flash 回读。第一次证据保留于 `hil621-preflight-current`、`hil621-expanded-layout-full-20260918`，第二次及以下运行证据位于 `hil621-expanded-layout-full-r2-20260918`。
+- 新布局普通重启和运行状态确认 `18.6.385+621 / counter=621 / confirmed`，AP/CPU2 健康，LCD 服务约 4.682 s 就绪。`/dev/buttons`、CP KEY1 链路和 AP 输入就绪均成功，但尚无本版真实 K1/K2/K3 操作证据。已有网络、认领及所选云服务可用，gentle 从持久存储恢复，记忆策略关闭；旧基底内音量为 53%，App 24 已重新设为 80% 并由设备回读确认。当前实际内置比赛模型 raw SHA256 为 `922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910`；不能继承 620 的模型持久选择验证。
+- App 关闭、手机扬声器 150/150 的受控合成声学回放中，第一次真实唤醒后连续两轮实际 ASR→所选 LLM→TTS→Media 完成，第二轮无须再次唤醒并回答上一结果 10 乘以二为 20。第三句拍照请求在 LLM 响应体仅收到 1 B 后超时 `-110`，摄像头工具尚未调用，不能计视觉通过；官方通道继续自动收音，无语音 `-61` 后退出交互并返回热词监听。`acoustic-context-vision` 实际共四次收音：两次完整回答、一次 LLM 超时、一次无语音；主机门控脚本的 recordings=3 只计当时门控阶段，不替代设备记录。
+- 随后的 `after-timeout-rewake` 只验证故障后恢复：第二次真实声学唤醒、实际 ASR/LLM/TTS 请求和 Media 完成通过（不是 LLM 缓存命中），随后无语音正常返回监听。本版两次受控声学尝试共三次完整回答、一次 LLM 超时、两次无语音退出；没有观察到本次窗口内崩溃或资源卡死，但仍有音频 xrun/采集溢出告警，不能据此宣称长期稳定性或真人泛化已通过。私有 `demo620-frozen` 未修改，OTA 未开始。
+- App 24 在 621 上重新发送同一比赛模型，`app-model-current/complete.xml` 确认“已生效并回读确认”；同一连接下人物风格 gentle→playful→gentle 均由设备状态确认。随后关闭 App、普通重启，模型准备成功且不再走 builtin fallback，持久 gentle、音量 12/15、记忆关闭恢复，LCD 服务约 4.767 s 就绪。两段模型串口窗口没有覆盖完整激活过程，不据此声称有激活瞬间日志；模型完成以 App 实际回读与重启恢复为证。
+- `fresh-session-vision` 在上述重启后的新会话中直接请求拍照，区别于先前带两轮上下文的失败条件：官方 `camera_capture` 调现有唯一 vision owner 获取新 JPEG 14323 B，所选 LLM 图像分析成功，TTS 1374720 B PCM 输入、Media request=1 complete=0，自动继续收音后无语音退出并恢复监听。控制 App 全程关闭；相机内容的现场准确性尚未人工核对，原图未保存。新成功不抹去前次响应体 1 B 的 LLM 超时，也不足以唯一定位其原因。
+- 621 合计三次受控手机声学唤醒、四次完整回答、一次 LLM 超时、三次无语音正常退出。前两次使用内置比赛模型，App 随后将完全相同权重写为持久选择；第三次使用重启恢复后的选择，原始记录分别保留，不伪装成全程配置未变的一次录制。当前构建输入 569 项与 manifest 树哈希 `a884507fd7c125aabb3a4b1bc12bdde913afb246e370f65d8bc33b28a9a980ec` 一致，build-manifest 复核通过；首次复核命令仅因相对路径锚定错误被拒绝，改为确切绝对路径后通过，未重建或重新烧录。
+- 重启后的 App 再连接也实际回读同一比赛模型、80% 与 gentle（`app-model-current/post-reboot.xml`）。621 的源码快照、依赖 manifest、配置、ELF/map、APK、模型、签名产物及当前运行证据保存为私有 `demo621-frozen`；不把它称为正式干净复现或比赛提交。实体按键操作、现场画面/视觉语义确认、旧密文实迁与正式交付仍有缺项，OTA 继续留在最后。
+
+## 2026-09-18 控制连接与模型启动顺序适配（619 / 620）
+
+- 619 / `18.6.383+619` 已一次有线写入 A 槽、普通重启确认，App 24 首次连接和一次重新连接后均实际读取音量 80%、gentle 与所选服务模型；没有清空 App 或设备数据。订阅修复仅修改 `bk7258_provision_gatt.c`，断开时释放产品自有易失 CCC 表。首次连接记录了随机 peer，重连后的地址未捕获，因此这里只计普通重连通过，不把随机地址轮换问题写成实板充分验证。未执行声学验收，不能继承 618 通过。
+- 619 首次 App 重新发送比赛模型后返回 `-116`，旧模型未被提交覆盖。启动日志显示 1.131 s 提前走 `model selection=builtin reason=no-persistent-selection`，而持久存储初始化尚未完成；模型准备随后因为句柄已加载而直接返回，保留错误 revision 0，实际已有记录的 CAS 提交拒绝。620 只让模型准备等待同卷身份已由现有存储 worker 成功读取，再加载真实选择；同时纠正内置描述中的 `open-vela` 文案，不改变模型权重或个人选择。
+- 620 / `18.6.384+620` 增量构建、包及签名验证通过，一次有线写入 B 槽 CP/AP，实板 confirmed；已安装的 BL1/BL2 仍为 611，未覆盖数据区。AP raw 1562292 B，SHA256 `1603197f2b274d7a96501f3048940a4db1f7a9e0e3c6e23f4c13df0b6fc287d0`；CP raw 1104412 B；pair SHA256 `29de90b10773f256780c7d929445caa4335a8d02302823bdbe162314bbee5e51`。FFmpeg/NuttX/SDK checkout 与依赖版本未新增修改；已有构建副本补丁仍按来源记录消费，不能称整个集成历史上零上游补丁。OTA 未开始。
+- App 24 在 620 上实际发送比赛模型并回读确认“你好，openvela”及 raw SHA256 `922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910`；音量 80%→60%→80% 均回读确认，聊天风格 playful→gentle UI 确认。普通重启后没有再走过早 builtin fallback，实际恢复同一模型、gentle、MusicVolume 12/15 与记忆关闭策略，LCD 服务约 3.857 s 就绪。没有清空配置或重新认领。
+- `acoustic-context-vision` 同版 240 秒捕获中共 2 次受控手机扬声器合成音唤醒、4 次完整回答：request 1 回答 10、request 2 无需再唤醒且回答 20；第三句经官方 camera_capture 拍取新 JPEG 18267 B、所选 LLM 分析成功、request 3 complete=0；request 4=-61 后正常退出待机。再次声学唤醒的 request 5 实际 ASR/TTS/Media complete=0，但重复问题命中官方缓存，不记作新一次 LLM 云请求；request 6=-61 后再次返回监听。控制 App 全程 force-stop。未见 HardFault/Assertion/PRIMARY_TIMEOUT，仍保留 xrun、capture overflow 和 EOF 日志；短时完成不等于长期稳定或真人泛化，未现场核对视觉内容准确性。
+- 本节证据目录为 `out/shaniu-official-candidate/hil620-model-startup-adapter-wired-b-20260918/`。`app-model-complete` 的过滤未命中不算新的模型失败；唯一发送结果由 `model-current.xml` 的设备确认与 `reboot-settings` 的实际恢复共同限定。当前有限语音、视觉调用与 App 设置门槛成立；随机地址轮换后的长间隔重连仍未充分实测。620 私有候选按相同布局、源码 dirty patch、依赖 manifest、配置、ELF/map、pair、App、模型与原始证据冻结，不能当正式 manifest 干净复现或不受计数约束的回退镜像。
+- 外设接线核对发现尚未兑现的产品项：K1/K2/K3 的旧采样模块没有实际启动调用与 AP 产品消费者，620 不宣称物理按键可用；运动服务有加速度计接口，不据此声称陀螺仪或 Agent 运动工具已完成。下一步只补原定按键交互，不新增外设演示场景。旧加密数据实迁、正式干净复现、现场视频/介绍、AI 日志及正式提交仍未完成，OTA 继续最后处理。
+
+## 2026-09-18 同版语音、视觉与 App 收口（618，619 修复中）
+
+- 618 / `18.6.382+618` 有线 B 槽 confirmed，仍为已安装的 611 BL1/BL2；pair SHA256 `a257f5de7fe4e4ea8a2cd541659e2e952d3115737f09e104ed8add5b87662073`。AP raw 1562268 B，未再调整分区。App 24 / `0.5.19-shaniu-product` 原位安装，APK SHA256 `119daadec94dcece65bc39b27028f263de75637ba5e43a02c0ce0eab3d2440cc`，签名不变、认领数据保留。产品关闭历史服务联调入口及 Intent 旁路，保留其源码，不宣称 debug APK 已删除全部旧字节码。
+- 当前源码、dirty patch、六个未跟踪源文件、CP/AP ELF/map/config、签名 pair、App、模型、实际依赖 manifest 与所有 618 证据已私有只读冻结于 `demo618-frozen`，逐文件哈希齐全。该快照在 619 CCC 修复之前，仍是增量构建候选，不是正式干净复现，也不是不受计数约束的回退镜像。
+- 同版三次受控手机扬声器合成音尝试，三次接受唤醒，四次可归属的完整回答：`context-vision-r1` request 2/3 两轮关联问答完成，第三句拍照输入启动晚，request 4 无语音返回待机；`vision-context-r2` 新照片 22519 B 与分析成功，但 85 秒日志窗口在 TTS 中结束，不计完整回答，追加捕获仅确认已回监听；`vision-context-r3` 新照片 21503 B，经官方 camera_capture、所选 LLM、TTS/Media，request 9 complete=0，不再唤醒继续普通问答 request 10 complete=0，request 11=-61 后返回待机。控制 App 在声学验证期间关闭；无本轮 HardFault/Assertion/PRIMARY_TIMEOUT，仍有捕获 overflow 与流播放 xrun 记录，不宣称长期稳定或真人泛化，视觉内容尚未现场核对。
+- App 24 已完成音量 80%→60%→80% 的设置/回读，以及 playful→gentle UI 确认和跨页连接操作。随后重新连接出现 CCC 订阅 ATT 14，模型重新应用命令尚未发出，故同版 App 重连与模型恢复验收尚未完成。实板手机随机地址已变化；源码核对显示团队单槽 CCC 表保留旧 peer/valid，固定 GATT 断开只复位聚合值，新 peer 无空槽会返回 -ENOMEM→ATT 14。619 仅在产品断开回调释放自有易失订阅槽，不改公共 GATT、配对密钥或认领数据；增量构建通过，实板验证待完成。
+- 618 启动恢复 gentle、音量 12/15、已选“你好，openvela”模型与记忆关闭策略，LCD 服务约 4.957 s 就绪。617 加密保存/重启导入不继承为 618 通过。证据目录 `hil618-product-candidate-wired-b-20260918`；本轮未修改 FFmpeg/NuttX/SDK 或依赖 revision，OTA 未开始，正式干净复现、视频/介绍、AI 日志与比赛提交仍未完成。
+
+## 2026-09-18 加密会话快照适配（617）
+
+- 617 / `18.6.381+617` 增量构建及签名校验通过，一次有线写入 A 槽 CP/AP 成功，pair SHA256 `c880299e2b3a3ef8f8b323b60a40ffd0a52b8619a36ad2abd33bf42e4758976c`；仍保留 611 BL1/BL2、B 槽 616 与数据区。AP raw 为 1562276 B，现有 1632 KiB 物理 AP 槽可容纳，无新增分区调整。首个 617 包仅是补齐 persona 兼容条件之前的主机构建，未烧录；实板使用 `voice617-encrypted-memory-adapter-r2`。
+- 只恢复旧 SMP1 策略、SMM1 AES-256-GCM 格式与 SMH1 线格式兼容，不恢复旧 runtime/history owner。官方 Session 仍是唯一对话事实；输出完成后取其最近三轮，加密后经既有片上 LittleFS 事务存储提交，启动时投影回官方 Session 并逐项检查读回。旧 SD 密文只读保留，策略关闭时不导入、不新增保存，迁移本身没有云请求。存储记录上限独立扩至 32 KiB，认领/网络报文仍限原 16 KiB；现有适配配置任务栈增至 16 KiB，以容纳官方 Session 8 KiB 行缓冲，不新增任务或存储框架。
+- 实板起始策略为关闭，未由启动自行开启。App 23 经原隐私确认入口临时开启，旧 SD 文件返回 `-ENOENT`，`restore result=0 messages=0`；故本机没有旧密文可作“真实历史已迁移”的证明。`app-memory-enable` 仅记录基线；`app-memory-enable-action` 捕获结束前尚未确认对话框，未发送开启命令，预期日志未命中；实际唯一开启命令及成功证据在 `app-memory-enable-confirm`。
+- `context-memory-r1` 新增 1 次声学唤醒，两轮公开算术问答得到 10、20；request 3/4 complete=0，密文保存均返回 0，随后 request 5=-61 返回待机。首次保存已有两轮记录，本次捕获之外的先前一轮来源未归属，不计入通过统计。一次 `reset reboot` 普通重启后 `memory policy enabled=1`、`restore result=0 messages=6`，LCD 服务与监听恢复。`after-reboot-memory-r2` 再次声学唤醒，仅追问上一结果乘以二，实际回答 40、request 1 complete=0，随后 request 2=-61 返回待机。以上共 2 次受控声学尝试、3 次完整回答，输入为手机扬声器合成音，App 均 force-stop；不是断电原子性、真人泛化或长期稳定性验收。
+- App 已通过同一确认入口恢复起始的“记忆关闭”状态，最新三轮公开算术对话的密文保留，未执行删除命令或根密钥轮换。源码另补“删除记忆同时关闭开关”的现有 App 文案契约，进入 618；617 的该删除分支未实测。证据目录 `hil617-encrypted-memory-adapter-wired-a-20260918`。未改 FFmpeg/NuttX/SDK 或依赖版本，OTA 未尝试；后续候选不能继承 617 的实板通过。
+
+## 2026-09-18 官方 Agent 视觉工具（616）
+
+- 615 的演示源码、配置、模型、APK、签名 pair 与证据已冻结在私有输出 `demo615-frozen`，只读保留；不是正式干净复现，也不代表旧计数可在后续升级后直接回退。616 当前为 `18.6.380+616` / B confirmed，pair SHA256 `ae445bf242b19f9f20dcbdfb33835fd8623057341fb6ad07fa14599108ca3e15`；仅有线写入 B 槽 CP/AP，仍使用已安装的 611 BL1/BL2，数据区未覆盖，无 Flash 回读或 OTA 尝试。
+- 团队 `bk7258_agent_vision` 使用官方工具 provider 注册入口，接现有唯一 `bk7258_vision_capture_jpeg` owner。新鲜 JPEG 交给同一所选 LLM 的官方 `llm_chat_tools` 多模态消息入口，复用受保护传输；未创建第二个摄像头、HTTP/Agent 运行时，也未修改 FFmpeg/NuttX/SDK 或依赖 revision。
+- 615 的 `camera-segment-r1` 仅证明本地 640×480 JPEG 捕获（8911 B、SOI/EOI 有效、无文件保存），不等于图像理解。616 的 `vision-acoustic-r1` 新增 1 次手机扬声器合成音声学尝试：一次唤醒后 ASR 成功，官方 Agent 实际调用 `camera_capture`，本次新 JPEG 18683 B、所选 LLM HTTP 200、工具 result=0，最终 TTS/Media request 1 complete=0；不再唤醒直接普通问答，request 2 complete=0；随后 request 3=-61 返回待机。控制 App 全程关闭。本次未现场核对识物内容准确性，不是真人泛化或完整取消验收。
+- 616 启动 LCD 服务约 4.56 s 就绪，gentle、音量 12/15 与当前选择模型恢复。证据在 `hil616-camera-tool-adapter-wired-b-20260918`，精确产物另保留 `demo616-frozen`。旧加密记忆兼容、最终同版收口、正式干净复现及材料/提交继续推进，OTA 仍最后处理。
+- 已在线核对官方比赛总览与代码提交指南（2026-09-18）：截止仅写 9 月 20 日，不推定具体时刻；语音唤醒使用“你好，openvela / Hello，openvela”，视频不超过 5 分钟，需介绍材料、专属 GitHub 仓、真实 AI 日志与至少 1 个有效 Skill。正式提交/合入尚未执行。
+
+## 2026-09-18 控制 App 与持久配置接入（615）
+
+- 当前有线候选为 `18.6.379+615`，A 槽 confirmed；仅写入空闲 A 槽 CP/AP pair，保留数据与正在使用的 611 BL1/BL2。pair SHA256 `d865ddb0c8fba90b6bba70e75b08a8285a541c637f31724e50a44bf9e468f6de`；不能把打包生成但未写入的 615 bootloader 算成实板身份。
+- 614 的首次 App 心情设置返回 -2，UI 未宣称成功。当前固定 UnQLite 的 NuttX 文件身份路径要求 `FIOC_FILEPATH`，此前选用的原生 FAT 不提供该 ioctl；同时其 `UNQLITE_IOERR=-2` 被团队适配误认为 `-ENOENT`。615 仅修改团队配置/适配：配置库租用同一介质后改用已锁定的 FatFS 后端，保留原数据库路径与格式，并区分库错误和缺失记录。未清库、格式化、转明文或修改公共框架/SDK；FatFS 源码 revision 为 `42e4991f853d32e39082c784e4d0057824066afc`。
+- 615 实板启动约 4.54 s LCD 服务就绪，成功从持久库恢复 playful；随后 App 切为 gentle，设备 `persona applied=gentle source=persistent`，App 回读确认。应用到官方 SOUL 文件的只是聊天风格投影，不是加密历史迁移；旧加密记忆尚未接通，不能把 tmpfs session 算作完成。
+- App 23 / `0.5.18-shaniu-control` 已原位安装，APK SHA256 `387f3e411c1a29318390ab822cd7fe01a01c310bf28dfedadeef0ff4609fec5c`，签名与原 App 22 相同，认领数据未清除。比赛内置包现对应实际 `922eba91…` 模型，WKM SHA256 `b08a256178c0b15af1191a088385501ab652446f680f7e851a076075aafd5814`；只更新资产与来源，没有训练新模型或覆盖个人模型资产。一次真实 App 模型发送已完成，板端 `model apply result=0 loaded=1`，App 回读“你好，openvela”及同一模型哈希。
+- App 音量 80%→60%→80% 均真实设置、回读为 MusicVolume 12→9→12。一次普通重启后，LCD 服务约 4.86 s 就绪，gentle 从持久库恢复、音量应用为 12/15，已持久选择的 922eba91 模型加载；App 重连后回读“你好，openvela”及上述设置。没有重新认领或清空设备。
+- 615 / App 23 / 当前配置与模型上新增 2 次声学尝试、2 次接受唤醒、3 次完整回答：`context-acoustic-r1` 先回答“七加三等于 10。”，无需再次唤醒就接收第二句，回答“刚才的结果是 10，乘以二等于 20。”；request 1/2 complete=0，随后 request 3=-61 返回待机。`rewake-acoustic-r2` 再次唤醒回答首题，request 4 complete=0，request 5=-61 后再次待机。每个有语音轮次均实际 ASR/LLM/TTS 和 Media 关闭；两次尝试期间控制 App 已 force-stop，无 HardFault/Assertion/PRIMARY_TIMEOUT 记录。已有 EOF/混音切换警告仍如实保留；短时通过不等于长期稳定性。输入是手机扬声器播放系统合成音，不是真人泛化通过。
+- 本节证据：`out/shaniu-official-candidate/hil615-fatfs-preferences-adapter-wired-a-20260918/`。`app-model-r1` 仅为串口打开被现有采集占用的失败，没有模型命令；待前一采集释放后 `app-model-r2` 才执行上述唯一模型发送。当前有限主语音与 App 设置门槛成立，准备保留可恢复演示候选；视觉工具、加密记忆兼容、最终干净复现和比赛材料/提交仍未完成。OTA 仍暂停，不继承旧版成功。
+
+## 2026-09-17 播放结束后的音频交接定位
+
+- 605 的第二轮阻塞已取得更早故障证据：复用 CP `apctl status` 和 `xd`，读取该候选 ELF 对应的 AP 任务及未发送日志缓冲。设备时间 11:43:27 的未发送日志明确为 `Assertion !li->status_in failed at ffmpeg/libavfilter/avfilter.c:1760`。Media 任务退出时经 `audio_close → bk7258_aud_shutdown → bk7258_aud_stop_internal → audio_callback` 再入上层关闭锁；不是仅凭最后一行“录音格式协商”认定录音失败。证据在 605 目录的 `current-ap-status/current-ap-task/current-ap-media-stack/current-ap-log-buffer`。RAM 诊断不是 Flash 回读。
+- 606（18.6.370+606）仅在板级图插入官方 `amix` 并启用对应过滤器；构建、签名、全量有线写入和版本确认通过，镜像 SHA256 `918520b1b2fe491585db2dbc3b0df253a3fa1c4f04036d85339230ed98e5adfa`。实板播放协商报缺少 `map_array`、Invalid format 和 Format change is not supported，因此该方案未通过，不作为演示候选。未主动发起声学回放；观察到的该次请求来源未归属，不计声学验收。证据 `hil606-official-amix-adapter-full-20260917/boot`。
+- 已撤下直接 `amix` 接线；按实际官方 `vendor/openvela/boards/vela` 的动态图契约，将播放出口改接现有 `alsasink`，启用 NuttX ALSA 公共库的单硬件设备模式及其现有 SPEEXDSP 依赖，仍访问同一 `pcm0p` 下半部；不启用 aplay/arecord/alsactl，不改 FFmpeg/NuttX/SDK 源码。607 构建、有线写入通过；实板 ASR/LLM 成功后，ALSA 查询 PCM 子格式失败，定位为我们的 DAC getcaps 未枚举 S16_LE，不是上游不支持。
+- 608（18.6.372+608）补齐 DAC PCM 子格式枚举，完整镜像 SHA256 `50e5bf3692f47d05213c1a423b0b873b4db8dab1090d012a5883fd0a0326f434`。初次启动 SD NAND 命令超时，眼睛服务等待设备失败；同版普通重启后 `BKDISPLAY SERVICE READY`，用户确认眼睛恢复。该偶发启动原因尚未定位，重启恢复不等于已修复。
+- 608 声学尝试分别保留：`acoustic-r1` 未确认接受唤醒、未发送问题；`acoustic-after-display-reboot-r2` 手机扬声器 150/150、未静音，专用唤醒后等待自动收音再播放问题。14:56:57 ASR ret=0、14:57:02 LLM HTTP 200、14:57:05 ALSA 配置 16 kHz/单声道/S16_LE 成功，随后 `snd_pcm_hw_pause` 反复失败：我们的 DAC pause/resume 主动返回 -ENOTSUP。14:57:13 CP HardFault 后重启；用户观察短暂黑屏后恢复，与启动日志一致。故障 PC 对应该版 CP 的 `arm_lowputc`；尚未证明与暂停报错的直接因果。未发送第二个问题，不计完整对话通过。
+- 609（18.6.373+609）新增 DAC 暂停/恢复适配：暂停 DAC 消费但保留 DMA 使能、环形缓冲和队列，恢复时应用最新音量并启用 DAC，STOP/RELEASE 仍负责最终释放。构建、有线写入和版本确认通过，镜像 SHA256 `126bf674de42bba85f8fdda9860f3947733fb3f6c613e15dc6c1e7c8bb5cf179`。`acoustic-r1` 采集已结束后才播放一次唤醒，未作门控验收；`acoustic-r2` 为重新确认 Trigger 输入后的独立声学回放，唤醒/ASR/LLM/TTS 首包通过，但播放未结束，未发送第二个问题。暂停不再报错，DAC 为 PAUSED；Media 任务占住 AP，监督器 PRIMARY_TIMEOUT。既有 DAC RAM 计数为入队/归还各 38 次、submitted/played 仅 2560 字节，定位到复用 APB 时未重置 curbyte。
+- 610（18.6.374+610）只补上 DAC 每次入队重置游标及 PAUSED 诊断状态。构建、有线写入和版本确认通过，镜像 SHA256 `e155441f35faf245b1729f48e021d8c350578fc3358df69d4193f08d44a7bc82`。1 次有门控声学回放接受唤醒，ASR/LLM/TTS 首包通过；38 个缓冲的 submitted/played 均为 24320 字节，游标修复已在本次实板计数生效，但 Media 暂停后卡住仍未解决。未发送第二个问题。启动 SD NAND 超时再次使眼睛服务启动失败，不记作已修复。
+- 610 的既有 RAM/ELF 检查显示图的 4 个过滤器 ready 均为 0、DAC 已暂停，播放 fd 仍以 POLLIN/POLLOUT 轮询并返回 POLLERR。当前强制选择的 ALSA HW 路径在欠载后锁存 xrun，而官方默认 Dmix 路径显式处理 PAUSED、恢复时 prepare 硬件。611 将板级 ALSA 选择改回官方默认 Dmix，并启用其已有 named semaphore 依赖，不修改公共源码。定位证据目录 `hil610-apb-reuse-adapter-full-20260918`。
+- 611（18.6.375+611，2026-09-18）增量构建、签名全量镜像和实板版本确认通过，镜像 SHA256 `15ab87d46043a5a818e1b438b36288726319a68dc8df7bf187a07f4da974d572`。第一次下载 GetBus 超时，工具确认尚未擦写；CP 控制台普通重启恢复后，第二次下载成功。没有 Flash 回读或 OTA 尝试。部署证据分别为 `hil611-official-dmix-adapter-full-20260918` 与 `hil611-official-dmix-adapter-full-r2-20260918`。
+- 611 的 `boot-acoustic-r1` 与 `volume80-acoustic-r2` 共 2 次手机扬声器声学唤醒，均实际进入 ASR/LLM/TTS、Media 关闭、`request=1 complete=0`、会话内自动继续收音。第二轮收音随后均以无有效语音 `-61` 正常回到 Trigger：第一次虽发起了第二句回放，但未形成有效录音，不计连续问答通过；第二次只验证首轮实际出声，未发送第二句。欠载不再使 Media 持续占住 AP；第一次事后监督器 healthy、faults/recoveries=0/0。仍保留录音切换及播放 EOF 错误日志，不将恢复视作所有错误已修复。
+- 用户反馈初次未听到板端声音后，确认 MusicVolume 为 8/15（App 53%，板级曲线约 -28 dB），DAC 数字/模拟增益为 45/63、10/15，PA 开启/关闭各 1 次。通过当前真实 App 22 / `0.5.17-shaniu-config` 调至 80%，设备回报 12/15（约 -12 dB），普通重启后持久恢复仍为 12/15；随后用户明确确认“扬声器播放正常”。这仅确认当前 611、80% 配置的本次实际出声，不继承为两轮上下文验收。证据 `app-volume-set`、`volume80-acoustic-r2`。
+- 611 的 `context-acoustic-r3` 完成同一次声学唤醒后的两轮关联问答：首句“七加三等于几？”回答“七加三等于10。”；第二句“把刚才的结果乘以二呢？”未重复唤醒，回答“10 × 2 = 20。”。两轮实际 ASR/LLM/TTS、播放关闭及 request 3/4 complete=0 均有日志，随后第三次收音无语音，request 5=-61 后回到 Trigger。控制 App 在尝试前已 force-stop，未参与维持对话。本次是手机扬声器播放系统合成语音，不是真人泛化验收；素材来源及哈希在同目录 `context-assets/source.md`。同版先前退出会话、这次再次唤醒也已成立。累计保留上述 3 次声学尝试，不把首次未收进第二句计作通过。
+- 611 烧录启动与随后普通重启均观察到 SD NAND 命令超时、`BKDISPLAY START FAIL stage=device-wait ret=-110`；本次 LCD 尚未恢复，历史重启恢复不能覆盖当前结果。当前首个演示阻塞为 LCD 资源加载：既有 CP `xd` 读取 RAM/寄存器，SDIO 命令中断状态为 0、AP SDK 供时影子为关闭、SYS SDIO 时钟位 22 为 0。精确 ELF 证实 SDK 调用了团队 PM 适配，但其无返回值接口吞掉失败；尚未确定该次供时失败原因。证据 `sdio-state`、`sdio-registers`、`sdio-clock-state`、`sdio-clock-register`。OTA 仍暂停。
+- 612 补上 SDIO 初始化前同一幂等供时接口的结果检查；实板在约 100 ms 后明确返回 -110，SDK 尚未进入卡命令。该时长对应团队 PM 的 RPMsg 空闲发送缓冲等待上限，短于既有 1 s 答复预算。613 仅将发送准入统一到已有 1 s 预算并保留原失败码；本次启动供时通过，4.59 s 出现 `BKDISPLAY RENDER PASS screens=2` 和 `BKDISPLAY SERVICE READY`，音量仍为 12/15。未将渲染日志冒充新的肉眼确认。两版均增量构建、签名通过，并通过 BK Loader 分别写入当时空闲 B/A 槽的签名 CP/AP pair，未写数据区、BL1/BL2 或清空配置；没有 OTA 或 Flash 回读确认。612 pair SHA256 `679eff01b13d41c49583479aa8f7cf3f2f0335bebbf85586bc494fa1db63d5c9`，613 pair SHA256 `9116f0bb5a7a8a83ec2aa6d58254d7966d47f78f8b5c42da88d508a46080bcd2`。证据 `hil612-sdio-clock-adapter-wired-b-20260918`、`hil613-pm-admission-adapter-wired-a-20260918`。下一项为 App 聊天风格与模型设置，之后在收口候选复核语音；不继承 611 的声学通过给 613。
+
+## 2026-09-17 当前 605 实板进展
+
+推进顺序沿用户最新要求：正确接入官方运行机制、一次唤醒后的关联连续问答、控制 App，最后 OTA。服务是否常驻遵循实际官方实现。以下仅是当前候选观察结果。
+
+- 605（18.6.369+605）适配增量构建、签名全量包及有线写入通过；未回读。完整镜像 SHA256：`3f84ffb6272b5ad4e3f9a573ac0804f014d0ad0a84e5ac99e7feedbcce8fe0c8`。本次变更只在团队适配层，删除无消费者的输出激活/释放影子状态，由官方 Voice/Media 终态驱动后续交互。
+- 手机媒体音量实际范围为 0–150；此前设置 15 不能当作大音量，播放器 Activity 启动也不能单独证明扬声器播放。用户调高后读到 110/150；随后明确设置并读到 130/150、未静音、speaker 路由，并检查 AudioTrack 启动。
+- 605 专用唤醒素材回放后，真实 Trigger 命中并自动收音；无后续语音时 `request=2 complete=-61`，随后 `interaction=exit next=wake result=0`。同版无语音返回待机已有证据。
+- 同版下一次“专用唤醒素材后接问题”回放：11:42:56 声学命中、自动收音；ASR ret=0；LLM HTTP 200；TTS ret=0/stopped=1/done=1；官方播放关闭后 11:43:27 `request=3 complete=0`。这是手机扬声器声学回放的一轮完整运行证据，不是真人泛化验收。
+- 首个后续阻塞：`interaction=active next=capture result=0` 后创建下一轮 recorder/worker，MIC start ret=0，但日志止于重新协商格式，未见下一轮 `recording started`；随后有 CP BT IPC 信号量失败。尚未定位原因，不能认定官方或 SDK 缺陷；两轮关联问答尚未通过。
+- 证据目录：工作区 `out/shaniu-official-candidate/hil605-official-interaction-adapter-full-20260917/`；其中 `speaker-confirmed-r1/r2`、`speaker130-wake-r3`、`speaker130-dialogue-r4`、`wake-then-question-r5` 均保留各次尝试。前期未命中尝试不删除、不计为通过。OTA 本阶段未尝试。
+
 ## 2026-09-15 比赛冲刺当前状态（基于 4da7f80e）
 
 状态仍为 `IN_PROGRESS`。`4da7f80e` 与已提交的 `073fb7ec` 内容树相同；本节之后
@@ -327,13 +960,14 @@ voice channel 仅有 PTT 录音控制，录音停止后提前回到 IDLE；播�
   `5a1afe3f1788e5715f578cdb537bb798acfcd49ff2deaa32066f9e75c1aa00b2`，
   `.config` SHA256 `9e28f3e3cc4c8a690ba2a55752117c53af6600af70a5bca0575c7e433a3d4b3a`；
   AP role `bk7258-role-b5ceab089e6f41f3`，见既有
-  [构建 manifest](../../../../out/bk7258-plan-validation/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-34dfff5891ff2b05/releases/mcuboot/build-manifest.json)。没有签发新 OTA
+  本地构建 manifest（工作区 `out/bk7258-plan-validation/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-34dfff5891ff2b05/releases/mcuboot/build-manifest.json`，不随源码公开）。没有签发新 OTA
   或将该诊断构建作为可交付运行固件。符号确认 `ai_agent_main`、
   `agent_loop_start`、`session_append`、官方 TTS/Media 排空进入 ELF；旧
   `bkcloud_runtime_create`、`bkvoice_runtime_command`、`agent_turn_run` 和 Volc
   流式实现未进入 ELF。**关闭示例 CLI 后 `voice_channel_start`/ASR 调用因尚无真实
-  Trigger 消费入口而被回收，不能算架构 A 或语音闭环通过。** 旧源码清理也未完成；
-  `drivercheck_ap` 仍是旧 voice/TLS 的实际独立消费者。
+  Trigger 消费入口而被回收，不能算架构 A 或语音闭环通过。** 该段是历史构建结论；
+  AIDK 的 `drivercheck_ap`、`drivercheck_cp` 与 `xts` 配置已在 2026-09-16 退役，
+  不再是当前产品或旧 voice/TLS 的可选消费者，相关实现源码按产品要求保留。
 - 既有 cloud-request 回归 1 项通过，既有 TLS 回归 6 项通过（沙箱外仅本机回环
   套接字）。cloud-http 旧测试仍使用已退出的 JPEG/旧 chat 签名，未通过；提取时
   遗漏的旧 client 请求容量常量已修正，未修改旧断言冒充通过。未新增测试程序。三个已派生的 Volc C 文件亦用本次 ARM 编译参数完成语法编译；

@@ -1,231 +1,218 @@
-# BK7258 三核 openvela 适配
+# BK7258 × openvela：三核平台适配与傻妞 AI 伴侣
 
-[English](README_EN.md) | 简体中文
+[English](README_EN.md) · [参赛技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [板级配置](boards/bk7258/CONFIGS.md) · [实际验收与待办](docs/platforms/bk7258/shaniu-master-plan.md)
 
-## 一、作品简介
+一套 BK7258 芯片适配，三块开发板，两个独立 NuttX 镜像：CPU0 运行 CP，
+CPU1/CPU2 运行 AP SMP。在此基础上，T5-Board 运行小海豚 Dolphin，
+AIToyBoard 运行可独立语音交互的 AI 伴侣「傻妞」。
 
-本作品为 Beken BK7258（三核 Arm Cortex-M33）提供完整的 openvela/NuttX
-平台适配，并在 T5-Board、T5AI-Core 和 AIToyBoard（工程标识 `aidk_ai_toy`，
-既有文档名 AIDK AI Toy）三块物理板之间复用同一套
-SoC 实现。系统不是官方模板假定的单镜像模型，而是由 CPU0 上的 CP NuttX 与
-CPU1/CPU2 上的 AP SMP NuttX 组成配对系统。
+参赛方向：**新硬件平台适配 + AI 硬件产品创新**。
+比赛仓库是 [open-vela/contest2026_135_yongwangzhiqian](https://github.com/open-vela/contest2026_135_yongwangzhiqian)；
+开发 fork 不是另一个参赛项目。
 
-主要交付包括：
+## 先看实机演示
 
-- CP/AP/CPU2 启动、80 槽向量表、SDK IRQ bridge、UART/NSH、定时器、堆与板级
-  bring-up；
-- RPMsg/RPTUN、Wi-Fi/Bluetooth、PSRAM、音视频及常用外设的 SDK wrapper；
-- 项目自有 BL1、NuttX MCUboot BL2、同槽签名 CP/AP 和回滚计数约束；
-- 统一的 CMake 构建、分区生成、打包、校验和主机回归入口；
-- 可追溯的源码、构建、实板串口和 AI Coding 证据。
+[![三块开发板与傻妞实机演示](docs/contest/assets/demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
 
-功能是否完成必须以当前配置和对应实板记录为边界，不能把一块板或历史 profile 的
-结果推广到所有板型。三板维护配置见 [板级配置说明](boards/bk7258/CONFIGS.md)，
-对应验收记录见 [`docs/verification/bk7258/`](docs/verification/bk7258/)；完整技术报告见
-[移植报告](docs/platforms/bk7258/porting-report.md)，官方清单的逐条口径见
-[符合性复核说明](docs/platforms/bk7258/official-compliance-review.md)。
+[主视频：三核适配与实机应用（4 分 48 秒）](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
+· [App 操作补充视频（1 分 26 秒）](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
+· [视频下载、字幕及哈希](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
 
-傻妞当前源码、APK、固件、模型与实板验证入口见 [Master Plan](docs/platforms/bk7258/shaniu-master-plan.md)。产品路径复用官方 Agent、Media、Trigger/TFLM 和标准设备接口；已完成的声学回放、手机控制和 App OTA 与尚未完成的真人泛化、物理按键及振感验收分别记录。
+主视频小于 5 分钟；补充视频不拼接进主视频。视频是已完成的实机演示成片，
+不是无剪辑压力测试。发布副本仅转换为 1080p H.264/AAC，保留完整时长、声音及字幕。
+App 视频展示 OTA 入口，**未拍摄完整 OTA 过程**；实际升级结果另见验收记录。
 
-## 二、选题方向
+## 做了什么
 
-**新硬件适配。** 作品重点是把 BK7258 的三核启动、芯片驱动、板级配置、Beken SDK
-和安全启动链接入 openvela，而不是在已有 BSP 上增加一个应用。三核与双镜像是本
-平台的真实架构约束，相关偏离均在符合性复核说明中显式记录。
+- **平台**：三核启动、CP/AP 核间通信、Wi-Fi/BLE、音视频与外设适配；
+  芯片实现与物理板接线分离；BL1 + MCUboot 同槽签名 CP/AP、A/B 升级。
+- **傻妞**：本地“你好，openvela”唤醒 → 本地应答 → 自动收音 →
+  实际 ASR → 官方 Agent / 所选 LLM → TTS → 扬声器。
+  一次唤醒进入交互，回答后可直接追问，退出条件满足后回到待机。
+- **看与表达**：复用唯一摄像头 owner 拍照识物，双圆屏显示眼睛动画；
+  Agent 通过受限工具查询状态、加速度，控制音量、表情与有界振动。
+- **手机控制**：BLE 认领、配网、音量/风格/回答模式/模型/唤醒阈值设置；
+  Wi-Fi HTTPS 安装眼睛资源、传送 OTA 包。App 不维持每轮对话，也不中转音频。
+- **隐私**：默认本地唤醒；云服务使用选定后端和受保护鉴权；
+  可选加密记忆投影到官方 Session，不上传旧数据来完成迁移。
 
-## 三、目录结构
+ASR 当前为批处理；LLM 当前等待完整文本/工具结果；TTS 支持音频分块接收播放。
+不把上述链路统称为全流式，也不承诺“零延迟”。
 
-| 路径 | 内容 |
-|---|---|
-| `chips/bk7258/` | CP/AP/CPU2、IRQ、定时器、外设 wrapper、BL1/BL2 与芯片 Kconfig |
-| `boards/bk7258/` | 三块物理板、CP/AP 配对配置、分区 CSV、公共链接脚本和 bring-up |
-| `tools/bk7258/` | 唯一维护入口：工具链、SDK bundle、构建、签名、打包、部署和校验 |
-| `tests/host/bk7258/` | 直接编译现役源码的主机回归；不映射进 OpenVela 应用树 |
-| `app/testing/bk7258/` | 三块 BK7258 板共用的官方格式 CMocka 板上应用 |
-| `tests/pytest/test_bk7258/` | 链入官方 pytest 串口框架的三板实板验收 |
-| `docs/platforms/bk7258/` | 移植报告、符合性说明、调试方法和历史阶段记录 |
-| `docs/verification/bk7258/` | 带构建身份和适用边界的不可变验收记录 |
-| `logs/lijian/` | 按大赛格式导出的 AI Coding JSONL 日志 |
-| `logs/bk7258-*` | 早期硬件原始证据；不是 AI 对话日志 |
-| `prebuilt/` | 本机安装的锁定工具链；二进制内容为可再生成的忽略文件 |
-| `chips/bk7258/bk_idk/armino_as_lib/` | 从 manifest 锁定 SDK 重建的本机 bundle；不分发第三方二进制 |
-
-Manifest 将团队维护的 chip、board、工具、应用和目标端测试映射到 openvela 工作区的
-标准扩展位置。Host 测试、`docs/` 和 `logs/` 只存在于团队仓；目标端
-CMocka 链接到官方 `apps/testing/bk7258` 自动发现点，串口用例只链接到官方 pytest 的测试子目录。
-
-开发者可在工作区顶层创建 `.repo/local_manifests/dolphin.xml`，以
-`extend-project` 覆盖已检出团队项目的来源和 revision；不复制团队项目已有的整套
-`linkfile`。Repo 的 [`extend-project` 与 local manifest
-说明](https://gerrit.googlesource.com/git-repo/+/HEAD/docs/manifest-format.md) 确认该元素可
-覆盖既有项目的 `remote` 与 `revision`。
-
-```xml
-<manifest>
-  <remote name="team-dev" fetch="https://github.com/Embracecactus/"/>
-  <extend-project name="contest2026_135_yongwangzhiqian"
-                  path="contest2026_135_yongwangzhiqian"
-                  remote="team-dev"
-                  revision="refs/heads/feat/bk7258-dolphin"/>
-</manifest>
+```text
+Android 控制 App ── 认证 BLE ── 配置 / 控制
+       └──────── Wi-Fi HTTPS ── 资源包 / 签名 OTA
+                                  │
+BK7258 CP（CPU0） ←─ RPMsg ─→ AP（CPU1 + CPU2 / SMP）
+Wi-Fi / BT / Flash / OTA       官方 Agent / Session / Voice / Media
+按键 / 日志 / 系统监督         本地 KWS · 摄像头 · 双屏 · 传感器
+                                  │
+                              验证 TLS / 所选云服务
+                              ASR → LLM → TTS
 ```
 
-这类 local manifest 只服务本机开发，不是官方比赛交付的一部分。官方交付只能由远端
-已提交的 `contest2026_135_yongwangzhiqian.xml` 及其包含的 `openvela.xml` 复现：其中
-默认 remote 为 `openvela`、默认 revision 为 `dev-ai-contest-2026`，BK7258 SDK 固定为
-`Embracecactus/bk_avdk_smp@cb080de1655d579c7593ecf504c440997c4c137b`。开发分支 `feat/bk7258-dolphin` 包含 `app/dolphin/` 及对应linkfile；
-获取开发实现需使用上述local manifest覆盖，并记录实际提交。官方比赛清单仍指向官方
-接收仓，只有对应提交合入后才能用默认清单复现；本次发布不代表已执行完整repo sync。复现或交付前
-记录实际检出身份：`git -C contest2026_135_yongwangzhiqian rev-parse HEAD` 与
-`git -C contest2026_135_yongwangzhiqian remote -v`。
+## 三块板如何选择
 
-## 四、运行方式
+| 物理板 | 构建标识 | 本作品用途 | 正常配置 / SDK |
+|---|---|---|---|
+| 涂鸦 T5AI-Core V1.0.1 | `t5ai_core` | 最小系统、启动与芯片适配基线 | `app + openvela_ap`；`cp + ap` |
+| T5-Board V1.0.2 | `t5_board` | 带屏工具应用 Dolphin、网络与外设操作 | `app + openvela_ap`；`cp + ap` |
+| AIToyBoard / AIDK AI Toy | `aidk_ai_toy` | 傻妞：语音、摄像头、双眼、手机控制 | `app + openvela_ap`；`cp-aidk + ap-aidk` |
 
-### 1. 获取完整工作区
+三者不是同一 PCB 的别名。购板或复现接线前，请核对
+[板型与引脚](boards/bk7258/README.md)、相应原理图及板上实际器件；
+不要把 T5AI-EVB 当作 T5-Board V1.0.2。**编译不需要连接或购买开发板**。
+三板历史实测各有边界，不能把 AIToyBoard 的产品演示推广到其他板。
 
-以下命令显式选中默认项目和 BK7258 SDK 组。SDK 项目没有 `notdefault` 标记，因此
-普通默认同步也会包含它；显式写出分组是为了让复现输入一目了然。
+## 评审构建指南
+
+### 发布状态与已知复现缺口
+
+本次代码快照为 `82610138`，交付分支为
+`feat/shaniu-contest-delivery-20260920`，基于官方比赛分支 `7079493e`。
+**推送到 fork 不等于官方 PR 已合入或比赛已提交。**
+
+当前 AIToyBoard 产品使用官方 `packages/ai_agent@e65550f18759f086d7f544edcf17d1e31223244f`
+及本机尚未发布的 Agent 扩展。团队仓提交并不包含那个子仓的工作树。
+因此，下面给出真实入口和依赖获取方法，但**暂不能保证仅用公开 manifest
+干净编译出完整傻妞**；最终三板干净复现也尚未重跑。
+这个缺口必须由可获取的依赖提交和实际构建结果关闭，不能靠退役 patch、源码覆盖
+或把编译失败写成成功来掩盖。依赖状态见 [来源记录](SOURCE_PROVENANCE.md)。
+
+### 1. 获取完整 openvela 工作区
+
+建议 Ubuntu 22.04，先准备 Git/Repo、Python 3、CMake、Ninja、Make 及
+[openvela 构建环境](https://github.com/open-vela/docs)。不要只 clone 本团队仓后直接运行 NuttX 构建。
 
 ```bash
 repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian \
   -b dev-ai-contest-2026 \
-  -m contest2026_135_yongwangzhiqian.xml \
-  -g default,bk7258-sdk
+  -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk
 repo sync -c -j8
+```
+
+在本次分支合入前，需在工作区 `.repo/local_manifests/shaniu-delivery.xml`
+保存以下覆盖后再次 `repo sync -c -j8`。它只切换团队项目，不复制 linkfile，
+也**不解决上述 Agent 依赖缺口**：
+
+```xml
+<manifest>
+  <remote name="shaniu-delivery" fetch="https://github.com/Embracecactus/"/>
+  <extend-project name="contest2026_135_yongwangzhiqian"
+                  path="contest2026_135_yongwangzhiqian"
+                  remote="shaniu-delivery"
+                  revision="refs/heads/feat/shaniu-contest-delivery-20260920"/>
+</manifest>
+```
+
+官方合入后使用官方 manifest，不再需要这份覆盖。固定一次复现的依赖身份：
+
+```bash
+repo manifest -r -o resolved-manifest.xml
+git -C contest2026_135_yongwangzhiqian rev-parse HEAD
+git -C packages/ai_agent status --short
 cd contest2026_135_yongwangzhiqian
 ```
 
-建议使用 Ubuntu 22.04，并预先安装 openvela 常规构建依赖、Python 3、CMake、Ninja
-和 GNU Make。Arm 编译器不从系统 `PATH` 选择。
+`resolved-manifest.xml` 只记录提交，不包含未提交修改。不要在存在本地工作时盲目 sync。
+团队目录保留 manifest 指定的 `contest2026_135_yongwangzhiqian` 名称；SDK 工具按该名称读取同名 XML。
 
-### 2. 安装锁定工具链
-
-工具会从 `tools/bk7258/toolchain.json` 指定的 Arm 官方 HTTPS 地址下载归档，校验
-SHA-256 后安装到被忽略的 `prebuilt/` 目录。也可用 `--archive` 指定已下载的同一
-归档。
+### 2. 安装工具链与构建 SDK
 
 ```bash
 tools/bk7258/bk7258.py toolchain install
 tools/bk7258/bk7258.py toolchain verify
-```
-
-### 3. 重建 SDK bundle
-
-SDK 源码由 manifest 固定在 `vendor/beken/bk_avdk_smp`。T5-Board 与 T5AI-Core 使用
-`cp` + `ap`；AIDK AI Toy 使用 `cp-aidk` + `ap`。
-
-```bash
-tools/bk7258/bk7258.py sdk rebuild \
-  --profile cp --source ../vendor/beken/bk_avdk_smp --jobs 8
-tools/bk7258/bk7258.py sdk rebuild \
-  --profile ap --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk rebuild --profile cp --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk rebuild --profile cp-aidk --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk rebuild --profile ap --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk rebuild --profile ap-aidk --source ../vendor/beken/bk_avdk_smp --jobs 8
 tools/bk7258/bk7258.py sdk verify --profile cp
+tools/bk7258/bk7258.py sdk verify --profile cp-aidk
 tools/bk7258/bk7258.py sdk verify --profile ap
+tools/bk7258/bk7258.py sdk verify --profile ap-aidk
 ```
 
-构建 AIDK AI Toy 前，将上面的 `cp` profile 改为 `cp-aidk`。已取得与跟踪哈希一致的
-预制 bundle 时，也可使用 `sdk install --profile <name> --bundle <path>`；bundle
-仍须通过 `sdk verify`。
+只构建一块板时，仅需表中对应的一对 SDK profile；AIDK 必须是 `cp-aidk + ap-aidk`。
+工具链从 `toolchain.json` 的锁定来源校验安装，不随意使用系统 GCC。
+SDK 源码由 manifest 固定为 `cb080de1655d579c7593ecf504c440997c4c137b`；
+需自行重建受许可约束的本地 bundle，不从私人机器复制不明二进制。
 
-### 4. 构建 CP/AP 配对系统
+### 3. 三板构建入口
 
-下面的 direct 模式用于无签名 bring-up 和复现检查：
+依次执行所需板型；共用 SDK 输出不要并发写入：
 
 ```bash
-tools/bk7258/bk7258.py build \
-  --board t5ai_core --boot direct --jobs 8
+tools/bk7258/bk7258.py build --board t5ai_core --boot direct --jobs 8
+tools/bk7258/bk7258.py build --board t5_board --boot direct --jobs 8
+tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 8
 ```
 
-也可将板名改为 `t5_board` 或 `aidk_ai_toy`。入口会解析板级 `openvela.conf`，生成
-CP/AP 私有构建配置和分区头/链接输入，然后分别调用官方 `build.sh ... --cmake`。
-`BK7258_SDK_DIR`、工具链和分区变量是 wrapper 的受校验内部契约，用户无需手工设置。
+每个入口读取该板 `openvela.conf`，生成 CP/AP 私有配置与分区输入，
+调用官方 `build.sh --cmake`，打印 build manifest、ELF/bin 路径和哈希。
+产物位于工作区 `out/bk7258/<board>/...`；**direct 是未签名编译/bring-up
+路径，不能当作已部署安全设备的升级包。**
 
-构建结束会打印 build manifest、CP/AP ELF/原始 bin 和最终 Flash 段的精确路径与
-SHA-256。多镜像系统的产物按分区角色命名，例如 `boot.bin`、`cp.bin`、`ap.bin`、
-`pair.bin` 和签名发布中的 `bl2-a.bin`；单镜像示例名 `vela_ap.bin` 不适用于此布局。
-这些分区产物不能单独作为整机下载交付。direct 调试包必须继续通过唯一入口生成并
-验证完整 ZIP。`$DEVICE_BASE` 是从同一块目标板读取的完整 Flash，不能使用另一块板
-的 dump：
+签名构建使用 `--boot mcuboot` 及明确的 BL1/MCUboot 公钥、rollback floor；
+签名、分区、设备身份和烧录步骤见
+[现役构建/发布 SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)。
+编译不需要私人设备身份、云 token、原始训练录音或签名私钥。
+同板恢复包含设备数据，不公开、不跨板烧录，也不为复现自动轮换信任根。
 
-```bash
-tools/bk7258/bk7258.py package accept-base \
-  --board "$BOARD" --base "$DEVICE_BASE" \
-  --device-id "$DEVICE_ID" --capture-method fixture-readback \
-  --output "$DEVICE_BASE_EVIDENCE"
-tools/bk7258/bk7258.py package delivery \
-  --build-manifest "$DIRECT_MANIFEST" --unsigned \
-  --version 0.1.0+1 \
-  --base "$DEVICE_BASE" --base-evidence "$DEVICE_BASE_EVIDENCE" \
-  --output "$BOARD-direct-diagnostic.zip"
-tools/bk7258/bk7258.py verify delivery \
-  --delivery "$BOARD-direct-diagnostic.zip"
-```
+### 4. Android、模型与显示资源
 
-`accept-base` 会把完整读回绑定到板型、布局、稳定设备 ID 和采集方式；它防止误把
-同容量的另一板读回混入产品包，但操作者/受控夹具仍负责证明读回确实来自该设备。
-ZIP 同时包含 accepted-base/release/build manifest、板级发布策略、SHA-256、烧录说明和底层可
-验证包；`recovery/*-full-flash.bin` 的长度由板级分区 CSV 推导，当前三板均为完整
-8 MiB。它保留同一设备的配置、持久数据和 MAC/RF/网络校准状态，因此是设备绑定的
-恢复包，不能复制到另一块板。unsigned direct 仍只用于 bring-up/诊断，不能冒充
-正式签名发布。未接入量产写号与校准流程前，清单会明确标记工厂镜像
-`requires-provisioning`，不会伪造一个通用 factory BIN。
+- [Android 工程与构建](android/shaniu-companion/README.md)：JDK 17、Android SDK 35，
+  当前源码版本 `0.5.23-shaniu-rebind` / code 28，Android 10+。
+- [模型训练与工具入口](tools/bk7258/README.md)：`voice kws audit/train/evaluate`；
+  [内置模型元数据](app/bk7258/models/nihao_openvela.metadata.json)随仓库提供。
+  TensorFlow 训练环境不是普通固件编译依赖。
+- [眼睛资源与打包](app/bk7258/assets/display/README.md)：原图、JSON 与既有
+  `package eye-pack` / `verify eye-pack` 入口。
 
-`--boot mcuboot` 是正式签名链：构建只接收受信 BL1/MCUboot 公钥，发布在批准的私钥
-签名边界完成，计数继续遵循当前 `+GENERATION` 映射及目标已启用的接受下限；
-独立产物号不改变这些规则。A8 持续受信身份以公钥指纹和批准的签名者
-引用标识；私钥不进入仓库、`out/`、命令记录或交付证据。创建、导入、轮换、撤销、迁移
-或销毁身份均须单独的所有者授权，不能由一次完整下载、profile 切换或 `--clean` 隐含触发。
-完整流程和烧录边界见
-[构建/烧录/调试 SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)。
-正式版本分别通过 `release full` 与 `release ota` 生成并验证，再使用
-`release product --full-release ... --base ... --ota-release ...
---ota-required-source-version ...` 合成每块板、每个版本独立的产品 ZIP。OTA 只更新 CP/AP，
-并在清单中绑定来源版本和来源设备当前必须信任的 MCUboot 根；有线恢复另行记录它
-安装的新根，密钥轮换时两者允许不同。
+App、训练代码和产品模型目前在本仓统一版本管理；不必另建 GitHub 仓库。
+Android 工程不参加 NuttX 构建，训练数据也不通过 linkfile 混入固件。
+`packages/ai_agent` 是官方独立依赖项目，不属于本团队仓的子目录。
 
-### 5. 主机回归
+固件内置公开 KWS 为 32 通道、23,640 B，SHA 前缀 `922eba91`；
+实机曾通过 App 激活 64 通道、47,672 B 候选 `536ebba8`，
+二者不是同一模型。私人录音及其实验目录不公开，评测指标见技术报告；
+未发布的授权“我在”音色 PCM 为可选资产，不是编译前置。
 
-安装 `cmocka` 开发包后，从团队仓根目录执行：
+## 实测结果与边界
 
-```bash
-make -C tests/host/bk7258 check
-```
+| 内容 | 已有证据 | 不扩大的结论 |
+|---|---|---|
+| 连续语音 / 拍照 | 625–629 等候选有声学交互、关联追问与真实 JPEG 请求记录 | 非当前源码全量同版验收；颜色理解仍有错误 |
+| 真人唤醒 | 用户实机成功与失败均有记录 | 没有独立多人 FAR/FRR 通过结论；合成回放不算真人泛化 |
+| App / 资源 | 配网、Token Plan、设置回读、眼睛安装已有实测 | NFC 驱动已适配，但未纳入当前板端产品流程 |
+| 真实 App OTA | `18.6.398+634`，重启后 counter 634、B 槽、trial confirmed | 不是全量烧录替代 OTA，也不代表全部旧版本升级组合通过 |
+| 眼睛重启保持 | 634 安装后复位：READY / error 0 / revision 2 | 旧 FAT 损坏触发根因未重现，不宣称所有存储故障已根治 |
+| runtime Skill / 635 | `18.6.399+635`：开机安装技能、2,012 B 工具表；用户与 CodeBuddy 确认语音及双屏显示 | App 控制与 App OTA 本轮未重测，继续引用 634 的实际结果 |
 
-成功标志为 `BK7258_HOST_TEST_PASS`。该结果只覆盖 mock 环境中的逻辑与 ABI；硬件
-能力必须引用对应的实板记录。
+更多延迟、大小、失败尝试与 SHA256 见
+[技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)和
+[Master Plan](docs/platforms/bk7258/shaniu-master-plan.md)。
+635 的 Skill 产品入口和 CMake 接线与 `82610138` 文件一致；详见
+[635 用户实机验证记录](docs/verification/bk7258/2026-09-20-shaniu-runtime-skill-635.md)。
+若部署 635 full 包，构建的 rollback floor 为 635；同号 OTA 包不改写 BL1/BL2。
+未实测功耗、长期稳定性、旧密文实迁不写成已完成。
 
-### 6. 官方目标端与串口测试
+## 目录与维护
 
-三块板各自的 `configs/xts` CP 配置与同板 `openvela_ap` 配对，启用同一个
-`cmocka_bk7258_board_test`。下载后可从 CP NuttShell 直接运行，或从工作区
-`tests/scripts` 使用官方 pytest，并把 `-B` 设为 `t5_board`、`t5ai_core` 或
-`aidk_ai_toy`。具体参数见
-[`tests/pytest/test_bk7258/README.md`](tests/pytest/test_bk7258/README.md)。
+| 目录 | 职责 |
+|---|---|
+| `chips/bk7258/` / `boards/bk7258/` | 芯片机制 / 三块物理板接线、配置与布局 |
+| `app/bk7258/` / `app/dolphin/` | 傻妞产品适配 / T5-Board Dolphin |
+| `android/shaniu-companion/` | 独立 Android 控制工程 |
+| `frameworks/` / `external/` | 团队构建接线；不恢复已退役 patch 链 |
+| `tools/bk7258/` | 现役构建、SDK、资产、签名和发布 CLI |
+| `.agents/skills/` | 随仓可复用开发 Skill，详见[能力索引](docs/platforms/bk7258/shaniu-skill-capability-map.md) |
+| `logs/lijian/` | 已导出的真实 AI Coding 日志及索引；不手动改写 |
+| `docs/verification/bk7258/` | 按日期和版本界定的历史验收证据 |
 
-## 五、AI Coding 使用说明
+无关 test/示例未进入傻妞产品配置，源码保留用于明确的其他配置或历史复现；
+不为了编译产品重新启用它们。主机检查不能代替实板证明。
+当前文档总导航见 [docs/README.md](docs/README.md)，历史记录不改写为当前状态。
 
-AI 参与了需求拆解、官方/SDK 源码交叉核对、启动与中断根因分析、实现和测试生成、
-实板日志解释、威胁建模以及文档维护。关键做法是把 AI 结论当作待验证假设：源码
-所有权、分区、符号、构建产物和硬件结果都必须由可重复命令或原始证据确认。
-
-符合大赛格式的对话日志位于 `logs/lijian/<date>/<tool>__<sid>.jsonl`，会话索引见
-`logs/lijian/manifest.json`。`logs/bk7258-*` 是早期串口/安全启动原始证据，不属于
-AI 日志；新的结构化实板结论统一写入 `docs/verification/bk7258/`。
-
-## 许可证
-
-除文件或目录另有声明外，本仓库原创内容按 Apache License 2.0 授权，许可证全文见
-[`LICENSE`](LICENSE)。第三方及上游派生材料继续适用其原有版权和许可证声明；manifest
-引用但未存储在本仓库中的项目由各自许可证管理。BK7258 主机测试的逐类来源说明见
-[`tests/host/bk7258/PROVENANCE.md`](tests/host/bk7258/PROVENANCE.md)，全仓源码分类与许可证审计见
-[`SOURCE_PROVENANCE.md`](SOURCE_PROVENANCE.md)。
-
-## 评审入口
-
-- [符合性复核说明（中文）](docs/platforms/bk7258/official-compliance-review.md) /
-  [English](docs/platforms/bk7258/official-compliance-review.en.md)
-- [openvela 文档适配矩阵](docs/platforms/bk7258/openvela-document-adaptation-matrix.md)
-- [BK7258 板级配置与架构](boards/bk7258/README.md)
-- [BK7258 主机测试说明](tests/host/bk7258/README.md)
-- [BK7258 OpenVela 板上测试](app/testing/bk7258/README.md)
-- [AI Coding 日志格式](logs/README.md)
+原创代码采用 [Apache-2.0](LICENSE)；第三方派生、SDK 与生成资产的来源和许可见
+[SOURCE_PROVENANCE.md](SOURCE_PROVENANCE.md)。云凭据、私钥、私人语音及设备绑定
+恢复材料不随公开交付分发。

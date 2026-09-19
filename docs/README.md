@@ -7,6 +7,7 @@
 
 | 层级 | 目录 | 内容与边界 |
 |---|---|---|
+| Contest delivery | [`contest/`](contest/) | 当前参赛技术报告、视频封面；视频附件见仓库 README 的 Release |
 | Chip / SoC | [`chips/<soc>/`](chips/) | 不依赖具体板卡的寄存器、启动、IRQ、时钟、PM、SDK ABI 和通用调试契约 |
 | Platform integration | [`platforms/<soc>/`](platforms/) | 跨板构建、启动与更新模型、交付方法、符合性说明，以及明确标为历史的工程记录 |
 | Learning | [`learning/`](learning/) | 带来源版本的教程和心智模型；不发布当前实施进度或板端验收状态 |
@@ -17,6 +18,10 @@
 权威入口是 `boards/bk7258/CONFIGS.md` 与 `boards/bk7258/README.md`。
 
 ## BK7258 入口
+
+- [参赛技术报告](contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)：按大赛模板组织，含量化结果与验证边界；
+- [README / 实机视频 / 三板构建](../README.md)：评审与复现入口；公开 Agent 依赖未闭合时不宣称干净构建通过；
+- [傻妞 Master Plan](platforms/bk7258/shaniu-master-plan.md)：635 Skill/语音/显示与 634 App OTA 的分版本状态；
 
 - [芯片与板卡集成](platforms/bk7258/README.md)：BK7258 跨板构建、启动、更新和交付入口；
 - [芯片级文档](chips/bk7258/README.md)：BK7258 SoC 共用契约；

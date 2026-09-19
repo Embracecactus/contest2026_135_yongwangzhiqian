@@ -1,232 +1,126 @@
-# BK7258 Tri-Core openvela Port
+# BK7258 × openvela: three-core adaptation and Shaniu
 
-English | [简体中文](README.md)
+[简体中文](README.md) · [Technical report (Chinese)](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)
 
-## 1. Project overview
+One shared BK7258 SoC adaptation supports three physical boards. CPU0 runs
+the CP NuttX image; CPU1 and CPU2 run a separate AP SMP image.
+T5-Board runs the Dolphin utility application. AIToyBoard runs Shaniu,
+a voice and vision companion using the official Agent, Session, Voice,
+Media and Trigger components.
 
-This project provides a complete openvela/NuttX platform port for the Beken
-BK7258, a tri-core Arm Cortex-M33 SoC. The same SoC implementation is shared by
-the T5-Board, T5AI-Core, and AIToyBoard (stable machine ID `aidk_ai_toy`, also
-documented as AIDK AI Toy) physical boards. Unlike the single-image
-model used by the generic porting template, the product is a paired system: CP
-NuttX runs on CPU0, while AP SMP NuttX runs on CPU1 and CPU2.
+## Real-device videos
 
-The main deliverables are:
+[![Project demonstration](docs/contest/assets/demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
 
-- CP/AP/CPU2 startup, an 80-slot vector table, the SDK IRQ bridge, UART/NSH,
-  timer, heap, and board bring-up;
-- SDK wrappers for RPMsg/RPTUN, Wi-Fi/Bluetooth, PSRAM, multimedia, and common
-  peripherals;
-- a project-owned BL1, NuttX MCUboot BL2, same-slot signed CP/AP images, and
-  rollback-counter enforcement;
-- unified CMake build, partition generation, packaging, verification, and host
-  regression entry points; and
-- traceable source, build, hardware-console, and AI Coding evidence.
+- [Main demonstration — 4:48](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
+- [Android controls — 1:26, supplementary](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
+- [Downloads, subtitles and hashes](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
 
-A result applies only to the configuration and physical board named by its
-evidence record. See the [board configuration contract](boards/bk7258/CONFIGS.md)
-and [`docs/verification/bk7258/`](docs/verification/bk7258/) for maintained
-configuration and acceptance evidence, the
-[porting report](docs/platforms/bk7258/porting-report.md) for technical details,
-and the [official compliance review](docs/platforms/bk7258/official-compliance-review.en.md)
-for the item-by-item interpretation of the official checklist.
+The main video is under five minutes. These are edited demonstrations, not
+continuous stress-test recordings. Distribution copies retain the complete
+content and use 1080p H.264/AAC. The App video shows the OTA entry, not an
+entire upgrade; OTA evidence is recorded separately.
 
-## 2. Competition track
+## Product behavior
 
-**New hardware porting.** The work integrates the BK7258 tri-core startup,
-chip drivers, board configurations, Beken SDK, and secure boot chain into
-openvela. It is not an application added to an existing BSP. The tri-core and
-paired-image differences are real platform constraints and are explicitly
-documented in the compliance review.
+“你好，openvela” enters an interaction: local acknowledgement, automatic
+capture, actual ASR, official Agent / selected LLM, TTS and speaker playback.
+Follow-up questions do not require another wake word. Session termination
+returns to hotword listening. ASR is batch, LLM returns complete text/tool
+results, and TTS delivers audio chunks; this is not an all-streaming pipeline.
 
-## 3. Repository layout
+The device owns conversation execution. Android handles authenticated BLE
+provisioning and settings, plus Wi-Fi HTTPS delivery of eye assets and signed
+OTA packages. It does not relay conversation audio. Camera access uses the
+existing single owner; native tools expose bounded device actions.
+Optional persistent memory is encrypted and restored into official Sessions.
 
-| Path | Purpose |
-|---|---|
-| `chips/bk7258/` | CP/AP/CPU2 code, IRQ, timer, peripheral wrappers, BL1/BL2, and chip Kconfig |
-| `boards/bk7258/` | Three physical boards, paired CP/AP configs, partition CSVs, shared linker scripts, and bring-up |
-| `tools/bk7258/` | Sole maintainer entry for toolchain, SDK bundles, build, signing, packaging, deployment, and verification |
-| `tests/host/bk7258/` | Host regression that compiles active sources directly and is not mapped into OpenVela apps |
-| `app/testing/bk7258/` | Official-form on-board CMocka application shared by all three BK7258 boards |
-| `tests/pytest/test_bk7258/` | Three-board hardware acceptance linked into the official pytest runner |
-| `docs/platforms/bk7258/` | Porting reports, compliance notes, debug procedures, and historical stage records |
-| `docs/verification/bk7258/` | Immutable acceptance records with explicit build identity and applicability |
-| `logs/lijian/` | Competition-format AI Coding JSONL logs |
-| `logs/bk7258-*` | Early raw hardware evidence; not AI conversation logs |
-| `prebuilt/` | Local locked-toolchain installation; generated binary content is ignored |
-| `chips/bk7258/bk_idk/armino_as_lib/` | Local bundles rebuilt from the manifest-pinned SDK; third-party binaries are not redistributed |
+## Boards and build entry points
 
-The manifest maps maintained chip, board, tool, application, and target-test
-paths into standard OpenVela extension points. Host tests, `docs/`, and `logs/`
-remain team-only. Target CMocka links into the official
-`apps/testing/bk7258` auto-discovery point, while serial cases link only below
-the official pytest script tree.
+| Board | CLI ID | Application | SDK profiles |
+|---|---|---|---|
+| T5AI-Core V1.0.1 | `t5ai_core` | Platform baseline | `cp`, `ap` |
+| T5-Board V1.0.2 | `t5_board` | Dolphin | `cp`, `ap` |
+| AIToyBoard / AIDK AI Toy | `aidk_ai_toy` | Shaniu | `cp-aidk`, `ap-aidk` |
 
-## 4. Build and run
+Each selects `app + openvela_ap` through its own `openvela.conf`.
+Compiling does not require a physical board. Consult the
+[board bindings](boards/bk7258/README.md) and [configuration contract](boards/bk7258/CONFIGS.md);
+T5AI-EVB is not interchangeable with T5-Board.
 
-### 4.1 Fetch the complete workspace
+**Publication boundary:** source snapshot `82610138` is on
+`feat/shaniu-contest-delivery-20260920`, based on official `7079493e`.
+A fork push is not an upstream merge or completed contest submission.
+The Shaniu product still depends on unpublished local changes to
+`packages/ai_agent@e65550f18759f086d7f544edcf17d1e31223244f`.
+Consequently, a clean public-manifest build of the complete product is
+**not yet established**. No retired patch/overlay chain is supplied as a workaround.
+See [provenance](SOURCE_PROVENANCE.md).
 
-The command below selects both the default projects and the BK7258 SDK group
-explicitly. The SDK project has no `notdefault` marker, so an ordinary default
-sync also includes it; spelling out the group makes the reproduction input
-unambiguous.
+Use Ubuntu 22.04 with the standard openvela build prerequisites:
 
 ```bash
 repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian \
   -b dev-ai-contest-2026 \
-  -m contest2026_135_yongwangzhiqian.xml \
-  -g default,bk7258-sdk
+  -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk
 repo sync -c -j8
-cd contest2026_135_yongwangzhiqian
 ```
 
-Ubuntu 22.04 is recommended. Install the normal openvela host dependencies,
-Python 3, CMake, Ninja, and GNU Make first. The Arm compiler is never selected
-from the host `PATH`.
-
-### 4.2 Install the locked toolchain
-
-The tool downloads the archive from the official Arm HTTPS URL recorded in
-`tools/bk7258/toolchain.json`, verifies its SHA-256, and installs it below the
-ignored `prebuilt/` directory. Pass `--archive` to use an already-downloaded
-copy of the same archive.
+Before the delivery branch is merged, apply the team-project-only local
+manifest shown in the [Chinese build guide](README.md#评审构建指南).
+It does not resolve the Agent dependency gap.
+Record `repo manifest -r` and dirty dependency state, then enter the team repository:
 
 ```bash
+cd contest2026_135_yongwangzhiqian
 tools/bk7258/bk7258.py toolchain install
 tools/bk7258/bk7258.py toolchain verify
+tools/bk7258/bk7258.py sdk rebuild --profile cp --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk rebuild --profile cp-aidk --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk rebuild --profile ap --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk rebuild --profile ap-aidk --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py build --board t5ai_core --boot direct --jobs 8
+tools/bk7258/bk7258.py build --board t5_board --boot direct --jobs 8
+tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 8
 ```
 
-### 4.3 Rebuild the SDK bundles
+Build boards sequentially. A single-board build needs only its two SDK profiles.
+Keep the team checkout directory name specified by the manifest; SDK tools read
+its same-named XML. AIToyBoard requires both `cp-aidk` and `ap-aidk`.
+The manifest pins the SDK to `cb080de1655d579c7593ecf504c440997c4c137b`.
+Outputs and source/configuration hashes are recorded in the emitted build manifest.
+`direct` is unsigned bring-up, **not** an update for a provisioned secure device.
+For signed builds and device-safe deployment, use the
+[existing release SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md).
+Private keys and device-specific recovery images are not public build dependencies.
 
-The manifest pins the SDK source at `vendor/beken/bk_avdk_smp`. T5-Board and
-T5AI-Core use `cp` plus `ap`; AIDK AI Toy uses `cp-aidk` plus `ap`.
+## App, models, Skills and evidence
 
-```bash
-tools/bk7258/bk7258.py sdk rebuild \
-  --profile cp --source ../vendor/beken/bk_avdk_smp --jobs 8
-tools/bk7258/bk7258.py sdk rebuild \
-  --profile ap --source ../vendor/beken/bk_avdk_smp --jobs 8
-tools/bk7258/bk7258.py sdk verify --profile cp
-tools/bk7258/bk7258.py sdk verify --profile ap
-```
+- [Android project](android/shaniu-companion/README.md): JDK 17, SDK 35,
+  Android 10+, source version `0.5.23-shaniu-rebind` / code 28.
+- [Model tools](tools/bk7258/README.md): existing `voice kws` commands.
+  Training dependencies are not required for a normal firmware build.
+  The public builtin model is 23,640 B / SHA prefix `922eba91`;
+  the App-activated experimental 47,672 B model `536ebba8` is a different asset.
+- [Eye assets](app/bk7258/assets/display/README.md): original atlas, metadata,
+  pack/verify commands. Private acknowledgement PCM is optional and excluded.
+- [Reusable development Skills](docs/platforms/bk7258/shaniu-skill-capability-map.md).
+  Runtime `device-assistant.md` was verified on firmware `18.6.399+635`:
+  installation log, a 2,012-byte tool table, user-confirmed voice and display.
+  See the [635 evidence](docs/verification/bk7258/2026-09-20-shaniu-runtime-skill-635.md).
+- [Master Plan and exact board evidence](docs/platforms/bk7258/shaniu-master-plan.md).
+  Actual App OTA to `18.6.398+634` was confirmed after reboot (counter 634,
+  slot B, confirmed trial). Reinstalled eyes persisted across reset.
+  App controls and App OTA were not rerun on 635; their unchanged source paths
+  do not constitute new acceptance. Deploying the 635 full package raises its
+  bootloader floor to 635; the OTA-only package does not replace BL1/BL2.
+  Historical upgrade paths, storage faults and independent human wake-word
+  generalization are not thereby certified.
 
-Replace `cp` with `cp-aidk` before building AIDK AI Toy. If a prepared bundle
-matching the tracked hash is available, it may instead be loaded with
-`sdk install --profile <name> --bundle <path>` and must still pass `sdk verify`.
-
-### 4.4 Build the paired CP/AP system
-
-The direct mode below is intended for unsigned bring-up and reproduction:
-
-```bash
-tools/bk7258/bk7258.py build \
-  --board t5ai_core --boot direct --jobs 8
-```
-
-`t5_board` and `aidk_ai_toy` are the other board names. The entry reads the
-board-owned `openvela.conf`, generates private CP/AP build configurations and
-partition linker inputs, and invokes the official `build.sh ... --cmake` once
-per role. `BK7258_SDK_DIR`, toolchain, and partition environment variables are
-validated internal wrapper contracts and must not be set manually.
-
-The command prints the exact build manifest, CP/AP ELF and raw binary paths,
-final Flash-segment paths, and SHA-256 values. This is a multi-image layout, so
-artifacts are named by partition role, such as `boot.bin`, `cp.bin`, `ap.bin`,
-`pair.bin`, and `bl2-a.bin` in a signed release. The generic single-image name
-`vela_ap.bin` does not describe this product.
-
-Loose partition artifacts are not a whole-device handoff.  An unsigned direct
-recovery requires one exact complete readback from the same device:
-
-```bash
-tools/bk7258/bk7258.py package accept-base \
-  --board "$BOARD" --base "$DEVICE_BASE" \
-  --device-id "$DEVICE_ID" --capture-method fixture-readback \
-  --output "$DEVICE_BASE_EVIDENCE"
-tools/bk7258/bk7258.py package delivery \
-  --build-manifest "$DIRECT_MANIFEST" --unsigned \
-  --version 0.1.0+1 \
-  --base "$DEVICE_BASE" --base-evidence "$DEVICE_BASE_EVIDENCE" \
-  --output "$BOARD-direct-diagnostic.zip"
-tools/bk7258/bk7258.py verify delivery \
-  --delivery "$BOARD-direct-diagnostic.zip"
-```
-
-`accept-base` binds the readback to the board, layout, stable device ID, and
-capture method.  It prevents accidental cross-board reuse of equal-sized
-readbacks; the operator/controlled fixture still owns proof of physical source.
-The ZIP carries that evidence and a full-Flash
-`recovery/*-full-flash.bin`; its size is derived
-from the selected partition CSV (8 MiB on the current three boards).  It
-preserves configuration, persistent data, MAC/RF/network calibration, and
-unmapped bytes from that device, so it must not be copied to another unit.
-Until manufacturing provisioning assigns per-device state, the manifest marks
-the universal factory image `requires-provisioning` rather than fabricating
-one.  Signed full and OTA directories are combined with `release product`.
-The manifest distinguishes the new root installed by wired recovery from the
-root required on OTA source devices; intentional key rotation may make them
-different.
-
-`--boot mcuboot` selects the signed release chain. It requires newly generated
-BL1 and MCUboot public keys for that release, private-key-side release steps,
-and a strictly increasing rollback counter. Historical private keys must never
-be reused. See the [build/flash/debug SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)
-for the complete process and Flash-write boundaries.
-
-### 4.5 Host regression
-
-After installing the `cmocka` development package, run this from the team
-repository root:
-
-```bash
-make -C tests/host/bk7258 check
-```
-
-Success ends with `BK7258_HOST_TEST_PASS`. It proves only the mocked logic and
-ABI covered by the suite; hardware capabilities require a matching board
-evidence record.
-
-### 4.6 Official target and serial tests
-
-Each board has an `xts` CP profile paired with its normal `openvela_ap` profile.
-All three build the same `cmocka_bk7258_board_test`. After download, run it from
-the CP NuttShell or invoke the official pytest runner below workspace
-`tests/scripts` with `-B t5_board`, `-B t5ai_core`, or `-B aidk_ai_toy`. See
-[`tests/pytest/test_bk7258/README.md`](tests/pytest/test_bk7258/README.md).
-
-## 5. AI Coding usage
-
-AI assisted with requirement decomposition, cross-checking official and SDK
-sources, startup and interrupt root-cause analysis, implementation and test
-generation, hardware-log interpretation, threat modeling, and documentation.
-AI conclusions were treated as hypotheses: ownership, partitions, symbols,
-build artifacts, and hardware results were accepted only after reproducible
-commands or raw evidence confirmed them.
-
-Competition-format conversations are stored under
-`logs/lijian/<date>/<tool>__<sid>.jsonl`, with the session index in
-`logs/lijian/manifest.json`. `logs/bk7258-*` contains early serial and
-secure-boot evidence and is not AI log data. New structured hardware
-conclusions belong under `docs/verification/bk7258/`.
-
-## License
-
-Unless a file or directory states otherwise, original content in this
-repository is licensed under the Apache License 2.0; see [`LICENSE`](LICENSE).
-Third-party and upstream-derived material remains subject to its original
-copyright and license notices. Projects referenced by the manifest but not
-stored in this repository are governed by their own licenses. See
-[`tests/host/bk7258/PROVENANCE.md`](tests/host/bk7258/PROVENANCE.md) for the categorized
-provenance of the BK7258 host-test sources and
-[`SOURCE_PROVENANCE.md`](SOURCE_PROVENANCE.md) for the repository-wide source
-audit.
-
-## Review entry points
-
-- [Official compliance review (English)](docs/platforms/bk7258/official-compliance-review.en.md) /
-  [中文](docs/platforms/bk7258/official-compliance-review.md)
-- [openvela documentation adaptation matrix](docs/platforms/bk7258/openvela-document-adaptation-matrix.md)
-- [BK7258 board configuration and architecture](boards/bk7258/README.md)
-- [BK7258 host tests](tests/host/bk7258/README.md)
-- [BK7258 OpenVela on-board tests](app/testing/bk7258/README.md)
-- [AI Coding log format](logs/README.md)
+App and model tooling remain versioned in this repository. The official
+`packages/ai_agent` is a separate dependency, not a missing team-owned repo.
+Retired test applications stay out of the Shaniu product configuration;
+historical verification records retain their original boundaries.
+See the [documentation index](docs/README.md), [AI logs](logs/README.md)
+and [source/license provenance](SOURCE_PROVENANCE.md).
+Original code is licensed under [Apache-2.0](LICENSE).

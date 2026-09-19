@@ -1,303 +1,101 @@
-# Shaniu Android companion A1
+# 傻妞 Android 控制 App
 
-This directory contains the native Kotlin companion app for Shaniu. The
-normal entry point configures the board's direct cloud connection through
-authenticated BLE provisioning. It does not reconnect to a stored Gateway or
-ask for console credentials. A durable local receipt is shown as a saved
-claim, never as proof that the board is online. Unavailable device controls
-are labelled explicitly. MiMo is the initial editable service preset; no
-device identity, API key, access token or certificate pin is baked into the APK.
+[项目与视频](../../README.md) · [技术报告](../../docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [实际验收](../../docs/platforms/bk7258/shaniu-master-plan.md)
 
-The previous HTTPS/WSS `console-v1` client is accessible only through the
-debug build's explicit historical-service entry. A release build ignores the
-`legacy_console` intent extra. Deterministic fake services remain test fixtures.
+原生 Kotlin 工程，包名 `com.shaniu.companion`。当前源码版本
+`0.5.23-shaniu-rebind`（versionCode 28），Android 10+（minSdk 29），
+compile/target SDK 35。App 只承担配置和控制：设备完成配置后独立运行语音，
+关闭 App 不等于结束设备端交互会话。
 
-The provisioning foundation under `provision/ProvisionTls.kt` creates a TLS 1.2
-client engine pinned to the exact device certificate SHA-256 supplied by the
-owner's bootstrap. It checks validity dates and signing/server-auth usage and
-does not alter the Gateway trust policy. Host tests generate a temporary P-256
-identity and exercise real TLS acceptance/rejection plus invalid certificate
-dates. The provisioning activity connects this foundation to GATT, activation import,
-possession proof and local confirmation. Their physical board interoperability
-still requires acceptance; host TLS tests alone do not prove it.
-`ProvisionBootstrap` now strictly parses bounded owner-supplied QR data and
-provides redacted object/error strings plus explicit clearing of owned decoded
-secret buffers. It neither scans a QR code nor authenticates or claims a device
-by parsing it. Scanner/JVM text copies are outside its clearing guarantee.
+[![App 操作演示](../../docs/contest/assets/app-demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
 
-`ProvisionTlsChannel` drives the client SSLEngine over a bounded byte stream.
-Its serialized owner must provide GATT queues, generation checks, deadlines and
-disconnect handling. Host engine tests cover 20-byte fragmentation, bidirectional
-data, ciphertext corruption, early writes and queue rejection. These tests do
-not establish Android Bluetooth or board mbedTLS interoperability.
+补充演示 1 分 26 秒，包含认领配网、设置和 OTA 入口；不冒充完整升级录像。
 
-`ProvisionGattSession` adds worker-owned bounded RX/TX queues, negotiated ATT
-fragment sizing, one acknowledged write at a time, generation/token filtering,
-and handshake/write/session deadlines. Host tests bridge two real TLS engines
-through these queues at MTU 23 and 185. `AndroidProvisionGatt` now bridges real
-platform service discovery, MTU, CCC subscription, write acknowledgements and
-notifications through a bounded worker queue, polls deadlines and closes the
-platform connection on failure. It requires a caller-selected BluetoothDevice
-and granted CONNECT permission, supplied by `ProvisionActivity`. The board
-service and phone/platform callback acceptance remain separate hardware gates.
+## 构建
 
-Before APPLY, `ProvisionBindingStore` durably records the public device and
-transaction locator. It can also save an AES-GCM encrypted control key, bound
-to that device and transaction by authenticated data. Android's non-exportable
-Keystore key protects it at rest; pending ciphertext is promoted in the same
-atomic commit as the binding, and missing/corrupt ciphertext fails closed.
-Plaintext borrowed for a control request is wiped when its callback returns.
-The normal flow now creates an independent random SCB3 owner key and saves the
-exact device certificate pin with its authenticated binding. Daily BLE controls
-use this identity for STATUS, CANCEL, VOLUME, PERSONA, CLEAR_HISTORY,
-MEMORY_SET and MEMORY_DELETE; no Gateway is required. Memory controls are
-asynchronous: the response accepts the operation; subsequent status must leave
-pending, report no failure and confirm the intended enabled state before the
-App displays success. A disconnect loses completion attribution, not the board
-job; reconnection only reports current state. No mutation is auto-replayed.
-Persistence is off by default, stores at most the latest three turns encrypted
-on SD, and uses a private owner-bound policy/key. Disable retains the ciphertext;
-delete rotates the key, disables persistence and clears RAM after durable policy
-publication. Uncertain private-policy publication stays blocked until restart.
-These paths have host/target build evidence, not physical-board acceptance.
-The privacy page clears device RAM conversation context only after confirmation;
-recording/cloud/playback activity rejects that request. It does not delete provider
-records or change credentials/persona, and old firmware may reject the new command.
-The UI uses confirmed responses, closes the phone connection on backgrounding,
-and does not replay a timed-out mutation. Physical acceptance remains pending.
-
-## Direct local OTA source protocol and acceptance boundary
-
-An authenticated SDC1 session advertises `INFO=9` through STATUS capability bit
-4096 and the OTA command family through bit 8192. OTA commands are
-`OTA_BEGIN=10`, `OTA_APPEND=11`, `OTA_START=12`, `OTA_STATUS=13` and
-`OTA_CANCEL=14`. They retain the normal 16-byte request header and 40-byte
-reply. `BEGIN` carries a four-byte record length (44..3371); each `APPEND` is
-1..32 bytes; `START`, `STATUS` and `CANCEL` are empty. The App advances an
-append only after its matching reply. A `START` acknowledgement means that the
-device accepted the source request, not that firmware was installed.
-
-The record is `SOU1`: 4-byte magic, big-endian URL and PEM lengths, 4-byte
-phone IPv4, raw 32-byte catalog SHA-256, then URL and PEM bytes. URL is at
-most 255 bytes, PEM is at most 3072 bytes, and the entire record is at most
-3371 bytes. The selected `.bkpack` is locally integrity-checked, then a
-short-lived phone-local HTTPS source exposes only the five verified ZIP
-members. Its ephemeral certificate is sent over the already authenticated BLE
-control channel; no Gateway, firmware upload over BLE, private-key export or
-accept-all TLS path is used. The device remains authoritative for certificate,
-catalog signature, board and security-counter checks.
-
-`OTA_STATUS` reports state 0 idle, 1 queued, 2 active or 3 terminal; phases
-are downloading(1), verifying(2), staged(3), rebooting(4), trial(5),
-confirmed(6), rolled back(7), failed(8). The App calls success only after a
-terminal `confirmed` report with matching persisted device ID, version and
-counter. A cancel reply of `-EALREADY` is not displayed as cancellation: the
-source upload ends and the App continues status/version reconciliation. Moving
-the App to background closes the temporary source and reports interrupted
-transfer; reconnecting may only verify device-reported state.
-
-Host tests exercise parsing and control sequencing. They do not prove Android
-Bluetooth callbacks, AndroidKeyStore/mbedTLS interoperability, Wi-Fi reachability,
-download, flash, reboot, rollback or confirmation on a board. Required device
-acceptance is: authenticate over BLE; select a signed compatible package; start
-from active Wi-Fi; verify all source ranges are fetched; observe each phase;
-test cancel before and after `START`; force a trial failure/rollback; and prove
-only phase 6 plus the actual post-reboot version/counter is reported complete.
-
-A board COMMITTED response becomes an App COMMITTED result
-only when one atomic preference commit publishes the bound device and consumes
-that matching receipt. Disk failure remains UNCONFIRMED. Because Android updates its memory cache
-before confirming disk persistence, all adapters sharing that preferences object
-stop reads/writes after a failed commit. A new process reloads durable state for
-reconciliation; reopening an Activity alone does not establish persistence. Legacy non-atomic device mirrors never become authoritative
-bindings. The settings page can delete this handset's locator and encrypted
-control data; it does not erase the board's network configuration.
-
-## Direct-control cross-language verification
-
-From the repository root, compile the production C session implementation with
-its synthetic AP-state host peer:
-
-```sh
-cc -std=c11 -Wall -Wextra -Werror -I app/bk7258 \
-  tests/host/bk7258/test_control_session.c \
-  app/bk7258/bk7258_control_session.c -o /tmp/shaniu-control-peer
-/tmp/shaniu-control-peer
-cd android/shaniu-companion
-SHANIU_CONTROL_PEER=/tmp/shaniu-control-peer ./gradlew :app:testDebugUnitTest \
-  --tests '*DeviceControlInteropTest' --offline
-```
-
-The Kotlin production protocol sends AUTH, STATUS, CANCEL, VOLUME and PERSONA
-to the C production parser through process pipes and consumes fragmented real
-responses. It also checks busy-setting rejection and subsequent confirmed state.
-The peer's key and AP state are synthetic: this does not prove TLS, BLE, actual
-flash writes or physical audio behavior. Without `SHANIU_CONTROL_PEER` the
-optional test is reported skipped; the executable is a Gradle test input.
-
-The complementary board-side encrypted test runs from the repository root:
-
-```sh
-python3 tests/host/bk7258/test_provision_tls.py
-```
-
-It builds the workspace mbedTLS and production control pair/session, then uses
-20-byte fake GATT queues. Daily-control coverage includes AUTH split across
-single-byte TLS records, congestion without repeated mutation, replay rejection,
-wrong owner keys and authentication timeout cleanup. Its TLS client is mbedTLS,
-and does not use the physical Android Bluetooth stack.
-
-To run the complete Android host suite against both native peers while the
-runner keeps temporary mbedTLS binaries alive:
-
-```sh
-SHANIU_ANDROID_INTEROP=1 python3 tests/host/bk7258/test_provision_tls.py
-```
-
-This also tests production `ProvisionTls`, `ProvisionGattSession` and
-`DeviceControlProtocol` with the C control pair through 20-byte ciphertext
-pipes. It verifies exact certificate pin acceptance/rejection, owner proof and
-confirmed volume. Temporary test certificates and private keys are deleted on
-exit. The TLS provider here is the host JVM; Android's device provider, ATT
-callbacks, radios and physical AP actions remain separate acceptance gates.
-
-## Android runtime acceptance
-
-Build `:app:assembleDebugAndroidTest`, install the debug application and test
-APK, then run on the selected emulator/device:
-
-```sh
-adb -s <serial> shell am instrument -w \
-  com.shaniu.companion.test/com.shaniu.companion.provision.ControlKeyInstrumentation
-```
-
-Optional `-e cloud_probe 1` additionally calls the production CloudEndpoint
-preflight against the public MiMo Token Plan endpoint using Android system trust
-and TLS 1.2, matching the board transport. It sends no API credential or model
-request. This is opt-in network acceptance, not part of the offline test suite.
-A passing emulator run does not prove physical-board network or playback behavior.
-
-Optional `-e ui_probe 1` renders the real MainActivity with synthetic in-memory
-snapshots. It checks memory-operation gates, unknown policy state, offline text,
-and absence of a conversation cancel button during a memory job. It neither
-persists a binding nor opens BLE. The test finishes the Activity and writes a
-synthetic screenshot to app cache `device-ui-acceptance.png`; retrieve/remove it
-with `adb exec-out run-as com.shaniu.companion ...`. This is UI acceptance only.
-
-The runner uses uniquely named disposable preferences and Keystore entries.
-It checks encrypted pending recovery, authenticated certificate pins, borrowed
-key wiping, and native Android TLS 1.2 engine exchanges with 20-byte ciphertext
-fragments and wrong-pin rejection. Its temporary EC signing key permits raw
-prehashed ECDSA (`DIGEST_NONE`) for Conscrypt callbacks and SHA-256 for the test
-certificate signature. This is test-only; production key permissions are not
-changed. All test entries are deleted afterwards. Transport is an in-memory
-queue, so this test does not certify BluetoothGatt or physical board behavior.
-
-## Historical service console (debug entry only)
-
-In the historical service console, after board provisioning commits, the overview page asks the owner to import a
-bounded `shaniu.console-enrollment/1` JSON document. An unbound phone can also
-choose **连接已有设备** on the overview or settings page to import owner-issued
-credentials for an already provisioned device, without repeating Bluetooth
-provisioning. This connects an existing authorized device; it does not perform
-physical claiming or change the board's network. When a local binding or
-provisioning result exists, the document must name that same device.
-The document carries an explicit HTTPS Gateway root, one to eight canonical
-`sha256/...` SPKI pins, a future expiry and the access token. The app validates
-the document and authenticates a device snapshot before committing the local
-binding. Raw endpoint and token entry remains a debug-only developer panel.
-Non-secret connection metadata is stored in private app preferences. The token
-is stored separately with AES-GCM under a non-exportable Android Keystore key
-and is never rendered or logged. This is an at-rest guarantee only and does not
-claim StrongBox or hardware-backed key storage.
-
-After an authenticated snapshot succeeds, the app opens a cursor-bound WSS
-event stream. Sequence gaps fail closed and trigger a full snapshot refresh.
-All network and Keystore work runs off the UI thread. Disconnect/reconnect uses
-a connection generation so late callbacks cannot update the new session. While
-the Activity is foreground, retryable transport failures use bounded exponential
-backoff (1, 2, 4, 8, 16, then 30 seconds) and re-authenticate through a fresh
-snapshot before reopening WSS. Going to the background or explicitly disconnecting
-cancels pending recovery. Mutations are never retried automatically.
-
-The active UI supports:
-
-- reported device, turn, emotion, battery, firmware and update state;
-- reported board-owned turn state and explicit cancellation without capturing
-  phone audio;
-- volume and persona mutations;
-- long-term-memory revoke and delete controls, with no remote enable path;
-- an immutable-manifest firmware release list and a locally confirmed install
-  request. The button is enabled only for an idle device whose reported source
-  version matches the verified release.
-
-The UI never applies a mutation optimistically. An accepted receipt means only
-that Gateway admitted the request; the device must report the resulting state.
-For OTA, only a later `CONFIRMED` report is completion.
-
-The client freezes these relative endpoints:
-
-- `GET /console/v1/devices/{device_id}/snapshot`;
-- `GET /console/v1/devices/{device_id}/firmware/releases?generation={generation}`;
-- `POST /console/v1/devices/{device_id}/mutations`;
-- `WSS /console/v1/devices/{device_id}/events?generation={generation}&after_sequence={sequence}`.
-
-`OkHttpConsoleGatewaySession` injects the token only inside the authenticated
-transport, rejects cross-origin requests, disables redirects and transparent
-retries, bounds decoded bodies to 64 KiB, and installs no logging interceptor.
-The manifest permits Internet access, forbids cleartext traffic and trusts only
-system CAs. Clearing local binding data removes both ordinary configuration and
-the encrypted credential.
-
-Use an Android emulator for routine UI, navigation and client error-flow work.
-Select its explicit ADB serial when installing or driving the app; do not depend
-on a connected physical phone. BLE/NFC and board audio acceptance still require
-the actual devices. The app uses `minSdk 29` and compiles/targets SDK 35:
+安装 JDK 17、Android SDK Platform 35 及 Gradle 所需构建工具。
+在 `local.properties` 指定自己的 SDK 路径，或使用标准 `ANDROID_HOME`；
+不要提交个人路径、签名文件或 token。第一次构建需要获取依赖。
 
 ```bash
-./gradlew :app:testDebugUnitTest :app:assembleDebug
+cd android/shaniu-companion
+./gradlew :app:assembleDebug
 ```
 
-The debug APK is emitted at
-`app/build/outputs/apk/debug/app-debug.apk`. Host unit tests cover the strict
-wire contract, state reducer, mutation policy, secure transport construction,
-failure mapping and the isolated fake lifecycle. A live emulator test with a
-disposable local CA covers TLS/WSS interruption, generation-changing recovery,
-explicit disconnect and foreground/background cleanup. Production CA deployment,
-Xiaomi 10 behavior and physical Gateway reachability remain device tests; a host
-build alone is not evidence for those gates.
+产物：`app/build/outputs/apk/debug/app-debug.apk`。
+不需要连接开发板，不需要 Beken SDK、私人训练数据、云 API key 或设备认证文件。
+没有授权/配对设备时可查看界面，但不应伪造设备在线或设置成功。
 
-The development `console-v1` snapshot permits explicit JSON `null` for
-`volume_percent` and `charging` when the device hasn't reported them. Both keys
-remain required, numeric values remain bounded to 0–100, and charging accepts
-only a boolean or null. The UI displays unknown instead of inventing 50% or
-not-charging; the volume slider is disabled until a real value arrives.
-Known-value settings/battery change events retain their existing strict types.
-Gateway and app must use this updated development contract together; older
-strict decoders cannot consume null snapshots.
+安装到自己选择的手机：
 
-The current Gateway console endpoint reports explicit `unknown` for emotion
-and for OTA before an authoritative board report exists. Its optional
-metadata-only release registry can populate the verified release list only when
-the board reports both the exact required source version and the matching
-MCUboot public-root SHA-256. The install mutation sends only the selected
-manifest SHA-256 and requires a local confirmation; it never sends a URL,
-filesystem path, CA or firmware bytes. The Gateway waits for a matching board
-OTA report before returning an accepted receipt, and the App still treats only
-reported `CONFIRMED` as success.
-Shared protocol
-vectors under `gateway/shaniu/tests/fixtures/console-v1` are test resources for
-both implementations. Connect to the separately configured console HTTPS port,
-using an operator-issued console enrollment file, never the MiMo API key. Its
-token, device ID and expiry must match an active `shaniu.console-access/1`
-Gateway grant. Current backend
-controls support persona changes within the active MiMo connection, cancellation
-with a separate board stop ACK, and runtime volume with a matching board policy
-report. These paths have local integration coverage; physical acceptance remains
-pending. Board provisioning and App control enrollment are wired in source and
-covered independently on the host/emulator. The OTA control protocol and App
-entry have host coverage; the device HTTP source, reboot reconciliation and
-physical rollback flow remain outside that evidence.
+```bash
+adb -s <手机序列号> install -r app/build/outputs/apk/debug/app-debug.apk
+```
 
-BLE provisioning is under development in this module; phone media upload and
-physical device-bound OTA execution are still pending. The production Gateway runs separately.
+已有认领数据的手机必须先确认 APK 签名兼容；不能用卸载、清数据或改签名绕过
+安装问题。APK 编译/安装与真实 BLE、设备动作及 OTA 验收分别记录。
+现有单元检查可用 `:app:testDebugUnitTest`，不是正常安装的强制前置，
+也不代表射频、音频或烧录成功。
+
+## 操作顺序
+
+1. 打开蓝牙并授予系统要求的权限。导入**该设备**由所有者提供的授权资料，
+   扫描、选择并认证设备；不要把别的设备认证资料当作通用示例。
+2. 让板子扫描附近 Wi-Fi，填写网络配置与所选云服务凭据。支持 MiMo
+   标准服务或 Token Plan 配置；设备保存并返回结果后才显示成功。
+3. 设置页可控制音量、聊天风格、回答模式、云模型、唤醒模型/阈值、眼睛资源；
+   心情页提供产品表达入口。录音、播放或资源事务占用时如实显示暂不可操作。
+4. 正常使用说“你好，openvela”进入设备交互。App 不负责逐轮启动、停止、
+   重连或录音转发。
+5. 重启/短暂断连后重新认证并读取设备当前状态；超时的写操作不自动重发。
+   删除手机绑定仅清除手机持有的连接资料，不能清除设备数据来冒充重新认证。
+
+NFC 芯片驱动已有适配，但未接入当前板端产品流程；本次演示使用 BLE 与授权文件，
+不把“碰一碰”列为已完成入口。
+
+## 连接与安全边界
+
+- `ProvisionGattSession` / `DeviceControlSession` 串行化命令，连接代次防止
+  旧回调污染新会话；设置 ACK 与后续状态确认是两件事。
+- BLE 承载设备认证、受保护配置和控制；TLS 校验设备证书 pin、有效期及用途。
+  已保存认领凭据不等于设备当前在线。
+- 控制凭据由 Android Keystore 保护的 AES-GCM 存储保存，不硬编码进 APK；
+  云凭据不明文回读，不输出到日志。UI 明确区分未就绪、忙、失败与断连。
+- 默认不需要 Gateway。历史 console-v1 类和测试夹具不构成当前产品交互路径。
+  不启用它们来解决编译或连接问题。
+- 可选持久记忆由设备加密存储并投影回官方 Session；手机不托管对话历史。
+  删除/禁用需设备完成并确认，收到请求不等于已经持久化。
+
+## 眼睛资源与真实 App OTA
+
+眼睛资源和固件均由手机临时 HTTPS 服务通过 Wi-Fi 供设备下载；
+BLE 只传已认证的来源描述、CA、完整性参数及控制状态，不传整包固件。
+手机与设备需网络可达，并保持供包期间 App 前台和网络可用。
+不公开供包端口、不关闭证书验证，不假定中断传输支持断点续传。
+
+- 眼睛包：`.bkep`，由现有
+  [资源工具](../../app/bk7258/assets/display/README.md)生成；
+  设备验证格式/完整性，经唯一存储 owner 安装并回读。
+- 固件包：`.bkpack`，必须匹配板型、布局、现有签名信任和安全计数。
+  `OTA_START` 只表示接受请求；重启后确认设备身份、目标版本/计数和
+  trial confirmed，才显示升级成功。
+- 634 已完成用户发起的实际 App OTA：约 93% 断连，重启回读后 100% 成功。
+  635 新增 runtime Skill，App 控制/OTA 行为路径未改，**本轮未在 635 重测**。
+- 635 full 包与 OTA-only 包不同：full 构建 floor 635；OTA-only 不替换 BL1/BL2。
+  同板恢复包含身份/数据，不能作为公共 APK 附件或其他设备的升级输入。
+
+## 源码与复现
+
+| 位置 | 职责 |
+|---|---|
+| `MainActivity.kt` | 前台控制、设置与当前状态展示 |
+| `provision/` | 扫描、TLS/GATT、所有权、串行控制协议与连接会话 |
+| `ota/OtaPackageServer.kt` | 短生命周期本地 HTTPS 供包 |
+| `EyePack.kt` | 眼睛资源输入与完整性边界 |
+| `app/src/main/assets/wake-models/` | 随 App 的公开内置唤醒包 |
+| `app/src/main/res/` | 原创红色水晶伴侣图标与 UI 资源 |
+
+App 工程与固件适配在同一团队仓版本管理，不额外建立 App Git 仓或 NuttX linkfile。
+官方 Agent 是工作区另一依赖项目；其未发布扩展会影响设备端干净复现，
+不应混淆为 Android Gradle 依赖。来源和许可见
+[App 来源记录](SOURCE_PROVENANCE.md)与[项目来源记录](../../SOURCE_PROVENANCE.md)。

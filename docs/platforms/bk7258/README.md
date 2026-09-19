@@ -18,8 +18,9 @@ BK7258 是 SoC；T5AI-Core、T5-Board 和 AIDK AI Toy 是三块物理板。本�
 - `--boot direct` 只用于未签名的 bring-up/诊断，不是产品发布。
 - 签名产品链为 board-owned BL1 → pinned NuttX MCUboot BL2 → 同槽签名 CP/AP，
   使用 A/B 分区模型。
-- 有线整机恢复与 apps-only OTA 是两条不同路径。每次获批的整机下载创建新的 BL1
-  与 MCUboot 临时密钥对；OTA 绑定目标已经安装的公开信任契约，不能替代整机恢复。
+- 有线整机恢复与 apps-only OTA 是两条不同路径。普通构建/整机下载复用明确批准的
+  同板信任关系，不自动生成或轮换 BL1/MCUboot 密钥；OTA 绑定目标已安装的信任契约。
+  635 full 包采用 floor 635，OTA-only 包不替换 BL1/BL2，不能混淆两种部署。
 
 完整命令、包格式、accepted-base、设备绑定恢复、密钥生命周期和硬件证据要求统一见
 [构建、发布与硬件证据 SOP](nuttx-port/bk7258-build-flash-debug-sop.md)。不要从历史
@@ -38,12 +39,16 @@ N15/N17 文档恢复旧地址、旧脚本或旧信任设计。
 
 ## 平台文档
 
-- [傻妞 AIDK AI Toy 全项目 Master Plan](shaniu-master-plan.md)：统一产品目标、设备/Gateway/
-  Android/模型资产工作流、OpenVela/MiMo 复用顺序、唤醒词安排、里程碑与验收门；
-- [BKVoice 产品架构与适配计划](bkvoice-authorized-voice-app.md)：板端语音、视觉、UI、模型与
-  OpenVela 组件专项计划；
-- [傻妞 Android companion 计划](shaniu-android-companion-plan.md)：原生 Android 完整控制台和
-  后续微信小程序轻客户端专项计划；
+- [参赛技术报告](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)：当前作品、量化结果和分版本验收；
+- 视频与三板构建入口见仓库 README；三板共享 SoC 实现，T5-Board 运行 Dolphin，
+  AIToyBoard 运行傻妞。635 Skill/语音/显示已经用户实测；App OTA 引用 634。
+  公开 Agent 依赖仍有未提交修改，不能把本机可构建写成干净 manifest 可复现。
+
+- [傻妞 AIDK AI Toy 全项目 Master Plan](shaniu-master-plan.md)：统一产品目标、官方框架/
+  设备适配、控制 App、模型资产、实际里程碑与验收结果；
+- [BKVoice 历史方案](bkvoice-authorized-voice-app.md)：已退出当前主线的 Gateway/音色探索
+  及复现来源，不作为当前开发或恢复旧运行时的入口；
+- [傻妞 Android companion 范围](shaniu-android-companion-plan.md)：现役 BLE 控制 App 与明确标记的历史方案；
 - [RF 校准与工厂烧录规范](rf-calibration-and-factory-provisioning.md)：设备唯一 RF
   数据、Beken 量产/测试工具职责、工位流程及恢复/OTA/通用工厂镜像边界；
 - [官方符合性复核](official-compliance-review.md) / [English](official-compliance-review.en.md)：

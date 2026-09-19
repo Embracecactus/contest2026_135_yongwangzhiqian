@@ -5,7 +5,19 @@
 The application, protocol, Gateway-client, resource and unit-test sources in
 this directory are native Kotlin/Android project code authored for Shaniu and
 carry `SPDX-License-Identifier: Apache-2.0` markers. No third-party source
-trees, model assets, credentials or device captures are included here.
+trees, credentials or private device captures are included here.
+The public builtin WKM wake-model package is versioned under
+`app/src/main/assets/wake-models`; its training/model provenance is maintained
+in the root `SOURCE_PROVENANCE.md` and `app/bk7258/models` metadata.
+
+## Current artwork and demonstration
+
+The ruby-red companion launcher artwork is an original generated asset, not
+an actor portrait or a text-only icon. The exact prompt and SHA256 are in the
+root source record. Public video covers are supplied by the project author
+with the competition demonstration; they are not the generated launcher art.
+The App README links the full supplementary video and preserves the distinction
+between showing the OTA entry and recording an actual upgrade.
 
 ## Gradle wrapper
 

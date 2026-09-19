@@ -1,6 +1,80 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 源码许可证与来源记录
 
+## 2026-09-20 代码、视频与复现状态
+
+- 发布代码快照 `82610138` 基于官方比赛分支 `7079493e`；后者与开发基线
+  `295e57c4` 的源码树一致，因此采用线性提交，不回退或覆盖开发工作树。
+  本轮不创建、恢复或应用历史 patch，不修改官方依赖版本。
+- 官方 Agent 远端 `dev-ai-contest-2026` 仍为 `e65550f18759f086d7f544edcf17d1e31223244f`；
+  本机另有下节披露的未提交扩展。本团队仓推送不能替代那个公共依赖的发布。
+- 本次发布前核对：SDK（`cb080de1`）、NuttX（`76354c63`）、Media
+  （`fb7db0e9`）及包含 FFmpeg 的 external（`f2c1425e`）工作树，相对各自
+  锁定提交均无已跟踪源码修改；NuttX 有两处未跟踪的 OpenAMP 手工目录。
+  这不等于整个 openvela 工作区零改动：Agent 的 21 个修改文件单列如下。
+  Android 工程和模型工具继续在团队仓管理，不创建虚构的 Agent fork 或训练子仓。
+- 635 运行时 `device-assistant.md` 和 `read_file` 接线由团队产品层提供，复用
+  官方 Skill loader、tool_files 和工具注册机制；用户与 CodeBuddy 已完成
+  安装/语音/显示验证，App 控制和 OTA 仍引用 634，635 未重测。
+- 两段演示成片、配套字幕与封面由项目作者提供用于参赛发布；发布副本只转为
+  1080p H.264/AAC，不修改原成片。文件大小、SHA256 见媒体 Release。
+  与生成的 App 图标、眼睛图集的来源分别记录，不把真人视频封面说成 AI 生成。
+- 私人原始语音、实验语料/候选、可选授权应答 PCM、密钥、认证文件和同板恢复
+  镜像不公开。`logs/` 未手工删改；第三方模型/数据许可不由仓库 Apache-2.0 覆盖。
+
+
+## 2026-09-19 已认领设备只读 Wi-Fi 扫描
+
+`bk7258_control_pair`、`bk7258_provision_pair` 与 `bk7258_provision_owner`
+沿用团队 Apache-2.0 适配，按首帧复用已有 TLS、持有证明校验与扫描 worker。
+只读分支拒绝配置写入，不替换普通控制鉴权；本次未修改任何上游或 SDK 源码。
+
+## 2026-09-19 眼睛资源与 Wi-Fi 安装适配
+
+- `android/shaniu-companion/app/src/main/res/drawable-nodpi/shaniu_launcher_ruby.png`
+  为内置 imagegen 生成的红色水晶手机与原创少女启动图标，无真人素材，不使用演员肖像。
+  SHA256 `8e789751500dfc7f8296021178257bd6637975bf64df608d73e73ba37eff4295`；
+  原图保留，Android 自适应图标引用项目内副本并留出裁切边距。
+  先前未安装的通用青色眼睛图标已退出 APK 资源，板端 LCD 图集不变。最终生成提示词：
+
+  > Create one final Android launcher icon artwork for SHANIU / 傻妞, an affectionate, clever futuristic female AI companion. This is the icon itself, one square image, not a presentation or mockup. Create an original memorable emblem: a friendly young adult woman's head and small high-collared futuristic shoulder silhouette, turned slightly three-quarter, with flowing dark hair and a warm, confident expression, fused elegantly with a translucent ruby-red crystal mobile-phone silhouette. Interpret as a living digital companion inside a magical ruby device, not a generic robot or beauty salon logo. Strong simple sculptural shapes, clean readable face, minimal detail, premium softly dimensional illustration; luminous ruby and coral red crystal with warm ivory facial highlights, restrained tiny technological light accents. Deep wine-black full-bleed background, subtle warm glow, excellent silhouette and contrast at 48 pixels. All important artwork must remain inside the central 60 percent of the square with generous quiet background so Android circle and squircle crops never cut off her head or hair. Do NOT draw a realistic actor, celebrity, existing person's likeness or a photograph. No text whatsoever, no letters, no Chinese characters, no words, no numbers, no watermark, no frame, no generic pair of floating robot eyes. One coherent iconic composition, not many small decorative elements.
+
+- `app/bk7258/assets/display/shaniu-cyan-v2.png` 为内置图像生成工具生成的
+  通用机器人眼睛图集，不使用真人照片、声音或肖像。最终编辑提示词及复现打包入口
+  保存在同目录 README；PNG SHA256 为
+  `10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a`。
+- PNG 导入复用现有 BKep 构建器；动画复用现有 AP 显示 owner；资源传输复用
+  App 临时 HTTPS 供包服务、既有受保护 TLS 与官方 webclient，不复制 Agent
+  生命周期或增加下载平台。本次代码沿用团队 Apache-2.0；未新增上游、SDK、
+  NuttX 或 FFmpeg 修改，已有依赖工作树的未合入修改仍按下节单独披露。
+
+## 2026-09-18 评审修复的当前来源与边界
+
+- 本轮以团队 `295e57c44961c1a3bd19dfb6d1246d851bb68f78` 加已有工作树改动为基线。
+  记忆心情元数据兼容、MIC 完整帧容量及视觉子请求接线均在团队适配代码修改，
+  继续适用 Apache-2.0；不改密文格式、密钥、Flash 布局或所选服务商。
+- 实际 Agent 检出为 `open-vela/packages_ai_agent`
+  `e65550f18759f086d7f544edcf17d1e31223244f`，开始前已经包含未提交的
+  request/transport 扩展。本次另修改 `src/core/agent_loop.c`、`agent_mem.h`、
+  `src/tools/tool_registry.[ch]`：移除不含上下文的回复缓存旁路，查询注册能力后才
+  进入自然语言工具捷径，并把原请求检查传入串行/并行工具。保留原版权、Apache-2.0
+  及已有 MimiClaw MIT 来源声明，不引入板号、厂商分支或另一套会话 owner。
+- 三处责任代码没有可用的现成产品开关：Agent 的缓存与自然语言捷径为内部流程；
+  原 provider 回调不带请求状态，而消息总线与 LLM checked 入口已有原请求检查。
+  只在适配层清缓存、覆盖私有符号或另建取消状态不能正确覆盖这些边界。
+- 上述官方检出修改保留在依赖工作树，**未**随本仓携带补丁文件或生成副本
+  （`frameworks/patches/` 已随团队 `295e57c4` 退役并清空）。当前工作树相对
+  `e65550f` 共 21 个文件、+1830/-549 行：`include/agent_config.h`、
+  `include/voice/{audio_capture,audio_playback,voice_asr,voice_tts}.h`、
+  `src/core/{agent_loop.c,agent_mem.h,message_bus.[ch]}`、
+  `src/llm/llm_proxy.[ch]`、`src/tools/tool_registry.[ch]`、
+  `src/voice/{audio_capture,audio_playback,voice_asr,voice_channel.[ch],voice_tts,volc_asr,volc_tts}.c`。
+  当前构建直接编译该依赖工作树，因此本轮**不是干净 manifest 复现**；对应公共仓
+  提交/PR 尚未创建、未合入。未合入依赖在此显式披露，不以主仓提交冒充已完成复现。
+- 下方旧 `41723c61` pin、旧补丁链和构建派生机制的条目为历史来源记录；
+  这些机制已随团队 `295e57c4` 退役，不代表当前构建仍采用。本轮未改 NuttX、SDK、
+  FFmpeg 源码或任何依赖 revision，未将当前依赖工作树宣称为干净上游。
+
 ## 审计范围
 
 本记录覆盖 Git 已跟踪的 `*.c`、`*.cpp`、`*.h`、`*.S`、`*.s`、`*.ld`、
@@ -19,6 +93,33 @@
 仓库、版本、路径和许可证，不因改写为 NuttX 组织形式而省略来源。
 
 ## 来源分类
+
+`.agents/skills/` 的 7 份通用能力及必要参考文件来自本项目先前形成的操作指引，
+现将权威正文从仅本机安装转为随仓库交付，适用仓库 Apache-2.0 许可；不包含
+第三方手册副本、私人对话、设备证据或密钥。中文 PR 入口复用同仓通用发布流程。
+`bk7258_os_adapt.c` 的互斥锁超时修复按当前 SDK `BEKEN_WAIT_FOREVER` 约定及
+NuttX `nxmutex_timedlock` 的相对毫秒契约接线，未复制或修改其实现。
+
+`app/bk7258/bk7258_agent_keys.c` 与 `bk7258_keys_main.c` 为本项目
+Apache-2.0 产品适配，复用已有三键策略、KEY1 RPMsg 协议、官方 `/dev/buttons`
+和 Media 音量入口；未复制 Agent/Voice 生命周期或 SDK GPIO 驱动。
+`tools/bk7258/_lib/product.py` 的 `relocate_base` 为本项目同板分区迁移适配，
+按原始字节与 SHA256 核对保护分区，不解析或重编码用户配置/加密记忆。
+
+`app/bk7258/bk7258_agent_memory_codec.[ch]` 从本团队仓
+`129d4f9ad23d9120c0c72500d8d336e0e187fad9` 的
+`app/bk7258/bk7258_cloud_memory.[ch]` 保留 Apache-2.0 的 SMP1 策略、
+AES-256-GCM SMM1 封装及旧 SD 密文读取部分；不恢复旧 runtime 或 SD 写入实现。
+`bk7258_agent_memory.[ch]` 为本项目 Apache-2.0 存储适配，兼容同版本
+`bk7258_cloud_history.c` 的 SMH1 线格式，仅通过官方 Session 公共 API 投影和取快照；
+策略关闭时不读取或新增保存，迁移本身不产生云请求，新快照仍加密。
+`bk7258_agent_vision.[ch]` 为本项目 Apache-2.0 适配，通过当前官方 Agent 工具
+provider 与 `llm_chat_tools` 接口连接现有唯一摄像头 owner 和所选受保护 LLM。
+
+### 历史 Media / FFmpeg / Agent 补丁来源（已退役）
+
+本小节保留许可谱系，文件名与“应用到构建副本”等措辞仅描述当时机制，
+不表示这些路径仍存在或可用于当前构建；当前接线与未发布依赖以上文为准。
 
 本轮 Media Trigger 集成使用官方 Media 提交
 `fb7db0e9f826fb6d71937c948e7da1eb10ffc896` 的 `server/media_trigger.c`
@@ -110,6 +211,69 @@ TLS 及单次请求工作区，复用既有证书/主机名/可信时间验证�
 配置机制，区分 backend/model/voice/location；云适配拒绝未验证的音色和 device
 执行位置。现有 CCF1/MCP1 编码、认领身份及 KWS 模型包格式不改变。
 
+### 当前产品协议与性能适配来源
+
+2026-09-18 的回答模式适配依据 [MiMo 官方 Chat Completions 协议](https://mimo.mi.com/docs/en-US/api/chat/openai-api)
+中的 `thinking.type=enabled|disabled`；官方文档声明 MiMo v2.5 默认开启思考。
+团队实现仅在选定 MiMo 协议、且官方调用者未显式设置该字段时加入设备选择，保留
+model/messages/tools、受保护传输及取消契约。App 复用既有 SDC1 配置事务 kind 4，
+传送 12 字节 `RSP1 + BE32 thinking + BE32 reserved=0`，ACK 后回读确认；设备复用
+既有 KVDB/存储租约保存 `persist.shaniu.thinking`，缺少该新键时默认快速模式，
+存储错误不伪装成首次使用。没有复制厂商 SDK 或修改官方 Agent/FFmpeg/NuttX/SDK；
+ASR 仍为整段请求，LLM 仍等待完整文本，TTS 为完整文本输入、PCM 流式返回。
+
+2026-09-18 的 Wi-Fi MTU 适配只在 AIDK AP defconfig 显式设置
+`CONFIG_NET_ETH_PKTSIZE=1514`。依据锁定 SDK
+`cb080de1655d579c7593ecf504c440997c4c137b` 的
+`ap/components/bk_wifi_driver/wdrv_main.h`：`MAX_MSDU_LENGTH=1500+14`，以及当前
+NuttX `net/Kconfig` 的包大小契约（含 14 字节以太头）。原产品继承 590 字节默认值，
+即 IPv4 MTU 576；现有 `bk7258_wifi.c` 收发缓冲已经由 `MAX_NETDEV_PKTSIZE` 派生，
+无需复制 SDK 实现或改变公共网络栈。未同时调整 IOB 数量、端点等待或服务参数；
+延迟收益以 Master Plan 中对应候选的实板数据为准。
+
+2026-09-18 的 TLS 会话缓存仅修改团队 `bk7258_voice_tls.[ch]` 和
+`bk7258_agent_cloud.c`，调用现有 mbedTLS 3.4.0 的公开
+`mbedtls_ssl_set_session/get_session`，没有复制密码实现或改依赖。ASR、LLM、TTS
+在同一不可变服务/信任配置快照中共享受锁保护的恢复会话，各自保有活动 TLS/socket。
+配置替换创建空缓存；最后一个快照引用释放时清除会话。恢复前后检查原证书链时间
+边界，保留证书验证、SNI/主机名、可信时间、取消和原请求 deadline；不复用 HTTP
+请求，不缓存答案，不重发 POST。当前产品 mbedTLS 已启用客户端会话票据及对端证书
+保留，无需改配置或版本。日志 `offered=1` 只表示提交恢复会话，不表示服务器已接受。
+
+2026-09-18 的后续上传优化保留同一 WAV/JSON 请求：团队
+`bk7258_cloud_request.c` 用现有 `mbedtls_base64_encode` 连续编码 PCM 主体，
+原边界路径处理 WAV 交界、非对齐回调和最终填充，不额外缓存完整 Base64。
+`bk7258_cloud_http.[ch]` 仅在既有每请求摘要中补充请求体长度、总耗时、连接与
+发送耗时，不记录凭据或正文。626 实板两次 ASR 的发送等待为 1511–1622 ms，
+据此在 AIDK AP 配置验证 `IOB_NBUFFERS=128`、`IOB_NCHAINS=36` 的有限调整。
+依据当前 NuttX `76354c637858ecb0aa4601629327acb6f44a26bb` 的
+`mm/iob/Kconfig` 与 `net/tcp/tcp_send_buffered.c`：TCP 发送/接收共用 IOB 池，
+发送路径在池不足时允许部分写入。没有修改公共网络栈或 SDK；配置收益与 RAM
+占用由对应候选记录给出，不把调优假设写成上游缺陷。
+
+本轮参考小智固定提交
+[`78/xiaozhi-esp32@5d54beb7…`](https://github.com/78/xiaozhi-esp32/tree/5d54beb743ff49c4e8db81bbef9413bdd6e2ba17)：
+本地唤醒应答参考 `main/application.cc` 将提示与监听状态衔接的思路，未复制其播放器或会话实现。私人授权音色仅离线生成提示资源，通过既有 Agent/Media 播放；不将主机推理声称为板端 TTS。
+`main/protocols/websocket_protocol.cc` 按需建立语音通道，
+`main/audio/audio_service.cc` 使用 Opus 分帧上传及独立播放队列。
+另只读参考独立社区服务端（不是 78 官方云实现）
+[`xinnan-tech/xiaozhi-esp32-server@f4ba65f2…`](https://github.com/xinnan-tech/xiaozhi-esp32-server/tree/f4ba65f2248906e2bb85ba458a80d410cac707c3)：
+`main/xiaozhi-server/core/connection.py` 将 LLM 增量放入 TTS 队列，
+`core/providers/tts/base.py` 按标点形成首段。这里只借鉴减少串行等待的思路，
+没有复制实现、协议或会话运行时，亦没有同条件实板延迟可供排名。当前官方 Agent
+接线仍等待完整 LLM 文本；不能在 HTTP 适配回调中私自启动另一条 TTS/Media 链。
+
+本轮只读比较了竞品固定提交
+[`d28df626…`](https://github.com/open-vela/contest2026_106_VelaGoGoGo/tree/d28df626a07ed6cbc2c041b933a875b74a0b7dc3)
+和官方 `packages_demos` Gitee `dev` 当时提交
+[`b5bb9407…`](https://gitee.com/open-vela/packages_demos/tree/b5bb9407146f6a2f2afe576c7b0aef0ef80bfd20)。
+竞品使用豆包实时协议，但本地 `voice_player.c` 收齐整轮 TTS 后才播放；官方
+`ai_chat` 的 Volc 插件接收音频增量并交给 Media，而 `mimo` 是整包响应的文字示例。
+这些实现均不是本产品选定 MiMo ASR/LLM 的直接替代。未复制其会话引擎、启用示例、
+切换服务商，亦未采用示例中的放宽证书/主机名校验设置。MiMo ASR 的
+[`stream=true`](https://mimo.mi.com/docs/en-US/api/audio/Speech-Recognition)
+是整段音频输入后的文字 SSE 输出，不据此宣称支持实时 PCM 上行。
+
 `bk7258_agent_trigger.c` 是 Media Trigger 下的 TFLM 模型适配，保留已维护的
 模型张量/前处理和冻结分数策略；没有搬入旧 wake window、VAD、Recorder、Agent
 或会话 owner。此保留不等于新链路或真人唤醒效果已经验证。
@@ -124,6 +288,8 @@ TLS 及单次请求工作区，复用既有证书/主机名/可信时间验证�
 API Key；init/deinit 负责准备/释放，prepare_request 只负责短请求状态重置。
 切换先释放旧模型再加载新模型，失败不自动回退；资源预算为 0 时表示未知。
 没有新增本地空实现、模型平台、训练任务或私有音色资产。
+
+以下 FAT patch 路径为已退役的历史许可记录，不是当前同步或构建步骤：
 
 `nuttx/patches/fs/0002-drain-block-writes-before-sync-unmount.patch` 与
 `0003-support-fat-open-file-path.patch` 基于 `open-vela/nuttx`
@@ -173,21 +339,23 @@ BK7258 主机测试的更细分类见
 [`tests/host/bk7258/PROVENANCE.md`](tests/host/bk7258/PROVENANCE.md)。第三方项目、预构建工具、
 生成输出及历史材料继续适用各自声明；SPDX 补齐不改变其版权归属。
 
-## Gateway 语音服务
+## 历史 Gateway 语音服务（非现役产品路径）
 
 Gateway 的自有协议、MiMo 适配、外部依赖及测试来源独立维护于
 [Gateway 来源说明](gateway/shaniu/SOURCE_PROVENANCE.md)；模型协议适配不包含第三方源代码副本。
 
-## KVDB 构建接入
+## KVDB 适配与历史构建接入
 
 `app/bk7258/bk7258_preferences_storage.*` 及配套主机测试为本项目 Apache-2.0
 实现，复用既有 `bk7258_media_volume` 占用接口及 NuttX mount/umount 公共接口。
+
+下面构建 patch 路径已退役，只保留许可来源：
 
 `frameworks/cmake/kvdb_patches.cmake` 为本项目 Apache-2.0 构建接入代码，
 仅在输出目录消费 `frameworks/patches/README.md` 列明的 framework/UnQLite
 维护补丁；生成副本保留原 Apache-2.0 / Symisc BSD-2-Clause 许可，不另复制上游实现。
 
-## BLE GATT 通知维护补丁
+## 历史 BLE GATT 通知补丁（已退役，不作为当前入口）
 
 `nuttx/patches/bluetooth/0001-gatt-report-notification-enqueue-result.patch`
 派生自 OpenVela NuttX `76354c637858ecb0aa4601629327acb6f44a26bb`
@@ -200,6 +368,8 @@ Apache-2.0 实现。官方 NuttX 工作树不作修改，补丁仅应用到隔�
 NuttX 的 ATT 源码，保持较小 peer MTU，仅限制不能完整进入接收缓冲的协商上限。
 
 ## 认领 TLS 与 GATT
+
+首段 patch 路径为历史来源；后续产品 TLS/认领适配仍按实际配置使用。
 
 `nuttx/patches/bluetooth/0002-expose-gatt-connection-lifecycle.patch` 将同一
 OpenVela NuttX 基线的 `wireless/bluetooth/bt_hcicore.h` 既有连接回调结构和
@@ -224,12 +394,19 @@ BSD-3-Clause 许可，不复制 Host 实现或改变 SDK。
 `tests/host/bk7258/test_provision_gatt.py` 为本项目 Apache-2.0 实现，使用
 NuttX 公共 GATT/UUID/锁 API 与团队维护的定向通知接口；不包含 SDK 私有设备对象。
 
+2026-09-18 的 CCC 生命周期适配仅在该产品断开回调清理自有易失订阅表。
+契约核对基于上述固定 NuttX 提交的 `bt_gatt.c`、`bt_keys.c` 与 `bt_att.c`；
+没有复制 Host 的连接运行时或改动其 checkout，也未改变配对密钥和设备认领数据。
+
 `android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/`
 及相应 host tests 为本项目 Apache-2.0 实现，调用 Android/JVM 公共 JSSE、
 X509Certificate 和 MessageDigest API，没有复制密码库或上游 Bluetooth 实现。
 测试身份由本机 JDK keytool 临时生成，测试结束删除，不包含真实设备凭据。
 
 ## 摄像头与 SDIO 录像适配
+
+本节 `.patch` 条目仅保留历史来源与用途，相关应用机制已退役；
+当前 SDK checkout 与构建不得据此重新启用补丁。
 
 - `chips/bk7258/bk_idk/sdk-profiles/v3.1.1.9/cp-flash-notification-errors.patch`
   基于 `https://github.com/Embracecactus/bk_avdk_smp` 固定提交
@@ -250,7 +427,7 @@ X509Certificate 和 MessageDigest API，没有复制密码库或上游 Bluetooth
 - `nuttx/patches/{video,mmcsd,fs}` 是针对 OpenVela NuttX
   `76354c637858ecb0aa4601629327acb6f44a26bb` 的 Apache-2.0 修复，涵盖
   V4L2 scalar 控制初始化/编号、MMCSD 传输限制/完成与 FAT 错误传播。
-  保留为维护补丁，应用步骤见 [补丁说明](nuttx/patches/README.md)。
+  此项仅记录历史来源；补丁目录及应用机制已退役，不属于当前构建步骤。
 - `app/bk7258/bk7258_vision_*`、`bk7258_media_volume.*`、I2C 资源引用计数和
   配套宿主回归是本项目实现，使用 Apache-2.0。
 - BK7258 HardFault 复位原因 `0x11` 复用清单固定的 Beken SDK v3.1.1.9
