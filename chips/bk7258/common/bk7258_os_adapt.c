@@ -1677,12 +1677,20 @@ bk_err_t rtos_lock_mutex_timeout(beken_mutex_t *mtx, uint32_t timeout_ms)
 {
   int ret;
   mutex_t *mutex = (mutex_t *)*mtx;
-  struct timespec ts;
 
-  ts.tv_sec  = timeout_ms / 1000;
-  ts.tv_nsec = (timeout_ms % 1000) * 1000000;
-
-  ret = nxmutex_clocklock(mutex, CLOCK_MONOTONIC, &ts);
+  /* SDK 传入相对毫秒数；无限等待和零等待不转换为绝对截止时间。 */
+  if (timeout_ms == BEKEN_WAIT_FOREVER)
+    {
+      ret = nxmutex_lock(mutex);
+    }
+  else if (timeout_ms == 0)
+    {
+      ret = nxmutex_trylock(mutex);
+    }
+  else
+    {
+      ret = nxmutex_timedlock(mutex, timeout_ms);
+    }
 
   return beken_errno_trans(ret);
 }

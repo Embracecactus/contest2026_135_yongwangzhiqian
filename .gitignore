@@ -11,6 +11,13 @@ out/
 *.bin
 *.su
 
+# Operator-authorized private wake acknowledgement: 16 kHz mono PCM16LE.
+app/bk7258/assets/wake_reply.pcm
+
+# 本地授权语音语料及实验候选不随开源代码发布。
+app/bk7258/models/datasets/openvela-splice-20260918/
+app/bk7258/models/candidates/openvela-expanded-20260918/
+
 # Python cache
 __pycache__/
 *.pyc

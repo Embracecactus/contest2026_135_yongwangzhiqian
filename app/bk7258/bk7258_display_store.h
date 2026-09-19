@@ -33,5 +33,7 @@ int bkdisplay_store_activate(const char *root, const char *filename,
                              struct bkdisplay_store_selection_s *selection);
 int bkdisplay_store_install(const char *root, const char *filename,
                             struct bkdisplay_store_selection_s *selection);
+int bkdisplay_store_import(const char *root, const void *data, size_t size,
+                           struct bkdisplay_store_selection_s *selection);
 
 #endif /* __APP_BK7258_BK7258_DISPLAY_STORE_H */

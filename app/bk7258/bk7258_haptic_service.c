@@ -32,6 +32,7 @@ struct bkhaptic_server_s
   spinlock_t lock;
   sem_t sem;
   bool initialized;
+  bool quiesced;
   bool endpoint_created;
   bool connected;
   bool stop_pending;
@@ -330,6 +331,8 @@ static int bkhaptic_server_cb(struct rpmsg_endpoint *endpoint, void *data,
       return -ENOTCONN;
     }
 
+  if (s->quiesced) error = -EBUSY;
+
   if (!error && (s->pending || s->active || s->local_pending || s->local_owned))
     {
       if (s->local_active || s->local_pending || s->local_owned) error = -EBUSY;
@@ -522,7 +525,7 @@ static int bkhaptic_product_queue(unsigned int duration_ms, uint32_t *sequence)
   if (duration_ms == 0 || duration_ms > 32767) return -EINVAL;
   flags = spin_lock_irqsave(&s->lock);
   if (!s->initialized) { spin_unlock_irqrestore(&s->lock, flags); return -ENODEV; }
-  if (s->pending || s->active || s->local_pending || s->local_owned || s->local_stop_pending || s->stop_pending)
+  if (s->quiesced || s->pending || s->active || s->local_pending || s->local_owned || s->local_stop_pending || s->stop_pending)
     { spin_unlock_irqrestore(&s->lock, flags); return -EBUSY; }
   s->local_duration_ms = duration_ms; s->local_pending = true;
   s->local_sequence++;
@@ -570,5 +573,18 @@ int bkhaptic_service_stop_product(void)
   if (!s->local_active && !s->local_pending && !s->local_owned) { spin_unlock_irqrestore(&s->lock, flags); return 0; }
   s->local_pending = false; s->local_stop_pending = true;
   spin_unlock_irqrestore(&s->lock, flags); return nxsem_post(&s->sem);
+}
+
+int bkhaptic_service_quiesce(bool quiesce)
+{
+  struct bkhaptic_server_s *s = &g_bkhaptic;
+  irqstate_t flags = spin_lock_irqsave(&s->lock);
+  int ret = 0;
+  if (quiesce && (s->pending || s->active || s->local_pending ||
+      s->local_active || s->local_owned || s->local_stop_pending ||
+      s->stop_pending)) ret = -EBUSY;
+  if (!ret) s->quiesced = quiesce;
+  spin_unlock_irqrestore(&s->lock, flags);
+  return ret;
 }
 #endif

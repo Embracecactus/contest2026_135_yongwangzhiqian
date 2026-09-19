@@ -47,6 +47,18 @@ struct bkvoice_tls_config_s
    * Default false preserves the existing mutual-TLS contract.
    */
   bool server_auth_only;
+  /* 可选 TLS 1.2 会话缓存，只用于 server_auth_only，两个回调成对提供。
+   * load 在 setup/hostname 后、握手前复制匹配配置的会话，返回 0 或负错误。
+   * save 在 CA/主机名/时间验证后复核恢复会话的认证期限；返回 0 或负错误。
+   * 仅缓存分配失败时仍返回 0，不得将有效握手改判为失败。
+   * 回调不得修改 ssl 的认证配置；缓存 owner 负责端点、信任配置、有效期
+   * 隔离及并发复制。不会共享活动连接，也不会自动重试应用请求。
+   */
+  int (*session_load)(void *context, mbedtls_ssl_context *ssl,
+                       const char *host, uint16_t port);
+  int (*session_save)(void *context, const mbedtls_ssl_context *ssl,
+                       const char *host, uint16_t port);
+  void *session_context;
 };
 
 struct bkvoice_tls_s

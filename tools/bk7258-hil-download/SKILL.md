@@ -28,7 +28,7 @@ two skills compose; neither silently broadens the other's safety boundary.
 4. Treat `artifact_kind_claim` as an operator label, not signature proof. For a
    signed package, first use the repository's package/trust verifier and only
    then pass the verified extracted BIN or manifest-declared segments. Signed
-   OTA stays on `tools/bk7258/bk7258.py deploy`.
+   OTA stays on the target project's existing OTA entry, not this transport.
 5. Execute `run --execute --evidence-dir <new-directory>` only when still-valid
    authorization in the current conversation covers that exact board, artifact,
    port, and Flash write. Reuse explicit same-board iteration authority within
@@ -42,10 +42,10 @@ two skills compose; neither silently broadens the other's safety boundary.
 
 ## Current board profiles
 
-- `aidk_ai_toy`: one 8 MiB BIN or bounded signed CP/AP-B segments, CH340 UART0,
+- `aidk_ai_toy`: one 8 MiB BIN or bounded signed inactive CP/AP segments, CH340 UART0,
   loader-owned `reset reboot`, and no RTS/DTR reset. Multi-segment bounds must
-  preserve A/data/boot and come from current device evidence; K1 is the manual
-  fallback.
+  preserve the active pair/data/boot and come from current device evidence;
+  RESET/CEN is the manual fallback, not a product volume key.
 - `t5_board`: single or manifest-bounded multi-segment BK Loader input. UART0 is
   download plus console, and its USB-UART path supports inline RTS reset.
 - `t5ai_core`: single or manifest-bounded multi-segment input. Download/reset
@@ -57,6 +57,12 @@ These names are aliases, not hard-coded COM assignments. Read
 defaults and evidence pointers. Add a new board only after its wiring, loader
 form, reset mechanism, and console baud are evidenced; do not clone another
 board's profile speculatively.
+
+Keep this skill and its `scripts/` and `references/` together. The sibling
+`../windows-hardware-debug/` is the existing post-download transport; if it is
+unavailable, report that capture step as unavailable and retain Flash results.
+Obtain loader location and artifact/layout inputs from the caller's project,
+not a previous operator's installation or release directory.
 
 ## Safety and acceptance
 

@@ -118,6 +118,25 @@ static uint32_t boot_generation(void)
   return __atomic_load_n(&bk7258_ap_boot_state()->generation, __ATOMIC_ACQUIRE);
 }
 
+static int resolve_flow_action(
+  const struct bkvoice_ota_intent_s *intent, uint32_t generation,
+  const struct bk7258_ota_pair_snapshot_s *pair,
+  enum bkvoice_ota_flow_action_e *action)
+{
+  struct bk7258_ota_manager_status_s manager;
+  int ret = bkvoice_ota_flow_decide(intent, generation, pair, action);
+  if (ret || *action != BKVOICE_OTA_FLOW_REBOOT) return ret;
+
+  /* A boot generation can repeat after a whole-chip reset.  Only the current
+   * AP manager's READY_TO_REBOOT state proves that this runtime still owns the
+   * verified staged pair.  Without that lease, a confirmed source pair is a
+   * recovered/abandoned attempt and must be restaged instead of rebooted. */
+  ret = bk7258_ota_manager_get_status(&manager);
+  if (!ret && manager.state != BK7258_OTA_MANAGER_READY_TO_REBOOT)
+    *action = BKVOICE_OTA_FLOW_ROLLED_BACK;
+  return ret;
+}
+
 /* Read-only recovery status. A lost phone URL is never reconstructed from a
  * cloud configuration. RESTAGE requires another explicit App START with the
  * same pinned catalog; confirmed/superseded intents retire on that admission. */
@@ -135,7 +154,7 @@ static int recovered_status(struct bkcontrol_ota_status_s *status)
                                     CONFIG_BK7258_OTA_RPMSG_CONTROL_TIMEOUT_MS);
   if (ret) return ret;
   if (superseded(&intent, &pair)) return 0;
-  ret = bkvoice_ota_flow_decide(&intent, boot_generation(), &pair, &action);
+  ret = resolve_flow_action(&intent, boot_generation(), &pair, &action);
   if (ret) return ret;
   status->state = BKCONTROL_OTA_ACTIVE;
   status->result = -EINPROGRESS;
@@ -188,7 +207,7 @@ static int prepare_intent(struct app_ota_request_s *job, bool *reboot)
     {
       job->intent_present = true;
       if (superseded(&job->intent, &pair)) action = BKVOICE_OTA_FLOW_CONFIRMED;
-      else ret = bkvoice_ota_flow_decide(&job->intent, generation, &pair, &action);
+      else ret = resolve_flow_action(&job->intent, generation, &pair, &action);
       if (ret) return ret;
       if (action == BKVOICE_OTA_FLOW_CONFIRMED || action == BKVOICE_OTA_FLOW_ROLLED_BACK)
         {

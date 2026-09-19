@@ -25,6 +25,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import com.shaniu.companion.provision.AndroidDeviceControlFactory
 import com.shaniu.companion.provision.DeviceControlSession
 import com.shaniu.companion.provision.DeviceControlPresentation
@@ -159,6 +160,7 @@ class MainActivity : Activity() {
         get() = directSession.takeIf { it.current().authenticated }
     private val directSubscriptions = mutableListOf<DeviceControlSession.Cancel>()
     private var directObservedGeneration = 0L
+    private var directServiceWasReady = false
     private var directScanner: DeviceControlScanner? = null
     private var directDialog: AlertDialog? = null
     private val directSnapshot get() = directSession.current().snapshot
@@ -182,7 +184,19 @@ class MainActivity : Activity() {
     private var cloudModelsReadDeadline = 0L
     private var cloudModelsReadTicket = 0L
     private var cloudModelsCanceling = false
-    private enum class ConfigFlow { NONE, CAPABILITIES, CLOUD, WAKE }
+    private var responseMode: Int? = null
+    private var responseModeGeneration: Long? = null
+    private var responseModeFailedGeneration: Long? = null
+    private var responseModeExpected: Int? = null
+    private var responseModeError: String? = null
+    private var responseModeCanceling = false
+    private var wakeSensitivityPercent: Int? = null
+    private var wakeSensitivityGeneration: Long? = null
+    private var wakeSensitivityFailedGeneration: Long? = null
+    private var wakeSensitivityExpected: Int? = null
+    private var wakeSensitivityError: String? = null
+    private var wakeSensitivityCanceling = false
+    private enum class ConfigFlow { NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, SENSITIVITY, EYES }
     private var configFlow = ConfigFlow.NONE
     private var configAppendMax = 32
     private var configCapabilitiesGeneration: Long? = null
@@ -204,6 +218,16 @@ class MainActivity : Activity() {
     private var wakeImportDeviceId = ""
     private var wakeImportDeadline = 0L
     private var wakeImportTicket = 0L
+    private var selectedEyePack: EyePack? = null
+    private var selectedEyeFile: java.io.File? = null
+    private var selectedEyeAssetSha256: ByteArray? = null
+    private var eyeMessage: String? = null
+    private var eyeImportPending = false
+    private var eyeServer: OtaPackageServer? = null
+    private var eyeRecord: ByteArray? = null
+    private var eyeOffset = 0
+    private var eyeRead = ByteArray(0)
+    private var eyeReadingOnly = false
     private val navigation = mutableMapOf<Int, TextView>()
     private var lastAction = "请配置 HTTPS Gateway、设备 ID 和访问令牌"
 
@@ -223,7 +247,8 @@ class MainActivity : Activity() {
         preferences = getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         tokenStore = AndroidKeystoreTokenStore(applicationContext)
         provisionBindingStore = ProvisionBindingStore(applicationContext)
-        legacyConsoleMode = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+        legacyConsoleMode = BuildConfig.LEGACY_SERVICE_DEMO &&
+            (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
             intent.getBooleanExtra("legacy_console", false)
         reloadLocalConfiguration()
         setContentView(buildRoot().apply { applySystemInsets() })
@@ -231,6 +256,7 @@ class MainActivity : Activity() {
         directSubscriptions += directSession.observe { state ->
             if (state.generation != directObservedGeneration) {
                 directObservedGeneration = state.generation
+                directServiceWasReady = false
                 directEpoch++
                 cloudModelsWire?.fill(0); cloudModelsWire = null; cloudModelsExpected = null
                 cloudModelsOffset = 0; cloudModelsTotal = -1
@@ -238,6 +264,13 @@ class MainActivity : Activity() {
                 cloudModelsCanceling = false
                 cloudModelsGeneration = null
                 cloudModelsFailedGeneration = null
+                responseModeGeneration = null; responseModeFailedGeneration = null
+                responseModeExpected = null; responseModeCanceling = false
+                responseModeError = "连接恢复后读取设备实际回答模式；未完成的设置不会重发"
+                wakeSensitivityGeneration = null; wakeSensitivityFailedGeneration = null
+                wakeSensitivityExpected = null
+                wakeSensitivityCanceling = false
+                wakeSensitivityError = "连接恢复后读取实际唤醒门限；未完成的设置不会重发"
                 configFlow = ConfigFlow.NONE
                 configAppendMax = 32; configCapabilitiesGeneration = null
                 wakePackage = null; wakePayload = null; wakeExpectedSha = null
@@ -245,6 +278,7 @@ class MainActivity : Activity() {
                 wakeApplied = false; wakeCanceling = false; wakeReadTicket++
                 wakeRead = ByteArray(0); wakeReadTotal = -1; wakeOffset = 0
                 wakeMessage = "连接恢复后读取实际唤醒词模型；未完成的操作不会重发"
+                finishEyeInstall("连接已变化；未完成的眼睛安装不会重发")
                 cloudModelsReadError = "连接恢复后读取设备实际模型配置"
                 otaStatusReadError = null
                 // A new transport cannot resume a partially sent OTA record.
@@ -300,6 +334,8 @@ class MainActivity : Activity() {
         renderDeferred = false
         firmwareInspectionEpoch++
         firmwareInspectionPending = false
+        closeEyeServer()
+        if (configFlow == ConfigFlow.EYES) finishEyeInstall("已离开前台；未完成的眼睛安装不会重发")
         directSession.setForeground(false)
         if (otaUpload?.state == OtaControlUpload.State.WAITING) {
             // Do not leave a half-sent source record waiting on an invisible UI.
@@ -319,6 +355,7 @@ class MainActivity : Activity() {
         when (requestCode) {
             FIRMWARE_PACKAGE_REQUEST -> inspectFirmwarePackage(data?.data)
             WAKE_MODEL_REQUEST -> data?.data?.let(::selectWakeModel)
+            EYE_PACK_REQUEST -> data?.data?.let(::selectEyePack)
             PROVISION_REQUEST -> {
                 val deviceId = ProvisionBootstrap.validDeviceId(
                     data?.getStringExtra(ProvisionActivity.EXTRA_PROVISIONED_DEVICE_ID),
@@ -367,6 +404,9 @@ class MainActivity : Activity() {
         selectedFirmwareFile?.delete()
         selectedFirmwareFile = null
         inspectedFirmware = null
+        selectedEyeFile?.delete()
+        selectedEyeFile = null
+        closeEyeServer()
         directSubscriptions.forEach { it.cancel() }
         directSubscriptions.clear()
         closeDirect()
@@ -582,6 +622,8 @@ class MainActivity : Activity() {
 
     private fun closeDirect(preserveAcceptedOtaSource: Boolean = false): Boolean {
         cancelPendingWakeImport("连接已关闭，尚未向设备发送模型")
+        closeEyeServer()
+        if (configFlow == ConfigFlow.EYES) finishEyeInstall("连接已关闭；未完成的眼睛安装不会重发")
         val preserveOtaSource = preserveAcceptedOtaSource && foreground && !destroyed &&
             otaServer?.running == true && otaVerificationPending &&
             (otaUpload?.state == OtaControlUpload.State.ACCEPTED || otaStatus?.state in 1L..2L)
@@ -622,6 +664,12 @@ class MainActivity : Activity() {
         otaServer = null
         ioExecutor.execute { server.close() }
         if (message != null) otaMessage = message
+    }
+
+    private fun closeEyeServer() {
+        val server = eyeServer ?: return
+        eyeServer = null
+        ioExecutor.execute { server.close() }
     }
 
     private fun setOtaKeepAwake(keep: Boolean) {
@@ -818,6 +866,199 @@ class MainActivity : Activity() {
     private fun validModelId(value: String): Boolean = value.length in 1..127 &&
         value.all { it.code in 0x21..0x7e && (it.isLetterOrDigit() || it in "._:/-") }
 
+    private fun requestResponseModeRead() {
+        if (configFlow == ConfigFlow.NONE) {
+            if (!configAvailable()) return
+            configFlow = ConfigFlow.RESPONSE
+        }
+        if (configFlow != ConfigFlow.RESPONSE || responseModeCanceling) return
+        responseModeGeneration = null
+        responseModeError = null
+        if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_READ,
+                ByteBuffer.allocate(4).putInt(4 shl 16).array()))
+            failResponseMode("设备忙，尚未读取回答模式")
+    }
+
+    private fun requestWakeSensitivityRead() {
+        if (configFlow == ConfigFlow.NONE) {
+            if (!configAvailable()) return
+            configFlow = ConfigFlow.SENSITIVITY
+        }
+        if (configFlow != ConfigFlow.SENSITIVITY) return
+        if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_READ,
+                ByteBuffer.allocate(4).putInt(6 shl 16).array()))
+            failWakeSensitivity("设备忙，尚未读取唤醒灵敏度")
+    }
+
+    private fun editWakeSensitivity() {
+        val old = wakeSensitivityPercent ?: return
+        val generation = directSession.current().generation
+        if (wakeSensitivityGeneration != generation) return
+        val values = listOf(50, 60, 65, 75, 85, 90)
+        var desired = old
+        directDialog = AlertDialog.Builder(this).setTitle("唤醒灵敏度")
+            .setSingleChoiceItems(values.map { "%.2f".format(it / 100.0) }.toTypedArray(),
+                values.indexOf(old).takeIf { it >= 0 } ?: 1) { _, which -> desired = values[which] }
+            .setNegativeButton("取消", null).setPositiveButton("保存") { _, _ ->
+                if (generation != directSession.current().generation || wakeSensitivityGeneration != generation ||
+                    !directSession.current().snapshotFresh || !configAvailable() || directSnapshot?.busy == true) {
+                    directMessage = "设备忙或连接状态已变化，请稍后读取再设置"; render(); return@setPositiveButton
+                }
+                configFlow = ConfigFlow.SENSITIVITY
+                wakeSensitivityExpected = desired; wakeSensitivityError = null
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                        ByteBuffer.allocate(8).putInt(6).putInt(12).array()))
+                    failWakeSensitivity("设备忙，尚未发送唤醒灵敏度")
+            }.show()
+    }
+
+    private fun failWakeSensitivity(message: String) {
+        wakeSensitivityGeneration = null; wakeSensitivityExpected = null; wakeSensitivityError = message
+        wakeSensitivityFailedGeneration = directSession.current().generation
+        if (!wakeSensitivityCanceling && directSession.cancelConfigTransaction()) {
+            wakeSensitivityCanceling = true
+            return
+        }
+        wakeSensitivityCanceling = false
+        configFlow = ConfigFlow.NONE
+        directSession.finishConfigTransaction(message)
+    }
+
+    private fun handleWakeSensitivityResult(command: DeviceControlProtocol.Command,
+                                            snapshot: DeviceControlProtocol.Snapshot) {
+        if (command == DeviceControlProtocol.Command.CONFIG_CANCEL) {
+            wakeSensitivityCanceling = true
+            failWakeSensitivity(if (snapshot.error == 0) wakeSensitivityError ?: "唤醒灵敏度设置已取消"
+                else "唤醒灵敏度取消未确认（${snapshot.error}），请重新读取")
+            return
+        }
+        if (wakeSensitivityCanceling) return
+        if (snapshot.error != 0) {
+            val message = if (snapshot.error == -95 || snapshot.error == -138)
+                "当前固件不支持唤醒灵敏度设置" else "唤醒灵敏度操作未确认（${snapshot.error}）；请重新读取"
+            failWakeSensitivity(message); return
+        }
+        when (command) {
+            DeviceControlProtocol.Command.CONFIG_BEGIN -> {
+                val desired = wakeSensitivityExpected ?: run { failWakeSensitivity("唤醒灵敏度设置已取消"); return }
+                val record = ByteBuffer.allocate(12).put("KWT1".toByteArray())
+                    .putInt(desired).putInt(0).array()
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPEND, record))
+                    failWakeSensitivity("设备忙，无法发送唤醒灵敏度")
+            }
+            DeviceControlProtocol.Command.CONFIG_APPEND ->
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0)))
+                    failWakeSensitivity("设备忙，无法保存唤醒灵敏度")
+            DeviceControlProtocol.Command.CONFIG_APPLY -> requestWakeSensitivityRead()
+            DeviceControlProtocol.Command.CONFIG_READ -> {
+                val chunk = snapshot.configChunk
+                if (chunk?.totalLength != 12 || chunk.bytes.size < 12) {
+                    failWakeSensitivity("设备返回的唤醒灵敏度格式无效"); return
+                }
+                val record = ByteBuffer.wrap(chunk.bytes)
+                val magic = record.int; val percent = record.int; val reserved = record.int
+                if (magic != 0x4b575431 || percent !in 50..90 || reserved != 0) {
+                    failWakeSensitivity("设备返回的唤醒灵敏度格式无效"); return
+                }
+                val expected = wakeSensitivityExpected
+                wakeSensitivityPercent = percent
+                wakeSensitivityGeneration = directSession.current().generation
+                wakeSensitivityFailedGeneration = null; wakeSensitivityExpected = null; wakeSensitivityError = null
+                configFlow = ConfigFlow.NONE
+                val message = if (expected == null) "已读取设备唤醒门限：%.2f".format(percent / 100.0)
+                    else if (percent == expected) "唤醒灵敏度已保存并回读确认"
+                    else "设备回读门限与所选值不一致，请核对；未自动重发"
+                directSession.finishConfigTransaction(message)
+                if (expected != null) android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
+            }
+            else -> Unit
+        }
+    }
+
+    private fun editResponseMode() {
+        val old = responseMode ?: return
+        val generation = directSession.current().generation
+        if (responseModeGeneration != generation) return
+        var desired = old
+        directDialog = AlertDialog.Builder(this).setTitle("回答模式")
+            .setSingleChoiceItems(arrayOf("快速对话 · 关闭深度思考", "深度思考 · 回答可能更慢"), old) { _, which -> desired = which }
+            .setNegativeButton("取消", null).setPositiveButton("保存") { _, _ ->
+                if (generation != directSession.current().generation || responseModeGeneration != generation ||
+                    !directSession.current().snapshotFresh || !configAvailable() || directSnapshot?.busy == true) {
+                    directMessage = "设备忙或连接状态已变化，请稍后读取再设置"; render(); return@setPositiveButton
+                }
+                configFlow = ConfigFlow.RESPONSE
+                responseModeGeneration = null; responseModeExpected = desired; responseModeError = null
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                        ByteBuffer.allocate(8).putInt(4).putInt(12).array()))
+                    failResponseMode("设备忙，尚未发送回答模式")
+            }.show()
+    }
+
+    private fun failResponseMode(message: String) {
+        responseModeGeneration = null; responseModeExpected = null; responseModeError = message
+        responseModeFailedGeneration = directSession.current().generation
+        if (!responseModeCanceling && directSession.cancelConfigTransaction()) {
+            responseModeCanceling = true
+            return
+        }
+        responseModeCanceling = false; configFlow = ConfigFlow.NONE
+        directMessage = message
+        directSession.finishConfigTransaction(message)
+    }
+
+    private fun handleResponseModeResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
+        if (command == DeviceControlProtocol.Command.CONFIG_CANCEL) {
+            responseModeCanceling = true
+            failResponseMode(if (snapshot.error == 0) responseModeError ?: "回答模式设置已取消"
+                else "回答模式取消未确认（${snapshot.error}），请重新读取")
+            return
+        }
+        if (responseModeCanceling) return
+        if (snapshot.error != 0) {
+            failResponseMode(when (snapshot.error) {
+                -138, -95 -> "当前固件或所选服务不支持回答模式"
+                -16 -> "设备正在交互，请结束交互后再设置"
+                else -> "回答模式操作未确认（${snapshot.error}），请重新读取；不会自动重发设置"
+            })
+            return
+        }
+        when (command) {
+            DeviceControlProtocol.Command.CONFIG_BEGIN -> {
+                val desired = responseModeExpected ?: run { failResponseMode("回答模式设置已取消"); return }
+                val record = ByteBuffer.allocate(12).putInt(0x52535031).putInt(desired).putInt(0).array()
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPEND, record))
+                    failResponseMode("设备忙，无法发送回答模式")
+            }
+            DeviceControlProtocol.Command.CONFIG_APPEND ->
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0)))
+                    failResponseMode("设备忙，无法保存回答模式")
+            DeviceControlProtocol.Command.CONFIG_APPLY -> requestResponseModeRead()
+            DeviceControlProtocol.Command.CONFIG_READ -> {
+                val chunk = snapshot.configChunk
+                if (chunk?.totalLength != 12 || chunk.bytes.size < 12) {
+                    failResponseMode("回答模式响应长度无效"); return
+                }
+                val record = ByteBuffer.wrap(chunk.bytes)
+                val magic = record.int; val mode = record.int; val reserved = record.int
+                if (magic != 0x52535031 || mode !in 0..1 || reserved != 0) {
+                    failResponseMode("回答模式响应格式无效"); return
+                }
+                val expected = responseModeExpected
+                responseMode = mode; responseModeGeneration = directSession.current().generation
+                responseModeFailedGeneration = null; responseModeExpected = null; responseModeError = null
+                configFlow = ConfigFlow.NONE
+                if (expected != null) {
+                    directMessage = if (mode == expected) "回答模式已保存并回读确认"
+                        else "设备回读与所选回答模式不一致，请核对；未自动重发"
+                    directSession.finishConfigTransaction(directMessage)
+                    android.widget.Toast.makeText(this, directMessage, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            else -> Unit
+        }
+    }
+
     private fun encodeCloudModels(models: CloudModels): ByteArray? {
         if (!listOf(models.asr, models.chat, models.tts).all(::validModelId)) return null
         val a = models.asr.toByteArray(StandardCharsets.US_ASCII)
@@ -1006,7 +1247,8 @@ class MainActivity : Activity() {
                     render()
                     return@post
                 }
-                if (server.metadata.catalogSha256 != pack.catalogSha256 || !persistExpected(server.metadata)) {
+                val metadata = server.metadata
+                if (metadata == null || metadata.catalogSha256 != pack.catalogSha256 || !persistExpected(metadata)) {
                     ioExecutor.execute { server.close() }
                     otaStartGate.release(); setOtaKeepAwake(false)
                     otaMessage = "无法保存本次升级核验目标，未向设备发送升级请求。"
@@ -1159,11 +1401,22 @@ class MainActivity : Activity() {
 
     private fun onDirectResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
         if (destroyed) return
+        if (command == DeviceControlProtocol.Command.STATUS && snapshot.error == 0) {
+            if (snapshot.ready && !directServiceWasReady) {
+                // 服务在 BLE 连接后才就绪时，重读启动期间失败的配置；不重发设置。
+                cloudModelsFailedGeneration = null
+                responseModeFailedGeneration = null
+            }
+            directServiceWasReady = snapshot.ready
+        }
         if (command.wire in DeviceControlProtocol.Command.CONFIG_READ.wire..DeviceControlProtocol.Command.CONFIG_CANCEL.wire) {
             when (configFlow) {
                 ConfigFlow.CAPABILITIES -> handleConfigCapabilities(snapshot)
                 ConfigFlow.WAKE -> handleWakeResult(command, snapshot)
                 ConfigFlow.CLOUD -> handleCloudModelsResult(command, snapshot)
+                ConfigFlow.RESPONSE -> handleResponseModeResult(command, snapshot)
+                ConfigFlow.SENSITIVITY -> handleWakeSensitivityResult(command, snapshot)
+                ConfigFlow.EYES -> handleEyeResult(command, snapshot)
                 ConfigFlow.NONE -> Unit
             }
             if (foreground) render()
@@ -1202,7 +1455,11 @@ class MainActivity : Activity() {
             if (configCapabilitiesGeneration != directSession.current().generation) requestConfigCapabilities()
             else if (cloudModelsGeneration != directSession.current().generation &&
                 cloudModelsFailedGeneration != directSession.current().generation) requestCloudModelsRead()
+            else if (responseModeGeneration != directSession.current().generation &&
+                responseModeFailedGeneration != directSession.current().generation) requestResponseModeRead()
             else if (wakeStatusGeneration != directSession.current().generation) requestWakeStatus()
+            else if (wakeSensitivityGeneration != directSession.current().generation &&
+                wakeSensitivityFailedGeneration != directSession.current().generation) requestWakeSensitivityRead()
         }
         if (foreground && command != DeviceControlProtocol.Command.STATUS && snapshot.error != 0) {
             android.widget.Toast.makeText(this, DeviceControlSession.operationError(snapshot.error), android.widget.Toast.LENGTH_SHORT).show()
@@ -1583,6 +1840,33 @@ class MainActivity : Activity() {
                         ?: "选择你喜欢的陪伴方式") { selectTab(TAB_PERSONALITY); render() }
                     val configSupported = directSnapshot?.publicConfigSupported == true
                     val configMutationReady = configAvailable() && pendingWakeImport == null
+                    val responseCurrent = responseModeGeneration == directSession.current().generation
+                    val responseText = when {
+                        !directSession.current().authenticated -> "连接并验证设备后读取"
+                        !directSession.current().snapshotFresh -> "设备状态待刷新，尚未确认"
+                        !configSupported -> "当前固件未提供此设置"
+                        configFlow == ConfigFlow.RESPONSE -> "正在读取或保存回答模式…"
+                        !responseCurrent -> responseModeError ?: "点击读取设备实际回答模式"
+                        responseMode == 0 -> "快速对话 · 关闭深度思考\n识别和语音合成仍需网络等待"
+                        else -> "深度思考 · 回答可能更慢"
+                    }
+                    settingsRow("回答模式", responseText, enabled = configMutationReady) {
+                        if (responseCurrent) editResponseMode() else { requestResponseModeRead(); render() }
+                    }
+                    val sensitivityCurrent = wakeSensitivityGeneration == directSession.current().generation
+                    val sensitivityText = when {
+                        !directSession.current().authenticated -> "连接并验证设备后读取"
+                        !directSession.current().snapshotFresh -> "设备状态待刷新，尚未确认"
+                        !configSupported -> "当前固件未提供此设置"
+                        configFlow == ConfigFlow.SENSITIVITY -> "正在读取或保存唤醒门限…"
+                        !sensitivityCurrent -> wakeSensitivityError ?: "点击读取设备实际门限"
+                        wakeSensitivityPercent != null -> "设备门限 %.2f（越低越易唤醒，也可能误唤醒）".format(wakeSensitivityPercent!! / 100.0)
+                        else -> "尚未读取设备门限"
+                    }
+                    settingsRow("唤醒灵敏度", sensitivityText, enabled = configMutationReady) {
+                        if (sensitivityCurrent) editWakeSensitivity()
+                        else { requestWakeSensitivityRead(); render() }
+                    }
                     val modelsCurrent = cloudModelsGeneration == directSession.current().generation
                     val modelText = when {
                         !directSession.current().authenticated -> "连接并验证设备后读取模型"
@@ -1609,7 +1893,7 @@ class MainActivity : Activity() {
                         }, WAKE_MODEL_REQUEST)
                     }
                     val bundled = listOf("nihao_openvela", "nihao_bingbing", "nihao_shaniu")
-                    val wakeNames = listOf("你好，open-vela", "你好冰冰", "你好傻妞")
+                    val wakeNames = listOf("你好，openvela", "你好冰冰", "你好傻妞")
                     bundled.forEachIndexed { index, label ->
                         val available = try { assets.open("wake-models/$label.wkm").use(WakeModelPackage::read) != null } catch (_: Exception) { false }
                         settingsRow(wakeNames[index], if (available) "切换到此唤醒词" else "此版本暂未提供", enabled = available && configMutationReady) { selectBundledWakeModel(label) }
@@ -1624,6 +1908,18 @@ class MainActivity : Activity() {
                         settingsRow("取消模型传输", "保留设备当前模型", enabled = !wakeCanceling) {
                             failWake("模型传输已取消，保留原模型"); render()
                         }
+                    settingsRow("导入眼睛素材包", eyeMessage ?: "从本地导入 .bkep 眼睛素材包",
+                        enabled = !eyeImportPending && configFlow == ConfigFlow.NONE) {
+                        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            type = "application/octet-stream"; addCategory(Intent.CATEGORY_OPENABLE)
+                        }, EYE_PACK_REQUEST)
+                    }
+                    val selectedEyes = selectedEyePack
+                    settingsRow("通过 Wi-Fi 安装所选眼睛", selectedEyes?.let { "${it.packId} · 版本 ${it.revision}" }
+                        ?: "请先导入眼睛素材包", enabled = selectedEyes != null && !eyeImportPending && configAvailable()) {
+                        startEyeInstall()
+                    }
+                    settingsRow("读取当前眼睛", "读取设备实际安装状态", enabled = configAvailable()) { readCurrentEyes() }
                     settingsRow("恢复上一唤醒词模型", currentWake?.previous?.let { "恢复为 ${wakeModelSummary(it)}" }
                         ?: "恢复前先读取设备保存的上一模型", enabled = configMutationReady) { restoreWakeModel() }
                     settingsRow("设备配置", "配网与添加结果核对", !busy) { startProvisioning() }
@@ -1635,7 +1931,8 @@ class MainActivity : Activity() {
                     settingsRow("断开手机连接", "设备的独立对话不受此操作影响") { closeDirect(); render() }
                 if (bound) settingsRow("移除本机连接资料", "保留设备上的网络与服务配置",
                     enabled = !busy && !directPending) { confirmClearProvisioning() }
-                if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+                if (BuildConfig.LEGACY_SERVICE_DEMO &&
+                    (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
                     content.addView(TextView(this).apply {
                         text = "开发版本 · 历史服务联调"
                         textSize = 12f; setTextColor(MUTED); gravity = Gravity.CENTER
@@ -1647,6 +1944,141 @@ class MainActivity : Activity() {
                     })
                 }
             }
+        }
+    }
+
+    private fun selectEyePack(uri: android.net.Uri) {
+        if (eyeImportPending) return
+        eyeImportPending = true; eyeMessage = "正在检查眼睛素材包…"; render()
+        ioExecutor.execute {
+            val result = runCatching {
+                val file = java.io.File.createTempFile("eyes-selected-", ".bkep", cacheDir)
+                try {
+                    contentResolver.openInputStream(uri).use { input ->
+                        requireNotNull(input)
+                        file.outputStream().use { output ->
+                            val buffer = ByteArray(8192); var total = 0
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count; require(total <= 131072)
+                                output.write(buffer, 0, count)
+                            }
+                        }
+                    }
+                    val bytes = file.readBytes()
+                    val pack = requireNotNull(EyePack.parse(bytes))
+                    Triple(pack, file, MessageDigest.getInstance("SHA-256").digest(bytes))
+                } catch (error: Exception) { file.delete(); throw error }
+            }
+            mainHandler.post {
+                eyeImportPending = false
+                if (destroyed || !foreground) { result.getOrNull()?.second?.delete(); return@post }
+                val accepted = result.getOrNull()
+                if (accepted == null) eyeMessage = "眼睛素材包格式、长度或校验无效"
+                else {
+                    selectedEyeFile?.takeIf { it != accepted.second }?.delete()
+                    selectedEyePack = accepted.first
+                    selectedEyeAssetSha256 = accepted.third
+                    selectedEyeFile = accepted.second
+                    eyeMessage = "已选择 ${accepted.first.packId}（版本 ${accepted.first.revision}）"
+                }
+                render()
+            }
+        }
+    }
+
+    private fun startEyeInstall() {
+        val file = selectedEyeFile ?: return
+        selectedEyePack ?: return
+        val assetSha256 = selectedEyeAssetSha256 ?: return
+        if (!configAvailable() || eyeImportPending) return
+        val epoch = directEpoch
+        configFlow = ConfigFlow.EYES; eyeMessage = "正在准备 Wi-Fi 眼睛素材来源…"; render()
+        ioExecutor.execute {
+            val opened = runCatching { OtaPackageServer.openAsset(applicationContext, file, assetSha256) }
+            mainHandler.post {
+                if (epoch != directEpoch || !foreground || destroyed || configFlow != ConfigFlow.EYES) {
+                    opened.getOrNull()?.let { server -> ioExecutor.execute { server.close() } }; return@post
+                }
+                val server = opened.getOrNull()
+                if (server == null) { finishEyeInstall(otaSourceOpenFailureMessage(opened.exceptionOrNull())); render(); return@post }
+                if (server.requestRecord.size !in 44..3371) {
+                    ioExecutor.execute { server.close() }
+                    finishEyeInstall("本机眼睛素材来源请求长度无效"); render(); return@post
+                }
+                eyeServer = server; eyeRecord = server.requestRecord; eyeOffset = 0; eyeRead = ByteArray(0)
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                        ByteBuffer.allocate(8).putInt(5).putInt(server.requestRecord.size).array()))
+                    finishEyeInstall("设备控制通道不可用，未开始眼睛安装")
+                else eyeMessage = "正在发送 Wi-Fi 素材来源…"
+                render()
+            }
+        }
+    }
+
+    private fun requestEyeRead(offset: Int = 0) {
+        if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_READ,
+                ByteBuffer.allocate(4).putInt((5 shl 16) or offset).array()))
+            finishEyeInstall("无法读取设备当前眼睛状态")
+    }
+
+    private fun readCurrentEyes() {
+        if (!configAvailable()) return
+        configFlow = ConfigFlow.EYES; eyeReadingOnly = true; eyeOffset = 0; eyeRead = ByteArray(0)
+        eyeMessage = "正在读取设备当前眼睛…"
+        requestEyeRead(); render()
+    }
+
+    private fun finishEyeInstall(message: String) {
+        eyeRecord = null; eyeOffset = 0; eyeRead = ByteArray(0); eyeReadingOnly = false
+        closeEyeServer()
+        if (configFlow == ConfigFlow.EYES) {
+            configFlow = ConfigFlow.NONE
+            directSession.finishConfigTransaction(message)
+        }
+        eyeMessage = message
+    }
+
+    private fun handleEyeResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
+        if (snapshot.error != 0) { finishEyeInstall("眼睛安装未确认（${snapshot.error}）；请读取设备实际状态"); return }
+        when (command) {
+            DeviceControlProtocol.Command.CONFIG_BEGIN, DeviceControlProtocol.Command.CONFIG_APPEND -> {
+                val record = eyeRecord ?: run { finishEyeInstall("眼睛安装请求已取消"); return }
+                if (eyeOffset < record.size) {
+                    val end = minOf(record.size, eyeOffset + configAppendMax)
+                    if (directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPEND, record.copyOfRange(eyeOffset, end))) eyeOffset = end
+                    else finishEyeInstall("设备忙，眼睛安装请求未完成")
+                } else if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))) {
+                    finishEyeInstall("设备忙，未开始 Wi-Fi 安装")
+                }
+            }
+            DeviceControlProtocol.Command.CONFIG_APPLY -> { eyeOffset = 0; eyeRead = ByteArray(0); requestEyeRead() }
+            DeviceControlProtocol.Command.CONFIG_READ -> {
+                val chunk = snapshot.configChunk ?: run { finishEyeInstall("设备未返回眼睛状态"); return }
+                if (chunk.totalLength != 108) { finishEyeInstall("设备返回的眼睛状态长度无效"); return }
+                if (eyeRead.isEmpty()) eyeRead = ByteArray(108)
+                if (eyeOffset !in eyeRead.indices) { finishEyeInstall("眼睛状态偏移无效"); return }
+                val count = minOf(16, eyeRead.size - eyeOffset)
+                chunk.bytes.copyInto(eyeRead, eyeOffset, 0, count); eyeOffset += count
+                if (eyeOffset < eyeRead.size) { requestEyeRead(eyeOffset); return }
+                val selected = selectedEyePack
+                val b = ByteBuffer.wrap(eyeRead)
+                val idBytes = eyeRead.copyOfRange(20, 52); val zero = idBytes.indexOfFirst { it == 0.toByte() }
+                val id = if (zero in 1..31 && idBytes.copyOfRange(zero + 1, 32).all { it == 0.toByte() })
+                    String(idBytes, 0, zero, StandardCharsets.US_ASCII) else ""
+                val state = b.getInt(4); val error = b.getInt(8); val revision = b.getInt(12).toUInt().toLong()
+                if (eyeReadingOnly) {
+                    finishEyeInstall(if (id.isNotEmpty()) "当前眼睛：$id（版本 $revision，状态 $state，错误 $error）"
+                        else "设备返回的眼睛状态格式无效")
+                    return
+                }
+                val ready = selected != null && eyeRead.copyOfRange(0, 4).contentEquals("EYE1".toByteArray()) && state == 3 &&
+                    error == 0 && revision == selected.revision && id == selected.packId &&
+                    eyeRead.copyOfRange(52, 84).contentEquals(selected.sourceSha256)
+                finishEyeInstall(if (ready) "眼睛素材已通过 Wi-Fi 安装并回读确认" else "设备眼睛状态与所选素材不一致；未自动重发")
+            }
+            else -> Unit
         }
     }
 
@@ -1780,7 +2212,8 @@ class MainActivity : Activity() {
         if (expectedDevice.isNotBlank() || draftDeviceId.isNotBlank()) {
             actionButton("清除本机连接资料", !busy) { confirmClearProvisioning() }
         }
-        if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+        if (BuildConfig.LEGACY_SERVICE_DEMO &&
+            (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             sectionTitle("开发工具")
             actionButton("开发者联调") { developerPanel = true; render() }
         }
@@ -3079,6 +3512,7 @@ class MainActivity : Activity() {
         private const val TAB_UPDATE = 4
         private const val FIRMWARE_PACKAGE_REQUEST = 6043
         private const val WAKE_MODEL_REQUEST = 6044
+        private const val EYE_PACK_REQUEST = 6045
         private const val TAB_SETTINGS = 5
         private val TABS = listOf(TAB_OVERVIEW to "陪伴", TAB_PERSONALITY to "心情", TAB_SETTINGS to "设置")
 

@@ -26,187 +26,22 @@
   "models": [
     {
       "label": "nihao_openvela",
-      "phrase": "你好，open-vela",
+      "phrase": "你好，openvela",
       "package_path": "android/shaniu-companion/app/src/main/assets/wake-models/nihao_openvela.wkm",
-      "package_sha256": "f6b9519bf610db2b6df4b9c9a23dbb64cbc5a178253c8a7794eb2d12d0696928",
+      "package_sha256": "b08a256178c0b15af1191a088385501ab652446f680f7e851a076075aafd5814",
       "package_bytes": 23776,
       "model_bytes": 23640,
-      "model_sha256": "0d05f073df667d7b595a0a0478f4a527b04bbe710c22016205ae24611c860b5b",
-      "training_metadata_sha256": "3a4fb0d2a66cb61dc34e3d4ef9be0dea4589941bcca6f13c278637fd056c0016",
-      "training": {
-        "epochs_completed": 24,
-        "best_validation_epoch": 12,
-        "best_validation_loss": 0.1071738600730896,
-        "seed": 20260914,
-        "batch_size": 32,
-        "counts": {
-          "test": {
-            "nihao_openvela": 10,
-            "silence": 6,
-            "unknown": 42
-          },
-          "train": {
-            "nihao_openvela": 40,
-            "silence": 88,
-            "unknown": 209
-          },
-          "validation": {
-            "nihao_openvela": 8,
-            "silence": 6,
-            "unknown": 36
-          }
-        }
-      },
-      "runtime": {
-        "input_shape": [
-          1,
-          149,
-          40,
-          1
-        ],
-        "output_shape": [
-          1,
-          3
-        ],
-        "input_quantization": [
-          3.5490195751190186,
-          -128
-        ],
-        "output_quantization": [
-          0.00390625,
-          -128
-        ],
-        "exported_operators": [
-          "AVERAGE_POOL_2D",
-          "CONV_2D",
-          "DEPTHWISE_CONV_2D",
-          "FULLY_CONNECTED",
-          "RESHAPE",
-          "SOFTMAX"
-        ],
-        "runtime_policy": {
-          "consecutive": 2,
-          "cooldown_ms": 1000,
-          "release_threshold": 0.20000000298023224,
-          "source": "bkvoice_kws_default_policy",
-          "threshold": 0.8500000238418579
-        }
-      },
+      "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+      "training_metadata_path": "app/bk7258/models/nihao_openvela.metadata.json",
+      "training_metadata_sha256": "7bcc5ea32ea29b6120313a88a0932f0937779b16ab19365aacd1826c833db73f",
       "evaluation": {
-        "validation": {
-          "status": "candidate",
-          "classification": {
-            "actual_counts": {
-              "nihao_openvela": 8,
-              "silence": 6,
-              "unknown": 36
-            },
-            "confusion_matrix": [
-              [
-                0,
-                6,
-                0
-              ],
-              [
-                0,
-                36,
-                0
-              ],
-              [
-                0,
-                0,
-                8
-              ]
-            ],
-            "labels": [
-              "silence",
-              "unknown",
-              "nihao_openvela"
-            ],
-            "positive_false_negative_rate": 0.0,
-            "positive_samples": 8,
-            "predicted_counts": {
-              "nihao_openvela": 8,
-              "silence": 0,
-              "unknown": 42
-            },
-            "unknown_false_positive_rate": 0.0,
-            "unknown_samples": 36
-          },
-          "stream": {
-            "background_false_positives": 1,
-            "expected_wakes": 8,
-            "gap_ms": 0,
-            "listening_ms": 72000,
-            "missed_wakes": 1,
-            "paused_ms": 0,
-            "repeated_wakes": 0,
-            "sessions": 8,
-            "wake_events": 8
-          }
-        },
-        "test": {
-          "status": "candidate",
-          "classification": {
-            "actual_counts": {
-              "nihao_openvela": 10,
-              "silence": 6,
-              "unknown": 42
-            },
-            "confusion_matrix": [
-              [
-                0,
-                6,
-                0
-              ],
-              [
-                0,
-                42,
-                0
-              ],
-              [
-                0,
-                0,
-                10
-              ]
-            ],
-            "labels": [
-              "silence",
-              "unknown",
-              "nihao_openvela"
-            ],
-            "positive_false_negative_rate": 0.0,
-            "positive_samples": 10,
-            "predicted_counts": {
-              "nihao_openvela": 10,
-              "silence": 0,
-              "unknown": 48
-            },
-            "unknown_false_positive_rate": 0.0,
-            "unknown_samples": 42
-          },
-          "stream": {
-            "background_false_positives": 0,
-            "expected_wakes": 10,
-            "gap_ms": 0,
-            "listening_ms": 90000,
-            "missed_wakes": 0,
-            "paused_ms": 0,
-            "repeated_wakes": 0,
-            "sessions": 10,
-            "wake_events": 10
-          }
-        }
+        "source": "training_metadata_path",
+        "independent_human_generalization": "not_verified"
       },
       "board_loading": {
-        "status": "verified",
-        "firmware": "18.6.363+519",
-        "activation_firmware": "18.6.363+517",
-        "arena_used_bytes": 40692,
-        "evidence": "voice519-adapt-acoustic-openvela/serial.raw",
-        "app_expected_hash_readback": true,
-        "physical_synthetic_replay": "wake_capture_cloud_tts_drain_rearm_observed",
-        "independent_human_generalization": "not_verified"
+        "status": "current_builtin_packaged_for_app",
+        "app_application": "pending_current_candidate_verification",
+        "historical_acceptance_inherited": false
       }
     },
     {

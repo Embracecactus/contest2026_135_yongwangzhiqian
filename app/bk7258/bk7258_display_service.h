@@ -34,6 +34,7 @@ struct bkdisplay_service_status_s
   char expression[BKDISPLAY_EXPRESSION_SIZE];
   char pack_id[BKDISPLAY_PACK_ID_SIZE];
   uint32_t pack_revision;
+  uint8_t source_sha256[32];
 };
 
 int bk7258_display_service_prepare(void);
@@ -50,6 +51,7 @@ int bk7258_display_replace_expression(const char *expected,
 int bk7258_display_show_mapping_test(void);
 int bk7258_display_install(const char *filename);
 int bk7258_display_activate(const char *filename);
+int bk7258_display_import(const void *data, size_t size);
 int bk7258_display_get_status(struct bkdisplay_service_status_s *status);
 
 #endif /* __APP_BK7258_BK7258_DISPLAY_SERVICE_H */

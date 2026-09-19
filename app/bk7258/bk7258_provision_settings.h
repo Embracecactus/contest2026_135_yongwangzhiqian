@@ -7,7 +7,8 @@
 
 /* SCB3 appends a nonzero 32-byte owner control key after the SCB2 cloud record.
  * It is a secret in the same private configuration transaction, never status
- * or recovery-response data. The factory possession secret is separate.
+ * data. Only explicit AUTH_OWNER recovery may return it over pinned TLS
+ * after verifying the separate factory possession secret; it is never rotated.
  * SCB2 appends a validated CCF1 record to SCB1, with its length at byte 28.
  * Host and port must agree in both records; cloud bytes remain borrowed.
  * SCB1 is one complete configuration: SSID/PSK, Gateway hostname/address/port,

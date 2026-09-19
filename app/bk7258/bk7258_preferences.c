@@ -18,10 +18,13 @@
 #include <sys/stat.h>
 
 #include <kvdb.h>
+#include <unqlite.h>
 #include <nuttx/mutex.h>
 
 #define BK7258_PREFERENCES_VOLUME_KEY  "persist.shaniu.volume"
 #define BK7258_PREFERENCES_PERSONA_KEY "persist.shaniu.persona"
+#define BK7258_PREFERENCES_THINKING_KEY "persist.shaniu.thinking"
+#define BK7258_PREFERENCES_WAKE_THRESHOLD_KEY "persist.shaniu.wake_threshold"
 #define BK7258_PREFERENCES_DEFAULT_VOLUME 50u
 #define BK7258_CLOUD_MODELS_ROOT "/cpdata/shaniu/cloud-models"
 
@@ -75,6 +78,7 @@ int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models)
 {
   struct bkprov_store_s store;
   uint8_t record[BKCLOUD_MODELS_RECORD_MAX], transaction[16] = {'M','C','P','1'};
+  uint8_t confirmed[BKCLOUD_MODELS_RECORD_MAX], confirmed_transaction[16];
   size_t size; uint64_t revision;
   int ret;
   if (!models) return -EINVAL;
@@ -92,7 +96,21 @@ int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models)
       uint64_t next = revision + 1u;
       for (int i = 11; i >= 4; i--) { transaction[i] = next; next >>= 8; }
       ret = bkprov_store_commit(&store, revision, transaction, record, size);
+      if (ret == -EINPROGRESS)
+        {
+          size_t confirmed_size = 0;
+          uint64_t confirmed_revision = 0;
+          int loaded = bkprov_store_load(&store, confirmed, sizeof(confirmed),
+            &confirmed_size, &confirmed_revision, confirmed_transaction);
+          if (!loaded && confirmed_revision == revision + 1u &&
+              confirmed_size == size &&
+              memcmp(confirmed_transaction, transaction, sizeof(transaction)) == 0 &&
+              memcmp(confirmed, record, size) == 0)
+            ret = 0;
+        }
     }
+  memset(confirmed, 0, sizeof(confirmed));
+  memset(confirmed_transaction, 0, sizeof(confirmed_transaction));
   memset(record, 0, sizeof(record)); memset(transaction, 0, sizeof(transaction));
   nxmutex_unlock(&g_preferences_lock);
   return ret;
@@ -174,6 +192,27 @@ static int bk7258_preferences_parse_persona(const char *name,
   return -EINVAL;
 }
 
+static int bk7258_preferences_backend_result(int ret)
+{
+  /* 当前 direct/UnQLite 后端原样返回库错误码，不全是 errno。
+   * 尤其 IOERR(-2) 不是 ENOENT，不能据此覆盖为首次使用默认值。
+   * 参数已由本适配校验；保留 KVDB 自身的 errno 类错误。
+   */
+  switch (ret)
+    {
+      case UNQLITE_NOTFOUND: return -ENODATA;
+      case UNQLITE_IOERR:
+      case UNQLITE_CANTOPEN: return -EIO;
+      case UNQLITE_NOMEM: return -ENOMEM;
+      case UNQLITE_BUSY:
+      case UNQLITE_LOCKED:
+      case UNQLITE_LOCKERR: return -EBUSY;
+      case UNQLITE_CORRUPT: return -EBADMSG;
+      case UNQLITE_READ_ONLY: return -EROFS;
+      default: return ret;
+    }
+}
+
 static int bk7258_preferences_read(const char *key, char value[PROP_VALUE_MAX])
 {
   /* property_get() substitutes a default for every backend error, which
@@ -181,7 +220,55 @@ static int bk7258_preferences_read(const char *key, char value[PROP_VALUE_MAX])
    * error-preserving public variant is therefore required here.
    */
 
-  return property_get_with_err(key, value);
+  return bk7258_preferences_backend_result(property_get_with_err(key, value));
+}
+
+static int bk7258_preferences_read_thinking(void *context)
+{
+  char value[PROP_VALUE_MAX] = {0};
+  bool *enabled = context;
+  int ret = bk7258_preferences_read(BK7258_PREFERENCES_THINKING_KEY, value);
+  if (ret == -ENOENT || ret == -ENODATA)
+    {
+      *enabled = false;
+      return 0;
+    }
+  if (ret < 0) return ret;
+  if (strcmp(value, "0") && strcmp(value, "1")) return -EBADMSG;
+  *enabled = value[0] == '1';
+  return 0;
+}
+
+int bk7258_preferences_thinking_get(bool *enabled)
+{
+  if (!enabled) return -EINVAL;
+  bool observed = false;
+  int ret = bk7258_preferences_with_storage(bk7258_preferences_read_thinking,
+                                           &observed);
+  if (!ret) *enabled = observed;
+  return ret;
+}
+
+static int bk7258_preferences_read_wake_threshold(void *context)
+{
+  unsigned int *percent = context;
+  char value[PROP_VALUE_MAX] = {0};
+  int ret = bk7258_preferences_read(BK7258_PREFERENCES_WAKE_THRESHOLD_KEY, value);
+  if (ret == -ENOENT || ret == -ENODATA) { *percent = 60; return 0; }
+  if (ret < 0) return ret;
+  if (strlen(value) != 2 || value[0] < '0' || value[0] > '9' ||
+      value[1] < '0' || value[1] > '9') return -EBADMSG;
+  unsigned int parsed = (value[0] - '0') * 10u + value[1] - '0';
+  if (parsed < 50 || parsed > 90) return -EBADMSG;
+  *percent = parsed;
+  return 0;
+}
+
+int bk7258_preferences_wake_threshold_get(unsigned int *percent)
+{
+  if (!percent) return -EINVAL;
+  return bk7258_preferences_with_storage(bk7258_preferences_read_wake_threshold,
+                                         percent);
 }
 
 static int bk7258_preferences_read_all(struct bk7258_preferences_s *preferences)
@@ -344,10 +431,10 @@ static int bk7258_preferences_write(const char *key, const char *value,
       return ret;
     }
 
-  ret = property_set(key, value);
+  ret = bk7258_preferences_backend_result(property_set(key, value));
   if (ret >= 0)
     {
-      ret = property_commit();
+      ret = bk7258_preferences_backend_result(property_commit());
     }
 
   ret = bk7258_preferences_storage_end(ret);
@@ -397,4 +484,19 @@ int bk7258_preferences_set_persona(const char *persona)
 
   return bk7258_preferences_write(BK7258_PREFERENCES_PERSONA_KEY,
                                   bk7258_preferences_persona_name(parsed), -1);
+}
+
+int bk7258_preferences_thinking_set(bool enabled)
+{
+  return bk7258_preferences_write(BK7258_PREFERENCES_THINKING_KEY,
+                                  enabled ? "1" : "0", -1);
+}
+
+int bk7258_preferences_wake_threshold_set(unsigned int percent)
+{
+  char value[4];
+  if (percent < 50 || percent > 90) return -ERANGE;
+  snprintf(value, sizeof(value), "%u", percent);
+  return bk7258_preferences_write(BK7258_PREFERENCES_WAKE_THRESHOLD_KEY,
+                                  value, -1);
 }

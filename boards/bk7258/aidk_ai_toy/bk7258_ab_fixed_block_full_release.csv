@@ -1,9 +1,10 @@
 # AIDK AI Toy A/B layout with persistent application data on fixed block media.
 # The internal 1-MiB preservation window is named persistent_data so a signed
 # full release carries an exact copy from its accepted board base.
-# Official Media and TFLM use the expanded AP slot. Both A/B pairs remain
-# equal; persistent_data and the calibration/identity tail retain offsets.
-# Updating from the earlier pair geometry requires a device-bound full image.
+# 两套 CP/AP 使用扣除必要数据与启动区后的最大成对容量。
+# CP 逻辑空间 1152 KiB，AP 逻辑空间 1984 KiB；另保留签名/尾部空间。
+# 配置与 persistent_data 已搬移，必须从当前同板数据迁移后全量部署；
+# 不能把旧偏移的内容当成新布局数据。身份/校准尾部保持原偏移。
 # LAYOUT_NAME=bk7258-aidk-ai-toy-fixed-block-full-release
 # STORAGE_TOPOLOGY=fixed-block
 # ERASE_SIZE=4K
@@ -14,15 +15,15 @@
 FLASH_CAPACITY=8M
 primary_bootloader,,68K,code,TRUE,FALSE,boot,image
 primary_cp_app,,1224K,code,TRUE,FALSE,cp,image
-primary_ap_app,,1564K,code,TRUE,FALSE,ap,image
-s_app,,2788K,data,TRUE,FALSE,pair,image
-usr_config,0x584000,56K,data,TRUE,TRUE,,preserve
-reset_marker,0x592000,4K,data,TRUE,TRUE,,preserve
-primary_manifest,0x593000,4K,data,TRUE,FALSE,manifest_a,external
+primary_ap_app,,2108K,code,TRUE,FALSE,ap,image
+s_app,,3332K,data,TRUE,FALSE,pair,image
+usr_config,0x693000,56K,data,TRUE,TRUE,,preserve
+reset_marker,0x6a1000,4K,data,TRUE,TRUE,,preserve
+primary_manifest,0x6a2000,4K,data,TRUE,FALSE,manifest_a,external
 secondary_manifest,,4K,data,TRUE,FALSE,manifest_b,external
-primary_bl2,0x5a5000,136K,code,TRUE,FALSE,bl2_a,external
+primary_bl2,0x6a4000,136K,code,TRUE,FALSE,bl2_a,external
 secondary_bl2,,136K,code,TRUE,FALSE,bl2_b,external
-persistent_data,0x600000,1M,data,TRUE,TRUE,,preserve
+persistent_data,0x6e8000,1M,data,TRUE,TRUE,,preserve
 easyflash,0x7fa000,8K,data,TRUE,TRUE,,immutable
 easyflash_ap,0x7fc000,8K,data,TRUE,TRUE,,immutable
 sys_rf,0x7fe000,4K,data,TRUE,TRUE,,immutable

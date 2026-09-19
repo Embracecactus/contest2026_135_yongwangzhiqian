@@ -275,6 +275,12 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
           ret = bkcontrol_pair_start(g_owner.control, generation,
                   g_owner.certificate, g_owner.key, g_owner.control_key,
                   owner_now, NULL, g_owner.execute, g_owner.control_context);
+          if (ret == 0)
+            {
+              memcpy(g_owner.control->scan_secret, g_owner.secret, 32);
+              g_owner.control->rebind_ops = g_owner.ops;
+              g_owner.control->rebind_context = g_owner.context;
+            }
           if (ret == 0) g_owner.opened = now;
           if (ret == 0 && g_owner.ota != NULL)
             {

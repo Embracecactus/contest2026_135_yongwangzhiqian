@@ -1159,11 +1159,17 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
         }
       else
         {
-          if (got > apb->nmaxbytes)
+          unsigned int capacity = apb->nmaxbytes /
+                                  BK7258_MIC_FIFO_WORD_BYTES;
+
+          /* 只返回完整的 L/R 帧，采样数必须与实际复制的字节数一致。 */
+
+          if (frames > capacity)
             {
-              got = apb->nmaxbytes;
+              frames = capacity;
             }
 
+          got = frames * BK7258_MIC_FIFO_WORD_BYTES;
           memcpy(apb->samp, priv->scratch, got);
           apb->nbytes = got;
         }
@@ -1412,7 +1418,8 @@ static int bk7258_mic_configure(struct audio_lowerhalf_s *dev,
           nxmutex_lock(&priv->lock);
 
           if (priv->state == BK7258_MIC_STATE_RUNNING ||
-              priv->state == BK7258_MIC_STATE_PAUSED)
+              priv->state == BK7258_MIC_STATE_PAUSED ||
+              (channels != priv->channels && !dq_empty(&priv->pendq)))
             {
               nxmutex_unlock(&priv->lock);
               return -EBUSY;
@@ -1782,6 +1789,14 @@ static int bk7258_mic_enqueuebuffer(struct audio_lowerhalf_s *dev,
       return -EACCES;
     }
 
+  /* 配置和入队共用同一把锁；缓冲必须容纳当前声道数的一整帧。 */
+
+  if (apb->nmaxbytes < priv->channels * BK7258_MIC_BYTES_PER_SAMPLE)
+    {
+      nxmutex_unlock(&priv->lock);
+      return -EINVAL;
+    }
+
   for (entry = dq_peek(&priv->pendq); entry != NULL;
        entry = dq_next(entry))
     {
@@ -1908,8 +1923,7 @@ static int bk7258_mic_frequency_acquire(struct bk7258_mic_dev_s *priv)
   uint32_t active;
   int ret;
 
-  ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_AUDIO,
-                                 BK7258_PM_OPP_480M);
+  ret = bk7258_media_audio_frequency_acquire(BK7258_MEDIA_AUDIO_MIC);
   if (ret < 0)
     {
       /* CP may have committed the vote before AP loses the reply.  Preserve
@@ -1948,8 +1962,7 @@ static int bk7258_mic_frequency_release(struct bk7258_mic_dev_s *priv)
     }
 
   nxmutex_unlock(&priv->lock);
-  ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_AUDIO,
-                                 BK7258_PM_OPP_DEFAULT);
+  ret = bk7258_media_audio_frequency_release(BK7258_MEDIA_AUDIO_MIC);
   if (ret < 0)
     {
       return ret;

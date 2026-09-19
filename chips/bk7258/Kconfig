@@ -629,6 +629,17 @@ config BK7258_PM_COORDINATED_STANDBY
 		state.  Do not enable it in RTT profiles, which deliberately keep the CP
 		awake for an unattached debugger.
 
+config BK7258_PM_COORDINATED_STANDBY_ENTRY
+	bool "Allow coordinated low-voltage standby entry"
+	default y
+	depends on BK7258_PM_COORDINATED_STANDBY && !BK7258_AP_CORE
+	---help---
+		Allow the CP power policy to select PM_STANDBY after the complete AP/CP
+		coordination protocol has admitted it.  Disable this in latency-sensitive
+		product profiles that still need the coordinated SDK activity bridge and
+		AP/CP resource-vote wiring, but must keep runtime idle at ordinary WFI.
+		PM_SLEEP remains rejected in either mode.
+
 config BK7258_PM_STANDBY_ONESHOT_VERIFY
 	bool "Stop after one coordinated standby wake for hardware verification"
 	default n
@@ -1633,8 +1644,9 @@ config BK7258_MIC
 		audio lower half.  The SDK DMA engine targets AP DTCM and the small
 		DMA ring is allocated from the NuttX kernel heap.  A reserved capture
 		session holds the CP-owned composite AUD power/clock resource through
-		the board RPMsg PM service, then owns the AUD ADC block until RELEASE;
-		a DAC playback session cannot be reserved concurrently.
+		the board RPMsg PM service, then owns the AUD ADC block until RELEASE.
+		ADC and DAC sessions may coexist as supported by the SDK; their shared
+		clock and frequency votes remain held until the final owner releases.
 
 config BK7258_MIC_DEVNAME
 	string "Microphone device name"

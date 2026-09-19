@@ -119,6 +119,14 @@ def _parser() -> argparse.ArgumentParser:
     accept_base.add_argument("--device-id", required=True)
     accept_base.add_argument("--capture-method", required=True)
     accept_base.add_argument("--output", type=Path, required=True)
+    accept_base.add_argument(
+        "--source-partition", type=Path,
+        help="actual snapshot layout; relocate protected data to the board preset",
+    )
+    accept_base.add_argument(
+        "--relocated-base", type=Path,
+        help="new private 8-MiB base output; requires --source-partition",
+    )
     create = package_commands.add_parser(
         "create", help="create one unsigned direct-boot diagnostic package"
     )
@@ -783,12 +791,33 @@ def _package(args: argparse.Namespace) -> None:
     if args.package_command == "accept-base":
         preset = build_domain.board_preset(REPOSITORY, args.board)
         layout = layout_domain.load(preset.partition)
+        base = args.base
+        capture_method = args.capture_method
+        if bool(args.source_partition) != bool(args.relocated_base):
+            raise product_domain.ProductError(
+                "--source-partition and --relocated-base must be used together"
+            )
+        if args.source_partition is not None:
+            if product_domain.DEVICE_ID_RE.fullmatch(args.device_id) is None \
+                    or product_domain.CAPTURE_METHOD_RE.fullmatch(capture_method) is None:
+                raise product_domain.ProductError("invalid source capture identity")
+            if args.output.exists() or args.output.is_symlink():
+                raise product_domain.ProductError("accepted-base output already exists")
+            relocation = product_domain.relocate_base(
+                source_layout=layout_domain.load(args.source_partition),
+                layout=layout, base=base, output=args.relocated_base,
+            )
+            relocation["capture_method"] = capture_method
+            relocation["device_id"] = args.device_id
+            print(json.dumps(relocation, sort_keys=True))
+            base = args.relocated_base
+            capture_method = "same-device-partition-relocation"
         report = product_domain.create_base_evidence(
             physical_board=args.board,
             layout=layout,
-            base=args.base,
+            base=base,
             device_id=args.device_id,
-            capture_method=args.capture_method,
+            capture_method=capture_method,
             output=args.output,
         )
         print(
@@ -804,7 +833,6 @@ def _package(args: argparse.Namespace) -> None:
         print(f"bk7258 package extract: PASS output={output}")
         return
     if args.package_command == "flash-contract":
-        import json
         contract = package_domain.flash_contract(args.package)
         if args.transport is not None:
             board = contract["device"].get("physical_board")

@@ -297,6 +297,13 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
       goto fail;
     }
 
+  if (tls->config.session_load)
+    {
+      ret = tls->config.session_load(tls->config.session_context, &tls->ssl,
+                                      host, port);
+      if (ret < 0) goto fail;
+    }
+
   memset(&peer, 0, sizeof(peer));
   peer.sin_family = AF_INET;
   peer.sin_addr = tls->config.peer_address;
@@ -410,6 +417,12 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
       goto fail;
     }
 
+  if (tls->config.session_save)
+    {
+      ret = tls->config.session_save(tls->config.session_context, &tls->ssl,
+                                      host, port);
+      if (ret < 0) goto fail;
+    }
   tls->opened = true;
   return 0;
 
@@ -594,6 +607,12 @@ int bkvoice_tls_initialize(struct bkvoice_tls_s *tls,
   if (config->server_auth_only ?
       (config->client_certificate != NULL || config->client_key != NULL) :
       (config->client_certificate == NULL || config->client_key == NULL))
+    {
+      return -EINVAL;
+    }
+
+  if ((config->session_load == NULL) != (config->session_save == NULL) ||
+      (config->session_load && !config->server_auth_only))
     {
       return -EINVAL;
     }

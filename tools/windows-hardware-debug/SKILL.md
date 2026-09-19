@@ -10,8 +10,8 @@ description: Explicit-invocation-only Windows UART, guarded J-Link, and BLE evid
 - Load this skill only when the user explicitly names it. A request to debug,
   flash, collect logs, or validate firmware does not by itself invoke this
   generic skill. `agents/openai.yaml` disables implicit invocation.
-- BK7258 tasks start from `bk7258-hil-download` and the applicable board
-  instructions. That workflow may use these scripts as a reviewed transport
+- Target-specific tasks start from the applicable board workflow; for BK7258
+  this is the sibling `bk7258-hil-download`. That workflow may use these scripts as a reviewed transport
   implementation after freezing the board, COM role, action, and artifact;
   it does not authorize generic RTS/DTR or J-Link actions on the board.
 - A COM number in an example or an old session is not target identification.
@@ -23,6 +23,9 @@ description: Explicit-invocation-only Windows UART, guarded J-Link, and BLE evid
 
 Use the scripts in `scripts/` to collect evidence without hard-coding a board,
 COM port, baud rate, CPU, address, or reset polarity.
+Paths in this document are relative to this skill directory. Distribute the
+referenced scripts and documentation with it; a user-level installation path
+or another operator's tools are not prerequisites.
 
 ## Workflow
 
@@ -95,10 +98,9 @@ only; retain the target's raw address, RSSI, and advertising bytes as RF proof.
 - Read `ble-gatt-client/README.md` before connecting to a target; use an exact
   address/name, bounded deadlines, and a fresh result path. Do not pair a peer
   or accept a cached service index/read as uncached board-level GATT discovery
-  proof. The client's explicit cached N13-negative recovery may only supply
-  already-frozen handles; require its uncached reads, real ATT rejections,
-  valid echo, JSON cache marker, and matching board counters. The separate
-  UUID-targeted mode is uncached, but it is evidence only after the complete
-  requested gate succeeds; a Controller link or timed-out query is not.
+  proof. Protocol-specific regression modes described there are optional
+  historical capabilities, not steps of generic BLE inspection; do not enable
+  retired firmware tests to use them. Cached handles do not prove fresh
+  discovery, and a Controller link or timed-out query does not prove ATT success.
 - Use `scripts/jlink_debug.ps1 -DryRun` to review generated J-Link commands
   without connecting to hardware.

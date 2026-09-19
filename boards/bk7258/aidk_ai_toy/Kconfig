@@ -20,6 +20,7 @@ config BK7258_AIDK_BUTTONS
 	bool "AIDK three polled keys as /dev/buttons"
 	default n
 	depends on BK7258_BOARD_AIDK_AI_TOY && !BK7258_AP_CORE
+	select ARCH_HAVE_BUTTONS
 	select ARCH_BUTTONS
 	select INPUT
 	select INPUT_BUTTONS

@@ -41,8 +41,9 @@ class ProvisionClaimProtocol(
     private val transaction = recoveryTransaction?.also {
         require(it.size == 16 && it.any { b -> b != 0.toByte() })
     }?.copyOf() ?: ByteArray(16).also { SecureRandom().nextBytes(it) }
-    private val input = ByteArray(40)
+    private val input = ByteArray(72)
     private var used = 0
+    private var expected = 32
     private var sequence = 0
     private var offset = 0
     private var awaiting = 1
@@ -51,7 +52,7 @@ class ProvisionClaimProtocol(
         check(state == State.NEW)
         try {
             update(State.AUTHENTICATING)
-            request(1, secret)
+            request(7, secret)
         } finally { secret.fill(0) }
     }
 
@@ -61,12 +62,17 @@ class ProvisionClaimProtocol(
         try {
             var pos = 0
             while (pos < bytes.size) {
-                val count = minOf(input.size - used, bytes.size - pos)
+                val count = minOf(expected - used, bytes.size - pos)
                 bytes.copyInto(input, used, pos, pos + count)
                 used += count; pos += count
-                if (used == input.size) {
+                if (used == 32 && expected == 32) {
+                    val length = ByteBuffer.wrap(input).getInt(28)
+                    require(length == 8 || length == 40)
+                    expected = 32 + length
+                }
+                if (used == expected) {
                     response()
-                    input.fill(0); used = 0
+                    input.fill(0); used = 0; expected = 32
                 }
             }
         } catch (e: Exception) {
@@ -82,10 +88,20 @@ class ProvisionClaimProtocol(
         require(frame.int == 0x53505631 && frame.int == 0x80000000.toInt())
         require(frame.int == sequence)
         val tx = ByteArray(16).also { frame.get(it) }
-        require(tx.contentEquals(transaction) && frame.int == 8)
+        require(tx.contentEquals(transaction))
+        val length = frame.int
         val remote = frame.int
         val result = frame.int
         require(remote in 2..9 && result <= 0)
+        if (length == 40) {
+            require(awaiting == 7 && remote == 3 && result == 0)
+            require((40 until 72).any { input[it] != 0.toByte() })
+            // 恢复同一控制密钥，保留板端加密记忆；不打印或写入明文文件。
+            if (!recovery) {
+                ProvisionSettings.useControlKey(candidate) { require(it != null) }
+                input.copyInto(candidate, candidate.size - 32, 40, 72)
+            }
+        } else require(length == 8)
         if (remote == 7 || remote == 8) {
             require(result < 0)
             // Only retain the code after the complete response has passed all
@@ -98,7 +114,7 @@ class ProvisionClaimProtocol(
         }
         require(result == 0)
         when (awaiting) {
-            1 -> when (remote) {
+            1, 7 -> when (remote) {
                 2 -> update(State.LOCAL_CONFIRMATION)
                 3 -> {
                     sequence++

@@ -60,6 +60,12 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_CLOUD_MODELS 1u
 #define BKCONTROL_CONFIG_WAKE_MODEL 2u
 #define BKCONTROL_CONFIG_WAKE_RESTORE 3u
+/* RSP1 + BE32 thinking (0=快速，1=深度思考) + BE32 reserved=0，共 12 字节。 */
+#define BKCONTROL_CONFIG_RESPONSE_MODE 4u
+/* 写 EYE2 HTTPS 来源记录；读 EYE1 状态、包身份和渲染结果（108 字节）。 */
+#define BKCONTROL_CONFIG_EYE_PACK 5u
+/* KWT1 + BE32 分数门限百分比（50..90）+ BE32 reserved=0。 */
+#define BKCONTROL_CONFIG_WAKE_THRESHOLD 6u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (136u + 65536u)
 struct bkcontrol_device_info_s

@@ -11,6 +11,8 @@ function(bk7258_configure_agent_framework)
   # 内置工具无条件编入同一目标。傻妞由产品层提供网络、配置和交互入口，
   # 这里只从目标中移除没有消费者的可选服务；Agent loop、消息总线、会话、
   # LLM、voice channel 与 Media 仍使用官方实现。
+  # tool_files.c 保留：产品工具 provider 用它读取 /data/agent/skills/ 下的
+  # 运行时技能文档（read_file），是技能触发链路的消费者。
   get_target_property(agent_sources "${target}" SOURCES)
   set(unused_agent_sources
       src/agent_main.c
@@ -23,7 +25,6 @@ function(bk7258_configure_agent_framework)
       src/channels/cmd_voice.c
       src/channels/cmd_channel.c
       src/channels/ws_server.c
-      src/tools/tool_files.c
       src/tools/tool_get_time.c
       src/tools/tool_web_search.c
       src/tools/tool_cron.c

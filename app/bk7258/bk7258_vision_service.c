@@ -109,6 +109,16 @@ static struct bkvision_server_s g_bkvision_server =
 
 /* The V4L2 node accepts one capture or recording operation at a time. */
 static mutex_t g_bkvision_capture_lock = NXMUTEX_INITIALIZER;
+static bool g_bkvision_quiesced;
+
+int bk7258_vision_quiesce(bool quiesce)
+{
+  int ret = nxmutex_trylock(&g_bkvision_capture_lock);
+  if (ret < 0) return ret;
+  g_bkvision_quiesced = quiesce;
+  nxmutex_unlock(&g_bkvision_capture_lock);
+  return 0;
+}
 
 static int bkvision_errno(void)
 {
@@ -351,6 +361,13 @@ static int bkvision_capture(
     {
       bkvision_operation_failed(response, result == -EBUSY ? -EBUSY : result);
       return result == -EBUSY ? -EBUSY : result;
+    }
+
+  if (g_bkvision_quiesced)
+    {
+      nxmutex_unlock(&g_bkvision_capture_lock);
+      bkvision_operation_failed(response, -EBUSY);
+      return -EBUSY;
     }
 
   for (i = 0; i < count; i++)

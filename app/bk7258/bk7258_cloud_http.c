@@ -48,8 +48,10 @@ static int connect_tls(void *context, const char *host, const char *port,
   snprintf(expected, sizeof(expected), "%u", http->config->port);
   if (http->connected || strcmp(host, http->config->host) ||
       strcmp(port, expected)) return -EPERM;
+  uint64_t started = monotonic_ms();
   int ret = http->tls->open_verified(http->tls_context, host,
                                      http->config->port, http->deadline_ms);
+  http->connect_ms += monotonic_ms() - started;
   if (ret == 0)
     {
       http->connected = true;
@@ -65,7 +67,11 @@ static ssize_t send_tls(void *context,
   struct bkcloud_http_s *http = context;
   if (connection != (struct webclient_tls_connection *)http ||
       !http->connected) return -ENOTCONN;
-  return http->tls->send(http->tls_context, data, size, http->deadline_ms);
+  uint64_t started = monotonic_ms();
+  ssize_t ret = http->tls->send(http->tls_context, data, size, http->deadline_ms);
+  http->send_ms += monotonic_ms() - started;
+  http->send_calls++;
+  return ret;
 }
 
 static ssize_t recv_tls(void *context,
@@ -271,7 +277,9 @@ static int post(struct bkcloud_http_s *http,
   struct tcp_stats_s tcp_before;
   bool have_tcp_before = read_tcp_stats(&tcp_before);
 #endif
+  uint64_t started = monotonic_ms();
   ret = webclient_perform(&client);
+  uint64_t elapsed = monotonic_ms() - started;
   http->status = client.http_status;
   if (http->connected) close_tls(http, (void *)http);
   if (ret == -ECANCELED && http->stream_complete) ret = 0;
@@ -280,13 +288,17 @@ static int post(struct bkcloud_http_s *http,
    * response bodies or audio. Separate remote waits from local backpressure.
    */
   syslog(LOG_INFO,
-         "BKVOICE HTTP request=%s status=%u ret=%d bytes=%lu receive_ms=%llu consume_ms=%llu read_calls=%lu slow_reads=%lu max_read_ms=%llu\n",
+         "BKVOICE HTTP request=%s status=%u ret=%d bytes=%lu receive_ms=%llu consume_ms=%llu read_calls=%lu slow_reads=%lu max_read_ms=%llu body_bytes=%zu total_ms=%llu connect_ms=%llu send_ms=%llu send_calls=%lu\n",
          endpoint, http->status, ret, (unsigned long)http->received,
          (unsigned long long)http->receive_ms,
          (unsigned long long)http->consume_ms,
          (unsigned long)http->receive_calls,
          (unsigned long)http->slow_receives,
-         (unsigned long long)http->max_receive_ms);
+         (unsigned long long)http->max_receive_ms, body_size,
+         (unsigned long long)elapsed,
+         (unsigned long long)http->connect_ms,
+         (unsigned long long)http->send_ms,
+         (unsigned long)http->send_calls);
 #ifdef BKCLOUD_HAVE_TCP_STATS
   struct tcp_stats_s tcp_after;
   if (have_tcp_before && read_tcp_stats(&tcp_after))
@@ -316,6 +328,51 @@ static int post(struct bkcloud_http_s *http,
   http->consume_context = NULL;
   if (ret != 0)
     { if (response != NULL) memset(response, 0, capacity); http->received = 0; }
+  return ret;
+}
+
+int bkcloud_http_get(struct bkcloud_http_s *http,
+                    const struct bkcloud_config_s *config, const char *url,
+                    const struct bkvoice_wss_tls_ops_s *tls,
+                    void *tls_context, uint64_t deadline_ms,
+                    char *response, size_t capacity)
+{
+  struct webclient_context client;
+  if (!http || !config || !url || strncmp(url, "https://", 8) ||
+      !tls || !tls->open_verified || !tls->send || !tls->recv || !tls->close ||
+      !deadline_ms || !response || capacity < 2 || capacity > 131073u)
+    return -EINVAL;
+  memset(http, 0, sizeof(*http));
+  http->config = config;
+  http->tls = tls;
+  http->tls_context = tls_context;
+  http->deadline_ms = deadline_ms;
+  http->response = response;
+  http->capacity = capacity;
+  http->active = &client;
+  response[0] = 0;
+  webclient_set_defaults(&client);
+  client.protocol_version = WEBCLIENT_PROTOCOL_VERSION_HTTP_1_1;
+  client.method = "GET";
+  client.url = url;
+  client.buffer = http->buffer;
+  client.buflen = sizeof(http->buffer);
+  client.sink_callback = sink;
+  client.sink_callback_arg = http;
+  client.header_callback = header;
+  client.header_callback_arg = http;
+  client.tls_ops = &g_tls;
+  client.tls_ctx = http;
+  int ret = webclient_perform(&client);
+  http->status = client.http_status;
+  if (http->connected) close_tls(http, (void *)http);
+  if (!ret && http->status != 200) ret = -EREMOTEIO;
+  http->config = NULL;
+  http->response = NULL;
+  http->tls = NULL;
+  http->tls_context = NULL;
+  http->active = NULL;
+  if (ret) { memset(response, 0, capacity); http->received = 0; }
   return ret;
 }
 

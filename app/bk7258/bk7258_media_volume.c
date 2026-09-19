@@ -19,7 +19,8 @@ int bk7258_media_volume_acquire(enum bk7258_media_volume_owner_e owner)
   if (owner != BK7258_MEDIA_VOLUME_DISPLAY &&
       owner != BK7258_MEDIA_VOLUME_VISION &&
       owner != BK7258_MEDIA_VOLUME_PREFERENCES &&
-      owner != BK7258_MEDIA_VOLUME_OTA)
+      owner != BK7258_MEDIA_VOLUME_OTA &&
+      owner != BK7258_MEDIA_VOLUME_POWER)
     {
       return -EINVAL;
     }

@@ -81,7 +81,7 @@ int bk7258_preferences_storage_begin(void)
   /* Never adopt or unmount an existing foreign mount. */
 
   if (mount(CONFIG_BK7258_PREFERENCES_BLOCKDEV, PREFERENCES_MOUNT,
-            "vfat", 0, NULL) < 0)
+            "fatfs", 0, NULL) < 0)
     {
       return bk7258_preferences_storage_end(preferences_errno());
     }

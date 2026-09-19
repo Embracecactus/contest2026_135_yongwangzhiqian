@@ -24,6 +24,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <mbedtls/sha256.h>
+#include "voice/audio_playback.h"
 #include "voice/voice_channel.h"
 
 #define BKVOICE_TRIGGER_RATE 16000u
@@ -54,6 +55,19 @@ struct bkvoice_trigger_model_s
 
 static struct bkvoice_trigger_model_s *g_trigger;
 static atomic_bool g_model_stream_reset_pending;
+static atomic_uint g_wake_threshold_percent = 60;
+
+unsigned int bk7258_agent_trigger_threshold_get(void)
+{
+  return atomic_load(&g_wake_threshold_percent);
+}
+
+int bk7258_agent_trigger_threshold_set(unsigned int percent)
+{
+  if (percent < 50 || percent > 90) return -ERANGE;
+  atomic_store(&g_wake_threshold_percent, percent);
+  return 0;
+}
 
 static void trigger_error(struct bkvoice_trigger_model_s *context, int error)
 {
@@ -159,6 +173,7 @@ void *media_trigger_model_load(const void *data, size_t size,
     }
   context->model_open = true;
   bkvoice_kws_default_policy(&policy);
+  policy.threshold = bk7258_agent_trigger_threshold_get() / 100.0f;
   ret = bkvoice_kws_initialize(&context->kws, &policy,
                                bkvoice_kws_model_infer, context->model);
   if (ret < 0)
@@ -282,6 +297,13 @@ bool media_trigger_model_detect_hotword(void *opaque, const char *buffer,
     {
       return false;
     }
+  /* 控制线程只发布门限；Media worker 独占修改检测状态，不重建收音。 */
+  float threshold = bk7258_agent_trigger_threshold_get() / 100.0f;
+  if (context->kws.policy.threshold != threshold)
+    {
+      context->kws.policy.threshold = threshold;
+      context->kws.hits = 0;
+    }
   while (size > 0)
     {
       uint32_t mean;
@@ -383,6 +405,7 @@ static struct {
   bool loaded;
   bool recognizing;
   bool policy_active;
+  bool capture_format_known;
   bool selection_known;
   bool uncertain;
   uint64_t revision;
@@ -444,15 +467,18 @@ static void trigger_event(void *cookie, int event, int result, const char *extra
 static int trigger_pause(void)
 {
   atomic_store(&g_agent_trigger.accepting, false);
-  if (g_agent_trigger.policy_active) {
-    int ret = bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, false);
-    if (ret < 0) return ret;
-    g_agent_trigger.policy_active = false;
-  }
+  /* 先让 Trigger 完成 recorder stop/close，再撤销 Hotword 路由。
+   * 若先停路由，热词回调与 stop 并发时会关闭仍在 recv 的 recorder，
+   * pcm0c 随后只收到 COMPLETE 并进入反复开关流。 */
   if (g_agent_trigger.recognizing) {
     int ret = media_trigger_stop_recognition(g_agent_trigger.handle);
     if (ret < 0) return ret;
     g_agent_trigger.recognizing = false;
+  }
+  if (g_agent_trigger.policy_active) {
+    int ret = bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, false);
+    if (ret < 0) return ret;
+    g_agent_trigger.policy_active = false;
   }
   return 0;
 }
@@ -491,12 +517,24 @@ int bk7258_agent_trigger_rearm(void)
   if (g_agent_trigger.recognizing)
     return g_agent_trigger.policy_active &&
            atomic_load(&g_agent_trigger.accepting) ? 0 : -EBUSY;
-  int ret = media_trigger_start_recognition(g_agent_trigger.handle);
+  int cleanup = audio_playback_cleanup(100);
+  if (cleanup < 0) return cleanup;
+  /* 冷启动时先由 Trigger recorder 建立格式，再应用路由；已有 16 kHz
+   * 格式后则先恢复路由，消化上一轮 stop/complete，再启动新 recorder。 */
+  int ret = g_agent_trigger.capture_format_known ?
+    bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, true) :
+    bkvoice_media_source_stage_active(MEDIA_SOURCE_HOTWORD);
   if (!ret) {
-    g_agent_trigger.recognizing = true;
-    ret = bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, true);
+    g_agent_trigger.policy_active = true;
+    ret = media_trigger_start_recognition(g_agent_trigger.handle);
     if (!ret) {
-      g_agent_trigger.policy_active = true;
+      g_agent_trigger.recognizing = true;
+      if (!g_agent_trigger.capture_format_known) {
+        g_agent_trigger.capture_format_known = true;
+        ret = bkvoice_media_source_apply_active();
+      }
+    }
+    if (!ret) {
       atomic_store(&g_agent_trigger.callback_error, 0);
       atomic_store(&g_agent_trigger.accepting, true);
       atomic_store(&g_model_stream_reset_pending, true);
@@ -564,7 +602,7 @@ static int trigger_load_selected(bool arm)
     snprintf(selected.model_path, sizeof(selected.model_path), "%s", CONFIG_BK7258_VOICE_KWS_MODEL_PATH);
     snprintf(selected.sha256_hex, sizeof(selected.sha256_hex), "%s", CONFIG_BK7258_VOICE_KWS_MODEL_SHA256);
     snprintf(selected.label, sizeof(selected.label), "%s", BKVOICE_KWS_LABEL);
-    snprintf(selected.phrase, sizeof(selected.phrase), "%s", "你好，open-vela");
+    snprintf(selected.phrase, sizeof(selected.phrase), "%s", "你好，openvela");
     syslog(LOG_INFO, "BKVOICE model selection=builtin reason=no-persistent-selection\n");
   } else if (ret) { g_agent_trigger.error = ret; return ret; }
   g_agent_trigger.revision = revision;
@@ -692,13 +730,41 @@ int bk7258_agent_trigger_control(void *context, enum bkcontrol_command_e command
   return 0;
 }
 
+/* 只在首次唤醒播放本地 PCM；沿用 Agent 的排空和释放契约，不进入 ASR。 */
+static int trigger_reply(void)
+{
+  int fd = open(CONFIG_MEDIA_SERVER_CONFIG_PATH "/wake_reply.pcm", O_RDONLY);
+  if (fd < 0) return -errno;
+  audio_playback_t *player = audio_playback_open(NULL, 16000, 1, 16);
+  int ret = player ? 0 : -(errno ? errno : EIO);
+  uint8_t pcm[640];
+  while (player && ret >= 0) {
+    ssize_t size = read(fd, pcm, sizeof(pcm));
+    if (size < 0 && errno == EINTR) continue;
+    if (size < 0) { ret = -errno; break; }
+    if (size == 0) { ret = audio_playback_drain(player, 2000); break; }
+    if (size % 2) { ret = -EINVAL; break; }
+    ret = audio_playback_write(player, pcm, size);
+    if (ret >= 0 && ret != size) ret = -EIO;
+  }
+  close(fd);
+  int closed = audio_playback_close(player);
+  return closed < 0 ? closed : ret;
+}
+
 int bk7258_agent_trigger_process(void)
 {
   if (!atomic_exchange(&g_agent_trigger.turn_pending, false)) return 0;
   int ret = trigger_pause();
   int callback_error = atomic_exchange(&g_agent_trigger.callback_error, 0);
   if (!ret && callback_error) ret = callback_error;
-  if (!ret) ret = voice_channel_start();
+  if (!ret) {
+    int reply = trigger_reply();
+    syslog(reply ? LOG_WARNING : LOG_INFO, "BKVOICE wake reply result=%d\n", reply);
+    /* 提示缺失或播放失败不取消交互，但必须先确认播放器已释放。 */
+    ret = audio_playback_cleanup(100);
+  }
+  if (!ret) ret = voice_channel_start_auto();
   if (ret < 0) {
     syslog(LOG_WARNING, "BKVOICE official Trigger turn start failed=%d\n", ret);
     if (!callback_error) (void)bk7258_agent_trigger_rearm();

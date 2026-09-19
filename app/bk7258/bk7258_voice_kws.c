@@ -12,7 +12,7 @@ void bkvoice_kws_default_policy(struct bkvoice_kws_policy_s *policy)
 {
   if (policy != NULL)
     {
-      policy->threshold = .85f;
+      policy->threshold = .60f;
       policy->release_threshold = .20f;
       policy->consecutive = 2;
       policy->cooldown_ms = 1000u;

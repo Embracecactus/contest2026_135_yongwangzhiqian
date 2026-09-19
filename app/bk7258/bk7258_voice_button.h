@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * CP-owned, polled GPIO PTT event source.
+ * CP 按键采样与 AP 产品事件适配，复用已有固定跨核线格式。
  ****************************************************************************/
 
 #ifndef __APP_BK7258_BK7258_VOICE_BUTTON_H
@@ -42,5 +42,10 @@ _Static_assert(sizeof(struct bkvoice_button_event_s) == 24,
 int bkvoice_button_start(const char *devpath, bool active_low);
 int bkvoice_button_stop(void);
 bool bkvoice_button_running(void);
+
+#if defined(CONFIG_BK7258_PRODUCT_KEYS) && defined(CONFIG_BK7258_AP_CORE)
+int bkvoice_keys_listen(void (*notify)(void));
+void bkvoice_keys_take(int *volume_steps, bool *power_requested);
+#endif
 
 #endif /* __APP_BK7258_BK7258_VOICE_BUTTON_H */

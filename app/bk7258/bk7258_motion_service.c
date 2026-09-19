@@ -44,6 +44,7 @@ struct bkmotion_server_s
   struct rpmsg_endpoint endpoint;
   mutex_t init_lock;
   mutex_t endpoint_lock;
+  mutex_t sample_lock;
   spinlock_t request_lock;
   sem_t request_sem;
   volatile bool initialized;
@@ -63,6 +64,7 @@ static struct bkmotion_server_s g_bkmotion_server =
 {
   .init_lock = NXMUTEX_INITIALIZER,
   .endpoint_lock = NXMUTEX_INITIALIZER,
+  .sample_lock = NXMUTEX_INITIALIZER,
   .request_lock = SP_UNLOCKED,
   .source =
   {
@@ -157,6 +159,34 @@ static const struct bkmotion_source_ops_s g_bkmotion_ops =
   .close = bkmotion_close,
 };
 
+static int bkmotion_collect(const struct bkmotion_rpc_request_s *request,
+                            struct bkmotion_rpc_response_s *response)
+{
+  struct bkmotion_server_s *server = &g_bkmotion_server;
+  int ret = nxmutex_lock(&server->sample_lock);
+  if (ret < 0) {
+    bkmotion_rpc_make_response(response, request, ret);
+    return ret;
+  }
+  ret = bkmotion_rpc_handle_request(request, response, &g_bkmotion_ops,
+                                     &server->source);
+  nxmutex_unlock(&server->sample_lock);
+  return ret;
+}
+
+int bk7258_motion_service_sample(struct bkmotion_rpc_response_s *sample)
+{
+  const struct bkmotion_rpc_request_s request = {
+    .magic = BKMOTION_RPC_MAGIC, .version = BKMOTION_RPC_VERSION,
+    .command = BKMOTION_RPC_SAMPLE, .session = 1, .sequence = 1
+  };
+  if (!sample) return -EINVAL;
+  if (!__atomic_load_n(&g_bkmotion_server.initialized, __ATOMIC_ACQUIRE))
+    return -ENODEV;
+  /* 本地 Agent 与 CP 请求共用同一采样 owner 和互斥，不创建第二个采集服务。 */
+  return bkmotion_collect(&request, sample);
+}
+
 static int bkmotion_send(struct bkmotion_server_s *server,
                          const struct bkmotion_rpc_response_s *response,
                          uint32_t epoch)
@@ -225,8 +255,7 @@ static int bkmotion_worker(int argc, char **argv)
       memcpy(&request, &server->active_request, sizeof(request));
       spin_unlock_irqrestore(&server->request_lock, flags);
 
-      (void)bkmotion_rpc_handle_request(&request, &response, &g_bkmotion_ops,
-                                        &server->source);
+      (void)bkmotion_collect(&request, &response);
 
       flags = spin_lock_irqsave(&server->request_lock);
       /* Old I/O still closes its own fd, but must not publish a result or

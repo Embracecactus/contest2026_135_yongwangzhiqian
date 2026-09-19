@@ -195,6 +195,35 @@ int bkcloud_asr_body(void *buffer, size_t *size, const void **data,
       else
         {
           size_t index = (pos - source->prefix_size) / 4 * 3;
+          /* PCM 主体连续编码，避免每 3 字节重复调用编码器和复制小块。
+           * WAV/PCM 交界、非对齐分块和最终填充继续走下方边界路径。
+           * mbedTLS 会追加 NUL，因此必须留出一个不计入请求体的字节。
+           */
+          if ((pos - source->prefix_size) % 4 == 0 &&
+              index >= sizeof(source->wav) && capacity - produced > 4)
+            {
+              size_t room = count - produced;
+              if (room >= capacity - produced) room--;
+              size_t bulk = room / 4 * 3;
+              size_t left = source->pcm_size + sizeof(source->wav) - index;
+              if (bulk > left) bulk = left / 3 * 3;
+              if (bulk)
+                {
+                  size_t encoded_size;
+                  int ret = mbedtls_base64_encode(
+                    (unsigned char *)buffer + produced, capacity - produced,
+                    &encoded_size, source->pcm + index - sizeof(source->wav),
+                    bulk);
+                  if (ret != 0)
+                    {
+                      mbedtls_platform_zeroize(input, sizeof(input));
+                      mbedtls_platform_zeroize(encoded, sizeof(encoded));
+                      return -EIO;
+                    }
+                  produced += encoded_size;
+                  continue;
+                }
+            }
           size_t bytes = source->pcm_size + 44 - index;
           if (bytes > 3) bytes = 3;
           for (size_t i = 0; i < bytes; i++)
