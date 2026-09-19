@@ -26,6 +26,10 @@ cd android/shaniu-companion
 不需要连接开发板，不需要 Beken SDK、私人训练数据、云 API key 或设备认证文件。
 没有授权/配对设备时可查看界面，但不应伪造设备在线或设置成功。
 
+2026-09-20 已从隔离公开源码完成 `assembleDebug`（JDK 21.0.6 / Gradle 8.13 /
+SDK 35，复用依赖缓存）；APK 为 8,038,482 B，未安装或操作手机。
+完整哈希与边界见[本次构建记录](../../docs/verification/bk7258/2026-09-20-public-source-build.md)。
+
 安装到自己选择的手机：
 
 ```bash
@@ -95,8 +99,10 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
 此命令是新板供应说明，本轮未执行。使用后将该临时目录安全迁入自己的私密
 持久目录再供应，勿留待系统清理；证书有效期校验依赖手机时钟正常。
 
-仅对已启动、尚未供应身份的自有新板，使用现役 CLI（以下占位符替换为本机
-安全目录与真实串口；**不要对作者的 635 演示板重新执行**）：
+仅对已启动、尚未供应身份的自有新板，使用现役 CLI。该有线入口目前使用
+Windows PowerShell 的 `COMn` 串口，可从当前 WSL 工作流调用；不宣称已支持
+原生 Linux `/dev/tty*` 供应。先关闭其他串口程序，以下占位符替换为本机
+安全目录与真实 COM 口；**不要对作者的 635 演示板重新执行**：
 
 ```bash
 tools/bk7258/bk7258.py voice pairing \

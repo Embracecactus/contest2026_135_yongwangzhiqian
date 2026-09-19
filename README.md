@@ -22,6 +22,17 @@ AIToyBoard 运行可独立语音交互的 AI 伴侣「傻妞」。
 不是无剪辑压力测试。发布副本仅转换为 1080p H.264/AAC，保留完整时长、声音及字幕。
 App 视频展示 OTA 入口，**未拍摄完整 OTA 过程**；实际升级结果另见验收记录。
 
+## 比赛材料
+
+[完整提交包、技术报告与展示材料下载](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
+包含技术报告（PDF / DOCX）、主视频、App 补充视频、四张三板实拍及排版图、
+A2 海报和 18 页可编辑答辩 PPT。源码与原始 AI Coding 日志留在仓库，不塞进材料 ZIP。
+照片均为真实正面/俯拍，未虚构背面或侧面视角；公开包不含设备授权秘密或同板恢复镜像。
+
+[![傻妞参赛海报](docs/contest/assets/showcase-poster.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
+
+压缩包按大赛模板命名；上传官网和官方仓 PR 合入是后续明确操作，不以材料打包代替。
+
 ## 做了什么
 
 - **平台**：三核启动、CP/AP 核间通信、Wi-Fi/BLE、音视频与外设适配；
@@ -80,10 +91,16 @@ Wi-Fi / BT / Flash / OTA       官方 Agent / Session / Voice / Media
 不恢复退役 patch，也不在构建时覆盖官方源码。**依赖已公开不等于已合入上游，
 更不等于三板干净构建或 635 实板重验。**来源及验证范围见 [来源记录](SOURCE_PROVENANCE.md)。
 
+2026-09-20 已完成独立源码检出的 **三板 CP/AP direct 构建**，使用固定依赖与
+经哈希验证的既有 SDK/toolchain 缓存；源码 `c10a7668`。
+这是编译验证，不是 635 签名包重制或实板重验，详见
+[本次构建及产物哈希](docs/verification/bk7258/2026-09-20-public-source-build.md)。
+
 ### 1. 获取完整 openvela 工作区
 
 建议 Ubuntu 22.04，先准备 Git/Repo、Python 3、CMake、Ninja、Make 及
 [openvela 构建环境](https://github.com/open-vela/docs)。不要只 clone 本团队仓后直接运行 NuttX 构建。
+以下命令在独立空目录执行，不要嵌套于已有 Repo 工作区，否则 Repo 会复用父工作区。
 
 ```bash
 repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian \
@@ -152,6 +169,10 @@ tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 8
 调用官方 `build.sh --cmake`，打印 build manifest、ELF/bin 路径和哈希。
 产物位于工作区 `out/bk7258/<board>/...`；**direct 是未签名编译/bring-up
 路径，不能当作已部署安全设备的升级包。**
+
+T5-Board 的 Dolphin 录音仍待接入官方 Media；当前配置不再选择已退役的
+兼容录音后端，保留实现但不把录音列为本次可用功能。桌面其余功能与傻妞
+是不同产品配置，详见 [CONFIGS.md](boards/bk7258/CONFIGS.md)。
 
 签名构建使用 `--boot mcuboot` 及明确的 BL1/MCUboot 公钥、rollback floor；
 签名、分区、设备身份和烧录步骤见
