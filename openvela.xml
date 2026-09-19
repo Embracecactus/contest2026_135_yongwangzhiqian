@@ -1,259 +1,260 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <manifest>
+  <!-- 2026-09-20 Linux 构建依赖快照；未检出的 Windows/macOS 工具不作复现承诺。 -->
   <remote fetch="../open-vela/" name="openvela"/>
   <remote fetch="../" name="git"/>
   <default remote="openvela" revision="dev-ai-contest-2026"/>
 
-  <project path="apps" name="nuttx-apps"/>
-  <project path="apps/benchmarks/coremark/coremark" name="apps_benchmarks_coremark"/>
-  <project path="apps/benchmarks/test-tlb/test-tlb" name="apps_benchmarks_test-tlb"/>
-  <project path="apps/crypto/libsodium/libsodium" name="apps_crypto_libsodium"/>
-  <project path="apps/crypto/libtomcrypt/libtomcrypt" name="apps_crypto_libtomcrypt"/>
-  <project path="apps/crypto/mbedtls/mbedtls" name="apps_crypto_mbedtls"/>
-  <project path="apps/crypto/tinycrypt/tinycrypt" name="apps_crypto_tinycrypt"/>
-  <project path="apps/examples/unpv13e/unpv13e" name="apps_examples_unpv13e"/>
-  <project path="apps/graphics/libyuv/libyuv" name="apps_graphics_libyuv"/>
-  <project path="apps/graphics/lvgl/lvgl" name="apps_graphics_lvgl"/>
-  <project path="apps/interpreters/lua/lua" name="apps_interpreters_lua"/>
-  <project path="apps/interpreters/quickjs/quickjs" name="apps_interpreters_quickjs"/>
-  <project path="apps/interpreters/wamr/wamr" name="apps_interpreters_wamr"/>
-  <project path="apps/math/gemmlowp/gemmlowp" name="apps_math_gemmlowp"/>
-  <project path="apps/math/kissfft/kissfft" name="apps_math_kissfft"/>
-  <project path="apps/math/libtommath/libtommath" name="apps_math_libtommath"/>
-  <project path="apps/math/ruy/ruy" name="apps_math_ruy"/>
-  <project path="apps/mlearning/cmsis/CMSIS_5" name="apps_mlearning_cmsis_CMSIS_5"/>
-  <project path="apps/mlearning/cmsis-nn/cmsis-nn" name="apps_mlearning_cmsis-nn"/>
-  <project path="apps/mlearning/tflite-micro/tflite-micro" name="apps_mlearning_tflite-micro"/>
-  <project path="apps/netutils/cjson/cJSON" name="apps_netutils_cjson_cJSON"/>
-  <project path="apps/netutils/connectedhomeip/connectedhomeip" name="apps_netutils_connectedhomeip"/>
-  <project path="apps/netutils/connectedhomeip/inipp" name="apps_netutils_connectedhomeip_inipp"/>
-  <project path="apps/netutils/connectedhomeip/nlunit-test" name="apps_netutils_connectedhomeip_nlunit-test"/>
-  <project path="apps/netutils/connectedhomeip/nlassert" name="apps_netutils_connectedhomeip_nlassert"/>
-  <project path="apps/netutils/connectedhomeip/nlio" name="apps_netutils_connectedhomeip_nlio"/>
-  <project path="apps/netutils/connectedhomeip/pigweed" name="apps_netutils_connectedhomeip_pigweed"/>
-  <project path="apps/netutils/jsoncpp/jsoncpp" name="apps_netutils_jsoncpp"/>
-  <project path="apps/netutils/libwebsockets/libwebsockets" name="apps_netutils_libwebsockets"/>
-  <project path="apps/netutils/mqttc/MQTT-C" name="apps_netutils_mqttc_MQTT-C"/>
-  <project path="apps/system/adb/microADB" name="apps_system_adb_microADB"/>
-  <project path="apps/system/argtable3/argtable3" name="apps_system_argtable3"/>
-  <project path="apps/system/flatbuffers/flatbuffers" name="apps_system_flatbuffers"/>
-  <project path="apps/system/libuv/libuv" name="apps_system_libuv"/>
-  <project path="apps/system/zlib/zlib" name="apps_system_zlib"/>
-  <project path="apps/testing/cmocka/cmocka" name="apps_testing_cmocka"/>
-  <project path="apps/testing/drivers/nist-sts" name="apps_testing_drivers_nist-sts"/>
-  <project path="apps/testing/fff/fff" name="apps_testing_fff"/>
-  <project path="apps/testing/libc-test/libc-test" name="apps_testing_libc-test"/>
-  <project path="apps/testing/ltp/ltp" name="apps_testing_ltp"/>
-  <project path="apps/testing/mm/stressapptest/stressapptest" name="apps_testing_mm_stressapptest"/>
-  <project path="apps/testing/unity/Unity" name="apps_testing_unity_Unity"/>
-  <project path=".claude" name=".claude"/>
-  <project path="build" name="build"/>
-  <project path="docs" name="docs"/>
-  <project path="external" name="external"/>
-  <project path="external/aac/aac" name="external_aac"/>
-  <project path="external/abseil-cpp/abseil-cpp" name="external_abseil-cpp"/>
-  <project path="external/android/frameworks/native" name="external_android_frameworks_native"/>
-  <project path="external/android/hardware/interfaces" name="external_android_hardware_interfaces"/>
-  <project path="external/android/hardware/libhardware" name="external_android_hardware_libhardware"/>
-  <project path="external/android/system/chre/chre" name="external_android_system_chre"/>
-  <project path="external/android/system/chre/chre/host/nuttx" name="external_android_system_chre_chre_host_nuttx"/>
-  <project path="external/android/system/core" name="external_android_system_core"/>
-  <project path="external/android/system/keymaster" name="external_android_system_keymaster"/>
-  <project path="external/android/system/libbase" name="external_android_system_libbase"/>
-  <project path="external/android/system/libcppbor" name="external_android_system_libcppbor"/>
-  <project path="external/android/system/libfmq" name="external_android_system_libfmq"/>
-  <project path="external/android/system/libhidl" name="external_android_system_libhidl"/>
-  <project path="external/android/system/libhwbinder" name="external_android_system_libhwbinder"/>
-  <project path="external/android/system/logging" name="external_android_system_logging"/>
-  <project path="external/android/system/security" name="external_android_system_security"/>
-  <project path="external/android/system/tools/aidl" name="external_android_system_tools_aidl"/>
-  <project path="external/android/system/tools/hidl" name="external_android_system_tools_hidl"/>
-  <project path="external/atomic_queue/atomic_queue" name="external_atomic_queue"/>
-  <project path="external/auto-pts/auto-pts" name="external_auto-pts"/>
-  <project path="external/bailian_sdk" name="external_bailian_sdk"/>
-  <project path="external/avb/avb" name="external_avb"/>
-  <project path="external/bzip2/bzip2" name="external_bzip2"/>
-  <project path="external/c-ares/c-ares" name="external_c-ares"/>
-  <project path="external/cAT/cAT" name="external_cAT"/>
-  <project path="external/cmark-gfm/cmark-gfm" name="external_cmark-gfm"/>
-  <project path="external/cpuid/cpuid" name="external_cpuid"/>
-  <project path="external/curl/curl" name="external_curl"/>
-  <project path="external/dbus/dbus" name="external_dbus"/>
-  <project path="external/ddelta/ddelta" name="external_ddelta"/>
-  <project path="external/enet/enet" name="external_enet"/>
-  <project path="external/erpc/erpc" name="external_erpc"/>
-  <project path="external/exfatprogs/exfatprogs" name="external_exfatprogs"/>
-  <project path="external/ffmpeg/ffmpeg" name="external_ffmpeg"/>
-  <project path="external/fluoride/fluoride" name="external_fluoride"/>
-  <project path="external/fmtlib/fmtlib" name="external_fmtlib"/>
-  <project path="external/freetype/freetype" name="external_freetype"/>
-  <project path="external/freetype/freetype/subprojects/dlg" name="external_freetype_freetype_subprojects_dlg"/>
-  <project path="external/glib/glib" name="external_glib"/>
-  <project path="external/glib/glib/subprojects/gvdb" name="external_glib_glib_subprojects_gvdb"/>
-  <project path="external/googlebenchmark/googlebenchmark" name="external_googlebenchmark"/>
-  <project path="external/googletest/googletest" name="external_googletest"/>
-  <project path="external/harfbuzz/harfbuzz" name="external_harfbuzz"/>
-  <project path="external/iperf2/iperf2" name="external_iperf2"/>
-  <project path="external/iperf3/iperf3" name="external_iperf3"/>
-  <project path="external/json-c/json-c" name="external_json-c"/>
-  <project path="external/liblc3/liblc3" name="external_liblc3"/>
-  <project path="external/ldns/ldns" name="external_ldns"/>
-  <project path="external/libchrome/modp_b64" name="external_libchrome_modp_b64"/>
-  <project path="external/libdivide/libdivide" name="external_libdivide"/>
-  <project path="external/libexpat/libexpat" name="external_libexpat"/>
-  <project path="external/libfluoride-sbc/libfluoride-sbc" name="external_libfluoride-sbc"/>
-  <project path="external/libhelix-aac/libhelix-aac" name="external_libhelix-aac"/>
-  <project path="external/libhelix-mp3/libhelix-mp3" name="external_libhelix-mp3"/>
-  <project path="external/libjpeg-turbo/libjpeg-turbo" name="external_libjpeg-turbo"/>
-  <project path="external/libldac/libldac" name="external_libldac"/>
-  <project path="external/libopencore-amr/libopencore-amr" name="external_libopencore-amr"/>
-  <project path="external/libpng/libpng" name="external_libpng"/>
-  <project path="external/libssh/libssh" name="external_libssh"/>
-  <project path="external/libtar/libtar" name="external_libtar"/>
-  <project path="external/libwebp/libwebp" name="external_libwebp"/>
-  <project path="external/lz4/lz4" name="external_lz4"/>
-  <project path="external/mdns/mdns" name="external_mdns"/>
-  <project path="external/mmc-utils/mmc-utils" name="external_mmc-utils"/>
-  <project path="external/mtp-responder/mtp-responder" name="external_mtp-responder"/>
-  <project path="external/nanopb/nanopb" name="external_nanopb"/>
-  <project path="external/Ne10/Ne10" name="external_Ne10"/>
-  <project path="external/nghttp2/nghttp2" name="external_nghttp2"/>
-  <project path="external/nng/nng" name="external_nng"/>
-  <project path="external/ofono/ell" name="external_ofono_ell"/>
-  <project path="external/ofono/ofono" name="external_ofono"/>
-  <project path="external/optee/kmgk/kmgk" name="external_optee_kmgk"/>
-  <project path="external/optee/optee_client/optee_client" name="external_optee_optee_client"/>
-  <project path="external/optee/optee_examples/optee_examples" name="external_optee_optee_examples"/>
-  <project path="external/optee/optee_test/optee_test" name="external_optee_optee_test"/>
-  <project path="external/optee/optee_os/optee_os" name="external_optee_optee_os"/>
-  <project path="external/opus/opus" name="external_opus"/>
-  <project path="external/protobuf/protobuf" name="external_protobuf"/>
-  <project path="external/protobuf-c/protobuf-c" name="external_protobuf-c"/>
-  <project path="external/quirc/quirc" name="external_quirc"/>
-  <project path="external/rapidjson/rapidjson" name="external_rapidjson"/>
-  <project path="external/ril/ril" name="external_ril"/>
-  <project path="external/rlottie/rlottie" name="external_rlottie"/>
-  <project path="external/rtos-benchmark/rtos-benchmark" name="external_rtos-benchmark"/>
-  <project path="external/silk-v3-decoder/silk-v3-decoder" name="external_silk-v3-decoder"/>
-  <project path="external/sqlite/sqlite" name="external_sqlite"/>
-  <project path="external/stress/stress" name="external_stress"/>
-  <project path="external/sysklogd/sysklogd" name="external_sysklogd"/>
-  <project path="external/thorvg/thorvg" name="external_thorvg"/>
-  <project path="external/tinyxml2/tinyxml2" name="external_tinyxml2"/>
-  <project path="external/unqlite/unqlite" name="external_unqlite"/>
-  <project path="external/vector-sil/sil-kit" name="external_vector-sil_sil-kit"/>
-  <project path="external/vector-sil/sil-kit-adapters-qemu" name="external_vector-sil_sil-kit-adapters-qemu"/>
-  <project path="external/vector-sil/sil-kit-adapters-vcan" name="external_vector-sil_sil-kit-adapters-vcan"/>
-  <project path="external/yoga/yoga" name="external_yoga"/>
-  <project path="external/zblue/zblue" name="external_zblue"/>
-  <project path="external/zint/zint" name="external_zint"/>
-  <project path="frameworks" name="frameworks"/>
-  <project path="frameworks/connectivity" name="frameworks_connectivity"/>
-  <project path="frameworks/connectivity/bluetooth" name="frameworks_bluetooth"/>
-  <project path="frameworks/connectivity/telephony" name="frameworks_connectivity_telephony"/>
-  <project path="frameworks/graphics" name="frameworks_graphics"/>
-  <project path="frameworks/graphics/gpu_tools" name="frameworks_graphics_gpu_tools"/>
-  <project path="frameworks/graphics/uikit" name="frameworks_graphics_uikit"/>
-  <project path="frameworks/multimedia" name="frameworks_multimedia"/>
-  <project path="frameworks/multimedia/media" name="frameworks_multimedia_media"/>
-  <project path="frameworks/multimedia/media/pfw" name="frameworks_multimedia_media_pfw"/>
-  <project path="frameworks/runtimes" name="frameworks_runtimes"/>
-  <project path="frameworks/runtimes/ash" name="frameworks_runtimes_ash"/>
-  <project path="frameworks/runtimes/feature" name="frameworks_runtimes_feature"/>
-  <project path="frameworks/runtimes/quickapp" name="frameworks_runtimes_quickapp"/>
-  <project path="frameworks/runtimes/services" name="frameworks_runtimes_services"/>
-  <project path="frameworks/runtimes/services/am" name="frameworks_runtimes_services_am"/>
-  <project path="frameworks/runtimes/services/brightness" name="frameworks_runtimes_services_brightness"/>
-  <project path="frameworks/runtimes/services/pm" name="frameworks_runtimes_services_pm"/>
-  <project path="frameworks/runtimes/services/system_server" name="frameworks_runtimes_services_system_server"/>
-  <project path="frameworks/runtimes/services/wm" name="frameworks_runtimes_services_wm"/>
-  <project path="frameworks/runtimes/services/xmsdemo" name="frameworks_runtimes_services_xmsdemo"/>
-  <project path="frameworks/runtimes/typescript" name="frameworks_runtimes_typescript"/>
-  <project path="frameworks/runtimes/typescript/ts2native" name="frameworks_runtimes_typescript_ts2native"/>
-  <project path="frameworks/runtimes/typescript/ts2wasm" name="frameworks_runtimes_typescript_ts2wasm"/>
-  <project path="frameworks/runtimes/wasm" name="frameworks_runtimes_wasm"/>
-  <project path="frameworks/security" name="frameworks_security"/>
-  <project path="frameworks/security/optee_vela" name="frameworks_security_optee_vela"/>
-  <project path="frameworks/system" name="frameworks_system"/>
-  <project path="frameworks/system/binder" name="frameworks_system_binder"/>
-  <project path="frameworks/system/charger" name="frameworks_system_charger"/>
-  <project path="frameworks/system/healthd" name="frameworks_system_healthd"/>
-  <project path="frameworks/system/ota" name="frameworks_system_ota"/>
-  <project path="frameworks/system/topics" name="frameworks_system_topics"/>
-  <project path="frameworks/system/utils" name="frameworks_system_utils"/>
-  <project path="frameworks/system/utils/uv" name="frameworks_system_utils_uv"/>
-  <project path="frameworks/system/vibrator" name="frameworks_system_vibrator"/>
-  <project path="nuttx" name="nuttx">
+  <project path="apps" name="nuttx-apps" revision="550cd3ba60a03f8ebf9ac7b72f6eed6aea3bedbe"/>
+  <project path="apps/benchmarks/coremark/coremark" name="apps_benchmarks_coremark" revision="a6e8a223cb10162fd66a3ddce07cd4238b7691e2"/>
+  <project path="apps/benchmarks/test-tlb/test-tlb" name="apps_benchmarks_test-tlb" revision="76df8b3640fcd2b30b17e63a2334cf0170888f2f"/>
+  <project path="apps/crypto/libsodium/libsodium" name="apps_crypto_libsodium" revision="837b94761fbf0a20ad21d986e06c35258720de62"/>
+  <project path="apps/crypto/libtomcrypt/libtomcrypt" name="apps_crypto_libtomcrypt" revision="688ca6cd7bcbf435ab49341ed598d430907d1b5c"/>
+  <project path="apps/crypto/mbedtls/mbedtls" name="apps_crypto_mbedtls" revision="fc76e9843a54c87876235b16764114da5622355e"/>
+  <project path="apps/crypto/tinycrypt/tinycrypt" name="apps_crypto_tinycrypt" revision="77e68bab233b6eaf2a367f396a7f2c50fa5fe77d"/>
+  <project path="apps/examples/unpv13e/unpv13e" name="apps_examples_unpv13e" revision="381e9adfe42e20ac86cd69be47dbd2c0175b99be"/>
+  <project path="apps/graphics/libyuv/libyuv" name="apps_graphics_libyuv" revision="a41e2ff5d7e64281ea892182628b130cae26d883"/>
+  <project path="apps/graphics/lvgl/lvgl" name="apps_graphics_lvgl" revision="ce56694571a134ce3caa2e90cca11763e54c1fc1"/>
+  <project path="apps/interpreters/lua/lua" name="apps_interpreters_lua" revision="889f9ae1c63051d1f61edf9fc0bac409b94a32f2"/>
+  <project path="apps/interpreters/quickjs/quickjs" name="apps_interpreters_quickjs" revision="67cead2b16b7dc36bf307bc3ccd10bc6c64beeb4"/>
+  <project path="apps/interpreters/wamr/wamr" name="apps_interpreters_wamr" revision="16bb1efdda5307dc4fac685d54efbd8b1cfdcab9"/>
+  <project path="apps/math/gemmlowp/gemmlowp" name="apps_math_gemmlowp" revision="68a4224f8f72dc7645cdbbc53b3924f626231fe1"/>
+  <project path="apps/math/kissfft/kissfft" name="apps_math_kissfft" revision="c57530ea907772e7c38ac2fa0bfa15036b59cfaf"/>
+  <project path="apps/math/libtommath/libtommath" name="apps_math_libtommath" revision="0d0bf21844d3f9f0bd927d1d5bbc995071ba29a0"/>
+  <project path="apps/math/ruy/ruy" name="apps_math_ruy" revision="cf455c059506d2f64103d7cbb640b99e816b23c7"/>
+  <project path="apps/mlearning/cmsis/CMSIS_5" name="apps_mlearning_cmsis_CMSIS_5" revision="6c9b11881dfded52928eb873b59261cb23152519"/>
+  <project path="apps/mlearning/cmsis-nn/cmsis-nn" name="apps_mlearning_cmsis-nn" revision="0ff1a1820171b8a666285bb1ad5f51641a74524a"/>
+  <project path="apps/mlearning/tflite-micro/tflite-micro" name="apps_mlearning_tflite-micro" revision="94f7cee178aeceb492a074b4e092db2706d7c9c2"/>
+  <project path="apps/netutils/cjson/cJSON" name="apps_netutils_cjson_cJSON" revision="172877b32e24c9e4d02125a97dfddaea9ca1794c"/>
+  <project path="apps/netutils/connectedhomeip/connectedhomeip" name="apps_netutils_connectedhomeip" revision="45e484ad528612a5094017ada897c37124828300"/>
+  <project path="apps/netutils/connectedhomeip/inipp" name="apps_netutils_connectedhomeip_inipp" revision="6db1f7735d4f9a1bcc201277e6d9ed784d466b1f"/>
+  <project path="apps/netutils/connectedhomeip/nlunit-test" name="apps_netutils_connectedhomeip_nlunit-test" revision="b58609fba90266c29481b026298f36a35cdfe04e"/>
+  <project path="apps/netutils/connectedhomeip/nlassert" name="apps_netutils_connectedhomeip_nlassert" revision="dcbfc9913952775bcbf3c3a6825cc6eee0bb9410"/>
+  <project path="apps/netutils/connectedhomeip/nlio" name="apps_netutils_connectedhomeip_nlio" revision="c56639995cf4ad2bdfd4079c76e5a7e8db74d6a6"/>
+  <project path="apps/netutils/connectedhomeip/pigweed" name="apps_netutils_connectedhomeip_pigweed" revision="f5ebd58627e63579d00e03757a75c7d91d25d555"/>
+  <project path="apps/netutils/jsoncpp/jsoncpp" name="apps_netutils_jsoncpp" revision="7177985d0ef0d9df578f61918f9e34f67b4b3392"/>
+  <project path="apps/netutils/libwebsockets/libwebsockets" name="apps_netutils_libwebsockets" revision="388ec294fd30e569efaa4750ff60ad07a8465012"/>
+  <project path="apps/netutils/mqttc/MQTT-C" name="apps_netutils_mqttc_MQTT-C" revision="7da6dd37e5bb10b13d53ee9c3b6d39cb440dc9ee"/>
+  <project path="apps/system/adb/microADB" name="apps_system_adb_microADB" revision="754938b3565803ce8462835d01b52c6d0dbc4b31"/>
+  <project path="apps/system/argtable3/argtable3" name="apps_system_argtable3" revision="d47613a73a7a75df6c3cf281f2744d978b673d70"/>
+  <project path="apps/system/flatbuffers/flatbuffers" name="apps_system_flatbuffers" revision="806f2d4c3221217ad1047161abea8e99133e13c0"/>
+  <project path="apps/system/libuv/libuv" name="apps_system_libuv" revision="456b880d1572ff136323f82273d8baeed50f3556"/>
+  <project path="apps/system/zlib/zlib" name="apps_system_zlib" revision="9c364ecf2376e2bc6c10d8add68b28d7a09a9828"/>
+  <project path="apps/testing/cmocka/cmocka" name="apps_testing_cmocka" revision="20b17b0d470919850bbf38bfdc35d838ddfd915c"/>
+  <project path="apps/testing/drivers/nist-sts" name="apps_testing_drivers_nist-sts" revision="ebda486cabcf0f0151e8e1abca600a682cb8ffc6"/>
+  <project path="apps/testing/fff/fff" name="apps_testing_fff" revision="488d2c461bbe87472f57b87530cdf4bd58411106"/>
+  <project path="apps/testing/libc-test/libc-test" name="apps_testing_libc-test" revision="48cad8dd42cf5a977483fc78c765c229368e197b"/>
+  <project path="apps/testing/ltp/ltp" name="apps_testing_ltp" revision="0deaa6302136d737122471c8dfa53a3420fe87e3"/>
+  <project path="apps/testing/mm/stressapptest/stressapptest" name="apps_testing_mm_stressapptest" revision="a01d0b0747813e24a35fdd450917039bc113a5ca"/>
+  <project path="apps/testing/unity/Unity" name="apps_testing_unity_Unity" revision="f592cbfef1252893d949f659c4852a7eeb778b40"/>
+  <project path=".claude" name=".claude" revision="f379db42481ddc32976349c616517175ab243117"/>
+  <project path="build" name="build" revision="8493db46d183834ab107fa64792b1c0a4ef0d05b"/>
+  <project path="docs" name="docs" revision="fb35ec847422b79b241860673ffe58d9ba61007b"/>
+  <project path="external" name="external" revision="f2c1425ef199e1dc7393a6b1d9ce14e52a430068"/>
+  <project path="external/aac/aac" name="external_aac" revision="af265f29f37f24129d6f45d11915f6176608e5f6"/>
+  <project path="external/abseil-cpp/abseil-cpp" name="external_abseil-cpp" revision="b0424286c9d76fb5be05703d866ffa5b091c860c"/>
+  <project path="external/android/frameworks/native" name="external_android_frameworks_native" revision="852db340db68fd54c418629f570429abcf3a1260"/>
+  <project path="external/android/hardware/interfaces" name="external_android_hardware_interfaces" revision="7fa20072f61882b329ce2330b1b2e166db6f0d03"/>
+  <project path="external/android/hardware/libhardware" name="external_android_hardware_libhardware" revision="06a308866b32b6ec3574c13c288828ae8f171ae4"/>
+  <project path="external/android/system/chre/chre" name="external_android_system_chre" revision="978d4db0a9d4ea7af95a663915adfdb6058e9b2b"/>
+  <project path="external/android/system/chre/chre/host/nuttx" name="external_android_system_chre_chre_host_nuttx" revision="935a024c1f3d9bfa563e4bc10dfc8fe7d1af81fd"/>
+  <project path="external/android/system/core" name="external_android_system_core" revision="8608ca9a26f83a8b5a5b6f9846f0973126762f4a"/>
+  <project path="external/android/system/keymaster" name="external_android_system_keymaster" revision="69f2198f44f0dfc080319ac54f872f30e575fcc0"/>
+  <project path="external/android/system/libbase" name="external_android_system_libbase" revision="680952d888ea6d895e4c39783b6a2ffe51f3bc86"/>
+  <project path="external/android/system/libcppbor" name="external_android_system_libcppbor" revision="c5d23b016f3cc6d4f1bcc9cbb418c657dabe6515"/>
+  <project path="external/android/system/libfmq" name="external_android_system_libfmq" revision="95d2c7cd73719d1a193a3d0fa8f062e4183c4643"/>
+  <project path="external/android/system/libhidl" name="external_android_system_libhidl" revision="72182885ffca248fb77860ef75ac3d012d153a01"/>
+  <project path="external/android/system/libhwbinder" name="external_android_system_libhwbinder" revision="0eb4f35cbc66d20a66108e24d03e3a7d536e9c84"/>
+  <project path="external/android/system/logging" name="external_android_system_logging" revision="d33fa9f9a504cc1d8073121a5abafcd9275da365"/>
+  <project path="external/android/system/security" name="external_android_system_security" revision="3eef8d85fa765ad38f580ee9c5be3166d1d3c5f9"/>
+  <project path="external/android/system/tools/aidl" name="external_android_system_tools_aidl" revision="efe5ed3f72fec5b25be83dfc94aa2eb4921cac6e"/>
+  <project path="external/android/system/tools/hidl" name="external_android_system_tools_hidl" revision="045509f0639ce2a2d3d1b46341696dd41c508c4f"/>
+  <project path="external/atomic_queue/atomic_queue" name="external_atomic_queue" revision="496d9f208f71f3bcc91a7fc6ae493204d7f386bf"/>
+  <project path="external/auto-pts/auto-pts" name="external_auto-pts" revision="b1c81c198dbff27bcec2a4fe2c2d35216b70afa0"/>
+  <project path="external/bailian_sdk" name="external_bailian_sdk" revision="80a4569b34fb4e79c5ca959582a48b53f633de4a"/>
+  <project path="external/avb/avb" name="external_avb" revision="e59199e1bd757260178a75a204d2ca58138b9f58"/>
+  <project path="external/bzip2/bzip2" name="external_bzip2" revision="3c8f6b08d6bb7fd89c6200158929172b6ef2f73c"/>
+  <project path="external/c-ares/c-ares" name="external_c-ares" revision="320617e67f1338dc3915bd532b9e4ad66d22c2e3"/>
+  <project path="external/cAT/cAT" name="external_cAT" revision="9b14b503959fdbe2b8fbcd3aee8151edb4c9ce00"/>
+  <project path="external/cmark-gfm/cmark-gfm" name="external_cmark-gfm" revision="cf89db5b8f0fad47adb4debd5f63df28c831de32"/>
+  <project path="external/cpuid/cpuid" name="external_cpuid" revision="580562e39979383f884345f40206769f516781c9"/>
+  <project path="external/curl/curl" name="external_curl" revision="8c2a01f3eb4152eb8a13245cd6b952c9af7f4264"/>
+  <project path="external/dbus/dbus" name="external_dbus" revision="a089140d235925418e44dae40a3112168942c01c"/>
+  <project path="external/ddelta/ddelta" name="external_ddelta" revision="249c7f92de67fbe2937f6702b68d857b8d11a203"/>
+  <project path="external/enet/enet" name="external_enet" revision="d75e3197edd9513a520f8c22355eabce0559d8b9"/>
+  <project path="external/erpc/erpc" name="external_erpc" revision="29412f1b52f498d94dc0d00108ac386ad7ba44eb"/>
+  <project path="external/exfatprogs/exfatprogs" name="external_exfatprogs" revision="5f69a3825923537bd05b753d25b28999588fa35d"/>
+  <project path="external/ffmpeg/ffmpeg" name="external_ffmpeg" revision="4b4723f2f66ccfdbadbd5d4c52dd5c41d6116418"/>
+  <project path="external/fluoride/fluoride" name="external_fluoride" revision="4c4f7c9a8a05c943244e9d4db6d8f236b6f7b265"/>
+  <project path="external/fmtlib/fmtlib" name="external_fmtlib" revision="6f23a00d70e26e1fe1b5869ca479336a75ef47a3"/>
+  <project path="external/freetype/freetype" name="external_freetype" revision="b1106b810d83860dd0eb82d592a221ce60c18ccc"/>
+  <project path="external/freetype/freetype/subprojects/dlg" name="external_freetype_freetype_subprojects_dlg" revision="baa23832d72ef1edfa780c602d443acdee9119fa"/>
+  <project path="external/glib/glib" name="external_glib" revision="202d94385c4aebc2bc5427adf63d458bf17b7c02"/>
+  <project path="external/glib/glib/subprojects/gvdb" name="external_glib_glib_subprojects_gvdb" revision="e823f7f81adf2bba6b94b7783d25a0810ba56261"/>
+  <project path="external/googlebenchmark/googlebenchmark" name="external_googlebenchmark" revision="247c3664fdc50d7efc692aead8baf3e2ef1738b3"/>
+  <project path="external/googletest/googletest" name="external_googletest" revision="c0972b21e3e903aaa23413b51c282874abe768e4"/>
+  <project path="external/harfbuzz/harfbuzz" name="external_harfbuzz" revision="efb19f1cfa2665d4e5280d020ebd9b1174b1c5be"/>
+  <project path="external/iperf2/iperf2" name="external_iperf2" revision="c1f7c1284c039038674a8c9a07c1960759f09487"/>
+  <project path="external/iperf3/iperf3" name="external_iperf3" revision="07a7cce48885edcd767c65bdef8ef2db73b1edca"/>
+  <project path="external/json-c/json-c" name="external_json-c" revision="8d4533eae712b6d7752bba9d053ec40f30c48d3b"/>
+  <project path="external/liblc3/liblc3" name="external_liblc3" revision="cc982cfc8be1d3c5a7a2f393c313ab3e97263e46"/>
+  <project path="external/ldns/ldns" name="external_ldns" revision="c77bfbcd9396134dcc9fff6fb034285f7479f95e"/>
+  <project path="external/libchrome/modp_b64" name="external_libchrome_modp_b64" revision="23a48c6d8ecd6e6c8474eb8b78f35ecf4d778443"/>
+  <project path="external/libdivide/libdivide" name="external_libdivide" revision="07b89b9c161a0c6fd5b01e17343dde11f26281b6"/>
+  <project path="external/libexpat/libexpat" name="external_libexpat" revision="923ea66d747fbfb7d3a58112ba688ab3204a0ae6"/>
+  <project path="external/libfluoride-sbc/libfluoride-sbc" name="external_libfluoride-sbc" revision="14bddd5ca0aa6cc9d2c0e899f98ba809c26dbb2e"/>
+  <project path="external/libhelix-aac/libhelix-aac" name="external_libhelix-aac" revision="199281a813a31a64c5f77d06efd2facd8945e801"/>
+  <project path="external/libhelix-mp3/libhelix-mp3" name="external_libhelix-mp3" revision="6cf8a9b67209ffe594ae7a024be3da88135cf69e"/>
+  <project path="external/libjpeg-turbo/libjpeg-turbo" name="external_libjpeg-turbo" revision="c4d4894baea806d7749b34766f03f78b825e769e"/>
+  <project path="external/libldac/libldac" name="external_libldac" revision="228f797ecd80607fdb4eef5b0f5522f9a8653ac7"/>
+  <project path="external/libopencore-amr/libopencore-amr" name="external_libopencore-amr" revision="ddf9db17a6820cf89abe1aade4bd9918991e72ea"/>
+  <project path="external/libpng/libpng" name="external_libpng" revision="19c2365390f9c711e53a8e752f0bb78e9ccb1005"/>
+  <project path="external/libssh/libssh" name="external_libssh" revision="518f1dd5d13d79a6272cfb9a590c1b846638391f"/>
+  <project path="external/libtar/libtar" name="external_libtar" revision="d5b2499650a8dcc7812703e4746d7713989e5135"/>
+  <project path="external/libwebp/libwebp" name="external_libwebp" revision="60193c4638a5c5d67a5a80c892dfa76cb4c94921"/>
+  <project path="external/lz4/lz4" name="external_lz4" revision="a7e12a735c2740307546ad712523afd46fc200d3"/>
+  <project path="external/mdns/mdns" name="external_mdns" revision="a4f7d6454af428a651af5ccd340f175f5bc7c225"/>
+  <project path="external/mmc-utils/mmc-utils" name="external_mmc-utils" revision="0224e87d53875599ab70ecba9c3366880f44a09d"/>
+  <project path="external/mtp-responder/mtp-responder" name="external_mtp-responder" revision="307cea23a7374bec207640d2d01fc227d3a58f46"/>
+  <project path="external/nanopb/nanopb" name="external_nanopb" revision="6912c2009df14e6212e28928c66ffbdcbd4d6181"/>
+  <project path="external/Ne10/Ne10" name="external_Ne10" revision="0c112768cdb7407ee5702696f3ef24279f7a2112"/>
+  <project path="external/nghttp2/nghttp2" name="external_nghttp2" revision="e06c4b9b877cc4dec597554d7860d7848244b2e9"/>
+  <project path="external/nng/nng" name="external_nng" revision="0d8852b151a9db92b410748d910cf3e4b665092a"/>
+  <project path="external/ofono/ell" name="external_ofono_ell" revision="f8b602c739b1c350f3e258ff855dd7aa661224ff"/>
+  <project path="external/ofono/ofono" name="external_ofono" revision="b39f4021fcec4ca240fe729c96697ab31f8556ba"/>
+  <project path="external/optee/kmgk/kmgk" name="external_optee_kmgk" revision="34c0f99b6b7d958c9a08f462f4d98df7c8820987"/>
+  <project path="external/optee/optee_client/optee_client" name="external_optee_optee_client" revision="b36fbd97826fc541499a2f1947ada8f390b3dd94"/>
+  <project path="external/optee/optee_examples/optee_examples" name="external_optee_optee_examples" revision="b33d9779b41da2f81b7624ef527188fe74f0afe1"/>
+  <project path="external/optee/optee_test/optee_test" name="external_optee_optee_test" revision="d1c9e8f8241946e8f7d76fea4eb87bb01a03172d"/>
+  <project path="external/optee/optee_os/optee_os" name="external_optee_optee_os" revision="4816ef3f21d142ff26cebc4f5cbbd51f6049b6df"/>
+  <project path="external/opus/opus" name="external_opus" revision="c239c7216bf0ae231b55931d6b11787f067b5f9a"/>
+  <project path="external/protobuf/protobuf" name="external_protobuf" revision="961c9cc4799e535a3e273c742dc43c40d7f03127"/>
+  <project path="external/protobuf-c/protobuf-c" name="external_protobuf-c" revision="4fb91a211701fd0dd3b641fe9a950728babbc9c8"/>
+  <project path="external/quirc/quirc" name="external_quirc" revision="f9cec3a2e98c6609d7e837fb6fba268c56ddfd54"/>
+  <project path="external/rapidjson/rapidjson" name="external_rapidjson" revision="546d2a2cedd2f41ab4d08783b29d5384c8bc27f0"/>
+  <project path="external/ril/ril" name="external_ril" revision="da2d33bc0a377878d168f14399d5e615dbba30b8"/>
+  <project path="external/rlottie/rlottie" name="external_rlottie" revision="af2c5f796e5e08d1cac7e4e051bd6ee99cd0de5e"/>
+  <project path="external/rtos-benchmark/rtos-benchmark" name="external_rtos-benchmark" revision="94b40a5c2ecf4db744c6477dd8dbaddaddbc45da"/>
+  <project path="external/silk-v3-decoder/silk-v3-decoder" name="external_silk-v3-decoder" revision="1ec988c69678546cdd95441fbd4819595cdbd0a8"/>
+  <project path="external/sqlite/sqlite" name="external_sqlite" revision="60c65ff50d5089a8df2463813ba835686cd4637e"/>
+  <project path="external/stress/stress" name="external_stress" revision="9d001c69237efb676fdd446d02af2877d3e7afd7"/>
+  <project path="external/sysklogd/sysklogd" name="external_sysklogd" revision="7264b8f9836a0088b04f796aa5ccc6ca2976ce87"/>
+  <project path="external/thorvg/thorvg" name="external_thorvg" revision="971b2bc237f9b0a145fec6dbd847f46124b82038"/>
+  <project path="external/tinyxml2/tinyxml2" name="external_tinyxml2" revision="8bbcf98bb693f26903b1f0e68e608b4304787806"/>
+  <project path="external/unqlite/unqlite" name="external_unqlite" revision="25731ab0e2a4aa119df1329f799cd571a794720c"/>
+  <project path="external/vector-sil/sil-kit" name="external_vector-sil_sil-kit" revision="c1884836362eccabfeed3ba241a7033d60e1fef7"/>
+  <project path="external/vector-sil/sil-kit-adapters-qemu" name="external_vector-sil_sil-kit-adapters-qemu" revision="8d55ba310593200a9472e2711709d2344f813ce8"/>
+  <project path="external/vector-sil/sil-kit-adapters-vcan" name="external_vector-sil_sil-kit-adapters-vcan" revision="6cc283d5e7a694f6a5133c97efc2eccdf3fae2c7"/>
+  <project path="external/yoga/yoga" name="external_yoga" revision="01195bd299090b15339b34f67bc39077bdee49c1"/>
+  <project path="external/zblue/zblue" name="external_zblue" revision="1450c4fe3fee9a07e961b3b74b9d1ad67428e344"/>
+  <project path="external/zint/zint" name="external_zint" revision="802e9e01f213d34415be9469d6b21be78aca9110"/>
+  <project path="frameworks" name="frameworks" revision="1e690984f2349243afc222f352e2ca4818413a3d"/>
+  <project path="frameworks/connectivity" name="frameworks_connectivity" revision="d1dcebef61b7950fae44452a8e1d4ed6cab8aed8"/>
+  <project path="frameworks/connectivity/bluetooth" name="frameworks_bluetooth" revision="530f04f5c08cfdb0b5110b9bcb8be7ebf818a272"/>
+  <project path="frameworks/connectivity/telephony" name="frameworks_connectivity_telephony" revision="3ee12060bb397dc0dfbce7b621302ada84965c8f"/>
+  <project path="frameworks/graphics" name="frameworks_graphics" revision="398098dba184094db86af6862524ec0a1aa58aee"/>
+  <project path="frameworks/graphics/gpu_tools" name="frameworks_graphics_gpu_tools" revision="4acf03e8cdfd1abdcca237f540473623b9afb3b3"/>
+  <project path="frameworks/graphics/uikit" name="frameworks_graphics_uikit" revision="68bddce1fc3f2dc32985c30941d9ba46a8e9fc74"/>
+  <project path="frameworks/multimedia" name="frameworks_multimedia" revision="614c0ebe5a9ef2f2e935f21a07eda59d4c733e66"/>
+  <project path="frameworks/multimedia/media" name="frameworks_multimedia_media" revision="fb7db0e9f826fb6d71937c948e7da1eb10ffc896"/>
+  <project path="frameworks/multimedia/media/pfw" name="frameworks_multimedia_media_pfw" revision="15e47d942247c3977c698c1202a2e6fa9ebfd1b0"/>
+  <project path="frameworks/runtimes" name="frameworks_runtimes" revision="e4404894b544bcb2bfa2490fd052b330205c5e20"/>
+  <project path="frameworks/runtimes/ash" name="frameworks_runtimes_ash" revision="6f0f2f4ef4645a7221b920accd1e6b6a98951011"/>
+  <project path="frameworks/runtimes/feature" name="frameworks_runtimes_feature" revision="475c070e2614d58e4fac15bbfe2fd830c15928fc"/>
+  <project path="frameworks/runtimes/quickapp" name="frameworks_runtimes_quickapp" revision="5cb6d82821a9c4a7929923aea64f1e9498721abd"/>
+  <project path="frameworks/runtimes/services" name="frameworks_runtimes_services" revision="f1ff932b6b19465f8105939db567615d5b5b9bc2"/>
+  <project path="frameworks/runtimes/services/am" name="frameworks_runtimes_services_am" revision="ba039bdf7a2e257edbf1fae98b15edbb8a2f2a72"/>
+  <project path="frameworks/runtimes/services/brightness" name="frameworks_runtimes_services_brightness" revision="6e69ad753f9ad5582875582e778d6327f19bf9c6"/>
+  <project path="frameworks/runtimes/services/pm" name="frameworks_runtimes_services_pm" revision="c8bf231908c49d48ee8574d76c1b9806a47b2694"/>
+  <project path="frameworks/runtimes/services/system_server" name="frameworks_runtimes_services_system_server" revision="0edc8ea5f4788ef9cfd0aa6297afb1e6fb6d3ceb"/>
+  <project path="frameworks/runtimes/services/wm" name="frameworks_runtimes_services_wm" revision="ada718e4ec2cf9c7930366c542371145a4ff9094"/>
+  <project path="frameworks/runtimes/services/xmsdemo" name="frameworks_runtimes_services_xmsdemo" revision="c0297f5e91ff7efa51ec6c7c50c1938caf84aff6"/>
+  <project path="frameworks/runtimes/typescript" name="frameworks_runtimes_typescript" revision="2bd3093a24727b0531116204f4d5013d09790a88"/>
+  <project path="frameworks/runtimes/typescript/ts2native" name="frameworks_runtimes_typescript_ts2native" revision="5344cd9a85e04c440923bda88d2216a4751abf1f"/>
+  <project path="frameworks/runtimes/typescript/ts2wasm" name="frameworks_runtimes_typescript_ts2wasm" revision="b5fb2f761abe1f8e6c35cf1fd4a2da000bec2625"/>
+  <project path="frameworks/runtimes/wasm" name="frameworks_runtimes_wasm" revision="9d360cd3682ad68be9298d80054e33880fbb33b0"/>
+  <project path="frameworks/security" name="frameworks_security" revision="de07355c6af8c4202a0134d415d172bac4f4ebb6"/>
+  <project path="frameworks/security/optee_vela" name="frameworks_security_optee_vela" revision="a0e682ae765db5119e6e097bd8fc5d4590e1eaab"/>
+  <project path="frameworks/system" name="frameworks_system" revision="598c4fc21d27dac9501379fc7bb0bd4936048121"/>
+  <project path="frameworks/system/binder" name="frameworks_system_binder" revision="cacdf6e5335ca71f61d05ffe4adea3269dcb29c9"/>
+  <project path="frameworks/system/charger" name="frameworks_system_charger" revision="4e77a998bd7e6d6502b4302592b95c1c8ece1bc7"/>
+  <project path="frameworks/system/healthd" name="frameworks_system_healthd" revision="1bf13fb7393c2afc0a03c72f484b9777a4d6be65"/>
+  <project path="frameworks/system/ota" name="frameworks_system_ota" revision="7885c8b4101e8f955133aff970c4edd565d793af"/>
+  <project path="frameworks/system/topics" name="frameworks_system_topics" revision="9d3dae8012923154baf55dd97239660aa7b06dcd"/>
+  <project path="frameworks/system/utils" name="frameworks_system_utils" revision="5e582301ffa1401d1e48d49cea46edeba97b822e"/>
+  <project path="frameworks/system/utils/uv" name="frameworks_system_utils_uv" revision="89fd7bea4bb452ba1020bd49e16a71ec875ccdf9"/>
+  <project path="frameworks/system/vibrator" name="frameworks_system_vibrator" revision="72c9ed0c7588e4e219764d7b0c2942493e8186b0"/>
+  <project path="nuttx" name="nuttx" revision="76354c637858ecb0aa4601629327acb6f44a26bb">
     <linkfile src="tools/build.sh" dest="build.sh"/>
   </project>
-  <project path="nuttx/drivers/mtd/dhara" name="nuttx_drivers_mtd_dhara"/>
-  <project path="nuttx/drivers/segger/SystemView" name="nuttx_drivers_segger_SystemView"/>
-  <project path="nuttx/fs/fatfs/fatfs" name="nuttx_fs_fatfs"/>
-  <project path="nuttx/fs/littlefs/littlefs" name="nuttx_fs_littlefs_littlefs"/>
-  <project path="nuttx/fs/yaffs/yaffs" name="nuttx_fs_yaffs"/>
-  <project path="nuttx/libs/libc/audio/libsrc/libsamplerate" name="nuttx_libs_libc_audio_libsrc_libsamplerate"/>
-  <project path="nuttx/libs/libc/fdt/dtc" name="nuttx_libs_libc_fdt_dtc"/>
-  <project path="nuttx/libs/libc/gnssutils/minmea" name="nuttx_libs_libc_gnssutils_minmea"/>
-  <project path="nuttx/libs/libm/libmcs/libmcs" name="nuttx_libs_libm_libmcs"/>
-  <project path="nuttx/libs/libm/newlib/newlib" name="nuttx_libs_libm_newlib"/>
-  <project path="nuttx/libs/libm/openlibm/openlibm" name="nuttx_libs_libm_openlibm"/>
-  <project path="nuttx/libs/libxx/libcxx/libcxx" name="nuttx_libs_libxx_libcxx"/>
-  <project path="nuttx/libs/libxx/libcxxabi/libcxxabi" name="nuttx_libs_libxx_libcxxabi"/>
-  <project path="nuttx/libs/libxx/libstdc++/libstdc++" name="nuttx_libs_libxx_libstdcpp"/>
-  <project path="nuttx/mm/tlsf/tlsf" name="nuttx_mm_tlsf"/>
-  <project path="nuttx/openamp/libmetal" name="nuttx_openamp_libmetal"/>
-  <project path="nuttx/openamp/open-amp" name="nuttx_openamp_open-amp"/>
-  <project path="packages" name="packages"/>
-  <project path="packages/apps" name="packages_apps"/>
-  <project path="packages/ai_agent" name="packages_ai_agent"/>
-  <project path="packages/demos" name="packages_demos"/>
-  <project path="packages/fe/examples" name="packages_fe_examples"/>
-  <project path="prebuilts/clang-wasm/linux-x86_64" name="prebuilts_clang_linux_wasm" clone-depth="1"/>
-  <project path="tests" name="tests"/>
-  <project path="vendor" name="vendor"/>
-  <project path="vendor/allwinnertech" name="vendor_allwinnertech"/>
-  <project path="vendor/artinchip" name="vendor_artinchip"/>
-  <project path="vendor/beken" name="vendor_beken"/>
-  <project path="vendor/bes" name="vendor_bes"/>
-  <project path="vendor/espressif" name="vendor_espressif"/>
-  <project path="vendor/flagchip" name="vendor_flagchip"/>
-  <project path="vendor/gigadevice" name="vendor_gigadevice"/>
-  <project path="vendor/infineon" name="vendor_infineon"/>
-  <project path="vendor/infineon/chips/aurix/illd" name="vendor_infineon_chips_aurix_illd"/>
-  <project path="vendor/infineon/chips/aurix/illd/tc4x/Libraries" name="vendor_infineon_chips_aurix_illd_tc4x_Libraries"/>
-  <project path="vendor/openvela" name="vendor_openvela"/>
-  <project path="vendor/openvela/boards/vela/libs" name="libs_openvela_vela"/>
-  <project path="vendor/openvela/boards/sil" name="vendor_openvela_boards_sil"/>
-  <project path="vendor/gravityxr" name="vendor_gravityxr"/>
-  <project path="vendor/rockchip" name="vendor_rockchip"/>
-  <project path="vendor/sifli" name="vendor_sifli"/>
-  <project path="vendor/sifli/boards/sf32lb52/libs" name="libs_sifli_sf32lb52"/>
-  <project path="vendor/st" name="vendor_st"/>
-  <project path="vendor/template" name="vendor_template"/>
-  <project path="vendor/xiaomi" name="vendor_xiaomi"/>
-  <project path="vendor/xiaomi/vela" name="vendor_xiaomi_vela"/>
-  <project path="vendor/xiaomi/vela/pyxis" name="vendor_xiaomi_pyxis"/>
+  <project path="nuttx/drivers/mtd/dhara" name="nuttx_drivers_mtd_dhara" revision="90b5b9527cf60deee8e1283f5fa902f775162003"/>
+  <project path="nuttx/drivers/segger/SystemView" name="nuttx_drivers_segger_SystemView" revision="b8322b728ec75f477788dfde2c733424c5b3412d"/>
+  <project path="nuttx/fs/fatfs/fatfs" name="nuttx_fs_fatfs" revision="42e4991f853d32e39082c784e4d0057824066afc"/>
+  <project path="nuttx/fs/littlefs/littlefs" name="nuttx_fs_littlefs_littlefs" revision="b97ad1f437c3fa3128ca2d70b8317c1207c90ac9"/>
+  <project path="nuttx/fs/yaffs/yaffs" name="nuttx_fs_yaffs" revision="410f86d578963230c62ecf5ec527e11705d5fd8e"/>
+  <project path="nuttx/libs/libc/audio/libsrc/libsamplerate" name="nuttx_libs_libc_audio_libsrc_libsamplerate" revision="9d7d0f1f23c70c1c99c96a9ad9ac8b9c243b5aaf"/>
+  <project path="nuttx/libs/libc/fdt/dtc" name="nuttx_libs_libc_fdt_dtc" revision="549ca1e704e7abadceecbf3fb91fc67be0fe2b70"/>
+  <project path="nuttx/libs/libc/gnssutils/minmea" name="nuttx_libs_libc_gnssutils_minmea" revision="22bbfa97e9666460ef542b123f930afd8ec90f1b"/>
+  <project path="nuttx/libs/libm/libmcs/libmcs" name="nuttx_libs_libm_libmcs" revision="0110340d72b2783299a30a197f4325008422c466"/>
+  <project path="nuttx/libs/libm/newlib/newlib" name="nuttx_libs_libm_newlib" revision="3c5816775ca35edbc85fceb76e5ad52bf41298c3"/>
+  <project path="nuttx/libs/libm/openlibm/openlibm" name="nuttx_libs_libm_openlibm" revision="c11e5eb49611fa1bc9fcb42120eaffca0b4d4d8c"/>
+  <project path="nuttx/libs/libxx/libcxx/libcxx" name="nuttx_libs_libxx_libcxx" revision="0eb56a04c761ed76fd3a6e7dd37a53d1400a1bd2"/>
+  <project path="nuttx/libs/libxx/libcxxabi/libcxxabi" name="nuttx_libs_libxx_libcxxabi" revision="52b4e6d96a7710d1f9d8dffe4886484960837fd2"/>
+  <project path="nuttx/libs/libxx/libstdc++/libstdc++" name="nuttx_libs_libxx_libstdcpp" revision="add82ebe675bca17fbb8cdb1f5542efedf2298c8"/>
+  <project path="nuttx/mm/tlsf/tlsf" name="nuttx_mm_tlsf" revision="4f6e3e7630b0340ef4a56ef2cf9afdc7638f8345"/>
+  <project path="nuttx/openamp/libmetal" name="nuttx_openamp_libmetal" revision="fbd291502a1b4113febd0b6bc87e919247fc7b4d"/>
+  <project path="nuttx/openamp/open-amp" name="nuttx_openamp_open-amp" revision="8608b94c947e525dadd781ce6f169ed49b0f2a2b"/>
+  <project path="packages" name="packages" revision="b2d8f323be31c58699a2cec9f2eea858fe0501bd"/>
+  <project path="packages/apps" name="packages_apps" revision="f20b832333c187d6598e6ee248dd2876ec24e0c2"/>
+  <project path="packages/ai_agent" name="packages_ai_agent" revision="e65550f18759f086d7f544edcf17d1e31223244f"/>
+  <project path="packages/demos" name="packages_demos" revision="a078e3884069f3fa73ba194a22c7953413049e15"/>
+  <project path="packages/fe/examples" name="packages_fe_examples" revision="bc620d5ab991ace9dff5f83ca55e32b8d4fcc569"/>
+  <project path="prebuilts/clang-wasm/linux-x86_64" name="prebuilts_clang_linux_wasm" revision="5433530d62f3a98f71ca29f50b910db02d394c39" clone-depth="1"/>
+  <project path="tests" name="tests" revision="67029fe1c85b2d2a35b2d69629912671a1befe59"/>
+  <project path="vendor" name="vendor" revision="432dfd23a01d9f9ac772bd2c12668400fedaac6b"/>
+  <project path="vendor/allwinnertech" name="vendor_allwinnertech" revision="9d34b3f0d02a7ced58f85db9eb8fcb726f6832b1"/>
+  <project path="vendor/artinchip" name="vendor_artinchip" revision="2029c96fe815cdd28827061f8bd34d5585490f5d"/>
+  <project path="vendor/beken" name="vendor_beken" revision="11d74e18170aecef8c3ec0152bdf57e826f2f83d"/>
+  <project path="vendor/bes" name="vendor_bes" revision="9d0bcadc9dc204487c6bc0e95a310020da91a1f7"/>
+  <project path="vendor/espressif" name="vendor_espressif" revision="9c31c8dbc3e61f166f010b2d7f241a03c4c66cc7"/>
+  <project path="vendor/flagchip" name="vendor_flagchip" revision="c39db5c2e398888a9bfcf05bf08fbea9245e12cd"/>
+  <project path="vendor/gigadevice" name="vendor_gigadevice" revision="74d4669044bf76968118f99e10ba380a957f0c67"/>
+  <project path="vendor/infineon" name="vendor_infineon" revision="0710625f941605b0892f8ed75e640e96faa96b22"/>
+  <project path="vendor/infineon/chips/aurix/illd" name="vendor_infineon_chips_aurix_illd" revision="eb7c10a827f05b3d08bdcb97272031ac78145325"/>
+  <project path="vendor/infineon/chips/aurix/illd/tc4x/Libraries" name="vendor_infineon_chips_aurix_illd_tc4x_Libraries" revision="8bc6fb3edb136986f52d902d44d679c86d2faad9"/>
+  <project path="vendor/openvela" name="vendor_openvela" revision="3b4562c2a7a0a4521dc53f1337d8ade4e6765891"/>
+  <project path="vendor/openvela/boards/vela/libs" name="libs_openvela_vela" revision="177b32e33e1a0783273cb39b9fa3b1d1a02f85c4"/>
+  <project path="vendor/openvela/boards/sil" name="vendor_openvela_boards_sil" revision="11031cda944df893e7dfec2b6b12537b3504fe58"/>
+  <project path="vendor/gravityxr" name="vendor_gravityxr" revision="a9df4c16adcc0b937195b6d0b2793a10def8ff93"/>
+  <project path="vendor/rockchip" name="vendor_rockchip" revision="27886b49988d128af4a1eb9a950644d2c22e3748"/>
+  <project path="vendor/sifli" name="vendor_sifli" revision="9c079cac3a5cce2c392318c641fd6602711eb3fb"/>
+  <project path="vendor/sifli/boards/sf32lb52/libs" name="libs_sifli_sf32lb52" revision="635b0012605ab199eaad311d1ae16fc5ece6ab99"/>
+  <project path="vendor/st" name="vendor_st" revision="f4229d147780a6ec182a2d1df6215723021c1987"/>
+  <project path="vendor/template" name="vendor_template" revision="fc50c92a309a9e8a23d98de1e0589067df1f6a3a"/>
+  <project path="vendor/xiaomi" name="vendor_xiaomi" revision="c0074af75c164e3869e7b9651c98653371ba9f6c"/>
+  <project path="vendor/xiaomi/vela" name="vendor_xiaomi_vela" revision="6e8e4f83f7960d5374d71d0faa0a3e52df83b5f9"/>
+  <project path="vendor/xiaomi/vela/pyxis" name="vendor_xiaomi_pyxis" revision="37f2a06bb43115626bed73f047e8fec47caf3061"/>
 
 
   
-  <project path="prebuilts/emulator/linux-x86_64" name="prebuilts_emulator_linux-x86_64" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/emulator/linux-aarch64" name="prebuilts_emulator_linux-aarch64" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/emulator/linux-x86_64" name="prebuilts_emulator_linux-x86_64" revision="28660b6f399ed313966207966a8549347d496157" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/emulator/linux-aarch64" name="prebuilts_emulator_linux-aarch64" revision="c085012427859384e929ea7e065dfc95bcbefd9e" clone-depth="1" groups="notdefault,platform-linux"/>
   <project path="prebuilts/emulator/darwin-aarch64" name="prebuilts_emulator_darwin-aarch64" clone-depth="1" groups="notdefault,platform-darwin"/>
   <project path="prebuilts/emulator/windows-x86_64" name="prebuilts_emulator_windows-x86_64" clone-depth="1" groups="notdefault,platform-windows"/>
-  <project path="prebuilts/emulator/skins" name="prebuilts_emulator_skins"/>
-  <project path="prebuilts/emulator/tools" name="prebuilts_emulator_tools" clone-depth="1">
+  <project path="prebuilts/emulator/skins" name="prebuilts_emulator_skins" revision="9158d9b888478e3094b41c02382c69bc00cf212f"/>
+  <project path="prebuilts/emulator/tools" name="prebuilts_emulator_tools" revision="a977121465dd57d2b931a5d39100ea621feb10d7" clone-depth="1">
     <linkfile src="emulator.sh" dest="emulator.sh"/>
   </project>
 
   
-  <project path="prebuilts/gcc/linux-x86_64/arm-none-eabi" name="prebuilts_gcc_linux-x86_64_arm-none-eabi" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/gcc/linux-x86_64/aarch64-none-elf" name="prebuilts_gcc_linux-x86_64_aarch64-none-elf" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/gcc/linux-x86_64/x86_64-none-elf" name="prebuilts_gcc_linux-x86_64_x86_64-none-elf" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/gcc/linux-x86_64/riscv-none-elf" name="prebuilts_gcc_linux-x86_64_riscv-none-elf" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/gcc/linux-aarch64/arm-none-eabi" name="prebuilts_gcc_linux-aarch64_arm-none-eabi" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/gcc/linux-aarch64/aarch64-none-elf" name="prebuilts_gcc_linux-aarch64_aarch64-none-elf" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/gcc/linux-aarch64/x86_64-none-elf" name="prebuilts_gcc_linux-aarch64_x86_64-none-elf" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/gcc/linux-aarch64/riscv-none-elf" name="prebuilts_gcc_linux-aarch64_riscv-none-elf" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/gcc/linux-x86_64/arm-none-eabi" name="prebuilts_gcc_linux-x86_64_arm-none-eabi" revision="ae483a5b940d329de7f09f49992366d560bd742a" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/gcc/linux-x86_64/aarch64-none-elf" name="prebuilts_gcc_linux-x86_64_aarch64-none-elf" revision="34b9d13c5ed206d873f89142a49156aa5cdba5f4" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/gcc/linux-x86_64/x86_64-none-elf" name="prebuilts_gcc_linux-x86_64_x86_64-none-elf" revision="5e391a125361a55ef059929b6735ec84742dbd0f" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/gcc/linux-x86_64/riscv-none-elf" name="prebuilts_gcc_linux-x86_64_riscv-none-elf" revision="64abdbf4d1c92979fcbd63119796b45f79359aac" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/gcc/linux-aarch64/arm-none-eabi" name="prebuilts_gcc_linux-aarch64_arm-none-eabi" revision="b8ef999a335493e659c6ef47d5240a863a80c94e" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/gcc/linux-aarch64/aarch64-none-elf" name="prebuilts_gcc_linux-aarch64_aarch64-none-elf" revision="b19c08021f2cb64c33a84baf1d44c4c5d4574715" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/gcc/linux-aarch64/x86_64-none-elf" name="prebuilts_gcc_linux-aarch64_x86_64-none-elf" revision="15485b8919f6e195de2e187f3bc3e12b3c375b32" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/gcc/linux-aarch64/riscv-none-elf" name="prebuilts_gcc_linux-aarch64_riscv-none-elf" revision="347f1817bd92c15eb13406e0920efb7d64b23aa8" clone-depth="1" groups="notdefault,platform-linux"/>
   <project path="prebuilts/gcc/windows-x86_64/arm-none-eabi" name="prebuilts_gcc_windows-x86_64_arm-none-eabi" clone-depth="1" groups="notdefault,platform-windows"/>
   <project path="prebuilts/gcc/windows-x86_64/aarch64-none-elf" name="prebuilts_gcc_windows-x86_64_aarch64-none-elf" clone-depth="1" groups="notdefault,platform-windows"/>
   <project path="prebuilts/gcc/windows-x86_64/x86_64-none-elf" name="prebuilts_gcc_windows-x86_64_x86_64-none-elf" clone-depth="1" groups="notdefault,platform-windows"/>
@@ -264,30 +265,30 @@
   <project path="prebuilts/gcc/darwin-aarch64/riscv-none-elf" name="prebuilts_gcc_darwin-aarch64_riscv-none-elf" clone-depth="1" groups="notdefault,platform-darwin"/>
 
   
-  <project path="prebuilts/qemu/linux-x86_64" name="prebuilts_qemu_linux-x86_64" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/qemu/linux-aarch64" name="prebuilts_qemu_linux-aarch64" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/qemu/linux-x86_64" name="prebuilts_qemu_linux-x86_64" revision="7c52513d9b8ede9bc3b87df6323c91cadd8fada7" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/qemu/linux-aarch64" name="prebuilts_qemu_linux-aarch64" revision="d8a830ffc442cd5ff874064409479927411ebd98" clone-depth="1" groups="notdefault,platform-linux"/>
   <project path="prebuilts/qemu/darwin-aarch64" name="prebuilts_qemu_darwin-aarch64" clone-depth="1" groups="notdefault,platform-darwin"/>
   <project path="prebuilts/qemu/windows-x86_64" name="prebuilts_qemu_windows-x86_64" clone-depth="1" groups="notdefault,platform-windows"/>
 
   
-  <project path="prebuilts/build-tools/linux-x86_64" name="prebuilts_build-tools_linux-x86_64" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/build-tools/linux-aarch64" name="prebuilts_build-tools_linux-aarch64" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/build-tools/linux-x86_64" name="prebuilts_build-tools_linux-x86_64" revision="b356f5ea938d9c198fed0480986fb2b6a492b93d" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/build-tools/linux-aarch64" name="prebuilts_build-tools_linux-aarch64" revision="0f442b22c2dcba97e5d476e1990bdf38e3ddbdbb" clone-depth="1" groups="notdefault,platform-linux"/>
   <project path="prebuilts/build-tools/darwin-aarch64" name="prebuilts_build-tools_darwin-aarch64" clone-depth="1" groups="notdefault,platform-darwin"/>
   <project path="prebuilts/build-tools/windows-x86_64" name="prebuilts_build-tools_windows-x86_64" clone-depth="1" groups="notdefault,platform-windows"/>
 
   
-  <project path="prebuilts/cmake/linux-x86_64" name="prebuilts_cmake_linux-x86_64" clone-depth="1" groups="notdefault,platform-linux"/>
-  <project path="prebuilts/cmake/linux-aarch64" name="prebuilts_cmake_linux-aarch64" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/cmake/linux-x86_64" name="prebuilts_cmake_linux-x86_64" revision="3de30b9720ba86256f48d46c38cea13b5042548e" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/cmake/linux-aarch64" name="prebuilts_cmake_linux-aarch64" revision="4a3f68185a41ceb70a50957ebed0e606d2b7fa8a" clone-depth="1" groups="notdefault,platform-linux"/>
   <project path="prebuilts/cmake/darwin-aarch64" name="prebuilts_cmake_darwin-aarch64" clone-depth="1" groups="notdefault,platform-darwin"/>
   <project path="prebuilts/cmake/windows-x86_64" name="prebuilts_cmake_windows-x86_64" clone-depth="1" groups="notdefault,platform-windows"/>
 
-  <project path="prebuilts/gcc/linux-x86_64/xtensa-esp32s3-elf" name="openvela-toolchain-external/prebuilts_gcc_linux-x86_64_xtensa-esp32s3-elf" remote="git" revision="main" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/gcc/linux-x86_64/xtensa-esp32s3-elf" name="openvela-toolchain-external/prebuilts_gcc_linux-x86_64_xtensa-esp32s3-elf" revision="d625d9ff410e13ae7da16742452810048f10d102" remote="git" clone-depth="1" groups="notdefault,platform-linux"/>
 
   
-  <project path="prebuilts/gcc/linux-x86_64/tricore-elf" name="prebuilts_gcc_linux_tricore" revision="trunk" clone-depth="1" groups="notdefault,platform-linux"/>
+  <project path="prebuilts/gcc/linux-x86_64/tricore-elf" name="prebuilts_gcc_linux_tricore" revision="4632f15d560a71ea877589f024824dd3383636ac" clone-depth="1" groups="notdefault,platform-linux"/>
 
 
 
-  <project path="prebuilts/tools" name="prebuilts_tools" clone-depth="1"/>
+  <project path="prebuilts/tools" name="prebuilts_tools" revision="b7901dd5b473c20948d261f76146675f77ac16cb" clone-depth="1"/>
 
 </manifest>

@@ -16,9 +16,17 @@
 - 复用 `verify layers` 通过（499 sources / 252 Kconfig / 2 legacy exceptions）；
   三板配置/分区均解析正常，SDK 为 Core/Board 的 `cp + ap` 与 AIDK 的
   `cp-aidk + ap-aidk`。这是静态核查，不是三板干净编译或实板重验。
-- 公开复现仍有缺口：`packages/ai_agent@e65550f` 的 21 个本地修改未形成
-  可获取的公共提交。无新 patch、无虚构 fork、无依赖升级；依赖发布、
-  最终干净复现和正式比赛提交仍须分别收口。
+- Agent 21 个既有修改已原样冻结并推送用户手动建立的 fork：
+  `Embracecactus/packages_ai_agent@add0db19d00301769907a5ece03fb9bd88d2edb4`，
+  官方基线 `e65550f`，GitHub compare ahead 1 / behind 0，远端 SHA 一致。
+  团队 manifest 固定该提交及当前 Linux 公共依赖，不恢复 patch、不升级 SDK。
+  依赖已可获取；干净构建、官方 PR 合入与正式网站提交仍分别记录。
+- App 授权文件按设备单独供应，不随 APK/仓库/ZIP 公开；现役 `voice pairing
+  --direct-cloud` 与 `--resume` 的证书、输出和失败边界已写入 App README。
+  不读取/上传当前设备秘密，不重新认领或更换 635 的身份。
+- 合并作者另一会话的四张实物照片、海报和 18 页 PPT 成品，用于统一比赛 ZIP；
+  技术报告按提交模板提供，视频继续保持主片小于 5 分钟。
+  635 是最终包，本轮只做源代码/依赖/文档交付，不再做硬件验证。
 
 ## 2026-09-20 运行时 Skill 补齐（已实板验证通过）
 

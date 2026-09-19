@@ -42,7 +42,8 @@ N15/N17 文档恢复旧地址、旧脚本或旧信任设计。
 - [参赛技术报告](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)：当前作品、量化结果和分版本验收；
 - 视频与三板构建入口见仓库 README；三板共享 SoC 实现，T5-Board 运行 Dolphin，
   AIToyBoard 运行傻妞。635 Skill/语音/显示已经用户实测；App OTA 引用 634。
-  公开 Agent 依赖仍有未提交修改，不能把本机可构建写成干净 manifest 可复现。
+  Agent 既有扩展已发布并由 manifest 固定到 fork `add0db19`；干净复现结果与
+  fork 发布、官方合入及实板验收分别报告，见来源记录与 Master Plan。
 
 - [傻妞 AIDK AI Toy 全项目 Master Plan](shaniu-master-plan.md)：统一产品目标、官方框架/
   设备适配、控制 App、模型资产、实际里程碑与验收结果；

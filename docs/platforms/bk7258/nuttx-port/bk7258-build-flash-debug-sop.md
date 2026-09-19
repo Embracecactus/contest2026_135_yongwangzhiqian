@@ -13,9 +13,11 @@ OpenVela workspace and linkfiles is not a build-ready workspace.
 635 runtime Skill, voice and display were confirmed by the user with CodeBuddy;
 App control and actual App OTA retain their separate 634 acceptance. The 635
 full package has rollback floor 635; OTA-only does not replace BL1/BL2.
-Public Agent `e65550f` still has unpublished local extensions in the working
-build: a team-repository push is not clean-manifest reproduction. Do not
-restore retired patches or silently substitute dependency source to hide it.
+The existing Agent extensions over official `e65550f` are published unchanged
+as `Embracecactus/packages_ai_agent@add0db19` and pinned by the team manifest.
+Linux dependency revisions are frozen in `openvela.xml`; no retired patch chain
+is restored. Dependency publication is separate from clean-build verification
+and board acceptance. Firmware 635 remains the final tested candidate.
 
 ## One host entry
 
