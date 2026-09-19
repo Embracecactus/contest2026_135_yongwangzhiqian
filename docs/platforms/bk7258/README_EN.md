@@ -43,8 +43,9 @@ addresses, scripts, or trust policy from historical N15/N17 documents.
 ## Platform documents
 
 - [Contest report](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) and the root README
-  contain the videos and build guide. The official Agent dependency still has
-  unpublished local changes; a clean public-manifest reproduction is not claimed.
+  contain the videos and build guide. Existing Agent changes are published in
+  fork commit `add0db19` and pinned by the manifest; publication, clean-build
+  verification and board acceptance remain separate claims.
 - [Shaniu Master Plan](shaniu-master-plan.md) separates 635 Skill/voice/display
   acceptance from the 634 App control/OTA results.
 

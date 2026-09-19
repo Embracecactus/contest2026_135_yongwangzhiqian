@@ -51,24 +51,27 @@ T5AI-EVB is not interchangeable with T5-Board.
 **Publication boundary:** source snapshot `82610138` is on
 `feat/shaniu-contest-delivery-20260920`, based on official `7079493e`.
 A fork push is not an upstream merge or completed contest submission.
-The Shaniu product still depends on unpublished local changes to
-`packages/ai_agent@e65550f18759f086d7f544edcf17d1e31223244f`.
-Consequently, a clean public-manifest build of the complete product is
-**not yet established**. No retired patch/overlay chain is supplied as a workaround.
+The existing Agent changes are now published unchanged as
+[`add0db19`](https://github.com/Embracecactus/packages_ai_agent/commit/add0db19d00301769907a5ece03fb9bd88d2edb4),
+based on official `e65550f18759f086d7f544edcf17d1e31223244f` (21 files).
+The team manifest pins that fork commit and 248 checked-out Linux dependency revisions.
+No retired patch/overlay chain is restored. Public source availability is not an
+upstream merge, a clean three-board build, or new board acceptance.
 See [provenance](SOURCE_PROVENANCE.md).
 
 Use Ubuntu 22.04 with the standard openvela build prerequisites:
 
 ```bash
-repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian \
-  -b dev-ai-contest-2026 \
+repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian \
+  -b feat/shaniu-contest-delivery-20260920 \
   -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk
-repo sync -c -j8
 ```
 
 Before the delivery branch is merged, apply the team-project-only local
-manifest shown in the [Chinese build guide](README.md#评审构建指南).
-It does not resolve the Agent dependency gap.
+manifest shown in the [Chinese build guide](README.md#评审构建指南), then run
+`repo sync -c -j8`. The main manifest already supplies the Agent fork pin.
+After the official merge, use the official repository and contest branch without
+the team-project override.
 Record `repo manifest -r` and dirty dependency state, then enter the team repository:
 
 ```bash

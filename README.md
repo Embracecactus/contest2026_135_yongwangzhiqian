@@ -66,18 +66,19 @@ Wi-Fi / BT / Flash / OTA       官方 Agent / Session / Voice / Media
 
 ## 评审构建指南
 
-### 发布状态与已知复现缺口
+### 发布状态与依赖身份
 
 本次代码快照为 `82610138`，交付分支为
 `feat/shaniu-contest-delivery-20260920`，基于官方比赛分支 `7079493e`。
 **推送到 fork 不等于官方 PR 已合入或比赛已提交。**
 
-当前 AIToyBoard 产品使用官方 `packages/ai_agent@e65550f18759f086d7f544edcf17d1e31223244f`
-及本机尚未发布的 Agent 扩展。团队仓提交并不包含那个子仓的工作树。
-因此，下面给出真实入口和依赖获取方法，但**暂不能保证仅用公开 manifest
-干净编译出完整傻妞**；最终三板干净复现也尚未重跑。
-这个缺口必须由可获取的依赖提交和实际构建结果关闭，不能靠退役 patch、源码覆盖
-或把编译失败写成成功来掩盖。依赖状态见 [来源记录](SOURCE_PROVENANCE.md)。
+635 使用的既有 Agent 扩展已原样发布到
+[Agent fork 的固定提交](https://github.com/Embracecactus/packages_ai_agent/commit/add0db19d00301769907a5ece03fb9bd88d2edb4)，
+基于官方 `e65550f18759f086d7f544edcf17d1e31223244f`，21 个文件、+1830/-549 行。
+团队 manifest 固定引用 `add0db19d00301769907a5ece03fb9bd88d2edb4`，
+`openvela.xml` 固定本次 Linux 工作区的 248 个公共依赖提交；SDK 版本不变。
+不恢复退役 patch，也不在构建时覆盖官方源码。**依赖已公开不等于已合入上游，
+更不等于三板干净构建或 635 实板重验。**来源及验证范围见 [来源记录](SOURCE_PROVENANCE.md)。
 
 ### 1. 获取完整 openvela 工作区
 
@@ -85,15 +86,14 @@ Wi-Fi / BT / Flash / OTA       官方 Agent / Session / Voice / Media
 [openvela 构建环境](https://github.com/open-vela/docs)。不要只 clone 本团队仓后直接运行 NuttX 构建。
 
 ```bash
-repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian \
-  -b dev-ai-contest-2026 \
+repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian \
+  -b feat/shaniu-contest-delivery-20260920 \
   -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk
-repo sync -c -j8
 ```
 
-在本次分支合入前，需在工作区 `.repo/local_manifests/shaniu-delivery.xml`
-保存以下覆盖后再次 `repo sync -c -j8`。它只切换团队项目，不复制 linkfile，
-也**不解决上述 Agent 依赖缺口**：
+上面先从已发布分支取得固定依赖的 manifest。在官方合入前，再于工作区
+`.repo/local_manifests/shaniu-delivery.xml` 保存以下覆盖，然后执行
+`repo sync -c -j8`。覆盖只切换团队项目；Agent pin 与 linkfile 由主 manifest 提供：
 
 ```xml
 <manifest>
@@ -105,7 +105,8 @@ repo sync -c -j8
 </manifest>
 ```
 
-官方合入后使用官方 manifest，不再需要这份覆盖。固定一次复现的依赖身份：
+官方合入后可把 init 仓库换成 `open-vela/contest2026_135_yongwangzhiqian`、
+分支换成 `dev-ai-contest-2026`，不再需要团队项目覆盖。固定一次复现的依赖身份：
 
 ```bash
 repo manifest -r -o resolved-manifest.xml
@@ -156,6 +157,8 @@ tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 8
 签名、分区、设备身份和烧录步骤见
 [现役构建/发布 SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)。
 编译不需要私人设备身份、云 token、原始训练录音或签名私钥。
+公开源码可复现实现与构建输入，不承诺不同签名、私有提示音或用户配置下的
+全片镜像逐字节等同于同板 635 包；635 保持最终实板候选，不再部署新版本。
 同板恢复包含设备数据，不公开、不跨板烧录，也不为复现自动轮换信任根。
 
 ### 4. Android、模型与显示资源
@@ -171,6 +174,8 @@ tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 8
 App、训练代码和产品模型目前在本仓统一版本管理；不必另建 GitHub 仓库。
 Android 工程不参加 NuttX 构建，训练数据也不通过 linkfile 混入固件。
 `packages/ai_agent` 是官方独立依赖项目，不属于本团队仓的子目录。
+本次 fork 只交付它的既有产品集成扩展；新板的 App 授权资料请按
+[独立身份供应流程](android/shaniu-companion/README.md#授权文件与新板复现)准备，不能复制作者的认领秘密。
 
 固件内置公开 KWS 为 32 通道、23,640 B，SHA 前缀 `922eba91`；
 实机曾通过 App 激活 64 通道、47,672 B 候选 `536ebba8`，

@@ -5,14 +5,20 @@
 
 - 发布代码快照 `82610138` 基于官方比赛分支 `7079493e`；后者与开发基线
   `295e57c4` 的源码树一致，因此采用线性提交，不回退或覆盖开发工作树。
-  本轮不创建、恢复或应用历史 patch，不修改官方依赖版本。
-- 官方 Agent 远端 `dev-ai-contest-2026` 仍为 `e65550f18759f086d7f544edcf17d1e31223244f`；
-  本机另有下节披露的未提交扩展。本团队仓推送不能替代那个公共依赖的发布。
+  本轮不创建、恢复或应用历史 patch；Linux 公共依赖按已采用的提交固定，不升级。
+- 官方 Agent 基线为 `e65550f18759f086d7f544edcf17d1e31223244f`；用户创建
+  `Embracecactus/packages_ai_agent` fork 后，将下节 21 文件既有扩展原样提交为
+  `add0db19d00301769907a5ece03fb9bd88d2edb4` 并推送
+  `feat/shaniu-voice-integration-635`。远端 SHA 已核对；相对官方 ahead 1 / behind 0。
+  该提交与原开发工作树差分 SHA256 均为
+  `bc6ac0747bf857873608762c0f9f19abd16ce3fe4a61dcfaee9b9c583c02dcef`。
+  主 manifest 固定此公开提交；未创建或合入官方 Agent PR。
 - 本次发布前核对：SDK（`cb080de1`）、NuttX（`76354c63`）、Media
   （`fb7db0e9`）及包含 FFmpeg 的 external（`f2c1425e`）工作树，相对各自
   锁定提交均无已跟踪源码修改；NuttX 有两处未跟踪的 OpenAMP 手工目录。
   这不等于整个 openvela 工作区零改动：Agent 的 21 个修改文件单列如下。
-  Android 工程和模型工具继续在团队仓管理，不创建虚构的 Agent fork 或训练子仓。
+  Android 工程和模型工具继续在团队仓管理，不另建 App/训练仓；Agent fork 是
+  上述已实际存在并可获取的依赖仓，不是将官方依赖复制进团队仓。
 - 635 运行时 `device-assistant.md` 和 `read_file` 接线由团队产品层提供，复用
   官方 Skill loader、tool_files 和工具注册机制；用户与 CodeBuddy 已完成
   安装/语音/显示验证，App 控制和 OTA 仍引用 634，635 未重测。
@@ -21,6 +27,12 @@
   与生成的 App 图标、眼睛图集的来源分别记录，不把真人视频封面说成 AI 生成。
 - 私人原始语音、实验语料/候选、可选授权应答 PCM、密钥、认证文件和同板恢复
   镜像不公开。`logs/` 未手工删改；第三方模型/数据许可不由仓库 Apache-2.0 覆盖。
+- 照片、海报、18 页答辩 PPT 复用作者提供的 `openvela-showcase-v2` 成品；
+  三块开发板实拍共四张原图，实际为正面/俯拍，未伪造后视/侧视照片。
+  仅公开交付成品，不复制另一会话的原始记录、个人路径或私有数据。
+- 635 为最终板测包，不再烧录或重测。公开源码可重建实现，不承诺更换用户身份、
+  签名或私有音频后仍产生同一全片哈希。旧 build manifest 未单列 Agent 输入摘要，
+  因此本次差分对应证明不冒充 635 完整二进制逐字节干净复现。
 
 
 ## 2026-09-19 已认领设备只读 Wi-Fi 扫描
@@ -69,8 +81,9 @@
   `src/core/{agent_loop.c,agent_mem.h,message_bus.[ch]}`、
   `src/llm/llm_proxy.[ch]`、`src/tools/tool_registry.[ch]`、
   `src/voice/{audio_capture,audio_playback,voice_asr,voice_channel.[ch],voice_tts,volc_asr,volc_tts}.c`。
-  当前构建直接编译该依赖工作树，因此本轮**不是干净 manifest 复现**；对应公共仓
-  提交/PR 尚未创建、未合入。未合入依赖在此显式披露，不以主仓提交冒充已完成复现。
+  历史构建直接编译该依赖工作树，故不是干净 manifest 复现；2026-09-20 已原样
+  发布为上节 Agent fork 提交，并固定 manifest。官方 PR 仍未创建/合入；
+  依赖发布、源码构建和实板验收是不同结论。
 - 下方旧 `41723c61` pin、旧补丁链和构建派生机制的条目为历史来源记录；
   这些机制已随团队 `295e57c4` 退役，不代表当前构建仍采用。本轮未改 NuttX、SDK、
   FFmpeg 源码或任何依赖 revision，未将当前依赖工作树宣称为干净上游。

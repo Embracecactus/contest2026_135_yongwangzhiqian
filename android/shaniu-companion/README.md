@@ -66,6 +66,58 @@ NFC 芯片驱动已有适配，但未接入当前板端产品流程；本次演�
 - 可选持久记忆由设备加密存储并投影回官方 Session；手机不托管对话历史。
   删除/禁用需设备完成并确认，收到请求不等于已经持久化。
 
+## 授权文件与新板复现
+
+授权文件不是公共配置：`provision-bootstrap-v1` JSON 中含 `device_id`、
+`certificate_sha256` 和 32 字节随机 `possession_secret`（Base64 编码）。
+它不包含设备私钥，但持有秘密足以参与认领，因此**不放入 Git、APK、比赛 ZIP
+或公开 Release**。云服务 token、Android 控制密钥及 OTA 签名私钥也分别保密。
+
+评审编译 APK/固件不需要作者的授权文件。实际使用自己购入的新板时，需供应
+该板自己的设备身份：有效的 EC P-256 证书/私钥，证书用于 TLS serverAuth，
+允许 digitalSignature。App 校验证书精确 SHA256 pin、有效期及用途；不能用
+关闭验证或通用密码替代。证书私钥不是固件 OTA 签名根。
+
+新板所有者尚无设备身份时，可在仓库之外准备一套仅用于自己新板的证书；
+已有设备不执行此步骤，不覆盖已有密钥：
+
+```bash
+umask 077
+shaniu_identity_dir=$(mktemp -d)
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+  -sha256 -nodes -days 3650 -subj '/CN=shaniu-device' \
+  -addext 'basicConstraints=critical,CA:FALSE' \
+  -addext 'keyUsage=critical,digitalSignature' -addext 'extendedKeyUsage=serverAuth' \
+  -keyout "$shaniu_identity_dir/device-key.pem" \
+  -out "$shaniu_identity_dir/device-cert.pem"
+```
+
+此命令是新板供应说明，本轮未执行。使用后将该临时目录安全迁入自己的私密
+持久目录再供应，勿留待系统清理；证书有效期校验依赖手机时钟正常。
+
+仅对已启动、尚未供应身份的自有新板，使用现役 CLI（以下占位符替换为本机
+安全目录与真实串口；**不要对作者的 635 演示板重新执行**）：
+
+```bash
+tools/bk7258/bk7258.py voice pairing \
+  --console-port <实际串口> --device-id <新板唯一标识> --direct-cloud \
+  --client-cert <安全目录/device-cert.pem> \
+  --client-key <安全目录/device-key.pem> \
+  --activation-output <安全目录/owner-bootstrap.json>
+```
+
+命令从团队仓根目录执行；虽沿用 `client-*` 参数名，direct-cloud 模式实际
+供应的是板端 TLS 身份。既有工具随机生成持有秘密，以 `0600`、不覆盖方式
+先保存授权文件，再通过有线入口供应同一身份。串口结果不确定时保留该文件，
+查清板态后仅可用原证书/私钥、原文件及 `--resume` 续接，不能另造一份秘密。
+无需另建认证服务器、NFC 流程或新工具。
+
+通过本地 USB 等私密方式把 **owner-bootstrap.json 单独**交给该板的合法使用者，
+在 App 导入后完成 BLE 认领与配网。不要传设备私钥；不要把文件放在公共下载链接。
+手机删除绑定后，应重新导入同一板授权文件并读取现状，不清空板端数据。
+635 现有设备与手机数据保持原样；本次仅完善供应说明，不轮换任何身份，
+也不声称新板首次供应已重新实测。
+
 ## 眼睛资源与真实 App OTA
 
 眼睛资源和固件均由手机临时 HTTPS 服务通过 Wi-Fi 供设备下载；
@@ -96,6 +148,6 @@ BLE 只传已认证的来源描述、CA、完整性参数及控制状态，不�
 | `app/src/main/res/` | 原创红色水晶伴侣图标与 UI 资源 |
 
 App 工程与固件适配在同一团队仓版本管理，不额外建立 App Git 仓或 NuttX linkfile。
-官方 Agent 是工作区另一依赖项目；其未发布扩展会影响设备端干净复现，
-不应混淆为 Android Gradle 依赖。来源和许可见
+官方 Agent 是工作区另一依赖项目，现有扩展由 manifest 固定到公开 fork
+`add0db19`；它不是 Android Gradle 依赖。来源和许可见
 [App 来源记录](SOURCE_PROVENANCE.md)与[项目来源记录](../../SOURCE_PROVENANCE.md)。
