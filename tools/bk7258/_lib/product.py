@@ -399,6 +399,70 @@ def create_base_evidence(
     }
 
 
+def relocate_base(*, source_layout: layout_domain.Layout,
+                  layout: layout_domain.Layout, base: Path,
+                  output: Path) -> dict[str, object]:
+    """按分区名称原样搬移同板数据，不解释、清空或改写密文内容。"""
+
+    geometry = ("flash_size", "erase_size", "crc_data_size", "crc_total_size",
+                "xip_base", "storage_topology")
+    if any(getattr(source_layout, field) != getattr(layout, field)
+           for field in geometry):
+        raise ProductError("base relocation cannot change device geometry")
+    if source_layout.sha256 == layout.sha256:
+        raise ProductError("base relocation requires different layouts")
+    protected = {"preserve", "immutable"}
+    source_rows = {row.name: row for row in source_layout.partitions
+                   if row.policy in protected}
+    target_rows = {row.name: row for row in layout.partitions
+                   if row.policy in protected}
+    if not source_rows or source_rows.keys() != target_rows.keys():
+        raise ProductError("base relocation must retain every protected partition")
+    source = _regular_bytes(base, "current same-device base")
+    if len(source) != layout.flash_size:
+        raise ProductError("base relocation requires a complete Flash snapshot")
+    output = output.absolute()
+    if output.exists() or output.is_symlink():
+        raise ProductError(f"relocated base already exists: {output}")
+    result = bytearray(source)
+    mappings = []
+    for name, target in target_rows.items():
+        old = source_rows[name]
+        if old.kind != "data" or target.kind != old.kind \
+                or target.size != old.size or target.policy != old.policy \
+                or target.readable != old.readable or target.writable != old.writable:
+            raise ProductError(f"protected partition contract changed: {name}")
+        if old.policy == "immutable" and target.offset != old.offset:
+            raise ProductError(f"immutable partition cannot move: {name}")
+        # 始终从原快照取字节，源/目标地址重叠也不能污染后续搬移输入。
+        payload = source[old.offset:old.end]
+        result[target.offset:target.end] = payload
+        mappings.append({"partition": name, "source_offset": old.offset,
+                         "target_offset": target.offset, "size": target.size,
+                         "sha256": _digest(payload)})
+    for name, target in target_rows.items():
+        old = source_rows[name]
+        if result[target.offset:target.end] != source[old.offset:old.end]:
+            raise ProductError(f"relocated partition mismatch: {name}")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{output.name}.", dir=output.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(result)
+            stream.flush()
+            os.fsync(stream.fileno())
+        package_domain._publish_no_replace(temporary, output, "relocated base")
+    finally:
+        temporary.unlink(missing_ok=True)
+    return {"format": "bk7258.base-relocation/1", "output": str(output),
+            "source_layout": source_layout.sha256, "target_layout": layout.sha256,
+            "source_sha256": _digest(source), "sha256": _digest(result),
+            "partitions": mappings}
+
+
 def _package_version(document: Mapping[str, object]) -> str | None:
     security = document.get("security")
     if not isinstance(security, dict) or security.get("mode") == "unsigned":

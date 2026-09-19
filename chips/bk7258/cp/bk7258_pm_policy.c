@@ -68,7 +68,8 @@ static int bk7258_pm_prepare(FAR struct pm_callback_s *callback, int domain,
    * are still true; a prepare rejection leaves the previous PM state active.
    */
 
-#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+#if defined(CONFIG_BK7258_PM_COORDINATED_STANDBY) && \
+    defined(CONFIG_BK7258_PM_COORDINATED_STANDBY_ENTRY)
   if (state == PM_STANDBY)
     {
       return bk7258_pm_cp_can_standby() ? OK : -EBUSY;
@@ -261,7 +262,8 @@ void arm_pminitialize(void)
    * first-stage PM_IDLE ceiling.
    */
 
-#ifdef CONFIG_BK7258_PM_COORDINATED_STANDBY
+#if defined(CONFIG_BK7258_PM_COORDINATED_STANDBY) && \
+    defined(CONFIG_BK7258_PM_COORDINATED_STANDBY_ENTRY)
   pm_stay(PM_IDLE_DOMAIN, PM_STANDBY);
 #else
   pm_stay(PM_IDLE_DOMAIN, PM_IDLE);

@@ -4,6 +4,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* 存储记录容量独立于 16 KiB 认领协议；容纳三轮有界加密历史。
+ * 各协议仍以自己的容量检查输入，不扩展 BLE 配置报文。
+ */
+#define BKPROV_STORE_RECORD_MAX 32768u
+
 /* One filesystem worker owns this store (AP may use CP RPMsgFS). root is a private
  * directory on the on-chip LittleFS, never an AP MSC/removable volume.
  * No mount, format, identity generation or network side effects occur here.

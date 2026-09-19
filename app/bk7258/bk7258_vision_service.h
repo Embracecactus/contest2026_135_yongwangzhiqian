@@ -8,10 +8,13 @@
 #define __APP_BK7258_BK7258_VISION_SERVICE_H
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 int bk7258_vision_service_prepare(void);
 int bk7258_vision_service_start(void);
+/* 只在现有 owner 空闲时封闭新捕获；关机失败可恢复，不强拆 V4L2。 */
+int bk7258_vision_quiesce(bool quiesce);
 /* Synchronous fresh V4L2 capture; the caller owns product presentation. */
 int bk7258_vision_capture_jpeg(uint8_t *destination,
                                 size_t destination_capacity,

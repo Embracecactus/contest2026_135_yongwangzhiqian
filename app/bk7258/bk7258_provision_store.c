@@ -79,6 +79,7 @@ int bkprov_store_check_filesystem(const char *root)
        !strcmp(root, "/cpdata/shaniu/voice-volume") ||
        !strcmp(root, "/cpdata/shaniu/voice-ota") ||
        !strcmp(root, "/cpdata/shaniu/memory-policy") ||
+       !strcmp(root, "/cpdata/shaniu/memory-snapshot") ||
        !strcmp(root, "/cpdata/shaniu/cloud-models") ||
        !strcmp(root, "/cpdata/shaniu/wake-models")))
     return fs.f_blocks > 0 && fs.f_bsize > 0 ? 0 : -ENODEV;
@@ -124,7 +125,7 @@ int bkprov_store_load(struct bkprov_store_s *store, void *bundle,
   if (fd < 0) return -errno;
   if (fstat(fd, &info) < 0) { ret = -errno; goto done; }
   if (!S_ISREG(info.st_mode) || info.st_size <= HEADER ||
-      info.st_size > HEADER + BKPROV_BUNDLE_MAX)
+      info.st_size > HEADER + BKPROV_STORE_RECORD_MAX)
     { ret = -EBADMSG; goto done; }
   ret = transfer(fd, header, HEADER, 0);
   if (ret < 0) goto done;
@@ -165,14 +166,14 @@ int bkprov_store_commit(struct bkprov_store_s *store, uint64_t expected,
   uint64_t revision;
   int ret, fd;
   if (store == NULL || store->active[0] == 0 || bundle == NULL ||
-      transaction == NULL || size == 0 || size > BKPROV_BUNDLE_MAX ||
+      transaction == NULL || size == 0 || size > BKPROV_STORE_RECORD_MAX ||
       expected == UINT64_MAX)
     return -EINVAL;
-  previous = malloc(BKPROV_BUNDLE_MAX);
+  previous = malloc(BKPROV_STORE_RECORD_MAX);
   if (previous == NULL) return -ENOMEM;
-  ret = bkprov_store_load(store, previous, BKPROV_BUNDLE_MAX,
+  ret = bkprov_store_load(store, previous, BKPROV_STORE_RECORD_MAX,
                           &previous_size, &revision, NULL);
-  mbedtls_platform_zeroize(previous, BKPROV_BUNDLE_MAX);
+  mbedtls_platform_zeroize(previous, BKPROV_STORE_RECORD_MAX);
   free(previous);
   if (ret == -ENOENT) revision = 0;
   else if (ret < 0) return ret;

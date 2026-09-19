@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -545,4 +546,96 @@ int bkdisplay_store_install(const char *root, const char *filename,
     }
 
   return bkdisplay_store_activate(root, filename, selection);
+}
+
+int bkdisplay_store_import(const char *root, const void *data, size_t size,
+                           struct bkdisplay_store_selection_s *selection)
+{
+  char temporary[BKDISPLAY_PACK_PATH_SIZE];
+  char staged[BKDISPLAY_PACK_PATH_SIZE];
+  char filename[BKDISPLAY_STORE_FILENAME_SIZE];
+  struct bkdisplay_pack_info_s info;
+  struct bkdisplay_pack_s *pack = NULL;
+  struct stat statbuf;
+  uint16_t *pixels = NULL;
+  int fd;
+  int ret;
+
+  if (data == NULL || size < 128 || size > BKDISPLAY_MAX_PACK_BYTES)
+    {
+      return -EINVAL;
+    }
+
+  ret = bkdisplay_store_ensure(root);
+  if (ret == 0)
+    {
+      ret = bkdisplay_store_path(temporary, sizeof(temporary), root,
+                                 BKDISPLAY_STORE_STAGING "/.upload.bkep");
+    }
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  /* 只覆盖本服务的未激活暂存文件；校验前不改活动标记或已安装资源。 */
+
+  fd = open(temporary, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+  if (fd < 0)
+    {
+      return bkdisplay_store_errno();
+    }
+
+  ret = bkdisplay_store_write_all(fd, data, size);
+  if (ret == 0 && fsync(fd) < 0)
+    {
+      ret = bkdisplay_store_errno();
+    }
+
+  if (close(fd) < 0 && ret == 0)
+    {
+      ret = bkdisplay_store_errno();
+    }
+
+  if (ret == 0)
+    {
+      ret = bkdisplay_pack_open(temporary, &pack, &info);
+    }
+
+  if (ret == 0)
+    {
+      pixels = malloc(BKDISPLAY_CANVAS_PIXELS * sizeof(*pixels));
+      ret = pixels == NULL ? -ENOMEM :
+        bkdisplay_pack_render(pack, "neutral", BKDISPLAY_SIDE_UNMAPPED,
+                              pixels, BKDISPLAY_CANVAS_PIXELS);
+    }
+
+  free(pixels);
+  bkdisplay_pack_close(pack);
+  if (ret == 0)
+    {
+      snprintf(filename, sizeof(filename), "%s.bkep", info.pack_id);
+      if (snprintf(staged, sizeof(staged), "%s/" BKDISPLAY_STORE_STAGING
+                   "/%s", root, filename) >= (int)sizeof(staged))
+        {
+          ret = -ENAMETOOLONG;
+        }
+      else if (stat(staged, &statbuf) == 0)
+        {
+          ret = -EEXIST;
+        }
+      else if (errno != ENOENT || rename(temporary, staged) < 0)
+        {
+          ret = bkdisplay_store_errno();
+        }
+      else
+        {
+          ret = bkdisplay_store_install(root, filename, selection);
+          /* 仅清理本次重命名得到的暂存文件；已安装包仍保留。 */
+          (void)unlink(staged);
+        }
+    }
+
+  (void)unlink(temporary);
+  return ret;
 }

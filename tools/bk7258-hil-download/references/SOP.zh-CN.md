@@ -11,12 +11,15 @@
 
 板型 profile 位于 `board-profiles.json`。COM 号不写死，必须由当次 Windows
 枚举和板端日志确认。
+下方 `<skill-dir>` 为本 Skill 所在目录；端口、文件、哈希和范围占位符必须来自
+当前目标与产物清单。保留整个 Skill 目录及相邻 Windows 调试工具即可复用，
+不需要原作者的用户目录、历史固件或固定盘符。
 
 ## 2. 当前 profile
 
 | Profile | 下载/控制台拓扑 | BK Loader 输入 | 复位规则 |
 |---|---|---|---|
-| `aidk_ai_toy` | 同一 CH340 UART0 | 8 MiB 单 BIN，或有界已签名 CP/AP-B 段 | BK Loader 原子发送 `reset reboot`；禁止 RTS/DTR；必要时人工 K1 |
+| `aidk_ai_toy` | 同一 CH340 UART0 | 8 MiB 单 BIN，或有界已签名非活动 CP/AP 段 | BK Loader 原子发送 `reset reboot`；禁止 RTS/DTR；必要时人工 RESET/CEN |
 | `t5_board` | 同一 UART0 COM | 单 BIN 或受清单约束的多段 | USB 转串口支持同口内联 RTS；不借用 AIDK 软件重启参数 |
 | `t5ai_core` | 下载/复位 COM 与 UART0 console 分离 | 单 BIN 或受清单约束的多段 | 在下载/复位 COM 上发 RTS；console COM 只采集；J-Link 独立授权 |
 
@@ -43,6 +46,10 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py profiles --board t5board
 
 目标、端口、产物语义、范围或授权任一不清楚时停止。
 
+只有签名包和板级配置还不足以选择写入目标。完整恢复使用项目既有发布流程已经
+验证的同板完整 BIN；分段部署还需要该流程给出的完整待写段与当前非活动槽证据。
+不手工裁切签名包、不推测槽位，也不在本传输工具里再实现签名或分区解析。
+
 ## 4. AIDK AI Toy 单文件流程
 
 ```bash
@@ -51,7 +58,7 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py preflight \
   --artifact-kind direct-full \
   --loader /mnt/c/path/to/bk_loader.exe \
   --image /absolute/path/to/FILE.bin \
-  --port COM8 \
+  --port <download-com> \
   --expected-size 8388608 \
   --expected-sha256 <64-hex>
 ```
@@ -67,7 +74,7 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py run \
   --artifact-kind direct-full \
   --loader /mnt/c/path/to/bk_loader.exe \
   --image /absolute/path/to/FILE.bin \
-  --port COM8 \
+  --port <download-com> \
   --expected-size 8388608 \
   --expected-sha256 <64-hex> \
   --evidence-dir /absolute/path/to/new-hil-run \
@@ -75,9 +82,9 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py run \
 ```
 
 BK Loader 必须独占“软件 reboot → Boot ROM”窗口。不要另起延时串口发送器，
-不要补做 COM8 RTS/DTR。
+不要补做下载口 RTS/DTR。
 
-## 5. AIDK 有界 CP/AP-B 多段流程
+## 5. AIDK 有界非活动 CP/AP 多段流程
 
 仅当当前设备的 inactive-slot/layout 证据已给出待写物理范围时，才可使用
 `signed-segments`。每个 `--write-bound START-LENGTH` 是本次操作员授权的物理
@@ -89,17 +96,18 @@ BK Loader 必须独占“软件 reboot → Boot ROM”窗口。不要另起延�
 ```bash
 python3 <skill-dir>/scripts/bk7258_hil_download.py preflight \
   --board aidk_ai_toy --transport multi --artifact-kind signed-segments \
-  --loader /mnt/c/path/to/bk_loader.exe --port COM8 \
-  --segment /path/cp_b.bin@<cp-b-start>-<cp-b-length> \
-  --segment /path/ap_b.bin@<ap-b-start>-<ap-b-length> \
-  --segment-sha256 <cp-b-sha256> --segment-sha256 <ap-b-sha256> \
-  --write-bound <cp-b-start>-<cp-b-length> \
-  --write-bound <ap-b-start>-<ap-b-length>
+  --loader /mnt/c/path/to/bk_loader.exe --port <download-com> \
+  --segment /path/cp_inactive.bin@<cp-start>-<cp-length> \
+  --segment /path/ap_inactive.bin@<ap-start>-<ap-length> \
+  --segment-sha256 <cp-sha256> --segment-sha256 <ap-sha256> \
+  --write-bound <cp-start>-<cp-length> \
+  --write-bound <ap-start>-<ap-length>
 ```
 
 预检命令应保留 profile 的 `--swrst 'reset reboot'`、`--hard-reset 0` 与
 `--fast-link 1`；不得以 RTS/DTR 代替。范围必须来自本次设备证据，不能由本文
-示例或工具推断。
+示例或工具推断；非活动槽可能是 A 或 B，不能固定为 B。活动配对槽、启动区、
+用户数据及校准区保持在写入范围之外。
 
 ## 6. T5-Board / T5AI-Core 多段流程
 
@@ -112,9 +120,9 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py preflight \
   --board t5_board \
   --artifact-kind signed-segments \
   --loader /mnt/c/path/to/bk_loader.exe \
-  --port COM3 \
-  --segment /path/bl_crc.bin@0x0-0x11000 \
-  --segment /path/app_crc_flash.bin@0x11000-0x39000 \
+  --port <download-com> \
+  --segment /path/bl_crc.bin@<boot-start>-<boot-length> \
+  --segment /path/app_crc_flash.bin@<app-start>-<app-length> \
   --segment-sha256 <bl-sha256> \
   --segment-sha256 <app-sha256>
 ```
@@ -134,7 +142,7 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py preflight \
   --board t5_board --transport single \
   --artifact-kind signed-full \
   --loader /mnt/c/path/to/bk_loader.exe \
-  --port COM3 --image /path/full.bin \
+  --port <download-com> --image /path/full.bin \
   --expected-size <manifest-size> --expected-sha256 <64-hex>
 ```
 
@@ -142,12 +150,14 @@ python3 <skill-dir>/scripts/bk7258_hil_download.py preflight \
 
 `debug-plan` 只生成命令，不打开串口、不复位。生成后检查 profile、端口、
 动作和 regex，再运行其 `command` 字段。
+当前生成的是 WSL 命令；原生 Windows 使用相邻工具的 `scripts/debug_session.ps1`
+及其 PowerShell 参数，保持同一 profile 的端口角色和复位约束，不直接执行 Bash 命令。
 
 AIDK 无控制线采集：
 
 ```bash
 python3 <skill-dir>/scripts/bk7258_hil_download.py debug-plan \
-  --board aidk_ai_toy --console-port COM8 --action capture \
+  --board aidk_ai_toy --console-port <console-com> --action capture \
   --output-dir /path/hil/boot \
   --expected-regex 'NuttShell' \
   --fail-regex 'HardFault|ASSERT|panic'
@@ -157,7 +167,7 @@ T5-Board 同口 RTS 同步采集：
 
 ```bash
 python3 <skill-dir>/scripts/bk7258_hil_download.py debug-plan \
-  --board t5_board --console-port COM3 --action serial-pulse \
+  --board t5_board --console-port <console-com> --action serial-pulse \
   --output-dir /path/hil/boot \
   --expected-regex 'NuttShell' \
   --fail-regex 'HardFault|ASSERT|panic'
@@ -167,7 +177,7 @@ T5AI-Core 分离端口 RTS 同步采集：
 
 ```bash
 python3 <skill-dir>/scripts/bk7258_hil_download.py debug-plan \
-  --board t5ai_core --console-port COM11 --reset-port COM7 \
+  --board t5ai_core --console-port <console-com> --reset-port <reset-com> \
   --action serial-pulse --output-dir /path/hil/boot \
   --expected-regex 'NuttShell' \
   --fail-regex 'HardFault|ASSERT|panic'

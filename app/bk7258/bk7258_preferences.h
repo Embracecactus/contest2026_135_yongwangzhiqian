@@ -35,6 +35,11 @@ int bk7258_preferences_get(struct bk7258_preferences_s *preferences);
 int bk7258_preferences_playback_volume(unsigned int *volume_percent);
 int bk7258_preferences_set_volume(unsigned int volume_percent);
 int bk7258_preferences_set_persona(const char *persona);
+/* 使用现有设备配置库；缺少该项时默认快速对话，不改写旧配置。 */
+int bk7258_preferences_thinking_get(bool *enabled);
+int bk7258_preferences_thinking_set(bool enabled);
+int bk7258_preferences_wake_threshold_get(unsigned int *percent);
+int bk7258_preferences_wake_threshold_set(unsigned int percent);
 /* Run a bounded SD operation under the existing preference owner's mutex and
  * media lease. Callback must close every file before returning and must not
  * call preferences APIs recursively. Cleanup failure is returned to caller.

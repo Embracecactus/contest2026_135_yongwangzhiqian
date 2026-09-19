@@ -91,10 +91,10 @@ internal class DeviceControlProtocol(
             Command.CONFIG_READ -> payload.size == 4 && ByteBuffer.wrap(payload).let {
                 val argument = it.int
                 val kind = argument ushr 16; val offset = argument and 0xffff
-                (kind in 1..2 && offset % 16 == 0) || (kind == 0x7fff && offset == 0) }
+                ((kind in 1..2 || kind == 5) && offset % 16 == 0) || ((kind == 4 || kind == 6 || kind == 0x7fff) && offset == 0) }
             Command.CONFIG_BEGIN -> payload.size == 8 && ByteBuffer.wrap(payload).let {
                 val kind = it.int; val size = it.int
-                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65672; 3 -> size == 4; else -> false } }
+                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65672; 3 -> size == 4; 4 -> size == 12; 5 -> size in 44..3371; 6 -> size == 12; else -> false } }
             Command.CONFIG_APPEND -> payload.size in 1..512
             Command.CONFIG_APPLY, Command.CONFIG_CANCEL -> payload.isEmpty()
             else -> false

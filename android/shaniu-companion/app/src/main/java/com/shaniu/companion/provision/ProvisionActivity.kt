@@ -478,7 +478,7 @@ class ProvisionActivity : Activity() {
     }
 
     private fun connect(recover: Boolean = false, endpoint: CloudEndpoint.Verified? = null,
-                        controlFirst: Boolean = true) {
+                        controlFirst: Boolean = false) {
         if (!foreground || connection != null) return
         if (wifiScan != null) {
             status.text = "请先取消 Wi-Fi 扫描，再保存连接设置。"

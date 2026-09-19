@@ -6,9 +6,9 @@
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_BK7258_PRODUCT_KEYS) || defined(CONFIG_BK7258_VOICE_PTT_AUTOSTART)
-/* Publish product key state independently of network and cloud setup. */
-CONFIG_BK7258_APP_VOICE_PROGNAME buttons
+#if defined(CONFIG_BK7258_PRODUCT_KEYS) && !defined(CONFIG_BK7258_AP_CORE)
+/* 按键服务独立于网络与语音，旧 voice/PTT 命令不再进入产品启动链。 */
+bkkeys
 #endif
 
 #ifdef CONFIG_DOLPHIN

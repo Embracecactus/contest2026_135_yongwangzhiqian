@@ -577,5 +577,6 @@
     "unknown_zero_padded_shifts": true
   },
   "training_source_sha256": "c9e49c56ea3fec5041ab36c85f3b2623d65fef3d0cd4c4839dc99f4bb176f909",
-  "wake_phrase": "你好，open-vela"
+  "wake_label": "nihao_openvela",
+  "wake_phrase": "你好，openvela"
 }

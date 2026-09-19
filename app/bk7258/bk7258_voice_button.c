@@ -262,7 +262,7 @@ static void bkvoice_button_stable(struct bkvoice_button_s *button,
     }
   else if (changed && __atomic_load_n(&button->armed, __ATOMIC_ACQUIRE))
     {
-      (void)bkvoice_button_send(button, true);
+      (void)bkvoice_button_send(button, pressed);
     }
 }
 

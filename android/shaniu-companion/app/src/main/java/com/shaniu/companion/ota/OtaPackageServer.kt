@@ -55,7 +55,7 @@ internal class OtaPackageServerException(val stage: OtaPackageServerStage) :
  * required and is not performed here.
  */
 internal class OtaPackageServer private constructor(
-    val metadata: BkpackInspector.Metadata,
+    val metadata: BkpackInspector.Metadata?,
     val requestRecord: ByteArray,
     private val prefix: String,
     private val entries: Map<String, File>,
@@ -317,7 +317,7 @@ internal class OtaPackageServer private constructor(
                 val prefix = "/u/$nonce/"
                 val url = "https://shaniu-update.local:${boundSocket.localPort}${prefix}catalog.json"
                 val requestRecord = try {
-                    requestRecord(url, localAddress, certificate, metadata.catalogSha256)
+                    requestRecord(url, localAddress, certificate, hexToBytes(metadata.catalogSha256))
                 } catch (_: Exception) {
                     throw OtaPackageServerException(OtaPackageServerStage.PACKAGE)
                 }
@@ -337,6 +337,53 @@ internal class OtaPackageServer private constructor(
                 keyAlias?.let(::deleteKeyAlias)
                 extractDir?.deleteRecursively()
                 throw OtaPackageServerException(OtaPackageServerStage.LOCAL_IO)
+            }
+        }
+
+        /** Opens the same short-lived TLS source for one already verified eye pack. */
+        fun openAsset(context: Context, assetFile: File, assetSha256: ByteArray): OtaPackageServer {
+            var extractDir: File? = null
+            var keyAlias: String? = null
+            var socket: SSLServerSocket? = null
+            var service: OtaPackageServer? = null
+            try {
+                require(assetFile.length() in 128L..131072L && assetSha256.size == 32)
+                val localAddress = try { activeWifiIpv4(context) } catch (_: Exception) {
+                    throw OtaPackageServerException(OtaPackageServerStage.WIFI)
+                }
+                val directory = File(context.cacheDir, "ota-asset-${UUID.randomUUID()}").also {
+                    if (!it.mkdir()) throw OtaPackageServerException(OtaPackageServerStage.LOCAL_IO)
+                }
+                extractDir = directory
+                val copied = File(directory, "asset.bkep")
+                assetFile.inputStream().use { input -> copied.outputStream().use { output ->
+                    input.copyTo(output, COPY_CHUNK_SIZE)
+                } }
+                require(copied.length() == assetFile.length())
+                val alias = "$KEY_ALIAS_PREFIX${UUID.randomUUID()}"
+                keyAlias = alias
+                val certificate = try { createServerCertificate(alias) } catch (_: Exception) {
+                    throw OtaPackageServerException(OtaPackageServerStage.KEYSTORE)
+                }
+                val boundSocket = try { createServerSocket(alias, certificate, localAddress) } catch (_: Exception) {
+                    throw OtaPackageServerException(OtaPackageServerStage.TLS)
+                }
+                socket = boundSocket
+                val prefix = "/u/${randomNonce()}/"
+                val url = "https://shaniu-update.local:${boundSocket.localPort}${prefix}asset.bkep"
+                val record = try { requestRecord(url, localAddress, certificate, assetSha256, "EYE2") } catch (_: Exception) {
+                    throw OtaPackageServerException(OtaPackageServerStage.PACKAGE)
+                }
+                service = OtaPackageServer(null, record, prefix, mapOf("asset.bkep" to copied),
+                    mapOf("asset.bkep" to copied.length()), directory, alias, boundSocket)
+                service.start()
+                return service
+            } catch (failure: OtaPackageServerException) {
+                service?.abortStartup(); runCatching { socket?.close() }; keyAlias?.let(::deleteKeyAlias)
+                extractDir?.deleteRecursively(); throw failure
+            } catch (_: Exception) {
+                service?.abortStartup(); runCatching { socket?.close() }; keyAlias?.let(::deleteKeyAlias)
+                extractDir?.deleteRecursively(); throw OtaPackageServerException(OtaPackageServerStage.LOCAL_IO)
             }
         }
 
@@ -438,18 +485,15 @@ internal class OtaPackageServer private constructor(
             url: String,
             address: Inet4Address,
             certificate: X509Certificate,
-            catalogSha256: String
+            digest: ByteArray,
+            magic: String = "SOU1"
         ): ByteArray {
             val urlBytes = url.toByteArray(Charsets.US_ASCII)
             val certificatePem = certificatePem(certificate).toByteArray(Charsets.US_ASCII)
-            val digest = hexToBytes(catalogSha256)
             require(urlBytes.size in 1..255 && certificatePem.size in 1..3072 &&
-                    digest.size == 32 && digest.any { it.toInt() != 0 })
+                    digest.size == 32 && digest.any { it.toInt() != 0 } && magic.length == 4)
             val result = ByteArray(44 + urlBytes.size + certificatePem.size)
-            result[0] = 'S'.code.toByte()
-            result[1] = 'O'.code.toByte()
-            result[2] = 'U'.code.toByte()
-            result[3] = '1'.code.toByte()
+            magic.toByteArray(Charsets.US_ASCII).copyInto(result, 0)
             writeBe16(result, 4, urlBytes.size)
             writeBe16(result, 6, certificatePem.size)
             System.arraycopy(address.address, 0, result, 8, 4)

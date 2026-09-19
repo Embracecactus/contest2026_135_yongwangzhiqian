@@ -1,5 +1,6 @@
 /****************************************************************************
  * Product-key edge policy shared by the AP voice owner and host tests.
+ * SPDX-License-Identifier: Apache-2.0
  ****************************************************************************/
 
 #ifndef __APP_BK7258_BK7258_PRODUCT_KEYS_H

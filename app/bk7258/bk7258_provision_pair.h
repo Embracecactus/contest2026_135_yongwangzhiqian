@@ -12,13 +12,23 @@
  * deliberately absent from the wire. Disconnect cancels uncommitted work.
  * Read-only receipt QUERY=5 seq1/empty is available after AUTH and READY
  * only when the owner supplies a receipt callback. Result is COMMITTED=6,
- * NOT_COMMITTED=9 or UNCERTAIN=8. SCAN=6 seq1/empty is a normal unclaimed
- * READY-window-only read-only request. Its STATUS payload is status:be32,
+ * NOT_COMMITTED=9 or UNCERTAIN=8. SCAN=6 seq1/empty requires READY after
+ * possession authentication; attach_scan also allows it on a claimed device
+ * without enabling any claim/configuration operation. AUTH_OWNER=7 explicitly
+ * restores ownership using the original proof over pinned TLS; its READY may
+ * append the unchanged 32-byte control key before normal configuration upload.
+ * SCAN payload is status:be32,
  * count:u8,truncated:u8,reserved:2 followed by fixed 36-byte AP records.
  */
 struct bkprov_pair_s
 {
   struct bkprov_tls_s tls;
+  struct bkprov_tls_s *scan_tls;
+  const struct bkprov_claim_ops_s *rebind_ops;
+  void *rebind_context;
+  uint8_t rebind_key[32];
+  bool rebind;
+  bool report_key;
   struct bkprov_claim_s claim;
   uint8_t input[1056];
   /* Heap-owned by the owner for the bounded outbound scan response. Keep it
@@ -45,6 +55,9 @@ int bkprov_pair_start(struct bkprov_pair_s *pair, uint32_t generation,
                       void *clock_context, const struct bkprov_claim_ops_s *ops,
                       void *context);
 int bkprov_pair_step(struct bkprov_pair_s *pair);
+/* 已认领设备的只读扫描复用当前 TLS；仍验证原持有证明，不开放认领写入。 */
+int bkprov_pair_attach_scan(struct bkprov_pair_s *pair,
+                            struct bkprov_tls_s *tls, const uint8_t secret[32]);
 /* A distinct read-only window also usable on an already claimed device.
  * It still requires possession proof and trusted physical confirmation.
  * receipt: 1 matched, 0 positively absent, -EAGAIN pending, other negative

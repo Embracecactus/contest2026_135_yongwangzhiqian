@@ -83,6 +83,17 @@ _Static_assert(MAILBOX_CPU1 == 1 && MAILBOX_CPU2 == 2,
  * AP SDIO host transaction ABI
  ****************************************************************************/
 
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_SDIO)
+/* modules/pm.h 依赖未导出的 sys_types.h。保留 v3.1.1.9 的整型 ABI，
+ * 不把 SDK 私有头补进产品构建；该调用仍经过现有 AP PM 适配。
+ */
+
+#  define BK7258_SDK_PM_CLK_ID_SDIO 22
+#  define BK7258_SDK_PM_CLK_UP       1
+#  define BK7258_SDK_PM_CLK_DOWN     0
+extern bk_err_t bk_pm_clock_ctrl(int module, int clock_state);
+#endif
+
 #if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_SDIO) && \
     defined(CONFIG_SDIO_V2P0)
 extern void bk_sdio_clk_gate_config(uint32_t enable);

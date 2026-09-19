@@ -100,7 +100,15 @@ ifeq ($(CONFIG_BK7258_DISPLAY_SERVICE),y)
 endif
 
 ifeq ($(CONFIG_BK7258_PRODUCT_KEYS),y)
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+CSRCS     += bk7258_agent_keys.c
+else
+PROGNAME  += bkkeys
+PRIORITY  += 100
+STACKSIZE += 2048
+MAINSRC   += bk7258_keys_main.c
 CSRCS     += bk7258_voice_button.c
+endif
 endif
 
 ifeq ($(CONFIG_BK7258_APP_DISPLAY),y)

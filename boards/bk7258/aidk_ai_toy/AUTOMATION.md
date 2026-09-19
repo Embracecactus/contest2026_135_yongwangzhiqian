@@ -118,6 +118,17 @@ partition layout, device ID, and capture method.  The JSON is operator
 acceptance evidence, not hardware attestation; the operator/fixture remains
 responsible for proving that the readback came from the named unit.
 
+If the board CSV moves protected data, pass the snapshot's actual old CSV as
+`--source-partition` and a new private BIN path as `--relocated-base` to the same
+`package accept-base` command. It copies same-name protected partitions without
+changing their size, permissions, policy or bytes; immutable partitions cannot
+move. Retain the printed source/target hashes and per-partition mapping with the
+private release evidence. The resulting evidence is explicitly marked as a
+same-device partition relocation, not a new hardware readback. Use that new BIN
+and its accepted-base evidence for `release full`. Reusing a historical base
+does not preserve later configuration or memory; a user-directed full write
+without a fresh snapshot must state that limitation. Never publish these bases.
+
 ## Signed full recovery
 
 Private keys are operator inputs to the common CLI through the maintained,

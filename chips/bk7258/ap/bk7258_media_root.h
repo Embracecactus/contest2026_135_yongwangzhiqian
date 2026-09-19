@@ -39,5 +39,7 @@
 int bk7258_media_root_initialize(uint32_t roots);
 int bk7258_media_audio_session_acquire(uint8_t owner);
 int bk7258_media_audio_session_release(uint8_t owner);
+int bk7258_media_audio_frequency_acquire(uint8_t owner);
+int bk7258_media_audio_frequency_release(uint8_t owner);
 
 #endif /* __ARCH_ARM_SRC_BK7258_AP_BK7258_MEDIA_ROOT_H */

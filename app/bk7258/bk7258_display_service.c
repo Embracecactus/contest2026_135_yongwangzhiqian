@@ -56,6 +56,8 @@ struct bkdisplay_service_s
   bool volume_mounted;
   uint8_t diagnostic_stage;
   int diagnostic_error;
+  uint16_t *frames[5];
+  unsigned int animation_step;
 };
 
 enum bkdisplay_diagnostic_stage_e
@@ -306,6 +308,92 @@ static void bkdisplay_status_error(struct bkdisplay_service_s *service,
                           BKDISPLAY_SERVICE_ERROR;
 }
 
+static void bkdisplay_cache_frames(struct bkdisplay_service_s *service,
+                                   struct bkdisplay_pack_s *pack,
+                                   uint16_t *base, const char *expression)
+{
+  static const char *const names[] =
+    {NULL, "blink_half", "blink_closed", "look_left", "look_right"};
+  unsigned int i;
+
+  /* 只在显式切换表情/资源包时读盘；动画不持有 SD 租约或文件句柄。
+   * 最多缓存 5 帧（256000 B），旧资源包缺少可选帧时仍能静态显示。
+   */
+
+  for (i = 0; i < 5; i++)
+    {
+      free(service->frames[i]);
+      service->frames[i] = NULL;
+      if (i == 0)
+        {
+          service->frames[i] = base;
+          continue;
+        }
+
+      if (i >= 3 && strcmp(expression, "neutral") != 0)
+        {
+          continue;
+        }
+
+      service->frames[i] = malloc(BKDISPLAY_CANVAS_PIXELS * sizeof(*base));
+      if (service->frames[i] != NULL &&
+          bkdisplay_pack_render(pack, names[i], BKDISPLAY_SIDE_UNMAPPED,
+                                service->frames[i],
+                                BKDISPLAY_CANVAS_PIXELS) < 0)
+        {
+          free(service->frames[i]);
+          service->frames[i] = NULL;
+        }
+    }
+
+  service->animation_step = 0;
+}
+
+static unsigned int bkdisplay_animate_locked(struct bkdisplay_service_s *service)
+{
+  static const uint8_t frames[] = {0, 1, 2, 1, 0, 3, 0, 4, 0};
+  static const unsigned int delay_us[] =
+    {2600000, 70000, 100000, 70000, 3500000, 650000, 2200000, 650000, 4400000};
+  unsigned int step;
+  uint16_t *pixels;
+  int ret;
+
+  if (strcmp(service->status.expression, "mapping-test") == 0 ||
+      service->frames[0] == NULL || service->frames[1] == NULL ||
+      service->frames[2] == NULL)
+    {
+      return BKDISPLAY_RETRY_US;
+    }
+
+  step = (service->animation_step + 1) % sizeof(frames);
+  service->animation_step = step;
+  pixels = service->frames[frames[step]];
+  if (pixels == NULL)
+    {
+      pixels = service->frames[0];
+    }
+
+  ret = bkdisplay_framebuffer_write(BKDISPLAY_FB0, pixels);
+  if (ret == 0)
+    {
+      ret = bkdisplay_framebuffer_write(BKDISPLAY_FB1, pixels);
+    }
+
+  if (ret < 0)
+    {
+      bkdisplay_status_error(service, ret);
+      syslog(LOG_ERR, "BKDISPLAY ANIMATION FAIL ret=%d\n", ret);
+    }
+  else
+    {
+      /* expression 保留用户选择的逻辑表情，不被瞬时眨眼帧覆盖。 */
+
+      service->status.render_sequence++;
+    }
+
+  return delay_us[step];
+}
+
 static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
                                    const char *expression)
 {
@@ -365,6 +453,10 @@ static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
       ret = bkdisplay_pack_render(pack, expression,
                                   BKDISPLAY_SIDE_UNMAPPED, pixels,
                                   BKDISPLAY_CANVAS_PIXELS);
+      if (ret == 0)
+        {
+          bkdisplay_cache_frames(service, pack, pixels, expression);
+        }
     }
 
   bkdisplay_pack_close(pack);
@@ -402,6 +494,8 @@ static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
       snprintf(service->status.pack_id, sizeof(service->status.pack_id),
                "%s", selection.info.pack_id);
       service->status.pack_revision = selection.info.revision;
+      memcpy(service->status.source_sha256, selection.info.source_sha256,
+             sizeof(service->status.source_sha256));
       service->diagnostic_stage = BKDISPLAY_DIAG_NONE;
       service->diagnostic_error = 0;
       syslog(LOG_INFO,
@@ -414,7 +508,10 @@ static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
     }
 
 out:
-  free(pixels);
+  if (pixels != service->frames[0])
+    {
+      free(pixels);
+    }
   if (ret < 0)
     {
       bkdisplay_diagnostic_failure(service, stage, ret);
@@ -447,6 +544,7 @@ static int bkdisplay_wait_for_devices(void)
 static int bkdisplay_worker(int argc, char *argv[])
 {
   struct bkdisplay_service_s *service = &g_bkdisplay_service;
+  unsigned int delay;
   int ret;
 
   (void)argc;
@@ -482,30 +580,31 @@ static int bkdisplay_worker(int argc, char *argv[])
 
       if (service->status.state == BKDISPLAY_SERVICE_READY)
         {
+          delay = bkdisplay_animate_locked(service);
           nxmutex_unlock(&service->lock);
-          return 0;
+          (void)nxsig_usleep(delay);
+          continue;
         }
 
       service->devices_ready = true;
       service->status.state = BKDISPLAY_SERVICE_WAITING_ASSET;
       ret = bkdisplay_render_locked(service, "neutral");
+      if (ret < 0 && !bkdisplay_service_retryable(ret))
+        {
+          service->started = false;
+        }
       nxmutex_unlock(&service->lock);
       if (ret == 0)
         {
           syslog(LOG_INFO,
                  "BKDISPLAY SERVICE READY dev=/dev/fb0,/dev/fb1 "
                  "storage=" BKDISPLAY_BLOCKDEV " mount=short-lived\n");
-          return 0;
+          (void)nxsig_usleep(2600000);
+          continue;
         }
 
       if (!bkdisplay_service_retryable(ret))
         {
-          if (nxmutex_lock(&service->lock) >= 0)
-            {
-              service->started = false;
-              nxmutex_unlock(&service->lock);
-            }
-
           syslog(LOG_ERR,
                  "BKDISPLAY START FAIL stage=neutral-render ret=%d\n",
                  ret);
@@ -539,7 +638,10 @@ int bk7258_display_service_start(void)
       return 0;
     }
 
-  service->status.state = BKDISPLAY_SERVICE_WAITING_DEVICES;
+  if (service->status.state != BKDISPLAY_SERVICE_READY)
+    {
+      service->status.state = BKDISPLAY_SERVICE_WAITING_DEVICES;
+    }
   service->status.last_error = 0;
   ret = bk7258_display_rpc_server_initialize();
   if (ret < 0)
@@ -548,7 +650,7 @@ int bk7258_display_service_start(void)
     }
   else
     {
-      pid = task_create("bkdisplay-init",
+      pid = task_create("bkdisplay",
                         CONFIG_BK7258_DISPLAY_SERVICE_PRIORITY,
                         CONFIG_BK7258_DISPLAY_SERVICE_STACKSIZE,
                         bkdisplay_worker, NULL);
@@ -748,6 +850,38 @@ int bk7258_display_activate(const char *filename)
 {
   return filename == NULL ? -EINVAL :
          bkdisplay_update_pack(filename, false);
+}
+
+int bk7258_display_import(const void *data, size_t size)
+{
+  struct bkdisplay_service_s *service = &g_bkdisplay_service;
+  int close_ret;
+  int ret = nxmutex_lock(&service->lock);
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = service->devices_ready ? bkdisplay_volume_open(service) : -EAGAIN;
+  if (ret == 0)
+    {
+      ret = bkdisplay_store_import(BKDISPLAY_MOUNTPOINT, data, size, NULL);
+      close_ret = bkdisplay_volume_close(service);
+      if (ret == 0 && close_ret < 0)
+        {
+          ret = close_ret;
+        }
+    }
+
+  if (ret == 0)
+    {
+      ret = bkdisplay_render_locked(service, "neutral");
+    }
+
+  nxmutex_unlock(&service->lock);
+  /* 缺包启动失败后，成功导入重新使用同一个显示 worker。 */
+  return ret == 0 ? bk7258_display_service_start() : ret;
 }
 
 int bk7258_display_get_status(struct bkdisplay_service_status_s *status)

@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "bk7258_control_pair.h"
+#include "bk7258_provision_pair.h"
+#include "bk7258_provision_storage.h"
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <mbedtls/platform_util.h>
 
@@ -10,6 +13,11 @@ static uint32_t get32(const uint8_t *p)
 void bkcontrol_pair_close(struct bkcontrol_pair_s *pair)
 {
   if (pair == NULL) return;
+  if (pair->scan != NULL)
+    {
+      bkprov_pair_close(pair->scan);
+      free(pair->scan);
+    }
   bkcontrol_session_close(&pair->session);
   bkprov_tls_close(&pair->tls);
   mbedtls_platform_zeroize(pair, sizeof(*pair));
@@ -39,6 +47,7 @@ int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
   uint64_t now;
   bool authenticated;
   if (pair == NULL || !pair->tls.initialized) return -ENOTCONN;
+  if (pair->scan != NULL) return bkprov_pair_step(pair->scan);
   now = pair->tls.now_ms(pair->tls.clock_context);
   ret = bkprov_tls_step(&pair->tls);
   if (ret < 0) goto fail;
@@ -73,6 +82,25 @@ int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
   if (pair->received != pair->expected) return 0;
   if (pair->expected == 16)
     {
+      if (!pair->session.authenticated && !memcmp(pair->input, "SPV1", 4))
+        {
+          /* 复用同一 TLS；AUTH 扫描与显式 AUTH_OWNER 恢复权限分开。 */
+          pair->scan = calloc(1, sizeof(*pair->scan));
+          if (pair->scan == NULL) { ret = -ENOMEM; goto fail; }
+          ret = bkprov_pair_attach_scan(pair->scan, &pair->tls,
+                                        pair->scan_secret);
+          mbedtls_platform_zeroize(pair->scan_secret, 32);
+          if (ret < 0) goto fail;
+          pair->scan->rebind_ops = pair->rebind_ops;
+          pair->scan->rebind_context = pair->rebind_context;
+          memcpy(pair->scan->rebind_key, pair->session.secret, 32);
+          pair->scan->receipt = bkprov_storage_receipt;
+          memcpy(pair->scan->input, pair->input, pair->received);
+          pair->scan->input_size = pair->received;
+          mbedtls_platform_zeroize(pair->input, sizeof(pair->input));
+          bkcontrol_session_close(&pair->session);
+          return 0;
+        }
       uint32_t payload = get32(pair->input + 12);
       uint32_t limit = pair->session.authenticated &&
           get32(pair->input + 4) == BKCONTROL_CONFIG_APPEND ?
@@ -89,6 +117,8 @@ int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
   pair->received = 0;
   pair->expected = 16;
   if (ret < 0) goto fail;
+  if (pair->session.authenticated)
+    mbedtls_platform_zeroize(pair->scan_secret, 32);
   ret = !authenticated && pair->session.authenticated ?
         bkprov_tls_promote_control(&pair->tls) :
         bkprov_tls_touch_control(&pair->tls);

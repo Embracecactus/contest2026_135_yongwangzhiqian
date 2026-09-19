@@ -320,7 +320,64 @@ def _render_expression(
     height: int,
     palette_count: int,
     label: str,
+    source_dir: Path,
+    palette: tuple[tuple[int, int, int], ...],
 ) -> bytes:
+    bitmap = expression.get("bitmap")
+    if bitmap is not None:
+        if "background" in expression or "layers" in expression:
+            raise EyePackError(f"{label} bitmap cannot be combined with background/layers")
+        spec = _require_keys(bitmap, required={"path", "sha256", "crop"}, label=f"{label}.bitmap")
+        path = spec["path"]
+        digest = spec["sha256"]
+        crop = spec["crop"]
+        if not isinstance(path, str) or not path or Path(path).is_absolute():
+            raise EyePackError(f"{label}.bitmap.path must be a relative path")
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None:
+            raise EyePackError(f"{label}.bitmap.sha256 must be 64 hex characters")
+        bitmap_path = (source_dir / path).resolve()
+        try:
+            bitmap_path.relative_to(source_dir.resolve())
+        except ValueError as error:
+            raise EyePackError(f"{label}.bitmap.path escapes the source directory") from error
+        raw = _regular(bitmap_path, f"{label}.bitmap.path").read_bytes()
+        if hashlib.sha256(raw).hexdigest().lower() != digest.lower():
+            raise EyePackError(f"{label}.bitmap.sha256 does not match the PNG")
+        if not isinstance(crop, list) or len(crop) != 4 or any(
+            isinstance(value, bool) or not isinstance(value, int) for value in crop
+        ):
+            raise EyePackError(f"{label}.bitmap.crop must be [x,y,width,height]")
+        try:
+            from PIL import Image
+            with Image.open(bitmap_path) as image:
+                if image.format != "PNG":
+                    raise EyePackError(f"{label}.bitmap.path must be a PNG")
+                image.load()
+                x, y, crop_width, crop_height = crop
+                if x < 0 or y < 0 or crop_width <= 0 or crop_height <= 0 \
+                        or x + crop_width > image.width or y + crop_height > image.height:
+                    raise EyePackError(f"{label}.bitmap.crop is outside the PNG")
+                image = image.convert("RGBA").crop((x, y, x + crop_width, y + crop_height))
+                if "A" in image.getbands():
+                    background = Image.new("RGBA", image.size, (*palette[0], 255))
+                    image = Image.alpha_composite(background, image)
+                image = image.convert("RGB")
+                image = image.resize((width, height), Image.Resampling.LANCZOS)
+                colors = tuple(palette)
+                pixels = bytearray()
+                for red, green, blue in image.getdata():
+                    pixels.append(min(range(len(colors)), key=lambda i:
+                        (red - colors[i][0]) ** 2 + (green - colors[i][1]) ** 2 +
+                        (blue - colors[i][2]) ** 2))
+                return bytes(pixels)
+        except EyePackError:
+            raise
+        except (OSError, ValueError, RuntimeError) as error:
+            raise EyePackError(f"{label}.bitmap PNG decode failed: {error}") from error
+        except ImportError as error:
+            raise EyePackError("bitmap input requires Pillow; install it for PNG import") from error
+    if "bitmap" in expression:
+        raise EyePackError(f"{label}.bitmap must be an object")
     background = _color(expression["background"], palette_count, f"{label}.background")
     pixels = bytearray([background]) * (width * height)
     layers = expression["layers"]
@@ -408,6 +465,7 @@ def _align(value: int, alignment: int = 4) -> int:
 
 def _source_entries(
     document: dict[str, object],
+    source_dir: Path,
 ) -> tuple[str, int, int, bytes, tuple[tuple[int, int, int], ...], list[_BuiltEntry]]:
     root = _require_keys(
         document,
@@ -468,7 +526,8 @@ def _source_entries(
         label = f"expressions[{index}]"
         expression = _require_keys(
             value,
-            required={"id", "side", "mirror_for_right", "background", "layers"},
+            required={"id", "side", "mirror_for_right"},
+            optional={"background", "layers", "bitmap"},
             label=label,
         )
         expression_id = expression["id"]
@@ -485,12 +544,19 @@ def _source_entries(
         seen.add(identity)
         sides_by_expression.setdefault(expression_id, set()).add(side)
         has_neutral = has_neutral or expression_id == "neutral"
+        has_bitmap = "bitmap" in expression
+        if has_bitmap and ("background" in expression or "layers" in expression):
+            raise EyePackError(f"{label} bitmap cannot be combined with background/layers")
+        if not has_bitmap and ("background" not in expression or "layers" not in expression):
+            raise EyePackError(f"{label} requires bitmap or background/layers")
         decoded = _render_expression(
             expression,
             width=width,
             height=height,
             palette_count=len(palette),
             label=label,
+            source_dir=source_dir,
+            palette=palette,
         )
         compressed = _rle8(decoded)
         if len(compressed) < len(decoded):
@@ -715,7 +781,7 @@ def build(source: Path, output: Path, preview_dir: Path | None = None) -> EyePac
             )
     document = _decode_text(source)
     pack_id, revision, renderer_api, canonical, palette, entries = _source_entries(
-        document
+        document, source.parent
     )
     data = _assemble(pack_id, revision, renderer_api, canonical, entries)
     if preview_dir is not None:

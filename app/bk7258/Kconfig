@@ -22,12 +22,13 @@ config BK7258_APP_AGENT
 config BK7258_PRODUCT_KEYS
 	bool "Product keys through /dev/buttons"
 	default n
-	depends on BK7258_APP_AGENT
+	depends on (BK7258_APP_AGENT && BK7258_VOICE_TLS) || (!BK7258_AP_CORE && INPUT_BUTTONS && NSH_BUILTIN_APPS)
 	depends on BK7258_RPTUN && !DISABLE_PTHREAD
 	help
 		Use the standard buttons lower-half instead of the diagnostic GPIO PTT
 		device. Bit 0 is volume down, bit 1 is power, and bit 2 is volume up.
-		The AP accepts only the product-key RPMsg contract. When
+		The CP bkkeys startup entry publishes physical state; the AP product
+		control worker accepts only the product-key RPMsg contract. When
 		BK7258_PM_SOFT_OFF is enabled, a three-second K2-only hold followed by
 		full release requests the CP-owned whole-chip reset-to-sleep path after
 		bounded AP resource cleanup. When USB mode is built, shutdown also holds
@@ -197,14 +198,12 @@ if BK7258_APP_AGENT
 config BK7258_PREFERENCES
 	bool "BKVoice KVDB product preferences"
 	default n
-	depends on KVDB && KVDB_DIRECT && KVDB_UNQLITE && FS_FAT
+	depends on KVDB && KVDB_DIRECT && KVDB_UNQLITE && FS_FATFS
 	help
 		Store non-secret desired volume and persona through the public KVDB
-		API, serialized by the AP voice owner. The CP bkvoice prefs command
-		uses the existing voice endpoint. Each PTT reply applies the stored
-		volume through public media policy before playback; changes take effect
-		on the next reply. Direct cloud dialogue reads the stored persona for
-		each request; the historical Gateway personality path is separate.
+		API, serialized by the AP product adapter. Volume is applied through
+		public media policy; persona is projected to the official Agent's
+		SOUL file without replacing its session or cloud request ownership.
 		Playback reuses the last confirmed volume without accessing storage.
 		First use and explicit preference queries load/refresh it; uncertain
 		write or cleanup results invalidate it and require a new read.
@@ -212,8 +211,10 @@ config BK7258_PREFERENCES
 		validate its KVDB service/backend, missing-key errno and persistent
 		partition before enabling this option. No credentials are stored.
 		The database path must be one file immediately under /mnt/sdnand.
-		Each operation leases the shared media, mounts FAT and unmounts
-		before release. Busy media and cleanup failures are reported.
+		Each operation leases the shared media, mounts the existing FatFS
+		backend and unmounts before release. FatFS provides FIOC_FILEPATH
+		required by UnQLite's NuttX file identity/locking path. Busy media and
+		cleanup failures are reported; the existing database format is kept.
 
 config BK7258_PREFERENCES_BLOCKDEV
 	string "Preference database block device"

@@ -14,4 +14,7 @@ struct bkcontrol_ota_request_s {
 };
 int bkcontrol_ota_request_parse(const uint8_t *record, size_t size,
                                 struct bkcontrol_ota_request_s *out);
+/* EYE2 复用受保护供包地址格式，摘要覆盖整个 BKep 文件，不启动 OTA。 */
+int bkcontrol_eye_request_parse(const uint8_t *record, size_t size,
+                                struct bkcontrol_ota_request_s *out);
 #endif

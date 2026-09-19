@@ -21,12 +21,18 @@ if(CONFIG_BK7258_APP_AGENT)
   target_include_directories(apps PRIVATE ${NUTTX_APPS_DIR}/netutils/cjson/cJSON)
   include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_framework.cmake)
   target_sources(apps PRIVATE bk7258_agent_product.c)
+  if(CONFIG_BK7258_VISION_SERVICE)
+    target_sources(apps PRIVATE bk7258_agent_vision.c)
+  endif()
   if(CONFIG_MEDIA)
     target_sources(apps PRIVATE bk7258_voice_media.c)
   endif()
 endif()
 
 if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
+  if(CONFIG_BK7258_PREFERENCES)
+    target_sources(apps PRIVATE bk7258_agent_memory.c bk7258_agent_memory_codec.c)
+  endif()
   if(CONFIG_BK7258_OTA_MANAGER AND CONFIG_BK7258_OTA_SOURCE_HTTP AND
      CONFIG_BK7258_VOICE_OTA_PERSISTENCE)
     target_sources(apps PRIVATE bk7258_agent_ota.c)
@@ -35,7 +41,8 @@ if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
       "-Werror=incompatible-pointer-types" "-Werror=int-conversion"
       "-Werror=implicit-function-declaration")
   endif()
-  foreach(source bk7258_agent_product.c bk7258_agent_cloud.c bk7258_provision_identity.c)
+  foreach(source bk7258_agent_product.c bk7258_agent_cloud.c bk7258_provision_identity.c
+                 bk7258_agent_memory.c bk7258_agent_memory_codec.c)
     set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/${source}"
       TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_OPTIONS "-fstack-usage")
   endforeach()
@@ -49,7 +56,8 @@ if(CONFIG_BK7258_APP_AGENT)
   if(CONFIG_BK7258_PREFERENCES)
     target_sources(apps PRIVATE bk7258_preferences.c bk7258_preferences_storage.c)
     target_include_directories(apps PRIVATE
-        ${NUTTX_APPS_DIR}/frameworks/system/utils/include)
+        ${NUTTX_APPS_DIR}/frameworks/system/utils/include
+        ${NUTTX_APPS_DIR}/external/unqlite/unqlite)
   endif()
   if(CONFIG_BK7258_VOICE_VOLUME_PERSISTENCE)
     target_sources(apps PRIVATE bk7258_voice_volume_store.c)
@@ -135,7 +143,15 @@ if(CONFIG_BK7258_VISION_SERVICE OR CONFIG_BK7258_DISPLAY_SERVICE OR CONFIG_BK725
 endif()
 
 if(CONFIG_BK7258_PRODUCT_KEYS)
-  target_sources(apps PRIVATE bk7258_voice_button.c)
+  if(CONFIG_BK7258_AP_CORE)
+    target_sources(apps PRIVATE bk7258_agent_keys.c)
+  else()
+    nuttx_add_application(
+      NAME bkkeys
+      SRCS bk7258_keys_main.c bk7258_voice_button.c
+      STACKSIZE 2048
+      PRIORITY 100)
+  endif()
 endif()
 
 if(CONFIG_BK7258_APP_DISPLAY)

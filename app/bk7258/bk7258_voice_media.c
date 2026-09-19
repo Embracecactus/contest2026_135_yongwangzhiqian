@@ -6,7 +6,9 @@
 #include <nuttx/signal.h>
 #include <errno.h>
 #include <media_policy.h>
+#include <media_utils.h>
 #include <sched.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 #include <sys/mount.h>
@@ -21,28 +23,60 @@ extern const unsigned char shaniu_media_img[];
 extern const unsigned int shaniu_media_img_len;
 extern int mediad_main(int argc, char *argv[]);
 
-int bkvoice_media_source_set_active(const char *source, bool active)
+static int bkvoice_media_source_name(const char *source, char *name, size_t size)
 {
   char filter[96];
   int ret = media_policy_get_string(source, filter, sizeof(filter));
   if (ret < 0) return ret;
-  const char *name = strchr(filter, '@');
-  if (name == NULL || name[1] == '\0') return -EPROTO;
+  const char *separator = strchr(filter, '@');
+  if (separator == NULL || separator[1] == '\0') return -EPROTO;
+  if (strlcpy(name, separator + 1, size) >= size) return -E2BIG;
+  return 0;
+}
+
+int bkvoice_media_source_stage_active(const char *source)
+{
+  char name[96];
+  int ret = bkvoice_media_source_name(source, name, sizeof(name));
+  if (ret < 0) return ret;
+
+  /* Preserve the cold-boot contract while changing sources: publish the
+   * desired policy state first, but do not start pcm0c until Recorder has
+   * negotiated the real format. */
+  ret = media_policy_set_string(BKVOICE_MEDIA_CAPTURE_LIFECYCLE, "Ready",
+                                MEDIA_POLICY_NOT_APPLY);
+  if (ret < 0) return ret;
+  return media_policy_include("ActiveStreams", name, MEDIA_POLICY_NOT_APPLY);
+}
+
+int bkvoice_media_source_apply_active(void)
+{
+  /* The service applies every staged criterion after a successful mutation.
+   * Re-setting Ready is the public apply boundary and is idempotent. */
+  return media_policy_set_string(BKVOICE_MEDIA_CAPTURE_LIFECYCLE, "Ready",
+                                 MEDIA_POLICY_APPLY);
+}
+
+int bkvoice_media_source_set_active(const char *source, bool active)
+{
+  char name[96];
+  int ret;
+
   if (active)
     {
-      /* The boot policy leaves the capture device untouched until Recorder
-       * has linked its real format. Afterwards normal policy owns start/stop. */
-      ret = media_policy_set_string(BKVOICE_MEDIA_CAPTURE_LIFECYCLE, "Ready",
-                                    MEDIA_POLICY_NOT_APPLY);
-      if (ret < 0) return ret;
+      ret = bkvoice_media_source_stage_active(source);
+      return ret < 0 ? ret : bkvoice_media_source_apply_active();
     }
-  return active ? media_policy_include("ActiveStreams", name + 1, MEDIA_POLICY_APPLY) :
-                  media_policy_exclude("ActiveStreams", name + 1, MEDIA_POLICY_APPLY);
+
+  ret = bkvoice_media_source_name(source, name, sizeof(name));
+  if (ret < 0) return ret;
+  return media_policy_exclude("ActiveStreams", name, MEDIA_POLICY_APPLY);
 }
 
 /* Official policy applies to the active Speaker graph as well as the next
  * player. Physical keys and the turn adapter share this mapping/readback. */
-int bkvoice_media_volume(bool apply, unsigned int requested, unsigned int *volume)
+static int media_volume_update(bool apply, unsigned int requested, int steps,
+                                unsigned int *volume)
 {
   int minimum;
   int maximum;
@@ -69,6 +103,16 @@ int bkvoice_media_volume(bool apply, unsigned int requested, unsigned int *volum
 
   index = minimum + (int)(((uint64_t)requested *
                            (maximum - minimum) + 50u) / 100u);
+  if (steps != 0)
+    {
+      /* 物理按键按官方音量档位步进，与 App 共用设置和读回。 */
+      ret = media_policy_get_stream_volume(MEDIA_STREAM_MUSIC, &index);
+      if (ret < 0) return ret;
+      if (index < minimum || index > maximum) return -EIO;
+      index += steps;
+      if (index < minimum) index = minimum;
+      if (index > maximum) index = maximum;
+    }
   if (apply)
     {
       ret = media_policy_set_stream_volume(MEDIA_STREAM_MUSIC, index);
@@ -93,6 +137,17 @@ int bkvoice_media_volume(bool apply, unsigned int requested, unsigned int *volum
   *volume = (unsigned int)(((uint64_t)(observed - minimum) * 100u +
                             (maximum - minimum) / 2u) / (maximum - minimum));
   return 0;
+}
+
+int bkvoice_media_volume(bool apply, unsigned int requested, unsigned int *volume)
+{
+  return media_volume_update(apply, requested, 0, volume);
+}
+
+int bkvoice_media_volume_step(int steps, unsigned int *volume)
+{
+  if (steps < -15 || steps > 15 || steps == 0) return -EINVAL;
+  return media_volume_update(true, 0, steps, volume);
 }
 
 int bkvoice_media_start(void)

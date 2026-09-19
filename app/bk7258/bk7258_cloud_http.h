@@ -23,6 +23,9 @@ struct bkcloud_http_s
   char *response;
   size_t capacity;
   size_t received;
+  uint64_t connect_ms;
+  uint64_t send_ms;
+  uint32_t send_calls;
   uint64_t receive_ms;
   uint64_t max_receive_ms;
   uint32_t receive_calls;
@@ -52,6 +55,14 @@ int bkcloud_http_post(struct bkcloud_http_s *http,
                      void *tls_context, uint64_t deadline_ms,
                      webclient_body_callback_t body, void *body_context,
                      size_t body_size, char *response, size_t capacity);
+/* 受保护资源 GET：仅借用 config 的 host/port，无云凭据或隐式重试。
+ * 容量含末尾保留字节，实际二进制长度为 http->received。
+ */
+int bkcloud_http_get(struct bkcloud_http_s *http,
+                    const struct bkcloud_config_s *config, const char *url,
+                    const struct bkvoice_wss_tls_ops_s *tls,
+                    void *tls_context, uint64_t deadline_ms,
+                    char *response, size_t capacity);
 /* Streaming SSE response. Consumer owns rollback/abort of any partial audio.
  * Non-2xx bodies are never passed to it. Limit counts raw HTTP body bytes.
  * Return 0 for more data, BKCLOUD_HTTP_STREAM_COMPLETE after validating the

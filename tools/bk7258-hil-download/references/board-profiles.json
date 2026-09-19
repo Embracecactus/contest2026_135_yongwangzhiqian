@@ -21,7 +21,7 @@
         "fast_link": 1,
         "reset_strategy": "loader-software-reboot",
         "port_role": "CH340 UART0 console and BK Loader control",
-        "entry": "BK Loader owns the atomic software reboot and Boot ROM window; K1 is the manual fallback"
+        "entry": "BK Loader owns the atomic software reboot and Boot ROM window; RESET/CEN is the manual fallback, not a product volume key"
       },
       "debug": {
         "console_baud": 115200,
@@ -37,8 +37,7 @@
         "jlink_speed": null
       },
       "sources": [
-        "boards/bk7258/aidk_ai_toy/AUTOMATION.md:8-32",
-        "boards/bk7258/aidk_ai_toy/AUTOMATION.md:89-100"
+        "boards/bk7258/aidk_ai_toy/AUTOMATION.md"
       ]
     },
     "t5ai_core": {

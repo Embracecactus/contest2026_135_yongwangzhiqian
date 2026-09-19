@@ -12,6 +12,7 @@
 #include <syslog.h>
 #include <time.h>
 #include <mbedtls/platform_util.h>
+#include <mbedtls/constant_time.h>
 
 enum phase_e { WIFI, TIME, VOICE, SERVICE, VERIFIED, PERSIST, FINISH, ABORTING, QUARANTINE };
 struct trial_s
@@ -20,6 +21,7 @@ struct trial_s
   uint8_t voice[BKVOICE_CONFIG_MAX_BYTES];
   size_t size;
   size_t voice_size;
+  uint64_t revision;
   uint8_t transaction[16];
   struct bkprov_settings_s settings;
   struct timespec previous_clock;
@@ -41,6 +43,7 @@ static struct bkprov_identity_s *g_identity;
 static const struct bkprov_voice_ops_s *g_voice;
 static void *g_context;
 static uint8_t g_last_transaction[16];
+static uint64_t g_last_revision;
 static bool g_commit_known;
 static int g_last_error;
 
@@ -68,9 +71,13 @@ int bkprov_network_unbind(void)
 }
 static void release_trial(void)
 {
+  bool restore = g_trial->phase == ABORTING && g_trial->revision > 0 &&
+                 !g_trial->restoring;
   g_last_error = g_trial->error;
   mbedtls_platform_zeroize(g_trial, sizeof(*g_trial));
   free(g_trial); g_trial = NULL;
+  /* 失败不覆盖已接受配置；原存储通知让产品恢复它。 */
+  if (restore) (void)bkprov_storage_refresh();
 }
 static int begin(void *context, const uint8_t *bundle, size_t size)
 {
@@ -84,8 +91,26 @@ static int begin(void *context, const uint8_t *bundle, size_t size)
       bkprov_failure("alloc", -ENOMEM);
       return -ENOMEM;
     }
-  memcpy(t->bundle, bundle, size); t->size = size;
-  int ret = bkprov_settings_decode(&t->settings, t->bundle, size);
+  uint8_t owner_key[32] = {0};
+  int ret = bkprov_storage_snapshot(t->bundle, sizeof(t->bundle),
+                                    &t->size, &t->revision, t->transaction);
+  if (ret == 0)
+    {
+      ret = bkprov_settings_decode(&t->settings, t->bundle, t->size);
+      if (!ret && !t->settings.control_key) ret = -ENOKEY;
+      if (!ret) memcpy(owner_key, t->settings.control_key, 32);
+    }
+  else if (ret == -ENOENT) ret = 0;
+  if (!ret)
+    {
+      memcpy(t->bundle, bundle, size); t->size = size;
+      ret = bkprov_settings_decode(&t->settings, t->bundle, size);
+      /* 控制密钥同时绑定加密记忆，重新绑定不得轮换它。 */
+      if (!ret && t->revision && (!t->settings.control_key ||
+          mbedtls_ct_memcmp(owner_key, t->settings.control_key, 32)))
+        ret = -EACCES;
+    }
+  mbedtls_platform_zeroize(owner_key, sizeof(owner_key));
   if (ret < 0) bkprov_failure("decode", ret);
   if (ret == 0)
     {
@@ -139,6 +164,7 @@ static void persist_result(int ret)
   struct trial_s *t = g_trial;
   if (ret == -EAGAIN) return;
   memcpy(g_last_transaction, t->transaction, 16);
+  g_last_revision = t->revision;
   g_commit_known = true;
   if (ret == -EINPROGRESS)
     { t->phase = QUARANTINE; t->error = ret; }
@@ -153,15 +179,15 @@ static int commit(void *context, const uint8_t transaction[16],
   if (transaction == NULL || bundle == NULL || size == 0 ||
       size > BKPROV_BUNDLE_MAX) return -EINVAL;
   if (g_commit_known && !memcmp(transaction, g_last_transaction, 16))
-    return bkprov_storage_commit(0, transaction, bundle, size);
+    return bkprov_storage_commit(g_last_revision, transaction, bundle, size);
   struct trial_s *t = g_trial;
   if (t == NULL || size != t->size || memcmp(bundle, t->bundle, size)) return -ESTALE;
   if (t->phase != VERIFIED && t->phase != PERSIST) return -EBUSY;
   if (t->committing && memcmp(transaction, t->transaction, 16)) return -ESTALE;
   memcpy(t->transaction, transaction, 16);
   t->committing = true; t->phase = PERSIST;
-  /* Initial claim only: owner rejects an already selected configuration. */
-  int ret = bkprov_storage_commit(0, transaction, t->bundle, t->size);
+  /* 初次认领和显式重新绑定共用带 revision 比较的原子事务。 */
+  int ret = bkprov_storage_commit(t->revision, transaction, t->bundle, t->size);
   persist_result(ret);
   return ret;
 }
@@ -208,6 +234,14 @@ void bkprov_network_step(void)
     }
   if (t->phase == VOICE)
     {
+      if (t->revision && !t->restoring)
+        {
+          ret = g_voice->clear(g_context);
+          if (ret < 0) { t->error = ret; t->phase = ABORTING; }
+        }
+    }
+  if (t->phase == VOICE)
+    {
       if (clock_gettime(CLOCK_REALTIME, &t->previous_clock) < 0)
         { t->error = -errno; t->phase = ABORTING; }
       else
@@ -241,7 +275,8 @@ void bkprov_network_step(void)
       else if (ret < 0) { bkprov_failure("service_ready", ret); t->error = ret; t->phase = ABORTING; }
     }
   if (t->phase == PERSIST)
-    persist_result(bkprov_storage_commit(0, t->transaction, t->bundle, t->size));
+    persist_result(bkprov_storage_commit(t->revision, t->transaction,
+                                         t->bundle, t->size));
   if (t->phase == ABORTING)
     {
       if (t->voice_loaded)

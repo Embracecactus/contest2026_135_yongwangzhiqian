@@ -134,7 +134,8 @@ enum bk7258_aud_state_e
   BK7258_AUD_STATE_RUNNING,
   BK7258_AUD_STATE_DRAINED,
   BK7258_AUD_STATE_STOPPING,
-  BK7258_AUD_STATE_FAULT
+  BK7258_AUD_STATE_FAULT,
+  BK7258_AUD_STATE_PAUSED
 };
 
 /* An APB can end anywhere within a physical DMA frame.  Delay its DEQUEUE
@@ -401,6 +402,9 @@ static uint32_t bk7258_aud_diag_state(enum bk7258_aud_state_e state)
 
       case BK7258_AUD_STATE_RUNNING:
         return BK7258_AUD_DIAG_RUNNING;
+
+      case BK7258_AUD_STATE_PAUSED:
+        return BK7258_AUD_DIAG_PAUSED;
 
       case BK7258_AUD_STATE_DRAINED:
         return BK7258_AUD_DIAG_DRAINED;
@@ -804,8 +808,7 @@ static int bk7258_aud_frequency_acquire(struct bk7258_aud_dev_s *priv)
   int ret;
 
   before = (uint32_t)perf_getfreq();
-  ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_AUDIO,
-                                  BK7258_PM_OPP_480M);
+  ret = bk7258_media_audio_frequency_acquire(BK7258_MEDIA_AUDIO_DAC);
   if (ret < 0)
     {
       /* The PM transaction may already have committed on CP before AP's
@@ -858,8 +861,7 @@ static int bk7258_aud_frequency_release(struct bk7258_aud_dev_s *priv)
 
   nxmutex_unlock(&priv->lock);
 
-  ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_AUDIO,
-                                  BK7258_PM_OPP_DEFAULT);
+  ret = bk7258_media_audio_frequency_release(BK7258_MEDIA_AUDIO_DAC);
   if (ret < 0)
     {
       nxmutex_lock(&priv->lock);
@@ -2013,6 +2015,7 @@ static int bk7258_aud_stop_internal(struct bk7258_aud_dev_s *priv)
 
   nxmutex_lock(&priv->lock);
   had_activity = priv->state == BK7258_AUD_STATE_RUNNING ||
+                 priv->state == BK7258_AUD_STATE_PAUSED ||
                  priv->state == BK7258_AUD_STATE_STARTING ||
                  priv->outstanding != 0;
   bk7258_aud_set_state(priv, BK7258_AUD_STATE_STOPPING);
@@ -2083,6 +2086,58 @@ static int bk7258_aud_stop_internal(struct bk7258_aud_dev_s *priv)
   return first;
 }
 
+/* The official Media sink keeps its device descriptor across graph links.
+ * After a completed link it releases the NuttX endpoint, then starts the next
+ * link with CONFIGURE on that same descriptor. Reclaim the board endpoint
+ * only when the previous session reached the fully clean RESET state. This
+ * keeps the compatibility rule inside the BK7258 lower-half and does not
+ * weaken active-stream exclusion or shared MIC/DAC ownership.
+ */
+
+static int bk7258_aud_claim_endpoint_locked(struct bk7258_aud_dev_s *priv,
+                                            bool allow_existing)
+{
+  int ret = OK;
+
+  if (priv->reserved)
+    {
+      ret = allow_existing ? OK : -EBUSY;
+    }
+  else if (priv->state != BK7258_AUD_STATE_RESET ||
+           priv->outstanding != 0 || bk7258_aud_resources_owned(priv) ||
+           priv->audio_session_owned || priv->frequency_voted ||
+           priv->frequency_uncertain)
+    {
+      ret = -EBUSY;
+    }
+  else
+    {
+      priv->reserved = true;
+      __atomic_store_n(&priv->close_safe, false, __ATOMIC_RELEASE);
+      priv->configured = false;
+      priv->final_queued = false;
+      priv->complete_sent = false;
+      priv->nbuffers = CONFIG_BK7258_AUD_QUEUE_DEPTH;
+      dq_init(&priv->pendq);
+      bk7258_aud_set_state(priv, BK7258_AUD_STATE_RESERVED);
+    }
+
+  return ret;
+}
+
+static int bk7258_aud_claim_endpoint(struct bk7258_aud_dev_s *priv,
+                                     bool allow_existing)
+{
+  int ret;
+
+  nxmutex_lock(&priv->worker_lock);
+  nxmutex_lock(&priv->lock);
+  ret = bk7258_aud_claim_endpoint_locked(priv, allow_existing);
+  nxmutex_unlock(&priv->lock);
+  nxmutex_unlock(&priv->worker_lock);
+  return ret;
+}
+
 /****************************************************************************
  * audio_ops_s
  ****************************************************************************/
@@ -2107,6 +2162,15 @@ static int bk7258_aud_getcaps(struct audio_lowerhalf_s *dev, int type,
             caps->ac_controls.b[0] = AUDIO_TYPE_OUTPUT |
                                      AUDIO_TYPE_FEATURE;
             caps->ac_format.hw = 1 << (AUDIO_FMT_PCM - 1);
+          }
+        else if (caps->ac_subtype == AUDIO_FMT_PCM)
+          {
+            /* 官方 ALSA 会继续枚举 PCM 子格式；仅声明 PCM 类型不足以
+             * 打开设备。这里只报告下半部实际接受的 16 位小端格式。
+             */
+
+            caps->ac_controls.b[0] = AUDIO_SUBFMT_PCM_S16_LE;
+            caps->ac_controls.b[1] = AUDIO_SUBFMT_END;
           }
         else
           {
@@ -2285,11 +2349,18 @@ static int bk7258_aud_configure(struct audio_lowerhalf_s *dev,
       return -ERANGE;
     }
 
+  /* RESET is published only after the worker, DMA, shared session and
+   * frequency vote are gone.  CONFIGURE already runs under the audio upper
+   * half's serialization, so reclaim the persistent Media descriptor under
+   * the state lock instead of entering the hardware-worker lock domain.
+   */
+
   nxmutex_lock(&priv->lock);
-  if (!priv->reserved)
+  ret = bk7258_aud_claim_endpoint_locked(priv, true);
+  if (ret < 0)
     {
       nxmutex_unlock(&priv->lock);
-      return -EACCES;
+      return ret;
     }
 
   if (priv->state != BK7258_AUD_STATE_RESERVED &&
@@ -2478,6 +2549,7 @@ static int bk7258_aud_stop(struct audio_lowerhalf_s *dev)
     }
 
   needs_stop = priv->state == BK7258_AUD_STATE_RUNNING ||
+               priv->state == BK7258_AUD_STATE_PAUSED ||
                priv->state == BK7258_AUD_STATE_DRAINED ||
                priv->state == BK7258_AUD_STATE_FAULT ||
                priv->state == BK7258_AUD_STATE_STARTING ||
@@ -2501,11 +2573,44 @@ static int bk7258_aud_pause(struct audio_lowerhalf_s *dev, void *session)
 static int bk7258_aud_pause(struct audio_lowerhalf_s *dev)
 #endif
 {
-  (void)dev;
+  struct bk7258_aud_dev_s *priv = (struct bk7258_aud_dev_s *)dev;
+  int ret = OK;
+
 #ifdef CONFIG_AUDIO_MULTI_SESSION
-  (void)session;
+  if (session != priv)
+    {
+      return -EINVAL;
+    }
 #endif
-  return -ENOTSUP;
+
+  /* 暂停 DAC 消费，不停止 DMA 或清空环形缓冲。SDK 的 ring_buffer_write()
+   * 会在 DMA 被禁用时将读位置当成零；保留通道使能和 FIFO 背压，才能在
+   * RESUME 后继续原队列。已有完成中断仍由原 worker 处理。
+   */
+
+  nxmutex_lock(&priv->worker_lock);
+  nxmutex_lock(&priv->lock);
+  if (!priv->reserved ||
+      (priv->state != BK7258_AUD_STATE_RUNNING &&
+       priv->state != BK7258_AUD_STATE_PAUSED))
+    {
+      ret = -EINVAL;
+    }
+  else if (priv->state == BK7258_AUD_STATE_RUNNING)
+    {
+      ret = bk7258_aud_result(bk_aud_dac_stop());
+      if (ret == OK)
+        {
+          priv->dac_started = false;
+          priv->diag.dac_stop_count++;
+          bk7258_aud_set_state(priv, BK7258_AUD_STATE_PAUSED);
+        }
+    }
+
+  bk7258_aud_record_error(priv, ret);
+  nxmutex_unlock(&priv->lock);
+  nxmutex_unlock(&priv->worker_lock);
+  return ret;
 }
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
@@ -2514,11 +2619,54 @@ static int bk7258_aud_resume(struct audio_lowerhalf_s *dev, void *session)
 static int bk7258_aud_resume(struct audio_lowerhalf_s *dev)
 #endif
 {
-  (void)dev;
+  struct bk7258_aud_dev_s *priv = (struct bk7258_aud_dev_s *)dev;
+  bk_err_t error;
+  int ret = OK;
+
 #ifdef CONFIG_AUDIO_MULTI_SESSION
-  (void)session;
+  if (session != priv)
+    {
+      return -EINVAL;
+    }
 #endif
-  return -ENOTSUP;
+
+  nxmutex_lock(&priv->worker_lock);
+  nxmutex_lock(&priv->lock);
+  if (!priv->reserved ||
+      (priv->state != BK7258_AUD_STATE_RUNNING &&
+       priv->state != BK7258_AUD_STATE_PAUSED))
+    {
+      ret = -EINVAL;
+    }
+  else if (priv->state == BK7258_AUD_STATE_PAUSED)
+    {
+      /* 暂停期间允许控制 App 改音量；恢复消费前应用最新配置。 */
+
+      error = bk_aud_dac_set_gain(priv->dig_gain);
+      if (error == BK_OK)
+        {
+          error = priv->muted || priv->dig_gain == 0 ?
+                    bk_aud_dac_mute() : bk_aud_dac_unmute();
+        }
+
+      if (error == BK_OK)
+        {
+          error = bk_aud_dac_start();
+        }
+
+      ret = bk7258_aud_result(error);
+      if (ret == OK)
+        {
+          priv->dac_started = true;
+          priv->diag.dac_start_count++;
+          bk7258_aud_set_state(priv, BK7258_AUD_STATE_RUNNING);
+        }
+    }
+
+  bk7258_aud_record_error(priv, ret);
+  nxmutex_unlock(&priv->lock);
+  nxmutex_unlock(&priv->worker_lock);
+  return ret;
 }
 #endif
 
@@ -2562,9 +2710,8 @@ static int bk7258_aud_enqueuebuffer(struct audio_lowerhalf_s *dev,
   int ret;
 
   if (priv == NULL || apb == NULL || apb->samp == NULL ||
-      apb->nbytes > apb->nmaxbytes || apb->curbyte > apb->nbytes ||
-      (apb->nbytes % BK7258_AUD_BYTES_PER_SAMPLE) != 0 ||
-      (apb->curbyte % BK7258_AUD_BYTES_PER_SAMPLE) != 0)
+      apb->nbytes > apb->nmaxbytes ||
+      (apb->nbytes % BK7258_AUD_BYTES_PER_SAMPLE) != 0)
     {
       return -EINVAL;
     }
@@ -2584,7 +2731,8 @@ static int bk7258_aud_enqueuebuffer(struct audio_lowerhalf_s *dev,
 
   if (!priv->reserved ||
       (priv->state != BK7258_AUD_STATE_CONFIGURED &&
-       priv->state != BK7258_AUD_STATE_RUNNING))
+       priv->state != BK7258_AUD_STATE_RUNNING &&
+       priv->state != BK7258_AUD_STATE_PAUSED))
     {
       ret = -EACCES;
       goto errout;
@@ -2618,12 +2766,17 @@ static int bk7258_aud_enqueuebuffer(struct audio_lowerhalf_s *dev,
   apb->crefs++;
   nxmutex_unlock(&apb->lock);
 
+  /* ALSA mmap 周期复用同一 APB；上层更新 nbytes，传输游标由下半部重置。
+   * 不能将上一周期的 curbyte 带入新提交，否则只会播放首次入队的数据。
+   */
+
+  apb->curbyte = 0;
   apb->flags &= ~(AUDIO_APB_DEQUEUED | AUDIO_APB_OUTPUT_PROCESS);
   apb->flags |= AUDIO_APB_OUTPUT_ENQUEUED;
   dq_addlast(&apb->dq_entry, &priv->pendq);
   priv->outstanding++;
   priv->diag.enqueue_count++;
-  priv->diag.submitted_bytes += apb->nbytes - apb->curbyte;
+  priv->diag.submitted_bytes += apb->nbytes;
 
   if ((apb->flags & AUDIO_APB_FINAL) != 0)
     {
@@ -2757,27 +2910,10 @@ static int bk7258_aud_reserve(struct audio_lowerhalf_s *dev)
    * START/STOP, not the lifetime of this handle.
    */
 
-  nxmutex_lock(&priv->worker_lock);
-  nxmutex_lock(&priv->lock);
-  if (priv->reserved || priv->state != BK7258_AUD_STATE_RESET ||
-      priv->outstanding != 0 || bk7258_aud_resources_owned(priv) ||
-      priv->audio_session_owned || priv->frequency_voted ||
-      priv->frequency_uncertain)
+  if (bk7258_aud_claim_endpoint(priv, false) < 0)
     {
-      nxmutex_unlock(&priv->lock);
-      nxmutex_unlock(&priv->worker_lock);
       return -EBUSY;
     }
-
-  priv->reserved = true;
-  __atomic_store_n(&priv->close_safe, false, __ATOMIC_RELEASE);
-  priv->configured = false;
-  priv->final_queued = false;
-  priv->complete_sent = false;
-  dq_init(&priv->pendq);
-  bk7258_aud_set_state(priv, BK7258_AUD_STATE_RESERVED);
-  nxmutex_unlock(&priv->lock);
-  nxmutex_unlock(&priv->worker_lock);
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
   *psession = priv;
@@ -2811,6 +2947,7 @@ static int bk7258_aud_release(struct audio_lowerhalf_s *dev)
     }
 
   needs_stop = priv->state == BK7258_AUD_STATE_RUNNING ||
+               priv->state == BK7258_AUD_STATE_PAUSED ||
                priv->state == BK7258_AUD_STATE_DRAINED ||
                priv->state == BK7258_AUD_STATE_FAULT ||
                priv->state == BK7258_AUD_STATE_STARTING ||

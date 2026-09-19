@@ -40,11 +40,14 @@
 
 static mutex_t g_bk7258_media_root_lock = NXMUTEX_INITIALIZER;
 static uint32_t g_bk7258_media_roots;
-static uint8_t g_bk7258_media_audio_owner;
+static uint8_t g_bk7258_media_audio_owners;
 
 #ifdef CONFIG_BK7258_PM_CLOCK
 static bool g_bk7258_media_audio_pm_held;
 static bool g_bk7258_media_audio_pm_uncertain;
+static uint8_t g_bk7258_media_audio_frequency_owners;
+static uint8_t g_bk7258_media_audio_frequency_uncertain;
+static int g_bk7258_media_audio_frequency_error;
 #endif
 
 /****************************************************************************
@@ -216,9 +219,18 @@ int bk7258_media_audio_session_acquire(uint8_t owner)
       return ret;
     }
 
-  if (g_bk7258_media_audio_owner != 0)
+  if ((g_bk7258_media_audio_owners & owner) != 0)
     {
       ret = -EBUSY;
+    }
+  else if (g_bk7258_media_audio_owners != 0)
+    {
+      /* The SDK audio root supports ADC and DAC together.  Official Media
+       * also keeps its playback graph reserved while the next capture opens,
+       * so the composite CP clock spans the first through the last owner. */
+
+      g_bk7258_media_audio_owners |= owner;
+      ret = 0;
     }
   else
     {
@@ -256,7 +268,7 @@ int bk7258_media_audio_session_acquire(uint8_t owner)
       g_bk7258_media_audio_pm_held = true;
       g_bk7258_media_audio_pm_uncertain = false;
 #endif
-      g_bk7258_media_audio_owner = owner;
+      g_bk7258_media_audio_owners = owner;
       ret = 0;
     }
 
@@ -283,9 +295,23 @@ int bk7258_media_audio_session_release(uint8_t owner)
       return ret;
     }
 
-  if (g_bk7258_media_audio_owner != owner)
+  if ((g_bk7258_media_audio_owners & owner) == 0)
     {
       ret = -EPERM;
+    }
+#ifdef CONFIG_BK7258_PM_CLOCK
+  else if (((g_bk7258_media_audio_frequency_owners |
+             g_bk7258_media_audio_frequency_uncertain) & owner) != 0)
+    {
+      /* Frequency ownership is nested inside the composite clock session. */
+
+      ret = -EBUSY;
+    }
+#endif
+  else if ((g_bk7258_media_audio_owners & ~owner) != 0)
+    {
+      g_bk7258_media_audio_owners &= ~owner;
+      ret = 0;
     }
   else
     {
@@ -296,7 +322,7 @@ int bk7258_media_audio_session_release(uint8_t owner)
           goto out;
         }
 #endif
-      g_bk7258_media_audio_owner = 0;
+      g_bk7258_media_audio_owners = 0;
       ret = 0;
     }
 
@@ -305,4 +331,128 @@ out:
 #endif
   nxmutex_unlock(&g_bk7258_media_root_lock);
   return ret;
+}
+
+int bk7258_media_audio_frequency_acquire(uint8_t owner)
+{
+#ifdef CONFIG_BK7258_PM_CLOCK
+  int ret;
+
+  if (owner != BK7258_MEDIA_AUDIO_MIC &&
+      owner != BK7258_MEDIA_AUDIO_DAC)
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&g_bk7258_media_root_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if ((g_bk7258_media_audio_owners & owner) == 0)
+    {
+      ret = -EPERM;
+    }
+  else if ((g_bk7258_media_audio_frequency_owners & owner) != 0 ||
+           (g_bk7258_media_audio_frequency_uncertain & owner) != 0)
+    {
+      ret = -EBUSY;
+    }
+  else if (g_bk7258_media_audio_frequency_uncertain != 0)
+    {
+      /* Every concurrent owner must participate in convergence.  The final
+       * release sends DEFAULT after a lost reply that may have committed. */
+
+      g_bk7258_media_audio_frequency_uncertain |= owner;
+      ret = g_bk7258_media_audio_frequency_error;
+    }
+  else if (g_bk7258_media_audio_frequency_owners != 0)
+    {
+      g_bk7258_media_audio_frequency_owners |= owner;
+      ret = 0;
+    }
+  else
+    {
+      ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_AUDIO,
+                                     BK7258_PM_OPP_480M);
+      if (ret < 0)
+        {
+          g_bk7258_media_audio_frequency_uncertain = owner;
+          g_bk7258_media_audio_frequency_error = ret;
+        }
+      else
+        {
+          g_bk7258_media_audio_frequency_owners = owner;
+        }
+    }
+
+  nxmutex_unlock(&g_bk7258_media_root_lock);
+  return ret;
+#else
+  (void)owner;
+  return 0;
+#endif
+}
+
+int bk7258_media_audio_frequency_release(uint8_t owner)
+{
+#ifdef CONFIG_BK7258_PM_CLOCK
+  int ret;
+
+  if (owner != BK7258_MEDIA_AUDIO_MIC &&
+      owner != BK7258_MEDIA_AUDIO_DAC)
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&g_bk7258_media_root_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if ((g_bk7258_media_audio_frequency_uncertain & owner) != 0)
+    {
+      if ((g_bk7258_media_audio_frequency_uncertain & ~owner) != 0)
+        {
+          g_bk7258_media_audio_frequency_uncertain &= ~owner;
+          ret = 0;
+        }
+      else
+        {
+          ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_AUDIO,
+                                         BK7258_PM_OPP_DEFAULT);
+          if (ret == 0)
+            {
+              g_bk7258_media_audio_frequency_uncertain = 0;
+              g_bk7258_media_audio_frequency_error = 0;
+            }
+        }
+    }
+  else if ((g_bk7258_media_audio_frequency_owners & owner) == 0)
+    {
+      ret = -EPERM;
+    }
+  else if ((g_bk7258_media_audio_frequency_owners & ~owner) != 0)
+    {
+      g_bk7258_media_audio_frequency_owners &= ~owner;
+      ret = 0;
+    }
+  else
+    {
+      ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_AUDIO,
+                                     BK7258_PM_OPP_DEFAULT);
+      if (ret == 0)
+        {
+          g_bk7258_media_audio_frequency_owners = 0;
+        }
+    }
+
+  nxmutex_unlock(&g_bk7258_media_root_lock);
+  return ret;
+#else
+  (void)owner;
+  return 0;
+#endif
 }

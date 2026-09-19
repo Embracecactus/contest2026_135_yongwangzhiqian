@@ -37,13 +37,22 @@ if(CONFIG_MEDIA AND CONFIG_MEDIA_SERVER)
       "${CMAKE_CURRENT_BINARY_DIR}/etc/media/nihao_openvela.tflite")
     configure_file("${wake_model}" "${wake_model_staged}" COPYONLY)
   endif()
+  # 私人授权提示音仅进入本地镜像，不随公开源码分发。
+  file(GLOB wake_reply CONFIGURE_DEPENDS
+    "${NUTTX_APPS_DIR}/system/bk7258/assets/wake_reply.pcm")
+  set(wake_reply_staged "${CMAKE_CURRENT_BINARY_DIR}/etc/media/wake_reply.pcm")
+  if(wake_reply)
+    configure_file("${wake_reply}" "${wake_reply_staged}" COPYONLY)
+  else()
+    file(REMOVE "${wake_reply_staged}")
+  endif()
   nuttx_add_romfs(
     NAME media
     PREFIX shaniu_media
     NONCONST
     RCRAWS
     ${media_assets}
-    DEPENDS ${wake_model} ${wake_model_staged}
+    DEPENDS ${wake_model} ${wake_model_staged} ${wake_reply}
     PATH
     ${CMAKE_CURRENT_BINARY_DIR}/etc/media)
   target_link_libraries(board PRIVATE romfs_media)

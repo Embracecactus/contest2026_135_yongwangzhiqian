@@ -711,12 +711,18 @@ static int bk7258_sdio_host_init_locked(FAR struct bk7258_sdio_priv_s *priv,
   bk_sdio_clk_gate_config(1);
 #endif
 
-  /* bk_sdio_host_init() in the fixed v3.1.1.9 SDK raises CLK_PWR_ID_SDIO
-   * through sys_drv_dev_clk_pwr_up() -> bk_pm_clock_ctrl().  The AP linker
-   * wrapper translates that existing vendor edge to the CP-owned RPMsg PM
-   * service.  Do not add a second explicit vote here: it would double the
-   * server reference count and leave the clock pinned after deinit.
+  /* SDK 的 sys_drv_dev_clk_pwr_up() 不返回供时结果，host_init() 因而
+   * 可能在时钟未开启时仍返回 BK_OK。先检查同一个 set-state 接口；
+   * AP 适配按状态去重，SDK 随后的开启调用不会重复增加 CP 引用。
+   * 供时失败必须在初始化边界返回，不能继续发送必然超时的卡命令。
    */
+
+  err = bk_pm_clock_ctrl(BK7258_SDK_PM_CLK_ID_SDIO, BK7258_SDK_PM_CLK_UP);
+  if (err != BK_OK)
+    {
+      syslog(LOG_ERR, "BKSDIO clock enable failed: ret=%d\n", err);
+      return err;
+    }
 
   err = bk_sdio_host_init(&cfg);
   if (err == BK_OK)
@@ -764,6 +770,11 @@ static int bk7258_sdio_host_init_locked(FAR struct bk7258_sdio_priv_s *priv,
       priv->initialized = true;
       priv->cmd_timeout = BK7258_SDIO_ID_CMD_TIMEOUT;
       priv->data_timeout = BK7258_SDIO_ID_DATA_TIMEOUT;
+    }
+  else
+    {
+      (void)bk_pm_clock_ctrl(BK7258_SDK_PM_CLK_ID_SDIO,
+                             BK7258_SDK_PM_CLK_DOWN);
     }
   return bk7258_sdio_map_err(err);
 }

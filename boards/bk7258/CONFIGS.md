@@ -59,7 +59,7 @@ logical base pair, not two product variants.
 |---|---|---|---|
 | T5-Board | `app` | `openvela_ap` | `xts`, `perf` |
 | T5AI-Core | `app` | `openvela_ap` | `xts`; paired `drivercheck_cp` / `drivercheck_ap` |
-| AIDK AI Toy | `app` | `openvela_ap` | `xts` CP paired with `openvela_ap`; paired `drivercheck_cp` / `drivercheck_ap` |
+| AIDK AI Toy | `app` | `openvela_ap` | None; product-local `xts` and `drivercheck` configurations retired, source retained |
 
 Each physical board owns exactly one normal application entry at
 `configs/app/defconfig`. It is a complete CP configuration, not a shared
@@ -71,7 +71,8 @@ additional config parser exists in the build tool.
 T5-Board selects Dolphin; AIDK AI Toy retains Shaniu; T5AI-Core retains its
 existing system features. The product application source remains in `app/`,
 SoC mechanisms in `chips/`, and populated hardware/wiring in each board.
-Diagnostic `xts`, `perf` and `drivercheck` profiles remain separate purposes.
+The remaining T5-Board/T5AI-Core `xts`, `perf` and `drivercheck` profiles are
+separate purposes; they are not part of the AIDK Shaniu product build.
 Retired duplicate product entries: `openvela_cp`, `dolphin_cp`, `dolphin_ap`.
 Generated `.config` files and historical build evidence retain their original
 paths; they are not new maintained application entries.
@@ -120,7 +121,10 @@ NSH continues to `rcS` even when `BOARDIOC_FINALINIT` returns an error.  Any
 future service added to `rcS` must therefore check its own required mounts or
 devices before starting.
 
-The three CP XTS profiles retain the normal CP diagnostic startup baseline.
+The T5-Board and T5AI-Core CP XTS profiles retain the normal CP diagnostic
+startup baseline.  AIDK AI Toy no longer carries a product-local XTS or
+drivercheck profile; its maintained pair is the Shaniu `app` and
+`openvela_ap` product configuration.
 `t5_board/configs/xts` is also the maintained P0 diagnostic profile: it keeps
 AP/RPTUN/Wi-Fi, Trace, watchdog supervision, Backtrace, Allsyms,
 IRQ/critical-section/CPU-load monitoring and memory stress together so one
@@ -140,12 +144,12 @@ base CP/AP profiles or to the chip's role-partition ownership.  The
 generation 147--149 diagnosis and board evidence are recorded in
 [`../../docs/verification/bk7258/2026-08-27-bk7258-p0-xts-completion.md`](../../docs/verification/bk7258/2026-08-27-bk7258-p0-xts-completion.md).
 
-Each physical board has a CP `xts` profile paired with that board's normal
-`openvela_ap` profile.  These profiles enable the same linked BK7258 CMocka
-CP/AP lifecycle contract; the normal product profiles do not carry test
-applications.  Official pytest drives that CMocka program over the UART0 CP
-NuttShell, applies a BK7258-wide boot baseline, then selects additional markers
-from an explicit `t5_board`, `t5ai_core`, or `aidk_ai_toy` board contract.
+The T5-Board and T5AI-Core `xts` profiles pair with their board's normal
+`openvela_ap` profile.  They enable the same linked BK7258 CMocka CP/AP
+lifecycle contract; normal product profiles do not carry test applications.
+Official pytest drives that CMocka program over the UART0 CP NuttShell,
+applies a BK7258-wide boot baseline, then selects additional markers from an
+explicit `t5_board` or `t5ai_core` board contract.
 
 `t5_board/configs/perf` is the one narrow measurement-policy exception to the
 profile-directory rule below.  It does not introduce another physical-board
@@ -172,9 +176,8 @@ for each benchmark.  Its exact identities and 160-to-240 MHz comparison are
 recorded in
 [`../../docs/verification/bk7258/2026-08-27-bk7258-sdk-clock-240m-validation.md`](../../docs/verification/bk7258/2026-08-27-bk7258-sdk-clock-240m-validation.md).
 
-Every full-flash acceptance run, including a switch between these two
-profiles, is a new trust generation.  It must use freshly generated, distinct
-BL1 and MCUboot P-256 keypairs, a strictly increasing version/counter, the
+Every full-flash acceptance run must reuse the compatible, approved installed
+BL1 and MCUboot identities, a strictly increasing version/counter, the
 Agent partition CSV, and one complete-Flash operator image at address zero.
 The accepted base must be one exact full-device readback whose canonical
 `package accept-base` evidence binds its hash/size to the board, selected
@@ -182,8 +185,8 @@ layout, stable device ID and capture method.  Materialization
 preserves `usr_config`, Agent persistent data and device-unique calibration/
 network state while resetting only declared transactional state; BK Loader
 must not chip-erase.  The resulting recovery is bound to that device and must
-not be copied to another board.  Delete the temporary private-key directory
-after package, flash and board evidence are accepted.
+not be copied to another board. Ordinary builds and downloads do not authorize
+key generation, rotation or deletion.
 
 `--boot mcuboot` derives private build-local defconfigs with
 `CONFIG_BK7258_MCUBOOT_IMAGE=y`; it does not require another pair of tracked

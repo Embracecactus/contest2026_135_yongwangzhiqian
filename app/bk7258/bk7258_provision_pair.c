@@ -26,7 +26,7 @@ void bkprov_pair_close(struct bkprov_pair_s *pair)
   if (pair == NULL) return;
   bkprov_scan_close();
   bkprov_claim_close(&pair->claim);
-  bkprov_tls_close(&pair->tls);
+  if (pair->scan_tls == NULL) bkprov_tls_close(&pair->tls);
   mbedtls_platform_zeroize(pair, sizeof(*pair));
 }
 
@@ -65,17 +65,43 @@ int bkprov_pair_start_recovery(struct bkprov_pair_s *pair, uint32_t generation,
   return ret;
 }
 
+int bkprov_pair_attach_scan(struct bkprov_pair_s *pair,
+                            struct bkprov_tls_s *tls, const uint8_t secret[32])
+{
+  if (!pair || !tls || !tls->initialized || !tls->established ||
+      pair->tls.initialized || pair->scan_tls) return -EINVAL;
+  int ret = bkprov_claim_open(&pair->claim, tls->generation, secret, true,
+                               false, tls->now_ms(tls->clock_context),
+                               &recovery_ops, NULL);
+  if (ret < 0) return ret;
+  pair->scan_tls = tls;
+  pair->expected = 32;
+  pair->reported_state = BKPROV_AUTH;
+  return 0;
+}
+
 static int packet(struct bkprov_pair_s *pair)
 {
   const uint8_t *p = pair->input;
+  struct bkprov_tls_s *tls = pair->scan_tls ? pair->scan_tls : &pair->tls;
   uint32_t sequence = get32(p+8), size = get32(p+28);
   int ret;
-  if (p[4] == 1)
+  if (p[4] == 1 || p[4] == 7)
     {
       if (pair->claim.state != BKPROV_AUTH || sequence != 0 || size != 32)
         return -EPROTO;
       memcpy(pair->transaction,p+12,16);
-      ret = bkprov_claim_auth(&pair->claim,pair->tls.generation,p+12,p+32);
+      ret = bkprov_claim_auth(&pair->claim,tls->generation,p+12,p+32);
+      if (ret == 0 && p[4] == 7 && pair->scan_tls)
+        {
+          if (pair->rebind_ops == NULL) return -ENOTSUP;
+          pair->claim.ops = pair->rebind_ops;
+          pair->claim.context = pair->rebind_context;
+          pair->rebind = true;
+          pair->report_key = true;
+        }
+      if (ret == 0 && pair->scan_tls)
+        ret = bkprov_claim_confirm(&pair->claim, tls->generation);
     }
   else
     {
@@ -83,6 +109,8 @@ static int packet(struct bkprov_pair_s *pair)
           pair->claim.state >= BKPROV_CHECKING) return -EPROTO;
       if (pair->scan_pending || pair->scan_report || pair->scan_session)
         return -EPROTO;
+      /* 普通 AUTH 仍只读；显式恢复通过后才接入原有配置事务。 */
+      if (pair->scan_tls && !pair->rebind && p[4] != 6) return -EACCES;
       if (p[4] == 6)
         {
           if (pair->recovery || sequence != 1 || size != 0 ||
@@ -161,10 +189,20 @@ static int report(struct bkprov_pair_s *pair)
       put32(response+28,8);
       put32(response+32,pair->claim.state);
       put32(response+36,(uint32_t)pair->claim.error);
+      if (pair->report_key && pair->claim.state == BKPROV_READY)
+        {
+          put32(response + 28, 40);
+          memcpy(response + 40, pair->rebind_key, 32);
+          size = 72;
+        }
     }
-  ret = bkprov_tls_queue(&pair->tls,response,size);
+  ret = bkprov_tls_queue(pair->scan_tls ? pair->scan_tls : &pair->tls,
+                          response,size);
   if (ret == 0)
     {
+      mbedtls_platform_zeroize(pair->rebind_key, 32);
+      mbedtls_platform_zeroize(response, size);
+      pair->report_key = false;
       pair->report = false;
       pair->scan_report = false;
       pair->reported_state = pair->claim.state;
@@ -185,11 +223,13 @@ int bkprov_pair_step(struct bkprov_pair_s *pair)
 {
   int ret;
   ssize_t received;
-  if (pair == NULL || !pair->tls.initialized) return -ENOTCONN;
+  if (pair == NULL) return -ENOTCONN;
+  struct bkprov_tls_s *tls = pair->scan_tls ? pair->scan_tls : &pair->tls;
+  if (!tls->initialized) return -ENOTCONN;
   /* Snapshot the transport clock before TLS step can free its context. */
-  uint64_t now = pair->tls.now_ms(pair->tls.clock_context);
+  uint64_t now = tls->now_ms(tls->clock_context);
   (void)bkprov_claim_step(&pair->claim,bkprov_gatt_generation(),now);
-  ret = bkprov_tls_step(&pair->tls);
+  ret = bkprov_tls_step(tls);
   if (ret < 0) goto fail;
   if (ret == 0) return 0;
   if (pair->query_pending && pair->claim.state == BKPROV_CHECKING)
@@ -229,7 +269,7 @@ int bkprov_pair_step(struct bkprov_pair_s *pair)
        */
       return 0;
     }
-  received = bkprov_tls_read(&pair->tls,pair->input+pair->input_size,
+  received = bkprov_tls_read(tls,pair->input+pair->input_size,
                               pair->expected-pair->input_size);
   if (received == -EAGAIN) return 0;
   if (received < 0) { ret = (int)received; goto fail; }

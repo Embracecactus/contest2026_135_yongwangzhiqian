@@ -67,10 +67,10 @@ static bool bkcontrol_ota_hostname_valid(const char *hostname, size_t length)
   return label_length != 0 && hostname[length - 1] != '-';
 }
 
-static bool bkcontrol_ota_url_valid(const char *url, size_t length)
+static bool bkcontrol_ota_url_valid(const char *url, size_t length,
+                                    const char *suffix)
 {
-  static const char catalog_suffix[] = "/catalog.json";
-  const size_t suffix_length = sizeof(catalog_suffix) - 1u;
+  const size_t suffix_length = strlen(suffix);
   const char *authority;
   const char *path;
   const char *port_separator;
@@ -80,7 +80,7 @@ static bool bkcontrol_ota_url_valid(const char *url, size_t length)
   size_t index;
 
   if (length < 8u + suffix_length || memcmp(url, "https://", 8u) != 0 ||
-      memcmp(url + length - suffix_length, catalog_suffix, suffix_length) != 0)
+      memcmp(url + length - suffix_length, suffix, suffix_length) != 0)
     {
       return false;
     }
@@ -172,8 +172,9 @@ static bool bkcontrol_ota_pem_bytes_valid(const uint8_t *pem, size_t length)
   return true;
 }
 
-int bkcontrol_ota_request_parse(const uint8_t *record, size_t size,
-                                struct bkcontrol_ota_request_s *out)
+static int request_parse(const uint8_t *record, size_t size,
+                         const char *magic, const char *suffix,
+                         struct bkcontrol_ota_request_s *out)
 {
   unsigned int url_length;
   unsigned int ca_length;
@@ -188,7 +189,7 @@ int bkcontrol_ota_request_parse(const uint8_t *record, size_t size,
   memset(out, 0, sizeof(*out));
 
   if (record == NULL || size < BKCONTROL_OTA_HEADER_SIZE ||
-      size > BKCONTROL_OTA_RECORD_MAX || memcmp(record, "SOU1", 4u) != 0)
+      size > BKCONTROL_OTA_RECORD_MAX || memcmp(record, magic, 4u) != 0)
     {
       return -EINVAL;
     }
@@ -224,7 +225,7 @@ int bkcontrol_ota_request_parse(const uint8_t *record, size_t size,
   memcpy(out->url, record + BKCONTROL_OTA_HEADER_SIZE, url_length);
   memcpy(out->ca_pem, record + BKCONTROL_OTA_HEADER_SIZE + url_length, ca_length);
 
-  if (!bkcontrol_ota_url_valid(out->url, url_length) ||
+  if (!bkcontrol_ota_url_valid(out->url, url_length, suffix) ||
       strstr(out->ca_pem, "-----BEGIN CERTIFICATE-----") == NULL ||
       strstr(out->ca_pem, "-----END CERTIFICATE-----") == NULL)
     {
@@ -233,4 +234,16 @@ int bkcontrol_ota_request_parse(const uint8_t *record, size_t size,
     }
 
   return 0;
+}
+
+int bkcontrol_ota_request_parse(const uint8_t *record, size_t size,
+                                struct bkcontrol_ota_request_s *out)
+{
+  return request_parse(record, size, "SOU1", "/catalog.json", out);
+}
+
+int bkcontrol_eye_request_parse(const uint8_t *record, size_t size,
+                                struct bkcontrol_ota_request_s *out)
+{
+  return request_parse(record, size, "EYE2", "/asset.bkep", out);
 }

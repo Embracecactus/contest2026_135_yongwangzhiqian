@@ -44,6 +44,7 @@ static bool g_registered;
 static bool g_window;
 static bool g_ready;
 static uint16_t g_ccc_value;
+static struct bt_gatt_ccc_cfg_s g_ccc[1];
 
 static int read_name(struct bt_conn_s *conn, const struct bt_gatt_attr_s *attr,
                      void *buf, uint8_t len, uint16_t offset)
@@ -117,6 +118,11 @@ static void disconnected(struct bt_conn_s *conn, void *context)
       g_connection = NULL;
       g_window = false;
       g_ready = false;
+      /* 产品用每次连接的 TLS 鉴权，不跨连接保留通知订阅。官方 GATT
+       * 此时已结束断开处理；释放自有 CCC 槽，允许手机随机地址变化。
+       * 这里只清理易失订阅状态，不触碰蓝牙配对或产品认领密钥。
+       */
+      memset(g_ccc, 0, sizeof(g_ccc));
     }
   spin_unlock_irqrestore(&g_lock, flags);
   if (old != NULL)
@@ -199,7 +205,6 @@ static struct bt_gatt_chrc_s g_tx_chrc =
   { .properties = BT_GATT_CHRC_WRITE, .value_handle = 0x12, .uuid = &g_tx };
 static struct bt_gatt_chrc_s g_rx_chrc =
   { .properties = BT_GATT_CHRC_NOTIFY, .value_handle = 0x14, .uuid = &g_rx };
-static struct bt_gatt_ccc_cfg_s g_ccc[1];
 static const struct bt_gatt_attr_s g_attributes[] =
 {
   BT_GATT_PRIMARY_SERVICE(1, &g_gap),

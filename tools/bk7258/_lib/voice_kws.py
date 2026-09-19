@@ -16,6 +16,7 @@ import json
 import re
 import stat
 import subprocess
+import sys
 import tempfile
 import wave
 from collections import Counter
@@ -77,11 +78,15 @@ def add_arguments(subparsers: argparse._SubParsersAction[argparse.ArgumentParser
     train.add_argument("--batch-size", type=int, default=16)
     train.add_argument("--seed", type=int, default=1337)
     train.add_argument("--channels", type=int, default=32,
-                       help="DS-CNN pointwise channel count (1..32)")
+                       help="DS-CNN pointwise channel count (1..64); export must fit 64 KiB")
+    train.add_argument("--architecture", choices=("ds-cnn", "temporal-ds-cnn"), default="ds-cnn",
+                       help="spatial DS-CNN or full-frequency projection followed by temporal separable convolutions")
     train.add_argument("--initial-frequency-stride", type=int, choices=(1, 2, 4), default=2,
-                       help="initial Conv2D frequency stride; time stride remains two")
+                       help="DS-CNN frequency stride; temporal projection always spans all 40 bins")
     train.add_argument("--onset-hard-negatives", type=int, default=0,
                        help="train-only silence-to-speech rolling windows; disabled by default")
+    train.add_argument("--unknown-shift-step-ms", type=int, choices=(100, 200, 400, 800), default=100,
+                       help="train-only negative shift spacing; larger steps bound memory for larger corpora")
     train.add_argument("--positive-end-window-ms", type=int, default=0,
                        help="keep complete positive phrase ends in the final 100..3000 ms of a rolling window; 0 retains all legal positions")
     train.add_argument("--pcm-level-augmentation", action="store_true",
@@ -350,14 +355,16 @@ def _frontend_library() -> ctypes.CDLL:
 def _features(records: Iterable[dict[str, Any]], numpy: Any) -> Any:
     library = _frontend_library()
     function = library.bkvoice_kws_features
-    output = []
-    for record in records:
+    # 一次分配最终数组，避免扩容后 stack/astype 同时保留多份完整特征。
+    records = list(records)
+    output = numpy.empty((len(records), FEATURE_ROWS, 40, 1), dtype=numpy.float32)
+    for index, record in enumerate(records):
         pcm = (ctypes.c_int16 * SAMPLES).from_buffer_copy(record["pcm"])
         feature = (ctypes.c_float * FEATURES)()
         if function(pcm, SAMPLES, feature, FEATURES) != 0:
             _fail("frontend_feature_failed")
-        output.append(numpy.ctypeslib.as_array(feature).copy().reshape(FEATURE_ROWS, 40, 1))
-    return numpy.stack(output).astype(numpy.float32)
+        output[index] = numpy.ctypeslib.as_array(feature).reshape(FEATURE_ROWS, 40, 1)
+    return output
 
 
 def _rate(numerator: int, denominator: int) -> float | None:
@@ -455,6 +462,7 @@ def _insert(background: bytes, speech: bytes, offset: int) -> bytes:
 
 def _training_derivatives(records: list[dict[str, Any]], wake_label: str,
                           *, onset_hard_negatives: int = 0,
+                          unknown_shift_step_ms: int = 100,
                           positive_end_window_ms: int = 0) -> list[dict[str, Any]]:
     """Make train-only continuous-window positives and confusable negatives.
 
@@ -470,6 +478,8 @@ def _training_derivatives(records: list[dict[str, Any]], wake_label: str,
     unknowns = [record for record in train if record["label"] == "unknown"]
     if onset_hard_negatives < 0 or onset_hard_negatives > len(unknowns):
         _fail("onset_hard_negatives_invalid")
+    if unknown_shift_step_ms not in (100, 200, 400, 800):
+        _fail("unknown_shift_step_invalid")
     if (positive_end_window_ms != 0 and
             (positive_end_window_ms < 100 or positive_end_window_ms > 3000 or
              positive_end_window_ms % 100 != 0)):
@@ -526,11 +536,11 @@ def _training_derivatives(records: list[dict[str, Any]], wake_label: str,
         second = unknowns[(index * 7 + 3) % len(unknowns)]
         pcm = first["pcm"][:SAMPLES] + second["pcm"][SAMPLES:]
         derived.append(_derived_record(first, pcm, "unknown", "ordinary_speech_join_hard_negative"))
-    # Keep clipped portions unknown and pad only with zeros.  Cover every
-    # 100 ms position from -1.6 to +1.6 seconds, matching live rolling windows.
+    # 负例只补零并保留标签；增大间隔可控制语料扩容后的内存占用。
+    # 默认仍覆盖原先的每 100 ms 位置，所有设置均保留正负 1.6 s 端点。
     zeros = bytes(len(unknowns[0]["pcm"]))
     for unknown in unknowns:
-        for shift in range(-25600, 25601, 1600):
+        for shift in range(-25600, 25601, unknown_shift_step_ms * 16):
             if shift == 0:
                 continue
             if shift > 0:
@@ -1006,15 +1016,20 @@ def evaluate(manifest: Path, model: Path, output: Path, frozen_policy: Path, spl
 
 def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: int,
           onset_hard_negatives: int = 0, channels: int = 32,
+          unknown_shift_step_ms: int = 100,
+          architecture: str = "ds-cnn",
           initial_frequency_stride: int = 2,
           pcm_level_augmentation: bool = False,
           room_augmentation: bool = False,
           positive_end_window_ms: int = 0) -> dict[str, Any]:
     """Train and export a full-INT8 candidate; imports ML packages only here."""
-    if (epochs < 1 or batch_size < 1 or channels < 1 or channels > 32 or
+    if (epochs < 1 or batch_size < 1 or channels < 1 or channels > 64 or
+            architecture not in ("ds-cnn", "temporal-ds-cnn") or
             initial_frequency_stride not in (1, 2, 4) or
             output.exists() or not output.parent.is_dir()):
         _fail("training_arguments_invalid")
+    if unknown_shift_step_ms not in (100, 200, 400, 800):
+        _fail("unknown_shift_step_invalid")
     if (positive_end_window_ms != 0 and
             (positive_end_window_ms < 100 or positive_end_window_ms > 3000 or
              positive_end_window_ms % 100 != 0)):
@@ -1024,6 +1039,8 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
     document = _read_manifest(manifest)
     if "sessions" in document:
         _validate_sessions(document, manifest, records)
+    # 先检查评估桥接依赖，避免训练和量化结束后才发现缺失。
+    runtime_policy = _policy_from_c(_kws_library())
     try:
         import numpy as np
         import tensorflow as tf
@@ -1050,6 +1067,7 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
             base_records.append(record)
     augmented = _training_derivatives(records, wake_label,
                                       onset_hard_negatives=onset_hard_negatives,
+                                      unknown_shift_step_ms=unknown_shift_step_ms,
                                       positive_end_window_ms=positive_end_window_ms)
     train_records = [*base_records, *augmented]
     pcm_gains = (0.25, 0.1) if pcm_level_augmentation else ()
@@ -1171,10 +1189,18 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
     data_options.experimental_deterministic = True
     data_options.threading.private_threadpool_size = 1
     training_data = training_data.with_options(data_options).batch(batch_size).prefetch(1)
-    depthwise_blocks = (((3, 3), (2, 1)), ((3, 3), (2, 1)),
-                        ((9, 3), (1, 1)), ((9, 3), (1, 1)))
+    # 时间卷积先用完整 40 频带投影，再仅沿时间轴提取特征；无需新增端侧算子。
+    temporal = architecture == "temporal-ds-cnn"
+    frequency_kernel = 40 if temporal else 4
+    frequency_stride = 40 if temporal else initial_frequency_stride
+    frequency_positions = (40 + frequency_stride - 1) // frequency_stride
+    depthwise_frequency = 1 if temporal else 3
+    depthwise_blocks = (((3, depthwise_frequency), (2, 1)),
+                        ((3, depthwise_frequency), (2, 1)),
+                        ((9, depthwise_frequency), (1, 1)),
+                        ((9, depthwise_frequency), (1, 1)))
     model = tf.keras.Sequential([tf.keras.layers.Input((FEATURE_ROWS, 40, 1)),
-        tf.keras.layers.Conv2D(channels, (10, 4), strides=(2, initial_frequency_stride), padding="same", use_bias=False),
+        tf.keras.layers.Conv2D(channels, (10, frequency_kernel), strides=(2, frequency_stride), padding="same", use_bias=False),
         tf.keras.layers.BatchNormalization(), tf.keras.layers.ReLU(),
         *[layer for kernel, strides in depthwise_blocks for layer in (
             tf.keras.layers.DepthwiseConv2D(kernel, strides=strides, padding="same", use_bias=False),
@@ -1182,15 +1208,20 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
             tf.keras.layers.Conv2D(channels, (1, 1), use_bias=False),
             tf.keras.layers.BatchNormalization(), tf.keras.layers.ReLU())],
         # 149 -> 75 -> 38 -> 19 time positions; pool the whole final map.
-        tf.keras.layers.AveragePooling2D((19, (40 + initial_frequency_stride - 1) // initial_frequency_stride)),
+        tf.keras.layers.AveragePooling2D((19, frequency_positions)),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(3, activation="softmax")])
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
     early = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=20,
                                              restore_best_weights=True)
+    # 长训练输出实际轮次，标准输出仍保留给最终 JSON 结果。
+    progress = tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda epoch, logs: print(
+        json.dumps({"stage": "training_epoch", "epoch": epoch + 1,
+                    **{key: float(value) for key, value in (logs or {}).items()}}),
+        file=sys.stderr, flush=True))
     history = model.fit(training_data, epochs=epochs,
               validation_data=(features[validation_mask], targets[validation_mask]), verbose=0,
-              callbacks=[early])
+              callbacks=[early, progress])
     # Keras restores best_weights only when its patience actually stops the
     # fit.  A bounded run can finish first, so export the observed best epoch.
     if early.best_weights is None:
@@ -1206,6 +1237,8 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
     converter.inference_input_type = tf.int8
     converter.inference_output_type = tf.int8
     candidate = converter.convert()
+    if not 1 <= len(candidate) <= 65536:
+        _fail("model_export_size_invalid")
     output.mkdir(mode=0o700)
     model_path = output / "model_int8.tflite"
     model_path.write_bytes(candidate)
@@ -1226,17 +1259,20 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
                                               targets[validation_mask], np, class_labels)}
     in_q = interpreter.get_input_details()[0]["quantization"]
     out_q = interpreter.get_output_details()[0]["quantization"]
-    runtime_policy = _policy_from_c(_kws_library())
     metadata = {**report, "wake_label": wake_label, "wake_phrase": wake_phrase, "audio_seconds": 3,
                 "input_pipeline": "source_preserving_tf_data_one_prefetched_batch",
-                "architecture": f"ds-cnn-conv{channels}-10x4-s2xf{initial_frequency_stride}-dw3x3-s2-dw3x3-s2-dw9x3-dw9x3-pw{channels}-bn-relu-global-pool19x{(40 + initial_frequency_stride - 1) // initial_frequency_stride}-flatten-dense3",
+                "architecture": f"{architecture}-conv{channels}-10x{frequency_kernel}-s2xf{frequency_stride}-dw3x{depthwise_frequency}-s2-dw3x{depthwise_frequency}-s2-dw9x{depthwise_frequency}-dw9x{depthwise_frequency}-pw{channels}-bn-relu-global-pool19x{frequency_positions}-flatten-dense3",
+                "architecture_family": architecture,
                 "channels": channels,
-                "initial_frequency_stride": initial_frequency_stride,
+                "initial_frequency_kernel": frequency_kernel,
+                "initial_frequency_stride": frequency_stride,
                 "depthwise_blocks": [{"kernel": list(kernel), "strides": list(strides)}
                                      for kernel, strides in depthwise_blocks],
                 "theoretical_receptive_field_feature_frames": 150,
                 "theoretical_receptive_field_ms": 3000,
-                "theoretical_convolution_mac_per_inference": ((40 + initial_frequency_stride - 1) // initial_frequency_stride) * (4539 * channels + 95 * channels * channels),
+                "theoretical_convolution_mac_per_inference": frequency_positions * (
+                    (750 * frequency_kernel + 513 * depthwise_frequency) * channels +
+                    95 * channels * channels),
                 "theoretical_compute_note": "architecture estimate; not board latency or measured MAC evidence",
                 "exported_operators": actual_operators,
                 "seed": seed, "tensorflow_version": tf.__version__, "model_sha256": _sha256(model_path),
@@ -1264,6 +1300,7 @@ def train(manifest: Path, output: Path, *, epochs: int, batch_size: int, seed: i
                                     "unknown_zero_padded_shifts": any(
                                         record.get("augmentation") == "ordinary_speech_zero_padded_shift"
                                         for record in augmented),
+                                    "unknown_shift_step_ms": unknown_shift_step_ms,
                                     "positive_end_window": {
                                         "milliseconds": positive_end_window_ms,
                                         "mode": ("all_legal_complete_positions" if not positive_end_window_ms
@@ -1338,7 +1375,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return train(args.manifest, args.output, epochs=args.epochs,
                      batch_size=args.batch_size, seed=args.seed,
                      onset_hard_negatives=args.onset_hard_negatives,
+                     unknown_shift_step_ms=args.unknown_shift_step_ms,
                      channels=args.channels,
+                     architecture=args.architecture,
                      initial_frequency_stride=args.initial_frequency_stride,
                      pcm_level_augmentation=args.pcm_level_augmentation,
                      room_augmentation=args.room_augmentation,
