@@ -14,7 +14,8 @@
   `bc6ac0747bf857873608762c0f9f19abd16ce3fe4a61dcfaee9b9c583c02dcef`。
   主 manifest 固定此公开提交；未创建或合入官方 Agent PR。
 - 本次发布前核对：SDK（`cb080de1`）、NuttX（`76354c63`）、Media
-  （`fb7db0e9`）及包含 FFmpeg 的 external（`f2c1425e`）工作树，相对各自
+  （`fb7db0e9`）、external（`f2c1425e`）及其独立 FFmpeg 项目
+  （`4b4723f2f66ccfdbadbd5d4c52dd5c41d6116418`）工作树，相对各自
   锁定提交均无已跟踪源码修改；NuttX 有两处未跟踪的 OpenAMP 手工目录。
   这不等于整个 openvela 工作区零改动：Agent 的 21 个修改文件单列如下。
   Android 工程和模型工具继续在团队仓管理，不另建 App/训练仓；Agent fork 是
@@ -33,6 +34,20 @@
 - 635 为最终板测包，不再烧录或重测。公开源码可重建实现，不承诺更换用户身份、
   签名或私有音频后仍产生同一全片哈希。旧 build manifest 未单列 Agent 输入摘要，
   因此本次差分对应证明不冒充 635 完整二进制逐字节干净复现。
+- 复用现役 build 输入摘要核对：635 原工作树仍为 570 项、树摘要
+  `5f9e4fd9cec7c1d7a1fa29e6a076a6de0112c84b49c40136191e9b7206a752f8`，
+  与其封存 build manifest 相同。`ac73a94e` 公开快照为 564 项、树摘要
+  `2d6916ca6cda9671cb66fb9166900b54d84b47da7ec356675663650b161fb2ac`；
+  共同输入逐字节一致，差集仅为已退役的 AIDK `drivercheck_ap/drivercheck_cp/xts`
+  三组 defconfig/profile（6 文件），不在傻妞现役 CP/AP 配置内。
+- 隔离构建发现 T5-Board `DOLPHIN_RECORDER` 在 `!MEDIA` 下仍调用已退役兼容
+  ABI，链接缺少 `media_recorder_*`。`c10a7668` 仅修正团队 Kconfig 的真实
+  Media/graph 前置条件，并取消 T5-Board 的无效选择；保留录音实现，未补回旧后端，
+  也未将其记为录音功能完成。AIDK 635 的运行代码、配置与产物未改变。
+- `c10a7668` 的三板 CP/AP direct 构建已在独立检出的工作区通过；固定了
+  实际依赖 revision、工具链/SDK bundle 与产物哈希。SDK 缓存经校验而未重编，
+  没有签名、部署或板测。见
+  [本次构建记录](docs/verification/bk7258/2026-09-20-public-source-build.md)。
 
 
 ## 2026-09-19 已认领设备只读 Wi-Fi 扫描

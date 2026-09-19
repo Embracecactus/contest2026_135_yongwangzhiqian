@@ -37,6 +37,13 @@ Optional persistent memory is encrypted and restored into official Sessions.
 
 ## Boards and build entry points
 
+The [submission assets](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
+include a Chinese report (PDF/DOCX), the 4:48 main video, a separate App demo,
+four authentic board photos, an A2 poster and an editable 18-slide presentation.
+Source and original AI logs remain in Git, not in the submission ZIP. Device
+bootstrap secrets and device-bound recovery images are excluded. Artifact
+preparation is not a completed website submission or upstream PR merge.
+
 | Board | CLI ID | Application | SDK profiles |
 |---|---|---|---|
 | T5AI-Core V1.0.1 | `t5ai_core` | Platform baseline | `cp`, `ap` |
@@ -58,6 +65,11 @@ The team manifest pins that fork commit and 248 checked-out Linux dependency rev
 No retired patch/overlay chain is restored. Public source availability is not an
 upstream merge, a clean three-board build, or new board acceptance.
 See [provenance](SOURCE_PROVENANCE.md).
+
+On 2026-09-20 all three boards' CP/AP **direct builds passed** from an isolated
+source checkout at `c10a7668`, using pinned dependencies and verified existing
+SDK/toolchain caches. See the [build record and hashes](docs/verification/bk7258/2026-09-20-public-source-build.md).
+These unsigned build checks were not flashed and do not replace firmware 635.
 
 Use Ubuntu 22.04 with the standard openvela build prerequisites:
 
@@ -88,6 +100,9 @@ tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 8
 ```
 
 Build boards sequentially. A single-board build needs only its two SDK profiles.
+T5-Board's optional Dolphin recorder is disabled until its official Media
+Capture graph is integrated; the removed compatibility backend is not restored.
+This does not change Shaniu firmware 635.
 Keep the team checkout directory name specified by the manifest; SDK tools read
 its same-named XML. AIToyBoard requires both `cp-aidk` and `ap-aidk`.
 The manifest pins the SDK to `cb080de1655d579c7593ecf504c440997c4c137b`.

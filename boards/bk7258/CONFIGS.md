@@ -64,8 +64,15 @@ logical base pair, not two product variants.
 The SDK pair is selected by the two role profile files, not inferred from the
 word "AP": T5AI-Core and T5-Board use `cp + ap`, while AIToyBoard uses
 `cp-aidk + ap-aidk`. Install/rebuild and verify the exact pair before building.
-The root README contains all three normal build commands and discloses the
-unpublished Agent dependency that still prevents claiming clean product reproduction.
+The root README contains all three normal build commands. The existing Agent
+extensions are published as fork `add0db19` and pinned by the manifest.
+
+T5-Board's Dolphin desktop does not currently enable WAV recording: the old
+`media_recorder` compatibility backend was retired. `DOLPHIN_RECORDER` now
+requires official `MEDIA`/`MEDIA_GRAPH` instead of the contradictory `!MEDIA`.
+The recording source is retained; connecting the board's official Capture graph
+and validating recording remain unfinished. This is not a new hardware pass or
+a change to AIToyBoard's final 635 firmware.
 
 Each physical board owns exactly one normal application entry at
 `configs/app/defconfig`. It is a complete CP configuration, not a shared
