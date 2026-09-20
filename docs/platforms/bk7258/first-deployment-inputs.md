@@ -81,6 +81,13 @@ NUL 终止与字符集），三份均为 0 failures。评审主线使用 `nihao_
 | `owner-bootstrap.json`（`provision-bootstrap-v1`） | 同上命令输出（O_EXCL、0600、fsync） | App “导入认领授权” | 手机私有目录（不进公共 Release） | 四字段：`protocol`/`device_id`/`certificate_sha256`（叶证书 DER SHA256）/`possession_secret` |
 | App 控制凭据（认领后） | App 与设备协商后由 Android Keystore 保存 | App 控制会话 | 手机 Keystore | 设置回读成功；换手机/删绑定后需重新认领 |
 
+**评委侧取得方式**：眼睛包从仓库源文件用 `package eye-pack` 一条命令生成（无
+额外依赖，实测 108,634 B / `050f1175…`），无需作者的 `.bkep`；认证文件用本板
+自建的 EC P-256 证书/私钥 + `voice pairing --direct-cloud` 生成授权文件并写入
+设备，无需作者的证书或授权 JSON。设备端对已存在的不同身份返回 `EEXIST`、不覆盖，
+且当前没有受支持的清空身份入口：已被他人认领的板必须由原所有者提供其
+`owner-bootstrap.json`。
+
 **供应通道现状**：`voice pairing --direct-cloud` → CP 控制台 `bkprov supply` →
 （`bkprov-v1` RPMsg）→ AP `bkprov_storage_identity_install` → CP LittleFS
 `…/shaniu/identity`。CP 命令与 AP 服务于 2026-09-20 加入（本地提交
