@@ -32,6 +32,8 @@ A2 海报和 18 页可编辑答辩 PPT。源码与原始 AI Coding 日志留在�
 [![傻妞参赛海报](docs/contest/assets/showcase-poster.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
 
 压缩包按大赛模板命名；上传官网和官方仓 PR 合入是后续明确操作，不以材料打包代替。
+已发布的材料 ZIP 里 PDF/DOCX/PPT 仍是 637 之前生成的版本，未按 637 结论重新
+生成；本页与仓库文档的更新不代表这些附件已同步。
 
 ## 实机验收状态（2026-09-20）
 
