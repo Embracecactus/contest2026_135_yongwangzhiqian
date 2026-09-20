@@ -27,12 +27,13 @@ BUILD_FILENAMES = {"CMakeLists.txt", "Makefile", "Make.defs"}
 BUILD_SUFFIXES = {".cmake", ".defs", ".mk", ".sh", ".py"}
 EXCEPTIONS = Path("tools/bk7258/layer_exceptions.json")
 
-# Only horizontal whitespace may precede the preprocessor token: \s would
-# also cross newlines, which lets the match start on a preceding blank line.
-_INCLUDE = re.compile(
-    r"^[ \t]*#[ \t]*include\s*(?P<open>[<\"])(?P<name>[^>\"]+)[>\"]",
-    re.MULTILINE,
-)
+# The directive token is matched on literal-blanked text; only horizontal
+# whitespace may precede it because \s would also cross newlines, which lets
+# the match start on a preceding blank line.
+_INCLUDE_DIRECTIVE = re.compile(r"^[ \t]*#[ \t]*include\b", re.MULTILINE)
+# The header name is read back from the original text: a quoted header name is
+# itself a C string literal and therefore blanked in the code view.
+_INCLUDE_HEADER = re.compile(r"\s*(?P<open>[<\"])(?P<name>[^>\"]+)[>\"]")
 _RAW_SDK_SYMBOL = re.compile(r"\b(?:bk_(?!7258)|gpio_|rtos_|sys_drv_)[A-Za-z0-9_]+\b")
 _CHIP_LINK_INTERCEPT = re.compile(r"\b__(?:wrap|real)_[A-Za-z0-9_]+\b")
 _RAW_SDK_TYPE = re.compile(
@@ -103,6 +104,31 @@ def _without_c_literals(text: str) -> str:
         return "".join("\n" if char == "\n" else " " for char in match.group())
 
     return pattern.sub(blank, text)
+
+
+def _include_directives(text: str, code: str) -> list[tuple[re.Match[str], str]]:
+    """Return the real ``#include`` directives of one source file.
+
+    ``code`` is ``text`` with comments and string literals blanked.  A quoted
+    header name is itself a string literal, so searching ``code`` for the
+    quoted form silently drops every ``#include "..."``.  The directive is
+    located in ``code`` to prove the ``#`` is real code, and the header name
+    is then read from ``text`` at the same offset.
+    """
+
+    directives: list[tuple[re.Match[str], str]] = []
+
+    for directive in _INCLUDE_DIRECTIVE.finditer(code):
+        match = _INCLUDE_HEADER.match(text, directive.end())
+        if match is None:
+            continue
+        if match.group("open") == "<" and code[match.start("open")] != "<":
+            # A bracketed name only visible through blanked text, such as a
+            # header inside a comment, is not a directive header.
+            continue
+        directives.append((match, match.group("name")))
+
+    return directives
 
 
 def _sources(root: Path) -> list[Path]:
@@ -229,11 +255,10 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
             code = _without_c_literals(text)
 
             if layer != "chips/bk7258":
-                # Match on the literal-blanked text: includes inside comments
-                # or strings are blanked there, so they cannot produce a
-                # false report, while indented real includes are still found.
-                for match in _INCLUDE.finditer(code):
-                    include = match.group("name")
+                # Real includes only: a directive inside a comment or a string
+                # is blanked in the code view, while indented real includes
+                # are still found.
+                for match, include in _include_directives(text, code):
                     if (
                         include == "sdkconfig.h"
                         or include.split("/", 1)[0] in SDK_INCLUDE_ROOTS
@@ -270,8 +295,7 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
                         )
 
             if layer == "chips/bk7258":
-                for match in _INCLUDE.finditer(code):
-                    include = match.group("name")
+                for match, include in _include_directives(text, code):
                     if include.startswith("arch/board/"):
                         issues.append(
                             Issue(
