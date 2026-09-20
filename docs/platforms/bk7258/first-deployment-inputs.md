@@ -67,7 +67,7 @@ operator 8,388,608 B / `33c387c1…`，实板语音全链路通过。
 | CA 与设备时间 | 设备从网络校时（NTP）；证书有效期校验依赖手机与设备时钟 | 握手失败时先核对时间与网络 |
 | 无网能力 | 本地唤醒与“我在”应答不依赖云端；完整对话必须联网 | 断网时只声明本地部分 |
 
-## 6. 首次存储初始化（/data）：**缺失（阻断）**
+## 6. 首次存储初始化（/data）：**已有入口，未在新板实测**
 
 现状证据：
 
@@ -83,12 +83,25 @@ operator 8,388,608 B / `33c387c1…`，实板语音全链路通过。
   （`package accept-base` → `release full` / `package materialize`），没有
   “把非 LittleFS 的 persistent_data 初始化成 LittleFS”的入口。
 
-结论：**曾在当前布局下运行过、或出厂即带 LittleFS 的板**可走“同板 readback →
-`accept-base` → 签名整包 → 烧录”路径；`persistent_data` 不是 LittleFS 的板
-（例如被整片诊断镜像清过，或出厂分区不含 LittleFS）目前没有受支持的首装入口。
-最小修复方向（本轮未实现）：设备侧、**显式请求**且仅在 `persistent_data` 被证明
-不是有效 LittleFS 时才执行的初始化动作；禁止自动格式化，禁止覆盖同板校准/MAC/
-身份数据。该动作落地并通过实板验证前，本清单不把新板首装写成已完成。
+结论与现役入口：曾在当前布局下运行过、或出厂即带 LittleFS 的板可走“同板
+readback → `accept-base` → 签名整包 → 烧录”路径；`persistent_data` 不是
+LittleFS 的板使用 CP 命令显式初始化：
+
+```text
+nsh> bkdata status
+BKDATA STATUS data=mounted type=0a732923 littlefs=yes
+nsh> bkdata init --confirm erase-non-littlefs
+BKDATA INIT PASS target=/data type=0a732923
+```
+
+- 语义：底层为 pinned NuttX LittleFS 的 `-o autoformat`，**只在内容不是有效
+  LittleFS 时格式化**；已存在的 LittleFS（不论来源）原样挂载，绝不重写；
+- 目标只有片上 FTL 块设备 `/dev/mtdblock0`；SD NAND、校准/MAC 与不可写尾区
+  不受影响；命令不会在启动时自动执行；
+- 判据：命令 PASS 后重启出现 `BK7258 FINALINIT PASS`，随后
+  `bkprov status` 从 `identity=absent` 开始写入本机身份；
+- 状态：命令已随 CP 固件构建并在镜像中（`BKDATA INIT/SKIP/FAIL` 帧），
+  **尚未在新板实测**；实测前不把新板首装写成已完成。
 
 ## 7. 两阶段首装（真实顺序）
 
@@ -102,9 +115,9 @@ operator 8,388,608 B / `33c387c1…`，实板语音全链路通过。
 
 ## 8. 未闭合项与待发布动作
 
-- 缺失：`persistent_data` 非 LittleFS 的新板首次初始化（见第 6 节）。
-- 未实测：`bkprov supply` 在真实新板上的安装与重启加载；App 端“导入唤醒词模型 /
-  导入眼睛素材包 / 通过 Wi-Fi 安装所选眼睛 / 读取当前眼睛”四步在新板的完整回读。
+- 未实测：`bkdata init`（非 LittleFS 新板首次初始化）与 `bkprov supply`
+  （身份写入与重启加载）；App 端“导入唤醒词模型 / 导入眼睛素材包 /
+  通过 Wi-Fi 安装所选眼睛 / 读取当前眼睛”四步在新板的完整回读。
 - 未重新生成：比赛材料 ZIP 内 PDF/DOCX/PPT（仍为 637/638 之前版本）。
 - 待发布：本清单、README 首装章节与 `bkprov` 固件/工具改动均为本地提交，
   尚未推送任何远端。
