@@ -6,11 +6,13 @@ The maintainer CLI supplies Wi-Fi independently.  This module converts the
 operator-selected TLS material into a bounded BVC1 RAM record and sends it to
 the CP console without printing serial input, credentials, or their paths.
 
-The console commands this module drives (``bkvoice provision`` /
-``BKVOICE PROVISION READY``) are not part of the current official firmware;
-the current product supplies identity and network settings over the BLE
-``provision-v1`` service.  These subcommands stay for reproducing the
-historical records only.
+The Gateway console protocol (``bkvoice provision``) is not part of the
+current official firmware and stays only to reproduce the historical records.
+``voice pairing --direct-cloud`` is current: it writes the owner activation
+file and supplies the same bounded BPI1 record through the CP ``bkprov``
+command, which forwards it to the AP-owned provisioning store over
+``bkprov-v1``.  Network settings and claims still use the BLE ``provision-v1``
+service implemented by the Android companion application.
 """
 
 from __future__ import annotations
@@ -56,8 +58,8 @@ def add_arguments(
 ) -> None:
     """Register the sole private RAM-provisioning subcommand for bk7258.py."""
 
-    # Historical entry points: they target the retired CP console protocol and
-    # are annotated as such so the help text cannot read as a current step.
+    # The Gateway RAM record is a historical entry point; the direct-cloud
+    # identity supply in ``pairing`` is current and uses the CP bkprov command.
     provision = commands.add_parser(
         "provision",
         help="historical: send one TLS gateway record to the retired CP console",
@@ -72,8 +74,8 @@ def add_arguments(
     provision.add_argument("--openssl", type=Path, default=Path("openssl"))
     pairing = commands.add_parser(
         "pairing",
-        help="historical: supply the retired console identity, write the owner "
-        "activation file",
+        help="supply one device identity over the CP console and write the "
+        "owner activation file",
     )
     pairing.add_argument("--console-port", required=True)
     pairing.add_argument("--device-id", required=True)
@@ -292,6 +294,85 @@ try {
     $reason = 'transport failure'
   }
   [Console]::Error.WriteLine("BKVOICE_SUPPLY_ERROR stage=" + $stage + " reason=" + $reason)
+  exit 1
+} finally {
+  if ($serial.IsOpen) { $serial.Close() }
+  [Array]::Clear($payload, 0, $payload.Length)
+}
+"""
+
+# Current direct-cloud supply path: the CP bkprov command forwards the same
+# bounded BPI1 record to the AP-owned provisioning store, which owns the
+# on-chip filesystem worker.  It never prints certificate or key material.
+_POWERSHELL_IDENTITY = r"""
+param([string]$Port, [string]$PayloadPath)
+$ErrorActionPreference = 'Stop'
+$payload = [System.IO.File]::ReadAllBytes($PayloadPath)
+$serial = New-Object System.IO.Ports.SerialPort($Port, 115200,
+    [System.IO.Ports.Parity]::None, 8, [System.IO.Ports.StopBits]::One)
+$serial.DtrEnable = $false
+$serial.RtsEnable = $false
+$serial.ReadTimeout = 100
+$serial.WriteTimeout = 1000
+function Wait-Exact([string]$Expected, [int]$Milliseconds, [bool]$AllowPreamble) {
+  $watch = [System.Diagnostics.Stopwatch]::StartNew()
+  $line = New-Object System.Text.StringBuilder
+  while ($watch.ElapsedMilliseconds -lt $Milliseconds -and $totalWatch.ElapsedMilliseconds -lt 180000) {
+    try { $value = $serial.ReadByte() } catch [System.TimeoutException] { continue }
+    if ($value -lt 0) { continue }
+    if ($value -eq 10 -or $value -eq 13) {
+      if ($line.Length -eq 0) { continue }
+      $text = $line.ToString(); $line.Clear() | Out-Null
+      if ($text -eq $Expected) { return }
+      if ($text -match '^BKPROV SUPPLY FAIL ret=(-?[0-9]+)$') { throw ("target-rejected:" + $Matches[1]) }
+      $plain = [regex]::Replace($text, ([string][char]27 + "\[[0-?]*[ -/]*[@-~]"), '')
+      if ($AllowPreamble -and ($plain -match '^\s*$' -or
+          $plain -match '^nsh>\s*(bkprov supply)?\s*$' -or
+          $plain -match '^bkprov supply\s*$')) { continue }
+      throw 'unexpected target status'
+    }
+    if ((($value -lt 32) -and ($value -ne 27)) -or $value -gt 126 -or $line.Length -ge 255) {
+      throw 'invalid target status'
+    }
+    [void]$line.Append([char]$value)
+  }
+  throw 'target status timeout'
+}
+function Send-Line([string]$Text) {
+  $serial.Write($Text + "`n")
+}
+if ($payload.Length -lt 48 -or $payload.Length -gt 8192) { throw 'payload size' }
+$totalWatch = [System.Diagnostics.Stopwatch]::StartNew()
+$stage = 'open'
+try {
+  $serial.Open()
+  $serial.DiscardInBuffer()
+  $stage = 'ready'
+  $serial.Write("bkprov supply`r")
+  Wait-Exact 'BKPROV SUPPLY READY' 5000 $true
+  $stage = 'begin'
+  Send-Line ([string]$payload.Length)
+  Wait-Exact 'BKPROV SUPPLY NEXT offset=0' 10000 $false
+  $offset = 0
+  $stage = 'chunk'
+  while ($offset -lt $payload.Length) {
+    if ($totalWatch.ElapsedMilliseconds -ge 180000) { throw 'total timeout' }
+    $count = [Math]::Min(64, $payload.Length - $offset)
+    $chunk = New-Object byte[] $count
+    [Array]::Copy($payload, $offset, $chunk, 0, $count)
+    Send-Line ([BitConverter]::ToString($chunk).Replace('-', '').ToLowerInvariant())
+    $offset += $count
+    Wait-Exact ("BKPROV SUPPLY NEXT offset={0}" -f $offset) 10000 $false
+    [Array]::Clear($chunk, 0, $chunk.Length)
+  }
+  $stage = 'commit'
+  Wait-Exact ("BKPROV SUPPLY PASS bytes={0}" -f $payload.Length) 90000 $false
+} catch {
+  $reason = $_.Exception.Message
+  if ($reason -notmatch '^(target-rejected:-?[0-9]+|unexpected target status|invalid target status|target status timeout|total timeout)$') {
+    $reason = 'transport failure'
+  }
+  [Console]::Error.WriteLine("BKPROV_SUPPLY_ERROR stage=" + $stage + " reason=" + $reason)
   exit 1
 } finally {
   if ($serial.IsOpen) { $serial.Close() }
@@ -573,6 +654,58 @@ def _run_console(port: str, payload: bytes) -> None:
             raise VoiceProvisionError("console provisioning failed: " + detail)
 
 
+def _run_console_identity(port: str, payload: bytes) -> None:
+    """Send one BPI1 record through the current CP bkprov supply command."""
+
+    with tempfile.TemporaryDirectory(
+        prefix="bk7258-identity-", ignore_cleanup_errors=True
+    ) as name:
+        root = Path(name)
+        os.chmod(root, 0o700)
+        payload_path = root / "payload.bin"
+        helper_path = root / "supply.ps1"
+        _write_private(payload_path, payload)
+        _write_private(helper_path, _POWERSHELL_IDENTITY.encode("utf-8"))
+        try:
+            helper_windows = _windows_path(helper_path)
+            payload_windows = _windows_path(payload_path)
+            result = subprocess.run(
+                [
+                    _powershell(),
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    helper_windows,
+                    "-Port",
+                    port,
+                    "-PayloadPath",
+                    payload_windows,
+                ],
+                check=False,
+                capture_output=True,
+                timeout=180,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise VoiceProvisionError("identity supply failed") from error
+        finally:
+            try:
+                payload_path.write_bytes(b"\0" * len(payload))
+            except OSError:
+                pass
+        if result.returncode != 0:
+            match = re.search(
+                rb"BKPROV_SUPPLY_ERROR stage=(open|ready|begin|chunk|commit) reason=(target-rejected:-?[0-9]+|unexpected target status|invalid target status|target status timeout|total timeout|transport failure)",
+                result.stderr,
+            )
+            detail = (
+                match.group(0).decode("ascii")
+                if match
+                else "unclassified transport failure"
+            )
+            raise VoiceProvisionError("identity supply failed: " + detail)
+
+
 def _pairing(args: argparse.Namespace) -> dict[str, object]:
     if not _CONSOLE_RE.fullmatch(getattr(args, "console_port", "")):
         raise VoiceProvisionError("console port is invalid")
@@ -675,7 +808,10 @@ def _pairing(args: argparse.Namespace) -> dict[str, object]:
                     json.dump(activation, output, separators=(",", ":"))
                     output.flush()
                     os.fsync(output.fileno())
-            _run_console(args.console_port, payload)
+            if direct:
+                _run_console_identity(args.console_port, payload)
+            else:
+                _run_console(args.console_port, payload)
         finally:
             proof[:] = b"\0" * len(proof)
             key[:] = b"\0" * len(key)
