@@ -48,11 +48,15 @@ App 视频展示 OTA 入口，**未拍摄完整 OTA 过程**；实际升级结�
   · [PPTX](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-photo-book-v5.pptx)；
 - 视频：[主视频 287.905 s](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
   与 [App 补充视频 85.612 s](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)（各含 `.srt`，未重编码）；
+- 材料整包（**不含视频**）：[`shaniu-submission-v5.1-materials.zip`](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-submission-v5.1-materials.zip)
+  （40,229,231 B，`7df5fb6b…`，45 个文件：报告、海报、答辩 PPT、照片册、作者核对）；
+  视频与字幕按上面的链接单独下载，包内 `包内说明_视频位置.txt` 记录其位置。
 - 校验：[v5.1 材料 SHA256](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-materials-v5.1-SHA256SUMS.txt)
   与[视频 SHA256](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/SHA256SUMS.txt)；
-  被 v5.1 取代的旧 `shaniu-technical-report.pdf/docx` 已从该 Release 移除。
-- **`shaniu-submission-…zip`（331 MB）仍是 2026-09-19 快照**（内含旧版报告、海报与
-  PPT）；v5.1 整包 ZIP 尚未重打包，需要整包时以上列单文件为准。
+  被取代的旧报告 PDF / DOCX 与旧 331 MB 快照 ZIP 已从该 Release 下线。
+- **官方赛事仓另有同一套 v5.1 材料（同样不含视频）**：
+  [shaniu-submission-20260920](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/tag/shaniu-submission-20260920)
+  共 11 个资产，文件名与 SHA256 与上面一致；两段视频只在开发 fork 的材料 Release。
 
 仓库内的海报图也已同步为 v5：`docs/contest/assets/showcase-poster.jpg`
 （`0bb5231c567e995231363d750e44be76b46faa9a0c8f1e40f699d751f4ea99ce`）。
