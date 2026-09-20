@@ -24,6 +24,10 @@
 #include <syslog.h>
 #include <unistd.h>
 
+#ifdef CONFIG_BK7258_GT1151
+#  include <nuttx/input/touchscreen.h>
+#endif
+
 #include <lvgl/lvgl.h>
 
 #include "dolphin_ui.h"
@@ -174,6 +178,75 @@ static lv_group_t *g_adc_key_group;
 static lv_obj_t *g_files_page;
 static lv_obj_t *g_preview_page;
 static lv_display_t *g_display;
+#ifdef CONFIG_BK7258_GT1151
+static int g_touch_fd = -1;
+static lv_point_t g_touch_point;
+static lv_indev_state_t g_touch_state = LV_INDEV_STATE_RELEASED;
+
+/* 当前官方 GT9xx 只返回单点样本，没有 TSIOC_GETMAXPOINTS。
+ * 通过 LVGL 输入扩展点消费标准样本，不替换或复制公共驱动。 */
+
+static void dolphin_touch_read(lv_indev_t *indev, lv_indev_data_t *data)
+{
+  struct touch_sample_s sample;
+
+  (void)indev;
+  if (read(g_touch_fd, &sample, sizeof(sample)) == sizeof(sample) &&
+      sample.npoints == 1)
+    {
+      if (sample.point[0].flags & TOUCH_POS_VALID)
+        {
+          g_touch_point.x = sample.point[0].x;
+          g_touch_point.y = sample.point[0].y;
+        }
+
+      if (sample.point[0].flags & TOUCH_UP)
+        {
+          g_touch_state = LV_INDEV_STATE_RELEASED;
+        }
+      else if (sample.point[0].flags & (TOUCH_DOWN | TOUCH_MOVE))
+        {
+          g_touch_state = LV_INDEV_STATE_PRESSED;
+        }
+    }
+
+  data->point = g_touch_point;
+  data->state = g_touch_state;
+}
+
+static void dolphin_touch_close(lv_event_t *event)
+{
+  (void)event;
+  close(g_touch_fd);
+  g_touch_fd = -1;
+  g_touch_state = LV_INDEV_STATE_RELEASED;
+}
+
+static lv_indev_t *dolphin_touch_create(const char *path)
+{
+  lv_indev_t *indev;
+
+  g_touch_fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+  if (g_touch_fd < 0)
+    {
+      syslog(LOG_ERR, "dolphin-ui: touch open failed: %d\n", errno);
+      return NULL;
+    }
+
+  indev = lv_indev_create();
+  if (indev == NULL)
+    {
+      dolphin_touch_close(NULL);
+      return NULL;
+    }
+
+  lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
+  lv_indev_set_read_cb(indev, dolphin_touch_read);
+  lv_indev_add_event_cb(indev, dolphin_touch_close, LV_EVENT_DELETE, NULL);
+  return indev;
+}
+#endif
+
 static uint32_t g_page_generation;
 static void dolphin_report_timer(lv_timer_t *timer);
 static void dolphin_report_save(lv_event_t *event);
@@ -2605,6 +2678,9 @@ static int dolphin_ui_task(int argc, FAR char *argv[])
   lv_nuttx_dsc_init(&descriptor);
   descriptor.fb_path = "/dev/fb0";
   descriptor.input_path = "/dev/input0";
+#ifdef CONFIG_BK7258_GT1151
+  descriptor.input_path = NULL;
+#endif
 #ifdef CONFIG_BK7258_LVGL_FB_ACCEL
   accelerated = bk7258_lvgl_fb_create(descriptor.fb_path);
   if (accelerated != NULL)
@@ -2613,6 +2689,9 @@ static int dolphin_ui_task(int argc, FAR char *argv[])
     }
 #endif
   lv_nuttx_init(&descriptor, &result);
+#ifdef CONFIG_BK7258_GT1151
+  result.indev = dolphin_touch_create("/dev/input0");
+#endif
 #ifdef CONFIG_BK7258_LVGL_FB_ACCEL
   if (accelerated != NULL)
     {
