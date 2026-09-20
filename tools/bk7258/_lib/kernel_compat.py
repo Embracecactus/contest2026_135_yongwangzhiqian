@@ -41,6 +41,12 @@ WRAPPERS = {
     "__wrap_bt_l2cap_receive": ("ap",),
 }
 
+# Physical validation is a test-state progression, not a source-code fact:
+# "pending" records an unverified wrapper and "passed" moves it forward while
+# citing its acceptance evidence. Source identity stays protected separately
+# by the pinned NuttX commit and the per-file sha256 digests in the contract.
+PHYSICAL_VALIDATION_STATES = frozenset({"pending", "passed"})
+
 
 class KernelCompatError(RuntimeError):
     """The pinned kernel implementation or its applicable config drifted."""
@@ -131,13 +137,26 @@ def load(repository: Path) -> Contract:
         )
     for symbol, roles in WRAPPERS.items():
         row = wrappers[symbol]
+        fields = {"disposition", "physical_validation", "roles"}
+        if not isinstance(row, dict) or not fields <= set(row):
+            raise KernelCompatError(f"invalid reviewed disposition for {symbol}")
         if (
-            not isinstance(row, dict)
-            or set(row) != {"disposition", "physical_validation", "roles"}
-            or row["disposition"] != "C"
-            or row["physical_validation"] != "pending"
+            row["disposition"] != "C"
+            or row["physical_validation"] not in PHYSICAL_VALIDATION_STATES
             or row["roles"] != list(roles)
         ):
+            raise KernelCompatError(f"invalid reviewed disposition for {symbol}")
+        if row["physical_validation"] == "passed":
+            evidence = row.get("evidence")
+            if (
+                not isinstance(evidence, str)
+                or not evidence.strip()
+                or set(row) - fields - {"evidence"}
+            ):
+                raise KernelCompatError(
+                    f"physical validation passed without evidence for {symbol}"
+                )
+        elif set(row) != fields:
             raise KernelCompatError(f"invalid reviewed disposition for {symbol}")
     return Contract(nuttx["commit"], files)
 

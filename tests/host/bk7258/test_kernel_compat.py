@@ -94,6 +94,60 @@ class KernelCompatTest(unittest.TestCase):
         )
         kernel_compat.verify_role_config("ap", ap)
 
+    def _rewrite_wrappers(self, mutate) -> None:
+        path = self.repository / kernel_compat.CONTRACT
+        document = json.loads(path.read_text(encoding="utf-8"))
+        mutate(document["wrappers"])
+        path.write_text(json.dumps(document), encoding="utf-8")
+
+    def test_wrapper_validation_state_progression(self) -> None:
+        def all_passed(wrappers: dict) -> None:
+            for row in wrappers.values():
+                row["physical_validation"] = "passed"
+                row["evidence"] = "acceptance record 2026-09-20 sha256=ab12"
+
+        # A completed acceptance may be recorded without touching the code
+        # gate, as long as each passed wrapper cites its evidence.
+        self._rewrite_wrappers(all_passed)
+        self._verify_sources()
+
+        # A passed row without evidence, an unknown state and a disposition
+        # drift are all rejected.
+        for mutate, message in (
+            (
+                lambda wrappers: next(iter(wrappers.values())).pop("evidence"),
+                "without evidence",
+            ),
+            (
+                lambda wrappers: wrappers.__setitem__(
+                    next(iter(wrappers)),
+                    {
+                        "disposition": "C",
+                        "physical_validation": "skipped",
+                        "roles": ["ap"],
+                    },
+                ),
+                "invalid reviewed disposition",
+            ),
+            (
+                lambda wrappers: wrappers.__setitem__(
+                    next(iter(wrappers)),
+                    {
+                        "disposition": "R",
+                        "physical_validation": "pending",
+                        "roles": ["ap"],
+                    },
+                ),
+                "invalid reviewed disposition",
+            ),
+        ):
+            with self.subTest(message=message):
+                self._write_contract()
+                self._rewrite_wrappers(all_passed)
+                self._rewrite_wrappers(mutate)
+                with self.assertRaisesRegex(kernel_compat.KernelCompatError, message):
+                    kernel_compat.load(self.repository)
+
     def test_copied_source_and_provenance_drift_fail_without_auto_update(self) -> None:
         changed = self.nuttx / next(iter(kernel_compat.FILES))
         changed.write_text("changed\n", encoding="utf-8")
