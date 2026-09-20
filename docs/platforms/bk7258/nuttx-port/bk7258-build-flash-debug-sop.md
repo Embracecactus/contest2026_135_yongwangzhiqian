@@ -10,18 +10,20 @@ Keep the manifest checkout name `contest2026_135_yongwangzhiqian`: the SDK
 loader reads that directory's same-named XML. A clone without the complete
 OpenVela workspace and linkfiles is not a build-ready workspace.
 
-635 runtime Skill, voice and display were confirmed by the user with CodeBuddy,
-and the current build `18.6.401+637` adds a signed full image whose App chain
-(claim, connect, settings, wake, "我在" acknowledgement, conversation) was
-confirmed by the user. App control and actual App OTA retain their separate 634
-acceptance; 637 was not retested for OTA. Each full package carries the rollback
-floor of its own generation (635/637); OTA-only does not replace BL1/BL2.
+635 runtime Skill, voice and display were confirmed by the user with CodeBuddy;
+637 was the first signed full image with the App chain confirmed, and the
+current `18.6.401+638` rebuilds the clean tree with byte-identical CP/AP
+payloads and a user-confirmed voice chain (wake, "我在" acknowledgement, ASR,
+LLM, TTS, playback, follow-up capture, standby). App control and actual App OTA
+retain their separate 634 acceptance; neither 637 nor 638 was retested for OTA.
+Each full package carries the rollback floor of its own generation (635/637/638);
+OTA-only does not replace BL1/BL2.
 The existing Agent extensions over official `e65550f` are published unchanged
 as `Embracecactus/packages_ai_agent@add0db19` and pinned by the team manifest.
 Linux dependency revisions are frozen in `openvela.xml`; no retired patch chain
 is restored. Dependency publication is separate from clean-build verification
-and board acceptance. Firmware 637 is the current tested candidate; the 634/635
-records stay historical per version.
+and board acceptance. Firmware 638 is the current tested candidate; the
+634/635/637 records stay historical per version.
 
 ## One host entry
 
