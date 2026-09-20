@@ -34,15 +34,30 @@ App 视频展示 OTA 入口，**未拍摄完整 OTA 过程**；实际升级结�
 ## 比赛材料
 
 [已发布的提交包](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
-当前包含：技术报告 PDF / DOCX、主视频与 App 补充视频（各含 `.srt`）、提交 ZIP 与
-`SHA256SUMS`。源码与原始 AI Coding 日志留在仓库，不塞进材料 ZIP；
-公开包不含设备授权秘密或同板恢复镜像，照片均为真实拍摄，未虚构背面或侧面视角。
+**已更新为 v5.1 材料**（2026-09-20，技术报告事实冻结 `6a8a3e55`）：
 
-**本地已生成 v5.1 提交包**（`勇往直前-傻妞三核openvelaAI伴侣-…`，约 1.9 GB）：
-v5.1 技术报告 PDF / DOCX / Markdown + 配图、主视频 287.904 s 与 App 补充视频
-85.612 s、8 页实物照片册（v5）与 10 张补拍原图、A2 海报（v5）、22 页答辩 PPT（v5.1）。
-**该包尚未上传 Release**：仓库内报告已是 v5.1，但 Release 上的 PDF / DOCX / ZIP
-仍是 2026-09-19 那一版；替换后需同步本节的页数、文件名与哈希。
+- 技术报告 v5.1：[PDF](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-technical-report-v5.1.pdf)（`ffd03de2…`）
+  · [DOCX](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-technical-report-v5.1.docx)（`4aee7453…`）；
+  Markdown 与配图见仓库 [技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)；
+- A2 海报 v5：[JPG](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-poster-a2-v5.jpg)（`0bb5231c…`）
+  · [PDF](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-poster-a2-v5.pdf)
+  · [PPTX](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-poster-a2-v5.pptx)；
+- 答辩 PPT v5.1：[PDF](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-defense-v5.1.pdf)
+  · [PPTX](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-defense-v5.1.pptx)；
+  实物照片册 v5：[PDF](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-photo-book-v5.pdf)
+  · [PPTX](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-photo-book-v5.pptx)；
+- 视频：[主视频 287.905 s](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
+  与 [App 补充视频 85.612 s](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)（各含 `.srt`，未重编码）；
+- 校验：[v5.1 材料 SHA256](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-materials-v5.1-SHA256SUMS.txt)
+  与[视频 SHA256](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/SHA256SUMS.txt)；
+  被 v5.1 取代的旧 `shaniu-technical-report.pdf/docx` 已从该 Release 移除。
+- **`shaniu-submission-…zip`（331 MB）仍是 2026-09-19 快照**（内含旧版报告、海报与
+  PPT）；v5.1 整包 ZIP 尚未重打包，需要整包时以上列单文件为准。
+
+仓库内的海报图也已同步为 v5：`docs/contest/assets/showcase-poster.jpg`
+（`0bb5231c567e995231363d750e44be76b46faa9a0c8f1e40f699d751f4ea99ce`）。
+源码与原始 AI Coding 日志留在仓库，不塞进材料 ZIP；公开包不含设备授权秘密与同板
+恢复镜像，照片均为真实拍摄，未虚构背面或侧面视角。
 
 [![傻妞参赛海报](docs/contest/assets/showcase-poster.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
 
