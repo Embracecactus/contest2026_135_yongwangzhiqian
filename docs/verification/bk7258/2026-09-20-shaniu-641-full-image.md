@@ -107,10 +107,42 @@ BKPROV STATUS identity=present bytes=628
   之前启动日志里的 `persona … source=default` 只是 App 未重发配置，不是存储丢失；
 - **新 `bkprov` 通道在实板上打通**：CP 命令 → `bkprov-v1` RPC → AP 侧 store →
   回读状态，端到端工作（本轮验证的是只读 STATUS 路径）；
-- 写入路径（`bkprov supply`）**尚未实板验证**；可用“同一身份重放”做幂等验证：
-  `voice pairing --direct-cloud --resume` 会发送与设备内完全相同的 BPI1 记录，
-  store 对逐字节相同的记录返回 0、不重写（不同记录返回 `-EEXIST`），因此不会
-  改动设备身份。
+- 写入路径（`bkprov supply`）在实板上**未通过**：同一身份重放（CLI
+  `voice pairing --direct-cloud --resume`，628 B BPI1，与设备内记录逐字节相同）
+  完成 `BKPROV SUPPLY READY` 与全部 `NEXT offset` 后，在 commit 阶段被拒：
+
+  ```text
+  bk7258: error: identity supply failed: BKPROV_SUPPLY_ERROR stage=commit reason=target-rejected:-2002
+  real  0m0.955s
+  ```
+
+  失败在 1 秒内返回（不是 90 秒 commit 等待窗口超时）且可重复；这一步是
+  CP 控制台 → AP 本地 store，不经过网络，因此与 App 侧的认证状态无关。
+  失败的是**未落盘的 pending 提交**，active 身份不受影响，`bkprov status` 仍为
+  `identity=present bytes=628`。
+
+### 同一身份重放的实板结果与取舍（641）
+
+设计意图是幂等重放：store 对逐字节相同的记录返回 0、不重写，对不同记录返回
+`-EEXIST`。实板观察到的第三种结果是 commit 阶段拒绝 `ret=-2002`。
+
+- `-2002` **不是本仓库任何源码的返回值**（全仓 `grep -rIn -- "-2002"` 只命中
+  无关外部库）；也不在主机侧 mbedTLS 3.4.0 复验的错误集合里——同一份 628 B
+  记录在主机上 9 项全部通过（`ctr_drbg_seed`、`x509_crt_parse_der`、
+  `pk_parse_key`、`pk_check_pair`、`serverAuth`/`clientAuth` EKU、
+  `digitalSignature` KU）。因此该值只可能来自预编译厂商层（SDIO/RPMsg 或
+  文件系统错误空间）或 AP store 对外部错误的原样透传。
+- **本轮到此停止（未加 642 诊断）**：定位需要给 AP store 的
+  `load/digest/unlink/open/transfer/fsync/close/rename/sync_directory` 各加一条
+  `stage`+`ret`+`errno` 记录并重出整包固件（构建+全量烧录约 30–45 分钟），
+  超出本次提交窗口；该路径只影响 CLI 重新供应身份，不影响已认领设备的
+  产品链路。
+- **对照证据（App 侧，用户执行）**：用户先复位设备，再在 App 内清除认证、
+  重新认领，结果**成功**。串口同期可见 `AGENT service TLS verified=1 result=0`、
+  `BKVOICE configuration ready=1 result=0 revision=1`、
+  `BKVOICE official Trigger active label=nihao_openvela sha256=922eba91…`
+  与 `BKVOICE wake model prepared=1 result=0`，说明设备内身份可用、唤醒模型
+  重新装载（“认领成功”为用户报告，未落盘截图）。
 
 ## 边界与未闭合
 
@@ -124,6 +156,9 @@ BKPROV STATUS identity=present bytes=628
   不在本版本处理。
 - FAT 被写坏的确切机制未完全归因（最可能是“装完大包立即复位”打断目录/簇链落盘，
   随后逐次恶化）；本版本的防线是回退 + 目录同步 + 可重试。
+- 未闭合：`bkprov supply` 的 commit 阶段在实板被拒 `ret=-2002`（见“同一身份
+  重放的实板结果与取舍”）；定位需要 AP store 分阶段日志与一版诊断固件，
+  本轮不做。已安装身份不受影响，App 侧清除认证 → 重新认领成功。
 - App OTA 未在 641 重测（仍引用 `18.6.398+634`）。
 
 ## 证据位置
