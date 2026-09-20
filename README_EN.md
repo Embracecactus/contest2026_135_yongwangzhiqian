@@ -57,42 +57,6 @@ Compiling does not require a physical board. Consult the
 [board bindings](boards/bk7258/README.md) and [configuration contract](boards/bk7258/CONFIGS.md);
 T5AI-EVB is not interchangeable with T5-Board.
 
-## Verification status (2026-09-20)
-
-Every claim names its version and evidence layer; "the current HEAD passes" is
-not used as a permanent statement.
-
-- **Source-layer gate** (static, not board evidence): `bk7258.py verify layers`
-  PASS (500 sources / 252 Kconfig / 2 hash-bound legacy exceptions); the Agent
-  orchestrator and trigger backend pass the pinned nxstyle with 0 findings.
-- **T5-Board** (unsigned direct chain): four segments downloaded; boot reaches
-  `SYSINIT/FINALINIT/RCS PASS`, NSH and dolphin-ui start; the SD failure was a
-  TF card-contact problem, confirmed by re-seating.
-- **AIDK AI Toy**: signed `v18.6.401+638` full image (operator 8,388,608 B,
-  SHA256 `33c387c1…1cfc`; `.bkpack` 7,980,186 B) built and package-verified
-  from clean source `dc06613d`.  Its CP/AP payloads are byte-identical to 637,
-  and the two images differ in 659 bytes, all inside counters and signature
-  regions.  The owner flashed it and confirmed wake → the "我在" acknowledgement
-  (the 31,208-byte recording played) → ASR → LLM → TTS → playback → follow-up
-  capture without a second wake word → silence timeout back to standby; one ASR
-  request failed transiently with `ret=-5` and recovered inside the same
-  interaction.  App OTA was not retested on 638 and still cites the 634 result.
-  Artifact hashes and layers:
-  [638 verification record](docs/verification/bk7258/2026-09-20-shaniu-638-full-image.md);
-  previous generation of the same content:
-  [637 record](docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md).
-- **Full-image boundary**: `release full` materializes the operator image from a
-  same-unit readback base, so it carries that unit's device-bound persistent
-  data and stays a same-unit recovery artifact. It is not a published
-  general-purpose first-flash image and must not be flashed on another board;
-  the factory-init path is not verified. Reviewers and judges build from source
-  ([`tools/bk7258/README.md`](tools/bk7258/README.md), "First complete flash").
-
-`wake_reply.pcm` (31,208 B) is a private acknowledgement recording admitted for
-the contest only; public configurations keep it disabled and it is removed
-after the contest. Device bootstrap secrets and device-bound recovery images are
-not part of the public deliverables.
-
 **Publication boundary:** the working baseline is the official repository
 `open-vela/contest2026_135_yongwangzhiqian` on `dev-ai-contest-2026`, which now
 contains the F01-F12 remediation (`b72b8bbb..daacdc75`, 13 commits) and the
@@ -162,6 +126,100 @@ Outputs and source/configuration hashes are recorded in the emitted build manife
 For signed builds and device-safe deployment, use the
 [existing release SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md).
 Private keys and device-specific recovery images are not public build dependencies.
+
+## Verification status (2026-09-20)
+
+Every claim names its version and evidence layer; "the current HEAD passes" is
+not used as a permanent statement.
+
+- **Source-layer gate** (static, not board evidence): `bk7258.py verify layers`
+  PASS (500 sources / 252 Kconfig / 2 hash-bound legacy exceptions); the Agent
+  orchestrator and trigger backend pass the pinned nxstyle with 0 findings.
+- **T5-Board** (unsigned direct chain): four segments downloaded; boot reaches
+  `SYSINIT/FINALINIT/RCS PASS`, NSH and dolphin-ui start; the SD failure was a
+  TF card-contact problem, confirmed by re-seating.
+- **AIDK AI Toy**: signed `v18.6.401+638` full image (operator 8,388,608 B,
+  SHA256 `33c387c1…1cfc`; `.bkpack` 7,980,186 B) built and package-verified
+  from clean source `dc06613d`.  Its CP/AP payloads are byte-identical to 637,
+  and the two images differ in 659 bytes, all inside counters and signature
+  regions.  The owner flashed it and confirmed wake → the "我在" acknowledgement
+  (the 31,208-byte recording played) → ASR → LLM → TTS → playback → follow-up
+  capture without a second wake word → silence timeout back to standby; one ASR
+  request failed transiently with `ret=-5` and recovered inside the same
+  interaction.  App OTA was not retested on 638 and still cites the 634 result.
+  Artifact hashes and layers:
+  [638 verification record](docs/verification/bk7258/2026-09-20-shaniu-638-full-image.md);
+  previous generation of the same content:
+  [637 record](docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md).
+- **Full-image boundary**: `release full` materializes the operator image from a
+  same-unit readback base, so it carries that unit's device-bound persistent
+  data and stays a same-unit recovery artifact. It is not a published
+  general-purpose first-flash image and must not be flashed on another board;
+  the factory-init path is not verified. Reviewers and judges build from source
+  ([`tools/bk7258/README.md`](tools/bk7258/README.md), "First complete flash").
+
+`wake_reply.pcm` (31,208 B) is a private acknowledgement recording admitted for
+the contest only; public configurations keep it disabled and it is removed
+after the contest. Device bootstrap secrets and device-bound recovery images are
+not part of the public deliverables.
+
+## First deployment: source to first full run
+
+The Chinese root README carries the authoritative step-by-step chapter
+("评审快速开始"); the per-input sources, consumers, install locations and
+success criteria are in the
+[first-deployment input list](docs/platforms/bk7258/first-deployment-inputs.md).
+Three boundaries apply before anything else:
+
+1. **The operator image is device-bound.** `release full` materializes it from a
+   same-unit readback, so a reviewer must run `package accept-base` on their own
+   board and never flash the author's image.
+2. **First-time `/data` initialization has no supported entry (blocking).** The
+   firmware only runs `mount -t littlefs /dev/mtdblock0 /data` and never formats
+   it; a board whose `persistent_data` is not LittleFS cannot be brought up with
+   the current tools. See section 6 of the input list.
+3. **Identity supply and App claiming are separate.** The device TLS identity
+   (BPI1) is written through the CP `bkprov supply` command; the App then imports
+   the same `owner-bootstrap.json` to claim the device over BLE.
+
+Main line, in dependency order (full commands and criteria in the Chinese
+chapter):
+
+1. Identify the board (`aidk_ai_toy`), the CH340 console and whether the device
+   is running or blank; a blank board needs the K1 Boot ROM window, never
+   `reset reboot`.
+2. `repo init/sync` from `open-vela/contest2026_135_yongwangzhiqian`
+   `dev-ai-contest-2026`, then `toolchain install/verify` and
+   `sdk rebuild/verify --profile cp-aidk|ap-aidk`.
+3. Public assets: builtin KWS model `nihao_openvela.tflite` (23,640 B,
+   `922eba91…`), the contest-only `wake_reply.pcm` (31,208 B), and the eye
+   source `shaniu-cyan-v2.json`; build an installable `.bkep` with
+   `package eye-pack` and check it with `verify eye-pack`.
+4. Per-device private inputs: one EC P-256 device certificate/key pair per board
+   (OpenSSL command in the Chinese chapter), generated outside the repository.
+5. Storage state, build and image: confirm `BK7258 FINALINIT PASS`; bind the
+   board's own readback with `package accept-base`; then `build --boot mcuboot`
+   and `release full` to produce the 8-MiB operator image and `.bkpack`.
+6. Flash with `bk_loader` (CH340, `--fast-link 1`; T5-Board reset rules do not
+   apply to AIDK) and check `FINALINIT PASS` plus `AIDK DEFERRED DONE
+   failures=0`.
+7. `voice pairing --direct-cloud` writes `owner-bootstrap.json` (0600,
+   four fields) and supplies the same BPI1 record via `bkprov supply`; verify
+   with `bkprov status` (`identity=present`) and after a reboot.
+8. Install the App, import the authorization file, claim over BLE, then submit
+   Wi-Fi and cloud settings.
+9. First interaction: wake → "我在" acknowledgement → ASR → LLM → TTS → playback
+   → follow-up without a new wake word → standby.
+10. Resource updates through the App: import a `.bkep` with "导入眼睛素材包",
+    install it with "通过 Wi-Fi 安装所选眼睛", verify with "读取当前眼睛" and a
+    display change, then re-check after a reboot; import a `.wkm` with
+    "导入唤醒词模型" (builtin `nihao_openvela` for the review path) and verify the
+    device's active model label/phrase/SHA256, not just the App selection.
+
+Not yet closed: first-time initialization of a non-LittleFS `persistent_data`,
+board verification of `bkprov supply` on a new unit, and a full App-side
+resource-update readback on that unit. The packaged PDF/DOCX/PPT attachments
+still predate the 637/638 updates.
 
 ## App, models, Skills and evidence
 
