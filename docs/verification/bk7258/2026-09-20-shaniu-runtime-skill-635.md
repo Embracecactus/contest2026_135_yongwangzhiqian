@@ -1,7 +1,7 @@
 # 傻妞 635：运行时 Skill、语音与显示验证
 
 日期：2026-09-20。物理操作者与语音/显示确认：用户；实现、构建和记录：CodeBuddy。
-本文是已完成验证的公开摘要，不是 Codex 重新操作硬件的记录。
+前述验证为用户确认；同日后续授权的 Codex 串口补验单列末节，不混用证据。
 
 ## 源码与产物
 
@@ -51,3 +51,22 @@ AIDK DEFERRED DONE failures=0
   未因为本次通过而宣称根因已修复。NFC 驱动适配在，未接入本次产品交互。
 - 构建仍使用官方 Agent `e65550f` 加本地未提交扩展；本次不是公开 manifest
   干净复现。主仓发布与依赖公共仓提交/合入是分开的事项。
+
+## 同日 Codex 串口补验
+
+按新授权独占 COM8，执行一次 `reset reboot`，不使用 RTS/DTR，不重新烧录。
+板端回读 `18.6.399+635 counter=635 pair=confirmed`；运行时 Skill 安装、
+服务配置/TLS、KWS、阈值 0.60、持久 persona 与回答模式恢复，双屏状态
+`READY last_error=0 pack=shaniu-cyan-v2 revision=2 fallback=0`。
+运动传感器样本查询成功，马达入口 ready=1，电池电压 4116 mV；
+电量百分比和校准温度仍 unavailable，不补造数值。supervisor faults/recoveries=0。
+
+初始恢复 `-16` 后重试成功；BT `0x2006/0x200a status=0x0c` 仍存在。
+本轮无真实声学对话/新照片/马达动作验收；ADB 未连接手机，未重测 App 或 OTA。
+只读状态、KWS 持续推理与画面渲染日志不代替人工听看确认。
+
+本机 `out/contest-hil-20260920/aidk-reset635/serial.raw` SHA256：
+`856af1cba12df185c5e6c0bb2733c4049e17e4998a3e2600960d65793cb40b12`；
+`aidk-peripherals/serial.raw` SHA256：
+`b8208863d92fddec3f4e5b0aa7a2d5825542866153e4acb67f1f22977aafaa96`。
+原始文件留本机，不公开身份、配置或个人环境信息。

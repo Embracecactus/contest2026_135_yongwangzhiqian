@@ -103,8 +103,11 @@ Build boards sequentially. A single-board build needs only its two SDK profiles.
 The owner has verified Dolphin recording WAV files to SD on T5-Board, including
 the recorded `0.1.0+13` build. Commit `8de0ae78` restores the accidentally removed
 Dolphin-only NuttX recorder build wiring and enables recording again. T5 CP/AP
-builds, existing recorder host checks and ELF linkage checks passed; no new
-hardware acceptance is claimed. See the [Dolphin record](docs/platforms/bk7258/dolphin-master-plan.md).
+builds, existing recorder host checks and ELF linkage checks passed. Subsequent
+board verification found a GT9xx/LVGL input mismatch; `c6976458` fixes the adapter
+and display/input initialization now passes. The TF card is not responding;
+physical touch and recording-to-SD remain unverified on this candidate.
+See the [Dolphin record](docs/platforms/bk7258/dolphin-master-plan.md).
 Shaniu firmware 635 is unchanged.
 Keep the team checkout directory name specified by the manifest; SDK tools read
 its same-named XML. AIToyBoard requires both `cp-aidk` and `ap-aidk`.

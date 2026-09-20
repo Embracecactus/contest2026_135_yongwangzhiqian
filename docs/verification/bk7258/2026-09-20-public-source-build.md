@@ -1,7 +1,8 @@
 # 2026-09-20 公开源码隔离构建
 
-本记录只证明构建，不是新的硬件验证。最终实板候选仍为 635；没有烧录、
-OTA、手机安装、重新认领、数据清除或密钥轮换。
+最初的隔离构建不含硬件验证；用户随后重新授权两板补验，结果单列于末节，
+不追溯扩大早期结论。傻妞仍为 635；未执行新 OTA、手机安装、重新认领、
+数据清除或密钥轮换。
 
 ## 输入与方法
 
@@ -109,3 +110,40 @@ bk7258_agent_media_recorder.c.o`，open/prepare/read/start/stop/close 各只有�
 本次 build manifest SHA256：
 `63f9c6f60ead1e8d3a436ec987469d41cda4a96abe5f2944a75ebbf23af9c4ec`。
 这些 direct 产物不是已签名 OTA 或可随意全片烧录的恢复包。
+
+## 同日实板补验与触摸适配
+
+- T5-Board 使用 COM3/CH342、6 Mbaud BK Loader RTS 下载；首次四段下载成功，
+  `8de0ae78` 启动出现 Dolphin 显示/触摸初始化失败，不能记为录音通过。
+- 根因：NuttX `76354c637858ecb0aa4601629327acb6f44a26bb` 的 `gt9xx.c`
+  文件操作表没有 ioctl；当前 LVGL `lv_nuttx_touchscreen_create()` 必须查询
+  `TSIOC_GETMAXPOINTS`。团队旧选择项名称与实际编入能力不符。
+- 修复 `c69764585fed9c9b9c35c2a1bf1092e0060effa7` 仅改 Dolphin 单点输入适配
+  和团队 Kconfig 说明，使用 LVGL 输入回调与官方 GT9xx 标准读取；公共源码/SDK
+  和版本均不变，不恢复退役补丁、测试或语音 runtime。
+- 第二次只下载变更的 AP 与配对段；复位约 3.02 秒记录
+  `dolphin-ui: display and touch initialized`，原初始化失败不再出现。
+  两次下载均成功，未触碰数据/校准区，无全片擦除或 SD 格式化。
+- 提交后在干净源码工作树增量构建通过，`dirty=false`；boot/CP/AP/pair 的
+  字节哈希与已下载产物一致，因此不重复烧录。不是重新全量 clean 构建。
+- 当前 TF 卡 CMD1/CMD8/CMD55 无响应，物理连接尚待确认；实际触摸及录音落卡
+  仍未通过本候选验收。编译保留网关状态格式及录音路径提示截断两项既有告警。
+
+| 本次产物 | 字节 | SHA256 |
+|---|---:|---|
+| T5 AP raw | 547276 | `0c99116c190c5da275b5f9de5d7bc6c71ffef335d9722f8a95295d904679c9f5` |
+| AP Flash 段 | 581502 | `9e11f24356f2c7d1ac9c4e5b86f4f4aec5026158097c13a4e4a7ac58da1332b1` |
+| pair Flash 段 | 2576384 | `2512b97505059f90dfac23240c22535700c70a92bddcee7328f68943c348c8fc` |
+| 提交后 build manifest | — | `4ebd23df4e3877da5cf4abb0dedad20dfa0c6cbeb635fbf91993e61ebefd65c7` |
+
+本机证据位于工作区 `out/contest-hil-20260920/`，不公开原始串口文件：
+
+| 证据 | SHA256 |
+|---|---|
+| 首次启动 `t5-boot/serial.raw`（初始化失败） | `bcd0e95b6bd9e9533ca2959a4881dedcf2c5eb62c214c1a6872cdc8a248ec846` |
+| 修复启动 `t5-touch-boot/serial.raw` | `76a4950c176af3176850763f983b6b0873bacf647bbaa1e9fc8cf7ab14817504` |
+| 第二次下载 `t5-touch-flash/result.json` | `600b3658ab9bf90cc64dcf3bf4ff6a0317205602e9cfd12943b2e78db7b7306e` |
+
+AIDK/COM8 只执行现有 635 的 shell reset 和只读外设查询，不使用 RTS/DTR，
+不重刷同包；结果见 [635 补验](2026-09-20-shaniu-runtime-skill-635.md#同日-codex-串口补验)。
+8 个开发期 Skill 与 HIL 工具的实际覆盖见[能力索引](../../platforms/bk7258/shaniu-skill-capability-map.md#2026-09-20-补验覆盖)。

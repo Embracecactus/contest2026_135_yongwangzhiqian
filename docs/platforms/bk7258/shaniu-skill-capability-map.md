@@ -18,6 +18,27 @@
 通用流程只规定契约、真实输入和证据边界；板卡电气限制留在 profile，协议专用
 回归留在相应工具说明，不套用到其他目标或重新启用退役测试。
 
+## 2026-09-20 补验覆盖
+
+8 个随仓 Skill 均通过既有 `quick_validate.py` 规范检查，引用的同仓正文/参考文件
+均存在；这只证明格式与交付完整性，不等于 8 项工作流全量实测通过。
+
+| Skill | 本轮实际覆盖与限制 |
+|---|---|
+| `dependency-framework-migration` | 定位 T5 GT9xx/LVGL 能力不匹配，产品输入适配、增量构建及实板初始化通过；人工触摸待确认 |
+| `embedded-release-verification` | 核对源码/布局/构建清单/Flash 段，提交后干净源码增量重建与已下载字节一致；未新做签名 OTA |
+| `fork-change-publication` | 识别原 PR #116 已变基合入且源码树等价；从最新官方基线建立独立后续分支，不重放旧提交、不覆盖原脏树 |
+| `publish-pr-cn` | 按实际修复及未验收项交接中文 PR 内容；不代用户创建或合并 PR |
+| `voice-device-hil` | AIDK 635 复位、配置恢复和监听前置状态已核对；无已确认声学播放路由，本轮未执行完整对话 |
+| `android-companion-hil` | 当前 ADB 无手机，按前置条件停止设备操作；未安装、清数据或冒充 App 回归通过 |
+| `android-device-session` | 无当前手机会话故障证据，未为验证 Skill 而改 App 架构；运行流程未重验 |
+| `edge-wakeword-training` | 只核对现有已加载模型与阈值恢复；未重新训练/替换模型，未新增泛化结论 |
+
+两个 HIL 工具：`bk7258-hil-download` 既有 15 项主机用例通过，T5 COM3 两次
+不同输入的下载成功；`windows-hardware-debug` 完成 T5 RTS 复位采集及 AIDK COM8
+shell reset/查询。COM8 未用 RTS/DTR，未重复烧录 635。不新增测试、探针或工具。
+两板证据与剩余门槛见[实板补验记录](../../verification/bk7258/2026-09-20-public-source-build.md#同日实板补验与触摸适配)。
+
 ## 原流程 → 最终去向
 
 | 原流程与现有证据 | 去向 | 处理 |
