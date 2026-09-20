@@ -109,7 +109,13 @@ SHA256 `1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395`
 （`bkprov-v1` RPMsg）→ AP `bkprov_storage_identity_install` → CP LittleFS
 `…/shaniu/identity`。CP 命令与 AP 服务于 2026-09-20 加入（本地提交
 `2c3b1906`），AIDK CP/AP 构建通过（AP 镜像含 `bkprov-v1` 端点，CP 镜像含
-`BKPROV SUPPLY READY` 帧）；**尚未在新板实测安装**。
+`BKPROV SUPPLY READY` 帧）。实板状态（AIDK，固件 `18.6.401+641`）：只读
+`bkprov status` 路径已验证（`identity=present bytes=628`，复位后仍在）；
+**写入尚未通过** —— 同一身份重放完成 `READY` 与全部 `NEXT offset` 后在 commit
+阶段被拒（`BKPROV SUPPLY FAIL ret=-2002`，1 秒内返回、可重复），详见
+[641 实板记录](../../verification/bk7258/2026-09-20-shaniu-641-full-image.md)。
+作为对照，App 侧“清除认证 → 重新认领”在同一台 641 设备上成功（用户执行），
+即已认领设备的产品链路不依赖 CLI 重新供应身份。
 串口支持范围：当前传输经 Windows PowerShell 打开 `COMn`（WSL 通过
 `powershell.exe`）；不宣称支持原生 Linux `/dev/tty*`，供应时须先关闭其他串口占用者。
 
@@ -178,9 +184,11 @@ BKDATA INIT PASS target=/data type=0a732923
 
 ## 8. 未闭合项与待发布动作
 
-- 未实测：`bkdata init`（非 LittleFS 新板首次初始化）与 `bkprov supply`
-  （身份写入与重启加载）；App 端“导入唤醒词模型 / 导入眼睛素材包 /
-  通过 Wi-Fi 安装所选眼睛 / 读取当前眼睛”四步在新板的完整回读。
+- 未实测：`bkdata init`（非 LittleFS 新板首次初始化）；`bkprov supply` 的
+  **commit 阶段**在 AIDK/641 上被拒（`ret=-2002`，传输路径已实测、成功安装
+  待定因，见 [641 实板记录](../../verification/bk7258/2026-09-20-shaniu-641-full-image.md)）；
+  App 端“导入唤醒词模型 / 导入眼睛素材包 / 通过 Wi-Fi 安装所选眼睛 /
+  读取当前眼睛”四步在新板的完整回读。
 - 未重新生成：比赛材料 ZIP 内 PDF/DOCX/PPT（仍为 637/638 之前版本）。
 - 待发布：本清单、README 首装章节与 `bkprov` 固件/工具改动均为本地提交，
   尚未推送任何远端。
