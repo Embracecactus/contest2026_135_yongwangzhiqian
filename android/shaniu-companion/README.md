@@ -99,13 +99,13 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
 此命令是新板供应说明，本轮未执行。使用后将该临时目录安全迁入自己的私密
 持久目录再供应，勿留待系统清理；证书有效期校验依赖手机时钟正常。
 
-**历史上的有线入口（对当前固件不可用）**：仅对已启动、尚未供应身份的自有新板，
-过去使用下面的 CLI 加 Windows PowerShell `COMn` 串口（可从 WSL 工作流调用，
-不宣称支持原生 Linux `/dev/tty*`）。它驱动的是已退役的控制台协议
-（`bkvoice provision`），对应固件实现已随退役运行时在 `7079493e` 一并移除，
-因此**不能用于当前正式固件**；保留此段只为复核 18.6.35x–18.6.4xx 时期的历史
-记录，不要为了让它继续工作而恢复退役运行时。以下占位符替换为本机安全目录与
-真实 COM 口；**不要对作者的 635 演示板重新执行**：
+**现役的有线入口**：仅对已启动、尚未供应身份的自有新板使用下面的 CLI 加
+Windows PowerShell `COMn` 串口（可从 WSL 工作流调用，不宣称支持原生 Linux
+`/dev/tty*`）。`--direct-cloud` 现在经 CP 控制台 `bkprov supply` 把同一条 BPI1
+记录交给 AP 侧 provisioning store（2026-09-20 起，固件与工具均已具备）；旧的
+Gateway 模式（`bkvoice provision` RAM 记录）仍是历史路径，随退役运行时在
+`7079493e` 移除。以下占位符替换为本机安全目录与真实 COM 口；
+**不要对作者的 635/637 演示板重新执行**：
 
 ```bash
 tools/bk7258/bk7258.py voice pairing \
@@ -121,12 +121,13 @@ tools/bk7258/bk7258.py voice pairing \
 查清板态后仅可用原证书/私钥、原文件及 `--resume` 续接，不能另造一份秘密。
 无需另建认证服务器、NFC 流程或新工具。
 
-现役的身份供应与认领通道是 App 侧的 BLE 服务
+写入设备后，App 侧的身份认领与配网仍走 BLE 服务
 （`app/bk7258/bk7258_provision_gatt.c`、`bk7258_provision_owner.c`、
 `bk7258_provision_claim.c`，协议与安全决策见
 [provision-v1 安全决策](../../docs/platforms/bk7258/shaniu-provision-security.md)）。
-全新板在**当前固件**上从零安装设备身份的完整路径本轮未重新验证；在验证该路径
-之前，只对已有身份、确需恢复的板使用上面的历史入口。
+`bkprov supply` 的实板安装与重启加载尚未在新板实测；“`persistent_data` 不是
+LittleFS 的新板首次初始化”仍缺入口，见
+[首次部署输入清单](../../docs/platforms/bk7258/first-deployment-inputs.md) 第 6 节。
 
 通过本地 USB 等私密方式把 **owner-bootstrap.json 单独**交给该板的合法使用者，
 在 App 导入后完成 BLE 认领与配网。不要传设备私钥；不要把文件放在公共下载链接。
