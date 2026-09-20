@@ -229,8 +229,10 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
 
 **唤醒模型（.wkm）**——两条真实入口：
 
-- A. 使用 App/APK 内置的三份 `.wkm`（`nihao_openvela` / `nihao_bingbing` /
-  `nihao_shaniu`，各 23,776 B）；评审主线使用 `nihao_openvela`。
+- A. 使用 App/APK 内置的三份 `.wkm`（各 23,776 B，均已通过 App 解析器核对）：
+  `nihao_openvela`（phrase `你好，openvela`，模型 `922eba91…`，与固件内置模型同一份）、
+  `nihao_bingbing`（`你好冰冰`）、`nihao_shaniu`（`你好傻妞`）；评审主线用
+  `nihao_openvela`。
 - B. `导入唤醒词模型`：从手机文件系统导入外部 `.wkm`（WKM1 封装：头 136 B、
   裸模型 ≤ 65,536 B、label `[a-z0-9_]{1,31}`、phrase ≤ 63 B）。
 - 生效判据：设备回读 active 模型的 SHA256/label/phrase 与所选包一致；App 里
