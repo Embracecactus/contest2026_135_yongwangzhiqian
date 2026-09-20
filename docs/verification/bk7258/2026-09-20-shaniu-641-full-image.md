@@ -168,3 +168,36 @@ BKPROV STATUS identity=present bytes=628
 - 构建日志 `/tmp/bk7258-build-641.log`；主机回归
   `tests/host/bk7258` 的 `run-display-pack`（编译 store）与 `run-display-rpc`。
 - 串口：用户回贴文本，未落盘为原始文件。
+
+## 对外发布（安全集合，2026-09-20）
+
+Tag `shaniu-firmware-20260920`，发布在开发 fork：
+<https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920>。
+源码对应分支 `shaniu-fw-20260920`（本机 `dev-ai-contest-2026` 的 HEAD，只新增分支，
+未改写既有分支）。
+
+| 资产 | 大小 (B) | SHA256 |
+| --- | --- | --- |
+| `shaniu-companion-0.5.23-debug.apk` | 8,310,136 | `9ddbf2be…f7a69814` |
+| `shaniu-bk7258-aidk-641-images.zip` | 3,998,911 | `235b40b5…31850c45` |
+| `shaniu-bk7258-641-evidence.zip` | 4,196 | `e8609a98…6e83d80` |
+| `shaniu-cyan-v3.bkep` | 108,634 | `cf9dff38…7653ee56` |
+| `shaniu-default-v1.bkep` | 10,494 | `1bfa4453…7fb666395` |
+| `shaniu-wake-models-0.5.23.zip` | 41,179 | `cee27329…be040511` |
+
+**排除项与原因**：`flash/*.bin`（8 MiB operator）与 `package/*.bkpack` 都不发布。
+解包核对：两者的 `payloads/persistent_data.bin`（1 MiB LittleFS）里有
+
+1. `BPI1` 身份记录（offset 606272：441 B 证书 DER + 138 B PKCS#8 私钥 DER）——
+   即设备 TLS 私钥；
+2. 明文 Wi‑Fi SSID 与密码（offset ≈598137）；
+3. CCF1 云配置里的 API Key 明文与三个模型 ID（offset ≈599136）。
+
+公开这两个包等于把上述凭据发给所有下载者，因此只发布不含设备数据的
+`images/**`（boot/bl2/cp/ap/pair/manifest，已单独核对不含上述三类字符串）与构建证据。
+需要可烧录整包的评委必须按 README「评审快速开始」用自己板子的整片读回物化；
+operator 镜像本身也是设备绑定的。
+
+**发布后核对**：把 Release 上 7 个资产全部下载回本机，用 Release 内
+`SHA256SUMS.txt` 执行 `sha256sum -c`，6 个文件全部 `OK`（清单文件自身不参与自校验）。
+这是“下载入口可用 + 内容一致”的证据，不代表评委板子已实测。
