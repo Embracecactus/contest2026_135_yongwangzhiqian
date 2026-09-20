@@ -29,7 +29,7 @@
   [638 验收摘要](../../verification/bk7258/2026-09-20-shaniu-638-full-image.md)
   与 [637 验收摘要](../../verification/bk7258/2026-09-20-shaniu-637-full-image.md)。
 - 比赛期间入库的 `wake_reply.pcm`（31,208 B，入库提交 `019a449e`）赛后删除并
-  回退 defconfig；公开配置默认不启用。
+  回退 AIDK preset（板级 Kconfig 默认 `n`，AIDK 评审 preset 当前显式 `=y`）。
 - 本文件下方两个「2026-09-20」小节记录当日 637 之前的状态，作为历史保留。
 
 ## 2026-09-20 用户重新授权的最后补验
