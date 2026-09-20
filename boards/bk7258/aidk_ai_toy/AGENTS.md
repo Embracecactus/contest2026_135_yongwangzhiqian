@@ -22,21 +22,31 @@ those rules.
 - Wired recovery is whole-device: one complete 8-MiB operator image at address
   zero, materialized from exact same-unit readback and accepted-base evidence;
   the immutable tail must stay byte-identical and nothing is copied to another
-  unit.  Details: SOP "MCUboot build and signed package" and "Persistence".
+  unit.  Such an image is a same-unit recovery artifact: it is never published
+  as a general-purpose first-flash image, and a factory-init path for an
+  arbitrary unit is not established by packaging a readback-derived image.
+  Details: SOP "MCUboot build and signed package" and "Persistence", plus the
+  first-flash boundary in `tools/bk7258/README.md`.
 
 ## Connectors, reset and USB
 
 - CH340 Type-C (CH340E → UART0 TX/RX): BK Loader recovery and CP console.
   RTS/CTS are not connected to CEN; never use COMx RTS/DTR as reset, and the
   host COM number is fixture state, not a board identity.
-- Native Type-C (BK7258 USB0 DP/DM): signed CP/AP OTA transport only
-  (chip-level `BK7258_OTA_SOURCE_USB` beside the file and HTTP sources; AP
-  stages, CP is the only on-chip writer, BL2 owns trial/revert, the CP
-  Supervisor confirms).  It is not raw DFU/MSC Flash; this board only selects
-  the source and supplies port wiring.
-- Before a BK Loader download, leave native USB MSC safely (eject it or switch
-  back to CDC), then use the atomic software-reset handoff, replacing the port
-  by the actual fixture port (discover it; do not hardcode COM8):
+- Native Type-C (BK7258 USB0 DP/DM) carries three roles that must not be
+  conflated: the CDC endpoint that `deploy` streams a signed CP/AP package
+  through (the reboot and generation check then use the CH340 console); the
+  signed CP/AP OTA transport itself (chip-level
+  `BK7258_OTA_SOURCE_USB` beside the file and HTTP sources; AP stages, CP is
+  the only on-chip writer, BL2 owns trial/revert, the CP Supervisor confirms);
+  and USB MSC, which exposes the soldered SD NAND (`/dev/mmcsd0`) as a
+  mass-storage device while BKDisplay holds the block-device lease.  Native
+  USB is not raw DFU and can never write the internal Flash layout by itself;
+  this board only selects the source and supplies port wiring.
+- Before a BK Loader download, leave native USB MSC safely (eject the exposed
+  SD NAND volume or switch back to CDC), then use the atomic software-reset
+  handoff, replacing the port by the actual fixture port (discover it; do not
+  hardcode COM8):
 
   ```text
   bk_loader.exe download -p "$PORT" -b 460800 -s 0 -i FULL_FLASH.bin \
