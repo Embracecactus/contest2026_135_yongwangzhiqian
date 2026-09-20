@@ -227,10 +227,54 @@ def test_legacy_exception_is_hash_bound() -> None:
         assert "EXCEPTION_HASH" in _codes(root)
 
 
+def test_include_gate_whitespace_boundaries() -> None:
+    """Leading blanks must not hide an include, comments must not fake one."""
+
+    with tempfile.TemporaryDirectory(prefix="bk7258-layers-blank-") as temporary:
+        root = Path(temporary)
+        _fixture(root)
+
+        # Only commented-out and string-literal includes: no report.
+        _write(
+            root,
+            "boards/bk7258/test/src/inert.c",
+            "  // #include <driver/gpio.h>\n"
+            "/* indented block\n"
+            "   #include <components/xxx.h> */\n"
+            'static const char *text = "#include <os/os_types.h>";\n'
+            "int board_inert(void) { return 0; }\n",
+        )
+        assert "SDK_INCLUDE" not in _codes(root)
+
+        # Space-indented, tab-indented and blank-line-preceded real includes
+        # are all reported like a flush-left one.
+        _write(
+            root,
+            "boards/bk7258/test/src/indented.c",
+            "int board_indented(void);\n"
+            "\n"
+            "    #include <driver/gpio.h>\n"
+            "\t#include <components/xxx.h>\n"
+            "\n\n"
+            "#include <os/os_types.h>\n",
+        )
+        assert "SDK_INCLUDE" in _codes(root)
+
+        # The chips-layer branch must behave the same way.
+        _write(
+            root,
+            "chips/bk7258/common/indented.c",
+            "int chip_indented(void);\n"
+            "\n"
+            "    #include <arch/board/board.h>\n",
+        )
+        assert "CHIP_TO_BOARD" in _codes(root)
+
+
 def main() -> int:
     test_clean_fixture()
     test_all_boundary_failures()
-    test_nuttx_gpio_force_feedback_contract()
+    test_include_gate_whitespace_boundaries()
     test_app_and_board_build_sdk_boundaries()
     test_legacy_exception_is_hash_bound()
     print("BK7258_LAYER_TEST_PASS")
