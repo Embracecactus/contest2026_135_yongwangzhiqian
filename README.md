@@ -33,6 +33,29 @@ A2 海报和 18 页可编辑答辩 PPT。源码与原始 AI Coding 日志留在�
 
 压缩包按大赛模板命名；上传官网和官方仓 PR 合入是后续明确操作，不以材料打包代替。
 
+## 实机验收状态（2026-09-20）
+
+以下结果来自本仓库当前 HEAD 的直接构建与实板操作，非历史截图：
+
+- **三板构建门禁**：`bk7258.py verify layers` PASS（500 源文件 / 252 Kconfig /
+  2 条哈希绑定遗留豁免）；`app/bk7258` 的 Agent 协调器与触发后端
+  `nxstyle`（pinned NuttX 版本，78 列）0 findings。
+- **T5-Board**：direct 诊断链四段（boot/cp/ap/pair）下载成功，启动
+  `SYSINIT/FINALINIT/RCS PASS`，NSH 就绪，LCD/dolphin-ui 正常启动；
+  SD 挂载失败经复测为 TF 卡接触物理问题，重插后正常，代码无回归。
+- **AIDK AI Toy（傻妞）**：MCUboot 签名链 `v18.6.401+637` 全镜像烧录，
+  `FINALINIT PASS`（`/data` 持久分区正常）；实测 **App 认领 → 建立连接
+  → 音量/风格等设置调整 → 本地唤醒 → 唤醒应答“我在” → 完整对话**
+  全链路通过；NFC（MFRC522）、双屏、摄像头、加速度、电池等外设
+  全部注册成功（`AIDK DEFERRED DONE failures=0`）。
+- **评委首次完整烧录**：用发布的 `operator-*.bin` 签名全镜像加一条
+  `bk_loader download` 命令即可，无需私钥与设备读回；完整打包/烧录/
+  复现流程见 [`tools/bk7258/README.md`](tools/bk7258/README.md) 的
+  “First complete flash” 一节。
+
+公开材料不含设备授权秘密与同机恢复镜像；固件 `wake_reply.pcm`
+为比赛期间经操作者授权入库的应答录音，赛后将移出公开仓库。
+
 ## 做了什么
 
 - **平台**：三核启动、CP/AP 核间通信、Wi-Fi/BLE、音视频与外设适配；
