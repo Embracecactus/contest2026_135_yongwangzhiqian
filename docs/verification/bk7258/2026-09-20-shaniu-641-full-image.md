@@ -63,11 +63,24 @@ BKDISPLAY SERVICE READY dev=/dev/fb0,/dev/fb1 storage=/dev/mmcsd0 mount=short-li
 
 `fallback=0` 说明 **active 标记与包文件都跨复位保留**，双屏正常点亮。
 
-**未闭合观察（同一台设备、更早一次）**：在刚用 Windows 格式化过该卡之后，第一次
+同一设备随后安装第二个包 `shaniu-cyan-v3`（108,634 B）并再次复位，两段日志分别是：
+
+```text
+# 安装时
+BKDISPLAY APP IMPORT transport=https result=0 bytes=108634
+BKDISPLAY RENDER PASS … pack=shaniu-cyan-v3 revision=3 … fallback=0 sequence=2
+# 复位后
+BKDISPLAY RENDER PASS … pack=shaniu-cyan-v3 revision=3 … fallback=0 sequence=1
+BKDISPLAY SERVICE READY dev=/dev/fb0,/dev/fb1 storage=/dev/mmcsd0 mount=short-lived
+```
+
+两次独立的“安装 → 复位 → 保持”都通过（`fallback=0` 表示标记与包都保留），
+双屏在两种资源之间切换后均可跨复位保持。
+
+**一次性观察（未再复现）**：在刚用 Windows 格式化过该卡之后，第一次
 “安装 v1 → 直接复位”出现包与标记都不见了（解析器退回空卡等待，屏幕黑）；随后
-重新安装并做了一轮 MSC 导出/安全弹出再复位，就稳定保留。两者差异是
-“格式化后的第一轮写入 + 立即复位”与“再次写入 + 额外一次卷释放/时间间隔”。
-现有证据无法区分下列两种机制，因此本轮**没有**为它做投机式改动：
+的 v1 重装与 v3 安装都跨复位保持。差异是“格式化后的第一轮写入 + 立即复位”与
+“后续轮次”。现有证据无法区分下列两种机制，因此本轮**没有**为它做投机式改动：
 
 1. NuttX FAT 的 `fat_unbind()`（umount）不刷文件系统缓冲（源码注释承认会丢数据），
    与卡内写缓存的组合可能在“写后立即断电”时丢失最近的目录/FAT 扇区；
