@@ -28,20 +28,24 @@
  ****************************************************************************/
 
 /* Wake admission and lifecycle; safe from the product config task. */
+
 int bk7258_agent_trigger_prepare(void);
 int bk7258_agent_trigger_start(void);
 int bk7258_agent_trigger_stop(void);
 int bk7258_agent_trigger_process(void);
 
 /* Media Trigger model transaction state. */
+
 bool bk7258_agent_trigger_model_pending(void);
 int bk7258_agent_trigger_model_step(bool arm);
 
 /* Wake re-arming and admission state. */
+
 int bk7258_agent_trigger_rearm(void);
 bool bk7258_agent_trigger_armed(void);
 
 /* Persisted wake threshold bridge (percent 50..90). */
+
 unsigned int bk7258_agent_trigger_threshold_get(void);
 int bk7258_agent_trigger_threshold_set(unsigned int percent);
 
@@ -49,6 +53,7 @@ int bk7258_agent_trigger_threshold_set(unsigned int percent);
  * trigger accepts only its own configuration kinds and reports
  * -ENOTSUP for everything else.
  */
+
 int bk7258_agent_trigger_control(void *context,
                                  enum bkcontrol_command_e command,
                                  uint32_t kind, uint32_t offset,
