@@ -40,13 +40,18 @@ A2 海报和 18 页可编辑答辩 PPT。源码与原始 AI Coding 日志留在�
 
 [![傻妞参赛海报](docs/contest/assets/showcase-poster.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
 
-压缩包按大赛模板命名；上传官网和官方仓 PR 合入是后续明确操作，不以材料打包代替。
-已发布的材料 ZIP 里 PDF/DOCX/PPT 仍是 637/638 之前生成的版本，未按这两轮结论
-重新生成；本页与仓库文档的更新不代表这些附件已同步。
+压缩包按大赛模板命名。仓库内的技术报告已更新为**材料版本 v5.1**（2026-09-20，
+事实冻结 `6a8a3e55`，配图随 `docs/contest/assets/report-v5/` 提供，只补正
+639/641、首装入口与资源交付事实）；已发布的材料 ZIP 内 PDF/DOCX/PPT 仍是
+2026-09-19 生成的那一版（早于 637/638 与 639/641 的结论），未按 v5.1 重新打包上传，
+本页与仓库文档的更新不代表这些附件已同步。
 
 [固件对比包与 App 安装包](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
 提供最后一轮实机固件 `18.6.401+641` 的**去设备数据镜像**（CP/AP/pair/boot/BL2/manifest）、
 构建证据、debug APK、两只成品眼睛包与三份唤醒模型，全部列出 SHA256。
+同一份包也发布在官方赛事仓
+（[open-vela Releases](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)，
+tag 指向合并提交 `6a8a3e55`），fork 与官方仓两份资产 SHA256 一致。
 **operator 8 MiB 全镜像与 full `.bkpack` 不在其中**：它们含本机
 `payloads/persistent_data.bin`（设备 TLS 身份私钥、本机配网凭据、云服务凭据），
 公开发布等于泄露这些凭据；需要可烧录整包的评委请按下一节用自己板子的整片读回物化。
