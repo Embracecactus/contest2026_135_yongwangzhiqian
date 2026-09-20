@@ -1,6 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # Keep the official source checkout unchanged; select only the official core
 # modules this product actually uses.
+#
+# Coupling contract (recorded, not a license to patch): this file reaches
+# into the official Agent target's SOURCES property, filters it by a
+# concrete file-name blocklist and writes the property back, and it exposes
+# the official src/ directory as an include path. That couples the product
+# build to the pinned official checkout's internal layout, which is what
+# the fixed NuttX commit in chips/bk7258/kernel_compat.json and the pinned
+# packages_ai_agent revision in the manifest protect. Renaming or adding an
+# official internal file changes what this filter matches; a drifted
+# blocklist must fail loudly during review (cmake prints the filtered
+# target's sources), never be silently relaxed. The exit condition is a
+# minimal component-option or library interface negotiated with the
+# official tree; until then no blocklist entry is removed or added without
+# a consumer argument in the same change. Do not reinstate a patch overlay
+# or a second agent runtime to work around this file.
 function(bk7258_configure_agent_framework)
   set(source "${NUTTX_APPS_DIR}/packages/ai_agent")
   set(target "apps_${CONFIG_EXAMPLES_AI_AGENT_VELA_PROGNAME}")
