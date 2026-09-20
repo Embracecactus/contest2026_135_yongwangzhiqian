@@ -35,6 +35,13 @@ A2 海报和 18 页可编辑答辩 PPT。源码与原始 AI Coding 日志留在�
 已发布的材料 ZIP 里 PDF/DOCX/PPT 仍是 637/638 之前生成的版本，未按这两轮结论
 重新生成；本页与仓库文档的更新不代表这些附件已同步。
 
+[固件对比包与 App 安装包](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
+提供最后一轮实机固件 `18.6.401+641` 的**去设备数据镜像**（CP/AP/pair/boot/BL2/manifest）、
+构建证据、debug APK、两只成品眼睛包与三份唤醒模型，全部列出 SHA256。
+**operator 8 MiB 全镜像与 full `.bkpack` 不在其中**：它们含本机
+`payloads/persistent_data.bin`（设备 TLS 身份私钥、本机配网凭据、云服务凭据），
+公开发布等于泄露这些凭据；需要可烧录整包的评委请按下一节用自己板子的整片读回物化。
+
 ## 评审快速开始：从源码到首次完整运行
 
 本节是**唯一主操作入口**；每项输入的来源、消费者、安装位置与成功判据见
@@ -115,7 +122,10 @@ tools/bk7258/bk7258.py verify eye-pack --package out/shaniu-display/shaniu-cyan-
 
 拿到别人给的 `.bkep` 也一样：先用 `verify eye-pack` 核对，App 导入时还会再校验
 结构与 CRC。按 `app/bk7258/assets/display/README.md` 的约定，生成的 `.bkep` 不
-提交进 Git；需要“直接下载文件”形式时，它作为 Release 资产处于**待发布**状态。
+提交进 Git；需要“直接下载文件”形式时用
+[固件对比包 Release](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
+里已发布的成品：`shaniu-cyan-v3.bkep`（108,634 B，`cf9dff38…`）与
+`shaniu-default-v1.bkep`（10,494 B，`1bfa4453…`），两者都不含设备私有数据。
 
 判据：命令打印的 `pack_id`/`revision`/`source_sha256` 与上表一致。主机生成成功
 不等于设备已激活，激活判据见第 10 节。
@@ -223,8 +233,11 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
 
 ### 8. 安装 App、导入授权、认领、配网及云配置
 
-- 安装 APK（`android/shaniu-companion/`，JDK 17 + Android SDK 35，版本
-  `0.5.23-shaniu-rebind` / code 28；有旧 App 时先核对签名兼容，不默认卸载清数据）。
+- 安装 APK：直接用
+  [Release 里的 `shaniu-companion-0.5.23-debug.apk`](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
+  （8,310,136 B，`9ddbf2be…`），或用 `android/shaniu-companion/` 源码自行构建
+  （JDK 17 + Android SDK 35，`versionName 0.5.23-shaniu-rebind` / code 28，
+  `./gradlew :app:assembleDebug`）。有旧 App 时先核对签名兼容，不默认卸载清数据。
 - 在 App 中导入 `owner-bootstrap.json`，按提示完成 BLE 认领；认领成功后 App
   保存控制凭据（Android Keystore），随后提交 Wi-Fi 与云端配置。
 - 目前只需 Android 10+ 常规权限；蓝牙/附近设备权限按系统版本授权。

@@ -190,5 +190,12 @@ BKDATA INIT PASS target=/data type=0a732923
   App 端“导入唤醒词模型 / 导入眼睛素材包 / 通过 Wi-Fi 安装所选眼睛 /
   读取当前眼睛”四步在新板的完整回读。
 - 未重新生成：比赛材料 ZIP 内 PDF/DOCX/PPT（仍为 637/638 之前版本）。
-- 待发布：本清单、README 首装章节与 `bkprov` 固件/工具改动均为本地提交，
-  尚未推送任何远端。
+- 已发布（2026-09-20）：[固件对比包
+  `shaniu-firmware-20260920`](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
+  提供去设备数据的 `images/**`（boot/BL2/CP/AP/pair/manifest）、构建证据、
+  debug APK、两只 `.bkep` 与三份 `.wkm`；源码对应 fork 分支 `shaniu-fw-20260920`。
+  operator 全镜像与 full `.bkpack` **不发布**：两者的
+  `payloads/persistent_data.bin` 含设备 TLS 私钥、本机 Wi‑Fi 凭据与云 API Key，
+  见 [641 实板记录](../../verification/bk7258/2026-09-20-shaniu-641-full-image.md)。
+- 其余待发布：本清单、README 首装章节与 `bkprov` 固件/工具改动只在本地提交
+  （`dev-ai-contest-2026` 领先 `openvela` 远端 49 个提交，尚未推送到官方仓）。

@@ -235,6 +235,16 @@ still predate the 637/638 updates.
 
 ## App, models, Skills and evidence
 
+- [Firmware comparison release](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
+  (`shaniu-firmware-20260920`) ships the last board round `18.6.401+641` as
+  device-data-free images (boot/BL2/CP/AP/pair/manifest), the build evidence,
+  the debug APK (8,310,136 B), two installable `.bkep` packs and the three
+  `.wkm` models, each with a SHA256 entry. The 8-MiB operator image and the
+  full `.bkpack` are **not** published because both embed this unit's
+  `payloads/persistent_data.bin`: device TLS private key, local Wi-Fi
+  credentials and the cloud API key. Reviewers who want a flashable full image
+  must materialize it from their own board's readback, as the quick-start
+  chapter requires.
 - [Android project](android/shaniu-companion/README.md): JDK 17, SDK 35,
   Android 10+, source version `0.5.23-shaniu-rebind` / code 28.
 - [Model tools](tools/bk7258/README.md): existing `voice kws` commands.
