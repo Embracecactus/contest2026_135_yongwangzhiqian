@@ -80,6 +80,7 @@ struct aidk_nfc_uart_s
   bool read;
   unsigned int debug_tx_snapshots;
   int last_error;
+  unsigned int uart_failures;
 };
 
 static int aidk_nfc_spi_lock(FAR struct spi_dev_s *spi, bool lock);
@@ -492,8 +493,37 @@ static uint32_t aidk_nfc_spi_send(FAR struct spi_dev_s *spi, uint32_t word)
       ret = aidk_nfc_uart_write_reg(priv, priv->reg, (uint8_t)word);
     }
 
+  /* Error boundary: the official SPI send contract
+   * (uint32_t (*)(struct spi_dev_s *, uint32_t)) cannot carry an errno, so
+   * a UART failure is stored in last_error and reported here at a bounded
+   * rate instead of being raised. The official MFRC522 protocol layer
+   * still observes the failure as its own timeout or protocol error; a
+   * zero register value is legitimate data, and the log edge below is the
+   * only way to tell a real zero read from a failed one at this boundary.
+   */
+
   priv->last_error = ret;
-  return ret < 0 ? 0 : value;
+  if (ret < 0)
+    {
+      priv->uart_failures++;
+      if (priv->uart_failures == 1 || (priv->uart_failures & 31u) == 0)
+        {
+          syslog(LOG_ERR,
+                 "AIDK MFRC522 UART reg access failed reg=%u read=%u "
+                 "ret=%d failures=%u\n",
+                 priv->reg, priv->read, ret, priv->uart_failures);
+        }
+      return 0;
+    }
+
+  if (priv->uart_failures != 0)
+    {
+      syslog(LOG_WARNING,
+             "AIDK MFRC522 UART reg access recovered after %u failures\n",
+             priv->uart_failures);
+      priv->uart_failures = 0;
+    }
+  return value;
 }
 
 #ifdef CONFIG_SPI_EXCHANGE
