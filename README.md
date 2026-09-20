@@ -240,6 +240,15 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
   `./gradlew :app:assembleDebug`）。有旧 App 时先核对签名兼容，不默认卸载清数据。
 - 在 App 中导入 `owner-bootstrap.json`，按提示完成 BLE 认领；认领成功后 App
   保存控制凭据（Android Keystore），随后提交 Wi-Fi 与云端配置。
+- 配网与云配置的具体字段（App「设备配置」页，密钥只在你手机上输入、经已认证的
+  BLE 通道下发，App 侧的编码器不保留它）：`Wi-Fi 名称`、`Wi-Fi 密码`、
+  `API Key`（1–4096 个可打印 ASCII）、`HTTPS 服务地址`（默认
+  `https://token-plan-cn.xiaomimimo.com/v1`）、`语音识别模型` / `对话模型` /
+  `语音合成模型`（默认 `mimo-v2.5-asr` / `mimo-v2.5` / `mimo-v2.5-tts`）。
+  设备保存并回读成功后才算配置完成。**评委必须自备该云服务的账号与额度**，
+  仓库和 Release 都不含作者的云凭据；设置页的「云端模型」只保存公开模型 ID，
+  不含地址与密钥。设备侧另可用官方 Agent 的 NSH 命令
+  `set_llm <preset> [api_key]` 直接写入同一后端（`list_models` 可列出可用模型）。
 - 目前只需 Android 10+ 常规权限；蓝牙/附近设备权限按系统版本授权。
 - 失败语义：文件先生成、串口失败 = “待核对”，不是成功；换手机/删绑定需要重新
   认领同一身份，不能靠清空板端数据绕过。
@@ -252,6 +261,11 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
 
 ### 10. 通过 App 更新眼睛资源与唤醒模型
 
+六类文件不要混用：`.bkep` 眼睛显示包、`.wkm` 本地唤醒模型、`wake_reply.pcm`
+唤醒应答音（按第 3 节的板级开关编入固件 ROMFS，App 不能更新它）、`.bkpack`
+固件 OTA 包、`.apk` 手机应用、`owner-bootstrap.json` 逐设备认领资料。
+换唤醒模型不会改变“我在”的声音，换 APK 也不会自动更新设备上的资源包。
+
 **眼睛素材包（.bkep）**——当前 App 入口按实际按钮顺序：
 
 1. `导入眼睛素材包`：从手机文件选择器导入第 3 步生成的 `.bkep`；App 显示
@@ -259,7 +273,10 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
 2. 前置：设备已认证、与控制通道连接、Wi-Fi 可达、存储就绪且空闲。
 3. `通过 Wi-Fi 安装所选眼睛`：开始手机临时 HTTPS 供包 + BLE 描述；
    **手机需保持前台**，且手机与设备在同一局域网（AP 隔离会阻断供包）。
-4. `读取当前眼睛`：回读设备实际安装状态（不是“传输 100%”就算成功）。
+4. `读取当前眼睛`：回读设备实际的 108 B 眼睛状态（`EYE1` 头 + 状态 + 错误码 +
+  revision + `pack_id` + `source_sha256`）；App 只有在 `state=3`、`error=0` 且
+  `revision`/`pack_id`/`source_sha256` 与所选素材一致时才显示安装并回读确认。
+  “传输 100%”或收到 ACK 都不算生效。
 5. 触发一次表情变化，确认双屏实际显示变化；重启后再次 `读取当前眼睛`，
    确认 `pack_id`/`revision` 未回退。
 6. 失败恢复：按提示重新连接后重试；不要格式化 SD NAND，也不要清空用户文件。
@@ -282,9 +299,18 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
 - A. 使用 App/APK 内置的三份 `.wkm`（各 23,776 B，均已通过 App 解析器核对）：
   `nihao_openvela`（phrase `你好，openvela`，模型 `922eba91…`，与固件内置模型同一份）、
   `nihao_bingbing`（`你好冰冰`）、`nihao_shaniu`（`你好傻妞`）；评审主线用
-  `nihao_openvela`。
+  `nihao_openvela`。设置页把这三项各显示为一行（行标题就是唤醒词），点一行即
+  “切换到此唤醒词”；三份 `.wkm` **文件**的 SHA256 分别是
+  `b08a2561…` / `20345f85…` / `d363c825…`，其中 `nihao_openvela.wkm` 封装的
+  23,640 B 裸模型与固件内置模型同为 `922eba91…`（文件哈希与模型哈希不是同一个值）。
 - B. `导入唤醒词模型`：从手机文件系统导入外部 `.wkm`（WKM1 封装：头 136 B、
   裸模型 ≤ 65,536 B、label `[a-z0-9_]{1,31}`、phrase ≤ 63 B）。
+- 传输：`.wkm` 走已认证 BLE 控制通道的配置事务
+  `CONFIG_BEGIN → CONFIG_APPEND（每帧 ≤512 B）→ CONFIG_APPLY`，不是眼睛包的
+  手机临时 HTTPS 供包；传输中可 `取消模型传输`（保留设备当前模型），
+  待发送状态可 `取消模型导入`。
+- 其它真实入口：`读取当前唤醒词` 回读设备 active 模型；`恢复上一唤醒词模型`
+  回到设备保存的上一份（先读取、后恢复）。
 - 生效判据：设备回读 active 模型的 SHA256/label/phrase 与所选包一致；App 里
   “已选中”或写入 ACK 都不算生效。断连后先重连查询真实状态，不自动重复提交。
 - 边界：改包内 phrase 文字不会让模型学会新唤醒词；该入口只更新 KWS，不是通用
