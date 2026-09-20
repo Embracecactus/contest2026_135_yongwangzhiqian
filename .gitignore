@@ -12,7 +12,6 @@ out/
 *.su
 
 # Operator-authorized private wake acknowledgement: 16 kHz mono PCM16LE.
-app/bk7258/assets/wake_reply.pcm
 
 # Local-authorization speech corpora and experiment candidates stay out of the
 # published source tree.  Only these two experiment directories are ignored:
