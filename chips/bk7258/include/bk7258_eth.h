@@ -32,7 +32,7 @@ extern "C"
  ****************************************************************************/
 
 /* Board binding for the Ethernet PHY pin group.  The SDK supports two
- * mutually exclusive groups: GROUP0 (pins 27,29-39, conflicts with DVP)
+ * mutually exclusive groups: GROUP0 (pins 27, 29-39, conflicts with DVP)
  * and GROUP1 (pins 46-55, conflicts with LCD).
  */
 

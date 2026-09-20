@@ -747,7 +747,6 @@ static void bk7258_jpeg_encoder_cleanup_failed(
       (void)bk_dma_free(DMA_DEV_JPEG, priv->dma);
       priv->dma = DMA_ID_MAX;
     }
-
 }
 
 static int bk7258_jpeg_encoder_abort_locked(

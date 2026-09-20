@@ -578,7 +578,9 @@ int bkdisplay_store_import(const char *root, const void *data, size_t size,
       return ret;
     }
 
-  /* 只覆盖本服务的未激活暂存文件；校验前不改活动标记或已安装资源。 */
+  /* Overwrites only this service's inactive staging file; neither the active
+   * marker nor the installed assets change before validation.
+   */
 
   fd = open(temporary, O_WRONLY | O_CREAT | O_TRUNC, 0600);
   if (fd < 0)
@@ -631,7 +633,9 @@ int bkdisplay_store_import(const char *root, const void *data, size_t size,
       else
         {
           ret = bkdisplay_store_install(root, filename, selection);
-          /* 仅清理本次重命名得到的暂存文件；已安装包仍保留。 */
+          /* Unlinks only the staged file produced by this rename; the
+           * installed pack is kept.
+           */
           (void)unlink(staged);
         }
     }

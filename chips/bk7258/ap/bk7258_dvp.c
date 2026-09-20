@@ -383,7 +383,6 @@ void __wrap_dvp_camera_mclk_enable(mclk_freq_t mclk)
     {
       binding->mclk_started(binding->arg);
     }
-
 }
 #endif /* CONFIG_BK7258_DVP_BOARD_GLUE */
 

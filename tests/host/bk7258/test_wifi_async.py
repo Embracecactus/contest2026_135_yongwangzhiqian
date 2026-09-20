@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
-PREFIX = r'''
+PREFIX = r"""
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -74,8 +74,8 @@ static int bk7258_wifi_monitor_start_capture(unsigned channel) {(void)channel;mo
 static int bk7258_wifi_monitor_stop_capture(void) {monitor_stops++;return monitor_stop_error;}
 static void bk7258_wifi_monitor_snapshot(struct bk7258_wifi_monitor_result_s *r) {r->frame_count=3;}
 static void nxsig_usleep(unsigned t) {(void)t;if(cancel_dwell)g_bk7258_wifi_control.local_cancel=true;}
-'''
-TEST = r'''
+"""
+TEST = r"""
 static void finish_worker(void) {
  struct bk7258_wifi_control_dev_s *p=&g_bk7258_wifi_control;
  p->local_result.status=bk7258_wifi_trial_run(p,&p->request,&p->local_result);
@@ -227,15 +227,18 @@ int main(void) {
  finish_worker();assert(bk7258_wifi_connect_poll(done,&result)==0 && !p->busy && current_link==3);
  return 0;
 }
-'''
+"""
 
 
 class WifiAsyncTest(unittest.TestCase):
     def test_scan_security_names_cover_vendor_values_and_unknowns(self):
-        source = (ROOT / 'chips/bk7258/common/bk7258_wifi_control.c').read_text()
-        names = source[source.index('const char *bk7258_wifi_security_name('):
-                       source.index('static bool bk7258_wifi_password_length_valid')]
-        harness = r'''
+        source = (ROOT / "chips/bk7258/common/bk7258_wifi_control.c").read_text()
+        names = source[
+            source.index("const char *bk7258_wifi_security_name(") : source.index(
+                "static bool bk7258_wifi_password_length_valid"
+            )
+        ]
+        harness = r"""
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
@@ -256,8 +259,8 @@ class WifiAsyncTest(unittest.TestCase):
 #define BK7258_WIFI_SECURITY_WAPI_PSK 13
 #define BK7258_WIFI_SECURITY_WAPI_CERT 14
 #define BK7258_WIFI_SECURITY_WAPI_UNKNOWN 15
-'''
-        test = r'''
+"""
+        test = r"""
 int main(void) {
  assert(!strcmp(bk7258_wifi_security_name(0), "Open"));
  assert(!strcmp(bk7258_wifi_security_name(6), "WPA2-AES"));
@@ -267,19 +270,33 @@ int main(void) {
  assert(bk7258_wifi_security_name(16) == NULL);
  return 0;
 }
-'''
+"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            (path / 'test.c').write_text(harness + names + test)
-            subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror',
-                            str(path / 'test.c'), '-o', str(path / 'test')], check=True)
-            subprocess.run([str(path / 'test')], check=True)
+            (path / "test.c").write_text(harness + names + test)
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=gnu11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
 
     def test_scan_selection_is_capacity_parameterized(self):
-        source = (ROOT / 'chips/bk7258/common/bk7258_wifi_control.c').read_text()
-        selection = source[source.index('static void bk7258_wifi_scan_copy_ap('):
-                           source.index('static int bk7258_wifi_scan_cleanup(void)')]
-        harness = r'''
+        source = (ROOT / "chips/bk7258/common/bk7258_wifi_control.c").read_text()
+        selection = source[
+            source.index("static void bk7258_wifi_scan_copy_ap(") : source.index(
+                "static int bk7258_wifi_scan_cleanup(void)"
+            )
+        ]
+        harness = r"""
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
@@ -295,8 +312,8 @@ struct bk7258_wifi_scan_snapshot_s {int32_t status;uint32_t found,returned,trunc
 struct bk7258_wifi_scan_ap_sdk_s {char ssid[33];uint8_t bssid[6];int32_t rssi;
  uint8_t channel,security,reserved[2];};
 struct bk7258_wifi_scan_result_sdk_s {int ap_num;struct bk7258_wifi_scan_ap_sdk_s *aps;};
-'''
-        test = r'''
+"""
+        test = r"""
 int main(void) {
  struct bk7258_wifi_scan_ap_sdk_s source[33];
  struct bk7258_wifi_scan_ap_s four[4], thirtytwo[32];
@@ -320,19 +337,33 @@ int main(void) {
  assert(found==33 && returned==0 && truncated==33);
  return 0;
 }
-'''
+"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            (path / 'test.c').write_text(harness + selection + test)
-            subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror',
-                            str(path / 'test.c'), '-o', str(path / 'test')], check=True)
-            subprocess.run([str(path / 'test')], check=True)
+            (path / "test.c").write_text(harness + selection + test)
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=gnu11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
 
     def test_scan_cleanup_retains_lease_on_stop_or_unregister_failure(self):
-        source = (ROOT / 'chips/bk7258/common/bk7258_wifi_control.c').read_text()
-        cleanup = source[source.index('static int bk7258_wifi_scan_cleanup(void)'):
-                         source.index('static int bk7258_wifi_scan(uint32_t')]
-        harness = r'''
+        source = (ROOT / "chips/bk7258/common/bk7258_wifi_control.c").read_text()
+        cleanup = source[
+            source.index("static int bk7258_wifi_scan_cleanup(void)") : source.index(
+                "static int bk7258_wifi_scan(uint32_t"
+            )
+        ]
+        harness = r"""
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -351,8 +382,8 @@ static void bk7258_wifi_scan_event(void){}
 static int bk_event_unregister_cb(int m,int e,void (*f)(void))
 {(void)m;(void)e;(void)f;unregisters++;return unregister_error;}
 static int bk7258_radio_mode_release(int m){(void)m;releases++;return 0;}
-'''
-        test = r'''
+"""
+        test = r"""
 int main(void) {
  struct bk7258_wifi_control_dev_s *p=&g_bk7258_wifi_control;
  p->scan_cleanup_pending=p->scan_started=p->scan_callback_registered=true;
@@ -368,30 +399,58 @@ int main(void) {
  assert(bk7258_wifi_scan_cleanup()==0 && releases==1);
  return 0;
 }
-'''
+"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            (path / 'test.c').write_text(harness + cleanup + test)
-            subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror',
-                            str(path / 'test.c'), '-o', str(path / 'test')], check=True)
-            subprocess.run([str(path / 'test')], check=True)
+            (path / "test.c").write_text(harness + cleanup + test)
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=gnu11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
 
     def test_owner_tickets_cancellation_and_failed_enqueue(self):
-        source = (ROOT / 'chips/bk7258/common/bk7258_wifi_control.c').read_text()
-        helper = source[source.index('static bool bk7258_wifi_password_length_valid'):]
-        helper = helper[:helper.index('\n}\n') + 3]
-        functions = source[source.index('/* Private worker operations:'):
-                           source.index('static int bk7258_wifi_connect(')]
+        source = (ROOT / "chips/bk7258/common/bk7258_wifi_control.c").read_text()
+        helper = source[source.index("static bool bk7258_wifi_password_length_valid") :]
+        helper = helper[: helper.index("\n}\n") + 3]
+        functions = source[
+            source.index("/* Private worker operations:") : source.index(
+                "static int bk7258_wifi_connect("
+            )
+        ]
         functions = functions.replace('"dmb sy"', '""')
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            trial = source[source.index('static int bk7258_wifi_trial_run('):
-                           source.index('static void bk7258_wifi_control_report_immediate(')]
-            (path / 'test.c').write_text(PREFIX + helper + functions + trial + TEST)
-            subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror',
-                            str(path / 'test.c'), '-o', str(path / 'test')], check=True)
-            subprocess.run([str(path / 'test')], check=True)
+            trial = source[
+                source.index("static int bk7258_wifi_trial_run(") : source.index(
+                    "static void bk7258_wifi_control_report_immediate("
+                )
+            ]
+            (path / "test.c").write_text(PREFIX + helper + functions + trial + TEST)
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=gnu11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

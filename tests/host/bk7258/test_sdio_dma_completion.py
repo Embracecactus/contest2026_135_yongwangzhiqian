@@ -11,7 +11,7 @@ REL = Path("ap/middleware/driver/sdio_host/sdio_host_driver.c")
 SDK = ROOT.parent / "vendor/beken/bk_avdk_smp"
 PATCH = ROOT / "chips/bk7258/bk_idk/sdk-profiles/v3.1.1.9/ap-sdio-tx-start.patch"
 
-PREFIX = r'''
+PREFIX = r"""
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -54,9 +54,9 @@ static struct {
 #define bk_sdio_host_reset_sd_state() ((void)0)
 #define rtos_push_to_queue(q,s,t) 0
 static void rtos_set_semaphore(int *s) { ++*s; }
-'''
+"""
 
-SUFFIX = r'''
+SUFFIX = r"""
 int main(void) {
   /* A block ended while DMA has more data: raw empty must not release TX. */
   pending=(1u<<4)|(1u<<9); sdio_host_isr();
@@ -73,7 +73,7 @@ int main(void) {
   puts("PASS: masked FIFO empty cannot complete TX or divert RX; drain posts once");
   return 0;
 }
-'''
+"""
 
 
 def isr(source):
@@ -88,14 +88,24 @@ with tempfile.TemporaryDirectory(prefix="sdio-dma-isr-") as temporary:
     target = work / REL
     target.parent.mkdir(parents=True)
     target.write_text(original)
-    subprocess.run(["patch", "--silent", "-p1", "-i", str(PATCH)], cwd=work,
-                   check=True)
+    subprocess.run(["patch", "--silent", "-p1", "-i", str(PATCH)], cwd=work, check=True)
     for name, source in (("original", original), ("patched", target.read_text())):
         test = work / (name + ".c")
         test.write_text(PREFIX + isr(source) + SUFFIX)
         binary = work / name
-        subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
-                        str(test), "-o", str(binary)], check=True)
+        subprocess.run(
+            [
+                "cc",
+                "-std=c11",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                str(test),
+                "-o",
+                str(binary),
+            ],
+            check=True,
+        )
         result = subprocess.run([str(binary)], check=False)
         assert result.returncode == (1 if name == "original" else 0), name
     print("PASS: original SDK reproduces premature TX completion")

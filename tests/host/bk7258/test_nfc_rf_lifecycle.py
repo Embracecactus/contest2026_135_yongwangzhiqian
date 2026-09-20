@@ -8,20 +8,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 
+
 def function(source, name):
-    start = source.index('static int ' + name + '(')
-    brace = source.index('{', start)
+    start = source.index("static int " + name + "(")
+    brace = source.index("{", start)
     depth = 1
     end = brace + 1
     while depth:
-        depth += (source[end] == '{') - (source[end] == '}')
+        depth += (source[end] == "{") - (source[end] == "}")
         end += 1
     return source[start:end]
 
+
 class RfLifecycleTest(unittest.TestCase):
     def test_idle_and_close_release_field_and_descriptor(self):
-        source = (ROOT / 'app/bk7258/bk7258_nfc_service.c').read_text()
-        code = r'''
+        source = (ROOT / "app/bk7258/bk7258_nfc_service.c").read_text()
+        code = r"""
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
@@ -43,9 +45,9 @@ static int close(int fd) {
  assert(fd==7);closes++;if(close_error){errno=close_error;return -1;}return 0;
 }
 static int bknfc_errno(void){return errno>0?-errno:-EIO;}
-'''
-        code += function(source, 'bknfc_close') + function(source, 'bknfc_idle')
-        code += r'''
+"""
+        code += function(source, "bknfc_close") + function(source, "bknfc_idle")
+        code += r"""
 int main(void) {
  struct bknfc_source_s s={-1};
  assert(bknfc_idle(&s)==0 && s.fd==-1);
@@ -61,12 +63,24 @@ int main(void) {
  assert(bknfc_idle(&s)==-ENOENT && s.fd==-1 && closes==4);
  return 0;
 }
-'''
+"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            (path / 'test.c').write_text(code)
-            subprocess.run(['cc', '-Wall', '-Wextra', '-Werror', str(path / 'test.c'), '-o', str(path / 'test')], check=True)
-            subprocess.run([str(path / 'test')], check=True)
+            (path / "test.c").write_text(code)
+            subprocess.run(
+                [
+                    "cc",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

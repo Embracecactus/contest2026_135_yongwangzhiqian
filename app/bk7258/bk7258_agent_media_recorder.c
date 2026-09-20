@@ -3,9 +3,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * 小海豚独立录音使用的既有 NuttX audio upper-half 适配。
- * 文件名保留历史位置；仅在 Dolphin 且无 Media 服务时编入，不供傻妞
- * Agent 使用，也不与官方 Media 的同名入口同时链接。
+ * Adaptation of the existing NuttX audio upper-half used by Dolphin
+ * standalone recording. The filename keeps its historical location; it is
+ * compiled in only for Dolphin without the Media service, is not used by the
+ * Shaniu Agent, and is never linked together with the official Media entries
+ * of the same name.
  ****************************************************************************/
 
 #include <nuttx/config.h>

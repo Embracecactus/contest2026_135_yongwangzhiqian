@@ -8,7 +8,8 @@
 # CONFIG_DEV_CONSOLE is not set
 # CONFIG_MMCSD_HAVE_CARDDETECT is not set
 # CONFIG_MMCSD_HAVE_WRITEPROTECT is not set
-# 单块传输逐块确认，避免 CPU FIFO 多块路径漏报中间块写失败。
+# Acknowledge single-block transfers one at a time so the CPU FIFO
+# multi-block path cannot miss a failed middle block.
 CONFIG_MMCSD_MULTIBLOCK_LIMIT=1
 CONFIG_MMCSD_SDIO_NO_PREERASE=y
 CONFIG_SDIO_BLOCKSETUP=y
@@ -95,7 +96,8 @@ CONFIG_RPMSG_LOCAL_CPUNAME="ap"
 CONFIG_FS_ROMFS=y
 CONFIG_FS_TMPFS=y
 CONFIG_MEDIA=y
-# 保留警告与错误，省去每次代理调用和图连接的正常过程输出。
+# Keep warnings and errors, dropping the normal progress output of every
+# agent call and graph connection.
 CONFIG_MEDIA_LOG_WARN=y
 CONFIG_MEDIA_SERVER=y
 CONFIG_MEDIA_GRAPH=y
@@ -129,8 +131,9 @@ CONFIG_UNQLITE=y
 CONFIG_TLS_TASK_NELEM=4
 CONFIG_FS_LOCK_BUCKET_SIZE=4
 # CONFIG_UNQLITE_LOCK_BY_SEM is not set
-# FatFS 提供 UnQLite 所需的 FIOC_FILEPATH，并通过文件同步刷新目录项。
-# UnQLite 仍使用文件同步；不要求 FAT 目录可作为普通文件打开。
+# FatFS provides the FIOC_FILEPATH UnQLite needs and refreshes directory
+# entries through file sync. UnQLite keeps using file sync; it does not
+# require a FAT directory to be openable as an ordinary file.
 # CONFIG_UNQLITE_ENABLE_DIRSYNC is not set
 CONFIG_KVDB_DIRECT=y
 CONFIG_KVDB_UNQLITE=y
@@ -220,7 +223,8 @@ CONFIG_BK7258_STORAGE_FIXED_BLOCK=y
 CONFIG_BK7258_WIFI_VNET=y
 CONFIG_FS_FAT=y
 CONFIG_FAT_LFN=y
-# 原有显示/存储消费者保留 vfat；配置库使用已有 FatFS，不改盘上格式。
+# Existing display/storage consumers keep vfat; the configuration store uses
+# the FatFS already present and does not change the on-disk format.
 CONFIG_FS_FATFS=y
 CONFIG_FS_PROCFS=y
 CONFIG_FS_PROCFS_REGISTER=y
@@ -239,10 +243,13 @@ CONFIG_CRYPTO_MBEDTLS=y
 CONFIG_MBEDTLS_ENTROPY_HARDWARE_ALT=y
 CONFIG_NET_BLUETOOTH=y
 CONFIG_NETDEV_IFINDEX=y
-# Wi-Fi VNET 支持 1500 字节 MTU；避免默认 576 字节 MTU 拆碎语音上传。
+# Wi-Fi VNET supports a 1500-byte MTU; this avoids the default 576-byte MTU
+# fragmenting voice uploads.
 CONFIG_NET_ETH_PKTSIZE=1514
-# HTTPS 上传与接收共用约 24 KiB IOB 负载空间；避免 7 KiB 默认池频繁等待 ACK。
-# 只扩大数据池，队列链头保持原容量，不改变 TCP 或 SDK 实现。
+# HTTPS upload and receive share roughly 24 KiB of IOB payload space; this
+# avoids frequent ACK waits with the 7 KiB default pool. Only the data pool is
+# enlarged, the IOB chain count keeps its original capacity, and neither TCP
+# nor the SDK implementation changes.
 CONFIG_IOB_NBUFFERS=128
 CONFIG_IOB_NCHAINS=36
 CONFIG_NET_SOCKOPTS=y

@@ -45,7 +45,8 @@ class TrustEvidence:
 
     def manifest(self) -> dict[str, object]:
         return {
-            key: value for key, value in asdict(self).items()
+            key: value
+            for key, value in asdict(self).items()
             if value is not None and value != ()
         }
 
@@ -89,11 +90,15 @@ def _regular(path: Path, label: str) -> Path:
     return path.resolve(strict=True)
 
 
-def _run(command: list[str], label: str, **kwargs: object) -> subprocess.CompletedProcess:
+def _run(
+    command: list[str], label: str, **kwargs: object
+) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(command, check=True, **kwargs)
     except subprocess.CalledProcessError as error:
-        raise TrustError(f"{label} failed with exit status {error.returncode}") from error
+        raise TrustError(
+            f"{label} failed with exit status {error.returncode}"
+        ) from error
     except OSError as error:
         raise TrustError(f"cannot run {label}: {command[0]}") from error
 
@@ -146,8 +151,7 @@ def _public_der(key: Path, openssl: Path, *, private: bool) -> bytes:
         stderr=subprocess.PIPE,
     )
     public = result.stdout
-    if not isinstance(public, bytes) or len(public) != 91 \
-            or public[-65] != 0x04:
+    if not isinstance(public, bytes) or len(public) != 91 or public[-65] != 0x04:
         raise TrustError("key must be a canonical P-256 SubjectPublicKeyInfo")
     return public
 
@@ -200,7 +204,10 @@ def validate_bl2_vector(image: Path, elf: Path, nm: Path) -> int:
         raise TrustError("BL2 ELF vector table does not start at its load address")
     if (msp & 3) != 0 or msp <= load:
         raise TrustError("BL2 raw image has an invalid initial MSP")
-    if reset != (reset_symbol | 1) or not load <= reset_symbol < load + image.stat().st_size:
+    if (
+        reset != (reset_symbol | 1)
+        or not load <= reset_symbol < load + image.stat().st_size
+    ):
         raise TrustError("BL2 raw reset vector does not match the linked reset entry")
     return load
 
@@ -215,12 +222,15 @@ def public_fingerprint(private_key: Path, openssl: Path) -> tuple[str, bytes]:
 def _bytes_initializer(data: bytes) -> str:
     rows = []
     for offset in range(0, len(data), 8):
-        rows.append("  " + ", ".join(f"0x{value:02x}" for value in data[offset:offset + 8]))
+        rows.append(
+            "  " + ", ".join(f"0x{value:02x}" for value in data[offset : offset + 8])
+        )
     return ",\n".join(rows)
 
 
-def write_public_sources(*, bl1_public_key: Path, mcuboot_public_key: Path,
-                         openssl: Path, output: Path) -> PublicSources:
+def write_public_sources(
+    *, bl1_public_key: Path, mcuboot_public_key: Path, openssl: Path, output: Path
+) -> PublicSources:
     """Materialize public-only BL1 and MCUboot C inputs in the build tree."""
 
     output = output.absolute()
@@ -238,10 +248,10 @@ def write_public_sources(*, bl1_public_key: Path, mcuboot_public_key: Path,
         bl1_source,
         "/* Generated public-only P-256 BL1 root. */\n"
         "#include <stdint.h>\n\n"
-        "__attribute__((used, section(\".rodata.bk7258_bl1_manifest_root_public_key\")))\n"
+        '__attribute__((used, section(".rodata.bk7258_bl1_manifest_root_public_key")))\n'
         "const uint8_t bk7258_bl1_manifest_root_public_key[64] =\n{\n"
         f"{_bytes_initializer(bl1_xy)}\n}};\n\n"
-        "__attribute__((used, section(\".rodata.bk7258_beken_manifest_root_public_key_hash\")))\n"
+        '__attribute__((used, section(".rodata.bk7258_beken_manifest_root_public_key_hash")))\n'
         "const uint8_t bk7258_beken_manifest_root_public_key_hash[32] =\n{\n"
         f"{_bytes_initializer(bl1_uncompressed_hash)}\n}};\n",
     )
@@ -249,10 +259,10 @@ def write_public_sources(*, bl1_public_key: Path, mcuboot_public_key: Path,
         mcuboot_source,
         "/* Generated public-only P-256 MCUboot root. */\n"
         "#include <bootutil/sign_key.h>\n\n"
-        "__attribute__((used, section(\".rodata.ecdsa_pub_key\")))\n"
+        '__attribute__((used, section(".rodata.ecdsa_pub_key")))\n'
         "const unsigned char ecdsa_pub_key[] =\n{\n"
         f"{_bytes_initializer(mcuboot_der)}\n}};\n\n"
-        "__attribute__((used, section(\".rodata.ecdsa_pub_key_len\")))\n"
+        '__attribute__((used, section(".rodata.ecdsa_pub_key_len")))\n'
         "const unsigned int ecdsa_pub_key_len = sizeof(ecdsa_pub_key);\n"
         "const struct bootutil_key bootutil_keys[] =\n"
         "{\n  { .key = ecdsa_pub_key, .len = &ecdsa_pub_key_len },\n};\n"
@@ -287,7 +297,7 @@ def _raw_ecdsa_signature(der: bytes) -> bytes:
             raise TrustError("OpenSSL ECDSA signature lacks an integer")
         size = der[offset + 1]
         offset += 2
-        value = der[offset:offset + size]
+        value = der[offset : offset + size]
         offset += size
         if not value or len(value) > 33 or (len(value) == 33 and value[0] != 0):
             raise TrustError("OpenSSL ECDSA integer is outside P-256")
@@ -307,9 +317,15 @@ def _normalize_version(version: str) -> str:
         values = (int(major_text), int(minor_text), int(revision_text))
         build = int(build_text) if separator else 0
     except (ValueError, TypeError) as error:
-        raise TrustError("MCUboot version must be MAJOR.MINOR.REVISION[+BUILD]") from error
-    if not (0 <= values[0] <= 0xff and 0 <= values[1] <= 0xff
-            and 0 <= values[2] <= 0xffff and 0 <= build <= 0xffffffff):
+        raise TrustError(
+            "MCUboot version must be MAJOR.MINOR.REVISION[+BUILD]"
+        ) from error
+    if not (
+        0 <= values[0] <= 0xFF
+        and 0 <= values[1] <= 0xFF
+        and 0 <= values[2] <= 0xFFFF
+        and 0 <= build <= 0xFFFFFFFF
+    ):
         raise TrustError("MCUboot version fields exceed the image header")
     return f"{values[0]}.{values[1]}.{values[2]}+{build}"
 
@@ -323,20 +339,33 @@ def _validate_mcuboot_trailer(data: bytes, *, confirmed: bool) -> None:
     image_ok_offset = magic_offset - MCUBOOT_MAX_ALIGN
     copy_done_offset = image_ok_offset - MCUBOOT_MAX_ALIGN
     expected_image_ok = 1 if confirmed else image_domain.ERASE_BYTE
-    if data[magic_offset:] != MCUBOOT_MAGIC \
-            or data[copy_done_offset] != image_domain.ERASE_BYTE \
-            or data[image_ok_offset] != expected_image_ok \
-            or any(value != image_domain.ERASE_BYTE
-                   for value in data[copy_done_offset + 1:image_ok_offset]) \
-            or any(value != image_domain.ERASE_BYTE
-                   for value in data[image_ok_offset + 1:magic_offset]):
+    if (
+        data[magic_offset:] != MCUBOOT_MAGIC
+        or data[copy_done_offset] != image_domain.ERASE_BYTE
+        or data[image_ok_offset] != expected_image_ok
+        or any(
+            value != image_domain.ERASE_BYTE
+            for value in data[copy_done_offset + 1 : image_ok_offset]
+        )
+        or any(
+            value != image_domain.ERASE_BYTE
+            for value in data[image_ok_offset + 1 : magic_offset]
+        )
+    ):
         state = "confirmed" if confirmed else "pending"
         raise TrustError(f"MCUboot {state} trailer is malformed")
 
 
-def sign_bl1_manifest(*, bl2_image: Path, output: Path, private_key: Path,
-                      static_address: int, load_address: int,
-                      security_counter: int, openssl: Path) -> Path:
+def sign_bl1_manifest(
+    *,
+    bl2_image: Path,
+    output: Path,
+    private_key: Path,
+    static_address: int,
+    load_address: int,
+    security_counter: int,
+    openssl: Path,
+) -> Path:
     """Create the previously verified 256-byte Beken-shaped BL1 record."""
 
     bl2_image = _regular(bl2_image, "BL2 image")
@@ -345,11 +374,14 @@ def sign_bl1_manifest(*, bl2_image: Path, output: Path, private_key: Path,
     output = output.absolute()
     if output.exists() or output.is_symlink():
         raise TrustError(f"BL1 Manifest output already exists: {output}")
-    if security_counter <= 0 or not 0 <= static_address <= 0xffffffff \
-            or not 0 <= load_address <= 0xffffffff:
+    if (
+        security_counter <= 0
+        or not 0 <= static_address <= 0xFFFFFFFF
+        or not 0 <= load_address <= 0xFFFFFFFF
+    ):
         raise TrustError("BL1 Manifest addresses or security counter are invalid")
     image = bl2_image.read_bytes()
-    if not image or len(image) > 0xffffffff:
+    if not image or len(image) > 0xFFFFFFFF:
         raise TrustError("BL2 image size is invalid")
     _, public = public_fingerprint(private_key, openssl)
     record = bytearray(b"\xff" * 256)
@@ -378,8 +410,14 @@ def sign_bl1_manifest(*, bl2_image: Path, output: Path, private_key: Path,
         signed_prefix.write_bytes(record[:0x95])
         _run(
             [
-                str(openssl), "dgst", "-sha256", "-sign", str(private_key),
-                "-out", str(signature_der), str(signed_prefix),
+                str(openssl),
+                "dgst",
+                "-sha256",
+                "-sign",
+                str(private_key),
+                "-out",
+                str(signature_der),
+                str(signed_prefix),
             ],
             "BL1 Manifest signing",
             stdout=subprocess.DEVNULL,
@@ -411,8 +449,9 @@ def compiled_section(elf: Path, section: str, objcopy: Path) -> bytes:
     return data
 
 
-def require_key_matches_elf(private_key: Path, elf: Path, section: str, *,
-                            openssl: Path, objcopy: Path) -> str:
+def require_key_matches_elf(
+    private_key: Path, elf: Path, section: str, *, openssl: Path, objcopy: Path
+) -> str:
     fingerprint, public = public_fingerprint(private_key, openssl)
     observed = compiled_section(elf, section, objcopy)
     if section == ".bk7258.trust.bl1":
@@ -421,18 +460,34 @@ def require_key_matches_elf(private_key: Path, elf: Path, section: str, *,
         if observed != expected:
             raise TrustError("private BL1 key does not match the compiled public root")
     elif section == ".bk7258.trust.mcuboot":
-        if len(observed) != 96 or observed[:91] != public \
-                or observed[91] != 0 or int.from_bytes(observed[92:], "little") != 91:
-            raise TrustError("private MCUboot key does not match the compiled public root")
+        if (
+            len(observed) != 96
+            or observed[:91] != public
+            or observed[91] != 0
+            or int.from_bytes(observed[92:], "little") != 91
+        ):
+            raise TrustError(
+                "private MCUboot key does not match the compiled public root"
+            )
     else:
         raise TrustError(f"unsupported compiled trust section: {section}")
     return fingerprint
 
 
-def sign_mcuboot(*, input_image: Path, output_image: Path, private_key: Path,
-                  bl2_elf: Path, version: str, security_counter: int,
-                  slot_size: int, official_imgtool: Path, openssl: Path,
-                  objcopy: Path, confirmed: bool) -> SignedImage:
+def sign_mcuboot(
+    *,
+    input_image: Path,
+    output_image: Path,
+    private_key: Path,
+    bl2_elf: Path,
+    version: str,
+    security_counter: int,
+    slot_size: int,
+    official_imgtool: Path,
+    openssl: Path,
+    objcopy: Path,
+    confirmed: bool,
+) -> SignedImage:
     """Sign one image using the manifest-pinned official MCUboot imgtool."""
 
     input_image = _regular(input_image, "unsigned image")
@@ -447,27 +502,46 @@ def sign_mcuboot(*, input_image: Path, output_image: Path, private_key: Path,
         raise TrustError("security counter and slot size are invalid")
 
     fingerprint = require_key_matches_elf(
-        private_key, bl2_elf, ".bk7258.trust.mcuboot",
-        openssl=openssl, objcopy=objcopy,
+        private_key,
+        bl2_elf,
+        ".bk7258.trust.mcuboot",
+        openssl=openssl,
+        objcopy=objcopy,
     )
     output_image.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="bk7258-mcuboot-") as name:
         temporary = Path(name)
         signed = temporary / "signed.bin"
         command = [
-                sys.executable, str(official_imgtool), "sign",
-                "-k", str(private_key),
-                "--public-key-format", "hash",
-                "--max-align", "8", "--align", "1",
-                "--version", version,
-                "--security-counter", str(security_counter),
-                "--pad-sig",
-                "--pad-header", "--header-size", "0x200",
-                "--slot-size", str(slot_size),
-                "--boot-record", "SPE", "--endian", "little",
-                "--confirm" if confirmed else "--pad",
-                str(input_image), str(signed),
-            ]
+            sys.executable,
+            str(official_imgtool),
+            "sign",
+            "-k",
+            str(private_key),
+            "--public-key-format",
+            "hash",
+            "--max-align",
+            "8",
+            "--align",
+            "1",
+            "--version",
+            version,
+            "--security-counter",
+            str(security_counter),
+            "--pad-sig",
+            "--pad-header",
+            "--header-size",
+            "0x200",
+            "--slot-size",
+            str(slot_size),
+            "--boot-record",
+            "SPE",
+            "--endian",
+            "little",
+            "--confirm" if confirmed else "--pad",
+            str(input_image),
+            str(signed),
+        ]
         _run(
             command,
             "official MCUboot signing",
@@ -481,12 +555,18 @@ def sign_mcuboot(*, input_image: Path, output_image: Path, private_key: Path,
         signed_length, _, _ = _mcuboot_metadata(payload)
         _validate_mcuboot_signature_padding(payload)
         if signed_length > slot_size - MCUBOOT_TAIL_RMW_RESERVE:
-            raise TrustError("signed MCUboot content enters the BK7258 trailer RMW reserve")
+            raise TrustError(
+                "signed MCUboot content enters the BK7258 trailer RMW reserve"
+            )
         _validate_mcuboot_trailer(payload, confirmed=confirmed)
         _run(
             [
-                sys.executable, str(official_imgtool), "verify",
-                "-k", str(private_key), str(signed),
+                sys.executable,
+                str(official_imgtool),
+                "verify",
+                "-k",
+                str(private_key),
+                str(signed),
             ],
             "official MCUboot signature verification",
             stdout=subprocess.DEVNULL,
@@ -502,26 +582,41 @@ def sign_mcuboot(*, input_image: Path, output_image: Path, private_key: Path,
     )
 
 
-def signed_evidence(*, bl1_private_key: Path, mcuboot_private_key: Path,
-                    bl1_elf: Path, bl2_elf: Path,
-                    bl1_security_counter: int,
-                    bl2_load_address: int,
-                    images: dict[str, SignedImage], openssl: Path,
-                    objcopy: Path) -> TrustEvidence:
+def signed_evidence(
+    *,
+    bl1_private_key: Path,
+    mcuboot_private_key: Path,
+    bl1_elf: Path,
+    bl2_elf: Path,
+    bl1_security_counter: int,
+    bl2_load_address: int,
+    images: dict[str, SignedImage],
+    openssl: Path,
+    objcopy: Path,
+) -> TrustEvidence:
     if set(images) != {"cp", "ap"}:
         raise TrustError("signed evidence requires exactly CP and AP images")
     cp = images["cp"]
     ap = images["ap"]
-    if cp.version != ap.version or cp.security_counter != ap.security_counter \
-            or cp.public_fingerprint != ap.public_fingerprint:
+    if (
+        cp.version != ap.version
+        or cp.security_counter != ap.security_counter
+        or cp.public_fingerprint != ap.public_fingerprint
+    ):
         raise TrustError("signed CP/AP version, counter or public root mismatch")
     bl1_fingerprint = require_key_matches_elf(
-        bl1_private_key, bl1_elf, ".bk7258.trust.bl1",
-        openssl=openssl, objcopy=objcopy,
+        bl1_private_key,
+        bl1_elf,
+        ".bk7258.trust.bl1",
+        openssl=openssl,
+        objcopy=objcopy,
     )
     mcuboot_fingerprint = require_key_matches_elf(
-        mcuboot_private_key, bl2_elf, ".bk7258.trust.mcuboot",
-        openssl=openssl, objcopy=objcopy,
+        mcuboot_private_key,
+        bl2_elf,
+        ".bk7258.trust.mcuboot",
+        openssl=openssl,
+        objcopy=objcopy,
     )
     if mcuboot_fingerprint != cp.public_fingerprint:
         raise TrustError("signed image root differs from the compiled BL2 root")
@@ -551,12 +646,22 @@ def signed_evidence(*, bl1_private_key: Path, mcuboot_private_key: Path,
     )
 
 
-def signed_release(*, layout: layout_domain.Layout,
-                   artifacts: dict[str, Path], bl1_private_key: Path,
-                   mcuboot_private_key: Path, bl1_elf: Path, bl2_elf: Path,
-                   version: str, security_counter: int,
-                   bl1_security_counter: int, official_imgtool: Path,
-                   openssl: Path, objcopy: Path, nm: Path) -> SignedRelease:
+def signed_release(
+    *,
+    layout: layout_domain.Layout,
+    artifacts: dict[str, Path],
+    bl1_private_key: Path,
+    mcuboot_private_key: Path,
+    bl1_elf: Path,
+    bl2_elf: Path,
+    version: str,
+    security_counter: int,
+    bl1_security_counter: int,
+    official_imgtool: Path,
+    openssl: Path,
+    objcopy: Path,
+    nm: Path,
+) -> SignedRelease:
     """Finalize the explicit signed release stages before container creation."""
 
     if set(artifacts) != {"boot", "cp", "ap", "bl2"}:
@@ -571,8 +676,9 @@ def signed_release(*, layout: layout_domain.Layout,
         )
     bl2_a = layout.artifact("bl2_a")
     bl2_b = layout.artifact("bl2_b")
-    if copy_size > layout.logical_size(bl2_a) \
-            or layout.logical_size(bl2_a) != layout.logical_size(bl2_b):
+    if copy_size > layout.logical_size(bl2_a) or layout.logical_size(
+        bl2_a
+    ) != layout.logical_size(bl2_b):
         raise TrustError("BL2 A/B capacity does not match the compiled copy size")
 
     with tempfile.TemporaryDirectory(prefix="bk7258-signed-release-") as name:
@@ -649,11 +755,18 @@ def signed_release(*, layout: layout_domain.Layout,
     return SignedRelease(image_set, evidence)
 
 
-def signed_ota_pair(*, layout: layout_domain.Layout,
-                    artifacts: dict[str, Path], mcuboot_private_key: Path,
-                    bl2_elf: Path, version: str, security_counter: int,
-                    official_imgtool: Path, openssl: Path,
-                    objcopy: Path) -> SignedRelease:
+def signed_ota_pair(
+    *,
+    layout: layout_domain.Layout,
+    artifacts: dict[str, Path],
+    mcuboot_private_key: Path,
+    bl2_elf: Path,
+    version: str,
+    security_counter: int,
+    official_imgtool: Path,
+    openssl: Path,
+    objcopy: Path,
+) -> SignedRelease:
     """Create pending, apps-only CP/AP bytes for the inactive pair writer."""
 
     if set(artifacts) != {"cp", "ap"}:
@@ -690,9 +803,7 @@ def signed_ota_pair(*, layout: layout_domain.Layout,
                 )
             )
 
-        image_set = image_domain.ImageSet(
-            layout, tuple(segments), (), ()
-        )
+        image_set = image_domain.ImageSet(layout, tuple(segments), (), ())
         evidence = TrustEvidence(
             mode="signed-ota",
             algorithm="ecdsa-p256-sha256",
@@ -716,7 +827,9 @@ def signed_ota_pair(*, layout: layout_domain.Layout,
 
 
 def compare_target_fingerprint(expected: str, observed: str) -> None:
-    if len(expected) != 64 or any(character not in "0123456789abcdef" for character in expected):
+    if len(expected) != 64 or any(
+        character not in "0123456789abcdef" for character in expected
+    ):
         raise TrustError("expected public fingerprint is invalid")
     if observed.lower() != expected:
         raise TrustError(
@@ -726,9 +839,10 @@ def compare_target_fingerprint(expected: str, observed: str) -> None:
 
 def _public_pem(der: bytes) -> bytes:
     encoded = base64.b64encode(der).decode("ascii")
-    lines = [encoded[index:index + 64] for index in range(0, len(encoded), 64)]
+    lines = [encoded[index : index + 64] for index in range(0, len(encoded), 64)]
     return (
-        "-----BEGIN PUBLIC KEY-----\n" + "\n".join(lines)
+        "-----BEGIN PUBLIC KEY-----\n"
+        + "\n".join(lines)
         + "\n-----END PUBLIC KEY-----\n"
     ).encode("ascii")
 
@@ -747,8 +861,14 @@ def sign_catalog(catalog: bytes, private_key: Path, openssl: Path) -> bytes:
         document.write_bytes(catalog)
         _run(
             [
-                str(openssl), "dgst", "-sha256", "-sign",
-                str(private_key), "-out", str(signature), str(document),
+                str(openssl),
+                "dgst",
+                "-sha256",
+                "-sign",
+                str(private_key),
+                "-out",
+                str(signature),
+                str(document),
             ],
             "OTA catalog signing",
             stdout=subprocess.DEVNULL,
@@ -760,8 +880,9 @@ def sign_catalog(catalog: bytes, private_key: Path, openssl: Path) -> bytes:
     return result
 
 
-def verify_catalog(catalog: bytes, signature: bytes, public_der: bytes,
-                   openssl: Path) -> None:
+def verify_catalog(
+    catalog: bytes, signature: bytes, public_der: bytes, openssl: Path
+) -> None:
     """Verify exact catalog bytes against the packaged MCUboot public root."""
 
     if not catalog or len(public_der) != 91 or public_der[-65] != 0x04:
@@ -777,8 +898,14 @@ def verify_catalog(catalog: bytes, signature: bytes, public_der: bytes,
         public.write_bytes(_public_pem(public_der))
         _run(
             [
-                str(openssl), "dgst", "-sha256", "-verify", str(public),
-                "-signature", str(signature_path), str(document),
+                str(openssl),
+                "dgst",
+                "-sha256",
+                "-verify",
+                str(public),
+                "-signature",
+                str(signature_path),
+                str(document),
             ],
             "public OTA catalog verification",
             stdout=subprocess.DEVNULL,
@@ -802,7 +929,9 @@ def _ecdsa_der(raw: bytes) -> bytes:
 def _mcuboot_metadata(data: bytes) -> tuple[int, str, int | None]:
     if len(data) < 32:
         raise TrustError("MCUboot image is shorter than its header")
-    magic, _, header_size, protected_size, image_size = struct.unpack_from("<IIHHI", data)
+    magic, _, header_size, protected_size, image_size = struct.unpack_from(
+        "<IIHHI", data
+    )
     if magic != 0x96F3B83D or header_size != 0x200:
         raise TrustError("MCUboot image header is invalid")
     major, minor, revision, build = struct.unpack_from("<BBHI", data, 20)
@@ -826,7 +955,9 @@ def _mcuboot_metadata(data: bytes) -> tuple[int, str, int | None]:
             if tlv_type == 0x50:
                 if size != 4 or security_counter is not None:
                     raise TrustError("MCUboot security counter TLV is malformed")
-                security_counter = int.from_bytes(data[offset:offset + size], "little")
+                security_counter = int.from_bytes(
+                    data[offset : offset + size], "little"
+                )
             offset += size
     tlv = protected + protected_size
     if tlv + 4 > len(data):
@@ -842,8 +973,7 @@ def _validate_mcuboot_signature_padding(data: bytes) -> None:
 
     if len(data) < 32:
         raise TrustError("MCUboot image is shorter than its header")
-    _, _, header_size, protected_size, image_size = \
-        struct.unpack_from("<IIHHI", data)
+    _, _, header_size, protected_size, image_size = struct.unpack_from("<IIHHI", data)
     offset = header_size + image_size + protected_size
     if offset + 4 > len(data):
         raise TrustError("MCUboot signature TLV area is truncated")
@@ -864,22 +994,26 @@ def _validate_mcuboot_signature_padding(data: bytes) -> None:
         if tlv_type == 0x22:
             if signature is not None:
                 raise TrustError("MCUboot image carries duplicate EC256 signatures")
-            signature = data[offset:offset + length]
+            signature = data[offset : offset + length]
         offset += length
 
     if signature is None or len(signature) != 72 or signature[0] != 0x30:
         raise TrustError("MCUboot EC256 signature is not fixed DER-pad72")
     der_size = signature[1] + 2
-    if der_size < 8 or der_size > len(signature) \
-            or any(signature[der_size:]):
+    if der_size < 8 or der_size > len(signature) or any(signature[der_size:]):
         raise TrustError("MCUboot EC256 signature padding is malformed")
 
 
-def verify_signed_material(*, security: dict[str, object],
-                           layout: dict[str, object], images: dict[str, bytes],
-                           official_imgtool: Path, openssl: Path,
-                           catalog: bytes | None = None,
-                           catalog_signature: bytes | None = None) -> None:
+def verify_signed_material(
+    *,
+    security: dict[str, object],
+    layout: dict[str, object],
+    images: dict[str, bytes],
+    official_imgtool: Path,
+    openssl: Path,
+    catalog: bytes | None = None,
+    catalog_signature: bytes | None = None,
+) -> None:
     """Cryptographically verify public package evidence without private keys."""
 
     mode = security.get("mode")
@@ -897,8 +1031,10 @@ def verify_signed_material(*, security: dict[str, object],
         raise TrustError("signed package partitions are malformed")
     rows = {
         row.get("artifact"): row
-        for row in partitions if isinstance(row, dict) and row.get("artifact") is not None
+        for row in partitions
+        if isinstance(row, dict) and row.get("artifact") is not None
     }
+
     def decoded(artifact: str) -> bytes:
         row = rows[artifact]
         data = images[artifact]
@@ -918,8 +1054,7 @@ def verify_signed_material(*, security: dict[str, object],
         if not isinstance(evidence_rows, list):
             raise TrustError("signed OTA image evidence is missing")
         evidence = {
-            row.get("artifact"): row
-            for row in evidence_rows if isinstance(row, dict)
+            row.get("artifact"): row for row in evidence_rows if isinstance(row, dict)
         }
         official_imgtool = _regular(official_imgtool, "official MCUboot imgtool")
         with tempfile.TemporaryDirectory(prefix="bk7258-ota-public-") as name:
@@ -929,8 +1064,7 @@ def verify_signed_material(*, security: dict[str, object],
             for artifact in ("cp", "ap"):
                 logical = decoded(artifact)
                 length, version, counter = _mcuboot_metadata(logical)
-                if security.get("signature_profile") == \
-                        "ecdsa-der-pad72-v1":
+                if security.get("signature_profile") == "ecdsa-der-pad72-v1":
                     _validate_mcuboot_signature_padding(logical)
                 if length > len(logical) - MCUBOOT_TAIL_RMW_RESERVE:
                     raise TrustError(
@@ -939,10 +1073,12 @@ def verify_signed_material(*, security: dict[str, object],
                 _validate_mcuboot_trailer(logical, confirmed=False)
                 signed = logical[:length]
                 expected_row = evidence.get(artifact, {})
-                if hashlib.sha256(signed).hexdigest() != \
-                        expected_row.get("signed_sha256") \
-                        or version != expected_row.get("version") \
-                        or counter != expected_row.get("security_counter"):
+                if (
+                    hashlib.sha256(signed).hexdigest()
+                    != expected_row.get("signed_sha256")
+                    or version != expected_row.get("version")
+                    or counter != expected_row.get("security_counter")
+                ):
                     raise TrustError(
                         f"signed OTA {artifact} generation evidence does not match"
                     )
@@ -950,8 +1086,12 @@ def verify_signed_material(*, security: dict[str, object],
                 signed_path.write_bytes(signed)
                 _run(
                     [
-                        sys.executable, str(official_imgtool), "verify",
-                        "-k", str(mcuboot_pem), str(signed_path),
+                        sys.executable,
+                        str(official_imgtool),
+                        "verify",
+                        "-k",
+                        str(mcuboot_pem),
+                        str(signed_path),
                     ],
                     f"public MCUboot OTA {artifact} verification",
                     stdout=subprocess.DEVNULL,
@@ -979,14 +1119,15 @@ def verify_signed_material(*, security: dict[str, object],
     bl1_xy = bl1_der[-64:]
     bl1_anchor = bl1_xy + hashlib.sha256(b"\x04" + bl1_xy).digest()
     bl2_anchor = mcuboot_der + b"\0" + (91).to_bytes(4, "little")
-    if boot.count(bl1_anchor) != 1 or bl2_a.count(bl2_anchor) != 1 \
-            or bl2_b != bl2_a:
+    if boot.count(bl1_anchor) != 1 or bl2_a.count(bl2_anchor) != 1 or bl2_b != bl2_a:
         raise TrustError("packaged BL1/BL2 public roots or A/B bytes do not match")
 
     evidence_rows = security.get("images")
     if not isinstance(evidence_rows, list):
         raise TrustError("signed image evidence is missing")
-    evidence = {row.get("artifact"): row for row in evidence_rows if isinstance(row, dict)}
+    evidence = {
+        row.get("artifact"): row for row in evidence_rows if isinstance(row, dict)
+    }
     official_imgtool = _regular(official_imgtool, "official MCUboot imgtool")
     openssl = _regular(openssl, "OpenSSL executable")
     with tempfile.TemporaryDirectory(prefix="bk7258-public-verify-") as name:
@@ -998,8 +1139,7 @@ def verify_signed_material(*, security: dict[str, object],
         for artifact in ("cp", "ap"):
             logical = decoded(artifact)
             length, version, counter = _mcuboot_metadata(logical)
-            if security.get("signature_profile") == \
-                    "ecdsa-der-pad72-v1":
+            if security.get("signature_profile") == "ecdsa-der-pad72-v1":
                 _validate_mcuboot_signature_padding(logical)
             if security.get("trailer") == "confirmed-v1":
                 if length > len(logical) - MCUBOOT_TAIL_RMW_RESERVE:
@@ -1011,16 +1151,24 @@ def verify_signed_material(*, security: dict[str, object],
                 raise TrustError("signed full-package trailer profile is invalid")
             signed = logical[:length]
             expected_row = evidence.get(artifact, {})
-            if hashlib.sha256(signed).hexdigest() != expected_row.get("signed_sha256") \
-                    or version != expected_row.get("version") \
-                    or counter != expected_row.get("security_counter"):
-                raise TrustError(f"signed {artifact} generation evidence does not match")
+            if (
+                hashlib.sha256(signed).hexdigest() != expected_row.get("signed_sha256")
+                or version != expected_row.get("version")
+                or counter != expected_row.get("security_counter")
+            ):
+                raise TrustError(
+                    f"signed {artifact} generation evidence does not match"
+                )
             signed_path = temporary / f"{artifact}.bin"
             signed_path.write_bytes(signed)
             _run(
                 [
-                    sys.executable, str(official_imgtool), "verify",
-                    "-k", str(mcuboot_pem), str(signed_path),
+                    sys.executable,
+                    str(official_imgtool),
+                    "verify",
+                    "-k",
+                    str(mcuboot_pem),
+                    str(signed_path),
                 ],
                 f"public MCUboot {artifact} verification",
                 stdout=subprocess.DEVNULL,
@@ -1028,7 +1176,8 @@ def verify_signed_material(*, security: dict[str, object],
             )
 
         for manifest_name, bl2_name in (
-            ("manifest_a", "bl2_a"), ("manifest_b", "bl2_b")
+            ("manifest_a", "bl2_a"),
+            ("manifest_b", "bl2_b"),
         ):
             manifest = images[manifest_name]
             bl2 = decoded(bl2_name)
@@ -1036,19 +1185,31 @@ def verify_signed_material(*, security: dict[str, object],
                 raise TrustError("BL1 Manifest must be exactly 256 bytes")
             fields = struct.unpack_from("<12I", manifest)
             row = rows[bl2_name]
-            expected_static = xip_base + int(row["offset"]) // crc_total_size * crc_data_size
+            expected_static = (
+                xip_base + int(row["offset"]) // crc_total_size * crc_data_size
+            )
             image_size = fields[10]
-            if fields[:8] != (
-                0xA1BC2FD8, 0x00010001, int(security["bl1_security_counter"]),
-                0xD5, 0x00030619, 1, 0, 0,
-            ) or fields[8] != expected_static \
-                    or fields[9] != int(security["bl2_load_address"]) \
-                    or fields[11] != int(security["bl2_load_address"]) \
-                    or not 0 < image_size <= len(bl2) \
-                    or manifest[0x30:0x50] != hashlib.sha256(bl2[:image_size]).digest() \
-                    or any(value != 0xff for value in bl2[image_size:]) \
-                    or manifest[0x54:0x95] != bl1_der[-65:] \
-                    or any(value != 0xff for value in manifest[0xD5:]):
+            if (
+                fields[:8]
+                != (
+                    0xA1BC2FD8,
+                    0x00010001,
+                    int(security["bl1_security_counter"]),
+                    0xD5,
+                    0x00030619,
+                    1,
+                    0,
+                    0,
+                )
+                or fields[8] != expected_static
+                or fields[9] != int(security["bl2_load_address"])
+                or fields[11] != int(security["bl2_load_address"])
+                or not 0 < image_size <= len(bl2)
+                or manifest[0x30:0x50] != hashlib.sha256(bl2[:image_size]).digest()
+                or any(value != 0xFF for value in bl2[image_size:])
+                or manifest[0x54:0x95] != bl1_der[-65:]
+                or any(value != 0xFF for value in manifest[0xD5:])
+            ):
                 raise TrustError(f"{manifest_name} content does not bind packaged BL2")
             signature = temporary / f"{manifest_name}.der"
             payload = temporary / f"{manifest_name}.signed"
@@ -1056,8 +1217,14 @@ def verify_signed_material(*, security: dict[str, object],
             payload.write_bytes(manifest[:0x95])
             _run(
                 [
-                    str(openssl), "dgst", "-sha256", "-verify", str(bl1_pem),
-                    "-signature", str(signature), str(payload),
+                    str(openssl),
+                    "dgst",
+                    "-sha256",
+                    "-verify",
+                    str(bl1_pem),
+                    "-signature",
+                    str(signature),
+                    str(payload),
                 ],
                 f"public {manifest_name} verification",
                 stdout=subprocess.DEVNULL,

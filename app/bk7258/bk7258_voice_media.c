@@ -105,7 +105,9 @@ static int media_volume_update(bool apply, unsigned int requested, int steps,
                            (maximum - minimum) + 50u) / 100u);
   if (steps != 0)
     {
-      /* 物理按键按官方音量档位步进，与 App 共用设置和读回。 */
+      /* Physical keys step through the official volume scale and share the
+       * settings and read-back with the App.
+       */
       ret = media_policy_get_stream_volume(MEDIA_STREAM_MUSIC, &index);
       if (ret < 0) return ret;
       if (index < minimum || index > maximum) return -EIO;

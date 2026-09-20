@@ -56,19 +56,37 @@ class MiMoConfig:
         if self.persona_mode not in PERSONA_MODES:
             raise ValueError("unsupported persona mode")
         url = urlsplit(self.base_url)
-        if (url.scheme != "https" or not url.hostname or url.username is not None
-                or url.password is not None or url.query or url.fragment
-                or url.path.rstrip("/") != "/v1"):
+        if (
+            url.scheme != "https"
+            or not url.hostname
+            or url.username is not None
+            or url.password is not None
+            or url.query
+            or url.fragment
+            or url.path.rstrip("/") != "/v1"
+        ):
             raise ValueError("MiMo requires a credential-free HTTPS /v1 base URL")
-        if not self.api_key or len(self.api_key) > 4096 or any(
-                ord(c) < 33 or ord(c) > 126 for c in self.api_key):
+        if (
+            not self.api_key
+            or len(self.api_key) > 4096
+            or any(ord(c) < 33 or ord(c) > 126 for c in self.api_key)
+        ):
             raise ValueError("invalid MiMo credential")
         if self.tts_sample_rate not in (16000, 22050, 24000, 32000, 44100, 48000):
             raise ValueError("verified mono PCM16 sample rate is required")
         if self.chat_model not in ("mimo-v2.5", "mimo-v2.5-pro"):
             raise ValueError("unsupported chat model")
         if self.tts_voice not in (
-                "mimo_default", "冰糖", "茉莉", "苏打", "白桦", "Mia", "Chloe", "Milo", "Dean"):
+            "mimo_default",
+            "冰糖",
+            "茉莉",
+            "苏打",
+            "白桦",
+            "Mia",
+            "Chloe",
+            "Milo",
+            "Dean",
+        ):
             raise ValueError("unsupported built-in voice")
         if not 1 <= self.request_timeout <= 90:
             raise ValueError("invalid request timeout")
@@ -79,8 +97,12 @@ def load_api_key(path: Path) -> str:
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         info = os.fstat(fd)
-        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
-                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 4096):
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != os.getuid()
+            or stat.S_IMODE(info.st_mode) != 0o600
+            or info.st_size > 4096
+        ):
             raise ValueError("MiMo credential file must be owner-owned mode 0600")
         return os.read(fd, 4097).decode("ascii").strip()
     finally:
@@ -96,7 +118,9 @@ def wav_audio(pcm: bytes) -> str:
         wav.setsampwidth(2)
         wav.setframerate(16000)
         wav.writeframes(pcm)
-    return "data:audio/wav;base64," + base64.b64encode(output.getvalue()).decode("ascii")
+    return "data:audio/wav;base64," + base64.b64encode(output.getvalue()).decode(
+        "ascii"
+    )
 
 
 async def sse_data(chunks: AsyncIterator[bytes]) -> AsyncIterator[str]:
@@ -134,7 +158,11 @@ def _choice(response: object) -> dict:
     if not isinstance(response, dict) or response.get("error"):
         raise ProviderError("invalid_provider_response")
     choices = response.get("choices")
-    if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
+    if (
+        not isinstance(choices, list)
+        or len(choices) != 1
+        or not isinstance(choices[0], dict)
+    ):
         raise ProviderError("invalid_provider_choices")
     if choices[0].get("index") != 0:
         raise ProviderError("invalid_provider_choice_index")
@@ -147,25 +175,55 @@ def _text_response(response: object) -> str:
     if choice.get("finish_reason") != "stop" or not isinstance(message, dict):
         raise ProviderError("incomplete_provider_text")
     text = message.get("content")
-    if (message.get("tool_calls") or not isinstance(text, str)
-            or not text.strip() or len(text) > MAX_TEXT_CHARS):
+    if (
+        message.get("tool_calls")
+        or not isinstance(text, str)
+        or not text.strip()
+        or len(text) > MAX_TEXT_CHARS
+    ):
         raise ProviderError("invalid_provider_text")
     return text.strip()
 
 
-async def resample_pcm(chunks: AsyncIterator[bytes], sample_rate: int) -> AsyncIterator[bytes]:
+async def resample_pcm(
+    chunks: AsyncIterator[bytes], sample_rate: int
+) -> AsyncIterator[bytes]:
     """Use FFmpeg's streaming resampler, keeping PCM out of files/argv/logs."""
     if sample_rate == 16000:
         async for chunk in chunks:
             yield chunk
         return
     process = await asyncio.create_subprocess_exec(
-        "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-probesize", "32", "-analyzeduration", "1",
-        "-f", "s16le", "-ar", str(sample_rate), "-ac", "1", "-i", "pipe:0",
-        "-f", "s16le", "-ar", "16000", "-ac", "1", "-flush_packets", "1", "pipe:1",
-        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL, limit=16384,
+        "ffmpeg",
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-probesize",
+        "32",
+        "-analyzeduration",
+        "1",
+        "-f",
+        "s16le",
+        "-ar",
+        str(sample_rate),
+        "-ac",
+        "1",
+        "-i",
+        "pipe:0",
+        "-f",
+        "s16le",
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-flush_packets",
+        "1",
+        "pipe:1",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+        limit=16384,
     )
 
     async def feed() -> None:
@@ -200,21 +258,29 @@ class MiMoProvider:
         self.config = config
         # Tests may supply a CA context; disabling certificate checks is forbidden.
         if tls_context is not None and (
-                not tls_context.check_hostname or tls_context.verify_mode != ssl.CERT_REQUIRED):
+            not tls_context.check_hostname
+            or tls_context.verify_mode != ssl.CERT_REQUIRED
+        ):
             raise ValueError("provider TLS must verify hostname and certificate")
         self._tls_context = tls_context
 
     def _session(self) -> aiohttp.ClientSession:
         return aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=self.config.request_timeout, connect=10, sock_read=15),
+            timeout=aiohttp.ClientTimeout(
+                total=self.config.request_timeout, connect=10, sock_read=15
+            ),
             headers={"Authorization": "Bearer " + self.config.api_key},
-            trust_env=False, cookie_jar=aiohttp.DummyCookieJar(),
+            trust_env=False,
+            cookie_jar=aiohttp.DummyCookieJar(),
         )
 
     def _post(self, session: aiohttp.ClientSession, body: dict):
         return session.post(
-            self.config.base_url.rstrip("/") + "/chat/completions", json=body,
-            allow_redirects=False, ssl=self._tls_context, auto_decompress=True,
+            self.config.base_url.rstrip("/") + "/chat/completions",
+            json=body,
+            allow_redirects=False,
+            ssl=self._tls_context,
+            auto_decompress=True,
         )
 
     async def _json(self, session: aiohttp.ClientSession, body: dict) -> object:
@@ -237,30 +303,56 @@ class MiMoProvider:
         async with self._session() as session:
             return await self._chat(session, text)
 
-    async def _chat(self, session: aiohttp.ClientSession, text: str,
-                    history: tuple[tuple[int, str, str], ...] = (),
-                    persona_mode: str | None = None) -> str:
-        persona_mode = self.config.persona_mode if persona_mode is None else persona_mode
+    async def _chat(
+        self,
+        session: aiohttp.ClientSession,
+        text: str,
+        history: tuple[tuple[int, str, str], ...] = (),
+        persona_mode: str | None = None,
+    ) -> str:
+        persona_mode = (
+            self.config.persona_mode if persona_mode is None else persona_mode
+        )
         if persona_mode not in PERSONA_MODES:
             raise ProviderError("unsupported_persona_mode")
-        messages = [{"role": "system", "content": "你是傻妞，一个虚构的 AI 伴侣。用简短中文自然回答，"
-                     "不冒充真人。你的声音是合成声音。不能执行设备操作。"
-                     + _PERSONA_STYLES[persona_mode]}]
+        messages = [
+            {
+                "role": "system",
+                "content": "你是傻妞，一个虚构的 AI 伴侣。用简短中文自然回答，"
+                "不冒充真人。你的声音是合成声音。不能执行设备操作。"
+                + _PERSONA_STYLES[persona_mode],
+            }
+        ]
         for _, user, assistant in history:
-            messages.extend(({"role": "user", "content": user},
-                             {"role": "assistant", "content": assistant}))
+            messages.extend(
+                (
+                    {"role": "user", "content": user},
+                    {"role": "assistant", "content": assistant},
+                )
+            )
         messages.append({"role": "user", "content": text})
-        return _text_response(await self._json(session, {
-            "model": self.config.chat_model, "stream": False,
-            "max_completion_tokens": 1024,
-            "thinking": {"type": "disabled"},
-            "messages": messages,
-        }))
+        return _text_response(
+            await self._json(
+                session,
+                {
+                    "model": self.config.chat_model,
+                    "stream": False,
+                    "max_completion_tokens": 1024,
+                    "thinking": {"type": "disabled"},
+                    "messages": messages,
+                },
+            )
+        )
 
-    async def _tts(self, session: aiohttp.ClientSession, text: str) -> AsyncIterator[bytes]:
-        body = {"model": "mimo-v2.5-tts", "stream": True,
-                "messages": [{"role": "assistant", "content": text}],
-                "audio": {"format": "pcm16", "voice": self.config.tts_voice}}
+    async def _tts(
+        self, session: aiohttp.ClientSession, text: str
+    ) -> AsyncIterator[bytes]:
+        body = {
+            "model": "mimo-v2.5-tts",
+            "stream": True,
+            "messages": [{"role": "assistant", "content": text}],
+            "audio": {"format": "pcm16", "voice": self.config.tts_voice},
+        }
         total = 0
         finished = False
         async with self._post(session, body) as response:
@@ -275,7 +367,11 @@ class MiMoProvider:
                     obj = json.loads(record)
                 except ValueError:
                     raise ProviderError("invalid_sse_json") from None
-                if isinstance(obj, dict) and obj.get("choices") == [] and not obj.get("error"):
+                if (
+                    isinstance(obj, dict)
+                    and obj.get("choices") == []
+                    and not obj.get("error")
+                ):
                     continue  # Optional usage-only record.
                 choice = _choice(obj)
                 delta = choice.get("delta")
@@ -310,7 +406,9 @@ class MiMoProvider:
 class MiMoConversation:
     """Context committed only after the device confirms completed playback."""
 
-    def __init__(self, provider: MiMoProvider, memory: MemorySession | None = None) -> None:
+    def __init__(
+        self, provider: MiMoProvider, memory: MemorySession | None = None
+    ) -> None:
         self._provider = provider
         self._persona_mode = provider.config.persona_mode
         self._memory = memory
@@ -353,8 +451,11 @@ class MiMoConversation:
         transcript, reply = self._pending
         self._history.append((turn_id, transcript, reply))
         self._pending = None
-        while (len(self._history) > MAX_HISTORY_TURNS
-               or sum(len(user) + len(reply) for _, user, reply in self._history) > MAX_HISTORY_CHARS):
+        while (
+            len(self._history) > MAX_HISTORY_TURNS
+            or sum(len(user) + len(reply) for _, user, reply in self._history)
+            > MAX_HISTORY_CHARS
+        ):
             self._history.pop(0)
         if self._memory is not None:
             try:
@@ -390,16 +491,35 @@ class MiMoConversation:
         provider = self._provider
         encoded = wav_audio(pcm)
         async with provider._session() as session:
-            transcript = _text_response(await provider._json(session, {
-                "model": "mimo-v2.5-asr", "stream": False,
-                "messages": [{"role": "user", "content": [{"type": "input_audio",
-                    "input_audio": {"data": encoded}}]}],
-                "asr_options": {"language": "auto"},
-            }))
+            transcript = _text_response(
+                await provider._json(
+                    session,
+                    {
+                        "model": "mimo-v2.5-asr",
+                        "stream": False,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "input_audio",
+                                        "input_audio": {"data": encoded},
+                                    }
+                                ],
+                            }
+                        ],
+                        "asr_options": {"language": "auto"},
+                    },
+                )
+            )
             del encoded
-            reply = await provider._chat(session, transcript, tuple(self._history), self._persona_mode)
+            reply = await provider._chat(
+                session, transcript, tuple(self._history), self._persona_mode
+            )
             async with contextlib.aclosing(provider._tts(session, reply)) as audio:
-                async with contextlib.aclosing(resample_pcm(audio, provider.config.tts_sample_rate)) as normalized:
+                async with contextlib.aclosing(
+                    resample_pcm(audio, provider.config.tts_sample_rate)
+                ) as normalized:
                     async for chunk in normalized:
                         yield chunk
         if self._closed:

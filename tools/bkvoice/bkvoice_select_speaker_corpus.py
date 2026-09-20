@@ -102,18 +102,22 @@ def load_candidates(corpus_path: Path, draft_path: Path) -> list[dict[str, objec
         if row.get("status") != "PASS" or audio_file not in corpus:
             continue
         source = corpus[audio_file]
-        if row.get("sha256") != source.get("sha256") or row.get("split") != source.get("split"):
+        if row.get("sha256") != source.get("sha256") or row.get("split") != source.get(
+            "split"
+        ):
             raise ValueError(f"draft/corpus mismatch for {audio_file}")
         text = str(row.get("text", "")).strip()
         if not text:
             raise ValueError(f"PASS draft has empty text for {audio_file}")
-        candidates.append({
-            "audio_file": audio_file,
-            "sha256": source["sha256"],
-            "split": source["split"],
-            "metrics": source.get("metrics", {}),
-            "text": text,
-        })
+        candidates.append(
+            {
+                "audio_file": audio_file,
+                "sha256": source["sha256"],
+                "split": source["split"],
+                "metrics": source.get("metrics", {}),
+                "text": text,
+            }
+        )
     if not candidates:
         raise ValueError("no transcribed corpus candidates")
     return candidates
@@ -141,9 +145,13 @@ def quantiles(values: list[float]) -> dict[str, float | None]:
 
     if not values:
         return {"p05": None, "p25": None, "p50": None, "p75": None, "p95": None}
-    result = np.quantile(np.asarray(values, dtype=np.float64), [0.05, 0.25, 0.5, 0.75, 0.95])
-    return {name: round(float(value), 6) for name, value in
-            zip(("p05", "p25", "p50", "p75", "p95"), result)}
+    result = np.quantile(
+        np.asarray(values, dtype=np.float64), [0.05, 0.25, 0.5, 0.75, 0.95]
+    )
+    return {
+        name: round(float(value), 6)
+        for name, value in zip(("p05", "p25", "p50", "p75", "p95"), result)
+    }
 
 
 def build_model(root: Path, weight: Path, device_name: str):
@@ -164,7 +172,9 @@ def build_model(root: Path, weight: Path, device_name: str):
     return torch, kaldi_module, model, device
 
 
-def analyze_audio(path: Path, torch_module, kaldi_module, model, device) -> tuple[list[float], float | None]:
+def analyze_audio(
+    path: Path, torch_module, kaldi_module, model, device
+) -> tuple[list[float], float | None]:
     import librosa  # pylint: disable=import-outside-toplevel
     import numpy as np  # pylint: disable=import-outside-toplevel
     import soundfile  # pylint: disable=import-outside-toplevel
@@ -174,9 +184,9 @@ def analyze_audio(path: Path, torch_module, kaldi_module, model, device) -> tupl
     if sample_rate != 16000:
         waveform = librosa.resample(waveform, orig_sr=sample_rate, target_sr=16000)
     tensor = torch_module.from_numpy(np.asarray(waveform, dtype=np.float32)).to(device)
-    features = kaldi_module.fbank(tensor.unsqueeze(0), num_mel_bins=80,
-                                  sample_frequency=16000,
-                                  dither=0).unsqueeze(0)
+    features = kaldi_module.fbank(
+        tensor.unsqueeze(0), num_mel_bins=80, sample_frequency=16000, dither=0
+    ).unsqueeze(0)
     with torch_module.inference_mode():
         embedding = model(features).float()
         embedding = torch_module.nn.functional.normalize(embedding, dim=1)
@@ -186,8 +196,9 @@ def analyze_audio(path: Path, torch_module, kaldi_module, model, device) -> tupl
     # learned embedding.  YIN is deterministic and substantially cheaper than
     # a second neural model for this first-round corpus audit.
     try:
-        pitch = librosa.yin(waveform, fmin=65.0, fmax=400.0, sr=16000,
-                            frame_length=1024, hop_length=256)
+        pitch = librosa.yin(
+            waveform, fmin=65.0, fmax=400.0, sr=16000, frame_length=1024, hop_length=256
+        )
         finite = pitch[np.isfinite(pitch)]
         pitch_hz = round(float(np.median(finite)), 3) if finite.size else None
     except (ValueError, FloatingPointError):
@@ -232,10 +243,14 @@ def quality_score(row: dict[str, object]) -> float:
     similarity = float(row["speaker_similarity"])
     duration_score = max(0.0, 1.0 - abs(duration - 4000.0) / 4000.0)
     level_score = max(0.0, 1.0 - abs(rms + 24.0) / 24.0)
-    return 0.55 * similarity + 0.20 * duration_score + 0.15 * active + 0.10 * level_score
+    return (
+        0.55 * similarity + 0.20 * duration_score + 0.15 * active + 0.10 * level_score
+    )
 
 
-def select_duration(rows: list[dict[str, object]], target_ms: float) -> list[dict[str, object]]:
+def select_duration(
+    rows: list[dict[str, object]], target_ms: float
+) -> list[dict[str, object]]:
     chosen = []
     seen_text = set()
     total = 0.0
@@ -251,31 +266,45 @@ def select_duration(rows: list[dict[str, object]], target_ms: float) -> list[dic
     return chosen
 
 
-def write_private_outputs(output: Path, raw_dir: Path, speaker_id: str,
-                          selected: list[dict[str, object]]) -> dict[str, str]:
+def write_private_outputs(
+    output: Path, raw_dir: Path, speaker_id: str, selected: list[dict[str, object]]
+) -> dict[str, str]:
     private_path = output / "selected-private.jsonl"
     private_rows = []
     for row in selected:
-        private_rows.append({
-            "format": FORMAT,
-            "audio_file": row["audio_file"],
-            "sha256": row["sha256"],
-            "split": row["split"],
-            "text": row["text"],
-            "speaker_similarity": round(float(row["speaker_similarity"]), 6),
-            "pitch_hz": row.get("pitch_hz"),
-            "metrics": row["metrics"],
-        })
-    private_path.write_text("".join(
-        json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
-        for row in private_rows), encoding="utf-8")
+        private_rows.append(
+            {
+                "format": FORMAT,
+                "audio_file": row["audio_file"],
+                "sha256": row["sha256"],
+                "split": row["split"],
+                "text": row["text"],
+                "speaker_similarity": round(float(row["speaker_similarity"]), 6),
+                "pitch_hz": row.get("pitch_hz"),
+                "metrics": row["metrics"],
+            }
+        )
+    private_path.write_text(
+        "".join(
+            json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            + "\n"
+            for row in private_rows
+        ),
+        encoding="utf-8",
+    )
 
     hashes = {"private": sha256_file(private_path)}
     raw_root = raw_dir.resolve()
     for split in ("train", "eval", "all"):
-        subset = selected if split == "all" else [row for row in selected if row["split"] == split]
-        lines = [f"{raw_root / str(row['audio_file'])}|{speaker_id}|ZH|{row['text']}"
-                 for row in subset]
+        subset = (
+            selected
+            if split == "all"
+            else [row for row in selected if row["split"] == split]
+        )
+        lines = [
+            f"{raw_root / str(row['audio_file'])}|{speaker_id}|ZH|{row['text']}"
+            for row in subset
+        ]
         path = output / f"selected-{split}.list"
         path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
         hashes[split] = sha256_file(path)
@@ -308,15 +337,20 @@ def main(argv: list[str] | None = None) -> int:
         cached = load_embedding_cache(cache_path)
     except (OSError, ValueError) as error:
         raise SystemExit(str(error)) from error
-    pending = [row for row in candidates
-               if str(row["audio_file"]) not in cached
-               or cached[str(row["audio_file"])].get("status") != "PASS"]
+    pending = [
+        row
+        for row in candidates
+        if str(row["audio_file"]) not in cached
+        or cached[str(row["audio_file"])].get("status") != "PASS"
+    ]
     if args.limit is not None:
-        pending = pending[:args.limit]
+        pending = pending[: args.limit]
 
     if pending:
         try:
-            torch_module, kaldi_module, model, device = build_model(root, weight, args.device)
+            torch_module, kaldi_module, model, device = build_model(
+                root, weight, args.device
+            )
         except (ImportError, OSError, RuntimeError) as error:
             raise SystemExit(f"speaker model initialization failed: {error}") from error
         with cache_path.open("a", encoding="utf-8") as cache:
@@ -324,7 +358,8 @@ def main(argv: list[str] | None = None) -> int:
                 source = raw_dir / str(row["audio_file"])
                 try:
                     embedding, pitch_hz = analyze_audio(
-                        source, torch_module, kaldi_module, model, device)
+                        source, torch_module, kaldi_module, model, device
+                    )
                     record = {
                         "audio_file": row["audio_file"],
                         "sha256": row["sha256"],
@@ -340,18 +375,28 @@ def main(argv: list[str] | None = None) -> int:
                         "pitch_hz": None,
                         "status": "ERROR_" + type(error).__name__.upper(),
                     }
-                cache.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+                cache.write(
+                    json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+                )
                 cache.flush()
                 cached[str(row["audio_file"])] = record
                 if index == 1 or index % 25 == 0:
                     print(f"BKVOICE speaker progress={index}/{len(pending)}")
 
     complete_rows = [row for row in candidates if str(row["audio_file"]) in cached]
-    errors = [row for row in complete_rows if cached[str(row["audio_file"])]["status"] != "PASS"]
+    errors = [
+        row
+        for row in complete_rows
+        if cached[str(row["audio_file"])]["status"] != "PASS"
+    ]
     complete = len(complete_rows) == len(candidates) and not errors
     if not complete or args.limit is not None:
-        counts = {"expected": len(candidates), "processed": len(complete_rows),
-                  "errors": len(errors), "pending": len(candidates) - len(complete_rows)}
+        counts = {
+            "expected": len(candidates),
+            "processed": len(complete_rows),
+            "errors": len(errors),
+            "pending": len(candidates) - len(complete_rows),
+        }
         print("BKVOICE_SPEAKER_AUDIT_PARTIAL " + json.dumps(counts, sort_keys=True))
         return 2 if errors else 0
 
@@ -369,26 +414,42 @@ def main(argv: list[str] | None = None) -> int:
     if dominant_fraction < args.min_dominant_fraction:
         raise SystemExit(
             f"dominant speaker fraction {dominant_fraction:.3f} is below required "
-            f"{args.min_dominant_fraction:.3f}")
+            f"{args.min_dominant_fraction:.3f}"
+        )
 
     eligible = []
     for row in matched:
         duration = float(row.get("metrics", {}).get("duration_ms", 0.0))
-        if (args.min_selection_duration_ms <= duration <= args.max_selection_duration_ms
-                and text_is_suitable(str(row["text"]))):
+        if (
+            args.min_selection_duration_ms <= duration <= args.max_selection_duration_ms
+            and text_is_suitable(str(row["text"]))
+        ):
             eligible.append(row)
-    train = select_duration([row for row in eligible if row["split"] == "train"],
-                            args.target_train_minutes * 60000.0)
-    evaluation = select_duration([row for row in eligible if row["split"] == "eval"],
-                                 args.target_eval_minutes * 60000.0)
+    train = select_duration(
+        [row for row in eligible if row["split"] == "train"],
+        args.target_train_minutes * 60000.0,
+    )
+    evaluation = select_duration(
+        [row for row in eligible if row["split"] == "eval"],
+        args.target_eval_minutes * 60000.0,
+    )
     selected = train + evaluation
     train_ms = sum(float(row["metrics"]["duration_ms"]) for row in train)
     eval_ms = sum(float(row["metrics"]["duration_ms"]) for row in evaluation)
-    if train_ms < args.target_train_minutes * 60000.0 or eval_ms < args.target_eval_minutes * 60000.0:
-        raise SystemExit("eligible dominant-speaker corpus cannot meet requested duration")
+    if (
+        train_ms < args.target_train_minutes * 60000.0
+        or eval_ms < args.target_eval_minutes * 60000.0
+    ):
+        raise SystemExit(
+            "eligible dominant-speaker corpus cannot meet requested duration"
+        )
 
-    hashes = write_private_outputs(output, raw_dir, str(worklog["speaker_id"]), selected)
-    pitch_values = [float(row["pitch_hz"]) for row in matched if row.get("pitch_hz") is not None]
+    hashes = write_private_outputs(
+        output, raw_dir, str(worklog["speaker_id"]), selected
+    )
+    pitch_values = [
+        float(row["pitch_hz"]) for row in matched if row.get("pitch_hz") is not None
+    ]
     created = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     audit = {
         "format": FORMAT,
@@ -433,18 +494,22 @@ def main(argv: list[str] | None = None) -> int:
     for candidate in worklog.get("model_candidates", []):
         if candidate.get("id") == "gpt-sovits-finetune":
             candidate["status"] = "READY_TO_PREPROCESS"
-    worklog["events"].append({
-        "created_utc": created,
-        "event": "speaker_corpus_selected",
-        "status": "PASS",
-        "audit_sha256": sha256_file(audit_path),
-        "candidate_count": len(candidates),
-        "speaker_match_count": len(matched),
-        "selected_train_count": len(train),
-        "selected_eval_count": len(evaluation),
-    })
+    worklog["events"].append(
+        {
+            "created_utc": created,
+            "event": "speaker_corpus_selected",
+            "status": "PASS",
+            "audit_sha256": sha256_file(audit_path),
+            "candidate_count": len(candidates),
+            "speaker_match_count": len(matched),
+            "selected_train_count": len(train),
+            "selected_eval_count": len(evaluation),
+        }
+    )
     atomic_json(args.worklog, worklog)
-    print("BKVOICE_SPEAKER_SELECTION_PASS " + json.dumps(audit["counts"], sort_keys=True))
+    print(
+        "BKVOICE_SPEAKER_SELECTION_PASS " + json.dumps(audit["counts"], sort_keys=True)
+    )
     return 0
 
 

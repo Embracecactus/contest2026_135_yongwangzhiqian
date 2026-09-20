@@ -7,17 +7,20 @@ import tempfile
 from pathlib import Path
 from test_mfrc522_read_errors import extract_function, REPOSITORY
 
-source=(REPOSITORY/'chips/bk7258/cp/bk7258_vectors.c').read_text()
-function=extract_function(source,'static bool bk7258_fault_frame_readable(')
-headers=[REPOSITORY/'chips/bk7258/include/bk7258_amp.h',
-         REPOSITORY/'chips/bk7258/include/bk7258_psram.h',
-         REPOSITORY.parent/'nuttx/arch/arm/src/arm_m/nvic.h']
-names=set(re.findall(r'\b(?:BK7258|NVIC)_[A-Z0-9_]+\b',function))
-defs=[]
+source = (REPOSITORY / "chips/bk7258/cp/bk7258_vectors.c").read_text()
+function = extract_function(source, "static bool bk7258_fault_frame_readable(")
+headers = [
+    REPOSITORY / "chips/bk7258/include/bk7258_amp.h",
+    REPOSITORY / "chips/bk7258/include/bk7258_psram.h",
+    REPOSITORY.parent / "nuttx/arch/arm/src/arm_m/nvic.h",
+]
+names = set(re.findall(r"\b(?:BK7258|NVIC)_[A-Z0-9_]+\b", function))
+defs = []
 for header in headers:
- for line in header.read_text().splitlines():
-  if line.startswith('#define ') and line.split()[1] in names:defs.append(line)
-prefix='''#include <stdbool.h>
+    for line in header.read_text().splitlines():
+        if line.startswith("#define ") and line.split()[1] in names:
+            defs.append(line)
+prefix = """#include <stdbool.h>
 #include <stdint.h>
 #include <assert.h>
 #define BK7258_EXCEPTION_FRAME_WORDS 8u
@@ -25,8 +28,8 @@ prefix='''#include <stdbool.h>
 static bool ready;
 static bool bk7258_psram_ready(void) { return ready; }
 #endif
-'''
-main='''
+"""
+main = """
 int main(void) {
  assert(bk7258_fault_frame_readable(BK7258_CP_RAM_BASE,0));
  assert(bk7258_fault_frame_readable(BK7258_CP_RAM_BASE+BK7258_CP_RAM_SIZE-32,0));
@@ -51,11 +54,17 @@ int main(void) {
 #endif
  return 0;
 }
-'''
-with tempfile.TemporaryDirectory(prefix='cp-fault-frame-') as tmp:
- p=Path(tmp);(p/'test.c').write_text(prefix+'\n'.join(defs)+'\n'+function+main)
- for enabled in (False,True):
-  flags=['-DCONFIG_BK7258_PSRAM'] if enabled else []
-  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined']+flags+[str(p/'test.c'),'-o',str(p/'test')],check=True)
-  subprocess.run([str(p/'test')],check=True)
-print('PASS: CP fault-frame boundaries, PSRAM readiness and stacking-fault rejection')
+"""
+with tempfile.TemporaryDirectory(prefix="cp-fault-frame-") as tmp:
+    p = Path(tmp)
+    (p / "test.c").write_text(prefix + "\n".join(defs) + "\n" + function + main)
+    for enabled in (False, True):
+        flags = ["-DCONFIG_BK7258_PSRAM"] if enabled else []
+        subprocess.run(
+            ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined"]
+            + flags
+            + [str(p / "test.c"), "-o", str(p / "test")],
+            check=True,
+        )
+        subprocess.run([str(p / "test")], check=True)
+print("PASS: CP fault-frame boundaries, PSRAM readiness and stacking-fault rejection")

@@ -157,9 +157,11 @@ void __start(void)
   BK7258_APB_WDT_CTRL = BK7258_APB_WDT_KEY2;
   __asm volatile ("dsb sy" ::: "memory");
 
-  /* 4. 先清理 BootROM 遗留的 Secure/Non-secure lazy stacking；启用 FPU
-   *    的配置随后交给 NuttX 设置 CONTROL.FPCA 和 CP10/CP11。只开启协处理器
-   *    不能建立异常处理所需的浮点上下文契约。无 FPU 的早期配置保留原入口。
+  /* 4. Clear the Secure/Non-secure lazy stacking left by the BootROM first;
+   *    the FPU-enabled configuration then hands CONTROL.FPCA and CP10/CP11
+   *    to NuttX.  Enabling the coprocessors alone does not establish the
+   *    floating-point context contract exception handling needs.  Early
+   *    configurations without an FPU keep the original entry.
    */
 
   BK7258_SCB_CPACR &= ~((3u << 20) | (3u << 22));             /* deny CP10/CP11 */

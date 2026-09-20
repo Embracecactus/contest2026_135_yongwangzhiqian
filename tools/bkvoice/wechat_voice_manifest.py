@@ -44,8 +44,11 @@ def relative_path_hash(root: Path, path: Path) -> str:
 
 def iter_paths(root: Path, suffixes: Iterable[str]) -> list[Path]:
     wanted = {suffix.lower() for suffix in suffixes}
-    return sorted(path for path in root.rglob("*")
-                  if path.is_file() and path.suffix.lower() in wanted)
+    return sorted(
+        path
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in wanted
+    )
 
 
 def direct_chat(root: Path, failures: collections.Counter[str]) -> bool:
@@ -69,7 +72,9 @@ def direct_chat(root: Path, failures: collections.Counter[str]) -> bool:
     return True
 
 
-def collect_associations(root: Path, failures: collections.Counter[str]) -> dict[str, set[str]]:
+def collect_associations(
+    root: Path, failures: collections.Counter[str]
+) -> dict[str, set[str]]:
     associations: dict[str, set[str]] = collections.defaultdict(set)
     for page in iter_paths(root, [".js"]):
         if not page.name.startswith("page-"):
@@ -81,8 +86,10 @@ def collect_associations(root: Path, failures: collections.Counter[str]) -> dict
             continue
         markers = list(ROW_RE.finditer(source))
         for index, marker in enumerate(markers):
-            end = markers[index + 1].start() if index + 1 < len(markers) else len(source)
-            for wav_name in WAV_RE.findall(source[marker.end():end]):
+            end = (
+                markers[index + 1].start() if index + 1 < len(markers) else len(source)
+            )
+            for wav_name in WAV_RE.findall(source[marker.end() : end]):
                 associations[wav_name.lower()].add(marker.group(1).lower())
     return associations
 
@@ -100,9 +107,12 @@ def wav_header(path: Path) -> tuple[float, int, int] | None:
     return round(frames * 1000.0 / rate, 3), rate, channels
 
 
-def build_rows(root: Path, associations: dict[str, set[str]],
-               exclude_collisions: bool,
-               failures: collections.Counter[str]) -> list[dict[str, object]]:
+def build_rows(
+    root: Path,
+    associations: dict[str, set[str]],
+    exclude_collisions: bool,
+    failures: collections.Counter[str],
+) -> list[dict[str, object]]:
     physical: dict[str, list[Path]] = collections.defaultdict(list)
     for candidate in iter_paths(root, [".wav"]):
         physical[candidate.name.lower()].append(candidate)
@@ -135,30 +145,34 @@ def build_rows(root: Path, associations: dict[str, set[str]],
             failures["invalid_wav_header"] += 1
             continue
         duration_ms, sample_rate, channels = header
-        rows.append({
-            "path_sha256": relative_path_hash(root, paths[0]),
-            "sha256": sha256_file(paths[0]),
-            "_source_path": paths[0].relative_to(root).as_posix(),
-            "direction": direction,
-            "association_status": status,
-            "duration_ms": duration_ms,
-            "sample_rate": sample_rate,
-            "channels": channels,
-        })
+        rows.append(
+            {
+                "path_sha256": relative_path_hash(root, paths[0]),
+                "sha256": sha256_file(paths[0]),
+                "_source_path": paths[0].relative_to(root).as_posix(),
+                "direction": direction,
+                "association_status": status,
+                "duration_ms": duration_ms,
+                "sample_rate": sample_rate,
+                "channels": channels,
+            }
+        )
     return rows
 
 
-def write_jsonl(path: Path, rows: list[dict[str, object]],
-                include_source_path: bool = False) -> str:
+def write_jsonl(
+    path: Path, rows: list[dict[str, object]], include_source_path: bool = False
+) -> str:
     output_rows = []
     for row in rows:
-        output = {key: value for key, value in row.items()
-                  if not key.startswith("_")}
+        output = {key: value for key, value in row.items() if not key.startswith("_")}
         if include_source_path:
             output["source_path"] = row["_source_path"]
         output_rows.append(output)
-    payload = "".join(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
-                      for row in output_rows).encode("utf-8")
+    payload = "".join(
+        json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
+        for row in output_rows
+    ).encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(payload)
     return sha256_bytes(payload)
@@ -167,26 +181,34 @@ def write_jsonl(path: Path, rows: list[dict[str, object]],
 def audit_inputs(root: Path) -> list[dict[str, str]]:
     entries = []
     for path in iter_paths(root, [".json", ".js", ".wav"]):
-        entries.append({
-            "kind": path.suffix.lower().lstrip("."),
-            "path_sha256": relative_path_hash(root, path),
-        })
+        entries.append(
+            {
+                "kind": path.suffix.lower().lstrip("."),
+                "path_sha256": relative_path_hash(root, path),
+            }
+        )
     return entries
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--export-root", required=True, type=Path)
-    parser.add_argument("--direction", choices=("received", "sent", "unknown", "all"),
-                        default="received")
+    parser.add_argument(
+        "--direction",
+        choices=("received", "sent", "unknown", "all"),
+        default="received",
+    )
     parser.add_argument("--out", type=Path)
     parser.add_argument("--audit-out", type=Path)
     parser.add_argument(
-        "--private-out", type=Path,
-        help="optional private JSONL with source_path; keep outside Git/export root")
+        "--private-out",
+        type=Path,
+        help="optional private JSONL with source_path; keep outside Git/export root",
+    )
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--exclude-collisions", action=argparse.BooleanOptionalAction,
-                        default=True)
+    parser.add_argument(
+        "--exclude-collisions", action=argparse.BooleanOptionalAction, default=True
+    )
     args = parser.parse_args(argv)
     if not args.dry_run and (args.out is None or args.audit_out is None):
         parser.error("--out and --audit-out are required unless --dry-run is used")
@@ -208,8 +230,11 @@ def main(argv: list[str] | None = None) -> int:
     root = args.export_root.resolve()
     if not root.is_dir():
         raise SystemExit("--export-root must be an existing directory")
-    outputs = [path for path in (args.out, args.audit_out, args.private_out)
-               if path is not None]
+    outputs = [
+        path
+        for path in (args.out, args.audit_out, args.private_out)
+        if path is not None
+    ]
     if not args.dry_run and any(is_within(path, root) for path in outputs):
         raise SystemExit("all outputs must be outside --export-root")
     if len({path.resolve() for path in outputs}) != len(outputs):
@@ -218,9 +243,16 @@ def main(argv: list[str] | None = None) -> int:
     failures: collections.Counter[str] = collections.Counter()
     allowed = direct_chat(root, failures)
     associations = collect_associations(root, failures) if allowed else {}
-    rows = build_rows(root, associations, args.exclude_collisions, failures) if allowed else []
-    selected = rows if args.direction == "all" else [
-        row for row in rows if row["direction"] == args.direction]
+    rows = (
+        build_rows(root, associations, args.exclude_collisions, failures)
+        if allowed
+        else []
+    )
+    selected = (
+        rows
+        if args.direction == "all"
+        else [row for row in rows if row["direction"] == args.direction]
+    )
 
     output_sha256 = None
     private_output_sha256 = None
@@ -228,7 +260,8 @@ def main(argv: list[str] | None = None) -> int:
         output_sha256 = write_jsonl(args.out, selected)
         if args.private_out is not None:
             private_output_sha256 = write_jsonl(
-                args.private_out, selected, include_source_path=True)
+                args.private_out, selected, include_source_path=True
+            )
 
     audit = {
         "tool_version": TOOL_VERSION,
@@ -255,8 +288,9 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(audit, sort_keys=True, separators=(",", ":")))
     else:
         args.audit_out.parent.mkdir(parents=True, exist_ok=True)
-        args.audit_out.write_text(json.dumps(audit, sort_keys=True, indent=2) + "\n",
-                                  encoding="utf-8")
+        args.audit_out.write_text(
+            json.dumps(audit, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+        )
     return 0 if allowed else 2
 
 

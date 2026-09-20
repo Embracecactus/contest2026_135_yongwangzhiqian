@@ -8,7 +8,7 @@
 /* TLS plaintext frames: SPV1 | type:u8 | reserved:3 | sequence:be32 |
  * transaction:16 | payload_size:be32 | payload. AUTH=1 seq0/secret32,
  * BEGIN=2 size:be32, DATA=3 offset:be32+up to1020 bytes, APPLY=4 empty.
- * STATUS=128 contains state:be32,error:signed-be32. Local confirmation is
+ * STATUS=128 contains state:be32, error:signed-be32. Local confirmation is
  * deliberately absent from the wire. Disconnect cancels uncommitted work.
  * Read-only receipt QUERY=5 seq1/empty is available after AUTH and READY
  * only when the owner supplies a receipt callback. Result is COMMITTED=6,
@@ -18,7 +18,7 @@
  * restores ownership using the original proof over pinned TLS; its READY may
  * append the unchanged 32-byte control key before normal configuration upload.
  * SCAN payload is status:be32,
- * count:u8,truncated:u8,reserved:2 followed by fixed 36-byte AP records.
+ * count:u8, truncated:u8, reserved:2 followed by fixed 36-byte AP records.
  */
 struct bkprov_pair_s
 {
@@ -55,7 +55,9 @@ int bkprov_pair_start(struct bkprov_pair_s *pair, uint32_t generation,
                       void *clock_context, const struct bkprov_claim_ops_s *ops,
                       void *context);
 int bkprov_pair_step(struct bkprov_pair_s *pair);
-/* 已认领设备的只读扫描复用当前 TLS；仍验证原持有证明，不开放认领写入。 */
+/* The read-only scan on an already claimed device reuses the current TLS,
+ * still verifies the original possession proof and never opens claim writes.
+ */
 int bkprov_pair_attach_scan(struct bkprov_pair_s *pair,
                             struct bkprov_tls_s *tls, const uint8_t secret[32]);
 /* A distinct read-only window also usable on an already claimed device.

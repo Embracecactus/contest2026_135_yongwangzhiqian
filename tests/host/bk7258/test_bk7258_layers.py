@@ -41,7 +41,7 @@ def _fixture(root: Path) -> None:
         "config BK7258_CP_OK\n"
         "\tbool\n"
         "\tdepends on ARCH_CHIP_BK7258 && !BK7258_AP_CORE\n\n"
-        "menu \"AP wrappers\"\n"
+        'menu "AP wrappers"\n'
         "\tdepends on BK7258_AP_CORE\n\n"
         "config BK7258_AP_OK\n"
         "\tbool\n"
@@ -78,7 +78,7 @@ def _fixture(root: Path) -> None:
         "boards/bk7258/test/scripts/build.sh",
         "# --wrap=bk_flash_partition_read is an SDK-private linker option\n"
         "target_link_libraries(board PRIVATE nuttx) # --wrap,bk_flash_partition_read\n"
-        "exec \"$@\"\n",
+        'exec "$@"\n',
     )
     _write(
         root,
@@ -139,7 +139,7 @@ def test_all_boundary_failures() -> None:
         _write(
             root,
             "chips/bk7258/Kconfig",
-            "menu \"AP wrappers\"\n"
+            'menu "AP wrappers"\n'
             "\tdepends on BK7258_AP_CORE\n\n"
             "config BK7258_CP_BAD\n"
             "\tbool\n"
@@ -177,7 +177,7 @@ def test_app_and_board_build_sdk_boundaries() -> None:
         _write(
             root,
             "boards/bk7258/test/CMakeLists.txt",
-            "set(BK7258_SDK_LIBS_DIR \"/sdk/libs\")\n"
+            'set(BK7258_SDK_LIBS_DIR "/sdk/libs")\n'
             "target_include_directories(board PRIVATE /sdk/include)\n"
             "target_link_libraries(board PRIVATE /sdk/libbk_driver.a)\n",
         )
@@ -210,11 +210,16 @@ def test_legacy_exception_is_hash_bound() -> None:
         content = "int f(void) { BT_GATT_PRIMARY_SERVICE(1, 2); return 0; }\n"
         selected = _write(root, relative, content)
         digest = hashlib.sha256(selected.read_bytes()).hexdigest()
-        _exceptions(root, [{
-            "path": relative,
-            "reason": "host-test legacy protocol",
-            "sha256": digest,
-        }])
+        _exceptions(
+            root,
+            [
+                {
+                    "path": relative,
+                    "reason": "host-test legacy protocol",
+                    "sha256": digest,
+                }
+            ],
+        )
         assert "PRODUCT_PROTOCOL_IN_CHIP" not in _codes(root)
         assert "EXCEPTION_HASH" not in _codes(root)
 

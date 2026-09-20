@@ -76,6 +76,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="validate package structure/hashes without opening serial ports",
     )
+
+
 def run(args: argparse.Namespace) -> None:
     if args.status_only or args.reboot_only:
         if args.status_only and args.reboot_only:
@@ -125,7 +127,9 @@ def run(args: argparse.Namespace) -> None:
             f"counter={objects.counter} target={objects.target}"
         )
         return
-    ota_port = unique_port(args.ota_port, NATIVE_VID, NATIVE_PID, "BK7258 native USB CDC")
+    ota_port = unique_port(
+        args.ota_port, NATIVE_VID, NATIVE_PID, "BK7258 native USB CDC"
+    )
     control_port = None
     if args.control_port != "none":
         control_port = unique_port(

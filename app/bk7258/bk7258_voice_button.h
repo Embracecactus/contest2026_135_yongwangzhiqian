@@ -3,7 +3,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * CP 按键采样与 AP 产品事件适配，复用已有固定跨核线格式。
+ * CP key sampling adapted to AP product events, reusing the existing fixed
+ * cross-core wire format.
  ****************************************************************************/
 
 #ifndef __APP_BK7258_BK7258_VOICE_BUTTON_H

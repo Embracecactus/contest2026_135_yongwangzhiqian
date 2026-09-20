@@ -157,7 +157,9 @@ static void bk7258_cpu2_fpu_initialize(void)
   __asm volatile ("dsb sy; isb sy" ::: "memory");
   BK7258_FPU_FPCCR &= ~((1u << 31) | (1u << 30) | (1u << 29));
 #ifdef CONFIG_ARCH_FPU
-  /* 每个核独立建立 NuttX 浮点上下文，不能继承另一核的 FPCA 状态。 */
+  /* Each core establishes its own NuttX floating-point context and must not
+   * inherit the other core's FPCA state.
+   */
 
   arm_fpuconfig();
 #else
@@ -301,7 +303,6 @@ static void bk7258_cpu2_wait_scheduler_unlocked(void)
   value |= expected_vector;
   *control = value;
   __asm volatile ("dsb sy; isb sy" ::: "memory");
-
 }
 #endif
 

@@ -3,7 +3,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * 只接收物理按键并积累产品动作；不调用语音、Media、存储或电源接口。
+ * Accepts physical key input and accumulates product actions only; it calls
+ * no voice, Media, storage or power interface.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -61,7 +62,9 @@ static int keys_receive(struct rpmsg_endpoint *endpoint, void *data,
       spin_unlock_irqrestore(&g_keys.lock, flags);
       return -ESTALE;
     }
-  /* 丢样、断链或时钟倒退不能拼出一次连续长按；先重新看到全松开。 */
+  /* A dropped sample, a broken link or a clock regression must not compose a
+   * continuous long press; a fully released mask must be observed again.
+   */
   if ((g_keys.sequence && event.sequence != g_keys.sequence + 1u) ||
       now < g_keys.last_sample ||
       now - g_keys.last_sample > BKVOICE_BUTTON_LEASE_MS)
@@ -71,7 +74,9 @@ static int keys_receive(struct rpmsg_endpoint *endpoint, void *data,
   was_armed = g_keys.policy.armed;
   action = bkvoice_product_keys_step(&g_keys.policy, g_keys.epoch,
                                       event.pressed, now, &power);
-  /* 组合按键不产生音量动作；积累的是按下边沿，不是每次心跳。 */
+  /* Combined keys produce no volume action; what accumulates is the press
+   * edge, not every heartbeat.
+   */
   if (event.pressed == BKVOICE_PRODUCT_KEY_VOLUME_DOWN &&
       (action & BKVOICE_PRODUCT_KEY_VOLUME_DOWN) && g_keys.volume_steps > -15)
     g_keys.volume_steps--;

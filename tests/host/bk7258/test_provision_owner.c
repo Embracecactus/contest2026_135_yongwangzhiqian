@@ -34,7 +34,7 @@ int bkcontrol_pair_start(struct bkcontrol_pair_s *p, uint32_t gen,
 }
 int bkcontrol_pair_step(struct bkcontrol_pair_s *p)
 { control_steps++; return p->tls.generation == generation ? 0 : -ESTALE; }
-void bkcontrol_pair_close(struct bkcontrol_pair_s *p) { memset(p,0,sizeof(*p)); }
+void bkcontrol_pair_close(struct bkcontrol_pair_s *p) { memset(p, 0, sizeof(*p)); }
 
 void mbedtls_platform_zeroize(void *p, size_t n) { memset(p, 0, n); }
 int bkprov_gatt_poll(void) { return radio_error; }

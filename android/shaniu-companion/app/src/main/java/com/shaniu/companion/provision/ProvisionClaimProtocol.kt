@@ -96,7 +96,8 @@ class ProvisionClaimProtocol(
         if (length == 40) {
             require(awaiting == 7 && remote == 3 && result == 0)
             require((40 until 72).any { input[it] != 0.toByte() })
-            // 恢复同一控制密钥，保留板端加密记忆；不打印或写入明文文件。
+            // Recovery keeps the same control key and the board's encrypted
+            // memory; the plaintext is never printed or written to a file.
             if (!recovery) {
                 ProvisionSettings.useControlKey(candidate) { require(it != null) }
                 input.copyInto(candidate, candidate.size - 32, 40, 72)

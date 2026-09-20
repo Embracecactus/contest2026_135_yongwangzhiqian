@@ -67,8 +67,8 @@
 #define SYS_WDT_RESET_STATUS   0x44000104u
 
 /* SYS_CTRL bits[5:0] = 0x26: vendor bootloader's WDT clock/reset config
- * (bk-official-bootloader-reverse.md §2.4, sub_2000FE4: bic.w r1,r3,#0x3F
- * then orr.w ip,r1,#0x26). */
+ * (bk-official-bootloader-reverse.md §2.4, sub_2000FE4: bic.w r1, r3, #0x3F
+ * then orr.w ip, r1, #0x26). */
 #define WDT_SYSCTRL_MASK  0x3Fu
 #define WDT_SYSCTRL_VAL   0x26u
 

@@ -195,7 +195,9 @@ def _palette(document: dict[str, object]) -> tuple[tuple[int, int, int], ...]:
     for index, color in enumerate(value):
         if not isinstance(color, str) or _HEX_COLOR.fullmatch(color) is None:
             raise EyePackError(f"palette[{index}] must be #RRGGBB")
-        result.append(tuple(int(color[offset:offset + 2], 16) for offset in (1, 3, 5)))
+        result.append(
+            tuple(int(color[offset : offset + 2], 16) for offset in (1, 3, 5))
+        )
     return tuple(result)
 
 
@@ -236,7 +238,7 @@ def _draw_rectangle(
     row = bytes([color]) * (x1 - x0)
     for line in range(y0, y1):
         start = line * width + x0
-        pixels[start:start + len(row)] = row
+        pixels[start : start + len(row)] = row
 
 
 def _draw_ellipse(
@@ -326,38 +328,60 @@ def _render_expression(
     bitmap = expression.get("bitmap")
     if bitmap is not None:
         if "background" in expression or "layers" in expression:
-            raise EyePackError(f"{label} bitmap cannot be combined with background/layers")
-        spec = _require_keys(bitmap, required={"path", "sha256", "crop"}, label=f"{label}.bitmap")
+            raise EyePackError(
+                f"{label} bitmap cannot be combined with background/layers"
+            )
+        spec = _require_keys(
+            bitmap, required={"path", "sha256", "crop"}, label=f"{label}.bitmap"
+        )
         path = spec["path"]
         digest = spec["sha256"]
         crop = spec["crop"]
         if not isinstance(path, str) or not path or Path(path).is_absolute():
             raise EyePackError(f"{label}.bitmap.path must be a relative path")
-        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None:
+        if (
+            not isinstance(digest, str)
+            or re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None
+        ):
             raise EyePackError(f"{label}.bitmap.sha256 must be 64 hex characters")
         bitmap_path = (source_dir / path).resolve()
         try:
             bitmap_path.relative_to(source_dir.resolve())
         except ValueError as error:
-            raise EyePackError(f"{label}.bitmap.path escapes the source directory") from error
+            raise EyePackError(
+                f"{label}.bitmap.path escapes the source directory"
+            ) from error
         raw = _regular(bitmap_path, f"{label}.bitmap.path").read_bytes()
         if hashlib.sha256(raw).hexdigest().lower() != digest.lower():
             raise EyePackError(f"{label}.bitmap.sha256 does not match the PNG")
-        if not isinstance(crop, list) or len(crop) != 4 or any(
-            isinstance(value, bool) or not isinstance(value, int) for value in crop
+        if (
+            not isinstance(crop, list)
+            or len(crop) != 4
+            or any(
+                isinstance(value, bool) or not isinstance(value, int) for value in crop
+            )
         ):
             raise EyePackError(f"{label}.bitmap.crop must be [x,y,width,height]")
         try:
             from PIL import Image
+
             with Image.open(bitmap_path) as image:
                 if image.format != "PNG":
                     raise EyePackError(f"{label}.bitmap.path must be a PNG")
                 image.load()
                 x, y, crop_width, crop_height = crop
-                if x < 0 or y < 0 or crop_width <= 0 or crop_height <= 0 \
-                        or x + crop_width > image.width or y + crop_height > image.height:
+                if (
+                    x < 0
+                    or y < 0
+                    or crop_width <= 0
+                    or crop_height <= 0
+                    or x + crop_width > image.width
+                    or y + crop_height > image.height
+                ):
                     raise EyePackError(f"{label}.bitmap.crop is outside the PNG")
-                image = image.convert("RGBA").crop((x, y, x + crop_width, y + crop_height))
+                image = image.convert("RGBA").crop(
+                    (x, y, x + crop_width, y + crop_height)
+                )
                 if "A" in image.getbands():
                     background = Image.new("RGBA", image.size, (*palette[0], 255))
                     image = Image.alpha_composite(background, image)
@@ -366,16 +390,23 @@ def _render_expression(
                 colors = tuple(palette)
                 pixels = bytearray()
                 for red, green, blue in image.getdata():
-                    pixels.append(min(range(len(colors)), key=lambda i:
-                        (red - colors[i][0]) ** 2 + (green - colors[i][1]) ** 2 +
-                        (blue - colors[i][2]) ** 2))
+                    pixels.append(
+                        min(
+                            range(len(colors)),
+                            key=lambda i: (red - colors[i][0]) ** 2
+                            + (green - colors[i][1]) ** 2
+                            + (blue - colors[i][2]) ** 2,
+                        )
+                    )
                 return bytes(pixels)
         except EyePackError:
             raise
         except (OSError, ValueError, RuntimeError) as error:
             raise EyePackError(f"{label}.bitmap PNG decode failed: {error}") from error
         except ImportError as error:
-            raise EyePackError("bitmap input requires Pillow; install it for PNG import") from error
+            raise EyePackError(
+                "bitmap input requires Pillow; install it for PNG import"
+            ) from error
     if "bitmap" in expression:
         raise EyePackError(f"{label}.bitmap must be an object")
     background = _color(expression["background"], palette_count, f"{label}.background")
@@ -412,8 +443,9 @@ def _rle8(data: bytes) -> bytes:
     while offset < len(data):
         value = data[offset]
         count = 1
-        while offset + count < len(data) and count < 255 \
-                and data[offset + count] == value:
+        while (
+            offset + count < len(data) and count < 255 and data[offset + count] == value
+        ):
             count += 1
         output.extend((count, value))
         offset += count
@@ -470,8 +502,13 @@ def _source_entries(
     root = _require_keys(
         document,
         required={
-            "format", "pack_id", "revision", "renderer_api", "canvas",
-            "palette", "expressions",
+            "format",
+            "pack_id",
+            "revision",
+            "renderer_api",
+            "canvas",
+            "palette",
+            "expressions",
         },
         optional={"description"},
         label="eye source",
@@ -485,15 +522,13 @@ def _source_entries(
     pack_id = root["pack_id"]
     if not isinstance(pack_id, str) or _PACK_ID.fullmatch(pack_id) is None:
         raise EyePackError("pack_id must match [a-z0-9][a-z0-9._-]{0,30}")
-    revision = _integer(root["revision"], 1, 0xffffffff, "revision")
-    renderer_api = _integer(root["renderer_api"], 1, 0xffff, "renderer_api")
+    revision = _integer(root["revision"], 1, 0xFFFFFFFF, "revision")
+    renderer_api = _integer(root["renderer_api"], 1, 0xFFFF, "renderer_api")
     if renderer_api != RENDERER_API:
         raise EyePackError(f"renderer_api must be {RENDERER_API}")
-    canvas = _require_keys(
-        root["canvas"], required={"width", "height"}, label="canvas"
-    )
-    width = _integer(canvas["width"], 1, 0xffff, "canvas.width")
-    height = _integer(canvas["height"], 1, 0xffff, "canvas.height")
+    canvas = _require_keys(root["canvas"], required={"width", "height"}, label="canvas")
+    width = _integer(canvas["width"], 1, 0xFFFF, "canvas.width")
+    height = _integer(canvas["height"], 1, 0xFFFF, "canvas.height")
     if (width, height) != (CANVAS_WIDTH, CANVAS_HEIGHT):
         raise EyePackError(
             f"canvas must be {CANVAS_WIDTH}x{CANVAS_HEIGHT} for the AIDK panels"
@@ -531,8 +566,10 @@ def _source_entries(
             label=label,
         )
         expression_id = expression["id"]
-        if not isinstance(expression_id, str) \
-                or _EXPRESSION_ID.fullmatch(expression_id) is None:
+        if (
+            not isinstance(expression_id, str)
+            or _EXPRESSION_ID.fullmatch(expression_id) is None
+        ):
             raise EyePackError(f"{label}.id has an invalid identifier")
         side = _side(expression["side"], f"{label}.side")
         mirror = _boolean(expression["mirror_for_right"], f"{label}.mirror_for_right")
@@ -546,8 +583,12 @@ def _source_entries(
         has_neutral = has_neutral or expression_id == "neutral"
         has_bitmap = "bitmap" in expression
         if has_bitmap and ("background" in expression or "layers" in expression):
-            raise EyePackError(f"{label} bitmap cannot be combined with background/layers")
-        if not has_bitmap and ("background" not in expression or "layers" not in expression):
+            raise EyePackError(
+                f"{label} bitmap cannot be combined with background/layers"
+            )
+        if not has_bitmap and (
+            "background" not in expression or "layers" not in expression
+        ):
             raise EyePackError(f"{label} requires bitmap or background/layers")
         decoded = _render_expression(
             expression,
@@ -639,7 +680,7 @@ def _assemble(
                 offset,
                 len(row.stored),
                 len(row.decoded),
-                binascii.crc32(row.decoded) & 0xffffffff,
+                binascii.crc32(row.decoded) & 0xFFFFFFFF,
                 0,
             )
         )
@@ -660,8 +701,8 @@ def _assemble(
         toc_offset,
         payload_offset,
         total_size,
-        binascii.crc32(toc) & 0xffffffff,
-        binascii.crc32(payload) & 0xffffffff,
+        binascii.crc32(toc) & 0xFFFFFFFF,
+        binascii.crc32(payload) & 0xFFFFFFFF,
         _padded_ascii(pack_id, 32, "pack_id"),
         hashlib.sha256(canonical_source).digest(),
         bytes(16),
@@ -701,16 +742,17 @@ def _png_chunk(kind: bytes, data: bytes) -> bytes:
         struct.pack(">I", len(data))
         + kind
         + data
-        + struct.pack(">I", binascii.crc32(kind + data) & 0xffffffff)
+        + struct.pack(">I", binascii.crc32(kind + data) & 0xFFFFFFFF)
     )
 
 
-def _png(indexes: bytes, width: int, height: int,
-         palette: tuple[tuple[int, int, int], ...]) -> bytes:
+def _png(
+    indexes: bytes, width: int, height: int, palette: tuple[tuple[int, int, int], ...]
+) -> bytes:
     rows = bytearray()
     for y in range(height):
         rows.append(0)
-        for index in indexes[y * width:(y + 1) * width]:
+        for index in indexes[y * width : (y + 1) * width]:
             rows.extend(palette[index])
     header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     return (
@@ -724,7 +766,7 @@ def _png(indexes: bytes, width: int, height: int,
 def _mirror(indexes: bytes, width: int, height: int) -> bytes:
     output = bytearray()
     for y in range(height):
-        row = indexes[y * width:(y + 1) * width]
+        row = indexes[y * width : (y + 1) * width]
         output.extend(reversed(row))
     return bytes(output)
 
@@ -746,8 +788,11 @@ def _write_previews(
             stem = row.name.removeprefix("expression/").replace("/", "-")
             if row.side == SIDE_SHARED:
                 left = row.decoded
-                right = _mirror(left, row.width, row.height) \
-                    if row.flags & ENTRY_FLAG_MIRROR_FOR_RIGHT else left
+                right = (
+                    _mirror(left, row.width, row.height)
+                    if row.flags & ENTRY_FLAG_MIRROR_FOR_RIGHT
+                    else left
+                )
                 (temporary / f"{stem}-left.png").write_bytes(
                     _png(left, row.width, row.height, palette)
                 )
@@ -776,9 +821,7 @@ def build(source: Path, output: Path, preview_dir: Path | None = None) -> EyePac
     if preview_dir is not None:
         selected_preview = preview_dir.absolute()
         if selected_preview.exists() or selected_preview.is_symlink():
-            raise EyePackError(
-                f"preview directory already exists: {selected_preview}"
-            )
+            raise EyePackError(f"preview directory already exists: {selected_preview}")
     document = _decode_text(source)
     pack_id, revision, renderer_api, canonical, palette, entries = _source_entries(
         document, source.parent
@@ -808,9 +851,24 @@ def verify(path: Path) -> EyePackReport:
     data = selected.read_bytes()
     unpacked = HEADER.unpack_from(data)
     (
-        magic, version, header_size, entry_size, entry_count, width, height,
-        renderer_api, flags, revision, toc_offset, payload_offset, total_size,
-        toc_crc32, payload_crc32, pack_id_raw, source_sha256, reserved,
+        magic,
+        version,
+        header_size,
+        entry_size,
+        entry_count,
+        width,
+        height,
+        renderer_api,
+        flags,
+        revision,
+        toc_offset,
+        payload_offset,
+        total_size,
+        toc_crc32,
+        payload_crc32,
+        pack_id_raw,
+        source_sha256,
+        reserved,
     ) = unpacked
     if magic != PACK_MAGIC or version != PACK_VERSION:
         raise EyePackError("unsupported eye pack magic/version")
@@ -825,16 +883,19 @@ def verify(path: Path) -> EyePackReport:
     if any(reserved) or source_sha256 == bytes(32):
         raise EyePackError("eye pack reserved/source identity fields are invalid")
     expected_payload = _align(HEADER.size + entry_count * ENTRY.size)
-    if toc_offset != HEADER.size or payload_offset != expected_payload \
-            or total_size != len(data):
+    if (
+        toc_offset != HEADER.size
+        or payload_offset != expected_payload
+        or total_size != len(data)
+    ):
         raise EyePackError("eye pack offsets or total size are inconsistent")
-    toc = data[toc_offset:toc_offset + entry_count * ENTRY.size]
-    if binascii.crc32(toc) & 0xffffffff != toc_crc32:
+    toc = data[toc_offset : toc_offset + entry_count * ENTRY.size]
+    if binascii.crc32(toc) & 0xFFFFFFFF != toc_crc32:
         raise EyePackError("eye pack TOC CRC changed")
-    if any(data[toc_offset + len(toc):payload_offset]):
+    if any(data[toc_offset + len(toc) : payload_offset]):
         raise EyePackError("eye pack TOC padding is not zero")
     payload = data[payload_offset:]
-    if binascii.crc32(payload) & 0xffffffff != payload_crc32:
+    if binascii.crc32(payload) & 0xFFFFFFFF != payload_crc32:
         raise EyePackError("eye pack payload CRC changed")
     pack_id = _read_padded_ascii(pack_id_raw, _PACK_ID, "pack_id")
 
@@ -848,17 +909,30 @@ def verify(path: Path) -> EyePackReport:
     for index in range(entry_count):
         values = ENTRY.unpack_from(toc, index * ENTRY.size)
         (
-            name_raw, kind, codec, pixel_format, side, entry_flags,
-            entry_width, entry_height, palette_count, offset, stored_size,
-            decoded_size, crc32, entry_reserved,
+            name_raw,
+            kind,
+            codec,
+            pixel_format,
+            side,
+            entry_flags,
+            entry_width,
+            entry_height,
+            palette_count,
+            offset,
+            stored_size,
+            decoded_size,
+            crc32,
+            entry_reserved,
         ) = values
         name = _read_padded_ascii(name_raw, _ENTRY_NAME, f"entry[{index}].name")
         if name in names:
             raise EyePackError(f"duplicate eye pack entry: {name}")
         names.add(name)
-        if side not in {SIDE_SHARED, SIDE_LEFT, SIDE_RIGHT} \
-                or entry_flags & ~ENTRY_FLAG_MIRROR_FOR_RIGHT \
-                or (entry_flags and side != SIDE_SHARED):
+        if (
+            side not in {SIDE_SHARED, SIDE_LEFT, SIDE_RIGHT}
+            or entry_flags & ~ENTRY_FLAG_MIRROR_FOR_RIGHT
+            or (entry_flags and side != SIDE_SHARED)
+        ):
             raise EyePackError(f"{name} has invalid side/flags")
         if entry_reserved != 0 or stored_size == 0 or decoded_size == 0:
             raise EyePackError(f"{name} has invalid size/reserved fields")
@@ -867,24 +941,33 @@ def verify(path: Path) -> EyePackReport:
             raise EyePackError(f"{name} has an invalid or overlapping payload range")
         if any(data[cursor:offset]):
             raise EyePackError(f"{name} payload alignment padding is not zero")
-        stored = data[offset:offset + stored_size]
+        stored = data[offset : offset + stored_size]
         if kind == KIND_PALETTE:
-            if index != 0 or name != "palette/default" or codec != CODEC_RAW \
-                    or pixel_format != PIXEL_RGB565LE or side != SIDE_SHARED \
-                    or entry_flags != 0 or entry_width != 0 or entry_height != 0 \
-                    or not 2 <= palette_count <= 256 \
-                    or decoded_size != palette_count * 2:
+            if (
+                index != 0
+                or name != "palette/default"
+                or codec != CODEC_RAW
+                or pixel_format != PIXEL_RGB565LE
+                or side != SIDE_SHARED
+                or entry_flags != 0
+                or entry_width != 0
+                or entry_height != 0
+                or not 2 <= palette_count <= 256
+                or decoded_size != palette_count * 2
+            ):
                 raise EyePackError("eye pack default palette contract is invalid")
         elif kind == KIND_INDEXED_FRAME:
-            if codec not in {CODEC_RAW, CODEC_RLE8} \
-                    or pixel_format != PIXEL_INDEX8 \
-                    or (entry_width, entry_height) != (width, height) \
-                    or palette_count != 0 or decoded_size != width * height \
-                    or not name.startswith("expression/"):
+            if (
+                codec not in {CODEC_RAW, CODEC_RLE8}
+                or pixel_format != PIXEL_INDEX8
+                or (entry_width, entry_height) != (width, height)
+                or palette_count != 0
+                or decoded_size != width * height
+                or not name.startswith("expression/")
+            ):
                 raise EyePackError(f"{name} indexed-frame contract is invalid")
             parts = name.split("/")
-            if len(parts) not in {2, 3} \
-                    or _EXPRESSION_ID.fullmatch(parts[1]) is None:
+            if len(parts) not in {2, 3} or _EXPRESSION_ID.fullmatch(parts[1]) is None:
                 raise EyePackError(f"{name} has an invalid expression identity")
             if side == SIDE_SHARED:
                 if len(parts) != 2:
@@ -902,21 +985,44 @@ def verify(path: Path) -> EyePackReport:
             raise EyePackError(f"{name} has unsupported entry kind {kind}")
         decoded = _decode_entry(
             EntryInfo(
-                name, kind, codec, pixel_format, side, entry_flags,
-                entry_width, entry_height, palette_count, offset, stored_size,
-                decoded_size, crc32,
+                name,
+                kind,
+                codec,
+                pixel_format,
+                side,
+                entry_flags,
+                entry_width,
+                entry_height,
+                palette_count,
+                offset,
+                stored_size,
+                decoded_size,
+                crc32,
             ),
             stored,
         )
-        if binascii.crc32(decoded) & 0xffffffff != crc32:
+        if binascii.crc32(decoded) & 0xFFFFFFFF != crc32:
             raise EyePackError(f"{name} decoded CRC changed")
-        if kind == KIND_INDEXED_FRAME \
-                and decoded and max(decoded) >= entries[0].palette_count:
+        if (
+            kind == KIND_INDEXED_FRAME
+            and decoded
+            and max(decoded) >= entries[0].palette_count
+        ):
             raise EyePackError(f"{name} references a missing palette color")
         info = EntryInfo(
-            name, kind, codec, pixel_format, side, entry_flags,
-            entry_width, entry_height, palette_count, offset, stored_size,
-            decoded_size, crc32,
+            name,
+            kind,
+            codec,
+            pixel_format,
+            side,
+            entry_flags,
+            entry_width,
+            entry_height,
+            palette_count,
+            offset,
+            stored_size,
+            decoded_size,
+            crc32,
         )
         entries.append(info)
         decoded_total += decoded_size
@@ -925,13 +1031,9 @@ def verify(path: Path) -> EyePackReport:
         raise EyePackError("eye pack has unreferenced trailing bytes")
     for expression_id, sides in sides_by_expression.items():
         if SIDE_SHARED in sides and sides != {SIDE_SHARED}:
-            raise EyePackError(
-                f"{expression_id} mixes shared and side-specific frames"
-            )
+            raise EyePackError(f"{expression_id} mixes shared and side-specific frames")
         if SIDE_SHARED not in sides and sides != {SIDE_LEFT, SIDE_RIGHT}:
-            raise EyePackError(
-                f"{expression_id} lacks a left or right frame"
-            )
+            raise EyePackError(f"{expression_id} lacks a left or right frame")
     if not neutral:
         raise EyePackError("eye pack has no neutral expression")
     return EyePackReport(

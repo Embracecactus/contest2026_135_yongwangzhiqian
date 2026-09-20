@@ -1,6 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <manifest>
-  <!-- 2026-09-20 Linux 构建依赖快照；未检出的 Windows/macOS 工具不作复现承诺。 -->
+  <!-- 2026-09-20 Linux build-dependency snapshot; no reproduction is promised
+       for Windows/macOS tools that are not checked out. -->
   <remote fetch="../open-vela/" name="openvela"/>
   <remote fetch="../" name="git"/>
   <default remote="openvela" revision="dev-ai-contest-2026"/>

@@ -8,13 +8,14 @@ import subprocess
 import sys
 import tempfile
 
-DEFAULT_SOURCE = (pathlib.Path(__file__).parents[3] /
-                  "chips/bk7258/ap/bk7258_sdio.c")
+DEFAULT_SOURCE = pathlib.Path(__file__).parents[3] / "chips/bk7258/ap/bk7258_sdio.c"
+
 
 def extract(source: pathlib.Path):
     text = source.read_text()
-    starts = [m.start() for m in re.finditer(
-        r"static int bk7258_sdio_sendsetup\(", text)]
+    starts = [
+        m.start() for m in re.finditer(r"static int bk7258_sdio_sendsetup\(", text)
+    ]
     if len(starts) < 2:
         raise RuntimeError("sendsetup definition not found")
     start = starts[-1]
@@ -33,15 +34,17 @@ def extract(source: pathlib.Path):
     function = text[start:end]
     declaration = re.search(
         r"#ifdef CONFIG_SDIO_GDMA_EN\s*static uint32_t g_sdio_tx_sram\[8192 / sizeof\(uint32_t\)\];\s*#endif",
-        text)
+        text,
+    )
     if not declaration:
         raise RuntimeError("real g_sdio_tx_sram declaration not found")
     return declaration.group(0) + "\n", function
 
+
 def main():
     source = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SOURCE
     decl, function = extract(source)
-    harness = r'''#include <errno.h>
+    harness = r"""#include <errno.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -92,8 +95,8 @@ static void leave_critical_section(irqstate_t f) { (void)f; }
 static void bk_sdio_host_reset_sd_state(void) {}
 static bk_err_t bk_sdio_host_write_fifo(const uint8_t *p, uint32_t n)
 { write_ptr = p; write_len = n; if (n <= sizeof(write_copy)) memcpy(write_copy, p, n); return write_result; }
-'''
-    main = r'''
+"""
+    main = r"""
 static void reset_case(struct bk7258_sdio_priv_s *p, size_t n)
 {
   memset(p, 0, sizeof(*p)); p->initialized = true; p->blocklen = 512; p->nblocks = n / 512;
@@ -119,14 +122,17 @@ int main(void)
   reset_case(&p, 512); dma_enabled = 1; expect(bk7258_sdio_sendsetup(&p.dev, src, 512) < 0, "armed DMA rejected"); expect(stop_calls == 1 && disable_calls == 1 && finish_stop_seen == 1 && finish_disable_seen == 1, "armed DMA cleanup before return");
   puts("PASS"); return 0;
 }
-'''
+"""
     with tempfile.TemporaryDirectory() as td:
         c = pathlib.Path(td) / "test.c"
         exe = pathlib.Path(td) / "test"
         c.write_text(harness + decl + function + main)
-        subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
-                        str(c), "-o", str(exe)], check=True)
+        subprocess.run(
+            ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", str(c), "-o", str(exe)],
+            check=True,
+        )
         subprocess.run([str(exe)], check=True)
+
 
 if __name__ == "__main__":
     main()

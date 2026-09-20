@@ -104,9 +104,7 @@ def unique_port(explicit: str | None, vid: int, pid: int, label: str) -> str:
     return matches[0]
 
 
-def open_package(
-    package: Path, expected_board: str | None = None
-) -> PackageObjects:
+def open_package(package: Path, expected_board: str | None = None) -> PackageObjects:
     """Read one verified package through the maintainer package codec.
 
     ``package_domain.trust_material`` runs the complete structural and
@@ -159,7 +157,9 @@ def read_exact(port: serial.Serial, size: int, deadline: float) -> bytes:
     output = bytearray()
     while len(output) < size:
         if time.monotonic() >= deadline:
-            raise TimeoutError(f"serial receive timed out after {len(output)}/{size} bytes")
+            raise TimeoutError(
+                f"serial receive timed out after {len(output)}/{size} bytes"
+            )
         chunk = port.read(size - len(output))
         if chunk:
             output.extend(chunk)
@@ -269,13 +269,9 @@ def open_native_port(port_name: str, timeout: float) -> serial.Serial:
                 port._port_handle = handle
                 try:
                     port._overlapped_read = win32.OVERLAPPED()
-                    port._overlapped_read.hEvent = win32.CreateEvent(
-                        None, 1, 0, None
-                    )
+                    port._overlapped_read.hEvent = win32.CreateEvent(None, 1, 0, None)
                     port._overlapped_write = win32.OVERLAPPED()
-                    port._overlapped_write.hEvent = win32.CreateEvent(
-                        None, 0, 0, None
-                    )
+                    port._overlapped_write.hEvent = win32.CreateEvent(None, 0, 0, None)
                     win32.SetupComm(handle, 4096, 4096)
                     port._orgTimeouts = win32.COMMTIMEOUTS()
                     win32.GetCommTimeouts(handle, ctypes.byref(port._orgTimeouts))
@@ -288,9 +284,7 @@ def open_native_port(port_name: str, timeout: float) -> serial.Serial:
                     raise
                 port.is_open = True
             else:
-                port = serial.Serial(
-                    port_name, 115200, timeout=0.1, write_timeout=5.0
-                )
+                port = serial.Serial(port_name, 115200, timeout=0.1, write_timeout=5.0)
             print(f"BK7258 USB OTA: opened port={port_name}", flush=True)
             return port
         except (OSError, serial.SerialException) as error:
@@ -345,7 +339,9 @@ def stream_package(
         write_frame(port, START, sequence, payload=metadata)
         reply = read_frame(port, 5.0)
         if reply.kind != ACK or reply.sequence != sequence or reply.status != 0:
-            raise RuntimeError(f"target rejected OTA start: type={reply.kind} status={reply.status}")
+            raise RuntimeError(
+                f"target rejected OTA start: type={reply.kind} status={reply.status}"
+            )
 
         print(
             f"BK7258 USB OTA: connected port={port_name} "
@@ -376,7 +372,11 @@ def stream_package(
                     payload=payload,
                 )
             elif frame.kind == PROGRESS:
-                total = struct.unpack("<I", frame.payload)[0] if len(frame.payload) == 4 else 0
+                total = (
+                    struct.unpack("<I", frame.payload)[0]
+                    if len(frame.payload) == 4
+                    else 0
+                )
                 print(
                     f"BK7258 USB OTA: phase={frame.obj} image={frame.offset} "
                     f"progress={frame.value}/{total}",

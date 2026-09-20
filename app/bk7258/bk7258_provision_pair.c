@@ -8,7 +8,7 @@
 static uint32_t get32(const uint8_t *p)
 { return ((uint32_t)p[0]<<24) | ((uint32_t)p[1]<<16) | ((uint32_t)p[2]<<8) | p[3]; }
 static void put32(uint8_t *p, uint32_t n)
-{ p[0]=n>>24; p[1]=n>>16; p[2]=n>>8; p[3]=n; }
+{ p[0] = n>>24; p[1] = n>>16; p[2] = n>>8; p[3] = n; }
 
 /* Recovery has no mutation backend. Even accidental state-machine dispatch
  * cannot call Wi-Fi or persist a candidate. */
@@ -40,10 +40,10 @@ int bkprov_pair_start(struct bkprov_pair_s *pair, uint32_t generation,
   int ret;
   if (pair == NULL || now_ms == NULL) return -EINVAL;
   if (pair->tls.initialized || pair->claim.state != BKPROV_CLOSED) return -EBUSY;
-  ret = bkprov_claim_open(&pair->claim,generation,secret,local_action,
-                          already_claimed,now_ms(clock_context),ops,context);
+  ret = bkprov_claim_open(&pair->claim, generation, secret, local_action,
+                          already_claimed, now_ms(clock_context), ops, context);
   if (ret < 0) return ret;
-  ret = bkprov_tls_start(&pair->tls,generation,certificate,key,now_ms,clock_context);
+  ret = bkprov_tls_start(&pair->tls, generation, certificate, key, now_ms, clock_context);
   if (ret < 0) { bkprov_pair_close(pair); return ret; }
   pair->expected = 32;
   pair->reported_state = BKPROV_AUTH;
@@ -90,8 +90,8 @@ static int packet(struct bkprov_pair_s *pair)
     {
       if (pair->claim.state != BKPROV_AUTH || sequence != 0 || size != 32)
         return -EPROTO;
-      memcpy(pair->transaction,p+12,16);
-      ret = bkprov_claim_auth(&pair->claim,tls->generation,p+12,p+32);
+      memcpy(pair->transaction, p+12, 16);
+      ret = bkprov_claim_auth(&pair->claim, tls->generation, p+12, p+32);
       if (ret == 0 && p[4] == 7 && pair->scan_tls)
         {
           if (pair->rebind_ops == NULL) return -ENOTSUP;
@@ -105,11 +105,13 @@ static int packet(struct bkprov_pair_s *pair)
     }
   else
     {
-      if (memcmp(pair->transaction,p+12,16) || pair->claim.state < BKPROV_READY ||
+      if (memcmp(pair->transaction, p+12, 16) || pair->claim.state < BKPROV_READY ||
           pair->claim.state >= BKPROV_CHECKING) return -EPROTO;
       if (pair->scan_pending || pair->scan_report || pair->scan_session)
         return -EPROTO;
-      /* 普通 AUTH 仍只读；显式恢复通过后才接入原有配置事务。 */
+      /* Ordinary AUTH stays read-only; the existing configuration
+       * transaction is entered only after an explicit recovery succeeds.
+       */
       if (pair->scan_tls && !pair->rebind && p[4] != 6) return -EACCES;
       if (p[4] == 6)
         {
@@ -137,13 +139,13 @@ static int packet(struct bkprov_pair_s *pair)
       switch (p[4])
         {
           case 2:
-            ret = size == 4 ? bkprov_claim_begin(&pair->claim,sequence,get32(p+32)) : -EPROTO;
+            ret = size == 4 ? bkprov_claim_begin(&pair->claim, sequence, get32(p+32)) : -EPROTO;
             break;
           case 3:
-            ret = size > 4 ? bkprov_claim_data(&pair->claim,sequence,get32(p+32),p+36,size-4) : -EPROTO;
+            ret = size > 4 ? bkprov_claim_data(&pair->claim, sequence, get32(p+32), p+36, size-4) : -EPROTO;
             break;
           case 4:
-            ret = size == 0 ? bkprov_claim_apply(&pair->claim,sequence) : -EPROTO;
+            ret = size == 0 ? bkprov_claim_apply(&pair->claim, sequence) : -EPROTO;
             break;
           default: return -EPROTO;
         }
@@ -164,8 +166,8 @@ static int report(struct bkprov_pair_s *pair)
   memset(response, 0, 904);
   memcpy(response, "SPV1", 4);
   response[4] = pair->scan_report ? 129 : 128;
-  put32(response+8,pair->request_sequence);
-  memcpy(response+12,pair->transaction,16);
+  put32(response+8, pair->request_sequence);
+  memcpy(response+12, pair->transaction, 16);
   if (pair->scan_report)
     {
       put32(response + 28, 8 + pair->scan.count * 36u);
@@ -186,9 +188,9 @@ static int report(struct bkprov_pair_s *pair)
     }
   else
     {
-      put32(response+28,8);
-      put32(response+32,pair->claim.state);
-      put32(response+36,(uint32_t)pair->claim.error);
+      put32(response+28, 8);
+      put32(response+32, pair->claim.state);
+      put32(response+36, (uint32_t)pair->claim.error);
       if (pair->report_key && pair->claim.state == BKPROV_READY)
         {
           put32(response + 28, 40);
@@ -197,7 +199,7 @@ static int report(struct bkprov_pair_s *pair)
         }
     }
   ret = bkprov_tls_queue(pair->scan_tls ? pair->scan_tls : &pair->tls,
-                          response,size);
+                          response, size);
   if (ret == 0)
     {
       mbedtls_platform_zeroize(pair->rebind_key, 32);
@@ -214,7 +216,7 @@ int bkprov_pair_confirm(struct bkprov_pair_s *pair, uint32_t generation)
 {
   int ret;
   if (pair == NULL) return -EINVAL;
-  ret = bkprov_claim_confirm(&pair->claim,generation);
+  ret = bkprov_claim_confirm(&pair->claim, generation);
   if (ret == 0) pair->report = true;
   return ret;
 }
@@ -228,7 +230,7 @@ int bkprov_pair_step(struct bkprov_pair_s *pair)
   if (!tls->initialized) return -ENOTCONN;
   /* Snapshot the transport clock before TLS step can free its context. */
   uint64_t now = tls->now_ms(tls->clock_context);
-  (void)bkprov_claim_step(&pair->claim,bkprov_gatt_generation(),now);
+  (void)bkprov_claim_step(&pair->claim, bkprov_gatt_generation(), now);
   ret = bkprov_tls_step(tls);
   if (ret < 0) goto fail;
   if (ret == 0) return 0;
@@ -269,7 +271,7 @@ int bkprov_pair_step(struct bkprov_pair_s *pair)
        */
       return 0;
     }
-  received = bkprov_tls_read(tls,pair->input+pair->input_size,
+  received = bkprov_tls_read(tls, pair->input+pair->input_size,
                               pair->expected-pair->input_size);
   if (received == -EAGAIN) return 0;
   if (received < 0) { ret = (int)received; goto fail; }
@@ -277,14 +279,14 @@ int bkprov_pair_step(struct bkprov_pair_s *pair)
   if (pair->input_size < pair->expected) return 0;
   if (pair->expected == 32)
     {
-      if (memcmp(pair->input,"SPV1",4) || pair->input[5] ||
+      if (memcmp(pair->input, "SPV1", 4) || pair->input[5] ||
           pair->input[6] || pair->input[7] || get32(pair->input+28)>1024)
         { ret = -EPROTO; goto fail; }
       pair->expected = 32+get32(pair->input+28);
       if (pair->expected != 32) return 0;
     }
   ret = packet(pair);
-  mbedtls_platform_zeroize(pair->input,sizeof(pair->input));
+  mbedtls_platform_zeroize(pair->input, sizeof(pair->input));
   pair->input_size = 0; pair->expected = 32;
   if (ret < 0) goto fail;
   return 0;

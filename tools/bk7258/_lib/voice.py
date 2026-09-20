@@ -45,7 +45,9 @@ _DEVICE_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", re.ASCII)
 _CONSOLE_TOKEN_RE = re.compile(r"[A-Za-z0-9._~-]{32,256}", re.ASCII)
 
 
-def add_arguments(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+def add_arguments(
+    commands: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
     """Register the sole private RAM-provisioning subcommand for bk7258.py."""
 
     provision = commands.add_parser(
@@ -59,11 +61,17 @@ def add_arguments(commands: argparse._SubParsersAction[argparse.ArgumentParser])
     provision.add_argument("--client-cert", type=Path, required=True)
     provision.add_argument("--client-key", type=Path, required=True)
     provision.add_argument("--openssl", type=Path, default=Path("openssl"))
-    pairing = commands.add_parser("pairing", help="supply a device TLS identity and write its private owner activation file")
+    pairing = commands.add_parser(
+        "pairing",
+        help="supply a device TLS identity and write its private owner activation file",
+    )
     pairing.add_argument("--console-port", required=True)
     pairing.add_argument("--device-id", required=True)
-    pairing.add_argument("--direct-cloud", action="store_true",
-                         help="write the four-field cloud bootstrap without a Gateway route")
+    pairing.add_argument(
+        "--direct-cloud",
+        action="store_true",
+        help="write the four-field cloud bootstrap without a Gateway route",
+    )
     pairing.add_argument("--host")
     pairing.add_argument("--peer")
     pairing.add_argument("--port", type=int)
@@ -71,8 +79,11 @@ def add_arguments(commands: argparse._SubParsersAction[argparse.ArgumentParser])
     pairing.add_argument("--client-cert", type=Path, required=True)
     pairing.add_argument("--client-key", type=Path, required=True)
     pairing.add_argument("--activation-output", type=Path, required=True)
-    pairing.add_argument("--resume", action="store_true",
-                         help="retry the exact identity from the existing activation file")
+    pairing.add_argument(
+        "--resume",
+        action="store_true",
+        help="retry the exact identity from the existing activation file",
+    )
     pairing.add_argument("--openssl", type=Path, default=Path("openssl"))
     enrollment = commands.add_parser(
         "console-enrollment",
@@ -80,14 +91,23 @@ def add_arguments(commands: argparse._SubParsersAction[argparse.ArgumentParser])
     )
     enrollment.add_argument("--device-id", required=True)
     enrollment.add_argument("--https-origin", required=True)
-    enrollment.add_argument("--spki-pin", action="append", required=True,
-                            help="canonical sha256/<base64-SPKI-digest>; repeat 1-8 times")
-    enrollment.add_argument("--token-file", type=Path, required=True,
-                            help="existing mode-0600 file containing only the bearer token")
+    enrollment.add_argument(
+        "--spki-pin",
+        action="append",
+        required=True,
+        help="canonical sha256/<base64-SPKI-digest>; repeat 1-8 times",
+    )
+    enrollment.add_argument(
+        "--token-file",
+        type=Path,
+        required=True,
+        help="existing mode-0600 file containing only the bearer token",
+    )
     enrollment.add_argument("--expires-at-ms", required=True)
     enrollment.add_argument("--output", type=Path, required=True)
     enrollment.add_argument(
-        "--access-output", type=Path,
+        "--access-output",
+        type=Path,
         help="also write a matching single-grant shaniu.console-access/1 registry",
     )
     voice_kws.add_arguments(commands)
@@ -122,7 +142,11 @@ def _read_der(openssl: Path, arguments: list[str], label: str) -> bytes:
 def _identity_parts(args: argparse.Namespace) -> tuple[bytes, bytes]:
     _regular(args.client_cert, "client certificate")
     _regular(args.client_key, "client key", private=True)
-    cert = _read_der(args.openssl, ["x509", "-in", str(args.client_cert), "-outform", "DER"], "certificate")
+    cert = _read_der(
+        args.openssl,
+        ["x509", "-in", str(args.client_cert), "-outform", "DER"],
+        "certificate",
+    )
     key = _read_der(
         args.openssl,
         ["pkcs8", "-topk8", "-nocrypt", "-in", str(args.client_key), "-outform", "DER"],
@@ -147,20 +171,42 @@ def _bundle(args: argparse.Namespace) -> bytes:
         peer = ipaddress.ip_address(args.peer)
     except (UnicodeEncodeError, ValueError) as error:
         raise VoiceProvisionError("gateway peer is invalid") from error
-    if (not isinstance(peer, ipaddress.IPv4Address) or not hostname or
-            peer.is_unspecified or peer.is_loopback or peer.is_multicast or
-            int(peer) == 0xFFFFFFFF):
+    if (
+        not isinstance(peer, ipaddress.IPv4Address)
+        or not hostname
+        or peer.is_unspecified
+        or peer.is_loopback
+        or peer.is_multicast
+        or int(peer) == 0xFFFFFFFF
+    ):
         raise VoiceProvisionError("gateway peer is invalid")
 
     _regular(args.server_ca, "server CA")
-    ca = _read_der(args.openssl, ["x509", "-in", str(args.server_ca), "-outform", "DER"], "CA")
+    ca = _read_der(
+        args.openssl, ["x509", "-in", str(args.server_ca), "-outform", "DER"], "CA"
+    )
     cert, key = _identity_parts(args)
     if len(hostname) > 127:
         raise VoiceProvisionError("gateway host is invalid")
-    record = _BVC1_HEADER.pack(
-        b"BVC1", 1, 0, int(time.time()), len(hostname), port,
-        peer.packed, len(ca), len(cert), len(key), 0,
-    ) + hostname + ca + cert + key
+    record = (
+        _BVC1_HEADER.pack(
+            b"BVC1",
+            1,
+            0,
+            int(time.time()),
+            len(hostname),
+            port,
+            peer.packed,
+            len(ca),
+            len(cert),
+            len(key),
+            0,
+        )
+        + hostname
+        + ca
+        + cert
+        + key
+    )
     if len(record) > _MAX_TOTAL:
         raise VoiceProvisionError("configuration exceeds RAM limit")
     return record
@@ -267,8 +313,9 @@ def _read_console_token(path: Path) -> str:
         raise VoiceProvisionError("console token is unavailable") from error
     try:
         info = os.fstat(descriptor)
-        if (not stat.S_ISREG(info.st_mode) or
-                (os.name == "posix" and (info.st_mode & 0o777) != 0o600)):
+        if not stat.S_ISREG(info.st_mode) or (
+            os.name == "posix" and (info.st_mode & 0o777) != 0o600
+        ):
             raise VoiceProvisionError("console token permissions are invalid")
         with os.fdopen(descriptor, "rb") as source:
             descriptor = -1
@@ -294,9 +341,15 @@ def _console_origin(value: object) -> str:
         port = parsed.port
     except ValueError as error:
         raise VoiceProvisionError("HTTPS origin is invalid") from error
-    if (parsed.scheme != "https" or not parsed.netloc or parsed.username is not None or
-            parsed.password is not None or parsed.path not in ("", "/") or
-            parsed.query or parsed.fragment):
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+    ):
         raise VoiceProvisionError("HTTPS origin is invalid")
     hostname = parsed.hostname
     if hostname is None:
@@ -342,22 +395,29 @@ def _console_enrollment(args: argparse.Namespace) -> dict[str, object]:
     # This command handles a bearer credential. Until a Windows DACL validator
     # is available, POSIX mode checks are the only audited private-file path.
     if os.name != "posix":
-        raise VoiceProvisionError("console enrollment requires a POSIX private-file host")
-    if not isinstance(args.device_id, str) or not _DEVICE_ID_RE.fullmatch(args.device_id):
+        raise VoiceProvisionError(
+            "console enrollment requires a POSIX private-file host"
+        )
+    if not isinstance(args.device_id, str) or not _DEVICE_ID_RE.fullmatch(
+        args.device_id
+    ):
         raise VoiceProvisionError("device identity is invalid")
     try:
         expires_at_ms = int(args.expires_at_ms)
     except (TypeError, ValueError) as error:
         raise VoiceProvisionError("console enrollment expiry is invalid") from error
-    if (not int(time.time() * 1000) < expires_at_ms <= (1 << 63) - 1 or
-            str(expires_at_ms) != args.expires_at_ms):
+    if (
+        not int(time.time() * 1000) < expires_at_ms <= (1 << 63) - 1
+        or str(expires_at_ms) != args.expires_at_ms
+    ):
         raise VoiceProvisionError("console enrollment expiry is invalid")
     origin = _console_origin(args.https_origin)
     pins = _console_pins(args.spki_pin)
     token = _read_console_token(args.token_file)
     access_output = getattr(args, "access_output", None)
-    if (access_output is not None and
-            os.path.abspath(access_output) == os.path.abspath(args.output)):
+    if access_output is not None and os.path.abspath(access_output) == os.path.abspath(
+        args.output
+    ):
         raise VoiceProvisionError("console output paths must be different")
     access_identity: tuple[int, int] | None = None
     try:
@@ -372,33 +432,51 @@ def _console_enrollment(args: argparse.Namespace) -> dict[str, object]:
         if access_output is not None:
             access = {
                 "format": "shaniu.console-access/1",
-                "grants": [{
-                    "token_sha256": hashlib.sha256(token.encode("ascii")).hexdigest(),
-                    "device_id": args.device_id,
-                    "write": True,
-                    "expires_at_ms": expires_at_ms,
-                }],
+                "grants": [
+                    {
+                        "token_sha256": hashlib.sha256(
+                            token.encode("ascii")
+                        ).hexdigest(),
+                        "device_id": args.device_id,
+                        "write": True,
+                        "expires_at_ms": expires_at_ms,
+                    }
+                ],
             }
-            _write_private(access_output, json.dumps(access, separators=(",", ":"),
-                                                         sort_keys=True).encode("utf-8"))
+            _write_private(
+                access_output,
+                json.dumps(access, separators=(",", ":"), sort_keys=True).encode(
+                    "utf-8"
+                ),
+            )
             created = access_output.lstat()
             access_identity = (created.st_dev, created.st_ino)
-        _write_private(args.output, json.dumps(enrollment, separators=(",", ":"),
-                                                sort_keys=True).encode("utf-8"))
+        _write_private(
+            args.output,
+            json.dumps(enrollment, separators=(",", ":"), sort_keys=True).encode(
+                "utf-8"
+            ),
+        )
     except (OSError, TypeError, ValueError) as error:
         if access_identity is not None:
             try:
                 current = access_output.lstat()
-                if (stat.S_ISREG(current.st_mode) and
-                        (current.st_dev, current.st_ino) == access_identity):
+                if (
+                    stat.S_ISREG(current.st_mode)
+                    and (current.st_dev, current.st_ino) == access_identity
+                ):
                     access_output.unlink()
             except OSError:
                 pass
         raise VoiceProvisionError("console enrollment write failed") from error
-    return {"status": "console-enrollment-written", "device_id": args.device_id,
-            "https_origin": origin, "spki_pins": len(pins),
-            "expires_at_ms": expires_at_ms,
-            "access_registry_written": access_output is not None}
+    return {
+        "status": "console-enrollment-written",
+        "device_id": args.device_id,
+        "https_origin": origin,
+        "spki_pins": len(pins),
+        "expires_at_ms": expires_at_ms,
+        "access_registry_written": access_output is not None,
+    }
 
 
 def _windows_path(path: Path) -> str:
@@ -406,8 +484,11 @@ def _windows_path(path: Path) -> str:
         return str(path)
     try:
         result = subprocess.run(
-            ["wslpath", "-w", str(path)], check=False,
-            capture_output=True, text=True, timeout=5,
+            ["wslpath", "-w", str(path)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise VoiceProvisionError("Windows path conversion failed") from error
@@ -421,16 +502,20 @@ def _powershell() -> str:
     executable = shutil.which("powershell.exe")
     if executable:
         return executable
-    fallback = (r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-                if os.name == "nt" else
-                "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")
+    fallback = (
+        r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+        if os.name == "nt"
+        else "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+    )
     if Path(fallback).is_file():
         return fallback
     raise VoiceProvisionError("PowerShell is unavailable")
 
 
 def _run_console(port: str, payload: bytes) -> None:
-    with tempfile.TemporaryDirectory(prefix="bk7258-voice-", ignore_cleanup_errors=True) as name:
+    with tempfile.TemporaryDirectory(
+        prefix="bk7258-voice-", ignore_cleanup_errors=True
+    ) as name:
         root = Path(name)
         os.chmod(root, 0o700)
         payload_path = root / "payload.bin"
@@ -441,10 +526,21 @@ def _run_console(port: str, payload: bytes) -> None:
             helper_windows = _windows_path(helper_path)
             payload_windows = _windows_path(payload_path)
             result = subprocess.run(
-                [_powershell(), "-NoProfile", "-ExecutionPolicy", "Bypass",
-                 "-File", helper_windows, "-Port", port,
-                 "-PayloadPath", payload_windows],
-                check=False, capture_output=True, timeout=125,
+                [
+                    _powershell(),
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    helper_windows,
+                    "-Port",
+                    port,
+                    "-PayloadPath",
+                    payload_windows,
+                ],
+                check=False,
+                capture_output=True,
+                timeout=125,
             )
         except (OSError, subprocess.TimeoutExpired) as error:
             raise VoiceProvisionError("console provisioning failed") from error
@@ -454,8 +550,15 @@ def _run_console(port: str, payload: bytes) -> None:
             except OSError:
                 pass
         if result.returncode != 0:
-            match = re.search(rb'BKVOICE_SUPPLY_ERROR stage=(open|ready|begin|chunk|commit) reason=(target-rejected:-?[0-9]+|unexpected target status|invalid target status|target status timeout|total timeout|transport failure)', result.stderr)
-            detail = match.group(0).decode('ascii') if match else 'unclassified transport failure'
+            match = re.search(
+                rb"BKVOICE_SUPPLY_ERROR stage=(open|ready|begin|chunk|commit) reason=(target-rejected:-?[0-9]+|unexpected target status|invalid target status|target status timeout|total timeout|transport failure)",
+                result.stderr,
+            )
+            detail = (
+                match.group(0).decode("ascii")
+                if match
+                else "unclassified transport failure"
+            )
             raise VoiceProvisionError("console provisioning failed: " + detail)
 
 
@@ -465,11 +568,16 @@ def _pairing(args: argparse.Namespace) -> dict[str, object]:
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", args.device_id):
         raise VoiceProvisionError("device identity is invalid")
     direct = bool(getattr(args, "direct_cloud", False))
-    if direct and any(getattr(args, name, None) is not None
-                      for name in ("host", "peer", "server_ca", "port")):
-        raise VoiceProvisionError("direct cloud mode does not accept Gateway parameters")
-    if not direct and any(getattr(args, name, None) is None
-                          for name in ("host", "peer", "server_ca")):
+    if direct and any(
+        getattr(args, name, None) is not None
+        for name in ("host", "peer", "server_ca", "port")
+    ):
+        raise VoiceProvisionError(
+            "direct cloud mode does not accept Gateway parameters"
+        )
+    if not direct and any(
+        getattr(args, name, None) is None for name in ("host", "peer", "server_ca")
+    ):
         raise VoiceProvisionError("Gateway parameters are required")
     source = bytearray() if direct else bytearray(_bundle(args))
     payload = bytearray()
@@ -478,25 +586,40 @@ def _pairing(args: argparse.Namespace) -> dict[str, object]:
     try:
         if direct:
             cert_bytes, key_bytes = _identity_parts(args)
-            cert.extend(cert_bytes); key.extend(key_bytes)
+            cert.extend(cert_bytes)
+            key.extend(key_bytes)
             ca = bytearray()
             cert_size, key_size = len(cert), len(key)
         else:
             fields = _BVC1_HEADER.unpack_from(source)
-            host_size, ca_size, cert_size, key_size = fields[4], fields[7], fields[8], fields[9]
+            host_size, ca_size, cert_size, key_size = (
+                fields[4],
+                fields[7],
+                fields[8],
+                fields[9],
+            )
             start = _BVC1_HEADER.size + host_size
-            ca = source[start:start + ca_size]
-            cert.extend(source[start + ca_size:start + ca_size + cert_size])
-            key.extend(source[start + ca_size + cert_size:])
+            ca = source[start : start + ca_size]
+            cert.extend(source[start + ca_size : start + ca_size + cert_size])
+            key.extend(source[start + ca_size + cert_size :])
         proof = bytearray()
         try:
-            activation = {"protocol": "provision-bootstrap-v1" if direct else "provision-activation-v1",
-                          "device_id": args.device_id,
-                          "certificate_sha256": hashlib.sha256(cert).hexdigest()}
+            activation = {
+                "protocol": (
+                    "provision-bootstrap-v1" if direct else "provision-activation-v1"
+                ),
+                "device_id": args.device_id,
+                "certificate_sha256": hashlib.sha256(cert).hexdigest(),
+            }
             if not direct:
-                activation.update({"gateway_host": args.host, "gateway_ipv4": args.peer,
-                                   "gateway_port": str(getattr(args, "port", None) or 8765),
-                                   "gateway_ca_der": base64.b64encode(ca).decode("ascii")})
+                activation.update(
+                    {
+                        "gateway_host": args.host,
+                        "gateway_ipv4": args.peer,
+                        "gateway_port": str(getattr(args, "port", None) or 8765),
+                        "gateway_ca_der": base64.b64encode(ca).decode("ascii"),
+                    }
+                )
             if getattr(args, "resume", False):
                 _regular(args.activation_output, "owner activation", private=True)
                 with args.activation_output.open("rb") as stored:
@@ -504,36 +627,56 @@ def _pairing(args: argparse.Namespace) -> dict[str, object]:
                 if len(raw) > _MAX_TOTAL:
                     raise VoiceProvisionError("owner activation is too large")
                 saved = json.loads(raw)
-                if (not isinstance(saved, dict) or
-                    set(saved) != set(activation) | {"possession_secret"} or
-                    any(saved[name] != value for name, value in activation.items()) or
-                    not isinstance(saved["possession_secret"], str)):
-                    raise VoiceProvisionError("owner activation does not match this identity and gateway")
-                proof.extend(base64.b64decode(saved["possession_secret"], validate=True))
+                if (
+                    not isinstance(saved, dict)
+                    or set(saved) != set(activation) | {"possession_secret"}
+                    or any(saved[name] != value for name, value in activation.items())
+                    or not isinstance(saved["possession_secret"], str)
+                ):
+                    raise VoiceProvisionError(
+                        "owner activation does not match this identity and gateway"
+                    )
+                proof.extend(
+                    base64.b64decode(saved["possession_secret"], validate=True)
+                )
                 if len(proof) != 32:
                     raise VoiceProvisionError("owner activation proof is invalid")
             else:
                 proof.extend(os.urandom(32))
-                activation["possession_secret"] = base64.b64encode(proof).decode("ascii")
-            payload = bytearray(struct.pack(">4sHHHHI", b"BPI1", 1, 0, cert_size, key_size, 0))
-            payload.extend(proof); payload.extend(cert); payload.extend(key)
+                activation["possession_secret"] = base64.b64encode(proof).decode(
+                    "ascii"
+                )
+            payload = bytearray(
+                struct.pack(">4sHHHHI", b"BPI1", 1, 0, cert_size, key_size, 0)
+            )
+            payload.extend(proof)
+            payload.extend(cert)
+            payload.extend(key)
             if len(payload) > _MAX_TOTAL:
                 raise VoiceProvisionError("device identity is too large")
             # Preserve the original owner copy after uncertain serial results.
             # Resume validates it and sends the same BPI1 without rewriting it.
             if not getattr(args, "resume", False):
-                descriptor = os.open(args.activation_output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                descriptor = os.open(
+                    args.activation_output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+                )
                 with os.fdopen(descriptor, "w", encoding="utf-8") as output:
                     json.dump(activation, output, separators=(",", ":"))
-                    output.flush(); os.fsync(output.fileno())
+                    output.flush()
+                    os.fsync(output.fileno())
             _run_console(args.console_port, payload)
         finally:
             proof[:] = b"\0" * len(proof)
             key[:] = b"\0" * len(key)
-        return {"status": "identity-supplied", "device_id": args.device_id,
-                "bytes": len(payload)}
+        return {
+            "status": "identity-supplied",
+            "device_id": args.device_id,
+            "bytes": len(payload),
+        }
     except (OSError, ValueError, struct.error) as error:
-        raise VoiceProvisionError("identity supply failed; preserve any owner activation file for reconciliation") from error
+        raise VoiceProvisionError(
+            "identity supply failed; preserve any owner activation file for reconciliation"
+        ) from error
     finally:
         source[:] = b"\0" * len(source)
         cert[:] = b"\0" * len(cert)

@@ -183,8 +183,9 @@ static int g_touch_fd = -1;
 static lv_point_t g_touch_point;
 static lv_indev_state_t g_touch_state = LV_INDEV_STATE_RELEASED;
 
-/* 当前官方 GT9xx 只返回单点样本，没有 TSIOC_GETMAXPOINTS。
- * 通过 LVGL 输入扩展点消费标准样本，不替换或复制公共驱动。 */
+/* The official GT9xx driver currently returns single-touch samples only and
+ * has no TSIOC_GETMAXPOINTS.  Consume the standard samples through the LVGL
+ * input extension point instead of replacing or copying the common driver. */
 
 static void dolphin_touch_read(lv_indev_t *indev, lv_indev_data_t *data)
 {

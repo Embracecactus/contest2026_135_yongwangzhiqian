@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Run from the repository root (no libraries, sockets or generated shims):
  * cc -std=c11 -D_GNU_SOURCE -DFAR= -Wall -Wextra -Werror -pthread \
- *   -ffunction-sections -fdata-sections -Wl,--gc-sections \
+ *   -ffunction-sections -fdata-sections -Wl, --gc-sections \
  *   -Iapp/bk7258 -I../apps/crypto/mbedtls/mbedtls/include \
  *   tests/host/bk7258/test_bk7258_voice_tls_concurrency.c \
  *   -o /tmp/test_bk7258_voice_tls_concurrency

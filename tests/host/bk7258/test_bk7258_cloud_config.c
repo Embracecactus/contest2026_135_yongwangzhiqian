@@ -8,7 +8,7 @@
 int main(void)
 {
   struct bkcloud_config_s config;
-  unsigned char data[BKCLOUD_CONFIG_MAX] = {'C','C','F','1',1,0,1,187};
+  unsigned char data[BKCLOUD_CONFIG_MAX] = {'C', 'C', 'F', '1', 1, 0, 1, 187};
   const char *fields[] = {"cloud.example", "/v1", "fixture-only",
                           "vendor/asr", "vendor/chat", "vendor/tts"};
   size_t size = 24;

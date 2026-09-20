@@ -22,9 +22,13 @@ class DeviceBindings:
         if not 1 <= len(certificates) <= 256:
             raise ValueError("invalid device binding count")
         pins = dict(certificates)
-        if any(not isinstance(pin, str) or not _SHA256.fullmatch(pin)
-               or not isinstance(device, str) or not _DEVICE_ID.fullmatch(device)
-               for pin, device in pins.items()):
+        if any(
+            not isinstance(pin, str)
+            or not _SHA256.fullmatch(pin)
+            or not isinstance(device, str)
+            or not _DEVICE_ID.fullmatch(device)
+            for pin, device in pins.items()
+        ):
             raise ValueError("invalid device binding")
         if len(set(pins.values())) != len(pins):
             raise ValueError("duplicate device binding")
@@ -49,10 +53,14 @@ def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 def read_operator_registry(path: Path) -> object:
     """Read a bounded, operator-owned, non-writable-by-others JSON registry."""
     fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
-    with os.fdopen(fd, 'rb') as source:
+    with os.fdopen(fd, "rb") as source:
         info = os.fstat(source.fileno())
-        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
-                or info.st_mode & 0o022 or not 0 < info.st_size <= 65536):
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != os.geteuid()
+            or info.st_mode & 0o022
+            or not 0 < info.st_size <= 65536
+        ):
             raise ValueError("invalid device binding file")
         raw = source.read(65537)
     if len(raw) > 65536:
@@ -66,18 +74,23 @@ def read_operator_registry(path: Path) -> object:
 
 def load_device_bindings(path: Path) -> DeviceBindings:
     value = read_operator_registry(path)
-    if (not isinstance(value, dict) or set(value) != {'format', 'devices'}
-            or value['format'] != 'shaniu.device-bindings/1'
-            or not isinstance(value['devices'], list)):
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"format", "devices"}
+        or value["format"] != "shaniu.device-bindings/1"
+        or not isinstance(value["devices"], list)
+    ):
         raise ValueError("invalid device binding schema")
     pins: dict[str, str] = {}
-    for entry in value['devices']:
-        if (not isinstance(entry, dict)
-                or set(entry) != {'device_id', 'client_certificate_sha256'}
-                or not isinstance(entry['client_certificate_sha256'], str)):
+    for entry in value["devices"]:
+        if (
+            not isinstance(entry, dict)
+            or set(entry) != {"device_id", "client_certificate_sha256"}
+            or not isinstance(entry["client_certificate_sha256"], str)
+        ):
             raise ValueError("invalid device binding entry")
-        pin = entry['client_certificate_sha256']
+        pin = entry["client_certificate_sha256"]
         if pin in pins:
             raise ValueError("duplicate certificate binding")
-        pins[pin] = entry['device_id']
+        pins[pin] = entry["device_id"]
     return DeviceBindings(pins)

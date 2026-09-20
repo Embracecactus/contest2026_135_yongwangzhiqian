@@ -55,8 +55,9 @@ int bkcloud_http_post(struct bkcloud_http_s *http,
                      void *tls_context, uint64_t deadline_ms,
                      webclient_body_callback_t body, void *body_context,
                      size_t body_size, char *response, size_t capacity);
-/* 受保护资源 GET：仅借用 config 的 host/port，无云凭据或隐式重试。
- * 容量含末尾保留字节，实际二进制长度为 http->received。
+/* Protected-resource GET: borrows only host/port from config, uses no cloud
+ * credentials and performs no implicit retry. The capacity includes the
+ * trailing reserved byte, so the actual binary length is http->received.
  */
 int bkcloud_http_get(struct bkcloud_http_s *http,
                     const struct bkcloud_config_s *config, const char *url,

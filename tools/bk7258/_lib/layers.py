@@ -31,9 +31,7 @@ _INCLUDE = re.compile(
     r"^\s*#\s*include\s*(?P<open>[<\"])(?P<name>[^>\"]+)[>\"]",
     re.MULTILINE,
 )
-_RAW_SDK_SYMBOL = re.compile(
-    r"\b(?:bk_(?!7258)|gpio_|rtos_|sys_drv_)[A-Za-z0-9_]+\b"
-)
+_RAW_SDK_SYMBOL = re.compile(r"\b(?:bk_(?!7258)|gpio_|rtos_|sys_drv_)[A-Za-z0-9_]+\b")
 _CHIP_LINK_INTERCEPT = re.compile(r"\b__(?:wrap|real)_[A-Za-z0-9_]+\b")
 _RAW_SDK_TYPE = re.compile(
     r"\b(?:bk_err_t|gpio_id_t|gpio_dev_t|gpio_output_state_e|"
@@ -47,8 +45,7 @@ _CHIP_BOARD_TOKEN = re.compile(
     r"\bBK7258_BOARD_[A-Z0-9_]+\b|\bbk7258_board_[a-z0-9_]+\s*\("
 )
 _APP_PHYSICAL_TOKEN = re.compile(
-    r"\bBK7258_BOARD_[A-Z0-9_]*(?:GPIO|PIN|BUS|CHANNEL|ADDRESS)"
-    r"[A-Z0-9_]*\b"
+    r"\bBK7258_BOARD_[A-Z0-9_]*(?:GPIO|PIN|BUS|CHANNEL|ADDRESS)" r"[A-Z0-9_]*\b"
 )
 _PRODUCT_PROTOCOL = re.compile(
     r"\bBT_GATT_(?:PRIMARY_SERVICE|CHARACTERISTIC|DESCRIPTOR|CCC)\s*\("
@@ -96,8 +93,7 @@ def _without_c_literals(text: str) -> str:
     """Blank comments and literals while preserving offsets and newlines."""
 
     pattern = re.compile(
-        r"//[^\n]*|/\*.*?\*/|\"(?:\\.|[^\"\\])*\"|"
-        r"'(?:\\.|[^'\\])*'",
+        r"//[^\n]*|/\*.*?\*/|\"(?:\\.|[^\"\\])*\"|" r"'(?:\\.|[^'\\])*'",
         re.DOTALL,
     )
 
@@ -111,8 +107,10 @@ def _sources(root: Path) -> list[Path]:
     if not root.is_dir():
         return []
     return sorted(
-        path for path in root.rglob("*")
-        if path.is_file() and path.suffix in SOURCE_SUFFIXES
+        path
+        for path in root.rglob("*")
+        if path.is_file()
+        and path.suffix in SOURCE_SUFFIXES
         and "bk_idk" not in path.relative_to(root).parts
     )
 
@@ -127,9 +125,10 @@ def _build_files(root: Path) -> list[Path]:
     if not root.is_dir():
         return []
     return sorted(
-        path for path in root.rglob("*")
-        if path.is_file() and
-        (path.name in BUILD_FILENAMES or path.suffix in BUILD_SUFFIXES)
+        path
+        for path in root.rglob("*")
+        if path.is_file()
+        and (path.name in BUILD_FILENAMES or path.suffix in BUILD_SUFFIXES)
     )
 
 
@@ -143,24 +142,41 @@ def _build_issues(repository: Path) -> list[Issue]:
             text = path.read_text(encoding="utf-8", errors="surrogateescape")
             for offset, line in _active_build_lines(text):
                 for pattern, code, message in (
-                    (_SDK_BUILD_HANDLE, "SDK_BUILD_PRIVATE",
-                     "board/app build files must not own an SDK path, include, or library closure"),
-                    (_SDK_PRIVATE_PATH, "SDK_BUILD_PRIVATE",
-                     "board/app build files must not name a private SDK path"),
-                    (_SDK_PRIVATE_LIBRARY, "SDK_BUILD_PRIVATE",
-                     "board/app build files must not link a private SDK library"),
-                    (_RAW_SDK_SYMBOL, "SDK_BUILD_SYMBOL",
-                     "board/app build files must not name a raw Beken SDK symbol"),
-                    (_LINKER_WRAP, "SDK_LINK_WRAP",
-                     "board/app build files must not wrap an SDK symbol"),
+                    (
+                        _SDK_BUILD_HANDLE,
+                        "SDK_BUILD_PRIVATE",
+                        "board/app build files must not own an SDK path, include, or library closure",
+                    ),
+                    (
+                        _SDK_PRIVATE_PATH,
+                        "SDK_BUILD_PRIVATE",
+                        "board/app build files must not name a private SDK path",
+                    ),
+                    (
+                        _SDK_PRIVATE_LIBRARY,
+                        "SDK_BUILD_PRIVATE",
+                        "board/app build files must not link a private SDK library",
+                    ),
+                    (
+                        _RAW_SDK_SYMBOL,
+                        "SDK_BUILD_SYMBOL",
+                        "board/app build files must not name a raw Beken SDK symbol",
+                    ),
+                    (
+                        _LINKER_WRAP,
+                        "SDK_LINK_WRAP",
+                        "board/app build files must not wrap an SDK symbol",
+                    ),
                 ):
                     for match in pattern.finditer(line):
-                        issues.append(Issue(
-                            relative,
-                            _line_number(text, offset + match.start()),
-                            code,
-                            message,
-                        ))
+                        issues.append(
+                            Issue(
+                                relative,
+                                _line_number(text, offset + match.start()),
+                                code,
+                                message,
+                            )
+                        )
     return issues
 
 
@@ -191,7 +207,7 @@ def _without_build_comments(line: str) -> str:
             if character == quote:
                 quote = ""
             continue
-        if character in {"'", '\"'}:
+        if character in {"'", '"'}:
             quote = character
         elif character == "#":
             return line[:index]
@@ -215,16 +231,20 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
                     if code[match.start()].isspace():
                         continue
                     include = match.group("name")
-                    if include == "sdkconfig.h" or \
-                            include.split("/", 1)[0] in SDK_INCLUDE_ROOTS or \
-                            include.split("/", 1)[0] in SDK_PRIVATE_INCLUDE_ROOTS:
-                        issues.append(Issue(
-                            relative,
-                            _line_number(text, match.start()),
-                            "SDK_INCLUDE",
-                            f"{layer.split('/', 1)[0]} must use a chip/NuttX "
-                            f"contract instead of SDK header <{include}>",
-                        ))
+                    if (
+                        include == "sdkconfig.h"
+                        or include.split("/", 1)[0] in SDK_INCLUDE_ROOTS
+                        or include.split("/", 1)[0] in SDK_PRIVATE_INCLUDE_ROOTS
+                    ):
+                        issues.append(
+                            Issue(
+                                relative,
+                                _line_number(text, match.start()),
+                                "SDK_INCLUDE",
+                                f"{layer.split('/', 1)[0]} must use a chip/NuttX "
+                                f"contract instead of SDK header <{include}>",
+                            )
+                        )
 
                 for pattern, name in (
                     (_RAW_SDK_SYMBOL, "SDK_SYMBOL"),
@@ -233,14 +253,18 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
                     (_RAW_REGISTER, "RAW_REGISTER"),
                 ):
                     for match in pattern.finditer(code):
-                        issues.append(Issue(
-                            relative,
-                            _line_number(code, match.start()),
-                            name,
-                            "board/app code must not depend on the raw Beken SDK ABI"
-                            if name != "CHIP_LINK_INTERCEPT" else
-                            "board/app code must not own chip linker interception",
-                        ))
+                        issues.append(
+                            Issue(
+                                relative,
+                                _line_number(code, match.start()),
+                                name,
+                                (
+                                    "board/app code must not depend on the raw Beken SDK ABI"
+                                    if name != "CHIP_LINK_INTERCEPT"
+                                    else "board/app code must not own chip linker interception"
+                                ),
+                            )
+                        )
 
             if layer == "chips/bk7258":
                 for match in _INCLUDE.finditer(text):
@@ -248,56 +272,69 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
                         continue
                     include = match.group("name")
                     if include.startswith("arch/board/"):
-                        issues.append(Issue(
-                            relative,
-                            _line_number(text, match.start()),
-                            "CHIP_TO_BOARD",
-                            "chip code must not include a physical-board header",
-                        ))
-                    if path.parent.name == "include" and \
-                            path.name.startswith("bk7258_") and \
-                            (include == "sdkconfig.h" or
-                             include.split("/", 1)[0] in SDK_INCLUDE_ROOTS or
-                             include.split("/", 1)[0] in SDK_PRIVATE_INCLUDE_ROOTS):
-                        issues.append(Issue(
-                            relative,
-                            _line_number(text, match.start()),
-                            "PUBLIC_SDK_ABI",
-                            "public chip contracts must not expose an SDK header",
-                        ))
-                if path.parent.name == "include" and \
-                        path.name.startswith("bk7258_"):
+                        issues.append(
+                            Issue(
+                                relative,
+                                _line_number(text, match.start()),
+                                "CHIP_TO_BOARD",
+                                "chip code must not include a physical-board header",
+                            )
+                        )
+                    if (
+                        path.parent.name == "include"
+                        and path.name.startswith("bk7258_")
+                        and (
+                            include == "sdkconfig.h"
+                            or include.split("/", 1)[0] in SDK_INCLUDE_ROOTS
+                            or include.split("/", 1)[0] in SDK_PRIVATE_INCLUDE_ROOTS
+                        )
+                    ):
+                        issues.append(
+                            Issue(
+                                relative,
+                                _line_number(text, match.start()),
+                                "PUBLIC_SDK_ABI",
+                                "public chip contracts must not expose an SDK header",
+                            )
+                        )
+                if path.parent.name == "include" and path.name.startswith("bk7258_"):
                     for match in _RAW_SDK_TYPE.finditer(code):
-                        issues.append(Issue(
+                        issues.append(
+                            Issue(
+                                relative,
+                                _line_number(code, match.start()),
+                                "PUBLIC_SDK_ABI",
+                                "public chip contracts must use NuttX or typed adapter values",
+                            )
+                        )
+                for match in _CHIP_BOARD_TOKEN.finditer(code):
+                    issues.append(
+                        Issue(
                             relative,
                             _line_number(code, match.start()),
-                            "PUBLIC_SDK_ABI",
-                            "public chip contracts must use NuttX or typed adapter values",
-                        ))
-                for match in _CHIP_BOARD_TOKEN.finditer(code):
-                    issues.append(Issue(
-                        relative,
-                        _line_number(code, match.start()),
-                        "CHIP_TO_BOARD",
-                        "chip code must receive physical facts through a typed contract",
-                    ))
+                            "CHIP_TO_BOARD",
+                            "chip code must receive physical facts through a typed contract",
+                        )
+                    )
                 if _PRODUCT_PROTOCOL.search(code):
                     product_files.add(relative)
 
             if layer == "app":
                 for match in _APP_PHYSICAL_TOKEN.finditer(code):
-                    issues.append(Issue(
-                        relative,
-                        _line_number(code, match.start()),
-                        "APP_PHYSICAL_RESOURCE",
-                        "app code must request a service, not own board pins/buses",
-                    ))
+                    issues.append(
+                        Issue(
+                            relative,
+                            _line_number(code, match.start()),
+                            "APP_PHYSICAL_RESOURCE",
+                            "app code must request a service, not own board pins/buses",
+                        )
+                    )
 
     return issues, count, product_files
 
 
 def _menu_role(lines: list[str], start: int) -> str | None:
-    for line in lines[start + 1:]:
+    for line in lines[start + 1 :]:
         stripped = line.strip()
         if stripped.startswith(("config ", "menu ", "endmenu")):
             break
@@ -337,25 +374,29 @@ def _kconfig_issues(repository: Path) -> tuple[list[Issue], int]:
             ("config ", "menu ", "endmenu")
         ):
             end += 1
-        block = "\n".join(lines[index + 1:end])
+        block = "\n".join(lines[index + 1 : end])
         cp_only = re.search(r"depends on[^\n]*!BK7258_AP_CORE", block) is not None
-        ap_only = re.search(
-            r"depends on[^\n]*(?<!!)\bBK7258_AP_CORE\b", block
-        ) is not None
+        ap_only = (
+            re.search(r"depends on[^\n]*(?<!!)\bBK7258_AP_CORE\b", block) is not None
+        )
         if cp_only and "ap" in menus:
-            issues.append(Issue(
-                relative,
-                index + 1,
-                "KCONFIG_ROLE_MENU",
-                f"CP-only {symbol} is nested in an AP-only menu",
-            ))
+            issues.append(
+                Issue(
+                    relative,
+                    index + 1,
+                    "KCONFIG_ROLE_MENU",
+                    f"CP-only {symbol} is nested in an AP-only menu",
+                )
+            )
         if ap_only and "cp" in menus:
-            issues.append(Issue(
-                relative,
-                index + 1,
-                "KCONFIG_ROLE_MENU",
-                f"AP-only {symbol} is nested in a CP-only menu",
-            ))
+            issues.append(
+                Issue(
+                    relative,
+                    index + 1,
+                    "KCONFIG_ROLE_MENU",
+                    f"AP-only {symbol} is nested in a CP-only menu",
+                )
+            )
         index = end
 
     return issues, symbols
@@ -376,54 +417,94 @@ def _exception_issues(
     relative = EXCEPTIONS.as_posix()
     issues: list[Issue] = []
     if not path.is_file() or path.is_symlink():
-        return [Issue(relative, 1, "EXCEPTION_FILE", "missing regular exception file")], 0
+        return [
+            Issue(relative, 1, "EXCEPTION_FILE", "missing regular exception file")
+        ], 0
 
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (UnicodeError, json.JSONDecodeError) as error:
         return [Issue(relative, 1, "EXCEPTION_FILE", f"invalid JSON: {error}")], 0
 
-    rows = document.get("product_protocol_files") if isinstance(document, dict) else None
-    if not isinstance(document, dict) or document.get("version") != 1 \
-            or not isinstance(rows, list):
+    rows = (
+        document.get("product_protocol_files") if isinstance(document, dict) else None
+    )
+    if (
+        not isinstance(document, dict)
+        or document.get("version") != 1
+        or not isinstance(rows, list)
+    ):
         return [Issue(relative, 1, "EXCEPTION_FILE", "unsupported exception schema")], 0
 
     allowed: dict[str, str] = {}
     for row in rows:
         if not isinstance(row, dict):
-            issues.append(Issue(relative, 1, "EXCEPTION_FILE", "exception row is not an object"))
+            issues.append(
+                Issue(relative, 1, "EXCEPTION_FILE", "exception row is not an object")
+            )
             continue
         name = row.get("path")
         expected = row.get("sha256")
         reason = row.get("reason")
-        if not isinstance(name, str) or not isinstance(expected, str) \
-                or _HEX_SHA256.fullmatch(expected) is None \
-                or not isinstance(reason, str) or not reason.strip():
-            issues.append(Issue(relative, 1, "EXCEPTION_FILE", "malformed exception row"))
+        if (
+            not isinstance(name, str)
+            or not isinstance(expected, str)
+            or _HEX_SHA256.fullmatch(expected) is None
+            or not isinstance(reason, str)
+            or not reason.strip()
+        ):
+            issues.append(
+                Issue(relative, 1, "EXCEPTION_FILE", "malformed exception row")
+            )
             continue
         pure = PurePosixPath(name)
-        if pure.is_absolute() or ".." in pure.parts \
-                or not name.startswith("chips/bk7258/") or name in allowed:
-            issues.append(Issue(relative, 1, "EXCEPTION_FILE", f"unsafe or duplicate path: {name}"))
+        if (
+            pure.is_absolute()
+            or ".." in pure.parts
+            or not name.startswith("chips/bk7258/")
+            or name in allowed
+        ):
+            issues.append(
+                Issue(
+                    relative, 1, "EXCEPTION_FILE", f"unsafe or duplicate path: {name}"
+                )
+            )
             continue
         allowed[name] = expected
 
     for name in sorted(product_files - allowed.keys()):
-        issues.append(Issue(
-            name, 1, "PRODUCT_PROTOCOL_IN_CHIP",
-            "product GATT/UUID policy belongs in app; a legacy exception must be hash-bound",
-        ))
+        issues.append(
+            Issue(
+                name,
+                1,
+                "PRODUCT_PROTOCOL_IN_CHIP",
+                "product GATT/UUID policy belongs in app; a legacy exception must be hash-bound",
+            )
+        )
     for name, expected in sorted(allowed.items()):
         selected = repository.joinpath(*PurePosixPath(name).parts)
         if name not in product_files:
-            issues.append(Issue(relative, 1, "EXCEPTION_STALE", f"no protocol marker remains in {name}"))
+            issues.append(
+                Issue(
+                    relative,
+                    1,
+                    "EXCEPTION_STALE",
+                    f"no protocol marker remains in {name}",
+                )
+            )
         elif not selected.is_file() or selected.is_symlink():
-            issues.append(Issue(relative, 1, "EXCEPTION_PATH", f"not a regular file: {name}"))
+            issues.append(
+                Issue(relative, 1, "EXCEPTION_PATH", f"not a regular file: {name}")
+            )
         elif _sha256(selected) != expected:
-            issues.append(Issue(
-                name, 1, "EXCEPTION_HASH",
-                "legacy product-protocol file changed; re-review its layer before updating the hash",
-            ))
+            issues.append(
+                Issue(
+                    name,
+                    1,
+                    "EXCEPTION_HASH",
+                    "legacy product-protocol file changed; re-review its layer before updating the hash",
+                )
+            )
 
     return issues, len(allowed)
 
@@ -442,8 +523,7 @@ def verify(repository: Path) -> Report:
     issues, report = audit(repository)
     if issues:
         details = "\n".join(
-            f"  {row.path}:{row.line}: [{row.code}] {row.message}"
-            for row in issues
+            f"  {row.path}:{row.line}: [{row.code}] {row.message}" for row in issues
         )
         raise LayerError(f"BK7258 layer verification failed:\n{details}")
     return report

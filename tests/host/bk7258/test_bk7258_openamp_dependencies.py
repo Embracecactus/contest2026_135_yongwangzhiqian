@@ -25,7 +25,11 @@ LOCK_PATH = CONTEST / "nuttx" / "dependencies.lock.json"
 
 def command(*args: str, cwd: Path | None = None) -> str:
     return subprocess.run(
-        args, cwd=cwd, check=True, text=True, stdout=subprocess.PIPE,
+        args,
+        cwd=cwd,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     ).stdout.strip()
 
@@ -40,7 +44,10 @@ def archive_checkout(source: Path, commit: str, destination: Path) -> None:
     with tarfile.open(fileobj=archive.stdout, mode="r|") as contents:
         for member in contents:
             target = (destination / member.name).resolve()
-            if target != destination.resolve() and destination.resolve() not in target.parents:
+            if (
+                target != destination.resolve()
+                and destination.resolve() not in target.parents
+            ):
                 raise RuntimeError(f"archive member escapes destination: {member.name}")
             contents.extract(member, destination)
     archive.stdout.close()
@@ -65,11 +72,16 @@ class OpenampDependenciesTest(unittest.TestCase):
             extracted: dict[str, Path] = {}
             for path, project in projects.items():
                 source = WORKSPACE / path
-                self.assertEqual(command("git", "status", "--porcelain", cwd=source), "")
-                self.assertEqual(command("git", "rev-parse", "HEAD", cwd=source),
-                                 project["commit"])
-                self.assertEqual(command("git", "rev-parse", "HEAD^{tree}", cwd=source),
-                                 project["tree"])
+                self.assertEqual(
+                    command("git", "status", "--porcelain", cwd=source), ""
+                )
+                self.assertEqual(
+                    command("git", "rev-parse", "HEAD", cwd=source), project["commit"]
+                )
+                self.assertEqual(
+                    command("git", "rev-parse", "HEAD^{tree}", cwd=source),
+                    project["tree"],
+                )
                 destination = root / Path(path).name
                 archive_checkout(source, project["commit"], destination)
                 extracted[path] = destination
@@ -99,21 +111,33 @@ class OpenampDependenciesTest(unittest.TestCase):
                 "#include <openamp/rpmsg.h>\n"
                 "#include <openamp/virtio.h>\n"
                 "#include <openamp/virtio_ring.h>\n"
-                "_Static_assert(sizeof(struct fw_rsc_config) == 64, \"config ABI\");\n"
-                "_Static_assert(offsetof(struct rpmsg_endpoint, priority) > 0, \"priority ABI\");\n"
+                '_Static_assert(sizeof(struct fw_rsc_config) == 64, "config ABI");\n'
+                '_Static_assert(offsetof(struct rpmsg_endpoint, priority) > 0, "priority ABI");\n'
                 "typedef int (*alloc_fn)(struct virtio_device *, void **, size_t, size_t);\n"
-                "_Static_assert(__builtin_types_compatible_p(__typeof__(&virtio_alloc_buf), alloc_fn), \"alloc ABI\");\n"
+                '_Static_assert(__builtin_types_compatible_p(__typeof__(&virtio_alloc_buf), alloc_fn), "alloc ABI");\n'
                 "int main(void) { struct vring_used_elem used = {0}; return (int)used.u.id; }\n",
                 encoding="utf-8",
             )
             compiler = shutil.which("cc")
             self.assertIsNotNone(compiler, "host C compiler is required")
             compiled = subprocess.run(
-                [compiler, "-std=c11", "-Wall", "-Werror", "-DFAR=", "-fsyntax-only",
-                 "-I", str(root / "generated"),
-                 "-I", str(extracted["nuttx/openamp/open-amp"] / "lib/include"),
-                 str(probe)],
-                check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                [
+                    compiler,
+                    "-std=c11",
+                    "-Wall",
+                    "-Werror",
+                    "-DFAR=",
+                    "-fsyntax-only",
+                    "-I",
+                    str(root / "generated"),
+                    "-I",
+                    str(extracted["nuttx/openamp/open-amp"] / "lib/include"),
+                    str(probe),
+                ],
+                check=False,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
 

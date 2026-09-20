@@ -27,7 +27,9 @@ struct cloud_settings_s
 {
   struct bkvoice_config_s trust;
   struct bkcloud_config_s service;
-  /* 配置快照内只缓存 TLS 会话，不缓存音频、答案或活动 socket。 */
+  /* The configuration snapshot caches the TLS session only, never audio,
+   * answers or a live socket.
+   */
   mbedtls_ssl_session session;
   mbedtls_x509_time valid_from;
   mbedtls_x509_time valid_to;
@@ -124,7 +126,9 @@ static int session_load(void *context, mbedtls_ssl_context *ssl,
       (mbedtls_x509_time_is_future(&settings->valid_from) ||
        mbedtls_x509_time_is_past(&settings->valid_to)))
     {
-      /* 恢复握手不重新发送证书链；不能沿用已过期的认证结论。 */
+      /* A resumed handshake does not resend the certificate chain, so an
+       * expired authentication result must not be reused.
+       */
       settings->session_valid = false;
       mbedtls_ssl_session_free(&settings->session);
       mbedtls_ssl_session_init(&settings->session);
@@ -133,7 +137,9 @@ static int session_load(void *context, mbedtls_ssl_context *ssl,
   int ret = offered ? mbedtls_ssl_set_session(ssl, &settings->session) : 0;
   if (offered && ret == 0)
     {
-      /* 每条连接保存自己的时间边界，不受另一后端更新共享缓存影响。 */
+      /* Each connection keeps its own time bounds and is unaffected by
+       * another backend updating the shared cache.
+       */
       backend->session_from = settings->valid_from;
       backend->session_to = settings->valid_to;
       backend->session_offered = true;
@@ -162,16 +168,21 @@ static int session_save(void *context, const mbedtls_ssl_context *ssl,
   certificate_time_limit(&settings->trust.ca, &from, &to);
   if (backend->session_offered)
     {
-      /* mbedTLS 复制的恢复会话只保留叶证书，继续保留原完整链的时间边界。
-       * 信任配置在该快照内不可变；配置替换会创建空缓存并释放旧缓存。
+      /* The resumed session copied by mbedTLS keeps the leaf certificate
+       * only, so the time bounds of the original full chain are retained.
+       * The trust configuration is immutable inside that snapshot; a
+       * configuration replacement creates an empty cache and frees the old
+       * one.
        */
       if (certificate_time_compare(&from, &backend->session_from) < 0)
         from = backend->session_from;
       if (certificate_time_compare(&to, &backend->session_to) > 0)
         to = backend->session_to;
     }
-  /* CA 包可能含未参与本次验证的轮换根；保守交集无效时仅停用缓存，
-   * 不否定 mbedTLS 已完成的完整验证，也不缓存更宽松的认证期限。
+  /* The CA bundle may contain rotating roots that did not take part in this
+   * verification; when the conservative intersection is unusable, only the
+   * cache is disabled. It neither overrides the full verification mbedTLS
+   * already completed nor caches a wider authentication window.
    */
   bool reusable = !mbedtls_x509_time_is_future(&from) &&
                   !mbedtls_x509_time_is_past(&to);
@@ -356,9 +367,12 @@ static int llm_transport(const char *request, char *response, size_t capacity,
   int ret = request_prepare(backend);
   if (!ret && check) ret = check(request_context);
 
-  /* MiMo 默认开启深度思考。使用产品已恢复/确认的设备设置；配置尚未
-   * 就绪时保留服务默认值。官方调用者显式指定 thinking 时保留其选择。
-   * 这里只补所选服务的协议参数，不改模型、消息、工具或会话所有权。
+  /* MiMo enables deep thinking by default. The product's restored/confirmed
+   * device setting is used; the service default is kept while the
+   * configuration is not ready, and an explicit thinking choice from the
+   * official caller is preserved. Only the selected service's protocol
+   * parameter is added here; model, messages, tools and session ownership are
+   * untouched.
    */
   int thinking_mode = atomic_load(&g_thinking);
   if (!ret && backend->service.dialect == 2 && thinking_mode >= 0)

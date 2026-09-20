@@ -10,7 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
 
-PREFIX = r'''
+PREFIX = r"""
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -119,9 +119,9 @@ static int bk7258_wifi_clear_native_lease(void)
   g_bk7258_wifi.dev.d_draddr = 0;
   return OK;
 }
-'''
+"""
 
-TEST = r'''
+TEST = r"""
 static void reset_connected(void)
 {
   memset(&g_bk7258_wifi, 0, sizeof(g_bk7258_wifi));
@@ -192,23 +192,26 @@ int main(void)
   assert(g_net_lock_depth == 0);
   return 0;
 }
-'''
+"""
 
 
 class WifiNativeLeaseDriftTest(unittest.TestCase):
     def test_cached_lease_recovers_local_netdev_drift(self):
         ap_source = (ROOT / "chips/bk7258/ap/bk7258_wifi.c").read_text()
         matcher = ap_source[
-            ap_source.index("bool bk7258_wifi_native_lease_matches(") :
-            ap_source.index("\n#ifdef CONFIG_NETDB_DNSCLIENT", ap_source.index("bool bk7258_wifi_native_lease_matches("))
+            ap_source.index("bool bk7258_wifi_native_lease_matches(") : ap_source.index(
+                "\n#ifdef CONFIG_NETDB_DNSCLIENT",
+                ap_source.index("bool bk7258_wifi_native_lease_matches("),
+            )
         ]
 
         control_source = (
             ROOT / "chips/bk7258/common/bk7258_wifi_control.c"
         ).read_text()
         synchronizer = control_source[
-            control_source.index("static int bk7258_wifi_apply_native_lease(") :
-            control_source.index("static int bk7258_wifi_read_status(")
+            control_source.index(
+                "static int bk7258_wifi_apply_native_lease("
+            ) : control_source.index("static int bk7258_wifi_read_status(")
         ]
 
         with tempfile.TemporaryDirectory() as directory:

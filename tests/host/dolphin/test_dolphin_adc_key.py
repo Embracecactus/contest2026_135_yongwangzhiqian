@@ -12,9 +12,12 @@ ROOT = Path(__file__).resolve().parents[3]
 class KeyTest(unittest.TestCase):
     def test_gestures_tolerance_hysteresis_and_overflow(self):
         source = (ROOT / "app/dolphin/dolphin_adc_key.c").read_text()
-        functions = source[source.index("static void dolphin_adc_key_reset"):
-                           source.index("static void *dolphin_adc_key_worker")]
-        header = r'''
+        functions = source[
+            source.index("static void dolphin_adc_key_reset") : source.index(
+                "static void *dolphin_adc_key_worker"
+            )
+        ]
+        header = r"""
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -34,8 +37,8 @@ struct dolphin_adc_key_s {
   uint32_t down_ms;
   enum dolphin_adc_key_event_e events[DOLPHIN_ADC_QUEUE_SIZE];
 };
-'''
-        main = r'''
+"""
+        main = r"""
 int main(void)
 {
   struct dolphin_adc_key_s key = {0};
@@ -56,14 +59,23 @@ int main(void)
   assert(key.count == 1 && key.events[0] == DOLPHIN_ADC_KEY_ERROR);
   return 0;
 }
-'''
+"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
             (path / "key.c").write_text(header + functions + main)
             subprocess.run(
-                ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
-                 str(path / "key.c"), "-o", str(path / "key")],
-                check=True)
+                [
+                    "cc",
+                    "-std=c11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "key.c"),
+                    "-o",
+                    str(path / "key"),
+                ],
+                check=True,
+            )
             subprocess.run([str(path / "key")], check=True)
 
 

@@ -237,8 +237,10 @@ static int product_power_restore(void)
 static int product_power_request(void)
 {
   int ret;
-  /* 空闲终态才接受关机，不把取消返回或一个布尔标志当成释放证明。
-   * 控制连接本身不阻止关机；配网、认领、模型提交与升级仍须先结束。
+  /* Power-off is accepted only from the idle end state; a cancel return or a
+   * boolean flag is not treated as proof of release. The control connection
+   * itself does not block power-off, but provisioning, claiming, model commit
+   * and update must still have finished.
    */
   if (!atomic_load(&g_agent_ready) || !voice_channel_is_idle() ||
       bkprov_owner_pairing() || bkprov_network_busy() || bkagent_ota_busy() ||
@@ -267,7 +269,9 @@ static int product_power_request(void)
   ret = bk7258_pm_soft_off_request();
   if (ret < 0)
     {
-      /* 超时不等于 CP 没收到；状态未知时保留清理后的资源边界。 */
+      /* A timeout does not mean the CP did not receive it; when the state is
+       * unknown, the cleaned-up resource boundary is retained.
+       */
       int pending = bk7258_pm_soft_off_status();
       if (pending == 0) goto restore;
     }
@@ -356,7 +360,8 @@ static int product_apply_persona(int requested)
   FILE *file;
   int ret = nxmutex_lock(&g_persona_lock);
   if (ret < 0) return ret;
-  if (requested >= 0) {
+  if (requested >= 0)
+  {
     const char *name = bk7258_preferences_persona_name(requested);
     ret = name ? bk7258_preferences_set_persona(name) : -EINVAL;
   }
@@ -367,11 +372,15 @@ static int product_apply_persona(int requested)
   if (!ret && (unsigned int)preferences.persona >=
       sizeof(styles) / sizeof(styles[0])) ret = -EBADMSG;
 
-  /* 持久事实仍在原有 SD 配置库。这里只投影到官方逐轮读取的个性文件；
-   * 不改会话历史、不迁移或解密记忆，也不在协议适配中改写 LLM 请求。
-   * 原子替换避免 Agent 恰好开始下一轮时读到半份个性配置。
+  /* The persistent fact still lives in the existing SD configuration store.
+   * This only projects it into the persona file that the official agent reads
+   * per turn; conversation history is not changed, memory is neither migrated
+   * nor decrypted, and LLM requests are not rewritten in the protocol
+   * adapter. The atomic replacement keeps the Agent from reading a
+   * half-written persona file if it happens to start the next turn.
    */
-  if (!ret) {
+  if (!ret)
+  {
     file = fopen(AGENT_SOUL_FILE ".new", "w");
     if (!file) ret = -errno;
     else {
@@ -389,7 +398,8 @@ static int product_apply_persona(int requested)
       if (ret) (void)unlink(AGENT_SOUL_FILE ".new");
     }
   }
-  if (!ret) {
+  if (!ret)
+  {
     atomic_store(&g_active_persona, preferences.persona);
     syslog(LOG_INFO, "BKVOICE persona applied=%s source=%s\n",
            bk7258_preferences_persona_name(preferences.persona),
@@ -454,7 +464,8 @@ static int product_control(void *context, enum bkcontrol_command_e command,
         if (value > 100u) return -EINVAL;
         if (!voice_channel_is_idle()) return -EBUSY;
         ret = bkvoice_media_volume(true, value, &volume);
-        if (!ret) {
+        if (!ret)
+        {
           status->volume = volume;
           ret = bkvoice_volume_store_set(volume);
         }
@@ -479,7 +490,8 @@ static int product_control(void *context, enum bkcontrol_command_e command,
   /* SDC1 reports the official whole-turn state. Recorder state is not used
    * as a proxy for Agent, TTS or Media completion. */
   status->error = 0;
-  if (idle) {
+  if (idle)
+  {
     status->flags |= 4u;
     status->turn = BKCONTROL_TURN_IDLE;
     status->error = g_product_error;
@@ -490,12 +502,14 @@ static int product_control(void *context, enum bkcontrol_command_e command,
     status->flags |= 8u;
   }
   int persona = atomic_load(&g_active_persona);
-  if (persona >= 0) {
+  if (persona >= 0)
+  {
     status->persona = (uint32_t)persona;
     status->flags |= 16u;
   }
   struct bk7258_wifi_result_s wifi;
-  if (bk7258_wifi_read_link(&wifi) == 0) {
+  if (bk7258_wifi_read_link(&wifi) == 0)
+  {
     status->flags |= 1024u;
     if (wifi.ipaddr && bk7258_wifi_native_lease_matches(&wifi)) status->flags |= 2048u;
   }
@@ -558,8 +572,11 @@ static int product_tool_execute(const char *name, const char *input,
   if (ret) goto out;
   if (!strcmp(name, "read_file"))
     {
-      /* 复用官方文件工具读取技能文档；成功/失败文本由该工具写入 output，
-       * 失败时不改写成设备错误，便于模型区分"读不到技能"与"设备操作失败"。 */
+      /* Reuses the official file tool to read a skill document; that tool
+       * writes the success/failure text into output, and a failure is not
+       * rewritten as a device error so the model can tell "skill not
+       * readable" apart from "device operation failed".
+       */
       ret = tool_read_file_execute(input ? input : "", output, capacity);
       syslog(LOG_INFO, "BKVOICE tool=read_file result=%d\n", ret);
       return OK;
@@ -567,7 +584,8 @@ static int product_tool_execute(const char *name, const char *input,
   args = input ? cJSON_Parse(input) : NULL;
   if (!cJSON_IsObject(args)) { ret = -EINVAL; goto out; }
 
-  if (!strcmp(name, "device_status")) {
+  if (!strcmp(name, "device_status"))
+  {
     char voltage[16] = "null";
     char level[8] = "null";
     const char *state = "unknown";
@@ -575,11 +593,14 @@ static int product_tool_execute(const char *name, const char *input,
     unsigned int volume;
 #ifdef CONFIG_BK7258_HEALTH_SERVICE
     struct bk7258_health_service_snapshot_s health;
-    if (!bk7258_health_service_snapshot(&health)) {
+    if (!bk7258_health_service_snapshot(&health))
+    {
       if (health.flags & BK7258_HEALTH_SNAPSHOT_BATTERY_VOLTAGE_VALID)
         snprintf(voltage, sizeof(voltage), "%ld", (long)health.battery_voltage_mv);
-      if (health.flags & BK7258_HEALTH_SNAPSHOT_BATTERY_STATE_VALID) {
-        switch (health.battery_state) {
+      if (health.flags & BK7258_HEALTH_SNAPSHOT_BATTERY_STATE_VALID)
+      {
+        switch (health.battery_state)
+        {
           case BATTERY_FULL: state = "full"; break;
           case BATTERY_CHARGING: state = "charging"; break;
           case BATTERY_DISCHARGING: state = "discharging"; break;
@@ -616,11 +637,16 @@ static int product_tool_execute(const char *name, const char *input,
     if (bkagent_ota_busy()) { ret = -EBUSY; goto out; }
     ret = -EINVAL;
     if (!cJSON_IsString(action)) goto out;
-    /* 官方 Agent 工具阶段已结束收音、尚未播放；复用原产品 owner，
-     * 不放宽 App 在整轮忙碌时的控制限制，不直接操作 GPIO。 */
-    if (!strcmp(action->valuestring, "mood") && cJSON_IsString(mood)) {
+    /* The official Agent tool phase has already stopped capture and has not
+     * started playback yet; the existing product owner is reused, the App's
+     * control restriction on a busy turn is not relaxed, and GPIO is never
+     * driven directly.
+     */
+    if (!strcmp(action->valuestring, "mood") && cJSON_IsString(mood))
+    {
       for (int i = 0; i <= BK7258_PERSONA_TSUNDERE_LITE; i++)
-        if (!strcmp(mood->valuestring, bk7258_preferences_persona_name(i))) {
+        if (!strcmp(mood->valuestring, bk7258_preferences_persona_name(i)))
+        {
           ret = product_apply_persona(i);
           break;
         }
@@ -632,7 +658,8 @@ static int product_tool_execute(const char *name, const char *input,
       cJSON *expression = cJSON_GetObjectItemCaseSensitive(args, "expression");
       if (cJSON_IsString(expression))
         for (unsigned int i = 0; i < sizeof(expressions) / sizeof(expressions[0]); i++)
-          if (!strcmp(expression->valuestring, expressions[i])) {
+          if (!strcmp(expression->valuestring, expressions[i]))
+          {
             ret = bk7258_display_set_expression(expressions[i]);
             break;
           }
@@ -640,7 +667,8 @@ static int product_tool_execute(const char *name, const char *input,
 #endif
     else if (cJSON_IsNumber(value) && value->valuedouble == value->valueint &&
                value->valueint >= 0) {
-      if (!strcmp(action->valuestring, "volume") && value->valueint <= 100) {
+      if (!strcmp(action->valuestring, "volume") && value->valueint <= 100)
+      {
         ret = bkvoice_media_volume(true, value->valueint, &observed);
         if (!ret) ret = bkvoice_volume_store_set(observed);
       }
@@ -785,7 +813,8 @@ static int product_install_eyes(const uint8_t *record, size_t size)
     .host = download->endpoint.host, .hostlen = sizeof(download->endpoint.host),
     .port = 443, .path = path, .pathlen = sizeof(path)};
   if (!ret) ret = netlib_parseurl(download->source.url, &url);
-  if (!ret) {
+  if (!ret)
+  {
     download->endpoint.port = url.port;
     ret = mbedtls_x509_crt_parse(&download->ca,
         (const unsigned char *)download->source.ca_pem,
@@ -806,7 +835,9 @@ static int product_install_eyes(const uint8_t *record, size_t size)
                                 download->http.received, digest, 0);
   if (!ret && memcmp(digest, download->source.catalog_sha256, sizeof(digest)))
     ret = -EBADMSG;
-  /* 控制连接失效后不激活资源；下载不借用云端会话或更改固件升级状态。 */
+  /* Resources are not activated once the control connection is gone; the
+   * download borrows no cloud session and changes no firmware update state.
+   */
   if (!ret && generation != bkprov_gatt_generation()) ret = -ECANCELED;
   if (download->tls.initialized) bkvoice_tls_uninitialize(&download->tls);
   if (!ret) ret = bk7258_display_import(download->data, download->http.received);
@@ -831,8 +862,10 @@ static int product_config(void *context, enum bkcontrol_command_e command,
   if (kind == BKCONTROL_CONFIG_WAKE_THRESHOLD)
     return product_wake_threshold(command, offset, record, size, status);
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
-  if (kind == BKCONTROL_CONFIG_EYE_PACK) {
-    if (command == BKCONTROL_CONFIG_READ) {
+  if (kind == BKCONTROL_CONFIG_EYE_PACK)
+  {
+    if (command == BKCONTROL_CONFIG_READ)
+    {
       struct bkdisplay_service_status_s display;
       uint8_t wire[108] = {'E', 'Y', 'E', '1'};
       int ret = bk7258_display_get_status(&display);
@@ -870,12 +903,14 @@ static int product_config(void *context, enum bkcontrol_command_e command,
 static int product_ota(void *context, enum bkcontrol_command_e command,
   const uint8_t *record, size_t size, struct bkcontrol_status_s *status)
 {
-  if (command == BKCONTROL_OTA_START) {
+  if (command == BKCONTROL_OTA_START)
+  {
     if (bkagent_ota_busy() || !g_identity_bound ||
         !voice_channel_is_idle() || bkprov_network_busy() ||
         bk7258_agent_trigger_model_pending()) return -EBUSY;
     int ret = 0;
-    if (g_trigger_started) {
+    if (g_trigger_started)
+    {
       ret = bk7258_agent_trigger_stop();
       if (ret) return ret;
       g_trigger_started = false;
@@ -915,13 +950,18 @@ static int product_load_cloud_models(const void *trust, size_t trust_size,
                                      location, sizeof(location));
       if (!ret && asr[0] && strcmp(asr, backend)) ret = -EPERM;
       if (!ret && !asr[0]) snprintf(asr, sizeof(asr), "%s", backend);
-      if (!ret && (!location[0] || !strcmp(location, "remote"))) {
+      if (!ret && (!location[0] || !strcmp(location, "remote")))
+      {
         if (tts[0] && strcmp(tts, backend)) ret = -EPERM;
         else if (!tts[0]) snprintf(tts, sizeof(tts), "%s", backend);
-      } else if (!ret && !strcmp(location, "device")) {
+      }
+      else if (!ret && !strcmp(location, "device"))
+      {
         device_tts = true;
         if (!tts[0] || !strcmp(tts, backend)) ret = -ENOTSUP;
-      } else if (!ret) {
+      }
+      else if (!ret)
+      {
         ret = -EINVAL;
       }
       if (!ret) ret = voice_asr_set_backend(asr);
@@ -931,7 +971,8 @@ static int product_load_cloud_models(const void *trust, size_t trust_size,
       syslog(ret ? LOG_WARNING : LOG_INFO,
              "BKVOICE LLM activation result=%d\n", ret);
       if (!ret) ret = tts[0] ? voice_tts_set_backend(tts) : -ENOTSUP;
-      if (!ret) {
+      if (!ret)
+      {
         voice_tts_capabilities_t caps;
         ret = voice_tts_get_capabilities(&caps);
         if (!ret && (device_tts ?
@@ -964,7 +1005,8 @@ static int product_models(enum bkcontrol_command_e command, uint32_t offset,
   struct bkcloud_models_s models = {0};
   struct bkcloud_models_s previous = {0};
   int ret;
-  if (command == BKCONTROL_CONFIG_READ) {
+  if (command == BKCONTROL_CONFIG_READ)
+  {
     uint8_t wire[BKCLOUD_MODELS_RECORD_MAX];
     size_t total = 0;
     if (!g_cloud_loaded) return g_product_error ? g_product_error : -EAGAIN;
@@ -1016,27 +1058,34 @@ static int product_models(enum bkcontrol_command_e command, uint32_t offset,
     g_identity.record + 48, g_identity.certificate_size,
     g_identity.record + 48 + g_identity.certificate_size, g_identity.key_size,
     work->voice, sizeof(work->voice), &voice_size);
-  if (!ret && g_trigger_started) {
+  if (!ret && g_trigger_started)
+  {
     ret = bk7258_agent_trigger_stop();
     if (!ret) g_trigger_started = false;
   }
-  if (!ret) {
+  if (!ret)
+  {
     g_configured = false;
     ret = product_load_cloud_models(work->voice, voice_size,
       work->settings.cloud, work->settings.cloud_size, &models);
-    if (!ret) {
+    if (!ret)
+    {
       g_probe_result = bkagent_cloud_verify_service();
       g_service_result = g_probe_result;
       ret = g_probe_result;
     }
     if (!ret) ret = bk7258_preferences_cloud_models_set(&models);
-    if (!ret) {
+    if (!ret)
+    {
       g_configured = g_service_result == 0;
-    } else {
+    }
+    else
+    {
       int failure = ret;
       int restored = product_load_cloud_models(work->voice, voice_size,
         work->settings.cloud, work->settings.cloud_size, &previous);
-      if (!restored) {
+      if (!restored)
+      {
         g_probe_result = bkagent_cloud_verify_service();
         g_service_result = g_probe_result;
         restored = g_probe_result;
@@ -1074,7 +1123,8 @@ static int product_clear(void *unused)
 {
   (void)unused;
   if (!voice_channel_is_idle()) return -EBUSY;
-  if (g_trigger_started) {
+  if (g_trigger_started)
+  {
     int ret = bk7258_agent_trigger_stop();
     if (ret < 0) return ret;
     g_trigger_started = false;
@@ -1123,14 +1173,16 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
   uint64_t revision = 0;
   uint8_t transaction[16] = {0};
   int ret = 0;
-  if (!g_identity_bound) {
+  if (!g_identity_bound)
+  {
     ret = bkprov_storage_identity(work->identity, sizeof(work->identity), &size);
     *storage_waiting = storage_unavailable(ret);
     if (!ret) ret = bkprov_identity_load(&g_identity, work->identity, size);
     if (!ret) ret = bkprov_network_bind(&g_identity, &g_provision_voice, NULL);
     if (!ret) ret = bkprov_owner_bind(&g_identity.certificate, &g_identity.key,
                                       g_identity.secret, bkprov_network_ops(), NULL);
-    if (ret < 0) {
+    if (ret < 0)
+    {
       (void)bkprov_network_unbind();
       bkprov_identity_clear(&g_identity);
       goto out;
@@ -1186,7 +1238,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
   int voice_turn_result = 0;
   enum voice_action_e voice_action = VOICE_ACTION_NONE;
   (void)argc; (void)argv;
-  while (1) {
+  while (1)
+  {
     /* The existing BLE TLS/claim and Wi-Fi trial owners need their documented
      * step cadence. Configuration activation itself is event driven. */
     struct timespec deadline;
@@ -1203,12 +1256,14 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
     if (product_keys_step(now)) continue;
 #endif
-    if (now >= voice_cleanup_at) {
+    if (now >= voice_cleanup_at)
+    {
       int cleanup = voice_channel_recover();
       voice_cleanup_at = now + 500;
       if (cleanup < 0 && cleanup != -EBUSY) g_product_error = cleanup;
     }
-    if (events & 2) {
+    if (events & 2)
+    {
       voice_turn_result = atomic_load(&g_voice_event_result);
       g_product_error = voice_turn_result;
       /* TURN_COMPLETE is the official per-turn resource boundary, not the
@@ -1221,7 +1276,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         voice_interaction_active = false;
       voice_action_at = now;
     }
-    if (voice_action != VOICE_ACTION_NONE && now >= voice_action_at) {
+    if (voice_action != VOICE_ACTION_NONE && now >= voice_action_at)
+    {
       enum voice_action_e attempted = voice_action;
       int action;
       if (voice_action == VOICE_ACTION_CONTINUE)
@@ -1231,8 +1287,11 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (action == 0 || (voice_action == VOICE_ACTION_REARM &&
                           bk7258_agent_trigger_armed())) {
         voice_action = VOICE_ACTION_NONE;
-      } else {
-        if (voice_action == VOICE_ACTION_CONTINUE && action != -EBUSY) {
+      }
+      else
+      {
+        if (voice_action == VOICE_ACTION_CONTINUE && action != -EBUSY)
+        {
           voice_interaction_active = false;
           voice_action = VOICE_ACTION_REARM;
         }
@@ -1245,27 +1304,34 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
              attempted == VOICE_ACTION_REARM ? "exit" : "active",
              attempted == VOICE_ACTION_REARM ? "wake" : "capture", action);
     }
-    if (events & 8) {
+    if (events & 8)
+    {
       pending = true;
       atomic_store(&g_trigger_prepare_pending, true);
     }
     uint32_t generation = bkprov_gatt_generation();
     if (!storage_deadline) storage_deadline = now + 15000;
-    if (generation != connection_generation) {
+    if (generation != connection_generation)
+    {
       connection_generation = generation;
       /* A later App connection can retry a mount that missed the bounded
        * startup window. It cannot bypass identity or trust validation. */
-      if (storage_waiting) {
+      if (storage_waiting)
+      {
         storage_deadline = now + 15000;
         storage_retry_at = now;
       }
     }
-    if (storage_retry_at && now >= storage_retry_at) {
+    if (storage_retry_at && now >= storage_retry_at)
+    {
       storage_retry_at = 0;
-      if (now >= storage_deadline) {
+      if (now >= storage_deadline)
+      {
         syslog(LOG_WARNING, "BKVOICE storage readiness window expired result=%d\n",
                g_product_error);
-      } else {
+      }
+      else
+      {
         int ret = bkprov_storage_refresh();
         if (ret == -EBUSY) storage_retry_at = now + 250;
         else if (ret) g_product_error = ret;
@@ -1274,7 +1340,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
     }
     bkprov_network_step();
     bool network_busy = bkprov_network_busy();
-    if (network_was_busy && !network_busy) {
+    if (network_was_busy && !network_busy)
+    {
       g_configured = g_service_result == 0;
       g_product_error = g_service_result;
       syslog(g_configured ? LOG_INFO : LOG_WARNING,
@@ -1292,7 +1359,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (storage_waiting && now < storage_deadline) storage_retry_at = now + 250;
       else if (!storage_waiting) storage_retry_at = 0;
       pending = ret == -EBUSY;
-      if (ret && !pending) {
+      if (ret && !pending)
+      {
         g_product_error = ret;
         syslog(LOG_WARNING, "BKVOICE configuration unavailable result=%d\n", ret);
       }
@@ -1308,8 +1376,10 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
     if (model_was_pending && !bk7258_agent_trigger_model_pending() &&
         model_result == 0)
       atomic_store(&g_trigger_prepare_pending, false);
-    /* 现有存储 worker 读到同卷身份后，才能区分模型记录缺失和挂载未就绪。
-     * 不在启动的 -EAGAIN 窗口提前选择内置模型并缓存错误的 revision 0。
+    /* Only after the existing storage worker has read the same-volume
+     * identity can a missing model record be told apart from a mount that is
+     * not ready. The built-in model is not selected early during the start-up
+     * -EAGAIN window, which would cache a wrong revision 0.
      */
     if (atomic_load(&g_trigger_prepare_pending) && g_identity_bound &&
         !pending && !network_busy &&
@@ -1322,7 +1392,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
              "BKVOICE wake model prepared=%d result=%d\n", ret == 0, ret);
     }
     if (!g_configured || pending || bkprov_network_busy()) continue;
-    /* 显示启动短时占用同一 SD；只重试资源忙，不把它误作配置丢失。 */
+    /* Display start-up briefly occupies the same SD; only the busy resource
+     * is retried, and it is not mistaken for lost configuration.
+     */
     if ((!g_trigger_started || preferences_pending) &&
         !voice_interaction_active && voice_channel_is_idle() &&
         now >= preferences_retry_at) {
@@ -1336,7 +1408,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
              "BKVOICE wake threshold restore=%d percent=%u\n", threshold_ret,
              bk7258_agent_trigger_threshold_get());
 #endif
-      /* 不阻塞语音启动；会话空闲后由同一配置任务补恢复。 */
+      /* Does not block voice start-up; the same configuration task completes
+       * the restore once the session is idle.
+       */
       int persona_ret = product_apply_persona(-1);
       preferences_pending |= persona_ret == -EBUSY;
       if (persona_ret)
@@ -1354,7 +1428,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #endif
       preferences_retry_at = now + 1000;
     }
-    if (!g_trigger_started && now >= trigger_retry_at) {
+    if (!g_trigger_started && now >= trigger_retry_at)
+    {
       unsigned int saved, observed;
       int ret = bkvoice_volume_store_get(&saved);
       if (!ret) ret = bkvoice_media_volume(true, saved, &observed);
@@ -1369,14 +1444,18 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (ret == -EBUSY) trigger_retry_at = now + 1000;
       else if (ret) g_configured = false;
     }
-    if (g_trigger_started && (events & 4)) {
+    if (g_trigger_started && (events & 4))
+    {
       int ret = bk7258_agent_trigger_process();
-      if (ret < 0) {
+      if (ret < 0)
+      {
         voice_interaction_active = false;
         g_product_error = ret;
         voice_action = VOICE_ACTION_REARM;
         voice_action_at = now + 100;
-      } else {
+      }
+      else
+      {
         voice_interaction_active = true;
       }
     }
@@ -1689,7 +1768,9 @@ int bk7258_agent_product_start(void)
     }
 
 #ifdef CONFIG_BK7258_VOICE_TLS
-  /* 官方 Session 读取使用 8 KiB 行缓冲，保留调用栈余量。 */
+  /* The official Session read uses an 8 KiB line buffer, so extra call-stack
+   * headroom is kept.
+   */
   configpid = task_create("agent-config", 95, 16384,
                           bk7258_agent_config_task, NULL);
   if (configpid < 0)

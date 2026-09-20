@@ -77,7 +77,7 @@ int bkmemory_policy_set(const char *root, const uint8_t owner[32],
 {
   struct bkmemory_policy_s policy;
   struct bkprov_store_s store;
-  uint8_t record[72] = {'S','M','P','1'}, transaction[16] = {'S','M','P','1'};
+  uint8_t record[72] = {'S', 'M', 'P', '1'}, transaction[16] = {'S', 'M', 'P', '1'};
   int ret = bkmemory_policy_load(root, owner, &policy);
   if (ret < 0) goto done;
   if (policy.enabled == enabled && !rotate && (!enabled || nonzero(policy.key))) goto done;

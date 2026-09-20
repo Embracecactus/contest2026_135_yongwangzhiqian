@@ -107,8 +107,10 @@ int bk7258_board_ap_initialize(void)
   int ret;
 
 #ifdef CONFIG_BK7258_APP_AGENT
-  /* 原理图网名 LED2 对应 P41/R64/LED4 用户绿灯，高电平点亮。
-   * 产品默认关闭，避免近距离照射摄像头；不影响充电芯片的指示灯。
+  /* Schematic net name LED2 maps to P41/R64/LED4, the user green LED, which
+   * lights when driven high.  The product keeps it off by default so it does
+   * not shine on the camera at close range; the charger indicator is
+   * unaffected.
    */
 
   ret = bk7258_gpio_configure_output(BK7258_BOARD_PIN_LED2, false,

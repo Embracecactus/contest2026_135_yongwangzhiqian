@@ -61,8 +61,9 @@ static int vision_execute(const char *name, const char *input,
   jpeg = malloc(image_capacity);
   if (!jpeg) { ret = -ENOMEM; goto out; }
 
-  /* 只借用现有唯一摄像头 owner；它在返回前已停止采集并释放 V4L2。
-   * 不保存图片、不接入第二条捕获任务，也不从历史文件取图。
+  /* Borrows only the existing single camera owner; it has already stopped
+   * capture and released V4L2 before returning. No image is stored, no second
+   * capture task is attached and no image is taken from a history file.
    */
   ret = bk7258_vision_capture_jpeg(jpeg, image_capacity, &jpeg_size);
   syslog(LOG_INFO, "BKVOICE camera capture owner=vision bytes=%zu result=%d\n",
@@ -110,10 +111,12 @@ static int vision_execute(const char *name, const char *input,
   if (!cJSON_AddItemToArray(messages, message)) goto out;
   message = NULL;
 
-  /* 复用同一 LLM 代理的多模态 messages 和受保护 transport。
-   * 子请求继续检查原请求状态，传输 prepare 不能抹去取消或已到期状态。
-   * 这里只适配图片内容，模型、鉴权、请求与返回解析仍归同一 LLM 代理。
-   * 不设置独立视觉服务商、不在此创建 HTTP 客户端或工具循环。
+  /* Reuses the multimodal messages and protected transport of the same LLM
+   * agent. The sub-request still checks the original request state, and the
+   * transport prepare must not erase a cancelled or expired state. Only the
+   * image content is adapted here; model, authentication, request and
+   * response parsing still belong to that same LLM agent. No separate vision
+   * provider is set up, and no HTTP client or tool loop is created here.
    */
   ret = llm_chat_tools_checked("Answer the user's question using this fresh camera "
     "image. Be concise. Do not invent details you cannot see.",
@@ -138,8 +141,10 @@ out:
     snprintf(output, capacity,
       "Error: camera analysis failed (%d); no visual conclusion is available.", ret);
   syslog(LOG_INFO, "BKVOICE camera tool result=%d\n", ret);
-  /* 官方 provider 的 OK 表示命中并执行了该工具。真实能力失败作为结果
-   * 返回给 Agent；否则 registry 会把已识别工具的错误覆盖成 unknown tool。
+  /* OK from the official provider means the tool matched and was executed.
+   * A real capability failure is returned to the Agent as a result; otherwise
+   * the registry would overwrite the recognized tool's error with "unknown
+   * tool".
    */
   return OK;
 }

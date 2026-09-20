@@ -84,7 +84,9 @@ int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
     {
       if (!pair->session.authenticated && !memcmp(pair->input, "SPV1", 4))
         {
-          /* 复用同一 TLS；AUTH 扫描与显式 AUTH_OWNER 恢复权限分开。 */
+          /* Reuses the same TLS; the AUTH scan and the explicit AUTH_OWNER
+           * recovery privilege stay separate.
+           */
           pair->scan = calloc(1, sizeof(*pair->scan));
           if (pair->scan == NULL) { ret = -ENOMEM; goto fail; }
           ret = bkprov_pair_attach_scan(pair->scan, &pair->tls,

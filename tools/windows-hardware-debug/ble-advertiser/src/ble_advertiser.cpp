@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+/* SPDX-License-Identifier: Apache-2.0 */
 
 #include <windows.h>
 
@@ -515,7 +515,7 @@ int run(const options_s &options)
   std::cout << "BLEADV RESULT PASS stopped=1\n";
   return 0;
 }
-} // namespace
+} /* namespace */
 
 int wmain(int argc, wchar_t **argv)
 {

@@ -5,7 +5,7 @@
  * Host unit tests for chips/bk7258/ap/bk7258_yuv_h264.c, compiled
  * unmodified against the mock SDK surface in mocks/driver/.
  *
- * The mock SDK (framework/mock_sdk_yuv_h264.{c,h}) logs every call in
+ * The mock SDK (framework/mock_sdk_yuv_h264.{c, h}) logs every call in
  * order, records the captured dma/yuv configuration snapshots, exposes
  * programmable bk_err_t results per function, and keeps the ISR callbacks
  * the driver registered so tests can fire LINE/FINAL/error events through

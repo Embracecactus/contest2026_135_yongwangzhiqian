@@ -242,7 +242,9 @@ void __start(void)
   __asm volatile ("dsb sy; isb sy" ::: "memory");
   BK7258_FPU_FPCCR &= ~((1u << 31) | (1u << 30) | (1u << 29));
 #ifdef CONFIG_ARCH_FPU
-  /* 由官方入口建立 FPCA，不能只启用 FPU 而省略异常上下文初始化。 */
+  /* The official entry point establishes FPCA; enabling the FPU alone must
+   * not omit the exception context initialization.
+   */
 
   arm_fpuconfig();
 #else

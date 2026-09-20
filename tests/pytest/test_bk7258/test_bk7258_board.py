@@ -23,9 +23,7 @@ BOARD_PERIPHERAL_MARKERS = {
         "BDAC BOOT PASS board=T5-Board",
         "BMIC BOOT PASS board=T5-Board",
     ),
-    "t5ai_core": (
-        "BMIC BOOT PASS board=T5AI-Core",
-    ),
+    "t5ai_core": ("BMIC BOOT PASS board=T5AI-Core",),
     "aidk_ai_toy": (
         "BDAC BOOT PASS board=AIDK AI Toy",
         "BMIC BOOT PASS board=AIDK AI Toy",

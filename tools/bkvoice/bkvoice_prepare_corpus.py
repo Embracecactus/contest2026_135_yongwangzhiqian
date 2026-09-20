@@ -50,13 +50,22 @@ def is_within(path: Path, root: Path) -> bool:
 
 def read_rows(path: Path) -> list[dict[str, object]]:
     rows = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for line_number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), 1
+    ):
         try:
             row = json.loads(line)
         except json.JSONDecodeError as error:
             raise ValueError(f"invalid private manifest line {line_number}") from error
-        required = ("source_path", "sha256", "direction", "association_status",
-                    "sample_rate", "channels", "duration_ms")
+        required = (
+            "source_path",
+            "sha256",
+            "direction",
+            "association_status",
+            "sample_rate",
+            "channels",
+            "duration_ms",
+        )
         if not isinstance(row, dict) or any(key not in row for key in required):
             raise ValueError(f"incomplete private manifest line {line_number}")
         source_path = PurePosixPath(str(row["source_path"]))
@@ -90,7 +99,7 @@ def analyze(path: Path, frame_ms: int) -> dict[str, object]:
     total = 0
     active_floor = full_scale * (10.0 ** (-45.0 / 20.0))
     for offset in range(0, len(payload), frame_bytes):
-        frame = payload[offset:offset + frame_bytes]
+        frame = payload[offset : offset + frame_bytes]
         if not frame:
             continue
         total += 1
@@ -102,7 +111,9 @@ def analyze(path: Path, frame_ms: int) -> dict[str, object]:
     clipped = 0
     sample_count = frame_count * channels
     for offset in range(0, len(payload), sample_width):
-        value = int.from_bytes(payload[offset:offset + sample_width], "little", signed=True)
+        value = int.from_bytes(
+            payload[offset : offset + sample_width], "little", signed=True
+        )
         if abs(value) >= clip_threshold:
             clipped += 1
 
@@ -226,8 +237,11 @@ def main(argv: list[str] | None = None) -> int:
         split = None
         sanitized = None
         if accepted:
-            split = ("eval" if int(str(row["sha256"])[:8], 16) % 100 <
-                     args.eval_percent else "train")
+            split = (
+                "eval"
+                if int(str(row["sha256"])[:8], 16) % 100 < args.eval_percent
+                else "train"
+            )
             split_counts[split] += 1
             accepted_ms += float(metrics["duration_ms"])
             sanitized = f"{index:04d}-{str(row['sha256'])[:16]}.wav"
@@ -235,21 +249,27 @@ def main(argv: list[str] | None = None) -> int:
         else:
             reasons.update(reject)
 
-        private_rows.append({
-            "format": PRIVATE_FORMAT,
-            "path_sha256": row.get("path_sha256"),
-            "sha256": row["sha256"],
-            "audio_file": sanitized,
-            "accepted": accepted,
-            "split": split,
-            "reject_reasons": reject,
-            "metrics": metrics,
-        })
+        private_rows.append(
+            {
+                "format": PRIVATE_FORMAT,
+                "path_sha256": row.get("path_sha256"),
+                "sha256": row["sha256"],
+                "audio_file": sanitized,
+                "accepted": accepted,
+                "split": split,
+                "reject_reasons": reject,
+                "metrics": metrics,
+            }
+        )
 
     private_path = output / "corpus-private.jsonl"
     private_path.write_text(
-        "".join(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
-                for row in private_rows), encoding="utf-8")
+        "".join(
+            json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
+            for row in private_rows
+        ),
+        encoding="utf-8",
+    )
     created = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     audit = {
         "format": AUDIT_FORMAT,
@@ -283,14 +303,16 @@ def main(argv: list[str] | None = None) -> int:
     worklog["status"] = "CORPUS_PREPARED"
     worklog["stages"]["quality_filter"] = "PASS"
     worklog["stages"]["dataset_split"] = "PASS"
-    worklog["events"].append({
-        "created_utc": created,
-        "event": "quality_filter_completed",
-        "status": "PASS",
-        "audit_sha256": sha256_file(audit_path),
-        "accepted": audit["counts"]["accepted"],
-        "rejected": audit["counts"]["rejected"],
-    })
+    worklog["events"].append(
+        {
+            "created_utc": created,
+            "event": "quality_filter_completed",
+            "status": "PASS",
+            "audit_sha256": sha256_file(audit_path),
+            "accepted": audit["counts"]["accepted"],
+            "rejected": audit["counts"]["rejected"],
+        }
+    )
     atomic_json(args.worklog, worklog)
     print("BKVOICE_CORPUS_PREP_PASS " + json.dumps(audit["counts"], sort_keys=True))
     return 0

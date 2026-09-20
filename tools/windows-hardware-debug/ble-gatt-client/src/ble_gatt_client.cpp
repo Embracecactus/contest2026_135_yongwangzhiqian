@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+/* SPDX-License-Identifier: Apache-2.0 */
 
 #include <windows.h>
 
@@ -194,7 +194,7 @@ public:
   }
 
   gatt_session_lease(const gatt_session_lease &) = delete;
-  gatt_session_lease &operator=(const gatt_session_lease &) = delete;
+  gatt_session_lease &operator = (const gatt_session_lease &) = delete;
 
   ~gatt_session_lease()
   {
@@ -2002,7 +2002,7 @@ int run(const options_s &options)
             << discovery_cache_name(options) << "\n";
   return 0;
 }
-} // namespace
+} /* namespace */
 
 int wmain(int argc, wchar_t **argv)
 {

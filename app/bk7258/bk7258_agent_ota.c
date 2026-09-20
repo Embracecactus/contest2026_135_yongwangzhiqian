@@ -455,7 +455,8 @@ int bkagent_ota_control(void *context, enum bkcontrol_command_e command,
   if (!job) return -ENOMEM;
   int ret = bkcontrol_ota_request_parse(record, size, &job->request);
   bool completion_ready = false;
-  if (!ret) {
+  if (!ret)
+  {
     if (sem_init(&job->completion, 0, 0) < 0) ret = -errno;
     else completion_ready = true;
   }

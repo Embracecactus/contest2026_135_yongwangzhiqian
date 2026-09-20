@@ -53,8 +53,7 @@ SAFE_CASES = (
             HilStep(
                 command="apctl health",
                 expected_regex=(
-                    r"AP supervisor state=HEALTHY\([0-9]+\) "
-                    r"reason=NONE\([0-9]+\)",
+                    r"AP supervisor state=HEALTHY\([0-9]+\) " r"reason=NONE\([0-9]+\)",
                 ),
             ),
         ),
@@ -247,16 +246,13 @@ def validate_contract(cases: Iterable[HilCase] = ALL_CASES) -> None:
             raise ValueError("HIL case ids must be non-empty and unique")
         seen.add(case.case_id)
         if case.repetitions < 1 or not case.steps or not case.physical_gate:
-            raise ValueError(
-                "HIL cases require steps, repetitions and a physical gate"
-            )
+            raise ValueError("HIL cases require steps, repetitions and a physical gate")
         for step in case.steps:
             command = step.command.strip()
             if not command or command != step.command or "\n" in command:
                 raise ValueError("HIL commands must be one normalized console line")
             command_tokens = shlex.split(command)
-            if (not command_tokens or
-                    command_tokens[0].lower() in forbidden_commands):
+            if not command_tokens or command_tokens[0].lower() in forbidden_commands:
                 raise ValueError(
                     "HIL app cases must not reset, flash or export storage"
                 )

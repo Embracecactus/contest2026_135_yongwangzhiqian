@@ -21,7 +21,7 @@
 
 #define RX_BYTES 4096u
 #define UUID128(n) { .type = BT_UUID_128, .u.u128 = \
-  {0x31,0x25,0x39,0x4b,0xda,0xe6,0x62,0x9c,0x48,0x4c,0x31,0x9b,n,0x00,0xe7,0x81} }
+  {0x31, 0x25, 0x39, 0x4b, 0xda, 0xe6, 0x62, 0x9c, 0x48, 0x4c, 0x31, 0x9b, n, 0x00, 0xe7, 0x81} }
 static struct bt_uuid_s g_service = UUID128(1);
 static struct bt_uuid_s g_tx = UUID128(2);
 static struct bt_uuid_s g_rx = UUID128(3);
@@ -118,9 +118,12 @@ static void disconnected(struct bt_conn_s *conn, void *context)
       g_connection = NULL;
       g_window = false;
       g_ready = false;
-      /* 产品用每次连接的 TLS 鉴权，不跨连接保留通知订阅。官方 GATT
-       * 此时已结束断开处理；释放自有 CCC 槽，允许手机随机地址变化。
-       * 这里只清理易失订阅状态，不触碰蓝牙配对或产品认领密钥。
+      /* The product authenticates per connection over TLS and keeps no
+       * notification subscription across connections. The official GATT
+       * layer has already finished disconnect handling here; releasing our
+       * own CCC slots lets the phone change its random address. Only
+       * volatile subscription state is cleared, never Bluetooth pairing or
+       * the product claim key.
        */
       memset(g_ccc, 0, sizeof(g_ccc));
     }
@@ -143,8 +146,8 @@ static const struct bt_eir_s g_advertisement[] =
   { .len = 2, .type = BT_EIR_FLAGS,
     .data = { BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR } },
   { .len = 17, .type = BT_EIR_UUID128_ALL,
-    .data = {0x31,0x25,0x39,0x4b,0xda,0xe6,0x62,0x9c,
-             0x48,0x4c,0x31,0x9b,0x01,0x00,0xe7,0x81} },
+    .data = {0x31, 0x25, 0x39, 0x4b, 0xda, 0xe6, 0x62, 0x9c,
+             0x48, 0x4c, 0x31, 0x9b, 0x01, 0x00, 0xe7, 0x81} },
   { .len = 7, .type = BT_EIR_NAME_COMPLETE, .data = "Shaniu" },
   { .len = 0 },
 };
@@ -155,8 +158,8 @@ static const struct bt_eir_s g_advertisement[] =
 static struct bt_eir_s g_scan_response[] =
 {
   { .len = 0, .type = BT_EIR_SVC_DATA128,
-    .data = {0x31,0x25,0x39,0x4b,0xda,0xe6,0x62,0x9c,
-             0x48,0x4c,0x31,0x9b,0x01,0x00,0xe7,0x81} },
+    .data = {0x31, 0x25, 0x39, 0x4b, 0xda, 0xe6, 0x62, 0x9c,
+             0x48, 0x4c, 0x31, 0x9b, 0x01, 0x00, 0xe7, 0x81} },
   { .len = 0 },
 };
 

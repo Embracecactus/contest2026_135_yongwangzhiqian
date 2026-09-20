@@ -316,8 +316,9 @@ static void bkdisplay_cache_frames(struct bkdisplay_service_s *service,
     {NULL, "blink_half", "blink_closed", "look_left", "look_right"};
   unsigned int i;
 
-  /* 只在显式切换表情/资源包时读盘；动画不持有 SD 租约或文件句柄。
-   * 最多缓存 5 帧（256000 B），旧资源包缺少可选帧时仍能静态显示。
+  /* Only an explicit expression/pack switch reads from disk; the animation
+   * holds no SD lease or file handle. At most 5 frames (256000 B) are cached,
+   * and an old pack missing optional frames still displays statically.
    */
 
   for (i = 0; i < 5; i++)
@@ -386,7 +387,9 @@ static unsigned int bkdisplay_animate_locked(struct bkdisplay_service_s *service
     }
   else
     {
-      /* expression 保留用户选择的逻辑表情，不被瞬时眨眼帧覆盖。 */
+      /* expression keeps the user-selected logical expression and is not
+       * overwritten by the transient blink frames.
+       */
 
       service->status.render_sequence++;
     }
@@ -880,7 +883,9 @@ int bk7258_display_import(const void *data, size_t size)
     }
 
   nxmutex_unlock(&service->lock);
-  /* 缺包启动失败后，成功导入重新使用同一个显示 worker。 */
+  /* After a start failure caused by a missing pack, a successful import
+   * reuses the same display worker.
+   */
   return ret == 0 ? bk7258_display_service_start() : ret;
 }
 

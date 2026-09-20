@@ -4,8 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* 存储记录容量独立于 16 KiB 认领协议；容纳三轮有界加密历史。
- * 各协议仍以自己的容量检查输入，不扩展 BLE 配置报文。
+/* The store record capacity is independent of the 16 KiB claim protocol and
+ * holds three bounded encrypted history rounds. Each protocol still bounds
+ * its own input, and BLE configuration messages are not enlarged.
  */
 #define BKPROV_STORE_RECORD_MAX 32768u
 

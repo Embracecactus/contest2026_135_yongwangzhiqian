@@ -15,7 +15,7 @@
  * installs the recovered vendor 120 MHz BL1 handoff profile, and the app then
  * drives bk7258_dvfs_set_opp() (mirroring the SDK runtime
  * sys_hal_switch_cpu_bus_freq path) to step up/down per chip operating
- * point.  See chip/cp/bk7258_dvfs.{c,h}.
+ * point.  See chip/cp/bk7258_dvfs.{c, h}.
  *
  * Board chip_id = 0x23A40910 = PM_CHIP_ID_MP_C.  The SDK has no explicit
  * MP_C branch, so the default else-branch ANA_REG values apply
@@ -116,7 +116,8 @@ static void clk_putc(char c)
 {
 #if BK7258_BL1_CONSOLE_UART < 3
     int i;
-    for (i = 0; i < 100000; i++) {
+    for (i = 0; i < 100000; i++)
+    {
         if (BOOT_UART_STATUS & BOOT_UART_TX_READY) break;
     }
     BOOT_UART_FIFO = (uint32_t)(uint8_t)c;

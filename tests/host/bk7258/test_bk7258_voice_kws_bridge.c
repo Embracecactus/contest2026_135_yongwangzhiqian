@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* voice_kws.py 的主机桥接，直接复用现有 C 前端和触发策略。 */
+/* Host bridge for voice_kws.py; reuses the existing C frontend and trigger
+ * policy directly.
+ */
 
 #include "bk7258_voice_kws.h"
 

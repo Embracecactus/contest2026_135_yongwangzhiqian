@@ -25,7 +25,7 @@
  * This header is reached via <arch/chip/irq.h> which <arch/irq.h> includes
  * BEFORE <arch/arm_m/irq.h> (and hence before nuttx/include/arch/arm_m/
  * nvicpri.h), so the priority values are visible when nvicpri.h derives
- * NVIC_SYSH_{MAXNORMAL,HIGH,DISABLE,SVCALL}_PRIORITY from them.
+ * NVIC_SYSH_{MAXNORMAL, HIGH, DISABLE, SVCALL}_PRIORITY from them.
  ****************************************************************************/
 
 #ifndef __ARCH_ARM_INCLUDE_BK7258_IRQ_H

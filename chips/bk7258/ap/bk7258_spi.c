@@ -13,8 +13,8 @@
  * Data path:
  *
  *   NuttX SPI sequence (upper half):
- *     lock() -> select(devid,true) -> setfrequency/setmode/setbits
- *            -> exchange(tx,rx,len) [xN] -> select(devid,false) -> unlock()
+ *     lock() -> select(devid, true) -> setfrequency/setmode/setbits
+ *            -> exchange(tx, rx, len) [xN] -> select(devid, false) -> unlock()
  *     -> bk_spi_set_baud_rate / bk_spi_set_mode / bk_spi_set_bit_width
  *       -> bk_spi_transmit / bk_spi_write_bytes / bk_spi_read_bytes
  *         -> configured Beken hardware SPI unit

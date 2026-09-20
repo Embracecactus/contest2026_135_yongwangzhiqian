@@ -12,7 +12,9 @@ int bkagent_cloud_activate_llm(void);
 int bkagent_cloud_clear(void);
 /* Public MCP1 model names from the installed protected configuration. */
 int bkagent_cloud_models_get(struct bkcloud_models_s *models);
-/* 产品确认持久设置后发布；仅支持该参数的已选后端声明此能力。 */
+/* Published only after the product confirms the persisted setting; only the
+ * selected backend that supports this parameter advertises the capability.
+ */
 void bkagent_cloud_set_thinking(bool enabled);
 int bkagent_cloud_get_thinking(bool *enabled);
 /* Verify the selected server's TLS identity. This does not claim ASR/LLM/TTS

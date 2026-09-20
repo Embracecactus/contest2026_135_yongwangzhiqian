@@ -148,8 +148,10 @@ static void uart_putc(char c)
      * write-through behavior the verified minimal bootloader used, rather
      * than hanging the boot.
      */
-    for (int i = 0; i < 100000; i++) {
-        if (BOOT_UART_STATUS & BOOT_UART_TX_READY) {
+    for (int i = 0; i < 100000; i++)
+    {
+        if (BOOT_UART_STATUS & BOOT_UART_TX_READY)
+        {
             break;
         }
     }
@@ -159,7 +161,8 @@ static void uart_putc(char c)
 
 static void uart_puts(const char *s)
 {
-    while (*s) {
+    while (*s)
+    {
         uart_putc(*s++);
     }
 }
@@ -168,9 +171,10 @@ static void print_hex32(uint32_t v)
 {
     static const char hex[] = "0123456789ABCDEF";
     int s;
-    /* for(s=28; s>=0; s-=4): avoids the v>>32 undefined behaviour that the
+    /* for (s=28; s>=0; s-=4): avoids the v>>32 undefined behaviour that the
        earlier probe fell into (top nibble got shifted into oblivion). */
-    for (s = 28; s >= 0; s -= 4) {
+    for (s = 28; s >= 0; s -= 4)
+    {
         uart_putc(hex[(v >> s) & 0xFu]);
     }
 }
@@ -215,11 +219,14 @@ static void trustengine_readonly_probe(void)
 static int name_eq(const char *a, const char *b)
 {
     int i;
-    for (i = 0; i < FAL_DEV_NAME_MAX; i++) {
-        if (a[i] != b[i]) {
+    for (i = 0; i < FAL_DEV_NAME_MAX; i++)
+    {
+        if (a[i] != b[i])
+        {
             return 0;
         }
-        if (a[i] == '\0') {
+        if (a[i] == '\0')
+        {
             return 1;
         }
     }
@@ -229,11 +236,14 @@ static int name_eq(const char *a, const char *b)
 static const struct fal_partition *fal_find(const char *name)
 {
     size_t i;
-    for (i = 0; i < FAL_PART_COUNT; i++) {
-        if (fal_partition_table[i].magic_word != FAL_PART_MAGIC) {
+    for (i = 0; i < FAL_PART_COUNT; i++)
+    {
+        if (fal_partition_table[i].magic_word != FAL_PART_MAGIC)
+        {
             continue;
         }
-        if (name_eq(fal_partition_table[i].name, name)) {
+        if (name_eq(fal_partition_table[i].name, name))
+        {
             return &fal_partition_table[i];
         }
     }
@@ -251,27 +261,33 @@ static int validate_direct_app(uint32_t image, size_t image_size)
     uint32_t msp = vec[0];
     uint32_t rst = vec[1];
 
-    if (image_size < 0x108u) {
+    if (image_size < 0x108u)
+    {
         uart_puts("BAD\r\napp size\r\n");
         return 0;
     }
-    if ((msp & 3u) != 0u || msp < 0x28010000u || msp > 0x28050000u) {
+    if ((msp & 3u) != 0u || msp < 0x28010000u || msp > 0x28050000u)
+    {
         uart_puts("BAD\r\nmsp align/OOR\r\n");
         return 0;
     }
-    if ((rst & 1u) == 0u) {
+    if ((rst & 1u) == 0u)
+    {
         uart_puts("BAD\r\nreset no-thumb\r\n");
         return 0;
     }
-    if ((rst & ~1u) < image || (rst & ~1u) >= image + image_size) {
+    if ((rst & ~1u) < image || (rst & ~1u) >= image + image_size)
+    {
         uart_puts("BAD\r\nreset OOR\r\n");
         return 0;
     }
-    if (vec[0x100u / sizeof(uint32_t)] != 0x32374b42u) {
+    if (vec[0x100u / sizeof(uint32_t)] != 0x32374b42u)
+    {
         uart_puts("BAD\r\nmagic0\r\n");
         return 0;
     }
-    if (vec[0x104u / sizeof(uint32_t)] != 0x00003633u) {
+    if (vec[0x104u / sizeof(uint32_t)] != 0x00003633u)
+    {
         uart_puts("BAD\r\nmagic1\r\n");
         return 0;
     }
@@ -303,11 +319,13 @@ static int validate_bl2(uint32_t image)
         return 0;
     }
     /* Reset_Handler must have the Thumb bit set. */
-    if ((rst & 1u) == 0u) {
+    if ((rst & 1u) == 0u)
+    {
         uart_puts("BAD\r\nreset no-thumb\r\n");
         return 0;
     }
-    if ((rst & ~1u) < BL2_RAM_BASE || (rst & ~1u) >= BL2_RAM_END) {
+    if ((rst & ~1u) < BL2_RAM_BASE || (rst & ~1u) >= BL2_RAM_END)
+    {
         uart_puts("BAD\r\nbl2 reset OOR\r\n");
         return 0;
     }
@@ -315,7 +333,8 @@ static int validate_bl2(uint32_t image)
     /* BL2 is copied as a complete Cortex-M vector table.  Checking every
      * entry prevents a damaged handler word from redirecting execution to
      * XIP, erased Flash, or an unrelated SRAM window after the handoff. */
-    for (index = 2; index < BL2_VECTOR_COUNT; index++) {
+    for (index = 2; index < BL2_VECTOR_COUNT; index++)
+    {
         uint32_t handler = vec[index];
 
         if ((handler & 1u) == 0u ||
@@ -353,14 +372,16 @@ static int load_bl2_to_ram(uint32_t source, size_t size)
       };
     size_t index;
 
-    if (size != BL2_COPY_SIZE || (size & 3u) != 0u) {
+    if (size != BL2_COPY_SIZE || (size & 3u) != 0u)
+    {
         uart_puts("BAD\r\nbl2 size\r\n");
         return 0;
     }
 
     authorized.msp = from[0];
     authorized.reset = from[1];
-    for (index = 0; index < size / sizeof(uint32_t); index++) {
+    for (index = 0; index < size / sizeof(uint32_t); index++)
+    {
         to[index] = from[index];
     }
 
@@ -370,7 +391,8 @@ static int load_bl2_to_ram(uint32_t source, size_t size)
 
     loaded.msp = to[0];
     loaded.reset = to[1];
-    if (!bk7258_bl1_handoff_vector_valid(&authorized, &loaded, &window)) {
+    if (!bk7258_bl1_handoff_vector_valid(&authorized, &loaded, &window))
+    {
         uart_puts("BAD\r\nbl2 copy vector\r\n");
         return 0;
     }
@@ -431,12 +453,14 @@ uint32_t c_main(void)
      * Worst-case time: ~100 ms per attempt × 3 = 300 ms << 8 s WDT.
      */
 
-    for (retry = 0; retry < 3; retry++) {
+    for (retry = 0; retry < 3; retry++)
+    {
         boot_wdt_feed();
         boot_clock_cold_init();
 
         /* Check DPLL enable (ANA_REG5 bit5).  If set, cold-init succeeded. */
-        if (REG32(0x44010114u) & (1u << 5)) {
+        if (REG32(0x44010114u) & (1u << 5))
+        {
             cold_ok = 1;
             break;
         }
@@ -446,7 +470,8 @@ uint32_t c_main(void)
 
     boot_wdt_feed();
 
-    if (!cold_ok) {
+    if (!cold_ok)
+    {
         /* All retries exhausted: DPLL not enabled.  Do NOT jump to app
          * (app would see BootROM default state, DPLL off, DVFS would try
          * to switch to cksel=2 with DPLL off — undefined behavior).
@@ -465,7 +490,8 @@ uint32_t c_main(void)
      * to the final assembly handoff/optional SWD hold in start.S. */
     boot_wdt_feed();
     app = fal_find("cp_app");
-    if (app == (const struct fal_partition *)0) {
+    if (app == (const struct fal_partition *)0)
+    {
         uart_puts("BAD\r\nno cp_app part\r\n");
         boot_wdt_fail_reset();
     }
@@ -494,7 +520,8 @@ uint32_t c_main(void)
 
     boot_wdt_feed();
     app = fal_find("bl2");
-    if (app == (const struct fal_partition *)0) {
+    if (app == (const struct fal_partition *)0)
+    {
         uart_puts("BAD\r\nno bl2 part\r\n");
         boot_wdt_fail_reset();
     }
@@ -533,7 +560,8 @@ uint32_t c_main(void)
     (void)bk7258_bl1_boot_flag_slot_order((const uint8_t *)0, 0u,
       (const struct bk7258_bl1_boot_flag_layout_s *)0, slot_order);
 #endif
-    for (attempt = 0; attempt < 2; attempt++) {
+    for (attempt = 0; attempt < 2; attempt++)
+    {
         slot = slot_order[attempt];
         app_vec = slot == 0 ? FLASH_BASE + (uint32_t)app->offset :
                               BK7258_BL2_SECONDARY_XIP;
@@ -564,7 +592,8 @@ uint32_t c_main(void)
             manifest_status = -5;
           }
         boot_wdt_feed();
-        if (manifest_status < 0) {
+        if (manifest_status < 0)
+        {
             log_u32("bl1 manifest rc ", (uint32_t)(-manifest_status));
             uart_puts(slot == 0 ? "B1PRIMARY BAD\r\n" :
                                   "B1SECONDARY BAD\r\n");
@@ -583,7 +612,8 @@ uint32_t c_main(void)
         break;
     }
 
-    if (!pair_ok) {
+    if (!pair_ok)
+    {
         uart_puts("BAD\r\nno bl2 candidate\r\n");
         boot_wdt_fail_reset();
     }

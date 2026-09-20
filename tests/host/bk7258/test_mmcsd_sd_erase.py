@@ -7,11 +7,14 @@ import tempfile
 
 s = Path(sys.argv[1]).read_text()
 a = s.index("static bool mmcsd_erase_iocmd_valid")
-b = s.index("\n/****************************************************************************\n * Name: mmcsd_iocmd", a)
+b = s.index(
+    "\n/****************************************************************************\n * Name: mmcsd_iocmd",
+    a,
+)
 c = s.index("static int mmcsd_multi_iocmd", b)
 d = s.index("\n#endif", c)
 body = s[a:b] + "\n" + s[c:d]
-prefix = r'''
+prefix = r"""
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -68,11 +71,11 @@ static int mock_recvr1(struct sdio_dev_s *d,uint32_t c,uint32_t *r)
 #define SDIO_RECVR1(d,c,r) mock_recvr1((d),(c),(r))
 static clock_t clock_systime_ticks(void){return now++;}
 static void ferr(const char *f,...){(void)f;}
-'''
-prefix += r'''
+"""
+prefix += r"""
 static int mmcsd_iocmd(struct mmcsd_part_s *p, struct mmc_ioc_cmd *c){(void)p;(void)c;return -EINVAL;}
-'''
-suffix = r'''
+"""
+suffix = r"""
 static void initp(struct mmcsd_state_s *p, struct sdio_dev_s *d)
 {
   memset(p,0,sizeof(*p)); p->dev=d; p->type=4; p->blocksize=p->selblocklen=512; p->csd[0]=0x007f0032; p->csd[1]=0x535a803c; p->csd[2]=0x6ebbff9f; p->csd[3]=0x00168000; p->partnum=0; p->part[0].priv=p; p->part[0].nblocks=1000000; p->wrbusy=true; now=sent=status_i=0; status_n=2; send_fail=recv_fail=0; status_seq[0]=status_seq[1]=MMCSD_R1_STATE_TRAN|MMCSD_R1_READYFORDATA;
@@ -97,8 +100,22 @@ int main(void)
   initp(&p,&d);m=makecmd(1);status_seq[1]=MMCSD_R1_STATE_PRG;status_n=2;m.cmds[2].cmd_timeout_ms=2;assert(mmcsd_multi_iocmd(&p.part[0],&m)==-ETIMEDOUT&&p.wrbusy);
   puts("MMCSD_SD_ERASE_HOST_TEST_PASS");return 0;
 }
-'''
+"""
 with tempfile.TemporaryDirectory(prefix="mmcsd-sd-erase-") as d:
-  root=Path(d); c=root/"test.c"; c.write_text(prefix+body+suffix)
-  subprocess.run(["cc","-std=gnu11","-Wall","-Wextra","-Werror",str(c),"-o",str(root/"test")],check=True)
-  subprocess.run([str(root/"test")],check=True)
+    root = Path(d)
+    c = root / "test.c"
+    c.write_text(prefix + body + suffix)
+    subprocess.run(
+        [
+            "cc",
+            "-std=gnu11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            str(c),
+            "-o",
+            str(root / "test"),
+        ],
+        check=True,
+    )
+    subprocess.run([str(root / "test")], check=True)

@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-HARNESS = r'''
+HARNESS = r"""
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
@@ -69,11 +69,28 @@ int main(void) {
  assert(isodep_activate(0,&ops,0,0x20)==-EINVAL);
  return 0;
 }
-'''
-with tempfile.TemporaryDirectory(prefix='isodep-host-') as tmp:
- root=Path(tmp);test=root/'test.c';test.write_text(HARNESS)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',
-                 '-I'+str(ROOT/'nuttx/include'),str(test),
-                 str(ROOT/'nuttx/drivers/contactless/isodep.c'),'-o',str(root/'test')],check=True)
- subprocess.run([str(root/'test')],check=True)
-print('PASS: ISO-DEP activation parameters, truncation, RFU defaults and failure release')
+"""
+with tempfile.TemporaryDirectory(prefix="isodep-host-") as tmp:
+    root = Path(tmp)
+    test = root / "test.c"
+    test.write_text(HARNESS)
+    subprocess.run(
+        [
+            "cc",
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=undefined",
+            "-I" + str(ROOT / "nuttx/include"),
+            str(test),
+            str(ROOT / "nuttx/drivers/contactless/isodep.c"),
+            "-o",
+            str(root / "test"),
+        ],
+        check=True,
+    )
+    subprocess.run([str(root / "test")], check=True)
+print(
+    "PASS: ISO-DEP activation parameters, truncation, RFU defaults and failure release"
+)

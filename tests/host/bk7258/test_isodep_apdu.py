@@ -4,8 +4,9 @@
 import subprocess
 import tempfile
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[3]
-HARNESS=r'''
+
+ROOT = Path(__file__).resolve().parents[3]
+HARNESS = r"""
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
@@ -67,9 +68,27 @@ int main(void) {
  assert(isodep_transceive(&s,command,sizeof(command),out,&n,100)==-EIO&&released==1);
  return 0;
 }
-'''
-with tempfile.TemporaryDirectory(prefix='isodep-apdu-') as tmp:
- p=Path(tmp);(p/'test.c').write_text(HARNESS)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-I'+str(ROOT/'nuttx/include'),str(p/'test.c'),str(ROOT/'nuttx/drivers/contactless/isodep.c'),'-o',str(p/'test')],check=True)
- subprocess.run([str(p/'test')],check=True)
-print('PASS: APDU sequence, bidirectional chaining, retransmit, WTX deadline and failure cleanup')
+"""
+with tempfile.TemporaryDirectory(prefix="isodep-apdu-") as tmp:
+    p = Path(tmp)
+    (p / "test.c").write_text(HARNESS)
+    subprocess.run(
+        [
+            "cc",
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=undefined",
+            "-I" + str(ROOT / "nuttx/include"),
+            str(p / "test.c"),
+            str(ROOT / "nuttx/drivers/contactless/isodep.c"),
+            "-o",
+            str(p / "test"),
+        ],
+        check=True,
+    )
+    subprocess.run([str(p / "test")], check=True)
+print(
+    "PASS: APDU sequence, bidirectional chaining, retransmit, WTX deadline and failure cleanup"
+)

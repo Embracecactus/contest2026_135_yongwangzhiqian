@@ -61,8 +61,9 @@ class DisplayAssetsTest(unittest.TestCase):
         self.assertTrue(all(row.codec == display_domain.CODEC_RLE8 for row in frames))
         previews = sorted(first_previews.glob("*.png"))
         self.assertEqual(len(previews), 20)
-        self.assertTrue(all(path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-                            for path in previews))
+        self.assertTrue(
+            all(path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n") for path in previews)
+        )
         self.assertNotEqual(
             (first_previews / "neutral-left.png").read_bytes(),
             (first_previews / "neutral-right.png").read_bytes(),
@@ -87,7 +88,7 @@ class DisplayAssetsTest(unittest.TestCase):
 
         corrupt = self.root / "corrupt.bkep"
         changed = bytearray(original)
-        changed[-1] ^= 0xff
+        changed[-1] ^= 0xFF
         corrupt.write_bytes(changed)
         with self.assertRaisesRegex(display_domain.EyePackError, "payload CRC"):
             display_domain.verify(corrupt)
@@ -144,10 +145,14 @@ class DisplayAssetsTest(unittest.TestCase):
             [
                 sys.executable,
                 str(TOOLS / "bk7258.py"),
-                "package", "eye-pack",
-                "--source", "app/bk7258/assets/display/shaniu-default-v1.json",
-                "--output", str(output),
-                "--preview-dir", str(preview),
+                "package",
+                "eye-pack",
+                "--source",
+                "app/bk7258/assets/display/shaniu-default-v1.json",
+                "--output",
+                str(output),
+                "--preview-dir",
+                str(preview),
             ],
             cwd=self.root,
             check=False,
@@ -161,7 +166,10 @@ class DisplayAssetsTest(unittest.TestCase):
             [
                 sys.executable,
                 str(TOOLS / "bk7258.py"),
-                "verify", "eye-pack", "--package", str(output),
+                "verify",
+                "eye-pack",
+                "--package",
+                str(output),
             ],
             cwd=self.root,
             check=False,

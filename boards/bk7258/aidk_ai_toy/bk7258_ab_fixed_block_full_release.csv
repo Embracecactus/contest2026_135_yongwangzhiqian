@@ -1,10 +1,13 @@
 # AIDK AI Toy A/B layout with persistent application data on fixed block media.
 # The internal 1-MiB preservation window is named persistent_data so a signed
 # full release carries an exact copy from its accepted board base.
-# 两套 CP/AP 使用扣除必要数据与启动区后的最大成对容量。
-# CP 逻辑空间 1152 KiB，AP 逻辑空间 1984 KiB；另保留签名/尾部空间。
-# 配置与 persistent_data 已搬移，必须从当前同板数据迁移后全量部署；
-# 不能把旧偏移的内容当成新布局数据。身份/校准尾部保持原偏移。
+# Both CP/AP pairs use the largest paired capacity left after the required
+# data and boot regions are subtracted. CP logical space is 1152 KiB and AP
+# logical space is 1984 KiB; signature/tail space is reserved as well.
+# The configuration and persistent_data regions have moved, so a full
+# deployment must migrate same-board data first; content at the old offsets
+# must not be treated as new-layout data. The identity/calibration tail keeps
+# its original offsets.
 # LAYOUT_NAME=bk7258-aidk-ai-toy-fixed-block-full-release
 # STORAGE_TOPOLOGY=fixed-block
 # ERASE_SIZE=4K
