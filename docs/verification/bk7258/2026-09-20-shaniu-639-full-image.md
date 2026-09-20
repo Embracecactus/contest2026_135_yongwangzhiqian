@@ -87,6 +87,15 @@ BKVOICE official Trigger active label=nihao_openvela sha256=922eba91… bytes=23
   `shaniu/display/active.json`（或同时删除损坏的 `packs/shaniu-cyan-v3.bkep`），
   安全退出后重启——现有的“标记缺失→默认包”回退会渲染已安装且有效的
   `shaniu-default-v1`。
+- **第二类失败（同一台设备后续复位）**：`BKDISPLAY RENDER FAIL stage=volume-open
+  ret=-22`（`-EINVAL`，`mount(…, "vfat", …)` 被 FAT 卷拒绝）→
+  `BKDISPLAY START FAIL stage=neutral-render ret=-22`。此时连卷都挂不上，
+  说明 SD 的 FAT 已不可挂载，需要 PC 侧修复（见下）。同时暴露一个固件缺陷：
+  `bkdisplay_service_retryable()` 不含 `-EINVAL`/`-EIO`，显示 worker 遇到这两类
+  存储错误会**直接退出**，修复卡后也必须重启才能恢复。
+- **641 加固**：`bkdisplay_volume_open()` 挂载失败时记录原始 errno 并以可重试的
+  `-EAGAIN` 返回；`-EIO` 纳入可重试集合——服务改为 `WAITING_ASSET` 周期重试
+  （500 ms），卡修好或重新插好后**无需重启**即可自动恢复渲染。
 
 ## 边界与未闭合
 
