@@ -153,7 +153,8 @@ the current product path.
 | --- | --- | --- | --- |
 | `voice kws audit` / `train` / `evaluate` | Host-side model tooling; the exported WKM1 package is consumed on the board by `app/bk7258/bk7258_voice_wake_package.c` and the trigger backend | Supported | Current |
 | `voice provision` | CP console command `bkvoice provision`, waiting for `BKVOICE PROVISION READY` | The console command is not present in the current firmware sources | Historical: kept to reproduce the recorded provisioning runs; not a current step |
-| `voice pairing` (`--direct-cloud`, `--resume`) | The same retired console protocol; writes the owner activation file | Same boundary as `voice provision` | Historical |
+| `voice pairing --direct-cloud` / `--resume` | CP console `bkprov supply` (`bkprov-v1` RPC to the AP provisioning store); writes the owner activation file | Supported (added 2026-09-20) | Current |
+| `voice pairing` without `--direct-cloud` | The retired Gateway console protocol | The console command is gone | Historical |
 | `voice console-enrollment` | Host-only file writer for the retired Gateway console; it never opens a serial port | Not applicable | Historical Gateway-era utility |
 
 Current device identity and network provisioning use the BLE `provision-v1`
