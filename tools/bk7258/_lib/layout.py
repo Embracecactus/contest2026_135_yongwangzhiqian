@@ -20,9 +20,7 @@ class LayoutError(ValueError):
 
 
 POLICIES = frozenset({"image", "external", "clear", "preserve", "immutable"})
-STORAGE_TOPOLOGIES = frozenset(
-    {"onchip-persistent", "removable-block", "fixed-block"}
-)
+STORAGE_TOPOLOGIES = frozenset({"onchip-persistent", "removable-block", "fixed-block"})
 DIRECTIVES = frozenset(
     {
         "LAYOUT_NAME",
@@ -146,10 +144,17 @@ class GeneratedLayout:
     linker: Path
 
 
-def identity_sha256(*, name: str, storage_topology: str, flash_size: int,
-                    erase_size: int,
-                    crc_data_size: int, crc_total_size: int, xip_base: int,
-                    partitions: tuple[Partition, ...]) -> str:
+def identity_sha256(
+    *,
+    name: str,
+    storage_topology: str,
+    flash_size: int,
+    erase_size: int,
+    crc_data_size: int,
+    crc_total_size: int,
+    xip_base: int,
+    partitions: tuple[Partition, ...],
+) -> str:
     """Hash normalized layout facts rather than their CSV spelling."""
 
     values = [
@@ -237,7 +242,9 @@ def load(path: Path) -> Layout:
     for number, fields in source_rows:
         name, offset_text, size_text, kind, read, write, artifact, policy = fields
         if not TOKEN_RE.fullmatch(name) or name in names:
-            raise LayoutError(f"invalid or duplicate partition name: {path}:{number}:{name}")
+            raise LayoutError(
+                f"invalid or duplicate partition name: {path}:{number}:{name}"
+            )
         names.add(name)
         if kind not in {"code", "data"}:
             raise LayoutError(f"partition type must be code or data: {name}")
@@ -264,7 +271,9 @@ def load(path: Path) -> Layout:
         if kind == "code" and crc_total_size > crc_data_size:
             alignment = 1024 * crc_total_size
             if offset % alignment or size % alignment:
-                raise LayoutError(f"executable partition violates CRC alignment: {name}")
+                raise LayoutError(
+                    f"executable partition violates CRC alignment: {name}"
+                )
         item = Partition(
             name,
             offset,
@@ -302,8 +311,12 @@ def load(path: Path) -> Layout:
     )
 
 
-def bind(layout: Layout, artifacts: Mapping[str, Path], *,
-         policies: frozenset[str] = frozenset({"image", "external"})) -> tuple[Placement, ...]:
+def bind(
+    layout: Layout,
+    artifacts: Mapping[str, Path],
+    *,
+    policies: frozenset[str] = frozenset({"image", "external"}),
+) -> tuple[Placement, ...]:
     """Bind explicit artifact paths without naming partitions in code."""
 
     expected = {
@@ -398,8 +411,8 @@ def _header(layout: Layout) -> str:
         suffix = " \\" if index + 1 < len(layout.partitions) else ""
         lines.append(
             f'  _({index}, "{item.name}", 0x{item.offset:08x}, '
-            f'0x{item.size:08x}, {1 if item.executable else 0}, '
-            f'{1 if item.readable else 0}, {1 if item.writable else 0}){suffix}'
+            f"0x{item.size:08x}, {1 if item.executable else 0}, "
+            f"{1 if item.readable else 0}, {1 if item.writable else 0}){suffix}"
         )
     lines.append("")
     lines.extend(("#endif /* __BK7258_GENERATED_PARTITIONS_H */", ""))

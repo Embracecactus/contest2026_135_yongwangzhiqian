@@ -11,7 +11,7 @@
  * subsequent requests increase by one. One request/response at a time.
  * Response opcode has bit31 set, payload is signed error plus five BE32
  * fields: flags, volume, persona, turn state, last runtime error. Unknown
- * fields are UINT32_MAX. Flags: ready=1,busy=2,turn-known=4,volume-known=8,
+ * fields are UINT32_MAX. Flags: ready=1, busy=2, turn-known=4, volume-known=8,
  * persona-known=16, memory-known=32, memory-enabled=64, memory-pending=128,
  * memory-failed=256, memory-supported=512. MEMORY_SET=7/BE32 0..1,
  * MEMORY_DELETE=8/empty, INFO=9/empty. INFO response replaces the normal
@@ -60,11 +60,15 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_CLOUD_MODELS 1u
 #define BKCONTROL_CONFIG_WAKE_MODEL 2u
 #define BKCONTROL_CONFIG_WAKE_RESTORE 3u
-/* RSP1 + BE32 thinking (0=快速，1=深度思考) + BE32 reserved=0，共 12 字节。 */
+/* RSP1 + BE32 thinking (0 = fast, 1 = deep thinking) + BE32 reserved = 0;
+ * 12 bytes in total.
+ */
 #define BKCONTROL_CONFIG_RESPONSE_MODE 4u
-/* 写 EYE2 HTTPS 来源记录；读 EYE1 状态、包身份和渲染结果（108 字节）。 */
+/* Writes an EYE2 HTTPS source record; reads EYE1 state, pack identity and
+ * render result (108 bytes).
+ */
 #define BKCONTROL_CONFIG_EYE_PACK 5u
-/* KWT1 + BE32 分数门限百分比（50..90）+ BE32 reserved=0。 */
+/* KWT1 + BE32 score threshold percent (50..90) + BE32 reserved = 0. */
 #define BKCONTROL_CONFIG_WAKE_THRESHOLD 6u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (136u + 65536u)

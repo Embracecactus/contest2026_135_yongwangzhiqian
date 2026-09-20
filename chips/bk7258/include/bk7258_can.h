@@ -28,7 +28,7 @@ extern "C"
  * CAN-FD, extended identifiers, and remote frames are rejected because the
  * SDK software FIFO does not preserve enough per-frame metadata for those
  * NuttX contracts.  Loopback is controlled through the standard
- * CANIOC_{GET,SET}_CONNMODES ioctl and maps to the SDK's internal LBMI bit.
+ * CANIOC_{GET, SET}_CONNMODES ioctl and maps to the SDK's internal LBMI bit.
  *
  * The SDK fixes CAN0 to GPIO44 (TX), GPIO45 (RX), and GPIO46 (standby).
  * This private API does not alter pin mux or arbitrate those pins with other

@@ -1,0 +1,70 @@
+# Editor baseline for this repository.  The authoritative checkers are the
+# pinned NuttX nxstyle/checkpatch for NuttX-shaped modules and clang-format 14
+# for the other C/C++ sources; this file only fixes what an editor must keep
+# identical so those checks stay meaningful.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Makefile recipes and included fragment files are tab-indented.
+[Makefile]
+indent_style = tab
+[Make.defs]
+indent_style = tab
+[*.mk]
+indent_style = tab
+[Makefile.host]
+indent_style = tab
+
+# Kconfig and defconfig keep the kernel-style tab indentation.
+[Kconfig]
+indent_style = tab
+indent_size = 8
+[Kconfig.*]
+indent_style = tab
+indent_size = 8
+[defconfig]
+indent_style = tab
+
+# CMake uses two-space indentation.
+[*.cmake]
+indent_style = space
+indent_size = 2
+[CMakeLists.txt]
+indent_style = space
+indent_size = 2
+
+# C/C++ sources keep two-space indentation (NuttX) and no trailing blank lines.
+[*.{c,h,cc,cpp,hpp,S}]
+indent_style = space
+indent_size = 2
+max_line_length = 79
+
+# Android/Kotlin sources follow the project's Kotlin conventions.
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+[*.gradle]
+indent_style = space
+indent_size = 4
+
+# Python follows PEP 8.
+[*.py]
+indent_style = space
+indent_size = 4
+max_line_length = 79
+
+# Prose keeps intentional trailing whitespace out of code but may end lines
+# with two spaces for Markdown line breaks.
+[*.md]
+trim_trailing_whitespace = false
+
+# Generated and third-party payloads are never reformatted by an editor.
+[*.json]
+indent_size = 2

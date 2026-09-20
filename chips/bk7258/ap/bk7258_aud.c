@@ -2165,9 +2165,9 @@ static int bk7258_aud_getcaps(struct audio_lowerhalf_s *dev, int type,
           }
         else if (caps->ac_subtype == AUDIO_FMT_PCM)
           {
-            /* 官方 ALSA 会继续枚举 PCM 子格式；仅声明 PCM 类型不足以
-             * 打开设备。这里只报告下半部实际接受的 16 位小端格式。
-             */
+            /* The official ALSA layer keeps enumerating PCM subformats, so
+             * declaring the PCM type alone cannot open the device; report only
+             * the 16-bit little-endian format the lower half accepts. */
 
             caps->ac_controls.b[0] = AUDIO_SUBFMT_PCM_S16_LE;
             caps->ac_controls.b[1] = AUDIO_SUBFMT_END;
@@ -2583,9 +2583,11 @@ static int bk7258_aud_pause(struct audio_lowerhalf_s *dev)
     }
 #endif
 
-  /* 暂停 DAC 消费，不停止 DMA 或清空环形缓冲。SDK 的 ring_buffer_write()
-   * 会在 DMA 被禁用时将读位置当成零；保留通道使能和 FIFO 背压，才能在
-   * RESUME 后继续原队列。已有完成中断仍由原 worker 处理。
+  /* Pause DAC consumption without stopping the DMA channel or clearing the
+   * ring buffer.  The SDK's ring_buffer_write() treats the read position as
+   * zero while DMA is disabled; keeping the channel enabled and the FIFO
+   * back-pressured is what lets the original queue continue after RESUME.
+   * Completion interrupts already pending stay with the original worker.
    */
 
   nxmutex_lock(&priv->worker_lock);
@@ -2640,7 +2642,8 @@ static int bk7258_aud_resume(struct audio_lowerhalf_s *dev)
     }
   else if (priv->state == BK7258_AUD_STATE_PAUSED)
     {
-      /* 暂停期间允许控制 App 改音量；恢复消费前应用最新配置。 */
+      /* The control App may change volume while paused; the latest settings
+       * are applied before consumption resumes. */
 
       error = bk_aud_dac_set_gain(priv->dig_gain);
       if (error == BK_OK)
@@ -2766,8 +2769,10 @@ static int bk7258_aud_enqueuebuffer(struct audio_lowerhalf_s *dev,
   apb->crefs++;
   nxmutex_unlock(&apb->lock);
 
-  /* ALSA mmap 周期复用同一 APB；上层更新 nbytes，传输游标由下半部重置。
-   * 不能将上一周期的 curbyte 带入新提交，否则只会播放首次入队的数据。
+  /* An ALSA mmap period reuses the same APB; the upper half updates nbytes
+   * and the lower half resets the transfer cursor. The previous period's
+   * curbyte must not carry into a new submission, or only the data enqueued
+   * the first time would be played.
    */
 
   apb->curbyte = 0;

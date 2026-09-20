@@ -99,7 +99,9 @@ def _directory(path: Path, label: str) -> None:
         raise SdkError(f"{label} must be a real directory: {path}")
 
 
-def _run(command: list[str], label: str, **kwargs: object) -> subprocess.CompletedProcess:
+def _run(
+    command: list[str], label: str, **kwargs: object
+) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(command, check=True, **kwargs)
     except subprocess.CalledProcessError as error:
@@ -108,8 +110,9 @@ def _run(command: list[str], label: str, **kwargs: object) -> subprocess.Complet
         raise SdkError(f"cannot run {label}: {command[0]}") from error
 
 
-def _reproducible_build_environment(work: Path, toolchain: Path,
-                                    source_date_epoch: str) -> dict[str, str]:
+def _reproducible_build_environment(
+    work: Path, toolchain: Path, source_date_epoch: str
+) -> dict[str, str]:
     """Return the official SDK deterministic-build environment."""
 
     if not source_date_epoch.isdigit():
@@ -180,7 +183,7 @@ def verify_checkout(repository: Path) -> ManifestSdk:
 def _profile_hash(path: Path) -> str | None:
     _regular(path, "SDK profile")
     values = [
-        line[len(BUNDLE_HASH_PREFIX):].strip()
+        line[len(BUNDLE_HASH_PREFIX) :].strip()
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.startswith(BUNDLE_HASH_PREFIX)
     ]
@@ -245,9 +248,11 @@ def _profile_omits(selected: Profile) -> set[str]:
         for line in path.read_text(encoding="utf-8").splitlines():
             if not line.startswith(BUNDLE_OMIT_PREFIX):
                 continue
-            for name in line[len(BUNDLE_OMIT_PREFIX):].split(","):
+            for name in line[len(BUNDLE_OMIT_PREFIX) :].split(","):
                 value = name.strip()
-                if Path(value).name != value or not value.endswith((".a", ".o", ".obj")):
+                if Path(value).name != value or not value.endswith(
+                    (".a", ".o", ".obj")
+                ):
                     raise SdkError(f"invalid SDK bundle omit entry: {value!r}")
                 result.add(value)
     return result
@@ -328,13 +333,16 @@ def verify(repository: Path, name: str) -> BundleReport:
         )
     _verify_profile_config(selected)
     link_inputs = [
-        item for item in (selected.bundle / "libs").iterdir()
+        item
+        for item in (selected.bundle / "libs").iterdir()
         if item.is_file() and item.suffix in {".a", ".o", ".obj"}
     ]
     if not link_inputs:
         raise SdkError(f"SDK profile has no resolved link inputs: {name}")
     sdk = manifest_sdk(repository)
-    return BundleReport(name, selected.role, sdk.version, observed, files, selected.bundle)
+    return BundleReport(
+        name, selected.role, sdk.version, observed, files, selected.bundle
+    )
 
 
 def _copy_bundle(source: Path, destination: Path) -> None:
@@ -366,15 +374,18 @@ def _lock(timeout: int):
         stream.close()
 
 
-def install(repository: Path, name: str, source: Path, *, replace: bool,
-            lock_timeout: int = 600) -> BundleReport:
+def install(
+    repository: Path, name: str, source: Path, *, replace: bool, lock_timeout: int = 600
+) -> BundleReport:
     selected = profile(repository, name)
     source = source.absolute()
     observed, _ = bundle_tree_hash(source)
     if observed != selected.expected_tree_hash:
         raise SdkError("prepared bundle does not match the selected profile hash")
     selected.bundle.parent.mkdir(parents=True, exist_ok=True)
-    staged = Path(tempfile.mkdtemp(prefix=f".{name}.install.", dir=selected.bundle.parent))
+    staged = Path(
+        tempfile.mkdtemp(prefix=f".{name}.install.", dir=selected.bundle.parent)
+    )
     staged_bundle = staged / "bundle"
     backup = staged / "previous"
     try:
@@ -417,7 +428,11 @@ def _find_export(build_root: Path, sdk_target: str) -> tuple[Path, Path]:
     matches = []
     for root in build_root.rglob("armino_as_lib"):
         role = root / sdk_target
-        if (root / "include").is_dir() and (role / "config").is_dir() and (role / "libs").is_dir():
+        if (
+            (root / "include").is_dir()
+            and (role / "config").is_dir()
+            and (role / "libs").is_dir()
+        ):
             matches.append((root, role))
     if len(matches) != 1:
         raise SdkError(f"official SDK build must produce one {sdk_target} export")
@@ -451,10 +466,15 @@ def _link_inputs(build_root: Path) -> tuple[Path, ...]:
     return tuple(result)
 
 
-def _stage_export(export: Path, role_export: Path,
-                  link_inputs: tuple[Path, ...], source_root: Path,
-                  build_root: Path, selected_profile: Profile,
-                  destination: Path) -> None:
+def _stage_export(
+    export: Path,
+    role_export: Path,
+    link_inputs: tuple[Path, ...],
+    source_root: Path,
+    build_root: Path,
+    selected_profile: Profile,
+    destination: Path,
+) -> None:
     destination.mkdir()
     shutil.copytree(export / "include", destination / "include", symlinks=False)
     partition_headers = list(build_root.rglob("partitions_gen.h"))
@@ -465,13 +485,20 @@ def _stage_export(export: Path, role_export: Path,
     libraries = destination / "libs"
     libraries.mkdir()
     candidates = [item for item in (role_export / "libs").iterdir() if item.is_file()]
-    duplicates = {item.name for item in candidates if sum(other.name == item.name for other in candidates) > 1}
+    duplicates = {
+        item.name
+        for item in candidates
+        if sum(other.name == item.name for other in candidates) > 1
+    }
     if duplicates:
-        raise SdkError("duplicate official SDK link input names: " + ", ".join(sorted(duplicates)))
+        raise SdkError(
+            "duplicate official SDK link input names: " + ", ".join(sorted(duplicates))
+        )
     omitted = _profile_omits(selected_profile)
     link_names = {item.name for item in link_inputs}
     selected = [
-        item for item in candidates
+        item
+        for item in candidates
         if item.name in link_names and item.name not in omitted
     ]
     if not selected:
@@ -505,12 +532,14 @@ def _stage_export(export: Path, role_export: Path,
         shutil.copy2(item, target)
 
 
-def _uart_command(compile_database: Path, role: str, output: Path,
-                  compiler: Path) -> tuple[list[str], Path]:
+def _uart_command(
+    compile_database: Path, role: str, output: Path, compiler: Path
+) -> tuple[list[str], Path]:
     entries = json.loads(compile_database.read_text(encoding="utf-8"))
     suffix = f"/{role}/middleware/driver/uart/uart_driver.c"
     matches = [
-        row for row in entries
+        row
+        for row in entries
         if isinstance(row, dict)
         and isinstance(row.get("file"), str)
         and row["file"].replace("\\", "/").endswith(suffix)
@@ -539,8 +568,14 @@ def _uart_command(compile_database: Path, role: str, output: Path,
     return command, Path(directory)
 
 
-def _patch_uart(bundle: Path, build_root: Path, role: str, toolchain: Path,
-                work: Path, environment: dict[str, str]) -> None:
+def _patch_uart(
+    bundle: Path,
+    build_root: Path,
+    role: str,
+    toolchain: Path,
+    work: Path,
+    environment: dict[str, str],
+) -> None:
     gcc = toolchain / "arm-none-eabi-gcc"
     ar = toolchain / "arm-none-eabi-ar"
     nm = toolchain / "arm-none-eabi-nm"
@@ -556,30 +591,47 @@ def _patch_uart(bundle: Path, build_root: Path, role: str, toolchain: Path,
     _regular(patched, "patched UART object")
     owners = []
     for archive in sorted((bundle / "libs").glob("*.a")):
-        result = _run([str(ar), "t", str(archive)], "SDK archive inspection",
-                      stdout=subprocess.PIPE, text=True)
+        result = _run(
+            [str(ar), "t", str(archive)],
+            "SDK archive inspection",
+            stdout=subprocess.PIPE,
+            text=True,
+        )
         if "uart_driver.c.obj" in result.stdout.splitlines():
             owners.append(archive)
     if len(owners) != 1:
         raise SdkError("resolved SDK closure must contain one UART archive owner")
     _run([str(ar), "rD", str(owners[0]), str(patched)], "SDK UART archive update")
-    result = _run([str(nm), "-u", str(patched)], "SDK UART symbol verification",
-                  stdout=subprocess.PIPE, text=True)
+    result = _run(
+        [str(nm), "-u", str(patched)],
+        "SDK UART symbol verification",
+        stdout=subprocess.PIPE,
+        text=True,
+    )
     if "bk_printf_init" in result.stdout:
         raise SdkError("patched UART object still references bk_printf_init")
 
 
 def _profile_with_hash(path: Path, tree_hash: str) -> str:
     lines = [
-        line for line in path.read_text(encoding="utf-8").splitlines()
+        line
+        for line in path.read_text(encoding="utf-8").splitlines()
         if not line.startswith(BUNDLE_HASH_PREFIX)
     ]
     lines.insert(0, BUNDLE_HASH_PREFIX + tree_hash)
     return "\n".join(lines) + "\n"
 
 
-def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
-            jobs: int, replace: bool, lock_timeout: int = 600) -> BundleReport:
+def rebuild(
+    repository: Path,
+    name: str,
+    source: Path,
+    toolchain: Path,
+    *,
+    jobs: int,
+    replace: bool,
+    lock_timeout: int = 600,
+) -> BundleReport:
     """Rebuild one SDK profile from the exact manifest-pinned source."""
 
     if jobs <= 0:
@@ -588,12 +640,22 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
     sdk = manifest_sdk(repository)
     source = source.absolute()
     _directory(source, "SDK source checkout")
-    head = _run(["git", "-C", str(source), "rev-parse", "HEAD"],
-                "SDK source identity", stdout=subprocess.PIPE, text=True).stdout.strip()
+    head = _run(
+        ["git", "-C", str(source), "rev-parse", "HEAD"],
+        "SDK source identity",
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
     if head != sdk.revision:
-        raise SdkError(f"SDK source revision mismatch: expected={sdk.revision} observed={head}")
-    if _run(["git", "-C", str(source), "status", "--porcelain"],
-            "SDK source cleanliness", stdout=subprocess.PIPE, text=True).stdout:
+        raise SdkError(
+            f"SDK source revision mismatch: expected={sdk.revision} observed={head}"
+        )
+    if _run(
+        ["git", "-C", str(source), "status", "--porcelain"],
+        "SDK source cleanliness",
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout:
         raise SdkError("SDK source checkout must be clean")
     source_date_epoch = _run(
         ["git", "-C", str(source), "show", "-s", "--format=%ct", sdk.revision],
@@ -618,17 +680,34 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
             work, toolchain, source_date_epoch
         )
         clone = work / "source"
-        _run(["git", "clone", "--local", "--no-hardlinks", "--no-checkout",
-              str(source), str(clone)], "SDK local source clone")
-        _run(["git", "-C", str(clone), "checkout", "--detach", sdk.revision],
-             "SDK source checkout")
+        _run(
+            [
+                "git",
+                "clone",
+                "--local",
+                "--no-hardlinks",
+                "--no-checkout",
+                str(source),
+                str(clone),
+            ],
+            "SDK local source clone",
+        )
+        _run(
+            ["git", "-C", str(clone), "checkout", "--detach", sdk.revision],
+            "SDK source checkout",
+        )
         _merge_profile(clone / official_config, selected)
         build_root = work / "build"
         _run(
             [
-                "make", "-C", str(clone), role_target, "PROJECT=app",
+                "make",
+                "-C",
+                str(clone),
+                role_target,
+                "PROJECT=app",
                 f"BUILD_DIR={build_root}",
-                f"COMPILER_TOOLCHAIN_PATH={toolchain}", f"-j{jobs}",
+                f"COMPILER_TOOLCHAIN_PATH={toolchain}",
+                f"-j{jobs}",
             ],
             "official SDK profile build",
             env=environment,
@@ -636,20 +715,27 @@ def rebuild(repository: Path, name: str, source: Path, toolchain: Path, *,
         export, role_export = _find_export(build_root, sdk_target)
         staged = work / "bundle"
         _stage_export(
-            export, role_export, _link_inputs(build_root), clone, build_root,
-            selected, staged
+            export,
+            role_export,
+            _link_inputs(build_root),
+            clone,
+            build_root,
+            selected,
+            staged,
         )
-        _patch_uart(
-            staged, build_root, selected.role, toolchain, work, environment
-        )
+        _patch_uart(staged, build_root, selected.role, toolchain, work, environment)
         observed, _ = bundle_tree_hash(staged)
 
-        transaction = Path(tempfile.mkdtemp(prefix=f".{name}.rebuild.", dir=selected.bundle.parent))
+        transaction = Path(
+            tempfile.mkdtemp(prefix=f".{name}.rebuild.", dir=selected.bundle.parent)
+        )
         staged_bundle = transaction / "bundle"
         shutil.copytree(staged, staged_bundle)
         profile_path = selected.components[-1]
         profile_temp = transaction / "profile.config"
-        profile_temp.write_text(_profile_with_hash(profile_path, observed), encoding="utf-8")
+        profile_temp.write_text(
+            _profile_with_hash(profile_path, observed), encoding="utf-8"
+        )
         backup_bundle = transaction / "previous-bundle"
         backup_profile = transaction / "previous-profile"
         try:

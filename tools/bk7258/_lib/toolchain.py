@@ -99,12 +99,17 @@ def load(repository: Path) -> Lock:
     for key in keys - {"schema"}:
         if not isinstance(value[key], str) or not value[key]:
             raise ToolchainError(f"toolchain lock field is invalid: {key}")
-    if len(value["sha256"]) != 64 or any(ch not in "0123456789abcdef" for ch in value["sha256"]):
+    if len(value["sha256"]) != 64 or any(
+        ch not in "0123456789abcdef" for ch in value["sha256"]
+    ):
         raise ToolchainError("toolchain archive SHA-256 is invalid")
     url = urllib.parse.urlparse(value["url"])
     if url.scheme != "https" or url.hostname != "developer.arm.com":
         raise ToolchainError("toolchain URL must use the Arm official HTTPS host")
-    if Path(url.path).name != value["archive"] or Path(value["archive"]).name != value["archive"]:
+    if (
+        Path(url.path).name != value["archive"]
+        or Path(value["archive"]).name != value["archive"]
+    ):
         raise ToolchainError("toolchain archive name does not match its URL")
     install = Path(value["install"])
     if (
@@ -116,8 +121,12 @@ def load(repository: Path) -> Lock:
     ):
         raise ToolchainError("toolchain install path must remain inside the workspace")
     return Lock(
-        value["name"], value["url"], value["archive"], value["sha256"],
-        install, value["gcc_version"],
+        value["name"],
+        value["url"],
+        value["archive"],
+        value["sha256"],
+        install,
+        value["gcc_version"],
     )
 
 
@@ -130,14 +139,17 @@ def _sha256(path: Path) -> str:
 
 
 def _receipt(lock: Lock) -> str:
-    return json.dumps(
-        {
-            "archive_sha256": lock.sha256,
-            "schema": RECEIPT_SCHEMA,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    ) + "\n"
+    return (
+        json.dumps(
+            {
+                "archive_sha256": lock.sha256,
+                "schema": RECEIPT_SCHEMA,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    )
 
 
 def _capture(command: list[str], label: str) -> str:
@@ -170,7 +182,9 @@ def _verify_root(root: Path, lock: Lock, *, require_receipt: bool) -> Report:
         tool = _regular(binary_dir / name, f"BK7258 tool {name}")
         if not os.access(tool, os.X_OK):
             raise ToolchainError(f"BK7258 tool is not executable: {tool}")
-    version = _capture([str(binary_dir / "arm-none-eabi-gcc"), "--version"], "BK7258 GCC version")
+    version = _capture(
+        [str(binary_dir / "arm-none-eabi-gcc"), "--version"], "BK7258 GCC version"
+    )
     first_line = version.splitlines()[0] if version else ""
     if first_line != lock.gcc_version:
         raise ToolchainError(
@@ -186,9 +200,13 @@ def verify(repository: Path) -> Report:
 
 
 def _download(url: str, destination: Path) -> None:
-    request = urllib.request.Request(url, headers={"User-Agent": "openvela-bk7258-toolchain/1"})
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "openvela-bk7258-toolchain/1"}
+    )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response, destination.open("wb") as output:
+        with urllib.request.urlopen(request, timeout=60) as response, destination.open(
+            "wb"
+        ) as output:
             shutil.copyfileobj(response, output, length=1024 * 1024)
     except (OSError, urllib.error.URLError) as error:
         raise ToolchainError(f"cannot download locked toolchain: {url}") from error
@@ -196,7 +214,12 @@ def _download(url: str, destination: Path) -> None:
 
 def _safe_member(member: tarfile.TarInfo, top: str) -> None:
     name = PurePosixPath(member.name)
-    if name.is_absolute() or not name.parts or ".." in name.parts or name.parts[0] != top:
+    if (
+        name.is_absolute()
+        or not name.parts
+        or ".." in name.parts
+        or name.parts[0] != top
+    ):
         raise ToolchainError(f"unsafe toolchain archive member: {member.name!r}")
     if member.isdev() or member.isfifo():
         raise ToolchainError(f"unsupported toolchain archive member: {member.name!r}")
@@ -205,7 +228,12 @@ def _safe_member(member: tarfile.TarInfo, top: str) -> None:
         if member.issym():
             target = posixpath.join(posixpath.dirname(member.name), target)
         normalized = PurePosixPath(posixpath.normpath(target))
-        if normalized.is_absolute() or not normalized.parts or normalized.parts[0] != top or ".." in normalized.parts:
+        if (
+            normalized.is_absolute()
+            or not normalized.parts
+            or normalized.parts[0] != top
+            or ".." in normalized.parts
+        ):
             raise ToolchainError(f"unsafe toolchain archive link: {member.name!r}")
 
 
@@ -225,7 +253,9 @@ def _lock(timeout: int):
                 break
             except BlockingIOError as error:
                 if time.monotonic() >= deadline:
-                    raise ToolchainError(f"timed out waiting for toolchain lock: {path}") from error
+                    raise ToolchainError(
+                        f"timed out waiting for toolchain lock: {path}"
+                    ) from error
                 time.sleep(0.05)
         yield
     finally:
@@ -233,8 +263,9 @@ def _lock(timeout: int):
         stream.close()
 
 
-def install(repository: Path, archive: Path | None, *, replace: bool,
-            lock_timeout: int = 600) -> Report:
+def install(
+    repository: Path, archive: Path | None, *, replace: bool, lock_timeout: int = 600
+) -> Report:
     repository = _directory(repository, "contest repository")
     lock = load(repository)
     target = repository / lock.install

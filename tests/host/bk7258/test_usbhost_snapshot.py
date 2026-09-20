@@ -13,18 +13,21 @@ ROOT = Path(__file__).resolve().parents[3]
 
 class UsbhostSnapshotTest(unittest.TestCase):
     def test_generation_survives_private_state_clear_and_stops_at_max(self):
-        source = (ROOT / 'chips/bk7258/ap/bk7258_usbhost.c').read_text()
-        helper = source[source.index('static int bk7258_usbhost_next_generation'):
-                        source.index('static void bk7258_usbhost_clear_snapshot')]
-        helper = helper[helper.index('static int bk7258_usbhost_next_generation'):]
-        harness = r'''
+        source = (ROOT / "chips/bk7258/ap/bk7258_usbhost.c").read_text()
+        helper = source[
+            source.index("static int bk7258_usbhost_next_generation") : source.index(
+                "static void bk7258_usbhost_clear_snapshot"
+            )
+        ]
+        helper = helper[helper.index("static int bk7258_usbhost_next_generation") :]
+        harness = r"""
 #include <assert.h>
 #include <errno.h>
 #include <stdint.h>
 #include <string.h>
 static uint32_t g_bk7258_usbhost_generation;
-'''
-        test = r'''
+"""
+        test = r"""
 int main(void) {
  uint32_t private_generation = 0;
  assert(bk7258_usbhost_next_generation() == 0);
@@ -39,19 +42,33 @@ int main(void) {
  assert(g_bk7258_usbhost_generation == UINT32_MAX);
  return 0;
 }
-'''
+"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            (path / 'test.c').write_text(harness + helper + test)
-            subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror',
-                            str(path / 'test.c'), '-o', str(path / 'test')], check=True)
-            subprocess.run([str(path / 'test')], check=True)
+            (path / "test.c").write_text(harness + helper + test)
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=gnu11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
 
     def test_snapshot_returns_eagain_while_init_lock_is_busy(self):
-        source = (ROOT / 'chips/bk7258/ap/bk7258_usbhost.c').read_text()
-        snapshot = source[source.index('int bk7258_usbhost_snapshot('):
-                          source.index('static inline FAR struct bk7258_usbhost_s')]
-        harness = r'''
+        source = (ROOT / "chips/bk7258/ap/bk7258_usbhost.c").read_text()
+        snapshot = source[
+            source.index("int bk7258_usbhost_snapshot(") : source.index(
+                "static inline FAR struct bk7258_usbhost_s"
+            )
+        ]
+        harness = r"""
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -95,8 +112,8 @@ struct bk7258_usbhost_s {
 };
 static struct bk7258_usbhost_s g_bk7258_usbhost;
 static mutex_t g_bk7258_usbhost_init_lock;
-'''
-        test = r'''
+"""
+        test = r"""
 int main(void) {
  struct bk7258_usbhost_snapshot_s out;
  memset(&out, 0xa5, sizeof(out)); init_busy = 1;
@@ -113,27 +130,41 @@ int main(void) {
  assert(out.device_descriptor_valid && out.device_descriptor[0] == 18);
  return 0;
 }
-'''
+"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            (path / 'test.c').write_text(harness + snapshot + test)
-            subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror',
-                            str(path / 'test.c'), '-o', str(path / 'test')], check=True)
-            subprocess.run([str(path / 'test')], check=True)
+            (path / "test.c").write_text(harness + snapshot + test)
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=gnu11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
 
     def test_snapshot_lifecycle_contract_is_nonblocking_and_monotonic(self):
-        source = (ROOT / 'chips/bk7258/ap/bk7258_usbhost.c').read_text()
-        self.assertIn('static uint32_t g_bk7258_usbhost_generation;', source)
-        self.assertIn('nxmutex_trylock(&g_bk7258_usbhost_init_lock)', source)
-        self.assertIn('return -EAGAIN;', source)
-        self.assertIn('g_bk7258_usbhost_generation == UINT32_MAX', source)
-        self.assertIn('priv->enumeration_result = -ENOSPC;', source)
+        source = (ROOT / "chips/bk7258/ap/bk7258_usbhost.c").read_text()
+        self.assertIn("static uint32_t g_bk7258_usbhost_generation;", source)
+        self.assertIn("nxmutex_trylock(&g_bk7258_usbhost_init_lock)", source)
+        self.assertIn("return -EAGAIN;", source)
+        self.assertIn("g_bk7258_usbhost_generation == UINT32_MAX", source)
+        self.assertIn("priv->enumeration_result = -ENOSPC;", source)
 
     def test_descriptor_cache_rejects_short_or_old_and_bounds_config(self):
-        source = (ROOT / 'chips/bk7258/ap/bk7258_usbhost.c').read_text()
-        cache = source[source.index('static void bk7258_usbhost_clear_snapshot('):
-                       source.index('static void bk7258_usbhost_enumeration_complete(')]
-        harness = r'''
+        source = (ROOT / "chips/bk7258/ap/bk7258_usbhost.c").read_text()
+        cache = source[
+            source.index("static void bk7258_usbhost_clear_snapshot(") : source.index(
+                "static void bk7258_usbhost_enumeration_complete("
+            )
+        ]
+        harness = r"""
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -169,8 +200,8 @@ struct bk7258_usbhost_s {
  uint8_t device_descriptor[BK7258_USBHOST_DEVICE_DESC_SIZE];
  uint8_t configuration_descriptor[BK7258_USBHOST_CONFIG_DESC_MAX];
 };
-'''
-        test = r'''
+"""
+        test = r"""
 int main(void) {
  struct bk7258_usbhost_s priv = { .initialized = true };
  struct usb_ctrlreq_s req = { .type = USB_REQ_DIR_IN,
@@ -199,14 +230,25 @@ int main(void) {
  assert(priv.configuration_length == 0 && !priv.configuration_truncated);
  return 0;
 }
-'''
+"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            (path / 'test.c').write_text(harness + cache + test)
-            subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror',
-                            str(path / 'test.c'), '-o', str(path / 'test')], check=True)
-            subprocess.run([str(path / 'test')], check=True)
+            (path / "test.c").write_text(harness + cache + test)
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=gnu11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -134,7 +134,9 @@ class DownloadToolTest(unittest.TestCase):
             self.assertNotIn("--swrst", command)
             self.assertEqual(len(result["artifacts"]), 2)
 
-    def test_aidk_signed_segments_require_bounded_hashes_and_keep_software_reset(self) -> None:
+    def test_aidk_signed_segments_require_bounded_hashes_and_keep_software_reset(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             loader = root / "loader.sh"
@@ -147,61 +149,104 @@ class DownloadToolTest(unittest.TestCase):
             ap_hash = hashlib.sha256(ap_b.read_bytes()).hexdigest()
             base = (
                 "preflight",
-                "--board", "aidk",
-                "--transport", "multi",
-                "--artifact-kind", "signed-segments",
-                "--loader", str(loader),
-                "--port", "COM8",
-                "--segment", f"{cp_b}@0x4000-0x1000",
-                "--segment", f"{ap_b}@0x8000-0x1000",
+                "--board",
+                "aidk",
+                "--transport",
+                "multi",
+                "--artifact-kind",
+                "signed-segments",
+                "--loader",
+                str(loader),
+                "--port",
+                "COM8",
+                "--segment",
+                f"{cp_b}@0x4000-0x1000",
+                "--segment",
+                f"{ap_b}@0x8000-0x1000",
             )
 
-            missing_bounds = invoke(*base, "--segment-sha256", cp_hash,
-                                    "--segment-sha256", ap_hash)
+            missing_bounds = invoke(
+                *base, "--segment-sha256", cp_hash, "--segment-sha256", ap_hash
+            )
             self.assertNotEqual(missing_bounds.returncode, 0)
             self.assertIn("--write-bound", missing_bounds.stderr)
 
-            missing_hash = invoke(*base, "--write-bound", "0x4000-0x1000",
-                                  "--write-bound", "0x8000-0x1000")
+            missing_hash = invoke(
+                *base,
+                "--write-bound",
+                "0x4000-0x1000",
+                "--write-bound",
+                "0x8000-0x1000",
+            )
             self.assertNotEqual(missing_hash.returncode, 0)
             self.assertIn("--segment-sha256", missing_hash.stderr)
 
             wrong_hash = invoke(
-                *base, "--segment-sha256", "0" * 64, "--segment-sha256", ap_hash,
-                "--write-bound", "0x4000-0x1000",
-                "--write-bound", "0x8000-0x1000",
+                *base,
+                "--segment-sha256",
+                "0" * 64,
+                "--segment-sha256",
+                ap_hash,
+                "--write-bound",
+                "0x4000-0x1000",
+                "--write-bound",
+                "0x8000-0x1000",
             )
             self.assertNotEqual(wrong_hash.returncode, 0)
             self.assertIn("SHA256 mismatch", wrong_hash.stderr)
 
             out_of_bound = invoke(
-                *base, "--segment-sha256", cp_hash, "--segment-sha256", ap_hash,
-                "--write-bound", "0x4000-0x1000",
-                "--write-bound", "0x9000-0x1000",
+                *base,
+                "--segment-sha256",
+                cp_hash,
+                "--segment-sha256",
+                ap_hash,
+                "--write-bound",
+                "0x4000-0x1000",
+                "--write-bound",
+                "0x9000-0x1000",
             )
             self.assertNotEqual(out_of_bound.returncode, 0)
             self.assertIn("outside every", out_of_bound.stderr)
 
             unaligned = invoke(
-                *base, "--segment-sha256", cp_hash, "--segment-sha256", ap_hash,
-                "--write-bound", "0x4001-0x1000",
-                "--write-bound", "0x8000-0x1000",
+                *base,
+                "--segment-sha256",
+                cp_hash,
+                "--segment-sha256",
+                ap_hash,
+                "--write-bound",
+                "0x4001-0x1000",
+                "--write-bound",
+                "0x8000-0x1000",
             )
             self.assertNotEqual(unaligned.returncode, 0)
             self.assertIn("4 KiB aligned", unaligned.stderr)
 
             capacity = invoke(
-                *base, "--segment-sha256", cp_hash, "--segment-sha256", ap_hash,
-                "--write-bound", "0x4000-0x1000",
-                "--write-bound", "0x800000-0x1000",
+                *base,
+                "--segment-sha256",
+                cp_hash,
+                "--segment-sha256",
+                ap_hash,
+                "--write-bound",
+                "0x4000-0x1000",
+                "--write-bound",
+                "0x800000-0x1000",
             )
             self.assertNotEqual(capacity.returncode, 0)
             self.assertIn("known flash capacity", capacity.stderr)
 
             completed = invoke(
-                *base, "--segment-sha256", cp_hash, "--segment-sha256", ap_hash,
-                "--write-bound", "0x4000-0x1000",
-                "--write-bound", "0x8000-0x1000",
+                *base,
+                "--segment-sha256",
+                cp_hash,
+                "--segment-sha256",
+                ap_hash,
+                "--write-bound",
+                "0x4000-0x1000",
+                "--write-bound",
+                "0x8000-0x1000",
             )
             self.assertEqual(completed.returncode, 0, completed.stderr)
             result = json.loads(completed.stdout)
@@ -466,9 +511,7 @@ class DownloadToolTest(unittest.TestCase):
                 "Writing Flash OK\n{All Finished Successfully}\n",
                 encoding="utf-8",
             )
-            completed = invoke(
-                "verify-log", "--log", str(log), "--last-session"
-            )
+            completed = invoke("verify-log", "--log", str(log), "--last-session")
             self.assertEqual(completed.returncode, 0, completed.stderr)
             result = json.loads(completed.stdout)
             self.assertEqual(result["status"], "passed")

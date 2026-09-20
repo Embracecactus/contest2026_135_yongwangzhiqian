@@ -288,8 +288,14 @@ class HapticServiceTest(unittest.TestCase):
         tree = Path(cls.temp.name)
         (tree / "mock.h").write_text(MOCK)
         for name in (
-            "config.h", "irq.h", "mutex.h", "rpmsg/rpmsg.h", "semaphore.h",
-            "spinlock.h", "bits.h", "fs/ioctl.h",
+            "config.h",
+            "irq.h",
+            "mutex.h",
+            "rpmsg/rpmsg.h",
+            "semaphore.h",
+            "spinlock.h",
+            "bits.h",
+            "fs/ioctl.h",
         ):
             header = tree / "nuttx" / name
             header.parent.mkdir(parents=True, exist_ok=True)
@@ -301,25 +307,47 @@ class HapticServiceTest(unittest.TestCase):
         harness.write_text(HARNESS)
         cls.binary = tree / "haptic_service"
         result = subprocess.run(
-            ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
-             "-fsanitize=undefined", "-fno-sanitize-recover=all",
-             "-I", str(tree), "-I", str(REPOSITORY / "app/bk7258"),
-             str(harness), "-o", str(cls.binary)],
-            capture_output=True, text=True,
+            [
+                "cc",
+                "-std=c11",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-fsanitize=undefined",
+                "-fno-sanitize-recover=all",
+                "-I",
+                str(tree),
+                "-I",
+                str(REPOSITORY / "app/bk7258"),
+                str(harness),
+                "-o",
+                str(cls.binary),
+            ],
+            capture_output=True,
+            text=True,
         )
         if result.returncode:
             raise AssertionError(result.stderr)
 
     def test_real_service_behavior(self) -> None:
         for scenario in (
-            "status", "dedup", "disconnect_pending", "disconnect_upload",
-            "upload_failure", "play_failure", "stop_failure", "erase_failure",
-            "no_rumble", "no_effects",
+            "status",
+            "dedup",
+            "disconnect_pending",
+            "disconnect_upload",
+            "upload_failure",
+            "play_failure",
+            "stop_failure",
+            "erase_failure",
+            "no_rumble",
+            "no_effects",
         ):
             with self.subTest(scenario=scenario):
                 result = subprocess.run(
-                    [str(self.binary), scenario], capture_output=True,
-                    text=True, timeout=10,
+                    [str(self.binary), scenario],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
 

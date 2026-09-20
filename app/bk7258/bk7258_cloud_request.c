@@ -195,9 +195,11 @@ int bkcloud_asr_body(void *buffer, size_t *size, const void **data,
       else
         {
           size_t index = (pos - source->prefix_size) / 4 * 3;
-          /* PCM 主体连续编码，避免每 3 字节重复调用编码器和复制小块。
-           * WAV/PCM 交界、非对齐分块和最终填充继续走下方边界路径。
-           * mbedTLS 会追加 NUL，因此必须留出一个不计入请求体的字节。
+          /* The PCM payload is encoded in one run to avoid calling the
+           * encoder per 3 bytes and copying small chunks. WAV/PCM boundaries,
+           * unaligned blocks and the final padding still take the boundary
+           * path below. mbedTLS appends a NUL, so one byte must stay reserved
+           * and excluded from the request body.
            */
           if ((pos - source->prefix_size) % 4 == 0 &&
               index >= sizeof(source->wav) && capacity - produced > 4)

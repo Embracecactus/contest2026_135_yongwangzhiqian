@@ -76,7 +76,9 @@ static void release_trial(void)
   g_last_error = g_trial->error;
   mbedtls_platform_zeroize(g_trial, sizeof(*g_trial));
   free(g_trial); g_trial = NULL;
-  /* 失败不覆盖已接受配置；原存储通知让产品恢复它。 */
+  /* A failure never overwrites the accepted configuration; the existing
+   * storage notification lets the product restore it.
+   */
   if (restore) (void)bkprov_storage_refresh();
 }
 static int begin(void *context, const uint8_t *bundle, size_t size)
@@ -105,7 +107,9 @@ static int begin(void *context, const uint8_t *bundle, size_t size)
     {
       memcpy(t->bundle, bundle, size); t->size = size;
       ret = bkprov_settings_decode(&t->settings, t->bundle, size);
-      /* 控制密钥同时绑定加密记忆，重新绑定不得轮换它。 */
+      /* The control key also binds the encrypted memory, so a rebind must
+       * not rotate it.
+       */
       if (!ret && t->revision && (!t->settings.control_key ||
           mbedtls_ct_memcmp(owner_key, t->settings.control_key, 32)))
         ret = -EACCES;
@@ -186,7 +190,9 @@ static int commit(void *context, const uint8_t transaction[16],
   if (t->committing && memcmp(transaction, t->transaction, 16)) return -ESTALE;
   memcpy(t->transaction, transaction, 16);
   t->committing = true; t->phase = PERSIST;
-  /* 初次认领和显式重新绑定共用带 revision 比较的原子事务。 */
+  /* Initial claim and explicit rebind share one atomic transaction with a
+   * revision comparison.
+   */
   int ret = bkprov_storage_commit(t->revision, transaction, t->bundle, t->size);
   persist_result(ret);
   return ret;

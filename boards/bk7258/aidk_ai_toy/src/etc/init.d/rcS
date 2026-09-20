@@ -7,7 +7,8 @@
 #include <nuttx/config.h>
 
 #if defined(CONFIG_BK7258_PRODUCT_KEYS) && !defined(CONFIG_BK7258_AP_CORE)
-/* 按键服务独立于网络与语音，旧 voice/PTT 命令不再进入产品启动链。 */
+/* The key service is independent of networking and voice; the old voice/PTT
+ * commands no longer enter the product startup chain. */
 bkkeys
 #endif
 

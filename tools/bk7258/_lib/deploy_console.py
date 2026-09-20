@@ -40,8 +40,7 @@ def reboot_and_confirm(
     healthy = (
         re.compile(r"ap magic=[0-9a-fA-F]{8} version=\d+ state=2 error=0\b"),
         re.compile(
-            r"cpu2 magic=[0-9a-fA-F]{8} state=8 error=0 .*"
-            r"ready=1 online=00000003\b"
+            r"cpu2 magic=[0-9a-fA-F]{8} state=8 error=0 .*" r"ready=1 online=00000003\b"
         ),
         re.compile(r"rptun magic=[0-9a-fA-F]{8} version=\d+ state=4 error=0\b"),
         re.compile(r"manager state=0\b.*error=0\b"),
@@ -65,8 +64,11 @@ def reboot_and_confirm(
                 if expected in transcript and all(
                     pattern.search(transcript) is not None for pattern in healthy
                 ):
-                    result = "reboot and automatic confirmation" if reboot else \
-                             "running generation confirmation"
+                    result = (
+                        "reboot and automatic confirmation"
+                        if reboot
+                        else "running generation confirmation"
+                    )
                     print(f"BK7258 OTA: {result} PASS")
                     return
             now = time.monotonic()

@@ -67,7 +67,7 @@ def crc_encode(data: bytes, data_size: int = 32, total_size: int = 34) -> bytes:
     padded = data + bytes([ERASE_BYTE]) * ((-len(data)) % data_size)
     output = bytearray()
     for offset in range(0, len(padded), data_size):
-        block = padded[offset:offset + data_size]
+        block = padded[offset : offset + data_size]
         output.extend(block)
         output.extend(crc16(block).to_bytes(2, "big"))
     return bytes(output)
@@ -78,8 +78,8 @@ def crc_decode(data: bytes, data_size: int = 32, total_size: int = 34) -> bytes:
         raise ImageError("encoded image does not match CRC packet geometry")
     output = bytearray()
     for offset in range(0, len(data), total_size):
-        block = data[offset:offset + data_size]
-        expected = int.from_bytes(data[offset + data_size:offset + total_size], "big")
+        block = data[offset : offset + data_size]
+        expected = int.from_bytes(data[offset + data_size : offset + total_size], "big")
         observed = crc16(block)
         if observed != expected:
             raise ImageError(
@@ -90,15 +90,15 @@ def crc_decode(data: bytes, data_size: int = 32, total_size: int = 34) -> bytes:
     return bytes(output)
 
 
-def logical_to_physical(offset: int, data_size: int = 32,
-                        total_size: int = 34) -> int:
+def logical_to_physical(offset: int, data_size: int = 32, total_size: int = 34) -> int:
     if offset < 0 or data_size <= 0 or total_size < data_size:
         raise ImageError("invalid logical-to-physical conversion")
     return offset // data_size * total_size + offset % data_size
 
 
-def inspect_vectors(data: bytes, partition: Partition, layout: Layout, *,
-                    sram_start: int, sram_end: int) -> dict[str, int]:
+def inspect_vectors(
+    data: bytes, partition: Partition, layout: Layout, *, sram_start: int, sram_end: int
+) -> dict[str, int]:
     if len(data) < 8:
         raise ImageError("raw image is too small for a vector table")
     msp, reset = struct.unpack_from("<II", data)
@@ -131,8 +131,9 @@ def encode_for_partition(data: bytes, partition: Partition, layout: Layout) -> b
     return encoded
 
 
-def _selection(layout: Layout, artifacts: Mapping[str, bytes],
-               preserved_external: tuple[str, ...]) -> dict[str, Partition]:
+def _selection(
+    layout: Layout, artifacts: Mapping[str, bytes], preserved_external: tuple[str, ...]
+) -> dict[str, Partition]:
     required = {
         item.artifact: item
         for item in layout.partitions
@@ -153,28 +154,45 @@ def _selection(layout: Layout, artifacts: Mapping[str, bytes],
         missing = sorted(expected_names - set(artifacts))
         extra = sorted(set(artifacts) - expected_names)
         raise ImageError(f"artifact set mismatch: missing={missing} extra={extra}")
-    return {**required, **{name: optional[name] for name in optional if name not in preserved}}
+    return {
+        **required,
+        **{name: optional[name] for name in optional if name not in preserved},
+    }
 
 
-def finalize(layout: Layout, artifacts: Mapping[str, bytes], *,
-             preserved_external: tuple[str, ...] = ()) -> ImageSet:
+def finalize(
+    layout: Layout,
+    artifacts: Mapping[str, bytes],
+    *,
+    preserved_external: tuple[str, ...] = (),
+) -> ImageSet:
     """Convert raw build artifacts into finalized sparse Flash operations."""
 
     expected = _selection(layout, artifacts, preserved_external)
     writes = tuple(
-        Segment(name, item.name, item.offset, encode_for_partition(artifacts[name], item, layout))
+        Segment(
+            name,
+            item.name,
+            item.offset,
+            encode_for_partition(artifacts[name], item, layout),
+        )
         for name, item in sorted(expected.items(), key=lambda row: row[1].offset)
     )
     erases = tuple(
         EraseRange(item.name, item.offset, item.size)
-        for item in layout.partitions if item.policy == "clear"
+        for item in layout.partitions
+        if item.policy == "clear"
     )
     _validate_operations(layout, writes, erases)
     return ImageSet(layout, writes, erases, tuple(sorted(preserved_external)))
 
 
-def finalized(layout: Layout, artifacts: Mapping[str, bytes], *,
-              preserved_external: tuple[str, ...] = ()) -> ImageSet:
+def finalized(
+    layout: Layout,
+    artifacts: Mapping[str, bytes],
+    *,
+    preserved_external: tuple[str, ...] = (),
+) -> ImageSet:
     """Verify already-finalized bytes without changing a single byte."""
 
     expected = _selection(layout, artifacts, preserved_external)
@@ -182,9 +200,7 @@ def finalized(layout: Layout, artifacts: Mapping[str, bytes], *,
     for name, item in sorted(expected.items(), key=lambda row: row[1].offset):
         data = artifacts[name]
         if not data or len(data) > item.size:
-            raise ImageError(
-                f"final artifact {name} has invalid size: 0x{len(data):x}"
-            )
+            raise ImageError(f"final artifact {name} has invalid size: 0x{len(data):x}")
         if item.executable and layout.crc_total_size > layout.crc_data_size:
             crc_decode(data, layout.crc_data_size, layout.crc_total_size)
         writes.append(Segment(name, item.name, item.offset, data))
@@ -192,19 +208,17 @@ def finalized(layout: Layout, artifacts: Mapping[str, bytes], *,
     if {"cp", "ap", "pair"}.issubset(by_artifact):
         cp_partition = layout.artifact("cp")
         ap_partition = layout.artifact("ap")
-        expected_pair = (
-            by_artifact["cp"].data.ljust(cp_partition.size, bytes([ERASE_BYTE]))
-            + by_artifact["ap"].data.ljust(ap_partition.size, bytes([ERASE_BYTE]))
-        )
+        expected_pair = by_artifact["cp"].data.ljust(
+            cp_partition.size, bytes([ERASE_BYTE])
+        ) + by_artifact["ap"].data.ljust(ap_partition.size, bytes([ERASE_BYTE]))
         if by_artifact["pair"].data != expected_pair:
             raise ImageError("final pair artifact does not match finalized CP/AP bytes")
     erases = tuple(
         EraseRange(item.name, item.offset, item.size)
-        for item in layout.partitions if item.policy == "clear"
+        for item in layout.partitions
+        if item.policy == "clear"
     )
-    result = ImageSet(
-        layout, tuple(writes), erases, tuple(sorted(preserved_external))
-    )
+    result = ImageSet(layout, tuple(writes), erases, tuple(sorted(preserved_external)))
     _validate_operations(layout, result.writes, result.erases)
     return result
 
@@ -217,10 +231,9 @@ def pair(layout: Layout, cp: bytes, ap: bytes) -> bytes:
     pair_partition = layout.artifact("pair")
     cp_encoded = encode_for_partition(cp, cp_partition, layout)
     ap_encoded = encode_for_partition(ap, ap_partition, layout)
-    result = (
-        cp_encoded.ljust(cp_partition.size, bytes([ERASE_BYTE]))
-        + ap_encoded.ljust(ap_partition.size, bytes([ERASE_BYTE]))
-    )
+    result = cp_encoded.ljust(
+        cp_partition.size, bytes([ERASE_BYTE])
+    ) + ap_encoded.ljust(ap_partition.size, bytes([ERASE_BYTE]))
     if len(result) != pair_partition.size:
         raise ImageError(
             "pair partition size must equal the physical CP+AP partition span"
@@ -228,8 +241,9 @@ def pair(layout: Layout, cp: bytes, ap: bytes) -> bytes:
     return result
 
 
-def _validate_operations(layout: Layout, writes: tuple[Segment, ...],
-                         erases: tuple[EraseRange, ...]) -> None:
+def _validate_operations(
+    layout: Layout, writes: tuple[Segment, ...], erases: tuple[EraseRange, ...]
+) -> None:
     ranges: list[tuple[int, int, str]] = []
     forbidden = [
         item for item in layout.partitions if item.policy in {"preserve", "immutable"}
@@ -240,7 +254,9 @@ def _validate_operations(layout: Layout, writes: tuple[Segment, ...],
             raise ImageError(f"Flash operation is outside the selected layout: {row}")
         for item in forbidden:
             if start < item.end and item.offset < end:
-                raise ImageError(f"Flash operation touches {item.policy} partition: {item.name}")
+                raise ImageError(
+                    f"Flash operation touches {item.policy} partition: {item.name}"
+                )
         ranges.append((start, end, row.partition))
     ranges.sort()
     for left, right in zip(ranges, ranges[1:]):
@@ -254,20 +270,31 @@ def materialize(image_set: ImageSet, start: int, end: int) -> bytes:
     if start < 0 or end <= start or end > image_set.layout.flash_size:
         raise ImageError("dense image interval is outside Flash")
     for item in image_set.layout.partitions:
-        if item.policy in {"preserve", "immutable"} and start < item.end and item.offset < end:
+        if (
+            item.policy in {"preserve", "immutable"}
+            and start < item.end
+            and item.offset < end
+        ):
             raise ImageError(f"dense image interval crosses {item.policy}: {item.name}")
-        if item.artifact in image_set.preserved_external \
-                and start < item.end and item.offset < end:
-            raise ImageError(f"dense image interval crosses preserved external: {item.name}")
+        if (
+            item.artifact in image_set.preserved_external
+            and start < item.end
+            and item.offset < end
+        ):
+            raise ImageError(
+                f"dense image interval crosses preserved external: {item.name}"
+            )
     output = bytearray([ERASE_BYTE]) * (end - start)
     for segment in image_set.writes:
         if segment.offset < start or segment.end > end:
             raise ImageError(f"segment is outside dense interval: {segment.artifact}")
         begin = segment.offset - start
-        output[begin:begin + len(segment.data)] = segment.data
+        output[begin : begin + len(segment.data)] = segment.data
     for erase in image_set.erases:
         if erase.offset < start or erase.end > end:
-            raise ImageError(f"erase range is outside dense interval: {erase.partition}")
+            raise ImageError(
+                f"erase range is outside dense interval: {erase.partition}"
+            )
     return bytes(output)
 
 

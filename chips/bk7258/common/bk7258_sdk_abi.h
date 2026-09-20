@@ -84,8 +84,9 @@ _Static_assert(MAILBOX_CPU1 == 1 && MAILBOX_CPU2 == 2,
  ****************************************************************************/
 
 #if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_SDIO)
-/* modules/pm.h 依赖未导出的 sys_types.h。保留 v3.1.1.9 的整型 ABI，
- * 不把 SDK 私有头补进产品构建；该调用仍经过现有 AP PM 适配。
+/* modules/pm.h depends on the unexported sys_types.h.  Keep the v3.1.1.9
+ * integer ABI instead of adding the private SDK header to the product build;
+ * the call still goes through the existing AP PM adaptation.
  */
 
 #  define BK7258_SDK_PM_CLK_ID_SDIO 22

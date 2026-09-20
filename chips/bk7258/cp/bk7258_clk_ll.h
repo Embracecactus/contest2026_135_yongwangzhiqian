@@ -60,7 +60,7 @@
 #define BK7258_ANA5_EN_DPLL        (1u << 5)
 
 /* ANA_REG9 field bit positions (from sys_struct.h:1166,1172,1177 and
- * sys_ll.h:7249,7294 rmw encoders). */
+ * sys_ll.h:7249, 7294 rmw encoders). */
 #define BK7258_ANA9_SPI_LATCH1V    (1u << 9)
 #define BK7258_ANA9_VDDDIG_SHIFT   16u                  /* vcorehsel [16:19] */
 #define BK7258_ANA9_VDDDIG_MASK    (0xfu << BK7258_ANA9_VDDDIG_SHIFT)

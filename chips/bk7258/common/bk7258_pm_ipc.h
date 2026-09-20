@@ -19,8 +19,9 @@
 #define BK7258_PM_VERSION              4u
 #define BK7258_PM_ENDPOINT_WAIT_MS     3000u
 #define BK7258_PM_REPLY_TIMEOUT_MS     1000u
-/* 启动日志与控制请求共用 RPMsg TX 缓冲。等待空闲缓冲复用已有的
- * 答复等待预算，避免尚未发出请求就因更短的 100 ms 门限放弃供时。
+/* The boot log and control requests share the RPMsg TX buffer.  Waiting for
+ * a free buffer reuses the existing reply budget, so a power-up request is
+ * not abandoned before it is sent because of the shorter 100 ms threshold.
  */
 #define BK7258_PM_SEND_TIMEOUT_MS      BK7258_PM_REPLY_TIMEOUT_MS
 #define BK7258_PM_REQUEST_ATTEMPTS     3u

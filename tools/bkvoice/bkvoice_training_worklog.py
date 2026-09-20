@@ -45,12 +45,24 @@ def private_source_summary(path: Path) -> dict[str, object]:
             try:
                 row = json.loads(line)
             except json.JSONDecodeError as error:
-                raise ValueError(f"invalid private manifest line {line_number}") from error
+                raise ValueError(
+                    f"invalid private manifest line {line_number}"
+                ) from error
             if not isinstance(row, dict):
-                raise ValueError(f"private manifest line {line_number} is not an object")
+                raise ValueError(
+                    f"private manifest line {line_number} is not an object"
+                )
 
-            required = ("source_path", "path_sha256", "sha256", "direction",
-                        "association_status", "duration_ms", "sample_rate", "channels")
+            required = (
+                "source_path",
+                "path_sha256",
+                "sha256",
+                "direction",
+                "association_status",
+                "duration_ms",
+                "sample_rate",
+                "channels",
+            )
             if any(key not in row for key in required):
                 raise ValueError(f"private manifest line {line_number} is incomplete")
             source_path = PurePosixPath(str(row["source_path"]))
@@ -58,13 +70,20 @@ def private_source_summary(path: Path) -> dict[str, object]:
                 raise ValueError(f"unsafe source path on line {line_number}")
             if str(source_path) in source_paths:
                 raise ValueError(f"duplicate source path on line {line_number}")
-            if row["direction"] != "received" or row["association_status"] != "associated":
+            if (
+                row["direction"] != "received"
+                or row["association_status"] != "associated"
+            ):
                 raise ValueError(f"untrusted association on line {line_number}")
             if not HASH_RE.fullmatch(str(row["sha256"])) or not HASH_RE.fullmatch(
-                    str(row["path_sha256"])):
+                str(row["path_sha256"])
+            ):
                 raise ValueError(f"invalid hash on line {line_number}")
-            if int(row["sample_rate"]) <= 0 or int(row["channels"]) <= 0 or float(
-                    row["duration_ms"]) <= 0:
+            if (
+                int(row["sample_rate"]) <= 0
+                or int(row["channels"]) <= 0
+                or float(row["duration_ms"]) <= 0
+            ):
                 raise ValueError(f"invalid audio metadata on line {line_number}")
 
             source_paths.add(str(source_path))
@@ -81,8 +100,9 @@ def private_source_summary(path: Path) -> dict[str, object]:
         "duration_ms": round(duration_ms, 3),
         "sample_rates": sorted(sample_rates),
         "channels": sorted(channels),
-        "duplicate_content_count": sum(value - 1 for value in content_hashes.values()
-                                           if value > 1),
+        "duplicate_content_count": sum(
+            value - 1 for value in content_hashes.values() if value > 1
+        ),
     }
 
 
@@ -91,8 +111,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--source-audit", required=True, type=Path)
     parser.add_argument("--private-manifest", required=True, type=Path)
     parser.add_argument("--speaker-id", required=True)
-    parser.add_argument("--consent-status", choices=("user-attested", "recorded"),
-                        required=True)
+    parser.add_argument(
+        "--consent-status", choices=("user-attested", "recorded"), required=True
+    )
     parser.add_argument("--consent-record", type=Path)
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args(argv)
@@ -122,8 +143,9 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as error:
         raise SystemExit(str(error)) from error
 
-    consent_sha256 = (sha256_file(args.consent_record)
-                      if args.consent_record is not None else None)
+    consent_sha256 = (
+        sha256_file(args.consent_record) if args.consent_record is not None else None
+    )
     created = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     worklog = {
         "format": FORMAT,
@@ -151,22 +173,34 @@ def main(argv: list[str] | None = None) -> int:
             "asset_selection": "NOT_STARTED",
         },
         "model_candidates": [
-            {"id": "fun-cosyvoice3-zero-shot", "role": "baseline",
-             "status": "NOT_STARTED"},
-            {"id": "gpt-sovits-finetune", "role": "primary-finetune",
-             "status": "BLOCKED_DATA_PREP"},
-            {"id": "f5-tts-finetune", "role": "alternate-finetune",
-             "status": "BLOCKED_DATA_PREP"},
+            {
+                "id": "fun-cosyvoice3-zero-shot",
+                "role": "baseline",
+                "status": "NOT_STARTED",
+            },
+            {
+                "id": "gpt-sovits-finetune",
+                "role": "primary-finetune",
+                "status": "BLOCKED_DATA_PREP",
+            },
+            {
+                "id": "f5-tts-finetune",
+                "role": "alternate-finetune",
+                "status": "BLOCKED_DATA_PREP",
+            },
         ],
-        "events": [{
-            "created_utc": created,
-            "event": "source_audit_accepted",
-            "status": "PASS",
-        }],
+        "events": [
+            {
+                "created_utc": created,
+                "event": "source_audit_accepted",
+                "status": "PASS",
+            }
+        ],
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(worklog, sort_keys=True, indent=2) + "\n",
-                        encoding="utf-8")
+    args.out.write_text(
+        json.dumps(worklog, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
     print("BKVOICE_TRAINING_WORKLOG_INIT_PASS")
     return 0
 

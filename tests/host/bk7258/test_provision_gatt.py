@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-PREFIX = r'''
+PREFIX = r"""
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -96,8 +96,8 @@ static void bt_gatt_register(const struct bt_gatt_attr_s *a,size_t n) {
 static int bt_gatt_notify_peer(struct bt_conn_s *c,uint16_t h,const void *v,size_t n) {
  assert(h==0x14 && v && n<=20);notified=c;return c->live?notify_result:-ENOTCONN;
 }
-'''
-TEST = r'''
+"""
+TEST = r"""
 int main(void) {
  struct bt_conn_s a={1,true}, b={1,true};
  uint8_t data[64], out[4096]; memset(data,42,sizeof(data));
@@ -188,20 +188,31 @@ int main(void) {
  assert(bkprov_gatt_window(true)==-ENOBUFS);
  return 0;
 }
-'''
+"""
 
 
 class ProductGattTest(unittest.TestCase):
     def test_window_queue_and_connection_generation(self):
-        source = (ROOT / 'app/bk7258/bk7258_provision_gatt.c').read_text()
-        source = re.sub(r'^#include[^\n]*\n', '', source, flags=re.M)
+        source = (ROOT / "app/bk7258/bk7258_provision_gatt.c").read_text()
+        source = re.sub(r"^#include[^\n]*\n", "", source, flags=re.M)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            (path / 'test.c').write_text(PREFIX + source + TEST)
-            subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror',
-                            str(path / 'test.c'), '-o', str(path / 'test')], check=True)
-            subprocess.run([str(path / 'test')], check=True)
+            (path / "test.c").write_text(PREFIX + source + TEST)
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=gnu11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -77,7 +77,7 @@ int bk7258_preferences_cloud_models_get(struct bkcloud_models_s *models)
 int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models)
 {
   struct bkprov_store_s store;
-  uint8_t record[BKCLOUD_MODELS_RECORD_MAX], transaction[16] = {'M','C','P','1'};
+  uint8_t record[BKCLOUD_MODELS_RECORD_MAX], transaction[16] = {'M', 'C', 'P', '1'};
   uint8_t confirmed[BKCLOUD_MODELS_RECORD_MAX], confirmed_transaction[16];
   size_t size; uint64_t revision;
   int ret;
@@ -194,9 +194,10 @@ static int bk7258_preferences_parse_persona(const char *name,
 
 static int bk7258_preferences_backend_result(int ret)
 {
-  /* 当前 direct/UnQLite 后端原样返回库错误码，不全是 errno。
-   * 尤其 IOERR(-2) 不是 ENOENT，不能据此覆盖为首次使用默认值。
-   * 参数已由本适配校验；保留 KVDB 自身的 errno 类错误。
+  /* The current direct/UnQLite backend returns library codes as-is, and they
+   * are not all errno values. IOERR (-2) in particular is not ENOENT, so it
+   * must not be overridden with the first-use default. Arguments are already
+   * validated by this adapter; KVDB's own errno-class errors are preserved.
    */
   switch (ret)
     {

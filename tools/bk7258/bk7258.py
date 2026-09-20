@@ -45,13 +45,16 @@ def _parser() -> argparse.ArgumentParser:
 
     build = commands.add_parser("build", help="build CP and AP through OpenVela")
     build.add_argument(
-        "--board", metavar="NAME",
+        "--board",
+        metavar="NAME",
         help="load the physical board's maintained openvela.conf declaration",
     )
     build.add_argument("--cp-config", type=Path)
     build.add_argument("--ap-config", type=Path)
     build.add_argument(
-        "--boot", choices=("direct", "mcuboot"), required=True,
+        "--boot",
+        choices=("direct", "mcuboot"),
+        required=True,
         help=(
             "mcuboot is the only signed release chain; direct is an unsigned "
             "bring-up/diagnostic chain and cannot be released"
@@ -59,10 +62,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     build.add_argument("--partition", type=Path)
     build.add_argument(
-        "--workspace", type=Path,
+        "--workspace",
+        type=Path,
         help="use an isolated OpenVela root whose vendor/beken links resolve to this repository",
     )
-    build.add_argument("--product", help="explicit product identity; manifest metadata only")
+    build.add_argument(
+        "--product", help="explicit product identity; manifest metadata only"
+    )
     build.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 8))
     build.add_argument("--bl1-public-key", type=Path)
     build.add_argument("--mcuboot-public-key", type=Path)
@@ -75,12 +81,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     deploy_domain.add_arguments(deploy)
 
-    toolchain = commands.add_parser("toolchain", help="manage the locked Arm GNU toolchain")
-    toolchain_commands = toolchain.add_subparsers(dest="toolchain_command", required=True)
-    toolchain_install = toolchain_commands.add_parser("install", help="install the locked toolchain")
+    toolchain = commands.add_parser(
+        "toolchain", help="manage the locked Arm GNU toolchain"
+    )
+    toolchain_commands = toolchain.add_subparsers(
+        dest="toolchain_command", required=True
+    )
+    toolchain_install = toolchain_commands.add_parser(
+        "install", help="install the locked toolchain"
+    )
     toolchain_install.add_argument("--archive", type=Path)
     toolchain_install.add_argument("--replace", action="store_true")
-    toolchain_commands.add_parser("verify", help="verify the installed locked toolchain")
+    toolchain_commands.add_parser(
+        "verify", help="verify the installed locked toolchain"
+    )
 
     sdk = commands.add_parser("sdk", help="manage manifest-pinned SDK bundles")
     sdk_commands = sdk.add_subparsers(dest="sdk_command", required=True)
@@ -107,7 +121,8 @@ def _parser() -> argparse.ArgumentParser:
     eye_pack.add_argument("--source", type=Path, required=True)
     eye_pack.add_argument("--output", type=Path, required=True)
     eye_pack.add_argument(
-        "--preview-dir", type=Path,
+        "--preview-dir",
+        type=Path,
         help="optionally render review-only left/right PNG previews",
     )
     accept_base = package_commands.add_parser(
@@ -120,11 +135,13 @@ def _parser() -> argparse.ArgumentParser:
     accept_base.add_argument("--capture-method", required=True)
     accept_base.add_argument("--output", type=Path, required=True)
     accept_base.add_argument(
-        "--source-partition", type=Path,
+        "--source-partition",
+        type=Path,
         help="actual snapshot layout; relocate protected data to the board preset",
     )
     accept_base.add_argument(
-        "--relocated-base", type=Path,
+        "--relocated-base",
+        type=Path,
         help="new private 8-MiB base output; requires --source-partition",
     )
     create = package_commands.add_parser(
@@ -132,7 +149,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     create.add_argument("--build-manifest", type=Path, required=True)
     create.add_argument(
-        "--unsigned", action="store_true", required=True,
+        "--unsigned",
+        action="store_true",
+        required=True,
         help="package already-finalized direct-boot bytes for diagnostics",
     )
     create.add_argument("--output", type=Path, required=True)
@@ -142,7 +161,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     delivery.add_argument("--build-manifest", type=Path, required=True)
     delivery.add_argument(
-        "--unsigned", action="store_true", required=True,
+        "--unsigned",
+        action="store_true",
+        required=True,
         help="label the complete operator image as diagnostic-only",
     )
     delivery.add_argument("--version", required=True)
@@ -156,8 +177,11 @@ def _parser() -> argparse.ArgumentParser:
         "flash-contract", help="print the verified sparse write contract"
     )
     flash_contract.add_argument("--package", type=Path, required=True)
-    flash_contract.add_argument("--transport", choices=("full-bin", "ota"),
-                                help="report actual transport and data impact")
+    flash_contract.add_argument(
+        "--transport",
+        choices=("full-bin", "ota"),
+        help="report actual transport and data impact",
+    )
     materialize = package_commands.add_parser(
         "materialize", help="create one trust-verified BKFIL full image"
     )
@@ -170,9 +194,7 @@ def _parser() -> argparse.ArgumentParser:
     release = commands.add_parser(
         "release", help="publish a hash-bound signed release from one build manifest"
     )
-    release_commands = release.add_subparsers(
-        dest="release_command", required=True
-    )
+    release_commands = release.add_subparsers(dest="release_command", required=True)
     full = release_commands.add_parser(
         "full", help="create and materialize one signed full release"
     )
@@ -180,8 +202,12 @@ def _parser() -> argparse.ArgumentParser:
     full.add_argument("--bl1-key", type=Path, required=True)
     full.add_argument("--mcuboot-key", type=Path, required=True)
     full.add_argument("--version", required=True)
-    full.add_argument("--product", help="explicit product; defaults to build provenance")
-    full.add_argument("--artifact-id", help="explicit immutable identity required for new /3 releases")
+    full.add_argument(
+        "--product", help="explicit product; defaults to build provenance"
+    )
+    full.add_argument(
+        "--artifact-id", help="explicit immutable identity required for new /3 releases"
+    )
     full.add_argument("--base", type=Path, required=True)
     full.add_argument("--base-evidence", type=Path, required=True)
     full.add_argument("--openssl", type=Path, required=True)
@@ -193,7 +219,9 @@ def _parser() -> argparse.ArgumentParser:
     ota.add_argument("--mcuboot-key", type=Path, required=True)
     ota.add_argument("--version", required=True)
     ota.add_argument("--product", help="explicit product; defaults to build provenance")
-    ota.add_argument("--artifact-id", help="explicit immutable identity required for new /3 releases")
+    ota.add_argument(
+        "--artifact-id", help="explicit immutable identity required for new /3 releases"
+    )
     ota.add_argument("--openssl", type=Path, required=True)
     ota.add_argument("--output-dir", type=Path, required=True)
     product = release_commands.add_parser(
@@ -214,7 +242,10 @@ def _parser() -> argparse.ArgumentParser:
         help="verify product deliveries and publish a metadata-only Gateway catalog",
     )
     gateway_catalog.add_argument(
-        "--delivery", type=Path, action="append", required=True,
+        "--delivery",
+        type=Path,
+        action="append",
+        required=True,
         help="verified product delivery ZIP; repeat for each device release",
     )
     gateway_catalog.add_argument("--openssl", type=Path, required=True)
@@ -225,14 +256,18 @@ def _parser() -> argparse.ArgumentParser:
     verify_commands.add_parser(
         "layers", help="verify board/chip/app source ownership boundaries"
     )
-    verify_layout = verify_commands.add_parser("layout", help="verify one partition CSV")
+    verify_layout = verify_commands.add_parser(
+        "layout", help="verify one partition CSV"
+    )
     verify_layout.add_argument("--partition", type=Path, required=True)
     verify_image = verify_commands.add_parser("image", help="verify artifact placement")
     verify_image.add_argument("--partition", type=Path, required=True)
-    verify_image.add_argument("--artifact", action="append", required=True,
-                              metavar="NAME=PATH")
-    verify_image.add_argument("--preserve-external", action="append", default=[],
-                              metavar="NAME")
+    verify_image.add_argument(
+        "--artifact", action="append", required=True, metavar="NAME=PATH"
+    )
+    verify_image.add_argument(
+        "--preserve-external", action="append", default=[], metavar="NAME"
+    )
     verify_manifest = verify_commands.add_parser(
         "build-manifest", help="re-hash one build-to-release handoff"
     )
@@ -248,7 +283,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     verify_delivery.add_argument("--delivery", type=Path, required=True)
     verify_delivery.add_argument("--openssl", type=Path)
-    verify_trust = verify_commands.add_parser("trust", help="verify package trust evidence")
+    verify_trust = verify_commands.add_parser(
+        "trust", help="verify package trust evidence"
+    )
     verify_trust.add_argument("--package", type=Path, required=True)
     verify_trust.add_argument("--openssl", type=Path, required=True)
     return parser
@@ -342,10 +379,15 @@ def _release_summary(staging: Path, document: dict[str, object]) -> None:
 
 def _release_product(args: argparse.Namespace) -> None:
     report = product_domain.release_product(
-        REPOSITORY, full_release=args.full_release, base=args.base,
-        output=args.output, ota_release=args.ota_release,
+        REPOSITORY,
+        full_release=args.full_release,
+        base=args.base,
+        output=args.output,
+        ota_release=args.ota_release,
         ota_required_source_version=args.ota_required_source_version,
-        package_verifier=lambda candidate: _verify_package_trust(candidate, args.openssl),
+        package_verifier=lambda candidate: _verify_package_trust(
+            candidate, args.openssl
+        ),
     )
     print(
         "bk7258 release product: PASS "
@@ -375,8 +417,11 @@ def _release(args: argparse.Namespace) -> None:
             f"sha256={report['sha256']}"
         )
         return
-    for name in (("bl1_key", "mcuboot_key") if args.release_command == "full"
-                 else ("mcuboot_key",)):
+    for name in (
+        ("bl1_key", "mcuboot_key")
+        if args.release_command == "full"
+        else ("mcuboot_key",)
+    ):
         trust_domain._regular(getattr(args, name), "configured signing identity")
     manifest = build_domain.load_build_manifest(
         REPOSITORY, _workspace_input(args.build_manifest)
@@ -391,14 +436,14 @@ def _release(args: argparse.Namespace) -> None:
             "signed releases require one MCUboot build manifest"
         )
     generation = _release_generation(args.version)
-    identity = product_domain.release_identity(manifest, args.version, args.product, args.artifact_id)
-    if args.release_command == "full" \
-            and generation != manifest.rollback_floor:
+    identity = product_domain.release_identity(
+        manifest, args.version, args.product, args.artifact_id
+    )
+    if args.release_command == "full" and generation != manifest.rollback_floor:
         raise trust_domain.TrustError(
             "full release generation must equal the compiled rollback floor"
         )
-    if args.release_command == "ota" \
-            and generation < manifest.rollback_floor:
+    if args.release_command == "ota" and generation < manifest.rollback_floor:
         raise trust_domain.TrustError(
             "OTA generation is below the compiled rollback floor"
         )
@@ -460,9 +505,7 @@ def _release(args: argparse.Namespace) -> None:
         else:
             signed = trust_domain.signed_ota_pair(
                 layout=manifest.layout,
-                artifacts={
-                    name: manifest.artifacts[name] for name in ("cp", "ap")
-                },
+                artifacts={name: manifest.artifacts[name] for name in ("cp", "ap")},
                 mcuboot_private_key=args.mcuboot_key,
                 bl2_elf=manifest.elfs["bl2"],
                 version=args.version,
@@ -511,8 +554,9 @@ def _release(args: argparse.Namespace) -> None:
                 )
 
         package_path = package_root / (
-            product_domain.artifact_stem(identity, suffix) + ".bkpack" if identity is not None else
-            f"firmware-{manifest.physical_board}-v{args.version}-{suffix}.bkpack"
+            product_domain.artifact_stem(identity, suffix) + ".bkpack"
+            if identity is not None
+            else f"firmware-{manifest.physical_board}-v{args.version}-{suffix}.bkpack"
         )
         package_report = package_domain.create(
             image_set=signed.image_set,
@@ -534,15 +578,18 @@ def _release(args: argparse.Namespace) -> None:
         operator_report = None
         materialization = None
         preset = build_domain.board_preset(REPOSITORY, manifest.physical_board)
-        release_policy = product_domain.load_policy(preset.release_policy, manifest.layout)
+        release_policy = product_domain.load_policy(
+            preset.release_policy, manifest.layout
+        )
         if args.release_command == "full":
             assert accepted_base is not None
             assert accepted_base_copy is not None
             flash_root = staging / "flash"
             flash_root.mkdir()
             operator_path = flash_root / (
-                product_domain.artifact_stem(identity, "full") + ".bin" if identity is not None else
-                f"operator-{manifest.physical_board}-v{args.version}.bin"
+                product_domain.artifact_stem(identity, "full") + ".bin"
+                if identity is not None
+                else f"operator-{manifest.physical_board}-v{args.version}.bin"
             )
             operator_report = package_domain.materialize_full_image(
                 package_path,
@@ -581,9 +628,7 @@ def _release(args: argparse.Namespace) -> None:
             },
             "security": {
                 key: evidence[key]
-                for key in (
-                    "bl1_public_fingerprint", "mcuboot_public_fingerprint"
-                )
+                for key in ("bl1_public_fingerprint", "mcuboot_public_fingerprint")
                 if key in evidence
             },
             "target": {
@@ -595,7 +640,8 @@ def _release(args: argparse.Namespace) -> None:
         if identity is not None:
             summary["identity"] = identity
         summary["data_impact"] = product_domain.operation_impact(
-            package_path, release_policy,
+            package_path,
+            release_policy,
             transport="full-bin" if args.release_command == "full" else "ota",
         )
         if operator_report is not None:
@@ -693,10 +739,14 @@ def _toolchain(args: argparse.Namespace) -> None:
 def _sdk(args: argparse.Namespace) -> None:
     if args.sdk_command == "list":
         selected = sdk_domain.manifest_sdk(REPOSITORY)
-        print(f"sdk source={selected.path} revision={selected.revision} version={selected.version}")
+        print(
+            f"sdk source={selected.path} revision={selected.revision} version={selected.version}"
+        )
         for row in sdk_domain.list_profiles(REPOSITORY):
             state = row.expected_tree_hash or "unaccepted"
-            print(f"profile={row.name} role={row.role} tree={state} bundle={row.bundle}")
+            print(
+                f"profile={row.name} role={row.role} tree={state} bundle={row.bundle}"
+            )
     elif args.sdk_command == "verify":
         row = sdk_domain.verify(REPOSITORY, args.profile)
         print(
@@ -720,10 +770,10 @@ def _sdk(args: argparse.Namespace) -> None:
         print(f"bk7258 sdk rebuild: PASS profile={row.profile} tree={row.tree_hash}")
 
 
-def _verify_package_trust(package: Path,
-                          openssl: Path) -> dict[str, object]:
-    evidence, layout, images, catalog, catalog_signature = \
+def _verify_package_trust(package: Path, openssl: Path) -> dict[str, object]:
+    evidence, layout, images, catalog, catalog_signature = (
         package_domain.trust_material(package)
+    )
     trust_domain.verify_signed_material(
         security=evidence,
         layout=layout,
@@ -798,14 +848,18 @@ def _package(args: argparse.Namespace) -> None:
                 "--source-partition and --relocated-base must be used together"
             )
         if args.source_partition is not None:
-            if product_domain.DEVICE_ID_RE.fullmatch(args.device_id) is None \
-                    or product_domain.CAPTURE_METHOD_RE.fullmatch(capture_method) is None:
+            if (
+                product_domain.DEVICE_ID_RE.fullmatch(args.device_id) is None
+                or product_domain.CAPTURE_METHOD_RE.fullmatch(capture_method) is None
+            ):
                 raise product_domain.ProductError("invalid source capture identity")
             if args.output.exists() or args.output.is_symlink():
                 raise product_domain.ProductError("accepted-base output already exists")
             relocation = product_domain.relocate_base(
                 source_layout=layout_domain.load(args.source_partition),
-                layout=layout, base=base, output=args.relocated_base,
+                layout=layout,
+                base=base,
+                output=args.relocated_base,
             )
             relocation["capture_method"] = capture_method
             relocation["device_id"] = args.device_id
@@ -840,11 +894,15 @@ def _package(args: argparse.Namespace) -> None:
                 raise ValueError("operation impact requires an explicit physical board")
             preset = build_domain.board_preset(REPOSITORY, board)
             layout = layout_domain.load(preset.partition)
-            if contract["layout"] != {"identity": layout.identity, "sha256": layout.sha256}:
+            if contract["layout"] != {
+                "identity": layout.identity,
+                "sha256": layout.sha256,
+            }:
                 raise ValueError("package layout differs from the target board")
             policy = product_domain.load_policy(preset.release_policy, layout)
-            contract = product_domain.operation_impact(args.package, policy,
-                                                       transport=args.transport)
+            contract = product_domain.operation_impact(
+                args.package, policy, transport=args.transport
+            )
         print(json.dumps(contract, sort_keys=True, separators=(",", ":")))
         return
     if args.package_command == "materialize":
@@ -890,15 +948,9 @@ def _package(args: argparse.Namespace) -> None:
             prefix=f".{delivery.name}.", dir=delivery.parent
         ) as temporary:
             package = Path(temporary) / "firmware.bkpack"
-            manifest, _ = _create_unsigned_package(
-                args.build_manifest, package
-            )
-            preset = build_domain.board_preset(
-                REPOSITORY, manifest.physical_board
-            )
-            policy = product_domain.load_policy(
-                preset.release_policy, manifest.layout
-            )
+            manifest, _ = _create_unsigned_package(args.build_manifest, package)
+            preset = build_domain.board_preset(REPOSITORY, manifest.physical_board)
+            policy = product_domain.load_policy(preset.release_policy, manifest.layout)
             base_evidence = product_domain.load_base_evidence(
                 args.base_evidence,
                 {
@@ -953,7 +1005,10 @@ def _verify(args: argparse.Namespace) -> None:
         )
     elif args.verify_command == "image":
         selected_layout = layout_domain.load(_repository_input(args.partition))
-        paths = {name: Path(value) for name, value in _pairs(args.artifact, "artifact").items()}
+        paths = {
+            name: Path(value)
+            for name, value in _pairs(args.artifact, "artifact").items()
+        }
         artifacts = image_domain.read_artifacts(paths)
         result = image_domain.finalized(
             selected_layout,
@@ -984,8 +1039,7 @@ def _verify(args: argparse.Namespace) -> None:
     elif args.verify_command == "package":
         result = package_domain.verify(args.package)
         security = (
-            "signed-evidence" if result["security"] == "signed"
-            else result["security"]
+            "signed-evidence" if result["security"] == "signed" else result["security"]
         )
         print(
             f"bk7258 verify package: PASS images={result['images']} "
@@ -994,10 +1048,9 @@ def _verify(args: argparse.Namespace) -> None:
         )
     elif args.verify_command == "delivery":
         verifier = (
-            (lambda candidate: _verify_package_trust(
-                candidate, args.openssl
-            ))
-            if args.openssl is not None else None
+            (lambda candidate: _verify_package_trust(candidate, args.openssl))
+            if args.openssl is not None
+            else None
         )
         result = product_domain.verify_delivery(
             args.delivery, package_verifier=verifier

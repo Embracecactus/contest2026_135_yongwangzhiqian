@@ -242,6 +242,45 @@
   Moving or deleting a document requires checking its affected incoming links
   and claims, not a whole-repository link or status audit.
 
+## Code style and comment conventions
+
+- Governing style per directory (do not apply one formatter to the whole
+  repository):
+  NuttX-shaped team modules (`chips/`, `boards/`, `nuttx/`, `app/` sources that
+  the NuttX build compiles) follow the pinned NuttX C coding standard; other
+  OpenVela C/C++ follows the repository's `clang-format` 14 configuration;
+  Android follows the existing Kotlin/Gradle setup; Python follows PEP 8,
+  Shell/CMake/Make/Kconfig follow their own conventions.
+- Check entry points and the versions used for the current pass:
+  `nuttx/tools/nxstyle` and `nuttx/tools/checkpatch.sh` from the pinned NuttX
+  checkout (record its commit), `clang-format` 14.0.6 read-only
+  (`--dry-run -Werror`), `black` 24.10.0 for Python, plus
+  `git diff --check`.  No `shellcheck`, `ktlint` or `cmake-format` exists in
+  this environment; state that limit instead of claiming a pass.
+- Check tool versions are recorded separately from the compiler toolchain and
+  compile-time selection.  Do not upgrade the toolchain, SDK or a dependency to
+  make a style check pass.
+- Team explanatory comments are written in English, state why the code is
+  written this way, and keep hardware semantics (pin, level, unit, register
+  field, errata) plus interrupt, locking, ownership, lifecycle, cancellation,
+  cache-coherence and cross-core constraints.  A comment that no longer matches
+  the code is corrected, not translated.
+- Content that stays in Chinese even inside team source: user-visible UI and
+  localized resources, product wake/reply text, log strings that existing tools
+  parse, training labels and test samples, runtime Skill text and prompts,
+  Chinese reports, `README` prose and the original `logs/` trees.
+- Never reformat third-party originals, vendor SDK copies, generated files
+  (model arrays, generated headers), binary assets, private corpora or the
+  rest of the OpenVela workspace reached through a `linkfile`; edit only the
+  team-owned file in this repository and never the official checkout.
+- Separate a real interface change from style work.  Renaming a public
+  function, ABI, Kconfig symbol or protocol field is a functional change: it
+  carries its own review and verification and never rides inside a style
+  commit.  Do not silently change locks, release order, error contracts,
+  scopes or lifetimes while "tidying" formatting.
+- Keep Makefile recipes tab-indented and preprocessor continuations intact;
+  `.editorconfig` exists so editors honour the per-file-type rules.
+
 ## Source provenance and acceptance
 
 - Every new source file must state its license.  Record the exact upstream or

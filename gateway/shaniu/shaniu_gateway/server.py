@@ -106,15 +106,15 @@ class GatewayConfig:
         if not 0 < self.hello_timeout_seconds <= 30:
             raise ValueError("HELLO timeout must be in 0..30 seconds")
         if not 0 < self.cancel_ack_timeout_seconds <= 30:
-            raise ValueError('cancel ACK timeout must be in 0..30 seconds')
+            raise ValueError("cancel ACK timeout must be in 0..30 seconds")
         if not 0 < self.playback_ack_timeout_seconds <= 30:
-            raise ValueError('playback ACK timeout must be in 0..30 seconds')
+            raise ValueError("playback ACK timeout must be in 0..30 seconds")
         if not 0 < self.volume_timeout_seconds <= 30:
-            raise ValueError('volume timeout must be in 0..30 seconds')
+            raise ValueError("volume timeout must be in 0..30 seconds")
         if not 0 < self.ota_timeout_seconds <= 30:
-            raise ValueError('OTA timeout must be in 0..30 seconds')
+            raise ValueError("OTA timeout must be in 0..30 seconds")
         if not 0 < self.heartbeat_interval_seconds <= 60:
-            raise ValueError('heartbeat interval must be in 0..60 seconds')
+            raise ValueError("heartbeat interval must be in 0..60 seconds")
 
 
 @dataclass(slots=True)
@@ -160,7 +160,9 @@ class GatewayConnection:
         event_sink: EventSink,
         reply_factory: ReplyFactory | None = None,
         device_id: str | None = None,
-        ota_report_sink: Callable[[str, "GatewayConnection", OtaStatus], None] | None = None,
+        ota_report_sink: (
+            Callable[[str, "GatewayConnection", OtaStatus], None] | None
+        ) = None,
         status_report_sink: Callable[[str, "GatewayConnection"], None] | None = None,
     ) -> None:
         self.websocket = websocket
@@ -225,11 +227,17 @@ class GatewayConnection:
                         self._receive_ota_report(frame)
                     elif result.event is SessionEvent.STATUS_REPORT:
                         self.device_status = decode_status_report(frame.payload)
-                        if self.device_id is not None and self.status_report_sink is not None:
+                        if (
+                            self.device_id is not None
+                            and self.status_report_sink is not None
+                        ):
                             self.status_report_sink(self.device_id, self)
                     elif result.event is SessionEvent.TURN_ENDED:
                         self.emit(
-                            {"event": "turn_state", "state": SessionState.THINKING.value}
+                            {
+                                "event": "turn_state",
+                                "state": SessionState.THINKING.value,
+                            }
                         )
                         self._start_reply(frame.turn_id, time.monotonic())
                     elif result.event is SessionEvent.CANCELLED:
@@ -238,23 +246,38 @@ class GatewayConnection:
                         self.metrics.turns_cancelled += 1
                         await self._cancel_reply()
                         await self._notify_credit_changed()
-                        self.emit({"event": "turn_state", "state": SessionState.IDLE.value})
+                        self.emit(
+                            {"event": "turn_state", "state": SessionState.IDLE.value}
+                        )
                     elif result.event is SessionEvent.CONTROL:
-                        if (frame.message_type is MessageType.ACK
-                                and not self._closing
-                                and frame.turn_id != 0
-                                and frame.turn_id == self.playback_pending_turn):
+                        if (
+                            frame.message_type is MessageType.ACK
+                            and not self._closing
+                            and frame.turn_id != 0
+                            and frame.turn_id == self.playback_pending_turn
+                        ):
                             if self.reply_session is not None:
                                 self.reply_session.finish(frame.turn_id, success=True)
                             self.playback_pending_turn = 0
                             self.metrics.playback_confirmed += 1
-                            self.emit({'event': 'playback_confirmed', 'turn_id': frame.turn_id})
-                        if (frame.message_type is MessageType.ACK
-                                and frame.turn_id != 0
-                                and frame.turn_id == self.cancel_pending_turn):
+                            self.emit(
+                                {
+                                    "event": "playback_confirmed",
+                                    "turn_id": frame.turn_id,
+                                }
+                            )
+                        if (
+                            frame.message_type is MessageType.ACK
+                            and frame.turn_id != 0
+                            and frame.turn_id == self.cancel_pending_turn
+                        ):
                             self.cancel_pending_turn = 0
-                            self.emit({'event': 'remote_cancel_confirmed',
-                                       'turn_id': frame.turn_id})
+                            self.emit(
+                                {
+                                    "event": "remote_cancel_confirmed",
+                                    "turn_id": frame.turn_id,
+                                }
+                            )
                         await self._notify_credit_changed()
                     elif result.event is SessionEvent.PEER_ERROR:
                         self.playback_pending_turn = 0
@@ -267,7 +290,10 @@ class GatewayConnection:
                             await self.websocket.close(code=1000, reason="peer_error")
                         else:
                             self.emit(
-                                {"event": "turn_state", "state": SessionState.IDLE.value}
+                                {
+                                    "event": "turn_state",
+                                    "state": SessionState.IDLE.value,
+                                }
                             )
         except ProtocolError as error:
             await self._fail_closed(error)
@@ -280,9 +306,9 @@ class GatewayConnection:
         finally:
             self.volume_percent = None
             if self._volume_future is not None and not self._volume_future.done():
-                self._volume_future.set_exception(ProtocolError('device_offline'))
+                self._volume_future.set_exception(ProtocolError("device_offline"))
             if self._ota_future is not None and not self._ota_future.done():
-                self._ota_future.set_exception(ProtocolError('device_offline'))
+                self._ota_future.set_exception(ProtocolError("device_offline"))
             terminal_state = self.session.state.value
             if self.session.state in {
                 SessionState.UPLINK,
@@ -313,16 +339,18 @@ class GatewayConnection:
 
     async def _incoming(self) -> AsyncIterator[str | bytes]:
         try:
-            first = await asyncio.wait_for(self.websocket.recv(),
-                                           timeout=self.config.hello_timeout_seconds)
+            first = await asyncio.wait_for(
+                self.websocket.recv(), timeout=self.config.hello_timeout_seconds
+            )
         except asyncio.TimeoutError as error:
-            raise ProtocolError('hello_timeout') from error
+            raise ProtocolError("hello_timeout") from error
         yield first
         while True:
             try:
                 wire = await asyncio.wait_for(
                     self.websocket.recv(),
-                    timeout=self.config.heartbeat_interval_seconds)
+                    timeout=self.config.heartbeat_interval_seconds,
+                )
             except asyncio.TimeoutError:
                 # WebSocket PING does not reach the device's companion
                 # receive loop.  Keep that application session alive too.
@@ -387,11 +415,16 @@ class GatewayConnection:
             yield deterministic_pcm_frame(index)
 
     async def _generate_reply(self, turn_id: int, turn_end_time: float) -> None:
-        if self.session.state is not SessionState.THINKING or self.session.turn_id != turn_id:
+        if (
+            self.session.state is not SessionState.THINKING
+            or self.session.turn_id != turn_id
+        ):
             return
         pcm = bytes(self._pcm)
         self._pcm.clear()
-        source = self.reply_session.reply(pcm) if self.reply_session else self._fixed_reply()
+        source = (
+            self.reply_session.reply(pcm) if self.reply_session else self._fixed_reply()
+        )
         del pcm
         first_audio = True
         async with contextlib.aclosing(source):
@@ -400,15 +433,27 @@ class GatewayConnection:
                     if first_audio:
                         await self._send(self.session.make_tts_start(turn_id))
                     await self._wait_for_downlink_credit(turn_id)
-                    if self.session.state is not SessionState.DOWNLINK or self.session.turn_id != turn_id:
+                    if (
+                        self.session.state is not SessionState.DOWNLINK
+                        or self.session.turn_id != turn_id
+                    ):
                         return
-                    await self._send(self.session.make_audio_down(turn_id, payload, final=final))
+                    await self._send(
+                        self.session.make_audio_down(turn_id, payload, final=final)
+                    )
                     self.metrics.downlink_frames += 1
                     self.metrics.downlink_bytes += len(payload)
                     if first_audio:
                         first_audio = False
-                        self.emit({"event": "first_audio", "state": SessionState.DOWNLINK.value,
-                                   "latency_ms": int((time.monotonic() - turn_end_time) * 1000)})
+                        self.emit(
+                            {
+                                "event": "first_audio",
+                                "state": SessionState.DOWNLINK.value,
+                                "latency_ms": int(
+                                    (time.monotonic() - turn_end_time) * 1000
+                                ),
+                            }
+                        )
                     if self.config.reply_interval_ms:
                         await asyncio.sleep(self.config.reply_interval_ms / 1000)
         self._playback_sent_at = time.monotonic()
@@ -440,13 +485,13 @@ class GatewayConnection:
         await self.websocket.send(frame.encode())
 
     def _receive_volume_report(self, frame: Frame) -> None:
-        sequence, result, volume = struct.unpack('!IiI', frame.payload)
+        sequence, result, volume = struct.unpack("!IiI", frame.payload)
         future = self._volume_future
         if sequence != self._volume_sequence or future is None or future.done():
             return
         if result != 0:
             self.volume_percent = None
-            future.set_exception(ProtocolError('volume_device_error'))
+            future.set_exception(ProtocolError("volume_device_error"))
         else:
             self.volume_percent = volume
             future.set_result(volume)
@@ -456,8 +501,11 @@ class GatewayConnection:
 
         report = decode_ota_report(frame.payload)
         manifest = self._ota_manifest_sha256
-        if (manifest is None or report.request_sequence != self._ota_sequence
-                or report.manifest_sha256 != manifest):
+        if (
+            manifest is None
+            or report.request_sequence != self._ota_sequence
+            or report.manifest_sha256 != manifest
+        ):
             return
         previous = self.ota_status
         if previous is not None:
@@ -466,11 +514,14 @@ class GatewayConnection:
             if previous.phase in {6, 7, 8}:
                 return
             if report.phase in range(1, 7):
-                if (report.phase < previous.phase
-                        or (report.phase == previous.phase
-                            and report.progress_percent < previous.progress_percent)):
+                if report.phase < previous.phase or (
+                    report.phase == previous.phase
+                    and report.progress_percent < previous.progress_percent
+                ):
                     return
-        status = OtaStatus(manifest, report.phase, report.progress_percent, report.result)
+        status = OtaStatus(
+            manifest, report.phase, report.progress_percent, report.result
+        )
         self.ota_status = status
         if self.device_id is not None and self.ota_report_sink is not None:
             self.ota_report_sink(self.device_id, self, status)
@@ -490,14 +541,17 @@ class GatewayConnection:
             # make an early rejection of this request look uncertain.
             self.ota_request_sent = False
             if self._closing or not self.websocket.open:
-                raise ProtocolError('device_offline')
-            if (self._ota_future is not None
-                    or (self._ota_manifest_sha256 is not None
-                        and (self.ota_status is None
-                             or self.ota_status.phase not in {6, 7, 8}))):
-                raise ProtocolError('ota_busy')
-            if self.session.state is not SessionState.IDLE or self.playback_pending_turn:
-                raise ProtocolError('ota_busy')
+                raise ProtocolError("device_offline")
+            if self._ota_future is not None or (
+                self._ota_manifest_sha256 is not None
+                and (self.ota_status is None or self.ota_status.phase not in {6, 7, 8})
+            ):
+                raise ProtocolError("ota_busy")
+            if (
+                self.session.state is not SessionState.IDLE
+                or self.playback_pending_turn
+            ):
+                raise ProtocolError("ota_busy")
             frame = self.session.make_ota_request(manifest_sha256)
             future = asyncio.get_running_loop().create_future()
             self._ota_sequence = frame.sequence
@@ -509,8 +563,11 @@ class GatewayConnection:
                 await self._send(frame)
                 self.ota_request_sent = True
                 if dispatched is not None:
-                    dispatched(self.session.boot_generation,
-                               self.session.session_id, frame.sequence)
+                    dispatched(
+                        self.session.boot_generation,
+                        self.session.session_id,
+                        frame.sequence,
+                    )
             except BaseException:
                 self._ota_future = None
                 if not self.ota_request_sent:
@@ -522,7 +579,7 @@ class GatewayConnection:
         try:
             return await asyncio.wait_for(future, self.config.ota_timeout_seconds)
         except asyncio.TimeoutError as error:
-            raise ProtocolError('ota_timeout') from error
+            raise ProtocolError("ota_timeout") from error
         finally:
             if self._ota_future is future:
                 self._ota_future = None
@@ -530,9 +587,9 @@ class GatewayConnection:
     async def request_volume(self, percent: int | None = None) -> int:
         async with self._turn_lock:
             if self._closing or not self.websocket.open:
-                raise ProtocolError('device_offline')
+                raise ProtocolError("device_offline")
             if self._volume_future is not None:
-                raise ProtocolError('volume_busy')
+                raise ProtocolError("volume_busy")
             frame = self.session.make_volume_request(percent)
             future = asyncio.get_running_loop().create_future()
             self._volume_sequence = frame.sequence
@@ -549,7 +606,7 @@ class GatewayConnection:
             # Release the turn lock so the receive loop can deliver the reply.
             return await asyncio.wait_for(future, self.config.volume_timeout_seconds)
         except asyncio.TimeoutError as error:
-            raise ProtocolError('volume_timeout') from error
+            raise ProtocolError("volume_timeout") from error
         finally:
             if self._volume_future is future:
                 self._volume_future = None
@@ -559,12 +616,15 @@ class GatewayConnection:
         """Stop this turn's provider and send CANCEL; not a playback-stop ACK."""
         async with self._turn_lock:
             if self._closing or not self.websocket.open:
-                raise ProtocolError('device_offline')
+                raise ProtocolError("device_offline")
             if turn_id == 0 or turn_id != self.session.turn_id:
-                raise ProtocolError('stale_turn')
-            if (self.session.state is SessionState.IDLE and not self.playback_pending_turn
-                    and not self.cancel_pending_turn):
-                raise ProtocolError('no_active_turn')
+                raise ProtocolError("stale_turn")
+            if (
+                self.session.state is SessionState.IDLE
+                and not self.playback_pending_turn
+                and not self.cancel_pending_turn
+            ):
+                raise ProtocolError("no_active_turn")
             await self._cancel_reply()
             if self.reply_session is not None:
                 self.reply_session.finish(turn_id, success=False)
@@ -575,17 +635,23 @@ class GatewayConnection:
             await self._send(self.session.make_cancel(turn_id))
             self.metrics.turns_cancelled += 1
             await self._notify_credit_changed()
-            self.emit({'event': 'remote_cancel_sent', 'turn_id': turn_id})
+            self.emit({"event": "remote_cancel_sent", "turn_id": turn_id})
 
     @property
     def cancel_confirmation_timed_out(self) -> bool:
-        return bool(self.cancel_pending_turn and time.monotonic() - self._cancel_sent_at
-                    >= self.config.cancel_ack_timeout_seconds)
+        return bool(
+            self.cancel_pending_turn
+            and time.monotonic() - self._cancel_sent_at
+            >= self.config.cancel_ack_timeout_seconds
+        )
 
     @property
     def playback_confirmation_timed_out(self) -> bool:
-        return bool(self.playback_pending_turn and time.monotonic() - self._playback_sent_at
-                    >= self.config.playback_ack_timeout_seconds)
+        return bool(
+            self.playback_pending_turn
+            and time.monotonic() - self._playback_sent_at
+            >= self.config.playback_ack_timeout_seconds
+        )
 
     async def _cancel_reply(self) -> None:
         task = self._reply_task
@@ -646,15 +712,15 @@ class GatewayServer:
         firmware_releases: FirmwareReleases | None = None,
     ) -> None:
         if reply_factory is not None and device_reply_factory is not None:
-            raise ValueError('choose one reply factory')
+            raise ValueError("choose one reply factory")
         if device_reply_factory is not None and device_bindings is None:
-            raise ValueError('device reply factory requires device bindings')
+            raise ValueError("device reply factory requires device bindings")
         if firmware_content is not None and device_bindings is None:
-            raise ValueError('firmware content requires device bindings')
+            raise ValueError("firmware content requires device bindings")
         if ota_transactions is not None and device_bindings is None:
-            raise ValueError('OTA transactions require device bindings')
+            raise ValueError("OTA transactions require device bindings")
         if firmware_releases is not None and device_bindings is None:
-            raise ValueError('firmware releases require device bindings')
+            raise ValueError("firmware releases require device bindings")
         self.config = config or GatewayConfig()
         self.event_sink = event_sink
         self.reply_factory = reply_factory
@@ -665,183 +731,275 @@ class GatewayServer:
         self.firmware_releases = firmware_releases or FirmwareReleases()
         self._device_connections: dict[str, GatewayConnection] = {}
 
-    def _ota_report(self, device_id: str, connection: GatewayConnection,
-                    status: OtaStatus) -> None:
+    def _ota_report(
+        self, device_id: str, connection: GatewayConnection, status: OtaStatus
+    ) -> None:
         store = self.ota_transactions
         transaction_id = connection.ota_transaction_id
         if store is None or transaction_id is None:
             return
         row = store.load(device_id)
-        identity = (connection.session.boot_generation,
-                    connection.session.session_id, connection._ota_sequence)
-        if (row is None or row.transaction_id != transaction_id
-                or row.manifest_sha256 != status.manifest_sha256
-                or (row.dispatch_boot_generation, row.dispatch_session_id,
-                    row.dispatch_sequence) != identity):
-            raise OtaTransactionError('OTA report does not match durable dispatch')
-        release = next((item for item in self.firmware_releases.releases
-                        if item.device_id == device_id
-                        and item.manifest_sha256 == row.manifest_sha256
-                        and item.target_version == row.target_version), None)
+        identity = (
+            connection.session.boot_generation,
+            connection.session.session_id,
+            connection._ota_sequence,
+        )
+        if (
+            row is None
+            or row.transaction_id != transaction_id
+            or row.manifest_sha256 != status.manifest_sha256
+            or (
+                row.dispatch_boot_generation,
+                row.dispatch_session_id,
+                row.dispatch_sequence,
+            )
+            != identity
+        ):
+            raise OtaTransactionError("OTA report does not match durable dispatch")
+        release = next(
+            (
+                item
+                for item in self.firmware_releases.releases
+                if item.device_id == device_id
+                and item.manifest_sha256 == row.manifest_sha256
+                and item.target_version == row.target_version
+            ),
+            None,
+        )
         if release is None:
-            raise OtaTransactionError('OTA report release is no longer registered')
+            raise OtaTransactionError("OTA report release is no longer registered")
         observed = connection.device_status
         if status.phase in {6, 7}:
-            expected_version = (release.target_version if status.phase == 6
-                                else release.required_source_version)
-            if (observed is None or observed.firmware_version != expected_version
-                    or observed.firmware_root_sha256 !=
-                       release.required_source_root_sha256):
+            expected_version = (
+                release.target_version
+                if status.phase == 6
+                else release.required_source_version
+            )
+            if (
+                observed is None
+                or observed.firmware_version != expected_version
+                or observed.firmware_root_sha256 != release.required_source_root_sha256
+            ):
                 # Persist the observation before waiting for a post-boot status;
                 # disconnect or Gateway restart must never cause a completed
                 # image to be dispatched again.
-                pending = 'confirming' if status.phase == 6 else 'rollback_check'
-                store.advance(device_id, transaction_id, pending,
-                              status.progress_percent, status.result,
-                              time.time_ns() // 1_000_000)
+                pending = "confirming" if status.phase == 6 else "rollback_check"
+                store.advance(
+                    device_id,
+                    transaction_id,
+                    pending,
+                    status.progress_percent,
+                    status.result,
+                    time.time_ns() // 1_000_000,
+                )
                 return
-        store.advance(device_id, transaction_id, _OTA_STATE_BY_PHASE[status.phase],
-                      status.progress_percent,
-                      status.result if status.phase in {6, 7, 8} else None,
-                      time.time_ns() // 1_000_000)
+        store.advance(
+            device_id,
+            transaction_id,
+            _OTA_STATE_BY_PHASE[status.phase],
+            status.progress_percent,
+            status.result if status.phase in {6, 7, 8} else None,
+            time.time_ns() // 1_000_000,
+        )
 
-    def _firmware_release(self, device_id: str, manifest: str,
-                          target: str):
-        return next((item for item in self.firmware_releases.releases
-                     if item.device_id == device_id
-                     and item.manifest_sha256 == manifest
-                     and item.target_version == target), None)
+    def _firmware_release(self, device_id: str, manifest: str, target: str):
+        return next(
+            (
+                item
+                for item in self.firmware_releases.releases
+                if item.device_id == device_id
+                and item.manifest_sha256 == manifest
+                and item.target_version == target
+            ),
+            None,
+        )
 
-    def _status_report(self, device_id: str,
-                       connection: GatewayConnection) -> None:
+    def _status_report(self, device_id: str, connection: GatewayConnection) -> None:
         store = self.ota_transactions
         if store is None:
             return
         row = store.load(device_id)
-        if row is not None and row.state in {'confirming', 'rollback_check'}:
+        if row is not None and row.state in {"confirming", "rollback_check"}:
             release = self._firmware_release(
-                device_id, row.manifest_sha256, row.target_version)
-            expected = (None if release is None else release.target_version
-                        if row.state == 'confirming'
-                        else release.required_source_version)
+                device_id, row.manifest_sha256, row.target_version
+            )
+            expected = (
+                None
+                if release is None
+                else (
+                    release.target_version
+                    if row.state == "confirming"
+                    else release.required_source_version
+                )
+            )
             status = connection.device_status
-            if (release is None or status is None
-                    or status.firmware_version != expected
-                    or status.firmware_root_sha256 !=
-                       release.required_source_root_sha256):
-                store.advance(device_id, row.transaction_id, 'orphaned',
-                              row.progress_percent, 0,
-                              time.time_ns() // 1_000_000)
+            if (
+                release is None
+                or status is None
+                or status.firmware_version != expected
+                or status.firmware_root_sha256 != release.required_source_root_sha256
+            ):
+                store.advance(
+                    device_id,
+                    row.transaction_id,
+                    "orphaned",
+                    row.progress_percent,
+                    0,
+                    time.time_ns() // 1_000_000,
+                )
                 raise OtaTransactionError(
-                    'terminal OTA does not match post-boot firmware')
-            terminal = ('confirmed' if row.state == 'confirming'
-                        else 'rolled_back')
-            store.advance(device_id, row.transaction_id,
-                          terminal, row.progress_percent, row.result,
-                          time.time_ns() // 1_000_000)
+                    "terminal OTA does not match post-boot firmware"
+                )
+            terminal = "confirmed" if row.state == "confirming" else "rolled_back"
+            store.advance(
+                device_id,
+                row.transaction_id,
+                terminal,
+                row.progress_percent,
+                row.result,
+                time.time_ns() // 1_000_000,
+            )
             return
         self._schedule_ota_reconcile(device_id, connection)
 
     @staticmethod
     def _ota_idle(connection: GatewayConnection) -> bool:
-        return (connection.session.state is SessionState.IDLE
-                and not connection.playback_pending_turn
-                and not connection.cancel_pending_turn
-                and (connection._reply_task is None
-                     or connection._reply_task.done()))
+        return (
+            connection.session.state is SessionState.IDLE
+            and not connection.playback_pending_turn
+            and not connection.cancel_pending_turn
+            and (connection._reply_task is None or connection._reply_task.done())
+        )
 
-    def _schedule_ota_reconcile(self, device_id: str,
-                                connection: GatewayConnection) -> None:
+    def _schedule_ota_reconcile(
+        self, device_id: str, connection: GatewayConnection
+    ) -> None:
         store = self.ota_transactions
-        if (store is None or connection.ota_reconcile_attempted
-                or not connection.session.capabilities & CAP_OTA
-                or not self._ota_idle(connection)):
+        if (
+            store is None
+            or connection.ota_reconcile_attempted
+            or not connection.session.capabilities & CAP_OTA
+            or not self._ota_idle(connection)
+        ):
             return
         row = store.load(device_id)
-        if row is None or row.state != 'uncertain':
+        if row is None or row.state != "uncertain":
             return
         release = self._firmware_release(
-            device_id, row.manifest_sha256, row.target_version)
+            device_id, row.manifest_sha256, row.target_version
+        )
         status = connection.device_status
-        if (release is None or status is None
-                or status.firmware_version not in {
-                    release.required_source_version, release.target_version}
-                or status.firmware_root_sha256 !=
-                   release.required_source_root_sha256):
-            store.advance(device_id, row.transaction_id, 'orphaned',
-                          row.progress_percent, 0,
-                          time.time_ns() // 1_000_000)
+        if (
+            release is None
+            or status is None
+            or status.firmware_version
+            not in {release.required_source_version, release.target_version}
+            or status.firmware_root_sha256 != release.required_source_root_sha256
+        ):
+            store.advance(
+                device_id,
+                row.transaction_id,
+                "orphaned",
+                row.progress_percent,
+                0,
+                time.time_ns() // 1_000_000,
+            )
             return
         connection.ota_reconcile_attempted = True
         connection.ota_reconcile_task = asyncio.create_task(
-            self._resume_ota(device_id, connection, row.transaction_id,
-                             row.manifest_sha256),
-            name='shaniu-ota-reconcile')
+            self._resume_ota(
+                device_id, connection, row.transaction_id, row.manifest_sha256
+            ),
+            name="shaniu-ota-reconcile",
+        )
 
-    async def _resume_ota(self, device_id: str, connection: GatewayConnection,
-                          transaction_id: str, manifest: str) -> None:
+    async def _resume_ota(
+        self,
+        device_id: str,
+        connection: GatewayConnection,
+        transaction_id: str,
+        manifest: str,
+    ) -> None:
         store = self.ota_transactions
         assert store is not None
         try:
             await connection.request_ota(
-                manifest, transaction_id=transaction_id,
+                manifest,
+                transaction_id=transaction_id,
                 dispatched=lambda boot, session, sequence: store.redispatch(
-                    device_id, transaction_id, boot, session, sequence,
-                    time.time_ns() // 1_000_000))
+                    device_id,
+                    transaction_id,
+                    boot,
+                    session,
+                    sequence,
+                    time.time_ns() // 1_000_000,
+                ),
+            )
         except (ProtocolError, ConnectionClosed, OtaTransactionError):
             if connection.ota_request_sent:
                 with contextlib.suppress(OtaTransactionError):
-                    store.mark_uncertain(device_id, transaction_id,
-                                         time.time_ns() // 1_000_000)
+                    store.mark_uncertain(
+                        device_id, transaction_id, time.time_ns() // 1_000_000
+                    )
             else:
                 connection.ota_reconcile_attempted = False
-            self.event_sink({'event': 'ota_reconcile', 'state': 'deferred'})
+            self.event_sink({"event": "ota_reconcile", "state": "deferred"})
 
-    def _ota_disconnected(self, device_id: str,
-                          connection: GatewayConnection) -> None:
+    def _ota_disconnected(self, device_id: str, connection: GatewayConnection) -> None:
         store = self.ota_transactions
         transaction_id = connection.ota_transaction_id
         if store is None or transaction_id is None:
             return
         try:
-            store.mark_uncertain(device_id, transaction_id,
-                                 time.time_ns() // 1_000_000)
+            store.mark_uncertain(device_id, transaction_id, time.time_ns() // 1_000_000)
         except OtaTransactionError:
-            self.event_sink({'event': 'ota_state_error', 'code': 'disconnect_state'})
+            self.event_sink({"event": "ota_state_error", "code": "disconnect_state"})
 
     def device_connection(self, device_id: str) -> GatewayConnection | None:
         connection = self._device_connections.get(device_id)
-        if (connection is None or connection._closing
-                or not connection.websocket.open
-                or not connection.session.identity_bound):
+        if (
+            connection is None
+            or connection._closing
+            or not connection.websocket.open
+            or not connection.session.identity_bound
+        ):
             return None
         return connection
 
     async def handle(self, websocket: WebSocketServerProtocol, path: str) -> None:
         device_id = None
         if self.device_bindings is not None:
-            tls = websocket.transport.get_extra_info('ssl_object')
-            certificate = (tls.getpeercert(binary_form=True)
-                           if tls is not None and tls.context.verify_mode == ssl.CERT_REQUIRED
-                           else None)
+            tls = websocket.transport.get_extra_info("ssl_object")
+            certificate = (
+                tls.getpeercert(binary_form=True)
+                if tls is not None and tls.context.verify_mode == ssl.CERT_REQUIRED
+                else None
+            )
             if certificate:
                 device_id = self.device_bindings.device_for_certificate(
-                    hashlib.sha256(certificate).hexdigest())
+                    hashlib.sha256(certificate).hexdigest()
+                )
             if device_id is None:
-                await websocket.close(code=1008, reason='device_not_registered')
+                await websocket.close(code=1008, reason="device_not_registered")
                 return
             if device_id in self._device_connections:
-                await websocket.close(code=1008, reason='device_already_connected')
+                await websocket.close(code=1008, reason="device_already_connected")
                 return
         reply_factory = self.reply_factory
         if self.device_reply_factory is not None:
             if device_id is None:
-                await websocket.close(code=1008, reason='device_not_registered')
+                await websocket.close(code=1008, reason="device_not_registered")
                 return
             reply_factory = lambda: self.device_reply_factory(device_id)
         connection = GatewayConnection(
-            websocket, path, self.config, self.event_sink, reply_factory,
-            device_id, self._ota_report, self._status_report,
+            websocket,
+            path,
+            self.config,
+            self.event_sink,
+            reply_factory,
+            device_id,
+            self._ota_report,
+            self._status_report,
         )
         if device_id is not None:
             self._device_connections[device_id] = connection
@@ -853,8 +1011,10 @@ class GatewayServer:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
-            if (device_id is not None
-                    and self._device_connections.get(device_id) is connection):
+            if (
+                device_id is not None
+                and self._device_connections.get(device_id) is connection
+            ):
                 del self._device_connections[device_id]
             if device_id is not None:
                 self._ota_disconnected(device_id, connection)
@@ -932,9 +1092,13 @@ def _bind_scope(host: str, client_ca: Path | None) -> str:
     except ValueError as error:
         raise ValueError("non-loopback bind must be a literal IP address") from error
 
-    if (address.is_loopback or address.is_unspecified or address.is_multicast
-            or address.is_reserved or address == ipaddress.ip_address(
-                "255.255.255.255")):
+    if (
+        address.is_loopback
+        or address.is_unspecified
+        or address.is_multicast
+        or address.is_reserved
+        or address == ipaddress.ip_address("255.255.255.255")
+    ):
         raise ValueError("bind must be a unicast non-loopback IP address")
 
     return "mtls_unicast"
@@ -950,8 +1114,9 @@ async def start_gateway_server(
     if tls_context is None:
         raise ValueError("TLS context is required")
     scope = _bind_scope(host, client_ca)
-    if (gateway.device_bindings is not None
-            and (client_ca is None or tls_context.verify_mode != ssl.CERT_REQUIRED)):
+    if gateway.device_bindings is not None and (
+        client_ca is None or tls_context.verify_mode != ssl.CERT_REQUIRED
+    ):
         raise ValueError("device bindings require verified mutual TLS")
     if tls_context.minimum_version < ssl.TLSVersion.TLSv1_2:
         raise ValueError("TLS 1.2 or newer is required")
@@ -976,69 +1141,99 @@ async def start_gateway_server(
         close_timeout=2,
         logger=quiet_logger,
         create_protocol=lambda *args, **kwargs: FirmwareContentProtocol(
-            *args, gateway=gateway, **kwargs),
+            *args, gateway=gateway, **kwargs
+        ),
     )
 
 
 async def _run(args: argparse.Namespace) -> None:
     console_options = (args.console_port, args.console_access, args.console_state)
     if any(option is not None for option in console_options):
-        if (not all(option is not None for option in console_options)
-                or args.device_bindings is None or args.provider != 'mimo'
-                or not 1 <= args.console_port <= 65535 or args.console_port == args.port):
-            raise ValueError('console requires its own port, grants, state, device bindings and MiMo')
+        if (
+            not all(option is not None for option in console_options)
+            or args.device_bindings is None
+            or args.provider != "mimo"
+            or not 1 <= args.console_port <= 65535
+            or args.console_port == args.port
+        ):
+            raise ValueError(
+                "console requires its own port, grants, state, device bindings and MiMo"
+            )
     if args.firmware_releases is not None and args.console_port is None:
-        raise ValueError('firmware releases require the authenticated console')
+        raise ValueError("firmware releases require the authenticated console")
     if (args.firmware_releases is None) != (args.ota_state is None):
-        raise ValueError('firmware releases require a durable OTA state file')
+        raise ValueError("firmware releases require a durable OTA state file")
     if args.firmware_package and (
-            args.firmware_releases is None or args.console_port is None
-            or args.device_bindings is None):
-        raise ValueError('firmware packages require releases, console and device bindings')
+        args.firmware_releases is None
+        or args.console_port is None
+        or args.device_bindings is None
+    ):
+        raise ValueError(
+            "firmware packages require releases, console and device bindings"
+        )
     memory_devices = tuple(args.memory_device)
-    if ((args.memory_state is None) != (not memory_devices)
-            or len(set(memory_devices)) != len(memory_devices)):
-        raise ValueError('long-term memory requires a state file and unique device opt-ins')
+    if (args.memory_state is None) != (not memory_devices) or len(
+        set(memory_devices)
+    ) != len(memory_devices):
+        raise ValueError(
+            "long-term memory requires a state file and unique device opt-ins"
+        )
     if args.memory_state is not None and (
-            args.console_port is None or args.provider != 'mimo'
-            or args.device_bindings is None):
-        raise ValueError('long-term memory requires console, MiMo and device bindings')
+        args.console_port is None
+        or args.provider != "mimo"
+        or args.device_bindings is None
+    ):
+        raise ValueError("long-term memory requires console, MiMo and device bindings")
     config = GatewayConfig(
         path=args.path,
         reply_frames=args.reply_frames,
         reply_interval_ms=args.reply_interval_ms,
         downlink_window_timeout_ms=args.window_timeout_ms,
     )
-    bindings = load_device_bindings(args.device_bindings) if args.device_bindings else None
+    bindings = (
+        load_device_bindings(args.device_bindings) if args.device_bindings else None
+    )
     if memory_devices and (
-            bindings is None
-            or any(not bindings.contains_device(device) for device in memory_devices)):
-        raise ValueError('memory opt-ins must name registered devices')
+        bindings is None
+        or any(not bindings.contains_device(device) for device in memory_devices)
+    ):
+        raise ValueError("memory opt-ins must name registered devices")
     provider = None
     mimo_provider = None
     if args.provider == "mimo":
         from .mimo import MiMoConfig, MiMoProvider, load_api_key
+
         if args.mimo_key_file is None or args.mimo_tts_rate is None:
             raise ValueError("MiMo requires a key file and verified TTS PCM rate")
         if args.mimo_tts_rate != 16000 and shutil.which("ffmpeg") is None:
             raise ValueError("FFmpeg is required for TTS resampling")
-        mimo_provider = MiMoProvider(MiMoConfig(
-            api_key=load_api_key(args.mimo_key_file), tts_sample_rate=args.mimo_tts_rate,
-            base_url=args.mimo_base_url, chat_model=args.mimo_chat_model,
-            persona_mode=args.persona_mode,
-        ))
+        mimo_provider = MiMoProvider(
+            MiMoConfig(
+                api_key=load_api_key(args.mimo_key_file),
+                tts_sample_rate=args.mimo_tts_rate,
+                base_url=args.mimo_base_url,
+                chat_model=args.mimo_chat_model,
+                persona_mode=args.persona_mode,
+            )
+        )
         provider = mimo_provider.new_conversation
     tls_context = build_tls_context(args.cert, args.key, args.client_ca)
     scope = _bind_scope(args.host, args.client_ca)
-    memory_store = (MemoryStore(args.memory_state, memory_devices)
-                    if args.memory_state is not None else None)
+    memory_store = (
+        MemoryStore(args.memory_state, memory_devices)
+        if args.memory_state is not None
+        else None
+    )
     device_provider = None
     if memory_store is not None:
         assert mimo_provider is not None
 
         def device_provider(device_id: str) -> ReplySession:
-            memory = (memory_store.session(device_id)
-                      if memory_store.configured(device_id) else None)
+            memory = (
+                memory_store.session(device_id)
+                if memory_store.configured(device_id)
+                else None
+            )
             return mimo_provider.new_conversation(memory)
 
         provider = None
@@ -1048,15 +1243,16 @@ async def _run(args: argparse.Namespace) -> None:
     try:
         if args.firmware_releases is not None:
             from .firmware import load_firmware_releases
+
             firmware_releases = load_firmware_releases(args.firmware_releases)
         if args.firmware_package:
             assert firmware_releases is not None
-            firmware_content = FirmwareContentStore(firmware_releases,
-                                                    tuple(args.firmware_package))
+            firmware_content = FirmwareContentStore(
+                firmware_releases, tuple(args.firmware_package)
+            )
         if args.ota_state is not None:
             ota_transactions = OtaTransactionStore(args.ota_state)
-            ota_transactions.mark_nonterminal_uncertain(
-                time.time_ns() // 1_000_000)
+            ota_transactions.mark_nonterminal_uncertain(time.time_ns() // 1_000_000)
     except BaseException:
         if memory_store is not None:
             memory_store.close()
@@ -1066,7 +1262,9 @@ async def _run(args: argparse.Namespace) -> None:
             ota_transactions.close()
         raise
     gateway = GatewayServer(
-        config, reply_factory=provider, device_bindings=bindings,
+        config,
+        reply_factory=provider,
+        device_bindings=bindings,
         device_reply_factory=device_provider,
         firmware_content=firmware_content,
         ota_transactions=ota_transactions,
@@ -1090,21 +1288,37 @@ async def _run(args: argparse.Namespace) -> None:
             from aiohttp import web
             from .console import ConsoleService, load_console_grants
             from .firmware import FirmwareReleases
-            service = ConsoleService(gateway, load_console_grants(args.console_access),
-                                     args.console_state,
-                                     (firmware_releases
-                                      if firmware_releases is not None
-                                      else FirmwareReleases()),
-                                     memory_store=memory_store,
-                                     ota_transactions=ota_transactions)
+
+            service = ConsoleService(
+                gateway,
+                load_console_grants(args.console_access),
+                args.console_state,
+                (
+                    firmware_releases
+                    if firmware_releases is not None
+                    else FirmwareReleases()
+                ),
+                memory_store=memory_store,
+                ota_transactions=ota_transactions,
+            )
             console_runner = web.AppRunner(service.app, access_log=None)
             await console_runner.setup()
-            site = web.TCPSite(console_runner, args.host, args.console_port,
-                              ssl_context=build_tls_context(args.cert, args.key))
+            site = web.TCPSite(
+                console_runner,
+                args.host,
+                args.console_port,
+                ssl_context=build_tls_context(args.cert, args.key),
+            )
             await site.start()
         gateway.event_sink(
-            {'event': 'server_started', 'transport': 'wss', 'scope': scope,
-             'port': args.port, 'console_port': args.console_port})
+            {
+                "event": "server_started",
+                "transport": "wss",
+                "scope": scope,
+                "port": args.port,
+                "console_port": args.console_port,
+            }
+        )
         await server.wait_closed()
     finally:
         try:
@@ -1122,44 +1336,76 @@ async def _run(args: argparse.Namespace) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Shaniu companion-v1 WSS Gateway"
-    )
+    parser = argparse.ArgumentParser(description="Shaniu companion-v1 WSS Gateway")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--path", default=DEFAULT_PATH)
     parser.add_argument("--cert", type=Path, required=True)
     parser.add_argument("--key", type=Path, required=True)
     parser.add_argument("--client-ca", type=Path)
-    parser.add_argument("--device-bindings", type=Path,
-                        help="operator-owned device ID / client certificate pin registry")
-    parser.add_argument('--console-port', type=int)
-    parser.add_argument('--console-access', type=Path,
-                        help='operator-provisioned per-device console token hash grants')
-    parser.add_argument('--console-state', type=Path,
-                        help='private persistent console generation counter database')
-    parser.add_argument('--firmware-releases', type=Path,
-                        help='operator-verified metadata-only OTA release registry')
-    parser.add_argument('--ota-state', type=Path,
-                        help='private durable OTA transaction database')
-    parser.add_argument('--firmware-package', type=Path, action='append', default=[],
-                        metavar='SIGNED_OTA_BKPACK',
-                        help='verified signed OTA package; may be repeated')
-    parser.add_argument('--memory-state', type=Path,
-                        help='private long-term conversation memory database')
-    parser.add_argument('--memory-device', action='append', default=[], metavar='DEVICE_ID',
-                        help='explicitly opt one registered device into long-term memory')
+    parser.add_argument(
+        "--device-bindings",
+        type=Path,
+        help="operator-owned device ID / client certificate pin registry",
+    )
+    parser.add_argument("--console-port", type=int)
+    parser.add_argument(
+        "--console-access",
+        type=Path,
+        help="operator-provisioned per-device console token hash grants",
+    )
+    parser.add_argument(
+        "--console-state",
+        type=Path,
+        help="private persistent console generation counter database",
+    )
+    parser.add_argument(
+        "--firmware-releases",
+        type=Path,
+        help="operator-verified metadata-only OTA release registry",
+    )
+    parser.add_argument(
+        "--ota-state", type=Path, help="private durable OTA transaction database"
+    )
+    parser.add_argument(
+        "--firmware-package",
+        type=Path,
+        action="append",
+        default=[],
+        metavar="SIGNED_OTA_BKPACK",
+        help="verified signed OTA package; may be repeated",
+    )
+    parser.add_argument(
+        "--memory-state",
+        type=Path,
+        help="private long-term conversation memory database",
+    )
+    parser.add_argument(
+        "--memory-device",
+        action="append",
+        default=[],
+        metavar="DEVICE_ID",
+        help="explicitly opt one registered device into long-term memory",
+    )
     parser.add_argument("--reply-frames", type=int, default=10)
     parser.add_argument("--reply-interval-ms", type=int, default=20)
     parser.add_argument("--window-timeout-ms", type=int, default=2_000)
     parser.add_argument("--provider", choices=("fixed", "mimo"), default="fixed")
     from .mimo import PERSONA_MODES
+
     parser.add_argument("--persona-mode", choices=PERSONA_MODES, default="gentle")
     parser.add_argument("--mimo-key-file", type=Path)
-    parser.add_argument("--mimo-base-url", default="https://token-plan-cn.xiaomimimo.com/v1")
-    parser.add_argument("--mimo-chat-model", choices=("mimo-v2.5", "mimo-v2.5-pro"), default="mimo-v2.5")
-    parser.add_argument("--mimo-tts-rate", type=int,
-                        help="verified provider mono PCM16 sample rate; no assumed default")
+    parser.add_argument(
+        "--mimo-base-url", default="https://token-plan-cn.xiaomimimo.com/v1"
+    )
+    parser.add_argument(
+        "--mimo-chat-model", choices=("mimo-v2.5", "mimo-v2.5-pro"), default="mimo-v2.5"
+    )
+    parser.add_argument(
+        "--mimo-tts-rate",
+        type=int,
+        help="verified provider mono PCM16 sample rate; no assumed default",
+    )
     return parser
 
 
@@ -1169,8 +1415,14 @@ def main() -> int:
         asyncio.run(_run(args))
     except KeyboardInterrupt:
         return 0
-    except (OSError, ssl.SSLError, ValueError, sqlite3.Error, MemoryStateError,
-            OtaTransactionError):
+    except (
+        OSError,
+        ssl.SSLError,
+        ValueError,
+        sqlite3.Error,
+        MemoryStateError,
+        OtaTransactionError,
+    ):
         json_event_sink({"event": "server_error", "code": "startup_failed"})
         return 2
     return 0

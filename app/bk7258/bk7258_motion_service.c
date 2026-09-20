@@ -164,7 +164,8 @@ static int bkmotion_collect(const struct bkmotion_rpc_request_s *request,
 {
   struct bkmotion_server_s *server = &g_bkmotion_server;
   int ret = nxmutex_lock(&server->sample_lock);
-  if (ret < 0) {
+  if (ret < 0)
+  {
     bkmotion_rpc_make_response(response, request, ret);
     return ret;
   }
@@ -183,7 +184,9 @@ int bk7258_motion_service_sample(struct bkmotion_rpc_response_s *sample)
   if (!sample) return -EINVAL;
   if (!__atomic_load_n(&g_bkmotion_server.initialized, __ATOMIC_ACQUIRE))
     return -ENODEV;
-  /* 本地 Agent 与 CP 请求共用同一采样 owner 和互斥，不创建第二个采集服务。 */
+  /* Local Agent and CP requests share this single sampling owner and mutex;
+   * no second collection service is created.
+   */
   return bkmotion_collect(&request, sample);
 }
 

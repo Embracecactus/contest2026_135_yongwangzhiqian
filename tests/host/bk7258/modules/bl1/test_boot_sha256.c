@@ -1,7 +1,7 @@
 /*
  * test_boot_sha256.c - host unit tests for boot_sha256.c.
  *
- * Vectors: FIPS 180-4 plus a 1,000,000-byte "a" digest.
+ * Vectors: FIPS 180-4 plus a 1, 000, 000-byte "a" digest.
  *
  * SPDX-License-Identifier: Apache-2.0
  */

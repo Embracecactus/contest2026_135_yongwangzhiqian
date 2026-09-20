@@ -1403,7 +1403,8 @@ class MainActivity : Activity() {
         if (destroyed) return
         if (command == DeviceControlProtocol.Command.STATUS && snapshot.error == 0) {
             if (snapshot.ready && !directServiceWasReady) {
-                // 服务在 BLE 连接后才就绪时，重读启动期间失败的配置；不重发设置。
+                // Service ready only after the BLE connection: retry the config
+                // reads that failed during startup; do not resend settings.
                 cloudModelsFailedGeneration = null
                 responseModeFailedGeneration = null
             }

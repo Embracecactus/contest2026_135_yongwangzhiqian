@@ -13,14 +13,14 @@
  * Data path:
  *
  *   NuttX MMCSD/SDIO upper half (sdio_dev_s ops):
- *     sendcmd(cmd,arg)  -> bk_sdio_host_send_command + SDK queue completion
+ *     sendcmd(cmd, arg)  -> bk_sdio_host_send_command + SDK queue completion
  *     recv_r1..r7()     -> bk_sdio_host_get_cmd_rsp_argument
  *     widebus(enable)   -> re-init with 1/4 line
  *     clock(rate)       -> bk_sdio_host_set_clock_freq
- *     recvsetup(buf,len)-> cache the NuttX transfer contract
+ *     recvsetup(buf, len)-> cache the NuttX transfer contract
  *     data sendcmd()     -> bk_sdio_host_config_data(RD) + command +
  *                           bk_sdio_host_wait_receive_data + FIFO drain
- *     sendsetup(buf,len)-> bk_sdio_host_config_data(WR) + write_fifo
+ *     sendsetup(buf, len)-> bk_sdio_host_config_data(WR) + write_fifo
  *
  * Notes on SDK behaviour that shaped this driver (verified against the
  * v3.1.1.9 headers, not assumed):
@@ -306,7 +306,6 @@ static int bk7258_sdio_map_err(bk_err_t err)
  * NuttX command deadline expires.  The SDK ISR remains the sole owner of
  * command status and queue delivery throughout the transaction.
  */
-
 
 
 static bk_err_t bk7258_sdio_wait_command(uint32_t cmd_index)
@@ -711,10 +710,12 @@ static int bk7258_sdio_host_init_locked(FAR struct bk7258_sdio_priv_s *priv,
   bk_sdio_clk_gate_config(1);
 #endif
 
-  /* SDK 的 sys_drv_dev_clk_pwr_up() 不返回供时结果，host_init() 因而
-   * 可能在时钟未开启时仍返回 BK_OK。先检查同一个 set-state 接口；
-   * AP 适配按状态去重，SDK 随后的开启调用不会重复增加 CP 引用。
-   * 供时失败必须在初始化边界返回，不能继续发送必然超时的卡命令。
+  /* The SDK's sys_drv_dev_clk_pwr_up() does not return a power-up result, so
+   * host_init() can still return BK_OK while the clock is off.  Check the same
+   * set-state interface first; the AP adaptation de-duplicates by state, so
+   * the SDK's later power-up call does not add a second CP reference.  A
+   * power-up failure must be returned at the initialization boundary;
+   * otherwise the driver would keep issuing card commands bound to time out.
    */
 
   err = bk_pm_clock_ctrl(BK7258_SDK_PM_CLK_ID_SDIO, BK7258_SDK_PM_CLK_UP);

@@ -32,9 +32,7 @@ from shaniu_gateway.firmware import load_firmware_releases  # noqa: E402
 
 class ProductDeliveryTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(
-            prefix="bk7258-product-test-"
-        )
+        self.temporary = tempfile.TemporaryDirectory(prefix="bk7258-product-test-")
         self.root = Path(self.temporary.name)
         layout_path = self.root / "layout.csv"
         layout_path.write_text(
@@ -109,8 +107,7 @@ class ProductDeliveryTest(unittest.TestCase):
     def test_clean_prunes_only_stale_role_identities(self) -> None:
         workspace = self.root / "workspace"
         role_root = (
-            workspace / "out/bk7258/test_board/cp__ap/layout"
-            / "roles/mcuboot/ap"
+            workspace / "out/bk7258/test_board/cp__ap/layout" / "roles/mcuboot/ap"
         )
         current = role_root / "bk7258-role-1111111111111111"
         stale = role_root / "bk7258-role-2222222222222222"
@@ -121,17 +118,14 @@ class ProductDeliveryTest(unittest.TestCase):
 
         build_domain._prune_stale_role_outputs(current, workspace)
 
-        self.assertEqual((current / "keep").read_text(encoding="utf-8"),
-                         "current")
+        self.assertEqual((current / "keep").read_text(encoding="utf-8"), "current")
         self.assertFalse(stale.exists())
 
     def _inputs(self, stem: str) -> tuple[Path, Path]:
         package = self.root / f"{stem}.bkpack"
         package_domain.create(
             image_set=self.images,
-            member_names={
-                name: f"{name}.bin" for name in ("boot", "cp", "ap", "pair")
-            },
+            member_names={name: f"{name}.bin" for name in ("boot", "cp", "ap", "pair")},
             sdk_evidence={},
             trust_evidence={"mode": "unsigned"},
             physical_board="test_board",
@@ -164,14 +158,19 @@ class ProductDeliveryTest(unittest.TestCase):
                 },
                 sort_keys=True,
                 separators=(",", ":"),
-            ) + "\n",
+            )
+            + "\n",
             encoding="utf-8",
         )
         return package, manifest
 
     def _release_input_fixture(
-        self, stem: str, *, identity: dict[str, object] | None = None,
-        generation: int | None = None, package_name: str | None = None,
+        self,
+        stem: str,
+        *,
+        identity: dict[str, object] | None = None,
+        generation: int | None = None,
+        package_name: str | None = None,
     ) -> Path:
         package, manifest = self._inputs(stem)
         build = json.loads(manifest.read_text(encoding="utf-8"))
@@ -228,7 +227,8 @@ class ProductDeliveryTest(unittest.TestCase):
             "format": "bk7258.release/2",
             "generation": (
                 expected_identity["security_counter"]
-                if generation is None else generation
+                if generation is None
+                else generation
             ),
             "identity": selected_identity,
             "layout": build["layout"],
@@ -267,7 +267,7 @@ class ProductDeliveryTest(unittest.TestCase):
         )
         ota_images = image_domain.ImageSet(
             self.layout,
-            tuple(row for row in self.images.writes if row.artifact in {'cp', 'ap'}),
+            tuple(row for row in self.images.writes if row.artifact in {"cp", "ap"}),
             (),
             (),
         )
@@ -275,49 +275,49 @@ class ProductDeliveryTest(unittest.TestCase):
         public[-65] = 0x04
         public_bytes = bytes(public)
         evidence = {
-            'mode': 'signed-ota',
-            'algorithm': 'ecdsa-p256-sha256',
-            'mcuboot_public_fingerprint': hashlib.sha256(public_bytes).hexdigest(),
-            'mcuboot_public_der': public_bytes.hex(),
-            'rollback': 'otp-readonly-plus-explicit-software-floor',
-            'trailer': 'pending-v1',
-            'images': [
+            "mode": "signed-ota",
+            "algorithm": "ecdsa-p256-sha256",
+            "mcuboot_public_fingerprint": hashlib.sha256(public_bytes).hexdigest(),
+            "mcuboot_public_der": public_bytes.hex(),
+            "rollback": "otp-readonly-plus-explicit-software-floor",
+            "trailer": "pending-v1",
+            "images": [
                 {
-                    'artifact': row.artifact,
-                    'signed_sha256': hashlib.sha256(row.data).hexdigest(),
-                    'version': '1.2.4+5',
-                    'security_counter': 5,
+                    "artifact": row.artifact,
+                    "signed_sha256": hashlib.sha256(row.data).hexdigest(),
+                    "version": "1.2.4+5",
+                    "security_counter": 5,
                 }
                 for row in ota_images.writes
             ],
         }
-        ota = self.root / f'{stem}-ota.bkpack'
+        ota = self.root / f"{stem}-ota.bkpack"
         package_domain.create(
             image_set=ota_images,
-            member_names={'cp': 'cp.bin', 'ap': 'ap.bin'},
+            member_names={"cp": "cp.bin", "ap": "ap.bin"},
             sdk_evidence={},
             trust_evidence=evidence,
-            physical_board='test_board',
+            physical_board="test_board",
             output=ota,
-            catalog_signer=lambda _: b'\x30\x06\x02\x01\x01\x02\x01\x01',
+            catalog_signer=lambda _: b"\x30\x06\x02\x01\x01\x02\x01\x01",
         )
 
         def fixture_verifier(candidate: Path) -> object:
             report = package_domain.verify(candidate)
-            self.assertEqual(report['security'], 'signed-ota')
+            self.assertEqual(report["security"], "signed-ota")
             return report
 
-        output = self.root / f'{stem}-delivery.zip'
+        output = self.root / f"{stem}-delivery.zip"
         product_domain.create_delivery(
             package=package,
             build_manifest=manifest,
             policy=self.policy,
             recovery=recovery,
             base_evidence=self.base_evidence,
-            version='1.2.4+5',
+            version="1.2.4+5",
             output=output,
             ota_package=ota,
-            ota_required_source_version='1.2.3+4',
+            ota_required_source_version="1.2.3+4",
             package_verifier=fixture_verifier,
         )
         return output
@@ -339,30 +339,46 @@ class ProductDeliveryTest(unittest.TestCase):
         evidence.write_bytes(self.base_evidence_path.read_bytes())
 
         def member(path: Path) -> dict[str, object]:
-            return {"path": path.name, "size": path.stat().st_size,
-                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+            return {
+                "path": path.name,
+                "size": path.stat().st_size,
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
 
         build = json.loads(manifest.read_text())
         base_row = member(evidence)
         base_row["device_id"] = self.base_evidence.device_id
         summary = {
-            "format": "bk7258.release/2", "mode": "full",
-            "version": "1.2.3+4", "generation": 4,
-            "target": build["target"], "layout": build["layout"],
-            "package": member(package), "build_manifest": member(manifest),
+            "format": "bk7258.release/2",
+            "mode": "full",
+            "version": "1.2.3+4",
+            "generation": 4,
+            "target": build["target"],
+            "layout": build["layout"],
+            "package": member(package),
+            "build_manifest": member(manifest),
             "operator": member(operator),
-            "materialization": {"accepted_base": base_row, "flash_offset": 0,
-                                "flash_end": self.layout.flash_size,
-                                "flash_size": self.layout.flash_size},
+            "materialization": {
+                "accepted_base": base_row,
+                "flash_offset": 0,
+                "flash_end": self.layout.flash_size,
+                "flash_size": self.layout.flash_size,
+            },
         }
         bk7258_cli._release_summary(release, summary)
-        preset = mock.Mock(partition=self.layout.source,
-                           release_policy=self.policy.source)
+        preset = mock.Mock(
+            partition=self.layout.source, release_policy=self.policy.source
+        )
         output = self.root / "product-entry.zip"
         verifier = mock.Mock(side_effect=package_domain.verify)
-        kwargs = dict(full_release=release, base=self.base, output=output,
-                      ota_release=None, ota_required_source_version=None,
-                      package_verifier=verifier)
+        kwargs = dict(
+            full_release=release,
+            base=self.base,
+            output=output,
+            ota_release=None,
+            ota_required_source_version=None,
+            package_verifier=verifier,
+        )
         with mock.patch.object(build_domain, "board_preset", return_value=preset):
             report = product_domain.release_product(REPOSITORY, **kwargs)
             self.assertEqual(report["physical_board"], "test_board")
@@ -377,14 +393,25 @@ class ProductDeliveryTest(unittest.TestCase):
                 product_domain.release_product(REPOSITORY, **kwargs)
             self.assertFalse(kwargs["output"].exists())
             verifier.side_effect = package_domain.verify
-            with mock.patch.object(bk7258_cli, "_verify_package_trust",
-                                   side_effect=lambda candidate, _: verifier(candidate)), \
-                    contextlib.redirect_stdout(io.StringIO()):
-                status = bk7258_cli.main([
-                    "release", "product", "--full-release", str(release),
-                    "--base", str(self.base), "--openssl", "unused-fixture-tool",
-                    "--output", str(self.root / "cli-product.zip"),
-                ])
+            with mock.patch.object(
+                bk7258_cli,
+                "_verify_package_trust",
+                side_effect=lambda candidate, _: verifier(candidate),
+            ), contextlib.redirect_stdout(io.StringIO()):
+                status = bk7258_cli.main(
+                    [
+                        "release",
+                        "product",
+                        "--full-release",
+                        str(release),
+                        "--base",
+                        str(self.base),
+                        "--openssl",
+                        "unused-fixture-tool",
+                        "--output",
+                        str(self.root / "cli-product.zip"),
+                    ]
+                )
             self.assertEqual(status, 0)
             self.assertEqual((self.root / "cli-product.zip").read_bytes(), original)
 
@@ -399,9 +426,7 @@ class ProductDeliveryTest(unittest.TestCase):
         self.assertEqual(report["ota"], "not-included")
         with zipfile.ZipFile(first) as archive:
             release = json.loads(archive.read("release.json"))
-            self.assertIsNone(
-                release["components"]["recovery"]["installed_root"]
-            )
+            self.assertIsNone(release["components"]["recovery"]["installed_root"])
             self.assertEqual(
                 release["components"]["recovery"]["accepted_base"]["device_id"],
                 "test-unit:0001",
@@ -424,16 +449,21 @@ class ProductDeliveryTest(unittest.TestCase):
         self.assertEqual(full["layout"]["flash_size"], self.layout.flash_size)
         self.assertEqual(full["full_bin"]["scope"], "complete-flash")
         self.assertEqual(full["full_bin"]["flash_offset"], 0)
-        self.assertEqual(full["full_bin"]["erases"], [{"offset": 0, "size": self.layout.flash_size}])
+        self.assertEqual(
+            full["full_bin"]["erases"], [{"offset": 0, "size": self.layout.flash_size}]
+        )
         self.assertEqual(full["full_bin"]["writes"], full["full_bin"]["erases"])
         self.assertEqual(
             full["full_bin"]["device_unique_data"],
             "trusted-same-device-base-required",
         )
-        self.assertEqual(full["startup_migration"], {
-            "status": "unknown",
-            "unconditional_start_allowed": False,
-        })
+        self.assertEqual(
+            full["startup_migration"],
+            {
+                "status": "unknown",
+                "unconditional_start_allowed": False,
+            },
+        )
 
         delivery = self._ota_delivery("impact-ota")
         with zipfile.ZipFile(delivery) as archive:
@@ -443,9 +473,7 @@ class ProductDeliveryTest(unittest.TestCase):
             ota = self.root / "impact-ota.bkpack"
             ota.write_bytes(archive.read(ota_member))
 
-        impact = product_domain.operation_impact(
-            ota, self.policy, transport="ota"
-        )
+        impact = product_domain.operation_impact(ota, self.policy, transport="ota")
         self.assertEqual(impact["transport"], "ota")
         self.assertEqual(impact["ota"]["target"], "inactive")
         self.assertEqual(
@@ -459,12 +487,12 @@ class ProductDeliveryTest(unittest.TestCase):
         )
         self.assertEqual(impact["ota"]["full_flash_base"], "not-required")
 
-    def test_operation_impact_rejects_wrong_transport_and_large_generation(self) -> None:
+    def test_operation_impact_rejects_wrong_transport_and_large_generation(
+        self,
+    ) -> None:
         package, _ = self._inputs("impact-reject")
         with self.assertRaises(product_domain.ProductError):
-            product_domain.operation_impact(
-                package, self.policy, transport="ota"
-            )
+            product_domain.operation_impact(package, self.policy, transport="ota")
         with self.assertRaises(product_domain.ProductError):
             product_domain.operation_impact(
                 package, self.policy, transport="unexpected"
@@ -482,9 +510,7 @@ class ProductDeliveryTest(unittest.TestCase):
         evidence.parent.mkdir(parents=True)
         evidence.write_bytes(manifest.read_bytes())
 
-        document = product_domain.validate_build_manifest_evidence(
-            evidence, package
-        )
+        document = product_domain.validate_build_manifest_evidence(evidence, package)
 
         self.assertEqual(document["boot"], "direct")
         self.assertEqual(
@@ -494,23 +520,25 @@ class ProductDeliveryTest(unittest.TestCase):
 
     def test_build_manifest_evidence_accepts_v2_and_v3_provenance(self) -> None:
         package, legacy_manifest = self._inputs("manifest-compat")
-        package_document, _, report = product_domain._package_target_layout(
-            package
-        )
+        package_document, _, report = product_domain._package_target_layout(package)
 
         legacy = product_domain._validate_build_manifest(
             legacy_manifest.read_bytes(), package_document, report["security"]
         )
-        self.assertEqual(
-            legacy["format"], build_domain.BUILD_MANIFEST_FORMAT_V2
-        )
+        self.assertEqual(legacy["format"], build_domain.BUILD_MANIFEST_FORMAT_V2)
 
         current = dict(legacy)
         current["format"] = build_domain.BUILD_MANIFEST_FORMAT
         current["provenance"] = {
-            "dependencies": {name: {"source_commit": "a" * 40, "dirty": False,
-                                    "input_tree_sha256": hashlib.sha256(b"").hexdigest(),
-                                    "input_count": 0} for name in ("nuttx", "apps")},
+            "dependencies": {
+                name: {
+                    "source_commit": "a" * 40,
+                    "dirty": False,
+                    "input_tree_sha256": hashlib.sha256(b"").hexdigest(),
+                    "input_count": 0,
+                }
+                for name in ("nuttx", "apps")
+            },
             "source_commit": "a" * 40,
             "dirty": False,
             "input_tree_sha256": "b" * 64,
@@ -550,8 +578,7 @@ class ProductDeliveryTest(unittest.TestCase):
         self.assertEqual(identity["security_counter"], 415)
         self.assertEqual(
             product_domain.artifact_stem(identity, "ota"),
-            "shaniu-bk7258-aidk_ai_toy-cp-aidk__ap-aidk-"
-            "v18.6.351+415-bA4-ota",
+            "shaniu-bk7258-aidk_ai_toy-cp-aidk__ap-aidk-" "v18.6.351+415-bA4-ota",
         )
 
     def test_release_identity_rejects_conflicts_and_unsafe_names(self) -> None:
@@ -566,14 +593,10 @@ class ProductDeliveryTest(unittest.TestCase):
         }
 
         with self.assertRaisesRegex(ValueError, "differs from build provenance"):
-            product_domain.release_identity(
-                manifest, "18.6.351+415", "other", "A4"
-            )
+            product_domain.release_identity(manifest, "18.6.351+415", "other", "A4")
         manifest.provenance["product"] = None
         with self.assertRaisesRegex(ValueError, "requires an explicit --product"):
-            product_domain.release_identity(
-                manifest, "18.6.351+415", "Shaniu!", "A4"
-            )
+            product_domain.release_identity(manifest, "18.6.351+415", "Shaniu!", "A4")
         with self.assertRaisesRegex(ValueError, "artifact-id"):
             product_domain.release_identity(
                 manifest, "18.6.351+415", "shaniu", "A4/bad"
@@ -582,19 +605,23 @@ class ProductDeliveryTest(unittest.TestCase):
     def test_release_input_accepts_bound_v3_identity(self) -> None:
         release = self._release_input_fixture("release-input-valid")
 
-        summary, package, build_manifest, operator, base = \
-            product_domain.load_release(release, "ota")
+        summary, package, build_manifest, operator, base = product_domain.load_release(
+            release, "ota"
+        )
 
         self.assertEqual(summary["identity"]["product"], "shaniu")
         self.assertEqual(summary["generation"], 415)
-        self.assertEqual(package.name,
-                         "shaniu-bk7258-test_board-cp-aidk__ap-aidk-"
-                         "v18.6.351+415-bA4-ota.bkpack")
+        self.assertEqual(
+            package.name,
+            "shaniu-bk7258-test_board-cp-aidk__ap-aidk-" "v18.6.351+415-bA4-ota.bkpack",
+        )
         self.assertEqual(build_manifest.parent.name, "evidence")
         self.assertIsNone(operator)
         self.assertIsNone(base)
 
-    def test_release_input_rejects_identity_counter_and_package_name_mismatch(self) -> None:
+    def test_release_input_rejects_identity_counter_and_package_name_mismatch(
+        self,
+    ) -> None:
         identity_release = self._release_input_fixture(
             "release-input-identity",
             identity={
@@ -605,37 +632,36 @@ class ProductDeliveryTest(unittest.TestCase):
                 "version": "18.6.351+415",
                 "artifact_id": "A4",
                 "security_counter": 415,
-                "counter_policy":
-                    "legacy-version-build-equals-security-counter",
+                "counter_policy": "legacy-version-build-equals-security-counter",
             },
         )
-        with self.assertRaisesRegex(ValueError,
-                                    "identity differs from build evidence"):
+        with self.assertRaisesRegex(ValueError, "identity differs from build evidence"):
             product_domain.load_release(identity_release, "ota")
 
         counter_release = self._release_input_fixture(
             "release-input-counter", generation=414
         )
-        with self.assertRaisesRegex(ValueError,
-                                    "identity differs from build evidence"):
+        with self.assertRaisesRegex(ValueError, "identity differs from build evidence"):
             product_domain.load_release(counter_release, "ota")
 
         name_release = self._release_input_fixture(
             "release-input-name", package_name="renamed.bkpack"
         )
-        with self.assertRaisesRegex(ValueError,
-                                    "package name differs from artifact identity"):
+        with self.assertRaisesRegex(
+            ValueError, "package name differs from artifact identity"
+        ):
             product_domain.load_release(name_release, "ota")
 
     def test_delivery_rejects_changed_operator(self) -> None:
         valid = self._delivery("valid")
         corrupt = self.root / "corrupt.zip"
-        with zipfile.ZipFile(valid, "r") as source, \
-                zipfile.ZipFile(corrupt, "w", allowZip64=False) as target:
+        with zipfile.ZipFile(valid, "r") as source, zipfile.ZipFile(
+            corrupt, "w", allowZip64=False
+        ) as target:
             for info in source.infolist():
                 data = source.read(info)
                 if info.filename.endswith("full-flash.bin"):
-                    data = data[:-1] + bytes([data[-1] ^ 0xff])
+                    data = data[:-1] + bytes([data[-1] ^ 0xFF])
                 target.writestr(info, data)
         with self.assertRaises(product_domain.ProductError):
             product_domain.verify_delivery(corrupt)
@@ -669,8 +695,8 @@ class ProductDeliveryTest(unittest.TestCase):
         self.assertEqual(output.read_bytes(), accepted)
 
     def test_gateway_registry_projects_only_verified_ota_metadata(self) -> None:
-        delivery = self._ota_delivery('gateway')
-        output = self.root / 'firmware-releases.json'
+        delivery = self._ota_delivery("gateway")
+        output = self.root / "firmware-releases.json"
         calls = []
 
         def fixture_verifier(candidate: Path) -> object:
@@ -678,62 +704,75 @@ class ProductDeliveryTest(unittest.TestCase):
             return package_domain.verify(candidate)
 
         report = product_domain.create_gateway_release_registry(
-            (delivery,), output, package_verifier=fixture_verifier,
+            (delivery,),
+            output,
+            package_verifier=fixture_verifier,
         )
-        self.assertEqual(report['releases'], 1)
+        self.assertEqual(report["releases"], 1)
         self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
         self.assertTrue(calls)
-        registry = json.loads(output.read_text(encoding='utf-8'))
-        self.assertEqual(set(registry), {'format', 'releases'})
-        self.assertEqual(registry['format'], 'shaniu.firmware-release-registry/1')
-        self.assertEqual(len(registry['releases']), 1)
-        release = registry['releases'][0]
-        self.assertEqual(release['device_id'], 'test-unit:0001')
-        self.assertEqual(release['target_version'], '1.2.4+5')
-        self.assertEqual(release['required_source_version'], '1.2.3+4')
-        self.assertEqual(release['physical_board'], 'test_board')
-        self.assertNotIn('path', release)
-        self.assertNotIn('uri', release)
+        registry = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(set(registry), {"format", "releases"})
+        self.assertEqual(registry["format"], "shaniu.firmware-release-registry/1")
+        self.assertEqual(len(registry["releases"]), 1)
+        release = registry["releases"][0]
+        self.assertEqual(release["device_id"], "test-unit:0001")
+        self.assertEqual(release["target_version"], "1.2.4+5")
+        self.assertEqual(release["required_source_version"], "1.2.3+4")
+        self.assertEqual(release["physical_board"], "test_board")
+        self.assertNotIn("path", release)
+        self.assertNotIn("uri", release)
 
         with zipfile.ZipFile(delivery) as outer:
-            delivery_manifest = json.loads(outer.read('release.json'))
-            ota_row = delivery_manifest['components']['ota']['package']
-            ota_bytes = outer.read(ota_row['path'])
+            delivery_manifest = json.loads(outer.read("release.json"))
+            ota_row = delivery_manifest["components"]["ota"]["package"]
+            ota_bytes = outer.read(ota_row["path"])
         with zipfile.ZipFile(io.BytesIO(ota_bytes)) as ota_archive:
-            expected_manifest = hashlib.sha256(ota_archive.read('catalog.json')).hexdigest()
-        self.assertEqual(release['manifest_sha256'], expected_manifest)
-        self.assertEqual(release['package_sha256'], hashlib.sha256(ota_bytes).hexdigest())
-        self.assertEqual(release['package_size_bytes'], len(ota_bytes))
+            expected_manifest = hashlib.sha256(
+                ota_archive.read("catalog.json")
+            ).hexdigest()
+        self.assertEqual(release["manifest_sha256"], expected_manifest)
+        self.assertEqual(
+            release["package_sha256"], hashlib.sha256(ota_bytes).hexdigest()
+        )
+        self.assertEqual(release["package_size_bytes"], len(ota_bytes))
         loaded = load_firmware_releases(output)
         self.assertEqual(
             loaded.compatible(
-                'test-unit:0001', '1.2.3+4',
-                release['required_source_root_sha256'],
+                "test-unit:0001",
+                "1.2.3+4",
+                release["required_source_root_sha256"],
             )[0].projection(),
-            {key: value for key, value in release.items() if key != 'device_id'},
+            {key: value for key, value in release.items() if key != "device_id"},
         )
 
         with self.assertRaises(product_domain.ProductError):
             product_domain.create_gateway_release_registry(
-                (delivery,), output, package_verifier=fixture_verifier,
+                (delivery,),
+                output,
+                package_verifier=fixture_verifier,
             )
 
     def test_gateway_registry_rejects_missing_ota_and_duplicates(self) -> None:
-        without_ota = self._delivery('without-ota')
+        without_ota = self._delivery("without-ota")
         with self.assertRaises(product_domain.ProductError):
             product_domain.create_gateway_release_registry(
-                (without_ota,), self.root / 'missing.json',
+                (without_ota,),
+                self.root / "missing.json",
                 package_verifier=lambda candidate: package_domain.verify(candidate),
             )
-        delivery = self._ota_delivery('duplicate')
+        delivery = self._ota_delivery("duplicate")
         with self.assertRaises(product_domain.ProductError):
             product_domain.create_gateway_release_registry(
-                (delivery, delivery), self.root / 'duplicate.json',
+                (delivery, delivery),
+                self.root / "duplicate.json",
                 package_verifier=lambda candidate: package_domain.verify(candidate),
             )
         with self.assertRaises(product_domain.ProductError):
             product_domain.create_gateway_release_registry(
-                (delivery,), self.root / 'unverified.json', package_verifier=None,
+                (delivery,),
+                self.root / "unverified.json",
+                package_verifier=None,
             )
 
         verified = product_domain.verify_delivery(
@@ -741,13 +780,17 @@ class ProductDeliveryTest(unittest.TestCase):
             package_verifier=lambda candidate: package_domain.verify(candidate),
         )
         oversized = dict(verified)
-        oversized['firmware_release'] = dict(verified['firmware_release'])
-        oversized['firmware_release']['package_size_bytes'] = \
+        oversized["firmware_release"] = dict(verified["firmware_release"])
+        oversized["firmware_release"]["package_size_bytes"] = (
             product_domain.MAX_GATEWAY_PACKAGE_SIZE + 1
-        with mock.patch.object(product_domain, 'verify_delivery', return_value=oversized):
+        )
+        with mock.patch.object(
+            product_domain, "verify_delivery", return_value=oversized
+        ):
             with self.assertRaises(product_domain.ProductError):
                 product_domain.create_gateway_release_registry(
-                    (delivery,), self.root / 'oversized.json',
+                    (delivery,),
+                    self.root / "oversized.json",
                     package_verifier=lambda candidate: package_domain.verify(candidate),
                 )
 
@@ -760,9 +803,7 @@ class ProductDeliveryTest(unittest.TestCase):
         (output / "owner.txt").write_text("existing\n", encoding="utf-8")
 
         with self.assertRaises(package_domain.PackageError):
-            package_domain.publish_directory_no_replace(
-                staging, output, "test release"
-            )
+            package_domain.publish_directory_no_replace(staging, output, "test release")
 
         self.assertEqual(
             (output / "owner.txt").read_text(encoding="utf-8"),
@@ -811,9 +852,7 @@ class ProductDeliveryTest(unittest.TestCase):
             with self.subTest(board=board):
                 preset = build_domain.board_preset(REPOSITORY, board)
                 layout = layout_domain.load(preset.partition)
-                policy = product_domain.load_policy(
-                    preset.release_policy, layout
-                )
+                policy = product_domain.load_policy(preset.release_policy, layout)
                 self.assertEqual(
                     set(policy.by_partition),
                     {row.name for row in layout.partitions},
@@ -825,21 +864,21 @@ class ProductDeliveryTest(unittest.TestCase):
         board = "future_board"
         version = "v-test"
         for role in ("cp", "ap"):
-            (repository / "boards/bk7258" / board / "configs" /
-             f"openvela_{role}").mkdir(parents=True)
-        (repository / "chips/bk7258/bk_idk/sdk-profiles" / version).mkdir(
-            parents=True
-        )
+            (
+                repository / "boards/bk7258" / board / "configs" / f"openvela_{role}"
+            ).mkdir(parents=True)
+        (repository / "chips/bk7258/bk_idk/sdk-profiles" / version).mkdir(parents=True)
         (repository / f"{repository.name}.xml").write_text(
-            "<manifest><project path=\"sdk\" name=\"sdk\" "
-            "groups=\"bk7258-sdk\" revision=\"" + "0" * 40 + "\" "
-            "upstream=\"refs/tags/" + version + "\"/></manifest>\n",
+            '<manifest><project path="sdk" name="sdk" '
+            'groups="bk7258-sdk" revision="' + "0" * 40 + '" '
+            'upstream="refs/tags/' + version + '"/></manifest>\n',
             encoding="utf-8",
         )
         profile_hash = "0" * 64
         for role in ("cp", "ap"):
-            config = repository / "boards/bk7258" / board / "configs" / \
-                f"openvela_{role}"
+            config = (
+                repository / "boards/bk7258" / board / "configs" / f"openvela_{role}"
+            )
             (config / "defconfig").write_text(
                 "CONFIG_ARCH_CHIP_BK7258=y\n", encoding="utf-8"
             )
@@ -852,8 +891,12 @@ class ProductDeliveryTest(unittest.TestCase):
                 f"BK7258_PROFILE_SDK={role}\n",
                 encoding="utf-8",
             )
-            (repository / "chips/bk7258/bk_idk/sdk-profiles" / version /
-             f"{role}.config").write_text(
+            (
+                repository
+                / "chips/bk7258/bk_idk/sdk-profiles"
+                / version
+                / f"{role}.config"
+            ).write_text(
                 f"# BK7258_BUNDLE_TREE_SHA256={profile_hash}\n",
                 encoding="utf-8",
             )
@@ -927,9 +970,8 @@ class ProductDeliveryTest(unittest.TestCase):
         cp = image_domain.crc_encode(b"C" * 32)
         ap = image_domain.crc_encode(b"A" * 32)
         boot = image_domain.crc_encode(b"B" * 32)
-        pair = (
-            cp.ljust(layout.artifact("cp").size, b"\xff")
-            + ap.ljust(layout.artifact("ap").size, b"\xff")
+        pair = cp.ljust(layout.artifact("cp").size, b"\xff") + ap.ljust(
+            layout.artifact("ap").size, b"\xff"
         )
         images = image_domain.finalized(
             layout,
@@ -939,16 +981,14 @@ class ProductDeliveryTest(unittest.TestCase):
         package = self.root / "aidk.bkpack"
         package_domain.create(
             image_set=images,
-            member_names={
-                name: f"{name}.bin" for name in ("boot", "cp", "ap", "pair")
-            },
+            member_names={name: f"{name}.bin" for name in ("boot", "cp", "ap", "pair")},
             sdk_evidence={},
             trust_evidence={"mode": "unsigned"},
             physical_board="aidk_ai_toy",
             output=package,
         )
         base = self.root / "aidk-base.bin"
-        base.write_bytes(bytes([0x5a]) * layout.flash_size)
+        base.write_bytes(bytes([0x5A]) * layout.flash_size)
         evidence_path = self.root / "aidk-accepted-base.json"
         product_domain.create_base_evidence(
             physical_board="aidk_ai_toy",

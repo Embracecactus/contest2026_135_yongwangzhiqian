@@ -49,13 +49,13 @@ static int read_receipt(const uint8_t tx[16])
 #define server pair.tls
 
 static int trial_begin(void *context, const uint8_t *data, size_t size)
-{ (void)context; assert(size==6 && data[0]==1 && data[5]==6); return 0; }
+{ (void)context; assert(size == 6 && data[0] == 1 && data[5] == 6); return 0; }
 static int trial_poll(void *context) { (void)context; return network_verified ? 1 : 0; }
 static int trial_commit(void *context, const uint8_t tx[16], const uint8_t *data, size_t size)
-{ (void)context; pair_commits++; return bkprov_store_commit(&pair_store,0,tx,data,size); }
+{ (void)context; pair_commits++; return bkprov_store_commit(&pair_store, 0, tx, data, size); }
 static void trial_abort(void *context) { (void)context; }
 static const struct bkprov_claim_ops_s pair_ops =
-{trial_begin,trial_poll,trial_commit,trial_abort};
+{trial_begin, trial_poll, trial_commit, trial_abort};
 
 static uint64_t clock_ms(void *unused) { (void)unused; return now; }
 uint32_t bkprov_gatt_generation(void) { return generation; }
@@ -111,29 +111,29 @@ static void assert_wiped(struct bkprov_tls_s *tls)
 static void receive_status(struct bkprov_pair_s *pair, mbedtls_ssl_context *client,
                            unsigned int state)
 {
-  uint8_t response[40]; size_t size=0;
-  for(int i=0;i<200 && size<sizeof(response);i++)
+  uint8_t response[40]; size_t size = 0;
+  for (int i = 0;i<200 && size<sizeof(response);i++)
     {
-      assert(bkprov_pair_step(pair)==0);
-      int ret=mbedtls_ssl_read(client,response+size,sizeof(response)-size);
-      assert(ret>0 || ret==MBEDTLS_ERR_SSL_WANT_READ);
-      if(ret>0) size+=ret;
-      now+=10;
+      assert(bkprov_pair_step(pair) == 0);
+      int ret = mbedtls_ssl_read(client, response+size, sizeof(response)-size);
+      assert(ret>0 || ret == MBEDTLS_ERR_SSL_WANT_READ);
+      if (ret>0) size += ret;
+      now += 10;
     }
-  assert(size==40 && !memcmp(response,"SPV1",4) && response[4]==128);
-  assert(response[32]==0 && response[33]==0 && response[34]==0 && response[35]==state);
-  assert(response[36]==0 && response[37]==0 && response[38]==0 && response[39]==0);
+  assert(size == 40 && !memcmp(response, "SPV1", 4) && response[4] == 128);
+  assert(response[32] == 0 && response[33] == 0 && response[34] == 0 && response[35] == state);
+  assert(response[36] == 0 && response[37] == 0 && response[38] == 0 && response[39] == 0);
 }
 
 static void request(mbedtls_ssl_context *client, unsigned int type,
                      unsigned int sequence, const uint8_t *data, size_t size)
 {
-  uint8_t frame[1056]={'S','P','V','1'};
-  assert(size<=1024 && sequence<256);
-  frame[4]=type; frame[11]=sequence; frame[12]=7;
-  frame[30]=size>>8; frame[31]=size;
-  if(size) memcpy(frame+32,data,size);
-  assert(mbedtls_ssl_write(client,frame,32+size)==(int)(32+size));
+  uint8_t frame[1056]={'S', 'P', 'V', '1'};
+  assert(size <= 1024 && sequence<256);
+  frame[4] = type; frame[11] = sequence; frame[12] = 7;
+  frame[30] = size>>8; frame[31] = size;
+  if (size) memcpy(frame+32, data, size);
+  assert(mbedtls_ssl_write(client, frame, 32+size) == (int)(32+size));
 }
 
 static void receive_scan(struct bkprov_pair_s *pair, mbedtls_ssl_context *client)
@@ -214,8 +214,8 @@ static void control_encrypted_tests(mbedtls_ssl_context *client,
                                     mbedtls_x509_crt *cert, mbedtls_pk_context *key)
 {
   struct bkcontrol_pair_s control = {0};
-  uint8_t auth[48] = {'S','D','C','1',0,0,0,1,0,0,0,0,0,0,0,32,42};
-  uint8_t volume[20] = {'S','D','C','1',0,0,0,4,0,0,0,1,0,0,0,4,0,0,0,73};
+  uint8_t auth[48] = {'S', 'D', 'C', '1', 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 32, 42};
+  uint8_t volume[20] = {'S', 'D', 'C', '1', 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 73};
   control_handshake(&control, client, cert, key);
   /* Split the plaintext header and key across independent TLS records. */
   for (size_t i = 0; i < sizeof(auth); i++)
@@ -318,7 +318,7 @@ int main(int argc, char **argv)
   size_t count;
   int ret;
   bool client_ready = false;
-  assert(argc == 4 && bkprov_store_open(&pair_store,argv[3]) == 0);
+  assert(argc == 4 && bkprov_store_open(&pair_store, argv[3]) == 0);
   mbedtls_ssl_init(&client); mbedtls_ssl_config_init(&config);
   mbedtls_x509_crt_init(&cert); mbedtls_pk_init(&key);
   mbedtls_ctr_drbg_init(&random); mbedtls_entropy_init(&entropy);
@@ -402,8 +402,8 @@ int main(int argc, char **argv)
   inbound.size = outbound.size = 0;
   assert(mbedtls_ssl_session_reset(&client) == 0);
   const uint8_t proof[32]={42};
-  assert(bkprov_pair_start(&pair,generation,&cert,&key,proof,true,false,
-                           clock_ms,NULL,&pair_ops,NULL)==0);
+  assert(bkprov_pair_start(&pair, generation, &cert, &key, proof, true, false,
+                           clock_ms, NULL, &pair_ops, NULL) == 0);
   client_ready = false;
   for (int i = 0; i < 2500 && (!client_ready || !server.established); i++)
     {
@@ -418,11 +418,11 @@ int main(int argc, char **argv)
       now += 10;
     }
   assert(client_ready && server.established);
-  request(&client,1,0,proof,32); receive_status(&pair,&client,BKPROV_LOCAL);
-  assert(pair_commits==0);
-  assert(bkprov_pair_confirm(&pair,generation)==0);
-  receive_status(&pair,&client,BKPROV_READY);
-  const uint8_t total[4]={0,0,0,6}, chunk[10]={0,0,0,0,1,2,3,4,5,6};
+  request(&client, 1, 0, proof, 32); receive_status(&pair, &client, BKPROV_LOCAL);
+  assert(pair_commits == 0);
+  assert(bkprov_pair_confirm(&pair, generation) == 0);
+  receive_status(&pair, &client, BKPROV_READY);
+  const uint8_t total[4]={0, 0, 0, 6}, chunk[10]={0, 0, 0, 0, 1, 2, 3, 4, 5, 6};
   /* Authenticated, unclaimed READY can start one read-only scan. Empty SSIDs
    * are suppressed, and result truncation records the source/sanitizer loss. */
   memset(&scan_snapshot, 0, sizeof(scan_snapshot));
@@ -430,8 +430,8 @@ int main(int argc, char **argv)
   scan_snapshot.aps[0].rssi = -44; scan_snapshot.aps[0].channel = 6;
   scan_snapshot.aps[0].security = 8; memcpy(scan_snapshot.aps[0].ssid, "test", 4);
   scan_ready = true;
-  request(&client,6,1,NULL,0); receive_scan(&pair,&client);
-  request(&client,2,1,total,4);
+  request(&client, 6, 1, NULL, 0); receive_scan(&pair, &client);
+  request(&client, 2, 1, total, 4);
   for (int i = 0; i < 200; i++)
     { ret = bkprov_pair_step(&pair); now += 10; if (ret < 0) break; }
   assert(ret == -EPROTO && !pair.tls.initialized);
@@ -460,8 +460,8 @@ int main(int argc, char **argv)
   generation++;
   inbound.size = outbound.size = 0;
   assert(mbedtls_ssl_session_reset(&client) == 0);
-  assert(bkprov_pair_start(&pair,generation,&cert,&key,proof,true,false,
-                           clock_ms,NULL,&pair_ops,NULL)==0);
+  assert(bkprov_pair_start(&pair, generation, &cert, &key, proof, true, false,
+                           clock_ms, NULL, &pair_ops, NULL) == 0);
   client_ready = false;
   for (int i = 0; i < 2500 && (!client_ready || !server.established); i++)
     {
@@ -472,20 +472,20 @@ int main(int argc, char **argv)
       now += 10;
     }
   assert(client_ready && server.established);
-  request(&client,1,0,proof,32); receive_status(&pair,&client,BKPROV_LOCAL);
-  assert(bkprov_pair_confirm(&pair,generation)==0);
-  receive_status(&pair,&client,BKPROV_READY);
-  request(&client,2,1,total,4); receive_status(&pair,&client,BKPROV_RECEIVING);
-  request(&client,3,2,chunk,10); receive_status(&pair,&client,BKPROV_RECEIVING);
-  request(&client,4,3,NULL,0); receive_status(&pair,&client,BKPROV_CHECKING);
-  assert(pair_commits==0);
-  network_verified=true; receive_status(&pair,&client,BKPROV_COMMITTED);
-  assert(pair_commits==1);
+  request(&client, 1, 0, proof, 32); receive_status(&pair, &client, BKPROV_LOCAL);
+  assert(bkprov_pair_confirm(&pair, generation) == 0);
+  receive_status(&pair, &client, BKPROV_READY);
+  request(&client, 2, 1, total, 4); receive_status(&pair, &client, BKPROV_RECEIVING);
+  request(&client, 3, 2, chunk, 10); receive_status(&pair, &client, BKPROV_RECEIVING);
+  request(&client, 4, 3, NULL, 0); receive_status(&pair, &client, BKPROV_CHECKING);
+  assert(pair_commits == 0);
+  network_verified = true; receive_status(&pair, &client, BKPROV_COMMITTED);
+  assert(pair_commits == 1);
   uint8_t selected[6], receipt[16]; size_t selected_size; uint64_t selected_revision;
-  assert(bkprov_store_load(&pair_store,selected,sizeof(selected),&selected_size,
-                           &selected_revision,receipt)==0);
-  assert(selected_size==6 && selected_revision==1 && receipt[0]==7);
-  assert(!memcmp(selected,chunk+4,6));
+  assert(bkprov_store_load(&pair_store, selected, sizeof(selected), &selected_size,
+                           &selected_revision, receipt) == 0);
+  assert(selected_size == 6 && selected_revision == 1 && receipt[0] == 7);
+  assert(!memcmp(selected, chunk+4, 6));
   memcpy(saved_transaction, receipt, 16);
   for (int attempt = 0; attempt < 2; attempt++)
     {
@@ -493,8 +493,8 @@ int main(int argc, char **argv)
       generation++;
       inbound.size = outbound.size = 0;
       assert(mbedtls_ssl_session_reset(&client) == 0);
-      assert(bkprov_pair_start_recovery(&pair,generation,&cert,&key,proof,true,
-                                        clock_ms,NULL,read_receipt)==0);
+      assert(bkprov_pair_start_recovery(&pair, generation, &cert, &key, proof, true,
+                                        clock_ms, NULL, read_receipt) == 0);
       client_ready = false;
       for (int i = 0; i < 2500 && (!client_ready || !server.established); i++)
         {
@@ -509,12 +509,12 @@ int main(int argc, char **argv)
           now += 10;
         }
       assert(client_ready && server.established);
-      request(&client,1,0,proof,32); receive_status(&pair,&client,BKPROV_LOCAL);
-      assert(bkprov_pair_confirm(&pair,generation)==0);
-      receive_status(&pair,&client,BKPROV_READY);
+      request(&client, 1, 0, proof, 32); receive_status(&pair, &client, BKPROV_LOCAL);
+      assert(bkprov_pair_confirm(&pair, generation) == 0);
+      receive_status(&pair, &client, BKPROV_READY);
       if (attempt == 0)
         {
-          request(&client,6,1,NULL,0);
+          request(&client, 6, 1, NULL, 0);
           int failed = 0;
           for (int i = 0; i < 200 && !failed; i++)
             { failed = bkprov_pair_step(&pair); now += 10; }
@@ -522,8 +522,8 @@ int main(int argc, char **argv)
         }
       else
         {
-          request(&client,5,1,NULL,0);
-          receive_status(&pair,&client,BKPROV_COMMITTED);
+          request(&client, 5, 1, NULL, 0);
+          receive_status(&pair, &client, BKPROV_COMMITTED);
         }
       assert(pair_commits == 1); /* Recovery never writes configuration. */
     }

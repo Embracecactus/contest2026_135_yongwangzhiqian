@@ -1678,7 +1678,9 @@ bk_err_t rtos_lock_mutex_timeout(beken_mutex_t *mtx, uint32_t timeout_ms)
   int ret;
   mutex_t *mutex = (mutex_t *)*mtx;
 
-  /* SDK 传入相对毫秒数；无限等待和零等待不转换为绝对截止时间。 */
+  /* The SDK passes a relative millisecond count; infinite and zero waits
+   * are not converted to an absolute deadline.
+   */
   if (timeout_ms == BEKEN_WAIT_FOREVER)
     {
       ret = nxmutex_lock(mutex);
@@ -3537,8 +3539,9 @@ static bool bk7258_sdk_log_allowed(const char *fmt)
 
 int bk_printf_init(void)
 {
-  /* 日志已由 NuttX 启动流程初始化，下面的 SDK 输出入口直接使用 syslog。
-   * 不再启动 FreeRTOS printf 锁或重新配置已由 NuttX 占用的控制台 UART。
+  /* Logging is already initialized by the NuttX startup path, so the SDK
+   * output entry points below use syslog directly.  The FreeRTOS printf lock
+   * is not started and the console UART owned by NuttX is not reconfigured.
    */
 
   return OK;

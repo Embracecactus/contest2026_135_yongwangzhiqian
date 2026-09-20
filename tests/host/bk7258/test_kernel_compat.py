@@ -41,7 +41,9 @@ class KernelCompatTest(unittest.TestCase):
             path = self.nuttx / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(name + "\n", encoding="utf-8")
-            rows.append({"path": name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+            rows.append(
+                {"path": name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+            )
             provenance = self.provenance / name
             provenance.parent.mkdir(parents=True, exist_ok=True)
             provenance.write_bytes(path.read_bytes())
@@ -50,8 +52,11 @@ class KernelCompatTest(unittest.TestCase):
             "nuttx": {"commit": "a" * 40, "provenance": "host fixture"},
             "source_files": rows,
             "wrappers": {
-                name: {"disposition": "C", "physical_validation": "pending",
-                       "roles": list(roles)}
+                name: {
+                    "disposition": "C",
+                    "physical_validation": "pending",
+                    "roles": list(roles),
+                }
                 for name, roles in kernel_compat.WRAPPERS.items()
             },
         }
@@ -63,7 +68,9 @@ class KernelCompatTest(unittest.TestCase):
         completed = mock.Mock(stdout="a" * 40 + "\n")
         with mock.patch.object(kernel_compat.subprocess, "run", return_value=completed):
             return kernel_compat.verify_sources(
-                self.repository, self.nuttx, provenance_root=self.provenance,
+                self.repository,
+                self.nuttx,
+                provenance_root=self.provenance,
             )
 
     def _config(self, content: str) -> Path:
@@ -90,17 +97,23 @@ class KernelCompatTest(unittest.TestCase):
     def test_copied_source_and_provenance_drift_fail_without_auto_update(self) -> None:
         changed = self.nuttx / next(iter(kernel_compat.FILES))
         changed.write_text("changed\n", encoding="utf-8")
-        with self.assertRaisesRegex(kernel_compat.KernelCompatError, "workspace build source"):
+        with self.assertRaisesRegex(
+            kernel_compat.KernelCompatError, "workspace build source"
+        ):
             self._verify_sources()
         self._write_contract()
         missing = self.nuttx / next(iter(kernel_compat.FILES))
         missing.unlink()
-        with self.assertRaisesRegex(kernel_compat.KernelCompatError, "missing workspace build source"):
+        with self.assertRaisesRegex(
+            kernel_compat.KernelCompatError, "missing workspace build source"
+        ):
             self._verify_sources()
         self._write_contract()
         changed = self.provenance / next(iter(kernel_compat.FILES))
         changed.write_text("changed provenance\n", encoding="utf-8")
-        with self.assertRaisesRegex(kernel_compat.KernelCompatError, "canonical provenance source"):
+        with self.assertRaisesRegex(
+            kernel_compat.KernelCompatError, "canonical provenance source"
+        ):
             self._verify_sources()
 
     def test_contract_path_traversal_is_rejected(self) -> None:
@@ -108,20 +121,27 @@ class KernelCompatTest(unittest.TestCase):
         document = json.loads(path.read_text(encoding="utf-8"))
         document["source_files"][0]["path"] = "../outside.c"
         path.write_text(json.dumps(document), encoding="utf-8")
-        with self.assertRaisesRegex(kernel_compat.KernelCompatError, "unsafe|reviewed set"):
+        with self.assertRaisesRegex(
+            kernel_compat.KernelCompatError, "unsafe|reviewed set"
+        ):
             kernel_compat.load(self.repository)
 
     def test_compat_only_ap_requires_no_lto_without_trace_or_smp(self) -> None:
-        base = ("CONFIG_BUILD_FLAT=y\nCONFIG_ARCH_ARMV8M=y\n"
-                "CONFIG_ARCH_CHIP_BK7258=y\nCONFIG_LTO_NONE=y\n")
-        for symbol in ("CONFIG_BK7258_BT_CONN_RX_REF_COMPAT",
-                       "CONFIG_BK7258_BT_ATT_MTU_COMPAT"):
+        base = (
+            "CONFIG_BUILD_FLAT=y\nCONFIG_ARCH_ARMV8M=y\n"
+            "CONFIG_ARCH_CHIP_BK7258=y\nCONFIG_LTO_NONE=y\n"
+        )
+        for symbol in (
+            "CONFIG_BK7258_BT_CONN_RX_REF_COMPAT",
+            "CONFIG_BK7258_BT_ATT_MTU_COMPAT",
+        ):
             with self.subTest(symbol=symbol):
                 config = base + symbol + "=y\n"
                 kernel_compat.verify_role_config("ap", self._config(config))
                 with self.assertRaises(kernel_compat.KernelCompatError):
                     kernel_compat.verify_role_config(
-                        "ap", self._config(config + "CONFIG_LTO_FULL=y\n"))
+                        "ap", self._config(config + "CONFIG_LTO_FULL=y\n")
+                    )
 
     def test_lto_is_rejected_but_nonwrapper_ap_diagnostic_is_allowed(self) -> None:
         lto = self._config(

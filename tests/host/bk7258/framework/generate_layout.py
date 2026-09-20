@@ -10,8 +10,10 @@ from pathlib import Path
 
 def main() -> int:
     if len(sys.argv) != 4:
-        print("usage: generate_layout.py TOOLS_ROOT PARTITION_CSV OUTPUT_DIR",
-              file=sys.stderr)
+        print(
+            "usage: generate_layout.py TOOLS_ROOT PARTITION_CSV OUTPUT_DIR",
+            file=sys.stderr,
+        )
         return 2
 
     tools_root = Path(sys.argv[1]).resolve()

@@ -1605,23 +1605,23 @@ static int bk7258_wifi_submit_connect(const char *ssid, const char *password,
     { ret = -EBUSY; goto out; }
   if (priv->local_ticket == UINT32_MAX)
     { ret = -EOVERFLOW; goto out; }
-  if (!__atomic_compare_exchange_n(&priv->busy,&expected,true,false,
-                                    __ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE))
+  if (!__atomic_compare_exchange_n(&priv->busy, &expected, true, false,
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
     { ret = -EBUSY; goto out; }
-  memset(&priv->request,0,sizeof(priv->request));
+  memset(&priv->request, 0, sizeof(priv->request));
   priv->request.operation = trial ? BK7258_WIFI_TRIAL_CONNECT : BK7258_WIFI_OPERATION_CONNECT;
   priv->request.timeout_ms = timeout_ms;
   priv->request.ssid_len = ssid_size;
   priv->request.password_len = password_size;
-  memcpy(priv->request.ssid,ssid,ssid_size);
-  memcpy(priv->request.password,password,password_size);
+  memcpy(priv->request.ssid, ssid, ssid_size);
+  memcpy(priv->request.password, password, password_size);
   priv->request_local = true;
   priv->local_scan = false;
   priv->local_channels = false;
   priv->local_ping = false;
   priv->local_pending = true;
   priv->local_done = false;
-  __atomic_store_n(&priv->local_cancel,false,__ATOMIC_RELEASE);
+  __atomic_store_n(&priv->local_cancel, false, __ATOMIC_RELEASE);
   *ticket = ++priv->local_ticket;
   if (trial)
     {
@@ -1635,10 +1635,10 @@ static int bk7258_wifi_submit_connect(const char *ssid, const char *password,
   ret = nxsem_post(&priv->request_sem);
   if (ret < 0)
     {
-      explicit_bzero(&priv->request,sizeof(priv->request));
+      explicit_bzero(&priv->request, sizeof(priv->request));
       priv->local_pending = false;
       if (trial) priv->trial_active = false;
-      __atomic_store_n(&priv->busy,false,__ATOMIC_RELEASE);
+      __atomic_store_n(&priv->busy, false, __ATOMIC_RELEASE);
     }
 out:
   nxmutex_unlock(&g_bk7258_wifi_local_lock);
@@ -1909,7 +1909,7 @@ int bk7258_wifi_connect_poll(uint32_t ticket,
   else
     {
       *result = priv->local_result;
-      memset(&priv->local_result,0,sizeof(priv->local_result));
+      memset(&priv->local_result, 0, sizeof(priv->local_result));
       priv->local_pending = false;
       priv->local_done = false;
       ret = 0;
@@ -1928,7 +1928,7 @@ int bk7258_wifi_connect_cancel(uint32_t ticket)
   else if (priv->local_done) ret = -EALREADY;
   else
     {
-      __atomic_store_n(&priv->local_cancel,true,__ATOMIC_RELEASE);
+      __atomic_store_n(&priv->local_cancel, true, __ATOMIC_RELEASE);
       ret = 0;
     }
   nxmutex_unlock(&g_bk7258_wifi_local_lock);
@@ -1938,7 +1938,7 @@ int bk7258_wifi_connect_cancel(uint32_t ticket)
 static bool bk7258_wifi_local_cancelled(void)
 {
   return g_bk7258_wifi_control.request_local &&
-         __atomic_load_n(&g_bk7258_wifi_control.local_cancel,__ATOMIC_ACQUIRE);
+         __atomic_load_n(&g_bk7258_wifi_control.local_cancel, __ATOMIC_ACQUIRE);
 }
 
 static int bk7258_wifi_connect(

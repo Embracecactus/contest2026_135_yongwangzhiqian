@@ -22,9 +22,11 @@ from pathlib import Path
 from typing import Any
 
 
-EXPECTED = {("aidk_ai_toy", role) for role in ("ap", "cp")} | \
-           {("t5_board", role) for role in ("ap", "cp")} | \
-           {("t5ai_core", role) for role in ("ap", "cp")}
+EXPECTED = (
+    {("aidk_ai_toy", role) for role in ("ap", "cp")}
+    | {("t5_board", role) for role in ("ap", "cp")}
+    | {("t5ai_core", role) for role in ("ap", "cp")}
+)
 FUNCTION = re.compile(r"^\s*([0-9a-fA-F]+) <([^>]+)>:$")
 DIRECT_BRANCH = re.compile(
     r"^\s*([0-9a-fA-F]+):\s+(?:[0-9a-fA-F]{2,8}\s+)+"
@@ -36,13 +38,19 @@ INDIRECT_BRANCH = re.compile(
 )
 NM = re.compile(r"^([0-9a-fA-F]+)\s+(?:[0-9a-fA-F]+\s+)?([A-Za-z])\s+(.+)$")
 OBJECT_BASENAMES = (
-    "arm_exception.S.o", "arm_doirq.c.o", "sched_switchcontext.c.o",
-    "nx_start.c.o", "nx_bringup.c.o", "bk7258_vectors.c.o",
-    "bk7258_ap_vectors.c.o", "bk7258_ap_smp.c.o",
+    "arm_exception.S.o",
+    "arm_doirq.c.o",
+    "sched_switchcontext.c.o",
+    "nx_start.c.o",
+    "nx_bringup.c.o",
+    "bk7258_vectors.c.o",
+    "bk7258_ap_vectors.c.o",
+    "bk7258_ap_smp.c.o",
 )
 RELOCATION_TARGET = re.compile(
     r"(?:exception_common|arm_doirq|nxsched_resume_scheduler|nx_bringup|"
-    r"__real_|__wrap_)", re.IGNORECASE,
+    r"__real_|__wrap_)",
+    re.IGNORECASE,
 )
 
 
@@ -68,8 +76,9 @@ def _text_hash(value: str) -> str:
 
 
 def _run(command: list[str]) -> str:
-    result = subprocess.run(command, text=True, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, check=False)
+    result = subprocess.run(
+        command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False
+    )
     if result.returncode:
         raise RuntimeError(f"{' '.join(command)} failed: {result.stderr.strip()}")
     return result.stdout
@@ -82,7 +91,9 @@ def _tool(prefix: str, name: str) -> str:
     return candidate
 
 
-def parse_branches(disassembly: str) -> tuple[dict[str, str], list[Branch], dict[str, list[str]]]:
+def parse_branches(
+    disassembly: str,
+) -> tuple[dict[str, str], list[Branch], dict[str, list[str]]]:
     """Parse objdump's Thumb ``bl`` and ``b.w`` forms without symbol-only proof."""
 
     symbols: dict[str, str] = {}
@@ -97,8 +108,15 @@ def parse_branches(disassembly: str) -> tuple[dict[str, str], list[Branch], dict
             continue
         direct = DIRECT_BRANCH.match(line)
         if direct and caller:
-            branches.append(Branch(caller, direct.group(1).lower(), direct.group(2),
-                                   direct.group(3).lower(), direct.group(4)))
+            branches.append(
+                Branch(
+                    caller,
+                    direct.group(1).lower(),
+                    direct.group(2),
+                    direct.group(3).lower(),
+                    direct.group(4),
+                )
+            )
         elif caller and INDIRECT_BRANCH.search(line):
             indirect.setdefault(caller, []).append(line.strip())
     return symbols, branches, indirect
@@ -121,8 +139,12 @@ def _same_address(left: str | None, right: str | None) -> bool:
     return left is not None and right is not None and int(left, 16) == int(right, 16)
 
 
-def _check_chain(role: str, branches: list[Branch], definitions: dict[str, str],
-                 parsed: dict[str, str]) -> tuple[list[str], dict[str, Any]]:
+def _check_chain(
+    role: str,
+    branches: list[Branch],
+    definitions: dict[str, str],
+    parsed: dict[str, str],
+) -> tuple[list[str], dict[str, Any]]:
     expected = [
         ("exception_common", "__wrap_arm_doirq"),
         ("__wrap_arm_doirq", "arm_doirq"),
@@ -130,23 +152,34 @@ def _check_chain(role: str, branches: list[Branch], definitions: dict[str, str],
         ("__wrap_nxsched_resume_scheduler", "nxsched_resume_scheduler"),
     ]
     if role == "ap":
-        expected += [("nx_start", "__wrap_nx_bringup"),
-                     ("__wrap_nx_bringup", "nx_bringup")]
+        expected += [
+            ("nx_start", "__wrap_nx_bringup"),
+            ("__wrap_nx_bringup", "nx_bringup"),
+        ]
     else:
         expected.append(("nx_start", "nx_bringup"))
     errors: list[str] = []
     chain: list[dict[str, Any]] = []
     for caller, target in expected:
-        rows = [row for row in branches if row.caller == caller and row.target == target]
-        item: dict[str, Any] = {"caller": caller, "target": target,
-                                "branches": [row.__dict__ for row in rows]}
+        rows = [
+            row for row in branches if row.caller == caller and row.target == target
+        ]
+        item: dict[str, Any] = {
+            "caller": caller,
+            "target": target,
+            "branches": [row.__dict__ for row in rows],
+        }
         if not rows:
             errors.append(f"missing direct branch {caller}->{target}")
         elif len(rows) != 1:
-            errors.append(f"expected one direct call {caller}->{target}, got {len(rows)}")
+            errors.append(
+                f"expected one direct call {caller}->{target}, got {len(rows)}"
+            )
         elif not _same_address(definitions.get(target), rows[0].target_address):
-            errors.append(f"branch target mismatch {caller}->{target}: "
-                          f"{rows[0].target_address}!={definitions.get(target)}")
+            errors.append(
+                f"branch target mismatch {caller}->{target}: "
+                f"{rows[0].target_address}!={definitions.get(target)}"
+            )
         item["definition"] = definitions.get(target)
         item["parsed_definition"] = parsed.get(target)
         chain.append(item)
@@ -162,8 +195,13 @@ def _check_chain(role: str, branches: list[Branch], definitions: dict[str, str],
             bypasses.append(row.__dict__)
             errors.append(f"direct bypass {row.caller}->{row.target}")
         if row.caller == row.target and row.caller in {
-                "exception_common", "__wrap_arm_doirq", "arm_doirq",
-                "__wrap_nxsched_resume_scheduler", "nx_start", "__wrap_nx_bringup"}:
+            "exception_common",
+            "__wrap_arm_doirq",
+            "arm_doirq",
+            "__wrap_nxsched_resume_scheduler",
+            "nx_start",
+            "__wrap_nx_bringup",
+        }:
             errors.append(f"direct recursion {row.caller}->{row.target}")
     if role == "cp" and "__wrap_nx_bringup" in definitions:
         errors.append("CP unexpectedly defines __wrap_nx_bringup")
@@ -185,10 +223,17 @@ def _metadata_checks(snapshot: Path) -> tuple[list[str], dict[str, Any]]:
         errors.append(f"unexpected LTO compiler flags: {', '.join(lto_flags)}")
     optimizations = sorted(set(re.findall(r"-O(?:[0-3]|s|g|fast)\b", ninja_text)))
     if optimizations != ["-Os"]:
-        errors.append(f"unexpected optimization flags: {', '.join(optimizations) or 'none'}")
-    return errors, {"config": str(config), "build_ninja": str(ninja),
-                    "lto_flags": lto_flags, "optimizations": optimizations,
-                    "config_sha256": _sha256(config), "build_ninja_sha256": _sha256(ninja)}
+        errors.append(
+            f"unexpected optimization flags: {', '.join(optimizations) or 'none'}"
+        )
+    return errors, {
+        "config": str(config),
+        "build_ninja": str(ninja),
+        "lto_flags": lto_flags,
+        "optimizations": optimizations,
+        "config_sha256": _sha256(config),
+        "build_ninja_sha256": _sha256(ninja),
+    }
 
 
 def _entry(record: dict[str, Any], source: str) -> tuple[Path, Path]:
@@ -198,17 +243,23 @@ def _entry(record: dict[str, Any], source: str) -> tuple[Path, Path]:
     return Path(record["elf"]), Path(record["elf"]).parent
 
 
-def _object_relocations(root: Path, destination: Path, readelf: str,
-                        source: str) -> dict[str, Any]:
+def _object_relocations(
+    root: Path, destination: Path, readelf: str, source: str
+) -> dict[str, Any]:
     """Preserve current-role object relocation evidence without choosing another build."""
 
     limitation = (
         "not collected from preserved snapshots; object files were not saved"
-        if source == "snapshot" else None
+        if source == "snapshot"
+        else None
     )
     if limitation is not None:
-        return {"status": "not-saved", "limitation": limitation, "objects": [],
-                "missing_basenames": list(OBJECT_BASENAMES)}
+        return {
+            "status": "not-saved",
+            "limitation": limitation,
+            "objects": [],
+            "missing_basenames": list(OBJECT_BASENAMES),
+        }
     object_dir = destination / "objects"
     object_dir.mkdir(exist_ok=True)
     rows: list[dict[str, Any]] = []
@@ -226,27 +277,42 @@ def _object_relocations(root: Path, destination: Path, readelf: str,
             relocations = _run([readelf, "-rW", str(path)])
             relocation_file = object_dir / f"{index:02d}-{basename}.relocations.txt"
             relocation_file.write_text(relocations, encoding="utf-8")
-            relevant = [line for line in relocations.splitlines()
-                        if RELOCATION_TARGET.search(line)]
-            rows.append({"basename": basename, "path": str(path),
-                         "sha256": _sha256(path), "copied": str(copied),
-                         "relocations": str(relocation_file),
-                         "relocations_sha256": _text_hash(relocations),
-                         "relevant_relocations": relevant})
-    return {"status": "collected", "objects": rows,
-            "missing_basenames": missing}
+            relevant = [
+                line
+                for line in relocations.splitlines()
+                if RELOCATION_TARGET.search(line)
+            ]
+            rows.append(
+                {
+                    "basename": basename,
+                    "path": str(path),
+                    "sha256": _sha256(path),
+                    "copied": str(copied),
+                    "relocations": str(relocation_file),
+                    "relocations_sha256": _text_hash(relocations),
+                    "relevant_relocations": relevant,
+                }
+            )
+    return {"status": "collected", "objects": rows, "missing_basenames": missing}
 
 
 def audit(baseline: Path, output: Path, prefix: str, source: str) -> dict[str, Any]:
     document = json.loads(baseline.read_text(encoding="utf-8"))
     records = document.get("artifacts")
-    if not isinstance(records, list) or {(row.get("board"), row.get("role")) for row in records} != EXPECTED:
-        raise ValueError("baseline must declare exactly the six BK7258 board/role artifacts")
+    if (
+        not isinstance(records, list)
+        or {(row.get("board"), row.get("role")) for row in records} != EXPECTED
+    ):
+        raise ValueError(
+            "baseline must declare exactly the six BK7258 board/role artifacts"
+        )
     baseline_root = baseline.parent.resolve()
     if output.resolve().is_relative_to(baseline_root):
         raise ValueError("--output must not be inside the preserved baseline directory")
     output.mkdir(parents=True, exist_ok=True)
-    objdump, nm, readelf = (_tool(prefix, name) for name in ("objdump", "nm", "readelf"))
+    objdump, nm, readelf = (
+        _tool(prefix, name) for name in ("objdump", "nm", "readelf")
+    )
     matrix: list[dict[str, Any]] = []
     failures = 0
     for record in sorted(records, key=lambda row: (row["board"], row["role"])):
@@ -268,64 +334,107 @@ def audit(baseline: Path, output: Path, prefix: str, source: str) -> dict[str, A
         (destination / "symbols.txt").write_text(symbols, encoding="utf-8")
         (destination / "relocations.txt").write_text(relocations, encoding="utf-8")
         object_evidence = _object_relocations(elf.parent, destination, readelf, source)
-        item = {"board": record["board"], "role": record["role"], "source": source,
-                "elf": str(elf), "elf_sha256": _sha256(elf), "metadata": metadata,
-                "disassembly_sha256": _text_hash(disassembly), "symbols_sha256": _text_hash(symbols),
-                "relocations_sha256": _text_hash(relocations), "branch_callers": {
-                    name: _branch_rows(branches, name) for name in
-                    ("exception_common", "__wrap_arm_doirq", "arm_doirq",
-                     "__wrap_nxsched_resume_scheduler", "nx_start", "__wrap_nx_bringup")},
-                "indirect_transfer_limitations": {
-                    name: indirect.get(name, []) for name in
-                    ("__wrap_arm_doirq", "arm_doirq", "__wrap_nxsched_resume_scheduler",
-                     "nx_start", "__wrap_nx_bringup") if indirect.get(name)},
-                "relocation_evidence": "none" if "There are no relocations" in relocations else "present",
-                "object_relocation_evidence": object_evidence,
-                "same_tu_limitations": [
-                    "this audit does not assert a sched_switchcontext same-TU bypass; "
-                    "object relocation evidence is not runtime coverage or correctness proof"
-                ],
-                "checks": chain, "errors": errors, "pass": not errors}
-        (destination / "result.json").write_text(json.dumps(item, indent=2, sort_keys=True) + "\n",
-                                                   encoding="utf-8")
+        item = {
+            "board": record["board"],
+            "role": record["role"],
+            "source": source,
+            "elf": str(elf),
+            "elf_sha256": _sha256(elf),
+            "metadata": metadata,
+            "disassembly_sha256": _text_hash(disassembly),
+            "symbols_sha256": _text_hash(symbols),
+            "relocations_sha256": _text_hash(relocations),
+            "branch_callers": {
+                name: _branch_rows(branches, name)
+                for name in (
+                    "exception_common",
+                    "__wrap_arm_doirq",
+                    "arm_doirq",
+                    "__wrap_nxsched_resume_scheduler",
+                    "nx_start",
+                    "__wrap_nx_bringup",
+                )
+            },
+            "indirect_transfer_limitations": {
+                name: indirect.get(name, [])
+                for name in (
+                    "__wrap_arm_doirq",
+                    "arm_doirq",
+                    "__wrap_nxsched_resume_scheduler",
+                    "nx_start",
+                    "__wrap_nx_bringup",
+                )
+                if indirect.get(name)
+            },
+            "relocation_evidence": (
+                "none" if "There are no relocations" in relocations else "present"
+            ),
+            "object_relocation_evidence": object_evidence,
+            "same_tu_limitations": [
+                "this audit does not assert a sched_switchcontext same-TU bypass; "
+                "object relocation evidence is not runtime coverage or correctness proof"
+            ],
+            "checks": chain,
+            "errors": errors,
+            "pass": not errors,
+        }
+        (destination / "result.json").write_text(
+            json.dumps(item, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
         matrix.append(item)
         failures += bool(errors)
-    result = {"baseline": str(baseline), "source": source, "tool_prefix": prefix,
-              "artifacts": matrix, "pass": failures == 0}
-    (output / "matrix.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n",
-                                          encoding="utf-8")
+    result = {
+        "baseline": str(baseline),
+        "source": source,
+        "tool_prefix": prefix,
+        "artifacts": matrix,
+        "pass": failures == 0,
+    }
+    (output / "matrix.json").write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return result
 
 
 class ParserTest(unittest.TestCase):
     def test_missing_duplicate_and_bypass_are_rejected(self) -> None:
-        pairs = [("exception_common", "__wrap_arm_doirq"),
-                 ("__wrap_arm_doirq", "arm_doirq"),
-                 ("arm_doirq", "__wrap_nxsched_resume_scheduler"),
-                 ("__wrap_nxsched_resume_scheduler", "nxsched_resume_scheduler"),
-                 ("nx_start", "nx_bringup")]
+        pairs = [
+            ("exception_common", "__wrap_arm_doirq"),
+            ("__wrap_arm_doirq", "arm_doirq"),
+            ("arm_doirq", "__wrap_nxsched_resume_scheduler"),
+            ("__wrap_nxsched_resume_scheduler", "nxsched_resume_scheduler"),
+            ("nx_start", "nx_bringup"),
+        ]
         names = sorted({n for pair in pairs for n in pair})
-        definitions = {name: hex(0x2000 + i * 0x100)[2:]
-                       for i, name in enumerate(names)}
-        branches = [Branch(caller, definitions[caller], "bl",
-                           definitions[target], target) for caller, target in pairs]
+        definitions = {
+            name: hex(0x2000 + i * 0x100)[2:] for i, name in enumerate(names)
+        }
+        branches = [
+            Branch(caller, definitions[caller], "bl", definitions[target], target)
+            for caller, target in pairs
+        ]
         self.assertFalse(_check_chain("cp", branches, definitions, definitions)[0])
         self.assertTrue(_check_chain("cp", branches[1:], definitions, definitions)[0])
-        self.assertTrue(_check_chain("cp", branches + [branches[0]],
-                                     definitions, definitions)[0])
+        self.assertTrue(
+            _check_chain("cp", branches + [branches[0]], definitions, definitions)[0]
+        )
         bypass = Branch("other", "9000", "bl", definitions["arm_doirq"], "arm_doirq")
-        self.assertTrue(_check_chain("cp", branches + [bypass],
-                                     definitions, definitions)[0])
+        self.assertTrue(
+            _check_chain("cp", branches + [bypass], definitions, definitions)[0]
+        )
 
     def test_thumb_bl_and_branch_w(self) -> None:
         text = """02151c30 <exception_common>:\n 2151c76: f7fe fc93 bl 21505a0 <__wrap_arm_doirq>\n021505a0 <__wrap_arm_doirq>:\n 21505da: f001 fb67 bl 2151cac <arm_doirq>\n02151cac <arm_doirq>:\n 2151cf0: f000 b812 b.w 2150500 <__wrap_nxsched_resume_scheduler>\n"""
         symbols, branches, indirect = parse_branches(text)
         self.assertEqual(symbols["exception_common"], "02151c30")
-        self.assertEqual([(row.caller, row.target, row.target_address) for row in branches], [
-            ("exception_common", "__wrap_arm_doirq", "21505a0"),
-            ("__wrap_arm_doirq", "arm_doirq", "2151cac"),
-            ("arm_doirq", "__wrap_nxsched_resume_scheduler", "2150500"),
-        ])
+        self.assertEqual(
+            [(row.caller, row.target, row.target_address) for row in branches],
+            [
+                ("exception_common", "__wrap_arm_doirq", "21505a0"),
+                ("__wrap_arm_doirq", "arm_doirq", "2151cac"),
+                ("arm_doirq", "__wrap_nxsched_resume_scheduler", "2150500"),
+            ],
+        )
         self.assertEqual(indirect, {})
 
 
@@ -338,11 +447,25 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
     if args.self_test:
-        return 0 if unittest.main(argv=[sys.argv[0]], exit=False).result.wasSuccessful() else 1
+        return (
+            0
+            if unittest.main(argv=[sys.argv[0]], exit=False).result.wasSuccessful()
+            else 1
+        )
     if args.baseline_json is None or args.output is None:
         parser.error("--baseline-json and --output are required")
-    result = audit(args.baseline_json.resolve(), args.output.resolve(), args.tool_prefix, args.source)
-    print(json.dumps({"pass": result["pass"], "matrix": str(args.output / "matrix.json")}, sort_keys=True))
+    result = audit(
+        args.baseline_json.resolve(),
+        args.output.resolve(),
+        args.tool_prefix,
+        args.source,
+    )
+    print(
+        json.dumps(
+            {"pass": result["pass"], "matrix": str(args.output / "matrix.json")},
+            sort_keys=True,
+        )
+    )
     return 0 if result["pass"] else 1
 
 

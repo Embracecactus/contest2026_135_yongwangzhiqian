@@ -52,8 +52,8 @@ static int receipt(const uint8_t tx[16])
 }
 int main(int argc, char **argv)
 {
-  uint8_t tx[16] = {1}, other[16] = {2}, candidate[3] = {5,6,7};
-  const uint8_t original[3] = {5,6,7};
+  uint8_t tx[16] = {1}, other[16] = {2}, candidate[3] = {5, 6, 7};
+  const uint8_t original[3] = {5, 6, 7};
   uint8_t output[16], actual_tx[16];
   size_t size = 0;
   uint64_t revision = 0;
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
   assert(bkprov_storage_start(argv[1]) == 0);
   assert(bkprov_storage_start(argv[1]) == -EALREADY);
   assert(receipt(tx) == 0);
-  uint8_t identity[48] = {'B','P','I','1'}, identity_out[48];
+  uint8_t identity[48] = {'B', 'P', 'I', '1'}, identity_out[48];
   identity[5] = 1; identity[16] = 42;
   assert(bkprov_storage_identity(identity_out, sizeof(identity_out), &size) == -ENOENT);
   int identity_ret = bkprov_storage_identity_install(identity, sizeof(identity));

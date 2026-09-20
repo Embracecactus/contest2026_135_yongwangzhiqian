@@ -104,11 +104,11 @@ static struct bk7258_ble_scan_snapshot_s ble_snapshot;
 int bk7258_ble_scan_start(void)
 { if (ble_snapshot.active) return -EBUSY;
   memset(&ble_snapshot, 0, sizeof(ble_snapshot));
-  ble_snapshot.active=1;ble_snapshot.state=BK7258_BLE_SCAN_ACTIVE;return 0; }
+  ble_snapshot.active = 1;ble_snapshot.state = BK7258_BLE_SCAN_ACTIVE;return 0; }
 int bk7258_ble_scan_stop(void)
-{ ble_snapshot.active=0;ble_snapshot.state=BK7258_BLE_SCAN_IDLE;return 0; }
+{ ble_snapshot.active = 0;ble_snapshot.state = BK7258_BLE_SCAN_IDLE;return 0; }
 int bk7258_ble_scan_poll(struct bk7258_ble_scan_snapshot_s *s)
-{*s=ble_snapshot;return 0;}
+{*s = ble_snapshot;return 0;}
 
 static int test_statfs_error;
 static unsigned long long test_statfs_blocks = 3;
@@ -550,8 +550,8 @@ int main(int argc, char **argv)
   assert(contains_text(lv_screen_active(), "Gateway 192.0.2.1 responded"));
   assert(contains_text(lv_screen_active(), "does not prove Internet access"));
   click("HOME"); click("NETWORK"); click("BLE BROADCASTS");
-  ble_snapshot.count=1;ble_snapshot.results[0].rssi=-42;
-  ble_snapshot.results[0].payload_length=4;
+  ble_snapshot.count = 1;ble_snapshot.results[0].rssi = -42;
+  ble_snapshot.results[0].payload_length = 4;
   memcpy(ble_snapshot.results[0].payload, "\3\11Hi", 4);
   dolphin_ble_timer(NULL);
   assert(find_text(lv_screen_active(), "Hi | -42 dBm | UUID none | mfg 0 bytes"));
@@ -566,8 +566,8 @@ int main(int argc, char **argv)
   assert(strstr(report_text, "Hi | -42 dBm | UUID none | mfg 0 bytes"));
   fclose(file);
   click("NETWORK"); click("BLE BROADCASTS");
-  ble_snapshot.count=1;ble_snapshot.results[0].rssi=-42;
-  ble_snapshot.results[0].payload_length=4;
+  ble_snapshot.count = 1;ble_snapshot.results[0].rssi = -42;
+  ble_snapshot.results[0].payload_length = 4;
   memcpy(ble_snapshot.results[0].payload, "\3\11Hi", 4);
   dolphin_ble_timer(NULL);
   click("Hi | -42 dBm | UUID none | mfg 0 bytes");
@@ -586,8 +586,8 @@ int main(int argc, char **argv)
   fclose(file);
   assert(strcmp(report_path, g_report.path) != 0);
   click("NETWORK"); click("BLE BROADCASTS");
-  ble_snapshot.count=1;ble_snapshot.results[0].rssi=-42;
-  ble_snapshot.results[0].payload_length=4;
+  ble_snapshot.count = 1;ble_snapshot.results[0].rssi = -42;
+  ble_snapshot.results[0].payload_length = 4;
   memcpy(ble_snapshot.results[0].payload, "\3\11Hi", 4);
   dolphin_ble_timer(NULL);
   click("Hi | -42 dBm | UUID none | mfg 0 bytes");

@@ -77,13 +77,15 @@ def load_existing(path: Path) -> dict[str, dict[str, object]]:
     return existing
 
 
-def write_lists(output: Path, raw_dir: Path, speaker_id: str,
-                rows: list[dict[str, object]]) -> dict[str, str]:
+def write_lists(
+    output: Path, raw_dir: Path, speaker_id: str, rows: list[dict[str, object]]
+) -> dict[str, str]:
     hashes = {}
     raw_root = raw_dir.resolve()
     for split in ("train", "eval", "all"):
-        selected = rows if split == "all" else [row for row in rows
-                                                 if row["split"] == split]
+        selected = (
+            rows if split == "all" else [row for row in rows if row["split"] == split]
+        )
         lines = []
         for row in selected:
             # Keep the sanitized corpus filename.  Resolving the final symlink
@@ -142,10 +144,9 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as error:
         raise SystemExit(str(error)) from error
 
-    pending = [row for row in corpus
-               if str(row["audio_file"]) not in existing]
+    pending = [row for row in corpus if str(row["audio_file"]) not in existing]
     if args.limit is not None:
-        pending = pending[:args.limit]
+        pending = pending[: args.limit]
 
     model = None
     if pending:
@@ -153,9 +154,14 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["HF_HOME"] = str((args.model_cache / "huggingface").resolve())
         from funasr import AutoModel  # pylint: disable=import-outside-toplevel
 
-        model = AutoModel(model=args.model_id, hub=args.hub,
-                          trust_remote_code=args.hub == "hf", vad_model="fsmn-vad",
-                          device=args.device, disable_update=True)
+        model = AutoModel(
+            model=args.model_id,
+            hub=args.hub,
+            trust_remote_code=args.hub == "hf",
+            vad_model="fsmn-vad",
+            device=args.device,
+            disable_update=True,
+        )
 
     processed = 0
     nonpass = 0
@@ -179,17 +185,26 @@ def main(argv: list[str] | None = None) -> int:
                 "text": text,
                 "status": status,
             }
-            draft.write(json.dumps(record, ensure_ascii=False, sort_keys=True,
-                                   separators=(",", ":")) + "\n")
+            draft.write(
+                json.dumps(
+                    record, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                )
+                + "\n"
+            )
             draft.flush()
             existing[audio_file] = record
             processed += 1
             nonpass += status != "PASS"
             if processed == 1 or processed % 25 == 0:
-                print(f"BKVOICE ASR progress={processed}/{len(pending)} nonpass={nonpass}")
+                print(
+                    f"BKVOICE ASR progress={processed}/{len(pending)} nonpass={nonpass}"
+                )
 
-    recorded = [existing[str(row["audio_file"])] for row in corpus
-                if str(row["audio_file"]) in existing]
+    recorded = [
+        existing[str(row["audio_file"])]
+        for row in corpus
+        if str(row["audio_file"]) in existing
+    ]
     ordered = [row for row in recorded if row["status"] == "PASS"]
     empty_count = sum(row["status"] == "EMPTY" for row in recorded)
     error_count = sum(str(row["status"]).startswith("ERROR_") for row in recorded)
@@ -224,16 +239,22 @@ def main(argv: list[str] | None = None) -> int:
     if complete and args.limit is None:
         worklog["status"] = "TRANSCRIPTION_DRAFTED"
         worklog["stages"]["transcription"] = "DRAFT_READY_REVIEW_REQUIRED"
-        worklog["events"].append({
-            "created_utc": created,
-            "event": "transcription_draft_completed",
-            "status": "REVIEW_REQUIRED",
-            "audit_sha256": sha256_file(audit_path),
-            "utterances": len(ordered),
-        })
+        worklog["events"].append(
+            {
+                "created_utc": created,
+                "event": "transcription_draft_completed",
+                "status": "REVIEW_REQUIRED",
+                "audit_sha256": sha256_file(audit_path),
+                "utterances": len(ordered),
+            }
+        )
         atomic_json(args.worklog, worklog)
-    print("BKVOICE_TRANSCRIPTION_" + ("DRAFT_PASS" if complete else "PARTIAL") +
-          " " + json.dumps(audit["counts"], sort_keys=True))
+    print(
+        "BKVOICE_TRANSCRIPTION_"
+        + ("DRAFT_PASS" if complete else "PARTIAL")
+        + " "
+        + json.dumps(audit["counts"], sort_keys=True)
+    )
     return 0 if error_count == 0 else 2
 
 

@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
-PREFIX = r'''
+PREFIX = r"""
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -46,8 +46,8 @@ int bt_start_scanning(uint8_t f,void (*cb)(const bt_addr_le_t *,int8_t,uint8_t,c
 int bt_stop_scanning(void){stop_calls++;return stop_error;}
 int bt_le_scan_update(void){update_calls++;return update_error;}
 static void run(void){void *(*f)(void *)=queued;void *arg=queued_arg;assert(f);queued=NULL;f(arg);}
-'''
-TEST = r'''
+"""
+TEST = r"""
 int main(void)
 {
  struct bk7258_ble_scan_snapshot_s s;
@@ -81,20 +81,38 @@ int main(void)
  puts("BLE_ADAPTER_HOST_PASS: production lifecycle; mocked HCI, no radio proof");
  return 0;
 }
-'''
+"""
+
 
 class BleScanTest(unittest.TestCase):
     def test_lifecycle_and_bounded_reports(self):
-        source = (ROOT / 'chips/bk7258/ap/bk7258_ble_scan.c').read_text()
-        source = '\n'.join(line for line in source.splitlines()
-                           if not line.startswith(('#include', '#if', '#endif')))
-        header = ROOT / 'chips/bk7258/include/bk7258_ble_scan.h'
+        source = (ROOT / "chips/bk7258/ap/bk7258_ble_scan.c").read_text()
+        source = "\n".join(
+            line
+            for line in source.splitlines()
+            if not line.startswith(("#include", "#if", "#endif"))
+        )
+        header = ROOT / "chips/bk7258/include/bk7258_ble_scan.h"
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            (path / 'test.c').write_text(PREFIX + f'\n#include "{header}"\n' + source + TEST)
-            subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
-                            str(path / 'test.c'), '-o', str(path / 'test')], check=True)
-            subprocess.run([str(path / 'test')], check=True)
+            (path / "test.c").write_text(
+                PREFIX + f'\n#include "{header}"\n' + source + TEST
+            )
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=c11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

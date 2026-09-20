@@ -5,8 +5,10 @@
 #include "bk7258_provision_tls.h"
 
 /* Same GATT ciphertext channel and TLS implementation as provisioning.
- * 每条连接只有一个 TLS owner。首帧 SPV1 可分流到借用该 TLS 的只读扫描；
- * 普通控制仍只接受已保存的控制密钥，不能拿持有证明替代控制认证。
+ * There is exactly one TLS owner per connection. A first SPV1 frame may be
+ * diverted to the read-only scan that borrows that TLS; ordinary control
+ * still accepts only the stored control key, so a possession proof can never
+ * substitute for control authentication.
  */
 struct bkcontrol_pair_s
 {

@@ -11,7 +11,7 @@ source = (ROOT / "chips/bk7258/ap/bk7258_sdio.c").read_text()
 start = source.index("static int bk7258_sdio_finish_single_transfer(")
 end = source.index("\n#ifdef CONFIG_SDIO_V2P0\nstatic void", start)
 body = source[start:end]
-prefix = r'''
+prefix = r"""
 #include <stdbool.h>
 #include <stdint.h>
 #include <errno.h>
@@ -50,8 +50,8 @@ static uint32_t bk_sdio_host_get_cmd_rsp_argument(unsigned r) {
 }
 static void bk7258_sdio_finish_stop_transmission(void) {tails++;}
 static int bk7258_sdio_map_err(int e) {return e;}
-'''
-suffix = r'''
+"""
+suffix = r"""
 int main(void) {
   for (unsigned test=0;test<10;test++) {
     struct bk7258_sdio_priv_s p={.single_write=true,.xfer_pending=true,
@@ -88,12 +88,23 @@ int main(void) {
   puts("PASS: native CPU singles omit STOP on success and abort on error");
 #endif
 }
-'''
+"""
 with tempfile.TemporaryDirectory(prefix="sdio-single-write-") as directory:
     path = Path(directory)
     (path / "test.c").write_text(prefix + body + suffix)
     for defines in ([], ["-DCONFIG_SDIO_GDMA_EN=1"]):
-        subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
-                        *defines, str(path / "test.c"), "-o", str(path / "test")],
-                       check=True)
+        subprocess.run(
+            [
+                "cc",
+                "-std=c11",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                *defines,
+                str(path / "test.c"),
+                "-o",
+                str(path / "test"),
+            ],
+            check=True,
+        )
         subprocess.run([str(path / "test")], check=True)

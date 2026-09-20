@@ -34,9 +34,15 @@ class OtaTransactionStoreTest(unittest.TestCase):
         self.store.close()
         self.store = OtaTransactionStore(self.path)
         loaded = self.store.load(DEVICE)
-        self.assertEqual((loaded.transaction_id, loaded.manifest_sha256,
-                          loaded.target_version, loaded.dispatch_sequence),
-                         (TXN, MANIFEST, VERSION, 11))
+        self.assertEqual(
+            (
+                loaded.transaction_id,
+                loaded.manifest_sha256,
+                loaded.target_version,
+                loaded.dispatch_sequence,
+            ),
+            (TXN, MANIFEST, VERSION, 11),
+        )
 
     def test_startup_marks_nonterminal_uncertain_but_keeps_terminal(self):
         self.create()
@@ -65,7 +71,9 @@ class OtaTransactionStoreTest(unittest.TestCase):
         self.store.advance(DEVICE, TXN, "trial", 100, None, 108)
         confirmed = self.store.advance(DEVICE, TXN, "confirmed", 100, 0, 109)
         self.assertEqual(confirmed.state, "confirmed")
-        self.assertEqual(self.store.advance(DEVICE, TXN, "confirmed", 100, 0, 110), confirmed)
+        self.assertEqual(
+            self.store.advance(DEVICE, TXN, "confirmed", 100, 0, 110), confirmed
+        )
         with self.assertRaises(OtaTransactionError):
             self.store.advance(DEVICE, TXN, "failed", 100, -1, 111)
 
@@ -85,8 +93,9 @@ class OtaTransactionStoreTest(unittest.TestCase):
         self.assertEqual(self.store.load(DEVICE).state, "confirming")
         with self.assertRaises(OtaTransactionError):
             self.store.redispatch(DEVICE, TXN, 8, 10, 12, 110)
-        self.assertEqual(self.store.advance(
-            DEVICE, TXN, "confirmed", 100, 0, 111).state, "confirmed")
+        self.assertEqual(
+            self.store.advance(DEVICE, TXN, "confirmed", 100, 0, 111).state, "confirmed"
+        )
 
     def test_create_and_dispatch_are_idempotent_or_conflict(self):
         created = self.create()
@@ -103,16 +112,23 @@ class OtaTransactionStoreTest(unittest.TestCase):
         self.store.bind_dispatch(DEVICE, TXN, 7, 9, 11, 101)
         self.store.advance(DEVICE, TXN, "downloading", 37, None, 102)
         uncertain = self.store.mark_uncertain(DEVICE, TXN, 103)
-        self.assertEqual((uncertain.state, uncertain.progress_percent),
-                         ("uncertain", 37))
+        self.assertEqual(
+            (uncertain.state, uncertain.progress_percent), ("uncertain", 37)
+        )
         self.assertEqual(self.store.mark_uncertain(DEVICE, TXN, 104), uncertain)
         with self.assertRaises(OtaTransactionError):
             self.store.redispatch(DEVICE, "2" * 32, 8, 10, 12, 105)
         rebound = self.store.redispatch(DEVICE, TXN, 8, 10, 12, 106)
-        self.assertEqual((rebound.state, rebound.progress_percent,
-                          rebound.dispatch_boot_generation,
-                          rebound.dispatch_session_id, rebound.dispatch_sequence),
-                         ("awaiting_first_report", 0, 8, 10, 12))
+        self.assertEqual(
+            (
+                rebound.state,
+                rebound.progress_percent,
+                rebound.dispatch_boot_generation,
+                rebound.dispatch_session_id,
+                rebound.dispatch_sequence,
+            ),
+            ("awaiting_first_report", 0, 8, 10, 12),
+        )
 
     def test_new_transaction_replaces_terminal_record_only(self):
         self.create()
@@ -121,10 +137,10 @@ class OtaTransactionStoreTest(unittest.TestCase):
         with self.assertRaises(OtaTransactionError):
             self.store.create(DEVICE, "2" * 32, "3" * 64, "18.6.391+451", 103)
         self.store.advance(DEVICE, TXN, "failed", 1, -5, 104)
-        created = self.store.create(
-            DEVICE, "2" * 32, "3" * 64, "18.6.391+451", 105)
-        self.assertEqual((created.transaction_id, created.state),
-                         ("2" * 32, "dispatching"))
+        created = self.store.create(DEVICE, "2" * 32, "3" * 64, "18.6.391+451", 105)
+        self.assertEqual(
+            (created.transaction_id, created.state), ("2" * 32, "dispatching")
+        )
 
     def test_malformed_input_and_corrupt_row_fail_closed(self):
         with self.assertRaises(OtaTransactionError):
@@ -137,8 +153,20 @@ class OtaTransactionStoreTest(unittest.TestCase):
         connection = sqlite3.connect(self.path)
         connection.execute(
             "INSERT INTO ota_transaction VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (DEVICE, TXN, MANIFEST, VERSION, "bad-state", 0, None, 1, 1,
-             None, None, None),
+            (
+                DEVICE,
+                TXN,
+                MANIFEST,
+                VERSION,
+                "bad-state",
+                0,
+                None,
+                1,
+                1,
+                None,
+                None,
+                None,
+            ),
         )
         connection.commit()
         connection.close()

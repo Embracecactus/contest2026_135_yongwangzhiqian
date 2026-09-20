@@ -36,8 +36,7 @@ MAX_GATEWAY_RELEASES = 32
 MAX_GATEWAY_PACKAGE_SIZE = 64 * 1024 * 1024
 MAX_DELIVERY_SIZE = 128 * 1024 * 1024
 VERSION_RE = re.compile(
-    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\."
-    r"(0|[1-9][0-9]*)\+([1-9][0-9]*)$"
+    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\." r"(0|[1-9][0-9]*)\+([1-9][0-9]*)$"
 )
 DIRECTIVE_RE = re.compile(r"#\s*([A-Z][A-Z0-9_]*)=(.+)")
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -147,17 +146,17 @@ def _parse_policy(
             continue
         fields = [field.strip() for field in next(csv.reader([raw]))]
         if len(fields) != 2:
-            raise ProductError(
-                f"{source}:{number}: expected Partition,ReleasePolicy"
-            )
+            raise ProductError(f"{source}:{number}: expected Partition,ReleasePolicy")
         name, policy = fields
         if not name or policy not in RELEASE_POLICIES:
             raise ProductError(f"invalid release policy row: {source}:{number}")
         rows.append((name, policy))
 
-    if set(directives) != {"FORMAT", "FACTORY_MODE"} \
-            or directives.get("FORMAT") != POLICY_FORMAT \
-            or directives.get("FACTORY_MODE") not in FACTORY_MODES:
+    if (
+        set(directives) != {"FORMAT", "FACTORY_MODE"}
+        or directives.get("FORMAT") != POLICY_FORMAT
+        or directives.get("FACTORY_MODE") not in FACTORY_MODES
+    ):
         raise ProductError("release policy directives are incomplete or unsupported")
     names = [name for name, _ in rows]
     if len(names) != len(set(names)):
@@ -180,13 +179,14 @@ def _parse_policy(
     for name, layout_row in layout_by_name.items():
         build_policy = layout_row.get("policy")
         release_policy = selected[name]
-        if build_policy in {"image", "external"} \
-                and release_policy != "replace":
+        if build_policy in {"image", "external"} and release_policy != "replace":
             raise ProductError(
                 f"firmware partition must use replace release policy: {name}"
             )
-        if build_policy == "clear" \
-                and release_policy not in {"transactional", "factory-init"}:
+        if build_policy == "clear" and release_policy not in {
+            "transactional",
+            "factory-init",
+        }:
             raise ProductError(
                 f"clear partition needs transactional/factory-init policy: {name}"
             )
@@ -194,8 +194,10 @@ def _parse_policy(
             raise ProductError(
                 f"preserved build partition cannot use replace policy: {name}"
             )
-        if build_policy == "immutable" \
-                and release_policy not in {"device-unique", "immutable"}:
+        if build_policy == "immutable" and release_policy not in {
+            "device-unique",
+            "immutable",
+        }:
             raise ProductError(
                 f"immutable build partition has unsafe release policy: {name}"
             )
@@ -225,8 +227,7 @@ def report_policy(policy: ReleasePolicy) -> dict[str, object]:
         "factory_mode": policy.factory_mode,
         "sha256": policy.sha256,
         "partitions": [
-            {"name": name, "policy": value}
-            for name, value in policy.partitions
+            {"name": name, "policy": value} for name, value in policy.partitions
         ],
     }
 
@@ -242,9 +243,15 @@ def _layout_binding(
         flash_size = layout.get("flash_size")
         identity = layout.get("identity")
         sha256 = layout.get("sha256")
-    if not isinstance(flash_size, int) or isinstance(flash_size, bool) \
-            or flash_size <= 0 or not isinstance(identity, str) or not identity \
-            or not isinstance(sha256, str) or DIGEST_RE.fullmatch(sha256) is None:
+    if (
+        not isinstance(flash_size, int)
+        or isinstance(flash_size, bool)
+        or flash_size <= 0
+        or not isinstance(identity, str)
+        or not identity
+        or not isinstance(sha256, str)
+        or DIGEST_RE.fullmatch(sha256) is None
+    ):
         raise ProductError("accepted-base layout identity is malformed")
     return {
         "flash_size": flash_size,
@@ -254,12 +261,12 @@ def _layout_binding(
 
 
 def _target_binding(target: Mapping[str, object]) -> dict[str, str]:
-    if set(target) != {"board_family", "physical_board"} \
-            or target.get("board_family") != "bk7258" \
-            or not isinstance(target.get("physical_board"), str) \
-            or re.fullmatch(
-                r"[a-z][a-z0-9_]*", str(target["physical_board"])
-            ) is None:
+    if (
+        set(target) != {"board_family", "physical_board"}
+        or target.get("board_family") != "bk7258"
+        or not isinstance(target.get("physical_board"), str)
+        or re.fullmatch(r"[a-z][a-z0-9_]*", str(target["physical_board"])) is None
+    ):
         raise ProductError("accepted-base target identity is malformed")
     return {
         "board_family": "bk7258",
@@ -277,27 +284,33 @@ def _parse_base_evidence(
         document = json.loads(data.decode("utf-8"))
     except (UnicodeError, json.JSONDecodeError) as error:
         raise ProductError("accepted-base evidence is not valid UTF-8 JSON") from error
-    if not isinstance(document, dict) or _canonical(document) != data \
-            or set(document) != {"base", "capture", "format", "layout", "target"} \
-            or document.get("format") != BASE_EVIDENCE_FORMAT:
+    if (
+        not isinstance(document, dict)
+        or _canonical(document) != data
+        or set(document) != {"base", "capture", "format", "layout", "target"}
+        or document.get("format") != BASE_EVIDENCE_FORMAT
+    ):
         raise ProductError("accepted-base evidence is non-canonical or unsupported")
 
     target = _target_binding(expected_target)
     layout = _layout_binding(expected_layout)
     base = document.get("base")
     capture = document.get("capture")
-    if document.get("target") != target or document.get("layout") != layout \
-            or not isinstance(base, dict) \
-            or set(base) != {"sha256", "size"} \
-            or base.get("size") != layout["flash_size"] \
-            or not isinstance(base.get("sha256"), str) \
-            or DIGEST_RE.fullmatch(base["sha256"]) is None \
-            or not isinstance(capture, dict) \
-            or set(capture) != {"device_id", "method"} \
-            or not isinstance(capture.get("device_id"), str) \
-            or DEVICE_ID_RE.fullmatch(capture["device_id"]) is None \
-            or not isinstance(capture.get("method"), str) \
-            or CAPTURE_METHOD_RE.fullmatch(capture["method"]) is None:
+    if (
+        document.get("target") != target
+        or document.get("layout") != layout
+        or not isinstance(base, dict)
+        or set(base) != {"sha256", "size"}
+        or base.get("size") != layout["flash_size"]
+        or not isinstance(base.get("sha256"), str)
+        or DIGEST_RE.fullmatch(base["sha256"]) is None
+        or not isinstance(capture, dict)
+        or set(capture) != {"device_id", "method"}
+        or not isinstance(capture.get("device_id"), str)
+        or DEVICE_ID_RE.fullmatch(capture["device_id"]) is None
+        or not isinstance(capture.get("method"), str)
+        or CAPTURE_METHOD_RE.fullmatch(capture["method"]) is None
+    ):
         raise ProductError(
             "accepted-base evidence does not match the selected board/layout"
         )
@@ -351,9 +364,7 @@ def create_base_evidence(
             "device ID must use 1-128 letters, digits, '.', '_', ':' or '-'"
         )
     if CAPTURE_METHOD_RE.fullmatch(capture_method) is None:
-        raise ProductError(
-            "capture method must be a lowercase machine identifier"
-        )
+        raise ProductError("capture method must be a lowercase machine identifier")
     base_data = _regular_bytes(base, "accepted device readback")
     if len(base_data) != layout.flash_size:
         raise ProductError(
@@ -384,9 +395,7 @@ def create_base_evidence(
             stream.flush()
             os.fsync(stream.fileno())
         _parse_base_evidence(data, temporary, target, layout)
-        package_domain._publish_no_replace(
-            temporary, output, "accepted-base evidence"
-        )
+        package_domain._publish_no_replace(temporary, output, "accepted-base evidence")
     finally:
         temporary.unlink(missing_ok=True)
     return {
@@ -399,23 +408,38 @@ def create_base_evidence(
     }
 
 
-def relocate_base(*, source_layout: layout_domain.Layout,
-                  layout: layout_domain.Layout, base: Path,
-                  output: Path) -> dict[str, object]:
-    """按分区名称原样搬移同板数据，不解释、清空或改写密文内容。"""
+def relocate_base(
+    *,
+    source_layout: layout_domain.Layout,
+    layout: layout_domain.Layout,
+    base: Path,
+    output: Path,
+) -> dict[str, object]:
+    """Relocate same-device data verbatim by partition name; ciphertext is
+    neither interpreted, cleared nor rewritten.
+    """
 
-    geometry = ("flash_size", "erase_size", "crc_data_size", "crc_total_size",
-                "xip_base", "storage_topology")
-    if any(getattr(source_layout, field) != getattr(layout, field)
-           for field in geometry):
+    geometry = (
+        "flash_size",
+        "erase_size",
+        "crc_data_size",
+        "crc_total_size",
+        "xip_base",
+        "storage_topology",
+    )
+    if any(
+        getattr(source_layout, field) != getattr(layout, field) for field in geometry
+    ):
         raise ProductError("base relocation cannot change device geometry")
     if source_layout.sha256 == layout.sha256:
         raise ProductError("base relocation requires different layouts")
     protected = {"preserve", "immutable"}
-    source_rows = {row.name: row for row in source_layout.partitions
-                   if row.policy in protected}
-    target_rows = {row.name: row for row in layout.partitions
-                   if row.policy in protected}
+    source_rows = {
+        row.name: row for row in source_layout.partitions if row.policy in protected
+    }
+    target_rows = {
+        row.name: row for row in layout.partitions if row.policy in protected
+    }
     if not source_rows or source_rows.keys() != target_rows.keys():
         raise ProductError("base relocation must retain every protected partition")
     source = _regular_bytes(base, "current same-device base")
@@ -428,21 +452,33 @@ def relocate_base(*, source_layout: layout_domain.Layout,
     mappings = []
     for name, target in target_rows.items():
         old = source_rows[name]
-        if old.kind != "data" or target.kind != old.kind \
-                or target.size != old.size or target.policy != old.policy \
-                or target.readable != old.readable or target.writable != old.writable:
+        if (
+            old.kind != "data"
+            or target.kind != old.kind
+            or target.size != old.size
+            or target.policy != old.policy
+            or target.readable != old.readable
+            or target.writable != old.writable
+        ):
             raise ProductError(f"protected partition contract changed: {name}")
         if old.policy == "immutable" and target.offset != old.offset:
             raise ProductError(f"immutable partition cannot move: {name}")
-        # 始终从原快照取字节，源/目标地址重叠也不能污染后续搬移输入。
-        payload = source[old.offset:old.end]
-        result[target.offset:target.end] = payload
-        mappings.append({"partition": name, "source_offset": old.offset,
-                         "target_offset": target.offset, "size": target.size,
-                         "sha256": _digest(payload)})
+        # Always read bytes from the original snapshot so overlapping source
+        # and target ranges cannot pollute later relocation inputs.
+        payload = source[old.offset : old.end]
+        result[target.offset : target.end] = payload
+        mappings.append(
+            {
+                "partition": name,
+                "source_offset": old.offset,
+                "target_offset": target.offset,
+                "size": target.size,
+                "sha256": _digest(payload),
+            }
+        )
     for name, target in target_rows.items():
         old = source_rows[name]
-        if result[target.offset:target.end] != source[old.offset:old.end]:
+        if result[target.offset : target.end] != source[old.offset : old.end]:
             raise ProductError(f"relocated partition mismatch: {name}")
     output.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
@@ -457,10 +493,15 @@ def relocate_base(*, source_layout: layout_domain.Layout,
         package_domain._publish_no_replace(temporary, output, "relocated base")
     finally:
         temporary.unlink(missing_ok=True)
-    return {"format": "bk7258.base-relocation/1", "output": str(output),
-            "source_layout": source_layout.sha256, "target_layout": layout.sha256,
-            "source_sha256": _digest(source), "sha256": _digest(result),
-            "partitions": mappings}
+    return {
+        "format": "bk7258.base-relocation/1",
+        "output": str(output),
+        "source_layout": source_layout.sha256,
+        "target_layout": layout.sha256,
+        "source_sha256": _digest(source),
+        "sha256": _digest(result),
+        "partitions": mappings,
+    }
 
 
 def _package_version(document: Mapping[str, object]) -> str | None:
@@ -470,9 +511,7 @@ def _package_version(document: Mapping[str, object]) -> str | None:
     images = security.get("images")
     if not isinstance(images, list) or len(images) != 2:
         raise ProductError("signed package has no coherent CP/AP version")
-    versions = {
-        row.get("version") for row in images if isinstance(row, dict)
-    }
+    versions = {row.get("version") for row in images if isinstance(row, dict)}
     if len(versions) != 1:
         raise ProductError("signed package CP/AP versions do not match")
     version = versions.pop()
@@ -524,8 +563,12 @@ def operation_impact(
 
     document, _, report = _package_target_layout(package)
     layout = document.get("layout")
-    if not isinstance(layout, dict) or not isinstance(layout.get("flash_size"), int) \
-            or isinstance(layout["flash_size"], bool) or layout["flash_size"] <= 0:
+    if (
+        not isinstance(layout, dict)
+        or not isinstance(layout.get("flash_size"), int)
+        or isinstance(layout["flash_size"], bool)
+        or layout["flash_size"] <= 0
+    ):
         raise ProductError("operation impact package layout is malformed")
 
     partitions = layout.get("partitions")
@@ -571,16 +614,20 @@ def operation_impact(
             "scope": "complete-flash",
             "writes": [{"offset": 0, "size": layout["flash_size"]}],
             "package_overlay": {
-                "erases": contract["erases"], "writes": contract["writes"],
+                "erases": contract["erases"],
+                "writes": contract["writes"],
             },
         }
         return impact
 
     payloads = contract.get("payloads")
-    if report["security"] != "signed-ota" or contract.get("target") != "inactive" \
-            or not isinstance(payloads, list) \
-            or {row.get("artifact") for row in payloads if isinstance(row, dict)} \
-                != {"cp", "ap"}:
+    if (
+        report["security"] != "signed-ota"
+        or contract.get("target") != "inactive"
+        or not isinstance(payloads, list)
+        or {row.get("artifact") for row in payloads if isinstance(row, dict)}
+        != {"cp", "ap"}
+    ):
         raise ProductError("OTA impact requires an inactive CP/AP OTA package")
     if contract.get("erases") != []:
         raise ProductError("OTA package-level erase operations are unsupported")
@@ -603,9 +650,11 @@ def _validate_build_manifest(
         document = json.loads(data.decode("utf-8"))
     except (UnicodeError, json.JSONDecodeError) as error:
         raise ProductError("build manifest is not valid UTF-8 JSON") from error
-    if not isinstance(document, dict) \
-            or document.get("format") not in build_domain.TARGET_BOUND_FORMATS \
-            or document.get("target") != package_document.get("target"):
+    if (
+        not isinstance(document, dict)
+        or document.get("format") not in build_domain.TARGET_BOUND_FORMATS
+        or document.get("target") != package_document.get("target")
+    ):
         raise ProductError("build manifest does not match the package target")
     if document["format"] == build_domain.BUILD_MANIFEST_FORMAT:
         try:
@@ -614,9 +663,12 @@ def _validate_build_manifest(
             raise ProductError(str(error)) from error
     build_layout = document.get("layout")
     package_layout = package_document.get("layout")
-    if not isinstance(build_layout, dict) or not isinstance(package_layout, dict) \
-            or build_layout.get("identity") != package_layout.get("identity") \
-            or build_layout.get("sha256") != package_layout.get("sha256"):
+    if (
+        not isinstance(build_layout, dict)
+        or not isinstance(package_layout, dict)
+        or build_layout.get("identity") != package_layout.get("identity")
+        or build_layout.get("sha256") != package_layout.get("sha256")
+    ):
         raise ProductError("build manifest does not match the package layout")
     expected_boot = "direct" if package_security == "unsigned" else "mcuboot"
     if document.get("boot") != expected_boot:
@@ -629,17 +681,17 @@ def _validate_build_manifest(
             raise ProductError("direct build manifest has no finalized images")
         packaged = {
             row.get("artifact"): (row.get("size"), row.get("sha256"))
-            for row in images if isinstance(row, dict)
+            for row in images
+            if isinstance(row, dict)
         }
         if set(finalized) != set(packaged):
             raise ProductError("direct build/package artifact coverage changed")
         for artifact, row in finalized.items():
             if not isinstance(row, dict) or packaged[artifact] != (
-                row.get("size"), row.get("sha256")
+                row.get("size"),
+                row.get("sha256"),
             ):
-                raise ProductError(
-                    f"direct build/package artifact changed: {artifact}"
-                )
+                raise ProductError(f"direct build/package artifact changed: {artifact}")
     return document
 
 
@@ -661,8 +713,10 @@ def validate_build_manifest_evidence(
 
 
 def _base(path: Path, expected_sha256: str, flash_size: int) -> bytes:
-    if not isinstance(expected_sha256, str) \
-            or DIGEST_RE.fullmatch(expected_sha256.lower()) is None:
+    if (
+        not isinstance(expected_sha256, str)
+        or DIGEST_RE.fullmatch(expected_sha256.lower()) is None
+    ):
         raise ProductError("base SHA-256 must contain 64 hexadecimal digits")
     data = _regular_bytes(path, "device recovery base")
     if len(data) != flash_size:
@@ -680,8 +734,14 @@ def _base(path: Path, expected_sha256: str, flash_size: int) -> bytes:
 
 
 def _range_state(
-    *, name: str, policy: str, offset: int, size: int,
-    before: bytes, after: bytes, action: str,
+    *,
+    name: str,
+    policy: str,
+    offset: int,
+    size: int,
+    before: bytes,
+    after: bytes,
+    action: str,
 ) -> dict[str, object]:
     return {
         "action": action,
@@ -708,15 +768,17 @@ def materialize_recovery(
     layout = document["layout"]
     partitions = layout.get("partitions")
     flash_size = layout.get("flash_size")
-    if not isinstance(partitions, list) or not isinstance(flash_size, int) \
-            or isinstance(flash_size, bool) or flash_size <= 0:
+    if (
+        not isinstance(partitions, list)
+        or not isinstance(flash_size, int)
+        or isinstance(flash_size, bool)
+        or flash_size <= 0
+    ):
         raise ProductError("package layout is malformed")
     target = document.get("target")
     if not isinstance(target, dict):
         raise ProductError("package target is malformed")
-    refreshed_evidence = load_base_evidence(
-        base_evidence.source, target, layout
-    )
+    refreshed_evidence = load_base_evidence(base_evidence.source, target, layout)
     if refreshed_evidence.sha256 != base_evidence.sha256:
         raise ProductError("accepted-base evidence changed during materialization")
     parsed_policy = _parse_policy(
@@ -729,9 +791,7 @@ def materialize_recovery(
     selected = policy.by_partition
     base_data = _base(base, base_evidence.base_sha256, flash_size)
     output = bytearray(base_data)
-    by_name = {
-        row["name"]: row for row in partitions if isinstance(row, dict)
-    }
+    by_name = {row["name"]: row for row in partitions if isinstance(row, dict)}
     touched: set[str] = set()
 
     for row in partitions:
@@ -740,11 +800,14 @@ def materialize_recovery(
         name = row.get("name")
         offset = row.get("offset")
         size = row.get("size")
-        if not isinstance(name, str) or not isinstance(offset, int) \
-                or not isinstance(size, int):
+        if (
+            not isinstance(name, str)
+            or not isinstance(offset, int)
+            or not isinstance(size, int)
+        ):
             raise ProductError("package partition geometry is malformed")
         if selected[name] == "transactional":
-            output[offset:offset + size] = bytes([image_domain.ERASE_BYTE]) * size
+            output[offset : offset + size] = bytes([image_domain.ERASE_BYTE]) * size
             touched.add(name)
 
     images = document.get("images")
@@ -755,8 +818,12 @@ def materialize_recovery(
             raise ProductError("package image row is malformed")
         partition_name = row.get("partition")
         member = row.get("member")
-        if not isinstance(partition_name, str) or partition_name not in by_name \
-                or not isinstance(member, str) or member not in members:
+        if (
+            not isinstance(partition_name, str)
+            or partition_name not in by_name
+            or not isinstance(member, str)
+            or member not in members
+        ):
             raise ProductError("package image placement is malformed")
         partition = by_name[partition_name]
         if selected[partition_name] != "replace":
@@ -765,9 +832,9 @@ def materialize_recovery(
             )
         offset = partition["offset"]
         size = partition["size"]
-        output[offset:offset + size] = bytes([image_domain.ERASE_BYTE]) * size
+        output[offset : offset + size] = bytes([image_domain.ERASE_BYTE]) * size
         data = members[member]
-        output[offset:offset + len(data)] = data
+        output[offset : offset + len(data)] = data
         touched.add(partition_name)
 
     full_update = document.get("full_update")
@@ -776,30 +843,37 @@ def materialize_recovery(
             raise ProductError("full update payload is malformed")
         partition_name = full_update.get("partition")
         member = full_update.get("member")
-        if not isinstance(partition_name, str) or partition_name not in by_name \
-                or not isinstance(member, str) or member not in members:
+        if (
+            not isinstance(partition_name, str)
+            or partition_name not in by_name
+            or not isinstance(member, str)
+            or member not in members
+        ):
             raise ProductError("full update placement is malformed")
         partition = by_name[partition_name]
         offset = partition["offset"]
         data = members[member]
-        before = base_data[offset:offset + len(data)]
+        before = base_data[offset : offset + len(data)]
         if selected[partition_name] != "replace" and data != before:
             raise ProductError(
                 f"full update changes protected device data: {partition_name}"
             )
-        output[offset:offset + len(data)] = data
+        output[offset : offset + len(data)] = data
         touched.add(partition_name)
 
     for row in document.get("erases", []):
         if not isinstance(row, dict):
             raise ProductError("package erase row is malformed")
         partition_name = row.get("partition")
-        if not isinstance(partition_name, str) or partition_name not in by_name \
-                or selected[partition_name] not in {"replace", "transactional"}:
+        if (
+            not isinstance(partition_name, str)
+            or partition_name not in by_name
+            or selected[partition_name] not in {"replace", "transactional"}
+        ):
             raise ProductError("package erase violates release policy")
         offset = by_name[partition_name]["offset"]
         size = by_name[partition_name]["size"]
-        output[offset:offset + size] = bytes([image_domain.ERASE_BYTE]) * size
+        output[offset : offset + size] = bytes([image_domain.ERASE_BYTE]) * size
         touched.add(partition_name)
 
     states: list[dict[str, object]] = []
@@ -813,17 +887,24 @@ def materialize_recovery(
             after = bytes(output[cursor:offset])
             if before != after:
                 raise ProductError("recovery changed an unmapped Flash range")
-            states.append(_range_state(
-                name=f"@gap-0x{cursor:x}", policy="preserve",
-                offset=cursor, size=offset - cursor,
-                before=before, after=after, action="preserved-gap",
-            ))
-        before = base_data[offset:offset + size]
-        after = bytes(output[offset:offset + size])
+            states.append(
+                _range_state(
+                    name=f"@gap-0x{cursor:x}",
+                    policy="preserve",
+                    offset=cursor,
+                    size=offset - cursor,
+                    before=before,
+                    after=after,
+                    action="preserved-gap",
+                )
+            )
+        before = base_data[offset : offset + size]
+        after = bytes(output[offset : offset + size])
         release_policy = selected[name]
-        if release_policy in {
-            "preserve", "device-unique", "factory-init", "immutable"
-        } and before != after:
+        if (
+            release_policy in {"preserve", "device-unique", "factory-init", "immutable"}
+            and before != after
+        ):
             raise ProductError(f"recovery changed protected partition: {name}")
         if release_policy == "transactional":
             expected = bytes([image_domain.ERASE_BYTE]) * size
@@ -838,21 +919,34 @@ def materialize_recovery(
                 raise ProductError(f"carried external partition changed: {name}")
         else:
             action = "preserved"
-        states.append(_range_state(
-            name=name, policy=release_policy, offset=offset, size=size,
-            before=before, after=after, action=action,
-        ))
+        states.append(
+            _range_state(
+                name=name,
+                policy=release_policy,
+                offset=offset,
+                size=size,
+                before=before,
+                after=after,
+                action=action,
+            )
+        )
         cursor = offset + size
     if cursor < flash_size:
         before = base_data[cursor:flash_size]
         after = bytes(output[cursor:flash_size])
         if before != after:
             raise ProductError("recovery changed the trailing unmapped Flash range")
-        states.append(_range_state(
-            name=f"@gap-0x{cursor:x}", policy="preserve",
-            offset=cursor, size=flash_size - cursor,
-            before=before, after=after, action="preserved-gap",
-        ))
+        states.append(
+            _range_state(
+                name=f"@gap-0x{cursor:x}",
+                policy="preserve",
+                offset=cursor,
+                size=flash_size - cursor,
+                before=before,
+                after=after,
+                action="preserved-gap",
+            )
+        )
 
     return RecoveryImage(
         data=bytes(output),
@@ -869,7 +963,8 @@ def _file_row(path: str, data: bytes) -> dict[str, object]:
 def _checksums(members: Mapping[str, bytes]) -> bytes:
     return "".join(
         f"{_digest(members[name])}  {name}\n"
-        for name in sorted(members) if name != DELIVERY_CHECKSUMS
+        for name in sorted(members)
+        if name != DELIVERY_CHECKSUMS
     ).encode("ascii")
 
 
@@ -888,8 +983,7 @@ def _flashing(document: Mapping[str, object]) -> bytes:
         "",
         "The recovery BIN is bound to one operator-accepted device readback.",
         f"Use it only on device `{recovery['accepted_base']['device_id']}`, whose",
-        "complete base SHA-256 is "
-        f"`{recovery['accepted_base']['sha256']}`.",
+        "complete base SHA-256 is " f"`{recovery['accepted_base']['sha256']}`.",
         "Do not chip-erase and do not copy this image to another unit.",
         "",
         f"- file: `{recovery['operator']['path']}`",
@@ -910,8 +1004,7 @@ def _flashing(document: Mapping[str, object]) -> bytes:
         lines.extend(
             (
                 f"- file: `{ota['package']['path']}`",
-                "- required source version: "
-                f"`{ota['required_source_version']}`",
+                "- required source version: " f"`{ota['required_source_version']}`",
                 "- required source-device MCUboot root: "
                 f"`{ota['required_source_root']}`",
                 "- compatibility status: operator precondition; confirm both "
@@ -925,8 +1018,7 @@ def _flashing(document: Mapping[str, object]) -> bytes:
             (
                 "",
                 "Security: **signed full recovery**.",
-                "Installed MCUboot root: "
-                f"`{recovery['installed_root']}`.",
+                "Installed MCUboot root: " f"`{recovery['installed_root']}`.",
             )
         )
     else:
@@ -984,12 +1076,12 @@ def create_delivery(
     flash_size = layout["flash_size"]
     if len(recovery.data) != flash_size:
         raise ProductError("recovery image does not cover the complete Flash")
-    refreshed_evidence = load_base_evidence(
-        base_evidence.source, target, layout
-    )
-    if refreshed_evidence.sha256 != base_evidence.sha256 \
-            or recovery.base_evidence_sha256 != base_evidence.sha256 \
-            or recovery.base_sha256 != base_evidence.base_sha256:
+    refreshed_evidence = load_base_evidence(base_evidence.source, target, layout)
+    if (
+        refreshed_evidence.sha256 != base_evidence.sha256
+        or recovery.base_evidence_sha256 != base_evidence.sha256
+        or recovery.base_sha256 != base_evidence.base_sha256
+    ):
         raise ProductError("recovery and accepted-base evidence do not match")
     policy_data = _regular_bytes(policy.source, "release policy")
     embedded_policy = _parse_policy(
@@ -1000,9 +1092,7 @@ def create_delivery(
 
     board = target["physical_board"]
     safe_version = version.replace("+", "-")
-    recovery_package_path = (
-        f"recovery/firmware-{board}-v{safe_version}-recovery.bkpack"
-    )
+    recovery_package_path = f"recovery/firmware-{board}-v{safe_version}-recovery.bkpack"
     operator_path = f"recovery/{board}-v{safe_version}-full-flash.bin"
     base_evidence_path = "evidence/accepted-base.json"
     build_path = "evidence/build-manifest.json"
@@ -1019,27 +1109,29 @@ def create_delivery(
     ota_component: dict[str, object]
     if ota_package is None:
         if ota_required_source_version is not None:
-            raise ProductError(
-                "--ota-required-source-version requires an OTA package"
-            )
+            raise ProductError("--ota-required-source-version requires an OTA package")
         ota_component = {"status": "not-included"}
     else:
-        if ota_required_source_version is None \
-                or VERSION_RE.fullmatch(ota_required_source_version) is None:
+        if (
+            ota_required_source_version is None
+            or VERSION_RE.fullmatch(ota_required_source_version) is None
+        ):
             raise ProductError(
-                "OTA required source version must use "
-                "MAJOR.MINOR.PATCH+GENERATION"
+                "OTA required source version must use " "MAJOR.MINOR.PATCH+GENERATION"
             )
-        if version_generation(ota_required_source_version) \
-                >= version_generation(version):
+        if version_generation(ota_required_source_version) >= version_generation(
+            version
+        ):
             raise ProductError(
                 "OTA required source generation must precede target generation"
             )
         ota_document, _, ota_report = _package_target_layout(ota_package)
-        if ota_report["security"] != "signed-ota" \
-                or ota_document.get("target") != target \
-                or ota_document.get("layout", {}).get("identity") != layout["identity"] \
-                or ota_document.get("layout", {}).get("sha256") != layout["sha256"]:
+        if (
+            ota_report["security"] != "signed-ota"
+            or ota_document.get("target") != target
+            or ota_document.get("layout", {}).get("identity") != layout["identity"]
+            or ota_document.get("layout", {}).get("sha256") != layout["sha256"]
+        ):
             raise ProductError("OTA package target/layout is incompatible")
         if _package_version(ota_document) != version:
             raise ProductError("OTA target version differs from product version")
@@ -1048,12 +1140,11 @@ def create_delivery(
         package_verifier(ota_package)
         security = ota_document["security"]
         required_source_root = security.get("mcuboot_public_fingerprint")
-        if not isinstance(required_source_root, str) \
-                or not DIGEST_RE.fullmatch(required_source_root):
+        if not isinstance(required_source_root, str) or not DIGEST_RE.fullmatch(
+            required_source_root
+        ):
             raise ProductError("OTA package trusted root is malformed")
-        ota_path = (
-            f"ota/{ota_required_source_version}-to-{safe_version}.bkpack"
-        )
+        ota_path = f"ota/{ota_required_source_version}-to-{safe_version}.bkpack"
         ota_data = _regular_bytes(ota_package, "OTA package")
         members[ota_path] = ota_data
         ota_component = {
@@ -1067,13 +1158,11 @@ def create_delivery(
     installed_root: str | None = None
     if package_security == "signed":
         security = package_document.get("security")
-        if not isinstance(security, dict) \
-                or not isinstance(
-                    security.get("mcuboot_public_fingerprint"), str
-                ) \
-                or DIGEST_RE.fullmatch(
-                    str(security["mcuboot_public_fingerprint"])
-                ) is None:
+        if (
+            not isinstance(security, dict)
+            or not isinstance(security.get("mcuboot_public_fingerprint"), str)
+            or DIGEST_RE.fullmatch(str(security["mcuboot_public_fingerprint"])) is None
+        ):
             raise ProductError("signed recovery installed root is malformed")
         installed_root = str(security["mcuboot_public_fingerprint"])
 
@@ -1096,9 +1185,7 @@ def create_delivery(
             "recovery": {
                 "accepted_base": {
                     "device_id": base_evidence.device_id,
-                    "evidence": _file_row(
-                        base_evidence_path, base_evidence.data
-                    ),
+                    "evidence": _file_row(base_evidence_path, base_evidence.data),
                     "sha256": recovery.base_sha256,
                 },
                 "boot": "direct" if package_security == "unsigned" else "mcuboot",
@@ -1148,7 +1235,9 @@ def create_delivery(
                 release_data,
             )
             for name in sorted(set(members) - {DELIVERY_MANIFEST}):
-                archive.writestr(package_domain._entry(name, members[name]), members[name])
+                archive.writestr(
+                    package_domain._entry(name, members[name]), members[name]
+                )
         verify_delivery(temporary, package_verifier=package_verifier)
         package_domain._publish_no_replace(temporary, output, "product delivery")
     finally:
@@ -1175,14 +1264,20 @@ def _temporary_package(data: bytes) -> tuple[Path, int]:
     return Path(name), len(data)
 
 
-def _member(document: Mapping[str, object], members: Mapping[str, bytes],
-            label: str) -> bytes:
+def _member(
+    document: Mapping[str, object], members: Mapping[str, bytes], label: str
+) -> bytes:
     path = document.get("path")
     size = document.get("size")
     digest = document.get("sha256")
-    if not isinstance(path, str) or path not in members \
-            or not isinstance(size, int) or isinstance(size, bool) \
-            or not isinstance(digest, str) or DIGEST_RE.fullmatch(digest) is None:
+    if (
+        not isinstance(path, str)
+        or path not in members
+        or not isinstance(size, int)
+        or isinstance(size, bool)
+        or not isinstance(digest, str)
+        or DIGEST_RE.fullmatch(digest) is None
+    ):
         raise ProductError(f"delivery {label} metadata is malformed")
     data = members[path]
     if len(data) != size or _digest(data) != digest:
@@ -1211,13 +1306,23 @@ def verify_delivery(
         document = json.loads(members[DELIVERY_MANIFEST].decode("utf-8"))
     except (KeyError, UnicodeError, json.JSONDecodeError) as error:
         raise ProductError("product release manifest is not valid JSON") from error
-    if not isinstance(document, dict) or _canonical(document) != members[DELIVERY_MANIFEST] \
-            or set(document) != {
-                "build_manifest", "components", "format", "layout",
-                "release_policy", "target", "version",
-            } or document.get("format") != DELIVERY_FORMAT \
-            or not isinstance(document.get("version"), str) \
-            or VERSION_RE.fullmatch(document["version"]) is None:
+    if (
+        not isinstance(document, dict)
+        or _canonical(document) != members[DELIVERY_MANIFEST]
+        or set(document)
+        != {
+            "build_manifest",
+            "components",
+            "format",
+            "layout",
+            "release_policy",
+            "target",
+            "version",
+        }
+        or document.get("format") != DELIVERY_FORMAT
+        or not isinstance(document.get("version"), str)
+        or VERSION_RE.fullmatch(document["version"]) is None
+    ):
         raise ProductError("product release manifest is unsupported")
     version_generation(document["version"])
     target = document.get("target")
@@ -1225,89 +1330,127 @@ def verify_delivery(
     policy_row = document.get("release_policy")
     build_row = document.get("build_manifest")
     components = document.get("components")
-    if not isinstance(target, dict) or set(target) != {
-        "board_family", "physical_board"
-    } or target.get("board_family") != "bk7258" \
-            or not isinstance(target.get("physical_board"), str) \
-            or re.fullmatch(
-                r"[a-z][a-z0-9_]*", str(target.get("physical_board"))
-            ) is None \
-            or not isinstance(layout_summary, dict) \
-            or set(layout_summary) != {"flash_size", "identity", "sha256"} \
-            or not isinstance(policy_row, dict) \
-            or set(policy_row) != {
-                "factory_mode", "format", "path", "sha256",
-            } or not isinstance(build_row, dict) \
-            or set(build_row) != {"path", "sha256"} \
-            or not isinstance(components, dict) \
-            or set(components) != {"factory", "ota", "recovery"}:
+    if (
+        not isinstance(target, dict)
+        or set(target) != {"board_family", "physical_board"}
+        or target.get("board_family") != "bk7258"
+        or not isinstance(target.get("physical_board"), str)
+        or re.fullmatch(r"[a-z][a-z0-9_]*", str(target.get("physical_board"))) is None
+        or not isinstance(layout_summary, dict)
+        or set(layout_summary) != {"flash_size", "identity", "sha256"}
+        or not isinstance(policy_row, dict)
+        or set(policy_row)
+        != {
+            "factory_mode",
+            "format",
+            "path",
+            "sha256",
+        }
+        or not isinstance(build_row, dict)
+        or set(build_row) != {"path", "sha256"}
+        or not isinstance(components, dict)
+        or set(components) != {"factory", "ota", "recovery"}
+    ):
         raise ProductError("product release target/layout/components are malformed")
 
     recovery_row = components["recovery"]
     factory_row = components["factory"]
     ota_row = components["ota"]
-    if not isinstance(recovery_row, dict) or set(recovery_row) != {
-                "accepted_base", "boot", "installed_root", "operator", "package",
-                "partition_states", "scope", "security", "status",
-            } or recovery_row.get("status") != "included" \
-            or recovery_row.get("scope") != "accepted-device-base" \
-            or recovery_row.get("security") not in {"unsigned", "signed"} \
-            or not isinstance(factory_row, dict) \
-            or set(factory_row) != {"mode", "status"} \
-            or factory_row.get("status") not in {
-                "requires-provisioning", "not-included"
-            } or not isinstance(ota_row, dict) \
-            or ota_row.get("status") not in {"included", "not-included"}:
+    if (
+        not isinstance(recovery_row, dict)
+        or set(recovery_row)
+        != {
+            "accepted_base",
+            "boot",
+            "installed_root",
+            "operator",
+            "package",
+            "partition_states",
+            "scope",
+            "security",
+            "status",
+        }
+        or recovery_row.get("status") != "included"
+        or recovery_row.get("scope") != "accepted-device-base"
+        or recovery_row.get("security") not in {"unsigned", "signed"}
+        or not isinstance(factory_row, dict)
+        or set(factory_row) != {"mode", "status"}
+        or factory_row.get("status") not in {"requires-provisioning", "not-included"}
+        or not isinstance(ota_row, dict)
+        or ota_row.get("status") not in {"included", "not-included"}
+    ):
         raise ProductError("product component contract is malformed")
 
     package_meta = recovery_row.get("package")
     operator_meta = recovery_row.get("operator")
-    if not isinstance(package_meta, dict) \
-            or set(package_meta) != {"path", "sha256", "size"} \
-            or not isinstance(operator_meta, dict) \
-            or set(operator_meta) != {
-                "flash_end", "flash_offset", "path", "sha256", "size",
-            }:
+    if (
+        not isinstance(package_meta, dict)
+        or set(package_meta) != {"path", "sha256", "size"}
+        or not isinstance(operator_meta, dict)
+        or set(operator_meta)
+        != {
+            "flash_end",
+            "flash_offset",
+            "path",
+            "sha256",
+            "size",
+        }
+    ):
         raise ProductError("recovery file metadata is malformed")
     package_data = _member(package_meta, members, "recovery package")
     operator_data = _member(operator_meta, members, "recovery operator")
     operator = recovery_row["operator"]
     flash_size = layout_summary.get("flash_size")
-    if not isinstance(flash_size, int) or isinstance(flash_size, bool) \
-            or flash_size <= 0 or len(operator_data) != flash_size \
-            or operator.get("flash_offset") != 0 \
-            or operator.get("flash_end") != flash_size:
+    if (
+        not isinstance(flash_size, int)
+        or isinstance(flash_size, bool)
+        or flash_size <= 0
+        or len(operator_data) != flash_size
+        or operator.get("flash_offset") != 0
+        or operator.get("flash_end") != flash_size
+    ):
         raise ProductError("recovery operator is not one complete Flash image")
 
     accepted_base = recovery_row.get("accepted_base")
-    if not isinstance(accepted_base, dict) or set(accepted_base) != {
-                "device_id", "evidence", "sha256",
-            } or not isinstance(accepted_base.get("device_id"), str) \
-            or DEVICE_ID_RE.fullmatch(accepted_base["device_id"]) is None \
-            or not isinstance(accepted_base.get("sha256"), str) \
-            or DIGEST_RE.fullmatch(accepted_base["sha256"]) is None:
+    if (
+        not isinstance(accepted_base, dict)
+        or set(accepted_base)
+        != {
+            "device_id",
+            "evidence",
+            "sha256",
+        }
+        or not isinstance(accepted_base.get("device_id"), str)
+        or DEVICE_ID_RE.fullmatch(accepted_base["device_id"]) is None
+        or not isinstance(accepted_base.get("sha256"), str)
+        or DIGEST_RE.fullmatch(accepted_base["sha256"]) is None
+    ):
         raise ProductError("recovery accepted-base metadata is malformed")
     evidence_meta = accepted_base.get("evidence")
-    if not isinstance(evidence_meta, dict) \
-            or set(evidence_meta) != {"path", "sha256", "size"}:
+    if not isinstance(evidence_meta, dict) or set(evidence_meta) != {
+        "path",
+        "sha256",
+        "size",
+    }:
         raise ProductError("accepted-base evidence file metadata is malformed")
-    base_evidence_data = _member(
-        evidence_meta, members, "accepted-base evidence"
-    )
+    base_evidence_data = _member(evidence_meta, members, "accepted-base evidence")
     parsed_base = _parse_base_evidence(
         base_evidence_data,
         Path(str(accepted_base["evidence"]["path"])),
         target,
         layout_summary,
     )
-    if parsed_base.device_id != accepted_base["device_id"] \
-            or parsed_base.base_sha256 != accepted_base["sha256"]:
+    if (
+        parsed_base.device_id != accepted_base["device_id"]
+        or parsed_base.base_sha256 != accepted_base["sha256"]
+    ):
         raise ProductError("recovery accepted-base identity changed")
 
     temporary, _ = _temporary_package(package_data)
     try:
-        package_document, package_members, package_report = \
-            _package_target_layout(temporary)
+        package_document, package_members, package_report = _package_target_layout(
+            temporary
+        )
         if package_report["security"] == "signed":
             if package_verifier is None:
                 raise ProductError(
@@ -1316,26 +1459,29 @@ def verify_delivery(
             package_verifier(temporary)
     finally:
         temporary.unlink(missing_ok=True)
-    if package_document.get("target") != target \
-            or package_document.get("layout", {}).get("identity") \
-                != layout_summary.get("identity") \
-            or package_document.get("layout", {}).get("sha256") \
-                != layout_summary.get("sha256") \
-            or package_document.get("layout", {}).get("flash_size") != flash_size \
-            or package_report["security"] != recovery_row["security"] \
-            or recovery_row.get("boot") != (
-                "direct" if recovery_row["security"] == "unsigned" else "mcuboot"
-            ):
+    if (
+        package_document.get("target") != target
+        or package_document.get("layout", {}).get("identity")
+        != layout_summary.get("identity")
+        or package_document.get("layout", {}).get("sha256")
+        != layout_summary.get("sha256")
+        or package_document.get("layout", {}).get("flash_size") != flash_size
+        or package_report["security"] != recovery_row["security"]
+        or recovery_row.get("boot")
+        != ("direct" if recovery_row["security"] == "unsigned" else "mcuboot")
+    ):
         raise ProductError("recovery package target/layout/security changed")
     package_security = package_document.get("security")
     installed_root = recovery_row.get("installed_root")
     if recovery_row["security"] == "unsigned":
         if installed_root is not None:
             raise ProductError("unsigned recovery cannot install a trust root")
-    elif not isinstance(package_security, dict) \
-            or not isinstance(installed_root, str) \
-            or DIGEST_RE.fullmatch(installed_root) is None \
-            or package_security.get("mcuboot_public_fingerprint") != installed_root:
+    elif (
+        not isinstance(package_security, dict)
+        or not isinstance(installed_root, str)
+        or DIGEST_RE.fullmatch(installed_root) is None
+        or package_security.get("mcuboot_public_fingerprint") != installed_root
+    ):
         raise ProductError("signed recovery installed root changed")
     package_version = _package_version(package_document)
     if package_version is not None and package_version != document["version"]:
@@ -1343,24 +1489,31 @@ def verify_delivery(
 
     build_path = build_row.get("path")
     build_digest = build_row.get("sha256")
-    if not isinstance(build_path, str) or build_path not in members \
-            or not isinstance(build_digest, str) \
-            or DIGEST_RE.fullmatch(build_digest) is None \
-            or _digest(members[build_path]) != build_digest:
+    if (
+        not isinstance(build_path, str)
+        or build_path not in members
+        or not isinstance(build_digest, str)
+        or DIGEST_RE.fullmatch(build_digest) is None
+        or _digest(members[build_path]) != build_digest
+    ):
         raise ProductError("delivery build manifest identity changed")
     _validate_build_manifest(
         members[build_path], package_document, str(package_report["security"])
     )
 
     policy_path = policy_row.get("path")
-    if not isinstance(policy_path, str) or policy_path not in members \
-            or policy_row.get("format") != POLICY_FORMAT \
-            or policy_row.get("factory_mode") != factory_row.get("mode") \
-            or not isinstance(policy_row.get("sha256"), str) \
-            or _digest(members[policy_path]) != policy_row["sha256"]:
+    if (
+        not isinstance(policy_path, str)
+        or policy_path not in members
+        or policy_row.get("format") != POLICY_FORMAT
+        or policy_row.get("factory_mode") != factory_row.get("mode")
+        or not isinstance(policy_row.get("sha256"), str)
+        or _digest(members[policy_path]) != policy_row["sha256"]
+    ):
         raise ProductError("delivery release policy identity changed")
     parsed_policy = _parse_policy(
-        members[policy_path], Path(policy_path),
+        members[policy_path],
+        Path(policy_path),
         tuple(package_document["layout"]["partitions"]),
     )
     if parsed_policy.factory_mode != factory_row.get("mode"):
@@ -1373,8 +1526,13 @@ def verify_delivery(
     state_by_name: dict[str, dict[str, object]] = {}
     for row in states:
         if not isinstance(row, dict) or set(row) != {
-            "action", "after_sha256", "before_sha256", "name", "offset",
-            "policy", "size",
+            "action",
+            "after_sha256",
+            "before_sha256",
+            "name",
+            "offset",
+            "policy",
+            "size",
         }:
             raise ProductError("recovery partition state row is malformed")
         name = row.get("name")
@@ -1382,13 +1540,22 @@ def verify_delivery(
         size = row.get("size")
         before = row.get("before_sha256")
         after = row.get("after_sha256")
-        if not isinstance(name, str) or name in state_by_name \
-                or not isinstance(offset, int) or not isinstance(size, int) \
-                or isinstance(offset, bool) or isinstance(size, bool) \
-                or offset != cursor or size <= 0 or offset + size > flash_size \
-                or not isinstance(before, str) or DIGEST_RE.fullmatch(before) is None \
-                or not isinstance(after, str) or DIGEST_RE.fullmatch(after) is None \
-                or _digest(operator_data[offset:offset + size]) != after:
+        if (
+            not isinstance(name, str)
+            or name in state_by_name
+            or not isinstance(offset, int)
+            or not isinstance(size, int)
+            or isinstance(offset, bool)
+            or isinstance(size, bool)
+            or offset != cursor
+            or size <= 0
+            or offset + size > flash_size
+            or not isinstance(before, str)
+            or DIGEST_RE.fullmatch(before) is None
+            or not isinstance(after, str)
+            or DIGEST_RE.fullmatch(after) is None
+            or _digest(operator_data[offset : offset + size]) != after
+        ):
             raise ProductError("recovery partition state geometry/hash changed")
         state_by_name[name] = row
         cursor += size
@@ -1402,22 +1569,31 @@ def verify_delivery(
     for name, release_policy in policy_map.items():
         row = state_by_name.get(name)
         partition = partition_by_name[name]
-        if row is None or row.get("policy") != release_policy \
-                or row.get("offset") != partition["offset"] \
-                or row.get("size") != partition["size"]:
+        if (
+            row is None
+            or row.get("policy") != release_policy
+            or row.get("offset") != partition["offset"]
+            or row.get("size") != partition["size"]
+        ):
             raise ProductError(f"release policy state changed: {name}")
         if release_policy in {
-            "preserve", "device-unique", "factory-init", "immutable"
-        } and (row.get("action") != "preserved" \
-               or row.get("before_sha256") != row.get("after_sha256")):
+            "preserve",
+            "device-unique",
+            "factory-init",
+            "immutable",
+        } and (
+            row.get("action") != "preserved"
+            or row.get("before_sha256") != row.get("after_sha256")
+        ):
             raise ProductError(f"protected partition was not preserved: {name}")
         if release_policy == "transactional":
             start = partition["offset"]
             end = start + partition["size"]
-            if row.get("action") != "reset" \
-                    or operator_data[start:end] != bytes(
-                        [image_domain.ERASE_BYTE]
-                    ) * partition["size"]:
+            if (
+                row.get("action") != "reset"
+                or operator_data[start:end]
+                != bytes([image_domain.ERASE_BYTE]) * partition["size"]
+            ):
                 raise ProductError(f"transactional partition was not reset: {name}")
 
     image_partitions: set[str] = set()
@@ -1425,48 +1601,58 @@ def verify_delivery(
         partition_name = row["partition"]
         partition = partition_by_name[partition_name]
         state = state_by_name[partition_name]
-        if policy_map[partition_name] != "replace" \
-                or state.get("action") != "replaced":
+        if policy_map[partition_name] != "replace" or state.get("action") != "replaced":
             raise ProductError("package write/release policy evidence changed")
         start = partition["offset"]
-        expected = bytearray(
-            [image_domain.ERASE_BYTE] * partition["size"]
-        )
+        expected = bytearray([image_domain.ERASE_BYTE] * partition["size"])
         data = package_members[row["member"]]
-        expected[:len(data)] = data
-        if operator_data[start:start + partition["size"]] != expected:
+        expected[: len(data)] = data
+        if operator_data[start : start + partition["size"]] != expected:
             raise ProductError(f"recovery bytes changed: {partition_name}")
         image_partitions.add(partition_name)
     for name, value in policy_map.items():
         if value == "replace" and name not in image_partitions:
             state = state_by_name[name]
-            if state.get("action") != "carried-forward-external" \
-                    or state.get("before_sha256") != state.get("after_sha256"):
+            if state.get("action") != "carried-forward-external" or state.get(
+                "before_sha256"
+            ) != state.get("after_sha256"):
                 raise ProductError(f"external replacement state changed: {name}")
 
     gateway_release: dict[str, object] | None = None
     expected_members = {
-        DELIVERY_MANIFEST, DELIVERY_CHECKSUMS, DELIVERY_FLASHING,
-        accepted_base["evidence"]["path"], build_path, policy_path,
+        DELIVERY_MANIFEST,
+        DELIVERY_CHECKSUMS,
+        DELIVERY_FLASHING,
+        accepted_base["evidence"]["path"],
+        build_path,
+        policy_path,
         recovery_row["package"]["path"],
         recovery_row["operator"]["path"],
     }
     if ota_row["status"] == "included":
-        if set(ota_row) != {
-            "compatibility", "package", "required_source_root",
-            "required_source_version", "status",
-        } or ota_row.get("compatibility") != "operator-precondition" \
-                or not isinstance(ota_row.get("required_source_version"), str) \
-                or VERSION_RE.fullmatch(
-                    ota_row["required_source_version"]
-                ) is None \
-                or version_generation(ota_row["required_source_version"]) \
-                    >= version_generation(document["version"]) \
-                or not isinstance(ota_row.get("required_source_root"), str) \
-                or DIGEST_RE.fullmatch(ota_row["required_source_root"]) is None:
+        if (
+            set(ota_row)
+            != {
+                "compatibility",
+                "package",
+                "required_source_root",
+                "required_source_version",
+                "status",
+            }
+            or ota_row.get("compatibility") != "operator-precondition"
+            or not isinstance(ota_row.get("required_source_version"), str)
+            or VERSION_RE.fullmatch(ota_row["required_source_version"]) is None
+            or version_generation(ota_row["required_source_version"])
+            >= version_generation(document["version"])
+            or not isinstance(ota_row.get("required_source_root"), str)
+            or DIGEST_RE.fullmatch(ota_row["required_source_root"]) is None
+        ):
             raise ProductError("OTA compatibility metadata is malformed")
-        if not isinstance(ota_row.get("package"), dict) \
-                or set(ota_row["package"]) != {"path", "sha256", "size"}:
+        if not isinstance(ota_row.get("package"), dict) or set(ota_row["package"]) != {
+            "path",
+            "sha256",
+            "size",
+        }:
             raise ProductError("OTA package metadata is malformed")
         ota_data = _member(ota_row["package"], members, "OTA package")
         expected_members.add(ota_row["package"]["path"])
@@ -1483,14 +1669,15 @@ def verify_delivery(
                 raise ProductError("OTA package changed during verification")
         finally:
             ota_temporary.unlink(missing_ok=True)
-        if ota_report["security"] != "signed-ota" \
-                or ota_document.get("target") != target \
-                or ota_document.get("layout", {}).get("identity") \
-                    != layout_summary["identity"] \
-                or _package_version(ota_document) != document["version"] \
-                or ota_document.get("security", {}).get(
-                    "mcuboot_public_fingerprint"
-                ) != ota_row["required_source_root"]:
+        if (
+            ota_report["security"] != "signed-ota"
+            or ota_document.get("target") != target
+            or ota_document.get("layout", {}).get("identity")
+            != layout_summary["identity"]
+            or _package_version(ota_document) != document["version"]
+            or ota_document.get("security", {}).get("mcuboot_public_fingerprint")
+            != ota_row["required_source_root"]
+        ):
             raise ProductError("OTA package compatibility changed")
         gateway_release = {
             "board_family": target["board_family"],
@@ -1505,15 +1692,16 @@ def verify_delivery(
             "required_source_version": ota_row["required_source_version"],
             "target_version": document["version"],
         }
-        if not 0 < gateway_release["package_size_bytes"] <= \
-                MAX_GATEWAY_PACKAGE_SIZE:
+        if not 0 < gateway_release["package_size_bytes"] <= MAX_GATEWAY_PACKAGE_SIZE:
             raise ProductError("OTA package exceeds the Gateway release limit")
     elif set(ota_row) != {"status"}:
         raise ProductError("absent OTA component has unexpected metadata")
 
-    if set(members) != expected_members \
-            or members[DELIVERY_CHECKSUMS] != _checksums(members) \
-            or members[DELIVERY_FLASHING] != _flashing(document):
+    if (
+        set(members) != expected_members
+        or members[DELIVERY_CHECKSUMS] != _checksums(members)
+        or members[DELIVERY_FLASHING] != _flashing(document)
+    ):
         raise ProductError("product delivery members/checksums/guide changed")
     return {
         "delivery": str(path),
@@ -1538,7 +1726,9 @@ def create_gateway_release_registry(
     """Verify product deliveries and publish a metadata-only Gateway registry."""
 
     if not callable(package_verifier):
-        raise ProductError("Gateway release registry requires cryptographic verification")
+        raise ProductError(
+            "Gateway release registry requires cryptographic verification"
+        )
     if not 1 <= len(deliveries) <= MAX_GATEWAY_RELEASES:
         raise ProductError(
             f"Gateway release registry requires 1-{MAX_GATEWAY_RELEASES} deliveries"
@@ -1551,8 +1741,10 @@ def create_gateway_release_registry(
         if not isinstance(release, dict):
             raise ProductError(f"delivery has no verified OTA component: {delivery}")
         package_size = release.get("package_size_bytes")
-        if type(package_size) is not int or not 0 < package_size <= \
-                MAX_GATEWAY_PACKAGE_SIZE:
+        if (
+            type(package_size) is not int
+            or not 0 < package_size <= MAX_GATEWAY_PACKAGE_SIZE
+        ):
             raise ProductError("OTA package exceeds the Gateway release limit")
         releases.append(dict(release))
 
@@ -1571,10 +1763,12 @@ def create_gateway_release_registry(
             str(row["manifest_sha256"]),
         )
     )
-    data = _canonical({
-        "format": GATEWAY_RELEASE_REGISTRY_FORMAT,
-        "releases": releases,
-    })
+    data = _canonical(
+        {
+            "format": GATEWAY_RELEASE_REGISTRY_FORMAT,
+            "releases": releases,
+        }
+    )
 
     output = output.absolute()
     if output.suffix.lower() != ".json":
@@ -1611,42 +1805,67 @@ def create_gateway_release_registry(
     }
 
 
-def release_identity(manifest: build_domain.BuildManifest, version: str,
-                      product: str | None, artifact_id: str | None) -> dict[str, object] | None:
-    return artifact_identity(manifest.physical_board, manifest.provenance,
-                              version, product, artifact_id)
+def release_identity(
+    manifest: build_domain.BuildManifest,
+    version: str,
+    product: str | None,
+    artifact_id: str | None,
+) -> dict[str, object] | None:
+    return artifact_identity(
+        manifest.physical_board, manifest.provenance, version, product, artifact_id
+    )
 
 
-def artifact_identity(board: str, provenance: dict[str, object] | None,
-                       version: str, product: str | None,
-                       artifact_id: str | None) -> dict[str, object] | None:
+def artifact_identity(
+    board: str,
+    provenance: dict[str, object] | None,
+    version: str,
+    product: str | None,
+    artifact_id: str | None,
+) -> dict[str, object] | None:
     if provenance is None:
         if product is not None or artifact_id is not None:
-            raise ValueError("new artifact identity requires a build manifest with actual profiles")
+            raise ValueError(
+                "new artifact identity requires a build manifest with actual profiles"
+            )
         return None  # Historical /2 invocation retains its names.
     selected = product or provenance["product"]
     if provenance["product"] is not None and selected != provenance["product"]:
         raise ValueError("release product differs from build provenance")
-    if not isinstance(selected, str) or re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", selected) is None:
+    if (
+        not isinstance(selected, str)
+        or re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", selected) is None
+    ):
         raise ValueError("release requires an explicit --product or build product")
     identifier = artifact_id
-    if not isinstance(identifier, str) or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,47}", identifier) is None:
+    if (
+        not isinstance(identifier, str)
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,47}", identifier) is None
+    ):
         raise ValueError("artifact-id must be a safe stable identifier")
     profiles = provenance["profiles"]
     profile = "__".join(PurePosixPath(profiles[role]).name for role in ("cp", "ap"))
     if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,95}", profile) is None:
         raise ValueError("profile cannot form a safe artifact name")
-    return {"product": selected, "chip": "bk7258", "board": board,
-            "profile": profile, "version": version, "artifact_id": identifier,
-            "security_counter": version_generation(version),
-            "counter_policy": "legacy-version-build-equals-security-counter"}
+    return {
+        "product": selected,
+        "chip": "bk7258",
+        "board": board,
+        "profile": profile,
+        "version": version,
+        "artifact_id": identifier,
+        "security_counter": version_generation(version),
+        "counter_policy": "legacy-version-build-equals-security-counter",
+    }
 
 
 def artifact_stem(identity: dict[str, object], kind: str) -> str:
     if kind not in {"full", "ota"}:
         raise ValueError("unsupported artifact kind")
-    return (f"{identity['product']}-{identity['chip']}-{identity['board']}-"
-            f"{identity['profile']}-v{identity['version']}-b{identity['artifact_id']}-{kind}")
+    return (
+        f"{identity['product']}-{identity['chip']}-{identity['board']}-"
+        f"{identity['profile']}-v{identity['version']}-b{identity['artifact_id']}-{kind}"
+    )
 
 
 def load_release(
@@ -1674,23 +1893,32 @@ def load_release(
     canonical = (
         json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n"
     ).encode("utf-8")
-    if not isinstance(document, dict) or data != canonical \
-            or document.get("format") != "bk7258.release/2" \
-            or document.get("mode") != expected_mode:
+    if (
+        not isinstance(document, dict)
+        or data != canonical
+        or document.get("format") != "bk7258.release/2"
+        or document.get("mode") != expected_mode
+    ):
         raise package_domain.PackageError(
             f"unsupported {expected_mode} release directory"
         )
 
     def member(row: object, label: str) -> Path:
-        if not isinstance(row, dict) or not isinstance(row.get("path"), str) \
-                or not isinstance(row.get("sha256"), str) \
-                or re.fullmatch(r"[0-9a-f]{64}", row["sha256"]) is None:
+        if (
+            not isinstance(row, dict)
+            or not isinstance(row.get("path"), str)
+            or not isinstance(row.get("sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", row["sha256"]) is None
+        ):
             raise package_domain.PackageError(
                 f"{expected_mode} release {label} metadata is malformed"
             )
         relative = PurePosixPath(row["path"])
-        if relative.is_absolute() or not relative.parts \
-                or any(part in {"", ".", ".."} for part in relative.parts):
+        if (
+            relative.is_absolute()
+            or not relative.parts
+            or any(part in {"", ".", ".."} for part in relative.parts)
+        ):
             raise package_domain.PackageError(
                 f"{expected_mode} release {label} path is unsafe"
             )
@@ -1730,16 +1958,23 @@ def load_release(
         target = copied_build.get("target")
         if not isinstance(target, dict) or target != document.get("target"):
             raise ValueError("release artifact target differs from build evidence")
-        expected = artifact_identity(target.get("physical_board"), provenance,
-                                      document.get("version"), identity.get("product"),
-                                      identity.get("artifact_id"))
-        if identity != expected or identity["security_counter"] != document.get("generation"):
+        expected = artifact_identity(
+            target.get("physical_board"),
+            provenance,
+            document.get("version"),
+            identity.get("product"),
+            identity.get("artifact_id"),
+        )
+        if identity != expected or identity["security_counter"] != document.get(
+            "generation"
+        ):
             raise ValueError("release artifact identity differs from build evidence")
         if package.name != artifact_stem(identity, expected_mode) + ".bkpack":
             raise ValueError("release package name differs from artifact identity")
     operator = (
         member(document.get("operator"), "operator")
-        if expected_mode == "full" else None
+        if expected_mode == "full"
+        else None
     )
     materialization = document.get("materialization")
     base_evidence = None
@@ -1755,8 +1990,13 @@ def load_release(
 
 
 def release_product(
-    repository: Path, *, full_release: Path, base: Path, output: Path,
-    ota_release: Path | None, ota_required_source_version: str | None,
+    repository: Path,
+    *,
+    full_release: Path,
+    base: Path,
+    output: Path,
+    ota_release: Path | None,
+    ota_required_source_version: str | None,
     package_verifier: Callable[[Path], object],
 ) -> dict[str, object]:
     """Validate existing release evidence and assemble one product delivery.
@@ -1772,29 +2012,37 @@ def release_product(
             "full release has no recovery operator/base evidence"
         )
     materialization = full.get("materialization")
-    if not isinstance(materialization, dict) \
-            or set(materialization) != {
-                "accepted_base", "flash_end", "flash_offset", "flash_size",
-            } or materialization.get("flash_offset") != 0 \
-            or materialization.get("flash_end") != materialization.get("flash_size") \
-            or operator.stat().st_size != materialization.get("flash_size"):
+    if (
+        not isinstance(materialization, dict)
+        or set(materialization)
+        != {
+            "accepted_base",
+            "flash_end",
+            "flash_offset",
+            "flash_size",
+        }
+        or materialization.get("flash_offset") != 0
+        or materialization.get("flash_end") != materialization.get("flash_size")
+        or operator.stat().st_size != materialization.get("flash_size")
+    ):
         raise package_domain.PackageError(
             "full release is not a complete-Flash recovery release"
         )
-    manifest = validate_build_manifest_evidence(
-        build_manifest, full_package
-    )
+    manifest = validate_build_manifest_evidence(build_manifest, full_package)
     target = full.get("target")
     layout = full.get("layout")
     manifest_target = manifest.get("target")
     manifest_layout = manifest.get("layout")
-    if not isinstance(target, dict) or not isinstance(layout, dict) \
-            or not isinstance(manifest_target, dict) \
-            or not isinstance(manifest_layout, dict) \
-            or target != manifest_target \
-            or layout.get("identity") != manifest_layout.get("identity") \
-            or layout.get("sha256") != manifest_layout.get("sha256") \
-            or full.get("version") is None:
+    if (
+        not isinstance(target, dict)
+        or not isinstance(layout, dict)
+        or not isinstance(manifest_target, dict)
+        or not isinstance(manifest_layout, dict)
+        or target != manifest_target
+        or layout.get("identity") != manifest_layout.get("identity")
+        or layout.get("sha256") != manifest_layout.get("sha256")
+        or full.get("version") is None
+    ):
         raise package_domain.PackageError(
             "full release summary/build manifest identity changed"
         )
@@ -1804,27 +2052,24 @@ def release_product(
         raise package_domain.PackageError("full release target is malformed")
     preset = build_domain.board_preset(repository, physical_board)
     selected_layout = layout_domain.load(preset.partition)
-    if selected_layout.identity != layout.get("identity") \
-            or selected_layout.sha256 != layout.get("sha256"):
+    if selected_layout.identity != layout.get(
+        "identity"
+    ) or selected_layout.sha256 != layout.get("sha256"):
         raise package_domain.PackageError(
             "full release layout differs from the selected board declaration"
         )
     policy = load_policy(preset.release_policy, selected_layout)
-    base_evidence = load_base_evidence(
-        base_evidence_path, target, selected_layout
-    )
+    base_evidence = load_base_evidence(base_evidence_path, target, selected_layout)
     accepted_base = materialization.get("accepted_base")
-    if not isinstance(accepted_base, dict) \
-            or set(accepted_base) != {"device_id", "path", "sha256", "size"} \
-            or accepted_base.get("device_id") != base_evidence.device_id \
-            or accepted_base.get("sha256") != base_evidence.sha256 \
-            or accepted_base.get("size") != len(base_evidence.data):
-        raise package_domain.PackageError(
-            "full release accepted-base identity changed"
-        )
-    recovery = materialize_recovery(
-        full_package, policy, base, base_evidence
-    )
+    if (
+        not isinstance(accepted_base, dict)
+        or set(accepted_base) != {"device_id", "path", "sha256", "size"}
+        or accepted_base.get("device_id") != base_evidence.device_id
+        or accepted_base.get("sha256") != base_evidence.sha256
+        or accepted_base.get("size") != len(base_evidence.data)
+    ):
+        raise package_domain.PackageError("full release accepted-base identity changed")
+    recovery = materialize_recovery(full_package, policy, base, base_evidence)
     if recovery.data != operator.read_bytes():
         raise package_domain.PackageError(
             "full release operator differs from policy materialization"
@@ -1840,18 +2085,20 @@ def release_product(
         ota, ota_package, ota_manifest, ota_operator, ota_base = load_release(
             ota_release, "ota"
         )
-        ota_build = validate_build_manifest_evidence(
-            ota_manifest, ota_package
-        )
+        ota_build = validate_build_manifest_evidence(ota_manifest, ota_package)
         ota_target = ota_build.get("target")
         ota_layout = ota_build.get("layout")
-        if ota_operator is not None or ota_base is not None \
-                or ota_target != target \
-                or not isinstance(ota_layout, dict) \
-                or ota_layout.get("identity") != selected_layout.identity \
-                or ota_layout.get("sha256") != selected_layout.sha256 \
-                or ota.get("target") != target or ota.get("layout") != layout \
-                or ota.get("version") != full.get("version"):
+        if (
+            ota_operator is not None
+            or ota_base is not None
+            or ota_target != target
+            or not isinstance(ota_layout, dict)
+            or ota_layout.get("identity") != selected_layout.identity
+            or ota_layout.get("sha256") != selected_layout.sha256
+            or ota.get("target") != target
+            or ota.get("layout") != layout
+            or ota.get("version") != full.get("version")
+        ):
             raise package_domain.PackageError(
                 "full and OTA release identities are incompatible"
             )

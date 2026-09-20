@@ -49,7 +49,7 @@ static int execute(void *context, enum bkcontrol_command_e command,
   return operation_error;
 }
 static void put(uint8_t *p, uint32_t n)
-{ p[0]=n>>24; p[1]=n>>16; p[2]=n>>8; p[3]=n; }
+{ p[0] = n>>24; p[1] = n>>16; p[2] = n>>8; p[3] = n; }
 static uint32_t get(const uint8_t *p)
 { return (uint32_t)p[0]<<24 | (uint32_t)p[1]<<16 | (uint32_t)p[2]<<8 | p[3]; }
 static void frame(uint8_t p[48], uint32_t command, uint32_t seq, uint32_t size)
@@ -64,7 +64,7 @@ static void authenticate(struct bkcontrol_session_s *s)
   frame(p, 1, 0, 32); memcpy(p+16, key, 32);
   assert(bkcontrol_session_packet(s, p, 48, response) == 0);
   assert(s->authenticated && get(response+4) == 0x80000001u);
-  for (unsigned i=0; i<32; i++) assert(s->secret[i] == 0);
+  for (unsigned i = 0; i<32; i++) assert(s->secret[i] == 0);
 }
 static void authenticate_ota(struct bkcontrol_session_s *s)
 {
@@ -307,7 +307,7 @@ int main(int argc, char **argv)
   struct bkcontrol_session_s s = {0};
   uint8_t p[48], response[40], key[32]; memset(key, 42, 32);
   /* Neither malformed AUTH nor unauthenticated commands can reach AP. */
-  for (unsigned bad=0; bad<4; bad++)
+  for (unsigned bad = 0; bad<4; bad++)
     {
       assert(bkcontrol_session_open(&s, key, execute, &calls) == 0);
       frame(p, 1, 0, 32); memcpy(p+16, key, 32);
@@ -317,23 +317,23 @@ int main(int argc, char **argv)
       if (bad == 3) put(p+12, UINT32_MAX);
       assert(bkcontrol_session_packet(&s, p, 48, response) < 0);
       assert(!s.open && calls == 0);
-      for (unsigned i=0; i<32; i++) assert(s.secret[i] == 0);
-      for (unsigned i=0; i<40; i++) assert(response[i] == 0);
+      for (unsigned i = 0; i<32; i++) assert(s.secret[i] == 0);
+      for (unsigned i = 0; i<40; i++) assert(response[i] == 0);
     }
   authenticate(&s);
   /* OTA remains authenticated-only and uses the existing request sequence. */
   frame(p, BKCONTROL_OTA_BEGIN, 1, 4); put(p+16, 44);
-  assert(bkcontrol_session_packet(&s,p,20,response)==0 && (int32_t)get(response+16)==-ENOTSUP);
+  assert(bkcontrol_session_packet(&s, p, 20, response) == 0 && (int32_t)get(response+16) == -ENOTSUP);
   bkcontrol_session_close(&s); authenticate(&s);
-  assert(bkcontrol_session_set_ota_handler(&s, ota)==-EINVAL); /* before AUTH only */
+  assert(bkcontrol_session_set_ota_handler(&s, ota) == -EINVAL); /* before AUTH only */
   bkcontrol_session_close(&s);
-  assert(bkcontrol_session_open(&s,key,execute,&calls)==0);
-  assert(bkcontrol_session_set_ota_handler(&s,ota)==0);
-  frame(p,1,0,32);memcpy(p+16,key,32);assert(bkcontrol_session_packet(&s,p,48,response)==0);
-  frame(p,BKCONTROL_OTA_BEGIN,1,4);put(p+16,43);assert(bkcontrol_session_packet(&s,p,20,response)<0&&!s.open);
-  assert(bkcontrol_session_open(&s,key,execute,&calls)==0);assert(bkcontrol_session_set_ota_handler(&s,ota)==0);frame(p,1,0,32);memcpy(p+16,key,32);assert(bkcontrol_session_packet(&s,p,48,response)==0);
-  frame(p,BKCONTROL_OTA_BEGIN,1,4);put(p+16,44);assert(bkcontrol_session_packet(&s,p,20,response)==0);
-  frame(p,BKCONTROL_OTA_START,2,0);assert(bkcontrol_session_packet(&s,p,16,response)<0&&!s.open);
+  assert(bkcontrol_session_open(&s, key, execute, &calls) == 0);
+  assert(bkcontrol_session_set_ota_handler(&s, ota) == 0);
+  frame(p, 1, 0, 32);memcpy(p+16, key, 32);assert(bkcontrol_session_packet(&s, p, 48, response) == 0);
+  frame(p, BKCONTROL_OTA_BEGIN, 1, 4);put(p+16, 43);assert(bkcontrol_session_packet(&s, p, 20, response)<0 && !s.open);
+  assert(bkcontrol_session_open(&s, key, execute, &calls) == 0);assert(bkcontrol_session_set_ota_handler(&s, ota) == 0);frame(p, 1, 0, 32);memcpy(p+16, key, 32);assert(bkcontrol_session_packet(&s, p, 48, response) == 0);
+  frame(p, BKCONTROL_OTA_BEGIN, 1, 4);put(p+16, 44);assert(bkcontrol_session_packet(&s, p, 20, response) == 0);
+  frame(p, BKCONTROL_OTA_START, 2, 0);assert(bkcontrol_session_packet(&s, p, 16, response)<0 && !s.open);
   authenticate(&s);
   frame(p, BKCONTROL_INFO, 1, 0);
   assert(bkcontrol_session_packet(&s, p, 16, response) == 0);
@@ -369,7 +369,7 @@ int main(int argc, char **argv)
   assert(bkcontrol_session_packet(&s, p, 16, response) == 0);
   assert(calls == 3);
   bkcontrol_session_close(&s);
-  for (unsigned bad=0; bad<5; bad++)
+  for (unsigned bad = 0; bad<5; bad++)
     {
       unsigned before = calls;
       authenticate(&s);

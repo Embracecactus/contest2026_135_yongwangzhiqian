@@ -18,21 +18,48 @@ _VERSION = re.compile(
     r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\+([1-9][0-9]*)",
     re.ASCII,
 )
-_STATES = frozenset({
-    "dispatching", "awaiting_first_report", "downloading", "verifying", "staged",
-    "rebooting", "trial", "confirming", "rollback_check", "confirmed",
-    "rolled_back", "failed", "uncertain", "orphaned",
-})
+_STATES = frozenset(
+    {
+        "dispatching",
+        "awaiting_first_report",
+        "downloading",
+        "verifying",
+        "staged",
+        "rebooting",
+        "trial",
+        "confirming",
+        "rollback_check",
+        "confirmed",
+        "rolled_back",
+        "failed",
+        "uncertain",
+        "orphaned",
+    }
+)
 _TERMINAL = frozenset({"confirmed", "rolled_back", "failed", "orphaned"})
 _TERMINAL_PENDING = frozenset({"confirming", "rollback_check"})
 _ORDER = {
-    "dispatching": 0, "awaiting_first_report": 0, "downloading": 1,
-    "verifying": 2, "staged": 3, "rebooting": 4, "trial": 5,
+    "dispatching": 0,
+    "awaiting_first_report": 0,
+    "downloading": 1,
+    "verifying": 2,
+    "staged": 3,
+    "rebooting": 4,
+    "trial": 5,
 }
 _COLUMNS = (
-    "device_id", "transaction_id", "manifest_sha256", "target_version", "state",
-    "progress_percent", "result", "created_at_ms", "updated_at_ms",
-    "dispatch_boot_generation", "dispatch_session_id", "dispatch_sequence",
+    "device_id",
+    "transaction_id",
+    "manifest_sha256",
+    "target_version",
+    "state",
+    "progress_percent",
+    "result",
+    "created_at_ms",
+    "updated_at_ms",
+    "dispatch_boot_generation",
+    "dispatch_session_id",
+    "dispatch_sequence",
 )
 
 
@@ -65,20 +92,27 @@ def _valid_u32(value: object) -> bool:
 
 
 def _validate_transaction(value: OtaTransaction) -> None:
-    if (not _DEVICE.fullmatch(value.device_id)
-            or not _TRANSACTION.fullmatch(value.transaction_id)
-            or not _DIGEST.fullmatch(value.manifest_sha256)
-            or value.manifest_sha256 in {"0" * 64, "f" * 64}
-            or not _VERSION.fullmatch(value.target_version)
-            or value.state not in _STATES
-            or type(value.progress_percent) is not int
-            or not 0 <= value.progress_percent <= 100
-            or value.result is not None and (type(value.result) is not int or value.result > 0)
-            or not _valid_time(value.created_at_ms) or not _valid_time(value.updated_at_ms)
-            or value.updated_at_ms < value.created_at_ms):
+    if (
+        not _DEVICE.fullmatch(value.device_id)
+        or not _TRANSACTION.fullmatch(value.transaction_id)
+        or not _DIGEST.fullmatch(value.manifest_sha256)
+        or value.manifest_sha256 in {"0" * 64, "f" * 64}
+        or not _VERSION.fullmatch(value.target_version)
+        or value.state not in _STATES
+        or type(value.progress_percent) is not int
+        or not 0 <= value.progress_percent <= 100
+        or value.result is not None
+        and (type(value.result) is not int or value.result > 0)
+        or not _valid_time(value.created_at_ms)
+        or not _valid_time(value.updated_at_ms)
+        or value.updated_at_ms < value.created_at_ms
+    ):
         raise OtaTransactionError("invalid OTA transaction")
-    dispatch = (value.dispatch_boot_generation, value.dispatch_session_id,
-                value.dispatch_sequence)
+    dispatch = (
+        value.dispatch_boot_generation,
+        value.dispatch_session_id,
+        value.dispatch_sequence,
+    )
     if any(item is None for item in dispatch):
         if any(item is not None for item in dispatch):
             raise OtaTransactionError("partial OTA dispatch identity")
@@ -100,14 +134,18 @@ class OtaTransactionStore:
         try:
             os.fchmod(fd, 0o600)
             info = os.fstat(fd)
-            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
-                    or info.st_mode & 0o077):
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.geteuid()
+                or info.st_mode & 0o077
+            ):
                 raise OtaTransactionError("OTA transaction state must be private")
         finally:
             os.close(fd)
         self._db = sqlite3.connect(path)
         try:
-            self._db.execute("""CREATE TABLE IF NOT EXISTS ota_transaction (
+            self._db.execute(
+                """CREATE TABLE IF NOT EXISTS ota_transaction (
                 device_id TEXT PRIMARY KEY NOT NULL,
                 transaction_id TEXT NOT NULL,
                 manifest_sha256 TEXT NOT NULL,
@@ -120,8 +158,11 @@ class OtaTransactionStore:
                 dispatch_boot_generation INTEGER,
                 dispatch_session_id INTEGER,
                 dispatch_sequence INTEGER
-            )""")
-            columns = tuple(row[1] for row in self._db.execute("PRAGMA table_info(ota_transaction)"))
+            )"""
+            )
+            columns = tuple(
+                row[1] for row in self._db.execute("PRAGMA table_info(ota_transaction)")
+            )
             if columns != _COLUMNS:
                 raise OtaTransactionError("invalid OTA transaction schema")
             self._db.commit()
@@ -142,7 +183,9 @@ class OtaTransactionStore:
         return value
 
     def _validate_all(self) -> None:
-        for row in self._db.execute("SELECT " + ",".join(_COLUMNS) + " FROM ota_transaction"):
+        for row in self._db.execute(
+            "SELECT " + ",".join(_COLUMNS) + " FROM ota_transaction"
+        ):
             self._row(row)
 
     def _one(self, device_id: str) -> OtaTransaction | None:
@@ -153,32 +196,70 @@ class OtaTransactionStore:
         return None if row is None else self._row(row)
 
     @staticmethod
-    def _input(device_id: str, transaction_id: str, manifest_sha256: str,
-               target_version: str, now_ms: int) -> None:
-        value = OtaTransaction(device_id, transaction_id, manifest_sha256, target_version,
-                               "dispatching", 0, None, now_ms, now_ms, None, None, None)
+    def _input(
+        device_id: str,
+        transaction_id: str,
+        manifest_sha256: str,
+        target_version: str,
+        now_ms: int,
+    ) -> None:
+        value = OtaTransaction(
+            device_id,
+            transaction_id,
+            manifest_sha256,
+            target_version,
+            "dispatching",
+            0,
+            None,
+            now_ms,
+            now_ms,
+            None,
+            None,
+            None,
+        )
         _validate_transaction(value)
 
-    def create(self, device_id: str, transaction_id: str, manifest_sha256: str,
-               target_version: str, now_ms: int) -> OtaTransaction:
+    def create(
+        self,
+        device_id: str,
+        transaction_id: str,
+        manifest_sha256: str,
+        target_version: str,
+        now_ms: int,
+    ) -> OtaTransaction:
         self._input(device_id, transaction_id, manifest_sha256, target_version, now_ms)
         try:
             self._db.execute("BEGIN IMMEDIATE")
             previous = self._one(device_id)
             if previous is not None:
-                if (previous.transaction_id == transaction_id
-                        and previous.manifest_sha256 == manifest_sha256
-                        and previous.target_version == target_version):
+                if (
+                    previous.transaction_id == transaction_id
+                    and previous.manifest_sha256 == manifest_sha256
+                    and previous.target_version == target_version
+                ):
                     self._db.commit()
                     return previous
                 if previous.state not in _TERMINAL:
                     raise OtaTransactionError("OTA transaction already exists")
-                self._db.execute("DELETE FROM ota_transaction WHERE device_id=?",
-                                 (device_id,))
+                self._db.execute(
+                    "DELETE FROM ota_transaction WHERE device_id=?", (device_id,)
+                )
             self._db.execute(
                 "INSERT INTO ota_transaction VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (device_id, transaction_id, manifest_sha256, target_version, "dispatching",
-                 0, None, now_ms, now_ms, None, None, None),
+                (
+                    device_id,
+                    transaction_id,
+                    manifest_sha256,
+                    target_version,
+                    "dispatching",
+                    0,
+                    None,
+                    now_ms,
+                    now_ms,
+                    None,
+                    None,
+                    None,
+                ),
             )
             self._db.commit()
             return self._one(device_id)  # type: ignore[return-value]
@@ -192,36 +273,73 @@ class OtaTransactionStore:
         return self._one(device_id)
 
     def list(self) -> tuple[OtaTransaction, ...]:
-        return tuple(self._row(row) for row in self._db.execute(
-            "SELECT " + ",".join(_COLUMNS) + " FROM ota_transaction ORDER BY device_id"))
+        return tuple(
+            self._row(row)
+            for row in self._db.execute(
+                "SELECT "
+                + ",".join(_COLUMNS)
+                + " FROM ota_transaction ORDER BY device_id"
+            )
+        )
 
-    def bind_dispatch(self, device_id: str, transaction_id: str, boot_generation: int,
-                      session_id: int, sequence: int, now_ms: int) -> OtaTransaction:
-        if (not isinstance(transaction_id, str) or not _TRANSACTION.fullmatch(transaction_id)
-                or not all(_valid_u32(value) for value in (boot_generation, session_id, sequence))
-                or not _valid_time(now_ms)):
+    def bind_dispatch(
+        self,
+        device_id: str,
+        transaction_id: str,
+        boot_generation: int,
+        session_id: int,
+        sequence: int,
+        now_ms: int,
+    ) -> OtaTransaction:
+        if (
+            not isinstance(transaction_id, str)
+            or not _TRANSACTION.fullmatch(transaction_id)
+            or not all(
+                _valid_u32(value) for value in (boot_generation, session_id, sequence)
+            )
+            or not _valid_time(now_ms)
+        ):
             raise OtaTransactionError("invalid OTA dispatch")
         return self._advance(
-            device_id, transaction_id, "awaiting_first_report", 0, None, now_ms,
+            device_id,
+            transaction_id,
+            "awaiting_first_report",
+            0,
+            None,
+            now_ms,
             (boot_generation, session_id, sequence),
         )
 
-    def redispatch(self, device_id: str, transaction_id: str, boot_generation: int,
-                   session_id: int, sequence: int, now_ms: int) -> OtaTransaction:
+    def redispatch(
+        self,
+        device_id: str,
+        transaction_id: str,
+        boot_generation: int,
+        session_id: int,
+        sequence: int,
+        now_ms: int,
+    ) -> OtaTransaction:
         """Bind an explicitly reconciled uncertain transaction to a new session."""
 
-        if (not isinstance(device_id, str) or not _DEVICE.fullmatch(device_id)
-                or not isinstance(transaction_id, str)
-                or not _TRANSACTION.fullmatch(transaction_id)
-                or not all(_valid_u32(value) for value in
-                           (boot_generation, session_id, sequence))
-                or not _valid_time(now_ms)):
+        if (
+            not isinstance(device_id, str)
+            or not _DEVICE.fullmatch(device_id)
+            or not isinstance(transaction_id, str)
+            or not _TRANSACTION.fullmatch(transaction_id)
+            or not all(
+                _valid_u32(value) for value in (boot_generation, session_id, sequence)
+            )
+            or not _valid_time(now_ms)
+        ):
             raise OtaTransactionError("invalid OTA redispatch")
         try:
             self._db.execute("BEGIN IMMEDIATE")
             previous = self._one(device_id)
-            if (previous is None or previous.transaction_id != transaction_id
-                    or previous.state != "uncertain"):
+            if (
+                previous is None
+                or previous.transaction_id != transaction_id
+                or previous.state != "uncertain"
+            ):
                 raise OtaTransactionError("OTA transaction is not uncertain")
             self._db.execute(
                 "UPDATE ota_transaction SET state='awaiting_first_report', "
@@ -236,49 +354,97 @@ class OtaTransactionStore:
             self._db.rollback()
             raise
 
-    def advance(self, device_id: str, transaction_id: str, state: str,
-                progress_percent: int, result: int | None, now_ms: int) -> OtaTransaction:
-        return self._advance(device_id, transaction_id, state, progress_percent, result, now_ms, None)
+    def advance(
+        self,
+        device_id: str,
+        transaction_id: str,
+        state: str,
+        progress_percent: int,
+        result: int | None,
+        now_ms: int,
+    ) -> OtaTransaction:
+        return self._advance(
+            device_id, transaction_id, state, progress_percent, result, now_ms, None
+        )
 
-    def _advance(self, device_id: str, transaction_id: str, state: str,
-                 progress_percent: int, result: int | None, now_ms: int,
-                 dispatch: tuple[int, int, int] | None) -> OtaTransaction:
-        if (not isinstance(device_id, str) or not _DEVICE.fullmatch(device_id)
-                or not isinstance(transaction_id, str) or not _TRANSACTION.fullmatch(transaction_id)
-                or state not in _STATES or type(progress_percent) is not int
-                or not 0 <= progress_percent <= 100 or not _valid_time(now_ms)):
+    def _advance(
+        self,
+        device_id: str,
+        transaction_id: str,
+        state: str,
+        progress_percent: int,
+        result: int | None,
+        now_ms: int,
+        dispatch: tuple[int, int, int] | None,
+    ) -> OtaTransaction:
+        if (
+            not isinstance(device_id, str)
+            or not _DEVICE.fullmatch(device_id)
+            or not isinstance(transaction_id, str)
+            or not _TRANSACTION.fullmatch(transaction_id)
+            or state not in _STATES
+            or type(progress_percent) is not int
+            or not 0 <= progress_percent <= 100
+            or not _valid_time(now_ms)
+        ):
             raise OtaTransactionError("invalid OTA transition")
         try:
             self._db.execute("BEGIN IMMEDIATE")
             previous = self._one(device_id)
             if previous is None or previous.transaction_id != transaction_id:
                 raise OtaTransactionError("unknown OTA transaction")
-            identity = (previous.dispatch_boot_generation, previous.dispatch_session_id,
-                        previous.dispatch_sequence) if dispatch is None else dispatch
-            candidate = OtaTransaction(previous.device_id, previous.transaction_id,
-                                       previous.manifest_sha256, previous.target_version, state,
-                                       progress_percent, result, previous.created_at_ms, now_ms,
-                                       *identity)
+            identity = (
+                (
+                    previous.dispatch_boot_generation,
+                    previous.dispatch_session_id,
+                    previous.dispatch_sequence,
+                )
+                if dispatch is None
+                else dispatch
+            )
+            candidate = OtaTransaction(
+                previous.device_id,
+                previous.transaction_id,
+                previous.manifest_sha256,
+                previous.target_version,
+                state,
+                progress_percent,
+                result,
+                previous.created_at_ms,
+                now_ms,
+                *identity,
+            )
             _validate_transaction(candidate)
-            identical = (previous.state == candidate.state
-                         and previous.progress_percent == candidate.progress_percent
-                         and previous.result == candidate.result
-                         and (previous.dispatch_boot_generation, previous.dispatch_session_id,
-                              previous.dispatch_sequence) == identity)
+            identical = (
+                previous.state == candidate.state
+                and previous.progress_percent == candidate.progress_percent
+                and previous.result == candidate.result
+                and (
+                    previous.dispatch_boot_generation,
+                    previous.dispatch_session_id,
+                    previous.dispatch_sequence,
+                )
+                == identity
+            )
             if identical:
                 self._db.commit()
                 return previous
             if previous.state in _TERMINAL:
                 raise OtaTransactionError("terminal OTA transaction is frozen")
             if previous.state == "uncertain" and state not in {"uncertain", "orphaned"}:
-                raise OtaTransactionError("uncertain OTA transaction requires explicit retry")
+                raise OtaTransactionError(
+                    "uncertain OTA transaction requires explicit retry"
+                )
             if previous.state == "uncertain":
                 raise OtaTransactionError("uncertain OTA transaction is frozen")
             if previous.state in _TERMINAL_PENDING:
-                expected = ("confirmed" if previous.state == "confirming"
-                            else "rolled_back")
+                expected = (
+                    "confirmed" if previous.state == "confirming" else "rolled_back"
+                )
                 if state not in {expected, "orphaned"}:
-                    raise OtaTransactionError("pending terminal OTA requires status validation")
+                    raise OtaTransactionError(
+                        "pending terminal OTA requires status validation"
+                    )
             elif state in _TERMINAL_PENDING:
                 if state == "confirming" and previous.state != "trial":
                     raise OtaTransactionError("OTA confirmation requires trial")
@@ -294,11 +460,17 @@ class OtaTransactionStore:
                     raise OtaTransactionError("invalid OTA report transition")
             elif state in _TERMINAL:
                 if state == "confirmed" and previous.state not in {
-                        "trial", "confirming"}:
+                    "trial",
+                    "confirming",
+                }:
                     raise OtaTransactionError("OTA confirmation requires trial")
-            elif state not in _ORDER or previous.state not in _ORDER or _ORDER[state] < _ORDER[previous.state]:
+            elif (
+                state not in _ORDER
+                or previous.state not in _ORDER
+                or _ORDER[state] < _ORDER[previous.state]
+            ):
                 raise OtaTransactionError("nonmonotonic OTA phase")
-            if (state == previous.state and progress_percent < previous.progress_percent):
+            if state == previous.state and progress_percent < previous.progress_percent:
                 raise OtaTransactionError("nonmonotonic OTA progress")
             self._db.execute(
                 "UPDATE ota_transaction SET state=?, progress_percent=?, result=?, updated_at_ms=?, "
@@ -319,9 +491,11 @@ class OtaTransactionStore:
             rows = self.list()
             count = 0
             for row in rows:
-                if (row.state not in _TERMINAL
-                        and row.state not in _TERMINAL_PENDING
-                        and row.state != "uncertain"):
+                if (
+                    row.state not in _TERMINAL
+                    and row.state not in _TERMINAL_PENDING
+                    and row.state != "uncertain"
+                ):
                     self._db.execute(
                         "UPDATE ota_transaction SET state='uncertain', updated_at_ms=? WHERE device_id=?",
                         (now_ms, row.device_id),
@@ -333,28 +507,35 @@ class OtaTransactionStore:
             self._db.rollback()
             raise
 
-    def mark_uncertain(self, device_id: str, transaction_id: str,
-                       now_ms: int) -> OtaTransaction:
+    def mark_uncertain(
+        self, device_id: str, transaction_id: str, now_ms: int
+    ) -> OtaTransaction:
         """Record lost transport without converting an unknown result to failure."""
 
-        if (not isinstance(device_id, str) or not _DEVICE.fullmatch(device_id)
-                or not isinstance(transaction_id, str)
-                or not _TRANSACTION.fullmatch(transaction_id)
-                or not _valid_time(now_ms)):
+        if (
+            not isinstance(device_id, str)
+            or not _DEVICE.fullmatch(device_id)
+            or not isinstance(transaction_id, str)
+            or not _TRANSACTION.fullmatch(transaction_id)
+            or not _valid_time(now_ms)
+        ):
             raise OtaTransactionError("invalid OTA uncertainty")
         try:
             self._db.execute("BEGIN IMMEDIATE")
             previous = self._one(device_id)
             if previous is None or previous.transaction_id != transaction_id:
                 raise OtaTransactionError("unknown OTA transaction")
-            if (previous.state in _TERMINAL
-                    or previous.state in _TERMINAL_PENDING
-                    or previous.state == "uncertain"):
+            if (
+                previous.state in _TERMINAL
+                or previous.state in _TERMINAL_PENDING
+                or previous.state == "uncertain"
+            ):
                 self._db.commit()
                 return previous
             self._db.execute(
                 "UPDATE ota_transaction SET state='uncertain', updated_at_ms=? "
-                "WHERE device_id=?", (now_ms, device_id),
+                "WHERE device_id=?",
+                (now_ms, device_id),
             )
             self._db.commit()
             return self._one(device_id)  # type: ignore[return-value]
@@ -367,7 +548,9 @@ class OtaTransactionStore:
             raise OtaTransactionError("invalid OTA device")
         try:
             self._db.execute("BEGIN IMMEDIATE")
-            result = self._db.execute("DELETE FROM ota_transaction WHERE device_id=?", (device_id,))
+            result = self._db.execute(
+                "DELETE FROM ota_transaction WHERE device_id=?", (device_id,)
+            )
             self._db.commit()
             return result.rowcount == 1
         except BaseException:

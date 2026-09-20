@@ -44,16 +44,20 @@ class AidkHilContractTest(unittest.TestCase):
         self.assertTrue(all(case.active for case in ACTIVE_CASES))
         self.assertEqual(
             REQUIRED_COMMANDS,
-            ("apctl", "bkdisplay", "bkhealth", "bkmotion", "bknfc",
-             "bkvision", "bkvoice", "bkwifi"),
+            (
+                "apctl",
+                "bkdisplay",
+                "bkhealth",
+                "bkmotion",
+                "bknfc",
+                "bkvision",
+                "bkvoice",
+                "bkwifi",
+            ),
         )
 
     def test_cases_never_control_reset_or_flash(self):
-        commands = [
-            step.command.lower()
-            for case in ALL_CASES
-            for step in case.steps
-        ]
+        commands = [step.command.lower() for case in ALL_CASES for step in case.steps]
         for command in commands:
             self.assertNotIn("reset", command)
             self.assertNotIn("reboot", command)
@@ -61,8 +65,7 @@ class AidkHilContractTest(unittest.TestCase):
             self.assertNotEqual(command, "usbmode msc")
 
         for index, command in enumerate(
-            ("reset reboot", "reboot", "flash write", "usbmode   msc",
-             "usbmode\tmsc")
+            ("reset reboot", "reboot", "flash write", "usbmode   msc", "usbmode\tmsc")
         ):
             unsafe = HilCase(
                 case_id=f"unsafe-{index}",
@@ -83,8 +86,9 @@ class AidkHilContractTest(unittest.TestCase):
                     self.assertIsNone(re.search(pattern, "TARGET FAIL ret=-5"))
 
     def test_wifi_success_regex_rejects_connecting_and_disconnected_links(self):
-        wifi_case = next(case for case in ALL_CASES
-                         if case.case_id == "wifi-native-route")
+        wifi_case = next(
+            case for case in ALL_CASES if case.case_id == "wifi-native-route"
+        )
         for link_state in (1, 2):
             with self.subTest(link_state=link_state):
                 for step in wifi_case.steps:
@@ -94,10 +98,12 @@ class AidkHilContractTest(unittest.TestCase):
                         "ip=192.168.0.101 mask=255.255.255.0 "
                         "router=192.168.0.1"
                     )
-                    self.assertTrue(all(
-                        re.search(pattern, output) is None
-                        for pattern in step.expected_regex
-                    ))
+                    self.assertTrue(
+                        all(
+                            re.search(pattern, output) is None
+                            for pattern in step.expected_regex
+                        )
+                    )
 
     def test_representative_target_output_matches_every_step(self):
         samples = {
@@ -133,9 +139,7 @@ class AidkHilContractTest(unittest.TestCase):
                 "y_mms2=-340 z_mms2=9806 status=0 unit=mm_s2 "
                 "privacy=telemetry-only",
             ),
-            "nfc-scan": (
-                "BKNFC SCAN present=no privacy=uid-not-exported",
-            ),
+            "nfc-scan": ("BKNFC SCAN present=no privacy=uid-not-exported",),
             "vision-snapshot": (
                 "BKVISION SNAPSHOT width=640 height=480 fourcc=4745504a "
                 "bytes_used=32768 capture_sequence=1 soi=yes eoi=yes "

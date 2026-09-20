@@ -1,0 +1,39 @@
+# Formatting contract for the Windows host tools in this directory only.
+# The firmware-side sources are NuttX-shaped and are checked with the pinned
+# nxstyle/checkpatch instead; this file must never be hoisted to the
+# repository root or applied to chips/, boards/, nuttx/, app/ or tests/.
+#
+# These tools deliberately follow the NuttX layout (Allman braces with the
+# brace indented inside a block, space before a reference/pointer, two-space
+# indentation), so the configuration below reproduces that layout instead of
+# a generic style guide.
+---
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 2
+ContinuationIndentWidth: 4
+ColumnLimit: 80
+BreakBeforeBraces: Allman
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: true
+  AfterControlStatement: Never
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  BeforeCatch: true
+  BeforeElse: true
+  IndentBraces: true
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+PointerAlignment: Right
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyBlock: false
+# Include order is owned by the source files: never let a formatter reorder
+# them, and never rewrite include blocks.
+SortIncludes: false
+IncludeBlocks: Preserve

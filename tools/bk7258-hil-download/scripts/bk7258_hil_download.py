@@ -147,7 +147,9 @@ def load_profiles() -> tuple[dict[str, Any], dict[str, str]]:
     try:
         document = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"cannot load board profiles: {PROFILE_PATH}: {exc}") from exc
+        raise RuntimeError(
+            f"cannot load board profiles: {PROFILE_PATH}: {exc}"
+        ) from exc
     profiles = document.get("profiles")
     if document.get("format") != 1 or not isinstance(profiles, dict):
         raise RuntimeError(f"invalid board profile schema: {PROFILE_PATH}")
@@ -327,7 +329,9 @@ def add_download_arguments(parser: argparse.ArgumentParser) -> None:
         default=os.environ.get("BK7258_LOADER_EXE"),
         help="path to bk_loader.exe (or set BK7258_LOADER_EXE)",
     )
-    parser.add_argument("--port", required=True, help="download/control port, e.g. COM8")
+    parser.add_argument(
+        "--port", required=True, help="download/control port, e.g. COM8"
+    )
     parser.add_argument("--image", type=Path, help="single binary for transport=single")
     parser.add_argument(
         "--segment",
@@ -401,9 +405,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             if getattr(args, option) is not None
         ]
         if single_only:
-            rendered = ", ".join(
-                "--" + item.replace("_", "-") for item in single_only
-            )
+            rendered = ", ".join("--" + item.replace("_", "-") for item in single_only)
             raise ValueError(
                 f"{rendered} are single-image options and cannot be used with "
                 "transport=multi"
@@ -512,7 +514,9 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
                 "--segment"
             )
         if expected_hashes and len(expected_hashes) != len(args.segment):
-            raise ValueError("provide one --segment-sha256 for every --segment, or none")
+            raise ValueError(
+                "provide one --segment-sha256 for every --segment, or none"
+            )
         for index, spec in enumerate(args.segment):
             expected = expected_hashes[index] if expected_hashes else None
             artifacts.append(parse_segment(spec, loader, expected))
@@ -763,7 +767,9 @@ def run_debug_plan(args: argparse.Namespace) -> int:
     if action == "serial-pulse":
         if debug.get("reset_port_required") and reset_port is None:
             raise ValueError(f"board {canonical} serial-pulse requires --reset-port")
-        if reset_port == console_port and debug.get("port_topology").startswith("separate"):
+        if reset_port == console_port and debug.get("port_topology").startswith(
+            "separate"
+        ):
             raise ValueError(
                 f"board {canonical} requires distinct console and reset/download ports"
             )
@@ -853,7 +859,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_download_arguments(preflight)
     preflight.set_defaults(handler=run_preflight)
 
-    run = subparsers.add_parser("run", help="execute one explicitly authorized download")
+    run = subparsers.add_parser(
+        "run", help="execute one explicitly authorized download"
+    )
     add_download_arguments(run)
     run.add_argument("--evidence-dir", required=True, type=Path)
     run.add_argument("--execute", action="store_true")

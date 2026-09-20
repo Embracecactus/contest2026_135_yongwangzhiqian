@@ -7,7 +7,7 @@
  * lower half.  Mirrors the Armino SDK runtime clock path:
  *
  *   sys_drv_switch_cpu_bus_freq(target)        (sys_ps_driver.c:244-289)
- *     loop prev远近 target, each step calls
+ *     loop from prev to target, one tier per iteration; each step calls
  *     sys_hal_switch_cpu_bus_freq_low_to_high(i)  (sys_hal.c:620-686) or
  *     sys_hal_switch_cpu_bus_freq_high_to_low(i)  (sys_hal.c:548-619)
  *       which does: ctrl_vddd_h_vol(vddd) + ctrl_vdddig_h_vol(vddig)

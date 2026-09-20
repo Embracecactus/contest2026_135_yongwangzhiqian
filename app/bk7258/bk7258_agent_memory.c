@@ -89,7 +89,9 @@ static int history_read(cJSON **history)
   return ret;
 }
 
-/* SMH1 只作有界线格式，不保留另一份可变对话历史。 */
+/* SMH1 is only a bounded wire format; it keeps no second mutable
+ * conversation history.
+ */
 static int history_encode(cJSON *history, unsigned int persona,
                            struct snapshot_s *snapshot)
 {
@@ -134,8 +136,10 @@ static int snapshot_read(struct snapshot_s *snapshot)
     sizeof(snapshot->sealed), &size, &snapshot->revision, NULL);
   if (ret == -ENOENT)
     {
-      /* 只在新存储确实不存在时兼容读取旧 SD 密文；损坏不静默降级。
-       * 迁移读取不发网络请求，也不删除/覆盖原文件。
+      /* The legacy SD ciphertext is read for compatibility only when the new
+       * store truly does not exist; corruption never degrades silently. The
+       * migration read makes no network request and never deletes or
+       * overwrites the original file.
        */
       ret = bk7258_preferences_with_storage(legacy_read, snapshot);
       syslog(LOG_INFO, "BKVOICE memory source=legacy result=%d\n", ret);
@@ -184,7 +188,9 @@ static int restore_locked(void)
   if (ret) goto done;
   if (cJSON_GetArraySize(history))
     {
-      /* 活跃会话不拼接旧片段；显式开启后只保存官方现有上下文。 */
+      /* An active session never has old fragments appended to it; once memory
+       * is explicitly enabled, only the official existing context is saved.
+       */
       g_restored = true;
       goto done;
     }
@@ -194,8 +200,9 @@ static int restore_locked(void)
   if (ret == -ENOENT) { ret = 0; g_restored = true; goto done; }
   if (ret) goto done;
   uint8_t *plain = snapshot->plain;
-  /* SMH1 中的心情是保存时的元数据，不是记忆的身份边界。
-   * 当前心情只影响回复风格，切换后仍恢复同一所有者的加密历史。
+  /* The persona stored inside SMH1 is save-time metadata, not an identity
+   * boundary of the memory. The current persona only affects reply style;
+   * after a switch the same owner's encrypted history is still restored.
    */
   if (snapshot->size < 8 || memcmp(plain, "SMH1", 4) ||
       plain[4] > HISTORY_TURNS || plain[5] > 4 || plain[6] || plain[7])
@@ -237,8 +244,10 @@ static int restore_locked(void)
     }
   if (!ret) g_restored = true;
 done:
-  /* 仅撤销本次导入到原本为空的 tmpfs Session 的不完整投影。
-   * 原加密快照、策略和用户配置保持不动，失败后禁止自动覆盖。
+  /* Rolls back only the incomplete projection that this import appended to an
+   * originally empty tmpfs Session. The original encrypted snapshot, policy
+   * and user configuration stay untouched, and an automatic overwrite is
+   * forbidden after a failure.
    */
   if (ret && appended) (void)session_clear("voice");
   history_free(history);
@@ -325,15 +334,19 @@ int bkagent_memory_control(enum bkcontrol_command_e command, uint32_t value,
   bool enabled = !deleting && value != 0;
   ret = bkmemory_policy_set(POLICY_ROOT, g_owner, enabled, deleting,
                             memory_random, NULL);
-  /* 不确定发布时重新读取策略，不能把旧缓存当作持久事实。 */
+  /* The policy is re-read when publication is uncertain; an old cache must
+   * not be treated as persistent fact.
+   */
   int loaded = bkmemory_policy_load(POLICY_ROOT, g_owner, &g_policy);
   g_known = loaded == 0;
   if (!ret) ret = loaded;
   if (!ret && g_policy.enabled != enabled) ret = -EIO;
   if (!ret && deleting)
     {
-      /* 仅响应原有 App 明确删除命令时更换记忆数据密钥；不是设备根密钥。
-       * 写入加密空快照，防止后续启动重新选择旧 SD 文件。
+      /* The memory data key is rotated only in response to an explicit delete
+       * command from the existing App; it is not the device root key. An
+       * encrypted empty snapshot is written so that a later boot cannot
+       * select the old SD file again.
        */
       struct snapshot_s *snapshot = calloc(1, sizeof(*snapshot));
       if (!snapshot) ret = -ENOMEM;
