@@ -101,12 +101,23 @@ tools/bk7258/bk7258.py package eye-pack \
 tools/bk7258/bk7258.py verify eye-pack --package out/shaniu-display/shaniu-cyan-v2.bkep
 ```
 
-本轮实测生成：`shaniu-cyan-v2.bkep`，108,634 B，
-SHA256 `050f1175…be79`（`id=shaniu-cyan-v2 revision=2 entries=18`），并通过
-App `EyePack.kt` 的全部 13 项结构校验；生成的 `.bkep` 按仓库约定不入 Git，
-需要下载形式时作为 Release 资产待发布。
+**评委怎么找到/生成眼睛包**：不需要作者的任何二进制或私有文件——仓库里的
+`app/bk7258/assets/display/shaniu-cyan-v2.json`（同名 PNG 是位图源）就是源材料，
+用上面一条命令即可生成可安装的 `.bkep`（只用 Python 标准库；`--preview-dir`
+是可选的评审预览，只有需要渲染 PNG 时才用到 Pillow）。本轮实测生成结果可用来
+确认“我生成对了”：
 
-判据：命令打印的 `pack_id`/`revision`/`source_sha256` 与源文件一致。主机生成成功
+- 文件：`shaniu-cyan-v2.bkep`，108,634 B，SHA256 `050f1175…be79`
+- 包内标识：`pack_id=shaniu-cyan-v2`、`revision=2`、`entries=18`、
+  `source_sha256=9a161ad6f5ae7adf011ec1be02992339ec90555084518d46dcd71edfc5775da5`
+- 通过 App `EyePack.kt` 的全部 13 项结构校验（magic `SHNEYE1\0`、版本、头 128 B、
+  瓦片 64/160/160、`pack_id` 字符集、TOC/载荷 CRC32、声明长度=文件长度）
+
+拿到别人给的 `.bkep` 也一样：先用 `verify eye-pack` 核对，App 导入时还会再校验
+结构与 CRC。按 `app/bk7258/assets/display/README.md` 的约定，生成的 `.bkep` 不
+提交进 Git；需要“直接下载文件”形式时，它作为 Release 资产处于**待发布**状态。
+
+判据：命令打印的 `pack_id`/`revision`/`source_sha256` 与上表一致。主机生成成功
 不等于设备已激活，激活判据见第 10 节。
 
 ### 4. 准备本板专属认证与签名输入
@@ -128,7 +139,21 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -out "$shaniu_identity_dir/device-cert.pem"
 ```
 
-不要使用 `mktemp -d`（会被清理）；已有设备不要重新生成或替换身份。
+**评委怎么生成认证文件（全程不需要作者的任何私有文件）**：
+
+1. 用上面的命令为本板生成一对 EC P-256 设备证书/私钥，放在仓库外的持久私密
+   目录（`$HOME/.shaniu-identities/<本板唯一标识>`，0600）。不要用 `mktemp -d`
+   （会被清理），也不要跨板复制别人的证书/私钥。
+2. `owner-bootstrap.json` **不要手写、不要复用示例常量**：它由第 7 节的
+   `voice pairing --direct-cloud` 在写入设备身份的同一次操作里生成——四字段
+   （`protocol`/`device_id`/`certificate_sha256`/`possession_secret`），其中
+   `possession_secret` 是每板 32 字节随机数，设备与手机必须使用同一份。
+3. 核对：设备 `bkprov status` 显示 `identity=present`，重启后仍 present；App
+   导入该 JSON 后能完成认领（导入失败通常是拿错板的授权文件或板端身份不匹配）。
+4. 重要限制：设备端不会覆盖已存在的**不同**身份（安装返回 `EEXIST`），当前也没有
+   受支持的“清空身份”入口。因此拿到一台已被他人认领的板时，需要原所有者提供
+   该板的 `owner-bootstrap.json`；自行新生成一份不能接管它。
+
 签名私钥只需在生成**签名**整包时需要；烧录已签名包不需要。
 
 ### 5. 处理首次存储初始化、编译与完整镜像
