@@ -69,6 +69,16 @@ NUL 终止与字符集），三份均为 0 failures。评审主线使用 `nihao_
 的 13 项结构校验（magic `SHNEYE1\0`、version 1、头 128 B、瓦片 64/160/160、
 `pack_id` 字符集、TOC 与载荷 CRC32、声明长度=文件长度），解析
 `source_sha256=9a161ad6f5ae7adf011ec1be02992339ec90555084518d46dcd71edfc5775da5`。
+第二个可安装包（用于演示“换包/更新”）：`shaniu-default-v1`，10,494 B，
+SHA256 `1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395`
+（`entries=11`），由 `app/bk7258/assets/display/shaniu-default-v1.json` 生成。
+
+**同一 `pack_id` 不能重复安装**：设备按 `<pack_id>.bkep` 存放，目标文件已存在时
+`bkdisplay_store_install()` 返回 `-EEXIST`（App 显示 `-17`）。639 实机已装
+`shaniu-cyan-v2`（revision 2）并激活，再装同一包即返回 -17，属预期行为；需要
+演示安装时改用不同 `pack_id` 的包，或用 `读取当前眼睛` 核对当前生效包。
+当前 App 没有删除/回退按钮，也不要用格式化 SD 卡解决。
+
 按 `app/bk7258/assets/display/README.md` 的约定，生成的 `.bkep` 不入 Git；
 若需要“可下载文件”形式，列为**待发布**（Release 资产）项，尚未上传。
 
