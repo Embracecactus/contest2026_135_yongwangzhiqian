@@ -55,9 +55,43 @@ Compiling does not require a physical board. Consult the
 [board bindings](boards/bk7258/README.md) and [configuration contract](boards/bk7258/CONFIGS.md);
 T5AI-EVB is not interchangeable with T5-Board.
 
-**Publication boundary:** source snapshot `82610138` is on
-`feat/shaniu-contest-delivery-20260920`, based on official `7079493e`.
-A fork push is not an upstream merge or completed contest submission.
+## Verification status (2026-09-20)
+
+Every claim names its version and evidence layer; "the current HEAD passes" is
+not used as a permanent statement.
+
+- **Source-layer gate** (static, not board evidence): `bk7258.py verify layers`
+  PASS (500 sources / 252 Kconfig / 2 hash-bound legacy exceptions); the Agent
+  orchestrator and trigger backend pass the pinned nxstyle with 0 findings.
+- **T5-Board** (unsigned direct chain): four segments downloaded; boot reaches
+  `SYSINIT/FINALINIT/RCS PASS`, NSH and dolphin-ui start; the SD failure was a
+  TF card-contact problem, confirmed by re-seating.
+- **AIDK AI Toy**: signed `v18.6.401+637` full image (operator 8,388,608 B,
+  SHA256 `af2d74da…f7`; `.bkpack` 7,980,187 B) built and package-verified.
+  The owner flashed it manually (no host-side transport log exists for that
+  image) and confirmed claim → connect → settings → local wake → the "我在"
+  acknowledgement → a full conversation. App OTA was not retested on 637 and
+  still cites the 634 result. Artifact hashes and layers:
+  [637 verification record](docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md).
+- **Full-image boundary**: `release full` materializes the operator image from a
+  same-unit readback base, so it carries that unit's device-bound persistent
+  data and stays a same-unit recovery artifact. It is not a published
+  general-purpose first-flash image and must not be flashed on another board;
+  the factory-init path is not verified. Reviewers and judges build from source
+  ([`tools/bk7258/README.md`](tools/bk7258/README.md), "First complete flash").
+
+`wake_reply.pcm` (31,208 B) is a private acknowledgement recording admitted for
+the contest only; public configurations keep it disabled and it is removed
+after the contest. Device bootstrap secrets and device-bound recovery images are
+not part of the public deliverables.
+
+**Publication boundary:** the working baseline is the official repository
+`open-vela/contest2026_135_yongwangzhiqian` on `dev-ai-contest-2026`, which now
+contains the F01-F12 remediation (`b72b8bbb..daacdc75`, 13 commits) and the
+later 636/637 commits (`019a449e`, `faab4493`, `7d667565`). Source snapshot
+`82610138` on `feat/shaniu-contest-delivery-20260920` was the historical fork
+delivery path; a fork push is not an upstream merge or a completed contest
+submission, and that content is merged into the baseline above.
 The existing Agent changes are now published unchanged as
 [`add0db19`](https://github.com/Embracecactus/packages_ai_agent/commit/add0db19d00301769907a5ece03fb9bd88d2edb4),
 based on official `e65550f18759f086d7f544edcf17d1e31223244f` (21 files).
@@ -69,21 +103,23 @@ See [provenance](SOURCE_PROVENANCE.md).
 On 2026-09-20 all three boards' CP/AP **direct builds passed** from an isolated
 source checkout at `c10a7668`, using pinned dependencies and verified existing
 SDK/toolchain caches. See the [build record and hashes](docs/verification/bk7258/2026-09-20-public-source-build.md).
-These unsigned build checks were not flashed and do not replace firmware 635.
+These unsigned build checks were not flashed and do not replace the signed
+635/637 packages.
 
 Use Ubuntu 22.04 with the standard openvela build prerequisites:
 
 ```bash
-repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian \
-  -b feat/shaniu-contest-delivery-20260920 \
+repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian \
+  -b dev-ai-contest-2026 \
   -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk
+repo sync -c -j8
 ```
 
-Before the delivery branch is merged, apply the team-project-only local
-manifest shown in the [Chinese build guide](README.md#评审构建指南), then run
-`repo sync -c -j8`. The main manifest already supplies the Agent fork pin.
-After the official merge, use the official repository and contest branch without
-the team-project override.
+The main manifest supplies the Agent fork pin and the linkfiles; no team-project
+override is needed. To re-examine the historical fork snapshot, use
+`https://github.com/Embracecactus/contest2026_135_yongwangzhiqian` with
+`feat/shaniu-contest-delivery-20260920`; that content is merged into the
+baseline above and is not the current entry point.
 Record `repo manifest -r` and dirty dependency state, then enter the team repository:
 
 ```bash
@@ -108,7 +144,8 @@ board verification found a GT9xx/LVGL input mismatch; `c6976458` fixes the adapt
 and display/input initialization now passes. The TF card is not responding;
 physical touch and recording-to-SD remain unverified on this candidate.
 See the [Dolphin record](docs/platforms/bk7258/dolphin-master-plan.md).
-Shaniu firmware 635 is unchanged.
+Firmware 637 is the current verified Shaniu build (see the verification status
+above); the 634/635 records stay as history for their versions.
 Keep the team checkout directory name specified by the manifest; SDK tools read
 its same-named XML. AIToyBoard requires both `cp-aidk` and `ap-aidk`.
 The manifest pins the SDK to `cb080de1655d579c7593ecf504c440997c4c137b`.
@@ -127,7 +164,9 @@ Private keys and device-specific recovery images are not public build dependenci
   The public builtin model is 23,640 B / SHA prefix `922eba91`;
   the App-activated experimental 47,672 B model `536ebba8` is a different asset.
 - [Eye assets](app/bk7258/assets/display/README.md): original atlas, metadata,
-  pack/verify commands. Private acknowledgement PCM is optional and excluded.
+  pack/verify commands. The private acknowledgement PCM (31,208 B) is admitted
+  for the contest build only, disabled in public configurations, and removed
+  afterwards.
 - [Reusable development Skills](docs/platforms/bk7258/shaniu-skill-capability-map.md).
   Runtime `device-assistant.md` was verified on firmware `18.6.399+635`:
   installation log, a 2,012-byte tool table, user-confirmed voice and display.
@@ -138,6 +177,8 @@ Private keys and device-specific recovery images are not public build dependenci
   App controls and App OTA were not rerun on 635; their unchanged source paths
   do not constitute new acceptance. Deploying the 635 full package raises its
   bootloader floor to 635; the OTA-only package does not replace BL1/BL2.
+  The current build is `18.6.401+637` (floor 637, same-unit recovery image);
+  its App OTA path was not retested either.
   Historical upgrade paths, storage faults and independent human wake-word
   generalization are not thereby certified.
 
