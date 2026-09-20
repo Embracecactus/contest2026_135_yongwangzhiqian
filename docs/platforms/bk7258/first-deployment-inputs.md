@@ -27,7 +27,7 @@
 | 分区布局 | `boards/bk7258/common/partitions/bk7258/bk7258_ab_fixed_block_full_release.csv`（SHA256 `559f52be…`，identity `bk7258-559f52beaec8a54e`） | 布局生成、materialize、Beken loader | 构建树 `generated/`；不手填地址 | 布局身份与包内 `layout` 字段一致 |
 | 发布策略 | `boards/bk7258/common/release/bk7258_product.release.csv`（SHA256 `c72b031e…`） | `release full` / materialize | 包内 `release_policy` | 每个分区策略齐备（`replace`/`preserve`/`device-unique`/`transactional`/`factory-init`/`immutable`） |
 | 固件签名私钥（BL1 / MCUboot） | 发布者自建并保管；公开指纹 BL1 `58e384ae…`、MCUboot `4979ece7…` | `build --boot mcuboot`、`release full` | 仓库外私密目录（**非逐设备**，一条产品线一份） | 签名与校验通过；**私有**，不进仓库/日志 |
-| 唤醒应答资产 | `app/bk7258/assets/wake_reply.pcm`（31,208 B，SHA256 `772a8aa9…`） | AIDK AP ROMFS（`CONFIG_BK7258_AIDK_WAKE_REPLY_PCM=y`） | AP 镜像 ROMFS | 比赛期入库，赛后删除并回退 defconfig |
+| 唤醒应答资产 | `app/bk7258/assets/wake_reply.pcm`（31,208 B，SHA256 `772a8aa9…`） | AIDK AP ROMFS（板级 Kconfig 默认 `n`，AIDK preset 当前显式 `=y`，提交 `019a449e`） | AP 镜像 ROMFS | 比赛期入库，赛后删除并回退该 preset；素材缺失时构建报错 |
 
 **已实测**：638 由干净工作树 `dc06613d` 构建（inputs 565、`dirty=false`），
 operator 8,388,608 B / `33c387c1…`，实板语音全链路通过。
