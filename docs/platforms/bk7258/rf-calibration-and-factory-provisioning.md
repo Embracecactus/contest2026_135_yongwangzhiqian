@@ -42,7 +42,7 @@ T5AI-Core、T5-Board 与 AIDK AI Toy。具体板卡的 RF 通路、天线、连�
 ## Flash 数据契约
 
 AIDK AI Toy 当前选择
-`boards/bk7258/aidk_ai_toy/bk7258_ab_fixed_block_full_release.csv`，其中：
+`boards/bk7258/common/partitions/bk7258/bk7258_ab_fixed_block_full_release.csv`（2026-09-20 起集中维护在 `boards/bk7258/common/partitions/bk7258/`，内容与迁移前逐字节一致），其中：
 
 | 分区 | 当前范围 | partition policy | product release policy |
 |---|---:|---|---|
