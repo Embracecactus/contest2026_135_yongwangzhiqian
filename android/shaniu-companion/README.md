@@ -102,7 +102,9 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
 **现役的有线入口**：仅对已启动、尚未供应身份的自有新板使用下面的 CLI 加
 Windows PowerShell `COMn` 串口（可从 WSL 工作流调用，不宣称支持原生 Linux
 `/dev/tty*`）。`--direct-cloud` 现在经 CP 控制台 `bkprov supply` 把同一条 BPI1
-记录交给 AP 侧 provisioning store（2026-09-20 起，固件与工具均已具备）；旧的
+记录交给 AP 侧 provisioning store（2026-09-20 起，固件与工具均已具备；641 实板
+只读 `bkprov status` 通过，同一身份重放的写入在 commit 阶段被拒 `ret=-2002`，
+新板从零写入尚未通过）；旧的
 Gateway 模式（`bkvoice provision` RAM 记录）仍是历史路径，随退役运行时在
 `7079493e` 移除。以下占位符替换为本机安全目录与真实 COM 口；
 **不要对作者的 635/637 演示板重新执行**：

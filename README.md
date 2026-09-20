@@ -33,10 +33,16 @@ App 视频展示 OTA 入口，**未拍摄完整 OTA 过程**；实际升级结�
 
 ## 比赛材料
 
-[完整提交包、技术报告与展示材料下载](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
-包含技术报告（PDF / DOCX）、主视频、App 补充视频、四张三板实拍及排版图、
-A2 海报和 18 页可编辑答辩 PPT。源码与原始 AI Coding 日志留在仓库，不塞进材料 ZIP。
-照片均为真实正面/俯拍，未虚构背面或侧面视角；公开包不含设备授权秘密或同板恢复镜像。
+[已发布的提交包](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
+当前包含：技术报告 PDF / DOCX、主视频与 App 补充视频（各含 `.srt`）、提交 ZIP 与
+`SHA256SUMS`。源码与原始 AI Coding 日志留在仓库，不塞进材料 ZIP；
+公开包不含设备授权秘密或同板恢复镜像，照片均为真实拍摄，未虚构背面或侧面视角。
+
+**本地已生成 v5.1 提交包**（`勇往直前-傻妞三核openvelaAI伴侣-…`，约 1.9 GB）：
+v5.1 技术报告 PDF / DOCX / Markdown + 配图、主视频 287.904 s 与 App 补充视频
+85.612 s、8 页实物照片册（v5）与 10 张补拍原图、A2 海报（v5）、22 页答辩 PPT（v5.1）。
+**该包尚未上传 Release**：仓库内报告已是 v5.1，但 Release 上的 PDF / DOCX / ZIP
+仍是 2026-09-19 那一版；替换后需同步本节的页数、文件名与哈希。
 
 [![傻妞参赛海报](docs/contest/assets/showcase-poster.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
 
@@ -363,6 +369,16 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
   上一代同内容构建见
   [637 验收摘要](docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md)。
   638 没有重测 App OTA，该结论仍引用 634。
+- **AIDK AI Toy（傻妞）639 / 641 增量**：639 干净构建（源 `df87a94b`）暴露显示
+  卷挂载 / 读包的 `EIO` 失败路径，641（源 `3d68b447`，`18.6.401+641`）修复后两次
+  “安装 → 复位”都保持生效：`BKDISPLAY RENDER PASS pack=shaniu-default-v1`
+  与 `pack=shaniu-cyan-v3 revision=3`（均 `fallback=0`，串口证实）；`bkprov status`
+  回读 `identity=present bytes=628`，App 清除认证后重新认领由用户确认成功。
+  同一次核对中，同一身份重放的**写入**在 commit 阶段被拒 `ret=-2002`（约 0.955 s
+  返回、可重复），因此新板从零写入仍未通过；格式化后首轮“安装后立即复位”丢包
+  与标记的原因也未解释。见
+  [641 验收摘要](docs/verification/bk7258/2026-09-20-shaniu-641-full-image.md)
+  与[输入清单](docs/platforms/bk7258/first-deployment-inputs.md)。
 - **完整烧录的适用边界**：`release full` 产出的 operator 镜像由同板 readback
   基线物化，含该设备的绑定持久数据，只用于**同一台设备**的恢复；跨板烧录会
   复制设备绑定状态，因此它不是供任意板使用的通用首烧包，也不作为公开交付物
