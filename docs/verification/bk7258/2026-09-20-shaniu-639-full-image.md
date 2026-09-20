@@ -67,6 +67,27 @@ BKVOICE official Trigger active label=nihao_openvela sha256=922eba91… bytes=23
   （WARN，队列满丢帧提示；同一窗口内 KWS 仍持续输出 `windows/scores`），
   本记录不声称其根因或影响，仅如实记录。
 
+## 验收中发现的缺陷（已在 640 修复）
+
+- **现象**：装入新包 `shaniu-cyan-v3` 成功、随后复位，启动时
+  `BKDISPLAY STORE stage=pack-validate path=…/packs/shaniu-cyan-v3.bkep fallback=0 ret=-5`
+  → `BKDISPLAY RENDER FAIL stage=store-resolve ret=-5` →
+  `BKDISPLAY START FAIL stage=neutral-render ret=-5`，双屏保持黑屏。
+  `-5` 是 `-EIO`（`bkdisplay_pack_open()` 的读失败，不是 CRC/格式错误）。
+- **直接原因**：`bkdisplay_store_resolve_layout()` 只在 active 标记**缺失**时回退到
+  默认包；标记存在但包读不了时直接返回错误，服务因此启动失败，没有回退到板上
+  其它已安装且有效的包。
+- **诱因（未完全归因）**：安装/切换只对**文件**做了 fsync，`rename` 后的目录项没有
+  同步；在装上大包后立刻复位，目录项/簇链可能未落盘，下一次启动读取失败。
+- **修复（640）**：① active 包校验失败时只读回退——先试默认包
+  `shaniu-default-v1.bkep`，再扫描 `packs/` 取第一个有效包，标记文件不改写；
+  ② 安装与切换在 `rename` 后同步 `packs/`、`staging/` 与 display 目录项。
+  主机回归 `make run-display-pack`（编译该 store 文件，`-Werror`）通过。
+- **639 上的即时恢复**（无需重刷）：经 native USB MSC 导出 SD NAND，删除
+  `shaniu/display/active.json`（或同时删除损坏的 `packs/shaniu-cyan-v3.bkep`），
+  安全退出后重启——现有的“标记缺失→默认包”回退会渲染已安装且有效的
+  `shaniu-default-v1`。
+
 ## 边界与未闭合
 
 - App OTA 未在 639 重测（仍引用 `18.6.398+634`）。
