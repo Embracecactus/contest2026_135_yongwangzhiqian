@@ -35,26 +35,34 @@ A2 海报和 18 页可编辑答辩 PPT。源码与原始 AI Coding 日志留在�
 
 ## 实机验收状态（2026-09-20）
 
-以下结果来自本仓库当前 HEAD 的直接构建与实板操作，非历史截图：
+以下结果按版本与证据层次分开记录；每条结论绑定具体提交、镜像或包身份，
+不用“当前 HEAD 全部通过”作为长期描述。
 
-- **三板构建门禁**：`bk7258.py verify layers` PASS（500 源文件 / 252 Kconfig /
-  2 条哈希绑定遗留豁免）；`app/bk7258` 的 Agent 协调器与触发后端
-  `nxstyle`（pinned NuttX 版本，78 列）0 findings。
-- **T5-Board**：direct 诊断链四段（boot/cp/ap/pair）下载成功，启动
+- **三板构建门禁**（源码层静态检查，不是实板证明）：`bk7258.py verify layers`
+  PASS（500 源文件 / 252 Kconfig / 2 条哈希绑定遗留豁免）；`app/bk7258` 的
+  Agent 协调器与触发后端 `nxstyle`（pinned NuttX 版本，78 列）0 findings。
+- **T5-Board**（direct 诊断链）：四段（boot/cp/ap/pair）下载成功，启动
   `SYSINIT/FINALINIT/RCS PASS`，NSH 就绪，LCD/dolphin-ui 正常启动；
   SD 挂载失败经复测为 TF 卡接触物理问题，重插后正常，代码无回归。
-- **AIDK AI Toy（傻妞）**：MCUboot 签名链 `v18.6.401+637` 全镜像烧录，
-  `FINALINIT PASS`（`/data` 持久分区正常）；实测 **App 认领 → 建立连接
-  → 音量/风格等设置调整 → 本地唤醒 → 唤醒应答“我在” → 完整对话**
-  全链路通过；NFC（MFRC522）、双屏、摄像头、加速度、电池等外设
-  全部注册成功（`AIDK DEFERRED DONE failures=0`）。
-- **评委首次完整烧录**：用发布的 `operator-*.bin` 签名全镜像加一条
-  `bk_loader download` 命令即可，无需私钥与设备读回；完整打包/烧录/
-  复现流程见 [`tools/bk7258/README.md`](tools/bk7258/README.md) 的
-  “First complete flash” 一节。
+- **AIDK AI Toy（傻妞）**：`v18.6.401+637` 签名全镜像（operator
+  8,388,608 B，SHA256 `af2d74da…f7`；`.bkpack` 7,980,187 B）构建与包自检
+  通过；烧录由操作者手动完成（本机没有该镜像的传输日志），启动日志出现
+  `FINALINIT PASS`、`AIDK DEFERRED DONE failures=0`（该日志没有版本行，
+  按交接时间绑定），随后操作者确认 **App 认领 → 建立连接 → 音量/风格等
+  设置调整 → 本地唤醒 → 唤醒应答“我在” → 完整对话** 全链路通过。
+  包身份、构建输入与分层证据见
+  [637 验收摘要](docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md)。
+  637 没有重测 App OTA，该结论仍引用 634。
+- **完整烧录的适用边界**：`release full` 产出的 operator 镜像由同板 readback
+  基线物化，含该设备的绑定持久数据，只用于**同一台设备**的恢复；跨板烧录会
+  复制设备绑定状态，因此它不是供任意板使用的通用首烧包，也不作为公开交付物
+  发布。通用首烧所需的 factory-init/身份初始化路径本轮未验证；评委与复现者
+  按 [`tools/bk7258/README.md`](tools/bk7258/README.md) 的 “First complete
+  flash” 一节从源码构建（direct 诊断链或自备签名密钥）。
 
-公开材料不含设备授权秘密与同机恢复镜像；固件 `wake_reply.pcm`
-为比赛期间经操作者授权入库的应答录音，赛后将移出公开仓库。
+`wake_reply.pcm`（31,208 B）是比赛期间经操作者授权入库的应答录音：AIDK
+公开配置默认不启用，本轮比赛镜像显式启用（提交 `019a449e`），赛后将删除
+文件并回退 defconfig。公开材料不含设备授权秘密与同机恢复镜像。
 
 ## 做了什么
 
@@ -102,21 +110,29 @@ Wi-Fi / BT / Flash / OTA       官方 Agent / Session / Voice / Media
 
 ### 发布状态与依赖身份
 
-本次代码快照为 `82610138`，交付分支为
-`feat/shaniu-contest-delivery-20260920`，基于官方比赛分支 `7079493e`。
-**推送到 fork 不等于官方 PR 已合入或比赛已提交。**
+当前开发与复现基线是官方主仓 `open-vela/contest2026_135_yongwangzhiqian`
+的 `dev-ai-contest-2026` 分支：F01–F12 整改的 13 个提交
+（`b72b8bbb..daacdc75`，对应 rebase 前的 `0eb0f779..204aa4f8`）以及随后的
+636/637 提交（`019a449e`、`faab4493`、`7d667565`）都已合入。`repo init`
+直接使用该仓库与分支；团队项目覆盖只在复核历史快照时需要。
 
-635 使用的既有 Agent 扩展已原样发布到
+历史交付快照 `82610138` 曾发布在 fork 的
+`feat/shaniu-contest-delivery-20260920` 分支（基于官方 `7079493e`）。该 fork
+是其时的交付传输通道，不是另一个参赛项目；**推送到 fork 不等于官方 PR
+已合入或比赛已提交**，两者的内容现已合入上面的主仓分支。
+
+635/637 使用的既有 Agent 扩展已原样发布到
 [Agent fork 的固定提交](https://github.com/Embracecactus/packages_ai_agent/commit/add0db19d00301769907a5ece03fb9bd88d2edb4)，
 基于官方 `e65550f18759f086d7f544edcf17d1e31223244f`，21 个文件、+1830/-549 行。
 团队 manifest 固定引用 `add0db19d00301769907a5ece03fb9bd88d2edb4`，
 `openvela.xml` 固定本次 Linux 工作区的 248 个公共依赖提交；SDK 版本不变。
 不恢复退役 patch，也不在构建时覆盖官方源码。**依赖已公开不等于已合入上游，
-更不等于三板干净构建或 635 实板重验。**来源及验证范围见 [来源记录](SOURCE_PROVENANCE.md)。
+更不等于三板干净构建或 637 实板重验。**来源及验证范围见
+[来源记录](SOURCE_PROVENANCE.md)。
 
 2026-09-20 已完成独立源码检出的 **三板 CP/AP direct 构建**，使用固定依赖与
 经哈希验证的既有 SDK/toolchain 缓存；源码 `c10a7668`。
-这是编译验证，不是 635 签名包重制或实板重验，详见
+这是编译验证，不是 635/637 签名包重制或实板重验，详见
 [本次构建及产物哈希](docs/verification/bk7258/2026-09-20-public-source-build.md)。
 
 ### 1. 获取完整 openvela 工作区
@@ -126,27 +142,16 @@ Wi-Fi / BT / Flash / OTA       官方 Agent / Session / Voice / Media
 以下命令在独立空目录执行，不要嵌套于已有 Repo 工作区，否则 Repo 会复用父工作区。
 
 ```bash
-repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian \
-  -b feat/shaniu-contest-delivery-20260920 \
+repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian \
+  -b dev-ai-contest-2026 \
   -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk
+repo sync -c -j8
 ```
 
-上面先从已发布分支取得固定依赖的 manifest。在官方合入前，再于工作区
-`.repo/local_manifests/shaniu-delivery.xml` 保存以下覆盖，然后执行
-`repo sync -c -j8`。覆盖只切换团队项目；Agent pin 与 linkfile 由主 manifest 提供：
-
-```xml
-<manifest>
-  <remote name="shaniu-delivery" fetch="https://github.com/Embracecactus/"/>
-  <extend-project name="contest2026_135_yongwangzhiqian"
-                  path="contest2026_135_yongwangzhiqian"
-                  remote="shaniu-delivery"
-                  revision="refs/heads/feat/shaniu-contest-delivery-20260920"/>
-</manifest>
-```
-
-官方合入后可把 init 仓库换成 `open-vela/contest2026_135_yongwangzhiqian`、
-分支换成 `dev-ai-contest-2026`，不再需要团队项目覆盖。固定一次复现的依赖身份：
+主 manifest 自带 Agent pin 与 linkfile，不再需要团队项目覆盖。复核历史快照
+时可改用 `https://github.com/Embracecactus/contest2026_135_yongwangzhiqian`
+加 `feat/shaniu-contest-delivery-20260920`；该分支内容已合入主仓，不作为
+当前入口。固定一次复现的依赖身份：
 
 ```bash
 repo manifest -r -o resolved-manifest.xml
@@ -205,8 +210,11 @@ T5-Board 小海豚录音并保存 WAV 到 SD 卡**已获用户实板确认**，�
 [现役构建/发布 SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)。
 编译不需要私人设备身份、云 token、原始训练录音或签名私钥。
 公开源码可复现实现与构建输入，不承诺不同签名、私有提示音或用户配置下的
-全片镜像逐字节等同于同板 635 包；635 保持最终实板候选，不再部署新版本。
-同板恢复包含设备数据，不公开、不跨板烧录，也不为复现自动轮换信任根。
+全片镜像逐字节等同于同板交付包。当前实板结论为 637，见
+[637 验收摘要](docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md)；
+634/635 记录作为对应版本的历史证据保留，不再追加新结论。
+同板恢复包含设备数据，只用于同一台设备、不公开、不跨板烧录，也不为复现
+自动轮换信任根。
 
 ### 4. Android、模型与显示资源
 
@@ -227,12 +235,14 @@ Android 工程不参加 NuttX 构建，训练数据也不通过 linkfile 混入�
 固件内置公开 KWS 为 32 通道、23,640 B，SHA 前缀 `922eba91`；
 实机曾通过 App 激活 64 通道、47,672 B 候选 `536ebba8`，
 二者不是同一模型。私人录音及其实验目录不公开，评测指标见技术报告；
-未发布的授权“我在”音色 PCM 为可选资产，不是编译前置。
+授权“我在”音色 PCM 是比赛期间的私有资产（31,208 B，入库提交 `019a449e`，
+赛后删除并回退 defconfig），公开构建默认不启用，也不是编译前置。
 
 ## 实测结果与边界
 
 | 内容 | 已有证据 | 不扩大的结论 |
 |---|---|---|
+| 637 实机链路 | `18.6.401+637` 签名全镜像（同板恢复）：操作者确认认领→连接→设置→唤醒→“我在”→对话 | 未测 App OTA；烧录由操作者手动完成，本机无该镜像的传输日志 |
 | 连续语音 / 拍照 | 625–629 等候选有声学交互、关联追问与真实 JPEG 请求记录 | 非当前源码全量同版验收；颜色理解仍有错误 |
 | 真人唤醒 | 用户实机成功与失败均有记录 | 没有独立多人 FAR/FRR 通过结论；合成回放不算真人泛化 |
 | App / 资源 | 配网、Token Plan、设置回读、眼睛安装已有实测 | NFC 驱动已适配，但未纳入当前板端产品流程 |
@@ -243,9 +253,10 @@ Android 工程不参加 NuttX 构建，训练数据也不通过 linkfile 混入�
 更多延迟、大小、失败尝试与 SHA256 见
 [技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)和
 [Master Plan](docs/platforms/bk7258/shaniu-master-plan.md)。
-635 的 Skill 产品入口和 CMake 接线与 `82610138` 文件一致；详见
+635 的 Skill 产品入口和 CMake 接线与当时的交付快照 `82610138` 一致（历史
+记录）；详见
 [635 用户实机验证记录](docs/verification/bk7258/2026-09-20-shaniu-runtime-skill-635.md)。
-若部署 635 full 包，构建的 rollback floor 为 635；同号 OTA 包不改写 BL1/BL2。
+635/637 full 包的 rollback floor 分别为 635/637；同号 OTA 包不改写 BL1/BL2。
 未实测功耗、长期稳定性、旧密文实迁不写成已完成。
 
 ## 目录与维护
@@ -255,8 +266,8 @@ Android 工程不参加 NuttX 构建，训练数据也不通过 linkfile 混入�
 | `chips/bk7258/` / `boards/bk7258/` | 芯片机制 / 三块物理板接线、配置与布局 |
 | `app/bk7258/` / `app/dolphin/` | 傻妞产品适配 / T5-Board Dolphin |
 | `android/shaniu-companion/` | 独立 Android 控制工程 |
-| `frameworks/` / `external/` | 团队构建接线；不恢复已退役 patch 链 |
-| `tools/bk7258/` | 现役构建、SDK、资产、签名和发布 CLI |
+| `frameworks/` | 团队构建接线：两个 CMake 文件由 `app/bk7258/CMakeLists.txt` 消费；`external` 映射与退役 patch 链都不恢复 |
+| `tools/bk7258/` | 现役构建、SDK、资产、签名和发布 CLI；四组工具的入口与状态见[工具导航](tools/README.md) |
 | `.agents/skills/` | 随仓可复用开发 Skill，详见[能力索引](docs/platforms/bk7258/shaniu-skill-capability-map.md) |
 | `logs/lijian/` | 已导出的真实 AI Coding 日志及索引；不手动改写 |
 | `docs/verification/bk7258/` | 按日期和版本界定的历史验收证据 |
