@@ -60,9 +60,27 @@ function(bk7258_configure_agent_framework)
       src/tools/tool_amap.c
       src/ui/qrcode_display.c)
   foreach(unused_source IN LISTS unused_agent_sources)
-    list(FILTER agent_sources EXCLUDE REGEX "(^|/)${unused_source}$")
+    set(matched_sources)
+    foreach(agent_source IN LISTS agent_sources)
+      if(agent_source MATCHES "(^|/)${unused_source}$")
+        list(APPEND matched_sources "${agent_source}")
+      endif()
+    endforeach()
+    if(NOT matched_sources)
+      message(FATAL_ERROR
+        "Agent source blocklist entry '${unused_source}' no longer matches the "
+        "pinned official target.  Review that official layout change and update "
+        "this list deliberately; a silently relaxed filter is not an option.")
+    endif()
+    list(REMOVE_ITEM agent_sources ${matched_sources})
   endforeach()
   set_property(TARGET "${target}" PROPERTY SOURCES "${agent_sources}")
+  list(LENGTH agent_sources kept_source_count)
+  message(STATUS
+    "Agent framework: filtered official sources, ${kept_source_count} kept")
+  foreach(agent_source IN LISTS agent_sources)
+    message(STATUS "  agent source: ${agent_source}")
+  endforeach()
 
   target_include_directories(apps PRIVATE "${source}/include" "${source}/src")
   # The build identity is recorded by the manifest so that the official build
