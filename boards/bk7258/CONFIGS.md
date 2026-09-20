@@ -67,12 +67,16 @@ word "AP": T5AI-Core and T5-Board use `cp + ap`, while AIToyBoard uses
 The root README contains all three normal build commands. The existing Agent
 extensions are published as fork `add0db19` and pinned by the manifest.
 
-T5-Board's Dolphin desktop does not currently enable WAV recording: the old
-`media_recorder` compatibility backend was retired. `DOLPHIN_RECORDER` now
-requires official `MEDIA`/`MEDIA_GRAPH` instead of the contradictory `!MEDIA`.
-The recording source is retained; connecting the board's official Capture graph
-and validating recording remain unfinished. This is not a new hardware pass or
-a change to AIToyBoard's final 635 firmware.
+T5-Board's Dolphin recording and WAV storage on SD have passed owner-operated
+hardware verification; the existing `0.1.0+13` record identifies its image.
+Do not confuse that result with the public build at `c10a7668`: to resolve missing
+`media_recorder_*` linkage, that change disabled the recorder and changed its
+prerequisites from `!MEDIA` to `MEDIA`/`MEDIA_GRAPH`. The source remains, but this
+configuration does not reproduce the verified recorder. Aligning the current
+build with that working version remains unresolved; it is not evidence that
+Dolphin recording was never implemented or verified. See
+[the Dolphin record](../../docs/platforms/bk7258/dolphin-master-plan.md).
+AIToyBoard's final 635 firmware is unchanged.
 
 Each physical board owns exactly one normal application entry at
 `configs/app/defconfig`. It is a complete CP configuration, not a shared

@@ -43,7 +43,10 @@
 - 隔离构建发现 T5-Board `DOLPHIN_RECORDER` 在 `!MEDIA` 下仍调用已退役兼容
   ABI，链接缺少 `media_recorder_*`。`c10a7668` 仅修正团队 Kconfig 的真实
   Media/graph 前置条件，并取消 T5-Board 的无效选择；保留录音实现，未补回旧后端，
-  也未将其记为录音功能完成。AIDK 635 的运行代码、配置与产物未改变。
+  因此本次 T5 构建缺少已在实板验证过的录音功能，不能算该功能的完整复现。
+  用户确认小海豚录音保存 SD 已通过，既有 `0.1.0+13` 证据见
+  [小海豚记录](docs/platforms/bk7258/dolphin-master-plan.md)；先前把本次配置差异
+  推断为“录音功能未完成”的表述予以更正。AIDK 635 的代码、配置与产物未改变。
 - `c10a7668` 的三板 CP/AP direct 构建已在独立检出的工作区通过；固定了
   实际依赖 revision、工具链/SDK bundle 与产物哈希。SDK 缓存经校验而未重编，
   没有签名、部署或板测。见

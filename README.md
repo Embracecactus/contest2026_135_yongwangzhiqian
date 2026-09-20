@@ -170,9 +170,10 @@ tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 8
 产物位于工作区 `out/bk7258/<board>/...`；**direct 是未签名编译/bring-up
 路径，不能当作已部署安全设备的升级包。**
 
-T5-Board 的 Dolphin 录音仍待接入官方 Media；当前配置不再选择已退役的
-兼容录音后端，保留实现但不把录音列为本次可用功能。桌面其余功能与傻妞
-是不同产品配置，详见 [CONFIGS.md](boards/bk7258/CONFIGS.md)。
+T5-Board 小海豚录音并保存 WAV 到 SD 卡**已获用户实板确认**，已有
+`0.1.0+13` 的记录。本次隔离构建 `c10a7668` 关闭了录音选项，未与该实测版本
+对齐，不能作为录音功能的完整复现，也不能据此否定既有实测。具体边界见
+[CONFIGS.md](boards/bk7258/CONFIGS.md)与[小海豚验收记录](docs/platforms/bk7258/dolphin-master-plan.md)。
 
 签名构建使用 `--boot mcuboot` 及明确的 BL1/MCUboot 公钥、rollback floor；
 签名、分区、设备身份和烧录步骤见
