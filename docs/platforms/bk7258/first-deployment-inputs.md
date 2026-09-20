@@ -38,7 +38,19 @@ operator 8,388,608 B / `33c387c1…`，实板语音全链路通过。
 | --- | --- | --- | --- | --- |
 | 内置唤醒模型（32 通道 INT8 DS-CNN） | `app/bk7258/models/nihao_openvela.tflite`，23,640 B，`922eba9175fcda60…` | 板级 CMake 配置期比对 `CONFIG_BK7258_VOICE_KWS_MODEL_SHA256`；运行时 `bk7258_agent_trigger.c` 重算 | Media ROMFS `/etc/media/` | KWS 就绪、`wake ready=1`；评委不需要训练环境 |
 | 眼睛素材源 | `app/bk7258/assets/display/shaniu-cyan-v2.json`（+ `shaniu-cyan-v2.png` 1,048,307 B）；`shaniu-default-v1.json` 为早期版本 | `bk7258.py package eye-pack` → `.bkep` | 手机导入 → BLE 描述 + 手机 HTTPS 供包 → AIDK 板载 SD NAND | 设备回读 `pack_id`/`revision`/`source_sha256`；638 实机为 `pack=shaniu-cyan-v2 revision=2` |
-| App 唤醒模型包 | `android/shaniu-companion/app/src/main/assets/wake-models/`：`nihao_openvela.wkm` 23,776 B `b08a2561…`、`nihao_bingbing.wkm` 23,776 B `20345f85…`、`nihao_shaniu.wkm` 23,776 B `d363c825…` | App 解析 WKM1（头 136 B、模型 ≤ 65,536 B、label `[a-z0-9_]{1,31}`、phrase ≤ 63 B） | 手机导入 → 设备活跃模型区 | 设备回读 active 模型 SHA256/label/phrase；改标签不等于重训 |
+| App 唤醒模型包 | `android/shaniu-companion/app/src/main/assets/wake-models/`（见下表） | App 解析 WKM1（头 136 B、模型 ≤ 65,536 B、label `[a-z0-9_]{1,31}`、phrase ≤ 63 B、模型 SHA256 必须匹配头内摘要） | 手机导入 → 设备活跃模型区 | 设备回读 active 模型 SHA256/label/phrase；改标签不等于重训 |
+
+**三份内置唤醒模型包（2026-09-20 逐项核对，全部通过 App 解析器校验）**：
+
+| 文件 | 大小 / 文件 SHA256 | label | phrase | 包内模型 SHA256 |
+| --- | --- | --- | --- | --- |
+| `nihao_openvela.wkm` | 23,776 B / `b08a256178c0b15af1191a088385501ab652446f680f7e851a076075aafd5814` | `nihao_openvela` | `你好，openvela` | `922eba9175fcda60…`（与固件内置 32 通道模型一致） |
+| `nihao_bingbing.wkm` | 23,776 B / `20345f85b58ffccdf0e3d09cd3f0e3a3549c49c92bc2bcd665e7ef8c2e4345ba` | `nihao_bingbing` | `你好冰冰` | `2ced56715079b8dc…` |
+| `nihao_shaniu.wkm` | 23,776 B / `d363c8253f18f3303e24f34e20accb415df04869b7f6c7cec4249ac7e4228045` | `nihao_shaniu` | `你好傻妞` | `2ade86dd6e203deb…` |
+
+核对方式：按 `WakeModelPackage.kt` 的规则逐项验证（文件长度=136+模型长度、magic
+`WKM1`、模型长度 1..65,536、头内模型 SHA256=实际模型摘要、label/phrase 的
+NUL 终止与字符集），三份均为 0 failures。评审主线使用 `nihao_openvela`。
 | Android APK | `android/shaniu-companion/`（JDK 17、Android SDK 35），源码版本 `0.5.23-shaniu-rebind` / code 28 | 评委自建或用已发布 APK | 手机 | 安装后能扫描并认领设备 |
 
 **已生成的正式眼睛包（2026-09-20 实测）**：由 `shaniu-cyan-v2.json` 生成
