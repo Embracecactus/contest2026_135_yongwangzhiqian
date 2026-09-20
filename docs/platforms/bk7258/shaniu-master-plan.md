@@ -2,7 +2,7 @@
 
 状态：`IN_PROGRESS`
 
-## 2026-09-20 晚：637 签名全镜像与 App 全链路（当前结论）
+## 2026-09-20 晚：637/638 签名全镜像与实机验收（当前结论：638）
 
 - F01–F12 整改的 13 个提交已合入官方主仓 `dev-ai-contest-2026`
   （rebase 后 `b72b8bbb..daacdc75`，对应 rebase 前 `0eb0f779..204aa4f8`），
@@ -11,13 +11,22 @@
 - 637 由当时的工作树（HEAD `26540056`，对应合入后的 `daacdc75`）加未提交的
   唤醒应答资产构建；`release full` 生成并自检通过，operator 8,388,608 B
   SHA256 `af2d74da…f7`，`.bkpack` 7,980,187 B，rollback floor 637。
+- 638 在干净工作树 `dc06613d` 上重建（R01–R09 整改提交后的 HEAD），
+  `release full` PASS，operator 8,388,608 B SHA256 `33c387c1…1cfc`，
+  `.bkpack` 7,980,186 B，rollback floor 638；CP/AP raw 与 637 **逐字节相同**，
+  两张整片只差 659 B（全在计数器与签名区），`persistent_data` 与不可写尾部
+  0 差异，即本次只换代数与签名。真实 configure 同时执行了分层门禁与
+  Agent 源集合检查（两个角色各 `28 kept`）。
 - 烧录由用户手动完成（本机没有该镜像的传输日志）；回贴串口日志出现
   `FINALINIT PASS`、`AIDK DEFERRED DONE failures=0`（该日志没有版本行，按
-  交接时间绑定），随后用户确认 **认领→连接→调整设置→本地唤醒→应答“我在”
-  →完整对话** 全链路通过。637 未重测 App OTA，OTA 结论仍引用 634。
+  交接时间绑定）用于 637；638 回贴的交互期日志确认 **唤醒→应答“我在”
+  （31,208 B 应答录音播完）→ASR→LLM→TTS→播放→免唤醒追问→静音超时回待机**，
+  其中一次 ASR 请求瞬时 `ret=-5` 后在同一会话内恢复成功。637/638 均未重测
+  App OTA，OTA 结论仍引用 634。
 - 完整镜像由同板 readback 基线物化，是**同板恢复包**：不公开、不跨板烧录；
   任意板可用的通用首烧（factory-init/身份初始化）未验证。包身份与分层证据见
-  [637 验收摘要](../../verification/bk7258/2026-09-20-shaniu-637-full-image.md)。
+  [638 验收摘要](../../verification/bk7258/2026-09-20-shaniu-638-full-image.md)
+  与 [637 验收摘要](../../verification/bk7258/2026-09-20-shaniu-637-full-image.md)。
 - 比赛期间入库的 `wake_reply.pcm`（31,208 B，入库提交 `019a449e`）赛后删除并
   回退 defconfig；公开配置默认不启用。
 - 本文件下方两个「2026-09-20」小节记录当日 637 之前的状态，作为历史保留。
