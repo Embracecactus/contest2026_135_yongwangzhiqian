@@ -73,6 +73,13 @@ NUL 终止与字符集），三份均为 0 failures。评审主线使用 `nihao_
 SHA256 `1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395`
 （`entries=11`），由 `app/bk7258/assets/display/shaniu-default-v1.json` 生成。
 
+**格式化过 SD 之后的验证循环**：在刚被 PC 格式化过的卡上，先做一次
+“安装一个包 → 复位 → `读取当前眼睛`”再信任它；641 实测中，格式化后的第一轮
+“安装 → 立即复位”曾出现包与 active 标记双双消失（解析器退回空卡等待），
+再次安装并经一次 `usbmode msc`/安全弹出/`usbmode cdc` 后，复位保持正常
+（`fallback=0`）。怀疑与“FAT 卸载不刷缓冲 + 卡内写缓存”或“首次写入的 FAT 副本
+未收敛”有关，未做投机式代码改动。
+
 **同一 `pack_id` 不能重复安装**：设备按 `<pack_id>.bkep` 存放，目标文件已存在时
 `bkdisplay_store_install()` 返回 `-EEXIST`（App 显示 `-17`）。639 实机已装
 `shaniu-cyan-v2`（revision 2）并激活，再装同一包即返回 -17，属预期行为；需要
