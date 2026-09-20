@@ -27,8 +27,10 @@ BUILD_FILENAMES = {"CMakeLists.txt", "Makefile", "Make.defs"}
 BUILD_SUFFIXES = {".cmake", ".defs", ".mk", ".sh", ".py"}
 EXCEPTIONS = Path("tools/bk7258/layer_exceptions.json")
 
+# Only horizontal whitespace may precede the preprocessor token: \s would
+# also cross newlines, which lets the match start on a preceding blank line.
 _INCLUDE = re.compile(
-    r"^\s*#\s*include\s*(?P<open>[<\"])(?P<name>[^>\"]+)[>\"]",
+    r"^[ \t]*#[ \t]*include\s*(?P<open>[<\"])(?P<name>[^>\"]+)[>\"]",
     re.MULTILINE,
 )
 _RAW_SDK_SYMBOL = re.compile(r"\b(?:bk_(?!7258)|gpio_|rtos_|sys_drv_)[A-Za-z0-9_]+\b")
@@ -227,9 +229,10 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
             code = _without_c_literals(text)
 
             if layer != "chips/bk7258":
-                for match in _INCLUDE.finditer(text):
-                    if code[match.start()].isspace():
-                        continue
+                # Match on the literal-blanked text: includes inside comments
+                # or strings are blanked there, so they cannot produce a
+                # false report, while indented real includes are still found.
+                for match in _INCLUDE.finditer(code):
                     include = match.group("name")
                     if (
                         include == "sdkconfig.h"
@@ -267,9 +270,7 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
                         )
 
             if layer == "chips/bk7258":
-                for match in _INCLUDE.finditer(text):
-                    if code[match.start()].isspace():
-                        continue
+                for match in _INCLUDE.finditer(code):
                     include = match.group("name")
                     if include.startswith("arch/board/"):
                         issues.append(
