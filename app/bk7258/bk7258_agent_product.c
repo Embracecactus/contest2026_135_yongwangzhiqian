@@ -81,6 +81,12 @@
 #include "bk7258_provision_network.h"
 #include "bk7258_agent_trigger.h"
 #include "bk7258_voice_media.h"
+#ifdef CONFIG_AI_AGENT_LVGL_UI
+/* Official declaration of lvgl_ui_channel_show(); the src include path
+ * is exposed by agent_framework.cmake.
+ */
+#include "lvgl_ui_channel.h"
+#endif
 #include "bk7258_voice_volume_store.h"
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
 #include "bk7258_voice_button.h"
@@ -2564,11 +2570,6 @@ int ai_agent_main(int argc, FAR char *argv[])
 }
 
 #ifdef CONFIG_AI_AGENT_LVGL_UI
-/* Official declaration: packages/ai_agent/src/ui/lvgl_ui_channel.h,
- * reachable through the src include path exposed by agent_framework.cmake.
- */
-#include "lvgl_ui_channel.h"
-
 volatile uint32_t g_bk7258_agent_ui_show_attempts;
 
 static int bk7258_agent_ui_show_task(int argc, FAR char *argv[])
