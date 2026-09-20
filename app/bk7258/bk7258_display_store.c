@@ -10,6 +10,7 @@
 
 #include "bk7258_display_store.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -188,6 +189,40 @@ static int bkdisplay_store_write_all(int fd, const void *buffer, size_t size)
   return 0;
 }
 
+/* Commit a directory-entry change (rename or unlink) to the medium.  The
+ * pack data is fsynced before the rename, but the renamed entry itself only
+ * becomes durable once the containing directory is synced: an abrupt reset
+ * between the two used to leave a pack that validated at install time and
+ * then failed with EIO on the next boot.  Unsupported directory sync is
+ * reported, not fatal.
+ */
+
+static void bkdisplay_store_sync_directory(const char *path)
+{
+  int fd;
+  int ret;
+
+  fd = open(path, O_RDONLY);
+  if (fd < 0)
+    {
+      BKDISPLAY_STORE_DIAG(
+        "BKDISPLAY STORE stage=dir-open path=%s ret=%d\n", path, -errno);
+      return;
+    }
+
+  ret = fsync(fd) < 0 ? -errno : 0;
+  if (close(fd) < 0 && ret == 0)
+    {
+      ret = -errno;
+    }
+
+  if (ret < 0)
+    {
+      BKDISPLAY_STORE_DIAG(
+        "BKDISPLAY STORE stage=dir-sync path=%s ret=%d\n", path, ret);
+    }
+}
+
 static int bkdisplay_store_read_active(const char *path, char *filename,
                                        size_t capacity)
 {
@@ -275,6 +310,53 @@ int bkdisplay_store_ensure(const char *root)
   return 0;
 }
 
+static int bkdisplay_store_candidate(
+  const char *packs_dir, const char *filename,
+  struct bkdisplay_store_selection_s *selection)
+{
+  char path[BKDISPLAY_PACK_PATH_SIZE];
+
+  if (snprintf(path, sizeof(path), "%s/%s", packs_dir, filename) >=
+      (int)sizeof(path))
+    {
+      return -ENAMETOOLONG;
+    }
+
+  return bkdisplay_store_validate(path, filename, selection, true);
+}
+
+static int bkdisplay_store_scan(
+  const char *packs_dir, const char *rejected,
+  struct bkdisplay_store_selection_s *selection)
+{
+  struct dirent *entry;
+  DIR *directory = opendir(packs_dir);
+  int ret = -ENOENT;
+
+  if (directory == NULL)
+    {
+      return bkdisplay_store_errno();
+    }
+
+  while ((entry = readdir(directory)) != NULL)
+    {
+      if (!bkdisplay_store_filename(entry->d_name) ||
+          strcmp(entry->d_name, rejected) == 0)
+        {
+          continue;
+        }
+
+      ret = bkdisplay_store_candidate(packs_dir, entry->d_name, selection);
+      if (ret == 0)
+        {
+          break;
+        }
+    }
+
+  (void)closedir(directory);
+  return ret;
+}
+
 static int bkdisplay_store_resolve_layout(
   const char *root, const char *active_relative, const char *packs_relative,
   struct bkdisplay_store_selection_s *selection, bool *fallback_result)
@@ -332,14 +414,47 @@ static int bkdisplay_store_resolve_layout(
     }
 
   ret = bkdisplay_store_validate(active, filename, selection, fallback);
-  if (ret < 0 && ret != -ENOENT)
+  if (ret == 0 || ret == -ENOENT)
     {
-      BKDISPLAY_STORE_DIAG(
-        "BKDISPLAY STORE stage=pack-validate path=%s fallback=%u ret=%d\n",
-        active, fallback ? 1u : 0u, ret);
+      return ret;
     }
 
-  return ret;
+  BKDISPLAY_STORE_DIAG(
+    "BKDISPLAY STORE stage=pack-validate path=%s fallback=%u ret=%d\n",
+    active, fallback ? 1u : 0u, ret);
+
+  /* The active marker names a pack that cannot be read or parsed.  Leaving
+   * both panels dark is worse than using another pack that is already
+   * installed, so try the board default and then any other valid pack.  The
+   * marker file is left untouched: this is a read-only recovery for the
+   * current boot, not a silent re-selection.
+   */
+
+  {
+    int first_error = ret;
+
+    if (strcmp(filename, BKDISPLAY_STORE_DEFAULT_PACK) != 0 &&
+        bkdisplay_store_candidate(pack, BKDISPLAY_STORE_DEFAULT_PACK,
+                                  selection) == 0)
+      {
+        *fallback_result = true;
+        BKDISPLAY_STORE_DIAG(
+          "BKDISPLAY STORE stage=fallback path=%s reason=default\n",
+          selection->path);
+        return 0;
+      }
+
+    if (bkdisplay_store_scan(pack, filename, selection) == 0)
+      {
+        *fallback_result = true;
+        BKDISPLAY_STORE_DIAG(
+          "BKDISPLAY STORE stage=fallback path=%s reason=scan\n",
+          selection->path);
+        return 0;
+      }
+
+    return first_error;
+  }
 }
 
 int bkdisplay_store_resolve(const char *root,
@@ -467,6 +582,17 @@ int bkdisplay_store_activate(const char *root, const char *filename,
       ret = bkdisplay_store_errno();
     }
 
+  if (ret == 0)
+    {
+      char base[BKDISPLAY_PACK_PATH_SIZE];
+
+      if (bkdisplay_store_path(base, sizeof(base), root,
+                               BKDISPLAY_STORE_BASE) == 0)
+        {
+          bkdisplay_store_sync_directory(base);
+        }
+    }
+
   if (ret < 0)
     {
       (void)unlink(temporary);
@@ -544,6 +670,9 @@ int bkdisplay_store_install(const char *root, const char *filename,
     {
       return bkdisplay_store_errno();
     }
+
+  bkdisplay_store_sync_directory(packs_dir);
+  bkdisplay_store_sync_directory(staging_dir);
 
   return bkdisplay_store_activate(root, filename, selection);
 }
