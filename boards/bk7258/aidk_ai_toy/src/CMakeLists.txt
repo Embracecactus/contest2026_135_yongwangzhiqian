@@ -37,14 +37,27 @@ if(CONFIG_MEDIA AND CONFIG_MEDIA_SERVER)
       "${CMAKE_CURRENT_BINARY_DIR}/etc/media/nihao_openvela.tflite")
     configure_file("${wake_model}" "${wake_model_staged}" COPYONLY)
   endif()
-  # 私人授权提示音仅进入本地镜像，不随公开源码分发。
-  file(GLOB wake_reply CONFIGURE_DEPENDS
-    "${NUTTX_APPS_DIR}/system/bk7258/assets/wake_reply.pcm")
+  # The private, operator-authorized acknowledgement PCM enters ROMFS only
+  # when explicitly selected; it is not distributed with the public sources
+  # and is not pulled into a shared image merely because a copy happens to
+  # exist on this machine.
   set(wake_reply_staged "${CMAKE_CURRENT_BINARY_DIR}/etc/media/wake_reply.pcm")
-  if(wake_reply)
+  set(wake_reply "")
+  if(CONFIG_BK7258_AIDK_WAKE_REPLY_PCM)
+    set(wake_reply "${NUTTX_APPS_DIR}/system/bk7258/assets/wake_reply.pcm")
+    if(NOT EXISTS "${wake_reply}")
+      message(FATAL_ERROR
+        "CONFIG_BK7258_AIDK_WAKE_REPLY_PCM is enabled but ${wake_reply} is "
+        "missing; supply the operator-authorized asset locally or disable the option")
+    endif()
+    file(SHA256 "${wake_reply}" wake_reply_sha256)
+    message(STATUS
+      "AIDK wake reply PCM staged (private): wake_reply.pcm sha256=${wake_reply_sha256}")
     configure_file("${wake_reply}" "${wake_reply_staged}" COPYONLY)
   else()
     file(REMOVE "${wake_reply_staged}")
+    message(STATUS
+      "AIDK wake reply PCM not staged: CONFIG_BK7258_AIDK_WAKE_REPLY_PCM=n")
   endif()
   nuttx_add_romfs(
     NAME media
