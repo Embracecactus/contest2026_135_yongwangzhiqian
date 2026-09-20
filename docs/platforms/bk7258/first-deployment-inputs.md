@@ -89,6 +89,14 @@ NUL 终止与字符集），三份均为 0 failures。评审主线使用 `nihao_
 串口支持范围：当前传输经 Windows PowerShell 打开 `COMn`（WSL 通过
 `powershell.exe`）；不宣称支持原生 Linux `/dev/tty*`，供应时须先关闭其他串口占用者。
 
+**主机核对（2026-09-20，13 项全通过）**：用临时 EC P-256 证书/私钥调用
+`voice pairing --direct-cloud` 并截获实际发送记录，验证 BPI1 头
+（magic/version/reserved/长度字段）、叶证书 DER 与 PKCS#8 私钥 DER 逐字节匹配、
+`owner-bootstrap.json` 恰为四字段、`certificate_sha256` 等于叶证书 DER 的 SHA256、
+`possession_secret` 为 32 字节且与 BPI1 内秘密一致、`--resume` 复用同一记录与
+同一授权文件（不轮换）。示例记录 614 B（证书 DER 428 B + 私钥 DER 138 B），
+远小于 AP 侧 8,192 B 上限。设备侧写入与重启加载仍待新板实测。
+
 ## 5. 网络与云（评委自备）
 
 | 输入 | 现状 | 判据 |
