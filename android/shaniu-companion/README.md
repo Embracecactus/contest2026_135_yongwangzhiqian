@@ -121,13 +121,15 @@ tools/bk7258/bk7258.py voice pairing \
 查清板态后仅可用原证书/私钥、原文件及 `--resume` 续接，不能另造一份秘密。
 无需另建认证服务器、NFC 流程或新工具。
 
-写入设备后，App 侧的身份认领与配网仍走 BLE 服务
-（`app/bk7258/bk7258_provision_gatt.c`、`bk7258_provision_owner.c`、
-`bk7258_provision_claim.c`，协议与安全决策见
+身份记录本身只经受信有线通道写入，**从不上 BLE**（BPI1 含设备私钥，见
+`app/bk7258/bk7258_provision_identity.h`）。写入设备后，App 在已有身份上做的是
+**认领与配网**，走 BLE 服务（`app/bk7258/bk7258_provision_gatt.c`、
+`bk7258_provision_owner.c`、`bk7258_provision_claim.c`，协议与安全决策见
 [provision-v1 安全决策](../../docs/platforms/bk7258/shaniu-provision-security.md)）。
-`bkprov supply` 的实板安装与重启加载尚未在新板实测；“`persistent_data` 不是
-LittleFS 的新板首次初始化”仍缺入口，见
-[首次部署输入清单](../../docs/platforms/bk7258/first-deployment-inputs.md) 第 6 节。
+`bkprov supply` 的实板安装与重启加载尚未在新板实测；非 LittleFS 的
+`persistent_data` 使用 CP `bkdata init --confirm erase-non-littlefs` 显式初始化
+（见[首次部署输入清单](../../docs/platforms/bk7258/first-deployment-inputs.md)
+第 6 节）。
 
 通过本地 USB 等私密方式把 **owner-bootstrap.json 单独**交给该板的合法使用者，
 在 App 导入后完成 BLE 认领与配网。不要传设备私钥；不要把文件放在公共下载链接。
