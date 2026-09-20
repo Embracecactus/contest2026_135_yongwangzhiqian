@@ -69,12 +69,13 @@ extensions are published as fork `add0db19` and pinned by the manifest.
 
 T5-Board's Dolphin recording and WAV storage on SD have passed owner-operated
 hardware verification; the existing `0.1.0+13` record identifies its image.
-Do not confuse that result with the public build at `c10a7668`: to resolve missing
-`media_recorder_*` linkage, that change disabled the recorder and changed its
-prerequisites from `!MEDIA` to `MEDIA`/`MEDIA_GRAPH`. The source remains, but this
-configuration does not reproduce the verified recorder. Aligning the current
-build with that working version remains unresolved; it is not evidence that
-Dolphin recording was never implemented or verified. See
+Commit `8de0ae78` restores `DOLPHIN_RECORDER=y` and the missing CMake source,
+undoing the disablement in `c10a7668`. This standalone recorder uses the existing
+NuttX audio upper-half adapter only when `DOLPHIN_RECORDER && BK7258_MIC && !MEDIA`;
+CMake, Make and the source guard now agree. It does not enable Agent or shadow
+a running Media service. Recorder application and capture function bodies are
+unchanged from the earlier Dolphin publication. T5 CP/AP builds, existing host
+checks and ELF/map linkage passed; the new build was not flashed or board-tested. See
 [the Dolphin record](../../docs/platforms/bk7258/dolphin-master-plan.md).
 AIToyBoard's final 635 firmware is unchanged.
 

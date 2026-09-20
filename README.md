@@ -171,8 +171,9 @@ tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 8
 路径，不能当作已部署安全设备的升级包。**
 
 T5-Board 小海豚录音并保存 WAV 到 SD 卡**已获用户实板确认**，已有
-`0.1.0+13` 的记录。本次隔离构建 `c10a7668` 关闭了录音选项，未与该实测版本
-对齐，不能作为录音功能的完整复现，也不能据此否定既有实测。具体边界见
+`0.1.0+13` 的记录。`8de0ae78` 已修复误删的 Dolphin 专用 NuttX 录音接线，
+恢复默认录音开关；T5 CP/AP 构建、既有录音主机检查和 ELF 链接核对通过，
+未重新板测。它不启用傻妞旧语音路径。具体边界见
 [CONFIGS.md](boards/bk7258/CONFIGS.md)与[小海豚验收记录](docs/platforms/bk7258/dolphin-master-plan.md)。
 
 签名构建使用 `--boot mcuboot` 及明确的 BL1/MCUboot 公钥、rollback floor；

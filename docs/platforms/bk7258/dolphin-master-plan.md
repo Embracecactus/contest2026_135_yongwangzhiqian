@@ -2,6 +2,20 @@
 
 状态：0.1.0+18 Files文件系统容量、目录浏览及返回已获用户实板确认；本轮成果进入提交发布，后续主线切回傻妞。USB/ADC/相机未完成项仍保留，不宣称Dolphin全功能完成。
 
+## 2026-09-20 录音构建接线恢复
+
+`8de0ae78` 修复 Agent 清理误删 Dolphin 消费者接线的问题：恢复 CMake
+录音适配源与 T5 默认录音开关，Make/源码条件统一限于 Dolphin + MIC + !MEDIA。
+不接回傻妞旧语音路径，不修改 SDK、NuttX、官方 Media 或 FFmpeg。
+`dolphin_recording.c/.h` 未改；采集适配函数体与 `7c25a95b` 一致，只收窄编译条件。
+
+复用既有录音主机检查通过；现役 CLI 的 T5 CP/AP direct 构建通过。
+最终 AP 配置 `DOLPHIN_RECORDER=y`；ELF/map 确认 UI → 录音 worker → 既有
+NuttX audio 适配的单一链接链路，AP raw 547,020 B。哈希见
+[构建记录补充](../../verification/bk7258/2026-09-20-public-source-build.md)。
+本次未烧录、未新增实板验收；以下 `0.1.0+13` 用户录音保存 SD 结果继续保留，
+不宣称新二进制已上板。635 不变。
+
 ## 2026-09-20 录音验收表述更正
 
 用户再次确认 T5 小海豚能够录音并保存到 SD 卡。下文已有 `0.1.0+13` 的
