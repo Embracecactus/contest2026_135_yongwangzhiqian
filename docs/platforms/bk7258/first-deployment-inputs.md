@@ -41,6 +41,17 @@ operator 8,388,608 B / `33c387c1…`，实板语音全链路通过。
 | App 唤醒模型包 | `android/shaniu-companion/app/src/main/assets/wake-models/`：`nihao_openvela.wkm` 23,776 B `b08a2561…`、`nihao_bingbing.wkm` 23,776 B `20345f85…`、`nihao_shaniu.wkm` 23,776 B `d363c825…` | App 解析 WKM1（头 136 B、模型 ≤ 65,536 B、label `[a-z0-9_]{1,31}`、phrase ≤ 63 B） | 手机导入 → 设备活跃模型区 | 设备回读 active 模型 SHA256/label/phrase；改标签不等于重训 |
 | Android APK | `android/shaniu-companion/`（JDK 17、Android SDK 35），源码版本 `0.5.23-shaniu-rebind` / code 28 | 评委自建或用已发布 APK | 手机 | 安装后能扫描并认领设备 |
 
+**已生成的正式眼睛包（2026-09-20 实测）**：由 `shaniu-cyan-v2.json` 生成
+`shaniu-cyan-v2.bkep`，108,634 B，SHA256
+`050f1175dc4b7305836eecba4ba14faac0e0210f13e3933ff4638b58176ebe79`；
+`package eye-pack` 与 `verify eye-pack` 均 PASS
+（`id=shaniu-cyan-v2 revision=2 entries=18`），并逐项通过 App `EyePack.kt`
+的 13 项结构校验（magic `SHNEYE1\0`、version 1、头 128 B、瓦片 64/160/160、
+`pack_id` 字符集、TOC 与载荷 CRC32、声明长度=文件长度），解析
+`source_sha256=9a161ad6f5ae7adf011ec1be02992339ec90555084518d46dcd71edfc5775da5`。
+按 `app/bk7258/assets/display/README.md` 的约定，生成的 `.bkep` 不入 Git；
+若需要“可下载文件”形式，列为**待发布**（Release 资产）项，尚未上传。
+
 ## 4. 逐设备私有输入（每台一份，不进 Git / Release / ZIP）
 
 | 输入 | 来源 / 生成命令 | 消费者 | 安装位置 | 判据 |
