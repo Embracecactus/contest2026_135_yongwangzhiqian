@@ -50,10 +50,38 @@ BKDISPLAY APP IMPORT transport=https result=0 bytes=10494
 结论：**格式化后的卷可挂载**；服务在“无包”状态保持重试而不是退出；App 安装
 `shaniu-default-v1` 返回 `result=0` 并立即渲染双屏。
 
+## 复位持久性（已实测，含一次未闭合的观察）
+
+安装 `shaniu-default-v1` 后经
+`usbmode msc` → PC 侧确认 `X:\shaniu\display\packs\shaniu-default-v1.bkep` 存在 →
+安全弹出 → `usbmode cdc` → **复位**，启动日志：
+
+```text
+BKDISPLAY RENDER PASS expression=neutral pack=shaniu-default-v1 revision=1 screens=2 mapping=unverified fallback=0 sequence=1
+BKDISPLAY SERVICE READY dev=/dev/fb0,/dev/fb1 storage=/dev/mmcsd0 mount=short-lived
+```
+
+`fallback=0` 说明 **active 标记与包文件都跨复位保留**，双屏正常点亮。
+
+**未闭合观察（同一台设备、更早一次）**：在刚用 Windows 格式化过该卡之后，第一次
+“安装 v1 → 直接复位”出现包与标记都不见了（解析器退回空卡等待，屏幕黑）；随后
+重新安装并做了一轮 MSC 导出/安全弹出再复位，就稳定保留。两者差异是
+“格式化后的第一轮写入 + 立即复位”与“再次写入 + 额外一次卷释放/时间间隔”。
+现有证据无法区分下列两种机制，因此本轮**没有**为它做投机式改动：
+
+1. NuttX FAT 的 `fat_unbind()`（umount）不刷文件系统缓冲（源码注释承认会丢数据），
+   与卡内写缓存的组合可能在“写后立即断电”时丢失最近的目录/FAT 扇区；
+2. 刚被 PC 格式化过的卷在 NuttX 侧的第一轮写入可能只落到单份 FAT 副本或与
+   FSINFO/备份引导扇区不一致，第二次挂载才收敛。
+
+**运维规则（已写入首次部署输入清单）**：格式化 SD 之后，先执行一次
+“安装包 → 复位 → `读取当前眼睛`”的验证循环再信任该卡；若复位后包消失，
+重新安装一次并记录日志，不要用再次格式化掩盖。
+
 ## 边界与未闭合
 
-- **待补**：安装后 `读取当前眼睛` 回读、以及**复位后再次读取确认保持**（这条用于
-  验证第 2 项目录项持久化修复；此前正是在“装完即复位”后损坏）。
+- **待补**：安装后 `读取当前眼睛` 的 App 回读（串口侧已确认 `fallback=0` 与
+  `RENDER PASS`）。
 - 观察到的告警：导入窗口仍有成片的
   `[media][media_recorder_queue_push:290] data queue is more than max count(12)`
   （WARN），本记录不声称根因或影响。
