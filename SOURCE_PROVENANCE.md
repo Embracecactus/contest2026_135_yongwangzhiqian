@@ -40,13 +40,14 @@
   `2d6916ca6cda9671cb66fb9166900b54d84b47da7ec356675663650b161fb2ac`；
   共同输入逐字节一致，差集仅为已退役的 AIDK `drivercheck_ap/drivercheck_cp/xts`
   三组 defconfig/profile（6 文件），不在傻妞现役 CP/AP 配置内。
-- 隔离构建发现 T5-Board `DOLPHIN_RECORDER` 在 `!MEDIA` 下仍调用已退役兼容
-  ABI，链接缺少 `media_recorder_*`。`c10a7668` 仅修正团队 Kconfig 的真实
-  Media/graph 前置条件，并取消 T5-Board 的无效选择；保留录音实现，未补回旧后端，
-  因此本次 T5 构建缺少已在实板验证过的录音功能，不能算该功能的完整复现。
-  用户确认小海豚录音保存 SD 已通过，既有 `0.1.0+13` 证据见
-  [小海豚记录](docs/platforms/bk7258/dolphin-master-plan.md)；先前把本次配置差异
-  推断为“录音功能未完成”的表述予以更正。AIDK 635 的代码、配置与产物未改变。
+- T5 录音缺少 `media_recorder_*` 的根因是 Agent 清理误删了 CMake 中仍有
+  Dolphin 消费者的 NuttX audio 适配；源码和 Make 接线一直存在。先前
+  `c10a7668` 将其误判为无效选项并关闭，不是正确修复。`8de0ae78` 恢复
+  Dolphin 专用接线及开关，并把 Make/源码条件收窄为 Dolphin，防止傻妞启用
+  此适配。未恢复旧 Agent/voice runtime，未改官方 Media/SDK/NuttX/FFmpeg。
+  录音应用无代码变化，采集适配函数体与 Dolphin 提交 `7c25a95b` 一致；
+  T5 CP/AP 构建及 ELF 链接通过，未重新板测。既有 `0.1.0+13` 实测证据见
+  [小海豚记录](docs/platforms/bk7258/dolphin-master-plan.md)，635 实板产物不变。
 - `c10a7668` 的三板 CP/AP direct 构建已在独立检出的工作区通过；固定了
   实际依赖 revision、工具链/SDK bundle 与产物哈希。SDK 缓存经校验而未重编，
   没有签名、部署或板测。见

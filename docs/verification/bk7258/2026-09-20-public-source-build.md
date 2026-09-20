@@ -87,3 +87,25 @@ APK assets 只有三份公开唤醒模型；未安装到手机，未检验与已
 当前构建缺失的接线扩大表述为录音功能未完成，现予更正。上述构建命令、
 产物哈希和失败事实不变；`c10a7668` 关闭录音的配置仍未与该实测版本对齐。
 本次未变更固件或重新实板验证。
+
+## 同日修复补充：恢复 Dolphin 专用录音接线
+
+源码 `8de0ae7880581ceb831cba6ef68808eedd333fb3` 确认首个偏差是 CMake 清理
+误删了仍有 Dolphin 消费者的 NuttX audio 适配，而不是官方 Media 缺陷。
+恢复 T5 `DOLPHIN_RECORDER=y`，CMake/Make/源码统一限于 Dolphin + MIC + !MEDIA；
+录音应用及采集函数体未改。现有 `test_dolphin_recording` 主机检查通过，
+复用现役 CLI、原构建目录执行 T5 CP/AP direct 增量构建通过，source dirty=false。
+未新增测试、未重编 SDK、未烧录或重测实板；AIDK 635 不变。
+
+AP ELF/map 确认 `dolphin_ui.c.o → dolphin_recording.c.o →
+bk7258_agent_media_recorder.c.o`，open/prepare/read/start/stop/close 各只有一个定义，
+无 Agent 或官方 Media 服务。恢复的是既有独立 NuttX 录音适配，不是旧语音 runtime。
+
+| 产物 | 字节 | SHA256 |
+|---|---:|---|
+| T5 CP raw（未变） | 1069280 | `daac9672f79b768c4b9bfe8faec20ef196703231e6088a91897122256ce4acfd` |
+| T5 AP raw（录音已编入） | 547020 | `bed679bd9f16b986e1335886b7ff429cda4f60ee8845e9fbe7640fe1220e12f0` |
+
+本次 build manifest SHA256：
+`63f9c6f60ead1e8d3a436ec987469d41cda4a96abe5f2944a75ebbf23af9c4ec`。
+这些 direct 产物不是已签名 OTA 或可随意全片烧录的恢复包。
