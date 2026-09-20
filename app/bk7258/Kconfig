@@ -948,6 +948,37 @@ config BK7258_APP_PROV_STACKSIZE
 
 endif
 
+config BK7258_APP_DATA
+	bool "BK7258 on-chip persistent data command (bkdata)"
+	default n
+	depends on !BK7258_AP_CORE && SYSTEM_NSH && BK7258_ONCHIP_DATAFS
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Build the CP-side bkdata command.  It reports the /data filesystem
+		state and, only on an explicit `init --confirm
+		erase-non-littlefs` request, mounts the on-chip persistent block
+		device with the pinned LittleFS `autoformat` option, which formats
+		only content that is not already a valid LittleFS.  Valid data,
+		the soldered SD NAND and the protected calibration tail are never
+		rewritten, and no formatting happens automatically at boot.
+
+if BK7258_APP_DATA
+
+config BK7258_APP_DATA_PROGNAME
+	string "bkdata program name"
+	default "bkdata"
+
+config BK7258_APP_DATA_PRIORITY
+	int "bkdata priority"
+	default 100
+
+config BK7258_APP_DATA_STACKSIZE
+	int "bkdata stack size"
+	default 3072
+
+endif
+
 config BK7258_APP_PSRAM_TEST
 	bool "BK7258 bounded PSRAM allocator test command"
 	default n
