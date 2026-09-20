@@ -80,7 +80,8 @@ a running Media service. Recorder application and capture function bodies are
 unchanged from the earlier Dolphin publication. T5 CP/AP builds, existing host
 checks and ELF/map linkage passed; the new build was not flashed or board-tested. See
 [the Dolphin record](../../docs/platforms/bk7258/dolphin-master-plan.md).
-AIToyBoard's final 635 firmware is unchanged.
+AIToyBoard's verified firmware has since advanced to `18.6.401+637` (same-unit
+recovery image); the earlier 635 candidate record stays historical per version.
 
 Each physical board owns exactly one normal application entry at
 `configs/app/defconfig`. It is a complete CP configuration, not a shared
