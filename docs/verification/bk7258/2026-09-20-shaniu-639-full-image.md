@@ -50,9 +50,22 @@ BKVOICE official Trigger active label=nihao_openvela sha256=922eba91… bytes=23
   `poll_trial`），不是身份/持有秘密失败（认证/校验失败会是 -9/-12）。
   用户修正 Wi-Fi 密码后**认领与配网成功**。
 - **交互**：用户确认**语音唤醒成功、“我在”应答与拍照成功**。
-- **眼睛资源导入**：再装同一个 `shaniu-cyan-v2` 返回 `-17`（设备端 `-EEXIST`，
-  `bkdisplay_store_install()` 对已存在的 `<pack_id>.bkep` 拒绝重复安装），属预期；
-  当前设备已激活该包，不需要重装。
+- **眼睛资源导入/切换**（两次 App 导入均有串口证据）：
+  - 装 `shaniu-default-v1` 成功并切换生效：
+    `BKDISPLAY APP IMPORT transport=https result=0 bytes=10494` →
+    `BKDISPLAY RENDER PASS … pack=shaniu-default-v1 revision=1 screens=2`；
+  - 再装已存在的 `shaniu-cyan-v2` 返回 `BKDISPLAY APP IMPORT … result=-17`
+    （设备端 `-EEXIST`，`bkdisplay_store_install()` 对已存在的 `<pack_id>.bkep`
+    拒绝重复安装），属预期行为；
+  - 当前产品行为 = “装新包即新增并激活”，**没有切换已装包/删除包按钮**；要在两套
+    外观之间来回切，需每次使用新的 `pack_id`。为演示切回青色，已生成
+    `shaniu-cyan-v3`（108,634 B，SHA256
+    `cf9dff38d34ff220503021fdea68dcf4b5942a1467f8fbe9c395f0d97653ee56`，
+    同素材、新包标识），并通过 ADB 放到手机 `/sdcard/Download/`。
+- **观察到的告警**：两次导入期间的串口出现成片的
+  `[media][media_recorder_queue_push:290] data queue is more than max count(12)`
+  （WARN，队列满丢帧提示；同一窗口内 KWS 仍持续输出 `windows/scores`），
+  本记录不声称其根因或影响，仅如实记录。
 
 ## 边界与未闭合
 
