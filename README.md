@@ -47,9 +47,10 @@ A2 海报和 18 页可编辑答辩 PPT。源码与原始 AI Coding 日志留在�
 1. **烧录镜像绑定设备**：`release full` 产出的 operator 由**同板 readback** 物化，
    含该机的绑定数据，只对同一台设备有效；评委的板必须用自己的 readback 走一次
    `package accept-base`，不能烧作者的包。
-2. **首次存储初始化尚缺入口（阻断）**：固件只 `mount -t littlefs`，从不格式化；
-   `persistent_data` 不是 LittleFS 的新板目前没有受支持的初始化入口。
-   受支持的条件与最小修复方向见输入清单第 6 节。
+2. **首次存储初始化必须显式执行**：固件启动只 `mount -t littlefs`，从不自动
+   格式化；`persistent_data` 不是 LittleFS 的板在 NSH 执行
+   `bkdata init --confirm erase-non-littlefs`（只对非有效 LittleFS 的内容格式化），
+   随后重启。语义与判据见输入清单第 6 节；该命令**尚未在新板实测**。
 3. **身份写入与 App 认领是两件事**：设备 TLS 身份（BPI1）由 CP `bkprov supply`
    写入，随后 App 用同一份 `owner-bootstrap.json` 完成 BLE 认领与配网。
 
@@ -128,7 +129,11 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
 ### 5. 处理首次存储初始化、编译与完整镜像
 
 - 存储初始化：先确认 `persistent_data` 是 LittleFS（正常板启动出现
-  `BK7258 FINALINIT PASS`）。**非 LittleFS 的新板当前阻断**，见输入清单第 6 节。
+  `BK7258 FINALINIT PASS`）。若启动报
+  `FINALINIT FAIL: persistent data at /data has type …`，在 NSH 执行
+  `bkdata init --confirm erase-non-littlefs`，再重启并确认
+  `BK7258 FINALINIT PASS`；该命令只对非 LittleFS 内容格式化，不动 SD NAND 与
+  校准尾区，但尚未在新板实测（见输入清单第 6 节）。
 - 同板基线（正常板）：
 
 ```bash
@@ -234,9 +239,8 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
   App 设置回读、眼睛 `pack_id/revision`、唤醒模型 label/phrase。
 - 常见失败：读不到设备 → 检查 USB 口与 COM；认领失败 → 核对授权文件与设备时间；
   供包失败 → 检查手机前台与局域网；云端失败 → 核对账号/额度/时钟。
-- 未闭合项（不得写成已完成）：`persistent_data` 非 LittleFS 的新板初始化、
-  `bkprov supply` 在新板的实板实测、App 资源更新四步在新板的完整回读、
-  比赛材料附件未按 637/638 重新生成。
+- 未闭合项（不得写成已完成）：`bkdata init` 与 `bkprov supply` 的**新板实板
+  实测**、App 资源更新四步在新板的完整回读、比赛材料附件未按 637/638 重新生成。
 
 ## 实机验收状态（2026-09-20）
 
