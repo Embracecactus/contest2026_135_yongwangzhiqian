@@ -441,3 +441,42 @@ are ownership rules, not a requirement to run every test path for each change.
 - Add board serial automation as a linked child below official pytest
   `tests/scripts/script/`. Reuse parent fixtures and the UART0 control channel;
   do not fork `conftest.py`, `utils/common.py` or `pytest.ini`.
+
+## Pre-submit checks
+
+The organization CI only verifies CLA signatures, so the repository's own
+gates run locally before a change is committed. Run the gate that matches
+the change; a passing result is recorded in the commit message:
+
+- Any change under `boards/bk7258/`, `app/`, `chips/bk7258/` or the tools
+  themselves:
+
+  ```sh
+  python3 tools/bk7258/bk7258.py verify layers
+  ```
+
+- Changes to `tools/bk7258/_lib/layers.py` or the layer fixtures:
+
+  ```sh
+  python3 tests/host/bk7258/test_bk7258_layers.py
+  ```
+
+- Changes to `tools/bk7258/_lib/kernel_compat.py`, `chips/bk7258/kernel_compat.json`
+  or the wrapper-related kernel sources:
+
+  ```sh
+  python3 -m unittest tests.host.bk7258.test_kernel_compat
+  ```
+
+- Changes to firmware C sources under `app/bk7258/` or
+  `boards/bk7258/*/src/`: an affected-board incremental build, plus nxstyle
+  from the pinned NuttX checkout on the touched files:
+
+  ```sh
+  gcc -o /tmp/nxstyle "$(git rev-parse --show-toplevel)/../nuttx/tools/nxstyle.c"
+  /tmp/nxstyle app/bk7258/bk7258_agent_product.c
+  ```
+
+A gate failure must be fixed or, when it is a known limitation of the
+checker, recorded as an explicit exception with its reason in the commit
+message; exit codes are never swallowed.
