@@ -37,6 +37,71 @@ is retired; do not recreate it to satisfy a stale instruction.
 For the explicit development remote override and official delivery distinction,
 see the root [README](../../README.md).
 
+## First complete flash (contest review path)
+
+Reviewers and judges flash a complete 8-MiB image with the Beken loader; no
+SDK source, key file or device readback is needed at the flash step. The
+maintained paths are:
+
+1. **Use the published signed operator image** (recommended). The release
+   owner publishes `flash/operator-<board>-v<VERSION>.bin` from a signed
+   full release; it already carries BL1/BL2, signed CP/AP and the
+   device-bound persistent data, so the board starts with a working
+   `/data`, BLE advertising and the wake acknowledgement. Flash it as one
+   full image:
+
+   ```text
+   bk_loader.exe download -p <com> -b 460800 -s 0x0 -i <operator>.bin \
+     --swrst "reset reboot" --hard-reset 0 --reboot 1 \
+     --uart-type CH340 --fast-link 1
+   ```
+
+   AIDK AI Toy uses its CH340 UART0 (`--fast-link 1` is required); T5-Board
+   uses UART0 at 6000000 baud with the USB-UART RTS reset instead of
+   `--swrst`. Multi-segment downloads use `tools/bk7258-hil-download/`
+   (`preflight` then `run`), which enforces board port, size and SHA-256.
+2. **Owner-side release production** (only the release owner, with the
+   private key PEMs and one accepted same-device base outside this
+   repository):
+
+   ```sh
+   tools/bk7258/bk7258.py build --board aidk_ai_toy --boot mcuboot \
+     --bl1-public-key <bl1-public.pem> --mcuboot-public-key <mcuboot-public.pem> \
+     --openssl /usr/bin/openssl --rollback-floor <counter>
+   tools/bk7258/bk7258.py release full --build-manifest <manifest> \
+     --bl1-key <bl1.pem> --mcuboot-key <mcuboot.pem> \
+     --version <MAJOR.MINOR.PATCH+GENERATION> --product shaniu \
+     --artifact-id <safe-id> --base <accepted-base.bin> \
+     --base-evidence <accepted-base.json> \
+     --openssl /usr/bin/openssl --output-dir <new-dir>
+   ```
+
+   `release full` signs and materializes in one step; `flash/*.bin` is the
+   flash input above. Security counters increase monotonically; a released
+   generation never decreases.
+3. **Unsigned diagnostic chain** (no keys; for bring-up only):
+
+   ```sh
+   tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct
+   tools/bk7258/bk7258.py package create --build-manifest \
+     out/bk7258/aidk_ai_toy/app__openvela_ap/<layout-id>/releases/direct/build-manifest.json \
+     --unsigned --output <pkg>
+   tools/bk7258/bk7258.py package extract --package <pkg> --output <dir>
+   ```
+
+   The extracted `images/{boot,cp,ap,pair}.bin` are downloaded per board
+   profile (`tools/bk7258-hil-download/references/SOP.zh-CN.md`). A direct
+   image has no BL2/signature and no persistent-data snapshot: after the
+   first direct flash, `/data` is unformatted and
+   `BK7258 FINALINIT FAIL: persistent data at /data ...` is the expected
+   first-boot report; the boot continues and the display/Agent/peripherals
+   start, but configuration persistence and BLE provisioning stay
+   unavailable. Re-flash with the signed operator image from step 1 for the
+   intended product state.
+
+Detailed signing, layout and persistence rules: the build/flash/debug SOP at
+`docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md`.
+
 ## Model development is optional for firmware builds
 
 The current public model and metadata live in `app/bk7258/models`; Android's
