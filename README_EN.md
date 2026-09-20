@@ -199,9 +199,17 @@ chapter):
 3. Public assets: builtin KWS model `nihao_openvela.tflite` (23,640 B,
    `922eba91…`), the contest-only `wake_reply.pcm` (31,208 B), and the eye
    source `shaniu-cyan-v2.json`; build an installable `.bkep` with
-   `package eye-pack` and check it with `verify eye-pack`.
+   `package eye-pack` and check it with `verify eye-pack`. Reviewers need no
+   author binary: the repository source generates it (stdlib only) and the
+   expected result is 108,634 B / `050f1175…` with `pack_id=shaniu-cyan-v2`,
+   `revision=2`, `source_sha256=9a161ad6…`.
 4. Per-device private inputs: one EC P-256 device certificate/key pair per board
-   (OpenSSL command in the Chinese chapter), generated outside the repository.
+   (OpenSSL command in the Chinese chapter), generated outside the repository;
+   the four-field `owner-bootstrap.json` is never hand-written, it is produced by
+   `voice pairing --direct-cloud` together with the identity write. The device
+   never overwrites a different stored identity (`EEXIST`) and there is no
+   supported identity-clear entry, so a board claimed by someone else needs that
+   owner's bootstrap file.
 5. Storage state, build and image: confirm `BK7258 FINALINIT PASS`; bind the
    board's own readback with `package accept-base`; then `build --boot mcuboot`
    and `release full` to produce the 8-MiB operator image and `.bkpack`.
