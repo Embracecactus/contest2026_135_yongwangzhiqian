@@ -1,5 +1,6 @@
 if(CONFIG_BK7258_PROVISION_GATT)
-  # 固定 NuttX 版本已有连接观察接口，直接使用原头文件，不扩写公共头文件。
+  # The pinned NuttX already carries the connection-observation interfaces;
+  # use the original headers instead of widening a shared header.
   target_include_directories(apps PRIVATE ${NUTTX_DIR}/wireless/bluetooth)
   target_sources(apps PRIVATE bk7258_provision_gatt.c bk7258_provision_tls.c
                               bk7258_provision_claim.c bk7258_provision_store.c
@@ -18,7 +19,8 @@ if(CONFIG_BK7258_AP_APPLICATION_LIFECYCLE)
 endif()
 
 if(CONFIG_DOLPHIN_RECORDER AND CONFIG_BK7258_MIC AND NOT CONFIG_MEDIA)
-  # 小海豚独立录音仍使用 NuttX audio 适配，不恢复傻妞的旧语音路径。
+  # Dolphin keeps its standalone NuttX audio recording adapter; the legacy
+  # Shaniu voice path is not restored for it.
   target_include_directories(apps PRIVATE
       ${NUTTX_APPS_DIR}/frameworks/multimedia/media/include)
   target_sources(apps PRIVATE bk7258_agent_media_recorder.c)
