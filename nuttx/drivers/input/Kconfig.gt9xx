@@ -1,18 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Local build integration for the upstream-oriented GT9xx replacement.
-# The implementation is kept as a complete NuttX input driver so the
-# standard ioctl addition can move upstream without BK7258 board policy.
+# Local build selector for the unchanged upstream GT9xx driver.
 
 config INPUT_GT9XX_STANDARD_IOCTL
-	bool "Goodix GT9xx driver with standard touchscreen ioctl"
+	bool "Goodix GT9xx driver (legacy BK7258 selector)"
 	default n
 	select INPUT_TOUCHSCREEN
 	help
-		Enable the Goodix GT9xx input driver with the standard
-		TSIOC_GETMAXPOINTS touchscreen capability query.  This is a
-		drop-in replacement for INPUT_GT9XX and must not be enabled with
-		the official driver at the same time.
+		Compile the official Goodix GT9xx input driver through the BK7258
+		build integration. This legacy selector does not add ioctls: the
+		driver returns single-point touch samples without TSIOC_GETMAXPOINTS.
+		Do not enable it with INPUT_GT9XX, which builds the same driver.
 
 if INPUT_GT9XX_STANDARD_IOCTL
 
