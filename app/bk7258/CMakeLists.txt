@@ -8,7 +8,8 @@ if(CONFIG_BK7258_PROVISION_GATT)
                               bk7258_provision_storage.c bk7258_provision_owner.c
                               bk7258_provision_identity.c bk7258_provision_network.c
                               bk7258_provision_time.c bk7258_control_session.c
-                              bk7258_control_pair.c bk7258_control_ota_request.c)
+                              bk7258_control_pair.c bk7258_control_ota_request.c
+                              bk7258_prov_service.c)
 endif()
 
 if(CONFIG_BK7258_AP_APPLICATION_LIFECYCLE)
@@ -321,4 +322,12 @@ if(CONFIG_BK7258_APP_IDENTITY)
     SRCS bk7258_identity_main.c
     STACKSIZE ${CONFIG_BK7258_APP_IDENTITY_STACKSIZE}
     PRIORITY ${CONFIG_BK7258_APP_IDENTITY_PRIORITY})
+endif()
+
+if(CONFIG_BK7258_APP_PROV)
+  nuttx_add_application(
+    NAME ${CONFIG_BK7258_APP_PROV_PROGNAME}
+    SRCS bk7258_prov_main.c bk7258_prov_client.c
+    STACKSIZE ${CONFIG_BK7258_APP_PROV_STACKSIZE}
+    PRIORITY ${CONFIG_BK7258_APP_PROV_PRIORITY})
 endif()

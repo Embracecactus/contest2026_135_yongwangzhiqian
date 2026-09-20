@@ -31,6 +31,7 @@
 #endif
 
 #ifdef CONFIG_BK7258_PROVISION_GATT
+#include "bk7258_prov_service.h"
 #include "bk7258_provision_gatt.h"
 #include "bk7258_provision_storage.h"
 #include "bk7258_provision_time.h"
@@ -160,6 +161,12 @@ int bk7258_ap_application_start(void)
    * Registration alone enables neither advertising nor configuration.
    */
   ret = bkprov_time_start();
+  if (ret < 0) return ret;
+
+  /* The identity-supply endpoint only forwards into the storage worker the
+   * product already owns; it opens no claim or configuration operation.
+   */
+  ret = bkprov_service_initialize();
   if (ret < 0) return ret;
   ret = bkprov_gatt_register();
   if (ret < 0)
