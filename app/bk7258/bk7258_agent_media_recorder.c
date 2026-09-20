@@ -3,16 +3,14 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * BK7258 product media_recorder ABI bridge for the official Agent. The media
- * framework is intentionally disabled for this profile;
- * the bridge keeps portable App backends on the public NuttX audio upper-half
- * ABI.
+ * 小海豚独立录音使用的既有 NuttX audio upper-half 适配。
+ * 文件名保留历史位置；仅在 Dolphin 且无 Media 服务时编入，不供傻妞
+ * Agent 使用，也不与官方 Media 的同名入口同时链接。
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#if (defined(CONFIG_BK7258_APP_AGENT) || defined(CONFIG_DOLPHIN_RECORDER)) && \
-    defined(CONFIG_BK7258_MIC) && \
+#if defined(CONFIG_DOLPHIN_RECORDER) && defined(CONFIG_BK7258_MIC) && \
     !defined(CONFIG_MEDIA)
 
 #include <errno.h>
@@ -1029,6 +1027,4 @@ int media_recorder_close(void *handle)
   return 0;
 }
 
-#endif /* (CONFIG_BK7258_APP_AGENT || CONFIG_DOLPHIN_RECORDER) &&
-        * CONFIG_BK7258_MIC && !CONFIG_MEDIA
-        */
+#endif /* CONFIG_DOLPHIN_RECORDER && CONFIG_BK7258_MIC && !CONFIG_MEDIA */

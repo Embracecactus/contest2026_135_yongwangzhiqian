@@ -60,11 +60,11 @@ config DOLPHIN_UI_STACKSIZE
 config DOLPHIN_RECORDER
 	bool "Dolphin WAV recorder"
 	default n
-	depends on DOLPHIN_UI && BK7258_MIC && MEDIA && MEDIA_GRAPH
+	depends on DOLPHIN_UI && BK7258_MIC && !MEDIA
 	help
 		Record a user-started 16 kHz, 16-bit mono WAV file to removable
-		storage through the official Media recorder. The board must supply
-		a Capture graph; the retired BK7258 compatibility ABI is not used.
+		storage through the existing NuttX audio upper-half adapter.
+		This standalone recorder does not start Agent or the Media service.
 
 config DOLPHIN_ADC_KEY
 	bool "Dolphin ADC single key"

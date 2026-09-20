@@ -17,6 +17,13 @@ if(CONFIG_BK7258_AP_APPLICATION_LIFECYCLE)
   endif()
 endif()
 
+if(CONFIG_DOLPHIN_RECORDER AND CONFIG_BK7258_MIC AND NOT CONFIG_MEDIA)
+  # 小海豚独立录音仍使用 NuttX audio 适配，不恢复傻妞的旧语音路径。
+  target_include_directories(apps PRIVATE
+      ${NUTTX_APPS_DIR}/frameworks/multimedia/media/include)
+  target_sources(apps PRIVATE bk7258_agent_media_recorder.c)
+endif()
+
 if(CONFIG_BK7258_APP_AGENT)
   target_include_directories(apps PRIVATE ${NUTTX_APPS_DIR}/netutils/cjson/cJSON)
   include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_framework.cmake)
