@@ -42,7 +42,9 @@ include a Chinese report (PDF/DOCX), the 4:48 main video, a separate App demo,
 four authentic board photos, an A2 poster and an editable 18-slide presentation.
 Source and original AI logs remain in Git, not in the submission ZIP. Device
 bootstrap secrets and device-bound recovery images are excluded. Artifact
-preparation is not a completed website submission or upstream PR merge.
+preparation is not a completed website submission or upstream PR merge. The
+packaged attachments (PDF/DOCX/PPT) predate the 637 update and have not been
+regenerated; the Markdown sources in this repository do not update them.
 
 | Board | CLI ID | Application | SDK profiles |
 |---|---|---|---|
