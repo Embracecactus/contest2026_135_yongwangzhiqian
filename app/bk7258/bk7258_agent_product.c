@@ -79,6 +79,7 @@
 #include "bk7258_provision_owner.h"
 #include "bk7258_provision_gatt.h"
 #include "bk7258_provision_network.h"
+#include "bk7258_agent_trigger.h"
 #include "bk7258_voice_media.h"
 #include "bk7258_voice_volume_store.h"
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
@@ -149,19 +150,6 @@ static bool g_power_vision_quiesced;
 static bool g_power_haptic_quiesced;
 static uint64_t g_power_query_at;
 #endif
-
-extern int bk7258_agent_trigger_prepare(void);
-extern int bk7258_agent_trigger_start(void);
-extern int bk7258_agent_trigger_stop(void);
-extern int bk7258_agent_trigger_process(void);
-extern int bk7258_agent_trigger_model_step(bool arm);
-extern bool bk7258_agent_trigger_model_pending(void);
-extern int bk7258_agent_trigger_rearm(void);
-extern bool bk7258_agent_trigger_armed(void);
-extern unsigned int bk7258_agent_trigger_threshold_get(void);
-extern int bk7258_agent_trigger_threshold_set(unsigned int percent);
-extern int bk7258_agent_trigger_control(void *, enum bkcontrol_command_e,
-  uint32_t, uint32_t, const uint8_t *, size_t, struct bkcontrol_status_s *);
 
 /* Media Trigger reports only product wake admission here. The official voice
  * channel remains the sole conversational lifecycle owner.
@@ -2576,7 +2564,11 @@ int ai_agent_main(int argc, FAR char *argv[])
 }
 
 #ifdef CONFIG_AI_AGENT_LVGL_UI
-extern void lvgl_ui_channel_show(void);
+/* Official declaration: packages/ai_agent/src/ui/lvgl_ui_channel.h,
+ * reachable through the src include path exposed by agent_framework.cmake.
+ */
+#include "lvgl_ui_channel.h"
+
 volatile uint32_t g_bk7258_agent_ui_show_attempts;
 
 static int bk7258_agent_ui_show_task(int argc, FAR char *argv[])

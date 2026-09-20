@@ -17,6 +17,7 @@
 #include "bk7258_voice_kws_model.h"
 #include "bk7258_voice_wake_package.h"
 #include "bk7258_voice_media.h"
+#include "bk7258_agent_trigger.h"
 #include "bk7258_control_session.h"
 
 #include <nuttx/config.h>
