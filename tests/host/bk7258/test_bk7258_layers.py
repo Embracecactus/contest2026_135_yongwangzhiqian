@@ -271,10 +271,51 @@ def test_include_gate_whitespace_boundaries() -> None:
         assert "CHIP_TO_BOARD" in _codes(root)
 
 
+def test_include_gate_quoted_headers() -> None:
+    """A quoted header name is a string literal; it must still be scanned."""
+
+    with tempfile.TemporaryDirectory(prefix="bk7258-layers-quoted-") as temporary:
+        root = Path(temporary)
+        _fixture(root)
+
+        # Commented-out and string-literal quoted includes stay inert: fixing
+        # the miss must not turn them into false reports.
+        _write(
+            root,
+            "boards/bk7258/test/src/inert_quoted.c",
+            '  // #include "driver/gpio.h"\n'
+            'static const char *text = "#include \\"os/os_types.h\\"";\n'
+            "int board_inert_quoted(void) { return 0; }\n",
+        )
+        assert "SDK_INCLUDE" not in _codes(root)
+
+        # Flush, blank-line-preceded and indented quoted includes are reported
+        # exactly like their bracketed form.
+        _write(
+            root,
+            "boards/bk7258/test/src/quoted.c",
+            '#include "driver/gpio.h"\n'
+            "\n"
+            '    #include "sdkconfig.h"\n',
+        )
+        assert "SDK_INCLUDE" in _codes(root)
+
+        # The chips-layer branch reads quoted headers through the same path.
+        _write(
+            root,
+            "chips/bk7258/common/quoted.c",
+            'int chip_quoted(void);\n'
+            "\n"
+            '#include "arch/board/board.h"\n',
+        )
+        assert "CHIP_TO_BOARD" in _codes(root)
+
+
 def main() -> int:
     test_clean_fixture()
     test_all_boundary_failures()
     test_include_gate_whitespace_boundaries()
+    test_include_gate_quoted_headers()
     test_app_and_board_build_sdk_boundaries()
     test_legacy_exception_is_hash_bound()
     print("BK7258_LAYER_TEST_PASS")
