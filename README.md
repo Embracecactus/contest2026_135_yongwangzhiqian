@@ -252,12 +252,17 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
 6. 失败恢复：按提示重新连接后重试；不要格式化 SD NAND，也不要清空用户文件。
    当前没有承诺断点续传或自动回滚。
 7. **同一 `pack_id` 不能重复安装**：设备按 `<pack_id>.bkep` 存放资源，已存在就返回
-   `-EEXIST`（App 显示 `-17`）。这不是失败——用 `读取当前眼睛` 确认当前生效包即可
-   （本机实测：`shaniu-cyan-v2` 已装并激活为 revision 2，再装同一个包就返回 -17）。
-   要演示“换包/更新”，请使用**不同 `pack_id`** 的新包：仓库里的
-   `app/bk7258/assets/display/shaniu-default-v1.json` 是现成的第二个包
-   （`shaniu-default-v1`，10,494 B，SHA256 `1bfa4453…`），或用同一个 JSON 改
-   `pack_id` 后用同一条命令重新生成。当前 App 没有删除/回退按钮。
+   `-EEXIST`（App 显示 `-17`），安装成功后该包即被激活。639 实测：
+   - 装 `shaniu-default-v1` 成功并切换生效：
+     `BKDISPLAY APP IMPORT transport=https result=0 bytes=10494` →
+     `BKDISPLAY RENDER PASS … pack=shaniu-default-v1 revision=1`；
+   - 再装已存在的 `shaniu-cyan-v2` 返回 `result=-17`（预期，不是失败）。
+   - 因此**当前产品只支持“装新包 = 新增 + 激活”，没有切换已装包或删除包的按钮**；
+     要在两套外观之间来回切，就每次用**新的 `pack_id`** 生成并安装一个包
+     （仓库里的 `shaniu-default-v1.json` 是现成的第二套；同一个 JSON 改 `pack_id`
+     后用同一条命令即可再生成一套）。手机上已放好
+     `shaniu-cyan-v3.bkep`（108,634 B，SHA256 `cf9dff38…`，与 cyan-v2 同素材、
+     新包标识 `shaniu-cyan-v3`/revision 3），用来切回青色外观。
 
 **唤醒模型（.wkm）**——两条真实入口：
 
