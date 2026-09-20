@@ -100,9 +100,11 @@ tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 8
 ```
 
 Build boards sequentially. A single-board build needs only its two SDK profiles.
-T5-Board's optional Dolphin recorder is disabled until its official Media
-Capture graph is integrated; the removed compatibility backend is not restored.
-This does not change Shaniu firmware 635.
+The owner has verified Dolphin recording WAV files to SD on T5-Board, including
+the recorded `0.1.0+13` build. The isolated build at `c10a7668` disabled recording
+and is not a complete reproduction of that functionality. Its build result
+does not invalidate the owner's hardware result. See the [Dolphin record](docs/platforms/bk7258/dolphin-master-plan.md).
+Shaniu firmware 635 is unchanged.
 Keep the team checkout directory name specified by the manifest; SDK tools read
 its same-named XML. AIToyBoard requires both `cp-aidk` and `ap-aidk`.
 The manifest pins the SDK to `cb080de1655d579c7593ecf504c440997c4c137b`.
