@@ -103,11 +103,13 @@ BKVOICE turn complete=-61 interaction=exit next=wake result=0
 
 ## 本窗口如实记录的异常
 
-- **一次 ASR 请求失败并在同一会话内恢复**：`BKVOICE HTTP request=chat/completions
+- **同一观察窗口内一次 ASR 失败、随后请求成功**：`BKVOICE HTTP request=chat/completions
   status=0 ret=-5 bytes=0 body_bytes=165760`、`AGENT ASR backend=mimo mode=batch
   ret=-5`、`[voice] request=2 complete=-5`；设备保持 `interaction=active` 并重新
   收音（`request=3 complete=-61` 为静音超时），随后 `request=4 complete=0` 成功。
-  本轮未定位该瞬时失败根因，也不把它写成已消除。
+  公开摘录不能证明这段时间内是否发生过待机或再次唤醒：交互在 -ENODATA/-ECANCELED
+  时会退出，而完整中间事件不在公开摘录中，因此本记录只主张“同一观察窗口内先失败、
+  后成功”。本轮未定位该瞬时失败根因，也不把它写成已消除。
 - **既有噪声仍在**：`input[0] write to mix failed, ret:-22.`（与 626 记录同类，
   见 Master Plan“不能把闭环成功写成这些现象已消除”）、录音关闭路径的
   `media_recorder_encode_frame failed: -541478725 / -32`、
