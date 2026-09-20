@@ -251,6 +251,13 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
    确认 `pack_id`/`revision` 未回退。
 6. 失败恢复：按提示重新连接后重试；不要格式化 SD NAND，也不要清空用户文件。
    当前没有承诺断点续传或自动回滚。
+7. **同一 `pack_id` 不能重复安装**：设备按 `<pack_id>.bkep` 存放资源，已存在就返回
+   `-EEXIST`（App 显示 `-17`）。这不是失败——用 `读取当前眼睛` 确认当前生效包即可
+   （本机实测：`shaniu-cyan-v2` 已装并激活为 revision 2，再装同一个包就返回 -17）。
+   要演示“换包/更新”，请使用**不同 `pack_id`** 的新包：仓库里的
+   `app/bk7258/assets/display/shaniu-default-v1.json` 是现成的第二个包
+   （`shaniu-default-v1`，10,494 B，SHA256 `1bfa4453…`），或用同一个 JSON 改
+   `pack_id` 后用同一条命令重新生成。当前 App 没有删除/回退按钮。
 
 **唤醒模型（.wkm）**——两条真实入口：
 
