@@ -26,6 +26,9 @@ Use a lowercase underscore name and add these board-owned inputs:
 4. a new partition CSV only when no reviewed common layout matches the new
    board's Flash and storage topology.
 
+Partition layout CSVs are maintained centrally in
+`boards/bk7258/common/partitions/bk7258/`; a board's `openvela.conf` selects
+one of them and a board directory does not keep a private copy of a layout.
 The partition CSV remains the only geometry/build-write source.  The release
 policy maps every selected partition name to product semantics without copying
 an offset, size or Flash capacity.  A new board may reuse a reviewed policy

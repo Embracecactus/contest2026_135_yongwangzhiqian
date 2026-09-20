@@ -1,47 +1,60 @@
-# AIDK AI Toy board handoff rules
+# AIDK AI Toy board rules
 
-This subtree is the complete ownership boundary for AIDK AI Toy adaptation.
+Board-local differences only.  Repository-wide validation tiers, trust and
+signing safety, publication ownership and the single CLI entry
+(`tools/bk7258/bk7258.py`) are defined by the root `AGENTS.md` and the
+[build/flash/debug SOP](../../../docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md);
+this file adds what is specific to this physical board and does not repeat
+those rules.
 
-- Modify only `boards/bk7258/aidk_ai_toy/` unless the owner explicitly expands
-  scope.  Do not edit `chips/`, the Beken SDK bundle/source, NuttX, `tools/`,
-  applications, or the shared BK7258 board.
-- Use `tools/bk7258/bk7258.py` as the only build/package/release/verify entry.
-  Do not add another packer, layout parser, signer, or raw-Flash policy.
-- Use the board preset (`--board aidk_ai_toy`) and MCUboot for every release.
-  A release build is always clean.  The board CSV is the only Flash geometry
-  source.
-- A full download does not authorize key generation, rotation or destruction.
-  Follow the repository's trust rules and reuse compatible approved identities
-  and artifacts. Reprovisioning requires explicit identity-operation authority;
-  ordinary download acceptance or failure does not authorize key destruction.
-- OTA is different from full provisioning: it must use the MCUboot root already
-  installed on that device and a strictly higher generation.  Store the signer
-  only in the operator's approved vault/HSM or external secret manager; this
-  repository does not provide a board-private key broker.  Never log key paths,
-  store secrets in Git, or copy secrets into project memory.
-- For final delivery, do one complete package verification and one end-to-end
-  hardware acceptance. Debug iterations use the repository's hardware-fast gates.
-  Do not replace acceptance with repeated partial read/probe/download loops.
-- A wired recovery uses one complete 8-MiB operator image at address zero,
-  materialized from an exact full readback and accepted-base evidence for that
-  same unit.  Do not use chip
-  erase or copy the image to another unit; the tail
-  `[0x7fa000,0x800000)` must remain byte-identical to the accepted base.
-- The fitted CH340E exposes UART0 but its RTS/CTS pins are not connected to
-  CEN.  Never use COM8 RTS/DTR as reset.  For a running diagnostic image,
-  leave native USB MSC safely (eject it or switch it back to CDC), then let
-  BK Loader atomically send the firmware `reset reboot` command with
-  `--swrst "reset reboot" --hard-reset 0 --fast-link 1`; the loader must
-  already be waiting for the reboot window.  If software reboot is
-  unavailable, start BK Loader and press K1 RESET once when `Getting Bus`
-  appears.  Holding a BOOT key is not required.
-- The second Type-C port is native BK7258 USB0 Device.  It carries only signed
-  OTA object reads into the unified OTA Manager; it is not raw DFU/MSC Flash.
-  That transport is the chip-level `BK7258_OTA_SOURCE_USB` source, one OTA
-  source beside the file and HTTP sources, so this board only selects it and
-  supplies the port wiring; do not re-implement the wire protocol here.
-  AP stages the pair, CP is the only on-chip writer, BL2 owns trial/revert, and
-  the CP Supervisor policy owns automatic confirmation.
+- Layering follows the repository contract: this directory owns electrical
+  facts and board policy (pins, polarity, connectors, role configs, partition
+  and release-policy selection); SoC mechanisms stay in `chips/bk7258/`.
+  Scope is set per task by the owner, not fixed to this subtree.
+- `openvela.conf` selects the CP/AP role configs, the partition layout
+  `boards/bk7258/common/partitions/bk7258/bk7258_ab_fixed_block_full_release.csv`
+  and the common release policy.  That CSV is the only Flash geometry source;
+  layout CSVs are maintained centrally, never copied into a board directory.
+- Signed releases use the board preset (`--board aidk_ai_toy`) and MCUboot.
+  Whether a build needs `--clean` follows the root validation tiers — it is
+  not a default release step and not a substitute for the dedicated
+  boot/trust/layout path.
+- Wired recovery is whole-device: one complete 8-MiB operator image at address
+  zero, materialized from exact same-unit readback and accepted-base evidence;
+  the immutable tail must stay byte-identical and nothing is copied to another
+  unit.  Details: SOP "MCUboot build and signed package" and "Persistence".
 
-Normal commands and acceptance criteria are in `AUTOMATION.md`.  Start there;
-do not infer an older workflow from historical logs or research notes.
+## Connectors, reset and USB
+
+- CH340 Type-C (CH340E → UART0 TX/RX): BK Loader recovery and CP console.
+  RTS/CTS are not connected to CEN; never use COMx RTS/DTR as reset, and the
+  host COM number is fixture state, not a board identity.
+- Native Type-C (BK7258 USB0 DP/DM): signed CP/AP OTA transport only
+  (chip-level `BK7258_OTA_SOURCE_USB` beside the file and HTTP sources; AP
+  stages, CP is the only on-chip writer, BL2 owns trial/revert, the CP
+  Supervisor confirms).  It is not raw DFU/MSC Flash; this board only selects
+  the source and supplies port wiring.
+- Before a BK Loader download, leave native USB MSC safely (eject it or switch
+  back to CDC), then use the atomic software-reset handoff, replacing the port
+  by the actual fixture port (discover it; do not hardcode COM8):
+
+  ```text
+  bk_loader.exe download -p "$PORT" -b 460800 -s 0 -i FULL_FLASH.bin \
+    --swrst "reset reboot" --hard-reset 0 --reboot 1 --uart-type CH340 \
+    --fast-link 1
+  ```
+
+  `--fast-link 1` is required on this board's CH340 path; without it the
+  handoff timed out before erase/write.  If software reboot is unavailable,
+  press and release K1 once when the loader prints `Getting Bus`.  An isolated
+  relay, PhotoMOS or open-drain fixture across K1 may automate that fallback;
+  do not drive CEN from RS-232-level control signals.
+
+- If native USB does not enumerate, confirm the cable is on USB0 rather than
+  the CH340 connector.  The expected AP log is
+  `AIDK USB OTA: ready ep=02/82 protocol=1 max-payload=128`.
+- Device-unique state stays target-bound even when only CP or AP changes;
+  reprovisioning, key operations and configuration rollback follow the root
+  trust rules.  The device's runtime Skill mechanism (`/data/agent/skills/`)
+  is a product feature described in the technical report and skill documents,
+  not part of these development rules.
