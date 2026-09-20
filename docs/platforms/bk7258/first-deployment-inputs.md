@@ -51,6 +51,14 @@ operator 8,388,608 B / `33c387c1…`，实板语音全链路通过。
 核对方式：按 `WakeModelPackage.kt` 的规则逐项验证（文件长度=136+模型长度、magic
 `WKM1`、模型长度 1..65,536、头内模型 SHA256=实际模型摘要、label/phrase 的
 NUL 终止与字符集），三份均为 0 failures。评审主线使用 `nihao_openvela`。
+
+**传输与生效实现事实（按当前代码）**：唤醒模型走 BLE 控制通道的分片事务
+（`MainActivity.kt` 的 `CONFIG_BEGIN` / `CONFIG_APPEND`，进度按
+`uploadedBytes/totalBytes/appendCount` 显示），不是眼睛包的手机 HTTPS 供包；
+固件侧由 `app/bk7258/bk7258_voice_wake_package.c` 保存 WKM1 资产与 WKA1 选择记录
+（受保护 CP store），`bk7258_agent_trigger.c` 使用同一记录。设备回读为 `WKS1`
+状态记录（`state`/`error`/`active`/`previous` 描述符，见 `WakeModelPackage.kt`
+的 `status` 解析），因此生效判据以 active 描述符的 SHA256/label/phrase 为准。
 | Android APK | `android/shaniu-companion/`（JDK 17、Android SDK 35），源码版本 `0.5.23-shaniu-rebind` / code 28 | 评委自建或用已发布 APK | 手机 | 安装后能扫描并认领设备 |
 
 **已生成的正式眼睛包（2026-09-20 实测）**：由 `shaniu-cyan-v2.json` 生成
