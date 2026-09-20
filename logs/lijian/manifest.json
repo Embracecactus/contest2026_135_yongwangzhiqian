@@ -1953,7 +1953,52 @@
       "collection_mode": "cli",
       "health": "ok",
       "model": "mimo-v2.5-pro"
+    },
+    {
+      "session_id": "01a0a9df-2714-7b70-b685-038720cb5e90",
+      "tool": "codex",
+      "started_at": "2026-09-19T16:00:32.542Z",
+      "last_event_at": "2026-09-19T16:17:37.123Z",
+      "event_count": 8,
+      "file_path": "logs/lijian/2026-09-19/codex__01a0a9df-2714-7b70-b685-038720cb5e90.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "f21ab3896a98cd1e000cc8ac0a91cb27bf17b099980fac8f84abdb288488de54",
+        "main_size": 3856116,
+        "captured_at": "2026-09-20T15:23:55.896410+00:00"
+      }
+    },
+    {
+      "session_id": "01a0beab-1bd1-7a53-b6fa-f57ec89051bf",
+      "tool": "codex",
+      "started_at": "2026-09-20T11:54:47.064Z",
+      "last_event_at": "2026-09-20T11:54:47.093Z",
+      "event_count": 2,
+      "file_path": "logs/lijian/2026-09-20/codex__01a0beab-1bd1-7a53-b6fa-f57ec89051bf.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "ff0dbf24bf3a2a65af06492b3687bf7ffdec518e1037cf7333d6243b75857040",
+        "main_size": 96834,
+        "captured_at": "2026-09-20T15:23:55.926662+00:00"
+      }
+    },
+    {
+      "session_id": "01a0bed2-b06b-74c3-a5f5-43884f2d67d1",
+      "tool": "codex",
+      "started_at": "2026-09-20T12:38:24.598Z",
+      "last_event_at": "2026-09-20T15:23:55.083Z",
+      "event_count": 203,
+      "file_path": "logs/lijian/2026-09-20/codex__01a0bed2-b06b-74c3-a5f5-43884f2d67d1.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "8366815b3e8f056ea568badf9c67c855e9b419516709893a0286e16321e49ced",
+        "main_size": 14151136,
+        "captured_at": "2026-09-20T15:23:56.055983+00:00"
+      }
     }
   ],
-  "updated_at": "2026-08-27T05:47:04.134Z"
+  "updated_at": "2026-09-20T15:23:56.059445+00:00"
 }
