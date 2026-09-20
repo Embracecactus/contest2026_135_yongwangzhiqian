@@ -78,6 +78,27 @@ BKDISPLAY SERVICE READY dev=/dev/fb0,/dev/fb1 storage=/dev/mmcsd0 mount=short-li
 “安装包 → 复位 → `读取当前眼睛`”的验证循环再信任该卡；若复位后包消失，
 重新安装一次并记录日志，不要用再次格式化掩盖。
 
+## 身份通道与内部存储（641 实板）
+
+用户在同一台设备的 NSH 上执行新命令：
+
+```text
+nsh> bkprov status
+BKPROV STATUS identity=present bytes=628
+```
+
+这一条同时证明：
+
+- **CP 内部 LittleFS 跨复位保留**：身份记录（628 B BPI1，与 2026-09-13 经有线通道
+  供应的记录大小一致）在多次复位后仍存在，说明内部 /data 的写入是持久的——
+  之前启动日志里的 `persona … source=default` 只是 App 未重发配置，不是存储丢失；
+- **新 `bkprov` 通道在实板上打通**：CP 命令 → `bkprov-v1` RPC → AP 侧 store →
+  回读状态，端到端工作（本轮验证的是只读 STATUS 路径）；
+- 写入路径（`bkprov supply`）**尚未实板验证**；可用“同一身份重放”做幂等验证：
+  `voice pairing --direct-cloud --resume` 会发送与设备内完全相同的 BPI1 记录，
+  store 对逐字节相同的记录返回 0、不重写（不同记录返回 `-EEXIST`），因此不会
+  改动设备身份。
+
 ## 边界与未闭合
 
 - **待补**：安装后 `读取当前眼睛` 的 App 回读（串口侧已确认 `fallback=0` 与
