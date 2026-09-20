@@ -43,8 +43,8 @@ four authentic board photos, an A2 poster and an editable 18-slide presentation.
 Source and original AI logs remain in Git, not in the submission ZIP. Device
 bootstrap secrets and device-bound recovery images are excluded. Artifact
 preparation is not a completed website submission or upstream PR merge. The
-packaged attachments (PDF/DOCX/PPT) predate the 637 update and have not been
-regenerated; the Markdown sources in this repository do not update them.
+packaged attachments (PDF/DOCX/PPT) predate the 637/638 updates and have not
+been regenerated; the Markdown sources in this repository do not update them.
 
 | Board | CLI ID | Application | SDK profiles |
 |---|---|---|---|
@@ -68,13 +68,19 @@ not used as a permanent statement.
 - **T5-Board** (unsigned direct chain): four segments downloaded; boot reaches
   `SYSINIT/FINALINIT/RCS PASS`, NSH and dolphin-ui start; the SD failure was a
   TF card-contact problem, confirmed by re-seating.
-- **AIDK AI Toy**: signed `v18.6.401+637` full image (operator 8,388,608 B,
-  SHA256 `af2d74da…f7`; `.bkpack` 7,980,187 B) built and package-verified.
-  The owner flashed it manually (no host-side transport log exists for that
-  image) and confirmed claim → connect → settings → local wake → the "我在"
-  acknowledgement → a full conversation. App OTA was not retested on 637 and
-  still cites the 634 result. Artifact hashes and layers:
-  [637 verification record](docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md).
+- **AIDK AI Toy**: signed `v18.6.401+638` full image (operator 8,388,608 B,
+  SHA256 `33c387c1…1cfc`; `.bkpack` 7,980,186 B) built and package-verified
+  from clean source `dc06613d`.  Its CP/AP payloads are byte-identical to 637,
+  and the two images differ in 659 bytes, all inside counters and signature
+  regions.  The owner flashed it and confirmed wake → the "我在" acknowledgement
+  (the 31,208-byte recording played) → ASR → LLM → TTS → playback → follow-up
+  capture without a second wake word → silence timeout back to standby; one ASR
+  request failed transiently with `ret=-5` and recovered inside the same
+  interaction.  App OTA was not retested on 638 and still cites the 634 result.
+  Artifact hashes and layers:
+  [638 verification record](docs/verification/bk7258/2026-09-20-shaniu-638-full-image.md);
+  previous generation of the same content:
+  [637 record](docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md).
 - **Full-image boundary**: `release full` materializes the operator image from a
   same-unit readback base, so it carries that unit's device-bound persistent
   data and stays a same-unit recovery artifact. It is not a published
@@ -146,8 +152,8 @@ board verification found a GT9xx/LVGL input mismatch; `c6976458` fixes the adapt
 and display/input initialization now passes. The TF card is not responding;
 physical touch and recording-to-SD remain unverified on this candidate.
 See the [Dolphin record](docs/platforms/bk7258/dolphin-master-plan.md).
-Firmware 637 is the current verified Shaniu build (see the verification status
-above); the 634/635 records stay as history for their versions.
+Firmware 638 is the current verified Shaniu build (see the verification status
+above); the 634/635/637 records stay as history for their versions.
 Keep the team checkout directory name specified by the manifest; SDK tools read
 its same-named XML. AIToyBoard requires both `cp-aidk` and `ap-aidk`.
 The manifest pins the SDK to `cb080de1655d579c7593ecf504c440997c4c137b`.
@@ -179,8 +185,9 @@ Private keys and device-specific recovery images are not public build dependenci
   App controls and App OTA were not rerun on 635; their unchanged source paths
   do not constitute new acceptance. Deploying the 635 full package raises its
   bootloader floor to 635; the OTA-only package does not replace BL1/BL2.
-  The current build is `18.6.401+637` (floor 637, same-unit recovery image);
-  its App OTA path was not retested either.
+  The current build is `18.6.401+638` (floor 638, same-unit recovery image,
+  byte-identical CP/AP payloads to 637); its App OTA path was not retested
+  either.
   Historical upgrade paths, storage faults and independent human wake-word
   generalization are not thereby certified.
 
