@@ -101,6 +101,11 @@ tools/bk7258/bk7258.py package eye-pack \
 tools/bk7258/bk7258.py verify eye-pack --package out/shaniu-display/shaniu-cyan-v2.bkep
 ```
 
+本轮实测生成：`shaniu-cyan-v2.bkep`，108,634 B，
+SHA256 `050f1175…be79`（`id=shaniu-cyan-v2 revision=2 entries=18`），并通过
+App `EyePack.kt` 的全部 13 项结构校验；生成的 `.bkep` 按仓库约定不入 Git，
+需要下载形式时作为 Release 资产待发布。
+
 判据：命令打印的 `pack_id`/`revision`/`source_sha256` 与源文件一致。主机生成成功
 不等于设备已激活，激活判据见第 10 节。
 
