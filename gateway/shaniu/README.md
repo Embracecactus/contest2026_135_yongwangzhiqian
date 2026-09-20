@@ -10,6 +10,19 @@
 > 主机测试不代表完整实板验收；尤其 OTA 断电恢复与端到端升级仍未闭环。
 > 本次归档范围仅为 `gateway/shaniu`，不包含工作区中尚未提交的固件和 Android 改动。
 
+## 当前消费者与身份边界
+
+| 身份 | 位置 | 说明 |
+| --- | --- | --- |
+| 产品主线 | 不依赖 | 板端直接接入 MiMo；固件与 Android 发布构建均不链接本目录。 |
+| 可选演示 | Android `BuildConfig.LEGACY_SERVICE_DEMO` | 默认 `false`；仅在 debuggable 构建且显式传 `legacy_console` extra 时可达（`MainActivity.kt` 的 legacy 分支）。 |
+| 历史参考 | 本冻结快照全部源码 | 供协议恢复与对照，不作为产品必需路径。 |
+| 测试输入 | `tests/fixtures/console-v1/` 三个 JSON | 被 `tests/test_gateway.py`（Python 端点测试）与 Android `ConsoleWireV1Test.kt` 共同消费；后者经 `android/shaniu-companion/app/build.gradle.kts` 的 test sourceSet `srcDir` 注入。 |
+
+退役顺序约束：在移除本目录源码之前，必须先为上述 fixtures 安排稳定归属
+（例如移入 Android 测试资源或独立协议夹具目录）并更新全部消费者；不得先删
+目录导致双端测试断裂，也不得把本目录重新接为产品必需路径。
+
 服务复用 `companion-v1` 的 WSS、状态机、双向窗口和流式下行。默认使用确定性音调夹具；
 显式选择 `--provider mimo` 后走“松键 PCM → WAV/ASR → 对话 → 流式 TTS → 板端 PCM”。
 默认监听桌面 loopback；受控网络接入需双向 TLS 认证和操作员预登记证书绑定；
