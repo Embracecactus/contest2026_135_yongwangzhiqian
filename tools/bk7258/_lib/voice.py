@@ -5,6 +5,12 @@
 The maintainer CLI supplies Wi-Fi independently.  This module converts the
 operator-selected TLS material into a bounded BVC1 RAM record and sends it to
 the CP console without printing serial input, credentials, or their paths.
+
+The console commands this module drives (``bkvoice provision`` /
+``BKVOICE PROVISION READY``) are not part of the current official firmware;
+the current product supplies identity and network settings over the BLE
+``provision-v1`` service.  These subcommands stay for reproducing the
+historical records only.
 """
 
 from __future__ import annotations
@@ -50,8 +56,11 @@ def add_arguments(
 ) -> None:
     """Register the sole private RAM-provisioning subcommand for bk7258.py."""
 
+    # Historical entry points: they target the retired CP console protocol and
+    # are annotated as such so the help text cannot read as a current step.
     provision = commands.add_parser(
-        "provision", help="send one TLS gateway configuration to the CP RAM"
+        "provision",
+        help="historical: send one TLS gateway record to the retired CP console",
     )
     provision.add_argument("--console-port", required=True)
     provision.add_argument("--host", required=True)
@@ -63,7 +72,8 @@ def add_arguments(
     provision.add_argument("--openssl", type=Path, default=Path("openssl"))
     pairing = commands.add_parser(
         "pairing",
-        help="supply a device TLS identity and write its private owner activation file",
+        help="historical: supply the retired console identity, write the owner "
+        "activation file",
     )
     pairing.add_argument("--console-port", required=True)
     pairing.add_argument("--device-id", required=True)
@@ -87,7 +97,8 @@ def add_arguments(
     pairing.add_argument("--openssl", type=Path, default=Path("openssl"))
     enrollment = commands.add_parser(
         "console-enrollment",
-        help="write one private owner-only HTTPS console enrollment file",
+        help="historical Gateway utility: write one owner-only HTTPS console "
+        "enrollment file",
     )
     enrollment.add_argument("--device-id", required=True)
     enrollment.add_argument("--https-origin", required=True)
