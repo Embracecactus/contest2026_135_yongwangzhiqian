@@ -33,7 +33,6 @@
     <linkfile src="boards/bk7258" dest="vendor/beken/boards/bk7258"/>
     <linkfile src="nuttx" dest="vendor/beken/nuttx"/>
     <linkfile src="frameworks" dest="vendor/beken/frameworks"/>
-    <linkfile src="external" dest="vendor/beken/external"/>
     <linkfile src="app/dolphin" dest="apps/system/dolphin"/>
     <linkfile src="app/testing/bk7258" dest="apps/testing/bk7258"/>
     <linkfile src="tests/pytest/test_bk7258" dest="tests/scripts/script/test_bk7258"/>
