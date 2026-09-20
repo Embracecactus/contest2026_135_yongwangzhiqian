@@ -93,6 +93,13 @@ def _codes(root: Path) -> set[str]:
     return {issue.code for issue in issues}
 
 
+def _codes_for(root: Path, relative: str) -> set[str]:
+    """Issue codes raised for exactly one fixture file."""
+
+    issues, _ = layers.audit(root)
+    return {issue.code for issue in issues if issue.path == relative}
+
+
 def test_clean_fixture() -> None:
     with tempfile.TemporaryDirectory(prefix="bk7258-layers-clean-") as temporary:
         root = Path(temporary)
@@ -305,11 +312,70 @@ def test_include_gate_quoted_headers() -> None:
         assert "CHIP_TO_BOARD" in _codes(root)
 
 
+def test_include_gate_preprocessor_boundaries() -> None:
+    """Splice and comment forms must be classified like the preprocessor."""
+
+    with tempfile.TemporaryDirectory(prefix="bk7258-layers-preproc-") as temporary:
+        root = Path(temporary)
+        _fixture(root)
+
+        # A comment between the directive and its quoted header name is legal.
+        _write(
+            root,
+            "boards/bk7258/test/src/comment_between.c",
+            '#include /* reason */ "driver/gpio.h"\n',
+        )
+        assert "SDK_INCLUDE" in _codes_for(
+            root, "boards/bk7258/test/src/comment_between.c"
+        )
+
+        # A backslash-newline splice joins directive and quoted header name.
+        _write(
+            root,
+            "boards/bk7258/test/src/spliced_quote.c",
+            '#include \\\n    "components/xxx.h"\n',
+        )
+        assert "SDK_INCLUDE" in _codes_for(
+            root, "boards/bk7258/test/src/spliced_quote.c"
+        )
+
+        # The same splice works for the bracketed form.
+        _write(
+            root,
+            "boards/bk7258/test/src/spliced_angle.c",
+            "#include \\\n    <os/os_types.h>\n",
+        )
+        assert "SDK_INCLUDE" in _codes_for(
+            root, "boards/bk7258/test/src/spliced_angle.c"
+        )
+
+        # A splice extends a line comment: the next line is still a comment.
+        _write(
+            root,
+            "boards/bk7258/test/src/spliced_comment.c",
+            "// disabled \\\n#include <driver/gpio.h>\n",
+        )
+        assert "SDK_INCLUDE" not in _codes_for(
+            root, "boards/bk7258/test/src/spliced_comment.c"
+        )
+
+        # The chips-layer branch sees the joined form as well.
+        _write(
+            root,
+            "chips/bk7258/common/spliced_board.c",
+            "#include \\\n    <arch/board/board.h>\n",
+        )
+        assert "CHIP_TO_BOARD" in _codes_for(
+            root, "chips/bk7258/common/spliced_board.c"
+        )
+
+
 def main() -> int:
     test_clean_fixture()
     test_all_boundary_failures()
     test_include_gate_whitespace_boundaries()
     test_include_gate_quoted_headers()
+    test_include_gate_preprocessor_boundaries()
     test_app_and_board_build_sdk_boundaries()
     test_legacy_exception_is_hash_bound()
     print("BK7258_LAYER_TEST_PASS")
