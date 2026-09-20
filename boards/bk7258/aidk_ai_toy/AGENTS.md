@@ -40,7 +40,9 @@ those rules.
   `BK7258_OTA_SOURCE_USB` beside the file and HTTP sources; AP stages, CP is
   the only on-chip writer, BL2 owns trial/revert, the CP Supervisor confirms);
   and USB MSC, which exposes the soldered SD NAND (`/dev/mmcsd0`) as a
-  mass-storage device while BKDisplay holds the block-device lease.  Native
+  mass-storage device only after the local filesystem owner releases its mount
+  and block-device lease; the local side re-acquires both after MSC exits.
+  Native
   USB is not raw DFU and can never write the internal Flash layout by itself;
   this board only selects the source and supplies port wiring.
 - Before a BK Loader download, leave native USB MSC safely (eject the exposed
