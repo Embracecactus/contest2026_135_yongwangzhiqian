@@ -31,7 +31,10 @@ live in `app/dolphin`, while existing Shaniu services remain in `app/bk7258`.
 IndexTTS/server/phone/training components do not acquire a NuttX link merely by
 being part of the product; source ownership and build registration are separate.
 No new Git repository or `ttsindex` manifest project is introduced here.
-Existing `frameworks`/`external` links carry maintained build integration.
+The `frameworks` link is current: `app/bk7258/CMakeLists.txt` includes
+`frameworks/cmake/agent_framework.cmake` and `frameworks/cmake/tflm.cmake`.
+The `external` link is retired and no longer exists in the manifest; do not
+restore it, and do not add a placeholder directory for it.
 The historical framework/FFmpeg patch and generated-source replacement chain
 is retired; do not recreate it to satisfy a stale instruction.
 For the explicit development remote override and official delivery distinction,
@@ -39,28 +42,26 @@ see the root [README](../../README.md).
 
 ## First complete flash (contest review path)
 
-Reviewers and judges flash a complete 8-MiB image with the Beken loader; no
-SDK source, key file or device readback is needed at the flash step. The
-maintained paths are:
+A complete 8-MiB operator image is written with the Beken loader at address
+zero; no SDK source or key file is needed *at the flash step*. Two different
+artifacts are involved and must not be conflated:
 
-1. **Use the published signed operator image** (recommended). The release
-   owner publishes `flash/operator-<board>-v<VERSION>.bin` from a signed
-   full release; it already carries BL1/BL2, signed CP/AP and the
-   device-bound persistent data, so the board starts with a working
-   `/data`, BLE advertising and the wake acknowledgement. Flash it as one
-   full image:
+- **Same-unit recovery image** — what `release full` produces today. The
+  `flash/*.bin` operator image is materialized from an accepted base that was
+  read back from the same physical unit, so it carries that unit's
+  device-bound persistent data. Re-flashing it on that unit restores a working
+  `/data`, its BLE identity and the wake acknowledgement. Flashing it on
+  another unit would copy device-bound state into that unit, so this artifact
+  stays a same-unit recovery image: it is not a published general-purpose
+  first-flash package and it must not be flashed on a different board.
+- **General-purpose first flash** — not verified. A package that any board
+  could take needs a verified factory-init/identity-initialization path; the
+  release policy currently declares `factory_mode: provision-required`. This
+  document does not close that path, and no published image provides it.
 
-   ```text
-   bk_loader.exe download -p <com> -b 460800 -s 0x0 -i <operator>.bin \
-     --swrst "reset reboot" --hard-reset 0 --reboot 1 \
-     --uart-type CH340 --fast-link 1
-   ```
+The maintained paths are:
 
-   AIDK AI Toy uses its CH340 UART0 (`--fast-link 1` is required); T5-Board
-   uses UART0 at 6000000 baud with the USB-UART RTS reset instead of
-   `--swrst`. Multi-segment downloads use `tools/bk7258-hil-download/`
-   (`preflight` then `run`), which enforces board port, size and SHA-256.
-2. **Owner-side release production** (only the release owner, with the
+1. **Owner-side release production** (only the release owner, with the
    private key PEMs and one accepted same-device base outside this
    repository):
 
@@ -77,9 +78,27 @@ maintained paths are:
    ```
 
    `release full` signs and materializes in one step; `flash/*.bin` is the
-   flash input above. Security counters increase monotonically; a released
-   generation never decreases.
-3. **Unsigned diagnostic chain** (no keys; for bring-up only):
+   flash input in step 2. Security counters increase monotonically; a released
+   generation never decreases. One such release, with its artifact hashes and
+   the layer each claim rests on, is recorded in
+   `docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md`.
+2. **Flash that image back onto the same unit**:
+
+   ```text
+   bk_loader.exe download -p <com> -b 460800 -s 0x0 -i <operator>.bin \
+     --swrst "reset reboot" --hard-reset 0 --reboot 1 \
+     --uart-type CH340 --fast-link 1
+   ```
+
+   AIDK AI Toy uses its CH340 UART0 (`--fast-link 1` is required); T5-Board
+   uses UART0 at 6000000 baud with the USB-UART RTS reset instead of
+   `--swrst`. Multi-segment downloads use `tools/bk7258-hil-download/`
+   (`preflight` then `run`), which enforces board port, size and SHA-256.
+3. **Reviewers and judges without that unit**: build from source. The unsigned
+   diagnostic chain in step 4 brings up a board without private keys, and a
+   signed deployment uses the reviewer's own keys. The recorded 637 result is
+   bound to one physical board; it is not a transferable product image.
+4. **Unsigned diagnostic chain** (no keys; for bring-up only):
 
    ```sh
    tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct
@@ -96,8 +115,8 @@ maintained paths are:
    `BK7258 FINALINIT FAIL: persistent data at /data ...` is the expected
    first-boot report; the boot continues and the display/Agent/peripherals
    start, but configuration persistence and BLE provisioning stay
-   unavailable. Re-flash with the signed operator image from step 1 for the
-   intended product state.
+   unavailable. Re-flash with the signed operator image from step 2 for the
+   intended product state on that same unit.
 
 Detailed signing, layout and persistence rules: the build/flash/debug SOP at
 `docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md`.
@@ -124,6 +143,25 @@ Ordinary firmware builds use the existing model and do not require TensorFlow,
 a training corpus, private voice-cloning weights or cloud credentials.
 See `.agents/skills/edge-wakeword-training/` for the reusable workflow and the
 contest report for builtin-versus-App-activated model identities.
+
+## Voice command support matrix
+
+The `voice` commands target different peers; only the KWS model tooling is on
+the current product path.
+
+| Command | Peer / protocol | Current official firmware | Status |
+| --- | --- | --- | --- |
+| `voice kws audit` / `train` / `evaluate` | Host-side model tooling; the exported WKM1 package is consumed on the board by `app/bk7258/bk7258_voice_wake_package.c` and the trigger backend | Supported | Current |
+| `voice provision` | CP console command `bkvoice provision`, waiting for `BKVOICE PROVISION READY` | The console command is not present in the current firmware sources | Historical: kept to reproduce the recorded provisioning runs; not a current step |
+| `voice pairing` (`--direct-cloud`, `--resume`) | The same retired console protocol; writes the owner activation file | Same boundary as `voice provision` | Historical |
+| `voice console-enrollment` | Host-only file writer for the retired Gateway console; it never opens a serial port | Not applicable | Historical Gateway-era utility |
+
+Current device identity and network provisioning use the BLE `provision-v1`
+service implemented by the Android companion App
+(`app/bk7258/bk7258_provision_gatt.c`, `app/bk7258/bk7258_provision_owner.c`,
+`docs/platforms/bk7258/shaniu-provision-security.md`). Do not restore the
+retired console runtime to make the historical commands work again, and do not
+present them as the current enrollment step.
 
 ## Source-layer gate
 
