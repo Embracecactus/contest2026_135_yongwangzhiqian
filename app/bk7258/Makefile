@@ -1,5 +1,13 @@
 ############################################################################
-# BK7258 maintainer commands - Makefile
+# BK7258 app - Makefile
+#
+# Support matrix: the maintained build backend for this application is the
+# official CMake path ("bk7258.py build" -> official build --cmake).  This
+# Makefile only keeps the NuttX Make backend able to compile the non-agent
+# configurations (services, standalone test apps, the Dolphin recorder).
+# The agent feature set (cloud, KWS, trigger, memory, OTA, preferences) is
+# CMake-only: selecting CONFIG_BK7258_APP_AGENT under the Make backend
+# fails below instead of silently producing an incomplete link.
 ############################################################################
 
 include $(APPDIR)/Make.defs
@@ -7,9 +15,9 @@ include $(APPDIR)/Make.defs
 ifeq ($(CONFIG_BK7258_PROVISION_GATT),y)
 CSRCS += bk7258_provision_gatt.c bk7258_provision_tls.c bk7258_provision_claim.c
 CSRCS += bk7258_provision_store.c bk7258_provision_pair.c bk7258_provision_owner.c
-CSRCS += bk7258_provision_settings.c bk7258_provision_storage.c bk7258_provision_identity.c
-CSRCS += bk7258_provision_network.c bk7258_provision_time.c bk7258_control_session.c
-CSRCS += bk7258_control_pair.c bk7258_control_ota_request.c
+CSRCS += bk7258_provision_scan.c bk7258_provision_settings.c bk7258_provision_storage.c
+CSRCS += bk7258_provision_identity.c bk7258_provision_network.c bk7258_provision_time.c
+CSRCS += bk7258_control_session.c bk7258_control_pair.c bk7258_control_ota_request.c
 endif
 
 ifneq ($(filter y,$(CONFIG_BK7258_VISION_SERVICE) $(CONFIG_BK7258_DISPLAY_SERVICE)),)
@@ -72,7 +80,7 @@ CSRCS     += bk7258_vision_client.c bk7258_vision_core.c
 endif
 
 ifeq ($(CONFIG_BK7258_APP_AGENT),y)
-CSRCS += bk7258_agent_product.c
+$(error app/bk7258: the agent feature set requires the CMake backend (official build --cmake); see docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)
 endif
 
 ifeq ($(CONFIG_DOLPHIN_RECORDER),y)
@@ -80,15 +88,6 @@ ifeq ($(CONFIG_MEDIA),)
 ifeq ($(CONFIG_BK7258_MIC),y)
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)frameworks$(DELIM)multimedia$(DELIM)media$(DELIM)include
 CSRCS += bk7258_agent_media_recorder.c
-endif
-endif
-endif
-
-ifeq ($(CONFIG_BK7258_APP_AGENT),y)
-ifeq ($(CONFIG_MEDIA),)
-ifeq ($(CONFIG_BK7258_AUD),y)
-CFLAGS += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)frameworks$(DELIM)multimedia$(DELIM)media$(DELIM)include
-CSRCS += bk7258_agent_media_player.c
 endif
 endif
 endif
