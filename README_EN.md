@@ -113,8 +113,10 @@ the recorded `0.1.0+13` build. Commit `8de0ae78` restores the accidentally remov
 Dolphin-only NuttX recorder build wiring and enables recording again. T5 CP/AP
 builds, existing recorder host checks and ELF linkage checks passed. Subsequent
 board verification found a GT9xx/LVGL input mismatch; `c6976458` fixes the adapter
-and display/input initialization now passes. The TF card is not responding;
-physical touch and recording-to-SD remain unverified on this candidate.
+and display/input initialization now passes. The TF problem recorded for that
+candidate was later traced to card contact and recovered by re-seating; physical
+touch and recording-to-SD with the new build remain unverified, and the recovery
+does not prove recording passed.
 See the [Dolphin record](docs/platforms/bk7258/dolphin-master-plan.md).
 Firmware 638 is the current verified Shaniu build (see the verification status
 above); the 634/635/637 records stay as history for their versions.
@@ -145,8 +147,9 @@ not used as a permanent statement.
   regions.  The owner flashed it and confirmed wake → the "我在" acknowledgement
   (the 31,208-byte recording played) → ASR → LLM → TTS → playback → follow-up
   capture without a second wake word → silence timeout back to standby; one ASR
-  request failed transiently with `ret=-5` and recovered inside the same
-  interaction.  App OTA was not retested on 638 and still cites the 634 result.
+  request failed transiently with `ret=-5` and later requests succeeded in the
+  same observation window; the excerpt cannot prove whether a standby or a
+  second wake happened in between.  App OTA was not retested on 638 and still cites the 634 result.
   Artifact hashes and layers:
   [638 verification record](docs/verification/bk7258/2026-09-20-shaniu-638-full-image.md);
   previous generation of the same content:
