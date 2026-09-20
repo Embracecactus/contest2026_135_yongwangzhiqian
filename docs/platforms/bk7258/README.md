@@ -20,7 +20,7 @@ BK7258 是 SoC；T5AI-Core、T5-Board 和 AIDK AI Toy 是三块物理板。本�
   使用 A/B 分区模型。
 - 有线整机恢复与 apps-only OTA 是两条不同路径。普通构建/整机下载复用明确批准的
   同板信任关系，不自动生成或轮换 BL1/MCUboot 密钥；OTA 绑定目标已安装的信任契约。
-  full 包采用与自身代数相同的 floor（635/637），OTA-only 包不替换 BL1/BL2，
+  full 包采用与自身代数相同的 floor（635/637/638），OTA-only 包不替换 BL1/BL2，
   不能混淆两种部署。
 
 完整命令、包格式、accepted-base、设备绑定恢复、密钥生命周期和硬件证据要求统一见
@@ -42,8 +42,9 @@ N15/N17 文档恢复旧地址、旧脚本或旧信任设计。
 
 - [参赛技术报告](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)：当前作品、量化结果和分版本验收；
 - 视频与三板构建入口见仓库 README；三板共享 SoC 实现，T5-Board 运行 Dolphin，
-  AIToyBoard 运行傻妞。637 全链路（认领→连接→设置→唤醒→“我在”→对话）已由用户
-  实测，见 [637 验收摘要](../../verification/bk7258/2026-09-20-shaniu-637-full-image.md)；
+  AIToyBoard 运行傻妞。638 语音全链路（唤醒→“我在”→ASR→LLM→TTS→播放→免唤醒
+  追问→回待机）已由用户实测，见
+  [638 验收摘要](../../verification/bk7258/2026-09-20-shaniu-638-full-image.md)；
   App OTA 引用 634。
   Agent 既有扩展已发布并由 manifest 固定到 fork `add0db19`；干净复现结果与
   fork 发布、官方合入及实板验收分别报告，见来源记录与 Master Plan。
