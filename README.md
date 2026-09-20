@@ -17,6 +17,15 @@ AIToyBoard 运行可独立语音交互的 AI 伴侣「傻妞」。
 [主视频：三核适配与实机应用（4 分 48 秒）](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
 · [App 操作补充视频（1 分 26 秒）](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
 · [视频下载、字幕及哈希](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
+· [B 站实机演示 BV1pueq6hEzQ](https://www.bilibili.com/video/BV1pueq6hEzQ/)
+
+同一支实机演示的 B 站入口：<https://www.bilibili.com/video/BV1pueq6hEzQ/>。
+GitHub 渲染 README 时会剥离 `<iframe>`，所以仓库页以上面的链接观看；需要内嵌播放器的
+站点（自建文档站、比赛展示页等）可直接使用作者提供的播放器代码（仓库页只保证链接可用）：
+
+```html
+<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=117302603290813&bvid=BV1pueq6hEzQ&cid=42051569905&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+```
 
 主视频小于 5 分钟；补充视频不拼接进主视频。视频是已完成的实机演示成片，
 不是无剪辑压力测试。发布副本仅转换为 1080p H.264/AAC，保留完整时长、声音及字幕。

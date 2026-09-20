@@ -15,6 +15,18 @@ Media and Trigger components.
 - [Main demonstration — 4:48](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
 - [Android controls — 1:26, supplementary](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
 - [Downloads, subtitles and hashes](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
+- [Bilibili mirror (BV1pueq6hEzQ)](https://www.bilibili.com/video/BV1pueq6hEzQ/)
+
+The same board recording is also on Bilibili:
+<https://www.bilibili.com/video/BV1pueq6hEzQ/>. GitHub strips `<iframe>` when it
+renders a README, so the repository links out to the player; sites that do allow
+frames (a self-hosted documentation or showcase page) can embed the player the
+author provides below. Only the link is guaranteed to work from the repository
+page.
+
+```html
+<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=117302603290813&bvid=BV1pueq6hEzQ&cid=42051569905&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+```
 
 The main video is under five minutes. These are edited demonstrations, not
 continuous stress-test recordings. Distribution copies retain the complete
