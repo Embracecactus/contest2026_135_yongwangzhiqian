@@ -174,10 +174,12 @@ Three boundaries apply before anything else:
 1. **The operator image is device-bound.** `release full` materializes it from a
    same-unit readback, so a reviewer must run `package accept-base` on their own
    board and never flash the author's image.
-2. **First-time `/data` initialization has no supported entry (blocking).** The
-   firmware only runs `mount -t littlefs /dev/mtdblock0 /data` and never formats
-   it; a board whose `persistent_data` is not LittleFS cannot be brought up with
-   the current tools. See section 6 of the input list.
+2. **First-time `/data` initialization is explicit.** The firmware only runs
+   `mount -t littlefs /dev/mtdblock0 /data` and never formats automatically; a
+   board whose `persistent_data` is not LittleFS uses the CP command
+   `bkdata init --confirm erase-non-littlefs`, which formats only content that
+   is not already a valid LittleFS, and then reboots. This command has not been
+   verified on a new board yet.
 3. **Identity supply and App claiming are separate.** The device TLS identity
    (BPI1) is written through the CP `bkprov supply` command; the App then imports
    the same `owner-bootstrap.json` to claim the device over BLE.
@@ -216,9 +218,8 @@ chapter):
     "导入唤醒词模型" (builtin `nihao_openvela` for the review path) and verify the
     device's active model label/phrase/SHA256, not just the App selection.
 
-Not yet closed: first-time initialization of a non-LittleFS `persistent_data`,
-board verification of `bkprov supply` on a new unit, and a full App-side
-resource-update readback on that unit. The packaged PDF/DOCX/PPT attachments
+Not yet closed: board verification of `bkdata init` and `bkprov supply` on a new
+unit, and a full App-side resource-update readback on that unit. The packaged PDF/DOCX/PPT attachments
 still predate the 637/638 updates.
 
 ## App, models, Skills and evidence
