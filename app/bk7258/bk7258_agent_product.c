@@ -106,6 +106,18 @@
 #include "bk7258_voice_config.h"
 #endif
 
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* The device_control tool declares one shared numeric bound so the JSON
+ * schema never advertises a value the execution path must reject. Volume
+ * uses 0..MAX and vibration uses 1..MAX milliseconds.
+ */
+#define BK7258_TOOL_VALUE_MAX 100
+#define BK7258_STRINGIFY_(x) #x
+#define BK7258_STRINGIFY(x) BK7258_STRINGIFY_(x)
+
 #ifdef CONFIG_BK7258_VOICE_TLS
 /* The existing provisioning owner borrows this identity for its lifetime.
  * It is never copied or freed while a claim/control session uses it.
@@ -710,8 +722,10 @@ static char *product_tools(void)
 #endif
     "Report errors honestly.\","
     "\"input_schema\":{\"type\":\"object\",\"properties\":{"
-    "\"action\":{\"type\":\"string\",\"enum\":[\"volume\",\"mood\","
-    "\"vibrate\""
+    "\"action\":{\"type\":\"string\",\"enum\":[\"volume\",\"mood\""
+#ifdef CONFIG_BK7258_HAPTIC_SERVICE
+    ",\"vibrate\""
+#endif
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
     ",\"eyes\""
 #endif
@@ -721,7 +735,8 @@ static char *product_tools(void)
     "\"happy\",\"shy\",\"sad\",\"surprised\",\"thinking\",\"listening\","
     "\"speaking\",\"sleepy\"]},"
 #endif
-    "\"value\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":200},"
+    "\"value\":{\"type\":\"integer\",\"minimum\":0,"
+    "\"maximum\":" BK7258_STRINGIFY(BK7258_TOOL_VALUE_MAX) "},"
     "\"mood\":{\"type\":\"string\",\"enum\":[\"gentle\",\"playful\","
     "\"quiet\",\"serious\",\"tsundere_lite\"]}},\"required\":[\"action\"]}}"
     ",{\"name\":\"read_file\",\"description\":"
@@ -919,7 +934,7 @@ static int product_tool_execute(const char *name, const char *input,
                value->valueint >= 0)
         {
           if (!strcmp(action->valuestring, "volume") &&
-              value->valueint <= 100)
+              value->valueint <= BK7258_TOOL_VALUE_MAX)
             {
               ret = bkvoice_media_volume(true, value->valueint, &observed);
               if (!ret)
@@ -929,7 +944,8 @@ static int product_tool_execute(const char *name, const char *input,
             }
 #ifdef CONFIG_BK7258_HAPTIC_SERVICE
           else if (!strcmp(action->valuestring, "vibrate") &&
-                   value->valueint > 0 && value->valueint <= 100)
+                   value->valueint > 0 &&
+                   value->valueint <= BK7258_TOOL_VALUE_MAX)
             {
               ret = bkhaptic_service_pulse_wait(value->valueint);
             }
