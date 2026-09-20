@@ -35,6 +35,209 @@ A2 海报和 18 页可编辑答辩 PPT。源码与原始 AI Coding 日志留在�
 已发布的材料 ZIP 里 PDF/DOCX/PPT 仍是 637/638 之前生成的版本，未按这两轮结论
 重新生成；本页与仓库文档的更新不代表这些附件已同步。
 
+## 评审快速开始：从源码到首次完整运行
+
+本节是**唯一主操作入口**；每项输入的来源、消费者、安装位置与成功判据见
+[首次部署输入清单](docs/platforms/bk7258/first-deployment-inputs.md)（下称“输入清单”）。
+命令以 openvela 工作区为根目录执行，团队仓目录为 `contest2026_135_yongwangzhiqian/`。
+例子与已完成证据分开标注：**已实测**的步骤引用具体版本与哈希，**未实测**的步骤明确写出。
+
+### 0. 先读三条边界
+
+1. **烧录镜像绑定设备**：`release full` 产出的 operator 由**同板 readback** 物化，
+   含该机的绑定数据，只对同一台设备有效；评委的板必须用自己的 readback 走一次
+   `package accept-base`，不能烧作者的包。
+2. **首次存储初始化尚缺入口（阻断）**：固件只 `mount -t littlefs`，从不格式化；
+   `persistent_data` 不是 LittleFS 的新板目前没有受支持的初始化入口。
+   受支持的条件与最小修复方向见输入清单第 6 节。
+3. **身份写入与 App 认领是两件事**：设备 TLS 身份（BPI1）由 CP `bkprov supply`
+   写入，随后 App 用同一份 `owner-bootstrap.json` 完成 BLE 认领与配网。
+
+### 1. 识别板型与设备初始状态
+
+- 产品板：AIDK AI Toy（稳定的 machine ID `aidk_ai_toy`），CH340 Type-C 走 UART0 控制台
+  （115200 8N1），`--fast-link 1` 必需；native Type-C 不是原始 Flash 通道。
+- 判断设备是“正常运行板”还是“空白/擦除板”：
+  - 正常板：串口有 NSH 提示符，可执行 `bkprov status` 读身份状态；
+  - 空白板：**不能**依赖 `reset reboot`（没有运行中的固件）；按住 K1 再上电/
+    复位进入 Boot ROM 窗口，或在 loader 打印 `Getting Bus` 时按一下 K1。
+- 主机 COM 号是现场状态，不要写死 `COM8`；供应时先关闭其他串口占用者。
+
+### 2. 准备主机、工具链、SDK 与源码
+
+```bash
+repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian \
+  -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk
+repo sync -c -j8
+cd contest2026_135_yongwangzhiqian
+
+tools/bk7258/bk7258.py toolchain install
+tools/bk7258/bk7258.py toolchain verify
+tools/bk7258/bk7258.py sdk rebuild --profile cp-aidk --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk rebuild --profile ap-aidk --source ../vendor/beken/bk_avdk_smp --jobs 8
+tools/bk7258/bk7258.py sdk verify --profile cp-aidk
+tools/bk7258/bk7258.py sdk verify --profile ap-aidk
+```
+
+判据：`toolchain verify` 与 `sdk verify` PASS。AIDK 必须成对使用 `cp-aidk + ap-aidk`；
+其他两板的 profile 组合见[板型配置](boards/bk7258/CONFIGS.md)。
+
+### 3. 准备公开模型、应答音与显示资源
+
+| 资源 | 位置 / 大小 / SHA256 | 说明 |
+| --- | --- | --- |
+| 内置唤醒模型 | `app/bk7258/models/nihao_openvela.tflite`，23,640 B，`922eba9175fcda60…` | 随源码分发；配置期与运行期双重 SHA 校验；评委不需要训练环境 |
+| 唤醒应答音 | `app/bk7258/assets/wake_reply.pcm`，31,208 B，`772a8aa9…` | 比赛期入库的私有授权录音，赛后删除；离线 PCM，设备本地播放 |
+| 眼睛素材源 | `app/bk7258/assets/display/shaniu-cyan-v2.json`（+ PNG 1,048,307 B） | 生成 `.bkep` 后由 App 安装；638 实机为 `pack=shaniu-cyan-v2 revision=2` |
+
+生成并自检一份可安装的眼睛包：
+
+```bash
+tools/bk7258/bk7258.py package eye-pack \
+  --source app/bk7258/assets/display/shaniu-cyan-v2.json \
+  --output out/shaniu-display/shaniu-cyan-v2.bkep \
+  --preview-dir out/shaniu-display/previews
+tools/bk7258/bk7258.py verify eye-pack --package out/shaniu-display/shaniu-cyan-v2.bkep
+```
+
+判据：命令打印的 `pack_id`/`revision`/`source_sha256` 与源文件一致。主机生成成功
+不等于设备已激活，激活判据见第 10 节。
+
+### 4. 准备本板专属认证与签名输入
+
+四类材料用途不同，不可互相替代：**固件签名私钥**（一条产品线一份）、
+**设备 TLS 证书/私钥**（每台一份）、**App 认领授权 JSON**（每台一份）、
+**云 API 凭据**（评委自备）。
+
+```bash
+umask 077
+shaniu_identity_dir=$HOME/.shaniu-identities/<本板唯一标识>   # 仓库外的持久私密目录
+mkdir -p "$shaniu_identity_dir"
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+  -sha256 -nodes -days 3650 -subj '/CN=shaniu-device' \
+  -addext 'basicConstraints=critical,CA:FALSE' \
+  -addext 'keyUsage=critical,digitalSignature' \
+  -addext 'extendedKeyUsage=serverAuth' \
+  -keyout "$shaniu_identity_dir/device-key.pem" \
+  -out "$shaniu_identity_dir/device-cert.pem"
+```
+
+不要使用 `mktemp -d`（会被清理）；已有设备不要重新生成或替换身份。
+签名私钥只需在生成**签名**整包时需要；烧录已签名包不需要。
+
+### 5. 处理首次存储初始化、编译与完整镜像
+
+- 存储初始化：先确认 `persistent_data` 是 LittleFS（正常板启动出现
+  `BK7258 FINALINIT PASS`）。**非 LittleFS 的新板当前阻断**，见输入清单第 6 节。
+- 同板基线（正常板）：
+
+```bash
+# 1) 整片两侧一致读回（8 MiB），按 SOP 的只读流程
+# 2) 绑定为 accepted base
+tools/bk7258/bk7258.py package accept-base --board aidk_ai_toy \
+  --base <整片读回.bin> --device-id <本板标识> --capture-method same-unit-readback \
+  --output out/shaniu-base/accepted-base.json
+```
+
+```bash
+tools/bk7258/bk7258.py build --board aidk_ai_toy --boot mcuboot \
+  --bl1-public-key <bl1-public.pem> --mcuboot-public-key <mcuboot-public.pem> \
+  --openssl /usr/bin/openssl --rollback-floor <counter>
+tools/bk7258/bk7258.py release full \
+  --build-manifest out/bk7258/aidk_ai_toy/app__openvela_ap/<layout>/releases/mcuboot/build-manifest.json \
+  --bl1-key <bl1.pem> --mcuboot-key <mcuboot.pem> \
+  --version <MAJOR.MINOR.PATCH+GENERATION> --product shaniu \
+  --artifact-id <safe-id> --base <同板-base.bin> --base-evidence out/shaniu-base/accepted-base.json \
+  --openssl /usr/bin/openssl --output-dir out/shaniu-release
+```
+
+判据：`build` PASS 并写出 build manifest（含 raw 哈希与角色配置）；`release full`
+PASS 后 `flash/*.bin`（8 MiB operator）与 `package/*.bkpack` 的 SHA256 记录在
+`release.json`。仅做 bring-up 时可改用 `--boot direct`（无签名、无持久数据快照）。
+
+### 6. 首次烧录与基础启动检查
+
+```text
+bk_loader.exe download -p <COM> -b 460800 -s 0x0 -i <operator>.bin \
+  --swrst "reset reboot" --hard-reset 0 --reboot 1 --uart-type CH340 --fast-link 1
+```
+
+- 空白板：不要用 `--swrst`，按第 1 节进入 Boot ROM 窗口后再下载。
+- T5-Board 用 UART0 6000000 波特与 RTS 复位；**不要**把 T5 的复位规则套到 AIDK。
+- 判据分级：loader 的 `{All Finished Successfully}` 只证明写入；启动出现
+  `BK7258 FINALINIT PASS` 与 `AIDK DEFERRED DONE failures=0` 才是启动验收；
+  功能验收见第 9 节。SYSINIT 打印 PASS 不等于 `/data` 挂载成功。
+
+### 7. 安装/确认设备身份，生成并交付 App 授权文件
+
+```bash
+tools/bk7258/bk7258.py voice pairing --console-port <COM> \
+  --device-id <本板唯一标识> --direct-cloud \
+  --client-cert "$shaniu_identity_dir/device-cert.pem" \
+  --client-key "$shaniu_identity_dir/device-key.pem" \
+  --activation-output "$shaniu_identity_dir/owner-bootstrap.json"
+```
+
+- 命令先把 `owner-bootstrap.json`（`provision-bootstrap-v1`：`protocol`/`device_id`/
+  `certificate_sha256`(叶证书 DER SHA256)/`possession_secret`(32 B Base64)）以 0600
+  独占写入，再经 CP 控制台 `bkprov supply` 写入设备；串口失败时保留该文件，
+  用同一份材料 `--resume`。
+- 判据：设备控制台 `bkprov status` 打印 `BKPROV STATUS identity=present bytes=<n>`；
+  重启后仍为 present。
+- 该文件是**认领秘密**，只通过私密方式交给本板使用者，不进 ZIP/Release。
+
+### 8. 安装 App、导入授权、认领、配网及云配置
+
+- 安装 APK（`android/shaniu-companion/`，JDK 17 + Android SDK 35，版本
+  `0.5.23-shaniu-rebind` / code 28；有旧 App 时先核对签名兼容，不默认卸载清数据）。
+- 在 App 中导入 `owner-bootstrap.json`，按提示完成 BLE 认领；认领成功后 App
+  保存控制凭据（Android Keystore），随后提交 Wi-Fi 与云端配置。
+- 目前只需 Android 10+ 常规权限；蓝牙/附近设备权限按系统版本授权。
+- 失败语义：文件先生成、串口失败 = “待核对”，不是成功；换手机/删绑定需要重新
+  认领同一身份，不能靠清空板端数据绕过。
+
+### 9. 安装外部资源并进行首次交互
+
+- 出厂/整包已带默认眼睛与唤醒模型时，可直接交互，不必先更新资源。
+- 交互判据（已实测，638）：唤醒 → 应答“我在”（31,208 B 应答录音播完）→
+  ASR → LLM → TTS → 播放 → 免唤醒追问 → 静音超时回待机。
+
+### 10. 通过 App 更新眼睛资源与唤醒模型
+
+**眼睛素材包（.bkep）**——当前 App 入口按实际按钮顺序：
+
+1. `导入眼睛素材包`：从手机文件选择器导入第 3 步生成的 `.bkep`；App 显示
+   `pack_id · 版本 revision`，格式/长度/校验不符时提示“眼睛素材包格式、长度或校验无效”。
+2. 前置：设备已认证、与控制通道连接、Wi-Fi 可达、存储就绪且空闲。
+3. `通过 Wi-Fi 安装所选眼睛`：开始手机临时 HTTPS 供包 + BLE 描述；
+   **手机需保持前台**，且手机与设备在同一局域网（AP 隔离会阻断供包）。
+4. `读取当前眼睛`：回读设备实际安装状态（不是“传输 100%”就算成功）。
+5. 触发一次表情变化，确认双屏实际显示变化；重启后再次 `读取当前眼睛`，
+   确认 `pack_id`/`revision` 未回退。
+6. 失败恢复：按提示重新连接后重试；不要格式化 SD NAND，也不要清空用户文件。
+   当前没有承诺断点续传或自动回滚。
+
+**唤醒模型（.wkm）**——两条真实入口：
+
+- A. 使用 App/APK 内置的三份 `.wkm`（`nihao_openvela` / `nihao_bingbing` /
+  `nihao_shaniu`，各 23,776 B）；评审主线使用 `nihao_openvela`。
+- B. `导入唤醒词模型`：从手机文件系统导入外部 `.wkm`（WKM1 封装：头 136 B、
+  裸模型 ≤ 65,536 B、label `[a-z0-9_]{1,31}`、phrase ≤ 63 B）。
+- 生效判据：设备回读 active 模型的 SHA256/label/phrase 与所选包一致；App 里
+  “已选中”或写入 ACK 都不算生效。断连后先重连查询真实状态，不自动重复提交。
+- 边界：改包内 phrase 文字不会让模型学会新唤醒词；该入口只更新 KWS，不是通用
+  ASR/TTS 模型，也不改“我在”应答音。
+
+### 11. 重启核对、故障处理与验收范围
+
+- 重启后检查：`BK7258 FINALINIT PASS`、`bkprov status identity=present`、
+  App 设置回读、眼睛 `pack_id/revision`、唤醒模型 label/phrase。
+- 常见失败：读不到设备 → 检查 USB 口与 COM；认领失败 → 核对授权文件与设备时间；
+  供包失败 → 检查手机前台与局域网；云端失败 → 核对账号/额度/时钟。
+- 未闭合项（不得写成已完成）：`persistent_data` 非 LittleFS 的新板初始化、
+  `bkprov supply` 在新板的实板实测、App 资源更新四步在新板的完整回读、
+  比赛材料附件未按 637/638 重新生成。
+
 ## 实机验收状态（2026-09-20）
 
 以下结果按版本与证据层次分开记录；每条结论绑定具体提交、镜像或包身份，
