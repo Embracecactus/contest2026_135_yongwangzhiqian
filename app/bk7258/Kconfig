@@ -274,6 +274,16 @@ config BK7258_PROVISION_GATT
 		identity with confirmed empty ownership storage. Existing bindings
 		and recovery protections remain enforced; no PTT press is required.
 
+config BK7258_PROVISION_SUPPLY_PRIORITY
+	int "bkprov identity-supply worker priority"
+	default 100
+	depends on BK7258_PROVISION_GATT
+
+config BK7258_PROVISION_SUPPLY_STACKSIZE
+	int "bkprov identity-supply worker stack size"
+	default 3072
+	depends on BK7258_PROVISION_GATT
+
 config BK7258_VOICE_KWS
 	bool "BKVoice official wake-word inference library"
 	default n
@@ -905,6 +915,36 @@ config BK7258_APP_IDENTITY_PRIORITY
 config BK7258_APP_IDENTITY_STACKSIZE
 	int "bkidentity stack size"
 	default 2048
+
+endif
+
+config BK7258_APP_PROV
+	bool "BK7258 device identity supply command (bkprov)"
+	default n
+	depends on !BK7258_AP_CORE && BK7258_RPTUN && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Build the CP-side bkprov command.  It receives one bounded BPI1
+		per-device identity record from the operator console and forwards it
+		to the AP-owned provisioning store, which owns the on-chip LittleFS
+		worker.  Nothing is printed about the record, an existing different
+		identity is never replaced, and the command fails closed while the
+		product storage is unavailable.
+
+if BK7258_APP_PROV
+
+config BK7258_APP_PROV_PROGNAME
+	string "bkprov program name"
+	default "bkprov"
+
+config BK7258_APP_PROV_PRIORITY
+	int "bkprov priority"
+	default 100
+
+config BK7258_APP_PROV_STACKSIZE
+	int "bkprov stack size"
+	default 3072
 
 endif
 
