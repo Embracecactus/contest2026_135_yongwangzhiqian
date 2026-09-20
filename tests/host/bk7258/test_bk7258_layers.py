@@ -264,9 +264,7 @@ def test_include_gate_whitespace_boundaries() -> None:
         _write(
             root,
             "chips/bk7258/common/indented.c",
-            "int chip_indented(void);\n"
-            "\n"
-            "    #include <arch/board/board.h>\n",
+            "int chip_indented(void);\n\n    #include <arch/board/board.h>\n",
         )
         assert "CHIP_TO_BOARD" in _codes(root)
 
@@ -294,9 +292,7 @@ def test_include_gate_quoted_headers() -> None:
         _write(
             root,
             "boards/bk7258/test/src/quoted.c",
-            '#include "driver/gpio.h"\n'
-            "\n"
-            '    #include "sdkconfig.h"\n',
+            '#include "driver/gpio.h"\n\n    #include "sdkconfig.h"\n',
         )
         assert "SDK_INCLUDE" in _codes(root)
 
@@ -304,9 +300,7 @@ def test_include_gate_quoted_headers() -> None:
         _write(
             root,
             "chips/bk7258/common/quoted.c",
-            'int chip_quoted(void);\n'
-            "\n"
-            '#include "arch/board/board.h"\n',
+            'int chip_quoted(void);\n\n#include "arch/board/board.h"\n',
         )
         assert "CHIP_TO_BOARD" in _codes(root)
 
