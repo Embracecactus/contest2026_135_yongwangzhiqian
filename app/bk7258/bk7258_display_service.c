@@ -145,7 +145,8 @@ static int bkdisplay_service_errno(void)
 static bool bkdisplay_service_retryable(int ret)
 {
   return ret == -ENOENT || ret == -EBUSY || ret == -EAGAIN ||
-         ret == -ENODEV || ret == -ENXIO || ret == -ENOTDIR;
+         ret == -ENODEV || ret == -ENXIO || ret == -ENOTDIR ||
+         ret == -EIO;
 }
 
 static bool bkdisplay_service_node(const char *path, bool block)
@@ -189,7 +190,16 @@ static int bkdisplay_volume_open(struct bkdisplay_service_s *service)
 
   if (mount(BKDISPLAY_BLOCKDEV, BKDISPLAY_MOUNTPOINT, "vfat", 0, NULL) < 0)
     {
-      ret = bkdisplay_service_errno();
+      /* A dirty, half-written or not-yet-ready FAT volume is a storage
+       * condition, not a fatal service error: report the raw errno and let
+       * the worker retry, so repairing or re-seating the card recovers
+       * without a reboot.
+       */
+
+      int mount_error = bkdisplay_service_errno();
+      syslog(LOG_WARNING, "BKDISPLAY VOLUME stage=mount ret=%d\n",
+             mount_error);
+      ret = -EAGAIN;
       goto release;
     }
 
