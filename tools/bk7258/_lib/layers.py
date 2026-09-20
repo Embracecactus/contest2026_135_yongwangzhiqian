@@ -32,8 +32,14 @@ EXCEPTIONS = Path("tools/bk7258/layer_exceptions.json")
 # the match start on a preceding blank line.
 _INCLUDE_DIRECTIVE = re.compile(r"^[ \t]*#[ \t]*include\b", re.MULTILINE)
 # The header name is read back from the original text: a quoted header name is
-# itself a C string literal and therefore blanked in the code view.
-_INCLUDE_HEADER = re.compile(r"\s*(?P<open>[<\"])(?P<name>[^>\"]+)[>\"]")
+# itself a C string literal and therefore blanked in the code view.  The C
+# preprocessor also accepts an interspersed comment before the header name, so
+# the same rewrite step has to skip one here.
+_INCLUDE_HEADER = re.compile(
+    r"(?:\s|/\*.*?\*/|//[^\n]*)*(?P<open>[<\"])(?P<name>[^>\"]+)[>\"]",
+    re.DOTALL,
+)
+_LINE_SPLICE = re.compile(r"\\\r?\n")
 _RAW_SDK_SYMBOL = re.compile(r"\b(?:bk_(?!7258)|gpio_|rtos_|sys_drv_)[A-Za-z0-9_]+\b")
 _CHIP_LINK_INTERCEPT = re.compile(r"\b__(?:wrap|real)_[A-Za-z0-9_]+\b")
 _RAW_SDK_TYPE = re.compile(
@@ -90,6 +96,49 @@ class LayerError(ValueError):
 
 def _line_number(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
+
+
+def _splice_lines(text: str) -> tuple[str, list[int] | None]:
+    """Join backslash-newline pairs the way the C preprocessor does.
+
+    That translation phase runs before comments and literals are recognised, so
+    a splice can join a directive with its header name and can also extend a
+    ``//`` comment over the next physical line.  Returns the joined text plus a
+    map from joined offsets back to original offsets, or ``None`` when the input
+    contains no splice and therefore needs no mapping.
+    """
+
+    if "\\\n" not in text and "\\\r\n" not in text:
+        return text, None
+
+    joined: list[str] = []
+    positions: list[int] = []
+    index = 0
+    length = len(text)
+
+    while index < length:
+        match = _LINE_SPLICE.match(text, index)
+        if match is not None:
+            index = match.end()
+            continue
+
+        joined.append(text[index])
+        positions.append(index)
+        index += 1
+
+    return "".join(joined), positions
+
+
+def _original_offset(positions: list[int] | None, offset: int) -> int:
+    """Map one offset in the joined text back to the original file."""
+
+    if positions is None:
+        return offset
+    if not positions:
+        return offset
+    if offset < len(positions):
+        return positions[offset]
+    return positions[-1] + 1
 
 
 def _without_c_literals(text: str) -> str:
@@ -253,12 +302,16 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
             relative = _relative(repository, path)
             text = path.read_text(encoding="utf-8", errors="surrogateescape")
             code = _without_c_literals(text)
+            joined, positions = _splice_lines(text)
+            joined_code = code if positions is None else _without_c_literals(joined)
 
             if layer != "chips/bk7258":
                 # Real includes only: a directive inside a comment or a string
-                # is blanked in the code view, while indented real includes
-                # are still found.
-                for match, include in _include_directives(text, code):
+                # is blanked in the code view, while indented real includes are
+                # still found.  Line splices are joined first, so a directive
+                # continued onto the next physical line and a comment extended
+                # by the same splice are both classified like the preprocessor.
+                for match, include in _include_directives(joined, joined_code):
                     if (
                         include == "sdkconfig.h"
                         or include.split("/", 1)[0] in SDK_INCLUDE_ROOTS
@@ -267,7 +320,9 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
                         issues.append(
                             Issue(
                                 relative,
-                                _line_number(text, match.start()),
+                                _line_number(
+                                    text, _original_offset(positions, match.start())
+                                ),
                                 "SDK_INCLUDE",
                                 f"{layer.split('/', 1)[0]} must use a chip/NuttX "
                                 f"contract instead of SDK header <{include}>",
@@ -295,12 +350,14 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
                         )
 
             if layer == "chips/bk7258":
-                for match, include in _include_directives(text, code):
+                for match, include in _include_directives(joined, joined_code):
                     if include.startswith("arch/board/"):
                         issues.append(
                             Issue(
                                 relative,
-                                _line_number(text, match.start()),
+                                _line_number(
+                                    text, _original_offset(positions, match.start())
+                                ),
                                 "CHIP_TO_BOARD",
                                 "chip code must not include a physical-board header",
                             )
@@ -317,7 +374,9 @@ def _source_issues(repository: Path) -> tuple[list[Issue], int, set[str]]:
                         issues.append(
                             Issue(
                                 relative,
-                                _line_number(text, match.start()),
+                                _line_number(
+                                    text, _original_offset(positions, match.start())
+                                ),
                                 "PUBLIC_SDK_ABI",
                                 "public chip contracts must not expose an SDK header",
                             )
