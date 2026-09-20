@@ -37,7 +37,8 @@
         "jlink_speed": null
       },
       "sources": [
-        "boards/bk7258/aidk_ai_toy/AUTOMATION.md"
+        "boards/bk7258/aidk_ai_toy/AGENTS.md",
+        "docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md"
       ]
     },
     "t5ai_core": {

@@ -191,7 +191,9 @@
   or colloquial names as documented aliases; never create a second board tree
   or compatibility script merely because the same board has another name.
 - Each board `openvela.conf` selects its CP/AP profiles, partition CSV and one
-  release-policy CSV.  Adding a board may add or reuse those declarations but
+  release-policy CSV.  Partition layout CSVs are maintained in
+  `boards/bk7258/common/partitions/bk7258/`; a board directory selects one and
+  does not keep a private copy.  Adding a board may add or reuse those declarations but
   must not add a board-name branch to the packaging code.  Flash capacity and
   operator length always come from the selected partition CSV; the release
   policy cannot override geometry.

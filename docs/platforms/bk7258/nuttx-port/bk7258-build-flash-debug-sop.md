@@ -119,7 +119,15 @@ will receive this recovery.  Its canonical evidence binds the hash/size to the
 board, layout, stable device ID and capture method; a raw caller-provided hash
 is not sufficient.  This is operator acceptance evidence rather than hardware
 attestation, so the operator/fixture owns proof that the named unit produced
-the readback.  The command reloads and re-hashes the build handoff, matches both private roots
+the readback.  When a reviewed layout change moves protected data, pass the
+snapshot's actual old CSV as `--source-partition` and the new private BIN as
+`--relocated-base` to the same `accept-base` command: it copies same-name
+protected partitions without changing size, permissions, policy or bytes,
+immutable partitions cannot move, and the evidence is marked as a same-device
+partition relocation rather than a new readback.  Retain the printed
+source/target hashes and per-partition mapping with the private release
+evidence, and never publish these bases.
+The command reloads and re-hashes the build handoff, matches both private roots
 to the public roots compiled into BL1/BL2, signs CP/AP with the pinned official
 imgtool component, creates Manifest A/B, verifies the complete public trust
 chain before publication, and atomically emits:
@@ -129,6 +137,36 @@ chain before publication, and atomically emits:
 - `evidence/accepted-base.json`;
 - `evidence/build-manifest.json`;
 - `release.json` with the exact hashes, layout and write boundary.
+
+New handoffs emit `bk7258.build-manifest/3`; historical `/2` manifests stay
+readable. Signed releases require an explicit `--artifact-id` (for example
+`shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v18.6.354+419-bdev02-ota.bkpack`;
+the same stem with `-full.bkpack`/`-full.bin` names the full release), and
+`--product` is explicit metadata rather than a board-derived guess.
+`version`, `artifact_id` and `security_counter` have separate roles: the
+`+GENERATION` suffix supplies the counter, the full release generation equals
+the compiled floor, and OTA must still meet the floor and running-device
+checks — changing only an artifact ID never permits an upgrade, and these
+inputs never authorize resetting a counter or migrating the installed trust
+domain. A release destination cannot be overwritten; repackaging or
+re-signing accepted bytes is a new artifact, not a rename. The ordinary
+generated configuration defaults to `CONFIG_LIBC_UNAME_DISABLE_TIMESTAMP=y`
+to avoid NuttX's always-touch/relink path; an explicit profile override is
+respected, and source-provenance changes touch only the manifest, never a
+public header or the role cache identity.
+
+Review a package's data impact without building or signing by querying the
+existing contract report; use `--transport ota` for an OTA package:
+
+```bash
+tools/bk7258/bk7258.py package flash-contract \
+  --package "$PACKAGE" --transport full-bin
+```
+
+Full-bin reports the complete layout's erase/write range separately from
+package overlays; OTA's device-managed erase details and startup migration
+stay unknown in this static report. The report never authorizes a device
+write and never waives the HIL target, exact-file and scope checks.
 
 `release ota` uses the same MCUboot build manifest and matching MCUboot key,
 emits only the signed CP/AP candidate package, and rejects a generation below

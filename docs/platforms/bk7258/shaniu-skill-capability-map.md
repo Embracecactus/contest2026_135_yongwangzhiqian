@@ -67,7 +67,7 @@ shell reset/查询。COM8 未用 RTS/DTR，未重复烧录 635。不新增测试
 | 输入 | 本项目权威来源或当前记录 |
 | --- | --- |
 | 官方与 fork、当前分支/HEAD、待合并范围 | 当前 Git remote/refs 与请求范围；每次发布重新核对，不维护第二处“当前分支”值 |
-| 目标、端口、容量、布局、复位/签名/备份规则 | `boards/bk7258/aidk_ai_toy/AUTOMATION.md`、`tools/bk7258-hil-download/references/board-profiles.json` 和既有 build-flash-debug SOP；当前 AIDK AI Toy / COM8 不能当别的项目默认值 |
+| 目标、端口、容量、布局、复位/签名/备份规则 | `boards/bk7258/aidk_ai_toy/AGENTS.md`、`tools/bk7258-hil-download/references/board-profiles.json` 和既有 build-flash-debug SOP；当前 AIDK AI Toy / COM8 不能当别的项目默认值 |
 | 公共执行入口与产物参数 | `python3 tools/bk7258/bk7258.py --help` 及对应子命令；不假设存在 `log` 子命令 |
 | 当前官方依赖与扩展 | 实际 manifest checkout、目标配置、`frameworks/cmake/` 与 `SOURCE_PROVENANCE.md` 的未发布依赖披露；旧 patch 目录不是当前入口 |
 | Android | `android/shaniu-companion/`，手机 serial/package/安装版本从当前 ADB 查询；包内设备身份由现有认领保留 |
