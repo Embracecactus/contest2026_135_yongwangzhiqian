@@ -88,6 +88,29 @@ jobs:
             '-DCONFIG_BK7258_PROVISION_CERT_NOT_AFTER="20360101000000"' \
             -I"$inc" -I../apps/crypto/mbedtls/mbedtls/include -Iapp/bk7258 \
             -fsyntax-only app/bk7258/bk7258_provision_{generate,identity,bootstrap,config,settings,storage,network}.c
+      - name: Compile actual native product CMake branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          directory="$RUNNER_TEMP/shaniu-native-cmake"
+          mkdir -p "$directory"
+          python3 - <<'PY_CMAKE'
+          import os, pathlib
+          root = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
+          temp = pathlib.Path(os.environ['RUNNER_TEMP'])
+          text = f'''cmake_minimum_required(VERSION 3.22)
+          project(shaniu_native_source_check C)
+          add_library(apps STATIC)
+          set(CONFIG_BK7258_PROVISION_NATIVE ON)
+          set(NUTTX_APPS_DIR "{root.parent}/apps")
+          target_include_directories(apps PRIVATE "{temp}/shaniu-host-include" "{root.parent}/apps/crypto/mbedtls/mbedtls/include" "{root}/app/bk7258")
+          target_compile_definitions(apps PRIVATE CONFIG_BK7258_PROVISION_NATIVE CONFIG_BK7258_PROVISION_CERT_NOT_BEFORE="20260101000000" CONFIG_BK7258_PROVISION_CERT_NOT_AFTER="20360101000000")
+          add_subdirectory("{root}/app/bk7258" product)
+          '''
+          (temp / 'shaniu-native-cmake/CMakeLists.txt').write_text(text)
+          PY_CMAKE
+          cmake -S "$directory" -B "$directory/out" -G Ninja
+          cmake --build "$directory/out"
       - name: Run existing provisioning regression
         run: make -C tests/host/bk7258 run-provision
       - name: Capture exact source and available host inputs
