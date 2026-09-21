@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Shaniu source checks
+
+on:
+  push:
+    branches: [dev-ai-contest-2026]
+    paths:
+      - '.github/workflows/shaniu-source-checks.yml'
+      - 'app/bk7258/**'
+      - 'boards/bk7258/**'
+      - 'chips/bk7258/**'
+      - 'android/shaniu-companion/**'
+      - 'tools/bk7258/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shaniu-source-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    if: github.repository == 'Embracecactus/contest2026_135_yongwangzhiqian'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Check Python syntax
+        run: python3 -m compileall -q tools/bk7258
+      - name: Check repository layering
+        run: python3 tools/bk7258/bk7258.py verify layers
+      - name: Capture exact source for offline review
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=tar.gz -o "$RUNNER_TEMP/shaniu-source.tar.gz" HEAD
+          git rev-parse HEAD > "$RUNNER_TEMP/shaniu-source-commit.txt"
+          (cd "$RUNNER_TEMP" && sha256sum shaniu-source.tar.gz > shaniu-source-SHA256SUMS.txt)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: shaniu-source-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/shaniu-source.tar.gz
+            ${{ runner.temp }}/shaniu-source-commit.txt
+            ${{ runner.temp }}/shaniu-source-SHA256SUMS.txt
+          retention-days: 7
+          if-no-files-found: error
