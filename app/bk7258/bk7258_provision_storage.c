@@ -25,6 +25,11 @@ struct storage_s
   pthread_t thread;
   struct bkprov_store_s store;
   struct bkprov_store_s identity_store;
+  int factory_status;
+  uint32_t factory_state;
+  uint32_t factory_generation;
+  uint8_t factory_transaction[16];
+  uint8_t factory_evidence[32];
   int identity_status;
   int identity_result;
   bool identity_completed;
@@ -86,6 +91,118 @@ static int prepare_directory(const char *root)
 #endif
 }
 
+
+/* Mirror written by the CP factory command after a successful mount. */
+struct factory_mirror_s
+{
+  uint32_t magic;
+  uint16_t version;
+  uint16_t length;
+  uint32_t state;
+  uint32_t generation;
+  uint32_t layout_id;
+  uint8_t transaction[16];
+  uint8_t evidence[32];
+  uint32_t crc;
+};
+
+#define BKPROV_FACTORY_MIRROR_MAGIC 0x31464853u /* "SHF1" */
+
+static uint32_t factory_mirror_crc(FAR const uint8_t *data, size_t length)
+{
+  uint32_t crc = 0xffffffffu;
+  size_t i;
+  unsigned int bit;
+
+  for (i = 0; i < length; i++)
+    {
+      crc ^= data[i];
+      for (bit = 0; bit < 8u; bit++)
+        {
+          crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+        }
+    }
+
+  return ~crc;
+}
+
+static int factory_mirror_load(struct storage_s *s)
+{
+  struct factory_mirror_s file;
+  char path[192];
+  ssize_t count;
+  int fd;
+
+  memset(&file, 0, sizeof(file));
+  mbedtls_platform_zeroize(s->factory_transaction,
+                           sizeof(s->factory_transaction));
+  mbedtls_platform_zeroize(s->factory_evidence, sizeof(s->factory_evidence));
+  s->factory_state = 0u;
+  s->factory_generation = 0u;
+
+  snprintf(path, sizeof(path), "%s/factory-state", s->root);
+  fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+  if (fd < 0)
+    {
+      return errno == ENOENT ? -ENOENT : -errno;
+    }
+
+  count = read(fd, &file, sizeof(file));
+  if (close(fd) < 0 && count >= 0)
+    {
+      return -EIO;
+    }
+
+  if (count != (ssize_t)sizeof(file))
+    {
+      return -EBADMSG;
+    }
+
+  if (file.magic != BKPROV_FACTORY_MIRROR_MAGIC || file.version != 1u ||
+      file.length != sizeof(file) ||
+      file.crc != factory_mirror_crc((FAR const uint8_t *)&file,
+                                     sizeof(file) - sizeof(file.crc)))
+    {
+      return -EBADMSG;
+    }
+
+  s->factory_state = file.state;
+  s->factory_generation = file.generation;
+  memcpy(s->factory_transaction, file.transaction,
+         sizeof(s->factory_transaction));
+  memcpy(s->factory_evidence, file.evidence, sizeof(s->factory_evidence));
+  return 0;
+}
+
+int bkprov_storage_factory(uint32_t *state, uint8_t transaction[16],
+                           uint8_t evidence[32], uint32_t *generation)
+{
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret = s == NULL ? -ENODEV : s->job != JOB_IDLE ? -EAGAIN : s->factory_status;
+  if (ret == 0)
+    {
+      *state = s->factory_state;
+      if (generation != NULL)
+        {
+          *generation = s->factory_generation;
+        }
+
+      if (transaction != NULL)
+        {
+          memcpy(transaction, s->factory_transaction, 16);
+        }
+
+      if (evidence != NULL)
+        {
+          memcpy(evidence, s->factory_evidence, 32);
+        }
+    }
+
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
 static void *worker(void *context)
 {
   struct storage_s *s = context;
@@ -123,6 +240,12 @@ static void *worker(void *context)
             identity_ret = bkprov_store_load(&s->identity_store, s->identity, sizeof(s->identity),
                                               &s->identity_size, &identity_revision, NULL);
           s->identity_status = identity_ret;
+
+          /* The factory transaction mirror is optional: it exists only on a
+           * device a formal deployment prepared, and it is never interpreted
+           * as authorization when it is missing or damaged.
+           */
+          s->factory_status = factory_mirror_load(s);
         }
       else if (job == JOB_IDENTITY)
         {

@@ -98,6 +98,12 @@ static bool bk7258_storage_guard_range(
                                     config->reset_marker_address,
                                     config->reset_marker_erase_size);
 
+      case BK7258_STORAGE_GUARD_FACTORY_RECORD:
+        return config->factory_record != NULL &&
+               bk7258_storage_range(address, size,
+                                    config->factory_record->start,
+                                    config->factory_record->size);
+
       default:
         return false;
     }
@@ -301,6 +307,50 @@ int bk7258_storage_ota_layout(
   return 0;
 }
 
+int bk7258_storage_factory_address(FAR uint32_t *address)
+{
+  FAR const struct bk7258_storage_config_s *config =
+    bk7258_storage_config();
+
+  if (address == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (config == NULL || config->factory_record == NULL)
+    {
+      return -ENOSYS;
+    }
+
+  if (config->factory_record->start == 0u ||
+      config->factory_record->size == 0u)
+    {
+      return -EINVAL;
+    }
+
+  *address = config->factory_record->start;
+  return 0;
+}
+
+int bk7258_storage_factory_size(FAR uint32_t *size)
+{
+  FAR const struct bk7258_storage_config_s *config =
+    bk7258_storage_config();
+
+  if (size == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (config == NULL || config->factory_record == NULL)
+    {
+      return -ENOSYS;
+    }
+
+  *size = config->factory_record->size;
+  return 0;
+}
+
 int bk7258_storage_marker_address(FAR uint32_t *address)
 {
   FAR const struct bk7258_storage_config_s *config;
@@ -399,6 +449,14 @@ static int bk7258_storage_guard_validate(
 
       case BK7258_STORAGE_GUARD_RESET_MARKER:
         return bk7258_storage_marker_address(&marker);
+
+      case BK7258_STORAGE_GUARD_FACTORY_RECORD:
+        return config->factory_record != NULL &&
+               config->factory_record->size >= 2u * BK7258_FLASH_SECTOR_SIZE &&
+               config->factory_record->start % BK7258_FLASH_SECTOR_SIZE == 0u &&
+               config->factory_record->start <=
+                 UINT32_MAX - config->factory_record->size
+                 ? 0 : -EINVAL;
 
       default:
         return -EINVAL;

@@ -114,6 +114,21 @@ static const struct bk7258_storage_region_s g_bk7258_data_storage =
 };
 #endif
 
+/* The first-use factory transaction record occupies the first two erase
+ * sectors of the board's vendor configuration partition, which no other
+ * product component writes. The remaining 52 KiB keep their original owner.
+ */
+#define BK7258_FACTORY_RECORD_SIZE (2u * 4096u)
+
+_Static_assert(BK7258_FACTORY_RECORD_SIZE <= BK7258_USR_CONFIG_SIZE,
+               "factory record must fit the vendor configuration partition");
+
+static const struct bk7258_storage_region_s g_bk7258_factory_record =
+{
+  .start = BK7258_USR_CONFIG_START,
+  .size = BK7258_FACTORY_RECORD_SIZE,
+};
+
 const struct bk7258_storage_config_s g_bk7258_board_storage_config =
 {
   .version = BK7258_STORAGE_CONFIG_VERSION,
@@ -125,6 +140,7 @@ const struct bk7258_storage_config_s g_bk7258_board_storage_config =
 #ifdef CONFIG_BK7258_ONCHIP_DATAFS
   .data_storage = &g_bk7258_data_storage,
 #endif
+  .factory_record = &g_bk7258_factory_record,
   .reset_marker_address = BK7258_RESET_MARKER_START,
   .reset_marker_erase_size = BK7258_RESET_MARKER_SIZE,
 };

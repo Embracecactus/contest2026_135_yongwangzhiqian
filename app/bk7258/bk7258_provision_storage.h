@@ -32,6 +32,13 @@ int bkprov_storage_commit(uint64_t expected, const uint8_t transaction[16],
 /* Retry a missing mount or reload an idle store. An uncertain publication
  * stays blocked until restart; same-boot readback is not durability proof. */
 int bkprov_storage_refresh(void);
+/* Mirror of the CP-side factory transaction record, read by the same worker as
+ * every other protected read. A missing mirror is -ENOENT (no authorization),
+ * a damaged one -EBADMSG, and neither is ever treated as authorization.
+ * transaction/evidence may be NULL when only the state is needed.
+ */
+int bkprov_storage_factory(uint32_t *state, uint8_t transaction[16],
+                           uint8_t evidence[32], uint32_t *generation);
 /* 1 = matching durable receipt; 0 = positively empty store. A different
  * selected transaction is unknown, never proof that this one failed. */
 int bkprov_storage_receipt(const uint8_t transaction[16]);

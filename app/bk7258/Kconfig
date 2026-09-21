@@ -979,6 +979,37 @@ config BK7258_APP_DATA_STACKSIZE
 
 endif
 
+config BK7258_APP_FACTORY
+	bool "BK7258 first-use factory transaction command (bkfactory)"
+	default n
+	depends on !BK7258_AP_CORE && SYSTEM_NSH && BK7258_ONCHIP_DATAFS
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Build the CP-side bkfactory command.  It owns the first-use factory
+		transaction record in its own erase-aligned Flash region and the single
+		boot-time decision about the user data partition: only a pending
+		factory transaction may initialize it, an existing valid LittleFS is
+		never rewritten, and after the deployment completes no later boot can
+		re-enter initialization.  The record is mirrored into the mounted
+		volume so the AP product can read the same authorization.
+
+if BK7258_APP_FACTORY
+
+config BK7258_APP_FACTORY_PROGNAME
+	string "bkfactory program name"
+	default "bkfactory"
+
+config BK7258_APP_FACTORY_PRIORITY
+	int "bkfactory priority"
+	default 100
+
+config BK7258_APP_FACTORY_STACKSIZE
+	int "bkfactory stack size"
+	default 3072
+
+endif
+
 config BK7258_APP_PSRAM_TEST
 	bool "BK7258 bounded PSRAM allocator test command"
 	default n

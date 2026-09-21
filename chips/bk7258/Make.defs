@@ -299,6 +299,10 @@ ifeq ($(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC),y)
 BK7258_CP_CSRCS += bk7258_reset_marker.c
 endif
 
+ifeq ($(CONFIG_BK7258_APP_FACTORY),y)
+BK7258_CP_CSRCS += bk7258_factory_record.c
+endif
+
 ifeq ($(CONFIG_BK7258_OTA),y)
 BK7258_CP_CSRCS += bk7258_boot_slot.c
 BK7258_CP_CSRCS += bk7258_ota_flash.c

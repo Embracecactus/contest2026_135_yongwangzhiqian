@@ -4,7 +4,9 @@ if(CONFIG_BK7258_PROVISION_GATT)
   target_include_directories(apps PRIVATE ${NUTTX_DIR}/wireless/bluetooth)
   target_sources(apps PRIVATE bk7258_provision_gatt.c bk7258_provision_tls.c
                               bk7258_provision_claim.c bk7258_provision_store.c
-                              bk7258_provision_pair.c bk7258_provision_scan.c bk7258_provision_settings.c
+                              bk7258_provision_pair.c bk7258_provision_scan.c
+                              bk7258_provision_settings.c bk7258_provision_qr.c
+                              bk7258_provision_keygen.c bk7258_provision_firstboot.c
                               bk7258_provision_storage.c bk7258_provision_owner.c
                               bk7258_provision_identity.c bk7258_provision_network.c
                               bk7258_provision_time.c bk7258_control_session.c
@@ -338,4 +340,12 @@ if(CONFIG_BK7258_APP_DATA)
     SRCS bk7258_data_main.c
     STACKSIZE ${CONFIG_BK7258_APP_DATA_STACKSIZE}
     PRIORITY ${CONFIG_BK7258_APP_DATA_PRIORITY})
+endif()
+
+if(CONFIG_BK7258_APP_FACTORY)
+  nuttx_add_application(
+    NAME ${CONFIG_BK7258_APP_FACTORY_PROGNAME}
+    SRCS bk7258_factory_main.c
+    STACKSIZE ${CONFIG_BK7258_APP_FACTORY_STACKSIZE}
+    PRIORITY ${CONFIG_BK7258_APP_FACTORY_PRIORITY})
 endif()

@@ -23,6 +23,10 @@ enum bk7258_storage_guard_e
   BK7258_STORAGE_GUARD_OTA_CONFIRM_PRIMARY,
   BK7258_STORAGE_GUARD_OTA_CONFIRM_SECONDARY,
   BK7258_STORAGE_GUARD_RESET_MARKER,
+  /* The first-use factory transaction record. It owns two erase sectors of the
+   * board-declared factory region and nothing else.
+   */
+  BK7258_STORAGE_GUARD_FACTORY_RECORD,
   BK7258_STORAGE_GUARD_COUNT
 };
 

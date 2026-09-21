@@ -17,6 +17,8 @@ CSRCS += bk7258_provision_gatt.c bk7258_provision_tls.c bk7258_provision_claim.c
 CSRCS += bk7258_provision_store.c bk7258_provision_pair.c bk7258_provision_owner.c
 CSRCS += bk7258_provision_scan.c bk7258_provision_settings.c bk7258_provision_storage.c
 CSRCS += bk7258_provision_identity.c bk7258_provision_network.c bk7258_provision_time.c
+CSRCS += bk7258_provision_qr.c
+CSRCS += bk7258_provision_keygen.c bk7258_provision_firstboot.c
 CSRCS += bk7258_control_session.c bk7258_control_pair.c bk7258_control_ota_request.c
 endif
 

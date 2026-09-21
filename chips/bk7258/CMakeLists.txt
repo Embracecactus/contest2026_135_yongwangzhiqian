@@ -299,6 +299,10 @@ if(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC)
   list(APPEND BK7258_CP_SRCS cp/bk7258_reset_marker.c)
 endif()
 
+if(CONFIG_BK7258_APP_FACTORY)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_factory_record.c)
+endif()
+
 if(CONFIG_BK7258_OTA)
   list(APPEND BK7258_CP_SRCS
        common/bk7258_boot_slot.c

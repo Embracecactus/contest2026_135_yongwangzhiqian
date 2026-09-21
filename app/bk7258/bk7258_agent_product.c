@@ -64,6 +64,7 @@
 #include "bk7258_cloud_http.h"
 #include "bk7258_voice_tls.h"
 #include <mbedtls/sha256.h>
+#include <mbedtls/constant_time.h>
 #include <netutils/netlib.h>
 #endif
 #include "voice/audio_capture.h"
@@ -72,6 +73,8 @@
 #include "bk7258_agent_ota.h"
 #include "bk7258_cloud_config.h"
 #include "bk7258_provision_identity.h"
+#include "bk7258_provision_firstboot.h"
+#include "bk7258_provision_qr.h"
 #include "bk7258_provision_claim.h"
 #include "bk7258_provision_settings.h"
 #include "bk7258_provision_storage.h"
@@ -134,11 +137,44 @@ static struct bkprov_identity_s g_identity;
 static bool g_identity_bound;
 static bool g_cloud_loaded;
 static bool g_configured;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+/* Last claim code published on the panels, so a redraw only happens when
+ * the window (and therefore the secret it carries) really changed.
+ */
+static char claim_shown[BKPROV_QR_PAYLOAD_MAX];
+static bool claim_visible;
+#endif
 static bool g_trigger_started;
 static int g_product_error;
+
+/* Defined with the saved-configuration recovery policy below; declared here
+ * because the configuration owners classify provider failures too. */
+static bool bk7258_cloud_retryable(int result);
+
 static int g_service_result = -ENOTCONN;
 static int g_probe_result = -ENOTCONN;
 static uint64_t g_config_revision;
+/* Saved-configuration recovery.  A phone hotspot can appear after boot,
+ * disappear or change while the device keeps running, and one 30-second
+ * Wi-Fi attempt must not leave the voice service permanently unconfigured.
+ * This is one bounded, rate-limited retry schedule owned by this task; it
+ * never clears the stored configuration and never starts a second attempt
+ * while the provisioning owner is busy.
+ */
+#define BKVOICE_CLOUD_SETTLE_MS    5000u
+#define BKVOICE_CLOUD_RETRY_MIN_MS 5000u
+#define BKVOICE_CLOUD_RETRY_MAX_MS 60000u
+static bool g_cloud_unhealthy;
+static uint64_t g_cloud_unhealthy_since;
+static uint64_t g_cloud_retry_at;
+static unsigned int g_cloud_retry_attempts;
+static unsigned int g_cloud_recovery_total;
+static bool g_cloud_retry_blocked;
+/* Last configuration error already reported to the log; 1 is never a valid
+ * errno so the first real failure always prints once.
+ */
+static int g_cloud_reported_result = 1;
+static uint64_t g_cloud_recovery_revision = UINT64_MAX;
 static sem_t g_product_wake;
 static atomic_uint g_product_events;
 static atomic_bool g_agent_core_ready;
@@ -1266,6 +1302,229 @@ static int product_install_eyes(const uint8_t *record, size_t size)
 }
 #endif
 
+
+/* Wi-Fi and cloud record on the authenticated control channel. The record is
+ * the same SCB2/SCB3 bundle the claim protocol uploads, so one decoder and one
+ * durable store own the configuration. APPLY submits one commit whose
+ * transaction is derived from the record itself: a retried APPLY polls the
+ * same publication instead of starting another one, and a record that would
+ * rotate the stored owner control key is refused.
+ */
+static uint8_t g_netcloud_candidate[BKPROV_BUNDLE_MAX];
+static size_t g_netcloud_size;
+static uint8_t g_netcloud_transaction[16];
+static uint64_t g_netcloud_expected;
+static uint64_t g_netcloud_revision;
+static int g_netcloud_result = -ENOENT;
+static bool g_netcloud_pending;
+static atomic_bool g_netcloud_reactivate;
+
+static void product_put_be32(uint8_t *target, uint32_t value)
+{
+  target[0] = (uint8_t)(value >> 24);
+  target[1] = (uint8_t)(value >> 16);
+  target[2] = (uint8_t)(value >> 8);
+  target[3] = (uint8_t)value;
+}
+
+static void product_network_cloud_status(struct bkcontrol_status_s *status)
+{
+  uint32_t state = g_netcloud_pending ? 1u :
+                   (g_netcloud_result == 0 ? 2u :
+                    (g_netcloud_result == -ENOENT ? 0u : 3u));
+
+  status->config_total = 16;
+  memset(status->config_chunk, 0, sizeof(status->config_chunk));
+  memcpy(status->config_chunk, "NW1", 3);
+  product_put_be32(status->config_chunk + 4, state);
+  product_put_be32(status->config_chunk + 8, (uint32_t)g_netcloud_result);
+  product_put_be32(status->config_chunk + 12, (uint32_t)g_netcloud_revision);
+}
+
+static int product_network_cloud_apply(const uint8_t *record, size_t size)
+{
+  struct bkprov_settings_s settings;
+  uint8_t *stored;
+  uint8_t digest[32];
+  uint8_t transaction[16];
+  uint64_t revision = 0;
+  size_t stored_size = 0;
+  int ret;
+
+  if (record == NULL || size < 48u || size > BKPROV_BUNDLE_MAX)
+    {
+      return -EMSGSIZE;
+    }
+
+  ret = bkprov_settings_decode(&settings, record, size);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (settings.ssid[0] == '\0')
+    {
+      /* An owner-only record is a claim record; it must not arrive as a
+       * configuration update on an already owned device.
+       */
+      return -EINVAL;
+    }
+
+  if (settings.control_key != NULL)
+    {
+      struct bkprov_settings_s current;
+      uint8_t scratch[16];
+      uint64_t current_revision = 0;
+      size_t current_size = 0;
+
+      stored = malloc(BKPROV_BUNDLE_MAX);
+      if (stored == NULL)
+        {
+          return -ENOMEM;
+        }
+
+      ret = bkprov_storage_snapshot(stored, BKPROV_BUNDLE_MAX, &current_size,
+                                    &current_revision, scratch);
+      if (ret == 0)
+        {
+          ret = bkprov_settings_decode(&current, stored, current_size);
+        }
+
+      if (ret == 0 &&
+          (current.control_key == NULL ||
+           mbedtls_ct_memcmp(current.control_key, settings.control_key, 32) != 0))
+        {
+          /* Rotating the owner key would orphan the phone that owns this
+           * device, so a configuration record may never carry a new one.
+           */
+          ret = -EACCES;
+        }
+
+      mbedtls_platform_zeroize(stored, BKPROV_BUNDLE_MAX);
+      free(stored);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
+  ret = mbedtls_sha256(record, size, digest, 0);
+  if (ret != 0)
+    {
+      return -EIO;
+    }
+
+  memcpy(transaction, digest, sizeof(transaction));
+  mbedtls_platform_zeroize(digest, sizeof(digest));
+
+  if (g_netcloud_size == size && g_netcloud_result == 0 &&
+      !memcmp(g_netcloud_candidate, record, size))
+    {
+      /* The exact record is already durably selected. */
+      return 0;
+    }
+
+  if (g_netcloud_size != size || memcmp(g_netcloud_candidate, record, size) ||
+      !g_netcloud_pending)
+    {
+      uint8_t scratch[16];
+
+      ret = bkprov_storage_snapshot(g_netcloud_candidate,
+                                    sizeof(g_netcloud_candidate), &stored_size,
+                                    &revision, scratch);
+      if (ret == -ENOENT)
+        {
+          revision = 0;
+          ret = 0;
+        }
+
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      memcpy(g_netcloud_candidate, record, size);
+      g_netcloud_size = size;
+      g_netcloud_expected = revision;
+      memcpy(g_netcloud_transaction, transaction, sizeof(transaction));
+      g_netcloud_pending = true;
+      g_netcloud_result = -EINPROGRESS;
+    }
+
+  ret = bkprov_storage_commit(g_netcloud_expected, g_netcloud_transaction,
+                              g_netcloud_candidate, g_netcloud_size);
+  if (ret == -EAGAIN)
+    {
+      /* The storage worker owns the publication; READ reports the outcome. */
+      return 0;
+    }
+
+  g_netcloud_pending = false;
+  if (ret == -EINPROGRESS)
+    {
+      g_netcloud_result = ret;
+      return 0;
+    }
+
+  g_netcloud_result = ret;
+  if (ret == 0)
+    {
+      g_netcloud_revision = g_netcloud_expected + 1u;
+      atomic_store(&g_netcloud_reactivate, true);
+    }
+  else
+    {
+      mbedtls_platform_zeroize(g_netcloud_candidate,
+                               sizeof(g_netcloud_candidate));
+      g_netcloud_size = 0;
+    }
+
+  return ret;
+}
+
+static int product_network_cloud(enum bkcontrol_command_e command,
+                                 uint32_t offset, const uint8_t *record,
+                                 size_t size, struct bkcontrol_status_s *status)
+{
+  if (command == BKCONTROL_CONFIG_READ)
+    {
+      if (offset != 0)
+        {
+          return -ERANGE;
+        }
+
+      product_network_cloud_status(status);
+      return 0;
+    }
+
+  if (command == BKCONTROL_CONFIG_CANCEL)
+    {
+      g_netcloud_pending = false;
+      mbedtls_platform_zeroize(g_netcloud_candidate,
+                               sizeof(g_netcloud_candidate));
+      g_netcloud_size = 0;
+      g_netcloud_result = -ENOENT;
+      return 0;
+    }
+
+  if (command != BKCONTROL_CONFIG_BEGIN && command != BKCONTROL_CONFIG_APPLY)
+    {
+      return -EINVAL;
+    }
+
+  if (offset != 0)
+    {
+      return -ERANGE;
+    }
+
+  if (command == BKCONTROL_CONFIG_BEGIN)
+    {
+      return size >= 48u && size <= BKPROV_BUNDLE_MAX ? 0 : -EMSGSIZE;
+    }
+
+  return product_network_cloud_apply(record, size);
+}
+
 static int product_config(void *context, enum bkcontrol_command_e command,
   uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
@@ -1278,6 +1537,11 @@ static int product_config(void *context, enum bkcontrol_command_e command,
   if (kind == BKCONTROL_CONFIG_CLOUD_MODELS)
     {
       return product_models(command, offset, record, size, status);
+    }
+
+  if (kind == BKCONTROL_CONFIG_NETWORK_CLOUD)
+    {
+      return product_network_cloud(command, offset, record, size, status);
     }
 
   if (kind == BKCONTROL_CONFIG_RESPONSE_MODE)
@@ -1621,15 +1885,21 @@ static int product_models(enum bkcontrol_command_e command, uint32_t offset,
       return ret;
     }
 
-  if (!g_cloud_loaded)
+  /* Changing the public model names needs the accepted protected bundle, not
+   * a live provider connection: an already authenticated App must be able to
+   * submit a new configuration while the device is offline, while the old
+   * hotspot is gone, or while the stored credential is rejected.  The
+   * in-memory models are only a rollback target, so they are required only
+   * when the service is actually loaded.
+   */
+  bool have_previous = g_cloud_loaded;
+  if (have_previous)
     {
-      return g_product_error ? g_product_error : -EAGAIN;
-    }
-
-  ret = bkagent_cloud_models_get(&previous);
-  if (ret)
-    {
-      return ret;
+      ret = bkagent_cloud_models_get(&previous);
+      if (ret)
+        {
+          return ret;
+        }
     }
 
   /* Reuse the accepted protected configuration and the normal backend
@@ -1704,7 +1974,20 @@ static int product_models(enum bkcontrol_command_e command, uint32_t offset,
         {
           g_probe_result = bkagent_cloud_verify_service();
           g_service_result = g_probe_result;
-          ret = g_probe_result;
+          if (g_probe_result != 0 && have_previous &&
+              !bk7258_cloud_retryable(g_probe_result))
+            {
+              /* The provider rejected the new configuration (authority,
+               * model name or protocol).  Report that failure and restore
+               * the previous accepted models instead of hiding it.
+               */
+              ret = g_probe_result;
+            }
+          /* A connectivity-class failure is not a configuration error: the
+           * accepted configuration stays applied, "saved" and "verified
+           * usable" are reported separately, and the existing recovery
+           * schedule re-verifies it when the network returns.
+           */
         }
 
       if (!ret)
@@ -1716,7 +1999,7 @@ static int product_models(enum bkcontrol_command_e command, uint32_t offset,
         {
           g_configured = g_service_result == 0;
         }
-      else
+      else if (have_previous)
         {
           int failure = ret;
           int restored = product_load_cloud_models(work->voice, voice_size,
@@ -1737,6 +2020,16 @@ static int product_models(enum bkcontrol_command_e command, uint32_t offset,
           syslog(restored ? LOG_ERR : LOG_WARNING,
                  "BKVOICE cloud model rollback candidate=%d restored=%d\n",
                  failure, restored);
+        }
+      else
+        {
+          /* Nothing was loaded before this attempt, so there is no rollback
+           * target.  Keep the failure visible and leave the accepted bundle
+           * for the saved-configuration recovery schedule.
+           */
+          g_configured = false;
+          syslog(LOG_WARNING, "BKVOICE cloud model apply failed result=%d\n",
+                 ret);
         }
     }
 
@@ -1850,9 +2143,15 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
   int ret = 0;
   if (!g_identity_bound)
     {
-      ret = bkprov_storage_identity(work->identity,
-                                  sizeof(work->identity), &size);
-      *storage_waiting = storage_unavailable(ret);
+      /* A device may create its own identity exactly once, and only for the
+       * factory transaction the deployment wrote. Everything else - a missing
+       * identity after a completed deployment, a damaged record, or an
+       * ordinary boot of an unprepared device - fails closed here.
+       */
+      ret = bkprov_firstboot_identity(work->identity, sizeof(work->identity),
+                                      &size);
+      *storage_waiting = storage_unavailable(ret) || ret == -EAGAIN ||
+                        ret == -EBUSY;
       if (!ret)
         {
           ret = bkprov_identity_load(&g_identity, work->identity, size);
@@ -1918,6 +2217,19 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
 #ifdef CONFIG_BK7258_PREFERENCES
   (void)bkagent_memory_bind(work->settings.control_key);
 #endif
+  if (work->settings.ssid[0] == '\0')
+    {
+      /* Owner-only claim: ownership and the control key are bound, and the
+       * device stays offline until a network/cloud record arrives over the
+       * authenticated control channel. A device without Wi-Fi is a normal,
+       * manageable state, never a configuration failure.
+       */
+      g_config_revision = revision;
+      g_configured = false;
+      ret = 0;
+      goto out;
+    }
+
   if (g_configured && revision == g_config_revision)
     {
       goto out;
@@ -1938,6 +2250,117 @@ out:
   mbedtls_platform_zeroize(work, sizeof(*work));
   free(work);
   return ret;
+}
+
+/* Connectivity-class failures can be fixed by waiting for the hotspot and
+ * retrying the saved configuration.  Authority, format and capability
+ * failures cannot, so they are reported once and stay visible until the App
+ * supplies a new configuration.
+ */
+static bool bk7258_cloud_retryable(int result)
+{
+  return result == -ETIMEDOUT || result == -ENOTCONN ||
+         result == -EHOSTUNREACH || result == -ENETUNREACH ||
+         result == -EAGAIN || result == -EIO || result == -EREMOTEIO ||
+         result == -ENODATA || result == -ECONNREFUSED || result == -ECONNRESET ||
+         result == -ENODEV || result == -EXDEV;
+}
+
+/* Returns true when the saved configuration should be applied again.  The
+ * caller owns the owner-busy and idle gates; this function only decides
+ * timing, so one retry schedule exists for the whole product.
+ */
+static bool bk7258_cloud_recovery_due(uint64_t now)
+{
+  /* A bound identity is the evidence that this device was provisioned; the
+   * stored bundle is re-read by the owner on every attempt, so a late volume
+   * mount is recovered by the same schedule.
+   */
+  if (!g_identity_bound) return false;
+
+  if (g_cloud_recovery_revision != g_config_revision)
+    {
+      /* A newly accepted configuration owns its own first attempt. */
+      g_cloud_recovery_revision = g_config_revision;
+      g_cloud_unhealthy = false;
+      g_cloud_unhealthy_since = 0;
+      g_cloud_retry_at = 0;
+      g_cloud_retry_attempts = 0;
+      g_cloud_retry_blocked = false;
+      return false;
+    }
+
+  struct bk7258_wifi_result_s link;
+  bool online = bk7258_wifi_read_link(&link) == 0 &&
+                link.link_state == BK7258_WIFI_LINK_CONNECTED &&
+                link.ipaddr != 0;
+  bool ready = g_configured && g_service_result == 0;
+  if (online && ready)
+    {
+      g_cloud_unhealthy = false;
+      g_cloud_unhealthy_since = 0;
+      g_cloud_retry_at = 0;
+      g_cloud_retry_attempts = 0;
+      g_cloud_retry_blocked = false;
+      return false;
+    }
+
+  /* Require the unusable state to persist so a STATUS read or a DHCP renewal
+   * does not restart the service.
+   */
+  if (!g_cloud_unhealthy)
+    {
+      g_cloud_unhealthy = true;
+      g_cloud_unhealthy_since = now;
+      return false;
+    }
+  if (g_cloud_retry_blocked || now < g_cloud_unhealthy_since ||
+      now - g_cloud_unhealthy_since < BKVOICE_CLOUD_SETTLE_MS) return false;
+
+  if (g_cloud_retry_at == 0)
+    {
+      unsigned int shift =
+        g_cloud_retry_attempts > 4u ? 4u : g_cloud_retry_attempts;
+      uint64_t backoff = (uint64_t)BKVOICE_CLOUD_RETRY_MIN_MS << shift;
+      if (backoff > BKVOICE_CLOUD_RETRY_MAX_MS) backoff = BKVOICE_CLOUD_RETRY_MAX_MS;
+      g_cloud_retry_at = now + backoff;
+      return false;
+    }
+  if (now < g_cloud_retry_at) return false;
+
+  g_cloud_retry_at = 0;
+  if (g_cloud_retry_attempts < 8u) g_cloud_retry_attempts++;
+  g_cloud_recovery_total++;
+  syslog(LOG_WARNING, "BKVOICE cloud recovery attempt=%u total=%u online=%d "
+         "ready=%d result=%d\n", g_cloud_retry_attempts, g_cloud_recovery_total,
+         (int)online, (int)ready, g_service_result);
+  return true;
+}
+
+static void bk7258_cloud_recovery_result(int result)
+{
+  if (result == 0)
+    {
+      g_cloud_reported_result = 1;
+      g_cloud_unhealthy = false;
+      g_cloud_unhealthy_since = 0;
+      g_cloud_retry_at = 0;
+      g_cloud_retry_attempts = 0;
+      g_cloud_retry_blocked = false;
+      return;
+    }
+  if (bk7258_cloud_retryable(result))
+    {
+      /* The next poll re-arms the schedule with a longer backoff. */
+      g_cloud_retry_at = 0;
+      return;
+    }
+  /* A wrong password, a rejected key or an unsupported configuration is
+   * reported through the existing error state; repeating it would spin
+   * without a new configuration from the App.
+   */
+  g_cloud_retry_blocked = true;
+  syslog(LOG_WARNING, "BKVOICE cloud recovery stopped result=%d\n", result);
 }
 
 static int bk7258_agent_config_task(int argc, FAR char *argv[])
@@ -2144,6 +2567,34 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           continue;
         }
 
+      if (!pending && !bkagent_ota_busy() &&
+          voice_channel_is_idle() &&
+          !network_busy && !bkprov_owner_busy() &&
+          bk7258_cloud_recovery_due(now))
+        {
+          /* Drop only the in-memory service state: the accepted bundle stays
+           * on the volume and is re-applied by the owner below.  A short
+           * hotspot outage therefore restores itself without clearing any
+           * stored configuration or the owner identity.
+           */
+          if (product_clear(NULL) == 0)
+            {
+              pending = true;
+            }
+          else
+            {
+              g_cloud_retry_at = now + BKVOICE_CLOUD_RETRY_MIN_MS;
+            }
+        }
+
+      if (!pending && atomic_exchange(&g_netcloud_reactivate, false))
+        {
+          /* A committed network/cloud record must be applied by the same
+           * product owner that owns Wi-Fi and the cloud session.
+           */
+          pending = true;
+        }
+
       if (pending && !bkagent_ota_busy() &&
           voice_channel_is_idle() &&
           !network_busy && !bkprov_owner_busy())
@@ -2159,11 +2610,28 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
             }
 
           pending = ret == -EBUSY;
-          if (ret && !pending)
+          if (storage_waiting)
             {
-              g_product_error = ret;
-              syslog(LOG_WARNING,
-                     "BKVOICE configuration unavailable result=%d\n", ret);
+              /* The volume is not usable yet, for example after a first full
+               * flash but before the data partition is initialized.  The
+               * existing 250 ms storage retry owns the next attempt, so this
+               * is neither a configuration failure nor a permanent stop and
+               * must not re-arm the faster recovery schedule.
+               */
+              g_cloud_reported_result = 1;
+            }
+          else if (!pending)
+            {
+              bk7258_cloud_recovery_result(ret);
+              if (ret && ret != g_cloud_reported_result)
+                {
+                  /* Report a repeated failure once; a device without a
+                   * usable volume would otherwise log every retry. */
+                  g_product_error = ret;
+                  g_cloud_reported_result = ret;
+                  syslog(LOG_WARNING,
+                         "BKVOICE configuration unavailable result=%d\n", ret);
+                }
             }
 
           network_was_busy = bkprov_network_busy();
@@ -2172,6 +2640,50 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       (void)bkprov_owner_step(bkvoice_config_now_ms(NULL), 0, false, false,
         voice_channel_is_idle() &&
         !bkprov_network_busy() && !bkagent_ota_busy());
+
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      /* The first-use claim code is published on the panels while an
+       * unconnected initial window is open, and taken down as soon as the
+       * window closes. A new window always carries a new secret, so the
+       * displayed code is refreshed whenever it changes.
+       */
+      {
+        char code[BKPROV_QR_PAYLOAD_MAX];
+        size_t code_size = 0;
+
+        memset(code, 0, sizeof(code));
+        if (bkprov_owner_claim_code(code, sizeof(code), &code_size) == 0)
+          {
+            if (claim_visible == false || strcmp(claim_shown, code) != 0)
+              {
+                int display_ret = bk7258_display_show_claim(code);
+                if (display_ret == 0)
+                  {
+                    snprintf(claim_shown, sizeof(claim_shown), "%s", code);
+                    claim_visible = true;
+                    syslog(LOG_INFO,
+                           "BKVOICE claim code displayed bytes=%u\n",
+                           (unsigned int)code_size);
+                  }
+                else if (display_ret != -ENOSPC)
+                  {
+                    syslog(LOG_WARNING,
+                           "BKVOICE claim code display failed result=%d\n",
+                           display_ret);
+                  }
+              }
+          }
+        else if (claim_visible)
+          {
+            (void)bk7258_display_hide_claim();
+            claim_visible = false;
+            memset(claim_shown, 0, sizeof(claim_shown));
+            syslog(LOG_INFO, "BKVOICE claim code withdrawn\n");
+          }
+
+        mbedtls_platform_zeroize(code, sizeof(code));
+      }
+#endif
       if (bkagent_ota_busy())
         {
           continue;
