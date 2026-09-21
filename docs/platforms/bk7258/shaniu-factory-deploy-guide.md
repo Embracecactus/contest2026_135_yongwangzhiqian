@@ -65,6 +65,24 @@ BKFACTORY BEGIN PASS state=pending layout=559f52be
 事务号由本次部署生成并记录在工厂证据里。它是**唯一**允许设备初始化用户存储
 的授权，且只对这一次首启有效。
 
+**控制台行长约束（本版镜像已修正）**：NuttX NSH 默认行缓冲为 80 字符，而带完整
+16 字节事务号的命令是 85 字符，粘贴或输入会被终端/行长截断（现象：`BKFACTORY
+BEGIN FAIL ret=-22`，且多余字符变成下一条命令），此时记录仍是 `empty`，未写入任何
+授权。本版镜像把 CP 的 `CONFIG_NSH_LINELEN` 提升到 256，并允许事务号为
+16–32 位十六进制（8–16 字节，偶数长度），因此下面这条 69 字符命令在任何终端都安全：
+
+```text
+nsh> bkfactory begin --transaction 076eb7ca7041a97af --confirm factory-init
+BKFACTORY BEGIN PASS state=pending layout=559f52be
+```
+
+更稳妥的做法是用 `tools/send-bkfactory.ps1`（Windows PowerShell）——它以一次
+`SerialPort.WriteLine` 整行写入，不经过终端换行/折行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\lijian\Downloads\send-bkfactory.ps1 -Port COM13
+```
+
 ## 6. 重启并交付给用户
 
 ```text

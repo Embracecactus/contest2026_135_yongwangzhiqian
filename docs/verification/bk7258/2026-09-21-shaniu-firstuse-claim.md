@@ -100,3 +100,25 @@ App（`android/shaniu-companion`）：
 | 工厂整片镜像组包 | 已生成（未烧录） |
 | 工厂事务写入、自主首启、屏幕二维码 | 未完成（串口占用） |
 | 手机离线扫码认领、Wi-Fi/云配置、首次对话 | 未完成 |
+
+## 5. v2 修正与使用方验证（2026-09-21 晚）
+
+- **App 已通过 adb 覆盖安装到实机**（Mi 10 / `59d707dc`）：
+  `0.5.23-shaniu-rebind (28)` → `0.5.24-shaniu-firstuse (29)`，`install -r`
+  保留数据，`Success`；`topResumedActivity=com.shaniu.companion/.MainActivity`
+  确认可启动；`CAMERA` 权限已声明、首次扫码时申请。
+- **发现并修正控制台行长缺陷**：带完整 16 字节事务号的 `bkfactory begin` 命令行
+  为 85 字符，超过 NuttX NSH 默认 `CONFIG_NSH_LINELEN=80`。使用方实测被截断为
+  `--confirm factor` + 下一条命令 `y-init`，得到 `BKFACTORY BEGIN FAIL ret=-22`
+  （`-EINVAL`，未写入任何授权，状态仍为 `empty`，可安全重试）。
+  修正：CP `CONFIG_NSH_LINELEN` 80 → 256；事务号接受 16–32 位十六进制（8–16 字节，
+  偶数长度，右对齐存于 16 字节字段）；并交付 `tools/send-bkfactory.ps1` 用单次
+  `SerialPort.WriteLine` 整行写入，避免终端折行。
+- **v2 工厂整片**：8,388,608 B，SHA256
+  `19ea6756950494d909129826f7ad9f6af5d3118e81b53fa3ca0f1a41b8f5eed4`
+  （cp `6fc0f812…`、ap `2bc52758…`、pair `e13f4108…`、boot `25a10fb7…`）；
+  交付目录 `out/shanui-firstuse-20260921/` 与 `out/shanui-firstuse-20260921.zip`
+  （13–17 MB，含校验清单与 release.json）。
+- 截至本条记录，**仍未完成**实机首启闭环：等待使用方烧录 v2、下发工厂事务并扫码；
+  未取得 `BKFACTORY MOUNT PASS` / `BKVOICE first boot state=ready` /
+  `BKDISPLAY CLAIM PAGE` / App 认领与配网的真实日志或屏幕证据。

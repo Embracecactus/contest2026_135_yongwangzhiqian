@@ -5,7 +5,7 @@
  *
  * CP operator command for the first-use factory transaction.
  *
- *   bkfactory begin --transaction <32 hex> --confirm factory-init
+ *   bkfactory begin --transaction <16-32 hex> --confirm factory-init
  *   bkfactory mount
  *   bkfactory status
  *
@@ -113,14 +113,17 @@ static bool bkfactory_exists(FAR const char *path)
 static int bkfactory_hex(FAR const char *text, FAR uint8_t *target,
                          size_t bytes)
 {
+  size_t length = strlen(text);
+  size_t width = bytes * 2u;
   size_t i;
+  size_t slot;
 
-  if (strlen(text) != bytes * 2u)
+  if (length == 0u || (length & 1u) != 0u || length > width)
     {
       return -EINVAL;
     }
 
-  for (i = 0; i < bytes * 2u; i++)
+  for (i = 0; i < length; i++)
     {
       char value = text[i];
 
@@ -132,11 +135,14 @@ static int bkfactory_hex(FAR const char *text, FAR uint8_t *target,
         }
     }
 
-  for (i = 0; i < bytes; i++)
+  /* A shorter operator id is right-aligned inside the 16-byte field. */
+  memset(target, 0, bytes);
+  for (i = 0; i < length; i += 2u)
     {
-      char pair[3] = {text[i * 2u], text[i * 2u + 1u], '\0'};
+      char pair[3] = {text[i], text[i + 1u], '\0'};
 
-      target[i] = (uint8_t)strtoul(pair, NULL, 16);
+      slot = (width - length + i) / 2u;
+      target[slot] = (uint8_t)strtoul(pair, NULL, 16);
     }
 
   return 0;
