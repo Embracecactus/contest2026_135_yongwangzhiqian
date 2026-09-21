@@ -114,6 +114,23 @@ static const struct bk7258_storage_region_s g_bk7258_data_storage =
 };
 #endif
 
+#ifdef CONFIG_BK7258_FACTORY_INIT
+_Static_assert(BK7258_PARTITION_FACTORY_STATE_SIZE == 8192u,
+               "factory journal requires two dedicated erase sectors");
+_Static_assert(BK7258_DATA_RAW_PHYSICAL_OFFSET +
+               BK7258_DATA_RAW_PHYSICAL_SIZE <=
+               BK7258_PARTITION_FACTORY_STATE_OFFSET,
+               "factory journal overlaps persistent data");
+_Static_assert(BK7258_PARTITION_FACTORY_STATE_END <=
+               BK7258_CALIBRATION_TAIL_START,
+               "factory journal overlaps hardware-unique tail");
+static const struct bk7258_storage_region_s g_bk7258_factory_storage =
+{
+  .start = BK7258_PARTITION_FACTORY_STATE_OFFSET,
+  .size = BK7258_PARTITION_FACTORY_STATE_SIZE,
+};
+#endif
+
 const struct bk7258_storage_config_s g_bk7258_board_storage_config =
 {
   .version = BK7258_STORAGE_CONFIG_VERSION,
@@ -124,6 +141,9 @@ const struct bk7258_storage_config_s g_bk7258_board_storage_config =
 #endif
 #ifdef CONFIG_BK7258_ONCHIP_DATAFS
   .data_storage = &g_bk7258_data_storage,
+#endif
+#ifdef CONFIG_BK7258_FACTORY_INIT
+  .factory_storage = &g_bk7258_factory_storage,
 #endif
   .reset_marker_address = BK7258_RESET_MARKER_START,
   .reset_marker_erase_size = BK7258_RESET_MARKER_SIZE,

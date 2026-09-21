@@ -16,7 +16,7 @@
 #include <arch/chip/bk7258_boot_slot.h>
 #include <arch/chip/bk7258_ota.h>
 
-#define BK7258_STORAGE_CONFIG_VERSION        2u
+#define BK7258_STORAGE_CONFIG_VERSION        3u
 #define BK7258_RADIO_STORAGE_CONFIG_VERSION  1u
 #define BK7258_OTA_LAYOUT_VERSION            1u
 #define BK7258_OTA_SLOT_COUNT                2u
@@ -74,6 +74,7 @@ struct bk7258_storage_config_s
   FAR const struct bk7258_storage_region_s *data_storage;
   uint32_t reset_marker_address;
   uint32_t reset_marker_erase_size;
+  FAR const struct bk7258_storage_region_s *factory_storage;
 };
 
 /* The selected board supplies one immutable, statically allocated config.

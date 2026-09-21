@@ -13,6 +13,7 @@ secondary_manifest,replace
 primary_bl2,replace
 secondary_bl2,replace
 persistent_data,factory-init
+factory_state,preserve
 easyflash,device-unique
 easyflash_ap,device-unique
 sys_rf,device-unique

@@ -70,6 +70,8 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_EYE_PACK 5u
 /* KWT1 + BE32 score threshold percent (50..90) + BE32 reserved = 0. */
 #define BKCONTROL_CONFIG_WAKE_THRESHOLD 6u
+/* SCP1 save-first settings patch; SCS1 public operation/revision readback. */
+#define BKCONTROL_CONFIG_SETTINGS 7u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (136u + 65536u)
 struct bkcontrol_device_info_s

@@ -497,6 +497,15 @@ config BK7258_PM_CLOCK
 		reference-counts each clock.  This is the clock-ownership foundation;
 		The CP image also selects the board PM policy below.
 
+config BK7258_FACTORY_INIT
+	bool "Consume explicit first-boot factory journal"
+	default n
+	depends on !BK7258_AP_CORE && BK7258_ONCHIP_DATAFS && BK7258_OTA
+	help
+		Requires a dedicated board factory_state region. Only the host
+		factory deployment creates initialization authorization. A failed
+		filesystem never authorizes formatting on an ordinary boot.
+
 config BK7258_PM_SOFT_OFF
 	bool "Board-key wakeable low-power soft off"
 	default n

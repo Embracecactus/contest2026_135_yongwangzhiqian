@@ -21,6 +21,9 @@ int bk7258_storage_ota_layout(
   FAR const struct bk7258_ota_layout_s **layout);
 int bk7258_storage_radio_config(
   FAR const struct bk7258_radio_storage_config_s **config);
+int bk7258_storage_factory_regions(
+  const struct bk7258_storage_region_s **factory,
+  const struct bk7258_storage_region_s **data);
 int bk7258_storage_marker_address(FAR uint32_t *address);
 int bk7258_storage_lock(enum bk7258_storage_guard_e guard,
                         uint32_t timeout_ms);

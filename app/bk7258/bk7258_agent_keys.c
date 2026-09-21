@@ -170,7 +170,9 @@ void bkvoice_keys_take(int *volume_steps, bool *power_requested)
       now - g_keys.last_sample > BKVOICE_BUTTON_LEASE_MS)
     {
       g_keys.volume_steps = 0;
-      g_keys.power_requested = false;
+      /* A validated release edge is an accepted product intent. Losing a
+       * later heartbeat invalidates only an unfinished hold, not this intent.
+       */
       bkvoice_product_keys_reset(&g_keys.policy, g_keys.epoch);
     }
   *volume_steps = g_keys.volume_steps;
@@ -178,4 +180,15 @@ void bkvoice_keys_take(int *volume_steps, bool *power_requested)
   g_keys.volume_steps = 0;
   g_keys.power_requested = false;
   spin_unlock_irqrestore(&g_keys.lock, flags);
+}
+
+bool bkvoice_keys_power_held(void)
+{
+  uint64_t now = bkvoice_config_now_ms(NULL);
+  irqstate_t flags = spin_lock_irqsave(&g_keys.lock);
+  bool held = g_keys.connected && now >= g_keys.last_sample &&
+              now - g_keys.last_sample <= BKVOICE_BUTTON_LEASE_MS &&
+              g_keys.policy.power_request_latched;
+  spin_unlock_irqrestore(&g_keys.lock, flags);
+  return held;
 }

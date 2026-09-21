@@ -37,6 +37,10 @@ struct bkdisplay_service_status_s
   uint8_t source_sha256[32];
 };
 
+/* 107-char native QR or NULL; never exported in public status/RPC. */
+int bk7258_display_onboarding(const char *qr);
+/* 0 normal, 1 long-hold/release hint, 2 saving/shutdown in progress. */
+int bk7258_display_power(unsigned int phase);
 int bk7258_display_service_prepare(void);
 int bk7258_display_service_start(void);
 

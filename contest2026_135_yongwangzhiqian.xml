@@ -25,7 +25,9 @@
            clone-depth="1"
            groups="bk7258-sdk"/>
 
-  <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian">
+  <!-- Post-contest development belongs to the owner fork, not the frozen contest repo. -->
+  <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian"
+           remote="shaniu-agent" revision="dev-ai-contest-2026">
     <linkfile src="app/hello_app" dest="packages/demos/contest2026_135_hello_app"/>
     <linkfile src="app/bk7258" dest="apps/system/bk7258"/>
     <linkfile src="quickapp/hello_quickapp" dest="packages/apps/contest2026_135_hello_quickapp"/>

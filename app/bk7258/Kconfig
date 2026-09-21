@@ -19,6 +19,29 @@ config BK7258_APP_AGENT
 		directory; chip and board code remain
 		independent of the Agent product.
 
+config BK7258_PROVISION_NATIVE
+	bool "Device-generated identity and physical-screen QR onboarding"
+	default n
+	depends on BK7258_APP_AGENT && BK7258_VOICE_TLS && BK7258_PROVISION_GATT
+	depends on BK7258_RPMSGFS && BK7258_DISPLAY_SERVICE && BK7258_TRNG
+	select MBEDTLS_X509_CRT_WRITE_C
+	select MBEDTLS_X509_CREATE_C
+	select MBEDTLS_PK_WRITE_C
+	help
+		Only an explicit factory permit allows initial key generation.
+		The physical display provides a full certificate pin and one-window
+		secret. Existing supplied BPI1 deployments remain compatible.
+
+config BK7258_PROVISION_CERT_NOT_BEFORE
+	string "Native identity validity start (UTC, YYYYMMDDhhmmss)"
+	default "20260101000000"
+	depends on BK7258_PROVISION_NATIVE
+
+config BK7258_PROVISION_CERT_NOT_AFTER
+	string "Native identity validity end (UTC, YYYYMMDDhhmmss)"
+	default "20360101000000"
+	depends on BK7258_PROVISION_NATIVE
+
 config BK7258_PRODUCT_KEYS
 	bool "Product keys through /dev/buttons"
 	default n
@@ -947,6 +970,16 @@ config BK7258_APP_PROV_STACKSIZE
 	default 3072
 
 endif
+
+config BK7258_APP_FACTORY
+	bool "BK7258 controlled first-boot mount command"
+	default n
+	depends on BK7258_FACTORY_INIT && SYSTEM_NSH && FS_LITTLEFS
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Consume the factory deployment journal before publishing /data.
+		This is not an anonymous format or reset command.
 
 config BK7258_APP_DATA
 	bool "BK7258 on-chip persistent data command (bkdata)"

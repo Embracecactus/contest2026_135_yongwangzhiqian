@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <sched.h>
+#include <pthread.h>
 #include <semaphore.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -72,8 +73,12 @@
 #include "bk7258_agent_ota.h"
 #include "bk7258_cloud_config.h"
 #include "bk7258_provision_identity.h"
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+#include "bk7258_provision_bootstrap.h"
+#endif
 #include "bk7258_provision_claim.h"
 #include "bk7258_provision_settings.h"
+#include "bk7258_provision_config.h"
 #include "bk7258_provision_storage.h"
 #include "bk7258_provision_time.h"
 #include "bk7258_provision_owner.h"
@@ -132,6 +137,10 @@
 
 static struct bkprov_identity_s g_identity;
 static bool g_identity_bound;
+static bool g_control_bound;
+static bool g_save_first;
+static atomic_bool g_probe_running;
+static atomic_int g_probe_worker_result;
 static bool g_cloud_loaded;
 static bool g_configured;
 static bool g_trigger_started;
@@ -150,6 +159,8 @@ static mutex_t g_persona_lock = NXMUTEX_INITIALIZER;
 static atomic_int g_active_persona = ATOMIC_VAR_INIT(-1);
 #if defined(CONFIG_BK7258_PRODUCT_KEYS) && defined(CONFIG_BK7258_PM_SOFT_OFF)
 static bool g_power_pending;
+static bool g_shutdown_requested;
+static uint64_t g_shutdown_deadline;
 static bool g_power_volume_owned;
 static bool g_power_storage_stopped;
 static bool g_power_vision_quiesced;
@@ -272,25 +283,36 @@ static int product_power_restore(void)
     }
 
 #endif
+  (void)bkprov_owner_quiesce(false);
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  (void)bk7258_display_power(0);
+#endif
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+  (void)bkprov_bootstrap_start();
+#endif
   return 0;
 }
 
 static int product_power_request(void)
 {
   int ret;
-  /* Power-off is accepted only from the idle end state; a cancel return or a
-   * boolean flag is not treated as proof of release. The control connection
-   * itself does not block power-off, but provisioning, claiming, model
-   * commit and update must still have finished.
+  /* The intent is latched independently of cloud readiness. This final
+   * transition still requires actual resource drain; cancellation alone
+   * is not evidence of a completed durable transaction.
    */
 
-  if (!atomic_load(&g_agent_ready) || !voice_channel_is_idle() ||
-      bkprov_owner_pairing() || bkprov_network_busy() ||
+  if ((atomic_load(&g_voice_initialized) && !voice_channel_is_idle()) ||
+      atomic_load(&g_probe_running) || bkprov_owner_busy() ||
+      bkprov_network_busy() || bkprov_config_busy() ||
       bkagent_ota_busy() || bk7258_agent_trigger_model_pending())
     {
       return -EBUSY;
     }
 
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+  bkprov_bootstrap_cancel();
+  if (bkprov_bootstrap_busy()) return -EBUSY;
+#endif
   ret = bk7258_media_volume_acquire(BK7258_MEDIA_VOLUME_POWER);
   if (ret < 0)
     {
@@ -372,6 +394,10 @@ static bool product_keys_step(uint64_t now)
   int ret;
   bool power;
   bkvoice_keys_take(&steps, &power);
+#if defined(CONFIG_BK7258_PM_SOFT_OFF) && defined(CONFIG_BK7258_DISPLAY_SERVICE)
+  if (!g_power_pending && !g_shutdown_requested)
+    (void)bk7258_display_power(bkvoice_keys_power_held() ? 1 : 0);
+#endif
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
   if (g_power_pending)
     {
@@ -400,7 +426,13 @@ static bool product_keys_step(uint64_t now)
   if (power)
     {
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
-      ret = product_power_request();
+      g_shutdown_requested = true;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      (void)bk7258_display_power(2);
+#endif
+      g_shutdown_deadline = now + 30000u;
+      if (atomic_load(&g_voice_initialized)) voice_channel_cancel();
+      ret = -EINPROGRESS;
 #else
       ret = -ENOTSUP;
 #endif
@@ -424,7 +456,34 @@ static bool product_keys_step(uint64_t now)
     }
 
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
-  return g_power_pending;
+  if (g_shutdown_requested)
+    {
+      /* Commit workers and Wi-Fi lease cleanup must continue while admission
+       * is closed. A successful cancel is not a completed shutdown.
+       */
+      (void)bkprov_owner_quiesce(true);
+      (void)bkprov_network_cancel();
+      bkprov_network_step();
+      bkprov_config_step();
+      if (atomic_load(&g_voice_initialized)) (void)voice_channel_recover();
+      ret = product_power_request();
+      if (g_power_pending)
+        {
+          g_shutdown_requested = false;
+        }
+      else if ((ret != -EBUSY && ret != -EAGAIN) ||
+               now >= g_shutdown_deadline)
+        {
+          if (ret == -EBUSY || ret == -EAGAIN) ret = -ETIMEDOUT;
+          int restored = product_power_restore();
+          g_shutdown_requested = false;
+          g_product_error = restored ? restored : ret;
+          syslog(LOG_ERR, "BKKEYS shutdown failed=%d restore=%d\n",
+                 ret, restored);
+        }
+    }
+
+  return g_power_pending || g_shutdown_requested;
 #else
   return false;
 #endif
@@ -992,7 +1051,7 @@ static bool product_available(void *unused)
   (void)unused;
   return atomic_load(&g_agent_core_ready) &&
          atomic_load(&g_voice_initialized) &&
-         atomic_load(&g_agent_ready) &&
+         !atomic_load(&g_probe_running) &&
          voice_channel_is_idle() &&
          !bkagent_ota_busy() && !bkprov_network_busy();
 }
@@ -1275,6 +1334,11 @@ static int product_config(void *context, enum bkcontrol_command_e command,
       return -EBUSY;
     }
 
+  if (kind == BKCONTROL_CONFIG_SETTINGS)
+    {
+      return bkprov_config_control(command, offset, record, size, status);
+    }
+
   if (kind == BKCONTROL_CONFIG_CLOUD_MODELS)
     {
       return product_models(command, offset, record, size, status);
@@ -1538,8 +1602,24 @@ static int product_load_cloud(void *unused, const void *trust,
                               size_t cloud_size)
 {
   (void)unused;
-  return product_load_cloud_models(trust, trust_size, cloud, cloud_size,
-                                   NULL);
+  if (!g_save_first)
+    return product_load_cloud_models(trust, trust_size, cloud, cloud_size, NULL);
+  /* SCB4 is authoritative: an old separate preferences override must not
+   * silently replace models just saved through the authenticated editor. */
+  struct bkcloud_config_s *decoded = calloc(1, sizeof(*decoded));
+  if (!decoded) return -ENOMEM;
+  struct bkcloud_models_s models = {0};
+  int ret = bkcloud_config_decode(decoded, cloud, cloud_size);
+  if (!ret)
+    {
+      memcpy(models.asr_model, decoded->asr_model, sizeof(models.asr_model));
+      memcpy(models.chat_model, decoded->chat_model, sizeof(models.chat_model));
+      memcpy(models.tts_model, decoded->tts_model, sizeof(models.tts_model));
+      ret = product_load_cloud_models(trust, trust_size, cloud, cloud_size, &models);
+    }
+  bkcloud_config_clear(decoded);
+  free(decoded);
+  return ret;
 }
 
 static int product_models(enum bkcontrol_command_e command, uint32_t offset,
@@ -1598,6 +1678,8 @@ static int product_models(enum bkcontrol_command_e command, uint32_t offset,
       return -EINVAL;
     }
 
+  if (g_save_first) return -ENOTSUP; /* Use the independent SCP1 settings editor. */
+  if (atomic_load(&g_probe_running)) return -EBUSY;
   if (size < 12 || size > BKCLOUD_MODELS_RECORD_MAX)
     {
       return -EMSGSIZE;
@@ -1751,24 +1833,55 @@ static int product_models(enum bkcontrol_command_e command, uint32_t offset,
   return ret;
 }
 
-static int product_connect(void *unused)
+static void *product_probe_worker(void *unused)
 {
   (void)unused;
-  g_probe_result = bkagent_cloud_verify_service();
-  g_service_result = g_probe_result;
-  return g_probe_result;
+  int ret = bkagent_cloud_verify_service();
+  atomic_store(&g_probe_worker_result, ret);
+  atomic_store(&g_probe_running, false);
+  bk7258_agent_product_wake();
+  return NULL;
+}
+
+static int product_connect(void *unused)
+{
+  pthread_attr_t attr;
+  pthread_t thread;
+  int ret;
+  bool expected = false;
+  (void)unused;
+  if (!atomic_compare_exchange_strong(&g_probe_running, &expected, true))
+    return -EBUSY;
+  g_probe_result = -EAGAIN;
+  atomic_store(&g_probe_worker_result, -EAGAIN);
+  ret = pthread_attr_init(&attr);
+  if (ret == 0)
+    {
+      ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+      if (ret == 0) ret = pthread_attr_setstacksize(&attr, 8192);
+      if (ret == 0)
+        ret = pthread_create(&thread, &attr, product_probe_worker, NULL);
+      pthread_attr_destroy(&attr);
+    }
+
+  if (ret != 0) atomic_store(&g_probe_running, false);
+  return -ret;
 }
 
 static int product_ready(void *unused)
 {
   (void)unused;
+  if (atomic_load(&g_probe_running)) return 0;
+  g_probe_result = atomic_load(&g_probe_worker_result);
+  g_service_result = g_probe_result;
   return g_probe_result == 0 ? 1 : g_probe_result;
 }
 
 static int product_clear(void *unused)
 {
   (void)unused;
-  if (!voice_channel_is_idle())
+  if (atomic_load(&g_probe_running) ||
+      (atomic_load(&g_voice_initialized) && !voice_channel_is_idle()))
     {
       return -EBUSY;
     }
@@ -1829,7 +1942,7 @@ static bool storage_unavailable(int result)
 static int bk7258_agent_activate_cloud(bool *storage_waiting)
 {
   *storage_waiting = false;
-  if (bkprov_owner_busy() || bkprov_network_busy())
+  if (bkprov_owner_pairing() || bkprov_network_busy())
     {
       return -EBUSY;
     }
@@ -1850,6 +1963,10 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
   int ret = 0;
   if (!g_identity_bound)
     {
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+      ret = bkprov_bootstrap_status();
+      if (ret < 0) { *storage_waiting = true; goto out; }
+#endif
       ret = bkprov_storage_identity(work->identity,
                                   sizeof(work->identity), &size);
       *storage_waiting = storage_unavailable(ret);
@@ -1873,6 +1990,11 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
           goto out;
         }
 
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+      if (g_identity.generated)
+        ret = bkprov_owner_window_handler(bkprov_bootstrap_window, &g_identity);
+      if (ret < 0) { (void)bkprov_owner_unbind(); goto out; }
+#endif
       g_identity_bound = true;
     }
 
@@ -1896,28 +2018,49 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
       goto out;
     }
 
-  ret = bkprov_owner_control(work->settings.control_key, product_control,
-                             NULL);
-  if (!ret)
+  if (!g_control_bound)
     {
-      ret = bkprov_owner_control_config(product_config);
-    }
+    ret = bkprov_owner_control(work->settings.control_key, product_control,
+                               NULL);
+    if (!ret)
+      {
+        ret = bkprov_owner_control_config(product_config);
+      }
 
-#ifdef BKAGENT_APP_OTA_ENABLED
-  if (!ret)
-    {
-      ret = bkprov_owner_control_ota(product_ota);
-    }
+  #ifdef BKAGENT_APP_OTA_ENABLED
+    if (!ret)
+      {
+        ret = bkprov_owner_control_ota(product_ota);
+      }
 
-#endif
-  if (ret < 0)
-    {
-      goto out;
+  #endif
+    if (ret < 0)
+      {
+        goto out;
+      }
+
+      g_control_bound = true;
     }
 
 #ifdef CONFIG_BK7258_PREFERENCES
   (void)bkagent_memory_bind(work->settings.control_key);
 #endif
+  g_save_first = work->settings.deferred;
+  if (!work->settings.ssid[0])
+    {
+      g_config_revision = revision;
+      g_configured = false;
+      ret = 0;
+      goto out;
+    }
+
+  if (!atomic_load(&g_agent_core_ready) ||
+      !atomic_load(&g_voice_initialized))
+    {
+      ret = -EBUSY;
+      goto out;
+    }
+
   if (g_configured && revision == g_config_revision)
     {
       goto out;
@@ -1955,12 +2098,19 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
   bool voice_interaction_active = false;
   bool preferences_pending = false;
   uint32_t connection_generation = bkprov_gatt_generation();
+  uint64_t link_check_at = 0;
+  bool link_expected = false;
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+  int bootstrap_observed = -EAGAIN;
+#endif
   uint64_t storage_deadline = 0;
   uint64_t storage_retry_at = 0;
   uint64_t voice_cleanup_at = 0;
   uint64_t voice_action_at = 0;
   uint64_t preferences_retry_at = 0;
   uint64_t trigger_retry_at = 0;
+  uint64_t network_retry_at = 0;
+  uint32_t network_backoff = 5000;
   int voice_turn_result = 0;
   enum voice_action_e voice_action = VOICE_ACTION_NONE;
   (void)argc; (void)argv;
@@ -2073,6 +2223,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (events & 8)
         {
           pending = true;
+          network_retry_at = 0;
+          network_backoff = 5000;
           atomic_store(&g_trigger_prepare_pending, true);
         }
 
@@ -2124,12 +2276,36 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
             }
         }
 
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+      int bootstrap_now = bkprov_bootstrap_status();
+      if (bootstrap_now != bootstrap_observed)
+        {
+          bootstrap_observed = bootstrap_now;
+          if (bootstrap_now >= 0) pending = true;
+        }
+#endif
+      bkprov_config_step();
       bkprov_network_step();
       bool network_busy = bkprov_network_busy();
       if (network_was_busy && !network_busy)
         {
-          g_configured = g_service_result == 0;
-          g_product_error = g_service_result;
+          int network_result = bkprov_network_result();
+          struct bk7258_wifi_result_s link = {0};
+          if (bk7258_wifi_read_link(&link) == 0)
+            link_expected = link.link_state == BK7258_WIFI_LINK_CONNECTED && link.ipaddr != 0;
+          g_configured = network_result == 0 && g_service_result == 0;
+          g_product_error = network_result ? network_result : g_service_result;
+          if (network_result && network_result != -ECANCELED)
+            {
+              network_retry_at = now + network_backoff;
+              if (network_backoff < 60000) network_backoff *= 2;
+              if (network_backoff > 60000) network_backoff = 60000;
+            }
+          else if (network_result == 0)
+            {
+              network_retry_at = 0;
+              network_backoff = 5000;
+            }
           syslog(g_configured ? LOG_INFO : LOG_WARNING,
                  "BKVOICE configuration ready=%d result=%d revision=%llu\n",
                  g_configured, g_product_error,
@@ -2137,16 +2313,29 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         }
 
       network_was_busy = network_busy;
-      if (!atomic_load(&g_agent_core_ready) ||
-          !atomic_load(&g_voice_initialized) ||
-          !atomic_load(&g_agent_ready))
+      if (link_expected && !network_busy && now >= link_check_at)
         {
-          continue;
+          struct bk7258_wifi_result_s link = {0};
+          link_check_at = now + 1000;
+          if (bk7258_wifi_read_link(&link) == 0 &&
+              link.link_state != BK7258_WIFI_LINK_CONNECTED)
+            {
+              link_expected = false;
+              g_configured = false;
+              g_service_result = -ENETDOWN;
+              if (atomic_load(&g_voice_initialized)) voice_channel_cancel();
+              network_retry_at = now + 1000;
+              syslog(LOG_WARNING, "BKVOICE link lost; reconnect scheduled\n");
+            }
         }
-
+      if (network_retry_at && now >= network_retry_at)
+        {
+          network_retry_at = 0;
+          pending = true;
+        }
       if (pending && !bkagent_ota_busy() &&
-          voice_channel_is_idle() &&
-          !network_busy && !bkprov_owner_busy())
+          (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()) &&
+          !network_busy && !bkprov_owner_pairing())
         {
           int ret = bk7258_agent_activate_cloud(&storage_waiting);
           if (storage_waiting && now < storage_deadline)
@@ -2170,9 +2359,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         }
 
       (void)bkprov_owner_step(bkvoice_config_now_ms(NULL), 0, false, false,
-        voice_channel_is_idle() &&
-        !bkprov_network_busy() && !bkagent_ota_busy());
-      if (bkagent_ota_busy())
+        !bkagent_ota_busy());
+      if (!atomic_load(&g_agent_core_ready) ||
+          !atomic_load(&g_voice_initialized) || bkagent_ota_busy())
         {
           continue;
         }
@@ -2722,7 +2911,7 @@ int bk7258_agent_product_start(void)
       g_bk7258_agent_pid = (int)launchpid;
       syslog(LOG_ERR, "bk7258: Agent coordinator failed: %d\n",
              (int)launchpid);
-      return (int)launchpid;
+      /* Keep local management and power control available on Agent failure. */
     }
 
 #ifdef CONFIG_BK7258_VOICE_TLS

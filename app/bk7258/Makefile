@@ -15,7 +15,7 @@ include $(APPDIR)/Make.defs
 ifeq ($(CONFIG_BK7258_PROVISION_GATT),y)
 CSRCS += bk7258_provision_gatt.c bk7258_provision_tls.c bk7258_provision_claim.c
 CSRCS += bk7258_provision_store.c bk7258_provision_pair.c bk7258_provision_owner.c
-CSRCS += bk7258_provision_scan.c bk7258_provision_settings.c bk7258_provision_storage.c
+CSRCS += bk7258_provision_scan.c bk7258_provision_settings.c bk7258_provision_config.c bk7258_provision_storage.c
 CSRCS += bk7258_provision_identity.c bk7258_provision_network.c bk7258_provision_time.c
 CSRCS += bk7258_control_session.c bk7258_control_pair.c bk7258_control_ota_request.c
 endif
@@ -237,6 +237,30 @@ PROGNAME  += $(CONFIG_BK7258_APP_BKVALIDATE_PROGNAME)
 PRIORITY  += $(CONFIG_BK7258_APP_BKVALIDATE_PRIORITY)
 STACKSIZE += $(CONFIG_BK7258_APP_BKVALIDATE_STACKSIZE)
 MAINSRC   += bkvalidate_main.c
+endif
+
+ifeq ($(CONFIG_BK7258_APP_FACTORY),y)
+PROGNAME += bkfactory
+PRIORITY += 100
+STACKSIZE += 4096
+MAINSRC += bk7258_factory_main.c
+endif
+
+ifeq ($(CONFIG_BK7258_PROVISION_NATIVE),y)
+CSRCS += bk7258_provision_generate.c bk7258_provision_bootstrap.c
+BKPROV_QR_ROOT = $(APPDIR)/graphics/lvgl/lvgl
+CFLAGS += ${INCDIR_PREFIX}$(BKPROV_QR_ROOT)/src/libs/qrcode
+ifeq ($(CONFIG_GRAPHICS_LVGL),y)
+ifneq ($(CONFIG_LV_USE_QRCODE),y)
+$(error Native onboarding with LVGL requires LV_USE_QRCODE)
+endif
+else
+CSRCS += $(BKPROV_QR_ROOT)/src/libs/qrcode/qrcodegen.c
+CSRCS += $(BKPROV_QR_ROOT)/src/misc/lv_assert.c
+# These flags affect this non-LVGL product archive, not the official LVGL tree.
+CFLAGS += -DLV_CONF_SKIP -DLV_KCONFIG_IGNORE -DLV_USE_LOG=0
+CFLAGS += '-DLV_ASSERT_HANDLER_INCLUDE=<stdlib.h>' '-DLV_ASSERT_HANDLER=abort();'
+endif
 endif
 
 MODULE = y

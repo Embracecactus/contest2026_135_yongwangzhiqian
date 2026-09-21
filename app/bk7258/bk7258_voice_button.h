@@ -47,6 +47,7 @@ bool bkvoice_button_running(void);
 #if defined(CONFIG_BK7258_PRODUCT_KEYS) && defined(CONFIG_BK7258_AP_CORE)
 int bkvoice_keys_listen(void (*notify)(void));
 void bkvoice_keys_take(int *volume_steps, bool *power_requested);
+bool bkvoice_keys_power_held(void);
 #endif
 
 #endif /* __APP_BK7258_BK7258_VOICE_BUTTON_H */

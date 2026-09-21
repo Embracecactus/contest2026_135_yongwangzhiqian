@@ -43,6 +43,9 @@ static struct
   bool down;
   bool confirm_armed;
   bool recovery;
+  int (*window_handler)(bool open, unsigned char secret[32], void *context);
+  void *window_context;
+  bool quiescing;
 } g_owner;
 
 static uint64_t owner_now(void *unused)
@@ -142,12 +145,23 @@ int bkprov_owner_bind(mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
   return 0;
 }
 
+int bkprov_owner_window_handler(
+  int (*handler)(bool, unsigned char[32], void *), void *context)
+{
+  if (bkprov_owner_busy()) return -EBUSY;
+  g_owner.window_handler = handler;
+  g_owner.window_context = context;
+  return 0;
+}
+
 int bkprov_owner_unbind(void)
 {
   if (bkprov_owner_busy()) return -EBUSY;
   mbedtls_platform_zeroize(g_owner.secret, sizeof(g_owner.secret));
   g_owner.certificate = NULL;
   g_owner.key = NULL;
+  g_owner.window_handler = NULL;
+  g_owner.window_context = NULL;
   g_owner.ops = NULL;
   g_owner.context = NULL;
   g_owner.armed = false;
@@ -175,6 +189,8 @@ static void close_window(int error)
     }
   if (g_owner.pair != NULL)
     {
+      if (g_owner.window_handler)
+        (void)g_owner.window_handler(false, g_owner.secret, g_owner.window_context);
       int ret = bkprov_gatt_window(false);
       bkprov_pair_close(g_owner.pair);
       free(g_owner.pair);
@@ -188,6 +204,18 @@ static void close_window(int error)
   g_owner.confirm_armed = false;
 }
 
+int bkprov_owner_quiesce(bool enabled)
+{
+  g_owner.quiescing = enabled;
+  if (!enabled) return 0;
+  g_owner.recovery_requested = false;
+  if (g_owner.pair != NULL || g_owner.control != NULL)
+    close_window(-ECANCELED);
+  bkprov_scan_drain();
+  (void)bkprov_gatt_poll();
+  return bkprov_owner_busy() ? -EAGAIN : 0;
+}
+
 static int open_window(bool recovery)
 {
   uint8_t transaction[16];
@@ -195,6 +223,7 @@ static int open_window(bool recovery)
   size_t size;
   int ret;
   if (!recovery && g_owner.ops == NULL) return -ENOSYS;
+  if (recovery && g_owner.window_handler) return -EACCES;
   struct bkprov_pair_s *pair = calloc(1, sizeof(*pair));
   if (pair == NULL) return -ENOMEM;
   /* Snapshot is bounded RAM access; no RPMsgFS wait on the voice owner.
@@ -208,9 +237,16 @@ static int open_window(bool recovery)
       free(pair);
       return ret == 0 ? -EACCES : ret;
     }
+  if (g_owner.window_handler)
+    {
+      ret = g_owner.window_handler(true, g_owner.secret, g_owner.window_context);
+      if (ret < 0) { free(pair); return ret; }
+    }
   ret = bkprov_gatt_window(true);
   if (ret < 0)
     {
+      if (g_owner.window_handler)
+        (void)g_owner.window_handler(false, g_owner.secret, g_owner.window_context);
       free(pair);
       return ret;
     }
@@ -226,6 +262,11 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
                         bool pressed, bool voice_idle)
 {
   bool was_active = g_owner.pair != NULL;
+  if (g_owner.quiescing)
+    {
+      (void)bkprov_owner_quiesce(true);
+      return bkprov_owner_busy();
+    }
   /* A closed BLE session cannot abandon the shared Wi-Fi worker ticket. */
   bkprov_scan_drain();
   bool rollback = g_owner.sampled && now < g_owner.now;
@@ -275,7 +316,7 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
           ret = bkcontrol_pair_start(g_owner.control, generation,
                   g_owner.certificate, g_owner.key, g_owner.control_key,
                   owner_now, NULL, g_owner.execute, g_owner.control_context);
-          if (ret == 0)
+          if (ret == 0 && g_owner.window_handler == NULL)
             {
               memcpy(g_owner.control->scan_secret, g_owner.secret, 32);
               g_owner.control->rebind_ops = g_owner.ops;

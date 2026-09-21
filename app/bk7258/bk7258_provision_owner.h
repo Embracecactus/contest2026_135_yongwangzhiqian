@@ -13,6 +13,10 @@ int bkprov_owner_bind(mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
                        const uint8_t secret[32],
                        const struct bkprov_claim_ops_s *ops, void *context);
 int bkprov_owner_unbind(void);
+/* Native screen windows replace the permanent supplied possession secret. */
+int bkprov_owner_window_handler(
+  int (*handler)(bool open, unsigned char secret[32], void *context),
+  void *context);
 bool bkprov_owner_busy(void);
 /* A daily authenticated session is busy for identity replacement, but does
  * not own the physical PTT input or prevent volume/persona commands. */
@@ -26,6 +30,8 @@ int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
 int bkprov_owner_control_ota(bkcontrol_ota_t ota);
 int bkprov_owner_control_config(bkcontrol_config_t config);
 int bkprov_owner_error(void);
+/* Gate new sessions and drain existing transports without changing ownership. */
+int bkprov_owner_quiesce(bool enabled);
 /* Feed the current owner-service snapshot. While idle, a bound identity,
  * writable claim operations, and a storage snapshot proven absent make the
  * initial claim discoverable without button, link, or epoch input. The legacy

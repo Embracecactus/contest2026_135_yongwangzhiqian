@@ -2,6 +2,7 @@
 #ifndef __APP_BK7258_PROVISION_IDENTITY_H
 #define __APP_BK7258_PROVISION_IDENTITY_H
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/pk.h>
@@ -16,6 +17,7 @@ struct bkprov_identity_s
   mbedtls_x509_crt certificate;
   mbedtls_pk_context key;
   uint8_t secret[32];
+  bool generated; /* BPI2: device-created; no permanent BLE recovery secret. */
   uint8_t *record;
   size_t size;
   size_t certificate_size;
@@ -23,5 +25,6 @@ struct bkprov_identity_s
 };
 int bkprov_identity_load(struct bkprov_identity_s *identity,
                           const void *record, size_t size);
+int bkprov_identity_generate(unsigned char **record, size_t *size);
 void bkprov_identity_clear(struct bkprov_identity_s *identity);
 #endif

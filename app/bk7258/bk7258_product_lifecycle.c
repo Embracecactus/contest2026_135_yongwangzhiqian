@@ -35,6 +35,9 @@
 #include "bk7258_provision_gatt.h"
 #include "bk7258_provision_storage.h"
 #include "bk7258_provision_time.h"
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+#include "bk7258_provision_bootstrap.h"
+#endif
 #endif
 
 #ifdef CONFIG_BK7258_VOICE_VOLUME_PERSISTENCE
@@ -178,6 +181,10 @@ int bk7258_ap_application_start(void)
    * not wait for that I/O. Missing/corrupt stores keep claiming unavailable. */
   ret = bkprov_storage_start("/cpdata/shaniu");
   if (ret < 0) return ret;
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+  ret = bkprov_bootstrap_start();
+  if (ret < 0) return ret;
+#endif
 #endif
 #endif
 

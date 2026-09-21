@@ -225,7 +225,8 @@ int bkprov_storage_identity(void *record, size_t capacity, size_t *size)
 
 int bkprov_storage_identity_install(const void *record, size_t size)
 {
-  if (record == NULL || size < 48 || size > 8192 || memcmp(record, "BPI1", 4)) return -EINVAL;
+  if (record == NULL || size < 48 || size > 8192 ||
+      (memcmp(record, "BPI1", 4) && memcmp(record, "BPI2", 4))) return -EINVAL;
   pthread_mutex_lock(&g_lock);
   struct storage_s *s = g_storage;
   int ret;

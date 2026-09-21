@@ -69,7 +69,7 @@ class ProvisioningConnection internal constructor(
                 ProvisionSettings.useControlKey(configuration) { key ->
                     binding.beforeApply(transaction, key, if (key == null) null else certificatePin)
                 }
-            })
+            }, ownerRebind = !bootstrap.screenBootstrap)
     private val transport: Transport = (transportFactory ?: { events ->
         AndroidTransport(context, device, tls, events)
     })(object : Transport.Events {

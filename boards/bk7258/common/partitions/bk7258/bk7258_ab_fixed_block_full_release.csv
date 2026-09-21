@@ -27,6 +27,9 @@ secondary_manifest,,4K,data,TRUE,FALSE,manifest_b,external
 primary_bl2,0x6a4000,136K,code,TRUE,FALSE,bl2_a,external
 secondary_bl2,,136K,code,TRUE,FALSE,bl2_b,external
 persistent_data,0x6e8000,1M,data,TRUE,TRUE,,preserve
+# Dedicated first-boot journal in the previously unallocated gap.
+# No existing data partition is resized or moved.
+factory_state,0x7f8000,8K,data,TRUE,TRUE,,preserve
 easyflash,0x7fa000,8K,data,TRUE,TRUE,,immutable
 easyflash_ap,0x7fc000,8K,data,TRUE,TRUE,,immutable
 sys_rf,0x7fe000,4K,data,TRUE,TRUE,,immutable

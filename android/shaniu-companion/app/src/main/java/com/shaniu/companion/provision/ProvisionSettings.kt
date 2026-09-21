@@ -46,14 +46,15 @@ object ProvisionSettings {
         require(candidate.size in 32..16384)
         val header = ByteBuffer.wrap(candidate)
         val magic = header.int
-        require(magic in 0x53434231..0x53434233)
+        require(magic in 0x53434231..0x53434234)
         val cloudSize = header.getInt(28)
         val caSize = header.getInt(24)
-        require(caSize in 1..4096)
-        require(if (magic == 0x53434231) cloudSize == 0 else cloudSize in 24..16384)
+        require(caSize in (if (magic == 0x53434234) 0 else 1)..4096)
+        require(if (magic == 0x53434231) cloudSize == 0 else
+            cloudSize in 24..16384 || magic == 0x53434234 && cloudSize == 0)
         val networkSize = 32L + (candidate[4].toInt() and 255) +
             (candidate[5].toInt() and 255) + (candidate[6].toInt() and 255) + caSize
-        val ownerSize = if (magic == 0x53434233) 32 else 0
+        val ownerSize = if (magic >= 0x53434233) 32 else 0
         require(networkSize + cloudSize + ownerSize == candidate.size.toLong())
         if (cloudSize != 0) require(header.getInt(networkSize.toInt()) == 0x43434631)
         val key = if (ownerSize == 0) null else candidate.copyOfRange(candidate.size - 32, candidate.size)
@@ -61,6 +62,16 @@ object ProvisionSettings {
             require(key == null || key.any { it != 0.toByte() })
             block(key)
         } finally { key?.fill(0) }
+    }
+
+    /** Establish only ownership. Networking is a separate authenticated update. */
+    fun encodeOwner(utcSeconds: Long, controlKey: ByteArray): ByteArray {
+        require(utcSeconds in 1704067200L..4133980799L)
+        require(controlKey.size == 32 && controlKey.any { it != 0.toByte() })
+        return ByteArray(64).also {
+            ByteBuffer.wrap(it).putInt(0x53434234).putLong(16, utcSeconds)
+            controlKey.copyInto(it, 32)
+        }
     }
 
     fun encodeCloud(ssid: String, password: CharArray, baseUrl: String,

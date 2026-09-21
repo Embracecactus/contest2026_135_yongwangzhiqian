@@ -161,6 +161,17 @@ class ProvisionActivity : Activity() {
         discoveryPage = section()
         discoveryPage.addView(com.shaniu.companion.CompanionPortraitView(this),
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190)))
+        button("扫描傻妞屏幕上的认领码", discoveryPage) {
+            if (connection == null) {
+                stopDiscovery()
+                com.google.zxing.integration.android.IntentIntegrator(this)
+                    .setDesiredBarcodeFormats(com.google.zxing.integration.android.IntentIntegrator.QR_CODE)
+                    .setPrompt("扫描设备屏幕认领码，不要分享二维码截图")
+                    .setCaptureActivity(ClaimCaptureActivity::class.java)
+                    .setBeepEnabled(false).setOrientationLocked(false)
+                    .setBarcodeImageEnabled(false).initiateScan()
+            }
+        }.apply { primaryStyle() }
         scanButton = button("查找附近的傻妞", discoveryPage) { stopNfc(); discover() }.apply { primaryStyle() }
         nfcButton = button("碰一碰查找", discoveryPage) { beginNfc() }
         nfcStatus = text("", 13, discoveryPage).apply { visibility = View.GONE }
@@ -311,7 +322,11 @@ class ProvisionActivity : Activity() {
         }
         val pending = hasPending(bootstrap!!.deviceId) ?: return
         if (pending) {
-            connect(recover = true)
+            connect(recover = true, controlFirst = bootstrap?.screenBootstrap == true)
+            return
+        }
+        if (bootstrap?.screenBootstrap == true) {
+            connect()
             return
         }
         stopDiscovery(); showPage(1)
@@ -344,6 +359,20 @@ class ProvisionActivity : Activity() {
     @Deprecated("Platform Activity callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        val scanned = com.google.zxing.integration.android.IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+        if (scanned != null) {
+            val value = scanned.contents ?: return
+            try {
+                val next = ProvisionBootstrap.parseQr(value)
+                bootstrap?.close(); bootstrap = next
+                selected = null; devices.removeAllViews(); found.clear()
+                nextButton.isEnabled = false
+                activationButton.visibility = View.GONE
+                showPage(0)
+                reportStatus("已读取设备认领码，请查找并选择附近的傻妞。无需先连接 Wi-Fi。")
+            } catch (_: Exception) { reportStatus("认领码无效；请扫描傻妞当前屏幕上的二维码。") }
+            return
+        }
         if (resultCode != RESULT_OK || requestCode !in listOf(BOOTSTRAP, CERTIFICATE, ACTIVATION)) return
         val uri = data?.data ?: return
         var bytes: ByteArray? = null
@@ -488,11 +517,11 @@ class ProvisionActivity : Activity() {
             status.text = "上次提交结果未确认，需要先核对设备回执。"
             return
         }
-        localConnectInputError(recover)?.let {
+        if (bootstrap?.screenBootstrap != true) localConnectInputError(recover)?.let {
             reportStatus(it)
             return
         }
-        if (!developerMode && !recover && endpoint == null) {
+        if (!developerMode && !recover && endpoint == null && bootstrap?.screenBootstrap != true) {
             if (cloudResolving) return
             val url = cloudUrl.text.toString().trim()
             val device = selected?.address
@@ -533,7 +562,11 @@ class ProvisionActivity : Activity() {
                 }
                 bundle = byteArrayOf(0) // No configuration is sent in recovery.
             } else {
-            if (!developerMode) {
+            if (identity.screenBootstrap) {
+                val controlKey = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+                try { bundle = ProvisionSettings.encodeOwner(System.currentTimeMillis() / 1000, controlKey) }
+                finally { controlKey.fill(0) }
+            } else if (!developerMode) {
                 val verified = requireNotNull(endpoint)
                 val controlKey = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
                 try {
@@ -564,7 +597,9 @@ class ProvisionActivity : Activity() {
                     if (state == ProvisionClaimProtocol.State.COMMITTED || state == ProvisionClaimProtocol.State.NOT_COMMITTED) outcomeUnknown = false
                     status.text = when (state) {
                         ProvisionClaimProtocol.State.LOCAL_CONFIRMATION -> "正在由 App 验证设备所有权，请保持设备靠近手机并通电。"
-                        ProvisionClaimProtocol.State.COMMITTED -> "设备已确认保存连接设置。"
+                        ProvisionClaimProtocol.State.COMMITTED -> if (identity.screenBootstrap)
+                            "认领已保存。返回首页连接设备，在设备设置中配置 Wi-Fi 与云服务。"
+                            else "设备已确认保存连接设置。"
                         ProvisionClaimProtocol.State.NOT_COMMITTED -> "设备确认没有已提交配置，可以重新认领。"
                         ProvisionClaimProtocol.State.UNCONFIRMED -> "提交结果未确认，请先核对设备状态，勿重复认领。"
                         ProvisionClaimProtocol.State.FAILED -> connection?.failureMessage()

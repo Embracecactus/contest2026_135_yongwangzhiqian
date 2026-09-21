@@ -4,7 +4,7 @@ if(CONFIG_BK7258_PROVISION_GATT)
   target_include_directories(apps PRIVATE ${NUTTX_DIR}/wireless/bluetooth)
   target_sources(apps PRIVATE bk7258_provision_gatt.c bk7258_provision_tls.c
                               bk7258_provision_claim.c bk7258_provision_store.c
-                              bk7258_provision_pair.c bk7258_provision_scan.c bk7258_provision_settings.c
+                              bk7258_provision_pair.c bk7258_provision_scan.c bk7258_provision_settings.c bk7258_provision_config.c
                               bk7258_provision_storage.c bk7258_provision_owner.c
                               bk7258_provision_identity.c bk7258_provision_network.c
                               bk7258_provision_time.c bk7258_control_session.c
@@ -338,4 +338,30 @@ if(CONFIG_BK7258_APP_DATA)
     SRCS bk7258_data_main.c
     STACKSIZE ${CONFIG_BK7258_APP_DATA_STACKSIZE}
     PRIORITY ${CONFIG_BK7258_APP_DATA_PRIORITY})
+endif()
+
+if(CONFIG_BK7258_APP_FACTORY)
+  nuttx_add_application(NAME bkfactory SRCS bk7258_factory_main.c
+                        STACKSIZE 4096 PRIORITY 100)
+endif()
+
+if(CONFIG_BK7258_PROVISION_NATIVE)
+  target_sources(apps PRIVATE bk7258_provision_generate.c bk7258_provision_bootstrap.c)
+  set(BKPROV_QR_ROOT ${NUTTX_APPS_DIR}/graphics/lvgl/lvgl)
+  target_include_directories(apps PRIVATE ${BKPROV_QR_ROOT}/src/libs/qrcode)
+  # Consume the manifest-pinned MIT Nayuki implementation already in LVGL.
+  # AIDK has no LVGL runtime: compile only the pure encoder and assertion handler.
+  if(CONFIG_GRAPHICS_LVGL)
+    if(NOT CONFIG_LV_USE_QRCODE)
+      message(FATAL_ERROR "Native onboarding with LVGL requires LV_USE_QRCODE")
+    endif()
+  else()
+    target_sources(apps PRIVATE ${BKPROV_QR_ROOT}/src/libs/qrcode/qrcodegen.c
+                                ${BKPROV_QR_ROOT}/src/misc/lv_assert.c)
+    set_property(SOURCE ${BKPROV_QR_ROOT}/src/libs/qrcode/qrcodegen.c
+                        ${BKPROV_QR_ROOT}/src/misc/lv_assert.c
+      TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_DEFINITIONS
+      LV_CONF_SKIP LV_KCONFIG_IGNORE LV_USE_LOG=0
+      "LV_ASSERT_HANDLER_INCLUDE=<stdlib.h>" "LV_ASSERT_HANDLER=abort();")
+  endif()
 endif()

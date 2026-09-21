@@ -1,5 +1,10 @@
 # BK7258 × openvela：三核平台适配与傻妞 AI 伴侣
 
+> **Fork 开发候选：** 首启自主身份、屏幕扫码离线认领、独立 Wi-Fi/云设置与 K2
+> 关机协调正在本 fork 直接迭代。操作、工厂全量迁移和未验收边界见
+> [首启候选说明](docs/platforms/bk7258/shaniu-firstboot-candidate.md)。以下赛事版的
+> 手工身份供给步骤仅描述旧版；不能作为新候选已经通过实板验证的证明。
+
 [English](README_EN.md) · [参赛技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [板级配置](boards/bk7258/CONFIGS.md) · [实际验收与待办](docs/platforms/bk7258/shaniu-master-plan.md)
 
 一套 BK7258 芯片适配，三块开发板，两个独立 NuttX 镜像：CPU0 运行 CP，

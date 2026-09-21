@@ -23,6 +23,7 @@ sys.path.insert(0, str(TOOLS))
 from _lib import build as build_domain  # noqa: E402
 from _lib import deploy as deploy_domain  # noqa: E402
 from _lib import display_assets as display_assets_domain  # noqa: E402
+from _lib import factory as factory_domain  # noqa: E402
 from _lib import image as image_domain  # noqa: E402
 from _lib import layout as layout_domain  # noqa: E402
 from _lib import layers as layers_domain  # noqa: E402
@@ -212,6 +213,8 @@ def _parser() -> argparse.ArgumentParser:
     full.add_argument("--base-evidence", type=Path, required=True)
     full.add_argument("--openssl", type=Path, required=True)
     full.add_argument("--output-dir", type=Path, required=True)
+    full.add_argument("--factory-init", action="store_true",
+                      help="also create a same-unit factory BIN that clears user data and arms first boot; never OTA")
     ota = release_commands.add_parser(
         "ota", help="create one pending signed CP/AP OTA release"
     )
@@ -652,6 +655,16 @@ def _release(args: argparse.Namespace) -> None:
                 "size": operator_report["size"],
             }
             summary["materialization"] = materialization
+        if args.release_command == "full" and args.factory_init:
+            assert accepted_base is not None and operator_report is not None
+            factory_path = staging / "flash" / (operator_path.stem + "-factory.bin")
+            summary["factory_operator"] = factory_domain.create(
+                manifest.layout, operator_path, str(operator_report["sha256"]),
+                factory_path, accepted_base.device_id)
+            summary["recommended_flash"] = "flash/" + factory_path.name
+            summary["factory_warning"] = (
+                "Factory BIN is a separately hashed mutable-data derivative, not the signed bkpack. "
+                "Normal operator/bkpack remain private same-unit recovery artifacts.")
         _release_summary(staging, summary)
         package_domain.publish_directory_no_replace(
             staging, output, f"{args.release_command} release"

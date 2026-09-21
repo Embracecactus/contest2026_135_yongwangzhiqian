@@ -13,7 +13,11 @@ mount -t procfs CONFIG_NSH_PROC_MOUNTPOINT
 #if defined(CONFIG_BK7258_ONCHIP_DATAFS) && \
     defined(CONFIG_FS_LITTLEFS)
 mkdir /data
+#ifdef CONFIG_BK7258_APP_FACTORY
+bkfactory mount
+#else
 mount -t littlefs /dev/mtdblock0 /data
+#endif
 #endif
 
 #ifndef CONFIG_NSH_DISABLE_ECHO

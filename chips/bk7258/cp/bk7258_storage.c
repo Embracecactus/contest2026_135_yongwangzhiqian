@@ -26,6 +26,7 @@ static struct bk7258_storage_config_s g_config;
 static struct bk7258_ota_layout_s g_config_ota_layout;
 static struct bk7258_radio_storage_config_s g_config_radio_storage;
 static struct bk7258_storage_region_s g_config_data_storage;
+static struct bk7258_storage_region_s g_config_factory_storage;
 static bool g_config_ready;
 static FAR const struct bk7258_ota_layout_s *g_ota_layout;
 static uint32_t g_marker_address;
@@ -72,6 +73,11 @@ static bool bk7258_storage_guard_range(
     {
       case BK7258_STORAGE_GUARD_DATA:
         data = config->data_storage;
+        return data != NULL &&
+               bk7258_storage_range(address, size, data->start, data->size);
+
+      case BK7258_STORAGE_GUARD_FACTORY:
+        data = config->factory_storage;
         return data != NULL &&
                bk7258_storage_range(address, size, data->start, data->size);
 
@@ -258,6 +264,12 @@ int bk7258_storage_configure(
           g_config.data_storage = &g_config_data_storage;
         }
 
+      if (config->factory_storage != NULL)
+        {
+          g_config_factory_storage = *config->factory_storage;
+          g_config.factory_storage = &g_config_factory_storage;
+        }
+
       __atomic_store_n(&g_config_ready, true, __ATOMIC_RELEASE);
       ret = 0;
     }
@@ -298,6 +310,26 @@ int bk7258_storage_ota_layout(
     }
 
   *layout = current;
+  return 0;
+}
+
+int bk7258_storage_factory_regions(
+  const struct bk7258_storage_region_s **factory,
+  const struct bk7258_storage_region_s **data)
+{
+  const struct bk7258_storage_config_s *config = bk7258_storage_config();
+  if (!factory || !data) return -EINVAL;
+  if (!config) return -EAGAIN;
+  const struct bk7258_storage_region_s *f = config->factory_storage;
+  const struct bk7258_storage_region_s *d = config->data_storage;
+  if (!f || !d) return -ENOSYS;
+  if (f->size != 8192 || f->start % BK7258_FLASH_SECTOR_SIZE ||
+      d->size == 0 || d->start > UINT32_MAX - d->size ||
+      f->start > UINT32_MAX - f->size ||
+      (f->start < d->start + d->size && d->start < f->start + f->size))
+    return -EINVAL;
+  *factory = f;
+  *data = d;
   return 0;
 }
 
@@ -376,6 +408,12 @@ static int bk7258_storage_guard_validate(
         data = config->data_storage;
         return data != NULL && data->size != 0u &&
                data->start <= UINT32_MAX - data->size ? 0 : -EINVAL;
+
+      case BK7258_STORAGE_GUARD_FACTORY:
+        {
+          const struct bk7258_storage_region_s *factory;
+          return bk7258_storage_factory_regions(&factory, &data);
+        }
 
       case BK7258_STORAGE_GUARD_RADIO:
         radio = config->radio_storage;

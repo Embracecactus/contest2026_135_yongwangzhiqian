@@ -196,7 +196,8 @@ class MainActivity : Activity() {
     private var wakeSensitivityExpected: Int? = null
     private var wakeSensitivityError: String? = null
     private var wakeSensitivityCanceling = false
-    private enum class ConfigFlow { NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, SENSITIVITY, EYES }
+    private enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, SENSITIVITY, EYES }
+    private var settingsEditor: com.shaniu.companion.provision.DeviceSettingsEditor? = null
     private var configFlow = ConfigFlow.NONE
     private var configAppendMax = 32
     private var configCapabilitiesGeneration: Long? = null
@@ -328,6 +329,7 @@ class MainActivity : Activity() {
     override fun onStop() {
         // The shared session keeps a bounded grace period for file pickers and
         // other Activities. Foreground return resumes the same authenticated link.
+        settingsEditor?.close(); settingsEditor = null
         foreground = false
         cancelPendingWakeImport("已取消等待导入，尚未向设备发送模型")
         touchActive = false
@@ -399,6 +401,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        settingsEditor?.close(); settingsEditor = null
         destroyed = true
         firmwareInspectionEpoch++
         selectedFirmwareFile?.delete()
@@ -1418,7 +1421,7 @@ class MainActivity : Activity() {
                 ConfigFlow.RESPONSE -> handleResponseModeResult(command, snapshot)
                 ConfigFlow.SENSITIVITY -> handleWakeSensitivityResult(command, snapshot)
                 ConfigFlow.EYES -> handleEyeResult(command, snapshot)
-                ConfigFlow.NONE -> Unit
+                ConfigFlow.SETTINGS, ConfigFlow.NONE -> Unit
             }
             if (foreground) render()
             return
@@ -1645,6 +1648,16 @@ class MainActivity : Activity() {
         if (code == 6042 && foreground && !destroyed) {
             if (results.isNotEmpty() && results.all { it == android.content.pm.PackageManager.PERMISSION_GRANTED }) scanDirect()
             else { directMessage = "连接需要附近设备权限，可在系统设置中开启。"; render() }
+        }
+    }
+
+    private fun editDeviceSettings() {
+        configFlow = ConfigFlow.SETTINGS
+        settingsEditor = com.shaniu.companion.provision.DeviceSettingsEditor(
+            this, directSession, provisionedDeviceId, configAppendMax) { outcome ->
+            settingsEditor = null; configFlow = ConfigFlow.NONE
+            directMessage = outcome; cloudModelsGeneration = null
+            if (!destroyed) render()
         }
     }
 
@@ -1879,8 +1892,7 @@ class MainActivity : Activity() {
                         else -> cloudModelsReadError ?: "尚未读取模型配置"
                     }
                     settingsRow("云端模型", modelText, enabled = configMutationReady) {
-                        if (modelsCurrent) editCloudModels()
-                        else { requestCloudModelsRead(); render() }
+                        editDeviceSettings()
                     }
                     if (cloudModelsExpected != null) settingsRow("取消模型保存", "停止当前配置事务；不会重放未完成写入", enabled = true) {
                         if (!directSession.cancelConfigTransaction()) directMessage = "当前模型配置已结束"
@@ -1923,7 +1935,10 @@ class MainActivity : Activity() {
                     settingsRow("读取当前眼睛", "读取设备实际安装状态", enabled = configAvailable()) { readCurrentEyes() }
                     settingsRow("恢复上一唤醒词模型", currentWake?.previous?.let { "恢复为 ${wakeModelSummary(it)}" }
                         ?: "恢复前先读取设备保存的上一模型", enabled = configMutationReady) { restoreWakeModel() }
-                    settingsRow("设备配置", "配网与添加结果核对", !busy) { startProvisioning() }
+                    settingsRow("Wi-Fi 与云服务", "认证后可离线修改网络、服务地址、密钥及模型", configMutationReady) {
+                        editDeviceSettings()
+                    }
+                    settingsRow("核对认领结果", "仅用于首次认领或核对未确认结果", !busy && settingsEditor == null) { startProvisioning() }
                 }
                 sectionTitle("隐私与管理")
                 settingsRow("隐私与权限", "了解语音、凭据与记忆的使用") { selectTab(TAB_PRIVACY); render() }
