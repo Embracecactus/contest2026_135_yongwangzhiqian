@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: Apache-2.0
+# One-time transport of an exact locally reviewed source tree. Not a test runner.
+# The native GitHub connection removes this workflow after verifying publication.
+name: Integrate reviewed Shaniu candidate
+on:
+  push:
+    branches: [dev-ai-contest-2026]
+    paths:
+      - '.github/workflows/shaniu-integrate-reviewed.yml'
+      - '.github/shaniu-reviewed/**'
+permissions:
+  contents: write
+concurrency:
+  group: shaniu-reviewed-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'Embracecactus/contest2026_135_yongwangzhiqian' && github.ref == 'refs/heads/dev-ai-contest-2026'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify exact baseline, payload, every file and complete target tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, bz2, hashlib, json, os, pathlib, subprocess
+          BASE = '8db064e2c3b0b06caa495f247c452356235aaa87'
+          BASE_TREE = '030ee8c3c7d7246e07376cef336be074e222835d'
+          TARGET_TREE = 'db852f42d6fd37e6eca61e83b4f308dbcc01795e'
+          root = pathlib.Path.cwd()
+          own = '.github/workflows/shaniu-integrate-reviewed.yml'
+          checks = '.github/workflows/shaniu-source-checks.yml'
+          parts = [f'.github/shaniu-reviewed/part{i:02}.b64' for i in range(8)]
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          if git('rev-parse', 'HEAD^') != BASE or git('rev-parse', 'HEAD^^{tree}') != BASE_TREE:
+              raise SystemExit('Baseline changed: refusing publication')
+          transport = set(git('diff', '--name-only', 'HEAD^', 'HEAD').splitlines())
+          if transport != set(parts + [own]):
+              raise SystemExit('Unexpected transport commit paths')
+          encoded = ''.join((root / p).read_text().strip() for p in parts)
+          packed = base64.b64decode(encoded, validate=True)
+          if len(packed) != 35860 or hashlib.sha256(packed).hexdigest() != 'a1c7d1dda19662320479f43f231d24c796cd0278e641b023c8cf903bdabb7adc':
+              raise SystemExit('Payload digest mismatch')
+          raw = bz2.decompress(packed)
+          if len(raw) > 500000 or hashlib.sha256(raw).hexdigest() != 'cf1b283188c52acded0b92a89f3b0482de1c53c95076d3d112f803067f614ff9':
+              raise SystemExit('Decoded payload digest mismatch')
+          changes = json.loads(raw)
+          if len(changes) != 62:
+              raise SystemExit('Unexpected file count')
+          paths = set()
+          for name, old_sha, new_sha, edits in changes:
+              rel = pathlib.PurePosixPath(name)
+              if rel.is_absolute() or '..' in rel.parts or name in paths:
+                  raise SystemExit('Invalid source path')
+              if not (name in [checks, 'README.md', 'contest2026_135_yongwangzhiqian.xml'] or name.startswith(('app/bk7258/', 'chips/bk7258/', 'boards/bk7258/', 'android/shaniu-companion/', 'tools/bk7258/', 'docs/platforms/bk7258/'))):
+                  raise SystemExit('Source path outside reviewed scope')
+              paths.add(name)
+              p = root / name
+              if p.is_symlink() or not p.resolve().is_relative_to(root):
+                  raise SystemExit('Symlink path rejected')
+              if old_sha is None:
+                  if p.exists():
+                      raise SystemExit('New source already exists: ' + name)
+                  old = b''
+              else:
+                  old = p.read_bytes()
+                  if hashlib.sha256(old).hexdigest() != old_sha:
+                      raise SystemExit('Source baseline mismatch: ' + name)
+              lines = old.decode('utf-8').splitlines(keepends=True)
+              end = 0
+              for first, last, text in edits:
+                  if not (isinstance(first, int) and isinstance(last, int) and end <= first <= last <= len(lines) and isinstance(text, str)):
+                      raise SystemExit('Invalid source replacement')
+                  end = last
+              for first, last, text in reversed(edits):
+                  lines[first:last] = [text]
+              new = ''.join(lines).encode('utf-8')
+              if hashlib.sha256(new).hexdigest() != new_sha:
+                  raise SystemExit('Target content mismatch: ' + name)
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_bytes(new)
+          # Verify the complete reviewed final tree, excluding only transport.
+          own_content = (root / own).read_bytes()
+          for p in parts + [own]:
+              (root / p).unlink()
+          subprocess.run(['git', 'add', '-A'], check=True)
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          if git('write-tree') != TARGET_TREE:
+              raise SystemExit('Complete target tree mismatch')
+          # GITHUB_TOKEN need not modify workflows. Their final update/removal is
+          # performed by the already-authorized native GitHub connection.
+          (root / own).write_bytes(own_content)
+          (root / checks).write_bytes(subprocess.check_output(['git', 'show', BASE + ':' + checks]))
+          subprocess.run(['git', 'add', '-A'], check=True)
+          changed = set(git('diff', '--cached', '--name-only').splitlines())
+          expected = (paths - {checks}) | set(parts)
+          if changed != expected or any(p.startswith('.github/workflows/') for p in changed):
+              raise SystemExit('Unexpected publish paths')
+          print('Reviewed source tree verified:', TARGET_TREE)
+          print('Publishing functional source files:', len(paths) - 1)
+          PY
+      - name: Publish without force to the explicitly selected fork branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git config user.name 'ChatGPT code integration'
+          git config user.email 'noreply@openai.com'
+          git commit -m 'feat: add controlled native first boot, offline settings and queued K2 shutdown' -m 'Exact reviewed target tree: db852f42d6fd37e6eca61e83b4f308dbcc01795e. Hardware acceptance and complete CP/AP build remain pending. No upstream PR or force push.'
+          git push origin HEAD:refs/heads/dev-ai-contest-2026
+          git rev-parse HEAD
