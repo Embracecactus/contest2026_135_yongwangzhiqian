@@ -84,6 +84,22 @@ object ProvisionSettings {
         } finally { cloud.fill(0); network?.fill(0) }
     }
 
+
+    /** Owner-only claim record (SCB4): exactly one control key and no network or
+     * cloud section. Ownership is established first; Wi-Fi and voice settings
+     * follow on the authenticated control channel, so a first claim never needs
+     * a reachable hotspot, a cloud account or an API key.
+     */
+    fun encodeOwner(controlKey: ByteArray): ByteArray {
+        require(controlKey.size == 32 && controlKey.any { it != 0.toByte() })
+        return ByteBuffer.allocate(64)
+            .putInt(0x53434234).put(0).put(0).put(0).put(0)
+            .putShort(0).putShort(0)
+            .put(ByteArray(4)).putLong(0L)
+            .putInt(0).putInt(0)
+            .put(controlKey).array()
+    }
+
     fun encode(ssid: String, password: CharArray, host: String, ipv4: ByteArray,
                port: Int, caDer: ByteArray, utcSeconds: Long): ByteArray {
         inputError(ssid, password)?.let { require(false) { it } }

@@ -13,8 +13,8 @@ android {
         applicationId = "com.shaniu.companion"
         minSdk = 29
         targetSdk = 35
-        versionCode = 28
-        versionName = "0.5.23-shaniu-rebind"
+        versionCode = 29
+        versionName = "0.5.24-shaniu-firstuse"
         buildConfigField("boolean", "LEGACY_SERVICE_DEMO", "false")
         testInstrumentationRunner = "com.shaniu.companion.provision.ControlKeyInstrumentation"
     }
@@ -39,6 +39,8 @@ android {
 
 dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
+    // Pure-Java QR decoder for the device's own first-use claim code.
+    implementation("com.google.zxing:core:3.5.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     testImplementation("junit:junit:4.13.2")
 }

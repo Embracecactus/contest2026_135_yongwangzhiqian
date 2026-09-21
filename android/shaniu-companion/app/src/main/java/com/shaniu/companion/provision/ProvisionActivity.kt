@@ -80,6 +80,26 @@ class ProvisionActivity : Activity() {
     private lateinit var bindingStore: ProvisionBindingStore
     private var page = 0
     private var developerMode = false
+    /* Set when the identity came from the device's own screen: the first claim
+     * then commits ownership only, and Wi-Fi/voice settings follow later on the
+     * authenticated control channel.
+     */
+    private var claimOnly = false
+    private lateinit var scanClaimButton: Button
+    /* Post-claim configuration transaction on the authenticated control
+     * channel: kind 7 stages the same SCB2 record the claim protocol uploads,
+     * but with the owner control key instead of the factory identity secret.
+     */
+    private var control: DeviceControlConnection? = null
+    private var controlBundle: ByteArray? = null
+    private var controlOffset = 0
+    private var controlAppendMax = 32
+    private var controlStage = 0
+    private var controlPolling = 0
+    /* True once ownership exists: settings then go through the authenticated
+     * control channel instead of the claim transaction.
+     */
+    private var controlConfigure = false
     private var bootstrap: ProvisionBootstrap? = null
     private var ca: ByteArray? = null
     private var selected: BluetoothDevice? = null
@@ -161,7 +181,9 @@ class ProvisionActivity : Activity() {
         discoveryPage = section()
         discoveryPage.addView(com.shaniu.companion.CompanionPortraitView(this),
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190)))
-        scanButton = button("查找附近的傻妞", discoveryPage) { stopNfc(); discover() }.apply { primaryStyle() }
+        scanClaimButton = button("扫码添加傻妞", discoveryPage) { scanClaim() }
+            .apply { primaryStyle() }
+        scanButton = button("查找附近的傻妞", discoveryPage) { stopNfc(); discover() }
         nfcButton = button("碰一碰查找", discoveryPage) { beginNfc() }
         nfcStatus = text("", 13, discoveryPage).apply { visibility = View.GONE }
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)) {
@@ -225,7 +247,8 @@ class ProvisionActivity : Activity() {
         }
         if (developerMode) listOf(cloudKey, advancedToggle, servicePreset)
             .forEach { it.visibility = View.GONE }
-        button("保存并连接", networkPage) { connect() }.apply { primaryStyle() }
+        button("保存并连接", networkPage) { if (controlConfigure) saveOverControl() else connect() }
+            .apply { primaryStyle() }
         resultPage = section()
         resultButton = button("取消连接", resultPage) { if (connection != null) connection?.close() else goBack() }
 
@@ -303,6 +326,11 @@ class ProvisionActivity : Activity() {
     }
     private fun nextPage() {
         if (selected == null) { reportStatus("请先选择附近的傻妞。"); return }
+        if (claimOnly) {
+            /* A device that showed its own claim code needs ownership first. */
+            claimOwner()
+            return
+        }
         // Owner activation is required before collecting a Wi-Fi password.
         if (bootstrap == null ||
             (developerMode && (ca == null || host.text.isNullOrBlank() || address.text.isNullOrBlank()))) {
@@ -344,6 +372,15 @@ class ProvisionActivity : Activity() {
     @Deprecated("Platform Activity callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == QR_REQUEST) {
+            if (resultCode != RESULT_OK) {
+                status.text = "没有读到二维码；可以重试扫码或使用蓝牙查找。"
+                return
+            }
+            val payload = data?.getStringExtra(QrScanActivity.EXTRA_PAYLOAD)
+            if (payload != null) acceptClaimCode(payload)
+            return
+        }
         if (resultCode != RESULT_OK || requestCode !in listOf(BOOTSTRAP, CERTIFICATE, ACTIVATION)) return
         val uri = data?.data ?: return
         var bytes: ByteArray? = null
@@ -412,6 +449,331 @@ class ProvisionActivity : Activity() {
         finally { bytes?.fill(0) }
     }
 
+
+
+    /** Save Wi-Fi and voice settings on the already owned device. */
+    private fun saveOverControl(endpoint: CloudEndpoint.Verified? = null) {
+        if (!foreground || control != null) return
+        localConnectInputError(false)?.let { reportStatus(it); return }
+        if (!developerMode && endpoint == null) {
+            if (cloudResolving) return
+            val url = cloudUrl.text.toString().trim()
+            val device = selected?.address
+            val generation = ++cloudLookupGeneration
+            cloudResolving = true
+            reportStatus("正在验证语音服务连接…")
+            Thread {
+                val resolved = runCatching { cloudResolver(url) }
+                handler.post {
+                    if (generation != cloudLookupGeneration) return@post
+                    cloudResolving = false
+                    if (!alive || !foreground || device != selected?.address ||
+                        url != cloudUrl.text.toString().trim()) return@post
+                    resolved.fold(onSuccess = { saveOverControl(it) },
+                        onFailure = { reportStatus("无法验证语音服务，请检查 HTTPS 地址及网络。") })
+                }
+            }.start()
+            return
+        }
+
+        val target = selected
+        val identity = bootstrap
+        if (target == null || identity == null) {
+            reportStatus("请先扫码认领这台傻妞。")
+            return
+        }
+
+        val key = existingControlKey(identity.deviceId)
+        if (key == null) {
+            reportStatus("本机没有该设备的控制凭据，请重新扫码认领。")
+            return
+        }
+
+        val secret = CharArray(password.length()) { password.text[it] }
+        val apiKey = CharArray(cloudKey.length()) { cloudKey.text[it] }
+        var bundle: ByteArray? = null
+        try {
+            if (!developerMode) {
+                val verified = requireNotNull(endpoint)
+                bundle = ProvisionSettings.encodeCloud(ssid.text.toString(), secret,
+                    cloudUrl.text.toString().trim(), apiKey,
+                    if (cloudDialect.selectedItemPosition == 0) CloudSettings.Dialect.MIMO
+                    else CloudSettings.Dialect.OPENAI_CHAT_AUDIO,
+                    asrModel.text.toString().trim(), chatModel.text.toString().trim(),
+                    ttsModel.text.toString().trim(), verified.address, verified.caDer,
+                    System.currentTimeMillis() / 1000, null)
+            } else {
+                val cert = ca ?: error("Missing CA")
+                val parts = address.text.toString().trim().split('.')
+                require(parts.size == 4)
+                val ipv4 = parts.map { require(it.matches(Regex("[0-9]{1,3}"))); it.toInt().also { n -> require(n in 0..255) }.toByte() }.toByteArray()
+                bundle = ProvisionSettings.encode(ssid.text.toString(), secret, host.text.toString().trim(),
+                    ipv4, port.text.toString().toInt(), cert, System.currentTimeMillis() / 1000)
+            }
+        } catch (_: Exception) {
+            reportStatus("Wi-Fi 或语音服务配置无效；请检查后再保存。")
+            return
+        } finally {
+            key.fill(0)
+            secret.fill('\u0000')
+            apiKey.fill('\u0000')
+        }
+
+        controlBundle = bundle
+        controlOffset = 0
+        controlStage = 0
+        controlPolling = 0
+        showPage(2)
+        titleLabel.text = "正在保存设置"
+        status.text = "正在通过已认证蓝牙通道保存设置…"
+        resultButton.text = "取消连接"
+        val current = ++epoch
+        val active = DeviceControlConnection(this, target, identity.deviceId,
+            { command, snapshot -> handler.post {
+                if (!alive || current != epoch) return@post
+                onControlConfig(command, snapshot)
+            } },
+            { reason -> handler.post {
+                if (!alive || current != epoch) return@post
+                failControlMessage("设置未完成：设备连接已断开（$reason）。")
+            } },
+            bindingStore, null)
+        control = active
+        resultButton.setOnClickListener { active.close() }
+    }
+
+    private fun onControlConfig(command: DeviceControlProtocol.Command,
+                                snapshot: DeviceControlProtocol.Snapshot) {
+        when (controlStage) {
+            0 -> {
+                if (command != DeviceControlProtocol.Command.STATUS) return
+                /* Learn the authenticated APPEND limit before staging. */
+                controlStage = 1
+                control?.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
+                    java.nio.ByteBuffer.allocate(4).putInt(0x7fff shl 16).array())
+            }
+            1 -> {
+                val chunk = snapshot.configChunk
+                if (snapshot.error == 0 && chunk != null && chunk.totalLength == 12 &&
+                    chunk.bytes.size >= 12) {
+                    val record = java.nio.ByteBuffer.wrap(chunk.bytes)
+                    if (record.int == 0x43415031 && record.int == 1) {
+                        val maximum = record.int
+                        if (maximum in 32..512) controlAppendMax = maximum
+                    }
+                }
+                val bundle = controlBundle ?: return
+                controlStage = 2
+                control?.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                    java.nio.ByteBuffer.allocate(8).putInt(7).putInt(bundle.size).array())
+            }
+            2 -> {
+                if (snapshot.error != 0) { failControl(snapshot.error); return }
+                controlStage = 3
+                sendControlChunk()
+            }
+            3 -> {
+                if (snapshot.error != 0) { failControl(snapshot.error); return }
+                val bundle = controlBundle ?: return
+                if (controlOffset < bundle.size) sendControlChunk()
+                else {
+                    controlStage = 4
+                    control?.requestPayload(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))
+                }
+            }
+            4 -> {
+                if (snapshot.error != 0) { failControl(snapshot.error); return }
+                controlStage = 5
+                requestControlResult()
+            }
+            5 -> {
+                if (snapshot.error != 0) { failControl(snapshot.error); return }
+                val chunk = snapshot.configChunk
+                if (chunk == null || chunk.totalLength != 16 || chunk.bytes.size < 16) {
+                    failControlMessage("设备返回的配置状态无效，请重新连接核对。")
+                    return
+                }
+                val record = java.nio.ByteBuffer.wrap(chunk.bytes)
+                val magic = record.int
+                val state = record.int
+                when {
+                    magic != 0x4e5731 -> failControlMessage("设备返回的配置状态无效，请重新连接核对。")
+                    state == 2 -> {
+                        titleLabel.text = "设置已保存"
+                        status.text = "傻妞已保存 Wi-Fi 与语音服务设置。"
+                        resultButton.text = "返回首页"
+                        resultButton.setOnClickListener { finish() }
+                        control?.close()
+                        control = null
+                        controlBundle?.fill(0)
+                        controlBundle = null
+                        controlStage = 0
+                        setResult(RESULT_OK, Intent().putExtra(EXTRA_PROVISIONED_DEVICE_ID,
+                            bootstrap?.deviceId))
+                    }
+                    state == 3 -> failControlMessage("设备未能保存设置，请重试。")
+                    else -> {
+                        if (controlPolling++ < 20) {
+                            handler.postDelayed({
+                                if (alive && controlStage == 5) requestControlResult()
+                            }, 500)
+                        } else {
+                            failControlMessage("设备尚未确认保存结果，请重新连接核对。")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun requestControlResult() {
+        control?.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
+            java.nio.ByteBuffer.allocate(4).putInt(7 shl 16).array())
+    }
+
+    private fun sendControlChunk() {
+        val bundle = controlBundle ?: return
+        val count = minOf(controlAppendMax, bundle.size - controlOffset)
+        val chunk = bundle.copyOfRange(controlOffset, controlOffset + count)
+        controlOffset += count
+        control?.requestPayload(DeviceControlProtocol.Command.CONFIG_APPEND, chunk)
+    }
+
+    private fun finishControl() {
+        control?.close()
+        control = null
+        controlBundle?.fill(0)
+        controlBundle = null
+        controlStage = 0
+        controlOffset = 0
+        controlPolling = 0
+    }
+
+    private fun failControl(error: Int) {
+        failControlMessage("设备未确认设置（$error），请重新连接核对后再试。")
+    }
+
+    private fun failControlMessage(message: String) {
+        finishControl()
+        titleLabel.text = "设置未完成"
+        status.text = message
+        resultButton.text = "返回查找设备"
+        resultButton.setOnClickListener { goBack() }
+    }
+
+    /** First-use entry: read the device's own claim code from its screen. */
+    private fun scanClaim() {
+        if (!foreground || connection != null) return
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.CAMERA), QR_PERMISSIONS)
+            return
+        }
+        stopNfc()
+        stopDiscovery()
+        startActivityForResult(Intent(this, QrScanActivity::class.java), QR_REQUEST)
+    }
+
+    private fun acceptClaimCode(text: String) {
+        var decoded: ClaimCode.Decoded? = null
+        try {
+            val parsed = ClaimCode.parse(text)
+            decoded = parsed
+            val next = ProvisionBootstrap.fromClaimCode(parsed.fingerprint, parsed.secret)
+            bootstrap?.close()
+            bootstrap = next
+            ca?.fill(0)
+            ca = null
+            claimOnly = true
+            nfcLocator = parsed.locator.copyOf()
+            found.clear()
+            devices.removeAllViews()
+            selected = null
+            nextButton.isEnabled = false
+            nextButton.visibility = View.GONE
+            activationButton.visibility = View.GONE
+            reportStatus("已读取傻妞屏幕上的二维码，正在查找这台设备…")
+            discover()
+        } catch (_: Exception) {
+            reportStatus("这不是傻妞的首次使用二维码，或二维码内容已被修改。")
+        } finally {
+            decoded?.close()
+        }
+    }
+
+    /** Commit ownership without any network or cloud credential. */
+    private fun claimOwner() {
+        if (!foreground || connection != null) return
+        val target = selected
+        val identity = bootstrap
+        if (target == null || identity == null) {
+            reportStatus("请先扫码并选择傻妞设备。")
+            return
+        }
+
+        val pending = hasPending(identity.deviceId) ?: return
+        if (pending) {
+            connect(recover = true)
+            return
+        }
+
+        val controlKey = existingControlKey(identity.deviceId)
+            ?: ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+        var bundle: ByteArray? = null
+        try {
+            bundle = ProvisionSettings.encodeOwner(controlKey)
+        } catch (_: Exception) {
+            reportStatus("无法准备本次认领，请重试。")
+            return
+        } finally {
+            controlKey.fill(0)
+        }
+
+        stopDiscovery()
+        showPage(2)
+        status.text = "正在认领傻妞，请保持设备在手机旁并通电。"
+        resultButton.text = "取消连接"
+        resultButton.setOnClickListener { connection?.close() }
+        val current = ++epoch
+        val candidate = bundle
+        connection = connectionFactory(target, identity, candidate, { state ->
+            handler.post {
+                if (!alive || current != epoch) return@post
+                when (state) {
+                    ProvisionClaimProtocol.State.LOCAL_CONFIRMATION ->
+                        status.text = "正在验证设备所有权，请保持设备靠近手机并通电。"
+                    ProvisionClaimProtocol.State.COMMITTED -> {
+                        connection?.close()
+                        connection = null
+                        titleLabel.text = "认领成功"
+                        controlConfigure = true
+                        claimOnly = false
+                        showPage(1)
+                        status.text = "傻妞已属于你。现在设置 Wi-Fi 与语音服务，之后就不用一直连接手机了。"
+                        resultButton.text = "返回首页"
+                        resultButton.setOnClickListener { finish() }
+                        setResult(RESULT_OK, Intent().putExtra(EXTRA_PROVISIONED_DEVICE_ID,
+                            identity.deviceId))
+                    }
+                    ProvisionClaimProtocol.State.UNCONFIRMED,
+                    ProvisionClaimProtocol.State.FAILED,
+                    ProvisionClaimProtocol.State.CLOSED,
+                    ProvisionClaimProtocol.State.NOT_COMMITTED -> {
+                        val message = connection?.failureMessage()
+                        connection?.close()
+                        connection = null
+                        titleLabel.text = "认领未完成"
+                        status.text = message
+                            ?: "没有取得设备的认领回执。设备可能已被认领，请先核对后再重试。"
+                        resultButton.text = "返回查找设备"
+                        resultButton.setOnClickListener { goBack() }
+                    }
+                    else -> status.text = "认领进行中，请保持设备连接。"
+                }
+            }
+        }, false)
+        candidate?.fill(0)
+    }
+
     private fun permissions(): Array<String> = if (Build.VERSION.SDK_INT >= 31)
         arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
     else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -437,9 +799,13 @@ class ProvisionActivity : Activity() {
     }
     override fun onRequestPermissionsResult(code: Int, names: Array<out String>, grants: IntArray) {
         super.onRequestPermissionsResult(code, names, grants)
-        if (code != PERMISSIONS && code != NFC_PERMISSIONS) return
+        if (code != PERMISSIONS && code != NFC_PERMISSIONS && code != QR_PERMISSIONS) return
         if (grants.isNotEmpty() && grants.all { it == PackageManager.PERMISSION_GRANTED }) {
-            if (code == NFC_PERMISSIONS) beginNfc() else discover()
+            when (code) {
+                NFC_PERMISSIONS -> beginNfc()
+                QR_PERMISSIONS -> scanClaim()
+                else -> discover()
+            }
         }
         else status.text = "未取得扫描权限；没有开始认领。"
     }
@@ -535,7 +901,14 @@ class ProvisionActivity : Activity() {
             } else {
             if (!developerMode) {
                 val verified = requireNotNull(endpoint)
-                val controlKey = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+                /* A device that this App already owns keeps its owner control
+                 * key. The firmware rejects a rebind whose control key
+                 * differs from the stored one, so inventing a new key here
+                 * would make changing Wi-Fi impossible without clearing the
+                 * device. A first claim still creates the key.
+                 */
+                val controlKey = existingControlKey(identity.deviceId)
+                    ?: ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
                 try {
                 bundle = ProvisionSettings.encodeCloud(ssid.text.toString(), secret,
                     cloudUrl.text.toString().trim(), apiKey,
@@ -596,6 +969,16 @@ class ProvisionActivity : Activity() {
             secret.fill('\u0000'); apiKey.fill('\u0000'); bundle?.fill(0)
             if (handedOff) { password.text.clear(); cloudKey.text.clear() }
         }
+    }
+
+    /** Returns the stored owner control key when this App is already bound to
+     * that device, else null. The returned array is a copy owned by the
+     * caller and is wiped after the bundle is encoded.
+     */
+    private fun existingControlKey(deviceId: String): ByteArray? = try {
+        bindingStore.useControlKey(deviceId) { it.copyOf() }
+    } catch (_: Exception) {
+        null
     }
 
     private fun startControlRecovery(target: BluetoothDevice, identity: ProvisionBootstrap) {
@@ -867,7 +1250,7 @@ class ProvisionActivity : Activity() {
         super.onStop()
     }
     override fun onDestroy() {
-        alive = false; epoch++; stopNfc(); stopDiscovery(); connection?.close(); recoveryControl?.close()
+        alive = false; epoch++; stopNfc(); stopDiscovery(); connection?.close(); recoveryControl?.close(); finishControl()
         bootstrap?.close(); ca?.fill(0); password.text.clear(); cloudKey.text.clear()
         handler.removeCallbacksAndMessages(null)
         super.onDestroy()
@@ -875,6 +1258,8 @@ class ProvisionActivity : Activity() {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     companion object {
         const val EXTRA_PROVISIONED_DEVICE_ID = "com.shaniu.companion.provisioned_device_id"
+        private const val QR_REQUEST = 108
+        private const val QR_PERMISSIONS = 109
         private const val WIFI_SCAN_LOG_TAG = "ShaniuWifiScan"
         private const val ACTIVATION = 104
         private const val NFC_PERMISSIONS = 105

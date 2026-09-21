@@ -70,6 +70,15 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_EYE_PACK 5u
 /* KWT1 + BE32 score threshold percent (50..90) + BE32 reserved = 0. */
 #define BKCONTROL_CONFIG_WAKE_THRESHOLD 6u
+/* Kind 7 stages the same SCB2/SCB3 network+cloud record the claim protocol
+ * uploads, on the already authenticated control connection. The device keeps
+ * its stored owner control key: a record that tries to rotate it is rejected,
+ * and SCB2 (no key) leaves it untouched. READ returns "NW1" + BE32 state +
+ * signed BE32 result + BE32 revision, where 1 is a pending durable commit and
+ * 2 a committed record. APPLY only acknowledges the staged request; READ, then
+ * the normal STATUS wifi flags, are the result.
+ */
+#define BKCONTROL_CONFIG_NETWORK_CLOUD 7u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (136u + 65536u)
 struct bkcontrol_device_info_s

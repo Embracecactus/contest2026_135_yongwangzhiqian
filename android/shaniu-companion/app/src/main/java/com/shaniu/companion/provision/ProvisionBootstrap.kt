@@ -47,10 +47,34 @@ class ProvisionBootstrap private constructor(
 
     override fun toString(): String = "ProvisionBootstrap(redacted)"
 
+
     companion object {
         private val fields = setOf("protocol", "device_id", "certificate_sha256", "possession_secret")
         private val devicePattern = Regex("[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
         private val digestPattern = Regex("[0-9a-f]{64}")
+        /** Builds a bootstrap from the device's own first-use claim code.
+             *
+             * The device identifier is the leaf fingerprint, so two units can never
+             * share one binding, and no manufacturer-supplied file is involved. The
+             * pin authenticates the pinned provisioning TLS peer; the secret is the
+             * current claim window's possession proof.
+             */
+            fun fromClaimCode(fingerprint: ByteArray, secret: ByteArray): ProvisionBootstrap {
+                require(fingerprint.size == 32 && secret.size == 32 &&
+                        secret.any { it != 0.toByte() }) { "Invalid claim code" }
+                val device = fingerprint.joinToString("") { "%02x".format(it.toInt() and 255) }
+                require(validDeviceId(device) != null) { "Invalid claim code" }
+                val pin = fingerprint.copyOf()
+                val proof = secret.copyOf()
+                return try {
+                    ProvisionBootstrap(device, pin, proof)
+                } catch (_: Exception) {
+                    pin.fill(0)
+                    proof.fill(0)
+                    throw IllegalArgumentException("Invalid claim code")
+                }
+            }
+
 
         /** Shared boundary for the non-secret device locator returned to the
          * launcher after a committed provisioning transaction.
