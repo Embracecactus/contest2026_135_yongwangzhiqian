@@ -30,6 +30,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - name: Check source and existing product-key regression
+        run: |
+          python3 -m compileall -q tools/bk7258
+          python3 tools/bk7258/bk7258.py verify layers
+          make -C tests/host/bk7258 run-product-keys
       - name: Prepare manifest-pinned host dependencies
         shell: bash
         run: |
@@ -38,35 +43,39 @@ jobs:
           root = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
           projects = {p.attrib['path']: p.attrib for p in ET.parse(root / 'openvela.xml').findall('project')}
           selected = ['apps', 'apps/crypto/mbedtls/mbedtls', 'apps/netutils/cjson/cJSON', 'apps/graphics/lvgl/lvgl', 'nuttx']
-          records = []
-          for path in selected:
-              p = projects[path]
-              dest = root.parent / path
-              dest.mkdir(parents=True, exist_ok=True)
-              url = 'https://github.com/open-vela/' + p['name'] + '.git'
-              subprocess.run(['git', 'init', '-q', str(dest)], check=True)
-              subprocess.run(['git', '-C', str(dest), 'fetch', '--depth=1', url, p['revision']], check=True)
-              subprocess.run(['git', '-C', str(dest), 'checkout', '-q', '--detach', 'FETCH_HEAD'], check=True)
-              records.append({'path': path, 'repository': url, 'commit': p['revision']})
           manifest = ET.parse(root / 'contest2026_135_yongwangzhiqian.xml')
           agent = next(p for p in manifest.findall('extend-project') if p.attrib.get('path') == 'packages/ai_agent')
-          dest = root.parent / 'packages/ai_agent'
-          dest.mkdir(parents=True, exist_ok=True)
-          url = 'https://github.com/Embracecactus/packages_ai_agent.git'
-          subprocess.run(['git', 'init', '-q', str(dest)], check=True)
-          subprocess.run(['git', '-C', str(dest), 'fetch', '--depth=1', url, agent.attrib['revision']], check=True)
-          subprocess.run(['git', '-C', str(dest), 'checkout', '-q', '--detach', 'FETCH_HEAD'], check=True)
-          records.append({'path': 'packages/ai_agent', 'repository': url, 'commit': agent.attrib['revision']})
-          (pathlib.Path(os.environ['RUNNER_TEMP']) / 'host-dependency-commits.json').write_text(json.dumps(records, indent=2) + '\n')
+          records = []
+          for path in selected + ['packages/ai_agent']:
+              p = projects[path] if path in selected else agent.attrib
+              owner = 'open-vela' if path in selected else 'Embracecactus'
+              dest = root.parent / path
+              dest.mkdir(parents=True, exist_ok=True)
+              subprocess.run(['git', 'init', '-q', str(dest)], check=True)
+              record = {'path': path, 'commit': p['revision'], 'available': False}
+              # A mirror may supply the SAME object; never substitute a branch tip.
+              hosts = ['https://github.com/', 'https://gitee.com/'] if owner == 'open-vela' else ['https://github.com/']
+              for host in hosts:
+                  url = host + owner + '/' + p['name'] + '.git'
+                  try:
+                      subprocess.run(['git', '-C', str(dest), 'fetch', '--depth=1', url, p['revision']], check=True, timeout=90)
+                      subprocess.run(['git', '-C', str(dest), 'checkout', '-q', '--detach', 'FETCH_HEAD'], check=True)
+                      observed = subprocess.check_output(['git', '-C', str(dest), 'rev-parse', 'HEAD'], text=True).strip()
+                      if observed != p['revision']:
+                          raise RuntimeError('Unexpected dependency commit')
+                      record.update(repository=url, available=True)
+                      break
+                  except (subprocess.SubprocessError, RuntimeError):
+                      print('::warning::Cannot retrieve locked object for ' + path + ' from ' + host)
+              records.append(record)
+              (pathlib.Path(os.environ['RUNNER_TEMP']) / 'host-dependency-commits.json').write_text(json.dumps(records, indent=2) + '\n')
+          missing = [r['path'] for r in records if not r['available']]
+          if missing:
+              raise SystemExit('Locked dependency objects unavailable: ' + ', '.join(missing))
           PY
-      - name: Check source and existing product-key regression
-        run: |
-          python3 -m compileall -q tools/bk7258
-          python3 tools/bk7258/bk7258.py verify layers
-          make -C tests/host/bk7258 run-product-keys
       - name: Run existing provisioning regression
         run: make -C tests/host/bk7258 run-provision
-      - name: Capture exact source and host inputs for offline review
+      - name: Capture exact source and available host inputs
         if: always()
         shell: bash
         run: |
