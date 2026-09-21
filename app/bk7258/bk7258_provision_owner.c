@@ -3,10 +3,14 @@
 #include "bk7258_provision_gatt.h"
 #include "bk7258_provision_storage.h"
 #include "bk7258_provision_scan.h"
+#include "bk7258_provision_qr.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/entropy.h>
 #include <mbedtls/platform_util.h>
+#include <mbedtls/sha256.h>
 
 #define RECOVERY_HOLD_MS 8000u
 #define WINDOW_MS 120000u
@@ -22,6 +26,13 @@ static struct
   const struct bkprov_claim_ops_s *ops;
   void *context;
   uint8_t secret[32];
+  /* Fresh per-window possession secret published in the claim code. It is
+   * never the identity secret and never survives its window.
+   */
+  uint8_t window[32];
+  uint8_t locator[BKPROV_GATT_LOCATOR_SIZE];
+  bool window_valid;
+  bool locator_valid;
   struct bkprov_pair_s *pair;
   struct bkcontrol_pair_s *control;
   uint8_t control_key[32];
@@ -44,6 +55,31 @@ static struct
   bool confirm_armed;
   bool recovery;
 } g_owner;
+
+/* Draw a fresh window secret from the same entropy path the identity load
+ * uses. A device without a seeded entropy source must not open a claim window,
+ * so failure is reported instead of falling back to a predictable value.
+ */
+static int owner_random_secret(uint8_t secret[32])
+{
+  mbedtls_entropy_context entropy;
+  mbedtls_ctr_drbg_context random;
+  static const unsigned char purpose[] = "shaniu-claim-window";
+  int ret;
+
+  mbedtls_entropy_init(&entropy);
+  mbedtls_ctr_drbg_init(&random);
+  ret = mbedtls_ctr_drbg_seed(&random, mbedtls_entropy_func, &entropy,
+                              purpose, sizeof(purpose) - 1u);
+  if (ret == 0)
+    {
+      ret = mbedtls_ctr_drbg_random(&random, secret, 32u);
+    }
+
+  mbedtls_ctr_drbg_free(&random);
+  mbedtls_entropy_free(&entropy);
+  return ret == 0 ? 0 : -EIO;
+}
 
 static uint64_t owner_now(void *unused)
 {
@@ -186,6 +222,10 @@ static void close_window(int error)
   g_owner.armed = false;
   g_owner.down = false;
   g_owner.confirm_armed = false;
+  g_owner.window_valid = false;
+  g_owner.locator_valid = false;
+  mbedtls_platform_zeroize(g_owner.window, sizeof(g_owner.window));
+  memset(g_owner.locator, 0, sizeof(g_owner.locator));
 }
 
 static int open_window(bool recovery)
@@ -214,12 +254,71 @@ static int open_window(bool recovery)
       free(pair);
       return ret;
     }
+
+  /* A fresh window always mints a fresh secret; the code the previous window
+   * displayed can never redeem this one. Recovery stays read-only and keeps the
+   * identity possession secret, because it results no ownership change.
+   */
+  g_owner.window_valid = false;
+  g_owner.locator_valid = false;
+  memset(g_owner.locator, 0, sizeof(g_owner.locator));
+  mbedtls_platform_zeroize(g_owner.window, sizeof(g_owner.window));
+  if (!recovery)
+    {
+      ret = owner_random_secret(g_owner.window);
+      if (ret == 0)
+        {
+          g_owner.window_valid = true;
+          ret = bkprov_gatt_locator(g_owner.locator);
+          g_owner.locator_valid = ret == 0;
+        }
+
+      if (ret < 0)
+        {
+          (void)bkprov_gatt_window(false);
+          mbedtls_platform_zeroize(g_owner.window, sizeof(g_owner.window));
+          memset(g_owner.locator, 0, sizeof(g_owner.locator));
+          free(pair);
+          return ret;
+        }
+    }
+
   g_owner.pair = pair;
   g_owner.recovery = recovery;
   g_owner.opened = g_owner.now;
   g_owner.last_state = BKPROV_CLOSED;
   g_owner.confirm_armed = false;
   return 0;
+}
+
+int bkprov_owner_locator(uint8_t locator[8])
+{
+  if (locator == NULL) return -EINVAL;
+  if (!g_owner.locator_valid) return -ENOENT;
+  memcpy(locator, g_owner.locator, BKPROV_GATT_LOCATOR_SIZE);
+  return 0;
+}
+
+int bkprov_owner_claim_code(char *output, size_t capacity, size_t *size)
+{
+  uint8_t fingerprint[32];
+  int ret;
+
+  if (output == NULL || size == NULL) return -EINVAL;
+  if (!g_owner.window_valid || g_owner.pair == NULL || g_owner.recovery)
+    return -ENOENT;
+  if (!g_owner.locator_valid) return -EAGAIN;
+  if (g_owner.certificate == NULL || g_owner.certificate->raw.p == NULL ||
+      g_owner.certificate->raw.len == 0)
+    return -EINVAL;
+
+  ret = mbedtls_sha256(g_owner.certificate->raw.p,
+                       g_owner.certificate->raw.len, fingerprint, 0);
+  if (ret == 0)
+    ret = bkprov_qr_payload(output, capacity, size, g_owner.locator,
+                            fingerprint, g_owner.window);
+  mbedtls_platform_zeroize(fingerprint, sizeof(fingerprint));
+  return ret;
 }
 
 bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
@@ -386,9 +485,9 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
                   g_owner.key, g_owner.secret, true, owner_now, NULL,
                   bkprov_storage_receipt);
       else
-        ret = bkprov_pair_start(pair, generation, g_owner.certificate,
-                  g_owner.key, g_owner.secret, true, false, owner_now, NULL,
-                  g_owner.ops, g_owner.context);
+        ret = bkprov_pair_start_legacy(pair, generation, g_owner.certificate,
+                  g_owner.key, g_owner.window, g_owner.secret, true, owner_now,
+                  NULL, g_owner.ops, g_owner.context);
       if (ret == 0 && !g_owner.recovery)
         {
           pair->receipt = bkprov_storage_receipt;

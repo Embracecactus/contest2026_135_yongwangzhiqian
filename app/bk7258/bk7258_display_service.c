@@ -35,6 +35,9 @@
 #include <nuttx/signal.h>
 #include <nuttx/video/fb.h>
 
+#include "bk7258_provision_qr.h"
+#include <mbedtls/platform_util.h>
+
 
 #define BKDISPLAY_BLOCKDEV       CONFIG_BK7258_DISPLAY_BLOCKDEV
 #define BKDISPLAY_MOUNTROOT      "/mnt"
@@ -58,6 +61,11 @@ struct bkdisplay_service_s
   int diagnostic_error;
   uint16_t *frames[5];
   unsigned int animation_step;
+  /* Non-NULL while the first-use claim page owns both panels. The QR
+   * frame holds the live window secret, so it is wiped before it is
+   * released.
+   */
+  uint16_t *claim_frames[2];
 };
 
 enum bkdisplay_diagnostic_stage_e
@@ -360,6 +368,205 @@ static void bkdisplay_cache_frames(struct bkdisplay_service_s *service,
   service->animation_step = 0;
 }
 
+
+/* Built-in hint frame for the second panel: a QR glyph, a phone outline and an
+ * arrow from the phone towards the code. Drawn in code so the page needs no
+ * font or asset file on any medium.
+ */
+static void bkdisplay_claim_hint(uint16_t *pixels)
+{
+  static const uint16_t ink = 0x2a49u;   /* Dark teal, opaque RGB565. */
+  static const uint16_t paper = 0xf7bfu; /* Warm white. */
+  unsigned int x;
+  unsigned int y;
+
+  for (y = 0; y < BKDISPLAY_CANVAS_HEIGHT; y++)
+    {
+      for (x = 0; x < BKDISPLAY_CANVAS_WIDTH; x++)
+        {
+          pixels[y * BKDISPLAY_CANVAS_WIDTH + x] = paper;
+        }
+    }
+
+  /* A three-square QR corner glyph at the top left. */
+  {
+    static const unsigned int glyph[3][2] = {{16, 14}, {34, 14}, {16, 32}};
+    unsigned int i;
+    unsigned int row;
+    unsigned int col;
+
+    for (i = 0; i < 3; i++)
+      {
+        for (row = 0; row < 9; row++)
+          {
+            for (col = 0; col < 9; col++)
+              {
+                bool edge = row == 0 || row == 8 || col == 0 || col == 8;
+                unsigned int px = glyph[i][0] + col;
+                unsigned int py = glyph[i][1] + row;
+
+                if (edge)
+                  {
+                    pixels[py * BKDISPLAY_CANVAS_WIDTH + px] = ink;
+                  }
+              }
+          }
+      }
+  }
+
+  /* Phone outline with a speaker slot. */
+  for (y = 56; y < 142; y++)
+    {
+      for (x = 66; x < 118; x++)
+        {
+          bool border = y < 60 || y >= 138 || x < 70 || x >= 114;
+          bool speaker = y < 64 && x >= 86 && x < 98;
+
+          if (border || speaker)
+            {
+              pixels[y * BKDISPLAY_CANVAS_WIDTH + x] = ink;
+            }
+        }
+    }
+
+  /* Arrow from the phone towards the code. */
+  for (y = 30; y < 62; y++)
+    {
+      unsigned int step = (y - 30u) * 2u;
+      unsigned int px = 48u - step / 4u;
+      unsigned int k;
+
+      for (k = 0; k < 3u; k++)
+        {
+          pixels[y * BKDISPLAY_CANVAS_WIDTH + (px + k)] = ink;
+        }
+    }
+
+  for (y = 30; y < 38; y++)
+    {
+      for (x = 40; x < 50; x++)
+        {
+          if ((y - 30u) + (x - 40u) < 8u)
+            {
+              pixels[y * BKDISPLAY_CANVAS_WIDTH + x] = ink;
+            }
+        }
+    }
+}
+
+int bk7258_display_show_claim(const char *payload)
+{
+  struct bkdisplay_service_s *service = &g_bkdisplay_service;
+  uint8_t modules[BKPROV_QR_MAX_DIMENSION * BKPROV_QR_MAX_DIMENSION];
+  unsigned int version = 0;
+  unsigned int dimension = 0;
+  int ret;
+
+  if (payload == NULL || *payload == 0)
+    {
+      return -EINVAL;
+    }
+
+  ret = bkprov_qr_encode((const uint8_t *)payload, strlen(payload), modules,
+                         sizeof(modules), &version, &dimension);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = nxmutex_lock(&service->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (service->claim_frames[0] == NULL)
+    {
+      service->claim_frames[0] = calloc(BKDISPLAY_CANVAS_PIXELS,
+                                        sizeof(uint16_t));
+      service->claim_frames[1] = calloc(BKDISPLAY_CANVAS_PIXELS,
+                                        sizeof(uint16_t));
+      if (service->claim_frames[0] == NULL ||
+          service->claim_frames[1] == NULL)
+        {
+          free(service->claim_frames[0]);
+          free(service->claim_frames[1]);
+          service->claim_frames[0] = NULL;
+          service->claim_frames[1] = NULL;
+          ret = -ENOMEM;
+          goto out;
+        }
+    }
+
+  ret = bkprov_qr_render_rgb565(modules, dimension, service->claim_frames[0],
+                                BKDISPLAY_CANVAS_WIDTH,
+                                BKDISPLAY_CANVAS_HEIGHT, 0x0000u, 0xffffu);
+  if (ret == 0)
+    {
+      bkdisplay_claim_hint(service->claim_frames[1]);
+      ret = bkdisplay_framebuffer_write(BKDISPLAY_FB0,
+                                        service->claim_frames[0]);
+    }
+
+  if (ret == 0)
+    {
+      ret = bkdisplay_framebuffer_write(BKDISPLAY_FB1,
+                                        service->claim_frames[1]);
+    }
+
+  if (ret == 0)
+    {
+      service->status.state = BKDISPLAY_SERVICE_READY;
+      service->status.last_error = 0;
+      service->status.render_sequence++;
+      syslog(LOG_INFO,
+             "BKDISPLAY CLAIM PAGE qr=1 version=%u dimension=%u sequence=%lu\n",
+             version, dimension,
+             (unsigned long)service->status.render_sequence);
+    }
+
+out:
+  mbedtls_platform_zeroize(modules, sizeof(modules));
+  nxmutex_unlock(&service->lock);
+  return ret;
+}
+
+int bk7258_display_hide_claim(void)
+{
+  struct bkdisplay_service_s *service = &g_bkdisplay_service;
+  int ret = nxmutex_lock(&service->lock);
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (service->claim_frames[0] != NULL)
+    {
+      /* The frame holds the window secret: wipe before releasing it. */
+      mbedtls_platform_zeroize(service->claim_frames[0],
+                               BKDISPLAY_CANVAS_PIXELS * sizeof(uint16_t));
+      mbedtls_platform_zeroize(service->claim_frames[1],
+                               BKDISPLAY_CANVAS_PIXELS * sizeof(uint16_t));
+      free(service->claim_frames[0]);
+      free(service->claim_frames[1]);
+      service->claim_frames[0] = NULL;
+      service->claim_frames[1] = NULL;
+    }
+
+  if (service->frames[0] != NULL)
+    {
+      ret = bkdisplay_framebuffer_write(BKDISPLAY_FB0, service->frames[0]);
+      if (ret == 0)
+        {
+          ret = bkdisplay_framebuffer_write(BKDISPLAY_FB1, service->frames[0]);
+        }
+    }
+
+  nxmutex_unlock(&service->lock);
+  return ret;
+}
+
 static unsigned int bkdisplay_animate_locked(struct bkdisplay_service_s *service)
 {
   static const uint8_t frames[] = {0, 1, 2, 1, 0, 3, 0, 4, 0};
@@ -369,10 +576,12 @@ static unsigned int bkdisplay_animate_locked(struct bkdisplay_service_s *service
   uint16_t *pixels;
   int ret;
 
-  if (strcmp(service->status.expression, "mapping-test") == 0 ||
+  if (service->claim_frames[0] != NULL ||
+      strcmp(service->status.expression, "mapping-test") == 0 ||
       service->frames[0] == NULL || service->frames[1] == NULL ||
       service->frames[2] == NULL)
     {
+      /* The first-use claim page owns both panels until it is hidden. */
       return BKDISPLAY_RETRY_US;
     }
 
@@ -420,6 +629,14 @@ static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
   if (!service->devices_ready)
     {
       return -EAGAIN;
+    }
+
+  if (service->claim_frames[0] != NULL)
+    {
+      /* A claim page is already on the panels; an eye render must not
+       * overwrite the code the user is about to scan.
+       */
+      return 0;
     }
 
   stage = BKDISPLAY_DIAG_ALLOCATE;

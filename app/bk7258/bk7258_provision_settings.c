@@ -21,8 +21,36 @@ int bkprov_settings_decode(struct bkprov_settings_s *settings,
   if (settings == NULL) return -EINVAL;
   mbedtls_platform_zeroize(settings, sizeof(*settings));
   if (p == NULL || size<32 || (memcmp(p, "SCB1", 4) && memcmp(p, "SCB2", 4) &&
-     memcmp(p, "SCB3", 4)) ||
+     memcmp(p, "SCB3", 4) && memcmp(p, "SCB4", 4)) ||
      p[7] || p[10] || p[11]) return -EBADMSG;
+  if (p[3] == '4')
+    {
+      /* Owner-only claim: no network, no cloud, one nonzero control key. */
+      uint8_t nonzero = 0;
+      size_t i;
+
+      if (size != 32u + BKPROV_CONTROL_KEY_BYTES ||
+          get32(p + 24) != 0u || get32(p + 28) != 0u ||
+          p[4] || p[5] || p[6] || p[8] || p[9])
+        {
+          return -EBADMSG;
+        }
+
+      for (i = 12u; i < 32u; i++)
+        {
+          if (p[i]) return -EBADMSG;
+        }
+
+      for (i = 32u; i < size; i++)
+        {
+          nonzero |= p[i];
+        }
+
+      if (!nonzero) return -EBADMSG;
+      settings->control_key = p + 32u;
+      return 0;
+    }
+
   cloud = get32(p+28);
   control = p[3]=='3' ? BKPROV_CONTROL_KEY_BYTES : 0;
   if ((p[3]=='1' && cloud) || (p[3]!='1' && (cloud<24 || cloud>BKCLOUD_CONFIG_MAX)))

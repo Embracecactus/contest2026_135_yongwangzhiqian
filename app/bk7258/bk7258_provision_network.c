@@ -130,12 +130,23 @@ static int begin(void *context, const uint8_t *bundle, size_t size)
       ret = bkvoice_config_validate(t->voice, t->voice_size);
       if (ret < 0) bkprov_failure("validate", ret);
     }
-  if (ret == 0)
+  if (ret == 0 && t->settings.ssid[0] != '\0')
     {
       ret = bk7258_wifi_trial_start(t->settings.ssid, t->settings.password,
                                      30000, &t->lease);
       if (ret < 0) bkprov_failure("wifi_start", ret);
     }
+
+  if (ret == 0 && t->settings.ssid[0] == '\0')
+    {
+      /* Owner-only claim: ownership is the whole transaction, so there is
+       * nothing to verify over the network and no Wi-Fi credential to keep.
+       */
+      t->phase = VERIFIED;
+      g_trial = t; g_commit_known = false; g_last_error = 0;
+      return 0;
+    }
+
   if (ret < 0)
     { mbedtls_platform_zeroize(t, sizeof(*t)); free(t); return ret; }
   t->ticket = t->lease; t->wifi_pending = true; t->phase = WIFI;

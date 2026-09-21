@@ -55,6 +55,18 @@ int bkprov_pair_start(struct bkprov_pair_s *pair, uint32_t generation,
                       void *clock_context, const struct bkprov_claim_ops_s *ops,
                       void *context);
 int bkprov_pair_step(struct bkprov_pair_s *pair);
+/* Initial-claim window that additionally accepts a pre-generated activation
+ * secret. The claim code still carries its own fresh window secret; legacy is
+ * only accepted as an alternate proof for the same, single attempt.
+ */
+int bkprov_pair_start_legacy(struct bkprov_pair_s *pair, uint32_t generation,
+                             mbedtls_x509_crt *certificate,
+                             mbedtls_pk_context *key,
+                             const uint8_t secret[32],
+                             const uint8_t legacy[32], bool local_action,
+                             uint64_t (*now_ms)(void *), void *clock_context,
+                             const struct bkprov_claim_ops_s *ops,
+                             void *context);
 /* The read-only scan on an already claimed device reuses the current TLS,
  * still verifies the original possession proof and never opens claim writes.
  */

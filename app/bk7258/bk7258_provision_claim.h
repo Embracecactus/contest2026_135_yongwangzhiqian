@@ -47,6 +47,12 @@ struct bkprov_claim_s
   uint32_t sequence;
   uint8_t transaction[16];
   uint8_t secret[32];
+  /* Alternate possession secret accepted by this window only, so a
+   * pre-generated activation file still redeems a window whose claim code was
+   * minted on the device. Never used as a control credential.
+   */
+  uint8_t legacy[32];
+  bool legacy_set;
   uint8_t bundle[BKPROV_BUNDLE_MAX];
   size_t size;
   size_t received;
@@ -64,6 +70,16 @@ int bkprov_claim_open(struct bkprov_claim_s *claim, uint32_t generation,
                       const uint8_t secret[32], bool local_action,
                       bool already_claimed, uint64_t now_ms,
                       const struct bkprov_claim_ops_s *ops, void *context);
+/* Same window, plus one alternate possession secret it also accepts. Both
+ * proofs are always compared with mbedtls_ct_memcmp; a failed attempt still
+ * closes the window. legacy may be NULL for the ordinary single-secret window.
+ */
+int bkprov_claim_open_legacy(struct bkprov_claim_s *claim, uint32_t generation,
+                             const uint8_t secret[32],
+                             const uint8_t legacy[32], bool local_action,
+                             bool already_claimed, uint64_t now_ms,
+                             const struct bkprov_claim_ops_s *ops,
+                             void *context);
 int bkprov_claim_auth(struct bkprov_claim_s *claim, uint32_t generation,
                       const uint8_t transaction[16], const uint8_t proof[32]);
 int bkprov_claim_confirm(struct bkprov_claim_s *claim, uint32_t generation);

@@ -30,6 +30,27 @@ void bkprov_pair_close(struct bkprov_pair_s *pair)
   mbedtls_platform_zeroize(pair, sizeof(*pair));
 }
 
+static int pair_start(struct bkprov_pair_s *pair, uint32_t generation,
+                      mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
+                      const uint8_t secret[32], const uint8_t legacy[32],
+                      bool local_action, bool already_claimed,
+                      uint64_t (*now_ms)(void *), void *clock_context,
+                      const struct bkprov_claim_ops_s *ops, void *context)
+{
+  int ret;
+  if (pair == NULL || now_ms == NULL) return -EINVAL;
+  if (pair->tls.initialized || pair->claim.state != BKPROV_CLOSED) return -EBUSY;
+  ret = bkprov_claim_open_legacy(&pair->claim, generation, secret, legacy,
+                                 local_action, already_claimed,
+                                 now_ms(clock_context), ops, context);
+  if (ret < 0) return ret;
+  ret = bkprov_tls_start(&pair->tls, generation, certificate, key, now_ms, clock_context);
+  if (ret < 0) { bkprov_pair_close(pair); return ret; }
+  pair->expected = 32;
+  pair->reported_state = BKPROV_AUTH;
+  return 0;
+}
+
 int bkprov_pair_start(struct bkprov_pair_s *pair, uint32_t generation,
                       mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
                       const uint8_t secret[32], bool local_action,
@@ -37,17 +58,22 @@ int bkprov_pair_start(struct bkprov_pair_s *pair, uint32_t generation,
                       void *clock_context, const struct bkprov_claim_ops_s *ops,
                       void *context)
 {
-  int ret;
-  if (pair == NULL || now_ms == NULL) return -EINVAL;
-  if (pair->tls.initialized || pair->claim.state != BKPROV_CLOSED) return -EBUSY;
-  ret = bkprov_claim_open(&pair->claim, generation, secret, local_action,
-                          already_claimed, now_ms(clock_context), ops, context);
-  if (ret < 0) return ret;
-  ret = bkprov_tls_start(&pair->tls, generation, certificate, key, now_ms, clock_context);
-  if (ret < 0) { bkprov_pair_close(pair); return ret; }
-  pair->expected = 32;
-  pair->reported_state = BKPROV_AUTH;
-  return 0;
+  return pair_start(pair, generation, certificate, key, secret, NULL,
+                    local_action, already_claimed, now_ms, clock_context, ops,
+                    context);
+}
+
+int bkprov_pair_start_legacy(struct bkprov_pair_s *pair, uint32_t generation,
+                             mbedtls_x509_crt *certificate,
+                             mbedtls_pk_context *key,
+                             const uint8_t secret[32],
+                             const uint8_t legacy[32], bool local_action,
+                             uint64_t (*now_ms)(void *), void *clock_context,
+                             const struct bkprov_claim_ops_s *ops,
+                             void *context)
+{
+  return pair_start(pair, generation, certificate, key, secret, legacy,
+                    local_action, false, now_ms, clock_context, ops, context);
 }
 
 int bkprov_pair_start_recovery(struct bkprov_pair_s *pair, uint32_t generation,

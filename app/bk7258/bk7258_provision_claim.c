@@ -8,6 +8,8 @@
 static void clear_candidate(struct bkprov_claim_s *claim)
 {
   mbedtls_platform_zeroize(claim->secret, sizeof(claim->secret));
+  mbedtls_platform_zeroize(claim->legacy, sizeof(claim->legacy));
+  claim->legacy_set = false;
   mbedtls_platform_zeroize(claim->bundle, sizeof(claim->bundle));
   claim->size = claim->received = 0;
 }
@@ -55,6 +57,17 @@ int bkprov_claim_open(struct bkprov_claim_s *claim, uint32_t generation,
                       bool already_claimed, uint64_t now_ms,
                       const struct bkprov_claim_ops_s *ops, void *context)
 {
+  return bkprov_claim_open_legacy(claim, generation, secret, NULL, local_action,
+                                  already_claimed, now_ms, ops, context);
+}
+
+int bkprov_claim_open_legacy(struct bkprov_claim_s *claim, uint32_t generation,
+                             const uint8_t secret[32],
+                             const uint8_t legacy[32], bool local_action,
+                             bool already_claimed, uint64_t now_ms,
+                             const struct bkprov_claim_ops_s *ops,
+                             void *context)
+{
   static const uint8_t zero[32];
   if (claim == NULL || secret == NULL || generation == 0 || ops == NULL ||
       ops->begin == NULL || ops->poll == NULL || ops->commit == NULL ||
@@ -79,6 +92,12 @@ int bkprov_claim_open(struct bkprov_claim_s *claim, uint32_t generation,
   claim->generation = generation;
   claim->opened_ms = claim->last_ms = now_ms;
   memcpy(claim->secret, secret, sizeof(claim->secret));
+  if (legacy != NULL)
+    {
+      memcpy(claim->legacy, legacy, sizeof(claim->legacy));
+      claim->legacy_set = true;
+    }
+
   claim->state = BKPROV_AUTH;
   return 0;
 }
@@ -95,8 +114,16 @@ int bkprov_claim_auth(struct bkprov_claim_s *claim, uint32_t generation,
     {
       return -EACCES;
     }
-  if (mbedtls_ct_memcmp(claim->secret, proof, 32) != 0 ||
-      mbedtls_ct_memcmp(transaction, zero, 16) == 0)
+  int match = mbedtls_ct_memcmp(claim->secret, proof, 32) == 0;
+  if (claim->legacy_set)
+    {
+      /* Both comparisons always run so the accepted secret cannot be told
+       * apart by timing, and one wrong proof still ends the attempt.
+       */
+      match = (mbedtls_ct_memcmp(claim->legacy, proof, 32) == 0) | match;
+    }
+
+  if (!match || mbedtls_ct_memcmp(transaction, zero, 16) == 0)
     {
       return fail(claim, -EACCES);
     }

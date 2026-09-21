@@ -54,4 +54,13 @@ int bk7258_display_activate(const char *filename);
 int bk7258_display_import(const void *data, size_t size);
 int bk7258_display_get_status(struct bkdisplay_service_status_s *status);
 
+/* First-use claim page: /dev/fb0 carries the versioned claim code as a QR
+ * symbol and /dev/fb1 the built-in "scan this" hint. The page is composed from
+ * firmware-internal code only, so it never depends on an SD NAND eye pack.
+ * Payload is the exact "SN1:..." claim code; the caller keeps ownership of it.
+ */
+int bk7258_display_show_claim(const char *payload);
+int bk7258_display_hide_claim(void);
+
+
 #endif /* __APP_BK7258_BK7258_DISPLAY_SERVICE_H */

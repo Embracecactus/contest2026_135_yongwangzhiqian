@@ -5,7 +5,11 @@
 #include <stdint.h>
 #define BKPROV_CONTROL_KEY_BYTES 32u
 
-/* SCB3 appends a nonzero 32-byte owner control key after the SCB2 cloud record.
+/* SCB4 is the owner-only claim record: exactly one 32-byte control key and no
+ * network or cloud section. A first claim commits it before the user has
+ * chosen Wi-Fi or a voice service, so ownership never depends on a network
+ * being reachable. SCB3 appends a nonzero 32-byte owner control key after the
+ * SCB2 cloud record.
  * It is a secret in the same private configuration transaction, never status
  * data. Only explicit AUTH_OWNER recovery may return it over pinned TLS
  * after verifying the separate factory possession secret; it is never rotated.
