@@ -73,6 +73,21 @@ jobs:
           if missing:
               raise SystemExit('Locked dependency objects unavailable: ' + ', '.join(missing))
           PY
+      - name: Compile native identity and configuration sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          inc="$RUNNER_TEMP/shaniu-host-include"
+          mkdir -p "$inc/nuttx" "$inc/arch"
+          : > "$inc/nuttx/config.h"
+          ln -s "$GITHUB_WORKSPACE/chips/bk7258/include" "$inc/arch/chip"
+          cc -std=c11 -Wall -Wextra -Werror \
+            -DCONFIG_BK7258_WIFI_VNET -DCONFIG_BK7258_AP_CORE \
+            -DCONFIG_BK7258_PROVISION_NATIVE \
+            '-DCONFIG_BK7258_PROVISION_CERT_NOT_BEFORE="20260101000000"' \
+            '-DCONFIG_BK7258_PROVISION_CERT_NOT_AFTER="20360101000000"' \
+            -I"$inc" -I../apps/crypto/mbedtls/mbedtls/include -Iapp/bk7258 \
+            -fsyntax-only app/bk7258/bk7258_provision_{generate,identity,bootstrap,config,settings,storage,network}.c
       - name: Run existing provisioning regression
         run: make -C tests/host/bk7258 run-provision
       - name: Capture exact source and available host inputs
