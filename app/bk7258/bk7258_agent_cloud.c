@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <time.h>
 #include <mbedtls/platform_util.h>
 
 /* Immutable selected trust/config with a locked TLS session cache.
@@ -54,6 +55,18 @@ static struct cloud_backend_s g_asr;
 static struct cloud_backend_s g_tts;
 static struct cloud_backend_s g_llm;
 static atomic_int g_thinking = ATOMIC_VAR_INIT(-1);
+
+/* Correlation only: one increasing identifier per recognized utterance.  The
+ * following language-model and speech-synthesis requests of that turn carry
+ * the same value so the receive, queue and playback splits can be aligned
+ * without logging text, audio or credentials.
+ */
+static atomic_uint g_turn_sequence = ATOMIC_VAR_INIT(0u);
+
+static uint64_t tts_now_ms(void)
+{
+  return bkvoice_config_now_ms(NULL);
+}
 
 void bkagent_cloud_set_thinking(bool enabled)
 {
@@ -360,6 +373,7 @@ static int llm_transport(const char *request, char *response, size_t capacity,
   struct cloud_backend_s *backend = context;
   struct bkcloud_http_s *http = calloc(1, sizeof(*http));
   if (!http) return -ENOMEM;
+  uint64_t started_ms = tts_now_ms();
   struct llm_body_s body = { .data = request, .size = strlen(request) };
   char *adapted = NULL;
   *length = 0;
@@ -414,8 +428,10 @@ static int llm_transport(const char *request, char *response, size_t capacity,
     }
   mbedtls_platform_zeroize(http, sizeof(*http));
   free(http);
-  syslog(LOG_INFO, "AGENT LLM transport=verified-cloud status=%d ret=%d bytes=%zu\n",
-         *status, ret, *length);
+  syslog(LOG_INFO, "AGENT LLM transport=verified-cloud status=%d ret=%d "
+         "bytes=%zu turn=%u ms=%llu\n",
+         *status, ret, *length, atomic_load(&g_turn_sequence),
+         (unsigned long long)(tts_now_ms() - started_ms));
   return ret;
 }
 
@@ -477,6 +493,9 @@ static int recognize(const unsigned char *pcm, size_t size,
                      char *text, size_t capacity)
 {
   struct bkcloud_client_s *client = calloc(1, sizeof(*client));
+  unsigned int turn =
+    atomic_fetch_add(&g_turn_sequence, 1u) + 1u;
+  uint64_t started_ms = tts_now_ms();
   if (!client) return -ENOMEM;
   int ret = bkcloud_recognize(client, &g_asr.service,
     &g_transport, &g_asr, bkvoice_config_now_ms(NULL) + 60000u,
@@ -485,15 +504,68 @@ static int recognize(const unsigned char *pcm, size_t size,
   if (ret != 0 && capacity) text[0] = '\0';
   mbedtls_platform_zeroize(client, sizeof(*client));
   free(client);
-  syslog(LOG_INFO, "AGENT ASR backend=%s mode=batch ret=%d\n",
-    g_asr.settings->service.dialect == 2 ? "mimo" : "openai-audio", ret);
+  /* "turn" starts the correlated timeline of one spoken request; "ms" is the
+   * complete batch recognition, not a partial result. */
+  syslog(LOG_INFO, "AGENT ASR backend=%s mode=batch ret=%d turn=%u "
+    "input_bytes=%zu ms=%llu\n",
+    g_asr.settings->service.dialect == 2 ? "mimo" : "openai-audio", ret,
+    turn, size, (unsigned long long)(tts_now_ms() - started_ms));
   return ret;
 }
+
+/* Bounded hand-off between the provider's TLS receive path and the official
+ * Voice/Media playback callback.
+ *
+ * The streaming callback used to run directly inside the HTTP sink, so a
+ * blocking Media write stalled TLS reads and any arrival jitter larger than
+ * the small hardware buffer became an audible gap.  Keep one bounded,
+ * cancellable queue here, owned by this adapter; the official Agent keeps
+ * ownership of the player, of the PCM format and of the terminal callback.
+ *
+ * The producer only waits for queue space, never for the audio device, and
+ * the consumer waits for PCM or for the end marker.  Both waits are bounded
+ * so a dead player cannot hang a voice turn forever.
+ */
+#define BKCLOUD_TTS_QUEUE_CAPACITY  (96u * 1024u)
+#define BKCLOUD_TTS_QUEUE_PREBUFFER (8000u)
+#define BKCLOUD_TTS_QUEUE_PRIME_MS  150u
+#define BKCLOUD_TTS_QUEUE_CHUNK     (4096u)
+#define BKCLOUD_TTS_QUEUE_GAP_MS    150u
+#define BKCLOUD_TTS_QUEUE_STALL_MS  15000u
+
+struct tts_queue_s
+{
+  pthread_mutex_t lock;
+  pthread_cond_t ready;
+  pthread_cond_t space;
+  pthread_t worker;
+  unsigned char *ring;
+  size_t capacity;
+  size_t head;
+  size_t tail;
+  size_t used;
+  size_t peak;
+  bool eof;
+  bool abort;
+  bool running;
+  int error;
+  uint64_t first_input_ms;
+  uint64_t last_input_ms;
+  uint64_t max_gap_ms;
+  size_t gap_events;
+  uint64_t producer_wait_ms;
+  uint64_t first_output_ms;
+  uint64_t dry_wait_ms;
+  size_t dry_events;
+  voice_tts_chunk_cb callback;
+  void *context;
+};
 
 struct pcm_output_s
 {
   voice_tts_chunk_cb callback;
   void *context;
+  struct tts_queue_s *queue;
   unsigned char *buffer;
   size_t capacity;
   size_t used;
@@ -503,15 +575,289 @@ struct pcm_output_s
   uint8_t pending_count;
 };
 
+static struct tts_queue_s *tts_queue_create(void)
+{
+  struct tts_queue_s *queue = calloc(1, sizeof(*queue));
+  if (queue == NULL) return NULL;
+  queue->capacity = BKCLOUD_TTS_QUEUE_CAPACITY;
+  queue->ring = malloc(queue->capacity);
+  if (queue->ring == NULL ||
+      pthread_mutex_init(&queue->lock, NULL) != 0 ||
+      pthread_cond_init(&queue->ready, NULL) != 0 ||
+      pthread_cond_init(&queue->space, NULL) != 0)
+    {
+      free(queue->ring);
+      free(queue);
+      return NULL;
+    }
+  return queue;
+}
+
+static void tts_queue_destroy(struct tts_queue_s *queue)
+{
+  if (queue == NULL) return;
+  pthread_mutex_destroy(&queue->lock);
+  pthread_cond_destroy(&queue->ready);
+  pthread_cond_destroy(&queue->space);
+  if (queue->ring != NULL) free(queue->ring);
+  free(queue);
+}
+
+static bool tts_absolute_deadline(unsigned int timeout_ms,
+                                  struct timespec *deadline)
+{
+  if (clock_gettime(CLOCK_REALTIME, deadline) < 0) return false;
+  deadline->tv_sec += timeout_ms / 1000u;
+  deadline->tv_nsec += (long)(timeout_ms % 1000u) * 1000000L;
+  if (deadline->tv_nsec >= 1000000000L)
+    {
+      deadline->tv_sec++;
+      deadline->tv_nsec -= 1000000000L;
+    }
+  return true;
+}
+
+/* Producer side: the TLS receive path only hands PCM over. */
+static int tts_queue_write(struct tts_queue_s *queue, const void *data,
+                           size_t size)
+{
+  const unsigned char *bytes = data;
+  size_t offset = 0;
+  int ret = 0;
+  if (size == 0) return 0;
+
+  pthread_mutex_lock(&queue->lock);
+  uint64_t now = tts_now_ms();
+  if (queue->last_input_ms && now > queue->last_input_ms)
+    {
+      uint64_t gap = now - queue->last_input_ms;
+      if (gap > queue->max_gap_ms) queue->max_gap_ms = gap;
+      if (gap >= BKCLOUD_TTS_QUEUE_GAP_MS) queue->gap_events++;
+    }
+  queue->last_input_ms = now;
+  if (!queue->first_input_ms) queue->first_input_ms = now;
+
+  while (offset < size)
+    {
+      if (queue->abort) { ret = -ECANCELED; break; }
+      if (queue->error < 0) { ret = queue->error; break; }
+      size_t available = queue->capacity - queue->used;
+      if (available == 0)
+        {
+          /* Bounded backpressure.  The audio device is the slow side here,
+           * which is normal; only a permanently blocked consumer is fatal.
+           */
+          struct timespec deadline;
+          uint64_t started = tts_now_ms();
+          if (!tts_absolute_deadline(BKCLOUD_TTS_QUEUE_STALL_MS, &deadline))
+            { ret = -EIO; break; }
+          while (!queue->abort && queue->error >= 0 &&
+                 queue->used == queue->capacity)
+            {
+              if (pthread_cond_timedwait(&queue->space, &queue->lock,
+                                         &deadline) == ETIMEDOUT &&
+                  queue->used == queue->capacity)
+                {
+                  queue->error = -ETIMEDOUT;
+                  break;
+                }
+            }
+          queue->producer_wait_ms += tts_now_ms() - started;
+          continue;
+        }
+      size_t chunk = size - offset;
+      if (chunk > available) chunk = available;
+      size_t contiguous = queue->capacity - queue->tail;
+      if (chunk > contiguous) chunk = contiguous;
+      memcpy(queue->ring + queue->tail, bytes + offset, chunk);
+      queue->tail = (queue->tail + chunk) % queue->capacity;
+      queue->used += chunk;
+      offset += chunk;
+      if (queue->used > queue->peak) queue->peak = queue->used;
+      pthread_cond_signal(&queue->ready);
+    }
+  pthread_mutex_unlock(&queue->lock);
+  return ret;
+}
+
+static void tts_queue_mark_eof(struct tts_queue_s *queue, bool success)
+{
+  pthread_mutex_lock(&queue->lock);
+  queue->eof = true;
+  if (!success) queue->abort = true;
+  pthread_cond_broadcast(&queue->ready);
+  pthread_cond_broadcast(&queue->space);
+  pthread_mutex_unlock(&queue->lock);
+}
+
+static void tts_queue_cancel(struct tts_queue_s *queue)
+{
+  pthread_mutex_lock(&queue->lock);
+  queue->abort = true;
+  pthread_cond_broadcast(&queue->ready);
+  pthread_cond_broadcast(&queue->space);
+  pthread_mutex_unlock(&queue->lock);
+}
+
+/* Consumer side: drains the queue at the audio device's pace and keeps the
+ * official callback contract, including the single terminal callback. */
+static void *tts_queue_worker(void *argument)
+{
+  struct tts_queue_s *queue = argument;
+  unsigned char chunk[BKCLOUD_TTS_QUEUE_CHUNK];
+  bool first = true;
+  bool delivered = false;
+
+  for (;;)
+    {
+      /* Only the start is gated by the pre-buffer; afterwards the queue is
+       * drained as fast as the audio device accepts it, so a steady provider
+       * is never throttled by the queue itself.
+       */
+      size_t gate = first ? BKCLOUD_TTS_QUEUE_PREBUFFER : 1u;
+      pthread_mutex_lock(&queue->lock);
+      while (!queue->abort && queue->used < gate && !queue->eof)
+        {
+          uint64_t started = tts_now_ms();
+          int waited;
+          if (first && queue->used > 0)
+            {
+              /* A provider that cannot deliver the whole pre-buffer within
+               * the priming window is already slower than the audio device;
+               * start with what arrived instead of adding start-up delay to
+               * a stream that no amount of buffering would fix.
+               */
+              struct timespec deadline;
+              if (!tts_absolute_deadline(BKCLOUD_TTS_QUEUE_PRIME_MS, &deadline))
+                {
+                  pthread_mutex_unlock(&queue->lock);
+                  tts_queue_cancel(queue);
+                  goto done;
+                }
+              waited = pthread_cond_timedwait(&queue->ready, &queue->lock,
+                                              &deadline);
+            }
+          else
+            waited = pthread_cond_wait(&queue->ready, &queue->lock);
+          queue->dry_wait_ms += tts_now_ms() - started;
+          if (queue->used == 0 && !queue->eof) queue->dry_events++;
+          if (waited == ETIMEDOUT && queue->used > 0) break;
+        }
+      if (queue->abort || (queue->eof && queue->used == 0))
+        {
+          pthread_mutex_unlock(&queue->lock);
+          break;
+        }
+      size_t take = queue->used;
+      if (take > sizeof(chunk)) take = sizeof(chunk);
+      size_t contiguous = queue->capacity - queue->head;
+      if (take > contiguous) take = contiguous;
+      memcpy(chunk, queue->ring + queue->head, take);
+      queue->head = (queue->head + take) % queue->capacity;
+      queue->used -= take;
+      if (first)
+        {
+          queue->first_output_ms = tts_now_ms();
+          first = false;
+        }
+      pthread_cond_signal(&queue->space);
+      pthread_mutex_unlock(&queue->lock);
+
+      queue->callback(chunk, take, 0, queue->context);
+      delivered = true;
+      if (atomic_load(&g_tts.canceled))
+        {
+          tts_queue_cancel(queue);
+          break;
+        }
+    }
+
+done:
+  if (delivered && !queue->abort && queue->eof)
+    queue->callback(NULL, 0, 1, queue->context);
+  return NULL;
+}
+
 #define TTS_SOURCE_RATE 24000u
 #define TTS_OUTPUT_RATE 16000u
 #define TTS_RESAMPLE_BUFFER_SIZE 512u
+
+/* A finished answer used to be one synthesis request, so the first audible
+ * frame waited for the provider's first audio token of the whole text.  Send
+ * the first sentence first and keep the remaining sentences flowing into the
+ * same bounded audio queue, which preserves order and continuity without a
+ * second player or a longer start-up buffer.  Request count stays bounded and
+ * short answers keep exactly one request.
+ */
+#define BKCLOUD_TTS_PART_MAX        4u
+#define BKCLOUD_TTS_PART_MIN_CHARS  16u
+#define BKCLOUD_TTS_SPLIT_MIN_CHARS 80u
+
+static bool tts_part_terminator(const char *text, size_t length, size_t index,
+                                size_t *width)
+{
+  unsigned char c = (unsigned char)text[index];
+  *width = 1;
+  if (c == '\n') return true;
+  if (c == '.' || c == '!' || c == '?' || c == ';')
+    {
+      /* Keep decimals and abbreviations inside one part. */
+      if (c == '.' && index + 1 < length &&
+          text[index + 1] >= '0' && text[index + 1] <= '9') return false;
+      return index + 1 >= length || text[index + 1] == ' ' ||
+             (unsigned char)text[index + 1] >= 0x80;
+    }
+  /* UTF-8 CJK sentence punctuation. */
+  if (c == 0xe3 && index + 2 < length &&
+      (unsigned char)text[index + 1] == 0x80 &&
+      (unsigned char)text[index + 2] == 0x82)
+    { *width = 3; return true; }                       /* 。 */
+  if (c == 0xef && index + 2 < length &&
+      (unsigned char)text[index + 1] == 0xbc &&
+      ((unsigned char)text[index + 2] == 0x81 ||
+       (unsigned char)text[index + 2] == 0x9f ||
+       (unsigned char)text[index + 2] == 0x9b))
+    { *width = 3; return true; }                       /* ！ ？ ； */
+  return false;
+}
+
+/* Fills the end offsets of a bounded number of contiguous parts.  Returns the
+ * part count, or 0 when the text must stay one request.  Characters are never
+ * dropped, duplicated or reordered; the last part always ends at length.
+ */
+static size_t tts_parts(const char *text, size_t length, size_t *ends)
+{
+  size_t count = 0;
+  size_t start = 0;
+  if (length < BKCLOUD_TTS_SPLIT_MIN_CHARS) return 0;
+  for (size_t i = 0; i < length; i++)
+    {
+      size_t width;
+      if (count + 1 >= BKCLOUD_TTS_PART_MAX) break;
+      if (!tts_part_terminator(text, length, i, &width)) continue;
+      if (i + width - start < BKCLOUD_TTS_PART_MIN_CHARS) continue;
+      ends[count++] = i + width;
+      start = i + width;
+      i += width - 1;
+    }
+  if (count == 0 || ends[count - 1] >= length) return count;
+  ends[count++] = length;
+  return count;
+}
 
 static int pcm_write(struct pcm_output_s *output, const void *data, size_t size)
 {
   if (atomic_load(&g_tts.canceled)) return -ECANCELED;
   if (!size) return 0;
-  if (output->callback)
+  if (output->queue)
+    {
+      /* The bounded queue decouples the provider's receive path from the
+       * official playback callback.
+       */
+      int ret = tts_queue_write(output->queue, data, size);
+      if (ret != 0) return ret;
+    }
+  else if (output->callback)
     {
       /* The official callback creates, prepares and feeds its Media player. */
       output->callback(data, size, 0, output->context);
@@ -634,17 +980,76 @@ static int synthesize(struct pcm_output_s *output, const char *text)
   if (atomic_load(&g_tts.canceled)) ret = -ECANCELED;
   if (ret == 0) ret = pcm_finish(output);
   if (ret == 0 && (output->used == 0 || output->has_tail)) ret = -EPROTO;
-  if (ret == 0 && output->callback)
+  if (ret == 0 && output->callback && output->queue == NULL)
     output->callback(NULL, 0, 1, output->context);
   if (decoder) bkcloud_tts_clear(decoder);
   if (client) mbedtls_platform_zeroize(client, sizeof(*client));
   free(decoder);
   free(client);
   syslog(LOG_INFO, "AGENT TTS backend=%s mode=%s source_rate=%u "
-    "output_rate=%u ret=%d bytes=%zu\n",
+    "output_rate=%u ret=%d bytes=%zu turn=%u\n",
     g_tts.settings->service.dialect == 2 ? "mimo" : "openai-audio",
     output->callback ? "audio-stream/full-text" : "batch",
-    TTS_SOURCE_RATE, TTS_OUTPUT_RATE, ret, output->used);
+    TTS_SOURCE_RATE, TTS_OUTPUT_RATE, ret, output->used,
+    atomic_load(&g_turn_sequence));
+  return ret;
+}
+
+/* Sends one accepted part per request into the same audio queue.  Order is
+ * the answer's order, the queue stays continuous, and a failing part stops
+ * the remaining parts instead of being hidden.
+ */
+static int synthesize_parts(struct pcm_output_s *output, const char *text,
+                            size_t count, const size_t *ends)
+{
+  struct bkcloud_client_s *client = calloc(1, sizeof(*client));
+  struct bkcloud_tts_s *decoder = calloc(1, sizeof(*decoder));
+  char *part = NULL;
+  size_t begin = 0;
+  size_t capacity = 0;
+  int ret = -ENOMEM;
+
+  if (client == NULL || decoder == NULL) goto out;
+  ret = 0;
+  for (size_t index = 0; index < count; index++)
+    {
+      size_t size = ends[index] - begin;
+      if (size + 1 > capacity)
+        {
+          char *grown = realloc(part, size + 1);
+          if (grown == NULL) { ret = -ENOMEM; break; }
+          part = grown;
+          capacity = size + 1;
+        }
+      memcpy(part, text + begin, size);
+      part[size] = 0;
+      ret = bkcloud_synthesize(client, decoder, &g_tts.service, &g_transport,
+        &g_tts, bkvoice_config_now_ms(NULL) + 120000u, part, pcm_output, output);
+      if (atomic_load(&g_tts.canceled)) ret = -ECANCELED;
+      if (ret != 0)
+        {
+          syslog(LOG_WARNING, "AGENT TTS part %lu/%lu failed ret=%d\n",
+                 (unsigned long)index + 1, (unsigned long)count, ret);
+          break;
+        }
+      begin = ends[index];
+    }
+  if (ret == 0) ret = pcm_finish(output);
+  if (ret == 0 && (output->used == 0 || output->has_tail)) ret = -EPROTO;
+
+out:
+  if (part != NULL)
+    {
+      mbedtls_platform_zeroize(part, capacity);
+      free(part);
+    }
+  if (decoder) bkcloud_tts_clear(decoder);
+  if (client) mbedtls_platform_zeroize(client, sizeof(*client));
+  free(decoder);
+  free(client);
+  syslog(LOG_INFO, "AGENT TTS parts count=%lu ret=%d bytes=%zu turn=%u\n",
+         (unsigned long)count, ret, output->used,
+         atomic_load(&g_turn_sequence));
   return ret;
 }
 
@@ -652,7 +1057,63 @@ static int synthesize_stream(const char *text, voice_tts_chunk_cb callback,
                              void *context)
 {
   struct pcm_output_s output = { .callback = callback, .context = context };
-  return synthesize(&output, text);
+  struct tts_queue_s *queue = tts_queue_create();
+  uint64_t started_ms = tts_now_ms();
+  size_t ends[BKCLOUD_TTS_PART_MAX];
+  size_t parts;
+  int ret;
+
+  /* Keep the previous direct path when the bounded queue cannot be created:
+   * a missing diagnostic buffer must not disable voice playback. */
+  if (queue == NULL) return synthesize(&output, text);
+
+  queue->callback = callback;
+  queue->context = context;
+  if (pthread_create(&queue->worker, NULL, tts_queue_worker, queue) != 0)
+    {
+      tts_queue_destroy(queue);
+      return synthesize(&output, text);
+    }
+
+  queue->running = true;
+  output.queue = queue;
+  parts = tts_parts(text, strlen(text), ends);
+  ret = parts > 1 ? synthesize_parts(&output, text, parts, ends) :
+                    synthesize(&output, text);
+
+  /* Mark the end only after the last frame has been handed over, so the
+   * consumer never treats a temporary shortage as the end of the stream. */
+  tts_queue_mark_eof(queue, ret == 0);
+  pthread_join(queue->worker, NULL);
+  queue->running = false;
+
+  if (ret == 0 && (queue->abort || atomic_load(&g_tts.canceled)))
+    ret = -ECANCELED;
+
+  /* One bounded line per synthesis request so the receive, queue and playback
+   * split can be compared without full logs.  Values are monotonic
+   * milliseconds relative to this request; "first_pcm_ms" is the first PCM
+   * frame accepted from the provider, "first_frame_ms" is the first frame
+   * handed to the official playback callback.  Neither is proof of audible
+   * sound.
+   */
+  syslog(LOG_INFO, "AGENT TTS queue ret=%d bytes=%zu total_ms=%llu "
+    "first_pcm_ms=%llu first_frame_ms=%llu max_gap_ms=%llu gaps=%lu "
+    "peak=%lu producer_wait_ms=%llu dry_events=%lu dry_wait_ms=%llu turn=%u\n",
+    ret, output.used, (unsigned long long)(tts_now_ms() - started_ms),
+    (unsigned long long)(queue->first_input_ms ?
+      queue->first_input_ms - started_ms : 0),
+    (unsigned long long)(queue->first_output_ms ?
+      queue->first_output_ms - started_ms : 0),
+    (unsigned long long)queue->max_gap_ms,
+    (unsigned long)queue->gap_events, (unsigned long)queue->peak,
+    (unsigned long long)queue->producer_wait_ms,
+    (unsigned long)queue->dry_events,
+    (unsigned long long)queue->dry_wait_ms,
+    atomic_load(&g_turn_sequence));
+  output.queue = NULL;
+  tts_queue_destroy(queue);
+  return ret;
 }
 
 static int synthesize_batch(const char *text, unsigned char *pcm,
