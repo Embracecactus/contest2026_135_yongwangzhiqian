@@ -440,7 +440,11 @@ static bool product_keys_step(uint64_t now)
       syslog(ret ? LOG_WARNING : LOG_INFO,
              "BKKEYS power request result=%d\n", ret);
     }
-  else if (steps)
+  else if (steps
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+           && !g_shutdown_requested
+#endif
+          )
     {
       ret = bkagent_ota_busy() ? -EBUSY :
               bkvoice_media_volume_step(steps, &volume);
@@ -2148,6 +2152,11 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
       if (product_keys_step(now))
         {
+          /* A shutdown may fail and restore normal operation. Retain the
+           * actual completion events until its outcome is known, rather
+           * than losing a durable configuration or a canceled voice turn.
+           */
+          atomic_fetch_or(&g_product_events, events);
           continue;
         }
 

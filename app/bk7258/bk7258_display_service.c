@@ -50,6 +50,10 @@
 #define BKDISPLAY_DEVICE_POLL_US 100000u
 #define BKDISPLAY_MAPPING_FB0_RGB565 0x07ffu
 #define BKDISPLAY_MAPPING_FB1_RGB565 0xf81fu
+/* SN1 carries 107 alphanumeric characters. Version 4-M holds only 90;
+ * 5-M fits the complete pin/secret and its 90-pixel quiet-zone square
+ * remains inside the 160-pixel round panel at integer 2x scaling. */
+#define BKDISPLAY_QR_VERSION 5
 
 struct bkdisplay_service_s
 {
@@ -551,10 +555,11 @@ static int bkdisplay_builtin_locked(struct bkdisplay_service_s *service,
 #ifdef CONFIG_BK7258_PROVISION_NATIVE
   if (service->claim_qr[0] && !service->power_overlay && !fallback)
     {
-      uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(4)];
-      uint8_t temp[qrcodegen_BUFFER_LEN_FOR_VERSION(4)];
+      uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(BKDISPLAY_QR_VERSION)];
+      uint8_t temp[qrcodegen_BUFFER_LEN_FOR_VERSION(BKDISPLAY_QR_VERSION)];
       if (!qrcodegen_encodeText(service->claim_qr, temp, qr,
-              qrcodegen_Ecc_MEDIUM, 4, 4, qrcodegen_Mask_AUTO, false))
+              qrcodegen_Ecc_MEDIUM, BKDISPLAY_QR_VERSION, BKDISPLAY_QR_VERSION,
+              qrcodegen_Mask_AUTO, false))
         ret = -E2BIG;
       else
         {

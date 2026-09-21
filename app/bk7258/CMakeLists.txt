@@ -362,6 +362,6 @@ if(CONFIG_BK7258_PROVISION_NATIVE)
                         ${BKPROV_QR_ROOT}/src/misc/lv_assert.c
       TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_DEFINITIONS
       LV_CONF_SKIP LV_KCONFIG_IGNORE LV_USE_LOG=0
-      "LV_ASSERT_HANDLER_INCLUDE=<stdlib.h>" "LV_ASSERT_HANDLER=abort();")
+      "LV_ASSERT_HANDLER_INCLUDE=<stdlib.h>" "LV_ASSERT_HANDLER=abort()\;")
   endif()
 endif()
