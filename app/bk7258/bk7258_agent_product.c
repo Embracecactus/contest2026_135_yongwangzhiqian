@@ -217,13 +217,13 @@ static void bk7258_agent_storage_changed(void)
 
 static bool product_voice_result_exits_interaction(int result)
 {
-  /* Use the official endpoint/cancel outcomes as the product interaction
-   * boundary. Other completed-turn failures have already released their
-   * official owners and may be retried without another wake word. If the
-   * user stays silent, the next official auto turn exits with -ENODATA.
+  /* 只有成功的回答继续免唤醒对话。超时、传输或工具失败已经结束
+   * 本次请求，必须恢复唤醒，不能立刻开启一次无人请求的录音。
+   * TURN_COMPLETE 仍是资源释放边界；未释放的 Media 由 recover
+   * 继续处理，rearm 的失败不能被当作已经恢复。
    */
 
-  return result == -ENODATA || result == -ECANCELED;
+  return result != 0;
 }
 
 #ifdef CONFIG_BK7258_PRODUCT_KEYS

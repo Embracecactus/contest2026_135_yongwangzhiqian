@@ -54,6 +54,13 @@ static int receipt(const uint8_t tx[16])
     { ret = bkprov_storage_receipt(tx); if (ret == -EAGAIN) tick(); }
   return ret;
 }
+static int reset_receipt(const uint8_t tx[16])
+{
+  int ret = -EAGAIN;
+  for (int i = 0; i < 3000 && ret == -EAGAIN; i++)
+    { ret = bkprov_storage_reset_receipt(tx); if (ret == -EAGAIN) tick(); }
+  return ret;
+}
 int main(int argc, char **argv)
 {
   uint8_t tx[16] = {1}, other[16] = {2}, candidate[3] = {5, 6, 7};
@@ -65,6 +72,7 @@ int main(int argc, char **argv)
   assert(bkprov_storage_start(argv[1]) == 0);
   assert(bkprov_storage_start(argv[1]) == -EALREADY);
   assert(receipt(tx) == 0);
+  assert(reset_receipt(tx) == BKPROV_STORAGE_RESET_RECEIPT_ABSENT);
   uint8_t identity[48] = {'B', 'P', 'I', '1'}, identity_out[48];
   identity[5] = 1; identity[16] = 42;
   assert(bkprov_storage_identity(identity_out, sizeof(identity_out), &size) == -ENOENT);
@@ -128,6 +136,8 @@ int main(int argc, char **argv)
   for (int i = 0; i < 3000 && reset_ret == -EAGAIN; i++)
     { tick(); reset_ret = bkprov_storage_reset_request(1, reset_tx); }
   assert(reset_ret == 0 && bkprov_storage_reset_pending() == 1);
+  assert(reset_receipt(reset_tx) == BKPROV_STORAGE_RESET_RECEIPT_PENDING);
+  assert(reset_receipt(other) == BKPROV_STORAGE_RESET_RECEIPT_ABSENT);
   assert(bkprov_storage_snapshot(output, sizeof(output), &size, &revision, actual_tx) == -EOWNERDEAD);
   assert(bkprov_storage_commit(2, other, original, 3) == -EOWNERDEAD);
   /* A restart resumes the explicit revocation marker, never an empty store. */
@@ -135,6 +145,7 @@ int main(int argc, char **argv)
   assert(bkprov_storage_start(argv[1]) == 0);
   assert(receipt(reset_tx) == -EOWNERDEAD);
   assert(bkprov_storage_reset_pending() == 1);
+  assert(reset_receipt(reset_tx) == BKPROV_STORAGE_RESET_RECEIPT_PENDING);
   cleanup_result = -EIO;
   reset_ret = bkprov_storage_reset_finish(reset_cleanup);
   for (int i = 0; i < 3000 && reset_ret == -EAGAIN; i++)
@@ -142,6 +153,7 @@ int main(int argc, char **argv)
   assert(reset_ret == -EIO && cleanup_calls == 1);
   assert(access(user_file, F_OK) == 0 && access(ota_file, F_OK) == 0);
   assert(bkprov_storage_reset_pending() == 1);
+  assert(reset_receipt(reset_tx) == BKPROV_STORAGE_RESET_RECEIPT_PENDING);
   assert(bkprov_storage_refresh() == 0);
   assert(receipt(reset_tx) == -EOWNERDEAD);
   cleanup_result = 0;
@@ -152,11 +164,13 @@ int main(int argc, char **argv)
   assert(access(user_file, F_OK) < 0 && errno == ENOENT);
   assert(access(ota_file, F_OK) == 0);
   assert(bkprov_storage_reset_pending() == 0 && receipt(reset_tx) == 0);
+  assert(reset_receipt(reset_tx) == BKPROV_STORAGE_RESET_RECEIPT_COMPLETED);
   assert(bkprov_storage_identity(identity_out, sizeof(identity_out), &size) == 0);
   assert(size == sizeof(identity) && !memcmp(identity_out, identity, sizeof(identity)));
   assert(bkprov_storage_stop() == 0);
   assert(bkprov_storage_start(argv[1]) == 0);
   assert(receipt(reset_tx) == 0);
+  assert(reset_receipt(reset_tx) == BKPROV_STORAGE_RESET_RECEIPT_COMPLETED);
   assert(bkprov_storage_commit(0, tx, original, 3) == -EAGAIN);
   assert(receipt(tx) == 1);
   for (int cycle = 0; cycle < 2; cycle++)
@@ -176,6 +190,8 @@ int main(int argc, char **argv)
   pthread_mutex_lock(&lock); fail_rename = true; pthread_mutex_unlock(&lock);
   assert(bkprov_storage_commit(1, other, original, 3) == -EAGAIN);
   assert(receipt(other) == -EINPROGRESS);
+  assert(reset_receipt(other) == -EINPROGRESS);
+  assert(reset_receipt(reset_tx) == -EINPROGRESS);
   assert(bkprov_storage_refresh() == -EINPROGRESS);
   assert(bkprov_storage_stop() == -EINPROGRESS);
   assert(bkprov_storage_commit(1, other, original, 3) == -EINPROGRESS);

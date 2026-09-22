@@ -42,6 +42,8 @@ struct storage_s
   bool reset_completed;
   int reset_result;
   int (*reset_cleanup)(void);
+  int reset_receipt_status;
+  uint8_t reset_receipt_transaction[16];
   uint64_t revision;
   uint64_t expected;
   size_t size;
@@ -59,6 +61,66 @@ static void (*g_notify)(void);
 static bool reset_marker(const void *record, size_t size)
 {
   return size == 4 && memcmp(record, "SRV1", 4) == 0;
+}
+
+/* This is deliberately a public, fixed-size acknowledgement only: it has no
+ * owner record, revision, configuration or identity material.  It is written
+ * before removing SRV1, so an interrupted final deletion remains a reset
+ * pending on the next load rather than a false completion. */
+static int load_reset_receipt(const char *root, uint8_t transaction[16])
+{
+  char path[192];
+  uint8_t record[20];
+  struct stat info;
+  if (snprintf(path, sizeof(path), "%s/reset-receipt", root) >= (int)sizeof(path))
+    return -ENAMETOOLONG;
+  int fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+  if (fd < 0) return -errno;
+  int ret = fstat(fd, &info) < 0 ? -errno : 0;
+  if (ret == 0 && (!S_ISREG(info.st_mode) || info.st_size != (off_t)sizeof(record)))
+    ret = -EBADMSG;
+  size_t done = 0;
+  while (ret == 0 && done < sizeof(record))
+    {
+      ssize_t n = read(fd, record + done, sizeof(record) - done);
+      if (n < 0 && errno == EINTR) continue;
+      if (n <= 0) { ret = n == 0 ? -EIO : -errno; break; }
+      done += (size_t)n;
+    }
+  if (close(fd) < 0 && ret == 0) ret = -errno;
+  if (ret == 0 && memcmp(record, "SRR1", 4)) ret = -EBADMSG;
+  if (ret == 0) memcpy(transaction, record + 4, 16);
+  mbedtls_platform_zeroize(record, sizeof(record));
+  return ret;
+}
+
+static int save_reset_receipt(const char *root, const uint8_t transaction[16])
+{
+  char active[192], pending[192];
+  uint8_t record[20] = {'S', 'R', 'R', '1'};
+  if (snprintf(active, sizeof(active), "%s/reset-receipt", root) >= (int)sizeof(active) ||
+      snprintf(pending, sizeof(pending), "%s/reset-receipt.pending", root) >= (int)sizeof(pending))
+    return -ENAMETOOLONG;
+  memcpy(record + 4, transaction, 16);
+  if (unlink(pending) < 0 && errno != ENOENT) return -errno;
+  int fd = open(pending, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_NONBLOCK, 0600);
+  if (fd < 0) return -errno;
+  size_t done = 0;
+  int ret = 0;
+  while (done < sizeof(record))
+    {
+      ssize_t n = write(fd, record + done, sizeof(record) - done);
+      if (n < 0 && errno == EINTR) continue;
+      if (n <= 0) { ret = n == 0 ? -EIO : -errno; break; }
+      done += (size_t)n;
+    }
+  if (ret == 0 && fsync(fd) < 0) ret = -errno;
+  if (close(fd) < 0 && ret == 0) ret = -errno;
+  if (ret == 0 && rename(pending, active) < 0) ret = -EINPROGRESS;
+  if (ret == 0) ret = bkprov_store_sync_directory(root);
+  if (ret < 0) (void)unlink(pending);
+  mbedtls_platform_zeroize(record, sizeof(record));
+  return ret;
 }
 
 /* Delete only declared user records. Keep identity, the revocation marker
@@ -170,6 +232,9 @@ static void *worker(void *context)
             ret = bkprov_store_load(&s->store, s->bundle, sizeof(s->bundle),
                                     &s->size, &s->revision, s->transaction);
           if (ret == 0 && reset_marker(s->bundle, s->size)) ret = -EOWNERDEAD;
+          memset(s->reset_receipt_transaction, 0, 16);
+          s->reset_receipt_status = load_reset_receipt(s->root,
+                                                       s->reset_receipt_transaction);
           char identity_root[160];
           snprintf(identity_root, sizeof(identity_root), "%s/identity", s->root);
           if (identity_ret == 0) identity_ret = prepare_directory(identity_root);
@@ -204,16 +269,22 @@ static void *worker(void *context)
           if (ret == 0) ret = reset_user_records(s->root);
           if (ret == 0 && unlink(s->store.pending) < 0 && errno != ENOENT)
             ret = -errno;
+          if (ret == 0) ret = save_reset_receipt(s->root, s->transaction);
           if (ret == 0 && unlink(s->store.active) < 0) ret = -errno;
           if (ret == 0) ret = bkprov_store_sync_directory(s->store.directory);
           if (ret == 0)
             {
+              uint8_t reset_transaction[16];
+              memcpy(reset_transaction, s->transaction, sizeof(reset_transaction));
               mbedtls_platform_zeroize(s->bundle, sizeof(s->bundle));
               mbedtls_platform_zeroize(s->candidate, sizeof(s->candidate));
               s->size = s->candidate_size = 0;
               s->revision = 0;
               memset(s->transaction, 0, 16);
               memset(s->candidate_transaction, 0, 16);
+              memcpy(s->reset_receipt_transaction, reset_transaction, 16);
+              mbedtls_platform_zeroize(reset_transaction, sizeof(reset_transaction));
+              s->reset_receipt_status = 0;
             }
         }
       else
@@ -464,6 +535,31 @@ int bkprov_storage_reset_finish(int (*cleanup)(void))
       pthread_cond_signal(&g_wake);
       ret = -EAGAIN;
     }
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
+int bkprov_storage_reset_receipt(const uint8_t transaction[16])
+{
+  if (transaction == NULL) return -EINVAL;
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret = s == NULL ? -ENODEV : s->job != JOB_IDLE ? -EAGAIN : 0;
+  /* 读取失败或提交结果不确定不能被解释成事务不存在。 */
+  if (ret == 0 && s->status != 0 && s->status != -ENOENT &&
+      s->status != -EOWNERDEAD)
+    ret = s->status;
+  if (ret == 0 && s->status == -EOWNERDEAD &&
+      !memcmp(s->transaction, transaction, 16))
+    ret = BKPROV_STORAGE_RESET_RECEIPT_PENDING;
+  else if (ret == 0 && s->reset_receipt_status != 0 &&
+           s->reset_receipt_status != -ENOENT)
+    ret = s->reset_receipt_status;
+  else if (ret == 0 && s->reset_receipt_status == 0 &&
+           !memcmp(s->reset_receipt_transaction, transaction, 16))
+    ret = BKPROV_STORAGE_RESET_RECEIPT_COMPLETED;
+  else if (ret == 0)
+    ret = BKPROV_STORAGE_RESET_RECEIPT_ABSENT;
   pthread_mutex_unlock(&g_lock);
   return ret;
 }

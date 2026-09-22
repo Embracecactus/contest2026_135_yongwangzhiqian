@@ -11,6 +11,13 @@
  * reply completes.
  */
 int bkagent_memory_bind(const uint8_t owner[32]);
+/* Factory reset coordination only: caller has already made voice/Agent idle.
+ * This prevents future memory writes, clears the runtime voice projection and
+ * removes only the legacy SD ciphertext replicas. CP policy/snapshot records
+ * remain owned by the provisioning storage reset worker. A later bind merely
+ * loads a newly committed policy; it does not re-enable memory by itself.
+ */
+int bkagent_memory_reset(void);
 int bkagent_memory_restore(unsigned int persona);
 int bkagent_memory_commit(unsigned int persona, const char *reply);
 int bkagent_memory_control(enum bkcontrol_command_e command, uint32_t value,

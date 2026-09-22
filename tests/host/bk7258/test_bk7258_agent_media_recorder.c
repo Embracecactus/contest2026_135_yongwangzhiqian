@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Regression coverage for the BKVoice recorder STOP boundary.  The real
+ * Regression coverage for the standalone Dolphin recorder STOP boundary. The real
  * bridge is included so the test can inspect its private ownership state and
  * prove that the reader wake precedes the synchronous lower-half STOP while
  * the recorder mutex is released.
@@ -25,7 +25,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#define CONFIG_BK7258_APP_AGENT 1
+/* 适配器只在无 Media 的独立录音目标编入；不能冒充 Agent 录音验收。 */
+#define CONFIG_DOLPHIN_RECORDER 1
 #define CONFIG_BK7258_MIC 1
 #define CONFIG_BK7258_MIC_DEVNAME "pcm0c"
 

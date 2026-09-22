@@ -44,6 +44,17 @@ int bkprov_storage_receipt(const uint8_t transaction[16]);
 int bkprov_storage_reset_request(uint64_t expected, const uint8_t transaction[16]);
 int bkprov_storage_reset_pending(void);
 int bkprov_storage_reset_finish(int (*cleanup)(void));
+/* Query only the public reset transaction receipt. PENDING proves SRV1 was
+ * durably selected and still revokes the old owner; COMPLETED proves cleanup,
+ * receipt publication and marker deletion survived the worker's fsync path.
+ * ABSENT is positive absence, never an ordinary config receipt. */
+enum bkprov_storage_reset_receipt_e
+{
+  BKPROV_STORAGE_RESET_RECEIPT_ABSENT = 0,
+  BKPROV_STORAGE_RESET_RECEIPT_PENDING = 1,
+  BKPROV_STORAGE_RESET_RECEIPT_COMPLETED = 2
+};
+int bkprov_storage_reset_receipt(const uint8_t transaction[16]);
 /* Shutdown only an idle, determinate worker. -EBUSY/-EINPROGRESS leaves it
  * alive; stop/start cannot erase publication uncertainty. No I/O join. */
 int bkprov_storage_stop(void);
