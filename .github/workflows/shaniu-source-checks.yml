@@ -91,6 +91,8 @@ jobs:
           python3 -m pip install --disable-pip-version-check \
             --index-url https://pypi.org/simple \
             -r tools/bk7258/sdk-python-requirements.txt
+          python3 "$RUNNER_TEMP/shaniu-cold/apps/boot/mcuboot/mcuboot/scripts/imgtool.py" \
+            --help > /dev/null
           python3 tools/bk7258/bk7258.py toolchain install
           python3 tools/bk7258/bk7258.py toolchain verify
           python3 tools/bk7258/bk7258.py sdk rebuild --profile cp-aidk \

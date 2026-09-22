@@ -11,3 +11,4 @@ et-xmlfile==2.0.0
 # Manifest-pinned MCUboot imgtool.py imports these at sign/verify time.
 intelhex==2.3.0
 cbor2==5.9.0
+PyYAML==6.0.2
