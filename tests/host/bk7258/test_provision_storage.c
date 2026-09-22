@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -110,6 +111,16 @@ int main(int argc, char **argv)
   assert(bkprov_storage_identity(identity_out, sizeof(identity_out), &size) == 0);
   assert(size == sizeof(identity) && !memcmp(identity_out, identity, sizeof(identity)));
   assert(bkprov_storage_identity_install(identity, sizeof(identity)) == 0);
+  char user_dir[256], user_file[280], ota_dir[256], ota_file[280];
+  assert(snprintf(user_dir, sizeof(user_dir), "%s/memory-snapshot", argv[1]) < (int)sizeof(user_dir));
+  assert(snprintf(ota_dir, sizeof(ota_dir), "%s/voice-ota", argv[1]) < (int)sizeof(ota_dir));
+  assert(mkdir(user_dir, 0700) == 0 && mkdir(ota_dir, 0700) == 0);
+  snprintf(user_file, sizeof(user_file), "%s/config.bin", user_dir);
+  snprintf(ota_file, sizeof(ota_file), "%s/config.bin", ota_dir);
+  FILE *sample = fopen(user_file, "wb");
+  assert(sample && fwrite("user-data", 1, 9, sample) == 9 && fclose(sample) == 0);
+  sample = fopen(ota_file, "wb");
+  assert(sample && fwrite("firmware-intent", 1, 15, sample) == 15 && fclose(sample) == 0);
   uint8_t reset_tx[16] = {3};
   assert(bkprov_storage_reset_finish(reset_cleanup) == -EPERM);
   assert(bkprov_storage_reset_request(0, reset_tx) == -EPERM);
@@ -129,6 +140,7 @@ int main(int argc, char **argv)
   for (int i = 0; i < 3000 && reset_ret == -EAGAIN; i++)
     { tick(); reset_ret = bkprov_storage_reset_finish(reset_cleanup); }
   assert(reset_ret == -EIO && cleanup_calls == 1);
+  assert(access(user_file, F_OK) == 0 && access(ota_file, F_OK) == 0);
   assert(bkprov_storage_reset_pending() == 1);
   assert(bkprov_storage_refresh() == 0);
   assert(receipt(reset_tx) == -EOWNERDEAD);
@@ -137,6 +149,8 @@ int main(int argc, char **argv)
   for (int i = 0; i < 3000 && reset_ret == -EAGAIN; i++)
     { tick(); reset_ret = bkprov_storage_reset_finish(reset_cleanup); }
   assert(reset_ret == 0 && cleanup_calls == 2);
+  assert(access(user_file, F_OK) < 0 && errno == ENOENT);
+  assert(access(ota_file, F_OK) == 0);
   assert(bkprov_storage_reset_pending() == 0 && receipt(reset_tx) == 0);
   assert(bkprov_storage_identity(identity_out, sizeof(identity_out), &size) == 0);
   assert(size == sizeof(identity) && !memcmp(identity_out, identity, sizeof(identity)));

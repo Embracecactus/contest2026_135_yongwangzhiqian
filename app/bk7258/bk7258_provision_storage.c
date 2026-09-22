@@ -4,6 +4,7 @@
 #include "bk7258_provision_store.h"
 #include "bk7258_provision_claim.h"
 #include <errno.h>
+#include <dirent.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -57,6 +58,53 @@ static void (*g_notify)(void);
 static bool reset_marker(const void *record, size_t size)
 {
   return size == 4 && memcmp(record, "SRV1", 4) == 0;
+}
+
+/* Delete only declared user records. Keep identity, the revocation marker
+ * and voice-ota's firmware transaction; never touch mounts or trust counters. */
+static int reset_user_tree(const char *path, unsigned int depth, unsigned int *budget)
+{
+  struct stat st;
+  if (depth > 8 || !*budget) return -E2BIG;
+  (*budget)--;
+  if (lstat(path, &st) < 0) return errno == ENOENT ? 0 : -errno;
+  if (S_ISREG(st.st_mode)) return unlink(path) == 0 ? 0 : -errno;
+  if (!S_ISDIR(st.st_mode)) return -EPERM;
+  DIR *dir = opendir(path);
+  if (!dir) return -errno;
+  int ret = 0;
+  for (;;)
+    {
+      errno = 0;
+      struct dirent *entry = readdir(dir);
+      if (!entry) { if (errno) ret = -errno; break; }
+      if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) continue;
+      char child[320];
+      if (snprintf(child, sizeof(child), "%s/%s", path, entry->d_name) >= (int)sizeof(child))
+        { ret = -ENAMETOOLONG; break; }
+      ret = reset_user_tree(child, depth + 1, budget);
+      if (ret) break;
+    }
+  if (closedir(dir) < 0 && !ret) ret = -errno;
+  if (!ret && rmdir(path) < 0) ret = -errno;
+  return ret;
+}
+
+static int reset_user_records(const char *root)
+{
+  static const char *const names[] = {
+    "memory-policy", "memory-snapshot", "cloud-models", "voice-volume", "wake-models"
+  };
+  unsigned int budget = 4096;
+  for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+    {
+      char path[192];
+      if (snprintf(path, sizeof(path), "%s/%s", root, names[i]) >= (int)sizeof(path))
+        return -ENAMETOOLONG;
+      int ret = reset_user_tree(path, 0, &budget);
+      if (ret) return ret;
+    }
+  return bkprov_store_sync_directory(root);
 }
 
 void bkprov_storage_set_notify(void (*notify)(void))
@@ -152,6 +200,7 @@ static void *worker(void *context)
           /* The marker remains selected until every product-owned replica
            * has been cleaned. No format, identity erase or broad tree erase. */
           ret = s->reset_cleanup();
+          if (ret == 0) ret = reset_user_records(s->root);
           if (ret == 0 && unlink(s->store.pending) < 0 && errno != ENOENT)
             ret = -errno;
           if (ret == 0 && unlink(s->store.active) < 0) ret = -errno;

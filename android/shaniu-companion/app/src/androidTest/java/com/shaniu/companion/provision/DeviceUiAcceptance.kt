@@ -715,19 +715,25 @@ internal object DeviceUiAcceptance {
             }
             check(binding.store.pending("emulator-claim") != null)
             onUi(instrumentation) {
-                installProvisionFixture(instrumentation, activity, resolver = { verifiedEndpoint() }, store = binding.store)
+                installProvisionFixture(instrumentation, activity, resolver = { verifiedEndpoint() }, transport, binding.store)
                 (rawField(activity, "nextButton").get(activity) as android.widget.Button).performClick()
             }
             onUi(instrumentation) {
-                /* This is the production pending path: it starts the real
-                 * control-reconciliation page, rather than injecting a final
-                 * protocol state into the recreated store. */
+                /* This fixture uses provision-bootstrap-v1, not an SN1 QR.
+                 * Its production recovery route is SPV1 AUTH_OWNER/VERIFY;
+                 * only screenBootstrap uses SDC1 control reconciliation. */
                 check(rawField(activity, "page").get(activity) == 2)
-                check(rawField(activity, "recoveryControl").get(activity) != null)
+                check(rawField(activity, "connection").get(activity) != null)
+                check(rawField(activity, "recoveryControl").get(activity) == null)
                 check((rawField(activity, "resultButton").get(activity) as TextView).text.toString() == "取消连接")
                 check(binding.store.pending("emulator-claim") != null)
             }
-            return "PROCESS_FIXTURE_RESUMED pending page opened from isolated receipt"
+            awaitStarted(instrumentation, transport)
+            transport.tls()
+            check(transport.lastType() == 7) { "legacy recovery did not authenticate owner" }
+            transport.respond(3)
+            check(transport.lastType() == 5) { "recovery must query VERIFY, never resubmit configuration" }
+            return "PROCESS_FIXTURE_RESUMED legacy receipt opened; AUTH_OWNER then VERIFY, no repeated configuration"
         } finally {
             transport.clear(); finishProvision(instrumentation, activity)
             if (!keepFixture) {

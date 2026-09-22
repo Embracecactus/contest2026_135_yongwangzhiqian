@@ -80,7 +80,7 @@ class ControlKeyInstrumentation : Instrumentation() {
                 "PASS: $evidence; test-only preferences and Android Keystore alias only"
             } catch (error: Throwable) {
                 "FAIL: " + generateSequence(error) { it.cause }.take(5)
-                    .joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
+                    .joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}" }
             }
             finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
                 Bundle().apply { putString("stream", report) })
