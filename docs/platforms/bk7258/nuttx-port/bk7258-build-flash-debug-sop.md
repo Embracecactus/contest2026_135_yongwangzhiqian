@@ -130,7 +130,10 @@ snapshot's actual old CSV as `--source-partition` and the new private BIN as
 `--relocated-base` to the same `accept-base` command: it copies same-name
 protected partitions without changing size, permissions, policy or bytes,
 immutable partitions cannot move, and the evidence is marked as a same-device
-partition relocation rather than a new readback.  Retain the printed
+partition relocation rather than a new readback. A newly declared writable
+`preserve` data partition is allowed only in a range unallocated by the old
+layout; relocation carries that range's exact same-device bytes and reports it
+separately from moved partitions. Retain the printed
 source/target hashes and per-partition mapping with the private release
 evidence, and never publish these bases.
 The command reloads and re-hashes the build handoff, matches both private roots

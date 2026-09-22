@@ -415,8 +415,9 @@ def relocate_base(
     base: Path,
     output: Path,
 ) -> dict[str, object]:
-    """Relocate same-device data verbatim by partition name; ciphertext is
-    neither interpreted, cleared nor rewritten.
+    """Relocate same-device data verbatim by partition name. Newly declared
+    preserve ranges may only cover old layout gaps and retain their exact bytes.
+    Ciphertext is neither interpreted, cleared nor rewritten.
     """
 
     geometry = (
@@ -440,8 +441,27 @@ def relocate_base(
     target_rows = {
         row.name: row for row in layout.partitions if row.policy in protected
     }
-    if not source_rows or source_rows.keys() != target_rows.keys():
+    if not source_rows or not source_rows.keys() <= target_rows.keys():
         raise ProductError("base relocation must retain every protected partition")
+    new_rows = [
+        row for name, row in target_rows.items() if name not in source_rows
+    ]
+    for row in new_rows:
+        if (
+            row.policy != "preserve"
+            or row.kind != "data"
+            or not row.readable
+            or not row.writable
+            or row.artifact is not None
+            or row.offset % layout.erase_size
+            or row.size % layout.erase_size
+        ):
+            raise ProductError("new protected partition is not a preservable data range")
+        if any(
+            row.offset < old.end and old.offset < row.end
+            for old in source_layout.partitions
+        ):
+            raise ProductError("new protected partition overlaps the source layout")
     source = _regular_bytes(base, "current same-device base")
     if len(source) != layout.flash_size:
         raise ProductError("base relocation requires a complete Flash snapshot")
@@ -450,8 +470,8 @@ def relocate_base(
         raise ProductError(f"relocated base already exists: {output}")
     result = bytearray(source)
     mappings = []
-    for name, target in target_rows.items():
-        old = source_rows[name]
+    for name, old in source_rows.items():
+        target = target_rows[name]
         if (
             old.kind != "data"
             or target.kind != old.kind
@@ -476,10 +496,24 @@ def relocate_base(
                 "sha256": _digest(payload),
             }
         )
-    for name, target in target_rows.items():
-        old = source_rows[name]
+    for name, old in source_rows.items():
+        target = target_rows[name]
         if result[target.offset : target.end] != source[old.offset : old.end]:
             raise ProductError(f"relocated partition mismatch: {name}")
+    carried_forward_gaps = []
+    for row in new_rows:
+        payload = source[row.offset : row.end]
+        if result[row.offset : row.end] != payload:
+            raise ProductError(f"new protected partition was not preserved: {row.name}")
+        carried_forward_gaps.append(
+            {
+                "partition": row.name,
+                "offset": row.offset,
+                "size": row.size,
+                "sha256": _digest(payload),
+                "action": "preserved-unallocated",
+            }
+        )
     output.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{output.name}.", dir=output.parent
@@ -501,6 +535,7 @@ def relocate_base(
         "source_sha256": _digest(source),
         "sha256": _digest(result),
         "partitions": mappings,
+        "carried_forward_gaps": carried_forward_gaps,
     }
 
 

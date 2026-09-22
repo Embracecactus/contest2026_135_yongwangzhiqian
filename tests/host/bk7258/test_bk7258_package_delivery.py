@@ -859,6 +859,67 @@ class ProductDeliveryTest(unittest.TestCase):
                 )
                 self.assertEqual(layout.flash_size, 8 * 1024 * 1024)
 
+    def test_aidk_factory_state_relocation_preserves_old_unallocated_bytes(self) -> None:
+        preset = build_domain.board_preset(REPOSITORY, "aidk_ai_toy")
+        layout = layout_domain.load(preset.partition)
+        factory = next(row for row in layout.partitions if row.name == "factory_state")
+        factory_row = "factory_state,0x7f8000,8K,data,TRUE,TRUE,,preserve\n"
+        current_csv = preset.partition.read_text(encoding="utf-8")
+        self.assertEqual(current_csv.count(factory_row), 1)
+        old_csv = self.root / "aidk-before-factory.csv"
+        old_csv.write_text(current_csv.replace(factory_row, ""), encoding="utf-8")
+        old_layout = layout_domain.load(old_csv)
+        base = self.root / "aidk-before-factory.bin"
+        original = bytearray(b"\x5a" * layout.flash_size)
+        original[factory.offset:factory.end] = bytes(range(256)) * 32
+        base.write_bytes(original)
+        relocated = self.root / "aidk-relocated.bin"
+
+        report = product_domain.relocate_base(
+            source_layout=old_layout, layout=layout, base=base, output=relocated
+        )
+        self.assertEqual(relocated.read_bytes(), original)
+        self.assertEqual(
+            report["carried_forward_gaps"],
+            [{
+                "partition": "factory_state",
+                "offset": factory.offset,
+                "size": factory.size,
+                "sha256": hashlib.sha256(original[factory.offset:factory.end]).hexdigest(),
+                "action": "preserved-unallocated",
+            }],
+        )
+
+        occupied_csv = self.root / "aidk-occupied-gap.csv"
+        occupied_csv.write_text(
+            current_csv.replace(factory_row, factory_row.replace(
+                "factory_state", "legacy_data").replace(",preserve\n", ",clear\n"
+            )),
+            encoding="utf-8",
+        )
+        with self.assertRaises(product_domain.ProductError):
+            product_domain.relocate_base(
+                source_layout=layout_domain.load(occupied_csv),
+                layout=layout,
+                base=base,
+                output=self.root / "aidk-unsafe-relocated.bin",
+            )
+
+        immutable_csv = self.root / "aidk-immutable-gap.csv"
+        immutable_csv.write_text(
+            current_csv.replace(factory_row, factory_row.replace(
+                ",preserve\n", ",immutable\n"
+            )),
+            encoding="utf-8",
+        )
+        with self.assertRaises(product_domain.ProductError):
+            product_domain.relocate_base(
+                source_layout=old_layout,
+                layout=layout_domain.load(immutable_csv),
+                base=base,
+                output=self.root / "aidk-immutable-relocated.bin",
+            )
+
     def test_fourth_board_and_non_eight_mib_layout_are_descriptor_only(self) -> None:
         repository = self.root / "synthetic_team"
         board = "future_board"
