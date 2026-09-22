@@ -2,10 +2,9 @@
 <manifest>
   <!-- 2026-09-20 Linux build-dependency snapshot; no reproduction is promised
        for Windows/macOS tools that are not checked out. -->
-  <remote fetch="https://github.com/open-vela/" name="openvela"/>
-  <!-- The GitHub build mirror is unavailable; the official Gitee mirror
-       contains the same locked build commit. No branch-tip substitution. -->
-  <remote fetch="https://gitee.com/open-vela/" name="openvela-gitee"/>
+  <!-- The official Gitee branches contain these exact pinned commits; the
+       GitHub mirrors lag behind. Never substitute a newer branch tip. -->
+  <remote fetch="https://gitee.com/open-vela/" name="openvela"/>
   <remote fetch="../" name="git"/>
   <default remote="openvela" revision="dev-ai-contest-2026"/>
 
@@ -52,7 +51,7 @@
   <project path="apps/testing/mm/stressapptest/stressapptest" name="apps_testing_mm_stressapptest" revision="a01d0b0747813e24a35fdd450917039bc113a5ca"/>
   <project path="apps/testing/unity/Unity" name="apps_testing_unity_Unity" revision="f592cbfef1252893d949f659c4852a7eeb778b40"/>
   <project path=".claude" name=".claude" revision="f379db42481ddc32976349c616517175ab243117"/>
-  <project path="build" name="build" remote="openvela-gitee" revision="8493db46d183834ab107fa64792b1c0a4ef0d05b"/>
+  <project path="build" name="build" revision="8493db46d183834ab107fa64792b1c0a4ef0d05b"/>
   <project path="docs" name="docs" revision="fb35ec847422b79b241860673ffe58d9ba61007b"/>
   <project path="external" name="external" revision="f2c1425ef199e1dc7393a6b1d9ce14e52a430068"/>
   <project path="external/aac/aac" name="external_aac" revision="af265f29f37f24129d6f45d11915f6176608e5f6"/>

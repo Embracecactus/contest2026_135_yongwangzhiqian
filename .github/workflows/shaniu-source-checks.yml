@@ -60,7 +60,8 @@ jobs:
             frameworks/system/vibrator nuttx nuttx/fs/fatfs/fatfs \
             nuttx/fs/littlefs/littlefs nuttx/openamp/libmetal \
             nuttx/openamp/open-amp packages/ai_agent \
-            prebuilts/build-tools/linux-x86_64 prebuilts/tools vendor/beken \
+            prebuilts/build-tools/linux-x86_64 prebuilts/cmake/linux-x86_64 \
+            prebuilts/tools vendor/beken \
             vendor/beken/bk_avdk_smp
           project="$cold/contest2026_135_yongwangzhiqian"
           test "$(git -C "$project" rev-parse HEAD)" = "$GITHUB_SHA"
