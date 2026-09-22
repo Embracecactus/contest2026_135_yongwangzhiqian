@@ -222,9 +222,14 @@ class ProvisionActivity : Activity() {
         chatModel = field("对话模型", target = advanced).apply { setText("mimo-v2.5") }
         ttsModel = field("语音合成模型", target = advanced).apply { setText("mimo-v2.5-tts") }
         advanced.visibility = View.GONE
+        var appliedServicePreset = 0
         servicePreset.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                // Spinner may report the same selection after layout/resume.
+                // Only an actual preset change may replace a user's draft.
+                if (position == appliedServicePreset) return
+                appliedServicePreset = position
                 if (position == 0) {
                     if (cloudUrl.text.toString() != CloudSettings.MIMO_STANDARD_URL) cloudKey.text.clear()
                     cloudUrl.setText(CloudSettings.MIMO_STANDARD_URL)
