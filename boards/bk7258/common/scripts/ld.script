@@ -294,6 +294,7 @@ SECTIONS
           .text.sys_hal_disable_hf_clock
           .text.sys_hal_gpio_state_switch)
         *arm.c.obj(.itcm_sec_code)
+        *bk7258_pm_soft_off.c.o(.itcm_sec_code)
         _epm_ram = ABSOLUTE(.);
 #endif
         *(.data .data.*)
@@ -328,6 +329,12 @@ SECTIONS
            "ERROR: deep-sleep HAL must execute from copied SRAM")
     ASSERT(arch_deep_sleep >= _sdata && arch_deep_sleep < _edata,
            "ERROR: deep-sleep WFI must execute from copied SRAM")
+    ASSERT(__wrap_arch_deep_sleep >= _sdata &&
+           __wrap_arch_deep_sleep < _edata,
+           "ERROR: soft-off WFI wrapper must execute from copied SRAM")
+    ASSERT(bk7258_pm_soft_off_wfi_reset >= _sdata &&
+           bk7258_pm_soft_off_wfi_reset < _edata,
+           "ERROR: soft-off post-WFI reset must execute from copied SRAM")
 #endif
 
     /* Zero-initialized data. */

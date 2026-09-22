@@ -262,6 +262,7 @@ endif()
 
 if(CONFIG_BK7258_PM_SOFT_OFF)
   list(APPEND BK7258_CP_SRCS cp/bk7258_pm_soft_off.c)
+  bk7258_wrap_sdk_symbol(arch_deep_sleep)
 endif()
 
 if(CONFIG_BK7258_PM_POLICY)

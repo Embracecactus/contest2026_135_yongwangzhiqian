@@ -51,6 +51,82 @@ class BuildWorkspaceTest(unittest.TestCase):
                 with self.assertRaises(build_domain.BuildError):
                     build_domain._cp_memory_report(role, SimpleNamespace(binary_dir=root))
 
+    def test_cp_memory_report_requires_soft_off_wfi_wrapper_in_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / ".config"
+            config.write_text(
+                "CONFIG_IDLETHREAD_STACKSIZE=2048\n"
+                "CONFIG_BK7258_PM_SOFT_OFF=y\n"
+            )
+            elf = root / "nuttx"
+            elf.write_bytes(b"fixture")
+            symbols = {
+                "_sdata": 0x28010000,
+                "_edata": 0x28011000,
+                "_sbss": 0x28011000,
+                "_ebss": 0x28040000,
+                "_eheap": 0x2804FFFC,
+                "g_intstackalloc": 0x28010000,
+                "g_intstacktop": 0x28010800,
+            }
+            copied = (
+                "sys_hal_enter_deep_sleep",
+                "arch_deep_sleep",
+                "sys_set_ana_reg_bit",
+                "sys_ll_set_ana_reg5_en_cb",
+                "sys_ll_set_ana_reg8_valoldosel",
+                "sys_ll_set_ana_reg9_spi_latch1v",
+                "sys_ll_set_ana_reg10_vbspbuflp1v",
+                "sys_ll_set_ana_reg11_aldosel",
+                "sys_ll_set_ana_reg12_dldosel",
+                "sys_hal_enable_spi_latch",
+                "sys_hal_disable_spi_latch",
+                "sys_hal_power_on_and_select_rosc",
+                "sys_hal_disable_hf_clock",
+                "sys_hal_gpio_state_switch",
+                "__wrap_arch_deep_sleep",
+                "bk7258_pm_soft_off_wfi_reset",
+            )
+            nm_rows = "\n".join(
+                f"{name} T {0x28010000 + 4 * index:08x} 4"
+                for index, name in enumerate(copied)
+            )
+            role = SimpleNamespace(
+                role="cp",
+                dotconfig=config,
+                elf=elf,
+                binary_root=root,
+                resolved_config_sha256="fixture",
+            )
+            with mock.patch.object(
+                trust_domain,
+                "elf_symbol",
+                side_effect=lambda elf, nm, name: symbols[name],
+            ), mock.patch.object(
+                build_domain.subprocess,
+                "run",
+                return_value=SimpleNamespace(stdout=nm_rows),
+            ):
+                build_domain._cp_memory_report(role, SimpleNamespace(binary_dir=root))
+                report = json.loads((root / "cp-memory-report.json").read_text())
+                self.assertIn("__wrap_arch_deep_sleep", report["symbols"])
+                self.assertIn("bk7258_pm_soft_off_wfi_reset", report["symbols"])
+                with mock.patch.object(
+                    build_domain.subprocess,
+                    "run",
+                    return_value=SimpleNamespace(
+                        stdout="\n".join(nm_rows.splitlines()[:-1])
+                    ),
+                ):
+                    with self.assertRaisesRegex(
+                        build_domain.BuildError,
+                        "bk7258_pm_soft_off_wfi_reset",
+                    ):
+                        build_domain._cp_memory_report(
+                            role, SimpleNamespace(binary_dir=root)
+                        )
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="bk7258-workspace-")
         self.root = Path(self.temporary.name)

@@ -11,6 +11,7 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -28,6 +29,10 @@
 #include <arch/chip/bk7258_system_reset.h>
 
 #include <driver/gpio.h>
+
+#include "arm_internal.h"
+#include "nvic.h"
+
 /* pm.h in the reduced archive bundle depends on an omitted sys_types.h.
  * Keep its pinned C enum ABI private, as the existing PM server does.
  */
@@ -35,6 +40,7 @@
 #define BK7258_SDK_PM_SUPER_DEEP_SLEEP 3
 extern int bk_pm_sleep_mode_set(int mode);
 extern void bk_pm_enter_sleep(void);
+extern void __real_arch_deep_sleep(void);
 
 /* Exported by the pinned cp-aidk archives; reduced headers omit these. */
 
@@ -44,6 +50,73 @@ extern void bk_misc_set_reset_reason(uint32_t type);
 static struct work_s g_soft_off_work;
 static bool g_soft_off_ready;
 static bool g_soft_off_pending;
+
+/* This is sampled only before the final WFI.  Its true path does not inspect
+ * it again after wake, so retention of ordinary SRAM data is not a condition
+ * for reaching the reset request.
+ */
+
+static volatile bool g_soft_off_wfi_armed;
+
+#define BK7258_PM_SRAM_CODE \
+  __attribute__((section(".itcm_sec_code"), noinline, used))
+
+/*
+ * The pinned SDK's arch_deep_sleep() is a WFI followed by "bx lr".  Its
+ * super-deep caller is in XIP and leaves BASEPRI raised, which is unsuitable
+ * for the configured AON wake source and can fetch from XIP after wake.
+ *
+ * GNU ld redirects the SDK's unresolved arch_deep_sleep reference here only
+ * when CONFIG_BK7258_PM_SOFT_OFF selects --wrap.  Normal low-voltage callers
+ * keep the SDK behavior through __real_arch_deep_sleep().  The armed path is
+ * copied with its literal pool to SRAM and never returns to that SDK caller.
+ * This only removes the known WFI mask/XIP-return hazard.  SYSRESETREQ scope,
+ * clock restoration, and actual K2 power-off behavior still require board
+ * evidence; do not treat this as proof of whole-chip power removal.
+ */
+
+BK7258_PM_SRAM_CODE __attribute__((noreturn))
+void bk7258_pm_soft_off_wfi_reset(void)
+{
+  volatile uint32_t *aircr = (volatile uint32_t *)(uintptr_t)NVIC_AIRCR;
+  uint32_t regval;
+
+  /* Match NuttX up_systemreset(), but keep the complete post-WFI sequence in
+   * SRAM.  No existing reset helper is SRAM-resident in this image.
+   */
+
+  regval = *aircr & NVIC_AIRCR_PRIGROUP_MASK;
+  *aircr = regval | NVIC_AIRCR_VECTKEY | NVIC_AIRCR_SYSRESETREQ;
+  __asm volatile ("dsb sy" ::: "memory");
+
+  /* A rejected reset request must not fall through into XIP either. */
+
+  for (;;)
+    {
+    }
+}
+
+BK7258_PM_SRAM_CODE void __wrap_arch_deep_sleep(void)
+{
+  if (!__atomic_load_n(&g_soft_off_wfi_armed, __ATOMIC_ACQUIRE))
+    {
+      __real_arch_deep_sleep();
+      return;
+    }
+
+  /* The SDK's sys_drv_enter_deep_sleep() uses BASEPRI critical sections.
+   * Translate only at its final WFI boundary: PRIMASK preserves the critical
+   * section while BASEPRI=0 lets the configured AON wake interrupt release
+   * WFI, matching the existing coordinated low-voltage wrapper.
+   */
+
+  setprimask(1);
+  setbasepri(0);
+  __asm volatile ("dsb sy; isb sy" ::: "memory");
+  __asm volatile ("wfi" ::: "memory");
+  __asm volatile ("isb sy" ::: "memory");
+  bk7258_pm_soft_off_wfi_reset();
+}
 
 static void bk7258_pm_soft_off_worker(void *arg)
 {
@@ -168,7 +241,7 @@ void bk7258_pm_soft_off_boot(const struct bk7258_gpio_config_s *config)
       syslog(LOG_INFO, "soft-off: entering super-deep; wake gpio=%u\n",
              config->power_button_gpio);
       up_mdelay(20);
-      (void)up_irq_save();
+      __atomic_store_n(&g_soft_off_wfi_armed, true, __ATOMIC_RELEASE);
       bk_pm_enter_sleep();
     }
 
