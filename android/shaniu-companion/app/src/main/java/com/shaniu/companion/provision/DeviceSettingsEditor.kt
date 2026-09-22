@@ -2,7 +2,7 @@
 package com.shaniu.companion.provision
 
 import android.app.Activity
-import androidx.appcompat.app.AlertDialog
+import android.app.Dialog
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -29,6 +29,17 @@ internal class DeviceSettingsEditor(
     private val design = com.shaniu.companion.CompanionDesign(activity)
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
     private val box = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(16), dp(24), dp(16)) }
+    private val editorContent = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+    // The form is the sole shrinkable region. The editor owns its actions so
+    // AlertDialog/ButtonBarLayout cannot lose a stacked action at large text.
+    private val formScroll = ScrollView(activity).apply {
+        addView(box)
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f,
+        )
+    }
     private val fieldContainers = linkedMapOf<View, View>()
     private val message = TextView(activity).apply {
         text = "正在通过已认证蓝牙读取设备配置…"; textSize = 14f
@@ -59,6 +70,16 @@ internal class DeviceSettingsEditor(
     private val tts = modelField("语音合成模型")
     private val saveCloud = button("仅保存云服务和模型") { save(true) }
     private val reload = button("重新读取设备配置") { read(false) }
+    private val saveAction = actionButton(if (cloudPage) "保存云配置" else "保存 Wi-Fi") { save(cloudPage) }
+    private val closeAction = actionButton("关闭") { close() }
+    private val footer = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(24), dp(8), dp(24), dp(16))
+        addView(saveAction, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        addView(closeAction, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(8)
+        })
+    }
     private var phase = Phase.IDLE
     private var active = true
     private var connectionLost = false
@@ -76,17 +97,29 @@ internal class DeviceSettingsEditor(
     private var applied = false
     private var resultSubscription: DeviceControlSession.Cancel? = null
     private var stateSubscription: DeviceControlSession.Cancel? = null
-    private var dialog: AlertDialog? = null
+    private var dialog: Dialog? = null
     private var retryBytes: ByteArray? = null
     private var lastMessage = "设备配置未修改"
+    private var contentDecor: View? = null
+    private var contentLayoutListener: View.OnLayoutChangeListener? = null
+    private var contentWindowSignature = Int.MIN_VALUE
 
     init {
-        // Submission belongs to the fixed dialog footer, never the scrolling form.
+        // Submission belongs to the editor's fixed footer, never the scrolling form.
         saveWifi.visibility = View.GONE
         saveCloud.visibility = View.GONE
         listOf<View>(scanWifi, network, password, replacePassword, saveWifi).forEach { (fieldContainers[it] ?: it).visibility = if (cloudPage) View.GONE else View.VISIBLE }
         listOf<View>(url, key, dialect, asr, chat, tts, saveCloud).forEach { (fieldContainers[it] ?: it).visibility = if (cloudPage) View.VISIBLE else View.GONE }
         saveWifi.visibility = View.GONE; saveCloud.visibility = View.GONE
+        editorContent.addView(TextView(activity).apply {
+            text = if (cloudPage) "云服务与模型" else "Wi-Fi 网络"
+            textSize = 22f
+            setTextColor(design.ink)
+            setPadding(dp(24), dp(20), dp(24), dp(12))
+            isAccessibilityHeading = true
+        })
+        editorContent.addView(formScroll)
+        editorContent.addView(footer)
         resultSubscription = session.observeResults(::received)
         stateSubscription = session.observe { state ->
             connectionStatus.text = when {
@@ -104,21 +137,51 @@ internal class DeviceSettingsEditor(
                 handler.post { if (active) close() }
             }
         }
-        dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(activity).setTitle(if (cloudPage) "云服务与模型" else "Wi-Fi 网络")
-            .setBackground(design.shape(design.surface, dp(24).toFloat()))
-            .setView(ScrollView(activity).apply { addView(box) })
-            .setPositiveButton(if (cloudPage) "保存云配置" else "保存 Wi-Fi", null)
-            .setNegativeButton("关闭", null).create().also {
-                it.setOnDismissListener { close() }
-                it.show()
-                it.getButton(AlertDialog.BUTTON_POSITIVE).apply {
-                    isEnabled = false
-                    setOnClickListener { save(cloudPage) }
-                }
+        // 长表单采用单一显式布局，不让 AlertDialog 的 custom panel
+        // 再次测量/裁切固定页脚；认证、事务与安全窗口语义保持不变。
+        dialog = Dialog(activity).also {
+                it.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+                it.setContentView(editorContent)
+                it.window?.setBackgroundDrawable(design.shape(design.surface, dp(24).toFloat()))
                 it.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
                 it.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                it.setOnDismissListener { close() }
+                it.show()
+                it.window?.decorView?.let { decor ->
+                    val listener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                        constrainContentHeight(it)
+                    }
+                    contentDecor = decor; contentLayoutListener = listener
+                    decor.addOnLayoutChangeListener(listener)
+                    editorContent.post { constrainContentHeight(it) }
+                }
             }
         read(false)
+    }
+
+    /** Give the dialog, rather than its wrap-content custom panel, the visible
+     * window height. The weighted ScrollView then receives every pixel left by
+     * the title and fixed footer. This has no child/parent feedback path. */
+    private fun constrainContentHeight(alert: Dialog) {
+        if (!active || !alert.isShowing) return
+        val decor = alert.window?.decorView ?: return
+        val visible = android.graphics.Rect()
+        decor.getWindowVisibleDisplayFrame(visible)
+        // API 29 is supported too; visible-frame geometry needs no API 30
+        // WindowInsets.Type call and changes when the IME resizes this window.
+        val windowSignature = 31 * visible.height() + visible.width()
+        if (contentWindowSignature == windowSignature) return
+        contentWindowSignature = windowSignature
+        // 可见显示区域已经扣除了 IME；decor 是本对话框自身尺寸，不能
+        // 再扣一次键盘或用它限制新高度，否则窗口会自我收缩且无法恢复。
+        val windowHeight = (visible.height() - dp(32)).coerceAtLeast(dp(240))
+        alert.window?.setLayout((visible.width() - dp(32)).coerceAtLeast(dp(240)), windowHeight)
+        editorContent.layoutParams?.let { params ->
+            if (params.height != LinearLayout.LayoutParams.MATCH_PARENT) {
+                params.height = LinearLayout.LayoutParams.MATCH_PARENT
+                editorContent.layoutParams = params
+            }
+        }
     }
 
     private fun modelField(label: String) = field(label).apply {
@@ -165,13 +228,18 @@ internal class DeviceSettingsEditor(
         text = label; isAllCaps = false; minHeight = dp(48)
         setOnClickListener { action() }; box.addView(this)
     }
+    private fun actionButton(label: String, action: () -> Unit) = com.google.android.material.button.MaterialButton(activity).apply {
+        text = label; contentDescription = label; isAllCaps = false; minHeight = dp(48)
+        setSingleLine(false); maxLines = 2
+        setOnClickListener { action() }
+    }
     private fun note(text: String) { message.text = text; lastMessage = text }
     private fun editable(enabled: Boolean) {
         listOf<View>(scanWifi, network, password, replacePassword, saveWifi, url, key, dialect, asr, chat, tts, saveCloud).forEach { it.isEnabled = enabled }
         saveWifi.isEnabled = enabled && current != null
         scanWifi.isEnabled = enabled && !scanUnsupported
         saveCloud.isEnabled = enabled && current != null
-        dialog?.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
+        saveAction.apply {
             isEnabled = enabled && current != null
             text = if (phase in setOf(Phase.BEGIN, Phase.APPEND, Phase.APPLY, Phase.VERIFY, Phase.RESOLVING)) "保存中…"
                 else if (cloudPage) "保存云配置" else "保存 Wi-Fi"
@@ -412,6 +480,8 @@ internal class DeviceSettingsEditor(
         retryBytes?.fill(0); retryBytes = null
         resultSubscription?.cancel(); stateSubscription?.cancel()
         resultSubscription = null; stateSubscription = null
+        contentLayoutListener?.let { listener -> contentDecor?.removeOnLayoutChangeListener(listener) }
+        contentDecor = null; contentLayoutListener = null
         if (!applied) session.cancelConfigTransaction() else session.finishConfigTransaction()
         readBytes?.fill(0); payload?.fill(0); operation?.fill(0)
         password.text.clear(); key.text.clear()

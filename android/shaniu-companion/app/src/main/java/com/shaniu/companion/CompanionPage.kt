@@ -10,6 +10,13 @@ import android.widget.*
 
 /** Reusable page construction only. Device transactions remain with the owner. */
 internal class CompanionPage(private val context: Context, private val content: LinearLayout) {
+    data class DiscoveryCandidate(
+        val title: String,
+        val detail: String,
+        val contentDescription: String,
+        val enabled: Boolean,
+        val select: () -> Unit,
+    )
     private val design = CompanionDesign(context)
     private val INK get() = design.ink
     private val MUTED get() = design.muted
@@ -130,6 +137,57 @@ internal class CompanionPage(private val context: Context, private val content: 
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { setMargins(0, 0, 0, dp(10)) },
         )
+    }
+
+    /** Presentation only: discovery ownership, authentication, and cancellation
+     * remain with the Activity's single foreground control session. */
+    fun addDiscoveryCard(
+        title: String,
+        summary: String,
+        candidates: List<DiscoveryCandidate>,
+        dismissLabel: String?,
+        dismissDescription: String?,
+        dismiss: (() -> Unit)?,
+    ) {
+        val card = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(design.surface); cornerRadius = dp(20).toFloat()
+            }
+            setPadding(dp(20), dp(18), dp(20), dp(12))
+            addView(TextView(context).apply {
+                text = title; textSize = 17f
+                typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+                setTextColor(INK); isAccessibilityHeading = true
+            })
+            addView(TextView(context).apply {
+                text = summary; textSize = 14f; setTextColor(MUTED)
+                setPadding(0, dp(6), 0, dp(8))
+            })
+        }
+        candidates.forEach { candidate ->
+            card.addView(TextView(context).apply {
+                text = "${candidate.title}\n${candidate.detail}"
+                textSize = 15f; setTextColor(if (candidate.enabled) INK else MUTED)
+                minimumHeight = dp(64); gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                background = android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(design.selected),
+                    design.shape(design.background, dp(14).toFloat()), null)
+                isClickable = candidate.enabled; isFocusable = candidate.enabled
+                contentDescription = candidate.contentDescription
+                if (candidate.enabled) setOnClickListener { candidate.select() }
+            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
+        }
+        if (dismissLabel != null && dismiss != null) card.addView(TextView(context).apply {
+            text = dismissLabel; textSize = 14f; setTextColor(design.accent)
+            gravity = Gravity.CENTER; minimumHeight = dp(48); isClickable = true; isFocusable = true
+            contentDescription = dismissDescription ?: dismissLabel
+            setOnClickListener { dismiss() }
+        })
+        content.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, 0, 0, dp(10))
+        })
     }
 
     fun addMuted(message: String) {

@@ -163,6 +163,17 @@ class MainActivity : Activity() {
     private var directServiceWasReady = false
     private var directScanner: DeviceControlScanner? = null
     private var directDialog: AlertDialog? = null
+    private data class DirectCandidate(
+        val device: android.bluetooth.BluetoothDevice,
+        val name: String,
+        val epoch: Long,
+    )
+    // Scan records are selection hints only. A candidate is never a claimed or
+    // authenticated device until the existing control session verifies it.
+    private val directCandidates = mutableListOf<DirectCandidate>()
+    private var directScanFinished = false
+    private var directDiscoveryDismissed = false
+    private var directDiscoveryVisible = false
     private val directSnapshot get() = directSession.current().snapshot
     private val directFirmwareInfo get() = directSession.current().firmwareInfo
     private var directEpoch = 0L
@@ -260,6 +271,9 @@ class MainActivity : Activity() {
                 directObservedGeneration = state.generation
                 directServiceWasReady = false
                 directEpoch++
+                // A transport generation invalidates discovery hints before a
+                // delayed callback can select a candidate from the old scan.
+                clearDirectDiscovery(keepStatusCard = directDiscoveryVisible)
                 cloudModelsWire?.fill(0); cloudModelsWire = null; cloudModelsExpected = null
                 cloudModelsOffset = 0; cloudModelsTotal = -1
                 cloudModelsReadDeadline = 0; cloudModelsReadTicket++
@@ -343,7 +357,7 @@ class MainActivity : Activity() {
             // Do not leave a half-sent source record waiting on an invisible UI.
             directSession.disconnect(user = false)
         }
-        directScanner?.close(); directScanner = null
+        clearDirectDiscovery()
         directDialog?.dismiss(); directDialog = null
         directConnecting = false
         closeRuntime(clearReportedState = true)
@@ -633,7 +647,7 @@ class MainActivity : Activity() {
             otaServer?.running == true && otaVerificationPending &&
             (otaUpload?.state == OtaControlUpload.State.ACCEPTED || otaStatus?.state in 1L..2L)
         directEpoch++
-        directScanner?.close(); directScanner = null
+        clearDirectDiscovery()
         directDialog?.dismiss(); directDialog = null
         directSession.disconnect()
         directConnecting = false
@@ -653,6 +667,14 @@ class MainActivity : Activity() {
         }
         if (!preserveOtaSource) directMessage = "手机未连接；设备可继续独立对话。"
         return preserveOtaSource
+    }
+
+    private fun clearDirectDiscovery(keepStatusCard: Boolean = false) {
+        directScanner?.close(); directScanner = null
+        directCandidates.clear()
+        directScanFinished = false
+        directDiscoveryDismissed = false
+        directDiscoveryVisible = keepStatusCard
     }
 
     private fun selectTab(value: Int) {
@@ -1375,25 +1397,22 @@ class MainActivity : Activity() {
         }
         closeDirect(preserveAcceptedOtaSource = true)
         val epoch = directEpoch
-        val found = mutableListOf<android.bluetooth.BluetoothDevice>()
-        val labels = android.widget.ArrayAdapter<String>(this, android.R.layout.simple_list_item_1)
+        directDiscoveryVisible = true
         directConnecting = true; directMessage = "正在寻找附近的傻妞…"
-        directDialog = AlertDialog.Builder(this).setTitle("选择附近的傻妞")
-            .setAdapter(labels) { _, index ->
-                if (epoch == directEpoch) connectDirect(found[index], epoch)
-            }.setNegativeButton("取消") { _, _ -> closeDirect(); render() }
-            .setOnCancelListener { closeDirect(); render() }.show()
         directScanner = DeviceControlScanner(this, { device, name ->
             if (epoch == directEpoch && foreground) {
-                found += device
-                labels.add("$name · ${device.address.takeLast(5)}")
+                if (directCandidates.none { it.device.address == device.address }) {
+                    directCandidates += DirectCandidate(device, name, epoch)
+                    render()
+                }
             }
         }, { failed ->
             if (epoch == directEpoch && foreground) {
+                directScanner = null
                 directConnecting = false
+                directScanFinished = true
                 directMessage = if (failed) "无法扫描，请检查蓝牙和附近设备权限。"
-                    else if (found.isEmpty()) "未发现设备，请确认傻妞已开机并在附近。" else "请选择附近的设备。"
-                if (found.isEmpty()) { directDialog?.dismiss(); directDialog = null }
+                    else if (directCandidates.isEmpty()) "未发现设备，请确认傻妞已开机并在附近。" else "已完成查找，请选择要验证的设备。"
                 render()
             }
         })
@@ -1404,11 +1423,28 @@ class MainActivity : Activity() {
     private fun connectDirect(device: android.bluetooth.BluetoothDevice, epoch: Long) {
         if (epoch != directEpoch || !foreground || destroyed) return
         directScanner?.close(); directScanner = null
-        directDialog?.dismiss(); directDialog = null
         directConnecting = false
+        directScanFinished = true
+        directDiscoveryDismissed = false
+        directCandidates.clear()
         directMessage = "正在验证并连接傻妞…"
         directSession.connect(AndroidDeviceControlFactory(applicationContext, device, provisionedDeviceId,
             ioExecutor, { action -> mainHandler.post { action() }; Unit }))
+    }
+
+    private fun dismissDirectDiscovery() {
+        if (!directDiscoveryVisible) return
+        directScanner?.close(); directScanner = null
+        val wasScanning = directConnecting
+        directCandidates.clear()
+        directScanFinished = !wasScanning
+        directDiscoveryDismissed = true
+        directDiscoveryVisible = false
+        if (wasScanning) {
+            directConnecting = false
+            directMessage = "已停止查找；不会自动重新扫描。"
+        }
+        render()
     }
 
     private fun onDirectResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
@@ -1693,6 +1729,7 @@ class MainActivity : Activity() {
                     ViewGroup.LayoutParams.MATCH_PARENT, dp(portraitHeight)).apply { bottomMargin = dp(12) })
                 if (bound) {
                     addCard(if (directSession.current().authenticated) "已连接傻妞" else "已保存认领结果", directStatus())
+                    renderDirectDiscoveryCard()
                     val state = directSession.current()
                     val volume = DeviceControlPresentation.volume(state)
                     settingsRow("音量", volume.reason, enabled = volume.enabled) { editDirectVolume() }
@@ -1967,6 +2004,44 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    private fun renderDirectDiscoveryCard() {
+        if (!directDiscoveryVisible) return
+        val state = directSession.current()
+        val title = when {
+            state.connection == DeviceControlSession.Connection.CONNECTING -> "正在连接并验证设备"
+            state.connection == DeviceControlSession.Connection.RECONNECT_WAIT -> "正在重新连接设备"
+            state.connection == DeviceControlSession.Connection.CONNECTED && state.authenticated -> "已验证连接傻妞"
+            directScanner != null -> "正在查找附近设备"
+            directScanFinished -> "附近设备查找结束"
+            else -> "设备连接状态"
+        }
+        val summary = when {
+            state.connection != DeviceControlSession.Connection.DISCONNECTED -> directStatus()
+            directScanner != null && directCandidates.isEmpty() -> "仅显示同一服务的蓝牙广播；设备身份将在选择后验证。"
+            directScanner != null -> "发现 ${directCandidates.size} 台候选设备；请选择一台进行身份验证。"
+            directCandidates.isEmpty() -> directMessage
+            else -> "请选择一台候选设备进行身份验证。"
+        }
+        CompanionPage(this, content).addDiscoveryCard(
+            title = title,
+            summary = summary,
+            candidates = directCandidates.map { candidate ->
+                val suffix = candidate.device.address.takeLast(5)
+                CompanionPage.DiscoveryCandidate(
+                    title = "${candidate.name} · $suffix",
+                    detail = "未验证设备 · 选择后核对认领身份",
+                    contentDescription = "${candidate.name}，未验证设备，选择后核对认领身份",
+                    enabled = !directDiscoveryDismissed,
+                    select = { connectDirect(candidate.device, candidate.epoch) },
+                )
+            },
+            dismissLabel = if (directScanner != null) "停止查找" else "收起",
+            dismissDescription = if (directScanner != null)
+                "停止查找附近设备，不会自动重新扫描" else "收起设备发现状态卡",
+            dismiss = ::dismissDirectDiscovery,
+        )
     }
 
     private fun renderCustomizationResources() {

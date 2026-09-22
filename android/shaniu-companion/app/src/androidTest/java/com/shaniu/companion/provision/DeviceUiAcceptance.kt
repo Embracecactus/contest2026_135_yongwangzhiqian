@@ -69,17 +69,97 @@ internal object DeviceUiAcceptance {
                 bitmap.recycle()
             }
         }
+        fun assertFooterFullyVisible(editor: DeviceSettingsEditor, dialog: android.app.Dialog) {
+            val decor = checkNotNull(dialog.window).decorView
+            val windowFrame = Rect().also { decor.getWindowVisibleDisplayFrame(it) }
+            val inset = decor.rootWindowInsets
+            val insetText = if (inset == null) "none" else {
+                val bars = inset.getInsets(WindowInsets.Type.systemBars())
+                val ime = inset.getInsets(WindowInsets.Type.ime())
+                "bars=${bars.left},${bars.top},${bars.right},${bars.bottom};ime=${ime.left},${ime.top},${ime.right},${ime.bottom}"
+            }
+            val footer = DeviceSettingsEditor::class.java.getDeclaredField("footer").apply { isAccessible = true }
+                .get(editor) as ViewGroup
+            listOf("saveAction", "closeAction").map { name ->
+                DeviceSettingsEditor::class.java.getDeclaredField(name).apply { isAccessible = true }
+                    .get(editor) as com.google.android.material.button.MaterialButton
+            }.forEach { button ->
+                val visible = Rect()
+                val position = IntArray(2).also { button.getLocationOnScreen(it) }
+                val bar = button.parent as? View
+                val children = (bar as? ViewGroup)?.let { group ->
+                    (0 until group.childCount).joinToString(";") { index ->
+                        val child = group.getChildAt(index)
+                        "${child.javaClass.simpleName}[${child.left},${child.top},${child.right},${child.bottom};h=${child.height};min=${child.minimumHeight}]"
+                    }
+                } ?: "none"
+                check(button.parent === footer && button.isClickable && button.isEnabled &&
+                    button.height >= 48 * activity.resources.displayMetrics.density &&
+                    button.getGlobalVisibleRect(visible) && visible.height() == button.height &&
+                    visible.width() == button.width) {
+                    "dialog footer action clipped: ${button.text}; button=${position[0]},${position[1]}," +
+                        "${button.width}x${button.height};visible=$visible;bar=${bar?.javaClass?.simpleName}" +
+                        "[h=${bar?.height};min=${bar?.minimumHeight};top=${bar?.top};bottom=${bar?.bottom};children=$children];" +
+                        "decor=${decor.width}x${decor.height};window=$windowFrame;insets=$insetText"
+                }
+            }
+        }
         try {
             onUi(instrumentation) { field("provisionedDeviceId").set(activity, "ui-synthetic-device") }
             scene(0, DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED,
                 authenticated = true, snapshot = base, snapshotFresh = true))
             capture("connected-offline")
+            onUi(instrumentation) {
+                field("directDiscoveryVisible").set(activity, true)
+                field("directScanFinished").set(activity, true)
+            }
             scene(0, session.current().copy(connection = DeviceControlSession.Connection.CONNECTING,
                 authenticated = false, snapshotFresh = false))
             capture("connecting")
             scene(0, session.current().copy(connection = DeviceControlSession.Connection.DISCONNECTED,
                 error = "设备身份验证失败，请核对认领设备"))
             capture("authentication-failed")
+            onUi(instrumentation) {
+                field("directScanFinished").set(activity, true)
+                field("directDiscoveryVisible").set(activity, true)
+                field("directMessage").set(activity, "未发现设备，请确认傻妞已开机并在附近。")
+            }
+            scene(0)
+            capture("discovery-empty")
+            fun setDiscoveryCandidates(vararg fixture: Pair<String, String>) {
+                onUi(instrumentation) {
+                    val adapter = checkNotNull(android.bluetooth.BluetoothAdapter.getDefaultAdapter()) {
+                        "synthetic discovery gallery requires the emulator Bluetooth facade"
+                    }
+                    val candidates = field("directCandidates").get(activity) as MutableList<Any>
+                    val candidateType = Class.forName("com.shaniu.companion.MainActivity\$DirectCandidate")
+                    val constructor = candidateType.getDeclaredConstructor(
+                        android.bluetooth.BluetoothDevice::class.java,
+                        String::class.java,
+                        Long::class.javaPrimitiveType,
+                    ).apply { isAccessible = true }
+                    val epoch = field("directEpoch").getLong(activity)
+                    candidates.clear()
+                    fixture.forEach { (name, address) ->
+                        // getRemoteDevice only creates an opaque local handle; this
+                        // gallery never scans, connects, or sends a credential.
+                        candidates += constructor.newInstance(adapter.getRemoteDevice(address), name, epoch)
+                    }
+                    field("directDiscoveryVisible").set(activity, true)
+                    field("directScanFinished").set(activity, true)
+                    field("directMessage").set(activity, "已完成查找，请选择要验证的设备。")
+                }
+            }
+            setDiscoveryCandidates("傻妞客厅" to "02:00:00:00:00:11")
+            scene(0, session.current().copy(connection = DeviceControlSession.Connection.DISCONNECTED, error = null))
+            capture("discovery-one-candidate")
+            setDiscoveryCandidates(
+                "傻妞客厅" to "02:00:00:00:00:11",
+                "傻妞书房" to "02:00:00:00:00:12",
+                "傻妞卧室" to "02:00:00:00:00:13",
+            )
+            scene(0)
+            capture("discovery-multiple-candidates")
             scene(2, session.current().copy(connection = DeviceControlSession.Connection.CONNECTED,
                 authenticated = true, snapshotFresh = true))
             capture("customization")
@@ -134,6 +214,10 @@ internal object DeviceUiAcceptance {
                     val sample = DeviceSettings.Public(0, 7, "0".repeat(32), 0,
                         true, true, true, true, 443, 0, "演示网络", "api.example.invalid", "/v1",
                         "mimo-v2.5-asr", "mimo-v2.5", "mimo-v2.5-tts")
+                    // populate() fills fields only; the production footer also
+                    // requires an authoritative current record before enabling save.
+                    DeviceSettingsEditor::class.java.getDeclaredField("current").apply { isAccessible = true }
+                        .set(editor, sample)
                     DeviceSettingsEditor::class.java.getDeclaredMethod("populate", DeviceSettings.Public::class.java)
                         .apply { isAccessible = true }.invoke(editor, sample)
                     DeviceSettingsEditor::class.java.getDeclaredMethod("editable", Boolean::class.javaPrimitiveType)
@@ -145,36 +229,54 @@ internal object DeviceUiAcceptance {
                 }
                 try {
                     capture(if (cloud) "cloud-models" else "wifi-settings") { dialog.window!!.decorView }
-                    if (!cloud) {
-                        val input = DeviceSettingsEditor::class.java.getDeclaredField("network").apply { isAccessible = true }
-                            .get(editor) as EditText
-                        onUi(instrumentation) {
+                    onUi(instrumentation) { assertFooterFullyVisible(editor, dialog) }
+                    val input = DeviceSettingsEditor::class.java.getDeclaredField(if (cloud) "url" else "network")
+                        .apply { isAccessible = true }.get(editor) as EditText
+                    onUi(instrumentation) {
                             input.requestFocus(); input.setSelection(input.length())
                             activity.getSystemService(InputMethodManager::class.java).showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
-                        }
-                        Thread.sleep(500)
-                        instrumentation.uiAutomation.executeShellCommand("input text _draft").use { descriptor ->
-                            android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
-                        }
-                        instrumentation.waitForIdleSync()
-                        onUi(instrumentation) {
+                    }
+                    Thread.sleep(500)
+                    instrumentation.uiAutomation.executeShellCommand("input text _draft").use { descriptor ->
+                        android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
+                    }
+                    instrumentation.waitForIdleSync()
+                    onUi(instrumentation) {
+                        if (!cloud) {
                             check(input.text.toString().endsWith("_draft")) { "keyboard input not delivered" }
                             render.invoke(activity)
                             check(input.text.toString().endsWith("_draft")) { "status render overwrote draft" }
-                            check(dialog.window!!.decorView.rootWindowInsets.isVisible(WindowInsets.Type.ime())) { "IME not visible" }
-                            val box = DeviceSettingsEditor::class.java.getDeclaredField("box").apply { isAccessible = true }
-                                .get(editor) as View
-                            (box.parent as ScrollView).fullScroll(View.FOCUS_DOWN)
                         }
-                        instrumentation.waitForIdleSync()
-                        capture("wifi-keyboard") { dialog.window!!.decorView }
-                        onUi(instrumentation) {
-                            val save = DeviceSettingsEditor::class.java.getDeclaredField("saveWifi").apply { isAccessible = true }
-                                .get(editor) as View
-                            val visible = Rect()
-                            check(save.getGlobalVisibleRect(visible) && visible.height() > 0) { "save action hidden behind keyboard" }
-                            activity.getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input.windowToken, 0)
+                        check(dialog.window!!.decorView.rootWindowInsets.isVisible(WindowInsets.Type.ime())) { "IME not visible" }
+                        val formScroll = DeviceSettingsEditor::class.java.getDeclaredField("formScroll").apply { isAccessible = true }
+                            .get(editor) as ScrollView
+                        // Keep exercising the long-form scroll path, then return
+                        // to the focused field: a footer-only dialog is not usable.
+                        formScroll.scrollTo(0, formScroll.getChildAt(0).height)
+                        val fieldRect = Rect()
+                        input.getDrawingRect(fieldRect)
+                        formScroll.offsetDescendantRectToMyCoords(input, fieldRect)
+                        formScroll.scrollTo(0, (fieldRect.centerY() - formScroll.height / 2).coerceAtLeast(0))
+                    }
+                    // Wait for IME/focus layout and any posted scroll before
+                    // checking the same settled frame that will be captured.
+                    Thread.sleep(350)
+                    instrumentation.waitForIdleSync()
+                    onUi(instrumentation) {
+                        val formScroll = DeviceSettingsEditor::class.java.getDeclaredField("formScroll").apply { isAccessible = true }
+                            .get(editor) as ScrollView
+                        val fieldVisible = Rect()
+                        check(formScroll.height >= 48 * activity.resources.displayMetrics.density &&
+                            input.getGlobalVisibleRect(fieldVisible) && fieldVisible.height() == input.height) {
+                            "keyboard editor form unavailable: scroll=${formScroll.width}x${formScroll.height};field=$fieldVisible"
                         }
+                    }
+                    instrumentation.waitForIdleSync()
+                    capture(if (cloud) "cloud-keyboard" else "wifi-keyboard") { dialog.window!!.decorView }
+                    onUi(instrumentation) {
+                        // v34 起保存动作属于固定页脚，不再检查已隐藏的旧表单按钮。
+                        assertFooterFullyVisible(editor, dialog)
+                        activity.getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input.windowToken, 0)
                     }
                 }
                 finally { onUi(instrumentation) { editor.close() } }
