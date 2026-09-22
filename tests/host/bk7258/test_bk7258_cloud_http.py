@@ -25,8 +25,10 @@ class CloudHttpTest(unittest.TestCase):
             (temp / "nuttx/version.h").write_text("")
             (temp / "debug.h").write_text(
                 "#include <assert.h>\n#include <string.h>\n"
+                "#if !__GLIBC_PREREQ(2, 38)\n"
                 "static inline size_t strlcpy(char *d,const char *s,size_t n) "
                 "{size_t k=strlen(s);if(n){size_t c=k<n-1?k:n-1;memcpy(d,s,c);d[c]=0;}return k;}\n"
+                "#endif\n"
                 "#define DEBUGASSERT assert\n#define ninfo(...) ((void)0)\n"
                 "#define nerr(...) ((void)0)\n#define nwarn(...) ((void)0)\n"
             )
