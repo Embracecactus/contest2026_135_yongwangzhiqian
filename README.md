@@ -93,7 +93,7 @@ tag 指向合并提交 `6a8a3e55`），fork 与官方仓两份资产 SHA256 一�
 ```bash
 repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian.git \
   -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk,platform-linux
-repo sync -c -j4
+repo sync -j4
 cd contest2026_135_yongwangzhiqian
 python3 tools/bk7258/bk7258.py toolchain install
 python3 tools/bk7258/bk7258.py toolchain verify

@@ -12,6 +12,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -50,6 +51,39 @@ REQUIRED_BOARD_FIELDS = frozenset(
 )
 BOARD_ROOT = Path("boards/bk7258")
 CHIP_ROOT = Path("chips/bk7258")
+MCUBOOT_PATH = Path("apps/boot/mcuboot/mcuboot")
+
+
+def mcuboot_source(repository: Path) -> Path:
+    """Accept only the manifest-pinned official MCUboot checkout."""
+
+    manifest = repository / f"{repository.name}.xml"
+    try:
+        projects = [
+            row for row in ET.parse(manifest).getroot().iter("project")
+            if row.get("path") == MCUBOOT_PATH.as_posix()
+        ]
+    except (OSError, ET.ParseError) as error:
+        raise BuildError("cannot read MCUboot manifest pin") from error
+    if len(projects) != 1:
+        raise BuildError("manifest must select exactly one MCUboot source")
+    expected = projects[0].get("revision", "")
+    if re.fullmatch(r"[0-9a-f]{40}", expected) is None:
+        raise BuildError("MCUboot manifest pin is not an immutable commit")
+    root = _directory(repository.parent / MCUBOOT_PATH, "pinned MCUboot source")
+    result = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode or result.stdout.strip() != expected:
+        raise BuildError("MCUboot checkout does not match the manifest commit")
+    changed = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain"],
+        capture_output=True, text=True, check=False,
+    )
+    if changed.returncode or changed.stdout.strip():
+        raise BuildError("MCUboot checkout has unreviewed local modifications")
+    return root
 
 
 @dataclass(frozen=True)
@@ -1041,9 +1075,7 @@ def _build_bl2(
         repository / CHIP_ROOT / "bootloader/bl2/Makefile",
         "project BL2 Makefile",
     )
-    mcuboot_root = _directory(
-        workspace / "apps/boot/mcuboot/mcuboot", "pinned MCUboot source"
-    )
+    mcuboot_root = mcuboot_source(repository)
     environment = _build_environment(toolchain)
     command = [
         str(toolchain.make),

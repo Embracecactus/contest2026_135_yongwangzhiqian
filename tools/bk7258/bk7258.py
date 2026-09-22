@@ -584,9 +584,7 @@ def _release(args: argparse.Namespace) -> None:
         evidence_root.mkdir(parents=True)
         toolchain = build_domain.toolchain_root(REPOSITORY) / "bin"
         sdk_evidence = _release_sdk_evidence(manifest)
-        official_imgtool = (
-            REPOSITORY.parent / "apps/boot/mcuboot/mcuboot/scripts/imgtool.py"
-        )
+        official_imgtool = build_domain.mcuboot_source(REPOSITORY) / "scripts/imgtool.py"
         if args.release_command == "full":
             signed = trust_domain.signed_release(
                 layout=manifest.layout,

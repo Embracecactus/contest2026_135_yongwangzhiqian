@@ -44,9 +44,24 @@ jobs:
           mkdir -p "$cold"
           cd "$cold"
           repo init -u "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
-            -b "$GITHUB_SHA" -m contest2026_135_yongwangzhiqian.xml \
+            -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml \
             -g default,bk7258-sdk,platform-linux
-          repo sync -c -j4
+          repo sync -j4 \
+            apps apps/boot/mcuboot/mcuboot apps/crypto/mbedtls/mbedtls \
+            apps/graphics/lvgl/lvgl apps/math/gemmlowp/gemmlowp \
+            apps/math/kissfft/kissfft apps/math/ruy/ruy \
+            apps/mlearning/cmsis-nn/cmsis-nn \
+            apps/mlearning/tflite-micro/tflite-micro \
+            apps/netutils/cjson/cJSON apps/netutils/mqttc/MQTT-C \
+            apps/system/flatbuffers/flatbuffers build \
+            contest2026_135_yongwangzhiqian \
+            frameworks frameworks/connectivity/bluetooth \
+            frameworks/multimedia/media frameworks/system/topics \
+            frameworks/system/vibrator nuttx nuttx/fs/fatfs/fatfs \
+            nuttx/fs/littlefs/littlefs nuttx/openamp/libmetal \
+            nuttx/openamp/open-amp packages/ai_agent \
+            prebuilts/build-tools/linux-x86_64 prebuilts/tools vendor/beken \
+            vendor/beken/bk_avdk_smp
           project="$cold/contest2026_135_yongwangzhiqian"
           test "$(git -C "$project" rev-parse HEAD)" = "$GITHUB_SHA"
           repo manifest -r -o "$RUNNER_TEMP/resolved-manifest.xml"

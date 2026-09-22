@@ -11,6 +11,7 @@
   <!-- The existing Agent extensions from the 635 feature branch are delivered
        as public fork commits; no build-time patch is reinstated. -->
   <remote name="shaniu-agent" fetch="https://github.com/Embracecactus/"/>
+  <remote name="mcuboot-official" fetch="https://github.com/mcu-tools/"/>
   <extend-project name="packages_ai_agent" path="packages/ai_agent"
                   remote="shaniu-agent"
                   revision="add0db19d00301769907a5ece03fb9bd88d2edb4"
@@ -24,6 +25,12 @@
            sync-c="true"
            clone-depth="1"
            groups="bk7258-sdk"/>
+
+  <!-- BL2 and the release signer consume this exact official MCUboot tree. -->
+  <project path="apps/boot/mcuboot/mcuboot" name="mcuboot"
+           remote="mcuboot-official"
+           revision="fefc398cc13ebbc527e297fe9df78cd98a359d75"
+           clone-depth="1"/>
 
   <!-- Post-contest development belongs to the owner fork, not the frozen contest repo. -->
   <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian"
