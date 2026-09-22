@@ -2753,10 +2753,12 @@ void *__wrap_malloc(size_t size)
 
       syslog(LOG_ERR,
              "BK7258 WIFI MALLOC FAIL pid=%ld size=%lu total=%lu "
-             "used=%lu free=%lu maxfree=%lu\n",
+             "used=%lu free=%lu maxfree=%lu caller=%p wifi_zero=%u\n",
              (long)nxsched_gettid(), (unsigned long)size,
              (unsigned long)info.arena, (unsigned long)info.uordblks,
-             (unsigned long)info.fordblks, (unsigned long)info.mxordblk);
+             (unsigned long)info.fordblks, (unsigned long)info.mxordblk,
+             __builtin_return_address(0),
+             (unsigned int)g_bk7258_wifi_zero_malloc);
     }
 
   /* The official v3.1.1.9 CP starts Wi-Fi against a fresh, zero-filled

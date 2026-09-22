@@ -1030,6 +1030,61 @@ def _role_build(
     )
 
 
+def _cp_memory_report(role: RoleBuild, toolchain: Toolchain) -> None:
+    """Check copied sleep helpers and report static, not runtime, headroom."""
+
+    if role.role != "cp":
+        return
+    config = role.dotconfig.read_text(encoding="utf-8")
+    nm = toolchain.binary_dir / "arm-none-eabi-nm"
+    names = ("_sdata", "_edata", "_sbss", "_ebss", "_eheap",
+             "g_intstackalloc", "g_intstacktop")
+    symbols = {name: trust_domain.elf_symbol(role.elf, nm, name)
+               for name in names}
+    idle = re.search(r"^CONFIG_IDLETHREAD_STACKSIZE=(\d+)$", config, re.M)
+    if idle is None:
+        raise BuildError("CP memory report requires the resolved idle stack size")
+    initial = symbols["_eheap"] - symbols["_ebss"] - int(idle[1])
+    if initial <= 0:
+        raise BuildError("CP has no initial heap after its startup stack")
+    if "CONFIG_BK7258_PM_SOFT_OFF=y\n" in config:
+        table = subprocess.run([str(nm), "-P", str(role.elf)],
+                               capture_output=True, text=True, check=True)
+        for name in (
+            "sys_hal_enter_deep_sleep", "arch_deep_sleep",
+            "sys_set_ana_reg_bit", "sys_ll_set_ana_reg5_en_cb",
+            "sys_ll_set_ana_reg8_valoldosel",
+            "sys_ll_set_ana_reg9_spi_latch1v",
+            "sys_ll_set_ana_reg10_vbspbuflp1v",
+            "sys_ll_set_ana_reg11_aldosel", "sys_ll_set_ana_reg12_dldosel",
+            "sys_hal_enable_spi_latch", "sys_hal_disable_spi_latch",
+            "sys_hal_power_on_and_select_rosc", "sys_hal_disable_hf_clock",
+            "sys_hal_gpio_state_switch",
+        ):
+            # Static SDK register helpers have same-named copies in other
+            # objects. Require exactly one copied implementation, not a
+            # globally unique local symbol name.
+            addresses = [int(row[2], 16) for line in table.stdout.splitlines()
+                         if len(row := line.split()) >= 3 and row[0] == name
+                         and symbols["_sdata"] <= int(row[2], 16) < symbols["_edata"]]
+            if len(addresses) != 1:
+                raise BuildError(f"CP sleep helper is outside startup copy: {name}")
+            symbols[name] = addresses[0]
+    _atomic_text(role.binary_root / "cp-memory-report.json", json.dumps({
+        "format": "bk7258.cp-memory-report/1",
+        "elf_sha256": _sha256_file(role.elf),
+        "config_sha256": role.resolved_config_sha256,
+        "symbols": symbols,
+        "copied_data_bytes": symbols["_edata"] - symbols["_sdata"],
+        "bss_bytes": symbols["_ebss"] - symbols["_sbss"],
+        "interrupt_stack_bytes": symbols["g_intstacktop"] - symbols["g_intstackalloc"],
+        "startup_stack_bytes": int(idle[1]),
+        "initial_heap_gross_bytes": initial,
+        "runtime_budget_status": "requires-pre-PSRAM-allocation-and-boot-evidence",
+        "boot_status": "not-verified",
+    }, indent=2, sort_keys=True) + "\n")
+
+
 def _release_root(
     workspace: Path,
     cp: RoleBuild,
@@ -2039,6 +2094,7 @@ def build(
         kernel_compat_domain.verify_role_config("cp", cp_result.dotconfig)
     except kernel_compat_domain.KernelCompatError as error:
         raise BuildError(str(error)) from error
+    _cp_memory_report(cp_result, toolchain)
     ap_result = _role_build(
         repository,
         workspace,

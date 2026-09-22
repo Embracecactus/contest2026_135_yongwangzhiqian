@@ -145,12 +145,7 @@ SECTIONS
 #endif
         *(.fixup)
         *(.gnu.warning)
-#ifdef CONFIG_BK7258_PM_SOFT_OFF
-        *(EXCLUDE_FILE (*sys_pm_hal.c.obj) .rodata)
-        *(EXCLUDE_FILE (*sys_pm_hal.c.obj) .rodata.*)
-#else
         *(.rodata .rodata.*)
-#endif
         *(.gnu.linkonce.t.*)
         *(.glue_7)
         *(.glue_7t)
@@ -277,14 +272,29 @@ SECTIONS
     {
         _sdata = ABSOLUTE(.);
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
-        /* The SDK deep-sleep HAL disables the XIP clock before reaching WFI.
-         * Its section name alone does not place it in RAM: orphan placement
-         * otherwise leaves it in FLASH. Copy the HAL and its local helpers,
-         * plus the architecture sleep leaf, using the normal startup copy.
+        /* Only the pinned SDK's post-clock-off closure belongs in SRAM.
+         * The archive combines deep sleep and low voltage in one indivisible
+         * .itcm_sec_code input section. Keep that section and the register
+         * helpers reached after clock switching, not all PM setup routines.
+         * Their literal pools are part of these function input sections.
          */
 
-        *sys_pm_hal.c.obj(.text .text.* .rodata .rodata.* .itcm_sec_code)
+        _spm_ram = ABSOLUTE(.);
+        *sys_pm_hal.c.obj(.itcm_sec_code
+          .text.sys_set_ana_reg_bit
+          .text.sys_ll_set_ana_reg5_en_cb
+          .text.sys_ll_set_ana_reg8_valoldosel
+          .text.sys_ll_set_ana_reg9_spi_latch1v
+          .text.sys_ll_set_ana_reg10_vbspbuflp1v
+          .text.sys_ll_set_ana_reg11_aldosel
+          .text.sys_ll_set_ana_reg12_dldosel
+          .text.sys_hal_enable_spi_latch
+          .text.sys_hal_disable_spi_latch
+          .text.sys_hal_power_on_and_select_rosc
+          .text.sys_hal_disable_hf_clock
+          .text.sys_hal_gpio_state_switch)
         *arm.c.obj(.itcm_sec_code)
+        _epm_ram = ABSOLUTE(.);
 #endif
         *(.data .data.*)
         *(.gnu.linkonce.d.*)
@@ -302,6 +312,17 @@ SECTIONS
     } > RAM AT > FLASH
 
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
+    /* Consume only the remaining setup sections after the SRAM selection.
+     * EXCLUDE_FILE above prevents the earlier wildcard stealing the closure.
+     * These routines run while XIP is still available; no PM rodata table is
+     * referenced by the deep-sleep post-clock-off register-only path.
+     */
+
+    .pm_setup : ALIGN(4)
+    {
+        *sys_pm_hal.c.obj(.text .text.*)
+    } > FLASH
+
     ASSERT(sys_hal_enter_deep_sleep >= _sdata &&
            sys_hal_enter_deep_sleep < _edata,
            "ERROR: deep-sleep HAL must execute from copied SRAM")

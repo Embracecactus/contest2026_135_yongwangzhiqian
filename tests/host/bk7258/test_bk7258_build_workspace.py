@@ -5,6 +5,7 @@
 import os
 import contextlib
 import io
+import json
 import shutil
 import stat
 import subprocess
@@ -13,6 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from types import SimpleNamespace
 
 
 REPOSITORY = Path(__file__).resolve().parents[3]
@@ -25,6 +27,30 @@ import bk7258 as cli
 
 
 class BuildWorkspaceTest(unittest.TestCase):
+    def test_cp_memory_report_does_not_claim_runtime_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / ".config"
+            config.write_text("CONFIG_IDLETHREAD_STACKSIZE=2048\n")
+            elf = root / "nuttx"
+            elf.write_bytes(b"fixture")
+            symbols = {"_sdata": 0x28010000, "_edata": 0x28011000,
+                       "_sbss": 0x28011000, "_ebss": 0x28040000,
+                       "_eheap": 0x2804fffc, "g_intstackalloc": 0x28010000,
+                       "g_intstacktop": 0x28010800}
+            role = SimpleNamespace(role="cp", dotconfig=config, elf=elf,
+                                   binary_root=root, resolved_config_sha256="fixture")
+            with mock.patch.object(trust_domain, "elf_symbol",
+                                   side_effect=lambda elf, nm, name: symbols[name]):
+                build_domain._cp_memory_report(role, SimpleNamespace(binary_dir=root))
+                report = json.loads((root / "cp-memory-report.json").read_text())
+                self.assertEqual(report["initial_heap_gross_bytes"], 63484)
+                self.assertEqual(report["boot_status"], "not-verified")
+                self.assertIn("requires-pre-PSRAM", report["runtime_budget_status"])
+                symbols["_ebss"] = symbols["_eheap"] - 1024
+                with self.assertRaises(build_domain.BuildError):
+                    build_domain._cp_memory_report(role, SimpleNamespace(binary_dir=root))
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="bk7258-workspace-")
         self.root = Path(self.temporary.name)
