@@ -2,7 +2,7 @@
 package com.shaniu.companion.provision
 
 import android.app.Activity
-import android.app.AlertDialog
+import androidx.appcompat.app.AlertDialog
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -20,13 +20,20 @@ internal class DeviceSettingsEditor(
     private val session: DeviceControlSession,
     private val deviceId: String,
     private val appendMax: Int,
+    private val cloudPage: Boolean = false,
     private val finished: (String) -> Unit,
 ) : AutoCloseable {
     private enum class Phase { IDLE, READING, RESOLVING, BEGIN, APPEND, APPLY, VERIFY, CLOSING }
     private val handler = Handler(Looper.getMainLooper())
     private val preferences = activity.getSharedPreferences("shaniu-settings-receipts", Activity.MODE_PRIVATE)
-    private val box = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 12, 24, 12) }
-    private val message = TextView(activity).apply { text = "正在通过已认证蓝牙读取设备配置…"; box.addView(this) }
+    private val design = com.shaniu.companion.CompanionDesign(activity)
+    private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
+    private val box = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(16), dp(24), dp(16)) }
+    private val fieldContainers = linkedMapOf<View, View>()
+    private val message = TextView(activity).apply {
+        text = "正在通过已认证蓝牙读取设备配置…"; textSize = 14f
+        setTextColor(design.muted); box.addView(this)
+    }
     private val network = field("Wi-Fi 名称")
     private val password = field("新 Wi-Fi 密码（留空不修改）", true)
     private val replacePassword = CheckBox(activity).apply { text = "替换 Wi-Fi 密码（勾选且留空表示开放网络）"; box.addView(this) }
@@ -63,6 +70,8 @@ internal class DeviceSettingsEditor(
     private var lastMessage = "设备配置未修改"
 
     init {
+        listOf<View>(network, password, replacePassword, saveWifi).forEach { (fieldContainers[it] ?: it).visibility = if (cloudPage) View.GONE else View.VISIBLE }
+        listOf<View>(url, key, dialect, asr, chat, tts, saveCloud).forEach { (fieldContainers[it] ?: it).visibility = if (cloudPage) View.VISIBLE else View.GONE }
         resultSubscription = session.observeResults(::received)
         stateSubscription = session.observe { state ->
             if (active && !connectionLost && (!state.authenticated || state.generation != generation)) {
@@ -73,25 +82,40 @@ internal class DeviceSettingsEditor(
                 handler.post { if (active) close() }
             }
         }
-        dialog = AlertDialog.Builder(activity).setTitle("Wi-Fi 与云服务")
+        dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(activity).setTitle(if (cloudPage) "云服务与模型" else "Wi-Fi 网络")
             .setView(ScrollView(activity).apply { addView(box) })
             .setNegativeButton("关闭", null).create().also {
                 it.setOnDismissListener { close() }
                 it.show()
                 it.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                it.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
             }
         read(false)
     }
 
-    private fun field(label: String, secret: Boolean = false) = EditText(activity).apply {
-        hint = label; contentDescription = label; isSingleLine = true
-        inputType = InputType.TYPE_CLASS_TEXT or if (secret) InputType.TYPE_TEXT_VARIATION_PASSWORD else InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
-        isSaveEnabled = false
-        box.addView(this)
+    private fun field(label: String, secret: Boolean = false): EditText {
+        val container = com.google.android.material.textfield.TextInputLayout(activity).apply {
+            hint = label
+            boxBackgroundMode = com.google.android.material.textfield.TextInputLayout.BOX_BACKGROUND_OUTLINE
+            setBoxCornerRadii(dp(16).toFloat(), dp(16).toFloat(), dp(16).toFloat(), dp(16).toFloat())
+            isSaveEnabled = false
+        }
+        val input = com.google.android.material.textfield.TextInputEditText(container.context).apply {
+            contentDescription = label; isSingleLine = true; textSize = 16f
+            inputType = InputType.TYPE_CLASS_TEXT or if (secret) InputType.TYPE_TEXT_VARIATION_PASSWORD else InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            typeface = android.graphics.Typeface.DEFAULT
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+            isSaveEnabled = false; minHeight = dp(56)
+            setTextColor(design.ink)
+        }
+        container.addView(input, LinearLayout.LayoutParams(-1, -2))
+        fieldContainers[input] = container
+        box.addView(container, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        return input
     }
-    private fun button(label: String, action: () -> Unit) = Button(activity).apply {
-        text = label; setOnClickListener { action() }; box.addView(this)
+    private fun button(label: String, action: () -> Unit) = com.google.android.material.button.MaterialButton(activity).apply {
+        text = label; isAllCaps = false; minHeight = dp(48)
+        setOnClickListener { action() }; box.addView(this)
     }
     private fun note(text: String) { message.text = text; lastMessage = text }
     private fun editable(enabled: Boolean) {

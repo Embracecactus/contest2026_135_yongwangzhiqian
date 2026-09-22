@@ -241,10 +241,11 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = BACKGROUND
-        window.navigationBarColor = Color.WHITE
+        window.navigationBarColor = design.surface
         window.isStatusBarContrastEnforced = false
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-            View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        window.decorView.systemUiVisibility = if (design.dark) 0 else
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        currentTab = savedInstanceState?.getInt("navigation", TAB_OVERVIEW) ?: TAB_OVERVIEW
         preferences = getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         tokenStore = AndroidKeystoreTokenStore(applicationContext)
         provisionBindingStore = ProvisionBindingStore(applicationContext)
@@ -329,7 +330,6 @@ class MainActivity : Activity() {
     override fun onStop() {
         // The shared session keeps a bounded grace period for file pickers and
         // other Activities. Foreground return resumes the same authenticated link.
-        settingsEditor?.close(); settingsEditor = null
         foreground = false
         cancelPendingWakeImport("已取消等待导入，尚未向设备发送模型")
         touchActive = false
@@ -492,12 +492,12 @@ class MainActivity : Activity() {
         }
         root.addView(
             TextView(this).apply {
-                text = "傻妞  /  SHANIU"
+                text = "傻妞"
                 textSize = 18f
                 letterSpacing = 0.06f
                 typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
                 setTextColor(INK)
-                setPadding(dp(26), dp(18), dp(26), dp(16))
+                setPadding(dp(24), dp(16), dp(24), dp(8))
             },
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -506,7 +506,7 @@ class MainActivity : Activity() {
         )
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(26), dp(8), dp(26), dp(24))
+            setPadding(dp(24), dp(8), dp(24), dp(24))
         }
         contentScroll = ScrollView(this).apply { addView(content) }
         root.addView(
@@ -519,7 +519,7 @@ class MainActivity : Activity() {
         )
         val tabRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.WHITE)
+            setBackgroundColor(design.surface)
             setPadding(dp(8), dp(6), dp(8), dp(8))
         }
         TABS.forEach { (tab, title) ->
@@ -527,6 +527,8 @@ class MainActivity : Activity() {
                 TextView(this).apply {
                     text = title
                     textSize = 12f
+                    minimumHeight = dp(64)
+                    setPadding(dp(4), dp(8), dp(4), dp(8))
                     compoundDrawablePadding = dp(5)
                     setCompoundDrawablesWithIntrinsicBounds(null, navigationIcon(tab), null, null)
                     gravity = Gravity.CENTER
@@ -539,7 +541,7 @@ class MainActivity : Activity() {
                         render()
                     }
                 },
-                LinearLayout.LayoutParams(0, dp(60), 1f),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
             )
         }
         root.addView(
@@ -576,14 +578,14 @@ class MainActivity : Activity() {
         }
         val selectedTab = when (currentTab) {
             TAB_INTERACTION -> TAB_OVERVIEW
-            TAB_PRIVACY, TAB_UPDATE -> TAB_SETTINGS
+            TAB_PRIVACY -> TAB_SETTINGS
             else -> currentTab
         }
         navigation.forEach { (tab, label) ->
             label.isSelected = tab == selectedTab
             label.setTextColor(if (tab == selectedTab) INK else MUTED)
             label.background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(if (tab == selectedTab) Color.rgb(232, 240, 233) else Color.TRANSPARENT)
+                setColor(if (tab == selectedTab) design.selected else Color.TRANSPARENT)
                 cornerRadius = dp(18).toFloat()
             }
         }
@@ -654,10 +656,6 @@ class MainActivity : Activity() {
     }
 
     private fun selectTab(value: Int) {
-        if (currentTab == TAB_UPDATE && value != TAB_UPDATE) {
-            firmwareInspectionEpoch++
-            firmwareInspectionPending = false
-        }
         currentTab = value
         if (value == TAB_SETTINGS) requestCloudModelsRead()
     }
@@ -1129,6 +1127,11 @@ class MainActivity : Activity() {
                 otaStatus = snapshot.otaStatus
                 otaStatusGeneration = directSession.current().generation
                 otaStatusReadError = null
+                if (snapshot.otaStatus.state == 0L && otaUpload == null &&
+                    preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false)) {
+                    preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, false).commit()
+                    otaMessage = "设备报告当前没有更新任务；这不代表上次目标版本已安装。"
+                }
                 confirmExpectedOta()
             } else {
                 otaStatusReadError = if (snapshot.error != 0) {
@@ -1159,6 +1162,7 @@ class MainActivity : Activity() {
                 otaStartGate.release()
                 setOtaKeepAwake(false)
                 otaMessage = "设备已确认取消升级请求。"
+                preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, false).commit()
             } else {
                 otaMessage = "设备拒绝取消升级请求（${snapshot.error}）。"
             }
@@ -1218,7 +1222,8 @@ class MainActivity : Activity() {
         val connection = directConnection
         val info = directFirmwareInfo
         android.util.Log.i("ShaniuOta", "start generation=$directEpoch authenticated=${directSession.current().authenticated} supported=${snapshot?.otaSupported} writePending=$directPending upload=${otaUpload?.state}")
-        if (connection == null || snapshot?.otaSupported != true || directPending || otaUpload != null) return
+        if (connection == null || snapshot?.otaSupported != true || directPending || otaUpload != null ||
+            preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false)) return
         if (info == null) { otaMessage = "正在读取设备版本，暂不能开始升级。"; render(); return }
         if (!OtaUpdatePolicy.mayStart(pack.board, DEVICE_BOARD, info.securityCounter, pack.securityCounter)) {
             otaMessage = if (pack.board != DEVICE_BOARD) "固件包不适用于当前设备。"
@@ -1262,6 +1267,8 @@ class MainActivity : Activity() {
                 lateinit var upload: OtaControlUpload
                 upload = OtaControlUpload(server.requestRecord) { command, payload ->
                     if (epoch != directEpoch || !foreground || directConnection == null) false
+                    else if (command == DeviceControlProtocol.Command.OTA_START &&
+                        !preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, true).commit()) false
                     else directOtaRequest(command, payload)
                 }
                 otaUpload = upload
@@ -1312,8 +1319,11 @@ class MainActivity : Activity() {
         val status = otaStatus ?: return
         val version = "${info.major}.${info.minor}.${info.revision}+${info.build}"
         val confirmed = expectedOtaConfirmed()
+        if (status.state == 3L && (status.phase == 7L || status.phase == 8L || status.result != 0))
+            preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, false).commit()
         if (confirmed) {
             otaMessage = "设备已确认完成升级：$version。"
+            preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, false).commit()
             otaUpload = null
             otaVerificationPending = false
             closeOtaServer()
@@ -1652,9 +1662,14 @@ class MainActivity : Activity() {
     }
 
     private fun editDeviceSettings() {
+        openDeviceSettings(false)
+    }
+
+    private fun openDeviceSettings(cloud: Boolean) {
+        if (settingsEditor != null) return
         configFlow = ConfigFlow.SETTINGS
         settingsEditor = com.shaniu.companion.provision.DeviceSettingsEditor(
-            this, directSession, provisionedDeviceId, configAppendMax) { outcome ->
+            this, directSession, provisionedDeviceId, configAppendMax, cloud) { outcome ->
             settingsEditor = null; configFlow = ConfigFlow.NONE
             directMessage = outcome; cloudModelsGeneration = null
             if (!destroyed) render()
@@ -1666,30 +1681,41 @@ class MainActivity : Activity() {
         when (currentTab) {
             TAB_OVERVIEW, TAB_INTERACTION -> {
                 content.addView(TextView(this).apply {
-                    text = if (bound) "今天，也在你身边。" else "嗨，我是傻妞。"
+                    text = if (bound) "我的傻妞" else "让陪伴，从这里开始"
                     textSize = 29f
                     typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
                     setTextColor(INK)
                     setPadding(0, dp(14), 0, dp(8))
                 })
-                addMuted("把日常，说给我听。")
+                addMuted(if (bound) directStatus() else "离线扫码认领，连接只属于你的傻妞。")
                 // Reserve space for copy, the primary action and persistent navigation.
                 // Large accessibility text can still use the enclosing scroll view.
-                val portraitHeight = (resources.configuration.screenHeightDp - 520).coerceIn(120, 290)
+                val portraitHeight = if (resources.configuration.fontScale > 1.3f) 96
+                    else (resources.configuration.screenHeightDp - 540).coerceIn(120, 180)
                 content.addView(CompanionPortraitView(this), LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, dp(portraitHeight)).apply { bottomMargin = dp(12) })
                 if (bound) {
                     addCard(if (directSession.current().authenticated) "已连接傻妞" else "已保存认领结果", directStatus())
+                    val state = directSession.current()
+                    val volume = DeviceControlPresentation.volume(state)
+                    settingsRow("音量", volume.reason, enabled = volume.enabled) { editDirectVolume() }
+                    settingsRow("网络与云服务", if (state.authenticated)
+                        "手机蓝牙已验证；联网状态以设备报告为准" else "连接并验证后可离线修改设置") {
+                        selectTab(TAB_SETTINGS); render()
+                    }
+                    addMuted(if (state.updatedAt > 0) "最近状态：${((android.os.SystemClock.elapsedRealtime() - state.updatedAt) / 1000).coerceAtLeast(0)} 秒前" +
+                        if (state.snapshotFresh) "" else " · 缓存，等待刷新"
+                        else "尚未收到本次连接的状态 · 电量未知")
                     if (!directSession.current().authenticated && directSession.current().connection != DeviceControlSession.Connection.CONNECTING && directSession.current().connection != DeviceControlSession.Connection.RECONNECT_WAIT)
                         primaryButton(if (directConnecting) "正在连接…" else "连接我的傻妞", !directConnecting) { scanDirect() }
                     if (directSnapshot?.busy == true && directSnapshot?.memoryPending != true)
                         actionButton("停止这次对话", !directPending) { directRequest(DeviceControlProtocol.Command.CANCEL) }
                     actionButton("使用与设置") { selectTab(TAB_SETTINGS); render() }
                 } else {
-                    addCard("从第一次对话开始", "连上网络，设置语音服务。\n然后，聊聊今天发生的小事。")
-                    primaryButton("添加我的傻妞  →", !busy) { startProvisioning() }
+                    addCard("你的设备，由你掌握", "认领无需互联网或云账号。\n认领后，再设置 Wi-Fi 和语音服务。")
+                    primaryButton("添加傻妞 · 扫码连接", !busy) { startProvisioning() }
                     content.addView(TextView(this).apply {
-                        text = "AI 伴侣 · 由你决定如何陪伴"
+                        text = "蓝牙用于连接 · 相机用于扫码"
                         textSize = 11f; gravity = Gravity.CENTER; setTextColor(MUTED)
                         setPadding(0, dp(16), 0, dp(8))
                     })
@@ -1699,7 +1725,7 @@ class MainActivity : Activity() {
                 }
             }
             TAB_PERSONALITY -> {
-                sectionTitle("今天，想怎样陪你？")
+                sectionTitle("定制你的陪伴")
                 addMuted("傻妞是 AI 伴侣，声音由模型合成。")
                 addCard("每一种心情，都值得被听见", "选择聊天的语气，让陪伴更合心意。")
                 addCard("人物设置", directSnapshot?.persona?.let { directPersonas[it] } ?: "连接设备后查看和设置人物风格。")
@@ -1713,6 +1739,7 @@ class MainActivity : Activity() {
                     }
                 } else if (bound) primaryButton("连接傻妞", !directConnecting) { scanDirect() }
                 else primaryButton("先添加我的傻妞", !busy) { startProvisioning() }
+                renderCustomizationResources()
             }
             TAB_PRIVACY -> {
                 sectionTitle("隐私与权限")
@@ -1798,7 +1825,12 @@ class MainActivity : Activity() {
                         0L -> "空闲"
                         1L -> "已排队"
                         2L -> "升级中"
-                        3L -> if (expectedOtaConfirmed()) "已确认完成升级" else "已结束，等待版本核对"
+                        3L -> when {
+                            ota.phase == 7L -> "已回滚，请核对当前版本"
+                            ota.phase == 8L || ota.result != 0 -> "升级失败，设备未确认安装成功"
+                            expectedOtaConfirmed() -> "已确认完成升级"
+                            else -> "已结束，等待版本核对"
+                        }
                         else -> "状态未知"
                     }
                     val phase = when (ota.phase) {
@@ -1828,12 +1860,27 @@ class MainActivity : Activity() {
                 otaStatusReadError?.let(::addMuted)
                 val canStart = inspectedFirmware != null && selectedFirmwareFile != null &&
                     localState?.otaSupported == true && directConnection != null &&
-                    otaUpload == null && !directPending
+                    otaUpload == null && !directPending && !preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false)
                 primaryButton("从手机开始升级", canStart) { startLocalOta() }
+                if (preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false)) {
+                    addMuted("上次更新结果待确认。请连接同一设备并查询状态，不要重复提交更新。")
+                    actionButton("查询设备更新结果", directSession.current().authenticated && !directPending) {
+                        directOtaRequest(DeviceControlProtocol.Command.OTA_STATUS)
+                    }
+                }
                 if (otaUpload?.state == OtaControlUpload.State.WAITING ||
                     otaUpload?.state == OtaControlUpload.State.ACCEPTED || ota?.state in 1L..2L) {
-                    actionButton("取消升级", !directPending) { cancelLocalOta() }
+                    val cancellable = ota?.phase == null || ota.phase in 1L..2L || ota.state == 1L
+                    actionButton("取消升级", !directPending && cancellable) { cancelLocalOta() }
+                    if (!cancellable) addMuted("设备已进入安装提交阶段，请保持供电并等待重连；此时不能立即取消。")
                 }
+                addMuted("更新期间请保持 App 在前台。蓝牙发送更新指令，设备通过局域网 HTTPS 拉取镜像；重连并核对版本后才确认完成。")
+                if (!canStart) addMuted(when {
+                    inspectedFirmware == null -> "先选择普通 OTA 包；工厂全量包不能用于此入口。"
+                    directConnection == null -> "需要连接已认领的设备，才能核对更新能力。"
+                    localState?.otaSupported != true -> "当前固件未提供此更新能力。"
+                    else -> "当前设备事务尚未结束，请等待后重试。"
+                })
                 if (localState?.otaSupported != true && directConnection != null)
                     addMuted("设备固件未声明本地升级能力，不能开始升级。")
                 if (directConnection == null && provisionedDeviceId.isNotBlank())
@@ -1892,50 +1939,14 @@ class MainActivity : Activity() {
                         else -> cloudModelsReadError ?: "尚未读取模型配置"
                     }
                     settingsRow("云端模型", modelText, enabled = configMutationReady) {
-                        editDeviceSettings()
+                        openDeviceSettings(true)
                     }
                     if (cloudModelsExpected != null) settingsRow("取消模型保存", "停止当前配置事务；不会重放未完成写入", enabled = true) {
                         if (!directSession.cancelConfigTransaction()) directMessage = "当前模型配置已结束"
                         else directMessage = "正在取消模型配置"
                         render()
                     }
-                    settingsRow("导入唤醒词模型", wakeMessage ?: "从本地导入已训练的唤醒词模型",
-                        enabled = configMutationReady) {
-                        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            type = "application/octet-stream"; addCategory(Intent.CATEGORY_OPENABLE)
-                        }, WAKE_MODEL_REQUEST)
-                    }
-                    val bundled = listOf("nihao_openvela", "nihao_bingbing", "nihao_shaniu")
-                    val wakeNames = listOf("你好，openvela", "你好冰冰", "你好傻妞")
-                    bundled.forEachIndexed { index, label ->
-                        val available = try { assets.open("wake-models/$label.wkm").use(WakeModelPackage::read) != null } catch (_: Exception) { false }
-                        settingsRow(wakeNames[index], if (available) "切换到此唤醒词" else "此版本暂未提供", enabled = available && configMutationReady) { selectBundledWakeModel(label) }
-                    }
-                    val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation }
-                    settingsRow("读取当前唤醒词", currentWake?.active?.let(::wakeModelSummary) ?: "从设备读取实际模型", enabled = configMutationReady) { requestWakeStatus() }
-                    if (pendingWakeImport != null)
-                        settingsRow("取消模型导入", "取消等待；模型尚未发送", enabled = true) {
-                            cancelPendingWakeImport("已取消导入，尚未向设备发送模型"); render()
-                        }
-                    if (configFlow == ConfigFlow.WAKE && wakePayload != null && !wakeApplied)
-                        settingsRow("取消模型传输", "保留设备当前模型", enabled = !wakeCanceling) {
-                            failWake("模型传输已取消，保留原模型"); render()
-                        }
-                    settingsRow("导入眼睛素材包", eyeMessage ?: "从本地导入 .bkep 眼睛素材包",
-                        enabled = !eyeImportPending && configFlow == ConfigFlow.NONE) {
-                        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            type = "application/octet-stream"; addCategory(Intent.CATEGORY_OPENABLE)
-                        }, EYE_PACK_REQUEST)
-                    }
-                    val selectedEyes = selectedEyePack
-                    settingsRow("通过 Wi-Fi 安装所选眼睛", selectedEyes?.let { "${it.packId} · 版本 ${it.revision}" }
-                        ?: "请先导入眼睛素材包", enabled = selectedEyes != null && !eyeImportPending && configAvailable()) {
-                        startEyeInstall()
-                    }
-                    settingsRow("读取当前眼睛", "读取设备实际安装状态", enabled = configAvailable()) { readCurrentEyes() }
-                    settingsRow("恢复上一唤醒词模型", currentWake?.previous?.let { "恢复为 ${wakeModelSummary(it)}" }
-                        ?: "恢复前先读取设备保存的上一模型", enabled = configMutationReady) { restoreWakeModel() }
-                    settingsRow("Wi-Fi 与云服务", "认证后可离线修改网络、服务地址、密钥及模型", configMutationReady) {
+                    settingsRow("Wi-Fi 网络", "认证后可离线换网；不会清除云服务配置", configMutationReady) {
                         editDeviceSettings()
                     }
                     settingsRow("核对认领结果", "仅用于首次认领或核对未确认结果", !busy && settingsEditor == null) { startProvisioning() }
@@ -1961,6 +1972,47 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    private fun renderCustomizationResources() {
+        sectionTitle("声音与显示资源")
+        val configMutationReady = configAvailable() && pendingWakeImport == null
+        settingsRow("导入唤醒词模型", wakeMessage ?: "从本地导入已训练的唤醒词模型",
+            enabled = configMutationReady) {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                type = "application/octet-stream"; addCategory(Intent.CATEGORY_OPENABLE)
+            }, WAKE_MODEL_REQUEST)
+        }
+        val bundled = listOf("nihao_openvela", "nihao_bingbing", "nihao_shaniu")
+        val wakeNames = listOf("你好，openvela", "你好冰冰", "你好傻妞")
+        bundled.forEachIndexed { index, label ->
+            val available = try { assets.open("wake-models/$label.wkm").use(WakeModelPackage::read) != null } catch (_: Exception) { false }
+            settingsRow(wakeNames[index], if (available) "切换到此唤醒词" else "此版本暂未提供", enabled = available && configMutationReady) { selectBundledWakeModel(label) }
+        }
+        val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation }
+        settingsRow("读取当前唤醒词", currentWake?.active?.let(::wakeModelSummary) ?: "从设备读取实际模型", enabled = configMutationReady) { requestWakeStatus() }
+        if (pendingWakeImport != null)
+            settingsRow("取消模型导入", "取消等待；模型尚未发送", enabled = true) {
+                cancelPendingWakeImport("已取消导入，尚未向设备发送模型"); render()
+            }
+        if (configFlow == ConfigFlow.WAKE && wakePayload != null && !wakeApplied)
+            settingsRow("取消模型传输", "保留设备当前模型", enabled = !wakeCanceling) {
+                failWake("模型传输已取消，保留原模型"); render()
+            }
+        settingsRow("导入眼睛素材包", eyeMessage ?: "从本地导入 .bkep 眼睛素材包",
+            enabled = !eyeImportPending && configFlow == ConfigFlow.NONE) {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                type = "application/octet-stream"; addCategory(Intent.CATEGORY_OPENABLE)
+            }, EYE_PACK_REQUEST)
+        }
+        val selectedEyes = selectedEyePack
+        settingsRow("通过 Wi-Fi 安装所选眼睛", selectedEyes?.let { "${it.packId} · 版本 ${it.revision}" }
+            ?: "请先导入眼睛素材包", enabled = selectedEyes != null && !eyeImportPending && configAvailable()) {
+            startEyeInstall()
+        }
+        settingsRow("读取当前眼睛", "读取设备实际安装状态", enabled = configAvailable()) { readCurrentEyes() }
+        settingsRow("恢复上一唤醒词模型", currentWake?.previous?.let { "恢复为 ${wakeModelSummary(it)}" }
+            ?: "恢复前先读取设备保存的上一模型", enabled = configMutationReady) { restoreWakeModel() }
     }
 
     private fun selectEyePack(uri: android.net.Uri) {
@@ -2138,7 +2190,7 @@ class MainActivity : Activity() {
         accepted: Pair<BkpackInspector.Metadata, java.io.File>?,
         failed: Boolean,
     ) {
-        val current = epoch == firmwareInspectionEpoch && !destroyed && foreground && currentTab == TAB_UPDATE
+        val current = epoch == firmwareInspectionEpoch && !destroyed
         if (!current) {
             accepted?.second?.delete()
             return
@@ -3228,57 +3280,11 @@ class MainActivity : Activity() {
     }
 
     private fun settingsRow(title: String, subtitle: String, enabled: Boolean = true,
-                            selected: Boolean = false, action: () -> Unit) {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(16))
-            minimumHeight = dp(72)
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(if (selected) Color.rgb(230, 239, 231) else Color.WHITE)
-                cornerRadius = dp(18).toFloat()
-            }
-            isEnabled = enabled; isClickable = enabled; isFocusable = enabled
-            contentDescription = "$title，$subtitle" + if (selected) "，当前已选择" else ""
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-            if (enabled) setOnClickListener { action() }
-        }
-        val labels = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-            addView(TextView(context).apply {
-                text = title; textSize = 16f; setTextColor(if (enabled) INK else MUTED)
-                typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
-            })
-            addView(TextView(context).apply {
-                text = subtitle; textSize = 12f; setTextColor(MUTED)
-                setPadding(0, dp(5), 0, 0)
-            })
-        }
-        row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(TextView(this).apply {
-            text = if (selected) "✓" else if (enabled) "›" else ""
-            textSize = 22f; setTextColor(MUTED); setPadding(dp(12), 0, 0, 0)
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        })
-        content.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6); bottomMargin = dp(2) })
-    }
+                            selected: Boolean = false, action: () -> Unit) =
+        CompanionPage(this, content).settingsRow(title, subtitle, enabled, selected, action)
 
-    private fun primaryButton(label: String, enabled: Boolean, action: () -> Unit) {
-        content.addView(Button(this).apply {
-            text = label; isAllCaps = false; textSize = 16f
-            typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
-            isEnabled = enabled
-            setTextColor(Color.WHITE)
-            stateListAnimator = null
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(if (enabled) INK else MUTED); cornerRadius = dp(20).toFloat()
-            }
-            setOnClickListener { action() }
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)).apply {
-            topMargin = dp(8)
-        })
-    }
+    private fun primaryButton(label: String, enabled: Boolean, action: () -> Unit) =
+        CompanionPage(this, content).primaryButton(label, enabled, action)
 
     private fun navigationIcon(tab: Int): android.graphics.drawable.Drawable =
         object : android.graphics.drawable.Drawable() {
@@ -3312,6 +3318,12 @@ class MainActivity : Activity() {
                         }
                         canvas.drawPath(path, paint)
                     }
+                    TAB_UPDATE -> {
+                        canvas.drawLine(12f, 3f, 12f, 16f, paint)
+                        canvas.drawLine(7f, 11f, 12f, 16f, paint)
+                        canvas.drawLine(17f, 11f, 12f, 16f, paint)
+                        canvas.drawLine(4f, 20f, 20f, 20f, paint)
+                    }
                     else -> {
                         canvas.drawCircle(12f, 12f, 7f, paint)
                         canvas.drawCircle(12f, 12f, 2.5f, paint)
@@ -3325,54 +3337,11 @@ class MainActivity : Activity() {
             }
         }
 
-    private fun sectionTitle(title: String) {
-        content.addView(
-            TextView(this).apply {
-                text = title
-                textSize = 23f
-                typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
-                setTextColor(INK)
-                setPadding(0, dp(18), 0, dp(8))
-            },
-        )
-    }
+    private fun sectionTitle(title: String) = CompanionPage(this, content).sectionTitle(title)
 
-    private fun addCard(title: String, body: String) {
-        content.addView(
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(Color.WHITE); cornerRadius = dp(20).toFloat()
-                }
-                setPadding(dp(20), dp(18), dp(20), dp(18))
-                addView(TextView(context).apply {
-                    text = title
-                    textSize = 17f
-                    typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
-                    setTextColor(INK)
-                })
-                addView(TextView(context).apply {
-                    text = body
-                    textSize = 14f
-                    setTextColor(MUTED)
-                    setPadding(0, dp(6), 0, 0)
-                })
-            },
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            ).apply { setMargins(0, 0, 0, dp(10)) },
-        )
-    }
+    private fun addCard(title: String, body: String) = CompanionPage(this, content).addCard(title, body)
 
-    private fun addMuted(message: String) {
-        content.addView(TextView(this).apply {
-            text = message
-            textSize = 14f
-            setTextColor(MUTED)
-            setPadding(0, dp(4), 0, dp(12))
-        })
-    }
+    private fun addMuted(message: String) = CompanionPage(this, content).addMuted(message)
 
     private fun editField(
         hintText: String,
@@ -3418,7 +3387,7 @@ class MainActivity : Activity() {
             textSize = 16f
             setTextColor(if (enabled) INK else MUTED)
             background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(if (enabled) Color.rgb(222, 235, 229) else Color.rgb(235, 237, 233))
+                setColor(if (enabled) design.selected else design.surface)
                 cornerRadius = dp(18).toFloat()
             }
             minHeight = dp(54)
@@ -3503,6 +3472,33 @@ class MainActivity : Activity() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
+    private val design get() = CompanionDesign(this)
+    private val BACKGROUND get() = design.background
+    private val INK get() = design.ink
+    private val MUTED get() = design.muted
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt("navigation", currentTab)
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Theme changes must not destroy the foreground package server or
+        // reconnect the authenticated device. Existing sensitive drafts stay
+        // in their editor until the user closes it.
+        theme.applyStyle(R.style.Theme_Shaniu, true)
+        window.statusBarColor = BACKGROUND
+        window.navigationBarColor = design.surface
+        window.decorView.systemUiVisibility = if (design.dark) 0 else
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        val scroll = contentScroll.scrollY
+        navigation.clear()
+        setContentView(buildRoot().apply { applySystemInsets() })
+        render()
+        contentScroll.post { contentScroll.scrollTo(0, scroll) }
+    }
+
     companion object {
         private const val PREFERENCES_NAME = "shaniu_gateway_configuration_v1"
         private const val KEY_ORIGIN = "origin"
@@ -3514,6 +3510,7 @@ class MainActivity : Activity() {
         private const val KEY_OTA_EXPECTED_COUNTER = "ota_expected_counter"
         private const val KEY_OTA_EXPECTED_CATALOG = "ota_expected_catalog"
         private const val KEY_OTA_EXPECTED_DEVICE = "ota_expected_device"
+        private const val KEY_OTA_EXPECTED_PENDING = "ota_expected_pending"
         private const val DEVICE_BOARD = "aidk_ai_toy"
         private const val PROVISION_REQUEST = 41
         private const val CONSOLE_ENROLLMENT_REQUEST = 42
@@ -3530,10 +3527,6 @@ class MainActivity : Activity() {
         private const val WAKE_MODEL_REQUEST = 6044
         private const val EYE_PACK_REQUEST = 6045
         private const val TAB_SETTINGS = 5
-        private val TABS = listOf(TAB_OVERVIEW to "陪伴", TAB_PERSONALITY to "心情", TAB_SETTINGS to "设置")
-
-        private val BACKGROUND = Color.rgb(248, 248, 243)
-        private val INK = Color.rgb(35, 57, 50)
-        private val MUTED = Color.rgb(113, 126, 119)
+        private val TABS = listOf(TAB_OVERVIEW to "设备", TAB_PERSONALITY to "定制", TAB_UPDATE to "更新", TAB_SETTINGS to "设置")
     }
 }

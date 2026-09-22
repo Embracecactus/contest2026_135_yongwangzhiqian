@@ -14,6 +14,38 @@ AIToyBoard 运行可独立语音交互的 AI 伴侣「傻妞」。
 比赛仓库是 [open-vela/contest2026_135_yongwangzhiqian](https://github.com/open-vela/contest2026_135_yongwangzhiqian)；
 开发 fork 不是另一个参赛项目。
 
+## Android 设备应用（0.7.0 / code 30）
+
+主导航为 **设备｜定制｜更新｜设置**。设备页默认打开；认领无需互联网，
+Wi-Fi 与云模型独立编辑。密码和 Key 不回读、不写入界面保存状态。
+定制页集中唤醒模型和眼睛资源；上传、安装、生效仍以设备回读为准。
+
+界面使用 Material 3 View 组件、系统字体、4/8dp 间距和浅/深色语义颜色。
+采用 [Insta360 的设备连接入口](https://onlinemanual.insta360.com/app/en-us/operation-tutorial/camera-connection/connect-the-camera-to-the-insta360-app)
+和 [DJI Mimo 的升级条件与恢复提示](https://repair.dji.com/help/content?customId=en-us03400006836&lang=en&re=US&spaceId=34)
+的交互原则，不复制品牌素材、联网激活限制或商业模块；导航分组参考
+[Apple 导航指南](https://developer.apple.com/design/human-interface-guidelines/navigation-and-search)
+与 [Material 3](https://m3.material.io/components/navigation-bar/overview)。
+
+在 `android/shaniu-companion` 执行本轮已运行的构建入口：
+
+```bash
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest
+```
+
+Windows Android 模拟器已运行此 APK，并实际操作导航、键盘和表单。
+既有 instrumentation 的 `ui_gallery=1` 场景仅在测试 APK 中注入公开模拟状态，
+截图标明“模拟状态”，不生成 owner、不连接实板，也不出现在正常 App 中。
+`ui_probe=1` 保留 Keystore、TLS 和 OTA 最终版本核对断言。
+模拟器检查不能替代圆屏扫码、真实 BLE、App OTA 安装或实际听音。
+
+更新页仅接收普通 OTA `.bkpack`，不能导入工厂全量软件包或 `factory.bin`。
+本地检查证明包格式与内容哈希；签名、布局和防回滚仍由设备正式校验。
+更新时保持 App 前台：BLE 提交来源记录，设备通过局域网 HTTPS 拉取镜像。
+下载结束不代表成功；重连同一设备并核对版本/计数后才显示完成。
+进程中断后先查询结果，不自动重新发起安装。新开发签名的工厂包
+不自动成为旧板可接受的 OTA 包。
+
 ## 先看实机演示
 
 [![三块开发板与傻妞实机演示](docs/contest/assets/demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
@@ -673,7 +705,7 @@ T5-Board 小海豚录音并保存 WAV 到 SD 卡**已获用户实板确认**，�
 ### 4. Android、模型与显示资源
 
 - [Android 工程与构建](android/shaniu-companion/README.md)：JDK 17、Android SDK 35，
-  当前源码版本 `0.5.23-shaniu-rebind` / code 28，Android 10+。
+  当前源码版本 `0.7.0-shaniu-companion` / code 30，Android 10+。
 - [模型训练与工具入口](tools/bk7258/README.md)：`voice kws audit/train/evaluate`；
   [内置模型元数据](app/bk7258/models/nihao_openvela.metadata.json)随仓库提供。
   TensorFlow 训练环境不是普通固件编译依赖。

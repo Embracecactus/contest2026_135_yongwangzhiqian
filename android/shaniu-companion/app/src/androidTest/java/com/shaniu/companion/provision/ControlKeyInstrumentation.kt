@@ -17,6 +17,7 @@ import java.util.UUID
 class ControlKeyInstrumentation : Instrumentation() {
     private var cloudProbe = false
     private var uiProbe = false
+    private var uiGallery = false
     private var provisionInputProbe = false
     private var emulatorFlowProbe = false
     private var emulatorFlowCase: String? = null
@@ -26,6 +27,7 @@ class ControlKeyInstrumentation : Instrumentation() {
         super.onCreate(arguments)
         cloudProbe = arguments?.getString("cloud_probe") == "1"
         uiProbe = arguments?.getString("ui_probe") == "1"
+        uiGallery = arguments?.getString("ui_gallery") == "1"
         provisionInputProbe = arguments?.getString("provision_input_probe") == "1"
         emulatorFlowProbe = arguments?.getString("emulator_flow_probe") == "1"
         emulatorFlowCase = arguments?.getString("emulator_flow_case")
@@ -34,6 +36,19 @@ class ControlKeyInstrumentation : Instrumentation() {
         start()
     }
     override fun onStart() {
+        if (uiGallery) {
+            val report = try {
+                DeviceUiAcceptance.runGallery(this)
+                "PASS: instrumented UI gallery and 20 navigation rounds; explicitly simulated device states, no BLE or board mutation"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
         if (provisionInputProbe) {
             val report = try {
                 DeviceUiAcceptance.runProvisionInputValidationProbe(this)

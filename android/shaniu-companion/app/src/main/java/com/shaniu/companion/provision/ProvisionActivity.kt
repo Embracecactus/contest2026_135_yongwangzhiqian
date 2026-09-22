@@ -141,7 +141,7 @@ class ProvisionActivity : Activity() {
         window.statusBarColor = BACKGROUND
         window.navigationBarColor = BACKGROUND
         window.isStatusBarContrastEnforced = false
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        window.decorView.systemUiVisibility = if (design.dark) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         developerMode = intent.getBooleanExtra("developer_mode", false) &&
             (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         form = LinearLayout(this).apply {
@@ -155,9 +155,9 @@ class ProvisionActivity : Activity() {
             minHeight = dp(48); isClickable = true; isFocusable = true
             setOnClickListener { goBack() }
         }
-        stepLabel = text("01 找到设备   ·   02 连接 Wi-Fi   ·   03 确认", 12)
+        stepLabel = text("扫码认领 → 设置网络 → 开始陪伴", 14)
         titleLabel = text("添加傻妞", 28)
-        status = text("把未认领的傻妞放在手机旁并保持通电。App 会自动查找设备并验证所有权。", 15)
+        status = text("保持傻妞开机，扫描圆屏上的认领码。认领不需要互联网；相机仅用于扫码，蓝牙用于安全连接设备。", 15)
         discoveryPage = section()
         discoveryPage.addView(com.shaniu.companion.CompanionPortraitView(this),
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190)))
@@ -269,25 +269,28 @@ class ProvisionActivity : Activity() {
         it.contentDescription = label
         it.setTextColor(INK); it.setHintTextColor(MUTED)
         it.setPadding(dp(16), dp(12), dp(16), dp(12))
-        it.background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(16).toFloat() }
+        it.background = design.shape(design.surface, dp(16).toFloat())
+        it.minHeight = dp(56)
         it.isSaveEnabled = false
         it.importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO
         it.inputType = InputType.TYPE_CLASS_TEXT or if (secret) InputType.TYPE_TEXT_VARIATION_PASSWORD else InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-        target.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(60)).apply { bottomMargin = dp(12) })
+        target.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12) })
     }
     private fun button(label: String, target: LinearLayout = form, action: () -> Unit): Button {
         return Button(this).apply {
             text = label; isAllCaps = false; textSize = 16f; setTextColor(INK)
             stateListAnimator = null
             typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
-            background = GradientDrawable().apply { setColor(Color.rgb(222,235,229)); cornerRadius = dp(18).toFloat() }
+            background = design.shape(design.selected, dp(18).toFloat())
+            minHeight = dp(56)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
             setOnClickListener { action() }
-            target.addView(this, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)).apply { topMargin = dp(6); bottomMargin = dp(6) })
+            target.addView(this, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6); bottomMargin = dp(6) })
         }
     }
     private fun Button.primaryStyle() {
-        setTextColor(Color.WHITE)
-        background = GradientDrawable().apply { setColor(INK); cornerRadius = dp(20).toFloat() }
+        setTextColor(design.onAccent)
+        background = design.shape(design.accent, dp(20).toFloat())
     }
 
     private fun showPage(value: Int) {
@@ -908,14 +911,15 @@ class ProvisionActivity : Activity() {
         super.onDestroy()
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+    private val design by lazy { com.shaniu.companion.CompanionDesign(this) }
+    private val BACKGROUND get() = design.background
+    private val INK get() = design.ink
+    private val MUTED get() = design.muted
     companion object {
         const val EXTRA_PROVISIONED_DEVICE_ID = "com.shaniu.companion.provisioned_device_id"
         private const val WIFI_SCAN_LOG_TAG = "ShaniuWifiScan"
         private const val ACTIVATION = 104
         private const val NFC_PERMISSIONS = 105
         private const val BOOTSTRAP = 101; private const val CERTIFICATE = 102; private const val PERMISSIONS = 103
-        private val BACKGROUND = Color.rgb(248,248,243)
-        private val INK = Color.rgb(35,57,50)
-        private val MUTED = Color.rgb(113,126,119)
     }
 }

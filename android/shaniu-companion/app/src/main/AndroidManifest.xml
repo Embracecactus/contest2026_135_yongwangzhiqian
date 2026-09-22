@@ -33,9 +33,8 @@
             <meta-data android:name="android.nfc.cardemulation.host_apdu_service"
                 android:resource="@xml/shaniu_hce" />
         </service>
-        <!-- MainActivity uses a fixed light theme. A scheduled system night-mode
-             change must not destroy its active, foreground OTA source. Other
-             lifecycle changes still use the normal cleanup/recovery path. -->
+        <!-- Night-mode changes rebuild only the view hierarchy, preserving
+             the foreground OTA source and the authenticated control session. -->
         <activity
             android:name=".MainActivity"
             android:configChanges="uiMode"

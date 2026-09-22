@@ -1,8 +1,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <resources>
-    <style name="Theme.Shaniu" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.Shaniu" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#176B55</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSurface">#FFFFFF</item>
+        <item name="colorOnSurface">#182D28</item>
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#4F46E5</item>
+        <item name="android:colorAccent">#176B55</item>
+        <item name="android:windowBackground">#F4F7F6</item>
         <item name="android:navigationBarColor">#FFFFFF</item>
     </style>
 </resources>

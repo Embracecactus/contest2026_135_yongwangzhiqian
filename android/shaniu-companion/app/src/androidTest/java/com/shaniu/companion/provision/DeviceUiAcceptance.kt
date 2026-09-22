@@ -32,6 +32,148 @@ import java.util.concurrent.atomic.AtomicReference
  * mutation. Reflection keeps fixture injection out of the production APK API.
  */
 internal object DeviceUiAcceptance {
+    /** Render real Views with isolated public fixtures; no production preview path. */
+    fun runGallery(instrumentation: Instrumentation) {
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val stateField = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
+        val render = MainActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }
+        val base = DeviceControlProtocol.Snapshot(0, true, false, 50, 0, 0, 0,
+            memorySupported = true, memoryEnabled = false, wifiReady = false, otaSupported = true)
+        fun scene(tab: Int, state: DeviceControlSession.State = session.current()) {
+            onUi(instrumentation) {
+                stateField.set(session, state)
+                field("currentTab").set(activity, tab)
+                render.invoke(activity)
+            }
+        }
+        fun capture(name: String, root: () -> View = { activity.window.decorView }) {
+            instrumentation.waitForIdleSync()
+            Thread.sleep(250)
+            onUi(instrumentation) {
+                val view = root()
+                val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                view.draw(canvas)
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.rgb(120, 30, 30)
+                    textSize = 14 * activity.resources.displayMetrics.density
+                }
+                canvas.drawText("模拟状态 · 无真实设备连接", 16f, bitmap.height - 24f, paint)
+                File(activity.cacheDir, "gallery-$name.png").outputStream().use {
+                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+                bitmap.recycle()
+            }
+        }
+        try {
+            onUi(instrumentation) { field("provisionedDeviceId").set(activity, "ui-synthetic-device") }
+            scene(0, DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED,
+                authenticated = true, snapshot = base, snapshotFresh = true))
+            capture("connected-offline")
+            scene(0, session.current().copy(connection = DeviceControlSession.Connection.CONNECTING,
+                authenticated = false, snapshotFresh = false))
+            capture("connecting")
+            scene(0, session.current().copy(connection = DeviceControlSession.Connection.DISCONNECTED,
+                error = "设备身份验证失败，请核对认领设备"))
+            capture("authentication-failed")
+            scene(2, session.current().copy(connection = DeviceControlSession.Connection.CONNECTED,
+                authenticated = true, snapshotFresh = true))
+            capture("customization")
+            scene(3)
+            capture("privacy")
+            onUi(instrumentation) {
+                field("otaStatusGeneration").set(activity, session.current().generation)
+                field("otaStatus").set(activity, DeviceControlProtocol.OtaStatus(2, 1, 35, 100, -115))
+            }
+            scene(4)
+            capture("ota-progress")
+            onUi(instrumentation) { field("otaStatus").set(activity, DeviceControlProtocol.OtaStatus(3, 8, 35, 100, -5)) }
+            scene(4)
+            capture("ota-failure")
+            val generation = session.current().generation
+            val observers = DeviceControlSession::class.java.getDeclaredField("observers").apply { isAccessible = true }
+            val count = (observers.get(session) as Set<*>).size
+            repeat(20) {
+                for (title in listOf("设备", "定制", "更新", "设置")) {
+                    onUi(instrumentation) {
+                        val button = checkNotNull(findView(activity.window.decorView) {
+                            it is TextView && it.text.toString() == title && it.isClickable
+                        })
+                        check(button.performClick())
+                    }
+                    instrumentation.waitForIdleSync()
+                }
+            }
+            check(session.current().generation == generation)
+            check((observers.get(session) as Set<*>).size == count)
+            capture("settings")
+            for (cloud in listOf(false, true)) {
+                lateinit var editor: DeviceSettingsEditor
+                lateinit var dialog: android.app.Dialog
+                onUi(instrumentation) {
+                    editor = DeviceSettingsEditor(activity, session, "ui-synthetic-device", 32, cloud) { }
+                    val sample = DeviceSettings.Public(0, 7, "0".repeat(32), 0,
+                        true, true, true, true, 443, 0, "演示网络", "api.example.invalid", "/v1",
+                        "mimo-v2.5-asr", "mimo-v2.5", "mimo-v2.5-tts")
+                    DeviceSettingsEditor::class.java.getDeclaredMethod("populate", DeviceSettings.Public::class.java)
+                        .apply { isAccessible = true }.invoke(editor, sample)
+                    DeviceSettingsEditor::class.java.getDeclaredMethod("editable", Boolean::class.javaPrimitiveType)
+                        .apply { isAccessible = true }.invoke(editor, true)
+                    DeviceSettingsEditor::class.java.getDeclaredField("message").apply { isAccessible = true }
+                        .let { (it.get(editor) as TextView).text = "模拟状态 · 配置 revision 7；没有提交到真实设备" }
+                    dialog = DeviceSettingsEditor::class.java.getDeclaredField("dialog").apply { isAccessible = true }
+                        .get(editor) as android.app.Dialog
+                }
+                try {
+                    capture(if (cloud) "cloud-models" else "wifi-settings") { dialog.window!!.decorView }
+                    if (!cloud) {
+                        val input = DeviceSettingsEditor::class.java.getDeclaredField("network").apply { isAccessible = true }
+                            .get(editor) as EditText
+                        onUi(instrumentation) {
+                            input.requestFocus(); input.setSelection(input.length())
+                            activity.getSystemService(InputMethodManager::class.java).showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+                        }
+                        Thread.sleep(500)
+                        instrumentation.uiAutomation.executeShellCommand("input text _draft").use { descriptor ->
+                            android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
+                        }
+                        instrumentation.waitForIdleSync()
+                        onUi(instrumentation) {
+                            check(input.text.toString().endsWith("_draft")) { "keyboard input not delivered" }
+                            render.invoke(activity)
+                            check(input.text.toString().endsWith("_draft")) { "status render overwrote draft" }
+                            check(dialog.window!!.decorView.rootWindowInsets.isVisible(WindowInsets.Type.ime())) { "IME not visible" }
+                            val box = DeviceSettingsEditor::class.java.getDeclaredField("box").apply { isAccessible = true }
+                                .get(editor) as View
+                            (box.parent as ScrollView).fullScroll(View.FOCUS_DOWN)
+                        }
+                        instrumentation.waitForIdleSync()
+                        capture("wifi-keyboard") { dialog.window!!.decorView }
+                        onUi(instrumentation) {
+                            val save = DeviceSettingsEditor::class.java.getDeclaredField("saveWifi").apply { isAccessible = true }
+                                .get(editor) as View
+                            val visible = Rect()
+                            check(save.getGlobalVisibleRect(visible) && visible.height() > 0) { "save action hidden behind keyboard" }
+                            activity.getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input.windowToken, 0)
+                        }
+                    }
+                }
+                finally { onUi(instrumentation) { editor.close() } }
+            }
+            val provision = instrumentation.startActivitySync(Intent(instrumentation.targetContext, ProvisionActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ProvisionActivity
+            try { capture("onboarding") { provision.window.decorView } }
+            finally { onUi(instrumentation) { provision.finish() } }
+        } finally {
+            onUi(instrumentation) { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
     /** Local ProvisionActivity validation only: no bootstrap, binding, DNS, BLE or key material. */
     fun runProvisionInputValidationProbe(instrumentation: Instrumentation) {
         val activity = instrumentation.startActivitySync(
@@ -811,7 +953,22 @@ internal object DeviceUiAcceptance {
     fun run(instrumentation: Instrumentation) {
         val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply {
+            isAccessible = true
+        }.invoke(activity) as DeviceControlSession
+        val sessionState = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
         fun set(name: String, value: Any?) {
+            // The production Activity now reads from the single session owner.
+            // These snapshots remain instrumentation-only and open no transport.
+            if (name == "directSnapshot") {
+                sessionState.set(session, session.current().copy(connection = DeviceControlSession.Connection.CONNECTED,
+                    authenticated = true, snapshotFresh = true, snapshot = value as DeviceControlProtocol.Snapshot))
+                return
+            }
+            if (name == "directFirmwareInfo") {
+                sessionState.set(session, session.current().copy(firmwareInfo = value as DeviceControlProtocol.FirmwareInfo))
+                return
+            }
             MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }.set(activity, value)
         }
         fun get(name: String): Any? = MainActivity::class.java.getDeclaredField(name).apply {
@@ -867,7 +1024,7 @@ internal object DeviceUiAcceptance {
                 render.invoke(activity)
                 row("固件更新").performClick()
                 check(text("固件更新"))
-                check(text("连接设备后读取"))
+                check(text("版本不可用"))
                 check(!button("从手机开始升级").isEnabled)
 
                 /* An OTA-capability-free STATUS is old firmware. */
@@ -885,6 +1042,8 @@ internal object DeviceUiAcceptance {
                     .putString("ota_expected_device", "ui-synthetic-device")
                     .commit())
                 set("otaStatus", DeviceControlProtocol.OtaStatus(3, 6, 100, 100, 0))
+                set("otaStatusGeneration", session.current().generation)
+                set("otaVerificationPending", true)
                 set("directFirmwareInfo", DeviceControlProtocol.FirmwareInfo(99, 0, 0, 1, 999))
                 set("otaMessage", "")
                 confirmExpectedOta.invoke(activity)
@@ -976,7 +1135,9 @@ internal object DeviceUiAcceptance {
             select.invoke(activity, 5)
             select.invoke(activity, 4)
             finish.invoke(activity, 20L, metadata to late, false)
-            check(!late.exists())
+            check(late.exists())
+            check(field("selectedFirmwareFile").get(activity) == late)
+            check(field("inspectedFirmware").get(activity) == metadata)
             check(field("firmwareInspectionPending").get(activity) == false)
 
             field("firmwareInspectionEpoch").set(activity, 21L)
