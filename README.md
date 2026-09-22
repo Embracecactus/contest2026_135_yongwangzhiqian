@@ -94,7 +94,8 @@ tag 指向合并提交 `6a8a3e55`），fork 与官方仓两份资产 SHA256 一�
 repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian.git \
   -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk,platform-linux
 repo sync -j4 \
-  apps apps/boot/mcuboot/mcuboot apps/crypto/mbedtls/mbedtls \
+  apps apps/audioutils/speexdsp/speexdsp \
+  apps/boot/mcuboot/mcuboot apps/crypto/mbedtls/mbedtls \
   apps/graphics/lvgl/lvgl apps/math/gemmlowp/gemmlowp \
   apps/math/kissfft/kissfft apps/math/ruy/ruy \
   apps/mlearning/cmsis-nn/cmsis-nn \
@@ -152,6 +153,37 @@ Android 签名，不能默认卸载或清掉 Keystore。K2 单独按住至少 3 
 云端冷构建由本仓库 `Shaniu cold delivery` 工作流执行：GitHub 托管的干净
 workspace 创建临时开发身份，完整编译并在独立 job 下载、校验公开交付物；
 不上传临时私钥或本板整片 BIN。普通第三方 fork 可自行启用 Actions。
+在自己的 fork 和本分支中，可用以下命令定位**本次提交、本次触发**的运行，
+而不是采用列表里不相关的最新结果（需先用 `gh auth status` 确认权限）：
+
+```bash
+target_sha=$(git rev-parse HEAD)
+started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+gh workflow run shaniu-source-checks.yml \
+  --repo Embracecactus/contest2026_135_yongwangzhiqian \
+  --ref dev-ai-contest-2026
+for attempt in $(seq 1 24); do
+  run_id=$(gh run list --repo Embracecactus/contest2026_135_yongwangzhiqian \
+    --workflow shaniu-source-checks.yml --limit 30 \
+    --json databaseId,headSha,event,createdAt |
+    jq -r --arg sha "$target_sha" --arg started "$started" \
+      '[.[] | select(.headSha == $sha and .event == "workflow_dispatch" and
+                     .createdAt >= $started)] | sort_by(.createdAt) | last |
+       .databaseId // empty')
+  test -n "$run_id" && break
+  sleep 5
+done
+test -n "$run_id"
+gh run watch "$run_id" --repo Embracecactus/contest2026_135_yongwangzhiqian --exit-status
+gh run view "$run_id" --repo Embracecactus/contest2026_135_yongwangzhiqian
+delivery_dir=$(mktemp -d)
+gh run download "$run_id" --repo Embracecactus/contest2026_135_yongwangzhiqian \
+  --name "shaniu-cold-delivery-$target_sha" --dir "$delivery_dir"
+(cd "$delivery_dir" && sha256sum -c SHA256SUMS.txt)
+```
+
+第三方 fork 运行时，把命令中的仓库名换成自己的 fork；临时 CI 签名只用于
+本次开发验证，后续维护须复用自己的持久开发身份或正式长期身份。
 
 ## 历史赛事版评审流程（非当前候选操作入口）
 

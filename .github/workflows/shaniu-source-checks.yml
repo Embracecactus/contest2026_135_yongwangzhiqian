@@ -47,7 +47,8 @@ jobs:
             -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml \
             -g default,bk7258-sdk,platform-linux
           repo sync -j4 \
-            apps apps/boot/mcuboot/mcuboot apps/crypto/mbedtls/mbedtls \
+            apps apps/audioutils/speexdsp/speexdsp \
+            apps/boot/mcuboot/mcuboot apps/crypto/mbedtls/mbedtls \
             apps/graphics/lvgl/lvgl apps/math/gemmlowp/gemmlowp \
             apps/math/kissfft/kissfft apps/math/ruy/ruy \
             apps/mlearning/cmsis-nn/cmsis-nn \

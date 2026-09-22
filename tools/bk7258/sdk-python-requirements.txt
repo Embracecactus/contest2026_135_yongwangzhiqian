@@ -8,3 +8,6 @@ pycparser==3.0
 pycryptodome==3.23.0
 openpyxl==3.1.5
 et-xmlfile==2.0.0
+# Manifest-pinned MCUboot imgtool.py imports these at sign/verify time.
+intelhex==2.3.0
+cbor2==5.9.0
