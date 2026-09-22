@@ -101,6 +101,7 @@ repo sync -j4 \
   apps/mlearning/tflite-micro/tflite-micro \
   apps/netutils/cjson/cJSON apps/netutils/mqttc/MQTT-C \
   apps/system/flatbuffers/flatbuffers build external \
+  external/unqlite/unqlite \
   contest2026_135_yongwangzhiqian \
   frameworks frameworks/connectivity/bluetooth \
   frameworks/multimedia/media frameworks/system/topics \
