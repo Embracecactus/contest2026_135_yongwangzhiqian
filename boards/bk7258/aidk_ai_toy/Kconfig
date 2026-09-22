@@ -166,12 +166,29 @@ config BK7258_AIDK_CAMERA
 
 config BK7258_AIDK_WAKE_REPLY_PCM
 	bool "Stage a local wake acknowledgement PCM"
-	default n
+	default y
 	depends on BK7258_BOARD_AIDK_AI_TOY
 	help
-		Generate a public two-note acknowledgement locally and stage raw
-		16 kHz mono PCM16LE into the media ROMFS.  A personalized recording
-		requires the separate explicit private-asset option below.
+		Stage the reviewed public 16 kHz mono PCM16LE acknowledgement into
+		the media ROMFS. A personalized recording requires the separate
+		explicit private-asset option below.
+
+config BK7258_AIDK_PUBLIC_WAKE_REPLY_PCM
+	bool "Use the reviewed public synthetic wake acknowledgement"
+	default y
+	depends on BK7258_AIDK_WAKE_REPLY_PCM
+	help
+		Use app/bk7258/assets/wake_reply_public.pcm, a public non-cloned
+		ordinary synthetic voice asset. It is the default and needs no TTS
+		software when building firmware.
+
+config BK7258_AIDK_WAKE_REPLY_TONE_FALLBACK
+	bool "Use the two-note wake acknowledgement fallback"
+	default n
+	depends on BK7258_AIDK_WAKE_REPLY_PCM
+	help
+		Explicitly use the locally generated two-note acknowledgement instead
+		of either the public synthetic voice or an authorized private asset.
 
 config BK7258_AIDK_PRIVATE_WAKE_REPLY_PCM
 	bool "Use a locally authorized personalized wake acknowledgement"

@@ -21,7 +21,7 @@ import tempfile
 import wave
 from collections import Counter
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 
 SCHEMA = "bkvoice-kws-dataset-v1"
@@ -520,19 +520,41 @@ def _frontend_library() -> ctypes.CDLL:
     return library
 
 
-def _features(records: Iterable[dict[str, Any]], numpy: Any) -> Any:
+def _record_pcm(record: dict[str, Any]) -> bytes:
+    """Materialize one bounded PCM window without retaining derived copies."""
+    pcm = record.get("pcm")
+    if pcm is None:
+        factory = record.get("_pcm_factory")
+        if not callable(factory):
+            _fail("training_augmentation_invalid")
+        pcm = factory()
+    if not isinstance(pcm, bytes) or len(pcm) != SAMPLES * 2:
+        _fail("training_augmentation_invalid")
+    return pcm
+
+
+def _features(
+    records: Iterable[dict[str, Any]], numpy: Any, *, path: Path | None = None
+) -> Any:
     library = _frontend_library()
     function = library.bkvoice_kws_features
     # Allocate the final array once: appending would let stack/astype hold
     # several complete copies of every feature at the same time.
     records = list(records)
-    output = numpy.empty((len(records), FEATURE_ROWS, 40, 1), dtype=numpy.float32)
+    shape = (len(records), FEATURE_ROWS, 40, 1)
+    output = (
+        numpy.lib.format.open_memmap(path, mode="w+", dtype=numpy.float32, shape=shape)
+        if path is not None
+        else numpy.empty(shape, dtype=numpy.float32)
+    )
     for index, record in enumerate(records):
-        pcm = (ctypes.c_int16 * SAMPLES).from_buffer_copy(record["pcm"])
+        pcm = (ctypes.c_int16 * SAMPLES).from_buffer_copy(_record_pcm(record))
         feature = (ctypes.c_float * FEATURES)()
         if function(pcm, SAMPLES, feature, FEATURES) != 0:
             _fail("frontend_feature_failed")
         output[index] = numpy.ctypeslib.as_array(feature).reshape(FEATURE_ROWS, 40, 1)
+    if path is not None:
+        output.flush()
     return output
 
 
@@ -646,11 +668,27 @@ def _speech_span(pcm: bytes) -> tuple[int, int]:
 
 
 def _derived_record(
-    record: dict[str, Any], pcm: bytes, label: str, kind: str
+    record: dict[str, Any], pcm: bytes | Callable[[], bytes], label: str, kind: str
 ) -> dict[str, Any]:
     derived = dict(record)
-    derived.update({"pcm": pcm, "label": label, "augmentation": kind})
+    derived.update({"label": label, "augmentation": kind})
+    if callable(pcm):
+        # Do not copy a 96 KiB rolling window for every augmentation.  The
+        # factory is deterministic and materialized exactly once by feature
+        # extraction into the on-disk feature matrix.
+        derived.pop("pcm", None)
+        derived["_pcm_factory"] = pcm
+    else:
+        derived["pcm"] = pcm
     return derived
+
+
+def _pcm_variant(record: dict[str, Any], factory: Callable[[], bytes]) -> dict[str, Any]:
+    """Replace PCM storage while preserving the existing augmentation identity."""
+    variant = dict(record)
+    variant.pop("pcm", None)
+    variant["_pcm_factory"] = factory
+    return variant
 
 
 def _insert(background: bytes, speech: bytes, offset: int) -> bytes:
@@ -668,6 +706,7 @@ def _training_derivatives(
     onset_hard_negatives: int = 0,
     unknown_shift_step_ms: int = 100,
     positive_end_window_ms: int = 0,
+    lazy: bool = False,
 ) -> list[dict[str, Any]]:
     """Make train-only continuous-window positives and confusable negatives.
 
@@ -697,8 +736,9 @@ def _training_derivatives(
         _fail("training_augmentation_invalid")
     derived: list[dict[str, Any]] = []
     for index, positive in enumerate(positives):
-        start, end = _speech_span(positive["pcm"])
-        speech = positive["pcm"][start * 2 : end * 2]
+        positive_pcm = _record_pcm(positive)
+        start, end = _speech_span(positive_pcm)
+        speech = positive_pcm[start * 2 : end * 2]
         # The original three-second recording is shifted 100 ms at a time
         # against ordinary background.  Shifts outside this interval would
         # truncate the first or last voiced phoneme, so they cannot be
@@ -720,14 +760,13 @@ def _training_derivatives(
             if shift == 0:
                 continue
             background = backgrounds[(index * 5 + shift // 1600) % len(backgrounds)]
-            if shift > 0:
-                pcm = (
-                    background["pcm"][: shift * 2]
-                    + positive["pcm"][: (SAMPLES - shift) * 2]
-                )
-            else:
+            def rolling(positive=positive, background=background, shift=shift):
+                source, fill = _record_pcm(positive), _record_pcm(background)
+                if shift > 0:
+                    return fill[: shift * 2] + source[: (SAMPLES - shift) * 2]
                 cut = -shift
-                pcm = positive["pcm"][cut * 2 :] + background["pcm"][: cut * 2]
+                return source[cut * 2 :] + fill[: cut * 2]
+            pcm = rolling if lazy else rolling()
             derived.append(
                 _derived_record(
                     positive, pcm, wake_label, "complete_target_sliding_window"
@@ -745,20 +784,19 @@ def _training_derivatives(
                 (index * len(partials) + partial_index) % len(unknowns)
             ]
             offset = 6400 + partial_index * 3200
-            derived.append(
-                _derived_record(
-                    positive,
-                    _insert(background["pcm"], partial, offset),
-                    "unknown",
-                    "incomplete_target_hard_negative",
-                )
-            )
+            def incomplete(background=background, partial=partial, offset=offset):
+                return _insert(_record_pcm(background), partial, offset)
+            derived.append(_derived_record(
+                positive, incomplete if lazy else incomplete(), "unknown",
+                "incomplete_target_hard_negative"))
     # Join different ordinary train utterances at the half-window boundary,
     # matching a live stream without treating a software pause as a release
     # event.
     for index, first in enumerate(unknowns):
         second = unknowns[(index * 7 + 3) % len(unknowns)]
-        pcm = first["pcm"][:SAMPLES] + second["pcm"][SAMPLES:]
+        def joined(first=first, second=second):
+            return _record_pcm(first)[:SAMPLES] + _record_pcm(second)[SAMPLES:]
+        pcm = joined if lazy else joined()
         derived.append(
             _derived_record(first, pcm, "unknown", "ordinary_speech_join_hard_negative")
         )
@@ -766,16 +804,18 @@ def _training_derivatives(
     # the memory added by the expanded corpus. The default still covers the
     # original every-100 ms positions and every setting keeps the full
     # +/-1.6 s endpoints.
-    zeros = bytes(len(unknowns[0]["pcm"]))
+    zeros = bytes(len(_record_pcm(unknowns[0])))
     for unknown in unknowns:
         for shift in range(-25600, 25601, unknown_shift_step_ms * 16):
             if shift == 0:
                 continue
-            if shift > 0:
-                pcm = zeros[: shift * 2] + unknown["pcm"][: (SAMPLES - shift) * 2]
-            else:
+            def shifted(unknown=unknown, shift=shift):
+                source = _record_pcm(unknown)
+                if shift > 0:
+                    return zeros[: shift * 2] + source[: (SAMPLES - shift) * 2]
                 cut = -shift
-                pcm = unknown["pcm"][cut * 2 :] + zeros[: cut * 2]
+                return source[cut * 2 :] + zeros[: cut * 2]
+            pcm = shifted if lazy else shifted()
             derived.append(
                 _derived_record(
                     unknown, pcm, "unknown", "ordinary_speech_zero_padded_shift"
@@ -788,7 +828,10 @@ def _training_derivatives(
         for index, unknown in enumerate(unknowns[:onset_hard_negatives]):
             lead = (9600, 12800, 16000)[index % 3]
             silence = silences[index % len(silences)]
-            pcm = silence["pcm"][: lead * 2] + unknown["pcm"][: (SAMPLES - lead) * 2]
+            def onset(silence=silence, unknown=unknown, lead=lead):
+                return (_record_pcm(silence)[: lead * 2]
+                        + _record_pcm(unknown)[: (SAMPLES - lead) * 2])
+            pcm = onset if lazy else onset()
             derived.append(
                 _derived_record(
                     unknown, pcm, "unknown", "silence_to_speech_onset_hard_negative"
@@ -1651,6 +1694,7 @@ def train(
         onset_hard_negatives=onset_hard_negatives,
         unknown_shift_step_ms=unknown_shift_step_ms,
         positive_end_window_ms=positive_end_window_ms,
+        lazy=True,
     )
     train_records = [*base_records, *augmented]
     pcm_gains = (0.25, 0.1) if pcm_level_augmentation else ()
@@ -1673,10 +1717,10 @@ def train(
         # Attenuate only after complete/partial window labels are fixed:
         # recomputing the voiced span on quiet audio could trim phonemes and
         # incorrectly retain a complete-target label. No split/ID changes.
-        pcm = np.frombuffer(record["pcm"], dtype="<i2")
-        quiet_records.append(
-            {**record, "pcm": np.rint(pcm * gain).astype("<i2").tobytes()}
-        )
+        def quiet(record=record, gain=gain):
+            pcm = np.frombuffer(_record_pcm(record), dtype="<i2")
+            return np.rint(pcm * gain).astype("<i2").tobytes()
+        quiet_records.append(_pcm_variant(record, quiet))
     train_records.extend(quiet_records)
     room_records: list[dict[str, Any]] = []
     if room_augmentation:
@@ -1685,52 +1729,31 @@ def train(
                 continue
             # Keep the source, split and full/partial-word label fixed. These
             # are synthetic acoustic variations, not measured room responses.
-            identity = (str(seed) + ":" + record["source_id"]).encode() + record["pcm"]
-            rng = np.random.default_rng(
-                int.from_bytes(hashlib.sha256(identity).digest()[:8], "big")
-            )
-            pcm = np.frombuffer(record["pcm"], dtype="<i2").astype(np.float64)
-            reflected = pcm.copy()
-            normalization = 1.0
-            for low, high, amplitude in (
-                (0.018, 0.045, 0.35),
-                (0.045, 0.090, 0.22),
-                (0.090, 0.180, 0.12),
-            ):
-                delay = int(rng.uniform(low, high) * 16000)
-                reflected[delay:] += amplitude * pcm[:-delay]
-                normalization += amplitude
-            offsets = np.arange(-31, 32, dtype=np.float64)
-            low_hz, high_hz = rng.uniform(90, 180), rng.uniform(3200, 6500)
-            lowpass = (
-                2
-                * high_hz
-                / 16000
-                * np.sinc(2 * high_hz / 16000 * offsets)
-                * np.hamming(63)
-            )
-            dc_band = (
-                2
-                * low_hz
-                / 16000
-                * np.sinc(2 * low_hz / 16000 * offsets)
-                * np.hamming(63)
-            )
-            kernel = lowpass / lowpass.sum() - dc_band / dc_band.sum()
-            filtered = np.convolve(reflected / normalization, kernel, mode="same")
-            filtered *= rng.uniform(0.3, 1.0)
-            filtered += rng.normal(0, rng.uniform(3, 15), len(filtered))
-            room_records.append(
-                {
-                    **record,
-                    "pcm": np.clip(np.rint(filtered), -32768, 32767)
-                    .astype("<i2")
-                    .tobytes(),
-                }
-            )
+            def room(record=record):
+                identity = ((str(seed) + ":" + record["source_id"]).encode()
+                            + _record_pcm(record))
+                rng = np.random.default_rng(int.from_bytes(
+                    hashlib.sha256(identity).digest()[:8], "big"))
+                pcm = np.frombuffer(_record_pcm(record), dtype="<i2").astype(np.float64)
+                reflected = pcm.copy(); normalization = 1.0
+                for low, high, amplitude in ((0.018, 0.045, 0.35), (0.045, 0.090, 0.22),
+                                             (0.090, 0.180, 0.12)):
+                    delay = int(rng.uniform(low, high) * 16000)
+                    reflected[delay:] += amplitude * pcm[:-delay]; normalization += amplitude
+                offsets = np.arange(-31, 32, dtype=np.float64)
+                low_hz, high_hz = rng.uniform(90, 180), rng.uniform(3200, 6500)
+                lowpass = 2 * high_hz / 16000 * np.sinc(2 * high_hz / 16000 * offsets) * np.hamming(63)
+                dc_band = 2 * low_hz / 16000 * np.sinc(2 * low_hz / 16000 * offsets) * np.hamming(63)
+                filtered = np.convolve(reflected / normalization,
+                    lowpass / lowpass.sum() - dc_band / dc_band.sum(), mode="same")
+                filtered *= rng.uniform(0.3, 1.0)
+                filtered += rng.normal(0, rng.uniform(3, 15), len(filtered))
+                return np.clip(np.rint(filtered), -32768, 32767).astype("<i2").tobytes()
+            room_records.append(_pcm_variant(record, room))
         train_records.extend(room_records)
         amplitude_copies *= 2
-    features = _features(train_records, np)
+    feature_cache = tempfile.TemporaryDirectory(prefix="bkvoice-kws-features-")
+    features = _features(train_records, np, path=Path(feature_cache.name) / "train.npy")
     targets = np.asarray(
         [class_labels.index(record["label"]) for record in train_records],
         dtype=np.int32,
@@ -2116,6 +2139,10 @@ def train(
     (output / "metadata.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    # The matrix is an implementation cache, never a training artifact.
+    features.flush()
+    del features
+    feature_cache.cleanup()
     return metadata
 
 

@@ -254,3 +254,46 @@ def test_bounded_negative_shifts_preserve_labels_lineage_and_split() -> None:
             assert str(error) == "unknown_shift_step_invalid"
         else:
             raise AssertionError("unbounded negative shift accepted")
+
+
+def test_lazy_derivatives_and_feature_memmap_do_not_retain_window_copies() -> None:
+    import numpy as np
+
+    class Frontend:
+        @staticmethod
+        def bkvoice_kws_features(_pcm, _samples, output, features):
+            for index in range(features):
+                output[index] = index
+            return 0
+
+    with tempfile.TemporaryDirectory() as name:
+        records, _, _ = kws._validate(_manifest(Path(name)))
+        for record in records:
+            if record["label"] == kws.DEFAULT_WAKE_LABEL:
+                record["pcm"] = (1000).to_bytes(2, "little", signed=True) * kws.SAMPLES
+        eager = kws._training_derivatives(
+            records, kws.DEFAULT_WAKE_LABEL, unknown_shift_step_ms=800
+        )
+        derived = kws._training_derivatives(
+            records, kws.DEFAULT_WAKE_LABEL, unknown_shift_step_ms=800, lazy=True
+        )
+        assert derived and len(derived) == len(eager)
+        assert all("pcm" not in record for record in derived)
+        for old, lazy in zip(eager, derived):
+            assert (
+                lazy["split"], lazy["label"], lazy["source_id"], lazy["speaker"],
+                lazy["augmentation"], kws._record_pcm(lazy)
+            ) == (
+                old["split"], old["label"], old["source_id"], old["speaker"],
+                old["augmentation"], old["pcm"]
+            )
+        original = kws._frontend_library
+        kws._frontend_library = lambda: Frontend()
+        try:
+            cache = Path(name) / "features.npy"
+            features = kws._features(derived[:2], np, path=cache)
+            assert isinstance(features, np.memmap)
+            assert features.shape == (2, kws.FEATURE_ROWS, 40, 1)
+            assert cache.is_file() and features[1, 148, 39, 0] == kws.FEATURES - 1
+        finally:
+            kws._frontend_library = original
