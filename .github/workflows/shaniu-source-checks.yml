@@ -65,7 +65,9 @@ jobs:
             vendor/beken/bk_avdk_smp
           project="$cold/contest2026_135_yongwangzhiqian"
           test "$(git -C "$project" rev-parse HEAD)" = "$GITHUB_SHA"
-          repo manifest -r -o "$RUNNER_TEMP/resolved-manifest.xml"
+          # -r resolves every manifest project, including unselected projects
+          # that do not exist in this bounded AIDK checkout.
+          repo manifest -o "$RUNNER_TEMP/declared-manifest.xml"
           printf 'checkout_sha=%s\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Build the locked toolchain and SDK inputs
@@ -133,7 +135,7 @@ jobs:
           project="$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
           mkdir -p "$delivery/firmware" "$delivery/android"
           cp -a "$RUNNER_TEMP/shaniu-release/." "$delivery/firmware/"
-          cp "$RUNNER_TEMP/resolved-manifest.xml" "$delivery/resolved-manifest.xml"
+          cp "$RUNNER_TEMP/declared-manifest.xml" "$delivery/declared-manifest.xml"
           git -C "$project" rev-parse HEAD > "$delivery/source-commit.txt"
           cp "$project/android/shaniu-companion/app/build/outputs/apk/debug/"*.apk "$delivery/android/"
           ! find "$delivery" -type f \( -name '*.pem' -o -name '*private*' -o -name '*identity*' \) -print -quit | grep -q .
@@ -165,7 +167,7 @@ jobs:
           set -euo pipefail
           test "$(cat delivery/source-commit.txt)" = "$GITHUB_SHA"
           (cd delivery && sha256sum -c SHA256SUMS.txt)
-          test -s delivery/resolved-manifest.xml
+          test -s delivery/declared-manifest.xml
           test "$(find delivery/android -name '*.apk' -type f | wc -l)" -ge 1
           package=$(find delivery/firmware/package -name '*.bkpack' -type f -print -quit)
           test -n "$package"
