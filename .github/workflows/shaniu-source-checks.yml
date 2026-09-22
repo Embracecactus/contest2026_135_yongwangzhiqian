@@ -76,6 +76,12 @@ jobs:
           set -euo pipefail
           project="$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
           cd "$project"
+          python3 -m venv "$RUNNER_TEMP/shaniu-python"
+          echo "$RUNNER_TEMP/shaniu-python/bin" >> "$GITHUB_PATH"
+          export PATH="$RUNNER_TEMP/shaniu-python/bin:$PATH"
+          python3 -m pip install --disable-pip-version-check \
+            --index-url https://pypi.org/simple \
+            -r tools/bk7258/sdk-python-requirements.txt
           python3 tools/bk7258/bk7258.py toolchain install
           python3 tools/bk7258/bk7258.py toolchain verify
           python3 tools/bk7258/bk7258.py sdk rebuild --profile cp-aidk \
@@ -94,6 +100,8 @@ jobs:
           project="$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
           cd "$project"
           python3 tools/bk7258/bk7258.py identity init --development
+          python3 tools/bk7258/bk7258.py identity init --development \
+            | grep -F 'state=reused mode=development'
           python3 tools/bk7258/bk7258.py build --board aidk_ai_toy --boot mcuboot \
             --development-identity --rollback-floor 1 --jobs 4
           build_manifest=$(find "$RUNNER_TEMP/shaniu-cold/out/bk7258/aidk_ai_toy" \

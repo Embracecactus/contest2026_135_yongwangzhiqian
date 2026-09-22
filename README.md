@@ -95,6 +95,10 @@ repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian.gi
   -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk,platform-linux
 repo sync -j4
 cd contest2026_135_yongwangzhiqian
+python3 -m venv ../out/shaniu-python
+. ../out/shaniu-python/bin/activate
+python3 -m pip install --disable-pip-version-check --index-url https://pypi.org/simple \
+  -r tools/bk7258/sdk-python-requirements.txt
 python3 tools/bk7258/bk7258.py toolchain install
 python3 tools/bk7258/bk7258.py toolchain verify
 python3 tools/bk7258/bk7258.py sdk rebuild --profile cp-aidk --source ../vendor/beken/bk_avdk_smp --jobs 4
