@@ -266,7 +266,7 @@ class ProvisionActivity : Activity() {
     }
     private fun text(label: String, size: Int, target: LinearLayout = form) = TextView(this).also {
         it.text = label; it.textSize = size.toFloat(); it.setTextColor(if (size >= 20) INK else MUTED)
-        if (size >= 20) it.typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+        if (size >= 20) it.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         it.setLineSpacing(dp(3).toFloat(), 1f)
         it.setPadding(0, dp(8), 0, dp(12)); target.addView(it)
     }
@@ -286,7 +286,7 @@ class ProvisionActivity : Activity() {
         return Button(this).apply {
             text = label; isAllCaps = false; textSize = 16f; setTextColor(INK)
             stateListAnimator = null
-            typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
             background = design.shape(design.selected, dp(18).toFloat())
             minHeight = dp(56)
             setPadding(dp(16), dp(12), dp(16), dp(12))
@@ -556,7 +556,9 @@ class ProvisionActivity : Activity() {
         val apiKey = CharArray(cloudKey.length()) { cloudKey.text[it] }
         try {
             val identity = bootstrap ?: error("Missing identity")
-            val pending = hasPending(identity.deviceId) ?: return
+            val claimPending = hasPending(identity.deviceId) ?: return
+            val resetTransaction = FactoryResetController.pendingPhysical(this, identity.deviceId)
+            val pending = claimPending || resetTransaction != null
             if (!recover && pending) {
                 status.text = "此设备有待核对的提交回执；核对前不会重复认领。"
                 return
@@ -564,7 +566,7 @@ class ProvisionActivity : Activity() {
             val target = selected ?: error("Missing device")
             if (recover) {
                 require(pending)
-                if (controlFirst) {
+                if (controlFirst && claimPending) {
                     startControlRecovery(target, identity)
                     handedOff = true
                     return
@@ -599,7 +601,7 @@ class ProvisionActivity : Activity() {
             resultButton.text = "取消连接"
             resultButton.setOnClickListener { connection?.close() }
             val current = ++epoch
-            connection = connectionFactory(target, identity, bundle, { state ->
+            val changed: (ProvisionClaimProtocol.State) -> Unit = { state ->
                 handler.post {
                     if (!alive || current != epoch) return@post
                     if (state == ProvisionClaimProtocol.State.UNCONFIRMED) outcomeUnknown = true
@@ -619,7 +621,18 @@ class ProvisionActivity : Activity() {
                     if (state in listOf(ProvisionClaimProtocol.State.COMMITTED, ProvisionClaimProtocol.State.NOT_COMMITTED, ProvisionClaimProtocol.State.FAILED,
                             ProvisionClaimProtocol.State.UNCONFIRMED, ProvisionClaimProtocol.State.CLOSED)) {
                         connection?.close(); connection = null
-                        if (state == ProvisionClaimProtocol.State.COMMITTED) {
+                        if (state == ProvisionClaimProtocol.State.COMMITTED && resetTransaction != null) {
+                            /* Keep the public reset locator until local Keystore/binding
+                             * removal committed. A crash or failed clear can then repeat
+                             * this same QR/proof read-only recovery. */
+                            val revoked = bindingStore.clearBound(identity.deviceId)
+                            val resetConfirmed = revoked && FactoryResetController.completePhysical(this, identity.deviceId, resetTransaction)
+                            titleLabel.text = if (revoked) "已恢复出厂" else "本机资料尚未撤销"
+                            status.text = if (revoked) "设备已确认恢复出厂；旧连接资料已撤销，请重新扫码认领。"
+                                else "设备已确认恢复出厂；请保留 App 数据并重试本机资料清理。"
+                            resultButton.text = "返回首页"
+                            resultButton.setOnClickListener { finish() }
+                        } else if (state == ProvisionClaimProtocol.State.COMMITTED) {
                             // This is only the public device locator. The activation route
                             // and its CA authenticate board provisioning, not the app console.
                             setResult(RESULT_OK, Intent().putExtra(EXTRA_PROVISIONED_DEVICE_ID, identity.deviceId))
@@ -629,7 +642,11 @@ class ProvisionActivity : Activity() {
                         resultButton.setOnClickListener { if (state == ProvisionClaimProtocol.State.COMMITTED) finish() else goBack() }
                     }
                 }
-            }, recover)
+            }
+            connection = if (recover && resetTransaction != null)
+                ProvisioningConnection(this, target, identity, bundle, changed, recover = true,
+                    recoveryTransactionOverride = resetTransaction)
+            else connectionFactory(target, identity, bundle, changed, recover)
             handedOff = true
         } catch (_: Exception) {
             if (page == 2) showPage(1)
@@ -737,7 +754,7 @@ class ProvisionActivity : Activity() {
     }
 
     private fun hasPending(deviceId: String): Boolean? = try {
-        bindingStore.pending(deviceId) != null
+        bindingStore.pending(deviceId) != null || FactoryResetController.hasPending(this, deviceId)
     } catch (_: Exception) {
         bindingStateAvailable = false
         status.text = "本机保存状态未确认，已暂停认领。请关闭并重新启动 App 后核对结果，保留现有认领资料。"

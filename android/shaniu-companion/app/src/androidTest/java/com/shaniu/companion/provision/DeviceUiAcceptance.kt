@@ -160,6 +160,11 @@ internal object DeviceUiAcceptance {
             )
             scene(0)
             capture("discovery-multiple-candidates")
+            onUi(instrumentation) { field("provisionedDeviceId").set(activity, "") }
+            scene(0)
+            capture("discovery-unbound-candidates")
+            check(!session.current().authenticated)
+            onUi(instrumentation) { field("provisionedDeviceId").set(activity, "ui-synthetic-device") }
             scene(2, session.current().copy(connection = DeviceControlSession.Connection.CONNECTED,
                 authenticated = true, snapshotFresh = true))
             capture("customization")

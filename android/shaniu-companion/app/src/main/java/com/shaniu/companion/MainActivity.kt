@@ -209,6 +209,7 @@ class MainActivity : Activity() {
     private var wakeSensitivityCanceling = false
     private enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, SENSITIVITY, EYES }
     private var settingsEditor: com.shaniu.companion.provision.DeviceSettingsEditor? = null
+    private var factoryReset: com.shaniu.companion.provision.FactoryResetController? = null
     private var configFlow = ConfigFlow.NONE
     private var configAppendMax = 32
     private var configCapabilitiesGeneration: Long? = null
@@ -415,6 +416,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        factoryReset?.close(); factoryReset = null
         settingsEditor?.close(); settingsEditor = null
         destroyed = true
         firmwareInspectionEpoch++
@@ -509,7 +511,7 @@ class MainActivity : Activity() {
                 text = "傻妞"
                 textSize = 18f
                 letterSpacing = 0.06f
-                typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+                typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
                 setTextColor(INK)
                 setPadding(dp(24), dp(16), dp(24), dp(8))
             },
@@ -1388,7 +1390,7 @@ class MainActivity : Activity() {
 
     @Suppress("MissingPermission")
     private fun scanDirect() {
-        if (!foreground || provisionedDeviceId.isBlank()) return
+        if (!foreground) return
         val permissions = if (android.os.Build.VERSION.SDK_INT >= 31)
             arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT)
         else arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
@@ -1423,6 +1425,13 @@ class MainActivity : Activity() {
     private fun connectDirect(device: android.bluetooth.BluetoothDevice, epoch: Long) {
         if (epoch != directEpoch || !foreground || destroyed) return
         directScanner?.close(); directScanner = null
+        if (provisionedDeviceId.isBlank()) {
+            // 广播仅用于发现，不能凭名称/地址建立 owner。首次添加仍由
+            // 设备屏幕二维码提供身份与持有证明，不把候选地址当信任输入。
+            clearDirectDiscovery()
+            startProvisioning()
+            return
+        }
         directConnecting = false
         directScanFinished = true
         directDiscoveryDismissed = false
@@ -1716,7 +1725,7 @@ class MainActivity : Activity() {
                 content.addView(TextView(this).apply {
                     text = if (bound) "我的傻妞" else "让陪伴，从这里开始"
                     textSize = 29f
-                    typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+                    typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
                     setTextColor(INK)
                     setPadding(0, dp(14), 0, dp(8))
                 })
@@ -1748,6 +1757,8 @@ class MainActivity : Activity() {
                 } else {
                     addCard("你的设备，由你掌握", "认领无需互联网或云账号。\n认领后，再设置 Wi-Fi 和语音服务。")
                     primaryButton("添加傻妞 · 扫码连接", !busy) { startProvisioning() }
+                    actionButton(if (directConnecting) "正在查找附近设备…" else "查找附近的傻妞", !busy && !directConnecting) { scanDirect() }
+                    renderDirectDiscoveryCard()
                     content.addView(TextView(this).apply {
                         text = "蓝牙用于连接 · 相机用于扫码"
                         textSize = 11f; gravity = Gravity.CENTER; setTextColor(MUTED)
@@ -1984,6 +1995,11 @@ class MainActivity : Activity() {
                 }
                 sectionTitle("隐私与管理")
                 if (bound) settingsRow("核对认领结果", "认领中断或结果不确定时使用", !busy && settingsEditor == null) { startProvisioning() }
+                if (bound) settingsRow("恢复出厂设置", "清除设备上的网络、云服务、记忆、偏好与显示选择；需再次扫码认领",
+                    enabled = directSession.current().authenticated && !directPending && settingsEditor == null && factoryReset == null) { confirmFactoryReset() }
+                if (bound && com.shaniu.companion.provision.FactoryResetController.hasPending(this, provisionedDeviceId))
+                    settingsRow("核对恢复出厂结果", "只读取设备回执；不会再次发送恢复出厂请求",
+                        enabled = directSession.current().authenticated && !directPending) { queryFactoryReset() }
                 settingsRow("隐私与权限", "了解语音、凭据与记忆的使用") { selectTab(TAB_PRIVACY); render() }
                 settingsRow("固件更新", "查看设备当前版本与升级状态") { selectTab(TAB_UPDATE); render() }
                 if (directConnection != null)
@@ -2031,8 +2047,8 @@ class MainActivity : Activity() {
                 val suffix = candidate.device.address.takeLast(5)
                 CompanionPage.DiscoveryCandidate(
                     title = "${candidate.name} · $suffix",
-                    detail = "未验证设备 · 选择后核对认领身份",
-                    contentDescription = "${candidate.name}，未验证设备，选择后核对认领身份",
+                    detail = if (provisionedDeviceId.isBlank()) "未验证设备 · 选择后扫描设备屏幕认领码" else "未验证设备 · 选择后核对认领身份",
+                    contentDescription = "${candidate.name}，未验证设备，身份以安全认领验证为准",
                     enabled = !directDiscoveryDismissed,
                     select = { connectDirect(candidate.device, candidate.epoch) },
                 )
@@ -3028,6 +3044,51 @@ class MainActivity : Activity() {
                 render()
             }
         }
+    }
+
+    private fun confirmFactoryReset() {
+        if (provisionedDeviceId.isBlank() || !directSession.current().authenticated || factoryReset != null) return
+        confirm(
+            title = "恢复出厂设置",
+            message = "这会撤销当前控制权限，并清除傻妞上的网络、云服务、记忆、偏好和显示选择。完成后必须重新扫描设备二维码认领。本机旧控制凭据会保留到设备回执明确确认完成。",
+        ) {
+            val deviceId = provisionedDeviceId
+            factoryReset = com.shaniu.companion.provision.FactoryResetController(this, directSession, deviceId) { state ->
+                if (state.message.isNotBlank()) directMessage = state.message
+                if (state.phase == com.shaniu.companion.provision.FactoryResetController.Phase.COMPLETED) {
+                    // Only SRR1/physical read-only proof reaches COMPLETED.
+                    if (provisionBindingStore.clearBound(deviceId)) {
+                        if (factoryReset?.confirmLocalRevocation() == true) {
+                            provisionedDeviceId = ""
+                            closeDirect()
+                        } else directMessage = "设备已确认恢复出厂；本机回执尚未持久更新，请勿清除 App 数据"
+                    } else directMessage = "设备已确认恢复出厂；本机旧凭据尚未删除，请重试本机资料清理"
+                }
+                if (!destroyed) render()
+            }
+            if (factoryReset?.begin() != true) {
+                factoryReset?.close(); factoryReset = null
+                directMessage = "无法读取设备当前配置版本；未发送恢复出厂请求"
+            }
+            render()
+        }
+    }
+
+    private fun queryFactoryReset() {
+        if (provisionedDeviceId.isBlank()) return
+        if (factoryReset == null) factoryReset = com.shaniu.companion.provision.FactoryResetController(this, directSession, provisionedDeviceId) { state ->
+            if (state.message.isNotBlank()) directMessage = state.message
+            if (state.phase == com.shaniu.companion.provision.FactoryResetController.Phase.COMPLETED) {
+                val deviceId = provisionedDeviceId
+                if (provisionBindingStore.clearBound(deviceId) && factoryReset?.confirmLocalRevocation() == true) {
+                    provisionedDeviceId = ""
+                    closeDirect()
+                } else directMessage = "设备已确认恢复出厂；本机资料清理未完成，已保留回执定位符"
+            }
+            if (!destroyed) render()
+        }
+        if (factoryReset?.queryReceipt() != true) directMessage = "无法发送只读回执查询"
+        render()
     }
 
     private fun confirmClearProvisioning() {

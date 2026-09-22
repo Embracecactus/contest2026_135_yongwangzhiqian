@@ -121,6 +121,7 @@ class ControlKeyInstrumentation : Instrumentation() {
             check(restarted.pending(device) == null)
             check(restarted.clearBound(device))
             check(!preferences.contains("@control"))
+            verifyResetReceiptLifecycle()
             control.fill(0)
             ControlTlsAcceptance.run("$name.tls")
             if (uiProbe) DeviceUiAcceptance.run(this)
@@ -142,6 +143,45 @@ class ControlKeyInstrumentation : Instrumentation() {
             } catch (_: Exception) { result = Activity.RESULT_CANCELED; report = "FAIL: test cleanup" }
         }
         finish(result, Bundle().apply { putString("stream", report) })
+    }
+
+    private fun verifyResetReceiptLifecycle() {
+        // Unique public locator only: this fixture never connects or erases a device.
+        val device = "reset-instrumentation-${UUID.randomUUID()}"
+        val transaction = ByteArray(16) { (it + 21).toByte() }
+        val key = "reset-" + java.security.MessageDigest.getInstance("SHA-256")
+            .digest(device.toByteArray()).joinToString("") { "%02x".format(it.toInt() and 255) }
+        val preferences = targetContext.getSharedPreferences("shaniu-reset-receipts", Context.MODE_PRIVATE)
+        val session = DeviceControlSession({ 1L }, { it() }, { _, _ ->
+            object : DeviceControlSession.Cancel { override fun cancel() = Unit }
+        })
+        val controllers = mutableListOf<FactoryResetController>()
+        fun controller() = FactoryResetController(targetContext, session, device).also { controllers += it }
+        try {
+            check(preferences.edit().putString(key, "7:" + transaction.joinToString("") {
+                "%02x".format(it.toInt() and 255)
+            }).commit())
+            val first = controller()
+            check(first.current().transaction!!.contentEquals(transaction))
+            first.close()
+            val resumed = controller()
+            check(!resumed.begin()) // A pending request must never be resubmitted implicitly.
+            check(!resumed.physicalReceiptCompleted(ByteArray(16) { 1 }))
+            check(resumed.physicalReceiptCompleted(transaction))
+            check(resumed.current().phase == FactoryResetController.Phase.COMPLETED)
+            // A failed local binding clear must leave this locator untouched.
+            check(FactoryResetController.pendingPhysical(targetContext, device)!!.contentEquals(transaction))
+            resumed.close()
+            val afterFailedClear = controller()
+            check(afterFailedClear.current().transaction!!.contentEquals(transaction))
+            check(afterFailedClear.physicalReceiptCompleted(transaction))
+            check(afterFailedClear.confirmLocalRevocation())
+            check(FactoryResetController.pendingPhysical(targetContext, device) == null)
+        } finally {
+            controllers.forEach { it.close() }
+            check(preferences.edit().remove(key).commit())
+            transaction.fill(0)
+        }
     }
 
     private fun runOtaSourceProbe(filename: String) {

@@ -2132,6 +2132,7 @@ static int product_reset_step(void)
   g_configured = false;
   g_cloud_loaded = false;
   g_config_revision = 0;
+  atomic_store(&g_active_persona, -1);
   atomic_store(&g_trigger_prepare_pending, true);
   (void)bkprov_owner_quiesce(false);
   g_reset_phase = PRODUCT_RESET_IDLE;

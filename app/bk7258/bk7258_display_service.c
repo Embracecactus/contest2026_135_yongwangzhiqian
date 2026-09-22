@@ -989,7 +989,13 @@ int bk7258_display_reset_selection(void)
       close_ret = bkdisplay_volume_close(service);
       if (ret == 0 && close_ret < 0) ret = close_ret;
     }
-  if (ret == 0) ret = bkdisplay_render_locked(service, "neutral");
+  /* 清理成功不依赖可选眼睛包存在；首启认领画面有独立内置路径。
+   * 渲染错误继续报告，不能因缺少资源永远阻塞已撤销的事务。 */
+  if (ret == 0)
+    {
+      int render_ret = bkdisplay_render_locked(service, "neutral");
+      if (render_ret < 0) bkdisplay_status_error(service, render_ret);
+    }
   if (ret < 0) bkdisplay_status_error(service, ret);
   nxmutex_unlock(&service->lock);
   return ret;

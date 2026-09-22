@@ -42,7 +42,7 @@ internal class CompanionPage(private val context: Context, private val content: 
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             addView(TextView(context).apply {
                 text = title; textSize = 16f; setTextColor(if (enabled) INK else MUTED)
-                typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+                typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
             })
             addView(TextView(context).apply {
                 text = subtitle; textSize = 14f; setTextColor(MUTED)
@@ -74,7 +74,7 @@ internal class CompanionPage(private val context: Context, private val content: 
     fun primaryButton(label: String, enabled: Boolean, action: () -> Unit) {
         content.addView(com.google.android.material.button.MaterialButton(context).apply {
             text = label; isAllCaps = false; textSize = 16f
-            typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
             isEnabled = enabled
             setTextColor(design.onAccent)
             minHeight = dp(56)
@@ -94,7 +94,7 @@ internal class CompanionPage(private val context: Context, private val content: 
             TextView(context).apply {
                 text = title
                 textSize = 17f
-                typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+                typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
                 setTextColor(INK)
                 setPadding(dp(4), dp(24), 0, dp(8))
                 isAccessibilityHeading = true
@@ -105,7 +105,7 @@ internal class CompanionPage(private val context: Context, private val content: 
     fun pageTitle(title: String, subtitle: String) {
         content.addView(TextView(context).apply {
             text = title; textSize = 28f; setTextColor(INK)
-            typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
             setPadding(0, dp(8), 0, dp(8)); isAccessibilityHeading = true
         })
         addMuted(subtitle)
@@ -122,7 +122,7 @@ internal class CompanionPage(private val context: Context, private val content: 
                 addView(TextView(context).apply {
                     text = title
                     textSize = 17f
-                    typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+                    typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
                     setTextColor(INK)
                 })
                 addView(TextView(context).apply {
@@ -157,7 +157,7 @@ internal class CompanionPage(private val context: Context, private val content: 
             setPadding(dp(20), dp(18), dp(20), dp(12))
             addView(TextView(context).apply {
                 text = title; textSize = 17f
-                typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+                typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
                 setTextColor(INK); isAccessibilityHeading = true
             })
             addView(TextView(context).apply {
