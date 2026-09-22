@@ -56,9 +56,12 @@ jobs:
             apps/system/flatbuffers/flatbuffers build external \
             external/ffmpeg/ffmpeg external/unqlite/unqlite \
             contest2026_135_yongwangzhiqian \
-            frameworks frameworks/connectivity/bluetooth \
-            frameworks/multimedia/media frameworks/system/topics \
-            frameworks/system/vibrator nuttx nuttx/fs/fatfs/fatfs \
+            frameworks frameworks/connectivity \
+            frameworks/connectivity/bluetooth frameworks/multimedia \
+            frameworks/multimedia/media frameworks/multimedia/media/pfw \
+            frameworks/system frameworks/system/topics \
+            frameworks/system/utils frameworks/system/vibrator \
+            nuttx nuttx/fs/fatfs/fatfs \
             nuttx/fs/littlefs/littlefs nuttx/openamp/libmetal \
             nuttx/openamp/open-amp packages packages/ai_agent \
             prebuilts/build-tools/linux-x86_64 prebuilts/cmake/linux-x86_64 \
