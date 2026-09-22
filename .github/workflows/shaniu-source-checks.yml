@@ -142,9 +142,14 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
+          python3 -m pip install --disable-pip-version-check \
+            --index-url https://pypi.org/simple \
+            -r gateway/shaniu/requirements.txt
           python3 tests/host/bk7258/test_bk7258_build_workspace.py
           python3 tests/host/bk7258/test_bk7258_package_delivery.py
           SHANIU_ANDROID_INTEROP=1 make -C tests/host/bk7258 run-product-keys run-provision
+          make -C tests/host/bk7258 run-cloud-config run-cloud-request \
+            run-cloud-http test-control-session test-control-pair
 
       - name: Stage public delivery evidence without the development private key
         shell: bash

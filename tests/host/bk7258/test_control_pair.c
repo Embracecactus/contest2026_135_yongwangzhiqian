@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "bk7258_control_pair.h"
+#include "bk7258_provision_pair.h"
+#include "bk7258_provision_storage.h"
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -8,7 +10,7 @@ static uint64_t clock_ms;
 static uint8_t wire[128], output[40];
 static size_t used, offset, fragment = 1;
 static int queue_wait, step_error, start_error;
-static unsigned executions, queued, reads;
+static unsigned executions, queued, reads, promotions, touches;
 static uint64_t now(void *p) { (void)p; return clock_ms; }
 void mbedtls_platform_zeroize(void *p, size_t n)
 { volatile unsigned char *b = p; while (n--) *b++=0; }
@@ -41,6 +43,25 @@ ssize_t bkprov_tls_read(struct bkprov_tls_s *t, void *p, size_t n)
   if (n>used-offset) n = used-offset;
   memcpy(p, wire+offset, n); offset += n; return n;
 }
+int bkprov_tls_promote_control(struct bkprov_tls_s *t)
+{
+  assert(t->established && !t->control);
+  t->control = true; promotions++; return 0;
+}
+int bkprov_tls_touch_control(struct bkprov_tls_s *t)
+{
+  assert(t->established && t->control);
+  touches++; return 0;
+}
+int bkprov_pair_step(struct bkprov_pair_s *p)
+{ (void)p; assert(!"unexpected scan step"); return -ENOSYS; }
+int bkprov_pair_attach_scan(struct bkprov_pair_s *p,
+                            struct bkprov_tls_s *t, const uint8_t secret[32])
+{ (void)p; (void)t; (void)secret; assert(!"unexpected scan attach"); return -ENOSYS; }
+void bkprov_pair_close(struct bkprov_pair_s *p)
+{ (void)p; assert(!"unexpected scan close"); }
+int bkprov_storage_receipt(const uint8_t transaction[16])
+{ (void)transaction; assert(!"unexpected receipt lookup"); return -ENOSYS; }
 static int execute(void *p, enum bkcontrol_command_e command, uint32_t value,
                    struct bkcontrol_status_s *status)
 {
@@ -64,7 +85,7 @@ int main(void)
   for (fragment = 1; fragment <= 48; fragment++)
     {
       struct bkcontrol_pair_s pair={0};
-      executions = queued = reads = 0; start(&pair);
+      executions = queued = reads = promotions = touches = 0; start(&pair);
       /* AUTH then STATUS supplied together, delivered in varying fragments. */
       for (unsigned i = 0; !pair.report && i<100; i++)
         assert(bkcontrol_pair_step(&pair) == 0);
@@ -74,7 +95,8 @@ int main(void)
       for (unsigned i = 0;i<3;i++) assert(bkcontrol_pair_step(&pair) == 0);
       assert(reads == before && queued == 0 && executions == 0);
       for (unsigned i = 0; queued<2 && i<120; i++) assert(bkcontrol_pair_step(&pair) == 0);
-      assert(queued == 2 && executions == 1 && output[7] == 2 && output[11] == 1);
+      assert(queued == 2 && executions == 1 && promotions == 1 && touches == 1 &&
+             output[7] == 2 && output[11] == 1);
       for (unsigned i = 0;i<5;i++) assert(bkcontrol_pair_step(&pair) == 0);
       assert(executions == 1);
       bkcontrol_pair_close(&pair);
