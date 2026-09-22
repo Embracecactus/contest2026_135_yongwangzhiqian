@@ -46,6 +46,8 @@ int bk7258_wifi_scan_snapshot_poll(uint32_t ticket,
 }
 static int read_receipt(const uint8_t tx[16])
 { return memcmp(tx, saved_transaction, 16) == 0 ? 1 : -EINPROGRESS; }
+int bkprov_storage_receipt(const uint8_t tx[16])
+{ return read_receipt(tx); }
 #define server pair.tls
 
 static int trial_begin(void *context, const uint8_t *data, size_t size)

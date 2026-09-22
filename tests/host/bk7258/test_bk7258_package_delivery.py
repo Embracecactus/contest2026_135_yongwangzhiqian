@@ -859,6 +859,27 @@ class ProductDeliveryTest(unittest.TestCase):
                 )
                 self.assertEqual(layout.flash_size, 8 * 1024 * 1024)
 
+    def test_aidk_factory_software_declares_target_bound_ranges(self) -> None:
+        preset = build_domain.board_preset(REPOSITORY, "aidk_ai_toy")
+        layout = layout_domain.load(preset.partition)
+        policy = product_domain.load_policy(preset.release_policy, layout)
+        payload = package_domain.factory_initial_persistent_payload(layout)
+        persistent = next(
+            row for row in layout.partitions if row.name == "persistent_data"
+        )
+        self.assertEqual(payload, b"\xff" * persistent.size)
+        plan = product_domain.factory_software_plan(layout, policy)
+        self.assertFalse(plan["materialized"])
+        sources = {row["name"]: row["source"] for row in plan["partitions"]}
+        self.assertEqual(sources["primary_bootloader"], "signed-build")
+        self.assertEqual(sources["persistent_data"], "erased-user-state")
+        self.assertEqual(sources["reset_marker"], "reset-transaction-state")
+        self.assertEqual(sources["factory_state"], "factory-transaction")
+        self.assertEqual(sources["sys_rf"], "same-device-snapshot")
+        self.assertIn(
+            "sys_rf", {row["name"] for row in plan["target_snapshot_required"]}
+        )
+
     def test_aidk_factory_state_relocation_preserves_old_unallocated_bytes(self) -> None:
         preset = build_domain.board_preset(REPOSITORY, "aidk_ai_toy")
         layout = layout_domain.load(preset.partition)

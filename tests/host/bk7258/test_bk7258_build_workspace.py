@@ -5,6 +5,7 @@
 import os
 import contextlib
 import io
+import shutil
 import stat
 import subprocess
 import sys
@@ -72,6 +73,44 @@ class BuildWorkspaceTest(unittest.TestCase):
                     ):
                         writer(link, value)
                     link.unlink()
+
+    def test_development_signer_is_reused_and_never_silently_rotated(self) -> None:
+        executable = shutil.which("openssl")
+        if executable is None:
+            self.skipTest("OpenSSL is unavailable")
+        with tempfile.TemporaryDirectory(
+            prefix="bk7258-signing-test-", dir=Path.home()
+        ) as directory:
+            store = Path(directory) / "identity"
+            signer, created = trust_domain.init_development_identity(
+                self.repository, store, Path(executable)
+            )
+            self.assertTrue(created)
+            self.assertEqual(stat.S_IMODE(store.stat().st_mode), 0o700)
+            self.assertEqual(
+                stat.S_IMODE(signer.bl1_private_key.stat().st_mode), 0o600
+            )
+            again, created = trust_domain.init_development_identity(
+                self.repository, store, Path(executable)
+            )
+            self.assertFalse(created)
+            self.assertEqual(again.identity, signer.identity)
+            self.assertEqual(again.bl1_fingerprint, signer.bl1_fingerprint)
+            missing = store / "bl1-key-temporarily-missing"
+            signer.bl1_private_key.rename(missing)
+            try:
+                with self.assertRaisesRegex(trust_domain.TrustError, "incomplete"):
+                    trust_domain.init_development_identity(
+                        self.repository, store, Path(executable)
+                    )
+            finally:
+                missing.rename(signer.bl1_private_key)
+            self.assertEqual(
+                trust_domain.load_development_identity(
+                    self.repository, store, Path(executable)
+                ).identity,
+                signer.identity,
+            )
 
     def test_default_and_explicit_workspace_are_compatible(self) -> None:
         self.assertEqual(
@@ -177,9 +216,9 @@ class BuildWorkspaceTest(unittest.TestCase):
                 )
             runner.assert_not_called()
         with contextlib.redirect_stderr(io.StringIO()), mock.patch.object(
-            cli, "_release"
-        ) as release:
-            with self.assertRaises(SystemExit) as stopped:
+            trust_domain, "_run"
+        ) as runner:
+            self.assertEqual(
                 cli.main(
                     [
                         "release",
@@ -193,9 +232,10 @@ class BuildWorkspaceTest(unittest.TestCase):
                         "--output-dir",
                         str(self.root / "release"),
                     ]
-                )
-            self.assertEqual(stopped.exception.code, 2)
-            release.assert_not_called()
+                ),
+                1,
+            )
+            runner.assert_not_called()
         self.assertFalse((self.root / "release").exists())
         for mode in ("full", "ota"):
             args = [

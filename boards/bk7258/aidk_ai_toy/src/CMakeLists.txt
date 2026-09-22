@@ -37,23 +37,32 @@ if(CONFIG_MEDIA AND CONFIG_MEDIA_SERVER)
       "${CMAKE_CURRENT_BINARY_DIR}/etc/media/nihao_openvela.tflite")
     configure_file("${wake_model}" "${wake_model_staged}" COPYONLY)
   endif()
-  # The private, operator-authorized acknowledgement PCM enters ROMFS only
-  # when explicitly selected; it is not distributed with the public sources
-  # and is not pulled into a shared image merely because a copy happens to
-  # exist on this machine.
   set(wake_reply_staged "${CMAKE_CURRENT_BINARY_DIR}/etc/media/wake_reply.pcm")
   set(wake_reply "")
   if(CONFIG_BK7258_AIDK_WAKE_REPLY_PCM)
-    set(wake_reply "${NUTTX_APPS_DIR}/system/bk7258/assets/wake_reply.pcm")
-    if(NOT EXISTS "${wake_reply}")
-      message(FATAL_ERROR
-        "CONFIG_BK7258_AIDK_WAKE_REPLY_PCM is enabled but ${wake_reply} is "
-        "missing; supply the operator-authorized asset locally or disable the option")
+    if(CONFIG_BK7258_AIDK_PRIVATE_WAKE_REPLY_PCM)
+      set(wake_reply "${NUTTX_APPS_DIR}/system/bk7258/assets/wake_reply.pcm")
+      if(NOT EXISTS "${wake_reply}")
+        message(FATAL_ERROR "Personalized wake reply is selected but its authorized PCM is missing")
+      endif()
+      configure_file("${wake_reply}" "${wake_reply_staged}" COPYONLY)
+      message(STATUS "AIDK personalized wake reply selected")
+    else()
+      set(wake_reply_generator
+        "${NUTTX_APPS_DIR}/system/bk7258/assets/generate_wake_reply.py")
+      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${wake_reply_generator}")
+      execute_process(
+        COMMAND python3 "${wake_reply_generator}" --output "${wake_reply_staged}"
+        RESULT_VARIABLE wake_reply_result)
+      if(NOT wake_reply_result EQUAL 0)
+        message(FATAL_ERROR "Public wake acknowledgement generation failed")
+      endif()
+      set(wake_reply "${wake_reply_staged}")
+      message(STATUS "AIDK public synthesized wake reply staged")
     endif()
     file(SHA256 "${wake_reply}" wake_reply_sha256)
-    message(STATUS
-      "AIDK wake reply PCM staged (private): wake_reply.pcm sha256=${wake_reply_sha256}")
-    configure_file("${wake_reply}" "${wake_reply_staged}" COPYONLY)
+    message(STATUS "AIDK wake reply PCM sha256=${wake_reply_sha256}")
   else()
     file(REMOVE "${wake_reply_staged}")
     message(STATUS

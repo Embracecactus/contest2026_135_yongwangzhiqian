@@ -68,6 +68,75 @@ class ReleasePolicy:
         return dict(self.partitions)
 
 
+def factory_software_plan(
+    layout: layout_domain.Layout, policy: ReleasePolicy
+) -> dict[str, object]:
+    """Describe unsigned hardware bytes still needed for one target-bound BIN."""
+
+    selected = policy.by_partition
+    if set(selected) != {row.name for row in layout.partitions}:
+        raise ProductError("factory policy does not cover the selected layout")
+    classifications: list[dict[str, object]] = []
+    target_ranges: list[dict[str, object]] = []
+    position = 0
+    for row in sorted(layout.partitions, key=lambda item: item.offset):
+        if row.offset > position:
+            target_ranges.append(
+                {
+                    "name": "unallocated",
+                    "offset": position,
+                    "size": row.offset - position,
+                    "source": "same-device-snapshot",
+                }
+            )
+        release_policy = selected[row.name]
+        if row.name == "factory_state":
+            source = "factory-transaction"
+        elif release_policy == "replace":
+            source = "signed-build"
+        elif release_policy == "factory-init":
+            source = "erased-user-state"
+        elif release_policy == "transactional":
+            source = "reset-transaction-state"
+        else:
+            source = "same-device-snapshot"
+            target_ranges.append(
+                {
+                    "name": row.name,
+                    "offset": row.offset,
+                    "size": row.size,
+                    "source": source,
+                }
+            )
+        classifications.append(
+            {
+                "name": row.name,
+                "offset": row.offset,
+                "size": row.size,
+                "release_policy": release_policy,
+                "source": source,
+            }
+        )
+        position = row.end
+    if position < layout.flash_size:
+        target_ranges.append(
+            {
+                "name": "unallocated",
+                "offset": position,
+                "size": layout.flash_size - position,
+                "source": "same-device-snapshot",
+            }
+        )
+    return {
+        "format": "bk7258.factory-software-plan/1",
+        "layout": {"identity": layout.identity, "sha256": layout.sha256},
+        "flash_size": layout.flash_size,
+        "partitions": classifications,
+        "target_snapshot_required": target_ranges,
+        "materialized": False,
+    }
+
+
 @dataclass(frozen=True)
 class BaseEvidence:
     source: Path
@@ -443,9 +512,7 @@ def relocate_base(
     }
     if not source_rows or not source_rows.keys() <= target_rows.keys():
         raise ProductError("base relocation must retain every protected partition")
-    new_rows = [
-        row for name, row in target_rows.items() if name not in source_rows
-    ]
+    new_rows = [row for name, row in target_rows.items() if name not in source_rows]
     for row in new_rows:
         if (
             row.policy != "preserve"
@@ -456,7 +523,9 @@ def relocate_base(
             or row.offset % layout.erase_size
             or row.size % layout.erase_size
         ):
-            raise ProductError("new protected partition is not a preservable data range")
+            raise ProductError(
+                "new protected partition is not a preservable data range"
+            )
         if any(
             row.offset < old.end and old.offset < row.end
             for old in source_layout.partitions

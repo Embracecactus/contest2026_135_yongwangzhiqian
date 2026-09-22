@@ -1,9 +1,8 @@
 # BK7258 × openvela：三核平台适配与傻妞 AI 伴侣
 
-> **Fork 开发候选：** 首启自主身份、屏幕扫码离线认领、独立 Wi-Fi/云设置与 K2
-> 关机协调正在本 fork 直接迭代。操作、工厂全量迁移和未验收边界见
-> [首启候选说明](docs/platforms/bk7258/shaniu-firstboot-candidate.md)。以下赛事版的
-> 手工身份供给步骤仅描述旧版；不能作为新候选已经通过实板验证的证明。
+> **当前交付入口：** 下方“独立开发构建”使用新生成的开发发布身份，和设备首启
+> TLS 身份、Android 安装签名、云 API 凭据彼此独立。后续赛事期旧流程是历史记录，
+> 不能用其手工供给或旧实机结果代替当前候选验收。
 
 [English](README_EN.md) · [参赛技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [板级配置](boards/bk7258/CONFIGS.md) · [实际验收与待办](docs/platforms/bk7258/shaniu-master-plan.md)
 
@@ -82,7 +81,56 @@ tag 指向合并提交 `6a8a3e55`），fork 与官方仓两份资产 SHA256 一�
 `payloads/persistent_data.bin`（设备 TLS 身份私钥、本机配网凭据、云服务凭据），
 公开发布等于泄露这些凭据；需要可烧录整包的评委请按下一节用自己板子的整片读回物化。
 
-## 评审快速开始：从源码到首次完整运行
+## 独立开发构建（当前主入口）
+
+首次在自己的 Linux/openvela 工作区取得公开工程，使用仓库 manifest 锁定的
+依赖。以下命令不读取作者私钥、历史整片 base 或设备数据；需要网络下载公开的
+依赖、工具链和 SDK。首次选择 `identity init --development` 会在用户数据目录
+建立一对长期开发签名密钥（BL1 与 MCUboot 各一把，私钥不进入源码、构建目录或
+交付包）。再次执行会校验并复用，损坏时拒绝静默换根。这个身份不兼容已锁定
+在其他发布根上的板子；生产发行必须另用明确授权的长期身份。
+
+```bash
+repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian.git \
+  -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk
+repo sync -c -j4
+cd contest2026_135_yongwangzhiqian
+python3 tools/bk7258/bk7258.py toolchain install
+python3 tools/bk7258/bk7258.py toolchain verify
+python3 tools/bk7258/bk7258.py sdk rebuild --profile cp-aidk --source ../vendor/beken/bk_avdk_smp --jobs 4
+python3 tools/bk7258/bk7258.py sdk rebuild --profile ap-aidk --source ../vendor/beken/bk_avdk_smp --jobs 4
+python3 tools/bk7258/bk7258.py sdk verify --profile cp-aidk
+python3 tools/bk7258/bk7258.py sdk verify --profile ap-aidk
+python3 tools/bk7258/bk7258.py identity init --development
+python3 tools/bk7258/bk7258.py build --board aidk_ai_toy --boot mcuboot \
+  --development-identity --rollback-floor 1 --jobs 4
+build_manifest=$(find ../out/bk7258/aidk_ai_toy -path '*/releases/mcuboot/build-manifest.json' -type f -print -quit)
+test -n "$build_manifest"
+python3 tools/bk7258/bk7258.py release full --build-manifest "$build_manifest" \
+  --development-identity --version 0.6.0+1 --product shaniu \
+  --artifact-id review-first-build --factory-init \
+  --output-dir ../out/shaniu-factory-software
+firmware_package=$(find ../out/shaniu-factory-software/package -name '*.bkpack' -type f -print -quit)
+python3 tools/bk7258/bk7258.py verify package --package "$firmware_package"
+python3 tools/bk7258/bk7258.py verify trust --package "$firmware_package" --openssl /usr/bin/openssl
+cd android/shaniu-companion
+./gradlew :app:assembleDebug :app:testDebugUnitTest
+```
+
+`release.json`、`.bkpack` 和 APK 是独立构建结果；无板卡时 `release.json` 明确写
+`same-device-hardware-data-required`，**没有可直接刷入任意板的 8 MiB BIN**。
+针对具体板的完整 BIN 还须在安全下载条件下取得/核验该板独有数据，并按正式
+工厂事务物化；不能使用作者旧 base、跨板复制校准值或填充未知区域。工厂部署
+后正常使用顺序是设备自主首启、屏幕显示认领码、App 离线扫码认领，再由已认证
+BLE 填写 Wi-Fi 和云配置；串口供给仅为旧版维修路径。旧 APK 已安装时先核对
+Android 签名，不能默认卸载或清掉 Keystore。K2 单独按住至少 3 秒并松手请求
+软关机，现场再按 K2 开机；无现场恢复手段不得远程尝试关机。
+
+云端冷构建由本仓库 `Shaniu cold delivery` 工作流执行：GitHub 托管的干净
+workspace 创建临时开发身份，完整编译并在独立 job 下载、校验公开交付物；
+不上传临时私钥或本板整片 BIN。普通第三方 fork 可自行启用 Actions。
+
+## 历史赛事版评审流程（非当前候选操作入口）
 
 本节是**唯一主操作入口**；每项输入的来源、消费者、安装位置与成功判据见
 [首次部署输入清单](docs/platforms/bk7258/first-deployment-inputs.md)（下称“输入清单”）。

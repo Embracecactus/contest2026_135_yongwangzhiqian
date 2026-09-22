@@ -52,6 +52,7 @@ class ProvisionTlsTest(unittest.TestCase):
                         ROOT / "app/bk7258",
                         ROOT / "tests/host/bk7258/test_provision_owner.c",
                         ROOT / "app/bk7258/bk7258_provision_owner.c",
+                        ROOT / "app/bk7258/bk7258_control_session.c",
                         ROOT / "app/bk7258/bk7258_provision_scan.c",
                         "-o",
                         temp / "owner",

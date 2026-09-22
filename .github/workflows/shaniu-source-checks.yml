@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: Shaniu source checks
+name: Shaniu cold delivery
 
 on:
   push:
@@ -9,155 +9,167 @@ on:
       - 'app/bk7258/**'
       - 'boards/bk7258/**'
       - 'chips/bk7258/**'
+      - 'frameworks/**'
       - 'android/shaniu-companion/**'
       - 'tools/bk7258/**'
       - 'contest2026_135_yongwangzhiqian.xml'
+      - 'openvela.xml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: shaniu-source-${{ github.ref }}
+  group: shaniu-cold-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  host:
-    if: github.repository == 'Embracecactus/contest2026_135_yongwangzhiqian'
+  build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 120
+    outputs:
+      checkout_sha: ${{ steps.source.outputs.checkout_sha }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          persist-credentials: false
-      - name: Check source and existing product-key regression
+      - name: Install the manifest client
         run: |
-          python3 -m compileall -q tools/bk7258
-          python3 tools/bk7258/bk7258.py verify layers
-          make -C tests/host/bk7258 run-product-keys
-      - name: Prepare manifest-pinned host dependencies
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import json, os, pathlib, subprocess, xml.etree.ElementTree as ET
-          root = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
-          projects = {p.attrib['path']: p.attrib for p in ET.parse(root / 'openvela.xml').findall('project')}
-          selected = ['apps', 'apps/crypto/mbedtls/mbedtls', 'apps/netutils/cjson/cJSON', 'apps/graphics/lvgl/lvgl', 'nuttx']
-          manifest = ET.parse(root / 'contest2026_135_yongwangzhiqian.xml')
-          agent = next(p for p in manifest.findall('extend-project') if p.attrib.get('path') == 'packages/ai_agent')
-          records = []
-          for path in selected + ['packages/ai_agent']:
-              p = projects[path] if path in selected else agent.attrib
-              owner = 'open-vela' if path in selected else 'Embracecactus'
-              dest = root.parent / path
-              dest.mkdir(parents=True, exist_ok=True)
-              subprocess.run(['git', 'init', '-q', str(dest)], check=True)
-              record = {'path': path, 'commit': p['revision'], 'available': False}
-              # A mirror may supply the SAME object; never substitute a branch tip.
-              hosts = ['https://github.com/', 'https://gitee.com/'] if owner == 'open-vela' else ['https://github.com/']
-              for host in hosts:
-                  url = host + owner + '/' + p['name'] + '.git'
-                  try:
-                      subprocess.run(['git', '-C', str(dest), 'fetch', '--depth=1', url, p['revision']], check=True, timeout=90)
-                      subprocess.run(['git', '-C', str(dest), 'checkout', '-q', '--detach', 'FETCH_HEAD'], check=True)
-                      observed = subprocess.check_output(['git', '-C', str(dest), 'rev-parse', 'HEAD'], text=True).strip()
-                      if observed != p['revision']:
-                          raise RuntimeError('Unexpected dependency commit')
-                      record.update(repository=url, available=True)
-                      break
-                  except (subprocess.SubprocessError, RuntimeError):
-                      print('::warning::Cannot retrieve locked object for ' + path + ' from ' + host)
-              records.append(record)
-              (pathlib.Path(os.environ['RUNNER_TEMP']) / 'host-dependency-commits.json').write_text(json.dumps(records, indent=2) + '\n')
-          missing = [r['path'] for r in records if not r['available']]
-          if missing:
-              raise SystemExit('Locked dependency objects unavailable: ' + ', '.join(missing))
-          PY
-      - name: Compile native identity and configuration sources
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y repo
+
+      - name: Create a clean manifest-pinned workspace
+        id: source
         shell: bash
         run: |
           set -euo pipefail
-          inc="$RUNNER_TEMP/shaniu-host-include"
-          mkdir -p "$inc/nuttx" "$inc/arch"
-          : > "$inc/nuttx/config.h"
-          ln -s "$GITHUB_WORKSPACE/chips/bk7258/include" "$inc/arch/chip"
-          cc -std=c11 -Wall -Wextra -Werror \
-            -DCONFIG_BK7258_WIFI_VNET -DCONFIG_BK7258_AP_CORE \
-            -DCONFIG_BK7258_PROVISION_NATIVE \
-            '-DCONFIG_BK7258_PROVISION_CERT_NOT_BEFORE="20260101000000"' \
-            '-DCONFIG_BK7258_PROVISION_CERT_NOT_AFTER="20360101000000"' \
-            -I"$inc" -I../apps/crypto/mbedtls/mbedtls/include -Iapp/bk7258 \
-            -fsyntax-only app/bk7258/bk7258_provision_{generate,identity,bootstrap,config,settings,storage,network}.c
-      - name: Compile actual native product CMake branch
+          cold="$RUNNER_TEMP/shaniu-cold"
+          mkdir -p "$cold"
+          cd "$cold"
+          repo init -u "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
+            -b "$GITHUB_SHA" -m contest2026_135_yongwangzhiqian.xml \
+            -g default,bk7258-sdk
+          repo sync -c -j4
+          project="$cold/contest2026_135_yongwangzhiqian"
+          test "$(git -C "$project" rev-parse HEAD)" = "$GITHUB_SHA"
+          repo manifest -r -o "$RUNNER_TEMP/resolved-manifest.xml"
+          printf 'checkout_sha=%s\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Build the locked toolchain and SDK inputs
         shell: bash
         run: |
           set -euo pipefail
-          directory="$RUNNER_TEMP/shaniu-native-cmake"
-          mkdir -p "$directory"
-          python3 - <<'PY_CMAKE'
-          import os, pathlib
-          root = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
-          temp = pathlib.Path(os.environ['RUNNER_TEMP'])
-          text = f'''cmake_minimum_required(VERSION 3.22)
-          project(shaniu_native_source_check C)
-          add_library(apps STATIC)
-          set(CONFIG_BK7258_PROVISION_NATIVE ON)
-          set(NUTTX_APPS_DIR "{root.parent}/apps")
-          target_include_directories(apps PRIVATE "{temp}/shaniu-host-include" "{root.parent}/apps/crypto/mbedtls/mbedtls/include" "{root}/app/bk7258")
-          target_compile_definitions(apps PRIVATE CONFIG_BK7258_PROVISION_NATIVE CONFIG_BK7258_PROVISION_CERT_NOT_BEFORE="20260101000000" CONFIG_BK7258_PROVISION_CERT_NOT_AFTER="20360101000000")
-          add_subdirectory("{root}/app/bk7258" product)
-          '''
-          (temp / 'shaniu-native-cmake/CMakeLists.txt').write_text(text)
-          PY_CMAKE
-          cmake -S "$directory" -B "$directory/out" -G Ninja
-          cmake --build "$directory/out"
-      - name: Run existing provisioning regression
-        run: make -C tests/host/bk7258 run-provision
-      - name: Capture exact source and available host inputs
-        if: always()
+          project="$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
+          cd "$project"
+          python3 tools/bk7258/bk7258.py toolchain install
+          python3 tools/bk7258/bk7258.py toolchain verify
+          python3 tools/bk7258/bk7258.py sdk rebuild --profile cp-aidk \
+            --source ../vendor/beken/bk_avdk_smp --jobs 4
+          python3 tools/bk7258/bk7258.py sdk rebuild --profile ap-aidk \
+            --source ../vendor/beken/bk_avdk_smp --jobs 4
+          python3 tools/bk7258/bk7258.py sdk verify --profile cp-aidk
+          python3 tools/bk7258/bk7258.py sdk verify --profile ap-aidk
+
+      - name: Build signed BL1 BL2 CP and AP with an ephemeral development identity
+        shell: bash
+        env:
+          XDG_DATA_HOME: ${{ runner.temp }}/shaniu-identity
+        run: |
+          set -euo pipefail
+          project="$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
+          cd "$project"
+          python3 tools/bk7258/bk7258.py identity init --development
+          python3 tools/bk7258/bk7258.py build --board aidk_ai_toy --boot mcuboot \
+            --development-identity --rollback-floor 1 --jobs 4
+          build_manifest=$(find "$RUNNER_TEMP/shaniu-cold/out/bk7258/aidk_ai_toy" \
+            -path '*/releases/mcuboot/build-manifest.json' -type f -print -quit)
+          test -n "$build_manifest"
+          release="$RUNNER_TEMP/shaniu-release"
+          python3 tools/bk7258/bk7258.py release full --build-manifest "$build_manifest" \
+            --development-identity --version "0.6.0+1" \
+            --product shaniu --artifact-id "ci-${GITHUB_RUN_ID}" --factory-init \
+            --output-dir "$release"
+          package=$(find "$release/package" -name '*.bkpack' -type f -print -quit)
+          test -n "$package"
+          python3 tools/bk7258/bk7258.py verify package --package "$package"
+          python3 tools/bk7258/bk7258.py verify trust --package "$package" --openssl /usr/bin/openssl
+
+      - name: Build the Android companion and existing unit tests
         shell: bash
         run: |
           set -euo pipefail
-          git archive --format=tar.gz -o "$RUNNER_TEMP/shaniu-source.tar.gz" HEAD
-          git rev-parse HEAD > "$RUNNER_TEMP/shaniu-source-commit.txt"
-          if test -f "$RUNNER_TEMP/host-dependency-commits.json"; then
-            tar --exclude='.git' -czf "$RUNNER_TEMP/shaniu-host-inputs.tar.gz" -C "$(dirname "$GITHUB_WORKSPACE")" apps nuttx packages
-          fi
-          (cd "$RUNNER_TEMP" && sha256sum shaniu-source.tar.gz > shaniu-source-SHA256SUMS.txt)
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          cd "$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian/android/shaniu-companion"
+          bash gradlew --no-daemon :app:assembleDebug :app:testDebugUnitTest
+
+      - name: Run existing firmware and provisioning regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
+          python3 tests/host/bk7258/test_bk7258_build_workspace.py
+          python3 tests/host/bk7258/test_bk7258_package_delivery.py
+          make -C tests/host/bk7258 run-product-keys run-provision
+
+      - name: Stage public delivery evidence without the development private key
+        shell: bash
+        run: |
+          set -euo pipefail
+          delivery="$RUNNER_TEMP/shaniu-delivery"
+          project="$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
+          mkdir -p "$delivery/firmware" "$delivery/android"
+          cp -a "$RUNNER_TEMP/shaniu-release/." "$delivery/firmware/"
+          cp "$RUNNER_TEMP/resolved-manifest.xml" "$delivery/resolved-manifest.xml"
+          git -C "$project" rev-parse HEAD > "$delivery/source-commit.txt"
+          cp "$project/android/shaniu-companion/app/build/outputs/apk/debug/"*.apk "$delivery/android/"
+          ! find "$delivery" -type f \( -name '*.pem' -o -name '*private*' -o -name '*identity*' \) -print -quit | grep -q .
+          (cd "$delivery" && find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
         with:
-          name: shaniu-host-${{ github.sha }}
-          path: |
-            ${{ runner.temp }}/shaniu-source.tar.gz
-            ${{ runner.temp }}/shaniu-source-commit.txt
-            ${{ runner.temp }}/shaniu-source-SHA256SUMS.txt
-            ${{ runner.temp }}/shaniu-host-inputs.tar.gz
-            ${{ runner.temp }}/host-dependency-commits.json
+          name: shaniu-cold-delivery-${{ github.sha }}
+          path: ${{ runner.temp }}/shaniu-delivery/
           retention-days: 7
           if-no-files-found: error
 
-  android:
-    if: github.repository == 'Embracecactus/contest2026_135_yongwangzhiqian'
+  verify-delivery:
+    needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ needs.build.outputs.checkout_sha }}
           persist-credentials: false
-      - name: Use runner JDK 17
-        run: |
-          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
-          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
-      - name: Compile APK and run existing unit tests
-        working-directory: android/shaniu-companion
-        run: bash gradlew --no-daemon :app:assembleDebug :app:testDebugUnitTest
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: shaniu-android-${{ github.sha }}
-          path: |
-            android/shaniu-companion/app/build/outputs/apk/debug/*.apk
-            android/shaniu-companion/app/build/reports/tests/testDebugUnitTest/
-          retention-days: 7
-          if-no-files-found: warn
+          name: shaniu-cold-delivery-${{ github.sha }}
+          path: delivery
+      - name: Independently verify the downloaded factory software and APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat delivery/source-commit.txt)" = "$GITHUB_SHA"
+          (cd delivery && sha256sum -c SHA256SUMS.txt)
+          test -s delivery/resolved-manifest.xml
+          test "$(find delivery/android -name '*.apk' -type f | wc -l)" -ge 1
+          package=$(find delivery/firmware/package -name '*.bkpack' -type f -print -quit)
+          test -n "$package"
+          python3 tools/bk7258/bk7258.py verify package --package "$package"
+          python3 tools/bk7258/bk7258.py verify trust --package "$package" --openssl /usr/bin/openssl
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          release = json.loads(next(Path('delivery/firmware').rglob('release.json')).read_text())
+          build = json.loads((Path('delivery/firmware') / release['build_manifest']['path']).read_text())
+          assert release['mode'] == 'full'
+          assert release['signing_profile']['mode'] == 'development'
+          assert release['materialization']['status'] == 'same-device-hardware-data-required'
+          assert 'factory_software' in release
+          assert 'factory_operator' not in release
+          assert build['provenance']['source_commit'] == __import__('os').environ['GITHUB_SHA']
+          assert build['layout']['identity'] == release['layout']['identity']
+          assert build['layout']['sha256'] == release['layout']['sha256']
+          assert build['target'] == release['target']
+          assert build['trust']['bl1_public_fingerprint'] == release['security']['bl1_public_fingerprint']
+          assert build['trust']['mcuboot_public_fingerprint'] == release['security']['mcuboot_public_fingerprint']
+          print('factory software release: PASS (no board-specific full BIN)')
+          PY

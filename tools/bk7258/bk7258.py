@@ -44,6 +44,17 @@ def _parser() -> argparse.ArgumentParser:
         voice.add_subparsers(dest="voice_command", required=True)
     )
 
+    identity = commands.add_parser(
+        "identity", help="manage an independent development signing identity"
+    )
+    identity_commands = identity.add_subparsers(dest="identity_command", required=True)
+    identity_init = identity_commands.add_parser(
+        "init", help="create or verify one reusable development identity"
+    )
+    identity_init.add_argument("--development", action="store_true", required=True)
+    identity_init.add_argument("--store", type=Path)
+    identity_init.add_argument("--openssl", type=Path)
+
     build = commands.add_parser("build", help="build CP and AP through OpenVela")
     build.add_argument(
         "--board",
@@ -73,6 +84,12 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 8))
     build.add_argument("--bl1-public-key", type=Path)
     build.add_argument("--mcuboot-public-key", type=Path)
+    build.add_argument(
+        "--development-identity",
+        action="store_true",
+        help="use a previously initialized independent development signer",
+    )
+    build.add_argument("--identity-store", type=Path)
     build.add_argument("--openssl", type=Path)
     build.add_argument("--rollback-floor", type=lambda value: int(value, 0))
     build.add_argument("--clean", action="store_true")
@@ -200,8 +217,14 @@ def _parser() -> argparse.ArgumentParser:
         "full", help="create and materialize one signed full release"
     )
     full.add_argument("--build-manifest", type=Path, required=True)
-    full.add_argument("--bl1-key", type=Path, required=True)
-    full.add_argument("--mcuboot-key", type=Path, required=True)
+    full.add_argument("--bl1-key", type=Path)
+    full.add_argument("--mcuboot-key", type=Path)
+    full.add_argument(
+        "--development-identity",
+        action="store_true",
+        help="use a previously initialized independent development signer",
+    )
+    full.add_argument("--identity-store", type=Path)
     full.add_argument("--version", required=True)
     full.add_argument(
         "--product", help="explicit product; defaults to build provenance"
@@ -209,23 +232,38 @@ def _parser() -> argparse.ArgumentParser:
     full.add_argument(
         "--artifact-id", help="explicit immutable identity required for new /3 releases"
     )
-    full.add_argument("--base", type=Path, required=True)
-    full.add_argument("--base-evidence", type=Path, required=True)
-    full.add_argument("--openssl", type=Path, required=True)
+    full.add_argument(
+        "--base", type=Path, help="same-device readback for a materialized full BIN"
+    )
+    full.add_argument(
+        "--base-evidence",
+        type=Path,
+        help="accepted evidence for the supplied same-device readback",
+    )
+    full.add_argument("--openssl", type=Path)
     full.add_argument("--output-dir", type=Path, required=True)
-    full.add_argument("--factory-init", action="store_true",
-                      help="also create a same-unit factory BIN that clears user data and arms first boot; never OTA")
+    full.add_argument(
+        "--factory-init",
+        action="store_true",
+        help="sign factory software without a base, or materialize a same-unit factory BIN when a base is supplied; never OTA",
+    )
     ota = release_commands.add_parser(
         "ota", help="create one pending signed CP/AP OTA release"
     )
     ota.add_argument("--build-manifest", type=Path, required=True)
-    ota.add_argument("--mcuboot-key", type=Path, required=True)
+    ota.add_argument("--mcuboot-key", type=Path)
+    ota.add_argument(
+        "--development-identity",
+        action="store_true",
+        help="use a previously initialized independent development signer",
+    )
+    ota.add_argument("--identity-store", type=Path)
     ota.add_argument("--version", required=True)
     ota.add_argument("--product", help="explicit product; defaults to build provenance")
     ota.add_argument(
         "--artifact-id", help="explicit immutable identity required for new /3 releases"
     )
-    ota.add_argument("--openssl", type=Path, required=True)
+    ota.add_argument("--openssl", type=Path)
     ota.add_argument("--output-dir", type=Path, required=True)
     product = release_commands.add_parser(
         "product",
@@ -352,6 +390,65 @@ def _release_generation(version: str) -> int:
     return product_domain.version_generation(version)
 
 
+def _openssl_input(args: argparse.Namespace) -> Path:
+    if args.openssl is None:
+        executable = shutil.which("openssl")
+        if executable is None:
+            raise trust_domain.TrustError(
+                "OpenSSL is required for signing identity operations"
+            )
+        args.openssl = Path(executable)
+    return args.openssl
+
+
+def _development_inputs(
+    args: argparse.Namespace,
+) -> trust_domain.DevelopmentIdentity | None:
+    if not args.development_identity:
+        if args.identity_store is not None:
+            raise trust_domain.TrustError(
+                "--identity-store requires --development-identity"
+            )
+        return None
+    if args.command == "build":
+        if args.boot != "mcuboot" or args.bl1_public_key or args.mcuboot_public_key:
+            raise trust_domain.TrustError(
+                "development identity requires MCUboot and cannot mix explicit public keys"
+            )
+    else:
+        if args.release_command == "full" and args.bl1_key is not None:
+            raise trust_domain.TrustError(
+                "development identity cannot mix an explicit BL1 key"
+            )
+        if args.mcuboot_key is not None:
+            raise trust_domain.TrustError(
+                "development identity cannot mix an explicit MCUboot key"
+            )
+    identity = trust_domain.load_development_identity(
+        REPOSITORY, args.identity_store, _openssl_input(args)
+    )
+    if args.command == "build":
+        args.bl1_public_key = identity.bl1_public_key
+        args.mcuboot_public_key = identity.mcuboot_public_key
+    else:
+        if args.release_command == "full":
+            args.bl1_key = identity.bl1_private_key
+        args.mcuboot_key = identity.mcuboot_private_key
+    return identity
+
+
+def _identity(args: argparse.Namespace) -> None:
+    signer, created = trust_domain.init_development_identity(
+        REPOSITORY, args.store, _openssl_input(args)
+    )
+    print(
+        "bk7258 identity init: PASS "
+        f"state={'created' if created else 'reused'} mode=development "
+        f"identity={signer.identity} bl1={signer.bl1_fingerprint} "
+        f"mcuboot={signer.mcuboot_fingerprint}"
+    )
+
+
 def _release_output(path: Path) -> tuple[Path, Path]:
     output = path.absolute()
     if output.exists() or output.is_symlink():
@@ -420,12 +517,20 @@ def _release(args: argparse.Namespace) -> None:
             f"sha256={report['sha256']}"
         )
         return
+    development_identity = _development_inputs(args)
     for name in (
         ("bl1_key", "mcuboot_key")
         if args.release_command == "full"
         else ("mcuboot_key",)
     ):
-        trust_domain._regular(getattr(args, name), "configured signing identity")
+        key = getattr(args, name)
+        if key is None:
+            raise trust_domain.TrustError(
+                f"production release requires --{name.replace('_', '-')}"
+            )
+        trust_domain._regular(key, "configured signing identity")
+    if args.openssl is None:
+        raise trust_domain.TrustError("production release requires --openssl")
     manifest = build_domain.load_build_manifest(
         REPOSITORY, _workspace_input(args.build_manifest)
     )
@@ -453,14 +558,23 @@ def _release(args: argparse.Namespace) -> None:
 
     accepted_base = None
     if args.release_command == "full":
-        accepted_base = product_domain.load_base_evidence(
-            args.base_evidence,
-            {
-                "board_family": "bk7258",
-                "physical_board": manifest.physical_board,
-            },
-            manifest.layout,
-        )
+        if (args.base is None) != (args.base_evidence is None):
+            raise product_domain.ProductError(
+                "--base and --base-evidence must be supplied together"
+            )
+        if args.base is None and not args.factory_init:
+            raise product_domain.ProductError(
+                "normal full recovery requires a same-device base; use --factory-init for independent factory software"
+            )
+        if args.base_evidence is not None:
+            accepted_base = product_domain.load_base_evidence(
+                args.base_evidence,
+                {
+                    "board_family": "bk7258",
+                    "physical_board": manifest.physical_board,
+                },
+                manifest.layout,
+            )
 
     output, staging = _release_output(args.output_dir)
     try:
@@ -474,7 +588,6 @@ def _release(args: argparse.Namespace) -> None:
             REPOSITORY.parent / "apps/boot/mcuboot/mcuboot/scripts/imgtool.py"
         )
         if args.release_command == "full":
-            assert accepted_base is not None
             signed = trust_domain.signed_release(
                 layout=manifest.layout,
                 artifacts=manifest.artifacts,
@@ -491,8 +604,12 @@ def _release(args: argparse.Namespace) -> None:
                 nm=toolchain / "arm-none-eabi-nm",
             )
             evidence = signed.evidence.manifest()
-            persistent_payload = package_domain.persistent_payload_from_base(
-                manifest.layout, args.base, accepted_base.base_sha256
+            persistent_payload = (
+                package_domain.persistent_payload_from_base(
+                    manifest.layout, args.base, accepted_base.base_sha256
+                )
+                if accepted_base is not None
+                else package_domain.factory_initial_persistent_payload(manifest.layout)
             )
             suffix = "full"
             member_names = {
@@ -584,8 +701,7 @@ def _release(args: argparse.Namespace) -> None:
         release_policy = product_domain.load_policy(
             preset.release_policy, manifest.layout
         )
-        if args.release_command == "full":
-            assert accepted_base is not None
+        if args.release_command == "full" and accepted_base is not None:
             assert accepted_base_copy is not None
             flash_root = staging / "flash"
             flash_root.mkdir()
@@ -640,13 +756,27 @@ def _release(args: argparse.Namespace) -> None:
             },
             "version": args.version,
         }
+        if development_identity is not None:
+            summary["signing_profile"] = {
+                "mode": "development",
+                "identity": development_identity.identity,
+            }
         if identity is not None:
             summary["identity"] = identity
-        summary["data_impact"] = product_domain.operation_impact(
-            package_path,
-            release_policy,
-            transport="full-bin" if args.release_command == "full" else "ota",
-        )
+        if args.release_command == "full" and accepted_base is None:
+            summary["factory_software"] = product_domain.factory_software_plan(
+                manifest.layout, release_policy
+            )
+            summary["materialization"] = {
+                "status": "same-device-hardware-data-required",
+                "flash_size": manifest.layout.flash_size,
+            }
+        else:
+            summary["data_impact"] = product_domain.operation_impact(
+                package_path,
+                release_policy,
+                transport="full-bin" if args.release_command == "full" else "ota",
+            )
         if operator_report is not None:
             operator_path = Path(str(operator_report["output"]))
             summary["operator"] = {
@@ -656,15 +786,21 @@ def _release(args: argparse.Namespace) -> None:
             }
             summary["materialization"] = materialization
         if args.release_command == "full" and args.factory_init:
-            assert accepted_base is not None and operator_report is not None
-            factory_path = staging / "flash" / (operator_path.stem + "-factory.bin")
-            summary["factory_operator"] = factory_domain.create(
-                manifest.layout, operator_path, str(operator_report["sha256"]),
-                factory_path, accepted_base.device_id)
-            summary["recommended_flash"] = "flash/" + factory_path.name
-            summary["factory_warning"] = (
-                "Factory BIN is a separately hashed mutable-data derivative, not the signed bkpack. "
-                "Normal operator/bkpack remain private same-unit recovery artifacts.")
+            if accepted_base is not None:
+                assert operator_report is not None
+                factory_path = staging / "flash" / (operator_path.stem + "-factory.bin")
+                summary["factory_operator"] = factory_domain.create(
+                    manifest.layout,
+                    operator_path,
+                    str(operator_report["sha256"]),
+                    factory_path,
+                    accepted_base.device_id,
+                )
+                summary["recommended_flash"] = "flash/" + factory_path.name
+                summary["factory_warning"] = (
+                    "Factory BIN is a separately hashed mutable-data derivative, not the signed bkpack. "
+                    "Normal operator/bkpack remain private same-unit recovery artifacts."
+                )
         _release_summary(staging, summary)
         package_domain.publish_directory_no_replace(
             staging, output, f"{args.release_command} release"
@@ -673,13 +809,16 @@ def _release(args: argparse.Namespace) -> None:
         if staging.exists():
             shutil.rmtree(staging)
 
+    materialized = args.release_command != "full" or accepted_base is not None
     print(
         f"bk7258 release {args.release_command}: PASS "
-        f"output={output} version={args.version} generation={generation}"
+        f"output={output} version={args.version} generation={generation} "
+        f"materialized={str(materialized).lower()}"
     )
 
 
 def _build(args: argparse.Namespace) -> None:
+    _development_inputs(args)
     layers = layers_domain.verify(REPOSITORY)
     print(
         "bk7258 layer gate: PASS "
@@ -1090,7 +1229,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
     try:
-        if args.command == "build":
+        if args.command == "identity":
+            _identity(args)
+        elif args.command == "build":
             _build(args)
         elif args.command == "deploy":
             _deploy(args)

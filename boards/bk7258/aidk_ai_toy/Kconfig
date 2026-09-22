@@ -165,17 +165,19 @@ config BK7258_AIDK_CAMERA
 		640x480, 30 fps MJPEG through /dev/video0.
 
 config BK7258_AIDK_WAKE_REPLY_PCM
-	bool "Stage the operator-authorized personalized wake acknowledgement PCM"
+	bool "Stage a local wake acknowledgement PCM"
 	default n
 	depends on BK7258_BOARD_AIDK_AI_TOY
 	help
-		Stage the local personalized wake acknowledgement
-		(app/bk7258/assets/wake_reply.pcm, 16 kHz mono PCM16LE) into the
-		media ROMFS at /etc/media/wake_reply.pcm.  The asset is an
-		operator-authorized private recording and is not part of the public
-		source distribution; its absence is not a defect.  Public, review and
-		forwarding builds keep this disabled, so a file that merely exists in
-		a local worktree cannot enter a shared image.  The private
-		demonstration build enables it explicitly and the build log records
-		the staged asset SHA-256.  Without the asset the wake acknowledgement
-		stays silent and the session lifecycle is unchanged.
+		Generate a public two-note acknowledgement locally and stage raw
+		16 kHz mono PCM16LE into the media ROMFS.  A personalized recording
+		requires the separate explicit private-asset option below.
+
+config BK7258_AIDK_PRIVATE_WAKE_REPLY_PCM
+	bool "Use a locally authorized personalized wake acknowledgement"
+	default n
+	depends on BK7258_AIDK_WAKE_REPLY_PCM
+	help
+		Use app/bk7258/assets/wake_reply.pcm only when the operator has
+		authorized that recording for this specific build.  This is never
+		the public default or a prerequisite for an independent build.

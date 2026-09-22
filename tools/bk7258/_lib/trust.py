@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import hashlib
 import base64
+import json
 import os
+import shutil
 import stat
 import struct
 import subprocess
@@ -14,6 +16,12 @@ import sys
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # Windows native host tools
+    fcntl = None
+    import msvcrt
 
 from _lib import image as image_domain
 from _lib import layout as layout_domain
@@ -58,6 +66,193 @@ class PublicSources:
     catalog_source: Path
     bl1_fingerprint: str
     mcuboot_fingerprint: str
+
+
+@dataclass(frozen=True)
+class DevelopmentIdentity:
+    root: Path
+    identity: str
+    bl1_private_key: Path
+    mcuboot_private_key: Path
+    bl1_public_key: Path
+    mcuboot_public_key: Path
+    bl1_fingerprint: str
+    mcuboot_fingerprint: str
+
+
+DEVELOPMENT_IDENTITY_FORMAT = "bk7258.development-signing/1"
+
+
+def development_identity_root(repository: Path, store: Path | None) -> Path:
+    """Keep long-lived development signing material outside source and output."""
+
+    if store is None:
+        xdg = os.environ.get("XDG_DATA_HOME")
+        base = Path(xdg) if xdg else Path.home() / ".local/share"
+        store = base / "bk7258/development-signing"
+    store = store.expanduser()
+    if not store.is_absolute() or store.name in {"", ".", ".."}:
+        raise TrustError("development identity store must be an absolute directory")
+    root = store.resolve(strict=False)
+    forbidden = (
+        repository.resolve(),
+        repository.parent.resolve(),
+        Path(tempfile.gettempdir()).resolve(),
+    )
+    if any(root == item or item in root.parents for item in forbidden):
+        raise TrustError(
+            "development identity store must be outside the workspace and temporary files"
+        )
+    if store.is_symlink():
+        raise TrustError("development identity store must not be a symlink")
+    return root
+
+
+def _development_document(bl1_der: bytes, mcuboot_der: bytes) -> dict[str, object]:
+    bl1 = hashlib.sha256(bl1_der).hexdigest()
+    mcuboot = hashlib.sha256(mcuboot_der).hexdigest()
+    return {
+        "format": DEVELOPMENT_IDENTITY_FORMAT,
+        "mode": "development",
+        "identity": "bk7258-dev-"
+        + hashlib.sha256(bl1_der + mcuboot_der).hexdigest()[:20],
+        "algorithm": "ecdsa-p256-sha256",
+        "roles": {
+            "bl1": {"public_file": "bl1-public.pem", "fingerprint": bl1},
+            "mcuboot": {"public_file": "mcuboot-public.pem", "fingerprint": mcuboot},
+        },
+    }
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def load_development_identity(
+    repository: Path, store: Path | None, openssl: Path
+) -> DevelopmentIdentity:
+    root = development_identity_root(repository, store)
+    try:
+        if not root.is_dir() or root.stat().st_mode & 0o077:
+            raise TrustError("development identity directory is missing or not private")
+        manifest = _regular(root / "identity.json", "development identity record")
+        document = json.loads(manifest.read_text(encoding="utf-8"))
+        bl1_private = _regular(root / "bl1-private.pem", "BL1 development key")
+        mcuboot_private = _regular(
+            root / "mcuboot-private.pem", "MCUboot development key"
+        )
+        bl1_public = _regular(root / "bl1-public.pem", "BL1 development public key")
+        mcuboot_public = _regular(
+            root / "mcuboot-public.pem", "MCUboot development public key"
+        )
+        for private in (bl1_private, mcuboot_private):
+            if private.stat().st_mode & 0o077:
+                raise TrustError("development private key permissions are too broad")
+        bl1_der = _public_der(bl1_private, openssl, private=True)
+        mcuboot_der = _public_der(mcuboot_private, openssl, private=True)
+        if bl1_der == mcuboot_der:
+            raise TrustError("development signing roles must use distinct keys")
+        if (
+            _public_der(bl1_public, openssl, private=False) != bl1_der
+            or _public_der(mcuboot_public, openssl, private=False) != mcuboot_der
+        ):
+            raise TrustError("development public/private key mismatch")
+        expected = _development_document(bl1_der, mcuboot_der)
+        if document != expected:
+            raise TrustError("development identity record does not match its keys")
+    except (OSError, UnicodeError, ValueError, TrustError) as error:
+        raise TrustError(
+            "development identity is incomplete, damaged or mismatched; choose a new store explicitly instead of rotating it"
+        ) from error
+    return DevelopmentIdentity(
+        root,
+        str(expected["identity"]),
+        bl1_private,
+        mcuboot_private,
+        bl1_public,
+        mcuboot_public,
+        str(expected["roles"]["bl1"]["fingerprint"]),
+        str(expected["roles"]["mcuboot"]["fingerprint"]),
+    )
+
+
+def init_development_identity(
+    repository: Path, store: Path | None, openssl: Path
+) -> tuple[DevelopmentIdentity, bool]:
+    """Explicitly create one atomic, reusable software development trust root."""
+
+    root = development_identity_root(repository, store)
+    openssl = _regular(openssl, "OpenSSL executable")
+    root.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = root.parent / f".{root.name}.init.lock"
+    lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        if fcntl is not None:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        else:
+            os.write(lock_fd, b"0")
+            os.lseek(lock_fd, 0, os.SEEK_SET)
+            msvcrt.locking(lock_fd, msvcrt.LK_LOCK, 1)
+        if root.exists() or root.is_symlink():
+            return load_development_identity(repository, store, openssl), False
+        staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.", dir=root.parent))
+        try:
+            for role in ("bl1", "mcuboot"):
+                private = staging / f"{role}-private.pem"
+                descriptor = os.open(private, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                os.close(descriptor)
+                _run(
+                    [
+                        str(openssl),
+                        "genpkey",
+                        "-algorithm",
+                        "EC",
+                        "-pkeyopt",
+                        "ec_paramgen_curve:P-256",
+                        "-out",
+                        str(private),
+                    ],
+                    "development P-256 key generation",
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                public = staging / f"{role}-public.pem"
+                with public.open("xb") as stream:
+                    _run(
+                        [str(openssl), "pkey", "-in", str(private), "-pubout"],
+                        "development public-key derivation",
+                        stdout=stream,
+                        stderr=subprocess.PIPE,
+                    )
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                with private.open("rb") as stream:
+                    os.fsync(stream.fileno())
+            document = _development_document(
+                _public_der(staging / "bl1-private.pem", openssl, private=True),
+                _public_der(staging / "mcuboot-private.pem", openssl, private=True),
+            )
+            record = staging / "identity.json"
+            with record.open("x", encoding="utf-8") as stream:
+                json.dump(document, stream, sort_keys=True, indent=2)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            _fsync_directory(staging)
+            if root.exists() or root.is_symlink():
+                raise TrustError("development identity store appeared during initialization")
+            os.rename(staging, root)
+            _fsync_directory(root.parent)
+        finally:
+            if staging.exists():
+                shutil.rmtree(staging)
+    finally:
+        os.close(lock_fd)
+    return load_development_identity(repository, store, openssl), True
 
 
 @dataclass(frozen=True)

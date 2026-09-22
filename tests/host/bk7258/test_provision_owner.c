@@ -17,7 +17,7 @@ static enum bkprov_claim_state_e next_state = BKPROV_AUTH;
 static mbedtls_x509_crt certificate;
 static mbedtls_pk_context key;
 static uint8_t secret[32] = {1};
-static int control_starts, control_steps;
+static int control_starts, control_steps, control_pair_error;
 static int control_execute(void *p, enum bkcontrol_command_e command,
                             uint32_t value, struct bkcontrol_status_s *status)
 { (void)p; (void)command; (void)value; (void)status; return 0; }
@@ -33,7 +33,7 @@ int bkcontrol_pair_start(struct bkcontrol_pair_s *p, uint32_t gen,
   control_starts++; return 0;
 }
 int bkcontrol_pair_step(struct bkcontrol_pair_s *p)
-{ control_steps++; return p->tls.generation == generation ? 0 : -ESTALE; }
+{ control_steps++; return p->tls.generation == generation ? control_pair_error : -ESTALE; }
 void bkcontrol_pair_close(struct bkcontrol_pair_s *p) { memset(p, 0, sizeof(*p)); }
 
 void mbedtls_platform_zeroize(void *p, size_t n) { memset(p, 0, n); }
@@ -204,8 +204,12 @@ int main(void)
   assert(!sample(20, false, false));
   assert(control_starts == 1 && control_steps == 1 && !bkprov_owner_pairing());
   assert(!sample(119999, false, true) && window); /* No input/link requirement. */
+  /* The owner window no longer expires an active control session; its own
+   * pair idle deadline reports the timeout and must close the window. */
+  control_pair_error = -ETIMEDOUT;
   (void)sample(1, false, true);
   assert(!window && !bkprov_owner_busy() && bkprov_owner_error() == -ETIMEDOUT);
+  control_pair_error = 0;
 
   /* Existing disconnect, GATT polling, and TLS-generation cleanup remain terminal. */
   (void)sample(5000, false, true); generation = 8;
