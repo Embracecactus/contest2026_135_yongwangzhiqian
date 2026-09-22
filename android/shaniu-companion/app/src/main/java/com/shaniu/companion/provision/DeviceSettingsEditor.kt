@@ -94,13 +94,22 @@ internal class DeviceSettingsEditor(
     }
 
     private fun field(label: String, secret: Boolean = false): EditText {
+        val group = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        // Floating hints are single-line and truncate the key-retention warning
+        // at 200% font scale. Keep the full, wrapping label outside the field.
+        val caption = TextView(activity).apply {
+            text = label; textSize = 14f; setTextColor(design.muted)
+            setPadding(0, 0, 0, dp(8))
+        }
+        group.addView(caption, LinearLayout.LayoutParams(-1, -2))
         val container = com.google.android.material.textfield.TextInputLayout(activity).apply {
-            hint = label
+            isHintEnabled = false
             boxBackgroundMode = com.google.android.material.textfield.TextInputLayout.BOX_BACKGROUND_OUTLINE
             setBoxCornerRadii(dp(16).toFloat(), dp(16).toFloat(), dp(16).toFloat(), dp(16).toFloat())
             isSaveEnabled = false
         }
         val input = com.google.android.material.textfield.TextInputEditText(container.context).apply {
+            id = View.generateViewId()
             contentDescription = label; isSingleLine = true; textSize = 16f
             inputType = InputType.TYPE_CLASS_TEXT or if (secret) InputType.TYPE_TEXT_VARIATION_PASSWORD else InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             typeface = android.graphics.Typeface.DEFAULT
@@ -108,9 +117,11 @@ internal class DeviceSettingsEditor(
             isSaveEnabled = false; minHeight = dp(56)
             setTextColor(design.ink)
         }
+        caption.labelFor = input.id
         container.addView(input, LinearLayout.LayoutParams(-1, -2))
-        fieldContainers[input] = container
-        box.addView(container, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        group.addView(container, LinearLayout.LayoutParams(-1, -2))
+        fieldContainers[input] = group
+        box.addView(group, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
         return input
     }
     private fun button(label: String, action: () -> Unit) = com.google.android.material.button.MaterialButton(activity).apply {

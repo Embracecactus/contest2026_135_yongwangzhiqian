@@ -196,19 +196,19 @@ class ProvisionActivity : Activity() {
         val servicePreset = android.widget.Spinner(this).apply {
             adapter = android.widget.ArrayAdapter(this@ProvisionActivity,
                 android.R.layout.simple_spinner_dropdown_item,
-                listOf("MiMo Token Plan（订阅）", "MiMo 标准接口", "其他兼容服务"))
+                listOf("MiMo 标准接口", "其他兼容服务"))
             contentDescription = "语音服务接入方式"
             minimumHeight = dp(48)
             networkPage.addView(this)
         }
         cloudKey = field("API Key", secret = true, target = networkPage)
-        text("凭据仅用于你选择的语音服务，不提供明文回读。", 12, networkPage)
+        text("请使用允许设备运行调用的 API 凭据，不使用编程工具套餐 Key。凭据不提供明文回读。", 12, networkPage)
         val advanced = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val advancedToggle = button("自定义语音服务", networkPage) {
             advanced.visibility = if (advanced.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
         networkPage.addView(advanced)
-        cloudUrl = field("HTTPS 服务地址", target = advanced).apply { setText(CloudSettings.MIMO_TOKEN_PLAN_URL) }
+        cloudUrl = field("HTTPS 服务地址", target = advanced).apply { setText(CloudSettings.MIMO_STANDARD_URL) }
         cloudDialect = android.widget.Spinner(this).apply {
             adapter = android.widget.ArrayAdapter(this@ProvisionActivity,
                 android.R.layout.simple_spinner_dropdown_item,
@@ -225,8 +225,9 @@ class ProvisionActivity : Activity() {
         servicePreset.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position < 2) {
-                    cloudUrl.setText(if (position == 0) CloudSettings.MIMO_TOKEN_PLAN_URL else CloudSettings.MIMO_STANDARD_URL)
+                if (position == 0) {
+                    if (cloudUrl.text.toString() != CloudSettings.MIMO_STANDARD_URL) cloudKey.text.clear()
+                    cloudUrl.setText(CloudSettings.MIMO_STANDARD_URL)
                     cloudDialect.setSelection(0)
                     asrModel.setText("mimo-v2.5-asr")
                     chatModel.setText("mimo-v2.5")

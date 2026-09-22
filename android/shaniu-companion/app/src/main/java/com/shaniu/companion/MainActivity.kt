@@ -3484,7 +3484,7 @@ class MainActivity : Activity() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        // Theme changes must not destroy the foreground package server or
+        // Theme/window changes must not destroy the foreground package server or
         // reconnect the authenticated device. Existing sensitive drafts stay
         // in their editor until the user closes it.
         theme.applyStyle(R.style.Theme_Shaniu, true)

@@ -111,6 +111,21 @@ internal object DeviceUiAcceptance {
             check(session.current().generation == generation)
             check((observers.get(session) as Set<*>).size == count)
             capture("settings")
+            onUi(instrumentation) {
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            }
+            Thread.sleep(1000)
+            instrumentation.waitForIdleSync()
+            check(!activity.isDestroyed) { "rotation destroyed foreground task owner" }
+            check(session.current().generation == generation)
+            check((observers.get(session) as Set<*>).size == count)
+            check(activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
+            capture("landscape-settings")
+            onUi(instrumentation) {
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+            Thread.sleep(1000)
+            instrumentation.waitForIdleSync()
             for (cloud in listOf(false, true)) {
                 lateinit var editor: DeviceSettingsEditor
                 lateinit var dialog: android.app.Dialog

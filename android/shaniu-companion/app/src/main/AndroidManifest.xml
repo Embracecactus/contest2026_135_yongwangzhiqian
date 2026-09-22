@@ -33,11 +33,11 @@
             <meta-data android:name="android.nfc.cardemulation.host_apdu_service"
                 android:resource="@xml/shaniu_hce" />
         </service>
-        <!-- Night-mode changes rebuild only the view hierarchy, preserving
+        <!-- Theme and window-size changes rebuild only the view hierarchy, preserving
              the foreground OTA source and the authenticated control session. -->
         <activity
             android:name=".MainActivity"
-            android:configChanges="uiMode"
+            android:configChanges="uiMode|orientation|screenSize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
