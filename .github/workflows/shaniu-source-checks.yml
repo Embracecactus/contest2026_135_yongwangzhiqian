@@ -69,6 +69,12 @@ jobs:
             prebuilts/tools vendor vendor/beken \
             vendor/beken/bk_avdk_smp
           project="$cold/contest2026_135_yongwangzhiqian"
+          # The manifest supplies linkfiles; the triggering fork supplies its
+          # own exact team-source commit, including unpublished fork changes.
+          git -C "$project" fetch --no-tags \
+            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
+            "refs/heads/$GITHUB_REF_NAME"
+          git -C "$project" checkout --detach "$GITHUB_SHA"
           test "$(git -C "$project" rev-parse HEAD)" = "$GITHUB_SHA"
           # -r resolves every manifest project, including unselected projects
           # that do not exist in this bounded AIDK checkout.
