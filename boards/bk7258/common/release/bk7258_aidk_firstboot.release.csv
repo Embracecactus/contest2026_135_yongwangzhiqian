@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # FORMAT=bk7258.release-policy/1
-# FACTORY_MODE=provision-required
+# FACTORY_MODE=device-firstboot
 # Partition,ReleasePolicy
 primary_bootloader,replace
 primary_cp_app,replace

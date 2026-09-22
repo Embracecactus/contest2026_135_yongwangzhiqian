@@ -45,7 +45,7 @@ jobs:
           cd "$cold"
           repo init -u "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
             -b "$GITHUB_SHA" -m contest2026_135_yongwangzhiqian.xml \
-            -g default,bk7258-sdk
+            -g default,bk7258-sdk,platform-linux
           repo sync -c -j4
           project="$cold/contest2026_135_yongwangzhiqian"
           test "$(git -C "$project" rev-parse HEAD)" = "$GITHUB_SHA"
@@ -107,7 +107,7 @@ jobs:
           cd "$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
           python3 tests/host/bk7258/test_bk7258_build_workspace.py
           python3 tests/host/bk7258/test_bk7258_package_delivery.py
-          make -C tests/host/bk7258 run-product-keys run-provision
+          SHANIU_ANDROID_INTEROP=1 make -C tests/host/bk7258 run-product-keys run-provision
 
       - name: Stage public delivery evidence without the development private key
         shell: bash

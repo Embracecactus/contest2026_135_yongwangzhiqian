@@ -53,7 +53,7 @@ RELEASE_POLICIES = frozenset(
         "immutable",
     }
 )
-FACTORY_MODES = frozenset({"provision-required", "external-provisioned"})
+FACTORY_MODES = frozenset({"provision-required", "external-provisioned", "device-firstboot"})
 
 
 @dataclass(frozen=True)
@@ -129,6 +129,7 @@ def factory_software_plan(
         )
     return {
         "format": "bk7258.factory-software-plan/1",
+        "factory_mode": policy.factory_mode,
         "layout": {"identity": layout.identity, "sha256": layout.sha256},
         "flash_size": layout.flash_size,
         "partitions": classifications,
@@ -1270,11 +1271,11 @@ def create_delivery(
             raise ProductError("signed recovery installed root is malformed")
         installed_root = str(security["mcuboot_public_fingerprint"])
 
-    factory_status = (
-        "requires-provisioning"
-        if policy.factory_mode == "provision-required"
-        else "not-included"
-    )
+    factory_status = {
+        "provision-required": "requires-provisioning",
+        "external-provisioned": "not-included",
+        "device-firstboot": "requires-device-firstboot",
+    }[policy.factory_mode]
     release = {
         "build_manifest": {
             "path": build_path,

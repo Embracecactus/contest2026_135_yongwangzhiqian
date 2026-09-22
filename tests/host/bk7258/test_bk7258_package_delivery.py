@@ -863,12 +863,14 @@ class ProductDeliveryTest(unittest.TestCase):
         preset = build_domain.board_preset(REPOSITORY, "aidk_ai_toy")
         layout = layout_domain.load(preset.partition)
         policy = product_domain.load_policy(preset.release_policy, layout)
+        self.assertEqual(policy.factory_mode, "device-firstboot")
         payload = package_domain.factory_initial_persistent_payload(layout)
         persistent = next(
             row for row in layout.partitions if row.name == "persistent_data"
         )
         self.assertEqual(payload, b"\xff" * persistent.size)
         plan = product_domain.factory_software_plan(layout, policy)
+        self.assertEqual(plan["factory_mode"], "device-firstboot")
         self.assertFalse(plan["materialized"])
         sources = {row["name"]: row["source"] for row in plan["partitions"]}
         self.assertEqual(sources["primary_bootloader"], "signed-build")

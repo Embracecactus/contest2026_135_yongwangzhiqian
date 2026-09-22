@@ -40,13 +40,27 @@ is retired; do not recreate it to satisfy a stale instruction.
 For the explicit development remote override and official delivery distinction,
 see the root [README](../../README.md).
 
-## First complete flash (contest review path)
+## Independent factory software and target-bound complete flash
 
-A complete 8-MiB operator image is written with the Beken loader at address
-zero; no SDK source or key file is needed *at the flash step*. Two different
-artifacts are involved and must not be conflated:
+The current first-build command sequence is in the root [README](../../README.md#独立开发构建当前主入口).
+`identity init --development` creates and reuses the caller's own BL1 and
+MCUboot signer outside the repository. `build --development-identity` uses its
+public keys for the complete BL1/BL2/CP/AP build. `release full
+--development-identity --factory-init` signs a factory software `.bkpack`
+without a historical base; its `release.json` states that target hardware
+data is still required and it is **not** an 8-MiB flash image.
 
-- **Same-unit recovery image** — what `release full` produces today. The
+A complete 8-MiB factory BIN can only be materialized with authenticated
+same-unit hardware data and an accepted evidence record. The AIDK release
+policy declares `device-firstboot`: only a formal factory transaction grants
+initialization, and the device generates its own TLS identity. An ordinary
+mount failure never grants formatting. A software build proves none of the
+physical first-boot, QR, K2, or playback outcomes.
+
+The following contest-era recovery path remains for existing devices; it is
+not the independent development entry. Two artifacts must not be conflated:
+
+- **Same-unit recovery image** — what `release full` produces when a base is supplied. The
   `flash/*.bin` operator image is materialized from an accepted base that was
   read back from the same physical unit, so it carries that unit's
   device-bound persistent data. Re-flashing it on that unit restores a working
@@ -54,10 +68,9 @@ artifacts are involved and must not be conflated:
   another unit would copy device-bound state into that unit, so this artifact
   stays a same-unit recovery image: it is not a published general-purpose
   first-flash package and it must not be flashed on a different board.
-- **General-purpose first flash** — not verified. A package that any board
-  could take needs a verified factory-init/identity-initialization path; the
-  release policy currently declares `factory_mode: provision-required`. This
-  document does not close that path, and no published image provides it.
+- **Independent factory software** — signed public software and factory
+  initialization intent; the protected hardware tail and unallocated range
+  still require a same-target snapshot before creating one full BIN.
 
 The maintained paths are:
 
