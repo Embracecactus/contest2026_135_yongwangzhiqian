@@ -137,10 +137,20 @@ SECTIONS
     .text : ALIGN(4)
     {
         _stext = ABSOLUTE(.);
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+        *(EXCLUDE_FILE (*sys_pm_hal.c.obj) .text)
+        *(EXCLUDE_FILE (*sys_pm_hal.c.obj) .text.*)
+#else
         *(.text .text.*)
+#endif
         *(.fixup)
         *(.gnu.warning)
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+        *(EXCLUDE_FILE (*sys_pm_hal.c.obj) .rodata)
+        *(EXCLUDE_FILE (*sys_pm_hal.c.obj) .rodata.*)
+#else
         *(.rodata .rodata.*)
+#endif
         *(.gnu.linkonce.t.*)
         *(.glue_7)
         *(.glue_7t)
@@ -266,6 +276,16 @@ SECTIONS
     .data : ALIGN(4)
     {
         _sdata = ABSOLUTE(.);
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+        /* The SDK deep-sleep HAL disables the XIP clock before reaching WFI.
+         * Its section name alone does not place it in RAM: orphan placement
+         * otherwise leaves it in FLASH. Copy the HAL and its local helpers,
+         * plus the architecture sleep leaf, using the normal startup copy.
+         */
+
+        *sys_pm_hal.c.obj(.text .text.* .rodata .rodata.* .itcm_sec_code)
+        *arm.c.obj(.itcm_sec_code)
+#endif
         *(.data .data.*)
         *(.gnu.linkonce.d.*)
 #ifdef CONFIG_BK7258_RPTUN_LAYOUT
@@ -280,6 +300,14 @@ SECTIONS
         . = ALIGN(4);
         _edata = ABSOLUTE(.);
     } > RAM AT > FLASH
+
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+    ASSERT(sys_hal_enter_deep_sleep >= _sdata &&
+           sys_hal_enter_deep_sleep < _edata,
+           "ERROR: deep-sleep HAL must execute from copied SRAM")
+    ASSERT(arch_deep_sleep >= _sdata && arch_deep_sleep < _edata,
+           "ERROR: deep-sleep WFI must execute from copied SRAM")
+#endif
 
     /* Zero-initialized data. */
     .bss (NOLOAD) : ALIGN(4)
