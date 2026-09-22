@@ -129,7 +129,7 @@ jobs:
           test -n "$build_manifest"
           release="$RUNNER_TEMP/shaniu-release"
           python3 tools/bk7258/bk7258.py release full --build-manifest "$build_manifest" \
-            --development-identity --version "0.6.0+1" \
+            --development-identity --version "0.7.0+1" \
             --product shaniu --artifact-id "ci-${GITHUB_RUN_ID}" --factory-init \
             --output-dir "$release"
           package=$(find "$release/package" -name '*.bkpack' -type f -print -quit)
@@ -156,6 +156,7 @@ jobs:
             -r gateway/shaniu/requirements.txt
           python3 tests/host/bk7258/test_bk7258_build_workspace.py
           python3 tests/host/bk7258/test_bk7258_package_delivery.py
+          python3 tests/host/bk7258/test_wifi_async.py
           SHANIU_ANDROID_INTEROP=1 make -C tests/host/bk7258 run-product-keys run-provision
           make -C tests/host/bk7258 run-cloud-config run-cloud-request \
             run-cloud-http test-control-session test-control-pair \

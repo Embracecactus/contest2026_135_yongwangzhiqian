@@ -83,6 +83,7 @@ internal class DeviceSettingsEditor(
             }
         }
         dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(activity).setTitle(if (cloudPage) "云服务与模型" else "Wi-Fi 网络")
+            .setBackground(design.shape(design.surface, dp(24).toFloat()))
             .setView(ScrollView(activity).apply { addView(box) })
             .setNegativeButton("关闭", null).create().also {
                 it.setOnDismissListener { close() }

@@ -231,6 +231,59 @@ int main(void) {
 
 
 class WifiAsyncTest(unittest.TestCase):
+    def test_connection_config_has_no_hidden_flash_or_unbounded_reconnect(self):
+        source = (ROOT / "chips/bk7258/common/bk7258_wifi_control.c").read_text()
+        config_type = source[source.index("struct bk7258_wifi_sta_config_s\n{") :]
+        config_type = config_type[: config_type.index("\n};") + 4]
+        setup = source[source.index("  memset(&config, 0, sizeof(config));") :]
+        setup = setup[: setup.index("  /* The official v3.1.1.9 API")]
+        harness = r"""
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+#define FAR
+#define BK7258_WIFI_SECURITY_AUTO 12
+struct request_s {const char *ssid,*password;unsigned ssid_len,password_len,timeout_ms;};
+"""
+        test = (
+            r"""
+int main(void) {
+ struct request_s input={"test-only","test-only-pass",9,14,5001};
+ struct request_s *request=&input;
+ struct bk7258_wifi_sta_config_s config;
+"""
+            + setup
+            + r"""
+ assert(!strcmp(config.ssid,"test-only"));
+ assert(!strcmp(config.password,"test-only-pass"));
+ assert(config.no_auto_fci==1 && config.user_fast_connect==0);
+ assert(config.auto_reconnect_count==1 && config.auto_reconnect_timeout==6);
+ assert(config.disable_auto_reconnect);
+ assert(config.security==BK7258_WIFI_SECURITY_AUTO);
+ for(unsigned i=0;i<sizeof(config.reserved);i++)assert(config.reserved[i]==0);
+ return 0;
+}
+"""
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            (path / "test.c").write_text(harness + config_type + test)
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=gnu11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
+
     def test_scan_security_names_cover_vendor_values_and_unknowns(self):
         source = (ROOT / "chips/bk7258/common/bk7258_wifi_control.c").read_text()
         names = source[
