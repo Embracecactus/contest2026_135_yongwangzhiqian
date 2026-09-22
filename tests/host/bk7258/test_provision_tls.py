@@ -357,6 +357,11 @@ class ProvisionTlsTest(unittest.TestCase):
                             ]
                         )
                         run([temp / "settings", temp / "cert.der", temp / "key.der"])
+                        # Native device generation writes an EC SEC1 key,
+                        # unlike the historical PC-supplied PKCS#8 fixture.
+                        run(["openssl", "ec", "-in", temp / "key.pem",
+                             "-outform", "DER", "-out", temp / "native-key.der"])
+                        run([temp / "settings", temp / "cert.der", temp / "native-key.der"])
                         run(
                             [
                                 "openssl",

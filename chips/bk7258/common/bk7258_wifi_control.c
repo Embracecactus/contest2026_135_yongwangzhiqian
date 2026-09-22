@@ -1978,7 +1978,12 @@ static int bk7258_wifi_connect(
 
   config.no_auto_fci = 1;
   config.auto_reconnect_count = 1;
-  config.auto_reconnect_timeout = (request->timeout_ms + 999u) / 1000u;
+  /* The SDK's overall reconnect timer also disconnects WPA_COMPLETED and
+   * is not cancelled on DHCP success.  The polling deadline below owns
+   * connection timeout; do not leave a timer armed on a healthy link.
+   */
+
+  config.auto_reconnect_timeout = 0;
   config.disable_auto_reconnect = true;
 
   /* The official v3.1.1.9 API requires stop-before-restart.  In particular,

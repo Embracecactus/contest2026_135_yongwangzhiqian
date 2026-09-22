@@ -657,7 +657,6 @@ class MainActivity : Activity() {
 
     private fun selectTab(value: Int) {
         currentTab = value
-        if (value == TAB_SETTINGS) requestCloudModelsRead()
     }
 
     private fun closeOtaServer(message: String? = null) {
@@ -1467,8 +1466,6 @@ class MainActivity : Activity() {
             currentTab == TAB_SETTINGS && snapshot.publicConfigSupported &&
             configFlow == ConfigFlow.NONE) {
             if (configCapabilitiesGeneration != directSession.current().generation) requestConfigCapabilities()
-            else if (cloudModelsGeneration != directSession.current().generation &&
-                cloudModelsFailedGeneration != directSession.current().generation) requestCloudModelsRead()
             else if (responseModeGeneration != directSession.current().generation &&
                 responseModeFailedGeneration != directSession.current().generation) requestResponseModeRead()
             else if (wakeStatusGeneration != directSession.current().generation) requestWakeStatus()
@@ -1887,20 +1884,34 @@ class MainActivity : Activity() {
                     primaryButton(if (directConnecting) "正在连接…" else "连接设备读取版本", !directConnecting) { scanDirect() }
             }
             else -> {
-                sectionTitle("我的傻妞")
-                addMuted("把陪伴，调成你喜欢的样子。")
+                CompanionPage(this, content).pageTitle("设置", "连接、声音与隐私，由你掌握。")
                 addCard(if (bound) "我的设备" else "还没有添加傻妞",
                     if (bound) directStatus() else "先连接你的设备，再设置声音和聊天风格。")
                 if (!bound) primaryButton("添加我的傻妞", !busy) { startProvisioning() }
                 else {
                     if (!directSession.current().authenticated && directSession.current().connection != DeviceControlSession.Connection.CONNECTING && directSession.current().connection != DeviceControlSession.Connection.RECONNECT_WAIT)
                         primaryButton(if (directConnecting) "正在连接…" else "连接我的傻妞", !directConnecting) { scanDirect() }
+                    val configSupported = directSnapshot?.publicConfigSupported == true
+                    val configMutationReady = configAvailable() && pendingWakeImport == null
+                    sectionTitle("网络与云服务")
+                    val connectionHint = when {
+                        !directSession.current().authenticated -> "请先连接并验证傻妞，再修改设置"
+                        !directSession.current().snapshotFresh -> "设备能力待刷新，请稍候"
+                        !configSupported -> "当前设备固件不支持此设置"
+                        !configMutationReady -> "另一项设备操作正在进行，完成后可编辑"
+                        else -> null
+                    }
+                    settingsRow("Wi-Fi 网络", connectionHint ?: "扫描附近网络 · 断网时也能通过蓝牙换网", configMutationReady) {
+                        editDeviceSettings()
+                    }
+                    settingsRow("云服务与模型", connectionHint ?: "配置服务地址、密钥和语音模型", configMutationReady) {
+                        openDeviceSettings(true)
+                    }
+                    sectionTitle("声音与对话")
                     val volumeControl = DeviceControlPresentation.volume(directSession.current())
                     settingsRow("扬声器音量", volumeControl.reason, enabled = volumeControl.enabled) { editDirectVolume() }
                     settingsRow("聊天风格", directSnapshot?.persona?.let { directPersonas[it] }
                         ?: "选择你喜欢的陪伴方式") { selectTab(TAB_PERSONALITY); render() }
-                    val configSupported = directSnapshot?.publicConfigSupported == true
-                    val configMutationReady = configAvailable() && pendingWakeImport == null
                     val responseCurrent = responseModeGeneration == directSession.current().generation
                     val responseText = when {
                         !directSession.current().authenticated -> "连接并验证设备后读取"
@@ -1928,30 +1939,14 @@ class MainActivity : Activity() {
                         if (sensitivityCurrent) editWakeSensitivity()
                         else { requestWakeSensitivityRead(); render() }
                     }
-                    val modelsCurrent = cloudModelsGeneration == directSession.current().generation
-                    val modelText = when {
-                        !directSession.current().authenticated -> "连接并验证设备后读取模型"
-                        !directSession.current().snapshotFresh -> "正在读取设备能力…"
-                        !configSupported -> "设备固件未提供公开模型设置"
-                        cloudModelsWire != null -> "正在读取或保存模型配置…"
-                        !modelsCurrent -> cloudModelsReadError ?: "正在读取设备模型配置…"
-                        cloudModels != null -> "ASR ${cloudModels!!.asr}\n对话 ${cloudModels!!.chat}\nTTS ${cloudModels!!.tts}"
-                        else -> cloudModelsReadError ?: "尚未读取模型配置"
-                    }
-                    settingsRow("云端模型", modelText, enabled = configMutationReady) {
-                        openDeviceSettings(true)
-                    }
                     if (cloudModelsExpected != null) settingsRow("取消模型保存", "停止当前配置事务；不会重放未完成写入", enabled = true) {
                         if (!directSession.cancelConfigTransaction()) directMessage = "当前模型配置已结束"
                         else directMessage = "正在取消模型配置"
                         render()
                     }
-                    settingsRow("Wi-Fi 网络", "认证后可离线换网；不会清除云服务配置", configMutationReady) {
-                        editDeviceSettings()
-                    }
-                    settingsRow("核对认领结果", "仅用于首次认领或核对未确认结果", !busy && settingsEditor == null) { startProvisioning() }
                 }
                 sectionTitle("隐私与管理")
+                if (bound) settingsRow("核对认领结果", "认领中断或结果不确定时使用", !busy && settingsEditor == null) { startProvisioning() }
                 settingsRow("隐私与权限", "了解语音、凭据与记忆的使用") { selectTab(TAB_PRIVACY); render() }
                 settingsRow("固件更新", "查看设备当前版本与升级状态") { selectTab(TAB_UPDATE); render() }
                 if (directConnection != null)

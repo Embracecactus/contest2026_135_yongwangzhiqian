@@ -6,6 +6,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DeviceControlProtocolTest {
+    @Test fun authenticatedScanReadAcceptsBoundedRecordsButCannotWriteScanKind() {
+        val sent = mutableListOf<ByteArray>()
+        val states = mutableListOf<DeviceControlProtocol.Snapshot>()
+        val protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { sent += it.copyOf() }, { _, s -> states += s })
+        protocol.start(); protocol.receive(response(sent.last()))
+        assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ, be32(8 shl 16)))
+        protocol.receive(response(sent.last(), flags = 876))
+        assertEquals(876, states.last().configChunk!!.totalLength)
+        assertThrows(IllegalArgumentException::class.java) {
+            protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                ByteBuffer.allocate(8).putInt(8).putInt(12).array())
+        }
+        protocol.close()
+    }
+
     private fun response(request: ByteArray, error: Int = 0, flags: Int = 0,
                          volume: Int = -1, persona: Int = -1, turn: Int = -1,
                          runtimeError: Int = 0) =

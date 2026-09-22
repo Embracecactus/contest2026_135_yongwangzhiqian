@@ -91,7 +91,7 @@ internal class DeviceControlProtocol(
             Command.CONFIG_READ -> payload.size == 4 && ByteBuffer.wrap(payload).let {
                 val argument = it.int
                 val kind = argument ushr 16; val offset = argument and 0xffff
-                ((kind in 1..2 || kind == 5 || kind == 7) && offset % 16 == 0) || ((kind == 4 || kind == 6 || kind == 0x7fff) && offset == 0) }
+                ((kind in 1..2 || kind == 5 || kind == 7 || kind == 8) && offset % 16 == 0) || ((kind == 4 || kind == 6 || kind == 0x7fff) && offset == 0) }
             Command.CONFIG_BEGIN -> payload.size == 8 && ByteBuffer.wrap(payload).let {
                 val kind = it.int; val size = it.int
                 when (kind) { 1 -> size in 15..393; 2 -> size in 137..65672; 3 -> size == 4; 4 -> size == 12; 5 -> size in 44..3371; 6 -> size == 12; 7 -> size in 52..9216; else -> false } }
@@ -170,7 +170,7 @@ internal class DeviceControlProtocol(
                     if (command == Command.CONFIG_READ) {
                         require(error <= 0)
                         val chunk = if (error == 0) {
-                            require(flags in 12..(if (pendingReadKind == 7) 824 else 393))
+                            require(flags in 12..(when (pendingReadKind) { 7 -> 824; 8 -> 876; else -> 393 }))
                             ConfigChunk(flags, input.copyOfRange(24, 40))
                         } else null
                         complete(command, Snapshot(error, false, false, null, null, null, null,

@@ -94,6 +94,11 @@ def add_arguments(
     train.add_argument("--batch-size", type=int, default=16)
     train.add_argument("--seed", type=int, default=1337)
     train.add_argument(
+        "--tempo-augmentation",
+        action="store_true",
+        help="train-only pitch-preserving 0.75/1.25/1.5 tempo copies; reject overlong phrases",
+    )
+    train.add_argument(
         "--channels",
         type=int,
         default=32,
@@ -1510,6 +1515,63 @@ def evaluate(
     return result
 
 
+def _tempo_copies(records, wake_label):
+    """Keep original lineage and never crop a slowed complete wake phrase."""
+    copies = []
+    counts = Counter()
+    for record in records:
+        if record["split"] != "train" or record["label"] != wake_label:
+            continue
+        start, end = _speech_span(record["pcm"])
+        if end <= start:
+            counts["empty_source"] += 1
+            continue
+        # Preserve a 100 ms margin around the existing auditable speech span.
+        pcm = record["pcm"][max(0, start - 1600) * 2 : min(SAMPLES, end + 1600) * 2]
+        for tempo in (0.75, 1.25, 1.5):
+            result = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-v",
+                    "error",
+                    "-f",
+                    "s16le",
+                    "-ar",
+                    "16000",
+                    "-ac",
+                    "1",
+                    "-i",
+                    "pipe:0",
+                    "-af",
+                    f"atempo={tempo}",
+                    "-f",
+                    "s16le",
+                    "pipe:1",
+                ],
+                input=pcm,
+                capture_output=True,
+                timeout=20,
+                check=True,
+            )
+            output = result.stdout
+            if not output or len(output) % 2:
+                _fail("tempo_pcm_invalid")
+            if len(output) > SAMPLES * 2:
+                counts[f"overlong:{tempo}"] += 1
+                continue
+            # Window derivation below supplies rolling offsets and negatives.
+            copies.append(
+                _derived_record(
+                    record,
+                    output.ljust(SAMPLES * 2, b"\0"),
+                    wake_label,
+                    f"tempo:{tempo}",
+                )
+            )
+            counts[f"accepted:{tempo}"] += 1
+    return copies, dict(counts)
+
+
 def train(
     manifest: Path,
     output: Path,
@@ -1525,6 +1587,7 @@ def train(
     pcm_level_augmentation: bool = False,
     room_augmentation: bool = False,
     positive_end_window_ms: int = 0,
+    tempo_augmentation: bool = False,
 ) -> dict[str, Any]:
     """Train and export a full-INT8 candidate; imports ML packages only here."""
     if (
@@ -1564,6 +1627,10 @@ def train(
         tf.config.experimental.enable_op_determinism()
     except (AttributeError, RuntimeError):
         pass
+    tempo_counts = {}
+    if tempo_augmentation:
+        tempo_records, tempo_counts = _tempo_copies(records, wake_label)
+        records = [*records, *tempo_records]
     positive_end_window_samples = positive_end_window_ms * 16
     original_train_positive_excluded = 0
     base_records = records
@@ -1928,6 +1995,13 @@ def train(
         "best_validation_loss": float(history.history["val_loss"][early.best_epoch]),
         "batch_size": batch_size,
         "training_recipe": {
+            "tempo_augmentation": {
+                "enabled": tempo_augmentation,
+                "rates": [0.75, 1.25, 1.5],
+                "counts": tempo_counts,
+                "method": "ffmpeg atempo; 100ms speech margins; no overlong cropping",
+                "lineage": "original source and speaker retained; train only",
+            },
             "base": "trigger442 archived v30",
             "batch_normalization_momentum": 0.99,
             "optimizer": "keras Adam defaults",
@@ -2064,6 +2138,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             pcm_level_augmentation=args.pcm_level_augmentation,
             room_augmentation=args.room_augmentation,
             positive_end_window_ms=args.positive_end_window_ms,
+            tempo_augmentation=args.tempo_augmentation,
         )
     if args.kws_command == "evaluate":
         return evaluate(

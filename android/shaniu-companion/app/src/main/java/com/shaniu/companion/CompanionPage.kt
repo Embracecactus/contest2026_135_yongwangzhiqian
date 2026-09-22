@@ -19,12 +19,12 @@ internal class CompanionPage(private val context: Context, private val content: 
                             selected: Boolean = false, action: () -> Unit) {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(16))
+            setPadding(dp(16), dp(14), dp(16), dp(14))
             minimumHeight = dp(72)
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(if (selected) design.selected else design.surface)
-                cornerRadius = dp(18).toFloat()
-            }
+            background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(design.selected),
+                design.shape(if (selected) design.selected else design.surface, dp(16).toFloat()),
+                design.shape(Color.WHITE, dp(16).toFloat()))
             isEnabled = enabled; isClickable = enabled; isFocusable = enabled
             contentDescription = "$title，$subtitle" + if (selected) "，当前已选择" else ""
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
@@ -38,7 +38,7 @@ internal class CompanionPage(private val context: Context, private val content: 
                 typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
             })
             addView(TextView(context).apply {
-                text = subtitle; textSize = 12f; setTextColor(MUTED)
+                text = subtitle; textSize = 14f; setTextColor(MUTED)
                 setPadding(0, dp(5), 0, 0)
             })
         }
@@ -48,8 +48,20 @@ internal class CompanionPage(private val context: Context, private val content: 
             textSize = 22f; setTextColor(MUTED); setPadding(dp(12), 0, 0, 0)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         })
-        content.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6); bottomMargin = dp(2) })
+        // Consecutive rows form one section; intervening headings end the group.
+        val last = content.getChildAt(content.childCount - 1)
+        val group = if (last is LinearLayout && last.tag == "settings-group") last else
+            LinearLayout(context).apply {
+                tag = "settings-group"; orientation = LinearLayout.VERTICAL
+                background = design.shape(design.surface, dp(20).toFloat())
+                clipToOutline = true
+                content.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+            }
+        if (group.childCount > 0) group.addView(View(context).apply {
+            setBackgroundColor(design.background)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LinearLayout.LayoutParams(-1, dp(1)).apply { leftMargin = dp(16); rightMargin = dp(16) })
+        group.addView(row, LinearLayout.LayoutParams(-1, -2))
     }
 
     fun primaryButton(label: String, enabled: Boolean, action: () -> Unit) {
@@ -74,12 +86,22 @@ internal class CompanionPage(private val context: Context, private val content: 
         content.addView(
             TextView(context).apply {
                 text = title
-                textSize = 23f
+                textSize = 17f
                 typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
                 setTextColor(INK)
-                setPadding(0, dp(18), 0, dp(8))
+                setPadding(dp(4), dp(24), 0, dp(8))
+                isAccessibilityHeading = true
             },
         )
+    }
+
+    fun pageTitle(title: String, subtitle: String) {
+        content.addView(TextView(context).apply {
+            text = title; textSize = 28f; setTextColor(INK)
+            typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+            setPadding(0, dp(8), 0, dp(8)); isAccessibilityHeading = true
+        })
+        addMuted(subtitle)
     }
 
     fun addCard(title: String, body: String) {

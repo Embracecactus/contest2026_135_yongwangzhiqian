@@ -84,6 +84,7 @@
 #include "bk7258_provision_owner.h"
 #include "bk7258_provision_gatt.h"
 #include "bk7258_provision_network.h"
+#include "bk7258_provision_scan.h"
 #include "bk7258_agent_trigger.h"
 #include "bk7258_voice_media.h"
 #ifdef CONFIG_AI_AGENT_LVGL_UI
@@ -304,6 +305,7 @@ static int product_power_request(void)
   if ((atomic_load(&g_voice_initialized) && !voice_channel_is_idle()) ||
       atomic_load(&g_probe_running) || bkprov_owner_busy() ||
       bkprov_network_busy() || bkprov_config_busy() ||
+      bkprov_scan_busy() ||
       bkagent_ota_busy() || bk7258_agent_trigger_model_pending())
     {
       return -EBUSY;
@@ -1050,6 +1052,82 @@ out:
   return OK;
 }
 
+/* The authenticated control session reuses the single device scan worker.
+ * Results are public SSIDs, scoped to this GATT generation, never credentials.
+ */
+static struct
+{
+  bool pending;
+  bool ready;
+  uint32_t generation;
+  int result;
+  size_t size;
+  uint8_t wire[12 + BKPROV_SCAN_MAX_APS * 36];
+} g_control_scan;
+
+static void product_scan_step(void)
+{
+  if (g_control_scan.generation != bkprov_gatt_generation())
+    {
+      if (g_control_scan.pending) bkprov_scan_close();
+      memset(&g_control_scan, 0, sizeof(g_control_scan));
+      bkprov_scan_drain();
+      return;
+    }
+  if (!g_control_scan.pending) return;
+  struct bkprov_scan_result_s result;
+  int ret = bkprov_scan_poll(&result);
+  if (ret == -EAGAIN) return;
+  g_control_scan.pending = false;
+  g_control_scan.ready = true;
+  g_control_scan.result = ret ? ret : result.status;
+  if (g_control_scan.result) return;
+  memset(g_control_scan.wire, 0, sizeof(g_control_scan.wire));
+  memcpy(g_control_scan.wire, "WFS1", 4);
+  g_control_scan.wire[4] = result.count;
+  g_control_scan.wire[5] = result.truncated;
+  for (unsigned int i = 0; i < result.count; i++)
+    {
+      uint8_t *p = g_control_scan.wire + 12 + i * 36;
+      p[0] = result.aps[i].ssid_len;
+      p[1] = (uint8_t)result.aps[i].rssi;
+      p[2] = result.aps[i].channel;
+      p[3] = result.aps[i].security;
+      memcpy(p + 4, result.aps[i].ssid, 32);
+    }
+  g_control_scan.size = 12 + result.count * 36;
+}
+
+static int product_scan_read(uint32_t offset,
+                            struct bkcontrol_status_s *status)
+{
+  product_scan_step();
+  if (!offset && !g_control_scan.ready && !g_control_scan.pending)
+    {
+      if (bkprov_network_busy()) return -EBUSY;
+      int ret = bkprov_scan_start();
+      if (ret) return ret;
+      g_control_scan.pending = true;
+      g_control_scan.generation = bkprov_gatt_generation();
+    }
+  if (g_control_scan.pending) return -EAGAIN;
+  if (!g_control_scan.ready) return -ESTALE;
+  if (g_control_scan.result)
+    {
+      int ret = g_control_scan.result;
+      g_control_scan.ready = false;
+      return ret;
+    }
+  if (offset >= g_control_scan.size || (offset & 15u)) return -ERANGE;
+  status->config_total = g_control_scan.size;
+  size_t count = g_control_scan.size - offset;
+  if (count > sizeof(status->config_chunk)) count = sizeof(status->config_chunk);
+  memset(status->config_chunk, 0, sizeof(status->config_chunk));
+  memcpy(status->config_chunk, g_control_scan.wire + offset, count);
+  if (offset + count == g_control_scan.size) g_control_scan.ready = false;
+  return 0;
+}
+
 static bool product_available(void *unused)
 {
   (void)unused;
@@ -1069,7 +1147,7 @@ static int product_response_mode(enum bkcontrol_command_e command,
 {
 #ifdef CONFIG_BK7258_PREFERENCES
   bool enabled = false;
-  int ret = bkagent_cloud_get_thinking(&enabled);
+  int ret = bk7258_preferences_thinking_get(&enabled);
   if (ret && ret != -EAGAIN)
     {
       return ret;
@@ -1099,12 +1177,8 @@ static int product_response_mode(enum bkcontrol_command_e command,
       return -EINVAL;
     }
 
-  if (!g_cloud_loaded)
-    {
-      return -EAGAIN;
-    }
-
-  if (!voice_channel_is_idle() || bkprov_network_busy())
+  if ((atomic_load(&g_voice_initialized) && !voice_channel_is_idle()) ||
+      bkprov_network_busy())
     {
       return -EBUSY;
     }
@@ -1341,6 +1415,12 @@ static int product_config(void *context, enum bkcontrol_command_e command,
   if (kind == BKCONTROL_CONFIG_SETTINGS)
     {
       return bkprov_config_control(command, offset, record, size, status);
+    }
+
+  if (kind == BKCONTROL_CONFIG_WIFI_SCAN)
+    {
+      return command == BKCONTROL_CONFIG_READ ?
+        product_scan_read(offset, status) : -EINVAL;
     }
 
   if (kind == BKCONTROL_CONFIG_CLOUD_MODELS)
@@ -2148,6 +2228,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
       unsigned int events = atomic_exchange(&g_product_events, 0);
       bkagent_ota_poll();
+      product_scan_step();
       uint64_t now = bkvoice_config_now_ms(NULL);
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
       if (product_keys_step(now))

@@ -24,6 +24,7 @@ enum job_e { JOB_IDLE, JOB_LOAD, JOB_COMMIT, JOB_IDENTITY, JOB_RESET, JOB_STOP }
 struct storage_s
 {
   pthread_t thread;
+  bool stopped;
   struct bkprov_store_s store;
   struct bkprov_store_s identity_store;
   int identity_status;
@@ -264,6 +265,11 @@ static void *worker(void *context)
       if (notify) notify();
       pthread_mutex_lock(&g_lock);
     }
+  /* The product coordinator belongs to a different NuttX task group from
+   * the startup owner. Publish the final buffer-release boundary explicitly;
+   * pthread_join cannot reap another group's thread. */
+  s->stopped = true;
+  pthread_cond_broadcast(&g_wake);
   pthread_mutex_unlock(&g_lock);
   return NULL;
 }
@@ -288,6 +294,7 @@ int bkprov_storage_start(const char *root)
       if (stack_size < PTHREAD_STACK_MIN) stack_size = PTHREAD_STACK_MIN;
 #endif
       ret = pthread_attr_setstacksize(&attr, stack_size);
+      if (ret == 0) ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
       if (ret == 0) ret = pthread_create(&s->thread, &attr, worker, s);
       pthread_attr_destroy(&attr);
     }
@@ -484,15 +491,10 @@ int bkprov_storage_stop(void)
     { pthread_mutex_unlock(&g_lock); return -EINPROGRESS; }
   s->job = JOB_STOP;
   pthread_cond_signal(&g_wake);
+  while (!s->stopped) pthread_cond_wait(&g_wake, &g_lock);
+  g_storage = NULL;
+  mbedtls_platform_zeroize(s, sizeof(*s));
+  free(s);
   pthread_mutex_unlock(&g_lock);
-  int ret = pthread_join(s->thread, NULL);
-  pthread_mutex_lock(&g_lock);
-  if (ret == 0)
-    {
-      g_storage = NULL;
-      mbedtls_platform_zeroize(s, sizeof(*s));
-      free(s);
-    }
-  pthread_mutex_unlock(&g_lock);
-  return -ret;
+  return 0;
 }

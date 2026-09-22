@@ -163,6 +163,24 @@ internal class WifiScanProtocol(
     }
 
     companion object {
+        fun decodeControl(bytes: ByteArray): Result {
+            require(bytes.size >= 12 && bytes.copyOfRange(0, 4).contentEquals("WFS1".toByteArray()))
+            val count = bytes[4].toInt() and 255
+            require(count <= MAX_NETWORKS && bytes.size == 12 + count * RECORD_SIZE)
+            require(bytes[5].toInt() in 0..1 && bytes.sliceArray(6..11).all { it == 0.toByte() })
+            val networks = (0 until count).map { i ->
+                val offset = 12 + i * RECORD_SIZE
+                val size = bytes[offset].toInt() and 255
+                require(size in 1..32)
+                require(bytes.copyOfRange(offset + 4 + size, offset + 36).all { it == 0.toByte() })
+                val name = decodeSsid(bytes.copyOfRange(offset + 4, offset + 4 + size))
+                    ?: throw IllegalArgumentException("Invalid SSID")
+                Network(name, bytes[offset + 1].toInt(), bytes[offset + 2].toInt() and 255,
+                    bytes[offset + 3].toInt() and 255)
+            }
+            return Result(0, networks, bytes[5] != 0.toByte())
+        }
+
         private const val MAGIC = 0x53505631
         private const val STATUS = 128
         private const val SCAN = 6

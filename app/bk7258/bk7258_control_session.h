@@ -72,6 +72,9 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_WAKE_THRESHOLD 6u
 /* SCP1 save-first settings patch; SCS1 public operation/revision readback. */
 #define BKCONTROL_CONFIG_SETTINGS 7u
+/* Read-only WFS1: 12-byte header, then SSID length/RSSI/channel/security
+ * and 32 SSID bytes per result. Reuses the device's single scan worker. */
+#define BKCONTROL_CONFIG_WIFI_SCAN 8u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (136u + 65536u)
 struct bkcontrol_device_info_s

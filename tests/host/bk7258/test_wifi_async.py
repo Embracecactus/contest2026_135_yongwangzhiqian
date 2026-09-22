@@ -258,7 +258,7 @@ int main(void) {
  assert(!strcmp(config.ssid,"test-only"));
  assert(!strcmp(config.password,"test-only-pass"));
  assert(config.no_auto_fci==1 && config.user_fast_connect==0);
- assert(config.auto_reconnect_count==1 && config.auto_reconnect_timeout==6);
+ assert(config.auto_reconnect_count==1 && config.auto_reconnect_timeout==0);
  assert(config.disable_auto_reconnect);
  assert(config.security==BK7258_WIFI_SECURITY_AUTO);
  for(unsigned i=0;i<sizeof(config.reserved);i++)assert(config.reserved[i]==0);

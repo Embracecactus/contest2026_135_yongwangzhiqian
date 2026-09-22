@@ -22,6 +22,35 @@ SPEC.loader.exec_module(kws)
 LABELS = (*kws.BASE_LABELS, kws.DEFAULT_WAKE_LABEL)
 
 
+def test_tempo_retains_lineage_and_excludes_validation_and_overlong():
+    import math
+    import struct
+
+    pcm = b"".join(
+        struct.pack("<h", int(5000 * math.sin(i * 0.1))) for i in range(kws.SAMPLES)
+    )
+    original = dict(
+        pcm=pcm,
+        split="train",
+        label=kws.DEFAULT_WAKE_LABEL,
+        source_id="tempo-source",
+        speaker="tempo-speaker",
+    )
+    records, counts = kws._tempo_copies(
+        [original, {**original, "split": "validation"}, {**original, "split": "test"}],
+        kws.DEFAULT_WAKE_LABEL,
+    )
+    assert counts["overlong:0.75"] == 1
+    assert len(records) == 2
+    assert {r["augmentation"] for r in records} == {"tempo:1.25", "tempo:1.5"}
+    for record in records:
+        assert len(record["pcm"]) == kws.SAMPLES * 2
+        assert record["source_id"] == original["source_id"]
+        assert record["speaker"] == original["speaker"]
+        assert record["split"] == "train"
+    assert original["pcm"] == pcm
+
+
 def _wav(path: Path, value: int = 1, rate: int = 16000) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as stream:
