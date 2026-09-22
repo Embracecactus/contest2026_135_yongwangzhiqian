@@ -100,15 +100,15 @@ repo sync -j4 \
   apps/mlearning/cmsis-nn/cmsis-nn \
   apps/mlearning/tflite-micro/tflite-micro \
   apps/netutils/cjson/cJSON apps/netutils/mqttc/MQTT-C \
-  apps/system/flatbuffers/flatbuffers build \
+  apps/system/flatbuffers/flatbuffers build external \
   contest2026_135_yongwangzhiqian \
   frameworks frameworks/connectivity/bluetooth \
   frameworks/multimedia/media frameworks/system/topics \
   frameworks/system/vibrator nuttx nuttx/fs/fatfs/fatfs \
   nuttx/fs/littlefs/littlefs nuttx/openamp/libmetal \
-  nuttx/openamp/open-amp packages/ai_agent \
+  nuttx/openamp/open-amp packages packages/ai_agent \
   prebuilts/build-tools/linux-x86_64 prebuilts/cmake/linux-x86_64 \
-  prebuilts/tools vendor/beken vendor/beken/bk_avdk_smp
+  prebuilts/tools vendor vendor/beken vendor/beken/bk_avdk_smp
 cd contest2026_135_yongwangzhiqian
 python3 -m venv ../out/shaniu-python
 . ../out/shaniu-python/bin/activate
