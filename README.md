@@ -84,7 +84,7 @@ tag 指向合并提交 `6a8a3e55`），fork 与官方仓两份资产 SHA256 一�
 ## 独立开发构建（当前主入口）
 
 首次在自己的 Linux/openvela 工作区取得公开工程，使用仓库 manifest 锁定的
-依赖。以下命令不读取作者私钥、历史整片 base 或设备数据；需要网络下载公开的
+依赖。准备 Python 3.10；以下命令不读取作者私钥、历史整片 base 或设备数据，需要网络下载公开的
 依赖、工具链和 SDK。首次选择 `identity init --development` 会在用户数据目录
 建立一对长期开发签名密钥（BL1 与 MCUboot 各一把，私钥不进入源码、构建目录或
 交付包）。再次执行会校验并复用，损坏时拒绝静默换根。这个身份不兼容已锁定
@@ -93,7 +93,22 @@ tag 指向合并提交 `6a8a3e55`），fork 与官方仓两份资产 SHA256 一�
 ```bash
 repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian.git \
   -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk,platform-linux
-repo sync -j4
+repo sync -j4 \
+  apps apps/boot/mcuboot/mcuboot apps/crypto/mbedtls/mbedtls \
+  apps/graphics/lvgl/lvgl apps/math/gemmlowp/gemmlowp \
+  apps/math/kissfft/kissfft apps/math/ruy/ruy \
+  apps/mlearning/cmsis-nn/cmsis-nn \
+  apps/mlearning/tflite-micro/tflite-micro \
+  apps/netutils/cjson/cJSON apps/netutils/mqttc/MQTT-C \
+  apps/system/flatbuffers/flatbuffers build \
+  contest2026_135_yongwangzhiqian \
+  frameworks frameworks/connectivity/bluetooth \
+  frameworks/multimedia/media frameworks/system/topics \
+  frameworks/system/vibrator nuttx nuttx/fs/fatfs/fatfs \
+  nuttx/fs/littlefs/littlefs nuttx/openamp/libmetal \
+  nuttx/openamp/open-amp packages/ai_agent \
+  prebuilts/build-tools/linux-x86_64 prebuilts/cmake/linux-x86_64 \
+  prebuilts/tools vendor/beken vendor/beken/bk_avdk_smp
 cd contest2026_135_yongwangzhiqian
 python3 -m venv ../out/shaniu-python
 . ../out/shaniu-python/bin/activate
@@ -136,7 +151,7 @@ workspace 创建临时开发身份，完整编译并在独立 job 下载、校�
 
 ## 历史赛事版评审流程（非当前候选操作入口）
 
-本节是**唯一主操作入口**；每项输入的来源、消费者、安装位置与成功判据见
+本节保留赛事期操作记录，**不是当前候选的操作入口**；当时每项输入的来源、消费者、安装位置与成功判据见
 [首次部署输入清单](docs/platforms/bk7258/first-deployment-inputs.md)（下称“输入清单”）。
 命令以 openvela 工作区为根目录执行，团队仓目录为 `contest2026_135_yongwangzhiqian/`。
 例子与已完成证据分开标注：**已实测**的步骤引用具体版本与哈希，**未实测**的步骤明确写出。
@@ -506,7 +521,7 @@ Wi-Fi / BT / Flash / OTA       官方 Agent / Session / Voice / Media
 不要把 T5AI-EVB 当作 T5-Board V1.0.2。**编译不需要连接或购买开发板**。
 三板历史实测各有边界，不能把 AIToyBoard 的产品演示推广到其他板。
 
-## 评审构建指南
+## 历史赛事评审构建指南（非当前候选操作入口）
 
 ### 发布状态与依赖身份
 

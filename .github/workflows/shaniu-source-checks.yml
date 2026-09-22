@@ -70,6 +70,10 @@ jobs:
           repo manifest -o "$RUNNER_TEMP/declared-manifest.xml"
           printf 'checkout_sha=%s\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.10'
+
       - name: Build the locked toolchain and SDK inputs
         shell: bash
         run: |
