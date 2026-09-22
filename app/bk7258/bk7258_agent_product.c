@@ -158,6 +158,12 @@ static atomic_int g_voice_event_result;
 static atomic_bool g_trigger_prepare_pending = ATOMIC_VAR_INIT(true);
 static mutex_t g_persona_lock = NXMUTEX_INITIALIZER;
 static atomic_int g_active_persona = ATOMIC_VAR_INIT(-1);
+/* This is process-local only. SRV1/SRR1 remain the restart-safe authority;
+ * FINISHING preserves the post-worker teardown when storage changes to
+ * positively empty after a successful reset. */
+enum product_reset_phase_e { PRODUCT_RESET_IDLE, PRODUCT_RESET_QUIESCING,
+                             PRODUCT_RESET_FINISHING };
+static enum product_reset_phase_e g_reset_phase;
 #if defined(CONFIG_BK7258_PRODUCT_KEYS) && defined(CONFIG_BK7258_PM_SOFT_OFF)
 static bool g_power_pending;
 static bool g_shutdown_requested;
@@ -1141,6 +1147,53 @@ static bool product_available(void *unused)
 static int product_models(enum bkcontrol_command_e command, uint32_t offset,
   const uint8_t *record, size_t size, struct bkcontrol_status_s *status);
 
+static uint64_t product_be64(const uint8_t *record)
+{
+  uint64_t value = 0;
+  for (unsigned int i = 0; i < 8; i++) value = (value << 8) | record[i];
+  return value;
+}
+
+static void product_be32(uint8_t *record, uint32_t value)
+{
+  record[0] = value >> 24; record[1] = value >> 16;
+  record[2] = value >> 8; record[3] = value;
+}
+
+/* SRT1 is accepted only after the existing storage worker has durably
+ * committed SRV1.  The caller retries an exact request while it returns
+ * -EAGAIN; no accepted request is inferred from a disconnected response. */
+static int product_reset_control(enum bkcontrol_command_e command,
+  uint32_t offset, const uint8_t *record, size_t size,
+  struct bkcontrol_status_s *status)
+{
+  if (command == BKCONTROL_CONFIG_READ)
+    {
+      uint8_t wire[28] = {'S', 'R', 'S', '1'};
+      if (offset >= sizeof(wire) || (offset & 15u) || record == NULL || size != 16)
+        return -EINVAL;
+      int receipt = bkprov_storage_reset_receipt(record);
+      if (receipt < 0) return receipt;
+      product_be32(wire + 4, receipt == BKPROV_STORAGE_RESET_RECEIPT_PENDING ? 1u :
+                            receipt == BKPROV_STORAGE_RESET_RECEIPT_COMPLETED ? 2u : 0u);
+      memcpy(wire + 12, record, 16);
+      status->config_total = sizeof(wire);
+      memset(status->config_chunk, 0, sizeof(status->config_chunk));
+      size_t count = sizeof(wire) - offset;
+      if (count > sizeof(status->config_chunk)) count = sizeof(status->config_chunk);
+      memcpy(status->config_chunk, wire + offset, count);
+      return 0;
+    }
+  if (command == BKCONTROL_CONFIG_BEGIN) return size == 32 ? 0 : -EMSGSIZE;
+  if (command != BKCONTROL_CONFIG_APPLY || size != 32 || record == NULL ||
+      memcmp(record, "SRT1", 4) || record[4] || record[5] || record[6] || record[7])
+    return -EBADMSG;
+  uint8_t nonzero = 0;
+  for (unsigned int i = 16; i < 32; i++) nonzero |= record[i];
+  if (!nonzero) return -EBADMSG;
+  return bkprov_storage_reset_request(product_be64(record + 8), record + 16);
+}
+
 static int product_response_mode(enum bkcontrol_command_e command,
   uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
@@ -1421,6 +1474,11 @@ static int product_config(void *context, enum bkcontrol_command_e command,
     {
       return command == BKCONTROL_CONFIG_READ ?
         product_scan_read(offset, status) : -EINVAL;
+    }
+
+  if (kind == BKCONTROL_CONFIG_RESET_TRANSFER)
+    {
+      return product_reset_control(command, offset, record, size, status);
     }
 
   if (kind == BKCONTROL_CONFIG_CLOUD_MODELS)
@@ -1995,6 +2053,91 @@ static int product_clear(void *unused)
   return 0;
 }
 
+/* Runs only after the product loop closed the old authenticated window,
+ * cancelled its network writer and stopped the trigger/cloud writers. The
+ * storage worker keeps SRV1 selected when any replica cannot be cleaned. */
+static int product_reset_cleanup(void)
+{
+  int ret;
+  if (g_trigger_started || atomic_load(&g_probe_running) ||
+      (atomic_load(&g_voice_initialized) && !voice_channel_is_idle()))
+    return -EBUSY;
+#ifdef CONFIG_BK7258_PREFERENCES
+  ret = bkagent_memory_reset();
+  if (ret < 0) return ret;
+  ret = bk7258_preferences_reset();
+  if (ret < 0) return ret;
+#endif
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  ret = bk7258_display_reset_selection();
+  if (ret < 0) return ret;
+#endif
+  return 0;
+}
+
+/* A persisted SRV1 revokes the old control immediately. Until cleanup and
+ * SRR1 completion, uncertainty remains quiesced and no new window opens. */
+static int product_reset_step(void)
+{
+  int pending = bkprov_storage_reset_pending();
+  /* Storage loading is a normal boot condition, not evidence of SRV1. Do not
+   * consume a real TURN_COMPLETE or block bootstrap merely because its worker
+   * has not published a snapshot yet. Other read failures remain fail-closed
+   * to callers, but never enter destructive reset cleanup without a marker. */
+  if (g_reset_phase == PRODUCT_RESET_IDLE &&
+      (pending == -EAGAIN || pending == -ENODEV)) return 0;
+  if (pending == 0 && g_reset_phase != PRODUCT_RESET_FINISHING) return 0;
+  if (pending != 1 &&
+      !(pending == 0 && g_reset_phase == PRODUCT_RESET_FINISHING)) return pending;
+  int ret;
+  if (g_reset_phase != PRODUCT_RESET_FINISHING)
+    {
+      g_reset_phase = PRODUCT_RESET_QUIESCING;
+      ret = bkprov_owner_quiesce(true);
+      if (ret < 0) return ret;
+      ret = bkprov_network_cancel();
+      if (ret < 0 && ret != -EAGAIN) return ret;
+      bkprov_network_step();
+      if (bkprov_network_busy()) return -EAGAIN;
+      if (atomic_load(&g_voice_initialized) && !voice_channel_is_idle())
+        {
+          voice_channel_cancel();
+          /* 撤销门禁跳过普通循环，仍须由原所有者完成延迟资源回收。 */
+          (void)voice_channel_recover();
+          return -EAGAIN;
+        }
+      ret = product_clear(NULL);
+      if (ret < 0) return ret;
+      g_reset_phase = PRODUCT_RESET_FINISHING;
+      ret = bkprov_storage_reset_finish(product_reset_cleanup);
+      if (ret < 0) return ret;
+    }
+  else if (pending == 1)
+    {
+      /* Publish the worker's actual cleanup result. A failed worker must not
+       * be hidden as another ordinary retry while SRV1 is still selected. */
+      ret = bkprov_storage_reset_finish(product_reset_cleanup);
+      if (ret < 0) return ret;
+    }
+  /* A successful worker changes reset_pending() to zero before this code
+   * runs again. FINISHING deliberately owns that handoff. */
+  if (pending == 1) return -EAGAIN;
+  ret = bkprov_owner_unbind();
+  if (ret < 0) return ret;
+  ret = bkprov_network_unbind();
+  if (ret < 0) return ret;
+  bkprov_identity_clear(&g_identity);
+  g_identity_bound = false;
+  g_control_bound = false;
+  g_configured = false;
+  g_cloud_loaded = false;
+  g_config_revision = 0;
+  atomic_store(&g_trigger_prepare_pending, true);
+  (void)bkprov_owner_quiesce(false);
+  g_reset_phase = PRODUCT_RESET_IDLE;
+  return 1;
+}
+
 static const struct bkprov_voice_ops_s g_provision_voice =
 {
   product_available, product_load_legacy, product_connect, product_ready,
@@ -2230,6 +2373,32 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       bkagent_ota_poll();
       product_scan_step();
       uint64_t now = bkvoice_config_now_ms(NULL);
+      int reset = product_reset_step();
+      if (reset)
+        {
+          if (reset > 0 || g_reset_phase != PRODUCT_RESET_IDLE)
+            {
+              /* Do this before TURN_COMPLETE or preference recovery can
+               * revive an owner that SRV1 has already revoked. */
+              voice_action = VOICE_ACTION_NONE;
+              voice_interaction_active = false;
+              preferences_pending = false;
+              /* 完成撤销后必须重新绑定保留的设备身份；bootstrap 状态
+               * 未必变化，不能依赖一次已被消费的存储通知。 */
+              pending = reset == 1;
+              link_expected = false;
+              network_was_busy = false;
+              events = 0;
+              (void)atomic_exchange(&g_product_events, 0);
+            }
+          else
+            {
+              /* 未确认撤销的读取故障阻止新工作，但不吞掉完成通知。 */
+              atomic_fetch_or(&g_product_events, events);
+            }
+          if (reset != -EAGAIN && reset != 1) g_product_error = reset;
+          continue;
+        }
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
       if (product_keys_step(now))
         {

@@ -1562,12 +1562,15 @@ $(BUILD)/test_bk7258_preferences: test_bk7258_preferences.c \
 	$(VOICE_PACK_ROOT)/bk7258_preferences_storage.h \
 	$(VOICE_PACK_ROOT)/bk7258_preferences.h mocks/kvdb.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread $< \
-	    $(VOICE_PACK_ROOT)/bk7258_preferences.c -o $@
+	    -I $(MOCKS) -I $(OPENVELA_ROOT)/external/unqlite/unqlite \
+	    -I $(VOICE_PACK_ROOT) $(VOICE_PACK_ROOT)/bk7258_preferences.c -o $@
 
 $(BUILD)/test_bk7258_preferences_voice_volume: test_bk7258_preferences_voice_volume.c \
 	$(VOICE_PACK_ROOT)/bk7258_preferences.c | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread \
-	    -DCONFIG_BK7258_VOICE_VOLUME_PERSISTENCE=1 $^ -o $@
+	    -DCONFIG_BK7258_VOICE_VOLUME_PERSISTENCE=1 \
+	    -I $(MOCKS) -I $(OPENVELA_ROOT)/external/unqlite/unqlite \
+	    -I $(VOICE_PACK_ROOT) $^ -o $@
 
 run-preferences: $(BUILD)/test_bk7258_preferences \
 	$(BUILD)/test_bk7258_preferences_voice_volume \

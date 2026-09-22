@@ -56,6 +56,8 @@ int bk7258_display_show_mapping_test(void);
 int bk7258_display_install(const char *filename);
 int bk7258_display_activate(const char *filename);
 int bk7258_display_import(const void *data, size_t size);
+/* Reset the persisted user selection but retain installed packs. */
+int bk7258_display_reset_selection(void);
 int bk7258_display_get_status(struct bkdisplay_service_status_s *status);
 
 #endif /* __APP_BK7258_BK7258_DISPLAY_SERVICE_H */

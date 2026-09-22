@@ -382,6 +382,20 @@ int main(int argc, char **argv)
       assert(calls == before && !s.open);
     }
   test_ota_transport();
+  /* Only RESET_TRANSFER may add its receipt transaction to authenticated
+   * CONFIG_READ; other kinds remain the original four-byte request. */
+  authenticate(&s);
+  frame(p, BKCONTROL_CONFIG_READ, 1, 20);
+  put(p + 16, BKCONTROL_CONFIG_RESET_TRANSFER << 16);
+  memset(p + 20, 0x5a, 16);
+  assert(bkcontrol_session_packet(&s, p, 36, response) == 0);
+  assert((int32_t)get(response + 16) == -ENOTSUP && s.open);
+  bkcontrol_session_close(&s);
+  authenticate(&s);
+  frame(p, BKCONTROL_CONFIG_READ, 1, 20);
+  put(p + 16, BKCONTROL_CONFIG_SETTINGS << 16);
+  assert(bkcontrol_session_packet(&s, p, 36, response) == -EPROTO);
+  assert(bytes_zero(&s, sizeof(s)));
   puts("PASS: control authentication, replay rejection, OTA bounds, ownership and wipe semantics");
   return 0;
 }

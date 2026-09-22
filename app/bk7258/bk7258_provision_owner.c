@@ -204,6 +204,18 @@ static void close_window(int error)
   g_owner.confirm_armed = false;
 }
 
+/* The physical eight-second recovery channel is read-only.  A matching SRR1
+ * is a public completion receipt; SRV1 remains pending rather than becoming
+ * an ordinary committed configuration receipt. */
+static int owner_receipt(const uint8_t transaction[16])
+{
+  int reset = bkprov_storage_reset_receipt(transaction);
+  if (reset == BKPROV_STORAGE_RESET_RECEIPT_COMPLETED) return 1;
+  if (reset == BKPROV_STORAGE_RESET_RECEIPT_PENDING) return -EAGAIN;
+  if (reset != BKPROV_STORAGE_RESET_RECEIPT_ABSENT) return reset;
+  return bkprov_storage_receipt(transaction);
+}
+
 int bkprov_owner_quiesce(bool enabled)
 {
   g_owner.quiescing = enabled;
@@ -425,14 +437,14 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
       if (g_owner.recovery)
         ret = bkprov_pair_start_recovery(pair, generation, g_owner.certificate,
                   g_owner.key, g_owner.secret, true, owner_now, NULL,
-                  bkprov_storage_receipt);
+                  owner_receipt);
       else
         ret = bkprov_pair_start(pair, generation, g_owner.certificate,
                   g_owner.key, g_owner.secret, true, false, owner_now, NULL,
                   g_owner.ops, g_owner.context);
       if (ret == 0 && !g_owner.recovery)
         {
-          pair->receipt = bkprov_storage_receipt;
+          pair->receipt = owner_receipt;
         }
       if (ret < 0)
         {

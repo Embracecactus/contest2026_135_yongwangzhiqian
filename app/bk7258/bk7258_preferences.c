@@ -453,6 +453,36 @@ static int bk7258_preferences_write(const char *key, const char *value,
   return ret;
 }
 
+static int bk7258_preferences_reset_locked(void)
+{
+  static const char *const keys[] = {
+    BK7258_PREFERENCES_VOLUME_KEY,
+    BK7258_PREFERENCES_PERSONA_KEY,
+    BK7258_PREFERENCES_THINKING_KEY,
+    BK7258_PREFERENCES_WAKE_THRESHOLD_KEY,
+  };
+  for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
+    {
+      int ret = bk7258_preferences_backend_result(property_delete(keys[i]));
+      if (ret == -ENOENT || ret == -ENODATA) continue;
+      if (ret < 0) return ret;
+    }
+  return bk7258_preferences_backend_result(property_commit());
+}
+
+int bk7258_preferences_reset(void)
+{
+  int ret = nxmutex_lock(&g_preferences_lock);
+  if (ret < 0) return ret;
+  /* Delete may partly reach disk before an error. Never retain the previous
+   * confirmed volume across that uncertainty. */
+  g_playback_volume = -1;
+  ret = bk7258_preferences_storage_begin();
+  if (ret >= 0) ret = bk7258_preferences_storage_end(bk7258_preferences_reset_locked());
+  nxmutex_unlock(&g_preferences_lock);
+  return ret;
+}
+
 int bk7258_preferences_set_volume(unsigned int volume_percent)
 {
 #ifdef CONFIG_BK7258_VOICE_VOLUME_PERSISTENCE

@@ -223,6 +223,49 @@ static void bkdisplay_store_sync_directory(const char *path)
     }
 }
 
+static int bkdisplay_store_sync_directory_strict(const char *path)
+{
+  int fd = open(path, O_RDONLY);
+  if (fd < 0) return bkdisplay_store_errno();
+  int ret = fsync(fd) < 0 ? bkdisplay_store_errno() : 0;
+  if (close(fd) < 0 && ret == 0) ret = bkdisplay_store_errno();
+  return ret;
+}
+
+static int bkdisplay_store_sync_if_directory(const char *path)
+{
+  struct stat info;
+  if (lstat(path, &info) < 0) return errno == ENOENT ? 0 : bkdisplay_store_errno();
+  if (!S_ISDIR(info.st_mode)) return -ENOTDIR;
+  return bkdisplay_store_sync_directory_strict(path);
+}
+
+int bkdisplay_store_reset_selection(const char *root)
+{
+  static const char *const names[] =
+    {BKDISPLAY_STORE_ACTIVE, BKDISPLAY_STORE_ACTIVE_TMP,
+     BKDISPLAY_STORE_LEGACY_ACTIVE};
+  char path[BKDISPLAY_PACK_PATH_SIZE];
+  int ret;
+  if (root == NULL) return -EINVAL;
+  for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+    {
+      ret = bkdisplay_store_path(path, sizeof(path), root, names[i]);
+      if (ret < 0) return ret;
+      if (unlink(path) < 0 && errno != ENOENT) return bkdisplay_store_errno();
+    }
+  /* A first-use volume has neither tree. That is already a positive absence;
+   * do not create directories merely to reset them. Each existing layout's
+   * own parent is fsynced after its active entry is removed. */
+  ret = bkdisplay_store_path(path, sizeof(path), root, BKDISPLAY_STORE_BASE);
+  if (ret < 0) return ret;
+  ret = bkdisplay_store_sync_if_directory(path);
+  if (ret < 0) return ret;
+  ret = bkdisplay_store_path(path, sizeof(path), root, BKDISPLAY_STORE_LEGACY_BASE);
+  if (ret < 0) return ret;
+  return bkdisplay_store_sync_if_directory(path);
+}
+
 static int bkdisplay_store_read_active(const char *path, char *filename,
                                        size_t capacity)
 {

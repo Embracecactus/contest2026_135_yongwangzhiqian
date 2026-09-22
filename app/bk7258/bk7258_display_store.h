@@ -31,6 +31,9 @@ int bkdisplay_store_resolve(const char *root,
                             struct bkdisplay_store_selection_s *selection);
 int bkdisplay_store_activate(const char *root, const char *filename,
                              struct bkdisplay_store_selection_s *selection);
+/* Forget only the user's selected pack. Installed factory/resource packs and
+ * staging remain intact; directory entry removal is synchronized. */
+int bkdisplay_store_reset_selection(const char *root);
 int bkdisplay_store_install(const char *root, const char *filename,
                             struct bkdisplay_store_selection_s *selection);
 int bkdisplay_store_import(const char *root, const void *data, size_t size,

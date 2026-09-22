@@ -85,11 +85,17 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
       if (command < BKCONTROL_STATUS || command > BKCONTROL_CONFIG_CANCEL) goto fail;
       if (command >= BKCONTROL_CONFIG_READ)
         {
+          if (command == BKCONTROL_CONFIG_READ)
+            {
+              if (payload != 4 && payload != 20) goto fail;
+              argument = get32(p + 16);
+              if (payload == 20 &&
+                  (argument >> 16) != BKCONTROL_CONFIG_RESET_TRANSFER)
+                goto fail;
+            }
           if (s->config == NULL) { ret = -ENOTSUP; goto config_done; }
           if (command == BKCONTROL_CONFIG_READ)
             {
-              if (payload != 4) goto fail;
-              argument = get32(p + 16);
               if ((argument >> 16) == BKCONTROL_CONFIG_CAPABILITIES)
                 {
                   ret = -ERANGE;
@@ -105,7 +111,9 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
                   goto config_done;
                 }
               ret = s->config(s->context, (enum bkcontrol_command_e)command,
-                  argument >> 16, argument & 0xffffu, NULL, 0, &status);
+                  argument >> 16, argument & 0xffffu,
+                  payload == 20 ? p + 20 : NULL, payload == 20 ? 16 : 0,
+                  &status);
             }
           else if (command == BKCONTROL_CONFIG_BEGIN)
             {

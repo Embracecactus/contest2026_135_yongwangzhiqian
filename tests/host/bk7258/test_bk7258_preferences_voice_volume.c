@@ -24,6 +24,7 @@ int property_get_with_err(const char *key, char *value)
 }
 int property_set(const char *key, const char *value)
 {assert(!strcmp(key, "persist.shaniu.persona"));(void)value;return 0;}
+int property_delete(const char *key) {(void)key;return 0;}
 int property_commit(void) {return 0;}
 int main(void)
 {

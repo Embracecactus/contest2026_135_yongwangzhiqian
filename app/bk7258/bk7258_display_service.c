@@ -976,6 +976,25 @@ int bk7258_display_import(const void *data, size_t size)
   return ret == 0 ? bk7258_display_service_start() : ret;
 }
 
+int bk7258_display_reset_selection(void)
+{
+  struct bkdisplay_service_s *service = &g_bkdisplay_service;
+  int ret = nxmutex_lock(&service->lock);
+  int close_ret;
+  if (ret < 0) return ret;
+  ret = service->devices_ready ? bkdisplay_volume_open(service) : -EAGAIN;
+  if (ret == 0)
+    {
+      ret = bkdisplay_store_reset_selection(BKDISPLAY_MOUNTPOINT);
+      close_ret = bkdisplay_volume_close(service);
+      if (ret == 0 && close_ret < 0) ret = close_ret;
+    }
+  if (ret == 0) ret = bkdisplay_render_locked(service, "neutral");
+  if (ret < 0) bkdisplay_status_error(service, ret);
+  nxmutex_unlock(&service->lock);
+  return ret;
+}
+
 int bk7258_display_get_status(struct bkdisplay_service_status_s *status)
 {
   struct bkdisplay_service_s *service = &g_bkdisplay_service;

@@ -58,6 +58,8 @@ int bkprov_storage_snapshot(void *out, size_t cap, size_t *size,
 }
 int bkprov_storage_receipt(const uint8_t transaction[16])
 { (void)transaction; return 1; }
+int bkprov_storage_reset_receipt(const uint8_t transaction[16])
+{ (void)transaction; return BKPROV_STORAGE_RESET_RECEIPT_ABSENT; }
 static int begin(void *c, const uint8_t *b, size_t n)
 { (void)c; (void)b; (void)n; return 0; }
 static int poll_trial(void *c) { (void)c; return 0; }
@@ -88,7 +90,9 @@ int bkprov_pair_start_recovery(struct bkprov_pair_s *p, uint32_t gen,
                                int (*receipt)(const uint8_t[16]))
 {
   assert(crt == &certificate && pk == &key && !memcmp(proof, secret, 32));
-  assert(local && clock(clock_context) == now && receipt == bkprov_storage_receipt);
+  assert(local && clock(clock_context) == now && receipt != NULL);
+  uint8_t transaction[16] = {0};
+  assert(receipt(transaction) == 1);
   p->tls.initialized = true;
   p->tls.generation = gen;
   p->claim.state = BKPROV_AUTH;

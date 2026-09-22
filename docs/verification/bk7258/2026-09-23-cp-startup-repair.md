@@ -1,7 +1,7 @@
 # CP 649 startup repair candidate
 
-Status: the P0 target build is verified; the post-P0 soft-off WFI wrapper is
-a source/linker candidate pending a fresh target build. **New boot and K2
+Status: the P0 target build and post-P0 soft-off WFI wrapper target link are
+verified. They remain a startup repair candidate. **New boot and K2
 operation are not verified**.
 No board reset, Flash write or soft-off was performed for this investigation.
 649 remains a diagnostic image, not a recommended deployment.

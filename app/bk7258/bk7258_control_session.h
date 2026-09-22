@@ -54,6 +54,14 @@ enum bkcontrol_command_e
  * the staging operation with unknown snapshot fields; they do not read the
  * product's devices. Bit 16384 advertises
  * support. Kind 1 is MCP1 ASR/chat/TTS names only, never credentials.
+ * Kind 9 is the factory-reset transaction. BEGIN/APPEND/APPLY carry SRT1:
+ * magic, reserved BE32 zero, expected revision BE64, and a nonzero 16-byte
+ * transaction. APPLY returns zero only after SRV1 is durable; -EAGAIN means
+ * the client must retry that exact SRT1 transaction. READ normally carries
+ * four bytes, but RESET_TRANSFER READ carries those four bytes followed by
+ * the 16-byte transaction and returns SRS1 (state/reserved/transaction).
+ * It is authenticated and read-only: PENDING is not completion and no query
+ * can request or resume an erase.
  * The staging buffer is shared with OTA, so transfers cannot interleave.
  * APPLY acknowledges a worker request; READ must confirm its actual result.
  */
@@ -75,6 +83,8 @@ enum bkcontrol_command_e
 /* Read-only WFS1: 12-byte header, then SSID length/RSSI/channel/security
  * and 32 SSID bytes per result. Reuses the device's single scan worker. */
 #define BKCONTROL_CONFIG_WIFI_SCAN 8u
+/* SRT1 request / SRS1 public receipt; no user configuration is returned. */
+#define BKCONTROL_CONFIG_RESET_TRANSFER 9u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (136u + 65536u)
 struct bkcontrol_device_info_s

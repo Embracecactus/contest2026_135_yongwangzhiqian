@@ -11,6 +11,7 @@
 
 int property_get_with_err(const char *key, char *value);
 int property_set(const char *key, const char *value);
+int property_delete(const char *key);
 int property_commit(void);
 
 #endif /* TEST_BK7258_MOCK_KVDB_H */

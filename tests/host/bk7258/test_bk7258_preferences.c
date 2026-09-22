@@ -8,18 +8,23 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <unqlite.h>
 #include <nuttx/mutex.h>
 
 #include "bk7258_preferences.h"
 
 static const char *g_volume;
 static const char *g_persona;
+static const char *g_thinking;
+static const char *g_threshold;
 static int g_volume_error;
 static int g_persona_error;
 static int g_set_error;
 static int g_commit_error;
+static int g_delete_error;
 static unsigned int g_set_calls;
 static unsigned int g_commit_calls;
+static unsigned int g_delete_calls;
 static char g_last_key[32];
 static char g_last_value[32];
 static int g_storage_error;
@@ -64,6 +69,16 @@ int property_get_with_err(const char *key, char *value)
       source = g_persona;
       error = g_persona_error;
     }
+  else if (strcmp(key, "persist.shaniu.thinking") == 0)
+    {
+      source = g_thinking;
+      error = source == NULL ? UNQLITE_NOTFOUND : 0;
+    }
+  else if (strcmp(key, "persist.shaniu.wake_threshold") == 0)
+    {
+      source = g_threshold;
+      error = source == NULL ? UNQLITE_NOTFOUND : 0;
+    }
   else
     {
       return -EINVAL;
@@ -74,7 +89,7 @@ int property_get_with_err(const char *key, char *value)
       return error;
     }
 
-  assert(source != NULL);
+  if (source == NULL) return UNQLITE_NOTFOUND;
   strcpy(value, source);
   return (int)strlen(value);
 }
@@ -88,6 +103,21 @@ int property_set(const char *key, const char *value)
   return g_set_error;
 }
 
+int property_delete(const char *key)
+{
+  assert(g_storage_active);
+  g_delete_calls++;
+  if (g_delete_error < 0) return g_delete_error;
+  const char **slot = strcmp(key, "persist.shaniu.volume") == 0 ? &g_volume :
+                      strcmp(key, "persist.shaniu.persona") == 0 ? &g_persona :
+                      strcmp(key, "persist.shaniu.thinking") == 0 ? &g_thinking :
+                      strcmp(key, "persist.shaniu.wake_threshold") == 0 ? &g_threshold : NULL;
+  assert(slot != NULL);
+  if (*slot == NULL) return UNQLITE_NOTFOUND;
+  *slot = NULL;
+  return 0;
+}
+
 int property_commit(void)
 {
   assert(g_storage_active);
@@ -99,12 +129,16 @@ static void reset_db(void)
 {
   g_volume = NULL;
   g_persona = NULL;
+  g_thinking = NULL;
+  g_threshold = NULL;
   g_volume_error = 0;
   g_persona_error = 0;
   g_set_error = 0;
   g_commit_error = 0;
+  g_delete_error = 0;
   g_set_calls = 0;
   g_commit_calls = 0;
+  g_delete_calls = 0;
   g_last_key[0] = '\0';
   g_last_value[0] = '\0';
 }
@@ -135,8 +169,8 @@ int main(void)
   g_cleanup_error = 0;
 
   reset_db();
-  g_volume_error = -ENOENT;
-  g_persona_error = -ENOENT;
+  g_volume_error = UNQLITE_NOTFOUND;
+  g_persona_error = UNQLITE_NOTFOUND;
   assert(bk7258_preferences_get(&preferences) == 0);
   assert(preferences.volume_percent == 50u);
   assert(preferences.persona == BK7258_PERSONA_GENTLE);
@@ -165,9 +199,9 @@ int main(void)
   reset_db();
   g_volume_error = -EIO;
   assert(bk7258_preferences_get(&preferences) == -EIO);
-  g_volume_error = -ENOENT;
-  g_persona_error = -EACCES;
-  assert(bk7258_preferences_get(&preferences) == -EACCES);
+  g_volume_error = UNQLITE_NOTFOUND;
+  g_persona_error = UNQLITE_READ_ONLY;
+  assert(bk7258_preferences_get(&preferences) == -EROFS);
 
   reset_db();
   assert(bk7258_preferences_set_volume(101u) == -ERANGE);
@@ -235,6 +269,34 @@ int main(void)
   assert(bk7258_preferences_get(&preferences) == 0);
   assert(bk7258_preferences_playback_volume(&volume) == 0 && volume == 80);
   assert(bk7258_preferences_playback_volume(NULL) == -EINVAL);
+
+  reset_db();
+  g_volume = "80";
+  g_persona = "quiet";
+  g_thinking = "1";
+  g_threshold = "75";
+  assert(bk7258_preferences_playback_volume(&volume) == 0 && volume == 80);
+  assert(bk7258_preferences_reset() == 0);
+  assert(g_delete_calls == 4u && g_commit_calls == 1u);
+  assert(g_volume == NULL && g_persona == NULL && g_thinking == NULL && g_threshold == NULL);
+  assert(bk7258_preferences_get(&preferences) == 0 && preferences.volume_percent == 50u &&
+         preferences.persona == BK7258_PERSONA_GENTLE && preferences.volume_is_default &&
+         preferences.persona_is_default);
+  bool thinking = true;
+  unsigned int threshold = 0;
+  assert(bk7258_preferences_thinking_get(&thinking) == 0 && !thinking);
+  assert(bk7258_preferences_wake_threshold_get(&threshold) == 0 && threshold == 60u);
+  assert(bk7258_preferences_playback_volume(&volume) == 0 && volume == 50u);
+
+  reset_db();
+  g_volume = "80";
+  g_persona = "quiet";
+  assert(bk7258_preferences_get(&preferences) == 0 && preferences.volume_percent == 80u);
+  assert(bk7258_preferences_playback_volume(&volume) == 0 && volume == 80);
+  g_delete_error = -EIO;
+  assert(bk7258_preferences_reset() == -EIO && g_delete_calls == 1u && g_commit_calls == 0u);
+  g_storage_error = -EBUSY;
+  assert(bk7258_preferences_playback_volume(&volume) == -EBUSY);
   puts("BK7258_PREFERENCES_HOST_PASS");
   return 0;
 }

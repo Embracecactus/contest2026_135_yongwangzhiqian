@@ -35,6 +35,10 @@ int bk7258_preferences_get(struct bk7258_preferences_s *preferences);
 int bk7258_preferences_playback_volume(unsigned int *volume_percent);
 int bk7258_preferences_set_volume(unsigned int volume_percent);
 int bk7258_preferences_set_persona(const char *persona);
+/* Delete only the declared Shaniu preference keys and commit them as one
+ * bounded KVDB update. A failure leaves the playback cache invalid so an old
+ * volume cannot be reused as if reset had completed. */
+int bk7258_preferences_reset(void);
 /* Uses the existing device configuration store; when the item is absent the
  * default is fast conversation and the old configuration is not rewritten.
  */
