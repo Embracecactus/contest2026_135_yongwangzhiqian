@@ -35,6 +35,15 @@ int bkprov_storage_refresh(void);
 /* 1 = matching durable receipt; 0 = positively empty store. A different
  * selected transaction is unknown, never proof that this one failed. */
 int bkprov_storage_receipt(const uint8_t transaction[16]);
+/* Authenticated product reset only. First publish a durable revocation marker
+ * in the mutable record. A marker is never an empty/unclaimed configuration.
+ * The product must quiesce all writers, then let this worker clean its exact
+ * user-data replicas. Identity, hardware data and firmware trust are untouched.
+ * A failed cleanup retains the marker; restart resumes from reset_pending=1.
+ */
+int bkprov_storage_reset_request(uint64_t expected, const uint8_t transaction[16]);
+int bkprov_storage_reset_pending(void);
+int bkprov_storage_reset_finish(int (*cleanup)(void));
 /* Shutdown only an idle, determinate worker. -EBUSY/-EINPROGRESS leaves it
  * alive; stop/start cannot erase publication uncertainty. No I/O join. */
 int bkprov_storage_stop(void);

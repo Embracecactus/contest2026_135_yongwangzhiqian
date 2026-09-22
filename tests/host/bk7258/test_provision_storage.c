@@ -15,6 +15,9 @@ static pthread_cond_t wake = PTHREAD_COND_INITIALIZER;
 static bool block_sync;
 static bool entered;
 static bool fail_rename;
+static int cleanup_result;
+static int cleanup_calls;
+static int reset_cleanup(void) { cleanup_calls++; return cleanup_result; }
 int __real_rename(const char *from, const char *to);
 int __wrap_rename(const char *from, const char *to);
 int __wrap_rename(const char *from, const char *to)
@@ -107,12 +110,61 @@ int main(int argc, char **argv)
   assert(bkprov_storage_identity(identity_out, sizeof(identity_out), &size) == 0);
   assert(size == sizeof(identity) && !memcmp(identity_out, identity, sizeof(identity)));
   assert(bkprov_storage_identity_install(identity, sizeof(identity)) == 0);
+  uint8_t reset_tx[16] = {3};
+  assert(bkprov_storage_reset_finish(reset_cleanup) == -EPERM);
+  assert(bkprov_storage_reset_request(0, reset_tx) == -EPERM);
+  int reset_ret = bkprov_storage_reset_request(1, reset_tx);
+  for (int i = 0; i < 3000 && reset_ret == -EAGAIN; i++)
+    { tick(); reset_ret = bkprov_storage_reset_request(1, reset_tx); }
+  assert(reset_ret == 0 && bkprov_storage_reset_pending() == 1);
+  assert(bkprov_storage_snapshot(output, sizeof(output), &size, &revision, actual_tx) == -EOWNERDEAD);
+  assert(bkprov_storage_commit(2, other, original, 3) == -EOWNERDEAD);
+  /* A restart resumes the explicit revocation marker, never an empty store. */
+  assert(bkprov_storage_stop() == 0);
+  assert(bkprov_storage_start(argv[1]) == 0);
+  assert(receipt(reset_tx) == -EOWNERDEAD);
+  assert(bkprov_storage_reset_pending() == 1);
+  cleanup_result = -EIO;
+  reset_ret = bkprov_storage_reset_finish(reset_cleanup);
+  for (int i = 0; i < 3000 && reset_ret == -EAGAIN; i++)
+    { tick(); reset_ret = bkprov_storage_reset_finish(reset_cleanup); }
+  assert(reset_ret == -EIO && cleanup_calls == 1);
+  assert(bkprov_storage_reset_pending() == 1);
+  assert(bkprov_storage_refresh() == 0);
+  assert(receipt(reset_tx) == -EOWNERDEAD);
+  cleanup_result = 0;
+  reset_ret = bkprov_storage_reset_finish(reset_cleanup);
+  for (int i = 0; i < 3000 && reset_ret == -EAGAIN; i++)
+    { tick(); reset_ret = bkprov_storage_reset_finish(reset_cleanup); }
+  assert(reset_ret == 0 && cleanup_calls == 2);
+  assert(bkprov_storage_reset_pending() == 0 && receipt(reset_tx) == 0);
+  assert(bkprov_storage_identity(identity_out, sizeof(identity_out), &size) == 0);
+  assert(size == sizeof(identity) && !memcmp(identity_out, identity, sizeof(identity)));
+  assert(bkprov_storage_stop() == 0);
+  assert(bkprov_storage_start(argv[1]) == 0);
+  assert(receipt(reset_tx) == 0);
+  assert(bkprov_storage_commit(0, tx, original, 3) == -EAGAIN);
+  assert(receipt(tx) == 1);
+  for (int cycle = 0; cycle < 2; cycle++)
+    {
+      reset_tx[0] = 4 + cycle;
+      reset_ret = bkprov_storage_reset_request(1, reset_tx);
+      for (int i = 0; i < 3000 && reset_ret == -EAGAIN; i++)
+        { tick(); reset_ret = bkprov_storage_reset_request(1, reset_tx); }
+      assert(reset_ret == 0);
+      reset_ret = bkprov_storage_reset_finish(reset_cleanup);
+      for (int i = 0; i < 3000 && reset_ret == -EAGAIN; i++)
+        { tick(); reset_ret = bkprov_storage_reset_finish(reset_cleanup); }
+      assert(reset_ret == 0 && cleanup_calls == 3 + cycle && receipt(reset_tx) == 0);
+      assert(bkprov_storage_commit(0, tx, original, 3) == -EAGAIN);
+      assert(receipt(tx) == 1);
+    }
   pthread_mutex_lock(&lock); fail_rename = true; pthread_mutex_unlock(&lock);
   assert(bkprov_storage_commit(1, other, original, 3) == -EAGAIN);
   assert(receipt(other) == -EINPROGRESS);
   assert(bkprov_storage_refresh() == -EINPROGRESS);
   assert(bkprov_storage_stop() == -EINPROGRESS);
   assert(bkprov_storage_commit(1, other, original, 3) == -EINPROGRESS);
-  puts("storage worker blocked I/O, owned copy and restart receipt: PASS");
+  puts("storage worker blocked I/O, owned copy, reset revocation/resume and restart receipt: PASS");
   return 0;
 }

@@ -19,7 +19,7 @@
 #include <string.h>
 #include <mbedtls/platform_util.h>
 
-enum job_e { JOB_IDLE, JOB_LOAD, JOB_COMMIT, JOB_IDENTITY, JOB_STOP };
+enum job_e { JOB_IDLE, JOB_LOAD, JOB_COMMIT, JOB_IDENTITY, JOB_RESET, JOB_STOP };
 struct storage_s
 {
   pthread_t thread;
@@ -37,6 +37,9 @@ struct storage_s
   int status;
   int result;
   bool completed;
+  bool reset_completed;
+  int reset_result;
+  int (*reset_cleanup)(void);
   uint64_t revision;
   uint64_t expected;
   size_t size;
@@ -50,6 +53,11 @@ static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_wake = PTHREAD_COND_INITIALIZER;
 static struct storage_s *g_storage;
 static void (*g_notify)(void);
+
+static bool reset_marker(const void *record, size_t size)
+{
+  return size == 4 && memcmp(record, "SRV1", 4) == 0;
+}
 
 void bkprov_storage_set_notify(void (*notify)(void))
 {
@@ -112,6 +120,7 @@ static void *worker(void *context)
           if (ret == 0)
             ret = bkprov_store_load(&s->store, s->bundle, sizeof(s->bundle),
                                     &s->size, &s->revision, s->transaction);
+          if (ret == 0 && reset_marker(s->bundle, s->size)) ret = -EOWNERDEAD;
           char identity_root[160];
           snprintf(identity_root, sizeof(identity_root), "%s/identity", s->root);
           if (identity_ret == 0) identity_ret = prepare_directory(identity_root);
@@ -138,6 +147,25 @@ static void *worker(void *context)
               s->identity_size = s->identity_candidate_size;
             }
         }
+      else if (job == JOB_RESET)
+        {
+          /* The marker remains selected until every product-owned replica
+           * has been cleaned. No format, identity erase or broad tree erase. */
+          ret = s->reset_cleanup();
+          if (ret == 0 && unlink(s->store.pending) < 0 && errno != ENOENT)
+            ret = -errno;
+          if (ret == 0 && unlink(s->store.active) < 0) ret = -errno;
+          if (ret == 0) ret = bkprov_store_sync_directory(s->store.directory);
+          if (ret == 0)
+            {
+              mbedtls_platform_zeroize(s->bundle, sizeof(s->bundle));
+              mbedtls_platform_zeroize(s->candidate, sizeof(s->candidate));
+              s->size = s->candidate_size = 0;
+              s->revision = 0;
+              memset(s->transaction, 0, 16);
+              memset(s->candidate_transaction, 0, 16);
+            }
+        }
       else
         {
           ret = bkprov_store_commit(&s->store, s->expected,
@@ -160,11 +188,24 @@ static void *worker(void *context)
           s->identity_completed = true;
           if (ret == 0 || ret == -EINPROGRESS) s->identity_status = ret;
         }
+      else if (job == JOB_RESET)
+        {
+          s->reset_result = ret;
+          s->reset_completed = true;
+          s->status = ret == 0 ? -ENOENT :
+                      ret == -EINPROGRESS ? -EINPROGRESS : -EOWNERDEAD;
+        }
       else
         {
           s->result = ret;
           s->completed = true;
           if (ret == 0 || ret == -EINPROGRESS) s->status = ret;
+          if (ret == 0 && reset_marker(s->bundle, s->size))
+            {
+              s->status = -EOWNERDEAD;
+              s->reset_completed = false;
+              s->reset_result = 0;
+            }
           /* Candidate is retained for exact idempotent polls until refresh,
            * next transaction or shutdown, never owned by the BLE session. */
         }
@@ -323,10 +364,49 @@ int bkprov_storage_refresh(void)
       mbedtls_platform_zeroize(s->candidate, sizeof(s->candidate));
       memset(s->candidate_transaction, 0, 16);
       s->completed = false; s->candidate_size = 0;
+      s->reset_completed = false;
       mbedtls_platform_zeroize(s->identity_candidate, sizeof(s->identity_candidate));
       s->identity_candidate_size = 0; s->identity_completed = false;
       s->job = JOB_LOAD;
       pthread_cond_signal(&g_wake);
+    }
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
+int bkprov_storage_reset_request(uint64_t expected, const uint8_t transaction[16])
+{
+  if (expected == 0) return -EPERM;
+  return bkprov_storage_commit(expected, transaction, "SRV1", 4);
+}
+
+int bkprov_storage_reset_pending(void)
+{
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret = s == NULL ? -ENODEV : s->job != JOB_IDLE ? -EAGAIN :
+            s->status == -EOWNERDEAD ? 1 :
+            s->status == 0 || s->status == -ENOENT ? 0 : s->status;
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
+int bkprov_storage_reset_finish(int (*cleanup)(void))
+{
+  if (cleanup == NULL) return -EINVAL;
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret;
+  if (s == NULL) ret = -ENODEV;
+  else if (s->job != JOB_IDLE) ret = -EAGAIN;
+  else if (s->reset_completed) ret = s->reset_result;
+  else if (s->status != -EOWNERDEAD) ret = -EPERM;
+  else
+    {
+      s->reset_cleanup = cleanup;
+      s->job = JOB_RESET;
+      pthread_cond_signal(&g_wake);
+      ret = -EAGAIN;
     }
   pthread_mutex_unlock(&g_lock);
   return ret;
