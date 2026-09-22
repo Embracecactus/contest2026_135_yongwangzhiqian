@@ -44,8 +44,11 @@ jobs:
           mkdir -p "$cold"
           cd "$cold"
           repo init -u "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
-            -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml \
+            -b "$GITHUB_SHA" -m contest2026_135_yongwangzhiqian.xml \
             -g default,bk7258-sdk,platform-linux
+          # Lock the dependency manifest before syncing, not only the team
+          # checkout afterwards: a newer branch tip must not change Agent inputs.
+          test "$(git -C .repo/manifests rev-parse HEAD)" = "$GITHUB_SHA"
           repo sync -j4 \
             apps apps/audioutils/speexdsp/speexdsp \
             apps/boot/mcuboot/mcuboot apps/crypto/mbedtls/mbedtls \
@@ -155,7 +158,8 @@ jobs:
           python3 tests/host/bk7258/test_bk7258_package_delivery.py
           SHANIU_ANDROID_INTEROP=1 make -C tests/host/bk7258 run-product-keys run-provision
           make -C tests/host/bk7258 run-cloud-config run-cloud-request \
-            run-cloud-http test-control-session test-control-pair
+            run-cloud-http test-control-session test-control-pair \
+            run-agent-tts-queue run-voice-media-player
 
       - name: Stage public delivery evidence without the development private key
         shell: bash

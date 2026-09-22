@@ -508,6 +508,18 @@ $(BUILD)/test_bk7258_agent_media_player: test_bk7258_agent_media_player.c \
 run-voice-media-player: $(BUILD)/test_bk7258_agent_media_player
 	./$(BUILD)/test_bk7258_agent_media_player
 
+$(BUILD)/test_agent_tts_queue: test_bk7258_agent_media_player.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_channel.c | $(BUILD)
+	$(CC) $(CFLAGS) -DTEST_AGENT_TTS_QUEUE -DOK=0 -DERROR=-1 \
+		-ffunction-sections -fdata-sections -Wl,--gc-sections \
+		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< -o $@
+
+.PHONY: run-agent-tts-queue
+run-agent-tts-queue: $(BUILD)/test_agent_tts_queue
+	./$(BUILD)/test_agent_tts_queue
+
 $(VISION_RECORD_TARGET): test_bk7258_vision_record.c \
 	$(VOICE_PACK_ROOT)/bk7258_vision_record.c \
 	$(VOICE_PACK_ROOT)/bk7258_vision_record.h | $(BUILD)

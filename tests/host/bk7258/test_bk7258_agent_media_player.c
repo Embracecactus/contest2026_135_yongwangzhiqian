@@ -1,4 +1,93 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#ifdef TEST_AGENT_TTS_QUEUE
+/* 同一播放器验收入口，使用真实 Agent 队列及受控 Media 消费端。 */
+#include <assert.h>
+#include <stddef.h>
+size_t strlcpy(char *, const char *, size_t);
+#include "voice/voice_channel.c"
+
+static atomic_int test_canceled;
+static int test_mode;
+static size_t test_written;
+static unsigned int test_opens;
+
+audio_playback_t* audio_playback_open(const char* path, unsigned int rate,
+    unsigned int channels, unsigned int bits)
+{
+    (void)path;
+    assert(rate == 24000 && channels == 1 && bits == 16);
+    test_opens++;
+    assert(test_opens == 1);
+    return (audio_playback_t*)&test_opens;
+}
+
+int audio_playback_write(audio_playback_t* pb, const void* bytes, size_t size)
+{
+    assert(pb && size && size % 2 == 0);
+    if (test_mode == 2) return -EIO;
+    if (test_mode == 3) {
+        atomic_store(&s_voice.tts_abort, 1);
+        return -ECANCELED;
+    }
+    const unsigned char* pcm = bytes;
+    for (size_t i = 0; i < size; i++)
+        assert(pcm[i] == (unsigned char)((test_written + i) % 251));
+    test_written += size;
+    usleep(1000); /* 有界慢消费者，强制覆盖队列满和环回。 */
+    return (int)size;
+}
+
+void audio_playback_stop(audio_playback_t* pb) { (void)pb; }
+int voice_tts_cancel(void) { atomic_store(&test_canceled, 1); return 0; }
+int voice_tts_get_capabilities(voice_tts_capabilities_t* caps)
+{
+    *caps = (voice_tts_capabilities_t){ .sample_rate = 24000,
+        .channels = 1, .bits = 16 };
+    return 0;
+}
+
+int voice_tts_speak_stream_checked(const char* text, voice_tts_chunk_cb cb,
+    void* context, int (*check)(void*), void* request)
+{
+    (void)text; (void)check; (void)request;
+    unsigned char chunk[1021]; /* 故意在 PCM 半帧处分块。 */
+    size_t total = test_mode == 1 ? 200001 : 200000;
+    for (size_t pos = 0; pos < total;) {
+        size_t n = total - pos < sizeof(chunk) ? total - pos : sizeof(chunk);
+        for (size_t i = 0; i < n; i++) chunk[i] = (unsigned char)((pos + i) % 251);
+        cb(chunk, n, 0, context);
+        if (atomic_load(&test_canceled)) return -ECANCELED;
+        pos += n;
+    }
+    cb(NULL, 0, 1, context);
+    if (test_mode == 4) cb(NULL, 0, 1, context);
+    return 0;
+}
+
+int main(void)
+{
+    for (test_mode = 0; test_mode <= 4; test_mode++) {
+        tts_output_t output = {0};
+        uint64_t id = 1;
+        test_written = 0;
+        test_opens = 0;
+        atomic_store(&test_canceled, 0);
+        atomic_store(&s_voice.tts_abort, 0);
+        s_voice.tts_pb = NULL;
+        clock_gettime(CLOCK_MONOTONIC, &s_tts_start);
+        int ret = tts_speak_queued("fixture", &output, 0, &id);
+        if (output.error) ret = output.error;
+        if (test_mode == 0) {
+            assert(ret == 0 && output.terminal && test_written == 200000);
+        } else {
+            int expected[] = {0, -EPROTO, -EIO, -ECANCELED, -EPROTO};
+            assert(ret == expected[test_mode]);
+        }
+    }
+    puts("BKVOICE_AGENT_QUEUE_HOST_PASS fragmented-pcm bounded-ring cancel media-error duplicate-eof");
+    return 0;
+}
+#else
 /* Real EOF worker/close with a controlled lower-half completion queue. */
 #include <assert.h>
 #include <errno.h>
@@ -55,7 +144,6 @@ static int test_ioctl(int fd, unsigned long request, ...)
     }
   return 0;
 }
-
 static ssize_t test_receive(mqd_t mq, char *buffer, size_t bytes,
                             unsigned int *priority)
 {
@@ -163,3 +251,4 @@ int main(void)
   puts("BKVOICE_PLAYER_EOF_HOST_PASS");
   return 0;
 }
+#endif
