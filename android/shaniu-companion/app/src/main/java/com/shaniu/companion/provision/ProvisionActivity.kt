@@ -647,43 +647,84 @@ class ProvisionActivity : Activity() {
         stopDiscovery(); showPage(2)
         resultButton.text = "取消连接"
         val current = ++epoch
+        val deviceId = identity.deviceId
         var terminal = false
-        lateinit var control: DeviceControlConnection
-        control = DeviceControlConnection(this, target, identity.deviceId, { command, snapshot ->
+        val attempt = RecoveryAttempt()
+        recoveryControl = attempt
+        resultButton.setOnClickListener { goBack() }
+        Thread {
+          try {
+            val control = DeviceControlConnection(applicationContext, target, deviceId, { command, snapshot ->
             if (command == DeviceControlProtocol.Command.STATUS) handler.post {
-                if (!alive || !foreground || current != epoch || recoveryControl !== control) return@post
+                if (!alive || !foreground || current != epoch || recoveryControl !== attempt || terminal) return@post
                 if (snapshot.error != 0) {
                     status.text = "设备未确认已保存配置，正在核对认领回执。"
-                    control.close()
-                } else if (runCatching {
-                        bindingStore.commit(identity.deviceId, transaction)
-                    }.getOrDefault(false)) {
-                    terminal = true
-                    recoveryControl = null
-                    status.text = "设备已确认保存连接设置。"
-                    titleLabel.text = "设置已保存"
-                    resultButton.text = "返回首页"
-                    resultButton.setOnClickListener { finish() }
-                    setResult(RESULT_OK, Intent().putExtra(EXTRA_PROVISIONED_DEVICE_ID, identity.deviceId))
-                    control.close()
+                    attempt.close()
                 } else {
                     terminal = true
-                    recoveryControl = null
-                    status.text = "提交已验证但本机保存未确认；请勿重复认领。"
-                    outcomeUnknown = true
-                    titleLabel.text = "连接尚未完成"
-                    resultButton.text = "返回查找设备"
-                    resultButton.setOnClickListener { goBack() }
-                    control.close()
+                    attempt.close()
+                    // A confirmed receipt may finish saving after navigation,
+                    // but a stale Activity must never receive its UI callback.
+                    Thread {
+                        val saved = runCatching { bindingStore.commit(deviceId, transaction) }.getOrDefault(false)
+                        handler.post {
+                            if (!alive || !foreground || current != epoch || recoveryControl !== attempt) return@post
+                            recoveryControl = null
+                            if (saved) {
+                                status.text = "设备已确认保存连接设置。"
+                                titleLabel.text = "设置已保存"
+                                resultButton.text = "返回首页"
+                                resultButton.setOnClickListener { finish() }
+                                setResult(RESULT_OK, Intent().putExtra(EXTRA_PROVISIONED_DEVICE_ID, deviceId))
+                            } else {
+                                status.text = "提交已验证但本机保存未确认；请勿重复认领。"
+                                outcomeUnknown = true
+                                titleLabel.text = "连接尚未完成"
+                                resultButton.text = "返回查找设备"
+                                resultButton.setOnClickListener { goBack() }
+                            }
+                        }
+                    }.start()
                 }
             }
         }, { _ -> handler.post {
-            if (!alive || !foreground || current != epoch || recoveryControl !== control) return@post
+            if (!alive || !foreground || current != epoch || recoveryControl !== attempt || terminal) return@post
             recoveryControl = null
-            if (!terminal) connect(recover = true, controlFirst = false)
+            connect(recover = true, controlFirst = false)
         } }, bindingStore, transaction)
-        recoveryControl = control
-        resultButton.setOnClickListener { goBack() }
+            attempt.attach(control)
+          } catch (_: Exception) {
+            attempt.close()
+            handler.post {
+                if (!alive || !foreground || current != epoch || recoveryControl !== attempt) return@post
+                recoveryControl = null
+                outcomeUnknown = true
+                reportStatus("无法读取本机认领凭据，结果仍待确认。请保留 App 数据并重试。")
+                resultButton.text = "返回查找设备"
+                resultButton.setOnClickListener { goBack() }
+            }
+          }
+        }.start()
+    }
+
+    /** Cancellation can precede Keystore work finishing or GATT construction.
+     * One holder owns both cases without blocking the UI or leaking a late link. */
+    private class RecoveryAttempt : AutoCloseable {
+        private var closed = false
+        private var connection: AutoCloseable? = null
+        fun attach(value: AutoCloseable) {
+            val discard = synchronized(this) {
+                if (closed) true else { connection = value; false }
+            }
+            if (discard) value.close()
+        }
+        override fun close() {
+            val value = synchronized(this) {
+                closed = true
+                connection.also { connection = null }
+            }
+            value?.close()
+        }
     }
 
     private fun cancelRecoveryToDiscovery() {

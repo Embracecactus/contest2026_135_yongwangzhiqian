@@ -681,6 +681,21 @@ internal object DeviceUiAcceptance {
                 }
             } finally { finishProvision(instrumentation, activity); binding.close() }
         }
+        scenario("recovery_cancel_before_and_after_connection_creation") {
+            val type = Class.forName("com.shaniu.companion.provision.ProvisionActivity\$RecoveryAttempt")
+            val constructor = type.getDeclaredConstructor().apply { isAccessible = true }
+            val attach = type.getDeclaredMethod("attach", AutoCloseable::class.java).apply { isAccessible = true }
+            repeat(2) { early ->
+                val attempt = constructor.newInstance() as AutoCloseable
+                var closed = 0
+                val connection = AutoCloseable { closed++ }
+                if (early == 0) attempt.close()
+                attach.invoke(attempt, connection)
+                check(closed == if (early == 0) 1 else 0)
+                attempt.close(); attempt.close()
+                check(closed == 1) { "late or cancelled recovery link was leaked or closed twice" }
+            }
+        }
         if (only != null) check(selected == 1) { "Unknown emulator flow scenario: $only" }
         check(failures.isEmpty()) { results.joinToString("\n") }
         return results.joinToString("; ")
