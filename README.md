@@ -14,7 +14,7 @@ AIToyBoard 运行可独立语音交互的 AI 伴侣「傻妞」。
 比赛仓库是 [open-vela/contest2026_135_yongwangzhiqian](https://github.com/open-vela/contest2026_135_yongwangzhiqian)；
 开发 fork 不是另一个参赛项目。
 
-## Android 设备应用（0.7.5 / code 35）
+## Android 设备应用（0.7.6 / code 36）
 
 主导航为 **设备｜定制｜更新｜设置**。设备页默认打开；认领无需互联网，
 Wi-Fi 与云模型独立编辑。密码和 Key 不回读、不写入界面保存状态。
@@ -68,6 +68,7 @@ Windows Android 模拟器已运行此 APK，并实际操作导航、键盘和表
 · [App 操作补充视频（1 分 26 秒）](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
 · [视频下载、字幕及哈希](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
 · [B 站实机演示 BV1pueq6hEzQ](https://www.bilibili.com/video/BV1pueq6hEzQ/)
+· [抖音：猪猪猪序员｜终于，把属于我的「傻妞」做出来了](https://v.douyin.com/KPDrc4IEQYw/)
 
 同一支实机演示的 B 站入口：<https://www.bilibili.com/video/BV1pueq6hEzQ/>。
 GitHub 渲染 README 时会剥离 `<iframe>`，所以仓库页以上面的链接观看；需要内嵌播放器的
