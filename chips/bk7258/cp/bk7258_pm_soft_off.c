@@ -192,6 +192,7 @@ int bk7258_pm_soft_off_request(void)
 void bk7258_pm_soft_off_boot(const struct bk7258_gpio_config_s *config)
 {
   struct bk7258_reset_cause_raw_s reason;
+  uint8_t primask;
   bool high;
   int ret;
 
@@ -247,10 +248,26 @@ void bk7258_pm_soft_off_boot(const struct bk7258_gpio_config_s *config)
       syslog(LOG_INFO, "soft-off: entering super-deep; wake gpio=%u\n",
              config->power_button_gpio);
       up_mdelay(20);
+
+      /* The SDK PM dispatcher changes GPIO retention and sleep votes before
+       * sys_drv_enter_deep_sleep() takes its own critical section.  This
+       * early NuttX initialization thread arrives
+       * with interrupts enabled.  Protect the entire one-shot transition,
+       * not only the final WFI: a scheduler/driver interrupt must not run
+       * against partially quiesced hardware.  Use PRIMASK as in the existing
+       * low-voltage adapter; the WFI wrapper clears BASEPRI for AON wake.
+       * This path either resets after wake or returns for the reset below.
+       */
+
+      primask = getprimask();
+      setprimask(1);
+      __asm volatile ("dsb sy; isb sy" ::: "memory");
       __atomic_store_n(&g_soft_off_wfi_armed, true, __ATOMIC_RELEASE);
       g_bk7258_cp_sleep_stage = 3;
       bk_pm_enter_sleep();
       g_bk7258_cp_sleep_stage = 6;
+      setprimask(primask);
+      __asm volatile ("isb sy" ::: "memory");
     }
 
   /* SDK entry may abort on a pending interrupt or a power-domain vote.
